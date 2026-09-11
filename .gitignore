@@ -1,0 +1,34 @@
+# Unity 生成的缓存与产物
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# batch 验证日志
+batch_log.txt
+
+# IDE
+.vs/
+.idea/
+*.csproj
+*.sln
+*.user
+*.pidb
+*.booproj
+*.suo
+*.userprefs
+
+# 构建产物
+*.apk
+*.aab
+*.unitypackage
+*.app
+sysinfo.txt
+
+# Crashlytics
+crashlytics-build.properties
