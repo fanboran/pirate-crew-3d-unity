@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-**M0 骨架已初始化**。用 Unity Hub → Open 选择本目录，编辑器自动生成 Library 并补全工程。
+**M0 骨架已初始化**。用 Unity Hub → Open 选择 `pirate-crew/` 子目录，编辑器自动生成 Library 并补全工程。
 
 - 引擎：Unity 2022.3.62f1c1（已装于 `F:\Unity\2022.3.62f1c1`）
 - 已预置包：AI Navigation（寻路）、Cinemachine（相机）、TextMeshPro 走 ugui
