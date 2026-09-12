@@ -13,6 +13,14 @@
 
 ### 注意事项
 
+> ⚠ **空间模型铁律（2026-09-13 血的教训，本项目的定位约束）**：本工程是 **3D 重制**，参照 Godot 基准
+> （XZ 地面竞技场 + 45° 三维相机 + 单位沿 Z 分路）。**竞技场是 XZ 水平面，重力沿 -Y，地面顶面 y=0**。
+> 第一版曾把 Flash 原版的 2D 侧视坐标 1:1 搬进 Unity 的 XY 竖直平面、并用 `FreezePositionZ` 焊死深度，
+> 结果被用户一眼看穿是"披着 3D 引擎的 2D 游戏"——**不要重犯**。
+> 动坐标/相机/投掷/爆炸之前先读 [docs/M2-3D空间模型对齐.md](docs/M2-3D空间模型对齐.md)：
+> 其中定死了 **Godot 出空间结构、Flash 逆向文档出数值** 的分工（Godot 版的弹道/伤害层是自相矛盾的占位实现，
+> 不能照抄它的数值）。
+
 - 使用中文回答问题，用中文写提交信息和 Git 日志。
 - Git 提交格式：`类型(模块): 描述`，示例：`feat(pirate_crew): 实现舰船接舷战状态机`
 - Unity 编辑器路径：`F:\Unity\2022.3.62f1c1\Editor\Unity.exe`
@@ -65,6 +73,8 @@
 | 查 Unity 实现参照 / 本机 API 陷阱 | [docs/M2-Unity参照库调研.md](docs/M2-Unity参照库调研.md)（4 个参照库 + R1-R9 风险清单） |
 | 加跨模块事件 / 查事件契约 | [docs/EventBus事件契约.md](docs/EventBus事件契约.md)（事件名与载荷登记表，禁止散落魔法字符串） |
 | 调描边 shader 参数 | [docs/描边Shader调试.md](docs/描边Shader调试.md) |
+| **查 3D 空间模型 / 坐标口径（动坐标、相机、投掷、爆炸前必读）** | [docs/M2-3D空间模型对齐.md](docs/M2-3D空间模型对齐.md)（**XZ 竞技场** + Flash 数值的分工契约） |
+| 查 3D 化进行中状态 / 并行分工 | [docs/M2-3D化-并行推进与交接.md](docs/M2-3D化-并行推进与交接.md) |
 | 查 Godot 版某系统怎么设计的 | `../game-3/pirate-crew-3d/docs/` 与 `../game-3/docs/` |
 | 查 Godot 版某功能怎么实现的 | `../game-3/pirate-crew-3d/modules/`（campaign / pirate_crew / crew_management） |
 | 查 AI 规则的原始出处 | `../game-3/.trae/rules/`（rule.md 通用规范） |
