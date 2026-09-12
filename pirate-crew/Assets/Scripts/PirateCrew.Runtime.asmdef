@@ -1,7 +1,9 @@
 {
     "name": "PirateCrew.Runtime",
     "rootNamespace": "PirateCrew",
-    "references": [],
+    "references": [
+        "Cinemachine"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
