@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 50d998664a4492b43b18cfa2accaea84, type: 3}
+  m_Name: BalanceConfig
+  m_EditorClassIdentifier: 
+  twangForceScale: 0.25
+  defaultTwangMax: 20
+  highTwangMax: 30
+  explosionRadiusPadding: 20
+  knockbackCoefficient: 0.06
+  knockbackHorizontal: 5
+  knockbackVertical: 6
+  defaultFriction: 2
+  defaultBounce: 0.2
+  inactivityFramesToAdvance: 10
+  originalFps: 25
+  scoreHealthWeight: 20
+  scoreTurnPenalty: 25
+  scoreFloorPerLevel: 10
+  charHalfWidth: 6
+  charHalfHeight: 8

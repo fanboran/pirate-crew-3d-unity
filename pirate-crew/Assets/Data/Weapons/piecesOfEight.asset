@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d752ccbcf8ccccd48b6478d175af453f, type: 3}
+  m_Name: piecesOfEight
+  m_EditorClassIdentifier: 
+  id: 8
+  displayName: piecesOfEight
+  aabbRadius: 7
+  aabbVerticalRadius: 7
+  friction: 0.3
+  weight: 1
+  bounce: 0.2
+  twangMax: 20
+  trigger: 1
+  explosionSize: 50
+  explosionMaxDamage: 25
+  limitedToTurn: 1
+  dragRange: 130
+  remark: "\u9759\u6001\u9006\u5411 \xA75.2\uFF1A\u63A5\u89E6 / \u843D\u6C34\u5F15\u7206\uFF1B\u53EF\u91CD\u590D\u4F7F\u7528
+    8 \u6B21\u2014\u2014\u7206\u540E owner.equip(\u540C index) \u590D\u4F4D\u5E76
+    weaponLocked=true\uFF1BAI \u7528 aiContinue() \u4ECE 10 \u6B21\u968F\u673A\u6295\u63B7\u4E2D\u9009\u4F18\u3002\xA78.4
+    \u5B98\u65B9\u6587\u6848\u300CYou get eight turns with this weapon\u300D\u3002"

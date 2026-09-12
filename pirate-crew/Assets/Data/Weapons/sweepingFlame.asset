@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d752ccbcf8ccccd48b6478d175af453f, type: 3}
+  m_Name: sweepingFlame
+  m_EditorClassIdentifier: 
+  id: 16
+  displayName: sweepingFlame
+  aabbRadius: 0
+  aabbVerticalRadius: 0
+  friction: 0
+  weight: 0
+  bounce: 0
+  twangMax: 0
+  trigger: 64
+  explosionSize: 0
+  explosionMaxDamage: 0
+  limitedToTurn: 1
+  dragRange: 0
+  remark: "\u9759\u6001\u9006\u5411 \xA75.2\uFF1ArumBottle \u843D\u5730\u751F\u6210\uFF1B\u6CBF\u5730\u9762\u6BCF
+    8px \u8513\u5EF6\u4E00\u6BB5\uFF08\u4E0B\u65B9\u6709\u74E6\u7247\u4E14\u4E0A\u65B9\u65E0\u74E6\u7247\uFF09\uFF1B\u547D\u4E2D\u6761\u4EF6
+    dist < 8px\uFF0C\u6BCF\u6BB5 30 \u70B9\u4F24\u5BB3\uFF0C\u9644\u52A0\u968F\u673A\u51FB\u9000\uFF08(rand-0.5)*8
+    / -(rand*2+6)\uFF09\u3002\u539F\u8868 AABB \u5404\u683C\u4E3A\u300C\u2014\u300D\u3002"

@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d752ccbcf8ccccd48b6478d175af453f, type: 3}
+  m_Name: cannon
+  m_EditorClassIdentifier: 
+  id: 15
+  displayName: cannon
+  aabbRadius: 0
+  aabbVerticalRadius: 0
+  friction: 0
+  weight: 0
+  bounce: 0
+  twangMax: 0
+  trigger: 36
+  explosionSize: 0
+  explosionMaxDamage: 0
+  limitedToTurn: 0
+  dragRange: 0
+  remark: "\u9759\u6001\u9006\u5411 \xA75.2\uFF1AplaceableWeapon\uFF1B\u653E\u7F6E\u540E\u62D6\u5C3E\u90E8
+    pin \u8C03\u89D2\u5EA6/\u84C4\u529B\uFF0C\u677E\u624B\u53D1\u5C04 cannonball\uFF1BfireStrength
+    \u8FBE 30 \u624D\u53D1\u5C04\uFF08\u22644 \u4E0D\u53D1\u5C04\uFF09\uFF1BAI \u8D70
+    aiFireTime=25 \u5EF6\u65F6\u540E\u53D1\u5C04\uFF1B\u70AE\u5F39\u8D70 cannonball\uFF08100,50\uFF09\uFF0C\u6545\u672C\u884C\u7684\u7206\u70B8\u5217\u4E0D\u91CD\u590D\u8BA1\u6570\u3002limitedToTurn=false\uFF08\u6446\u4F4D\u5E38\u9A7B\uFF09\uFF1B\xA76.3
+    \u8BB0 AI \u7528 dragRange/2 \u5B9A\u4F4D\uFF0C\u4F46\u539F\u8868\u672A\u5355\u5217\u5176
+    dragRange\uFF0C\u6545\u8BB0 0\u3002\u539F\u8868 AABB \u5404\u683C\u4E3A\u300C\u2014\u300D\u3002"

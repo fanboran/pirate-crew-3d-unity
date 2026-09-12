@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d752ccbcf8ccccd48b6478d175af453f, type: 3}
+  m_Name: tidalWave
+  m_EditorClassIdentifier: 
+  id: 13
+  displayName: tidalWave
+  aabbRadius: 0
+  aabbVerticalRadius: 0
+  friction: 0
+  weight: 0
+  bounce: 0
+  twangMax: 0
+  trigger: 4
+  explosionSize: 0
+  explosionMaxDamage: 0
+  limitedToTurn: 1
+  dragRange: 0
+  remark: "\u9759\u6001\u9006\u5411 \xA75.2\uFF1A\u70B9\u51FB\u5F15\u7206\u2014\u2014x=-550,
+    y=water.y, vx=20 \u6A2A\u626B\u5230\u6700\u53F3\uFF1B\u6BCF\u5E27\u5BF9 \xB1150px
+    \u5185\u4E14 y >= waterY-300 \u7684\u89D2\u8272\u9020\u6210 5 \u70B9\u4F24\u5BB3\uFF08\u975E\u7206\u70B8\uFF0C\u65E0\u968F\u8DDD\u79BB\u8870\u51CF\uFF09\uFF1B\u65E0\u91CD\u529B\u3001hitsTiles=false\uFF1B\u5BF9\u6EE1\u8840/\u6B8B\u8840\u4E00\u89C6\u540C\u4EC1\u3002\u539F\u8868
+    AABB \u5404\u683C\u4E3A\u300C\u2014\u300D\u3002"

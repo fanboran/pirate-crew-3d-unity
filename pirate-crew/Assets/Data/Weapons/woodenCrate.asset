@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d752ccbcf8ccccd48b6478d175af453f, type: 3}
+  m_Name: woodenCrate
+  m_EditorClassIdentifier: 
+  id: 10
+  displayName: woodenCrate
+  aabbRadius: 16
+  aabbVerticalRadius: 15
+  friction: 0
+  weight: 0
+  bounce: 0
+  twangMax: 0
+  trigger: 32
+  explosionSize: 0
+  explosionMaxDamage: 0
+  limitedToTurn: 0
+  dragRange: 0
+  remark: "\u9759\u6001\u9006\u5411 \xA75.2\uFF08BoxWeapon\uFF09\uFF1A\u653E\u7F6E
+    3 \u4E2A\uFF1B\u8DE8\u56DE\u5408\u5E38\u9A7B\uFF1B\u4E0D\u7206\u70B8\uFF0C\u7528\u4F5C\u63A9\u4F53\uFF08\xA78.4\u300Cform
+    a wall to protect your characters\u300D\uFF09\u3002AABB l/r=16\u3001top/bottom=15\u3002"

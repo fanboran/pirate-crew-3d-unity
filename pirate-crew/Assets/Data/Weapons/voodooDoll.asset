@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d752ccbcf8ccccd48b6478d175af453f, type: 3}
+  m_Name: voodooDoll
+  m_EditorClassIdentifier: 
+  id: 14
+  displayName: voodooDoll
+  aabbRadius: 0
+  aabbVerticalRadius: 0
+  friction: 0
+  weight: 1
+  bounce: 0
+  twangMax: 20
+  trigger: 68
+  explosionSize: 0
+  explosionMaxDamage: 0
+  limitedToTurn: 1
+  dragRange: 130
+  remark: "\u9759\u6001\u9006\u5411 \xA75.2\uFF1A\u5148\u70B9\u654C\u4EBA\u9501\u5B9A\u76EE\u6807
+    \u2192 \u5F39\u5F13\u629B\u51FA\u6728\u5076\uFF1B\u843D\u5730 10 \u5E27\u540E\u955C\u5934\u5207\u5230\u76EE\u6807\uFF0C\u518D
+    10 \u5E27\u540E\u628A\u6728\u5076\u7684\u6295\u63B7\u901F\u5EA6\u8D4B\u7ED9\u76EE\u6807\u89D2\u8272\uFF08\u76EE\u6807\u88AB\u540C\u65B9\u5411\u629B\u98DE\uFF0C\u53EF\u843D\u6C34\uFF09\uFF1B\u65E0\u7206\u70B8\uFF1Bweight=1\u3001twangMax=20\u3002\u539F\u8868
+    AABB \u5404\u683C\u4E3A\u300C\u2014\u300D\u3002"

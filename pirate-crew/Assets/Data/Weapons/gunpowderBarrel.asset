@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d752ccbcf8ccccd48b6478d175af453f, type: 3}
+  m_Name: gunpowderBarrel
+  m_EditorClassIdentifier: 
+  id: 9
+  displayName: gunpowderBarrel
+  aabbRadius: 16
+  aabbVerticalRadius: 15
+  friction: 0
+  weight: 0
+  bounce: 0
+  twangMax: 0
+  trigger: 48
+  explosionSize: 150
+  explosionMaxDamage: 30
+  limitedToTurn: 0
+  dragRange: 0
+  remark: "\u9759\u6001\u9006\u5411 \xA75.2\uFF08BoxWeapon\uFF09\uFF1A\u653E\u7F6E
+    2 \u4E2A\uFF1BlimitedToTurn=false \u8DE8\u56DE\u5408\u5E38\u9A7B\uFF1BAABB \u975E\u6B63\u5706\uFF08l/r=16\u3001top/bottom=15\uFF09\uFF1B\u88AB\u4EFB\u610F
+    Explosion \u547D\u4E2D\u89E6\u53D1 explode()\uFF08caster=null\uFF0C\u6545\u4E0D\u7D2F\u52A0\u65BD\u66B4\u8005
+    evilness\uFF09\uFF0C\u53EF\u8FDE\u9501\u5F15\u7206\u3002"
