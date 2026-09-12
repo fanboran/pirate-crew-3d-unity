@@ -78,7 +78,10 @@
    - 读懂其核心实现后基于参照翻译改编；
    - 参照库不入库。例外：简单 bug 修复、单行改动、参数调整。
 2. **图形学调试截图规范**（自原项目 rule.md，Unity 版）：Shader/渲染效果开发必须——在 shader 中实现 `debug_mode` 拆分管线步骤 → 用 `ScreenCapture.CaptureScreenshot` 或 Editor 脚本逐层截图存 `export/<功能名>-debug/` → 写一页 README 说明每张图应看到什么 → 列关键参数调参指南。
-   - **环境限制**：batchmode 会话没有可用的渲染路径（不带 `-nographics` 会卡在 GfxDevice 创建），`Camera.Render`/`ScreenCapture` 拿不到真实像素。因此无头会话只能交付「shader + `debug_mode` 分层 + 采集脚本 + 说明文档」，**实际逐层截图必须在有图形界面的编辑器会话补跑**——不要把"没截图"当成已完成。
+   - **改动 shader 必须先在**有渲染路径的编辑器里**验证编译**："`read_console` 里 0 条 shader error"是唯一算数的标准。静态核对 `#include` / 符号**只能证明"符号存在"**，证明不了 include 链自洽、更证明不了额外 Pass 会被执行——两个真实事故：① `GlobalIllumination.hlsl` 自身不 include `BRDF.hlsl` 却在函数体用 `BRDFData`；② 描边 Pass 与本体 Pass 同标 `LightMode="UniversalForward"`，被 URP **静默丢弃**（本体正常、就是没描边、Console 无报错）。完整复盘见 [docs/描边Shader调试.md](docs/描边Shader调试.md) §八。
+   - **URP 里加额外 Pass 必须给它一个独立且未被占用的 `LightMode`**（本项目描边 Pass 用 `"SRPDefaultUnlit"`），不能复用本体 Pass 的 `UniversalForward`。
+   - **出图优先走 MCP，不另开 Unity 进程**（`Library/` 锁独占）：编辑器开着时用 `execute_menu_item` 跑采集菜单、`manage_camera` 取图、`read_console` 查 shader 报错；采集期间**编辑器不能暂停**（画面不重绘）。注意 `manage_camera` 的 `output_folder` 要显式指定，默认会往 `Assets/Screenshots/` 落图，会把临时截图混进 Unity 资产。判图要用**程序化判据**（按色相扫像素 + 区域主色），不要只靠"看着像"。
+   - 参考模板：`export/outline-debug/`（README 含每张图的预期 + 实测像素判据 + 复现步骤）。
 3. **测试驱动**：核心逻辑（战斗数值、船员管理状态流转）附带 Unity Test Framework（NUnit）测试，放 `pirate-crew/Assets/Tests/`。
 4. **安全第一**：`pirate-crew/Assets/Scripts/Core/`（引导器/事件总线/存档）经评审后修改须谨慎——它是所有模块的地基。
 5. **原子化提交 + 主动沟通**：每次提交一个独立最小功能；任务描述不清或与架构原则冲突时主动提问，不做危险假设。
