@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 using PirateCrew.PirateCrew.Data;
+using UnityEngine;
 
 namespace PirateCrew.PirateCrew.Battle.Tests
 {
@@ -11,8 +12,13 @@ namespace PirateCrew.PirateCrew.Battle.Tests
     ///         因此可在无头验证台（dotnet）运行；所有随机性通过固定 seed 的
     ///         <see cref="AiRandom"/> 注入，断言完全确定。
     ///
+    /// 【3D 坐标模型】AI 的打分仍在 Flash 平面像素域（x = 世界 X、y = 世界 Z 纵深），
+    /// 但轨迹模拟走 3D 世界域：初速 <see cref="LevelGeometry.FlashLaunchVelocityToWorld"/>（含抬升）、
+    /// 积分 <see cref="ThrowTrajectory.Predict"/>、落点 = 与水平面 <c>y=GroundTopY</c> 的首次相交。
+    /// 因此本文件里的 "Ground" 语义已从「屏幕地面像素 y」改为「典型纵深像素坐标」。
+    ///
     /// 【覆盖】§6.2 自抛、§6.3 通用/特殊武器、§6.1 汇总与 bailout、§6.4 随机性、
-    ///         §4.1 evilness/luck、§5.2 表末 7 种特殊武器、以及题目要求的全部边界。
+    ///         §4.1 evilness/luck、§5.2 表末 7 种特殊武器、3D 落点内核不变量、以及题目要求的全部边界。
     /// </summary>
     [TestFixture]
     public class AiEvaluationTests
@@ -21,11 +27,14 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         // 测试脚手架
         // ==================================================================
 
-        const float Ground = 450f;    // 平坦地面像素 y
-        const float Water = 600f;     // 水面像素 y（在地面之下）
+        /// <summary>典型纵深像素坐标（原 2D 的「地面像素 y」在平面重投影后 = 世界 Z 像素）。</summary>
+        const float Lane = 400f;
 
-        static AiTerrain Terrain(float ground = Ground, float minX = 0f, float maxX = 1000f)
-            => new AiTerrain(minX, maxX, ground);
+        /// <summary>tidalWave「近水带」判据使用的平面像素水面标量（阈值 = Water − 300 = 300）。</summary>
+        const float Water = 600f;
+
+        static AiTerrain Terrain(float minX = 0f, float maxX = 2000f, float minY = 0f, float maxY = 2000f)
+            => new AiTerrain(minX, maxX, minY, maxY);
 
         static AiBattlefield Field(
             IReadOnlyList<AiUnit> units, int actorId, bool canThrow, bool canShoot,
@@ -62,15 +71,119 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             return false;
         }
 
-        /// <summary>标准双人场景：红队 actor(id1) 对蓝队 enemy(id2)，均站在地面上（中心距地面 8px）。</summary>
+        /// <summary>标准双人场景：红队 actor(id1) 对蓝队 enemy(id2)，纵深同为 <see cref="Lane"/>。</summary>
         static AiBattlefield Duel(WeaponId[] weapons, int actorLuck = 5, int enemyEvilness = 0)
         {
             var units = new List<AiUnit>
             {
-                AiUnit.Simple(1, 0, 100f, Ground - 8f, luck: actorLuck),
-                AiUnit.Simple(2, 1, 300f, Ground - 8f, evilness: enemyEvilness),
+                AiUnit.Simple(1, 0, 100f, Lane, luck: actorLuck),
+                AiUnit.Simple(2, 1, 300f, Lane, evilness: enemyEvilness),
             };
             return Field(units, 1, canThrow: true, canShoot: true, weapons: weapons);
+        }
+
+        /// <summary>
+        /// 测试侧的独立参照实现：用 <see cref="ThrowTrajectory.Predict"/> 逐步走，
+        /// 找最先与水平面 y=GroundTopY 相交且落在矩形内的点 —— 与 <see cref="AiEvaluation.SimulateShot"/> 同口径。
+        /// 用于交叉验证被测内核确实走「同一套 3D 运动学 + 同一落点判据」。
+        /// </summary>
+        static (float ex, float ey, bool drowned) ReferenceLanding(
+            float startX, float startY, float vx, float vy, float weight, AiTerrain terrain, int maxSteps)
+        {
+            Vector3 origin = LevelGeometry.PixelToArena(startX, startY);
+            origin.y = LevelGeometry.GroundTopY + LevelGeometry.UnitPivotHeight;
+            Vector3 v = LevelGeometry.FlashLaunchVelocityToWorld(vx, vy);
+            float g = LevelGeometry.WorldGravityY(weight);
+
+            var points = new Vector3[maxSteps];
+            ThrowTrajectory.Predict(origin, v, g, points, maxSteps, LevelGeometry.FrameSeconds);
+
+            Vector3 end = origin;
+            bool drowned = false;
+            for (int i = 0; i < maxSteps; i++)
+            {
+                end = points[i];
+                if (end.y <= LevelGeometry.GroundTopY)
+                {
+                    Vector2 planar = LevelGeometry.ArenaToPixel(end);
+                    if (terrain == null || terrain.IsInside(planar.x, planar.y))
+                        break;
+                }
+
+                if (end.y <= LevelGeometry.WaterSurfaceY)
+                {
+                    drowned = true;
+                    break;
+                }
+            }
+
+            Vector2 landing = LevelGeometry.ArenaToPixel(end);
+            return (landing.x, landing.y, drowned);
+        }
+
+        // ==================================================================
+        // 3D 落点内核不变量（与实弹/预览同源）
+        // ==================================================================
+
+        [Test]
+        public void SimulateShot_MatchesThrowTrajectory_And_LandsOnGroundPlane()
+        {
+            // 被测内核必须与「ThrowTrajectory 逐步 + y=GroundTopY 首次相交」逐值一致——
+            // 这是 AI 预测与 3D 实弹不分叉的关键不变量。
+            var terrain = Terrain();
+            AiThrowSample actual = AiEvaluation.SimulateShot(
+                startX: 100f, startY: Lane, vx: 6f, vy: 3f,
+                weight: CrewCatalog.Weight, terrain: terrain);
+
+            var expected = ReferenceLanding(
+                100f, Lane, 6f, 3f, CrewCatalog.Weight, terrain, AiEvaluation.MaxSimulationSteps);
+
+            Assert.AreEqual(expected.ex, actual.Ex, 1e-3f, "落点 X（平面像素）必须与参照实现一致");
+            Assert.AreEqual(expected.ey, actual.Ey, 1e-3f, "落点纵深（平面像素）必须与参照实现一致");
+            Assert.IsFalse(actual.Drowned);
+
+            // 落点反投影回世界 = 地面平面上的一点（y = GroundTopY）。
+            Vector3 world = LevelGeometry.PixelToArena(actual.Ex, actual.Ey);
+            Assert.AreEqual(LevelGeometry.GroundTopY, world.y, 1e-5f, "落点必须在地面水平面上");
+            Assert.IsTrue(terrain.IsInside(actual.Ex, actual.Ey), "落点应在竞技场矩形内");
+        }
+
+        [Test]
+        public void SimulateShot_PreservesFlashPlanarLaunchVelocity()
+        {
+            // Vx/Vy 是直接交回 ApplyLaunchVelocity / 弹体生成器的 Flash 平面初速，必须原样保留
+            // （3D 抬升由 LevelGeometry.FlashLaunchVelocityToWorld 在执行端施加，不在 AI 里改速度）。
+            AiThrowSample s = AiEvaluation.SimulateShot(
+                100f, Lane, 7.5f, -2.25f, CrewCatalog.Weight, Terrain());
+
+            Assert.AreEqual(7.5f, s.Vx, 1e-6f);
+            Assert.AreEqual(-2.25f, s.Vy, 1e-6f);
+        }
+
+        [Test]
+        public void SimulateShot_OutsideArena_Drowns()
+        {
+            // 竞技场矩形缩到原点附近，投掷者在其外 → 地面平面之外无地可落，继续下落到水面以下。
+            var tiny = new AiTerrain(0f, 1f, 0f, 1f);
+            AiThrowSample s = AiEvaluation.SimulateShot(100f, Lane, 5f, 5f, CrewCatalog.Weight, tiny);
+
+            Assert.IsTrue(s.Drowned, "掉出地面矩形后必须判定落水");
+        }
+
+        [Test]
+        public void RandomThrow_ForceIsWithinTwangMax()
+        {
+            // angle = 180 + rand*180、force = 5 + rand*(twangMax−5) → 平面速度模长 ∈ [5, twangMax]。
+            for (int seed = 0; seed < 20; seed++)
+            {
+                AiThrowSample s = AiEvaluation.RandomThrow(
+                    100f, Lane, CrewCatalog.TwangMaxForce, CrewCatalog.Weight,
+                    Terrain(), new AiRandom(seed));
+
+                float speed = Mathf.Sqrt(s.Vx * s.Vx + s.Vy * s.Vy);
+                Assert.GreaterOrEqual(speed, AiEvaluation.ThrowForceMin - 1e-4f);
+                Assert.LessOrEqual(speed, CrewCatalog.TwangMaxForce + 1e-4f);
+            }
         }
 
         // ==================================================================
@@ -142,10 +255,10 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         public void ExpectedDamage_HigherMaxDamage_WeaponScoresHigher()
         {
             // 同一落点（敌人中心）下，dynamite(250,70) 归一化伤害 70/100 = 0.7 >
-            // cherryBomb(80,40) 的 40/100 = 0.4。伤害公式复用 ExplosionResolver（§5.3）。
+            // cherryBomb(80,40) 的 40/100 = 0.4。伤害公式复用 ExplosionResolver（§5.3，平面 XZ 距离）。
             AiBattlefield field = Duel(new WeaponId[0]);
             float ex = 300f;
-            float ey = Ground - 8f;
+            float ey = Lane;
 
             float cherry = AiEvaluation.ExpectedDamage(WeaponId.CherryBomb, ex, ey, field, 1);
             float dynamite = AiEvaluation.ExpectedDamage(WeaponId.Dynamite, ex, ey, field, 1);
@@ -215,6 +328,25 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             Assert.AreEqual(-0.25f, sLow, 1e-4f);
             Assert.AreEqual(0.00f, sHigh, 1e-4f);
             Assert.Greater(sHigh, sLow);
+        }
+
+        [Test]
+        public void ScoreSelfThrowSample_DrownedSample_GetsTwoPointPenalty()
+        {
+            // 3D 落水由样本的 Drowned 事实承载（不再是平面 y 与水位比较）：Drowned=true 额外 −2。
+            var field = Field(new List<AiUnit>
+            {
+                AiUnit.Simple(1, 0, 100f, 400f),
+                AiUnit.Simple(2, 1, 300f, 400f),
+            }, 1, true, true);
+
+            var dry = new AiThrowSample(0f, 0f, 300f, 400f, false);
+            var wet = new AiThrowSample(0f, 0f, 300f, 400f, true);
+
+            float dryScore = AiEvaluation.ScoreSelfThrowSample(dry, field, 1);
+            float wetScore = AiEvaluation.ScoreSelfThrowSample(wet, field, 1);
+
+            Assert.AreEqual(AiEvaluation.DrownPenalty, dryScore - wetScore, 1e-4f);
         }
 
         [Test]
@@ -349,20 +481,21 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         }
 
         // ==================================================================
-        // 边界：水位 / 单一存活
+        // 边界：落水 / 单一存活
         // ==================================================================
 
         [Test]
-        public void WaterAtGround_AllThrowsDrown_ScoresNegative()
+        public void ThrownOutsideArena_AllThrowsDrown_ScoresNegative()
         {
-            // 水位与地面同高（ground == water）：所有投掷都会先判落水（§4.4），
+            // 竞技场矩形缩到原点附近，投掷者在其外 → 所有投掷都掉出地面 → 落水（§4.4），
             // 自抛每个样本 −2，整体 success ≤ 0；允许放弃时建议跳过。
             var units = new List<AiUnit>
             {
                 AiUnit.Simple(1, 0, 100f, 400f),
                 AiUnit.Simple(2, 1, 300f, 400f),
             };
-            AiBattlefield field = Field(units, 1, true, true, water: Ground, terrain: Terrain(Ground));
+            var tiny = new AiTerrain(0f, 1f, 0f, 1f);
+            AiBattlefield field = Field(units, 1, true, true, terrain: tiny);
 
             AiEvaluationSession session = RunToEnd(field, 33);
 
@@ -381,9 +514,14 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         [Test]
         public void SingleSurvivingActor_NoEnemy_StaysLegal()
         {
-            // 只有 1 个存活角色（无敌人、无队友）：不能因除零/空集合崩溃，决定必须合法。
-            // 该场景下所有候选原始 success ≤ 0（dynamite 基准 −0.01 是最好的），
-            // 故 canBailOut=true 时 ShouldBailOut 必须为 true（§6.1）。
+            // 只有 1 个存活角色（无敌人、无队友）：不能因除零/空集合崩溃，决定必须合法，
+            // 且 ShouldBailOut 必须与 §6.1 的 best.success > 0 判据一致。
+            //
+            // 【维度变化】原 2D 版断言「无敌人 → success ≤ 0」；3D 重投影后不再成立：
+            // §6.2 的 `(t.ey - this.y) * -0.003` 原意是「落点越高越好」，其 y 是 2D 的**高度**轴；
+            // 重投影后平面 y 变成**纵深**轴，于是「落点纵深与自身差得越多」会给出正分（本 seed 实测 +0.115）。
+            // 这是「坐标轴重投影 + 打分公式逐行保留」的固有结果，不是内核错误 —— 打分规则按要求未改，
+            // 故这里只校验合法性与 bailout 一致性，不断言符号。
             var units = new List<AiUnit> { AiUnit.Simple(1, 0, 100f, 400f) };
             AiBattlefield field = Field(units, 1, true, true, weapons: new[] { WeaponId.Dynamite });
 
@@ -395,9 +533,8 @@ namespace PirateCrew.PirateCrew.Battle.Tests
                 || d.Kind == AiActionKind.EndGo);
             Assert.IsTrue(d.WeaponSlotIndex == -1 || d.WeaponSlotIndex == 0, "武器槽位必须合法");
             Assert.AreEqual(1, d.ActorUnitId);
-            Assert.IsTrue(d.FlashSuccess <= 0f,
-                $"没有敌人时不该有正收益（flash={d.FlashSuccess}, kind={d.Kind}, slot={d.WeaponSlotIndex}）");
-            Assert.IsTrue(d.ShouldBailOut);
+            Assert.IsFalse(float.IsNaN(d.Success) || float.IsInfinity(d.Success), "评分必须有限");
+            Assert.AreEqual(d.FlashSuccess <= 0f, d.ShouldBailOut, "bailout 应与原始 success ≤ 0 一致");
         }
 
         // ==================================================================
@@ -408,8 +545,8 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         public void Special_TidalWave_ScoresEnemiesNearWater_MinusAllies()
         {
             // §6.3：s = Σ_受浪敌人 health/maxHealth×0.5 − 1.5×受浪队友数；受浪条件 y ≥ waterY−300。
-            // waterY=600 → 阈值 300。敌人 y=400 在带内；actor 放在 y=200（带外）以免把
-            // 「自己是否被浪打到」也算进队友惩罚。
+            // 平面 y 即纵深：waterY=600 → 阈值 300。敌人纵深 400 在带内；actor 放在纵深 200
+            // （带外）以免把「自己是否被浪打到」也算进队友惩罚。
             var enemyOnly = new List<AiUnit>
             {
                 AiUnit.Simple(1, 0, 100f, 200f),
@@ -444,16 +581,18 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             // 专门路径：点击直落没有弹弓初速，仍应产出 anchor 候选（按敌方附近列 + 命中带）。
             var units = new List<AiUnit>
             {
-                AiUnit.Simple(1, 0, 100f, Ground - 8f),
-                AiUnit.Simple(2, 1, 300f, Ground - 8f),
+                AiUnit.Simple(1, 0, 100f, Lane),
+                AiUnit.Simple(2, 1, 300f, Lane),
             };
             AiEvaluationSession session = RunToEnd(
                 Field(units, 1, true, true, weapons: new[] { WeaponId.Anchor }), 1);
 
             Assert.IsTrue(HasCandidate(session, 0, WeaponId.Anchor));
-            // 命中带 |x−anchorX| < 48 且 anchorY−64 < y < anchorY：敌人 442 落在 (386,450) → 有伤害。
+            // 命中带 |x−anchorX| < 48 且 anchorY−64 < y < anchorY：候选落点 y = 敌人纵深 + 32 = 432，
+            // 敌人纵深 400 落在 (368, 432) → 有伤害。
+            float anchorY = Lane + AiEvaluation.AnchorVerticalBand * 0.5f;
             Assert.Greater(
-                AiEvaluation.ExpectedDamage(WeaponId.Anchor, 300f, Ground, Field(units, 1, true, true), 1),
+                AiEvaluation.ExpectedDamage(WeaponId.Anchor, 300f, anchorY, Field(units, 1, true, true), 1),
                 0f);
         }
 
@@ -475,13 +614,14 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         public void Special_VoodooDoll_DrowningTargetIsTopGain_WithTargetId()
         {
             // §6.3：对每个存活敌人随机投 2 次；落水 → s = 1+rand×0.2 ∈ [1,1.2)，否则 rand×0.2−0.5 ∈ [−0.5,−0.3)。
-            // 令水位高于地面（water 400 < ground 450，y 向下 → 水面在地面之上），任何落点都落水。
+            // 3D 下用「竞技场矩形不含敌人」强制任何投掷都掉出地面 → 落水。
             var units = new List<AiUnit>
             {
                 AiUnit.Simple(1, 0, 100f, 380f),
                 AiUnit.Simple(2, 1, 300f, 380f),
             };
-            AiBattlefield field = Field(units, 1, true, true, water: 400f, terrain: Terrain(Ground));
+            var tiny = new AiTerrain(0f, 50f, 0f, 50f);
+            AiBattlefield field = Field(units, 1, true, true, terrain: tiny);
 
             var candidates = new List<AiMoveCandidate>();
             int evalCount = 0;
@@ -497,7 +637,7 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             }
 
             AiEvaluationSession session = RunToEnd(
-                Field(units, 1, true, true, water: 400f, terrain: Terrain(Ground),
+                Field(units, 1, true, true, terrain: tiny,
                     weapons: new[] { WeaponId.VoodooDoll }), 9);
             Assert.IsTrue(HasCandidate(session, 0, WeaponId.VoodooDoll));
         }
@@ -505,27 +645,31 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         [Test]
         public void Special_Seagull_PlansHeightAndPositiveShotPoints()
         {
-            // §6.3：高度 = 敌方最高（最小 y）− 100 − rand×100；随机 10 个 x 落点，
-            // 只保留正收益落点并要求 shots>1。
+            // §6.3：高度 = 单位顶端 + 100 + rand×100（3D 世界高度，相对地面，单位 px）；
+            // 随机 10 个 x 落点，只保留正收益落点并要求 shots>1。
             // 地形收窄到敌人 x∈[295,305] 附近，保证每个随机落点都落在敌人 40px 内。
             var units = new List<AiUnit>
             {
-                AiUnit.Simple(1, 0, 50f, Ground - 8f),
-                AiUnit.Simple(2, 1, 300f, Ground - 8f),
+                AiUnit.Simple(1, 0, 50f, Lane),
+                AiUnit.Simple(2, 1, 300f, Lane),
             };
             AiBattlefield field = Field(
-                units, 1, true, true, terrain: Terrain(Ground, minX: 295f, maxX: 305f));
+                units, 1, true, true, terrain: Terrain(minX: 295f, maxX: 305f));
 
             bool ok = AiEvaluation.TryPlanSeagull(
                 field, 1, new AiRandom(4), out float success, out float height, out IReadOnlyList<float> shots);
 
             Assert.IsTrue(ok, "10 个落点都在敌人 40px 内 → 应成立");
-            Assert.AreEqual(442f - 100f, height, 200f, "高度应位于敌方最高点上方 100–200px");
+            float minH = LevelGeometry.UnitsToPixels(LevelGeometry.UnitPivotHeight)
+                + AiEvaluation.SeagullHeightAboveUnitTop;
+            Assert.GreaterOrEqual(height, minH - 1e-3f, "高度不得低于 单位顶端 + 100px");
+            Assert.LessOrEqual(height, minH + AiEvaluation.SeagullHeightRandomDrop + 1e-3f,
+                "高度不得超过 单位顶端 + 200px");
             Assert.Greater(shots.Count, 1);
             Assert.Greater(success, 0f);
 
             AiEvaluationSession session = RunToEnd(
-                Field(units, 1, true, true, terrain: Terrain(Ground, minX: 295f, maxX: 305f),
+                Field(units, 1, true, true, terrain: Terrain(minX: 295f, maxX: 305f),
                     weapons: new[] { WeaponId.Seagull }), 4);
             Assert.IsTrue(HasCandidate(session, 0, WeaponId.Seagull));
         }
@@ -537,12 +681,12 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             // 固定 seed 下该路径成立（地面放置判定见 AiTerrain.CanPlace）。
             var units = new List<AiUnit>
             {
-                AiUnit.Simple(1, 0, 100f, Ground - 8f),
-                AiUnit.Simple(2, 1, 300f, Ground - 8f),
+                AiUnit.Simple(1, 0, 100f, Lane),
+                AiUnit.Simple(2, 1, 300f, Lane),
             };
             AiBattlefield field = Field(units, 1, true, true);
 
-            // TryPlanBoxPlacement 的可行性由随机 y 偏移决定（10 个点里需 ≥3 个满足底部不越地面）。
+            // TryPlanBoxPlacement 的可行性由随机纵深偏移决定（10 个点里需 ≥3 个满足足迹在矩形内）。
             // 在确定性的 0..30 种子空间里找出可用种子（PRNG 固定 → 该搜索本身也是确定性的）。
             int crateSeed = -1;
             int barrelSeed = -1;
@@ -580,7 +724,7 @@ namespace PirateCrew.PirateCrew.Battle.Tests
 
             // gunpowderBarrel(150,30) 在放置点若能覆盖敌人，应计入预期伤害。
             float expected = AiEvaluation.ExpectedDamage(
-                WeaponId.GunpowderBarrel, 300f, Ground - 8f, field, 1);
+                WeaponId.GunpowderBarrel, 300f, Lane, field, 1);
             Assert.Greater(expected, 0f);
         }
 
@@ -607,7 +751,7 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         [Test]
         public void ScoreWeaponSample_AllyInRange_IsPenalised()
         {
-            // 队友在落点 ±40px 内 → s -= 1.5 − d/40。取正上方 20px：1.5 − 0.5 = 1.0 惩罚。
+            // 队友在落点 ±40px 内 → s -= 1.5 − d/40。取纵深方向 20px 处：1.5 − 0.5 = 1.0 惩罚。
             var units = new List<AiUnit>
             {
                 AiUnit.Simple(1, 0, 100f, 400f),

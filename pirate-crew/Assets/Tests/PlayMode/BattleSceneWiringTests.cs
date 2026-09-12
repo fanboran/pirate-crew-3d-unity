@@ -18,7 +18,9 @@ namespace PirateCrew.Tests
     ///   · 关键 <c>[SerializeField]</c> 引用非空（BattleController / TurnManager /
     ///     AimThrowController / TrajectoryPreview / BattleCameraController / BattleHud）；
     ///   · 双方船员数量 = <see cref="LevelCatalog"/> 关卡数据（level_1：红 5 / 蓝 3）；
-    ///   · 水面世界 Y = <c>BattleController.WaterWorldY</c>（BuildPlan 结果）；
+    ///   · 单位站位落在 XZ 竞技场（<see cref="LevelGeometry.GridToArena"/>，脚底贴地、枢轴抬高）；
+    ///   · 水面世界 Y = <see cref="LevelGeometry.WaterSurfaceY"/>（3D 化的全局水位常量）；
+    ///   · 相机是真 3D：透视 + 45° 俯角 + 距离 18（正交侧视是 2D 时代的遗留）；
     ///   · TurnManager 已开始回合，且 end go 后能推进到另一队。
     ///
     /// 【说明】私有序列化字段用反射读取，避免为了测试扩大运行时 API；字段名与装配脚本
@@ -34,6 +36,55 @@ namespace PirateCrew.Tests
             FieldInfo field = target.GetType().GetField(name, PrivateInstance);
             Assert.IsNotNull(field, target.GetType().Name + "." + name + " 字段不存在（装配脚本字段名漂移？）");
             return field.GetValue(target);
+        }
+
+        /// <summary>
+        /// 复核相机是"真 3D"：透视（非正交）+ 45° 俯角 + 距离 18。
+        /// 用纯反射读 Cinemachine 组件，避免在 PlayModeTests.asmdef 里新增对 Cinemachine
+        /// 程序集的引用（Unity 的程序集引用不传递）。
+        /// </summary>
+        static void AssertPerspectiveTiltedCamera(Component vcam)
+        {
+            Assert.IsNotNull(vcam, "BattleCameraController.virtualCamera 为空");
+
+            const BindingFlags PublicInstance = BindingFlags.Instance | BindingFlags.Public;
+
+            object lens = vcam.GetType().GetField("m_Lens", PublicInstance)?.GetValue(vcam);
+            Assert.IsNotNull(lens, "CinemachineVirtualCamera.m_Lens 读取失败");
+            // 注意：LensSettings.Orthographic 是**属性**（内部由 ModeOverride / m_OrthoFromCamera 推出），
+            // 不是字段——用 GetField 会拿到 null（2026-09-13 PlayMode 实跑才发现）；FieldOfView 才是字段。
+            PropertyInfo orthoProperty = lens.GetType().GetProperty(
+                "Orthographic", PublicInstance | BindingFlags.IgnoreCase);
+            FieldInfo fovField = lens.GetType().GetField("FieldOfView", PublicInstance);
+            Assert.IsNotNull(orthoProperty, "LensSettings.Orthographic 属性不存在");
+            Assert.IsNotNull(fovField, "LensSettings.FieldOfView 字段不存在");
+            Assert.IsFalse((bool)orthoProperty.GetValue(lens, null),
+                "相机应为透视（正交侧视是 2D 时代的遗留，见 docs/M2-3D空间模型对齐.md）");
+            Assert.Greater((float)fovField.GetValue(lens), 0f, "透视相机应有正 FOV");
+
+            Component transposer = null;
+            // ⚠ Cinemachine 2.x 把管线组件（Transposer 等）挂在 vcam 的**子物体**上（"cm" 节点），
+            //   不在 vcam 本体——只查 gameObject.GetComponents 会找不到（2026-09-13 PlayMode 实跑才发现）。
+            Component[] components = vcam.GetComponentsInChildren<Component>(true);
+            for (int i = 0; i < components.Length; i++)
+            {
+                if (components[i] != null && components[i].GetType().Name.Contains("Transposer"))
+                {
+                    transposer = components[i];
+                    break;
+                }
+            }
+            Assert.IsNotNull(transposer, "BattleVCam 应有 CinemachineTransposer（承载俯角/距离）");
+            FieldInfo offsetField = transposer.GetType().GetField("m_FollowOffset", PublicInstance);
+            Assert.IsNotNull(offsetField, "CinemachineTransposer.m_FollowOffset 字段不存在");
+            Vector3 offset = (Vector3)offsetField.GetValue(transposer);
+
+            // 偏移 = (0, d·sin(pitch), d·cos(pitch))，由此反推俯角与距离。
+            float distance = offset.magnitude;
+            float pitch = Mathf.Atan2(offset.y, new Vector2(offset.x, offset.z).magnitude) * Mathf.Rad2Deg;
+            Assert.AreEqual(18f, distance, 0.1f, "相机距焦点应为 18（对齐 Godot orbit_camera 默认值）");
+            Assert.AreEqual(45f, pitch, 0.5f, "相机俯角应为 45°");
+            Assert.AreEqual(0f, offset.x, 1e-4f, "yaw = 0：相机偏移应落在 +Z/+Y 平面内");
         }
 
         [UnityTest]
@@ -82,9 +133,29 @@ namespace PirateCrew.Tests
             Assert.Greater(plan.CountForTeam(0), 0, "红队应有成员");
             Assert.Greater(plan.CountForTeam(1), 0, "蓝队应有成员");
 
-            // ---- 水位（BattleController.Start 已把水面对象移到 WaterWorldY）----
+            // ---- 单位站位：XZ 竞技场（横向 X = gridX+0.5，纵深 Z = gridY+0.5，高度 = 枢轴离地）----
+            var pirates = controller.AllPirates;
+            for (int i = 0; i < plan.Entries.Count; i++)
+            {
+                SpawnPlanEntry entry = plan.Entries[i];
+                Vector3 expectedPos = LevelGeometry.GridToArena(entry.GridX, entry.GridY);
+                Assert.AreEqual(expectedPos.x, entry.WorldPosition.x, 1e-4f, "计划条目的 X 应 = gridX+0.5");
+                Assert.AreEqual(expectedPos.z, entry.WorldPosition.z, 1e-4f, "计划条目的 Z 应 = gridY+0.5");
+
+                Vector3 actual = pirates[i].transform.position;
+                Assert.AreEqual(expectedPos.x, actual.x, 1e-3f, "单位 " + i + " 的横向 X 应落在 XZ 竞技场上");
+                Assert.AreEqual(expectedPos.z, actual.z, 1e-3f, "单位 " + i + " 的纵深 Z 应落在 XZ 竞技场上");
+                // 高度只校验"在地面之上"：站位 y = UnitPivotHeight，重力/碰撞在 1~2 帧内可能微调。
+                Assert.Greater(actual.y, LevelGeometry.GroundTopY - 0.01f, "单位 " + i + " 不应沉到地面之下");
+            }
+
+            // ---- 水位：3D 化后是全局常量 WaterSurfaceY（不再是关卡 waterTileY 推出）----
             var waterPlane = (Transform)Field(controller, "waterPlane");
+            Assert.AreEqual(LevelGeometry.WaterSurfaceY, controller.WaterWorldY, 1e-4f, "计划水位应为 WaterSurfaceY");
             Assert.AreEqual(controller.WaterWorldY, waterPlane.position.y, 1e-3f, "水面 y 应等于计划水位");
+
+            // ---- 相机：真 3D（透视 + 45° 俯角 + 距离 18），正交侧视是 2D 时代的遗留 ----
+            AssertPerspectiveTiltedCamera((Component)Field(camController, "virtualCamera"));
 
             // ---- HUD 接线 ----
             var hud = Object.FindObjectOfType<BattleHud>();

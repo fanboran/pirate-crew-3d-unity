@@ -18,9 +18,10 @@ namespace PirateCrew.PirateCrew.Battle
     /// 全局重力设为 Flash weight=1 的等价连续重力，物理帧率设为原版 25fps，
     /// 保证 <see cref="TrajectoryPreview"/> 与实弹轨迹同源（详见 LevelGeometry 类头）。
     ///
-    /// 【爆炸坐标约定翻转】<see cref="ExplosionResolver.Resolve"/> 的输入/输出都是 Flash 约定
-    /// （y 向下、单位 px）；本类在调用前把世界坐标转成 Flash 像素，调用后用
-    /// <see cref="LevelGeometry.FlashVelocityDeltaToWorld"/> 把 <c>DeltaVy</c> 翻成 Unity 的 +Y 向上。
+    /// 【爆炸坐标约定】<see cref="ExplosionResolver.Resolve"/> 在 Flash 平面约定下算平面分量（单位 px/帧）；
+    /// 本类把世界坐标投到 XZ 平面换成 Flash 像素，再拿回结果：
+    /// 平面两分量经 <see cref="LevelGeometry.FlashVelocityDeltaToArena"/> 落到世界 (X, Z)，
+    /// 竖直项 <c>DeltaVUp</c>（含原版固定上抛 6k）直接落到世界 +Y。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class BattleController : MonoBehaviour
@@ -330,21 +331,29 @@ namespace PirateCrew.PirateCrew.Battle
                     continue;
 
                 candidates.Add(pirate);
-                Vector2 px = LevelGeometry.WorldToPixel(pirate.transform.position);
-                targets.Add(new ExplosionTarget(px.x, px.y, pirate.Alive));
+                Vector3 position = pirate.transform.position;
+                Vector2 px = LevelGeometry.ArenaToPixel(position);
+                // 高度也换算到 Flash px 口径，使 3D 距离的平面分量与高度分量同尺度
+                // （否则"高度差"会被按世界单位参与、与 px 混算，爆炸范围会失真）。
+                targets.Add(new ExplosionTarget(
+                    px.x, px.y, LevelGeometry.UnitsToPixels(position.y), pirate.Alive));
             }
 
-            Vector2 centerPx = LevelGeometry.WorldToPixel(worldCenter);
-            ExplosionResult result = ExplosionResolver.Resolve(size, maxDamage, centerPx.x, centerPx.y, targets);
+            Vector2 centerPx = LevelGeometry.ArenaToPixel(worldCenter);
+            ExplosionResult result = ExplosionResolver.Resolve(
+                size, maxDamage, centerPx.x, centerPx.y,
+                LevelGeometry.UnitsToPixels(worldCenter.y), targets);
 
             for (int i = 0; i < result.Hits.Length; i++)
             {
                 ExplosionHit hit = result.Hits[i];
                 PirateBase target = candidates[hit.Index];
 
-                // ★ 方向翻转：hit.DeltaVy 是 Flash 约定（y 向下，公式里的 -6k 表示向上），
-                //   FlashVelocityDeltaToWorld 取负 y → Unity 的 +Y 向上，语义正确。
-                Vector3 deltaV = LevelGeometry.FlashVelocityDeltaToWorld(hit.DeltaVx, hit.DeltaVy);
+                // ExplosionResolver 已 3D 泛化（docs/M2-3D空间模型对齐.md §5）：
+                // 击退的平面两分量 → 世界 (X, Z)，竖直输出 DeltaVUp（世界 +Y，含固定 6k 抬升）→ 世界 Y。
+                // 单位换算仍走 LevelGeometry.FlashSpeedScale（Flash px/帧 → 世界单位/秒）。
+                Vector3 deltaV = LevelGeometry.FlashVelocityDeltaToArena(hit.DeltaVx, hit.DeltaVy);
+                deltaV.y = hit.DeltaVUp * LevelGeometry.FlashSpeedScale;
                 target.ApplyImpulseDelta(deltaV);
                 target.SubtractHealth(hit.Damage);
             }

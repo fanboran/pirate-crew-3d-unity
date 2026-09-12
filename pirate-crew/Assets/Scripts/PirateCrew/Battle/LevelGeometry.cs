@@ -6,7 +6,7 @@ namespace PirateCrew.PirateCrew.Battle
 {
     /// <summary>
     /// 一个出战单位的战场计划条目（纯 C#，不引用 MonoBehaviour）。
-    /// 由 <see cref="LevelGeometry.BuildBattlePlan(LevelData, float)"/> 从关卡数据生成，
+    /// 由 <see cref="LevelGeometry.BuildBattlePlan(LevelData)"/> 从关卡数据生成，
     /// 供 <c>BattleController</c> 实例化 <c>PirateBase</c>。
     /// </summary>
     public readonly struct SpawnPlanEntry
@@ -20,13 +20,16 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>该单位的 luck（§4.1，AI 随机投掷次数基数）。</summary>
         public readonly int Luck;
 
-        /// <summary>原版 XML 瓦片格 x（§4.3）。</summary>
+        /// <summary>原版 XML 瓦片格 x（§4.3）→ 竞技场横向。</summary>
         public readonly int GridX;
 
-        /// <summary>原版 XML 瓦片格 y（§4.3）。</summary>
+        /// <summary>原版 XML 瓦片格 y（§4.3）→ 竞技场**纵深**（3D 重投影，见 LevelGeometry 类头）。</summary>
         public readonly int GridY;
 
-        /// <summary>Unity 世界坐标（见 <see cref="LevelGeometry.GridToWorld"/>；xy 为战斗平面，z 为深度）。</summary>
+        /// <summary>
+        /// Unity 世界坐标：脚底贴地、枢轴抬高 <see cref="LevelGeometry.UnitPivotHeight"/>。
+        /// x = 横向、y = 高度、z = 纵深。
+        /// </summary>
         public readonly Vector3 WorldPosition;
 
         /// <summary>初始武器栈（§5.5；count == 10 表示无限）。可能为空列表，绝不 null。</summary>
@@ -49,45 +52,45 @@ namespace PirateCrew.PirateCrew.Battle
     }
 
     /// <summary>
-    /// 一场战斗的组装计划（纯 C#）：关卡尺寸、水位与全部出战单位。
+    /// 一场战斗的组装计划（纯 C#）：竞技场尺寸、水面高度与全部出战单位。
     /// </summary>
     public sealed class BattlePlan
     {
         /// <summary>关卡序号（1–33）。</summary>
         public readonly int LevelNumber;
 
-        /// <summary>关卡宽度（瓦片；本工程 1 瓦片 = 1 世界单位）。</summary>
+        /// <summary>竞技场横向尺寸（瓦片；本工程 1 瓦片 = 1 世界单位）。</summary>
         public readonly int WidthTiles;
 
-        /// <summary>关卡高度（瓦片）。</summary>
-        public readonly int HeightTiles;
+        /// <summary>竞技场纵深尺寸（瓦片；来自原版关卡的 heightTiles）。</summary>
+        public readonly int DepthTiles;
 
         /// <summary>原版 XML players 属性（§7.2；运行时模式由菜单/序列化开关决定）。</summary>
         public readonly int OriginalXmlPlayers;
 
-        /// <summary>水面世界 Y（Unity 约定，y 向上；低于该值即落水，§4.4）。</summary>
+        /// <summary>水面世界 Y（Unity 约定，y 向上；低于该值即落水，§4.4）。全局常量，见 LevelGeometry。</summary>
         public readonly float WaterWorldY;
 
-        /// <summary>关卡世界宽度（单位）。</summary>
+        /// <summary>竞技场世界宽度（X 方向，单位）。</summary>
         public readonly float WorldWidth;
 
-        /// <summary>关卡世界高度（单位）。</summary>
-        public readonly float WorldHeight;
+        /// <summary>竞技场世界纵深（Z 方向，单位）。</summary>
+        public readonly float WorldDepth;
 
         readonly IReadOnlyList<SpawnPlanEntry> _entries;
 
         public BattlePlan(
-            int levelNumber, int widthTiles, int heightTiles, int originalXmlPlayers,
+            int levelNumber, int widthTiles, int depthTiles, int originalXmlPlayers,
             float waterWorldY, IReadOnlyList<SpawnPlanEntry> entries)
         {
             LevelNumber = levelNumber;
             WidthTiles = widthTiles;
-            HeightTiles = heightTiles;
+            DepthTiles = depthTiles;
             OriginalXmlPlayers = originalXmlPlayers;
             WaterWorldY = waterWorldY;
-            // 1 瓦片 = 1 世界单位（见类头的 px→单位换算决策）。
+            // 1 瓦片 = 1 世界单位（见 LevelGeometry 类头的 px→单位换算决策）。
             WorldWidth = widthTiles;
-            WorldHeight = heightTiles;
+            WorldDepth = depthTiles;
             _entries = entries ?? new List<SpawnPlanEntry>();
         }
 
@@ -110,35 +113,43 @@ namespace PirateCrew.PirateCrew.Battle
     /// <summary>
     /// 战斗坐标/尺度换算与出战计划生成（纯 C# 静态工具）。
     ///
-    /// 【对应章节】§4.3（坐标换算 px = (xmlX+0.5)*32、py = (xmlY+0.5)*32+16-bottomExtent）、
-    ///             §5.5（water.y = waterTileY*32）、§5.1/§5.4（速度与重力口径）、§8.1（相机范围）。
+    /// 【本文件是空间模型的唯一权威】完整契约见 <c>docs/M2-3D空间模型对齐.md</c>，改前必读。
     ///
-    /// 【3D 化决策 1：px→单位换算】
-    ///   原版 1 瓦片 = 32px。本工程定 <b>1 瓦片 = 1 Unity 单位</b>（即 1 单位 = 32px），
-    ///   常量集中在 <see cref="PixelsPerUnit"/>，全工程单一来源。
+    /// 【坐标模型（3D 重投影，2026-09-13 修正）】
+    ///   原第一版把 Flash 的 2D 侧视坐标 1:1 搬进 Unity 的 XY **竖直**平面、并冻结 Z，
+    ///   结果是"披着 3D 引擎的 2D 游戏"，与 Godot 基准（真 3D）不符。现行模型：
+    ///     · 竞技场 = <b>XZ 水平面</b>；重力沿 <b>-Y</b>；地面顶面 y = 0，水面 y = <see cref="WaterSurfaceY"/>。
+    ///     · Flash 的 px（横向）→ 世界 X；Flash 的 py（原侧视的"竖直"轴）→ 世界 <b>Z（纵深）</b>。
+    ///       即把原版 2D 关卡当作**平面图**重新投影，`gridY` 从"平台高度"变成"纵深位置"。
+    ///     · **y 不取负**：侧视图里"越往下"= 越靠近观众；平面图里"越靠近观众"= +Z（相机在 +Z 侧），
+    ///       方向天然一致，故 <c>PixelToArena</c> 直接映射而不翻转。
+    ///   这一改动使 3D 空间结构对齐 Godot 基准（其 battle.tscn 为 XZ 地面 + 45° 相机 + 单位沿 Z 分路），
+    ///   而**数值仍全部取自 Flash 逆向文档**（Godot 版弹道/伤害层是自相矛盾的占位实现，见上述文档）。
     ///
-    /// 【3D 化决策 2：y 轴方向】
-    ///   Flash 的 y 轴向下（重力每帧 +weight）；Unity 的 y 轴向上。
-    ///   映射取 <c>world = (px / 32, -py / 32, z)</c>：显式翻转 y，且战斗平面为世界 XY 平面（z = 深度）。
-    ///   这样 Flash 里"越大越靠下"变成 Unity 里"越小越靠下"，符合 y 向上约定。
+    /// 【3D 化决策 1：px→单位换算】原版 1 瓦片 = 32px。本工程定 <b>1 瓦片 = 1 Unity 单位</b>
+    ///   （即 1 单位 = 32px），常量集中在 <see cref="PixelsPerUnit"/>，全工程单一来源。
     ///
-    /// 【3D 化决策 3：重力与力度换算】
-    ///   Flash 每帧 vy += weight（25fps，1px/帧²）。本工程让 Unity 物理与 Ballistics 同源：
-    ///   1) 把 <see cref="Time.fixedDeltaTime"/> 设为 <see cref="FrameSeconds"/>（0.04s，25Hz），
+    /// 【3D 化决策 2：重力与力度换算】Flash 每帧 vy += weight（25fps，1px/帧²）。
+    ///   本工程让 Unity 物理与 Ballistics 同源：
+    ///   1) <see cref="Time.fixedDeltaTime"/> = <see cref="FrameSeconds"/>（0.04s，25Hz），
     ///      Rigidbody 用 <c>useGravity</c> + <c>Physics.gravity = WorldGravity(1)</c>；
-    ///   2) 初速换算 <see cref="FlashVelocityToWorld"/>：v_world = v_flash / (32 * 0.04)；
+    ///   2) 初速换算 <see cref="FlashVelocityToArena"/>：v_world = v_flash / (32 * 0.04)；
     ///   3) 重力换算 <see cref="WorldGravityY"/>：g_world = -weight / (32 * 0.04²)。
     ///   由于 Flash 的离散积分是 vy += w; y += vy、PhysX 的半隐式欧拉是 v += g·dt; p += v·dt，
-    ///   在 dt 相同时二者逐步完全一致 → <b>预览 = 实弹</b>（详见测试
+    ///   在 dt 相同时二者逐步完全一致 → <b>预览 = 实弹</b>（见测试
     ///   <c>LevelGeometryTests.Ballistics_And_WorldSemiImplicit_Match_Exactly</c>）。
-    ///   weight != 1 的武器（§5.2 仅 boulder = 1.5、cannonball = 0）由实弹脚本自行处理
-    ///   （boulder 关 useGravity 后自定义加速度；cannonball 直接 useGravity = false）。
-    ///   预览与实弹共用 <see cref="Ballistics.TwangVelocity"/> 的输出，不存在第二份速度口径。
+    ///   这条不变量是刻意保留的：Godot 版恰好坏在这里（预览与实弹速度差 18 倍、重力 -18 vs -9.8），
+    ///   对齐空间结构时**不要**把它的数值一起搬进来。
     ///
-    /// 【3D 化决策 4：落水即死】
-    ///   §4.1/§4.3：原版每关都有 water 对象，落水即死是<b>全局规则</b>。
-    ///   Unity 取全局：<see cref="IsBelowWater"/>，由 BattleController 每帧对所有存活角色判定，
-    ///   不设"仅某关开启"的开关（Godot 版只在 shipwreck_cove 开启属漂移）。
+    /// 【3D 化决策 3：投掷抬升】Flash 的拖拽竖直分量直接给 vy（2D 里就是"抛多高"）。
+    ///   3D 里拖拽只表达"水平往哪扔"，仰角由固定抬升 <see cref="ThrowLift"/> 提供
+    ///   （Godot 预览用 0.7、实弹用 0.8，本工程统一取 0.7 单一常量），
+    ///   速度**大小**仍由 Flash 的 twangMax 限速决定 —— 限速语义不被抬升破坏。
+    ///
+    /// 【3D 化决策 4：落水即死】§4.1/§4.3：原版每关都有 water 对象，落水即死是<b>全局规则</b>。
+    ///   Unity 取全局：<see cref="IsBelowWater"/>，由 BattleController 每帧对所有存活角色判定。
+    ///   水面高度改为常量（不再由关卡 waterTileY 推出）——地图已平坦化为一块 XZ 地面，
+    ///   从 X 或 Z 任一侧掉出地面都会落到水面以下，方向无关。
     /// </summary>
     public static class LevelGeometry
     {
@@ -151,8 +162,20 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>原版一帧的秒数（1/25 = 0.04s）。</summary>
         public const float FrameSeconds = 1f / FrameRate;
 
-        /// <summary>战斗平面的世界 z（本工程 x/y 为战斗平面，z 仅用于表现深度）。</summary>
-        public const float DefaultPlaneZ = 0f;
+        /// <summary>地面顶面的世界 Y（竞技场平面）。</summary>
+        public const float GroundTopY = 0f;
+
+        /// <summary>
+        /// 水面世界 Y。落水即死（§4.4）的判据基准；对齐 Godot 基准的水位（其水面在地面下方一点）。
+        /// 比地面低 0.2 单位（≈6.4px），角色掉出地面后下落约 0.45 单位即判定落水。
+        /// </summary>
+        public const float WaterSurfaceY = -0.2f;
+
+        /// <summary>
+        /// 投掷的固定抬升系数：<c>throwDir = normalize(水平方向 + UP * ThrowLift)</c>。
+        /// 对齐 Godot 的 0.7（其预览用 0.7、实弹用 0.8，本工程统一为单一常量以保"预览 = 实弹"）。
+        /// </summary>
+        public const float ThrowLift = 0.7f;
 
         /// <summary>
         /// Flash 速度（px/帧）→ 世界速度（单位/秒）的比例：
@@ -160,11 +183,18 @@ namespace PirateCrew.PirateCrew.Battle
         /// </summary>
         public const float FlashSpeedScale = 1f / (PixelsPerUnit * FrameSeconds);
 
-        /// <summary>§3.4 选中/拖拽的隐式阈值：30px（<c>minD2 = 900</c>）。</summary>
+        /// <summary>§3.4 选中/拖拽的隐式阈值：30px（<c>minD2 = 900</c>）。屏幕空间量，与维度无关。</summary>
         public const float SelectionRadiusPixels = 30f;
 
         /// <summary>30px 对应的世界距离（30 / 32 = 0.9375 单位）。</summary>
         public const float SelectionRadiusWorld = SelectionRadiusPixels / PixelsPerUnit;
+
+        /// <summary>
+        /// 单位枢轴离地高度：Flash 的 <c>py = (gridY+0.5)*32 + 16 - bottomExtent</c> 里那 8px 偏移
+        /// （§4.3）。2D 时它是"屏幕上的抬高量"，3D 时它就是"世界里的站立高度"（= 0.25 单位，
+        /// 恰为本体 16px 高的一半，脚底因此贴地）。
+        /// </summary>
+        public static float UnitPivotHeight => PixelsToUnits(16f - CrewCatalog.BottomExtent);
 
         // ------------------------------------------------------------------
         // px ↔ 单位
@@ -183,49 +213,39 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         // ------------------------------------------------------------------
-        // 逻辑坐标 ↔ 世界坐标（y 轴翻转）
+        // 逻辑坐标 ↔ 世界坐标（XZ 竞技场平面）
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// Flash 逻辑像素坐标 (px, py) → Unity 世界坐标 (px/32, -py/32, planeZ)。
-        /// y 取负实现"Flash y 向下 → Unity y 向上"的翻转。
+        /// Flash 逻辑像素 (px, py) → **地面平面**上的世界点 (px/32, <see cref="GroundTopY"/>, py/32)。
+        /// 供瞄准落点、爆心等"平面位置"使用；**不**用于角色站位（那要加 <see cref="UnitPivotHeight"/>，
+        /// 见 <see cref="GridToArena"/>）。
         /// </summary>
-        public static Vector3 PixelToWorld(float pixelX, float pixelY, float planeZ = DefaultPlaneZ)
+        public static Vector3 PixelToArena(float pixelX, float pixelY)
         {
-            return new Vector3(pixelX / PixelsPerUnit, -pixelY / PixelsPerUnit, planeZ);
+            return new Vector3(pixelX / PixelsPerUnit, GroundTopY, pixelY / PixelsPerUnit);
         }
 
         /// <summary>
-        /// 关卡 XML 瓦片格坐标 → 世界坐标（§4.3 完整换算，bottomExtent 用 §4.1 的 8）。
-        /// px = (gridX+0.5)*32；py = (gridY+0.5)*32 + 16 - bottomExtent。
+        /// 世界坐标 → Flash 平面像素 (x*32, z*32)。
+        /// 注意：<b>忽略高度 y</b>——平面分量之外的高度由爆炸结算单独按 3D 距离处理
+        /// （见 <c>ExplosionResolver</c> 的三维泛化）。
         /// </summary>
-        public static Vector3 GridToWorld(int gridX, int gridY, float planeZ = DefaultPlaneZ)
+        public static Vector2 ArenaToPixel(Vector3 world)
         {
-            float px = LevelCatalog.ToPixelX(gridX);
-            float py = LevelCatalog.ToPixelY(gridY, CrewCatalog.BottomExtent);
-            return PixelToWorld(px, py, planeZ);
+            return new Vector2(world.x * PixelsPerUnit, world.z * PixelsPerUnit);
         }
 
-        /// <summary>世界坐标 → Flash 逻辑像素坐标 (px, -世界y*32)。</summary>
-        public static Vector2 WorldToPixel(Vector3 world)
+        /// <summary>
+        /// 关卡 XML 瓦片格坐标 → 单位站位世界坐标（§4.3）。
+        /// 横向 X = gridX + 0.5；纵深 Z = gridY + 0.5；高度 Y = 地面 + <see cref="UnitPivotHeight"/>（脚底贴地）。
+        /// </summary>
+        public static Vector3 GridToArena(int gridX, int gridY)
         {
-            return new Vector2(world.x * PixelsPerUnit, -world.y * PixelsPerUnit);
-        }
-
-        // ------------------------------------------------------------------
-        // 水面（§5.5 / §4.4）
-        // ------------------------------------------------------------------
-
-        /// <summary>水面像素 y → 世界 Y（取负，见 y 轴翻转决策）。</summary>
-        public static float WaterWorldY(float waterPixelY)
-        {
-            return -waterPixelY / PixelsPerUnit;
-        }
-
-        /// <summary>世界坐标是否已在水平面之下（§4.4 落水即死；全局规则）。</summary>
-        public static bool IsBelowWater(float worldY, float waterWorldY)
-        {
-            return worldY < waterWorldY;
+            return new Vector3(
+                gridX + 0.5f,
+                GroundTopY + UnitPivotHeight,
+                gridY + 0.5f);
         }
 
         // ------------------------------------------------------------------
@@ -233,49 +253,102 @@ namespace PirateCrew.PirateCrew.Battle
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// Flash 初速（px/帧）→ Unity 世界速度（单位/秒）。
-        /// vx 同向、vy 取负（y 翻转）。不含重力的离散补偿项——
-        /// 因为本工程令 Unity 物理帧率 = 原版帧率，半隐式欧拉逐步等价，无需补偿（见类头说明）。
+        /// Flash 水平初速（px/帧，平面内 (vx, vy)）→ Unity 世界速度（单位/秒）：
+        /// 平面分量落到 (X, Z)，高度分量恒为 0（仰角由 <see cref="ApplyThrowLift"/> 提供）。
         /// </summary>
-        public static Vector3 FlashVelocityToWorld(float vxPixelsPerFrame, float vyPixelsPerFrame)
+        public static Vector3 FlashVelocityToArena(float vxPixelsPerFrame, float vyPixelsPerFrame)
         {
             return new Vector3(
                 vxPixelsPerFrame * FlashSpeedScale,
-                -vyPixelsPerFrame * FlashSpeedScale,
-                0f);
+                0f,
+                vyPixelsPerFrame * FlashSpeedScale);
         }
 
         /// <summary>
-        /// Unity 世界速度（单位/秒）→ Flash 速度（px/帧）；是
-        /// <see cref="FlashVelocityToWorld"/> 的逆变换（x 同向、y 取负、除以 <see cref="FlashSpeedScale"/>）。
+        /// Unity 世界速度（单位/秒）→ Flash 平面速度（px/帧）；<see cref="FlashVelocityToArena"/> 的逆变换。
         /// 供弹体运行时判静止（§5.2 dynamite 的 <c>vx==0 &amp;&amp; |vy|&lt;0.2</c>）等回读场景。
         /// </summary>
-        public static Vector2 WorldVelocityToFlash(Vector3 worldVelocity)
+        public static Vector2 ArenaVelocityToFlash(Vector3 worldVelocity)
         {
             return new Vector2(
                 worldVelocity.x / FlashSpeedScale,
-                -worldVelocity.y / FlashSpeedScale);
+                worldVelocity.z / FlashSpeedScale);
         }
 
         /// <summary>
-        /// 速度"增量"（爆炸击退等，§5.3）从 Flash 约定翻到 Unity：
-        /// 与 <see cref="FlashVelocityToWorld"/> 相同的缩放 + y 取负。
-        ///
-        /// ★ 关键：<see cref="ExplosionResolver"/> 的 <c>deltaVy = ny*5k - 6k</c> 是在 Flash
-        ///   y 向下约定下算出的，其中 <c>-6k</c> 表示<b>向上</b>。经本函数 y 取负后，
-        ///   Unity 里的值变为正（+Y 向上），语义正确衔接。
+        /// 速度"增量"（爆炸击退等，§5.3）从 Flash 平面约定翻到 Unity 的平面分量。
+        /// 竖直抬升项由 <see cref="ExplosionResolver"/> 的三维泛化直接给出，不经本函数。
         /// </summary>
-        public static Vector3 FlashVelocityDeltaToWorld(float deltaVxPixelsPerFrame, float deltaVyPixelsPerFrame)
+        public static Vector3 FlashVelocityDeltaToArena(float deltaVxPixelsPerFrame, float deltaVyPixelsPerFrame)
         {
             return new Vector3(
                 deltaVxPixelsPerFrame * FlashSpeedScale,
-                -deltaVyPixelsPerFrame * FlashSpeedScale,
-                0f);
+                0f,
+                deltaVyPixelsPerFrame * FlashSpeedScale);
+        }
+
+        /// <summary>
+        /// 平面方向 + 固定抬升 → 3D 投掷方向（已归一化）。零向量返回 <see cref="Vector3.zero"/>。
+        /// </summary>
+        public static Vector3 ApplyThrowLift(Vector3 horizontalDirection)
+        {
+            Vector3 flat = new Vector3(horizontalDirection.x, 0f, horizontalDirection.z);
+            if (flat.sqrMagnitude < 1e-12f)
+                return Vector3.zero;
+
+            return (flat.normalized + Vector3.up * ThrowLift).normalized;
+        }
+
+        /// <summary>
+        /// 投掷初速：平面方向由 <see cref="ApplyThrowLift"/> 定仰角，**大小**由 Flash 的
+        /// twang 结果（px/帧）决定 —— 抬升只改方向、不改速度大小，从而不破坏 twangMax 限速语义。
+        /// </summary>
+        public static Vector3 ThrowVelocity(Vector3 horizontalDirection, float speedPixelsPerFrame)
+        {
+            Vector3 dir = ApplyThrowLift(horizontalDirection);
+            if (dir == Vector3.zero)
+                return Vector3.zero;
+
+            return dir * (speedPixelsPerFrame * FlashSpeedScale);
+        }
+
+        /// <summary>
+        /// 由相机基向量把屏幕拖拽 (dx, dy) 映射成世界水平方向（已归一化，y = 0）。
+        /// <c>horiz = camRight.xz * (-dx) + camForward.xz * (-dy)</c>。
+        /// Godot 版硬编码为 <c>(-dx, 0, -dy)</c>，在相机 yaw 变化后会失真；本实现按相机基向量投影，
+        /// yaw = 0 时与其等价，yaw 变化时仍正确。
+        /// </summary>
+        public static Vector3 ScreenDragToArenaDirection(Vector3 cameraRight, Vector3 cameraForward, float dragX, float dragY)
+        {
+            Vector3 right = new Vector3(cameraRight.x, 0f, cameraRight.z);
+            Vector3 forward = new Vector3(cameraForward.x, 0f, cameraForward.z);
+
+            Vector3 horiz = right * (-dragX) + forward * (-dragY);
+            if (horiz.sqrMagnitude < 1e-12f)
+                return Vector3.zero;
+
+            return horiz.normalized;
+        }
+
+        /// <summary>
+        /// <b>投掷/发射的统一入口</b>：Flash 平面初速 (vx, vy)（px/帧）→ 3D 世界初速（含抬升）。
+        /// 速度**大小**仍由 Flash 的 twang 结果（已含 twangMax 限速）决定，抬升只改仰角。
+        /// 弹体（<c>ProjectileSpawnPlanner</c>）与角色（<c>PirateBase</c>）都走这里，
+        /// 保证两者弹道口径与预览完全一致。
+        /// </summary>
+        public static Vector3 FlashLaunchVelocityToWorld(float vxPixelsPerFrame, float vyPixelsPerFrame)
+        {
+            float speed = Mathf.Sqrt(
+                vxPixelsPerFrame * vxPixelsPerFrame + vyPixelsPerFrame * vyPixelsPerFrame);
+            if (speed <= 1e-6f)
+                return Vector3.zero;
+
+            return ThrowVelocity(new Vector3(vxPixelsPerFrame, 0f, vyPixelsPerFrame), speed);
         }
 
         /// <summary>
         /// Flash 重力加速度（weight px/帧²）→ Unity 世界重力 Y（单位/秒²，向下为负）：
-        /// <c>-weight / (32 * 0.04²) = -19.53125 * weight</c>。
+        /// <c>-weight / (32 * 0.04²) = -19.53125 * weight</c>。重力沿 -Y（垂直向下），与水平面正交。
         /// </summary>
         public static float WorldGravityY(float weight)
         {
@@ -289,43 +362,42 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         // ------------------------------------------------------------------
+        // 水面（§4.4）
+        // ------------------------------------------------------------------
+
+        /// <summary>世界坐标是否已在水平面之下（§4.4 落水即死；全局规则，方向无关）。</summary>
+        public static bool IsBelowWater(float worldY, float waterWorldY)
+        {
+            return worldY < waterWorldY;
+        }
+
+        // ------------------------------------------------------------------
         // 出战计划
         // ------------------------------------------------------------------
 
         static readonly IReadOnlyList<WeaponStack> EmptyWeapons = new WeaponStack[0];
 
         /// <summary>由纯 C# 关卡数据 <see cref="LevelData"/> 生成出战计划（无头可测路径）。</summary>
-        public static BattlePlan BuildBattlePlan(LevelData data, float planeZ = DefaultPlaneZ)
+        public static BattlePlan BuildBattlePlan(LevelData data)
         {
-            IReadOnlyList<LevelUnit> units = data.Units ?? new List<LevelUnit>();
-            var entries = new List<SpawnPlanEntry>(units.Count);
-
-            for (int i = 0; i < units.Count; i++)
-            {
-                LevelUnit unit = units[i];
-                entries.Add(new SpawnPlanEntry(
-                    unit.teamIndex,
-                    unit.typeName,
-                    unit.luck,
-                    unit.gridX,
-                    unit.gridY,
-                    GridToWorld(unit.gridX, unit.gridY, planeZ),
-                    unit.initialWeapons));
-            }
-
-            return new BattlePlan(
-                data.LevelNumber,
-                data.WidthTiles,
-                data.HeightTiles,
-                data.OriginalXmlPlayers,
-                WaterWorldY(data.WaterY),
-                entries);
+            return BuildPlan(
+                data.LevelNumber, data.WidthTiles, data.HeightTiles, data.OriginalXmlPlayers,
+                data.Units);
         }
 
         /// <summary>由 Unity 关卡资产 <see cref="LevelDefinition"/> 生成出战计划（运行时路径）。</summary>
-        public static BattlePlan BuildBattlePlan(LevelDefinition definition, float planeZ = DefaultPlaneZ)
+        public static BattlePlan BuildBattlePlan(LevelDefinition definition)
         {
-            IReadOnlyList<LevelUnit> units = definition.Units ?? new List<LevelUnit>();
+            return BuildPlan(
+                definition.LevelNumber, definition.WidthTiles, definition.HeightTiles,
+                definition.OriginalXmlPlayers, definition.Units);
+        }
+
+        static BattlePlan BuildPlan(
+            int levelNumber, int widthTiles, int depthTiles, int originalXmlPlayers,
+            IReadOnlyList<LevelUnit> units)
+        {
+            units = units ?? new List<LevelUnit>();
             var entries = new List<SpawnPlanEntry>(units.Count);
 
             for (int i = 0; i < units.Count; i++)
@@ -337,17 +409,13 @@ namespace PirateCrew.PirateCrew.Battle
                     unit.luck,
                     unit.gridX,
                     unit.gridY,
-                    GridToWorld(unit.gridX, unit.gridY, planeZ),
+                    GridToArena(unit.gridX, unit.gridY),
                     unit.initialWeapons));
             }
 
             return new BattlePlan(
-                definition.LevelNumber,
-                definition.WidthTiles,
-                definition.HeightTiles,
-                definition.OriginalXmlPlayers,
-                WaterWorldY(definition.WaterY),
-                entries);
+                levelNumber, widthTiles, depthTiles, originalXmlPlayers,
+                WaterSurfaceY, entries);
         }
 
         /// <summary>空武器列表（供 WeaponInventory / BattlePlan 复用，避免分配）。</summary>

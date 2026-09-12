@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
+using UnityEngine;
 
 namespace PirateCrew.PirateCrew.Battle
 {
@@ -115,8 +116,9 @@ namespace PirateCrew.PirateCrew.Battle
 
     /// <summary>
     /// 战场单位快照（纯 C#，不含 MonoBehaviour 引用）。
-    /// 坐标为 <b>Flash 逻辑像素域</b>（y 轴向下，1 瓦片 = 32px）。
-    /// 换算由调用方复用 <see cref="LevelGeometry.WorldToPixel"/> 完成。
+    /// 坐标为 <b>Flash 平面像素域</b>：<see cref="X"/> = 世界 X × 32、<see cref="Y"/> = 世界 <b>Z</b>（纵深）× 32，
+    /// 由调用方复用 <see cref="LevelGeometry.ArenaToPixel"/> 完成。高度不参与 AI 的位置启发式评分
+    /// （射程/落点比较全在 XZ 平面内），故本结构不携带高度。
     /// </summary>
     public readonly struct AiUnit
     {
@@ -126,10 +128,10 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>队伍索引：0 = 红队，1 = 蓝队（§4.3）。</summary>
         public readonly int TeamIndex;
 
-        /// <summary>Flash 像素 x。</summary>
+        /// <summary>Flash 平面像素 x（= 世界 X × 32）。</summary>
         public readonly float X;
 
-        /// <summary>Flash 像素 y（向下为正）。</summary>
+        /// <summary>Flash 平面像素 y（= 世界 <b>Z 纵深</b> × 32）。</summary>
         public readonly float Y;
 
         public readonly int Health;
@@ -201,53 +203,53 @@ namespace PirateCrew.PirateCrew.Battle
     }
 
     /// <summary>
-    /// AI 模拟用的地形/边界模型（纯 C#）。
+    /// AI 模拟用的地形模型（纯 C#）。
     ///
-    /// 【M2 取舍】原版 AI 通过 <c>advanceMotion()</c> 与真实瓦片碰撞预演轨迹；
-    /// 本工程 M2 尚无「瓦片 → 可查询实体地形」的运行时接口（另一 agent 负责场景组装），
-    /// 所以这里用<b>平坦地面 + 关卡水平边界</b>的保守模型：
-    ///   · <see cref="GroundY"/> 返回该列地面像素 y（当前恒为 <see cref="GroundPixelY"/>）；
-    ///   · 不模拟侧墙/悬挑（原版可借墙反弹）。这是<b>已知降级</b>，见类尾 TODO。
-    /// 接口形状保留为「按 x 取地面」以便日后换成真实瓦片采样而不改评估器。
+    /// 【3D 化】竞技场是一块 XZ 水平面（地面顶面恒为世界 <see cref="LevelGeometry.GroundTopY"/>），
+    /// 边界之外即水面 —— 所以地形模型就是<b>平面像素域的一块矩形</b>：
+    ///   · 落点平面像素落在矩形内 = 落地；
+    ///   · 落在矩形外 = 掉出岛外（继续下落到 <see cref="LevelGeometry.WaterSurfaceY"/> 以下）→ 落水（§4.4）。
+    /// 高度不再是地形数据（地面是常量平面），故原 <c>GroundPixelY</c> / <c>GroundY</c> 已移除。
+    ///
+    /// 【M2 取舍】不模拟瓦片/悬挑/侧墙反弹（原版可借墙弹），仍是已知降级。
     /// </summary>
     public sealed class AiTerrain
     {
-        /// <summary>关卡左/右边界（Flash 像素 x）。</summary>
+        /// <summary>竞技场横向（世界 X）像素下/上界。</summary>
         public readonly float MinX;
         public readonly float MaxX;
 
-        /// <summary>平坦地面像素 y（y 向下）。</summary>
-        public readonly float GroundPixelY;
+        /// <summary>竞技场纵深（世界 Z）像素下/上界。</summary>
+        public readonly float MinY;
+        public readonly float MaxY;
 
-        public AiTerrain(float minX, float maxX, float groundPixelY)
+        public AiTerrain(float minX, float maxX, float minY, float maxY)
         {
             MinX = minX;
             MaxX = maxX;
-            GroundPixelY = groundPixelY;
+            MinY = minY;
+            MaxY = maxY;
         }
 
-        /// <summary>该列的地面像素 y（y 向下；当前为平坦地面）。</summary>
-        public float GroundY(float x) => GroundPixelY;
-
-        /// <summary>点是否在地面之下（落地）。</summary>
-        public bool IsBelowGround(float x, float y) => y >= GroundY(x);
+        /// <summary>平面像素点是否落在竞技场地面矩形内（决定落地还是落水）。</summary>
+        public bool IsInside(float pixelX, float pixelY)
+            => pixelX >= MinX && pixelX <= MaxX && pixelY >= MinY && pixelY <= MaxY;
 
         /// <summary>
         /// 放置类武器（woodenCrate / gunpowderBarrel，§6.3 BoxWeapon.canPlace 的近似）能否放在此处。
-        /// 当前判定：完整 AABB 在关卡水平范围内，且底边不越过地面。
+        /// 判定：AABB 的平面足迹完全落在竞技场矩形内（Flash 的 2D AABB 重投影为 XZ 足迹）。
         /// 【TODO】缺瓦片实体查询，未做「与已有箱体/角色重叠」检测；场景层补上后可替换本方法。
         /// </summary>
-        public bool CanPlace(float x, float y, float halfWidth, float halfHeight)
+        public bool CanPlace(float pixelX, float pixelY, float halfWidth, float halfDepth)
         {
-            if (x - halfWidth < MinX || x + halfWidth > MaxX)
-                return false;
-            return y + halfHeight <= GroundY(x);
+            return pixelX - halfWidth >= MinX && pixelX + halfWidth <= MaxX
+                && pixelY - halfDepth >= MinY && pixelY + halfDepth <= MaxY;
         }
     }
 
     /// <summary>
     /// 一次 AI 评估的完整输入快照（纯 C#）。不持有任何可变全局状态。
-    /// 坐标为 Flash 像素域（y 向下），与 <see cref="Ballistics"/> / <see cref="ExplosionResolver"/> 同域。
+    /// 坐标为 Flash 平面像素域（x = 世界 X、y = 世界 Z 纵深），与 §6 的打分阈值同域。
     /// </summary>
     public sealed class AiBattlefield
     {
@@ -268,7 +270,12 @@ namespace PirateCrew.PirateCrew.Battle
 
         public readonly AiTerrain Terrain;
 
-        /// <summary>水面像素 y（§5.5；落水即死，§4.4）。</summary>
+        /// <summary>
+        /// 水面参考像素值，仅供 §6.3 tidalWave 的「近水带」判据
+        /// <c>y &gt;= waterY - 300</c> 使用（该判据在 2D 里是竖直带；重投影后平面 y 即纵深）。
+        /// 3D 的<b>落水</b>不再由它与平面 y 直接比较得出 —— 落水是 3D 事实，
+        /// 由 <see cref="AiThrowSample.Drowned"/>（掉出地面矩形后下落到水面以下）承载。
+        /// </summary>
         public readonly float WaterPixelY;
 
         /// <summary>未完成宝箱（§6.2 顺路捡箱加分；可空 → 视为无）。</summary>
@@ -365,9 +372,11 @@ namespace PirateCrew.PirateCrew.Battle
     }
 
     /// <summary>
-    /// 一次模拟投掷的结果（Flash 像素域）。
-    /// <see cref="Vx"/>/<see cref="Vy"/> 是<b>发射瞬间</b>的速度（§6.1 执行时直接赋给角色/武器），
-    /// <see cref="Ex"/>/<see cref="Ey"/> 是落点（静止点或落水点）。
+    /// 一次模拟投掷的结果（Flash 平面像素域）。
+    /// <see cref="Vx"/>/<see cref="Vy"/> 是<b>发射瞬间</b>的 Flash 平面速度（px/帧，§6.1 执行时直接赋给角色/武器；
+    /// 3D 仰角由 <see cref="LevelGeometry.FlashLaunchVelocityToWorld"/> 在执行端统一施加）。
+    /// <see cref="Ex"/>/<see cref="Ey"/> 是落点的<b>平面像素</b>（世界落点经 <see cref="LevelGeometry.ArenaToPixel"/>
+    /// 取 XZ 分量）。<see cref="Drowned"/> 是 3D 落水事实（掉出地面矩形 → 下落到水面以下）。
     /// </summary>
     public readonly struct AiThrowSample
     {
@@ -376,7 +385,7 @@ namespace PirateCrew.PirateCrew.Battle
         public readonly float Ex;
         public readonly float Ey;
 
-        /// <summary>模拟结束时是否已落水（§6.2 <c>t.ey &gt;= water.y</c>）。</summary>
+        /// <summary>模拟结束时是否已落水（3D：掉出地面矩形后落到 <see cref="LevelGeometry.WaterSurfaceY"/> 之下）。</summary>
         public readonly bool Drowned;
 
         public AiThrowSample(float vx, float vy, float ex, float ey, bool drowned)
@@ -551,12 +560,16 @@ namespace PirateCrew.PirateCrew.Battle
     ///             §6.4（随机数使用点）、§4.1（luck / evilness）、§5.2 表末注（特殊武器清单）、
     ///             §3.2/§3.4（canThrow/canShoot 决定评估范围）。
     ///
-    /// 【坐标域决策】模拟全部在 <b>Flash 逻辑像素域</b>（y 向下、px/帧）进行：
-    ///   1) §6 的公式（200px/70px/40px 阈值、<c>ey &gt;= water.y</c>）本就是像素域，逐行转写无换算；
-    ///   2) <see cref="Ballistics"/>（轨迹/落地）与 <see cref="ExplosionResolver"/>（爆炸/evilness）
-    ///      也都工作在 Flash 约定，同域调用不存在二次翻转错误；
-    ///   3) 与 Unity 世界域的换算只在边界发生（输入快照 <see cref="LevelGeometry.WorldToPixel"/>、
-    ///      输出速度 <see cref="LevelGeometry.FlashVelocityToWorld"/>），由 <c>AiController</c> 负责。
+    /// 【坐标域决策】打分公式仍在 <b>Flash 平面像素域</b>（x = 世界 X、y = 世界 Z 纵深；§6 的
+    ///   200px/70px/40px 阈值、evilness 距离项逐行转写无换算），但<b>轨迹模拟改为纯 3D 世界域</b>：
+    ///   1) 初速 <see cref="LevelGeometry.FlashLaunchVelocityToWorld"/>（含 <c>ThrowLift</c> 抬升）、
+    ///      积分 <see cref="ThrowTrajectory.Predict"/>（与 PhysX 实弹相同的半隐式欧拉 / dt / 重力），
+    ///      与实弹、预览同源，不再自写第二套积分；
+    ///   2) 落点 = 轨迹最先与水平面 <c>y = <see cref="LevelGeometry.GroundTopY"/></c> 相交的那一步；
+    ///      落水 = 平面落点掉出竞技场矩形后下落到 <see cref="LevelGeometry.WaterSurfaceY"/> 以下；
+    ///   3) 世界落点经 <see cref="LevelGeometry.ArenaToPixel"/> 取 XZ 分量回到平面像素域，供打分比较；
+    ///      输入快照由 <c>AiController</c> 用 <see cref="LevelGeometry.ArenaToPixel"/> 组装。
+    /// </summary>
     ///
     /// 【时间片】<see cref="AiEvaluationSession"/> 把 §6.1 的 <c>do { aiThink() } while(...)</c>
     /// 拆成可单步的「工作单元」（一次投掷采样 / 一件武器），由 <c>AiController</c> 在 30ms 预算内
@@ -618,6 +631,9 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>seagull 海鸥飞行高度的随机下探量（§6.3：<c>− random*100</c>）。</summary>
         public const float SeagullHeightRandomDrop = 100f;
+
+        /// <summary>seagull 相对「单位顶端」的最小飞行高度（§6.3 的固定 <c>+100</c>，单位 px）。</summary>
+        public const float SeagullHeightAboveUnitTop = 100f;
 
         /// <summary>seagull 随机投弹落点数（§6.3：10 个）。</summary>
         public const int SeagullShotCount = 10;
@@ -717,18 +733,18 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         // ------------------------------------------------------------------
-        // 投掷模拟（§6.2 randomThrows / §6.4，复用 Ballistics 落地积分）
+        // 投掷模拟（§6.2 randomThrows / §6.4，复用 ThrowTrajectory 的 3D 半隐式欧拉）
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 生成一个随机投掷并模拟到静止/落水（§6.2 角色版 / §6.3 通用武器版）。
-        /// 角度 <c>180 + int(rand*180)</c>（永远向上）；力度 <c>5 + rand*(twangMax − 5)</c>；
-        /// 重力/摩擦/弹跳参数由调用方给出（角色来自 <see cref="CrewCatalog"/>，武器来自
-        /// <see cref="WeaponCatalog"/>）。
+        /// 生成一个随机投掷并模拟到落地/落水（§6.2 角色版 / §6.3 通用武器版）。
+        /// 角度 <c>180 + int(rand*180)</c>（决定 XZ 平面内的方向）；力度 <c>5 + rand*(twangMax − 5)</c>；
+        /// 重力由 <paramref name="weight"/> 决定（角色来自 <see cref="CrewCatalog"/>，武器来自
+        /// <see cref="WeaponCatalog"/>）。3D 仰角由 <see cref="LevelGeometry.ThrowLift"/> 统一施加。
         /// </summary>
         public static AiThrowSample RandomThrow(
-            float startX, float startY, float twangMax, float weight, float friction, float bounce,
-            AiTerrain terrain, float waterPixelY, IAiRandom random, int maxSteps = MaxSimulationSteps)
+            float startX, float startY, float twangMax, float weight,
+            AiTerrain terrain, IAiRandom random, int maxSteps = MaxSimulationSteps)
         {
             int angle = ThrowAngleMin + random.NextInt(0, ThrowAngleRange);
             float forceRange = MathF.Max(0f, twangMax - ThrowForceMin);
@@ -738,57 +754,73 @@ namespace PirateCrew.PirateCrew.Battle
             float vx = (float)Math.Cos(rad) * force;
             float vy = (float)Math.Sin(rad) * force;
 
-            return SimulateShot(startX, startY, vx, vy, weight, friction, bounce, terrain, waterPixelY, maxSteps);
+            return SimulateShot(startX, startY, vx, vy, weight, terrain, maxSteps);
         }
 
         /// <summary>
-        /// 以给定初速模拟一发的弹道，直到静止、落水或超步数（§6.2 <c>advanceMotion()</c> 到静止或落水）。
-        /// 逐步积分顺序与 <see cref="Ballistics.PredictTrajectory"/> 一致：先 <c>vy += weight</c> 再位移；
-        /// 触地复用 <see cref="Ballistics.IntegrateGroundContact"/>（bounce/friction 同一口径）。
+        /// 以给定 Flash 平面初速模拟一发，直到落点或超步数（§6.2 <c>advanceMotion()</c>）。
+        /// <b>与 3D 实弹严格同源</b>：初速走 <see cref="LevelGeometry.FlashLaunchVelocityToWorld"/>（含抬升），
+        /// 积分走 <see cref="ThrowTrajectory.Predict"/>（与 PhysX 相同的半隐式欧拉、同一 dt 与重力）。
+        /// 落点 = 轨迹<b>最先</b>与水平面 <c>y = <see cref="LevelGeometry.GroundTopY"/></c> 相交、
+        /// 且平面落点在 <see cref="AiTerrain"/> 矩形内的那一步；掉出矩形则继续下落到
+        /// <see cref="LevelGeometry.WaterSurfaceY"/> 以下 → 落水。
         /// 【M2 降级】不模拟侧墙反弹（无瓦片查询，见 <see cref="AiTerrain"/> 头注）。
         /// </summary>
         public static AiThrowSample SimulateShot(
             float startX, float startY, float vx, float vy,
-            float weight, float friction, float bounce,
-            AiTerrain terrain, float waterPixelY, int maxSteps = MaxSimulationSteps)
+            float weight, AiTerrain terrain, int maxSteps = MaxSimulationSteps)
+        {
+            // 站立枢轴高度发射（脚底贴 y=0），与 PirateBase / 弹体的生成点一致。
+            Vector3 origin = LevelGeometry.PixelToArena(startX, startY);
+            origin.y = LevelGeometry.GroundTopY + LevelGeometry.UnitPivotHeight;
+            return SimulateFromWorld(origin, vx, vy, weight, terrain, maxSteps);
+        }
+
+        /// <summary>
+        /// 世界坐标出发的投掷模拟内核（供 seagull 从空中投弹等复用）；参数与 <see cref="SimulateShot"/> 同口径。
+        /// </summary>
+        static AiThrowSample SimulateFromWorld(
+            Vector3 origin, float vx, float vy, float weight,
+            AiTerrain terrain, int maxSteps)
         {
             float launchVx = vx;
             float launchVy = vy;
-            float x = startX;
-            float y = startY;
-            bool drowned = false;
 
             if (maxSteps < 0)
                 maxSteps = 0;
 
+            Vector3 initialVelocity = LevelGeometry.FlashLaunchVelocityToWorld(vx, vy);
+            float gravityY = LevelGeometry.WorldGravityY(weight);
+
+            var points = new Vector3[maxSteps];
+            ThrowTrajectory.Predict(origin, initialVelocity, gravityY, points, maxSteps, LevelGeometry.FrameSeconds);
+
+            Vector3 end = origin;
+            bool drowned = false;
+
             for (int step = 0; step < maxSteps; step++)
             {
-                vy += weight;
-                x += vx;
-                y += vy;
+                Vector3 p = points[step];
+                end = p;
 
-                if (y >= waterPixelY)
+                // 最先与地面水平面相交、且平面落点仍在地面矩形内 = 落点。
+                if (p.y <= LevelGeometry.GroundTopY)
                 {
-                    drowned = true;   // §4.4 落水即死：先于地面判定，水面可以在地面之上（悬崖下海）
-                    break;
-                }
-
-                if (terrain != null && terrain.IsBelowGround(x, y))
-                {
-                    y = terrain.GroundY(x);
-                    (vx, vy) = Ballistics.IntegrateGroundContact(vx, vy, friction, bounce);
-
-                    // 静止判定：水平被摩擦吃掉、垂直反弹已收敛。
-                    if (MathF.Abs(vx) <= 0.5f && MathF.Abs(vy) <= 0.5f)
+                    Vector2 planar = LevelGeometry.ArenaToPixel(p);
+                    if (terrain == null || terrain.IsInside(planar.x, planar.y))
                         break;
                 }
 
-                // 注意：不在「飞出关卡左右边界」处提前中断。原版投掷物飞出地图后仍会继续受重力
-                // 落到水面/地面；若中途截断，落点会停在半空（Ey 偏小），§6.2 的「落点越高越好」
-                // 会把它误判成高收益。此处只在落水/静止/步数上限处结束。
+                // 掉出地面矩形后会继续下落到水面以下（§4.4 落水即死）。
+                if (p.y <= LevelGeometry.WaterSurfaceY)
+                {
+                    drowned = true;
+                    break;
+                }
             }
 
-            return new AiThrowSample(launchVx, launchVy, x, y, drowned);
+            Vector2 landing = LevelGeometry.ArenaToPixel(end);
+            return new AiThrowSample(launchVx, launchVy, landing.x, landing.y, drowned);
         }
 
         // ------------------------------------------------------------------
@@ -816,7 +848,9 @@ namespace PirateCrew.PirateCrew.Battle
             s += (MathF.Abs(t.Ex - enemyAvgX) - MathF.Abs(actor.X - enemyAvgX)) / -500f;
             s += (MathF.Abs(t.Ey - enemyAvgY) - MathF.Abs(actor.Y - enemyAvgY)) / -500f;
 
-            if (t.Ey >= field.WaterPixelY)
+            // 落水 −2（§6.2）。3D 下「落水」由样本的 Drowned 事实承载（掉出地面矩形），
+            // 不再用平面 y 与水位比较（水位是高度，与 XZ 平面正交）。
+            if (t.Drowned)
                 s -= DrownPenalty;
 
             for (int i = 0; i < field.Units.Count; i++)
@@ -1004,9 +1038,11 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>
         /// §6.3 seagull 专门评估（<c>Seagull.aiSimulation</c>）：
-        /// 高度 = 敌方最高 y（最小 y，y 向下）− 100 − rand×100；
-        /// 随机 10 个 x 落点，逐点计算坠弹收益（敌 40px 内 <c>1 − d/40</c>，友 <c>−1.5 + d/40</c>）；
+        /// 高度 = 单位顶端 + 100 + rand×100（3D：世界高度，相对地面，单位 px）；随机 10 个 x 落点，
+        /// 逐点模拟坠弹（从该高度垂直下落到地面平面），计算坠弹收益
+        /// （敌 40px 内 <c>1 − d/40</c>，友 <c>−1.5 + d/40</c>）；
         /// 只保留正收益落点，要求 ≥2 个（<c>shots.length &gt; 1</c>），success 取最大单点收益。
+        /// 原版「敌方最高 y」在平坦 3D 竞技场里所有单位等高（= 站立枢轴），故以单位顶端为基准。
         /// </summary>
         public static bool TryPlanSeagull(
             AiBattlefield field, int actorUnitId, IAiRandom random,
@@ -1021,23 +1057,28 @@ namespace PirateCrew.PirateCrew.Battle
             if (!field.TryGetUnit(actorUnitId, out AiUnit actor))
                 return false;
 
-            // 敌方最高点：y 向下 → 取最小 y。
-            bool hasEnemy = false;
-            float minEnemyY = float.MaxValue;
+            // 敌方存活数与其纵深质心（坠弹的平面纵深落点；原版只有 1D x，3D 需要 Z 分量）。
+            int enemyCount = 0;
+            float depthSum = 0f;
             for (int i = 0; i < field.Units.Count; i++)
             {
                 AiUnit u = field.Units[i];
-                if (u.Alive && u.TeamIndex != actor.TeamIndex && u.Y < minEnemyY)
+                if (u.Alive && u.TeamIndex != actor.TeamIndex)
                 {
-                    minEnemyY = u.Y;
-                    hasEnemy = true;
+                    enemyCount++;
+                    depthSum += u.Y;
                 }
             }
 
-            if (!hasEnemy)
+            if (enemyCount == 0)
                 return false;
 
-            height = minEnemyY - 100f - (float)random.NextDouble() * SeagullHeightRandomDrop;
+            float dropDepth = depthSum / enemyCount;
+
+            // 3D：海鸥在世界高度飞行（单位顶端 + 100..200px），不再是 2D 的「屏幕 y 更小」。
+            height = LevelGeometry.UnitsToPixels(LevelGeometry.UnitPivotHeight)
+                + SeagullHeightAboveUnitTop
+                + (float)random.NextDouble() * SeagullHeightRandomDrop;
 
             var positive = new List<float>();
             float best = 0f;
@@ -1047,10 +1088,11 @@ namespace PirateCrew.PirateCrew.Battle
             {
                 float x = field.Terrain.MinX + (float)random.NextDouble() * span;
 
-                // 坠弹：从 height 处垂直下落，重量/摩擦/弹跳取爆炸类代表值（§5.2 接触引爆、weight=1）。
-                AiThrowSample drop = SimulateShot(
-                    x, height, 0f, 0f, CrewCatalog.Weight, 0.3f, 0.2f,
-                    field.Terrain, field.WaterPixelY);
+                // 坠弹：从海鸥高度垂直下落（零初速，仅受重力），落在地面平面上。
+                Vector3 origin = LevelGeometry.PixelToArena(x, dropDepth);
+                origin.y = LevelGeometry.GroundTopY + LevelGeometry.PixelsToUnits(height);
+                AiThrowSample drop = SimulateFromWorld(
+                    origin, 0f, 0f, CrewCatalog.Weight, field.Terrain, MaxSimulationSteps);
                 if (drop.Drowned)
                     continue;
 
@@ -1094,8 +1136,10 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>
         /// §6.3 箱体武器（woodenCrate / gunpowderBarrel）专门评估（<c>BoxWeapon.aiSimulation</c>）：
-        /// 在优先目标附近取 10 个候选放置点（沿「本队质心 → 目标」方向偏 16–64px、y 偏 ±50），
-        /// 过滤 <see cref="AiTerrain.CanPlace"/>；要求 ≥3 个可行点；<c>success = random</c>（原版即纯随机）。
+        /// 在优先目标附近取 10 个候选放置点（沿「本队质心 → 目标」方向偏 16–64px、
+        /// 纵深（平面 y）以目标为心偏 ±50px），过滤 <see cref="AiTerrain.CanPlace"/>；
+        /// 要求 ≥3 个可行点；<c>success = random</c>（原版即纯随机）。
+        /// 3D：放置点落在世界地面平面 y=<see cref="LevelGeometry.GroundTopY"/> 上，平面 y 即纵深。
         /// </summary>
         public static bool TryPlanBoxPlacement(
             AiBattlefield field, int actorUnitId, IAiRandom random,
@@ -1134,7 +1178,8 @@ namespace PirateCrew.PirateCrew.Battle
 
             WeaponCatalog.TryGet(WeaponId.WoodenCrate, out WeaponStats crate);
             float halfWidth = crate.AabbRadius > 0f ? crate.AabbRadius : 16f;
-            float halfHeight = crate.AabbVerticalRadius > 0f ? crate.AabbVerticalRadius : 15f;
+            // Flash 的「竖直」AABB 半径在平面重投影后 = XZ 足迹的纵深半宽。
+            float halfDepth = crate.AabbVerticalRadius > 0f ? crate.AabbVerticalRadius : 15f;
 
             var feasible = new List<(float x, float y)>(BoxCandidateCount);
             float span = BoxOffsetMax - BoxOffsetMin;
@@ -1142,11 +1187,11 @@ namespace PirateCrew.PirateCrew.Battle
             for (int i = 0; i < BoxCandidateCount; i++)
             {
                 float offset = BoxOffsetMin + (float)random.NextDouble() * span;      // 16–64px
-                float yOffset = ((float)random.NextDouble() * 2f - 1f) * BoxVerticalOffset;  // ±50
+                float yOffset = ((float)random.NextDouble() * 2f - 1f) * BoxVerticalOffset;  // ±50px 纵深
                 float x = target.X - direction * offset;   // 放在本队与目标之间，偏向己方半侧
-                float y = field.Terrain.GroundY(x) + yOffset;
+                float y = target.Y + yOffset;             // 平面 y = 世界 Z 纵深
 
-                if (field.Terrain.CanPlace(x, y, halfWidth, halfHeight))
+                if (field.Terrain.CanPlace(x, y, halfWidth, halfDepth))
                     feasible.Add((x, y));
             }
 
@@ -1186,8 +1231,7 @@ namespace PirateCrew.PirateCrew.Battle
                     // 「对每个存活敌人调它的 randomThrows(2)」——即模拟敌人自己被抛出后的落点。
                     AiThrowSample sample = RandomThrow(
                         enemy.X, enemy.Y, CrewCatalog.TwangMaxForce,
-                        CrewCatalog.Weight, CrewCatalog.Friction, CrewCatalog.Bounce,
-                        field.Terrain, field.WaterPixelY, random);
+                        CrewCatalog.Weight, field.Terrain, random);
 
                     evaluationCount++;
 
@@ -1570,8 +1614,7 @@ namespace PirateCrew.PirateCrew.Battle
 
             AiThrowSample sample = AiEvaluation.RandomThrow(
                 actor.X, actor.Y, CrewCatalog.TwangMaxForce,
-                CrewCatalog.Weight, CrewCatalog.Friction, CrewCatalog.Bounce,
-                _field.Terrain, _field.WaterPixelY, _random, _options.MaxSimulationSteps);
+                CrewCatalog.Weight, _field.Terrain, _random, _options.MaxSimulationSteps);
             _evaluationCount++;
 
             float flash = AiEvaluation.ScoreSelfThrowSample(sample, _field, _field.ActingUnitId);
@@ -1584,8 +1627,7 @@ namespace PirateCrew.PirateCrew.Battle
                 {
                     AiThrowSample m = AiEvaluation.RandomThrow(
                         actor.X, actor.Y, CrewCatalog.TwangMaxForce,
-                        CrewCatalog.Weight, CrewCatalog.Friction, CrewCatalog.Bounce,
-                        _field.Terrain, _field.WaterPixelY, _random, _options.MaxSimulationSteps);
+                        CrewCatalog.Weight, _field.Terrain, _random, _options.MaxSimulationSteps);
                     _evaluationCount++;
 
                     float g = CherryBombRecheckGain(m, actor);
@@ -1731,8 +1773,6 @@ namespace PirateCrew.PirateCrew.Battle
             WeaponCatalog.TryGet(id, out WeaponStats stats);
             float twangMax = stats.TwangMax;
             float weight = stats.Weight;
-            float friction = stats.Friction;
-            float bounce = stats.Bounce;
 
             if (twangMax <= 0f)
                 return;   // 无法弹弓发射（原表为「—」）→ 不产出候选；cannon 另有 TODO 说明
@@ -1742,8 +1782,8 @@ namespace PirateCrew.PirateCrew.Battle
             for (int i = 0; i < count; i++)
             {
                 AiThrowSample t = AiEvaluation.RandomThrow(
-                    actor.X, actor.Y, twangMax, weight, friction, bounce,
-                    _field.Terrain, _field.WaterPixelY, _random, _options.MaxSimulationSteps);
+                    actor.X, actor.Y, twangMax, weight,
+                    _field.Terrain, _random, _options.MaxSimulationSteps);
                 _evaluationCount++;
                 AddWeaponSampleCandidate(actor, slot, id, t);
             }
@@ -1773,11 +1813,15 @@ namespace PirateCrew.PirateCrew.Battle
                 for (int k = 0; k < offsets.Length; k++)
                 {
                     float x = enemy.X + offsets[k];
+                    // 3D：锚落在世界地面平面上；平面 y（纵深）取敌人纵深 + 半个命中带，
+                    // 使敌人在 §5.2 的 `anchorY-64 < y < anchorY` 命中带内。
+                    float y = enemy.Y + AiEvaluation.AnchorVerticalBand * 0.5f;
                     if (x < _field.Terrain.MinX || x > _field.Terrain.MaxX)
                         continue;
+                    if (y < _field.Terrain.MinY || y > _field.Terrain.MaxY)
+                        continue;
 
-                    float groundY = _field.Terrain.GroundY(x);
-                    AiThrowSample sample = new AiThrowSample(0f, 40f, x, groundY, groundY >= _field.WaterPixelY);
+                    AiThrowSample sample = new AiThrowSample(0f, 40f, x, y, false);
                     AddWeaponSampleCandidate(actor, slot, WeaponId.Anchor, sample);
                 }
             }

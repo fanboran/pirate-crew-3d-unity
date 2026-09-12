@@ -23,12 +23,20 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         [Test]
         public void SlingWeapon_SpawnsOneAtOwner_WithFlashVelocityConverted()
         {
-            // 初速 vx=4, vy=10（Flash px/帧）→ 世界 (4×0.78125, -10×0.78125) = (3.125, -7.8125)
+            // vx=4, vy=10（Flash px/帧）→ 3D 初速（含 ThrowLift=0.7 仰角）：
+            //   模长 s = √(4²+10²) = √116 ≈ 10.7703 px/帧 → 世界 10.7703×0.78125 ≈ 8.4143。
+            //   平面方向 = normalize(4, 0, 10)（Flash 平面 → 世界 XZ）；抬升只在 +Y 上抬仰角、不改模长。
+            //   合成后：x≈2.5601、y≈4.8252、z≈6.4003。
             IReadOnlyList<ProjectileSpawn> plan = Plan(WeaponId.CherryBomb, vx: 4f, vy: 10f);
             Assert.AreEqual(1, plan.Count);
             Assert.AreEqual(Owner, plan[0].WorldPosition);
-            Assert.AreEqual(3.125f, plan[0].WorldVelocity.x, 1e-5f);
-            Assert.AreEqual(-7.8125f, plan[0].WorldVelocity.y, 1e-5f);
+            Assert.AreEqual(2.5601f, plan[0].WorldVelocity.x, 1e-3f);
+            Assert.AreEqual(4.8252f, plan[0].WorldVelocity.y, 1e-3f);
+            Assert.AreEqual(6.4003f, plan[0].WorldVelocity.z, 1e-3f);
+            // 抬升不改变速度大小（twangMax 限速语义）：|v| = s × FlashSpeedScale。
+            Assert.AreEqual(8.4143f, plan[0].WorldVelocity.magnitude, 1e-3f);
+            // 平面方向仍是 Flash (vx, vy) 的方向：x/z = 4/10。
+            Assert.AreEqual(0.4f, plan[0].WorldVelocity.x / plan[0].WorldVelocity.z, 1e-4f);
             Assert.IsFalse(plan[0].Kinematic);
         }
 

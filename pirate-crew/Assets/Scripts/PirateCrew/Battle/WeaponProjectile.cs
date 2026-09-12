@@ -20,6 +20,16 @@ namespace PirateCrew.PirateCrew.Battle
     /// 【程序化兜底】弹体可由 <c>BattleController.projectilePrefab</c> 提供；为空时由
     ///   <see cref="BattleController"/> 用图元 + 颜色程序化构建，因此<b>既有场景无需重新装配</b>。
     ///
+    /// 【3D 运动语义（见 docs/M2-3D空间模型对齐.md）】
+    ///   · 竞技场是 <b>XZ 水平面</b>、重力沿 <b>-Y</b>：弹体在 X/Z 上惯性飞行、在 Y 上受重力
+    ///     （<see cref="ProjectileProfile.UsesGravity"/> 时，见 <see cref="FixedUpdate"/>）。
+    ///   · 刚体<b>只锁旋转、不锁位置</b>：FreezePositionZ 是"2D 侧视"时代的遗留，会把弹体钉死在
+    ///     出生时的 Z 平面，永远打不到纵深方向的目标。
+    ///   · 「静止」判据（dynamite / banana 的 OnRest）不按 XY 平面读速度，口径见
+    ///     <see cref="FlashRestComponents"/>。
+    ///   · 地面碰撞/弹跳/落水在 XZ 地面上成立：碰撞与弹跳交给 PhysX（重力 -Y + PhysicsMaterial），
+    ///     落水用全局水面常量 <see cref="LevelGeometry.WaterSurfaceY"/>。
+    ///
     /// 【已知 TODO】
     ///   · anchor / seagull / tidalWave / voodooDoll / cannon / SweepingFlame 的专用机制未实现
     ///     （见 <see cref="ProjectileProfile.SupportsGenericProjectile"/>），选到它们时不生成弹体。
@@ -27,6 +37,8 @@ namespace PirateCrew.PirateCrew.Battle
     ///     <see cref="OnPostDetonate"/> 补（本次不做，成本高于本任务边界）。
     ///   · dynamite 落水变 unlit 状态、boulder 碾压的「推到 x±32 并继承 vx」、
     ///     Flash 的「每帧 |vx|-=friction」精确摩擦语义均留 TODO。
+    ///   · parachuteBomb 的「空中减速（Flash vy&gt;1 → vy-=2；vx*=0.95）」与「按住鼠标当扇子
+    ///     （沿光标反方向 ±0.2）」、banana 的 AI 近距引爆条件均未实现（纯玩法增强，非空间语义）。
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     [DisallowMultipleComponent]
@@ -36,9 +48,10 @@ namespace PirateCrew.PirateCrew.Battle
         const int SpawnGraceFrames = 2;
 
         /// <summary>
-        /// 视为「静止」的世界速度阈值（≈ Flash 0.2px/帧 × 0.78125）。
-        /// 小于该值时把 vx、vy 一起归零，以喂给 <see cref="WeaponTriggerRules.IsAtRest"/>
-        /// 的 <c>vx==0 &amp;&amp; |vy|&lt;0.2</c> 严格判定（PhysX 静置速度不会精确为 0）。
+        /// 视为「静止」的世界总速度阈值（Flash 0.2px/帧 ≈ 0.15625 世界单位/秒，这里取 0.2 略宽）。
+        /// 小于该值时把 <see cref="FlashRestComponents"/> 输出的 vx、vy 一起归零，
+        /// 以喂给 <see cref="WeaponTriggerRules.IsAtRest"/> 的
+        /// <c>vx==0 &amp;&amp; |vy|&lt;0.2</c> 严格判定（PhysX 静置速度不会精确为 0）。
         /// </summary>
         const float RestSnapSpeed = 0.2f;
 
@@ -67,7 +80,8 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>武器 id。</summary>
         public WeaponId WeaponId => _stats.Id;
 
-        /// <summary>是否仍在本回合物理运动（用于 <see cref="BattleController.IsAnythingActive"/>）。</summary>
+        /// <summary>是否仍在本回合物理运动（用于 <see cref="BattleController.IsAnythingActive"/>）。
+        /// 3D 下取总速度（XZ 惯性 + Y 重力），任一轴非零即算在飞。</summary>
         public bool IsInFlight
         {
             get
@@ -80,6 +94,28 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>是否会在被爆炸命中时连锁引爆（§5.2 火药桶）。</summary>
         public bool TriggersOnBlast => ProjectileTriggerRules.CanChainFromBlast(_stats.Trigger);
+
+        /// <summary>
+        /// 把 3D 世界速度折算成 Flash「静止」判据 <see cref="WeaponTriggerRules.IsAtRest"/> 需要的
+        /// (vx, vy)（px/帧）。3D 口径（见 docs/M2-3D空间模型对齐.md §1/§5.2）：
+        ///   · <paramref name="vx"/> = <b>XZ 平面速度模长</b>。Flash 的 vx 是"横向是否在动"的标量；
+        ///     3D 的水平面有 X/Z 两个轴，任一轴有速度都算"在动"，故取平面合成模长
+        ///     （先用 <see cref="LevelGeometry.ArenaVelocityToFlash"/> 拿到平面分量，再取模长）。
+        ///   · <paramref name="vy"/> = <b>世界 Y 速度 / FlashSpeedScale</b>。Flash 的 vy 是重力轴分量；
+        ///     3D 里重力沿 -Y，所以"下落"必须落在 vy 上。
+        ///
+        /// 为什么不能直接把平面重投影的 Z 分量当作 vy：竖直下落的弹体（X=Z=0、Y 很大）会被读成
+        /// vx=0、vy=0 → 判定静止并在半空中引爆；而竖直下落时 vy 应显著非零——文档对 dynamite 落水的
+        /// 备注正是"水里下沉不静止"。反之，只读 world.x 作 vx 会漏判沿 Z 的滑行。故取上式。
+        ///
+        /// 纯函数（不触实例状态），供无头测试直接验证口径。
+        /// </summary>
+        public static void FlashRestComponents(Vector3 worldVelocity, out float vx, out float vy)
+        {
+            Vector2 flat = LevelGeometry.ArenaVelocityToFlash(worldVelocity);
+            vx = flat.magnitude;
+            vy = worldVelocity.y / LevelGeometry.FlashSpeedScale;
+        }
 
         void Awake()
         {
@@ -112,8 +148,10 @@ namespace PirateCrew.PirateCrew.Battle
                 // 2022.3 的 Rigidbody 没有 gravityScale（Unity 6 才加入），
                 // 故关闭 useGravity，改由 FixedUpdate 按 Weight 手动施加加速度（见 ApplyWeightGravity）。
                 body.useGravity = false;
-                body.constraints = RigidbodyConstraints.FreezePositionZ
-                                   | RigidbodyConstraints.FreezeRotationX
+                // 只锁旋转（保持朝向稳定），**不锁位置**：3D 竞技场是 XZ 水平面，弹体必须能沿 X 和 Z
+                // 同时位移。原先的 FreezePositionZ 是"2D 侧视"时代的遗留——它把弹体钉死在出生时的 Z
+                // 平面上，使其永远打不到纵深方向的目标（见 docs/M2-3D空间模型对齐.md §1/§6）。
+                body.constraints = RigidbodyConstraints.FreezeRotationX
                                    | RigidbodyConstraints.FreezeRotationY
                                    | RigidbodyConstraints.FreezeRotationZ;
                 body.interpolation = RigidbodyInterpolation.Interpolate;
@@ -141,6 +179,8 @@ namespace PirateCrew.PirateCrew.Battle
 
             // 手动按 Weight 放大全局重力（weight=1.5 的 boulder；weight=1 与全局一致）。
             // 用 ForceMode.Acceleration 使加速度与质量无关。
+            // 3D 下 Physics.gravity = (0, -19.53125, 0)：水平面 (X,Z) 不受影响（惯性匀速），
+            // 弹体在 Y 上匀加速下落——重力竖直向下，与竞技场平面正交。
             body.AddForce(Physics.gravity * _profile.GravityScale, ForceMode.Acceleration);
         }
 
@@ -169,11 +209,12 @@ namespace PirateCrew.PirateCrew.Battle
             UpdateMineFuse();
             UpdateClickTrigger();
 
-            Vector2 flash = LevelGeometry.WorldVelocityToFlash(body.velocity);
-            float vx = flash.x;
-            float vy = flash.y;
+            // 静止判据的 3D 口径：vx = XZ 平面速度模长、vy = 世界 Y（重力轴）速度，见 FlashRestComponents。
+            FlashRestComponents(body.velocity, out float vx, out float vy);
             if (body.velocity.sqrMagnitude < RestSnapSpeed * RestSnapSpeed)
             {
+                // PhysX 静置速度不会精确为 0，而 §5.2 的 dynamite 判据要求 vx 严格 == 0；
+                // 总速度低于阈值时一并归零，把"实际已停住"喂成"判据意义上的静止"。
                 vx = 0f;
                 vy = 0f;
             }
@@ -229,7 +270,9 @@ namespace PirateCrew.PirateCrew.Battle
             if (_battle == null)
                 return;
 
-            if (transform.position.y < _battle.WaterWorldY)
+            // §4.4：水面是世界 Y 阈值（LevelGeometry.WaterSurfaceY = -0.2），方向无关——
+            // 从 X 或 Z 任一侧掉出地面都会落到水面以下。弹体枢轴低于水面即按 §5.2 处置。
+            if (LevelGeometry.IsBelowWater(transform.position.y, _battle.WaterWorldY))
             {
                 if (ProjectileProfile.WaterBehavior(_stats) == ProjectileWaterBehavior.Detonate)
                     Detonate();
@@ -243,10 +286,20 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
 
             Vector3 p = transform.position;
+            // 3D 化后的出界判据：竞技场是 XZ 平面（X 0..WorldWidth、Z 0..WorldDepth），
+            // 水平方向出界即消失；高度只对**无重力**弹体设上界——
+            // 有重力的弹体必然回落，抛物线顶点本来就该允许高过竞技场
+            // （实测满力 banana/parachuteBomb = 30px/帧 + ThrowLift 0.7 时顶点约 4.62 单位，
+            //   若沿用旧的 y > 4 上界，它们会在上升段被误判出界、半空消失）。
             bool outOfMap = p.x < -OutOfMapMargin
                             || p.x > plan.WorldWidth + OutOfMapMargin
-                            || p.y > OutOfMapMargin
-                            || p.y < -plan.WorldHeight - OutOfMapMargin;
+                            || p.z < -OutOfMapMargin
+                            || p.z > plan.WorldDepth + OutOfMapMargin
+                            || p.y < LevelGeometry.WaterSurfaceY - OutOfMapMargin;
+
+            if (!outOfMap && !_profile.UsesGravity && p.y > OutOfMapMargin)
+                outOfMap = true;   // 无重力弹体（如 cannonball）会一直直线飞，需要高度上界兜住
+
             if (outOfMap)
                 Vanish();
         }
@@ -294,7 +347,10 @@ namespace PirateCrew.PirateCrew.Battle
 
         bool _nearestMoving;
 
-        /// <summary>最近存活角色的距离（Flash px；无则 -1），并记录其是否在移动。</summary>
+        /// <summary>最近存活角色的距离（Flash px；无则 -1），并记录其是否在移动。
+        /// 3D 语义：<see cref="Physics.OverlapSphere"/> 与 <see cref="Vector3.Distance"/> 本就是三维判定
+        /// （球半径 60px → 1.875 世界单位，距离含高度差），无需按平面改写；单位都贴地，
+        /// 高度差在正常战斗中可忽略，但判据本身已是 3D。</summary>
         float NearestPirateDistance()
         {
             _nearestMoving = false;
@@ -326,7 +382,9 @@ namespace PirateCrew.PirateCrew.Battle
             return best;
         }
 
-        /// <summary>banana 的玩家点击引爆（§5.2）：鼠标按下且射线命中自身即标记。</summary>
+        /// <summary>banana 的玩家点击引爆（§5.2）：鼠标按下且射线命中自身即标记。
+        /// 3D 语义：<c>Camera.ScreenPointToRay</c> 本就是从透视/正交相机出发的三维射线，
+        /// 拾取与竞技场维度无关，无需按平面改写（对照 LevelGeometry 里的选中半径说明）。</summary>
         void UpdateClickTrigger()
         {
             if (!ProjectileTriggerRules.HasClickTrigger(_stats.Trigger))
@@ -347,6 +405,9 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>boulder 碾压伤害（§5.2：伤害 = |vx| * 1.5）。
+        /// 3D 口径：vx 是 Flash 的**水平**速度（2D 侧视里唯一的水平轴）；竞技场是 XZ 平面，
+        /// 故取世界 (X,Z) 平面速度模长——只看 world.x 会让沿 Z 冲来的 boulder 碾压伤害恒为 0。
+        /// 重力方向（Y）不参与，与 Flash 的 |vx| 口径一致（垂直砸下不计碾压伤害）。
         /// TODO：把敌人推到 x±32 并继承 vx（文档同条），本次只做伤害。</summary>
         void Crush(Collider other)
         {
@@ -354,7 +415,7 @@ namespace PirateCrew.PirateCrew.Battle
             if (target == null || target == _owner || !target.Alive || body == null)
                 return;
 
-            float flashVx = Mathf.Abs(LevelGeometry.WorldVelocityToFlash(body.velocity).x);
+            float flashVx = LevelGeometry.ArenaVelocityToFlash(body.velocity).magnitude;
             float damage = flashVx * 1.5f;
             if (damage > 0f)
                 target.SubtractHealth(damage);

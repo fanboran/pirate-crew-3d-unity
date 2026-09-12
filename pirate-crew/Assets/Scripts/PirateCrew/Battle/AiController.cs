@@ -57,12 +57,8 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("选定动作后、真正执行前的延迟帧数：对应 §6.1「先 panToCharacter 给镜头，再执行」。")]
         [SerializeField] int executeDelayFrames = 12;
 
-        [Header("地形近似（M2 无瓦片查询接口，见 AiTerrain 说明）")]
-        [Tooltip("true = 用当前存活角色的最低点 + bottomExtent 近似地面；false = 用 groundWorldY。")]
-        [SerializeField] bool autoGroundFromUnits = true;
-
-        [Tooltip("autoGroundFromUnits = false 时使用的地面世界 Y。")]
-        [SerializeField] float groundWorldY;
+        // 地形近似：竞技场是一块 XZ 矩形（地面顶面恒为世界 y=0），边界外即水面。
+        // 尺寸来自 BattleController.Plan（WorldWidth/WorldDepth），无需额外序列化字段。
 
         readonly List<AiEvaluationSession> _sessions = new List<AiEvaluationSession>();
         readonly List<AiMoveCandidate> _candidates = new List<AiMoveCandidate>();
@@ -185,7 +181,6 @@ namespace PirateCrew.PirateCrew.Battle
 
             IReadOnlyList<PirateBase> all = battle.AllPirates;
             var units = new List<AiUnit>(all.Count);
-            float maxPixelY = float.MinValue;
 
             for (int i = 0; i < all.Count; i++)
             {
@@ -193,13 +188,11 @@ namespace PirateCrew.PirateCrew.Battle
                 if (p == null)
                     continue;
 
-                Vector2 px = LevelGeometry.WorldToPixel(p.transform.position);
+                // 世界坐标 → Flash 平面像素（x = 世界 X、y = 世界 Z 纵深；忽略高度）。
+                Vector2 px = LevelGeometry.ArenaToPixel(p.transform.position);
                 units.Add(new AiUnit(
                     p.PirateId, p.TeamIndex, px.x, px.y,
                     p.Health, p.MaxHealth, p.Alive, p.Evilness, p.Luck));
-
-                if (p.Alive && px.y > maxPixelY)
-                    maxPixelY = px.y;
             }
 
             var weapons = new List<AiWeaponSlot>();
@@ -210,43 +203,35 @@ namespace PirateCrew.PirateCrew.Battle
                     weapons.Add(new AiWeaponSlot(i, ids[i]));
             }
 
-            AiTerrain terrain = BuildTerrain(maxPixelY);
-            float waterPixelY = LevelGeometry.UnitsToPixels(-battle.WaterWorldY);
+            AiTerrain terrain = BuildTerrain();
+            // tidalWave 的「近水带」判据 <c>y &gt;= waterY - 300</c> 里的 waterY 是平面像素标量；
+            // 3D 水面是高度常量，取 WaterSurfaceY 的像素等价量。平坦竞技场上所有单位都站在同一地面，
+            // 因此该带自然覆盖全部单位（与「浪对所有角色一视同仁」一致）。
+            float waterPixelY = LevelGeometry.UnitsToPixels(LevelGeometry.WaterSurfaceY);
 
             return new AiBattlefield(
                 units, actor.PirateId, canThrow, canShoot, weapons, terrain, waterPixelY);
         }
 
         /// <summary>
-        /// 近似地形：默认取「当前存活角色的最低点（像素 y 最大）+ bottomExtent」为地面，
-        /// 并夹在水面之上（否则所有投掷都会落水）。
+        /// 近似地形：竞技场 = 一块 XZ 平面矩形（地面顶面恒为世界 y=0），边界外即水面。
+        /// 尺寸取 <see cref="BattleController.Plan"/> 的 WorldWidth / WorldDepth（瓦片 = 世界单位）。
         /// 【TODO】缺「瓦片 → 地面高度」的运行时查询（另一 agent 的场景组装）；接口就绪后替换此处即可。
         /// </summary>
-        AiTerrain BuildTerrain(float maxPixelY)
+        AiTerrain BuildTerrain()
         {
             float widthPx = 3000f;
-            if (battle != null && battle.Plan != null && battle.Plan.WorldWidth > 0f)
-                widthPx = battle.Plan.WorldWidth * LevelGeometry.PixelsPerUnit;
+            float depthPx = 3000f;
 
-            float waterPixelY = battle != null
-                ? LevelGeometry.UnitsToPixels(-battle.WaterWorldY)
-                : float.MaxValue;
-
-            float groundPixelY;
-            if (autoGroundFromUnits && maxPixelY > float.MinValue)
+            if (battle != null && battle.Plan != null)
             {
-                groundPixelY = maxPixelY + CrewCatalog.BottomExtent;
-            }
-            else
-            {
-                groundPixelY = LevelGeometry.UnitsToPixels(-groundWorldY);
+                if (battle.Plan.WorldWidth > 0f)
+                    widthPx = battle.Plan.WorldWidth * LevelGeometry.PixelsPerUnit;
+                if (battle.Plan.WorldDepth > 0f)
+                    depthPx = battle.Plan.WorldDepth * LevelGeometry.PixelsPerUnit;
             }
 
-            // 地面必须在水面之上（像素 y 更小），否则视为整片海面 → 夹到水面上方 1px。
-            if (waterPixelY > float.MinValue && groundPixelY > waterPixelY)
-                groundPixelY = waterPixelY - 1f;
-
-            return new AiTerrain(0f, widthPx, groundPixelY);
+            return new AiTerrain(0f, widthPx, 0f, depthPx);
         }
 
         void Update()
@@ -384,7 +369,7 @@ namespace PirateCrew.PirateCrew.Battle
                         if (actor.MarkUseWeapon(out WeaponId used) && battle != null)
                         {
                             WeaponStats stats = WeaponCatalog.Get(used);
-                            Vector3 aimWorld = LevelGeometry.PixelToWorld(_decision.AimX, _decision.AimY);
+                            Vector3 aimWorld = LevelGeometry.PixelToArena(_decision.AimX, _decision.AimY);
                             battle.SpawnWeaponProjectiles(
                                 stats, actor, actor.transform.position, aimWorld,
                                 _decision.Vx, _decision.Vy);

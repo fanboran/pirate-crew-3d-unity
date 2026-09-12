@@ -1,19 +1,20 @@
-using PirateCrew.PirateCrew.Combat;
 using UnityEngine;
 
 namespace PirateCrew.PirateCrew.Battle
 {
     /// <summary>
-    /// 弹道轨迹预览（MonoBehaviour 薄壳，采样用纯逻辑 <see cref="Ballistics.PredictTrajectory"/>）。
+    /// 弹道轨迹预览（MonoBehaviour 薄壳，采样用纯逻辑 <see cref="ThrowTrajectory"/>）。
     ///
     /// 【对应章节】§5.1 <c>drawTwangLine</c>（15 段虚线轨迹，逐段加重力）。
     ///
     /// 【3D 重写要点】
-    ///   · Godot 版 30 个预实例化球体 + 自成一套 <c>speed_scale=18/gravity=-18</c>（预览 ≠ 实弹）
-    ///     → 本实现用 <see cref="LineRenderer"/>，且<b>与实弹共用</b> <see cref="Ballistics"/> 与
-    ///     <see cref="LevelGeometry"/> 的换算常量，从根上消除"预览≠实弹"。
-    ///   · API 遵守风险清单 R3：用 <c>positionCount</c> + <c>SetPositions()</c>，
-    ///     不用已过时的 <c>SetVertexCount</c>。
+    ///   · Godot 版 30 个预实例化球体 + 自成一套 <c>speed_scale=18 / gravity=-18</c>（预览 ≠ 实弹，
+    ///     实弹是 <c>velocity = dir * power</c>、<c>gravity = -9.8</c>）→ 本实现用
+    ///     <see cref="LineRenderer"/>，且<b>与实弹共用</b> <see cref="LevelGeometry.ThrowVelocity"/> 的初速、
+    ///     <see cref="LevelGeometry.WorldGravity"/> 的重力、<see cref="ThrowTrajectory"/> 的半隐式欧拉，
+    ///     从根上消除"预览≠实弹"。
+    ///   · 重力沿 -Y，水平面（XZ）内**匀速**——3D 化后重力与水平面正交（见 ThrowTrajectory 类头）。
+    ///   · API 遵守风险清单 R3：用 <c>positionCount</c> + <c>SetPositions()</c>，不用已过时的 <c>SetVertexCount</c>。
     /// </summary>
     [RequireComponent(typeof(LineRenderer))]
     public sealed class TrajectoryPreview : MonoBehaviour
@@ -22,13 +23,12 @@ namespace PirateCrew.PirateCrew.Battle
         [SerializeField] LineRenderer line;
 
         [Tooltip("预测采样段数（§5.1 原版 15 段）。")]
-        [SerializeField] int sampleCount = Ballistics.DefaultPredictionSteps;
-
-        [Tooltip("战斗平面世界 z（与 LevelGeometry.DefaultPlaneZ 一致）。")]
-        [SerializeField] float planeZ = LevelGeometry.DefaultPlaneZ;
+        [SerializeField] int sampleCount = ThrowTrajectory.DefaultSteps;
 
         [Tooltip("是否在轨迹最前面补一个起点。")]
         [SerializeField] bool includeOrigin = true;
+
+        Vector3[] _buffer;
 
         void Awake()
         {
@@ -40,45 +40,40 @@ namespace PirateCrew.PirateCrew.Battle
                 line.useWorldSpace = true;
                 line.positionCount = 0;
             }
+
+            _buffer = new Vector3[Mathf.Max(1, sampleCount)];
         }
 
         /// <summary>
-        /// 用 Flash 逻辑坐标与初速刷新轨迹。参数与 <see cref="AimThrowController"/> 传给
-        /// <see cref="PirateBase.ApplyLaunchVelocity"/> 的完全同源。
+        /// 刷新轨迹。参数与 <see cref="AimThrowController"/> 真正发射时传给
+        /// <see cref="PirateBase.ApplyLaunchVelocity(Vector3)"/> 的完全同源
+        /// （同一个 <see cref="LevelGeometry.ThrowVelocity"/> 调用点语义）。
         /// </summary>
-        /// <param name="originPixelX">起点 Flash 像素 x。</param>
-        /// <param name="originPixelY">起点 Flash 像素 y（y 向下）。</param>
-        /// <param name="vxPixelsPerFrame">Flash 初速 x（px/帧）。</param>
-        /// <param name="vyPixelsPerFrame">Flash 初速 y（px/帧）。</param>
+        /// <param name="originWorld">起点世界坐标。</param>
+        /// <param name="horizontalDirection">XZ 平面上的投掷方向（未归一化亦可，内部会归一化并加抬升）。</param>
+        /// <param name="speedPixelsPerFrame">Flash 口径的初速大小（px/帧，由 twang 的 twangMax 限速决定）。</param>
         /// <param name="weight">重力权重（角色 = 1；武器见 §5.2）。</param>
-        public void Show(
-            float originPixelX, float originPixelY,
-            float vxPixelsPerFrame, float vyPixelsPerFrame, float weight)
+        public void Show(Vector3 originWorld, Vector3 horizontalDirection, float speedPixelsPerFrame, float weight)
         {
             if (line == null)
                 return;
 
-            (float x, float y)[] points = Ballistics.PredictTrajectory(
-                originPixelX, originPixelY, vxPixelsPerFrame, vyPixelsPerFrame, weight, sampleCount);
+            if (_buffer == null || _buffer.Length < sampleCount)
+                _buffer = new Vector3[Mathf.Max(1, sampleCount)];
+
+            ThrowTrajectory.PredictFromFlashSpeed(
+                originWorld, horizontalDirection, speedPixelsPerFrame, weight, _buffer, sampleCount);
 
             int offset = includeOrigin ? 1 : 0;
-            var positions = new Vector3[points.Length + offset];
+            var positions = new Vector3[sampleCount + offset];
             if (includeOrigin)
-                positions[0] = LevelGeometry.PixelToWorld(originPixelX, originPixelY, planeZ);
+                positions[0] = originWorld;
 
-            for (int i = 0; i < points.Length; i++)
-                positions[i + offset] = LevelGeometry.PixelToWorld(points[i].x, points[i].y, planeZ);
+            for (int i = 0; i < sampleCount; i++)
+                positions[i + offset] = _buffer[i];
 
             line.positionCount = positions.Length;
             line.SetPositions(positions);
-        }
-
-        /// <summary>以世界坐标起点刷新轨迹（内部转 Flash 像素，保证与实弹同一坐标系）。</summary>
-        public void ShowFromWorld(
-            Vector3 originWorld, float vxPixelsPerFrame, float vyPixelsPerFrame, float weight)
-        {
-            Vector2 px = LevelGeometry.WorldToPixel(originWorld);
-            Show(px.x, px.y, vxPixelsPerFrame, vyPixelsPerFrame, weight);
         }
 
         /// <summary>隐藏轨迹。</summary>

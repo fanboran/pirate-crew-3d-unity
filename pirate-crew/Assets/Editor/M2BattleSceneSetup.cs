@@ -138,27 +138,34 @@ namespace PirateCrew.EditorTools
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            // 关卡数据驱动尺寸/水位（§4.3 / §5.5）。
+            // 关卡数据驱动尺寸（§4.3）。3D 化后 widthTiles → 世界 X，heightTiles → 世界 Z（纵深）；
+            // 水面高度改为全局常量（地图是平坦的 XZ 竞技场，不再由 waterTileY 推出）。
             LevelData data = LevelCatalog.Get(LevelNumber);
-            float waterWorldY = LevelGeometry.WaterWorldY(data.WaterY);
+            float waterWorldY = LevelGeometry.WaterSurfaceY;
             float worldWidth = data.WidthTiles;
+            float worldDepth = data.HeightTiles;
 
-            // 深蓝清屏色；相机置于 -Z 侧、identity 旋转即看向 +Z 方向（场景原点）。
-            Camera camera = CreateCamera(new Color(0.02f, 0.05f, 0.12f, 1f));
+            // 竞技场中心（相机与相机目标都以此为准）。
+            Vector3 arenaCenter = new Vector3(worldWidth * 0.5f, LevelGeometry.GroundTopY, worldDepth * 0.5f);
+
+            // 天空盒 + 环境光（对齐 Godot 基准的 WorldEnvironment：procedural sky + Sky 环境光）。
+            bool hasSkybox = SetupSkyAndAmbient();
+
+            Camera camera = CreateCamera(hasSkybox);
             camera.gameObject.AddComponent<CinemachineBrain>();
-            camera.transform.position = new Vector3(worldWidth * 0.5f, waterWorldY + 6f, -10f);
-            camera.transform.rotation = Quaternion.identity;
+            camera.transform.position = arenaCenter + BattleCameraOffset;
+            camera.transform.rotation = Quaternion.LookRotation(-BattleCameraOffset.normalized, Vector3.up);
 
             Transform cameraTarget = new GameObject("CameraTarget").transform;
-            cameraTarget.position = new Vector3(worldWidth * 0.5f, waterWorldY + 6f, 0f);
+            cameraTarget.position = arenaCenter;
             CinemachineVirtualCamera virtualCamera = CreateVirtualCamera(cameraTarget);
 
             CreateDirectionalLight();
 
-            // 水位面正下方是地面平台：保证 §4.4 落水即死的全局规则只在真的掉出平台时触发，
-            // 同时让冒烟测试里角色能落地静止、inactivity 能推进回合。
-            Transform ground = CreateGround(waterWorldY, worldWidth);
-            Transform water = CreateWaterPlane(waterWorldY, worldWidth);
+            // 地面 = XZ 水平面（顶面 y = 0，角色脚底贴它）；水 = 地面下方一点的水平面。
+            // 落水即死因此对 X / Z 任一方向掉出竞技场都成立（§4.4 全局规则）。
+            Transform ground = CreateGround(worldWidth, worldDepth);
+            Transform water = CreateWaterPlane(worldWidth, worldDepth, waterWorldY);
 
             Transform team0Root = new GameObject("Team0_Red").transform;
             Transform team1Root = new GameObject("Team1_Blue").transform;
@@ -189,14 +196,77 @@ namespace PirateCrew.EditorTools
         // 场景内容
         // ------------------------------------------------------------------
 
-        static Camera CreateCamera(Color clearColor)
+        // ------------------------------------------------------------------
+        // 战斗相机参数（对齐 Godot orbit_camera.gd：pitch 45°、distance 18、yaw 0）
+        // ------------------------------------------------------------------
+
+        const float CameraDistance = 18f;
+        const float CameraPitchDegrees = 45f;
+        const float CameraFieldOfView = 60f;
+
+        /// <summary>
+        /// 相机相对焦点的偏移（+Z/+Y 侧俯视竞技场）。这个朝向也是"屏幕拖拽 → 世界 XZ 方向"
+        /// 映射的基准（见 <see cref="LevelGeometry.ScreenDragToArenaDirection"/>）。
+        /// </summary>
+        static Vector3 BattleCameraOffset
+        {
+            get
+            {
+                float pitch = CameraPitchDegrees * Mathf.Deg2Rad;
+                return new Vector3(
+                    0f,
+                    CameraDistance * Mathf.Sin(pitch),
+                    CameraDistance * Mathf.Cos(pitch));
+            }
+        }
+
+        /// <summary>
+        /// 天空盒 + 环境光（对齐 Godot 基准的 WorldEnvironment：procedural sky、Sky 环境光）。
+        /// 返回 false 表示找不到天空盒 shader，此时退回纯色背景（不影响可玩性）。
+        /// </summary>
+        static bool SetupSkyAndAmbient()
+        {
+            const string skyPath = MaterialFolder + "/BattleSky.mat";
+            var sky = AssetDatabase.LoadAssetAtPath<Material>(skyPath);
+
+            if (sky == null)
+            {
+                Shader skyShader = Shader.Find("Skybox/Procedural");
+                if (skyShader == null)
+                {
+                    Debug.LogWarning("[M2BattleSceneSetup] 找不到 Skybox/Procedural，退回纯色背景。");
+                    RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+                    RenderSettings.ambientLight = new Color(0.45f, 0.5f, 0.58f, 1f);
+                    return false;
+                }
+
+                sky = new Material(skyShader) { name = "BattleSky" };
+                sky.SetFloat("_SunSize", 0.04f);
+                sky.SetFloat("_AtmosphereThickness", 0.85f);
+                sky.SetColor("_SkyTint", new Color(0.53f, 0.81f, 0.92f, 1f));
+                sky.SetColor("_GroundColor", new Color(0.35f, 0.33f, 0.28f, 1f));
+                sky.SetFloat("_Exposure", 1.1f);
+                AssetDatabase.CreateAsset(sky, skyPath);
+            }
+
+            RenderSettings.skybox = sky;
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Skybox;
+            RenderSettings.ambientIntensity = 1f;
+            RenderSettings.fog = false;
+            return true;
+        }
+
+        static Camera CreateCamera(bool useSkybox)
         {
             var go = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
             go.tag = "MainCamera";
 
             var camera = go.GetComponent<Camera>();
-            camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = clearColor;
+            camera.clearFlags = useSkybox ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.53f, 0.72f, 0.88f, 1f);
+            camera.fieldOfView = CameraFieldOfView;
+            camera.nearClipPlane = 0.1f;
+            camera.farClipPlane = 200f;
             return camera;
         }
 
@@ -208,24 +278,26 @@ namespace PirateCrew.EditorTools
             vcam.Follow = follow;
 
             // 参照库 rts-camera-cinemachine 的 "CameraTarget 中转"：vcam 跟随空目标，
-            // BattleCameraController 只平滑移动该目标（锁定 XY、保持固定 z 深度）。
+            // BattleCameraController 只平滑移动该目标。
             var transposer = vcam.AddCinemachineComponent<CinemachineTransposer>();
             transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
-            transposer.m_FollowOffset = new Vector3(0f, 0f, -10f);
+            // 3D 化：45° 俯角、距离 18（对齐 Godot orbit_camera.gd 的 pitch/distance 默认值）。
+            transposer.m_FollowOffset = BattleCameraOffset;
             transposer.m_XDamping = 0f;
             transposer.m_YDamping = 0f;
             transposer.m_ZDamping = 0f;
 
-            // 战斗平面是 XY 侧视，用正交相机（对应原版 2D 侧视）。
+            // 透视相机 + 斜俯视 —— 正交侧视是"2D 化"的遗留
+            // （详见 docs/M2-3D空间模型对齐.md，改回正交前先读那份文档）。
             LensSettings lens = vcam.m_Lens;
-            lens.Orthographic = true;
-            lens.OrthographicSize = 10f;
+            lens.Orthographic = false;
+            lens.FieldOfView = CameraFieldOfView;
             lens.NearClipPlane = 0.1f;
-            lens.FarClipPlane = 100f;
+            lens.FarClipPlane = 200f;
             vcam.m_Lens = lens;
 
-            go.transform.position = new Vector3(follow.position.x, follow.position.y, -10f);
-            go.transform.rotation = Quaternion.identity;
+            go.transform.position = follow.position + BattleCameraOffset;
+            go.transform.rotation = Quaternion.LookRotation(-BattleCameraOffset.normalized, Vector3.up);
             return vcam;
         }
 
@@ -234,35 +306,50 @@ namespace PirateCrew.EditorTools
             var go = new GameObject("Directional Light", typeof(Light));
             var light = go.GetComponent<Light>();
             light.type = LightType.Directional;
-            light.color = Color.white;
-            light.intensity = 1f;
+            light.color = new Color(1f, 0.957f, 0.878f, 1f);
+            light.intensity = 1.1f;
+            // 投影是"看起来像 3D"的主要深度线索之一（对齐 Godot 基准的 shadow_enabled）。
+            light.shadows = LightShadows.Soft;
+            light.shadowStrength = 0.7f;
             go.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
         }
 
         /// <summary>
-        /// 地面平台：Cube 顶面 = 水位 + 0.5（略高于水面），使角色落地后不会触发落水即死。
-        /// 平台向后（+z）留出厚度，正面 z 与战斗平面重叠以保证碰撞。
+        /// 地面：**XZ 水平面**（厚 0.2 的 Cube，顶面 y = <see cref="LevelGeometry.GroundTopY"/>）。
+        /// 角色脚底贴在顶面上，所以从 X 或 Z 任一侧掉出去都会落到水面以下（§4.4）。
+        /// 原先是 XY 竖直薄板（2D 侧视遗留）。
         /// </summary>
-        static Transform CreateGround(float waterWorldY, float worldWidth)
+        static Transform CreateGround(float worldWidth, float worldDepth)
         {
+            const float thickness = 0.2f;
+
             var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
             ground.name = "Ground";
-            ground.transform.position = new Vector3(worldWidth * 0.5f, waterWorldY, 0.5f);
-            ground.transform.localScale = new Vector3(worldWidth + 4f, 1f, 4f);
+            ground.transform.position = new Vector3(
+                worldWidth * 0.5f,
+                LevelGeometry.GroundTopY - thickness * 0.5f,
+                worldDepth * 0.5f);
+            ground.transform.localScale = new Vector3(worldWidth, thickness, worldDepth);
             ground.GetComponent<MeshRenderer>().sharedMaterial = EnsureMaterial(
                 MaterialFolder + "/BattleGround.mat", "BattleGround",
-                "Universal Render Pipeline/Lit", new Color(0.35f, 0.35f, 0.35f, 1f), "Standard");
+                "Universal Render Pipeline/Lit", new Color(0.82f, 0.74f, 0.53f, 1f), "Standard");
             return ground.transform;
         }
 
-        /// <summary>水位面：薄 Quad 贴在水位世界 Y 上，放在地面之前保证可见；无碰撞体（纯视觉）。</summary>
-        static Transform CreateWaterPlane(float waterWorldY, float worldWidth)
+        /// <summary>
+        /// 水面：**XZ 水平面**（比地面外扩一圈），无碰撞体——落水判定用世界 Y 阈值，不靠碰撞。
+        /// </summary>
+        static Transform CreateWaterPlane(float worldWidth, float worldDepth, float waterWorldY)
         {
-            var water = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            const float margin = 40f;
+
+            var water = GameObject.CreatePrimitive(PrimitiveType.Cube);
             water.name = "Water";
-            water.transform.position = new Vector3(worldWidth * 0.5f, waterWorldY, -2.2f);
-            water.transform.localScale = new Vector3(worldWidth + 4f, 0.3f, 1f);
-            water.transform.rotation = Quaternion.identity;
+            // 注意：BattleController.Start 会把 waterPlane.position.y 设为 LevelGeometry.WaterSurfaceY，
+            // 所以这里直接放在该高度上（不要再加偏移，否则运行时会跳一下）。
+            water.transform.position = new Vector3(
+                worldWidth * 0.5f, waterWorldY, worldDepth * 0.5f);
+            water.transform.localScale = new Vector3(worldWidth + margin, 0.1f, worldDepth + margin);
 
             var collider = water.GetComponent<Collider>();
             if (collider != null)
@@ -270,7 +357,7 @@ namespace PirateCrew.EditorTools
 
             water.GetComponent<MeshRenderer>().sharedMaterial = EnsureMaterial(
                 MaterialFolder + "/BattleWater.mat", "BattleWater",
-                "Sprites/Default", new Color(0.15f, 0.45f, 0.75f, 0.55f));
+                "Universal Render Pipeline/Lit", new Color(0.13f, 0.42f, 0.68f, 1f), "Standard");
             return water.transform;
         }
 
@@ -728,10 +815,6 @@ namespace PirateCrew.EditorTools
 
         static Material EnsureMaterial(string path, string name, string shaderName, Color color, string fallbackShaderName = null)
         {
-            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
-            if (existing != null)
-                return existing;
-
             Shader shader = Shader.Find(shaderName);
             if (shader == null && !string.IsNullOrEmpty(fallbackShaderName))
                 shader = Shader.Find(fallbackShaderName);
@@ -741,13 +824,32 @@ namespace PirateCrew.EditorTools
                 shader = Shader.Find("Standard");
             }
 
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null)
+            {
+                // 就地更新而不是直接返回旧资产：幂等重建时也要让 shader/颜色跟上代码，
+                // 否则改了这里的观感常量却因为"资产已存在"看不到任何变化（排查起来很费时）。
+                if (shader != null && existing.shader != shader)
+                    existing.shader = shader;
+                ApplyMaterialColor(existing, color);
+                EditorUtility.SetDirty(existing);
+                return existing;
+            }
+
             var material = new Material(shader) { name = name };
-            material.color = color;
-            if (material.HasProperty("_BaseColor"))
-                material.SetColor("_BaseColor", color);
+            ApplyMaterialColor(material, color);
 
             AssetDatabase.CreateAsset(material, path);
             return material;
+        }
+
+        /// <summary>URP/Lit 用 <c>_BaseColor</c>、Standard/Sprites 用 <c>_Color</c>；两者都试，避免遗漏。</summary>
+        static void ApplyMaterialColor(Material material, Color color)
+        {
+            if (material.HasProperty("_BaseColor"))
+                material.SetColor("_BaseColor", color);
+            if (material.HasProperty("_Color"))
+                material.SetColor("_Color", color);
         }
 
         static void RegisterBuildSettings()

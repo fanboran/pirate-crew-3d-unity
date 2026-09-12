@@ -33,8 +33,8 @@ namespace PirateCrew.PirateCrew.Battle
         [SerializeField] float weight = CrewCatalog.Weight;
         [SerializeField] Rigidbody body;
         [SerializeField] Collider bodyCollider;
-        [Tooltip("是否把刚体约束在战斗平面（XY 平面，z 锁定）：对应原版纯 2D 物理。")]
-        [SerializeField] bool constrainToBattlePlane = true;
+        [Tooltip("是否约束旋转（保持直立）。位置**不**约束——3D 化后 XZ 水平面都能动，见 Awake。")]
+        [SerializeField] bool freezeRotation = true;
 
         int _pirateId = -1;
         int _health;
@@ -115,11 +115,12 @@ namespace PirateCrew.PirateCrew.Battle
             if (bodyCollider == null)
                 bodyCollider = GetComponent<Collider>();
 
-            if (constrainToBattlePlane && body != null)
+            if (freezeRotation && body != null)
             {
-                // 战斗平面 = XY（z 锁定）；旋转也锁定，保持 2D 物理语义（原版只有单轴 rotation）。
-                body.constraints = RigidbodyConstraints.FreezePositionZ
-                                   | RigidbodyConstraints.FreezeRotationX
+                // 只锁旋转（保持直立），**不锁位置**：3D 化后竞技场是 XZ 水平面，角色要能沿 X 和 Z 两个
+                // 方向被抛飞/滑行。原先 FreezePositionZ 是"2D 侧视"时代的遗留，会把深度方向焊死
+                // （详见 docs/M2-3D空间模型对齐.md）。
+                body.constraints = RigidbodyConstraints.FreezeRotationX
                                    | RigidbodyConstraints.FreezeRotationY
                                    | RigidbodyConstraints.FreezeRotationZ;
             }
@@ -298,22 +299,26 @@ namespace PirateCrew.PirateCrew.Battle
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// §5.1 施加初速（Flash px/帧 → 世界速度）。使用 <see cref="ForceMode.Impulse"/>：
-        /// Δv = impulse / mass，故 impulse = mass * Δv，与质量无关地得到目标速度增量。
+        /// §5.1 施加初速。传 **Flash 平面初速 (vx, vy)（px/帧）**，由
+        /// <see cref="LevelGeometry.FlashLaunchVelocityToWorld"/> 统一换算成 3D 世界初速
+        /// （含仰角抬升）——与弹体、预览共用同一个入口，保证三者弹道口径一致。
+        /// 使用 <see cref="ForceMode.Impulse"/>：Δv = impulse / mass，与质量无关。
         /// </summary>
         public void ApplyLaunchVelocity(float vxPixelsPerFrame, float vyPixelsPerFrame)
         {
             if (body == null || body.isKinematic)
                 return;
 
-            Vector3 deltaV = LevelGeometry.FlashVelocityToWorld(vxPixelsPerFrame, vyPixelsPerFrame);
+            Vector3 deltaV = LevelGeometry.FlashLaunchVelocityToWorld(vxPixelsPerFrame, vyPixelsPerFrame);
+            if (deltaV == Vector3.zero)
+                return;
+
             body.AddForce(deltaV * body.mass, ForceMode.Impulse);
         }
 
         /// <summary>
         /// §5.3 施加击退速度增量。传入的已是 Unity 世界向量
-        /// （由 BattleController 用 <see cref="LevelGeometry.FlashVelocityDeltaToWorld"/> 从
-        /// <see cref="ExplosionResolver"/> 的 Flash 约定结果翻转而来）。
+        /// （由 BattleController 用 <see cref="LevelGeometry.FlashVelocityDeltaToArena"/> 换算而来）。
         /// </summary>
         public void ApplyImpulseDelta(Vector3 worldDeltaVelocity)
         {

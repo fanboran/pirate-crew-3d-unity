@@ -43,14 +43,13 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("拖拽释放的最小距离（px）；低于此值视为误触，不发射（§3.4 松手阈值）。")]
         [SerializeField] float minDragPixels = 1f;
         [SerializeField] float maxRayDistance = 500f;
-        [Tooltip("战斗平面世界 z（与 LevelGeometry.DefaultPlaneZ 一致）。")]
-        [SerializeField] float planeZ = LevelGeometry.DefaultPlaneZ;
 
         Phase _phase = Phase.Idle;
         PirateBase _selected;
         PirateBase _hovered;
-        Vector2 _originPixels;
-        Vector2 _dragPixels;
+        Vector3 _originWorld;
+        Vector2 _dragStartScreen;
+        Vector2 _dragScreen;
         bool _useWeapon;
         float _twangMax = CrewCatalog.TwangMaxForce;
         float _weight = CrewCatalog.Weight;
@@ -176,8 +175,9 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
             }
 
-            _originPixels = LevelGeometry.WorldToPixel(_selected.transform.position);
-            _dragPixels = _originPixels;
+            _originWorld = _selected.transform.position;
+            _dragStartScreen = Input.mousePosition;
+            _dragScreen = Vector2.zero;
             _phase = Phase.Dragging;
             UpdateDrag();
         }
@@ -190,16 +190,30 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
             }
 
-            Vector2 targetPixels = ResolveAimPointPixels();
-            _dragPixels = targetPixels;
-
-            (float vx, float vy) = Ballistics.TwangVelocity(
-                targetPixels.x - _originPixels.x,
-                targetPixels.y - _originPixels.y,
-                _twangMax);
+            _dragScreen = (Vector2)Input.mousePosition - _dragStartScreen;
+            (Vector3 dir, float speed) = ResolveThrow();
 
             if (trajectory != null)
-                trajectory.Show(_originPixels.x, _originPixels.y, vx, vy, _weight);
+                trajectory.Show(_originWorld, dir, speed, _weight);
+        }
+
+        /// <summary>
+        /// 屏幕拖拽 → (XZ 世界水平方向, Flash 初速大小)。
+        /// <b>方向</b>按相机基向量投影（§M2-3D 规范 §3），yaw = 0 时等价于 Godot 的 (-dx, 0, -dy)，
+        /// 相机绕转后仍正确；<b>大小</b>取 <see cref="Ballistics.TwangVelocity"/> 的模长，
+        /// 保留 Flash 的 0.25 系数与 twangMax 限速语义。抬升由 LevelGeometry.ThrowVelocity 统一施加。
+        /// </summary>
+        (Vector3 dir, float speed) ResolveThrow()
+        {
+            (float vx, float vy) = Ballistics.TwangVelocity(_dragScreen.x, _dragScreen.y, _twangMax);
+            float speed = Mathf.Sqrt(vx * vx + vy * vy);
+
+            Transform cam = battleCamera != null ? battleCamera.transform : null;
+            Vector3 dir = cam != null
+                ? LevelGeometry.ScreenDragToArenaDirection(cam.right, cam.forward, _dragScreen.x, _dragScreen.y)
+                : Vector3.zero;
+
+            return (dir, speed);
         }
 
         void ReleaseDrag()
@@ -210,7 +224,7 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
             }
 
-            float dragDistance = (_dragPixels - _originPixels).magnitude;
+            float dragDistance = _dragScreen.magnitude;
             if (dragDistance < minDragPixels)
             {
                 // 误触：不发射，回到"已选角色"状态（对应 §3.4 松手阈值）。
@@ -221,12 +235,10 @@ namespace PirateCrew.PirateCrew.Battle
             }
 
             (float vx, float vy) = Ballistics.TwangVelocity(
-                _dragPixels.x - _originPixels.x,
-                _dragPixels.y - _originPixels.y,
-                _twangMax);
+                _dragScreen.x, _dragScreen.y, _twangMax);
 
             PirateBase pirate = _selected;
-            Vector3 aimWorld = LevelGeometry.PixelToWorld(_dragPixels.x, _dragPixels.y);
+            Vector3 aimWorld = ResolveAimPointWorld();
 
             // §3.4：抛自己 与 用武器 二选一——只有抛自己才给角色初速，
             // 用武器则把初速给武器弹体（此前代码在分支前无条件抛角色，属违规，已修正）。
@@ -395,19 +407,23 @@ namespace PirateCrew.PirateCrew.Battle
             return best;
         }
 
-        /// <summary>把鼠标位置解到 Flash 像素坐标：优先物理射线（地面层），落空回退战斗平面交点。</summary>
-        Vector2 ResolveAimPointPixels()
+        /// <summary>
+        /// 鼠标位置 → **地面**（y = <see cref="LevelGeometry.GroundTopY"/>）上的世界点，
+        /// 供放置类武器的铺开中心使用。优先物理射线（地面层），落空回退数学平面交点。
+        /// 3D 化后地面是 XZ 水平面，故平面法线取 +Y（原先是 +Z 的 XY 竖直平面）。
+        /// </summary>
+        Vector3 ResolveAimPointWorld()
         {
             Ray ray = battleCamera.ScreenPointToRay(Input.mousePosition);
 
             if (Physics.Raycast(ray, out RaycastHit hit, maxRayDistance, aimPlaneMask, QueryTriggerInteraction.Ignore))
-                return LevelGeometry.WorldToPixel(hit.point);
+                return hit.point;
 
-            var plane = new Plane(Vector3.forward, new Vector3(0f, 0f, planeZ));
+            var plane = new Plane(Vector3.up, new Vector3(0f, LevelGeometry.GroundTopY, 0f));
             if (plane.Raycast(ray, out float distance))
-                return LevelGeometry.WorldToPixel(ray.GetPoint(distance));
+                return ray.GetPoint(distance);
 
-            return _originPixels;
+            return _originWorld;
         }
 
         void EventBus_PublishAction(PirateBase pirate, BattleActionKind kind)

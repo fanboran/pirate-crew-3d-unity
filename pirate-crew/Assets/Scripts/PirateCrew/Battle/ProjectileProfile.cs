@@ -36,12 +36,18 @@ namespace PirateCrew.PirateCrew.Battle
     ///   以及生命周期（是否跨回合常驻 / 放置数量 / 复用次数 / 是否参与瓦片碰撞 / 落水处置）。
     ///   实例化、碰撞回调与物理积分由 <c>WeaponProjectile</c>（MonoBehaviour）负责。
     ///
+    /// 【3D 轴映射】HalfWidth → 世界 X（横向）、HalfHeight → 世界 Y（竖直）、
+    ///   HalfDepth → 世界 Z（纵深）。UsesGravity / GravityScale 作用在世界 <b>-Y</b>
+    ///   （<c>Physics.gravity</c>）；水平面 (X,Z) 不受重力，故 Bounce/Friction 只在
+    ///   弹体与 XZ 地面接触时起弹跳/减速作用（重力竖直、与地面正交）。
+    ///
     /// 【映射决策（数值未在文档中给出时，取可定义的最简口径并注明）】
     ///   · 质量：Weight &gt; 0 时取 Weight（boulder=1.5）；Weight==0 的武器（cannonball 等）
     ///     PhysX 不接受 0 质量，取 1 并令 <see cref="UsesGravity"/> = false（文档明确「无重力」）。
     ///   · 摩擦：Flash 的 friction 是「着地时每帧 |vx| 递减量」（§5.4），并非摩擦系数。
     ///     M2 近似：直接作为 PhysicsMaterial.dynamicFriction / staticFriction（同值），
     ///     精确的每帧递减语义留待运行时手感调参（见 <c>WeaponProjectile</c> 类头 TODO）。
+    ///     3D 下该摩擦作用于弹体与 XZ 地面的接触，减速的是水平 (X,Z) 速度分量。
     /// </summary>
     public readonly struct ProjectileProfile
     {

@@ -154,7 +154,7 @@ MonoBehaviour:
   weight: 1
   body: {fileID: 3731857768786557635}
   bodyCollider: {fileID: 3244688377207235776}
-  constrainToBattlePlane: 1
+  freezeRotation: 1
 --- !u!114 &4781346681108462892
 MonoBehaviour:
   m_ObjectHideFlags: 0

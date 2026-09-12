@@ -5,8 +5,8 @@ using UnityEngine;
 namespace PirateCrew.PirateCrew.Battle.Tests
 {
     /// <summary>
-    /// 出战计划生成测试（§4.3 坐标/队伍、§4.1 luck、§5.5 初始武器、§5.5 水位）。
-    /// 用 LevelCatalog 的纯 C# 关卡数据，无头可跑。
+    /// 出战计划生成测试（§4.3 坐标/队伍、§4.1 luck、§5.5 初始武器、§4.4 全局水面常量）。
+    /// 坐标按 3D 重投影语义（gridY→Z 纵深），用 LevelCatalog 的纯 C# 关卡数据，无头可跑。
     /// </summary>
     [TestFixture]
     public class BattlePlanTests
@@ -36,17 +36,31 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             Assert.AreEqual(17, first.GridX);
             Assert.AreEqual(10, first.GridY);
 
-            // 世界坐标 = GridToWorld(17,10) = (17.5, -10.75)
+            // 世界坐标 = GridToArena(17,10) = (17.5, UnitPivotHeight=0.25, 10.5)：
+            // 3D 重投影后 gridY→纵深 Z、高度 Y 只有脚底贴地的 0.25 枢轴偏移。
             Assert.AreEqual(17.5f, first.WorldPosition.x, 1e-5f);
-            Assert.AreEqual(-10.75f, first.WorldPosition.y, 1e-5f);
+            Assert.AreEqual(LevelGeometry.UnitPivotHeight, first.WorldPosition.y, 1e-5f);
+            Assert.AreEqual(10.5f, first.WorldPosition.z, 1e-5f);
         }
 
         [Test]
-        public void Level1_WaterWorldY_IsMinusFourteen()
+        public void Level1_Plan_UsesDepthSemanticsForXZDepth()
         {
-            // §5.5: waterTileY=14 → waterY=448px → world -14
+            // level_1 heightTiles=17：3D 重投影后它是竞技场**纵深**（Z），字段名为 DepthTiles / WorldDepth。
             BattlePlan plan = LevelGeometry.BuildBattlePlan(LevelCatalog.Get(1));
-            Assert.AreEqual(-14f, plan.WaterWorldY, 1e-4f);
+            Assert.AreEqual(50, plan.WidthTiles);
+            Assert.AreEqual(17, plan.DepthTiles);
+            Assert.AreEqual(50f, plan.WorldWidth, 1e-5f);
+            Assert.AreEqual(17f, plan.WorldDepth, 1e-5f);
+        }
+
+        [Test]
+        public void Level1_WaterWorldY_IsGlobalWaterSurfaceConstant()
+        {
+            // §4.4 3D 化：水面改为全局常量 WaterSurfaceY = -0.2，不再由关卡 waterTileY(=14) 推出。
+            BattlePlan plan = LevelGeometry.BuildBattlePlan(LevelCatalog.Get(1));
+            Assert.AreEqual(LevelGeometry.WaterSurfaceY, plan.WaterWorldY, 1e-5f);
+            Assert.AreEqual(-0.2f, plan.WaterWorldY, 1e-5f);
         }
 
         [Test]

@@ -63,9 +63,11 @@ namespace PirateCrew.Tests
             PirateBase pirate = CreatePirate(0, out GameObject go);
             try
             {
-                // 水面世界 y = -14；角色放到 -20 → 落水即死（全局规则）。
-                pirate.transform.position = new Vector3(0f, -20f, 0f);
-                Assert.IsTrue(pirate.CheckWaterDeath(-14f));
+                // 3D 模型：水面是世界高度常量 WaterSurfaceY = -0.2，与 Flash 的 waterTileY 无关；
+                // 落水即死是全局规则、方向无关（从 X 或 Z 任一侧掉出地面都会落到水面以下）。
+                // 角色沿 -Y 下落到水面之下 → 落水即死。
+                pirate.transform.position = new Vector3(0f, LevelGeometry.WaterSurfaceY - 0.5f, 0f);
+                Assert.IsTrue(pirate.CheckWaterDeath(LevelGeometry.WaterSurfaceY));
                 Assert.IsFalse(pirate.Alive);
             }
             finally
@@ -105,7 +107,7 @@ namespace PirateCrew.Tests
         }
 
         [UnityTest]
-        public IEnumerator TrajectoryPreview_UsesSameBallisticsSource()
+        public IEnumerator TrajectoryPreview_UsesSameThrowTrajectorySource()
         {
             var go = new GameObject("Trajectory", typeof(LineRenderer), typeof(TrajectoryPreview));
             try
@@ -113,20 +115,44 @@ namespace PirateCrew.Tests
                 var preview = go.GetComponent<TrajectoryPreview>();
                 var line = go.GetComponent<LineRenderer>();
 
-                preview.Show(100f, 200f, 3f, -12f, 1f);
+                // 3D 模型：起点是 XZ 竞技场上的世界点（格位 + 枢轴高度），方向是 XZ 水平方向，
+                // 速度取 Flash 口径（px/帧）。预览内部走 LevelGeometry.ThrowVelocity + ThrowTrajectory，
+                // 与实弹（PirateBase.ApplyLaunchVelocity / ProjectileSpawnPlanner）同源。
+                Vector3 origin = LevelGeometry.GridToArena(3, 6);          // (3.5, 0.25, 6.5)
+                var horizontal = new Vector3(1f, 0f, -0.5f);
+                const float speedPixelsPerFrame = 12f;                     // px/帧（twang 限速后的模长）
+                const float weight = 1f;
+
+                preview.Show(origin, horizontal, speedPixelsPerFrame, weight);
 
                 // 15 段采样 + 起点。
-                Assert.AreEqual(Ballistics.DefaultPredictionSteps + 1, line.positionCount);
+                Assert.AreEqual(ThrowTrajectory.DefaultSteps + 1, line.positionCount);
 
-                Vector3 expectedOrigin = LevelGeometry.PixelToWorld(100f, 200f);
-                Assert.AreEqual(expectedOrigin.x, line.GetPosition(0).x, 1e-4f);
-                Assert.AreEqual(expectedOrigin.y, line.GetPosition(0).y, 1e-4f);
+                // 起点 = 传入的世界原点，x/y/z 三分量原样（旧版曾在 XY 平面翻转 y）。
+                Vector3 p0 = line.GetPosition(0);
+                Assert.AreEqual(origin.x, p0.x, 1e-4f);
+                Assert.AreEqual(origin.y, p0.y, 1e-4f);
+                Assert.AreEqual(origin.z, p0.z, 1e-4f);
 
-                // 第 1 个采样点必须等于 Ballistics 的输出经 LevelGeometry 换算后的世界坐标。
-                var points = Ballistics.PredictTrajectory(100f, 200f, 3f, -12f, 1f, Ballistics.DefaultPredictionSteps);
-                Vector3 expected1 = LevelGeometry.PixelToWorld(points[0].x, points[0].y);
-                Assert.AreEqual(expected1.x, line.GetPosition(1).x, 1e-4f);
-                Assert.AreEqual(expected1.y, line.GetPosition(1).y, 1e-4f);
+                // 每个采样点必须等于 ThrowTrajectory 的同源积分（预览 = 实弹的关键不变量）。
+                var expected = new Vector3[ThrowTrajectory.DefaultSteps];
+                ThrowTrajectory.PredictFromFlashSpeed(
+                    origin, horizontal, speedPixelsPerFrame, weight, expected, ThrowTrajectory.DefaultSteps);
+
+                for (int i = 0; i < expected.Length; i++)
+                {
+                    Vector3 got = line.GetPosition(i + 1);
+                    Assert.AreEqual(expected[i].x, got.x, 1e-4f, "采样点 " + i + " 的 X 应同源");
+                    Assert.AreEqual(expected[i].y, got.y, 1e-4f, "采样点 " + i + " 的 Y（高度）应同源");
+                    Assert.AreEqual(expected[i].z, got.z, 1e-4f, "采样点 " + i + " 的 Z 应同源");
+                }
+
+                // 3D 抛物线：XZ 水平面内匀速（重力只沿 -Y，与水平面正交），Y 的速度逐段被重力削去。
+                Vector3 step0To1 = expected[1] - expected[0];
+                Vector3 step1To2 = expected[2] - expected[1];
+                Assert.AreEqual(step0To1.x, step1To2.x, 1e-4f, "XZ 水平面内匀速：X 步长恒定");
+                Assert.AreEqual(step0To1.z, step1To2.z, 1e-4f, "XZ 水平面内匀速：Z 步长恒定");
+                Assert.Greater(step0To1.y, step1To2.y, "重力沿 -Y：竖直步长逐段变小");
 
                 preview.Hide();
                 Assert.AreEqual(0, line.positionCount);

@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
+using UnityEngine;
 using DataTrigger = PirateCrew.PirateCrew.Data.WeaponTrigger;
 using CombatTrigger = PirateCrew.PirateCrew.Combat.WeaponTrigger;
 
@@ -73,6 +74,67 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(clicked: true)));
             Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(vx: 0f, vy: 0.1f)));
             Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(vx: 1f, vy: 1f)));
+        }
+
+        // ------------------------------------------------------------------
+        // 3D 静止判据口径：世界速度 → Flash (vx, vy)（WeaponProjectile.FlashRestComponents）
+        //
+        // 口径（详见 WeaponProjectile.FlashRestComponents 与 docs/M2-3D空间模型对齐.md §1）：
+        //   vx = XZ 平面速度模长（Flash 的横向"是否在动"，3D 里两个水平轴任一有速度都算在动）
+        //   vy = 世界 Y 速度 / FlashSpeedScale（Flash 的 vy 是重力轴分量，3D 重力沿 -Y）
+        // ------------------------------------------------------------------
+
+        [TestCase(0f, -5f, 0f)]   // 竖直下落（重力轴）
+        [TestCase(0f, 5f, 0f)]    // 竖直上抛
+        public void RestComponents_3D_VerticalMotionIsNotAtRest(float x, float y, float z)
+        {
+            // 竖直方向的运动必须由 vy 体现：若把平面重投影的 Z 当 vy，竖直下落会被读成 (0,0) →
+            // dynamite 在半空误判静止引爆。这也是文档"dynamite 落水后下沉不静止"的同一条口径。
+            WeaponProjectile.FlashRestComponents(new Vector3(x, y, z), out float vx, out float vy);
+            Assert.AreEqual(0f, vx, 1e-6f);
+            Assert.AreEqual(y / LevelGeometry.FlashSpeedScale, vy, 1e-5f);
+            Assert.IsFalse(WeaponTriggerRules.IsAtRest(vx, vy));
+        }
+
+        [Test]
+        public void RestComponents_3D_HorizontalDriftOnEitherAxisIsNotAtRest()
+        {
+            // X 或 Z 任一方向在动 → 平面模长非零 → 不静止（只读 world.x 会漏掉沿 Z 的滑行）。
+            WeaponProjectile.FlashRestComponents(new Vector3(0f, 0f, 0.5f), out float vxZ, out float vyZ);
+            Assert.Greater(vxZ, 0f);
+            Assert.IsFalse(WeaponTriggerRules.IsAtRest(vxZ, vyZ));
+
+            WeaponProjectile.FlashRestComponents(new Vector3(0.5f, 0f, 0f), out float vxX, out float vyX);
+            Assert.Greater(vxX, 0f);
+            Assert.IsFalse(WeaponTriggerRules.IsAtRest(vxX, vyX));
+        }
+
+        [Test]
+        public void RestComponents_3D_PlaneMagnitudeUsesBothHorizontalAxes()
+        {
+            // 世界 (3, 0, 4) 单位/秒 → XZ 模长 5 → Flash 5 / 0.78125 = 6.4 px/帧；Y 不参与平面模长。
+            WeaponProjectile.FlashRestComponents(new Vector3(3f, 0f, 4f), out float vx, out float vy);
+            Assert.AreEqual(5f / LevelGeometry.FlashSpeedScale, vx, 1e-5f);
+            Assert.AreEqual(0f, vy, 1e-6f);
+        }
+
+        [Test]
+        public void RestComponents_3D_RestingOnGroundIsAtRest()
+        {
+            WeaponProjectile.FlashRestComponents(Vector3.zero, out float vx, out float vy);
+            Assert.AreEqual(0f, vx, 1e-6f);
+            Assert.AreEqual(0f, vy, 1e-6f);
+            Assert.IsTrue(WeaponTriggerRules.IsAtRest(vx, vy));
+        }
+
+        [Test]
+        public void Dynamite_3D_VerticalFall_DoesNotDetonate()
+        {
+            // 端到端：把 3D 世界速度喂进静止判据 → 下落的 dynamite 不应引爆。
+            DataTrigger t = Trigger(WeaponId.Dynamite);
+            WeaponProjectile.FlashRestComponents(new Vector3(0f, -5f, 0f), out float vx, out float vy);
+            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(vx: vx, vy: vy)));
+            Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(vx: 0f, vy: 0f)));
         }
 
         // ------------------------------------------------------------------
