@@ -435,25 +435,19 @@ namespace PirateCrew.UI
 
             if (teamStatusText != null && battle != null)
             {
+                // 只统计**当前行动队**：文本里写的是 "Team <当前队号> (Red/Blue)"，
+                // 若把两队一起累加会显示成 "Team 1 (Red) | Alive 8/8"（8 是两队之和），
+                // 而 level_1 的红队其实只有 5 人 —— 标签与数字对不上（2026-09-13 实测发现）。
                 int alive = 0;
-                int total = 0;
-                for (int t = 0; t < battle.TeamCount; t++)
+                for (int c = 0; c < team.Characters.Count; c++)
                 {
-                    BattleTeam bt = battle.GetTeam(t);
-                    if (bt == null)
-                        continue;
-
-                    total += bt.Characters.Count;
-                    for (int c = 0; c < bt.Characters.Count; c++)
-                    {
-                        PirateBase p = bt.Characters[c];
-                        if (p != null && p.Alive)
-                            alive++;
-                    }
+                    PirateBase p = team.Characters[c];
+                    if (p != null && p.Alive)
+                        alive++;
                 }
 
                 teamStatusText.text = "Team " + team.Number + " (" + (team.Number == 2 ? "Blue" : "Red")
-                    + ")  |  Alive " + alive + "/" + total;
+                    + ")  |  Alive " + alive + "/" + team.Characters.Count;
             }
         }
 
