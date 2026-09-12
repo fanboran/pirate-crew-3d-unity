@@ -1,0 +1,22 @@
+{
+    "name": "PirateCrew.PlayModeTests",
+    "rootNamespace": "PirateCrew.Tests",
+    "references": [
+        "GUID:00cac168e2a0d6a4b8b82ddb0c739f37",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
