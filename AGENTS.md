@@ -33,15 +33,37 @@
   cd external/harness-<域> && dotnet test M2Harness.csproj -p:HarnessScope=<All|Data|Combat>
   ```
   **边界**：`GameObject` / `MonoBehaviour` / `ScriptableObject` 的实例化走原生 `ECall`，脱离 Unity 运行时必抛 `SecurityException`；所以战斗数值/回合规则这类核心逻辑**刻意写成纯 C# 静态类**以便无头测试，MonoBehaviour 胶水层仍由 batchmode 收口。详见 `external/m2-harness/README.md`。
+- **GitHub 查询纪律**：查 GitHub 上的代码/仓库/README 用 WebFetch 或 `git clone --depth 1`；**不要用匿名 `curl` 硬打 `api.github.com`**（匿名限额 60 次/时，触发限流后连正常诊断都会被污染）。
+- **`export/` 产物入库策略**：图形学调试截图（`export/<功能名>-debug/`）**跟随 Godot 版惯例入库**（Godot 版把 `export/battle-debug` 提交了），便于在简历/评审里直接看到效果；入库前压尺寸，单张图控制在几百 KB 内。若某天改成不入库，必须同步加 `.gitignore` 并在本节说明。
 - 渲染管线：**URP**（对应 Godot 版 Forward Plus 的 3D 定位）；3D 物理用内置 PhysX，寻路用 AI Navigation 包（NavMesh）。
 - 改进待办项记录在 `docs/待办事项.md`
 - **Unity MCP**：本工程已装 MCP for Unity（v10.0.0），ZCode 已配 `unity-mcp` server——Unity 编辑器打开本工程时，新会话的 AI 可直接用 manage_scene / manage_gameobject / manage_asset / read_console 工具操作编辑器（写完脚本先 read_console 查编译错误再用）；编辑器没开时这些工具不可用，改用 batchmode 验证
+
+### 文档写作规范（借鉴姊妹项目 stick-world，本仓库同样适用）
+
+- **普通文档只写「是什么 / 怎么设计 / 为什么这么设计」**，不写「什么时候改的 / 之前是什么」这类变更记录。**Git 本身就是文档的历史版本**，变更过程交给提交历史，不在正文复述。
+- **AI 提案必须显式标注**：凡是 AI 生成、未经确认的设计/数值/命名提案，须在所在文档标注「提案/待定」；其他文档引用时不得当作已确认设定——防止提案被反复复读成"事实"（走查时会把提案当基准，越滚越偏）。
+- 例外：**专门记录变更的文档**（`docs/待办事项.md` 的归档区）可以写变更过程与提交哈希。
+- **引用要可核对**：数值、行为、断言的出处写「`ai_controller.gd:17`」这种带文件行号的引用，不写"某处""文档里说"。本次 M2 的所有逆向结论都按这个要求落档。
+
+### 会话交接（长任务跨对话）
+
+- 长任务（M2/M3 这类多阶段实施）会跨多个对话会话。当上下文过长、判断质量可能下降时，**主动建议用户开新对话**，不要硬撑。
+- **交接前必须**：把进度 / 下一步任务分解 / 关键决策 / 新会话恢复指引写进 `docs/待办事项.md`（或专门的交接文档）并提交。
+- **新会话恢复**：用户说「继续」时，先读 `docs/待办事项.md` 与本文「注意事项」恢复上下文，再干活，不重新摸底。
+- **多 subagent 并行时文件域必须互不重叠**；涉及 Unity 的验证（batchmode）由协调者串行执行——Library 锁是独占资源，一次只能一个 Unity 进程。
 
 ### 文档导航
 
 | 要做什么 | 读哪个 |
 | --- | --- |
+| **先看这个：当前待办 / 已完成归档 / 环境经验** | [docs/待办事项.md](docs/待办事项.md)（新会话恢复上下文先读它） |
 | 了解项目目标、翻译规范、里程碑 | [README.md](README.md) |
+| **查数值与玩法的权威依据（公式/武器表/回合规则/AI 伪代码）** | [docs/参考游戏逆向-海盗军团抢宝藏-静态.md](docs/参考游戏逆向-海盗军团抢宝藏-静态.md)（2D 原版 Flash 逆向，868 行） |
+| 查 Godot 版某文件该翻译成什么 / 哪些是空骨架 | [docs/M2-Godot基准摘要.md](docs/M2-Godot基准摘要.md)（`.gd → .cs` 对照 + 空 TODO 清单） |
+| 查 Unity 实现参照 / 本机 API 陷阱 | [docs/M2-Unity参照库调研.md](docs/M2-Unity参照库调研.md)（4 个参照库 + R1-R9 风险清单） |
+| 加跨模块事件 / 查事件契约 | [docs/EventBus事件契约.md](docs/EventBus事件契约.md)（事件名与载荷登记表，禁止散落魔法字符串） |
+| 调描边 shader 参数 | [docs/描边Shader调试.md](docs/描边Shader调试.md) |
 | 查 Godot 版某系统怎么设计的 | `../game-3/pirate-crew-3d/docs/` 与 `../game-3/docs/` |
 | 查 Godot 版某功能怎么实现的 | `../game-3/pirate-crew-3d/modules/`（campaign / pirate_crew / crew_management） |
 | 查 AI 规则的原始出处 | `../game-3/.trae/rules/`（rule.md 通用规范） |
@@ -69,6 +91,8 @@
 1. **两层结构**：仓库根放文档与 AGENTS.md，Unity 工程本体放 `pirate-crew/` 子目录（Unity Hub 打开的是它，不是仓库根）。
 2. **模块划分**：`Assets/Scripts/` 下按功能分 `Core/`（引导器/事件总线/存档）、`Campaign/`、`PirateCrew/`、`CrewManagement/`、`UI/`；一个模块一个 C# 命名空间（`PirateCrew.Combat` 等）。
 3. **耦合原则**：模块间通信走 `Core/EventBus.cs`（静态 C# 事件中心，对应 Godot 的 event_bus autoload）；**禁止** `GameObject.Find`、跨模块 `GetComponent` 裸引用。跨模块调用的公共出口放各模块 `XxxApi.cs`。
+   - **事件契约必须登记**：EventBus 用字符串键，没有编译期检查——拼错一个字母就是"发了但没人收到"的静默故障。事件名一律 snake_case，且必须登记在 [docs/EventBus事件契约.md](docs/EventBus事件契约.md)（事件名 / 载荷类型 / 发布方 / 订阅方）；代码侧用常量类承载（如 `BattleEvents.cs`），禁止散落魔法字符串。载荷类型变更属破坏性变更，须同步更新登记表与所有订阅方。
+   - **不该用 EventBus 的场景**：同一模块内部调用（直接方法调用或 `[SerializeField]` 引用）、父子层级生命周期通知、每帧高频数据（`Publish` 会分配委托快照，高频吃 GC）。别把强关系伪装成松耦合。
 4. **命名规范**：C# 类型与文件 PascalCase（文件名=类名）；Godot 版搬来的 snake_case 资产入 Assets 时重命名。Prefab 按模块归位，每个可实例化场景一个 Prefab。
 5. **依赖分层**：`Core/`（服务层）← 玩法模块（Campaign/PirateCrew/CrewManagement）← Bootstrapper 场景（组装根，`DontDestroyOnLoad` 挂全局服务）。高层可依赖低层，反向禁止。
 6. **单例约定**：全局服务（存档、事件总线、场景流转）由 Bootstrapper 场景创建并 `DontDestroyOnLoad`，禁止场景里手工摆放重复实例。
