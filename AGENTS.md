@@ -27,6 +27,12 @@
   ```
   （PlayMode 把 `EditMode` 换 `PlayMode`。）
 - **batchmode 铁律**：必须显式带 `-projectPath` 且加 `-nographics`。缺 `-projectPath` 会打开 EditorPrefs 里的"最近工程"（可能污染/锁住别的项目——本项目曾因此产生杀不死的僵尸进程卡住 `Temp/UnityLockfile`，只能重启机器清理）；当前环境不带 `-nographics` 会卡在 GfxDevice 创建。一次只跑一个 Unity 进程。
+- **无头验证台**（M2 起，不入库）：`external/m2-harness/` 用 `dotnet` 引用 Unity 已编译程序集 + NuGet NUnit，**不启动 Unity 就能编译工程源码并跑纯 C# 测试**，用于多 agent 并行时绕开 Library 独占锁。
+  ```bash
+  cp external/m2-harness/M2Harness.csproj external/harness-<域>/   # 同级深度，各 agent 一份副本避免抢 obj/bin
+  cd external/harness-<域> && dotnet test M2Harness.csproj -p:HarnessScope=<All|Data|Combat>
+  ```
+  **边界**：`GameObject` / `MonoBehaviour` / `ScriptableObject` 的实例化走原生 `ECall`，脱离 Unity 运行时必抛 `SecurityException`；所以战斗数值/回合规则这类核心逻辑**刻意写成纯 C# 静态类**以便无头测试，MonoBehaviour 胶水层仍由 batchmode 收口。详见 `external/m2-harness/README.md`。
 - 渲染管线：**URP**（对应 Godot 版 Forward Plus 的 3D 定位）；3D 物理用内置 PhysX，寻路用 AI Navigation 包（NavMesh）。
 - 改进待办项记录在 `docs/待办事项.md`
 - **Unity MCP**：本工程已装 MCP for Unity（v10.0.0），ZCode 已配 `unity-mcp` server——Unity 编辑器打开本工程时，新会话的 AI 可直接用 manage_scene / manage_gameobject / manage_asset / read_console 工具操作编辑器（写完脚本先 read_console 查编译错误再用）；编辑器没开时这些工具不可用，改用 batchmode 验证
@@ -49,6 +55,7 @@
    - 读懂其核心实现后基于参照翻译改编；
    - 参照库不入库。例外：简单 bug 修复、单行改动、参数调整。
 2. **图形学调试截图规范**（自原项目 rule.md，Unity 版）：Shader/渲染效果开发必须——在 shader 中实现 `debug_mode` 拆分管线步骤 → 用 `ScreenCapture.CaptureScreenshot` 或 Editor 脚本逐层截图存 `export/<功能名>-debug/` → 写一页 README 说明每张图应看到什么 → 列关键参数调参指南。
+   - **环境限制**：batchmode 会话没有可用的渲染路径（不带 `-nographics` 会卡在 GfxDevice 创建），`Camera.Render`/`ScreenCapture` 拿不到真实像素。因此无头会话只能交付「shader + `debug_mode` 分层 + 采集脚本 + 说明文档」，**实际逐层截图必须在有图形界面的编辑器会话补跑**——不要把"没截图"当成已完成。
 3. **测试驱动**：核心逻辑（战斗数值、船员管理状态流转）附带 Unity Test Framework（NUnit）测试，放 `pirate-crew/Assets/Tests/`。
 4. **安全第一**：`pirate-crew/Assets/Scripts/Core/`（引导器/事件总线/存档）经评审后修改须谨慎——它是所有模块的地基。
 5. **原子化提交 + 主动沟通**：每次提交一个独立最小功能；任务描述不清或与架构原则冲突时主动提问，不做危险假设。

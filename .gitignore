@@ -8,3 +8,6 @@
 [Uu]ser[Ss]ettings/
 batch_log.txt
 external/
+
+# ZCode 工具本地状态（会话计划等，非项目产物）
+.zcode/
