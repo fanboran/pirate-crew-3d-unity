@@ -18,9 +18,15 @@
 - Unity 编辑器路径：`F:\Unity\2022.3.62f1c1\Editor\Unity.exe`
 - 无头验证项目完整性（改完工程结构/manifest 后必跑）：
   ```bash
-  "F:/Unity/2022.3.62f1c1/Editor/Unity.exe" -batchmode -quit -projectPath "F:/VSCode/pirate-crew-3d-unity/pirate-crew" -logFile -
+  "F:/Unity/2022.3.62f1c1/Editor/Unity.exe" -batchmode -nographics -quit -projectPath "F:/VSCode/pirate-crew-3d-unity/pirate-crew" -logFile -
   ```
   退出码 0 = 工程可打开；非 0 先查输出里的 error 再处置。
+- 无头跑测试（M1 起有 EditMode/PlayMode 测试）：
+  ```bash
+  "F:/Unity/2022.3.62f1c1/Editor/Unity.exe" -batchmode -nographics -projectPath "F:/VSCode/pirate-crew-3d-unity/pirate-crew" -runTests -testPlatform EditMode -testResults "F:/VSCode/pirate-crew-3d-unity/external/test-results.xml" -logFile -
+  ```
+  （PlayMode 把 `EditMode` 换 `PlayMode`。）
+- **batchmode 铁律**：必须显式带 `-projectPath` 且加 `-nographics`。缺 `-projectPath` 会打开 EditorPrefs 里的"最近工程"（可能污染/锁住别的项目——本项目曾因此产生杀不死的僵尸进程卡住 `Temp/UnityLockfile`，只能重启机器清理）；当前环境不带 `-nographics` 会卡在 GfxDevice 创建。一次只跑一个 Unity 进程。
 - 渲染管线：**URP**（对应 Godot 版 Forward Plus 的 3D 定位）；3D 物理用内置 PhysX，寻路用 AI Navigation 包（NavMesh）。
 - 改进待办项记录在 `docs/待办事项.md`
 - **Unity MCP**：本工程已装 MCP for Unity（v10.0.0），ZCode 已配 `unity-mcp` server——Unity 编辑器打开本工程时，新会话的 AI 可直接用 manage_scene / manage_gameobject / manage_asset / read_console 工具操作编辑器（写完脚本先 read_console 查编译错误再用）；编辑器没开时这些工具不可用，改用 batchmode 验证
