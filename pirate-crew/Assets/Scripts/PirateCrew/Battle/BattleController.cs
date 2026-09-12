@@ -40,6 +40,10 @@ namespace PirateCrew.PirateCrew.Battle
         [SerializeField] AimThrowController aimController;
         [SerializeField] BattleCameraController battleCamera;
 
+        [Header("武器弹体（可选 Prefab；为空时程序化构建，无需重新装配既有场景）")]
+        [Tooltip("弹体 Prefab；需要含 Rigidbody/Collider/WeaponProjectile。为空时用图元 + 颜色兜底构建。")]
+        [SerializeField] GameObject projectilePrefab;
+
         [Header("层掩码")]
         [Tooltip("爆炸候选与单位射线用的层。")]
         [SerializeField] LayerMask pirateLayerMask = ~0;
@@ -51,6 +55,7 @@ namespace PirateCrew.PirateCrew.Battle
         [SerializeField] bool team1IsAi = true;
 
         readonly List<PirateBase> _allPirates = new List<PirateBase>();
+        readonly List<WeaponProjectile> _projectiles = new List<WeaponProjectile>();
         readonly BattleTeam[] _teams = new BattleTeam[2];
         BattlePlan _plan;
         bool _spawned;
@@ -114,6 +119,33 @@ namespace PirateCrew.PirateCrew.Battle
                 turnManager.StartBattle();
             else
                 Debug.LogError("[BattleController] 未接线 TurnManager，回合不会推进。");
+        }
+
+        void OnEnable()
+        {
+            // §5.2 limitedToTurn=true 的弹体在回合结束时销毁；常驻类（mine/箱体）保留。
+            EventBus.Subscribe(BattleEvents.TurnEnded, OnTurnEnded);
+        }
+
+        void OnDisable()
+        {
+            EventBus.Unsubscribe(BattleEvents.TurnEnded, OnTurnEnded);
+        }
+
+        void OnTurnEnded(object payload)
+        {
+            for (int i = _projectiles.Count - 1; i >= 0; i--)
+            {
+                WeaponProjectile projectile = _projectiles[i];
+                if (projectile == null)
+                {
+                    _projectiles.RemoveAt(i);
+                    continue;
+                }
+
+                if (ProjectileLifetimeRules.ShouldDestroyAtTurnEnd(WeaponCatalog.Get(projectile.WeaponId)))
+                    Destroy(projectile.gameObject);
+            }
         }
 
         void Update()
@@ -206,13 +238,20 @@ namespace PirateCrew.PirateCrew.Battle
             }
         }
 
-        /// <summary>inactivity 判定：是否有角色在动 / 玩家正在瞄准。</summary>
+        /// <summary>inactivity 判定：是否有角色/弹体在动，或玩家正在瞄准。</summary>
         public bool IsAnythingActive()
         {
             for (int i = 0; i < _allPirates.Count; i++)
             {
                 PirateBase pirate = _allPirates[i];
                 if (pirate != null && pirate.Alive && pirate.IsMoving())
+                    return true;
+            }
+
+            // 弹体飞行期间回合不应推进（§3.1「武器在飞」也算活动）。
+            for (int i = 0; i < _projectiles.Count; i++)
+            {
+                if (_projectiles[i] != null && _projectiles[i].IsInFlight)
                     return true;
             }
 
@@ -267,6 +306,16 @@ namespace PirateCrew.PirateCrew.Battle
         /// <param name="caster">施暴者（累加 evilness；可为 null，如火药桶连锁）。</param>
         public ExplosionResult ResolveExplosion(Vector3 worldCenter, float size, float maxDamage, PirateBase caster)
         {
+            return ResolveExplosion(worldCenter, size, maxDamage, caster, null);
+        }
+
+        /// <summary>
+        /// 一次爆炸结算的完整入口。
+        /// </summary>
+        /// <param name="source">本次爆炸的弹体自身（连锁扫描时跳过，避免自触发）；可为 null。</param>
+        public ExplosionResult ResolveExplosion(
+            Vector3 worldCenter, float size, float maxDamage, PirateBase caster, WeaponProjectile source)
+        {
             float radiusWorld = LevelGeometry.PixelsToUnits(ExplosionResolver.Radius(size));
             Collider[] overlaps = Physics.OverlapSphere(
                 worldCenter, radiusWorld, pirateLayerMask, QueryTriggerInteraction.Ignore);
@@ -303,8 +352,170 @@ namespace PirateCrew.PirateCrew.Battle
             if (caster != null)
                 caster.AddEvilness(result.EvilnessGain);
 
+            // §5.3：对箱体以距离判定命中即 box.explode()（火药桶连锁）。
+            // M2 近似：以爆心球形 OverlapSphere 扫描场上的可连锁弹体（文档为 AABB 最近点距离）。
+            TriggerChainReactions(worldCenter, radiusWorld, source);
+
             return result;
         }
+
+        /// <summary>扫描爆炸范围内可连锁引爆的弹体（§5.2 gunpowderBarrel），逐个触发。</summary>
+        void TriggerChainReactions(Vector3 worldCenter, float radiusWorld, WeaponProjectile source)
+        {
+            Collider[] overlaps = Physics.OverlapSphere(
+                worldCenter, radiusWorld, ~0, QueryTriggerInteraction.Ignore);
+
+            for (int i = 0; i < overlaps.Length; i++)
+            {
+                WeaponProjectile projectile = overlaps[i] != null
+                    ? overlaps[i].GetComponentInParent<WeaponProjectile>()
+                    : null;
+                if (projectile == null || projectile == source || !projectile.TriggersOnBlast)
+                    continue;
+
+                projectile.DetonateFromBlast();
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // §5.1/§5.2 武器弹体生成
+        // ------------------------------------------------------------------
+
+        /// <summary>场上全部弹体（只读，调试/测试用）。</summary>
+        public IReadOnlyList<WeaponProjectile> AllProjectiles => _projectiles;
+
+        /// <summary>
+        /// 使用一件武器：按 <see cref="ProjectileSpawnPlanner"/> 生成弹体（放置类生成 N 个），
+        /// 并接上物理与引爆判定。返回生成的弹体数量。
+        ///
+        /// 【单一入口】<see cref="AimThrowController"/>（玩家）与 <see cref="AiController"/>（AI）
+        /// 都必须经此生成，避免两条路径各写一套。
+        /// </summary>
+        /// <param name="stats">武器数值（来自 <see cref="WeaponCatalog"/>）。</param>
+        /// <param name="owner">投掷者（累加 evilness；可为 null）。</param>
+        /// <param name="ownerWorldPosition">投掷者位置（弹弓发射点）。</param>
+        /// <param name="aimWorldPosition">瞄准落点（放置类铺开中心）。</param>
+        /// <param name="vxFlash">弹弓初速 vx（Flash px/帧）。</param>
+        /// <param name="vyFlash">弹弓初速 vy（Flash px/帧）。</param>
+        public int SpawnWeaponProjectiles(
+            WeaponStats stats, PirateBase owner,
+            Vector3 ownerWorldPosition, Vector3 aimWorldPosition,
+            float vxFlash, float vyFlash)
+        {
+            IReadOnlyList<ProjectileSpawn> plan = ProjectileSpawnPlanner.Plan(
+                stats, ownerWorldPosition, aimWorldPosition, vxFlash, vyFlash);
+
+            for (int i = 0; i < plan.Count; i++)
+                CreateProjectile(stats, owner, plan[i]);
+
+            return plan.Count;
+        }
+
+        WeaponProjectile CreateProjectile(WeaponStats stats, PirateBase owner, in ProjectileSpawn spawn)
+        {
+            ProjectileProfile profile = ProjectileProfile.FromStats(stats);
+
+            GameObject go;
+            Rigidbody body;
+            BoxCollider box;
+
+            if (projectilePrefab != null)
+            {
+                go = Instantiate(projectilePrefab, spawn.WorldPosition, Quaternion.identity, transform);
+                body = go.GetComponent<Rigidbody>();
+                if (body == null)
+                    body = go.AddComponent<Rigidbody>();
+                box = go.GetComponent<BoxCollider>();
+                if (box == null)
+                    box = go.AddComponent<BoxCollider>();
+            }
+            else
+            {
+                go = new GameObject("WeaponProjectile_" + stats.DisplayName);
+                go.transform.SetParent(transform, false);
+                go.transform.position = spawn.WorldPosition;
+
+                BuildFallbackVisual(go.transform, profile, stats.Id);
+
+                body = go.AddComponent<Rigidbody>();
+                box = go.AddComponent<BoxCollider>();
+            }
+
+            box.size = new Vector3(profile.ColliderWidth, profile.ColliderHeight, profile.ColliderDepth);
+            box.isTrigger = false;
+
+            WeaponProjectile projectile = go.GetComponent<WeaponProjectile>();
+            if (projectile == null)
+                projectile = go.AddComponent<WeaponProjectile>();
+
+            projectile.Initialize(stats, this, owner, spawn.Kinematic, spawn.WorldVelocity);
+
+            if (!_projectiles.Contains(projectile))
+                _projectiles.Add(projectile);
+
+            return projectile;
+        }
+
+        /// <summary>程序化兜底外观：图元 + 颜色（无 Prefab 时仍可区分武器）。</summary>
+        static void BuildFallbackVisual(Transform parent, ProjectileProfile profile, WeaponId id)
+        {
+            GameObject visual = GameObject.CreatePrimitive(
+                profile.Shape == ProjectileShape.Box ? PrimitiveType.Cube : PrimitiveType.Sphere);
+            visual.name = "Visual";
+            visual.transform.SetParent(parent, false);
+            visual.transform.localScale = new Vector3(
+                profile.ColliderWidth, profile.ColliderHeight, profile.ColliderDepth);
+
+            // 物理碰撞由根节点的 BoxCollider 负责；图元自带碰撞体移除，避免重复。
+            Collider primitiveCollider = visual.GetComponent<Collider>();
+            if (primitiveCollider != null)
+                Destroy(primitiveCollider);
+
+            Renderer renderer = visual.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+                if (shader == null)
+                    shader = Shader.Find("Standard");
+                if (shader != null)
+                {
+                    var material = new Material(shader);
+                    material.color = TintFor(id);
+                    renderer.material = material;
+                }
+            }
+        }
+
+        /// <summary>武器颜色（仅表现，便于在场景里区分弹体）。</summary>
+        static Color TintFor(WeaponId id)
+        {
+            switch (id)
+            {
+                case WeaponId.Cannonball: return new Color(0.15f, 0.15f, 0.18f);
+                case WeaponId.CherryBomb: return new Color(0.85f, 0.1f, 0.12f);
+                case WeaponId.Dynamite: return new Color(0.9f, 0.3f, 0.08f);
+                case WeaponId.Boulder: return new Color(0.45f, 0.42f, 0.38f);
+                case WeaponId.Banana: return new Color(0.95f, 0.85f, 0.15f);
+                case WeaponId.Mine: return new Color(0.25f, 0.25f, 0.3f);
+                case WeaponId.ParachuteBomb: return new Color(0.2f, 0.35f, 0.8f);
+                case WeaponId.RumBottle: return new Color(0.3f, 0.7f, 0.35f);
+                case WeaponId.PiecesOfEight: return new Color(0.95f, 0.78f, 0.2f);
+                case WeaponId.GunpowderBarrel: return new Color(0.5f, 0.28f, 0.1f);
+                case WeaponId.WoodenCrate: return new Color(0.6f, 0.42f, 0.2f);
+                default: return Color.white;
+            }
+        }
+
+        /// <summary>由弹体在 <c>OnDestroy</c> 反注册。</summary>
+        public void UnregisterProjectile(WeaponProjectile projectile)
+        {
+            if (projectile != null)
+                _projectiles.Remove(projectile);
+        }
+
+        // ------------------------------------------------------------------
+        // §3.3 胜负与得分
+        // ------------------------------------------------------------------
 
         // ------------------------------------------------------------------
         // §3.3 胜负与得分

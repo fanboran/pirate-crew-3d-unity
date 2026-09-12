@@ -1,3 +1,4 @@
+using PirateCrew.PirateCrew.Data;
 using UnityEngine;
 
 namespace PirateCrew.PirateCrew.Battle
@@ -53,6 +54,12 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>AI 选定动作（载荷 <see cref="AiDecidedPayload"/>；§6.1 <c>aiMoveDetails</c>）。</summary>
         public const string AiDecided = "ai_decided";
+
+        /// <summary>武器弹体引爆（载荷 <see cref="ProjectileDetonatedPayload"/>；§5.2/§5.3，供表现层做爆炸特效）。</summary>
+        public const string ProjectileDetonated = "battle_projectile_detonated";
+
+        /// <summary>地雷引信蜂鸣（载荷 <see cref="MineBeepPayload"/>；§5.2 beepTimes，供音频层播放滴答）。</summary>
+        public const string MineBeep = "battle_mine_beep";
     }
 
     /// <summary>动作种类（<see cref="BattleEvents.ActionSelected"/> 载荷用，对应 §3.4 三路径）。</summary>
@@ -247,6 +254,42 @@ namespace PirateCrew.PirateCrew.Battle
             TargetUnitId = targetUnitId;
             Success = success;
             ShouldBailOut = shouldBailOut;
+        }
+    }
+
+    /// <summary>WeaponProjectileDetonated 载荷。</summary>
+    public readonly struct ProjectileDetonatedPayload
+    {
+        /// <summary>引爆的武器 id。</summary>
+        public readonly WeaponId Weapon;
+
+        /// <summary>爆心世界坐标（Unity，y 向上）。</summary>
+        public readonly Vector3 Position;
+
+        public ProjectileDetonatedPayload(WeaponId weapon, Vector3 position)
+        {
+            Weapon = weapon;
+            Position = position;
+        }
+    }
+
+    /// <summary>MineBeep 载荷（§5.2 beepTimes）。</summary>
+    public readonly struct MineBeepPayload
+    {
+        /// <summary>武器 id（预期为 mine）。</summary>
+        public readonly WeaponId Weapon;
+
+        /// <summary>相对引信点燃的经过帧数（beepTimes 值）。</summary>
+        public readonly int ElapsedFrames;
+
+        /// <summary>地雷世界坐标。</summary>
+        public readonly Vector3 Position;
+
+        public MineBeepPayload(WeaponId weapon, int elapsedFrames, Vector3 position)
+        {
+            Weapon = weapon;
+            ElapsedFrames = elapsedFrames;
+            Position = position;
         }
     }
 }

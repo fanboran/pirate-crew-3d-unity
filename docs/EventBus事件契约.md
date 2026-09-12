@@ -69,6 +69,11 @@
 | `match_finished` | 对局结果（`TurnRules.MatchOutcome`）+ 得分 | `BattleController` | HUD / 结算流程 / 存档 |
 | `ai_thinking` | AI 队伍编号 + 待评估角色数（`AiThinkingPayload`） | `AiController` | HUD（「电脑思考中」提示）/ 相机（停止自动滚动，§6.1） |
 | `ai_decided` | 角色 id + 队伍 + 动作种类（`AiActionKind`）+ 武器槽位 + 目标 id + 分数 + 是否跳过（`AiDecidedPayload`） | `AiController` | HUD / 武器效果执行器（§6.3 特殊武器的实际表现） |
+| `battle_projectile_detonated` | 武器 id + 爆心世界坐标（`ProjectileDetonatedPayload`） | `WeaponProjectile` | 表现层（爆炸特效/音效） |
+| `battle_mine_beep` | 武器 id + 引信经过帧数 + 位置（`MineBeepPayload`） | `WeaponProjectile`（mine 引信） | 音频层（§5.2 beepTimes 滴答声） |
+
+> **武器运行时事件备注**：`battle_projectile_detonated` / `battle_mine_beep` 的常量与载荷定义在
+> `Battle/BattleEvents.cs`，由 `Battle/WeaponProjectile.cs` 发布（弹体引爆 / 地雷引信蜂鸣）。
 
 > **AI 事件备注**：`ai_thinking` / `ai_decided` 的常量与载荷定义在 `Battle/BattleEvents.cs`，
 > 由 `Battle/AiController.cs` 发布（§6.1 时间片评估）。`ai_decided` 同时承担「把 §6.3 特殊武器

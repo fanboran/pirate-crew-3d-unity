@@ -246,6 +246,18 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>
+        /// Unity 世界速度（单位/秒）→ Flash 速度（px/帧）；是
+        /// <see cref="FlashVelocityToWorld"/> 的逆变换（x 同向、y 取负、除以 <see cref="FlashSpeedScale"/>）。
+        /// 供弹体运行时判静止（§5.2 dynamite 的 <c>vx==0 &amp;&amp; |vy|&lt;0.2</c>）等回读场景。
+        /// </summary>
+        public static Vector2 WorldVelocityToFlash(Vector3 worldVelocity)
+        {
+            return new Vector2(
+                worldVelocity.x / FlashSpeedScale,
+                -worldVelocity.y / FlashSpeedScale);
+        }
+
+        /// <summary>
         /// 速度"增量"（爆炸击退等，§5.3）从 Flash 约定翻到 Unity：
         /// 与 <see cref="FlashVelocityToWorld"/> 相同的缩放 + y 取负。
         ///

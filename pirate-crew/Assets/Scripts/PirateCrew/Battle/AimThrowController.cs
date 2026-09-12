@@ -193,14 +193,16 @@ namespace PirateCrew.PirateCrew.Battle
                 _twangMax);
 
             PirateBase pirate = _selected;
-            pirate.ApplyLaunchVelocity(vx, vy);
+            Vector3 aimWorld = LevelGeometry.PixelToWorld(_dragPixels.x, _dragPixels.y);
 
+            // §3.4：抛自己 与 用武器 二选一——只有抛自己才给角色初速，
+            // 用武器则把初速给武器弹体（此前代码在分支前无条件抛角色，属违规，已修正）。
             if (_useWeapon)
             {
                 if (pirate.MarkUseWeapon(out WeaponId used))
                 {
+                    SpawnWeapon(pirate, used, aimWorld, vx, vy);
                     EventBus_PublishAction(pirate, BattleActionKind.UseWeapon);
-                    Debug.Log("[AimThrowController] 使用武器: " + used);
                 }
                 else
                 {
@@ -209,6 +211,7 @@ namespace PirateCrew.PirateCrew.Battle
             }
             else
             {
+                pirate.ApplyLaunchVelocity(vx, vy);
                 pirate.MarkThrowSelf();
                 EventBus_PublishAction(pirate, BattleActionKind.ThrowSelf);
             }
@@ -223,6 +226,27 @@ namespace PirateCrew.PirateCrew.Battle
             _useWeapon = false;
             _twangMax = CrewCatalog.TwangMaxForce;
             _weight = CrewCatalog.Weight;
+        }
+
+        /// <summary>
+        /// 生成武器弹体（§5.2）。放置类生成 N 个、常驻；其余生成 1 个并给初速。
+        /// 专用武器（anchor/seagull/tidalWave/voodooDoll/cannon/SweepingFlame）本次未实现，
+        /// 生成数量为 0 时给出明确警告而非静默失败。
+        /// </summary>
+        void SpawnWeapon(PirateBase pirate, WeaponId weapon, Vector3 aimWorld, float vx, float vy)
+        {
+            if (battle == null)
+                return;
+
+            WeaponStats stats = WeaponCatalog.Get(weapon);
+            int spawned = battle.SpawnWeaponProjectiles(
+                stats, pirate, pirate.transform.position, aimWorld, vx, vy);
+
+            if (spawned == 0)
+            {
+                Debug.LogWarning("[AimThrowController] 武器 " + weapon
+                    + " 的专用机制尚未实现（TODO 见 ProjectileProfile.SupportsGenericProjectile），本次未生成弹体。");
+            }
         }
 
         // ------------------------------------------------------------------

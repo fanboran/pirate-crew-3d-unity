@@ -379,9 +379,16 @@ namespace PirateCrew.PirateCrew.Battle
                     _team?.Select(actor, again: _continuePhase);
                     if (actor.Inventory.Equip(_decision.WeaponSlotIndex))
                     {
-                        // M2：仅完成「装备 + 扣行动经济」。§6.3 特殊武器的实际效果（浪/海鸥/娃娃/箱体/炮弹）
-                        // 需要武器运行时；它可订阅 ai_decided 或由 BattleController 接线执行。
-                        actor.MarkUseWeapon(out _);
+                        // 装备 + 扣行动经济，然后交给统一的弹体生成入口（§5.2）。
+                        // 至此 AI 用武器不再只改状态：弹体会飞行、按条件引爆并走 ResolveExplosion 结算。
+                        if (actor.MarkUseWeapon(out WeaponId used) && battle != null)
+                        {
+                            WeaponStats stats = WeaponCatalog.Get(used);
+                            Vector3 aimWorld = LevelGeometry.PixelToWorld(_decision.AimX, _decision.AimY);
+                            battle.SpawnWeaponProjectiles(
+                                stats, actor, actor.transform.position, aimWorld,
+                                _decision.Vx, _decision.Vy);
+                        }
                     }
                     else
                     {
