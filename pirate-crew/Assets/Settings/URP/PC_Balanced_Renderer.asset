@@ -76,7 +76,7 @@ MonoBehaviour:
     renderPassEvent: 450
     maskLayer:
       serializedVersion: 2
-      m_Bits: 4294967295
+      m_Bits: 0
     outlineColor: {r: 0.286, g: 0.851, b: 0.839, a: 0.949}
     edgeThreshold: 0.2
     dashLength: 8

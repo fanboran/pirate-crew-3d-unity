@@ -42,6 +42,8 @@ namespace PirateCrew.EditorTools
         const string PrefabFolder = "Assets/Prefabs/PirateCrew";
         const string MaterialFolder = PrefabFolder + "/Materials";
         const string PiratePrefabPath = PrefabFolder + "/PirateBase.prefab";
+        const string OutlineMaterialPath = MaterialFolder + "/PirateOutlineUnit.mat";
+        const string OutlineShaderName = "PirateCrew/PirateOutline";
         const string BattleScenePath = ScenesFolder + "/Battle.unity";
         const string LevelAssetPath = "Assets/Data/Levels/level_1.asset";
 
@@ -87,7 +89,7 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 程序化创建 PirateBase 预制体：Cube 视觉（12×16px → 0.375×0.5 单位，1 单位 = 32px）
-        /// + BoxCollider + Rigidbody + <see cref="PirateBase"/>。
+        /// + BoxCollider + Rigidbody + <see cref="PirateBase"/> + <see cref="UnitOutlineBinder"/>。
         /// </summary>
         static GameObject BuildPiratePrefab()
         {
@@ -99,10 +101,10 @@ namespace PirateCrew.EditorTools
             // §4.1：AABB 12×16px（left/rightExtent=6、top/bottomExtent=8）；1 单位 = 32px。
             go.transform.localScale = new Vector3(12f / 32f, 16f / 32f, 12f / 32f);
 
+            // 单位材质 = PirateOutline（本体 Pass + inverted hull 描边 Pass 一体），
+            // 由 UnitOutlineBinder 用 MaterialPropertyBlock 逐单位写 _OutlineState。
             var meshRenderer = go.GetComponent<MeshRenderer>();
-            meshRenderer.sharedMaterial = EnsureMaterial(
-                MaterialFolder + "/PirateBody.mat", "PirateBody",
-                "Universal Render Pipeline/Lit", new Color(0.85f, 0.82f, 0.7f, 1f), "Standard");
+            meshRenderer.sharedMaterial = EnsureOutlineMaterial();
 
             var body = go.AddComponent<Rigidbody>();
             body.mass = 1f;          // §4.1 weight = 1（击退不乘体重，质量仅给 PhysX 用）
@@ -111,6 +113,8 @@ namespace PirateCrew.EditorTools
 
             var collider = go.GetComponent<BoxCollider>();
             var pirate = go.AddComponent<PirateBase>();
+            // §4.5 选中/悬停描边：状态位 → 材质属性的每帧绑定。
+            go.AddComponent<UnitOutlineBinder>();
 
             // 显式接线（PirateBase.Awake 也会兜底自动绑定，这里保证预制体上非空）。
             var so = new SerializedObject(pirate);
@@ -665,6 +669,62 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
         // 材质 / 文件夹 / Build Settings
         // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 单位材质：<c>PirateOutline</c>（本体 Pass + inverted hull 描边 Pass 一体）。
+        ///
+        /// 【为什么把描边材质直接当本体材质，而不是另开一圈"描边复制网格"】
+        ///   复制网格方案要保持本体为 URP/Lit，但两个共面网格会 z-fighting，且需要额外的
+        ///   mesh 复制与 material_override 管理。PirateOutline 自带本体 Pass（简单 Lambert + SH），
+        ///   直接当本体材质最省事。代价：没有 ShadowCaster Pass（单位不投影），
+        ///   观感验收时若需要阴影，按 docs/描边Shader调试.md §七-2 补 Pass 或回到复制网格方案。
+        ///
+        /// 【状态 0 必须不可见】shader 的 OutlineColorForState() 在 state==0 时回落到
+        ///   <c>_OutlineColor</c>，故把它的 alpha 设为 0 —— 片元里 `alpha &lt; 0.002` 会 discard，
+        ///   未悬停/未选中的单位就不会顶着一圈青边。hover/selected 两套色保留原版取值。
+        /// </summary>
+        static Material EnsureOutlineMaterial()
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(OutlineMaterialPath);
+            if (existing != null)
+                return existing;
+
+            Shader shader = Shader.Find(OutlineShaderName);
+            if (shader == null)
+            {
+                // shader 编译失败/被剔除时退回不透明本体，至少不出现粉色错误材质。
+                Debug.LogWarning("[M2BattleSceneSetup] 未找到 shader " + OutlineShaderName
+                    + "，单位退回 URP/Lit 本体材质（无描边，UnitOutlineBinder 会告警）。");
+                return EnsureMaterial(
+                    MaterialFolder + "/PirateBody.mat", "PirateBody",
+                    "Universal Render Pipeline/Lit", new Color(0.85f, 0.82f, 0.7f, 1f), "Standard");
+            }
+
+            var material = new Material(shader) { name = "PirateOutlineUnit" };
+
+            // 本体色：默认中性米白；运行时由 UnitOutlineBinder 按队伍用 MPB 覆盖。
+            material.SetColor("_BaseColor", new Color(0.85f, 0.82f, 0.70f, 1f));
+
+            // 描边：兜底色（state 0）alpha = 0 → 不可见；hover 淡白细线；selected 青色粗虚线。
+            material.SetColor("_OutlineColor", new Color(0.286f, 0.851f, 0.839f, 0f));
+            material.SetColor("_OutlineColorHover", new Color(1f, 1f, 1f, 0.22f));
+            material.SetColor("_OutlineColorSelected", new Color(0.286f, 0.851f, 0.839f, 0.949f));
+
+            material.SetFloat("_OutlineWidth", 0.006f);
+            material.SetFloat("_OutlineWidthHover", 0.0025f);
+            material.SetFloat("_OutlineWidthSelected", 0.006f);
+
+            material.SetFloat("_OutlineState", 0f);
+            material.SetFloat("_OutlineAlpha", 1f);
+            material.SetFloat("_OutlineExpandMode", 0f);              // 0 = 屏幕空间恒定粗细（Godot 等价做法）
+            material.SetFloat("_OutlineDistanceAttenuation", 0.4f);   // Godot 默认 0.4
+            material.SetFloat("_DashSpeed", 5f);
+            material.SetFloat("_DashFrequency", 50f);
+            material.SetFloat("_DebugMode", 0f);
+
+            AssetDatabase.CreateAsset(material, OutlineMaterialPath);
+            return material;
+        }
 
         static Material EnsureMaterial(string path, string name, string shaderName, Color color, string fallbackShaderName = null)
         {

@@ -45,17 +45,19 @@
 //   Library/PackageCache/com.unity.render-pipelines.universal@14.0.12 与
 //   Library/PackageCache/com.unity.render-pipelines.core@14.0.12 中逐条核实存在：
 //     Core.hlsl                                -> ShaderLibrary/Core.hlsl
-//     GlobalIllumination.hlsl                  -> ShaderLibrary/GlobalIllumination.hlsl（内部再引 RealtimeLights.hlsl）
+//     Lighting.hlsl                            -> ShaderLibrary/Lighting.hlsl（:4-9 引入 BRDF/Debugging3D/GlobalIllumination/RealtimeLights/AmbientOcclusion/DBuffer）
 //     TransformObjectToHClip                   -> core/SpaceTransforms.hlsl:108
 //     TransformObjectToWorldNormal             -> core/SpaceTransforms.hlsl:199
 //     TransformWorldToView                     -> core/SpaceTransforms.hlsl:97
 //     TransformWorldToViewDir                  -> core/SpaceTransforms.hlsl:155
 //     GetVertexPositionInputs / GetVertexNormalInputs -> URP/ShaderVariablesFunctions.hlsl:7/21
 //     UNITY_MATRIX_P                           -> URP/ShaderLibrary/Input.hlsl:193（#define 到 OptimizeProjectionMatrix）
-//     struct Light / GetMainLight              -> URP/RealtimeLights.hlsl:12/97（经 GlobalIllumination.hlsl 引入）
-//     SampleSH                                 -> URP/GlobalIllumination.hlsl:21（经 GlobalIllumination.hlsl 引入）
+//     struct Light / GetMainLight              -> URP/RealtimeLights.hlsl:12/97（经 Lighting.hlsl 引入）
+//     SampleSH                                 -> URP/GlobalIllumination.hlsl:21（经 Lighting.hlsl 引入）
 //     _Time                                    -> URP/UnityInput.hlsl:40
 //   注：core 与 URP 均未声明 ComputeScreenPos，故屏幕 UV 由 clip.xy/w 手算，未使用该函数。
+//   注：本清单只能证明"符号存在"，**不能**证明 include 自洽——GlobalIllumination.hlsl 那次
+//       静态核对全绿、真实编译照样失败（见下方 Base Pass 的踩坑记录）。
 // ============================================================================
 
 Shader "PirateCrew/PirateOutline"
@@ -130,11 +132,23 @@ Shader "PirateCrew/PirateOutline"
             // Core.hlsl 已含 Common.hlsl / URP Input.hlsl / ShaderVariablesFunctions.hlsl，
             // 因此 TransformObjectToHClip、GetVertexPositionInputs 等无需再单独 include。
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            // GlobalIllumination.hlsl 内部 include RealtimeLights.hlsl，
-            // 一次拿到 struct Light / GetMainLight()（RealtimeLights.hlsl:12/97）与 SampleSH（:21）。
-            // 这里刻意不用更"全"的 Lighting.hlsl：它会连带 BRDF/DBuffer/Debugging3D 等
-            // 本 shader 用不到的模块，缩小编译面、降低编译失败风险。
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/GlobalIllumination.hlsl"
+            // struct Light / GetMainLight()（RealtimeLights.hlsl:12/97）与 SampleSH（GlobalIllumination.hlsl:21）
+            // 由 Lighting.hlsl 的 include 链提供（Lighting.hlsl:4-9 = BRDF/Debugging3D/GlobalIllumination/
+            // RealtimeLights/AmbientOcclusion/DBuffer）。
+            //
+            // 【踩坑记录 · 2026-09-13，务必不要再"优化"回去】
+            //   这里原先只 include GlobalIllumination.hlsl（想缩小编译面），本环境无渲染路径时
+            //   静态核对"用到的符号都在"看起来成立，但在真实 GPU 会话里 d3d11 直接编译失败：
+            //     Shader error in 'PirateCrew/PirateOutline': unrecognized identifier 'BRDFData'
+            //       at .../ShaderLibrary/GlobalIllumination.hlsl(353)
+            //   原因：GlobalIllumination.hlsl 自己并不 include BRDF.hlsl，而它的
+            //   GlobalIllumination(BRDFData, BRDFData, ...) 函数体用到了 BRDF.hlsl 里的 BRDFData；
+            //   它只对"调用者已引入 BRDF"的场景自洽。Lighting.hlsl 正是把这一组一起引入的标准入口
+            //   （URP 自带 Lit/SimpleLit 也走它）。
+            //   教训：URP 的"轻量 include"不能靠文件名/符号检索推断自洽性，必须在有渲染路径的
+            //         编辑器里真实编译过才算验证；此后本 shader 的任何 include 改动都要重跑一次
+            //         play mode 并 read_console 确认 0 shader error。
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
             // CBUFFER 字段顺序必须与 Properties 声明顺序一致，否则 SRP Batcher 会判定不兼容。
             CBUFFER_START(UnityPerMaterial)
@@ -213,11 +227,22 @@ Shader "PirateCrew/PirateOutline"
         // ====================================================================
         // Pass 2 / Outline：inverted hull（法线外扩 + Cull Front 只画背面）
         // 对应 Godot outline_hover.gdshader / outline_selected.gdshader 的 vertex() 段
+        //
+        // 【LightMode 必须与 Base Pass 不同，这是本 shader 最隐蔽的一处坑】
+        //   URP 的不透明前向 DrawObjectsPass 用固定的 ShaderTagId 列表取 pass
+        //   （DrawObjectsPass.cs:133 = SRPDefaultUnlit / UniversalForward / UniversalForwardOnly），
+        //   而 Unity 的 DrawRenderers **每个 tag 槽位只会取一个 pass**。所以若本 Pass 也标
+        //   "UniversalForward"，它会和 Base Pass 撞同一个槽位、被静默丢弃——
+        //   表现为"材质正常、本体正常、就是没有描边"，且 Console 无任何报错。
+        //   实测（2026-09-13，play mode + _DebugMode=2）：本体 Pass 已 discard（单位消失），
+        //   描边 Pass 的品红壳却一像素都没出现，据此定位。
+        //   SRPDefaultUnlit 在 URP 列表里是独立槽位（也是 URP 官方"额外 unlit pass"的常规做法），
+        //   故本 Pass 用它。
         // ====================================================================
         Pass
         {
             Name "PirateOutlineHull"
-            Tags { "LightMode" = "UniversalForward" }
+            Tags { "LightMode" = "SRPDefaultUnlit" }
 
             Cull Front          // 只画背面：外扩后背面绕到轮廓外侧，形成一圈描边
             ZWrite Off          // 描边是叠加层，不写深度（hover 半透明时必须）

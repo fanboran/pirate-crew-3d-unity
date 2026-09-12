@@ -48,6 +48,7 @@ namespace PirateCrew.PirateCrew.Battle
 
         Phase _phase = Phase.Idle;
         PirateBase _selected;
+        PirateBase _hovered;
         Vector2 _originPixels;
         Vector2 _dragPixels;
         bool _useWeapon;
@@ -91,6 +92,38 @@ namespace PirateCrew.PirateCrew.Battle
 
             if (Input.GetKeyDown(KeyCode.Escape))
                 CancelAim();
+
+            UpdateHover();
+        }
+
+        void OnDisable()
+        {
+            SetHoverTarget(null);
+        }
+
+        /// <summary>
+        /// §4.5 悬停反馈：鼠标 30px 内最近的本队存活角色高亮（原版 <c>Controller.hoverCharacter</c>）。
+        /// 拖拽期间与鼠标位于 UGUI 之上时不悬停——原版拖拽时 <c>corners</c> 也是隐藏的。
+        /// </summary>
+        void UpdateHover()
+        {
+            PirateBase target = null;
+            if (_phase != Phase.Dragging && !IsPointerOverUi())
+                target = PickTeamCharacter(Input.mousePosition);
+
+            SetHoverTarget(target);
+        }
+
+        void SetHoverTarget(PirateBase target)
+        {
+            if (target == _hovered)
+                return;
+
+            if (_hovered != null)
+                _hovered.SetHover(false);
+            _hovered = target;
+            if (_hovered != null)
+                _hovered.SetHover(true);
         }
 
         /// <summary>

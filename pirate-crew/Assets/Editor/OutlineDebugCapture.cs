@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using PirateCrew.PirateCrew.Battle;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -68,10 +69,12 @@ namespace PirateCrew.EditorTools
 
         // ---- 状态机（EditorApplication.update 驱动）----
         static List<Material> s_Targets;
+        static List<UnitOutlineBinder> s_ForcedBinders;
         static string s_OutputFolder;
         static int s_LevelIndex;
-        static int s_Phase;   // 0=改档后等待, 1=截图后等待
+        static int s_Phase;   // 0=改档后等待, 1=等待抓帧, 2=收尾等待（让最后一张真抓完再复位）
         static int s_Ticks;
+        static int s_TargetFrame;
         static bool s_Running;
 
         [MenuItem("PirateCrew/Rendering/采集描边调试截图")]
@@ -106,6 +109,15 @@ namespace PirateCrew.EditorTools
                 return;
             }
 
+            // play mode 下若编辑器处于暂停，player loop 不推进 → 改档后画面不会重绘，
+            // 采集会一直等不到新帧（曾实测卡住）。这里明确报错而不是挂死。
+            if (Application.isPlaying && EditorApplication.isPaused)
+            {
+                Debug.LogError("[OutlineDebugCapture] 编辑器处于 play mode **暂停**状态，画面不会随 _DebugMode 重绘，"
+                    + "无法逐档采集。请先取消暂停（工具栏 Pause 按钮 / EditorApplication.isPaused = false）后重试。");
+                return;
+            }
+
             s_Targets = FindOutlineMaterials();
             if (s_Targets.Count == 0)
             {
@@ -119,15 +131,25 @@ namespace PirateCrew.EditorTools
             s_OutputFolder = GetOutputFolder();
             Directory.CreateDirectory(s_OutputFolder);
 
+            // 单位上的 _OutlineState 由 UnitOutlineBinder 用 MPB 逐单位覆盖（MPB 优先于材质资产），
+            // 所以只改材质资产的 _OutlineState 对已生成单位无效。这里统一把场所内有 binder 的单位
+            // 临时强制为「选中态(2)」，保证档 0 也能看到描边；采集结束复位为 -1（交回状态位驱动）。
+            ForceBinderOutlineState(OutlineStateRules.Selected);
+
             s_LevelIndex = 0;
             s_Phase = 0;
             s_Ticks = 0;
+            s_TargetFrame = 0;
             s_Running = true;
             EditorApplication.update += Tick;
 
             Debug.Log("[OutlineDebugCapture] 开始逐档采集 " + Levels.Length + " 张截图，命中材质 "
                 + s_Targets.Count + " 个（" + DescribeTargets() + "），输出目录 " + s_OutputFolder
                 + "。请保持 Game View 可见且不要操作编辑器，采集完成后会自动把 _DebugMode 复位为 0。\n"
+                + "  已把 " + s_ForcedBinders.Count + " 个 UnitOutlineBinder 临时强制为选中态(_OutlineState=2)，"
+                + "使档 0 也能看到描边；采集结束复位为 -1（交回 Selected/Hovered 状态位驱动）。\n"
+                + "  ⚠ 若本脚本中断（编辑器崩溃/强杀），材质资产的 _DebugMode 与 binder 的 DebugForcedState 可能残留，"
+                + "重跑一次本菜单项即可复位。\n"
                 + "  注意：文件名档位含义按 PirateOutline.shader（单体描边）定义；\n"
                 + "        若命中材质里含 PirateOutlinePost.shader，其 _DebugMode 档位语义不同\n"
                 + "        （0 正常/1 原始mask/2 二值mask/3 Sobel/4 纯边缘），见 docs/描边Shader调试.md 第四节。\n"
@@ -217,12 +239,68 @@ namespace PirateCrew.EditorTools
                 found.Add(mat);
         }
 
-        /// <summary>EditorApplication.update 状态机：每档 改档 → 等帧 → 截图 → 等帧。</summary>
-        static void Tick()
+        /// <summary>
+        /// 把场所内所有 <see cref="UnitOutlineBinder"/> 强制到指定描边档（-1 = 交回状态位驱动）。
+        /// </summary>
+        static void ForceBinderOutlineState(int state)
         {
+            s_ForcedBinders = new List<UnitOutlineBinder>(Object.FindObjectsOfType<UnitOutlineBinder>());
+            foreach (UnitOutlineBinder binder in s_ForcedBinders)
+            {
+                if (binder != null)
+                    binder.DebugForcedState = state;
+            }
+
+            if (state >= 0 && s_ForcedBinders.Count == 0)
+            {
+                Debug.LogWarning("[OutlineDebugCapture] 场景里没有 UnitOutlineBinder（单位是在 play mode 的 "
+                    + "BattleController.Awake 里生成的）。档 0 可能看不到描边——"
+                    + "建议在 **play mode** 下运行本菜单项。");
+            }
+        }
+
+        /// <summary>
+        /// 等待一轮：play mode 下必须等**真实渲染帧**推进（EditorApplication.update 每帧会触发多次，
+        /// 只数 update 次数可能在画面重绘之前就截图）；edit mode 无 player loop，退回数 update 次数。
+        /// </summary>
+        static void BeginWait()
+        {
+            s_Ticks = FramesPerStep;
+            s_TargetFrame = Time.frameCount + FramesPerStep;
+        }
+
+        static bool IsWaiting()
+        {
+            if (Application.isPlaying)
+                return Time.frameCount < s_TargetFrame;
+
             if (s_Ticks > 0)
             {
                 s_Ticks--;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>EditorApplication.update 状态机：每档 改档 → 等帧 → 截图 → 等帧。</summary>
+        static void Tick()
+        {
+            if (IsWaiting())
+                return;
+
+            if (s_Phase == 2)
+            {
+                // 收尾（延迟到最后一帧真被抓走之后，见下方 s_Phase=2 的说明）。
+                ApplyDebugMode(0);
+                ForceBinderOutlineState(-1);
+                EditorApplication.update -= Tick;
+                s_Running = false;
+                s_Targets = null;
+
+                Debug.Log("[OutlineDebugCapture] 采集流程结束（_DebugMode 已复位为 0，单位描边已交回状态位驱动）。\n"
+                    + "  截图由 ScreenCapture 异步写盘，可能比本日志晚几帧才出现；\n"
+                    + "  请到 " + s_OutputFolder + " 确认 5 张 PNG，并逐张对照 docs/描边Shader调试.md 的"
+                    + "\"每档应看到什么\"。");
                 return;
             }
 
@@ -231,10 +309,10 @@ namespace PirateCrew.EditorTools
                 DebugLevel level = Levels[s_LevelIndex];
                 ApplyDebugMode(level.Mode);
 
-                // 主动推一帧：让 Game View 用新档位重绘，等 FramesPerStep 帧后再抓。
+                // edit mode 下主动推一帧；play mode 下 player loop 本来就在跑。
                 InternalEditorUtility.RepaintAllViews();
                 EditorApplication.QueuePlayerLoopUpdate();
-                s_Ticks = FramesPerStep;
+                BeginWait();
                 s_Phase = 1;
                 return;
             }
@@ -249,23 +327,12 @@ namespace PirateCrew.EditorTools
                 + "）-> " + fullPath);
 
             s_LevelIndex++;
-            if (s_LevelIndex >= Levels.Length)
-            {
-                // 收尾：复位 + 注销。
-                ApplyDebugMode(0);
-                EditorApplication.update -= Tick;
-                s_Running = false;
-                s_Targets = null;
+            BeginWait();
 
-                Debug.Log("[OutlineDebugCapture] 采集流程结束（_DebugMode 已复位为 0）。\n"
-                    + "  截图由 ScreenCapture 异步写盘，可能比本日志晚几帧才出现；\n"
-                    + "  请到 " + s_OutputFolder + " 确认 5 张 PNG，并逐张对照 docs/描边Shader调试.md 的"
-                    + "\"每档应看到什么\"。本环境（无渲染路径）产不出真实截图，此步为必须的人工确认项。");
-                return;
-            }
-
-            s_Ticks = FramesPerStep;
-            s_Phase = 0;
+            // 最后一档必须延迟复位：ScreenCapture 是异步的（在当前帧末尾真正取像素），
+            // 若在同一 Tick 里紧接着 ApplyDebugMode(0)，最后一张就会拍到复位后的样子。
+            // 实测（2026-09-13）：档 4 曾因此拍成档 0（红色本体 + 稀疏青描边）而不是法线/深度数据。
+            s_Phase = s_LevelIndex >= Levels.Length ? 2 : 0;
         }
 
         static void ApplyDebugMode(int mode)

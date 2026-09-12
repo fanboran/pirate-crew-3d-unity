@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 2866100669462140654}
   - component: {fileID: 3731857768786557635}
   - component: {fileID: 4676385208262270662}
+  - component: {fileID: 4781346681108462892}
   m_Layer: 0
   m_Name: PirateBase
   m_TagString: Untagged
@@ -85,7 +86,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 0fa5080295a8d7b4ab89d63b13aee617, type: 2}
+  - {fileID: 2100000, guid: 0f6bc7f802d124242af2f7d9e4d69474, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -154,3 +155,19 @@ MonoBehaviour:
   body: {fileID: 3731857768786557635}
   bodyCollider: {fileID: 3244688377207235776}
   constrainToBattlePlane: 1
+--- !u!114 &4781346681108462892
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6497914967279805601}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e21736a525d2b447ab7f61f4284a27b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  targetRenderer: {fileID: 0}
+  tintByTeam: 1
+  teamRedTint: {r: 0.8, g: 0.3, b: 0.28, a: 1}
+  teamBlueTint: {r: 0.3, g: 0.45, b: 0.8, a: 1}

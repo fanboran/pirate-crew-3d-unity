@@ -147,8 +147,7 @@ namespace PirateCrew.PirateCrew.Battle
         public void StartTurn()
         {
             TotalTurnsTaken++;
-            SelectedIndex = -1;
-            SelectedCharacter = null;
+            ClearSelection();
         }
 
         /// <summary>
@@ -165,13 +164,33 @@ namespace PirateCrew.PirateCrew.Battle
             SelectedIndex = IndexOf(pirate);
             if (SelectedIndex < 0)
                 return false;
+
+            // 选中唯一性由本类保证，故"取消上一个、点亮这一个"也在这里做一次，
+            // 让 SetSelected 状态位与 SelectedCharacter 永远同步（TurnManager 会直接调本方法，
+            // 绕过 BattleController.SelectCharacter，只钩后者会漏）。
+            if (SelectedCharacter != null && SelectedCharacter != pirate)
+                SelectedCharacter.SetSelected(false);
+
             SelectedCharacter = pirate;
+            pirate.SetSelected(true);
             return true;
         }
 
         /// <summary>§3.2 <c>finishTurn</c>：清 selectedCharacter。</summary>
         public void FinishTurn()
         {
+            ClearSelection();
+        }
+
+        /// <summary>
+        /// 清空本回合选中，并同步熄灭 <see cref="PirateBase.SetSelected"/> 状态位
+        /// （描边表现由 <see cref="UnitOutlineBinder"/> 读该状态位）。
+        /// </summary>
+        void ClearSelection()
+        {
+            if (SelectedCharacter != null)
+                SelectedCharacter.SetSelected(false);
+
             SelectedIndex = -1;
             SelectedCharacter = null;
         }
