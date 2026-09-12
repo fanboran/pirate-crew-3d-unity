@@ -1,0 +1,123 @@
+using PirateCrew.PirateCrew.Battle;
+using UnityEngine;
+
+namespace PirateCrew.UI
+{
+    /// <summary>
+    /// 战斗小地图的换算与表现规则（纯 C# 静态类，不引用 MonoBehaviour，可在无头验证台断言）。
+    ///
+    /// 【原版依据】`docs/参考游戏逆向-海盗军团抢宝藏-静态.md`
+    ///   · §2.4 / §8.1：<c>Map.as</c>（117 行）＝ 小地图，<c>dotSize=3</c> 的点阵；
+    ///       实心瓦片 alpha 50 / 空瓦片 alpha 20；宝箱黄色 <c>0xFFFF00</c>；
+    ///       红队 <c>0xFF3A29</c>、蓝队 <c>0x3366FF</c>，<c>alpha = mapVisibility*100</c>；
+    ///       角色死亡后 <c>mapVisibility -= 0.1/帧</c> 淡出。
+    ///   · §2.3：小地图容器 <c>mapHolder</c> 挂在 (20,20)（= 屏幕左上角，视口 550×400）。
+    ///   · §3.1 主循环：每帧调 <c>map.drawActive()</c> 刷新「活动点」（= 活着的单位位置）。
+    ///
+    /// 【原版没有给出的部分（本实现为**提案/待定**）】
+    ///   · 原版是 2D 侧视关卡，小地图直接复用关卡像素布局；本工程把 Flash 的
+    ///     (gridX, gridY) 重投影成 XZ 平面（见 <c>docs/M2-3D空间模型对齐.md</c> §1），
+    ///     所以「竞技场世界坐标 → 小地图归一化坐标」的映射是本工程自定的：
+    ///       u = x / width（右为 +u）；v = 1 - z / depth（+Z 朝相机，落在小地图下方）。
+    ///     这样小地图方向与屏幕上方 = 远处（-Z）一致。
+    ///   · 原版点阵按瓦片有无绘制（实心/空 alpha 两档）；本工程 M2 的地形是**平坦竞技场**
+    ///     （瓦片地形是另一条待办），故只画一块纯色底 + 单位点，**不画瓦片点阵**。
+    ///     待瓦片地形落地后，按本节两档 alpha 补回点阵即可。
+    /// </summary>
+    public static class MinimapRules
+    {
+        // ------------------------------------------------------------------
+        // 原版常量（出处见类头；不要臆改）
+        // ------------------------------------------------------------------
+
+        /// <summary>原版小地图点尺寸 `dotSize=3`（§8.1）。</summary>
+        public const float FlashDotSizePixels = 3f;
+
+        /// <summary>原版实心瓦片 alpha（0–100 刻度，§8.1）。</summary>
+        public const float FlashSolidTileAlpha = 50f;
+
+        /// <summary>原版空瓦片 alpha（0–100 刻度，§8.1）。</summary>
+        public const float FlashEmptyTileAlpha = 20f;
+
+        /// <summary>原版红队色 `0xFF3A29`（§8.1）。</summary>
+        public static readonly Color RedTeamColor = new Color(1f, 58f / 255f, 41f / 255f, 1f);
+
+        /// <summary>原版蓝队色 `0x3366FF`（§8.1）。</summary>
+        public static readonly Color BlueTeamColor = new Color(51f / 255f, 102f / 255f, 1f, 1f);
+
+        /// <summary>死亡淡出速度：`mapVisibility -= 0.1/帧`（§8.1）。</summary>
+        public const float DeadFadePerFrame = 0.1f;
+
+        /// <summary>折算到秒：0.1 × 25fps = 2.5/s（即约 0.4s 淡完）。帧率取自 <see cref="LevelGeometry.FrameRate"/>。</summary>
+        public const float DeadFadePerSecond = DeadFadePerFrame * LevelGeometry.FrameRate;
+
+        // ------------------------------------------------------------------
+        // 本工程映射（提案/待定，见类头）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 竞技场世界位置（XZ）→ 小地图归一化坐标（0–1，UGUI 锚点口径）。
+        /// <c>u = x / width</c>，<c>v = 1 - z / depth</c>（+Z 朝相机 → 小地图下方）。
+        /// 越界不裁剪，由 <see cref="ClampNormalized"/> 处理。
+        /// </summary>
+        public static Vector2 ArenaToNormalized(float worldX, float worldZ, float width, float depth)
+        {
+            float u = width > 1e-6f ? worldX / width : 0f;
+            float v = depth > 1e-6f ? 1f - worldZ / depth : 0f;
+            return new Vector2(u, v);
+        }
+
+        /// <summary>把归一化坐标裁进小地图范围（单位被抛出竞技场时点位会短暂越界）。</summary>
+        public static Vector2 ClampNormalized(Vector2 normalized)
+        {
+            return new Vector2(Mathf.Clamp01(normalized.x), Mathf.Clamp01(normalized.y));
+        }
+
+        /// <summary>
+        /// 小地图面板像素尺寸：一颗瓦片画 <paramref name="pixelsPerTile"/> 像素。
+        /// 某关 <c>widthTiles × depthTiles</c>（1 瓦片 = 1 世界单位）→ 面板保持与竞技场同比例，不拉伸变形。
+        /// </summary>
+        public static Vector2 PanelSizePixels(int widthTiles, int depthTiles, float pixelsPerTile)
+        {
+            float ppt = pixelsPerTile > 0f ? pixelsPerTile : 1f;
+            return new Vector2(widthTiles * ppt, depthTiles * ppt);
+        }
+
+        /// <summary>
+        /// 单位点位直径（px）。原版 <c>dotSize=3</c> 是「一颗瓦片 = 3px」口径，
+        /// 本实现把瓦片放大到 <paramref name="pixelsPerTile"/>，故点也同比放大并略大于一格以便辨认（**提案/待定**）。
+        /// </summary>
+        public static float DotSizePixels(float pixelsPerTile)
+        {
+            return Mathf.Max(4f, pixelsPerTile * 1.25f);
+        }
+
+        /// <summary>
+        /// 死亡淡出推进一帧：<c>visibility -= 2.5 × dt</c>，夹在 [0,1]。
+        /// 对应 §8.1 的 <c>mapVisibility -= 0.1/帧</c>（25fps）。
+        /// </summary>
+        public static float AdvanceVisibility(float visibility, float deltaSeconds)
+        {
+            if (deltaSeconds <= 0f)
+                return Mathf.Clamp01(visibility);
+            return Mathf.Clamp01(visibility - DeadFadePerSecond * deltaSeconds);
+        }
+
+        /// <summary>
+        /// 单位点颜色：按队取原版色（§8.1），alpha = <paramref name="visibility"/>
+        /// （对应原版 <c>alpha = mapVisibility*100</c>）。
+        /// </summary>
+        public static Color DotColor(int teamIndex, float visibility)
+        {
+            Color c = teamIndex == 0 ? RedTeamColor : BlueTeamColor;
+            c.a = Mathf.Clamp01(visibility);
+            return c;
+        }
+
+        /// <summary>小地图底色（原版为瓦片点阵，本工程平坦竞技场用单色底；**提案/待定**）。</summary>
+        public static readonly Color BackgroundColor = new Color(0.06f, 0.09f, 0.13f, 0.72f);
+
+        /// <summary>面板边框色（**提案/待定**）。</summary>
+        public static readonly Color BorderColor = new Color(0.55f, 0.62f, 0.7f, 0.9f);
+    }
+}
