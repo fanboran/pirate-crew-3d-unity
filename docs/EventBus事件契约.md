@@ -82,7 +82,48 @@
 
 ---
 
-## 3. 不使用 EventBus 的通信
+## 3. 已实现（M3，船员管理循环）
+
+> 事件名常量与载荷类型定义在
+> `Scripts/CrewManagement/CrewManagementEvents.cs` 与 `Scripts/Campaign/CampaignEvents.cs`。
+> M3 的模块间**命令**（关卡结算 → 发放船员奖励）走 `CampaignApi` 直接调 `CrewManagementApi` 的公开方法
+> （架构原则：跨模块调用的出口放各模块 `XxxApi`），**通知**才走下面的 EventBus 事件。
+
+### 3.1 船员管理模块广播
+
+| 事件名 | 载荷 | 发布方 | 订阅方 |
+| --- | --- | --- | --- |
+| `crew_roster_updated` | `RosterUpdatedPayload`（已拥有数 + 当前编成 id 数组） | `CrewManagementApi` | `UI/CrewManagementController`（重建名册列表） |
+| `crew_unlocked` | `CrewUnlockedPayload`（船员 id + 显示名） | `CrewManagementApi.UnlockCrewsForLevel` | `UI/CrewManagementController`、`UI/LevelSelectController`（提示新船员） |
+| `crew_reward_granted` | `CrewRewardPayload`（关卡 id + 星级 + 每人经验 + 出战 id 数组 + 新招募 id 数组） | `CrewManagementApi.GrantLevelReward` | **暂无订阅方**：M3 的结算横幅读 `CampaignApi.LastReward` 静态快照；该事件留给存档/成就/音频层接入 |
+
+### 3.2 战役模块广播
+
+| 事件名 | 载荷 | 发布方 | 订阅方 |
+| --- | --- | --- | --- |
+| `campaign_level_selected` | `CampaignLevelSelectedPayload`（关卡 id + 序号 + 章节） | `CampaignApi.SelectLevel` | **暂无订阅方**：M3 用它承载「本局打的是哪一关」；按所选关卡加载竞技场需要 `BattleController` 增一个读取入口，接入后由战斗侧订阅（见 M3 交付报告的待裁决改动） |
+| `campaign_level_completed` | `CampaignLevelCompletedPayload`（关卡 id + 序号 + 章节 + 星级 + 是否通关 + 是否首通 + 得分） | `CampaignApi`（订阅 `match_finished` 后结算） | `UI/CrewManagementController`（状态提示） |
+
+### 3.3 M3 新增的订阅方（事件本身见 §2，实现以 `Battle/BattleEvents.cs` 为准）
+
+`CampaignApi.EnsureBootstrapped()` 订阅下列**已有**事件，把管理循环接到战斗结算上（不改 `PirateCrew/` 一行）：
+
+| 已有事件 | M3 新增订阅方 | 用途 |
+| --- | --- | --- |
+| `battle_started` | `CampaignApi` | 每局开头把「玩家方阵亡计数」归零 |
+| `crew_died` | `CampaignApi` | 累计 `TeamIndex == 0` 的阵亡数，供 §9.3 星级评价 |
+| `match_finished` | `CampaignApi` | 评价星级 → 写关卡进度 → 发放船员经验/招募 → 广播 `campaign_level_completed` → 落盘槽位 1 |
+
+> ⚠ **时序注意**：`CampaignApi.EnsureBootstrapped()` 是**静态订阅**（EventBus 的静态委托列表），跨场景存活；
+> 由 `UI/MainMenuController.Awake` 与两个 M3 场景控制器调用（幂等）。
+> 若直接从编辑器打开 Battle 场景进 Play（不经过主菜单/管理界面），结算链路不会被订阅——这是有意的：
+> 那种入口本来就没有「待结算关卡」。
+> 另外，「待结算关卡」只在 `CampaignApi.SelectLevel` 之后的第一局 `battle_started` 有效：
+> 非战役入口的一局（主菜单「进入战斗」/ 2P）会把陈旧待结算关卡清掉，避免没打完就退出的那一局被误结算。
+
+---
+
+## 4. 不使用 EventBus 的通信
 
 以下情况**不走** EventBus，以免把强关系伪装成松耦合：
 
