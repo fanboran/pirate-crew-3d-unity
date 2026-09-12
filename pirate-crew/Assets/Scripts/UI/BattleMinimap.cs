@@ -34,6 +34,12 @@ namespace PirateCrew.UI
         [Tooltip("点阵层（ugui RectTransform）；单位点按其归一化锚点落位。")]
         [SerializeField] RectTransform dotLayer;
 
+        [Header("瓦片地形点阵（§8.1 两档 alpha；可为空 = 不画瓦片）")]
+        [Tooltip("地形视图（同场景 [SerializeField] 注入，禁 GameObject.Find）；由 HudMinimapSceneSetup 接线。")]
+        [SerializeField] BattleTerrainView terrain;
+        [Tooltip("瓦片点层（ugui RectTransform）；一格一颗点，实心 0.5 / 空 0.2 alpha。为空时自建在点阵层下。")]
+        [SerializeField] RectTransform tileLayer;
+
         [Header("竞技场范围（瓦片数；1 瓦片 = 1 世界单位）")]
         [Tooltip("竞技场横向 X 尺寸（关卡 widthTiles，1 瓦片 = 1 世界单位）。")]
         [SerializeField] float arenaWidth = 50f;
@@ -53,6 +59,8 @@ namespace PirateCrew.UI
         PirateBase[] _units = new PirateBase[0];
         Image[] _dots = new Image[0];
         float[] _visibility = new float[0];
+        Image[] _tiles = new Image[0];
+        int _tileVersion = -1;
         bool _built;
 
         /// <summary>接线自检（供 PlayMode 装配测试断言）。</summary>
@@ -90,6 +98,24 @@ namespace PirateCrew.UI
         void Start()
         {
             TryBuild();
+        }
+
+        void OnEnable()
+        {
+            if (terrain != null)
+                terrain.Changed += OnTerrainChanged;
+        }
+
+        void OnDisable()
+        {
+            if (terrain != null)
+                terrain.Changed -= OnTerrainChanged;
+        }
+
+        /// <summary>地形变化（爆炸破坏等）→ 只在下一帧刷新瓦片 alpha，避免每帧全量重绘。</summary>
+        void OnTerrainChanged()
+        {
+            _tileVersion = -1;
         }
 
         void Update()
@@ -152,13 +178,111 @@ namespace PirateCrew.UI
             }
 
             _built = true;
+            BuildTiles();
             Refresh();
             return true;
+        }
+
+        // ------------------------------------------------------------------
+        // 瓦片点阵（§8.1 实心 alpha 50 / 空 alpha 20）
+        // ------------------------------------------------------------------
+
+        /// <summary>已建出的瓦片点数（调试/测试用）。</summary>
+        public int TileCount => _tiles.Length;
+
+        /// <summary>瓦片点层引用（测试用）。</summary>
+        public RectTransform TileLayer => tileLayer;
+
+        static RectTransform EnsureTileLayer(RectTransform parent, RectTransform existing)
+        {
+            if (existing != null)
+            {
+                existing.anchorMin = Vector2.zero;
+                existing.anchorMax = Vector2.one;
+                existing.offsetMin = Vector2.zero;
+                existing.offsetMax = Vector2.zero;
+                return existing;
+            }
+
+            var go = new GameObject("TileLayer", typeof(RectTransform));
+            var rect = go.GetComponent<RectTransform>();
+            rect.SetParent(parent, false);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            return rect;
+        }
+
+        /// <summary>按地形网格铺满瓦片点（一格一颗）。地形未转写/未接线时不做任何事。</summary>
+        void BuildTiles()
+        {
+            if (terrain == null || terrain.Grid == null || _tiles.Length > 0)
+                return;
+
+            RectTransform parent = dotLayer != null ? dotLayer : (RectTransform)transform;
+            tileLayer = EnsureTileLayer(parent, tileLayer);
+            if (tileLayer == null)
+                return;
+
+            TileTerrainGrid grid = terrain.Grid;
+            int width = grid.WidthTiles;
+            int depth = grid.DepthTiles;
+            _tiles = new Image[width * depth];
+
+            for (int gy = 0; gy < depth; gy++)
+            {
+                for (int gx = 0; gx < width; gx++)
+                {
+                    var go = new GameObject("MinimapTile_" + gx + "_" + gy,
+                        typeof(RectTransform), typeof(Image));
+                    var rect = go.GetComponent<RectTransform>();
+                    rect.SetParent(tileLayer, false);
+                    // 锚点直接框住一整格：面板缩放/换关卡尺寸时自动铺满，不依赖像素尺寸。
+                    rect.anchorMin = new Vector2((float)gx / width, 1f - (float)(gy + 1) / depth);
+                    rect.anchorMax = new Vector2((float)(gx + 1) / width, 1f - (float)gy / depth);
+                    rect.offsetMin = Vector2.zero;
+                    rect.offsetMax = Vector2.zero;
+
+                    var image = go.GetComponent<Image>();
+                    image.raycastTarget = false;
+                    image.color = MinimapRules.TileColor(grid.BlocksAt(gx, gy) > 0);
+                    _tiles[gx + gy * width] = image;
+                }
+            }
+
+            _tileVersion = terrain.Version;
+        }
+
+        /// <summary>地形版本变化时刷新瓦片 alpha（实心/空两档，§8.1）。</summary>
+        void RefreshTiles()
+        {
+            if (_tiles.Length == 0 || terrain == null || terrain.Grid == null)
+                return;
+
+            int version = terrain.Version;
+            if (version == _tileVersion)
+                return;
+
+            _tileVersion = version;
+            TileTerrainGrid grid = terrain.Grid;
+
+            for (int i = 0; i < _tiles.Length; i++)
+            {
+                if (_tiles[i] == null)
+                    continue;
+
+                int gx = grid.CellXOf(i);
+                int gy = grid.CellYOf(i);
+                _tiles[i].color = MinimapRules.TileColor(grid.BlocksAt(gx, gy) > 0);
+            }
         }
 
         /// <summary>把每个单位的当前 XZ 位置映射到小地图锚点，并按存活状态推进淡出。</summary>
         void Refresh()
         {
+            RefreshTiles();
+
             if (dotLayer == null || _dots.Length == 0)
                 return;
 

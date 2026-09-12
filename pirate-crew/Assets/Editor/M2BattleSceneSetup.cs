@@ -54,6 +54,9 @@ namespace PirateCrew.EditorTools
         const string BattleScenePath = ScenesFolder + "/Battle.unity";
         const string LevelAssetPath = "Assets/Data/Levels/level_1.asset";
 
+        /// <summary>地形块父节点名（BattleTerrainView 挂在其下）。</summary>
+        const string TerrainRootName = "Terrain";
+
         /// <summary>场景装配使用的关卡号（LevelCatalog 已转写的 level_1）。</summary>
         const int LevelNumber = 1;
 
@@ -175,6 +178,10 @@ namespace PirateCrew.EditorTools
             Transform ground = CreateGround(worldWidth, worldDepth);
             Transform water = CreateWaterPlane(worldWidth, worldDepth, waterWorldY);
 
+            // 瓦片地形（可选）。网格在运行时由 BattleController 从 TerrainCatalog 构建并 Render，
+            // 这里只创建承载视图的根节点与材质；关卡未转写瓦片时 Render(null) 不生成任何块（平坦竞技场）。
+            BattleTerrainView terrainView = CreateTerrainView();
+
             Transform team0Root = new GameObject("Team0_Red").transform;
             Transform team1Root = new GameObject("Team1_Blue").transform;
 
@@ -187,7 +194,7 @@ namespace PirateCrew.EditorTools
 
             BattleHud hud = BuildHud(battle, turnManager, aimController);
 
-            WireBattleController(battle, piratePrefab, team0Root, team1Root, water, turnManager, aimController, battleCamera);
+            WireBattleController(battle, piratePrefab, team0Root, team1Root, water, turnManager, aimController, battleCamera, terrainView);
             WireTurnManager(turnManager, battle);
             WireAimController(aimController, camera, battle, trajectory);
             WireBattleCamera(battleCamera, virtualCamera, cameraTarget, camera);
@@ -369,6 +376,26 @@ namespace PirateCrew.EditorTools
             return water.transform;
         }
 
+        /// <summary>
+        /// 瓦片地形视图：根节点 + <see cref="BattleTerrainView"/> + 地块材质。
+        /// 具体地形块由运行时 <c>BattleController.BuildTerrain → BattleTerrainView.Render</c> 生成。
+        /// </summary>
+        static BattleTerrainView CreateTerrainView()
+        {
+            var go = new GameObject(TerrainRootName);
+            var view = go.AddComponent<BattleTerrainView>();
+
+            Material material = EnsureMaterial(
+                MaterialFolder + "/BattleTerrain.mat", "BattleTerrain",
+                "Universal Render Pipeline/Lit", new Color(0.55f, 0.46f, 0.33f, 1f), "Standard");
+
+            var so = new SerializedObject(view);
+            so.FindProperty("blockRoot").objectReferenceValue = go.transform;
+            so.FindProperty("blockMaterial").objectReferenceValue = material;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            return view;
+        }
+
         static TrajectoryPreview CreateTrajectoryPreview()
         {
             var go = new GameObject("TrajectoryPreview");
@@ -527,14 +554,17 @@ namespace PirateCrew.EditorTools
         static void WireBattleController(
             BattleController battle, GameObject piratePrefab,
             Transform team0Root, Transform team1Root, Transform waterPlane,
-            TurnManager turnManager, AimThrowController aimController, BattleCameraController battleCamera)
+            TurnManager turnManager, AimThrowController aimController, BattleCameraController battleCamera,
+            BattleTerrainView terrainView)
         {
             var prefabComponent = piratePrefab != null ? piratePrefab.GetComponent<PirateBase>() : null;
             if (prefabComponent == null)
                 Debug.LogError("[M2BattleSceneSetup] PirateBase 预制体缺失 PirateBase 组件，BattleController.piratePrefab 无法接线。");
 
             var so = new SerializedObject(battle);
-            SetRef(so, "level", AssetDatabase.LoadAssetAtPath<LevelDefinition>(LevelAssetPath));
+            // 【关卡注入】不指定 level 资产：让 BattleController.BuildPlan 走「战役已选关卡 → 否则 fallback」
+            // 分支（CampaignApi.PendingBattleLevelNumberOr(1)）。直接 Play 场景时无待战关卡 → 仍加载 level_1，
+            // 与旧行为一致；从选关界面进入时才真正加载所选关卡。level_1.asset 仍由 M2DataAssetGenerator 生成备查。
             SetInt(so, "fallbackLevelNumber", LevelNumber);
             SetRef(so, "piratePrefab", prefabComponent);
             SetRef(so, "team0Root", team0Root);
@@ -543,6 +573,7 @@ namespace PirateCrew.EditorTools
             SetRef(so, "turnManager", turnManager);
             SetRef(so, "aimController", aimController);
             SetRef(so, "battleCamera", battleCamera);
+            SetRef(so, "terrainView", terrainView);
             SetBool(so, "team1IsAi", true);
             so.ApplyModifiedPropertiesWithoutUndo();
         }

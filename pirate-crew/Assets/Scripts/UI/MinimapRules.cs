@@ -20,9 +20,9 @@ namespace PirateCrew.UI
     ///     所以「竞技场世界坐标 → 小地图归一化坐标」的映射是本工程自定的：
     ///       u = x / width（右为 +u）；v = 1 - z / depth（+Z 朝相机，落在小地图下方）。
     ///     这样小地图方向与屏幕上方 = 远处（-Z）一致。
-    ///   · 原版点阵按瓦片有无绘制（实心/空 alpha 两档）；本工程 M2 的地形是**平坦竞技场**
-    ///     （瓦片地形是另一条待办），故只画一块纯色底 + 单位点，**不画瓦片点阵**。
-    ///     待瓦片地形落地后，按本节两档 alpha 补回点阵即可。
+    ///   · 原版点阵按瓦片有无绘制（实心/空 alpha 两档）。本工程已落地瓦片地形
+    ///     （<c>Battle/Terrain/</c>：Flash 瓦片行 → XZ 抬升块），故按 §8.1 补回两档 alpha 点阵；
+    ///     地形未转写的关卡退化为全空点阵（铺基础地面色）。
     /// </summary>
     public static class MinimapRules
     {
@@ -38,6 +38,42 @@ namespace PirateCrew.UI
 
         /// <summary>原版空瓦片 alpha（0–100 刻度，§8.1）。</summary>
         public const float FlashEmptyTileAlpha = 20f;
+
+        // ------------------------------------------------------------------
+        // 瓦片点阵（§8.1 两档 alpha；地形落地后补上）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 瓦片点 alpha（0–1）：实心 <c>50/100 = 0.5</c>、空 <c>20/100 = 0.2</c>（§8.1，
+        /// 原版 alpha 是 AS2 的 0–100 刻度，故除以 100）。
+        /// </summary>
+        public static float TileAlpha(bool solid)
+        {
+            return (solid ? FlashSolidTileAlpha : FlashEmptyTileAlpha) / 100f;
+        }
+
+        /// <summary>实心瓦片色（地形块；**提案/待定**：原版点阵未给瓦片色，取中性岩土色）。</summary>
+        public static readonly Color SolidTileColor = new Color(0.72f, 0.66f, 0.52f, 1f);
+
+        /// <summary>空瓦片色（基础地面 / 水域背景；**提案/待定**）。</summary>
+        public static readonly Color EmptyTileColor = new Color(0.28f, 0.34f, 0.4f, 1f);
+
+        /// <summary>瓦片点颜色：按实心/空取色并套 <see cref="TileAlpha"/>。</summary>
+        public static Color TileColor(bool solid)
+        {
+            Color c = solid ? SolidTileColor : EmptyTileColor;
+            c.a = TileAlpha(solid);
+            return c;
+        }
+
+        /// <summary>
+        /// 一颗瓦片点在小地图上的直径（px）。原版 <c>dotSize=3</c> 是「一颗瓦片 = 3px」，
+        /// 本工程把瓦片放大到 <paramref name="pixelsPerTile"/>，故点 = 整格铺满（**提案/待定**）。
+        /// </summary>
+        public static float TileDotSizePixels(float pixelsPerTile)
+        {
+            return Mathf.Max(1f, pixelsPerTile);
+        }
 
         /// <summary>原版红队色 `0xFF3A29`（§8.1）。</summary>
         public static readonly Color RedTeamColor = new Color(1f, 58f / 255f, 41f / 255f, 1f);

@@ -206,12 +206,18 @@ namespace PirateCrew.PirateCrew.Battle
     /// AI 模拟用的地形模型（纯 C#）。
     ///
     /// 【3D 化】竞技场是一块 XZ 水平面（地面顶面恒为世界 <see cref="LevelGeometry.GroundTopY"/>），
-    /// 边界之外即水面 —— 所以地形模型就是<b>平面像素域的一块矩形</b>：
+    /// 边界之外即水面 —— 所以地形模型 = <b>平面像素域的一块矩形 + 可选的瓦片抬升网格</b>：
     ///   · 落点平面像素落在矩形内 = 落地；
-    ///   · 落在矩形外 = 掉出岛外（继续下落到 <see cref="LevelGeometry.WaterSurfaceY"/> 以下）→ 落水（§4.4）。
-    /// 高度不再是地形数据（地面是常量平面），故原 <c>GroundPixelY</c> / <c>GroundY</c> 已移除。
+    ///   · 落在矩形外 = 掉出岛外（继续下落到 <see cref="LevelGeometry.WaterSurfaceY"/> 以下）→ 落水（§4.4）；
+    ///   · 矩形内的地表高度由 <see cref="Grid"/>（<see cref="TileTerrainGrid"/>）给出：
+    ///     有抬升块处落点更高（瓦片高台），0 块处即基础地面。
     ///
-    /// 【M2 取舍】不模拟瓦片/悬挑/侧墙反弹（原版可借墙弹），仍是已知降级。
+    /// 【与瓦片地形的打通】<see cref="Grid"/> 由 <c>AiController</c> 从
+    /// <c>BattleController.Terrain</c> 注入（同场景 [SerializeField] → 直接引用，不做 Find）。
+    /// 为 null 时退化为「全平坦 + 矩形边界」，即地形系统落地前的行为（既有 AI 用例逐值不变）。
+    ///
+    /// 【M2 取舍】仍未模拟**侧墙反弹**（原版可借墙弹）：PhysX 实弹会与地形块发生真实碰撞反弹，
+    /// 但纯 C# 的 AI 预演不做反弹。这是已知降级（见 <c>docs/待办事项.md</c> 瓦片地形项）。
     /// </summary>
     public sealed class AiTerrain
     {
@@ -223,12 +229,16 @@ namespace PirateCrew.PirateCrew.Battle
         public readonly float MinY;
         public readonly float MaxY;
 
-        public AiTerrain(float minX, float maxX, float minY, float maxY)
+        /// <summary>瓦片抬升网格；可为 null（= 全平坦地面）。</summary>
+        public readonly TileTerrainGrid Grid;
+
+        public AiTerrain(float minX, float maxX, float minY, float maxY, TileTerrainGrid grid = null)
         {
             MinX = minX;
             MaxX = maxX;
             MinY = minY;
             MaxY = maxY;
+            Grid = grid;
         }
 
         /// <summary>平面像素点是否落在竞技场地面矩形内（决定落地还是落水）。</summary>
@@ -236,12 +246,40 @@ namespace PirateCrew.PirateCrew.Battle
             => pixelX >= MinX && pixelX <= MaxX && pixelY >= MinY && pixelY <= MaxY;
 
         /// <summary>
+        /// 平面像素处的**地表世界 Y**：有瓦片地形时 = 该格抬升高度；无地形 / 越界 = 基础地面。
+        /// 供投掷模拟判断"是否已落到地面"，以及放置类武器判断"格位是否被地形占用"。
+        /// </summary>
+        public float SurfaceWorldYAtPixel(float pixelX, float pixelY)
+        {
+            if (Grid == null)
+                return LevelGeometry.GroundTopY;
+
+            return Grid.SurfaceWorldYAtWorld(
+                LevelGeometry.PixelsToUnits(pixelX), LevelGeometry.PixelsToUnits(pixelY));
+        }
+
+        /// <summary>该平面像素所在格是否已有抬升地形块（放置类武器不能放进去）。</summary>
+        public bool IsBlocked(float pixelX, float pixelY)
+        {
+            if (Grid == null)
+                return false;
+
+            return Grid.IsSolidAt(
+                Mathf.FloorToInt(LevelGeometry.PixelsToUnits(pixelX)),
+                Mathf.FloorToInt(LevelGeometry.PixelsToUnits(pixelY)));
+        }
+
+        /// <summary>
         /// 放置类武器（woodenCrate / gunpowderBarrel，§6.3 BoxWeapon.canPlace 的近似）能否放在此处。
-        /// 判定：AABB 的平面足迹完全落在竞技场矩形内（Flash 的 2D AABB 重投影为 XZ 足迹）。
-        /// 【TODO】缺瓦片实体查询，未做「与已有箱体/角色重叠」检测；场景层补上后可替换本方法。
+        /// 判定：AABB 的平面足迹完全落在竞技场矩形内（Flash 的 2D AABB 重投影为 XZ 足迹），
+        /// 且足迹中心没有被瓦片地形块占用（地形落地后补上的查询）。
+        /// 【TODO】仍缺「与已有箱体/角色重叠」检测；场景层补上后可替换本方法。
         /// </summary>
         public bool CanPlace(float pixelX, float pixelY, float halfWidth, float halfDepth)
         {
+            if (IsBlocked(pixelX, pixelY))
+                return false;
+
             return pixelX - halfWidth >= MinX && pixelX + halfWidth <= MaxX
                 && pixelY - halfDepth >= MinY && pixelY + halfDepth <= MaxY;
         }
@@ -669,6 +707,21 @@ namespace PirateCrew.PirateCrew.Battle
         public const float VoodooMissPenalty = 0.5f;
 
         // ------------------------------------------------------------------
+        // §6.3 cannon（加农炮）专用
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 加农炮的「放置圈」半径（Flash px）。§6.3 只说按 <c>dragRange/2</c> 随机决定炮位，
+        /// 而原表未单列 cannon 的 dragRange（<see cref="Data.WeaponCatalog"/> 记 0）。
+        /// 这里取 <see cref="Combat.CannonRules.FullChargeDragPx"/>（= 30/0.25 = 120px，
+        /// 由「fireStrength 达 30 才发射」反推的满蓄力拖拽距离，同样是**提案/待定**）。
+        /// </summary>
+        public const float CannonDragRangePx = 120f;
+
+        /// <summary>炮位相对角色的最大偏移 = dragRange/2（§6.3：随机拖拽距离 ≤ dragRange/2）。</summary>
+        public const float CannonPlacementMaxOffsetPx = CannonDragRangePx * 0.5f;
+
+        // ------------------------------------------------------------------
         // 距离阈值（§6.2 / §6.3，单位 px）
         // ------------------------------------------------------------------
 
@@ -778,9 +831,13 @@ namespace PirateCrew.PirateCrew.Battle
             float startX, float startY, float vx, float vy,
             float weight, AiTerrain terrain, int maxSteps = MaxSimulationSteps)
         {
-            // 站立枢轴高度发射（脚底贴 y=0），与 PirateBase / 弹体的生成点一致。
+            // 站立枢轴高度发射（脚底贴该格地表），与 PirateBase / 弹体的生成点一致：
+            // 地形落地后发射点抬到该格抬升高度之上（无地形时即基础地面 y=0）。
             Vector3 origin = LevelGeometry.PixelToArena(startX, startY);
-            origin.y = LevelGeometry.GroundTopY + LevelGeometry.UnitPivotHeight;
+            float surfaceY = terrain != null
+                ? terrain.SurfaceWorldYAtPixel(startX, startY)
+                : LevelGeometry.GroundTopY;
+            origin.y = surfaceY + LevelGeometry.UnitPivotHeight;
             return SimulateFromWorld(origin, vx, vy, weight, terrain, maxSteps);
         }
 
@@ -811,13 +868,16 @@ namespace PirateCrew.PirateCrew.Battle
                 Vector3 p = points[step];
                 end = p;
 
-                // 最先与地面水平面相交、且平面落点仍在地面矩形内 = 落点。
-                if (p.y <= LevelGeometry.GroundTopY)
-                {
-                    Vector2 planar = LevelGeometry.ArenaToPixel(p);
-                    if (terrain == null || terrain.IsInside(planar.x, planar.y))
-                        break;
-                }
+                // 平面落点是否仍在地面矩形内；地表高度取瓦片地形（无地形时即基础地面）。
+                Vector2 planar = LevelGeometry.ArenaToPixel(p);
+                bool inside = terrain == null || terrain.IsInside(planar.x, planar.y);
+                float surfaceY = inside
+                    ? (terrain != null ? terrain.SurfaceWorldYAtPixel(planar.x, planar.y) : LevelGeometry.GroundTopY)
+                    : LevelGeometry.GroundTopY;
+
+                // 最先落到「该格地表」且仍在地面矩形内 = 落点（瓦片高台会把落点抬高）。
+                if (inside && p.y <= surfaceY)
+                    break;
 
                 // 掉出地面矩形后会继续下落到水面以下（§4.4 落水即死）。
                 if (p.y <= LevelGeometry.WaterSurfaceY)
@@ -1268,6 +1328,80 @@ namespace PirateCrew.PirateCrew.Battle
                         s, 0f));
                 }
             }
+        }
+
+        /// <summary>
+        /// §6.3 cannon 专门评估（<c>Cannon.randomThrows(count)</c> 的可执行投影）。
+        ///
+        /// 原版描述：<b>随机角度 0–360 + 随机拖拽距离（≤ dragRange/2）决定炮位</b>，
+        /// 再模拟炮弹以速度 30 沿随机角度飞出；<c>aiPerform</c> 摆位、设角度、<c>aiFireTime = 25</c> 后发射。
+        ///
+        /// 本工程实现口径（有依据的部分 + 显式标注的取舍）：
+        ///   · 采样：按 §6.3 生成 <c>count = floor(luck × 队伍人数 / 存活人数)</c> 个炮位候选，
+        ///     每个候选 = 角色位置 + 极坐标（随机角度 <c>[0,2π)</c> × 随机距离 <c>[0, dragRange/2]</c>），
+        ///     越出竞技场矩形的候选丢弃。
+        ///   · 打分：炮位处的 §6.3 通用武器分（敌人 70px 内加分 / 队友 40px 内扣分 / evilness 乘子），
+        ///     预期伤害用 <see cref="WeaponId.Cannonball"/> 的爆炸（cannon 经 cannonball 造成 100/50，§5.2）
+        ///     在**炮位**处结算。
+        ///   · <b>不模拟炮弹飞行</b>：现有运行时（<c>WeaponProjectile.UpdateCannon</c>）对 AI 队会在
+        ///     <c>aiFireTime=25</c> 帧后自动朝最近敌人发射，AI 真正决定的只有炮位；因此本实现只评估炮位。
+        ///     原版「设角度」属于玩家交互（拖尾部 pin），运行时未实装，这里不臆造角度公式。
+        /// </summary>
+        public static void PlanCannon(
+            AiBattlefield field, int actorUnitId, int weaponSlotIndex, IAiRandom random,
+            List<AiMoveCandidate> output, ref int evaluationCount)
+        {
+            if (field == null || random == null || output == null || field.Terrain == null)
+                return;
+            if (!field.TryGetUnit(actorUnitId, out AiUnit actor))
+                return;
+            if (!WeaponCatalog.TryGet(WeaponId.Cannonball, out WeaponStats ball) || !ball.HasExplosion)
+                return;
+
+            int count = WeaponSampleCountFor(field, actor);
+            if (count <= 0)
+                return;
+
+            for (int i = 0; i < count; i++)
+            {
+                double angle = random.NextDouble() * 2.0 * Math.PI;
+                double distance = random.NextDouble() * CannonPlacementMaxOffsetPx;
+
+                float px = actor.X + (float)Math.Cos(angle) * (float)distance;
+                float py = actor.Y + (float)Math.Sin(angle) * (float)distance;
+
+                if (px < field.Terrain.MinX || px > field.Terrain.MaxX
+                    || py < field.Terrain.MinY || py > field.Terrain.MaxY)
+                {
+                    continue;
+                }
+
+                evaluationCount++;
+
+                var sample = new AiThrowSample(0f, 0f, px, py, false);
+                float flash = ScoreWeaponSample(WeaponId.Cannon, sample, field, actorUnitId);
+                float expected = ExpectedDamage(WeaponId.Cannonball, px, py, field, actorUnitId);
+
+                output.Add(new AiMoveCandidate(
+                    actorUnitId, weaponSlotIndex, WeaponId.Cannon,
+                    0f, 0f, -1, px, py, flash, expected));
+            }
+        }
+
+        /// <summary>§6.3 <c>count = floor(luck × team.characters.length / team.countAlive())</c>（静态版）。</summary>
+        public static int WeaponSampleCountFor(AiBattlefield field, in AiUnit actor)
+        {
+            if (field == null)
+                return 0;
+
+            int luck = actor.Luck;
+            int total = field.TeamTotalCount(actor.TeamIndex);
+            int alive = field.TeamAliveCount(actor.TeamIndex);
+            if (alive <= 0)
+                alive = 1;
+
+            int count = (int)MathF.Floor((float)luck * total / alive);
+            return count < 0 ? 0 : count;
         }
 
         // ------------------------------------------------------------------
@@ -1772,9 +1906,9 @@ namespace PirateCrew.PirateCrew.Battle
                     break;
 
                 case WeaponId.Cannon:
-                    // 【TODO】§6.3 的 cannon 分支需要「炮位 + 角度 + dragRange」，而 §5.2 的
-                    // WeaponCatalog 未给 cannon 的 dragRange（记 0），且 §5.2 表末的 AI 特判清单
-                    // 不含 cannon。M2 暂不产出 cannon 候选（AI 不会选它），不臆造角度/炮位公式。
+                    // §6.3 cannon：随机角度 + 随机拖拽距离决定炮位（运行时 aiFireTime=25 后自动发射）。
+                    AiEvaluation.PlanCannon(_field, _field.ActingUnitId, weapon.slot, _random,
+                        _candidates, ref _evaluationCount);
                     break;
 
                 case WeaponId.Anchor:
@@ -1907,14 +2041,7 @@ namespace PirateCrew.PirateCrew.Battle
             if (!_field.TryGetUnit(actor.Id, out AiUnit self))
                 self = actor;
 
-            int luck = self.Luck;
-            int total = _field.TeamTotalCount(self.TeamIndex);
-            int alive = _field.TeamAliveCount(self.TeamIndex);
-            if (alive <= 0)
-                alive = 1;
-
-            int count = (int)MathF.Floor((float)luck * total / alive);
-            return count < 0 ? 0 : count;
+            return AiEvaluation.WeaponSampleCountFor(_field, self);
         }
 
         // ------------------------------------------------------------------

@@ -31,6 +31,7 @@ namespace PirateCrew.EditorTools
         const string CanvasName = "BattleCanvas";
         const string MinimapPanelName = "MinimapPanel";
         const string DotLayerName = "DotLayer";
+        const string TileLayerName = "TileLayer";
         const string Team0RootName = "Team0_Red";
         const string Team1RootName = "Team1_Blue";
         const int FallbackLevelNumber = 1;
@@ -88,12 +89,16 @@ namespace PirateCrew.EditorTools
 
             RectTransform panel = EnsurePanel(canvas.transform, widthTiles, depthTiles);
             RectTransform dotLayer = EnsureDotLayer(panel);
+            RectTransform tileLayer = EnsureTileLayer(dotLayer);
 
             var minimap = panel.GetComponent<BattleMinimap>();
             if (minimap == null)
                 minimap = panel.gameObject.AddComponent<BattleMinimap>();
 
-            WriteReferences(minimap, team0, team1, dotLayer, widthTiles, depthTiles);
+            // 瓦片地形点阵的数据源：同场景的 BattleTerrainView（[SerializeField] 直连，禁 Find）。
+            BattleTerrainView terrainView = FindFirstComponent<BattleTerrainView>();
+
+            WriteReferences(minimap, team0, team1, dotLayer, tileLayer, terrainView, widthTiles, depthTiles);
 
             EditorSceneManager.MarkSceneDirty(scene);
             if (!EditorSceneManager.SaveScene(scene, BattleScenePath))
@@ -171,13 +176,37 @@ namespace PirateCrew.EditorTools
             return layer;
         }
 
+        /// <summary>瓦片点层（TileLayer）：铺在点阵层之下，一格一颗点（§8.1 两档 alpha）。</summary>
+        static RectTransform EnsureTileLayer(RectTransform dotLayer)
+        {
+            if (dotLayer == null)
+                return null;
+
+            Transform existing = FindChildByName(dotLayer, TileLayerName);
+            var layer = existing as RectTransform;
+
+            if (layer == null)
+            {
+                var go = new GameObject(TileLayerName, typeof(RectTransform));
+                go.transform.SetParent(dotLayer, false);
+                layer = go.GetComponent<RectTransform>();
+            }
+
+            layer.SetAsFirstSibling();   // 瓦片点在单位点之下
+            layer.anchorMin = Vector2.zero;
+            layer.anchorMax = Vector2.one;
+            layer.offsetMin = Vector2.zero;
+            layer.offsetMax = Vector2.zero;
+            return layer;
+        }
+
         // ------------------------------------------------------------------
         // 引用注入（SerializedObject，字段名与 BattleMinimap 一一对应）
         // ------------------------------------------------------------------
 
         static void WriteReferences(
             BattleMinimap minimap, Transform team0, Transform team1, RectTransform dotLayer,
-            int widthTiles, int depthTiles)
+            RectTransform tileLayer, BattleTerrainView terrainView, int widthTiles, int depthTiles)
         {
             var so = new SerializedObject(minimap);
 
@@ -204,6 +233,15 @@ namespace PirateCrew.EditorTools
             so.FindProperty("pixelsPerTile").floatValue = DefaultPixelsPerTile;
             // 0 = 由 MinimapRules.DotSizePixels(pixelsPerTile) 推导（单一来源）。
             so.FindProperty("dotSizePixels").floatValue = 0f;
+
+            // 瓦片地形点阵：数据源 + 点层（字段在 BattleMinimap 上；找不到就给 null，BattleMinimap 会退回不画点阵）。
+            SerializedProperty terrainProp = so.FindProperty("terrain");
+            if (terrainProp != null)
+                terrainProp.objectReferenceValue = terrainView;
+
+            SerializedProperty tileLayerProp = so.FindProperty("tileLayer");
+            if (tileLayerProp != null)
+                tileLayerProp.objectReferenceValue = tileLayer;
 
             so.ApplyModifiedPropertiesWithoutUndo();
         }

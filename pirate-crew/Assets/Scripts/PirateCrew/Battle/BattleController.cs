@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using PirateCrew.Campaign;
 using PirateCrew.Core;
+using PirateCrew.CrewManagement;
 using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
 using UnityEngine;
@@ -45,6 +47,10 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("弹体 Prefab；需要含 Rigidbody/Collider/WeaponProjectile。为空时用图元 + 颜色兜底构建。")]
         [SerializeField] GameObject projectilePrefab;
 
+        [Header("瓦片地形（可选；为空时竞技场保持平坦地面）")]
+        [Tooltip("地形视图；由 M2BattleSceneSetup 装配。为空时地形系统仍会建网格（供 AI 查询），但不渲染碰撞块。")]
+        [SerializeField] BattleTerrainView terrainView;
+
         [Header("层掩码")]
         [Tooltip("爆炸候选与单位射线用的层。")]
         [SerializeField] LayerMask pirateLayerMask = ~0;
@@ -57,6 +63,7 @@ namespace PirateCrew.PirateCrew.Battle
 
         readonly List<PirateBase> _allPirates = new List<PirateBase>();
         readonly List<WeaponProjectile> _projectiles = new List<WeaponProjectile>();
+        readonly List<int> _destroyedTerrainCells = new List<int>();
         readonly BattleTeam[] _teams = new BattleTeam[2];
         BattlePlan _plan;
         bool _spawned;
@@ -72,6 +79,9 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>出战计划（组装结果）。</summary>
         public BattlePlan Plan => _plan;
+
+        /// <summary>瓦片地形网格（纯 C#；平坦竞技场时也非 null，只是全部 0 块）。AI 的落点/放置查询用它。</summary>
+        public TileTerrainGrid Terrain { get; private set; }
 
         /// <summary>全部角色。</summary>
         public IReadOnlyList<PirateBase> AllPirates => _allPirates;
@@ -101,6 +111,7 @@ namespace PirateCrew.PirateCrew.Battle
         void Awake()
         {
             BuildPlan();
+            BuildTerrain();
             ApplyPhysicsConvention();
             SpawnTeams();
         }
@@ -171,13 +182,34 @@ namespace PirateCrew.PirateCrew.Battle
 
         void BuildPlan()
         {
+            // 【关卡注入】场景未指定 level 资产时，改由战役侧「已选、等待结算的关卡」决定加载哪张竞技场
+            // （CampaignApi.PendingBattleLevelNumberOr 是 M3 agent 备好的衔接点：只在 LevelCatalog
+            // 已转写的关卡上生效，未转写/无待战关卡时回落到 fallbackLevelNumber，不会抛 KeyNotFound）。
+            int levelNumber = level == null
+                ? CampaignApi.PendingBattleLevelNumberOr(fallbackLevelNumber)
+                : level.LevelNumber;
+
             _plan = level != null
                 ? LevelGeometry.BuildBattlePlan(level)
-                : LevelGeometry.BuildBattlePlan(LevelCatalog.Get(fallbackLevelNumber));
+                : LevelGeometry.BuildBattlePlan(LevelCatalog.Get(levelNumber));
 
             _waterWorldY = _plan.WaterWorldY;
             _teams[0] = new BattleTeam(1, aiControlled: false);
             _teams[1] = new BattleTeam(2, aiControlled: team1IsAi);
+        }
+
+        /// <summary>
+        /// 构建瓦片地形网格（<see cref="TerrainCatalog"/> 只转写了 3 个代表关；其余关返回 null →
+        /// 退回平坦竞技场，与既有行为一致）。网格无论是否转写都非 null（<see cref="Terrain"/>），
+        /// 便于 AI/小地图统一查询；无转写数据时为全 0 块的平地。
+        /// </summary>
+        void BuildTerrain()
+        {
+            TileTerrainGrid built = TerrainCatalog.Build(_plan.LevelNumber, _plan.WidthTiles, _plan.DepthTiles);
+            Terrain = built ?? TileTerrainGrid.Flat(_plan.WidthTiles, _plan.DepthTiles);
+
+            if (terrainView != null)
+                terrainView.Render(built);
         }
 
         /// <summary>
@@ -200,20 +232,99 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
             }
 
+            // 【编成注入】战役入口（有待结算关卡）时，红队按当前编成阵容的 BattleSymbol 过滤；
+            // 非战役入口（主菜单直进 / 2P / 直接 Play 场景）或过滤器为空时回落全队——
+            // 这条回落是「旧场景直接 Play 不坏」的保证（详见 ResolveActiveRosterSymbols）。
+            string[] activeSymbols = ResolveActiveRosterSymbols();
+            bool filterRed = activeSymbols != null && CountRedMatching(activeSymbols) > 0;
+
             for (int i = 0; i < _plan.Entries.Count; i++)
             {
                 SpawnPlanEntry entry = _plan.Entries[i];
+                if (entry.TeamIndex == 0 && filterRed && !MatchesAny(entry.TypeName, activeSymbols))
+                    continue;
+
                 Transform root = entry.TeamIndex == 0 ? team0Root : team1Root;
                 if (root == null)
                     root = transform;
 
-                PirateBase pirate = Instantiate(piratePrefab, entry.WorldPosition, Quaternion.identity, root);
-                pirate.Initialize(_nextPirateId++, entry);
+                // 地形抬升：单位脚底要落在该格地表上（LevelGeometry 的 WorldPosition 只算基础地面，
+                // 地形高度在 BattleController 这一层叠加，避免改 LevelGeometry 的口径）。
+                Vector3 spawnPosition = entry.WorldPosition;
+                if (Terrain != null)
+                {
+                    spawnPosition.y = Terrain.SurfaceWorldY(entry.GridX, entry.GridY)
+                                      + LevelGeometry.UnitPivotHeight;
+                }
+
+                var spawnEntry = new SpawnPlanEntry(
+                    entry.TeamIndex, entry.TypeName, entry.Luck, entry.GridX, entry.GridY,
+                    spawnPosition, entry.InitialWeapons);
+
+                PirateBase pirate = Instantiate(piratePrefab, spawnPosition, Quaternion.identity, root);
+                pirate.Initialize(_nextPirateId++, spawnEntry);
                 _allPirates.Add(pirate);
                 _teams[entry.TeamIndex].Add(pirate);
             }
 
             _spawned = true;
+        }
+
+        /// <summary>
+        /// 当前编成阵容对应的战斗导出符号（§4.2）。返回 null 表示**不做过滤**（回落全队）：
+        ///   · 非战役入口（<see cref="CampaignApi.PendingLevelId"/> 为空）——主菜单直进 / 2P / PlayMode
+        ///     直接加载场景，编成不应改变关卡作者写好的出征名单；
+        ///   · 编成为空，或没有一名船员能映射到 <see cref="Data.CrewCatalog"/> 的导出符号。
+        ///
+        /// 【为什么用「战役入口」做开关】<c>CrewManagementApi.Roster</c> 是个跨场景常驻的静态名册，
+        /// 初始名册（sailor）始终非空，若无条件过滤会让「直接 Play 战斗场景」从 5 人变 1 人
+        /// （破坏既有 PlayMode 用例与手感）。战役入口才代表「本局按编成出征」。
+        /// </summary>
+        string[] ResolveActiveRosterSymbols()
+        {
+            if (CampaignApi.PendingLevelId == null)
+                return null;
+
+            IReadOnlyList<string> active = CrewManagementApi.Roster.Active;
+            if (active == null || active.Count == 0)
+                return null;
+
+            var symbols = new List<string>(active.Count);
+            for (int i = 0; i < active.Count; i++)
+            {
+                if (CrewRosterCatalog.TryGet(active[i], out CrewRosterEntry entry)
+                    && !string.IsNullOrEmpty(entry.BattleSymbol)
+                    && !symbols.Contains(entry.BattleSymbol))
+                {
+                    symbols.Add(entry.BattleSymbol);
+                }
+            }
+
+            return symbols.Count > 0 ? symbols.ToArray() : null;
+        }
+
+        int CountRedMatching(string[] symbols)
+        {
+            int n = 0;
+            for (int i = 0; i < _plan.Entries.Count; i++)
+            {
+                SpawnPlanEntry entry = _plan.Entries[i];
+                if (entry.TeamIndex == 0 && MatchesAny(entry.TypeName, symbols))
+                    n++;
+            }
+            return n;
+        }
+
+        static bool MatchesAny(string typeName, string[] symbols)
+        {
+            if (string.IsNullOrEmpty(typeName) || symbols == null)
+                return false;
+            for (int i = 0; i < symbols.Length; i++)
+            {
+                if (string.Equals(typeName, symbols[i], System.StringComparison.Ordinal))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>取队伍（teamIndex 0/1）。</summary>
@@ -361,11 +472,27 @@ namespace PirateCrew.PirateCrew.Battle
             if (caster != null)
                 caster.AddEvilness(result.EvilnessGain);
 
+            // 【瓦片地形破坏】爆炸同时整格摧毁半径内的地形块（§5.4：角色/AI 可借墙弹；
+            // 文档未定义地形 HP，本工程取「一次爆炸整格摧毁」为最简可玩口径，见 TileTerrainGrid 类头）。
+            DestroyTerrainInBlast(worldCenter, radiusWorld);
+
             // §5.3：对箱体以距离判定命中即 box.explode()（火药桶连锁）。
             // M2 近似：以爆心球形 OverlapSphere 扫描场上的可连锁弹体（文档为 AABB 最近点距离）。
             TriggerChainReactions(worldCenter, radiusWorld, source);
 
             return result;
+        }
+
+        /// <summary>爆炸范围内整格摧毁地形块，并通知视图刷新。</summary>
+        void DestroyTerrainInBlast(Vector3 worldCenter, float radiusWorld)
+        {
+            if (Terrain == null)
+                return;
+
+            _destroyedTerrainCells.Clear();
+            int destroyed = Terrain.DestroyInRadius(worldCenter, radiusWorld, _destroyedTerrainCells);
+            if (destroyed > 0 && terrainView != null)
+                terrainView.ApplyDestruction(_destroyedTerrainCells);
         }
 
         /// <summary>扫描爆炸范围内可连锁引爆的弹体（§5.2 gunpowderBarrel），逐个触发。</summary>

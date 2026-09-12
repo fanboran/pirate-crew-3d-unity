@@ -214,9 +214,9 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>
-        /// 近似地形：竞技场 = 一块 XZ 平面矩形（地面顶面恒为世界 y=0），边界外即水面。
-        /// 尺寸取 <see cref="BattleController.Plan"/> 的 WorldWidth / WorldDepth（瓦片 = 世界单位）。
-        /// 【TODO】缺「瓦片 → 地面高度」的运行时查询（另一 agent 的场景组装）；接口就绪后替换此处即可。
+        /// 近似地形：竞技场 = 一块 XZ 平面矩形 + 瓦片地形抬升网格（地面顶面恒为世界 y=0）。
+        /// 尺寸取 <see cref="BattleController.Plan"/> 的 WorldWidth / WorldDepth（瓦片 = 世界单位），
+        /// 抬升网格取 <see cref="BattleController.Terrain"/>（同场景直接引用，不做 Find）。
         /// </summary>
         AiTerrain BuildTerrain()
         {
@@ -231,7 +231,8 @@ namespace PirateCrew.PirateCrew.Battle
                     depthPx = battle.Plan.WorldDepth * LevelGeometry.PixelsPerUnit;
             }
 
-            return new AiTerrain(0f, widthPx, 0f, depthPx);
+            TileTerrainGrid grid = battle != null ? battle.Terrain : null;
+            return new AiTerrain(0f, widthPx, 0f, depthPx, grid);
         }
 
         void Update()
