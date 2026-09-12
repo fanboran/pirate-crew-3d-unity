@@ -144,7 +144,7 @@ namespace PirateCrew.EditorTools
             return asset;
         }
 
-        /// <summary>递归确保文件夹存在（参照既有 SceneSetup.EnsureFolder）。</summary>
+        /// <summary>确保文件夹存在：父目录不存在时先递归建父目录，再建自己。</summary>
         static void EnsureFolder(string path)
         {
             if (AssetDatabase.IsValidFolder(path))
@@ -152,6 +152,12 @@ namespace PirateCrew.EditorTools
 
             string parent = Path.GetDirectoryName(path).Replace('\\', '/');
             string leaf = Path.GetFileName(path);
+
+            // CreateFolder 不建中间层级：调用方若直接传 "Assets/A/B/C"，父目录不存在就会静默失败。
+            // 本类的 GenerateAll 恰好按父→子顺序调用，但递归一遍更稳，也免得日后有人单独调用踩坑。
+            if (!string.IsNullOrEmpty(parent) && !AssetDatabase.IsValidFolder(parent))
+                EnsureFolder(parent);
+
             AssetDatabase.CreateFolder(parent, leaf);
         }
     }
