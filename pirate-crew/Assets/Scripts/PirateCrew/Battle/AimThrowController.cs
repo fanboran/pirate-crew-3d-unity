@@ -1,6 +1,7 @@
 using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace PirateCrew.PirateCrew.Battle
 {
@@ -73,7 +74,11 @@ namespace PirateCrew.PirateCrew.Battle
             if (battle == null || battleCamera == null)
                 return;
 
-            if (Input.GetMouseButtonDown(0))
+            // HUD 点击拦截：鼠标悬在 UGUI 上时不要开始新的选中/瞄准操作。
+            // 否则点武器面板 / end go / 返回按钮时，同一次按下也会进 OnPrimaryDown，
+            // 在已选角色阶段被当成"点空白"而 CancelAim()，把刚选的武器和角色选中一起清掉。
+            // 只拦「按下」——已经开始拖拽后光标掠过面板仍应继续拖，避免手感断裂。
+            if (Input.GetMouseButtonDown(0) && !IsPointerOverUi())
                 OnPrimaryDown();
 
             if (_phase == Phase.Dragging)
@@ -86,6 +91,15 @@ namespace PirateCrew.PirateCrew.Battle
 
             if (Input.GetKeyDown(KeyCode.Escape))
                 CancelAim();
+        }
+
+        /// <summary>
+        /// 鼠标是否悬停在 UGUI 控件上。场景里没有 EventSystem 时视为不在 UI 上（不阻塞操作）。
+        /// </summary>
+        static bool IsPointerOverUi()
+        {
+            EventSystem eventSystem = EventSystem.current;
+            return eventSystem != null && eventSystem.IsPointerOverGameObject();
         }
 
         // ------------------------------------------------------------------
