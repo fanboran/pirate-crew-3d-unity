@@ -24,6 +24,41 @@ namespace PirateCrew.PirateCrew.Battle
     }
 
     /// <summary>
+    /// 弹体运行的机制分类（纯 C#）。
+    ///
+    /// 【用途】<see cref="ProjectileProfile.SupportsGenericProjectile"/> 之外的 6 把特殊武器
+    /// （§5.2 各自「备注」列的专用机制）在胶水层需要有各自的驱动逻辑；本枚举是
+    /// <c>WeaponProjectile</c> 选择分支、<c>ProjectileSpawnPlanner</c> 生成计划的唯一分类依据，
+    /// 避免到处散落 <c>if (id == X)</c> 的魔法判断。
+    ///
+    /// 【出处】静态逆向文档 §5.2「武器总表」：anchor / seagull / tidalWave / voodooDoll / cannon /
+    ///         SweepingFlame 六行的「触发/引爆条件」与「备注」列。
+    /// </summary>
+    public enum ProjectileMechanic
+    {
+        /// <summary>通用弹弓/放置弹体（§5.2 的 11 把常规武器 + cannonball）。</summary>
+        Generic = 0,
+
+        /// <summary>船锚：点击放置后等速直落 + 60 固定伤害 + 落地 hold/fade（§5.2 anchor 行）。</summary>
+        AnchorDrop = 1,
+
+        /// <summary>海鸥：从左侧飞入、投弹、飞出右侧结束（§5.2 seagull 行）。</summary>
+        SeagullFlight = 2,
+
+        /// <summary>潮汐巨浪：从左侧横扫、每帧对范围内角色造成 5 点（§5.2 tidalWave 行）。</summary>
+        TidalWaveSweep = 3,
+
+        /// <summary>巫毒娃娃：弹弓抛出，落地 10+10 帧后把投掷速度赋给锁定目标（§5.2 voodooDoll 行）。</summary>
+        VoodooDollTransfer = 4,
+
+        /// <summary>加农炮：放置 + 蓄力发射 cannonball（§5.2 cannon 行）。</summary>
+        CannonPlacement = 5,
+
+        /// <summary>蔓延火焰：rumBottle 落地生成、沿地面左右蔓延（§5.2 表格末行）。</summary>
+        SweepingFlameSpread = 6,
+    }
+
+    /// <summary>
     /// 弹体运行参数（纯 C#，不引用 MonoBehaviour / GameObject）。
     ///
     /// 【出处】静态逆向文档 §5.2「武器总表」逐列（AABB 半径 / 摩擦 / 重量 / 弹跳 / 爆炸 size·maxDamage /
@@ -155,10 +190,8 @@ namespace PirateCrew.PirateCrew.Battle
         /// </summary>
         public static ProjectileProfile FromStats(WeaponStats stats)
         {
-            float halfWidth = LevelGeometry.PixelsToUnits(stats.AabbRadius);
-            float halfHeight = LevelGeometry.PixelsToUnits(stats.AabbVerticalRadius > 0f
-                ? stats.AabbVerticalRadius
-                : stats.AabbRadius);   // 原表为「—」时垂直半径取水平同值
+            float halfWidth = LevelGeometry.PixelsToUnits(HorizontalHalfSizePixels(stats));
+            float halfHeight = LevelGeometry.PixelsToUnits(VerticalHalfSizePixels(stats));
 
             bool usesGravity = stats.Weight > 0f;
             float mass = stats.Weight > 0f ? stats.Weight : 1f;
@@ -189,11 +222,71 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>
-        /// 是否由本任务的「通用弹体」路径实现（§5.2 大多数武器）。
+        /// 原表 AABB 为「—」时的兜底半尺寸（Flash px）。
+        /// §5.2 里 seagull / tidalWave / voodooDoll / cannon / SweepingFlame 的 AABB 各格为「—」，
+        /// 若直接落成 0 会得到零尺寸碰撞体（PhysX 无法建/无碰撞）。取 8px = 0.25 世界单位作为
+        /// 可定义的最简兜底（**提案/待定**：文档未给数值，评审若要另定改此一处）。
+        /// anchor 有明确 AABB（l/r=48、top=96、bottom=0），不走兜底。
+        /// </summary>
+        public const float FallbackHalfSizePixels = 8f;
+
+        /// <summary>水平半尺寸（Flash px）：优先 AABB，缺省「—」用兜底。</summary>
+        public static float HorizontalHalfSizePixels(WeaponStats stats)
+        {
+            return stats.AabbRadius > 0f ? stats.AabbRadius : FallbackHalfSizePixels;
+        }
+
+        /// <summary>垂直半尺寸（Flash px）：优先 AABB 垂直值，其次水平值，缺省「—」用兜底。</summary>
+        public static float VerticalHalfSizePixels(WeaponStats stats)
+        {
+            if (stats.AabbVerticalRadius > 0f)
+                return stats.AabbVerticalRadius;
+            if (stats.AabbRadius > 0f)
+                return stats.AabbRadius;
+            return FallbackHalfSizePixels;
+        }
+
+        /// <summary>
+        /// 该武器的运行机制分类（纯函数，胶水层的唯一分类依据）。
         ///
-        /// 未纳入的 6 种走专用机制，本次不做（TODO 见各自备注）：
-        ///   anchor（点击放置 + 固定伤害）、seagull（点击选高 + 投弹）、tidalWave（点击横扫持续伤害）、
-        ///   voodooDoll（锁定目标 + 速度转移）、cannon（放置 + 蓄力发射）、SweepingFlame（落地生成火）。
+        /// 【出处】§5.2「武器总表」各特殊行的「触发/引爆条件」与「备注」列：
+        ///   anchor → 点击放置 + 等速直落；seagull → 飞入 + 投弹；tidalWave → 横扫持续伤害；
+        ///   voodooDoll → 锁定目标 + 速度转移；cannon → 放置 + 蓄力发射；
+        ///   SweepingFlame → rumBottle 落地生成、沿地面蔓延。
+        /// </summary>
+        public static ProjectileMechanic MechanicFor(WeaponId id)
+        {
+            switch (id)
+            {
+                case WeaponId.Anchor:
+                    return ProjectileMechanic.AnchorDrop;
+                case WeaponId.Seagull:
+                    return ProjectileMechanic.SeagullFlight;
+                case WeaponId.TidalWave:
+                    return ProjectileMechanic.TidalWaveSweep;
+                case WeaponId.VoodooDoll:
+                    return ProjectileMechanic.VoodooDollTransfer;
+                case WeaponId.Cannon:
+                    return ProjectileMechanic.CannonPlacement;
+                case WeaponId.SweepingFlame:
+                    return ProjectileMechanic.SweepingFlameSpread;
+                default:
+                    return ProjectileMechanic.Generic;
+            }
+        }
+
+        /// <summary>是否走专用机制（非通用弹弓/放置弹体路径）。</summary>
+        public static bool IsSpecialMechanic(WeaponId id)
+        {
+            return MechanicFor(id) != ProjectileMechanic.Generic;
+        }
+
+        /// <summary>
+        /// 是否由本任务的「通用弹体」路径实现（§5.2 的 11 把常规武器 + cannonball）。
+        ///
+        /// 另 6 把（anchor / seagull / tidalWave / voodooDoll / cannon / SweepingFlame）走各自的
+        /// 专用机制，分类见 <see cref="MechanicFor"/>；它们仍有数据与纯规则类，
+        /// 由 <c>WeaponProjectile</c> 按 <see cref="ProjectileMechanic"/> 分支驱动。
         /// </summary>
         public static bool SupportsGenericProjectile(WeaponStats stats)
         {

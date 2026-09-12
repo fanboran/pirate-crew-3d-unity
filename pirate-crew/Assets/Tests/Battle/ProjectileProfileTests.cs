@@ -232,5 +232,64 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             ProjectileProfile crate = ProjectileProfile.FromStats(Stats(WeaponId.WoodenCrate));
             Assert.IsFalse(crate.HasExplosion);
         }
+
+        // ------------------------------------------------------------------
+        // 特殊武器机制分类（§5.2 六行备注）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void MechanicFor_ClassifiesElevenGenericAndSixSpecial()
+        {
+            WeaponId[] generic =
+            {
+                WeaponId.Cannonball, WeaponId.CherryBomb, WeaponId.Dynamite, WeaponId.Boulder,
+                WeaponId.Banana, WeaponId.Mine, WeaponId.ParachuteBomb, WeaponId.RumBottle,
+                WeaponId.PiecesOfEight, WeaponId.GunpowderBarrel, WeaponId.WoodenCrate,
+            };
+            foreach (WeaponId id in generic)
+            {
+                Assert.AreEqual(ProjectileMechanic.Generic, ProjectileProfile.MechanicFor(id), id.ToString());
+                Assert.IsFalse(ProjectileProfile.IsSpecialMechanic(id), id.ToString());
+            }
+
+            Assert.AreEqual(ProjectileMechanic.AnchorDrop, ProjectileProfile.MechanicFor(WeaponId.Anchor));
+            Assert.AreEqual(ProjectileMechanic.SeagullFlight, ProjectileProfile.MechanicFor(WeaponId.Seagull));
+            Assert.AreEqual(ProjectileMechanic.TidalWaveSweep, ProjectileProfile.MechanicFor(WeaponId.TidalWave));
+            Assert.AreEqual(ProjectileMechanic.VoodooDollTransfer, ProjectileProfile.MechanicFor(WeaponId.VoodooDoll));
+            Assert.AreEqual(ProjectileMechanic.CannonPlacement, ProjectileProfile.MechanicFor(WeaponId.Cannon));
+            Assert.AreEqual(ProjectileMechanic.SweepingFlameSpread, ProjectileProfile.MechanicFor(WeaponId.SweepingFlame));
+            Assert.IsTrue(ProjectileProfile.IsSpecialMechanic(WeaponId.Anchor));
+        }
+
+        [Test]
+        public void FallbackHalfSize_UsedWhenAabbIsMissing()
+        {
+            // §5.2 里 seagull / tidalWave / voodooDoll / cannon / SweepingFlame 的 AABB 各格为「—」。
+            // 兜底 8px = 0.25 世界单位（提案/待定）。
+            Assert.AreEqual(8f, ProjectileProfile.HorizontalHalfSizePixels(Stats(WeaponId.Seagull)), 1e-6f);
+            ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.VoodooDoll));
+            Assert.AreEqual(0.25f, p.HalfWidth, 1e-6f);
+            Assert.AreEqual(0.25f, p.HalfHeight, 1e-6f);
+        }
+
+        [Test]
+        public void Anchor_HasExplicitAabb48By96()
+        {
+            // §5.2 anchor：l/r=48、top=96、bottom=0 —— 使用显式 AABB，不走兜底。
+            Assert.AreEqual(48f, ProjectileProfile.HorizontalHalfSizePixels(Stats(WeaponId.Anchor)), 1e-6f);
+            Assert.AreEqual(96f, ProjectileProfile.VerticalHalfSizePixels(Stats(WeaponId.Anchor)), 1e-6f);
+            ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.Anchor));
+            Assert.AreEqual(1.5f, p.HalfWidth, 1e-6f);
+            Assert.AreEqual(3f, p.HalfHeight, 1e-6f);
+        }
+
+        [Test]
+        public void VoodooDoll_IsSlingLaunchable_CannonIsNot()
+        {
+            // §5.2 voodooDoll twangMax=20（可抛）；cannon twangMax 为「—」，只走放置。
+            Assert.IsTrue(ProjectileProfile.CanBeSlingLaunched(Stats(WeaponId.VoodooDoll)));
+            Assert.IsFalse(ProjectileProfile.CanBeSlingLaunched(Stats(WeaponId.Cannon)));
+        }
+
     }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using PirateCrew.Core;
 using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
@@ -8,37 +9,43 @@ namespace PirateCrew.PirateCrew.Battle
     /// <summary>
     /// 武器弹体运行时（MonoBehaviour 薄壳）。
     ///
-    /// 【对应章节】静态逆向文档 §5.2（17 武器总表的触发/物理/爆炸列）、§5.3（爆炸结算，委派
+    /// 【对应章节】静态逆向文档 §5.2（17 武器总表的触发/物理/爆炸/专用行为列）、§5.3（爆炸结算，委派
     ///             <see cref="BattleController.ResolveExplosion"/>）、§5.4（落水/出界处置）。
     ///
     /// 【分层】所有可测规则在纯 C# 里：
-    ///   <see cref="ProjectileProfile"/>（参数推导）、<see cref="ProjectileTriggerRules"/>（引爆判定，
+    ///   <see cref="ProjectileProfile"/>（参数推导 / 机制分类）、<see cref="ProjectileTriggerRules"/>（引爆判定，
     ///   复用 <see cref="WeaponTriggerRules.ShouldDetonate"/>）、<see cref="ProjectileLifetimeRules"/>、
-    ///   <see cref="ProjectileSpawnPlanner"/>。本类只做：PhysX 配置、碰撞回调、逐帧组装
-    ///   <see cref="TriggerContext"/>、引爆时调用 <see cref="BattleController.ResolveExplosion"/>。
+    ///   <see cref="ProjectileSpawnPlanner"/>；6 把特殊武器的机制分别在
+    ///   <see cref="AnchorRules"/> / <see cref="SeagullRules"/> / <see cref="TidalWaveRules"/> /
+    ///   <see cref="VoodooDollRules"/> / <see cref="CannonRules"/> / <see cref="SweepingFlameRules"/>。
+    ///   本类只做：PhysX 配置、碰撞回调、逐帧组装上下文、按 <see cref="ProjectileMechanic"/> 驱动专用行为、
+    ///   引爆时调用 <see cref="BattleController.ResolveExplosion"/>。
     ///
     /// 【程序化兜底】弹体可由 <c>BattleController.projectilePrefab</c> 提供；为空时由
     ///   <see cref="BattleController"/> 用图元 + 颜色程序化构建，因此<b>既有场景无需重新装配</b>。
     ///
     /// 【3D 运动语义（见 docs/M2-3D空间模型对齐.md）】
-    ///   · 竞技场是 <b>XZ 水平面</b>、重力沿 <b>-Y</b>：弹体在 X/Z 上惯性飞行、在 Y 上受重力
-    ///     （<see cref="ProjectileProfile.UsesGravity"/> 时，见 <see cref="FixedUpdate"/>）。
-    ///   · 刚体<b>只锁旋转、不锁位置</b>：FreezePositionZ 是"2D 侧视"时代的遗留，会把弹体钉死在
-    ///     出生时的 Z 平面，永远打不到纵深方向的目标。
-    ///   · 「静止」判据（dynamite / banana 的 OnRest）不按 XY 平面读速度，口径见
-    ///     <see cref="FlashRestComponents"/>。
-    ///   · 地面碰撞/弹跳/落水在 XZ 地面上成立：碰撞与弹跳交给 PhysX（重力 -Y + PhysicsMaterial），
-    ///     落水用全局水面常量 <see cref="LevelGeometry.WaterSurfaceY"/>。
+    ///   · 竞技场是 <b>XZ 水平面</b>、重力沿 <b>-Y</b>：弹体在 X/Z 上惯性飞行、在 Y 上受重力。
+    ///   · 刚体<b>只锁旋转、不锁位置</b>。
+    ///
+    /// 【6 把特殊武器的接线范围（重要，评审必读）】
+    ///   · anchor：从落点正上方等速下砸（<see cref="AnchorRules"/>）、命中 60 固定伤害、落地 hold+fade。
+    ///   · tidalWave：从左侧横扫、每帧对范围内角色 5 点伤害（<see cref="TidalWaveRules"/>）。
+    ///   · sweepingFlame：rumBottle 引爆时生成 2 道、向左右蔓延、命中 30 点 + 随机击退
+    ///     （<see cref="SweepingFlameRules"/>）。
+    ///   · voodooDoll：弹弓抛出，落地 10 帧切镜头、20 帧把投掷速度赋给锁定的最近敌人
+    ///     （<see cref="VoodooDollRules"/>）。
+    ///   · seagull：从左侧飞入、按固定间隔自动投弹、飞出右侧结束（<see cref="SeagullRules"/>）。
+    ///   · cannon：摆位常驻；AI 队 25 帧后自动发射，玩家队经 <see cref="FireCannonToward"/> 发射
+    ///     （<see cref="CannonRules"/>）。
+    ///   ⚠ 玩家交互（点击放置锚 / 点选海鸥高度 / 拖尾部 pin 蓄力）需要改 <c>AimThrowController</c>，
+    ///     而它是本任务黑名单（只读）——本期以「瞄准点 + 自动/公开 API 驱动」近似，
+    ///     交互层接线由协调者裁决后另派。
     ///
     /// 【已知 TODO】
-    ///   · anchor / seagull / tidalWave / voodooDoll / cannon / SweepingFlame 的专用机制未实现
-    ///     （见 <see cref="ProjectileProfile.SupportsGenericProjectile"/>），选到它们时不生成弹体。
-    ///   · rumBottle 落地生成 2 个 SweepingFlame：待专用火焰脚本，TODO 在可扩展点
-    ///     <see cref="OnPostDetonate"/> 补（本次不做，成本高于本任务边界）。
     ///   · dynamite 落水变 unlit 状态、boulder 碾压的「推到 x±32 并继承 vx」、
     ///     Flash 的「每帧 |vx|-=friction」精确摩擦语义均留 TODO。
-    ///   · parachuteBomb 的「空中减速（Flash vy&gt;1 → vy-=2；vx*=0.95）」与「按住鼠标当扇子
-    ///     （沿光标反方向 ±0.2）」、banana 的 AI 近距引爆条件均未实现（纯玩法增强，非空间语义）。
+    ///   · parachuteBomb 的「空中减速」与「按住鼠标当扇子」、banana 的 AI 近距引爆条件未实现。
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     [DisallowMultipleComponent]
@@ -49,20 +56,24 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>
         /// 视为「静止」的世界总速度阈值（Flash 0.2px/帧 ≈ 0.15625 世界单位/秒，这里取 0.2 略宽）。
-        /// 小于该值时把 <see cref="FlashRestComponents"/> 输出的 vx、vy 一起归零，
-        /// 以喂给 <see cref="WeaponTriggerRules.IsAtRest"/> 的
-        /// <c>vx==0 &amp;&amp; |vy|&lt;0.2</c> 严格判定（PhysX 静置速度不会精确为 0）。
         /// </summary>
         const float RestSnapSpeed = 0.2f;
 
-        /// <summary>出界判定的宽松边距（世界单位）。</summary>
+        /// <summary>通用弹体的出界判定的宽松边距（世界单位）。</summary>
         const float OutOfMapMargin = 4f;
+
+        /// <summary>特殊武器允许的更大出界边距（世界单位）：它们要从地图外飞入/从高处落下。</summary>
+        const float SpecialBoundsMargin = 64f;
+
+        /// <summary>海鸥自动投弹间隔（帧）。§5.2 只说"可连投多颗"，间隔文档未给 —— <b>提案/待定</b>。</summary>
+        const int SeagullBombIntervalFrames = 25;
 
         [SerializeField] Rigidbody body;
         [SerializeField] Collider hitCollider;
 
         WeaponStats _stats;
         ProjectileProfile _profile;
+        ProjectileMechanic _mechanic;
         BattleController _battle;
         PirateBase _owner;
 
@@ -77,11 +88,33 @@ namespace PirateCrew.PirateCrew.Battle
         int _fuseRemaining;
         int _fuseElapsed;
 
+        // ---------------- 特殊机制状态 ----------------
+        /// <summary>抛出瞬间的世界速度（voodooDoll 转移给目标用；亦用于调试）。</summary>
+        Vector3 _launchVelocity;
+        /// <summary>voodooDoll 锁定的目标（可能为 null）。</summary>
+        PirateBase _voodooTarget;
+        /// <summary>落地后的经过帧数；-1 = 未落地。</summary>
+        int _landedFrames = -1;
+        /// <summary>锚已命中的角色（同一落点不重复结算 60 伤害）。</summary>
+        readonly HashSet<int> _anchorHitIds = new HashSet<int>();
+        /// <summary>火焰已命中的角色（每道火对同一角色只结算一次 30 伤害）。</summary>
+        readonly HashSet<int> _flameHitIds = new HashSet<int>();
+        Renderer _renderer;
+        /// <summary>special 计时（海鸥投弹 / 炮 AI 等）。</summary>
+        int _specialFrames;
+        /// <summary>加农炮 AI 发射倒计时；-1 = 不自动发射。</summary>
+        int _cannonAiFrames = -1;
+        /// <summary>火焰存活帧数（按蔓延段数换算）。</summary>
+        int _flameFramesRemaining;
+        readonly List<PirateBase> _pirateBuffer = new List<PirateBase>(16);
+
         /// <summary>武器 id。</summary>
         public WeaponId WeaponId => _stats.Id;
 
-        /// <summary>是否仍在本回合物理运动（用于 <see cref="BattleController.IsAnythingActive"/>）。
-        /// 3D 下取总速度（XZ 惯性 + Y 重力），任一轴非零即算在飞。</summary>
+        /// <summary>运行机制分类（§5.2）。</summary>
+        public ProjectileMechanic Mechanic => _mechanic;
+
+        /// <summary>是否仍在本回合物理运动（用于 <see cref="BattleController.IsAnythingActive"/>）。</summary>
         public bool IsInFlight
         {
             get
@@ -96,18 +129,8 @@ namespace PirateCrew.PirateCrew.Battle
         public bool TriggersOnBlast => ProjectileTriggerRules.CanChainFromBlast(_stats.Trigger);
 
         /// <summary>
-        /// 把 3D 世界速度折算成 Flash「静止」判据 <see cref="WeaponTriggerRules.IsAtRest"/> 需要的
-        /// (vx, vy)（px/帧）。3D 口径（见 docs/M2-3D空间模型对齐.md §1/§5.2）：
-        ///   · <paramref name="vx"/> = <b>XZ 平面速度模长</b>。Flash 的 vx 是"横向是否在动"的标量；
-        ///     3D 的水平面有 X/Z 两个轴，任一轴有速度都算"在动"，故取平面合成模长
-        ///     （先用 <see cref="LevelGeometry.ArenaVelocityToFlash"/> 拿到平面分量，再取模长）。
-        ///   · <paramref name="vy"/> = <b>世界 Y 速度 / FlashSpeedScale</b>。Flash 的 vy 是重力轴分量；
-        ///     3D 里重力沿 -Y，所以"下落"必须落在 vy 上。
-        ///
-        /// 为什么不能直接把平面重投影的 Z 分量当作 vy：竖直下落的弹体（X=Z=0、Y 很大）会被读成
-        /// vx=0、vy=0 → 判定静止并在半空中引爆；而竖直下落时 vy 应显著非零——文档对 dynamite 落水的
-        /// 备注正是"水里下沉不静止"。反之，只读 world.x 作 vx 会漏判沿 Z 的滑行。故取上式。
-        ///
+        /// 把 3D 世界速度折算成 Flash「静止」判据需要的 (vx, vy)（px/帧）。
+        ///   · vx = XZ 平面速度模长；vy = 世界 Y 速度 / FlashSpeedScale。
         /// 纯函数（不触实例状态），供无头测试直接验证口径。
         /// </summary>
         public static void FlashRestComponents(Vector3 worldVelocity, out float vx, out float vy)
@@ -131,11 +154,17 @@ namespace PirateCrew.PirateCrew.Battle
         {
             _stats = stats;
             _profile = ProjectileProfile.FromStats(stats);
+            _mechanic = ProjectileProfile.MechanicFor(stats.Id);
             _battle = battle;
             _owner = owner;
+            _launchVelocity = worldVelocity;
             _detonated = false;
             _initialized = true;
             _armedFrame = Time.frameCount + SpawnGraceFrames;
+            _landedFrames = -1;
+            _specialFrames = 0;
+            _flameHitIds.Clear();
+            _anchorHitIds.Clear();
 
             if (body == null)
                 body = GetComponent<Rigidbody>();
@@ -146,11 +175,8 @@ namespace PirateCrew.PirateCrew.Battle
             {
                 body.mass = _profile.Mass;
                 // 2022.3 的 Rigidbody 没有 gravityScale（Unity 6 才加入），
-                // 故关闭 useGravity，改由 FixedUpdate 按 Weight 手动施加加速度（见 ApplyWeightGravity）。
+                // 故关闭 useGravity，改由 FixedUpdate 按 Weight 手动施加加速度。
                 body.useGravity = false;
-                // 只锁旋转（保持朝向稳定），**不锁位置**：3D 竞技场是 XZ 水平面，弹体必须能沿 X 和 Z
-                // 同时位移。原先的 FreezePositionZ 是"2D 侧视"时代的遗留——它把弹体钉死在出生时的 Z
-                // 平面上，使其永远打不到纵深方向的目标（见 docs/M2-3D空间模型对齐.md §1/§6）。
                 body.constraints = RigidbodyConstraints.FreezeRotationX
                                    | RigidbodyConstraints.FreezeRotationY
                                    | RigidbodyConstraints.FreezeRotationZ;
@@ -167,20 +193,66 @@ namespace PirateCrew.PirateCrew.Battle
             if (hitCollider != null && owner != null && owner.BodyCollider != null)
                 Physics.IgnoreCollision(hitCollider, owner.BodyCollider, true);
 
+            SetupSpecial(stats, owner);
+
             gameObject.name = "WeaponProjectile_" + stats.DisplayName + (placed ? "_placed" : "");
+        }
+
+        /// <summary>特殊机制的一次性初始化（§5.2 各专用行）。</summary>
+        void SetupSpecial(WeaponStats stats, PirateBase owner)
+        {
+            // anchor 手动等速下砸（§5.1「恒 vy=40」），不走 PhysX 自由落体，也不需要碰撞体阻挡。
+            if (_mechanic == ProjectileMechanic.AnchorDrop)
+            {
+                if (body != null)
+                {
+                    body.isKinematic = true;
+                    body.velocity = Vector3.zero;
+                }
+
+                if (hitCollider != null)
+                    hitCollider.isTrigger = true;
+                _renderer = GetComponentInChildren<Renderer>();
+            }
+
+            // 海鸥 / 潮汐 / 火焰：用 OverlapSphere 自行结算伤害，碰撞体设 trigger 防止挡住角色。
+            if (_mechanic == ProjectileMechanic.SeagullFlight
+                || _mechanic == ProjectileMechanic.TidalWaveSweep
+                || _mechanic == ProjectileMechanic.SweepingFlameSpread)
+            {
+                if (hitCollider != null)
+                    hitCollider.isTrigger = true;
+            }
+
+            if (_mechanic == ProjectileMechanic.VoodooDollTransfer)
+                LockVoodooTarget(owner);
+
+            if (_mechanic == ProjectileMechanic.CannonPlacement && owner != null
+                && _battle != null && _battle.IsTeamAi(owner.TeamIndex))
+            {
+                _cannonAiFrames = 0;   // 0 = 已摆位，开始计 AI 发射延时
+            }
+
+            if (_mechanic == ProjectileMechanic.SweepingFlameSpread)
+                _flameFramesRemaining = FlameLifetimeFrames();
         }
 
         void FixedUpdate()
         {
-            if (!_initialized || _detonated || body == null || body.isKinematic)
+            if (!_initialized || _detonated || body == null)
                 return;
-            if (!_profile.UsesGravity)
-                return;   // §5.2 weight=0（cannonball 等）无重力
+
+            // 锚：等速下砸（§5.1「恒 vy=40」），手动推进位置。
+            if (_mechanic == ProjectileMechanic.AnchorDrop)
+            {
+                AdvanceAnchor();
+                return;
+            }
+
+            if (body.isKinematic || !_profile.UsesGravity)
+                return;   // §5.2 weight=0（cannonball / 海鸥 / 潮汐 / 火焰）无重力
 
             // 手动按 Weight 放大全局重力（weight=1.5 的 boulder；weight=1 与全局一致）。
-            // 用 ForceMode.Acceleration 使加速度与质量无关。
-            // 3D 下 Physics.gravity = (0, -19.53125, 0)：水平面 (X,Z) 不受影响（惯性匀速），
-            // 弹体在 Y 上匀加速下落——重力竖直向下，与竞技场平面正交。
             body.AddForce(Physics.gravity * _profile.GravityScale, ForceMode.Acceleration);
         }
 
@@ -192,6 +264,17 @@ namespace PirateCrew.PirateCrew.Battle
             if (Time.frameCount < _armedFrame)
             {
                 _contact = false;
+                return;
+            }
+
+            if (_mechanic != ProjectileMechanic.Generic)
+            {
+                HandleSpecialBounds();
+                if (!_detonated)
+                    UpdateSpecial();
+                _contact = false;
+                _clicked = false;
+                _blastHit = false;
                 return;
             }
 
@@ -209,12 +292,9 @@ namespace PirateCrew.PirateCrew.Battle
             UpdateMineFuse();
             UpdateClickTrigger();
 
-            // 静止判据的 3D 口径：vx = XZ 平面速度模长、vy = 世界 Y（重力轴）速度，见 FlashRestComponents。
             FlashRestComponents(body.velocity, out float vx, out float vy);
             if (body.velocity.sqrMagnitude < RestSnapSpeed * RestSnapSpeed)
             {
-                // PhysX 静置速度不会精确为 0，而 §5.2 的 dynamite 判据要求 vx 严格 == 0；
-                // 总速度低于阈值时一并归零，把"实际已停住"喂成"判据意义上的静止"。
                 vx = 0f;
                 vy = 0f;
             }
@@ -237,6 +317,10 @@ namespace PirateCrew.PirateCrew.Battle
             if (!_initialized || _detonated || collision == null || collision.collider == null)
                 return;
 
+            // 特殊机制自行用 OverlapSphere 判定命中，不走通用接触引爆。
+            if (_mechanic != ProjectileMechanic.Generic)
+                return;
+
             // boulder：接触敌人 → 伤害 = |vx| * 1.5（§5.2），不引爆、不销毁。
             if (_stats.Id == WeaponId.Boulder)
             {
@@ -251,6 +335,8 @@ namespace PirateCrew.PirateCrew.Battle
         {
             if (!_initialized || _detonated || collision == null || collision.collider == null)
                 return;
+            if (_mechanic != ProjectileMechanic.Generic)
+                return;
             if (_stats.Id == WeaponId.Boulder)
                 return;
             _contact = true;
@@ -261,17 +347,452 @@ namespace PirateCrew.PirateCrew.Battle
             _battle?.UnregisterProjectile(this);
         }
 
-        // ------------------------------------------------------------------
-        // 触发辅助
-        // ------------------------------------------------------------------
+        // ==================================================================
+        // 特殊机制（§5.2）
+        // ==================================================================
+
+        /// <summary>
+        /// 特殊武器的出界/落水处置。它们允许从地图外飞入或从高处落下，
+        /// 故用比通用弹体宽松得多的 <see cref="SpecialBoundsMargin"/>；落水仍按全局水位消失。
+        /// </summary>
+        void HandleSpecialBounds()
+        {
+            if (_battle == null)
+                return;
+
+            if (LevelGeometry.IsBelowWater(transform.position.y, _battle.WaterWorldY))
+            {
+                Vanish();
+                return;
+            }
+
+            BattlePlan plan = _battle.Plan;
+            if (plan == null)
+                return;
+
+            Vector3 p = transform.position;
+            bool outOfMap = p.x < -SpecialBoundsMargin
+                            || p.x > plan.WorldWidth + SpecialBoundsMargin
+                            || p.z < -SpecialBoundsMargin
+                            || p.z > plan.WorldDepth + SpecialBoundsMargin
+                            || p.y < LevelGeometry.WaterSurfaceY - SpecialBoundsMargin
+                            || p.y > SpecialBoundsMargin;
+
+            if (outOfMap)
+                Vanish();
+        }
+
+        void UpdateSpecial()
+        {
+            switch (_mechanic)
+            {
+                case ProjectileMechanic.AnchorDrop:
+                    UpdateAnchor();
+                    break;
+                case ProjectileMechanic.SeagullFlight:
+                    UpdateSeagull();
+                    break;
+                case ProjectileMechanic.TidalWaveSweep:
+                    UpdateTidalWave();
+                    break;
+                case ProjectileMechanic.VoodooDollTransfer:
+                    UpdateVoodooDoll();
+                    break;
+                case ProjectileMechanic.CannonPlacement:
+                    UpdateCannon();
+                    break;
+                case ProjectileMechanic.SweepingFlameSpread:
+                    UpdateSweepingFlame();
+                    break;
+            }
+        }
+
+        // ---------------- anchor（§5.2 anchor 行） ----------------
+
+        /// <summary>等速下砸一帧：位置下移 FallSpeed（px/帧 → 世界单位/秒），触地即落地。</summary>
+        void AdvanceAnchor()
+        {
+            if (_landedFrames >= 0)
+                return;
+
+            float speed = AnchorRules.FallSpeed * LevelGeometry.FlashSpeedScale;
+            transform.position += Vector3.down * (speed * Time.fixedDeltaTime);
+
+            float groundY = LevelGeometry.GroundTopY + _profile.HalfHeight;
+            if (transform.position.y <= groundY)
+            {
+                Vector3 p = transform.position;
+                p.y = groundY;
+                transform.position = p;
+                _landedFrames = 0;
+            }
+        }
+
+        /// <summary>下落中逐帧按 §5.2 命中条件结算 60 固定伤害，落地后 hold 30 + fade 10。</summary>
+        void UpdateAnchor()
+        {
+            if (_landedFrames < 0)
+            {
+                ApplyAnchorDamage();
+                return;
+            }
+
+            _landedFrames++;
+
+            if (_renderer != null)
+            {
+                Color c = _renderer.material.color;
+                c.a = AnchorRules.AlphaAfterLanding(_landedFrames);
+                _renderer.material.color = c;
+            }
+
+            if (AnchorRules.ShouldDestroy(_landedFrames))
+                Vanish();
+        }
+
+        /// <summary>
+        /// 命中判定（§5.2「|x-anchorX| &lt; 48 且 anchorY-64 &lt; y &lt; anchorY」）。
+        /// 世界坐标 → Flash 坐标：横向量取 XZ 平面距离的 px；竖直量以「锚底端」为原点、
+        /// 用 <c>LevelGeometry.WaterWorldY - worldY</c> 折成"向下为正"的 Flash y 口径
+        /// （规则类只用到差值，绝对基准可任取）。
+        /// 同一角色在同一落点只结算一次 60 伤害。
+        /// </summary>
+        void ApplyAnchorDamage()
+        {
+            if (_battle == null || _owner == null)
+                return;
+
+            Vector3 anchorPos = transform.position;
+            float anchorBottomY = anchorPos.y - _profile.HalfHeight;
+            float queryRadius = _profile.HalfHeight
+                                + LevelGeometry.PixelsToUnits(AnchorRules.HorizontalHalfExtent);
+
+            _battle.CollectPiratesInRadius(anchorPos, queryRadius, _pirateBuffer);
+            for (int i = 0; i < _pirateBuffer.Count; i++)
+            {
+                PirateBase target = _pirateBuffer[i];
+                if (target == null || !target.Alive || _anchorHitIds.Contains(target.PirateId))
+                    continue;
+
+                float dxzPx = LevelGeometry.UnitsToPixels(
+                    Vector2.Distance(
+                        new Vector2(anchorPos.x, anchorPos.z),
+                        new Vector2(target.transform.position.x, target.transform.position.z)));
+                float anchorFlashY = LevelGeometry.UnitsToPixels(
+                    _battle.WaterWorldY - anchorBottomY);
+                float targetFlashY = LevelGeometry.UnitsToPixels(
+                    _battle.WaterWorldY - target.transform.position.y);
+
+                if (!AnchorRules.ShouldHit(0f, anchorFlashY, dxzPx, targetFlashY))
+                    continue;
+
+                _anchorHitIds.Add(target.PirateId);
+                target.SubtractHealth(AnchorRules.FixedDamage);
+            }
+        }
+
+        // ---------------- seagull（§5.2 seagull 行） ----------------
+
+        /// <summary>
+        /// 海鸥飞行：向右以 vx=10 飞（初速由生成计划给出），到间隔即投弹，飞出右侧阈值结束。
+        /// ⚠ 原文"再次点击投弹"需交互层；本期自动按间隔投弹（<b>提案/待定</b>）。
+        /// </summary>
+        void UpdateSeagull()
+        {
+            BattlePlan plan = _battle != null ? _battle.Plan : null;
+            if (plan == null)
+                return;
+
+            _specialFrames++;
+            if (_specialFrames % SeagullBombIntervalFrames == 0)
+                DropSeagullBomb();
+
+            float flashX = LevelGeometry.UnitsToPixels(transform.position.x);
+            if (SeagullRules.CanFinish(flashX, plan.WorldWidth, anyBombInFlight: false))
+                Vanish();
+        }
+
+        /// <summary>投下一颗弹（§5.2 每发 50/50）：按 <see cref="BattleController.ResolveExplosion"/> 结算。</summary>
+        void DropSeagullBomb()
+        {
+            if (_battle == null || !_stats.HasExplosion)
+                return;
+
+            PirateBase caster = _owner != null && _owner.Alive ? _owner : null;
+            _battle.ResolveExplosion(
+                transform.position, _stats.ExplosionSize, _stats.ExplosionMaxDamage, caster, this);
+        }
+
+        // ---------------- tidalWave（§5.2 tidalWave 行） ----------------
+
+        /// <summary>
+        /// 横扫（初速由生成计划给出 vx=20）：每帧对 ±150px 内且 y ≥ waterY-300 的**所有**角色
+        /// 造成 5 点伤害（对敌我一视同仁、无 evilness）。扫出右边界即消失。
+        /// </summary>
+        void UpdateTidalWave()
+        {
+            if (_battle == null)
+                return;
+
+            BattlePlan plan = _battle.Plan;
+            Vector3 wave = transform.position;
+            float waterY = _battle.WaterWorldY;
+
+            _battle.CollectPiratesInRadius(
+                wave, LevelGeometry.PixelsToUnits(TidalWaveRules.HitRadius), _pirateBuffer);
+
+            for (int i = 0; i < _pirateBuffer.Count; i++)
+            {
+                PirateBase target = _pirateBuffer[i];
+                if (target == null || !target.Alive)
+                    continue;
+
+                // 3D 映射：dx 取世界 X 差（横扫轴），dy 取世界 Y 差；Z 折叠（浪横跨纵深）。
+                float dxPx = LevelGeometry.UnitsToPixels(target.transform.position.x - wave.x);
+                float targetFlashY = LevelGeometry.UnitsToPixels(waterY - target.transform.position.y);
+                float waveFlashY = LevelGeometry.UnitsToPixels(waterY - wave.y);
+
+                if (!TidalWaveRules.ShouldDamage(0f, waveFlashY, dxPx, targetFlashY, 0f))
+                    continue;
+
+                target.SubtractHealth(TidalWaveRules.DamagePerFrame);
+            }
+
+            if (plan != null && TidalWaveRules.IsPastRightEdge(
+                    LevelGeometry.UnitsToPixels(wave.x), plan.WorldWidth))
+            {
+                Vanish();
+            }
+        }
+
+        // ---------------- voodooDoll（§5.2 voodooDoll 行） ----------------
+
+        /// <summary>
+        /// 落地（静止）后走 10+10 帧时间线：第 10 帧镜头切到目标、第 20 帧把**抛出瞬间的速度**
+        /// 赋给目标（<see cref="PirateBase.ApplyImpulseDelta"/>，可把目标抛入水中）。
+        /// </summary>
+        void UpdateVoodooDoll()
+        {
+            bool landed = body != null
+                          && body.velocity.sqrMagnitude < RestSnapSpeed * RestSnapSpeed;
+
+            if (_landedFrames < 0)
+            {
+                if (!landed)
+                    return;
+
+                _landedFrames = 0;
+                if (body != null)
+                {
+                    body.isKinematic = true;
+                    body.velocity = Vector3.zero;
+                }
+            }
+
+            _landedFrames++;
+
+            if (_voodooTarget != null && !_voodooTarget.Alive)
+                return;
+
+            if (VoodooDollRules.ShouldSwitchCamera(_landedFrames) && _voodooTarget != null)
+            {
+                EventBus.Publish(BattleEvents.CameraFocusRequested, _voodooTarget.transform);
+            }
+
+            if (VoodooDollRules.ShouldTransferVelocity(_landedFrames))
+            {
+                if (_voodooTarget != null
+                    && VoodooDollRules.TryTransferVelocity(
+                        _landedFrames, _launchVelocity.x, _launchVelocity.y, out _, out _))
+                {
+                    // 3D 转移：抛出速度原样赋给目标（XZ 水平 + Y 抬升一起给，保持"同方向抛飞"）。
+                    _voodooTarget.ApplyImpulseDelta(_launchVelocity);
+                }
+
+                Vanish();
+            }
+        }
+
+        /// <summary>锁定最近的在 30px 内的敌方存活角色（§4.2 <c>pickNearestEnemy(30px)</c>）。</summary>
+        void LockVoodooTarget(PirateBase owner)
+        {
+            _voodooTarget = null;
+            if (_battle == null || owner == null)
+                return;
+
+            _battle.CollectPiratesInRadius(
+                transform.position,
+                LevelGeometry.PixelsToUnits(VoodooDollRules.TargetPickRadius),
+                _pirateBuffer);
+
+            float best = float.MaxValue;
+            for (int i = 0; i < _pirateBuffer.Count; i++)
+            {
+                PirateBase candidate = _pirateBuffer[i];
+                if (candidate == null || !candidate.Alive
+                    || candidate == owner || candidate.TeamIndex == owner.TeamIndex)
+                {
+                    continue;
+                }
+
+                float d = Vector3.Distance(transform.position, candidate.transform.position);
+                if (d < best)
+                {
+                    best = d;
+                    _voodooTarget = candidate;
+                }
+            }
+        }
+
+        // ---------------- cannon（§5.2 cannon 行） ----------------
+
+        /// <summary>
+        /// 加农炮：AI 队摆位后 25 帧自动朝最近敌人满蓄力发射（§6.3 <c>aiFireTime=25</c>）；
+        /// 玩家队由交互层调用 <see cref="FireCannonToward"/>。
+        /// </summary>
+        void UpdateCannon()
+        {
+            if (_cannonAiFrames < 0)
+                return;
+
+            if (!CannonRules.ShouldAiFire(_cannonAiFrames))
+            {
+                _cannonAiFrames++;
+                return;
+            }
+
+            _cannonAiFrames = -1;
+            PirateBase target = FindNearestEnemy();
+            if (target != null)
+                FireCannonToward(target.transform.position);
+        }
+
+        /// <summary>
+        /// 朝世界坐标 <paramref name="targetWorld"/> 发射一颗 cannonball（§5.2「经 cannonball（100, 50）」）。
+        /// 蓄力恒取满值 30（<see cref="CannonRules.MaxFireStrength"/>）。
+        /// 方向：3D 下由 XZ 平面方向给出（弹弓换算会再加 <c>ThrowLift</c> 仰角）。
+        /// </summary>
+        public bool FireCannonToward(Vector3 targetWorld)
+        {
+            if (_detonated || _battle == null)
+                return false;
+
+            float charge = CannonRules.MaxFireStrength;
+            if (!CannonRules.ShouldFire(charge))
+                return false;
+
+            Vector3 origin = transform.position;
+            Vector3 flat = new Vector3(targetWorld.x - origin.x, 0f, targetWorld.z - origin.z);
+            if (flat.sqrMagnitude < 1e-6f)
+                return false;
+
+            flat.Normalize();
+            // FlashLaunchVelocityToWorld 把 Flash 平面 (vx, vy) 落到世界 (X, Z) 再抬仰角，
+            // 故这里把 XZ 方向直接映射到 (vx, vy)，大小 = 蓄力。
+            float vxFlash = flat.x * charge;
+            float vyFlash = flat.z * charge;
+            Vector3 muzzle = origin + flat * 0.5f;
+
+            _battle.SpawnWeaponProjectiles(
+                WeaponCatalog.Get(WeaponId.Cannonball), _owner, muzzle, muzzle, vxFlash, vyFlash);
+            _cannonAiFrames = -1;
+            return true;
+        }
+
+        PirateBase FindNearestEnemy()
+        {
+            if (_battle == null || _owner == null)
+                return null;
+
+            _battle.CollectPiratesInRadius(
+                transform.position, SpecialBoundsMargin, _pirateBuffer);
+
+            PirateBase best = null;
+            float bestDistance = float.MaxValue;
+            for (int i = 0; i < _pirateBuffer.Count; i++)
+            {
+                PirateBase candidate = _pirateBuffer[i];
+                if (candidate == null || !candidate.Alive
+                    || candidate.TeamIndex == _owner.TeamIndex)
+                {
+                    continue;
+                }
+
+                float d = Vector3.Distance(transform.position, candidate.transform.position);
+                if (d < bestDistance)
+                {
+                    bestDistance = d;
+                    best = candidate;
+                }
+            }
+
+            return best;
+        }
+
+        // ---------------- sweepingFlame（§5.2 表格末行） ----------------
+
+        /// <summary>
+        /// 沿地面蔓延：命中 8px 内角色给 30 点 + 随机击退（每道火对同一角色只结算一次）；
+        /// 存活帧数由蔓延段数换算，走完即消失。
+        /// </summary>
+        void UpdateSweepingFlame()
+        {
+            if (_flameFramesRemaining > 0)
+                _flameFramesRemaining--;
+            if (_flameFramesRemaining <= 0)
+            {
+                Vanish();
+                return;
+            }
+
+            if (_battle == null)
+                return;
+
+            float hitRadius = LevelGeometry.PixelsToUnits(SweepingFlameRules.HitDistance);
+            _battle.CollectPiratesInRadius(transform.position, hitRadius, _pirateBuffer);
+
+            for (int i = 0; i < _pirateBuffer.Count; i++)
+            {
+                PirateBase target = _pirateBuffer[i];
+                if (target == null || !target.Alive || _flameHitIds.Contains(target.PirateId))
+                    continue;
+
+                float distancePx = LevelGeometry.UnitsToPixels(
+                    Vector3.Distance(transform.position, target.transform.position));
+                if (!SweepingFlameRules.ShouldHit(distancePx))
+                    continue;
+
+                _flameHitIds.Add(target.PirateId);
+                target.SubtractHealth(SweepingFlameRules.DamagePerSegment);
+
+                SweepingFlameRules.Knockback(Random.value, out float vxFlash, out float vyFlash);
+                // Flash 击退：vx 水平、vy 竖直（负 = 上抛）→ 世界 (X, +Y)。
+                Vector3 delta = new Vector3(
+                    vxFlash * LevelGeometry.FlashSpeedScale,
+                    -vyFlash * LevelGeometry.FlashSpeedScale,
+                    0f);
+                target.ApplyImpulseDelta(delta);
+            }
+        }
+
+        /// <summary>火焰存活帧数 = 铺到地图右边界所需的段数。</summary>
+        int FlameLifetimeFrames()
+        {
+            float widthPx = _battle != null && _battle.Plan != null
+                ? LevelGeometry.UnitsToPixels(_battle.Plan.WorldWidth)
+                : 0f;
+            return Mathf.Max(1, SweepingFlameRules.SegmentCount(widthPx));
+        }
+
+        // ==================================================================
+        // 通用弹体辅助
+        // ==================================================================
 
         void HandleWaterAndBounds()
         {
             if (_battle == null)
                 return;
 
-            // §4.4：水面是世界 Y 阈值（LevelGeometry.WaterSurfaceY = -0.2），方向无关——
-            // 从 X 或 Z 任一侧掉出地面都会落到水面以下。弹体枢轴低于水面即按 §5.2 处置。
             if (LevelGeometry.IsBelowWater(transform.position.y, _battle.WaterWorldY))
             {
                 if (ProjectileProfile.WaterBehavior(_stats) == ProjectileWaterBehavior.Detonate)
@@ -286,11 +807,6 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
 
             Vector3 p = transform.position;
-            // 3D 化后的出界判据：竞技场是 XZ 平面（X 0..WorldWidth、Z 0..WorldDepth），
-            // 水平方向出界即消失；高度只对**无重力**弹体设上界——
-            // 有重力的弹体必然回落，抛物线顶点本来就该允许高过竞技场
-            // （实测满力 banana/parachuteBomb = 30px/帧 + ThrowLift 0.7 时顶点约 4.62 单位，
-            //   若沿用旧的 y > 4 上界，它们会在上升段被误判出界、半空消失）。
             bool outOfMap = p.x < -OutOfMapMargin
                             || p.x > plan.WorldWidth + OutOfMapMargin
                             || p.z < -OutOfMapMargin
@@ -298,7 +814,7 @@ namespace PirateCrew.PirateCrew.Battle
                             || p.y < LevelGeometry.WaterSurfaceY - OutOfMapMargin;
 
             if (!outOfMap && !_profile.UsesGravity && p.y > OutOfMapMargin)
-                outOfMap = true;   // 无重力弹体（如 cannonball）会一直直线飞，需要高度上界兜住
+                outOfMap = true;
 
             if (outOfMap)
                 Vanish();
@@ -311,10 +827,6 @@ namespace PirateCrew.PirateCrew.Battle
             Destroy(gameObject);
         }
 
-        /// <summary>
-        /// mine 引信（§5.2）：60px 内有角色且移动 → 点燃；随后每帧推进，到点引爆。
-        /// 引信点燃与蜂鸣帧序均由 <see cref="WeaponTriggerRules"/> 判定。
-        /// </summary>
         void UpdateMineFuse()
         {
             if (!ProjectileTriggerRules.HasProximityFuse(_stats.Trigger) || _battle == null)
@@ -347,26 +859,21 @@ namespace PirateCrew.PirateCrew.Battle
 
         bool _nearestMoving;
 
-        /// <summary>最近存活角色的距离（Flash px；无则 -1），并记录其是否在移动。
-        /// 3D 语义：<see cref="Physics.OverlapSphere"/> 与 <see cref="Vector3.Distance"/> 本就是三维判定
-        /// （球半径 60px → 1.875 世界单位，距离含高度差），无需按平面改写；单位都贴地，
-        /// 高度差在正常战斗中可忽略，但判据本身已是 3D。</summary>
         float NearestPirateDistance()
         {
             _nearestMoving = false;
             if (_battle == null)
                 return -1f;
 
-            float radiusWorld = LevelGeometry.PixelsToUnits(WeaponTriggerRules.ProximityRadius);
-            Collider[] overlaps = Physics.OverlapSphere(
-                transform.position, radiusWorld, _battle.PirateLayerMask, QueryTriggerInteraction.Ignore);
+            _battle.CollectPiratesInRadius(
+                transform.position,
+                LevelGeometry.PixelsToUnits(WeaponTriggerRules.ProximityRadius),
+                _pirateBuffer);
 
             float best = -1f;
-            for (int i = 0; i < overlaps.Length; i++)
+            for (int i = 0; i < _pirateBuffer.Count; i++)
             {
-                PirateBase pirate = overlaps[i] != null
-                    ? overlaps[i].GetComponentInParent<PirateBase>()
-                    : null;
+                PirateBase pirate = _pirateBuffer[i];
                 if (pirate == null || pirate == _owner || !pirate.Alive)
                     continue;
 
@@ -382,9 +889,6 @@ namespace PirateCrew.PirateCrew.Battle
             return best;
         }
 
-        /// <summary>banana 的玩家点击引爆（§5.2）：鼠标按下且射线命中自身即标记。
-        /// 3D 语义：<c>Camera.ScreenPointToRay</c> 本就是从透视/正交相机出发的三维射线，
-        /// 拾取与竞技场维度无关，无需按平面改写（对照 LevelGeometry 里的选中半径说明）。</summary>
         void UpdateClickTrigger()
         {
             if (!ProjectileTriggerRules.HasClickTrigger(_stats.Trigger))
@@ -405,10 +909,7 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>boulder 碾压伤害（§5.2：伤害 = |vx| * 1.5）。
-        /// 3D 口径：vx 是 Flash 的**水平**速度（2D 侧视里唯一的水平轴）；竞技场是 XZ 平面，
-        /// 故取世界 (X,Z) 平面速度模长——只看 world.x 会让沿 Z 冲来的 boulder 碾压伤害恒为 0。
-        /// 重力方向（Y）不参与，与 Flash 的 |vx| 口径一致（垂直砸下不计碾压伤害）。
-        /// TODO：把敌人推到 x±32 并继承 vx（文档同条），本次只做伤害。</summary>
+        /// TODO：把敌人推到 x±32 并继承 vx。</summary>
         void Crush(Collider other)
         {
             PirateBase target = other != null ? other.GetComponentInParent<PirateBase>() : null;
@@ -434,7 +935,7 @@ namespace PirateCrew.PirateCrew.Battle
             Detonate();
         }
 
-        /// <summary>引爆：走 <see cref="BattleController.ResolveExplosion"/>（伤害/击退/evilness/死亡全链），然后移除自身。</summary>
+        /// <summary>引爆：走 <see cref="BattleController.ResolveExplosion"/>，然后移除自身。</summary>
         void Detonate()
         {
             if (_detonated)
@@ -443,7 +944,6 @@ namespace PirateCrew.PirateCrew.Battle
 
             if (_stats.HasExplosion && _battle != null)
             {
-                // §5.2：火药桶由 Explosion 触发时 caster=null（不累加施暴者 evilness）。
                 PirateBase caster = _stats.Id == WeaponId.GunpowderBarrel ? null : _owner;
                 if (caster != null && !caster.Alive)
                     caster = null;
@@ -461,13 +961,14 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>
-        /// 引爆后的扩展点。
-        /// TODO（rumBottle → 2 个 SweepingFlame）：此处生成火焰专用弹体；
-        /// 需要先实现 SweepingFlame 脚本（沿地面每 8px 蔓延、每段 30 伤害、随机击退，§5.2），
-        /// 成本超出本任务边界，故留空。
+        /// 引爆后的扩展点：rumBottle 落在 FLOOR 时额外生成 2 个 SweepingFlame（§5.2 rumBottle 行）。
+        /// M2 近似：doc 只要求"落在 FLOOR"，而通用弹体的引爆条件无法稳定区分地面/角色；
+        /// 这里在 rumBottle 引爆时一律生成 2 道火（**提案/待定**）。
         /// </summary>
         void OnPostDetonate()
         {
+            if (_stats.Id == WeaponId.RumBottle && _battle != null)
+                _battle.SpawnSweepingFlames(transform.position);
         }
     }
 }

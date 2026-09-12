@@ -78,15 +78,78 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         }
 
         [Test]
-        public void UnimplementedSpecialWeapons_ProduceNoSpawn()
+        public void Anchor_DropsFromAboveAtConstant40PxPerFrame()
         {
-            // anchor / seagull / tidalWave / voodooDoll / cannon / SweepingFlame：本次未实现，返回空。
-            Assert.AreEqual(0, Plan(WeaponId.Anchor).Count);
-            Assert.AreEqual(0, Plan(WeaponId.Seagull).Count);
-            Assert.AreEqual(0, Plan(WeaponId.TidalWave).Count);
-            Assert.AreEqual(0, Plan(WeaponId.VoodooDoll).Count);
-            Assert.AreEqual(0, Plan(WeaponId.Cannon).Count);
-            Assert.AreEqual(0, Plan(WeaponId.SweepingFlame).Count);
+            // §5.2 anchor：从 y=-200（= 200px 高）以 vy=40 等速直落。
+            // 200/32 = 6.25；40×0.78125 = 31.25 世界单位/秒。
+            IReadOnlyList<ProjectileSpawn> plan = Plan(WeaponId.Anchor);
+            Assert.AreEqual(1, plan.Count);
+            Assert.AreEqual(4f, plan[0].WorldPosition.x, 1e-4f);
+            Assert.AreEqual(6.25f, plan[0].WorldPosition.y, 1e-4f);
+            Assert.AreEqual(0f, plan[0].WorldVelocity.x, 1e-4f);
+            Assert.AreEqual(-31.25f, plan[0].WorldVelocity.y, 1e-3f);
+            Assert.IsFalse(plan[0].Kinematic);
+        }
+
+        [Test]
+        public void Seagull_EntersFromLeftAt10PxPerFrame()
+        {
+            // §5.2 seagull：x=-300 → -9.375；高度取瞄准点上方 100px → 3.125；vx=10 → 7.8125。
+            IReadOnlyList<ProjectileSpawn> plan = Plan(WeaponId.Seagull);
+            Assert.AreEqual(1, plan.Count);
+            Assert.AreEqual(-9.375f, plan[0].WorldPosition.x, 1e-4f);
+            Assert.AreEqual(3.125f, plan[0].WorldPosition.y, 1e-4f);
+            Assert.AreEqual(7.8125f, plan[0].WorldVelocity.x, 1e-3f);
+            Assert.AreEqual(0f, plan[0].WorldVelocity.y, 1e-4f);
+            Assert.IsFalse(plan[0].Kinematic);
+        }
+
+        [Test]
+        public void TidalWave_StartsLeftAtWaterLevelAndSweepsRight()
+        {
+            // §5.2 tidalWave：x=-550 → -17.1875；y=water.y → WaterSurfaceY；vx=20 → 15.625。
+            IReadOnlyList<ProjectileSpawn> plan = Plan(WeaponId.TidalWave);
+            Assert.AreEqual(1, plan.Count);
+            Assert.AreEqual(-17.1875f, plan[0].WorldPosition.x, 1e-4f);
+            Assert.AreEqual(LevelGeometry.WaterSurfaceY, plan[0].WorldPosition.y, 1e-4f);
+            Assert.AreEqual(15.625f, plan[0].WorldVelocity.x, 1e-3f);
+            Assert.IsFalse(plan[0].Kinematic);
+        }
+
+        [Test]
+        public void VoodooDoll_UsesSameSlingPathAsGenericWeapons()
+        {
+            // §5.2 voodooDoll：twangMax=20，走弹弓；与 CherryBomb 同源换算（预览=实弹）。
+            IReadOnlyList<ProjectileSpawn> plan = Plan(WeaponId.VoodooDoll, vx: 4f, vy: 10f);
+            Assert.AreEqual(1, plan.Count);
+            Assert.AreEqual(Owner, plan[0].WorldPosition);
+            Assert.AreEqual(2.5601f, plan[0].WorldVelocity.x, 1e-3f);
+            Assert.AreEqual(4.8252f, plan[0].WorldVelocity.y, 1e-3f);
+            Assert.AreEqual(6.4003f, plan[0].WorldVelocity.z, 1e-3f);
+            Assert.IsFalse(plan[0].Kinematic);
+        }
+
+        [Test]
+        public void Cannon_PlacesOnePersistentAtAim()
+        {
+            // §5.2 cannon：placeableWeapon，摆位常驻。
+            IReadOnlyList<ProjectileSpawn> plan = Plan(WeaponId.Cannon);
+            Assert.AreEqual(1, plan.Count);
+            Assert.AreEqual(Aim, plan[0].WorldPosition);
+            Assert.AreEqual(Vector3.zero, plan[0].WorldVelocity);
+            Assert.IsTrue(plan[0].Kinematic);
+        }
+
+        [Test]
+        public void SweepingFlame_SpreadsBothWaysAt8PxPerSegment()
+        {
+            // §5.2 rumBottle 行：落地生成 2 个 SweepingFlame，向左右蔓延；8×0.78125=6.25。
+            IReadOnlyList<ProjectileSpawn> plan = Plan(WeaponId.SweepingFlame);
+            Assert.AreEqual(2, plan.Count);
+            Assert.AreEqual(Aim, plan[0].WorldPosition);
+            Assert.AreEqual(Aim, plan[1].WorldPosition);
+            Assert.AreEqual(6.25f, plan[0].WorldVelocity.x, 1e-3f);
+            Assert.AreEqual(-6.25f, plan[1].WorldVelocity.x, 1e-3f);
         }
 
         [Test]

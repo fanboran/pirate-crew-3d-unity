@@ -522,6 +522,53 @@ namespace PirateCrew.PirateCrew.Battle
                 _projectiles.Remove(projectile);
         }
 
+        /// <summary>
+        /// 半径内的全部角色（三维 <see cref="Physics.OverlapSphere"/>，按实例去重），写入 <paramref name="results"/>。
+        /// 供 6 把特殊武器的纯规则/胶水层做范围判定（tidalWave 横扫、anchor 命中、seagull 目标、
+        /// cannon AI 选敌、SweepingFlame 命中）——避免各弹体各写一份 OverlapSphere + GetComponentInParent。
+        /// </summary>
+        public void CollectPiratesInRadius(Vector3 worldCenter, float radiusWorld, List<PirateBase> results)
+        {
+            if (results == null)
+                return;
+
+            results.Clear();
+            Collider[] overlaps = Physics.OverlapSphere(
+                worldCenter, radiusWorld, pirateLayerMask, QueryTriggerInteraction.Ignore);
+
+            for (int i = 0; i < overlaps.Length; i++)
+            {
+                PirateBase pirate = overlaps[i] != null
+                    ? overlaps[i].GetComponentInParent<PirateBase>()
+                    : null;
+                if (pirate != null && !results.Contains(pirate))
+                    results.Add(pirate);
+            }
+        }
+
+        /// <summary>
+        /// rumBottle 落地（引爆）时额外生成 2 个 SweepingFlame（§5.2 rumBottle 行 / 表格末行）。
+        /// 生成计划与其它武器共用 <see cref="ProjectileSpawnPlanner"/>，保证"数据只有一份"。
+        /// </summary>
+        public int SpawnSweepingFlames(Vector3 worldCenter)
+        {
+            WeaponStats stats = WeaponCatalog.Get(WeaponId.SweepingFlame);
+            IReadOnlyList<ProjectileSpawn> plan = ProjectileSpawnPlanner.Plan(
+                stats, worldCenter, worldCenter, 0f, 0f);
+
+            for (int i = 0; i < plan.Count; i++)
+                CreateProjectile(stats, null, plan[i]);
+
+            return plan.Count;
+        }
+
+        /// <summary>该队是否由 AI 控制（cannon 的 §6.3 <c>aiFireTime=25</c> 自动发射判定用）。</summary>
+        public bool IsTeamAi(int teamIndex)
+        {
+            BattleTeam team = GetTeam(teamIndex);
+            return team != null && team.AiControlled;
+        }
+
         // ------------------------------------------------------------------
         // §3.3 胜负与得分
         // ------------------------------------------------------------------

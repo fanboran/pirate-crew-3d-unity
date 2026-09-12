@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
 using UnityEngine;
 
@@ -37,12 +38,17 @@ namespace PirateCrew.PirateCrew.Battle
     ///     抬升只改方向、不改速度大小，故 twangMax 的限速语义不被破坏。
     ///   · 放置类（PlaceableCount &gt; 0：woodenCrate 3 / gunpowderBarrel 2）：
     ///     N 条，生成点 = 瞄准落点沿 x 均匀铺开（间距 = 2×碰撞体半宽），初速 0，kinematic=true。
-    ///     3D 下沿世界 X（Flash 横向→X）铺开，落点在 XZ 地面平面上（y 由瞄准射线取地面 y=0）。
-    ///   · 未实现的专用武器（anchor / seagull / tidalWave / voodooDoll / cannon / SweepingFlame）：
-    ///     返回空列表——调用方据此走 TODO 分支，不生成错误弹体。
+    ///   · 特殊武器（<see cref="ProjectileProfile.MechanicFor"/> 非 Generic）：
+    ///     各自的生成位置/初速/数量由对应纯规则类（<c>AnchorRules</c> / <c>SeagullRules</c> /
+    ///     <c>TidalWaveRules</c> / <c>VoodooDollRules</c> / <c>CannonRules</c> / <c>SweepingFlameRules</c>）
+    ///     的常量推出，见 <see cref="PlanSpecial"/>。
     ///
-    /// 【出处】静态逆向文档 §5.1（初速公式）、§5.2（放置数量、AABB）、§3.4（抛自己/用武器二选一）、
-    ///         docs/M2-3D空间模型对齐.md §3（3D 投掷与抬升）。
+    /// 【出处】静态逆向文档 §5.1（初速公式）、§5.2（17 武器总表：触发条件/位置/速度/放置数量/备注）、
+    ///         §3.4（抛自己/用武器二选一）、docs/M2-3D空间模型对齐.md §3（3D 投掷与抬升）。
+    ///
+    /// 【单位】规则类里的常量都是 Flash px / px·帧⁻¹；本类用
+    ///   <see cref="LevelGeometry.PixelsToUnits"/> 折位置、<see cref="LevelGeometry.FlashSpeedScale"/>
+    ///   折速度，保证与角色投掷/轨迹预览同一套换算。
     /// </summary>
     public static class ProjectileSpawnPlanner
     {
@@ -53,7 +59,7 @@ namespace PirateCrew.PirateCrew.Battle
         /// </summary>
         /// <param name="stats">武器数值。</param>
         /// <param name="ownerWorldPosition">投掷者世界坐标（弹弓发射点）。</param>
-        /// <param name="aimWorldPosition">瞄准落点世界坐标（放置类铺开中心）。</param>
+        /// <param name="aimWorldPosition">瞄准落点世界坐标（放置类铺开中心 / 锚的落点 / 加农炮炮位）。</param>
         /// <param name="vxFlash">弹弓初速 vx（Flash px/帧，由 <c>Ballistics.TwangVelocity</c> 算好）；
         /// 与 <paramref name="vyFlash"/> 一起构成 Flash 的<b>平面</b>初速，映射到世界 XZ，仰角由抬升给出。</param>
         /// <param name="vyFlash">弹弓初速 vy（Flash px/帧）。</param>
@@ -64,8 +70,9 @@ namespace PirateCrew.PirateCrew.Battle
             float vxFlash,
             float vyFlash)
         {
-            if (!ProjectileProfile.SupportsGenericProjectile(stats))
-                return Empty;   // TODO：专用武器机制，见 WeaponProjectile 与待办清单
+            ProjectileMechanic mechanic = ProjectileProfile.MechanicFor(stats.Id);
+            if (mechanic != ProjectileMechanic.Generic)
+                return PlanSpecial(stats, mechanic, ownerWorldPosition, aimWorldPosition, vxFlash, vyFlash);
 
             if (stats.PlaceableCount > 0)
                 return PlanPlaceables(stats, aimWorldPosition);
@@ -85,7 +92,7 @@ namespace PirateCrew.PirateCrew.Battle
             if (count <= 0)
                 return Empty;
 
-            float spacing = 2f * LevelGeometry.PixelsToUnits(stats.AabbRadius);
+            float spacing = 2f * LevelGeometry.PixelsToUnits(ProjectileProfile.HorizontalHalfSizePixels(stats));
             var result = new ProjectileSpawn[count];
             float center = (count - 1) * 0.5f;
 
@@ -96,6 +103,89 @@ namespace PirateCrew.PirateCrew.Battle
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// 特殊武器的生成计划。逐条对应 §5.2 备注列：
+        ///   · AnchorDrop：从锚落点正上方 |y=-200|px 处、以 vy=40 等速直落（weight=0，无重力）。
+        ///   · SeagullFlight：从 x=-300 的屏幕左侧外飞入（高度取瞄准点上方 100px 作默认，
+        ///     玩家点选高度需 UI 交互，见报告）；以 vx=10 向右飞。
+        ///   · TidalWaveSweep：从 x=-550 的左侧外、水位高度起扫（vx=20）。
+        ///   · VoodooDollTransfer：与弹弓武器同一路径（twangMax=20），先锁定目标后抛出。
+        ///   · CannonPlacement：炮位 = 瞄准点，kinematic 常驻，蓄力发射由运行时驱动。
+        ///   · SweepingFlameSpread：由 rumBottle 生成 2 个（左右各一），也允许直接规划。
+        /// </summary>
+        static IReadOnlyList<ProjectileSpawn> PlanSpecial(
+            WeaponStats stats,
+            ProjectileMechanic mechanic,
+            Vector3 ownerWorldPosition,
+            Vector3 aimWorldPosition,
+            float vxFlash,
+            float vyFlash)
+        {
+            switch (mechanic)
+            {
+                case ProjectileMechanic.AnchorDrop:
+                {
+                    // §5.2 anchor：从 y=-200 以 vy=40 直落。FlashSpeedScale 把 px/帧折成世界单位/秒。
+                    float spawnHeight = LevelGeometry.PixelsToUnits(-AnchorRules.SpawnFlashY);
+                    float fallSpeed = AnchorRules.FallSpeed * LevelGeometry.FlashSpeedScale;
+                    Vector3 position = new Vector3(
+                        aimWorldPosition.x, aimWorldPosition.y + spawnHeight, aimWorldPosition.z);
+                    return new[] { new ProjectileSpawn(position, Vector3.down * fallSpeed, kinematic: false) };
+                }
+
+                case ProjectileMechanic.SeagullFlight:
+                {
+                    // §5.2 seagull：从 x=-300 以 vx=10 向右飞。高度默认瞄准点上方 100px（AI 口径，§6.3）。
+                    float spawnX = LevelGeometry.PixelsToUnits(SeagullRules.SpawnFlashX);
+                    float height = LevelGeometry.PixelsToUnits(SeagullRules.AiHeightAboveTargetMin);
+                    float speed = SeagullRules.FlightSpeed * LevelGeometry.FlashSpeedScale;
+                    Vector3 position = new Vector3(spawnX, aimWorldPosition.y + height, aimWorldPosition.z);
+                    return new[] { new ProjectileSpawn(position, Vector3.right * speed, kinematic: false) };
+                }
+
+                case ProjectileMechanic.TidalWaveSweep:
+                {
+                    // §5.2 tidalWave：x=-550, y=water.y, vx=20 横扫。
+                    float spawnX = LevelGeometry.PixelsToUnits(TidalWaveRules.SpawnFlashX);
+                    float speed = TidalWaveRules.SweepSpeed * LevelGeometry.FlashSpeedScale;
+                    Vector3 position = new Vector3(
+                        spawnX, LevelGeometry.WaterSurfaceY, aimWorldPosition.z);
+                    return new[] { new ProjectileSpawn(position, Vector3.right * speed, kinematic: false) };
+                }
+
+                case ProjectileMechanic.VoodooDollTransfer:
+                {
+                    // 与弹弓武器同源（twangMax=20），保证"预览 = 实弹"。
+                    Vector3 velocity = LevelGeometry.FlashLaunchVelocityToWorld(vxFlash, vyFlash);
+                    return new[] { new ProjectileSpawn(ownerWorldPosition, velocity, kinematic: false) };
+                }
+
+                case ProjectileMechanic.CannonPlacement:
+                {
+                    // §5.2 cannon：placeableWeapon，摆位常驻（limitedToTurn=false）。
+                    return new[] { new ProjectileSpawn(aimWorldPosition, Vector3.zero, kinematic: true) };
+                }
+
+                case ProjectileMechanic.SweepingFlameSpread:
+                {
+                    // §5.2 rumBottle 行：落地生成 2 个 SweepingFlame，向左右蔓延。
+                    int[] directions = SweepingFlameRules.SpreadDirections;
+                    float speed = SweepingFlameRules.SpreadStep * LevelGeometry.FlashSpeedScale;
+                    var result = new ProjectileSpawn[directions.Length];
+                    for (int i = 0; i < directions.Length; i++)
+                    {
+                        Vector3 velocity = new Vector3(directions[i] * speed, 0f, 0f);
+                        result[i] = new ProjectileSpawn(aimWorldPosition, velocity, kinematic: false);
+                    }
+
+                    return result;
+                }
+
+                default:
+                    return Empty;
+            }
         }
     }
 }
