@@ -47,6 +47,12 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>投掷/发射释放（载荷 float：释放时的拖拽距离 px）。</summary>
         public const string ShotReleased = "battle_shot_released";
+
+        /// <summary>AI 队伍开始思考（载荷 <see cref="AiThinkingPayload"/>；§6.1，相机停止自动滚动）。</summary>
+        public const string AiThinking = "ai_thinking";
+
+        /// <summary>AI 选定动作（载荷 <see cref="AiDecidedPayload"/>；§6.1 <c>aiMoveDetails</c>）。</summary>
+        public const string AiDecided = "ai_decided";
     }
 
     /// <summary>动作种类（<see cref="BattleEvents.ActionSelected"/> 载荷用，对应 §3.4 三路径）。</summary>
@@ -187,6 +193,60 @@ namespace PirateCrew.PirateCrew.Battle
             Outcome = outcome;
             Score = score;
             Team1IsAi = team1IsAi;
+        }
+    }
+
+    /// <summary>ai_thinking 载荷（§6.1 AI 队伍开始分帧评估）。</summary>
+    public readonly struct AiThinkingPayload
+    {
+        /// <summary>AI 队伍编号（1/2）。</summary>
+        public readonly int TeamNumber;
+
+        /// <summary>本次需要评估的存活角色数。</summary>
+        public readonly int ActorCount;
+
+        public AiThinkingPayload(int teamNumber, int actorCount)
+        {
+            TeamNumber = teamNumber;
+            ActorCount = actorCount;
+        }
+    }
+
+    /// <summary>ai_decided 载荷（§6.1 <c>aiMoveDetails</c> 的可观测投影）。</summary>
+    public readonly struct AiDecidedPayload
+    {
+        /// <summary>行动角色 id。</summary>
+        public readonly int PirateId;
+
+        /// <summary>队伍索引（0/1）。</summary>
+        public readonly int TeamIndex;
+
+        /// <summary>动作种类（<see cref="AiActionKind"/> 的整数值）。</summary>
+        public readonly int ActionKind;
+
+        /// <summary>武器槽位索引；-1 = 抛自己。</summary>
+        public readonly int WeaponSlotIndex;
+
+        /// <summary>voodooDoll 锁定目标 id；无则 -1。</summary>
+        public readonly int TargetUnitId;
+
+        /// <summary>最终排序分（含 M2 伤害增强项）。</summary>
+        public readonly float Success;
+
+        /// <summary>§6.1 无正收益且允许放弃 → 跳过本回合。</summary>
+        public readonly bool ShouldBailOut;
+
+        public AiDecidedPayload(
+            int pirateId, int teamIndex, int actionKind, int weaponSlotIndex,
+            int targetUnitId, float success, bool shouldBailOut)
+        {
+            PirateId = pirateId;
+            TeamIndex = teamIndex;
+            ActionKind = actionKind;
+            WeaponSlotIndex = weaponSlotIndex;
+            TargetUnitId = targetUnitId;
+            Success = success;
+            ShouldBailOut = shouldBailOut;
         }
     }
 }
