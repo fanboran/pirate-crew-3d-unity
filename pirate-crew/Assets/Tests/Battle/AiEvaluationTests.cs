@@ -302,10 +302,15 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         [Test]
         public void ScoreSelfThrowSample_HigherEvilness_EnemyIsMoreAttractive()
         {
-            // 场景：actor(100,400)、敌人(250,400)；落点(400,400) 距敌人 150px（在 100–200 的
-            // 「近距但不贴脸」区间，得 k = 0.2×(1−150/200) = 0.05，无贴脸惩罚）。
-            // §6.2 在敌人循环内 s *= (1+evilness)：evilness=5 时 0.05×6 = 0.3，再减落点距离项 0.3 → 0.0；
-            // evilness=0 时 0.05 − 0.3 = −0.25。故高 evilness 打分更高（会被优先瞄准）。
+            // 场景：actor(100,400)、敌人(500,400)；落点(400,400) 距敌人质心 100px。
+            // 【3D 落点质量项】−0.003 × 100 = −0.3（见 AiEvaluation.SelfLandingDistanceWeight）。
+            // 质心项：横向 (|400−500| − |100−500|)/−500 = +0.6；纵深项 0。
+            // 敌人循环：落点距敌人 100px → d²=10000，在 200² 内、不小于 100²（无贴脸惩罚），
+            // 故 k = 0.2×(1−100/200) = 0.1。乘子前的 base = −0.3 + 0.6 + 0.1 = 0.4，
+            // 再走 §6.2 的 s *= (1+evilness)：evilness=0 → 0.4；evilness=5 → 2.4（乘子放大收益）。
+            // 最后减「离自己太远」的 0.3（sd = 300，d² 不小于 90000）→ 0.1 / 2.1。
+            // 注意：3D 落点质量项是「离目标越近越好」的罚项，故本用例刻意取质心项收益能压过
+            // 它的几何，以继续验证「高 evilness 更受青睐」这条 Flash 乘子语义。
             float sampleX = 400f;
             float sampleY = 400f;
             var sample = new AiThrowSample(0f, 0f, sampleX, sampleY, false);
@@ -313,20 +318,20 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             AiBattlefield low = Field(new List<AiUnit>
             {
                 AiUnit.Simple(1, 0, 100f, 400f),
-                AiUnit.Simple(2, 1, 250f, 400f, evilness: 0),
+                AiUnit.Simple(2, 1, 500f, 400f, evilness: 0),
             }, 1, true, true);
 
             AiBattlefield high = Field(new List<AiUnit>
             {
                 AiUnit.Simple(1, 0, 100f, 400f),
-                AiUnit.Simple(2, 1, 250f, 400f, evilness: 5),
+                AiUnit.Simple(2, 1, 500f, 400f, evilness: 5),
             }, 1, true, true);
 
             float sLow = AiEvaluation.ScoreSelfThrowSample(sample, low, 1);
             float sHigh = AiEvaluation.ScoreSelfThrowSample(sample, high, 1);
 
-            Assert.AreEqual(-0.25f, sLow, 1e-4f);
-            Assert.AreEqual(0.00f, sHigh, 1e-4f);
+            Assert.AreEqual(0.10f, sLow, 1e-4f);
+            Assert.AreEqual(2.10f, sHigh, 1e-4f);
             Assert.Greater(sHigh, sLow);
         }
 
@@ -517,11 +522,10 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             // 只有 1 个存活角色（无敌人、无队友）：不能因除零/空集合崩溃，决定必须合法，
             // 且 ShouldBailOut 必须与 §6.1 的 best.success > 0 判据一致。
             //
-            // 【维度变化】原 2D 版断言「无敌人 → success ≤ 0」；3D 重投影后不再成立：
-            // §6.2 的 `(t.ey - this.y) * -0.003` 原意是「落点越高越好」，其 y 是 2D 的**高度**轴；
-            // 重投影后平面 y 变成**纵深**轴，于是「落点纵深与自身差得越多」会给出正分（本 seed 实测 +0.115）。
-            // 这是「坐标轴重投影 + 打分公式逐行保留」的固有结果，不是内核错误 —— 打分规则按要求未改，
-            // 故这里只校验合法性与 bailout 一致性，不断言符号。
+            // 【3D 落点质量项已实现】无存活敌人时 AiBattlefield.EnemyCentroid 回落到 actor 自身位置，
+            // 落点质量项 = −0.003 ×（落点到自身的 XZ 水平面像素距离）≤ 0，故自抛候选不会因纵深漂移得正分。
+            // 这里仍只校验合法性与 bailout 一致性，不对具体 success 符号下断言（本用例还带一个 dynamite 槽，
+            // 其收益走 §6.3 独立路径）。
             var units = new List<AiUnit> { AiUnit.Simple(1, 0, 100f, 400f) };
             AiBattlefield field = Field(units, 1, true, true, weapons: new[] { WeaponId.Dynamite });
 

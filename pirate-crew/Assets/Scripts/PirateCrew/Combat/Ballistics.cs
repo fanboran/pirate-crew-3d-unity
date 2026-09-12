@@ -3,18 +3,22 @@ using UnityEngine;
 namespace PirateCrew.PirateCrew.Combat
 {
     /// <summary>
-    /// 投掷弹道纯逻辑。
-    /// 对应逆向文档 §5.1（弹弓 twang 公式、满力拖拽距离、15 段虚线预测）与 §5.4（物理积分：撞地/撞墙）。
+    /// 投掷弹道纯逻辑（Flash 2D 平面口径）。
+    /// 对应逆向文档 §5.1（弹弓 twang 公式、满力拖拽距离）与 §5.4（撞地/撞墙的速度积分）。
     /// 全部为静态纯函数，不依赖 MonoBehaviour / GameObject，可在无头验证台运行。
     /// 坐标约定与 Flash 原版一致（y 轴向下，重力每帧 +weight）。
+    ///
+    /// 【与 <c>Battle.ThrowTrajectory</c> 的分工】本类只负责「弹弓初速」与「撞地/撞墙后的速度积分」，
+    /// 这些是与维度无关的 Flash 标量公式（拖拽距离、反弹/摩擦系数）。
+    /// <b>3D 抛物线采样不在这里</b>：XZ 竞技场下的逐步积分由 <c>Battle.ThrowTrajectory.Predict</c> 承担
+    /// （预览、实弹、AI 共用同一份半隐式欧拉）。原平面预测方法 <c>PredictTrajectory</c> 随 2D 模型废弃后
+    /// 已无调用方（仅自身测试引用），按「死代码不保留证据链、Git 历史即存档」删除；
+    /// 若需回看其 2D 口径实现，见本文件历史版本。
     /// </summary>
     public static class Ballistics
     {
         /// <summary>原版弹弓的固定力度系数：初速 = 0.25 × 拖拽距离。</summary>
         public const float DefaultForceScale = 0.25f;
-
-        /// <summary>原版轨迹预测的虚线段数（§5.1）。</summary>
-        public const int DefaultPredictionSteps = 15;
 
         /// <summary>撞墙时的水平速度反弹系数（§5.4）：vx *= -0.4。</summary>
         public const float WallBounceScale = -0.4f;
@@ -57,37 +61,6 @@ namespace PirateCrew.PirateCrew.Combat
         public static float FullForceDragDistance(float twangMax, float forceScale = DefaultForceScale)
         {
             return twangMax / forceScale;
-        }
-
-        /// <summary>
-        /// 弹弓虚线轨迹预测（§5.1 drawTwangLine）。
-        /// 从 (startX,startY) 以 (vx,vy) 出发，每步先 vy += weight（重力）再积分位置，
-        /// 返回 steps 个采样点（默认 15，即原版 15 段虚线）。
-        /// </summary>
-        public static (float x, float y)[] PredictTrajectory(
-            float startX, float startY, float vx, float vy,
-            float weight = 1f, int steps = DefaultPredictionSteps)
-        {
-            if (steps < 0)
-            {
-                steps = 0;
-            }
-
-            var points = new (float x, float y)[steps];
-
-            float x = startX;
-            float y = startY;
-            float vyRunning = vy;
-
-            for (int i = 0; i < steps; i++)
-            {
-                vyRunning += weight;   // 先加重力
-                x += vx;
-                y += vyRunning;
-                points[i] = (x, y);
-            }
-
-            return points;
         }
 
         /// <summary>

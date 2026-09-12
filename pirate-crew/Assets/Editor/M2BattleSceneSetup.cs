@@ -41,6 +41,13 @@ namespace PirateCrew.EditorTools
         const string ScenesFolder = "Assets/Scenes";
         const string PrefabFolder = "Assets/Prefabs/PirateCrew";
         const string MaterialFolder = PrefabFolder + "/Materials";
+
+        /// <summary>
+        /// 天空盒材质独立归位到 <c>Assets/Art/Materials/</c>：它是环境（渲染设置）资产，
+        /// 不属于任何 Prefab，和战斗单位/地面等玩法材质分开放，避免「天空盒躺在 PirateCrew 预制体材质目录」的错位。
+        /// </summary>
+        const string ArtMaterialFolder = "Assets/Art/Materials";
+        const string SkyMaterialPath = ArtMaterialFolder + "/BattleSky.mat";
         const string PiratePrefabPath = PrefabFolder + "/PirateBase.prefab";
         const string OutlineMaterialPath = MaterialFolder + "/PirateOutlineUnit.mat";
         const string OutlineShaderName = "PirateCrew/PirateOutline";
@@ -67,6 +74,7 @@ namespace PirateCrew.EditorTools
             EnsureFolder("Assets/Prefabs");
             EnsureFolder(PrefabFolder);
             EnsureFolder(MaterialFolder);
+            EnsureFolder(ArtMaterialFolder);
 
             GameObject piratePrefab = BuildPiratePrefab();
             BuildBattleScene(piratePrefab);
@@ -226,7 +234,7 @@ namespace PirateCrew.EditorTools
         /// </summary>
         static bool SetupSkyAndAmbient()
         {
-            const string skyPath = MaterialFolder + "/BattleSky.mat";
+            const string skyPath = SkyMaterialPath;
             var sky = AssetDatabase.LoadAssetAtPath<Material>(skyPath);
 
             if (sky == null)

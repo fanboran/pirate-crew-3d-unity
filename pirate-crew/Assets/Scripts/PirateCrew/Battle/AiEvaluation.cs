@@ -608,6 +608,14 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>落水扣分（§6.2：<c>if t.ey &gt;= water.y: s -= 2</c>）。</summary>
         public const float DrownPenalty = 2f;
 
+        /// <summary>
+        /// 落点质量项的每像素权重（<b>3D 化标定值，非 Flash 原式常数</b>）。
+        /// 原 §6.2 是 <c>(t.ey − this.y) × −0.003</c>（2D 高度轴语义）；3D 改为
+        /// 「落点与目标的 XZ 水平面像素距离」的线性罚项，斜率沿用原式的 0.003/px。
+        /// 标定依据见 <see cref="ScoreSelfThrowSample"/> 内注释：保持量级与其它项同阶。
+        /// </summary>
+        public const float SelfLandingDistanceWeight = 0.003f;
+
         /// <summary>通用武器基础分（§6.3：<c>s = -0.01</c>）。</summary>
         public const float WeaponBaseScore = -0.01f;
 
@@ -828,7 +836,10 @@ namespace PirateCrew.PirateCrew.Battle
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// §6.2 自抛打分（逐行转写）。注意原版把 <c>s *= (1 + e.evilness)</c> 写在敌人循环内，
+        /// §6.2 自抛打分。<b>除首项「落点质量」外逐行转写</b>：首项原为 2D 高度轴的
+        /// <c>(t.ey − this.y) × −0.003</c>，3D 化后改为「落点与目标的 XZ 水平面像素距离」的线性罚项
+        /// （语义与标定见方法内注释与 <see cref="SelfLandingDistanceWeight"/>）；其余各项保持原式。
+        /// 注意原版把 <c>s *= (1 + e.evilness)</c> 写在敌人循环内，
         /// 会对<b>已累计的整份分数</b>连乘——这是原版事实行为，此处忠实保留（并因此让 evilness
         /// 的影响被放大）。落水额外 −2；顺路宝箱 +0.5。
         /// </summary>
@@ -841,10 +852,21 @@ namespace PirateCrew.PirateCrew.Battle
 
             float s = 0f;
 
-            // 落点越高越好（y 向下，故取负系数）。
-            s += (t.Ey - actor.Y) * -0.003f;
-
             field.EnemyCentroid(actor.TeamIndex, out float enemyAvgX, out float enemyAvgY);
+
+            // 【3D 落点质量项】原 Flash §6.2 是 `s += (t.ey - this.y) * -0.003`：2D 里 ey/this.y 是
+            // **高度**轴，「落点越高越好」。重投影到 XZ 竞技场后平面 y 变成**纵深**轴，高度差语义已不存在。
+            // 3D 下「落点更好」= 预测落点与目标（敌方存活质心；无存活敌人时 AiBattlefield.EnemyCentroid
+            // 回落到 actor 自身位置）的 XZ 水平面像素距离越近越好，故改为一维水平距离的线性罚项。
+            // 系数标定：沿用原式的 0.003/px 斜率。原式对 ey 差值的斜率是 0.003/px，换成同量纲（Flash 平面像素）
+            // 的欧氏距离后量级不变——典型 200px 落点偏差 ≈ −0.6，与紧随其后的质心项 `pixelDiff / 500`
+            // 及近敌项 `k ≤ 0.2` 同数量级，不会压过敌人/队友项，符合「线性小权重项」的定位。
+            float landingToTargetDx = t.Ex - enemyAvgX;
+            float landingToTargetDy = t.Ey - enemyAvgY;
+            float landingToTargetDistance = MathF.Sqrt(
+                landingToTargetDx * landingToTargetDx + landingToTargetDy * landingToTargetDy);
+            s -= landingToTargetDistance * SelfLandingDistanceWeight;
+
             s += (MathF.Abs(t.Ex - enemyAvgX) - MathF.Abs(actor.X - enemyAvgX)) / -500f;
             s += (MathF.Abs(t.Ey - enemyAvgY) - MathF.Abs(actor.Y - enemyAvgY)) / -500f;
 

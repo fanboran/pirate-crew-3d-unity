@@ -129,58 +129,6 @@ namespace PirateCrew.PirateCrew.Combat.Tests
         }
 
         // ------------------------------------------------------------------
-        // PredictTrajectory（§5.1：每步先 vy += weight）
-        // ------------------------------------------------------------------
-
-        [Test]
-        public void PredictTrajectory_AppliesGravityBeforeEachStep()
-        {
-            // start=(0,0), vx=5, vy=0, weight=1, steps=3
-            // 步1: vy=1, x=5,  y=1   → (5,1)
-            // 步2: vy=2, x=10, y=3   → (10,3)
-            // 步3: vy=3, x=15, y=6   → (15,6)
-            var pts = Ballistics.PredictTrajectory(0f, 0f, 5f, 0f, 1f, 3);
-
-            Assert.AreEqual(3, pts.Length);
-            Assert.AreEqual(5f, pts[0].x, Eps);
-            Assert.AreEqual(1f, pts[0].y, Eps);
-            Assert.AreEqual(10f, pts[1].x, Eps);
-            Assert.AreEqual(3f, pts[1].y, Eps);
-            Assert.AreEqual(15f, pts[2].x, Eps);
-            Assert.AreEqual(6f, pts[2].y, Eps);
-        }
-
-        [Test]
-        public void PredictTrajectory_DefaultsToFifteenPoints()
-        {
-            var pts = Ballistics.PredictTrajectory(0f, 0f, 0f, 0f);
-
-            Assert.AreEqual(15, pts.Length);
-        }
-
-        [Test]
-        public void PredictTrajectory_OneStep()
-        {
-            // start=(10,20), vx=-3, vy=5, weight=2, steps=1
-            // 步1: vy=7, x=7, y=27 → (7,27)
-            var pts = Ballistics.PredictTrajectory(10f, 20f, -3f, 5f, 2f, 1);
-
-            Assert.AreEqual(1, pts.Length);
-            Assert.AreEqual(7f, pts[0].x, Eps);
-            Assert.AreEqual(27f, pts[0].y, Eps);
-        }
-
-        [Test]
-        public void PredictTrajectory_StartPositionNotIncluded()
-        {
-            // 返回的是采样点（不含起点）：vx=0,vy=0,weight=1 时第一点应为 (0,1) 而非 (0,0)
-            var pts = Ballistics.PredictTrajectory(100f, 200f, 0f, 0f, 1f, 1);
-
-            Assert.AreEqual(100f, pts[0].x, Eps);
-            Assert.AreEqual(201f, pts[0].y, Eps);
-        }
-
-        // ------------------------------------------------------------------
         // IntegrateGroundContact（§5.4）
         // ------------------------------------------------------------------
 
