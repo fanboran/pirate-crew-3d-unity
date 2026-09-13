@@ -275,10 +275,12 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         // ------------------------------------------------------------------
-        // 战斗相机参数（对齐 Godot orbit_camera.gd：pitch 45°、distance 18、yaw 0）
+        // 战斗相机参数（pitch 45° / yaw 0 对齐 Godot orbit_camera.gd；
+        // 距离 18→15 为提案调整：r2 出图实测出厂机位单位仅 21px < 判据 A-2 的 25px 下限，
+        // 18/15 缩放后 ≈25px 达标，出处 docs/M2-3D空间模型对齐.md §相机行 + 美术品控 AR-R2-006）
         // ------------------------------------------------------------------
 
-        const float CameraDistance = 18f;
+        const float CameraDistance = 15f;
         const float CameraPitchDegrees = 45f;
         const float CameraFieldOfView = 60f;
 

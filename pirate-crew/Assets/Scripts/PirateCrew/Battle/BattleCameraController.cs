@@ -37,7 +37,7 @@ namespace PirateCrew.PirateCrew.Battle
     ///
     /// 【安全底线（勿破坏）】
     ///   · 不改 Transposer 的 pitch/距离/yaw：<c>BattleSceneWiringTests.AssertPerspectiveTiltedCamera</c>
-    ///     断言透视 + 45° + 距离 18 + offset.x=0。故"推近/旁观"只改 FOV，绝不改 FollowOffset；
+    ///     断言透视 + 45° + 距离 15 + offset.x=0。故"推近/旁观"只改 FOV，绝不改 FollowOffset；
     ///     可选的手动环绕/缩放默认关闭（<c>enableManualOrbit/Zoom = false</c>），零输入即零漂移。
     ///   · 震屏只加在"相机目标位置"上，且**玩家按住左键（正在拖拽瞄准）时一律不施加**；
     ///     <see cref="FocusPoint"/> 返回的是**去震屏**的干净位置，不影响 panToCharacter 的"离相机中心最近"判定。
@@ -97,7 +97,7 @@ namespace PirateCrew.PirateCrew.Battle
         [SerializeField] float hitStopTimeScale = CameraFeelRules.DefaultHitStopTimeScale;
 
         [Header("聚焦表现（提案/待定）")]
-        [Tooltip("选中/回合聚焦时的轻微 FOV 推近峰值（度）。只改 FOV，不动 Transposer 距离（PlayMode 断言要求距离 18）。")]
+        [Tooltip("选中/回合聚焦时的轻微 FOV 推近峰值（度）。只改 FOV，不动 Transposer 距离（PlayMode 断言要求距离 15）。")]
         [SerializeField] float selectionPushInDegrees = CameraFeelRules.SelectionPushInDegrees;
 
         [Tooltip("FOV 推近单程时长（秒）。")]
@@ -120,7 +120,7 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("落水时相机焦点下压位移（世界单位）。")]
         [SerializeField] float drownDipWorldUnits = CameraFeelRules.DrownDipWorldUnits;
 
-        [Header("玩家相机微操（用户拍板默认开启：右键环绕 + 滚轮缩放；零输入时保持出厂 pitch45/距离18）")]
+        [Header("玩家相机微操（用户拍板默认开启：右键环绕 + 滚轮缩放；零输入时保持出厂 pitch45/距离15）")]
         [Tooltip("右键拖拽环绕（改 Transposer 的 yaw，保持 pitch 45°/距离不变）。默认开。")]
         [SerializeField] bool enableManualOrbit = true;
 
@@ -786,7 +786,7 @@ namespace PirateCrew.PirateCrew.Battle
                 changed = true;
             }
 
-            // 关键：无输入且已收敛时**不写** FollowOffset，保证出厂设置（pitch45/距离18）逐值不变。
+            // 关键：无输入且已收敛时**不写** FollowOffset，保证出厂设置（pitch45/距离15）逐值不变。
             if (!changed)
                 return;
 

@@ -67,8 +67,8 @@ namespace PirateCrew.EditorTools
     ///
     /// 【偏移量依据】竞技场由 <c>LevelData.WidthTiles × HeightTiles</c> 决定（level_1 = 50×17，
     /// 中心约 (25, 0, 8.5)）；下列偏移按该尺度取景，换更大的关卡时按需调大 Offset。
-    /// 相机默认战斗视角对齐场景出厂值（distance 18、pitch 45°、yaw 0 →
-    /// offset ≈ (0, 12.73, 12.73)，见 <c>M2BattleSceneSetup.CameraDistance/CameraPitchDegrees</c>）。
+    /// 相机默认战斗视角对齐场景出厂值（distance 15、pitch 45°、yaw 0 →
+    /// offset ≈ (0, 10.61, 10.61)，见 <c>M2BattleSceneSetup.CameraDistance/CameraPitchDegrees</c>）。
     /// </summary>
     public static class ArtReviewShots
     {
@@ -90,10 +90,10 @@ namespace PirateCrew.EditorTools
                 Slug = "battle-45",
                 Label = "45° 默认战斗视角",
                 Pivot = ArtReviewPivot.ArenaCenter,
-                Offset = new Vector3(0f, 12.73f, 12.73f),
+                Offset = new Vector3(0f, 10.61f, 10.61f),
                 Fov = 60f,
                 ShowHud = false,
-                Note = "复现出厂默认机位（distance 18 / pitch 45°），评审场景与角色的常规观感。",
+                Note = "复现出厂默认机位（distance 15 / pitch 45°），评审场景与角色的常规观感。",
             },
             new ArtReviewShot
             {
@@ -132,7 +132,7 @@ namespace PirateCrew.EditorTools
                 Slug = "hud-fullscreen",
                 Label = "HUD 全屏",
                 Pivot = ArtReviewPivot.ArenaCenter,
-                Offset = new Vector3(0f, 12.73f, 12.73f),
+                Offset = new Vector3(0f, 10.61f, 10.61f),
                 Fov = 60f,
                 ShowHud = true,
                 Note = "看 HUD 排版/字号/中文字形是否正常（不含方块）、按钮与名册是否溢出。",

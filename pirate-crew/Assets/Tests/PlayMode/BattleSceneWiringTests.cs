@@ -82,7 +82,7 @@ namespace PirateCrew.Tests
             // 偏移 = (0, d·sin(pitch), d·cos(pitch))，由此反推俯角与距离。
             float distance = offset.magnitude;
             float pitch = Mathf.Atan2(offset.y, new Vector2(offset.x, offset.z).magnitude) * Mathf.Rad2Deg;
-            Assert.AreEqual(18f, distance, 0.1f, "相机距焦点应为 18（对齐 Godot orbit_camera 默认值）");
+            Assert.AreEqual(15f, distance, 0.1f, "相机距焦点应为 15（18→15 提案：出厂机位单位 ≥25px 可读，AR-R2-006）");
             Assert.AreEqual(45f, pitch, 0.5f, "相机俯角应为 45°");
             Assert.AreEqual(0f, offset.x, 1e-4f, "yaw = 0：相机偏移应落在 +Z/+Y 平面内");
         }
