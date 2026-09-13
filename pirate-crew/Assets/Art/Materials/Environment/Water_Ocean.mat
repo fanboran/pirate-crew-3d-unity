@@ -1,0 +1,91 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Water_Ocean
+  m_Shader: {fileID: 4800000, guid: d6ad5a4eeb6bd7c41b4fed130a3b68cb, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs: []
+    m_Ints: []
+    m_Floats:
+    - _CausticDepthFade: 2.2
+    - _CausticScale: 0.55
+    - _CausticSpeed: 0.35
+    - _CausticStrength: 0.3
+    - _CausticWarp: 0.6
+    - _DebugMode: 0
+    - _FoamBreakup: 0.45
+    - _FoamNoiseScale: 5
+    - _FoamNoiseScale2: 13
+    - _FoamPulseFrequency: 1.2
+    - _FoamPulseSpeed: 0.55
+    - _FoamPulseStrength: 0.6
+    - _FoamSpeed: 0.25
+    - _FoamStrength: 0.85
+    - _FoamWidth: 1.6
+    - _FresnelPower: 5
+    - _FresnelStrength: 1
+    - _HeightFieldFoamStrength: 0.6
+    - _HeightFieldNormalStrength: 0.35
+    - _ObstacleFoamBoost: 1.2
+    - _Opacity: 0.82
+    - _ReflectionStrength: 0.55
+    - _RefractionBlend: 0.35
+    - _RefractionDepthFade: 1.6
+    - _RefractionStrength: 0.035
+    - _ShoreFadeDistance: 4
+    - _ShorelineFoamGain: 1.6
+    - _Smoothness: 0.92
+    - _SpecularIntensity: 2.2
+    - _W1Amp: 0.055
+    - _W1Length: 13
+    - _W1Speed: 1
+    - _W1Steep: 0.65
+    - _W2Amp: 0.04
+    - _W2Length: 7.5
+    - _W2Speed: 1.15
+    - _W2Steep: 0.6
+    - _W3Amp: 0.028
+    - _W3Length: 4.2
+    - _W3Speed: 1.3
+    - _W3Steep: 0.55
+    - _W4Amp: 0.016
+    - _W4Length: 2.4
+    - _W4Speed: 1.5
+    - _W4Steep: 0.5
+    - _WaveScaleA: 0.32
+    - _WaveScaleB: 0.95
+    - _WaveSpeedA: 0.45
+    - _WaveSpeedB: 0.85
+    - _WaveStrengthA: 0.55
+    - _WaveStrengthB: 0.28
+    m_Colors:
+    - _CausticColor: {r: 0.8, g: 1, b: 0.92, a: 1}
+    - _DeepColor: {r: 0.101960786, g: 0.30980393, b: 0.47843137, a: 1}
+    - _FoamColor: {r: 0.9411765, g: 0.96862745, b: 1, a: 1}
+    - _MidColor: {r: 0.16862746, g: 0.47843137, b: 0.72156864, a: 1}
+    - _ShallowColor: {r: 0.3019608, g: 0.6509804, b: 0.8509804, a: 1}
+    - _W1Dir: {r: 1, g: 0, b: 0.25, a: 0}
+    - _W2Dir: {r: 0.6, g: 0, b: 1, a: 0}
+    - _W3Dir: {r: -0.3, g: 0, b: 1, a: 0}
+    - _W4Dir: {r: 1, g: 0, b: -0.5, a: 0}
+    - _WaveDirectionA: {r: 1, g: 0, b: 0.35, a: 0}
+    - _WaveDirectionB: {r: -0.4, g: 0, b: 1, a: 0}
+  m_BuildTextureStacks: []

@@ -1,0 +1,57 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Surface_Brass
+  m_Shader: {fileID: 4800000, guid: 0ba818b71cd470b4e9749b4cd73e4e76, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs: []
+    m_Ints: []
+    m_Floats:
+    - _AmbientStrength: 1
+    - _ColorRampBias: 0.5
+    - _ColorRampContrast: 1.5
+    - _DebugMode: 0
+    - _DetailNoiseScale: 20
+    - _DetailNormalStrength: 0.25
+    - _EdgeWear: 0.35
+    - _Metallic: 1
+    - _NoiseScale: 6
+    - _NoiseStrength: 0.35
+    - _RippleDistort: 0.35
+    - _RippleScale: 16
+    - _RippleStrength: 0.1
+    - _Smoothness: 0.75
+    - _WaterLevelY: -0.2
+    - _WetBandWidth: 0.45
+    - _WetDarken: 0.3
+    - _WetLineDarkening: 0.25
+    - _WetLineMax: 0.22
+    - _WetLineMin: 0.1
+    - _WetSmoothnessBoost: 0.25
+    - _Wetness: 0
+    m_Colors:
+    - _BaseColorA: {r: 0.47843137, g: 0.36078432, b: 0.11764706, a: 1}
+    - _BaseColorB: {r: 0.6901961, g: 0.5529412, b: 0.24313726, a: 1}
+    - _BaseColorC: {r: 0.8509804, g: 0.7137255, b: 0.3529412, a: 1}
+    - _NoiseStretch: {r: 1, g: 1, b: 0, a: 0}
+    - _WearColor: {r: 0.9098039, g: 0.8352941, b: 0.6392157, a: 1}
+    - _WetSandColor: {r: 0.659, g: 0.553, b: 0.361, a: 1}
+  m_BuildTextureStacks: []

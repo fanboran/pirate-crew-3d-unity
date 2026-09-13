@@ -155,6 +155,7 @@ MonoBehaviour:
   body: {fileID: 3731857768786557635}
   bodyCollider: {fileID: 3244688377207235776}
   freezeRotation: 1
+  visualAnimator: {fileID: 0}
 --- !u!114 &4781346681108462892
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -169,5 +170,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   targetRenderer: {fileID: 0}
   tintByTeam: 1
-  teamRedTint: {r: 0.8, g: 0.3, b: 0.28, a: 1}
-  teamBlueTint: {r: 0.3, g: 0.45, b: 0.8, a: 1}
+  teamRedTint: {r: 1, g: 0.228, b: 0.161, a: 1}
+  teamBlueTint: {r: 0.2, g: 0.4, b: 1, a: 1}
