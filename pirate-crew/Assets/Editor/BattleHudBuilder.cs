@@ -8,22 +8,32 @@ using UnityEngine.UI;
 namespace PirateCrew.EditorTools
 {
     /// <summary>
-    /// 战斗 HUD 重建器：按 docs/UI-UX与中文本地化规范.md §3.5 线框图搭出全中文 HUD。
+    /// 战斗 HUD 重建器（**本波次：半透明亚克力 / 液态玻璃重铺 + 字号整体下调一档 + 紧凑密度**）。
     ///
     /// 【谁调用】<see cref="BattleUiTheme.Apply"/>——它由 <c>M2BattleSceneSetup.BuildHud</c> 在
-    /// 既有 HUD 与接线完成后回调；本构建器**先清掉旧 HUD 子节点**再重建，
-    /// 属于规范 §3.5「TopRight 拆顶部信息条 / 武器面板改滚动列表 / 名册行中文与字号提档」的落地。
+    /// 既有 HUD 与接线完成后回调；本构建器**先清掉旧 HUD 子节点**再重建。
     ///
-    /// 【视觉】木板 / 羊皮纸 / 黄铜三段材质语言（§1.2）：面板 = 深木底 + 黄铜描边，
-    /// 按钮 = 木板九宫格 + 四态，文字 = TMP 中文字体，配色取 §1.3 Token。
+    /// 【视觉语言（本波次换）】旧版是"木板 / 羊皮纸 / 黄铜 = 纯色面板"（用户原话"超级丑，纯色面板
+    /// 还不如半透明"）。新版：
+    ///   · 面板底 = <see cref="GlassPanelSpriteBuilder"/> 自产的半透明亚克力九宫格
+    ///     （圆角 14 + 外 1px 亮描边（上亮下暗）+ 内 1px 暗描边 + 3px 更透的厚度带 + 垂直渐变
+    ///      + 顶部 10% 高光带 + ±2% 噪点）；UGUI 无真模糊，取舍见该类的类注释；
+    ///   · **玻璃分档 = 对比度算出来的，不是审美选择**：
+    ///     <see cref="GlassPanelSpriteBuilder.Tone.Dense"/>（0.88）承载文字（名册整块 / 武器面板整块 /
+    ///     提示条 / 顶栏的两块文字槽 / 状态面板的两条），
+    ///     <see cref="GlassPanelSpriteBuilder.Tone.Frame"/>（0.70，更透）只做"框"（顶栏 / 状态面板），
+    ///     金标题优先放内容片（7.76:1）；框架层自身也达标（4.52:1）作为兜底；
+    ///     —— 全套推导与最坏叠加底（纯白场景）见 <see cref="GlassPanelSpriteBuilder"/> 与 <see cref="BattleUiTheme.Tok"/>；
+    ///   · 按钮 = 玻璃四态（hover 提亮 22% + alpha 0.80→0.92 变实）；字号 = <see cref="MenuUiBuilder.FontScale"/>。
     ///
-    /// 【布局口径（本轮统一）】
-    ///   · 外安全边距 <see cref="Safe"/>：所有角落面板统一 24px（实测可见边 21-22px 是 3px 黄铜外描边外扩所致）；
-    ///   · 面板内边距 <see cref="PanelPadding"/>：标题/标签一律退到面板边 24px 以内，不压边框；
-    ///   · 通栏条（底部操作提示条）是唯一允许近贴边的元素（底距 16px），
-    ///     武器面板底缘与提示条顶边的净间距 = 24px（见 <see cref="WeaponPanelBottom"/>）；
-    ///   · 顶部信息条 = 一整条 704×48 木板（回合计数 | 模式开关 | 计时），文字不再浮在水面上；
-    ///   · 名册面板高度随实际出战行数收缩（VerticalLayoutGroup + ContentSizeFitter），不留空槽。
+    /// 【布局口径（本波次统一，向参照物 game-2 的"紧凑贴边少占屏"看齐）】
+    ///   · 外安全边距 <see cref="Safe"/> = 16px（旧 24px；参照物 SCREEN_MARGIN 是 12px）；
+    ///   · 面板内边距 <see cref="PanelPadding"/> = 14px（旧 24px）；面板间距 <see cref="Gap"/> = 12px；
+    ///   · 顶部信息条 = 一条 640×42 玻璃条（回合计数槽 | 模式开关两段 | 计时槽），
+    ///     居中摆在**小地图（左上）与状态面板（右上）之间**，三者互不重叠（旧版 704 宽顶栏
+    ///     与小地图水平重叠、把「海图」标题压住了）；
+    ///   · 名册面板高度随实际出战行数收缩（VerticalLayoutGroup + ContentSizeFitter），不留空槽；
+    ///   · 底部三段自下而上：提示条 16..48 → 武器面板 60..336（净间距 12）→ 名册底 360。
     ///
     /// 【节点契约】返回的 <see cref="Result"/> 必须覆盖 <see cref="BattleHud"/> 的全部
     /// <c>[SerializeField]</c> 文本/按钮/名册引用，由 <see cref="BattleUiTheme"/> 重新接线。
@@ -40,122 +50,103 @@ namespace PirateCrew.EditorTools
         /// <summary>小地图面板名（必须与 HudMinimapSceneSetup.MinimapPanelName 一致，且为 Canvas 直接子节点）。</summary>
         public const string MinimapPanelName = "MinimapPanel";
 
-        /// <summary>外安全边距（§1.7：角落 HUD 件离屏边 ≥24px）。</summary>
-        const float Safe = 24f;
+        /// <summary>外安全边距（本波次 24→16；参照物 game-2 的 SCREEN_MARGIN = 12，取中偏紧）。</summary>
+        const float Safe = 16f;
 
-        /// <summary>面板内边距（统一口径：标题/标签/内容都退到面板边 24px 以内）。</summary>
-        const float PanelPadding = 24f;
+        /// <summary>面板内边距（本波次 24→14）。</summary>
+        const float PanelPadding = 14f;
 
-        /// <summary>
-        /// 顶部信息条（一整条木板：回合计数 / 模式开关 / 计时都装进去）。
-        /// 【为什么合并】回合「1/20」（实测 2.67:1）与「时间 0:00」（2.83:1）原先直接压在水面上，
-        /// 低于 D-2 的 4.5:1；纳入同一条木底板后文字底变成木色（对比 ≥8:1），再叠 2px <c>#2A2A2A</c> 描边
-        /// （《美术风格指南》§2.5「场景上叠加的文字必须带 2px #2A2A2A 描边」）。
-        /// 【宽度怎么来的】条右缘不得越过右上信息面板左缘（实测 x≈1336）再退 24px 安全边距：
-        /// 1336 − 24 = 1312 → 半宽 352 → 704。条内横向排布：
-        /// 24 内边距 │ 124 文字区 │ 24 │ 2×180 开关段 │ 24 │ 124 文字区 │ 24 内边距 = 704。
-        /// </summary>
-        const float TopBarWidth = 704f;
+        /// <summary>面板之间的净间距（间距系统只取 4/6/8/12/16 五档，这里用 12）。</summary>
+        const float Gap = 12f;
 
-        /// <summary>顶部信息条高度（与原来的模式开关面板同高）。</summary>
-        const float TopBarHeight = 48f;
-
-        /// <summary>条内文字区宽度（回合 / 计时各一块；「回合 1/20」实测 ≈102px + 2px 描边 → 124 够放）。</summary>
-        const float TopBarTextWidth = 124f;
+        // ---------------- 顶部信息条 ----------------
 
         /// <summary>
-        /// 条内文字区中心 X 偏移：内边距 24 + 半宽 62 = 86 → 距条中心 352-86 = 266。
-        /// 由此文字区外缘正好退到条边 24px，与中间的开关段留 24px 净间距。
+        /// 顶部信息条宽度。【为什么是 640】条要居中(0.5,1)且不与两侧面板重叠：
+        /// 小地图右缘 = 16+240 = 256，状态面板左缘 = 1920−16−320 = 1584；
+        /// 居中条允许的半宽 = min(960−256−12, 1584−960−12) = min(692, 612) = 612 → ≤1224 都行，
+        /// 640 是"够放 回合槽 112 + 开关 336 + 计时槽 112 + 内边距"的紧凑值。
         /// </summary>
-        const float TopBarTextCenterX = 266f;
+        const float TopBarWidth = 640f;
 
-        /// <summary>模式开关单段尺寸（两段并排 = 360px，居中占据条内中间区）。</summary>
-        const float TopBarSegmentWidth = 180f;
-        const float TopBarSegmentHeight = 40f;
+        /// <summary>顶部信息条高度（42 = 内边距 6 ×2 + 控件 30）。</summary>
+        const float TopBarHeight = 42f;
 
-        /// <summary>模式开关单段中心 X 偏移（±90 使两段并排占 −180..180）。</summary>
-        const float TopBarSegmentCenterX = 90f;
+        /// <summary>条内文字槽（内容片）尺寸：回合计数 / 计时各一块。
+        /// 124 宽是按最长文案反推的：「玩家 2，该你了」（回合提示，6 字 × 18px ≈ 108）留 8px 余量。</summary>
+        const float TopBarSlotWidth = 124f;
+        const float TopBarSlotHeight = 30f;
 
-        /// <summary>提示条高度（底部通栏条，§1.7 允许近贴边的例外）。</summary>
-        const float HintBarHeight = 36f;
+        /// <summary>文字槽中心偏移：槽外缘退到条边 12px → 半宽 320 − 12 − 62 = 246。</summary>
+        const float TopBarSlotCenterX = 246f;
 
-        /// <summary>提示条宽度（收窄居中，不再横跨可玩区）。</summary>
-        const float HintBarWidth = 960f;
+        /// <summary>模式开关单段尺寸（两段并排 = 336，居中占据条内中间区）。</summary>
+        const float TopBarSegmentWidth = 168f;
+        const float TopBarSegmentHeight = 30f;
 
-        /// <summary>名册行距（≈ 名册字号 24 × 1.5，规范 §1.4 建议 1.4-1.6 倍字号）。</summary>
-        const float RosterRowPitch = 36f;
+        /// <summary>模式开关单段中心偏移（±88 使两段占 −172..172，与两侧文字槽各留 24px 净间距）。</summary>
+        const float TopBarSegmentCenterX = 88f;
 
-        /// <summary>名册行高（小于行距，行间留 2px）。</summary>
-        const float RosterRowHeight = 34f;
+        // ---------------- 右上状态 ----------------
+
+        /// <summary>右上状态面板（回合提示 + 双方存活）。</summary>
+        const float StatusWidth = 320f;
+        const float StatusHeight = 88f;
+        const float StatusChipWidth = 292f;
+        const float StatusChipHeight = 28f;
+
+        // ---------------- 底部 ----------------
+
+        /// <summary>提示条（通栏条是唯一允许近贴边的元素，仍留 16px）。</summary>
+        const float HintBarWidth = 720f;
+        const float HintBarHeight = 32f;
+        const float HintBarBottom = 16f;
+
+        /// <summary>武器面板宽度 / 高度。</summary>
+        /// <remarks>高度预算（自上而下）：内边距 14 + 标题片 26 + 8 + 按钮 30 + 6 + 列表标题片 26 + 4
+        /// + 列表 148 + 内边距 14 = 276；列表 148 = (行高 26 + 行距 4) × 5，即一屏 5 行、共 17 行可滚。
+        /// 【为什么片高都取 ≥26】小件档九宫格切片边框是 13px，上下边框合计 26 —— 片高 &lt; 26 会被
+        /// UGUI 等比压缩边框，圆角/描边被压扁。</remarks>
+        const float WeaponPanelWidth = 720f;
+        const float WeaponPanelHeight = 276f;
+
+        /// <summary>武器面板底距 = 提示条顶边(16+32) + 净间距 12 = 60。</summary>
+        const float WeaponPanelBottom = HintBarBottom + HintBarHeight + Gap;
+
+        /// <summary>武器行高（列表行间距由 VerticalLayoutGroup 的 spacing=4 承担）。</summary>
+        const float WeaponRowHeight = 26f;
+
+        // ---------------- 名册（左下）----------------
+
+        /// <summary>名册面板宽度（旧 368 → 304，向参照物的紧凑列表看齐）。</summary>
+        const float RosterWidth = 304f;
+
+        /// <summary>名册行高 / 行距（字号 18 × 1.55 ≈ 28；工单要求"行距相应收紧"）。</summary>
+        const float RosterRowHeight = 28f;
+        const float RosterRowPitch = 30f;
+
+        /// <summary>名册面板底距 = 武器面板顶边(60+252) + Gap 24 = 336（避免压在武器面板上）。</summary>
+        const float RosterBottom = WeaponPanelBottom + WeaponPanelHeight + 24f;
 
         /// <summary>
-        /// 名册标题条占位 = 内边距 24 + 标题高 32 + 与首行间距 16。
-        /// 【用途】只决定**编辑期**（场景快照）里行的坐标；运行期位置由面板的 VerticalLayoutGroup 接管
-        /// （内边距 24 + 标题 32 + spacing 2），故两者相差 14px，视觉无碍。
+        /// 名册标题条占位 = 内边距 14 + 标题高 26 + 与首行间距 6（编辑期快照用；运行期由 VerticalLayoutGroup 决定）。
+        /// 【用途】只决定**编辑期**（场景快照）里行的坐标；运行期位置由面板的 VerticalLayoutGroup 接管。
         /// </summary>
-        const float RosterTitleStrip = 72f;
+        const float RosterTitleStrip = 46f;
 
-        /// <summary>名册面板宽度。</summary>
-        const float RosterWidth = 368f;
-
-        /// <summary>名册面板高度 = 标题条 + 12 行 × 行距 + 底部内边距。</summary>
+        /// <summary>名册面板高度 = 标题条 + 12 行 × 行距 + 底部内边距（运行期随实际行数收缩）。</summary>
         const float RosterHeight = RosterTitleStrip + RosterRows * RosterRowPitch + PanelPadding;
 
-        /// <summary>小地图面板宽度。</summary>
-        const float MinimapWidth = 260f;
+        // ---------------- 小地图（左上）----------------
+
+        /// <summary>小地图面板宽度（旧 260 → 240）。</summary>
+        const float MinimapWidth = 240f;
 
         /// <summary>小地图面板高度（含标题条与上下内边距）。</summary>
         const float MinimapHeight = 140f;
 
-        /// <summary>小地图标题高度（标题条 = 该值 + 8px 间距）。</summary>
+        /// <summary>小地图标题条高度（标题条 = 该值 + 6px 间距）。</summary>
         const float MinimapCaptionHeight = 22f;
-
-        /// <summary>武器面板高度。</summary>
-        const float WeaponPanelHeight = 300f;
-
-        /// <summary>底部堆叠：提示条底距（通栏条贴边例外，仍留 16px）。</summary>
-        const float HintBarBottom = 16f;
-
-        /// <summary>
-        /// 武器面板底距 = 提示条顶边(16+36) + 24 = 76。
-        /// 【口径】底部提示条是 §1.7 允许的近贴边例外，面板不能压在它上面；
-        /// 因此真正要统一到 24 的是「面板底缘 ↔ 提示条顶边」的净间距
-        /// （旧值 Safe*3 = 72 只剩 20px 净间距，比 24±2 小 4px）。
-        /// </summary>
-        const float WeaponPanelBottom = HintBarBottom + HintBarHeight + Safe;
-
-        // ------------------------------------------------------------------
-        // 模式开关配色（r4 工单 P1：两段统一「深字压金底」，当前模式亮一档）
-        // ------------------------------------------------------------------
-        //
-        // 【为什么换口径】r4 实测：移动段奶油字(205,187,135)压暗金底(121,105,58)=2.83:1、
-        // 操作段奶油字(211,181,104)压亮铜底(167,128,75)=1.82:1，都低于 4.5:1；且当前模式(移动)
-        // 反而比非当前(操作)暗，层级读反。改法：两段都改用黄铜底 + 深字 #2A1D0E，
-        // 当前段用亮金 #E3C256、非当前段用哑光金 #A98A44 —— 当前底更亮 + 2px 黄铜描边，
-        // 「底亮 + 描边金」两重信号同时指向当前模式。
-        //
-        // 【WCAG 2.1 对比度（sRGB 分段线性化：c/255 ≤ 0.03928 走 /12.92，否则 ((c+0.055)/1.055)^2.4）】
-        //   深字 #2A1D0E：L = 0.2126·0.02316 + 0.7152·0.01229 + 0.0722·0.00438 = 0.0140
-        //   当前金 #E3C256：L = 0.2126·0.76835 + 0.7152·0.53947 + 0.0722·0.09315 = 0.5559
-        //     → (0.5559+0.05)/(0.0140+0.05) = 9.46:1
-        //       叠 AddMaterialShade 的 4% 墨色渐变（最坏底 (220,188,84)）后 = 8.87:1
-        //   非当前金 #A98A44：L = 0.2126·0.39677 + 0.7152·0.25424 + 0.0722·0.05782 = 0.2703
-        //     → 5.00:1（叠 4% 墨色渐变最坏底 (164,134,67) 后 = 4.74:1）
-        //   两段全部组合 ≥4.5:1；且当前底亮度 0.556 > 非当前 0.270，明度差约一档。
-        //   注：底色经 MultiplierTo(目标, UiTheme.Brass) 乘到黄铜九宫格 Sprite 上，
-        //   而 ButtonBrass 的烘焙基准色就是 UiTheme.Brass（UiSprites.BaseColorOf），故渲染≈目标色。
-
-        /// <summary>模式开关文字色：深棕黑（两段共用，深字压金底）。</summary>
-        static readonly Color ModeLabelInk = new Color(0x2A / 255f, 0x1D / 255f, 0x0E / 255f, 1f);
-
-        /// <summary>当前模式（选中段）底色：亮金 #E3C256（比非当前亮一档）。</summary>
-        static readonly Color ModeGoldCurrent = new Color(0xE3 / 255f, 0xC2 / 255f, 0x56 / 255f, 1f);
-
-        /// <summary>非当前模式底色：哑光金 #A98A44（压暗一档，仍与深字 ≥4.5:1）。</summary>
-        static readonly Color ModeGoldIdle = new Color(0xA9 / 255f, 0x8A / 255f, 0x44 / 255f, 1f);
-
-        /// <summary>程序化材质感：垂直亮度微渐变幅度 ±4%（不引入贴图，只用低 alpha 色带）。</summary>
-        const float ShadeAlpha = 0.04f;
 
         /// <summary>构建产物：全部需要回写给 BattleHud 的引用。</summary>
         public sealed class Result
@@ -205,56 +196,71 @@ namespace PirateCrew.EditorTools
         {
             BuildMinimap(canvas, secondary);
 
-            // 顶部信息条：一整条木板（回合计数 | 模式开关 | 计时），文字不再压在水面上。
-            RectTransform topBar = MenuUiBuilder.CreatePanel("TopBar", hudRoot,
+            // 顶部信息条：一条玻璃框架，内容（文字槽/开关段）都是更实的内容片。
+            RectTransform topBar = MenuUiBuilder.CreateGlassPanel("TopBar", hudRoot,
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -Safe),
-                new Vector2(TopBarWidth, TopBarHeight), UiSprites.Kind.PanelWood);
+                new Vector2(TopBarWidth, TopBarHeight), GlassPanelSpriteBuilder.Tone.Frame);
+
+            // 回合计数（左）与计时（右）：各压一块内容片（金/浅米字在框架上对比不足，见 BattleUiTheme.Tok）。
+            CreateSlotText(topBar, "TurnCounterText", -TopBarSlotCenterX, UiTextRules.TurnCounter(1, 20),
+                BattleUiTheme.Tok.TitleOnGlass, body);
+            CreateSlotText(topBar, "TimerText", TopBarSlotCenterX, UiTextRules.Timer(0),
+                BattleUiTheme.Tok.TextOnGlass, body);
 
             // 模式开关：静态二态展示，不挂 Button 以免出现「按了没反应」。
-            // 【移动】= 当前选中段：亮金底 + 2px 黄铜描边（r4：当前模式亮一档）；
-            // 【操作】= 未选中段：哑光金底 + 1px 墨描边（压暗一档）。两段都是深字压金底。
-            BuildToggleSegment(topBar, "MoveSegment", UiStrings.BattleModeMove, -TopBarSegmentCenterX,
-                true, body);
+            // 【移动】= 当前选中段：金玻璃 + 深墨字 + 1px 亮金外描边（唯一强调色只上底不上字，§1.2）；
+            // 【操作】= 未选中段：中性深玻璃 + 浅米字（色相区分，不用乘色压暗 —— 理由见 BuildToggleSegment）。
             BuildToggleSegment(topBar, "ActionSegment", UiStrings.BattleModeAction, TopBarSegmentCenterX,
                 false, body);
+            BuildToggleSegment(topBar, "MoveSegment", UiStrings.BattleModeMove, -TopBarSegmentCenterX,
+                true, body);
 
-            // 回合计数（左）与计时（右）：各自居中在 124px 文字区里，带 2px #2A2A2A 描边。
-            CreateTopBarText(topBar, "TurnCounterText", -TopBarTextCenterX,
-                UiTextRules.TurnCounter(1, 20), UiTheme.BrassLight, body);
-            CreateTopBarText(topBar, "TimerText", TopBarTextCenterX,
-                UiTextRules.Timer(0), UiTheme.TextLight, body);
-
-            // 右上：回合提示 + 双方存活（内边距 24，与其它面板统一）。
-            RectTransform status = MenuUiBuilder.CreatePanel("TeamStatusPanel", hudRoot,
+            // 右上：回合提示 + 双方存活（两块内容片，各自稳定底衬）。
+            RectTransform status = MenuUiBuilder.CreateGlassPanel("TeamStatusPanel", hudRoot,
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-Safe, -Safe),
-                new Vector2(560f, 120f), UiSprites.Kind.PanelWood);
+                new Vector2(StatusWidth, StatusHeight), GlassPanelSpriteBuilder.Tone.Frame);
 
-            TextMeshProUGUI hint = MenuUiBuilder.CreateText("TurnHintText", status,
-                string.Empty, UiTheme.FontHud, TextAlignmentOptions.TopRight, UiTheme.BrassLight, body);
-            MenuUiBuilder.SetAnchored(hint.rectTransform, new Vector2(1f, 1f), new Vector2(512f, 34f),
-                new Vector2(-PanelPadding, -PanelPadding));
+            MenuUiBuilder.CreateDenseChip("HintChip", status, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-PanelPadding, -PanelPadding), new Vector2(StatusChipWidth, StatusChipHeight));
 
-            TextMeshProUGUI teamStatus = MenuUiBuilder.CreateText("TeamStatusText", status,
-                string.Empty, UiTheme.FontBody, TextAlignmentOptions.TopRight, UiTheme.TextLight, secondary);
-            MenuUiBuilder.SetAnchored(teamStatus.rectTransform, new Vector2(1f, 1f), new Vector2(512f, 30f),
-                new Vector2(-PanelPadding, -66f));
+            TextMeshProUGUI hint = MenuUiBuilder.CreateTextExact("TurnHintText", status,
+                string.Empty, MenuUiBuilder.FontScale.Hud, TextAlignmentOptions.MidlineRight,
+                BattleUiTheme.Tok.TitleOnGlass, body);
+            MenuUiBuilder.SetAnchored(hint.rectTransform, new Vector2(1f, 1f),
+                new Vector2(StatusChipWidth - 20f, StatusChipHeight), new Vector2(-PanelPadding - 10f, -PanelPadding));
+
+            MenuUiBuilder.CreateDenseChip("StatusChip", status, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-PanelPadding, -PanelPadding - StatusChipHeight - 4f),
+                new Vector2(StatusChipWidth, StatusChipHeight));
+
+            TextMeshProUGUI teamStatus = MenuUiBuilder.CreateTextExact("TeamStatusText", status,
+                string.Empty, MenuUiBuilder.FontScale.Hud, TextAlignmentOptions.MidlineRight,
+                BattleUiTheme.Tok.TextOnGlass, secondary);
+            MenuUiBuilder.SetAnchored(teamStatus.rectTransform, new Vector2(1f, 1f),
+                new Vector2(StatusChipWidth - 20f, StatusChipHeight),
+                new Vector2(-PanelPadding - 10f, -PanelPadding - StatusChipHeight - 4f));
 
             result.turnHintText = hint;
             result.teamStatusText = teamStatus;
         }
 
         /// <summary>
-        /// 顶部信息条里的文字块（回合计数 / 计时）：居中 + 2px <c>#2A2A2A</c> 描边。
-        /// 底是木板面板（<see cref="UiTheme.PanelWood"/>），对比见 <see cref="TopBarWidth"/> 的推导。
+        /// 顶部信息条里的文字槽：内容片（较实玻璃）+ 居中文字 + 2px <c>#2A2A2A</c> 描边。
+        /// 【为什么文字要压内容片】金 <c>#F2D06B</c> 叠纯白最坏底：内容片 0.88 → 7.76:1，
+        /// 框架 0.74 → 4.52:1（刚过线）；取内容片留足余量。推导见
+        /// <see cref="GlassPanelSpriteBuilder"/> 类注释与 <see cref="BattleUiTheme.Tok"/>。
         /// </summary>
-        static void CreateTopBarText(Transform topBar, string name, float centerX, string content,
+        static void CreateSlotText(Transform topBar, string name, float centerX, string content,
             Color textColor, TMP_FontAsset font)
         {
-            TextMeshProUGUI text = MenuUiBuilder.CreateText(name, topBar, content,
-                UiTheme.FontHud, TextAlignmentOptions.Center, textColor, font);
+            MenuUiBuilder.CreateDenseChip(name + "Slot", topBar, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(centerX, 0f), new Vector2(TopBarSlotWidth, TopBarSlotHeight));
+
+            TextMeshProUGUI text = MenuUiBuilder.CreateTextExact(name, topBar, content,
+                MenuUiBuilder.FontScale.Hud, TextAlignmentOptions.Center, textColor, font);
             text.enableWordWrapping = false;
             MenuUiBuilder.SetAnchored(text.rectTransform, new Vector2(0.5f, 0.5f),
-                new Vector2(TopBarTextWidth, 32f), new Vector2(centerX, 0f));
+                new Vector2(TopBarSlotWidth - 8f, TopBarSlotHeight), new Vector2(centerX, 0f));
             ApplyTmpOutline(text, font);
         }
 
@@ -268,7 +274,7 @@ namespace PirateCrew.EditorTools
         /// </summary>
         const string HudOutlineMaterialPath = "Assets/Art/Materials/UI/TmpHudOutline.mat";
 
-        /// <summary>给 TMP 文本挂 2px <c>#2A2A2A</c> 描边材质（材质缺失时静默降级，靠木底板对比兜底）。</summary>
+        /// <summary>给 TMP 文本挂 2px <c>#2A2A2A</c> 描边材质（材质缺失时静默降级，靠内容片对比兜底 ≥7.7:1）。</summary>
         static void ApplyTmpOutline(TextMeshProUGUI text, TMP_FontAsset font)
         {
             if (text == null || font == null)
@@ -300,7 +306,7 @@ namespace PirateCrew.EditorTools
                 var material = new Material(font.material) { name = "TmpHudOutline" };
                 material.SetColor("_OutlineColor", UiTheme.Ink);   // #2A2A2A
                 // TMP 的描边宽度是归一化量（不是像素精确值）：0.20 在本字体材质的
-                // _GradientScale 下约 1.5-2px（HUD 字号 24）；实机以 r4 截图为准。
+                // _GradientScale 下约 1.5-2px；实机以截图为准。
                 material.SetFloat("_OutlineWidth", 0.20f);
                 material.EnableKeyword("OUTLINE_ON");
                 AssetDatabase.CreateAsset(material, HudOutlineMaterialPath);
@@ -309,91 +315,46 @@ namespace PirateCrew.EditorTools
             catch (System.Exception e)
             {
                 Debug.LogWarning("[BattleHudBuilder] 生成 HUD 描边材质失败（" + HudOutlineMaterialPath
-                    + "）：" + e.Message + "\n  顶部信息条文字将只靠木底板对比（实测 ≥8:1）。");
+                    + "）：" + e.Message + "\n  顶部信息条文字将只靠内容片对比（实测 ≥7.7:1）。");
                 return null;
             }
         }
 
         /// <summary>
-        /// 模式开关的一段（底板 + 居中文字 + 程序化材质感）。
+        /// 模式开关的一段（玻璃片 + 居中文字）。
         ///
-        /// 【统一口径】两段都用 <see cref="UiSprites.Kind.ButtonBrass"/> 金底 + 深字
-        /// <see cref="ModeLabelInk"/>（深字压金底），只靠底色亮暗与描边区分当前/非当前：
-        /// 当前 = 亮金 <see cref="ModeGoldCurrent"/> + 2px 黄铜描边；非当前 = 哑光金
-        /// <see cref="ModeGoldIdle"/> + 1px 墨描边。对比度推导见 <see cref="ModeLabelInk"/> 上方注释。
+        /// 【状态区分 = 色相 + 描边，不是乘色压暗】当前段 = 金玻璃（唯一强调色，原色不调）+ 深墨字
+        /// （最坏底 4.65:1）+ 1px 亮金外描边；非当前段 = 中性深玻璃
+        /// （<see cref="GlassPanelSpriteBuilder.Tone.Button"/>）+ 浅米字（4.64:1）。
+        /// **为什么不能"同底色压暗一档"**：深墨字压"压暗后的金"在纯黑最坏底上，任何 &lt;1 的乘色
+        /// 都跌破 4.5:1（×0.84 → 3.43、×0.95 也才 4.24）—— 推导见 <see cref="BattleUiTheme.Tok"/>。
+        /// 参照 game-2：选中页签用琥珀底、未选中用中性底，同一套"色相区分"语言。
         /// </summary>
         static void BuildToggleSegment(Transform parent, string name, string label, float x,
             bool selected, TMP_FontAsset font)
         {
-            RectTransform segment = MenuUiBuilder.CreateRect(name, parent);
-            MenuUiBuilder.SetAnchored(segment, new Vector2(0.5f, 0.5f),
-                new Vector2(TopBarSegmentWidth, TopBarSegmentHeight), new Vector2(x, 0f));
+            RectTransform segment = MenuUiBuilder.CreateGlassPanel(name, parent,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(x, 0f),
+                new Vector2(TopBarSegmentWidth, TopBarSegmentHeight),
+                selected ? GlassPanelSpriteBuilder.Tone.Primary : GlassPanelSpriteBuilder.Tone.Button,
+                GlassPanelSpriteBuilder.Geo.Chip);
 
-            var image = segment.gameObject.AddComponent<Image>();
-            image.type = Image.Type.Sliced;
-            image.raycastTarget = false;
+            // 外描边是「当前」的第二重信号（只画在填充之外，不影响文字对比度）。
+            if (selected)
+                MenuUiBuilder.AddOutline(segment.gameObject, BattleUiTheme.Tok.ModeActiveStroke, 1f);
 
-            // 两段同金底：当前亮金、非当前哑光金（r4：当前模式必须比非当前亮一档）。
-            Color baseColor = selected ? ModeGoldCurrent : ModeGoldIdle;
-            image.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.ButtonBrass);
-            image.color = MultiplierTo(baseColor, UiTheme.Brass);
-
-            // 描边是「当前」的第二重信号：当前 2px 黄铜金边，非当前 1px 墨边（仅压边不抢眼）。
-            MenuUiBuilder.AddOutline(segment.gameObject,
-                selected ? UiTheme.Brass : UiTheme.Ink, selected ? 2f : 1f);
-
-            // 竖条分隔线的替代：段与段之间由面板底透出（顶部信息条 = PanelWood）。
-            AddMaterialShade(segment);
-
-            TextMeshProUGUI text = MenuUiBuilder.CreateText("Label", segment, label, UiTheme.FontBody,
-                TextAlignmentOptions.Center, ModeLabelInk, font);
+            TextMeshProUGUI text = MenuUiBuilder.CreateTextExact("Label", segment, label,
+                MenuUiBuilder.FontScale.Hud, TextAlignmentOptions.Center,
+                selected ? BattleUiTheme.Tok.InkOnGold : BattleUiTheme.Tok.TextOnGlass, font);
             MenuUiBuilder.Stretch(text.rectTransform);
         }
 
         /// <summary>
-        /// 九宫格 Sprite 的乘色系数：让「Sprite 基准色 × 返回值」渲染成 <paramref name="target"/>。
-        /// 用于在保留按钮材质（圆角/内描边）的前提下把底色精确压到指定色。
-        /// </summary>
-        static Color MultiplierTo(Color target, Color spriteBase)
-        {
-            return new Color(
-                spriteBase.r > 0f ? target.r / spriteBase.r : 0f,
-                spriteBase.g > 0f ? target.g / spriteBase.g : 0f,
-                spriteBase.b > 0f ? target.b / spriteBase.b : 0f,
-                1f);
-        }
-
-        /// <summary>
-        /// 给面板/色块加程序化材质感（规范 §1.2「不做贴图」约束下的材质暗示）：
-        /// 上半透一层极淡亮色、下半透一层极淡暗色，形成 ±4% 的垂直亮度微渐变；
-        /// 圆角与 1-2px 深色描边由底下的九宫格 Sprite 负责，色带横向内缩 4px 不盖住圆角。
-        /// </summary>
-        static void AddMaterialShade(RectTransform target)
-        {
-            AddShadeBand(target, "ShadeTop", 0.5f, 1f, UiTheme.TextLight);
-            AddShadeBand(target, "ShadeBottom", 0f, 0.5f, UiTheme.Ink);
-        }
-
-        static void AddShadeBand(RectTransform target, string name, float anchorYMin, float anchorYMax, Color tint)
-        {
-            RectTransform band = MenuUiBuilder.CreateRect(name, target);
-            band.anchorMin = new Vector2(0f, anchorYMin);
-            band.anchorMax = new Vector2(1f, anchorYMax);
-            band.pivot = new Vector2(0.5f, 0.5f);
-            band.offsetMin = new Vector2(4f, 0f);
-            band.offsetMax = new Vector2(-4f, 0f);
-
-            var image = band.gameObject.AddComponent<Image>();
-            image.color = UiTheme.WithAlpha(tint, ShadeAlpha);
-            image.raycastTarget = false;
-        }
-
-        /// <summary>
-        /// 小地图（左上，§3.5）：Canvas 直接子节点名为 <c>MinimapPanel</c>，
+        /// 小地图（左上）：Canvas 直接子节点名为 <c>MinimapPanel</c>，
         /// 供 <c>HudMinimapSceneSetup</c> 复用并补 <c>DotLayer</c>/<c>TileLayer</c> 与 BattleMinimap 接线。
         ///
         /// 【样式归属】面板的位置/尺寸/底色/描边由本方法每次重建时强制写回（HudMinimapSceneSetup 只接线、不覆写），
-        /// 否则场景里旧面板的木棕底会一直残留——海图面板必须是水蓝系底（§1.3 `UI_SEA`）。
+        /// 否则场景里旧面板的木棕底会一直残留——海图面板必须是水蓝系玻璃（<see cref="GlassPanelSpriteBuilder.Tone.Sea"/>）。
         /// </summary>
         static void BuildMinimap(Transform canvas, TMP_FontAsset secondary)
         {
@@ -415,40 +376,44 @@ namespace PirateCrew.EditorTools
             dotLayer.anchorMax = Vector2.one;
             dotLayer.pivot = new Vector2(0.5f, 0.5f);
             dotLayer.offsetMin = new Vector2(PanelPadding, PanelPadding);
-            dotLayer.offsetMax = new Vector2(-PanelPadding, -(PanelPadding + MinimapCaptionHeight + 8f));
+            dotLayer.offsetMax = new Vector2(-PanelPadding, -(PanelPadding + MinimapCaptionHeight + 6f));
 
             EnsureChildRect(dotLayer, "TileLayer");
 
-            // 装饰性标题：移入面板安全区（内边距 24），不再压左下边框。
+            // 装饰性标题：移入面板安全区（内边距 14），不再压左下边框。
             TextMeshProUGUI caption = null;
             Transform captionNode = panel.Find("MinimapCaption");
             if (captionNode != null)
                 caption = captionNode.GetComponent<TextMeshProUGUI>();
             if (caption == null)
             {
-                caption = MenuUiBuilder.CreateText("MinimapCaption", panel,
-                    UiStrings.BattleMinimapTitle, UiTheme.FontTiny, TextAlignmentOptions.MidlineLeft,
-                    UiTheme.BrassLight, secondary);
+                caption = MenuUiBuilder.CreateTextExact("MinimapCaption", panel,
+                    UiStrings.BattleMinimapTitle, MenuUiBuilder.FontScale.Hint, TextAlignmentOptions.MidlineLeft,
+                    BattleUiTheme.Tok.TitleOnGlass, secondary);
             }
 
             MenuUiBuilder.SetAnchored(caption.rectTransform, new Vector2(0f, 1f),
                 new Vector2(140f, MinimapCaptionHeight), new Vector2(PanelPadding, -PanelPadding));
         }
 
-        /// <summary>小地图面板外观：羊皮纸九宫格 × 海水蓝 = 水蓝系海图底 + 黄铜框（【提案/待定】色值取 §1.3 Token）。</summary>
+        /// <summary>
+        /// 小地图面板外观：海图玻璃（深蓝绿亚克力，alpha 0.84）+ 烘进贴图的双色描边。
+        /// 【为什么比框架实】岛格（沙 #F0D48A / 草 #6FA86F）压在半透明底上，透度越高越难读出轮廓；
+        /// 0.84 时金标题 5.47:1、浅字 7.04:1（叠纯白最坏底）。
+        /// </summary>
         static void ApplyMinimapSkin(RectTransform panel)
         {
             var image = panel.GetComponent<Image>();
             if (image == null)
                 image = panel.gameObject.AddComponent<Image>();
 
-            image.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.PanelParchment);
-            image.type = Image.Type.Sliced;
-            // 羊皮纸底色 × UI_SEA：得到水蓝系底（约 #276674），区别于木板面板的深棕。
-            image.color = UiTheme.Sea;
-            image.raycastTarget = false;
+            MenuUiBuilder.ApplyGlassSkin(image, GlassPanelSpriteBuilder.Tone.Sea);
 
-            MenuUiBuilder.AddOutline(panel.gameObject, UiTheme.Brass, 3f);
+            // 旧实现给的 3px 黄铜 Outline 会外扩吃掉安全边距；玻璃描边已烘进贴图（外扩 0），
+            // 若场景里残留旧 Outline 组件则就地清掉。
+            var legacyOutline = panel.GetComponent<Outline>();
+            if (legacyOutline != null)
+                Object.DestroyImmediate(legacyOutline);
         }
 
         static void EnsureChildRect(Transform parent, string name)
@@ -471,29 +436,35 @@ namespace PirateCrew.EditorTools
 
             var image = crosshair.gameObject.AddComponent<Image>();
             image.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.Crosshair);
-            image.color = UiTheme.Select;
+            image.color = BattleUiTheme.Tok.Select;
             image.raycastTarget = false;
         }
 
         // ------------------------------------------------------------------
-        // 左下：船员名册（标题移入面板标题条，行距 = 字号 × 1.5）
+        // 左下：船员名册（单层 0.88 玻璃 + 发丝分行，行距 = 字号 × 1.55）
         // ------------------------------------------------------------------
 
         static void BuildRoster(Transform hudRoot, TMP_FontAsset title, TMP_FontAsset body,
             TMP_FontAsset secondary, Result result)
         {
-            RectTransform panel = MenuUiBuilder.CreatePanel("RosterPanel", hudRoot,
-                new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(Safe, 120f),
-                new Vector2(RosterWidth, RosterHeight), UiSprites.Kind.PanelWood);
+            // 【为什么用 Dense（0.88）而不是 Frame（0.70）+ 行片】名册整块内区都是文字：
+            // ① 队伍色名由**运行期** BattleHud 写成 #FF8A7A/#7FB0FF（不在本波次文件域内），
+            //    它叠纯白最坏底要 ≥4.5:1 需背衬 alpha ≥0.841；
+            // ② 金标题在内容片上 7.76:1（框架层 4.52:1 只是兜底）。
+            // 两条都只能靠"整块 0.88 玻璃"满足；若外面套 0.70 框架、里面再叠 0.88 行片，
+            // 合成透度 = 1−(1−0.88)(1−0.70) = 0.964 —— 反而比参照物 game-2 的 WINDOW_BG(0.88) 更实、
+            // 且多出一层"盒子套盒子"的杂乱。故名册 = 单层 0.88 玻璃 + 发丝分隔线（游戏-2 的 border 语言）。
+            RectTransform panel = MenuUiBuilder.CreateGlassPanel("RosterPanel", hudRoot,
+                new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(Safe, RosterBottom),
+                new Vector2(RosterWidth, RosterHeight), GlassPanelSpriteBuilder.Tone.Dense);
 
             // 【面板高度随内容收缩】BattleHud.BuildRoster 会把超出实际出战人数的行 SetActive(false)，
             // 而 VerticalLayoutGroup 会跳过未激活子物体 —— 于是面板高度自动收到「标题 + 实际行数」。
-            // 旧实现固定 12 行高，level_1（8 人）底部空出 4 行 ≈ 170px（r3 实测 175px）。
             // 12 行容量与行节点数量都不变（BattleHud.MaxRosterRows = 12、装配测试断言 12 行）。
             var layout = panel.gameObject.AddComponent<VerticalLayoutGroup>();
             layout.padding = new RectOffset((int)PanelPadding, (int)PanelPadding,
                 (int)PanelPadding, (int)PanelPadding);
-            layout.spacing = RosterRowPitch - RosterRowHeight;   // 行间 2px（行高 34 / 行距 36）
+            layout.spacing = RosterRowPitch - RosterRowHeight;   // 行间 2px（行高 28 / 行距 30）
             layout.childAlignment = TextAnchor.UpperLeft;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
@@ -501,18 +472,18 @@ namespace PirateCrew.EditorTools
             layout.childForceExpandHeight = false;
 
             var fitter = panel.gameObject.AddComponent<ContentSizeFitter>();
-            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;   // 宽度恒 368
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;   // 宽度恒 304
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;      // 高度随行数
 
-            // 标题进面板标题条（内边距 24），不再压面板上边框；初值用运行期同款「船员名册 · 第 N 关」。
-            TextMeshProUGUI rosterTitle = MenuUiBuilder.CreateText("RosterTitle", panel,
-                UiTextRules.RosterTitle(1), UiTheme.FontSection, TextAlignmentOptions.MidlineLeft,
-                UiTheme.BrassLight, title);
+            // 标题：金压 0.88 玻璃 ≥7.76:1（最坏底 = 纯白场景）；进垂直流当第一行。
+            TextMeshProUGUI rosterTitle = MenuUiBuilder.CreateTextExact("RosterTitle", panel,
+                UiTextRules.RosterTitle(1), MenuUiBuilder.FontScale.Section, TextAlignmentOptions.MidlineLeft,
+                BattleUiTheme.Tok.TitleOnGlass, title);
             MenuUiBuilder.SetAnchored(rosterTitle.rectTransform, new Vector2(0f, 1f),
-                new Vector2(RosterWidth - PanelPadding * 2f, 32f), new Vector2(PanelPadding, -PanelPadding));
+                new Vector2(RosterWidth - PanelPadding * 2f, 26f), new Vector2(PanelPadding, -PanelPadding));
             var titleElement = rosterTitle.gameObject.AddComponent<LayoutElement>();
-            titleElement.preferredHeight = 32f;
-            titleElement.minHeight = 32f;
+            titleElement.preferredHeight = 26f;
+            titleElement.minHeight = 26f;
             result.rosterTitle = rosterTitle;
 
             var rows = new BattleHud.RosterRowView[RosterRows];
@@ -525,8 +496,10 @@ namespace PirateCrew.EditorTools
         static BattleHud.RosterRowView CreateRosterRow(Transform parent, int index, TMP_FontAsset body,
             TMP_FontAsset secondary)
         {
-            const float rowWidth = RosterWidth - PanelPadding * 2f;   // 320
+            const float rowWidth = RosterWidth - PanelPadding * 2f;   // 276
 
+            // 行本身**不铺底**（底色就是名册的 0.88 玻璃），只留一条 1px 发丝分隔线 ——
+            // 参照物 game-2 的列表行也是"无底色 + 悬停才亮"，静态更干净、玻璃感不被盒子切碎。
             RectTransform row = MenuUiBuilder.CreateRect("RosterRow_" + index, parent);
             row.anchorMin = new Vector2(0f, 1f);
             row.anchorMax = new Vector2(0f, 1f);
@@ -540,28 +513,35 @@ namespace PirateCrew.EditorTools
             rowElement.preferredHeight = RosterRowHeight;
             rowElement.minHeight = RosterRowHeight;
 
-            // 姓名（队伍 + 职业中文）。字号取 FontHud 24：截图实测 FontBody 20 的字形带仅 18px，
-            // 低于 V2「正文中文字号 ≥20px」下限；Q-16 在《美术风格指南》§11 的落地值即为 24（FontHud）。
-            // 【P2-4】名文字保持高对比浅色（TextLight 压深木底 = 11.28:1）；队伍身份由行右侧的
-            // 「队伍色血条」+ 文字里的「红队／蓝队」共同承载（血条见下）。
-            TextMeshProUGUI name = MenuUiBuilder.CreateText("NameText", row, string.Empty,
-                UiTheme.FontHud, TextAlignmentOptions.MidlineLeft, UiTheme.TextLight, body);
-            name.enableWordWrapping = false;
-            MenuUiBuilder.SetAnchored(name.rectTransform, new Vector2(0f, 1f), new Vector2(160f, 30f),
-                new Vector2(14f, -2f));
+            // 发丝分隔线（白 8%）：只做"行"的读感，不抢文字。
+            RectTransform hairline = MenuUiBuilder.CreateRect("Hairline", row);
+            hairline.anchorMin = new Vector2(0f, 0f);
+            hairline.anchorMax = new Vector2(1f, 0f);
+            hairline.pivot = new Vector2(0.5f, 0f);
+            hairline.offsetMin = new Vector2(0f, 0f);
+            hairline.offsetMax = new Vector2(0f, 1f);
+            var hairlineImage = hairline.gameObject.AddComponent<Image>();
+            hairlineImage.color = new Color(1f, 1f, 1f, 0.08f);
+            hairlineImage.raycastTarget = false;
 
-            // 血条底 + 填充。
+            // 姓名（队伍 + 职业中文）。字号 FontScale.Hud = 18（旧 24，用户裁决下调一档）。
+            // 队伍身份由行右侧的「队伍色血条」+ 文字里的「红队／蓝队」共同承载。
+            TextMeshProUGUI name = MenuUiBuilder.CreateTextExact("NameText", row, string.Empty,
+                MenuUiBuilder.FontScale.Hud, TextAlignmentOptions.MidlineLeft, UiTheme.TextLight, body);
+            name.enableWordWrapping = false;
+            MenuUiBuilder.SetAnchored(name.rectTransform, new Vector2(0f, 1f), new Vector2(130f, 26f),
+                new Vector2(6f, -1f));
+
+            // 血条槽（凹槽感：比行片更暗的一层）+ 填充。
             // 【P2-4 队伍编码】填充块与 <c>teamSwatch</c> 指向**同一个 Image**：
             //   · BattleHud.BuildRoster 每帧把 teamSwatch.color 写成 UiTheme.TeamColor（红/蓝）；
             //   · BattleHud.UpdateRowBar 只改 healthFill.rectTransform.anchorMax（血量长度）。
-            // 两者共用后，血条渲染为「队伍色 × 血量长度」，队伍色高频信号直接落在名册行上，
-            // 无需改运行期 BattleHud（不在本波次文件域）。
             // 【为什么填充用无 Sprite 的 Image】UiSprites.BarFill 的烘焙基准色是**绿色**
             // （0.42,0.78,0.34），Image.color 是乘色：若沿用该 Sprite，运行期写入队伍色会得到
             // 「绿 × 队伍色」的浑浊结果。改用无 Sprite 的 Image（渲染纯白 quad × color），
             // 队伍色才能 1:1 还原。血条槽底仍用 BarBackground 九宫格。
             RectTransform barBg = MenuUiBuilder.CreateRect("BarBg", row);
-            MenuUiBuilder.SetAnchored(barBg, new Vector2(0f, 1f), new Vector2(80f, 14f), new Vector2(178f, -10f));
+            MenuUiBuilder.SetAnchored(barBg, new Vector2(0f, 1f), new Vector2(74f, 12f), new Vector2(140f, -8f));
             var barBgImage = barBg.gameObject.AddComponent<Image>();
             barBgImage.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.BarBackground);
             barBgImage.type = Image.Type.Sliced;
@@ -580,12 +560,12 @@ namespace PirateCrew.EditorTools
             fillImage.color = UiTheme.TeamRed;             // 默认红队色，运行期按队改写
             fillImage.raycastTarget = false;
 
-            // 生命数字（≥16px 角标下限）。
-            TextMeshProUGUI hp = MenuUiBuilder.CreateText("HpText", row, string.Empty,
-                UiTheme.FontTiny, TextAlignmentOptions.MidlineRight, UiTheme.TextLight, secondary);
+            // 生命数字（FontScale.Tiny = 13，角标档 ≥12）。
+            TextMeshProUGUI hp = MenuUiBuilder.CreateTextExact("HpText", row, string.Empty,
+                MenuUiBuilder.FontScale.Tiny, TextAlignmentOptions.MidlineRight, UiTheme.TextLight, secondary);
             hp.enableWordWrapping = false;
-            MenuUiBuilder.SetAnchored(hp.rectTransform, new Vector2(0f, 1f), new Vector2(62f, 28f),
-                new Vector2(258f, -3f));
+            MenuUiBuilder.SetAnchored(hp.rectTransform, new Vector2(0f, 1f), new Vector2(56f, 26f),
+                new Vector2(216f, -1f));
 
             return new BattleHud.RosterRowView
             {
@@ -605,42 +585,55 @@ namespace PirateCrew.EditorTools
         static void BuildWeaponPanel(Transform hudRoot, TMP_FontAsset title, TMP_FontAsset body,
             TMP_FontAsset secondary, Result result)
         {
-            // 底部堆叠（自下而上）：提示条 16..52 → 武器面板 76..376；面板底缘与提示条顶边净间距 24px。
-            RectTransform panel = MenuUiBuilder.CreatePanel("WeaponPanel", hudRoot,
+            // 底部堆叠（自下而上）：提示条 16..48 → 武器面板 60..336；面板底缘与提示条顶边净间距 12px。
+            // 【为什么 Dense（0.88）而非 Frame】面板内区全是文字与行片（金标题/行文本/17 行），
+            // 单层 0.88 玻璃即可满足全部对比度（金 7.76:1 / 浅米 9.56:1），且避免"框架 + 内容片"
+            // 两层盒子把玻璃感切碎（同名册的做法）。
+            RectTransform panel = MenuUiBuilder.CreateGlassPanel("WeaponPanel", hudRoot,
                 new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, WeaponPanelBottom),
-                new Vector2(960f, WeaponPanelHeight), UiSprites.Kind.PanelWood);
+                new Vector2(WeaponPanelWidth, WeaponPanelHeight), GlassPanelSpriteBuilder.Tone.Dense);
             result.weaponPanelRoot = panel.gameObject;
 
-            TextMeshProUGUI panelTitle = MenuUiBuilder.CreateText("WeaponPanelTitle", panel, string.Empty,
-                UiTheme.FontSection, TextAlignmentOptions.Center, UiTheme.BrassLight, title);
-            MenuUiBuilder.SetAnchored(panelTitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(912f, 34f),
-                new Vector2(0f, -PanelPadding));
+            // 标题：金压 0.88 玻璃 ≥7.76:1（最坏底 = 纯白场景）。宽度给到 400（文案「水手 · 选择武器」级别留足余量）。
+            TextMeshProUGUI panelTitle = MenuUiBuilder.CreateTextExact("WeaponPanelTitle", panel, string.Empty,
+                MenuUiBuilder.FontScale.Section, TextAlignmentOptions.Center, BattleUiTheme.Tok.TitleOnGlass, title);
+            MenuUiBuilder.SetAnchored(panelTitle.rectTransform, new Vector2(0.5f, 1f),
+                new Vector2(400f, 26f), new Vector2(0f, -PanelPadding));
             result.weaponPanelTitle = panelTitle;
 
+            float buttonY = -(PanelPadding + 26f + 8f + 15f);   // 标题片下沿 + 8px 净距 + 半按钮高
+
             Button throwButton = MenuUiBuilder.CreateButton("ThrowSelfButton", panel, UiStrings.BattleThrowSelf,
-                new Vector2(0.5f, 1f), new Vector2(-110f, -86f), new Vector2(200f, 40f), body,
-                UiSprites.Kind.ButtonWood, UiTheme.TextLight, UiTheme.FontHint);
+                new Vector2(0.5f, 1f), new Vector2(-80f, buttonY), new Vector2(148f, 30f), body,
+                UiSprites.Kind.ButtonWood, BattleUiTheme.Tok.TextOnGlass, MenuUiBuilder.FontScale.Body);
             result.throwSelfButton = throwButton;
 
             Button endGoButton = MenuUiBuilder.CreateButton("EndGoButton", panel, UiStrings.BattleEndGo,
-                new Vector2(0.5f, 1f), new Vector2(110f, -86f), new Vector2(200f, 40f), body,
-                UiSprites.Kind.ButtonWood, UiTheme.TextLight, UiTheme.FontHint);
+                new Vector2(0.5f, 1f), new Vector2(80f, buttonY), new Vector2(148f, 30f), body,
+                UiSprites.Kind.ButtonWood, BattleUiTheme.Tok.TextOnGlass, MenuUiBuilder.FontScale.Body);
             result.endGoButton = endGoButton;
 
-            TextMeshProUGUI listTitle = MenuUiBuilder.CreateText("WeaponListTitle", panel,
-                UiStrings.BattleWeaponListTitle, UiTheme.FontHint, TextAlignmentOptions.MidlineLeft,
-                UiTheme.TextLight, secondary);
-            MenuUiBuilder.SetAnchored(listTitle.rectTransform, new Vector2(0f, 1f), new Vector2(240f, 24f),
-                new Vector2(PanelPadding, -124f));
+            // 列表小标题：按钮下沿（buttonY − 半高 15）再留 8px，浅米字直接压玻璃（≥9.5:1）。
+            // 【锚点口径】SetAnchored 的 pivot = anchor = (0,1) → 这里传的是**左上角**，不是中心。
+            float listTitleY = buttonY - 15f - 8f;
+            TextMeshProUGUI listTitle = MenuUiBuilder.CreateTextExact("WeaponListTitle", panel,
+                UiStrings.BattleWeaponListTitle, MenuUiBuilder.FontScale.Hint, TextAlignmentOptions.MidlineLeft,
+                BattleUiTheme.Tok.TextOnGlass, secondary);
+            MenuUiBuilder.SetAnchored(listTitle.rectTransform, new Vector2(0f, 1f), new Vector2(150f, 26f),
+                new Vector2(PanelPadding, listTitleY));
 
-            BuildWeaponScroll(panel, body, result);
+            // 滚动区：列表小标题下沿再留 4px，高度顶到面板下内边距为止（pivot/anchor 都是 (0.5,1)）。
+            float scrollTop = listTitleY - 26f - 4f;
+            float scrollHeight = WeaponPanelHeight - Mathf.Abs(scrollTop) - PanelPadding;
+            BuildWeaponScroll(panel, scrollTop, scrollHeight, body, result);
         }
 
-        static void BuildWeaponScroll(RectTransform panel, TMP_FontAsset body, Result result)
+        static void BuildWeaponScroll(RectTransform panel, float topOffsetY, float height,
+            TMP_FontAsset body, Result result)
         {
             RectTransform scrollGo = MenuUiBuilder.CreateRect("WeaponScroll", panel);
-            MenuUiBuilder.SetAnchored(scrollGo, new Vector2(0.5f, 1f), new Vector2(912f, 116f),
-                new Vector2(0f, -156f));
+            MenuUiBuilder.SetAnchored(scrollGo, new Vector2(0.5f, 1f),
+                new Vector2(WeaponPanelWidth - PanelPadding * 2f, height), new Vector2(0f, topOffsetY));
 
             var scroll = scrollGo.gameObject.AddComponent<ScrollRect>();
             scroll.horizontal = false;
@@ -660,7 +653,7 @@ namespace PirateCrew.EditorTools
 
             var layout = content.gameObject.AddComponent<VerticalLayoutGroup>();
             layout.spacing = 4f;
-            layout.padding = new RectOffset(4, 4, 4, 4);
+            layout.padding = new RectOffset(0, 0, 0, 0);
             layout.childAlignment = TextAnchor.UpperCenter;
             layout.childControlWidth = true;
             layout.childControlHeight = false;
@@ -679,22 +672,23 @@ namespace PirateCrew.EditorTools
             for (int i = 0; i < WeaponSlots; i++)
             {
                 var id = (WeaponId)i;
+                // 行 = 深色玻璃小件（比面板实，承载浅米字 ≥9.5:1）；列表行可点，四态由玻璃乘色给出。
                 Button button = MenuUiBuilder.CreateButton("WeaponButton_" + id, content,
                     UiTextRules.WeaponName(id), new Vector2(0.5f, 0.5f), Vector2.zero,
-                    new Vector2(900f, 34f), body, UiSprites.Kind.ButtonWood, UiTheme.TextLight,
-                    UiTheme.FontHint);
+                    new Vector2(WeaponPanelWidth - PanelPadding * 2f, WeaponRowHeight), body,
+                    UiSprites.Kind.ButtonWood, BattleUiTheme.Tok.TextOnGlass, MenuUiBuilder.FontScale.Body);
 
                 var element = button.gameObject.AddComponent<LayoutElement>();
-                element.preferredHeight = 34f;
-                element.minHeight = 34f;
+                element.preferredHeight = WeaponRowHeight;
+                element.minHeight = WeaponRowHeight;
 
-                TextMeshProUGUI label = MenuUiBuilder.CreateText("Label", button.transform,
-                    UiTextRules.WeaponName(id), UiTheme.FontHint, TextAlignmentOptions.MidlineLeft,
-                    UiTheme.TextLight, body);
+                // 左对齐武器名（行文本档 Body=15）：换掉 CreateButton 的居中标签，只留一个 TMP。
+                TextMeshProUGUI label = MenuUiBuilder.CreateTextExact("Label", button.transform,
+                    UiTextRules.WeaponName(id), MenuUiBuilder.FontScale.Body, TextAlignmentOptions.MidlineLeft,
+                    BattleUiTheme.Tok.TextOnGlass, body);
                 MenuUiBuilder.Stretch(label.rectTransform, 0f);
-                label.margin = new Vector4(16f, 0f, 8f, 0f);
+                label.margin = new Vector4(12f, 0f, 8f, 0f);
 
-                // 去掉 CreateButton 自带的居中文本，只保留左对齐标签，避免两个 TMP 叠加。
                 Transform centered = button.transform.Find("Text");
                 if (centered != null)
                     Object.DestroyImmediate(centered.gameObject);
@@ -714,42 +708,40 @@ namespace PirateCrew.EditorTools
         static void BuildLabelsAndHints(Transform hudRoot, TMP_FontAsset body, TMP_FontAsset secondary,
             Result result)
         {
-            // 操作提示条：移到屏幕底缘（顶边距屏底 52px，落在屏高 95% 以下），
-            // 收窄到 960px 居中，与名册/武器面板保持 ≥16px 间距，不再横跨可玩区。
-            // 【本轮 P2-5】深浅两套统一成「深底浅字」一套：提示条底由浅羊皮纸改为深木
-            // （与武器面板/名册同款 PanelWood + 1px 黄铜描边），文字改 UiTheme.TextLight。
-            // 对比度：TextLight(#F5E8C8) 压 PanelWood(#3A2A1E) = 11.28:1（WCAG 2.1），
-            // 旧「深字压浅底」的 Ink-on-Parchment = 9.90:1 虽然也够，但两套底混用会让
-            // 底部区域一块亮一块暗（r4 读数：提示条与操作区深浅割裂）。
-            RectTransform hintBar = MenuUiBuilder.CreatePanel("HintBar", hudRoot,
+            // 操作提示条：屏幕底缘之上 16px（通栏条是 §1.7 允许的近贴边例外），720px 居中。
+            // 【底为什么用内容片而非框架】提示条整条都是文字，框不下"框架 + 内容片"两级；
+            // 直接用 0.88 的内容片（浅米字 ≥9.5:1），厚度带/高光/噪点照旧 → 仍是玻璃观感。
+            RectTransform hintBar = MenuUiBuilder.CreateGlassPanel("HintBar", hudRoot,
                 new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, HintBarBottom),
-                new Vector2(HintBarWidth, HintBarHeight), UiSprites.Kind.PanelWood, brassOutline: false);
-            MenuUiBuilder.AddOutline(hintBar.gameObject, UiTheme.Brass, 1f);
-            AddMaterialShade(hintBar);
+                new Vector2(HintBarWidth, HintBarHeight), GlassPanelSpriteBuilder.Tone.Dense,
+                GlassPanelSpriteBuilder.Geo.Panel);
 
-            TextMeshProUGUI hint = MenuUiBuilder.CreateText("HintText", hintBar,
-                UiStrings.BattleHintMove, UiTheme.FontHint, TextAlignmentOptions.Center, UiTheme.TextLight, secondary);
+            TextMeshProUGUI hint = MenuUiBuilder.CreateTextExact("HintText", hintBar,
+                UiStrings.BattleHintMove, MenuUiBuilder.FontScale.Hint, TextAlignmentOptions.Center,
+                BattleUiTheme.Tok.TextOnGlass, secondary);
             MenuUiBuilder.Stretch(hint.rectTransform, 8f);
 
-            // 返回主菜单（§3.5 线框图：160×40 anchor(0,0) 摆在左下角；CreateButton 的 pivot 是中心，
-            // 故锚点位置取「外安全边距 + 半宽/半高」= (104,44)，按钮外框左边即 24px）。
-            // 【说明】上一版 HUD 重建漏建了它，导致 BattleHud.backButton 被写空、返回通路断掉。
+            // 返回主菜单：摆在左下角（与名册面板同侧，但名册底距 336 已让出底部空间）。
+            // CreateButton 的 pivot 是中心，故锚点位置取「安全边距 + 半宽/半高」= (96,34)，
+            // 按钮外框左边即 16px、底边 16px。
             Button back = MenuUiBuilder.CreateButton("BackButton", hudRoot, UiStrings.BackToMainMenu,
-                new Vector2(0f, 0f), new Vector2(104f, 44f), new Vector2(160f, 40f), body,
-                UiSprites.Kind.ButtonWood, UiTheme.TextLight, UiTheme.FontHint);
+                new Vector2(0f, 0f), new Vector2(96f, 34f), new Vector2(160f, 36f), body,
+                UiSprites.Kind.ButtonWood, BattleUiTheme.Tok.TextOnGlass, MenuUiBuilder.FontScale.Body);
             result.backButton = back;
 
             // 瞄准 / 聚焦标签（默认隐藏，等玩法接线后由逻辑控制显隐）。
-            TextMeshProUGUI aim = MenuUiBuilder.CreateText("AimLabel", hudRoot,
-                UiStrings.BattleAiming, UiTheme.FontHud, TextAlignmentOptions.Center, UiTheme.Select, body);
-            MenuUiBuilder.SetAnchored(aim.rectTransform, new Vector2(0.5f, 0f), new Vector2(240f, 30f),
-                new Vector2(0f, Safe * 3f + WeaponPanelHeight + 8f));
+            TextMeshProUGUI aim = MenuUiBuilder.CreateTextExact("AimLabel", hudRoot,
+                UiStrings.BattleAiming, MenuUiBuilder.FontScale.Hud, TextAlignmentOptions.Center,
+                BattleUiTheme.Tok.Select, body);
+            MenuUiBuilder.SetAnchored(aim.rectTransform, new Vector2(0.5f, 0f), new Vector2(240f, 28f),
+                new Vector2(0f, WeaponPanelBottom + WeaponPanelHeight + 8f));
             aim.gameObject.SetActive(false);
 
-            TextMeshProUGUI focus = MenuUiBuilder.CreateText("FocusLabel", hudRoot,
-                UiStrings.BattleFocusing, UiTheme.FontBody, TextAlignmentOptions.Center, UiTheme.Select, secondary);
-            MenuUiBuilder.SetAnchored(focus.rectTransform, new Vector2(0.5f, 1f), new Vector2(200f, 26f),
-                new Vector2(0f, -88f));
+            TextMeshProUGUI focus = MenuUiBuilder.CreateTextExact("FocusLabel", hudRoot,
+                UiStrings.BattleFocusing, MenuUiBuilder.FontScale.Body, TextAlignmentOptions.Center,
+                BattleUiTheme.Tok.Select, secondary);
+            MenuUiBuilder.SetAnchored(focus.rectTransform, new Vector2(0.5f, 1f), new Vector2(200f, 24f),
+                new Vector2(0f, -Safe - TopBarHeight - 6f));
             focus.gameObject.SetActive(false);
         }
     }

@@ -86,14 +86,16 @@ namespace PirateCrew.EditorTools
 
         static Sprite _coastCornerSprite;
 
-        /// <summary>小地图在屏幕左上角的外边距（统一口径 24px；原版 mapHolder 挂在 (20,20)，§2.3）。</summary>
-        static readonly Vector2 PanelOffset = new Vector2(24f, -24f);
+        /// <summary>小地图在屏幕左上角的外边距（本波次统一口径 16px，与 BattleHudBuilder.Safe 一致；
+        /// 原版 mapHolder 挂在 (20,20)，§2.3）。</summary>
+        static readonly Vector2 PanelOffset = new Vector2(16f, -16f);
 
-        /// <summary>点阵层退到面板边 24px 内（与 BattleHudBuilder.PanelPadding 同口径，避免点阵贴面板边框）。</summary>
-        const float PanelInnerPadding = 24f;
+        /// <summary>点阵层退到面板边内（与 <c>BattleHudBuilder.PanelPadding</c> 同口径 14px；本波次由 24 收紧，
+        /// 与亚克力玻璃面板的紧凑内边距保持一致，避免点阵离框太远显得"面板很大内容很小"）。</summary>
+        const float PanelInnerPadding = 14f;
 
-        /// <summary>标题条占位 = 标题高 22 + 与点阵 8px 间距（顶部为「海图」标题留白）。</summary>
-        const float CaptionStrip = 30f;
+        /// <summary>标题条占位（与 <c>BattleHudBuilder.MinimapCaptionHeight</c> 同口径 22 + 与点阵 6px 间距）。</summary>
+        const float CaptionStrip = 28f;
 
         /// <summary>面板相对屏幕左上角的锚点（ugui：锚点 (0,1) = 左上）。</summary>
         static readonly Vector2 PanelAnchor = new Vector2(0f, 1f);
@@ -183,9 +185,9 @@ namespace PirateCrew.EditorTools
         /// 取/建 <c>MinimapPanel</c>。
         ///
         /// 【样式归属】已存在的面板**只复用、不覆写**：位置/尺寸/背景/描边归
-        /// <see cref="BattleUiTheme"/>/<see cref="BattleHudBuilder"/>（木质框观感），
+        /// <see cref="BattleUiTheme"/>/<see cref="BattleHudBuilder"/>（海图玻璃观感），
         /// 本脚本只负责补 <c>BattleMinimap</c> 组件与引用接线。
-        /// 仅在面板缺失（没跑过 HUD 重建）时才按 <see cref="MinimapRules"/> 建一个朴素兜底面。
+        /// 仅在面板缺失（没跑过 HUD 重建）时才按 <see cref="MinimapRules"/> 建一个同款兜底面。
         /// </summary>
         static RectTransform EnsurePanel(Transform canvas, int widthTiles, int depthTiles)
         {
@@ -199,7 +201,7 @@ namespace PirateCrew.EditorTools
             go.transform.SetParent(canvas, false);
             panel = go.GetComponent<RectTransform>();
 
-            // ---- 以下仅在"兜底新建"时执行，避免覆盖 BattleHudBuilder 的木框样式 ----
+            // ---- 以下仅在"兜底新建"时执行，避免覆盖 BattleHudBuilder 的玻璃皮 ----
             // 尺寸与竞技场同比例（不拉伸变形）：一颗瓦片 = pixelsPerTile 像素。
             Vector2 size = MinimapRules.PanelSizePixels(widthTiles, depthTiles, DefaultPixelsPerTile);
             panel.anchorMin = PanelAnchor;
@@ -208,14 +210,10 @@ namespace PirateCrew.EditorTools
             panel.anchoredPosition = PanelOffset;
             panel.sizeDelta = size;
 
+            // 海图玻璃（深蓝绿亚克力，alpha 0.84）：与 BattleHudBuilder.ApplyMinimapSkin 同皮同参，
+            // 兜底也不退回深棕木底。描边已烘进九宫格贴图（双色 1px，外扩 0），不再挂 UGUI Outline。
             var background = panel.gameObject.AddComponent<Image>();
-            // 海图面板水蓝系底（§1.3 UI_SEA）；兜底也不退回深棕，与 BattleHudBuilder 的皮一致。
-            background.color = UiTheme.Sea;
-            background.raycastTarget = false;
-
-            var border = panel.gameObject.AddComponent<Outline>();
-            border.effectColor = UiTheme.Brass;
-            border.effectDistance = new Vector2(3f, -3f);
+            MenuUiBuilder.ApplyGlassSkin(background, GlassPanelSpriteBuilder.Tone.Sea);
 
             return panel;
         }
@@ -232,7 +230,7 @@ namespace PirateCrew.EditorTools
                 layer = go.GetComponent<RectTransform>();
             }
 
-            // 与 BattleHudBuilder.BuildMinimap 同口径：四周退 24px、顶部再让出「海图」标题条，
+            // 与 BattleHudBuilder.BuildMinimap 同口径：四周退 PanelInnerPadding、顶部再让出「海图」标题条，
             // 这样本脚本在 HUD 重建之后执行也不会把点阵层的安全边距重置回贴边框。
             layer.anchorMin = Vector2.zero;
             layer.anchorMax = Vector2.one;
