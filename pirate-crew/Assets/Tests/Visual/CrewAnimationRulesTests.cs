@@ -35,8 +35,9 @@ namespace PirateCrew.PirateCrew.Visual.Tests
         public void Amplitudes_MatchSpec()
         {
             Assert.AreEqual(0.015f, CrewAnimationRules.BreathTorsoScale, "呼吸躯干 ±1.5%");
-            Assert.AreEqual(0.004f, CrewAnimationRules.BreathHeadOffset, "呼吸头 ±0.004");
-            Assert.AreEqual(0.012f, CrewAnimationRules.MoveBobOffset, "移动 bob ±0.012");
+            // 2026-09-14 角色总高 0.55→1.85（Godot 真比例）：幅度等比放大 3.36×。
+            Assert.AreEqual(0.0134f, CrewAnimationRules.BreathHeadOffset, 1e-5f, "呼吸头 ±0.0134");
+            Assert.AreEqual(0.040f, CrewAnimationRules.MoveBobOffset, 1e-5f, "移动 bob ±0.040");
             Assert.AreEqual(8f, CrewAnimationRules.MoveLeanDegrees, "移动前倾 8°（规格 6-10° 取中值）");
             Assert.AreEqual(-8f, CrewAnimationRules.ThrowChargeLeanDegrees, "蓄力后仰 8°");
             Assert.AreEqual(12f, CrewAnimationRules.ThrowReleaseLeanDegrees, "释放前倾 12°");
@@ -52,7 +53,7 @@ namespace PirateCrew.PirateCrew.Visual.Tests
                 Assert.That(scale, Is.InRange(1f - 0.015f - Epsilon, 1f + 0.015f + Epsilon), "呼吸缩放幅度");
 
                 float head = CrewAnimationRules.BreathHeadOffsetY(t, 0);
-                Assert.That(Mathf.Abs(head), Is.LessThanOrEqualTo(0.004f + Epsilon), "呼吸头位移幅度");
+                Assert.That(Mathf.Abs(head), Is.LessThanOrEqualTo(0.0134f + Epsilon), "呼吸头位移幅度");
             }
         }
 
@@ -71,7 +72,7 @@ namespace PirateCrew.PirateCrew.Visual.Tests
             for (float t = 0f; t < 2f; t += 0.02f)
             {
                 float bob = CrewAnimationRules.MoveBob(t);
-                Assert.That(bob, Is.InRange(-Epsilon, 0.012f + Epsilon));
+                Assert.That(bob, Is.InRange(-Epsilon, 0.040f + Epsilon));
             }
             Assert.That(CrewAnimationRules.MoveBob(0f), Is.EqualTo(0f).Within(Epsilon));
         }
