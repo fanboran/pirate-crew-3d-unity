@@ -4,10 +4,13 @@ using UnityEngine;
 
 namespace PirateCrew.PirateCrew.SceneArt
 {
-    /// <summary>地形视觉壳的可调参数（默认值 = 场景文档 §3.1 的【AI 提案】取值）。</summary>
+    /// <summary>地形视觉壳的可调参数（默认值 = 场景文档 §3.1 的【AI 提案】取值 + 用户裁决的厚底参数）。</summary>
     public struct IslandShellSettings
     {
-        /// <summary>顶面边缘倒角宽度（世界单位）。【依据场景文档 §3.1「0.15 单位宽、45° 倒角」】</summary>
+        /// <summary>
+        /// 顶面边缘倒角宽度（世界单位）。
+        /// 【2026-09-14 用户裁决 1「顶面边缘圆润」：0.15 → 0.35（区间 0.3-0.5）】
+        /// </summary>
         public float ChamferWidth;
 
         /// <summary>倒角竖直高度（45° 倒角时 = 宽度）。</summary>
@@ -28,28 +31,56 @@ namespace PirateCrew.PirateCrew.SceneArt
         /// <summary>0 块列"潮沟"薄水膜的抬高量（避免与基础地面 z-fighting）。【AI 提案】</summary>
         public float LowPlateYOffset;
 
-        /// <summary>悬空平台底部下探到的最低世界 Y（船体龙骨 / 岩锥尖）。【AI 提案】</summary>
+        /// <summary>
+        /// 悬空平台**岛底平面**的下限世界 Y（岛体侧壁/收形锥的最低点不能低于它）。
+        /// 【AI 提案】-1.15 = 水面（-0.2）以下 0.95，让贴水档（基准 0）的岛底略沉入水面
+        /// 读作"礁/滩头"，而基准 ≥3 的岛底完全露出水面读作"悬浮"。
+        /// </summary>
         public float UndersideBottomY;
 
-        /// <summary>岩锥底部的收尖半径比例（相对簇包络短边的一半）。【AI 提案】</summary>
+        /// <summary>
+        /// **岛体侧壁的下延厚度**（世界单位）：从该簇最低地表往下到"岛底平面"的距离。
+        /// 【2026-09-14 用户裁决 1：厚重底部收形，取 2.4（任务区间 2-4 的中值）】
+        /// 该厚度是"能看到厚实岛体"的关键——旧实现侧壁一路下延到基础地面（黄盒柱），
+        /// 悬浮基准高度一加就变成"柱子"而不是"岛"。
+        /// </summary>
+        public float SideThickness;
+
+        /// <summary>
+        /// 岛底**收尖深度**（世界单位）：从岛底平面再往下锥形收尖到此。
+        /// 【2026-09-14 用户裁决 1：底尖化。岛体总厚度 = <see cref="SideThickness"/> + 本值 ≈ 3.5】
+        /// </summary>
+        public float UndersideTaperDepth;
+
+        /// <summary>岩锥底部的收尖半径比例（相对岛形轮廓环，0 = 收到一点）。【AI 提案】</summary>
         public float UndersideTipRatio;
 
-        /// <summary>默认参数（= 场景文档 §3.1 的取值 + 平台底部【AI 提案】）。</summary>
+        /// <summary>
+        /// 收形环数（含岛形轮廓那一环；≥2）。环数越多收形越圆润、面数越多。
+        /// 【AI 提案：4 环 = 直裙 + 两段锥 + 尖，低多边形下已足够圆润】
+        /// </summary>
+        public int UndersideRings;
+
+        /// <summary>默认参数（场景文档 §3.1 取值 + 用户裁决的厚底/圆角参数）。</summary>
         public static IslandShellSettings Default
         {
             get
             {
                 return new IslandShellSettings
                 {
-                    ChamferWidth = 0.15f,
-                    ChamferHeight = 0.15f,
+                    // 用户裁决 1：顶面边缘圆润，倒角 0.15 → 0.35。
+                    ChamferWidth = 0.35f,
+                    ChamferHeight = 0.35f,
                     SideLayers = 3,
                     LayerRecess = 0.04f,
                     BoundaryJitter = 0.08f,
                     SkirtBottomY = -0.6f,
                     LowPlateYOffset = 0.006f,
                     UndersideBottomY = -1.15f,
-                    UndersideTipRatio = 0.18f,
+                    SideThickness = 2.4f,
+                    UndersideTaperDepth = 1.1f,
+                    UndersideTipRatio = 0.22f,
+                    UndersideRings = 4,
                 };
             }
         }
@@ -61,7 +92,10 @@ namespace PirateCrew.PirateCrew.SceneArt
     /// 【它在整个地形分层里的位置】
     ///   碰撞层 = <see cref="BattleTerrainView"/> 每实心格一个 Cube + BoxCollider，本类**不碰**；
     ///   视觉层 = 本类生成的"台地壳"：顶面与该格 <c>SurfaceWorldY</c> 严格等高（偏差 ≤ ±0.02）、
-    ///   边缘 0.15 宽 45° 倒角、侧面 3 段岩层带凹缝、同列沿 Z 的剪影扰动、边界台地外侧下延成裙边（到 y=-0.6）。
+    ///   边缘 0.35 宽 45° 倒角、侧面 3 段岩层带凹缝、同列沿 Z 的剪影扰动。
+    ///   平台簇模式（悬浮岛）时侧壁下延到**岛底平面**（簇最低地表 − 2.4 单位、下限 y=-1.15），
+    ///   再由 <see cref="AddClusterUnderside"/> 的收形锥沿**不规则岛形轮廓**继续往下收尖
+    ///   （用户裁决 1：厚重底部收形、悬空可见）。列式旧地形仍走"下延成裙边到 y=-0.6"的旧路径。
     ///   破坏流程不变：整格摧毁后该格不再参与建壳（见 <see cref="BattleTerrainView.ApplyDestruction"/>）。
     ///   （方案出处：`docs/场景设计-战斗竞技场.md` §3.1「视觉层与碰撞层解耦」与 §9.1。）
     ///
@@ -73,6 +107,12 @@ namespace PirateCrew.PirateCrew.SceneArt
     {
         /// <summary>
         /// 单格台地壳：倒角顶面 + 侧面岩层 + 剪影扰动 + 边界裙边。
+        ///
+        /// 【平台簇模式（悬浮岛）】侧壁不再一路下延到基础地面，而是下延到该簇的
+        /// <b>岛底平面</b>（<see cref="IslandBottomWorldY"/> = 簇最低地表 − <see cref="IslandShellSettings.SideThickness"/>，
+        /// 下限 <see cref="IslandShellSettings.UndersideBottomY"/>），再由
+        /// <see cref="AddClusterUnderside"/> 的收形锥继续往下收尖 —— 这样基准高度 ≥3 的岛
+        /// 会读成"悬浮 + 厚底"，而不是"从海底长上来的柱子"（旧实现的侧壁到地面就是柱子）。
         /// </summary>
         public static void AddSolidCell(MeshBuffers b, TileTerrainGrid grid, int gx, int gy, in IslandShellSettings s)
         {
@@ -101,23 +141,42 @@ namespace PirateCrew.PirateCrew.SceneArt
             float chamferBottomY = surfaceY - ch;
             float skirtY = Mathf.Min(chamferBottomY, s.SkirtBottomY);
 
+            bool platform = grid.IsPlatformMode;
+            int clusterIndex = platform ? grid.ClusterIndexOf(gx, gy) : -1;
+            float islandBottomY = platform && clusterIndex >= 0
+                ? Mathf.Min(IslandBottomWorldY(grid, clusterIndex, s), chamferBottomY)
+                : skirtY;
+
             // ---- 四面：倒角带 + 岩层侧壁 + 裙边 ----
             AddSide(b, grid, gx, gy, x0, x1, z0, z1, surfaceY, chamferBottomY, skirtY,
-                c, layers, s, ShellSide.North);
+                islandBottomY, platform, clusterIndex, c, layers, s, ShellSide.North);
             AddSide(b, grid, gx, gy, x0, x1, z0, z1, surfaceY, chamferBottomY, skirtY,
-                c, layers, s, ShellSide.South);
+                islandBottomY, platform, clusterIndex, c, layers, s, ShellSide.South);
             AddSide(b, grid, gx, gy, x0, x1, z0, z1, surfaceY, chamferBottomY, skirtY,
-                c, layers, s, ShellSide.West);
+                islandBottomY, platform, clusterIndex, c, layers, s, ShellSide.West);
             AddSide(b, grid, gx, gy, x0, x1, z0, z1, surfaceY, chamferBottomY, skirtY,
-                c, layers, s, ShellSide.East);
+                islandBottomY, platform, clusterIndex, c, layers, s, ShellSide.East);
+        }
+
+        /// <summary>
+        /// 该簇的**岛底平面**世界 Y：簇最低地表 − <see cref="IslandShellSettings.SideThickness"/>，
+        /// 下限 <see cref="IslandShellSettings.UndersideBottomY"/>（低于水面，保证贴水档也有厚度可看）。
+        /// </summary>
+        public static float IslandBottomWorldY(TileTerrainGrid grid, int clusterIndex, in IslandShellSettings s)
+        {
+            if (grid == null)
+                return s.UndersideBottomY;
+
+            float minSurface = grid.ClusterSurfaceMinWorldY(clusterIndex);
+            return Mathf.Max(minSurface - Mathf.Max(0.2f, s.SideThickness), s.UndersideBottomY);
         }
 
         enum ShellSide { North, South, West, East }
 
         static void AddSide(MeshBuffers b, TileTerrainGrid grid, int gx, int gy,
             float x0, float x1, float z0, float z1,
-            float surfaceY, float chamferBottomY, float skirtY,
-            float c, int layers, in IslandShellSettings s, ShellSide side)
+            float surfaceY, float chamferBottomY, float skirtY, float islandBottomY,
+            bool platform, int clusterIndex, float c, int layers, in IslandShellSettings s, ShellSide side)
         {
             int nx = gx, ny = gy;
             bool outside = false;
@@ -143,9 +202,26 @@ namespace PirateCrew.PirateCrew.SceneArt
             }
 
             float wallBottom;
-            if (outside)
+            if (platform)
             {
-                // 边界台地的外侧：下延成裙边，任何角度都看不到方块底面的悬空边。
+                // 平台簇模式：同簇邻格 → 台阶差（只看局部台阶面）；跨簇/水/场外 → 岛底平面。
+                bool sameIsland = !outside && grid.IsGroundAt(nx, ny)
+                    && grid.ClusterIndexOf(nx, ny) == clusterIndex;
+
+                if (sameIsland)
+                {
+                    float neighborSurface = grid.SurfaceWorldY(nx, ny);
+                    wallBottom = Mathf.Min(chamferBottomY,
+                        Mathf.Max(LevelGeometry.GroundTopY + grid.BaseWorldYAt(gx, gy), neighborSurface - c));
+                }
+                else
+                {
+                    wallBottom = islandBottomY;
+                }
+            }
+            else if (outside)
+            {
+                // 列式旧地形：边界台地的外侧下延成裙边，任何角度都看不到方块底面的悬空边。
                 wallBottom = skirtY;
             }
             else
@@ -212,22 +288,28 @@ namespace PirateCrew.PirateCrew.SceneArt
                 float insetTop = layer == 0 ? 0f : s.LayerRecess;
                 float insetBot = layer == layers - 1 ? 0f : s.LayerRecess;
 
-                // 剪影扰动只作用于最下一层：沿**墙面的法线方向**（inwardAxis）进/出抖动，
-                // 让同列沿 Z 的 17 格长墙不再是"一堵直线墙"（场景文档 §3.1 ③ 的 X 向 ±0.05-0.12）。
-                float jitterA = layer == layers - 1
-                    ? SceneArtHash.SignedHash(gx, gy, sideIndex * 97) * s.BoundaryJitter
-                    : 0f;
-                float jitterD = layer == layers - 1
-                    ? SceneArtHash.SignedHash(gx, gy, sideIndex * 97 + 7) * s.BoundaryJitter
-                    : 0f;
+                // 剪影扰动（**连续剪切**）：沿墙面向下逐渐加大横向进/出偏移，让同列沿 Z 的长墙
+                // 不是"一堵直线墙"（场景文档 §3.1 ③ 的 X 向 ±0.05-0.12）。
+                //
+                // 【为什么改成"按深度渐变"而不是只抖最下一层】用户裁决 2 让岛体侧壁从 0.15 单位
+                // 变成 2.4 单位厚（悬浮岛的厚底），只抖最下层会让上半截侧壁仍是一条笔直的长墙。
+                // 渐变剪切让每层的下沿 = 下一层的上沿（连续性），且最上沿偏移恒为 0
+                // （与倒角带的外沿严格对齐，不产生接缝）。
+                float ratioTop = layer / (float)layers;
+                float ratioBot = (layer + 1) / (float)layers;
 
-                Vector3 jitterOffsetA = inwardAxis * jitterA;
-                Vector3 jitterOffsetD = inwardAxis * jitterD;
+                float jitterA = SceneArtHash.SignedHash(gx, gy, sideIndex * 97) * s.BoundaryJitter;
+                float jitterD = SceneArtHash.SignedHash(gx, gy, sideIndex * 97 + 7) * s.BoundaryJitter;
 
-                Vector3 topA = a + inwardAxis * insetTop + Vector3.up * (yTop - chamferBottomY) + jitterOffsetA;
-                Vector3 topD = d + inwardAxis * insetTop + Vector3.up * (yTop - chamferBottomY) + jitterOffsetD;
-                Vector3 botA = a + inwardAxis * insetBot + Vector3.up * (yBot - chamferBottomY) + jitterOffsetA;
-                Vector3 botD = d + inwardAxis * insetBot + Vector3.up * (yBot - chamferBottomY) + jitterOffsetD;
+                Vector3 jitterOffsetTopA = inwardAxis * (jitterA * ratioTop);
+                Vector3 jitterOffsetTopD = inwardAxis * (jitterD * ratioTop);
+                Vector3 jitterOffsetBotA = inwardAxis * (jitterA * ratioBot);
+                Vector3 jitterOffsetBotD = inwardAxis * (jitterD * ratioBot);
+
+                Vector3 topA = a + inwardAxis * insetTop + Vector3.up * (yTop - chamferBottomY) + jitterOffsetTopA;
+                Vector3 topD = d + inwardAxis * insetTop + Vector3.up * (yTop - chamferBottomY) + jitterOffsetTopD;
+                Vector3 botA = a + inwardAxis * insetBot + Vector3.up * (yBot - chamferBottomY) + jitterOffsetBotA;
+                Vector3 botD = d + inwardAxis * insetBot + Vector3.up * (yBot - chamferBottomY) + jitterOffsetBotD;
 
                 b.AddQuad(topA, topD, botD, botA, outward);
             }
@@ -568,6 +650,14 @@ namespace PirateCrew.PirateCrew.SceneArt
                 float cx0 = info.X0, cx1 = info.X1 + 1f, cz0 = info.Z0, cz1 = info.Z1 + 1f;
                 int clusterSalt = 101 + c * 17;
 
+                // 【用户裁决 2：悬浮岛】水线暗带 / 湿沙暗带 / 泡沫线都只在**岛底确实入水**时才画
+                // （岛底平面 < 水面 + 0.05）：基准高度 ≥3 的岛悬在水面上方，若还画一圈贴水泡沫，
+                // 会读成"水面上浮着一圈白边"的错位。贴水档（基准 0）照旧保留四段过渡
+                // （沙 → 暗湿沙 → 泡沫 → 水）。
+                float islandBottomY = IslandBottomWorldY(grid, c, s);
+                if (islandBottomY >= LevelGeometry.WaterSurfaceY + 0.05f)
+                    continue;
+
                 // 湿沙暗带（r5 新增）：贴在簇包络外沿、比平台材质暗的一圈斜带，
                 // 写进 SandWet 组复用湿沙材质 → 岸线横切面得到「沙 → 暗湿沙 → 泡沫 → 水」的暗湿段。
                 AddWaterlineWetSand(buffers.SandWet, cx0, cx1, cz0, cz1,
@@ -585,7 +675,15 @@ namespace PirateCrew.PirateCrew.SceneArt
         }
 
         /// <summary>
-        /// 单簇底部：按伪装类型选形，并在水线处补一圈窄暗部（接触暗部）。
+        /// 单簇底部：按伪装类型选形（船 → V 形船壳；岛 → **贴岛形轮廓**的收形锥），
+        /// 并在岛底入水时补一圈窄暗部（接触暗部）。
+        ///
+        /// 【2026-09-14 用户裁决 1「厚重底部收形、悬空可见」的改动】旧实现是"矩形包络的圆台"
+        /// （<c>AddFrustum</c>：外接椭圆 + 固定收尖比），既与不规则岛形轮廓对不上（四角悬空），
+        /// 也没有"厚度"可言。现改为：
+        ///   1. 由岛形轮廓（岛缘格边）构造收形环 0，逐环朝岛心缩放到尖 → 底部轮廓 = 真岛形；
+        ///   2. 岛底平面 = 簇最低地表 − <see cref="IslandShellSettings.SideThickness"/>（侧壁负责这段厚度），
+        ///      收形锥从岛底平面再往下 <see cref="IslandShellSettings.UndersideTaperDepth"/> 收尖。
         /// </summary>
         public static void AddClusterUnderside(MeshBuffers b, TileTerrainGrid grid, in PlatformClusterInfo cluster,
             int clusterIndex, in IslandShellSettings s)
@@ -593,28 +691,162 @@ namespace PirateCrew.PirateCrew.SceneArt
             if (b == null || grid == null)
                 return;
 
-            float topY = LevelGeometry.GroundTopY;
-            float bottomY = Mathf.Min(s.UndersideBottomY, topY - 0.25f);
+            // 岛底平面（侧壁与收形锥的分界）与锥尖。
+            float bottomY = IslandBottomWorldY(grid, clusterIndex, s);
+            float tipY = bottomY - Mathf.Max(0.05f, s.UndersideTaperDepth);
+
             float x0 = cluster.X0, x1 = cluster.X1 + 1f;
             float z0 = cluster.Z0, z1 = cluster.Z1 + 1f;
 
             if (cluster.Kind == PlatformClusterKind.Ship)
             {
-                AddShipHullUnderside(b, x0, x1, z0, z1, topY, bottomY, clusterIndex);
-            }
-            else if (cluster.Kind == PlatformClusterKind.SkyIsland)
-            {
-                AddIslandConeUnderside(b, x0, x1, z0, z1, topY, bottomY, s.UndersideTipRatio, clusterIndex);
+                // 船体：矩形船壳是对的（船就是一整艘船），只是不再从基础地面起算，
+                // 而是从岛底平面起算（上面那段厚度由单格壳侧壁负责）。
+                AddShipHullUnderside(b, x0, x1, z0, z1, bottomY, tipY, clusterIndex);
             }
             else
             {
-                // 梯田岛：岩层（两段收窄的台锥 + 棱线碎石感）。
-                AddTerraceRockUnderside(b, x0, x1, z0, z1, topY, bottomY, s.UndersideTipRatio, clusterIndex);
+                AddIslandTaperUnderside(b, grid, cluster, clusterIndex, bottomY, tipY, s);
             }
 
-            // 水线暗部环：从台顶下缘(y=+0.05) 罩到水面之下(y=waterY-0.12)，把"平台底部悬空"的
-            // 缝隙收口，读作"入水的接触暗部"（r2 诊断问题 3）。
-            AddWaterlineBand(b, x0, x1, z0, z1, topY + 0.05f, LevelGeometry.WaterSurfaceY - 0.12f, 0.03f);
+            // 水线暗部环：只在岛底真的入水时画（从台顶下缘罩到水面之下），
+            // 把"平台底部悬空"的缝隙收口，读作"入水的接触暗部"（r2 诊断问题 3）。
+            if (bottomY < LevelGeometry.WaterSurfaceY + 0.05f)
+            {
+                AddWaterlineBand(b, x0, x1, z0, z1,
+                    LevelGeometry.GroundTopY + 0.05f, LevelGeometry.WaterSurfaceY - 0.12f, 0.03f);
+            }
+        }
+
+        /// <summary>
+        /// **贴岛形轮廓**的收形锥（空岛 / 梯田岛）：取岛缘的每一条格边作为轮廓环 0，
+        /// 再朝岛心逐环缩放（<see cref="IslandShellSettings.UndersideRings"/> 环）到锥尖。
+        ///
+        /// 【为什么用"轮廓环 + 逐环缩放"而不是"逐格小锥"】逐格锥会在相邻格之间留下裂缝
+        /// （各自朝岛心收缩，缝越往下越宽）；而"同一个线性缩放"对共享端点给出同一位置，
+        /// 环与环之间天然连续，无裂缝，且轮廓与 <see cref="AddSolidCell"/> 的侧壁底边**逐点对齐**。
+        /// </summary>
+        static void AddIslandTaperUnderside(MeshBuffers b, TileTerrainGrid grid, in PlatformClusterInfo cluster,
+            int clusterIndex, float bottomY, float tipY, in IslandShellSettings s)
+        {
+            float cx = (cluster.X0 + cluster.X1 + 1f) * 0.5f;
+            float cz = (cluster.Z0 + cluster.Z1 + 1f) * 0.5f;
+
+            int rings = Mathf.Max(2, s.UndersideRings);
+            int cells = 0;
+
+            for (int gz = cluster.Z0; gz <= cluster.Z1; gz++)
+            {
+                for (int gx = cluster.X0; gx <= cluster.X1; gx++)
+                {
+                    if (grid.ClusterIndexOf(gx, gz) != clusterIndex || grid.BlocksAt(gx, gz) <= 0)
+                        continue;
+
+                    cells++;
+
+                    // 四条格边：邻居不属于本簇（水 / 他簇 / 场外）→ 是岛缘边。
+                    AddTaperEdge(b, grid, clusterIndex, cx, cz, bottomY, tipY, rings, s,
+                        gx, gz, gx + 1, gz);
+                    AddTaperEdge(b, grid, clusterIndex, cx, cz, bottomY, tipY, rings, s,
+                        gx + 1, gz + 1, gx, gz + 1);
+                    AddTaperEdge(b, grid, clusterIndex, cx, cz, bottomY, tipY, rings, s,
+                        gx + 1, gz, gx + 1, gz + 1);
+                    AddTaperEdge(b, grid, clusterIndex, cx, cz, bottomY, tipY, rings, s,
+                        gx, gz + 1, gx, gz);
+                }
+            }
+
+            if (cells <= 0)
+                return;
+
+            // 钟乳 / 垂藤：3-5 根细锥从岛底不同 xz 垂到不同深度（保留 r2 修复的细节层）。
+            float halfX = Mathf.Max(0.5f, (cluster.X1 - cluster.X0 + 1) * 0.5f);
+            float halfZ = Mathf.Max(0.5f, (cluster.Z1 - cluster.Z0 + 1) * 0.5f);
+            int drips = 3 + (int)(SceneArtHash.Hash01(clusterIndex, 5, 23) * 3f);
+            for (int i = 0; i < drips; i++)
+            {
+                float dx = cx + SceneArtHash.SignedHash(clusterIndex, i, 29) * halfX * 0.6f;
+                float dz = cz + SceneArtHash.SignedHash(clusterIndex, i, 31) * halfZ * 0.6f;
+                float dripLen = 0.18f + SceneArtHash.Hash01(clusterIndex, i, 37) * 0.42f;
+                b.AddFrustum(new Vector3(dx, tipY + 0.05f, dz), 0.03f, 0.07f, dripLen, 5,
+                    i * 47f, capTop: false, capBottom: true);
+            }
+        }
+
+        /// <summary>
+        /// 一条岛缘边在相邻两环之间生成的侧裙面（退化边 / 非岛缘边自动跳过）。
+        /// <paramref name="ax"/>/<paramref name="az"/> → <paramref name="bx"/>/<paramref name="bz"/> 为边的两个端点（格角坐标）。
+        /// </summary>
+        static void AddTaperEdge(MeshBuffers b, TileTerrainGrid grid, int clusterIndex,
+            float cx, float cz, float bottomY, float tipY, int rings, in IslandShellSettings s,
+            int ax, int az, int bx, int bz)
+        {
+            // 只保留岛缘边：该边相邻的两个格里，至少有一个不属于本簇。
+            if (IsEdgeInterior(grid, clusterIndex, ax, az, bx, bz))
+                return;
+
+            float tipRatio = Mathf.Clamp(s.UndersideTipRatio, 0f, 0.95f);
+
+            for (int r = 0; r < rings - 1; r++)
+            {
+                float t0 = r / (float)(rings - 1);
+                float t1 = (r + 1) / (float)(rings - 1);
+
+                float s0 = Mathf.Lerp(1f, tipRatio, t0);
+                float s1 = Mathf.Lerp(1f, tipRatio, t1);
+                float y0 = Mathf.Lerp(bottomY, tipY, t0);
+                float y1 = Mathf.Lerp(bottomY, tipY, t1);
+
+                Vector3 a0 = new Vector3(cx + (ax - cx) * s0, y0, cz + (az - cz) * s0);
+                Vector3 b0 = new Vector3(cx + (bx - cx) * s0, y0, cz + (bz - cz) * s0);
+                Vector3 a1 = new Vector3(cx + (ax - cx) * s1, y1, cz + (az - cz) * s1);
+                Vector3 b1 = new Vector3(cx + (bx - cx) * s1, y1, cz + (bz - cz) * s1);
+
+                if (Vector3.SqrMagnitude(b1 - a1) < 1e-8f)
+                {
+                    // 最后一环收到一点：用三角形（a0-b0-尖）收口。
+                    Vector3 hint = new Vector3((a0.x + b0.x) * 0.5f - cx, 0.35f, (a0.z + b0.z) * 0.5f - cz);
+                    AddOrientedTriangle(b, a0, b0, a1, hint);
+                    continue;
+                }
+
+                Vector3 outward = new Vector3((a1.x + b1.x) * 0.5f - cx, 0.35f,
+                    (a1.z + b1.z) * 0.5f - cz);
+                b.AddQuad(a0, b0, b1, a1, outward.sqrMagnitude > 1e-9f ? outward.normalized : Vector3.up);
+            }
+        }
+
+        /// <summary>按外法线提示决定绕序的三角形（MeshBuffers 只有四边形版的自动翻面，这里补三角形版）。</summary>
+        static void AddOrientedTriangle(MeshBuffers b, Vector3 a, Vector3 c, Vector3 apex, Vector3 outwardHint)
+        {
+            Vector3 normal = Vector3.Cross(c - a, apex - a);
+            if (normal.sqrMagnitude < 1e-16f)
+                return;
+
+            if (Vector3.Dot(normal, outwardHint) < 0f)
+                b.AddTriangle(a, apex, c);
+            else
+                b.AddTriangle(a, c, apex);
+        }
+
+        /// <summary>
+        /// 格边是否属于**簇内部**（两侧的格都属于本簇）。
+        /// 边由两个格角坐标给出，用"边中点两侧各偏 0.1 格"的两个采样点判定。
+        /// </summary>
+        static bool IsEdgeInterior(TileTerrainGrid grid, int clusterIndex, int ax, int az, int bx, int bz)
+        {
+            float mx = (ax + bx) * 0.5f;
+            float mz = (az + bz) * 0.5f;
+
+            // 边的法线方向（沿 X 的边法线在 Z，反之在 X）。
+            bool alongX = Mathf.Abs(bx - ax) >= Mathf.Abs(bz - az);
+            float nx = alongX ? 0f : 1f;
+            float nz = alongX ? 1f : 0f;
+
+            int side1 = grid.ClusterIndexOf(Mathf.FloorToInt(mx + nx * 0.25f), Mathf.FloorToInt(mz + nz * 0.25f));
+            int side2 = grid.ClusterIndexOf(Mathf.FloorToInt(mx - nx * 0.25f), Mathf.FloorToInt(mz - nz * 0.25f));
+
+            return side1 == clusterIndex && side2 == clusterIndex;
         }
 
         /// <summary>
@@ -889,59 +1121,9 @@ namespace PirateCrew.PirateCrew.SceneArt
                 new Vector3(0f, 0.4f, 1f));
         }
 
-        /// <summary>空岛底部：岩锥收尖下垂（上宽下尖），再挂几缕"钟乳/垂藤"感的细锥。</summary>
-        static void AddIslandConeUnderside(MeshBuffers b, float x0, float x1, float z0, float z1,
-            float topY, float bottomY, float tipRatio, int seed)
-        {
-            float cx = (x0 + x1) * 0.5f, cz = (z0 + z1) * 0.5f;
-            float halfX = (x1 - x0) * 0.5f, halfZ = (z1 - z0) * 0.5f;
-            float topRadius = Mathf.Min(halfX, halfZ);
-            float bottomRadius = Mathf.Max(0.08f, topRadius * Mathf.Max(0.05f, tipRatio));
-            float height = topY - bottomY;
-
-            // AddFrustum 从 baseCenter 向上长：底小顶大 = 下垂岩锥。
-            b.AddFrustum(new Vector3(cx, bottomY, cz), bottomRadius, topRadius, height, 8,
-                SceneArtHash.Hash01(seed, 3, 17) * 360f, capTop: false, capBottom: true);
-
-            // 钟乳 / 垂藤：3-5 根细锥从底面不同 xz 垂到不同深度。
-            int drips = 3 + (int)(SceneArtHash.Hash01(seed, 5, 23) * 3f);
-            for (int i = 0; i < drips; i++)
-            {
-                float dx = cx + SceneArtHash.SignedHash(seed, i, 29) * halfX * 0.7f;
-                float dz = cz + SceneArtHash.SignedHash(seed, i, 31) * halfZ * 0.7f;
-                float dripLen = 0.18f + SceneArtHash.Hash01(seed, i, 37) * 0.42f;
-                b.AddFrustum(new Vector3(dx, bottomY - dripLen, dz), 0.03f, 0.07f, dripLen, 5,
-                    i * 47f, capTop: false, capBottom: true);
-            }
-        }
-
-        /// <summary>梯田岛底部：两段收窄的岩层台锥（上宽、中收、下尖）。</summary>
-        static void AddTerraceRockUnderside(MeshBuffers b, float x0, float x1, float z0, float z1,
-            float topY, float bottomY, float tipRatio, int seed)
-        {
-            float cx = (x0 + x1) * 0.5f, cz = (z0 + z1) * 0.5f;
-            float halfX = (x1 - x0) * 0.5f, halfZ = (z1 - z0) * 0.5f;
-            float topRadius = Mathf.Min(halfX, halfZ);
-            float midY = Mathf.Lerp(bottomY, topY, 0.45f);
-
-            float midRadius = topRadius * 0.62f;
-            float bottomRadius = Mathf.Max(0.08f, topRadius * Mathf.Max(0.05f, tipRatio));
-
-            // 下段（尖→中），上段（中→宽）。
-            b.AddFrustum(new Vector3(cx, bottomY, cz), bottomRadius, midRadius, midY - bottomY, 7,
-                SceneArtHash.Hash01(seed, 7, 41) * 360f, capTop: false, capBottom: true);
-            b.AddFrustum(new Vector3(cx, midY, cz), midRadius, topRadius, topY - midY, 7,
-                SceneArtHash.Hash01(seed, 9, 43) * 360f, capTop: false, capBottom: true);
-
-            // 岩层棱线：中段一圈错位的小石块。
-            for (int i = 0; i < 5; i++)
-            {
-                float ang = (i / 5f) * Mathf.PI * 2f + SceneArtHash.SignedHash(seed, i, 47) * 0.3f;
-                float px = cx + Mathf.Cos(ang) * midRadius * 1.02f;
-                float pz = cz + Mathf.Sin(ang) * midRadius * 1.02f;
-                b.AddBox(new Vector3(px, midY + 0.04f, pz),
-                    new Vector3(0.22f, 0.16f, 0.22f), SceneArtHash.Hash01(seed, i, 53) * 90f);
-            }
-        }
+        // 【已删除的旧实现】AddIslandConeUnderside / AddTerraceRockUnderside：
+        // 两者都是"矩形包络的圆台/台锥"（AddFrustum 外接椭圆），与不规则岛形轮廓对不上
+        // （四角悬空）、也没有"厚底"可言。2026-09-14 起统一走 AddIslandTaperUnderside
+        // 的"岛缘轮廓环逐环缩放"，不要再写回矩形包络的锥。
     }
 }

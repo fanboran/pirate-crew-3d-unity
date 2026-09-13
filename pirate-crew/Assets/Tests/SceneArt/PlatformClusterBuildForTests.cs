@@ -47,6 +47,8 @@ namespace PirateCrew.PirateCrew.Battle.Tests
                 Assert.AreEqual(a.MinBlocks, b.MinBlocks);
                 Assert.AreEqual(a.MaxBlocks, b.MaxBlocks);
                 Assert.AreEqual(a.SpawnTeamMask, b.SpawnTeamMask);
+                Assert.AreEqual(a.BaseHeight, b.BaseHeight, 1e-6f, "簇 " + c + " 基准高度");
+                Assert.AreEqual(a.BaseBlocks, b.BaseBlocks, "簇 " + c + " 基准块数");
             }
 
             Assert.AreEqual(authored.GroundCellCount, generic.GroundCellCount, "地面格数应一致");
@@ -86,6 +88,262 @@ namespace PirateCrew.PirateCrew.Battle.Tests
                 Assert.AreEqual(viaDelegate.Parts[i].Material, viaGeneric.Parts[i].Material);
                 Assert.AreEqual(viaDelegate.Parts[i].Position.y, viaGeneric.Parts[i].Position.y, 1e-6f);
             }
+        }
+
+        // ------------------------------------------------------------------
+        // 用户裁决 1：不规则岛形（不是矩形瓦片拼盘）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void BuildFor_GenericLevels_ProduceNonRectangularIslandOutlines()
+        {
+            // 判据：至少有一个簇的**实占格数 < 其包络矩形面积**（说明轮廓不是矩形），
+            // 且岛缘确实被侵蚀过（缺口格数 ≥ 包络周长的 5%）。level_1 是手写定义（本轮豁免，
+            // 见 PlatformClusterLayout 的 level_1 例外声明），故只查通用关。
+            int[] levels = { 2, 5, 7, 11, 16, 22, 30, 33 };
+
+            for (int i = 0; i < levels.Length; i++)
+            {
+                LevelData level = SyntheticLevel(levels[i]);
+                PlatformMap map = PlatformClusterLayout.BuildFor(level);
+                Assert.IsNotNull(map);
+
+                int nonRectClusters = 0;
+                int erodedCells = 0;
+                int bboxCells = 0;
+
+                for (int c = 0; c < map.Clusters.Count; c++)
+                {
+                    PlatformClusterInfo info = map.Clusters[c];
+                    int occupied = 0;
+                    for (int gz = info.Z0; gz <= info.Z1; gz++)
+                    {
+                        for (int gx = info.X0; gx <= info.X1; gx++)
+                        {
+                            if (map.ClusterAt(gx, gz).Name == info.Name)
+                                occupied++;
+                        }
+                    }
+
+                    int bbox = info.WidthTiles * info.DepthTiles;
+                    bboxCells += bbox;
+                    erodedCells += bbox - occupied;
+                    if (occupied < bbox && bbox >= PlatformClusterLayout.IslandMaskMinArea)
+                    {
+                        nonRectClusters++;
+                        TestContext.Progress.WriteLine("[岛形] level_" + levels[i] + " " + info.Name
+                            + " 包络 " + info.WidthTiles + "×" + info.DepthTiles + " 实占 " + occupied);
+                        // 岛心保底 ≥4 格：侵蚀只能"修边"，不得把小岛啃成碎片。
+                        Assert.GreaterOrEqual(occupied, 4,
+                            "岛形侵蚀后不得只剩碎片（" + info.Name + " " + info.WidthTiles + "×"
+                            + info.DepthTiles + " 实占 " + occupied + "）");
+                    }
+                }
+
+                Assert.GreaterOrEqual(nonRectClusters, 1,
+                    "level_" + levels[i] + " 至少应有一个非矩形岛形轮廓的簇");
+                Assert.Less(erodedCells, bboxCells * 0.5f, "侵蚀总量应受控");
+            }
+        }
+
+        [Test]
+        public void BuildFor_WideLevels_MainIslandSpansAtLeastTwelveTiles()
+        {
+            // 用户裁决 3「主岛 12-20 格宽量级的大岛（按关卡宽度适配）」：
+            // 宽图（≥48 格）下必须出现一个 ≥12 格宽的主岛，否则仍是"一撮小平台"。
+            LevelData level = SyntheticLevel(5, width: 56, depth: 18);
+            PlatformMap map = PlatformClusterLayout.BuildFor(level);
+
+            int widest = 0;
+            for (int c = 0; c < map.Clusters.Count; c++)
+                widest = Mathf.Max(widest, map.Clusters[c].WidthTiles);
+
+            Assert.GreaterOrEqual(widest, 12, "56 格宽的关卡应有 ≥12 格宽的主岛，实际最宽 " + widest);
+        }
+
+        [Test]
+        public void BuildFor_ShipsStayRectangular_SpawnIslandsProtectTheirSpawnCells()
+        {
+            // 两条结构性保证：
+            //   ① Ship 簇（船壳）不做岛形侵蚀——"船就是一整艘船"；
+            //   ② 出生簇虽然也走岛形轮廓（用户裁决 1：出生岛也是岛），但**出生矩形是受保护内核**：
+            //      包络内的每一个出生位格都必须是该簇的地面格（"出生位绝不落水"由结构保证）。
+            LevelData level = SyntheticLevel(5);
+            PlatformMap map = PlatformClusterLayout.BuildFor(level);
+
+            for (int c = 0; c < map.Clusters.Count; c++)
+            {
+                PlatformClusterInfo info = map.Clusters[c];
+                int occupied = 0;
+                for (int gz = info.Z0; gz <= info.Z1; gz++)
+                {
+                    for (int gx = info.X0; gx <= info.X1; gx++)
+                    {
+                        if (ClusterNameAt(map, gx, gz) == info.Name)
+                            occupied++;
+                    }
+                }
+
+                if (info.IsSpawnCluster)
+                {
+                    Assert.GreaterOrEqual(occupied, 0.5f * info.WidthTiles * info.DepthTiles,
+                        "出生簇 " + info.Name + " 被侵蚀过头（岛形只是修边，不能吃掉半个出生台地）");
+
+                    for (int u = 0; u < level.Units.Count; u++)
+                    {
+                        LevelUnit unit = level.Units[u];
+                        if (unit.gridX < info.X0 || unit.gridX > info.X1
+                            || unit.gridY < info.Z0 || unit.gridY > info.Z1)
+                            continue;
+
+                        Assert.IsTrue(map.IsGround(unit.gridX, unit.gridY),
+                            "出生位 (" + unit.gridX + "," + unit.gridY + ") 落在出生簇包络内却是水");
+                        Assert.AreEqual(info.Name, ClusterNameAt(map, unit.gridX, unit.gridY),
+                            "出生位 (" + unit.gridX + "," + unit.gridY + ") 必须属于它所在的出生簇");
+                    }
+                }
+
+                if (info.Kind == PlatformClusterKind.Ship)
+                {
+                    Assert.AreEqual(info.WidthTiles * info.DepthTiles, occupied,
+                        "Ship 簇 " + info.Name + " 不做岛形侵蚀（船就是一整艘船）");
+                }
+            }
+        }
+
+        static string ClusterNameAt(PlatformMap map, int gx, int gz)
+        {
+            PlatformClusterInfo info = map.ClusterAt(gx, gz);
+            return info.Name;
+        }
+
+        // ------------------------------------------------------------------
+        // 用户裁决 2：错落悬浮基准高度（0/3/6/9 世界单位）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void BuildFor_AllLevelNumbers_BaseHeightsAreStaggered()
+        {
+            for (int n = 2; n <= LevelCatalog.TotalLevels; n++)
+            {
+                LevelData level = SyntheticLevel(n);
+                PlatformMap map = PlatformClusterLayout.BuildFor(level);
+                Assert.IsNotNull(map);
+                Assert.GreaterOrEqual(map.Clusters.Count, 2, "合成 level_" + n + " 应有 ≥2 簇");
+
+                float min = float.MaxValue, max = float.MinValue;
+                int distinct = 0;
+                var seen = new List<float>();
+
+                for (int c = 0; c < map.Clusters.Count; c++)
+                {
+                    float h = map.Clusters[c].BaseHeight;
+                    Assert.IsTrue(ContainsHeight(PlatformClusterLayout.BaseHeightLadder, h),
+                        "level_" + n + " 的基准高度 " + h + " 必须落在 0/3/6/9 阶梯上");
+
+                    min = Mathf.Min(min, h);
+                    max = Mathf.Max(max, h);
+                    if (!seen.Contains(h))
+                    {
+                        seen.Add(h);
+                        distinct++;
+                    }
+                }
+
+                Assert.GreaterOrEqual(distinct, 2,
+                    "level_" + n + " 每关至少 2 个不同基准高度档（否则就是同层平铺）");
+                Assert.GreaterOrEqual(max - min, 3f,
+                    "level_" + n + " 最高-最低档差应 ≥3 世界单位，实际 " + (max - min));
+
+                // 出生岛贴水：至少一支出生簇落在 0 或 3。
+                bool spawnLow = false;
+                for (int c = 0; c < map.Clusters.Count; c++)
+                {
+                    if (map.Clusters[c].IsSpawnCluster && map.Clusters[c].BaseHeight <= 3f)
+                        spawnLow = true;
+                }
+                Assert.IsTrue(spawnLow, "level_" + n + " 至少一个出生岛应贴水（≤3）保开局可读");
+
+                // 阶梯连续：用到的档位必须构成 0..M 的前缀（用了 9 就必须有 3/6 的中继岛），
+                // 否则单发投掷的竖直顶点（≈2.06 单位，见 PlatformClusterLayout 类头）够不到高岛。
+                for (int step = 0; step < PlatformClusterLayout.BaseHeightLadder.Length; step++)
+                {
+                    float h = PlatformClusterLayout.BaseHeightLadder[step];
+                    if (!seen.Contains(h))
+                        continue;
+
+                    for (int lower = 0; lower < step; lower++)
+                    {
+                        Assert.IsTrue(seen.Contains(PlatformClusterLayout.BaseHeightLadder[lower]),
+                            "level_" + n + " 用了 " + h + " 档却缺 " + PlatformClusterLayout.BaseHeightLadder[lower]
+                            + " 档：阶梯必须连续（否则高岛打不到）");
+                    }
+                }
+
+                // 报告用：逐关打印基准高度分配（抽查 5 关时从这里取数）。
+                var line = new System.Text.StringBuilder("[基准高度] level_" + n + " 簇 " + map.Clusters.Count + "：");
+                for (int c = 0; c < map.Clusters.Count; c++)
+                {
+                    line.Append(map.Clusters[c].Name).Append('=').Append(map.Clusters[c].BaseHeight);
+                    if (c + 1 < map.Clusters.Count)
+                        line.Append(", ");
+                }
+                TestContext.Progress.WriteLine(line.ToString());
+            }
+        }
+
+        static bool ContainsHeight(float[] ladder, float value)
+        {
+            for (int i = 0; i < ladder.Length; i++)
+            {
+                if (Mathf.Abs(ladder[i] - value) < 1e-4f)
+                    return true;
+            }
+            return false;
+        }
+
+        [Test]
+        public void TileTerrainGrid_FoldsBaseHeightIntoBlocksAndSurface()
+        {
+            // 【基准高度换算的落点】PlatformMap.CellBlocks 是局部块高；TileTerrainGrid 必须把
+            // 簇基准折进 BlocksAt/SurfaceWorldY，这样碰撞方块（BattleTerrainView 按 BlocksAt 摆）
+            // 与视觉壳自动跟随悬浮基准高度。
+            LevelData level = SyntheticLevel(7);
+            PlatformMap map = PlatformClusterLayout.BuildFor(level);
+            var grid = new TileTerrainGrid(map.WidthTiles, map.DepthTiles, null,
+                TerrainCatalog.DefaultBlockWorldHeight, map);
+
+            Assert.IsTrue(grid.IsPlatformMode);
+
+            bool sawElevated = false;
+            for (int gz = 0; gz < map.DepthTiles; gz++)
+            {
+                for (int gx = 0; gx < map.WidthTiles; gx++)
+                {
+                    int clusterIndex = grid.ClusterIndexOf(gx, gz);
+                    if (clusterIndex < 0)
+                    {
+                        Assert.AreEqual(0, grid.BlocksAt(gx, gz), "水格块高应为 0");
+                        Assert.AreEqual(0, grid.BaseBlocksAt(gx, gz), "水格无基准");
+                        continue;
+                    }
+
+                    PlatformClusterInfo info = map.Clusters[clusterIndex];
+                    Assert.AreEqual(info.BaseBlocks, grid.BaseBlocksAt(gx, gz), "该格基准块数");
+                    Assert.AreEqual(map.BlocksAt(gx, gz), grid.LocalBlocksAt(gx, gz), "该格局部块高");
+                    Assert.AreEqual(map.BlocksAt(gx, gz) + info.BaseBlocks, grid.BlocksAt(gx, gz),
+                        "总块高 = 局部 + 基准");
+
+                    // 地表 = 基础地面 + 总块高 × 单块高（碰撞方块顶面同口径）。
+                    Assert.AreEqual(LevelGeometry.GroundTopY + grid.BlocksAt(gx, gz) * grid.BlockWorldHeight,
+                        grid.SurfaceWorldY(gx, gz), 1e-5f);
+
+                    if (info.BaseHeight > 0f)
+                        sawElevated = true;
+                }
+            }
+
+            Assert.IsTrue(sawElevated, "合成 level_7 应至少有一个抬高基准的岛");
         }
 
         // ------------------------------------------------------------------

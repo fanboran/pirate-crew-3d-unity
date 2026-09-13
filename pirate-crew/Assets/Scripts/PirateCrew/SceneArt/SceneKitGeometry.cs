@@ -139,6 +139,10 @@ namespace PirateCrew.PirateCrew.SceneArt
         /// <summary>
         /// 岛顶岩台：沿平台边缘铺一圈低矮岩唇（顶面**不高于**地表，<paramref name="surfaceY"/> 即地表）。
         /// <paramref name="radiusX"/>/<paramref name="radiusZ"/> = 簇包络半径。
+        ///
+        /// 【2026-09-14 用户裁决 1「不规则的岛形轮廓」】岩唇不再是一圈等半径的椭圆环：
+        /// 逐段半径按确定性哈希做 ±14% 的进出抖动（段长固定 10 段），使岛顶轮廓读起来是
+        /// **不规则岛形**而不是"矩形上摆了一圈等距石块"。
         /// </summary>
         public static void AddIslandTop(MeshBuffers b, Vector3 surfaceCenter, float radiusX, float radiusZ, int seed)
         {
@@ -149,8 +153,10 @@ namespace PirateCrew.PirateCrew.SceneArt
             for (int i = 0; i < segments; i++)
             {
                 float ang = i / (float)segments * Mathf.PI * 2f + SceneArtHash.SignedHash(seed, i, 61) * 0.18f;
-                float px = surfaceCenter.x + Mathf.Cos(ang) * radiusX;
-                float pz = surfaceCenter.z + Mathf.Sin(ang) * radiusZ;
+                // 半径抖动（±14%）：岛形轮廓不规则化。
+                float rr = 0.86f + 0.28f * SceneArtHash.Hash01(seed, i, 73);
+                float px = surfaceCenter.x + Mathf.Cos(ang) * radiusX * rr;
+                float pz = surfaceCenter.z + Mathf.Sin(ang) * radiusZ * rr;
                 float size = 0.26f + SceneArtHash.Hash01(seed, i, 67) * 0.16f;
                 b.AddBox(new Vector3(px, surfaceCenter.y - 0.11f, pz),
                     new Vector3(size, 0.22f, size),

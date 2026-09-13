@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 using PirateCrew.PirateCrew.Battle;
+using PirateCrew.PirateCrew.Data;
 using PirateCrew.PirateCrew.SceneArt;
 using UnityEngine;
 
@@ -11,7 +12,8 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
     ///
     /// 【覆盖】
     ///   · 两艘不同尺寸的船配方都能展开出 艏/舯/艉 船体段 + 甲板 + 桅 + 索具 + 帆；
-    ///   · level_1 的簇 → 配方映射（大船主簇 + 小空岛小艇 + 空岛/梯田岩台）；
+    ///   · level_1 的簇 → 配方映射（大船主簇 + 岛簇的岩唇/散岩/草顶），以及
+    ///     **每簇的材质族纯净性**（用户裁决 4：船=木/布/铁，岛=岩/草，出生簇栏杆除外）；
     ///   · 确定性重建（同 seed 同摆放）；
     ///   · 构件预算（三角面 / 材质组数）在场景文档 §8 之内；
     ///   · 构件几何不抬高地表（所有构件 y ≥ 基础地面）。
@@ -84,17 +86,71 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
         }
 
         [Test]
-        public void BuildLevel1_UsesLargeShipAndSmallBoat()
+        public void BuildLevel1_UsesLargeShip_AndKeepsIslandsWoodFree()
         {
             SceneKitLayout kit = SceneKitCatalog.BuildLevel1(7);
 
-            // 大船主簇 2 桅 + 小空岛小艇 1 桅 = 3 桅；两艘船各 1 个艏构件。
-            Assert.AreEqual(3, kit.CountOf(SceneKitPiece.Mast),
-                "大船(2桅) + 小艇(1桅) = 3 桅，说明两套配方都被用了");
-            Assert.AreEqual(2, kit.CountOf(SceneKitPiece.HullBow), "两艘船各 1 个艏构件");
-            Assert.GreaterOrEqual(kit.CountOf(SceneKitPiece.IslandTop), 1, "空岛/梯田应有岛顶岩台");
+            // level_1 的 ② 中央大船（包络 15 宽）走 galleon 配方（2 桅），其余三簇都是岛
+            // （技能语义纯净化后：岛簇**不再**摆小艇）→ 全场只有 1 艘船 = 2 桅 / 1 个艏构件。
+            Assert.AreEqual(2, kit.CountOf(SceneKitPiece.Mast),
+                "只有 ② 船簇有桅（岛簇不摆船，见 BuildFor 的材质族白名单）");
+            Assert.AreEqual(1, kit.CountOf(SceneKitPiece.HullBow), "只有 1 艘船 = 1 个艏构件");
+
+            // 岛簇要有岛顶岩唇与散岩；草顶（Foliage 的 DeckPlank）只给中立岛（③ 是蓝队出生岛 → 无草顶）。
+            Assert.GreaterOrEqual(kit.CountOf(SceneKitPiece.IslandTop), 2, "三个岛簇各有岛顶岩唇");
             Assert.GreaterOrEqual(kit.CountOf(SceneKitPiece.RockChunk), 6, "岛缘应有散落岩块");
             Assert.GreaterOrEqual(kit.CountOf(SceneKitPiece.Prop), 1, "应有陈设构件");
+        }
+
+        /// <summary>
+        /// 用户裁决 4「按簇 Kind 严格选材质族」的程序化判据：
+        /// 每个簇包络内的构件材质必须落在 <see cref="SceneKitCatalog.MaterialFamilyFor"/> 白名单里；
+        /// 唯一的跨族例外是**出生簇的栏杆**（Bulwark + Wood，用户裁决明写"出生岛 = 沙台地 + 栏杆"）。
+        /// </summary>
+        [Test]
+        public void BuildFor_EveryCluster_KeepsItsMaterialFamily()
+        {
+            var maps = new List<PlatformMap>
+            {
+                PlatformClusterLayout.BuildLevel1(),
+                PlatformClusterLayout.BuildFor(LevelCatalog.Get(4)),
+                PlatformClusterLayout.BuildFor(LevelCatalog.Get(27)),
+            };
+
+            for (int m = 0; m < maps.Count; m++)
+            {
+                PlatformMap map = maps[m];
+                SceneKitLayout kit = SceneKitCatalog.BuildFor(m + 1, map, 1013 + m);
+
+                for (int p = 0; p < kit.Parts.Count; p++)
+                {
+                    KitPart part = kit.Parts[p];
+                    if (part.ClusterIndex < 0 || part.ClusterIndex >= map.Clusters.Count)
+                        continue;   // 未标注簇（裸配方用法）：不参与纯净性断言
+
+                    PlatformClusterInfo info = map.Clusters[part.ClusterIndex];
+                    IReadOnlyList<SceneKitMaterial> allowed = SceneKitCatalog.MaterialFamilyFor(info.Kind);
+                    if (ContainsMaterial(allowed, part.Material))
+                        continue;
+
+                    bool railingException = part.Piece == SceneKitPiece.Bulwark
+                        && part.Material == SceneKitMaterial.Wood && info.IsSpawnCluster;
+
+                    Assert.IsTrue(railingException,
+                        info.Name + "（" + info.Kind + "）出现跨族材质 " + part.Material
+                        + " @ " + part.Piece + "：" + part.Position);
+                }
+            }
+        }
+
+        static bool ContainsMaterial(IReadOnlyList<SceneKitMaterial> list, SceneKitMaterial material)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i] == material)
+                    return true;
+            }
+            return false;
         }
 
         [Test]

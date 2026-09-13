@@ -46,8 +46,22 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>地面格包络（含边界，俯视矩形）。</summary>
         public readonly int X0, Z0, X1, Z1;
 
-        /// <summary>簇内最低/最高平台高度（块）。</summary>
+        /// <summary>簇内最低/最高平台高度（块，**局部**台阶高，不含 <see cref="BaseHeight"/>）。</summary>
         public readonly int MinBlocks, MaxBlocks;
+
+        /// <summary>
+        /// 岛基准高度（世界单位）：整簇地基相对基础地面 <see cref="LevelGeometry.GroundTopY"/> 的抬高量。
+        ///
+        /// 【数据口径】<see cref="PlatformMap.CellBlocks"/> 仍只记**局部**块高（簇内台阶差），
+        /// 由 <see cref="TileTerrainGrid"/> 构造时换算成「局部 + 基准」的总块高。这样：
+        ///   · 碰撞（<c>BattleTerrainView</c> 按 <c>BlocksAt</c> 摆方块）与视觉壳（按
+        ///     <c>SurfaceWorldY</c>）**无需任何改动**就跟随基准高度；
+        ///   · 「簇内台阶差 ≤ <see cref="PlatformClusterLayout.MaxBlocksPerCluster"/>」这条既有契约
+        ///     不被基准高度污染（基准是整簇平移，不是簇内加高）。
+        ///
+        /// 取值恒为整数块的倍数（阶梯 0/3/6/9 世界单位 = 0/12/24/36 块 @0.25）。
+        /// </summary>
+        public readonly float BaseHeight;
 
         /// <summary>
         /// 出生队列掩码：<c>bit0 = 红队(team0)</c>、<c>bit1 = 蓝队(team1)</c>、<c>0 = 中立</c>。
@@ -56,7 +70,7 @@ namespace PirateCrew.PirateCrew.Battle
         public readonly int SpawnTeamMask;
 
         public PlatformClusterInfo(string name, PlatformClusterKind kind, int x0, int z0, int x1, int z1,
-            int minBlocks, int maxBlocks, int spawnTeamMask = 0)
+            int minBlocks, int maxBlocks, int spawnTeamMask = 0, float baseHeight = 0f)
         {
             Name = name;
             Kind = kind;
@@ -67,7 +81,31 @@ namespace PirateCrew.PirateCrew.Battle
             MinBlocks = minBlocks;
             MaxBlocks = maxBlocks;
             SpawnTeamMask = spawnTeamMask;
+            BaseHeight = baseHeight;
         }
+
+        /// <summary>基准高度换算成**块数**（单块高度取全工程单一来源 <see cref="TerrainCatalog.DefaultBlockWorldHeight"/>）。</summary>
+        public int BaseBlocks =>
+            Mathf.RoundToInt(BaseHeight / TerrainCatalog.DefaultBlockWorldHeight);
+
+        /// <summary>含基准高度的最低总块高。</summary>
+        public int MinTotalBlocks => MinBlocks + BaseBlocks;
+
+        /// <summary>含基准高度的最高总块高。</summary>
+        public int MaxTotalBlocks => MaxBlocks + BaseBlocks;
+
+        /// <summary>整簇平移基准高度（返回新值，本结构不可变）。</summary>
+        public PlatformClusterInfo WithBaseHeight(float baseHeight)
+        {
+            return new PlatformClusterInfo(Name, Kind, X0, Z0, X1, Z1, MinBlocks, MaxBlocks,
+                SpawnTeamMask, baseHeight);
+        }
+
+        /// <summary>整簇包络的宽度（格）。</summary>
+        public int WidthTiles => X1 - X0 + 1;
+
+        /// <summary>整簇包络的纵深（格）。</summary>
+        public int DepthTiles => Z1 - Z0 + 1;
 
         /// <summary>格是否落在本簇包络内（含边界）。</summary>
         public bool Contains(int gx, int gz) => gx >= X0 && gx <= X1 && gz >= Z0 && gz <= Z1;
@@ -100,7 +138,7 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>纵深格数。</summary>
         public readonly int DepthTiles;
 
-        /// <summary>逐格块高（行主序）；0 = 水。</summary>
+        /// <summary>逐格块高（行主序）；0 = 水。**局部**块高——不含所属簇的 <see cref="PlatformClusterInfo.BaseHeight"/>。</summary>
         public readonly int[] CellBlocks;
 
         /// <summary>逐簇归属（行主序）；-1 = 水。</summary>
@@ -130,13 +168,26 @@ namespace PirateCrew.PirateCrew.Battle
             return CellCluster[IndexOf(gx, gz)] >= 0;
         }
 
-        /// <summary>该格的块高（水 / 越界 = 0）。</summary>
+        /// <summary>该格的块高（水 / 越界 = 0）；**局部**块高（不含簇基准高度）。</summary>
         public int BlocksAt(int gx, int gz)
         {
             if (gx < 0 || gz < 0 || gx >= WidthTiles || gz >= DepthTiles)
                 return 0;
             return CellBlocks[IndexOf(gx, gz)];
         }
+
+        /// <summary>该格所属簇的基准块数（水 / 越界 = 0）。</summary>
+        public int BaseBlocksAt(int gx, int gz)
+        {
+            if (gx < 0 || gz < 0 || gx >= WidthTiles || gz >= DepthTiles)
+                return 0;
+
+            int c = CellCluster[IndexOf(gx, gz)];
+            return c >= 0 && c < Clusters.Count ? Clusters[c].BaseBlocks : 0;
+        }
+
+        /// <summary>该格的**总**块高（局部 + 簇基准）；水 / 越界 = 0。</summary>
+        public int TotalBlocksAt(int gx, int gz) => BlocksAt(gx, gz) + BaseBlocksAt(gx, gz);
 
         /// <summary>地面格数量。</summary>
         public int GroundCellCount
@@ -194,6 +245,13 @@ namespace PirateCrew.PirateCrew.Battle
     /// | 簇密度 | R9（教学 5–9、常规 7–12、高密 19–21） | 碎岛雨模板的簇数 = clamp(面积/90, 6, 21)；其余模板 2–5 簇 |
     /// | 垂直节奏 | R8（≥9 层的垂直大关后必须接 ≤3 层低平关） | 阶梯峰只在 <c>levelNumber % 5 == 0</c> 的关启用（峰值 5 块），其余关不出现 |
     /// | 掩体 | R17（掩体用高度差不用墙） | 全部地形都是实心平台 + 块高差；不生成任何墙/斜坡/单向平台 |
+    /// | **岛形轮廓** | 用户裁决 1/4（禁止矩形瓦片拼盘） | 非出生簇的大矩形 stamp 走 `StampIsland`（角向噪声侵蚀/外凸，见该类头） |
+    /// | **基准高度** | 用户裁决 2（错落悬浮高度） | `AssignBaseHeights` 按 `hash(levelNumber, 簇下标)` 定名次 → 0/3/6/9 世界单位阶梯（出生岛压最低档、阶梯连续） |
+    ///
+    /// 【level_1 的例外（诚实声明，务必先读）】`BuildFromDefs` 的手写四簇**基准高度恒为 0、轮廓恒为矩形**：
+    /// 它的逐值口径（4 簇 / 411 地面格 / `BlocksAt(24,5)==2` / `SurfaceWorldY(24,5)==0.5`）被
+    /// `Assets/Tests/Battle/TileTerrainTests.cs` 钉死，而该文件**不在本轮改动域内**。
+    /// 故 level_1 是全工程唯一保留"同层 + 直角台"的关卡；通用关（2–33）一律走岛形 + 错落高度。
     ///
     /// 【未建模（诚实声明）】R4（"主簇最底行贴水线"）依赖原版 2D 的行序语义，本项目把行序重投影为
     /// 世界 Z（见 <see cref="TileTerrainGrid"/> 类头），故不按"贴水线"摆放；R11（台阶进深 ≥2 行）
@@ -218,6 +276,55 @@ namespace PirateCrew.PirateCrew.Battle
     {
         /// <summary>单簇最高块数（平台竖直压缩上限；<see cref="TileTerrainGrid"/> 的块高口径）。</summary>
         public const int MaxBlocksPerCluster = 5;
+
+        // ==================================================================
+        // 用户裁决（docs/关卡设计语言-参照游戏全场景分析.md 头部总纲，2026-09-14）
+        // ==================================================================
+        // 「到处都是相对独立的空岛，每个处都应该是一个独立的大空岛」的四条落地：
+        //   1. 每处 = 一整块岛体：**不规则岛形轮廓**（不是矩形瓦片拼盘）+ 厚重底部收形；
+        //   2. 一张图 = 多个独立空岛，各自**不同的悬浮基准高度**（阶梯 0/3/6/9 世界单位）；
+        //   3. 大块可读剪影 + 大色块（能站/会死一眼分清）；
+        //   4. 禁止：贴水薄甲板 / 矩形瓦片拼盘 / 同层平铺 / 木板+草方块混搭。
+        //
+        // 【基准高度上限定为 9 世界单位（阶梯 0/3/6/9）的量化依据】
+        //   · 相机可达性：BattleCameraController 全场档 = 距离 15 / 俯角 45°（FullFieldDistance/
+        //     FullFieldPitchDegrees），相机高出焦点 15·sin45° ≈ 10.61 世界单位；滚轮最远 25 档
+        //     则为 17.68。最高岛顶 = 9 + 5 块×0.25 = 10.25 < 10.61 → 全场档仍在画面内。
+        //   · 瞄准/投掷可达性：满力投掷（twangMax=20 px/帧、抬升 0.7、g=19.53）的**竖直顶点**
+        //     只有 v_v²/(2g) ≈ 2.06 世界单位（v_v = 20/1.28/√1.49·0.7 ≈ 8.96）。
+        //     即单发投掷最多爬到起点上方约 2.06 单位；加上投手可站的最高局部台阶 5 块（1.25），
+        //     一次跨越的**竖直档差上限 ≈ 3.3 单位**。故阶梯步长取 3（不是任意的 0/+3/+6/+9 里的 3
+        //     以外的更细档），且**阶梯必须连续**（用了 9 就必须有 3/6 的中继岛）——
+        //     见 AssignBaseHeights 的"补阶"步骤；没有中继岛时 9 档岛将成为打不到的孤岛。
+        //   · 一个反例记录（诚实声明）：步长 3 已贴近 3.3 的上限，投手若站在最低台阶上，
+        //     跨 3 档会落在射程边缘（需靠岛内高地或中继岛辅助），这是本方案的**已知手感代价**。
+
+        /// <summary>
+        /// 基准高度阶梯（世界单位）。用户裁决的 0/+3/+6/+9 档；每档 = 12 块 @0.25。
+        /// 见类头「基准高度上限定为 9 世界单位」的量化依据。
+        /// </summary>
+        public static readonly float[] BaseHeightLadder = { 0f, 3f, 6f, 9f };
+
+        /// <summary>
+        /// 岛形掩码的**启用下限**：宽或深小于该值的 stamp（踏脚石 / 出生台地）保持实心矩形，
+        /// 既避免 2×2 的跳板被侵蚀成碎渣，也保证出生台地形状可读。
+        /// </summary>
+        public const int IslandMaskMinSpan = 4;
+
+        /// <summary>岛形掩码启用下限（面积，格）：小平台不做侵蚀。</summary>
+        public const int IslandMaskMinArea = 16;
+
+        /// <summary>岛形掩码最大侵蚀深度（相对归一化半径）：0.28 ≈ 在 14 宽的岛上蚀掉 2 格。</summary>
+        public const float IslandErosion = 0.28f;
+
+        /// <summary>岛形掩码最大外凸幅度（相对归一化半径）：0.16 ≈ 外凸 1 格。</summary>
+        public const float IslandBulge = 0.16f;
+
+        /// <summary>核心保底半径（归一化）：半径 ≤ 该值的格永不被侵蚀（岛心不成洞）。</summary>
+        public const float IslandCoreRadius = 0.5f;
+
+        /// <summary>侵蚀后保留率下限：低于它说明蚀过头（碎渣/成洞），退回实心矩形。</summary>
+        public const float IslandMinKeepRatio = 0.62f;
 
         /// <summary>常规关允许的最大簇间水距（格）——R3「常规关 1–5 格」。</summary>
         public const int RegularMaxWaterGap = 5;
@@ -565,7 +672,158 @@ namespace PirateCrew.PirateCrew.Battle
                     EnsureSpawnPath(writer, red, blue, cap, chapter);
             }
 
-            return writer.Finalize();
+            // 用户裁决 2：给每个岛分配**错落**的悬浮基准高度（0/3/6/9 世界单位阶梯）。
+            // 放在所有二维构造（过桥/连通性）之后：那两条规则只管"横向水距"，基准高度是整簇平移，
+            // 不改变任何格的水陆归属与包络，故互不干扰（竖直可达性由阶梯连续性保证，见 AssignBaseHeights）。
+            return AssignBaseHeights(level.LevelNumber, writer.Finalize());
+        }
+
+        // ==================================================================
+        // 用户裁决 2：错落基准高度（0/3/6/9 世界单位阶梯）
+        // ==================================================================
+
+        /// <summary>
+        /// 给整张地图的每个簇分配**悬浮基准高度**（确定性：由 levelNumber + 簇索引的哈希定名次）。
+        ///
+        /// 【三条硬约束（都由"可玩性"倒推，出处见类头的量化依据）】
+        ///   · 出生岛贴水：anchor 出生簇（红队优先）强制落在阶梯最低档 0，另一支出生簇压到 ≤3，
+        ///     保证开局双方站在离水面最近的岛上、画面可读（用户裁决："至少一个贴水档 0-3"）；
+        ///   · 跨度 ≥ 1 档：至少两个簇拿到不同档（否则与"同层平铺"无异）；
+        ///   · 阶梯连续：用到的档位必须是 0..M 的前缀（用了 9 就必须有 3/6 的中继岛）——
+        ///     单发投掷的竖直顶点只有 ≈2.06 单位（见类头），跳档会让高岛变成打不到的孤岛。
+        ///
+        /// 【为什么用"名次 → 档位"而不是"直接取哈希档位"】直接取档位会出现"整关全是 0"或
+        /// "跳档（0 与 9 无中继）"；按名次均匀铺到 0..M 天然覆盖全部档位（步长 ≤ 1 档），
+        /// 再补一次"出生岛压档 + 补阶"就同时满足三条约束。
+        /// </summary>
+        static PlatformMap AssignBaseHeights(int levelNumber, PlatformMap map)
+        {
+            if (map == null || map.Clusters.Count < 2)
+                return map;
+
+            int n = map.Clusters.Count;
+            int maxLadder = Mathf.Min(BaseHeightLadder.Length - 1, n - 1);
+
+            // 1) 名次：按确定性哈希升序（稳定插入排序，避免 System.Random / LINQ 的跨运行时差异）。
+            var keys = new float[n];
+            var order = new int[n];
+            for (int i = 0; i < n; i++)
+            {
+                keys[i] = Hash01(levelNumber, i, 53);
+                order[i] = i;
+            }
+
+            for (int i = 1; i < n; i++)
+            {
+                int k = order[i];
+                float kv = keys[k];
+                int j = i - 1;
+                while (j >= 0 && keys[order[j]] > kv)
+                {
+                    order[j + 1] = order[j];
+                    j--;
+                }
+                order[j + 1] = k;
+            }
+
+            // 2) 名次 → 档位（p·maxLadder/(n-1) 四舍五入：步长 ≤ 1 档，天然覆盖 0..maxLadder）。
+            var ladderIndex = new int[n];
+            for (int p = 0; p < n; p++)
+            {
+                int li = Mathf.RoundToInt(p * maxLadder / (float)(n - 1));
+                ladderIndex[order[p]] = Mathf.Clamp(li, 0, maxLadder);
+            }
+
+            // 3) 出生岛贴水：anchor（红队优先）压到最低档，另一支出生簇压到 ≤1 档。
+            int anchor = FirstSpawnCluster(map.Clusters);
+            if (anchor >= 0)
+                ladderIndex[anchor] = 0;
+
+            int other = -1;
+            for (int i = 0; i < n; i++)
+            {
+                if (i != anchor && map.Clusters[i].IsSpawnCluster)
+                {
+                    other = i;
+                    break;
+                }
+            }
+
+            if (other >= 0)
+                ladderIndex[other] = Mathf.Min(ladderIndex[other], 1);
+
+            // 4) 跨度兜底：全压平（整关同高）时把一个非出生簇抬到 1 档。
+            int maxUsed = 0;
+            for (int i = 0; i < n; i++)
+                maxUsed = Mathf.Max(maxUsed, ladderIndex[i]);
+
+            if (maxUsed < 1)
+            {
+                for (int p = n - 1; p >= 0; p--)
+                {
+                    int i = order[p];
+                    if (!map.Clusters[i].IsSpawnCluster)
+                    {
+                        ladderIndex[i] = 1;
+                        maxUsed = 1;
+                        break;
+                    }
+                }
+            }
+
+            // 5) 补阶：保证用到的档位是 0..M 的连续前缀（缺哪一档就把最高的一个簇降下来补它）。
+            for (int v = 1; v <= maxUsed; v++)
+            {
+                if (UsedLadderIndex(ladderIndex, v))
+                    continue;
+
+                int victim = -1;
+                for (int i = 0; i < n; i++)
+                {
+                    if (ladderIndex[i] > v)
+                        victim = i;
+                }
+
+                if (victim < 0)
+                    break;   // 没有更高的可降，接受当前跨度
+
+                ladderIndex[victim] = v;
+            }
+
+            // 6) 阶梯档位 → 世界单位高度，重建簇列表（只换 BaseHeight，包络/Kind/掩码全部保留）。
+            var rebuilt = new List<PlatformClusterInfo>(n);
+            for (int i = 0; i < n; i++)
+                rebuilt.Add(map.Clusters[i].WithBaseHeight(BaseHeightLadder[ladderIndex[i]]));
+
+            return new PlatformMap(map.WidthTiles, map.DepthTiles, map.CellBlocks, map.CellCluster, rebuilt);
+        }
+
+        static bool UsedLadderIndex(int[] index, int v)
+        {
+            for (int i = 0; i < index.Length; i++)
+            {
+                if (index[i] == v)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>第一支出生簇（红队优先）的下标；没有出生簇返回 -1。</summary>
+        static int FirstSpawnCluster(IReadOnlyList<PlatformClusterInfo> clusters)
+        {
+            for (int i = 0; i < clusters.Count; i++)
+            {
+                if (clusters[i].SpawnsTeam(0))
+                    return i;
+            }
+
+            for (int i = 0; i < clusters.Count; i++)
+            {
+                if (clusters[i].IsSpawnCluster)
+                    return i;
+            }
+
+            return -1;
         }
 
         /// <summary>两个出生簇（各自中心所在的簇）在"水距 ≤ cap"的图里是否同一连通分量。</summary>
@@ -655,6 +913,8 @@ namespace PirateCrew.PirateCrew.Battle
                     continue;
                 if (Intersects(r, red) || Intersects(r, blue))
                     continue;   // 落进出生簇的位置交给出生簇本身承担
+                if (writer.AnyOwned(r))
+                    continue;   // 位置已被模板簇占用：让位（原实现会覆盖它，切成碎片）
 
                 int idx = writer.NewCluster("spawn_path_islet", IsletKindFor(chapter), 0);
                 writer.Stamp(idx, r.X0, r.Z0, r.X1, r.Z1, 2);
@@ -693,8 +953,10 @@ namespace PirateCrew.PirateCrew.Battle
 
             if (gap >= 6)
             {
-                int width = Mathf.Clamp(gap - 4, 3, 10);
-                int depth = Mathf.Clamp(Mathf.Min(red.Depth, blue.Depth), 4, writer.D - 2);
+                // 用户裁决 3：「主岛 12-20 格宽量级的大岛（按关卡宽度适配）」——
+                // 宽度吃到"两出生簇之间的可用水面 − 每侧 2 格水道"，上限 20；窄图自然退化。
+                int width = Mathf.Clamp(gap - 4, 3, Mathf.Min(20, Mathf.Max(3, writer.W - 4)));
+                int depth = Mathf.Clamp(Mathf.Min(red.Depth, blue.Depth) + 2, 5, writer.D - 2);
                 int cx = (red.X1 + blue.X0) / 2;
                 int cz = (red.CenterZ + blue.CenterZ) / 2;
 
@@ -703,13 +965,23 @@ namespace PirateCrew.PirateCrew.Battle
                 if (r.Width >= 3 && r.Depth >= 3)
                 {
                     int platform = writer.NewCluster("main_center", MainKindFor(chapter), 0);
-                    writer.Stamp(platform, r.X0, r.Z0, r.X1, r.Z1, 1);
+                    // 不规则岛形（Ship 簇除外——船体本来就是盒状船壳，见 StampIsland 的用途说明）。
+                    if (MainKindFor(chapter) == PlatformClusterKind.Ship)
+                        writer.Stamp(platform, r.X0, r.Z0, r.X1, r.Z1, 1);
+                    else
+                        writer.StampIsland(platform, r.X0, r.Z0, r.X1, r.Z1, 1, IslandSeed(platform));
 
                     if (!teaching)
                     {
                         RectI inner = Shrink(r, 1);
                         if (inner.Width >= 2 && inner.Depth >= 2)
-                            writer.Stamp(platform, inner.X0, inner.Z0, inner.X1, inner.Z1, 2);
+                        {
+                            if (MainKindFor(chapter) == PlatformClusterKind.Ship)
+                                writer.Stamp(platform, inner.X0, inner.Z0, inner.X1, inner.Z1, 2);
+                            else
+                                writer.StampIsland(platform, inner.X0, inner.Z0, inner.X1, inner.Z1,
+                                    2, IslandSeed(platform));
+                        }
                     }
                 }
             }
@@ -738,6 +1010,9 @@ namespace PirateCrew.PirateCrew.Battle
         // ------------------------------------------------------------------
         // 模板 2：沉船残骸簇（档 1 的船关母题）
         // ------------------------------------------------------------------
+
+        /// <summary>岛形掩码的确定性种子（由簇下标派生；与关卡号无关，故模板函数无需透传 levelNumber）。</summary>
+        static int IslandSeed(int clusterIndex) => 9001 + clusterIndex * 131;
 
         static void BuildWreckField(MapWriter writer, RectI red, RectI blue, bool teaching)
         {
@@ -778,7 +1053,7 @@ namespace PirateCrew.PirateCrew.Battle
 
         static void BuildWreckHulk(MapWriter writer, RectI red, RectI blue, bool teaching)
         {
-            int width = Mathf.Clamp(GapX(red, blue) - 4, 3, 8);
+            int width = Mathf.Clamp(GapX(red, blue) - 4, 3, Mathf.Min(16, Mathf.Max(3, writer.W - 4)));
             int depth = Mathf.Clamp(Mathf.Min(red.Depth, blue.Depth), 4, writer.D - 2);
             RectI r = ClampRect(CenterBetween(red, blue, width, depth), writer.W, writer.D);
             int one = writer.NewCluster("wreck_hulk", PlatformClusterKind.Ship, 0);
@@ -814,6 +1089,31 @@ namespace PirateCrew.PirateCrew.Battle
                 4, Mathf.Max(4, writer.W / 2 - 2));
             int radiusZ = Mathf.Clamp(writer.D / 2 - 2, 3, Mathf.Max(3, writer.D / 2 - 1));
 
+            // 用户裁决 3「每张图要有大块可读剪影」：半径够大时环形中心放一座大岛
+            // （旧实现只在"环上一个都没放下"时才补中心，等于环形礁没有主岛、全是小砖）。
+            if (radiusX >= 8 && radiusZ >= 6)
+            {
+                int cw = Mathf.Clamp(radiusX * 2 / 3, 6, 16);
+                int cd = Mathf.Clamp(radiusZ, 5, writer.D - 2);
+                RectI cr = ClampRect(new RectI(cx - cw / 2, cz - cd / 2,
+                    cx - cw / 2 + cw - 1, cz - cd / 2 + cd - 1), writer.W, writer.D);
+
+                if (cr.Width >= 4 && cr.Depth >= 4)
+                {
+                    int core = writer.NewCluster("ring_core", MainKindFor(chapter), 0);
+                    int coreSeed = IslandSeed(core);
+                    writer.StampIsland(core, cr.X0, cr.Z0, cr.X1, cr.Z1, 1, coreSeed);
+
+                    RectI coreInner = Shrink(cr, 1);
+                    if (coreInner.Width >= 2 && coreInner.Depth >= 2)
+                        writer.StampIsland(core, coreInner.X0, coreInner.Z0,
+                            coreInner.X1, coreInner.Z1, 2, coreSeed);
+                }
+            }
+
+            // 环上小岛：半径小（环挤）时用 3×3（低于岛形掩码下限，挤在一起也不会互相啃），
+            // 半径大时用 5×5（走岛形掩码 → 读作一圈不规则礁岛而不是一圈方砖）。
+            int half = radiusX >= 7 ? 2 : 1;
             const int ring = 8;
             int placed = 0;
             for (int i = 0; i < ring; i++)
@@ -823,11 +1123,13 @@ namespace PirateCrew.PirateCrew.Battle
                 int iz = cz + Mathf.RoundToInt(Mathf.Sin(ang) * radiusZ);
 
                 int idx = writer.NewCluster("ring_islet_" + i, IsletKindFor(chapter), 0);
-                RectI r = ClampRect(new RectI(ix - 1, iz - 1, ix + 1, iz + 1), writer.W, writer.D);
+                RectI r = ClampRect(new RectI(ix - half, iz - half, ix + half, iz + half), writer.W, writer.D);
                 if (r.Width <= 0 || r.Depth <= 0)
                     continue;
+                if (writer.AnyOwned(r))
+                    continue;   // 中央主岛已占位：让出这一段（环形构图不变）
 
-                writer.Stamp(idx, r.X0, r.Z0, r.X1, r.Z1, 2);
+                writer.StampIsland(idx, r.X0, r.Z0, r.X1, r.Z1, 2, IslandSeed(idx));
                 placed++;
             }
 
@@ -858,18 +1160,22 @@ namespace PirateCrew.PirateCrew.Battle
             int placed = 0;
             for (int i = 0; i < count; i++)
             {
-                int cx = 1 + (int)(Hash01(level.LevelNumber, i, 11) * Mathf.Max(1, writer.W - 4));
-                int cz = 1 + (int)(Hash01(level.LevelNumber, i, 23) * Mathf.Max(1, writer.D - 4));
-                int width = 2 + (Hash01(level.LevelNumber, i, 31) < 0.5f ? 0 : 1);
-                int depth = 2;
+                int cx = 1 + (int)(Hash01(level.LevelNumber, i, 11) * Mathf.Max(1, writer.W - 6));
+                int cz = 1 + (int)(Hash01(level.LevelNumber, i, 23) * Mathf.Max(1, writer.D - 6));
+                // 用户裁决 3：碎岛雨的每一块也要读成"一座小岛"（3-5 × 3-4），
+                // 而不是 2×2 的砖（过小的矩形会被 StampIsland 的启用下限挡在掩码之外）。
+                int width = 3 + (int)(Hash01(level.LevelNumber, i, 31) * 3f);
+                int depth = 3 + (int)(Hash01(level.LevelNumber, i, 37) * 2f);
 
                 int idx = writer.NewCluster("scatter_islet_" + i, IsletKindFor(chapter), 0);
                 RectI r = ClampRect(new RectI(cx, cz, cx + width - 1, cz + depth - 1), writer.W, writer.D);
                 if (r.Width <= 0 || r.Depth <= 0)
                     continue;
+                if (writer.AnyOwned(r))
+                    continue;   // 碎岛变大后可能互相压到：压到就让位（宁少一块，不叠成一坨）
 
                 int blocks = Hash01(level.LevelNumber, i, 41) < 0.5f ? 1 : 2;
-                writer.Stamp(idx, r.X0, r.Z0, r.X1, r.Z1, blocks);
+                writer.StampIsland(idx, r.X0, r.Z0, r.X1, r.Z1, blocks, IslandSeed(idx));
                 placed++;
             }
 
@@ -897,20 +1203,23 @@ namespace PirateCrew.PirateCrew.Battle
 
             int peak = writer.NewCluster("stepped_peak", MainKindFor(chapter), 0);
 
-            writer.Stamp(peak, r.X0, r.Z0, r.X1, r.Z1, 1);
+            // 阶梯峰的每一级都走岛形掩码 → 整座山是一座"岛"，而不是一摞矩形砖。
+            int peakSeed = IslandSeed(peak);
+            writer.StampIsland(peak, r.X0, r.Z0, r.X1, r.Z1, 1, peakSeed);
 
             RectI step2 = Shrink(r, 1);
             if (step2.Width >= 3 && step2.Depth >= 3)
-                writer.Stamp(peak, step2.X0, step2.Z0, step2.X1, step2.Z1, 2);
+                writer.StampIsland(peak, step2.X0, step2.Z0, step2.X1, step2.Z1, 2, peakSeed);
 
             RectI step3 = Shrink(step2, 1);
             if (!teaching && step3.Width >= 2 && step3.Depth >= 2)
-                writer.Stamp(peak, step3.X0, step3.Z0, step3.X1, step3.Z1, 3);
+                writer.StampIsland(peak, step3.X0, step3.Z0, step3.X1, step3.Z1, 3, peakSeed);
 
             // 峰顶（≥9 层的原版"垂直大关"在本项目压缩为 5 块）——记忆点（R13）。
             RectI summit = Shrink(step3, 1);
             if (!teaching && summit.Width >= 2 && summit.Depth >= 2)
-                writer.Stamp(peak, summit.X0, summit.Z0, summit.X1, summit.Z1, MaxBlocksPerCluster);
+                writer.StampIsland(peak, summit.X0, summit.Z0, summit.X1, summit.Z1,
+                    MaxBlocksPerCluster, peakSeed);
 
             // 峰体两侧各一块跳板，簇数进入 R9 的常规档。
             AddSatellite(writer, red, IsletKindFor(chapter), +1);
@@ -931,10 +1240,24 @@ namespace PirateCrew.PirateCrew.Battle
             StampBirth(writer, b, blue, teaching, false);
         }
 
-        /// <summary>出生平台：整块 1 块高（R2 保证每点 ≥4 格）；非教学关内缩一级抬高到 2 块（出生台地）。</summary>
+        /// <summary>
+        /// 出生平台：整块 1 块高（R2 保证每点 ≥4 格）；非教学关内缩一级抬高到 2 块（出生台地）。
+        ///
+        /// 【2026-09-14 用户裁决 1：出生岛也要是"岛"】外轮廓走岛形掩码，但**出生矩形本身是受保护内核**
+        /// （<see cref="MapWriter.StampIslandMasked"/> 的 protect 参数）——"出生位绝不落水"由结构保证，
+        /// 不靠运气；受保护的只是内核，外壳那 1 格边缘仍会被侵蚀/外凸 → 出生岛不再是方砖。
+        /// </summary>
         static void StampBirth(MapWriter writer, int idx, RectI r, bool teaching, bool shipLookout)
         {
-            writer.Stamp(idx, r.X0, r.Z0, r.X1, r.Z1, 1);
+            RectI shell = Grow(r, 1, writer.W, writer.D);
+
+            // 外圈已被别的簇占了 → 不向外长（否则会把邻岛啃成碎片），退回实心矩形。
+            if (shell.Width <= r.Width && shell.Depth <= r.Depth || writer.AnyOwnedOutside(shell, r))
+                shell = r;
+
+            writer.StampIslandMasked(idx, shell.X0, shell.Z0, shell.X1, shell.Z1,
+                r.X0, r.Z0, r.X1, r.Z1, 1, IslandSeed(idx));
+
             if (teaching)
                 return;   // R18：教学期不多层
 
@@ -1257,6 +1580,167 @@ namespace PirateCrew.PirateCrew.Battle
                 }
             }
 
+            /// <summary>
+            /// **不规则岛形** stamp：在矩形掩码上做确定性的边缘"侵蚀 / 外凸"，得到一眼能读出
+            /// "一整座岛"的轮廓（用户裁决 1/4：禁止矩形瓦片拼图）。
+            ///
+            /// 【算法】把矩形归一化成椭圆半径 <c>r = √((dx/rx)² + (dz/rz)²)</c>，
+            /// 角向取 11 个桶的确定性噪声（平滑插值）<c>n(θ) ∈ [0,1)</c>，
+            /// 边界限值 <c>limit = 1 − Erosion·(1−n) + Bulge·n</c>：
+            ///   · <c>n→0</c> 的方位被**侵蚀**最多（内凹 ≤ <see cref="IslandErosion"/> 倍半径）；
+            ///   · <c>n→1</c> 的方位**外凸**最多（≤ <see cref="IslandBulge"/> 倍半径，故外扩 1 格取格）。
+            /// 半径 ≤ <see cref="IslandCoreRadius"/> 的**岛心保底**不被侵蚀（不会中间穿洞）。
+            ///
+            /// 【三条安全阀】① 宽/深 &lt; <see cref="IslandMaskMinSpan"/> 或面积 &lt;
+            /// <see cref="IslandMaskMinArea"/> → 直接用实心矩形（踏脚石/小礁）；
+            /// ② 侵蚀后矩形内保留率 &lt; <see cref="IslandMinKeepRatio"/> → 退回实心矩形（防碎渣）；
+            /// ③ <paramref name="protectX0"/>.. 给出的**受保护内核**（出生矩形）永不被侵蚀，
+            /// 保证"出生位绝不落水"这条不变量在岛形化之后仍然结构性成立。
+            ///
+            /// 【确定性】只用 <c>(seed, 桶号)</c> 的整数哈希，与遍历顺序无关 → 同 seed 同形状。
+            /// </summary>
+            public void StampIsland(int clusterIndex, int x0, int z0, int x1, int z1, int blocks, int seed)
+            {
+                StampIslandMasked(clusterIndex, x0, z0, x1, z1, 1, 1, -1, -1, blocks, seed);
+            }
+
+            /// <summary>
+            /// 带**受保护内核**的岛形 stamp：<paramref name="protectX0"/>..<paramref name="protectX1"/>
+            /// 为受保护矩形（传 <c>protectX0 &gt; protectX1</c> 表示无保护）。
+            /// </summary>
+            public void StampIslandMasked(int clusterIndex, int x0, int z0, int x1, int z1,
+                int protectX0, int protectZ0, int protectX1, int protectZ1, int blocks, int seed)
+            {
+                if (blocks <= 0 || clusterIndex < 0)
+                    return;
+
+                if (x0 > x1) { int t = x0; x0 = x1; x1 = t; }
+                if (z0 > z1) { int t = z0; z0 = z1; z1 = t; }
+                x0 = Mathf.Max(0, x0); z0 = Mathf.Max(0, z0);
+                x1 = Mathf.Min(W - 1, x1); z1 = Mathf.Min(D - 1, z1);
+
+                int w = x1 - x0 + 1, d = z1 - z0 + 1;
+                if (w < IslandMaskMinSpan || d < IslandMaskMinSpan || w * d < IslandMaskMinArea)
+                {
+                    Stamp(clusterIndex, x0, z0, x1, z1, blocks);
+                    StampProtectedHoles(clusterIndex, x0, z0, x1, z1, blocks,
+                        protectX0, protectZ0, protectX1, protectZ1);
+                    return;
+                }
+
+                // 外扩 1 格容纳"外凸"；掩码半径仍按原矩形归一化，故外圈只有噪声高的方位被取到。
+                int gx0 = Mathf.Max(0, x0 - 1), gx1 = Mathf.Min(W - 1, x1 + 1);
+                int gz0 = Mathf.Max(0, z0 - 1), gz1 = Mathf.Min(D - 1, z1 + 1);
+
+                float cx = x0 + w * 0.5f, cz = z0 + d * 0.5f;
+                float rx = Mathf.Max(0.75f, w * 0.5f), rz = Mathf.Max(0.75f, d * 0.5f);
+
+                int gw = gx1 - gx0 + 1, gd = gz1 - gz0 + 1;
+                var keep = new bool[gw * gd];
+                int keptInRect = 0;
+
+                for (int gz = gz0; gz <= gz1; gz++)
+                {
+                    for (int gx = gx0; gx <= gx1; gx++)
+                    {
+                        bool protectedCell = gx >= protectX0 && gx <= protectX1
+                            && gz >= protectZ0 && gz <= protectZ1;
+
+                        float nx = (gx + 0.5f - cx) / rx;
+                        float nz = (gz + 0.5f - cz) / rz;
+                        float r = Mathf.Sqrt(nx * nx + nz * nz);
+
+                        float noise = AngularNoise01(Mathf.Atan2(nz, nx), seed);
+                        float limit = 1f - IslandErosion * (1f - noise) + IslandBulge * noise;
+
+                        bool inside = protectedCell || r <= limit || r <= IslandCoreRadius;
+                        if (!inside)
+                            continue;
+
+                        keep[(gx - gx0) + (gz - gz0) * gw] = true;
+                        if (gx >= x0 && gx <= x1 && gz >= z0 && gz <= z1)
+                            keptInRect++;
+                    }
+                }
+
+                // 安全阀 ②：蚀过头（保留率过低 = 碎渣/成洞）→ 退回实心矩形。
+                // 【有受保护内核时不适用】内核保证该簇永远是一块完整的可站平台（不可能是碎片），
+                // 此时保留率低只说明"外壳被蚀得很不规则"——那正是我们要的岛形，不该退回方砖。
+                bool hasProtectedCore = protectX0 <= protectX1 && protectZ0 <= protectZ1;
+                if (!hasProtectedCore && keptInRect < (int)(w * d * IslandMinKeepRatio))
+                {
+                    Stamp(clusterIndex, x0, z0, x1, z1, blocks);
+                    StampProtectedHoles(clusterIndex, x0, z0, x1, z1, blocks,
+                        protectX0, protectZ0, protectX1, protectZ1);
+                    return;
+                }
+
+                for (int gz = gz0; gz <= gz1; gz++)
+                {
+                    int row = gz * W;
+                    for (int gx = gx0; gx <= gx1; gx++)
+                    {
+                        if (!keep[(gx - gx0) + (gz - gz0) * gw])
+                            continue;
+
+                        int i = row + gx;
+                        _owner[i] = clusterIndex;
+                        _blocks[i] = blocks;
+                    }
+                }
+            }
+
+            /// <summary>
+            /// 受保护内核里"被侵蚀掉"的格补回（安全阀 ③ 的补写步骤）：
+            /// 内核格若未被任何簇占用，就按 <paramref name="blocks"/> 补成该簇的地面。
+            /// 只补**未被占用**的格，绝不覆盖别的簇（避免吞掉邻岛）。
+            /// </summary>
+            void StampProtectedHoles(int clusterIndex, int x0, int z0, int x1, int z1, int blocks,
+                int protectX0, int protectZ0, int protectX1, int protectZ1)
+            {
+                if (protectX0 > protectX1 || protectZ0 > protectZ1)
+                    return;
+
+                int px0 = Mathf.Max(0, Mathf.Max(x0, protectX0));
+                int pz0 = Mathf.Max(0, Mathf.Max(z0, protectZ0));
+                int px1 = Mathf.Min(W - 1, Mathf.Min(x1, protectX1));
+                int pz1 = Mathf.Min(D - 1, Mathf.Min(z1, protectZ1));
+
+                for (int gz = pz0; gz <= pz1; gz++)
+                {
+                    int row = gz * W;
+                    for (int gx = px0; gx <= px1; gx++)
+                    {
+                        int i = row + gx;
+                        if (_owner[i] >= 0)
+                            continue;
+
+                        _owner[i] = clusterIndex;
+                        _blocks[i] = blocks;
+                    }
+                }
+            }
+
+            /// <summary>角向噪声（11 桶 + 平滑插值），确定性；返回 [0,1)。</summary>
+            static float AngularNoise01(float angle, int seed)
+            {
+                const int Buckets = 11;
+                float t = (angle + Mathf.PI) / (Mathf.PI * 2f);
+                if (t < 0f) t += 1f;
+                if (t >= 1f) t -= 1f;
+
+                float f = t * Buckets;
+                int i0 = (int)f;
+                if (i0 < 0) i0 = 0;
+                if (i0 > Buckets - 1) i0 = Buckets - 1;
+
+                float frac = f - i0;
+                float n0 = Hash01(seed, i0, 991);
+                float n1 = Hash01(seed, (i0 + 1) % Buckets, 991);
+                float sm = frac * frac * (3f - 2f * frac);   // smoothstep
+                return Mathf.Lerp(n0, n1, sm);
+            }
+
             /// <summary>该矩形内是否已有归属（用于过桥时避免重叠）。</summary>
             public bool AnyOwned(RectI r)
             {
@@ -1268,6 +1752,28 @@ namespace PirateCrew.PirateCrew.Battle
                     int row = gz * W;
                     for (int gx = c.X0; gx <= c.X1; gx++)
                     {
+                        if (_owner[row + gx] >= 0)
+                            return true;
+                    }
+                }
+                return false;
+            }
+
+            /// <summary>
+            /// <paramref name="outer"/> 内、<paramref name="inner"/> 之外是否已有归属。
+            /// 用于"出生岛要不要向外长一格做岛形"：外圈被别人占了就老实退回实心矩形，
+            /// 免得把邻岛啃成碎片（碎片的包围盒只剩几格，会污染岛形统计与实际观感）。
+            /// </summary>
+            public bool AnyOwnedOutside(RectI outer, RectI inner)
+            {
+                RectI o = ClampRect(outer, W, D);
+                for (int gz = o.Z0; gz <= o.Z1; gz++)
+                {
+                    int row = gz * W;
+                    for (int gx = o.X0; gx <= o.X1; gx++)
+                    {
+                        if (gx >= inner.X0 && gx <= inner.X1 && gz >= inner.Z0 && gz <= inner.Z1)
+                            continue;
                         if (_owner[row + gx] >= 0)
                             return true;
                     }

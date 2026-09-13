@@ -67,6 +67,7 @@ namespace PirateCrew.PirateCrew.Battle
             readonly bool[] _ground;  // 该格是否有地面（false = 水）
             readonly byte[] _surface; // PlatformSurface 档
             readonly int[] _cluster;  // 平台簇索引；-1 = 水 / 列式旧地形
+            readonly int[] _baseBlocks; // 该格所属簇的基准块数（整簇抬高的"地板"）；0 = 无基准
             readonly bool _platformMode;   // true = 平台簇模式（水格无地面；块清零即水）
             readonly PlatformMap _platforms;
 
@@ -120,6 +121,7 @@ namespace PirateCrew.PirateCrew.Battle
             _ground = new bool[expected];
             _surface = new byte[expected];
             _cluster = new int[expected];
+            _baseBlocks = new int[expected];
 
             bool platformMode = platforms != null
                 && platforms.WidthTiles == WidthTiles && platforms.DepthTiles == DepthTiles;
@@ -144,7 +146,15 @@ namespace PirateCrew.PirateCrew.Battle
                     }
 
                     _ground[i] = true;
-                    _blocks[i] = platforms.CellBlocks[i] > 0 ? platforms.CellBlocks[i] : 0;
+
+                    // 【基准高度换算】CellBlocks 是**簇内局部**台阶高；这里加上该簇的整簇基准块数，
+                    // 得到"从基础地面起算"的总块高。这样所有按 BlocksAt 工作的下游
+                    // （BattleTerrainView 的碰撞方块、SurfaceWorldY、AI 地表查询、小地图）
+                    // 都自动跟随悬浮基准高度，无需各自改口径。
+                    int baseBlocks = platforms.Clusters[cluster].BaseBlocks;
+                    _baseBlocks[i] = baseBlocks;
+                    int local = platforms.CellBlocks[i] > 0 ? platforms.CellBlocks[i] : 0;
+                    _blocks[i] = local + baseBlocks;
 
                     PlatformClusterKind kind = platforms.Clusters[cluster].Kind;
                     _surface[i] = (byte)KindToSurface(kind);
@@ -233,8 +243,57 @@ namespace PirateCrew.PirateCrew.Battle
             return _platforms.Clusters[clusterIndex];
         }
 
+        /// <summary>是否平台簇模式（逐格水陆、簇基准高度生效）。列式旧地形为 false。</summary>
+        public bool IsPlatformMode => _platformMode;
+
         /// <summary>
-        /// 该格地表世界 Y（基础地面 + 堆叠高度）。
+        /// 该格所属簇的基准块数（整簇"地板"）。水格 / 列式旧地形 = 0。
+        /// 视觉壳与底部收形靠它区分"岛底平面"与"局部台阶"。
+        /// </summary>
+        public int BaseBlocksAt(int gridX, int gridY)
+        {
+            int index = IndexOf(gridX, gridY);
+            return index < 0 ? 0 : _baseBlocks[index];
+        }
+
+        /// <summary>该格的**局部**块高（不含簇基准）；水 / 越界 = 0。簇内台阶差用这个。</summary>
+        public int LocalBlocksAt(int gridX, int gridY)
+        {
+            int index = IndexOf(gridX, gridY);
+            if (index < 0)
+                return 0;
+            return _blocks[index] - _baseBlocks[index];
+        }
+
+        /// <summary>该格所属簇的基准高度（世界单位）；水格 / 列式旧地形 = 0。</summary>
+        public float BaseWorldYAt(int gridX, int gridY)
+        {
+            return BaseBlocksAt(gridX, gridY) * BlockWorldHeight;
+        }
+
+        /// <summary>该簇的**最高**地表世界 Y（含基准高度）；越界返回 <see cref="LevelGeometry.GroundTopY"/>。</summary>
+        public float ClusterSurfaceMaxWorldY(int clusterIndex)
+        {
+            PlatformClusterInfo info = ClusterAt(clusterIndex);
+            if (string.IsNullOrEmpty(info.Name))
+                return LevelGeometry.GroundTopY;
+            return LevelGeometry.GroundTopY + info.MaxTotalBlocks * BlockWorldHeight;
+        }
+
+        /// <summary>该簇的**最低**地表世界 Y（含基准高度）——岛底收形从这里往下走。</summary>
+        public float ClusterSurfaceMinWorldY(int clusterIndex)
+        {
+            PlatformClusterInfo info = ClusterAt(clusterIndex);
+            if (string.IsNullOrEmpty(info.Name))
+                return LevelGeometry.GroundTopY;
+            return LevelGeometry.GroundTopY + info.MinTotalBlocks * BlockWorldHeight;
+        }
+
+        /// <summary>
+        /// 该格地表世界 Y（基础地面 + **总**堆叠高度，总高 = 簇基准块数 + 簇内局部台阶块数）。
+        /// 【基准高度】用户裁决「每个空岛有不同悬浮基准高度」→ <see cref="PlatformClusterInfo.BaseHeight"/>
+        /// 在构造时被折进块高（见构造函数的换算注释），故本函数、<see cref="BlocksAt"/>、
+        /// 碰撞方块与视觉壳**共用同一个口径**，不存在"视觉浮起来、碰撞还在地面"的错位。
         /// 【兼容口径】平台模式的水格（块 0）这里返回基础地面 <see cref="LevelGeometry.GroundTopY"/>；
         /// 需要"水格无地表"的**游戏性**查询请用 <see cref="SurfaceWorldYAtWorld"/>。
         /// </summary>
@@ -332,7 +391,11 @@ namespace PirateCrew.PirateCrew.Battle
         /// <paramref name="destroyedCells"/>（供视图/小地图刷新）。
         ///
         /// 【判据】格心到爆心的 3D 距离 &lt;= <paramref name="radiusWorld"/>（与
-        /// <see cref="Combat.ExplosionResolver"/> 的 3D 球口径一致；格心高度取当前堆叠高度的一半）。
+        /// <see cref="Combat.ExplosionResolver"/> 的 3D 球口径一致）。
+        ///
+        /// 【格心高度为什么用**局部**堆高】平台簇模式下 <see cref="BlocksAt"/> 含整簇基准块数
+        /// （可能 12-36 块），若按"总块高的一半"取格心，爆心（落在**岛顶**）会离格心很远而炸不中。
+        /// 故格心取「簇基准 + 局部堆高的一半」，即真正的可爆实体块团中心。
         /// </summary>
         /// <returns>被整格摧毁的数量。</returns>
         public int DestroyInRadius(Vector3 centerWorld, float radiusWorld, List<int> destroyedCells)
@@ -356,9 +419,14 @@ namespace PirateCrew.PirateCrew.Battle
                     if (_blocks[index] <= 0)
                         continue;
 
+                    int localBlocks = _blocks[index] - _baseBlocks[index];
+                    if (localBlocks <= 0)
+                        localBlocks = _blocks[index];   // 防御：异常数据下退回总块高
+
                     var cellCenter = new Vector3(
                         gx + 0.5f,
-                        LevelGeometry.GroundTopY + _blocks[index] * BlockWorldHeight * 0.5f,
+                        LevelGeometry.GroundTopY + _baseBlocks[index] * BlockWorldHeight
+                            + localBlocks * BlockWorldHeight * 0.5f,
                         gy + 0.5f);
 
                     if ((cellCenter - centerWorld).sqrMagnitude > radiusSqr)

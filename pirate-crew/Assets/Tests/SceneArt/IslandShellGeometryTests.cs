@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 using PirateCrew.PirateCrew.Battle;
+using PirateCrew.PirateCrew.Data;
 using PirateCrew.PirateCrew.SceneArt;
 using UnityEngine;
 
@@ -16,6 +17,157 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
     [TestFixture]
     public class IslandShellGeometryTests
     {
+        // ------------------------------------------------------------------
+        // 用户裁决 1/2：厚底悬浮岛（岛底平面 + 贴岛形轮廓的收形锥）
+        // ------------------------------------------------------------------
+
+        /// <summary>合成一关（尺寸/出生位随关卡号确定性变化），用于"多岛 + 错落基准高度"的用例。</summary>
+        static LevelData SyntheticLevel(int levelNumber, int width, int depth)
+        {
+            int redX = Mathf.Clamp(width / 5, 0, width - 1);
+            int blueX = Mathf.Clamp(width - width / 5 - 1, 0, width - 1);
+            int redZ = depth / 2;
+
+            var units = new List<LevelUnit>
+            {
+                new LevelUnit("redPirate", 0, redX, redZ, 5, null),
+                new LevelUnit("soldier", 1, blueX, Mathf.Clamp(redZ + 2, 0, depth - 1), 5, null),
+            };
+
+            var weapons = new List<WeaponStack> { new WeaponStack(WeaponId.CherryBomb, 10) };
+
+            return new LevelData(levelNumber, "synthetic_" + levelNumber,
+                width, depth, 1, depth - 1, 3, 1, weapons, units);
+        }
+
+        static TileTerrainGrid SyntheticGrid(out PlatformMap map, int levelNumber = 7, int width = 56, int depth = 18)
+        {
+            LevelData level = SyntheticLevel(levelNumber, width, depth);
+            map = PlatformClusterLayout.BuildFor(level);
+            return new TileTerrainGrid(width, depth, null, TerrainCatalog.DefaultBlockWorldHeight, map);
+        }
+
+        [Test]
+        public void ElevatedIsland_ShellWallsStopAtIslandBottomPlane_NotBaseGround()
+        {
+            PlatformMap map;
+            TileTerrainGrid grid = SyntheticGrid(out map);
+            MeshBuffers shell = IslandShellGeometry.BuildSolidShell(grid, IslandShellSettings.Default);
+
+            float lowestBottom = float.MaxValue;
+            bool sawFloating = false;
+
+            for (int c = 0; c < grid.ClusterCount; c++)
+            {
+                float bottom = IslandShellGeometry.IslandBottomWorldY(grid, c, IslandShellSettings.Default);
+                lowestBottom = Mathf.Min(lowestBottom, bottom);
+
+                PlatformClusterInfo info = grid.ClusterAt(c);
+                if (info.BaseHeight >= 3f)
+                {
+                    sawFloating = true;
+                    // 悬浮岛的岛底平面必须在**水面之上**（往下看得到海水，不是水下柱子）。
+                    Assert.Greater(bottom, LevelGeometry.WaterSurfaceY,
+                        "基准高度 " + info.BaseHeight + " 的岛底平面应高于水面");
+
+                    // 厚度 = 簇最低地表 − 岛底平面（下限 clamp 时允许更薄）。
+                    float thickness = grid.ClusterSurfaceMinWorldY(c) - bottom;
+                    Assert.LessOrEqual(thickness, IslandShellSettings.Default.SideThickness + 1e-3f,
+                        "岛体厚度不得超过 SideThickness");
+                }
+            }
+
+            Assert.IsTrue(sawFloating, "合成关应至少有一个基准高度 ≥3 的悬浮岛");
+            Assert.AreEqual(lowestBottom, MinY(shell), 1e-3f,
+                "壳的最低点应是岛底平面（不是基础地面 y=0 的柱子）");
+        }
+
+        [Test]
+        public void UndersideTaper_FollowsIslandOutline_AndReachesBelowBottomPlane()
+        {
+            PlatformMap map;
+            TileTerrainGrid grid = SyntheticGrid(out map);
+
+            var under = new MeshBuffers();
+            IslandShellGeometry.AddPlatformUnderside(under, grid, IslandShellSettings.Default);
+
+            Assert.Greater(under.TriangleCount, 0, "应有收形锥几何");
+
+            // 找一个基准高度 ≥3 的簇，用它的岛缘轮廓做核对。
+            int target = -1;
+            for (int c = 0; c < grid.ClusterCount; c++)
+            {
+                if (grid.ClusterAt(c).Kind != PlatformClusterKind.Ship
+                    && grid.ClusterAt(c).BaseHeight >= 3f)
+                {
+                    target = c;
+                    break;
+                }
+            }
+
+            Assert.GreaterOrEqual(target, 0, "合成关应有一个非船的抬高岛");
+
+            float bottomY = IslandShellGeometry.IslandBottomWorldY(grid, target, IslandShellSettings.Default);
+            Vector3[] v = under.ToVertices();
+
+            int ring0 = 0;
+            int irregularCorner = 0;
+            for (int i = 0; i < v.Length; i++)
+            {
+                if (Mathf.Abs(v[i].y - bottomY) > 1e-3f)
+                    continue;
+                // 环 0 顶点必须是**格角**（整数 xz）。
+                if (Mathf.Abs(v[i].x - Mathf.Round(v[i].x)) > 1e-3f
+                    || Mathf.Abs(v[i].z - Mathf.Round(v[i].z)) > 1e-3f)
+                    continue;
+
+                ring0++;
+
+                // 该格角四邻格里，属于本簇的数量：矩形轮廓只会有 2 或 4；不规则岛形会出现 1（凹口尖）或 3。
+                int gx = Mathf.RoundToInt(v[i].x), gz = Mathf.RoundToInt(v[i].z);
+                int insideCount = 0;
+                if (grid.ClusterIndexOf(gx - 1, gz - 1) == target) insideCount++;
+                if (grid.ClusterIndexOf(gx, gz - 1) == target) insideCount++;
+                if (grid.ClusterIndexOf(gx - 1, gz) == target) insideCount++;
+                if (grid.ClusterIndexOf(gx, gz) == target) insideCount++;
+                if (insideCount == 1 || insideCount == 3)
+                    irregularCorner++;
+            }
+
+            Assert.Greater(ring0, 0, "收形锥的轮廓环应贴合岛缘格角");
+            Assert.Greater(irregularCorner, 0,
+                "轮廓环应贴**不规则**岛形（出现 1/3 邻格的内凹/外凸格角），而不是矩形包络");
+
+            Assert.Less(MinY(under), bottomY, "收形锥应低于岛底平面（底尖化）");
+        }
+
+        [Test]
+        public void WaterlineBands_OnlyWhenIslandActuallyTouchesWater()
+        {
+            PlatformMap map;
+            TileTerrainGrid grid = SyntheticGrid(out map);
+
+            var buffers = new ScenePropBuffers();
+            IslandShellGeometry.AddPlatformUndersides(buffers, grid, IslandShellSettings.Default);
+
+            bool anyTouchesWater = false;
+            bool anyFloats = false;
+            for (int c = 0; c < grid.ClusterCount; c++)
+            {
+                float bottom = IslandShellGeometry.IslandBottomWorldY(grid, c, IslandShellSettings.Default);
+                if (bottom < LevelGeometry.WaterSurfaceY)
+                    anyTouchesWater = true;
+                else
+                    anyFloats = true;
+            }
+
+            // 岛底入水的簇才有泡沫/湿沙（四段过渡）；悬浮岛的岛底在水面之上 → 不画贴水带，
+            // 否则水面上会凭空浮一圈白边（用户裁决 2 的悬浮语义）。
+            Assert.IsTrue(anyTouchesWater, "合成关应有至少一个贴水岛（基准 0）");
+            Assert.IsTrue(anyFloats, "合成关应有至少一个悬浮岛（基准 ≥3）");
+            Assert.Greater(buffers.Foam.TriangleCount, 0, "贴水岛仍要有泡沫碎斑");
+            Assert.Greater(buffers.SandWet.TriangleCount, 0, "贴水岛仍要有湿沙暗带");
+        }
         static MeshBuffers BuildSingleCell(int blocks /* 放在 (1,1) */, out TileTerrainGrid grid)
         {
             var cells = new int[3 * 3];
@@ -134,7 +286,11 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
         public void SideWalls_AreJittered_SoLongWallsAreNotStraight()
         {
             // 平台化：大船簇西缘 x=24（Z=5..12 共 8 格连续地面）外侧（x=23）是水，
-            // 其西侧墙最下一层应有不同的横向进/出偏移（剪影扰动，避免"一条直线墙"）。
+            // 其西侧墙沿全高应有不同的横向进/出偏移（剪影扰动，避免"一条直线墙"）。
+            //
+            // 【2026-09-14 用户裁决 2：厚底侧壁】岛体侧壁由"下延到基础地面"变成"下延到岛底平面
+            // （基准 0 时 = y −1.15）"——厚度 2.4 单位。故扫描窗从旧的 y∈(0, 0.55) 放宽到全墙
+            // y∈(−1.2, 0.55)：旧窗口只能看到墙的最顶 0.15 单位，会让"整墙是否直"的判据失真。
             TileTerrainGrid grid = TerrainCatalog.Build(1, 50, 17);
             MeshBuffers shell = IslandShellGeometry.BuildSolidShell(grid, IslandShellSettings.Default);
 
@@ -142,7 +298,7 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
             Vector3[] v = shell.ToVertices();
             for (int i = 0; i < v.Length; i++)
             {
-                if (Mathf.Abs(v[i].x - 24f) < 0.25f && v[i].y > 0.001f && v[i].y < 0.55f
+                if (Mathf.Abs(v[i].x - 24f) < 0.25f && v[i].y > -1.25f && v[i].y < 0.55f
                     && v[i].z > 4f && v[i].z < 13f)
                 {
                     xs.Add(Mathf.RoundToInt(v[i].x * 1000f));
