@@ -2,6 +2,7 @@ using System;
 using PirateCrew.Core;
 using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
+using PirateCrew.PirateCrew.Visual;
 using UnityEngine;
 
 namespace PirateCrew.PirateCrew.Battle
@@ -35,6 +36,10 @@ namespace PirateCrew.PirateCrew.Battle
         [SerializeField] Collider bodyCollider;
         [Tooltip("是否约束旋转（保持直立）。位置**不**约束——3D 化后 XZ 水平面都能动，见 Awake。")]
         [SerializeField] bool freezeRotation = true;
+
+        [Header("视觉（表现层，不参与玩法判定）")]
+        [Tooltip("代码驱动动画组件；留空则 Awake 时从子节点抓。仅用于投掷/受击的表现通知。")]
+        [SerializeField] CrewVisualAnimator visualAnimator;
 
         int _pirateId = -1;
         int _health;
@@ -114,6 +119,8 @@ namespace PirateCrew.PirateCrew.Battle
                 body = GetComponent<Rigidbody>();
             if (bodyCollider == null)
                 bodyCollider = GetComponent<Collider>();
+            if (visualAnimator == null)
+                visualAnimator = GetComponentInChildren<CrewVisualAnimator>(true);
 
             if (freezeRotation && body != null)
             {
@@ -148,6 +155,7 @@ namespace PirateCrew.PirateCrew.Battle
             _evilness = 0;
             _action = ActionState.Start;
             _inventory = new WeaponInventory(entry.InitialWeapons);
+            Drowned = false;
 
             transform.position = entry.WorldPosition;
             gameObject.name = entry.TypeName + "_T" + entry.TeamIndex + "_" + pirateId;
@@ -189,6 +197,8 @@ namespace PirateCrew.PirateCrew.Battle
             HealthChanged?.Invoke(this, _health, maxHealth);
             EventBus.Publish(BattleEvents.CrewDamaged, new CrewDamagedPayload(
                 _pirateId, teamIndex, rounded, _health, maxHealth));
+            if (visualAnimator != null)
+                visualAnimator.NotifyHit();
             return false;
         }
 
@@ -217,6 +227,7 @@ namespace PirateCrew.PirateCrew.Battle
 
             if (LevelGeometry.IsBelowWater(transform.position.y, waterWorldY))
             {
+                Drowned = true;   // 表现层据此播"下沉"而不是"倒地"（docs/角色造型规范.md §4）
                 Kill();
                 return true;
             }
@@ -254,6 +265,8 @@ namespace PirateCrew.PirateCrew.Battle
         {
             _action = TurnRules.ApplyThrowSelf(_action);
             _thrown = true;
+            if (visualAnimator != null)
+                visualAnimator.NotifyThrow();
         }
 
         /// <summary>§3.4 用武器：结束回合。返回被消耗的武器 id。</summary>
@@ -261,6 +274,8 @@ namespace PirateCrew.PirateCrew.Battle
         {
             _action = TurnRules.ApplyUseWeapon(_action);
             _weaponFired = true;
+            if (visualAnimator != null)
+                visualAnimator.NotifyThrow();
 
             if (_inventory.TryGetEquipped(out usedWeapon))
             {
@@ -337,5 +352,12 @@ namespace PirateCrew.PirateCrew.Battle
                 return false;
             return body.velocity.sqrMagnitude > thresholdSqr;
         }
+
+        // ------------------------------------------------------------------
+        // 表现层通知（仅视觉，不改玩法状态；见 docs/角色造型规范.md §4）
+        // ------------------------------------------------------------------
+
+        /// <summary>是否因落水而死（表现层据此播"下沉"而不是"倒地"）。</summary>
+        public bool Drowned { get; private set; }
     }
 }

@@ -1,13 +1,29 @@
+using System;
 using System.Collections.Generic;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
 using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
+using PirateCrew.PirateCrew.Visual;
 using UnityEngine;
 
 namespace PirateCrew.PirateCrew.Battle
 {
+    /// <summary>
+    /// 职业视觉预制体选择项：外观档 → 预制体。由 <c>CrewVisualPrefabBuilder</c> 生成预制体后，
+    /// 场景装配方把 7 个职业预制体填进 <see cref="BattleController"/> 的数组字段。
+    /// </summary>
+    [Serializable]
+    public struct CrewVisualPrefabEntry
+    {
+        /// <summary>职业外观档。</summary>
+        public CrewProfession profession;
+
+        /// <summary>对应预制体（根含 BoxCollider + Rigidbody + PirateBase + UnitOutlineBinder + 视觉子层级）。</summary>
+        public PirateBase prefab;
+    }
+
     /// <summary>
     /// 战斗组装与结算根（翻译自 Godot <c>scripts/battle.gd</c> 的运行时职责）。
     ///
@@ -35,6 +51,9 @@ namespace PirateCrew.PirateCrew.Battle
 
         [Header("组装引用（场景内直连）")]
         [SerializeField] PirateBase piratePrefab;
+        [Tooltip("按职业外观档覆盖预制体（可选）。命中则用职业预制体，未命中/为空回落 piratePrefab；"
+                 + "生成顺序与职业外观由 CrewVisualPrefabBuilder 产出，见 docs/角色造型规范.md §3。")]
+        [SerializeField] CrewVisualPrefabEntry[] crewVisualPrefabs = new CrewVisualPrefabEntry[0];
         [SerializeField] Transform team0Root;
         [SerializeField] Transform team1Root;
         [Tooltip("水面视觉对象；运行时把 y 设为水位（§5.5）。")]
@@ -226,15 +245,12 @@ namespace PirateCrew.PirateCrew.Battle
 
         void SpawnTeams()
         {
-            if (piratePrefab == null)
+            if (piratePrefab == null && !HasAnyCrewVisualPrefab())
             {
                 Debug.LogError("[BattleController] 未配置 PirateBase 预制体，无法生成出战单位。");
                 return;
             }
 
-            // 【编成注入】战役入口（有待结算关卡）时，红队按当前编成阵容的 BattleSymbol 过滤；
-            // 非战役入口（主菜单直进 / 2P / 直接 Play 场景）或过滤器为空时回落全队——
-            // 这条回落是「旧场景直接 Play 不坏」的保证（详见 ResolveActiveRosterSymbols）。
             string[] activeSymbols = ResolveActiveRosterSymbols();
             bool filterRed = activeSymbols != null && CountRedMatching(activeSymbols) > 0;
 
@@ -261,13 +277,50 @@ namespace PirateCrew.PirateCrew.Battle
                     entry.TeamIndex, entry.TypeName, entry.Luck, entry.GridX, entry.GridY,
                     spawnPosition, entry.InitialWeapons);
 
-                PirateBase pirate = Instantiate(piratePrefab, spawnPosition, Quaternion.identity, root);
+                // 按职业外观档取预制体；未命中回落 piratePrefab（docs/角色造型规范.md §3 职业表）。
+                PirateBase prefab = ResolveCrewVisualPrefab(entry.TypeName) ?? piratePrefab;
+                if (prefab == null)
+                    continue;
+
+                PirateBase pirate = Instantiate(prefab, spawnPosition, Quaternion.identity, root);
                 pirate.Initialize(_nextPirateId++, spawnEntry);
                 _allPirates.Add(pirate);
                 _teams[entry.TeamIndex].Add(pirate);
             }
 
             _spawned = true;
+        }
+
+        /// <summary>是否至少配置了一个职业视觉预制体。</summary>
+        bool HasAnyCrewVisualPrefab()
+        {
+            if (crewVisualPrefabs == null)
+                return false;
+            for (int i = 0; i < crewVisualPrefabs.Length; i++)
+            {
+                if (crewVisualPrefabs[i].prefab != null)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 按战斗导出符号映射到职业外观档，取对应预制体；未命中返回 null（调用方回落 piratePrefab）。
+        /// 映射规则见 <see cref="CrewVisualCatalog.ProfessionFromBattleSymbol"/>。
+        /// </summary>
+        PirateBase ResolveCrewVisualPrefab(string typeName)
+        {
+            if (crewVisualPrefabs == null || crewVisualPrefabs.Length == 0)
+                return null;
+
+            CrewProfession profession = CrewVisualCatalog.ProfessionFromBattleSymbol(typeName);
+            for (int i = 0; i < crewVisualPrefabs.Length; i++)
+            {
+                if (crewVisualPrefabs[i].profession == profession && crewVisualPrefabs[i].prefab != null)
+                    return crewVisualPrefabs[i].prefab;
+            }
+
+            return null;
         }
 
         /// <summary>

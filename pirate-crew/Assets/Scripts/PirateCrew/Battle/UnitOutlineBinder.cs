@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using PirateCrew.PirateCrew.Visual;
 using UnityEngine;
 
 namespace PirateCrew.PirateCrew.Battle
@@ -16,6 +18,20 @@ namespace PirateCrew.PirateCrew.Battle
     ///   共享材质资产本身不被改脏。代价是该渲染器会退出 SRP Batcher 批次，
     ///   对全场十余个单位量级没有实际影响。
     ///
+    /// 【多渲染器（角色部件化改造）】单位不再是单立方体，而是"头/躯干/四肢/配件/手持物"
+    /// 多个子 renderer（见 <see cref="CrewVisualRig"/>）。描边必须**逐 renderer**写
+    /// <c>_OutlineState</c>，否则会出现"躯干变青、帽子不变青"的破绽
+    /// （docs/角色造型规范.md §5 接线要求 1 / R-5）。
+    ///
+    /// 【阵营色与"不得污染"纪律】只有带 <see cref="CrewTeamTintPart"/> 标记的部件
+    /// （头巾/上衣/腰带等阵营色大色块）才写队伍色 <c>_BaseColor</c>；皮肤/铁/木/骨/皮革
+    /// 保留各自材质基础色（docs/角色造型规范.md §2.1）。旧的单立方体 prefab 没有标记，
+    /// 则回落到"整个 targetRenderer 都染色"的旧行为，保证既有选中验收不回归。
+    ///
+    /// 【受击白闪】<see cref="SetColorFlash"/> 由 <c>CrewVisualAnimator</c> 驱动：
+    /// 受击 0.08s 内把 <c>_BaseColor</c> 乘 (1+flash)，复位时写回材质原色。
+    /// 白闪仍在本类的 MPB 通道里完成，避免两个组件各写一份 MPB 互相覆盖。
+    ///
     /// 【分层】状态判定在纯逻辑 <see cref="OutlineStateRules"/>（可无头测）；
     ///         本类只做"读状态 → 写属性"的引擎侧薄壳。
     /// </summary>
@@ -26,18 +42,27 @@ namespace PirateCrew.PirateCrew.Battle
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
         [Header("渲染目标")]
-        [Tooltip("留空则在 Awake 时取同物体的第一个 Renderer。")]
+        [Tooltip("留空则自动收集全部子 renderer（部件化角色）；无子 renderer 时取同物体 renderer。")]
         [SerializeField] Renderer targetRenderer;
 
-        [Header("队伍本体着色（仅表现，用于区分红/蓝队；与原版美术无关）")]
+        [Header("队伍本体着色（仅表现，用于区分红/蓝队）")]
         [SerializeField] bool tintByTeam = true;
-        [SerializeField] Color teamRedTint = new Color(0.80f, 0.30f, 0.28f, 1f);
-        [SerializeField] Color teamBlueTint = new Color(0.30f, 0.45f, 0.80f, 1f);
+
+        [Tooltip("红队阵营色 #FF3A29（静态文档:721；原默认 (0.8,0.3,0.28) 为占位，本轮按规格校正）。")]
+        [SerializeField] Color teamRedTint = new Color(1.000f, 0.228f, 0.161f, 1f);
+
+        [Tooltip("蓝队阵营色 #3366FF（静态文档:721；原默认 (0.3,0.45,0.8) 为占位，本轮按规格校正）。")]
+        [SerializeField] Color teamBlueTint = new Color(0.200f, 0.400f, 1.000f, 1f);
 
         PirateBase _pirate;
         MaterialPropertyBlock _block;
+        Renderer[] _outlineRenderers = new Renderer[0];
+        readonly HashSet<Renderer> _tintRenderers = new HashSet<Renderer>();
+        bool _tintAllRenderers;
         int _appliedState = -1;
         bool _appliedTint;
+        float _appliedFlash = -1f;
+        bool _appliedFlashActive;
         bool _warnedMissingProperty;
 
         /// <summary>
@@ -47,19 +72,57 @@ namespace PirateCrew.PirateCrew.Battle
         /// </summary>
         public int DebugForcedState { get; set; } = -1;
 
+        /// <summary>描边收集到的 renderer 数量（性能自证/测试用）。</summary>
+        public int OutlineRendererCount => _outlineRenderers.Length;
+
+        /// <summary>阵营色部件 renderer 数量。</summary>
+        public int TeamTintRendererCount => _tintAllRenderers ? _outlineRenderers.Length : _tintRenderers.Count;
+
         void Awake()
         {
             _pirate = GetComponent<PirateBase>();
-            if (targetRenderer == null)
-                targetRenderer = GetComponentInChildren<Renderer>();
             _block = new MaterialPropertyBlock();
-
+            CollectRenderers();
             WarnIfNotOutlineMaterial();
+        }
+
+        /// <summary>收集描边 renderer（全部部件）与阵营色 renderer（子集）。</summary>
+        void CollectRenderers()
+        {
+            var rig = GetComponentInChildren<CrewVisualRig>(true);
+            if (rig != null && rig.OutlineRenderers.Count > 0)
+            {
+                var list = new List<Renderer>(rig.OutlineRenderers.Count);
+                for (int i = 0; i < rig.OutlineRenderers.Count; i++)
+                {
+                    if (rig.OutlineRenderers[i] != null)
+                        list.Add(rig.OutlineRenderers[i]);
+                }
+                _outlineRenderers = list.ToArray();
+
+                IReadOnlyList<Renderer> tint = rig.TeamTintRenderers;
+                for (int i = 0; i < tint.Count; i++)
+                {
+                    if (tint[i] != null)
+                        _tintRenderers.Add(tint[i]);
+                }
+                _tintAllRenderers = false;
+                return;
+            }
+
+            // 回落到旧结构：同物体单 renderer，整只染色（保持既有选中验收不回归）。
+            if (targetRenderer == null)
+                targetRenderer = GetComponent<Renderer>();
+            if (targetRenderer == null)
+                targetRenderer = GetComponentInChildren<Renderer>(true);
+
+            _outlineRenderers = targetRenderer != null ? new[] { targetRenderer } : new Renderer[0];
+            _tintAllRenderers = true;
         }
 
         void LateUpdate()
         {
-            if (_pirate == null || targetRenderer == null)
+            if (_pirate == null || _outlineRenderers.Length == 0)
                 return;
 
             int state = DebugForcedState >= 0
@@ -72,17 +135,53 @@ namespace PirateCrew.PirateCrew.Battle
             Apply(state);
         }
 
+        /// <summary>
+        /// 设置受击白闪强度（0-1）。值未变化时不重复写 MPB。
+        /// 由 <c>CrewVisualAnimator</c> 在受击 0.08s 内逐帧调用，结束后传 0 复位。
+        /// </summary>
+        public void SetColorFlash(float strength)
+        {
+            float clamped = Mathf.Clamp01(strength);
+            if (Mathf.Approximately(_appliedFlash, clamped))
+                return;
+
+            _appliedFlash = clamped;
+            _appliedState = -1;   // 置脏，强制下一次 LateUpdate 重写
+        }
+
         void Apply(int state)
         {
-            targetRenderer.GetPropertyBlock(_block);
-            _block.SetFloat(OutlineStateId, state);
+            Color tint = _pirate.TeamIndex == 0 ? teamRedTint : teamBlueTint;
+            bool flashActive = _appliedFlash > 0.001f;
 
-            if (tintByTeam)
-                _block.SetColor(BaseColorId, _pirate.TeamIndex == 0 ? teamRedTint : teamBlueTint);
+            for (int i = 0; i < _outlineRenderers.Length; i++)
+            {
+                Renderer r = _outlineRenderers[i];
+                if (r == null)
+                    continue;
 
-            targetRenderer.SetPropertyBlock(_block);
+                r.GetPropertyBlock(_block);
+                _block.SetFloat(OutlineStateId, state);
+
+                if (tintByTeam && (_tintAllRenderers || _tintRenderers.Contains(r)))
+                {
+                    _block.SetColor(BaseColorId, flashActive ? tint * (1f + _appliedFlash) : tint);
+                }
+                else if (flashActive || _appliedFlashActive)
+                {
+                    // 非阵营色部件：白闪期间乘基础色，复位时写回材质原色（等效清除覆盖）。
+                    Color baseColor = r.sharedMaterial != null && r.sharedMaterial.HasProperty(BaseColorId)
+                        ? r.sharedMaterial.GetColor(BaseColorId)
+                        : Color.white;
+                    _block.SetColor(BaseColorId, flashActive ? baseColor * (1f + _appliedFlash) : baseColor);
+                }
+
+                r.SetPropertyBlock(_block);
+            }
+
             _appliedState = state;
             _appliedTint = tintByTeam;
+            _appliedFlashActive = flashActive;
         }
 
         /// <summary>
@@ -91,10 +190,10 @@ namespace PirateCrew.PirateCrew.Battle
         /// </summary>
         void WarnIfNotOutlineMaterial()
         {
-            if (targetRenderer == null || _warnedMissingProperty)
+            if (_outlineRenderers.Length == 0 || _warnedMissingProperty)
                 return;
 
-            Material shared = targetRenderer.sharedMaterial;
+            Material shared = _outlineRenderers[0].sharedMaterial;
             if (shared != null && shared.HasProperty(OutlineStateId))
                 return;
 
