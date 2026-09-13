@@ -20,7 +20,8 @@ namespace PirateCrew.Tests
     ///   · 双方船员数量 = <see cref="LevelCatalog"/> 关卡数据（level_1：红 5 / 蓝 3）；
     ///   · 单位站位落在 XZ 竞技场（<see cref="LevelGeometry.GridToArena"/>，脚底贴地、枢轴抬高）；
     ///   · 水面世界 Y = <see cref="LevelGeometry.WaterSurfaceY"/>（3D 化的全局水位常量）；
-    ///   · 相机是真 3D：透视 + 45° 俯角 + 距离 18（正交侧视是 2D 时代的遗留）；
+    ///   · 相机是真 3D：**烘焙机位**透视 + 45° 俯角 + 距离 15（正交侧视是 2D 时代的遗留），
+    ///     **运行时默认**被 BattleCameraController 覆盖为角色特写档（用户裁决 2026-09-14：距离 5–7、俯角 25–35°）；
     ///   · TurnManager 已开始回合，且 end go 后能推进到另一队。
     ///
     /// 【说明】私有序列化字段用反射读取，避免为了测试扩大运行时 API；字段名与装配脚本
@@ -39,12 +40,16 @@ namespace PirateCrew.Tests
         }
 
         /// <summary>
-        /// 复核相机是"真 3D"：透视（非正交）+ 45° 俯角 + 距离 18。
+        /// 复核相机是"真 3D"（透视，非正交）且机位分两档：
+        ///   · **烘焙值档**：场景里烘焙的 Transposer 仍是 18→15 提案的 45°/距离 15（M2BattleSceneSetup 不在改动域）；
+        ///   · **运行时默认档**：BattleCameraController 在 Awake 把它覆盖成**角色特写**（距离 5–7、俯角 25–35°，
+        ///     用户裁决 2026-09-14）。
         /// 用纯反射读 Cinemachine 组件，避免在 PlayModeTests.asmdef 里新增对 Cinemachine
-        /// 程序集的引用（Unity 的程序集引用不传递）。
+        /// 程序集的引用（Unity 的程序集引用不传递）。烘焙值从控制器的捕获属性读（Awake 里存下原值）。
         /// </summary>
-        static void AssertPerspectiveTiltedCamera(Component vcam)
+        static void AssertPerspectiveTiltedCamera(BattleCameraController controller, Component vcam)
         {
+            Assert.IsNotNull(controller, "BattleCameraController 为空");
             Assert.IsNotNull(vcam, "BattleCameraController.virtualCamera 为空");
 
             const BindingFlags PublicInstance = BindingFlags.Instance | BindingFlags.Public;
@@ -80,10 +85,23 @@ namespace PirateCrew.Tests
             Vector3 offset = (Vector3)offsetField.GetValue(transposer);
 
             // 偏移 = (0, d·sin(pitch), d·cos(pitch))，由此反推俯角与距离。
-            float distance = offset.magnitude;
-            float pitch = Mathf.Atan2(offset.y, new Vector2(offset.x, offset.z).magnitude) * Mathf.Rad2Deg;
-            Assert.AreEqual(15f, distance, 0.1f, "相机距焦点应为 15（18→15 提案：出厂机位单位 ≥25px 可读，AR-R2-006）");
-            Assert.AreEqual(45f, pitch, 0.5f, "相机俯角应为 45°");
+            float runtimeDistance = offset.magnitude;
+            float runtimePitch = Mathf.Atan2(offset.y, new Vector2(offset.x, offset.z).magnitude) * Mathf.Rad2Deg;
+
+            // ---- 档一：烘焙值（场景资产里的 45°/15 仍保留，M2BattleSceneSetup 不在本轮改动域）----
+            Assert.AreEqual(15f, controller.BakedDistance, 0.1f,
+                "烘焙 FollowOffset 距焦点应为 15（18→15 提案：AR-R2-006 单位 ≥25px 可读）");
+            Assert.AreEqual(45f, controller.BakedPitchDegrees, 0.5f, "烘焙俯角应为 45°");
+
+            // ---- 档二：运行时默认 = 角色特写（用户裁决 2026-09-14：距离 5–7、俯角 25–35°，看向行动单位）----
+            Assert.That(controller.RuntimeDistance, Is.InRange(5f, 7f),
+                "运行时默认机位应为特写档（距离 5–7）");
+            Assert.That(controller.RuntimePitchDegrees, Is.InRange(25f, 35f),
+                "运行时默认机位应为特写档（俯角 25–35°）");
+            Assert.That(runtimeDistance, Is.InRange(5f, 7f),
+                "运行时 Transposer 距离应已被覆盖为特写档（Awake 立即写入）");
+            Assert.That(runtimePitch, Is.InRange(25f, 35f),
+                "运行时 Transposer 俯角应已被覆盖为特写档（Awake 立即写入）");
             Assert.AreEqual(0f, offset.x, 1e-4f, "yaw = 0：相机偏移应落在 +Z/+Y 平面内");
         }
 
@@ -154,8 +172,8 @@ namespace PirateCrew.Tests
             Assert.AreEqual(LevelGeometry.WaterSurfaceY, controller.WaterWorldY, 1e-4f, "计划水位应为 WaterSurfaceY");
             Assert.AreEqual(controller.WaterWorldY, waterPlane.position.y, 1e-3f, "水面 y 应等于计划水位");
 
-            // ---- 相机：真 3D（透视 + 45° 俯角 + 距离 18），正交侧视是 2D 时代的遗留 ----
-            AssertPerspectiveTiltedCamera((Component)Field(camController, "virtualCamera"));
+            // ---- 相机：真 3D（透视）；机位分两档——烘焙 45°/15 保留，运行时默认被覆盖为角色特写 ----
+            AssertPerspectiveTiltedCamera(camController, (Component)Field(camController, "virtualCamera"));
 
             // ---- HUD 接线 ----
             var hud = Object.FindObjectOfType<BattleHud>();

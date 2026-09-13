@@ -401,5 +401,91 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             Assert.IsFalse(CameraFeelRules.ShouldApplyHitStop(false, true, 1f), "场景过渡不顿帧");
             Assert.IsFalse(CameraFeelRules.ShouldApplyHitStop(false, false, 0.5f), "timeScale 已被他人接管时不抢");
         }
+
+        // ------------------------------------------------------------------
+        // 默认机位档位（用户裁决 2026-09-14：默认角色特写，滚轮可拉到旧 45° 全场）
+        //   这些是 BattleCameraController 的 public static 常量/纯函数，无需实例化 MonoBehaviour。
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void CloseUpPreset_IsWithinUserRuledRanges()
+        {
+            // 裁决：特写距离 5–7、俯角 25–35°。
+            Assert.That(BattleCameraController.CloseUpDistance, Is.InRange(5f, 7f), "特写档距离应在 5–7");
+            Assert.That(BattleCameraController.CloseUpPitchDegrees, Is.InRange(25f, 35f), "特写档俯角应在 25–35°");
+        }
+
+        [Test]
+        public void FullFieldPreset_KeepsLegacy45DegreesAtDistance15()
+        {
+            // 裁决：滚轮后拉可到旧的 45° 全场视角（距离 15）。
+            Assert.AreEqual(15f, BattleCameraController.FullFieldDistance, 1e-4f);
+            Assert.AreEqual(45f, BattleCameraController.FullFieldPitchDegrees, 1e-4f);
+        }
+
+        [Test]
+        public void ZoomBounds_AllowPushInToThreeAndPullBackToTwentyFive()
+        {
+            Assert.AreEqual(3f, BattleCameraController.MinManualDistance, 1e-4f, "前推最近 3");
+            Assert.AreEqual(25f, BattleCameraController.MaxManualDistance, 1e-4f, "后拉最远 25");
+            // 特写档与全场档都必须落在可用缩放区间内。
+            Assert.That(BattleCameraController.CloseUpDistance,
+                Is.InRange(BattleCameraController.MinManualDistance, BattleCameraController.MaxManualDistance));
+            Assert.That(BattleCameraController.FullFieldDistance,
+                Is.InRange(BattleCameraController.MinManualDistance, BattleCameraController.MaxManualDistance));
+            Assert.Less(BattleCameraController.CloseUpDistance, BattleCameraController.FullFieldDistance,
+                "特写应比全场更近");
+        }
+
+        [Test]
+        public void PitchForDistance_InterpolatesCloseUpToFullFieldAndSaturates()
+        {
+            Assert.AreEqual(BattleCameraController.CloseUpPitchDegrees,
+                BattleCameraController.PitchForDistance(BattleCameraController.CloseUpDistance), 1e-3f);
+            // 比特写更近也不改变俯角（夹在特写档）。
+            Assert.AreEqual(BattleCameraController.CloseUpPitchDegrees,
+                BattleCameraController.PitchForDistance(BattleCameraController.MinManualDistance), 1e-3f);
+            // 到全场距离恰好是旧的 45°。
+            Assert.AreEqual(BattleCameraController.FullFieldPitchDegrees,
+                BattleCameraController.PitchForDistance(BattleCameraController.FullFieldDistance), 1e-3f);
+            // 再远也维持 45°（不继续抬头）。
+            Assert.AreEqual(BattleCameraController.FullFieldPitchDegrees,
+                BattleCameraController.PitchForDistance(BattleCameraController.MaxManualDistance), 1e-3f);
+            // 单调不减。
+            float previous = float.MinValue;
+            for (int i = 0; i <= 20; i++)
+            {
+                float d = Mathf.Lerp(BattleCameraController.MinManualDistance,
+                    BattleCameraController.MaxManualDistance, i / 20f);
+                float pitch = BattleCameraController.PitchForDistance(d);
+                Assert.GreaterOrEqual(pitch, previous - 1e-4f, "俯角应随距离单调不减");
+                previous = pitch;
+            }
+        }
+
+        [Test]
+        public void OffsetDirectionForPitch_RoundTripsThroughPitchOf()
+        {
+            // 烘焙机位的偏移格式是 (0, d·sinP, d·cosP)；两个 helper 必须互逆（PlayMode 用它反推俯角）。
+            foreach (float pitch in new[] { 30f, 45f, 25f, 35f })
+            {
+                Vector3 dir = BattleCameraController.OffsetDirectionForPitch(pitch);
+                Assert.AreEqual(1f, dir.magnitude, 1e-4f, "单位方向模长应为 1");
+                Assert.AreEqual(0f, dir.x, 1e-5f, "yaw=0 时偏移应在 +Z/+Y 平面内");
+                Assert.AreEqual(pitch, BattleCameraController.PitchOf(dir), 1e-3f);
+            }
+        }
+
+        [Test]
+        public void LookAtHeight_FollowsGodotUnitHeightAndRatio()
+        {
+            // lookAt 抬高 = 单位视觉高 × 比例；视觉高与 CrewVisualPrefabBuilder.TargetUnitHeight 同源（1.85）。
+            Assert.That(BattleCameraController.UnitVisualHeight, Is.EqualTo(1.85f).Within(1e-4f),
+                "单位视觉总高应 = Godot 1.85（1 格 = 1 Godot 单位 = 1 本工程单位）");
+            Assert.That(BattleCameraController.LookAtHeightRatio, Is.InRange(0.6f, 0.7f),
+                "lookAt 抬高比例应在 0.6–0.7");
+            Assert.That(BattleCameraController.LookAtHeight,
+                Is.EqualTo(1.85f * 0.65f).Within(1e-4f), "lookAt 抬高 ≈ 1.20");
+        }
     }
 }

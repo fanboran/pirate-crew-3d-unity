@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using PirateCrew.PirateCrew.Battle;
 using PirateCrew.PirateCrew.Data;
 using PirateCrew.UI;
 using UnityEngine;
@@ -28,10 +29,38 @@ namespace PirateCrew.Tests
         public void ProjectedScreenHeight_MatchesPerspectiveFormula_AtReferenceDistance()
         {
             // px = h * screenH / (2 * tan(fov/2) * d)
+            // 注意：18 是 HudProjectionRules 自身的**缩放基准距离**（Godot 基准），仍用于半径缩放公式；
+            // 用户裁决 2026-09-14 后**默认机位**已改为角色特写（见下面的特写档测试）。
             float expected = UnitHeight * ScreenHeight / (2f * Mathf.Tan(Fov * Mathf.Deg2Rad * 0.5f) * 18f);
             float actual = HudProjectionRules.ProjectedScreenHeightPixels(UnitHeight, 18f, Fov, ScreenHeight);
             Assert.AreEqual(expected, actual, 1e-3f);
             Assert.AreEqual(25.98f, actual, 0.05f, "距离 18 / FOV 60 / 1080p 下单位屏幕高约 26px");
+        }
+
+        /// <summary>
+        /// 用户裁决 2026-09-14：默认机位从 45°/15 改成**角色特写**（距离
+        /// <see cref="BattleCameraController.CloseUpDistance"/>）。判据 A-2 / R-6 是"1080p 下单位竖高 ≥25px"，
+        /// 故按特写档距离重算；同时校验旧的 45° 全场档（距离 15）拉远后仍 ≥25px，不丢可读性。
+        /// 高度取**视觉总高 1.85**（Godot 对齐后的角色高），不再用旧口径的 0.5。
+        /// </summary>
+        [Test]
+        public void ProjectedScreenHeight_AtCloseUpCamera_Exceeds25PxReadabilityFloor()
+        {
+            float visualHeight = BattleCameraController.UnitVisualHeight;   // 1.85，与 CrewVisualPrefabBuilder 同源
+
+            float closeUpPx = HudProjectionRules.ProjectedScreenHeightPixels(
+                visualHeight, BattleCameraController.CloseUpDistance, Fov, ScreenHeight);
+            Assert.GreaterOrEqual(closeUpPx, 25f,
+                "特写档（距离 " + BattleCameraController.CloseUpDistance + "）下单位竖高应 ≥25px（判据 A-2/R-6）");
+
+            float fullFieldPx = HudProjectionRules.ProjectedScreenHeightPixels(
+                visualHeight, BattleCameraController.FullFieldDistance, Fov, ScreenHeight);
+            Assert.GreaterOrEqual(fullFieldPx, 25f, "全场档（距离 15）拉远后单位竖高仍应 ≥25px");
+
+            Assert.IsTrue(
+                BattleCameraController.CloseUpPitchDegrees > 0f
+                && BattleCameraController.CloseUpPitchDegrees < 45f,
+                "特写档俯角应比旧 45° 更平视");
         }
 
         [Test]

@@ -35,10 +35,23 @@ namespace PirateCrew.PirateCrew.Battle
     ///   5. 顿帧（hitstop）：仅在武器引爆瞬间把 <c>Time.timeScale</c> 压到安全下限再弹回；
     ///      安全上限与"为什么不破坏回合推进"的论证见 <see cref="CameraFeelRules"/> 的顿帧小节。
     ///
+    /// 【默认机位 — 用户裁决 2026-09-14：角色特写优先（"以角色特写视角操控这个角色"）】
+    ///   开局与**每次换行动单位**（<c>TurnStarted.PanTarget</c> / <c>CameraFocusRequested</c> →
+    ///   <see cref="FocusOn(Transform)"/>）相机进入**跟随特写档**：距离 <see cref="CloseUpDistance"/>
+    ///   （6 世界单位）、俯角 <see cref="CloseUpPitchDegrees"/>（30°）、看向行动单位（lookAt 抬高 =
+    ///   单位视觉高 1.85 × <see cref="LookAtHeightRatio"/> 0.65 ≈ 1.20；1.85 与
+    ///   <c>CrewVisualPrefabBuilder.TargetUnitHeight</c> 同源）。滚轮可后拉到旧的 45° 全场档
+    ///   （距离 <see cref="FullFieldDistance"/> 15）再往后到 <see cref="MaxManualDistance"/> 25，
+    ///   前推最近 <see cref="MinManualDistance"/> 3；俯角随距离在 30°↔45° 间插值
+    ///   （<see cref="PitchForDistance"/>）。**"零输入守 45°/15 出厂"的旧口径已废止**；
+    ///   无输入时相机保持当前跟随目标。
+    ///
     /// 【安全底线（勿破坏）】
-    ///   · 不改 Transposer 的 pitch/距离/yaw：<c>BattleSceneWiringTests.AssertPerspectiveTiltedCamera</c>
-    ///     断言透视 + 45° + 距离 15 + offset.x=0。故"推近/旁观"只改 FOV，绝不改 FollowOffset；
-    ///     可选的手动环绕/缩放默认关闭（<c>enableManualOrbit/Zoom = false</c>），零输入即零漂移。
+    ///   · **场景里烘焙的** Transposer FollowOffset 仍是 18→15 提案后的 45°/距离 15
+    ///     （<c>M2BattleSceneSetup</c> 不在本轮改动域内）：<c>BattleSceneWiringTests.AssertPerspectiveTiltedCamera</c>
+    ///     仍断言该**烘焙值**（透视 + 45° + 距离 15 + offset.x=0，经 <see cref="BakedDistance"/> /
+    ///     <see cref="BakedPitchDegrees"/> 读出）；运行时本脚本把它覆盖为特写档，同测试另断言
+    ///     "运行时默认 = 特写档"（<see cref="RuntimeDistance"/> / <see cref="RuntimePitchDegrees"/>）。
     ///   · 震屏只加在"相机目标位置"上，且**玩家按住左键（正在拖拽瞄准）时一律不施加**；
     ///     <see cref="FocusPoint"/> 返回的是**去震屏**的干净位置，不影响 panToCharacter 的"离相机中心最近"判定。
     /// </summary>
@@ -120,11 +133,11 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("落水时相机焦点下压位移（世界单位）。")]
         [SerializeField] float drownDipWorldUnits = CameraFeelRules.DrownDipWorldUnits;
 
-        [Header("玩家相机微操（用户拍板默认开启：右键环绕 + 滚轮缩放；零输入时保持出厂 pitch45/距离15）")]
-        [Tooltip("右键拖拽环绕（改 Transposer 的 yaw，保持 pitch 45°/距离不变）。默认开。")]
+        [Header("玩家相机微操（用户拍板默认开启：右键环绕 + 滚轮缩放；默认特写档，滚轮可拉到旧 45° 全场）")]
+        [Tooltip("右键拖拽环绕（改 Transposer 的 yaw，保持当前俯角/距离不变）。默认开。")]
         [SerializeField] bool enableManualOrbit = true;
 
-        [Tooltip("滚轮缩放（改 Transposer 距离，夹在 [min,max]）。默认开。")]
+        [Tooltip("滚轮缩放（改 Transposer 距离，夹在 [MinManualDistance, MaxManualDistance] 常量内）。默认开。")]
         [SerializeField] bool enableManualZoom = true;
 
         [Tooltip("右键每单位 Mouse X 的环绕角度（度）。")]
@@ -133,14 +146,47 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("滚轮每格缩放的距离（世界单位）。")]
         [SerializeField] float zoomStepPerNotch = 1.5f;
 
-        [Tooltip("缩放距离下限。")]
-        [SerializeField] float minManualDistance = 12f;
-
-        [Tooltip("缩放距离上限。")]
-        [SerializeField] float maxManualDistance = 26f;
-
         [Tooltip("手动相机平滑速率（1/s）。")]
         [SerializeField] float manualSmoothingPerSecond = 10f;
+
+        // ------------------------------------------------------------------
+        // 机位档位常量（用户裁决 2026-09-14：默认角色特写，滚轮后拉到旧 45° 全场）
+        //
+        // 【为什么是 const 而不是 SerializeField】场景 Battle.unity 由禁改的 M2BattleSceneSetup 烘焙，
+        //   里面仍写着旧的 minManualDistance=12 / maxManualDistance=26；若走序列化字段，本轮的
+        //   "最近 3 / 最远 25" 会被场景里的旧值盖掉。故档位口径一律走常量，场景里的旧键失效（Unity 自动忽略）。
+        // ------------------------------------------------------------------
+
+        /// <summary>特写档距离（世界单位，用户裁决区间 5–7 取中值 6）：开局 / 换行动单位时的默认机位。</summary>
+        public const float CloseUpDistance = 6f;
+
+        /// <summary>特写档俯角（度，用户裁决区间 25–35 取中值 30）。</summary>
+        public const float CloseUpPitchDegrees = 30f;
+
+        /// <summary>全场档距离（世界单位）= 旧的 18→15 提案出厂距离；滚轮拉到此处即旧 45° 全场视角。</summary>
+        public const float FullFieldDistance = 15f;
+
+        /// <summary>全场档俯角（度）= 旧的出厂俯角 45°。</summary>
+        public const float FullFieldPitchDegrees = 45f;
+
+        /// <summary>滚轮前推最近距离（世界单位，用户裁决 3）。</summary>
+        public const float MinManualDistance = 3f;
+
+        /// <summary>滚轮后拉最远距离（世界单位，用户裁决 25）。</summary>
+        public const float MaxManualDistance = 25f;
+
+        /// <summary>
+        /// 单位视觉总高（世界单位）= 1.85，与 <c>CrewVisualPrefabBuilder.TargetUnitHeight</c> 同源
+        /// （Godot `pirate.tscn` 总高；1 格 = 1 Godot 单位 = 1 本工程单位，见该文件类头推导链）。
+        /// 运行时不引用 Editor 程序集，故此处以常量镜像。
+        /// </summary>
+        public const float UnitVisualHeight = 1.85f;
+
+        /// <summary>lookAt 抬高比例（用户裁决区间 0.6–0.7 取中值 0.65）：镜头看向单位胸/头部而非脚底。</summary>
+        public const float LookAtHeightRatio = 0.65f;
+
+        /// <summary>lookAt 抬高（世界单位）= 1.85 × 0.65 ≈ 1.2025，作用在相机目标点上。</summary>
+        public static float LookAtHeight => UnitVisualHeight * LookAtHeightRatio;
 
         Transform _focusTarget;
         Vector3 _goalPosition;
@@ -223,11 +269,25 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>当前是否处于 AI 旁观态（调试/测试用）。</summary>
         public bool SpectatorMode => _spectator;
 
+        /// <summary>场景里**烘焙的** Transposer 距离（Awake 从 FollowOffset 捕获；仍是 18→15 提案的 15）。</summary>
+        public float BakedDistance => _baseDistance;
+
+        /// <summary>场景里**烘焙的** Transposer 俯角（度，由 FollowOffset 反推；仍是 45°）。</summary>
+        public float BakedPitchDegrees => PitchOf(_baseOffsetDirection);
+
+        /// <summary>运行时当前距离目标（默认特写档 <see cref="CloseUpDistance"/>；滚轮可改到 [3,25]）。</summary>
+        public float RuntimeDistance => _manualCaptured ? _targetDistance : CloseUpDistance;
+
+        /// <summary>运行时当前俯角（度，由距离插值：特写 30° ↔ 全场 45°）。</summary>
+        public float RuntimePitchDegrees => PitchForDistance(RuntimeDistance);
+
         void Awake()
         {
             ConfigureVirtualCamera();
             CaptureBaseLens();
             CaptureManualCameraBase();
+            // 开局即进入跟随特写档（用户裁决 2026-09-14）：覆盖场景里烘焙的 45°/15 出厂机位。
+            EnterCloseUpView();
             if (cameraTarget != null)
                 _cleanPosition = cameraTarget.position;
         }
@@ -322,24 +382,29 @@ namespace PirateCrew.PirateCrew.Battle
         // 对外 API（保持既有语义）
         // ------------------------------------------------------------------
 
-        /// <summary>聚焦到某 Transform（回合开始 / 选中角色时调用）。</summary>
+        /// <summary>
+        /// 聚焦到某 Transform（回合开始 / 选中角色时调用）。**同时进入跟随特写档**（用户裁决 2026-09-14：
+        /// "开局/每次换行动单位时镜头进入跟随特写"），lookAt 抬到单位胸/头高度。
+        /// </summary>
         public void FocusOn(Transform target)
         {
             if (target == null)
                 return;
 
             _focusTarget = target;
-            _goalPosition = target.position;
+            _goalPosition = FocusTargetPoint(target);
             CancelFollow();
+            EnterCloseUpView();
             StartPushIn();
         }
 
-        /// <summary>聚焦到某世界坐标（一次性）。</summary>
+        /// <summary>聚焦到某世界坐标（一次性）。同样回到特写档（换机位即回到"操作当前角色"的距离感）。</summary>
         public void FocusOn(Vector3 worldPosition)
         {
             _focusTarget = null;
             _goalPosition = worldPosition;
             CancelFollow();
+            EnterCloseUpView();
             StartPushIn();
         }
 
@@ -348,6 +413,65 @@ namespace PirateCrew.PirateCrew.Battle
         {
             _focusTarget = null;
             CancelFollow();
+        }
+
+        // ------------------------------------------------------------------
+        // 机位档位（特写 ↔ 全场）
+        // ------------------------------------------------------------------
+
+        /// <summary>聚焦点 = 单位脚底枢轴 + lookAt 抬高（镜头看向胸/头，而非脚底）。</summary>
+        public static Vector3 FocusTargetPoint(Transform target)
+        {
+            return target.position + Vector3.up * LookAtHeight;
+        }
+
+        /// <summary>由 Transposer 偏移方向反推俯角（度）：<c>offset = (0, d·sinP, d·cosP)</c>。</summary>
+        public static float PitchOf(Vector3 offsetDirection)
+        {
+            return Mathf.Atan2(offsetDirection.y,
+                new Vector2(offsetDirection.x, offsetDirection.z).magnitude) * Mathf.Rad2Deg;
+        }
+
+        /// <summary>俯角（度）→ yaw=0 的 +Z/+Y 平面内单位偏移方向（与烘焙机位同格式）。</summary>
+        public static Vector3 OffsetDirectionForPitch(float pitchDegrees)
+        {
+            float p = pitchDegrees * Mathf.Deg2Rad;
+            return new Vector3(0f, Mathf.Sin(p), Mathf.Cos(p));
+        }
+
+        /// <summary>
+        /// 俯角随距离插值：≤ <see cref="CloseUpDistance"/> → <see cref="CloseUpPitchDegrees"/>（30°）；
+        /// ≥ <see cref="FullFieldDistance"/> → <see cref="FullFieldPitchDegrees"/>（45°）；之间线性过渡。
+        /// 于是滚轮后拉到 15 就是旧的 45° 全场视角。
+        /// </summary>
+        public static float PitchForDistance(float distance)
+        {
+            float t = Mathf.InverseLerp(CloseUpDistance, FullFieldDistance, distance);
+            return Mathf.Lerp(CloseUpPitchDegrees, FullFieldPitchDegrees, t);
+        }
+
+        /// <summary>
+        /// 进入跟随特写档：距离/俯角立刻切到 <see cref="CloseUpDistance"/> 6 / 30°，yaw 归零
+        /// （面向 +Z，与烘焙机位同朝向），并立即写进 Transposer —— "开局 / 换行动单位即特写"，不平滑过渡。
+        /// </summary>
+        void EnterCloseUpView()
+        {
+            _manualYaw = 0f;
+            _targetYaw = 0f;
+            _manualDistance = CloseUpDistance;
+            _targetDistance = CloseUpDistance;
+            WriteFollowOffset();
+        }
+
+        /// <summary>把当前 yaw / 距离 / 俯角（由距离插值）写进 Transposer 的 FollowOffset。</summary>
+        void WriteFollowOffset()
+        {
+            if (!_manualCaptured || _transposer == null)
+                return;
+
+            Vector3 direction = OffsetDirectionForPitch(PitchForDistance(_manualDistance));
+            _transposer.m_FollowOffset =
+                Quaternion.AngleAxis(_manualYaw, Vector3.up) * (direction * _manualDistance);
         }
 
         // ------------------------------------------------------------------
@@ -365,13 +489,13 @@ namespace PirateCrew.PirateCrew.Battle
                     return _goalPosition;
 
                 case CameraFollowState.ReturnToFocus:
-                    return _focusTarget != null ? _focusTarget.position : _returnGoal;
+                    return _focusTarget != null ? FocusTargetPoint(_focusTarget) : _returnGoal;
             }
 
-            // None：落水定焦窗口内先看落水点，否则看当前行动角色。
+            // None：落水定焦窗口内先看落水点，否则看当前行动角色（含 lookAt 抬高）。
             if (Time.unscaledTime < _deathHoldUntilUnscaled)
                 return _deathHoldPosition;
-            return _focusTarget != null ? _focusTarget.position : _goalPosition;
+            return _focusTarget != null ? FocusTargetPoint(_focusTarget) : _goalPosition;
         }
 
         void ApplyCameraPosition(Vector3 position)
@@ -589,7 +713,7 @@ namespace PirateCrew.PirateCrew.Battle
             _followState = CameraFollowState.FollowProjectile;
             _followStateElapsed = 0f;
             _followLastPosition = target.position;
-            _returnGoal = _focusTarget != null ? _focusTarget.position : _cleanPosition;
+            _returnGoal = _focusTarget != null ? FocusTargetPoint(_focusTarget) : _cleanPosition;
 
             // 参照库"Follow 切到目标"：跟随时把 vcam 的 Follow 直接指向弹体/角色，镜头最跟手。
             if (virtualCamera != null)
@@ -681,9 +805,9 @@ namespace PirateCrew.PirateCrew.Battle
                 _followTarget = null;
                 _followPirate = null;
                 _followProjectile = null;
-                _returnGoal = _focusTarget != null ? _focusTarget.position : _followLastPosition;
+                _returnGoal = _focusTarget != null ? FocusTargetPoint(_focusTarget) : _followLastPosition;
                 // 从落点平滑回焦，而不是瞬移。
-                _goalPosition = _focusTarget != null ? _focusTarget.position : _followLastPosition;
+                _goalPosition = _focusTarget != null ? FocusTargetPoint(_focusTarget) : _followLastPosition;
             }
 
             _followState = next;
@@ -718,7 +842,7 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         // ------------------------------------------------------------------
-        // 手动环绕 / 缩放（默认关闭）
+        // 手动环绕 / 缩放（默认开启：右键环绕 + 滚轮缩放特写↔全场）
         // ------------------------------------------------------------------
 
         void CaptureManualCameraBase()
@@ -761,7 +885,7 @@ namespace PirateCrew.PirateCrew.Battle
                 {
                     _targetDistance = Mathf.Clamp(
                         _targetDistance - scroll * zoomStepPerNotch,
-                        minManualDistance, maxManualDistance);
+                        MinManualDistance, MaxManualDistance);
                 }
             }
         }
@@ -786,13 +910,12 @@ namespace PirateCrew.PirateCrew.Battle
                 changed = true;
             }
 
-            // 关键：无输入且已收敛时**不写** FollowOffset，保证出厂设置（pitch45/距离15）逐值不变。
+            // 关键：无输入且已收敛时**不写** FollowOffset —— 保证"无输入时保持当前跟随目标"不抖；
+            // 出厂态不再是 45°/15（该旧口径已废止，默认特写档见 EnterCloseUpView）。
             if (!changed)
                 return;
 
-            Vector3 offset = Quaternion.AngleAxis(_manualYaw, Vector3.up)
-                             * (_baseOffsetDirection * _manualDistance);
-            _transposer.m_FollowOffset = offset;
+            WriteFollowOffset();
         }
 
         // ------------------------------------------------------------------

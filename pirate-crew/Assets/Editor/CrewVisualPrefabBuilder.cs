@@ -15,15 +15,31 @@ namespace PirateCrew.EditorTools
     ///   菜单: PirateCrew/角色/生成职业视觉预制体
     ///   无头: -batchmode -nographics -quit -executeMethod PirateCrew.EditorTools.CrewVisualPrefabBuilder.BuildAll
     ///
-    /// 【造型口径 — 用户裁决 2026-09-14】7 个职业的视觉装配**完全相同**：一个圆台柱 Body + 一个圆球 Head，
-    ///   逐值对齐 Godot 基准 `../game-3/pirate-crew-3d/modules/pirate_crew/scenes/pirate.tscn`
-    ///   （该场景全文只有 Body / Head 两个 MeshInstance3D），等比缩放系数 k = 0.55/1.85 ≈ 0.297297：
+    /// 【造型口径 — 用户裁决 2026-09-14；尺度口径 2026-09-14 修正（用户裁决②"角色为什么比木筏子小这么多"）】
+    ///   7 个职业的视觉装配**完全相同**：一个圆台柱 Body + 一个圆球 Head，逐值对齐 Godot 基准
+    ///   `../game-3/pirate-crew-3d/modules/pirate_crew/scenes/pirate.tscn`
+    ///   （该场景全文只有 Body / Head 两个 MeshInstance3D）。
+    ///
+    ///   **尺度推导链（先证 Godot 的格子世界尺寸，再定目标比例）**——
+    ///   <list type="number">
+    ///   <item>Godot `battle.tscn` 地面 = <c>PlaneMesh(size = Vector2(50, 50))</c> → 50×50 Godot 世界单位；</item>
+    ///   <item>`docs/M2-3D空间模型对齐.md` §2 把该地面定义为「尺寸 = 关卡 widthTiles × heightTiles」，
+    ///         而该演示场景对应的关卡宽 50 格（`LevelCatalog.level_1` widthTiles = 50）
+    ///         → **50 格 ↔ 50 Godot 世界单位 → Godot 1 格 = 1 Godot 单位**（<see cref="GodotUnitsPerTile"/>）；</item>
+    ///   <item>Godot `pirate.tscn` 角色总高 = Body 圆柱 h1.2（y −0.8..+0.4）与 Head 球 d0.7（y +0.35..+1.05）
+    ///         在轴上重叠 0.05 → **1.85 Godot 单位**（<see cref="GodotReferenceHeight"/>）；</item>
+    ///   <item>本工程 1 格 = 1 世界单位（`LevelGeometry.PixelsPerUnit = 32`、`WorldWidth = widthTiles`，
+    ///         见 <see cref="UnityUnitsPerTile"/>）→ 换算系数 = 1 本工程单位 / 1 Godot 单位 = 1；</item>
+    ///   <item>→ **目标视觉总高 = 1.85 世界单位**（<see cref="TargetUnitHeight"/>）。</item>
+    ///   </list>
+    ///   于是等比缩放系数 k = <see cref="TargetUnitHeight"/> / 1.85 = 1，两件式尺寸即 Godot 原值：
     ///   <list type="bullet">
     ///   <item>Body 圆台柱 = Godot <c>CylinderMesh(top_radius 0.35 / bottom_radius 0.4 / height 1.2)</c> × k
-    ///         → 顶 r <see cref="BodyTopRadius"/> 0.1041 / 底 r <see cref="BodyBottomRadius"/> 0.1189
-    ///         / 高 <see cref="BodyHeight"/> 0.3568，底面贴脚底 y=0；</item>
-    ///   <item>Head 圆球 = Godot <c>SphereMesh(radius 0.35, height 0.7)</c> × k → r <see cref="HeadSphereRadius"/> 0.1041，
-    ///         球心 y <see cref="HeadSphereCenterY"/> 0.4459（与柱顶微叠 0.0149，与 Godot 的 1.2/2+0.7/2=0.85 等比一致）。</item>
+    ///         → 顶 r <see cref="BodyTopRadius"/> 0.35 / 底 r <see cref="BodyBottomRadius"/> 0.40
+    ///         / 高 <see cref="BodyHeight"/> 1.20，底面贴脚底 y=0；</item>
+    ///   <item>Head 圆球 = Godot <c>SphereMesh(radius 0.35, height 0.7)</c> × k → r <see cref="HeadSphereRadius"/> 0.35，
+    ///         球心 y <see cref="HeadSphereCenterY"/> 1.50（球底 1.15 与柱顶 1.20 微叠 0.05，与 Godot 的
+    ///         `1.2/2 − 0.7/2 = 0.05` 一致；总高 = 1.50 + 0.35 = 1.85）。</item>
     ///   </list>
     ///   材质：Head = 木色 <c>#D4A76A</c>（CrewWood，与 Godot <c>cel_wood</c> 0.83/0.65/0.42 = #D4A66B 同值），
     ///   Body = 阵营色（运行时由 UnitOutlineBinder 逐队写 <c>_BaseColor</c>）。
@@ -47,7 +63,7 @@ namespace PirateCrew.EditorTools
     ///    └ BodyPivot（脚底枢轴：整身 bob / 倒地 / 落水下沉）
     ///       └ TorsoPivot（与 BodyPivot 同在脚底：呼吸缩放 + 前倾）
     ///          ├ Body（圆台柱 renderer，阵营色）
-    ///          └ HeadPivot（球心 y=0.4459：点头 / 呼吸浮动）
+    ///          └ HeadPivot（球心 y=1.50：点头 / 呼吸浮动）
     ///             └ Head（圆球 renderer，木色）
     /// </code>
     ///   BodyPivot / TorsoPivot / HeadPivot 三个动画枢轴是 <c>CrewVisualAnimator</c> 的唯一接口
@@ -60,7 +76,7 @@ namespace PirateCrew.EditorTools
     ///
     /// 【坐标口径】单位根是 0.375/0.5/0.375 的非均匀缩放，Visual 用 (1/0.375, 1/0.5, 1/0.375) 抵消，
     ///   于是 **Visual 局部 1 单位 = 世界 1 单位、XZ 不畸变**；又因 Visual.localPosition.y = −0.5 而
-    ///   rootScale.y = 0.5，得 `worldY = visualLocalY − 0.25` → 以"脚底 = 0、总高 = 0.55"的口径看，
+    ///   rootScale.y = 0.5，得 `worldY = visualLocalY − 0.25` → 以"脚底 = 0、总高 = 1.85"的口径看，
     ///   **Visual 局部 y 就等于脚底起算的世界 y**，故本文件里的尺寸常量可直接用世界值。
     ///
     /// 【幂等】
@@ -99,32 +115,62 @@ namespace PirateCrew.EditorTools
         const float GodotReferenceHeight = 1.85f;
 
         /// <summary>
-        /// 本工程世界总高 0.55（用户给出）：保持既有职业单位的视觉竖高口径与屏幕可读性。
-        /// 碰撞足迹由根级 BoxCollider 决定（0.375×0.5×0.375），与视觉高度无关，故不受影响。
+        /// Godot 1 格 = 1 Godot 世界单位。推导见类头「尺度推导链」：
+        /// Godot `battle.tscn` 地面 <c>PlaneMesh(50, 50)</c>（50 Godot 单位）↔ 关卡宽 50 格。
         /// </summary>
-        const float TargetUnitHeight = 0.55f;
+        const float GodotUnitsPerTile = 1f;
 
-        /// <summary>等比缩放系数 k = 0.55 / 1.85 ≈ 0.297297（Godot 单位 → 本工程世界单位）。</summary>
+        /// <summary>
+        /// 本工程 1 格 = 1 世界单位（`LevelGeometry.PixelsPerUnit = 32`，`WorldWidth = widthTiles`）。
+        /// </summary>
+        const float UnityUnitsPerTile = 1f;
+
+        /// <summary>
+        /// **目标视觉总高（世界单位）= 1.85**。由 Godot 角色总高按"格"归一：
+        ///   <c>1.85 Godot 单位 × (1 格 / <see cref="GodotUnitsPerTile"/> Godot 单位)
+        ///   × (<see cref="UnityUnitsPerTile"/> 世界单位 / 1 格)</c>
+        ///   = <c>1.85 × UnityUnitsPerTile / GodotUnitsPerTile</c> = **1.85**。
+        ///
+        /// 【为什么不再用旧的 0.55】旧口径把整身压到 0.55 世界单位（≈0.55 格高），
+        ///   与 Godot 角色的 1.85 格高差了 3.36 倍，用户一眼看出"角色比木筏子小这么多"。
+        ///   碰撞足迹仍由根级 BoxCollider 决定（0.375×0.5×0.375，Flash 12×16px 契约，见
+        ///   <see cref="UnitRootScale"/>），**与视觉高度无关**，故本次只放大视觉、不动碰撞体
+        ///   （PirateBase.prefab 的碰撞盒由禁改的 `M2BattleSceneSetup.BuildPiratePrefab` 生成）。
+        /// </summary>
+        const float TargetUnitHeight = GodotReferenceHeight * UnityUnitsPerTile / GodotUnitsPerTile;
+
+        /// <summary>等比缩放系数 k = 1.85 / 1.85 = **1**（Godot 单位 → 本工程世界单位；两件式即 Godot 原值）。</summary>
         static readonly float GodotScale = TargetUnitHeight / GodotReferenceHeight;
 
-        /// <summary>Body 圆台柱顶半径 = 0.35 × k ≈ **0.10405**（Godot <c>CylinderMesh.top_radius 0.35</c>）。</summary>
+        /// <summary>Body 圆台柱顶半径 = 0.35 × k = **0.35**（Godot <c>CylinderMesh.top_radius 0.35</c>）。</summary>
         static readonly float BodyTopRadius = 0.35f * GodotScale;
 
-        /// <summary>Body 圆台柱底半径 = 0.40 × k ≈ **0.11892**（Godot <c>bottom_radius 0.4</c>）→ 上窄下宽。</summary>
+        /// <summary>Body 圆台柱底半径 = 0.40 × k = **0.40**（Godot <c>bottom_radius 0.4</c>）→ 上窄下宽。</summary>
         static readonly float BodyBottomRadius = 0.40f * GodotScale;
 
-        /// <summary>Body 圆台柱高 = 1.20 × k ≈ **0.35676**，底面贴脚底（局部 y 0..0.3568）。</summary>
+        /// <summary>Body 圆台柱高 = 1.20 × k = **1.20**，底面贴脚底（局部 y 0..1.20）。</summary>
         static readonly float BodyHeight = 1.20f * GodotScale;
 
-        /// <summary>Head 球半径 = 0.35 × k ≈ **0.10405**（Godot <c>SphereMesh.radius 0.35</c>，与柱顶半径同值）。</summary>
+        /// <summary>Head 球半径 = 0.35 × k = **0.35**（Godot <c>SphereMesh.radius 0.35</c>，与柱顶半径同值）。</summary>
         static readonly float HeadSphereRadius = 0.35f * GodotScale;
 
         /// <summary>
-        /// Head 球心高度 = (0.7 + 0.8) × k = 1.50 × k ≈ **0.44595**：
+        /// Head 球心高度 = (0.7 + 0.8) × k = 1.50 × k = **1.50**：
         /// Godot 里头心在根空间 +0.7、身体底面在 −0.8，平移到地面后为 (0.7 + 0.8) 再乘 k。
-        /// 校验：球底 0.44595 − 0.10405 = 0.34190 &lt; 柱顶 0.35676（重叠 0.01486），总高 0.55。
+        /// 校验：球底 1.50 − 0.35 = 1.15 &lt; 柱顶 1.20（重叠 0.05），总高 1.85。
         /// </summary>
         static readonly float HeadSphereCenterY = 1.50f * GodotScale;
+
+        /// <summary>
+        /// 接触阴影面片直径（世界单位）= 目标视觉总高 × 1.1 ≈ **2.035**。
+        /// 旧口径 `ContactShadowDecal.DefaultDiameter = 0.6` ≈ 旧总高 0.55 × 1.1；本次随角色放大按**同一比例**
+        /// 同步（≈ 两件式圆台柱底径 0.80 的 2.54 倍），保持"脚下压暗一圈、不外溢邻格"的观感。
+        ///
+        /// 【为什么不改 `ContactShadowDecal.DefaultDiameter`】那是 Scripts 侧的常量（本轮不在改动域内），
+        ///   只作 `OnValidate` 提醒与参数留档；预制体真值由本常量写进 decal 的 `diameter` 序列化字段
+        ///   与 Transform.localScale（见 <see cref="AddContactShadow"/>）。
+        /// </summary>
+        static readonly float ContactShadowDiameter = TargetUnitHeight * 1.1f;
 
         /// <summary>圆台柱侧壁分段（任务给定 16；三角面 = 侧壁 32 + 上下盖 32 = 64）。</summary>
         const int GodotBodySides = 16;
@@ -140,10 +186,10 @@ namespace PirateCrew.EditorTools
         // 以免动到预算镜像表 CrewMeshLibrary.CountPartInstances 的既有断言）
         // ------------------------------------------------------------------
 
-        /// <summary>两件式 Body 圆台柱（顶 r 0.1041 / 底 r 0.1189 / h 0.3568，16 段）。</summary>
+        /// <summary>两件式 Body 圆台柱（顶 r 0.35 / 底 r 0.40 / h 1.20，16 段）。</summary>
         const string BodyFrustumKey = "CrewBodyFrustum";
 
-        /// <summary>两件式 Head 圆球（r 0.1041，16×12）。</summary>
+        /// <summary>两件式 Head 圆球（r 0.35，16×12）。</summary>
         const string HeadSphereKey = "CrewHeadSphere";
 
         /// <summary>接触阴影面片（1×1 XY 面，法线 +Z；装配时绕 X 转 −90° 平铺）。</summary>
@@ -726,10 +772,10 @@ namespace PirateCrew.EditorTools
         ///   这里沿用"rig 装配 + 后处理"的既有做法，只把零件层整体替换。
         ///
         /// 【尺寸与位置（逐值对照 pirate.tscn）】
-        ///   · Body：<see cref="BodyFrustumKey"/> 网格按世界尺寸建模（顶 r 0.10405 / 底 r 0.11892 /
-        ///     h 0.35676），缩放恒为 1，中心放在柱高的中点 → 底面恰在脚底 y=0（Visual 局部 y=0）。
-        ///   · Head：<see cref="HeadSphereKey"/> 网格半径 0.10405，挂在 HeadPivot 下的原点 →
-        ///     球心 y 0.44595，球底 0.34190 与柱顶 0.35676 微叠 0.01486（与 Godot 的 0.85−0.7/2−1.2/2 = 0.05 等比一致）。
+        ///   · Body：<see cref="BodyFrustumKey"/> 网格按世界尺寸建模（顶 r 0.35 / 底 r 0.40 /
+        ///     h 1.20），缩放恒为 1，中心放在柱高的中点 → 底面恰在脚底 y=0（Visual 局部 y=0）。
+        ///   · Head：<see cref="HeadSphereKey"/> 网格半径 0.35，挂在 HeadPivot 下的原点 →
+        ///     球心 y 1.50，球底 1.15 与柱顶 1.20 微叠 0.05（与 Godot 的 0.85−0.7/2−1.2/2 = 0.05 一致）。
         ///   · 枢轴归位：TorsoPivot 移到脚底（呼吸缩放/前倾都绕脚底，语义与原来一致），
         ///     HeadPivot 移到球心高度；BodyPivot 保持脚底（与 rig 建的一致）。
         ///
@@ -848,7 +894,7 @@ namespace PirateCrew.EditorTools
             var go = new GameObject("ContactShadow");
             go.transform.SetParent(root, false);
 
-            float planarScale = ContactShadowDecal.DefaultDiameter / UnitRootScale.x;
+            float planarScale = ContactShadowDiameter / UnitRootScale.x;
             go.transform.localPosition = new Vector3(0f,
                 -0.5f + ContactShadowDecal.DefaultGroundOffset / UnitRootScale.y, 0f);
             go.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
@@ -867,7 +913,7 @@ namespace PirateCrew.EditorTools
 
             var decal = go.AddComponent<ContactShadowDecal>();
             var decalSo = new SerializedObject(decal);
-            SetFloat(decalSo, "diameter", ContactShadowDecal.DefaultDiameter);
+            SetFloat(decalSo, "diameter", ContactShadowDiameter);
             SetFloat(decalSo, "groundOffset", ContactShadowDecal.DefaultGroundOffset);
             SetFloat(decalSo, "centerAlpha", ContactShadowColor.a);
             decalSo.ApplyModifiedPropertiesWithoutUndo();
