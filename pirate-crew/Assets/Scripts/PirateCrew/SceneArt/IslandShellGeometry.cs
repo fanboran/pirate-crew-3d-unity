@@ -565,12 +565,22 @@ namespace PirateCrew.PirateCrew.SceneArt
                 MeshBuffers target = info.Kind == PlatformClusterKind.Ship ? buffers.WoodDark : buffers.Rock;
                 AddClusterUnderside(target, grid, info, c, s);
 
+                float cx0 = info.X0, cx1 = info.X1 + 1f, cz0 = info.Z0, cz1 = info.Z1 + 1f;
+                int clusterSalt = 101 + c * 17;
+
+                // 湿沙暗带（r5 新增）：贴在簇包络外沿、比平台材质暗的一圈斜带，
+                // 写进 SandWet 组复用湿沙材质 → 岸线横切面得到「沙 → 暗湿沙 → 泡沫 → 水」的暗湿段。
+                AddWaterlineWetSand(buffers.SandWet, cx0, cx1, cz0, cz1,
+                    LevelGeometry.WaterSurfaceY, clusterSalt);
+
                 // 细泡沫线：写在独立 Foam 组（unlit 半透明白，与水面泡沫同材质），
                 // 贴在簇包络外的水面上（平台入水处的一圈浪沫）。
                 // y 取 WaterSurfaceY+0.07（= -0.13）：水立方体细分网格的顶面在 WaterSurfaceY+0.05=-0.15，
                 // 与 SceneArtBuilder 的岸边泡沫带同口径（WaterTopY+0.01），低于它会被水面盖住。
-                AddWaterlineFoam(buffers.Foam, info.X0, info.X1 + 1f, info.Z0, info.Z1 + 1f,
-                    LevelGeometry.WaterSurfaceY + 0.07f, 0.02f, 0.30f);
+                // 【r5】内侧由 0.02 外移到 0.07，让湿沙暗带不被泡沫整段盖住；开缺后泡沫缝隙里
+                // 露出暗湿沙，四段过渡才成立。
+                AddWaterlineFoam(buffers.Foam, cx0, cx1, cz0, cz1,
+                    LevelGeometry.WaterSurfaceY + 0.07f, 0.07f, 0.30f, clusterSalt);
             }
         }
 
@@ -632,13 +642,45 @@ namespace PirateCrew.PirateCrew.SceneArt
                 new Vector3(ax1, bottomY, az1), new Vector3(ax1, bottomY, az0), new Vector3(1f, 0f, 0f));
         }
 
+        // ---- 水线泡沫碎斑参数（【AI 提案：r5 泡沫碎斑化】）----
+        // r4 诊断：簇级 AddWaterlineFoam 是"连续、等宽、纯色"的环，45° 相机下读成
+        // 混凝土跑道/跑道白线（sea-shore 横切面灰白带 std≈1.3、像素数 r3→r4 完全未变）。
+        // 现改为与 AddRingStripAlongX/Z 同款的"分段 + 确定性开缺 + 带宽扰动 + 内外缘抖动"。
+        /// <summary>每段泡沫的长度下限（世界单位）。</summary>
+        const float FoamSegmentMin = 0.6f;
+        /// <summary>每段泡沫的长度上限（世界单位）。</summary>
+        const float FoamSegmentMax = 1.2f;
+        /// <summary>段保留率（≈55%，其余开缺）——泡沫本来就该断续。</summary>
+        const float FoamKeepRatio = 0.55f;
+        /// <summary>单段带宽下限（世界单位）。</summary>
+        const float FoamBandWidthMin = 0.08f;
+        /// <summary>单段带宽上限（世界单位）。</summary>
+        const float FoamBandWidthMax = 0.42f;
+        /// <summary>泡沫内外缘沿法线的抖动幅度（世界单位）。</summary>
+        const float FoamEdgeJitter = 0.10f;
+
         /// <summary>
-        /// 水线细泡沫线（水平薄带，绕簇包络一圈）：从包络外 <paramref name="innerGap"/> 铺到
-        /// <paramref name="outerGap"/>，总宽 = outerGap-innerGap ≤ 0.3 格（场景文档 §5.3 泡沫环宽
+        /// 水线细泡沫线（水平薄带，绕簇包络一圈）：从包络外 <paramref name="innerGap"/> 起、
+        /// 到 <paramref name="outerGap"/> 为止的名义带宽内铺贴（场景文档 §5.3 泡沫环宽
         /// 0.4-1.2 的下限再做窄化，作为"平台入水"的浪沫）。【提案/待定】
+        ///
+        /// 【r5 碎斑化】不再是四条等宽实心直带，而是沿边分段铺贴：逐段按确定性哈希
+        /// **开缺**（保留 ≈55%）、**带宽在 0.08-0.42 间扰动**、**内外缘各 ±0.1 抖动**、
+        /// 段长 0.6-1.2 → 读作"浪沫碎斑贴岸"而非连续条。所有顶点仍严格在
+        /// <paramref name="y"/>（水平带），且都在包络之外（<c>innerGap ≥ 0</c>，不进平台可玩区）。
         /// </summary>
         public static void AddWaterlineFoam(MeshBuffers b, float x0, float x1, float z0, float z1,
             float y, float innerGap, float outerGap)
+        {
+            AddWaterlineFoam(b, x0, x1, z0, z1, y, innerGap, outerGap, 0);
+        }
+
+        /// <summary>
+        /// <see cref="AddWaterlineFoam(MeshBuffers, float, float, float, float, float, float, float)"/>
+        /// 的带盐重载：<paramref name="salt"/> 让不同平台簇得到不同的泡沫斑块分布。
+        /// </summary>
+        public static void AddWaterlineFoam(MeshBuffers b, float x0, float x1, float z0, float z1,
+            float y, float innerGap, float outerGap, int salt)
         {
             if (b == null || outerGap <= innerGap)
                 return;
@@ -646,25 +688,164 @@ namespace PirateCrew.PirateCrew.SceneArt
             float ex = 0.6f;   // 角部外延，避免四条带在角上留缝
 
             // 北(-Z) / 南(+Z)
-            AddWaterlineFoamStrip(b, x0 - ex, x1 + ex, z0 - outerGap, z0 - innerGap, y, true);
-            AddWaterlineFoamStrip(b, x0 - ex, x1 + ex, z1 + innerGap, z1 + outerGap, y, true);
+            AddWaterlineFoamStrip(b, x0 - ex, x1 + ex, z0, -1f, innerGap, y, true, salt + 61);
+            AddWaterlineFoamStrip(b, x0 - ex, x1 + ex, z1, 1f, innerGap, y, true, salt + 62);
             // 西(-X) / 东(+X)
-            AddWaterlineFoamStrip(b, z0 - ex, z1 + ex, x0 - outerGap, x0 - innerGap, y, false);
-            AddWaterlineFoamStrip(b, z0 - ex, z1 + ex, x1 + innerGap, x1 + outerGap, y, false);
+            AddWaterlineFoamStrip(b, z0 - ex, z1 + ex, x0, -1f, innerGap, y, false, salt + 63);
+            AddWaterlineFoamStrip(b, z0 - ex, z1 + ex, x1, 1f, innerGap, y, false, salt + 64);
         }
 
-        static void AddWaterlineFoamStrip(MeshBuffers b, float alongFrom, float alongTo,
-            float nearAt, float farAt, float y, bool alongX)
+        /// <summary>
+        /// 单边泡沫带：沿边按 0.6-1.2 的段长逐段推进，逐段开缺（保留 ≈<see cref="FoamKeepRatio"/>）、
+        /// 带宽扰动（<see cref="FoamBandWidthMin"/>-<see cref="FoamBandWidthMax"/>）、内外缘 ±<see cref="FoamEdgeJitter"/>。
+        /// <paramref name="outwardSign"/>：由包络指向水的方向（北/西 = -1，南/东 = +1）；
+        /// 偏移量恒为正 → 顶点始终在包络之外。段间端点由同一哈希派生，连续保留的段不会裂开。
+        /// </summary>
+        static void AddWaterlineFoamStrip(MeshBuffers b, float alongFrom, float alongTo, float edgeAt,
+            float outwardSign, float innerGap, float y, bool alongX, int salt)
         {
-            if (alongX)
+            float t = alongFrom;
+            int i = 0;
+            while (t < alongTo - 1e-4f)
             {
-                b.AddQuad(new Vector3(alongFrom, y, nearAt), new Vector3(alongTo, y, nearAt),
-                    new Vector3(alongTo, y, farAt), new Vector3(alongFrom, y, farAt), Vector3.up);
+                float segLen = Mathf.Lerp(FoamSegmentMin, FoamSegmentMax, SceneArtHash.Hash01(salt, i, 3));
+                float ta = t;
+                float tb = Mathf.Min(alongTo, t + segLen);
+                t = tb;
+
+                // 生成-消散：约 45% 的段开缺，泡沫断续而非一条实心边。
+                if (SceneArtHash.Hash01(salt, i, 5) >= FoamKeepRatio)
+                {
+                    i++;
+                    continue;
+                }
+
+                float widthA = Mathf.Lerp(FoamBandWidthMin, FoamBandWidthMax, SceneArtHash.Hash01(salt, i, 7));
+                float widthB = Mathf.Lerp(FoamBandWidthMin, FoamBandWidthMax, SceneArtHash.Hash01(salt, i + 1, 7));
+
+                float inA = Mathf.Max(0f, innerGap + SceneArtHash.SignedHash(salt, i, 11) * FoamEdgeJitter);
+                float inB = Mathf.Max(0f, innerGap + SceneArtHash.SignedHash(salt, i + 1, 11) * FoamEdgeJitter);
+                float outA = Mathf.Max(inA + 0.05f, inA + widthA + SceneArtHash.SignedHash(salt, i, 13) * FoamEdgeJitter);
+                float outB = Mathf.Max(inB + 0.05f, inB + widthB + SceneArtHash.SignedHash(salt, i + 1, 13) * FoamEdgeJitter);
+
+                if (alongX)
+                {
+                    b.AddQuad(
+                        new Vector3(ta, y, edgeAt + outwardSign * inA),
+                        new Vector3(tb, y, edgeAt + outwardSign * inB),
+                        new Vector3(tb, y, edgeAt + outwardSign * outB),
+                        new Vector3(ta, y, edgeAt + outwardSign * outA),
+                        new Vector3(0f, 1f, outwardSign));
+                }
+                else
+                {
+                    b.AddQuad(
+                        new Vector3(edgeAt + outwardSign * inA, y, ta),
+                        new Vector3(edgeAt + outwardSign * inB, y, tb),
+                        new Vector3(edgeAt + outwardSign * outB, y, tb),
+                        new Vector3(edgeAt + outwardSign * outA, y, ta),
+                        new Vector3(outwardSign, 1f, 0f));
+                }
+
+                i++;
             }
-            else
+        }
+
+        // ---- 湿沙暗带参数（【AI 提案：r5】）----
+        /// <summary>湿沙暗带陆侧（靠平台）相对水面的抬高 → y = WaterSurfaceY+0.09。</summary>
+        const float WetSandLandRise = 0.09f;
+        /// <summary>湿沙暗带水侧（靠外）相对水面的抬高 → y = WaterSurfaceY+0.06。</summary>
+        const float WetSandSeaRise = 0.06f;
+        /// <summary>湿沙暗带内侧相对包络的名义外扩（0.0 = 贴包络）。</summary>
+        const float WetSandInnerOffset = 0.0f;
+        /// <summary>湿沙暗带内侧外扩的抖动幅度（世界单位）。</summary>
+        const float WetSandInnerJitter = 0.03f;
+        /// <summary>湿沙暗带外侧名义外扩（包络外 0.0-0.25 的中值）。</summary>
+        const float WetSandOuterOffset = 0.20f;
+        /// <summary>外侧外扩的抖动幅度（世界单位）→ 实际落在 0.15-0.25。</summary>
+        const float WetSandOuterJitter = 0.05f;
+        /// <summary>湿沙带段保留率（湿沙是连续潮区，只做轻微开缺打断"跑道"读感）。</summary>
+        const float WetSandKeepRatio = 0.78f;
+
+        /// <summary>
+        /// 湿沙暗带（绕簇包络一圈的近水平浅滩）：以比平台材质暗的湿沙
+        /// （写进 <c>SandWet</c> 组复用湿沙材质）铺在**渲染水面之上、泡沫陆侧**，
+        /// 陆缘 y = <paramref name="waterY"/>+<see cref="WetSandLandRise"/>（-0.11）、
+        /// 水缘 y = <paramref name="waterY"/>+<see cref="WetSandSeaRise"/>（-0.14），
+        /// 外侧水平外扩 0.15-0.25 并随位置抖动；段长 0.6-1.2、保留 ≈78%。【提案/待定：r5】
+        ///
+        /// 【为什么是"贴水面的浅滩"而不是爬到平台顶的斜坡】两条硬约束把带子夹在水面附近：
+        ///   · 水立方体细分网格的顶面在 <c>WaterSurfaceY+0.05 = -0.15</c>（见本文件泡沫注释），
+        ///     低于它会被水面盖住、看不见；
+        ///   · 任务约束"顶点 y 不得超过 <c>WaterSurfaceY+0.1 = -0.1</c>"（避免挡弹道/被当掩体）。
+        /// 所以湿沙带只能落在 y ∈ [-0.15, -0.1] 的窄窗口里；取 <c>-0.14..-0.11</c>。
+        /// 它贴在平台包络外沿、泡沫内侧，与泡沫/水面拼成
+        /// 「沙 → 暗湿沙 → 泡沫（断续）→ 水」四段过渡（场景设计 §3.3 判据）。
+        /// </summary>
+        public static void AddWaterlineWetSand(MeshBuffers b, float x0, float x1, float z0, float z1,
+            float waterY, int salt)
+        {
+            if (b == null)
+                return;
+
+            float landY = waterY + WetSandLandRise;
+            float seaY = waterY + WetSandSeaRise;
+            float ex = 0.6f;   // 与泡沫带同口径的角部外延
+
+            AddWetSandStrip(b, x0 - ex, x1 + ex, z0, -1f, landY, seaY, true, salt + 1);
+            AddWetSandStrip(b, x0 - ex, x1 + ex, z1, 1f, landY, seaY, true, salt + 2);
+            AddWetSandStrip(b, z0 - ex, z1 + ex, x0, -1f, landY, seaY, false, salt + 3);
+            AddWetSandStrip(b, z0 - ex, z1 + ex, x1, 1f, landY, seaY, false, salt + 4);
+        }
+
+        /// <summary>单边湿沙暗带：内缘外扩 0.0±<see cref="WetSandInnerJitter"/>、
+        /// 外缘 <see cref="WetSandOuterOffset"/>±<see cref="WetSandOuterJitter"/>，
+        /// y 由 <paramref name="landY"/> 缓降到 <paramref name="seaY"/>（都夹在水面窗口内）。</summary>
+        static void AddWetSandStrip(MeshBuffers b, float alongFrom, float alongTo, float edgeAt,
+            float outwardSign, float landY, float seaY, bool alongX, int salt)
+        {
+            float t = alongFrom;
+            int i = 0;
+            while (t < alongTo - 1e-4f)
             {
-                b.AddQuad(new Vector3(nearAt, y, alongFrom), new Vector3(nearAt, y, alongTo),
-                    new Vector3(farAt, y, alongTo), new Vector3(farAt, y, alongFrom), Vector3.up);
+                float segLen = Mathf.Lerp(FoamSegmentMin, FoamSegmentMax, SceneArtHash.Hash01(salt, i, 3));
+                float ta = t;
+                float tb = Mathf.Min(alongTo, t + segLen);
+                t = tb;
+
+                if (SceneArtHash.Hash01(salt, i, 5) >= WetSandKeepRatio)
+                {
+                    i++;
+                    continue;
+                }
+
+                float outA = WetSandOuterOffset + SceneArtHash.SignedHash(salt, i, 7) * WetSandOuterJitter;
+                float outB = WetSandOuterOffset + SceneArtHash.SignedHash(salt, i + 1, 7) * WetSandOuterJitter;
+                float inA = Mathf.Max(0f, WetSandInnerOffset + SceneArtHash.SignedHash(salt, i, 9) * WetSandInnerJitter);
+                float inB = Mathf.Max(0f, WetSandInnerOffset + SceneArtHash.SignedHash(salt, i + 1, 9) * WetSandInnerJitter);
+                float outMaxA = Mathf.Max(outA, inA + 0.10f);
+                float outMaxB = Mathf.Max(outB, inB + 0.10f);
+
+                if (alongX)
+                {
+                    b.AddQuad(
+                        new Vector3(ta, landY, edgeAt + outwardSign * inA),
+                        new Vector3(tb, landY, edgeAt + outwardSign * inB),
+                        new Vector3(tb, seaY, edgeAt + outwardSign * outMaxB),
+                        new Vector3(ta, seaY, edgeAt + outwardSign * outMaxA),
+                        new Vector3(0f, 1f, outwardSign));
+                }
+                else
+                {
+                    b.AddQuad(
+                        new Vector3(edgeAt + outwardSign * inA, landY, ta),
+                        new Vector3(edgeAt + outwardSign * inB, landY, tb),
+                        new Vector3(edgeAt + outwardSign * outMaxB, seaY, tb),
+                        new Vector3(edgeAt + outwardSign * outMaxA, seaY, ta),
+                        new Vector3(outwardSign, 1f, 0f));
+                }
+
+                i++;
             }
         }
 
