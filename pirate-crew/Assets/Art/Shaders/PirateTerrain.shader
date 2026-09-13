@@ -36,13 +36,18 @@
 //       · P-10：纹理能量需显著高于纯色基线；
 //       · §3.2 纪律 1：相邻面 smoothness 差 ≥ 0.15（沙/草/岩相邻面必须能一眼分出）。
 //   【三族贴图】沙/草/岩各一套 albedo+法线（6 张 256²，算法唯一来源 = Assets/Editor/MaterialNoiseBuilder.cs，
-//     存 Assets/Art/Textures/Materials/）。三族各按自己的 _XxxNoiseWorldScale 采样（沙 0.35 / 草 0.25 /
-//     岩 0.5 → 平铺 2.9m / 4.0m / 2.0m，风格指南 §3.3 的"平铺 2-4m"预算内），再按 grass/rock 权重混合
+//     存 Assets/Art/Textures/Materials/）。三族各按自己的 _XxxNoiseWorldScale 采样，再按 grass/rock 权重混合
 //     **起伏量**（不是混合贴图）：混的是 (tex*2-1)，权重和恰为 1 → 平均色零漂移。
-//   【格缝去"地砖感"三条】1) 贴图 UV 走世界 XZ + 低频 FBM 扭曲（模型 UV 与 1 单位格子对齐，是地砖感来源）；
+//     【r5 采样尺度：沙 0.35→0.05 / 草 0.25→0.04 / 岩 0.5→0.10（世界尺度放大 5-7×）】原尺度下贴图最细
+//     八度只有 1-3cm 世界波长，近景被 mip 平均成平色、特写看不清砂粒；放大后最细八度落到 5-13cm，
+//     进入近景可分辨 band。远看靠 mipmap + aniso 收敛，中低频八度兜底大色斑（不闪蚂蚁纹）。
+//   【格缝去"地砖感"四条】1) 贴图 UV 走世界 XZ + 低频 FBM 扭曲（模型 UV 与 1 单位格子边界对齐，是地砖感来源）；
 //     2) 逐块明暗的**格子坐标**按世界 XZ 的 FBM 平移（_BlockWarp）→ 规则方格的直边被打散；
-//     3) 逐块明暗强度由 0.12 降到 0.06（写实方向不要"数字化块面"），细节法线给出逐像素明暗。
-//     低多边形块面辨识度仍在（相邻块仍有亮度差），但不再读成"瓷砖 + 勾缝"。
+//     3) 逐块明暗强度由 0.12 降到 0.06（写实方向不要"数字化块面"）；
+//     4) 【r5 新增】格缝/块缘不再只是"压暗"（乘性压暗保留环境光色相，蓝灰天空光下会读成冷色勾缝），
+//        改为按格缝掩码（距格边距离）lerp 到显式**暖灰** _SeamColor（#7C756A，HSV 饱和度 14.5% <15%，
+//        亮度取 #6B5A48 与沙色的中间调）→ "地砖勾缝"读成"沙地裂纹"；块缘亮度差同步降 30%
+//        （_BlockTintStrength 0.06→0.042）。
 //   【默认关闭】_XxxDetailAlbedoStrength / _XxxBumpScale 的 shader 默认值都是 **0**：
 //     没赋贴图的材质行为与改动前逐像素一致，且不依赖 2D 属性内置回退贴图的不可预期线性值。
 //
@@ -97,6 +102,16 @@ Shader "PirateCrew/PirateTerrain"
         // 0 = 回到规则方格（旧行为，"地砖感"来源）；0.35-0.45 = 方格边界被打散成不规则块。
         _BlockWarp              ("逐块格子的世界扰动（打断地砖感）", Range(0.0, 1.0)) = 0.35
 
+        // ---- 格缝 / 块缘着色（r5：去"地砖勾缝"的冷色，改暖灰"沙地裂纹"）----
+        // 格缝 = 距格子边界的距离小于 _SeamWidth 的区域（**几何格缝**，非逐块明暗）。
+        // 【为什么用显式颜色而不是继续乘性压暗】乘性压暗只改亮度、保留环境光色相：
+        //   本场景环境光是蓝灰天空，压暗后的格缝会读成**饱和蓝灰勾缝**（实测 ~(63,90,120)），
+        //   正是"地砖感"的来源。lerp 到显式暖灰把格缝的色相从"天空光×沙色"里拿出来，才是暖的。
+        // 色值口径：亮度取 #6B5A48（暖棕）与沙色 #C4A76A 的中间调，再降到 HSV 饱和度 <15%。
+        _SeamColor              ("格缝暖灰色（#7C756A，饱和度 14.5%）", Color) = (0.486, 0.459, 0.416, 1.0)
+        _SeamStrength           ("格缝着色强度（0=关闭）", Range(0.0, 1.0)) = 0.18
+        _SeamWidth              ("格缝宽度（占一格的比例，0.12=约 12cm @1m 格）", Range(0.005, 0.5)) = 0.12
+
         // ---- 细节噪声贴图（沙/草/岩三族；程序化资产，算法见 Assets/Editor/MaterialNoiseBuilder.cs）----
         // 【默认值 0 是刻意设计】没赋贴图的材质必须与"加贴图之前"逐像素一致（见文件头【默认关闭】）。
         // [NoScaleOffset]：UV 由世界 XZ×_XxxNoiseWorldScale 驱动，材质 Tiling/Offset 无意义。
@@ -106,9 +121,10 @@ Shader "PirateCrew/PirateTerrain"
         [NoScaleOffset] _SandBumpMap   ("沙 法线细节图", 2D) = "bump" {}
         [NoScaleOffset] _GrassBumpMap  ("草 法线细节图", 2D) = "bump" {}
         [NoScaleOffset] _RockBumpMap   ("岩 法线细节图", 2D) = "bump" {}
-        _SandNoiseWorldScale   ("沙 世界尺度（1/该值=平铺米数）", Float) = 0.35
-        _GrassNoiseWorldScale  ("草 世界尺度", Float) = 0.25
-        _RockNoiseWorldScale   ("岩 世界尺度", Float) = 0.5
+        // r5 采样尺度：沙 0.35→0.05、草 0.25→0.04、岩 0.5→0.10（世界尺度放大 5-7×，见文件头）。
+        _SandNoiseWorldScale   ("沙 世界尺度（1/该值=平铺米数）", Float) = 0.05
+        _GrassNoiseWorldScale  ("草 世界尺度", Float) = 0.04
+        _RockNoiseWorldScale   ("岩 世界尺度", Float) = 0.10
         _NoiseWarpStrength     ("细节 UV 扭曲（打断与格子的轴向对齐）", Range(0.0, 0.5)) = 0.18
         _SandDetailAlbedoStrength  ("沙 细节 albedo 强度（0=关闭）", Range(0.0, 1.0)) = 0.0
         _GrassDetailAlbedoStrength ("草 细节 albedo 强度（0=关闭）", Range(0.0, 1.0)) = 0.0
@@ -209,6 +225,9 @@ Shader "PirateCrew/PirateTerrain"
                 float  _BlockTintStrength;
                 float  _FacetStrength;
                 float  _BlockWarp;
+                float4 _SeamColor;
+                float  _SeamStrength;
+                float  _SeamWidth;
                 float  _SandNoiseWorldScale;
                 float  _GrassNoiseWorldScale;
                 float  _RockNoiseWorldScale;
@@ -362,9 +381,9 @@ Shader "PirateCrew/PirateTerrain"
                 // 【判据】P-9 同材质 200×200 窗 std > 6、P-10 高频能量显著高于纯色基线。
                 // 【为什么不用模型 UV】地形是 Cube 图元，模型 UV 与 1 单位格子边界对齐 → 正是顶面
                 //   "规则格缝读成地砖/编织布"的来源之一。世界空间 UV 让贴图跨块连续。
-                // 【三族的平铺米数】1/_SandNoiseWorldScale=2.9m、1/_Grass…=4.0m、1/_Rock…=2.0m
-                //   （风格指南 §3.3 环境图"平铺 2-4m"预算内）。
-                // 【扭曲尺度 0.37 ≈ 2.7 世界单位一个起伏】低频，只挪 UV 不影响贴图 mip 选择。
+                // 【三族的平铺米数（r5 放大后）】1/_SandNoiseWorldScale=20m、1/_Grass…=25m、1/_Rock…=10m。
+                //   放大的是"贴图世界尺度"（不是贴图内容）：让最细八度落进近景可分辨 band，见文件头。
+                // 【扭曲尺度 0.37】低频，只挪 UV 不影响贴图 mip 选择。
                 float2 detailUV = positionWS.xz;
                 float2 detailWarp = float2(PirateFbm(detailUV * 0.37 + 3.1),
                                            PirateFbm(detailUV * 0.37 + 19.7)) - 0.5;
@@ -441,15 +460,28 @@ Shader "PirateCrew/PirateTerrain"
                 // 【去"地砖感"（r3 复验 N4）】把量化格坐标按世界 XZ 的低频 FBM **平移**（_BlockWarp，
                 //   单位=世界单位）：1 单位方格的直边被推成不规则块 → 顶面不再读成"瓷砖+勾缝"。
                 //   平移是低频（0.41 ≈ 2.4 世界单位一个起伏）→ 一个"块"整体被挪走，不会撕碎块面。
-                //   低多边形辨识度靠"相邻块仍有亮度差"保留，故 _BlockTintStrength 同步由 0.12 降到 0.06
-                //   （写实方向不要"数字化块面"；取值见 BattleSceneLighting.BuildTerrainMaterial）。
+                //   低多边形辨识度靠"相邻块仍有亮度差"保留，故 _BlockTintStrength 由 0.12 降到 0.06、
+                //   r5 再降 30% 到 0.042（写实方向不要"数字化块面"；取值见 BattleSceneLighting.BuildTerrainMaterial）。
                 float2 blockWarp = float2(PirateFbm(positionWS.xz * 0.41 + 11.3),
                                           PirateFbm(positionWS.xz * 0.41 + 27.9)) - 0.5;
-                float2 blockCoord = floor((positionWS.xz + blockWarp * (_BlockWarp * 2.0)) / max(_BlockSize, 0.01))
+                // cellPos = 打散后的格坐标：floor 给逐块哈希、frac 给格缝掩码 —— 同一份坐标，缝与块不错位。
+                float2 cellPos = (positionWS.xz + blockWarp * (_BlockWarp * 2.0)) / max(_BlockSize, 0.01);
+                float2 blockCoord = floor(cellPos)
                                   + floor(positionWS.y * 3.0) * 7.0;
                 half blockHash = (half)PirateHash21(blockCoord);
                 half blockTint = lerp(1.0h - (half)_BlockTintStrength, 1.0h + (half)_BlockTintStrength, blockHash);
                 albedo *= blockTint;
+
+                // ---- 格缝 / 块缘暖灰（r5：把"地砖勾缝"读法改成"沙地裂纹"）----
+                // 【为什么用显式颜色】旧实现只有乘性 blockTint：只压亮度、保留环境光色相，蓝灰天空光下
+                //   格缝读成饱和蓝灰（实测 ~(63,90,120)）——"地砖感"的来源。lerp 到显式暖灰把色相
+                //   从"天空光×沙色"里拿出来，格缝才是暖的，且不对抗低多边形块面辨识度。
+                // 【掩码】frac(cellPos) 到最近格边的距离（x/z 取小者）→ 1-smoothstep 软边；
+                //   cellPos 由世界 XZ 连续映射，平铺无缝。放在逐块明暗之后 = 裂纹叠在块面上。
+                float2 cellFrac = frac(cellPos);
+                float2 edgeDist = min(cellFrac, 1.0 - cellFrac);
+                float  seam = 1.0 - smoothstep(0.0, max(_SeamWidth, 0.005), min(edgeDist.x, edgeDist.y));
+                albedo = lerp(albedo, _SeamColor.rgb, (half)(seam * (float)_SeamStrength));
 
                 // 噪声带来的轻微明暗（避免色块过于平）。
                 albedo *= 1.0h - (half)(_NoiseStrength * 0.3) * (1.0h - (half)nBig);

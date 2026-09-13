@@ -188,11 +188,12 @@ namespace PirateCrew.EditorTools
             SetVector(m, "_NoiseStretch", new Vector4(1f, 1f, 0f, 0f));
             SetFloat(m, "_DetailNoiseScale", 18f);
             SetFloat(m, "_DetailNormalStrength", 0.45f);
-            // 细节贴图：世界 XZ UV，1/0.35 ≈ 2.9m 平铺（风格指南 §3.3 环境图"2-4m"预算内）；
+            // 细节贴图：世界 XZ UV，1/0.05 = 20m 平铺（r5 把世界尺度放大 8×，见 MaterialNoiseBuilder
+            //   文件头"采样尺度"：原 0.35 时最细八度只有 ~1.3cm，近景被 mip 抹平、特写看不到砂粒）；
             //   微色斑强度 1.0 = 用满贴图里烘好的 ±（明度 std 见 MaterialNoiseBuilder 构建日志）；
             //   法线强度 1.0（贴图本身的 RMS 斜率已被规到 0.07≈4° 的温和档）。
             ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandAlbedo, MaterialNoiseBuilder.NoiseKind.SandNormal,
-                0.35f, 1f, 1f);
+                0.05f, 1f, 1f);
             SetFloat(m, "_Metallic", 0f);
             SetFloat(m, "_Smoothness", 0.25f);
             SetFloat(m, "_AmbientStrength", 1f);
@@ -224,7 +225,7 @@ namespace PirateCrew.EditorTools
             SetFloat(m, "_DetailNormalStrength", 0.3f);
             // 与干沙**同一组贴图与参数**：两种沙材质若细节强度不同，交界处会露出贴图强度差。
             ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandAlbedo, MaterialNoiseBuilder.NoiseKind.SandNormal,
-                0.35f, 1f, 1f);
+                0.05f, 1f, 1f);
             SetFloat(m, "_Metallic", 0f);
             SetFloat(m, "_Smoothness", 0.30f);
             SetFloat(m, "_AmbientStrength", 1f);
@@ -267,7 +268,8 @@ namespace PirateCrew.EditorTools
         // 参数理由：草是高频细密介质 → 噪声尺度最大（8）、细节法线最强（0.75），制造"绒毛感"；
         //           光滑度 **0.40**（本次改动：旧值 0.10 与沙只差 0.02，违反 §3.2 纪律 1 的 ≥0.15；
         //           0.40 与沙 0.25 / 岩 0.55 各差 0.15）。
-        // 【本次改动】挂草族细节贴图（世界尺度 0.25 → 平铺 4.0m，§3.3 预算上限）。
+        // 【本次改动】挂草族细节贴图（r5 世界尺度 0.25 → 0.04，放大 6.25×，见 MaterialNoiseBuilder
+        //   文件头"采样尺度"；原 0.25 时最细八度 ~4cm 近景仍被 mip 抹平）。
         static bool BuildGrassMaterial()
         {
             Material m = EnsureMaterial(GrassMaterial, SurfaceShaderName);
@@ -285,7 +287,7 @@ namespace PirateCrew.EditorTools
             SetFloat(m, "_DetailNormalStrength", 0.75f);
             // 草族贴图：法线强度 1.1（贴图 RMS 斜率 0.16≈9°，比沙强、比岩弱）。
             ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.GrassAlbedo, MaterialNoiseBuilder.NoiseKind.GrassNormal,
-                0.25f, 1f, 1.1f);
+                0.04f, 1f, 1.1f);
             SetFloat(m, "_Metallic", 0f);
             SetFloat(m, "_Smoothness", 0.40f);
             SetFloat(m, "_AmbientStrength", 1f);
@@ -300,7 +302,8 @@ namespace PirateCrew.EditorTools
         //           光滑度 **0.55**（本次改动：旧值 0.28 与草只差 0.18、与沙差 0.16，勉强达标；
         //           0.55 让"岩 vs 草/沙"一眼可比 —— 岩是风化硬面，湿气/矿物的微光比草沙明显）；
         //           边缘磨损 0.3 + 磨损色偏白 —— 岩棱被风化磨亮是风格化写实的常见做法（AI 提案）。
-        // 【本次改动】挂岩族细节贴图（世界尺度 0.5 → 平铺 2.0m；法线 1.2 × 贴图 RMS 0.28≈15.6° = 强断裂感）。
+        // 【本次改动】挂岩族细节贴图（r5 世界尺度 0.5 → 0.10，放大 5×；
+        //   法线 1.2 × 贴图 RMS 0.28≈15.6° = 强断裂感）。
         static bool BuildRockMaterial()
         {
             Material m = EnsureMaterial(RockMaterial, SurfaceShaderName);
@@ -317,7 +320,7 @@ namespace PirateCrew.EditorTools
             SetFloat(m, "_DetailNoiseScale", 12f);
             SetFloat(m, "_DetailNormalStrength", 0.9f);
             ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.RockAlbedo, MaterialNoiseBuilder.NoiseKind.RockNormal,
-                0.5f, 1f, 1.2f);
+                0.10f, 1f, 1.2f);
             SetFloat(m, "_Metallic", 0f);
             SetFloat(m, "_Smoothness", 0.55f);
             SetFloat(m, "_AmbientStrength", 1f);
@@ -509,10 +512,15 @@ namespace PirateCrew.EditorTools
         //   【本次改动（r3 复验 N4 返工）】
         //     1) _Smoothness 0.15 → **0.25**，并新增 _GrassSmoothness=0.40 / _RockSmoothness=0.55：
         //        shader 现按沙/草/岩权重混合光滑度 → 相邻面差 ≥0.15（美术风格指南.md:199-204 §3.2 纪律 1）。
-        //     2) 三族细节贴图（沙/草/岩各一套 albedo+法线，世界空间平铺 2.9/4.0/2.0m）：
+        //     2) 三族细节贴图（沙/草/岩各一套 albedo+法线；r5 世界尺度放大到沙 0.05/草 0.04/岩 0.10）：
         //        解决 P-9「同材质 200×200 窗 std > 6」与 P-10「高频能量」不达标。
         //     3) _BlockTintStrength 0.12 → **0.06** + 新增 _BlockWarp=0.4：
         //        逐块明暗的方格边界按世界 FBM 打散，顶面不再被读成"地砖/编织布"（写实方向也不要"数字化块面"）。
+        //   【本次改动（r5 复验 砖缝去蓝灰）】
+        //     4) _BlockTintStrength 0.06 → **0.042**（块缘亮度差 -30%）；
+        //     5) 新增 _SeamColor=#7C756A / _SeamStrength=0.18 / _SeamWidth=0.12：
+        //        格缝由"乘性压暗"（保留蓝灰天空光色相 → 读成饱和蓝灰勾缝）改为 lerp 到显式暖灰 →
+        //        "地砖勾缝"变"沙地裂纹"。色值口径见 PirateTerrain.shader 的 _SeamColor 注释。
         static bool BuildTerrainMaterial()
         {
             Material m = EnsureMaterial(TerrainMaterial, TerrainShaderName);
@@ -529,10 +537,14 @@ namespace PirateCrew.EditorTools
             SetFloat(m, "_NoiseScale", 2f);
             SetFloat(m, "_NoiseStrength", 0.35f);
             SetFloat(m, "_BlockSize", 1f);
-            // 低多边形辨识度靠"相邻块仍有亮度差"保留；0.06 是"看得出来但不数字化"的量级。
-            SetFloat(m, "_BlockTintStrength", 0.06f);
+            // 低多边形辨识度靠"相邻块仍有亮度差"保留；0.042 = 原 0.06 的 70%（块缘亮度差降 30%，r5）。
+            SetFloat(m, "_BlockTintStrength", 0.042f);
             SetFloat(m, "_FacetStrength", 0.6f);
             SetFloat(m, "_BlockWarp", 0.4f);
+            // 格缝暖灰（r5）：色值 #7C756A（HSV 饱和度 14.5% <15%）、强度 0.18、宽 0.12 格。
+            SetColor(m, "_SeamColor", Hex("#7C756A"));
+            SetFloat(m, "_SeamStrength", 0.18f);
+            SetFloat(m, "_SeamWidth", 0.12f);
             ApplyTerrainDetailTextures(m);
             // 粗糙度分区：_Smoothness 是**沙族**基准（0.25），草/岩在 shader 里按权重混合。
             SetFloat(m, "_Smoothness", 0.25f);
@@ -577,10 +589,11 @@ namespace PirateCrew.EditorTools
         static void ApplyTerrainDetailTextures(Material m)
         {
             SetFloat(m, "_NoiseWarpStrength", 0.18f);
-            // 平铺米数 = 1/世界尺度：沙 2.9m、草 4.0m、岩 2.0m（风格指南 §3.3 环境图"2-4m"预算内）。
-            SetFloat(m, "_SandNoiseWorldScale", 0.35f);
-            SetFloat(m, "_GrassNoiseWorldScale", 0.25f);
-            SetFloat(m, "_RockNoiseWorldScale", 0.5f);
+            // r5 世界尺度放大 5-7×：沙 0.05（20m）、草 0.04（25m）、岩 0.10（10m）；
+            //   见 MaterialNoiseBuilder 文件头"采样尺度"——原值让最细八度近景被 mip 抹平。
+            SetFloat(m, "_SandNoiseWorldScale", 0.05f);
+            SetFloat(m, "_GrassNoiseWorldScale", 0.04f);
+            SetFloat(m, "_RockNoiseWorldScale", 0.10f);
 
             bool sandAlb  = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandAlbedo,  "_SandNoiseMap",  "_SandDetailAlbedoStrength",  1f);
             bool grassAlb = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.GrassAlbedo, "_GrassNoiseMap", "_GrassDetailAlbedoStrength", 1f);

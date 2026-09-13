@@ -49,6 +49,15 @@ namespace PirateCrew.EditorTools
     ///
     /// 【幂等】再次执行时字节一致则不重写文件（同 FxAssetBuilder），只校正导入设置；.mat 不在此类改。
     ///
+    /// 【r5 对比提档（本类改动）】r4 复验实测 unit-closeup 沙面 120×120 窗 std 只有 2-3、量化色仅 5 种：
+    ///   生成端乘性系数起伏太弱。r5 把明度扰动由 ±6% 提到 **±12-18%**（沙 ±18%、草 ±15%、岩 ±14%），
+    ///   细粒由 ±4% 提到 **±8%**（三族都补 period-192 细粒），并同步提高沙的**色斑对比**
+    ///   （主色斑 2.4→3.2、中频色斑 1.4→2.4）；均值保持的两遍归一化逻辑不变（平均色零漂移）。
+    ///   复算（python，生成端逐行同构）：沙乘性系数线性明度 std 0.113→0.149、存储 8bit 灰度 std
+    ///   9.6→12.6；草 14.4→15.0、岩 22.3→22.7（8bit std，全族 ≥12）。
+    ///   配套的"世界采样尺度放大 5-7×"在 shader / BattleSceneLighting 侧（UV = 世界XZ×_NoiseWorldScale），
+    ///   本类的贴图内容尺寸不变（仍 256²）。
+    ///
     /// 【入口】
     ///   菜单: PirateCrew/渲染/生成程序化材质噪声贴图（幂等）
     ///         PirateCrew/渲染/强制重建程序化材质噪声贴图
@@ -362,15 +371,18 @@ namespace PirateCrew.EditorTools
             return new Color(1f, 1f, 1f, 1f);
         }
 
-        // 沙 albedo（任务书：基色 #E8D5A3/#C4A76A 之间按噪声取色 + ±6% 明度扰动 + 稀疏贝壳白点 <0.5%）
-        //   参数表：主色斑 FBM 基准周期 4（≈0.7 世界单位一块，200px 窗里能看 3-4 块）、对比拉伸 2.4；
-        //           中频 FBM 周期 16（≈0.18 单位）权重 0.35；
-        //           明度扰动 FBM 周期 64、幅度 ±6%（任务书值）；细颗粒周期 192、幅度 ±4%；
+        // 沙 albedo（任务书：基色 #E8D5A3/#C4A76A 之间按噪声取色 + 明度扰动 + 稀疏贝壳白点 <0.5%）
+        //   参数表（r5 提档，括号内为 r4 旧值）：主色斑 FBM 基准周期 4、对比拉伸 **3.2**（旧 2.4）、
+        //           权重 0.65；中频色斑周期 16、对比拉伸 **2.4**（旧 1.4）、权重 0.35 —— 色斑提档；
+        //           明度扰动 FBM 周期 64、幅度 **±18%**（旧 ±6%）；
+        //           细颗粒周期 192、幅度 **±8%**（旧 ±4%）；
         //           贝壳：16×16 单元格、4.5% 单元格出点、半径 0.06-0.11 格 → 覆盖率 ≈0.14%（<0.5%）。
+        //   【为什么同时提 色斑对比】只提明度项在 ±18% 上限内，沙的"整张贴图 std"也只能到 ~10.7
+        //   （色斑色相起伏是主项）；配合色斑对比 2.4→3.2 / 1.4→2.4 后可到 ~12.6（python 复算见报告）。
         static Color SandAlbedoFactor(float u, float v, int size)
         {
-            float nPatch = Contrast(Fbm(u, v, 4, 4, 4, SeedSandPatch), 2.4f);
-            float nMid   = Contrast(Fbm(u, v, 16, 16, 3, SeedSandMid), 1.4f);
+            float nPatch = Contrast(Fbm(u, v, 4, 4, 4, SeedSandPatch), 3.2f);
+            float nMid   = Contrast(Fbm(u, v, 16, 16, 3, SeedSandMid), 2.4f);
             float mix    = Mathf.Clamp01(0.65f * nPatch + 0.35f * nMid);
 
             Color lightLin = SrgbToLinear(SandLightSrgb);
@@ -378,9 +390,9 @@ namespace PirateCrew.EditorTools
             Color meanLin  = (lightLin + midLin) * 0.5f;
             Color baseLin  = Color.Lerp(lightLin, midLin, mix);
 
-            // 明度扰动 ±6% + 细颗粒 ±4%（都作用在"系数"上，故不破坏平均色）
-            float lum = 1f + (Fbm(u, v, 64, 64, 2, SeedSandGrain) - 0.5f) * 2f * 0.06f;
-            float fine = 1f + (Fbm(u, v, 192, 192, 2, SeedSandFine) - 0.5f) * 2f * 0.04f;
+            // 明度扰动 ±18% + 细颗粒 ±8%（都作用在"系数"上，故不破坏平均色；两遍归一化在 BuildAlbedoPixels）
+            float lum = 1f + (Fbm(u, v, 64, 64, 2, SeedSandGrain) - 0.5f) * 2f * 0.18f;
+            float fine = 1f + (Fbm(u, v, 192, 192, 2, SeedSandFine) - 0.5f) * 2f * 0.08f;
 
             Color factor = RatioToMean(baseLin, meanLin) * (lum * fine);
 
@@ -393,7 +405,9 @@ namespace PirateCrew.EditorTools
         }
 
         // 草 albedo（任务书：#4A8C4A/#7BC67E 双色 patch）
-        //   参数表：双色 patch FBM 周期 6（≈0.67 单位）、对比拉伸 2.2；细碎斑 FBM 周期 24、权重 0.3；
+        //   参数表：双色 patch FBM 周期 6、对比拉伸 2.2；细碎斑 FBM 周期 24、权重 0.3；
+        //           明度扰动周期 64、幅度 **±15%**（r5：±6% → ±15%）；
+        //           细粒周期 192、幅度 **±8%**（r5 新增，与沙同口径）；
         //           深色草缝（叶隙阴影）用周期 48 的阈值噪声打点，最多压暗 22%。
         static Color GrassAlbedoFactor(float u, float v)
         {
@@ -408,15 +422,17 @@ namespace PirateCrew.EditorTools
 
             // 草叶/叶隙：高频阈值噪声 → 细碎的暗点（让"绒毛感"来自纹理而非只靠法线）
             float gap = Mathf.SmoothStep(0f, 0.06f, Fbm(u, v, 48, 48, 2, SeedGrassGap) - 0.62f);
-            float lum = (1f + (Fbm(u, v, 64, 64, 2, SeedGrassGrain) - 0.5f) * 2f * 0.06f) * (1f - 0.22f * gap);
+            float lum  = 1f + (Fbm(u, v, 64, 64, 2, SeedGrassGrain) - 0.5f) * 2f * 0.15f;
+            float fine = 1f + (Fbm(u, v, 192, 192, 2, SeedGrassAlbedoFine) - 0.5f) * 2f * 0.08f;
 
-            return RatioToMean(baseLin, meanLin) * lum;
+            return RatioToMean(baseLin, meanLin) * (lum * fine * (1f - 0.22f * gap));
         }
 
         // 岩 albedo（任务书：#8C7B6A 基础上斑块 + 裂缝暗线（阈值化噪声））
         //   参数表：斑块在暗档 #5C4F42 与亮档 #B8A99A 间按 FBM（周期 5，对比 2.0）取色；
         //           裂缝 = 阈值化 FBM（周期 8、4 阶），|n-0.5| < 0.035 处为暗线，最多压暗 45%；
-        //           岩层的各向异性拉长（周期 (6,24)）给沉积纹理；细颗粒 ±5%。
+        //           岩层的各向异性拉长（周期 (6,24)）给沉积纹理；
+        //           明度扰动周期 96、幅度 **±14%**（r5：±5% → ±14%）；细粒周期 192、幅度 **±8%**（r5 新增）。
         static Color RockAlbedoFactor(float u, float v)
         {
             float nPatch = Contrast(Fbm(u, v, 5, 5, 4, SeedRockPatch), 2.0f);
@@ -429,9 +445,10 @@ namespace PirateCrew.EditorTools
             Color baseLin  = Color.Lerp(darkLin, lightLin, mix);
 
             float crack = CrackMask(u, v);
-            float lum = 1f + (Fbm(u, v, 96, 96, 2, SeedRockGrain) - 0.5f) * 2f * 0.05f;
+            float lum  = 1f + (Fbm(u, v, 96, 96, 2, SeedRockGrain) - 0.5f) * 2f * 0.14f;
+            float fine = 1f + (Fbm(u, v, 192, 192, 2, SeedRockAlbedoFine) - 0.5f) * 2f * 0.08f;
 
-            return RatioToMean(baseLin, meanLin) * (lum * (1f - 0.45f * crack));
+            return RatioToMean(baseLin, meanLin) * (lum * fine * (1f - 0.45f * crack));
         }
 
         // ==================================================================
@@ -524,7 +541,11 @@ namespace PirateCrew.EditorTools
 
         // 沙高度：主频 ripples 与 shader 的沙纹方向同源（rdir = normalize(5,3)，见 PirateSurface.shader 的 _RippleScale 段）；
         //   用整数波数 (5,3) 沿 u/v → 既与 shader 沙纹同向，又天然无缝。
-        //   叠加：低频起伏（周期 16）+ 细沙扰动（周期 64，权重 0.25）。
+        //   叠加：低频起伏（周期 16）+ 细沙扰动（周期 64，权重 0.25）+ 【r5 新增】最细粒（周期 256，
+        //   权重 0.044，梯度 RMS 占比 ~20%）—— 让特写近景有"砂粒感"，而不是只有波纹。
+        //   【为什么权重只有 0.044 就能占到 20%】法线图最终按整张高度场的梯度 RMS 归一（BuildNormalPixels），
+        //   对"起伏感知"的贡献是**梯度能量**而不是高度振幅：周期 256 的梯度 ∝ 256×权重，比周期 64
+        //   高 4 倍，故 0.044 的权重就占到梯度 RMS 的 20.2%（python 复算见报告：18.4%@0.04、20.2%@0.044）。
         static float SandHeight(float u, float v)
         {
             float phase = 2f * Mathf.PI * (5f * u + 3f * v)
@@ -532,7 +553,8 @@ namespace PirateCrew.EditorTools
             float ripple = Mathf.Sin(phase);
             float mid    = (Fbm(u, v, 16, 16, 2, SeedSandNormalMid) - 0.5f) * 2f;
             float fine   = (Fbm(u, v, 64, 64, 3, SeedSandNormalFine) - 0.5f) * 2f;
-            return ripple * 0.75f + mid * 0.5f + fine * 0.25f;
+            float ultra  = (Fbm(u, v, 256, 256, 2, SeedSandNormalUltra) - 0.5f) * 2f;
+            return ripple * 0.75f + mid * 0.5f + fine * 0.25f + ultra * 0.044f;
         }
 
         // 草高度：各向异性"草叶"（沿 v 拉长：u 高频 48 / v 低频 16）+ 中频草簇（周期 8）+ 细碎（周期 96）。
@@ -566,6 +588,7 @@ namespace PirateCrew.EditorTools
         const int SeedSandRippleWarp = 127;
         const int SeedSandNormalMid  = 131;
         const int SeedSandNormalFine = 137;
+        const int SeedSandNormalUltra= 139;   // r5：沙法线最细一档（frequency 256）
         const int SeedGrassPatch     = 201;
         const int SeedGrassMid       = 203;
         const int SeedGrassGrain     = 207;
@@ -573,12 +596,14 @@ namespace PirateCrew.EditorTools
         const int SeedGrassBlade     = 211;
         const int SeedGrassClump     = 223;
         const int SeedGrassFine      = 227;
+        const int SeedGrassAlbedoFine= 229;   // r5：草 albedo 细粒（period 192）
         const int SeedRockPatch      = 301;
         const int SeedRockStrata     = 303;
         const int SeedRockGrain      = 307;
         const int SeedRockCrack      = 311;
         const int SeedRockStrataN    = 313;
         const int SeedRockChunk      = 317;
+        const int SeedRockAlbedoFine = 331;   // r5：岩 albedo 细粒（period 192）
 
         /// <summary>整数哈希 → [0,1)。纯整数位运算，跨平台/跨会话逐位一致（可复算的确定性）。</summary>
         static float Hash01(int x, int y, int seed)

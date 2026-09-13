@@ -51,8 +51,13 @@
 //       albedo 的导入设置是 sRGB=true，所以贴图里存 sRGB 编码才会被硬件解码回我们算的线性系数。
 //     · _BumpMap：切空间法线 n*0.5+0.5、**A=255**（桌面 core Packing.hlsl:214 UnpackNormalmapRGorAG
 //       会做 packed.x *= packed.w，A=1 时 RGBA 布局才成立）；导入为 NormalMap 类型 + 线性（sRGB=false）。
-//   【世界空间 XZ UV，不用模型 UV】UV = worldXZ * _NoiseWorldScale（1/该值 = 平铺米数，风格指南 §3.3
-//     要求环境图平铺 2-4m）。理由：地形/地面是 Cube 图元，**模型 UV 与 1 单位格子边界对齐**，
+//   【世界空间 XZ UV，不用模型 UV】UV = worldXZ * _NoiseWorldScale。
+//     【r5 采样尺度：0.4 → 0.05（世界尺度放大 8×，一张 256² 铺 20m）】原 0.4 时贴图最细八度
+//     （周期 192）的世界波长只有 ~1.3cm，近景被 mip 平均成平色、unit-closeup 的 120×120 窗 std
+//     只有 2-3；把 UV 尺度降下来后最细八度的世界波长抬到 ~10cm，落进近景可分辨 band，
+//     特写才看得到砂粒/色斑起伏。远看不会闪成"噪点蚂蚁纹"：贴图导入开 mipmap + aniso=4，
+//     最细八度远距离自然收敛到均值；周期 4/16 的中低频八度兜底大尺度色斑（不靠高频撑着）。
+//     理由：地形/地面是 Cube 图元，**模型 UV 与 1 单位格子边界对齐**，
 //     正是"顶面格缝读成地砖/编织布"的来源；世界空间 UV 让贴图跨块连续。
 //     再叠一层低频 FBM 扭曲（_NoiseWarpStrength）把任何残留的轴向对齐彻底打断。
 //     【已知边界】世界 XZ 投影对水平面最准确；竖直面（法线 ⟂ XZ）的 V 方向退化 → 细节被拉成横纹。
@@ -138,7 +143,8 @@ Shader "PirateCrew/PirateSurface"
         // 且 2D 属性未赋值时 Unity 会用内置回退贴图，其线性值不可预期（见文件头【默认关闭】）。
         // [NoScaleOffset]：UV 由世界 XZ×_NoiseWorldScale 驱动，材质上的 Tiling/Offset 无意义，隐藏掉。
         [NoScaleOffset] _DetailNoiseMap ("细节图（albedo 微色斑；线性均值 0.5 的乘性图）", 2D) = "gray" {}
-        _NoiseWorldScale        ("细节图世界尺度（UV=世界XZ×该值；1/该值=平铺米数）", Float) = 0.4
+        // r5：默认 0.4 → 0.05（世界尺度放大 8×，一张 256² 铺 20m）；材质实际值见 BattleSceneLighting.ApplyDetailTexture。
+        _NoiseWorldScale        ("细节图世界尺度（UV=世界XZ×该值；1/该值=平铺米数）", Float) = 0.05
         _NoiseWarpStrength      ("细节 UV 扭曲（打断与格子的轴向对齐）", Range(0.0, 0.5)) = 0.18
         _DetailAlbedoStrength   ("细节 albedo 强度（0=关闭；未赋贴图的材质保持 0）", Range(0.0, 1.0)) = 0.0
         [NoScaleOffset] _BumpMap ("细节法线图（切空间；重定向到世界 XZ 基）", 2D) = "bump" {}
