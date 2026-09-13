@@ -285,21 +285,53 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
         [Test]
         public void SideWalls_AreJittered_SoLongWallsAreNotStraight()
         {
-            // 平台化：大船簇西缘 x=24（Z=5..12 共 8 格连续地面）外侧（x=23）是水，
-            // 其西侧墙沿全高应有不同的横向进/出偏移（剪影扰动，避免"一条直线墙"）。
+            // 【2026-09-14 起以原版 tile 地图为准】原来是硬编码 level_1 的"大船簇西缘 x=24"，
+            // 那格在原版行串里根本不是长墙。改为**自己找出最长的一段墙**（沿 Z 连续 ≥4 格
+            // 地面、且西侧是水），再检查它的侧壁沿全高有不同横向偏移（剪影扰动，不是一条直线）。
             //
-            // 【2026-09-14 用户裁决 2：厚底侧壁】岛体侧壁由"下延到基础地面"变成"下延到岛底平面
-            // （基准 0 时 = y −1.15）"——厚度 2.4 单位。故扫描窗从旧的 y∈(0, 0.55) 放宽到全墙
-            // y∈(−1.2, 0.55)：旧窗口只能看到墙的最顶 0.15 单位，会让"整墙是否直"的判据失真。
+            // 【厚底侧壁】岛体侧壁由"下延到基础地面"变成"下延到岛底平面"，故扫描窗取全墙
+            // y∈(−1.2, 0.55)（旧窗口只能看到墙的最顶 0.15 单位，会让"整墙是否直"的判据失真）。
             TileTerrainGrid grid = TerrainCatalog.Build(1, 50, 17);
             MeshBuffers shell = IslandShellGeometry.BuildSolidShell(grid, IslandShellSettings.Default);
 
+            // 沿 Z 找最长的岛缘墙（某列连续 ≥3 格地面、且西侧是水）。
+            int wallX = -1, wallZ0 = -1, wallZ1 = -1, bestRun = 0;
+            for (int gx = 1; gx < grid.WidthTiles; gx++)
+            {
+                int run = 0, runStart = 0;
+                for (int gz = 0; gz < grid.DepthTiles; gz++)
+                {
+                    if (grid.IsGroundAt(gx, gz) && !grid.IsGroundAt(gx - 1, gz))
+                    {
+                        if (run == 0)
+                            runStart = gz;
+                        run++;
+                        if (run > bestRun)
+                        {
+                            bestRun = run;
+                            wallX = gx;
+                            wallZ0 = runStart;
+                            wallZ1 = gz;
+                        }
+                    }
+                    else
+                    {
+                        run = 0;
+                    }
+                }
+            }
+
+            Assert.GreaterOrEqual(bestRun, 3,
+                "level_1 应存在一段沿 Z ≥3 格的岛缘墙（否则本用例无从检查）");
+
+            // 【为什么不再限制 y 窗口】岛高来自原版行号（level_1 最低的船体甲板也有 1.25 世界单位），
+            // 固定窗口会漏掉整段墙。这里只按墙平面（x）与 Z 跨度取顶点，看横向偏移是否有多种。
             var xs = new HashSet<int>();
             Vector3[] v = shell.ToVertices();
             for (int i = 0; i < v.Length; i++)
             {
-                if (Mathf.Abs(v[i].x - 24f) < 0.25f && v[i].y > -1.25f && v[i].y < 0.55f
-                    && v[i].z > 4f && v[i].z < 13f)
+                if (Mathf.Abs(v[i].x - wallX) < 0.25f
+                    && v[i].z > wallZ0 - 0.5f && v[i].z < wallZ1 + 1.5f)
                 {
                     xs.Add(Mathf.RoundToInt(v[i].x * 1000f));
                 }

@@ -7,17 +7,19 @@ using UnityEngine;
 namespace PirateCrew.PirateCrew.Battle.Tests
 {
     /// <summary>
-    /// 平台化地形语义的纯 C# 用例（无头可跑）：验证用户诉求「一堆高高低低的悬空平台浮在海面上、
-    /// 平台间是水（掉落即死）」在数据层成立，且不破坏玩法契约。
+    /// 平台化地形语义的纯 C# 用例（无头可跑）：水陆逐格、掉落即死、单位落位与地形高度一致。
+    ///
+    /// 【2026-09-14 起以原版 tile 地图为准】level_1 的旧手写四簇布局（4 簇 / 411 地面格）已删除，
+    /// 现在 33 关全部由 <c>Data/LevelTileMaps</c> 的原版 <c>&lt;row&gt;</c> 行串推出：
+    /// level_1 = 9 座岛 / 163 格地面（50×17 里大片是海面）。
+    /// 本文件的逐值断言（格数 / 块高 / 水格）已按原版读数重写。
     ///
     /// 【覆盖】
-    ///   · 空列 = 水：<see cref="TileTerrainGrid"/> 的平台簇模式（无地面、无碰撞）；
-    ///   · 出生位全部在平台格上、无初始落水；
-    ///   · 簇间水距 ≥2 格、且小于角色最大投掷射程（投掷可跨、走路必落水）；
-    ///   · 确定性重建（同定义同地图）；
-    ///   · 爆炸把平台格炸空后变成水（SurfaceWorldYAtWorld 落到水面以下）；
-    ///   · AI 落点语义：水格地表 = 虚空哨兵（< WaterSurfaceY），使投掷模拟判定落水；
-    ///   · 旧列式关卡（level_27）语义不变（全图有基础地面）。
+    ///   · 全 33 关都能生成平台簇地形，且**地面格数 = 原版非空非波纹格数**；
+    ///   · 出生位全部站在原版地面上、地表高于水面（不初始落水）；
+    ///   · 水格没有地面（块高 0）且游戏性查询返回虚空哨兵（AI 判定落水）；
+    ///   · 爆炸把平台格炸空后变成水；
+    ///   · 尺寸不符 / 未转写时不生成错位地形。
     /// </summary>
     [TestFixture]
     public class PlatformTerrainTests
@@ -31,128 +33,176 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             return grid;
         }
 
+        // ------------------------------------------------------------------
+        // 全 33 关：平台模式 + 地面格数 = 原版读数
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void AllLevels_BuildPlatformGridMatchingOriginalTileMap()
+        {
+            for (int n = 1; n <= LevelCatalog.TotalLevels; n++)
+            {
+                LevelData level = LevelCatalog.Get(n);
+                TileTerrainGrid grid = TerrainCatalog.Build(n, level.WidthTiles, level.HeightTiles);
+
+                Assert.IsNotNull(grid, "level_" + n + " 应能生成地形网格");
+                Assert.IsTrue(grid.IsPlatformMode, "level_" + n + " 应是平台簇模式（逐格水陆）");
+                Assert.AreEqual(level.WidthTiles, grid.WidthTiles);
+                Assert.AreEqual(level.HeightTiles, grid.DepthTiles);
+                Assert.Greater(grid.GroundCellCount, 0, "level_" + n + " 必须有可站地面");
+                Assert.Greater(grid.WaterCellCount, 0, "level_" + n + " 必须有水（岛与岛之间）");
+
+                Assert.AreEqual(LevelTileMaps.Parse(n).SolidCount, grid.GroundCellCount,
+                    "level_" + n + " 地面格数应 = 原版非空非波纹格数");
+                Assert.AreEqual(LevelTileMaps.Parse(n).RippleCount,
+                    CountWaterRipples(grid, n),
+                    "level_" + n + " 的海面波纹格必须落在地图的水格里");
+
+                // 出生位：站在原版地面上、地表高于水面。
+                for (int i = 0; i < level.Units.Count; i++)
+                {
+                    LevelUnit u = level.Units[i];
+                    Assert.IsTrue(grid.IsGroundAt(u.gridX, u.gridY),
+                        "level_" + n + " 的 " + u.typeName + " (" + u.gridX + "," + u.gridY + ") 落水了");
+                    Assert.GreaterOrEqual(grid.BlocksAt(u.gridX, u.gridY), 1,
+                        "level_" + n + " 出生格块高应 ≥1");
+                    Assert.IsFalse(LevelGeometry.IsBelowWater(
+                            grid.SurfaceWorldY(u.gridX, u.gridY), LevelGeometry.WaterSurfaceY),
+                        "level_" + n + " 出生格地表不得在水面以下");
+                    Assert.IsTrue(TerrainCatalog.IsPlatformSpawnSafe(grid, u.gridX, u.gridY),
+                        "level_" + n + " 出生格应判安全");
+                }
+            }
+        }
+
+        static int CountWaterRipples(TileTerrainGrid grid, int levelNumber)
+        {
+            LevelTileMapData tiles = LevelTileMaps.Parse(levelNumber);
+            int n = 0;
+            for (int i = 0; i < tiles.RippleCells.Count; i++)
+            {
+                LevelTileCell cell = tiles.RippleCells[i];
+                int gz = LevelTileMapData.RowToGridZ(cell.RowY);
+                if (gz >= 0 && gz < grid.DepthTiles && !grid.IsGroundAt(cell.X, gz))
+                    n++;
+            }
+
+            return n;
+        }
+
+        [Test]
+        public void SizeMismatch_OrUnknownLevel_ReturnsNullInsteadOfMisplacedTerrain()
+        {
+            // 行串按关卡自带的尺寸解析；尺寸不符必须退回平地而不是错位生成。
+            Assert.IsNull(TerrainCatalog.Build(1, 49, 17), "宽度不符 → null");
+            Assert.IsNull(TerrainCatalog.Build(1, 50, 16), "纵深不符 → null");
+            Assert.IsNull(TerrainCatalog.Build(0, 50, 17), "非法关号 → null");
+            Assert.IsNull(TerrainCatalog.Build(34, 50, 17), "超出 33 关 → null");
+        }
+
+        // ------------------------------------------------------------------
+        // level_1 的逐值口径（原版 50×17：9 岛 / 163 地面 / 687 水）
+        // ------------------------------------------------------------------
+
         [Test]
         public void Level1_IsPlatformMode_WithWaterAndGround()
         {
             TileTerrainGrid grid = Level1();
 
-            Assert.AreEqual(4, grid.ClusterCount, "应为 4 个平台簇");
-            Assert.Greater(grid.WaterCellCount, 0, "平台之间必须是水");
-            Assert.Greater(grid.GroundCellCount, 0, "必须有可站的平台地面");
+            Assert.AreEqual(9, grid.ClusterCount, "level_1 原版含 9 座岛");
+            Assert.AreEqual(163, grid.GroundCellCount, "level_1 原版地面格 = 163");
+            Assert.AreEqual(850 - 163, grid.WaterCellCount, "其余 687 格是水（含海面波纹）");
             Assert.AreEqual(Width, grid.WidthTiles);
             Assert.AreEqual(Depth, grid.DepthTiles);
         }
 
         [Test]
-        public void AllSpawnCells_AreOnGround_NotWater()
-        {
-            TileTerrainGrid grid = Level1();
-            LevelData level = LevelCatalog.Get(1);
-
-            for (int i = 0; i < level.Units.Count; i++)
-            {
-                int gx = level.Units[i].gridX;
-                int gy = level.Units[i].gridY;
-
-                Assert.IsTrue(grid.IsGroundAt(gx, gy),
-                    "出生格 (" + gx + "," + gy + ") 必须在平台上，否则开局落水");
-                Assert.GreaterOrEqual(grid.BlocksAt(gx, gy), 1,
-                    "出生格 (" + gx + "," + gy + ") 平台块高应 ≥1");
-                Assert.IsFalse(LevelGeometry.IsBelowWater(grid.SurfaceWorldY(gx, gy), LevelGeometry.WaterSurfaceY),
-                    "出生格地表不得在水面以下");
-                Assert.IsTrue(TerrainCatalog.IsPlatformSpawnSafe(grid, gx, gy),
-                    "IsPlatformSpawnSafe 应判出生格安全");
-            }
-        }
-
-        [Test]
-        public void ClusterWaterGaps_AreAtLeastTwoTiles()
+        public void Level1_PlatformHeights_FollowOriginalRowNumbers()
         {
             TileTerrainGrid grid = Level1();
 
-            for (int a = 0; a < grid.ClusterCount; a++)
+            for (int gz = 0; gz < Depth; gz++)
             {
-                for (int b = a + 1; b < grid.ClusterCount; b++)
+                for (int gx = 0; gx < Width; gx++)
                 {
-                    int gap = TerrainCatalog.WaterGapTiles(grid.ClusterAt(a), grid.ClusterAt(b));
-                    Assert.GreaterOrEqual(gap, 2,
-                        "簇 " + grid.ClusterAt(a).Name + " 与 " + grid.ClusterAt(b).Name
-                        + " 之间的水距应 ≥2 格，实际 " + gap);
-                }
-            }
-        }
-
-        [Test]
-        public void ClusterWaterGaps_MatchLevelDesignTargets()
-        {
-            // 依据 docs/关卡设计语言-参照游戏全场景分析.md §5.3 的校正值：
-            // ①↔② 4 格、②↔③ 4 格（§5.4：由第一版 3 格拉齐到 4 格）、②↔④ 2 格。
-            // 规则出处：R3（常规关簇间水距 1-5 格）/ R16（单次跨越 ≤ 满力射程 12.5 格）。
-            TileTerrainGrid grid = Level1();
-
-            PlatformClusterInfo west = grid.ClusterAt(0);
-            PlatformClusterInfo ship = grid.ClusterAt(1);
-            PlatformClusterInfo east = grid.ClusterAt(2);
-            PlatformClusterInfo islet = grid.ClusterAt(3);
-
-            Assert.AreEqual("terrace_island_west", west.Name);
-            Assert.AreEqual("great_ship_center", ship.Name);
-            Assert.AreEqual("sky_island_east", east.Name);
-            Assert.AreEqual("sky_islet_north", islet.Name);
-
-            Assert.AreEqual(4, TerrainCatalog.WaterGapTiles(west, ship), "①↔② 应为 4 格（§5.3）");
-            Assert.AreEqual(4, TerrainCatalog.WaterGapTiles(ship, east), "②↔③ 应为 4 格（§5.4 校正 3→4）");
-            Assert.AreEqual(2, TerrainCatalog.WaterGapTiles(ship, islet), "②↔④ 应为 2 格（§5.3）");
-
-            // ④ 北小空岛终值：中央簇 ② 正北 x32-35 z0-1（移位后不切 ②↔③ 主水道）。
-            Assert.AreEqual(32, islet.X0);
-            Assert.AreEqual(35, islet.X1);
-            Assert.AreEqual(0, islet.Z0);
-            Assert.AreEqual(1, islet.Z1);
-            Assert.AreEqual(3, islet.MaxBlocks, "④ 小空岛为 3 块（§5.3）");
-
-            // ③ 东空岛西界 x43：与 ② 东界 x38 之间正好 4 格水。
-            Assert.AreEqual(43, east.X0, "③ 西界应为 x43（§5.4）");
-            Assert.AreEqual(38, ship.X1, "② 东界应为 x38");
-        }
-
-        [Test]
-        public void Clusters_AreReachableByMaxThrow()
-        {
-            TileTerrainGrid grid = Level1();
-            float reach = TerrainCatalog.MaxThrowRangeWorld;
-
-            // 角色满力投掷射程应显著大于 1 格（否则地形设计无意义）。
-            Assert.Greater(reach, 5f, "满力投掷射程应 >5 单位，实际 " + reach);
-
-            // 以投掷射程为边建图，要求全图连通（不存在"投掷也到不了的孤岛"）。
-            int n = grid.ClusterCount;
-            var visited = new bool[n];
-            var stack = new Stack<int>();
-            visited[0] = true;
-            stack.Push(0);
-
-            while (stack.Count > 0)
-            {
-                int c = stack.Pop();
-                for (int k = 0; k < n; k++)
-                {
-                    if (visited[k])
-                        continue;
-
-                    float dist = PlatformClusterLayout.MinEdgeDistanceWorld(grid.ClusterAt(c), grid.ClusterAt(k));
-                    if (dist <= reach)
+                    if (!grid.IsGroundAt(gx, gz))
                     {
-                        visited[k] = true;
-                        stack.Push(k);
+                        Assert.AreEqual(0, grid.BlocksAt(gx, gz), "水格块高应为 0");
+                        Assert.AreEqual(0, grid.BaseBlocksAt(gx, gz), "水格无基准");
+                        continue;
                     }
+
+                    PlatformClusterInfo info = grid.ClusterAt(grid.ClusterIndexOf(gx, gz));
+                    Assert.AreEqual(info.BaseBlocks + PlatformClusterLayout.TileLocalBlocks,
+                        grid.BlocksAt(gx, gz), "地面格总块高 = 岛基准 + 1 块局部");
+                    Assert.LessOrEqual(grid.BlocksAt(gx, gz),
+                        PlatformClusterLayout.TileMaxBaseBlocks + PlatformClusterLayout.TileLocalBlocks,
+                        "块高不得超过相机可达上限");
                 }
             }
 
-            for (int i = 0; i < n; i++)
+            // 原版读数：西侧草岛（x23–28）顶行 4 → 12 块基准 → 13 块总高；
+            // 左船体甲板（x0–18）顶行 11 → 4 块基准 → 5 块总高。两座岛的高差 = 2 世界单位。
+            Assert.AreEqual(13, grid.BlocksAt(24, 5), "(24,5) 属西侧草岛 → 13 块");
+            Assert.AreEqual(5, grid.BlocksAt(17, 10), "(17,10) 属左船体 → 5 块");
+            Assert.AreEqual(1.25f, grid.SurfaceWorldY(17, 10), 1e-5f, "左船体地表 = 1.25 世界单位");
+            Assert.AreEqual(3.25f, grid.SurfaceWorldY(24, 5), 1e-5f, "西侧草岛地表 = 3.25 世界单位");
+        }
+
+        [Test]
+        public void Level1_WaterIsVoid_AndDeckIsPlaceable()
+        {
+            TileTerrainGrid grid = Level1();
+
+            // (21,8) 在原版行串里是海面（旧手写布局在这造过一条水道 —— 结论相同，来源不同）。
+            Assert.IsFalse(grid.IsGroundAt(21, 8), "(21,8) 应是水");
+
+            float surface = grid.SurfaceWorldYAtWorld(21.5f, 8.5f);
+            Assert.Less(surface, LevelGeometry.WaterSurfaceY,
+                "水格地表须是水面以下的虚空哨兵，否则 AI 落水判定失效");
+            Assert.AreEqual(TileTerrainGrid.WaterVoidY, surface, 1e-6f);
+
+            var terrain = new AiTerrain(0f, Width * 32f, 0f, Depth * 32f, grid);
+            Assert.IsTrue(terrain.IsBlocked(21.5f * 32f, 8.5f * 32f), "水格不可放置箱体");
+            Assert.IsFalse(terrain.CanPlace(21.5f * 32f, 8.5f * 32f, 8f, 8f));
+
+            // 船体甲板（(17,10) 5 块）：合法放置面（平台模式下水格才是不可放置的）。
+            Assert.IsTrue(grid.IsGroundAt(17, 10));
+            Assert.IsFalse(terrain.IsBlocked(17.5f * 32f, 10.5f * 32f), "船甲板是合法放置面");
+            Assert.IsTrue(terrain.CanPlace(17.5f * 32f, 10.5f * 32f, 8f, 8f));
+        }
+
+        [Test]
+        public void DestroyedPlatformCell_BecomesWater()
+        {
+            TileTerrainGrid grid = Level1();
+
+            // (17,10) 属左船体：4 块基准 + 1 块局部 = 5 块。
+            Assert.AreEqual(5, grid.BlocksAt(17, 10));
+            for (int i = 0; i < 5; i++)
+                Assert.IsTrue(grid.DestroyBlock(17, 10), "第 " + (i + 1) + " 次逐块摧毁应生效");
+
+            Assert.AreEqual(0, grid.BlocksAt(17, 10));
+            Assert.IsFalse(grid.IsGroundAt(17, 10), "平台被炸空后该格应变成水");
+            Assert.Less(grid.SurfaceWorldYAtWorld(17.5f, 10.5f), LevelGeometry.WaterSurfaceY);
+        }
+
+        [Test]
+        public void DestroyInRadius_ZeroesCellsAndKeepsOthers()
+        {
+            TileTerrainGrid grid = Level1();
+
+            // 中央沙洲（岛 6：x20–39 / gridZ 8–12）内部炸一发：命中范围内整格清零。
+            var destroyed = new List<int>();
+            int count = grid.DestroyInRadius(new Vector3(30.5f, 1.5f, 10.5f), 1.2f, destroyed);
+
+            Assert.Greater(count, 0, "沙洲上炸一发应至少摧毁 1 格");
+            Assert.AreEqual(count, destroyed.Count);
+
+            for (int i = 0; i < destroyed.Count; i++)
             {
-                Assert.IsTrue(visited[i],
-                    "簇 " + grid.ClusterAt(i).Name + " 与其余簇投掷不连通（最大射程 " + reach + "）");
+                int index = destroyed[i];
+                Assert.AreEqual(0, grid.BlocksAt(index % Width, index / Width), "被摧毁格应清零");
             }
         }
 
@@ -174,77 +224,26 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             }
         }
 
-        [Test]
-        public void PlatformHeights_WithinKitRange()
-        {
-            TileTerrainGrid grid = Level1();
-
-            for (int gy = 0; gy < Depth; gy++)
-            {
-                for (int gx = 0; gx < Width; gx++)
-                {
-                    if (!grid.IsGroundAt(gx, gy))
-                    {
-                        Assert.AreEqual(0, grid.BlocksAt(gx, gy), "水格块高应为 0");
-                        continue;
-                    }
-
-                    Assert.GreaterOrEqual(grid.BlocksAt(gx, gy), 1);
-                    Assert.LessOrEqual(grid.BlocksAt(gx, gy), PlatformClusterLayout.MaxBlocksPerCluster);
-                }
-            }
-        }
+        // ------------------------------------------------------------------
+        // 列式旧地形（兜底路径的 TileTerrainGrid 语义）
+        // ------------------------------------------------------------------
 
         [Test]
-        public void WaterCell_SurfaceIsVoidSentinel_BelowWaterSurface()
+        public void LegacyColumnGrid_KeepsBaseGroundEverywhere()
         {
-            TileTerrainGrid grid = Level1();
+            // 列式旧地形（无平台地图）仍被支持：全图有基础地面、0 块格也是地面。
+            // 【2026-09-14】TerrainCatalog 不再为任何关卡生成它（33 关都走原版行串），
+            // 这里直接用构造函数覆盖该模式的语义，保证兜底路径不退化成"水格"。
+            var blocks = new int[4 * 4];
+            blocks[1 + 1 * 4] = 4;
+            var grid = new TileTerrainGrid(4, 4, blocks, 0.25f);
 
-            // (21,8) 在西侧梯田岛（X≤19）与中央大船（X≥24）之间的水道里。
-            Assert.IsFalse(grid.IsGroundAt(21, 8), "(21,8) 应是水");
-            float surface = grid.SurfaceWorldYAtWorld(21.5f, 8.5f);
-            Assert.Less(surface, LevelGeometry.WaterSurfaceY,
-                "水格地表应是水面以下的虚空哨兵，否则 AI 落水判定会失效");
-            Assert.AreEqual(TileTerrainGrid.WaterVoidY, surface, 1e-6f);
-        }
-
-        [Test]
-        public void AiTerrain_WaterCell_DrownsInsteadOfLanding()
-        {
-            TileTerrainGrid grid = Level1();
-            var terrain = new AiTerrain(0f, Width * 32f, 0f, Depth * 32f, grid);
-
-            // 世界 (21.5, 8.5) → 平面像素 (688, 272)。
-            float surface = terrain.SurfaceWorldYAtPixel(21.5f * 32f, 8.5f * 32f);
-            Assert.Less(surface, LevelGeometry.WaterSurfaceY,
-                "AI 在水格上取到的地表必须低于水面，使投掷模拟走落水分支");
-        }
-
-        [Test]
-        public void DestroyedPlatformCell_BecomesWater()
-        {
-            TileTerrainGrid grid = Level1();
-
-            // (24,5) 是大船甲板西缘，块高 2。
-            Assert.AreEqual(2, grid.BlocksAt(24, 5));
-            Assert.IsTrue(grid.DestroyBlock(24, 5));
-            Assert.IsTrue(grid.DestroyBlock(24, 5));
-            Assert.AreEqual(0, grid.BlocksAt(24, 5));
-
-            Assert.IsFalse(grid.IsGroundAt(24, 5), "平台被炸空后该格应变成水");
-            Assert.Less(grid.SurfaceWorldYAtWorld(24.5f, 5.5f), LevelGeometry.WaterSurfaceY);
-        }
-
-        [Test]
-        public void LegacyColumnLevel_KeepsBaseGroundEverywhere()
-        {
-            TileTerrainGrid grid = TerrainCatalog.Build(27, 21, 20);
-
-            Assert.IsNotNull(grid);
-            Assert.AreEqual(0, grid.ClusterCount, "旧列式关卡没有平台簇");
-            Assert.AreEqual(0, grid.WaterCellCount, "旧列式关卡全图有基础地面（不挖洞）");
-            Assert.IsTrue(grid.IsGroundAt(5, 0), "0 块列在旧模式仍是地面");
-            Assert.AreEqual(LevelGeometry.GroundTopY, grid.SurfaceWorldY(5, 0), 1e-6f);
+            Assert.IsFalse(grid.IsPlatformMode);
+            Assert.AreEqual(0, grid.ClusterCount);
+            Assert.AreEqual(16, grid.GroundCellCount, "旧列模式全图有基础地面（不挖洞）");
+            Assert.AreEqual(0, grid.WaterCellCount);
+            Assert.IsTrue(grid.IsGroundAt(0, 0), "0 块格在旧模式仍是地面");
+            Assert.AreEqual(LevelGeometry.GroundTopY, grid.SurfaceWorldY(0, 0), 1e-6f);
         }
     }
 }

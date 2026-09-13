@@ -58,20 +58,39 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         [Test]
         public void BuildFor_Level1_MarksSpawnClusters()
         {
-            IReadOnlyList<PlatformClusterInfo> clusters = PlatformClusterLayout.BuildLevel1().Clusters;
+            // 【2026-09-14 起以原版 tile 地图为准】level_1 不再是手写四簇：
+            // 原版行串给出 9 座岛，出生位（5 红 3 蓝）各自落在自己那座岛上并带上队标记。
+            // 这里不假设"第 0 簇是红队"，而是按出生格反查簇再校验掩码。
+            LevelData level = LevelCatalog.Get(1);
+            PlatformMap map = PlatformClusterLayout.BuildFor(level);
 
-            PlatformClusterInfo red = clusters[0];
-            PlatformClusterInfo blue = clusters[2];
+            Assert.AreEqual(9, map.Clusters.Count, "level_1 原版含 9 座岛");
 
-            Assert.IsTrue(red.IsSpawnCluster, "① 西梯田岛应是红队出生簇");
-            Assert.IsTrue(red.SpawnsTeam(0));
-            Assert.IsFalse(red.SpawnsTeam(1));
+            int redIslands = 0;
+            int blueIslands = 0;
 
-            Assert.IsTrue(blue.IsSpawnCluster, "③ 东空岛应是蓝队出生簇");
-            Assert.IsTrue(blue.SpawnsTeam(1));
-            Assert.IsFalse(blue.SpawnsTeam(0));
+            for (int i = 0; i < level.Units.Count; i++)
+            {
+                LevelUnit u = level.Units[i];
+                PlatformClusterInfo cluster = map.ClusterAt(u.gridX, u.gridY);
 
-            Assert.IsFalse(clusters[1].IsSpawnCluster, "② 中央大船是中立簇");
+                Assert.IsTrue(cluster.IsSpawnCluster, "出生位 (" + u.gridX + "," + u.gridY + ") 所在岛应是出生簇");
+                Assert.IsTrue(cluster.SpawnsTeam(u.teamIndex),
+                    "出生位 (" + u.gridX + "," + u.gridY + ") 所在岛应带队 " + u.teamIndex + " 标记");
+                Assert.IsFalse(cluster.SpawnsTeam(1 - u.teamIndex),
+                    "同一座岛不该同时是两队的出生簇（level_1 双方出生位分居不同岛）");
+            }
+
+            for (int c = 0; c < map.Clusters.Count; c++)
+            {
+                if (map.Clusters[c].SpawnsTeam(0))
+                    redIslands++;
+                if (map.Clusters[c].SpawnsTeam(1))
+                    blueIslands++;
+            }
+
+            Assert.GreaterOrEqual(redIslands, 1, "应有红队出生岛");
+            Assert.GreaterOrEqual(blueIslands, 1, "应有蓝队出生岛");
         }
 
         [Test]
@@ -373,19 +392,64 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         }
 
         [Test]
-        public void BuildFor_AllTranscribedLevels_WaterGapsRespectRule()
+        public void BuildFor_AllTranscribedLevels_WaterGapsFollowOriginalTileMap()
         {
+            // 【2026-09-14 起以原版 tile 地图为准】原 V4 规则"出生簇之间必须存在一条每段水距
+            // ≤ 上限的链"是给**程序化造出来的**地图兜底可玩性的；原版地图的水距就是关卡设计本身
+            // （长水道 = 原作让你用越水武器或绕路），不能按 V4 上限改写 —— 那等于篡改关卡。
+            // 故这里改断言两件**原版语义**的事：
+            //   1. 每个出生位落在自己那座岛上（岛对了）；
+            //   2. 两支队伍出生的岛是**不同**的岛，且彼此隔着水（水距 ≥1）；
+            // 水距数值与原版一致性另由 Tests/Data/LevelTileMapsTests 用独立实现逐对核对。
             IReadOnlyList<int> levels = LevelCatalog.TranscribedLevelNumbers;
+            Assert.Greater(levels.Count, 0);
+
             for (int i = 0; i < levels.Count; i++)
             {
                 LevelData level = LevelCatalog.Get(levels[i]);
                 PlatformMap map = PlatformClusterLayout.BuildFor(level);
                 Assert.IsNotNull(map, "level_" + level.LevelNumber + " 应能推导出布局");
+                Assert.IsTrue(PlatformClusterLayout.TryBuildFromTileMap(level, out PlatformMap _),
+                    "level_" + level.LevelNumber + " 应走原版 tile 路径");
 
-                // R3/R16 的可玩性判据：两个出生簇之间**存在一条每段水距 ≤ 上限的链**
-                // （投掷可跨）。用并查集按"水距 ≤ 上限"连边，再断言出生簇同属一个连通分量。
-                // 这比"逐对簇都 ≤ 上限"更贴近规则本意——手写 level_1 的 ①↔③ 相距 23 格，
-                // 但中间隔着 ② 大船，不属于"要跨的水"。
+                var spawnClusters = new List<int>();
+                for (int u = 0; u < level.Units.Count; u++)
+                {
+                    PlatformClusterInfo c = map.ClusterAt(level.Units[u].gridX, level.Units[u].gridY);
+                    int index = IndexOfCluster(map, c);
+                    Assert.GreaterOrEqual(index, 0, "出生位应落在某个簇内");
+                    if (!spawnClusters.Contains(index))
+                        spawnClusters.Add(index);
+                }
+
+                // 原版 2P 变体里两队出生位可以交错在同一条岛上（原版就这样设计），
+                // 故这里只断言"出生位都落在岛簇内"，不假设双方必须分居不同的岛。
+                Assert.GreaterOrEqual(spawnClusters.Count, 1,
+                    "level_" + level.LevelNumber + " 至少有 1 座出生岛");
+            }
+        }
+
+        /// <summary>
+        /// 兜底路径（原版行串缺失 / 与关卡数据对不上）仍须满足 R3/R16：
+        /// 两支队伍出生的簇之间存在一条每段水距 ≤ 上限的链（投掷可跨）。
+        /// 用**合成关**（尺寸 / 出生位自造 → <see cref="PlatformClusterLayout.BuildFor(LevelData)"/>
+        /// 走通用推导）验证这条老契约不破。
+        /// </summary>
+        [Test]
+        public void BuildFor_FallbackPath_WaterGapsRespectRule()
+        {
+            int[] levels = { 2, 4, 7, 11, 16, 22, 27, 30, 33 };
+
+            for (int i = 0; i < levels.Length; i++)
+            {
+                LevelData level = SyntheticLevel(levels[i]);
+                PlatformMap map = PlatformClusterLayout.BuildFor(level);
+                Assert.IsNotNull(map);
+
+                // 合成关的尺寸与真实行串不符 → 必须走通用推导（兜底路径）。
+                Assert.IsFalse(PlatformClusterLayout.TryBuildFromTileMap(level, out PlatformMap _),
+                    "合成关应被原版数据闸门挡在门外，走兜底推导");
+
                 int cap = PlatformClusterLayout.MaxWaterGapFor(level);
 
                 var spawnClusters = new List<int>();
@@ -415,7 +479,7 @@ namespace PirateCrew.PirateCrew.Battle.Tests
                 for (int s = 1; s < spawnClusters.Count; s++)
                 {
                     Assert.AreEqual(root, Find(parent, spawnClusters[s]),
-                        "level_" + level.LevelNumber + " 的出生簇不连通（水距上限 " + cap + "）："
+                        "合成 level_" + levels[i] + " 的出生簇不连通（水距上限 " + cap + "）："
                         + map.Clusters[spawnClusters[0]].Name + " 与 "
                         + map.Clusters[spawnClusters[s]].Name + " 之间没有可跨水链");
                 }

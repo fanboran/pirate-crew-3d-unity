@@ -221,16 +221,26 @@ namespace PirateCrew.PirateCrew.Battle
     /// 关卡 → **平台簇布局**的纯 C# 推导（无头可测，运行时与烘焙共用）。
     ///
     /// ==================================================================
-    /// 【两种入口】
+    /// 【入口与优先级（2026-09-14 起）】
     /// ==================================================================
-    ///   · <see cref="BuildFor(LevelData)">BuildFor(level)</see> —— 通用推导：由关卡数据的
-    ///     实际字段（尺寸 / 双方出生位 / 空投武器池）算出"一堆高高低低的悬空平台"，
-    ///     **不是每关手写**。level_1 保留手写定义（见下），其余关一律走通用推导。
-    ///   · <see cref="BuildLevel1()">BuildLevel1()</see> —— <c>BuildFor(level_1)</c> 的等价委托，
-    ///     供既有测试 / 烘焙沿用（旧行为逐值不变）。
+    ///   1. <b>原版 tile 地图（关卡地形的唯一权威）</b>：<see cref="BuildFor(LevelData)">BuildFor(level)</see>
+    ///      先走 <see cref="TryBuildFromTileMap"/>，用 <c>Data/LevelTileMaps.cs</c> 里 33 关的原版
+    ///      <c>&lt;row&gt;</c> 行串推出平台簇地图 —— 关卡地形按原版逐格翻译，
+    ///      程序化模板不再是关卡形状的来源（用户批评"关卡地图翻译的很不好"的整改）。
+    ///   2. <b>通用推导（兜底）</b>：原版行串缺失、或与关卡数据对不上（测试的合成关 / 未转写关）
+    ///      时退回下面的 V4 模板推导（<see cref="BuildGeneric"/>），保"任何 LevelData 都能推出
+    ///      一张能玩的地图"这条老契约不破。
     ///
     /// ==================================================================
-    /// 【通用推导规则表（每条的出处 = docs/关卡设计语言-参照游戏全场景分析.md §4 的 R 编号）】
+    /// 【原版 tile → 平台簇 的推导（主路径）】
+    /// ==================================================================
+    /// 逐条见 <see cref="BuildFromTileMap"/> 的注释。一句话：
+    ///   可站面 = 原版非空瓦片（除海面波纹）；岛高 =（该岛顶行离水线的行数）×
+    ///   <see cref="TileBlocksPerRow"/>；纵深 = 岛自身的行跨度（<c>gridZ = rowY − 1</c>）；
+    ///   岛型 = 含船体语汇者 <c>Ship</c>、其余 <c>TerraceIsland</c>。
+    ///
+    /// ==================================================================
+    /// 【兜底路径：通用推导规则表（每条的出处 = docs/关卡设计语言-参照游戏全场景分析.md §4 的 R 编号）】
     /// ==================================================================
     /// | 步骤 | 规则 | 实现 |
     /// | --- | --- | --- |
@@ -248,29 +258,33 @@ namespace PirateCrew.PirateCrew.Battle
     /// | **岛形轮廓** | 用户裁决 1/4（禁止矩形瓦片拼盘） | 非出生簇的大矩形 stamp 走 `StampIsland`（角向噪声侵蚀/外凸，见该类头） |
     /// | **基准高度** | 用户裁决 2（错落悬浮高度） | `AssignBaseHeights` 按 `hash(levelNumber, 簇下标)` 定名次 → 0/3/6/9 世界单位阶梯（出生岛压最低档、阶梯连续） |
     ///
-    /// 【level_1 的例外（诚实声明，务必先读）】`BuildFromDefs` 的手写四簇**基准高度恒为 0、轮廓恒为矩形**：
-    /// 它的逐值口径（4 簇 / 411 地面格 / `BlocksAt(24,5)==2` / `SurfaceWorldY(24,5)==0.5`）被
-    /// `Assets/Tests/Battle/TileTerrainTests.cs` 钉死，而该文件**不在本轮改动域内**。
-    /// 故 level_1 是全工程唯一保留"同层 + 直角台"的关卡；通用关（2–33）一律走岛形 + 错落高度。
+    /// 【已删除：level_1 手写四簇定义（2026-09-14）】旧实现给 level_1 手写了 4 个簇
+    /// （<c>terrace_island_west</c> / <c>great_ship_center</c> / <c>sky_island_east</c> /
+    /// <c>sky_islet_north</c>，411 地面格、基准高度恒 0、轮廓恒矩形）——那正是
+    /// "程序化瞎编布局"的代表，与用户"关卡地图翻译的很不好"的批评直接对应。
+    /// **现已删除**：level_1 与其余 32 关一样走原版 tile 地图（50×17，9 座岛、地面格数见
+    /// <c>LevelTileMaps</c> 语义表）。相关旧断言已按原版地图重写，落在
+    /// <c>Tests/Battle/TileTerrainTests.cs</c> / <c>Tests/SceneArt/PlatformTerrainTests.cs</c>
+    /// （两处均注明"2026-09-14 起以原版 tile 地图为准"）。
     ///
-    /// 【未建模（诚实声明）】R4（"主簇最底行贴水线"）依赖原版 2D 的行序语义，本项目把行序重投影为
-    /// 世界 Z（见 <see cref="TileTerrainGrid"/> 类头），故不按"贴水线"摆放；R11（台阶进深 ≥2 行）
-    /// 只在主簇台阶上近似满足（内缩 1 格 = 每边进深 1 格，比原版略窄）。
+    /// 【未建模（诚实声明，只针对兜底路径）】R4（"主簇最底行贴水线"）依赖原版 2D 的行序语义，
+    /// 本项目把行号用于**高度**（见 <see cref="BuildFromTileMap"/>），故兜底路径不按"贴水线"摆放；
+    /// R11（台阶进深 ≥2 行）只在主簇台阶上近似满足（内缩 1 格 = 每边进深 1 格，比原版略窄）。
     ///
     /// ==================================================================
-    /// 【level_1 手写定义（保留为 BuildFor(level_1) 的等价分支）】
+    /// 【逐关"这一关的灵魂"（读原版 tile 后的一句话，供 kit / 场景美术对齐构图）】
     /// ==================================================================
-    /// 【提案/待定】level_1 布局是 AI 按用户诉求（"一堆高高低低的悬空平台浮在海面上，平台间是水，
-    /// 场景美术把平台伪装成大船 / 空岛 / 梯田小岛"）给出的，**未经用户确认**：
-    ///   · 簇数量 4（3 主簇 + 1 小空岛）落在用户建议的 3-4 簇区间内；
-    ///   · 水距 2-4 格，远小于角色最大投掷射程（约 11.7 单位，见 <see cref="MaxThrowRangeWorld"/>），
-    ///     故任一簇都能被投掷跨越（不会出现"打不到的孤岛"）；
-    ///   · 所有 8 个出生位（5 红 3 蓝）都落在各自簇的地面格上，高度 ≥1 块，绝不初始落水；
-    ///   · ②↔③ 水距 4 格（③ 西界 x43）、①↔② 4 格、②↔④ 2 格（④ 在 ② 正北 x32-35 z0-1），
-    ///     地面 411 / 850 格 = 48.4%（校正值见 §5.3；据此重算的断言在 PlatformTerrainTests）。
+    /// 每行 = 关卡号：岛数 / 船岛数 / 该关的记忆点（由 <c>LevelTileMaps</c> 的语义统计读出）。
+    /// 布局围绕这句话做：单位姿势、岛高次序、水距语义都与它对齐，改布局前先读这一行。
+    /// 表见 <c>Data/LevelTileMaps.cs</c> 类头的"逐关签名"注释（由生成脚本从行串统计得出，
+    /// 是**可核对的事实**而非叙述）。
     ///
-    /// 【与旧列的差别】旧 <see cref="TerrainCatalog"/> 的 level_1 是"整块地面 + 中脊"（0 块 = 基础地面，
-    /// 永不挖洞）；本布局是**逐格水陆**，水格没有地面，单位走上去会掉到水面以下（落水即死）。
+    /// 【原来这里写的是什么（留档一句话）】旧实现用 <c>Level1Defs</c> 手写 4 个簇并给 level_1
+    /// 单独开了分支（<c>BuildFromDefs</c>）；那是"程序化瞎编布局"的产物，已删除，勿再引入。
+    ///
+    /// 【水陆语义】原版行串是**逐格水陆**：水格（<c>-</c> 与海面波纹）没有地面，单位走上去会掉到
+    /// 水面以下（落水即死，§4.4）。这与旧列式地形（整块地面 + 中脊、永不挖洞）是两套语义，
+    /// 后者现在只作为"未转写关"的兜底。
     /// </summary>
     public static class PlatformClusterLayout
     {
@@ -333,90 +347,62 @@ namespace PirateCrew.PirateCrew.Battle
         public const int CrossingWeaponMaxWaterGap = 10;
 
         // ------------------------------------------------------------------
-        // level_1 手写定义（50×17）。后列出的 Step 覆盖先列出的（用于叠台阶）。
+        // 原版 tile 地图路径（2026-09-14 起为关卡地形的唯一权威）
         // ------------------------------------------------------------------
 
-        sealed class Step
-        {
-            public readonly int X0, Z0, X1, Z1, Blocks;
-
-            public Step(int x0, int z0, int x1, int z1, int blocks)
-            {
-                X0 = x0; Z0 = z0; X1 = x1; Z1 = z1; Blocks = blocks;
-            }
-        }
-
-        sealed class ClusterDef
-        {
-            public readonly string Name;
-            public readonly PlatformClusterKind Kind;
-            public readonly int SpawnTeamMask;
-            public readonly Step[] Steps;
-
-            public ClusterDef(string name, PlatformClusterKind kind, Step[] steps, int spawnTeamMask = 0)
-            {
-                Name = name; Kind = kind; Steps = steps; SpawnTeamMask = spawnTeamMask;
-            }
-        }
-
-        static readonly ClusterDef[] Level1Defs =
-        {
-            // ① 梯田小岛簇（红队出生区，西侧）：三级台阶递升，顶层放高台掩体。
-            new ClusterDef("terrace_island_west", PlatformClusterKind.TerraceIsland, new[]
-            {
-                new Step( 4,  3, 19, 13, 1),   // 外环台阶
-                new Step( 6,  5, 17, 11, 2),   // 中环台阶
-                new Step( 9,  6, 13, 10, 3),   // 顶层
-            }, spawnTeamMask: 1 << 0),
-
-            // ② 大船簇（战场主簇 / 中立，中央）：外围浅礁裙 + 长条甲板 + 船头高台 + 桅盘。
-            // z 包络取 4-13（比第一版 5-12 各外扩 1 行），使 ④ 北岛落到"水距 2 格"、
-            // 且与 ③ 的主水道稳定为 4 格；依据 docs/关卡设计语言-参照游戏全场景分析.md §5.3/§5.4。
-            new ClusterDef("great_ship_center", PlatformClusterKind.Ship, new[]
-            {
-                new Step(24,  4, 38, 13, 1),   // 外围浅礁裙（1 块；只决定簇包络，甲板叠在其上）
-                new Step(24,  5, 38, 12, 2),   // 主甲板（长条形，高 2 块起）
-                new Step(34,  5, 38, 12, 4),   // 船头高台
-                new Step(28,  7, 31, 10, 5),   // 桅盘（掩体高台）
-            }),
-
-            // ③ 空岛簇（蓝队出生区，东侧）：基底 + 岩峰，高差 2 块。
-            // 西界取 x43（第一版 x42 → x43）：②↔③ 水距由 3 格校正为 4 格（§5.4）。
-            new ClusterDef("sky_island_east", PlatformClusterKind.SkyIsland, new[]
-            {
-                new Step(43,  2, 49, 12, 2),   // 岛基
-                new Step(45,  4, 48, 10, 4),   // 岩峰
-            }, spawnTeamMask: 1 << 1),
-
-            // ④ 小空岛（中立跳板，中央簇正北）：第一版在 x36-39（压在 ②/③ 之间、会切主水道），
-            // 现移到 ② 正北 x32-35 z0-1 —— 与 ② 水距 2 格，且不切断 ②↔③ 的 4 格主水道（§5.4）。
-            new ClusterDef("sky_islet_north", PlatformClusterKind.SkyIsland, new[]
-            {
-                new Step(32,  0, 35,  1, 3),
-            }),
-        };
-
-        /// <summary>level_1 的平台簇描述（供测试/报告直接读）。</summary>
-        public static IReadOnlyList<PlatformClusterInfo> Level1Clusters => BuildLevel1().Clusters;
+        /// <summary>
+        /// 行高换算系数（**块**/行）：一列最上面的地面格（草地顶 / 甲板）每比水线高 1 行，
+        /// 该岛抬高 1.25 块（= 0.3125 世界单位）。
+        ///
+        /// 【为什么恰好是 1.25】用户口径是"以水面行为 0，向上每行 +N（N 取 0.5-1 格量级）"，
+        /// 但两条硬约束把 N 夹在 0.286–0.321 世界单位/行（= 1.14–1.28 块/行）之间：
+        ///   · 下限：level_1 各岛顶行离水线 3–10 行（7 行差）。N &lt; 0.286 单位/行时
+        ///     同关最高-最低岛高差 &lt; 2 世界单位（用户裁决 ③ 的下限），关卡读不出高低结构；
+        ///   · 上限：33 关里最大的岛顶行离水线 28 行（level_21 的一座高崖）。相机全场档的机位
+        ///     只比聚焦点高 15·sin45° ≈ 10.61 世界单位（BattleCameraController.FullFieldDistance/Pitch），
+        ///     故最高岛顶必须 ≤ 9 世界单位 → N ≤ 9 / 28 ≈ 0.321 单位/行。
+        /// 取 1.25 块/行 = 0.3125 单位/行：最大 = round(28×1.25) = 35 块 = 8.75 单位 ✓；
+        /// level_1 高差 = round(10×1.25) − round(3×1.25) = 12 − 4 = 8 块 = 2.0 单位 ✓（恰好达标）。
+        /// 取整用 <see cref="Mathf.RoundToInt"/>（银行家舍入，跨运行时确定）。
+        /// </summary>
+        public const float TileBlocksPerRow = 1.25f;
 
         /// <summary>
-        /// level_1 的平台簇地图 = <see cref="BuildFor(LevelData)">BuildFor(level_1)</see> 的等价委托
-        /// （既有测试与烘焙沿用它，行为逐值不变）。
+        /// 单岛悬浮基准高度上限（块）：36 块 = 9 世界单位。上界推导见 <see cref="TileBlocksPerRow"/>
+        /// （相机全场档可达性）；本常量只是防御性钳制，实际最大值是 35 块（level_21）。
+        /// </summary>
+        public const int TileMaxBaseBlocks = 36;
+
+        /// <summary>
+        /// 每个地面格的**局部**块高（不含簇基准）。原版行串只说"这格是陆地/海水"，
+        /// 高度信息全部由行号给出（见 <see cref="TileBlocksPerRow"/>），故局部恒 1 块 ——
+        /// 保证每格都有可站面（<c>IsGroundAt</c> 要求块高 &gt; 0），且地面绝对高度全部来自建筑基准。
+        /// </summary>
+        public const int TileLocalBlocks = 1;
+
+        /// <summary>
+        /// level_1 的平台簇地图 = <see cref="BuildFor(LevelData)">BuildFor(level_1)</see>。
+        /// <b>2026-09-14 起以原版 tile 地图为准</b>：旧的手写四簇定义（4 簇 / 411 地面格 /
+        /// 恒 0 基准高度）已删除，见类头"已删除"段落。
         /// </summary>
         public static PlatformMap BuildLevel1()
         {
             return BuildFor(LevelCatalog.Get(1));
         }
 
+        /// <summary>level_1 的平台簇描述（供测试 / 报告直接读 = <see cref="BuildLevel1"/>）。</summary>
+        public static IReadOnlyList<PlatformClusterInfo> Level1Clusters => BuildLevel1().Clusters;
+
         /// <summary>
-        /// 关卡数据的**通用**平台簇推导（确定性：同一 LevelData 必得同一地图）。
-        /// level_1 走手写定义（<see cref="Level1Defs"/>），其余关一律由出生位 + 尺寸 + 武器池推导。
+        /// 关卡 → 平台簇地图。**优先原版 tile 地图**（<see cref="TryBuildFromTileMap"/>，33 关全有）；
+        /// 原版数据缺失或与关卡数据不匹配（合成关 / 未转写关）时退回
+        /// <see cref="BuildGeneric"/> 的通用推导（V4 模板，仅作兜底）。
         /// 尺寸非法（&lt;=0）时返回 <c>null</c>（调用方退回旧列式地形 / 平坦竞技场）。
         /// </summary>
         public static PlatformMap BuildFor(LevelData level)
         {
-            if (level.LevelNumber == 1)
-                return BuildFromDefs(Level1Defs, 50, 17);
+            if (TryBuildFromTileMap(level, out PlatformMap tileMap))
+                return tileMap;
 
             return BuildGeneric(level);
         }
@@ -434,55 +420,245 @@ namespace PirateCrew.PirateCrew.Battle
             return map != null;
         }
 
-        // ==================================================================
-        // level_1 手写定义的展开
-        // ==================================================================
+        // ------------------------------------------------------------------
+        // 原版 tile 地图 → 平台簇地图
+        // ------------------------------------------------------------------
 
-        static PlatformMap BuildFromDefs(ClusterDef[] defs, int w, int d)
+        /// <summary>
+        /// 用原版 tile 地图推导平台簇地图（<see cref="BuildFor(LevelData)"/> 的主路径）。
+        ///
+        /// 【为什么要有"数据对得上"这道闸】33 关都有原版行串，但测试会**合成** LevelData
+        /// （尺寸 / 出生位自造）来压边界。三条全过才走本路径：
+        ///   ① <see cref="LevelTileMaps"/> 收录了该关号；
+        ///   ② 尺寸与行串一致（宽 = 行串展开格数、高 = 行串行数）；
+        ///   ③ **每个出战单位的 (gridX, gridY) 都落在行串的地面格上** —— 既挡住合成数据，
+        ///      也是翻译正确性的硬判据（单位必须站在原版地图的地面上，全 33 关 360 个单位实测通过）。
+        /// 任一条不过就回退通用推导，绝不生成"单位悬空 / 落水"的地图。
+        /// </summary>
+        public static bool TryBuildFromTileMap(LevelData level, out PlatformMap map)
         {
+            map = null;
+
+            LevelTileMapData tiles;
+            if (!LevelTileMaps.TryParse(level.LevelNumber, out tiles))
+                return false;
+            if (tiles.Width != level.WidthTiles || tiles.Height != level.HeightTiles)
+                return false;
+
+            IReadOnlyList<LevelUnit> units = level.Units;
+            if (units != null)
+            {
+                for (int i = 0; i < units.Count; i++)
+                {
+                    LevelUnit u = units[i];
+                    if (!tiles.IsSolidAtGrid(u.gridX, u.gridY))
+                        return false;
+                }
+            }
+
+            map = BuildFromTileMap(tiles, level);
+            return map != null;
+        }
+
+        /// <summary>
+        /// 原版 tile 地图 → <see cref="PlatformMap"/>（本文件的**地形权威**）。
+        ///
+        /// ==================================================================
+        /// 【四条推导，改前必读】
+        /// ==================================================================
+        /// 一、<b>可站面 = 原版非空格（除海面波纹）</b>
+        ///   行串里每个非 <c>-</c> 且非 <c>tile_ripple_*</c>/<c>boat_ripple_*</c> 的格 = 一块可站地面；
+        ///   轮廓**完全来自原版**，不做任何侵蚀 / 外凸（V4 的 <c>StampIsland</c> 只为"程序化造岛"服务，
+        ///   原版 tile 本身就是岛形）。海面波纹算水（踩上去落水即死，§4.4），不是可站面 ——
+        ///   把它们当地面会让整片海变成一块可行走的"水地板"。
+        ///
+        /// 二、<b>行号 → 高度（不是纵深！）</b>
+        ///   原版是 2D 侧视图，行号 <c>rowY</c> 表示"离水面多高"（0 = 最上一行 = 最高）。每座岛
+        ///   （= 4 连通域）取**自己最上面一行地面格**（草地顶 / 甲板顶）到水线的行数差
+        ///   <c>span = floor(waterTileY) − topRow</c>，换算 <c>baseBlocks = round(span × TileBlocksPerRow)</c>
+        ///   作为该岛的悬浮基准高度。于是原版里离水线越远的岛在 3D 里浮得越高、贴水行的沙洲贴水 ——
+        ///   这正是 V4"错落基准高度"的语义，只是把**分配来源从哈希改成原版行号**（原版自身的竖直结构
+        ///   才是真相之源）。
+        ///
+        /// 三、<b>纵深 Z = 岛自身的行跨度（<c>gridZ = rowY − 1</c>）</b>
+        ///   3D 需要第二个自由度，Z 就取该岛在原版里占的行范围：
+        ///     · 语义上是"土 / 岩行 = 岛体厚度"的直接翻译（岛的土体有多厚，纵深就有多深）；
+        ///     · 工程上让单位的 Z 落位天然正确 —— 原版对象的 y 是"脚底行 − 1"（全 33 关 360 个单位
+        ///       实测 100% 站在 <c>(x, y+1)</c> 行上），减 1 之后单位的 <c>(gridX, gridY)</c>
+        ///       恰好就是它脚下地面格，于是 <c>BattleController</c> 的 <c>z = gridY + 0.5</c> 与
+        ///       <c>SurfaceWorldY(gridX, gridY)</c> 同时命中同一格。
+        ///   【为什么**不**给岛另铺 2–5 格厚的自由 Z】那会把"单位的 (gridX, gridY)"与"岛的 Z 带"
+        ///   解耦，而 <c>BattleController</c>（禁改文件）以 <c>gridY</c> 为 Z 索引查地表并把单位
+        ///   投在 <c>z = gridY + 0.5</c> —— 自由 Z 会直接把单位放到地图之外（悬空 / 落水）。
+        ///   纵深层次由原版自身给出：岛在 X 上错开、行跨度不同者在 Z 上也错开
+        ///   （高的岛岛体自然比贴水沙洲厚），不会塌成"同一排平面"。
+        ///
+        /// 四、<b>每岛的伪装类型</b>（<see cref="PlatformClusterKind"/>，决定 kit 材质族）
+        ///   岛内含船体语汇（<c>ship_*</c> / <c>cannon_port_*</c> / <c>mast_*</c> / <c>crows_nest_*</c>）
+        ///   → <see cref="PlatformClusterKind.Ship"/>；其余（草地 / 土 / 沙洲）→
+        ///   <see cref="PlatformClusterKind.TerraceIsland"/>。原版行串里没有岩石瓦片
+        ///   （<c>rock_*</c> 只出现在背景层 <c>&lt;bgRow&gt;</c>），故本路径不产生 <c>SkyIsland</c>。
+        /// </summary>
+        static PlatformMap BuildFromTileMap(LevelTileMapData tiles, LevelData level)
+        {
+            int w = level.WidthTiles;
+            int d = level.HeightTiles;
+            if (w <= 0 || d <= 0 || w != tiles.Width || d != tiles.Height)
+                return null;
+
+            int rows = tiles.Height;
+
+            // 1) 连通域（4 邻接）标号 —— 在**原版行空间** (x, rowY) 上做，一个域 = 一座岛。
+            var comp = new int[w * rows];
+            for (int i = 0; i < comp.Length; i++)
+                comp[i] = -1;
+
+            var islands = new List<List<int>>();
+            var stack = new List<int>(256);
+
+            for (int rowY = 0; rowY < rows; rowY++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    if (!tiles.IsSolidAt(x, rowY) || comp[x + rowY * w] >= 0)
+                        continue;
+
+                    int island = islands.Count;
+                    var cells = new List<int>(64);
+                    islands.Add(cells);
+
+                    comp[x + rowY * w] = island;
+                    stack.Clear();
+                    stack.Add(x + rowY * w);
+
+                    while (stack.Count > 0)
+                    {
+                        int idx = stack[stack.Count - 1];
+                        stack.RemoveAt(stack.Count - 1);
+
+                        int cx = idx % w;
+                        int cy = idx / w;
+                        cells.Add(idx);
+
+                        PushIslandCell(comp, tiles, w, cx - 1, cy, island, stack);
+                        PushIslandCell(comp, tiles, w, cx + 1, cy, island, stack);
+                        PushIslandCell(comp, tiles, w, cx, cy - 1, island, stack);
+                        PushIslandCell(comp, tiles, w, cx, cy + 1, island, stack);
+                    }
+                }
+            }
+
+            // 2) 落位：gridZ = rowY − 1（行 0 恒为空 —— 由 LevelTileMapsTests 断言）。
             var blocks = new int[w * d];
             var cellCluster = new int[w * d];
             for (int i = 0; i < cellCluster.Length; i++)
                 cellCluster[i] = -1;
 
-            var infos = new List<PlatformClusterInfo>(defs.Length);
+            int waterRow = Mathf.FloorToInt(level.WaterTileY + 1e-4f);
+            var infos = new List<PlatformClusterInfo>(islands.Count);
 
-            for (int c = 0; c < defs.Length; c++)
+            for (int c = 0; c < islands.Count; c++)
             {
-                ClusterDef def = defs[c];
-                int minB = int.MaxValue, maxB = int.MinValue;
-                int x0 = int.MaxValue, z0 = int.MaxValue, x1 = int.MinValue, z1 = int.MinValue;
+                List<int> cells = islands[c];
 
-                for (int s = 0; s < def.Steps.Length; s++)
+                int minRow = int.MaxValue, maxRow = int.MinValue;
+                int x0 = int.MaxValue, x1 = int.MinValue;
+                int z0 = int.MaxValue, z1 = int.MinValue;
+                bool shipLook = false;
+                bool placed = false;
+
+                for (int i = 0; i < cells.Count; i++)
                 {
-                    Step step = def.Steps[s];
-                    for (int gz = step.Z0; gz <= step.Z1; gz++)
-                    {
-                        for (int gx = step.X0; gx <= step.X1; gx++)
-                        {
-                            if (gx < 0 || gz < 0 || gx >= w || gz >= d)
-                                continue;
+                    int idx = cells[i];
+                    int gx = idx % w;
+                    int rowY = idx / w;
 
-                            int idx = gx + gz * w;
-                            blocks[idx] = step.Blocks;
-                            cellCluster[idx] = c;
+                    if (rowY < minRow) minRow = rowY;
+                    if (rowY > maxRow) maxRow = rowY;
+                    if (gx < x0) x0 = gx;
+                    if (gx > x1) x1 = gx;
+                    if (!shipLook && LevelTileMaps.IsShipTile(tiles.TileAt(gx, rowY)))
+                        shipLook = true;
 
-                            minB = Mathf.Min(minB, step.Blocks);
-                            maxB = Mathf.Max(maxB, step.Blocks);
-                            x0 = Mathf.Min(x0, gx); x1 = Mathf.Max(x1, gx);
-                            z0 = Mathf.Min(z0, gz); z1 = Mathf.Max(z1, gz);
-                        }
-                    }
+                    int gz = LevelTileMapData.RowToGridZ(rowY);
+                    if (gz < 0 || gz >= d)
+                        continue;
+
+                    int cell = gx + gz * w;
+                    blocks[cell] = TileLocalBlocks;
+                    cellCluster[cell] = c;
+                    placed = true;
+                    if (gz < z0) z0 = gz;
+                    if (gz > z1) z1 = gz;
                 }
 
-                if (minB == int.MaxValue)
-                    minB = 0;
+                if (!placed)
+                {
+                    z0 = 0;
+                    z1 = 0;
+                }
 
-                infos.Add(new PlatformClusterInfo(def.Name, def.Kind, x0, z0, x1, z1, minB, maxB,
-                    def.SpawnTeamMask));
+                // 行号 → 悬浮高度：以水面行为 0，向上每行 +TileBlocksPerRow 块。
+                int spanRows = waterRow - minRow;
+                if (spanRows < 0)
+                    spanRows = 0;
+
+                int baseBlocks = Mathf.Clamp(Mathf.RoundToInt(spanRows * TileBlocksPerRow),
+                    0, TileMaxBaseBlocks);
+                float baseHeight = baseBlocks * TerrainCatalog.DefaultBlockWorldHeight;
+
+                PlatformClusterKind kind = shipLook
+                    ? PlatformClusterKind.Ship
+                    : PlatformClusterKind.TerraceIsland;
+
+                infos.Add(new PlatformClusterInfo(
+                    "tile_island_" + c, kind, x0, z0, x1, z1,
+                    TileLocalBlocks, TileLocalBlocks, 0, baseHeight));
+            }
+
+            // 3) 出生簇掩码：单位的 (gridX, gridY) 落在哪座岛，就给那座岛打上该队的标记。
+            var masks = new int[infos.Count];
+            IReadOnlyList<LevelUnit> units = level.Units;
+            if (units != null)
+            {
+                for (int i = 0; i < units.Count; i++)
+                {
+                    LevelUnit u = units[i];
+                    if (u.gridX < 0 || u.gridY < 0 || u.gridX >= w || u.gridY >= d)
+                        continue;
+
+                    int cluster = cellCluster[u.gridX + u.gridY * w];
+                    if (cluster >= 0 && u.teamIndex >= 0 && u.teamIndex < 31)
+                        masks[cluster] |= 1 << u.teamIndex;
+                }
+            }
+
+            for (int c = 0; c < infos.Count; c++)
+            {
+                if (masks[c] == 0)
+                    continue;
+
+                PlatformClusterInfo info = infos[c];
+                infos[c] = new PlatformClusterInfo(info.Name, info.Kind, info.X0, info.Z0, info.X1, info.Z1,
+                    info.MinBlocks, info.MaxBlocks, masks[c], info.BaseHeight);
             }
 
             return new PlatformMap(w, d, blocks, cellCluster, infos);
+        }
+
+        /// <summary>连通域扩散的入栈判据（越界 / 已标号 / 非地面都不入栈）。</summary>
+        static void PushIslandCell(int[] comp, LevelTileMapData tiles, int w, int x, int rowY, int island,
+            List<int> stack)
+        {
+            if (x < 0 || rowY < 0 || x >= w || rowY >= tiles.Height)
+                return;
+
+            int idx = x + rowY * w;
+            if (comp[idx] >= 0 || !tiles.IsSolidAt(x, rowY))
+                return;
+
+            comp[idx] = island;
+            stack.Add(idx);
         }
 
         // ==================================================================

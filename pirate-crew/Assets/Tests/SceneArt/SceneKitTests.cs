@@ -88,16 +88,54 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
         [Test]
         public void BuildLevel1_UsesLargeShip_AndKeepsIslandsWoodFree()
         {
-            SceneKitLayout kit = SceneKitCatalog.BuildLevel1(7);
+            // 【2026-09-14 起以原版 tile 地图为准】原版 level_1 的行串给出 5 座船岛
+            // （左船体 / 右船体 / 左横桁 / 右横桁 / 桅盘）+ 4 座岛；旧手写布局的"1 艘大船 + 3 岛"
+            // 已随手写定义一起删除。判据改为**按 Kind 的不变量**（而不是拍死的构件条数）：
+            //   · 桅 / 船体构件只出现在 Ship 簇上；Terrace 簇一个木构件都没有；
+            //   · 至少有一座宽 ≥10 的船簇走 galleon 配方（例：X[0,18] 的左船体）。
+            PlatformMap map = PlatformClusterLayout.BuildLevel1();
+            SceneKitLayout kit = SceneKitCatalog.BuildFor(1, map, 7);
 
-            // level_1 的 ② 中央大船（包络 15 宽）走 galleon 配方（2 桅），其余三簇都是岛
-            // （技能语义纯净化后：岛簇**不再**摆小艇）→ 全场只有 1 艘船 = 2 桅 / 1 个艏构件。
-            Assert.AreEqual(2, kit.CountOf(SceneKitPiece.Mast),
-                "只有 ② 船簇有桅（岛簇不摆船，见 BuildFor 的材质族白名单）");
-            Assert.AreEqual(1, kit.CountOf(SceneKitPiece.HullBow), "只有 1 艘船 = 1 个艏构件");
+            int masts = 0;
+            int terraceMasts = 0;
+            int bowOnTerrace = 0;
 
-            // 岛簇要有岛顶岩唇与散岩；草顶（Foliage 的 DeckPlank）只给中立岛（③ 是蓝队出生岛 → 无草顶）。
-            Assert.GreaterOrEqual(kit.CountOf(SceneKitPiece.IslandTop), 2, "三个岛簇各有岛顶岩唇");
+            for (int i = 0; i < kit.Parts.Count; i++)
+            {
+                KitPart part = kit.Parts[i];
+                if (part.ClusterIndex < 0 || part.ClusterIndex >= map.Clusters.Count)
+                    continue;
+
+                PlatformClusterKind kind = map.Clusters[part.ClusterIndex].Kind;
+
+                if (part.Piece == SceneKitPiece.Mast)
+                {
+                    masts++;
+                    if (kind != PlatformClusterKind.Ship)
+                        terraceMasts++;
+                }
+
+                if (part.Piece == SceneKitPiece.HullBow && kind != PlatformClusterKind.Ship)
+                    bowOnTerrace++;
+            }
+
+            Assert.AreEqual(0, terraceMasts, "桅只能出现在 Ship 簇上（岛簇不摆船）");
+            Assert.AreEqual(0, bowOnTerrace, "船体构件只能出现在 Ship 簇上");
+            Assert.Greater(masts, 0, "level_1 有船岛 → 应有桅");
+
+            // 大船配方：宽 ≥10 的船簇应产出 2 桅（galleon）；level_1 的左船体 X[0,18] 就是它。
+            int largeShipClusters = 0;
+            for (int c = 0; c < map.Clusters.Count; c++)
+            {
+                PlatformClusterInfo info = map.Clusters[c];
+                if (info.Kind == PlatformClusterKind.Ship && info.WidthTiles >= 10)
+                    largeShipClusters++;
+            }
+
+            Assert.GreaterOrEqual(largeShipClusters, 1, "level_1 应至少有一座宽 ≥10 的船簇（走 galleon 配方）");
+
+            // 岛簇要有岛顶岩唇与散岩。
+            Assert.GreaterOrEqual(kit.CountOf(SceneKitPiece.IslandTop), 4, "4 座岛簇各有岛顶岩唇");
             Assert.GreaterOrEqual(kit.CountOf(SceneKitPiece.RockChunk), 6, "岛缘应有散落岩块");
             Assert.GreaterOrEqual(kit.CountOf(SceneKitPiece.Prop), 1, "应有陈设构件");
         }

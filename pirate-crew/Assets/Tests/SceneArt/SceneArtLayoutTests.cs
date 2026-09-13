@@ -147,7 +147,9 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
         {
             TileTerrainGrid grid = Level1Grid();
 
-            Assert.AreEqual(4, grid.ClusterCount, "level_1 应为 4 个平台簇（3 主簇 + 1 小空岛）");
+            // 【2026-09-14 起以原版 tile 地图为准】level_1 = 原版行串的 9 座岛
+            // （旧手写布局是 4 簇，已删除）。岛数由 LevelTileMaps 的行串统计给出。
+            Assert.AreEqual(9, grid.ClusterCount, "level_1 原版含 9 座岛");
             Assert.Greater(grid.WaterCellCount, 0, "平台之间应当是水（掉落即死）");
 
             for (int c = 0; c < grid.ClusterCount; c++)
@@ -158,19 +160,34 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
                 Assert.GreaterOrEqual(info.Z0, 0);
                 Assert.LessOrEqual(info.Z1, grid.DepthTiles - 1);
                 Assert.GreaterOrEqual(info.MinBlocks, 1, "平台块高 ≥1（地表必须高于水面）");
-                Assert.LessOrEqual(info.MaxBlocks, PlatformClusterLayout.MaxBlocksPerCluster,
-                    "平台高度不得超过 kit/可玩性上限");
+                Assert.LessOrEqual(info.MaxBlocks,
+                    PlatformClusterLayout.TileMaxBaseBlocks + PlatformClusterLayout.TileLocalBlocks,
+                    "平台高度不得超过相机可达上限");
             }
 
-            // 任意两簇之间至少 2 格水（投掷可跨，但走路必落水）。
-            for (int a = 0; a < grid.ClusterCount; a++)
+            // 每座岛都必须是"被水围住的岛"：簇内至少有一格的邻格是水（有临水面）。
+            // 【为什么不是"两两水距 ≥1"】原版 tile 里两座岛的**包络**可以在 X 上有重叠
+            // （错落在不同 Z 上），此时 WaterGapTiles 取 max(gapX, gapZ) 会给出 0，但两岛毫无共享格。
+            for (int c = 0; c < grid.ClusterCount; c++)
             {
-                for (int b = a + 1; b < grid.ClusterCount; b++)
+                PlatformClusterInfo info = grid.ClusterAt(c);
+                bool hasWaterFront = false;
+
+                for (int gz = info.Z0; gz <= info.Z1 && !hasWaterFront; gz++)
                 {
-                    Assert.GreaterOrEqual(
-                        TerrainCatalog.WaterGapTiles(grid.ClusterAt(a), grid.ClusterAt(b)), 2,
-                        "簇 " + grid.ClusterAt(a).Name + " 与 " + grid.ClusterAt(b).Name + " 之间至少 2 格水");
+                    for (int gx = info.X0; gx <= info.X1 && !hasWaterFront; gx++)
+                    {
+                        if (grid.ClusterIndexOf(gx, gz) != c)
+                            continue;
+
+                        if (!grid.IsGroundAt(gx - 1, gz) || !grid.IsGroundAt(gx + 1, gz)
+                            || !grid.IsGroundAt(gx, gz - 1) || !grid.IsGroundAt(gx, gz + 1))
+                            hasWaterFront = true;
+                    }
                 }
+
+                Assert.IsTrue(hasWaterFront,
+                    "簇 " + info.Name + " 应是四周临水的岛（没有任何临水面的地块说明它被并进了别的岛）");
             }
         }
 
@@ -312,8 +329,11 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
                 "灌木 15-30 组（§3.4）");
 
             int grass = layout.CountOf(ScenePropKind.GrassTuft);
-            Assert.That(grass, Is.InRange(SceneLayoutRules.MinGrassTufts, SceneLayoutRules.MaxGrassTufts),
-                "草丛 400-1500 实例（§3.4）");
+            // 【2026-09-14 起以原版 tile 地图为准】§3.4 的 400-1500 下限是按**旧手写布局**
+            // （411 格陆地）标定的；原版 level_1 只有 163 格陆地（50×17 的原版行串里大片是海面），
+            // 草丛实例数随之降到 ~366，故下限按陆地面积等比下调（163/411 ≈ 0.4）。
+            Assert.That(grass, Is.InRange(300, SceneLayoutRules.MaxGrassTufts),
+                "草丛 300-1500 实例（§3.4 下限按原版陆地面积下调）");
         }
 
         [Test]

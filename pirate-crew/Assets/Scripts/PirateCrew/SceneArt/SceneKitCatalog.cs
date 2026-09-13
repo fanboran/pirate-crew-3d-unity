@@ -363,12 +363,19 @@ namespace PirateCrew.PirateCrew.SceneArt
         ///   · <c>info.IsSpawnCluster</c>（出生簇）→ 额外一圈收边栏杆（Wood，跨族唯一例外）+ 铁锚；
         ///     船簇出生岛另有木箱/木桶（甲板语汇）。
         ///
-        /// 【基准高度】摆放高度一律走 <c>info.BaseBlocks</c> 折算的块高口径
-        /// （用户裁决 2 的悬浮基准高度），与 <c>TileTerrainGrid</c> / 碰撞方块同源，不会错位。
+        /// 【簇 Kind 的来源（2026-09-14）】Kind 现在由**原版 tile 语义**决定，见
+        /// <c>PlatformClusterLayout.BuildFromTileMap</c>：岛内含船体语汇
+        /// （<c>ship_*</c> / <c>cannon_port_*</c> / <c>mast_*</c> / <c>crows_nest_*</c>）→
+        /// <see cref="PlatformClusterKind.Ship"/>（"mast/ship 区域 → Ship 族"）；
+        /// 其余（草地 / 土 / 沙洲瓦片）→ <see cref="PlatformClusterKind.TerraceIsland"/>
+        /// （"grass/earth 区域 → TerraceIsland 族"）。本文件的材质族映射因此**不需要按瓦片名再分叉** ——
+        /// 只要 Kind 对，<see cref="MaterialFamilyFor"/> 的白名单就对。
         ///
-        /// 【为什么按 Kind 而不是按关号】关号只出现在 level_1 的手写定义里；通用推导把"这关该长什么样"
-        /// 全部编码进了 <see cref="PlatformMap"/> 的簇 Kind（见 <c>PlatformClusterLayout</c> 的规则表），
-        /// 烘焙/运行时的配方展开只认 Kind → 换关卡 = 换一张 map，kit 逻辑零改动。
+        /// 【基准高度】摆放高度一律走 <c>info.BaseBlocks</c> 折算的块高口径
+        /// （原版行号给出的悬浮高度），与 <c>TileTerrainGrid</c> / 碰撞方块同源，不会错位。
+        ///
+        /// 【为什么按 Kind 而不是按关号】33 关的形状全部来自 <see cref="PlatformMap"/> 的簇 Kind
+        /// （由原版 tile 地图推导），烘焙/运行时的配方展开只认 Kind → 换关卡 = 换一张 map，kit 逻辑零改动。
         /// </summary>
         /// <param name="levelNumber">关卡号（只用于调试日志，几何完全不依赖它）。</param>
         /// <param name="map">该关的平台簇地图（<see cref="PlatformClusterLayout.BuildFor"/> 的产物）。</param>

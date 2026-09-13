@@ -23,35 +23,29 @@ namespace PirateCrew.PirateCrew.Battle
     ///
     /// 二、<b>Godot 基准出什么</b>
     ///   · 竞技场是 <b>XZ 水平面</b>、重力沿 <b>-Y</b>、单位沿 Z 分路（见
-    ///     <c>docs/M2-3D空间模型对齐.md</c> §1/§2）。故瓦片格 (gridX, gridY) 占世界 XZ 格
-    ///     <c>(gridX, gridY)</c>，堆叠方向为 <b>+Y</b>。
+    ///     <c>docs/M2-3D空间模型对齐.md</c> §1/§2）。格 (gx, gz) 占世界 XZ 格，堆叠方向为 <b>+Y</b>。
     ///   · （Godot 版本身没有地形实现——<c>island_generator.gd</c> 是 20 行空桩，
     ///     <c>battle.tscn</c> 只有一块 50×50 的平地。它只贡献「XZ + 向上为正」这套空间约定。）
     ///
-    /// 三、<b>冲突与取舍（本类最关键的推导，标注为「提案/待定」）</b>
-    ///   · 冲突：原版 2D 里 <c>gridY</c> 是**高度轴**（越大越靠下），但本项目已按 Godot 基准把
-    ///     <c>gridY</c> 重投影成**纵深轴 Z**（<c>docs/M2-3D空间模型对齐.md</c> §1）。
-    ///     同一根轴不能既表示 Z 又表示高度，而文档要求「瓦片在 XZ 竞技场上构成墙体/高台」，
-    ///     即必须有第二个高度自由度。因此我们**只把行序用于高度、不用于格位高度**：
-    ///       – 格位 Z 仍 = gridY（平面图重投影，未改）；
-    ///       – 格的**堆叠高度**由「该列的相对地表海拔」压缩得到（见下）。
-    ///   · 高度归一化（<b>提案/待定</b>）：令 <c>altitude = heightTiles − topSolidRow</c>，
-    ///     全图最低地表 <c>minAlt</c> 记 0，最高 <c>maxAlt</c> 映射到
-    ///     <see cref="TerrainCatalog.MaxBlocksPerColumn"/> 块。于是「与最低地面同高」的列 = 平坦地面
-    ///     （0 块），原版里越高的台子堆得越高，相邻列的高差即**墙体**立面。
-    ///   · 竖直压缩（<b>提案/待定，可玩性优先</b>）：1 块 = 8px = 0.25 世界单位
-    ///     （<see cref="TerrainCatalog.DefaultBlockWorldHeight"/>），最多 8 块 = 2.0 单位。
-    ///     理由：Flash 的弹弓满速 20px/帧、抬升 0.7 时理论最高点 ≈ 2.05 单位（
-    ///     <c>v=20/1.28=15.625</c>，竖直分量 <c>v·0.573</c>，<c>h=vy²/(2·19.53)≈2.05</c>），
-    ///     若按原版 1 瓦片 = 1 单位直接堆到 8 单位，任何高台都**超出投掷上限**、AI/玩家都打不到，
-    ///     关卡不可玩。压缩到 2.0 单位后高台仍构成遮挡/借墙弹的障碍，但可被抛越。
+    /// 三、<b>行号 → 高度 / 纵深（2026-09-14 定稿，取代旧的"行序直接当 Z"）</b>
+    ///   · <b>行号 <c>rowY</c> = 离水面的竖直高度</b>（原版 2D 侧视图的竖直轴）。每座岛（原版
+    ///     <c>&lt;row&gt;</c> 行串的 4 连通域）取自己最上面一行地面格到水线的行数差，换算成该岛的
+    ///     悬浮基准高度（<c>PlatformClusterInfo.BaseHeight</c>）——原版越高的岛，3D 里浮得越高。
+    ///     换算系数与上界推导见 <c>PlatformClusterLayout.TileBlocksPerRow</c>。
+    ///   · <b>纵深 <c>gridZ</c> = <c>rowY − 1</c></b>：岛在 3D 里占的 Z 范围就是它在原版里占的行范围
+    ///     （"土/岩行 = 岛体厚度"）。减 1 是为了让单位的 <c>(gridX, gridY)</c> 正好落在它脚下的
+    ///     地面格上（原版对象 y 是"脚底行 − 1"），使 <c>BattleController</c> 的 <c>z = gridY + 0.5</c>
+    ///     与 <see cref="SurfaceWorldY(int,int)"/> 同时命中同一格。详见 <c>Data/LevelTileMaps</c> 类头。
+    ///   · <b>每格块高</b> = 簇基准（行号给出）+ 局部 1 块（原版行串只说"这格是陆地"）。
         ///   · ⚠ <b>2026-09-13 平台化修正（推翻"永不挖洞"）</b>：用户诉求是
         ///     「一堆高高低低的**悬空平台**浮在海面上，平台间是水（掉落即死）」，
         ///     故本类新增 **<see cref="PlatformMap"/> 模式**：逐格带「簇归属」，
         ///     <c>Cluster &lt; 0</c> 的格是**水**（无地面、无碰撞，单位走上去必落水）。
-        ///     旧版「每列一个高度、全图都有基础地面」的列式数据仍被支持
-        ///     （<see cref="LegacyGridMode"/>，见 <see cref="TerrainCatalog"/> 的 level_4/27 与
-        ///     <see cref="Flat"/>），保证未平台化的关卡与既有 AI 用例逐值不变。
+        ///     旧版「每列一个高度、全图都有基础地面」的列式数据仍被支持（构造函数的
+        ///     <c>platforms == null</c> 分支与 <see cref="Flat"/>），保证合成/兜底地形与既有 AI 用例逐值不变。
+        ///     <b>2026-09-14 起 33 关全部走平台模式</b>（原版 <c>&lt;row&gt;</c> 行串推导，见
+        ///     <c>Data/LevelTileMaps</c> 与 <c>PlatformClusterLayout.BuildFromTileMap</c>）；
+        ///     <see cref="TerrainCatalog"/> 不再为任何关卡生成列式地形（旧的 level_4/27 手抄列高表已删除）。
         ///     为兼容旧查询，<see cref="SurfaceWorldY(int,int)"/> 对**场内水格**仍报基础地面高度，
         ///     但游戏性查询 <see cref="SurfaceWorldYAtWorld(float,float)"/> 对水格返回
         ///     <see cref="WaterVoidY"/>（水面以下的虚空哨兵），AI 投掷模拟据此判定「落水」。

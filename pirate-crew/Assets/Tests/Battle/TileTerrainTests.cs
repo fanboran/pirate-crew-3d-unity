@@ -36,31 +36,26 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         }
 
         [Test]
-        public void TerrainCatalog_Level1_UsesPlatformClusterLayout()
+        public void TerrainCatalog_Level1_UsesOriginalTileMapLayout()
         {
-            // level_1 已平台化：逐格水陆、4 个平台簇（3 主簇 + 1 北侧小空岛），
-            // 地面 411 / 850 格 = 48.4%（docs/关卡设计语言-参照游戏全场景分析.md §5.3 实算）。
-            // 规则出处：R1（主簇包络 ≥8×4 且容纳全部出生点）、R9（平台簇数控制掩体密度）。
+            // 【2026-09-14 起以原版 tile 地图为准】level_1 由原版 <row> 行串推出（9 座岛 / 163 地面格），
+            // 旧手写四簇布局（4 簇 / 411 格 / 甲板 2 块 / 桅盘 5 块）已删除。
+            // 原版读数见 Tests/Data/LevelTileMapsTests.Level1_MatchesOriginalTileMap。
             TileTerrainGrid grid = TerrainCatalog.Build(1, 50, 17);
 
             Assert.IsNotNull(grid);
-            Assert.AreEqual(4, grid.ClusterCount, "level_1 应为 4 个平台簇（§5.3）");
-            Assert.AreEqual(411, grid.GroundCellCount, "平台地面格数应为 411（§5.3 实算）");
-            Assert.AreEqual(850 - 411, grid.WaterCellCount, "其余 439 格是水（掉落即死）");
+            Assert.AreEqual(9, grid.ClusterCount, "level_1 原版含 9 座岛");
+            Assert.AreEqual(163, grid.GroundCellCount, "level_1 原版地面格 = 163");
+            Assert.AreEqual(850 - 163, grid.WaterCellCount, "其余 687 格是水（含海面波纹）");
             Assert.Greater(grid.SolidCellCount, 0, "平台格都有 ≥1 块抬升");
 
-            // 中央大船簇：长条甲板（R1 主簇）与 5 块桅盘制高点（R8/R13「抢高台」记忆点）。
-            Assert.IsTrue(grid.IsGroundAt(24, 5), "大船甲板西缘应是平台地面");
-            Assert.AreEqual(2, grid.BlocksAt(24, 5), "大船甲板块高 2（§5.3）");
-            Assert.AreEqual(5, grid.BlocksAt(29, 8), "桅盘是全场制高点 5 块（§5.3）");
+            // 原版读数抽查：西侧草岛（x23–28，顶行 4）13 块；左船体甲板（x0–18，顶行 11）5 块。
+            Assert.IsTrue(grid.IsGroundAt(24, 5), "(24,5) 是西侧草岛的土体");
+            Assert.AreEqual(13, grid.BlocksAt(24, 5), "西侧草岛 = 12 块基准 + 1 块局部");
+            Assert.AreEqual(5, grid.BlocksAt(17, 10), "左船体甲板 = 4 块基准 + 1 块局部");
 
-            // 两侧出生簇的顶层高低差（§5.3：①梯田 3 层、③空岛岩峰 4 层）。
-            Assert.IsTrue(grid.IsGroundAt(10, 8));
-            Assert.AreEqual(3, grid.BlocksAt(10, 8), "西梯田岛顶层块高 3");
-            Assert.AreEqual(4, grid.BlocksAt(46, 6), "东空岛岩峰块高 4");
-
-            // 平台之间是水：西岛与中央大船之间的水道（②↔③ 主水道同样由水距断言覆盖）。
-            Assert.IsFalse(grid.IsGroundAt(21, 8), "西岛与中央大船之间应是水");
+            // 平台之间是水：原版行串在 (21,8) 就是海面。
+            Assert.IsFalse(grid.IsGroundAt(21, 8), "(21,8) 应是水");
             Assert.AreEqual(0, grid.BlocksAt(21, 8), "水格无抬升块");
         }
 
@@ -72,44 +67,64 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             // 单块 8px = 0.25 世界单位（TerrainCatalog.DefaultBlockWorldHeight）。
             Assert.AreEqual(0.25f, grid.BlockWorldHeight, 1e-6f);
 
-            // 平台地面：地表 = 基础地面 + 块高 × 0.25（甲板 2 块 → +0.5；桅盘 5 块 → +1.25）。
-            Assert.AreEqual(LevelGeometry.GroundTopY + 0.5f, grid.SurfaceWorldY(24, 5), 1e-5f);
-            Assert.AreEqual(LevelGeometry.GroundTopY + 1.25f, grid.SurfaceWorldY(29, 8), 1e-5f);
+            // 平台地面：地表 = 总块高 × 0.25（草岛 13 块 → 3.25；左船体 5 块 → 1.25）。
+            Assert.AreEqual(LevelGeometry.GroundTopY + 3.25f, grid.SurfaceWorldY(24, 5), 1e-5f);
+            Assert.AreEqual(LevelGeometry.GroundTopY + 1.25f, grid.SurfaceWorldY(17, 10), 1e-5f);
 
-            // 水格（(21,8) 水道）：游戏性查询返回虚空哨兵（低于水面），使 AI 投掷模拟走落水分支。
+            // 水格（(21,8) 海面）：游戏性查询返回虚空哨兵（低于水面），使 AI 投掷模拟走落水分支。
             Assert.Less(grid.SurfaceWorldYAtWorld(21.5f, 8.5f), LevelGeometry.WaterSurfaceY,
                 "水格地表必须低于水面，否则 AI 落水判定失效");
             Assert.AreEqual(TileTerrainGrid.WaterVoidY, grid.SurfaceWorldYAtWorld(21.5f, 8.5f), 1e-6f);
 
-            // 出生位安全（R2：每个出生点 ≥4 格平台面积；水格不是安全出生位）。
-            Assert.IsTrue(TerrainCatalog.IsPlatformSpawnSafe(grid, 29, 11), "红队 (29,11) 在甲板上");
+            // 出生位安全（原版 8 个出生位都站在自己那座岛的甲板/草地上）。
+            Assert.IsTrue(TerrainCatalog.IsPlatformSpawnSafe(grid, 17, 10), "红队 (17,10) 在左船体甲板上");
             Assert.IsFalse(TerrainCatalog.IsPlatformSpawnSafe(grid, 21, 8), "水格不是安全出生位");
         }
 
         [Test]
-        public void TerrainCatalog_UntranscribedLevel_ReturnsNull()
+        public void TerrainCatalog_NoLongerHasUntranscribedLevels()
         {
-            Assert.IsNull(TerrainCatalog.Build(2, 47, 27), "未转写关卡应退回平坦地面");
-            Assert.IsNull(TerrainCatalog.ColumnBlocksFor(2));
-            Assert.IsFalse(TerrainCatalog.IsTranscribed(2));
+            // 【2026-09-14】33 关全部转写；越界关号才返回 null。
+            Assert.IsNull(TerrainCatalog.Build(0, 50, 17));
+            Assert.IsNull(TerrainCatalog.Build(34, 50, 17));
+            Assert.IsNull(TerrainCatalog.ColumnBlocksFor(0));
+
+            for (int n = 1; n <= LevelCatalog.TotalLevels; n++)
+            {
+                Assert.IsTrue(TerrainCatalog.IsTranscribed(n), "level_" + n + " 应已转写");
+                Assert.IsTrue(TerrainCatalog.IsPlatformLevel(n), "level_" + n + " 应是平台簇模式");
+                Assert.IsNotNull(TerrainCatalog.ColumnBlocksFor(n), "level_" + n + " 应有逐列块高");
+            }
         }
 
         [Test]
         public void TerrainCatalog_SizeMismatch_ReturnsNullInsteadOfMisplacedTerrain()
         {
-            // 转写表按 widthTiles 索引；尺寸不符时必须退回平地而不是错位生成。
+            // 转写数据按关卡自带尺寸解析；尺寸不符时必须退回平地而不是错位生成。
             Assert.IsNull(TerrainCatalog.Build(1, 49, 17));
         }
 
         [Test]
-        public void TerrainCatalog_Level27_HasTwoTiers()
+        public void TerrainCatalog_Level27_UsesOriginalTileMap()
         {
+            // 【2026-09-14 起以原版 tile 地图为准】level_27（1v1 决斗）也走原版 <row> 行串，
+            // 旧的手抄列高表（两侧 8 块 / 中间 0 块）已删除。
+            LevelData level = LevelCatalog.Get(27);
             TileTerrainGrid grid = TerrainCatalog.Build(27, 21, 20);
 
             Assert.IsNotNull(grid);
-            Assert.AreEqual(8, grid.BlocksAt(0, 0), "两侧高台 8 块");
-            Assert.AreEqual(0, grid.BlocksAt(5, 0), "中间缺口（第 4–7 列）0 块");
-            Assert.AreEqual(8, grid.BlocksAt(10, 0), "中央高台 8 块");
+            Assert.AreEqual(21, grid.WidthTiles);
+            Assert.AreEqual(20, grid.DepthTiles);
+            Assert.AreEqual(LevelTileMaps.Parse(27).SolidCount, grid.GroundCellCount,
+                "level_27 地面格数应 = 原版非空非波纹格数");
+            Assert.Greater(grid.WaterCellCount, 0, "level_27 也有水（岛与岛之间）");
+
+            for (int i = 0; i < level.Units.Count; i++)
+            {
+                LevelUnit u = level.Units[i];
+                Assert.IsTrue(grid.IsGroundAt(u.gridX, u.gridY),
+                    "level_27 的 " + u.typeName + " (" + u.gridX + "," + u.gridY + ") 应站在原版地面上");
+            }
         }
 
         // ------------------------------------------------------------------
@@ -248,24 +263,29 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         public void AiTerrain_PlatformLevel_WaterBlocked_DeckPlaceable()
         {
             // 【平台化修正】旧判据（块高>0）会把整片甲板误判为占用；水格才是不可放置的格。
+            // 【2026-09-14 起以原版 tile 地图为准】抽查格改为原版行串给的地面格：
+            // (21,8) 海面 / (17,10) 左船体甲板（4 块基准 + 1 块局部 = 5 块）/ (24,5) 西侧草岛（13 块）。
             TileTerrainGrid grid = TerrainCatalog.Build(1, 50, 17);
             var terrain = new AiTerrain(0f, 50f * 32f, 0f, 17f * 32f, grid);
 
-            // 水格（(21,8) 水道中心 → 世界 (21.5,8.5) → 像素 (688,272)）：不可放置。
+            // 水格（(21,8) 海面 → 世界 (21.5,8.5) → 像素 (688,272)）：不可放置。
             Assert.IsFalse(grid.IsGroundAt(21, 8));
             Assert.IsTrue(terrain.IsBlocked(21.5f * 32f, 8.5f * 32f), "水格不可放置箱体");
             Assert.IsFalse(terrain.CanPlace(21.5f * 32f, 8.5f * 32f, 8f, 8f));
 
-            // 平台甲板（(24,5)，块高 2）：合法放置面——修复「甲板全被判占用」。
-            Assert.IsTrue(grid.IsGroundAt(24, 5));
-            Assert.IsFalse(terrain.IsBlocked(24.5f * 32f, 5.5f * 32f), "平台甲板是合法放置面");
-            Assert.IsTrue(terrain.CanPlace(24.5f * 32f, 5.5f * 32f, 8f, 8f));
+            // 船体甲板（(17,10)，5 块）：合法放置面——修复「甲板全被判占用」。
+            Assert.IsTrue(grid.IsGroundAt(17, 10));
+            Assert.IsFalse(terrain.IsBlocked(17.5f * 32f, 10.5f * 32f), "平台甲板是合法放置面");
+            Assert.IsTrue(terrain.CanPlace(17.5f * 32f, 10.5f * 32f, 8f, 8f));
 
-            // 桅盘 5 块：块高 ≠ 墙，仍是可放置面；但 IsRaisedWallAt 能识别它是高台。
-            Assert.AreEqual(5, grid.BlocksAt(29, 8));
-            Assert.IsFalse(terrain.IsBlocked(29.5f * 32f, 8.5f * 32f), "高楼顶也是平台地面，可放置");
-            Assert.IsTrue(terrain.IsRaisedWallAt(29.5f * 32f, 8.5f * 32f), "块高≥阈值应识别为高墙/高台");
-            Assert.IsFalse(terrain.IsRaisedWallAt(24.5f * 32f, 5.5f * 32f), "2 块甲板不是高墙");
+            // 西侧草岛（(24,5)，13 块）：块高 ≠ 墙，仍是可放置面；但 IsRaisedWallAt 能识别它是高台。
+            Assert.AreEqual(13, grid.BlocksAt(24, 5));
+            Assert.IsFalse(terrain.IsBlocked(24.5f * 32f, 5.5f * 32f), "高楼顶也是平台地面，可放置");
+            Assert.IsTrue(terrain.IsRaisedWallAt(24.5f * 32f, 5.5f * 32f), "块高≥阈值应识别为高墙/高台");
+
+            // 【原版 tile 地图的特点】岛高来自原版行号，最低的船体甲板也有 5 块（4 基准 + 1 局部），
+            // 一律 ≥ 高墙阈值，故这些格都会被识别为"高台"——但它们仍是可放置面（上面那条断言）。
+            Assert.IsTrue(terrain.IsRaisedWallAt(17.5f * 32f, 10.5f * 32f), "5 块甲板也高于高墙阈值");
         }
 
         [Test]
