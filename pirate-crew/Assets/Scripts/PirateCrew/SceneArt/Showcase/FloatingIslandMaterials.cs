@@ -66,7 +66,7 @@ namespace PirateCrew.PirateCrew.SceneArt.Showcase
         Banner,
     }
 
-    /// <summary>材质槽位对应的 shader 家族（决定 <c>Assets/Editor/FloatingIslandSceneSetup.cs</c> 怎么建材质）。</summary>
+    /// <summary>材质槽位对应的 shader 家族（决定 <c>Assets/Editor/FloatingIslandShowcaseMenu.cs</c> 怎么建材质）。</summary>
     public enum IslandShaderKind
     {
         /// <summary><c>PirateCrew/PirateSurface</c>：三档色阶 + 片元程序化噪声的写实不透明表面（岩/草/木/石）。</summary>

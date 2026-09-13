@@ -158,6 +158,39 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>
+        /// 样板三关模式：只建**碰撞层**（每实心格一个隐形 Cube+BoxCollider，单位与弹体的物理地面），
+        /// 不建格子视觉壳——外观全部由 ShowcaseLevels 的自由几何承担（玩家看不到任何格子）。
+        /// </summary>
+        public void RenderCollidersOnly(TileTerrainGrid terrainGrid)
+        {
+            grid = terrainGrid;
+            ClearAll();
+
+            if (grid == null)
+            {
+                Bump();
+                return;
+            }
+
+            Transform root = blockRoot != null ? blockRoot : transform;
+            _cellObjects = new GameObject[grid.WidthTiles * grid.DepthTiles];
+
+            for (int gy = 0; gy < grid.DepthTiles; gy++)
+            {
+                for (int gx = 0; gx < grid.WidthTiles; gx++)
+                {
+                    int index = gx + gy * grid.WidthTiles;
+                    if (grid.BlocksAt(gx, gy) <= 0)
+                        continue;
+
+                    _cellObjects[index] = CreateCollisionBlock(root, index);
+                }
+            }
+
+            Bump();
+        }
+
+        /// <summary>
         /// 爆炸破坏后刷新被摧毁的格（高度归零 → 移除碰撞块并重建视觉壳）。
         /// </summary>
         public void ApplyDestruction(IReadOnlyList<int> cellIndices)

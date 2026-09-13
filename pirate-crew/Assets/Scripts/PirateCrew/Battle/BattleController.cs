@@ -220,9 +220,14 @@ namespace PirateCrew.PirateCrew.Battle
                     : level.LevelNumber;
             }
 
+            // 【样板三关】1/2/3 号被 ShowcaseLevels 覆盖（云朵场/双大船/山包+空岛）：
+            // 出战数据手写（自由几何场景），不经 LevelCatalog 的原版转写表。
+            LevelData? showcaseData = SceneArt.ShowcaseLevels.BuildLevelData(levelNumber);
+
             _plan = level != null && ArtReview.ArtReviewCaptureOverride.LevelNumber <= 0
                 ? LevelGeometry.BuildBattlePlan(level)
-                : LevelGeometry.BuildBattlePlan(LevelCatalog.Get(levelNumber));
+                : LevelGeometry.BuildBattlePlan(
+                    showcaseData != null ? showcaseData.Value : LevelCatalog.Get(levelNumber));
 
             _waterWorldY = _plan.WaterWorldY;
             _teams[0] = new BattleTeam(1, aiControlled: false);
@@ -239,6 +244,16 @@ namespace PirateCrew.PirateCrew.Battle
         void BuildTerrain()
         {
             int levelNumber = _plan.LevelNumber;
+
+            // 【样板三关】逻辑格子 = ShowcaseLevels 手拼的隐形高度场（只喂站位 Y 与 AI 落点）；
+            // BattleTerrainView 只建碰撞层（隐形 BoxCollider），不建格子渲染层。
+            if (SceneArt.ShowcaseLevels.IsShowcase(levelNumber))
+            {
+                Terrain = SceneArt.ShowcaseLevels.BuildLogicGrid(levelNumber);
+                if (terrainView != null)
+                    terrainView.RenderCollidersOnly(Terrain);
+                return;
+            }
 
             TileTerrainGrid built = null;
             if (PlatformClusterLayout.TryBuildFor(levelNumber, out PlatformMap map)
@@ -577,6 +592,11 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>爆炸范围内整格摧毁地形块，并通知视图刷新。</summary>
         void DestroyTerrainInBlast(Vector3 worldCenter, float radiusWorld)
         {
+            // 【样板三关】地形不可摧毁（原版语义：原版没有地形破坏，只有木箱/火药桶可破坏——
+            // 逆向文档 §对比表）。样板关的格子只是隐形逻辑高度场，炸了会让站位高度漂移。
+            if (SceneArt.ShowcaseLevels.IsShowcase(LevelNumber))
+                return;
+
             if (Terrain == null)
                 return;
 

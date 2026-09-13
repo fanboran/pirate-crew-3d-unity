@@ -155,18 +155,20 @@ namespace PirateCrew.PirateCrew.SceneArt.Showcase
         public const float ArenaClearance = 9f;
 
         /// <summary>
-        /// 摆放高度：让**岛尖**（局部 y = -RockDepth，另加悬瀑可再向下延伸）恰好高于
+        /// 摆放高度：让全岛**最深的零件**（含抖动后的悬瀑末端与其雾团）恰好不低于
         /// <paramref name="arenaY"/> + <see cref="ArenaClearance"/>。
         /// 【为什么按包围盒算而不写常量】悬瀑/石笋的长度都是可调参数，写死高度会在调参后
         /// "岛尖穿进竞技场"或"飞得太高出画"，而这两种失败都只能靠出图发现。
+        /// 【为什么悬瀑要乘 1.15 再加 2】<c>AddWaterfalls</c> 的实际帘长 = WaterfallLength × (0.86-1.14)
+        /// （逐条抖动），末端雾团再向下垂 0.5-1.9——只按标称值取深会把"净空 9"漏成"净空约 4"。
         /// </summary>
         public static float PlacementHeight(FloatingIslandSpec spec, float arenaY = 0f)
         {
             if (spec == null)
                 spec = FloatingIslandSpec.Default;
 
-            // 悬瀑 (WaterfallLength) 与岛体 (RockDepth) 取更深者，再留净空。
-            float deepest = Mathf.Max(spec.RockDepth, spec.WaterfallLength);
+            // 最深零件：岛体尖端 vs 抖动后的悬瀑末端 + 末端雾团（1.15 覆盖 ±14% 帘长抖动，+2 覆盖雾团下垂）。
+            float deepest = Mathf.Max(spec.RockDepth, spec.WaterfallLength * 1.15f + 2f);
             return arenaY + ArenaClearance + deepest;
         }
 
@@ -273,12 +275,97 @@ namespace PirateCrew.PirateCrew.SceneArt.Showcase
             return height * t * t;
         }
 
-        /// <summary>顶面上某个方位/半径比例处的落点（y 已贴合草皮面）。</summary>
-        static Vector3 OnPlateau(FloatingIslandSpec spec, float angle, float scaleXZ)
+        /// <summary>顶面上某个方位/半径比例处的落点（y 已贴合草皮面）。公开给出生点表/测试复用。</summary>
+        public static Vector3 OnPlateau(FloatingIslandSpec spec, float angle, float scaleXZ)
         {
             float x = Mathf.Cos(angle) * spec.RadiusX * scaleXZ;
             float z = Mathf.Sin(angle) * spec.RadiusZ * scaleXZ;
             return new Vector3(x, PlateauY(spec, x, z), z);
+        }
+
+        /// <summary>
+        /// 顶面**预留区**快照（不可站位/摆放的圆形区域）：遗迹台基、瞭望台、老树、两处水潭。
+        /// <see cref="Compose"/> 内部的排斥圈与 <see cref="FloatingIslandSpawnTable"/> 的出生点
+        /// 校验共用这一份——两处各写一遍必然漂移。
+        /// </summary>
+        public static IslandKeepOutZone[] BuildKeepOutZones(FloatingIslandSpec spec)
+        {
+            if (spec == null)
+                spec = FloatingIslandSpec.Default;
+
+            var zones = new List<IslandKeepOutZone>(6);
+            zones.Add(new IslandKeepOutZone(OnPlateau(spec, spec.RuinAngle, 0.44f), 4.6f));
+            zones.Add(new IslandKeepOutZone(OnPlateau(spec, spec.WatchAngle, 0.70f), 3.4f));
+            zones.Add(new IslandKeepOutZone(OnPlateau(spec, 2.55f, 0.34f), 2.4f));   // 老树
+
+            // 水潭：只有前两条瀑布带潭（第三条是干瀑）；角度公式与 AddWaterfalls 同一出处。
+            int count = Mathf.Clamp(spec.WaterfallCount, 0, 6);
+            for (int i = 0; i < Mathf.Min(2, count); i++)
+                zones.Add(new IslandKeepOutZone(OnPlateau(spec, WaterfallAngle(spec, i, count), 0.42f), 2.6f));
+
+            return zones.ToArray();
+        }
+
+        /// <summary>
+        /// 第 <paramref name="index"/> 条悬瀑的方位角（AddWaterfalls 与 BuildKeepOutZones 共用，
+        /// 含"避开遗迹/瞭望台扇区"的两段偏移）。
+        /// </summary>
+        static float WaterfallAngle(FloatingIslandSpec spec, int index, int count)
+        {
+            float ang = Mathf.PI * 2f * index / count + 0.7f
+                + SceneArtHash.SignedHash(spec.Seed, index, 401) * 0.35f;
+            if (AngleDistance(ang, spec.RuinAngle) < 0.45f)
+                ang += 0.5f;
+            if (AngleDistance(ang, spec.WatchAngle) < 0.45f)
+                ang -= 0.5f;
+            return ang;
+        }
+
+        // ==================================================================
+        // 可玩性：顶面碰撞代理（第 3 关把它当地面）
+        // ==================================================================
+
+        /// <summary>
+        /// 顶面**碰撞代理**网格：与 <see cref="AddPlateau"/> 同一套环（rim → 0.72 → 0.44 → 0.18 → 毂）
+        /// + 草皮垂帘侧裙 + 底盖，构成一个近似封闭的薄壳。供 MeshCollider（凹面、静态）使用——
+        /// 单位（Rigidbody）站在上面不掉、弹体（物理回调）从任何方向撞壳都会起爆。
+        ///
+        /// 【为什么是独立薄壳而不是给渲染网格挂 Collider】草皮槽里混着几百片双面草叶/树冠，
+        /// 给它们烘焙物理网格既慢又是噪声；薄壳只有 ~160 面且与顶面同公式（本函数与 AddPlateau
+        /// 都从同一 rim 推导），"看着站的地方"与"物理上站的地方"不会分叉。
+        /// 【近似取舍】崖壁中下段（垂帘 0.8m 以下）没有专门碰撞：弹体穿入壳内会打在底盖/顶棚上
+        /// 起爆，表现上仍是"打在岛体上"，不为它加整套岩层碰撞。
+        /// </summary>
+        public static void BuildCollisionSurface(MeshBuffers target, FloatingIslandSpec spec)
+        {
+            if (target == null)
+                return;
+            if (spec == null)
+                spec = FloatingIslandSpec.Default;
+
+            int seed = spec.Seed;
+            Vector3[] rim = IslandPrimitives.Ring(spec.RimSegments, 0f, spec.RadiusX, spec.RadiusZ,
+                seed, 101, 0.13f, 0f);
+            for (int i = 0; i < rim.Length; i++)
+                rim[i].y = PlateauY(spec, rim[i].x, rim[i].z);
+
+            Vector3[] ringA = Conform(spec, rim, 0.72f);
+            Vector3[] ringB = Conform(spec, rim, 0.44f);
+            Vector3[] ringC = Conform(spec, rim, 0.18f);
+            Vector3 hub = new Vector3(0f, PlateauY(spec, 0f, 0f), 0f);
+
+            // 顶面（可站面）。
+            IslandPrimitives.AddAnnulus(target, rim, ringA, Vector3.up);
+            IslandPrimitives.AddAnnulus(target, ringA, ringB, Vector3.up);
+            IslandPrimitives.AddAnnulus(target, ringB, ringC, Vector3.up);
+            IslandPrimitives.AddFan(target, ringC, hub, Vector3.up);
+
+            // 侧裙（垂帘同位：外扩 3.5% 落 0.8m）+ 底盖（弹体从下方/侧方打岛的兜底面）。
+            Vector3[] fringe = IslandPrimitives.ScaleRing(rim, 1.035f, 0f, seed, 131, 0.045f, 0.22f);
+            for (int i = 0; i < fringe.Length; i++)
+                fringe[i].y = rim[i].y - 0.8f;
+            IslandPrimitives.AddSideRing(target, rim, fringe);
+            IslandPrimitives.AddFan(target, fringe, new Vector3(0f, fringe[0].y - 0.2f, 0f), Vector3.down);
         }
 
         // ==================================================================
@@ -502,12 +589,9 @@ namespace PirateCrew.PirateCrew.SceneArt.Showcase
 
             for (int i = 0; i < count; i++)
             {
-                // 方位：均匀分布 + 抖动；避开遗迹与瞭望台所在扇区。
-                float ang = Mathf.PI * 2f * i / count + 0.7f + SceneArtHash.SignedHash(seed, i, 401) * 0.35f;
-                if (AngleDistance(ang, spec.RuinAngle) < 0.45f)
-                    ang += 0.5f;
-                if (AngleDistance(ang, spec.WatchAngle) < 0.45f)
-                    ang -= 0.5f;
+                // 方位：均匀分布 + 抖动 + 避开遗迹/瞭望台扇区（公式在 WaterfallAngle，
+                // 与 BuildKeepOutZones 的水潭圈共用，两处永不漂移）。
+                float ang = WaterfallAngle(spec, i, count);
 
                 int idx = IndexNearest(rim, ang);
                 Vector3 rimPt = rim[idx];
@@ -1273,6 +1357,26 @@ namespace PirateCrew.PirateCrew.SceneArt.Showcase
                 Z = center.z;
                 Radius = radius;
             }
+        }
+    }
+
+    /// <summary>
+    /// 空岛顶面的**预留区**（公开快照，<see cref="FloatingIslandComposer.BuildKeepOutZones"/> 产出）：
+    /// 遗迹台基 / 瞭望台 / 老树 / 水潭——出生点与任何"要站在顶面上的新零件"都必须避开它们。
+    /// </summary>
+    public readonly struct IslandKeepOutZone
+    {
+        /// <summary>区域中心（局部坐标，y 已贴草皮面）。</summary>
+        public readonly Vector3 Center;
+
+        /// <summary>区域半径（世界单位）。</summary>
+        public readonly float Radius;
+
+        /// <summary>构造预留区。</summary>
+        public IslandKeepOutZone(Vector3 center, float radius)
+        {
+            Center = center;
+            Radius = radius;
         }
     }
 }

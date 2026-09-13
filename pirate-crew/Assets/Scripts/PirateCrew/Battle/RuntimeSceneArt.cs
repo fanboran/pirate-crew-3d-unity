@@ -110,6 +110,10 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("远景/植被是否走分层材质组（关闭则远景并进单组，与旧烘焙口径一致）。")]
         [SerializeField] bool useTieredGroups = true;
 
+        [Tooltip("超美空岛根（场景内静态物，由 FloatingIslandShowcaseMenu.PlaceIntoBattleCenter 烘进场景）。"
+            + "只有样板第 3 关激活，其余关卡隐藏。")]
+        [SerializeField] GameObject skyIslandRoot;
+
         // 生成物（每次重建先删后建；只删自己的，不动 Ambient 等同级子节点）。
         readonly List<GameObject> _groups = new List<GameObject>(GroupCount);
 
@@ -139,6 +143,24 @@ namespace PirateCrew.PirateCrew.Battle
         public void RebuildFor(int levelNumber)
         {
             Clear();
+
+            // 场景内静态空岛：只有样板第 3 关可见（其余关卡/旧关一律隐藏）。
+            if (skyIslandRoot != null && skyIslandRoot.activeSelf != (levelNumber == 3))
+                skyIslandRoot.SetActive(levelNumber == 3);
+
+            // 【样板三关】自由几何装配（云朵/双大船/山包+超美空岛），完全不走格子链——
+            // 轮廓由 ShowcaseLevels 的几何装配器生成，格子只作为隐形逻辑高度场存在。
+            if (SceneArt.ShowcaseLevels.IsShowcase(levelNumber))
+            {
+                var showcaseBuffers = new ScenePropBuffers();
+                ShowcaseLevels.ComposeInto(showcaseBuffers, levelNumber, Root);
+
+                LastGroupCount = EmitGroups(showcaseBuffers, null);
+                LastLevelNumber = levelNumber;
+                LastClusterCount = 0;
+                LastTriangleCount = showcaseBuffers.TotalTriangles;
+                return;
+            }
 
             if (!LevelCatalog.IsTranscribed(levelNumber))
             {
