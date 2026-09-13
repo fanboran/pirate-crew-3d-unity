@@ -22,19 +22,22 @@ namespace PirateCrew.PirateCrew.Battle
     ///   ② 阵营色 MPB 会把阴影染成队伍色（红队红影、蓝队蓝影），比没阴影更假。
     ///   故 <c>UnitOutlineBinder.CollectRenderers</c> 显式跳过带本组件的 renderer。
     ///
-    /// 【r4 复验"脚下灰色刀片状碎片"不是本面片（已排除，别再往这里改）】
+    /// 【r4 复验"脚下灰色刀片状碎片"与本面片无关（已排除，别再往这里改）】
     ///   面片是 **y=地面+0.02 的水平 quad**（0.6×0.6，近黑 (0.015,0.015,0.020)、α 中心 0.45），
-    ///   而碎片实测取色 <c>(70,67,61)</c> = <c>CrewIron</c> 基础色 (0.431,0.416,0.388) 在阴影下的值，
-    ///   形状是**竖直薄板**（船长佩剑 0.014×0.150×0.004 的刀身）。根因是手持武器刀尖穿到脚底平面以下：
-    ///   修在建预制体侧 <c>CrewVisualPrefabBuilder.ApplyHeldWeaponFloorFit</c>。
-    ///   面片自身不参与描边/染色，与地形的贴合由 <see cref="DefaultGroundOffset"/> 保证。
+    ///   而当时的碎片实测取色 <c>(70,67,61)</c>（<c>CrewIron</c> 基础色在阴影下的值）、形状是**竖直薄板**
+    ///   —— 归属是当年的手持武器刀尖穿到脚底平面以下。用户裁决（2026-09-14）回归 Godot 两件式造型后，
+    ///   单位已**没有任何手持物/武器零件**（`CrewVisualPrefabBuilder.ApplyGodotTwoPieceSilhouette`），
+    ///   该碎片来源不复存在；面片自身不参与描边/染色，与地形的贴合由 <see cref="DefaultGroundOffset"/> 保证。
     ///
     /// 【参数口径】数值与 docs/美术风格指南.md §4.1 的提案一致；标【提案】。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class ContactShadowDecal : MonoBehaviour
     {
-        /// <summary>提案直径：0.6 世界单位（约 1.2 倍单位脚间距，能同时罩住两只靴子）。</summary>
+        /// <summary>
+        /// 提案直径：0.6 世界单位 —— 约为单位碰撞足迹（0.375）的 1.6 倍、两件式圆台柱底径（0.238）的 2.5 倍，
+        /// 足以在脚下形成一圈可见的压暗而不外溢到相邻格（1 格 = 1 世界单位）。
+        /// </summary>
         public const float DefaultDiameter = 0.6f;
 
         /// <summary>提案贴地抬高：0.02 世界单位（避免与地面 z-fighting，肉眼仍视为贴地）。</summary>

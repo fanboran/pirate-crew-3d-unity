@@ -18,9 +18,10 @@ namespace PirateCrew.PirateCrew.Battle
     ///   共享材质资产本身不被改脏。代价是该渲染器会退出 SRP Batcher 批次，
     ///   对全场十余个单位量级没有实际影响。
     ///
-    /// 【多渲染器（角色部件化改造）】单位不再是单立方体，而是"头/躯干/四肢/配件/手持物"
-    /// 多个子 renderer（见 <see cref="CrewVisualRig"/>）。描边必须**逐 renderer**写
-    /// <c>_OutlineState</c>，否则会出现"躯干变青、帽子不变青"的破绽
+    /// 【多渲染器（两件式造型 — 用户裁决 2026-09-14）】单位不再是单立方体，而是与 Godot 基准
+    /// `pirate.tscn` 一致的**两件**：<c>Body</c>（圆台柱，阵营色）+ <c>Head</c>（圆球，木色），
+    /// 另加一张贴地的接触阴影面片（见 <see cref="CrewVisualRig"/> 与 docs/角色造型规范.md）。
+    /// 描边必须**逐 renderer**写 <c>_OutlineState</c>，否则会出现"躯干变青、头不变青"的破绽
     /// （docs/角色造型规范.md §5 接线要求 1 / R-5）。
     ///
     /// 【收集口径（2026-09-13 r3 复验后收紧）】
@@ -38,9 +39,10 @@ namespace PirateCrew.PirateCrew.Battle
     ///      <c>CrewVisualPrefabBuilder</c> 在建预制体时把"该染色的 renderer 列表"直接写进
     ///      <see cref="teamTintRenderers"/>，并用运行时标记作为回落（兼容手工装配的旧预制体）。
     ///
-    /// 【阵营色与"不得污染"纪律】只有阵营色部件（头巾/上衣/腰带等大色块）才写队伍色
-    /// <c>_BaseColor</c>；皮肤/铁/木/骨/皮革保留各自材质基础色（docs/角色造型规范.md §2.1）。
-    /// 拿不到任何阵营色部件时**绝不**回落到"整只染色"（那会把肤色染蓝）——只有旧单立方体结构
+    /// 【阵营色与"不得污染"纪律】两件式下只有 <c>Body</c>（阵营色圆台柱）写队伍色
+    /// <c>_BaseColor</c>；<c>Head</c> 是木色（Godot `cel_wood`）**不得**被染成队伍色
+    /// （docs/角色造型规范.md §2.1）。
+    /// 拿不到任何阵营色部件时**绝不**回落到"整只染色"（那会把头也染成队伍色）——只有旧单立方体结构
     /// （无 rig、只有一个 renderer）才保持旧的整只染色行为，保证既有选中验收不回归。
     ///
     /// 【受击白闪】<see cref="SetColorFlash"/> 由 <c>CrewVisualAnimator</c> 驱动：
@@ -60,30 +62,29 @@ namespace PirateCrew.PirateCrew.Battle
     ///      即几何、机位、材质、shader 都没变。
     ///   真正的变量是**选中虚线的相位/周期**：<c>_DashFrequency=50</c> 在 1080p 下 ON≈34px / OFF≈34px
     ///   （r3 实测三个青色带各 33px 高、间距 67~69px，与该换算吻合），而 <c>phase</c> 含
-    ///   <c>_Time.y × _DashSpeed</c> → **哪个部件落在 ON 带全凭截帧时刻**：r3 的三条带落在肩/腰/裙摆，
-    ///   r4 只落在腰带缝 → 同一套几何给出 823 vs 265px。部件高度与 OFF 带同量级的小件（靴 ~15px、
-    ///   腰带 ~16px）甚至可能整件落在 OFF 带里 → 判据里的"某部件 0 青色"。
+    ///   <c>_Time.y × _DashSpeed</c> → **哪个部件落在 ON 带全凭截帧时刻**，同一套几何会给出
+    ///   823px 与 265px 两种结果。当单位由多个小件组成时，高度与 OFF 带同量级的小件甚至可能整件
+    ///   落在 OFF 带里 → 判据里的"某部件 0 青色"。
     ///   故修法在材质侧（<c>CrewVisualPrefabBuilder.ApplyOutlineUnitMaterial</c> 提高 <c>_DashFrequency</c>，
     ///   使周期远小于最小部件），**不需要也不应该再改本类的收集逻辑**。
+    ///   两件式（Body 高 0.357、Head 直径 0.208）下这两个部件都远大于 OFF 带，该风险已消失。
     ///
     /// 【本类的职责边界（r5 起）】读状态 → 写属性 → 自检：
     ///   · 收集（全量扫描、只排除接触阴影面片）；收集为空**显式报错**（不再静默）；
     ///   · 逐 renderer 写 MPB 覆盖 <c>_OutlineState</c>（+ 阵营色部件写 <c>_BaseColor</c>）；
     ///   · 周期性抽检：MPB 被外部成分（对象池复用/别的组件整块覆盖）清掉时强制重写并告警。
     ///
-    /// 【r6 复验取证结论（不要再往"收集漏了 / 材质缺属性"上找）】
-    ///   7 个角色预制体的**逐部件 YAML 对照**（Sailor/Captain/Bombardier/Sniper/Hook/Skeleton/Arsonist）
-    ///   证明：除 <c>ContactShadow</c>（CrewContactShadow.mat，无 _OutlineState，且被本类显式排除）外，
-    ///   所有部件材质都命中那 12 个带 <c>_OutlineState</c> 的 Crew 材质——Head/Nose/ArmL/ArmR 用 CrewSkin，
-    ///   Bandana/BandanaKnot/Tricorn 用 CrewTeamCloth（与躯干**是同一个材质资产**，躯干有青、它没有 →
-    ///   已证明不是材质问题）。也排除了"部件 inactive"：预制体里所有部件 <c>m_IsActive=1</c>、
-    ///   MeshRenderer <c>m_Enabled=1</c>；且 <c>GetComponentsInChildren&lt;Renderer&gt;(true)</c> 本就含
-    ///   inactive 子物体，MPB 写到 inactive renderer 同样有效（只是等它启用才画）。
-    ///   故 r6 分两处收口：
-    ///   ① 本类新增 <see cref="LogPartInventoryOnce"/>——首次收集后打一份"部件 → 材质 → 有无
-    ///      _OutlineState"清单，让这类怀疑**一眼可判**，不必再读 YAML；
-    ///   ② 真正的原因是屏幕空间法线外扩在特写距离只有 ~1px（推导见
-    ///      <c>CrewVisualPrefabBuilder.OutlineWidthSelected</c>），修在材质常量侧（0.006 → 0.010）。
+    /// 【"部件选中不发青"的取证结论（不要再往"收集漏了 / 材质缺属性"上找）】
+    ///   逐部件 YAML 对照证明：除 <c>ContactShadow</c>（CrewContactShadow.mat，无 _OutlineState，
+    ///   且被本类显式排除）外，所有部件材质都命中带 <c>_OutlineState</c> 的 Crew 材质
+    ///   （两件式下：<c>Body</c> = CrewTeamCloth、<c>Head</c> = CrewWood，两者都带描边 Pass）。
+    ///   也排除了"部件 inactive"：预制体里所有部件 <c>m_IsActive=1</c>、MeshRenderer <c>m_Enabled=1</c>；
+    ///   且 <c>GetComponentsInChildren&lt;Renderer&gt;(true)</c> 本就含 inactive 子物体，MPB 写到
+    ///   inactive renderer 同样有效（只是等它启用才画）。
+    ///   真正的变量是**屏幕空间法线外扩在特写距离下只有 ~1px**（推导见
+    ///   <c>CrewVisualPrefabBuilder.OutlineWidthSelected</c>），故修在材质常量侧（0.006 → 0.010）。
+    ///   本类另留 <see cref="LogPartInventoryOnce"/>——首次收集后打一份"部件 → 材质 → 有无
+    ///   _OutlineState"清单，让这类怀疑**一眼可判**，不必再读 YAML。
     ///
     /// 【分层】状态判定在纯逻辑 <see cref="OutlineStateRules"/>（可无头测）；
     ///         本类只做"读状态 → 写属性"的引擎侧薄壳。
