@@ -210,11 +210,17 @@ namespace PirateCrew.PirateCrew.Battle
             // 【关卡注入】场景未指定 level 资产时，改由战役侧「已选、等待结算的关卡」决定加载哪张竞技场
             // （CampaignApi.PendingBattleLevelNumberOr 是 M3 agent 备好的衔接点：只在 LevelCatalog
             // 已转写的关卡上生效，未转写/无待战关卡时回落到 fallbackLevelNumber，不会抛 KeyNotFound）。
-            int levelNumber = level == null
-                ? CampaignApi.PendingBattleLevelNumberOr(fallbackLevelNumber)
-                : level.LevelNumber;
+            // 美术评审专用覆盖（PlayerArtCapture -artReviewLevel N）：优先级最高，仅用于无头出图验收，
+            // 正常玩法不走这条（走 CampaignApi 选关链）。
+            int levelNumber = ArtReview.ArtReviewCaptureOverride.LevelNumber;
+            if (levelNumber <= 0)
+            {
+                levelNumber = level == null
+                    ? CampaignApi.PendingBattleLevelNumberOr(fallbackLevelNumber)
+                    : level.LevelNumber;
+            }
 
-            _plan = level != null
+            _plan = level != null && ArtReview.ArtReviewCaptureOverride.LevelNumber <= 0
                 ? LevelGeometry.BuildBattlePlan(level)
                 : LevelGeometry.BuildBattlePlan(LevelCatalog.Get(levelNumber));
 

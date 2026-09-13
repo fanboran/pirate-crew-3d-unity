@@ -65,7 +65,7 @@ namespace PirateCrew.PirateCrew.ArtReview
         /// battle-45/hud-fullscreen 瞄准点的高度（世界 Y）。地面顶面 y=0，单位身高约 1.5–2，
         /// 瞄 0.8 约在胸口；必须与 `ArtReviewShots.cs` 的 LookAtOffset.y 一致。
         /// </summary>
-        const float TeamMidAimHeight = 0.8f;
+        const float TeamMidAimHeight = 1.2f;
 
         string _outDir;
         Camera _camera;
@@ -86,7 +86,13 @@ namespace PirateCrew.PirateCrew.ArtReview
                 if (args[i] == "-artReviewOut")
                 {
                     outDir = args[i + 1];
-                    break;
+                }
+                else if (args[i] == "-artReviewLevel"
+                    && int.TryParse(args[i + 1], out int levelArg)
+                    && levelArg >= 1 && levelArg <= Data.LevelCatalog.TotalLevels)
+                {
+                    // 多关卡出图验收：覆盖 BattleController 的关卡解析（见 ArtReviewCaptureOverride）。
+                    ArtReviewCaptureOverride.LevelNumber = levelArg;
                 }
             }
             if (string.IsNullOrEmpty(outDir))
@@ -309,7 +315,7 @@ namespace PirateCrew.PirateCrew.ArtReview
             {
                 Vector3 u = _focusUnit.position;
                 shots.Add(NewShot(UnitCloseupShotName, false,
-                    u + new Vector3(1.1f, 0.9f, 1.4f), 45f, u + new Vector3(0f, 0.25f, 0f)));
+                    u + new Vector3(1.1f, 0.9f, 1.4f), 45f, u + new Vector3(0f, 1.2f, 0f)));
             }
 
             // 爆炸瞬间：斜 45° 中景正视爆心（r3 的近正俯视 (0,6,2) 既框歪又不显火光）。
