@@ -1134,7 +1134,9 @@ namespace PirateCrew.EditorTools
             material.SetFloat("_OutlineExpandMode", 0f);              // 0 = 屏幕空间恒定粗细（Godot 等价做法）
             material.SetFloat("_OutlineDistanceAttenuation", 0.4f);   // Godot 默认 0.4
             material.SetFloat("_DashSpeed", 5f);
-            material.SetFloat("_DashFrequency", 50f);
+            // 与 CrewVisualPrefabBuilder.DashFrequencySelected 同步（r5：50→150，
+            // OFF 带短于最小部件，防"整件落在 OFF 带"的描边假阴性；推导见该常量注释）。
+            material.SetFloat("_DashFrequency", 150f);
             material.SetFloat("_DebugMode", 0f);
 
             AssetDatabase.CreateAsset(material, OutlineMaterialPath);

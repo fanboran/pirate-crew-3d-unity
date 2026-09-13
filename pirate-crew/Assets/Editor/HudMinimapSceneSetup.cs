@@ -1,3 +1,4 @@
+using System.IO;
 using PirateCrew.PirateCrew.Battle;
 using PirateCrew.PirateCrew.Data;
 using PirateCrew.UI;
@@ -63,6 +64,27 @@ namespace PirateCrew.EditorTools
 
         /// <summary>岛格草色（抬起的台面）。【提案/待定】色值取工单给的 <c>#6FA86F 系</c>。</summary>
         static readonly Color GrassTileColor = new Color(0x6F / 255f, 0xA8 / 255f, 0x6F / 255f, 1f);
+
+        // ------------------------------------------------------------------
+        // P2-2 岸线侵蚀参数（把「轴对齐矩形岛」打散成不规则岸线）
+        // ------------------------------------------------------------------
+
+        /// <summary>边缘格朝向水一侧的缩进下限（单位 = 格宽；r4 工单 0.2-0.4 格）。</summary>
+        const float ErosionInsetMin = 0.20f;
+
+        /// <summary>边缘格朝向水一侧的缩进上限（单位 = 格宽）。</summary>
+        const float ErosionInsetMax = 0.40f;
+
+        /// <summary>凸角圆角 Sprite 的持久资产路径（单角圆角：缺角在贴图左上）。</summary>
+        const string CoastCornerSpritePath = "Assets/Art/Textures/UI/MinimapCoastCorner.png";
+
+        /// <summary>凸角 Sprite 的烘焙尺寸（像素）。</summary>
+        const int CoastCornerSpriteSize = 32;
+
+        /// <summary>凸角圆弧半径占边长的比例（0.42 → 圆角明显但仍是方块主体）。</summary>
+        const float CoastCornerRadiusRatio = 0.42f;
+
+        static Sprite _coastCornerSprite;
 
         /// <summary>小地图在屏幕左上角的外边距（统一口径 24px；原版 mapHolder 挂在 (20,20)，§2.3）。</summary>
         static readonly Vector2 PanelOffset = new Vector2(24f, -24f);
@@ -287,6 +309,17 @@ namespace PirateCrew.EditorTools
         /// 水格不画（点阵区底色 = 面板的「羊皮纸 × UI_SEA」，即 <see cref="UiTheme.Sea"/> 系）。
         /// 锚点口径与 <c>BattleMinimap.BuildTiles</c> 逐格一致，
         /// 保证单位点（按 <c>MinimapRules.ArenaToNormalized</c> 归一化定位）与岛格严格对齐。
+        ///
+        /// 【P2-2 岸线侵蚀（r4：三块岛是轴对齐矩形，加一个漂浮小矩形）】
+        /// 光按 tile 逐格画，矩形数据仍会画出矩形轮廓（平台簇本身是若干嵌套矩形 Step）。
+        /// 本轮在逐格基础上做两层处理，把直角岸线打散：
+        ///   ① <b>半格侵蚀</b>：朝向水的边按确定性哈希缩进 <see cref="ErosionInsetMin"/>–<see cref="ErosionInsetMax"/> 格宽
+        ///      （同一 (格,边) 每次都得同一值，可复现、可截图对比，不用 Random）；
+        ///   ② <b>凸角圆角化</b>：相邻两条水边的凸角格改用单角圆角 Sprite，并用 <c>localScale</c> 镜像把缺角
+        ///      旋到正确那一角（贴图缺角在左上；镜像映射见 <see cref="BakeIslandTiles"/> 内注释）；
+        ///   ③ <b>剔除孤立漂浮块</b>：四邻皆水的单格与任何岛都不连通，在小地图上读作"UI 残留"（r4 那个漂浮小矩形
+        ///      经查是关卡的「北侧小空岛」簇 ④，共 8 格、并非单格残留；单格残留在这里被剔除，簇 ④ 则被同一套
+        ///      侵蚀+圆角重画成不规则小岛，不再是一个漂浮方块）。
         /// </summary>
         /// <returns>烘焙出的岛格数（0 = 该关未转写地形 / 非平台关）。</returns>
         static int BakeIslandTiles(RectTransform layer, int levelNumber, int widthTiles, int depthTiles)
@@ -314,31 +347,240 @@ namespace PirateCrew.EditorTools
             if (grid == null)
                 return 0;
 
+            Sprite cornerSprite = GetCoastCornerSprite();   // 生成失败回落方角（不阻塞接线）
+            float tileW = 1f / widthTiles;
+            float tileH = 1f / depthTiles;
+
             int tiles = 0;
+            int isolated = 0;
             for (int gy = 0; gy < depthTiles; gy++)
             {
                 for (int gx = 0; gx < widthTiles; gx++)
                 {
-                    if (!grid.IsGroundAt(gx, gy))
+                    if (!IsGroundAt(grid, gx, gy))
                         continue;
+
+                    // 四邻是否水（越界按水算）。gy-1 = 屏幕上方（z 小）、gy+1 = 屏幕下方。
+                    bool waterLeft = !IsGroundAt(grid, gx - 1, gy);
+                    bool waterRight = !IsGroundAt(grid, gx + 1, gy);
+                    bool waterUp = !IsGroundAt(grid, gx, gy - 1);
+                    bool waterDown = !IsGroundAt(grid, gx, gy + 1);
+                    int waterSides = (waterLeft ? 1 : 0) + (waterRight ? 1 : 0)
+                                     + (waterUp ? 1 : 0) + (waterDown ? 1 : 0);
+
+                    // ③ 孤立漂浮块（与任何岛格不连通）：剔除，避免小地图出现漂浮小方块。
+                    if (waterSides == 4)
+                    {
+                        isolated++;
+                        continue;
+                    }
 
                     var go = new GameObject("IslandTile_" + gx + "_" + gy,
                         typeof(RectTransform), typeof(Image));
                     var rect = go.GetComponent<RectTransform>();
                     rect.SetParent(layer, false);
-                    rect.anchorMin = new Vector2((float)gx / widthTiles, 1f - (float)(gy + 1) / depthTiles);
-                    rect.anchorMax = new Vector2((float)(gx + 1) / widthTiles, 1f - (float)gy / depthTiles);
-                    rect.offsetMin = Vector2.zero;
-                    rect.offsetMax = Vector2.zero;
 
                     var image = go.GetComponent<Image>();
                     image.color = IslandTileColor(grid, gx, gy);
                     image.raycastTarget = false;
+
+                    bool convexCorner = waterSides == 2
+                        && (waterLeft && waterUp || waterLeft && waterDown
+                            || waterRight && waterUp || waterRight && waterDown);
+
+                    if (convexCorner && cornerSprite != null)
+                    {
+                        // ② 凸角格：整格铺满 + 单角圆角 Sprite，靠镜像缩放把缺角旋到水里那一侧。
+                        // 贴图缺角在「屏幕左上」；localScale 镜像映射：
+                        //   缺角目标 = 左上 → (1,1) / 右上 → (-1,1) / 左下 → (1,-1) / 右下 → (-1,-1)。
+                        image.sprite = cornerSprite;
+                        image.type = Image.Type.Simple;
+                        rect.anchorMin = new Vector2(gx * tileW, 1f - (gy + 1) * tileH);
+                        rect.anchorMax = new Vector2((gx + 1) * tileW, 1f - gy * tileH);
+                        rect.offsetMin = Vector2.zero;
+                        rect.offsetMax = Vector2.zero;
+                        rect.localScale = new Vector3(waterRight ? -1f : 1f, waterDown ? -1f : 1f, 1f);
+                    }
+                    else
+                    {
+                        // ① 直边/尖端：朝向水的边做确定性半格侵蚀（0.20–0.40 格宽），其余边贴满。
+                        float insetLeft = waterLeft ? ErosionInset(gx, gy, 0) : 0f;
+                        float insetRight = waterRight ? ErosionInset(gx, gy, 1) : 0f;
+                        float insetDown = waterDown ? ErosionInset(gx, gy, 2) : 0f;
+                        float insetUp = waterUp ? ErosionInset(gx, gy, 3) : 0f;
+
+                        // 直接用归一化 anchor 表达缩进（offset 恒 0）：与层级像素尺寸解耦，
+                        // 不依赖 RectTransform 布局是否已刷新。
+                        rect.anchorMin = new Vector2(
+                            gx * tileW + insetLeft * tileW,
+                            1f - (gy + 1) * tileH + insetDown * tileH);
+                        rect.anchorMax = new Vector2(
+                            (gx + 1) * tileW - insetRight * tileW,
+                            1f - gy * tileH - insetUp * tileH);
+                        rect.offsetMin = Vector2.zero;
+                        rect.offsetMax = Vector2.zero;
+                    }
+
                     tiles++;
                 }
             }
 
+            LogIslandComposition(grid, widthTiles, depthTiles, tiles, isolated);
             return tiles;
+        }
+
+        /// <summary>取格子是否地面；越界按水（false）。</summary>
+        static bool IsGroundAt(TileTerrainGrid grid, int gx, int gy)
+        {
+            if (grid == null)
+                return false;
+            if (gx < 0 || gy < 0 || gx >= grid.WidthTiles || gy >= grid.DepthTiles)
+                return false;
+            return grid.IsGroundAt(gx, gy);
+        }
+
+        /// <summary>
+        /// 确定性哈希（Wang hash 变体）→ [0,1)，用作某格某边的侵蚀缩进量。
+        /// 【为什么不用 UnityEngine.Random】接线可反复执行，必须每次得到同一条岸线，
+        /// 否则每次重建 HUD 小地图形状都会变，无法做截图前后对比。
+        /// </summary>
+        static float ErosionInset(int gx, int gy, int side)
+        {
+            uint h = (uint)(gx * 73856093 ^ gy * 19349663 ^ side * 83492791);
+            h ^= h >> 13;
+            h *= 1274126177u;
+            h ^= h >> 16;
+            float t = (h & 0xFFFFFFu) / (float)0xFFFFFFu;
+            return Mathf.Lerp(ErosionInsetMin, ErosionInsetMax, t);
+        }
+
+        /// <summary>
+        /// 输出岛/簇组成日志：既便于报告核对「漂浮小矩形」是谁，也便于测试断言。
+        /// 小簇（≤12 格）单独点名——r4 的漂浮小矩形即 <c>sky_islet_north</c>（8 格）这个真簇。
+        /// </summary>
+        static void LogIslandComposition(TileTerrainGrid grid, int widthTiles, int depthTiles,
+            int tiles, int isolated)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append("[HudMinimapSceneSetup] 岛层组成：").Append(tiles).Append(" 格（剔除孤立漂浮块 ")
+              .Append(isolated).Append(" 个）。");
+            int clusterCount = grid.ClusterCount;
+            for (int c = 0; c < clusterCount; c++)
+            {
+                PlatformClusterInfo info = grid.ClusterAt(c);
+                int cells = 0;
+                for (int gy = info.Z0; gy <= info.Z1 && gy < depthTiles; gy++)
+                {
+                    for (int gx = info.X0; gx <= info.X1 && gx < widthTiles; gx++)
+                    {
+                        if (gx >= 0 && gy >= 0 && grid.ClusterIndexOf(gx, gy) == c)
+                            cells++;
+                    }
+                }
+
+                sb.Append("\n  簇 ").Append(c).Append(" ").Append(info.Name)
+                  .Append("：").Append(cells).Append(" 格，包络 x").Append(info.X0).Append("-").Append(info.X1)
+                  .Append(" / z").Append(info.Z0).Append("-").Append(info.Z1);
+                if (cells <= 12)
+                    sb.Append("（小簇：小地图上易被读作漂浮小矩形）");
+            }
+
+            Debug.Log(sb.ToString());
+        }
+
+        // ------------------------------------------------------------------
+        // 凸角圆角 Sprite（生成一次落盘，随场景复用）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 取/生成「单角圆角」贴图（缺角在贴图左上，其余三角为实心方角）。
+        /// 持久资产：负 localScale 镜像即可复用成四个角的圆角，无需四个 Sprite。
+        /// 生成失败返回 null（调用方回落到方角侵蚀，不阻塞接线）。
+        /// </summary>
+        static Sprite GetCoastCornerSprite()
+        {
+            if (_coastCornerSprite != null)
+                return _coastCornerSprite;
+
+            _coastCornerSprite = AssetDatabase.LoadAssetAtPath<Sprite>(CoastCornerSpritePath);
+            if (_coastCornerSprite != null)
+                return _coastCornerSprite;
+
+            try
+            {
+                EnsureFolder("Assets/Art");
+                EnsureFolder("Assets/Art/Textures");
+                EnsureFolder("Assets/Art/Textures/UI");
+
+                const int n = CoastCornerSpriteSize;
+                float radius = n * CoastCornerRadiusRatio;
+                var pixels = new Color32[n * n];
+                for (int y = 0; y < n; y++)
+                {
+                    for (int x = 0; x < n; x++)
+                    {
+                        float fx = x + 0.5f;
+                        float fy = y + 0.5f;   // 纹理坐标 y 向上：左上 = x 小、y 大
+                        bool inside = true;
+                        if (fx < radius && fy > n - radius)
+                        {
+                            float dx = fx - radius;
+                            float dy = fy - (n - radius);
+                            inside = dx * dx + dy * dy <= radius * radius;
+                        }
+
+                        pixels[y * n + x] = inside
+                            ? new Color32(255, 255, 255, 255)
+                            : new Color32(255, 255, 255, 0);
+                    }
+                }
+
+                var texture = new Texture2D(n, n, TextureFormat.RGBA32, false);
+                texture.SetPixels32(pixels);
+                texture.Apply(false, false);
+                byte[] png = texture.EncodeToPNG();
+                Object.DestroyImmediate(texture);
+
+                string absolute = Path.Combine(Application.dataPath,
+                    CoastCornerSpritePath.Substring("Assets/".Length).Replace('/', Path.DirectorySeparatorChar));
+                File.WriteAllBytes(absolute, png);
+                AssetDatabase.ImportAsset(CoastCornerSpritePath, ImportAssetOptions.ForceSynchronousImport);
+
+                var importer = AssetImporter.GetAtPath(CoastCornerSpritePath) as TextureImporter;
+                if (importer != null)
+                {
+                    importer.textureType = TextureImporterType.Sprite;
+                    importer.spriteImportMode = SpriteImportMode.Single;
+                    importer.mipmapEnabled = false;
+                    importer.wrapMode = TextureWrapMode.Clamp;
+                    importer.filterMode = FilterMode.Bilinear;
+                    importer.alphaIsTransparency = true;
+                    importer.textureCompression = TextureImporterCompression.Uncompressed;
+                    importer.SaveAndReimport();
+                }
+
+                _coastCornerSprite = AssetDatabase.LoadAssetAtPath<Sprite>(CoastCornerSpritePath);
+                return _coastCornerSprite;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[HudMinimapSceneSetup] 生成凸角圆角 Sprite 失败，岛角回落方角："
+                    + e.Message);
+                return null;
+            }
+        }
+
+        /// <summary>递归确保资产目录存在（AssetDatabase.CreateFolder 不建中间层级）。</summary>
+        static void EnsureFolder(string path)
+        {
+            if (AssetDatabase.IsValidFolder(path))
+                return;
+
+            string parent = Path.GetDirectoryName(path).Replace('\\', '/');
+            string leaf = Path.GetFileName(path);
+            if (!string.IsNullOrEmpty(parent) && !AssetDatabase.IsValidFolder(parent))
+                EnsureFolder(parent);
+            AssetDatabase.CreateFolder(parent, leaf);
         }
 
         /// <summary>

@@ -43,6 +43,37 @@ namespace PirateCrew.EditorTools
         const string MaterialFolder = "Assets/Art/Materials/Fx";
 
         // ------------------------------------------------------------------
+        // 爆炸亮度压制（r4 工单 P1-3：explosion-moment 死白）
+        // ------------------------------------------------------------------
+        //
+        // 【问题】r4 实测 explosion-moment 里 V>0.99 的死白像素占 5.2%（108,209px），读作「糊掉的 bloom」，
+        // 看不出火球结构。根因是爆炸 core/fire 都是加法混合（Additive）、Tint 已接近白/亮橙，
+        // 再叠 >1 的 _Intensity 后峰值远超 Bloom threshold(1.05)，整块过曝成白。
+        // 【改法】生成 .mat 时把 core/fire 的 Tint 与 _Intensity 同步乘一个 <1 的系数，让峰值落回
+        // Bloom threshold 附近；两层相对关系保持不变——core 系数 0.60（−40%）、fire 系数 0.70（−30%），
+        // 于是 core 仍是「实心亮核」、fire 仍是「略暗外环」，不会糊成一片。
+        //   旧 core：Tint #FFD9A8 × 1.70 → 新：× 0.60（Tint 各通道 ×0.60、Intensity 1.70→1.02）
+        //   旧 fire：Tint #FF7A1A × 1.15 → 新：× 0.70（Tint 各通道 ×0.70、Intensity 1.15→0.81）
+        //
+        // 【⚠ 边界（重要）】本工程运行期特效材质**不走这批 .mat**，而是
+        // <c>FxMaterials.Get()</c> 按 <c>FxMaterials.Specs</c> 表在内存里新建（Specs 才是运行期唯一来源，
+        // 见 FxMaterials 类头）。本类只负责"资产可见/可审查 + 把 FX shader 带进构建"。
+        // 因此本次改动**只改了烘焙出的 .mat 资产**；要让 r4 截图真正变暗，还须在
+        // <c>Assets/Scripts/PirateCrew/Fx/FxMaterials.cs</c> 的 Specs 表里给这两档同步乘同样的系数
+        // —— 该文件不在本波次文件域内，已在交付报告「未尽事项」登记。
+        //
+        // 【两层结构】「实心核（亮）+ 外环（暗）」在 ExplosionFx.Play 里已由两个粒子系统承载
+        // （ExplosionCore = 短/亮/内层，ExplosionFire = 长/广/外层）；本轮只调亮度不改系统结构
+        // （FxParticles 生成参数不在 FxAssetBuilder 可调范围，见报告）。
+        // ------------------------------------------------------------------
+
+        /// <summary>爆炸核心材质亮度系数（−40%）：保证 core 仍比 fire 亮，维持「亮核 + 暗环」。</summary>
+        const float ExplosionCoreBrightnessScale = 0.60f;
+
+        /// <summary>爆炸外焰材质亮度系数（−30%）。</summary>
+        const float ExplosionFireBrightnessScale = 0.70f;
+
+        // ------------------------------------------------------------------
         // 菜单入口
         // ------------------------------------------------------------------
 
@@ -227,9 +258,19 @@ namespace PirateCrew.EditorTools
             if (texture != null)
                 FxMaterials.ApplyTexture(asset, texture);
 
-            FxMaterials.ApplyTint(asset, spec.Tint);
+            // 爆炸 core/fire 额外乘亮度压制系数（见类头「爆炸亮度压制」注释）。
+            float brightness = ExplosionBrightnessScaleOf(spec.Name);
+            Color tint = spec.Tint;
+            float intensity = spec.Intensity;
+            if (brightness < 1f)
+            {
+                tint = new Color(tint.r * brightness, tint.g * brightness, tint.b * brightness, tint.a);
+                intensity *= brightness;
+            }
+
+            FxMaterials.ApplyTint(asset, tint);
             if (asset.HasProperty("_Intensity"))
-                asset.SetFloat("_Intensity", spec.Intensity);
+                asset.SetFloat("_Intensity", intensity);
 
             asset.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
 
@@ -347,6 +388,17 @@ namespace PirateCrew.EditorTools
                 EnsureFolder(parent);
 
             AssetDatabase.CreateFolder(parent, leaf);
+        }
+
+        /// <summary>爆炸材质亮度压制系数（非爆炸材质返回 1 = 不压制）。按 .mat 资产名匹配，见类头注释。</summary>
+        static float ExplosionBrightnessScaleOf(string materialName)
+        {
+            switch (materialName)
+            {
+                case "Fx_ExplosionCore": return ExplosionCoreBrightnessScale;
+                case "Fx_ExplosionFire": return ExplosionFireBrightnessScale;
+                default: return 1f;
+            }
         }
     }
 }

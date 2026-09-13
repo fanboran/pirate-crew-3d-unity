@@ -124,17 +124,35 @@ namespace PirateCrew.EditorTools
         /// </summary>
         const float WeaponPanelBottom = HintBarBottom + HintBarHeight + Safe;
 
-        /// <summary>
-        /// 模式开关「选中段」底色的降饱和系数（向灰度插值）。工单口径 ~30%。
-        /// </summary>
-        const float ToggleDesaturate = 0.30f;
+        // ------------------------------------------------------------------
+        // 模式开关配色（r4 工单 P1：两段统一「深字压金底」，当前模式亮一档）
+        // ------------------------------------------------------------------
+        //
+        // 【为什么换口径】r4 实测：移动段奶油字(205,187,135)压暗金底(121,105,58)=2.83:1、
+        // 操作段奶油字(211,181,104)压亮铜底(167,128,75)=1.82:1，都低于 4.5:1；且当前模式(移动)
+        // 反而比非当前(操作)暗，层级读反。改法：两段都改用黄铜底 + 深字 #2A1D0E，
+        // 当前段用亮金 #E3C256、非当前段用哑光金 #A98A44 —— 当前底更亮 + 2px 黄铜描边，
+        // 「底亮 + 描边金」两重信号同时指向当前模式。
+        //
+        // 【WCAG 2.1 对比度（sRGB 分段线性化：c/255 ≤ 0.03928 走 /12.92，否则 ((c+0.055)/1.055)^2.4）】
+        //   深字 #2A1D0E：L = 0.2126·0.02316 + 0.7152·0.01229 + 0.0722·0.00438 = 0.0140
+        //   当前金 #E3C256：L = 0.2126·0.76835 + 0.7152·0.53947 + 0.0722·0.09315 = 0.5559
+        //     → (0.5559+0.05)/(0.0140+0.05) = 9.46:1
+        //       叠 AddMaterialShade 的 4% 墨色渐变（最坏底 (220,188,84)）后 = 8.87:1
+        //   非当前金 #A98A44：L = 0.2126·0.39677 + 0.7152·0.25424 + 0.0722·0.05782 = 0.2703
+        //     → 5.00:1（叠 4% 墨色渐变最坏底 (164,134,67) 后 = 4.74:1）
+        //   两段全部组合 ≥4.5:1；且当前底亮度 0.556 > 非当前 0.270，明度差约一档。
+        //   注：底色经 MultiplierTo(目标, UiTheme.Brass) 乘到黄铜九宫格 Sprite 上，
+        //   而 ButtonBrass 的烘焙基准色就是 UiTheme.Brass（UiSprites.BaseColorOf），故渲染≈目标色。
 
-        /// <summary>
-        /// 模式开关「选中段」底色的降亮度系数。工单口径 ~30%，这里取 0.60 系数（= 降约 40%）：
-        /// 按 0.70 只降到 <c>#847134</c>，浅色标签在其上仅 3.9:1（低于 D-2 的 4.5:1）；
-        /// 再压深一档到 <c>#71612D</c> 后 <see cref="UiTheme.TextLight"/> 对比 = 5.0:1。
-        /// </summary>
-        const float ToggleDarken = 0.60f;
+        /// <summary>模式开关文字色：深棕黑（两段共用，深字压金底）。</summary>
+        static readonly Color ModeLabelInk = new Color(0x2A / 255f, 0x1D / 255f, 0x0E / 255f, 1f);
+
+        /// <summary>当前模式（选中段）底色：亮金 #E3C256（比非当前亮一档）。</summary>
+        static readonly Color ModeGoldCurrent = new Color(0xE3 / 255f, 0xC2 / 255f, 0x56 / 255f, 1f);
+
+        /// <summary>非当前模式底色：哑光金 #A98A44（压暗一档，仍与深字 ≥4.5:1）。</summary>
+        static readonly Color ModeGoldIdle = new Color(0xA9 / 255f, 0x8A / 255f, 0x44 / 255f, 1f);
 
         /// <summary>程序化材质感：垂直亮度微渐变幅度 ±4%（不引入贴图，只用低 alpha 色带）。</summary>
         const float ShadeAlpha = 0.04f;
@@ -193,8 +211,8 @@ namespace PirateCrew.EditorTools
                 new Vector2(TopBarWidth, TopBarHeight), UiSprites.Kind.PanelWood);
 
             // 模式开关：静态二态展示，不挂 Button 以免出现「按了没反应」。
-            // 【移动】= 当前选中段：金边 + 哑光金底（不再是整屏最亮的纯黄块，见 BuildToggleSegment）；
-            // 【操作】= 未选中段：木色。
+            // 【移动】= 当前选中段：亮金底 + 2px 黄铜描边（r4：当前模式亮一档）；
+            // 【操作】= 未选中段：哑光金底 + 1px 墨描边（压暗一档）。两段都是深字压金底。
             BuildToggleSegment(topBar, "MoveSegment", UiStrings.BattleModeMove, -TopBarSegmentCenterX,
                 true, body);
             BuildToggleSegment(topBar, "ActionSegment", UiStrings.BattleModeAction, TopBarSegmentCenterX,
@@ -296,7 +314,14 @@ namespace PirateCrew.EditorTools
             }
         }
 
-        /// <summary>模式开关的一段（底板 + 居中文字 + 程序化材质感）。</summary>
+        /// <summary>
+        /// 模式开关的一段（底板 + 居中文字 + 程序化材质感）。
+        ///
+        /// 【统一口径】两段都用 <see cref="UiSprites.Kind.ButtonBrass"/> 金底 + 深字
+        /// <see cref="ModeLabelInk"/>（深字压金底），只靠底色亮暗与描边区分当前/非当前：
+        /// 当前 = 亮金 <see cref="ModeGoldCurrent"/> + 2px 黄铜描边；非当前 = 哑光金
+        /// <see cref="ModeGoldIdle"/> + 1px 墨描边。对比度推导见 <see cref="ModeLabelInk"/> 上方注释。
+        /// </summary>
         static void BuildToggleSegment(Transform parent, string name, string label, float x,
             bool selected, TMP_FontAsset font)
         {
@@ -308,42 +333,21 @@ namespace PirateCrew.EditorTools
             image.type = Image.Type.Sliced;
             image.raycastTarget = false;
 
-            if (selected)
-            {
-                // 选中态 = 「金边 + 浅底」：底色由黄铜降饱和 <see cref="ToggleDesaturate"/>、
-                // 降亮度 <see cref="ToggleDarken"/> 得到哑光金（不再是整屏最亮的纯黄块），
-                // 描边保留 2px 黄铜传递选中语义。
-                Color target = Muted(UiTheme.Brass, ToggleDesaturate, ToggleDarken);
-                image.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.ButtonBrass);
-                image.color = MultiplierTo(target, UiTheme.Brass);
-                MenuUiBuilder.AddOutline(segment.gameObject, UiTheme.Brass, 2f);
-            }
-            else
-            {
-                // 未选中维持木色。
-                image.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.ButtonWood);
-                image.color = Color.white;
-            }
+            // 两段同金底：当前亮金、非当前哑光金（r4：当前模式必须比非当前亮一档）。
+            Color baseColor = selected ? ModeGoldCurrent : ModeGoldIdle;
+            image.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.ButtonBrass);
+            image.color = MultiplierTo(baseColor, UiTheme.Brass);
+
+            // 描边是「当前」的第二重信号：当前 2px 黄铜金边，非当前 1px 墨边（仅压边不抢眼）。
+            MenuUiBuilder.AddOutline(segment.gameObject,
+                selected ? UiTheme.Brass : UiTheme.Ink, selected ? 2f : 1f);
 
             // 竖条分隔线的替代：段与段之间由面板底透出（顶部信息条 = PanelWood）。
             AddMaterialShade(segment);
 
             TextMeshProUGUI text = MenuUiBuilder.CreateText("Label", segment, label, UiTheme.FontBody,
-                TextAlignmentOptions.Center, UiTheme.TextLight, font);
+                TextAlignmentOptions.Center, ModeLabelInk, font);
             MenuUiBuilder.Stretch(text.rectTransform);
-        }
-
-        /// <summary>
-        /// 降饱和（向灰度插值）+ 降亮度（整体乘系数），用于把抢眼的纯黄压成哑光金。
-        /// </summary>
-        /// <param name="color">基准色。</param>
-        /// <param name="desaturate">降饱和量（0–1，1 = 全灰）。</param>
-        /// <param name="factor">亮度系数（0–1，越小越暗）。</param>
-        static Color Muted(Color color, float desaturate, float factor)
-        {
-            float gray = color.r * 0.299f + color.g * 0.587f + color.b * 0.114f;
-            Color desaturated = Color.Lerp(color, new Color(gray, gray, gray, color.a), desaturate);
-            return new Color(desaturated.r * factor, desaturated.g * factor, desaturated.b * factor, 1f);
         }
 
         /// <summary>
@@ -536,15 +540,10 @@ namespace PirateCrew.EditorTools
             rowElement.preferredHeight = RosterRowHeight;
             rowElement.minHeight = RosterRowHeight;
 
-            // 队伍色块。
-            RectTransform swatch = MenuUiBuilder.CreateRect("Swatch", row);
-            MenuUiBuilder.SetAnchored(swatch, new Vector2(0f, 1f), new Vector2(10f, 22f), new Vector2(0f, -6f));
-            var swatchImage = swatch.gameObject.AddComponent<Image>();
-            swatchImage.color = UiTheme.TeamRed;
-            swatchImage.raycastTarget = false;
-
             // 姓名（队伍 + 职业中文）。字号取 FontHud 24：截图实测 FontBody 20 的字形带仅 18px，
             // 低于 V2「正文中文字号 ≥20px」下限；Q-16 在《美术风格指南》§11 的落地值即为 24（FontHud）。
+            // 【P2-4】名文字保持高对比浅色（TextLight 压深木底 = 11.28:1）；队伍身份由行右侧的
+            // 「队伍色血条」+ 文字里的「红队／蓝队」共同承载（血条见下）。
             TextMeshProUGUI name = MenuUiBuilder.CreateText("NameText", row, string.Empty,
                 UiTheme.FontHud, TextAlignmentOptions.MidlineLeft, UiTheme.TextLight, body);
             name.enableWordWrapping = false;
@@ -552,6 +551,15 @@ namespace PirateCrew.EditorTools
                 new Vector2(14f, -2f));
 
             // 血条底 + 填充。
+            // 【P2-4 队伍编码】填充块与 <c>teamSwatch</c> 指向**同一个 Image**：
+            //   · BattleHud.BuildRoster 每帧把 teamSwatch.color 写成 UiTheme.TeamColor（红/蓝）；
+            //   · BattleHud.UpdateRowBar 只改 healthFill.rectTransform.anchorMax（血量长度）。
+            // 两者共用后，血条渲染为「队伍色 × 血量长度」，队伍色高频信号直接落在名册行上，
+            // 无需改运行期 BattleHud（不在本波次文件域）。
+            // 【为什么填充用无 Sprite 的 Image】UiSprites.BarFill 的烘焙基准色是**绿色**
+            // （0.42,0.78,0.34），Image.color 是乘色：若沿用该 Sprite，运行期写入队伍色会得到
+            // 「绿 × 队伍色」的浑浊结果。改用无 Sprite 的 Image（渲染纯白 quad × color），
+            // 队伍色才能 1:1 还原。血条槽底仍用 BarBackground 九宫格。
             RectTransform barBg = MenuUiBuilder.CreateRect("BarBg", row);
             MenuUiBuilder.SetAnchored(barBg, new Vector2(0f, 1f), new Vector2(80f, 14f), new Vector2(178f, -10f));
             var barBgImage = barBg.gameObject.AddComponent<Image>();
@@ -567,9 +575,9 @@ namespace PirateCrew.EditorTools
             fill.offsetMin = Vector2.zero;
             fill.offsetMax = Vector2.zero;
             var fillImage = fill.gameObject.AddComponent<Image>();
-            fillImage.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.BarFill);
-            fillImage.type = Image.Type.Sliced;
-            fillImage.color = Color.white;
+            fillImage.sprite = null;                       // 纯色块（见上「为什么无 Sprite」）
+            fillImage.type = Image.Type.Simple;
+            fillImage.color = UiTheme.TeamRed;             // 默认红队色，运行期按队改写
             fillImage.raycastTarget = false;
 
             // 生命数字（≥16px 角标下限）。
@@ -582,7 +590,8 @@ namespace PirateCrew.EditorTools
             return new BattleHud.RosterRowView
             {
                 root = row.gameObject,
-                teamSwatch = swatchImage,
+                // 队伍色块与血条填充是同一 Image：运行期 teamSwatch.color 的队伍色直接作用于血条。
+                teamSwatch = fillImage,
                 nameLabel = name,
                 healthFill = fillImage,
                 healthLabel = hp,
@@ -707,18 +716,19 @@ namespace PirateCrew.EditorTools
         {
             // 操作提示条：移到屏幕底缘（顶边距屏底 52px，落在屏高 95% 以下），
             // 收窄到 960px 居中，与名册/武器面板保持 ≥16px 间距，不再横跨可玩区。
-            // 【本轮】补 1px #2A2A2A 深描边（旧版是纯色奶白块、边界发飘）+ 复用 AddMaterialShade 的垂直微渐变。
+            // 【本轮 P2-5】深浅两套统一成「深底浅字」一套：提示条底由浅羊皮纸改为深木
+            // （与武器面板/名册同款 PanelWood + 1px 黄铜描边），文字改 UiTheme.TextLight。
+            // 对比度：TextLight(#F5E8C8) 压 PanelWood(#3A2A1E) = 11.28:1（WCAG 2.1），
+            // 旧「深字压浅底」的 Ink-on-Parchment = 9.90:1 虽然也够，但两套底混用会让
+            // 底部区域一块亮一块暗（r4 读数：提示条与操作区深浅割裂）。
             RectTransform hintBar = MenuUiBuilder.CreatePanel("HintBar", hudRoot,
                 new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, HintBarBottom),
-                new Vector2(HintBarWidth, HintBarHeight), UiSprites.Kind.PanelParchment, brassOutline: false);
-            MenuUiBuilder.AddOutline(hintBar.gameObject, UiTheme.Ink, 1f);
-            var hintImage = hintBar.GetComponent<Image>();
-            if (hintImage != null)
-                hintImage.color = UiTheme.WithAlpha(Color.white, 0.88f);
+                new Vector2(HintBarWidth, HintBarHeight), UiSprites.Kind.PanelWood, brassOutline: false);
+            MenuUiBuilder.AddOutline(hintBar.gameObject, UiTheme.Brass, 1f);
             AddMaterialShade(hintBar);
 
             TextMeshProUGUI hint = MenuUiBuilder.CreateText("HintText", hintBar,
-                UiStrings.BattleHintMove, UiTheme.FontHint, TextAlignmentOptions.Center, UiTheme.Ink, secondary);
+                UiStrings.BattleHintMove, UiTheme.FontHint, TextAlignmentOptions.Center, UiTheme.TextLight, secondary);
             MenuUiBuilder.Stretch(hint.rectTransform, 8f);
 
             // 返回主菜单（§3.5 线框图：160×40 anchor(0,0) 摆在左下角；CreateButton 的 pivot 是中心，

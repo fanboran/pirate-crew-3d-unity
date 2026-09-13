@@ -100,8 +100,10 @@ namespace PirateCrew.PirateCrew.Fx
         static readonly FxMaterialSpec[] Specs =
         {
             // ---- 爆炸 ----
-            new FxMaterialSpec { Name = "Fx_ExplosionFire",  Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = FxRules.ExplosionFireColor(), Intensity = 1.15f },
-            new FxMaterialSpec { Name = "Fx_ExplosionCore",  Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = FxRules.ExplosionCoreColor(), Intensity = 1.70f },
+            // core/fire 乘亮度系数（r4 实测 V>0.99 死白占 5.2%）：峰值压到 Bloom threshold 1.05 之下。
+            // 系数与 FxAssetBuilder 的烘焙侧（Fx_ExplosionCore/Fire .mat）保持一致，两处必须同步改。
+            new FxMaterialSpec { Name = "Fx_ExplosionFire",  Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = ScaleRgb(FxRules.ExplosionFireColor(), 0.70f), Intensity = 1.15f * 0.70f },
+            new FxMaterialSpec { Name = "Fx_ExplosionCore",  Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = ScaleRgb(FxRules.ExplosionCoreColor(), 0.60f), Intensity = 1.70f * 0.60f },
             new FxMaterialSpec { Name = "Fx_Sparks",         Additive = true,  Texture = FxTextureKind.Spark,      Tint = FxRules.SparkColor(),         Intensity = 1.80f },
             new FxMaterialSpec { Name = "Fx_FineSparks",     Additive = true,  Texture = FxTextureKind.FineSpark,  Tint = FxRules.ExplosionCoreColor(), Intensity = 1.90f },
             new FxMaterialSpec { Name = "Fx_Star4",          Additive = true,  Texture = FxTextureKind.Star4,      Tint = FxRules.ExplosionCoreColor(), Intensity = 1.60f },
@@ -124,6 +126,9 @@ namespace PirateCrew.PirateCrew.Fx
 
         /// <summary>材质档总数。</summary>
         public static int Count => Specs.Length;
+
+        /// <summary>只缩放 RGB 保持 alpha=1（Color 的 * 运算符会连 alpha 一起乘，additive 材质不能动 alpha）。</summary>
+        static Color ScaleRgb(Color c, float k) => new Color(c.r * k, c.g * k, c.b * k, 1f);
 
         /// <summary>取某档的静态规格。</summary>
         public static FxMaterialSpec SpecOf(FxMaterial material)

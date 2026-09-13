@@ -351,7 +351,14 @@ namespace PirateCrew.UI
                     view.root.SetActive(true);
 
                 if (view.nameLabel != null)
+                {
                     UiTextUtil.SetText(view.nameLabel, UiTextRules.RosterRow(pirate.TeamNumber, pirate.CrewType));
+                    // 名文字按队伍着色（r4 评审 N13：奶油色区分弱）。RGB 压暗保对比（alpha 必须保 1，
+                    // Color 的 * 会连 alpha 一起乘导致文字半透明）：红/蓝乘 0.75 档在深木底上
+                    // 对比 ≈4.6/3.5（≥ WCAG 大文本与非文本 3:1 口径）。
+                    Color team = UiTheme.TeamColor(pirate.TeamIndex);
+                    view.nameLabel.color = new Color(team.r * 0.75f, team.g * 0.75f, team.b * 0.75f, 1f);
+                }
 
                 if (view.teamSwatch != null)
                     view.teamSwatch.color = UiTheme.TeamColor(pirate.TeamIndex);
