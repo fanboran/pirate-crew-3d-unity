@@ -145,7 +145,7 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // 环境材质库（10 个，全部程序化、0 贴图）
+        // 环境材质库（10 个；基色为色值、细节为程序化噪声贴图 —— 0 外部贴图）
         // ------------------------------------------------------------------
 
         /// <summary>生成/刷新全部环境材质，返回成功处理的数量。</summary>
@@ -349,8 +349,12 @@ namespace PirateCrew.EditorTools
             SetVector(m, "_NoiseStretch", new Vector4(0.18f, 1.0f, 0f, 0f));
             SetFloat(m, "_DetailNoiseScale", 9f);
             SetFloat(m, "_DetailNormalStrength", 0.35f);
-            // 木族本轮不挂细节贴图：显式关掉，避免材质资产里残留上一轮的强度值（幂等 + 可预期）。
-            DisableDetailTexture(m);
+            // 木族细节贴图（v2 新增）：低强度**暖噪**（沙族 albedo 的暖色微斑）+ 岩族法线（节疤/木纹起伏）。
+            //   与木纹主噪声（_NoiseStretch=(0.18,1) 的各向异性条带）叠加：主噪声给"长条纹理"、
+            //   细节贴图给"介质颗粒" —— 只提噪声强度会把木纹做成"塑料拉丝"，加介质色斑才像木头。
+            //   世界尺度 0.55（≈1.8m 平铺）：木板/船舷这类 0.5-3m 构件上能看出 2-4 个斑块。
+            ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandAlbedo, MaterialNoiseBuilder.NoiseKind.RockNormal,
+                0.55f, 0.22f, 0.35f);
             SetFloat(m, "_Metallic", 0f);
             SetFloat(m, "_Smoothness", 0.18f);
             SetFloat(m, "_AmbientStrength", 1f);
@@ -377,7 +381,10 @@ namespace PirateCrew.EditorTools
             SetVector(m, "_NoiseStretch", new Vector4(0.18f, 1.0f, 0f, 0f));
             SetFloat(m, "_DetailNoiseScale", 9f);
             SetFloat(m, "_DetailNormalStrength", 0.35f);
-            DisableDetailTexture(m);
+            // 深色木（v2 新增，与木板同款但强度更低）：压暗木不让细节噪点过跳 —— 深色底上
+            //   同样的乘性起伏视觉对比更强（人眼对暗部更敏感），故 0.18/0.30 < 木板的 0.22/0.35。
+            ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandAlbedo, MaterialNoiseBuilder.NoiseKind.RockNormal,
+                0.55f, 0.18f, 0.30f);
             SetFloat(m, "_Metallic", 0f);
             SetFloat(m, "_Smoothness", 0.22f);
             SetFloat(m, "_AmbientStrength", 1f);
@@ -627,7 +634,9 @@ namespace PirateCrew.EditorTools
             return true;
         }
 
-        /// <summary>本轮不挂细节贴图的材质（木/铜/铁）显式关掉两个强度，保证幂等与可预期。</summary>
+        /// <summary>刻意不挂细节贴图的材质（黄铜/铁）显式关掉两个强度，保证幂等与可预期。
+        /// 金属的不均匀来自边缘磨损（_EdgeWear）而不是介质色斑，与 SceneArtBuilder 对 Scene_Metal
+        /// 的处理是同一条纪律。</summary>
         static void DisableDetailTexture(Material m)
         {
             SetFloat(m, "_DetailAlbedoStrength", 0f);

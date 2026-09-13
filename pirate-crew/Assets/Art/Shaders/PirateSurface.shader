@@ -42,7 +42,8 @@
 //       · 判据 P-9（美术品控评审规程.md:213）：同材质 200×200 窗灰度 std > 6 —— 不达标；
 //       · 判据 P-10（同文 :214）：高频能量需显著高于纯色基线 —— 不达标；
 //       · 判据 §3.2 纪律 1（美术风格指南.md:199-204）：相邻面 smoothness 差 ≥ 0.15。
-//   【做法】构建期用 CPU 噪声生成 256² 贴图（算法唯一来源 = Assets/Editor/MaterialNoiseBuilder.cs），
+//   【做法】构建期用 CPU 噪声生成 **512²** 贴图（v2 提档前为 256²；算法唯一来源 =
+//     Assets/Editor/MaterialNoiseBuilder.cs，v2 用「两轮低频域名扭曲 fBm」替代纯 value-FBM），
 //     存 Assets/Art/Textures/Materials/，材质引用之。这是**自产程序化资产**，
 //     与 FxAssetBuilder（特效贴图）/ AudioAssetBuilder（wav 导入）同一管线哲学，不是外部贴图。
 //   【两张图的口径（踩不对就整体变色）】
@@ -52,7 +53,10 @@
 //     · _BumpMap：切空间法线 n*0.5+0.5、**A=255**（桌面 core Packing.hlsl:214 UnpackNormalmapRGorAG
 //       会做 packed.x *= packed.w，A=1 时 RGBA 布局才成立）；导入为 NormalMap 类型 + 线性（sRGB=false）。
 //   【世界空间 XZ UV，不用模型 UV】UV = worldXZ * _NoiseWorldScale。
-//     【r5 采样尺度：0.4 → 0.05（世界尺度放大 8×，一张 256² 铺 20m）】原 0.4 时贴图最细八度
+//     【v2 贴图提档后本 shader 无需改动】贴图从 256²→512²、内容从纯 value-FBM→域名扭曲 fBm，
+//     采样口径（世界尺度、均值保持、法线重定向）**全都不变**：细粒变清楚是贴图端的事，
+//     mip 会自动为更细的贴图选择更粗的 mip（导入侧 mipmap=true + aniso 8）。
+//     【r5 采样尺度：0.4 → 0.05（世界尺度放大 8×，一张 512² 铺 20m）】原 0.4 时贴图最细八度
 //     （周期 192）的世界波长只有 ~1.3cm，近景被 mip 平均成平色、unit-closeup 的 120×120 窗 std
 //     只有 2-3；把 UV 尺度降下来后最细八度的世界波长抬到 ~10cm，落进近景可分辨 band，
 //     特写才看得到砂粒/色斑起伏。远看不会闪成"噪点蚂蚁纹"：贴图导入开 mipmap + aniso=4，
@@ -143,7 +147,7 @@ Shader "PirateCrew/PirateSurface"
         // 且 2D 属性未赋值时 Unity 会用内置回退贴图，其线性值不可预期（见文件头【默认关闭】）。
         // [NoScaleOffset]：UV 由世界 XZ×_NoiseWorldScale 驱动，材质上的 Tiling/Offset 无意义，隐藏掉。
         [NoScaleOffset] _DetailNoiseMap ("细节图（albedo 微色斑；线性均值 0.5 的乘性图）", 2D) = "gray" {}
-        // r5：默认 0.4 → 0.05（世界尺度放大 8×，一张 256² 铺 20m）；材质实际值见 BattleSceneLighting.ApplyDetailTexture。
+        // r5：默认 0.4 → 0.05（世界尺度放大 8×，一张 512² 铺 20m）；材质实际值见 BattleSceneLighting.ApplyDetailTexture。
         _NoiseWorldScale        ("细节图世界尺度（UV=世界XZ×该值；1/该值=平铺米数）", Float) = 0.05
         _NoiseWarpStrength      ("细节 UV 扭曲（打断与格子的轴向对齐）", Range(0.0, 0.5)) = 0.18
         _DetailAlbedoStrength   ("细节 albedo 强度（0=关闭；未赋贴图的材质保持 0）", Range(0.0, 1.0)) = 0.0

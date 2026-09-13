@@ -404,7 +404,7 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // 材质库（Assets/Art/Materials/Scene，全部程序化、0 贴图）
+        // 材质库（Assets/Art/Materials/Scene；本体色为纯色 + 程序化细节噪声贴图，0 外部贴图）
         // ------------------------------------------------------------------
 
         /// <summary>
@@ -416,8 +416,11 @@ namespace PirateCrew.EditorTools
         /// 写实化后该 shader 的**本体 Pass 已是 URP PBR**（BRDF + 阴影 + SH + 雾），
         /// 正好可当"写实材质"用；描边参数在本类里全部置零（见 <see cref="EnsureOutlineMaterial"/>）。
         /// 这样本波次不必新增 shader，也不改道具的网格合并/材质分组结构（最小改动）。
-        /// 代价：道具本体只有一个 _BaseColor（没有 PirateSurface 的三档色阶/程序化噪声）；
-        /// 追求更细腻材质时可把这些组的材质换成 BattleSceneLighting 的环境材质库（后续优化）。
+        /// 【"大色块平面"工单】道具本体只有一个 _BaseColor，若不加噪声，每个材质组就是一整片单色平面。
+        /// 现已由 <see cref="PirateOutline"/> 新增的可选 <c>_DetailNoiseMap</c>/<c>_DetailBumpMap</c>
+        /// （默认关闭）接上 <see cref="MaterialNoiseBuilder"/> 的程序化贴图 —— 见 <see cref="NoiseRecipe"/>。
+        /// 仍未做：三档色阶（PirateSurface 的 _BaseColorA/B/C 机制）—— 本 shader 只有一个 _BaseColor，
+        /// 若要"同一材质组内有色相分档"需要给 PirateOutline 再加一组色阶属性（列入遗留优化）。
         /// </summary>
         sealed class SceneArtMaterials
         {
@@ -448,15 +451,18 @@ namespace PirateCrew.EditorTools
 
             public SceneArtMaterials()
             {
-                // ---- 道具材质（PBR 本体 + 描边置零；见 EnsureOutlineMaterial）----
-                Wood = EnsureOutlineMaterial("Scene_Wood", SceneArtPalette.WoodMid);
-                WoodDark = EnsureOutlineMaterial("Scene_WoodDark", SceneArtPalette.WoodDark);
-                Rock = EnsureOutlineMaterial("Scene_Rock", SceneArtPalette.RockMid);
-                Metal = EnsureOutlineMaterial("Scene_Metal", SceneArtPalette.Iron);
-                Foliage = EnsureOutlineMaterial("Scene_Foliage", SceneArtPalette.GrassMid);
-                Cloth = EnsureOutlineMaterial("Scene_Cloth", SceneArtPalette.WoodLight);
-                FlagRed = EnsureOutlineMaterial("Scene_FlagRed", SceneArtPalette.TeamRed);
-                FlagBlue = EnsureOutlineMaterial("Scene_FlagBlue", SceneArtPalette.TeamBlue);
+                // ---- 道具材质（PBR 本体 + 描边置零 + 程序化细节噪声；见 EnsureOutlineMaterial / NoiseRecipe）----
+                // 配方（一族一行，理由见 NoiseRecipe 类注释）：木/深木 = 沙族暖色斑 + 岩族法线；
+                // 岩 = 本族双图；植被/草根/草梢 = 草族双图；布 = 极低强度暖噪 + 弱岩法线；
+                // 金属/旗帜 = null（刻意保持纯净）。
+                Wood = EnsureOutlineMaterial("Scene_Wood", SceneArtPalette.WoodMid, NoiseWood);
+                WoodDark = EnsureOutlineMaterial("Scene_WoodDark", SceneArtPalette.WoodDark, NoiseWoodDark);
+                Rock = EnsureOutlineMaterial("Scene_Rock", SceneArtPalette.RockMid, NoiseRock);
+                Metal = EnsureOutlineMaterial("Scene_Metal", SceneArtPalette.Iron, null);
+                Foliage = EnsureOutlineMaterial("Scene_Foliage", SceneArtPalette.GrassMid, NoiseFoliage);
+                Cloth = EnsureOutlineMaterial("Scene_Cloth", SceneArtPalette.WoodLight, NoiseCloth);
+                FlagRed = EnsureOutlineMaterial("Scene_FlagRed", SceneArtPalette.TeamRed, null);
+                FlagBlue = EnsureOutlineMaterial("Scene_FlagBlue", SceneArtPalette.TeamBlue, null);
 
                 // ---- 湿沙：优先用渲染波次的环境湿沙材质，读不到才自建（保证水面附近颜色统一）----
                 SandWet = BattleSceneLighting.LoadEnvironmentMaterial(BattleSceneLighting.WetSandMaterial);
@@ -493,8 +499,140 @@ namespace PirateCrew.EditorTools
                 SailFar = EnsureUnlitOpaque("Scene_SailFar", SceneArtPalette.SailFarWhite);
 
                 // ---- 草：根暗档（GrassDark #2D5A2D）/ 梢亮档（介于 GrassMid↔GrassLight）----
-                GrassRoot = EnsureOutlineMaterial("Scene_GrassRoot", SceneArtPalette.GrassDark);
-                GrassLight = EnsureOutlineMaterial("Scene_GrassLight", GrassLightHex);
+                GrassRoot = EnsureOutlineMaterial("Scene_GrassRoot", SceneArtPalette.GrassDark, NoiseGrassRoot);
+                GrassLight = EnsureOutlineMaterial("Scene_GrassLight", GrassLightHex, NoiseGrassLight);
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Scene_* 族的细节噪声配方（程序化资产 → PirateOutline 的可选 _Detail* 通道）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Scene_* 族（<c>PirateOutline</c> 本体）的**细节噪声配方**：一族的 albedo 色斑图 + 法线图
+        /// + 二者**共用的世界尺度**。
+        ///
+        /// 【解决什么】道具是按材质组合并成的大网格（1 组 = 1 DrawCall），网格无 UV、本体只有一个
+        ///   <c>_BaseColor</c> → 每个材质组是一整片单色平面（"贴图质量低"的主要观感来源之一）。
+        ///   贴上程序化色斑 + 细节法线后，木有木纹暖斑、岩有斑块裂隙、草有双色 patch。
+        ///
+        /// 【为什么 albedo 与法线共用一个 WorldScale】shader 里只有一组 detailUV；两套尺度会得到
+        ///   "法线浮在色斑之外"的错位观感。
+        ///
+        /// 【为什么不用模型 UV】这些合并网格根本没有 UV 通道（SceneArtBuilder.EmitGroup 只写
+        ///   position+normal），世界 XZ 投影是唯一可用口径（且让同一构件的纹理跨面连续）。
+        ///
+        /// 【选型理由（逐族）】
+        ///   · <b>木 / 深木</b>：沙族 albedo（暖色色斑）做低强度"暖噪" + 岩族法线给节疤/木纹起伏；
+        ///   · <b>岩</b>：本族双图（斑块 + 裂缝暗线 + 强断裂感）；
+        ///   · <b>植被 / 草根 / 草梢</b>：草族双图（双色 patch + 绒毛感）；
+        ///   · <b>布</b>：极低强度沙族暖噪 + 弱岩法线（读作织物起伏，不抢队色）；
+        ///   · <b>金属 / 旗帜</b>：<c>null</c> 配方，**刻意保持纯净** —— 金属的不均匀来自边缘磨损而非
+        ///     介质色斑（与 <see cref="BattleSceneLighting"/> 对黄铜/铁的处理同一条纪律）；旗帜是大色块
+        ///     队色标识，加噪声会削弱"一眼分红蓝"的可读性；
+        ///   · <b>远影族</b>（Silhouette / Cloud / SailFar / CloudCore…）：走 URP/Unlit，**根本不经本通道**
+        ///     —— 雾里不需要细节（任务书明确要求保持纯净）。
+        ///
+        /// 【WorldScale = 1/平铺米数】木 0.55（约 1.8m）/ 岩 0.45（2.2m）/ 草 0.70（1.4m）——
+        ///   道具尺度是 0.3-3 m 的构件，贴图按 1-2 m 平铺才能让中频八度（period 4-16）落在
+        ///   "一个构件上能看出 2-5 个斑块"的可读区间。
+        ///
+        /// 【强度口径】贴图是**均值保持的乘性图**（线性均值恰 0.5 → ×2 后恰 1.0），
+        ///   故任何强度都不改材质已调好的平均色（<see cref="SceneArtPalette"/> 的色值零漂移）；
+        ///   强度只是"起伏占比"：0.45-0.5 = 用满贴图起伏（岩/草），0.16-0.22 = 轻微（木/布）。
+        /// </summary>
+        sealed class NoiseRecipe
+        {
+            public readonly MaterialNoiseBuilder.NoiseKind Albedo;
+            public readonly MaterialNoiseBuilder.NoiseKind Normal;
+            public readonly float WorldScale;
+            public readonly float AlbedoStrength;
+            public readonly float NormalStrength;
+
+            public NoiseRecipe(MaterialNoiseBuilder.NoiseKind albedo, MaterialNoiseBuilder.NoiseKind normal,
+                float worldScale, float albedoStrength, float normalStrength)
+            {
+                Albedo = albedo;
+                Normal = normal;
+                WorldScale = worldScale;
+                AlbedoStrength = albedoStrength;
+                NormalStrength = normalStrength;
+            }
+        }
+
+        static readonly NoiseRecipe NoiseWood = new NoiseRecipe(
+            MaterialNoiseBuilder.NoiseKind.SandAlbedo, MaterialNoiseBuilder.NoiseKind.RockNormal,
+            0.55f, 0.22f, 0.35f);
+
+        static readonly NoiseRecipe NoiseWoodDark = new NoiseRecipe(
+            MaterialNoiseBuilder.NoiseKind.SandAlbedo, MaterialNoiseBuilder.NoiseKind.RockNormal,
+            0.55f, 0.18f, 0.30f);
+
+        static readonly NoiseRecipe NoiseRock = new NoiseRecipe(
+            MaterialNoiseBuilder.NoiseKind.RockAlbedo, MaterialNoiseBuilder.NoiseKind.RockNormal,
+            0.45f, 0.50f, 0.85f);
+
+        static readonly NoiseRecipe NoiseFoliage = new NoiseRecipe(
+            MaterialNoiseBuilder.NoiseKind.GrassAlbedo, MaterialNoiseBuilder.NoiseKind.GrassNormal,
+            0.70f, 0.45f, 0.60f);
+
+        static readonly NoiseRecipe NoiseCloth = new NoiseRecipe(
+            MaterialNoiseBuilder.NoiseKind.SandAlbedo, MaterialNoiseBuilder.NoiseKind.RockNormal,
+            0.50f, 0.16f, 0.25f);
+
+        static readonly NoiseRecipe NoiseGrassRoot = new NoiseRecipe(
+            MaterialNoiseBuilder.NoiseKind.GrassAlbedo, MaterialNoiseBuilder.NoiseKind.GrassNormal,
+            0.70f, 0.40f, 0.50f);
+
+        static readonly NoiseRecipe NoiseGrassLight = new NoiseRecipe(
+            MaterialNoiseBuilder.NoiseKind.GrassAlbedo, MaterialNoiseBuilder.NoiseKind.GrassNormal,
+            0.70f, 0.45f, 0.55f);
+
+        /// <summary>
+        /// 给 Scene_* 道具材质接上程序化细节噪声（<paramref name="recipe"/> 为 <c>null</c> = 该族刻意
+        /// 保持纯净）。贴图来自 <see cref="MaterialNoiseBuilder"/>（512² 域名扭曲 fBm 的程序化资产）；
+        /// **贴图缺失时把两个强度都写 0**（画面退回"纯色本体"、绝不随机变色）并记一条告警。
+        /// 幂等：每次场景重建都会重跑一遍，先关强度再按需打开。
+        /// </summary>
+        static void ApplyOutlineDetailNoise(Material m, NoiseRecipe recipe)
+        {
+            if (m == null)
+                return;
+
+            // 先关强度：保证"上次跑过、这次贴图没了"不会留下旧的开启状态（与 BattleSceneLighting 同款纪律）。
+            SetFloat(m, "_DetailNoiseStrength", 0f);
+            SetFloat(m, "_DetailBumpScale", 0f);
+
+            if (recipe == null)
+                return;
+
+            SetFloat(m, "_DetailNoiseScale", recipe.WorldScale);
+
+            Texture2D albedo = MaterialNoiseBuilder.Load(recipe.Albedo);
+            Texture2D normal = MaterialNoiseBuilder.Load(recipe.Normal);
+
+            bool albedoOk = albedo != null && m.HasProperty("_DetailNoiseMap");
+            bool normalOk = normal != null && m.HasProperty("_DetailBumpMap");
+
+            if (albedoOk)
+            {
+                m.SetTexture("_DetailNoiseMap", albedo);
+                SetFloat(m, "_DetailNoiseStrength", recipe.AlbedoStrength);
+            }
+
+            if (normalOk)
+            {
+                m.SetTexture("_DetailBumpMap", normal);
+                SetFloat(m, "_DetailBumpScale", recipe.NormalStrength);
+            }
+
+            if (!albedoOk || !normalOk)
+            {
+                Debug.LogWarning("[SceneArtBuilder] 材质 " + m.name + " 的细节噪声贴图缺失："
+                    + (albedoOk ? "" : "albedo ")
+                    + (normalOk ? "" : "normal ")
+                    + "→ 对应强度已置 0（道具退回纯色本体）。"
+                    + "先跑 PirateCrew/渲染/生成程序化材质噪声贴图（或 ArtGate 的 ⓪.5 步）。");
             }
         }
 
@@ -506,8 +644,12 @@ namespace PirateCrew.EditorTools
         /// 道具本体仍由 PirateOutline 的 Base Pass 渲染（写实化后为 URP PBR）。
         /// 单位的选中/hover 描边走**另一份材质**（PirateOutlineUnit.mat，由 M2BattleSceneSetup 生成），
         /// 不受本方法影响 —— 功能反馈完整保留。
+        ///
+        /// 【细节噪声】<paramref name="noise"/> 为 null 的族（金属/旗帜）显式把两个强度写 0，
+        /// 于是它们的材质与"加贴图之前"逐像素一致；有配方的族接上程序化色斑 + 细节法线
+        /// （见 <see cref="NoiseRecipe"/> 与 <see cref="ApplyOutlineDetailNoise"/>）。
         /// </summary>
-        static Material EnsureOutlineMaterial(string fileName, string bodyHex)
+        static Material EnsureOutlineMaterial(string fileName, string bodyHex, NoiseRecipe noise)
         {
             string path = SceneMaterialFolder + "/" + fileName + ".mat";
             Shader shader = Shader.Find(OutlineShaderName);
@@ -530,6 +672,9 @@ namespace PirateCrew.EditorTools
             }
 
             SetColor(m, "_BaseColor", SceneArtPalette.Hex(bodyHex));
+
+            // ---- 细节噪声（程序化资产；null 配方 = 把两个强度写 0，材质与加贴图前逐像素一致）----
+            ApplyOutlineDetailNoise(m, noise);
 
             // ---- 描边退役：三套色 alpha=0、三套宽=0 ----
             SetColor(m, "_OutlineColor", SceneArtPalette.Hex(SceneArtPalette.Outline, 0f));

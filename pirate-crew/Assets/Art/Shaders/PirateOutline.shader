@@ -48,6 +48,21 @@
 //     2  只显示法线外扩结果（品红实色壳）
 //     3  只显示描边掩码（单色剪影，无虚线）
 //     4  显示深度/法线原始数据（本体换成法线 RGB + 视空间深度）
+//     5  显示本体细节色斑系数（灰 0.5 = 无起伏；判据"200×200 窗 std > 0.02"）
+//
+// 【本体细节噪声（Scene_* 道具族"大色块平面"工单，本 shader 第三处用途）】
+//   SceneArtBuilder 把道具按材质组合并成**无 UV 的大网格**、本体只有一个 _BaseColor →
+//   每个材质组是一整片单色平面。本 shader 加一组**默认关闭**的可选细节贴图：
+//     _DetailNoiseMap（albedo 乘性微色斑，线性均值 0.5）+ _DetailNoiseScale（世界 XZ UV 尺度）
+//     + _DetailNoiseStrength（强度，默认 0）＋ _DetailBumpMap/_DetailBumpScale（细节法线，默认 0）。
+//   贴图是**程序化资产**（算法唯一来源 Assets/Editor/MaterialNoiseBuilder.cs，512² 域名扭曲 fBm），
+//   不是外部贴图 —— 与本工程 0 外部贴图的纪律一致。
+//   【默认 0 的硬要求】单位材质（PirateOutlineUnit.mat，走 MPB 写 _OutlineState）与其他未赋值的
+//   材质必须与加贴图之前**逐像素一致**；且 2D 属性未赋值时 Unity 会回落内置贴图（"gray" 在 Linear
+//   下不是 0.5），所以强度默认 0 是唯一安全的关闭口径。赋值点见 SceneArtBuilder.EnsureOutlineMaterial。
+//   【与 PirateSurface 的口径关系】同样的"世界 XZ UV + 均值保持乘性图 + 法线重定向到世界 XZ 基"；
+//   差异是不做 UV 扭曲（_NoiseWarpStrength）—— 道具不是 1 单位格子的地形块，没有"与格子轴对齐"
+//   的问题，省掉一次低频 FBM（本 shader 里也就没有值噪声内核）。
 //
 // 【为什么用 uniform 分支而不是 multi_compile 关键字】
 //   _DebugMode 只在人工调试时改，且 5 档分支都是极短片段着色器分支，现代 GPU 上
@@ -99,6 +114,25 @@ Shader "PirateCrew/PirateOutline"
         _Metallic               ("本体金属度", Range(0.0, 1.0)) = 0.0
         _Smoothness             ("本体光滑度", Range(0.0, 1.0)) = 0.35
 
+        // ---- 本体细节噪声（Scene_* 道具族用；程序化资产，算法唯一来源 = Assets/Editor/MaterialNoiseBuilder.cs）----
+        // 【为什么 Scene_* 族需要它】SceneArtBuilder 把道具按材质组合并成**大网格**（1 组 = 1 DrawCall），
+        //   这些网格只有 position+normal、**没有 UV**，本体又只有一个 _BaseColor → 每个材质组是一整片
+        //   单色平面（观感"廉价"的主因）。这里给本体加一层**世界空间 XZ 采样**的程序化噪声：
+        //   色斑（乘性、均值保持）+ 细节法线，把"大色块"变成"有介质感的表面"。
+        // 【默认 0 = 与加贴图之前逐像素一致（硬要求）】单位材质（PirateOutlineUnit.mat）与任何
+        //   未显式赋值的材质必须保持原样；且 2D 属性未赋值时 Unity 会回落到内置贴图，其线性值不可预期
+        //   （"gray" 在 Linear 下不是 0.5），所以强度默认 0 是唯一安全的"关闭"口径。
+        // 【值从哪来】Scene_Wood / Scene_Rock / Scene_Foliage / Scene_Cloth / Scene_GrassRoot /
+        //   Scene_GrassLight 等在 SceneArtBuilder.EnsureOutlineMaterial 里赋值；远影族
+        //   （Silhouette / Cloud / SailFar，unlit）与 Flag/Metal 刻意保持纯净（雾里不需要细节）。
+        //   _DetailNoiseMap 用 albedo 类贴图（木→沙族暖色色斑、岩/草→本族色斑）；
+        //   _DetailBumpMap 用各族法线图（木→岩族法线给"木纹/节疤"、草→草族法线给"绒毛"）。
+        [NoScaleOffset] _DetailNoiseMap ("本体细节色斑图（线性均值 0.5 的乘性图）", 2D) = "gray" {}
+        _DetailNoiseScale   ("本体细节世界尺度（UV=世界XZ×该值；1/该值=平铺米数）", Float) = 0.10
+        _DetailNoiseStrength ("本体细节色斑强度（0=关闭；单位材质保持 0）", Range(0.0, 1.0)) = 0.0
+        [NoScaleOffset] _DetailBumpMap ("本体细节法线图（切空间；重定向到世界 XZ 基）", 2D) = "bump" {}
+        _DetailBumpScale    ("本体细节法线强度（0=关闭）", Range(0.0, 2.0)) = 0.0
+
         // ---- 描边：三套色 + 三套宽（对应 Godot outline_hover / outline_selected）----
         // _OutlineColor 是"无状态"兜底色；实际运行时由 _OutlineState 选中 hover/selected 两套。
         _OutlineColor           ("描边兜底色（state=0）", Color) = (0.286, 0.851, 0.839, 0.949)
@@ -126,8 +160,8 @@ Shader "PirateCrew/PirateOutline"
         _DashFrequency          ("虚线密度", Range(1.0, 200.0)) = 50.0
 
         // ---- 调试（AGENTS.md 图形学调试截图规范）----
-        // 0 正常 / 1 只本体 / 2 只外扩壳 / 3 只描边掩码 / 4 深度法线原始数据
-        _DebugMode              ("调试模式 0=正常 1=只本体 2=只外扩 3=只掩码 4=深度法线", Range(0.0, 4.0)) = 0.0
+        // 0 正常 / 1 只本体 / 2 只外扩壳 / 3 只描边掩码 / 4 深度法线原始数据 / 5 本体细节贴图系数
+        _DebugMode              ("调试模式 0=正常 1=只本体 2=只外扩 3=只掩码 4=深度法线 5=细节贴图", Range(0.0, 5.0)) = 0.0
     }
 
     SubShader
@@ -193,10 +227,15 @@ Shader "PirateCrew/PirateOutline"
 
             // CBUFFER 字段顺序必须与 Properties 声明顺序一致，否则 SRP Batcher 会判定不兼容。
             // 本体 Pass 与描边 Pass 必须声明**同一份** CBUFFER（同名字段、同顺序）。
+            // （DepthOnly / ShadowCaster 两个 Pass 沿用既有状态、不声明 CBUFFER —— 它们不读材质属性，
+            //   代价只是这两个 Pass 不参与 SRP Batcher，与本 shader 改动前一致。）
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
                 float  _Metallic;
                 float  _Smoothness;
+                float  _DetailNoiseScale;
+                float  _DetailNoiseStrength;
+                float  _DetailBumpScale;
                 float4 _OutlineColor;
                 float4 _OutlineColorHover;
                 float4 _OutlineColorSelected;
@@ -211,6 +250,17 @@ Shader "PirateCrew/PirateOutline"
                 float  _DashFrequency;
                 float  _DebugMode;
             CBUFFER_END
+
+            // 细节贴图：**纹理与采样器必须在 UnityPerMaterial CBUFFER 之外**（URP 硬要求，见
+            //   URP LitInput.hlsl 的 TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap); 分离声明）。
+            //   名字刻意避开 URP 全局属性：`_BumpMap`/`_BumpScale` 被 SurfaceInput.hlsl 全局声明过，
+            //   故本 shader 用 `_DetailBumpMap`/`_DetailBumpScale`（本 shader 的 include 链
+            //   Core→Lighting→Shadows 并不含 SurfaceInput.hlsl，本可不改名；改名是为了将来加
+            //   LitInput.hlsl 之类时不会撞车）。
+            //   TEXTURE2D / SAMPLER / SAMPLE_TEXTURE2D / UnpackNormalScale 均由 Core.hlsl 的
+            //   include 链提供（core Common.hlsl / Packing.hlsl），无需额外 include。
+            TEXTURE2D(_DetailNoiseMap); SAMPLER(sampler_DetailNoiseMap);
+            TEXTURE2D(_DetailBumpMap);  SAMPLER(sampler_DetailBumpMap);
 
             struct AttributesBase
             {
@@ -252,7 +302,7 @@ Shader "PirateCrew/PirateOutline"
                 //             B=视空间深度（越近越黑、越远越蓝，50m 封顶）。
                 //   常见异常：整块死灰蓝 -> 法线没传进 Varyings（normalOS 丢失或模型无法线）；
                 //             整块同色 -> 模型是硬边平面（属正常，换圆球/角色模型看渐变）。
-                if (_DebugMode > 3.5)
+                if (_DebugMode > 3.5 && _DebugMode < 4.5)
                 {
                     float3 n = normalize(IN.normalWS) * 0.5 + 0.5;
                     float  viewDepth = -TransformWorldToView(IN.positionWS).z;
@@ -272,11 +322,54 @@ Shader "PirateCrew/PirateOutline"
                 float3 nrm = normalize(IN.normalWS);
                 float3 viewDirWS = GetWorldSpaceNormalizeViewDir(IN.positionWS);
 
+                // ---- 本体细节噪声（Scene_* 道具族；默认强度 0 → 单位材质逐像素与改动前一致）----
+                // 【为什么 UV 是"世界 XZ × _DetailNoiseScale"而不是模型 UV】Scene_* 族是 SceneArtBuilder
+                //   落盘的**合并网格**（Assets/Art/Models/Scene/*.asset），顶点缓冲只有 position+normal、
+                //   **没有 UV 通道** → 模型 UV 路径无处可依。世界 XZ 投影顺带让相邻道具/同一构件的
+                //   纹理跨面连续（与 PirateSurface / PirateTerrain 同一口径）。
+                // 【已知边界】世界 XZ 投影对水平面最准确、对竖直面退化（细节被"竖向挤出"成条纹）；
+                //   故再叠一项 **worldY × (_DetailNoiseScale × 0.37)** —— 与 PirateSurface.shader:389-390
+                //   主噪声"竖直面用 y 参与坐标，避免整面同色"是同款做法（本工程既有纪律，不是新发明）。
+                //   代价：平铺严格性只在 XZ 上成立（Y 是斜切），视觉上无接缝问题。
+                // 【平铺尺度】_DetailNoiseScale = 1/平铺米数：木/布 0.5-0.55（约 2m）、岩 0.45（2.2m）、
+                //   草 0.7（1.4m）。见 SceneArtBuilder.EnsureOutlineMaterial 的 NoiseRecipe 预设表。
+                float2 detailUV = IN.positionWS.xz * _DetailNoiseScale
+                                + IN.positionWS.y * (_DetailNoiseScale * 0.37);
+
+                // 乘性微色斑：贴图线性均值恰 0.5 → *2 后均值恰 1.0 → **不改已调好的 _BaseColor**，
+                //   只加起伏（调色板 §SceneArtPalette 与 r3 已裁决的光照口径都不被扰动）。
+                half3 detailAlb = SAMPLE_TEXTURE2D(_DetailNoiseMap, sampler_DetailNoiseMap, detailUV).rgb;
+                half3 albedo = _BaseColor.rgb
+                             * lerp(half3(1.0h, 1.0h, 1.0h), detailAlb * 2.0h, (half)_DetailNoiseStrength);
+
+                // [DEBUG] 档 5：本体细节色斑的"乘性系数"线性明度（0.5 = 系数 1.0 = 无起伏）。
+                //   预期：道具表面有细碎噪点（木=暖色微斑、岩=斑块+裂纹、草=双色 patch）；
+                //         远影族（Silhouette/Cloud/SailFar，走 URP/Unlit）与 Flag/Metal 为纯 0.5 死平
+                //         —— 它们刻意不给细节噪声（雾里/金属不需要）。
+                //   判据：道具表面 200×200 窗灰度 std > 0.02（8bit 约 5）。
+                //   若死平 → _DetailNoiseStrength=0，或贴图未生成（先跑
+                //   PirateCrew/渲染/生成程序化材质噪声贴图）。
+                if (_DebugMode > 4.5)
+                {
+                    half detGray = saturate(dot(detailAlb * 2.0h, half3(0.2126h, 0.7152h, 0.0722h)) * 0.5h);
+                    return half4(detGray, detGray, detGray, 1.0h);
+                }
+
+                // 细节法线：切空间 (x,y) → 世界 XZ 基（低成本 worldspace 重定向，不引 tangent 帧）。
+                //   只取 xy、丢掉 z：未赋贴图时默认 "bump" 贴图的 xy 未必恰好为 0，
+                //   而 z=1 的"平法线"在这里贡献本来就是 0 —— 加上 _DetailBumpScale 默认 0，双重保险。
+                //   近似性：竖直面上 XZ 基退化（V 方向被拉长），与上方细节色斑的近似同源。
+                half4 detailNrm = SAMPLE_TEXTURE2D(_DetailBumpMap, sampler_DetailBumpMap, detailUV);
+                float2 nTS = UnpackNormalScale(detailNrm, 1.0h).xy;
+                float3 bumpTex = float3(nTS.x, 0.0, nTS.y) * _DetailBumpScale;
+                bumpTex -= nrm * dot(bumpTex, nrm);     // 投影到切平面，避免竖直面被拉歪
+                nrm = normalize(nrm + bumpTex);
+
                 half alpha = 1.0h;
                 BRDFData brdfData;
                 // specular 传 0：URP 在非 _SPECULAR_SETUP 路径下用 kDieletricSpec 与 albedo 自行插值
                 // （BRDF.hlsl:96 `lerp(kDieletricSpec.rgb, albedo, metallic)`），与 PirateSurface 一致。
-                InitializeBRDFData(_BaseColor.rgb, saturate((half)_Metallic),
+                InitializeBRDFData(albedo, saturate((half)_Metallic),
                     half3(0.0h, 0.0h, 0.0h), saturate((half)_Smoothness), alpha, brdfData);
 
                 #if defined(_MAIN_LIGHT_SHADOWS) || defined(_MAIN_LIGHT_SHADOWS_CASCADE)
@@ -334,10 +427,14 @@ Shader "PirateCrew/PirateOutline"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             // 与 Base Pass 完全相同的 CBUFFER（同名同序，SRP Batcher 才兼容）。
+            // 新增的三个 _Detail* 标量也必须在这里同序出现（本 Pass 不采样细节贴图，但布局要一致）。
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
                 float  _Metallic;
                 float  _Smoothness;
+                float  _DetailNoiseScale;
+                float  _DetailNoiseStrength;
+                float  _DetailBumpScale;
                 float4 _OutlineColor;
                 float4 _OutlineColorHover;
                 float4 _OutlineColorSelected;
@@ -439,6 +536,7 @@ Shader "PirateCrew/PirateOutline"
                     discard;
 
                 // [DEBUG] 档 4：原始数据档，描边 Pass 整段丢弃（画面完全由 Base Pass 提供）。
+                //   档 5（细节贴图）同样丢弃：否则描边色会盖在细节灰度图上干扰判读。
                 if (_DebugMode > 3.5)
                     discard;
 

@@ -25,7 +25,9 @@ namespace PirateCrew.EditorTools
     ///   Noise_Sand_Albedo.png   / Noise_Sand_Normal.png
     ///   Noise_Grass_Albedo.png  / Noise_Grass_Normal.png
     ///   Noise_Rock_Albedo.png   / Noise_Rock_Normal.png
-    ///   6 张 256×256（风格指南 §3.3：环境 albedo/法线各 256×256，平铺 2-4m）。
+    ///   6 张 **512×512**（v2 提档；原 256²。风格指南 §3.3 给的是 256² 下限，512² 让最细八度
+    ///   从 1-2 texel/格 变成 2-4 texel/格 —— 同一世界波长下采样更充分、不再靠"每格 1 texel
+    ///   的哈希白噪"撑细节。内存代价：RGBA32 + mip 约 1.33 MB/张，6 张 ≈ 8 MB，可接受）。
     ///
     /// 【两类贴图的编码口径（踩不对就整体变色，必读）】
     ///   1. albedo 细节图 = **均值保持的乘性调制图**，不是材质基色图：
@@ -38,8 +40,11 @@ namespace PirateCrew.EditorTools
     ///      <c>packed.x *= packed.w</c> 来同时兼容 RGBA 与 DXT5nm 两种布局；A=1 时 RGBA 路径才成立。
     ///      导入为 NormalMap 类型 + sRGB=false（线性数据）+ Uncompressed（避免 BC 压缩把细噪压出块状伪影）。
     ///
-    /// 【无缝（tileable）】全部噪声用整数周期格点的 value 噪声，频率按 2 的幂递增（4/8/16/32…），
-    ///   周期正好整除贴图尺寸 → 平铺无接缝。法线用**前向差分 + 周期回绕**（<c>(x+1)%size</c>），
+    /// 【无缝（tileable）】全部噪声用整数周期格点的 value 噪声，频率按 2 的幂递增（4/8/16/32…）；
+    ///   每个八度在 <c>(u,v)∈[0,1)</c> 上恰好整数个格点周期 → **底层场是以 1 为周期的连续函数**，
+    ///   这是平铺无缝的充要条件（v2 的域名扭曲同样满足：扭曲场本身是周期场，故 u=0 与 u=1 的位移
+    ///   逐点相等；python 复算实测 f(u=0)-f(u=1) ≤ 1.4e-14）。生成器按 (x+0.5)/size 的**像素中心**
+    ///   口径采样，与周期场配合即为标准无缝平铺。法线用**前向差分 + 周期回绕**（<c>(x+1)%size</c>），
     ///   所以左右/上下边缘的梯度也连续，不会在平铺接缝处出现一条硬法线断线。
     ///
     /// 【强度不是拍脑袋】法线强度用「整张高度场的梯度 RMS 归一到目标 RMS 斜率」反推
@@ -56,7 +61,31 @@ namespace PirateCrew.EditorTools
     ///   复算（python，生成端逐行同构）：沙乘性系数线性明度 std 0.113→0.149、存储 8bit 灰度 std
     ///   9.6→12.6；草 14.4→15.0、岩 22.3→22.7（8bit std，全族 ≥12）。
     ///   配套的"世界采样尺度放大 5-7×"在 shader / BattleSceneLighting 侧（UV = 世界XZ×_NoiseWorldScale），
-    ///   本类的贴图内容尺寸不变（仍 256²）。
+    ///   本类的贴图内容尺寸不变（r5 时仍 256²；**v2 已提到 512²，见下节**）。
+    ///
+    /// 【v2 贴图提档（本类当前实现；观感：从"PS 云彩"变"揉皱的有机斑块"）】
+    ///   用户复验反馈"贴图质量也很低"——旧图 256²、纯 value-FBM 4 阶，观感廉价，具体两个成因：
+    ///     ① **每格 1 texel 的哈希白噪**撑最细八度（period 256 @ 256²）→ 近景是"抖动的噪点"而不是纹理；
+    ///     ② **value-FBM 的方格团块**（bilinear 格子 → 等值线偏方正、局部梯度强度过于均匀）→ "PS 云彩"。
+    ///   三处改动（**只动"看起来像什么"，不动"有多亮/多花"**）：
+    ///     1. **分辨率 256² → 512²**（六张全部）：同一世界波长下最细八度从 1 texel/格 变 2 texel/格，
+    ///        采样更充分；导入 aniso 4 → **8**（地面是 45° 俯视近水平面，斜视更锐）。mip 保持开启。
+    ///     2. **value-FBM → 域名扭曲 fBm（domain warp）**：两轮低频噪声场（period 2、2 阶）扰动采样
+    ///        坐标后再取目标 fBm —— <see cref="WarpedFbm"/>。低频/中频八度全走扭曲版（消除团块的方正
+    ///        边界与"同一个斑块尺寸重复"的云彩感）；**最细的 period 192/256 八度刻意留纯 Fbm**
+    ///        （高频扭曲肉眼不可见，白白多花 4 倍噪声求值）。
+    ///        强度取 WarpStrength1=0.28 / WarpStrength2=0.14（uv 单位 × [-0.5,0.5] → 最大位移 ±0.14 uv）：
+    ///        python 复算 512² 显示等值线长 +4.0%、|grad|CV +10.0%（局部细节"疏密不均"）、FFT 角向能量
+    ///        CV -25.5%（方格轴向印记减弱），而**场 std 只 +4.4%**（扭曲搬动格点、不改变分布）。
+    ///     3. 法线仍从"扭曲后的高度场"求梯度（<see cref="BuildNormalPixels"/> 的 RMS 归一逻辑不变，
+    ///        沙 0.07≈4° 的温和档不变）；沙最细八度权重 0.044 → **0.075**：扭曲把中频的梯度能量抬高了，
+    ///        权重不补则细粒占比会从 20% 掉到 7.5%（512² 复算：0.075 → 19.1%，维持"近景有砂粒感"的原意）。
+    ///   **不变量（这两条是硬约束，改噪声函数也不许破）**：
+    ///     · 均值零漂移 —— 两遍归一化后乘性系数均值**精确** 1.0（复算：沙/草/岩 lumaMean 全 1.0000）；
+    ///     · 无缝 —— 扭曲场与目标场都是周期 1 的连续函数（复算：f(u=0)-f(u=1) ≤ 1.4e-14）。
+    ///   【复算证据】<c>external/harness-t2/noise-recompute-v2.py</c>（不启动 Unity、numpy 复算）：
+    ///     沙 stored8bitStd 12.57→**12.82**（判据 P-9 目标 ≥12）、草 14.96→15.00、岩 22.52→22.61；
+    ///     跨接缝相邻差分 ≤ 内部差分的 0.91×（无接缝跳变）。
     ///
     /// 【入口】
     ///   菜单: PirateCrew/渲染/生成程序化材质噪声贴图（幂等）
@@ -75,8 +104,12 @@ namespace PirateCrew.EditorTools
         /// <summary>贴图目录（新目录；与 Textures/Fx、Textures/Water 同级）。</summary>
         public const string TextureFolder = "Assets/Art/Textures/Materials";
 
-        /// <summary>贴图边长（风格指南 §3.3：环境 albedo/法线各 256×256）。</summary>
-        public const int TextureSize = 256;
+        /// <summary>
+        /// 贴图边长。**v2：256 → 512**（六张全部；风格指南 §3.3 的 256² 是下限口径）。
+        /// 512² 让最细八度（period 192/256）从"每格 1 texel 的哈希白噪"变成 2-4 texel/格；
+        /// 内存 RGBA32 + mip 约 1.33 MB/张、6 张 ≈ 8 MB（Uncompressed 是刻意取舍，见 <see cref="ConfigureImporter"/>）。
+        /// </summary>
+        public const int TextureSize = 512;
 
         /// <summary>六张贴图的种类。命名 = <c>Noise_{族}_{Albedo|Normal}</c>。</summary>
         public enum NoiseKind
@@ -244,7 +277,9 @@ namespace PirateCrew.EditorTools
         ///   · <c>wrapMode = Repeat</c>：世界空间平铺，绝不能 Clamp；
         ///   · <c>mipmapEnabled = true</c>：世界空间平铺 + 高频细噪，没有 mip 远处会闪烁/摩尔纹；
         ///   · <c>Uncompressed</c>：BC 压缩会把 ±6% 的明度噪声压成块状伪影，把"细腻"做成"脏"；
-        ///   · <c>anisoLevel = 4</c>：地面是 45° 俯视的近水平面，各向异性过滤让远处贴图不糊。
+        ///     （512² 下 6 张共约 8 MB，是刻意用内存换质量：本工程是 PC 作品集，不是移动端。）
+        ///   · <c>anisoLevel = 8</c>：地面是 45° 俯视的近水平面，各向异性过滤让远处贴图不糊。
+        ///     （v2：4 → 8。512² 的高频细节更细，斜视时低 aniso 会先糊掉细粒。）
         /// </summary>
         static void ConfigureImporter(string assetPath, bool isNormalMap)
         {
@@ -265,7 +300,7 @@ namespace PirateCrew.EditorTools
             settings.mipmapEnabled = true;
             settings.wrapMode = TextureWrapMode.Repeat;
             settings.filterMode = FilterMode.Bilinear;
-            settings.aniso = 4;
+            settings.aniso = 8;
             settings.npotScale = TextureImporterNPOTScale.None;
             // 法线图必须保留源 alpha（桌面 UnpackNormalmapRGorAG 会读 w 通道，A 丢了法线会歪）。
             settings.alphaSource = TextureImporterAlphaSource.FromInput;
@@ -346,7 +381,7 @@ namespace PirateCrew.EditorTools
             }
             float lumaStd = Mathf.Sqrt((float)(varSum / count));
 
-            stat = "albedo 256²，乘性系数均值 " + lumaMean.ToString("0.000")
+            stat = "albedo " + size + "²（v2 域名扭曲），乘性系数均值 " + lumaMean.ToString("0.000")
                  + "（期望 1.000）、线性明度 std " + lumaStd.ToString("0.000")
                  + "（P-9：该系数直接乘进 albedo，渲染后 8bit 灰度 std 应 ≈ "
                  + (lumaStd * 255f * 0.5f).ToString("0.0") + " 量级）";
@@ -372,17 +407,16 @@ namespace PirateCrew.EditorTools
         }
 
         // 沙 albedo（任务书：基色 #E8D5A3/#C4A76A 之间按噪声取色 + 明度扰动 + 稀疏贝壳白点 <0.5%）
-        //   参数表（r5 提档，括号内为 r4 旧值）：主色斑 FBM 基准周期 4、对比拉伸 **3.2**（旧 2.4）、
-        //           权重 0.65；中频色斑周期 16、对比拉伸 **2.4**（旧 1.4）、权重 0.35 —— 色斑提档；
-        //           明度扰动 FBM 周期 64、幅度 **±18%**（旧 ±6%）；
-        //           细颗粒周期 192、幅度 **±8%**（旧 ±4%）；
-        //           贝壳：16×16 单元格、4.5% 单元格出点、半径 0.06-0.11 格 → 覆盖率 ≈0.14%（<0.5%）。
-        //   【为什么同时提 色斑对比】只提明度项在 ±18% 上限内，沙的"整张贴图 std"也只能到 ~10.7
-        //   （色斑色相起伏是主项）；配合色斑对比 2.4→3.2 / 1.4→2.4 后可到 ~12.6（python 复算见报告）。
+        //   参数表（v2 提档；括号内为 r5 值）：色斑走**域名扭曲 fBm**（低频/中频全部扭曲，
+        //           最细 period-192 细粒保持纯 Fbm）；主色斑周期 4、对比拉伸 3.2、权重 0.65；
+        //           中频色斑周期 16、对比拉伸 2.4、权重 0.35；明度扰动周期 64、幅度 ±18%；
+        //           细颗粒周期 192、幅度 ±8%；
+        //           贝壳：16×16 单元格、4.5% 单元格出点、半径 0.06-0.11 格 → 覆盖率 ≈0.14%（<0.5%，
+        //           与贴图尺寸无关：半径以"格"为单位，512² 与 256² 的覆盖率相同）。
         static Color SandAlbedoFactor(float u, float v, int size)
         {
-            float nPatch = Contrast(Fbm(u, v, 4, 4, 4, SeedSandPatch), 3.2f);
-            float nMid   = Contrast(Fbm(u, v, 16, 16, 3, SeedSandMid), 2.4f);
+            float nPatch = Contrast(WarpedFbm(u, v, 4, 4, 4, SeedSandPatch, WarpSeedSand), 3.2f);
+            float nMid   = Contrast(WarpedFbm(u, v, 16, 16, 3, SeedSandMid, WarpSeedSand), 2.4f);
             float mix    = Mathf.Clamp01(0.65f * nPatch + 0.35f * nMid);
 
             Color lightLin = SrgbToLinear(SandLightSrgb);
@@ -391,7 +425,7 @@ namespace PirateCrew.EditorTools
             Color baseLin  = Color.Lerp(lightLin, midLin, mix);
 
             // 明度扰动 ±18% + 细颗粒 ±8%（都作用在"系数"上，故不破坏平均色；两遍归一化在 BuildAlbedoPixels）
-            float lum = 1f + (Fbm(u, v, 64, 64, 2, SeedSandGrain) - 0.5f) * 2f * 0.18f;
+            float lum = 1f + (WarpedFbm(u, v, 64, 64, 2, SeedSandGrain, WarpSeedSand) - 0.5f) * 2f * 0.18f;
             float fine = 1f + (Fbm(u, v, 192, 192, 2, SeedSandFine) - 0.5f) * 2f * 0.08f;
 
             Color factor = RatioToMean(baseLin, meanLin) * (lum * fine);
@@ -405,14 +439,14 @@ namespace PirateCrew.EditorTools
         }
 
         // 草 albedo（任务书：#4A8C4A/#7BC67E 双色 patch）
-        //   参数表：双色 patch FBM 周期 6、对比拉伸 2.2；细碎斑 FBM 周期 24、权重 0.3；
-        //           明度扰动周期 64、幅度 **±15%**（r5：±6% → ±15%）；
-        //           细粒周期 192、幅度 **±8%**（r5 新增，与沙同口径）；
-        //           深色草缝（叶隙阴影）用周期 48 的阈值噪声打点，最多压暗 22%。
+        //   参数表（v2）：双色 patch 走域名扭曲 fBm，周期 6、对比拉伸 2.2；细碎斑（扭曲）周期 24、权重 0.3；
+        //           明度扰动（扭曲）周期 64、幅度 ±15%；
+        //           细粒周期 192、幅度 ±8%（纯 Fbm，高频不扭曲）；
+        //           深色草缝（叶隙阴影）用周期 48 的阈值噪声打点，最多压暗 22%（纯 Fbm）。
         static Color GrassAlbedoFactor(float u, float v)
         {
-            float nPatch = Contrast(Fbm(u, v, 6, 6, 4, SeedGrassPatch), 2.2f);
-            float nMid   = Contrast(Fbm(u, v, 24, 24, 3, SeedGrassMid), 1.3f);
+            float nPatch = Contrast(WarpedFbm(u, v, 6, 6, 4, SeedGrassPatch, WarpSeedGrass), 2.2f);
+            float nMid   = Contrast(WarpedFbm(u, v, 24, 24, 3, SeedGrassMid, WarpSeedGrass), 1.3f);
             float mix    = Mathf.Clamp01(0.7f * nPatch + 0.3f * nMid);
 
             Color darkLin  = SrgbToLinear(GrassDarkSrgb);
@@ -422,21 +456,21 @@ namespace PirateCrew.EditorTools
 
             // 草叶/叶隙：高频阈值噪声 → 细碎的暗点（让"绒毛感"来自纹理而非只靠法线）
             float gap = Mathf.SmoothStep(0f, 0.06f, Fbm(u, v, 48, 48, 2, SeedGrassGap) - 0.62f);
-            float lum  = 1f + (Fbm(u, v, 64, 64, 2, SeedGrassGrain) - 0.5f) * 2f * 0.15f;
+            float lum  = 1f + (WarpedFbm(u, v, 64, 64, 2, SeedGrassGrain, WarpSeedGrass) - 0.5f) * 2f * 0.15f;
             float fine = 1f + (Fbm(u, v, 192, 192, 2, SeedGrassAlbedoFine) - 0.5f) * 2f * 0.08f;
 
             return RatioToMean(baseLin, meanLin) * (lum * fine * (1f - 0.22f * gap));
         }
 
         // 岩 albedo（任务书：#8C7B6A 基础上斑块 + 裂缝暗线（阈值化噪声））
-        //   参数表：斑块在暗档 #5C4F42 与亮档 #B8A99A 间按 FBM（周期 5，对比 2.0）取色；
-        //           裂缝 = 阈值化 FBM（周期 8、4 阶），|n-0.5| < 0.035 处为暗线，最多压暗 45%；
-        //           岩层的各向异性拉长（周期 (6,24)）给沉积纹理；
-        //           明度扰动周期 96、幅度 **±14%**（r5：±5% → ±14%）；细粒周期 192、幅度 **±8%**（r5 新增）。
+        //   参数表（v2）：斑块在暗档 #5C4F42 与亮档 #B8A99A 间按**域名扭曲** FBM（周期 5，对比 2.0）取色；
+        //           裂缝 = 阈值化**扭曲** FBM（周期 8、4 阶），|n-0.5| < 0.035 处为暗线，最多压暗 45%；
+        //           岩层的各向异性拉长（周期 (6,24)，扭曲）给沉积纹理；
+        //           明度扰动（扭曲）周期 96、幅度 ±14%；细粒周期 192、幅度 ±8%（纯 Fbm，高频不扭曲）。
         static Color RockAlbedoFactor(float u, float v)
         {
-            float nPatch = Contrast(Fbm(u, v, 5, 5, 4, SeedRockPatch), 2.0f);
-            float nStrata = Contrast(Fbm(u, v, 6, 24, 3, SeedRockStrata), 1.2f);
+            float nPatch = Contrast(WarpedFbm(u, v, 5, 5, 4, SeedRockPatch, WarpSeedRock), 2.0f);
+            float nStrata = Contrast(WarpedFbm(u, v, 6, 24, 3, SeedRockStrata, WarpSeedRock), 1.2f);
             float mix = Mathf.Clamp01(0.7f * nPatch + 0.3f * nStrata);
 
             Color darkLin  = SrgbToLinear(RockDarkSrgb);
@@ -445,7 +479,7 @@ namespace PirateCrew.EditorTools
             Color baseLin  = Color.Lerp(darkLin, lightLin, mix);
 
             float crack = CrackMask(u, v);
-            float lum  = 1f + (Fbm(u, v, 96, 96, 2, SeedRockGrain) - 0.5f) * 2f * 0.14f;
+            float lum  = 1f + (WarpedFbm(u, v, 96, 96, 2, SeedRockGrain, WarpSeedRock) - 0.5f) * 2f * 0.14f;
             float fine = 1f + (Fbm(u, v, 192, 192, 2, SeedRockAlbedoFine) - 0.5f) * 2f * 0.08f;
 
             return RatioToMean(baseLin, meanLin) * (lum * fine * (1f - 0.45f * crack));
@@ -510,7 +544,7 @@ namespace PirateCrew.EditorTools
                     255);                                 // A=255：桌面 UnpackNormalmapRGorAG 需要 w=1
             }
 
-            stat = "normal 256²，高度场梯度 RMS " + rms.ToString("0.0000")
+            stat = "normal " + size + "²（v2 域名扭曲），高度场梯度 RMS " + rms.ToString("0.0000")
                  + " → 增益 " + gain.ToString("0.00")
                  + " → 目标 RMS 斜率 " + targetSlope.ToString("0.00")
                  + "（≈" + (Mathf.Atan(targetSlope) * Mathf.Rad2Deg).ToString("0.0") + "° 坡角）";
@@ -541,37 +575,39 @@ namespace PirateCrew.EditorTools
 
         // 沙高度：主频 ripples 与 shader 的沙纹方向同源（rdir = normalize(5,3)，见 PirateSurface.shader 的 _RippleScale 段）；
         //   用整数波数 (5,3) 沿 u/v → 既与 shader 沙纹同向，又天然无缝。
-        //   叠加：低频起伏（周期 16）+ 细沙扰动（周期 64，权重 0.25）+ 【r5 新增】最细粒（周期 256，
-        //   权重 0.044，梯度 RMS 占比 ~20%）—— 让特写近景有"砂粒感"，而不是只有波纹。
-        //   【为什么权重只有 0.044 就能占到 20%】法线图最终按整张高度场的梯度 RMS 归一（BuildNormalPixels），
-        //   对"起伏感知"的贡献是**梯度能量**而不是高度振幅：周期 256 的梯度 ∝ 256×权重，比周期 64
-        //   高 4 倍，故 0.044 的权重就占到梯度 RMS 的 20.2%（python 复算见报告：18.4%@0.04、20.2%@0.044）。
+        //   叠加：低频起伏（周期 16，扭曲）+ 细沙扰动（周期 64，扭曲，权重 0.25）+ 最细粒（周期 256，
+        //   纯 Fbm，权重 **0.075**）—— 让特写近景有"砂粒感"，而不是只有波纹。
+        //   【v2：权重 0.044 → 0.075】法线图最终按整张高度场的梯度 RMS 归一，对"起伏感知"的贡献是
+        //   **梯度能量**：domain warp 用链式法则把中频段（ripple/mid/fine）的梯度整体抬高（复算：
+        //   扭曲后 totalGradRMS 0.0571→0.0611），若不补权重，ultra 占比会从 20.2% 掉到 7.5%。
+        //   0.075 在 512² 复算下回到 **19.1%**，维持"近景有砂粒感"的原意（python 见报告复算表）。
         static float SandHeight(float u, float v)
         {
             float phase = 2f * Mathf.PI * (5f * u + 3f * v)
-                        + (Fbm(u, v, 4, 4, 3, SeedSandRippleWarp) - 0.5f) * Mathf.PI * 2f * 0.55f;
+                        + (WarpedFbm(u, v, 4, 4, 3, SeedSandRippleWarp, WarpSeedSand) - 0.5f) * Mathf.PI * 2f * 0.55f;
             float ripple = Mathf.Sin(phase);
-            float mid    = (Fbm(u, v, 16, 16, 2, SeedSandNormalMid) - 0.5f) * 2f;
-            float fine   = (Fbm(u, v, 64, 64, 3, SeedSandNormalFine) - 0.5f) * 2f;
+            float mid    = (WarpedFbm(u, v, 16, 16, 2, SeedSandNormalMid, WarpSeedSand) - 0.5f) * 2f;
+            float fine   = (WarpedFbm(u, v, 64, 64, 3, SeedSandNormalFine, WarpSeedSand) - 0.5f) * 2f;
             float ultra  = (Fbm(u, v, 256, 256, 2, SeedSandNormalUltra) - 0.5f) * 2f;
-            return ripple * 0.75f + mid * 0.5f + fine * 0.25f + ultra * 0.044f;
+            return ripple * 0.75f + mid * 0.5f + fine * 0.25f + ultra * 0.075f;
         }
 
-        // 草高度：各向异性"草叶"（沿 v 拉长：u 高频 48 / v 低频 16）+ 中频草簇（周期 8）+ 细碎（周期 96）。
+        // 草高度：各向异性"草叶"（沿 v 拉长：u 高频 48 / v 低频 16，扭曲）+ 中频草簇（周期 8，扭曲）
+        //   + 细碎（周期 96，纯 Fbm —— 高频扭曲肉眼不可见，白花 4× 噪声求值）。
         static float GrassHeight(float u, float v)
         {
-            float blade = (Fbm(u, v, 48, 16, 3, SeedGrassBlade) - 0.5f) * 2f;
-            float clump = (Fbm(u, v, 8, 8, 3, SeedGrassClump) - 0.5f) * 2f;
+            float blade = (WarpedFbm(u, v, 48, 16, 3, SeedGrassBlade, WarpSeedGrass) - 0.5f) * 2f;
+            float clump = (WarpedFbm(u, v, 8, 8, 3, SeedGrassClump, WarpSeedGrass) - 0.5f) * 2f;
             float fine  = (Fbm(u, v, 96, 96, 2, SeedGrassFine) - 0.5f) * 2f;
             return blade * 0.55f + clump * 0.7f + fine * 0.2f;
         }
 
-        // 岩高度：裂缝（阈值化噪声 → 窄脊，做成**负**高度 = 凹陷）+ 各向异性岩层（沿 v 拉长）+ 块状起伏。
+        // 岩高度：裂缝（阈值化扭曲噪声 → 窄脊，做成**负**高度 = 凹陷）+ 各向异性岩层（沿 v 拉长）+ 块状起伏。
         static float RockHeight(float u, float v)
         {
             float crack  = CrackMask(u, v);
-            float strata = (Fbm(u, v, 6, 24, 4, SeedRockStrataN) - 0.5f) * 2f;
-            float chunk  = (Fbm(u, v, 10, 10, 3, SeedRockChunk) - 0.5f) * 2f;
+            float strata = (WarpedFbm(u, v, 6, 24, 4, SeedRockStrataN, WarpSeedRock) - 0.5f) * 2f;
+            float chunk  = (WarpedFbm(u, v, 10, 10, 3, SeedRockChunk, WarpSeedRock) - 0.5f) * 2f;
             return -crack * 1.0f + strata * 0.35f + chunk * 0.5f;
         }
 
@@ -604,6 +640,25 @@ namespace PirateCrew.EditorTools
         const int SeedRockStrataN    = 313;
         const int SeedRockChunk      = 317;
         const int SeedRockAlbedoFine = 331;   // r5：岩 albedo 细粒（period 192）
+
+        // ---- 域名扭曲（domain warp）参数（v2 核心）----
+        // 一族一个扭曲场种子：三族的"揉皱形状"互不相同，避免沙/草/岩的斑块在同一处以同一方向鼓包
+        // （地形材质是把三族贴图按权重混合的，形状相关性太高会在过渡带露出"同一张图案"的痕迹）。
+        const int   WarpSeedSand  = 900001;
+        const int   WarpSeedGrass = 910001;
+        const int   WarpSeedRock  = 920001;
+        /// <summary>扭曲场基准周期（低频：整张图上只有 2 个格点周期 → 只做大尺度"揉皱"）。</summary>
+        const int   WarpLowPeriod = 2;
+        /// <summary>扭曲场阶数（低频场 2 阶足够）。</summary>
+        const int   WarpLowOctaves = 2;
+        /// <summary>同一次扭曲的四个噪声场（两轮 × 两轴）之间的种子间隔。
+        /// 必须 &gt; 131×阶数（<see cref="Fbm"/> 内部每阶偏移 131），否则会与"阶间种子"撞车 →
+        /// 扭曲场的 x/y 分量互相相关（表现为整张图沿对角方向被拉长）。</summary>
+        const int   WarpSeedSlotStride = 10007;
+        /// <summary>第一轮位移幅度（uv 单位 × [-0.5,0.5] → 最大位移 ±0.14 uv）。</summary>
+        const float WarpStrength1 = 0.28f;
+        /// <summary>第二轮位移幅度（在已扭曲坐标上**复合**再偏一次，更小；两轮才有"折痕/涡旋"感）。</summary>
+        const float WarpStrength2 = 0.14f;
 
         /// <summary>整数哈希 → [0,1)。纯整数位运算，跨平台/跨会话逐位一致（可复算的确定性）。</summary>
         static float Hash01(int x, int y, int seed)
@@ -667,16 +722,51 @@ namespace PirateCrew.EditorTools
             return sum / Mathf.Max(norm, 1e-5f);
         }
 
+        /// <summary>
+        /// 域名扭曲 fBm（domain warp，v2 核心）：用**两轮低频噪声场**扰动采样坐标后再取目标 fBm。
+        ///
+        /// 【为什么需要它】纯 value-FBM 的等值线偏方正、局部梯度强度过于均匀（每个斑块尺寸雷同）——
+        ///   肉眼读作"PS 云彩"。把采样坐标先揉皱（domain warp）后，斑块边界变得蜿蜒、局部细节
+        ///   疏密不均，像一个被"揉皱的有机图案"而不是"平滑的云"。
+        ///   复算（512²，period-4 patch）：等值线长 +4.0%、|grad|CV +10.0%、FFT 角向能量 CV −25.5%，
+        ///   而**场 std 只 +4.4%** —— 扭曲搬动格点、不改变分布（所以"多花/多亮"的观感口径不变）。
+        ///
+        /// 【为什么仍然无缝】扭曲场本身由 <see cref="Fbm"/> 生成 → 以 1 为周期的连续函数，
+        ///   故 u=0 与 u=1 处的位移**逐点相等**；目标 fBm 也是周期 1 的 → 复合后仍周期 1（复算实测
+        ///   |f(u=0)-f(u=1)| ≤ 1.4e-14，即浮点舍入级）。
+        ///
+        /// 【性能】一次扭曲 = 目标 Fbm + 4 次低频 Fbm（2 阶）≈ 2.5× 单纯 Fbm 的噪声求值量；
+        ///   512²×6 张的构建耗时仍在秒级（构建期一次性，不进运行期热路径）。
+        /// </summary>
+        /// <param name="warpSeed">一族一个（<see cref="WarpSeedSand"/> 等）。</param>
+        static float WarpedFbm(float u, float v, int periodX, int periodY, int octaves, int seed, int warpSeed)
+        {
+            // 第 1 轮：低频场 → 采样坐标位移。
+            float qx = Fbm(u, v, WarpLowPeriod, WarpLowPeriod, WarpLowOctaves, warpSeed) - 0.5f;
+            float qy = Fbm(u, v, WarpLowPeriod, WarpLowPeriod, WarpLowOctaves, warpSeed + WarpSeedSlotStride) - 0.5f;
+            float u1 = u + qx * WarpStrength1;
+            float v1 = v + qy * WarpStrength1;
+
+            // 第 2 轮：在**已扭曲**坐标上再取一次低频场并复合（两轮 = 折痕/涡旋；一轮只是平移）。
+            float rx = Fbm(u1, v1, WarpLowPeriod, WarpLowPeriod, WarpLowOctaves, warpSeed + 2 * WarpSeedSlotStride) - 0.5f;
+            float ry = Fbm(u1, v1, WarpLowPeriod, WarpLowPeriod, WarpLowOctaves, warpSeed + 3 * WarpSeedSlotStride) - 0.5f;
+            float u2 = u1 + rx * WarpStrength2;
+            float v2 = v1 + ry * WarpStrength2;
+
+            return Fbm(u2, v2, periodX, periodY, octaves, seed);
+        }
+
         /// <summary>把 [0,1] 的噪声按对比 k 拉伸到 [0,1]（value 噪声分布偏集中，不拉伸斑块太淡）。</summary>
         static float Contrast(float n, float k)
         {
             return Mathf.Clamp01(0.5f + (n - 0.5f) * k);
         }
 
-        /// <summary>裂缝掩码：|n-0.5| &lt; 0.035 处为 1（窄线），否则 0，边缘 0.035 宽软过渡。无缝（n 无缝）。</summary>
+        /// <summary>裂缝掩码：|n-0.5| &lt; 0.035 处为 1（窄线），否则 0，边缘 0.035 宽软过渡。无缝（n 无缝）。
+        /// v2：n 走域名扭曲 → 裂缝不再是"方正的格子边"，而是蜿蜒的岩裂。</summary>
         static float CrackMask(float u, float v)
         {
-            float n = Fbm(u, v, 8, 8, 4, SeedRockCrack);
+            float n = WarpedFbm(u, v, 8, 8, 4, SeedRockCrack, WarpSeedRock);
             return 1f - Mathf.SmoothStep(0f, 0.035f, Mathf.Abs(n - 0.5f));
         }
 
