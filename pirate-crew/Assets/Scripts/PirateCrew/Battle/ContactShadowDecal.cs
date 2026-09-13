@@ -38,7 +38,7 @@ namespace PirateCrew.PirateCrew.Battle
         /// 提案直径：0.6 世界单位 —— 约为单位碰撞足迹（0.375）的 1.6 倍、两件式圆台柱底径（0.238）的 2.5 倍，
         /// 足以在脚下形成一圈可见的压暗而不外溢到相邻格（1 格 = 1 世界单位）。
         /// </summary>
-        public const float DefaultDiameter = 0.6f;
+        public const float DefaultDiameter = 2.035f;
 
         /// <summary>提案贴地抬高：0.02 世界单位（避免与地面 z-fighting，肉眼仍视为贴地）。</summary>
         public const float DefaultGroundOffset = 0.02f;

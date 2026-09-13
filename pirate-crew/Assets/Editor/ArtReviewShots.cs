@@ -102,7 +102,7 @@ namespace PirateCrew.EditorTools
                 // level_1 红队出生中心 ≈(20.3,10.1)、蓝队 ≈(46.17,8.5)，两队中点 ≈(33.23,9.3)，
                 // 相对竞技场中心 (25,8.5) 的偏移 =(8.23, 0.8, 0.8)。运行时 PlayerArtCapture
                 // 由实际单位动态算同一点（TeamSpawnMidpoint），此处为静态清单写死等价偏移。
-                LookAtOffset = new Vector3(8.23f, 0.8f, 0.8f),
+                LookAtOffset = new Vector3(8.23f, 1.2f, 0.8f),
                 Fov = 60f,
                 ShowHud = false,
                 Note = "复现出厂默认机位（distance 15 / pitch 45°）并抬高到 11.5 避免下缘裁人；"
@@ -114,7 +114,7 @@ namespace PirateCrew.EditorTools
                 Label = "单角色特写",
                 Pivot = ArtReviewPivot.SelectedUnit,
                 Offset = new Vector3(0f, 2.0f, -3.6f),
-                LookAtOffset = new Vector3(0f, 0.45f, 0f),
+                LookAtOffset = new Vector3(0f, 1.2f, 0f),
                 Fov = 40f,
                 ShowHud = false,
                 RequiresPlayMode = true,
@@ -147,7 +147,7 @@ namespace PirateCrew.EditorTools
                 Pivot = ArtReviewPivot.ArenaCenter,
                 Offset = new Vector3(0f, 11.5f, 10.61f),
                 // 与 battle-45 完全同参数（含瞄准两队出生区中点），仅多 HUD。
-                LookAtOffset = new Vector3(8.23f, 0.8f, 0.8f),
+                LookAtOffset = new Vector3(8.23f, 1.2f, 0.8f),
                 Fov = 60f,
                 ShowHud = true,
                 Note = "与 battle-45 同机位：看 HUD 排版/字号/中文字形是否正常（不含方块）、按钮与名册是否溢出，"
@@ -169,7 +169,7 @@ namespace PirateCrew.EditorTools
                 Label = "爆炸瞬间（PlayMode）",
                 Pivot = ArtReviewPivot.ArenaCenter,
                 Offset = new Vector3(0f, 5f, -7f),
-                LookAtOffset = new Vector3(0f, 0.5f, 0f),
+                LookAtOffset = new Vector3(0f, 1.2f, 0f),
                 Fov = 60f,
                 ShowHud = false,
                 RequiresPlayMode = true,

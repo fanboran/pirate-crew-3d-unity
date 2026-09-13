@@ -103,13 +103,13 @@ namespace PirateCrew.PirateCrew.Visual
         public const float BreathTorsoScale = 0.015f;
 
         /// <summary>待机头上下幅度（§4：±0.004 单位）。</summary>
-        public const float BreathHeadOffset = 0.004f;
+        public const float BreathHeadOffset = 0.0134f;
 
         /// <summary>待机手臂微摆幅度（度）。</summary>
         public const float BreathArmSwingDegrees = 3f;
 
         /// <summary>移动上下 bob 幅度（§4：±0.012 单位）。</summary>
-        public const float MoveBobOffset = 0.012f;
+        public const float MoveBobOffset = 0.040f;
 
         /// <summary>移动身体前倾（§4：6-10°，取中值 8°）。</summary>
         public const float MoveLeanDegrees = 8f;

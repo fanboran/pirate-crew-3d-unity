@@ -24,21 +24,21 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BumpMap:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 2800000, guid: 6c8304e9d6223964fabd3a66bf80fcff, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _DetailNoiseMap:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 2800000, guid: 375496748c570bf4ab69e8d201789008, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
     - _AmbientStrength: 1
-    - _BumpScale: 0
+    - _BumpScale: 0.35
     - _ColorRampBias: 0.5
     - _ColorRampContrast: 1.9
     - _DebugMode: 0
-    - _DetailAlbedoStrength: 0
+    - _DetailAlbedoStrength: 0.22
     - _DetailNoiseScale: 9
     - _DetailNormalStrength: 0.35
     - _EdgeWear: 0.2
@@ -46,7 +46,7 @@ Material:
     - _NoiseScale: 3
     - _NoiseStrength: 0.45
     - _NoiseWarpStrength: 0.18
-    - _NoiseWorldScale: 0.4
+    - _NoiseWorldScale: 0.55
     - _RippleDistort: 0.35
     - _RippleScale: 16
     - _RippleStrength: 0.1

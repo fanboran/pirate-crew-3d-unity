@@ -22,12 +22,23 @@ Material:
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
-    m_TexEnvs: []
+    m_TexEnvs:
+    - _DetailBumpMap:
+        m_Texture: {fileID: 2800000, guid: 6c8304e9d6223964fabd3a66bf80fcff, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DetailNoiseMap:
+        m_Texture: {fileID: 2800000, guid: 375496748c570bf4ab69e8d201789008, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
     - _DashFrequency: 50
     - _DashSpeed: 5
     - _DebugMode: 0
+    - _DetailBumpScale: 0.25
+    - _DetailNoiseScale: 0.5
+    - _DetailNoiseStrength: 0.16
     - _Metallic: 0
     - _OutlineAlpha: 1
     - _OutlineDistanceAttenuation: 0.4

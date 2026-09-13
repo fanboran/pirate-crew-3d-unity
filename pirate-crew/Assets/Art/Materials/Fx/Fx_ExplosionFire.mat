@@ -30,7 +30,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _DebugMode: 0
-    - _Intensity: 0.33810002
+    - _Intensity: 0.27048
     m_Colors:
     - _Color: {r: 0.48999998, g: 0.23443137, b: 0.04996078, a: 1}
   m_BuildTextureStacks: []

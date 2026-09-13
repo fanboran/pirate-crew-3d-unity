@@ -57,11 +57,11 @@ Material:
     - _ShorelineFoamGain: 1.6
     - _Smoothness: 0.92
     - _SpecularIntensity: 2.2
-    - _SunSheenStrength: 0.2
+    - _SunSheenStrength: 0.1
     - _SunSpecAzBandDeg: 22
     - _SunSpecAzBandStrength: 0.55
     - _SunSpecBroadShininess: 50
-    - _SunSpecBroadStrength: 1.6
+    - _SunSpecBroadStrength: 0.8
     - _SunSpecCrestBias: 0.7
     - _SunSpecGlitter: 0.55
     - _SunSpecLaneShininess: 24
@@ -70,8 +70,8 @@ Material:
     - _SunSpecPatchScale: 8
     - _SunSpecShininess: 320
     - _SunSpecSlopeBoost: 12
-    - _SunSpecStrength: 8
-    - _SunSpecWaveStrength: 0.65
+    - _SunSpecStrength: 5
+    - _SunSpecWaveStrength: 0.4
     - _W1Amp: 0.055
     - _W1Length: 13
     - _W1Speed: 1
