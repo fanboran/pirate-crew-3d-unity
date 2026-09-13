@@ -46,7 +46,7 @@ Material:
     - _NoiseScale: 8
     - _NoiseStrength: 0.5
     - _NoiseWarpStrength: 0.18
-    - _NoiseWorldScale: 0.25
+    - _NoiseWorldScale: 0.04
     - _RippleDistort: 0.35
     - _RippleScale: 16
     - _RippleStrength: 0.1

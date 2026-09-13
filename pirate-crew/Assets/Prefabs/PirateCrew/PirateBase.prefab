@@ -170,6 +170,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   targetRenderer: {fileID: 0}
   teamTintRenderers: []
+  verifyAppliedState: 1
   tintByTeam: 1
   teamRedTint: {r: 1, g: 0.228, b: 0.161, a: 1}
   teamBlueTint: {r: 0.2, g: 0.4, b: 1, a: 1}

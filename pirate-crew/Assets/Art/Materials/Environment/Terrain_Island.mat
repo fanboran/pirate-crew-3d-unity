@@ -52,7 +52,7 @@ Material:
     - _AmbientStrength: 1
     - _BlendSoftness: 0.5
     - _BlockSize: 1
-    - _BlockTintStrength: 0.06
+    - _BlockTintStrength: 0.042
     - _BlockWarp: 0.4
     - _DebugMode: 0
     - _EdgePower: 3
@@ -60,7 +60,7 @@ Material:
     - _FacetStrength: 0.6
     - _GrassBumpScale: 1.1
     - _GrassDetailAlbedoStrength: 1
-    - _GrassNoiseWorldScale: 0.25
+    - _GrassNoiseWorldScale: 0.04
     - _GrassSmoothness: 0.4
     - _HeightGrassRock: 3
     - _HeightSandGrass: 0.6
@@ -73,11 +73,13 @@ Material:
     - _RippleStrength: 0.1
     - _RockBumpScale: 1.2
     - _RockDetailAlbedoStrength: 1
-    - _RockNoiseWorldScale: 0.5
+    - _RockNoiseWorldScale: 0.1
     - _RockSmoothness: 0.55
     - _SandBumpScale: 1
     - _SandDetailAlbedoStrength: 1
-    - _SandNoiseWorldScale: 0.35
+    - _SandNoiseWorldScale: 0.05
+    - _SeamStrength: 0.18
+    - _SeamWidth: 0.12
     - _SlopeRockEnd: 0.72
     - _SlopeRockStart: 0.45
     - _Smoothness: 0.25
@@ -93,5 +95,6 @@ Material:
     - _GrassColor: {r: 0.2901961, g: 0.54901963, b: 0.2901961, a: 1}
     - _RockColor: {r: 0.54901963, g: 0.48235294, b: 0.41568628, a: 1}
     - _SandColor: {r: 0.76862746, g: 0.654902, b: 0.41568628, a: 1}
+    - _SeamColor: {r: 0.4862745, g: 0.45882353, b: 0.41568628, a: 1}
     - _WetSandColor: {r: 0.659, g: 0.553, b: 0.361, a: 1}
   m_BuildTextureStacks: []

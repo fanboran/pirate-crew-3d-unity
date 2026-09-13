@@ -25,7 +25,7 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _DashFrequency: 50
+    - _DashFrequency: 150
     - _DashSpeed: 5
     - _DebugMode: 0
     - _Metallic: 0

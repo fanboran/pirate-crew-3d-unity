@@ -47,19 +47,28 @@ Material:
     - _ObstacleFoamBoost: 1.2
     - _Opacity: 0.82
     - _ReflectionStrength: 0.55
-    - _RefractionBlend: 0.35
+    - _RefractionBlend: 0.22
     - _RefractionDepthFade: 1.6
     - _RefractionStrength: 0.035
     - _ShoreFadeDistance: 4
     - _ShorelineFoamGain: 1.6
     - _Smoothness: 0.92
     - _SpecularIntensity: 2.2
-    - _SunSpecBroadShininess: 60
-    - _SunSpecBroadStrength: 1.3
+    - _SunSheenStrength: 0.2
+    - _SunSpecAzBandDeg: 22
+    - _SunSpecAzBandStrength: 0.55
+    - _SunSpecBroadShininess: 50
+    - _SunSpecBroadStrength: 1.6
+    - _SunSpecCrestBias: 0.7
     - _SunSpecGlitter: 0.55
+    - _SunSpecLaneShininess: 24
+    - _SunSpecLaneWidth: 2.5
+    - _SunSpecPatchDepth: 0.4
+    - _SunSpecPatchScale: 8
     - _SunSpecShininess: 320
-    - _SunSpecSlopeBoost: 8
+    - _SunSpecSlopeBoost: 12
     - _SunSpecStrength: 8
+    - _SunSpecWaveStrength: 0.65
     - _W1Amp: 0.055
     - _W1Length: 13
     - _W1Speed: 1
@@ -83,12 +92,12 @@ Material:
     - _WaveStrengthA: 0.55
     - _WaveStrengthB: 0.28
     m_Colors:
-    - _CausticColor: {r: 0.8, g: 1, b: 0.92, a: 1}
+    - _CausticColor: {r: 0.8, g: 1, b: 0.92156863, a: 1}
     - _DeepColor: {r: 0.101960786, g: 0.30980393, b: 0.47843137, a: 1}
     - _FoamColor: {r: 0.9411765, g: 0.96862745, b: 1, a: 1}
     - _MidColor: {r: 0.16862746, g: 0.47843137, b: 0.72156864, a: 1}
     - _ShallowColor: {r: 0.3019608, g: 0.6509804, b: 0.8509804, a: 1}
-    - _SunSpecColor: {r: 1, g: 0.95, b: 0.82, a: 1}
+    - _SunSpecColor: {r: 1, g: 0.85882354, b: 0.4509804, a: 1}
     - _W1Dir: {r: 1, g: 0, b: 0.25, a: 0}
     - _W2Dir: {r: 0.6, g: 0, b: 1, a: 0}
     - _W3Dir: {r: -0.3, g: 0, b: 1, a: 0}
