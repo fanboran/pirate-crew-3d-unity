@@ -120,12 +120,12 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("落水时相机焦点下压位移（世界单位）。")]
         [SerializeField] float drownDipWorldUnits = CameraFeelRules.DrownDipWorldUnits;
 
-        [Header("玩家相机微操（默认关闭以遵守既有 PlayMode 相机断言；需要时在编辑器勾选）")]
-        [Tooltip("右键拖拽环绕（改 Transposer 的 yaw，保持 pitch 45°/距离不变）。默认关。")]
-        [SerializeField] bool enableManualOrbit = false;
+        [Header("玩家相机微操（用户拍板默认开启：右键环绕 + 滚轮缩放；零输入时保持出厂 pitch45/距离18）")]
+        [Tooltip("右键拖拽环绕（改 Transposer 的 yaw，保持 pitch 45°/距离不变）。默认开。")]
+        [SerializeField] bool enableManualOrbit = true;
 
-        [Tooltip("滚轮缩放（改 Transposer 距离，夹在 [min,max]）。默认关。")]
-        [SerializeField] bool enableManualZoom = false;
+        [Tooltip("滚轮缩放（改 Transposer 距离，夹在 [min,max]）。默认开。")]
+        [SerializeField] bool enableManualZoom = true;
 
         [Tooltip("右键每单位 Mouse X 的环绕角度（度）。")]
         [SerializeField] float orbitDegreesPerMouseUnit = 3f;
