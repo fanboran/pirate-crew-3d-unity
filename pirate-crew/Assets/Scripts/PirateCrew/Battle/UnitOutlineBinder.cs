@@ -50,6 +50,27 @@ namespace PirateCrew.PirateCrew.Battle
     /// 【接触阴影面片必须排除】<see cref="ContactShadowDecal"/> 是贴地半透明 quad，
     /// 描边会让它变成一圈方形轮廓、染色会让它跟队伍变红/变蓝（详见该类的注释）。
     ///
+    /// 【r4 复验"选中描边变少"的归因结论（不要再往本类的收集口径上找）】
+    ///   r4 实测 unit-closeup 的选中青色像素 265px（r3 同机位 823px），但**本类的口径没有问题**：
+    ///   ① 部件材质全部走 <c>PirateOutline</c>（13 个 <c>Assets/Art/Materials/Crew/Crew*.mat</c>
+    ///      的 <c>m_Shader</c> 全是 outline shader，且都带 <c>_OutlineState</c>/<c>_OutlineExpandMode=0</c>）；
+    ///   ② 预制体里唯一的显式数组是 <see cref="teamTintRenderers"/>（只影响阵营色，不影响描边），
+    ///      描边集合是本类运行时全量收集的；
+    ///   ③ r3 与 r4 的同一张图里单位像素级同形同址（红帽 bbox 都是 x896-1023 / y552-817），
+    ///      即几何、机位、材质、shader 都没变。
+    ///   真正的变量是**选中虚线的相位/周期**：<c>_DashFrequency=50</c> 在 1080p 下 ON≈34px / OFF≈34px
+    ///   （r3 实测三个青色带各 33px 高、间距 67~69px，与该换算吻合），而 <c>phase</c> 含
+    ///   <c>_Time.y × _DashSpeed</c> → **哪个部件落在 ON 带全凭截帧时刻**：r3 的三条带落在肩/腰/裙摆，
+    ///   r4 只落在腰带缝 → 同一套几何给出 823 vs 265px。部件高度与 OFF 带同量级的小件（靴 ~15px、
+    ///   腰带 ~16px）甚至可能整件落在 OFF 带里 → 判据里的"某部件 0 青色"。
+    ///   故修法在材质侧（<c>CrewVisualPrefabBuilder.ApplyOutlineUnitMaterial</c> 提高 <c>_DashFrequency</c>，
+    ///   使周期远小于最小部件），**不需要也不应该再改本类的收集逻辑**。
+    ///
+    /// 【本类的职责边界（r5 起）】读状态 → 写属性 → 自检：
+    ///   · 收集（全量扫描、只排除接触阴影面片）；收集为空**显式报错**（不再静默）；
+    ///   · 逐 renderer 写 MPB 覆盖 <c>_OutlineState</c>（+ 阵营色部件写 <c>_BaseColor</c>）；
+    ///   · 周期性抽检：MPB 被外部成分（对象池复用/别的组件整块覆盖）清掉时强制重写并告警。
+    ///
     /// 【分层】状态判定在纯逻辑 <see cref="OutlineStateRules"/>（可无头测）；
     ///         本类只做"读状态 → 写属性"的引擎侧薄壳。
     /// </summary>
@@ -59,6 +80,9 @@ namespace PirateCrew.PirateCrew.Battle
         static readonly int OutlineStateId = Shader.PropertyToID("_OutlineState");
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
+        /// <summary>MPB 抽检间隔（帧）。抽检只读 1 个 renderer 的 PropertyBlock，成本可忽略。</summary>
+        const int VerifyIntervalFrames = 30;
+
         [Header("渲染目标")]
         [Tooltip("留空则自动收集全部子 renderer（部件化角色）；仅旧单立方体结构才需要手填。")]
         [SerializeField] Renderer targetRenderer;
@@ -67,6 +91,11 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("只对这些 renderer 写队伍色 _BaseColor（肤色/铁/木/骨部件不得被污染）。\n" +
                  "留空时回落到运行时 CrewTeamTintPart 标记；两者都拿不到则一个都不染（不回落到整只染色）。")]
         [SerializeField] Renderer[] teamTintRenderers = new Renderer[0];
+
+        [Header("自检")]
+        [Tooltip("周期性抽检每个 renderer 的 MPB 是否仍带着本类写过的 _OutlineState；\n" +
+                 "被对象池复用/外部组件整块覆盖时强制重写并告警一次。")]
+        [SerializeField] bool verifyAppliedState = true;
 
         [Header("队伍本体着色（仅表现，用于区分红/蓝队）")]
         [SerializeField] bool tintByTeam = true;
@@ -87,6 +116,9 @@ namespace PirateCrew.PirateCrew.Battle
         float _appliedFlash = -1f;
         bool _appliedFlashActive;
         bool _warnedMissingProperty;
+        bool _warnedEmptyCollection;
+        bool _warnedClobbered;
+        int _verifyCountdown = VerifyIntervalFrames;
 
         /// <summary>
         /// 调试采集用：&gt;= 0 时强制本单位使用该描边档，忽略状态位；-1 = 交回正常逻辑。
@@ -107,6 +139,15 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>阵营色部件 renderer 数量。</summary>
         public int TeamTintRendererCount => _tintAllRenderers ? OutlineRendererCount : _tintRenderers.Count;
+
+        /// <summary>最近一次写进 MPB 的描边档（-1 = 还没写过）。调试/测试自证用。</summary>
+        public int AppliedState => _appliedState;
+
+        /// <summary>强制下一次 <c>LateUpdate</c> 重写全部部件的 MPB（自检失败、外部改动后调用）。</summary>
+        public void MarkDirty()
+        {
+            _appliedState = -1;
+        }
 
         void Awake()
         {
@@ -130,6 +171,8 @@ namespace PirateCrew.PirateCrew.Battle
         {
             _outlineRenderers = null;
             _appliedState = -1;
+            _warnedEmptyCollection = false;
+            _verifyCountdown = VerifyIntervalFrames;
             EnsureCollected();
             WarnIfNotOutlineMaterial();
         }
@@ -148,7 +191,7 @@ namespace PirateCrew.PirateCrew.Battle
         void CollectRenderers()
         {
             Renderer[] all = GetComponentsInChildren<Renderer>(true);
-            var list = new List<Renderer>(all.Length);
+            var list = new List<Renderer>(all.Length + 1);
             for (int i = 0; i < all.Length; i++)
             {
                 Renderer r = all[i];
@@ -159,6 +202,11 @@ namespace PirateCrew.PirateCrew.Battle
                     continue;
                 list.Add(r);
             }
+
+            // 手工接线兜底：只填了 targetRenderer 的旧结构（或挂在不属于子层级的 renderer）也要收进来。
+            if (targetRenderer != null && !list.Contains(targetRenderer))
+                list.Add(targetRenderer);
+
             _outlineRenderers = list.ToArray();
 
             // ---- 阵营色部件子集 ----
@@ -199,16 +247,63 @@ namespace PirateCrew.PirateCrew.Battle
 
             EnsureCollected();
             if (_outlineRenderers.Length == 0)
+            {
+                WarnIfNotOutlineMaterial();
                 return;
+            }
 
             int state = DebugForcedState >= 0
                 ? DebugForcedState
                 : OutlineStateRules.Resolve(_pirate.Alive, _pirate.Selected, _pirate.Hovered);
 
             if (state == _appliedState && _appliedTint == tintByTeam)
+            {
+                VerifyAppliedState(state);
                 return;
+            }
 
             Apply(state);
+        }
+
+        /// <summary>
+        /// 抽检：本类写完 MPB 后，若别的成分（对象池复用、外部组件整块 <c>SetPropertyBlock</c>）
+        /// 把这个 renderer 的块覆盖掉，描边会**静默消失**（材质属性还在，只是没人写了）。
+        /// 每 <see cref="VerifyIntervalFrames"/> 帧只读一个 renderer 的块做抽查，命中即整只重写并告警一次。
+        /// </summary>
+        void VerifyAppliedState(int state)
+        {
+            if (!verifyAppliedState)
+                return;
+
+            if (--_verifyCountdown > 0)
+                return;
+            _verifyCountdown = VerifyIntervalFrames;
+
+            Renderer probe = null;
+            for (int i = 0; i < _outlineRenderers.Length; i++)
+            {
+                if (_outlineRenderers[i] != null)
+                {
+                    probe = _outlineRenderers[i];
+                    break;
+                }
+            }
+            if (probe == null)
+                return;
+
+            probe.GetPropertyBlock(_block);
+            if (Mathf.Approximately(_block.GetFloat(OutlineStateId), state))
+                return;
+
+            MarkDirty();
+            Apply(state);
+
+            if (_warnedClobbered)
+                return;
+            _warnedClobbered = true;
+            Debug.LogWarning("[UnitOutlineBinder] " + name + " 的 MPB 在外部被改写过（" + probe.name
+                + " 上的 _OutlineState 与本类期望的 " + state + " 不一致），已强制重写。"
+                + "若是对象池复用/外来组件整块 SetPropertyBlock，请在那之后调用 RefreshRenderers()。");
         }
 
         /// <summary>
@@ -263,14 +358,30 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>
         /// 材质不是 PirateOutline 时描边属性会被静默忽略（MPB 对不存在的属性不报错），
         /// 所以这里**逐 renderer**核对并一次性列出问题部件，避免"看不出问题但就是没描边"。
-        /// 收集结果为空同样显式报错（r3 的"只覆盖躯干"就是静默失效）。
+        /// 收集结果为空同样是**错误级**（r3 的"只覆盖躯干"就是静默失效，r4 的类注释却写了会报错
+        /// 而实际提前 return —— 这里补齐），否则"一个 renderer 都没收到"会被当成正常空转。
         /// </summary>
         void WarnIfNotOutlineMaterial()
         {
-            if (_warnedMissingProperty || _outlineRenderers == null || _outlineRenderers.Length == 0)
+            if (_outlineRenderers == null)
+                return;
+
+            if (_outlineRenderers.Length == 0)
+            {
+                if (_warnedEmptyCollection)
+                    return;
+                _warnedEmptyCollection = true;
+                Debug.LogError("[UnitOutlineBinder] " + name + " 一个描边 renderer 都没收集到"
+                    + "（子层级里没有 Renderer，或全被排除了）。选中/悬停不会画出任何描边——"
+                    + "请检查预制体的 Visual 层级与 ContactShadowDecal 挂点。");
+                return;
+            }
+
+            if (_warnedMissingProperty)
                 return;
 
             string bad = null;
+            int badCount = 0;
             for (int i = 0; i < _outlineRenderers.Length; i++)
             {
                 Renderer r = _outlineRenderers[i];
@@ -279,6 +390,7 @@ namespace PirateCrew.PirateCrew.Battle
                 Material shared = r.sharedMaterial;
                 if (shared != null && shared.HasProperty(OutlineStateId))
                     continue;
+                badCount++;
                 if (bad == null)
                     bad = r.name + (shared != null ? "（" + shared.name + "）" : "（材质为空）");
             }
@@ -287,7 +399,8 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
 
             _warnedMissingProperty = true;
-            Debug.LogWarning("[UnitOutlineBinder] " + name + " 有部件的材质不含 _OutlineState 属性，"
+            Debug.LogWarning("[UnitOutlineBinder] " + name + " 有 " + badCount + "/"
+                + _outlineRenderers.Length + " 个部件的材质不含 _OutlineState 属性，"
                 + "描边状态不会被应用，首个：" + bad
                 + "。请把单位材质换成 PirateOutline shader（见 M2BattleSceneSetup.EnsureOutlineMaterial）。");
         }

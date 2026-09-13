@@ -48,6 +48,21 @@ namespace PirateCrew.EditorTools
     ///      预制体共 26 处），运行时一个都收不到，蓝队会顶着红队底色。故建预制体时把标记对应的 renderer
     ///      列表**显式写进 <c>UnitOutlineBinder.teamTintRenderers</c>**，并把标记组件删掉（不再留 missing script）。
     ///
+    /// 【本脚本承担的三处 r5 复验整改】
+    ///   ① 描边覆盖（选中青虚线"r3 862px → r4 311px"）：归因结论是**选中虚线的周期**而不是 binder
+    ///      的收集口径——r3/r4 同机位图里单位像素级同形同址（红帽 bbox 都是 x896-1023 / y552-817），
+    ///      13 个 Crew 材质的 <c>m_Shader</c> 全是 PirateOutline 且都带 <c>_OutlineState</c>，
+    ///      预制体里唯一的显式数组 <c>teamTintRenderers</c> 只管阵营色。真正的变量是 phase 里的
+    ///      <c>_Time.y × _DashSpeed</c>：`_DashFrequency=50` 在 1080p 下 ON/OFF 各 34px，
+    ///      比靴(15px)/腰带(16px)这类小件还长 → 小件可能整件落在 OFF 带里（判据"某部件 0 青色"）。
+    ///      故把 <c>_DashFrequency</c> 提到 <see cref="DashFrequencySelected"/>（推导见该常量注释）。
+    ///   ② 脚下灰色刀片状碎片：根因是**手持武器的铁刀片穿到脚底平面以下**，不是接触阴影片
+    ///      （阴影片是 y=+0.02 的水平 quad、近黑；碎片实测取色 (70,67,61) = CrewIron 0.431/0.416/0.388
+    ///      在阴影下的值，形状是 0.014×0.150 的竖直薄板）。见 <see cref="ApplyHeldWeaponFloorFit"/>。
+    ///   ③ 帽子/脸：三角帽压扁帽冠 + 外扩帽檐（去掉"红桶帽"读感），脸部补鼻尖、眼下移贴回头球面。
+    ///      见 <see cref="ApplyHeadDetails"/>。
+    ///   三者都只改建预制体时的网格/参数，不动 shader、不动运行时链路。
+    ///
     /// 【发光说明】火把/火焰用 <c>Flame</c> 材质的高亮 base color（#FF7A1A）借 HDR + Bloom 出光。
     ///   PirateOutline shader 没有 Emission 通道，且本波次禁止改 shader（另一 agent 在改 ShadowCaster），
     ///   故不引入 URP/Lit 发光材质，避免"火焰没有描边"破坏 R-5。
@@ -77,6 +92,7 @@ namespace PirateCrew.EditorTools
         const string LegTaperKey = "CrewLegTaper";
         const string ArmTaperKey = "CrewArmTaper";
         const string ContactShadowQuadKey = "CrewContactShadowQuad";
+        const string TricornFlatKey = "CrewTricornFlat";
 
         const string BootMaterialFileName = "CrewBoot";
         const string ContactShadowMaterialFileName = "CrewContactShadow";
@@ -110,6 +126,71 @@ namespace PirateCrew.EditorTools
         const float HandHeightMul = 1.7f;
         const float HandDepthMul = 1.85f;
 
+        // ------------------------------------------------------------------
+        // r5 复验参数（描边覆盖 / 三角帽 / 脸 / 手持物离地）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 选中虚线的屏幕空间频率（写入所有 Crew 材质的 <c>_DashFrequency</c>）。
+        ///
+        /// 【换算】phase = NDC.y·F + Time.y·_DashSpeed，NDC.y 跨 2 个单位对应 H 像素 →
+        ///   虚线周期 = π·H/F 像素、ON/OFF 各半（1080p：F=50 → 68px 周期 / 各 34px；F=150 → 23px / 各 11px）。
+        /// 【为什么是**提高**而不是降低】判据要求"选中态下头/帽/躯干/臂/腿/靴**全部部件**出现青虚线段"。
+        ///   ON/OFF 只由屏幕 Y 决定，一个高 h 像素的部件可能**整件落在 OFF 带里**
+        ///   （概率 ≈ max(0, (OFF − h)/周期)）。要保证每件都跨到一段 ON，必须让 OFF 短于最小部件
+        ///   （靴 ~15px、腰带 ~16px）→ F ≥ π·1080/(2·13) ≈ 130。取 150 留余量。
+        ///   F=50 时 OFF=34px：15~16px 的小件有约 45% 概率整件无青——这正是 r4 实测
+        ///   "头/帽/臂/腿 0 青色"的来源；且周期 68px 与单位屏幕尺寸（广角 ~26px、特写 ~265px）
+        ///   同量级，一圈轮廓只落 0~1 段，观感是"角落两三段短线"而非一圈虚线
+        ///   （docs/描边Shader调试.md §三 已记录该现象）。F=150 时周期 23px ≪ 单位尺寸 →
+        ///   轮廓上恒有 3~11 段虚线，读作完整的一圈点划描边。
+        /// 【同步要求】<c>M2BattleSceneSetup.EnsureOutlineMaterial</c> 持同源参数镜像（含 _DashFrequency）。
+        ///   改这里必须同步那边，否则旧单立方体兜底材质仍是 68px 周期。
+        /// </summary>
+        const float DashFrequencySelected = 150f;
+
+        /// <summary>
+        /// 脚底平面的世界 y：单位根摆在原点时 = rootScale.y × (−0.5)。
+        /// 只有"根在原点、无旋转"的建预制体阶段成立，故仅供本脚本的离地检查用。
+        /// </summary>
+        static readonly float FootPlaneWorldY = -UnitRootScale.y * 0.5f;
+
+        /// <summary>手持武器最低点相对脚底平面的留白（世界单位，≈0.03px@广角）。</summary>
+        const float HeldWeaponFloorClearance = 0.014f;
+
+        /// <summary>穿地修正后允许的最短刀身（避免"武器缩没了"；再不够就靠缩短+告警收口）。</summary>
+        const float MinHeldBladeLength = 0.046f;
+
+        /// <summary>三角帽帽冠高（原 Tricorn 0.070 → 压扁到 0.034，把高度让给帽檐）。</summary>
+        const float TricornCrownHeight = 0.034f;
+
+        /// <summary>三角帽帽冠底口半径（与原 Tricorn 的 crownRadius 0.048 一致，保证坐在头球上无缝）。</summary>
+        const float TricornCrownBottomRadius = 0.048f;
+
+        /// <summary>三角帽帽冠顶口半径（上窄下宽，规范 §5.1 禁上下等径）。</summary>
+        const float TricornCrownTopRadius = 0.036f;
+
+        /// <summary>三角帽帽檐外扩半径（原 0.065 → 0.085：整体宽 0.17，剪影从"桶帽"变"三角帽"）。</summary>
+        const float TricornBrimRadius = 0.085f;
+
+        /// <summary>三角帽三片檐的上翻角（度）：三角帽的檐是往上折的。</summary>
+        const float TricornFoldDegrees = 20f;
+
+        /// <summary>三角帽檐厚（闭合盒，保证薄配件描边完整；规范 R-9 禁单面 Quad）。</summary>
+        const float TricornBrimThickness = 0.010f;
+
+        /// <summary>鼻尖相对头心的高度偏移（略低于赤道）。</summary>
+        const float NoseHeightOffset = -0.006f;
+
+        /// <summary>鼻尖半径系数（× 头半径 → 长度）：小而尖，只求侧面剪影有凸起。</summary>
+        const float NoseLengthMul = 0.22f;
+
+        /// <summary>眼下移后的高度（世界单位，正比头径缩放）——原 +0.008 偏上，脸显得"眼睛过曝在空白上"。</summary>
+        const float EyeHeightOffset = -0.010f;
+
+        /// <summary>基准头半径（§1.2 的 0.0775）；眼/鼻位置按 <c>当前头半径/该值</c> 等比换算。</summary>
+        const float ReferenceHeadRadius = 0.0775f;
+
         /// <summary>深棕靴色 #4A3021【提案】（N19："深棕靴"；比 Leather #8B5E3C 更暗，与沙地拉开明度）。</summary>
         static readonly Color BootColor = new Color(0.290f, 0.188f, 0.129f, 1f);
 
@@ -127,6 +208,7 @@ namespace PirateCrew.EditorTools
             public Mesh LegTaper;
             public Mesh ArmTaper;
             public Mesh ContactShadowQuad;
+            public Mesh TricornFlat;
             public Material BootMaterial;
             public Material ContactShadowMaterial;
         }
@@ -166,7 +248,8 @@ namespace PirateCrew.EditorTools
             for (int i = 0; i < CrewVisualCatalog.AllProfessions.Length; i++)
             {
                 CrewProfession profession = CrewVisualCatalog.AllProfessions[i];
-                GameObject prefab = BuildProfessionPrefab(profession, assetSet, addOns, out int renderers, out int triangles);
+                GameObject prefab = BuildProfessionPrefab(profession, assetSet, addOns,
+                    out int renderers, out int triangles, out int heldFixes);
                 if (prefab == null)
                 {
                     failures++;
@@ -178,7 +261,8 @@ namespace PirateCrew.EditorTools
                     + "renderer=" + renderers
                     + " tri=" + triangles
                     + "（预算 " + CrewMeshFactory.MaxTrianglesPerUnit + "）"
-                    + (triangles <= CrewMeshFactory.MaxTrianglesPerUnit ? " OK" : " **超预算**"));
+                    + (triangles <= CrewMeshFactory.MaxTrianglesPerUnit ? " OK" : " **超预算**")
+                    + (heldFixes > 0 ? " 手持物离地修正=" + heldFixes + " 处" : ""));
             }
 
             AssetDatabase.SaveAssets();
@@ -207,6 +291,40 @@ namespace PirateCrew.EditorTools
             meshData[ArmTaperKey] = CrewMeshFactory.Frustum(
                 LegTaperTopRadius, ArmTaperBottomRadius, 1f, LimbTaperSides);
             meshData[ContactShadowQuadKey] = BuildQuadMeshData();
+            meshData[TricornFlatKey] = BuildTricornFlatMeshData();
+        }
+
+        /// <summary>
+        /// 三角帽塑形（r5）：把"高帽冠 + 小檐"（读作红桶帽）改成"压扁帽冠 + 外扩上翻三檐"。
+        ///
+        /// 【坐标系】与原 <c>CrewMeshFactory.Tricorn</c> 同口径：帽冠底口在 y=0（装配侧把它摆在
+        /// <c>HeadPivot + HeadRadius×0.80</c>，底口半径 0.048 正好等于头球在该高度的截面半径 → 坐下无缝），
+        /// 三片檐绕 Y 均布 120°、绕 Z 上翻 <see cref="TricornFoldDegrees"/>°。
+        /// 【为什么用盒做檐】闭合几何才有完整描边（规范 R-9 明令薄配件禁单面 Quad）。
+        /// </summary>
+        static MeshData BuildTricornFlatMeshData()
+        {
+            MeshData crown = CrewMeshFactory.Lathe(
+                new[]
+                {
+                    new Vector2(TricornCrownBottomRadius, 0f),
+                    new Vector2(TricornCrownTopRadius, TricornCrownHeight),
+                },
+                10, capBottom: true, capTop: true);
+
+            // 檐片外缘落在 x ≈ TricornBrimRadius：外缘 = 平移量 + 半长，再乘 cos(上翻角)。
+            float flapLength = TricornBrimRadius * 1.30f;
+            MeshData flap = CrewMeshFactory.Box(
+                new Vector3(flapLength, TricornBrimThickness, TricornBrimRadius * 0.95f));
+            // 抬高 6mm：上翻后内缘不会垂到帽冠底口以下（否则会插进头球/露在帽檐下）。
+            flap = CrewMeshFactory.Translate(flap,
+                new Vector3(TricornBrimRadius * 0.42f, TricornBrimThickness * 0.6f, 0f));
+            flap = CrewMeshFactory.RotateZ(flap, TricornFoldDegrees);
+
+            var parts = new List<MeshData>(4) { crown };
+            for (int k = 0; k < 3; k++)
+                parts.Add(CrewMeshFactory.RotateY(flap, k * 120f));
+            return MeshData.Combine(parts.ToArray());
         }
 
         static MeshData BuildQuadMeshData()
@@ -283,6 +401,7 @@ namespace PirateCrew.EditorTools
                 LegTaper = meshes[LegTaperKey],
                 ArmTaper = meshes[ArmTaperKey],
                 ContactShadowQuad = meshes[ContactShadowQuadKey],
+                TricornFlat = meshes[TricornFlatKey],
                 BootMaterial = BuildBootMaterial(),
                 ContactShadowMaterial = BuildContactShadowMaterial(),
             };
@@ -464,8 +583,9 @@ namespace PirateCrew.EditorTools
                 material.SetFloat("_OutlineDistanceAttenuation", 0.4f);
             if (material.HasProperty("_DashSpeed"))
                 material.SetFloat("_DashSpeed", 5f);
+            // 选中虚线密度：见 DashFrequencySelected 的推导（r4 的"部件 0 青色"根因）。
             if (material.HasProperty("_DashFrequency"))
-                material.SetFloat("_DashFrequency", 50f);
+                material.SetFloat("_DashFrequency", DashFrequencySelected);
             if (material.HasProperty("_DebugMode"))
                 material.SetFloat("_DebugMode", 0f);
         }
@@ -502,10 +622,11 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         static GameObject BuildProfessionPrefab(CrewProfession profession, CrewVisualAssetSet assetSet,
-            VisualAddOns addOns, out int rendererCount, out int triangles)
+            VisualAddOns addOns, out int rendererCount, out int triangles, out int heldFixes)
         {
             rendererCount = 0;
             triangles = 0;
+            heldFixes = 0;
 
             string fileName = CrewVisualCatalog.PrefabFileName(profession);
             string path = CrewPrefabFolder + "/" + fileName + ".prefab";
@@ -532,6 +653,10 @@ namespace PirateCrew.EditorTools
 
             // N19：腿/臂锥化 + 靴块/手掌块（只换 mesh 与零件缩放，不动枢轴 → 动画链路零影响）。
             ApplyRealisticLimbs(visual.transform, assetSet, addOns);
+
+            // r5：三角帽塑形 + 鼻尖/眼下移 + 手持武器不穿地（同样只改装配后的 mesh/Transform）。
+            ApplyHeadDetails(visual.transform, assetSet, addOns);
+            heldFixes = ApplyHeldWeaponFloorFit(visual.transform);
 
             // N7：脚底接触阴影面片（单位根的子物体 → 跟随位移，零运行时代码）。
             AddContactShadow(root.transform, addOns);
@@ -657,6 +782,159 @@ namespace PirateCrew.EditorTools
                 handFilter.sharedMesh = assets.Box;    // 球手 → 手掌块（写实向的低模拳头）
             hand.localScale = new Vector3(handRadius * HandWidthMul,
                 handRadius * HandHeightMul, handRadius * HandDepthMul);
+        }
+
+        // ------------------------------------------------------------------
+        // r5：三角帽塑形 + 脸（鼻尖 / 眼下移）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 帽子与脸（r5）：
+        ///   · 三角帽：换 <see cref="TricornFlatKey"/> 网格（压扁帽冠 + 外扩上翻三檐），
+        ///     帽体不下移（底口半径 = 头球在该高度的截面半径 → 仍严丝合缝坐在头上）。
+        ///   · 鼻尖：用一个 <c>SphereSmall</c> 椭球挂在 <c>HeadPivot</c> 下，**材质取头部件自己的材质**
+        ///     （骷髅因此得到骨色鼻尖，不会出现"骷髅长皮肤色鼻子"）。
+        ///   · 眼：从 +0.008 下移到 <see cref="EyeHeightOffset"/>，并按新高度重算到球面（z = √(r²−y²)·0.99），
+        ///     否则下移后眼睛会陷进头球里。
+        /// 只动 <c>HeadPivot</c>/<c>Tricorn</c>/<c>EyeL,R</c>，不动任何枢轴，动画链路零影响。
+        /// </summary>
+        static void ApplyHeadDetails(Transform visual, CrewVisualAssetSet assets, VisualAddOns addOns)
+        {
+            Transform head = FindDeep(visual, "Head");
+            Transform headPivot = FindDeep(visual, "HeadPivot");
+            float headRadius = head != null ? Mathf.Abs(head.localScale.x) : ReferenceHeadRadius;
+            if (headRadius < 0.02f)
+                headRadius = ReferenceHeadRadius;
+
+            // ---- 三角帽 ----
+            Transform tricorn = FindDeep(visual, "Tricorn");
+            if (tricorn != null && addOns.TricornFlat != null)
+            {
+                var filter = tricorn.GetComponent<MeshFilter>();
+                if (filter != null)
+                    filter.sharedMesh = addOns.TricornFlat;
+                tricorn.localScale = Vector3.one;   // 新网格按世界单位建模（与原 Tricorn 同口径）
+            }
+
+            NudgeEyesDown(visual, headRadius);
+
+            // ---- 鼻尖 ----
+            if (headPivot == null || head == null)
+                return;
+
+            var headRenderer = head.GetComponent<MeshRenderer>();
+            Material headMaterial = headRenderer != null && headRenderer.sharedMaterial != null
+                ? headRenderer.sharedMaterial
+                : assets.For(CrewMaterialRole.Skin);
+
+            float noseLength = headRadius * NoseLengthMul * 2f;
+            AddSimplePart(headPivot, "Nose", assets.SphereSmall, headMaterial,
+                new Vector3(0f, NoseHeightOffset, headRadius * 0.92f),
+                new Vector3(noseLength * 0.62f, noseLength * 0.52f, noseLength));
+        }
+
+        /// <summary>
+        /// 眼睛下移到球面新位置：眼睛原本贴在 y=+0.008 的球面上（z=r×0.86），
+        /// 只改 y 会让它陷进球里，故按 <c>z = √(r²−y²)×0.99</c> 重算（保留原 x）。
+        /// </summary>
+        static void NudgeEyesDown(Transform visual, float headRadius)
+        {
+            float ratio = headRadius / ReferenceHeadRadius;
+            float y = EyeHeightOffset * ratio;
+            float z = Mathf.Sqrt(Mathf.Max(headRadius * headRadius - y * y, 0f)) * 0.99f;
+
+            for (int i = 0; i < 2; i++)
+            {
+                Transform eye = FindDeep(visual, i == 0 ? "EyeL" : "EyeR");
+                if (eye == null)
+                    continue;
+                eye.localPosition = new Vector3(eye.localPosition.x, y, z);
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // r5：手持武器离地（脚下"灰色刀片碎片"根因）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 把挂在 <c>HeldL</c>/<c>HeldR</c> 下的**竖直刀身**修到脚底平面（y=−0.25 世界）以上，
+        /// 消除 r4 特写里"脚下灰色刀片状碎片"。
+        ///
+        /// 【根因（r4 复验实测）】碎片不是接触阴影片：阴影片是 y=+0.02、0.6×0.6 的水平半透明 quad、
+        ///   颜色近黑 <c>(0.015,0.015,0.020)</c>；而碎片实测取色 <c>(70,67,61)</c>，正是 <c>CrewIron</c>
+        ///   基础色 <c>(0.431,0.416,0.388)</c> 在阴影下的值，形状是竖直薄板。
+        ///   船长的佩剑 <c>SwordBlade</c>（长 0.150，挂点 HeldR 在视觉空间 y≈0.091，脚底平面 = −0.25 世界）
+        ///   → 刀尖到 y≈−0.324，**穿地 0.074**；普通船员的短刀穿 0.019。摄像机俯角 30° 时
+        ///   这块竖直薄板在画面里投成一片三角刀片，就是评审看到的碎片。
+        ///
+        /// 【修法】保持"握把端（上端）不动"，只把刀身缩短到刀尖留白 ≥ <see cref="HeldWeaponFloorClearance"/>：
+        ///   既不动枢轴（动画里手/武器相对位置不变），也不动枪管/铁钩等横向件
+        ///   （筛选条件：localScale.y 明显大于厚度，且实测最低点确实越界）。
+        /// 【代价】船长佩剑由 0.150 缩到 ≈0.062（匕首长度）。要保住长剑，正确做法是抬高握把枢轴
+        ///   （<c>CrewVisualRig</c> 侧改动，超出本脚本范围），不能靠让刀穿地。
+        /// </summary>
+        static int ApplyHeldWeaponFloorFit(Transform visual)
+        {
+            return FitHeldSubtree(FindDeep(visual, "HeldL")) + FitHeldSubtree(FindDeep(visual, "HeldR"));
+        }
+
+        static int FitHeldSubtree(Transform held)
+        {
+            if (held == null)
+                return 0;
+
+            int fixes = 0;
+            MeshRenderer[] parts = held.GetComponentsInChildren<MeshRenderer>(true);
+            for (int i = 0; i < parts.Length; i++)
+            {
+                MeshRenderer renderer = parts[i];
+                if (renderer == null)
+                    continue;
+
+                Transform part = renderer.transform;
+                Vector3 scale = part.localScale;
+                // 只处理"竖直细长"的刀身：高度要明显大于厚度，避免误伤枪管(0.011×0.280×0.011 但已转 90°)、
+                // 弯钩(scale=1) 这类横向件。
+                if (scale.y <= 0.02f || scale.y <= scale.z * 1.5f)
+                    continue;
+
+                // 预制体构建期单位根在原点且无旋转 → renderer.bounds 就是世界坐标，脚底平面 = FootPlaneWorldY。
+                float bottom = renderer.bounds.min.y;
+                float limit = FootPlaneWorldY + HeldWeaponFloorClearance;
+                if (bottom >= limit)
+                    continue;
+
+                float length = scale.y;
+                float top = part.localPosition.y + length * 0.5f;      // 握把端固定
+                float newLength = Mathf.Max(length - (limit - bottom), MinHeldBladeLength);
+                part.localScale = new Vector3(scale.x, newLength, scale.z);
+                part.localPosition = new Vector3(part.localPosition.x, top - newLength * 0.5f,
+                    part.localPosition.z);
+                fixes++;
+            }
+            return fixes;
+        }
+
+        /// <summary>
+        /// 按组装侧 <c>CrewVisualRig.AddPart</c> 的同口径补一个零件（建预制体阶段专用）。
+        /// 只用于 r5 的鼻尖这类"装配脚本里没有、又不值得改 rig 的"小件。
+        /// </summary>
+        static void AddSimplePart(Transform parent, string name, Mesh mesh, Material material,
+            Vector3 localPosition, Vector3 localScale)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPosition;
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = localScale;
+
+            var filter = go.AddComponent<MeshFilter>();
+            filter.sharedMesh = mesh;
+
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            renderer.receiveShadows = true;
         }
 
         // ------------------------------------------------------------------
