@@ -40,27 +40,22 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
             List<KitPart> ship = SceneKitCatalog.BuildShip(
                 SceneKitCatalog.LargeShipRecipe, Vector3.zero, 0f, 7);
 
-            int bows = 0, mids = 0, sterns = 0, decks = 0, masts = 0, rigs = 0, sails = 0, hulls = 0;
+            int lofts = 0, decks = 0, masts = 0, rigs = 0, sails = 0;
             for (int i = 0; i < ship.Count; i++)
             {
                 switch (ship[i].Piece)
                 {
-                    case SceneKitPiece.HullBow: bows++; break;
-                    case SceneKitPiece.HullMid: mids++; break;
-                    case SceneKitPiece.HullStern: sterns++; break;
+                    case SceneKitPiece.ShipHullLoft: lofts++; break;
                     case SceneKitPiece.DeckPlank: decks++; break;
                     case SceneKitPiece.Mast: masts++; break;
                     case SceneKitPiece.Rigging: rigs++; break;
                     case SceneKitPiece.Sail: sails++; break;
-                    case SceneKitPiece.Bulwark: hulls++; break;
                 }
             }
 
-            Assert.AreEqual(1, bows, "艏构件 1 段");
-            Assert.GreaterOrEqual(mids, 1, "舯构件至少 1 段");
-            Assert.AreEqual(1, sterns, "艉构件 1 段");
+            // 2026-09-14 放样船体（用户"真船建模"裁决）：艏/舯/艉盒子+舷墙 → 1 具 ShipHullLoft。
+            Assert.AreEqual(1, lofts, "1 具放样船体");
             Assert.GreaterOrEqual(decks, 3, "甲板铺板应有多条");
-            Assert.AreEqual(2, hulls, "两舷舷墙");
             Assert.AreEqual(SceneKitCatalog.LargeShipRecipe.MastCount, masts, "桅数 = 配方");
             Assert.GreaterOrEqual(rigs, 4, "每桅至少 4 根索具");
             Assert.GreaterOrEqual(sails, 1, "带帆配方应至少 1 面帆");
@@ -424,17 +419,16 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
         {
             int ci = group.PrimaryCluster;
 
-            Assert.AreEqual(1, kit.CountInCluster(ci, SceneKitPiece.HullBow), "整船应有 1 个艏构件");
-            Assert.AreEqual(1, kit.CountInCluster(ci, SceneKitPiece.HullStern), "整船应有 1 个艉构件");
-            Assert.GreaterOrEqual(kit.CountInCluster(ci, SceneKitPiece.HullMid), 1, "整船应有舯段");
+            // 2026-09-14 放样船体（用户"真船建模"裁决）：艏/舯/艉三件盒子套 → 1 具 ShipHullLoft。
+            Assert.AreEqual(1, kit.CountInCluster(ci, SceneKitPiece.ShipHullLoft), "整船应有 1 具放样船体");
 
             int masts = kit.CountInCluster(ci, SceneKitPiece.Mast);
             Assert.GreaterOrEqual(masts, 1, "整船至少 1 桅");
             Assert.AreEqual(masts, kit.CountInCluster(ci, SceneKitPiece.CrowNest), "每桅一个桅顶瞭望巢");
             Assert.AreEqual(masts, kit.CountInCluster(ci, SceneKitPiece.Yard), "每桅一根横桁");
             Assert.AreEqual(masts, kit.CountInCluster(ci, SceneKitPiece.Sail), "每桅一面帆（两套配方都带帆）");
-            Assert.AreEqual(1, kit.CountInCluster(ci, SceneKitPiece.BowDeco), "整船应有 1 个船艏装饰");
-            Assert.GreaterOrEqual(kit.CountInCluster(ci, SceneKitPiece.Bulwark), 2,
+            // （艏饰/舷墙已并入 ShipHullLoft 本体——栏杆帽/艉板/艏斜桁在 ShipHullGeometry。）
+            Assert.GreaterOrEqual(kit.CountInCluster(ci, SceneKitPiece.Bulwark), 0,
                 "两舷舷墙（出生簇另有 1 条出生栏杆）");
             Assert.GreaterOrEqual(kit.CountInCluster(ci, SceneKitPiece.Rigging), masts * 4, "每桅 4 根索具");
 
@@ -445,8 +439,7 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
                 KitPart part = kit.Parts[i];
                 if (part.ClusterIndex != ci)
                     continue;
-                if (part.Piece == SceneKitPiece.HullBow || part.Piece == SceneKitPiece.HullMid
-                    || part.Piece == SceneKitPiece.HullStern)
+                if (part.Piece == SceneKitPiece.ShipHullLoft)
                     segments.Add(part);
             }
 
@@ -471,8 +464,7 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
                 KitPart part = kit.Parts[i];
                 if (part.ClusterIndex != clusterIndex)
                     continue;
-                if (part.Piece != SceneKitPiece.HullBow && part.Piece != SceneKitPiece.HullMid
-                    && part.Piece != SceneKitPiece.HullStern)
+                if (part.Piece != SceneKitPiece.ShipHullLoft)
                     continue;
 
                 minX = Mathf.Min(minX, part.Position.x - part.Length * 0.5f);
@@ -510,7 +502,7 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
                         terraceMasts++;
                 }
 
-                if (part.Piece == SceneKitPiece.HullBow && kind != PlatformClusterKind.Ship)
+                if (part.Piece == SceneKitPiece.ShipHullLoft && kind != PlatformClusterKind.Ship)
                     bowOnTerrace++;
             }
 

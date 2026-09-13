@@ -333,7 +333,7 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
             // （411 格陆地）标定的；原版 level_1 只有 163 格陆地（50×17 的原版行串里大片是海面），
             // 草丛实例数随之降到 ~366，故下限按陆地面积等比下调（163/411 ≈ 0.4）。
             Assert.That(grass, Is.InRange(300, SceneLayoutRules.MaxGrassTufts),
-                "草丛 300-1500 实例（§3.4 下限按原版陆地面积下调）");
+                "草丛 200-1500 实例（船面不撒草后下限再下调，用户裁决船上不长草）");
         }
 
         [Test]

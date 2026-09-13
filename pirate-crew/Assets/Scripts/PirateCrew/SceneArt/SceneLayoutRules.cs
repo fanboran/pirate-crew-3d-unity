@@ -115,7 +115,8 @@ namespace PirateCrew.PirateCrew.SceneArt
         public const int MaxIntertidalRocks = 35;
 
         /// <summary>草丛实例总数区间。【依据场景文档 §3.4「400-1500 实例」】</summary>
-        public const int MinGrassTufts = 400;
+        public const int MinGrassTufts = 200;
+        // 2026-09-14：船面不参与草散射（用户裁决船上不长草），下限按可撒面缩小。
 
         /// <summary>草丛实例总数上限。</summary>
         public const int MaxGrassTufts = 1500;

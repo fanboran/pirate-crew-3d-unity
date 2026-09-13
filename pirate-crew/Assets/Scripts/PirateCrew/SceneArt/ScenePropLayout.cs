@@ -577,6 +577,9 @@ namespace PirateCrew.PirateCrew.SceneArt
                     float z = gy + 0.5f;
                     if (z > 3.4f)
                         continue;
+                    // 【用户裁决 2026-09-14：船上不长草（含棕榈）】
+                    if (grid.SurfaceKindAt(gx, gy) == global::PirateCrew.PirateCrew.Battle.PlatformSurface.Ship)
+                        continue;
                     if (grid.BlocksAt(gx, gy) < 2)
                         continue;
                     // 不抢主角：船体 X19-39 让开。
@@ -652,6 +655,9 @@ namespace PirateCrew.PirateCrew.SceneArt
                     // 台顶与岩缝：需要有抬升块。
                     if (grid.BlocksAt(gx, gy) < 3)
                         continue;
+                    // 【用户裁决 2026-09-14：船上不长草（含灌木）】
+                    if (grid.SurfaceKindAt(gx, gy) == global::PirateCrew.PirateCrew.Battle.PlatformSurface.Ship)
+                        continue;
                     candidates.Add(new Vector2Int(gx, gy));
                 }
             }
@@ -686,6 +692,10 @@ namespace PirateCrew.PirateCrew.SceneArt
                     // 平台化：草铺在**任一有地面的平台顶**（旧版"只铺 y≥1.5 平顶"是单块大岛时代的规则；
                     // 悬空平台世界里 1 块高的甲板/岛顶也长草）。要求 blocks≥1 → 全平地面（0 块）仍不长草。
                     if (!grid.IsGroundAt(gx, gy) || grid.BlocksAt(gx, gy) < 1)
+                        continue;
+                    // 【用户裁决 2026-09-14：船上不长草】船面（甲板）不参与草散射——
+                    // 草只属于岛（梯田/空岛），船的植被语义由索具/帆/炮窗承担。
+                    if (grid.SurfaceKindAt(gx, gy) == global::PirateCrew.PirateCrew.Battle.PlatformSurface.Ship)
                         continue;
                     candidates.Add(new Vector2Int(gx, gy));
                 }

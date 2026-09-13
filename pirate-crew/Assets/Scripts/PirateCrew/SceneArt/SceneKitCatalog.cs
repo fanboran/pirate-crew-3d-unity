@@ -51,6 +51,10 @@ namespace PirateCrew.PirateCrew.SceneArt
 
         /// <summary>船艏装饰：艏柱横档 + 从艏端斜向前上方伸出的艏斜桁。</summary>
         BowDeco,
+
+        /// <summary>放样船体（整艘，替代 HullBow/Mid/Stern 三件盒子套）：Scale=船宽、Length=总长、Height=吃深。
+        /// 几何见 <see cref="ShipHullGeometry"/>（用户裁决 2026-09-14"真船建模"）。</summary>
+        ShipHullLoft,
     }
 
     /// <summary>构件所属材质组（= 构建期合批目标）。</summary>
@@ -652,44 +656,16 @@ namespace PirateCrew.PirateCrew.SceneArt
             float halfLen = hullLength * 0.5f;
             float halfBeam = hullBeam * 0.5f;
 
-            // 中段至少要留 20% 船长，否则极短的船（如只有一块桅盘的区合并成的船）艏艉会叠在一起。
-            float over = bowLength + sternLength - hullLength * 0.8f;
-            if (over > 0f)
-            {
-                bowLength = Mathf.Max(0.6f, bowLength - over * 0.6f);
-                sternLength = Mathf.Max(0.5f, sternLength - over * 0.4f);
-            }
-
-            // ---- 船体段：艏（左端）/ 舯（按 2.4 单位切段）/ 艉（右端）----
-            // 【分段必须首尾相接（2026-09-14 修）】旧写法把"艏段的内沿"写成 halfLen − bowLength、
-            // "艉段的内沿"写成 −halfLen + sternLength（左右两端的长度写反了），于是中段区间
-            // 与艏/艉段重叠 |bowLength − sternLength|（level_1 的左船实测重叠 1.14 单位）。
-            // 现在按"艏占左端 [−halfLen, −halfLen+bow]、艉占右端 [halfLen−stern, halfLen]"
-            // 取中段区间 [bowInner, sternInner]，三段逐段贴合、无重叠也无缝。
-            float bowInner = -halfLen + bowLength;
-            float sternInner = halfLen - sternLength;
-
             Vector3 P(float along, float lateral) => deckCenter + axis * along + side * lateral;
 
-            parts.Add(new KitPart(SceneKitPiece.HullBow, SceneKitMaterial.Wood,
-                P(-halfLen + bowLength * 0.5f, 0f), yawDegrees, hullBeam,
-                bowLength, recipe.HullHeight));
+            // 【用户裁决 2026-09-14"真船建模，意译不要直译"】船体不再用 HullBow/Mid/Stern
+            // 盒子拼剪影，改为**一整具放样船体**（ShipHullGeometry：横剖站渐变+舷弧+
+            // 内倾舷墙+艉板+龙骨+艏斜桁，几何见该文件）。吃深按船宽的 55% 给真实比例。
+            parts.Add(new KitPart(SceneKitPiece.ShipHullLoft, SceneKitMaterial.Wood,
+                deckCenter, yawDegrees, hullBeam,
+                hullLength, Mathf.Max(1.4f, hullBeam * 0.55f)));
 
-            float midLen = sternInner - bowInner;
-            int midSegments = Mathf.Max(1, Mathf.RoundToInt(midLen / 2.4f));
-            for (int i = 0; i < midSegments; i++)
-            {
-                float t = (i + 0.5f) / midSegments;
-                parts.Add(new KitPart(SceneKitPiece.HullMid, SceneKitMaterial.Wood,
-                    P(Mathf.Lerp(bowInner, sternInner, t), 0f), yawDegrees, hullBeam,
-                    midLen / midSegments, recipe.HullHeight));
-            }
-
-            parts.Add(new KitPart(SceneKitPiece.HullStern, SceneKitMaterial.Wood,
-                P(halfLen - sternLength * 0.5f, 0f), yawDegrees, hullBeam,
-                sternLength, recipe.HullHeight));
-
-            // ---- 甲板铺板（沿长轴一条条） ----
+            // ---- 甲板铺板（沿长轴一条条；可站面由地形格提供，铺板是贴面装饰） ----
             int planks = Mathf.Max(3, Mathf.RoundToInt(hullBeam / 0.9f));
             for (int i = 0; i < planks; i++)
             {
@@ -699,17 +675,7 @@ namespace PirateCrew.PirateCrew.SceneArt
                     hullLength - 0.4f, 0.06f));
             }
 
-            // ---- 两舷舷墙 / 栏杆 ----
-            for (int s = -1; s <= 1; s += 2)
-            {
-                parts.Add(new KitPart(SceneKitPiece.Bulwark, SceneKitMaterial.Wood,
-                    P(0f, s * (halfBeam - 0.08f)) + Vector3.up * 0.22f, yawDegrees, 1f,
-                    hullLength - 0.3f, 0.42f));
-            }
-
-            // ---- 船艏装饰：艏楼栏杆（沿船宽的一道横栏）+ 艏柱 / 艏斜桁（BowDeco 的几何见调度的注释）----
-            parts.Add(new KitPart(SceneKitPiece.BowDeco, SceneKitMaterial.Wood,
-                P(-halfLen + 0.1f, 0f), yawDegrees, hullBeam * 0.92f, 1.1f, 0.46f));
+            // （舷墙/艏饰已并入放样船体本体——栏杆帽/艉板/艏斜桁见 ShipHullGeometry。）
 
             // ---- 桅杆 + 索具 + 横桁 + 帆 + 桅顶瞭望巢 ----
             int mastCount = mastAlongOffsets != null ? mastAlongOffsets.Count : recipe.MastCount;

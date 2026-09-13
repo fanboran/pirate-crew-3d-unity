@@ -50,6 +50,13 @@ namespace PirateCrew.PirateCrew.SceneArt
 
                 switch (p.Piece)
                 {
+                    case SceneKitPiece.ShipHullLoft:
+                        // 整艘放样船体（真船建模，用户裁决 2026-09-14）：
+                        // Scale=船宽、Length=总长、Height=甲板到龙骨吃深；亮/暗木两缓冲直接写入。
+                        ShipHullGeometry.AddLoftedHull(buffers.Wood, buffers.WoodDark,
+                            p.Position, p.YawDegrees, p.Length, p.Scale, p.Height);
+                        break;
+
                     case SceneKitPiece.HullBow:
                         SceneKitGeometry.AddHullSegment(target, p.Position, p.YawDegrees,
                             p.Length, p.Height, p.Scale, 0.6f, s);
