@@ -43,7 +43,9 @@ namespace PirateCrew.EditorTools
 
             BuildBootstrapperScene();
             BuildMainMenuScene();
-            BuildBattleScene();
+            // Battle.unity 自 M2 起归 M2BattleSceneSetup 全量重建（完整战斗场景），
+            // 这里**不再生成 M1 占位场景**——否则会覆盖 M2 的产物（ArtGate 第⑦步的输出
+            // 被第⑨步覆盖的事故由此而来）。占位场景仅存在于 M1 时代。
             RegisterBuildSettings();
 
             AssetDatabase.SaveAssets();

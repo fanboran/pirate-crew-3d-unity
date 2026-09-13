@@ -119,6 +119,39 @@ namespace PirateCrew.EditorTools
 
         static void Build(bool force)
         {
+            // TMP 的 shader（TextMeshPro/Distance Field 等）默认不在工程资产里——
+            // 它们打包在 PackageCache 的 unitypackage 中，需"Import TMP Essential Resources"
+            // 导入一次。不导入时 TMP_FontAsset.CreateFontAsset 内部 Shader.Find 返回 null，
+            // 抛 ArgumentNullException。判定用 Shader.Find（不要用 TMP_Settings.instance——
+            // batchmode 下它的 getter 会尝试弹出导入窗口并刷屏"No graphic device"）。
+            // 路径用 PackageCache 的物理路径：虚拟路径 "Packages/..." 传给 ImportPackage 会静默不导入。
+            if (Shader.Find("TextMeshPro/Distance Field") == null)
+            {
+                string pkg = null;
+                if (System.IO.Directory.Exists("Library/PackageCache"))
+                {
+                    string[] hits = System.IO.Directory.GetFiles(
+                        "Library/PackageCache", "TMP Essential Resources.unitypackage",
+                        System.IO.SearchOption.AllDirectories);
+                    if (hits.Length > 0)
+                        pkg = hits[0];
+                }
+                if (pkg == null)
+                {
+                    Debug.LogError("[FontAssetBuilder] PackageCache 中找不到 TMP Essential Resources.unitypackage");
+                    return;
+                }
+                Debug.Log("[FontAssetBuilder] 首次构建：导入 TMP Essential Resources（shader/TMP Settings）：" + pkg);
+                AssetDatabase.ImportPackage(pkg, interactive: false);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh();
+                if (Shader.Find("TextMeshPro/Distance Field") == null)
+                {
+                    Debug.LogError("[FontAssetBuilder] 导入后仍找不到 TextMeshPro/Distance Field——TMP 资源导入异常");
+                    return;
+                }
+            }
+
             EnsureFolder("Assets/Art");
             EnsureFolder(FontsFolder);
 

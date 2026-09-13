@@ -112,6 +112,11 @@ namespace PirateCrew.PirateCrew.Fx
             if (_system == null)
                 return;
 
+            // 复用池中系统前先彻底停机清空：粒子系统在 isPlaying 状态下改 duration 会触发
+            // Unity Assert（"Setting the duration while system is still playing is not supported"），
+            // PlayMode 测试按错误日志直接判失败。
+            _system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
             int count = Mathf.Clamp(spec.Count, 1, 512);
             float life = Mathf.Max(0.05f, spec.Lifetime);
             float speed = Mathf.Max(0f, spec.Speed);
@@ -179,13 +184,21 @@ namespace PirateCrew.PirateCrew.Fx
             if (velocity.enabled)
             {
                 velocity.space = ParticleSystemSimulationSpace.World;
+                // 三轴必须同模式（y 是两常量，x/z 也要用两常量形式），
+                // 否则触发"Particle Velocity curves must all be in the same mode"错误。
+                velocity.x = new ParticleSystem.MinMaxCurve(0f, 0f);
+                velocity.z = new ParticleSystem.MinMaxCurve(0f, 0f);
                 velocity.y = new ParticleSystem.MinMaxCurve(spec.RiseSpeed * 0.6f, spec.RiseSpeed);
             }
 
             ParticleSystem.RotationOverLifetimeModule rotation = _system.rotationOverLifetime;
             rotation.enabled = !Mathf.Approximately(spec.RotationSpeed, 0f);
             if (rotation.enabled)
+            {
+                rotation.x = new ParticleSystem.MinMaxCurve(0f, 0f);
+                rotation.y = new ParticleSystem.MinMaxCurve(0f, 0f);
                 rotation.z = new ParticleSystem.MinMaxCurve(-spec.RotationSpeed, spec.RotationSpeed);
+            }
 
             if (_renderer != null)
             {
