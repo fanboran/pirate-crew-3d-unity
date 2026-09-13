@@ -618,11 +618,12 @@ Shader "PirateCrew/PirateWater"
                 float foamFalloff = 1.0 - saturate(waterDepth / max(_FoamWidth, 0.01));
                 float foamNoise = PirateFbm(IN.positionWS.xz * _FoamNoiseScale + t * _FoamSpeed * float2(0.6, 0.4));
                 float foamNoise2 = PirateFbm(IN.positionWS.xz * _FoamNoiseScale2 - t * _FoamSpeed * float2(0.35, 0.5));
-                // 破碎：两层噪声之差 → 打破"一条均匀白带"。
-                float breakup = saturate(0.5 + (foamNoise - foamNoise2) * _FoamBreakup * 2.0);
+                // 破碎：两层噪声之差 → 打破"一条均匀白带"。（改名 foamBreakup——上方基础色
+                // 破坏噪声已有同名 breakup，HLSL 同作用域重定义会编译失败，r6 播放器门禁实测。）
+                float foamBreakup = saturate(0.5 + (foamNoise - foamNoise2) * _FoamBreakup * 2.0);
                 // 涌岸：亮带随水深相位推进再灭（水浅处相位提前 → 由深向浅推进）。
                 float pulse = WaterFoamPulseShape(waterDepth, t);
-                float foamShore = foamFalloff * (0.45 + 0.55 * foamNoise * breakup)
+                float foamShore = foamFalloff * (0.45 + 0.55 * foamNoise * foamBreakup)
                                  * lerp(1.0, pulse, _FoamPulseStrength);
                 // 屏幕空间深度梯度：岛屿/海床轮廓处的泡沫线（乘 foamFalloff 排除"水-天空"远处轮廓）。
                 float depthEdge = (abs(ddx(sceneEye)) + abs(ddy(sceneEye))) * _ShorelineFoamGain;
