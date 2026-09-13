@@ -1,0 +1,69 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: FloatingIsland_GrassDark
+  m_Shader: {fileID: 4800000, guid: 0ba818b71cd470b4e9749b4cd73e4e76, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _BumpMap:
+        m_Texture: {fileID: 2800000, guid: c0044ea7b489ef3499bb77d17bb7ae25, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DetailNoiseMap:
+        m_Texture: {fileID: 2800000, guid: a338cfba4cf0eec43aaadc907de749ad, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _AmbientStrength: 1
+    - _BumpScale: 0.5
+    - _ColorRampBias: 0.5
+    - _ColorRampContrast: 1.5
+    - _DebugMode: 0
+    - _DetailAlbedoStrength: 0.35
+    - _DetailNoiseScale: 14
+    - _DetailNormalStrength: 0.35
+    - _EdgeWear: 0
+    - _Metallic: 0
+    - _NoiseScale: 2.2
+    - _NoiseStrength: 0.44
+    - _NoiseWarpStrength: 0.18
+    - _NoiseWorldScale: 0.7
+    - _RippleDistort: 0.35
+    - _RippleScale: 16
+    - _RippleStrength: 0.1
+    - _Smoothness: 0.08
+    - _WaterLevelY: -0.2
+    - _WetBandWidth: 0.45
+    - _WetDarken: 0.3
+    - _WetLineDarkening: 0.25
+    - _WetLineMax: 0.22
+    - _WetLineMin: 0.1
+    - _WetSmoothnessBoost: 0.25
+    - _Wetness: 0
+    m_Colors:
+    - _BaseColorA: {r: 0.10980392, g: 0.22745098, b: 0.10980392, a: 1}
+    - _BaseColorB: {r: 0.1764706, g: 0.3529412, b: 0.1764706, a: 1}
+    - _BaseColorC: {r: 0.2901961, g: 0.54901963, b: 0.2901961, a: 1}
+    - _NoiseStretch: {r: 1, g: 1, b: 0, a: 0}
+    - _WearColor: {r: 0.85, g: 0.8, b: 0.7, a: 1}
+    - _WetSandColor: {r: 0.6589999, g: 0.553, b: 0.36099997, a: 1}
+  m_BuildTextureStacks: []
