@@ -11,3 +11,5 @@ external/
 
 # ZCode 工具本地状态（会话计划等，非项目产物）
 .zcode/
+export/art-review/*/*.png
+export/art-review/r1/
