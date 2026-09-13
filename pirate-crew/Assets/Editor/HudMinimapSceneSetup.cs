@@ -27,6 +27,18 @@ namespace PirateCrew.EditorTools
     /// 【职责边界】本脚本**只接线**（BattleMinimap 的 unitRoots/dotLayer/tileLayer/terrain 等字段），
     ///   面板的位置/尺寸/背景/描边归 <see cref="BattleUiTheme"/> / <see cref="BattleHudBuilder"/>
     ///   （木质框观感）；只有面板缺失时才兜底建一个朴素面板，避免覆盖 UI 波次的样式。
+    ///
+    /// 【本轮新增：小地图岛烘焙】按 tile 数据（<see cref="TerrainCatalog"/> / <see cref="PlatformClusterLayout"/>）
+    ///   把「沙台 / 草格 / 海面」画进 <c>IslandLayer</c>：
+    ///   · 旧版小地图岛是运行期 <c>BattleMinimap.BuildTiles</c> 用 <c>MinimapRules.TileColor</c> 画的灰岩色矩形
+    ///     （r3 实测 #898D7E，与实岛沙 #F7D384 不符），而 <c>MinimapRules.cs</c> / <c>BattleMinimap.cs</c>
+    ///     不在本波次文件域内；
+    ///   · 本脚本按同一份瓦片数据逐格上色（浅台 = 沙 #F0D48A 系、抬起的台面 = 草 #6FA86F 系、
+    ///     水 = <see cref="UiTheme.Sea"/>），岛轮廓 = 平台簇的真实逐格形状（不再是矩形兜底）；
+    ///   · 因此运行期的瓦片点阵不再需要（会被烘焙层整片盖住，却仍要建 width×depth 个 Image），
+    ///     本轮起 <c>BattleMinimap.terrain</c> 显式清空 —— 代价是地形被炸后小地图不再变化（静态岛）。
+    ///     彻底修法（需改本波次文件域外的两个文件，见 docs/待办事项.md）：让 <c>MinimapRules.TileColor</c>
+    ///     按格面语义取沙/草色、恢复 terrain 接线后删掉本烘焙层。
     /// </summary>
     public static class HudMinimapSceneSetup
     {
@@ -35,9 +47,22 @@ namespace PirateCrew.EditorTools
         const string MinimapPanelName = "MinimapPanel";
         const string DotLayerName = "DotLayer";
         const string TileLayerName = "TileLayer";
+
+        /// <summary>小地图岛层（本轮新增：编辑器按 tile 数据烘焙的沙/草/海面，盖在瓦片点层之上）。</summary>
+        const string IslandLayerName = "IslandLayer";
+
         const string Team0RootName = "Team0_Red";
         const string Team1RootName = "Team1_Blue";
         const int FallbackLevelNumber = 1;
+
+        /// <summary>
+        /// 岛格沙色（浅台 / 滩）。【提案/待定】色值取 r3 美术复验工单给的 <c>#F0D48A 系</c>
+        /// （实测实岛沙为 <c>#F7D384</c>；这里稍压一点亮度，避免小地图比实景还亮）。
+        /// </summary>
+        static readonly Color SandTileColor = new Color(0xF0 / 255f, 0xD4 / 255f, 0x8A / 255f, 1f);
+
+        /// <summary>岛格草色（抬起的台面）。【提案/待定】色值取工单给的 <c>#6FA86F 系</c>。</summary>
+        static readonly Color GrassTileColor = new Color(0x6F / 255f, 0xA8 / 255f, 0x6F / 255f, 1f);
 
         /// <summary>小地图在屏幕左上角的外边距（统一口径 24px；原版 mapHolder 挂在 (20,20)，§2.3）。</summary>
         static readonly Vector2 PanelOffset = new Vector2(24f, -24f);
@@ -95,19 +120,19 @@ namespace PirateCrew.EditorTools
             }
 
             ResolveArenaTiles(battle, out int widthTiles, out int depthTiles);
+            int levelNumber = ResolveLevelNumber(battle);
 
             RectTransform panel = EnsurePanel(canvas.transform, widthTiles, depthTiles);
             RectTransform dotLayer = EnsureDotLayer(panel);
             RectTransform tileLayer = EnsureTileLayer(dotLayer);
+            RectTransform islandLayer = EnsureIslandLayer(dotLayer, tileLayer);
+            int islandTiles = BakeIslandTiles(islandLayer, levelNumber, widthTiles, depthTiles);
 
             var minimap = panel.GetComponent<BattleMinimap>();
             if (minimap == null)
                 minimap = panel.gameObject.AddComponent<BattleMinimap>();
 
-            // 瓦片地形点阵的数据源：同场景的 BattleTerrainView（[SerializeField] 直连，禁 Find）。
-            BattleTerrainView terrainView = FindFirstComponent<BattleTerrainView>();
-
-            WriteReferences(minimap, team0, team1, dotLayer, tileLayer, terrainView, widthTiles, depthTiles);
+            WriteReferences(minimap, team0, team1, dotLayer, tileLayer, widthTiles, depthTiles);
 
             EditorSceneManager.MarkSceneDirty(scene);
             if (!EditorSceneManager.SaveScene(scene, BattleScenePath))
@@ -122,7 +147,8 @@ namespace PirateCrew.EditorTools
             Debug.Log("[HudMinimapSceneSetup] 小地图接线完成。\n"
                 + "  场景: " + BattleScenePath + "\n"
                 + "  面板: " + MinimapPanelName + "（左上角，原版 mapHolder 在 (20,20)，§2.3）\n"
-                + "  竞技场: " + widthTiles + " × " + depthTiles + " 瓦片\n"
+                + "  竞技场: " + widthTiles + " × " + depthTiles + " 瓦片（关卡 " + levelNumber + "）\n"
+                + "  岛层: " + IslandLayerName + "（沙/草逐格烘焙，共 " + islandTiles + " 格；水 = UI_SEA）\n"
                 + "  单位根: " + (team0 != null ? team0.name : "null") + " / "
                 + (team1 != null ? team1.name : "null"));
         }
@@ -218,12 +244,121 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
+        // 小地图岛层（本轮：按 tile 数据烘焙沙/草色，取代运行期的灰岩色点阵）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 取/建 <c>IslandLayer</c>：与点阵层同尺寸铺满，层级排在瓦片点层**之上**、
+        /// 单位点（BattleMinimap 运行期追加到 DotLayer）之下。
+        /// </summary>
+        static RectTransform EnsureIslandLayer(RectTransform dotLayer, RectTransform tileLayer)
+        {
+            if (dotLayer == null)
+                return null;
+
+            Transform existing = FindChildByName(dotLayer, IslandLayerName);
+            var layer = existing as RectTransform;
+
+            if (layer == null)
+            {
+                var go = new GameObject(IslandLayerName, typeof(RectTransform));
+                go.transform.SetParent(dotLayer, false);
+                layer = go.GetComponent<RectTransform>();
+            }
+
+            layer.anchorMin = Vector2.zero;
+            layer.anchorMax = Vector2.one;
+            layer.offsetMin = Vector2.zero;
+            layer.offsetMax = Vector2.zero;
+
+            // 绘制顺序（同层内先出现的先画）：瓦片点层(0) → 岛层(1) → 运行期单位点(最后)。
+            if (tileLayer != null)
+                tileLayer.SetAsFirstSibling();
+            if (dotLayer.childCount > 1)
+                layer.SetSiblingIndex(1);
+
+            return layer;
+        }
+
+        /// <summary>
+        /// 按关卡瓦片数据烘焙小地图岛（幂等：每次接线先清空重建）。
+        ///
+        /// 【配色】浅台 / 滩 = <see cref="SandTileColor"/>，抬起来的台面（块高 &gt; 本簇最低块高）= <see cref="GrassTileColor"/>；
+        /// 水格不画（点阵区底色 = 面板的「羊皮纸 × UI_SEA」，即 <see cref="UiTheme.Sea"/> 系）。
+        /// 锚点口径与 <c>BattleMinimap.BuildTiles</c> 逐格一致，
+        /// 保证单位点（按 <c>MinimapRules.ArenaToNormalized</c> 归一化定位）与岛格严格对齐。
+        /// </summary>
+        /// <returns>烘焙出的岛格数（0 = 该关未转写地形 / 非平台关）。</returns>
+        static int BakeIslandTiles(RectTransform layer, int levelNumber, int widthTiles, int depthTiles)
+        {
+            if (layer == null)
+                return 0;
+
+            for (int i = layer.childCount - 1; i >= 0; i--)
+                Object.DestroyImmediate(layer.GetChild(i).gameObject);
+
+            // 只做平台化关卡：列式旧地形（level_4/27）整图都是「有地面」，逐格上色会糊成一块沙色大矩形，
+            // 故非平台关直接关掉本层，把绘制让回运行期的灰岩色点阵。
+            if (!TerrainCatalog.IsPlatformLevel(levelNumber))
+            {
+                layer.gameObject.SetActive(false);
+                return 0;
+            }
+
+            layer.gameObject.SetActive(true);
+
+            // 水不用画：运行期瓦片点阵已停画（见 WriteReferences 的 terrain 清空），
+            // 点阵区的底色就是面板自己的「羊皮纸 × UI_SEA」底色（= UiTheme.Sea 系），
+            // 再铺一层反而会在面板里出现一块色调不同的矩形。这里只画岛格。
+            TileTerrainGrid grid = TerrainCatalog.Build(levelNumber, widthTiles, depthTiles);
+            if (grid == null)
+                return 0;
+
+            int tiles = 0;
+            for (int gy = 0; gy < depthTiles; gy++)
+            {
+                for (int gx = 0; gx < widthTiles; gx++)
+                {
+                    if (!grid.IsGroundAt(gx, gy))
+                        continue;
+
+                    var go = new GameObject("IslandTile_" + gx + "_" + gy,
+                        typeof(RectTransform), typeof(Image));
+                    var rect = go.GetComponent<RectTransform>();
+                    rect.SetParent(layer, false);
+                    rect.anchorMin = new Vector2((float)gx / widthTiles, 1f - (float)(gy + 1) / depthTiles);
+                    rect.anchorMax = new Vector2((float)(gx + 1) / widthTiles, 1f - (float)gy / depthTiles);
+                    rect.offsetMin = Vector2.zero;
+                    rect.offsetMax = Vector2.zero;
+
+                    var image = go.GetComponent<Image>();
+                    image.color = IslandTileColor(grid, gx, gy);
+                    image.raycastTarget = false;
+                    tiles++;
+                }
+            }
+
+            return tiles;
+        }
+
+        /// <summary>
+        /// 岛格取色：块高高于所属平台簇的最低块高 = 抬起来的台面（草），否则 = 浅台/滩（沙）。
+        /// 即「沙台打底、其上草格」，与 3D 场景里台地顶面长草、裙边是沙的观感一致。
+        /// </summary>
+        static Color IslandTileColor(TileTerrainGrid grid, int gx, int gy)
+        {
+            int cluster = grid.ClusterIndexOf(gx, gy);
+            int minBlocks = cluster >= 0 ? grid.ClusterAt(cluster).MinBlocks : 0;
+            return grid.BlocksAt(gx, gy) > minBlocks ? GrassTileColor : SandTileColor;
+        }
+
+        // ------------------------------------------------------------------
         // 引用注入（SerializedObject，字段名与 BattleMinimap 一一对应）
         // ------------------------------------------------------------------
 
         static void WriteReferences(
             BattleMinimap minimap, Transform team0, Transform team1, RectTransform dotLayer,
-            RectTransform tileLayer, BattleTerrainView terrainView, int widthTiles, int depthTiles)
+            RectTransform tileLayer, int widthTiles, int depthTiles)
         {
             var so = new SerializedObject(minimap);
 
@@ -251,14 +386,17 @@ namespace PirateCrew.EditorTools
             // 0 = 由 MinimapRules.DotSizePixels(pixelsPerTile) 推导（单一来源）。
             so.FindProperty("dotSizePixels").floatValue = 0f;
 
-            // 瓦片地形点阵：数据源 + 点层（字段在 BattleMinimap 上；找不到就给 null，BattleMinimap 会退回不画点阵）。
-            SerializedProperty terrainProp = so.FindProperty("terrain");
-            if (terrainProp != null)
-                terrainProp.objectReferenceValue = terrainView;
-
+            // 瓦片点层引用照旧给上（层还在，只是不再由运行期画点阵）。
             SerializedProperty tileLayerProp = so.FindProperty("tileLayer");
             if (tileLayerProp != null)
                 tileLayerProp.objectReferenceValue = tileLayer;
+
+            // 【本轮取舍】terrain 显式清空：小地图岛改由 IslandLayer 按同一份 tile 数据烘焙成沙/草色，
+            // 运行期再画一遍灰岩色点阵既会被整片盖住、又要白建 width×depth（level_1 = 850）个 Image。
+            // 代价：地形被炸后小地图不再变化（静态岛）——恢复动态需先改 MinimapRules.cs / BattleMinimap.cs。
+            SerializedProperty terrainProp = so.FindProperty("terrain");
+            if (terrainProp != null)
+                terrainProp.objectReferenceValue = null;
 
             so.ApplyModifiedPropertiesWithoutUndo();
         }
@@ -270,13 +408,24 @@ namespace PirateCrew.EditorTools
         // 场景查询工具（Editor 期；不使用 GameObject.Find）
         // ------------------------------------------------------------------
 
-        static void ResolveArenaTiles(BattleController battle, out int widthTiles, out int depthTiles)
+        /// <summary>读 BattleController 上的关卡资产（未指定时返回 null）。</summary>
+        static LevelDefinition ReadLevel(BattleController battle)
         {
-            LevelDefinition level = null;
             var so = new SerializedObject(battle);
             SerializedProperty prop = so.FindProperty("level");
-            if (prop != null)
-                level = prop.objectReferenceValue as LevelDefinition;
+            return prop != null ? prop.objectReferenceValue as LevelDefinition : null;
+        }
+
+        /// <summary>解析当前场景实际会加载的关卡号（BattleController.level 为空时回落 level_1）。</summary>
+        static int ResolveLevelNumber(BattleController battle)
+        {
+            LevelDefinition level = ReadLevel(battle);
+            return level != null ? level.LevelNumber : FallbackLevelNumber;
+        }
+
+        static void ResolveArenaTiles(BattleController battle, out int widthTiles, out int depthTiles)
+        {
+            LevelDefinition level = ReadLevel(battle);
 
             if (level != null)
             {

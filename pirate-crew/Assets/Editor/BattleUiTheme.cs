@@ -20,8 +20,13 @@ namespace PirateCrew.EditorTools
     ///
     /// 【契约】只改外观与节点归属，不改 Canvas 的 RenderMode / CanvasScaler（1920×1080 match 0.5），
     /// 不新增/变更 EventBus 事件。可重复调用（每次场景重建都会调一次）。
-    /// 【布局口径】外安全边距 24px、面板内边距 24px、通栏提示条近贴底缘——具体坐标常量集中在
-    /// <see cref="BattleHudBuilder"/>；本类只负责清旧节点、重建、按字段名回写引用。
+    /// 【布局口径】外安全边距 24px、面板内边距 24px、底部提示条底距 16px（§1.7 近贴边例外）
+    /// 且武器面板底缘与提示条顶边净间距 24px；回合/计时各带 120×36 木底板；名册面板高度随实际行数收缩
+    /// （VerticalLayoutGroup + ContentSizeFitter）——具体坐标/控件常量集中在 <see cref="BattleHudBuilder"/>；
+    /// 本类只负责清旧节点、重建、按字段名回写引用。
+    /// 【保留节点】清旧节点时保留 Canvas 上的 <c>BattleHud</c> 与 <c>MinimapPanel</c>；
+    /// 小地图的 <c>DotLayer/TileLayer/IslandLayer</c> 是 MinimapPanel 的子物体，随面板一并保留
+    /// （IslandLayer 的沙/草烘焙由 <c>HudMinimapSceneSetup</c> 负责，本类不触碰）。
     /// </summary>
     public static class BattleUiTheme
     {

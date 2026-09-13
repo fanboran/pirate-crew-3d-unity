@@ -1,6 +1,7 @@
 using PirateCrew.PirateCrew.Data;
 using PirateCrew.UI;
 using TMPro;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -17,10 +18,12 @@ namespace PirateCrew.EditorTools
     /// 按钮 = 木板九宫格 + 四态，文字 = TMP 中文字体，配色取 §1.3 Token。
     ///
     /// 【布局口径（本轮统一）】
-    ///   · 外安全边距 <see cref="Safe"/>：所有角落面板统一 24px（实测可见边 23px 是描边 1px 内缩）；
+    ///   · 外安全边距 <see cref="Safe"/>：所有角落面板统一 24px（实测可见边 21-22px 是 3px 黄铜外描边外扩所致）；
     ///   · 面板内边距 <see cref="PanelPadding"/>：标题/标签一律退到面板边 24px 以内，不压边框；
-    ///   · 通栏条（底部操作提示条）是唯一允许近贴边的元素，仍留 16px 底距，顶边落在屏高 95% 以下；
-    ///   · 相邻信息块之间用全角间隔符 <see cref="SeparatorDot"/> 分隔，避免「1/20移动」「操作时间」连读。
+    ///   · 通栏条（底部操作提示条）是唯一允许近贴边的元素（底距 16px），
+    ///     武器面板底缘与提示条顶边的净间距 = 24px（见 <see cref="WeaponPanelBottom"/>）；
+    ///   · 顶部信息条 = 一整条 704×48 木板（回合计数 | 模式开关 | 计时），文字不再浮在水面上；
+    ///   · 名册面板高度随实际出战行数收缩（VerticalLayoutGroup + ContentSizeFitter），不留空槽。
     ///
     /// 【节点契约】返回的 <see cref="Result"/> 必须覆盖 <see cref="BattleHud"/> 的全部
     /// <c>[SerializeField]</c> 文本/按钮/名册引用，由 <see cref="BattleUiTheme"/> 重新接线。
@@ -43,8 +46,35 @@ namespace PirateCrew.EditorTools
         /// <summary>面板内边距（统一口径：标题/标签/内容都退到面板边 24px 以内）。</summary>
         const float PanelPadding = 24f;
 
-        /// <summary>回合/计时文本宽度（放在模式开关两侧，给两侧留出 24px 以上间隔）。</summary>
-        const float TopRowWidth = 120f;
+        /// <summary>
+        /// 顶部信息条（一整条木板：回合计数 / 模式开关 / 计时都装进去）。
+        /// 【为什么合并】回合「1/20」（实测 2.67:1）与「时间 0:00」（2.83:1）原先直接压在水面上，
+        /// 低于 D-2 的 4.5:1；纳入同一条木底板后文字底变成木色（对比 ≥8:1），再叠 2px <c>#2A2A2A</c> 描边
+        /// （《美术风格指南》§2.5「场景上叠加的文字必须带 2px #2A2A2A 描边」）。
+        /// 【宽度怎么来的】条右缘不得越过右上信息面板左缘（实测 x≈1336）再退 24px 安全边距：
+        /// 1336 − 24 = 1312 → 半宽 352 → 704。条内横向排布：
+        /// 24 内边距 │ 124 文字区 │ 24 │ 2×180 开关段 │ 24 │ 124 文字区 │ 24 内边距 = 704。
+        /// </summary>
+        const float TopBarWidth = 704f;
+
+        /// <summary>顶部信息条高度（与原来的模式开关面板同高）。</summary>
+        const float TopBarHeight = 48f;
+
+        /// <summary>条内文字区宽度（回合 / 计时各一块；「回合 1/20」实测 ≈102px + 2px 描边 → 124 够放）。</summary>
+        const float TopBarTextWidth = 124f;
+
+        /// <summary>
+        /// 条内文字区中心 X 偏移：内边距 24 + 半宽 62 = 86 → 距条中心 352-86 = 266。
+        /// 由此文字区外缘正好退到条边 24px，与中间的开关段留 24px 净间距。
+        /// </summary>
+        const float TopBarTextCenterX = 266f;
+
+        /// <summary>模式开关单段尺寸（两段并排 = 360px，居中占据条内中间区）。</summary>
+        const float TopBarSegmentWidth = 180f;
+        const float TopBarSegmentHeight = 40f;
+
+        /// <summary>模式开关单段中心 X 偏移（±90 使两段并排占 −180..180）。</summary>
+        const float TopBarSegmentCenterX = 90f;
 
         /// <summary>提示条高度（底部通栏条，§1.7 允许近贴边的例外）。</summary>
         const float HintBarHeight = 36f;
@@ -58,7 +88,11 @@ namespace PirateCrew.EditorTools
         /// <summary>名册行高（小于行距，行间留 2px）。</summary>
         const float RosterRowHeight = 34f;
 
-        /// <summary>名册标题条占位 = 内边距 24 + 标题高 32 + 与首行间距 16。</summary>
+        /// <summary>
+        /// 名册标题条占位 = 内边距 24 + 标题高 32 + 与首行间距 16。
+        /// 【用途】只决定**编辑期**（场景快照）里行的坐标；运行期位置由面板的 VerticalLayoutGroup 接管
+        /// （内边距 24 + 标题 32 + spacing 2），故两者相差 14px，视觉无碍。
+        /// </summary>
         const float RosterTitleStrip = 72f;
 
         /// <summary>名册面板宽度。</summary>
@@ -82,15 +116,28 @@ namespace PirateCrew.EditorTools
         /// <summary>底部堆叠：提示条底距（通栏条贴边例外，仍留 16px）。</summary>
         const float HintBarBottom = 16f;
 
-        /// <summary>程序化材质感：垂直亮度微渐变幅度 ±4%（不引入贴图，只用低 alpha 色带）。</summary>
-        const float ShadeAlpha = 0.04f;
+        /// <summary>
+        /// 武器面板底距 = 提示条顶边(16+36) + 24 = 76。
+        /// 【口径】底部提示条是 §1.7 允许的近贴边例外，面板不能压在它上面；
+        /// 因此真正要统一到 24 的是「面板底缘 ↔ 提示条顶边」的净间距
+        /// （旧值 Safe*3 = 72 只剩 20px 净间距，比 24±2 小 4px）。
+        /// </summary>
+        const float WeaponPanelBottom = HintBarBottom + HintBarHeight + Safe;
 
         /// <summary>
-        /// 全角间隔符：分隔相邻信息块（「回合 1/20 · 移动」）。
-        /// 【提案/待定】文案唯一来源应是 <c>UiStrings</c>；该文件不在本轮可改文件域内，故暂置本地常量，
-        /// 后续收口时挪到 UiStrings（非英文字面量，不违反「零英文残留」红线）。
+        /// 模式开关「选中段」底色的降饱和系数（向灰度插值）。工单口径 ~30%。
         /// </summary>
-        const string SeparatorDot = "·";
+        const float ToggleDesaturate = 0.30f;
+
+        /// <summary>
+        /// 模式开关「选中段」底色的降亮度系数。工单口径 ~30%，这里取 0.60 系数（= 降约 40%）：
+        /// 按 0.70 只降到 <c>#847134</c>，浅色标签在其上仅 3.9:1（低于 D-2 的 4.5:1）；
+        /// 再压深一档到 <c>#71612D</c> 后 <see cref="UiTheme.TextLight"/> 对比 = 5.0:1。
+        /// </summary>
+        const float ToggleDarken = 0.60f;
+
+        /// <summary>程序化材质感：垂直亮度微渐变幅度 ±4%（不引入贴图，只用低 alpha 色带）。</summary>
+        const float ShadeAlpha = 0.04f;
 
         /// <summary>构建产物：全部需要回写给 BattleHud 的引用。</summary>
         public sealed class Result
@@ -140,30 +187,24 @@ namespace PirateCrew.EditorTools
         {
             BuildMinimap(canvas, secondary);
 
-            // 模式开关（顶部中央，420×48；本轮无逻辑驱动，做静态二态展示，不挂 Button 以免出现「按了没反应」）。
-            RectTransform modePanel = MenuUiBuilder.CreatePanel("ModeToggle", hudRoot,
+            // 顶部信息条：一整条木板（回合计数 | 模式开关 | 计时），文字不再压在水面上。
+            RectTransform topBar = MenuUiBuilder.CreatePanel("TopBar", hudRoot,
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -Safe),
-                new Vector2(420f, 48f), UiSprites.Kind.PanelWood);
-            BuildToggleSegment(modePanel, "MoveSegment", UiStrings.BattleModeMove, -105f,
-                UiSprites.Kind.ButtonBrass, UiTheme.Ink, body);
-            BuildToggleSegment(modePanel, "ActionSegment", UiStrings.BattleModeAction, 105f,
-                UiSprites.Kind.ButtonWood, UiTheme.TextLight, body);
+                new Vector2(TopBarWidth, TopBarHeight), UiSprites.Kind.PanelWood);
 
-            // 回合计数（模式开关左侧）与计时（右侧）：文本矩形都落在模式面板之外，
-            // 两侧各加一个全角间隔符，避免与相邻面板文字连读成「回合 1/20移动」「操作时间 0:00」。
-            TextMeshProUGUI turn = MenuUiBuilder.CreateText("TurnCounterText", hudRoot,
-                UiTextRules.TurnCounter(1, 20), UiTheme.FontHud, TextAlignmentOptions.MidlineRight,
-                UiTheme.BrassLight, body);
-            MenuUiBuilder.SetAnchored(turn.rectTransform, new Vector2(0.5f, 1f), new Vector2(TopRowWidth, 36f),
-                new Vector2(-294f, -30f));
-            CreateSeparator(hudRoot, "TurnSeparator", new Vector2(-222f, -30f), body);
+            // 模式开关：静态二态展示，不挂 Button 以免出现「按了没反应」。
+            // 【移动】= 当前选中段：金边 + 哑光金底（不再是整屏最亮的纯黄块，见 BuildToggleSegment）；
+            // 【操作】= 未选中段：木色。
+            BuildToggleSegment(topBar, "MoveSegment", UiStrings.BattleModeMove, -TopBarSegmentCenterX,
+                true, body);
+            BuildToggleSegment(topBar, "ActionSegment", UiStrings.BattleModeAction, TopBarSegmentCenterX,
+                false, body);
 
-            TextMeshProUGUI timer = MenuUiBuilder.CreateText("TimerText", hudRoot,
-                UiTextRules.Timer(0), UiTheme.FontHud, TextAlignmentOptions.MidlineLeft,
-                UiTheme.TextLight, body);
-            MenuUiBuilder.SetAnchored(timer.rectTransform, new Vector2(0.5f, 1f), new Vector2(TopRowWidth, 36f),
-                new Vector2(294f, -30f));
-            CreateSeparator(hudRoot, "TimerSeparator", new Vector2(222f, -30f), body);
+            // 回合计数（左）与计时（右）：各自居中在 124px 文字区里，带 2px #2A2A2A 描边。
+            CreateTopBarText(topBar, "TurnCounterText", -TopBarTextCenterX,
+                UiTextRules.TurnCounter(1, 20), UiTheme.BrassLight, body);
+            CreateTopBarText(topBar, "TimerText", TopBarTextCenterX,
+                UiTextRules.Timer(0), UiTheme.TextLight, body);
 
             // 右上：回合提示 + 双方存活（内边距 24，与其它面板统一）。
             RectTransform status = MenuUiBuilder.CreatePanel("TeamStatusPanel", hudRoot,
@@ -185,37 +226,137 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 顶部信息条的全角间隔符（「回合 1/20 · 移动」口径）。
-        /// 【提案/待定】常量收敛到 UiStrings 见 <see cref="SeparatorDot"/>。
+        /// 顶部信息条里的文字块（回合计数 / 计时）：居中 + 2px <c>#2A2A2A</c> 描边。
+        /// 底是木板面板（<see cref="UiTheme.PanelWood"/>），对比见 <see cref="TopBarWidth"/> 的推导。
         /// </summary>
-        static void CreateSeparator(Transform parent, string name, Vector2 anchoredPosition, TMP_FontAsset font)
+        static void CreateTopBarText(Transform topBar, string name, float centerX, string content,
+            Color textColor, TMP_FontAsset font)
         {
-            TextMeshProUGUI dot = MenuUiBuilder.CreateText(name, parent, SeparatorDot, UiTheme.FontHud,
-                TextAlignmentOptions.Center, UiTheme.BrassLight, font);
-            MenuUiBuilder.SetAnchored(dot.rectTransform, new Vector2(0.5f, 1f), new Vector2(24f, 36f),
-                anchoredPosition);
+            TextMeshProUGUI text = MenuUiBuilder.CreateText(name, topBar, content,
+                UiTheme.FontHud, TextAlignmentOptions.Center, textColor, font);
+            text.enableWordWrapping = false;
+            MenuUiBuilder.SetAnchored(text.rectTransform, new Vector2(0.5f, 0.5f),
+                new Vector2(TopBarTextWidth, 32f), new Vector2(centerX, 0f));
+            ApplyTmpOutline(text, font);
         }
 
-        /// <summary>模式开关的一段（铜底或木底的静态块 + 居中文字 + 程序化材质感）。</summary>
+        /// <summary>
+        /// 顶部信息条文字用的 TMP 描边材质（持久资产，随场景序列化）。
+        /// 【为什么不用 UGUI Outline】<c>TextMeshProUGUI</c> 覆写了 <c>Rebuild</c> 且不走
+        /// <c>Graphic.DoMeshGeneration</c>，TMP 3.0.7 里也没有任何 <c>IMeshModifier</c> 钩子——
+        /// UGUI 的 <c>Outline</c>/<c>Shadow</c> 加在 TMP 文本上**完全不生效**（静默无描边）。
+        /// 只能走 TMP 材质描边；材质又必须是持久资产（内存材质进不了场景，重开场景就丢），
+        /// 与 <c>MenuUiBuilder</c> 的标题描边材质同款做法。
+        /// </summary>
+        const string HudOutlineMaterialPath = "Assets/Art/Materials/UI/TmpHudOutline.mat";
+
+        /// <summary>给 TMP 文本挂 2px <c>#2A2A2A</c> 描边材质（材质缺失时静默降级，靠木底板对比兜底）。</summary>
+        static void ApplyTmpOutline(TextMeshProUGUI text, TMP_FontAsset font)
+        {
+            if (text == null || font == null)
+                return;
+
+            Material material = GetOrCreateOutlineMaterial(font);
+            if (material != null)
+                text.fontSharedMaterial = material;
+        }
+
+        static Material GetOrCreateOutlineMaterial(TMP_FontAsset font)
+        {
+            Material existing = AssetDatabase.LoadAssetAtPath<Material>(HudOutlineMaterialPath);
+            if (existing != null)
+            {
+                // TMP 材质携带 _MainTex = 所属字体的 SDF 图集，必须同源；
+                // 套错字体的图集会让字形错乱，故图集不匹配时删掉重建。
+                if (existing.GetTexture("_MainTex") == font.material.GetTexture("_MainTex"))
+                    return existing;
+
+                AssetDatabase.DeleteAsset(HudOutlineMaterialPath);
+            }
+
+            try
+            {
+                MenuUiBuilder.EnsureFolder("Assets/Art/Materials");
+                MenuUiBuilder.EnsureFolder("Assets/Art/Materials/UI");
+
+                var material = new Material(font.material) { name = "TmpHudOutline" };
+                material.SetColor("_OutlineColor", UiTheme.Ink);   // #2A2A2A
+                // TMP 的描边宽度是归一化量（不是像素精确值）：0.20 在本字体材质的
+                // _GradientScale 下约 1.5-2px（HUD 字号 24）；实机以 r4 截图为准。
+                material.SetFloat("_OutlineWidth", 0.20f);
+                material.EnableKeyword("OUTLINE_ON");
+                AssetDatabase.CreateAsset(material, HudOutlineMaterialPath);
+                return material;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[BattleHudBuilder] 生成 HUD 描边材质失败（" + HudOutlineMaterialPath
+                    + "）：" + e.Message + "\n  顶部信息条文字将只靠木底板对比（实测 ≥8:1）。");
+                return null;
+            }
+        }
+
+        /// <summary>模式开关的一段（底板 + 居中文字 + 程序化材质感）。</summary>
         static void BuildToggleSegment(Transform parent, string name, string label, float x,
-            UiSprites.Kind skin, Color labelColor, TMP_FontAsset font)
+            bool selected, TMP_FontAsset font)
         {
             RectTransform segment = MenuUiBuilder.CreateRect(name, parent);
-            MenuUiBuilder.SetAnchored(segment, new Vector2(0.5f, 0.5f), new Vector2(206f, 40f),
-                new Vector2(x, 0f));
+            MenuUiBuilder.SetAnchored(segment, new Vector2(0.5f, 0.5f),
+                new Vector2(TopBarSegmentWidth, TopBarSegmentHeight), new Vector2(x, 0f));
 
             var image = segment.gameObject.AddComponent<Image>();
-            image.sprite = MenuUiBuilder.GetSprite(skin);
             image.type = Image.Type.Sliced;
-            image.color = Color.white;
             image.raycastTarget = false;
 
-            // 竖条分隔线的替代：段与段之间由面板底透出（模式开关面板 = PanelWood）。
+            if (selected)
+            {
+                // 选中态 = 「金边 + 浅底」：底色由黄铜降饱和 <see cref="ToggleDesaturate"/>、
+                // 降亮度 <see cref="ToggleDarken"/> 得到哑光金（不再是整屏最亮的纯黄块），
+                // 描边保留 2px 黄铜传递选中语义。
+                Color target = Muted(UiTheme.Brass, ToggleDesaturate, ToggleDarken);
+                image.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.ButtonBrass);
+                image.color = MultiplierTo(target, UiTheme.Brass);
+                MenuUiBuilder.AddOutline(segment.gameObject, UiTheme.Brass, 2f);
+            }
+            else
+            {
+                // 未选中维持木色。
+                image.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.ButtonWood);
+                image.color = Color.white;
+            }
+
+            // 竖条分隔线的替代：段与段之间由面板底透出（顶部信息条 = PanelWood）。
             AddMaterialShade(segment);
 
             TextMeshProUGUI text = MenuUiBuilder.CreateText("Label", segment, label, UiTheme.FontBody,
-                TextAlignmentOptions.Center, labelColor, font);
+                TextAlignmentOptions.Center, UiTheme.TextLight, font);
             MenuUiBuilder.Stretch(text.rectTransform);
+        }
+
+        /// <summary>
+        /// 降饱和（向灰度插值）+ 降亮度（整体乘系数），用于把抢眼的纯黄压成哑光金。
+        /// </summary>
+        /// <param name="color">基准色。</param>
+        /// <param name="desaturate">降饱和量（0–1，1 = 全灰）。</param>
+        /// <param name="factor">亮度系数（0–1，越小越暗）。</param>
+        static Color Muted(Color color, float desaturate, float factor)
+        {
+            float gray = color.r * 0.299f + color.g * 0.587f + color.b * 0.114f;
+            Color desaturated = Color.Lerp(color, new Color(gray, gray, gray, color.a), desaturate);
+            return new Color(desaturated.r * factor, desaturated.g * factor, desaturated.b * factor, 1f);
+        }
+
+        /// <summary>
+        /// 九宫格 Sprite 的乘色系数：让「Sprite 基准色 × 返回值」渲染成 <paramref name="target"/>。
+        /// 用于在保留按钮材质（圆角/内描边）的前提下把底色精确压到指定色。
+        /// </summary>
+        static Color MultiplierTo(Color target, Color spriteBase)
+        {
+            return new Color(
+                spriteBase.r > 0f ? target.r / spriteBase.r : 0f,
+                spriteBase.g > 0f ? target.g / spriteBase.g : 0f,
+                spriteBase.b > 0f ? target.b / spriteBase.b : 0f,
+                1f);
         }
 
         /// <summary>
@@ -341,12 +482,33 @@ namespace PirateCrew.EditorTools
                 new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(Safe, 120f),
                 new Vector2(RosterWidth, RosterHeight), UiSprites.Kind.PanelWood);
 
+            // 【面板高度随内容收缩】BattleHud.BuildRoster 会把超出实际出战人数的行 SetActive(false)，
+            // 而 VerticalLayoutGroup 会跳过未激活子物体 —— 于是面板高度自动收到「标题 + 实际行数」。
+            // 旧实现固定 12 行高，level_1（8 人）底部空出 4 行 ≈ 170px（r3 实测 175px）。
+            // 12 行容量与行节点数量都不变（BattleHud.MaxRosterRows = 12、装配测试断言 12 行）。
+            var layout = panel.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset((int)PanelPadding, (int)PanelPadding,
+                (int)PanelPadding, (int)PanelPadding);
+            layout.spacing = RosterRowPitch - RosterRowHeight;   // 行间 2px（行高 34 / 行距 36）
+            layout.childAlignment = TextAnchor.UpperLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+
+            var fitter = panel.gameObject.AddComponent<ContentSizeFitter>();
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;   // 宽度恒 368
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;      // 高度随行数
+
             // 标题进面板标题条（内边距 24），不再压面板上边框；初值用运行期同款「船员名册 · 第 N 关」。
             TextMeshProUGUI rosterTitle = MenuUiBuilder.CreateText("RosterTitle", panel,
                 UiTextRules.RosterTitle(1), UiTheme.FontSection, TextAlignmentOptions.MidlineLeft,
                 UiTheme.BrassLight, title);
             MenuUiBuilder.SetAnchored(rosterTitle.rectTransform, new Vector2(0f, 1f),
                 new Vector2(RosterWidth - PanelPadding * 2f, 32f), new Vector2(PanelPadding, -PanelPadding));
+            var titleElement = rosterTitle.gameObject.AddComponent<LayoutElement>();
+            titleElement.preferredHeight = 32f;
+            titleElement.minHeight = 32f;
             result.rosterTitle = rosterTitle;
 
             var rows = new BattleHud.RosterRowView[RosterRows];
@@ -367,6 +529,12 @@ namespace PirateCrew.EditorTools
             row.pivot = new Vector2(0f, 1f);
             row.sizeDelta = new Vector2(rowWidth, RosterRowHeight);
             row.anchoredPosition = new Vector2(PanelPadding, -RosterTitleStrip - index * RosterRowPitch);
+
+            // 编辑期坐标仅供场景快照；运行期由面板的 VerticalLayoutGroup 接管位置与行高，
+            // 未激活的行（BattleHud 隐藏的多余行）不再占位 → 面板底部不留空槽。
+            var rowElement = row.gameObject.AddComponent<LayoutElement>();
+            rowElement.preferredHeight = RosterRowHeight;
+            rowElement.minHeight = RosterRowHeight;
 
             // 队伍色块。
             RectTransform swatch = MenuUiBuilder.CreateRect("Swatch", row);
@@ -428,9 +596,9 @@ namespace PirateCrew.EditorTools
         static void BuildWeaponPanel(Transform hudRoot, TMP_FontAsset title, TMP_FontAsset body,
             TMP_FontAsset secondary, Result result)
         {
-            // 底部堆叠（自下而上）：提示条 16..52 → 武器面板 72..372；面板整体上移给底缘提示条让位。
+            // 底部堆叠（自下而上）：提示条 16..52 → 武器面板 76..376；面板底缘与提示条顶边净间距 24px。
             RectTransform panel = MenuUiBuilder.CreatePanel("WeaponPanel", hudRoot,
-                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, Safe * 3f),
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, WeaponPanelBottom),
                 new Vector2(960f, WeaponPanelHeight), UiSprites.Kind.PanelWood);
             result.weaponPanelRoot = panel.gameObject;
 
@@ -539,9 +707,11 @@ namespace PirateCrew.EditorTools
         {
             // 操作提示条：移到屏幕底缘（顶边距屏底 52px，落在屏高 95% 以下），
             // 收窄到 960px 居中，与名册/武器面板保持 ≥16px 间距，不再横跨可玩区。
+            // 【本轮】补 1px #2A2A2A 深描边（旧版是纯色奶白块、边界发飘）+ 复用 AddMaterialShade 的垂直微渐变。
             RectTransform hintBar = MenuUiBuilder.CreatePanel("HintBar", hudRoot,
                 new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, HintBarBottom),
                 new Vector2(HintBarWidth, HintBarHeight), UiSprites.Kind.PanelParchment, brassOutline: false);
+            MenuUiBuilder.AddOutline(hintBar.gameObject, UiTheme.Ink, 1f);
             var hintImage = hintBar.GetComponent<Image>();
             if (hintImage != null)
                 hintImage.color = UiTheme.WithAlpha(Color.white, 0.88f);
