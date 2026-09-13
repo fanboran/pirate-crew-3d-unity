@@ -27,6 +27,25 @@
 //      放到湿合成之后再乘，湿区仍保留"相邻块亮度不同"的低多边形辨识特征。
 //   残留线 / 沙纹与 PirateSurface 同公式；沙纹同样仅湿掩码内生效、振幅硬钳 ≤0.15。
 //
+// 【细节噪声贴图 + 粗糙度分区（2026-09-13 r3 复验 N4 返工，程序化资产，仍属"0 外部贴图"）】
+//   【为什么加】r3 复验 N4（高）：地形材质是**纯色平面**——unit-closeup 同一可见面 90px 内只有 7 种
+//     颜色、单面 RGB 恒定 #E9C77E；顶面的规则格缝被读成"地砖/编织布"。判据（美术品控评审规程.md:213-214、
+//     美术风格指南.md:199-204/§3.1-3.2）：
+//       · P-9：同材质 200×200 窗灰度 std > 6（本 shader 的 std 现在全部来自逐块明暗与三种基色的
+//         低频过渡，压不住高频能量）；
+//       · P-10：纹理能量需显著高于纯色基线；
+//       · §3.2 纪律 1：相邻面 smoothness 差 ≥ 0.15（沙/草/岩相邻面必须能一眼分出）。
+//   【三族贴图】沙/草/岩各一套 albedo+法线（6 张 256²，算法唯一来源 = Assets/Editor/MaterialNoiseBuilder.cs，
+//     存 Assets/Art/Textures/Materials/）。三族各按自己的 _XxxNoiseWorldScale 采样（沙 0.35 / 草 0.25 /
+//     岩 0.5 → 平铺 2.9m / 4.0m / 2.0m，风格指南 §3.3 的"平铺 2-4m"预算内），再按 grass/rock 权重混合
+//     **起伏量**（不是混合贴图）：混的是 (tex*2-1)，权重和恰为 1 → 平均色零漂移。
+//   【格缝去"地砖感"三条】1) 贴图 UV 走世界 XZ + 低频 FBM 扭曲（模型 UV 与 1 单位格子对齐，是地砖感来源）；
+//     2) 逐块明暗的**格子坐标**按世界 XZ 的 FBM 平移（_BlockWarp）→ 规则方格的直边被打散；
+//     3) 逐块明暗强度由 0.12 降到 0.06（写实方向不要"数字化块面"），细节法线给出逐像素明暗。
+//     低多边形块面辨识度仍在（相邻块仍有亮度差），但不再读成"瓷砖 + 勾缝"。
+//   【默认关闭】_XxxDetailAlbedoStrength / _XxxBumpScale 的 shader 默认值都是 **0**：
+//     没赋贴图的材质行为与改动前逐像素一致，且不依赖 2D 属性内置回退贴图的不可预期线性值。
+//
 // 【Pass 与 LightMode 唯一性】ForwardLit / ShadowCaster / DepthOnly，互不相同。
 //   本 shader 必须带 DepthOnly：PirateWater 的岸边泡沫与浅深水过渡依赖 _CameraDepthTexture
 //   （海床台阶用 PirateSurface，此处是水下地形块的深度来源）。
@@ -46,6 +65,9 @@
 //   CommonMaterial.hlsl（core）  -> :352/359 定义 LerpWhiteTo；URP Shadows.hlsl:298 用它却**不**自己
 //                                   include 它 —— ShadowCaster Pass 里必须先 include 它，
 //                                   实测否则报 `undeclared identifier 'LerpWhiteTo'`（d3d11）。
+//   TEXTURE2D / SAMPLER / SAMPLE_TEXTURE2D -> core Common.hlsl（经 URP Core.hlsl:16 引入）；
+//   UnpackNormalScale           -> core Packing.hlsl:220（经 URP Core.hlsl:17 引入，无需额外 include；
+//                                   :214 UnpackNormalmapRGorAG 读 w 通道 → 法线图 A=255）。
 //   **本清单只能证明符号存在**；必须进图形界面编辑器 play 一次 + read_console 确认 0 shader error。
 // ============================================================================
 
@@ -71,6 +93,35 @@ Shader "PirateCrew/PirateTerrain"
         _BlockSize              ("地块尺寸（世界单位，1 = 1 瓦片）", Float) = 1.0
         _BlockTintStrength      ("逐块明暗差异", Range(0.0, 0.5)) = 0.12
         _FacetStrength          ("块面感（逐面法线强度）", Range(0.0, 1.0)) = 0.6
+        // 逐块明暗的格子坐标按世界 XZ 的 FBM 平移的幅度（世界单位）。
+        // 0 = 回到规则方格（旧行为，"地砖感"来源）；0.35-0.45 = 方格边界被打散成不规则块。
+        _BlockWarp              ("逐块格子的世界扰动（打断地砖感）", Range(0.0, 1.0)) = 0.35
+
+        // ---- 细节噪声贴图（沙/草/岩三族；程序化资产，算法见 Assets/Editor/MaterialNoiseBuilder.cs）----
+        // 【默认值 0 是刻意设计】没赋贴图的材质必须与"加贴图之前"逐像素一致（见文件头【默认关闭】）。
+        // [NoScaleOffset]：UV 由世界 XZ×_XxxNoiseWorldScale 驱动，材质 Tiling/Offset 无意义。
+        [NoScaleOffset] _SandNoiseMap  ("沙 albedo 细节图", 2D) = "gray" {}
+        [NoScaleOffset] _GrassNoiseMap ("草 albedo 细节图", 2D) = "gray" {}
+        [NoScaleOffset] _RockNoiseMap  ("岩 albedo 细节图", 2D) = "gray" {}
+        [NoScaleOffset] _SandBumpMap   ("沙 法线细节图", 2D) = "bump" {}
+        [NoScaleOffset] _GrassBumpMap  ("草 法线细节图", 2D) = "bump" {}
+        [NoScaleOffset] _RockBumpMap   ("岩 法线细节图", 2D) = "bump" {}
+        _SandNoiseWorldScale   ("沙 世界尺度（1/该值=平铺米数）", Float) = 0.35
+        _GrassNoiseWorldScale  ("草 世界尺度", Float) = 0.25
+        _RockNoiseWorldScale   ("岩 世界尺度", Float) = 0.5
+        _NoiseWarpStrength     ("细节 UV 扭曲（打断与格子的轴向对齐）", Range(0.0, 0.5)) = 0.18
+        _SandDetailAlbedoStrength  ("沙 细节 albedo 强度（0=关闭）", Range(0.0, 1.0)) = 0.0
+        _GrassDetailAlbedoStrength ("草 细节 albedo 强度（0=关闭）", Range(0.0, 1.0)) = 0.0
+        _RockDetailAlbedoStrength  ("岩 细节 albedo 强度（0=关闭）", Range(0.0, 1.0)) = 0.0
+        _SandBumpScale         ("沙 法线强度（0=关闭）", Range(0.0, 2.0)) = 0.0
+        _GrassBumpScale        ("草 法线强度（0=关闭）", Range(0.0, 2.0)) = 0.0
+        _RockBumpScale         ("岩 法线强度（0=关闭）", Range(0.0, 2.0)) = 0.0
+
+        // ---- 粗糙度分区（§3.2 纪律 1：相邻面 smoothness 差 ≥ 0.15）----
+        // _Smoothness 即**沙族**基准（保留旧属性名，材质生成脚本继续写它）；
+        // 草/岩各占一个槽，取值让 沙↔草↔岩 两两差 ≥ 0.15。
+        _GrassSmoothness        ("草地光滑度（与沙差 ≥0.15）", Range(0.0, 1.0)) = 0.40
+        _RockSmoothness         ("岩石光滑度（与草差 ≥0.15）", Range(0.0, 1.0)) = 0.55
 
         // ---- PBR ----
         _Metallic               ("金属度", Range(0.0, 1.0)) = 0.0
@@ -99,9 +150,9 @@ Shader "PirateCrew/PirateTerrain"
         _EdgePower              ("边缘压暗指数", Range(0.5, 8.0)) = 3.0
 
         // ---- 调试 ----
-        // 0 正常 / 1 只 albedo / 2 块面法线 / 3 草岩混合系数 / 4 坡度与高度 / 5 湿掩码 / 6 沙纹
-        // 既有 0-4 档语义不变；5、6 为本次新增。
-        _DebugMode              ("调试模式 0=正常 1=albedo 2=法线 3=混合系数 4=坡度高度 5=湿掩码 6=沙纹", Range(0.0, 6.0)) = 0.0
+        // 0 正常 / 1 只 albedo / 2 块面法线 / 3 草岩混合系数 / 4 坡度与高度 / 5 湿掩码 / 6 沙纹 / 7 细节贴图
+        // 既有 0-4 档语义不变；5、6 为沙滩湿区那轮新增；7 为细节贴图那轮新增。
+        _DebugMode              ("调试模式 0=正常 1=albedo 2=法线 3=混合系数 4=坡度高度 5=湿掩码 6=沙纹 7=细节贴图", Range(0.0, 7.0)) = 0.0
     }
 
     SubShader
@@ -157,6 +208,19 @@ Shader "PirateCrew/PirateTerrain"
                 float  _BlockSize;
                 float  _BlockTintStrength;
                 float  _FacetStrength;
+                float  _BlockWarp;
+                float  _SandNoiseWorldScale;
+                float  _GrassNoiseWorldScale;
+                float  _RockNoiseWorldScale;
+                float  _NoiseWarpStrength;
+                float  _SandDetailAlbedoStrength;
+                float  _GrassDetailAlbedoStrength;
+                float  _RockDetailAlbedoStrength;
+                float  _SandBumpScale;
+                float  _GrassBumpScale;
+                float  _RockBumpScale;
+                float  _GrassSmoothness;
+                float  _RockSmoothness;
                 float  _Metallic;
                 float  _Smoothness;
                 float  _AmbientStrength;
@@ -176,6 +240,15 @@ Shader "PirateCrew/PirateTerrain"
                 float  _EdgePower;
                 float  _DebugMode;
             CBUFFER_END
+
+            // 细节贴图：**纹理与采样器必须在 UnityPerMaterial CBUFFER 之外**（URP 硬要求，
+            //   见 LitInput.hlsl 的 TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap); 分离声明）。
+            TEXTURE2D(_SandNoiseMap);  SAMPLER(sampler_SandNoiseMap);
+            TEXTURE2D(_GrassNoiseMap); SAMPLER(sampler_GrassNoiseMap);
+            TEXTURE2D(_RockNoiseMap);  SAMPLER(sampler_RockNoiseMap);
+            TEXTURE2D(_SandBumpMap);   SAMPLER(sampler_SandBumpMap);
+            TEXTURE2D(_GrassBumpMap);  SAMPLER(sampler_GrassBumpMap);
+            TEXTURE2D(_RockBumpMap);   SAMPLER(sampler_RockBumpMap);
 
             // ------------------------------------------------------------------
             // 程序化噪声（与 PirateSurface / PirateWater 内的副本一致，刻意重复以免多一条 include 链）
@@ -282,10 +355,54 @@ Shader "PirateCrew/PirateTerrain"
                 albedo = lerp(albedo, _GrassColor.rgb, (half)grass);
                 albedo = lerp(albedo, _RockColor.rgb, (half)rock);
 
-                // ---- 湿掩码（与 PirateSurface 同公式；但仅作用在**沙分支**）----
-                // sandWeight = 三色混合后"还剩多少沙"。草坡/岩石不染湿沙色 ——
-                // 本 shader 的三色里只有沙需要"打湿"，湿沙色是沙专属目标色。
+                // ---- 细节贴图（沙/草/岩三族；世界 XZ UV + 低频 FBM 扭曲）----
+                // 【三族权重】sandWeight = 三色混合后"还剩多少沙"（权重和恰为 1）；草/岩同样由上方
+                //   smoothstep 给出。此处提前声明，供细节贴图混合与下方湿掩码/粗糙度分区共用。
                 half sandWeight = saturate(1.0h - (half)grass - (half)rock);
+                // 【判据】P-9 同材质 200×200 窗 std > 6、P-10 高频能量显著高于纯色基线。
+                // 【为什么不用模型 UV】地形是 Cube 图元，模型 UV 与 1 单位格子边界对齐 → 正是顶面
+                //   "规则格缝读成地砖/编织布"的来源之一。世界空间 UV 让贴图跨块连续。
+                // 【三族的平铺米数】1/_SandNoiseWorldScale=2.9m、1/_Grass…=4.0m、1/_Rock…=2.0m
+                //   （风格指南 §3.3 环境图"平铺 2-4m"预算内）。
+                // 【扭曲尺度 0.37 ≈ 2.7 世界单位一个起伏】低频，只挪 UV 不影响贴图 mip 选择。
+                float2 detailUV = positionWS.xz;
+                float2 detailWarp = float2(PirateFbm(detailUV * 0.37 + 3.1),
+                                           PirateFbm(detailUV * 0.37 + 19.7)) - 0.5;
+                detailWarp *= (_NoiseWarpStrength * 2.0);
+
+                half3 sandAlb  = SAMPLE_TEXTURE2D(_SandNoiseMap,  sampler_SandNoiseMap,  detailUV * _SandNoiseWorldScale  + detailWarp).rgb;
+                half3 grassAlb = SAMPLE_TEXTURE2D(_GrassNoiseMap, sampler_GrassNoiseMap, detailUV * _GrassNoiseWorldScale + detailWarp).rgb;
+                half3 rockAlb  = SAMPLE_TEXTURE2D(_RockNoiseMap,  sampler_RockNoiseMap,  detailUV * _RockNoiseWorldScale  + detailWarp).rgb;
+
+                half4 sandNrm  = SAMPLE_TEXTURE2D(_SandBumpMap,  sampler_SandBumpMap,  detailUV * _SandNoiseWorldScale  + detailWarp);
+                half4 grassNrm = SAMPLE_TEXTURE2D(_GrassBumpMap, sampler_GrassBumpMap, detailUV * _GrassNoiseWorldScale + detailWarp);
+                half4 rockNrm  = SAMPLE_TEXTURE2D(_RockBumpMap,  sampler_RockBumpMap,  detailUV * _RockNoiseWorldScale  + detailWarp);
+
+                // 乘性微色斑：三张图线性均值恰 0.5 → *2 后均值恰 1.0；混的是**起伏量 (tex*2-1)**，
+                // 权重和恰为 1 → 平均色零漂移（不扰动 GDD 三档色调色板）。
+                // 作用点：三色混合之后、湿合成之前（与 PirateSurface 的"湿之前"纪律一致）。
+                half3 detailMod = half3(1.0h, 1.0h, 1.0h)
+                    + (half)grass * (grassAlb * 2.0h - 1.0h) * (half)_GrassDetailAlbedoStrength
+                    + (half)rock  * (rockAlb  * 2.0h - 1.0h) * (half)_RockDetailAlbedoStrength
+                    + sandWeight  * (sandAlb  * 2.0h - 1.0h) * (half)_SandDetailAlbedoStrength;
+                albedo *= detailMod;
+                // 调试档 7 用：细节图"乘性系数"的线性明度（均值≈1.0）。
+                half detailLuma = dot(detailMod, half3(0.2126h, 0.7152h, 0.0722h));
+
+                // 细节法线（三族按权重混合**切空间 xy**，再一次性重定向到世界 XZ 基）：
+                //   混的是法线而不是最终世界扰动向量 —— 后者在权重过渡处会互相抵消出错误方向。
+                //   只取 xy、丢掉 z（"平法线"的 z 贡献本来就是 0），并靠 _XxxBumpScale 的门默认 0
+                //   保证"未赋贴图 = 无效果"。
+                float2 nTS = UnpackNormalScale(sandNrm,  1.0h).xy * ((half)_SandBumpScale  * sandWeight)
+                           + UnpackNormalScale(grassNrm, 1.0h).xy * ((half)_GrassBumpScale * (half)grass)
+                           + UnpackNormalScale(rockNrm,  1.0h).xy * ((half)_RockBumpScale  * (half)rock);
+                float3 bumpTex = float3(nTS.x, 0.0, nTS.y);
+                bumpTex -= normalWS * dot(bumpTex, normalWS);   // 投影到切平面，避免竖直面被拉歪
+                normalWS = normalize(normalWS + bumpTex);
+
+                // ---- 湿掩码（与 PirateSurface 同公式；但仅作用在**沙分支**）----
+                // sandWeight（= 三色混合后"还剩多少沙"）已在细节贴图段声明并复用。
+                // 草坡/岩石不染湿沙色 —— 本 shader 的三色里只有沙需要"打湿"，湿沙色是沙专属目标色。
                 float dy = positionWS.y - _WaterLevelY;
                 half wetMask = saturate(1.0h - (half)(dy / max(_WetBandWidth, 1e-4)));
                 half wet = wetMask * sandWeight;
@@ -321,8 +438,14 @@ Shader "PirateCrew/PirateTerrain"
                 // ---- 逐块明暗（低多边形风格的辨识特征）----
                 // 【刻意放在湿合成之后】若先乘 blockTint 再 lerp 到 _WetSandColor，块面亮度差会被
                 // (1-wet) 洗平 → "湿痕把低模块面感洗掉"。后乘则湿区仍保留"相邻块亮度不同"的辨识特征。
-                // 把世界坐标量化到 _BlockSize 的格子，用格子哈希给整块一个统一亮度系数。
-                float2 blockCoord = floor(positionWS.xz / max(_BlockSize, 0.01))
+                // 【去"地砖感"（r3 复验 N4）】把量化格坐标按世界 XZ 的低频 FBM **平移**（_BlockWarp，
+                //   单位=世界单位）：1 单位方格的直边被推成不规则块 → 顶面不再读成"瓷砖+勾缝"。
+                //   平移是低频（0.41 ≈ 2.4 世界单位一个起伏）→ 一个"块"整体被挪走，不会撕碎块面。
+                //   低多边形辨识度靠"相邻块仍有亮度差"保留，故 _BlockTintStrength 同步由 0.12 降到 0.06
+                //   （写实方向不要"数字化块面"；取值见 BattleSceneLighting.BuildTerrainMaterial）。
+                float2 blockWarp = float2(PirateFbm(positionWS.xz * 0.41 + 11.3),
+                                          PirateFbm(positionWS.xz * 0.41 + 27.9)) - 0.5;
+                float2 blockCoord = floor((positionWS.xz + blockWarp * (_BlockWarp * 2.0)) / max(_BlockSize, 0.01))
                                   + floor(positionWS.y * 3.0) * 7.0;
                 half blockHash = (half)PirateHash21(blockCoord);
                 half blockTint = lerp(1.0h - (half)_BlockTintStrength, 1.0h + (half)_BlockTintStrength, blockHash);
@@ -337,8 +460,15 @@ Shader "PirateCrew/PirateTerrain"
                 albedo = lerp(albedo, _EdgeColor.rgb, edge);
 
                 half metallic   = saturate((half)_Metallic);
-                // 湿沙更滑（高光反射是"湿"的关键信号）——与 PirateSurface 同口径。
-                half smoothness = saturate((half)_Smoothness + wet * (half)_WetSmoothnessBoost);
+                // ---- 粗糙度分区（§3.2 纪律 1：相邻面 smoothness 差 ≥ 0.15）----
+                // 沙 = _Smoothness（0.25）/ 草 = _GrassSmoothness（0.40）/ 岩 = _RockSmoothness（0.55）
+                // → 两两差 0.15，沙/草/岩相邻面一眼分得出（P-14 高光占比也随之分区）。
+                // 权重与 albedo 混合同源（sandWeight 见上），故过渡带的光滑度是连续插值，不会出硬边。
+                // 湿沙更滑（高光反射是"湿"的关键信号）——与 PirateSurface 同口径，只作用在沙分支。
+                half smoothBase = (half)_Smoothness * sandWeight
+                                + (half)_GrassSmoothness * (half)grass
+                                + (half)_RockSmoothness * (half)rock;
+                half smoothness = saturate(smoothBase + wet * (half)_WetSmoothnessBoost);
 
                 // ---- 调试档 ----
                 // 档 1：只 albedo。预期：沙/草/岩三色分区 + 明显的逐块亮度差（低多边形块面感）；
@@ -361,11 +491,21 @@ Shader "PirateCrew/PirateTerrain"
                     return half4(half3(wetMask, wetMask, wetMask), 1.0h);
                 // 档 6：沙纹灰度。预期：湿沙区为明暗相间斜纹（0.5±0.5），干区/草岩区为中性灰 0.5。
                 //       判据：湿沙区灰度标准差 >0.05；草岩区标准差 ≈0（因 wet 已乘 sandWeight）。
-                if (_DebugMode > 5.5)
+                if (_DebugMode > 5.5 && _DebugMode < 6.5)
                 {
                     // 单参 splat（half3(x)）在部分真机编译器上报"构造器参数个数错误"，显式三分量。
                     half ripGray = saturate(0.5h + 0.5h * (half)(ripSin * (float)wet));
                     return half4(ripGray, ripGray, ripGray, 1.0h);
+                }
+                // 档 7【本次新增】：细节贴图的乘性系数（0.5 = 系数 1.0 = 无起伏）。
+                //       预期：整片有细碎噪点、不是纯 0.5 死平；沙/草/岩三族的噪点尺度与强度不同。
+                //       程序化判据：200×200 窗灰度 std > 0.02（8bit 约 5）。
+                //       若死平 → 三族的 _XxxDetailAlbedoStrength 都是 0，或贴图未生成
+                //       （先跑 PirateCrew/渲染/生成程序化材质噪声贴图）。
+                if (_DebugMode > 6.5)
+                {
+                    half detGray = saturate(detailLuma * 0.5h);
+                    return half4(detGray, detGray, detGray, 1.0h);
                 }
 
                 // ---- PBR 光照（与 PirateSurface 同口径）----

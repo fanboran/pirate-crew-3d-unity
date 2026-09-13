@@ -31,7 +31,12 @@ namespace PirateCrew.EditorTools
     ///   ⓪ 运行时 shader 入构建保障         把只被运行时 Shader.Find 取用的 shader 写进
     ///                                    Always Included Shaders——**必须最先**，后续构建播放器才会带它们
     ///                                    （否则按名查找落空 → 洋红，见 EnsureRuntimeShadersIncluded）
+    ///   ⓪.5 程序化材质噪声贴图            沙/草/岩三族 albedo+法线共 6 张 256²（MaterialNoiseBuilder）。
+    ///                                    **必须在 ① 之前**：① 的 10 个环境材质要引用它们；
+    ///                                    材质生成时贴图若不存在，会把细节强度置 0（画面退回纯色，
+    ///                                    P-9/P-10 不达标）——所以这一步失败必须让管线整体失败。
     ///   ① BattleSceneLighting.BuildAll   环境材质 / 后处理 Volume / URP 设置——场景与材质引用的前置资产
+    ///                                    （内部也会幂等地再调一次 MaterialNoiseBuilder，两者不冲突）
     ///   ② FontAssetBuilder.BuildAll      TMP 中文字体——HUD/菜单文本的字形前置
     ///   ③ FxAssetBuilder.BuildAll        特效贴图 / 材质（+ Always Included Shaders）
     ///   ④ AudioAssetBuilder.BuildAll     wav 导入设置（落 Resources/PirateCrewAudio，运行时资产优先）
@@ -44,9 +49,10 @@ namespace PirateCrew.EditorTools
     ///   ⑨ SceneSetup.BuildAll            M1 菜单 / 引导场景批量重建
     ///   ⑩ M3SceneSetup.BuildAll          M3 管理场景——**必须最后**，它会重写 Build Settings 场景列表
     ///
-    /// 【复核提示】`PirateSurface` / `PirateTerrain` 的 `_DebugMode` 档 5 = 湿掩码、档 6 = 沙纹，
-    /// 编辑器里可把沙/地形材质临时切到这两档快速验证湿带正确性：
-    /// 档 5 判据 = 水线 y≤-0.2 灰度 &gt;0.7、台顶 y≥+0.25 灰度 &lt;0.05；档 6 看沙纹是否平行水线且不过强。
+    /// 【复核提示】`PirateSurface` / `PirateTerrain` 的 `_DebugMode` 档 5 = 湿掩码、档 6 = 沙纹、
+    /// 档 7 = 细节贴图（r3 复验 N4 返工新增），编辑器里可把沙/地形材质临时切到这几档快速验证：
+    /// 档 5 判据 = 水线 y≤-0.2 灰度 &gt;0.7、台顶 y≥+0.25 灰度 &lt;0.05；档 6 看沙纹是否平行水线且不过强；
+    /// 档 7 判据 = 200×200 窗灰度 std &gt; 0.02（死平 = 强度为 0 或贴图未生成）。
     /// 复核完把 `_DebugMode` 切回 0（本管线每次重跑都会写回 0，不会残留调试档）。
     /// </summary>
     public static class ArtGate
@@ -74,6 +80,7 @@ namespace PirateCrew.EditorTools
             var steps = new List<Step>
             {
                 new Step("⓪ 运行时 shader 入构建保障", EnsureRuntimeShadersIncluded),
+                new Step("⓪.5 程序化材质噪声贴图（沙/草/岩 albedo+法线）", BuildMaterialNoiseTextures),
                 new Step("① 渲染基础（环境材质 / Volume / URP）", BattleSceneLighting.BuildAll),
                 new Step("② TMP 中文字体", FontAssetBuilder.BuildAll),
                 new Step("③ 特效贴图 / 材质", FxAssetBuilder.BuildAll),
@@ -152,10 +159,12 @@ namespace PirateCrew.EditorTools
         ///     Player.log 6 条「[Ambient] 找不到 shader」→ 回退链落空 → 洋红。**r2 洋红的根因**。
         ///   · Fx/Additive、Fx/Alpha —— 有 .mat 引用，且 FxAssetBuilder 早已登记进本列表（此处幂等跳过）。
         ///   · PirateOutlinePost —— 无 .mat 引用，被 URP Renderer 资产字段引用，理论上可达；仍登记兜底。
-        ///   · URP/Particles-Unlit —— 无 .mat 引用（只作 FxMaterials 的回落档），URP 包 shader 同样会被剥离。
         /// 不入榜的运行时 Find 名及理由：PirateOutline / PirateSurface / URP-Unlit / URP-Lit 都有 .mat 引用；
         /// Standard / Sprites/Default / Unlit/Transparent 是引擎内置 shader（Sprites/Default 由
         /// GraphicsSettings.m_SpritesDefaultMaterial 常驻），只为 URP 工程里的最后兜底，不属于本项目产线。
+        /// 【URP/Particles-Unlit 曾入榜后移除（r3 轮实证）】：Always Included 会强制编译该 shader 的
+        /// 全变体，在无头构建环境连爆 20 条 d3d11 编译 OOM（BSDF/Common.hlsl 解析内存）；
+        /// 而它只是 FxMaterials 的回落档——主 FX shader 已在本列表保证入包，回落永不触发。
         /// </summary>
         static readonly string[] RuntimeFindShaderNames =
         {
@@ -164,7 +173,6 @@ namespace PirateCrew.EditorTools
             FxMaterials.AdditiveShaderName,
             FxMaterials.AlphaShaderName,
             OutlineRendererFeature.OutlinePostShaderName,
-            "Universal Render Pipeline/Particles/Unlit", // FxMaterials 回落链（FxMaterials.cs:183）
         };
 
         /// <summary>
@@ -240,6 +248,44 @@ namespace PirateCrew.EditorTools
                     return true;
             }
             return false;
+        }
+
+        // ------------------------------------------------------------------
+        // ⓪.5 程序化材质噪声贴图
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 生成沙/草/岩三族程序化细节贴图（6 张 256²，幂等）。
+        ///
+        /// 【为什么是管线里的独立一步，而不是只塞进 ①】<see cref="BattleSceneLighting.BuildAll"/>
+        /// 内部也会调一次（保证它作为独立无头入口时自给自足；那里对生成失败只记 Error 继续出材质），
+        /// 但管线必须**显式**有这一步，才能把贴图生成的失败记成 ArtGate 的失败步骤 → 非零退出码。
+        /// 否则贴图没生成时画面会静默退回"纯色 + 噪声"（P-9/P-10 悄悄不达标，只剩一条 Warning 容易被漏看）。
+        ///
+        /// 【自检】<see cref="MaterialNoiseBuilder.Build"/> 对单张失败只记 Warning（不中断 batchmode），
+        /// 而这里承担门禁职责：跑完确认 6 张都能加载，缺一即抛（由 BuildAll 的步骤 try/catch 汇总）。
+        ///
+        /// 【顺序】必须早于 ①：① 生成的 10 个环境材质要引用这 6 张贴图。
+        /// </summary>
+        static void BuildMaterialNoiseTextures()
+        {
+            MaterialNoiseBuilder.Build(false);
+
+            var missing = new List<string>();
+            for (int i = 0; i < MaterialNoiseBuilder.AllKinds.Length; i++)
+            {
+                MaterialNoiseBuilder.NoiseKind kind = MaterialNoiseBuilder.AllKinds[i];
+                if (MaterialNoiseBuilder.Load(kind) == null)
+                    missing.Add(MaterialNoiseBuilder.PathOf(kind));
+            }
+
+            if (missing.Count > 0)
+            {
+                throw new InvalidOperationException("程序化材质噪声贴图缺失 " + missing.Count + "/"
+                    + MaterialNoiseBuilder.AllKinds.Length + " 张：\n  - "
+                    + string.Join("\n  - ", missing.ToArray())
+                    + "\n先在有渲染路径的编辑器里跑菜单 PirateCrew/渲染/生成程序化材质噪声贴图 并看 Console。");
+            }
         }
     }
 }

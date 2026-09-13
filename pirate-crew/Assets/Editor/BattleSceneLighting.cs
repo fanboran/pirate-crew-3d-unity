@@ -105,6 +105,21 @@ namespace PirateCrew.EditorTools
             EnsureFolder(EnvironmentMaterialFolder);
             EnsureFolder(ArtRenderingFolder);
 
+            // ⓪ 程序化细节贴图**必须先生成**：下面 10 个材质要引用它们（幂等：已生成则按字节比对跳过）。
+            // 【为什么在这里也调一次】本方法自身是无头入口（-executeMethod BattleSceneLighting.BuildAll），
+            //   不能假设调用方（ArtGate）已经跑过这一步——否则直接调本方法会得到"没有细节贴图的材质"。
+            // 【为什么吞异常】细节贴图缺失只让沙/草/岩退回"纯色 + 噪声"（细节强度置 0），
+            //   材质仍然可用；失败由 ArtGate 的独立步骤（⓪.5）负责汇总成非零退出码，不在这里静默。
+            try
+            {
+                MaterialNoiseBuilder.Build(false);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError("[BattleSceneLighting] 程序化细节贴图生成失败：沙/草/岩材质将不带细节贴图"
+                    + "（对应强度被置 0，画面仍可运行，但 P-9/P-10 会不达标）。原因：\n" + e);
+            }
+
             int materialCount = BuildEnvironmentMaterials();
             VolumeProfile profile = EnsureVolumeProfile();
             ConfigureUrpAsset();
@@ -114,6 +129,7 @@ namespace PirateCrew.EditorTools
 
             Debug.Log("[BattleSceneLighting] 渲染资产生成完成。\n"
                 + "  环境材质: " + materialCount + " 个 → " + EnvironmentMaterialFolder + "\n"
+                + "  细节贴图: " + MaterialNoiseBuilder.TextureFolder + "（由 MaterialNoiseBuilder 生成）\n"
                 + "  后处理: " + (profile != null ? VolumeProfilePath : "（生成失败）") + "\n"
                 + "  URP: " + UrpAssetPath + "（软阴影 on / 深度图 on / MSAA 2）");
         }
@@ -153,7 +169,10 @@ namespace PirateCrew.EditorTools
 
         // 干沙（GDD §10.4 沙地三档：暗 #8B7355 → 中 #C4A76A → 亮 #E8D5A3）
         // 参数理由：沙是细腻介质 → 噪声尺度偏大（4.5，即约 0.22 世界单位的斑块）、细节法线中等；
-        //           完全无金属、光滑度低（0.12）—— 干沙几乎无高光，匹配 cel-shader-guide §8 的 "specular=0"。
+        //           完全无金属、光滑度低（0.25）—— 干沙几乎无高光，匹配 cel-shader-guide §8 的 "specular=0"。
+        // 【本次改动（r3 复验 N4 返工）】_Smoothness 0.12 → **0.25**：沙/草/岩三族的粗糙度必须拉开
+        //   （美术风格指南.md:199-204 §3.2 纪律 1：相邻面 smoothness 差 ≥ 0.15），
+        //   三族基准取 沙 0.25 / 草 0.40 / 岩 0.55（差 0.15）。同时挂上程序化细节贴图（P-9/P-10）。
         static bool BuildDrySandMaterial()
         {
             Material m = EnsureMaterial(DrySandMaterial, SurfaceShaderName);
@@ -169,8 +188,13 @@ namespace PirateCrew.EditorTools
             SetVector(m, "_NoiseStretch", new Vector4(1f, 1f, 0f, 0f));
             SetFloat(m, "_DetailNoiseScale", 18f);
             SetFloat(m, "_DetailNormalStrength", 0.45f);
+            // 细节贴图：世界 XZ UV，1/0.35 ≈ 2.9m 平铺（风格指南 §3.3 环境图"2-4m"预算内）；
+            //   微色斑强度 1.0 = 用满贴图里烘好的 ±（明度 std 见 MaterialNoiseBuilder 构建日志）；
+            //   法线强度 1.0（贴图本身的 RMS 斜率已被规到 0.07≈4° 的温和档）。
+            ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandAlbedo, MaterialNoiseBuilder.NoiseKind.SandNormal,
+                0.35f, 1f, 1f);
             SetFloat(m, "_Metallic", 0f);
-            SetFloat(m, "_Smoothness", 0.12f);
+            SetFloat(m, "_Smoothness", 0.25f);
             SetFloat(m, "_AmbientStrength", 1f);
             SetFloat(m, "_EdgeWear", 0f);
             // 干沙/湿沙共用同一组湿参数（否则两种材质交界处湿带断裂露缝，见 ApplySandWetParameters）。
@@ -181,6 +205,8 @@ namespace PirateCrew.EditorTools
 
         // 湿沙（提案/待定：GDD 只有一组沙色，没有"湿沙"色值。
         //   本组由沙地暗档继续压暗 + 提饱和得到，湿润参数让水面附近/浪线内侧的沙更暗更亮）。
+        // 【本次改动】_Smoothness 0.22 → **0.30**：必须比干沙（0.25）更滑，否则
+        //   "湿沙更滑"这条物理直觉会在两种材质的交界处反过来（旧的 0.12/0.22 配对同理）。
         static bool BuildWetSandMaterial()
         {
             Material m = EnsureMaterial(WetSandMaterial, SurfaceShaderName);
@@ -196,8 +222,11 @@ namespace PirateCrew.EditorTools
             SetVector(m, "_NoiseStretch", new Vector4(1f, 1f, 0f, 0f));
             SetFloat(m, "_DetailNoiseScale", 16f);
             SetFloat(m, "_DetailNormalStrength", 0.3f);
+            // 与干沙**同一组贴图与参数**：两种沙材质若细节强度不同，交界处会露出贴图强度差。
+            ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandAlbedo, MaterialNoiseBuilder.NoiseKind.SandNormal,
+                0.35f, 1f, 1f);
             SetFloat(m, "_Metallic", 0f);
-            SetFloat(m, "_Smoothness", 0.22f);
+            SetFloat(m, "_Smoothness", 0.30f);
             SetFloat(m, "_AmbientStrength", 1f);
             SetFloat(m, "_EdgeWear", 0f);
             // 与干沙同一组湿参数：湿感全部由世界高度（水位 ± _WetBandWidth）驱动，
@@ -236,7 +265,9 @@ namespace PirateCrew.EditorTools
 
         // 草地（GDD §10.4 草地三档：#2D5A2D → #4A8C4A → #7BC67E）
         // 参数理由：草是高频细密介质 → 噪声尺度最大（8）、细节法线最强（0.75），制造"绒毛感"；
-        //           光滑度 0.1（cel-shader-guide 草地预设 specular=0）。
+        //           光滑度 **0.40**（本次改动：旧值 0.10 与沙只差 0.02，违反 §3.2 纪律 1 的 ≥0.15；
+        //           0.40 与沙 0.25 / 岩 0.55 各差 0.15）。
+        // 【本次改动】挂草族细节贴图（世界尺度 0.25 → 平铺 4.0m，§3.3 预算上限）。
         static bool BuildGrassMaterial()
         {
             Material m = EnsureMaterial(GrassMaterial, SurfaceShaderName);
@@ -252,8 +283,11 @@ namespace PirateCrew.EditorTools
             SetVector(m, "_NoiseStretch", new Vector4(1f, 1f, 0f, 0f));
             SetFloat(m, "_DetailNoiseScale", 26f);
             SetFloat(m, "_DetailNormalStrength", 0.75f);
+            // 草族贴图：法线强度 1.1（贴图 RMS 斜率 0.16≈9°，比沙强、比岩弱）。
+            ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.GrassAlbedo, MaterialNoiseBuilder.NoiseKind.GrassNormal,
+                0.25f, 1f, 1.1f);
             SetFloat(m, "_Metallic", 0f);
-            SetFloat(m, "_Smoothness", 0.1f);
+            SetFloat(m, "_Smoothness", 0.40f);
             SetFloat(m, "_AmbientStrength", 1f);
             SetFloat(m, "_EdgeWear", 0f);
             SetFloat(m, "_Wetness", 0f);
@@ -263,8 +297,10 @@ namespace PirateCrew.EditorTools
 
         // 岩石（GDD §10.4 岩石三档：#5C4F42 → #8C7B6A → #B8A99A）
         // 参数理由：岩石是块状硬表面 → 噪声尺度中等（5）、细节法线强（0.9）制造碎裂感；
-        //           光滑度 0.28（cel-shader-guide 岩石预设给了弱 specular 0.05）；
+        //           光滑度 **0.55**（本次改动：旧值 0.28 与草只差 0.18、与沙差 0.16，勉强达标；
+        //           0.55 让"岩 vs 草/沙"一眼可比 —— 岩是风化硬面，湿气/矿物的微光比草沙明显）；
         //           边缘磨损 0.3 + 磨损色偏白 —— 岩棱被风化磨亮是风格化写实的常见做法（AI 提案）。
+        // 【本次改动】挂岩族细节贴图（世界尺度 0.5 → 平铺 2.0m；法线 1.2 × 贴图 RMS 0.28≈15.6° = 强断裂感）。
         static bool BuildRockMaterial()
         {
             Material m = EnsureMaterial(RockMaterial, SurfaceShaderName);
@@ -280,8 +316,10 @@ namespace PirateCrew.EditorTools
             SetVector(m, "_NoiseStretch", new Vector4(1f, 1f, 0f, 0f));
             SetFloat(m, "_DetailNoiseScale", 12f);
             SetFloat(m, "_DetailNormalStrength", 0.9f);
+            ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.RockAlbedo, MaterialNoiseBuilder.NoiseKind.RockNormal,
+                0.5f, 1f, 1.2f);
             SetFloat(m, "_Metallic", 0f);
-            SetFloat(m, "_Smoothness", 0.28f);
+            SetFloat(m, "_Smoothness", 0.55f);
             SetFloat(m, "_AmbientStrength", 1f);
             SetFloat(m, "_EdgeWear", 0.3f);
             SetColor(m, "_WearColor", Hex("#C8BCA8"));
@@ -308,6 +346,8 @@ namespace PirateCrew.EditorTools
             SetVector(m, "_NoiseStretch", new Vector4(0.18f, 1.0f, 0f, 0f));
             SetFloat(m, "_DetailNoiseScale", 9f);
             SetFloat(m, "_DetailNormalStrength", 0.35f);
+            // 木族本轮不挂细节贴图：显式关掉，避免材质资产里残留上一轮的强度值（幂等 + 可预期）。
+            DisableDetailTexture(m);
             SetFloat(m, "_Metallic", 0f);
             SetFloat(m, "_Smoothness", 0.18f);
             SetFloat(m, "_AmbientStrength", 1f);
@@ -334,6 +374,7 @@ namespace PirateCrew.EditorTools
             SetVector(m, "_NoiseStretch", new Vector4(0.18f, 1.0f, 0f, 0f));
             SetFloat(m, "_DetailNoiseScale", 9f);
             SetFloat(m, "_DetailNormalStrength", 0.35f);
+            DisableDetailTexture(m);
             SetFloat(m, "_Metallic", 0f);
             SetFloat(m, "_Smoothness", 0.22f);
             SetFloat(m, "_AmbientStrength", 1f);
@@ -363,6 +404,8 @@ namespace PirateCrew.EditorTools
             SetVector(m, "_NoiseStretch", new Vector4(1f, 1f, 0f, 0f));
             SetFloat(m, "_DetailNoiseScale", 20f);
             SetFloat(m, "_DetailNormalStrength", 0.25f);
+            // 金属本轮不挂细节贴图（细节贴图是"介质的色斑"，金属的不均匀来自边缘磨损）。
+            DisableDetailTexture(m);
             SetFloat(m, "_Metallic", 1f);
             SetFloat(m, "_Smoothness", 0.75f);
             SetFloat(m, "_AmbientStrength", 1f);
@@ -390,6 +433,7 @@ namespace PirateCrew.EditorTools
             SetVector(m, "_NoiseStretch", new Vector4(1f, 1f, 0f, 0f));
             SetFloat(m, "_DetailNoiseScale", 22f);
             SetFloat(m, "_DetailNormalStrength", 0.5f);
+            DisableDetailTexture(m);
             SetFloat(m, "_Metallic", 1f);
             SetFloat(m, "_Smoothness", 0.45f);
             SetFloat(m, "_AmbientStrength", 1f);
@@ -462,6 +506,13 @@ namespace PirateCrew.EditorTools
         //   _EdgeColor/_EdgeStrength：**写实化后关闭**地形菲涅尔边缘压暗（原 0.35）。
         //     它是"场景物 #2A2A2A 描边"的替代实现；写实方向明确"无描边"，
         //     故置 0（旋钮与色值保留，随时可调回；对应 shader 的默认值也同步改为 0）。
+        //   【本次改动（r3 复验 N4 返工）】
+        //     1) _Smoothness 0.15 → **0.25**，并新增 _GrassSmoothness=0.40 / _RockSmoothness=0.55：
+        //        shader 现按沙/草/岩权重混合光滑度 → 相邻面差 ≥0.15（美术风格指南.md:199-204 §3.2 纪律 1）。
+        //     2) 三族细节贴图（沙/草/岩各一套 albedo+法线，世界空间平铺 2.9/4.0/2.0m）：
+        //        解决 P-9「同材质 200×200 窗 std > 6」与 P-10「高频能量」不达标。
+        //     3) _BlockTintStrength 0.12 → **0.06** + 新增 _BlockWarp=0.4：
+        //        逐块明暗的方格边界按世界 FBM 打散，顶面不再被读成"地砖/编织布"（写实方向也不要"数字化块面"）。
         static bool BuildTerrainMaterial()
         {
             Material m = EnsureMaterial(TerrainMaterial, TerrainShaderName);
@@ -478,10 +529,16 @@ namespace PirateCrew.EditorTools
             SetFloat(m, "_NoiseScale", 2f);
             SetFloat(m, "_NoiseStrength", 0.35f);
             SetFloat(m, "_BlockSize", 1f);
-            SetFloat(m, "_BlockTintStrength", 0.12f);
+            // 低多边形辨识度靠"相邻块仍有亮度差"保留；0.06 是"看得出来但不数字化"的量级。
+            SetFloat(m, "_BlockTintStrength", 0.06f);
             SetFloat(m, "_FacetStrength", 0.6f);
+            SetFloat(m, "_BlockWarp", 0.4f);
+            ApplyTerrainDetailTextures(m);
+            // 粗糙度分区：_Smoothness 是**沙族**基准（0.25），草/岩在 shader 里按权重混合。
+            SetFloat(m, "_Smoothness", 0.25f);
+            SetFloat(m, "_GrassSmoothness", 0.40f);
+            SetFloat(m, "_RockSmoothness", 0.55f);
             SetFloat(m, "_Metallic", 0f);
-            SetFloat(m, "_Smoothness", 0.15f);
             SetFloat(m, "_AmbientStrength", 1f);
             SetColor(m, "_EdgeColor", Hex("#2A2A2A"));
             // 写实化：关闭地形"描边兼容"边缘压暗（旧值 0.35）。理由见 BuildTerrainMaterial 顶部注释。
@@ -489,6 +546,88 @@ namespace PirateCrew.EditorTools
             SetFloat(m, "_EdgePower", 3f);
             SetFloat(m, "_DebugMode", 0f);
             return Save(m);
+        }
+
+        // ------------------------------------------------------------------
+        // 细节贴图接线（沙/草/岩三族；程序化资产的引用点）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 给 <see cref="SurfaceShaderName"/> 的材质挂上 albedo 微色斑图 + 法线图。
+        ///
+        /// 【两条强度同时是"开关"】shader 里 <c>_DetailAlbedoStrength</c> / <c>_BumpScale</c> 默认 0
+        /// （未赋贴图的木/铜/铁必须与加贴图之前逐像素一致，见 PirateSurface.shader 文件头【默认关闭】）；
+        /// 本方法**只在贴图确实加载成功时**才把强度打开，贴图缺失则强度留 0 并记 Warning。
+        /// 这样"忘了跑 MaterialNoiseBuilder"的表现是"画面退回改动前 + 一条明确警告"，而不是随机变色。
+        /// </summary>
+        static void ApplyDetailTexture(Material m, MaterialNoiseBuilder.NoiseKind albedoKind,
+            MaterialNoiseBuilder.NoiseKind normalKind, float worldScale, float albedoStrength, float bumpScale)
+        {
+            SetFloat(m, "_NoiseWorldScale", worldScale);
+            SetFloat(m, "_NoiseWarpStrength", 0.18f);   // 打断贴图与 1 单位格子的轴向对齐
+
+            bool albedoOk = AssignDetailTexture(m, albedoKind, "_DetailNoiseMap", "_DetailAlbedoStrength", albedoStrength);
+            bool normalOk = AssignDetailTexture(m, normalKind, "_BumpMap", "_BumpScale", bumpScale);
+
+            if (!albedoOk || !normalOk)
+                WarnDetailMissing(m.name, albedoOk, normalOk);
+        }
+
+        /// <summary>地形材质：三族 albedo + 法线共 6 张，各自的平铺米数与强度。</summary>
+        static void ApplyTerrainDetailTextures(Material m)
+        {
+            SetFloat(m, "_NoiseWarpStrength", 0.18f);
+            // 平铺米数 = 1/世界尺度：沙 2.9m、草 4.0m、岩 2.0m（风格指南 §3.3 环境图"2-4m"预算内）。
+            SetFloat(m, "_SandNoiseWorldScale", 0.35f);
+            SetFloat(m, "_GrassNoiseWorldScale", 0.25f);
+            SetFloat(m, "_RockNoiseWorldScale", 0.5f);
+
+            bool sandAlb  = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandAlbedo,  "_SandNoiseMap",  "_SandDetailAlbedoStrength",  1f);
+            bool grassAlb = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.GrassAlbedo, "_GrassNoiseMap", "_GrassDetailAlbedoStrength", 1f);
+            bool rockAlb  = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.RockAlbedo,  "_RockNoiseMap",  "_RockDetailAlbedoStrength",  1f);
+            // 法线强度 = 贴图自带 RMS 斜率的倍率：沙 1.0(4°) / 草 1.1(9°) / 岩 1.2(15.6°)。
+            bool sandNrm  = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandNormal,  "_SandBumpMap",  "_SandBumpScale",  1.0f);
+            bool grassNrm = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.GrassNormal, "_GrassBumpMap", "_GrassBumpScale", 1.1f);
+            bool rockNrm  = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.RockNormal,  "_RockBumpMap",  "_RockBumpScale",  1.2f);
+
+            if (!(sandAlb && grassAlb && rockAlb && sandNrm && grassNrm && rockNrm))
+                WarnDetailMissing(m.name, sandAlb && grassAlb && rockAlb, sandNrm && grassNrm && rockNrm);
+        }
+
+        /// <summary>
+        /// 赋一张细节贴图并打开对应强度；返回 false = 贴图缺失（强度保持 0，材质行为退回改动前）。
+        /// 先把强度写 0：保证"上次跑过、这次贴图没了"时不会留下旧的开启状态。
+        /// </summary>
+        static bool AssignDetailTexture(Material m, MaterialNoiseBuilder.NoiseKind kind,
+            string textureProperty, string strengthProperty, float strength)
+        {
+            SetFloat(m, strengthProperty, 0f);
+            if (!m.HasProperty(textureProperty))
+                return false;
+
+            Texture2D texture = MaterialNoiseBuilder.Load(kind);
+            if (texture == null)
+                return false;
+
+            m.SetTexture(textureProperty, texture);
+            SetFloat(m, strengthProperty, strength);
+            return true;
+        }
+
+        /// <summary>本轮不挂细节贴图的材质（木/铜/铁）显式关掉两个强度，保证幂等与可预期。</summary>
+        static void DisableDetailTexture(Material m)
+        {
+            SetFloat(m, "_DetailAlbedoStrength", 0f);
+            SetFloat(m, "_BumpScale", 0f);
+        }
+
+        static void WarnDetailMissing(string materialName, bool albedoOk, bool normalOk)
+        {
+            Debug.LogWarning("[BattleSceneLighting] 材质 " + materialName + " 的细节贴图缺失："
+                + (albedoOk ? "" : "albedo ")
+                + (normalOk ? "" : "normal ")
+                + "→ 对应强度已置 0（画面退回改动前，P-9/P-10 会不达标）。"
+                + "先跑菜单 PirateCrew/渲染/生成程序化材质噪声贴图（或 ArtGate 的 ⓪.5 步）。");
         }
 
         // ------------------------------------------------------------------
