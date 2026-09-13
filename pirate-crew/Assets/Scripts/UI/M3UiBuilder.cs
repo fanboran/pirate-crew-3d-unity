@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,7 +9,6 @@ namespace PirateCrew.UI
     ///
     /// 【为什么不在 Core/SceneNames】<c>Core/SceneNames.cs</c> 是 M2 前的既有文件，
     ///   M3 实施期间限定 Core 只读（见 M3 派单白名单），故两个新场景名暂放这里。
-    ///   「应并入 <c>Core/SceneNames</c> 统一登记」已写进 M3 交付报告，由协调者裁决。
     /// </summary>
     public static class M3Scenes
     {
@@ -20,38 +20,24 @@ namespace PirateCrew.UI
     }
 
     /// <summary>
-    /// M3 界面用的 UGUI 构建辅助（运行时建控件，不依赖 Prefab / Sprite 资源）。
+    /// M3 界面用的 UGUI 构建辅助（运行时建控件）。
     ///
-    /// 【为什么用代码建】M3 只做「最小可用」界面：列表行数随名册/章节变化，
-    ///   运行时生成比摆 Prefab 更省接线；且不新增美术资源。
-    ///   ⚠ 本工程未装 TextMeshPro（见 <c>SceneSetup</c> 类头），文本统一
-    ///   <c>UnityEngine.UI.Text</c> + 内置 <c>LegacyRuntime.ttf</c>。
-    ///   按钮底图用纯色 <see cref="Image"/>（运行时拿不到 Editor 的内置 UISprite）。
+    /// 【本波次改造（中文化 + 材质感）】
+    ///   · 文本统一 <see cref="TextMeshProUGUI"/>（中文字体由调用方注入，见 <see cref="CreateText"/> 的 font 参数）；
+    ///   · 按钮/行底改用 <see cref="UiSprites"/> 的程序化九宫格贴图（木板 / 羊皮纸），
+    ///     不再是纯色 <see cref="Image"/>（规范 §1.2 / §6.1）；
+    ///   · 配色一律取 <see cref="UiTheme"/> Token，禁止散落色值。
+    ///
+    /// 【列表行数随名册/章节变化】运行时生成比摆 Prefab 更省接线；行数少、非高频，
+    ///   不构成性能顾虑。
     /// </summary>
     public static class M3UiBuilder
     {
-        /// <summary>按钮底色（深蓝灰）。</summary>
-        public static readonly Color ButtonColor = new Color(0.16f, 0.22f, 0.34f, 1f);
+        /// <summary>按钮不可用态底色（去饱和 + 55% 透明，§6.1）。</summary>
+        public static Color DisabledButtonColor => UiTheme.Disabled(UiTheme.WoodMid);
 
-        /// <summary>按钮不可用态底色。</summary>
-        public static readonly Color DisabledButtonColor = new Color(0.16f, 0.16f, 0.18f, 1f);
-
-        /// <summary>列表行底色（半透深色）。</summary>
-        public static readonly Color RowColor = new Color(0.1f, 0.14f, 0.22f, 0.85f);
-
-        static Font _font;
-
-        /// <summary>UI 字体（Unity 2022.2+ 内置资源名 <c>LegacyRuntime.ttf</c>）。</summary>
-        public static Font UiFont
-        {
-            get
-            {
-                if (_font == null)
-                    _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-
-                return _font;
-            }
-        }
+        /// <summary>列表行底色（羊皮纸，§1.2 正文底）。</summary>
+        public static Color RowColor => UiTheme.Parchment;
 
         /// <summary>建一个带 RectTransform 的空 UI 对象。</summary>
         public static RectTransform CreateRect(string name, Transform parent)
@@ -62,48 +48,103 @@ namespace PirateCrew.UI
             return rect;
         }
 
-        /// <summary>建文本控件。</summary>
-        public static Text CreateText(string name, Transform parent, string content, int fontSize,
-            TextAnchor alignment, Color color)
+        /// <summary>建文本控件（TMP）。<paramref name="font"/> 可为 null（回落 TMP 默认，会由调用方告警）。</summary>
+        public static TextMeshProUGUI CreateText(string name, Transform parent, string content, int fontSize,
+            TextAlignmentOptions alignment, Color color, TMP_FontAsset font)
         {
             RectTransform rect = CreateRect(name, parent);
-            var text = rect.gameObject.AddComponent<Text>();
+            var text = rect.gameObject.AddComponent<TextMeshProUGUI>();
             text.text = content;
-            text.font = UiFont;
+            if (font != null)
+                text.font = font;
             text.fontSize = fontSize;
             text.alignment = alignment;
             text.color = color;
-            text.horizontalOverflow = HorizontalWrapMode.Wrap;
-            text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.enableWordWrapping = true;
+            text.overflowMode = TextOverflowModes.Overflow;
             text.raycastTarget = false;
             return text;
         }
 
-        /// <summary>建按钮（纯色底 + 居中文本）。</summary>
-        public static Button CreateButton(string name, Transform parent, string label, int fontSize = 20)
+        /// <summary>建按钮（程序化木板/羊皮纸九宫格底 + 居中 TMP 文本）。</summary>
+        public static Button CreateButton(string name, Transform parent, string label, int fontSize,
+            TMP_FontAsset font, UiSprites.Kind skin = UiSprites.Kind.ButtonWood)
         {
             RectTransform rect = CreateRect(name, parent);
 
             var image = rect.gameObject.AddComponent<Image>();
-            image.color = ButtonColor;
+            image.sprite = UiSprites.Get(skin);
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
 
             var button = rect.gameObject.AddComponent<Button>();
             button.targetGraphic = image;
+            ApplyFourState(button, image, skin);
 
-            Text text = CreateText("Text", rect, label, fontSize, TextAnchor.MiddleCenter, Color.white);
+            TextMeshProUGUI text = CreateText("Text", rect, label, fontSize, TextAlignmentOptions.Center,
+                UiTheme.TextLight, font);
             Stretch(text.rectTransform);
 
             return button;
         }
 
+        /// <summary>按钮四态配色（§6.1）：normal / hover 提亮 / pressed 压暗 / disabled 去饱和。</summary>
+        public static void ApplyFourState(Button button, Image target, UiSprites.Kind skin)
+        {
+            if (button == null || target == null)
+                return;
+
+            ColorBlock colors = button.colors;
+            Color baseColor = skin == UiSprites.Kind.ButtonParchment ? UiTheme.Parchment : UiTheme.WoodMid;
+            colors.normalColor = baseColor;
+            colors.highlightedColor = UiTheme.Hover(baseColor);
+            colors.pressedColor = UiTheme.Pressed(baseColor);
+            colors.selectedColor = UiTheme.Hover(baseColor);
+            colors.disabledColor = UiTheme.Disabled(baseColor);
+            colors.fadeDuration = 0.09f;
+            button.colors = colors;
+        }
+
+        /// <summary>取按钮上的 TMP 文本（建行时写动作文案用）。</summary>
+        public static TextMeshProUGUI GetButtonLabel(Button button)
+        {
+            return button != null ? button.GetComponentInChildren<TextMeshProUGUI>(true) : null;
+        }
+
         /// <summary>
-        /// 在列表容器里建一行（纵向堆叠，锚在容器顶部）。
+        /// 在行内右侧（动作按钮左边）摆一排星级图标（规范 §3.4：星级改图标，不用「★」字符）。
         /// </summary>
-        /// <param name="container">列表容器（需有确定大小）。</param>
-        /// <param name="index">行序号（0 起）。</param>
-        /// <param name="rowHeight">行高。</param>
-        /// <param name="spacing">行间距。</param>
-        /// <param name="leftPadding">左内边距。</param>
+        /// <returns>星级容器；可在需要时再隐藏。</returns>
+        public static RectTransform CreateStarRow(Transform row, int stars, int maxStars, float iconSize = 24f)
+        {
+            float step = iconSize + 2f;
+            RectTransform container = CreateRect("Stars", row);
+            container.anchorMin = new Vector2(1f, 0.5f);
+            container.anchorMax = new Vector2(1f, 0.5f);
+            container.pivot = new Vector2(1f, 0.5f);
+            container.sizeDelta = new Vector2(maxStars * step, iconSize);
+            // 动作按钮宽 150 + 右边距 16 + 与按钮的间隔 8。
+            container.anchoredPosition = new Vector2(-(150f + 16f + 8f), 0f);
+
+            for (int i = 0; i < maxStars; i++)
+            {
+                RectTransform icon = CreateRect("Star" + i, container);
+                icon.anchorMin = new Vector2(0f, 0.5f);
+                icon.anchorMax = new Vector2(0f, 0.5f);
+                icon.pivot = new Vector2(0f, 0.5f);
+                icon.sizeDelta = new Vector2(iconSize, iconSize);
+                icon.anchoredPosition = new Vector2(i * step, 0f);
+
+                var image = icon.gameObject.AddComponent<Image>();
+                image.sprite = UiSprites.Get(UiSprites.Kind.Star);
+                image.raycastTarget = false;
+                image.color = i < stars ? UiTheme.Brass : UiTheme.WithAlpha(UiTheme.Ink, 0.35f);
+            }
+
+            return container;
+        }
+
+        /// <summary>在列表容器里建一行（纵向堆叠，锚在容器顶部；底为羊皮纸九宫格）。</summary>
         public static RectTransform CreateRow(Transform container, int index, float rowHeight,
             float spacing = 6f, float leftPadding = 8f)
         {
@@ -115,6 +156,8 @@ namespace PirateCrew.UI
             row.anchoredPosition = new Vector2(0f, -index * (rowHeight + spacing));
 
             var background = row.gameObject.AddComponent<Image>();
+            background.sprite = UiSprites.Get(UiSprites.Kind.PanelParchment);
+            background.type = Image.Type.Sliced;
             background.color = RowColor;
             background.raycastTarget = false;
 
@@ -157,9 +200,9 @@ namespace PirateCrew.UI
         }
 
         /// <summary>把行内文本放在左侧、按钮放在右侧的常用布局。</summary>
-        public static void LayoutRowContent(RectTransform row, Text label, Button action, float rowHeight)
+        public static void LayoutRowContent(RectTransform row, TextMeshProUGUI label, Button action, float rowHeight)
         {
-            float buttonWidth = 140f;
+            float buttonWidth = 150f;
             float buttonHeight = rowHeight - 8f;
 
             if (label != null)
@@ -168,8 +211,9 @@ namespace PirateCrew.UI
                 rect.anchorMin = new Vector2(0f, 0f);
                 rect.anchorMax = new Vector2(1f, 1f);
                 rect.pivot = new Vector2(0f, 0.5f);
-                rect.offsetMin = new Vector2(12f, 0f);
-                rect.offsetMax = new Vector2(-(buttonWidth + 16f), 0f);
+                rect.offsetMin = new Vector2(16f, 0f);
+                rect.offsetMax = new Vector2(-(buttonWidth + 20f), 0f);
+                label.alignment = TextAlignmentOptions.MidlineLeft;
             }
 
             if (action != null)
@@ -179,7 +223,7 @@ namespace PirateCrew.UI
                 rect.anchorMax = new Vector2(1f, 0.5f);
                 rect.pivot = new Vector2(1f, 0.5f);
                 rect.sizeDelta = new Vector2(buttonWidth, buttonHeight);
-                rect.anchoredPosition = new Vector2(-12f, 0f);
+                rect.anchoredPosition = new Vector2(-16f, 0f);
             }
         }
     }

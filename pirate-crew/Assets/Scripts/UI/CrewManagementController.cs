@@ -1,6 +1,7 @@
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,14 +10,16 @@ namespace PirateCrew.UI
     /// <summary>
     /// 船员管理界面（M3）：展示名册与经验、招募状态、编成（上阵/取消），并提供「选关」「保存」「返回」入口。
     ///
-    /// 【对应 Godot】Godot 版没有船员管理 UI（<c>modules/crew_management</c> 只有 <c>roster.gd</c> /
-    ///   <c>progression.gd</c> 两个骨架脚本，无 <c>ui/</c> 目录），本界面是 M3 新增的最小可用版：
-    ///   只做「看清状态 + 编成 + 进选关」，不做皮肤/装备等扩展（<c>api.gd</c> 提到的皮肤未在 M3 范围）。
+    /// 【对应 Godot】Godot 版没有船员管理 UI，本界面是 M3 新增的最小可用版。
     ///
-    /// 【接线约定】UI 不持有 SceneLoader / SaveManager 之外的模块内部对象：
+    /// 【接线约定】UI 不持有模块内部对象：
     ///   · 状态读写走 <see cref="CrewManagementApi"/>；
     ///   · 场景切换走 EventBus <c>change_scene</c> / <c>go_back</c>；
     ///   · 名册变化订阅 <see cref="CrewManagementEvents"/> 事件刷新列表。
+    ///
+    /// 【本波次改造】文本 TMP 化 + 全中文（<see cref="UiStrings"/> / <see cref="UiTextRules"/>）；
+    /// 行/按钮换羊皮纸 + 木板九宫格；行字号提为正文下限 20（规范 §1.4 硬约束）。
+    /// 事件契约与订阅清单不变。
     /// </summary>
     public sealed class CrewManagementController : MonoBehaviour
     {
@@ -26,12 +29,16 @@ namespace PirateCrew.UI
         const float RowHeight = 44f;
 
         [Header("引用（场景内直连）")]
-        [SerializeField] Text summaryText;
-        [SerializeField] Text statusText;
+        [SerializeField] TextMeshProUGUI summaryText;
+        [SerializeField] TextMeshProUGUI statusText;
         [SerializeField] Transform crewListContainer;
         [SerializeField] Button levelSelectButton;
         [SerializeField] Button saveButton;
         [SerializeField] Button backButton;
+
+        [Header("字体（由 M3SceneSetup 注入中文字体资产）")]
+        [Tooltip("正文中文字体（霞鹜文楷 Medium SDF）；运行时建列表行用。")]
+        [SerializeField] TMP_FontAsset bodyFont;
 
         void Awake()
         {
@@ -88,12 +95,13 @@ namespace PirateCrew.UI
 
             Roster roster = CrewManagementApi.Roster;
             string active = roster.Active.Count == 0
-                ? "（未编成）"
+                ? UiStrings.CrewSummaryEmpty
                 : string.Join("、", DisplayNames(roster.Active));
 
-            summaryText.text = "编成 " + roster.Active.Count + "/" + roster.MaxSize + "：" + active
-                + "　　已拥有 " + roster.UnlockedCount + "/" + CrewRosterCatalog.Count
-                + "　　总星数 " + CampaignApi.Progress.TotalStars;
+            summaryText.text = string.Format(UiStrings.CrewSummaryFormat,
+                roster.Active.Count, roster.MaxSize, active,
+                roster.UnlockedCount, CrewRosterCatalog.Count,
+                CampaignApi.Progress.TotalStars);
         }
 
         void RebuildCrewList()
@@ -101,6 +109,7 @@ namespace PirateCrew.UI
             if (crewListContainer == null)
                 return;
 
+            UiTextUtil.WarnIfMissing(bodyFont, "船员管理列表");
             M3UiBuilder.ClearChildren(crewListContainer);
 
             for (int i = 0; i < CrewManagementApi.AllCrews.Count; i++)
@@ -111,25 +120,32 @@ namespace PirateCrew.UI
                 RectTransform row = M3UiBuilder.CreateRow(crewListContainer, i, RowHeight);
 
                 string label = unlocked
-                    ? entry.DisplayName + "　Lv." + CrewManagementApi.Progression.GetLevel(entry.Id)
-                      + "　XP " + CrewManagementApi.Progression.GetXp(entry.Id)
-                    : entry.DisplayName + "　（第 " + entry.UnlockLevelNumber + " 关通关后招募）";
+                    ? UiTextRules.CrewRow(entry.DisplayName,
+                        CrewManagementApi.Progression.GetLevel(entry.Id),
+                        CrewManagementApi.Progression.GetXp(entry.Id))
+                    : UiTextRules.CrewRowLocked(entry.DisplayName, entry.UnlockLevelNumber);
 
-                Text text = M3UiBuilder.CreateText("Label", row, label, 20,
-                    TextAnchor.MiddleLeft, unlocked ? Color.white : new Color(0.6f, 0.62f, 0.68f, 1f));
+                TextMeshProUGUI text = M3UiBuilder.CreateText("Label", row, label, UiTheme.FontBody,
+                    TextAlignmentOptions.MidlineLeft,
+                    unlocked ? UiTheme.Ink : UiTheme.WithAlpha(UiTheme.Ink, UiTheme.DisabledAlpha),
+                    bodyFont);
 
-                Button action = M3UiBuilder.CreateButton("Action", row, string.Empty, 18);
-                string crewId = entry.Id;   // 闭包捕获：每轮独立变量，别直接捕 entry（结构体枚举变量）
+                Button action = M3UiBuilder.CreateButton("Action", row, string.Empty, UiTheme.FontHint,
+                    bodyFont);
+                TextMeshProUGUI actionLabel = M3UiBuilder.GetButtonLabel(action);
+                string crewId = entry.Id;   // 闭包捕获：每轮独立变量
 
                 if (unlocked)
                 {
                     bool active = CrewManagementApi.IsActive(crewId);
-                    action.GetComponentInChildren<Text>().text = active ? "取消上阵" : "上阵";
+                    if (actionLabel != null)
+                        actionLabel.text = active ? UiStrings.CrewRemove : UiStrings.CrewEnlist;
                     action.onClick.AddListener(() => OnToggleActive(crewId));
                 }
                 else
                 {
-                    action.GetComponentInChildren<Text>().text = "未解锁";
+                    if (actionLabel != null)
+                        actionLabel.text = UiStrings.CrewLocked;
                     action.interactable = false;
                     action.targetGraphic.color = M3UiBuilder.DisabledButtonColor;
                 }
@@ -160,15 +176,15 @@ namespace PirateCrew.UI
             if (CrewManagementApi.IsActive(crewId))
             {
                 CrewManagementApi.RemoveFromActive(crewId);
-                SetStatus("已把 " + DisplayName(crewId) + " 换下。");
+                SetStatus(string.Format(UiStrings.CrewStatusRemovedFormat, DisplayName(crewId)));
             }
             else if (CrewManagementApi.AddToActive(crewId))
             {
-                SetStatus("已把 " + DisplayName(crewId) + " 编入阵容。");
+                SetStatus(string.Format(UiStrings.CrewStatusEnlistedFormat, DisplayName(crewId)));
             }
             else
             {
-                SetStatus("编成上限 " + CrewManagementApi.Roster.MaxSize + " 人，先换下一名再编入。");
+                SetStatus(string.Format(UiStrings.CrewStatusFullFormat, CrewManagementApi.Roster.MaxSize));
             }
 
             // 名册事件已驱动刷新；这里不重复调用 Refresh，避免二次重建列表。
@@ -178,7 +194,7 @@ namespace PirateCrew.UI
         {
             if (CrewManagementApi.Roster.Active.Count == 0)
             {
-                SetStatus("至少要编入 1 名船员才能出战。");
+                SetStatus(UiStrings.CrewStatusEmptyRoster);
                 return;
             }
 
@@ -188,8 +204,8 @@ namespace PirateCrew.UI
         void OnSaveClicked()
         {
             SetStatus(CampaignApi.SaveProgress()
-                ? "已保存进度到槽位 " + CampaignApi.ProgressSlot + "。"
-                : "存档不可用（未经过 Bootstrapper 启动）。");
+                ? string.Format(UiStrings.CrewStatusSavedFormat, CampaignApi.ProgressSlot)
+                : UiStrings.CrewStatusSaveFailed);
         }
 
         void OnBackClicked()
@@ -209,7 +225,7 @@ namespace PirateCrew.UI
         void OnCrewUnlocked(object payload)
         {
             if (payload is CrewUnlockedPayload unlocked)
-                SetStatus("新船员加入：" + unlocked.DisplayName);
+                SetStatus(string.Format(UiStrings.CrewStatusNewCrewFormat, unlocked.DisplayName));
         }
 
         void OnLevelCompleted(object payload)
@@ -217,14 +233,11 @@ namespace PirateCrew.UI
             if (!(payload is CampaignLevelCompletedPayload completed))
                 return;
 
+            string levelName = LevelDisplayName(completed.LevelId, completed.LevelNumber);
             if (completed.Cleared)
-            {
-                SetStatus(completed.LevelId + " 通关（" + completed.Stars + "★），经验已发放给编成阵容。");
-            }
+                SetStatus(string.Format(UiStrings.CrewStatusClearedFormat, levelName, completed.Stars));
             else
-            {
-                SetStatus(completed.LevelId + " 挑战失败，编成保留，可再战。");
-            }
+                SetStatus(string.Format(UiStrings.CrewStatusFailedFormat, levelName));
 
             // Refresh 已由 crew_roster_updated 驱动（关卡结算会广播经验变化）。
         }
@@ -237,7 +250,16 @@ namespace PirateCrew.UI
 
         static string DisplayName(string crewId)
         {
-            return CrewRosterCatalog.TryGet(crewId, out CrewRosterEntry entry) ? entry.DisplayName : crewId;
+            return UiTextRules.CrewNameById(crewId);
+        }
+
+        /// <summary>关卡 id / 序号 → 中文关卡名（目录查不到时用「第 N 关」）。</summary>
+        static string LevelDisplayName(string levelId, int levelNumber)
+        {
+            if (CampaignCatalog.TryGet(levelId, out CampaignLevel level))
+                return level.DisplayName;
+
+            return UiTextRules.LevelName(levelNumber);
         }
     }
 }

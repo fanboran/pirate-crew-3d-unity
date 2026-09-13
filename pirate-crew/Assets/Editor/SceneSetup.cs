@@ -1,6 +1,7 @@
 using System.IO;
 using PirateCrew.Core;
 using PirateCrew.UI;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -19,10 +20,11 @@ namespace PirateCrew.EditorTools
     ///
     /// 【产物】Assets/Scenes/{Bootstrapper,MainMenu,Battle}.unity，Build Settings 顺序 0/1/2。
     ///
-    /// 【说明】
-    ///   本工程未安装 TextMeshPro 包（com.unity.textmeshpro 不在 manifest），
-    ///   故 UI 文本统一用 UnityEngine.UI.Text + 内置 LegacyRuntime.ttf。
-    ///   TODO: 安装 TMP 后把 Text 换成 TextMeshProUGUI 并在 Editor 脚本里改用 TMP_FontAsset.CreateFontAsset。
+    /// 【本波次改造（中文化 + 海盗风重设计）】
+    ///   · 主菜单按 docs/UI-UX与中文本地化规范.md §3.2 线框图重排：羊皮纸卷轴标题底板 +
+    ///     木板背景 + 黄铜/木板/羊皮纸/危险红四类按钮 + 「设置」「退出游戏」两个新按钮（§4.2）；
+    ///   · 文本统一 <see cref="TextMeshProUGUI"/> + 中文字体（<see cref="MenuUiBuilder"/>）；
+    ///   · Battle 占位场景文案改中文「战斗场景（占位）」（§4.10 第 16 条）。
     /// </summary>
     public static class SceneSetup
     {
@@ -30,10 +32,7 @@ namespace PirateCrew.EditorTools
         const string MaterialsFolder = "Assets/Art/Materials";
         const string GroundMaterialPath = MaterialsFolder + "/BattleGround.mat";
 
-        static readonly Vector2 ButtonSize = new Vector2(240f, 48f);
         static readonly Vector2 CenterAnchor = new Vector2(0.5f, 0.5f);
-
-        static Font _uiFont;
 
         /// <summary>无头 -executeMethod 入口。</summary>
         [MenuItem("PirateCrew/Scenes/批量重建 M1 场景")]
@@ -72,26 +71,64 @@ namespace PirateCrew.EditorTools
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            // 清屏色对应 Godot main_menu.tscn 的 ColorRect(0.08,0.12,0.2)。
-            CreateCamera(new Color(0.08f, 0.12f, 0.2f, 1f));
+            // 深棕暖色清屏色（木板背景之下的兜底色）。
+            CreateCamera(new Color(0.14f, 0.10f, 0.07f, 1f));
 
             Canvas canvas = CreateCanvas("MainMenuCanvas");
             CreateEventSystem();
 
-            // 标题（对应 Godot 的 LabelSettings：48 号、金色）。
-            Text title = CreateText("Title", canvas.transform, "Pirate Crew 3D", 48,
-                TextAnchor.MiddleCenter, new Color(1f, 0.85f, 0.3f, 1f));
-            SetCenteredRect(title.rectTransform, new Vector2(700f, 80f), new Vector2(0f, 120f));
+            TMP_FontAsset titleFont = MenuUiBuilder.TitleFont;
+            TMP_FontAsset bodyFont = MenuUiBuilder.BodyFont;
+            TMP_FontAsset secondaryFont = MenuUiBuilder.SecondaryFont;
 
-            // 三个按钮竖排居中（对应 Godot VBoxContainer 的 Battle/Campaign/Crew）。
-            Button battleButton = CreateButton("BattleButton", canvas.transform, "进入战斗", CenterAnchor, new Vector2(0f, -40f));
-            Button campaignButton = CreateButton("CampaignButton", canvas.transform, "单人战役", CenterAnchor, new Vector2(0f, -110f));
-            Button crewButton = CreateButton("CrewButton", canvas.transform, "船员管理", CenterAnchor, new Vector2(0f, -180f));
+            // z=0 背景：全屏木板 + 四周压暗，形成「船舱木墙」底。
+            MenuUiBuilder.CreateWoodBackdrop("WoodBackdrop", canvas.transform, Color.white);
+            MenuUiBuilder.CreateWoodBackdrop("Vignette", canvas.transform, new Color(0f, 0f, 0f, 0.35f));
 
-            // 底部状态栏（战役/船员占位提示）。
-            Text statusText = CreateText("StatusText", canvas.transform, string.Empty, 24,
-                TextAnchor.MiddleCenter, new Color(0.85f, 0.9f, 1f, 1f));
-            SetBottomRect(statusText.rectTransform, new Vector2(900f, 60f), 60f);
+            // 标题底板：羊皮纸卷轴 + 黄铜描边（§3.2）。
+            RectTransform titleBoard = MenuUiBuilder.CreatePanel("TitleBoard", canvas.transform,
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -160f),
+                new Vector2(760f, 120f), UiSprites.Kind.PanelParchment);
+            TextMeshProUGUI title = MenuUiBuilder.CreateText("Title", titleBoard,
+                UiStrings.MainTitle, UiTheme.FontDisplay, TextAlignmentOptions.Center, UiTheme.Ink, titleFont);
+            MenuUiBuilder.Stretch(title.rectTransform, 8f);
+            MenuUiBuilder.ApplyTitleOutline(title);
+
+            // 5 个按钮竖排居中（§3.2：主按钮 480×64；次按钮 480×52）。
+            Button battleButton = MenuUiBuilder.CreateButton("BattleButton", canvas.transform,
+                UiStrings.MainBattle, CenterAnchor, new Vector2(0f, 110f), new Vector2(480f, 64f),
+                bodyFont, UiSprites.Kind.ButtonBrass, UiTheme.Ink, UiTheme.FontHud);
+
+            Button campaignButton = MenuUiBuilder.CreateButton("CampaignButton", canvas.transform,
+                UiStrings.MainCampaign, CenterAnchor, new Vector2(0f, 34f), new Vector2(480f, 64f),
+                bodyFont, UiSprites.Kind.ButtonWood);
+
+            Button crewButton = MenuUiBuilder.CreateButton("CrewButton", canvas.transform,
+                UiStrings.MainCrew, CenterAnchor, new Vector2(0f, -42f), new Vector2(480f, 64f),
+                bodyFont, UiSprites.Kind.ButtonWood);
+
+            Button settingsButton = MenuUiBuilder.CreateButton("SettingsButton", canvas.transform,
+                UiStrings.MainSettings, CenterAnchor, new Vector2(0f, -112f), new Vector2(480f, 52f),
+                bodyFont, UiSprites.Kind.ButtonParchment);
+
+            Button quitButton = MenuUiBuilder.CreateButton("QuitButton", canvas.transform,
+                UiStrings.MainQuit, CenterAnchor, new Vector2(0f, -178f), new Vector2(480f, 52f),
+                bodyFont, UiSprites.Kind.ButtonDanger);
+
+            // 左下：版本号 + 存档状态（§3.2 左下 24,24 FONT_HINT）。
+            TextMeshProUGUI versionText = MenuUiBuilder.CreateText("VersionText", canvas.transform,
+                UiStrings.MainVersion, UiTheme.FontHint, TextAlignmentOptions.BottomLeft,
+                UiTheme.BrassLight, secondaryFont);
+            MenuUiBuilder.SetAnchored(versionText.rectTransform, new Vector2(0f, 0f), new Vector2(400f, 26f),
+                new Vector2(UiTheme.Safe, UiTheme.Safe));
+
+            TextMeshProUGUI statusText = MenuUiBuilder.CreateText("StatusText", canvas.transform,
+                string.Empty, UiTheme.FontHint, TextAlignmentOptions.BottomLeft, UiTheme.TextLight, secondaryFont);
+            MenuUiBuilder.SetAnchored(statusText.rectTransform, new Vector2(0f, 0f), new Vector2(500f, 26f),
+                new Vector2(UiTheme.Safe, UiTheme.Safe + 28f));
+
+            // 设置界面（占位，默认隐藏）。
+            MenuUiBuilder.SettingsPanelResult settings = MenuUiBuilder.BuildSettingsPanel(canvas.transform);
 
             // 控制器对象 + 序列化引用绑定。
             var controllerGo = new GameObject("MainMenuController", typeof(RectTransform));
@@ -102,7 +139,12 @@ namespace PirateCrew.EditorTools
             so.FindProperty("battleButton").objectReferenceValue = battleButton;
             so.FindProperty("campaignButton").objectReferenceValue = campaignButton;
             so.FindProperty("crewButton").objectReferenceValue = crewButton;
+            so.FindProperty("settingsButton").objectReferenceValue = settingsButton;
+            so.FindProperty("quitButton").objectReferenceValue = quitButton;
             so.FindProperty("statusText").objectReferenceValue = statusText;
+            so.FindProperty("versionText").objectReferenceValue = versionText;
+            so.FindProperty("settingsPanel").objectReferenceValue = settings.Root;
+            so.FindProperty("settingsBackButton").objectReferenceValue = settings.BackButton;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             SaveScene(scene, SceneNames.MainMenu);
@@ -124,12 +166,16 @@ namespace PirateCrew.EditorTools
             Canvas canvas = CreateCanvas("BattleCanvas");
             CreateEventSystem();
 
-            Text title = CreateText("PlaceholderText", canvas.transform, "Battle 场景占位（M2 实现）", 36,
-                TextAnchor.MiddleCenter, Color.white);
-            SetTopRect(title.rectTransform, new Vector2(900f, 70f), 60f);
+            // 占位说明改中文（规范 §4.10 第 16 条）。
+            TextMeshProUGUI title = MenuUiBuilder.CreateText("PlaceholderText", canvas.transform,
+                UiStrings.BattlePlaceholderNote, UiTheme.FontTitle, TextAlignmentOptions.Center,
+                UiTheme.TextLight, MenuUiBuilder.TitleFont);
+            MenuUiBuilder.SetAnchored(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(900f, 70f),
+                new Vector2(0f, -60f));
 
-            Button backButton = CreateButton("BackButton", canvas.transform, "返回主菜单",
-                new Vector2(0.5f, 0f), new Vector2(0f, 60f));
+            Button backButton = MenuUiBuilder.CreateButton("BackButton", canvas.transform,
+                UiStrings.BackToMainMenu, new Vector2(0.5f, 0f), new Vector2(0f, 60f),
+                new Vector2(240f, 48f), MenuUiBuilder.BodyFont, UiSprites.Kind.ButtonWood);
 
             var placeholder = backButton.gameObject.AddComponent<BattlePlaceholder>();
             var so = new SerializedObject(placeholder);
@@ -140,19 +186,8 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // UI 构建辅助
+        // 场景内容辅助
         // ------------------------------------------------------------------
-
-        static Font UiFont
-        {
-            get
-            {
-                // Unity 2022.2+ 内置字体资源名为 LegacyRuntime.ttf（旧版 Arial.ttf 已弃用）。
-                if (_uiFont == null)
-                    _uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                return _uiFont;
-            }
-        }
 
         static GameObject CreateUiObject(string name, Transform parent)
         {
@@ -191,88 +226,6 @@ namespace PirateCrew.EditorTools
             camera.backgroundColor = clearColor;
             return camera;
         }
-
-        static Text CreateText(string name, Transform parent, string content, int fontSize,
-            TextAnchor alignment, Color color)
-        {
-            var go = CreateUiObject(name, parent);
-            var text = go.AddComponent<Text>();
-            text.text = content;
-            text.font = UiFont;
-            text.fontSize = fontSize;
-            text.alignment = alignment;
-            text.color = color;
-            text.horizontalOverflow = HorizontalWrapMode.Overflow;
-            text.verticalOverflow = VerticalWrapMode.Overflow;
-            text.raycastTarget = false;
-            return text;
-        }
-
-        static Button CreateButton(string name, Transform parent, string label, Vector2 anchor, Vector2 anchoredPosition)
-        {
-            var go = CreateUiObject(name, parent);
-            var rect = go.GetComponent<RectTransform>();
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = ButtonSize;
-            rect.anchoredPosition = anchoredPosition;
-
-            var image = go.AddComponent<Image>();
-            // UGUI 默认按钮九宫格贴图（内置资源）与 DefaultControls 创建菜单一致。
-            image.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;
-
-            var button = go.AddComponent<Button>();
-            button.targetGraphic = image;
-
-            Text text = CreateText("Text", go.transform, label, 24, TextAnchor.MiddleCenter, Color.white);
-            Stretch(text.rectTransform);
-
-            return button;
-        }
-
-        static void Stretch(RectTransform rect)
-        {
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
-        }
-
-        static void SetCenteredRect(RectTransform rect, Vector2 size, Vector2 anchoredPosition)
-        {
-            rect.anchorMin = CenterAnchor;
-            rect.anchorMax = CenterAnchor;
-            rect.pivot = CenterAnchor;
-            rect.sizeDelta = size;
-            rect.anchoredPosition = anchoredPosition;
-        }
-
-        static void SetTopRect(RectTransform rect, Vector2 size, float offsetY)
-        {
-            var anchor = new Vector2(0.5f, 1f);
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.pivot = anchor;
-            rect.sizeDelta = size;
-            rect.anchoredPosition = new Vector2(0f, -offsetY);
-        }
-
-        static void SetBottomRect(RectTransform rect, Vector2 size, float offsetY)
-        {
-            var anchor = new Vector2(0.5f, 0f);
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.pivot = anchor;
-            rect.sizeDelta = size;
-            rect.anchoredPosition = new Vector2(0f, offsetY);
-        }
-
-        // ------------------------------------------------------------------
-        // 场景内容辅助
-        // ------------------------------------------------------------------
 
         static void CreateDirectionalLight()
         {

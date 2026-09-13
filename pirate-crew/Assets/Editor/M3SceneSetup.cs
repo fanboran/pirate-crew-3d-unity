@@ -1,6 +1,8 @@
 using System.IO;
+using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.UI;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -21,16 +23,12 @@ namespace PirateCrew.EditorTools
     ///   Assets/Scenes/CrewManagement.unity、Assets/Scenes/LevelSelect.unity；
     ///   Build Settings = Bootstrapper(0) / MainMenu(1) / Battle(2) / CrewManagement(3) / LevelSelect(4)。
     ///
-    /// 【为什么不动 Battle 场景】Battle 由 <see cref="M2BattleSceneSetup"/> 负责装配（含战斗引用接线），
-    ///   本脚本只在 **不重建** 它的前提下把它保留在 Build Settings 里
-    ///   （注意 <c>SceneSetup.BuildAll</c> / <c>M2BattleSceneSetup.BuildAll</c> 会把列表覆盖成 3 个场景，
-    ///   重建过它们之后需要再跑一次本脚本恢复 5 个场景）。
-    ///
-    /// 【与 M1/M2 装配脚本的关系】本文件是自包含的：UI 构建辅助照抄 <c>SceneSetup</c> 的写法，
-    ///   避免改动既有 Editor 脚本（M3 派单限定 <c>Assets/Editor/</c> 只新增本文件）。
-    ///
-    /// 【约定】本工程未装 TMP，UI 一律 legacy <c>UnityEngine.UI</c> + 内置 LegacyRuntime.ttf
-    ///   （见 <c>SceneSetup</c> 类头）。
+    /// 【本波次改造（中文化 + 海盗风重设计）】
+    ///   · 按 docs/UI-UX与中文本地化规范.md §3.3 / §3.4 线框图重排；木板 / 羊皮纸 / 黄铜三段材质；
+    ///   · 文本统一 TMP + 中文字体（<see cref="MenuUiBuilder"/>），行字号 = 正文下限 20；
+    ///   · 选关页把「上一局结算」从单行横幅改为**模态弹窗**（§3.6）：星级 / 评分 / 经验 / 招募 /
+    ///     首次通关 + 星级规则提示，数据源仍是 CampaignApi（沿用 LevelSelectController 原逻辑）；
+    ///   · 新增自定义结算弹窗节点并接线到 <see cref="LevelSelectController"/>。
     /// </summary>
     public static class M3SceneSetup
     {
@@ -40,11 +38,7 @@ namespace PirateCrew.EditorTools
         static readonly Vector2 TopCenterAnchor = new Vector2(0.5f, 1f);
         static readonly Vector2 BottomCenterAnchor = new Vector2(0.5f, 0f);
 
-        static readonly Color BackgroundColor = new Color(0.08f, 0.12f, 0.2f, 1f);
-        static readonly Color TitleColor = new Color(1f, 0.85f, 0.3f, 1f);
-        static readonly Color HintColor = new Color(0.85f, 0.9f, 1f, 1f);
-
-        static Font _uiFont;
+        static readonly Color BackgroundColor = new Color(0.14f, 0.10f, 0.07f, 1f);
 
         /// <summary>无头 -executeMethod 入口；也可从菜单调用。</summary>
         [MenuItem("PirateCrew/Scenes/重建 M3 管理场景")]
@@ -59,7 +53,7 @@ namespace PirateCrew.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("[M3SceneSetup] M3 管理场景重建完成。\n"
+            Debug.Log("[M3SceneSetup] M3 管理场景重建完成（全中文 + 木板/羊皮纸/黄铜材质）。\n"
                 + "  场景: " + ScenesFolder + "/CrewManagement.unity、"
                 + ScenesFolder + "/LevelSelect.unity\n"
                 + "  Build Settings: Bootstrapper(0) / MainMenu(1) / Battle(2, 未重建) / "
@@ -67,7 +61,7 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // 船员管理场景
+        // 船员管理场景（§3.3）
         // ------------------------------------------------------------------
 
         static void BuildCrewManagementScene()
@@ -78,22 +72,43 @@ namespace PirateCrew.EditorTools
             Canvas canvas = CreateCanvas("CrewManagementCanvas");
             CreateEventSystem();
 
-            CreateTitle(canvas.transform, "船员管理", 44);
+            TMP_FontAsset titleFont = MenuUiBuilder.TitleFont;
+            TMP_FontAsset bodyFont = MenuUiBuilder.BodyFont;
+            TMP_FontAsset secondaryFont = MenuUiBuilder.SecondaryFont;
 
-            Text summary = CreateText("SummaryText", canvas.transform, string.Empty, 22,
-                TextAnchor.MiddleCenter, HintColor);
-            SetAnchored(summary.rectTransform, TopCenterAnchor, new Vector2(1600f, 40f), new Vector2(0f, 96f));
+            MenuUiBuilder.CreateWoodBackdrop("WoodBackdrop", canvas.transform, Color.white);
+            MenuUiBuilder.CreateWoodBackdrop("Vignette", canvas.transform, new Color(0f, 0f, 0f, 0.35f));
 
-            // 名册列表容器（行由 CrewManagementController 运行时生成）。
-            RectTransform list = CreatePanel("CrewList", canvas.transform, 160f, 160f, 150f, 170f);
+            TextMeshProUGUI title = MenuUiBuilder.CreateText("Title", canvas.transform, UiStrings.CrewTitle,
+                UiTheme.FontTitle, TextAlignmentOptions.Center, UiTheme.BrassLight, titleFont);
+            MenuUiBuilder.SetAnchored(title.rectTransform, TopCenterAnchor, new Vector2(900f, 50f),
+                new Vector2(0f, -36f));
+            MenuUiBuilder.ApplyTitleOutline(title);
 
-            Text status = CreateText("StatusText", canvas.transform, string.Empty, 22,
-                TextAnchor.MiddleCenter, HintColor);
-            SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(1600f, 40f), new Vector2(0f, 128f));
+            TextMeshProUGUI summary = MenuUiBuilder.CreateText("SummaryText", canvas.transform, string.Empty,
+                UiTheme.FontBody, TextAlignmentOptions.Center, UiTheme.TextLight, bodyFont);
+            MenuUiBuilder.SetAnchored(summary.rectTransform, TopCenterAnchor, new Vector2(1700f, 36f),
+                new Vector2(0f, -96f));
 
-            Button levelSelectButton = CreateButton("LevelSelectButton", canvas.transform, "选择关卡", BottomCenterAnchor, new Vector2(-260f, 60f));
-            Button saveButton = CreateButton("SaveButton", canvas.transform, "保存进度", BottomCenterAnchor, new Vector2(0f, 60f));
-            Button backButton = CreateButton("BackButton", canvas.transform, "返回主菜单", BottomCenterAnchor, new Vector2(260f, 60f));
+            // 名册容器（木板底 + 黄铜框；行由 CrewManagementController 运行时生成）。
+            RectTransform list = MenuUiBuilder.CreatePanel("CrewList", canvas.transform,
+                CenterAnchor, CenterAnchor, new Vector2(0f, 24f), new Vector2(1000f, 600f),
+                UiSprites.Kind.PanelWood);
+
+            TextMeshProUGUI status = MenuUiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
+                UiTheme.FontHint, TextAlignmentOptions.Center, UiTheme.TextLight, secondaryFont);
+            MenuUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(1700f, 36f),
+                new Vector2(0f, 128f));
+
+            Button levelSelectButton = MenuUiBuilder.CreateButton("LevelSelectButton", canvas.transform,
+                UiStrings.CrewLevelSelect, BottomCenterAnchor, new Vector2(-300f, 56f), new Vector2(260f, 52f),
+                bodyFont, UiSprites.Kind.ButtonWood);
+            Button saveButton = MenuUiBuilder.CreateButton("SaveButton", canvas.transform,
+                UiStrings.CrewSave, BottomCenterAnchor, new Vector2(0f, 56f), new Vector2(260f, 52f),
+                bodyFont, UiSprites.Kind.ButtonParchment);
+            Button backButton = MenuUiBuilder.CreateButton("BackButton", canvas.transform,
+                UiStrings.BackToMainMenu, BottomCenterAnchor, new Vector2(300f, 56f), new Vector2(260f, 52f),
+                bodyFont, UiSprites.Kind.ButtonWood);
 
             var controllerGo = new GameObject("CrewManagementController", typeof(RectTransform));
             controllerGo.transform.SetParent(canvas.transform, false);
@@ -106,13 +121,14 @@ namespace PirateCrew.EditorTools
             so.FindProperty("levelSelectButton").objectReferenceValue = levelSelectButton;
             so.FindProperty("saveButton").objectReferenceValue = saveButton;
             so.FindProperty("backButton").objectReferenceValue = backButton;
+            so.FindProperty("bodyFont").objectReferenceValue = bodyFont;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             SaveScene(scene, M3Scenes.CrewManagement);
         }
 
         // ------------------------------------------------------------------
-        // 关卡选择场景
+        // 关卡选择场景（§3.4）
         // ------------------------------------------------------------------
 
         static void BuildLevelSelectScene()
@@ -123,34 +139,58 @@ namespace PirateCrew.EditorTools
             Canvas canvas = CreateCanvas("LevelSelectCanvas");
             CreateEventSystem();
 
-            CreateTitle(canvas.transform, "单人战役", 44);
+            TMP_FontAsset titleFont = MenuUiBuilder.TitleFont;
+            TMP_FontAsset bodyFont = MenuUiBuilder.BodyFont;
+            TMP_FontAsset secondaryFont = MenuUiBuilder.SecondaryFont;
 
-            Text header = CreateText("HeaderText", canvas.transform, string.Empty, 24,
-                TextAnchor.MiddleCenter, TitleColor);
-            SetAnchored(header.rectTransform, TopCenterAnchor, new Vector2(1600f, 40f), new Vector2(0f, 96f));
+            MenuUiBuilder.CreateWoodBackdrop("WoodBackdrop", canvas.transform, Color.white);
+            MenuUiBuilder.CreateWoodBackdrop("Vignette", canvas.transform, new Color(0f, 0f, 0f, 0.35f));
 
-            // 结算横幅：打完一局回到本场景时由控制器写入内容。
-            Text result = CreateText("ResultText", canvas.transform, string.Empty, 22,
-                TextAnchor.MiddleCenter, HintColor);
-            SetAnchored(result.rectTransform, TopCenterAnchor, new Vector2(1700f, 40f), new Vector2(0f, 140f));
+            TextMeshProUGUI title = MenuUiBuilder.CreateText("Title", canvas.transform, UiStrings.LevelTitle,
+                UiTheme.FontTitle, TextAlignmentOptions.Center, UiTheme.BrassLight, titleFont);
+            MenuUiBuilder.SetAnchored(title.rectTransform, TopCenterAnchor, new Vector2(900f, 50f),
+                new Vector2(0f, -32f));
+            MenuUiBuilder.ApplyTitleOutline(title);
 
-            // 章节按钮行（按钮由控制器运行时生成）。
-            RectTransform chapters = CreateRect("ChapterContainer", canvas.transform);
-            chapters.anchorMin = new Vector2(0.5f, 1f);
-            chapters.anchorMax = new Vector2(0.5f, 1f);
-            chapters.pivot = new Vector2(0.5f, 1f);
-            chapters.sizeDelta = new Vector2(520f, 44f);
-            chapters.anchoredPosition = new Vector2(0f, -190f);
+            TextMeshProUGUI header = MenuUiBuilder.CreateText("HeaderText", canvas.transform, string.Empty,
+                UiTheme.FontHud, TextAlignmentOptions.Center, UiTheme.TextLight, bodyFont);
+            MenuUiBuilder.SetAnchored(header.rectTransform, TopCenterAnchor, new Vector2(1700f, 36f),
+                new Vector2(0f, -88f));
 
-            // 关卡列表容器。
-            RectTransform list = CreatePanel("LevelList", canvas.transform, 260f, 260f, 260f, 170f);
+            TextMeshProUGUI chapterName = MenuUiBuilder.CreateText("ChapterNameText", canvas.transform,
+                string.Empty, UiTheme.FontBody, TextAlignmentOptions.Center, UiTheme.BrassLight, secondaryFont);
+            MenuUiBuilder.SetAnchored(chapterName.rectTransform, TopCenterAnchor, new Vector2(1200f, 30f),
+                new Vector2(0f, -128f));
 
-            Text status = CreateText("StatusText", canvas.transform, string.Empty, 22,
-                TextAnchor.MiddleCenter, HintColor);
-            SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(1700f, 40f), new Vector2(0f, 128f));
+            // 章节页签行（按钮由控制器运行时生成，尺寸 160×44，间距 170）。
+            RectTransform chapters = MenuUiBuilder.CreateRect("ChapterContainer", canvas.transform);
+            MenuUiBuilder.SetAnchored(chapters, TopCenterAnchor, new Vector2(520f, 44f), new Vector2(0f, -186f));
 
-            Button crewButton = CreateButton("CrewButton", canvas.transform, "船员管理", BottomCenterAnchor, new Vector2(-180f, 60f));
-            Button backButton = CreateButton("BackButton", canvas.transform, "返回", BottomCenterAnchor, new Vector2(180f, 60f));
+            // 关卡列表容器（木板底 + 黄铜框；行由控制器运行时生成）。
+            RectTransform list = MenuUiBuilder.CreatePanel("LevelList", canvas.transform,
+                CenterAnchor, CenterAnchor, new Vector2(0f, 52f), new Vector2(1000f, 560f),
+                UiSprites.Kind.PanelWood);
+
+            // 固定竞技场提示（M3 边界，§4.4）+ 状态提示。
+            TextMeshProUGUI hint = MenuUiBuilder.CreateText("FixedArenaHint", canvas.transform,
+                UiStrings.LevelStatusFixedArena, UiTheme.FontHint, TextAlignmentOptions.Center,
+                UiTheme.WithAlpha(UiTheme.TextLight, 0.8f), secondaryFont);
+            MenuUiBuilder.SetAnchored(hint.rectTransform, BottomCenterAnchor, new Vector2(1700f, 30f),
+                new Vector2(0f, 96f));
+
+            TextMeshProUGUI status = MenuUiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
+                UiTheme.FontHint, TextAlignmentOptions.Center, UiTheme.BrassLight, secondaryFont);
+            MenuUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(1700f, 32f),
+                new Vector2(0f, 128f));
+
+            Button crewButton = MenuUiBuilder.CreateButton("CrewButton", canvas.transform,
+                UiStrings.MainCrew, BottomCenterAnchor, new Vector2(-180f, 52f), new Vector2(260f, 52f),
+                bodyFont, UiSprites.Kind.ButtonWood);
+            Button backButton = MenuUiBuilder.CreateButton("BackButton", canvas.transform,
+                UiStrings.Back, BottomCenterAnchor, new Vector2(180f, 52f), new Vector2(260f, 52f),
+                bodyFont, UiSprites.Kind.ButtonWood);
+
+            SettlementRefs settlement = BuildSettlementModal(canvas.transform, titleFont, bodyFont, secondaryFont);
 
             var controllerGo = new GameObject("LevelSelectController", typeof(RectTransform));
             controllerGo.transform.SetParent(canvas.transform, false);
@@ -158,39 +198,145 @@ namespace PirateCrew.EditorTools
 
             var so = new SerializedObject(controller);
             so.FindProperty("headerText").objectReferenceValue = header;
-            so.FindProperty("resultText").objectReferenceValue = result;
+            so.FindProperty("chapterNameText").objectReferenceValue = chapterName;
             so.FindProperty("statusText").objectReferenceValue = status;
             so.FindProperty("chapterContainer").objectReferenceValue = chapters;
             so.FindProperty("levelListContainer").objectReferenceValue = list;
             so.FindProperty("crewButton").objectReferenceValue = crewButton;
             so.FindProperty("backButton").objectReferenceValue = backButton;
+            so.FindProperty("bodyFont").objectReferenceValue = bodyFont;
+
+            so.FindProperty("settlementModal").objectReferenceValue = settlement.Root;
+            so.FindProperty("settlementTitle").objectReferenceValue = settlement.Title;
+            so.FindProperty("settlementLevelText").objectReferenceValue = settlement.LevelText;
+            so.FindProperty("settlementScoreText").objectReferenceValue = settlement.ScoreText;
+            so.FindProperty("settlementStarsText").objectReferenceValue = settlement.StarsText;
+            so.FindProperty("settlementXpText").objectReferenceValue = settlement.XpText;
+            so.FindProperty("settlementUnlockText").objectReferenceValue = settlement.UnlockText;
+            so.FindProperty("settlementFirstClearText").objectReferenceValue = settlement.FirstClearText;
+            so.FindProperty("settlementStarRuleText").objectReferenceValue = settlement.StarRuleText;
+            so.FindProperty("settlementReplayButton").objectReferenceValue = settlement.ReplayButton;
+            so.FindProperty("settlementBackButton").objectReferenceValue = settlement.BackButton;
+
+            SerializedProperty stars = so.FindProperty("settlementStars");
+            stars.arraySize = settlement.Stars.Length;
+            for (int i = 0; i < settlement.Stars.Length; i++)
+                stars.GetArrayElementAtIndex(i).objectReferenceValue = settlement.Stars[i];
+
             so.ApplyModifiedPropertiesWithoutUndo();
 
             SaveScene(scene, M3Scenes.LevelSelect);
         }
 
         // ------------------------------------------------------------------
-        // UI 构建辅助（照抄 SceneSetup 的写法，见类头说明）
+        // 结算模态弹窗（§3.6）
         // ------------------------------------------------------------------
 
-        static Font UiFont
+        /// <summary>结算弹窗节点集合。</summary>
+        sealed class SettlementRefs
         {
-            get
+            public GameObject Root;
+            public TextMeshProUGUI Title;
+            public TextMeshProUGUI LevelText;
+            public TextMeshProUGUI ScoreText;
+            public TextMeshProUGUI StarsText;
+            public TextMeshProUGUI XpText;
+            public TextMeshProUGUI UnlockText;
+            public TextMeshProUGUI FirstClearText;
+            public TextMeshProUGUI StarRuleText;
+            public Image[] Stars;
+            public Button ReplayButton;
+            public Button BackButton;
+        }
+
+        static SettlementRefs BuildSettlementModal(Transform canvas, TMP_FontAsset titleFont,
+            TMP_FontAsset bodyFont, TMP_FontAsset secondaryFont)
+        {
+            var refs = new SettlementRefs();
+
+            RectTransform root = MenuUiBuilder.CreateRect("SettlementModal", canvas);
+            MenuUiBuilder.Stretch(root);
+            refs.Root = root.gameObject;
+
+            MenuUiBuilder.CreateDimOverlay("DimOverlay", root);
+
+            RectTransform card = MenuUiBuilder.CreatePanel("SettlementCard", root,
+                CenterAnchor, CenterAnchor, Vector2.zero, new Vector2(900f, 620f), UiSprites.Kind.PanelWood);
+
+            TextMeshProUGUI title = MenuUiBuilder.CreateText("Title", card, string.Empty,
+                UiTheme.FontBanner, TextAlignmentOptions.Center, UiTheme.BrassLight, titleFont);
+            MenuUiBuilder.SetAnchored(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(800f, 60f),
+                new Vector2(0f, -30f));
+            MenuUiBuilder.ApplyTitleOutline(title);
+            refs.Title = title;
+
+            // 星级图标（3 枚，点亮 = 黄铜）。
+            var stars = new Image[StarRules.MaxStars];
+            for (int i = 0; i < stars.Length; i++)
             {
-                if (_uiFont == null)
-                    _uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                RectTransform icon = MenuUiBuilder.CreateRect("Star" + i, card);
+                MenuUiBuilder.SetAnchored(icon, new Vector2(0.5f, 1f), new Vector2(44f, 44f),
+                    new Vector2((i - (stars.Length - 1) * 0.5f) * 52f, -110f));
 
-                return _uiFont;
+                var image = icon.gameObject.AddComponent<Image>();
+                image.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.Star);
+                image.raycastTarget = false;
+                image.color = UiTheme.Brass;
+                stars[i] = image;
             }
+            refs.Stars = stars;
+
+            TextMeshProUGUI starsText = MenuUiBuilder.CreateText("StarsText", card, string.Empty,
+                UiTheme.FontBody, TextAlignmentOptions.Center, UiTheme.TextLight, bodyFont);
+            MenuUiBuilder.SetAnchored(starsText.rectTransform, new Vector2(0.5f, 1f), new Vector2(320f, 30f),
+                new Vector2(0f, -160f));
+            refs.StarsText = starsText;
+
+            // 黄铜分隔线。
+            RectTransform divider = MenuUiBuilder.CreateRect("Divider", card);
+            MenuUiBuilder.SetAnchored(divider, new Vector2(0.5f, 1f), new Vector2(760f, 2f),
+                new Vector2(0f, -196f));
+            var dividerImage = divider.gameObject.AddComponent<Image>();
+            dividerImage.color = UiTheme.Brass;
+            dividerImage.raycastTarget = false;
+
+            refs.LevelText = BuildSettlementRow(card, "LevelRow", -232f, bodyFont);
+            refs.ScoreText = BuildSettlementRow(card, "ScoreRow", -276f, bodyFont);
+            refs.XpText = BuildSettlementRow(card, "XpRow", -320f, bodyFont);
+            refs.UnlockText = BuildSettlementRow(card, "UnlockRow", -364f, bodyFont);
+            refs.FirstClearText = BuildSettlementRow(card, "FirstClearRow", -408f, bodyFont);
+
+            TextMeshProUGUI rule = MenuUiBuilder.CreateText("StarRuleText", card,
+                UiStrings.SettlementStarRuleHint, UiTheme.FontHint, TextAlignmentOptions.Center,
+                UiTheme.WithAlpha(UiTheme.TextLight, 0.85f), secondaryFont);
+            MenuUiBuilder.SetAnchored(rule.rectTransform, new Vector2(0.5f, 1f), new Vector2(840f, 44f),
+                new Vector2(0f, -456f));
+            refs.StarRuleText = rule;
+
+            refs.ReplayButton = MenuUiBuilder.CreateButton("ReplayButton", card, UiStrings.LevelReplay,
+                new Vector2(0.5f, 0f), new Vector2(-150f, 52f), new Vector2(260f, 52f),
+                bodyFont, UiSprites.Kind.ButtonBrass, UiTheme.Ink);
+            refs.BackButton = MenuUiBuilder.CreateButton("BackToSelectButton", card,
+                UiStrings.SettlementBackToSelect, new Vector2(0.5f, 0f), new Vector2(150f, 52f),
+                new Vector2(260f, 52f), bodyFont, UiSprites.Kind.ButtonWood);
+
+            root.gameObject.SetActive(false);
+            return refs;
         }
 
-        static RectTransform CreateRect(string name, Transform parent)
+        /// <summary>结算弹窗里的「左标签 + 右值」行（用整行一个左对齐文本，形如「关卡　第 3 关」）。</summary>
+        static TextMeshProUGUI BuildSettlementRow(Transform card, string name, float y, TMP_FontAsset bodyFont)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            var rect = go.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
-            return rect;
+            TextMeshProUGUI text = MenuUiBuilder.CreateText(name, card, string.Empty, UiTheme.FontBody,
+                TextAlignmentOptions.MidlineLeft, UiTheme.TextLight, bodyFont);
+            MenuUiBuilder.SetAnchored(text.rectTransform, new Vector2(0.5f, 1f), new Vector2(760f, 36f),
+                new Vector2(0f, y));
+            return text;
         }
+
+        // ------------------------------------------------------------------
+        // UI 构建辅助
+        // ------------------------------------------------------------------
 
         static Canvas CreateCanvas(string name)
         {
@@ -223,82 +369,6 @@ namespace PirateCrew.EditorTools
             return camera;
         }
 
-        static Text CreateTitle(Transform parent, string content, int fontSize)
-        {
-            Text title = CreateText("Title", parent, content, fontSize, TextAnchor.MiddleCenter, TitleColor);
-            SetAnchored(title.rectTransform, TopCenterAnchor, new Vector2(900f, 60f), new Vector2(0f, 30f));
-            return title;
-        }
-
-        static Text CreateText(string name, Transform parent, string content, int fontSize,
-            TextAnchor alignment, Color color)
-        {
-            RectTransform rect = CreateRect(name, parent);
-            var text = rect.gameObject.AddComponent<Text>();
-            text.text = content;
-            text.font = UiFont;
-            text.fontSize = fontSize;
-            text.alignment = alignment;
-            text.color = color;
-            text.horizontalOverflow = HorizontalWrapMode.Overflow;
-            text.verticalOverflow = VerticalWrapMode.Overflow;
-            text.raycastTarget = false;
-            return text;
-        }
-
-        static Button CreateButton(string name, Transform parent, string label, Vector2 anchor, Vector2 anchoredPosition)
-        {
-            RectTransform rect = CreateRect(name, parent);
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.pivot = CenterAnchor;
-            rect.sizeDelta = new Vector2(200f, 48f);
-            rect.anchoredPosition = anchoredPosition;
-
-            var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;
-
-            var button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = image;
-
-            Text text = CreateText("Text", rect, label, 24, TextAnchor.MiddleCenter, Color.white);
-            Stretch(text.rectTransform);
-
-            return button;
-        }
-
-        /// <summary>建一个四边内缩的容器（列表/面板用）。</summary>
-        static RectTransform CreatePanel(string name, Transform parent, float left, float right, float top, float bottom)
-        {
-            RectTransform rect = CreateRect(name, parent);
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.offsetMin = new Vector2(left, bottom);
-            rect.offsetMax = new Vector2(-right, -top);
-            return rect;
-        }
-
-        static void Stretch(RectTransform rect)
-        {
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
-        }
-
-        static void SetAnchored(RectTransform rect, Vector2 anchor, Vector2 size, Vector2 anchoredPosition)
-        {
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.pivot = anchor;
-            rect.sizeDelta = size;
-            rect.anchoredPosition = anchoredPosition;
-        }
-
         // ------------------------------------------------------------------
         // 保存与 Build Settings
         // ------------------------------------------------------------------
@@ -311,8 +381,7 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 写 5 个场景。Battle 保持 index 2（<c>SceneLoader</c> 与既有测试都按名字加载，顺序不影响，
-        /// 但保持与 M1/M2 一致便于人工核对）。
+        /// 写 5 个场景。Battle 保持 index 2（SceneLoader 与既有测试都按名字加载，顺序不影响）。
         /// </summary>
         static void RegisterBuildSettings()
         {

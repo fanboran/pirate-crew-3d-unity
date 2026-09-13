@@ -3,6 +3,7 @@ using PirateCrew.Core;
 using PirateCrew.PirateCrew.Battle;
 using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,19 +12,24 @@ namespace PirateCrew.UI
     /// <summary>
     /// 战斗 HUD（UGUI，翻译自 Godot <c>battle_hud.tscn</c> + <c>scripts/ui/hud.gd</c>）。
     ///
-    /// 【对应章节】
-    ///   §3.2  回合提示文案「Player N, take your turn」/「Computer, take your turn」；
-    ///   §3.4  武器面板显示条件（先选中己方角色才出现）+ 三按钮语义（throw character / end go / button_&lt;weaponId&gt;）；
-    ///   §4.1  血条长度 = <c>1 + ceil(27 * shownHealth / maxHealth)</c>（共 28 帧）；
-    ///   §4.5  名册/血条位于 BottomLeft。
+    /// 【布局依据】docs/UI-UX与中文本地化规范.md §3.5 线框图 + §2.3 元素清单：
+    ///   顶部（小地图 / 模式开关 / 回合与计时 / 双方存活）、屏幕中心准星、
+    ///   左下船员名册、底部中央武器面板（返回按钮移左下）、底部瞄准/聚焦标签与操作提示。
+    ///   具体节点由 <c>Assets/Editor/BattleHudBuilder.cs</c> 构建，本类只做数据绑定与刷新。
     ///
-    /// 【布局依据】M2-Godot基准摘要 §5.1 第 6 条：TopRight 状态 / BottomCenter 武器 / BottomLeft 名册。
+    /// 【本波次改造】
+    ///   · 全中文（<see cref="UiStrings"/> / <see cref="UiTextRules"/>），不再出现
+    ///     "Player N, take your turn" / "Roster — Level N" / "T1 redPirate" 等英文；
+    ///   · 回合提示与存活拆双方，修正旧实现「只统计当前行动队」的缺陷（验收 V10）；
+    ///   · 文本字段类型为 <see cref="MaskableGraphic"/>（TMP 与 legacy Text 的共同基类）：
+    ///     新装配写入的是 <see cref="TextMeshProUGUI"/>，而 <c>M2BattleSceneSetup.cs</c>
+    ///     （本波次禁改、由并行波次占用）仍会写入 legacy Text，用共同基类才能两边都编译。
+    ///     运行期文本读写统一走 <see cref="UiTextUtil"/>。
     ///
     /// 【架构约定】
-    ///   · 所有引用走 <c>[SerializeField]</c>（由 <c>M2BattleSceneSetup</c> 程序化接好），
-    ///     不在运行时 <c>Resources.Load</c> / <c>GameObject.Find</c>；
-    ///   · 状态刷新全部由 <see cref="EventBus"/> 的 <see cref="BattleEvents"/> 事件驱动，**不做 Update 轮询**；
-    ///   · UI 文本统一用 legacy <see cref="UnityEngine.UI.Text"/>（本工程未装 TMP，见 SceneSetup 类头）。
+    ///   · 所有引用走 <c>[SerializeField]</c>（由装配脚本程序化接好），不做 GameObject.Find；
+    ///   · 状态刷新全部由 <see cref="EventBus"/> 的 <see cref="BattleEvents"/> 事件驱动，不做 Update 轮询；
+    ///   · 事件契约不变：只发布既有的 "go_back"。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class BattleHud : MonoBehaviour
@@ -34,7 +40,7 @@ namespace PirateCrew.UI
         /// <summary>§4.1 血条总帧数（28 帧）。</summary>
         const int HealthBarFrames = 28;
 
-        /// <summary>名册最多显示的行数（当前转写关卡最大 12 人，见 LevelCatalog level_4）。</summary>
+        /// <summary>名册最多显示的行数（当前转写关卡最大 12 人）。</summary>
         const int MaxRosterRows = 12;
 
         /// <summary>名册单行控件集合（由装配脚本程序化创建并接线）。</summary>
@@ -43,9 +49,9 @@ namespace PirateCrew.UI
         {
             public GameObject root;
             public Image teamSwatch;
-            public Text nameLabel;
+            public MaskableGraphic nameLabel;
             public Image healthFill;
-            public Text healthLabel;
+            public MaskableGraphic healthLabel;
         }
 
         // ------------------------------------------------------------------
@@ -53,29 +59,29 @@ namespace PirateCrew.UI
         // ------------------------------------------------------------------
 
         [Header("战场引用")]
-        [Tooltip("战斗组装根；用于取全部出战角色构建名册。")]
+        [Tooltip("战斗组装根；用于取全部出战角色构建名册、以及双方存活计数。")]
         [SerializeField] BattleController battle;
         [Tooltip("回合驱动器；用于取当前队伍与 AI 判定。")]
         [SerializeField] TurnManager turnManager;
-        [Tooltip("瞄准控制器；武器/抛自己/end go 命令的出口。")]
+        [Tooltip("瞄准控制器；武器/抛自己/结束回合命令的出口。")]
         [SerializeField] AimThrowController aimController;
 
-        [Header("回合提示（TopRight）")]
-        [SerializeField] Text turnHintText;
-        [SerializeField] Text teamStatusText;
+        [Header("回合提示（顶部）")]
+        [SerializeField] MaskableGraphic turnHintText;
+        [SerializeField] MaskableGraphic teamStatusText;
 
-        [Header("武器面板（BottomCenter）")]
+        [Header("武器面板（底部中央）")]
         [SerializeField] GameObject weaponPanelRoot;
-        [SerializeField] Text weaponPanelTitle;
+        [SerializeField] MaskableGraphic weaponPanelTitle;
         [Tooltip("17 个武器按钮，索引 = WeaponId 枚举值。")]
         [SerializeField] Button[] weaponButtons = new Button[17];
         [Tooltip("与 weaponButtons 一一对应的按钮文本。")]
-        [SerializeField] Text[] weaponLabels = new Text[17];
+        [SerializeField] MaskableGraphic[] weaponLabels = new MaskableGraphic[17];
         [SerializeField] Button throwSelfButton;
         [SerializeField] Button endGoButton;
 
-        [Header("名册（BottomLeft）")]
-        [SerializeField] Text rosterTitle;
+        [Header("名册（左下）")]
+        [SerializeField] MaskableGraphic rosterTitle;
         [SerializeField] RosterRowView[] rosterRows = new RosterRowView[MaxRosterRows];
 
         [Header("返回")]
@@ -201,7 +207,7 @@ namespace PirateCrew.UI
         }
 
         // ------------------------------------------------------------------
-        // 玩家命令（§3.4 阶段 B）
+        // 玩家命令
         // ------------------------------------------------------------------
 
         void OnWeaponClicked(int weaponId)
@@ -243,7 +249,7 @@ namespace PirateCrew.UI
         void OnBattleStarted(object payload)
         {
             if (payload is BattleStartedPayload started && rosterTitle != null)
-                rosterTitle.text = "Roster — Level " + started.LevelNumber;
+                UiTextUtil.SetText(rosterTitle, UiTextRules.RosterTitle(started.LevelNumber));
 
             BuildRoster();
             RefreshTurnHint();
@@ -264,8 +270,6 @@ namespace PirateCrew.UI
 
         void OnActionSelected(object payload)
         {
-            // §3.4：任何动作（抛自己/用武器/end go）之后 weaponSelected=true，面板收起；
-            // 若玩家再次点选角色，BattleController 会重新发 CameraFocusRequested 让面板再现。
             RefreshWeaponPanel(hide: true);
             RefreshRoster();
         }
@@ -276,6 +280,7 @@ namespace PirateCrew.UI
                 return;
 
             UpdateRosterRow(damaged.PirateId, damaged.Health, damaged.MaxHealth, alive: damaged.Health > 0);
+            RefreshTurnHint();
         }
 
         void OnCrewDied(object payload)
@@ -292,10 +297,17 @@ namespace PirateCrew.UI
             if (payload is MatchFinishedPayload finished)
             {
                 if (turnHintText != null)
-                    turnHintText.text = OutcomeText(finished);
+                {
+                    UiTextUtil.SetText(turnHintText, UiTextRules.OutcomeTitle(
+                        (MatchOutcome)finished.Outcome, finished.Team1IsAi));
+                }
 
                 if (teamStatusText != null)
-                    teamStatusText.text = finished.Team1IsAi ? ("Score " + finished.Score) : string.Empty;
+                {
+                    UiTextUtil.SetText(teamStatusText, finished.Team1IsAi && finished.Score > 0
+                        ? UiTextRules.SettlementScore(finished.Score)
+                        : string.Empty);
+                }
             }
 
             RefreshWeaponPanel(hide: true);
@@ -303,13 +315,12 @@ namespace PirateCrew.UI
 
         void OnCameraFocusRequested(object payload)
         {
-            // 回合开始 pan 与玩家点选角色都会走这里；点选时 aimController.SelectedCharacter 已就绪
-            //（BattleController.SelectCharacter 先 ResetForSelection 再 Publish）。
+            // 回合开始 pan 与玩家点选角色都会走这里；点选时 aimController.SelectedCharacter 已就绪。
             RefreshWeaponPanel();
         }
 
         // ------------------------------------------------------------------
-        // 名册（BottomLeft，§4.1 血条 28 帧）
+        // 名册（左下，§4.1 血条 28 帧）
         // ------------------------------------------------------------------
 
         void BuildRoster()
@@ -340,10 +351,10 @@ namespace PirateCrew.UI
                     view.root.SetActive(true);
 
                 if (view.nameLabel != null)
-                    view.nameLabel.text = "T" + pirate.TeamNumber + " " + pirate.CrewType;
+                    UiTextUtil.SetText(view.nameLabel, UiTextRules.RosterRow(pirate.TeamNumber, pirate.CrewType));
 
                 if (view.teamSwatch != null)
-                    view.teamSwatch.color = TeamColor(pirate.TeamIndex);
+                    view.teamSwatch.color = UiTheme.TeamColor(pirate.TeamIndex);
 
                 UpdateRowBar(view, pirate.Alive ? pirate.Health : 0, pirate.MaxHealth);
                 row++;
@@ -369,7 +380,7 @@ namespace PirateCrew.UI
                     continue;
 
                 if (rosterRows[i].nameLabel != null)
-                    rosterRows[i].nameLabel.text = "T" + pirate.TeamNumber + " " + pirate.CrewType;
+                    UiTextUtil.SetText(rosterRows[i].nameLabel, UiTextRules.RosterRow(pirate.TeamNumber, pirate.CrewType));
 
                 UpdateRowBar(rosterRows[i], pirate.Alive ? pirate.Health : 0, pirate.MaxHealth);
             }
@@ -401,7 +412,7 @@ namespace PirateCrew.UI
                 view.healthFill.rectTransform.anchorMax = new Vector2(ratio, 1f);
 
             if (view.healthLabel != null)
-                view.healthLabel.text = health + "/" + maxHealth;
+                UiTextUtil.SetText(view.healthLabel, UiTextRules.Hp(health, maxHealth));
         }
 
         /// <summary>§4.1：血条 28 帧，长度 = <c>1 + ceil(27 * health / maxHealth)</c>，折算为 0–1 比例。</summary>
@@ -415,7 +426,7 @@ namespace PirateCrew.UI
         }
 
         // ------------------------------------------------------------------
-        // 回合提示（TopRight，§3.2 / §3.3）
+        // 回合提示与双方存活（顶部）
         // ------------------------------------------------------------------
 
         void RefreshTurnHint()
@@ -424,57 +435,54 @@ namespace PirateCrew.UI
             if (team == null)
             {
                 if (turnHintText != null)
-                    turnHintText.text = string.Empty;
+                    UiTextUtil.SetText(turnHintText, string.Empty);
                 if (teamStatusText != null)
-                    teamStatusText.text = string.Empty;
+                    UiTextUtil.SetText(teamStatusText, string.Empty);
                 return;
             }
 
             if (turnHintText != null)
-                turnHintText.text = team.AiControlled ? "Computer, take your turn" : "Player " + team.Number + ", take your turn";
+                UiTextUtil.SetText(turnHintText, UiTextRules.TurnHint(team.AiControlled, team.Number));
 
             if (teamStatusText != null && battle != null)
             {
-                // 只统计**当前行动队**：文本里写的是 "Team <当前队号> (Red/Blue)"，
-                // 若把两队一起累加会显示成 "Team 1 (Red) | Alive 8/8"（8 是两队之和），
-                // 而 level_1 的红队其实只有 5 人 —— 标签与数字对不上（2026-09-13 实测发现）。
-                int alive = 0;
-                for (int c = 0; c < team.Characters.Count; c++)
-                {
-                    PirateBase p = team.Characters[c];
-                    if (p != null && p.Alive)
-                        alive++;
-                }
-
-                teamStatusText.text = "Team " + team.Number + " (" + (team.Number == 2 ? "Blue" : "Red")
-                    + ")  |  Alive " + alive + "/" + team.Characters.Count;
+                // 修正旧缺陷（验收 V10）：旧实现只统计当前行动队，标签与数字对不上；
+                // 现在红/蓝两队的存活数都算，一次报全。
+                BattleTeam red = battle.GetTeam(0);
+                BattleTeam blue = battle.GetTeam(1);
+                UiTextUtil.SetText(teamStatusText, UiTextRules.TeamStatus(
+                    CountAlive(red), CountTotal(red),
+                    CountAlive(blue), CountTotal(blue)));
             }
         }
 
-        static string OutcomeText(MatchFinishedPayload finished)
+        static int CountAlive(BattleTeam team)
         {
-            switch ((MatchOutcome)finished.Outcome)
+            if (team == null)
+                return 0;
+
+            int alive = 0;
+            var characters = team.Characters;
+            for (int i = 0; i < characters.Count; i++)
             {
-                case MatchOutcome.Team0Win:
-                    return finished.Team1IsAi ? "Player wins!" : "Player 1 wins!";
-                case MatchOutcome.Team1Win:
-                    return "Player 2 wins!";
-                case MatchOutcome.Draw:
-                    return "Draw.";
-                default:
-                    return "Level failed.";
+                if (characters[i] != null && characters[i].Alive)
+                    alive++;
             }
+
+            return alive;
+        }
+
+        static int CountTotal(BattleTeam team)
+        {
+            return team != null ? team.Characters.Count : 0;
         }
 
         // ------------------------------------------------------------------
-        // 武器面板（BottomCenter，§3.4）
+        // 武器面板（底部中央）
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// §3.4 显示条件：<c>selectedCharacter &amp;&amp; !weaponSelected &amp;&amp; !aiControlled</c>。
-        /// 本实现用「当前是否已选中角色 && 当前队非 AI」近似 <c>!weaponSelected</c>：
-        /// 选择动作后由 <see cref="OnActionSelected"/> 主动收起，再次点选角色时经
-        /// <see cref="OnCameraFocusRequested"/> 重新展开。
+        /// 显示条件：已选中角色 &amp;&amp; 角色存活 &amp;&amp; 当前队非 AI。
         /// </summary>
         void RefreshWeaponPanel(bool hide = false)
         {
@@ -494,7 +502,7 @@ namespace PirateCrew.UI
                 return;
 
             if (weaponPanelTitle != null)
-                weaponPanelTitle.text = selected.CrewType + " — choose action";
+                UiTextUtil.SetText(weaponPanelTitle, UiTextRules.WeaponPanelTitle(selected.CrewType));
 
             if (throwSelfButton != null)
                 throwSelfButton.interactable = selected.CurrentAction.CanThrow;
@@ -517,9 +525,11 @@ namespace PirateCrew.UI
 
                 if (weaponLabels != null && i < weaponLabels.Length && weaponLabels[i] != null)
                 {
-                    Text label = weaponLabels[i];
-                    label.text = DisplayNameOf(id);
-                    label.color = owned ? Color.white : new Color(1f, 1f, 1f, 0.35f);
+                    MaskableGraphic label = weaponLabels[i];
+                    UiTextUtil.SetText(label, UiTextRules.WeaponName(id));
+                    UiTextUtil.SetColor(label, owned
+                        ? UiTheme.TextLight
+                        : UiTheme.WithAlpha(UiTheme.TextLight, 0.35f));
                 }
 
                 // 已装备高亮（WeaponInventory.EquippedIndex 单值）。
@@ -527,19 +537,9 @@ namespace PirateCrew.UI
                 if (background != null)
                 {
                     bool equipped = inventory != null && inventory.HasEquipped && inventory.EquippedIndex == i;
-                    background.color = equipped ? new Color(1f, 0.85f, 0.3f, 1f) : Color.white;
+                    background.color = equipped ? UiTheme.BrassLight : Color.white;
                 }
             }
-        }
-
-        static string DisplayNameOf(WeaponId id)
-        {
-            return WeaponCatalog.TryGet(id, out WeaponStats stats) ? stats.DisplayName : id.ToString();
-        }
-
-        static Color TeamColor(int teamIndex)
-        {
-            return teamIndex == 0 ? new Color(0.85f, 0.25f, 0.25f, 1f) : new Color(0.3f, 0.5f, 0.9f, 1f);
         }
     }
 }
