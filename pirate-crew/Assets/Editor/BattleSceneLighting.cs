@@ -620,8 +620,10 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 配置 URP Asset：打开软阴影、打开深度图、MSAA 4→2、ColorGradingMode 切 HDR。
+        /// 配置 URP Asset：打开软阴影、打开深度图、MSAA 4→2、ColorGradingMode 切 HDR，
+        /// 并强制主光阴影三件套（距离 ≥50 / Cascade 4 / 分辨率 2048）。
         /// 取舍见报告：软阴影是本波次"光影氛围"的必要项；深度图是 PirateWater 泡沫/浅深水的硬依赖；
+        /// 阴影三件套是植被"投影 + 受影"（PirateAmbientWind 的 ShadowCaster/ForwardLit）与单位投影的载体；
         /// MSAA 降档用来抵消前两项带来的带宽/开销增长；ColorGradingMode=HDR 是 Linear+HDR 的配套
         /// （LDR LUT 会把 >1 的高光在 tonemap 前压平，见方法内注释）。
         /// </summary>
@@ -652,11 +654,23 @@ namespace PirateCrew.EditorTools
             //   → 已列入实机复核项（观感不对可回退本行）。
             asset.colorGradingMode = ColorGradingMode.HighDynamicRange;
 
+            // ---- 主光阴影三重兜底（核验美术风格指南 §4.1 的「Cascade 4 级 / 阴影距离 50 / soft」）----
+            // 现状资产已是 50 / 4 / 2048 / soft on（PC_Balanced_URPAsset.asset），这里在代码侧**强制**一遍，
+            // 避免有人手改资产或换 URP Asset 后静默退化：植被投影/受影、单位投影都依赖这套配置。
+            //   shadowDistance / shadowCascadeCount 有公共 setter；分辨率与 soft 只有 internal setter，
+            //   故分辨率走 SerializedObject 写字段 m_MainLightShadowmapResolution（与 m_SoftShadowsSupported 同法）。
+            if (asset.shadowDistance < 50f)
+                asset.shadowDistance = 50f;        // 覆盖 50×17 竞技场 + 外扩（观察者常用取景）
+            if (asset.shadowCascadeCount != 4)
+                asset.shadowCascadeCount = 4;      // 近景角色脚底到远景植被都要有可用精度
+
             // supportsSoftShadows 的 setter 在 URP 14 是 internal（有意不开放），
             // 故用 SerializedObject 直接写序列化字段 m_SoftShadowsSupported（资产里确实存在该字段）。
             var so = new SerializedObject(asset);
             SetBoolField(so, "m_SoftShadowsSupported", true);
             SetIntField(so, "m_SoftShadowQuality", 2); // 2 = Medium（URP 默认软阴影质量档）
+            // 主光阴影图分辨率 2048（枚举 ShadowResolution._2048 = 2048，URP Asset API 为 internal setter）。
+            SetIntField(so, "m_MainLightShadowmapResolution", 2048);
             so.ApplyModifiedPropertiesWithoutUndo();
 
             EditorUtility.SetDirty(asset);
@@ -707,16 +721,40 @@ namespace PirateCrew.EditorTools
             if (sky.HasProperty("_SunSizeConvergence"))
                 sky.SetFloat("_SunSizeConvergence", 3f);
 
+            // ---- 天空盒「去绿」（诊断 B：r2 实测近地平线 #C4FBAE 黄绿、全图 G 高于 R 14~16%）----
+            // 【发绿根因（读 Skybox/Procedural 内置实现后定位）】
+            //   该 shader 的地平线是一条 ≤±0.02 的窄混合带：
+            //     col = lerp(skyColor, groundColor, saturate(ray.y / 0.02))       // Skybox-Procedural frag
+            //     groundColor(v2f) = _Exposure * (cIn + COLOR_2_LINEAR(_GroundColor) * cOut)
+            //   旧 `_GroundColor = #7A6A4C` 是**橄榄黄褐**（sRGB R122/G106/B76），在混合带里与天顶蓝
+            //   （B>G>R）做 RGB 平均 —— 「蓝 + 黄 = 绿」，于是地平线出现 G 最高的黄绿带。
+            //   `_GroundColor` 只进天空盒下半球/混合带；本工程环境光走 **Trilight**（见 ApplyThreePointAmbient），
+            //   **不**从天空盒取 SH，故改它不会动到环境光/金属反射口径。
+            //
+            // 【目标判据（docs/美术风格指南.md §2.1 天空-正午行 + §4.2）】
+            //   · 正午地平线色 = **#BFE3F5**（暖白蓝，hue≈200、L* 78-88）；
+            //   · 全图 R/G > 0.98（G 不得系统性高于 R）；
+            //   · 禁止出现 L* > 95 的绿/黄绿带（hue 60-160、L* 过高即判失败）。
+            //   出处：`docs/美术风格指南.md:92`（天空-正午 #BFE3F5）、`:100`（实现在此落地）。
+            //
+            // 【本次改动（旧值 → 新值）及理由】
+            //   _GroundColor       #7A6A4C → #BFE3F5  —— 直接换成目标地平线色，从混合带里移除"黄"这一半，
+            //                                             蓝+黄=绿的根因消失；下半球同时变成暖白蓝。
+            //   _AtmosphereThickness 0.85 → 0.70      —— Rayleigh 常数 kRAYLEIGH ∝ thickness^2.5
+            //                                             （Skybox-Procedural.shader:64），0.85→0.70 使瑞利光学厚度
+            //                                             降约 38%，把 r2 过曝的地平线亮带（L*≈92）拉进 78-88。
+            //   _SkyTint           #87CFEB（不变）    —— 其 hue≈197、与目标 200 只差 3°，不是发绿来源；
+            //                                             无谓改动会连带改天顶蓝，故不动。
+            //   _Exposure          1.1（不变）        —— 曝光由主光/环境光口径约束，避免与已调好的阳光感打架。
             if (sky.HasProperty("_AtmosphereThickness"))
-                sky.SetFloat("_AtmosphereThickness", 0.85f);
+                sky.SetFloat("_AtmosphereThickness", 0.70f);
             if (sky.HasProperty("_SkyTint"))
-                sky.SetColor("_SkyTint", Hex("#87CFEB"));   // 天空主调，偏青蓝
+                sky.SetColor("_SkyTint", Hex("#87CFEB"));   // 天空主调，偏青蓝（hue≈197，非发绿来源）
             if (sky.HasProperty("_GroundColor"))
-                // 地平以下（地面方向）的辐照度：竞技场是沙岛，故给沙色调而不是原先的土褐色 ——
-                // 让天空盒下半球的颜色与前景材质一致（AI 提案）。
-                // 【地平线雾色衔接】雾色保持 #B0D4F1（见 ApplySceneAtmosphere），本值与之同族，
-                //   故远海/远岛与天空地平线不出现"接缝"；若改这里或改雾色，两者必须一起改。
-                sky.SetColor("_GroundColor", Hex("#7A6A4C"));
+                // 地平线/下半球色 = 正午目标 #BFE3F5（美术风格指南 §2.1）。
+                // 【衔接】雾色仍为 #B0D4F1（ApplySceneAtmosphere，与 AmbientTimeOfDayCatalog 正午档逐值相同），
+                //   两者同属蓝白色族，远海/远岛与天空地平线不会出现"接缝"。
+                sky.SetColor("_GroundColor", Hex("#BFE3F5"));
             if (sky.HasProperty("_Exposure"))
                 sky.SetFloat("_Exposure", 1.1f);
             EditorUtility.SetDirty(sky);

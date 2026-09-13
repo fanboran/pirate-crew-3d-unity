@@ -11,14 +11,23 @@
 //   PirateOutline。它的光照最短路径刻意照抄 PirateSurface 已在本工程图形界面编译通过的那一套
 //   （Core.hlsl → Lighting.hlsl → Shadows.hlsl，见 docs/描边Shader调试.md §八-1 的事故复盘）。
 //
-// 【不写 ShadowCaster Pass（有意）】风摆 Pass 与阴影 Pass 的顶点位置不一致会产生"影子在动、本体不动"
-//   的割裂；而给 ShadowCaster 复制一份风摆位移又要在没有图形界面编译验证的前提下手写
-//   ApplyShadowBias 路径，风险高于收益。故本 shader 只做前向 Pass，
-//   绑定器（AmbientWindBinder）会把使用它的 Renderer 的 shadowCastingMode 设为 Off。
-//   代价：植被/旗帜不投影（远景物，观感损失可忽略）。
+// 【ShadowCaster Pass（与本体共享同一份风摆位移）】风摆 shader 现在**有** ShadowCaster Pass，
+//   WindShadowVertex 复用 SubShader 级 HLSLINCLUDE 里唯一一份 ApplyWindDisplacement，
+//   因此影子形状与摆动的枝叶**严格同相**（不会出现"影子在动、本体不动"的割裂）。
+//   —— 早先版本曾因"怕两处位移不一致"故意不写阴影 Pass、并让 AmbientWindBinder 把
+//      Renderer.shadowCastingMode 设为 Off；根因是"位移代码有两份"，现在用 HLSLINCLUDE
+//      从结构上消除了这个风险，绑定器也已改回 On（植被重新投影 + 受影）。
 //
-// 【Pass / LightMode 唯一性（URP 陷阱）】本 shader 只有一个 Pass，LightMode = "UniversalForward"，
-//   不存在与自身撞名被静默丢弃的问题。
+// 【本体接收阴影】ForwardLit 声明了 _MAIN_LIGHT_SHADOWS/_MAIN_LIGHT_SHADOWS_CASCADE，
+//   用 TransformWorldToShadowCoord + GetMainLight(shadowCoord) 把主光阴影衰减乘进直射项，
+//   故植被/旗帜能接收其他物件（棕榈、箱桶、单位）投下的影子；SH 环境光**不**乘阴影
+//   （照抄 PirateSurface.shader:451-454 的取舍），阴影里约为受光处的 0.6~0.7 亮度、不死黑。
+//
+// 【Pass / LightMode 唯一性（URP 陷阱）】本 shader 有两个 Pass，LightMode 互不相同：
+//     ForwardLit   = "UniversalForward"
+//     ShadowCaster = "ShadowCaster"
+//   额外 Pass 若与既有 Pass 撞 LightMode 会被 URP **静默丢弃**（Console 无报错），
+//   完整复盘见 docs/描边Shader调试.md §八-2，故 ShadowCaster 不得复用 UniversalForward。
 //
 // 【_DebugMode 分档（图形学调试截图规范）】
 //   0 = 正常；1 = 基色（无光照无雾）；2 = 风摆权重灰度；3 = 世界法线。
@@ -34,6 +43,14 @@
 //   TransformWorldToShadowCoord  -> Shadows.hlsl:319
 //   SampleSH                     -> GlobalIllumination.hlsl:21（经 Lighting.hlsl 引入）
 //   Shadows.hlsl 必须放在 Lighting.hlsl **之后**（否则 LerpWhiteTo 未定义，实测报错）。
+//   ApplyShadowBias              -> Shadows.hlsl:471（ShadowCaster 自定义顶点用）
+//   ShadowCasterPass.hlsl        -> Shaders/ShadowCasterPass.hlsl（提供 Attributes / Varyings /
+//                                   ShadowPassFragment 与 _LightDirection / _LightPosition；
+//                                   其内部自带 Core.hlsl + Shadows.hlsl）
+//   CommonMaterial.hlsl（core）  -> :352/359 定义 LerpWhiteTo；Shadows.hlsl:298 用它却**不**自己
+//                                   include 它 —— ShadowCaster Pass 里必须先 include 它，
+//                                   否则报 `undeclared identifier 'LerpWhiteTo'`（同 PirateSurface 事故复盘）。
+//   **本清单只能证明符号存在**；必须进图形界面编辑器 play 一次 + read_console 确认 0 shader error。
 // ============================================================================
 Shader "PirateCrew/Ambient/Wind"
 {
@@ -72,6 +89,77 @@ Shader "PirateCrew/Ambient/Wind"
         }
         LOD 150
 
+        // ====================================================================
+        // SubShader 级 HLSLINCLUDE：Core.hlsl + UnityPerMaterial + 唯一一份风摆位移。
+        // 它会**前插到本 SubShader 的每个 Pass**，因此 ForwardLit 与 ShadowCaster
+        // 用的是同一份 ApplyWindDisplacement —— 影子与本体天然同步（不存在两份位移漂移）。
+        // 顺带好处：两个 Pass 都声明了同一份 UnityPerMaterial，满足 SRP Batcher 的布局要求。
+        // 【include 顺序】这里只放 Core.hlsl，保证任何 Pass 代码之前已有 TransformObjectToWorld /
+        //   TransformWorldToHClip / _Time；Lighting.hlsl、Shadows.hlsl 由 ForwardLit 自己按序引入。
+        // ====================================================================
+        HLSLINCLUDE
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+        CBUFFER_START(UnityPerMaterial)
+            float4 _BaseColor;
+            float4 _BaseColorDark;
+            float  _AmbientStrength;
+            float  _Emission;
+            float4 _WindDirection;
+            float  _WindStrength;
+            float  _WindSpeed;
+            float  _WindHeight;
+            float  _WindAnchorY;
+            float  _WindWeightDirection;
+            float  _WindDensity;
+            float  _WindFlutter;
+            float  _WindFloor;
+            float  _DebugMode;
+        CBUFFER_END
+
+        // ------------------------------------------------------------------
+        // 风摆位移：返回"已位移的世界坐标"。ForwardLit 与 ShadowCaster 共用本函数。
+        // 与 C# 侧 WindRules 的公式保持一致（同相位、同阵风包络），
+        // 便于测试用 WindRules.Sway / GustScale 复算 shader 的数值。
+        // ------------------------------------------------------------------
+        float3 ApplyWindDisplacement(float3 positionWS, out float outWeight)
+        {
+            // 权重：离锚点越远摆得越大，取平方让根部完全静止（否则整株平移像"滑步"）。
+            float signedDist = _WindWeightDirection >= 0.0
+                ? (positionWS.y - _WindAnchorY)
+                : (_WindAnchorY - positionWS.y);
+            float w = saturate(signedDist / max(_WindHeight, 0.01));
+            w = w * w;
+            // 摆幅下限：矮植被（草丛）也保留一部分摆动，否则在合并网格里完全静止。
+            w = _WindFloor + (1.0 - _WindFloor) * w;
+            outWeight = w;
+
+            // 相位 = _Time.y × 角速度 + 空间偏移（相邻植株错相，整片植被不会同步抽搐）。
+            float phase = _Time.y * _WindSpeed
+                        + (positionWS.x + positionWS.z * 0.73) * _WindDensity;
+
+            // 阵风包络（低频），与 WindRules.GustScale 同形：恒为正值，量级 [0.7, 1.0]。
+            float gust = 0.70 + 0.30 * sin(phase * 0.31);
+
+            // 主摆 + 次摆 + 高频抖动。
+            float sway = sin(phase) + 0.35 * sin(phase * 2.7 + 1.3);
+            float flutter = _WindFlutter * sin(phase * 5.3 + positionWS.y * 3.1);
+
+            float offset = (sway + flutter) * _WindStrength * gust * w;
+
+            // 风向自动归一化（零向量时回落到 +X，避免 normalize(0) 产生 NaN）。
+            float2 wdir = _WindDirection.xy;
+            float wlen = max(length(wdir), 1e-4);
+            wdir /= wlen;
+
+            positionWS.xz += wdir * offset;
+            return positionWS;
+        }
+        ENDHLSL
+
+        // ====================================================================
+        // Pass 1 / ForwardLit：主光（含阴影）+ SH 环境光 + 雾
+        // ====================================================================
         Pass
         {
             Name "ForwardLit"
@@ -87,31 +175,18 @@ Shader "PirateCrew/Ambient/Wind"
             #pragma vertex   WindVertex
             #pragma fragment WindFragment
 
+            // 主光阴影：三档（无 / 单 cascade / 多 cascade）——植被据此**接收**其他物件的投影。
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
             #pragma multi_compile_fog
 
             // include 顺序照抄 PirateSurface（已实测编译通过的那条链）。
+            // Core.hlsl 已由 SubShader 级 HLSLINCLUDE 前插（此处重复 include 被 include guard 吸收）。
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            // 必须在 Lighting.hlsl 之后：Shadows.hlsl:298 用 LerpWhiteTo，而该符号来自
+            // Lighting.hlsl 内部先引入的 core/CommonMaterial.hlsl（见 PirateSurface 事故复盘）。
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
-
-            CBUFFER_START(UnityPerMaterial)
-                float4 _BaseColor;
-                float4 _BaseColorDark;
-                float  _AmbientStrength;
-                float  _Emission;
-                float4 _WindDirection;
-                float  _WindStrength;
-                float  _WindSpeed;
-                float  _WindHeight;
-                float  _WindAnchorY;
-                float  _WindWeightDirection;
-                float  _WindDensity;
-                float  _WindFlutter;
-                float  _WindFloor;
-                float  _DebugMode;
-            CBUFFER_END
 
             struct AttributesWind
             {
@@ -127,45 +202,6 @@ Shader "PirateCrew/Ambient/Wind"
                 float  windWeight : TEXCOORD2;
                 real   fogFactor  : TEXCOORD3;
             };
-
-            // ------------------------------------------------------------------
-            // 风摆位移：返回"已位移的世界坐标"。
-            // 与 C# 侧 WindRules 的公式保持一致（同相位、同阵风包络），
-            // 便于测试用 WindRules.Sway / GustScale 复算 shader 的数值。
-            // ------------------------------------------------------------------
-            float3 ApplyWindDisplacement(float3 positionWS, out float outWeight)
-            {
-                // 权重：离锚点越远摆得越大，取平方让根部完全静止（否则整株平移像"滑步"）。
-                float signedDist = _WindWeightDirection >= 0.0
-                    ? (positionWS.y - _WindAnchorY)
-                    : (_WindAnchorY - positionWS.y);
-                float w = saturate(signedDist / max(_WindHeight, 0.01));
-                w = w * w;
-                // 摆幅下限：矮植被（草丛）也保留一部分摆动，否则在合并网格里完全静止。
-                w = _WindFloor + (1.0 - _WindFloor) * w;
-                outWeight = w;
-
-                // 相位 = _Time.y × 角速度 + 空间偏移（相邻植株错相，整片植被不会同步抽搐）。
-                float phase = _Time.y * _WindSpeed
-                            + (positionWS.x + positionWS.z * 0.73) * _WindDensity;
-
-                // 阵风包络（低频），与 WindRules.GustScale 同形：恒为正值，量级 [0.7, 1.0]。
-                float gust = 0.70 + 0.30 * sin(phase * 0.31);
-
-                // 主摆 + 次摆 + 高频抖动。
-                float sway = sin(phase) + 0.35 * sin(phase * 2.7 + 1.3);
-                float flutter = _WindFlutter * sin(phase * 5.3 + positionWS.y * 3.1);
-
-                float offset = (sway + flutter) * _WindStrength * gust * w;
-
-                // 风向自动归一化（零向量时回落到 +X，避免 normalize(0) 产生 NaN）。
-                float2 wdir = _WindDirection.xy;
-                float wlen = max(length(wdir), 1e-4);
-                wdir /= wlen;
-
-                positionWS.xz += wdir * offset;
-                return positionWS;
-            }
 
             VaryingsWind WindVertex(AttributesWind IN)
             {
@@ -211,6 +247,8 @@ Shader "PirateCrew/Ambient/Wind"
                 half ndlBack  = saturate(dot(-normalWS, mainLight.direction));
                 half ndl = max(ndlFront, ndlBack);
 
+                // 环境光不乘阴影（与 PirateSurface 同口径）：阴影里保留 SH 托底，
+                // 直射项乘 shadowAttenuation 后，阴影约为受光处的 0.6~0.7、不会死黑。
                 half3 ambient = SampleSH(normalWS) * (half)_AmbientStrength;
                 half3 direct = mainLight.color * ndl * (half)mainLight.shadowAttenuation;
 
@@ -224,8 +262,72 @@ Shader "PirateCrew/Ambient/Wind"
             }
             ENDHLSL
         }
+
+        // ====================================================================
+        // Pass 2 / ShadowCaster：把风摆后的顶点投进主光阴影图。
+        // 自定义 WindShadowVertex 复用 HLSLINCLUDE 的 ApplyWindDisplacement，
+        // 其余（ApplyShadowBias / _LightDirection / _LightPosition / 片元）全部走 URP 官方
+        // ShadowCasterPass.hlsl，与 PirateSurface 的 ShadowCaster 同一实现路径。
+        // ====================================================================
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode" = "ShadowCaster" }
+
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            // 与 ForwardLit 一致：零厚度叶片双面投影，否则影子会缺一半。
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 3.0
+            #pragma vertex   WindShadowVertex
+            #pragma fragment ShadowPassFragment
+            // 官方 ShadowCaster 同款：点光/聚光投影时用 _LightPosition，方向光用 _LightDirection。
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+
+            // 【include 顺序硬要求】Shadows.hlsl:298 用 LerpWhiteTo（定义在 core 的 CommonMaterial.hlsl，
+            //   但 Shadows.hlsl 自己不 include 它）；ShadowCasterPass.hlsl 自带 Core.hlsl + Shadows.hlsl。
+            //   故必须先 Core.hlsl → CommonMaterial.hlsl（URP 官方 Lit.shader 走 LitInput.hlsl 也是这个顺序）。
+            //   实测报错：undeclared identifier 'LerpWhiteTo' at Shadows.hlsl(298) (on d3d11)。
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/ShadowCasterPass.hlsl"
+
+            // 自定义阴影顶点：先做与 ForwardLit 相同的风摆位移，再走官方的 Normal Bias → 阴影裁剪空间。
+            // （ApplyShadowBias: Shadows.hlsl:471；_LightDirection/_LightPosition 由 ShadowCasterPass.hlsl 声明。）
+            Varyings WindShadowVertex(Attributes input)
+            {
+                Varyings output;
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_TRANSFER_INSTANCE_ID(input, output);
+
+                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                float weight;   // 阴影 Pass 不需要风权重，函数签名要求 out 参数
+                positionWS = ApplyWindDisplacement(positionWS, weight);
+
+                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+                #if _CASTING_PUNCTUAL_LIGHT_SHADOW
+                    float3 lightDirectionWS = normalize(_LightPosition - positionWS);
+                #else
+                    float3 lightDirectionWS = _LightDirection;
+                #endif
+
+                float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirectionWS));
+                #if UNITY_REVERSED_Z
+                    positionCS.z = min(positionCS.z, UNITY_NEAR_CLIP_VALUE);
+                #else
+                    positionCS.z = max(positionCS.z, UNITY_NEAR_CLIP_VALUE);
+                #endif
+
+                output.positionCS = positionCS;
+                return output;
+            }
+            ENDHLSL
+        }
     }
 
-    // 无 ShadowCaster：绑定器会把 Renderer.shadowCastingMode 设为 Off（见文件头注释）。
+    // 不继承内置回退：回退会把材质悄悄换成 URP/Lit 的纯色外观，掩盖"shader 没找到"的问题。
     Fallback Off
 }

@@ -14,13 +14,17 @@ namespace PirateCrew.PirateCrew.Ambient
     /// 唯一能在不拆网格、不改 SceneArt 源码的前提下让它们动起来的办法，
     /// 就是把这一个 Renderer 的材质换成顶点风摆 shader。
     ///
-    /// 【代价（已知取舍，必须写进报告）】
-    ///   · 换掉的是 <c>PirateCrew/PirateOutline</c> 材质 → 该组**失去 inverted-hull 描边**；
-    ///   · 风摆 shader 没有 ShadowCaster Pass → 该组不再投影（本类会把
-    ///     <c>shadowCastingMode</c> 显式设为 Off，避免 URP 尝试渲染阴影时报缺失 Pass）。
-    /// 两者都是"远景观感细节"，换取"整片植被活起来"，是本模块的主动取舍。
-    /// 若协调者判定不可接受，把 <see cref="AmbientDirector"/> 的 <c>enableVegetationWind</c> 关掉即可
-    /// （本类会恢复原材质与原阴影设置）。
+    /// 【代价（已知取舍）】
+    ///   · 换掉的是 <c>PirateCrew/PirateOutline</c> 材质 → 该组失去 inverted-hull 描边。
+    /// 其余照旧：若协调者判定不可接受，把 <see cref="AmbientDirector"/> 的 <c>enableVegetationWind</c>
+    /// 关掉即可（本类会恢复原材质与原阴影设置）。
+    ///
+    /// 【阴影（写实方向：投影 + 受影都开）】
+    ///   风摆 shader（<c>PirateAmbientWind.shader</c>）已补 ShadowCaster Pass，且与本体 Pass 共享
+    ///   SubShader 级 HLSLINCLUDE 里的同一份 <c>ApplyWindDisplacement</c>（影子与摆动严格同相），
+    ///   故本类**不再**把 <c>shadowCastingMode</c> 设为 Off —— 绑定后显式保留 <c>On</c>，
+    ///   植被/旗帜既能向地面投影，也能接收其他物件的投影（本体 ForwardLit 已采样主光阴影）。
+    ///   曾经的"风摆 shader 无 ShadowCaster → 关投影"取舍已随该 Pass 落地而作废。
     ///
     /// 【不做全局搜索】只从传入的 <c>SceneArt</c> 根节点下按**直接子节点名**取
     /// （<see cref="Transform.Find"/>，等价于层级内查找，不是 <c>GameObject.Find</c>）。
@@ -96,8 +100,9 @@ namespace PirateCrew.PirateCrew.Ambient
             _originalShadows.Add(renderer.shadowCastingMode);
 
             renderer.sharedMaterial = windMaterial;
-            // 风摆 shader 无 ShadowCaster Pass：显式关投影，避免 URP 尝试渲染阴影时报缺失 Pass。
-            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            // 写实方向：风摆 shader 已有 ShadowCaster Pass（与本体共享同一份风摆位移），
+            // 故显式保留投影 On —— 植被/旗帜投到地面，并由本体 ForwardLit 接收其他物件的投影。
+            renderer.shadowCastingMode = ShadowCastingMode.On;
             return 1;
         }
 
