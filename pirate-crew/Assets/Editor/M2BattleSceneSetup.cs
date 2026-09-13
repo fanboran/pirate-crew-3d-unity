@@ -41,6 +41,12 @@ namespace PirateCrew.EditorTools
     ///     三者在当前提交里都是空实现；调用走 <see cref="RunArtHook"/>，空实现不报错、实现抛异常只记警告。
     ///   · 环境材质统一放 Assets/Art/Materials/Environment/（角色材质由角色波次放 Crew/）。
     ///
+    /// 【场景美术 = 关卡无关（烘焙退位）】<see cref="SceneArtBuilder.Apply"/> 仍跑，但只保留两个职责：
+    ///   生成/更新材质资产、把湿沙材质接给 <see cref="BattleTerrainView"/>。它烘出的**关卡专属静态陈设**
+    ///   （level_1 的平台簇 / 道具合并网格）立即被删掉，改由运行时 <see cref="RuntimeSceneArt"/> 按
+    ///   **实际关卡号**重建（<c>BattleController.RebuildSceneArt</c> → <c>RuntimeSceneArt.RebuildFor</c>）。
+    ///   本文件负责把材质组材质数组（顺序 = <c>RuntimeSceneArt.GroupNames</c>）写进场景里的该组件。
+    ///
     /// 【约定】本工程未装 TMP，UI 一律 legacy UnityEngine.UI（见 SceneSetup 类头）。
     ///         不手写 .unity/.prefab YAML，全部走 UnityEditor API。
     /// </summary>
@@ -75,6 +81,13 @@ namespace PirateCrew.EditorTools
 
         /// <summary>场景美术陈设根节点名（<see cref="SceneArtBuilder.Apply"/> 的挂载点，波次 I3 填充内容）。</summary>
         const string SceneArtRootName = "SceneArt";
+
+        /// <summary>
+        /// 场景美术材质资产目录（<c>SceneArtBuilder.SceneMaterialFolder</c> 同值）。
+        /// 运行时 <see cref="RuntimeSceneArt"/> 复用这批材质：烘焙时按
+        /// <see cref="RuntimeSceneArt.GroupMaterialNames"/> 从本目录装载并写进组件的序列化数组。
+        /// </summary>
+        const string SceneArtMaterialFolder = "Assets/Art/Materials/Scene";
 
         /// <summary>场景装配使用的关卡号（LevelCatalog 已转写的 level_1）。</summary>
         const int LevelNumber = 1;
@@ -125,7 +138,9 @@ namespace PirateCrew.EditorTools
                 + " / URP " + BattleSceneLighting.UrpAssetPath + "（软阴影+深度图+MSAA2）\n"
                 + "  接线: BattleController / TurnManager / AimThrowController / TrajectoryPreview / "
                 + "BattleCameraController（含 battle 手感源）/ BattleHud / "
-                + "crewVisualPrefabs（7 职业）/ SceneArt.Ambient（活物）的全部 [SerializeField] 引用。");
+                + "crewVisualPrefabs（7 职业）/ SceneArt.Ambient（活物）/ "
+                + "RuntimeSceneArt（材质组数组，关卡无关的场景美术）的全部 [SerializeField] 引用。\n"
+                + "  场景美术: 关卡专属静态陈设不入场景（烘焙退位），开局由 RuntimeSceneArt 按实际关卡重建。");
         }
 
         // ------------------------------------------------------------------
@@ -215,30 +230,39 @@ namespace PirateCrew.EditorTools
             // 地面 = XZ 水平面（顶面 y = 0，角色脚底贴它）；水 = 地面下方一点的水平面。
             // 落水即死因此对 X / Z 任一方向掉出竞技场都成立（§4.4 全局规则）。
             //
-            // 【平台关不建大地面（2026-09-13 平台化收口）】平台关（level_1）的可站面全部由
-            // 逐格平台提供、平台之间是水；若仍铺一块顶面 y=0 的整块 Ground，从平台间隙掉落的单位
-            // 会被它接在 y=0（水面之上），永远触发不了"落水即死"（§4.4）——这是玩法 bug。
-            // 故 TerrainCatalog.IsPlatformLevel 时**不建带碰撞的地面**，视觉兜底改为水面之下的
-            // 远海床 Seabed_Far（无碰撞）：保证间隙透下去是海，而不是天空或一块假地板。
-            bool platformLevel = TerrainCatalog.IsPlatformLevel(LevelNumber);
-            Transform ground = platformLevel ? null : CreateGround(worldWidth, worldDepth);
+            // 【场景烘成关卡无关：不建带碰撞的大地面（烘焙退位）】可站面**全部**由逐格平台提供
+            // （运行时由 BattleController 从 PlatformClusterLayout.BuildFor 推导），平台之间是水；
+            // 若仍铺一块顶面 y=0 的整块 Ground，从平台间隙掉落的单位会被它接在 y=0（水面之上），
+            // 永远触发不了"落水即死"（§4.4）——这是玩法 bug。故**任何关卡**都不建大地面，
+            // 视觉兜底改为水面之下的远海床 Seabed_Far（无碰撞）：保证间隙透下去是海。
+            Transform ground = null;
             Transform water = CreateWaterPlane(worldWidth, worldDepth, waterWorldY);
 
             // 水面（含平台间隙）之下的远海床兜底：无碰撞，单位落水判定不受影响。
-            if (platformLevel)
-                CreateFarSeabed(worldWidth, worldDepth, waterWorldY);
+            CreateFarSeabed(worldWidth, worldDepth, waterWorldY);
 
             // 岛外海床台阶（纯表现、无碰撞）：PirateWater 的浅深水过渡与岸边泡沫依赖
             // _CameraDepthTexture 有东西可读，详见 CreateSeabedShelves 与 PirateWater.shader 头注释。
             CreateSeabedShelves(worldWidth, worldDepth, waterWorldY);
 
-            // 瓦片地形（可选）。网格在运行时由 BattleController 从 TerrainCatalog 构建并 Render，
-            // 这里只创建承载视图的根节点与材质；关卡未转写瓦片时 Render(null) 不生成任何块（平坦竞技场）。
+            // 瓦片地形（可选）。网格在运行时由 BattleController 从 PlatformClusterLayout 推导并 Render，
+            // 这里只创建承载视图的根节点与材质。
             BattleTerrainView terrainView = CreateTerrainView();
 
-            // 场景美术陈设根节点 + 波次 I3 钩子（当前为空实现，只提供挂载点）。
+            // 场景美术陈设根节点。
+            // 【烘焙退位】SceneArtBuilder.Apply 仍要跑：它负责**生成/更新材质资产**、
+            // 把湿沙材质接给 BattleTerrainView（并关掉运行时的单材质平台底部）。
+            // 但它同时会把 level_1 的陈设烘成**静态合并网格**——那些是关卡专属的，现在由
+            // 运行时 RuntimeSceneArt 按实际关卡重建，故 Apply 之后立刻把那批 GameObject 删掉
+            // （网格资产留在磁盘上备查，不再被场景引用）。
             var sceneArt = new GameObject(SceneArtRootName);
             RunArtHook("SceneArtBuilder.Apply", () => SceneArtBuilder.Apply(sceneArt));
+            PruneBakedScenery(sceneArt);
+
+            // 运行时陈设装配器：持有一份材质组材质（顺序 = RuntimeSceneArt.GroupNames），
+            // 开局由 BattleController.RebuildSceneArt → RuntimeSceneArt.RebuildFor(实际关卡号) 重建。
+            RuntimeSceneArt runtimeSceneArt = sceneArt.AddComponent<RuntimeSceneArt>();
+            WireRuntimeSceneArt(runtimeSceneArt);
 
             Transform team0Root = new GameObject("Team0_Red").transform;
             Transform team1Root = new GameObject("Team1_Blue").transform;
@@ -257,7 +281,7 @@ namespace PirateCrew.EditorTools
 
             BattleHud hud = BuildHud(battle, turnManager, aimController);
 
-            WireBattleController(battle, piratePrefab, team0Root, team1Root, water, turnManager, aimController, battleCamera, terrainView);
+            WireBattleController(battle, piratePrefab, team0Root, team1Root, water, turnManager, aimController, battleCamera, terrainView, runtimeSceneArt);
             WireTurnManager(turnManager, battle);
             WireAimController(aimController, camera, battle, trajectory);
             WireBattleCamera(battleCamera, battle, virtualCamera, cameraTarget, camera);
@@ -407,9 +431,11 @@ namespace PirateCrew.EditorTools
         /// 原先是 XY 竖直薄板（2D 侧视遗留）。
         /// 材质：干沙（PirateSurface 程序化三档沙色，GDD §10.4 沙地三档）。
         ///
-        /// 【仅非平台关使用】平台关（<see cref="TerrainCatalog.IsPlatformLevel"/>）不调用本方法——
-        /// 整块 y=0 地面会接住从平台间隙掉落的单位、破坏"落水即死"；平台关改用无碰撞的
-        /// <see cref="CreateFarSeabed"/> 做视觉兜底。
+        /// 【已退役：不再被 Battle 场景调用】场景烘成关卡无关后，任何关卡的可站面都由
+        /// <c>PlatformClusterLayout.BuildFor</c> 的逐格平台提供（见 <see cref="BuildBattleScene"/> 的
+        /// "不建带碰撞的大地面"）；整块 y=0 地面会接住从平台间隙掉落的单位、破坏"落水即死"。
+        /// 方法保留是因为 <c>M3SceneSetup</c> 等非战斗场景仍可能需要一块实体地面；
+        /// 战斗场景的视觉兜底改用无碰撞的 <see cref="CreateFarSeabed"/>。
         /// </summary>
         static Transform CreateGround(float worldWidth, float worldDepth)
         {
@@ -544,6 +570,86 @@ namespace PirateCrew.EditorTools
             so.FindProperty("blockMaterial").objectReferenceValue = material;
             so.ApplyModifiedPropertiesWithoutUndo();
             return view;
+        }
+
+        // ------------------------------------------------------------------
+        // 场景美术：烘焙退位 + 运行时装配器接线
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 删除 <see cref="SceneArtBuilder.Apply"/> 烘出的**关卡专属静态陈设**（<c>SceneArt_*</c> 合并网格）。
+        ///
+        /// 【为什么】场景要烘成"关卡无关"：level_1 的平台簇 / 道具位置烘死进场景后，换关卡（地形瓦片会变）
+        /// 就会与平台簇脱节。陈设改由运行时 <see cref="RuntimeSceneArt"/> 按实际关卡重建。
+        /// Apply 保留的职责：生成/更新材质资产、把湿沙材质接给 <see cref="BattleTerrainView"/>。
+        /// 被删的只是场景里的渲染节点（网格资产留在磁盘备查，不再被引用）。
+        ///
+        /// 【只删 Apply 造的】**必须在建 Ambient 子节点之前调用**（ambient 挂在同一根下，
+        /// 这里按 <c>SceneArt_</c> 前缀识别，即使顺序变了也不会误删 Ambient）。
+        /// </summary>
+        static void PruneBakedScenery(GameObject sceneArtRoot)
+        {
+            if (sceneArtRoot == null)
+                return;
+
+            var doomed = new System.Collections.Generic.List<GameObject>();
+            for (int i = 0; i < sceneArtRoot.transform.childCount; i++)
+            {
+                GameObject child = sceneArtRoot.transform.GetChild(i).gameObject;
+                if (child.name.StartsWith("SceneArt_"))
+                    doomed.Add(child);
+            }
+
+            for (int i = 0; i < doomed.Count; i++)
+                Object.DestroyImmediate(doomed[i]);
+
+            if (doomed.Count > 0)
+                Debug.Log("[M2BattleSceneSetup] 烘焙退位：移除 " + doomed.Count
+                    + " 个关卡专属静态陈设节点（改由 RuntimeSceneArt 按实际关卡运行时重建）。");
+        }
+
+        /// <summary>
+        /// 把材质组材质写进 <see cref="RuntimeSceneArt"/> 的序列化数组（顺序 = <see cref="RuntimeSceneArt.GroupNames"/>）。
+        /// 材质来自 <c>SceneArtBuilder</c> 生成的 <c>Assets/Art/Materials/Scene/Scene_*.mat</c>；
+        /// 缺失的槽留 null（运行时该组跳过并告警，不影响地形与玩法）。
+        /// </summary>
+        static void WireRuntimeSceneArt(RuntimeSceneArt runtimeSceneArt)
+        {
+            if (runtimeSceneArt == null)
+                return;
+
+            var so = new SerializedObject(runtimeSceneArt);
+            SerializedProperty array = so.FindProperty("groupMaterials");
+            if (array == null)
+            {
+                Debug.LogError("[M2BattleSceneSetup] RuntimeSceneArt.groupMaterials 字段未找到（字段名漂移？）");
+                return;
+            }
+
+            var missing = new System.Collections.Generic.List<string>();
+            int count = RuntimeSceneArt.GroupNames.Length;
+            array.arraySize = count;
+            for (int i = 0; i < count; i++)
+            {
+                string path = SceneArtMaterialFolder + "/" + RuntimeSceneArt.GroupMaterialNames[i] + ".mat";
+                var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (material == null)
+                    missing.Add(RuntimeSceneArt.GroupMaterialNames[i]);
+                array.GetArrayElementAtIndex(i).objectReferenceValue = material;
+            }
+
+            SerializedProperty root = so.FindProperty("sceneryRoot");
+            if (root != null)
+                root.objectReferenceValue = runtimeSceneArt.transform;
+
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            if (missing.Count > 0)
+            {
+                Debug.LogWarning("[M2BattleSceneSetup] RuntimeSceneArt 缺 " + missing.Count
+                    + " 个材质组材质（" + string.Join("、", missing) + "）；对应组运行时跳过。"
+                    + "请确认 SceneArtBuilder.Apply 已成功跑过（它负责生成这批 .mat）。");
+            }
         }
 
         static TrajectoryPreview CreateTrajectoryPreview()
@@ -709,7 +815,7 @@ namespace PirateCrew.EditorTools
             BattleController battle, GameObject piratePrefab,
             Transform team0Root, Transform team1Root, Transform waterPlane,
             TurnManager turnManager, AimThrowController aimController, BattleCameraController battleCamera,
-            BattleTerrainView terrainView)
+            BattleTerrainView terrainView, RuntimeSceneArt runtimeSceneArt)
         {
             var prefabComponent = piratePrefab != null ? piratePrefab.GetComponent<PirateBase>() : null;
             if (prefabComponent == null)
@@ -728,6 +834,7 @@ namespace PirateCrew.EditorTools
             SetRef(so, "aimController", aimController);
             SetRef(so, "battleCamera", battleCamera);
             SetRef(so, "terrainView", terrainView);
+            SetRef(so, "sceneArt", runtimeSceneArt);
             SetBool(so, "team1IsAi", true);
 
             // 职业视觉预制体（波次 I2）：按 CrewVisualCatalog 的职业顺序填 crewVisualPrefabs，

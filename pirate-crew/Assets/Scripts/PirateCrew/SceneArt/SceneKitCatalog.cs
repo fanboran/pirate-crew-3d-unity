@@ -299,14 +299,37 @@ namespace PirateCrew.PirateCrew.SceneArt
         }
 
         /// <summary>
-        /// 把 level_1 的平台簇映射成整套 kit 摆放（确定性）。
-        /// 大船簇 → <see cref="LargeShipRecipe"/>；空岛簇 → 岛顶岩台 + 岩块 + 陈设；
-        /// 梯田岛簇 → 分级岩台 + 棱线岩块 + 陈设；小空岛 → 侧翼小艇配方。
+        /// 把 level_1 的平台簇映射成整套 kit 摆放 = <c>BuildFor(1, BuildLevel1(), seed)</c> 的等价委托
+        /// （既有测试与烘焙沿用它，行为逐值不变）。
         /// </summary>
         public static SceneKitLayout BuildLevel1(int seed)
         {
+            return BuildFor(1, PlatformClusterLayout.BuildLevel1(), seed);
+        }
+
+        /// <summary>
+        /// 把**任意关**的平台簇映射成整套 kit 摆放（确定性）。簇类型 → 配方的映射：
+        ///   · <see cref="PlatformClusterKind.Ship"/> → 船配方（包络宽 ≥10 用 <see cref="LargeShipRecipe"/>，
+        ///     否则用 <see cref="SmallBoatRecipe"/>——宽 ≥10 才有 galleon 的体量可言）；
+        ///   · <see cref="PlatformClusterKind.SkyIsland"/> → 岛顶岩台 + 岛缘散岩；小岛（宽 ≤5 或纵深 ≤2）
+        ///     改摆一艘小艇当"侧翼跳板"；
+        ///   · <see cref="PlatformClusterKind.TerraceIsland"/> → 沿棱线的分级礁石 + 棕榈/箱桶；
+        ///   · <c>info.IsSpawnCluster</c>（出生簇）→ 额外一圈收边栏杆 + 3 件陈设，读作"出生台地"。
+        ///
+        /// 【为什么按 Kind 而不是按关号】关号只出现在 level_1 的手写定义里；通用推导把"这关该长什么样"
+        /// 全部编码进了 <see cref="PlatformMap"/> 的簇 Kind（见 <c>PlatformClusterLayout</c> 的规则表），
+        /// 烘焙/运行时的配方展开只认 Kind → 换关卡 = 换一张 map，kit 逻辑零改动。
+        /// </summary>
+        /// <param name="levelNumber">关卡号（只用于调试日志，几何完全不依赖它）。</param>
+        /// <param name="map">该关的平台簇地图（<see cref="PlatformClusterLayout.BuildFor"/> 的产物）。</param>
+        /// <param name="seed">确定性种子。</param>
+        public static SceneKitLayout BuildFor(int levelNumber, PlatformMap map, int seed)
+        {
+            _ = levelNumber;
             var layout = new SceneKitLayout();
-            PlatformMap map = PlatformClusterLayout.BuildLevel1();
+            if (map == null)
+                return layout;
+
             float block = TerrainCatalog.DefaultBlockWorldHeight;
 
             for (int c = 0; c < map.Clusters.Count; c++)
@@ -316,25 +339,30 @@ namespace PirateCrew.PirateCrew.SceneArt
                 float deckY = LevelGeometry.GroundTopY + info.MinBlocks * block;
                 float cx = (info.X0 + info.X1 + 1f) * 0.5f;
                 float cz = (info.Z0 + info.Z1 + 1f) * 0.5f;
+                int width = info.X1 - info.X0 + 1;
+                int depth = info.Z1 - info.Z0 + 1;
 
                 if (info.Kind == PlatformClusterKind.Ship)
                 {
                     // 大船：主簇用 galleon 配方，铺在甲板面上（甲板 = 簇内最低台阶顶面）。
-                    List<KitPart> ship = BuildShip(LargeShipRecipe, new Vector3(cx, deckY, cz), 0f, seed + c);
+                    ShipRecipe recipe = width >= 10 ? LargeShipRecipe : SmallBoatRecipe;
+                    List<KitPart> ship = BuildShip(recipe, new Vector3(cx, deckY, cz), 0f, seed + c);
                     for (int i = 0; i < ship.Count; i++)
-                        layout.Add(Offset(ship[i], 0f));
+                        layout.Add(ship[i]);
 
                     // 船头高台加一圈栏杆，读得出"艏楼"。
                     layout.Add(new KitPart(SceneKitPiece.Bulwark, SceneKitMaterial.Wood,
                         new Vector3(info.X1 - 1f, topY + 0.22f, cz), 90f, 1f,
-                        (info.Z1 - info.Z0 + 1f) - 0.3f, 0.4f));
+                        depth - 0.3f, 0.4f));
+
+                    AddSpawnAccent(layout, info, topY, width, seed + c);
                     continue;
                 }
 
                 if (info.Kind == PlatformClusterKind.SkyIsland)
                 {
-                    float rx = (info.X1 - info.X0 + 1f) * 0.5f - 0.05f;
-                    float rz = (info.Z1 - info.Z0 + 1f) * 0.5f - 0.05f;
+                    float rx = width * 0.5f - 0.05f;
+                    float rz = depth * 0.5f - 0.05f;
                     layout.Add(new KitPart(SceneKitPiece.IslandTop, SceneKitMaterial.Rock,
                         new Vector3(cx, topY, cz), 0f, 1f, rx, rz));
 
@@ -348,20 +376,22 @@ namespace PirateCrew.PirateCrew.SceneArt
                             0.28f + SceneArtHash.Hash01(seed, i, c + 7) * 0.25f, 0f, 0f));
                     }
 
-                    // 岛上陈设：东空岛放棕榈 + 蓝旗，小空岛放一艘小艇。
-                    if (info.X0 >= 42)
-                    {
-                        AddProp(layout, ScenePropKind.Palm, new Vector3(cx - 1.5f, topY, cz - 1.0f), seed + 1, 4.5f);
-                        AddProp(layout, ScenePropKind.Palm, new Vector3(cx + 1.2f, topY, cz + 1.5f), seed + 2, 5.2f);
-                        AddProp(layout, ScenePropKind.Anchor, new Vector3(cx + 2.0f, topY, cz - 2.0f), seed + 3, 1f);
-                    }
-                    else
+                    // 小岛（宽 ≤5 或纵深 ≤2）= 侧翼跳板：摆一艘小艇；大岛摆棕榈 + 铁锚。
+                    if (width <= 5 || depth <= 2)
                     {
                         List<KitPart> boat = BuildShip(SmallBoatRecipe,
                             new Vector3(cx, LevelGeometry.GroundTopY + info.MinBlocks * block, cz), 15f, seed + c);
                         for (int i = 0; i < boat.Count; i++)
                             layout.Add(boat[i]);
                     }
+                    else
+                    {
+                        AddProp(layout, ScenePropKind.Palm, new Vector3(cx - 1.5f, topY, cz - 1.0f), seed + 1, 4.5f);
+                        AddProp(layout, ScenePropKind.Palm, new Vector3(cx + 1.2f, topY, cz + 1.5f), seed + 2, 5.2f);
+                        AddProp(layout, ScenePropKind.Anchor, new Vector3(cx + 2.0f, topY, cz - 2.0f), seed + 3, 1f);
+                    }
+
+                    AddSpawnAccent(layout, info, topY, width, seed + c);
                     continue;
                 }
 
@@ -393,20 +423,36 @@ namespace PirateCrew.PirateCrew.SceneArt
                 }
 
                 // 梯田陈设：棕榈 + 桶箱（顶层）。
-                float terraceTopY = topY;
-                AddProp(layout, ScenePropKind.Palm, new Vector3(info.X0 + 3f, terraceTopY, cz), seed + 11, 4.8f);
-                AddProp(layout, ScenePropKind.Crate, new Vector3(cx, terraceTopY, cz + 1.5f), seed + 12, 1f);
-                AddProp(layout, ScenePropKind.Barrel, new Vector3(cx + 1.5f, terraceTopY, cz - 1.5f), seed + 13, 1f);
-                AddProp(layout, ScenePropKind.Palm, new Vector3(info.X1 - 2f, terraceTopY, cz - 2f), seed + 14, 5.5f);
+                AddProp(layout, ScenePropKind.Palm, new Vector3(info.X0 + 3f, topY, cz), seed + 11, 4.8f);
+                AddProp(layout, ScenePropKind.Crate, new Vector3(cx, topY, cz + 1.5f), seed + 12, 1f);
+                AddProp(layout, ScenePropKind.Barrel, new Vector3(cx + 1.5f, topY, cz - 1.5f), seed + 13, 1f);
+                AddProp(layout, ScenePropKind.Palm, new Vector3(info.X1 - 2f, topY, cz - 2f), seed + 14, 5.5f);
+
+                AddSpawnAccent(layout, info, topY, width, seed + c);
             }
 
             return layout;
         }
 
-        static KitPart Offset(in KitPart p, float dy)
+        /// <summary>
+        /// 出生簇的"出生台地"标识（只加收边栏杆与陈设，**不加桅/船体段**——避免改变"两艘船"的构件计数）。
+        /// </summary>
+        static void AddSpawnAccent(SceneKitLayout layout, in PlatformClusterInfo info, float topY,
+            int width, int seed)
         {
-            return new KitPart(p.Piece, p.Material, p.Position + Vector3.up * dy, p.YawDegrees,
-                p.Scale, p.Length, p.Height, p.PropKind);
+            if (!info.IsSpawnCluster)
+                return;
+
+            float cx = (info.X0 + info.X1 + 1f) * 0.5f;
+            float cz = (info.Z0 + info.Z1 + 1f) * 0.5f;
+
+            layout.Add(new KitPart(SceneKitPiece.Bulwark, SceneKitMaterial.Wood,
+                new Vector3(cx, topY + 0.22f, info.Z0 + 0.6f), 0f, 1f,
+                Mathf.Max(1.5f, width - 0.6f), 0.4f));
+
+            AddProp(layout, ScenePropKind.Anchor, new Vector3(info.X0 + 1.2f, topY, cz), seed + 31, 1f);
+            AddProp(layout, ScenePropKind.Crate, new Vector3(cx - 0.8f, topY, cz + 0.9f), seed + 32, 1f);
+            AddProp(layout, ScenePropKind.Barrel, new Vector3(cx + 0.9f, topY, cz - 0.9f), seed + 33, 1f);
         }
 
         static void AddProp(SceneKitLayout layout, ScenePropKind kind, Vector3 pos, int seed, float scale)

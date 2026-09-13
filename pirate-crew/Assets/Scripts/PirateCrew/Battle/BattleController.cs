@@ -70,6 +70,11 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("地形视图；由 M2BattleSceneSetup 装配。为空时地形系统仍会建网格（供 AI 查询），但不渲染碰撞块。")]
         [SerializeField] BattleTerrainView terrainView;
 
+        [Header("场景美术（可选）")]
+        [Tooltip("关卡无关的静态陈设装配器：开局按实际关卡号重建船/岛/道具的合并网格。"
+                 + "由 M2BattleSceneSetup 装配；为空时场景保持无静态陈设（地形与玩法不受影响）。")]
+        [SerializeField] RuntimeSceneArt sceneArt;
+
         [Header("层掩码")]
         [Tooltip("爆炸候选与单位射线用的层。")]
         [SerializeField] LayerMask pirateLayerMask = ~0;
@@ -131,6 +136,7 @@ namespace PirateCrew.PirateCrew.Battle
         {
             BuildPlan();
             BuildTerrain();
+            RebuildSceneArt();
             ApplyPhysicsConvention();
             SpawnTeams();
         }
@@ -218,17 +224,43 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>
-        /// 构建瓦片地形网格（<see cref="TerrainCatalog"/> 只转写了 3 个代表关；其余关返回 null →
-        /// 退回平坦竞技场，与既有行为一致）。网格无论是否转写都非 null（<see cref="Terrain"/>），
-        /// 便于 AI/小地图统一查询；无转写数据时为全 0 块的平地。
+        /// 构建瓦片地形网格。**优先走平台簇布局**（<see cref="PlatformClusterLayout.BuildFor"/> 对任意关
+        /// 都能推导出逐格水陆的平台地图，见其类头规则表）——场景里不再烘死大地面，
+        /// 可站面全部来自这条路径；关卡数据未转写时退回 <see cref="TerrainCatalog"/> 的旧列式地形，
+        /// 再退回平坦竞技场（与既有行为一致）。
+        /// 网格无论是否转写都非 null（<see cref="Terrain"/>），便于 AI/小地图统一查询。
         /// </summary>
         void BuildTerrain()
         {
-            TileTerrainGrid built = TerrainCatalog.Build(_plan.LevelNumber, _plan.WidthTiles, _plan.DepthTiles);
+            int levelNumber = _plan.LevelNumber;
+
+            TileTerrainGrid built = null;
+            if (PlatformClusterLayout.TryBuildFor(levelNumber, out PlatformMap map)
+                && map.WidthTiles == _plan.WidthTiles && map.DepthTiles == _plan.DepthTiles)
+            {
+                built = new TileTerrainGrid(_plan.WidthTiles, _plan.DepthTiles, null,
+                    TerrainCatalog.DefaultBlockWorldHeight, map);
+            }
+
+            if (built == null)
+                built = TerrainCatalog.Build(levelNumber, _plan.WidthTiles, _plan.DepthTiles);
+
             Terrain = built ?? TileTerrainGrid.Flat(_plan.WidthTiles, _plan.DepthTiles);
 
             if (terrainView != null)
                 terrainView.Render(built);
+        }
+
+        /// <summary>
+        /// 按**实际关卡号**重建关卡无关的静态陈设（船 / 岛 / 道具的合并网格）。
+        /// 只做表现：不触碰地形破坏协议（那是 <see cref="BattleTerrainView"/> 的职责）。
+        /// </summary>
+        void RebuildSceneArt()
+        {
+            if (sceneArt == null)
+                return;
+
+            sceneArt.RebuildFor(LevelNumber);
         }
 
         /// <summary>
