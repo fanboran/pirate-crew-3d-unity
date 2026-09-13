@@ -360,7 +360,11 @@ Shader "PirateCrew/PirateTerrain"
                 // 档 6：沙纹灰度。预期：湿沙区为明暗相间斜纹（0.5±0.5），干区/草岩区为中性灰 0.5。
                 //       判据：湿沙区灰度标准差 >0.05；草岩区标准差 ≈0（因 wet 已乘 sandWeight）。
                 if (_DebugMode > 5.5)
-                    return half4(half3(saturate(0.5h + 0.5h * (half)(ripSin * (float)wet))), 1.0h);
+                {
+                    // 单参 splat（half3(x)）在部分真机编译器上报"构造器参数个数错误"，显式三分量。
+                    half ripGray = saturate(0.5h + 0.5h * (half)(ripSin * (float)wet));
+                    return half4(ripGray, ripGray, ripGray, 1.0h);
+                }
 
                 // ---- PBR 光照（与 PirateSurface 同口径）----
                 half alpha = 1.0h;

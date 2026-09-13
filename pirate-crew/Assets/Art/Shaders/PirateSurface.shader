@@ -425,7 +425,11 @@ Shader "PirateCrew/PirateSurface"
                 //       程序化判据：湿区采样灰度标准差 >0.05（条纹可辨），干区标准差 ≈0；
                 //       若湿区也是死平 → _RippleStrength=0，或湿掩码全 0（水位/带宽设错）。
                 if (_DebugMode > 5.5)
-                    return half4(half3(saturate(0.5h + 0.5h * (half)(ripSin * (float)wet))), 1.0h);
+                {
+                    // 单参 splat（half3(x)）在部分真机编译器上报"构造器参数个数错误"，显式三分量。
+                    half ripGray = saturate(0.5h + 0.5h * (half)(ripSin * (float)wet));
+                    return half4(ripGray, ripGray, ripGray, 1.0h);
+                }
 
                 // ---- PBR 光照 ----
                 half alpha = 1.0h;
