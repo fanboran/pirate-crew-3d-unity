@@ -1,23 +1,31 @@
 using System;
 using System.Collections.Generic;
+using PirateCrew.PirateCrew.SceneArt;
 using UnityEngine;
 
 namespace PirateCrew.PirateCrew.Battle
 {
     /// <summary>
     /// 瓦片地形的场景视图（MonoBehaviour 薄壳）：把纯 C# 的 <see cref="TileTerrainGrid"/> 渲染成
-    /// 一组带碰撞体的立方块，并在爆炸破坏后同步更新。
+    /// **有倒角/岩层/裙边的海岛地块壳**，并在爆炸破坏后同步更新。
     ///
-    /// 【分层】高度/破坏/归一化等全部规则在 <see cref="TileTerrainGrid"/> 与
-    ///   <see cref="TerrainCatalog"/>（纯 C#，可无头测试）；本类只做「格 → GameObject」的实例化与刷新，
-    ///   不含任何数值推导。
+    /// 【分层（视觉层与碰撞层解耦，方案见 <c>docs/场景设计-战斗竞技场.md</c> §3.1/§9.1）】
+    ///   · 碰撞层：每实心格一个 Cube + BoxCollider，**Renderer 关闭**（不可见但仍是单位的物理地面）；
+    ///   · 视觉层：由 <see cref="IslandShellGeometry"/> 生成的"台地壳"——顶面与该格
+    ///     <see cref="TileTerrainGrid.SurfaceWorldY"/> 严格等高（偏差 ≤ ±0.02）、边缘 0.15 宽 45° 倒角、
+    ///     侧面 3 段岩层、同列沿 Z 的剪影扰动、边界台地外侧下延成裙边（到 y=-0.6）；
+    ///     0 块列（原版水道列）另铺一层湿沙"潮沟"贴片。
+    ///   · 高度/破坏/归一化等规则全部仍在 <see cref="TileTerrainGrid"/> 与
+    ///     <see cref="TerrainCatalog"/>（纯 C#，可无头测试）；本类不含任何数值推导。
     ///
-    /// 【为什么每格一个立方体而不是逐块堆叠】每格最多 8 块，若逐块建物体会让 level_1 出现近 3000 个
-    ///   GameObject；改用「每格一个按高度缩放的立方体」（顶面 = 该格地表），碰撞与视觉等价，
-    ///   破坏时只改这一个物体的高度。块数仍由 <see cref="TileTerrainGrid"/> 记账。
+    /// 【为什么整块合成一个网格】每关实心格约 700 个，若每格一个 Renderer 就是约 700 个 DrawCall
+    ///   （预算见场景文档 §8：≤250）。故把全部格合成 **1 个网格**（同类共材质），
+    ///   破坏时整块重建（爆炸是回合制下的低频事件，重建约几毫秒，可接受）。
+    ///   代价：失去逐格视锥剔除（合并网格只有一个包围盒）。三角面总量约 3 万，桌面 1080p 无压力。
     ///
     /// 【接线】由 <c>M2BattleSceneSetup</c> 在场景里创建并接好 <c>blockRoot</c> / <c>blockMaterial</c>；
     ///   运行时由 <c>BattleController.Awake</c> 调 <see cref="Render"/>，爆炸时调 <see cref="ApplyDestruction"/>。
+    ///   <c>wetMaterial</c> 由 <c>SceneArtBuilder</c> 可选接管（潮沟湿沙），为空时回落 <c>blockMaterial</c>。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class BattleTerrainView : MonoBehaviour
@@ -26,15 +34,42 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("地形块父节点；为空时用本物体 transform。")]
         [SerializeField] Transform blockRoot;
 
-        [Tooltip("地形块材质；为空时运行时用 URP/Lit 建一个兜底材质。")]
+        [Tooltip("地形块材质；为空时运行时用 URP/Lit 建一个兜底材质。视觉壳与碰撞块共用。")]
         [SerializeField] Material blockMaterial;
+
+        [Tooltip("潮沟（0 块列）湿沙材质；为空时回落 blockMaterial。由 SceneArtBuilder 可选接线。")]
+        [SerializeField] Material wetMaterial;
+
+        [Tooltip("是否用海岛地块壳替换方块外观（关闭则回到「每格一个可见立方体」）。")]
+        [SerializeField] bool enableVisualShell = true;
 
         // 运行时的纯 C# 网格（非 UnityEngine.Object，不进 Inspector；由 BattleController 注入）。
         TileTerrainGrid grid;
 
         GameObject[] _cellObjects = new GameObject[0];
         Material _fallbackMaterial;
+
+        // 视觉壳（合并网格）：整块地形 1 个 MeshRenderer，破坏时整块重建。
+        GameObject _shellObject;
+        MeshFilter _shellFilter;
+        MeshRenderer _shellRenderer;
+        Mesh _shellMesh;
+
+        // 潮沟湿沙贴片（0 块列）。
+        GameObject _lowZoneObject;
+        MeshFilter _lowZoneFilter;
+        MeshRenderer _lowZoneRenderer;
+        Mesh _lowZoneMesh;
+
+        // 复用缓冲，避免每次破坏都产生大数组垃圾。
+        readonly List<Vector3> _vertexScratch = new List<Vector3>(60000);
+        readonly List<Vector3> _normalScratch = new List<Vector3>(60000);
+        readonly List<int> _indexScratch = new List<int>(120000);
+
         int _version;
+
+        /// <summary>视觉壳参数（= 场景文档 §3.1 的取值；见 <see cref="IslandShellSettings.Default"/>）。</summary>
+        static IslandShellSettings ShellSettings => IslandShellSettings.Default;
 
         /// <summary>当前地形网格；未 <see cref="Render"/> 前为 null。</summary>
         public TileTerrainGrid Grid => grid;
@@ -45,7 +80,7 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>地形发生变化（初次渲染 / 破坏后）时触发。同场景内直接订阅，不走 EventBus。</summary>
         public event Action Changed;
 
-        /// <summary>已建出的实心地形块数量（调试/测试用）。</summary>
+        /// <summary>已建出的碰撞地形块数量（调试/测试用）；视觉壳不计入。</summary>
         public int BlockObjectCount
         {
             get
@@ -56,9 +91,16 @@ namespace PirateCrew.PirateCrew.Battle
                     if (_cellObjects[i] != null)
                         n++;
                 }
+
                 return n;
             }
         }
+
+        /// <summary>视觉壳的三角面数（报告/性能自证用；未建壳时为 0）。</summary>
+        public int ShellTriangleCount { get; private set; }
+
+        /// <summary>潮沟贴片的三角面数。</summary>
+        public int LowZoneTriangleCount { get; private set; }
 
         /// <summary>该格当前堆叠块数（小地图点阵用）；无网格时返回 0。</summary>
         public int BlocksAtCell(int cellIndex)
@@ -69,7 +111,7 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>
-        /// 按网格重建全部地形块（幂等：先清旧块）。由 <c>BattleController.Awake</c> 调用。
+        /// 按网格重建全部地形（幂等：先清旧物）。由 <c>BattleController.Awake</c> 调用。
         /// </summary>
         public void Render(TileTerrainGrid terrainGrid)
         {
@@ -93,15 +135,18 @@ namespace PirateCrew.PirateCrew.Battle
                     if (grid.BlocksAt(gx, gy) <= 0)
                         continue;
 
-                    _cellObjects[index] = CreateBlock(root, index);
+                    _cellObjects[index] = CreateCollisionBlock(root, index);
                 }
             }
+
+            if (enableVisualShell)
+                RebuildVisualShell(root);
 
             Bump();
         }
 
         /// <summary>
-        /// 爆炸破坏后刷新被摧毁的格（高度归零 → 移除块）。
+        /// 爆炸破坏后刷新被摧毁的格（高度归零 → 移除碰撞块并重建视觉壳）。
         /// </summary>
         public void ApplyDestruction(IReadOnlyList<int> cellIndices)
         {
@@ -122,17 +167,17 @@ namespace PirateCrew.PirateCrew.Battle
 
                 if (grid.BlocksAt(grid.CellXOf(index), grid.CellYOf(index)) <= 0)
                 {
-                    // 整格已摧毁：移除物体（回到基础地面）。
+                    // 整格已摧毁：移除碰撞块（回到基础地面）。
                     if (existing != null)
                         Destroy(existing);
                     _cellObjects[index] = null;
                 }
                 else
                 {
-                    // 逐块递减：复用/重建该格的块并改高度。
+                    // 逐块递减：复用/重建该格的碰撞块并改高度。
                     if (existing == null)
                     {
-                        existing = CreateBlock(root, index);
+                        existing = CreateCollisionBlock(root, index);
                         _cellObjects[index] = existing;
                     }
                     else
@@ -142,37 +187,39 @@ namespace PirateCrew.PirateCrew.Battle
                 }
             }
 
-            if (any)
-                Bump();
+            if (!any)
+                return;
+
+            // 视觉壳随破坏同步降高/消失（场景文档 §9.1 的硬要求）。
+            if (enableVisualShell)
+                RebuildVisualShell(root);
+
+            Bump();
         }
 
-        void ClearAll()
-        {
-            for (int i = 0; i < _cellObjects.Length; i++)
-            {
-                if (_cellObjects[i] != null)
-                    Destroy(_cellObjects[i]);
-            }
+        // ------------------------------------------------------------------
+        // 碰撞层
+        // ------------------------------------------------------------------
 
-            _cellObjects = new GameObject[0];
-        }
-
-        GameObject CreateBlock(Transform root, int index)
+        /// <summary>
+        /// 碰撞块：仍是 Cube + BoxCollider（单位的物理地面，<c>BattleController.cs:253-257</c> 依赖它），
+        /// 但 **Renderer 关闭** —— 外观交给视觉壳。
+        /// </summary>
+        GameObject CreateCollisionBlock(Transform root, int index)
         {
             GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = "TerrainCell_" + grid.CellXOf(index) + "_" + grid.CellYOf(index);
+            go.name = "TerrainCollision_" + grid.CellXOf(index) + "_" + grid.CellYOf(index);
             go.transform.SetParent(root, false);
 
-            // 方块自身附带 BoxCollider（PhysX 靠它做墙/地面接触），保留。
             Renderer renderer = go.GetComponent<Renderer>();
             if (renderer != null)
-                renderer.sharedMaterial = ResolveMaterial();
+                renderer.enabled = false;
 
             ApplyBlockTransform(go, index);
             return go;
         }
 
-        /// <summary>按当前块数把每格立方体放到「底面贴地、顶面 = 地表」的尺寸/位置。</summary>
+        /// <summary>按当前块数把碰撞立方体放到「底面贴地、顶面 = 地表」的尺寸/位置。</summary>
         void ApplyBlockTransform(GameObject go, int index)
         {
             int gx = grid.CellXOf(index);
@@ -188,25 +235,177 @@ namespace PirateCrew.PirateCrew.Battle
                 gy + 0.5f);
         }
 
-        Material ResolveMaterial()
+        // ------------------------------------------------------------------
+        // 视觉层（海岛地块壳）
+        // ------------------------------------------------------------------
+
+        void RebuildVisualShell(Transform root)
+        {
+            // ---- 实心格：台地壳 ----
+            MeshBuffers shell = IslandShellGeometry.BuildSolidShell(grid, ShellSettings);
+            ApplyBuffers(EnsureShellMesh(root), shell, ResolveShellMaterial(), true);
+            ApplyShellShaderTuning();
+
+            // ---- 0 块列：湿沙潮沟贴片 ----
+            MeshBuffers low = IslandShellGeometry.BuildLowZone(grid, ShellSettings.LowPlateYOffset);
+            ApplyBuffers(EnsureLowZoneMesh(root), low, ResolveWetMaterial(), false);
+        }
+
+        Mesh EnsureShellMesh(Transform root)
+        {
+            if (_shellObject == null)
+            {
+                _shellObject = new GameObject("TerrainShell");
+                _shellObject.transform.SetParent(root, false);
+                _shellFilter = _shellObject.AddComponent<MeshFilter>();
+                _shellRenderer = _shellObject.AddComponent<MeshRenderer>();
+                _shellMesh = new Mesh { name = "TerrainShellMesh" };
+                _shellMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+                _shellFilter.sharedMesh = _shellMesh;
+
+                // 只受主光投影（场景文档 §8：全场唯一投影光源）。
+                _shellRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                _shellRenderer.receiveShadows = true;
+                _shellRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.BlendProbes;
+            }
+
+            return _shellMesh;
+        }
+
+        Mesh EnsureLowZoneMesh(Transform root)
+        {
+            if (_lowZoneObject == null)
+            {
+                _lowZoneObject = new GameObject("TerrainLowZone");
+                _lowZoneObject.transform.SetParent(root, false);
+                _lowZoneFilter = _lowZoneObject.AddComponent<MeshFilter>();
+                _lowZoneRenderer = _lowZoneObject.AddComponent<MeshRenderer>();
+                _lowZoneMesh = new Mesh { name = "TerrainLowZoneMesh" };
+                _lowZoneMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+                _lowZoneFilter.sharedMesh = _lowZoneMesh;
+
+                // 潮沟是"刚退潮的沙洼"：不投影（否则会在自己身上打出一层脏影）。
+                _lowZoneRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                _lowZoneRenderer.receiveShadows = true;
+            }
+
+            return _lowZoneMesh;
+        }
+
+        void ApplyBuffers(Mesh mesh, MeshBuffers buffers, Material material, bool isShell)
+        {
+            _vertexScratch.Clear();
+            _normalScratch.Clear();
+            _indexScratch.Clear();
+            buffers.CopyTo(_vertexScratch, _normalScratch, _indexScratch);
+
+            mesh.Clear(false);
+            if (_vertexScratch.Count > 0)
+            {
+                mesh.SetVertices(_vertexScratch);
+                mesh.SetNormals(_normalScratch);
+                mesh.SetTriangles(_indexScratch, 0, true);
+            }
+
+            mesh.RecalculateBounds();
+
+            if (isShell)
+            {
+                ShellTriangleCount = buffers.TriangleCount;
+                if (_shellRenderer != null)
+                    _shellRenderer.sharedMaterial = material;
+            }
+            else
+            {
+                LowZoneTriangleCount = buffers.TriangleCount;
+                if (_lowZoneRenderer != null)
+                    _lowZoneRenderer.sharedMaterial = material;
+            }
+        }
+
+        /// <summary>
+        /// 用 MaterialPropertyBlock（不改渲染波次生成的材质资产）把地形高度混合阈值调到
+        /// 与场景文档 §3.1 的高度分层表一致：1-2 块 = 干沙、3-5 块 = 岩沙过渡、6-8 块 = 礁岩。
+        /// **提案**：Environment 里的 <c>Terrain_Island</c> 材质默认 <c>_HeightSandGrass=0.6</c>、
+        /// <c>_HeightGrassRock=3.0</c>（那是渲染波次按"低平台"设的），按本关高度分布会整片变草；
+        /// 这里覆盖为 0.85 / 1.35，使 y≥1.5（6 块以上）读作岩、1 块读作沙。
+        /// 覆盖只作用于本 Renderer，材质资产本身不动。
+        /// </summary>
+        void ApplyShellShaderTuning()
+        {
+            if (_shellRenderer == null)
+                return;
+
+            var mpb = new MaterialPropertyBlock();
+            _shellRenderer.GetPropertyBlock(mpb);
+            mpb.SetFloat("_HeightSandGrass", 0.85f);
+            mpb.SetFloat("_HeightGrassRock", 1.35f);
+            _shellRenderer.SetPropertyBlock(mpb);
+        }
+
+        void ClearAll()
+        {
+            for (int i = 0; i < _cellObjects.Length; i++)
+            {
+                if (_cellObjects[i] != null)
+                    Destroy(_cellObjects[i]);
+            }
+
+            _cellObjects = new GameObject[0];
+            ShellTriangleCount = 0;
+            LowZoneTriangleCount = 0;
+
+            if (_shellObject != null)
+            {
+                Destroy(_shellObject);
+                _shellObject = null;
+                _shellFilter = null;
+                _shellRenderer = null;
+                _shellMesh = null;
+            }
+
+            if (_lowZoneObject != null)
+            {
+                Destroy(_lowZoneObject);
+                _lowZoneObject = null;
+                _lowZoneFilter = null;
+                _lowZoneRenderer = null;
+                _lowZoneMesh = null;
+            }
+        }
+
+        Material ResolveShellMaterial()
         {
             if (blockMaterial != null)
                 return blockMaterial;
 
-            if (_fallbackMaterial == null)
-            {
-                Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-                if (shader == null)
-                    shader = Shader.Find("Standard");
-                _fallbackMaterial = new Material(shader) { name = "TerrainFallback" };
+            return ResolveFallbackMaterial();
+        }
 
-                // 与 URP/Lit / Standard 两种属性名都兼容。
-                Color sand = new Color(0.62f, 0.52f, 0.38f, 1f);
-                if (_fallbackMaterial.HasProperty("_BaseColor"))
-                    _fallbackMaterial.SetColor("_BaseColor", sand);
-                if (_fallbackMaterial.HasProperty("_Color"))
-                    _fallbackMaterial.SetColor("_Color", sand);
-            }
+        Material ResolveWetMaterial()
+        {
+            if (wetMaterial != null)
+                return wetMaterial;
+
+            return ResolveShellMaterial();
+        }
+
+        Material ResolveFallbackMaterial()
+        {
+            if (_fallbackMaterial != null)
+                return _fallbackMaterial;
+
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+                shader = Shader.Find("Standard");
+            _fallbackMaterial = new Material(shader) { name = "TerrainFallback" };
+
+            // 与 URP/Lit / Standard 两种属性名都兼容。
+            Color sand = new Color(0.62f, 0.52f, 0.38f, 1f);
+            if (_fallbackMaterial.HasProperty("_BaseColor"))
+                _fallbackMaterial.SetColor("_BaseColor", sand);
+            if (_fallbackMaterial.HasProperty("_Color"))
+                _fallbackMaterial.SetColor("_Color", sand);
 
             return _fallbackMaterial;
         }
