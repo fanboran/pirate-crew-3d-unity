@@ -39,8 +39,14 @@ namespace PirateCrew.EditorTools
         const string Team1RootName = "Team1_Blue";
         const int FallbackLevelNumber = 1;
 
-        /// <summary>小地图在屏幕左上角的内边距（原版 mapHolder 挂在 (20,20)，§2.3）。</summary>
-        static readonly Vector2 PanelOffset = new Vector2(16f, -48f);
+        /// <summary>小地图在屏幕左上角的外边距（统一口径 24px；原版 mapHolder 挂在 (20,20)，§2.3）。</summary>
+        static readonly Vector2 PanelOffset = new Vector2(24f, -24f);
+
+        /// <summary>点阵层退到面板边 24px 内（与 BattleHudBuilder.PanelPadding 同口径，避免点阵贴面板边框）。</summary>
+        const float PanelInnerPadding = 24f;
+
+        /// <summary>标题条占位 = 标题高 22 + 与点阵 8px 间距（顶部为「海图」标题留白）。</summary>
+        const float CaptionStrip = 30f;
 
         /// <summary>面板相对屏幕左上角的锚点（ugui：锚点 (0,1) = 左上）。</summary>
         static readonly Vector2 PanelAnchor = new Vector2(0f, 1f);
@@ -155,12 +161,13 @@ namespace PirateCrew.EditorTools
             panel.sizeDelta = size;
 
             var background = panel.gameObject.AddComponent<Image>();
-            background.color = MinimapRules.BackgroundColor;
+            // 海图面板水蓝系底（§1.3 UI_SEA）；兜底也不退回深棕，与 BattleHudBuilder 的皮一致。
+            background.color = UiTheme.Sea;
             background.raycastTarget = false;
 
             var border = panel.gameObject.AddComponent<Outline>();
-            border.effectColor = MinimapRules.BorderColor;
-            border.effectDistance = new Vector2(1f, -1f);
+            border.effectColor = UiTheme.Brass;
+            border.effectDistance = new Vector2(3f, -3f);
 
             return panel;
         }
@@ -177,10 +184,12 @@ namespace PirateCrew.EditorTools
                 layer = go.GetComponent<RectTransform>();
             }
 
+            // 与 BattleHudBuilder.BuildMinimap 同口径：四周退 24px、顶部再让出「海图」标题条，
+            // 这样本脚本在 HUD 重建之后执行也不会把点阵层的安全边距重置回贴边框。
             layer.anchorMin = Vector2.zero;
             layer.anchorMax = Vector2.one;
-            layer.offsetMin = Vector2.zero;
-            layer.offsetMax = Vector2.zero;
+            layer.offsetMin = new Vector2(PanelInnerPadding, PanelInnerPadding);
+            layer.offsetMax = new Vector2(-PanelInnerPadding, -(PanelInnerPadding + CaptionStrip));
             return layer;
         }
 

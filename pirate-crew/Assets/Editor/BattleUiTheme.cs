@@ -20,6 +20,8 @@ namespace PirateCrew.EditorTools
     ///
     /// 【契约】只改外观与节点归属，不改 Canvas 的 RenderMode / CanvasScaler（1920×1080 match 0.5），
     /// 不新增/变更 EventBus 事件。可重复调用（每次场景重建都会调一次）。
+    /// 【布局口径】外安全边距 24px、面板内边距 24px、通栏提示条近贴底缘——具体坐标常量集中在
+    /// <see cref="BattleHudBuilder"/>；本类只负责清旧节点、重建、按字段名回写引用。
     /// </summary>
     public static class BattleUiTheme
     {
@@ -92,6 +94,11 @@ namespace PirateCrew.EditorTools
                 Debug.LogWarning("[BattleUiTheme] BattleHud 找不到序列化字段: " + name + "（字段名漂移？）");
                 return;
             }
+
+            // 构建器漏建节点时 value 为 null，会让 HUD 静默失去该引用（返回按钮/回合提示等）；
+            // 这里显式告警，避免「看着有 HUD，其实某块没接上」。
+            if (value == null)
+                Debug.LogWarning("[BattleUiTheme] BattleHud." + name + " 未接上（BattleHudBuilder 未产出该节点？）");
 
             property.objectReferenceValue = value;
         }
