@@ -22,6 +22,13 @@ namespace PirateCrew.PirateCrew.Battle
     ///   ② 阵营色 MPB 会把阴影染成队伍色（红队红影、蓝队蓝影），比没阴影更假。
     ///   故 <c>UnitOutlineBinder.CollectRenderers</c> 显式跳过带本组件的 renderer。
     ///
+    /// 【r4 复验"脚下灰色刀片状碎片"不是本面片（已排除，别再往这里改）】
+    ///   面片是 **y=地面+0.02 的水平 quad**（0.6×0.6，近黑 (0.015,0.015,0.020)、α 中心 0.45），
+    ///   而碎片实测取色 <c>(70,67,61)</c> = <c>CrewIron</c> 基础色 (0.431,0.416,0.388) 在阴影下的值，
+    ///   形状是**竖直薄板**（船长佩剑 0.014×0.150×0.004 的刀身）。根因是手持武器刀尖穿到脚底平面以下：
+    ///   修在建预制体侧 <c>CrewVisualPrefabBuilder.ApplyHeldWeaponFloorFit</c>。
+    ///   面片自身不参与描边/染色，与地形的贴合由 <see cref="DefaultGroundOffset"/> 保证。
+    ///
     /// 【参数口径】数值与 docs/美术风格指南.md §4.1 的提案一致；标【提案】。
     /// </summary>
     [DisallowMultipleComponent]
@@ -35,6 +42,9 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>提案中心不透明度：0.45（中心压暗 45%，远高于 A-6 的 8% 门槛，边缘渐隐不产生硬边）。</summary>
         public const float DefaultCenterAlpha = 0.45f;
+
+        /// <summary>贴地抬高的下限（世界单位）：低于它就会与地形顶面 z-fight（面片是 0 厚 quad）。</summary>
+        public const float MinGroundOffset = 0.012f;
 
         [Tooltip("面片直径（世界单位）。真值在预制体的 Transform.localScale 里，此字段只作参数留档/后续工具读取。")]
         [SerializeField] float diameter = DefaultDiameter;
@@ -53,5 +63,25 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>提案中心不透明度。</summary>
         public float CenterAlpha => centerAlpha;
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// 编辑器侧参数自检（零运行时开销）：面片是 0 厚 quad，抬高不足会与地形顶面 z-fight
+        /// （表现为脚下出现闪烁的碎片/破面），直径或 alpha 为 0 则等于没挂。
+        /// 真值在预制体的 Transform 与材质里，这里的字段是同源留档，改错了至少给一次提醒。
+        /// </summary>
+        void OnValidate()
+        {
+            if (diameter <= 0.01f)
+                Debug.LogWarning("[ContactShadowDecal] " + name + " 直径 " + diameter
+                    + " 过小（建议 " + DefaultDiameter + "），接触阴影不可见。", this);
+            if (groundOffset < MinGroundOffset)
+                Debug.LogWarning("[ContactShadowDecal] " + name + " 贴地抬高 " + groundOffset
+                    + " 低于下限 " + MinGroundOffset + "，可能与地形 z-fight（脚下碎片）。", this);
+            if (centerAlpha <= 0.02f || centerAlpha > 1f)
+                Debug.LogWarning("[ContactShadowDecal] " + name + " 中心不透明度 " + centerAlpha
+                    + " 不在 (0.02, 1]，接触阴影不可见/过黑。", this);
+        }
+#endif
     }
 }
