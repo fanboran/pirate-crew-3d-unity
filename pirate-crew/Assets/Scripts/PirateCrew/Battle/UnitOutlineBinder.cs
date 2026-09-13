@@ -71,6 +71,20 @@ namespace PirateCrew.PirateCrew.Battle
     ///   · 逐 renderer 写 MPB 覆盖 <c>_OutlineState</c>（+ 阵营色部件写 <c>_BaseColor</c>）；
     ///   · 周期性抽检：MPB 被外部成分（对象池复用/别的组件整块覆盖）清掉时强制重写并告警。
     ///
+    /// 【r6 复验取证结论（不要再往"收集漏了 / 材质缺属性"上找）】
+    ///   7 个角色预制体的**逐部件 YAML 对照**（Sailor/Captain/Bombardier/Sniper/Hook/Skeleton/Arsonist）
+    ///   证明：除 <c>ContactShadow</c>（CrewContactShadow.mat，无 _OutlineState，且被本类显式排除）外，
+    ///   所有部件材质都命中那 12 个带 <c>_OutlineState</c> 的 Crew 材质——Head/Nose/ArmL/ArmR 用 CrewSkin，
+    ///   Bandana/BandanaKnot/Tricorn 用 CrewTeamCloth（与躯干**是同一个材质资产**，躯干有青、它没有 →
+    ///   已证明不是材质问题）。也排除了"部件 inactive"：预制体里所有部件 <c>m_IsActive=1</c>、
+    ///   MeshRenderer <c>m_Enabled=1</c>；且 <c>GetComponentsInChildren&lt;Renderer&gt;(true)</c> 本就含
+    ///   inactive 子物体，MPB 写到 inactive renderer 同样有效（只是等它启用才画）。
+    ///   故 r6 分两处收口：
+    ///   ① 本类新增 <see cref="LogPartInventoryOnce"/>——首次收集后打一份"部件 → 材质 → 有无
+    ///      _OutlineState"清单，让这类怀疑**一眼可判**，不必再读 YAML；
+    ///   ② 真正的原因是屏幕空间法线外扩在特写距离只有 ~1px（推导见
+    ///      <c>CrewVisualPrefabBuilder.OutlineWidthSelected</c>），修在材质常量侧（0.006 → 0.010）。
+    ///
     /// 【分层】状态判定在纯逻辑 <see cref="OutlineStateRules"/>（可无头测）；
     ///         本类只做"读状态 → 写属性"的引擎侧薄壳。
     /// </summary>
@@ -82,6 +96,12 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>MPB 抽检间隔（帧）。抽检只读 1 个 renderer 的 PropertyBlock，成本可忽略。</summary>
         const int VerifyIntervalFrames = 30;
+
+        /// <summary>
+        /// 已打印过部件清单的预制体名（同一类预制体只打一次，避免 12 个单位刷屏）。
+        /// 静态字段在关域重载的编辑器会话里会跨 Play 保留——清单本身是静态接线，重打无新信息。
+        /// </summary>
+        static readonly HashSet<string> LoggedPartInventories = new HashSet<string>();
 
         [Header("渲染目标")]
         [Tooltip("留空则自动收集全部子 renderer（部件化角色）；仅旧单立方体结构才需要手填。")]
@@ -238,6 +258,57 @@ namespace PirateCrew.PirateCrew.Battle
             // ③ 旧单立方体结构：没有 rig、只有一个 renderer —— 保持"整只染色"的旧行为。
             if (rig == null && _outlineRenderers.Length <= 1)
                 _tintAllRenderers = true;
+
+            LogPartInventoryOnce();
+        }
+
+        /// <summary>
+        /// 首次收集后打一份**部件清单**（渲染器 → 材质 → 是否带 <c>_OutlineState</c>；阵营色部件另标）。
+        ///
+        /// 【为什么在运行时打而不是只在编辑器】协调者的视觉闭环跑的是**构建出的播放器**
+        /// （`PlayerArtCapture`），那里没有 Console 面板但 <c>Player.log</c> 会落盘这份日志；
+        /// 编辑器会话打开本工程时同样能看到。故门槛设在"编辑器或 Development 构建"，正式包不打。
+        /// 每个预制体只打一次（按 GameObject 名去重），一处缺属性的部件会被单列出来。
+        /// </summary>
+        void LogPartInventoryOnce()
+        {
+            if (!Application.isEditor && !Debug.isDebugBuild)
+                return;
+            if (_outlineRenderers == null || !LoggedPartInventories.Add(name))
+                return;
+
+            var sb = new System.Text.StringBuilder(512);
+            sb.Append("[UnitOutlineBinder] 部件清单 ").Append(name)
+              .Append("：描边 renderer ").Append(_outlineRenderers.Length)
+              .Append(" 个，阵营色 renderer ").Append(TeamTintRendererCount).Append(" 个");
+
+            int missing = 0;
+            for (int i = 0; i < _outlineRenderers.Length; i++)
+            {
+                Renderer r = _outlineRenderers[i];
+                if (r == null)
+                {
+                    sb.Append("\n  · <已销毁>");
+                    continue;
+                }
+
+                Material shared = r.sharedMaterial;
+                bool ok = shared != null && shared.HasProperty(OutlineStateId);
+                if (!ok)
+                    missing++;
+
+                sb.Append("\n  · ").Append(r.name)
+                  .Append(" | 材质=").Append(shared != null ? shared.name : "<空>")
+                  .Append(" | _OutlineState=").Append(ok ? "有" : "缺");
+                if (_tintAllRenderers || _tintRenderers.Contains(r))
+                    sb.Append(" | 阵营色");
+            }
+
+            sb.Append("\n  → 缺 _OutlineState 的部件数：").Append(missing);
+            if (missing > 0)
+                Debug.LogWarning(sb.ToString());
+            else
+                Debug.Log(sb.ToString());
         }
 
         void LateUpdate()

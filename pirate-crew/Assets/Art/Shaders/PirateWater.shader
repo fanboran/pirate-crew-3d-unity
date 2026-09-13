@@ -2,10 +2,13 @@
 // PirateWater.shader —— 海盗军团夺宝 3D / 水面（程序化，无贴图资源依赖）
 //
 // 【风格契约】GDD §10.4「风格化写实」：海水三档色（浅 → 中 → 深），强高光、强边缘光。
-//   三档色按 r4 实测（水体 L50 仅 48、71.5% 像素 L<60、四广角暖冷差全负）整体提亮到
-//   浅 #5FB8DD / 中 #3F99C6 / 深 #2C7499：原 #4DA6D9/#2B7AB8/#1A4F7A 在 Trilight 环境光下
-//   把水体读成"又暗又冷"，与"阳光明媚"的基准相反；提亮只抬明度、保持同一青蓝色相。
-//   本 shader 把这两个"预设意图"落到 URP 的物理化写法上：
+//   审美定位 = **阳光海岛：蓝为主的水 + 暖金只出现在高光/掠射**（参照热带海实拍与
+//   Sea of Thieves：用户基准"不用看到太阳和地平线也能阳光明媚"——说的是光照，不是把水染黄）。
+//   r5 把暖色铺进基础反射/伪地平线暖带 → 整片海读成泥黄浊水（暖 hue 占比高达 98%、
+//   中性灰 sat<0.10 占 20-46%），属过校正。r6 三档水色回蓝：浅 #4FA8CC / 中 #2E86B5 /
+//   深 #1E5E88（比 r4 的暗蓝 #4DA6D9/#2B7AB8/#1A4F7A 亮，但明确是蓝），暖金只留在
+//   太阳镜射瓣（宽瓣/窄瓣）与掠射 sheen 上。
+//   本 shader 把这些"预设意图"落到 URP 的物理化写法上：
 //   菲涅尔 + 环境反射（SH）+ 主光 GGX 镜面 + 太阳光路。
 //
 // ============================================================================
@@ -43,7 +46,7 @@
 //   （内缘-外缘 0→3→6→11→20→34，顶面从 waterWorldY-0.18 逐级降到 -2.9），
 //   于是 waterDepth 呈连续"浅 → 中 → 深"三级，正好对上三档海水色，也是假焦散的可见区。
 //
-// 【太阳光路（r5：宽瓣=平水面光路带 + 波法线暖波光，窄瓣稀疏闪点，再补伪地平线暖带）】
+// 【太阳光路（r6：宽瓣=平水面光路带 + 波法线暖波光，窄瓣稀疏闪点；暖金不再进基础色/反射）】
 //   符号约定：`_WaterSunDir` = 从水面指向光源 L（驱动发 -sun.forward；与 GetMainLight().direction 同向），
 //   未接驱动（w 全 0）时退回 GetMainLight().direction；片元里**不能**再取负（r3 的符号错误）。
 //   · 宽瓣主项（方向性光路带）：视线在静水面上的镜射方向 `reflect(-V, up)` 与 L 比对。为什么不用
@@ -59,11 +62,13 @@
 //     切成 15-30px 碎块（只做 [1-depth,1] 调制，不挖洞），避免"霉斑"连成规则纹样。
 //   · 窄瓣：`nGerst` 放大 `_SunSpecSlopeBoost` 后叠回高频细节，`reflect(-V, n)` 与 L 做高 exponent
 //     （`_SunSpecShininess`）比对 → 极少数像素命中；再乘噪声峰掩码稀疏化 = 波光闪点。
-//   · 伪地平线暖带：低角机位下平水面镜射无解（要 ~42° 液面倾角），故补一条沿太阳方位
-//     ±`_SunSpecAzBandDeg` 的远处暖带（按掠射权重），对应写实海面"远处雾带里透出的 sun glitter lane"。
+//   · 【r6 退役】伪地平线暖带：r5 曾补一条沿太阳方位 ±`_SunSpecAzBandDeg` 的远处暖带。
+//     实测它把暖色铺满整片水面（暖 hue 占比 98%），与"蓝为主的水"直接冲突 →
+//     连同 `_SunSpecAzBand*` 两个属性一并删除；暖金只保留太阳镜射瓣（宽瓣/窄瓣）与掠射 sheen。
 //   · 色相：所有高光以 `_SunSpecColor`（暖金 hue≈45）**权重混合**（lerp）而非无限相加——加法会被水体
 //     蓝底拉成青白（r4 亮水 hue 168-172 的成因）。`_SunSheenStrength` 另给掠射水面一层极轻暖光泽，
-//     保证"看不到太阳和地平线"的取景也有阳光感。
+//     保证"看不到太阳和地平线"的取景也有阳光感。r6 起反射强度回落到 0.7（r5 的 1.0 把天空暖带
+//     糊满水面），基础水色另叠一层大尺度低频破坏噪声（±4%）打断 34-81px 的可见重复花纹。
 //
 // 【Pass 与 LightMode】只有 ForwardLit（"UniversalForward"）一个 Pass。
 //   不做 ShadowCaster（透明水面不投影）、不做 DepthOnly（透明物体不进不透明深度预通道；
@@ -96,10 +101,10 @@ Shader "PirateCrew/PirateWater"
 {
     Properties
     {
-        // ---- 三档海水色（GDD §10.4；r5 整体提亮，只抬明度不改色相）----
-        _ShallowColor           ("浅水色 #5FB8DD", Color) = (0.3725, 0.7216, 0.8667, 1.0)
-        _MidColor               ("中水色 #3F99C6", Color) = (0.2471, 0.6000, 0.7765, 1.0)
-        _DeepColor              ("深水色 #2C7499", Color) = (0.1725, 0.4549, 0.6000, 1.0)
+        // ---- 三档海水色（GDD §10.4；r6 回蓝：比 r4 暗蓝亮、但明确是蓝，暖金不进基础色）----
+        _ShallowColor           ("浅水色 #4FA8CC", Color) = (0.3098, 0.6588, 0.8000, 1.0)
+        _MidColor               ("中水色 #2E86B5", Color) = (0.1804, 0.5255, 0.7098, 1.0)
+        _DeepColor              ("深水色 #1E5E88", Color) = (0.1176, 0.3686, 0.5333, 1.0)
         _ShoreFadeDistance      ("浅→深过渡深度（世界单位）", Range(0.1, 20.0)) = 5.0
 
         // ---- Gerstner 宏观波（4 条方向波；顶点位移 + 解析导数法线同源）----
@@ -170,10 +175,20 @@ Shader "PirateCrew/PirateWater"
         _HeightFieldFoamStrength   ("高度场泡沫强度", Range(0.0, 2.0)) = 0.60
         _ObstacleFoamBoost         ("障碍接触带泡沫加亮", Range(0.0, 3.0)) = 1.20
 
+        // ---- 大尺度低频破坏噪声（r6：打断水面 34-81px 的可见重复花纹 / tiling 自相关）----
+        // 两层低频 FBM（世界尺度 ≈45 与 ≈85）错相叠加，把基础色的低频起伏周期推到 200px+。
+        // _BreakupScale 是频率（1/世界单位）：默认 0.0222 ≈ 1/45（落在"世界尺度 30-60"内）。
+        // 只做 ±_BreakupTintDepth 的乘性调制（默认 ±4%），两层的均值都是 0.5 → 平均色零漂移。
+        _BreakupScale           ("基础色破坏噪声频率（1/世界单位，默认 1/45）", Float) = 0.0222
+        _BreakupTintDepth       ("基础色破坏幅度（±比例，0.04 = ±4%）", Range(0.0, 0.15)) = 0.04
+        _BreakupSpeed           ("基础色破坏流动速度", Float) = 0.06
+
         // ---- 菲涅尔 / 反射 / 高光 ----
         _FresnelPower           ("菲涅尔指数", Range(0.5, 12.0)) = 5.0
         _FresnelStrength        ("菲涅尔强度", Range(0.0, 2.0)) = 1.0
-        _ReflectionStrength     ("环境反射强度", Range(0.0, 2.0)) = 1.0
+        // r6：1.0 → 0.7。r5 的 1.0 让天空反射（含远处暖带）在掠射角整片盖住水色，
+        // 是"泥黄浊水"的成因之一；0.7 仍保留天空反射的存在感，但让基础蓝透出来。
+        _ReflectionStrength     ("环境反射强度", Range(0.0, 2.0)) = 0.7
         _Smoothness             ("光滑度", Range(0.0, 1.0)) = 0.92
         _SpecularIntensity      ("主光镜面强度（风格化，非能量守恒）", Range(0.0, 8.0)) = 0.5
 
@@ -188,8 +203,6 @@ Shader "PirateCrew/PirateWater"
         _SunSpecPatchScale      ("宽瓣碎块噪声尺度（世界单位⁻¹）", Float) = 8.0
         _SunSpecPatchDepth      ("宽瓣碎块深度（不挖洞）", Range(0.0, 1.0)) = 0.40
         _SunSpecCrestBias       ("宽瓣波峰偏置（填实空心环）", Range(0.0, 1.0)) = 0.70
-        _SunSpecAzBandDeg       ("伪地平线暖带半角（度，沿太阳方位）", Range(5.0, 40.0)) = 22.0
-        _SunSpecAzBandStrength  ("伪地平线暖带强度", Range(0.0, 1.0)) = 0.55
         _SunSpecSlopeBoost      ("窄瓣法线斜率放大（拉出闪点）", Range(1.0, 16.0)) = 12.0
         _SunSpecStrength        ("窄瓣（闪点）强度", Range(0.0, 20.0)) = 8.0
         _SunSpecShininess       ("窄瓣锐度（400+ = 细闪点）", Range(20.0, 1200.0)) = 320.0
@@ -251,6 +264,9 @@ Shader "PirateCrew/PirateWater"
                 float4 _MidColor;
                 float4 _DeepColor;
                 float  _ShoreFadeDistance;
+                float  _BreakupScale;
+                float  _BreakupTintDepth;
+                float  _BreakupSpeed;
                 float4 _W1Dir; float _W1Length; float _W1Amp; float _W1Steep; float _W1Speed;
                 float4 _W2Dir; float _W2Length; float _W2Amp; float _W2Steep; float _W2Speed;
                 float4 _W3Dir; float _W3Length; float _W3Amp; float _W3Steep; float _W3Speed;
@@ -303,8 +319,6 @@ Shader "PirateCrew/PirateWater"
                 float  _SunSpecPatchScale;
                 float  _SunSpecPatchDepth;
                 float  _SunSpecCrestBias;
-                float  _SunSpecAzBandDeg;
-                float  _SunSpecAzBandStrength;
                 float  _SunSpecSlopeBoost;
                 float  _SunSheenStrength;
                 float  _Opacity;
@@ -534,6 +548,18 @@ Shader "PirateCrew/PirateWater"
                 half3 waterColor = lerp(_ShallowColor.rgb, _MidColor.rgb, (half)shallowToMid);
                 waterColor = lerp(waterColor, _DeepColor.rgb, (half)midToDeep);
 
+                // ---- 大尺度低频破坏噪声（r6）：打断 34-81px 的可见重复花纹 ----
+                // 两层低频 FBM（世界尺度 ≈45 与 ≈85）错相叠加 → 基础色起伏的主周期被推到 200px+，
+                // 自相关峰被打散。只做 ±_BreakupTintDepth（默认 ±4%）的乘性调制，两层的均值都是
+                // 0.5 → 平均色零漂移（不扰动 GDD 三档色调色板）。用世界 XZ 驱动 → 跨网格连续无缝。
+                float2 breakupXZ = IN.positionWS.xz;
+                float  breakupN1 = PirateFbm(breakupXZ * _BreakupScale
+                                            + float2(t * _BreakupSpeed, -t * _BreakupSpeed * 0.7));
+                float  breakupN2 = PirateFbm(breakupXZ * (_BreakupScale * 0.53) + float2(41.7, 13.3)
+                                            + float2(-t * _BreakupSpeed * 0.31, t * _BreakupSpeed * 0.23));
+                float  breakup = 0.5 * (breakupN1 + breakupN2);
+                waterColor *= 1.0 + (breakup - 0.5) * 2.0 * _BreakupTintDepth;
+
                 // ---- 高度场模拟（全局；驱动缺席时 enabled=0，整段跳过）----
                 float2 simUV = (IN.positionWS.xz - _WaterSimOrigin.xy) / max(_WaterSimOrigin.z, 1e-4) + 0.5;
                 float  hfMask = 0.0;
@@ -750,20 +776,17 @@ Shader "PirateCrew/PirateWater"
                 float flickMask = saturate((sparkleNoise - 0.62) * 6.0);
                 flickMask = lerp(1.0, flickMask, step(0.001, _SunSpecGlitter));
 
-                // (3) 伪地平线暖带：低角机位平水面镜射无解（要 ~42° 液面倾角），
-                //     改判"视线方位是否落在太阳方位 ±_SunSpecAzBandDeg" + 掠射权重 → 远处暖带。
-                float2 lookAz  = -viewDirWS.xz;
-                float  azAlign = (dot(lookAz, lookAz) > 1e-6) ? dot(normalize(lookAz), sunAz) : -1.0;
-                float  azBand  = smoothstep(cos(radians(_SunSpecAzBandDeg)), 1.0, azAlign);
-                float  horizon = azBand * pow(saturate(1.0 - viewDirWS.y), 2.5) * _SunSpecAzBandStrength;
+                // (3) 伪地平线暖带【r6 退役】：r5 的 `_SunSpecAzBand*` 远处暖带把暖色铺满整片水面
+                //     （暖 hue 占比 98%），与"蓝为主的水"冲突，已连同属性一并删除。
+                //     暖金现在只来自上方宽瓣（主项光路带 + 辅项暖波光）与窄瓣闪点 + 掠射 sheen。
 
                 // 权重（0-1）：宽瓣 = 主项(光路带) + 辅项(任意机位暖波光)；窄瓣 1-exp 软饱和
-                // （避免 _SunSpecStrength=8 把权重顶满）；再加掠射暖光泽与伪地平线暖带。
+                // （避免 _SunSpecStrength=8 把权重顶满）；再加掠射暖光泽。不含伪地平线暖带。
                 half broadWeight = saturate((half)(broadLane * _SunSpecBroadStrength
                                                    + broadWave * _SunSpecWaveStrength));
                 half flickWeight = (1.0h - exp(-(half)(flickTerm * _SunSpecStrength))) * (half)flickMask;
                 half sheen = (half)(pow(saturate(1.0 - viewDirWS.y), 3.0) * _SunSheenStrength);
-                half sunPathWeight = saturate(broadWeight + flickWeight + sheen + (half)horizon);
+                half sunPathWeight = saturate(broadWeight + flickWeight + sheen);
 
                 // (4) 按权重把水体色混向太阳色：饱和处即暖金色相（hue≈45）。加法会被水体蓝底
                 //     （_MidColor B≈0.6 线性）拉成青白——那是 r4"最亮像素是薄荷绿"的成因，故必须混色。

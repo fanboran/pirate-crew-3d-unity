@@ -150,9 +150,9 @@ namespace PirateCrew.EditorTools
         /// 把 <c>PirateWater.shader</c> 的默认参数**显式写进** <see cref="OceanMaterialPath"/>。
         ///
         /// 【为什么必须落盘而不是只改 shader Properties 默认值】
-        ///   Water_Ocean.mat 里已序列化了一整份旧参数（如 <c>_ReflectionStrength 0.55</c>、
-        ///   <c>_SunSpecColor (1,0.95,0.82)</c>）——序列化值优先于 shader 默认值，只改 shader 不会生效。
-        ///   本方法把新默认值逐条写进材质资产，保证出图用的就是 r5 参数。
+        ///   Water_Ocean.mat 里已序列化了一整份旧参数（如 <c>_ShallowColor #4DA6D9</c>、
+        ///   <c>_ReflectionStrength 0.55</c>）——序列化值优先于 shader 默认值，只改 shader 不会生效。
+        ///   本方法把新默认值逐条写进材质资产，保证出图用的就是 r6 参数。
         ///
         /// 【幂等】可重复执行；材质文件缺失时按 <see cref="WaterShaderName"/> 新建。
         /// 【调用点】<see cref="BakeObstacleMap"/> 末尾（ArtGate 步骤 ⑥.5，晚于步骤 ① 的材质生成）；
@@ -178,14 +178,20 @@ namespace PirateCrew.EditorTools
                 Debug.Log("[WaterAssetBuilder] 新建海水材质：" + OceanMaterialPath);
             }
 
-            // ---- r4 实测修正：三档水色整体提亮（只抬明度、保持青蓝色相）----
-            SetColor(m, "_ShallowColor", "#5FB8DD");
-            SetColor(m, "_MidColor", "#3F99C6");
-            SetColor(m, "_DeepColor", "#2C7499");
+            // ---- r6 审美校正：三档水色回蓝（暖金只留在太阳镜射瓣 + 掠射 sheen）----
+            // r5 把暖色铺进基础色/反射 → 整片海读成泥黄浊水；r6 回蓝：比 r4 暗蓝亮，但明确是蓝。
+            SetColor(m, "_ShallowColor", "#4FA8CC");
+            SetColor(m, "_MidColor", "#2E86B5");
+            SetColor(m, "_DeepColor", "#1E5E88");
             // 浅→深完成深度 4 → 5：同深度下更多面积停留在较亮档 = 降等效吸收系数。
             SetFloat(m, "_ShoreFadeDistance", 5f);
 
-            // ---- 太阳光路（暖金 + 平水面镜射宽瓣 + 伪地平线暖带）----
+            // ---- 大尺度低频破坏噪声（打断 34-81px 可见重复花纹 / tiling 自相关）----
+            SetFloat(m, "_BreakupScale", 0.0222f);      // ≈1/45 世界单位（世界尺度 30-60 内）
+            SetFloat(m, "_BreakupTintDepth", 0.04f);    // ±4%，均值零漂移
+            SetFloat(m, "_BreakupSpeed", 0.06f);
+
+            // ---- 太阳光路（暖金 + 平水面镜射宽瓣；r6 删除伪地平线暖带）----
             SetColor(m, "_SunSpecColor", "#FFDB73");       // (1.0, 0.86, 0.45) 暖金 hue≈45
             SetFloat(m, "_SunSpecBroadStrength", 1.6f);
             SetFloat(m, "_SunSpecLaneShininess", 24f);
@@ -195,17 +201,15 @@ namespace PirateCrew.EditorTools
             SetFloat(m, "_SunSpecPatchScale", 8f);
             SetFloat(m, "_SunSpecPatchDepth", 0.40f);
             SetFloat(m, "_SunSpecCrestBias", 0.70f);
-            SetFloat(m, "_SunSpecAzBandDeg", 22f);
-            SetFloat(m, "_SunSpecAzBandStrength", 0.55f);
             SetFloat(m, "_SunSpecSlopeBoost", 12f);
             SetFloat(m, "_SunSpecStrength", 8f);
             SetFloat(m, "_SunSpecShininess", 320f);
             SetFloat(m, "_SunSpecGlitter", 0.55f);
             SetFloat(m, "_SunSheenStrength", 0.20f);
 
-            // ---- 亮点不再被中性白加色拉青：镜面降权、反射提权、折射降权 ----
+            // ---- 亮点不再被中性白加色拉青：镜面降权、反射降权（r6：1.0 → 0.7，让基础蓝透出来）----
             SetFloat(m, "_SpecularIntensity", 0.5f);
-            SetFloat(m, "_ReflectionStrength", 1.0f);
+            SetFloat(m, "_ReflectionStrength", 0.7f);
             SetFloat(m, "_RefractionBlend", 0.22f);
 
             // ---- 其余参数与 shader 默认值对齐（避免旧序列化值残留）----
@@ -272,7 +276,7 @@ namespace PirateCrew.EditorTools
             EditorUtility.SetDirty(m);
             AssetDatabase.SaveAssets();
             Debug.Log("[WaterAssetBuilder] 海水材质参数已落盘：" + OceanMaterialPath
-                      + "（水色提亮 / 暖金太阳光路 / 反射提权 / 折射降权）");
+                      + "（水色回蓝 / 暖金只在太阳镜射瓣 / 反射 0.7 / 低频破坏噪声）");
         }
 
         static void EnsureMaterialFolder()

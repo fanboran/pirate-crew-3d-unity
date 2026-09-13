@@ -100,15 +100,25 @@ namespace PirateCrew.PirateCrew.Fx
         static readonly FxMaterialSpec[] Specs =
         {
             // ---- 爆炸 ----
-            // core/fire 乘亮度系数（r4 实测 V>0.99 死白占 5.2%）：峰值压到 Bloom threshold 1.05 之下。
-            // 系数与 FxAssetBuilder 的烘焙侧（Fx_ExplosionCore/Fire .mat）保持一致，两处必须同步改。
-            new FxMaterialSpec { Name = "Fx_ExplosionFire",  Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = ScaleRgb(FxRules.ExplosionFireColor(), 0.70f), Intensity = 1.15f * 0.70f },
-            new FxMaterialSpec { Name = "Fx_ExplosionCore",  Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = ScaleRgb(FxRules.ExplosionCoreColor(), 0.60f), Intensity = 1.70f * 0.60f },
+            // 亮度两轮压制（r4/r5 各一轮后续，r6 再砍一轮 Intensity）：
+            //   r4/r5 已把 core/fire 的 Tint ×0.60 / ×0.70、Intensity 同步乘同系数；
+            //   r6 在此基础上**再乘 0.60**（只乘 Intensity，不再压 Tint），最终值：
+            //     core：1.70 × 0.60 × 0.60 = **0.612**
+            //     fire：1.15 × 0.70 × 0.60 = **0.483**
+            //   动机：r5 实测 V>0.99 死白像素 6.48%（r4 5.22%）——砍亮度后不降反升，
+            //   说明白不是单纯亮度高，而是**大尺寸粒子大量重叠**饱和；r6 同时把尺寸砍半
+            //   （见 FxRules.FireballStartSize/ExplosionCoreStartSize），这里再压 Intensity 收口。
+            // 系数与 FxAssetBuilder 的烘焙侧（Fx_ExplosionCore/Fire .mat）保持同源：那边读本表的
+            // spec.Intensity 后再乘它自己的亮度系数，故本表改值会自动传导到烘焙资产。
+            new FxMaterialSpec { Name = "Fx_ExplosionFire",  Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = ScaleRgb(FxRules.ExplosionFireColor(), 0.70f), Intensity = 0.483f },
+            new FxMaterialSpec { Name = "Fx_ExplosionCore",  Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = ScaleRgb(FxRules.ExplosionCoreColor(), 0.60f), Intensity = 0.612f },
             new FxMaterialSpec { Name = "Fx_Sparks",         Additive = true,  Texture = FxTextureKind.Spark,      Tint = FxRules.SparkColor(),         Intensity = 1.80f },
             new FxMaterialSpec { Name = "Fx_FineSparks",     Additive = true,  Texture = FxTextureKind.FineSpark,  Tint = FxRules.ExplosionCoreColor(), Intensity = 1.90f },
             new FxMaterialSpec { Name = "Fx_Star4",          Additive = true,  Texture = FxTextureKind.Star4,      Tint = FxRules.ExplosionCoreColor(), Intensity = 1.60f },
             // ---- 碎屑 / 烟 ----
-            new FxMaterialSpec { Name = "Fx_Smoke",          Additive = false, Texture = FxTextureKind.Smoke,      Tint = Color.white,                  Intensity = 1.00f },
+            // r6：烟 Tint 由 Color.white 改烟灰——贴图本身明度 ≈0.62，乘白后是"浅灰白团"，
+            // 在提亮后的场景里就是复验看到的"白雾"；改乘 SmokeColor（#8C8A86）后 ≈0.34 明度，读作暗烟。
+            new FxMaterialSpec { Name = "Fx_Smoke",          Additive = false, Texture = FxTextureKind.Smoke,      Tint = FxRules.SmokeColor(),         Intensity = 1.00f },
             new FxMaterialSpec { Name = "Fx_WoodDebris",     Additive = false, Texture = FxTextureKind.WoodShard,  Tint = Color.white,                  Intensity = 1.00f },
             new FxMaterialSpec { Name = "Fx_Sand",           Additive = false, Texture = FxTextureKind.SoftCircle, Tint = FxRules.SandColor(),          Intensity = 1.00f },
             // ---- 水 ----

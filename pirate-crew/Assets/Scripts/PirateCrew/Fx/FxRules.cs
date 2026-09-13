@@ -46,7 +46,8 @@ namespace PirateCrew.PirateCrew.Fx
         public const int MaxLiveParticles = 1200;
 
         /// <summary>
-        /// 单次爆炸最大粒子数（火球 + 核心 + 火花 + 星屑 + 木屑 + 沙尘 + 烟 七个系统的总和，不含冲击波环）。
+        /// 单次爆炸最大粒子数（核心 + 火球 + 火花 + 木屑 + 沙尘 + 烟 六个系统的总和，不含冲击波环；
+        /// r6 前为七系统，星屑已从爆炸组合移除）。
         /// 由 <see cref="ExplosionTotalParticles"/> 断言；超出说明某个系统的数量映射被改坏了。
         /// </summary>
         public const int MaxExplosionParticles = 200;
@@ -62,8 +63,29 @@ namespace PirateCrew.PirateCrew.Fx
         public const float ReferenceRadiusWorld = 70f / LevelGeometry.PixelsPerUnit;
 
         // ==================================================================
-        // 爆炸（ExplosionFx）
+        // 爆炸（ExplosionFx）—— r6 三层结构
         // ==================================================================
+        //
+        // 【三层是什么】r5 复验（size=160）读到的是"白雾 + 硬边半透明白卡片 + 绿白四角星"，
+        // 没有火球：34 颗火球（起始尺寸 1.56 世界单位，见旧 FireballStartSize=半径×0.5）
+        // 与 11 颗核心在加法混合下大面积重叠，峰值叠加远超 Bloom threshold 直接饱和成白。
+        // r6 把爆炸组合压成**三层**，层与层靠"尺寸/寿命/透明度"拉开，不再互相糊：
+        //   ① 亮核（ExplosionCore 材质）：**小而实**——半径×0.18、不再膨胀（EndSize=1.0）、
+        //      数量少（火球的 1/4），只做"炸点高光"；
+        //   ② 橙色中透体（ExplosionFire 材质，**#FF7A1A 系**）：**中等大小、半透明**——
+        //      起始尺寸砍半（半径×0.26），40% 后开始淡出（EndAlpha 0.25），读作"火球"；
+        //   ③ 暗烟低透（Smoke 材质）：**大而慢、低透**——半径×0.42、上浮慢、EndAlpha 0.14，
+        //      且材质 Tint 由白改为烟灰（见 FxMaterials.Specs 的 Fx_Smoke）。
+        // 粒子重叠密度：**主杠杆是尺寸**——火球起始尺寸砍半（半径×0.5 → ×0.26），单颗覆盖面积降到 1/4，
+        // 加法叠加的饱和面随之大幅收缩，比单纯减 count 更直接治"叠成白"；count 按三层结构另行重定
+        // （火球上限 48→26、核 16→8、烟 36→30，见各自的映射函数）。
+        //
+        // 【r6 删除】星屑（Star4 绿白四角星）**已从爆炸组合移除**：ExplosionStarParticles 已删，
+        // ExplosionFx.Play 不再起该粒子系统。FxMaterial.Star4 与 FxTextureKind.Star4 保留不动
+        // （其它特效若要用仍可用，r6 未删资产）。爆炸粒子系统数 7 → 6。
+        //
+        // 【亮度】材质侧 core/fire 的 _Intensity 在 r5 已砍（×0.60 / ×0.70）的基础上
+        // **再乘 0.60**（最终值见 FxMaterials.Specs：core 0.612、fire 0.483）。
 
         /// <summary>爆炸半径（世界单位）= (size/2 + 20) / 32。出处：`ExplosionResolver.Radius` + `LevelGeometry.PixelsPerUnit`。</summary>
         public static float ExplosionRadiusWorld(float explosionSize)
@@ -78,10 +100,10 @@ namespace PirateCrew.PirateCrew.Fx
             return Mathf.Clamp(r / ReferenceRadiusWorld, 0.65f, 2.20f);
         }
 
-        /// <summary>火球粒子数（暖色核心+外焰）。</summary>
+        /// <summary>橙色中透体（火球）粒子数。r6：密度减半（原 14 + scale×14，现 10 + scale×8）。</summary>
         public static int FireballParticles(float explosionSize)
         {
-            return Mathf.Clamp(14 + Mathf.RoundToInt(ExplosionVisualScale(explosionSize) * 14f), 16, 48);
+            return Mathf.Clamp(10 + Mathf.RoundToInt(ExplosionVisualScale(explosionSize) * 8f), 12, 26);
         }
 
         /// <summary>火花粒子数（硬边亮线，四散）。</summary>
@@ -96,31 +118,30 @@ namespace PirateCrew.PirateCrew.Fx
             return Mathf.Clamp(6 + Mathf.RoundToInt(ExplosionVisualScale(explosionSize) * 10f), 8, 30);
         }
 
-        /// <summary>余留烟雾粒子数（低饱和、上浮）。</summary>
+        /// <summary>余留烟雾粒子数（低饱和、上浮）。r6：随三层结构略降（scale 系数 12→10）。</summary>
         public static int SmokeParticles(float explosionSize)
         {
-            return Mathf.Clamp(8 + Mathf.RoundToInt(ExplosionVisualScale(explosionSize) * 12f), 10, 36);
+            return Mathf.Clamp(8 + Mathf.RoundToInt(ExplosionVisualScale(explosionSize) * 10f), 10, 30);
         }
 
-        /// <summary>核心闪光粒子数（数量少、寿命短、尺寸大）。</summary>
+        /// <summary>
+        /// 亮核粒子数（三层之①：数量少、尺寸小、寿命短，只做炸点高光）。
+        /// r6：原为火球的 1/3（4~16），现为 1/4（3~8）——核心不再参与大范围叠加。
+        /// </summary>
         public static int ExplosionCoreParticles(float explosionSize)
         {
-            return Mathf.Clamp(Mathf.RoundToInt(FireballParticles(explosionSize) / 3f), 4, 16);
+            return Mathf.Clamp(Mathf.RoundToInt(FireballParticles(explosionSize) / 4f), 3, 8);
         }
 
-        /// <summary>星屑粒子数（四芒星，少量点亮画面）。</summary>
-        public static int ExplosionStarParticles(float explosionSize)
-        {
-            return Mathf.Clamp(Mathf.RoundToInt(SparkParticles(explosionSize) / 5f), 3, 9);
-        }
-
-        /// <summary>单次爆炸总粒子数（七个系统之和；预算断言与交付报告用这个数）。</summary>
+        /// <summary>
+        /// 单次爆炸总粒子数（六个粒子系统之和；预算断言与交付报告用这个数）。
+        /// r6：星屑已从爆炸组合移除，本式不再计入。
+        /// </summary>
         public static int ExplosionTotalParticles(float explosionSize)
         {
             return FireballParticles(explosionSize)
                  + ExplosionCoreParticles(explosionSize)
                  + SparkParticles(explosionSize)
-                 + ExplosionStarParticles(explosionSize)
                  + DebrisParticles(explosionSize)
                  + SmokeParticles(explosionSize);
         }
@@ -173,10 +194,23 @@ namespace PirateCrew.PirateCrew.Fx
             return 0.6f + 0.4f * ExplosionVisualScale(explosionSize);
         }
 
-        /// <summary>火球粒子起始尺寸（世界单位）= 半径 × 0.5。</summary>
+        /// <summary>
+        /// 橙色中透体（火球）粒子起始尺寸（世界单位）= 半径 × 0.26。
+        /// r6：由 半径×0.5 砍到 0.26（≈半）；尺寸减半让加法叠加面积降到 1/4，
+        /// size=160 时由 1.56 世界单位降到 ≈0.81（复验判据：火球簇直径 ≈ 爆心半径的 1.5~2 倍，不再是整块白）。
+        /// </summary>
         public static float FireballStartSize(float explosionSize)
         {
-            return ExplosionRadiusWorld(explosionSize) * 0.5f;
+            return ExplosionRadiusWorld(explosionSize) * 0.26f;
+        }
+
+        /// <summary>
+        /// 亮核粒子起始尺寸（世界单位）= 半径 × 0.18（三层之①：小而实）。
+        /// r6 新增，替换原先直接复用 <see cref="FireballStartSize"/> 的做法（那时核心比火球还大 1.10×）。
+        /// </summary>
+        public static float ExplosionCoreStartSize(float explosionSize)
+        {
+            return ExplosionRadiusWorld(explosionSize) * 0.18f;
         }
 
         /// <summary>火花粒子尺寸（世界单位）。</summary>
@@ -191,10 +225,13 @@ namespace PirateCrew.PirateCrew.Fx
             return Mathf.Clamp(ExplosionRadiusWorld(explosionSize) * 0.045f, 0.05f, 0.11f);
         }
 
-        /// <summary>烟雾粒子起始尺寸（世界单位，随时间长大）。</summary>
+        /// <summary>
+        /// 暗烟粒子起始尺寸（世界单位，随时间长大）= 半径 × 0.42（三层之③：三者中最大）。
+        /// r6：由 0.35 提到 0.42——火球尺寸砍半后，烟保持"大而慢"才有层次，否则烟与火球同尺寸会再糊成一团。
+        /// </summary>
         public static float SmokeStartSize(float explosionSize)
         {
-            return ExplosionRadiusWorld(explosionSize) * 0.35f;
+            return ExplosionRadiusWorld(explosionSize) * 0.42f;
         }
 
         /// <summary>冲击波环动画时长（秒）。</summary>

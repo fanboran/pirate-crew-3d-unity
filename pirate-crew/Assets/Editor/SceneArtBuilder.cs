@@ -15,13 +15,19 @@ namespace PirateCrew.EditorTools
     /// 建好之后调用 <see cref="Apply"/>，并把空的 <c>SceneArt</c> 根节点传进来。所有生成物挂在它之下。
     ///
     /// 【本文件做什么】只做「场景编排 + 资产落盘」：
-    ///   ① 潮间带湿沙坡、泡沫线、落水危险带（虚线 + 暗水带）、竞技场外海床沙脊；
+    ///   ① 落水危险带（#CC2222 虚线，仍绕竞技场矩形一圈）；
     ///   ② 调 <see cref="ScenePropComposer"/>（纯 C#）把 <see cref="ScenePropLayout"/> 的摆位表
     ///      翻译成三角面：搁浅断船 / 栈桥 / 箱桶 / 旗 / 锚 / 棕榈 / 灌木 / 草丛 / 礁石 / 杂物 /
     ///      积云 / 远景剪影岛与帆船；
     ///   ③ 每个材质组把全部实例**合并成 1 个网格**（构建期静态合并，DrawCall 与实例数无关），
     ///      网格存 <c>Assets/Art/Models/Scene/</c>、材质存 <c>Assets/Art/Materials/Scene/</c>；
     ///   ④ 把湿沙材质接到 <see cref="BattleTerrainView"/> 的 <c>wetMaterial</c>（潮沟贴片用）。
+    ///
+    /// 【r6：竞技场矩形级的三条环带退役】湿沙坡 / 岸边泡沫线 / 暗水带曾绕整块竞技场矩形铺一圈，
+    /// 平台簇化后它们悬在开阔水面上、且与岸隔水 —— r5 实测成"大片冷白纸板"（泡沫单连通
+    /// 32,844px @sea-shore）与中性灰带。现删除，岸线四段过渡（沙 → 暗湿沙 → 泡沫 → 水）改由
+    /// **簇级水线系统**承担（<see cref="IslandShellGeometry.AddPlatformUndersides"/> 的
+    /// AddWaterlineWetSand / AddWaterlineFoam / AddWaterlineBand，写入同一个 SandWet / Foam 组）。
     ///
     /// 【几何/规则在哪】三角面生成在 <c>Assets/Scripts/PirateCrew/SceneArt/</c>（纯 C#，无头可测）：
     ///   <see cref="IslandShellGeometry"/>（地形壳）、<see cref="ScenePropGeometry"/>（道具）、
@@ -64,32 +70,18 @@ namespace PirateCrew.EditorTools
         // 尺寸常量（全部来自场景文档 §3.3/§5.3/§5.4/§6.4；逐条注明）
         // ------------------------------------------------------------------
 
-        /// <summary>潮间带湿沙坡宽度（竞技场边界外 0→2.5 单位、y 从 0 缓降到 -0.6）。【依据 §3.3】</summary>
-        const float TideSlopeWidth = 2.5f;
+        // 【r6 退役】竞技场矩形级的三条环带（潮间带湿沙坡 / 岸边泡沫线 / 暗水带）已删除，
+        // 故不再需要它们的宽度/内偏移/外偏移常量；相关岸线改由簇级水线系统生成。
+        // 保留的只有绕竞技场矩形的 #CC2222 危险虚线（下面三个常量）。
 
         /// <summary>水面立方体的顶面高度（M2BattleSceneSetup 把水面放在 y=-0.2、厚 0.1 → 顶面 y=-0.15）。</summary>
         const float WaterTopY = -0.15f;
 
-        /// <summary>泡沫线环带内/外偏移。【AI 提案：贴在水线外侧 0.75-1.75，doc §5.3 只给"宽 0.4-1.2"】</summary>
-        const float FoamInnerOffset = 0.75f;
-
-        /// <summary>泡沫线环带外偏移。</summary>
-        const float FoamOuterOffset = 1.75f;
-
-        /// <summary>暗水带内/外偏移。【偏离 doc §5.4「边界外 0-1.0」的原因见类头/报告：0-2.5 已被潮间带占用】</summary>
-        const float DangerBandInnerOffset = 2.6f;
-
-        /// <summary>暗水带外偏移。</summary>
-        const float DangerBandOuterOffset = 3.8f;
-
-        /// <summary>危险虚线所在偏移。【AI 提案：取 3.15 → 落在暗水带正中】</summary>
+        /// <summary>危险虚线所在偏移。【AI 提案：取 3.15】</summary>
         const float DangerLineOffset = 3.15f;
 
         /// <summary>危险虚线线宽。【doc §5.4 给 0.06，本实现取 0.12：1080p 下 0.06 仅约 2px，读不出"线"】</summary>
         const float DangerLineWidth = 0.12f;
-
-        /// <summary>线环带的分段长度（世界单位）。【AI 提案】</summary>
-        const float BandSegmentLength = 1f;
 
         /// <summary>
         /// 云核基色（【AI 提案】<c>#E4EAF0</c>，最大通道 240）。r2 出图中云是"硬边纯白 255"，
@@ -156,17 +148,13 @@ namespace PirateCrew.EditorTools
                 new MeshBuffers(), new MeshBuffers(), new MeshBuffers(),
                 new MeshBuffers(), new MeshBuffers());
 
-            // 1. 潮间带湿沙坡（沙→湿沙→泡沫→水 四段过渡里的前两段）
-            IslandShellGeometry.AddOffsetBand(buffers.SandWet, arenaW, arenaD,
-                0f, TideSlopeWidth, LevelGeometry.GroundTopY, -0.6f, BandSegmentLength);
-
-            // 2. 岸边泡沫线（贴水面之上，避开水立方体的顶面 -0.15）
-            IslandShellGeometry.AddFlatRingBand(buffers.Foam, arenaW, arenaD,
-                FoamInnerOffset, FoamOuterOffset, WaterTopY + 0.01f, BandSegmentLength);
-
-            // 3. 落水危险带：暗水带 + #CC2222 虚线（都不进可玩区，线全场景宽 = 0.12 单位）
-            IslandShellGeometry.AddFlatRingBand(buffers.WaterDark, arenaW, arenaD,
-                DangerBandInnerOffset, DangerBandOuterOffset, WaterTopY + 0.002f, BandSegmentLength);
+            // 1. 落水危险带：只保留 #CC2222 虚线（不进可玩区，线宽 0.12 单位 = 全场景宽）。
+            // 【r6 删除竞技场矩形级的三条环带】湿沙坡 / 岸边泡沫线 / 暗水带曾绕整块竞技场矩形铺一圈，
+            // 平台簇化后它们悬在开阔水面上、且与岸隔水 → r5 实测成"大片冷白纸板"
+            // （泡沫单连通 32,844px @sea-shore、色 (191,199,207) 单色硬边）与中性灰带。
+            // 岸线的四段过渡（沙 → 暗湿沙 → 泡沫 → 水）现在完全由**簇级水线系统**提供：
+            // 见下方 4c 的 IslandShellGeometry.AddPlatformUndersides()，它把
+            // AddWaterlineWetSand / AddWaterlineFoam 写进同一个 SandWet / Foam 组（逐簇、贴包络）。
             IslandShellGeometry.AddDashedBorder(buffers.Danger, arenaW, arenaD,
                 DangerLineOffset, WaterTopY + 0.012f, 0.9f, 0.55f, DangerLineWidth);
 
@@ -200,10 +188,12 @@ namespace PirateCrew.EditorTools
             groups += EmitGroup(root, "Cloth", buffers.Cloth, materials.Cloth, true, true);
             groups += EmitGroup(root, "FlagRed", buffers.FlagRed, materials.FlagRed, true, true);
             groups += EmitGroup(root, "FlagBlue", buffers.FlagBlue, materials.FlagBlue, true, true);
+            // SandWet / Foam 两组现在只由**簇级水线系统**填充（竞技场环带已退役，见上方 1.）：
+            // 地形未转写（grid == null）时 AddPlatformUndersides 不跑、这两组为空 → EmitGroup 自动跳过。
             groups += EmitGroup(root, "SandWet", buffers.SandWet, materials.SandWet, true, true);
             groups += EmitGroup(root, "Foam", buffers.Foam, materials.Foam, false, false);
             groups += EmitGroup(root, "DangerLine", buffers.Danger, materials.Danger, false, false);
-            groups += EmitGroup(root, "WaterDarkBand", buffers.WaterDark, materials.WaterDark, false, false);
+            // WaterDarkBand（暗水带）随竞技场环带一并退役：不再生成该组（buffers.WaterDark 恒空）。
             groups += EmitGroup(root, "FarSilhouette", buffers.Silhouette, materials.Silhouette, false, false);
             groups += EmitGroup(root, "Clouds", buffers.Cloud, materials.Cloud, false, false);
 

@@ -48,6 +48,11 @@
 //        改为按格缝掩码（距格边距离）lerp 到显式**暖灰** _SeamColor（#7C756A，HSV 饱和度 14.5% <15%，
 //        亮度取 #6B5A48 与沙色的中间调）→ "地砖勾缝"读成"沙地裂纹"；块缘亮度差同步降 30%
 //        （_BlockTintStrength 0.06→0.042）。
+//   【r6 新增：近竖直面暖偏置】台地/平台侧壁在蓝灰天空光下被染蓝（r5 实测侧壁 (122,131,134)、
+//     B-R 达 +12，与近岸水 B-R +33 之间拉出一道"蓝缝"，77,787px 占地面 4.7%）。
+//     对近竖直面（|normalWS.y| < 0.35）的 albedo 加暖偏置：lerp 向 _VerticalWarmColor（#8A755C
+//     系）8-14%（_VerticalWarmStrength），掩码按 |y| 幂衰减（_VerticalWarmPower）平滑过渡。
+//     这是外科手术式修正——只改立面 albedo，不动全局环境光/光照链路。判据：侧壁 B-R ≤ ±5。
 //   【默认关闭】_XxxDetailAlbedoStrength / _XxxBumpScale 的 shader 默认值都是 **0**：
 //     没赋贴图的材质行为与改动前逐像素一致，且不依赖 2D 属性内置回退贴图的不可预期线性值。
 //
@@ -111,6 +116,14 @@ Shader "PirateCrew/PirateTerrain"
         _SeamColor              ("格缝暖灰色（#7C756A，饱和度 14.5%）", Color) = (0.486, 0.459, 0.416, 1.0)
         _SeamStrength           ("格缝着色强度（0=关闭）", Range(0.0, 1.0)) = 0.18
         _SeamWidth              ("格缝宽度（占一格的比例，0.12=约 12cm @1m 格）", Range(0.005, 0.5)) = 0.12
+
+        // ---- 近竖直面暖偏置（r6：抵消冷天光把台地/平台侧壁染蓝）----
+        // 判据：侧壁 B-R 从 +12 回到 ±5 内。只改近竖直面的 albedo，不动全局环境光。
+        // 掩码 = saturate(1 - |normalWS.y| / 0.35)，再按 _VerticalWarmPower 幂衰减（平滑过渡）：
+        // 越接近竖直（|y|→0）偏置越强，到 |y|≥0.35（约 20° 以内的水平面）归零。
+        _VerticalWarmColor      ("近竖直面暖偏置色 #8A755C", Color) = (0.5412, 0.4588, 0.3608, 1.0)
+        _VerticalWarmStrength   ("近竖直面暖偏置强度（8-14% 有效区）", Range(0.0, 0.4)) = 0.12
+        _VerticalWarmPower      ("近竖直面暖偏置幂（越大越只作用于立面）", Range(0.5, 4.0)) = 1.5
 
         // ---- 细节噪声贴图（沙/草/岩三族；程序化资产，算法见 Assets/Editor/MaterialNoiseBuilder.cs）----
         // 【默认值 0 是刻意设计】没赋贴图的材质必须与"加贴图之前"逐像素一致（见文件头【默认关闭】）。
@@ -228,6 +241,9 @@ Shader "PirateCrew/PirateTerrain"
                 float4 _SeamColor;
                 float  _SeamStrength;
                 float  _SeamWidth;
+                float4 _VerticalWarmColor;
+                float  _VerticalWarmStrength;
+                float  _VerticalWarmPower;
                 float  _SandNoiseWorldScale;
                 float  _GrassNoiseWorldScale;
                 float  _RockNoiseWorldScale;
@@ -490,6 +506,18 @@ Shader "PirateCrew/PirateTerrain"
                 half rim  = pow(1.0h - saturate((half)dot(normalWS, viewDirWS)), (half)_EdgePower);
                 half edge = saturate(rim * (half)_EdgeStrength);
                 albedo = lerp(albedo, _EdgeColor.rgb, edge);
+
+                // ---- 近竖直面暖偏置（r6：抵消冷天光把台地/平台侧壁染蓝）----
+                // 【为什么】台地/平台侧壁在蓝灰天空光下被染蓝：r5 实测侧壁 (122,131,134)、
+                //   B-R 达 +12，与近岸水（B-R +33）之间拉出一道"蓝缝"（77,787px 占地面 4.7%）。
+                // 【怎么做】外科手术式修正：只对近竖直面（|normalWS.y| < 0.35）的 albedo 加暖偏置，
+                //   lerp 向 #8A755C（暖棕灰），强度 8-14%、按 |y| 幂衰减平滑过渡；不动全局环境光/
+                //   光照链路（避免波及其他物体与水面）。
+                // 【判据】侧壁 B-R 从 +12 回到 ±5 内。
+                float absNy = abs(normalWS.y);
+                half verticalWarm = (half)pow(saturate(1.0 - absNy / 0.35), (float)_VerticalWarmPower)
+                                  * (half)_VerticalWarmStrength;
+                albedo = lerp(albedo, _VerticalWarmColor.rgb, verticalWarm);
 
                 half metallic   = saturate((half)_Metallic);
                 // ---- 粗糙度分区（§3.2 纪律 1：相邻面 smoothness 差 ≥ 0.15）----

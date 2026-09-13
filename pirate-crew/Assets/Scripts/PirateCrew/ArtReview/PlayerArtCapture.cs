@@ -53,11 +53,13 @@ namespace PirateCrew.PirateCrew.ArtReview
         const float ExplosionSize = 160f;
 
         /// <summary>
-        /// 引爆后到截屏的等待（闪光峰值期）。按 `FxRules` 的 size→寿命映射，size=160 时
-        /// 火球寿命仅 0.16+0.06×1.43≈0.25s、火花≈0.42s、烟≈1.6s；r3 等 0.4s 时火球/火花**已消散**，
-        /// 只剩低饱和的烟与木屑（实测 fire_orange=0px）。0.2s 落在火球寿命 80% 处，火光仍在最亮段。
+        /// 引爆后到截屏的等待（火球峰值期）。按 `FxRules` 的 size→寿命映射，size=160 时
+        /// 火球寿命 = 0.16+0.06×1.43 ≈ **0.246s**（r6 起三层结构下火球仍是这一寿命）。
+        /// 【r6 由 0.2 → 0.12】0.2s 落在火球寿命的 **81%**——此时火球已几乎淡出、只剩低透的烟，
+        /// 这正是 r5 复验"拍不到火球、只有白雾"的采集侧原因。0.12s 落在 **49%**，
+        /// 在火球最亮的中前段（粒子 LifeSpan 刚过一半、尺寸接近峰值），火光可辨。
         /// </summary>
-        const float ExplosionWarmupSeconds = 0.2f;
+        const float ExplosionWarmupSeconds = 0.12f;
 
         /// <summary>
         /// battle-45/hud-fullscreen 瞄准点的高度（世界 Y）。地面顶面 y=0，单位身高约 1.5–2，

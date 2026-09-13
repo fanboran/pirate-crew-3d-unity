@@ -1126,8 +1126,8 @@ namespace PirateCrew.EditorTools
             material.SetColor("_OutlineColorSelected", new Color(0.286f, 0.851f, 0.839f, 0.949f));
 
             material.SetFloat("_OutlineWidth", 0.006f);
-            material.SetFloat("_OutlineWidthHover", 0.0025f);
-            material.SetFloat("_OutlineWidthSelected", 0.006f);
+            material.SetFloat("_OutlineWidthHover", 0.0042f);
+            material.SetFloat("_OutlineWidthSelected", 0.010f);
 
             material.SetFloat("_OutlineState", 0f);
             material.SetFloat("_OutlineAlpha", 1f);

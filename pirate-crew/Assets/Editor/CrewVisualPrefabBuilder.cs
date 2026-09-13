@@ -48,7 +48,7 @@ namespace PirateCrew.EditorTools
     ///      预制体共 26 处），运行时一个都收不到，蓝队会顶着红队底色。故建预制体时把标记对应的 renderer
     ///      列表**显式写进 <c>UnitOutlineBinder.teamTintRenderers</c>**，并把标记组件删掉（不再留 missing script）。
     ///
-    /// 【本脚本承担的三处 r5 复验整改】
+    /// 【本脚本承担的三处复验整改（① ② 为 r5，③ 为 r5 起草 / r6 按复验重做）】
     ///   ① 描边覆盖（选中青虚线"r3 862px → r4 311px"）：归因结论是**选中虚线的周期**而不是 binder
     ///      的收集口径——r3/r4 同机位图里单位像素级同形同址（红帽 bbox 都是 x896-1023 / y552-817），
     ///      13 个 Crew 材质的 <c>m_Shader</c> 全是 PirateOutline 且都带 <c>_OutlineState</c>，
@@ -56,12 +56,20 @@ namespace PirateCrew.EditorTools
     ///      <c>_Time.y × _DashSpeed</c>：`_DashFrequency=50` 在 1080p 下 ON/OFF 各 34px，
     ///      比靴(15px)/腰带(16px)这类小件还长 → 小件可能整件落在 OFF 带里（判据"某部件 0 青色"）。
     ///      故把 <c>_DashFrequency</c> 提到 <see cref="DashFrequencySelected"/>（推导见该常量注释）。
+    ///      r6 复验补充：帽/头/臂仍只有 0~1px 青——**不是材质/收集问题**（7 个预制体的
+    ///      部件→材质 guid 对照见 docs/描边Shader调试.md 或 r6 报告，全部命中带 _OutlineState 的 12 个
+    ///      Crew 材质，唯 ContactShadow 例外且被 binder 显式排除），而是**屏幕空间法线外扩在特写
+    ///      距离下只有 ~1px**（R_border ≈ width·w^−0.4，w≈2 时 ≈0.0045NDC≈2.4px，扣掉被本体遮挡的
+    ///      部分后可见约 1px）。故把 <c>_OutlineWidthSelected</c> 由 0.006 提到
+    ///      <see cref="OutlineWidthSelected"/>（见常量注释与 <see cref="ApplyOutlineUnitMaterial"/>）。
     ///   ② 脚下灰色刀片状碎片：根因是**手持武器的铁刀片穿到脚底平面以下**，不是接触阴影片
     ///      （阴影片是 y=+0.02 的水平 quad、近黑；碎片实测取色 (70,67,61) = CrewIron 0.431/0.416/0.388
     ///      在阴影下的值，形状是 0.014×0.150 的竖直薄板）。见 <see cref="ApplyHeldWeaponFloorFit"/>。
-    ///   ③ 帽子/脸：三角帽压扁帽冠 + 外扩帽檐（去掉"红桶帽"读感），脸部补鼻尖、眼下移贴回头球面。
-    ///      见 <see cref="ApplyHeadDetails"/>。
-    ///   三者都只改建预制体时的网格/参数，不动 shader、不动运行时链路。
+    ///   ③ 帽子/脸：**所有布帽件（Bandana/Tricorn）**换成三角帽网格（压扁帽冠 + 34° 上翻三檐、
+    ///      檐外缘 1.30×头半径）、删掉读作"肉瘤"的左侧 <c>BandanaKnot</c>、鼻长减半并贴回头球面。
+    ///      r5 只改了名为 <c>Tricorn</c> 的船长件，非船长特写主体的下翻圆台头巾没被覆盖 →
+    ///      复验仍读作"红桶帽"。见 <see cref="ApplyHeadDetails"/>。
+    ///   三者都只改建预制体时的网格/参数/材质常量，不动 shader、不动运行时链路。
     ///
     /// 【发光说明】火把/火焰用 <c>Flame</c> 材质的高亮 base color（#FF7A1A）借 HDR + Bloom 出光。
     ///   PirateOutline shader 没有 Emission 通道，且本波次禁止改 shader（另一 agent 在改 ShadowCaster），
@@ -150,6 +158,25 @@ namespace PirateCrew.EditorTools
         const float DashFrequencySelected = 150f;
 
         /// <summary>
+        /// 选中态描边宽度（写入所有 Crew 材质的 <c>_OutlineWidthSelected</c>；模式 0 = 屏幕空间恒定粗细）。
+        ///
+        /// 【r6 由 0.006 提到 0.010 的原因】r5 复验仍然只有躯干/腿有青，帽 ~1px、臂 0px；
+        ///   YAML 取证已排除材质与收集（12 个 Crew 材质全带 <c>_OutlineState</c>，7 个预制体的
+        ///   部件→材质 guid 全部命中，唯 ContactShadow 例外且被 binder 显式排除），剩下的是
+        ///   **外扩量太小**：模式 0 下屏幕上单边宽 ≈ `width · (positionCS.w)^(1−_OutlineDistanceAttenuation) / w`
+        ///   → ≈ `width · w^(−0.4)`；特写机位 w≈2 时 0.006 → ≈0.0045 NDC ≈ **2.4px**，
+        ///   扣掉被本体自遮挡的部分后可见只剩 ~1px，再被虚线的 ON/OFF(各 11px) 截断，
+        ///   小部件（帽/头/臂）的青色像素就掉到 0~1。放大到 0.010 → ≈4px（可见 ~2px），
+        ///   与躯干/腿同量级（docs/描边Shader调试.md §三 的推荐区间 0.002~0.012 内）。
+        /// 【同步要求】<c>M2BattleSceneSetup.EnsureOutlineMaterial</c> 持同源镜像（含 _OutlineWidthSelected）；
+        ///   那个方法只服务旧单立方体兜底材质，本次未同步（不在 r6 文件域内），已在 r6 报告登记。
+        /// </summary>
+        const float OutlineWidthSelected = 0.010f;
+
+        /// <summary>悬停描边宽度：与选中等比（0.0025 → 0.0042），保持"悬停比选中细"的既有语义。</summary>
+        const float OutlineWidthHover = OutlineWidthSelected * 0.42f;
+
+        /// <summary>
         /// 脚底平面的世界 y：单位根摆在原点时 = rootScale.y × (−0.5)。
         /// 只有"根在原点、无旋转"的建预制体阶段成立，故仅供本脚本的离地检查用。
         /// </summary>
@@ -161,8 +188,11 @@ namespace PirateCrew.EditorTools
         /// <summary>穿地修正后允许的最短刀身（避免"武器缩没了"；再不够就靠缩短+告警收口）。</summary>
         const float MinHeldBladeLength = 0.046f;
 
-        /// <summary>三角帽帽冠高（原 Tricorn 0.070 → 压扁到 0.034，把高度让给帽檐）。</summary>
-        const float TricornCrownHeight = 0.034f;
+        /// <summary>
+        /// 三角帽帽冠高 = 基准头半径 × 0.44（复验判据"冠高 ≤ 0.45×头径"；0.44×0.0775 ≈ 0.0341，
+        /// 与 r5 的 0.034 同值，只是把口径写成比值的显式形式）。
+        /// </summary>
+        static readonly float TricornCrownHeight = ReferenceHeadRadius * 0.44f;
 
         /// <summary>三角帽帽冠底口半径（与原 Tricorn 的 crownRadius 0.048 一致，保证坐在头球上无缝）。</summary>
         const float TricornCrownBottomRadius = 0.048f;
@@ -170,11 +200,18 @@ namespace PirateCrew.EditorTools
         /// <summary>三角帽帽冠顶口半径（上窄下宽，规范 §5.1 禁上下等径）。</summary>
         const float TricornCrownTopRadius = 0.036f;
 
-        /// <summary>三角帽帽檐外扩半径（原 0.065 → 0.085：整体宽 0.17，剪影从"桶帽"变"三角帽"）。</summary>
-        const float TricornBrimRadius = 0.085f;
+        /// <summary>
+        /// 三角帽檐**外缘半径**（世界单位）= 基准头半径 × 1.30（复验判据"檐宽 ≈ 1.3×头径"）。
+        /// r5 取 0.085（≈1.10×头半径）——帽檐外扩不足，配下翻圆台头巾就读作"贝雷帽/桶帽"。
+        /// r6 起三片檐统一按**上翻后外缘落在此半径**来建模（见 <see cref="BuildTricornFlatMeshData"/>）。
+        /// </summary>
+        static readonly float TricornBrimRadius = ReferenceHeadRadius * 1.30f;
 
-        /// <summary>三角帽三片檐的上翻角（度）：三角帽的檐是往上折的。</summary>
-        const float TricornFoldDegrees = 20f;
+        /// <summary>
+        /// 三角帽三片檐的上翻角（度）。复验判据"檐外扩角 ≥ 30°"——r5 的 20° 上翻不足，
+        /// 剪影压不出三角帽的尖角；r6 取 34°（留 4° 余量）。
+        /// </summary>
+        const float TricornFoldDegrees = 34f;
 
         /// <summary>三角帽檐厚（闭合盒，保证薄配件描边完整；规范 R-9 禁单面 Quad）。</summary>
         const float TricornBrimThickness = 0.010f;
@@ -182,8 +219,11 @@ namespace PirateCrew.EditorTools
         /// <summary>鼻尖相对头心的高度偏移（略低于赤道）。</summary>
         const float NoseHeightOffset = -0.006f;
 
-        /// <summary>鼻尖半径系数（× 头半径 → 长度）：小而尖，只求侧面剪影有凸起。</summary>
-        const float NoseLengthMul = 0.22f;
+        /// <summary>
+        /// 鼻尖半径系数（× 头半径 → 长度）。r6 由 0.22 砍到 0.11（**缩 50%**）：
+        /// r5 实测鼻尖凸出头球 0.36×头半径（≈18px@特写），被读作"鸟喙"。
+        /// </summary>
+        const float NoseLengthMul = 0.11f;
 
         /// <summary>眼下移后的高度（世界单位，正比头径缩放）——原 +0.008 偏上，脸显得"眼睛过曝在空白上"。</summary>
         const float EyeHeightOffset = -0.010f;
@@ -295,11 +335,20 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 三角帽塑形（r5）：把"高帽冠 + 小檐"（读作红桶帽）改成"压扁帽冠 + 外扩上翻三檐"。
+        /// 三角帽塑形（r5 起草 / r6 按复验判据重算几何）：压扁帽冠 + 三片上翻帽檐。
         ///
-        /// 【坐标系】与原 <c>CrewMeshFactory.Tricorn</c> 同口径：帽冠底口在 y=0（装配侧把它摆在
-        /// <c>HeadPivot + HeadRadius×0.80</c>，底口半径 0.048 正好等于头球在该高度的截面半径 → 坐下无缝），
-        /// 三片檐绕 Y 均布 120°、绕 Z 上翻 <see cref="TricornFoldDegrees"/>°。
+        /// 【坐标系】帽冠底口在 y=0（装配侧把它摆在 <c>HeadPivot + HeadRadius×0.80</c>，
+        /// 底口半径 0.048 正好等于头球在该高度的截面半径 → 坐下无缝）。
+        /// 【r6 檐片几何（复验判据：檐外扩角 ≥30°、檐外缘 ≈1.3×头半径）】
+        ///   檐片是薄盒，先平放（内缘在帽冠底口 x=<see cref="TricornCrownBottomRadius"/> 处），
+        ///   再整体绕 Z **上翻** <see cref="TricornFoldDegrees"/>° = 34°。旋转把内缘从
+        ///   (inner, 0) 转到 (0.048cosf, 0.048sinf)，故装配时先给 y 一个 −0.048·sinf 的补偿，
+        ///   使**上翻后的内缘恰好回到帽冠底口平面 y=0**（檐片不会插进头球）。
+        ///   上翻后的外缘 x = 0.048 + L·cosf（L = 檐片长），令其等于
+        ///   <see cref="TricornBrimRadius"/> 反解 L = (R_brim − 0.048)/cosf。
+        ///   外缘随之抬高 L·sinf ≈ 0.036 → 帽檐上缘略高于帽冠顶（0.034），剪影即三角帽。
+        /// 【朝向】三片 120° 均布，并整体绕 Y 转 −90° → 一片正对**前方 +Z**、两片朝后侧，
+        ///   与真实三角帽的"前一后二"角位一致（0/120/240 会转成"一右两左"的歪剪影）。
         /// 【为什么用盒做檐】闭合几何才有完整描边（规范 R-9 明令薄配件禁单面 Quad）。
         /// </summary>
         static MeshData BuildTricornFlatMeshData()
@@ -312,18 +361,23 @@ namespace PirateCrew.EditorTools
                 },
                 10, capBottom: true, capTop: true);
 
-            // 檐片外缘落在 x ≈ TricornBrimRadius：外缘 = 平移量 + 半长，再乘 cos(上翻角)。
-            float flapLength = TricornBrimRadius * 1.30f;
+            float fold = TricornFoldDegrees;
+            float cosF = Mathf.Cos(fold * Mathf.Deg2Rad);
+            float sinF = Mathf.Sin(fold * Mathf.Deg2Rad);
+
+            // 上翻后外缘落到 TricornBrimRadius；内缘上翻后回到帽冠底口平面（见方法头推导）。
+            float flapLength = (TricornBrimRadius - TricornCrownBottomRadius) / cosF;
+            float flapCenterX = TricornCrownBottomRadius * cosF + flapLength * 0.5f;
+            float flapCenterY = -TricornCrownBottomRadius * sinF;
+
             MeshData flap = CrewMeshFactory.Box(
                 new Vector3(flapLength, TricornBrimThickness, TricornBrimRadius * 0.95f));
-            // 抬高 6mm：上翻后内缘不会垂到帽冠底口以下（否则会插进头球/露在帽檐下）。
-            flap = CrewMeshFactory.Translate(flap,
-                new Vector3(TricornBrimRadius * 0.42f, TricornBrimThickness * 0.6f, 0f));
-            flap = CrewMeshFactory.RotateZ(flap, TricornFoldDegrees);
+            flap = CrewMeshFactory.Translate(flap, new Vector3(flapCenterX, flapCenterY, 0f));
+            flap = CrewMeshFactory.RotateZ(flap, fold);
 
             var parts = new List<MeshData>(4) { crown };
             for (int k = 0; k < 3; k++)
-                parts.Add(CrewMeshFactory.RotateY(flap, k * 120f));
+                parts.Add(CrewMeshFactory.RotateY(flap, k * 120f - 90f));
             return MeshData.Combine(parts.ToArray());
         }
 
@@ -568,11 +622,11 @@ namespace PirateCrew.EditorTools
                 material.SetColor("_OutlineColorSelected", new Color(0.286f, 0.851f, 0.839f, 0.949f));
 
             if (material.HasProperty("_OutlineWidth"))
-                material.SetFloat("_OutlineWidth", 0.006f);
+                material.SetFloat("_OutlineWidth", OutlineWidthSelected);
             if (material.HasProperty("_OutlineWidthHover"))
-                material.SetFloat("_OutlineWidthHover", 0.0025f);
+                material.SetFloat("_OutlineWidthHover", OutlineWidthHover);
             if (material.HasProperty("_OutlineWidthSelected"))
-                material.SetFloat("_OutlineWidthSelected", 0.006f);
+                material.SetFloat("_OutlineWidthSelected", OutlineWidthSelected);
             if (material.HasProperty("_OutlineState"))
                 material.SetFloat("_OutlineState", 0f);
             if (material.HasProperty("_OutlineAlpha"))
@@ -588,6 +642,52 @@ namespace PirateCrew.EditorTools
                 material.SetFloat("_DashFrequency", DashFrequencySelected);
             if (material.HasProperty("_DebugMode"))
                 material.SetFloat("_DebugMode", 0f);
+        }
+
+        /// <summary>
+        /// 核对预制体里每个**角色部件**（排除贴地接触阴影面片）的材质是否带 <c>_OutlineState</c>。
+        ///
+        /// 【为什么要有这一步（r6）】r4/r5 两次复验都出现"帽/头/臂选中时不发青"，排查路径一直是
+        /// "读 prefab YAML 对材质 guid → 看 .mat 有没有 _OutlineState"。那个结论在 r6 已被证伪
+        /// （12 个 Crew 材质全带该属性，部件全部命中），但如果将来有人把一个部件换成
+        /// PirateSurface / URP-Lit 材质，就会**静默**丢掉描边（MPB 写不存在的属性不报错）。
+        /// 故在这里做一次建预制体期的硬核对，命中缺属性的部件就 **Debug.LogError** 点名列出
+        /// （ArtGate/批处理会把它暴露出来），不让它溜到运行时。
+        /// 【实测结果】r6 全量核对 7 个预制体：**0 命中**——所有角色部件本就统一走带 _OutlineState 的
+        /// 12 个 Crew 材质（唯一不带的是 ContactShadow，被本方法与 binder 一致地排除），
+        /// 故这里没有"换绑"动作可做，存在的意义是不让将来的静默回归发生。
+        /// </summary>
+        static void VerifyOutlineMaterials(GameObject root, string fileName)
+        {
+            int outlineStateId = Shader.PropertyToID("_OutlineState");
+            MeshRenderer[] renderers = root.GetComponentsInChildren<MeshRenderer>(true);
+
+            int missing = 0;
+            string firstOffender = null;
+
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                MeshRenderer r = renderers[i];
+                // 贴地接触阴影面片刻意不描边（与 UnitOutlineBinder 的排除口径一致，见该类的注释）。
+                if (r == null || r.GetComponent<ContactShadowDecal>() != null)
+                    continue;
+
+                Material m = r.sharedMaterial;
+                if (m != null && m.HasProperty(outlineStateId))
+                    continue;
+
+                missing++;
+                if (firstOffender == null)
+                    firstOffender = r.name + "（" + (m != null ? m.name : "空材质") + "）";
+            }
+
+            if (missing == 0)
+                return;
+
+            Debug.LogError("[CrewVisualPrefabBuilder] " + fileName + " 有 " + missing + "/"
+                + renderers.Length + " 个角色部件的材质不含 _OutlineState，选中/悬停不会画出描边，首个："
+                + firstOffender + "。请把这些部件换成 PirateOutline shader 的 Crew 材质"
+                + "（ApplyOutlineUnitMaterial 生成的那批），否则 r4/r5 的\"部分部件无青\"会复发。");
         }
 
         static CrewVisualAssetSet BuildAssetSet(Dictionary<string, Mesh> meshes, Material[] materials)
@@ -673,6 +773,11 @@ namespace PirateCrew.EditorTools
                     triangles += mesh.triangles.Length / 3;
             }
             rendererCount = root.GetComponentsInChildren<MeshRenderer>(true).Length;
+
+            // r6：建完立刻核一遍"每个角色部件的材质是否都带 _OutlineState"（缺的报错点名）。
+            // 这一步把 r4/r5 反复出现的"部分部件选中无青"从"运行时靠肉眼/读 YAML 排查"提前到
+            // 建预制体阶段（ArtGate 会把这行错误暴露出来），见 VerifyOutlineMaterials。
+            VerifyOutlineMaterials(root, fileName);
 
             // 接线（PirateBase.body / bodyCollider / 表现层引用）。
             var so = new SerializedObject(pirate);
@@ -789,14 +894,20 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 帽子与脸（r5）：
-        ///   · 三角帽：换 <see cref="TricornFlatKey"/> 网格（压扁帽冠 + 外扩上翻三檐），
-        ///     帽体不下移（底口半径 = 头球在该高度的截面半径 → 仍严丝合缝坐在头上）。
-        ///   · 鼻尖：用一个 <c>SphereSmall</c> 椭球挂在 <c>HeadPivot</c> 下，**材质取头部件自己的材质**
-        ///     （骷髅因此得到骨色鼻尖，不会出现"骷髅长皮肤色鼻子"）。
-        ///   · 眼：从 +0.008 下移到 <see cref="EyeHeightOffset"/>，并按新高度重算到球面（z = √(r²−y²)·0.99），
-        ///     否则下移后眼睛会陷进头球里。
-        /// 只动 <c>HeadPivot</c>/<c>Tricorn</c>/<c>EyeL,R</c>，不动任何枢轴，动画链路零影响。
+        /// 帽子与脸（r5 起草 / r6 按复验重做）：
+        ///   · <b>三角帽</b>：把**所有布帽件**（<c>Bandana</c> 与 <c>Tricorn</c>）统一换成
+        ///     <see cref="TricornFlatKey"/> 网格（压扁帽冠 + 三片 34° 上翻帽檐，外缘 1.30×头半径），
+        ///     并归位到 <c>HeadRadius×0.80</c>（帽冠底口与头球相切的高度）、清零歪戴角。
+        ///     <b>为什么不能只改 Tricorn</b>：r5 就是这么做的，但特写主体是**非船长**职业
+        ///     （红队 FirstAlive = 水手），它的帽子叫 <c>Bandana</c>、网格是
+        ///     <c>Frustum(top 0.055, bottom 0.082)</c> 的**下翻圆台**——低圆冠 + 下翻宽檐，
+        ///     正是复验读到的"红桶帽/贝雷帽"；r5 的三角帽塑形从未作用到它身上。
+        ///   · <b>删左侧圆疙瘩</b>：确认归属为 <c>BandanaKnot</c>（SphereSmall + 阵营布，r0.021，
+        ///     仅水手有，挂在 <c>HeadPivot</c> 的 (0.055, 0.55r, −0.048)）——复验把它读作"肉瘤"。
+        ///   · <b>鼻尖</b>：长度减半（<see cref="NoseLengthMul"/> 0.22→0.11）并**贴回球面**
+        ///     （中心按 <c>z = √(r²−y²)×0.99</c> 放在头球表面，与眼下移同口径），消除"鸟喙感"。
+        ///   · <b>眼</b>：下移到 <see cref="EyeHeightOffset"/> 并按球面重算 z（r5 已做，保留）。
+        /// 只动 <c>HeadPivot</c> 下的帽子/鼻/眼，不动任何枢轴，动画链路零影响。
         /// </summary>
         static void ApplyHeadDetails(Transform visual, CrewVisualAssetSet assets, VisualAddOns addOns)
         {
@@ -805,20 +916,20 @@ namespace PirateCrew.EditorTools
             float headRadius = head != null ? Mathf.Abs(head.localScale.x) : ReferenceHeadRadius;
             if (headRadius < 0.02f)
                 headRadius = ReferenceHeadRadius;
+            float headRatio = headRadius / ReferenceHeadRadius;
 
-            // ---- 三角帽 ----
-            Transform tricorn = FindDeep(visual, "Tricorn");
-            if (tricorn != null && addOns.TricornFlat != null)
-            {
-                var filter = tricorn.GetComponent<MeshFilter>();
-                if (filter != null)
-                    filter.sharedMesh = addOns.TricornFlat;
-                tricorn.localScale = Vector3.one;   // 新网格按世界单位建模（与原 Tricorn 同口径）
-            }
+            // ---- 三角帽（所有布帽件统一换网格；TricornFlat 按基准头半径建模，故按比例缩放）----
+            ReshapeHat(FindDeep(visual, "Tricorn"), addOns, headRatio);
+            ReshapeHat(FindDeep(visual, "Bandana"), addOns, headRatio);
+
+            // ---- 删掉左侧圆疙瘩（BandanaKnot，仅水手；归属见方法头）----
+            Transform knot = FindDeep(visual, "BandanaKnot");
+            if (knot != null)
+                Object.DestroyImmediate(knot.gameObject);
 
             NudgeEyesDown(visual, headRadius);
 
-            // ---- 鼻尖 ----
+            // ---- 鼻尖（缩 50% + 贴回球面）----
             if (headPivot == null || head == null)
                 return;
 
@@ -827,10 +938,35 @@ namespace PirateCrew.EditorTools
                 ? headRenderer.sharedMaterial
                 : assets.For(CrewMaterialRole.Skin);
 
+            float noseY = NoseHeightOffset * headRatio;
+            // 贴回球面：把鼻心放到该高度处的球面上（×0.99 与 NudgeEyesDown 同口径），
+            // 使鼻根埋进球里、只留半个椭球的小凸起（r5 是 z=0.92r 的悬空前伸 → 鸟喙）。
+            float noseSurfaceZ = Mathf.Sqrt(Mathf.Max(headRadius * headRadius - noseY * noseY, 0f)) * 0.99f;
             float noseLength = headRadius * NoseLengthMul * 2f;
             AddSimplePart(headPivot, "Nose", assets.SphereSmall, headMaterial,
-                new Vector3(0f, NoseHeightOffset, headRadius * 0.92f),
+                new Vector3(0f, noseY, noseSurfaceZ),
                 new Vector3(noseLength * 0.62f, noseLength * 0.52f, noseLength));
+        }
+
+        /// <summary>
+        /// 把一个布帽件换成三角帽网格并归位（r6）。找不到件时静默返回 false（骷髅的破头巾 /
+        /// 纵火犯的乱发不是帽件，不参与换装）。
+        /// </summary>
+        static bool ReshapeHat(Transform hat, VisualAddOns addOns, float headRatio)
+        {
+            if (hat == null || addOns.TricornFlat == null)
+                return false;
+
+            var filter = hat.GetComponent<MeshFilter>();
+            if (filter != null)
+                filter.sharedMesh = addOns.TricornFlat;
+
+            // 帽冠底口落在头球在 0.80r 处的截面半径上（与原 Tricorn 的装配口径一致）；
+            // 网格按基准头半径建模，故整体按 headRatio 缩放，保持"檐 1.3×头半径"的比值。
+            hat.localRotation = Quaternion.identity;   // 原头巾有 12° 歪戴，三角帽不歪
+            hat.localPosition = new Vector3(0f, ReferenceHeadRadius * 0.80f * headRatio, 0f);
+            hat.localScale = Vector3.one * headRatio;
+            return true;
         }
 
         /// <summary>
