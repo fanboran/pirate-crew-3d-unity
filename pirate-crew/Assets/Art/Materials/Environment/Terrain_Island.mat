@@ -31,7 +31,7 @@ Material:
     - _BlockTintStrength: 0.12
     - _DebugMode: 0
     - _EdgePower: 3
-    - _EdgeStrength: 0.35
+    - _EdgeStrength: 0
     - _FacetStrength: 0.6
     - _HeightGrassRock: 3
     - _HeightSandGrass: 0.6

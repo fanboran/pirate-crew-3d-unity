@@ -210,7 +210,7 @@ GameObject:
   - component: {fileID: 8899999440928834846}
   - component: {fileID: 4502046617059989868}
   - component: {fileID: 9101543055305687565}
-  - component: {fileID: 2203089350949942586}
+  - component: {fileID: 7582384583152001012}
   m_Layer: 0
   m_Name: BandanaKnot
   m_TagString: Untagged
@@ -283,7 +283,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &2203089350949942586
+--- !u!114 &7582384583152001012
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -721,7 +721,7 @@ GameObject:
   - component: {fileID: 7267035825554283053}
   - component: {fileID: 8401096203037926219}
   - component: {fileID: 8111325922068654590}
-  - component: {fileID: 4217761214586511078}
+  - component: {fileID: 5645210672996902187}
   m_Layer: 0
   m_Name: Bandana
   m_TagString: Untagged
@@ -794,7 +794,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &4217761214586511078
+--- !u!114 &5645210672996902187
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1326,7 +1326,7 @@ GameObject:
   - component: {fileID: 3074139024321005514}
   - component: {fileID: 898068972251030366}
   - component: {fileID: 4347356355817080389}
-  - component: {fileID: 4390900261226408701}
+  - component: {fileID: 8661542402869613187}
   m_Layer: 0
   m_Name: Belt
   m_TagString: Untagged
@@ -1399,7 +1399,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &4390900261226408701
+--- !u!114 &8661542402869613187
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1792,7 +1792,7 @@ GameObject:
   - component: {fileID: 4367008829913868478}
   - component: {fileID: 1092509179537420722}
   - component: {fileID: 1262877375513930142}
-  - component: {fileID: 2865130937072215006}
+  - component: {fileID: 229666303419356096}
   m_Layer: 0
   m_Name: Torso
   m_TagString: Untagged
@@ -1865,7 +1865,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &2865130937072215006
+--- !u!114 &229666303419356096
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

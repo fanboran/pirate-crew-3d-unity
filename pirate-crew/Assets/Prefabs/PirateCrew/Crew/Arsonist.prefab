@@ -94,7 +94,7 @@ GameObject:
   - component: {fileID: 1539543952353232234}
   - component: {fileID: 7600473586220729312}
   - component: {fileID: 6823275710186511730}
-  - component: {fileID: 2599138050249604879}
+  - component: {fileID: 5929995567206485471}
   m_Layer: 0
   m_Name: HairClump2
   m_TagString: Untagged
@@ -167,7 +167,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &2599138050249604879
+--- !u!114 &5929995567206485471
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -307,7 +307,7 @@ GameObject:
   - component: {fileID: 4315570007478306015}
   - component: {fileID: 5109322978200912200}
   - component: {fileID: 202549863277220733}
-  - component: {fileID: 8475682100938541723}
+  - component: {fileID: 7752025174578468768}
   m_Layer: 0
   m_Name: Torso
   m_TagString: Untagged
@@ -380,7 +380,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &8475682100938541723
+--- !u!114 &7752025174578468768
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -885,7 +885,7 @@ GameObject:
   - component: {fileID: 3181821188704505168}
   - component: {fileID: 3504744670844091083}
   - component: {fileID: 7102755551967215109}
-  - component: {fileID: 2533090046482862548}
+  - component: {fileID: 5118564707108080557}
   m_Layer: 0
   m_Name: Hair
   m_TagString: Untagged
@@ -958,7 +958,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &2533090046482862548
+--- !u!114 &5118564707108080557
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1417,7 +1417,7 @@ GameObject:
   - component: {fileID: 3385853728556895912}
   - component: {fileID: 8749228995583939883}
   - component: {fileID: 5594017672216056829}
-  - component: {fileID: 6603277141370004447}
+  - component: {fileID: 4709173163247214698}
   m_Layer: 0
   m_Name: HairClump0
   m_TagString: Untagged
@@ -1490,7 +1490,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &6603277141370004447
+--- !u!114 &4709173163247214698
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1746,7 +1746,7 @@ GameObject:
   - component: {fileID: 8025356114436134259}
   - component: {fileID: 2032820083104667759}
   - component: {fileID: 8116612046454369997}
-  - component: {fileID: 7460501607133710713}
+  - component: {fileID: 5304107954413023658}
   m_Layer: 0
   m_Name: Belt
   m_TagString: Untagged
@@ -1819,7 +1819,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &7460501607133710713
+--- !u!114 &5304107954413023658
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -2045,7 +2045,7 @@ GameObject:
   - component: {fileID: 8087631813308930065}
   - component: {fileID: 8644644766543165061}
   - component: {fileID: 4596371335155088728}
-  - component: {fileID: 1572289687234099388}
+  - component: {fileID: 3203596069011331494}
   m_Layer: 0
   m_Name: HairClump1
   m_TagString: Untagged
@@ -2118,7 +2118,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &1572289687234099388
+--- !u!114 &3203596069011331494
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

@@ -2027,7 +2027,7 @@ GameObject:
   - component: {fileID: 438694379222677466}
   - component: {fileID: 5471246859525506346}
   - component: {fileID: 6208212830458922069}
-  - component: {fileID: 7429106765630446401}
+  - component: {fileID: 1122751705442633909}
   m_Layer: 0
   m_Name: TornBandana
   m_TagString: Untagged
@@ -2100,7 +2100,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &7429106765630446401
+--- !u!114 &1122751705442633909
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

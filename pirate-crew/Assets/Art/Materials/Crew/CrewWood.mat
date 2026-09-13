@@ -28,6 +28,7 @@ Material:
     - _DashFrequency: 50
     - _DashSpeed: 5
     - _DebugMode: 0
+    - _Metallic: 0
     - _OutlineAlpha: 1
     - _OutlineDistanceAttenuation: 0.4
     - _OutlineExpandMode: 0
@@ -35,6 +36,7 @@ Material:
     - _OutlineWidth: 0.006
     - _OutlineWidthHover: 0.0025
     - _OutlineWidthSelected: 0.006
+    - _Smoothness: 0.35
     m_Colors:
     - _BaseColor: {r: 0.831, g: 0.655, b: 0.416, a: 1}
     - _OutlineColor: {r: 0.286, g: 0.851, b: 0.839, a: 0}

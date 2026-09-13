@@ -94,7 +94,7 @@ GameObject:
   - component: {fileID: 4348837480103561349}
   - component: {fileID: 6539858362125050379}
   - component: {fileID: 3929041926888196837}
-  - component: {fileID: 7857249678621729065}
+  - component: {fileID: 1932708165463769280}
   m_Layer: 0
   m_Name: CuffR
   m_TagString: Untagged
@@ -167,7 +167,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &7857249678621729065
+--- !u!114 &1932708165463769280
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -470,7 +470,7 @@ GameObject:
   - component: {fileID: 1668679466014603806}
   - component: {fileID: 8250713382163744689}
   - component: {fileID: 768525888804571256}
-  - component: {fileID: 3654574594843167920}
+  - component: {fileID: 1070512497828251539}
   m_Layer: 0
   m_Name: Tricorn
   m_TagString: Untagged
@@ -543,7 +543,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &3654574594843167920
+--- !u!114 &1070512497828251539
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -649,7 +649,7 @@ GameObject:
   - component: {fileID: 3438956256734274183}
   - component: {fileID: 4725859956913849133}
   - component: {fileID: 8417011929563540229}
-  - component: {fileID: 7744343169729500401}
+  - component: {fileID: 5740155244719240116}
   m_Layer: 0
   m_Name: CuffL
   m_TagString: Untagged
@@ -722,7 +722,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &7744343169729500401
+--- !u!114 &5740155244719240116
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -828,7 +828,7 @@ GameObject:
   - component: {fileID: 1977562695975023139}
   - component: {fileID: 570917825392137602}
   - component: {fileID: 6070541042345276132}
-  - component: {fileID: 3449430430676950511}
+  - component: {fileID: 5304632405919603837}
   m_Layer: 0
   m_Name: Belt
   m_TagString: Untagged
@@ -901,7 +901,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &3449430430676950511
+--- !u!114 &5304632405919603837
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1007,7 +1007,7 @@ GameObject:
   - component: {fileID: 3307411701397060097}
   - component: {fileID: 2349707052993675613}
   - component: {fileID: 1502421456340398386}
-  - component: {fileID: 2732892549651063707}
+  - component: {fileID: 3377359380016268362}
   m_Layer: 0
   m_Name: CoatSkirt
   m_TagString: Untagged
@@ -1080,7 +1080,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &2732892549651063707
+--- !u!114 &3377359380016268362
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1688,7 +1688,7 @@ GameObject:
   - component: {fileID: 5196762207563113587}
   - component: {fileID: 2268775334205490585}
   - component: {fileID: 7098621840169464875}
-  - component: {fileID: 5368906832180840003}
+  - component: {fileID: 8174774519703562704}
   m_Layer: 0
   m_Name: Torso
   m_TagString: Untagged
@@ -1761,7 +1761,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &5368906832180840003
+--- !u!114 &8174774519703562704
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

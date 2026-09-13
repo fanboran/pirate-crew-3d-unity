@@ -28,16 +28,18 @@ Material:
     - _DashFrequency: 50
     - _DashSpeed: 5
     - _DebugMode: 0
+    - _Metallic: 0
     - _OutlineAlpha: 1
     - _OutlineDistanceAttenuation: 0.4
     - _OutlineExpandMode: 0
     - _OutlineState: 0
-    - _OutlineWidth: 0.0045
-    - _OutlineWidthHover: 0.0045
-    - _OutlineWidthSelected: 0.0045
+    - _OutlineWidth: 0
+    - _OutlineWidthHover: 0
+    - _OutlineWidthSelected: 0
+    - _Smoothness: 0.35
     m_Colors:
     - _BaseColor: {r: 1, g: 0.22745098, b: 0.16078432, a: 1}
-    - _OutlineColor: {r: 0.16470589, g: 0.16470589, b: 0.16470589, a: 1}
-    - _OutlineColorHover: {r: 0.16470589, g: 0.16470589, b: 0.16470589, a: 1}
-    - _OutlineColorSelected: {r: 0.16470589, g: 0.16470589, b: 0.16470589, a: 1}
+    - _OutlineColor: {r: 0.16470589, g: 0.16470589, b: 0.16470589, a: 0}
+    - _OutlineColorHover: {r: 0.16470589, g: 0.16470589, b: 0.16470589, a: 0}
+    - _OutlineColorSelected: {r: 0.16470589, g: 0.16470589, b: 0.16470589, a: 0}
   m_BuildTextureStacks: []

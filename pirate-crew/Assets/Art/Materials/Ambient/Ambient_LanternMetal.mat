@@ -53,5 +53,5 @@ Material:
     - _BaseColorC: {r: 0.48313725, g: 0.46556863, b: 0.43482354, a: 1.12}
     - _NoiseStretch: {r: 1, g: 1, b: 0, a: 0}
     - _WearColor: {r: 0.85, g: 0.8, b: 0.7, a: 1}
-    - _WetSandColor: {r: 0.659, g: 0.553, b: 0.361, a: 1}
+    - _WetSandColor: {r: 0.6589999, g: 0.553, b: 0.36099997, a: 1}
   m_BuildTextureStacks: []

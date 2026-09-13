@@ -94,7 +94,7 @@ GameObject:
   - component: {fileID: 5799863074165104979}
   - component: {fileID: 6761030676758659556}
   - component: {fileID: 142671046292334938}
-  - component: {fileID: 6491937000587115926}
+  - component: {fileID: 8808872959285365150}
   m_Layer: 0
   m_Name: Belt
   m_TagString: Untagged
@@ -167,7 +167,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &6491937000587115926
+--- !u!114 &8808872959285365150
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -590,7 +590,7 @@ GameObject:
   - component: {fileID: 7515009168594909907}
   - component: {fileID: 8540701507635827861}
   - component: {fileID: 8852242869299771351}
-  - component: {fileID: 4756843457291629121}
+  - component: {fileID: 3755693995008060288}
   m_Layer: 0
   m_Name: Torso
   m_TagString: Untagged
@@ -663,7 +663,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &4756843457291629121
+--- !u!114 &3755693995008060288
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1994,7 +1994,7 @@ GameObject:
   - component: {fileID: 494158778979556357}
   - component: {fileID: 8871602763558188184}
   - component: {fileID: 8400803543999400819}
-  - component: {fileID: 4032629941045259029}
+  - component: {fileID: 4205238162849740020}
   m_Layer: 0
   m_Name: Bandana
   m_TagString: Untagged
@@ -2067,7 +2067,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &4032629941045259029
+--- !u!114 &4205238162849740020
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
