@@ -158,8 +158,9 @@ namespace PirateCrew.EditorTools
                 RequiresPlayMode = true,
                 Enabled = true,
                 Note = "看特效层（FxBootstrap 自举的爆炸/烟/火）在场景里的可读性与亮度。"
-                     + "需要 PlayMode（单位与特效运行时才生成）；采集时若场上尚无爆炸，"
-                     + "这张图等价于低角度中景，仍可看氛围与地面/水面衔接。",
+                     + "需要 PlayMode（单位与特效运行时才生成）；采集器（PlayerArtCapture）"
+                     + "在这张图前会先在竞技场中心主动引爆一次（cannonball size=100）并等约 0.4s，"
+                     + "让火光/烟/冲击波真的升起再截屏——不是空场中景。",
             },
         };
 

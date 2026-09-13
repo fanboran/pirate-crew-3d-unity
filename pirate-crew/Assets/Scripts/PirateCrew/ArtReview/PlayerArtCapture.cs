@@ -33,10 +33,21 @@ namespace PirateCrew.PirateCrew.ArtReview
         const int Height = 1080;
         const float ReadyTimeoutSeconds = 60f;
 
+        /// <summary>爆炸机位名（与 <c>ArtReviewShots</c> 的 slug 保持一致）。</summary>
+        const string ExplosionShotName = "explosion-moment";
+
+        /// <summary>主动引爆用的爆炸 size：cannonball 基准（`CannonRules.cs:45`），场上最常见的规模。</summary>
+        const float ExplosionSize = 100f;
+
+        /// <summary>引爆后到截屏的等待：让火球/烟/冲击波真的升起（太短只有核心闪光，太长火球已散）。</summary>
+        const float ExplosionWarmupSeconds = 0.4f;
+
         string _outDir;
         Camera _camera;
         Canvas _hud;
         Transform _focusUnit;
+        Battle.BattleController _controller;
+        Vector3 _arenaCenter;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Boot()
@@ -94,6 +105,7 @@ namespace PirateCrew.PirateCrew.ArtReview
                 if (controller == null)
                     controller = FindInRoots<Battle.BattleController>();
             }
+            _controller = controller;
 
             // 等水体/活物/后处理热身几秒（水模拟需要若干步才有涟漪层次）。
             yield return new WaitForSeconds(3f);
@@ -104,6 +116,14 @@ namespace PirateCrew.PirateCrew.ArtReview
             foreach (Shot shot in BuildShots())
             {
                 SetupCamera(shot);
+
+                // 爆炸瞬间：先真的引爆再等火光/烟起来，否则拍到的只是空场中景。
+                if (shot.Name == ExplosionShotName)
+                {
+                    FireTestExplosion(_arenaCenter);
+                    yield return new WaitForSeconds(ExplosionWarmupSeconds);
+                }
+
                 yield return new WaitForEndOfFrame();
                 yield return new WaitForEndOfFrame();
                 yield return new WaitForEndOfFrame();
@@ -125,19 +145,68 @@ namespace PirateCrew.PirateCrew.ArtReview
         void CollectSceneRefs()
         {
             _hud = FindInRoots<Canvas>();
+
+            // 竞技场中心（level_1 ≈ 50×17 单位，中心约 (25,0,8.5)）——取景与引爆共用，不写死坐标。
+            var ground = FindRootByName("Ground");
+            Bounds bounds = ground != null && ground.GetComponent<Renderer>() != null
+                ? ground.GetComponent<Renderer>().bounds
+                : new Bounds(new Vector3(25f, 0f, 8.5f), new Vector3(50f, 1f, 17f));
+            _arenaCenter = bounds.center;
+
+            SelectFocusUnit();
+        }
+
+        /// <summary>
+        /// 选中一个单位并把它作为特写主体。
+        ///
+        /// 【为什么必须先选中】G-1 验收的是"选中态青色描边 #49D9D6"（规程:285、:295 的描边口径）；
+        /// 未选中的画面里没有描边是**预期行为**，unit-closeup 不选中就等于从未检验过这条判据。
+        /// 走 <c>BattleController.SelectCharacter</c>（点选命中的公共入口）——它内部
+        /// <c>BattleTeam.Select</c> 会同步 <c>PirateBase.SetSelected</c> 状态位，
+        /// <c>UnitOutlineBinder</c> 每帧据此写 <c>_OutlineState</c>，选中描边才会入画。
+        /// </summary>
+        void SelectFocusUnit()
+        {
+            if (_controller != null)
+            {
+                Battle.BattleTeam team = _controller.CurrentTeam;
+                if (team != null)
+                {
+                    // 选中当前队：SelectCharacter 只接受本回合行动队且存活的目标。
+                    Battle.PirateBase pick = team.SelectedCharacter ?? team.FirstAlive();
+                    if (pick == null && team.Characters.Count > 0)
+                        pick = team.Characters[0];
+
+                    if (pick != null)
+                    {
+                        _controller.SelectCharacter(pick); // 已是同一人时内部按 continueTurn 幂等通过
+                        _focusUnit = pick.transform;
+                        return;
+                    }
+                }
+            }
+
+            // 回退：拿不到 BattleController 时至少按名字找一个主体，保证特写不是空镜。
             Transform teamRoot = FindRootByName("Team0_Red");
             if (teamRoot != null && teamRoot.childCount > 0)
                 _focusUnit = teamRoot.GetChild(0);
         }
 
+        /// <summary>
+        /// 在竞技场中心附近主动引爆一次，让火光/烟/冲击波真的出现在 explosion-moment 画面里。
+        ///
+        /// 【为什么直接调 FxApi】<c>FxApi</c> 是 FX 模块的公开出口（架构原则 3）；
+        /// 造一条假弹体走 <c>battle_projectile_detonated</c> 只为出图，会多一层耦合、
+        /// 且弹体可能真的砸到单位（改变这一轮要评审的画面）。
+        /// </summary>
+        static void FireTestExplosion(Vector3 center)
+        {
+            Fx.FxApi.PlayExplosion(center + new Vector3(0f, 0.5f, 0f), ExplosionSize);
+        }
+
         Shot[] BuildShots()
         {
-            // 以场景 Ground 的包围盒推焦点与构图（level_1 ≈ 50×17 单位，中心约 (25,0,8.5)）。
-            var ground = FindRootByName("Ground");
-            Bounds bounds = ground != null && ground.GetComponent<Renderer>() != null
-                ? ground.GetComponent<Renderer>().bounds
-                : new Bounds(new Vector3(25f, 0f, 8.5f), new Vector3(50f, 1f, 17f));
-            Vector3 c = bounds.center;
+            Vector3 c = _arenaCenter;
 
             var shots = new System.Collections.Generic.List<Shot>
             {
@@ -155,6 +224,11 @@ namespace PirateCrew.PirateCrew.ArtReview
                 shots.Add(NewShot("unit-closeup", false,
                     u + new Vector3(1.1f, 0.9f, 1.4f), 45f, u + new Vector3(0f, 0.25f, 0f)));
             }
+
+            // 爆炸瞬间：竞技场中心低角度中景，采集循环会在这张图前真引爆（见 FireTestExplosion）。
+            shots.Add(NewShot(ExplosionShotName, false,
+                c + new Vector3(0f, 6f, 2f), 60f, c + new Vector3(0f, 0.6f, 0f)));
+
             return shots.ToArray();
         }
 

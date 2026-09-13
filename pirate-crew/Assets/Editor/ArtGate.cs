@@ -1,7 +1,11 @@
 using System;
 using System.Collections.Generic;
+using PirateCrew.PirateCrew.Ambient;
+using PirateCrew.PirateCrew.Fx;
+using PirateCrew.PirateCrew.Rendering;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace PirateCrew.EditorTools
 {
@@ -24,6 +28,9 @@ namespace PirateCrew.EditorTools
     /// 让 -executeMethod 以非零退出码收尾（CI / 协调者脚本据此判成败）。
     ///
     /// 【步骤顺序与理由】
+    ///   ⓪ 运行时 shader 入构建保障         把只被运行时 Shader.Find 取用的 shader 写进
+    ///                                    Always Included Shaders——**必须最先**，后续构建播放器才会带它们
+    ///                                    （否则按名查找落空 → 洋红，见 EnsureRuntimeShadersIncluded）
     ///   ① BattleSceneLighting.BuildAll   环境材质 / 后处理 Volume / URP 设置——场景与材质引用的前置资产
     ///   ② FontAssetBuilder.BuildAll      TMP 中文字体——HUD/菜单文本的字形前置
     ///   ③ FxAssetBuilder.BuildAll        特效贴图 / 材质（+ Always Included Shaders）
@@ -66,6 +73,7 @@ namespace PirateCrew.EditorTools
             // 顺序即依赖：见类头注释的十步理由。改顺序前先想清楚 M3 为什么必须最后。
             var steps = new List<Step>
             {
+                new Step("⓪ 运行时 shader 入构建保障", EnsureRuntimeShadersIncluded),
                 new Step("① 渲染基础（环境材质 / Volume / URP）", BattleSceneLighting.BuildAll),
                 new Step("② TMP 中文字体", FontAssetBuilder.BuildAll),
                 new Step("③ 特效贴图 / 材质", FxAssetBuilder.BuildAll),
@@ -128,6 +136,110 @@ namespace PirateCrew.EditorTools
                 + sw.Elapsed.TotalSeconds.ToString("0.0") + "s。\n"
                 + "  战斗场景: Assets/Scenes/Battle.unity（Build Settings 以 M3 重建后的列表为准）\n"
                 + "  评审出图: 另开有图形界面的编辑器会话，跑菜单 PirateCrew/美术评审/采集评审图。");
+        }
+
+        // ------------------------------------------------------------------
+        // ⓪ 运行时 shader 入构建保障
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 只被运行时 <c>Shader.Find</c> 按名字取用的 shader 名（出处集中在各模块常量，不散落魔法字符串）。
+        ///
+        /// 【入榜判据】运行时 Find 的 shader 里，**没有被"可达"材质资产引用**的那些（可达 = 该 .mat 被
+        /// 场景/Prefab/Renderer 资产引用）。实测（r2 播放器出图）：
+        ///   · Ambient/Glow、Ambient/Wind —— <c>Assets/Art/Materials/Ambient/*.mat</c> 虽然引用了它们，
+        ///     但这些 .mat 是**孤儿资产**（0 个场景/Prefab 引用），构包时随 shader 一起被剥离 →
+        ///     Player.log 6 条「[Ambient] 找不到 shader」→ 回退链落空 → 洋红。**r2 洋红的根因**。
+        ///   · Fx/Additive、Fx/Alpha —— 有 .mat 引用，且 FxAssetBuilder 早已登记进本列表（此处幂等跳过）。
+        ///   · PirateOutlinePost —— 无 .mat 引用，被 URP Renderer 资产字段引用，理论上可达；仍登记兜底。
+        ///   · URP/Particles-Unlit —— 无 .mat 引用（只作 FxMaterials 的回落档），URP 包 shader 同样会被剥离。
+        /// 不入榜的运行时 Find 名及理由：PirateOutline / PirateSurface / URP-Unlit / URP-Lit 都有 .mat 引用；
+        /// Standard / Sprites/Default / Unlit/Transparent 是引擎内置 shader（Sprites/Default 由
+        /// GraphicsSettings.m_SpritesDefaultMaterial 常驻），只为 URP 工程里的最后兜底，不属于本项目产线。
+        /// </summary>
+        static readonly string[] RuntimeFindShaderNames =
+        {
+            AmbientMaterialSet.GlowShaderName,
+            AmbientMaterialSet.WindShaderName,
+            FxMaterials.AdditiveShaderName,
+            FxMaterials.AlphaShaderName,
+            OutlineRendererFeature.OutlinePostShaderName,
+            "Universal Render Pipeline/Particles/Unlit", // FxMaterials 回落链（FxMaterials.cs:183）
+        };
+
+        /// <summary>
+        /// 把 <see cref="RuntimeFindShaderNames"/> 追加进 Graphics Settings 的 Always Included Shaders（幂等）。
+        ///
+        /// 【为什么是 Always Included 而不是 Preloaded Shaders】Graphics Settings 的 "Preloaded Shaders"
+        /// 只接受 <c>ShaderVariantCollection</c> 资产（预热指定变体），**收不了单个 <c>Shader</c>**；
+        /// 能让"按名字 Shader.Find 在成品播放器里成立"的字段是 "Always Included Shaders"
+        /// （<c>m_AlwaysIncludedShaders</c>，类型 <c>Shader[]</c>；Unity 2022.3 手册 class-GraphicsSettings
+        /// 定义为 "a list of shaders for which Unity includes all possible variants in every build"）。
+        ///
+        /// 【为什么放在管线最前】本步只改 ProjectSettings，成品播放器在管线之后才构建——
+        /// 先登记后构包才生效（对应规程 G-6「无洋红」）。
+        ///
+        /// 【幂等】已在列表中的 shader 跳过，可反复重跑整条管线。
+        /// 取不到资产/字段时抛异常，交回 BuildAll 的步骤 try/catch 汇总（不静默吞）。
+        /// </summary>
+        static void EnsureRuntimeShadersIncluded()
+        {
+            UnityEngine.Object settings = GraphicsSettings.GetGraphicsSettings();
+            if (settings == null)
+                throw new InvalidOperationException("取不到 GraphicsSettings 资产，无法登记 Always Included Shaders。");
+
+            var so = new SerializedObject(settings);
+            SerializedProperty list = so.FindProperty("m_AlwaysIncludedShaders");
+            if (list == null || !list.isArray)
+                throw new InvalidOperationException("GraphicsSettings 上找不到 m_AlwaysIncludedShaders 数组。");
+
+            int added = 0;
+            var missing = new List<string>();
+            for (int i = 0; i < RuntimeFindShaderNames.Length; i++)
+            {
+                string shaderName = RuntimeFindShaderNames[i];
+                Shader shader = Shader.Find(shaderName);
+                if (shader == null)
+                {
+                    // 编辑器里就找不到 = shader 编译失败/未导入；先修 shader，登记无从谈起。
+                    missing.Add(shaderName);
+                    continue;
+                }
+
+                if (IsShaderRegistered(list, shader))
+                    continue;
+
+                int index = list.arraySize;
+                list.InsertArrayElementAtIndex(index);
+                list.GetArrayElementAtIndex(index).objectReferenceValue = shader;
+                added++;
+            }
+
+            if (added > 0)
+                so.ApplyModifiedProperties();
+
+            if (missing.Count > 0)
+            {
+                Debug.LogWarning("[ArtGate] 运行时 shader 入构建保障：编辑器里找不到 "
+                    + string.Join("、", missing.ToArray())
+                    + "。请先在编辑器里 read_console 确认 shader 编译无错；未登记的 shader"
+                    + "会让成品播放器出洋红（规程 G-6）。");
+            }
+
+            Debug.Log("[ArtGate] 运行时 shader 入构建保障：新增 " + added + " 个 Always Included Shader，"
+                + "候选 " + RuntimeFindShaderNames.Length + " 个"
+                + (missing.Count > 0 ? "，缺失 " + missing.Count + " 个" : "") + "。");
+        }
+
+        /// <summary>列表里是否已有该 shader（按引用比较，幂等判据）。</summary>
+        static bool IsShaderRegistered(SerializedProperty list, Shader shader)
+        {
+            for (int i = 0; i < list.arraySize; i++)
+            {
+                if (list.GetArrayElementAtIndex(i).objectReferenceValue == shader)
+                    return true;
+            }
+            return false;
         }
     }
 }
