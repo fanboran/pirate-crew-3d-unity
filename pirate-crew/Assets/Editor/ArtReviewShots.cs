@@ -69,6 +69,13 @@ namespace PirateCrew.EditorTools
     /// 中心约 (25, 0, 8.5)）；下列偏移按该尺度取景，换更大的关卡时按需调大 Offset。
     /// 相机默认战斗视角对齐场景出厂值（distance 15、pitch 45°、yaw 0 →
     /// offset ≈ (0, 10.61, 10.61)，见 <c>M2BattleSceneSetup.CameraDistance/CameraPitchDegrees</c>）。
+    ///
+    /// 【⚠ 改动必须同步】本清单是 Editor 程序集，运行时（独立播放器）采集器
+    /// <c>Assets/Scripts/PirateCrew/ArtReview/PlayerArtCapture.cs</c> 引用不到它，
+    /// 那边 <c>BuildShots()</c> 是**逐机位手抄**的镜像。改本文件的 Offset / Fov / 瞄准点 / 顺序，
+    /// 必须同步 PlayerArtCapture.BuildShots，否则出厂机位与编辑器评审图会对不上
+    /// （教训：r3 出厂 battle-45/hud-fullscreen 的 Offset 停在旧距离 18 的 (0,12.73,12.73)，
+    /// 而游戏相机已改距离 15，出厂单位只有 21px）。
     /// </summary>
     public static class ArtReviewShots
     {
@@ -90,10 +97,16 @@ namespace PirateCrew.EditorTools
                 Slug = "battle-45",
                 Label = "45° 默认战斗视角",
                 Pivot = ArtReviewPivot.ArenaCenter,
-                Offset = new Vector3(0f, 10.61f, 10.61f),
+                Offset = new Vector3(0f, 11.5f, 10.61f),
+                // 瞄准点从竞技场中心移到"两队出生区中点"（不是 LookAtPivot 的 pivot 本身）：
+                // level_1 红队出生中心 ≈(20.3,10.1)、蓝队 ≈(46.17,8.5)，两队中点 ≈(33.23,9.3)，
+                // 相对竞技场中心 (25,8.5) 的偏移 =(8.23, 0.8, 0.8)。运行时 PlayerArtCapture
+                // 由实际单位动态算同一点（TeamSpawnMidpoint），此处为静态清单写死等价偏移。
+                LookAtOffset = new Vector3(8.23f, 0.8f, 0.8f),
                 Fov = 60f,
                 ShowHud = false,
-                Note = "复现出厂默认机位（distance 15 / pitch 45°），评审场景与角色的常规观感。",
+                Note = "复现出厂默认机位（distance 15 / pitch 45°）并抬高到 11.5 避免下缘裁人；"
+                     + "瞄准两队出生区中点，让红/蓝两队都尽量入画（r3 问题：纯中心时蓝队被陈设遮挡、红队出框）。",
             },
             new ArtReviewShot
             {
@@ -132,10 +145,13 @@ namespace PirateCrew.EditorTools
                 Slug = "hud-fullscreen",
                 Label = "HUD 全屏",
                 Pivot = ArtReviewPivot.ArenaCenter,
-                Offset = new Vector3(0f, 10.61f, 10.61f),
+                Offset = new Vector3(0f, 11.5f, 10.61f),
+                // 与 battle-45 完全同参数（含瞄准两队出生区中点），仅多 HUD。
+                LookAtOffset = new Vector3(8.23f, 0.8f, 0.8f),
                 Fov = 60f,
                 ShowHud = true,
-                Note = "看 HUD 排版/字号/中文字形是否正常（不含方块）、按钮与名册是否溢出。",
+                Note = "与 battle-45 同机位：看 HUD 排版/字号/中文字形是否正常（不含方块）、按钮与名册是否溢出，"
+                     + "同时核对 HUD 遮挡下的单位可读性。",
             },
             new ArtReviewShot
             {
@@ -152,15 +168,18 @@ namespace PirateCrew.EditorTools
                 Slug = "explosion-moment",
                 Label = "爆炸瞬间（PlayMode）",
                 Pivot = ArtReviewPivot.ArenaCenter,
-                Offset = new Vector3(0f, 6f, 2f),
+                Offset = new Vector3(0f, 5f, -7f),
+                LookAtOffset = new Vector3(0f, 0.5f, 0f),
                 Fov = 60f,
                 ShowHud = false,
                 RequiresPlayMode = true,
                 Enabled = true,
                 Note = "看特效层（FxBootstrap 自举的爆炸/烟/火）在场景里的可读性与亮度。"
+                     + "斜 45° 中景正视爆心（r3 的近正俯视 (0,6,2) 既框歪又不显火光）。"
                      + "需要 PlayMode（单位与特效运行时才生成）；采集器（PlayerArtCapture）"
-                     + "在这张图前会先在竞技场中心主动引爆一次（cannonball size=100）并等约 0.4s，"
-                     + "让火光/烟/冲击波真的升起再截屏——不是空场中景。",
+                     + "在这张图前会先在竞技场中心主动引爆一次（size=160，banana/parachuteBomb 档，"
+                     + "火光比 cannonball 100 更可辨）并等约 0.2s 取闪光峰值——size=160 的火球寿命仅约 0.25s，"
+                     + "r3 等 0.4s 时火球/火花已消散（实测 fire_orange=0px），0.2s 才有火光。",
             },
         };
 
