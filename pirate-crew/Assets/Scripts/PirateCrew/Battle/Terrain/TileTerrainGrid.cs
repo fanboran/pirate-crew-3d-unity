@@ -45,19 +45,30 @@ namespace PirateCrew.PirateCrew.Battle
     ///     <c>v=20/1.28=15.625</c>，竖直分量 <c>v·0.573</c>，<c>h=vy²/(2·19.53)≈2.05</c>），
     ///     若按原版 1 瓦片 = 1 单位直接堆到 8 单位，任何高台都**超出投掷上限**、AI/玩家都打不到，
     ///     关卡不可玩。压缩到 2.0 单位后高台仍构成遮挡/借墙弹的障碍，但可被抛越。
-    ///   · 基础地面永远存在（本类只**叠加**抬升块，不挖洞）：空列/最低列都是平坦地面。
-    ///     理由同样是可玩性——原版 level_1 有 2 条水道、level_4 有 10 列缺口，
-    ///     若在 XZ 平面挖洞，作者写在这些列的出生点会直接落水（落水即死，§4.4），
-    ///     与「旧场景直接 Play 不坏」冲突。
-    ///
-    /// 四、<b>破坏</b>：爆炸命中范围内每个实心格被整格摧毁（<see cref="DestroyInRadius"/>）；
-    ///   另提供逐块递减的 <see cref="DestroyBlock"/> 供细粒度/测试使用。地形格被摧毁后回到
-    ///   基础地面高度（0 块），小地图点阵随之由实心档降到空档（§8.1 两档 alpha）。
-    /// ==================================================================
-    /// </summary>
-    public sealed class TileTerrainGrid
-    {
-        readonly int[] _blocks;   // 行主序 [gx + gy * WidthTiles]；0 = 基础地面（无抬升块）
+        ///   · ⚠ <b>2026-09-13 平台化修正（推翻"永不挖洞"）</b>：用户诉求是
+        ///     「一堆高高低低的**悬空平台**浮在海面上，平台间是水（掉落即死）」，
+        ///     故本类新增 **<see cref="PlatformMap"/> 模式**：逐格带「簇归属」，
+        ///     <c>Cluster &lt; 0</c> 的格是**水**（无地面、无碰撞，单位走上去必落水）。
+        ///     旧版「每列一个高度、全图都有基础地面」的列式数据仍被支持
+        ///     （<see cref="LegacyGridMode"/>，见 <see cref="TerrainCatalog"/> 的 level_4/27 与
+        ///     <see cref="Flat"/>），保证未平台化的关卡与既有 AI 用例逐值不变。
+        ///     为兼容旧查询，<see cref="SurfaceWorldY(int,int)"/> 对**场内水格**仍报基础地面高度，
+        ///     但游戏性查询 <see cref="SurfaceWorldYAtWorld(float,float)"/> 对水格返回
+        ///     <see cref="WaterVoidY"/>（水面以下的虚空哨兵），AI 投掷模拟据此判定「落水」。
+        ///
+        /// 四、<b>破坏</b>：爆炸命中范围内每个实心格被整格摧毁（<see cref="DestroyInRadius"/>）；
+        ///   另提供逐块递减的 <see cref="DestroyBlock"/> 供细粒度/测试使用。地形格被摧毁后回到
+        ///   基础地面高度（0 块），小地图点阵随之由实心档降到空档（§8.1 两档 alpha）。
+        /// ==================================================================
+        /// </summary>
+        public sealed class TileTerrainGrid
+        {
+            readonly int[] _blocks;   // 行主序 [gx + gy * WidthTiles]；0 = 基础地面（无抬升块）
+            readonly bool[] _ground;  // 该格是否有地面（false = 水）
+            readonly byte[] _surface; // PlatformSurface 档
+            readonly int[] _cluster;  // 平台簇索引；-1 = 水 / 列式旧地形
+            readonly bool _platformMode;   // true = 平台簇模式（水格无地面；块清零即水）
+            readonly PlatformMap _platforms;
 
         /// <summary>竞技场横向格数（= 关卡 widthTiles）。</summary>
         public int WidthTiles { get; }
@@ -68,8 +79,20 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>单块世界高度（提案/待定，见类头；0.25 = 8px）。</summary>
         public float BlockWorldHeight { get; }
 
+        /// <summary>全平坦地面（无抬升块）的网格。</summary>
+        public static TileTerrainGrid Flat(int widthTiles, int depthTiles)
+        {
+            return new TileTerrainGrid(widthTiles, depthTiles, null, 0f);
+        }
+
+        /// <summary>行主序索引 → 横向格号。</summary>
+        public int CellXOf(int index) => WidthTiles > 0 ? index % WidthTiles : 0;
+
+        /// <summary>行主序索引 → 纵深格号。</summary>
+        public int CellYOf(int index) => WidthTiles > 0 ? index / WidthTiles : 0;
+
         /// <summary>
-        /// 构造地形网格。
+        /// 构造地形网格（列式旧地形模式）。
         /// </summary>
         /// <param name="widthTiles">横向格数（&gt; 0）。</param>
         /// <param name="depthTiles">纵深格数（&gt; 0）。</param>
@@ -77,6 +100,16 @@ namespace PirateCrew.PirateCrew.Battle
         /// 传 null 视为全 0（平坦地面）。</param>
         /// <param name="blockWorldHeight">单块世界高度（&lt;= 0 时用 <see cref="TerrainCatalog.DefaultBlockWorldHeight"/>）。</param>
         public TileTerrainGrid(int widthTiles, int depthTiles, int[] blocks, float blockWorldHeight)
+            : this(widthTiles, depthTiles, blocks, blockWorldHeight, null)
+        {
+        }
+
+        /// <summary>
+        /// 构造地形网格（平台簇模式）：地面/水由 <paramref name="platforms"/> 决定。
+        /// 水格块高强制归零；列式旧地形传 <c>null</c>。
+        /// </summary>
+        public TileTerrainGrid(int widthTiles, int depthTiles, int[] blocks, float blockWorldHeight,
+            PlatformMap platforms)
         {
             WidthTiles = Mathf.Max(1, widthTiles);
             DepthTiles = Mathf.Max(1, depthTiles);
@@ -84,25 +117,57 @@ namespace PirateCrew.PirateCrew.Battle
 
             int expected = WidthTiles * DepthTiles;
             _blocks = new int[expected];
-            if (blocks != null)
+            _ground = new bool[expected];
+            _surface = new byte[expected];
+            _cluster = new int[expected];
+
+            bool platformMode = platforms != null
+                && platforms.WidthTiles == WidthTiles && platforms.DepthTiles == DepthTiles;
+            _platformMode = platformMode;
+            _platforms = platformMode ? platforms : null;
+
+            for (int i = 0; i < expected; i++)
             {
-                int count = Mathf.Min(expected, blocks.Length);
-                for (int i = 0; i < count; i++)
-                    _blocks[i] = blocks[i] > 0 ? blocks[i] : 0;
+                _cluster[i] = -1;
+
+                if (platformMode)
+                {
+                    int cluster = platforms.CellCluster[i];
+                    _cluster[i] = cluster;
+                    if (cluster < 0)
+                    {
+                        // 水格：没有地面，块高强制 0。
+                        _ground[i] = false;
+                        _surface[i] = (byte)PlatformSurface.Water;
+                        _blocks[i] = 0;
+                        continue;
+                    }
+
+                    _ground[i] = true;
+                    _blocks[i] = platforms.CellBlocks[i] > 0 ? platforms.CellBlocks[i] : 0;
+
+                    PlatformClusterKind kind = platforms.Clusters[cluster].Kind;
+                    _surface[i] = (byte)KindToSurface(kind);
+                    continue;
+                }
+
+                // 列式旧地形：全图有基础地面，blocks = 抬升块数。
+                _ground[i] = true;
+                _surface[i] = (byte)PlatformSurface.LegacyGround;
+                _blocks[i] = blocks != null && i < blocks.Length && blocks[i] > 0 ? blocks[i] : 0;
             }
         }
 
-        /// <summary>全平坦地面（无抬升块）的网格。</summary>
-        public static TileTerrainGrid Flat(int widthTiles, int depthTiles)
+        static PlatformSurface KindToSurface(PlatformClusterKind kind)
         {
-            return new TileTerrainGrid(widthTiles, depthTiles, null, 0f);
+            switch (kind)
+            {
+                case PlatformClusterKind.Ship: return PlatformSurface.Ship;
+                case PlatformClusterKind.SkyIsland: return PlatformSurface.SkyIsland;
+                case PlatformClusterKind.TerraceIsland: return PlatformSurface.TerraceIsland;
+                default: return PlatformSurface.LegacyGround;
+            }
         }
-
-        /// <summary>格索引（行主序）→ 横向格号。</summary>
-        public int CellXOf(int index) => WidthTiles > 0 ? index % WidthTiles : 0;
-
-        /// <summary>格索引（行主序）→ 纵深格号。</summary>
-        public int CellYOf(int index) => WidthTiles > 0 ? index / WidthTiles : 0;
 
         /// <summary>格号 → 行主序索引；越界返回 -1。</summary>
         public int IndexOf(int gridX, int gridY)
@@ -119,22 +184,107 @@ namespace PirateCrew.PirateCrew.Battle
             return index < 0 ? 0 : _blocks[index];
         }
 
-        /// <summary>该格是否堆了抬升块（小地图「实心」判据）。</summary>
+        /// <summary>该格是否堆了抬升块（小地图「实心」判据）。水格恒为 false。</summary>
         public bool IsSolidAt(int gridX, int gridY) => BlocksAt(gridX, gridY) > 0;
 
-        /// <summary>该格地表世界 Y（基础地面 + 堆叠高度）。</summary>
+        /// <summary>
+        /// 该格是否有地面（可站、有碰撞）。平台簇模式下 = 「属于某簇且块高 &gt; 0」，
+        /// 故平台被炸空（块归零）后该格变为水；列式旧地形恒为 true。
+        /// </summary>
+        public bool IsGroundAt(int gridX, int gridY)
+        {
+            int index = IndexOf(gridX, gridY);
+            if (index < 0)
+                return false;
+            return _platformMode ? _cluster[index] >= 0 && _blocks[index] > 0 : _ground[index];
+        }
+
+        /// <summary>该格是否是水（无地面）；越界视为水。</summary>
+        public bool IsWaterAt(int gridX, int gridY) => !IsGroundAt(gridX, gridY);
+
+        /// <summary>该格的平台表面语义档（水格 = <see cref="PlatformSurface.Water"/>）。</summary>
+        public PlatformSurface SurfaceKindAt(int gridX, int gridY)
+        {
+            int index = IndexOf(gridX, gridY);
+            if (index < 0)
+                return PlatformSurface.Water;
+            if (_platformMode && !IsGroundAt(gridX, gridY))
+                return PlatformSurface.Water;
+            return (PlatformSurface)_surface[index];
+        }
+
+        /// <summary>该格所属平台簇索引；水格 / 列式旧地形返回 -1。</summary>
+        public int ClusterIndexOf(int gridX, int gridY)
+        {
+            int index = IndexOf(gridX, gridY);
+            if (index < 0 || !_platformMode || !IsGroundAt(gridX, gridY))
+                return -1;
+            return _cluster[index];
+        }
+
+        /// <summary>平台簇数量（列式旧地形为 0）。</summary>
+        public int ClusterCount => _platforms != null ? _platforms.Clusters.Count : 0;
+
+        /// <summary>取平台簇描述；越界返回 default。</summary>
+        public PlatformClusterInfo ClusterAt(int clusterIndex)
+        {
+            if (_platforms == null || clusterIndex < 0 || clusterIndex >= _platforms.Clusters.Count)
+                return default;
+            return _platforms.Clusters[clusterIndex];
+        }
+
+        /// <summary>
+        /// 该格地表世界 Y（基础地面 + 堆叠高度）。
+        /// 【兼容口径】平台模式的水格（块 0）这里返回基础地面 <see cref="LevelGeometry.GroundTopY"/>；
+        /// 需要"水格无地表"的**游戏性**查询请用 <see cref="SurfaceWorldYAtWorld"/>。
+        /// </summary>
         public float SurfaceWorldY(int gridX, int gridY)
         {
             return LevelGeometry.GroundTopY + BlocksAt(gridX, gridY) * BlockWorldHeight;
         }
 
-        /// <summary>世界 XZ 处的地表世界 Y；越出竞技场返回基础地面 <see cref="LevelGeometry.GroundTopY"/>。</summary>
+        /// <summary>
+        /// 水面以下的**虚空哨兵**：平台模式的水格没有地表，游戏性查询返回此值，
+        /// 使 AI 投掷模拟能走到 <c>p.y &lt;= WaterSurfaceY</c> 的「落水」分支
+        /// （见 <c>AiEvaluation.SimulateFromWorld</c>；不能返回 <see cref="LevelGeometry.WaterSurfaceY"/> 本身，
+        /// 否则会与"落到地表"分支同时命中而不是判定落水）。
+        /// </summary>
+        public static float WaterVoidY => LevelGeometry.WaterSurfaceY - 0.5f;
+
+        /// <summary>
+        /// 世界 XZ 处的**游戏性**地表世界 Y：平台模式的水格返回 <see cref="WaterVoidY"/>（落水哨兵）；
+        /// 越出竞技场返回基础地面（与旧口径一致）。
+        /// </summary>
         public float SurfaceWorldYAtWorld(float worldX, float worldZ)
         {
             int gx = Mathf.FloorToInt(worldX);
             int gy = Mathf.FloorToInt(worldZ);
+            int index = IndexOf(gx, gy);
+            if (index < 0)
+                return LevelGeometry.GroundTopY;
+            if (_platformMode && !IsGroundAt(gx, gy))
+                return WaterVoidY;
             return SurfaceWorldY(gx, gy);
         }
+
+        /// <summary>地面格数量（平台模式 = 有块的地面；列式旧地形 = 全格）。</summary>
+        public int GroundCellCount
+        {
+            get
+            {
+                int n = 0;
+                for (int i = 0; i < _blocks.Length; i++)
+                {
+                    bool ground = _platformMode ? _cluster[i] >= 0 && _blocks[i] > 0 : _ground[i];
+                    if (ground)
+                        n++;
+                }
+                return n;
+            }
+        }
+
+        /// <summary>水格数量。</summary>
+        public int WaterCellCount => _blocks.Length - GroundCellCount;
 
         /// <summary>实心（有抬升块）格数量（调试/测试用）。</summary>
         public int SolidCellCount

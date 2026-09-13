@@ -23,9 +23,17 @@ namespace PirateCrew.EditorTools
     ///   暖主光 #FFF4E0 + 冷环境光（天空盒 SH，浅蓝）+ 实时软阴影；
     ///   后处理 = ACES + 轻微 Bloom + ColorGrading + Vignette。
     ///
-    /// 【色空间】本工程 ProjectSettings m_ActiveColorSpace = 0（**Gamma**），
-    ///   故 GDD 的 sRGB 十六进制直接归一化赋值即与色板一致（<see cref="Hex"/> 不做转换）。
-    ///   若将来切到 Linear，必须把这里所有 Hex() 改成 Color.linear，否则整体偏亮。
+    /// 【色空间】本工程 ProjectSettings m_ActiveColorSpace = 1（**Linear**）——PBR 物理正确的前提。
+    ///   **关键结论（别再"顺手"把所有 Hex() 改成 .linear，那反而会整体变暗）**：
+    ///   Unity 引擎对**普通材质 Color 属性**会自动做 sRGB→Linear 转换，脚本直接写 sRGB 原值即可。
+    ///     证据：URP 的 <c>Editor/AssetPostProcessors/MaterialPostprocessor.cs:271-277</c> 注释明确
+    ///     "普通 Color 属性会被做 gamma→linear 转换，而 [HDR] 属性不会"（这正是它要给旧工程补 .linear 的原因）；
+    ///     <c>Light.color</c> 由引擎的 <c>VisibleLight.finalColor</c> 输出（URP 注释"already returns color in active color space"）；
+    ///     <c>RenderSettings.ambientSky/Equator/GroundColor</c> 由 URP 用
+    ///     <c>CoreUtils.ConvertSRGBToActiveColorSpace</c> 包好再上传（<c>UniversalRenderPipeline.cs:1695-1697</c>）。
+    ///   只有走**原始 Vector 通道**（CommandBuffer.SetVector / SetGlobalColor）的颜色才需要手动 .linear：
+    ///     本文件里只有 **Vignette.color**（见 <see cref="EnsureVolumeProfile"/>，URP 的 SetupVignette 不做转换）。
+    ///   故 <see cref="Hex"/> 保持"解析 sRGB 十六进制、不做转换"的语义，**所有调用点都不改**。
     ///
     /// 【材质目录切分（与其它波次的约定）】
     ///   本文件只生成**环境类**材质，统一放 Assets/Art/Materials/Environment/。
@@ -451,7 +459,9 @@ namespace PirateCrew.EditorTools
         //   _SlopeRockStart=0.45（约 27° 起）：竖直面必为岩，缓坡仍为沙/草。
         //   _BlockSize=1（1 瓦片）+ _BlockTintStrength=0.12：逐块明暗差是低多边形块面感的辨识特征。
         //   _FacetStrength=0.6：保留几何棱面的同时不至于让光影完全"数字化"。
-        //   _EdgeColor=#2A2A2A + 强度 0.35：GDD 规定的场景物描边色，菲涅尔边缘压暗替代 inverted-hull。
+        //   _EdgeColor/_EdgeStrength：**写实化后关闭**地形菲涅尔边缘压暗（原 0.35）。
+        //     它是"场景物 #2A2A2A 描边"的替代实现；写实方向明确"无描边"，
+        //     故置 0（旋钮与色值保留，随时可调回；对应 shader 的默认值也同步改为 0）。
         static bool BuildTerrainMaterial()
         {
             Material m = EnsureMaterial(TerrainMaterial, TerrainShaderName);
@@ -474,7 +484,8 @@ namespace PirateCrew.EditorTools
             SetFloat(m, "_Smoothness", 0.15f);
             SetFloat(m, "_AmbientStrength", 1f);
             SetColor(m, "_EdgeColor", Hex("#2A2A2A"));
-            SetFloat(m, "_EdgeStrength", 0.35f);
+            // 写实化：关闭地形"描边兼容"边缘压暗（旧值 0.35）。理由见 BuildTerrainMaterial 顶部注释。
+            SetFloat(m, "_EdgeStrength", 0f);
             SetFloat(m, "_EdgePower", 3f);
             SetFloat(m, "_DebugMode", 0f);
             return Save(m);
@@ -497,30 +508,41 @@ namespace PirateCrew.EditorTools
                 AssetDatabase.CreateAsset(profile, VolumeProfilePath);
             }
 
-            // ---- Tonemapping：ACES ----
-            // 理由：URP Asset 已开 HDR（m_SupportsHDR=1），ACES 能把高光滚降得自然、
-            // 避免明亮天空/水面直接过曝成死白；风格化写实要求"有电影感的亮部"。
+            // ---- Tonemapping：Neutral（保色）----
+            // 【ACES vs Neutral 的取舍，选 Neutral】
+            //   ACES：电影感强、超亮部滚降漂亮；代价是**明显降饱和、并把暖色往橙黄推**。
+            //         本工程是"高饱和三档色阶 + 蓝绿海水 + 青色选中描边"的卡通写实，
+            //         ACES 会把沙/草/海的色相拉偏（这也正是旧 Gamma 版靠 saturation +10 找补的原因）；
+            //         且 ACES 在 Linear 下还会整体再压暗一档，需要额外抬 postExposure。
+            //   Neutral（URP 引入的 HDRP Neutral tonemapper）：1.0 以下近似恒等，只对 >1 的 HDR
+            //         高光做滚降，色相/饱和度保真度远高于 ACES。
+            //   → 写实化要的是"保色"（基准调研的结论正是 tonemap 保色），故选 Neutral；
+            //     代价是高光滚降不如 ACES"胶片"，对本项目大面积高饱和块面是正确的取舍。
+            //   若后续人眼验收觉得"不够电影感"，可换回 ACES 并把 postExposure 抬到约 +0.3 补偿压暗。
             Tonemapping tonemapping = EnsureVolumeComponent<Tonemapping>(profile);
             Override(tonemapping.mode, true);
-            tonemapping.mode.value = TonemappingMode.ACES;
+            tonemapping.mode.value = TonemappingMode.Neutral;
 
-            // ---- Bloom：轻微 ----
-            // 理由（数值取舍）：
-            //   threshold=1.05（略高于 1）→ 只有 HDR 亮部（太阳附近的天空、水面镜面高光）发光，
-            //     地面的沙/草（LDR 范围）不受影响 → 不会整屏发糊。
-            //   intensity=0.32 / scatter=0.62 → "轻微 Bloom"，符合 GDD §10.4 光照设置里
-            //     "禁用 Glow"的意图（那一版是纯 cel）；这里是风格化写实，取"只让高光有呼吸感"的程度。
+            // ---- Bloom：写实"阳光感"（threshold 0.85 / intensity 0.55 / scatter 0.70）----
+            // 数值出处：基准调研（Blender 离线 PBR 管线）「Bloom threshold 0.85、强」。
+            // 旧值（Gamma 时代）threshold=1.05 / intensity=0.32 / scatter=0.62 偏保守。
+            //   threshold 1.05→0.85：Linear 下 HDR 亮部（太阳盘/水面镜面亮带/黄铜高光）的线性亮度
+            //     范围比 Gamma 大得多，0.85（线性）≈0.94（sRGB 感知）就已经"接近白"，
+            //     降到 0.85 才能让辉光从太阳与水面亮带真正溢出，而不是只在死白像素上出现。
+            //   intensity 0.32→0.55、scatter 0.62→0.70：辉光更亮、扩散更广（scatter 越大越"雾"）。
             //   tint=#FFF4E0 = GDD 主光暖色 → 高光晕染偏暖，与环境冷色形成冷暖对比。
             //   highQualityFiltering=false → 性能取舍：Bloom 是 soft-knee 多 mip 模糊，
             //     高质量滤波在该分辨率下观感差异小、开销明显（报告里说明）。
             Bloom bloom = EnsureVolumeComponent<Bloom>(profile);
             Override(bloom.threshold, true);
-            bloom.threshold.value = 1.05f;
+            bloom.threshold.value = 0.85f;
             Override(bloom.intensity, true);
-            bloom.intensity.value = 0.32f;
+            bloom.intensity.value = 0.55f;
             Override(bloom.scatter, true);
-            bloom.scatter.value = 0.62f;
+            bloom.scatter.value = 0.70f;
             Override(bloom.tint, true);
+            // tint 经 URP PostProcessPass.cs:1136 `m_Bloom.tint.value.linear` 自行线性化，
+            // 故这里给 sRGB 原值（给 .linear 会双重转换）。
             bloom.tint.value = Hex("#FFF4E0");
             Override(bloom.highQualityFiltering, true);
             bloom.highQualityFiltering.value = false;
@@ -543,32 +565,43 @@ namespace PirateCrew.EditorTools
             colorAdjustments.colorFilter.value = Color.white;
 
             // WhiteBalance：temperature=+8 → 整体偏暖，对齐 GDD 暖主光 #FFF4E0。
+            // 【为何不随 Linear "重标"】temperature/tint 是**物理量纲的参数**（URP 经
+            //   ColorUtils.ColorBalanceToLMSCoeffs 换算成 LMS 系数），不是"以 sRGB 编码的颜色"，
+            //   色空间切换不会让它偏差 —— 需要人眼复核的是它与 Neutral tonemap 的新组合观感，见实机清单。
             WhiteBalance whiteBalance = EnsureVolumeComponent<WhiteBalance>(profile);
             Override(whiteBalance.temperature, true);
             whiteBalance.temperature.value = 8f;
             Override(whiteBalance.tint, true);
             whiteBalance.tint.value = 0f;
 
-            // ShadowsMidtonesHighlights（这就是 lift/gain 的载体）：
-            //   阴影 (0.98, 1.00, 1.04) → 略偏蓝，对应 GDD 环境光浅蓝 #C8DDF0；
-            //   高光 (1.02, 1.00, 0.97) → 略偏暖，对应主光 #FFF4E0；
-            //   中间调保持中性。冷暖分离 = 风格化写实最基本的"光影氛围"手段。
+            // ShadowsMidtonesHighlights（lift/gain 的载体）—— **随 Linear 按 2.2 次幂重标**：
+            //   旧 Gamma 值是"在 gamma 编码值上乘"的感知幅度；Linear 下同一乘数作用在线性值、
+            //   再经 gamma 编码输出，感知幅度会缩水约 gamma(2.2) 倍。为保住"冷阴影/暖高光"的
+            //   **观感量级**，把旧倍率取 2.2 次幂：
+            //     阴影  0.98^2.2=0.956 / 1.00 / 1.04^2.2=1.090  （略偏蓝，对应环境浅蓝）
+            //     高光  1.02^2.2=1.045 / 1.00 / 0.97^2.2=0.935  （略偏暖，对应主光 #FFF4E0）
+            //   中间调仍中性。冷暖分离 = 风格化写实最基本的"光影氛围"手段。
             ShadowsMidtonesHighlights smh = EnsureVolumeComponent<ShadowsMidtonesHighlights>(profile);
             Override(smh.shadows, true);
-            smh.shadows.value = new Vector4(0.98f, 1.00f, 1.04f, 0f);
+            smh.shadows.value = new Vector4(0.956f, 1.00f, 1.090f, 0f);
             Override(smh.midtones, true);
             smh.midtones.value = new Vector4(1f, 1f, 1f, 0f);
             Override(smh.highlights, true);
-            smh.highlights.value = new Vector4(1.02f, 1.00f, 0.97f, 0f);
+            smh.highlights.value = new Vector4(1.045f, 1.00f, 0.935f, 0f);
 
             // ---- Vignette：轻微 ----
             // 理由：把视线收拢到竞技场中心（相机固定 45° 俯视、竞技场是画面主体）。
             //   intensity=0.22 是"能感觉到、但不会挡到边角单位"的程度；
             //   smoothness=0.45 让暗角过渡宽缓（否则会像贴了一圈黑边）；
             //   color=#101820 深蓝黑（不用纯黑，与冷环境色调一致）。
+            //   **必须 .linear**：URP 的 SetupVignette 走
+            //     `material.SetVector(_Vignette_Params1, color.rgb)`（PostProcessPass.cs:1225-1253），
+            //     **不做** sRGB→Linear；而 vignette 是在 HDR 线性缓冲里做 lerp。
+            //     传 sRGB 原值会让暗角在 Linear 下偏亮偏灰、压不住边角。
+            //   这是本文件唯一需要手动 .linear 的颜色（其余 Color 属性由引擎自动转换，见类头）。
             Vignette vignette = EnsureVolumeComponent<Vignette>(profile);
             Override(vignette.color, true);
-            vignette.color.value = Hex("#101820");
+            vignette.color.value = Hex("#101820").linear;
             Override(vignette.center, true);
             vignette.center.value = new Vector2(0.5f, 0.5f);
             Override(vignette.intensity, true);
@@ -587,9 +620,10 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 配置 URP Asset：打开软阴影、打开深度图、MSAA 4→2。
+        /// 配置 URP Asset：打开软阴影、打开深度图、MSAA 4→2、ColorGradingMode 切 HDR。
         /// 取舍见报告：软阴影是本波次"光影氛围"的必要项；深度图是 PirateWater 泡沫/浅深水的硬依赖；
-        /// MSAA 降档用来抵消前两项带来的带宽/开销增长（本场景以大面积色块 + 描边为主，2x 足够）。
+        /// MSAA 降档用来抵消前两项带来的带宽/开销增长；ColorGradingMode=HDR 是 Linear+HDR 的配套
+        /// （LDR LUT 会把 >1 的高光在 tonemap 前压平，见方法内注释）。
         /// </summary>
         public static void ConfigureUrpAsset()
         {
@@ -607,6 +641,16 @@ namespace PirateCrew.EditorTools
 
             // 公共 setter：MSAA 4 → 2（见上取舍）。
             asset.msaaSampleCount = 2;
+
+            // ---- ColorGradingMode：LDR → **HDR**（Linear + HDR 渲染的配套项）----
+            // 依据：URP 的 ColorGradingLutPass 在 HDR 模式下用 R16G16B16A16_SFloat 的 LUT
+            //   （ColorGradingLutPass.cs:51-52/91），LDR 模式固定用 R8G8B8A8_UNorm（:64）——
+            //   后者把 LUT 采样域钳在 [0,1]，**>1 的 HDR 高光在 tonemap 之前就已被压平**，
+            //   于是 Bloom threshold 0.85 与 Neutral 的高光滚降拿不到真实亮部梯度。
+            //   本 Asset 已开 m_SupportsHDR=1，故开 HDR 调色是与之匹配的正确档位。
+            //   代价：HDR LUT 的调色在 log 域进行，contrast/saturation/SMH 的有效强度与 LDR 档不同
+            //   → 已列入实机复核项（观感不对可回退本行）。
+            asset.colorGradingMode = ColorGradingMode.HighDynamicRange;
 
             // supportsSoftShadows 的 setter 在 URP 14 是 internal（有意不开放），
             // 故用 SerializedObject 直接写序列化字段 m_SoftShadowsSupported（资产里确实存在该字段）。
@@ -636,9 +680,8 @@ namespace PirateCrew.EditorTools
                 if (skyShader == null)
                 {
                     Debug.LogWarning("[BattleSceneLighting] 找不到 Skybox/Procedural，退回纯色背景。");
-                    RenderSettings.ambientMode = AmbientMode.Flat;
-                    // 浅蓝环境光（GDD §10.4：#C8DDF0）。
-                    RenderSettings.ambientLight = Hex("#C8DDF0");
+                    // 即便没有天空盒，也要把"三灯分层"的环境光写进去（写实氛围的主体）。
+                    ApplyThreePointAmbient();
                     return false;
                 }
 
@@ -648,30 +691,99 @@ namespace PirateCrew.EditorTools
 
             // 就地更新（而不是"资产已存在就跳过"）：改了这里的观感常量必须能生效，
             // 否则会出现"代码改了、画面没变"的排查陷阱。
+
+            // ---- 太阳盘（写实化新增；基准：让天空有可见的太阳 + 由 Bloom 溢出"阳光感"）----
+            //   _SunDisk=2 → High Quality（0=无盘 / 1=简盘 / 2=高质量盘）；
+            //   _SunSize 0.04→0.065 → 太阳视直径明显放大（Procedural 的 _SunSize 是归一化角尺寸）；
+            //   _SunSizeConvergence 5→3 → 盘边缘更柔更"发光"，配合 Bloom threshold 0.85 晕出光晕。
+            //   【已知取景限制，实机复核】主光 Euler(48,140) → 太阳在仰角 48°、方位 -40°；
+            //     战斗相机出厂 pitch 45°/FOV 60° → 画面上缘约在水平线下 15°，
+            //     太阳盘**在默认取景下不在画面内**（见 CreateDirectionalLight 注释）。
+            //     它的价值：① 水面/黄铜的 SH 亮部与近帧溢色；② 玩家把 yaw 转过去或日后放宽 pitch 时立即可见。
+            if (sky.HasProperty("_SunDisk"))
+                sky.SetFloat("_SunDisk", 2f);
             if (sky.HasProperty("_SunSize"))
-                sky.SetFloat("_SunSize", 0.04f);
+                sky.SetFloat("_SunSize", 0.065f);
+            if (sky.HasProperty("_SunSizeConvergence"))
+                sky.SetFloat("_SunSizeConvergence", 3f);
+
             if (sky.HasProperty("_AtmosphereThickness"))
                 sky.SetFloat("_AtmosphereThickness", 0.85f);
             if (sky.HasProperty("_SkyTint"))
                 sky.SetColor("_SkyTint", Hex("#87CFEB"));   // 天空主调，偏青蓝
             if (sky.HasProperty("_GroundColor"))
                 // 地平以下（地面方向）的辐照度：竞技场是沙岛，故给沙色调而不是原先的土褐色 ——
-                // 让 SH 环境光从下方反射的是沙色，与前景材质一致（AI 提案）。
+                // 让天空盒下半球的颜色与前景材质一致（AI 提案）。
+                // 【地平线雾色衔接】雾色保持 #B0D4F1（见 ApplySceneAtmosphere），本值与之同族，
+                //   故远海/远岛与天空地平线不出现"接缝"；若改这里或改雾色，两者必须一起改。
                 sky.SetColor("_GroundColor", Hex("#7A6A4C"));
             if (sky.HasProperty("_Exposure"))
                 sky.SetFloat("_Exposure", 1.1f);
             EditorUtility.SetDirty(sky);
 
             RenderSettings.skybox = sky;
-            RenderSettings.ambientMode = AmbientMode.Skybox;
-            RenderSettings.ambientIntensity = 1f;
+            ApplyThreePointAmbient();
             return true;
+        }
+
+        /// <summary>
+        /// 环境光 = **三灯分层的伪造**（写实化的核心手段之一）。
+        ///
+        /// 【为什么不用实时光】本工程的三个自定义 shader（PirateSurface / PirateTerrain / PirateOutline）
+        ///   只取「主方向光 + SH 环境光 + 雾」，不支持 additional lights；再加两盏实时光等于给每个
+        ///   shader 翻倍变体编译量，收益却可由 SH 环境光完全覆盖。
+        ///
+        /// 【参照基准的三灯比例】基准调研（Blender 离线 PBR）：
+        ///   暖主光 energy 3.5 / 冷补光 0.22（右前）/ 暖地面反弹 0.35（自下）。
+        ///   → 补光:主光 = 0.063、反弹:主光 = 0.10；反弹约为补光的 1.6 倍。
+        ///   本项目把「冷补光」放进 ambientSky（朝上的法线）与 ambientEquator（竖直法线）、
+        ///   把「暖反弹」放进 ambientGround（朝下的法线），比例按 1:1.6 量级落色。
+        ///
+        /// 【为什么用 Trilight 而不是 Skybox 模式】
+        ///   1. 三色可控：Skybox 模式的 SH 完全由程序化天空盒决定，无法单独配"冷补/暖反弹"；
+        ///   2. 取景上天空盒本来就看不到（相机固定俯视 45°、FOV 60°，画面上缘在水平线下 15°），
+        ///      切 Trilight 不会损失可见背景，只把环境光的解释权拿回来。
+        ///   代价（如实记录）：水面/金属的 SampleSH 反射也从"天空盒 SH"变成这三色，
+        ///   故 ambientSkyColor 特意取偏青蓝，让水面反射仍是"天光"而不是任意色。
+        ///
+        /// 【色值（sRGB 设计色，引擎自动转 Linear；见类头色空间说明）】
+        ///   sky     #7EA8CC  冷蓝补   —— 朝上法线（地面/台地顶面）的冷色托底，制造"暖光冷影"
+        ///   equator #93A2AC  地平中性 —— 竖直面（角色/箱桶侧面）的中性灰，避免整场偏蓝
+        ///   ground  #C9A268  暖沙反弹 —— 朝下法线（悬空物底面/岩檐）的暖色，模拟沙地反光
+        ///   三色 sRGB 相对亮度 ≈ 0.58 : 0.63 : 0.79（sky : equator : ground），
+        ///   ground/sky ≈ 1.36，与基准反弹/补光 ≈ 1.6 同向（未拉满，避免朝上的沙地顶面被重复加暖
+        ///   —— 那里已有暖主光直射）。
+        /// </summary>
+        public static void ApplyThreePointAmbient()
+        {
+            // AmbientMode.Trilight 就是 Lighting 窗口里的 "Gradient"（Skybox / Gradient / Color）。
+            RenderSettings.ambientMode = AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = Hex("#7EA8CC");     // 冷蓝补光（朝上法线）
+            RenderSettings.ambientEquatorColor = Hex("#93A2AC"); // 地平中性（竖直法线）
+            RenderSettings.ambientGroundColor = Hex("#C9A268");  // 暖地面反弹（朝下法线）
+            // 强度 1.0：与 AmbientDirector 正午档的 ambientIntensity=1.00 逐值一致，
+            //   保证 applyPresetOnStart 后环境光强度零跳变（该档只写强度，不写三色 → 三色梯度保留）。
+            RenderSettings.ambientIntensity = 1f;
         }
 
         /// <summary>
         /// 主方向光。数值出处：GDD §10.4「主方向光：暖色 #FFF4E0，Shadow 开启」；
         /// 强度 1.35 / 姿态 <c>Euler(48,140,0)</c> 依据 docs/场景设计-战斗竞技场.md §6.5
         /// 与 docs/美术风格指南.md §4.1 Q-7 裁决（强度 1.2–1.4，实现取 1.35）。
+        ///
+        /// 【两案对比：现 (48,140) vs 基准方位 -34° → **取现案**】
+        ///   判据 = 光线方向与相机视线方向的夹角，越接近 90° 越"立体"（侧光出明暗交界），
+        ///   接近 0° 是正视平光、接近 180° 是逆光剪影。
+        ///   · 现案 Euler(48,140,0)：光线方向 ≈ (0.43,-0.74,-0.51)；相机在 (0,+12.7,-12.7)、
+        ///     俯视 45° → 视线 ≈ (0,-0.707,+0.707)；两者夹角 ≈ **80.6°**（近侧光，立体感最强）。
+        ///   · 基准案（Blender 太阳 (42°,0,-34°) 映射到 Unity 世界）：光线方向 ≈ (0.37,-0.74,+0.56)，
+        ///     与相机视线夹角 ≈ **23.5°**（近乎沿视线照射 → 朝镜头的面整体背光，正是旧 -30° 被否掉的
+        ///     "画面发平"病灶同族）。基准的 -34° 是 Blender 作者空间的姿态，直接 1:1 搬进 Unity 会逆光。
+        ///   · 结论：保留 (48,140,0)。
+        ///   【另一条硬约束】运行时的 <c>AmbientDirector</c> 会在 Start 应用正午档预设并**覆写**
+        ///   主光颜色/强度/姿态与雾参数（<c>AmbientTimeOfDayCatalog.cs</c> 的正午档逐值等于本方法，
+        ///   该文件不在本波次白名单）。若在这里改角度/强度而不改预设，一开局就会被写回旧值 ——
+        ///   这也是"取现案"必须成立的理由之一（改基准案需同步改黑名单文件，越界）。
         /// </summary>
         public static Light CreateDirectionalLight()
         {
@@ -686,7 +798,9 @@ namespace PirateCrew.EditorTools
             light.shadows = LightShadows.Soft;
             light.shadowStrength = 0.7f;
             // 48° 仰角 + 140° 方位：入射方向约 (0.43,-0.74,-0.51)，光从相机侧后方来，
-            // 朝镜头的面受光、阴影朝屏幕右下延伸。**不得回退到 -30°**（见上文裁决出处）。
+            // 朝镜头的面受光、阴影朝屏幕右下延伸。**不得回退到 -30°**（见上文裁决出处与两案夹角计算）。
+            // 天空盒的太阳盘（ConfigureSkyAndAmbient 的 _SunDisk/_SunSize）由本方向光驱动，
+            // 太阳方位 = 仰角 48°/方位 -40°。
             go.transform.rotation = Quaternion.Euler(48f, 140f, 0f);
             return light;
         }
@@ -700,6 +814,11 @@ namespace PirateCrew.EditorTools
             // ---- 雾（空气透视）----
             // 颜色取天空地平色一带 #B0D4F1（提案：与 Procedural Sky 的地平色近似即可；
             //   若之后调了天空盒参数，需回来对齐，否则远山/远海会与天空"接缝"）。
+            // 【写实化为何不改雾色/距离】AmbientDirector 在 Start 会用正午档预设覆写
+            //   fogColor/fogStart/fogEnd（AmbientTimeOfDayCatalog.cs 的正午档 = 本处逐值），
+            //   该文件不在本波次白名单；若此处单方面改值，运行时会跳回旧值、编辑器与运行时不一致。
+            //   故**保持与正午档逐值相同**（#B0D4F1 / 25 / 140），"地平线衔接"改为由天空盒
+            //   的 _SkyTint/_GroundColor（同属该色族）保证，见 ConfigureSkyAndAmbient。
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = Hex("#B0D4F1");
@@ -855,9 +974,11 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// GDD §10.4 调色板的 sRGB 十六进制 → Unity Color。
-        /// 本工程是 **Gamma** 色空间（ProjectSettings m_ActiveColorSpace=0），故**不做** sRGB→Linear 转换，
-        /// 直接归一化的值在屏幕上即等于色板颜色。切 Linear 时这里必须改为 <c>.linear</c>。
+        /// GDD §10.4 调色板的 sRGB 十六进制 → Unity Color（**保持 sRGB 语义，不做转换**）。
+        /// 本工程是 **Linear** 色空间（ProjectSettings m_ActiveColorSpace=1），但普通材质 Color 属性
+        /// 与 Light/RenderSettings 颜色都由引擎/URP 自动 sRGB→Linear（证据见类头），
+        /// 故这里直接归一化即可；**改成 .linear 会让这些颜色双重变暗**。
+        /// 唯一例外是 Vignette.color —— 那条路径 URP 不转换，调用点自行 .linear（见 EnsureVolumeProfile）。
         /// </summary>
         static Color Hex(string hex)
         {

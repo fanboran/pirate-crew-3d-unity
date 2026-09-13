@@ -143,39 +143,35 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
         // ------------------------------------------------------------------
 
         [Test]
-        public void Ridge_StaysInsideArena_AndMatchesSceneDocProfile()
+        public void PlatformClusters_AreInsideArena_AndHaveWaterBetween()
         {
             TileTerrainGrid grid = Level1Grid();
 
-            // 中脊高台（8 块）的两段：X23-28 与 X32-37；中间 X29-31 是 4 块的鞍部。
-            for (int gx = 23; gx <= 28; gx++)
+            Assert.AreEqual(4, grid.ClusterCount, "level_1 应为 4 个平台簇（3 主簇 + 1 小空岛）");
+            Assert.Greater(grid.WaterCellCount, 0, "平台之间应当是水（掉落即死）");
+
+            for (int c = 0; c < grid.ClusterCount; c++)
             {
-                Assert.AreEqual(8, grid.BlocksAt(gx, 0), "X" + gx + " 应为 8 块（礁岩脊）");
-                Assert.AreEqual(8, grid.BlocksAt(gx, 16), "列高度沿 Z 一致");
+                PlatformClusterInfo info = grid.ClusterAt(c);
+                Assert.GreaterOrEqual(info.X0, 0);
+                Assert.LessOrEqual(info.X1, grid.WidthTiles - 1);
+                Assert.GreaterOrEqual(info.Z0, 0);
+                Assert.LessOrEqual(info.Z1, grid.DepthTiles - 1);
+                Assert.GreaterOrEqual(info.MinBlocks, 1, "平台块高 ≥1（地表必须高于水面）");
+                Assert.LessOrEqual(info.MaxBlocks, PlatformClusterLayout.MaxBlocksPerCluster,
+                    "平台高度不得超过 kit/可玩性上限");
             }
 
-            for (int gx = 29; gx <= 31; gx++)
-                Assert.AreEqual(4, grid.BlocksAt(gx, 0), "鞍部 X" + gx + " 应为 4 块");
-
-            for (int gx = 32; gx <= 37; gx++)
-                Assert.AreEqual(8, grid.BlocksAt(gx, 0), "X" + gx + " 应为 8 块（礁岩脊）");
-
-            Assert.AreEqual(7, grid.BlocksAt(46, 0), "东滩 X46 应为 7 块（场景文档 §2.2 的 '@'）");
-            Assert.AreEqual(7, grid.BlocksAt(47, 0), "东滩 X47 应为 7 块");
-            Assert.AreEqual(5, grid.BlocksAt(48, 0), "东滩 X48 应为 5 块");
-            Assert.AreEqual(5, grid.BlocksAt(44, 0), "东滩 X44 应为 5 块");
-
-            // 中脊必须整体落在竞技场矩形内。
-            var ridgeXs = new List<float>();
-            for (int gx = 0; gx < grid.WidthTiles; gx++)
+            // 任意两簇之间至少 2 格水（投掷可跨，但走路必落水）。
+            for (int a = 0; a < grid.ClusterCount; a++)
             {
-                if (grid.BlocksAt(gx, 0) >= 8)
-                    ridgeXs.Add(gx);
+                for (int b = a + 1; b < grid.ClusterCount; b++)
+                {
+                    Assert.GreaterOrEqual(
+                        TerrainCatalog.WaterGapTiles(grid.ClusterAt(a), grid.ClusterAt(b)), 2,
+                        "簇 " + grid.ClusterAt(a).Name + " 与 " + grid.ClusterAt(b).Name + " 之间至少 2 格水");
+                }
             }
-
-            Assert.Greater(ridgeXs.Count, 0, "应存在中脊列");
-            Assert.IsTrue(SceneLayoutRules.RidgeInsideArena(ridgeXs[0], ridgeXs[ridgeXs.Count - 1] + 1f,
-                    grid.WidthTiles), "中脊不得超出竞技场");
         }
 
         [Test]
@@ -247,7 +243,7 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
 
             Assert.Greater(wreck.Length, 12f, "船长应 ≥12 单位（场景文档 §4.1：12-14）");
             Assert.Less(wreck.Length, 14f + 1e-3f, "船长应 ≤14 单位");
-            Assert.That(wreck.Position.x, Is.InRange(19f, 39f), "船体应横卧中脊 X19-39");
+            Assert.That(wreck.Position.x, Is.InRange(4f, 19f), "平台化后船体搁浅在西侧梯田岛（X4-19）");
             Assert.That(wreck.Position.z, Is.InRange(1f, 4f), "船体应在 Z1-4 远景带");
             Assert.That(Mathf.Abs(wreck.RollDegrees), Is.InRange(12f, 18f), "搁浅姿态侧倾 12-18°");
             Assert.LessOrEqual(wreck.Position.z, SceneLayoutRules.FarBandMaxZ, "高 6.9 的桅只能在远景带");
@@ -336,8 +332,9 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
 
                 int gx = Mathf.Clamp(Mathf.FloorToInt(p.Position.x), 0, grid.WidthTiles - 1);
                 int gy = Mathf.Clamp(Mathf.FloorToInt(p.Position.z), 0, grid.DepthTiles - 1);
-                Assert.GreaterOrEqual(grid.BlocksAt(gx, gy), 6,
-                    "草只铺在 y≥1.5 的平顶（§3.1），实际落在 " + grid.BlocksAt(gx, gy) + " 块");
+                Assert.IsTrue(grid.IsGroundAt(gx, gy), "草只长在有地面的平台格上（不能长在水里）");
+                Assert.GreaterOrEqual(grid.BlocksAt(gx, gy), 1,
+                    "草只铺在有抬升的平台顶，实际落在 " + grid.BlocksAt(gx, gy) + " 块");
 
                 for (int s = 0; s < spawns.Count; s++)
                 {

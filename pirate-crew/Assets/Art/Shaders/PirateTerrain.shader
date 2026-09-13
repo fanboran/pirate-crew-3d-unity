@@ -10,9 +10,10 @@
 //      a. 片元用屏幕空间导数还原"逐面法线"（_FacetStrength），让平滑网格也呈现硬棱面；
 //      b. 按世界坐标量化出"地块"（_BlockSize），用地块哈希做**逐块明暗差异**（_BlockTintStrength）——
 //         这是低多边形风格最有效的辨识特征：相邻块亮度不同 → 一眼能看出块面结构；
-//   3. `#2A2A2A` 描边兼容：GDD 规定场景物描边为深灰 #2A2A2A。地形块不走 inverted-hull
-//      （块体太多、成本不划算），改用**菲涅尔边缘压暗**（_EdgeColor 取 #2A2A2A）模拟同一套
-//      "物体轮廓偏暗"的观感，与 PirateOutline 的单位描边在视觉语言上统一。
+//   3. `#2A2A2A` 描边兼容（**写实化后已退役**）：GDD 曾要求场景物描边为深灰 #2A2A2A，
+//      地形块不走 inverted-hull（块体太多、成本不划算），改用**菲涅尔边缘压暗**模拟。
+//      写实方向明确"无描边"，故 `_EdgeStrength` 默认值由 0.35 改为 **0**（旋钮与色值保留）；
+//      BattleSceneLighting 生成地形材质时也显式写 0。要回到风格化只改这一个值即可。
 //
 // 【沙滩湿区 / 潮痕线 / 沙纹（2026-09-13 新增，与 PirateSurface 同口径）】
 //   湿掩码公式与 PirateSurface 完全一致（同 _WaterLevelY / _WetBandWidth / _WetSandColor /
@@ -91,9 +92,10 @@ Shader "PirateCrew/PirateTerrain"
         _RippleStrength         ("沙纹强度（硬钳 ≤0.15，保低模辨识度）", Range(0.0, 0.15)) = 0.10
         _RippleDistort          ("沙纹相位扭曲（低频噪声，0=绝对平行）", Range(0.0, 1.0)) = 0.35
 
-        // ---- 描边兼容（GDD：场景物描边 #2A2A2A）----
+        // ---- 描边兼容（GDD：场景物描边 #2A2A2A）—— 写实化后默认关闭 ----
         _EdgeColor              ("边缘压暗色 #2A2A2A", Color) = (0.165, 0.165, 0.165, 1.0)
-        _EdgeStrength           ("边缘压暗强度", Range(0.0, 1.0)) = 0.35
+        // 旧默认 0.35；写实方向无描边 → 默认 0（见文件头第 3 条）。
+        _EdgeStrength           ("边缘压暗强度（0=关闭描边兼容）", Range(0.0, 1.0)) = 0.0
         _EdgePower              ("边缘压暗指数", Range(0.5, 8.0)) = 3.0
 
         // ---- 调试 ----

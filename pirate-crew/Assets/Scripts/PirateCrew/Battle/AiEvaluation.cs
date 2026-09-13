@@ -258,15 +258,62 @@ namespace PirateCrew.PirateCrew.Battle
                 LevelGeometry.PixelsToUnits(pixelX), LevelGeometry.PixelsToUnits(pixelY));
         }
 
-        /// <summary>该平面像素所在格是否已有抬升地形块（放置类武器不能放进去）。</summary>
+        /// <summary>
+        /// 列式旧地形里视为"立墙"的块高阈值：<c>BlocksAt ≥ 该值</c> 的格不可放置箱体。
+        /// 【提案/待定】取 3（= 0.75 世界单位）：1-2 块是低矮沙埂，箱体还能压上去；
+        /// 3 块及以上已构成需要绕行的立面（对齐 <see cref="TileTerrainGrid"/> 类头
+        /// 「相邻列的高差即墙体立面」的口径）。
+        /// 平台簇模式不适用本阈值——甲板每格块高 ≥1，不能用块高判墙（见 <see cref="IsBlocked"/>）。
+        /// </summary>
+        public const int RaisedWallBlocks = 3;
+
+        /// <summary>
+        /// 该平面像素所在格是否已有抬升地形块（放置类武器不能放进去）。
+        ///
+        /// 【平台化修正（2026-09-13）】旧判据 <c>IsSolidAt</c>（块高 &gt; 0）在平台簇关卡会
+        /// **把整片甲板误判为"已占用"**（甲板每格块高 ≥1），使 AI 完全无法放置箱子/火药桶。
+        /// 新判据按语义分层：
+        ///   · 水格（平台间隙，<see cref="TileTerrainGrid.IsGroundAt"/> = false）→ 不可放；
+        ///   · 平台簇地面（<see cref="TileTerrainGrid.ClusterIndexOf"/> ≥ 0）→ 可放（含高楼顶）；
+        ///   · 列式旧地形的抬升台（块高 ≥ <see cref="RaisedWallBlocks"/>）→ 视为立墙，不可放。
+        /// </summary>
         public bool IsBlocked(float pixelX, float pixelY)
         {
             if (Grid == null)
                 return false;
 
-            return Grid.IsSolidAt(
-                Mathf.FloorToInt(LevelGeometry.PixelsToUnits(pixelX)),
-                Mathf.FloorToInt(LevelGeometry.PixelsToUnits(pixelY)));
+            int gx = Mathf.FloorToInt(LevelGeometry.PixelsToUnits(pixelX));
+            int gy = Mathf.FloorToInt(LevelGeometry.PixelsToUnits(pixelY));
+
+            // 水格 / 越界：没有地面，放不了（放下去即落水）。
+            if (!Grid.IsGroundAt(gx, gy))
+                return true;
+
+            // 平台簇地面：甲板与岛顶是合法放置面；块高只代表台面高度，不代表墙。
+            if (Grid.ClusterIndexOf(gx, gy) >= 0)
+                return false;
+
+            // 列式旧地形：抬升到阈值以上的格是墙体立面。
+            return Grid.BlocksAt(gx, gy) >= RaisedWallBlocks;
+        }
+
+        /// <summary>
+        /// 该平面像素所在格是否是"高墙"（地面格且块高 ≥ <see cref="RaisedWallBlocks"/>）。
+        /// 与 <see cref="IsBlocked"/> 的区别：平台地面的高楼顶（如 5 块桅盘）仍是**可放置面**，
+        /// 但相对周边是一堵高墙——供需要判断遮挡 / 落点高差的调用方使用。
+        /// 水格与越界返回 false（水不是墙）。
+        /// </summary>
+        public bool IsRaisedWallAt(float pixelX, float pixelY)
+        {
+            if (Grid == null)
+                return false;
+
+            int gx = Mathf.FloorToInt(LevelGeometry.PixelsToUnits(pixelX));
+            int gy = Mathf.FloorToInt(LevelGeometry.PixelsToUnits(pixelY));
+            if (!Grid.IsGroundAt(gx, gy))
+                return false;
+
+            return Grid.BlocksAt(gx, gy) >= RaisedWallBlocks;
         }
 
         /// <summary>

@@ -43,6 +43,9 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("是否用海岛地块壳替换方块外观（关闭则回到「每格一个可见立方体」）。")]
         [SerializeField] bool enableVisualShell = true;
 
+        [Tooltip("是否由运行时视图生成平台底部（船体/岩锥）。场景美术已在构建期生成底部时应关闭，避免重复几何。")]
+        [SerializeField] bool buildUnderside = true;
+
         // 运行时的纯 C# 网格（非 UnityEngine.Object，不进 Inspector；由 BattleController 注入）。
         TileTerrainGrid grid;
 
@@ -60,6 +63,12 @@ namespace PirateCrew.PirateCrew.Battle
         MeshFilter _lowZoneFilter;
         MeshRenderer _lowZoneRenderer;
         Mesh _lowZoneMesh;
+
+        // 悬空平台底部（船体侧板+龙骨 / 岩锥 / 岩层）：单个合并网格。
+        GameObject _underShellObject;
+        MeshFilter _underShellFilter;
+        MeshRenderer _underShellRenderer;
+        Mesh _underShellMesh;
 
         // 复用缓冲，避免每次破坏都产生大数组垃圾。
         readonly List<Vector3> _vertexScratch = new List<Vector3>(60000);
@@ -101,6 +110,9 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>潮沟贴片的三角面数。</summary>
         public int LowZoneTriangleCount { get; private set; }
+
+        /// <summary>悬空平台底部的三角面数（船体/岩锥/岩层）。</summary>
+        public int UndersideTriangleCount { get; private set; }
 
         /// <summary>该格当前堆叠块数（小地图点阵用）；无网格时返回 0。</summary>
         public int BlocksAtCell(int cellIndex)
@@ -246,9 +258,42 @@ namespace PirateCrew.PirateCrew.Battle
             ApplyBuffers(EnsureShellMesh(root), shell, ResolveShellMaterial(), true);
             ApplyShellShaderTuning();
 
-            // ---- 0 块列：湿沙潮沟贴片 ----
+            // ---- 0 块列：湿沙潮沟贴片（平台化后仅列式旧地形的平地面格） ----
             MeshBuffers low = IslandShellGeometry.BuildLowZone(grid, ShellSettings.LowPlateYOffset);
             ApplyBuffers(EnsureLowZoneMesh(root), low, ResolveWetMaterial(), false);
+
+            // ---- 悬空平台底部：船体 / 岩锥 / 岩层（场景美术已生成时由 buildUnderside 关闭） ----
+            if (buildUnderside)
+            {
+                var under = new MeshBuffers();
+                IslandShellGeometry.AddPlatformUnderside(under, grid, ShellSettings);
+                ApplyBuffers(EnsureUnderShellMesh(root), under, ResolveShellMaterial(), false);
+                UndersideTriangleCount = under.TriangleCount;
+            }
+            else
+            {
+                UndersideTriangleCount = 0;
+            }
+        }
+
+        Mesh EnsureUnderShellMesh(Transform root)
+        {
+            if (_underShellObject == null)
+            {
+                _underShellObject = new GameObject("TerrainUnderside");
+                _underShellObject.transform.SetParent(root, false);
+                _underShellFilter = _underShellObject.AddComponent<MeshFilter>();
+                _underShellRenderer = _underShellObject.AddComponent<MeshRenderer>();
+                _underShellMesh = new Mesh { name = "TerrainUndersideMesh" };
+                _underShellMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+                _underShellFilter.sharedMesh = _underShellMesh;
+
+                _underShellRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                _underShellRenderer.receiveShadows = true;
+                _underShellRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.BlendProbes;
+            }
+
+            return _underShellMesh;
         }
 
         Mesh EnsureShellMesh(Transform root)
@@ -354,6 +399,7 @@ namespace PirateCrew.PirateCrew.Battle
             _cellObjects = new GameObject[0];
             ShellTriangleCount = 0;
             LowZoneTriangleCount = 0;
+            UndersideTriangleCount = 0;
 
             if (_shellObject != null)
             {
@@ -371,6 +417,15 @@ namespace PirateCrew.PirateCrew.Battle
                 _lowZoneFilter = null;
                 _lowZoneRenderer = null;
                 _lowZoneMesh = null;
+            }
+
+            if (_underShellObject != null)
+            {
+                Destroy(_underShellObject);
+                _underShellObject = null;
+                _underShellFilter = null;
+                _underShellRenderer = null;
+                _underShellMesh = null;
             }
         }
 

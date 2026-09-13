@@ -24,7 +24,8 @@ namespace PirateCrew.EditorTools
     ///
     /// 【对应章节】
     ///   §3.2（CameraBrain/panToCharacter 的目标点）、§3.3（胜负）、§3.4（两阶段操作 + end go）、
-    ///   §4.3（按关卡数据生成出战单位）、§4.4（落水即死 → 必须有高于水面的地面）.
+    ///   §4.3（按关卡数据生成出战单位）、§4.4（落水即死 → 可站面必须高于水面；平台关由逐格平台提供，
+    ///   不铺整块 y=0 地面，见 <see cref="CreateGround"/> / <see cref="CreateFarSeabed"/>）.
     ///
     /// 【幂等】
     ///   · 预制体用 <see cref="PrefabUtility.SaveAsPrefabAsset(GameObject,string,out bool)"/> 覆盖同名资产；
@@ -213,8 +214,19 @@ namespace PirateCrew.EditorTools
 
             // 地面 = XZ 水平面（顶面 y = 0，角色脚底贴它）；水 = 地面下方一点的水平面。
             // 落水即死因此对 X / Z 任一方向掉出竞技场都成立（§4.4 全局规则）。
-            Transform ground = CreateGround(worldWidth, worldDepth);
+            //
+            // 【平台关不建大地面（2026-09-13 平台化收口）】平台关（level_1）的可站面全部由
+            // 逐格平台提供、平台之间是水；若仍铺一块顶面 y=0 的整块 Ground，从平台间隙掉落的单位
+            // 会被它接在 y=0（水面之上），永远触发不了"落水即死"（§4.4）——这是玩法 bug。
+            // 故 TerrainCatalog.IsPlatformLevel 时**不建带碰撞的地面**，视觉兜底改为水面之下的
+            // 远海床 Seabed_Far（无碰撞）：保证间隙透下去是海，而不是天空或一块假地板。
+            bool platformLevel = TerrainCatalog.IsPlatformLevel(LevelNumber);
+            Transform ground = platformLevel ? null : CreateGround(worldWidth, worldDepth);
             Transform water = CreateWaterPlane(worldWidth, worldDepth, waterWorldY);
+
+            // 水面（含平台间隙）之下的远海床兜底：无碰撞，单位落水判定不受影响。
+            if (platformLevel)
+                CreateFarSeabed(worldWidth, worldDepth, waterWorldY);
 
             // 岛外海床台阶（纯表现、无碰撞）：PirateWater 的浅深水过渡与岸边泡沫依赖
             // _CameraDepthTexture 有东西可读，详见 CreateSeabedShelves 与 PirateWater.shader 头注释。
@@ -384,6 +396,10 @@ namespace PirateCrew.EditorTools
         /// 角色脚底贴在顶面上，所以从 X 或 Z 任一侧掉出去都会落到水面以下（§4.4）。
         /// 原先是 XY 竖直薄板（2D 侧视遗留）。
         /// 材质：干沙（PirateSurface 程序化三档沙色，GDD §10.4 沙地三档）。
+        ///
+        /// 【仅非平台关使用】平台关（<see cref="TerrainCatalog.IsPlatformLevel"/>）不调用本方法——
+        /// 整块 y=0 地面会接住从平台间隙掉落的单位、破坏"落水即死"；平台关改用无碰撞的
+        /// <see cref="CreateFarSeabed"/> 做视觉兜底。
         /// </summary>
         static Transform CreateGround(float worldWidth, float worldDepth)
         {
@@ -399,6 +415,42 @@ namespace PirateCrew.EditorTools
             ground.GetComponent<MeshRenderer>().sharedMaterial = EnsureEnvironmentMaterial(
                 BattleSceneLighting.DrySandMaterial, new Color(0.82f, 0.74f, 0.53f, 1f));
             return ground.transform;
+        }
+
+        /// <summary>
+        /// 海面下的"远海床"兜底（仅平台关）：水面之下、**无碰撞**的大平面，铺在两层海床台阶
+        /// （<see cref="CreateSeabedShelves"/> 的 -0.6 / -1.6）之下，保证平台间隙向下看到的是海床
+        /// 而不是天空盒。
+        ///
+        /// 【为什么必须无碰撞】单位从平台间隙落下后应继续穿越 <see cref="LevelGeometry.WaterSurfaceY"/>
+        /// 触发落水即死（§4.4）；任何接在中间（尤其水面之上）的几何都会把落水变成"站在隐形地板上"。
+        /// 所以本物体与海床台阶一样销毁 Collider、且不投影。
+        ///
+        /// 【尺寸】竞技场外扩 40（与水面一致），材质复用海床台阶的岩材质（保证浅深水读深一致）。
+        /// 【提案/待定】高度 -2.6 是 AI 调参值；观感验收时可调，但**必须保持无碰撞**。
+        /// </summary>
+        static void CreateFarSeabed(float worldWidth, float worldDepth, float waterWorldY)
+        {
+            const float thickness = 0.5f;
+            const float margin = 40f;
+            float topY = waterWorldY - 2.6f;   // 深于 Seabed_Mid(-1.6)：纯远景，不参与浅深水过渡读深
+
+            var seabed = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            seabed.name = "Seabed_Far";
+            seabed.transform.position = new Vector3(
+                worldWidth * 0.5f, topY - thickness * 0.5f, worldDepth * 0.5f);
+            seabed.transform.localScale = new Vector3(
+                worldWidth + margin * 2f, thickness, worldDepth + margin * 2f);
+
+            var collider = seabed.GetComponent<Collider>();
+            if (collider != null)
+                Object.DestroyImmediate(collider);
+
+            var renderer = seabed.GetComponent<MeshRenderer>();
+            // 与 CreateSeabedShelf 的岩材质同色兜底：材质库缺失时不会生成两份不同色的同名资产。
+            renderer.sharedMaterial = EnsureEnvironmentMaterial(
+                BattleSceneLighting.RockMaterial, new Color(0.42f, 0.38f, 0.32f, 1f));
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
         /// <summary>

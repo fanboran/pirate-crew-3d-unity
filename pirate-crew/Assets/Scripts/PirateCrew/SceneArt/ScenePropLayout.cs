@@ -198,18 +198,12 @@ namespace PirateCrew.PirateCrew.SceneArt
             // 转向 12° 是【AI 提案】：让"横桁（沿船宽）"与相机视线（-Z）接近垂直，
             // 读起来是一根明确的横杆（文档只要求"大致垂直相机视线"）。
             {
-                float wx = 29f, wz = 2.4f;
-                // 船体基准 = 中脊顶面（X23-28 / X32-37 均为 8 块 = 2.0）+ 1.4：
-                // 龙骨（局部 -2.0）因此落在 y≈1.4，低于脊顶 → "半埋进沙脊"，而舷顶（局部 0）
-                // 露出脊顶约 1.4 单位，45° 俯视下能读出"一条侧倾的破船"而不是"一排箱子"（§4.1）。
-                // 侧倾 14° 会让左右舷再差 ±2.3·sin14° ≈ ±0.56，低舷仍压在脊顶以下，不悬空。
-                float ridgeTop = SceneLayoutRules.SurfaceYAtWorld(grid, 26f, wz);
+                // 平台化：主角船放在西侧梯田小岛**远景带**（Z≈3.5，blocks=1，y=0.25），
+                // 读作"搁浅在岛缘的破船"；须留在 Z≤4（§7.3：高物只允许远景带）。【提案/待定】
+                float wx = 11f, wz = 3.5f;
+                float ridgeTop = SceneLayoutRules.SurfaceYAtWorld(grid, wx, wz);
                 Vector3 pos = new Vector3(wx, ridgeTop + 1.4f, wz);
 
-                // 注：船长 12.8、转向 12°、船宽 4.6 → 世界范围约 X22.7-35.3 / Z-1.0-6.2
-                //（§4.1 记为"横卧中脊 X19-39、Z1-4"）。Z 上多出的部分只是船首/船尾的角，
-                // 越过 Z>4 只会遮住它**身后**（更小 Z）的远景，不会遮挡中景战场（在它更近的一侧）；
-                // 且船体无碰撞体，对可玩性零影响（§7.3 规则 3 已把"中脊船体本身"列为地标例外）。
                 layout.Add(new PropPlacement(ScenePropKind.Wreck, pos, 12f, 1f, 12.8f, 7.4f, true, 14f));
                 placedPoints.Add(new Vector4(wx, wz, 2.6f, 2.6f));
             }
@@ -221,10 +215,10 @@ namespace PirateCrew.PirateCrew.SceneArt
             AddJetty(layout, placedPoints, 46f, 50f, -2.2f, 0.6f, arenaW, arenaD);
 
             // ------------------------------------------------------------------
-            // 3. 旗杆（红 X≈6/Z≈0.8、蓝 X≈47/Z≈2.5，都在各自出生区一侧）
+            // 3. 旗杆（红 X≈6.5/Z≈3.5、蓝 X≈43.5/Z≈2.5，都在远景带且避开出生格净空）
             // ------------------------------------------------------------------
-            AddFlag(layout, placedPoints, grid, spawnCells, 6.5f, 0.8f, true, arenaW, arenaD);
-            AddFlag(layout, placedPoints, grid, spawnCells, 47.5f, 2.5f, false, arenaW, arenaD);
+            AddFlag(layout, placedPoints, grid, spawnCells, 6.5f, 3.5f, true, arenaW, arenaD);
+            AddFlag(layout, placedPoints, grid, spawnCells, 43.5f, 2.5f, false, arenaW, arenaD);
 
             // ------------------------------------------------------------------
             // 4. 告示牌（西滩 X≈8/Z≈2；东滩 44/Z≈12.2）
@@ -232,7 +226,7 @@ namespace PirateCrew.PirateCrew.SceneArt
             // 冲突与取舍：场景文档 §4.4 写"东滩 X≈44/Z≈13"，但 §7.3 规则 2 规定
             // 高度 0.6-1.5 的物体不得放 Z≥13 近侧带；告示牌含柱 0.8+牌 → 约 1.0 高。
             // 本文按 §7.3（可玩性/遮挡优先）把东牌移到 Z=12.2（仍在"东滩"），属**提案**。
-            AddSign(layout, placedPoints, grid, spawnCells, 8f, 2f, 0.9f, arenaW, arenaD);
+            AddSign(layout, placedPoints, grid, spawnCells, 8f, 3.5f, 0.9f, arenaW, arenaD);
             AddSign(layout, placedPoints, grid, spawnCells, 44f, 12.2f, 0.9f, arenaW, arenaD);
 
             // ------------------------------------------------------------------
@@ -240,18 +234,18 @@ namespace PirateCrew.PirateCrew.SceneArt
             // ------------------------------------------------------------------
             AddAnchorAt(layout, placedPoints, grid, spawnCells, 9f, 6f, arenaW, arenaD);
             AddAnchorAt(layout, placedPoints, grid, spawnCells, 45f, 12f, arenaW, arenaD);
-            AddAnchorAt(layout, placedPoints, grid, spawnCells, 37f, 3f, arenaW, arenaD);
+            AddAnchorAt(layout, placedPoints, grid, spawnCells, 37f, 1f, arenaW, arenaD);
 
             // ------------------------------------------------------------------
             // 6. 木箱与火药桶（船边 + 两岸出生台地边缘）
             // ------------------------------------------------------------------
-            AddCrateCluster(layout, placedPoints, grid, spawnCells, rng, 21.5f, 30f, 1.5f, 3.4f, 5, 2, arenaW, arenaD);
-            AddCrateCluster(layout, placedPoints, grid, spawnCells, rng, 4.5f, 8f, 4f, 8f, 4, 2, arenaW, arenaD);
-            AddCrateCluster(layout, placedPoints, grid, spawnCells, rng, 44f, 48.5f, 3f, 8f, 4, 2, arenaW, arenaD);
+            AddCrateCluster(layout, placedPoints, grid, spawnCells, rng, 26f, 36f, 6f, 11f, 5, 2, arenaW, arenaD);
+            AddCrateCluster(layout, placedPoints, grid, spawnCells, rng, 7f, 16f, 6f, 11f, 4, 2, arenaW, arenaD);
+            AddCrateCluster(layout, placedPoints, grid, spawnCells, rng, 43f, 48.5f, 3f, 8f, 4, 2, arenaW, arenaD);
 
-            AddBarrelCluster(layout, placedPoints, grid, spawnCells, rng, 30.5f, 34f, 2f, 4f, 3, arenaW, arenaD);
-            AddBarrelCluster(layout, placedPoints, grid, spawnCells, rng, 45f, 49.5f, 6f, 9f, 3, arenaW, arenaD);
-            AddBarrelCluster(layout, placedPoints, grid, spawnCells, rng, 4f, 7f, 9f, 12f, 3, arenaW, arenaD);
+            AddBarrelCluster(layout, placedPoints, grid, spawnCells, rng, 30f, 36f, 6f, 9f, 3, arenaW, arenaD);
+            AddBarrelCluster(layout, placedPoints, grid, spawnCells, rng, 45f, 48.5f, 6f, 9f, 3, arenaW, arenaD);
+            AddBarrelCluster(layout, placedPoints, grid, spawnCells, rng, 8f, 16f, 9f, 12f, 3, arenaW, arenaD);
 
             // ------------------------------------------------------------------
             // 7. 功能掩体中石（6-10 个，贴台地高差边、避开中央走廊）
@@ -386,6 +380,8 @@ namespace PirateCrew.PirateCrew.SceneArt
 
                 float x = rng.Range(xFrom, xTo);
                 float z = rng.Range(zFrom, zTo);
+                if (!grid.IsGroundAt(Mathf.FloorToInt(x), Mathf.FloorToInt(z)))
+                    continue;   // 平台化：不把箱体放到水面上
                 float surface = SceneLayoutRules.SurfaceYAtWorld(grid, x, z);
                 float stack = rng.RangeInt(1, maxPerStack + 1);
                 float height = 0.6f * stack;
@@ -421,6 +417,8 @@ namespace PirateCrew.PirateCrew.SceneArt
 
                 float x = rng.Range(xFrom, xTo);
                 float z = rng.Range(zFrom, zTo);
+                if (!grid.IsGroundAt(Mathf.FloorToInt(x), Mathf.FloorToInt(z)))
+                    continue;   // 平台化：不把桶放到水面上
                 float surface = SceneLayoutRules.SurfaceYAtWorld(grid, x, z);
                 TryPlace(layout, placed, ScenePropKind.Barrel, new Vector3(x, surface, z),
                     rng.Range(0f, 90f), 1f, 0f, 0.7f, true, spawnCells, 0.7f, true);
@@ -676,8 +674,9 @@ namespace PirateCrew.PirateCrew.SceneArt
             {
                 for (int gx = 0; gx < grid.WidthTiles; gx++)
                 {
-                    // §3.1：草只铺在 y≥1.5 的平顶与岩石腰部（≥6 块 = 1.5 单位）。
-                    if (grid.BlocksAt(gx, gy) < 6)
+                    // 平台化：草铺在**任一有地面的平台顶**（旧版"只铺 y≥1.5 平顶"是单块大岛时代的规则；
+                    // 悬空平台世界里 1 块高的甲板/岛顶也长草）。要求 blocks≥1 → 全平地面（0 块）仍不长草。
+                    if (!grid.IsGroundAt(gx, gy) || grid.BlocksAt(gx, gy) < 1)
                         continue;
                     candidates.Add(new Vector2Int(gx, gy));
                 }
@@ -747,6 +746,8 @@ namespace PirateCrew.PirateCrew.SceneArt
                 {
                     float x = rng.Range(0.5f, arenaW - 0.5f);
                     float z = rng.Range(0.5f, arenaD - 0.5f);
+                    if (!grid.IsGroundAt(Mathf.FloorToInt(x), Mathf.FloorToInt(z)))
+                        continue;   // 平台化：场内杂物只落在有地面的格
                     pos = new Vector3(x, SceneLayoutRules.SurfaceYAtWorld(grid, x, z), z);
                     inside = SceneLayoutRules.FitsInsideArena(x, z, 0.3f, arenaW, arenaD);
                 }

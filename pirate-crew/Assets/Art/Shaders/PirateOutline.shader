@@ -12,7 +12,10 @@
 //   免去 Godot 版"为每个骨骼复制一圈网格、再换 material_override"的做法。
 //
 // 【实现路径】inverted hull（法线外扩 + 只画背面）：
-//   第 1 个 Pass（Base）  ：正常画本体（简单 Lambert + SH 环境光）。
+//   第 1 个 Pass（Base）  ：正常画本体。**写实化后为 URP PBR**（BRDF + 主光阴影 + SH 环境光 + 雾，
+//                          与 PirateSurface / PirateTerrain 同口径；旧的简单 Lambert 已退役）。
+//                          保留此 Pass 结构（而非把单位换成 PirateSurface/URP Lit）是为了不打断
+//                          「_OutlineState MPB 通道 + inverted hull + 选中虚线」这条选中反馈链路。
 //   第 2 个 Pass（Outline）：Cull Front 只画背面，顶点沿法线外扩，得到一圈描边。
 //   第 3 个 Pass（DepthOnly）：写入 URP 深度（_CameraDepthTexture / 深度预通道）。
 //   第 4 个 Pass（ShadowCaster）：写入主光阴影图 —— 单位投影的来源（2026-09-13 补，
@@ -50,8 +53,11 @@
 //   _DebugMode 只在人工调试时改，且 5 档分支都是极短片段着色器分支，现代 GPU 上
 //   动态分支代价可忽略；用关键字会为每个 Pass 生成 5 个变体（加上 hover/selected
 //   若也用关键字则变体再翻倍），并且采集脚本每次切档都要 SetKeyword 管理全局关键字
-//   状态，容易残留。故本 shader 零关键字，调试档与状态全部走 uniform。
+//   状态，容易残留。故调试档与状态**全部走 uniform**。
 //   （唯一代价：无法在 build 里彻底剔除调试分支；调试分支只有几行，可接受。）
+//   【写实化后的例外】Base Pass 为了接收主光阴影/雾，拥有 3 组 multi_compile
+//   （_MAIN_LIGHT_SHADOWS / _SHADOWS_SOFT / _FOG），这是光照本身需要的变体；
+//   描边 Pass / DepthOnly / ShadowCaster 仍保持零关键字。
 //
 // 【[CHECK] 本地 URP 包核对结果】（完整清单见 docs/描边Shader调试.md）
 //   以下每个 #include / 宏都已在
@@ -86,7 +92,12 @@ Shader "PirateCrew/PirateOutline"
     Properties
     {
         // ---- 本体 ----
+        // 写实化：本体从"Lambert+SH 平光"升级为 URP PBR（见 Base Pass），故新增金属度/光滑度。
+        // 单位材质（PirateOutlineUnit.mat）与阵营色仍只写 _BaseColor（UnitOutlineBinder 的 MPB 通道），
+        // 这两个参数取默认值即可；角色波次若要区分皮/革/铁，可给各部件材质覆写。
         _BaseColor              ("本体基础色", Color) = (0.85, 0.85, 0.90, 1.0)
+        _Metallic               ("本体金属度", Range(0.0, 1.0)) = 0.0
+        _Smoothness             ("本体光滑度", Range(0.0, 1.0)) = 0.35
 
         // ---- 描边：三套色 + 三套宽（对应 Godot outline_hover / outline_selected）----
         // _OutlineColor 是"无状态"兜底色；实际运行时由 _OutlineState 选中 hover/selected 两套。
@@ -143,12 +154,15 @@ Shader "PirateCrew/PirateOutline"
             ZTest LEqual
 
             HLSLPROGRAM
+            #pragma target 3.5
             #pragma vertex   BaseVertex
             #pragma fragment BaseFragment
-            // 主光阴影本 Pass 不采样（用 GetMainLight() 无阴影重载），故不声明 shadow 关键字。
-            // 若后续要给本体接阴影，再加：
-            //   #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
-            // 说明：多编译关键字会成倍增加变体，本模块刻意保持零关键字（见文件头）。
+            // 写实化（2026-09）：本体 Pass 从"简单 Lambert + SH"升级为 URP PBR，
+            // 故本体要**接收主光阴影**与雾（否则没阴影的单位在写实光照里会"浮"在场景上）。
+            // 关键字只加在本体 Pass；描边 Pass（SRPDefaultUnlit）保持零关键字（unlit 叠加层不需要）。
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #pragma multi_compile_fog
 
             // Core.hlsl 已含 Common.hlsl / URP Input.hlsl / ShaderVariablesFunctions.hlsl，
             // 因此 TransformObjectToHClip、GetVertexPositionInputs 等无需再单独 include。
@@ -170,10 +184,19 @@ Shader "PirateCrew/PirateOutline"
             //         编辑器里真实编译过才算验证；此后本 shader 的任何 include 改动都要重跑一次
             //         play mode 并 read_console 确认 0 shader error。
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            // 写实化：本体接主光阴影需要 TransformWorldToShadowCoord（Shadows.hlsl:319）。
+            // 【必须在 Lighting.hlsl 之后】Shadows.hlsl:298 用 LerpWhiteTo（来自 core 的
+            //   CommonMaterial.hlsl，而 Shadows.hlsl 自身不 include 它）；Lighting.hlsl 的
+            //   第 4 行先引入 BRDF.hlsl → CommonMaterial.hlsl，顺序才自洽。反序会复现
+            //   `undeclared identifier 'LerpWhiteTo'`（2026-09-13 实测 d3d11，见 docs/描边Shader调试.md §八）。
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
             // CBUFFER 字段顺序必须与 Properties 声明顺序一致，否则 SRP Batcher 会判定不兼容。
+            // 本体 Pass 与描边 Pass 必须声明**同一份** CBUFFER（同名字段、同顺序）。
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
+                float  _Metallic;
+                float  _Smoothness;
                 float4 _OutlineColor;
                 float4 _OutlineColorHover;
                 float4 _OutlineColorSelected;
@@ -200,6 +223,7 @@ Shader "PirateCrew/PirateOutline"
                 float4 positionCS : SV_POSITION;
                 float3 normalWS   : TEXCOORD0;
                 float3 positionWS : TEXCOORD1;
+                real   fogFactor  : TEXCOORD2;
             };
 
             VaryingsBase BaseVertex(AttributesBase IN)
@@ -210,6 +234,8 @@ Shader "PirateCrew/PirateOutline"
                 OUT.positionCS = p.positionCS;
                 OUT.normalWS   = n.normalWS;
                 OUT.positionWS = p.positionWS;
+                // 雾因子在顶点算一次（URP 标准做法），与 PirateSurface / PirateTerrain 同口径。
+                OUT.fogFactor  = ComputeFogFactor(p.positionCS.z);
                 return OUT;
             }
 
@@ -234,13 +260,43 @@ Shader "PirateCrew/PirateOutline"
                     return half4(n.x, n.y, d, 1.0);
                 }
 
-                // 正常档 0/1：简单 Lambert + SH 环境光（unshaded 的描边不受光照影响）。
-                Light mainLight = GetMainLight();
+                // 正常档 0/1：URP PBR（写实化核心改动）。
+                // 【为什么把本体 Pass 升级为 PBR，而不是让单位改用 PirateSurface / URP Lit】
+                //   单位材质必须同时满足三件事：① 逐单位写 _OutlineState 的 MPB 通道；
+                //   ② inverted hull 描边 Pass；③ 选中虚线。PirateSurface 没有后两者，
+                //   URP/Lit 也没有 _OutlineState —— 换 shader 会把"选中反馈"整条链路打断
+                //   （UnitOutlineBinder.WarnIfNotOutlineMaterial 会直接告警）。
+                //   故代价最小的路径 = 保留 PirateOutline 的四个 Pass 结构，只把 Base Pass 的
+                //   光照从 Lambert 换成 URP 官方 BRDF（与 PirateSurface / PirateTerrain 同口径）。
+                //   代价：本体 Pass 多了阴影/雾关键字（变体增加），但这是"写实"的必要成本。
                 float3 nrm = normalize(IN.normalWS);
-                float  ndotl = saturate(dot(nrm, mainLight.direction));
-                half3  ambient = SampleSH(nrm) * 0.5;
-                half3  lit = _BaseColor.rgb * (ambient + mainLight.color * ndotl);
-                return half4(lit, 1.0);
+                float3 viewDirWS = GetWorldSpaceNormalizeViewDir(IN.positionWS);
+
+                half alpha = 1.0h;
+                BRDFData brdfData;
+                // specular 传 0：URP 在非 _SPECULAR_SETUP 路径下用 kDieletricSpec 与 albedo 自行插值
+                // （BRDF.hlsl:96 `lerp(kDieletricSpec.rgb, albedo, metallic)`），与 PirateSurface 一致。
+                InitializeBRDFData(_BaseColor.rgb, saturate((half)_Metallic),
+                    half3(0.0h, 0.0h, 0.0h), saturate((half)_Smoothness), alpha, brdfData);
+
+                #if defined(_MAIN_LIGHT_SHADOWS) || defined(_MAIN_LIGHT_SHADOWS_CASCADE)
+                    float4 shadowCoord = TransformWorldToShadowCoord(IN.positionWS);
+                    Light mainLight = GetMainLight(shadowCoord);
+                #else
+                    Light mainLight = GetMainLight();
+                #endif
+
+                // 直射项（已含 light.shadowAttenuation，见 Lighting.hlsl:75）。
+                half3 color = LightingPhysicallyBased(brdfData, mainLight, nrm, viewDirWS);
+
+                // 间接项：SH 环境光。**不乘阴影衰减** —— 软阴影只压直射，
+                // 否则阴影里死黑、失去"写实但通透"的观感（与 PirateSurface 同一条纪律）。
+                // 环境光来源已从"天空盒 SH"改为 Gradient 三色（见 BattleSceneLighting.ApplyThreePointAmbient）。
+                half3 bakedGI = SampleSH(nrm);
+                color += GlobalIllumination(brdfData, bakedGI, 1.0h, nrm, viewDirWS);
+
+                color = MixFog(color, IN.fogFactor);
+                return half4(color, 1.0h);
             }
             ENDHLSL
         }
@@ -280,6 +336,8 @@ Shader "PirateCrew/PirateOutline"
             // 与 Base Pass 完全相同的 CBUFFER（同名同序，SRP Batcher 才兼容）。
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
+                float  _Metallic;
+                float  _Smoothness;
                 float4 _OutlineColor;
                 float4 _OutlineColorHover;
                 float4 _OutlineColorSelected;

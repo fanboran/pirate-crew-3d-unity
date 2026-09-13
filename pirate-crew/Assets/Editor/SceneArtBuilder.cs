@@ -47,7 +47,12 @@ namespace PirateCrew.EditorTools
         const string SceneMaterialFolder = "Assets/Art/Materials/Scene";
         const string SceneMeshFolder = "Assets/Art/Models/Scene";
 
-        /// <summary>道具描边材质组用的 shader（与单位同一套 inverted hull，满足场景文档 M12）。</summary>
+        /// <summary>
+        /// 道具材质组用的 shader。写实化后仍用 <c>PirateCrew/PirateOutline</c>，但**描边参数全部置零**
+        /// （见 <see cref="EnsureOutlineMaterial"/>）—— 只借用它的 **PBR 本体 Pass**
+        /// （写实化后 Base Pass = URP PBR），不再要 inverted hull 轮廓（场景文档 M12 的描边要求已随
+        /// "写实无描边"退役；单位选中/hover 描边不受影响，仍由 PirateOutline 的描边 Pass 提供）。
+        /// </summary>
         const string OutlineShaderName = "PirateCrew/PirateOutline";
 
         /// <summary>环境材质 shader（渲染波次生成的环境材质库用同一套）。</summary>
@@ -151,6 +156,17 @@ namespace PirateCrew.EditorTools
             // 调度（摆位 → 三角面）在纯 C# 的 ScenePropComposer 里，编辑器与性能用例共用同一份。
             ScenePropComposer.Compose(buffers, layout, propSeed, arenaD);
 
+            // 4b. 模块化构件（kit）：把平台簇伪装成大船 / 空岛 / 梯田小岛。
+            //     构件注册表 + 配方在 SceneKitCatalog（纯 C#），几何在 SceneKitGeometry，
+            //     调度在 SceneKitComposer；同材质并入下方既有材质组（构建期合批）。
+            int kitSeed = propSeed + 500;
+            SceneKitLayout kit = SceneKitCatalog.BuildLevel1(kitSeed);
+            SceneKitComposer.Compose(buffers, kit, kitSeed);
+
+            // 4c. 悬空平台底部（船体侧板+龙骨 / 岩锥收尖 / 梯田岩层）：按材质并入 暗木 / 岩。
+            if (grid != null)
+                IslandShellGeometry.AddPlatformUndersides(buffers, grid, IslandShellSettings.Default);
+
             // 5. 落盘：每个非空材质组 = 1 网格 + 1 材质 + 1 渲染器
             int groups = 0;
             groups += EmitGroup(root, "Wood", buffers.Wood, materials.Wood, true, true);
@@ -179,6 +195,9 @@ namespace PirateCrew.EditorTools
                 + " / 草丛 " + layout.CountOf(ScenePropKind.GrassTuft)
                 + " / 礁石 " + (layout.CountOf(ScenePropKind.RidgeRock) + layout.CountOf(ScenePropKind.IntertidalRock))
                 + "）\n"
+                + "  构件摆位(kit): " + kit.Parts.Count + " 件"
+                + "（船体段 " + kit.CountOf(SceneKitPiece.HullMid) + " / 甲板 " + kit.CountOf(SceneKitPiece.DeckPlank)
+                + " / 桅 " + kit.CountOf(SceneKitPiece.Mast) + " / 岛顶 " + kit.CountOf(SceneKitPiece.IslandTop) + "）\n"
                 + "  合并网格组: " + groups + " 个（= 该组 DrawCall）\n"
                 + "  三角面合计: " + buffers.TotalTriangles
                 + "（木 " + buffers.Wood.TriangleCount
@@ -301,6 +320,16 @@ namespace PirateCrew.EditorTools
 
             prop.objectReferenceValue = wetMaterial;
             so.ApplyModifiedPropertiesWithoutUndo();
+
+            // 构建期已按材质生成平台底部（SceneKit + AddPlatformUndersides），
+            // 关掉运行时的单材质底部，避免同一平台出现两份重叠几何。
+            SerializedProperty underside = so.FindProperty("buildUnderside");
+            if (underside != null)
+            {
+                underside.boolValue = false;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+
             EditorUtility.SetDirty(view);
         }
 
@@ -350,10 +379,12 @@ namespace PirateCrew.EditorTools
         /// 环境材质（沙/湿沙/岩/地形）由渲染波次的 <see cref="BattleSceneLighting"/> 生成，
         /// 本类只**读取**它（<see cref="BattleSceneLighting.LoadEnvironmentMaterial"/>），读不到才自建兜底。
         ///
-        /// 【为什么道具走 <c>PirateCrew/PirateOutline</c>】场景文档 M12 要求"道具带 #2A2A2A 风格描边、
-        /// 与单位描边一致"。该 shader 本体 Pass 是简单 Lambert + SH、第 2 个 Pass 是 inverted hull 描边，
-        /// 正好可以当一个"描边材质"整体用（这也让本波次不必新增任何 shader）。
-        /// 代价：道具本体没有 URP/Lit 的粗糙度分区更细腻的高光（报告里作为取舍说明）。
+        /// 【为什么道具仍走 <c>PirateCrew/PirateOutline</c>（而不是新增一个道具 shader）】
+        /// 写实化后该 shader 的**本体 Pass 已是 URP PBR**（BRDF + 阴影 + SH + 雾），
+        /// 正好可当"写实材质"用；描边参数在本类里全部置零（见 <see cref="EnsureOutlineMaterial"/>）。
+        /// 这样本波次不必新增 shader，也不改道具的网格合并/材质分组结构（最小改动）。
+        /// 代价：道具本体只有一个 _BaseColor（没有 PirateSurface 的三档色阶/程序化噪声）；
+        /// 追求更细腻材质时可把这些组的材质换成 BattleSceneLighting 的环境材质库（后续优化）。
         /// </summary>
         sealed class SceneArtMaterials
         {
@@ -374,7 +405,7 @@ namespace PirateCrew.EditorTools
 
             public SceneArtMaterials()
             {
-                // ---- 描边道具材质（本体色 + #2A2A2A 描边）----
+                // ---- 道具材质（PBR 本体 + 描边置零；见 EnsureOutlineMaterial）----
                 Wood = EnsureOutlineMaterial("Scene_Wood", SceneArtPalette.WoodMid);
                 WoodDark = EnsureOutlineMaterial("Scene_WoodDark", SceneArtPalette.WoodDark);
                 Rock = EnsureOutlineMaterial("Scene_Rock", SceneArtPalette.RockMid);
@@ -407,7 +438,15 @@ namespace PirateCrew.EditorTools
             }
         }
 
-        /// <summary>道具描边材质：本体色由 <paramref name="bodyHex"/> 指定，描边色 = #2A2A2A（GDD §10.4）。</summary>
+        /// <summary>
+        /// 道具材质：本体色由 <paramref name="bodyHex"/> 指定；**描边已退役**（写实方向无描边）。
+        /// 实现方式 = 把三套描边色 alpha 与三套宽度全部置 0：
+        ///   · 宽度 0 → inverted hull 外扩为 0，壳体与本体同深，被 ZTest LEqual 剔除；
+        ///   · alpha 0 → OutlineFragment 里 `alpha &lt; 0.002` 直接 discard（双保险）。
+        /// 道具本体仍由 PirateOutline 的 Base Pass 渲染（写实化后为 URP PBR）。
+        /// 单位的选中/hover 描边走**另一份材质**（PirateOutlineUnit.mat，由 M2BattleSceneSetup 生成），
+        /// 不受本方法影响 —— 功能反馈完整保留。
+        /// </summary>
         static Material EnsureOutlineMaterial(string fileName, string bodyHex)
         {
             string path = SceneMaterialFolder + "/" + fileName + ".mat";
@@ -432,17 +471,16 @@ namespace PirateCrew.EditorTools
 
             SetColor(m, "_BaseColor", SceneArtPalette.Hex(bodyHex));
 
-            // 状态 0（无选中）走 _OutlineColor：给不透明的 #2A2A2A，道具因此始终有一圈深色描边。
-            SetColor(m, "_OutlineColor", SceneArtPalette.Hex(SceneArtPalette.Outline, 1f));
-            SetColor(m, "_OutlineColorHover", SceneArtPalette.Hex(SceneArtPalette.Outline, 1f));
-            SetColor(m, "_OutlineColorSelected", SceneArtPalette.Hex(SceneArtPalette.Outline, 1f));
+            // ---- 描边退役：三套色 alpha=0、三套宽=0 ----
+            SetColor(m, "_OutlineColor", SceneArtPalette.Hex(SceneArtPalette.Outline, 0f));
+            SetColor(m, "_OutlineColorHover", SceneArtPalette.Hex(SceneArtPalette.Outline, 0f));
+            SetColor(m, "_OutlineColorSelected", SceneArtPalette.Hex(SceneArtPalette.Outline, 0f));
 
-            // 描边宽度：单位是 0.006（M2BattleSceneSetup），道具略细（0.0045）以免压过角色。
-            SetFloat(m, "_OutlineWidth", 0.0045f);
-            SetFloat(m, "_OutlineWidthHover", 0.0045f);
-            SetFloat(m, "_OutlineWidthSelected", 0.0045f);
+            SetFloat(m, "_OutlineWidth", 0f);
+            SetFloat(m, "_OutlineWidthHover", 0f);
+            SetFloat(m, "_OutlineWidthSelected", 0f);
             SetFloat(m, "_OutlineState", 0f);
-            SetFloat(m, "_OutlineAlpha", 1f);
+            SetFloat(m, "_OutlineAlpha", 1f);                   // 逐状态 alpha 已为 0；此总乘子保持 1 以便单独回退
             SetFloat(m, "_OutlineExpandMode", 0f);              // 屏幕空间恒定粗细
             SetFloat(m, "_OutlineDistanceAttenuation", 0.4f);
             SetFloat(m, "_DebugMode", 0f);

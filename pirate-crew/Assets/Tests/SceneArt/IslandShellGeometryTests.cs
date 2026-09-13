@@ -73,9 +73,16 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
             TileTerrainGrid grid = TerrainCatalog.Build(1, 50, 17);
             MeshBuffers shell = IslandShellGeometry.BuildSolidShell(grid, IslandShellSettings.Default);
 
-            float tallest = 0f;
-            for (int gx = 0; gx < grid.WidthTiles; gx++)
-                tallest = Mathf.Max(tallest, grid.SurfaceWorldY(gx, 0));
+            // 平台化后不能只看 z=0 那一行（那一行多半是水）；要扫全部**有地面**的格。
+            float tallest = LevelGeometry.GroundTopY;
+            for (int gz = 0; gz < grid.DepthTiles; gz++)
+            {
+                for (int gx = 0; gx < grid.WidthTiles; gx++)
+                {
+                    if (grid.IsGroundAt(gx, gz))
+                        tallest = Mathf.Max(tallest, grid.SurfaceWorldY(gx, gz));
+                }
+            }
 
             Assert.AreEqual(tallest, MaxY(shell), 1e-5f,
                 "任何顶点都不得高于最高台地顶面（装饰不得抬高碰撞语义）");
@@ -126,8 +133,8 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
         [Test]
         public void SideWalls_AreJittered_SoLongWallsAreNotStraight()
         {
-            // 同一列沿 Z 的西侧墙（x≈23）在最下一层要有不同的横向进/出偏移
-            // （纵向剪影扰动，§3.1 ③：让 17 格长的墙不是一条直线）。
+            // 平台化：大船簇西缘 x=24（Z=5..12 共 8 格连续地面）外侧（x=23）是水，
+            // 其西侧墙最下一层应有不同的横向进/出偏移（剪影扰动，避免"一条直线墙"）。
             TileTerrainGrid grid = TerrainCatalog.Build(1, 50, 17);
             MeshBuffers shell = IslandShellGeometry.BuildSolidShell(grid, IslandShellSettings.Default);
 
@@ -135,14 +142,14 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
             Vector3[] v = shell.ToVertices();
             for (int i = 0; i < v.Length; i++)
             {
-                if (Mathf.Abs(v[i].x - 23f) < 0.2f && v[i].y > 0.001f && v[i].y < 1.86f
-                    && v[i].z > 0f && v[i].z < 17f)
+                if (Mathf.Abs(v[i].x - 24f) < 0.25f && v[i].y > 0.001f && v[i].y < 0.55f
+                    && v[i].z > 4f && v[i].z < 13f)
                 {
                     xs.Add(Mathf.RoundToInt(v[i].x * 1000f));
                 }
             }
 
-            Assert.Greater(xs.Count, 1, "同列沿 Z 的侧壁必须有多种横向偏移（否则 17 格长的墙是直线）");
+            Assert.Greater(xs.Count, 1, "同列沿 Z 的侧壁必须有多种横向偏移（否则长墙是直线）");
         }
 
         // ------------------------------------------------------------------
@@ -176,23 +183,27 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
         }
 
         [Test]
-        public void LowZonePlates_CoverExactlyTheZeroBlockCells()
+        public void LowZonePlates_OnlyCoverZeroBlockGroundCells_NotWater()
         {
             TileTerrainGrid grid = TerrainCatalog.Build(1, 50, 17);
             MeshBuffers low = IslandShellGeometry.BuildLowZone(grid, 0.006f);
 
-            int zeroCells = 0;
+            // 平台化后 level_1 是逐格水陆：水格（无地面）**不铺**潮沟贴片（那是真海水，不是沙洼）；
+            // 只有"有地面且 0 块"的格才铺——平台顶面块高 ≥1，故贴片数应为 0。
+            int plateCells = 0;
             for (int gy = 0; gy < grid.DepthTiles; gy++)
             {
                 for (int gx = 0; gx < grid.WidthTiles; gx++)
                 {
-                    if (grid.BlocksAt(gx, gy) <= 0)
-                        zeroCells++;
+                    if (grid.IsGroundAt(gx, gy) && grid.BlocksAt(gx, gy) <= 0)
+                        plateCells++;
                 }
             }
 
-            Assert.Greater(zeroCells, 0, "level_1 应有原版水道列（0 块）");
-            Assert.AreEqual(zeroCells * 2, low.TriangleCount, "每个 0 块格一块单面贴片（2 三角面）");
+            Assert.Greater(grid.WaterCellCount, 0, "level_1 平台间应有水（掉落即死）");
+            Assert.AreEqual(0, plateCells, "平台化关卡没有 0 块地面格");
+            Assert.AreEqual(plateCells * 2, low.TriangleCount,
+                "只有 0 块地面格才铺潮沟贴片；水格不铺");
         }
 
         // ------------------------------------------------------------------
