@@ -1,0 +1,79 @@
+字体来源与合规记录（PirateCrew 3D Unity 重制）
+================================================
+
+本目录存放第三方中文字体的授权正文。同目录上一级 Assets/Art/Fonts/ 下的 .ttf：
+LXGW WenKai Lite 与 ZCOOL KuaiLe 为**未经修改的原始字体文件**（仅拷贝入库，
+未做子集化/改名/转格式）；StickHand 为站酷快乐体的**修改版**（详见第 3 项）。
+两种情况都满足 SIL OFL 1.1 对再分发的要求（随附版权声明与许可正文，不单独售卖字体）。
+
+检索日期：2026-09-13
+检索方式：下载自各字体的官方上游仓库（raw 文件），并用字体内部 name 表
+（NameID 0/13/14）交叉核对版权与许可声明，两者一致。
+
+--------------------------------------------------------------------------
+1) LXGWWenKaiLite-Regular.ttf / LXGWWenKaiLite-Medium.ttf
+   （霞鹜文楷 Lite，正文用，楷体风格）
+--------------------------------------------------------------------------
+文件版本（name 表 NameID 5）：Version 1.510; January 16, 2025
+版权（NameID 0）：
+  Copyright 2021-2024 LXGW (https://github.com/lxgw/LxgwWenKai-Lite)
+  Copyright 2020 The Klee Project Authors (https://github.com/fontworks-fonts/Klee)
+许可（NameID 13）：SIL Open Font License Version 1.1
+许可正文来源：
+  https://github.com/lxgw/LxgwWenKai-Lite/blob/main/OFL.txt
+  （镜像下载：https://cdn.jsdelivr.net/gh/lxgw/LxgwWenKai-Lite@main/OFL.txt）
+留存文件名：LXGWWenKaiLite-LICENSE.txt（与上游 OFL.txt 内容一致）
+上游项目：https://github.com/lxgw/LxgwWenKai-Lite
+保留字体名（Reserved Font Name）：'霞鹜'、'霞鶩'、'落霞孤鹜'、'落霞孤鶩'、'LXGW'
+注意：本工程只原样分发，未修改字形，因此保留名可继续使用；若将来改动字形
+再分发，必须改名，不得继续使用上述保留名。
+
+--------------------------------------------------------------------------
+2) ZCOOLKuaiLe-Regular.ttf（站酷快乐体；保留作为 StickHand 的上游原件）
+--------------------------------------------------------------------------
+文件版本（name 表 NameID 5）：Version 2.001
+版权（NameID 0）：
+  Copyright 2018 The ZCOOL KuaiLe Project Authors
+  (https://github.com/googlefonts/zcool-kuaile)
+许可（NameID 13）：SIL Open Font License Version 1.1
+许可正文来源：
+  https://github.com/google/fonts/blob/main/ofl/zcoolkuaile/OFL.txt
+  （下载：https://raw.githubusercontent.com/google/fonts/main/ofl/zcoolkuaile/OFL.txt）
+留存文件名：ZCOOLKuaiLe-LICENSE.txt（与上游 OFL.txt 内容一致）
+上游项目：https://github.com/googlefonts/zcool-kuaile
+留存的 ttf 内部 name 表 NameID 7 标注 "Trademark of ZHONGQI Electronic Co.,
+ShangHei"——这是商标声明，不影响 OFL 下的再分发（本工程未改名、未宣称所有权）。
+说明：本工程当前**不**为它单独生成 TMP 资产（标题已改用 StickHand），保留原件
+  作为 StickHand 的授权依据与字形对照。若不再需要可删除该 ttf，但授权文本须保留
+  （StickHand 依赖它）。
+
+--------------------------------------------------------------------------
+3) StickHand-Regular.ttf（标题用，手写体）—— 站酷快乐体的修改版
+--------------------------------------------------------------------------
+性质：**Modified Version（修改版）**，不是独立上游字体。
+上游原件：ZCOOL KuaiLe（站酷快乐体），见下方第 4 项。
+修改内容：由本项目作者用 tools/fonts/gen_hand_font.py 对字形轮廓点做确定性小幅
+  高斯扰动 + 微倾斜，生成手写体风格（见姊妹项目
+  game-2 stick-world/docs/设计/UI/01-设计语言.md:26）。
+修改者/年份：本项目作者（Boran Fan），2026。
+内部 name 表：沿用上游未改，仍为
+  Copyright 2018 The ZCOOL KuaiLe Project Authors (https://github.com/googlefonts/zcool-kuaile)
+  SIL Open Font License Version 1.1
+许可正文来源：同 ZCOOL KuaiLe（= 下方 ZCOOLKuaiLe-LICENSE.txt）
+留存文件名：StickHand-LICENSE.txt（含派生/修改声明 + OFL 1.1 全文）
+合规判断：OFL 1.1 明确允许修改与再分发修改版；站酷快乐体的 OFL **未声明
+  Reserved Font Name**，因此修改版保留原名不违反 OFL 第 3 条。修改版整体仍须
+  以 OFL 1.1 分发（本目录已满足）。
+【待定】修改版 name 表未标注"已修改"，存在来源/署名误导的观感风险；若要对外
+  强调这是自制派生字体，建议改写内部字体名（需 fontTools）——列为待定项。
+
+--------------------------------------------------------------------------
+合规结论
+--------------------------------------------------------------------------
+- 以上 4 个 ttf（LXGW Lite Regular/Medium、ZCOOL KuaiLe、StickHand）均为
+  SIL OFL 1.1 授权（StickHand 为 ZCOOL KuaiLe 的 OFL 修改版）：允许商用、
+  允许随软件再分发、允许嵌入。
+- 义务：再分发时必须随附版权声明与 OFL 正文（本目录已留存）；不得单独售卖字体本身。
+- 保留字体名：LXGW 系声明了 Reserved Font Name（本工程原样分发、未改名，合规）；
+  ZCOOL KuaiLe / StickHand 未声明 Reserved Font Name。
+- 出处可复核：字体内部 name 表 NameID 0/13/14 + 上游 OFL.txt。

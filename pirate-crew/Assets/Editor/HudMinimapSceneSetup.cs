@@ -24,6 +24,9 @@ namespace PirateCrew.EditorTools
     /// （SerializedObject 写私有 <c>[SerializeField]</c>、不手写 .unity YAML）。
     ///
     /// 【幂等】面板按名复用；已存在的层级只补缺失子物体并重写引用，不重复创建。
+    /// 【职责边界】本脚本**只接线**（BattleMinimap 的 unitRoots/dotLayer/tileLayer/terrain 等字段），
+    ///   面板的位置/尺寸/背景/描边归 <see cref="BattleUiTheme"/> / <see cref="BattleHudBuilder"/>
+    ///   （木质框观感）；只有面板缺失时才兜底建一个朴素面板，避免覆盖 UI 波次的样式。
     /// </summary>
     public static class HudMinimapSceneSetup
     {
@@ -122,18 +125,27 @@ namespace PirateCrew.EditorTools
         // 层级
         // ------------------------------------------------------------------
 
+        /// <summary>
+        /// 取/建 <c>MinimapPanel</c>。
+        ///
+        /// 【样式归属】已存在的面板**只复用、不覆写**：位置/尺寸/背景/描边归
+        /// <see cref="BattleUiTheme"/>/<see cref="BattleHudBuilder"/>（木质框观感），
+        /// 本脚本只负责补 <c>BattleMinimap</c> 组件与引用接线。
+        /// 仅在面板缺失（没跑过 HUD 重建）时才按 <see cref="MinimapRules"/> 建一个朴素兜底面。
+        /// </summary>
         static RectTransform EnsurePanel(Transform canvas, int widthTiles, int depthTiles)
         {
             Transform existing = FindChildByName(canvas, MinimapPanelName);
             var panel = existing as RectTransform;
 
-            if (panel == null)
-            {
-                var go = new GameObject(MinimapPanelName, typeof(RectTransform));
-                go.transform.SetParent(canvas, false);
-                panel = go.GetComponent<RectTransform>();
-            }
+            if (panel != null)
+                return panel;
 
+            var go = new GameObject(MinimapPanelName, typeof(RectTransform));
+            go.transform.SetParent(canvas, false);
+            panel = go.GetComponent<RectTransform>();
+
+            // ---- 以下仅在"兜底新建"时执行，避免覆盖 BattleHudBuilder 的木框样式 ----
             // 尺寸与竞技场同比例（不拉伸变形）：一颗瓦片 = pixelsPerTile 像素。
             Vector2 size = MinimapRules.PanelSizePixels(widthTiles, depthTiles, DefaultPixelsPerTile);
             panel.anchorMin = PanelAnchor;
@@ -142,15 +154,11 @@ namespace PirateCrew.EditorTools
             panel.anchoredPosition = PanelOffset;
             panel.sizeDelta = size;
 
-            var background = panel.GetComponent<Image>();
-            if (background == null)
-                background = panel.gameObject.AddComponent<Image>();
+            var background = panel.gameObject.AddComponent<Image>();
             background.color = MinimapRules.BackgroundColor;
             background.raycastTarget = false;
 
-            var border = panel.GetComponent<Outline>();
-            if (border == null)
-                border = panel.gameObject.AddComponent<Outline>();
+            var border = panel.gameObject.AddComponent<Outline>();
             border.effectColor = MinimapRules.BorderColor;
             border.effectDistance = new Vector2(1f, -1f);
 

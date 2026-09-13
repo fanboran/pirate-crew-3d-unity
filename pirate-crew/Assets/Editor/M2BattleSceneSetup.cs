@@ -1,7 +1,9 @@
 using System.IO;
 using Cinemachine;
+using PirateCrew.PirateCrew.Ambient;
 using PirateCrew.PirateCrew.Battle;
 using PirateCrew.PirateCrew.Data;
+using PirateCrew.PirateCrew.Visual;
 using PirateCrew.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -29,6 +31,15 @@ namespace PirateCrew.EditorTools
     ///   · 场景用 EmptyScene 全新建后覆盖保存（不叠加旧内容）；
     ///   · 材质/文件夹按路径复用，不产生重名副本。
     ///
+    /// 【职责边界：本文件是**总编排**，渲染细节已拆出】
+    ///   · 光照 / 天空盒 / 环境光 / 雾 / 后处理 / 环境材质库 / URP 设置 → <see cref="BattleSceneLighting"/>；
+    ///   · 三个「后续波次填充」的桩钩子（本文件只负责在正确的时机用容错方式调用）：
+    ///       Assets/Editor/CrewVisualPrefabBuilder.cs → <see cref="CrewVisualPrefabBuilder.BuildAll"/>（波次 I2 角色建模）
+    ///       Assets/Editor/SceneArtBuilder.cs         → <see cref="SceneArtBuilder.Apply"/>（波次 I3 场景美术陈设）
+    ///       Assets/Editor/BattleUiTheme.cs           → <see cref="BattleUiTheme.Apply"/>（波次 I4 UI 主题）
+    ///     三者在当前提交里都是空实现；调用走 <see cref="RunArtHook"/>，空实现不报错、实现抛异常只记警告。
+    ///   · 环境材质统一放 Assets/Art/Materials/Environment/（角色材质由角色波次放 Crew/）。
+    ///
     /// 【约定】本工程未装 TMP，UI 一律 legacy UnityEngine.UI（见 SceneSetup 类头）。
     ///         不手写 .unity/.prefab YAML，全部走 UnityEditor API。
     /// </summary>
@@ -43,12 +54,16 @@ namespace PirateCrew.EditorTools
         const string MaterialFolder = PrefabFolder + "/Materials";
 
         /// <summary>
-        /// 天空盒材质独立归位到 <c>Assets/Art/Materials/</c>：它是环境（渲染设置）资产，
-        /// 不属于任何 Prefab，和战斗单位/地面等玩法材质分开放，避免「天空盒躺在 PirateCrew 预制体材质目录」的错位。
+        /// 环境类材质库目录（沙/草/岩/木/金属/水/地形）由 <see cref="BattleSceneLighting"/> 生成与管理。
+        /// 天空盒材质仍是 Assets/Art/Materials/BattleSky.mat（位置不变）；
+        /// 角色类材质由角色波次放 Assets/Art/Materials/Crew/（本文件不碰）。
         /// </summary>
-        const string ArtMaterialFolder = "Assets/Art/Materials";
-        const string SkyMaterialPath = ArtMaterialFolder + "/BattleSky.mat";
+        static string ArtMaterialFolder => BattleSceneLighting.ArtMaterialFolder;
+
         const string PiratePrefabPath = PrefabFolder + "/PirateBase.prefab";
+
+        /// <summary>职业视觉预制体目录（波次 I2 产出；命名 = <c>CrewVisualCatalog.PrefabFileName</c>）。</summary>
+        const string CrewPrefabFolder = PrefabFolder + "/Crew";
         const string OutlineMaterialPath = MaterialFolder + "/PirateOutlineUnit.mat";
         const string OutlineShaderName = "PirateCrew/PirateOutline";
         const string BattleScenePath = ScenesFolder + "/Battle.unity";
@@ -56,6 +71,9 @@ namespace PirateCrew.EditorTools
 
         /// <summary>地形块父节点名（BattleTerrainView 挂在其下）。</summary>
         const string TerrainRootName = "Terrain";
+
+        /// <summary>场景美术陈设根节点名（<see cref="SceneArtBuilder.Apply"/> 的挂载点，波次 I3 填充内容）。</summary>
+        const string SceneArtRootName = "SceneArt";
 
         /// <summary>场景装配使用的关卡号（LevelCatalog 已转写的 level_1）。</summary>
         const int LevelNumber = 1;
@@ -78,6 +96,17 @@ namespace PirateCrew.EditorTools
             EnsureFolder(PrefabFolder);
             EnsureFolder(MaterialFolder);
             EnsureFolder(ArtMaterialFolder);
+            EnsureFolder(BattleSceneLighting.EnvironmentMaterialFolder);
+            EnsureFolder(BattleSceneLighting.ArtRenderingFolder);
+
+            // ---- 渲染基础（环境材质库 / 后处理 VolumeProfile / URP 设置）----
+            // 必须先于场景构建：场景要引用这些材质资产；URP 的"深度图 on"与"软阴影 on"
+            // 也是水面（PirateWater 读 _CameraDepthTexture）与阴影的前提。
+            BattleSceneLighting.BuildAll();
+
+            // ---- 波次 I2 钩子（角色建模）----
+            // 当前 C# 侧是空实现；空实现必须不报错，实现层抛异常也只记警告、不阻断场景重建。
+            RunArtHook("CrewVisualPrefabBuilder.BuildAll", CrewVisualPrefabBuilder.BuildAll);
 
             GameObject piratePrefab = BuildPiratePrefab();
             BuildBattleScene(piratePrefab);
@@ -90,8 +119,12 @@ namespace PirateCrew.EditorTools
                 + "  场景: " + BattleScenePath + "（Build Settings index 2）\n"
                 + "  预制体: " + PiratePrefabPath + "\n"
                 + "  关卡数据: " + LevelAssetPath + "（回退 LevelCatalog.Get(" + LevelNumber + ")）\n"
+                + "  渲染: 环境材质库 " + BattleSceneLighting.EnvironmentMaterialFolder
+                + " / 后处理 " + BattleSceneLighting.VolumeProfilePath
+                + " / URP " + BattleSceneLighting.UrpAssetPath + "（软阴影+深度图+MSAA2）\n"
                 + "  接线: BattleController / TurnManager / AimThrowController / TrajectoryPreview / "
-                + "BattleCameraController / BattleHud 的全部 [SerializeField] 引用。");
+                + "BattleCameraController（含 battle 手感源）/ BattleHud / "
+                + "crewVisualPrefabs（7 职业）/ SceneArt.Ambient（活物）的全部 [SerializeField] 引用。");
         }
 
         // ------------------------------------------------------------------
@@ -160,7 +193,8 @@ namespace PirateCrew.EditorTools
             Vector3 arenaCenter = new Vector3(worldWidth * 0.5f, LevelGeometry.GroundTopY, worldDepth * 0.5f);
 
             // 天空盒 + 环境光（对齐 Godot 基准的 WorldEnvironment：procedural sky + Sky 环境光）。
-            bool hasSkybox = SetupSkyAndAmbient();
+            // 天空盒/环境光/主光/雾/后处理全部由 BattleSceneLighting 负责（本文件只管场景编排）。
+            bool hasSkybox = BattleSceneLighting.ConfigureSkyAndAmbient();
 
             Camera camera = CreateCamera(hasSkybox);
             camera.gameObject.AddComponent<CinemachineBrain>();
@@ -171,19 +205,36 @@ namespace PirateCrew.EditorTools
             cameraTarget.position = arenaCenter;
             CinemachineVirtualCamera virtualCamera = CreateVirtualCamera(cameraTarget);
 
-            CreateDirectionalLight();
+            Light sunLight = BattleSceneLighting.CreateDirectionalLight();
+
+            // 氛围：线性雾 + 全局后处理 Volume + 主相机后处理开关。
+            // 注意这是写进场景的 RenderSettings 与场景物体，必须放在相机创建之后。
+            BattleSceneLighting.ApplySceneAtmosphere(camera);
 
             // 地面 = XZ 水平面（顶面 y = 0，角色脚底贴它）；水 = 地面下方一点的水平面。
             // 落水即死因此对 X / Z 任一方向掉出竞技场都成立（§4.4 全局规则）。
             Transform ground = CreateGround(worldWidth, worldDepth);
             Transform water = CreateWaterPlane(worldWidth, worldDepth, waterWorldY);
 
+            // 岛外海床台阶（纯表现、无碰撞）：PirateWater 的浅深水过渡与岸边泡沫依赖
+            // _CameraDepthTexture 有东西可读，详见 CreateSeabedShelves 与 PirateWater.shader 头注释。
+            CreateSeabedShelves(worldWidth, worldDepth, waterWorldY);
+
             // 瓦片地形（可选）。网格在运行时由 BattleController 从 TerrainCatalog 构建并 Render，
             // 这里只创建承载视图的根节点与材质；关卡未转写瓦片时 Render(null) 不生成任何块（平坦竞技场）。
             BattleTerrainView terrainView = CreateTerrainView();
 
+            // 场景美术陈设根节点 + 波次 I3 钩子（当前为空实现，只提供挂载点）。
+            var sceneArt = new GameObject(SceneArtRootName);
+            RunArtHook("SceneArtBuilder.Apply", () => SceneArtBuilder.Apply(sceneArt));
+
             Transform team0Root = new GameObject("Team0_Red").transform;
             Transform team1Root = new GameObject("Team1_Blue").transform;
+
+            // 活物（波次 ambient）：挂 SceneArt 子节点，接线 ground/sun/队伍根/相机与瓦片数。
+            // 不接线时 AmbientDirector 有容错回落（自动取父节点、Camera.main），但瓦片数只能靠默认 50×17。
+            BuildAmbientDirector(sceneArt.transform, ground, sunLight, team0Root, team1Root, camera,
+                data.WidthTiles, data.HeightTiles);
 
             // 规则宿主。
             var turnManager = new GameObject("TurnManager").AddComponent<TurnManager>();
@@ -197,7 +248,7 @@ namespace PirateCrew.EditorTools
             WireBattleController(battle, piratePrefab, team0Root, team1Root, water, turnManager, aimController, battleCamera, terrainView);
             WireTurnManager(turnManager, battle);
             WireAimController(aimController, camera, battle, trajectory);
-            WireBattleCamera(battleCamera, virtualCamera, cameraTarget, camera);
+            WireBattleCamera(battleCamera, battle, virtualCamera, cameraTarget, camera);
             WireHud(hud, battle, turnManager, aimController);
 
             // 供 Debug 查看的层级整理（不影响逻辑引用）。
@@ -236,39 +287,51 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 天空盒 + 环境光（对齐 Godot 基准的 WorldEnvironment：procedural sky、Sky 环境光）。
-        /// 返回 false 表示找不到天空盒 shader，此时退回纯色背景（不影响可玩性）。
+        /// 岛外海床台阶（纯表现、无碰撞、不投影）。
+        ///
+        /// 【为什么必须有】<c>PirateWater</c> 的浅深水过渡与岸边泡沫靠 <c>_CameraDepthTexture</c>
+        /// 读出"水面之下还有多远才是实体"。竞技场是浮在海上的沙岛（地面顶面 y=0、水面 y=-0.2），
+        /// 岛外若没有海床，水面之后的场景深度就是天空 → 处处"深水"，既无浅深水过渡、也无泡沫。
+        /// 故在岛外铺两层**会写深度**的台阶（材质须带 DepthOnly Pass）：
+        ///   浅台 顶面 y=-0.6、外扩 6  → 视深度差约 0.6 → 对应海水"浅/中"两档
+        ///   中台 顶面 y=-1.6、外扩 16 → 视深度差约 2.0 → 对应"中/深"两档
+        ///   再外面没有几何 → 场景深度=天空 → 纯深水色
+        ///
+        /// 【提案/待定】台阶的深度与外扩距离是 AI 调参值（依据 PirateWater 的 _ShoreFadeDistance=4 反推），
+        /// 观感验收时可调。wave I3 做场景美术陈设时可以替换成真实海床网格，
+        /// 但**必须保留"写深度"这一职责**，否则水面会退化成一片深蓝。
         /// </summary>
-        static bool SetupSkyAndAmbient()
+        static void CreateSeabedShelves(float worldWidth, float worldDepth, float waterWorldY)
         {
-            const string skyPath = SkyMaterialPath;
-            var sky = AssetDatabase.LoadAssetAtPath<Material>(skyPath);
+            CreateSeabedShelf("Seabed_Shallow", worldWidth, worldDepth, waterWorldY - 0.4f, 6f,
+                BattleSceneLighting.WetSandMaterial, new Color(0.52f, 0.43f, 0.32f, 1f));
+            CreateSeabedShelf("Seabed_Mid", worldWidth, worldDepth, waterWorldY - 1.4f, 16f,
+                BattleSceneLighting.RockMaterial, new Color(0.42f, 0.38f, 0.32f, 1f));
+        }
 
-            if (sky == null)
-            {
-                Shader skyShader = Shader.Find("Skybox/Procedural");
-                if (skyShader == null)
-                {
-                    Debug.LogWarning("[M2BattleSceneSetup] 找不到 Skybox/Procedural，退回纯色背景。");
-                    RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-                    RenderSettings.ambientLight = new Color(0.45f, 0.5f, 0.58f, 1f);
-                    return false;
-                }
+        /// <summary>单层海床台阶：Cube 顶面在 <paramref name="topY"/>，向四周外扩 <paramref name="spread"/>。</summary>
+        static void CreateSeabedShelf(string name, float worldWidth, float worldDepth, float topY, float spread,
+            string materialName, Color fallbackColor)
+        {
+            const float thickness = 0.5f;
 
-                sky = new Material(skyShader) { name = "BattleSky" };
-                sky.SetFloat("_SunSize", 0.04f);
-                sky.SetFloat("_AtmosphereThickness", 0.85f);
-                sky.SetColor("_SkyTint", new Color(0.53f, 0.81f, 0.92f, 1f));
-                sky.SetColor("_GroundColor", new Color(0.35f, 0.33f, 0.28f, 1f));
-                sky.SetFloat("_Exposure", 1.1f);
-                AssetDatabase.CreateAsset(sky, skyPath);
-            }
+            var shelf = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            shelf.name = name;
+            shelf.transform.position = new Vector3(
+                worldWidth * 0.5f, topY - thickness * 0.5f, worldDepth * 0.5f);
+            shelf.transform.localScale = new Vector3(
+                worldWidth + spread * 2f, thickness, worldDepth + spread * 2f);
 
-            RenderSettings.skybox = sky;
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Skybox;
-            RenderSettings.ambientIntensity = 1f;
-            RenderSettings.fog = false;
-            return true;
+            // 无碰撞：它是纯水下观感几何；角色掉出竞技场后应继续落到水面判定线以下（§4.4），
+            // 不希望被海床接住。
+            var collider = shelf.GetComponent<Collider>();
+            if (collider != null)
+                Object.DestroyImmediate(collider);
+
+            var renderer = shelf.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = EnsureEnvironmentMaterial(materialName, fallbackColor);
+            // 不投影：水下几何投影会在水面上打出莫名暗斑。
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
         static Camera CreateCamera(bool useSkybox)
@@ -316,23 +379,11 @@ namespace PirateCrew.EditorTools
             return vcam;
         }
 
-        static void CreateDirectionalLight()
-        {
-            var go = new GameObject("Directional Light", typeof(Light));
-            var light = go.GetComponent<Light>();
-            light.type = LightType.Directional;
-            light.color = new Color(1f, 0.957f, 0.878f, 1f);
-            light.intensity = 1.1f;
-            // 投影是"看起来像 3D"的主要深度线索之一（对齐 Godot 基准的 shadow_enabled）。
-            light.shadows = LightShadows.Soft;
-            light.shadowStrength = 0.7f;
-            go.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
-        }
-
         /// <summary>
         /// 地面：**XZ 水平面**（厚 0.2 的 Cube，顶面 y = <see cref="LevelGeometry.GroundTopY"/>）。
         /// 角色脚底贴在顶面上，所以从 X 或 Z 任一侧掉出去都会落到水面以下（§4.4）。
         /// 原先是 XY 竖直薄板（2D 侧视遗留）。
+        /// 材质：干沙（PirateSurface 程序化三档沙色，GDD §10.4 沙地三档）。
         /// </summary>
         static Transform CreateGround(float worldWidth, float worldDepth)
         {
@@ -345,14 +396,15 @@ namespace PirateCrew.EditorTools
                 LevelGeometry.GroundTopY - thickness * 0.5f,
                 worldDepth * 0.5f);
             ground.transform.localScale = new Vector3(worldWidth, thickness, worldDepth);
-            ground.GetComponent<MeshRenderer>().sharedMaterial = EnsureMaterial(
-                MaterialFolder + "/BattleGround.mat", "BattleGround",
-                "Universal Render Pipeline/Lit", new Color(0.82f, 0.74f, 0.53f, 1f), "Standard");
+            ground.GetComponent<MeshRenderer>().sharedMaterial = EnsureEnvironmentMaterial(
+                BattleSceneLighting.DrySandMaterial, new Color(0.82f, 0.74f, 0.53f, 1f));
             return ground.transform;
         }
 
         /// <summary>
         /// 水面：**XZ 水平面**（比地面外扩一圈），无碰撞体——落水判定用世界 Y 阈值，不靠碰撞。
+        /// 材质：PirateWater（双层波法线 + 菲涅尔 + Scene Depth 浅深水/岸边泡沫）；
+        /// 它依赖 _CameraDepthTexture（URP Asset 已打开）与岛外海床台阶（<see cref="CreateSeabedShelves"/>）。
         /// </summary>
         static Transform CreateWaterPlane(float worldWidth, float worldDepth, float waterWorldY)
         {
@@ -370,24 +422,51 @@ namespace PirateCrew.EditorTools
             if (collider != null)
                 Object.DestroyImmediate(collider);
 
-            water.GetComponent<MeshRenderer>().sharedMaterial = EnsureMaterial(
-                MaterialFolder + "/BattleWater.mat", "BattleWater",
-                "Universal Render Pipeline/Lit", new Color(0.13f, 0.42f, 0.68f, 1f), "Standard");
+            water.GetComponent<MeshRenderer>().sharedMaterial = EnsureEnvironmentMaterial(
+                BattleSceneLighting.WaterMaterial, new Color(0.13f, 0.42f, 0.68f, 1f));
+            // 水面 shader 没有 ShadowCaster Pass（透明水体不投影）；显式关掉投影，免去阴影通道空跑一次。
+            water.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+            // Gerstner 顶点位移需要足够的网格密度——Cube 顶面只有 4 个顶点，
+            // 不细分则波峰几何画不出来（明暗法线仍正常，因为解析法线逐像素重算）。
+            // 细分粒度用组件默认（0.8 单位/格，上限 192 格/轴，见 WaterMeshRules）。
+            water.AddComponent<global::PirateCrew.PirateCrew.Water.WaterTessellator>();
+
+            // 波动方程水面模拟（只驱动观感：法线扰动 + 泡沫源，不参与任何玩法判定）。
+            // 障碍图由 WaterAssetBuilder.BakeObstacleMap 烘焙（ArtGate 在本步骤之前执行）。
+            var driver = water.AddComponent<global::PirateCrew.PirateCrew.Water.WaterSimulationDriver>();
+            var obstacleMap = AssetDatabase.LoadAssetAtPath<Texture2D>(
+                "Assets/Art/Textures/Water/WaterObstacleMap.png");
+            if (obstacleMap != null)
+            {
+                var driverSo = new SerializedObject(driver);
+                var mapProp = driverSo.FindProperty("obstacleMap");
+                if (mapProp != null)
+                {
+                    mapProp.objectReferenceValue = obstacleMap;
+                    driverSo.ApplyModifiedPropertiesWithoutUndo();
+                }
+            }
+            else
+            {
+                Debug.LogWarning("[M2BattleSceneSetup] 未找到 WaterObstacleMap.png——" +
+                    "先跑 PirateCrew.EditorTools.WaterAssetBuilder.BakeObstacleMap，水面模拟将退化为无障碍模式");
+            }
             return water.transform;
         }
 
         /// <summary>
         /// 瓦片地形视图：根节点 + <see cref="BattleTerrainView"/> + 地块材质。
         /// 具体地形块由运行时 <c>BattleController.BuildTerrain → BattleTerrainView.Render</c> 生成。
+        /// 材质：PirateTerrain（按世界高度/坡度混合沙/草/岩 + 低多边形块面感 + #2A2A2A 边缘压暗）。
         /// </summary>
         static BattleTerrainView CreateTerrainView()
         {
             var go = new GameObject(TerrainRootName);
             var view = go.AddComponent<BattleTerrainView>();
 
-            Material material = EnsureMaterial(
-                MaterialFolder + "/BattleTerrain.mat", "BattleTerrain",
-                "Universal Render Pipeline/Lit", new Color(0.55f, 0.46f, 0.33f, 1f), "Standard");
+            Material material = EnsureEnvironmentMaterial(
+                BattleSceneLighting.TerrainMaterial, new Color(0.55f, 0.46f, 0.33f, 1f));
 
             var so = new SerializedObject(view);
             so.FindProperty("blockRoot").objectReferenceValue = go.transform;
@@ -508,6 +587,10 @@ namespace PirateCrew.EditorTools
             so.FindProperty("backButton").objectReferenceValue = backButton;
             so.ApplyModifiedPropertiesWithoutUndo();
 
+            // ---- 波次 I4 钩子（UI 主题）----
+            // 放在全部子节点与 [SerializeField] 接线完成之后：I4 只换皮、不改接线。
+            RunArtHook("BattleUiTheme.Apply", () => BattleUiTheme.Apply(canvas.gameObject));
+
             return hud;
         }
 
@@ -575,6 +658,92 @@ namespace PirateCrew.EditorTools
             SetRef(so, "battleCamera", battleCamera);
             SetRef(so, "terrainView", terrainView);
             SetBool(so, "team1IsAi", true);
+
+            // 职业视觉预制体（波次 I2）：按 CrewVisualCatalog 的职业顺序填 crewVisualPrefabs，
+            // 未命中/缺失时该元素留 null，BattleController 会回落 piratePrefab（方块外观兜底）。
+            WireCrewVisualPrefabs(so);
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// 从 <c>Assets/Prefabs/PirateCrew/Crew/&lt;职业&gt;.prefab</c> 装载 7 个职业预制体，
+        /// 按 <see cref="CrewVisualCatalog.AllProfessions"/> 顺序写入 <c>crewVisualPrefabs</c>。
+        ///
+        /// 【顺序为什么用 AllProfessions 而不是枚举遍历】职业枚举顺序与外观档顺序一致
+        /// （<see cref="CrewProfession"/> 0..6），但用目录数组可避免枚举增删后顺序漂移。
+        /// 【缺资产怎么办】找不到的项填 null 并汇总一条警告；不阻断场景重建（可能只是没跑
+        /// <see cref="CrewVisualPrefabBuilder.BuildAll"/>，此时场景仍可用方块兜底跑起来）。
+        /// </summary>
+        static void WireCrewVisualPrefabs(SerializedObject battleSo)
+        {
+            SerializedProperty array = battleSo.FindProperty("crewVisualPrefabs");
+            if (array == null)
+            {
+                Debug.LogError("[M2BattleSceneSetup] BattleController.crewVisualPrefabs 字段未找到（字段名漂移？）");
+                return;
+            }
+
+            CrewProfession[] professions = CrewVisualCatalog.AllProfessions;
+            array.arraySize = professions.Length;
+
+            var missing = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < professions.Length; i++)
+            {
+                SerializedProperty element = array.GetArrayElementAtIndex(i);
+                element.FindPropertyRelative("profession").enumValueIndex = (int)professions[i];
+                element.FindPropertyRelative("prefab").objectReferenceValue =
+                    LoadCrewPrefab(professions[i], missing);
+            }
+
+            if (missing.Count > 0)
+            {
+                Debug.LogWarning("[M2BattleSceneSetup] 以下职业预制体缺失，对应单位将回落 piratePrefab（方块）："
+                    + string.Join("、", missing) + "。请先跑 PirateCrew.EditorTools.CrewVisualPrefabBuilder.BuildAll。");
+            }
+        }
+
+        /// <summary>按职业加载 <c>Assets/Prefabs/PirateCrew/Crew/&lt;职业&gt;.prefab</c>；缺失返回 null。</summary>
+        static PirateBase LoadCrewPrefab(CrewProfession profession,
+            System.Collections.Generic.List<string> missing)
+        {
+            string path = CrewPrefabFolder + "/" + CrewVisualCatalog.PrefabFileName(profession) + ".prefab";
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab == null)
+            {
+                missing.Add(CrewVisualCatalog.DisplayName(profession));
+                return null;
+            }
+
+            PirateBase pirate = prefab.GetComponent<PirateBase>();
+            if (pirate == null)
+            {
+                Debug.LogWarning("[M2BattleSceneSetup] 职业预制体缺 PirateBase 组件: " + path);
+                missing.Add(CrewVisualCatalog.DisplayName(profession));
+            }
+            return pirate;
+        }
+
+        /// <summary>
+        /// 活物总导演（波次 ambient）：在 SceneArt 下建子节点 <c>Ambient</c> 并接线。
+        /// 瓦片数取自当前关卡（level_1 = 50×17），与 <see cref="AmbientDirector"/> 默认值一致；
+        /// groundPlane 已接线时它按地面 localScale 推尺寸，瓦片数只是兜底。
+        /// </summary>
+        static void BuildAmbientDirector(Transform sceneArtRoot, Transform groundPlane, Light sunLight,
+            Transform team0Root, Transform team1Root, Camera targetCamera, int widthTiles, int depthTiles)
+        {
+            var go = new GameObject("Ambient");
+            go.transform.SetParent(sceneArtRoot, false);
+
+            var ambient = go.AddComponent<AmbientDirector>();
+            var so = new SerializedObject(ambient);
+            SetRef(so, "sceneArtRoot", sceneArtRoot);
+            SetRef(so, "groundPlane", groundPlane);
+            SetRef(so, "sunLight", sunLight);
+            SetRef(so, "team0Root", team0Root);
+            SetRef(so, "team1Root", team1Root);
+            SetRef(so, "targetCamera", targetCamera);
+            SetInt(so, "arenaWidthTiles", widthTiles);
+            SetInt(so, "arenaDepthTiles", depthTiles);
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -596,12 +765,16 @@ namespace PirateCrew.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        static void WireBattleCamera(BattleCameraController controller, CinemachineVirtualCamera virtualCamera, Transform cameraTarget, Camera fallbackCamera)
+        static void WireBattleCamera(BattleCameraController controller, BattleController battle,
+            CinemachineVirtualCamera virtualCamera, Transform cameraTarget, Camera fallbackCamera)
         {
             var so = new SerializedObject(controller);
             SetRef(so, "virtualCamera", virtualCamera);
             SetRef(so, "cameraTarget", cameraTarget);
             SetRef(so, "fallbackCamera", fallbackCamera);
+            // 手感数据源：投掷跟随/落水定焦要按 PirateId 定位单位与弹体。
+            // 不接线时这些反馈静默降级（震屏/聚焦仍工作），故必须在此显式接线。
+            SetRef(so, "battle", battle);
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -797,13 +970,58 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
+        /// 调一个"后续波次填充"的美术钩子。
+        ///
+        /// 【为什么要容错】三个桩（<see cref="SceneArtBuilder"/> / <see cref="CrewVisualPrefabBuilder"/> /
+        /// <see cref="BattleUiTheme"/>）当前都是空实现，由波次 I2/I3/I4 并行填充；
+        /// 骨架重建不能被别人的半成品/异常打断，所以这里把异常降级为警告。
+        /// 反过来说：**钩子里的异常不会中断场景重建，但会在 Console 留下警告**，
+        /// 实现方调完钩子后要 read_console 确认没有自己的警告。
+        /// </summary>
+        static void RunArtHook(string hookName, System.Action hook)
+        {
+            if (hook == null)
+                return;
+
+            try
+            {
+                hook();
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[M2BattleSceneSetup] 美术钩子 " + hookName + " 抛出异常（已忽略，不影响场景重建）：\n" + e);
+            }
+        }
+
+        /// <summary>
+        /// 取环境材质库中的材质（由 <see cref="BattleSceneLighting.BuildAll"/> 生成）。
+        /// 取不到时退回 URP/Lit 纯色材质，**并且建在同一个 Environment/ 路径下**，
+        /// 这样下次生成成功时会被就地替换回程序化材质，不会留下两份同名不同位置的资产。
+        /// </summary>
+        static Material EnsureEnvironmentMaterial(string materialName, Color fallbackColor)
+        {
+            Material material = BattleSceneLighting.LoadEnvironmentMaterial(materialName);
+            if (material != null)
+                return material;
+
+            Debug.LogWarning("[M2BattleSceneSetup] 环境材质 " + materialName
+                + " 未找到（BattleSceneLighting 生成失败？），退回 URP/Lit 纯色。"
+                + "请先在编辑器里 read_console 确认 Assets/Art/Shaders 下三个 shader 无编译错误。");
+
+            return EnsureMaterial(
+                BattleSceneLighting.EnvironmentMaterialFolder + "/" + materialName + ".mat",
+                materialName, "Universal Render Pipeline/Lit", fallbackColor, "Standard");
+        }
+
+        /// <summary>
         /// 单位材质：<c>PirateOutline</c>（本体 Pass + inverted hull 描边 Pass 一体）。
         ///
         /// 【为什么把描边材质直接当本体材质，而不是另开一圈"描边复制网格"】
         ///   复制网格方案要保持本体为 URP/Lit，但两个共面网格会 z-fighting，且需要额外的
         ///   mesh 复制与 material_override 管理。PirateOutline 自带本体 Pass（简单 Lambert + SH），
-        ///   直接当本体材质最省事。代价：没有 ShadowCaster Pass（单位不投影），
-        ///   观感验收时若需要阴影，按 docs/描边Shader调试.md §七-2 补 Pass 或回到复制网格方案。
+        ///   直接当本体材质最省事。
+        ///   注：单位**会投影** —— PirateOutline.shader 已补 ShadowCaster Pass
+        ///   （2026-09-13；从此单位进主光阴影图，画面纵深感靠它）。
         ///
         /// 【状态 0 必须不可见】shader 的 OutlineColorForState() 在 state==0 时回落到
         ///   <c>_OutlineColor</c>，故把它的 alpha 设为 0 —— 片元里 `alpha &lt; 0.002` 会 discard，
