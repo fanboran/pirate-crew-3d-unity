@@ -23,14 +23,32 @@ namespace PirateCrew.PirateCrew.Battle
     /// <c>_OutlineState</c>，否则会出现"躯干变青、帽子不变青"的破绽
     /// （docs/角色造型规范.md §5 接线要求 1 / R-5）。
     ///
-    /// 【阵营色与"不得污染"纪律】只有带 <see cref="CrewTeamTintPart"/> 标记的部件
-    /// （头巾/上衣/腰带等阵营色大色块）才写队伍色 <c>_BaseColor</c>；皮肤/铁/木/骨/皮革
-    /// 保留各自材质基础色（docs/角色造型规范.md §2.1）。旧的单立方体 prefab 没有标记，
-    /// 则回落到"整个 targetRenderer 都染色"的旧行为，保证既有选中验收不回归。
+    /// 【收集口径（2026-09-13 r3 复验后收紧）】
+    ///   r3 实测选中特写里只有躯干 + 腰带出现青虚线，头/帽/臂/腿都没有。自查发现两条独立缺陷，
+    ///   本类的收集路径改为**不依赖任何外部缓存**：
+    ///   ① **不再读 <see cref="CrewVisualRig.OutlineRenderers"/>**。那个列表由 rig 自己
+    ///      `EnsureCached()` 懒加载（`if (_outlineRenderers != null) return;`）——一旦在"部件尚未装配完"
+    ///      的时刻被读过，就会把**不完整的集合**固化下来，且没有任何告警；binder 每帧仍照常写 MPB，
+    ///      外观上就是"部分部件有描边"。现在由 binder 自己 `GetComponentsInChildren` 全量扫描，
+    ///      收集失败（0 个 renderer）会显式报错而不是静默不动。
+    ///   ② **阵营色部件改走显式引用**（见下）。部件上的 <see cref="CrewTeamTintPart"/> 标记脚本与
+    ///      `CrewVisualRig` 同处一个 .cs，而 Unity 只给"类名 == 文件名"的类生成 MonoScript，
+    ///      所以预制体里这些标记全部存成了 missing script（实测 7 个预制体共 26 处）、运行时收不到 →
+    ///      阵营色一个 renderer 都没写到，蓝队会顶着红队底色。现改由
+    ///      <c>CrewVisualPrefabBuilder</c> 在建预制体时把"该染色的 renderer 列表"直接写进
+    ///      <see cref="teamTintRenderers"/>，并用运行时标记作为回落（兼容手工装配的旧预制体）。
+    ///
+    /// 【阵营色与"不得污染"纪律】只有阵营色部件（头巾/上衣/腰带等大色块）才写队伍色
+    /// <c>_BaseColor</c>；皮肤/铁/木/骨/皮革保留各自材质基础色（docs/角色造型规范.md §2.1）。
+    /// 拿不到任何阵营色部件时**绝不**回落到"整只染色"（那会把肤色染蓝）——只有旧单立方体结构
+    /// （无 rig、只有一个 renderer）才保持旧的整只染色行为，保证既有选中验收不回归。
     ///
     /// 【受击白闪】<see cref="SetColorFlash"/> 由 <c>CrewVisualAnimator</c> 驱动：
     /// 受击 0.08s 内把 <c>_BaseColor</c> 乘 (1+flash)，复位时写回材质原色。
     /// 白闪仍在本类的 MPB 通道里完成，避免两个组件各写一份 MPB 互相覆盖。
+    ///
+    /// 【接触阴影面片必须排除】<see cref="ContactShadowDecal"/> 是贴地半透明 quad，
+    /// 描边会让它变成一圈方形轮廓、染色会让它跟队伍变红/变蓝（详见该类的注释）。
     ///
     /// 【分层】状态判定在纯逻辑 <see cref="OutlineStateRules"/>（可无头测）；
     ///         本类只做"读状态 → 写属性"的引擎侧薄壳。
@@ -42,8 +60,13 @@ namespace PirateCrew.PirateCrew.Battle
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
         [Header("渲染目标")]
-        [Tooltip("留空则自动收集全部子 renderer（部件化角色）；无子 renderer 时取同物体 renderer。")]
+        [Tooltip("留空则自动收集全部子 renderer（部件化角色）；仅旧单立方体结构才需要手填。")]
         [SerializeField] Renderer targetRenderer;
+
+        [Header("阵营色部件（由 CrewVisualPrefabBuilder 建预制体时写入）")]
+        [Tooltip("只对这些 renderer 写队伍色 _BaseColor（肤色/铁/木/骨部件不得被污染）。\n" +
+                 "留空时回落到运行时 CrewTeamTintPart 标记；两者都拿不到则一个都不染（不回落到整只染色）。")]
+        [SerializeField] Renderer[] teamTintRenderers = new Renderer[0];
 
         [Header("队伍本体着色（仅表现，用于区分红/蓝队）")]
         [SerializeField] bool tintByTeam = true;
@@ -56,7 +79,7 @@ namespace PirateCrew.PirateCrew.Battle
 
         PirateBase _pirate;
         MaterialPropertyBlock _block;
-        Renderer[] _outlineRenderers = new Renderer[0];
+        Renderer[] _outlineRenderers;                 // null = 尚未收集（懒收集，见 EnsureCollected）
         readonly HashSet<Renderer> _tintRenderers = new HashSet<Renderer>();
         bool _tintAllRenderers;
         int _appliedState = -1;
@@ -72,57 +95,110 @@ namespace PirateCrew.PirateCrew.Battle
         /// </summary>
         public int DebugForcedState { get; set; } = -1;
 
-        /// <summary>描边收集到的 renderer 数量（性能自证/测试用）。</summary>
-        public int OutlineRendererCount => _outlineRenderers.Length;
+        /// <summary>描边收集到的 renderer 数量（性能自证/测试用；未收集时现收一次）。</summary>
+        public int OutlineRendererCount
+        {
+            get
+            {
+                EnsureCollected();
+                return _outlineRenderers.Length;
+            }
+        }
 
         /// <summary>阵营色部件 renderer 数量。</summary>
-        public int TeamTintRendererCount => _tintAllRenderers ? _outlineRenderers.Length : _tintRenderers.Count;
+        public int TeamTintRendererCount => _tintAllRenderers ? OutlineRendererCount : _tintRenderers.Count;
 
         void Awake()
         {
             _pirate = GetComponent<PirateBase>();
             _block = new MaterialPropertyBlock();
-            CollectRenderers();
+            EnsureCollected();
             WarnIfNotOutlineMaterial();
         }
 
-        /// <summary>收集描边 renderer（全部部件）与阵营色 renderer（子集）。</summary>
+        void OnEnable()
+        {
+            // 重复进出对象池 / 被重新启用时重扫一次，避免沿用旧的 renderer 快照。
+            RefreshRenderers();
+        }
+
+        /// <summary>
+        /// 丢弃已收集的 renderer 快照并立刻重扫（对象池复用、运行时挂/卸部件后调用）。
+        /// 同时把描边/染色状态置脏，保证下一次 <c>LateUpdate</c> 会重写全部部件。
+        /// </summary>
+        public void RefreshRenderers()
+        {
+            _outlineRenderers = null;
+            _appliedState = -1;
+            EnsureCollected();
+            WarnIfNotOutlineMaterial();
+        }
+
+        void EnsureCollected()
+        {
+            if (_outlineRenderers != null)
+                return;
+            CollectRenderers();
+        }
+
+        /// <summary>
+        /// 收集描边 renderer（全部角色部件，排除接触阴影面片）与阵营色 renderer（子集）。
+        /// 自行全量扫描、不读 <see cref="CrewVisualRig.OutlineRenderers"/> 的缓存（见类头 ①）。
+        /// </summary>
         void CollectRenderers()
         {
-            var rig = GetComponentInChildren<CrewVisualRig>(true);
-            if (rig != null && rig.OutlineRenderers.Count > 0)
+            Renderer[] all = GetComponentsInChildren<Renderer>(true);
+            var list = new List<Renderer>(all.Length);
+            for (int i = 0; i < all.Length; i++)
             {
-                var list = new List<Renderer>(rig.OutlineRenderers.Count);
-                for (int i = 0; i < rig.OutlineRenderers.Count; i++)
-                {
-                    if (rig.OutlineRenderers[i] != null)
-                        list.Add(rig.OutlineRenderers[i]);
-                }
-                _outlineRenderers = list.ToArray();
+                Renderer r = all[i];
+                if (r == null)
+                    continue;
+                // 贴地接触阴影面片不是角色部件：不描边、不染队伍色（见 ContactShadowDecal 注释）。
+                if (r.GetComponent<ContactShadowDecal>() != null)
+                    continue;
+                list.Add(r);
+            }
+            _outlineRenderers = list.ToArray();
 
-                IReadOnlyList<Renderer> tint = rig.TeamTintRenderers;
-                for (int i = 0; i < tint.Count; i++)
+            // ---- 阵营色部件子集 ----
+            _tintRenderers.Clear();
+            _tintAllRenderers = false;
+
+            var rig = GetComponentInChildren<CrewVisualRig>(true);
+
+            // ① 显式表（CrewVisualPrefabBuilder 建预制体时写入）优先——这是唯一可靠的口径。
+            if (teamTintRenderers != null && teamTintRenderers.Length > 0)
+            {
+                for (int i = 0; i < teamTintRenderers.Length; i++)
                 {
-                    if (tint[i] != null)
-                        _tintRenderers.Add(tint[i]);
+                    if (teamTintRenderers[i] != null)
+                        _tintRenderers.Add(teamTintRenderers[i]);
                 }
-                _tintAllRenderers = false;
-                return;
+            }
+            else if (rig != null)
+            {
+                // ② 回落：运行时标记组件（手工装配 / 旧预制体）。
+                IReadOnlyList<Renderer> marked = rig.TeamTintRenderers;
+                for (int i = 0; i < marked.Count; i++)
+                {
+                    if (marked[i] != null)
+                        _tintRenderers.Add(marked[i]);
+                }
             }
 
-            // 回落到旧结构：同物体单 renderer，整只染色（保持既有选中验收不回归）。
-            if (targetRenderer == null)
-                targetRenderer = GetComponent<Renderer>();
-            if (targetRenderer == null)
-                targetRenderer = GetComponentInChildren<Renderer>(true);
-
-            _outlineRenderers = targetRenderer != null ? new[] { targetRenderer } : new Renderer[0];
-            _tintAllRenderers = true;
+            // ③ 旧单立方体结构：没有 rig、只有一个 renderer —— 保持"整只染色"的旧行为。
+            if (rig == null && _outlineRenderers.Length <= 1)
+                _tintAllRenderers = true;
         }
 
         void LateUpdate()
         {
-            if (_pirate == null || _outlineRenderers.Length == 0)
+            if (_pirate == null)
+                return;
+
+            EnsureCollected();
+            if (_outlineRenderers.Length == 0)
                 return;
 
             int state = DebugForcedState >= 0
@@ -186,22 +262,34 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>
         /// 材质不是 PirateOutline 时描边属性会被静默忽略（MPB 对不存在的属性不报错），
-        /// 所以这里显式告警一次，避免"看不出问题但就是没描边"。
+        /// 所以这里**逐 renderer**核对并一次性列出问题部件，避免"看不出问题但就是没描边"。
+        /// 收集结果为空同样显式报错（r3 的"只覆盖躯干"就是静默失效）。
         /// </summary>
         void WarnIfNotOutlineMaterial()
         {
-            if (_outlineRenderers.Length == 0 || _warnedMissingProperty)
+            if (_warnedMissingProperty || _outlineRenderers == null || _outlineRenderers.Length == 0)
                 return;
 
-            Material shared = _outlineRenderers[0].sharedMaterial;
-            if (shared != null && shared.HasProperty(OutlineStateId))
+            string bad = null;
+            for (int i = 0; i < _outlineRenderers.Length; i++)
+            {
+                Renderer r = _outlineRenderers[i];
+                if (r == null)
+                    continue;
+                Material shared = r.sharedMaterial;
+                if (shared != null && shared.HasProperty(OutlineStateId))
+                    continue;
+                if (bad == null)
+                    bad = r.name + (shared != null ? "（" + shared.name + "）" : "（材质为空）");
+            }
+
+            if (bad == null)
                 return;
 
             _warnedMissingProperty = true;
-            Debug.LogWarning("[UnitOutlineBinder] " + name + " 的材质"
-                + (shared != null ? "（" + shared.name + "）" : "为空")
-                + " 不含 _OutlineState 属性，描边状态不会被应用。"
-                + "请把单位材质换成 PirateOutline shader（见 M2BattleSceneSetup.EnsureOutlineMaterial）。");
+            Debug.LogWarning("[UnitOutlineBinder] " + name + " 有部件的材质不含 _OutlineState 属性，"
+                + "描边状态不会被应用，首个：" + bad
+                + "。请把单位材质换成 PirateOutline shader（见 M2BattleSceneSetup.EnsureOutlineMaterial）。");
         }
     }
 }
