@@ -260,7 +260,7 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>
         /// 列式旧地形里视为"立墙"的块高阈值：<c>BlocksAt ≥ 该值</c> 的格不可放置箱体。
-        /// 【提案/待定】取 3（= 0.75 世界单位）：1-2 块是低矮沙埂，箱体还能压上去；
+        /// 【提案/待定】取 3（= 1.5 世界单位，每块 0.5）：1-2 块是低矮沙埂，箱体还能压上去；
         /// 3 块及以上已构成需要绕行的立面（对齐 <see cref="TileTerrainGrid"/> 类头
         /// 「相邻列的高差即墙体立面」的口径）。
         /// 平台簇模式不适用本阈值——甲板每格块高 ≥1，不能用块高判墙（见 <see cref="IsBlocked"/>）。
@@ -282,8 +282,9 @@ namespace PirateCrew.PirateCrew.Battle
             if (Grid == null)
                 return false;
 
-            int gx = Mathf.FloorToInt(LevelGeometry.PixelsToUnits(pixelX));
-            int gy = Mathf.FloorToInt(LevelGeometry.PixelsToUnits(pixelY));
+            // 像素 → **格号**（px/32，与格世界尺寸无关；不要用 PixelsToUnits——那是 px→世界单位，格 1→2 单位后已翻倍）。
+            int gx = Mathf.FloorToInt(LevelGeometry.PixelsToTiles(pixelX));
+            int gy = Mathf.FloorToInt(LevelGeometry.PixelsToTiles(pixelY));
 
             // 水格 / 越界：没有地面，放不了（放下去即落水）。
             if (!Grid.IsGroundAt(gx, gy))
@@ -308,8 +309,9 @@ namespace PirateCrew.PirateCrew.Battle
             if (Grid == null)
                 return false;
 
-            int gx = Mathf.FloorToInt(LevelGeometry.PixelsToUnits(pixelX));
-            int gy = Mathf.FloorToInt(LevelGeometry.PixelsToUnits(pixelY));
+            // 像素 → **格号**（px/32，与格世界尺寸无关；不要用 PixelsToUnits——那是 px→世界单位，格 1→2 单位后已翻倍）。
+            int gx = Mathf.FloorToInt(LevelGeometry.PixelsToTiles(pixelX));
+            int gy = Mathf.FloorToInt(LevelGeometry.PixelsToTiles(pixelY));
             if (!Grid.IsGroundAt(gx, gy))
                 return false;
 

@@ -95,48 +95,49 @@ namespace PirateCrew.PirateCrew.Audio
         /// </summary>
         public const float PeakTarget = 0.89f;
 
-        /// <summary>3D 默认最小距离（世界单位）；竞技场相机距离约 18（美术风格指南 §1.1）。</summary>
-        public const float DefaultMinDistance = 3f;
+        /// <summary>3D 默认最小距离（世界单位）；竞技场相机距离约 30（美术风格指南 §1.1）。
+        /// 【格 1→2 单位 ×2】3 → 6（空间衰减距离类一律 ×2，保持"同一格数处响度相同"）。</summary>
+        public const float DefaultMinDistance = 6f;
 
-        /// <summary>3D 默认最大距离（世界单位）。</summary>
-        public const float DefaultMaxDistance = 50f;
+        /// <summary>3D 默认最大距离（世界单位）。【格 1→2 单位 ×2】50 → 100。</summary>
+        public const float DefaultMaxDistance = 100f;
 
         static readonly SfxRecipe[] Recipes =
         {
             // ================= 战斗 =================
-            new SfxRecipe(SfxId.Explosion, AudioCategory.Sfx, 1.60d, false, SpatialMode.ThreeD, 0.90f, 4f, 60f,
+            new SfxRecipe(SfxId.Explosion, AudioCategory.Sfx, 1.60d, false, SpatialMode.ThreeD, 0.90f, 8f, 120f,
                 "battle_projectile_detonated（cannonball / cherryBomb / dynamite / boulder / mine / parachuteBomb / rumBottle / SweepingFlame）",
                 "低频冲击（正弦 95→32 Hz 指数滑落，tau≈0.22s）+ 噪声爆（白噪 → 二阶低通 1500→600 Hz，tau≈0.09s）+ 隆隆尾（低通 220 Hz，tau≈0.55s）+ Schroeder 混响 25%"),
 
-            new SfxRecipe(SfxId.WoodCrack, AudioCategory.Sfx, 0.60d, false, SpatialMode.ThreeD, 0.80f, 3f, 45f,
+            new SfxRecipe(SfxId.WoodCrack, AudioCategory.Sfx, 0.60d, false, SpatialMode.ThreeD, 0.80f, 6f, 90f,
                 "battle_projectile_detonated（gunpowderBarrel / woodenCrate）",
                 "木质腔体（三角 190 Hz + 分音 320/540 Hz，tau 0.10–0.18s）+ 4–6 段木片断裂噪声（带通 900–3500 Hz，5–18 ms 随机错位）"),
 
-            new SfxRecipe(SfxId.FleshHit, AudioCategory.Sfx, 0.24d, false, SpatialMode.ThreeD, 0.70f, 2f, 35f,
+            new SfxRecipe(SfxId.FleshHit, AudioCategory.Sfx, 0.24d, false, SpatialMode.ThreeD, 0.70f, 4f, 70f,
                 "crew_damaged（载荷无世界坐标 → 目前退化为 2D，见交付报告待裁决项）",
                 "低频闷响（正弦 150→65 Hz 指数滑落，tau≈0.05s）+ 拍打噪声（低通 1400 Hz，tau≈0.025s）"),
 
-            new SfxRecipe(SfxId.WaterSplash, AudioCategory.Sfx, 0.70d, false, SpatialMode.ThreeD, 0.75f, 3f, 50f,
+            new SfxRecipe(SfxId.WaterSplash, AudioCategory.Sfx, 0.70d, false, SpatialMode.ThreeD, 0.75f, 6f, 100f,
                 "无事件（弹体落水消失路径不广播）；公开 API PlaySfx 手动触发",
                 "水花（白噪 → 高通 700 Hz，起音 4 ms，tau≈0.08s）+ 音高下坠（正弦 700→250 Hz）+ 气泡尾（低通 500 Hz，11 Hz 振幅调制，tau≈0.25s）"),
 
-            new SfxRecipe(SfxId.ThrowWhoosh, AudioCategory.Sfx, 0.42d, false, SpatialMode.TwoD, 0.65f, 2f, 40f,
+            new SfxRecipe(SfxId.ThrowWhoosh, AudioCategory.Sfx, 0.42d, false, SpatialMode.TwoD, 0.65f, 4f, 80f,
                 "battle_shot_released（载荷为拖拽距离 px → 映射音高/音量）",
                 "带通噪声中心频率 180→2400→420 Hz 两段扫（Q≈1.2）+ 幅度 sin^1.5 包络；拖拽越远音高越高"),
 
-            new SfxRecipe(SfxId.Bounce, AudioCategory.Sfx, 0.16d, false, SpatialMode.ThreeD, 0.60f, 2f, 30f,
+            new SfxRecipe(SfxId.Bounce, AudioCategory.Sfx, 0.16d, false, SpatialMode.ThreeD, 0.60f, 4f, 60f,
                 "无事件（弹体落地弹跳在 WeaponProjectile 内部结算）；公开 API 手动触发",
                 "弹性音高下坠（正弦 420→130 Hz，tau≈0.05s）+ 3 ms 高频点击（噪声高通 2000 Hz）"),
 
-            new SfxRecipe(SfxId.StoneRoll, AudioCategory.Sfx, 1.40d, false, SpatialMode.ThreeD, 0.55f, 3f, 40f,
+            new SfxRecipe(SfxId.StoneRoll, AudioCategory.Sfx, 1.40d, false, SpatialMode.ThreeD, 0.55f, 6f, 80f,
                 "无事件（boulder 滚动在 WeaponProjectile 内部结算）；公开 API 手动触发",
                 "低频隆隆（低通 420 Hz + 900 Hz 双层噪声）+ 4/7 Hz 摩擦调制 + 70 Hz 次低音抖动"),
 
-            new SfxRecipe(SfxId.MineBeep, AudioCategory.Sfx, 0.09d, false, SpatialMode.ThreeD, 0.62f, 3f, 40f,
+            new SfxRecipe(SfxId.MineBeep, AudioCategory.Sfx, 0.09d, false, SpatialMode.ThreeD, 0.62f, 6f, 80f,
                 "battle_mine_beep（§5.2 beepTimes：0/15/30/38/45/49/53/55/57/59 帧）",
                 "方波 2093 Hz（C7）60 ms，5 ms 起音/释音，轻微音高下坠；越接近引爆音量略升（由 AudioService 按 ElapsedFrames 缩放）"),
 
-            new SfxRecipe(SfxId.CrewDown, AudioCategory.Sfx, 0.70d, false, SpatialMode.TwoD, 0.62f, 2f, 30f,
+            new SfxRecipe(SfxId.CrewDown, AudioCategory.Sfx, 0.70d, false, SpatialMode.TwoD, 0.62f, 4f, 60f,
                 "crew_died（载荷无世界坐标 → 2D 播放）",
                 "下行低音号角（锯齿+谐波 330→165 Hz，低通 1200→400 Hz 扫落）+ 短混响"),
 
@@ -203,6 +204,11 @@ namespace PirateCrew.PirateCrew.Audio
             new SfxRecipe(SfxId.DefeatJingle, AudioCategory.Music, 3.60d, false, SpatialMode.TwoD, 0.66f, 0f, 0f,
                 "match_finished（LevelFailed / Draw / 1P 模式下 AI 胜）",
                 "A 和声小调下行 i-VII-VI-V（Am-G-F-E），每和弦 0.9 秒，低音区弦垫（失谐锯齿 + 低通）+ 下行旋律 E4-D4-C4-B3；混响 30%"),
+
+            // ================= 环境底床（外部素材） =================
+            new SfxRecipe(SfxId.BedPad, AudioCategory.Ambient, 22.00d, true, SpatialMode.TwoD, 0.34f, 0f, 0f,
+                "battle_started → AudioService.StartAmbientBed（底床第 3 层「垫底」）",
+                "外部素材（非合成）：隔壁 Game-2 自产 bgm/ambient_pad.wav，44100 Hz 单声道 22.0 s 无缝循环；搬运登记见 Game2AudioAssets.cs。本 id 无程序化合成，资产缺失时静音（SynthRenderer.CanRender = false）"),
         };
 
         static readonly SfxRecipe[] ById = BuildById();

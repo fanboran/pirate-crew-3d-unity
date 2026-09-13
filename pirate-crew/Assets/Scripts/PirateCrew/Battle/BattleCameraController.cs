@@ -38,18 +38,19 @@ namespace PirateCrew.PirateCrew.Battle
     /// 【默认机位 — 用户裁决 2026-09-14：角色特写优先（"以角色特写视角操控这个角色"）】
     ///   开局与**每次换行动单位**（<c>TurnStarted.PanTarget</c> / <c>CameraFocusRequested</c> →
     ///   <see cref="FocusOn(Transform)"/>）相机进入**跟随特写档**：距离 <see cref="CloseUpDistance"/>
-    ///   （6 世界单位）、俯角 <see cref="CloseUpPitchDegrees"/>（30°）、看向行动单位（lookAt 抬高 =
+    ///   （12 世界单位）、俯角 <see cref="CloseUpPitchDegrees"/>（30°）、看向行动单位（lookAt 抬高 =
     ///   单位视觉高 1.85 × <see cref="LookAtHeightRatio"/> 0.65 ≈ 1.20；1.85 与
-    ///   <c>CrewVisualPrefabBuilder.TargetUnitHeight</c> 同源）。滚轮可后拉到旧的 45° 全场档
-    ///   （距离 <see cref="FullFieldDistance"/> 15）再往后到 <see cref="MaxManualDistance"/> 25，
-    ///   前推最近 <see cref="MinManualDistance"/> 3；俯角随距离在 30°↔45° 间插值
+    ///   <c>CrewVisualPrefabBuilder.TargetUnitHeight</c> 同源——**角色自身尺寸不随格放大**）。
+    ///   相机取景按「看同样的格数」等比放大：格 1→2 单位后档位距离一律 ×2。滚轮可后拉到旧的 45° 全场档
+    ///   （距离 <see cref="FullFieldDistance"/> 30）再往后到 <see cref="MaxManualDistance"/> 50，
+    ///   前推最近 <see cref="MinManualDistance"/> 6；俯角随距离在 30°↔45° 间插值
     ///   （<see cref="PitchForDistance"/>）。**"零输入守 45°/15 出厂"的旧口径已废止**；
     ///   无输入时相机保持当前跟随目标。
     ///
     /// 【安全底线（勿破坏）】
-    ///   · **场景里烘焙的** Transposer FollowOffset 仍是 18→15 提案后的 45°/距离 15
-    ///     （<c>M2BattleSceneSetup</c> 不在本轮改动域内）：<c>BattleSceneWiringTests.AssertPerspectiveTiltedCamera</c>
-    ///     仍断言该**烘焙值**（透视 + 45° + 距离 15 + offset.x=0，经 <see cref="BakedDistance"/> /
+    ///   · **场景里烘焙的** Transposer FollowOffset = 45°/距离 30（18→15→30 提案；
+    ///     <c>M2BattleSceneSetup</c> 同步改为 30）：<c>BattleSceneWiringTests.AssertPerspectiveTiltedCamera</c>
+    ///     断言该**烘焙值**（透视 + 45° + 距离 30 + offset.x=0，经 <see cref="BakedDistance"/> /
     ///     <see cref="BakedPitchDegrees"/> 读出）；运行时本脚本把它覆盖为特写档，同测试另断言
     ///     "运行时默认 = 特写档"（<see cref="RuntimeDistance"/> / <see cref="RuntimePitchDegrees"/>）。
     ///   · 震屏只加在"相机目标位置"上，且**玩家按住左键（正在拖拽瞄准）时一律不施加**；
@@ -87,7 +88,7 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("震屏强度整体缩放（1 = 默认）。")]
         [SerializeField] float shakeAmplitudeScale = 1f;
 
-        [Tooltip("峰值位移（世界单位）；默认 0.35 ≈ 11px，小于 30px 选中半径。")]
+        [Tooltip("峰值位移（世界单位）；默认 0.7 ≈ 11px（px 口径不变），小于 30px 选中半径。")]
         [SerializeField] float maxShakeAmplitude = CameraFeelRules.DefaultMaxShakeAmplitude;
 
         [Tooltip("峰值滚转（度）；默认 1.2°。")]
@@ -110,7 +111,7 @@ namespace PirateCrew.PirateCrew.Battle
         [SerializeField] float hitStopTimeScale = CameraFeelRules.DefaultHitStopTimeScale;
 
         [Header("聚焦表现（提案/待定）")]
-        [Tooltip("选中/回合聚焦时的轻微 FOV 推近峰值（度）。只改 FOV，不动 Transposer 距离（PlayMode 断言要求距离 15）。")]
+        [Tooltip("选中/回合聚焦时的轻微 FOV 推近峰值（度）。只改 FOV，不动 Transposer 距离（PlayMode 断言要求距离 30）。")]
         [SerializeField] float selectionPushInDegrees = CameraFeelRules.SelectionPushInDegrees;
 
         [Tooltip("FOV 推近单程时长（秒）。")]
@@ -143,8 +144,8 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("右键每单位 Mouse X 的环绕角度（度）。")]
         [SerializeField] float orbitDegreesPerMouseUnit = 3f;
 
-        [Tooltip("滚轮每格缩放的距离（世界单位）。")]
-        [SerializeField] float zoomStepPerNotch = 1.5f;
+        [Tooltip("滚轮每格缩放的距离（世界单位；随格 1→2 单位 ×2 = 3）。")]
+        [SerializeField] float zoomStepPerNotch = 3f;
 
         [Tooltip("手动相机平滑速率（1/s）。")]
         [SerializeField] float manualSmoothingPerSecond = 10f;
@@ -154,26 +155,27 @@ namespace PirateCrew.PirateCrew.Battle
         //
         // 【为什么是 const 而不是 SerializeField】场景 Battle.unity 由禁改的 M2BattleSceneSetup 烘焙，
         //   里面仍写着旧的 minManualDistance=12 / maxManualDistance=26；若走序列化字段，本轮的
-        //   "最近 3 / 最远 25" 会被场景里的旧值盖掉。故档位口径一律走常量，场景里的旧键失效（Unity 自动忽略）。
+        //   "最近 6 / 最远 50" 会被场景里的旧值盖掉。故档位口径一律走常量，场景里的旧键失效（Unity 自动忽略）。
         // ------------------------------------------------------------------
 
-        /// <summary>特写档距离（世界单位，用户裁决区间 5–7 取中值 6）：开局 / 换行动单位时的默认机位。</summary>
-        public const float CloseUpDistance = 6f;
+        /// <summary>特写档距离（世界单位，旧值 6 ×2 = 12；格 1→2 单位后按「看同样的格数」等比放大）。
+        /// 开局 / 换行动单位时的默认机位。</summary>
+        public const float CloseUpDistance = 12f;
 
         /// <summary>特写档俯角（度，用户裁决区间 25–35 取中值 30）。</summary>
         public const float CloseUpPitchDegrees = 30f;
 
-        /// <summary>全场档距离（世界单位）= 旧的 18→15 提案出厂距离；滚轮拉到此处即旧 45° 全场视角。</summary>
-        public const float FullFieldDistance = 15f;
+        /// <summary>全场档距离（世界单位）= 18→15→30（格 1→2 单位后 ×2）；滚轮拉到此处即旧 45° 全场视角。</summary>
+        public const float FullFieldDistance = 30f;
 
         /// <summary>全场档俯角（度）= 旧的出厂俯角 45°。</summary>
         public const float FullFieldPitchDegrees = 45f;
 
-        /// <summary>滚轮前推最近距离（世界单位，用户裁决 3）。</summary>
-        public const float MinManualDistance = 3f;
+        /// <summary>滚轮前推最近距离（世界单位，旧值 3 ×2 = 6）。</summary>
+        public const float MinManualDistance = 6f;
 
-        /// <summary>滚轮后拉最远距离（世界单位，用户裁决 25）。</summary>
-        public const float MaxManualDistance = 25f;
+        /// <summary>滚轮后拉最远距离（世界单位，旧值 25 ×2 = 50）。</summary>
+        public const float MaxManualDistance = 50f;
 
         /// <summary>
         /// 单位视觉总高（世界单位）= 1.85，与 <c>CrewVisualPrefabBuilder.TargetUnitHeight</c> 同源
@@ -275,7 +277,7 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>场景里**烘焙的** Transposer 俯角（度，由 FollowOffset 反推；仍是 45°）。</summary>
         public float BakedPitchDegrees => PitchOf(_baseOffsetDirection);
 
-        /// <summary>运行时当前距离目标（默认特写档 <see cref="CloseUpDistance"/>；滚轮可改到 [3,25]）。</summary>
+        /// <summary>运行时当前距离目标（默认特写档 <see cref="CloseUpDistance"/>；滚轮可改到 [6,50]）。</summary>
         public float RuntimeDistance => _manualCaptured ? _targetDistance : CloseUpDistance;
 
         /// <summary>运行时当前俯角（度，由距离插值：特写 30° ↔ 全场 45°）。</summary>

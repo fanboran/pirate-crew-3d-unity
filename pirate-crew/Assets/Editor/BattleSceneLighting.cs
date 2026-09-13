@@ -456,9 +456,10 @@ namespace PirateCrew.EditorTools
 
         // 海水（GDD §10.4 海水三档：#4DA6D9 → #2B7AB8 → #1A4F7A）
         // 参数理由：
-        //   _ShoreFadeDistance=4：岛外浅台(y=-0.6)/中台(y=-1.6) 与水面(y=-0.2) 的视深度差
-        //     约 0.6 / 2.0 → 4 的分母让浅台落在"浅→中"、中台落在"中→深"（对应三档色）。
-        //   _FoamWidth=1.6：略大于浅台深度差，让泡沫从岛缘向外覆盖一小段而不是一条死线。
+        //   _ShoreFadeDistance=8：岛外浅台(y=-1.1)/中台(y=-2.4) 与水面(y=-0.4) 的视深度差
+        //     约 0.7 / 2.0 → 8 的分母让浅台落在"浅→中"、中台落在"中→深"（对应三档色）。
+        //     【格 1→2 单位 ×2】4 → 8，与海床台阶深度同比例，保证同一处仍是同一档水色。
+        //   _FoamWidth=3.2：略大于浅台深度差，让泡沫从岛缘向外覆盖一小段而不是一条死线。
         //   _ShorelineFoamGain=1.6：屏幕空间深度梯度在岛缘会突变 ~10+ 单位，乘以 1.6 直接饱和 → 贴轮廓白线。
         //   _FresnelPower=5 / _FresnelStrength=1 / _ReflectionStrength=0.55：
         //     cel-shader-guide §8 海水预设要求"强高光 + 强边缘光"，SH 反射强度给 0.55 避免远处水面发白糊掉。
@@ -471,10 +472,10 @@ namespace PirateCrew.EditorTools
             SetColor(m, "_ShallowColor", Hex("#4DA6D9"));
             SetColor(m, "_MidColor", Hex("#2B7AB8"));
             SetColor(m, "_DeepColor", Hex("#1A4F7A"));
-            SetFloat(m, "_ShoreFadeDistance", 4f);
+            SetFloat(m, "_ShoreFadeDistance", 8f);      // 距离类 ×2（格 1→2 单位）
 
             SetColor(m, "_FoamColor", Hex("#F0F7FF"));
-            SetFloat(m, "_FoamWidth", 1.6f);
+            SetFloat(m, "_FoamWidth", 3.2f);            // 距离类 ×2（格 1→2 单位）
             SetFloat(m, "_FoamNoiseScale", 5f);
             SetFloat(m, "_FoamSpeed", 0.25f);
             SetFloat(m, "_FoamStrength", 0.85f);
@@ -782,7 +783,7 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 配置 URP Asset：打开软阴影、打开深度图、MSAA 4→2、ColorGradingMode 切 HDR，
-        /// 并强制主光阴影三件套（距离 ≥50 / Cascade 4 / 分辨率 2048）。
+        /// 并强制主光阴影三件套（距离 ≥100 / Cascade 4 / 分辨率 2048；距离随格 1→2 单位 ×2，cascade 级数不动）。
         /// 取舍见报告：软阴影是本波次"光影氛围"的必要项；深度图是 PirateWater 泡沫/浅深水的硬依赖；
         /// 阴影三件套是植被"投影 + 受影"（PirateAmbientWind 的 ShadowCaster/ForwardLit）与单位投影的载体；
         /// MSAA 降档用来抵消前两项带来的带宽/开销增长；ColorGradingMode=HDR 是 Linear+HDR 的配套
@@ -816,12 +817,13 @@ namespace PirateCrew.EditorTools
             asset.colorGradingMode = ColorGradingMode.HighDynamicRange;
 
             // ---- 主光阴影三重兜底（核验美术风格指南 §4.1 的「Cascade 4 级 / 阴影距离 50 / soft」）----
+            // 【格 1→2 单位】阴影距离 50 → 100；Cascade 级数 4 不动（级数是"分几段"而非距离量）。
             // 现状资产已是 50 / 4 / 2048 / soft on（PC_Balanced_URPAsset.asset），这里在代码侧**强制**一遍，
             // 避免有人手改资产或换 URP Asset 后静默退化：植被投影/受影、单位投影都依赖这套配置。
             //   shadowDistance / shadowCascadeCount 有公共 setter；分辨率与 soft 只有 internal setter，
             //   故分辨率走 SerializedObject 写字段 m_MainLightShadowmapResolution（与 m_SoftShadowsSupported 同法）。
-            if (asset.shadowDistance < 50f)
-                asset.shadowDistance = 50f;        // 覆盖 50×17 竞技场 + 外扩（观察者常用取景）
+            if (asset.shadowDistance < 100f)
+                asset.shadowDistance = 100f;       // ×2（格 1→2 单位）：覆盖 100×34 竞技场 + 外扩（观察者常用取景）
             if (asset.shadowCascadeCount != 4)
                 asset.shadowCascadeCount = 4;      // 近景角色脚底到远景植被都要有可用精度
 
@@ -1022,19 +1024,19 @@ namespace PirateCrew.EditorTools
             // 【写实化为何不改雾色/距离】AmbientDirector 在 Start 会用正午档预设覆写
             //   fogColor/fogStart/fogEnd（AmbientTimeOfDayCatalog.cs 的正午档 = 本处逐值），
             //   该文件不在本波次白名单；若此处单方面改值，运行时会跳回旧值、编辑器与运行时不一致。
-            //   故**保持与正午档逐值相同**（#B0D4F1 / 25 / 140），"地平线衔接"改为由天空盒
+            //   故**保持与正午档逐值相同**（#B0D4F1 / 50 / 280），"地平线衔接"改为由天空盒
             //   的 _SkyTint/_GroundColor（同属该色族）保证，见 ConfigureSkyAndAmbient。
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = Hex("#B0D4F1");
-            // 距离依据（level_1：竞技场 50×17，相机距中心 18 单位）：
-            //   start=25 —— 相机到竞技场远缘约 30~35 单位，取 25 让**前景竞技场基本不被雾洗白**，
+            // 距离依据（level_1：竞技场 100×34 世界单位，相机距中心 30 单位）——格 1→2 单位后整段 ×2：
+            //   start=50 —— 相机到竞技场远缘约 60~70 单位，取 50 让**前景竞技场基本不被雾洗白**，
             //              只在远端（远景地面/海面）开始出现雾；
-            //   end=140   —— 岛外海面最远约 50~80 单位 → 得到 18%~40% 的雾量，形成空气透视但不淹没画面；
-            //              远到 140 之外（接近相机 farClip=200）基本完全融入地平色。
+            //   end=280  —— 岛外海面最远约 100~160 单位 → 得到 18%~40% 的雾量，形成空气透视但不淹没画面；
+            //              远到 280 之外（接近相机 farClip=400）基本完全融入地平色。
             // 每关竞技场尺寸不同（LevelData.WidthTiles/HeightTiles），若关卡明显更大，这两个值需按比例调。
-            RenderSettings.fogStartDistance = 25f;
-            RenderSettings.fogEndDistance = 140f;
+            RenderSettings.fogStartDistance = 50f;
+            RenderSettings.fogEndDistance = 280f;
 
             // ---- 全局 Volume ----
             var volumeGo = new GameObject("GlobalVolume");

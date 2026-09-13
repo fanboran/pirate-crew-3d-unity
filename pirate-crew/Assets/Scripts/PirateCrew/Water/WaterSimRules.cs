@@ -27,10 +27,11 @@ namespace PirateCrew.PirateCrew.Water
         /// <summary>本工程使用的 CFL 上限（含安全系数）。</summary>
         public const float CflLimit = CflSafetyFactor * CflTheoreticalLimit; // ≈ 0.495
 
-        /// <summary>默认模拟域边长（世界单位）。64 覆盖 50×17 竞技场 + 两侧海床台阶。</summary>
-        public const float DefaultDomainSize = 64f;
+        /// <summary>默认模拟域边长（世界单位）。128 覆盖 100×34 竞技场 + 两侧海床台阶
+        /// （格 1→2 单位 ×2；格数不动 → 每格的格距在新口径下仍是 0.5 个*旧*格，即每格 0.5 世界单位 → 1.0）。</summary>
+        public const float DefaultDomainSize = 128f;
 
-        /// <summary>默认每轴格数；dx = 64/128 = 0.5 世界单位。</summary>
+        /// <summary>默认每轴格数；dx = 128/128 = 1.0 世界单位 = **半格**（与旧口径的"半格"一致，故格数不动）。</summary>
         public const int DefaultCellsPerAxis = 128;
 
         /// <summary>库朗数 <c>C = c·dt/dx</c>。</summary>

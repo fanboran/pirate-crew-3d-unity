@@ -24,8 +24,8 @@ namespace PirateCrew.PirateCrew.SceneArt
         /// <summary>横剖站数（奇数，中站居中）。</summary>
         public const int Stations = 15;
 
-        /// <summary>栏杆高度（含在舷弧线上）。</summary>
-        public const float BulwarkHeight = 0.42f;
+        /// <summary>栏杆高度（含在舷弧线上）。绝对世界值 ×2（格 1→2 单位）：0.42 → 0.84。</summary>
+        public const float BulwarkHeight = 0.84f;
 
         /// <summary>
         /// 生成一艘放样船体。
@@ -114,7 +114,7 @@ namespace PirateCrew.PirateCrew.SceneArt
             // ---- 船艏斜桁（bowsprit）：从艏柱顶向前下方伸出 ----
             Vector3 stemTop = P(alongs[Stations - 1], 0f, deckYs[Stations - 1] + BulwarkHeight);
             Vector3 spritDir = (axis * 1f + Vector3.down * 0.28f).normalized;
-            wood.AddRod(stemTop, stemTop + spritDir * (length * 0.20f), 0.07f, 6);
+            wood.AddRod(stemTop, stemTop + spritDir * (length * 0.20f), 0.14f, 6);   // 杆半径 ×2
 
             // ---- 龙骨：中线下方更深的一条，艏艉收窄 ----
             float keelLen = length * 0.78f;
@@ -123,11 +123,11 @@ namespace PirateCrew.PirateCrew.SceneArt
                 float kx0 = Mathf.Lerp(-keelLen * 0.5f, keelLen * 0.5f, k / 6f);
                 float kx1 = Mathf.Lerp(-keelLen * 0.5f, keelLen * 0.5f, (k + 1) / 6f);
                 float taper = Mathf.Sin((k + 0.5f) / 6f * Mathf.PI) * 0.5f + 0.5f; // 中段宽艏艉窄
-                float w = 0.16f + 0.20f * taper;
-                Vector3 kb0 = P(kx0, -w, -hullDepth - 0.10f);
-                Vector3 kb1 = P(kx1, -w, -hullDepth - 0.10f);
-                Vector3 kt1 = P(kx1, w, -hullDepth - 0.10f);
-                Vector3 kt0 = P(kx0, w, -hullDepth - 0.10f);
+                float w = 0.32f + 0.40f * taper;      // 龙骨条半宽 ×2（绝对世界值）
+                Vector3 kb0 = P(kx0, -w, -hullDepth - 0.20f);
+                Vector3 kb1 = P(kx1, -w, -hullDepth - 0.20f);
+                Vector3 kt1 = P(kx1, w, -hullDepth - 0.20f);
+                Vector3 kt0 = P(kx0, w, -hullDepth - 0.20f);
                 woodDark.AddQuad(kb0, kb1, kt1, kt0, Vector3.down);
             }
 
@@ -139,7 +139,7 @@ namespace PirateCrew.PirateCrew.SceneArt
                     wood.AddRod(
                         StationPoint(s, Section.Length - 1, sd),
                         StationPoint(Mathf.Min(s + 2, Stations - 1), Section.Length - 1, sd),
-                        0.07f, 6);
+                        0.14f, 6);   // 栏杆帽圆杆半径 ×2
                 }
             }
         }
@@ -157,7 +157,8 @@ namespace PirateCrew.PirateCrew.SceneArt
             return Mathf.Lerp(1f, 0.04f, Mathf.Pow(v, 2.8f));
         }
 
-        /// <summary>舷弧幅：船越大舷弧越明显。</summary>
-        static float SheerAmp(float hullDepth) => Mathf.Max(0.35f, hullDepth * 0.45f);
+        /// <summary>舷弧幅：船越大舷弧越明显。下限 0.35 是绝对世界值 → ×2 为 0.70；
+        /// <c>hullDepth * 0.45</c> 是比例（随 hullDepth 自动缩放）不动。</summary>
+        static float SheerAmp(float hullDepth) => Mathf.Max(0.70f, hullDepth * 0.45f);
     }
 }

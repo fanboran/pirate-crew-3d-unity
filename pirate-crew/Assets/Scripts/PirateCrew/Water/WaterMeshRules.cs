@@ -14,10 +14,10 @@ namespace PirateCrew.PirateCrew.Water
         /// <summary>每轴最少格数。</summary>
         public const int MinCellsPerAxis = 1;
 
-        /// <summary>默认单格世界尺寸：0.8 单位（最短波长 2.4 → 每波长约 3 格，几何够顺）。</summary>
-        public const float DefaultCellSize = 0.8f;
+        /// <summary>默认单格世界尺寸：1.6 单位（格 1→2 单位 ×2；最短波长 4.8 → 每波长约 3 格，几何够顺）。</summary>
+        public const float DefaultCellSize = 1.6f;
 
-        /// <summary>默认每轴格数上限（90×57 的水面 @0.8 → 113×72，约 8.1k 顶点）。</summary>
+        /// <summary>默认每轴格数上限（水域 300×234 @1.6 → 188×147，约 28k 顶点；上限保持 192 足够覆盖）。</summary>
         public const int DefaultMaxCellsPerAxis = 192;
 
         /// <summary>按世界尺寸与目标格距求格数（向上取整，clamp 到 [1, maxCellsPerAxis]）。</summary>

@@ -59,7 +59,7 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>关卡序号（1–33）。</summary>
         public readonly int LevelNumber;
 
-        /// <summary>竞技场横向尺寸（瓦片；本工程 1 瓦片 = 1 世界单位）。</summary>
+        /// <summary>竞技场横向尺寸（瓦片）。世界尺寸 = 本值 × <see cref="TileWorldSize"/>。</summary>
         public readonly int WidthTiles;
 
         /// <summary>竞技场纵深尺寸（瓦片；来自原版关卡的 heightTiles）。</summary>
@@ -88,9 +88,9 @@ namespace PirateCrew.PirateCrew.Battle
             DepthTiles = depthTiles;
             OriginalXmlPlayers = originalXmlPlayers;
             WaterWorldY = waterWorldY;
-            // 1 瓦片 = 1 世界单位（见 LevelGeometry 类头的 px→单位换算决策）。
-            WorldWidth = widthTiles;
-            WorldDepth = depthTiles;
+            // 1 瓦片 = TileWorldSize 世界单位（见 LevelGeometry 类头的 px→单位换算决策）。
+            WorldWidth = LevelGeometry.TileToWorld(widthTiles);
+            WorldDepth = LevelGeometry.TileToWorld(depthTiles);
             _entries = entries ?? new List<SpawnPlanEntry>();
         }
 
@@ -126,18 +126,29 @@ namespace PirateCrew.PirateCrew.Battle
     ///   这一改动使 3D 空间结构对齐 Godot 基准（其 battle.tscn 为 XZ 地面 + 45° 相机 + 单位沿 Z 分路），
     ///   而**数值仍全部取自 Flash 逆向文档**（Godot 版弹道/伤害层是自相矛盾的占位实现，见上述文档）。
     ///
-    /// 【3D 化决策 1：px→单位换算】原版 1 瓦片 = 32px。本工程定 <b>1 瓦片 = 1 Unity 单位</b>
-    ///   （即 1 单位 = 32px），常量集中在 <see cref="PixelsPerUnit"/>，全工程单一来源。
+    /// 【3D 化决策 1：px→单位换算】原版 1 瓦片 = 32px。本工程定 <b>1 瓦片 = 2 Unity 单位</b>
+    ///   （用户裁决 2026-09-14：格子世界尺寸 1→2 单位，岛 4-8 格 = 8-16 单位才够厚重；
+    ///   **角色自身尺寸 1.85 不随格变化**），即
+    ///   常量集中在 <see cref="TilePixels"/> / <see cref="TileWorldSize"/>，
+    ///   <see cref="PixelsPerUnit"/>（= 16，1 单位 = 16px）由两者相除得到。
+    ///   <b>凡是"由 Flash px / 格语义换算成世界单位"的量都必须走这里的换算</b>：
+    ///   · 距离类（选中半径、爆炸半径、投掷射程、水距）→ <see cref="PixelsToUnits"/> / <see cref="TileToWorld"/>；
+    ///   · 速度/重力类 → <see cref="FlashSpeedScale"/> / <see cref="WorldGravityY"/>（随 PixelsPerUnit 缩放）；
+    ///   · **格号 → 世界坐标** → <see cref="GridToArena"/> / <see cref="TileToWorld"/> / <see cref="TileCenterWorld"/>；
+    ///   · 反向（世界 → 格号）→ <see cref="WorldToTiles"/> / <see cref="PixelsToTiles"/>（**不是** PixelsToUnits）。
+    ///   格语义（射程多少格、水距多少格）在本次扫荡里逐项不变——只有"一格有几个世界单位"变了。
     ///
     /// 【3D 化决策 2：重力与力度换算】Flash 每帧 vy += weight（25fps，1px/帧²）。
     ///   本工程让 Unity 物理与 Ballistics 同源：
     ///   1) <see cref="Time.fixedDeltaTime"/> = <see cref="FrameSeconds"/>（0.04s，25Hz），
     ///      Rigidbody 用 <c>useGravity</c> + <c>Physics.gravity = WorldGravity(1)</c>；
-    ///   2) 初速换算 <see cref="FlashVelocityToArena"/>：v_world = v_flash / (32 * 0.04)；
-    ///   3) 重力换算 <see cref="WorldGravityY"/>：g_world = -weight / (32 * 0.04²)。
+    ///   2) 初速换算 <see cref="FlashVelocityToArena"/>：v_world = v_flash / (16 * 0.04)；
+    ///   3) 重力换算 <see cref="WorldGravityY"/>：g_world = -weight / (16 * 0.04²) = -39.0625·weight。
     ///   由于 Flash 的离散积分是 vy += w; y += vy、PhysX 的半隐式欧拉是 v += g·dt; p += v·dt，
     ///   在 dt 相同时二者逐步完全一致 → <b>预览 = 实弹</b>（见测试
     ///   <c>LevelGeometryTests.Ballistics_And_WorldSemiImplicit_Match_Exactly</c>）。
+    ///   【格 1→2 单位后弹道为什么逐点不变】Flash 侧 (vx, vy, weight) 是**像素口径**，一个字都没改；
+    ///   变的只是 px→世界的除数（32→16），于是整条抛物线在**格空间里逐点相同**、在世界里整体乘 2。
     ///   这条不变量是刻意保留的：Godot 版恰好坏在这里（预览与实弹速度差 18 倍、重力 -18 vs -9.8），
     ///   对齐空间结构时**不要**把它的数值一起搬进来。
     ///
@@ -153,8 +164,21 @@ namespace PirateCrew.PirateCrew.Battle
     /// </summary>
     public static class LevelGeometry
     {
-        /// <summary>1 瓦片 = 32px（原版瓦片尺寸，§5.4 的 <c>&gt;&gt;5</c>）。</summary>
-        public const float PixelsPerUnit = 32f;
+        /// <summary>原版瓦片边长（px）——一个 Flash 关卡格恒为 32px（§5.4 的 <c>&gt;&gt;5</c>）。</summary>
+        public const float TilePixels = 32f;
+
+        /// <summary>
+        /// 1 格的**世界尺寸**（Unity 单位）。用户裁决 2026-09-14：格子世界尺寸 1→2 单位
+        /// （"岛 4-8 格 = 8-16 单位才够厚重"；角色自身尺寸 1.85 不乘）。
+        /// <b>改这一个数即等于给全工程所有"格语义 → 世界单位"的量乘同一个系数</b>。
+        /// </summary>
+        public const float TileWorldSize = 2f;
+
+        /// <summary>
+        /// 1 世界单位对应多少 Flash 像素 = <see cref="TilePixels"/> / <see cref="TileWorldSize"/>
+        /// = 32 / 2 = <b>16</b>（旧口径是 32）。所有 px ↔ 世界单位的换算的唯一来源。
+        /// </summary>
+        public const float PixelsPerUnit = TilePixels / TileWorldSize;
 
         /// <summary>原版帧率 25fps（§1）。</summary>
         public const float FrameRate = 25f;
@@ -167,9 +191,10 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>
         /// 水面世界 Y。落水即死（§4.4）的判据基准；对齐 Godot 基准的水位（其水面在地面下方一点）。
-        /// 比地面低 0.2 单位（≈6.4px），角色掉出地面后下落约 0.45 单位即判定落水。
+        /// 比地面低 <b>0.4 单位</b>（= 6.4px；格 1→2 单位后 px 语义不变，故由 0.2 乘 2），
+        /// 角色掉出地面后下落约 0.9 单位即判定落水。
         /// </summary>
-        public const float WaterSurfaceY = -0.2f;
+        public const float WaterSurfaceY = -0.4f;
 
         /// <summary>
         /// 投掷的固定抬升系数：<c>throwDir = normalize(水平方向 + UP * ThrowLift)</c>。
@@ -183,24 +208,25 @@ namespace PirateCrew.PirateCrew.Battle
         /// </summary>
         public const float FlashSpeedScale = 1f / (PixelsPerUnit * FrameSeconds);
 
-        /// <summary>§3.4 选中/拖拽的隐式阈值：30px（<c>minD2 = 900</c>）。屏幕空间量，与维度无关。</summary>
+        /// <summary>§3.4 选中/拖拽的隐式阈值：30px（<c>minD2 = 900</c>）。屏幕空间量，与维度、格大小无关。</summary>
         public const float SelectionRadiusPixels = 30f;
 
-        /// <summary>30px 对应的世界距离（30 / 32 = 0.9375 单位）。</summary>
+        /// <summary>30px 对应的世界距离（30 / 16 = 1.875 单位；格 1→2 单位后由 0.9375 乘 2）。</summary>
         public const float SelectionRadiusWorld = SelectionRadiusPixels / PixelsPerUnit;
 
         /// <summary>
-        /// 单位枢轴离地高度：Flash 的 <c>py = (gridY+0.5)*32 + 16 - bottomExtent</c> 里那 8px 偏移
-        /// （§4.3）。2D 时它是"屏幕上的抬高量"，3D 时它就是"世界里的站立高度"（= 0.25 单位，
-        /// 恰为本体 16px 高的一半，脚底因此贴地）。
+        /// 单位枢轴离地高度：Flash 的 <c>py = (gridY+0.5)*32 + 16 - bottomExtent</c> 里那半格偏移
+        /// （§4.3）。它是**格内偏移**（半格 = 16px），故随格世界尺寸一起放大：16px / 16px每单位
+        /// = 0.5 单位（旧口径 0.25）。角色碰撞箱半高（RootScale 0.5→1.0 × BoxCollider 1）同为 0.5，
+        /// 脚底因此贴地。
         /// </summary>
         public static float UnitPivotHeight => PixelsToUnits(16f - CrewCatalog.BottomExtent);
 
         // ------------------------------------------------------------------
-        // px ↔ 单位
+        // px / 格 ↔ 单位
         // ------------------------------------------------------------------
 
-        /// <summary>像素 → 世界单位（1 单位 = 32px）。</summary>
+        /// <summary>像素 → 世界单位（1 单位 = 16px）。</summary>
         public static float PixelsToUnits(float px)
         {
             return px / PixelsPerUnit;
@@ -212,12 +238,55 @@ namespace PirateCrew.PirateCrew.Battle
             return units * PixelsPerUnit;
         }
 
+        /// <summary>
+        /// 像素 → **格号**（栅格索引，**与格世界尺寸无关**；恒为 px / 32）。
+        /// 与 <see cref="PixelsToUnits"/> 的区别是本轮扫荡的核心：格号语义不随"1 格几个单位"变，
+        /// 凡是拿 px 去查 (gridX, gridZ) 的地方（AI 放置判定等）都必须用本函数。
+        /// </summary>
+        public static float PixelsToTiles(float px)
+        {
+            return px / TilePixels;
+        }
+
+        /// <summary>格号（含小数）→ 像素；<see cref="PixelsToTiles"/> 的逆。</summary>
+        public static float TilesToPixels(float tiles)
+        {
+            return tiles * TilePixels;
+        }
+
+        /// <summary>格号（含小数）→ 世界单位（× <see cref="TileWorldSize"/>）。</summary>
+        public static float TileToWorld(float tiles)
+        {
+            return tiles * TileWorldSize;
+        }
+
+        /// <summary>世界单位 → 格号（含小数）；<see cref="TileToWorld"/> 的逆。</summary>
+        public static float WorldToTiles(float units)
+        {
+            return units / TileWorldSize;
+        }
+
+        /// <summary>
+        /// 世界坐标 → **格号**（向下取整的栅格索引）。供地形查询（地表高度、水陆、簇归属）使用；
+        /// 越界不报错，由调用方用 <c>grid.IndexOf</c> 判空。
+        /// </summary>
+        public static int WorldToTileIndex(float units)
+        {
+            return Mathf.FloorToInt(units / TileWorldSize);
+        }
+
+        /// <summary>格号 → 该格**中心**的世界坐标（XZ 平面；不含高度）。</summary>
+        public static Vector2 TileCenterWorld(int gridX, int gridZ)
+        {
+            return new Vector2(TileToWorld(gridX + 0.5f), TileToWorld(gridZ + 0.5f));
+        }
+
         // ------------------------------------------------------------------
         // 逻辑坐标 ↔ 世界坐标（XZ 竞技场平面）
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// Flash 逻辑像素 (px, py) → **地面平面**上的世界点 (px/32, <see cref="GroundTopY"/>, py/32)。
+        /// Flash 逻辑像素 (px, py) → **地面平面**上的世界点 (px/16, <see cref="GroundTopY"/>, py/16)。
         /// 供瞄准落点、爆心等"平面位置"使用；**不**用于角色站位（那要加 <see cref="UnitPivotHeight"/>，
         /// 见 <see cref="GridToArena"/>）。
         /// </summary>
@@ -227,7 +296,7 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>
-        /// 世界坐标 → Flash 平面像素 (x*32, z*32)。
+        /// 世界坐标 → Flash 平面像素 (x*16, z*16)。
         /// 注意：<b>忽略高度 y</b>——平面分量之外的高度由爆炸结算单独按 3D 距离处理
         /// （见 <c>ExplosionResolver</c> 的三维泛化）。
         /// </summary>
@@ -238,14 +307,15 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>
         /// 关卡 XML 瓦片格坐标 → 单位站位世界坐标（§4.3）。
-        /// 横向 X = gridX + 0.5；纵深 Z = gridY + 0.5；高度 Y = 地面 + <see cref="UnitPivotHeight"/>（脚底贴地）。
+        /// 横向 X = (gridX + 0.5) × <see cref="TileWorldSize"/>；纵深 Z 同理；
+        /// 高度 Y = 地面 + <see cref="UnitPivotHeight"/>（脚底贴地）。
         /// </summary>
         public static Vector3 GridToArena(int gridX, int gridY)
         {
             return new Vector3(
-                gridX + 0.5f,
+                TileToWorld(gridX + 0.5f),
                 GroundTopY + UnitPivotHeight,
-                gridY + 0.5f);
+                TileToWorld(gridY + 0.5f));
         }
 
         // ------------------------------------------------------------------

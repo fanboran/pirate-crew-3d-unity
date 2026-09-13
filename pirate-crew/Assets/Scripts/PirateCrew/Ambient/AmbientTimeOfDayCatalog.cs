@@ -124,7 +124,7 @@ namespace PirateCrew.PirateCrew.Ambient
                     return new AmbientLightingPreset(
                         AmbientTimeOfDay.Dusk,
                         Hex(DuskSunHex), 0.93f, new Vector3(24f, -30f, 0f),
-                        Hex(DuskFogHex), 22f, 120f,
+                        Hex(DuskFogHex), 44f, 240f,
                         Hex(DuskAmbientHex), 0.765f,
                         Hex(DuskSkyHex));
 
@@ -132,7 +132,7 @@ namespace PirateCrew.PirateCrew.Ambient
                     return new AmbientLightingPreset(
                         AmbientTimeOfDay.Overcast,
                         Hex(OvercastSunHex), 0.81f, new Vector3(56f, -28f, 0f),
-                        Hex(OvercastFogHex), 18f, 100f,
+                        Hex(OvercastFogHex), 36f, 200f,
                         Hex(OvercastAmbientHex), 0.64f,
                         Hex(OvercastSkyHex));
 
@@ -140,7 +140,7 @@ namespace PirateCrew.PirateCrew.Ambient
                     return new AmbientLightingPreset(
                         AmbientTimeOfDay.Noon,
                         Hex(NoonSunHex), 1.55f, new Vector3(48f, 140f, 0f),
-                        Hex(NoonFogHex), 25f, 140f,
+                        Hex(NoonFogHex), 50f, 280f,
                         Hex(NoonAmbientHex), 0.85f,
                         Hex(NoonSkyHex));
             }

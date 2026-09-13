@@ -56,7 +56,7 @@ namespace PirateCrew.PirateCrew.Fx
                 StartAlpha = 1.00f,
                 EndAlpha = 0.60f,
                 FadeStart = 0.30f,
-                RiseSpeed = 0.40f,
+                RiseSpeed = 0.8f,
                 SortingFudge = -3f,
             });
 
@@ -77,7 +77,7 @@ namespace PirateCrew.PirateCrew.Fx
                 StartAlpha = 0.80f,                    // r6：原 0.95
                 EndAlpha = 0.25f,                      // r6：原 0.45（中透体，不再糊成一片白）
                 FadeStart = 0.40f,
-                RiseSpeed = 1.20f,
+                RiseSpeed = 2.4f,
                 SortingFudge = -2f,
             });
 
@@ -140,7 +140,7 @@ namespace PirateCrew.PirateCrew.Fx
                 StartAlpha = 0.42f,                    // r6：原 0.70（半透明白卡片的本体之一）
                 EndAlpha = 0.16f,                      // r6：原 0.30
                 FadeStart = 0.45f,
-                RiseSpeed = 0.30f,
+                RiseSpeed = 0.6f,
                 SortingFudge = 2f,
             });
 
@@ -152,7 +152,7 @@ namespace PirateCrew.PirateCrew.Fx
                 Count = FxRules.SmokeParticles(explosionSize),
                 Lifetime = FxRules.SmokeLifetime(explosionSize),
                 LifetimeVariance = 0.30f,
-                Speed = 0.80f,
+                Speed = 1.6f,
                 SpeedVariance = 0.50f,
                 StartSize = FxRules.SmokeStartSize(explosionSize),
                 EndSize = 2.20f,
@@ -199,16 +199,16 @@ namespace PirateCrew.PirateCrew.Fx
                 Count = Mathf.RoundToInt(10f * s),
                 Lifetime = 0.55f,
                 LifetimeVariance = 0.35f,
-                Speed = 1.60f * s,
+                Speed = 3.2f * s,
                 SpeedVariance = 0.45f,
-                StartSize = 0.09f * s,
+                StartSize = 0.18f * s,
                 EndSize = 2.10f,
                 Gravity = 0.20f,
-                Radius = 0.16f * s,
+                Radius = 0.32f * s,
                 StartAlpha = 0.70f,
                 EndAlpha = 0.30f,
                 FadeStart = 0.45f,
-                RiseSpeed = 0.35f,
+                RiseSpeed = 0.7f,
                 SortingFudge = 2f,
             });
 
@@ -219,16 +219,16 @@ namespace PirateCrew.PirateCrew.Fx
                 Count = Mathf.RoundToInt(5f * s),
                 Lifetime = 0.80f,
                 LifetimeVariance = 0.30f,
-                Speed = 0.60f,
+                Speed = 1.2f,
                 SpeedVariance = 0.40f,
-                StartSize = 0.16f * s,
+                StartSize = 0.32f * s,
                 EndSize = 1.90f,
                 Gravity = 0f,
-                Radius = 0.14f * s,
+                Radius = 0.28f * s,
                 StartAlpha = 0.45f,
                 EndAlpha = 0.25f,
                 FadeStart = 0.40f,
-                RiseSpeed = 0.55f,
+                RiseSpeed = 1.1f,
                 SortingFudge = 3f,
             });
         }

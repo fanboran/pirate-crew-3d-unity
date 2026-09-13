@@ -275,16 +275,17 @@ namespace PirateCrew.PirateCrew.SceneArt
     /// </summary>
     public static class SceneKitCatalog
     {
-        /// <summary>大船配方（战场主簇：长条形 15×8 格，甲板高 2 块起）。</summary>
+        /// <summary>大船配方（战场主簇：长条形 15×8 格，甲板高 2 块起）。
+        /// 【格 1→2 单位】全部世界尺寸 ×2（桅数/炮数等无量纲量不动）。</summary>
         public static readonly ShipRecipe LargeShipRecipe = new ShipRecipe(
-            "galleon", hullLength: 14f, hullBeam: 7f, hullHeight: 1.15f,
-            bowLength: 4.2f, sternLength: 3.4f, mastCount: 2, mastHeight: 4.2f,
+            "galleon", hullLength: 28f, hullBeam: 14f, hullHeight: 2.3f,
+            bowLength: 8.4f, sternLength: 6.8f, mastCount: 2, mastHeight: 8.4f,
             hasSails: true, cannonCount: 4);
 
-        /// <summary>小艇配方（侧翼簇 / 小空岛跳板，约为大船一半）。</summary>
+        /// <summary>小艇配方（侧翼簇 / 小空岛跳板，约为大船一半）。世界尺寸 ×2。</summary>
         public static readonly ShipRecipe SmallBoatRecipe = new ShipRecipe(
-            "longboat", hullLength: 7f, hullBeam: 4f, hullHeight: 0.8f,
-            bowLength: 2.2f, sternLength: 1.8f, mastCount: 1, mastHeight: 2.5f,
+            "longboat", hullLength: 14f, hullBeam: 8f, hullHeight: 1.6f,
+            bowLength: 4.4f, sternLength: 3.6f, mastCount: 1, mastHeight: 5f,
             hasSails: true, cannonCount: 1);
 
         /// <summary>
@@ -513,8 +514,8 @@ namespace PirateCrew.PirateCrew.SceneArt
         {
             var offsets = new List<float>(4);
             float halfLen = hullLength * 0.5f;
-            float limit = Mathf.Max(0f, halfLen - 1.2f);
-            float centerX = (group.X0 + group.X1 + 1f) * 0.5f;
+            float limit = Mathf.Max(0f, halfLen - 2.4f);   // 端部留白 ×2
+            float centerX = LevelGeometry.TileToWorld((group.X0 + group.X1 + 1) * 0.5f);
 
             // 桅区：桅簇按 **X 起止**升序并集（间距 ≤1 格视为同一根桅的图形）。
             // 【必须按 X 排序，不能按下标】并集只与"已生成的最后一个区间"比较，
@@ -546,8 +547,9 @@ namespace PirateCrew.PirateCrew.SceneArt
                 for (int m = 0; m < count; m++)
                 {
                     float t = count == 1 ? 0.5f : (m + 0.5f) / count;
-                    // 格 → 世界：第 gx 格占 [gx, gx+1]，故桅区右端取 y+1。
-                    float worldX = Mathf.Lerp(regions[r].x, regions[r].y + 1, t);
+                    // 格 → 世界：第 gx 格占 [gx, gx+1]（× TileWorldSize），故桅区右端取 y+1。
+                    float worldX = LevelGeometry.TileToWorld(
+                        Mathf.Lerp(regions[r].x, regions[r].y + 1, t));
                     offsets.Add(Mathf.Clamp(worldX - centerX, -limit, limit));
                 }
             }
@@ -663,16 +665,17 @@ namespace PirateCrew.PirateCrew.SceneArt
             // 内倾舷墙+艉板+龙骨+艏斜桁，几何见该文件）。吃深按船宽的 55% 给真实比例。
             parts.Add(new KitPart(SceneKitPiece.ShipHullLoft, SceneKitMaterial.Wood,
                 deckCenter, yawDegrees, hullBeam,
-                hullLength, Mathf.Max(1.4f, hullBeam * 0.55f)));
+                hullLength, Mathf.Max(2.8f, hullBeam * 0.55f)));   // 吃深下限 ×2
 
             // ---- 甲板铺板（沿长轴一条条；可站面由地形格提供，铺板是贴面装饰） ----
-            int planks = Mathf.Max(3, Mathf.RoundToInt(hullBeam / 0.9f));
+            // 板宽 0.9→1.8、舷边留白 0.35→0.7、抬升 0.03→0.06、板长端距 0.4→0.8、板厚 0.06→0.12（世界值 ×2）
+            int planks = Mathf.Max(3, Mathf.RoundToInt(hullBeam / 1.8f));
             for (int i = 0; i < planks; i++)
             {
-                float lateral = Mathf.Lerp(-halfBeam + 0.35f, halfBeam - 0.35f, (i + 0.5f) / planks);
+                float lateral = Mathf.Lerp(-halfBeam + 0.7f, halfBeam - 0.7f, (i + 0.5f) / planks);
                 parts.Add(new KitPart(SceneKitPiece.DeckPlank, SceneKitMaterial.Wood,
-                    P(0f, lateral) + Vector3.up * 0.03f, yawDegrees, 1f,
-                    hullLength - 0.4f, 0.06f));
+                    P(0f, lateral) + Vector3.up * 0.06f, yawDegrees, 1f,
+                    hullLength - 0.8f, 0.12f));
             }
 
             // （舷墙/艏饰已并入放样船体本体——栏杆帽/艉板/艏斜桁见 ShipHullGeometry。）
@@ -689,7 +692,7 @@ namespace PirateCrew.PirateCrew.SceneArt
                 Vector3 mastBase = P(along, 0f);
 
                 parts.Add(new KitPart(SceneKitPiece.Mast, SceneKitMaterial.Wood,
-                    mastBase, yawDegrees, 1f, 0.14f, recipe.MastHeight));
+                    mastBase, yawDegrees, 1f, 0.28f, recipe.MastHeight));   // 桅径 ×2
 
                 // 索具：桅顶 → 艏、艉、两舷各一根。
                 parts.Add(new KitPart(SceneKitPiece.Rigging, SceneKitMaterial.Cloth,
@@ -704,7 +707,7 @@ namespace PirateCrew.PirateCrew.SceneArt
                 // 横桁：挂帆的横向木杆（沿船宽），摆在帆的顶缘之上 —— 帆"挂"在桁上。
                 parts.Add(new KitPart(SceneKitPiece.Yard, SceneKitMaterial.Wood,
                     mastBase + Vector3.up * (recipe.MastHeight * 0.82f), yawDegrees + 90f, 1f,
-                    hullBeam * 0.95f, 0.12f));
+                    hullBeam * 0.95f, 0.24f));   // 桁径 ×2
 
                 if (recipe.HasSails)
                 {
@@ -716,7 +719,7 @@ namespace PirateCrew.PirateCrew.SceneArt
                 // 桅顶瞭望巢（乌鸦巢）：每桅必有 —— 它是"这是船"的辨认特征之一。
                 parts.Add(new KitPart(SceneKitPiece.CrowNest, SceneKitMaterial.Wood,
                     mastBase + Vector3.up * (recipe.MastHeight * 0.94f), yawDegrees, 0.3f,
-                    0.36f, 0.26f));
+                    0.72f, 0.52f));   // 鸦巢半径/高 ×2（scale 倍率 0.3 不动）
             }
 
             // ---- 舰炮（沿两舷，简化：炮管 + 轮座） ----
@@ -726,8 +729,8 @@ namespace PirateCrew.PirateCrew.SceneArt
                     recipe.CannonCount == 1 ? 0.5f : c / (float)(recipe.CannonCount - 1));
                 int s = c % 2 == 0 ? -1 : 1;
                 parts.Add(new KitPart(SceneKitPiece.Prop, SceneKitMaterial.Metal,
-                    P(along, s * (halfBeam - 0.25f)) + Vector3.up * 0.35f,
-                    yawDegrees + (s < 0 ? 90f : -90f), 1f, 0.7f, 0.35f));
+                    P(along, s * (halfBeam - 0.5f)) + Vector3.up * 0.7f,
+                    yawDegrees + (s < 0 ? 90f : -90f), 1f, 1.4f, 0.7f));   // 炮管内缩/抬高/尺寸 ×2
             }
 
             return parts;
@@ -802,18 +805,20 @@ namespace PirateCrew.PirateCrew.SceneArt
                 // 它已折进 grid 的块高；kit 的摆放高度必须走同一口径，否则船/岛会"沉在岛底平面里"。
                 float topY = LevelGeometry.GroundTopY + (primary.MaxBlocks + primary.BaseBlocks) * block;
                 float deckY = LevelGeometry.GroundTopY + (primary.MinBlocks + primary.BaseBlocks) * block;
-                float cx = (group.X0 + group.X1 + 1f) * 0.5f;                 // 族包络中心（合并后的船/岛中点）
-                float cz = (primary.Z0 + primary.Z1 + 1f) * 0.5f;             // 纵深取主簇（船体自身的格纵深）
-                int width = group.WidthTiles;                                // = 船体长度（1 格 = 1 世界单位）
-                int depth = group.DepthTiles;
+                // 格包络 → 世界（1 格 = LevelGeometry.TileWorldSize 单位）。
+                float cx = LevelGeometry.TileToWorld((group.X0 + group.X1 + 1) * 0.5f);      // 族包络中心
+                float cz = LevelGeometry.TileToWorld((primary.Z0 + primary.Z1 + 1) * 0.5f);  // 纵深取主簇
+                float width = LevelGeometry.TileToWorld(group.WidthTiles);                   // = 船体长度（世界）
+                float depth = LevelGeometry.TileToWorld(group.DepthTiles);
 
                 if (group.Kind == PlatformClusterKind.Ship)
                 {
                     // 整船剪影：长度取原版船区 X 跨度（含桅）、船宽取主船体区纵深、桅位取原版桅区。
                     float length = width;
-                    float beam = Mathf.Clamp(primary.DepthTiles, 2.4f, LargeShipRecipe.HullBeam);
-                    float bowLength = Mathf.Clamp(length * 0.28f, 0.9f, 5.4f);
-                    float sternLength = Mathf.Clamp(length * 0.22f, 0.8f, 4.4f);
+                    float beam = Mathf.Clamp(LevelGeometry.TileToWorld(primary.DepthTiles),
+                        4.8f, LargeShipRecipe.HullBeam);          // 船宽下限与格纵深换算 ×2
+                    float bowLength = Mathf.Clamp(length * 0.28f, 1.8f, 10.8f);
+                    float sternLength = Mathf.Clamp(length * 0.22f, 1.6f, 8.8f);
                     ShipRecipe recipe = length >= 10f ? LargeShipRecipe : SmallBoatRecipe;
 
                     List<KitPart> ship = BuildCompleteShip(recipe, new Vector3(cx, deckY, cz), 0f,
@@ -825,8 +830,8 @@ namespace PirateCrew.PirateCrew.SceneArt
                 else if (group.Kind == PlatformClusterKind.SkyIsland)
                 {
                     // 空岛 = 岩体 + 岛顶岩唇 + **整片草顶**（用户裁决 4：草只在顶面整片，不是方块摆件）。
-                    float rx = width * 0.5f - 0.05f;
-                    float rz = depth * 0.5f - 0.05f;
+                    float rx = width * 0.5f - 0.1f;      // 收边内缩 ×2
+                    float rz = depth * 0.5f - 0.1f;
                     AddPart(new KitPart(SceneKitPiece.IslandTop, SceneKitMaterial.Rock,
                         new Vector3(cx, topY, cz), 0f, 1f, rx, rz));
 
@@ -837,7 +842,7 @@ namespace PirateCrew.PirateCrew.SceneArt
                         AddPart(new KitPart(SceneKitPiece.RockChunk, SceneKitMaterial.Rock,
                             new Vector3(cx + Mathf.Cos(ang) * rx * 0.9f, topY, cz + Mathf.Sin(ang) * rz * 0.9f),
                             SceneArtHash.Hash01(seed, i, clusterIndex) * 360f,
-                            0.28f + SceneArtHash.Hash01(seed, i, clusterIndex + 7) * 0.25f, 0f, 0f));
+                            0.56f + SceneArtHash.Hash01(seed, i, clusterIndex + 7) * 0.5f, 0f, 0f));  // 岩块尺度 ×2
                     }
 
                     // 出生岛是"沙台地 + 栏杆"，不铺草（语义交给地形壳的沙/草/岩高度混合）。
@@ -847,10 +852,11 @@ namespace PirateCrew.PirateCrew.SceneArt
                     // 棕榈只作大岛的竖向剪影（Foliage，与岩族同族）。
                     if (width > 5 && depth > 2)
                     {
+                        // 摆位偏移是绝对世界值 → ×2（scale 是倍率，不动）
                         AddProp(layout, clusterIndex, ScenePropKind.Palm,
-                            new Vector3(cx - 1.5f, topY, cz - 1.0f), seed + 1, 4.5f);
+                            new Vector3(cx - 3.0f, topY, cz - 2.0f), seed + 1, 4.5f);
                         AddProp(layout, clusterIndex, ScenePropKind.Palm,
-                            new Vector3(cx + 1.2f, topY, cz + 1.5f), seed + 2, 5.2f);
+                            new Vector3(cx + 2.4f, topY, cz + 3.0f), seed + 2, 5.2f);
                     }
                 }
                 else
@@ -880,10 +886,11 @@ namespace PirateCrew.PirateCrew.SceneArt
                                 if (SceneArtHash.Hash01(gx, gz, 77) > 0.26f)
                                     continue;
 
-                                float r = 0.16f + SceneArtHash.Hash01(gx, gz, 78) * 0.26f;
+                                float r = 0.32f + SceneArtHash.Hash01(gx, gz, 78) * 0.52f;   // 礁石尺度 ×2
                                 AddPart(new KitPart(SceneKitPiece.RockChunk, SceneKitMaterial.Rock,
-                                    new Vector3(gx + 0.5f,
-                                        LevelGeometry.GroundTopY + (blocks + memberBaseBlocks) * block, gz + 0.5f),
+                                    new Vector3(LevelGeometry.TileToWorld(gx + 0.5f),
+                                        LevelGeometry.GroundTopY + (blocks + memberBaseBlocks) * block,
+                                        LevelGeometry.TileToWorld(gz + 0.5f)),
                                     SceneArtHash.Hash01(gx, gz, 79) * 360f, r, 0f, 0f));
                             }
                         }
@@ -892,18 +899,19 @@ namespace PirateCrew.PirateCrew.SceneArt
                     // 梯田顶面一圈岩唇（沙岩梯田的收边）——**每族一圈**（相邻同高差的小岛并成一座岛，
                     // 只留一圈外缘；否则每座碎岛各带一圈，读成"一圈圈重复的岩唇"）。
                     AddPart(new KitPart(SceneKitPiece.IslandTop, SceneKitMaterial.Rock,
-                        new Vector3(cx, topY, cz), 0f, 1f, width * 0.5f - 0.05f, depth * 0.5f - 0.05f));
+                        new Vector3(cx, topY, cz), 0f, 1f, width * 0.5f - 0.1f, depth * 0.5f - 0.1f));
 
                     // 梯田陈设（用户裁决 4：「草只长在沙边上，不叠木板上」）：
                     // 原实现摆 Palm + Crate + Barrel（木箱木桶叠在岩台上 = 被点名的"混搭"），
                     // 现只留沙缘植被（Foliage），木器交给船簇（Ship 的甲板语汇）。
                     AddProp(layout, clusterIndex, ScenePropKind.Palm,
-                        new Vector3(group.X0 + 1.5f, topY, cz), seed + 11, 4.8f);
+                        new Vector3(LevelGeometry.TileToWorld(group.X0 + 1.5f), topY, cz), seed + 11, 4.8f);
                     AddProp(layout, clusterIndex, ScenePropKind.Palm,
-                        new Vector3(group.X1 - 1.5f, topY, cz - 1f), seed + 14, 5.5f);
-                    if (depth >= 5)
+                        new Vector3(LevelGeometry.TileToWorld(group.X1 - 1.5f), topY, cz - 2f), seed + 14, 5.5f);
+                    // depth 已是世界纵深：5 格 = 10 世界单位。
+                    if (depth >= 10f)
                         AddProp(layout, clusterIndex, ScenePropKind.Palm,
-                            new Vector3(cx, topY, group.Z1 - 1f), seed + 15, 4.2f);
+                            new Vector3(cx, topY, LevelGeometry.TileToWorld(group.Z1 - 1f)), seed + 15, 4.2f);
                 }
 
                 // 出生簇标识：**每个**出生簇都要（含被并进本族的成员），保证"出生岛 = 沙台地 + 栏杆"
@@ -914,7 +922,8 @@ namespace PirateCrew.PirateCrew.SceneArt
                     PlatformClusterInfo member = map.Clusters[memberIndex];
                     float memberTopY = LevelGeometry.GroundTopY
                         + (member.MaxBlocks + member.BaseBlocks) * block;
-                    AddSpawnAccent(layout, member, memberIndex, memberTopY, member.WidthTiles, seed + memberIndex);
+                    AddSpawnAccent(layout, member, memberIndex, memberTopY,
+                        LevelGeometry.TileToWorld(member.WidthTiles), seed + memberIndex);
                 }
             }
 
@@ -929,10 +938,10 @@ namespace PirateCrew.PirateCrew.SceneArt
         /// （新枚举值<b>必须</b>同步加进 <c>SceneKitComposer</c> 的 switch，否则会走进 default 分支
         /// **静默无几何** —— 看不见的构件比"名字不贴切"危险得多。）
         /// </summary>
-        static void AddGrassCap(SceneKitLayout layout, int clusterIndex, int width, int depth,
+        static void AddGrassCap(SceneKitLayout layout, int clusterIndex, float width, float depth,
             float cx, float cz, float topY)
         {
-            const float stripWidth = 0.5f;   // 与 SceneKitComposer 里 AddDeckPlank 的硬编码板宽一致
+            const float stripWidth = 1.0f;   // 与 SceneKitComposer 里 AddDeckPlank 的板宽同口径（世界值 ×2）
             int strips = Mathf.Clamp(Mathf.RoundToInt(depth / stripWidth), 1, 24);
 
             for (int i = 0; i < strips; i++)
@@ -940,7 +949,7 @@ namespace PirateCrew.PirateCrew.SceneArt
                 float t = (i + 0.5f) / strips;
                 float z = cz + (t - 0.5f) * depth;
                 layout.Add(new KitPart(SceneKitPiece.DeckPlank, SceneKitMaterial.Foliage,
-                    new Vector3(cx, topY, z), 0f, 1f, Mathf.Max(0.6f, width - 0.6f), 0.06f)
+                    new Vector3(cx, topY, z), 0f, 1f, Mathf.Max(1.2f, width - 1.2f), 0.12f)
                     .WithCluster(clusterIndex));
             }
         }
@@ -950,25 +959,28 @@ namespace PirateCrew.PirateCrew.SceneArt
         /// 一圈收边栏杆（Wood，跨族例外）恒定，陈设按 Kind 分族——
         /// 船簇（甲板语汇）摆木箱/木桶，岛簇（岩沙语汇）只摆铁锚，**不摆木器**（消灭"木板上摆草方块"式的混搭）。
         /// </summary>
+        /// <param name="width">簇的世界宽度（调用方已用 <c>TileToWorld</c> 换算）。</param>
         static void AddSpawnAccent(SceneKitLayout layout, in PlatformClusterInfo info, int clusterIndex,
-            float topY, int width, int seed)
+            float topY, float width, int seed)
         {
             if (!info.IsSpawnCluster)
                 return;
 
-            float cx = (info.X0 + info.X1 + 1f) * 0.5f;
-            float cz = (info.Z0 + info.Z1 + 1f) * 0.5f;
+            float cx = LevelGeometry.TileToWorld((info.X0 + info.X1 + 1) * 0.5f);
+            float cz = LevelGeometry.TileToWorld((info.Z0 + info.Z1 + 1) * 0.5f);
 
+            // 栏杆：抬高 0.22→0.44、贴边 0.6→1.2、长/高与下限 ×2（世界值）。
             layout.Add(new KitPart(SceneKitPiece.Bulwark, SceneKitMaterial.Wood,
-                new Vector3(cx, topY + 0.22f, info.Z0 + 0.6f), 0f, 1f,
-                Mathf.Max(1.5f, width - 0.6f), 0.4f).WithCluster(clusterIndex));
+                new Vector3(cx, topY + 0.44f, LevelGeometry.TileToWorld(info.Z0) + 1.2f), 0f, 1f,
+                Mathf.Max(3f, width - 1.2f), 0.8f).WithCluster(clusterIndex));
 
             if (info.Kind != PlatformClusterKind.Ship)
                 return;   // 岛簇出生岛 = 沙台地 + 栏杆（不再叠加铁锚/木器，保持材质族纯净）
 
-            AddProp(layout, clusterIndex, ScenePropKind.Anchor, new Vector3(info.X0 + 1.2f, topY, cz), seed + 31, 1f);
-            AddProp(layout, clusterIndex, ScenePropKind.Crate, new Vector3(cx - 0.8f, topY, cz + 0.9f), seed + 32, 1f);
-            AddProp(layout, clusterIndex, ScenePropKind.Barrel, new Vector3(cx + 0.9f, topY, cz - 0.9f), seed + 33, 1f);
+            AddProp(layout, clusterIndex, ScenePropKind.Anchor,
+                new Vector3(LevelGeometry.TileToWorld(info.X0) + 2.4f, topY, cz), seed + 31, 1f);
+            AddProp(layout, clusterIndex, ScenePropKind.Crate, new Vector3(cx - 1.6f, topY, cz + 1.8f), seed + 32, 1f);
+            AddProp(layout, clusterIndex, ScenePropKind.Barrel, new Vector3(cx + 1.8f, topY, cz - 1.8f), seed + 33, 1f);
         }
 
         static void AddProp(SceneKitLayout layout, int clusterIndex, ScenePropKind kind, Vector3 pos,

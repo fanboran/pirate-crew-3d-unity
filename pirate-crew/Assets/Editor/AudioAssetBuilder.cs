@@ -117,16 +117,34 @@ namespace PirateCrew.EditorTools
         public static void VerifyOnly()
         {
             int missing = 0;
+
+            // 程序化合成资产
             foreach (SfxRecipe recipe in SfxCatalog.All)
             {
+                if (!SynthRenderer.CanRender(recipe.Id))
+                    continue; // 纯外部搬运素材不在合成清单内（见 ②）
                 if (!File.Exists(PathFor(recipe)))
                     missing++;
+            }
+
+            // ② 搬运素材的各变奏目标资产（源目录在不在无所谓：wav 已随工程提交）
+            Game2Port[] ports = Game2AudioAssets.All;
+            for (int p = 0; p < ports.Length; p++)
+            {
+                string[] names = Game2AudioAssets.TargetFileNames(ports[p].Id);
+                for (int v = 0; v < names.Length; v++)
+                {
+                    if (!File.Exists(AudioRoot + "/" + names[v] + ".wav"))
+                        missing++;
+                }
             }
 
             if (missing > 0)
                 throw new Exception("[AudioAssetBuilder] 缺少 " + missing + " 个音频资产，请先执行 BuildAll。");
 
-            Debug.Log("[AudioAssetBuilder] 校验通过：" + SfxCatalog.Count + " 个资产齐全。");
+            Debug.Log("[AudioAssetBuilder] 校验通过：合成 " + SynthRenderer.RenderableIds().Length
+                      + " 条 + 搬运 " + Game2AudioAssets.Count + " 条（共 "
+                      + Game2AudioAssets.AllTargetFileNames().Count + " 个变奏资产）齐全。");
         }
 
         static void Build(bool force)
@@ -135,14 +153,17 @@ namespace PirateCrew.EditorTools
 
             int written = 0;
             int unchanged = 0;
-            int settingsFixed = 0;
             int failed = 0;
 
+            // ① 程序化合成（只处理有合成实现的 id；纯外部素材见 ②）
             foreach (SfxRecipe recipe in SfxCatalog.All)
             {
+                if (!SynthRenderer.CanRender(recipe.Id))
+                    continue;
+
                 try
                 {
-                    if (!BuildOne(recipe, force, out bool wrote, out bool fixedSettings))
+                    if (!BuildOne(recipe, force, out bool wrote, out _))
                     {
                         failed++;
                         continue;
@@ -152,9 +173,6 @@ namespace PirateCrew.EditorTools
                         written++;
                     else
                         unchanged++;
-
-                    if (fixedSettings)
-                        settingsFixed++;
                 }
                 catch (Exception e)
                 {
@@ -163,17 +181,91 @@ namespace PirateCrew.EditorTools
                 }
             }
 
+            // ② 外部搬运素材（隔壁 Game-2 自产 WAV）：源目录在就按字节幂等同步；
+            //    源目录不在也不报错——wav 已随工程提交，构建不依赖别的仓库 checkout。
+            int portedMissing = SyncPortedAssets(force, out int portedCopied, out int portedUnchanged, out int portedSettingsFixed);
+
             int removed = RemoveStaleAssets();
             bool readmeChanged = WriteReadme();
             AssetDatabase.Refresh();
 
-            Debug.Log("[AudioAssetBuilder] 完成：写盘 " + written + "，未变 " + unchanged
-                      + "，修正导入设置 " + settingsFixed + "，删除孤儿 " + removed
+            Debug.Log("[AudioAssetBuilder] 完成：合成写盘 " + written + "，未变 " + unchanged
+                      + "；搬运拷贝 " + portedCopied + "，未变 " + portedUnchanged
+                      + "，修正导入设置 " + portedSettingsFixed
+                      + "，源缺失 " + portedMissing
+                      + "，删除孤儿 " + removed
                       + "，README " + (readmeChanged ? "更新" : "未变")
                       + "，失败 " + failed + "。资产根目录 " + AudioRoot);
 
             if (failed > 0)
                 throw new Exception("[AudioAssetBuilder] 有 " + failed + " 个音频资产生成失败，详见 Console。");
+
+            if (portedMissing > 0)
+            {
+                Debug.LogWarning("[AudioAssetBuilder] 有 " + portedMissing
+                                 + " 个搬运变奏既没有源文件、目标资产也不存在，运行时该变奏缺失（其余变奏不受影响）。");
+            }
+        }
+
+        /// <summary>
+        /// 把 <see cref="Game2AudioAssets"/> 登记的搬运素材同步到 <see cref="AudioRoot"/>。
+        ///
+        /// 【幂等与 GUID】判据与程序化合成完全一致——**字节相同就不写盘、不重新导入**
+        /// （主变奏的文件名与搬运前同名，所以覆盖写也不会改 GUID；
+        /// 新变奏在资产首次导入时由 Unity 落 .meta 并保持，之后每次构建都跳过写盘）。
+        /// 传入 <paramref name="force"/> 时强制重写（对应「强制重建」菜单）。
+        ///
+        /// 【返回】既没有源文件、目标资产也不存在的变奏数（真正的交付缺口）。
+        /// </summary>
+        static int SyncPortedAssets(bool force, out int copied, out int unchanged, out int settingsFixed)
+        {
+            copied = 0;
+            unchanged = 0;
+            settingsFixed = 0;
+            int missing = 0;
+
+            Game2Port[] ports = Game2AudioAssets.All;
+            for (int p = 0; p < ports.Length; p++)
+            {
+                Game2Port port = ports[p];
+                SfxRecipe recipe = SfxCatalog.Get(port.Id);
+
+                for (int v = 0; v < port.VariantCount; v++)
+                {
+                    string targetPath = AudioRoot + "/" + Game2AudioAssets.TargetFileName(port.Id, v) + ".wav";
+                    string sourcePath = Game2AudioAssets.SourcePath(port, v);
+
+                    if (sourcePath == null || !File.Exists(sourcePath))
+                    {
+                        if (!File.Exists(targetPath))
+                        {
+                            missing++;
+                            Debug.LogWarning("[AudioAssetBuilder] 搬运源缺失且目标不存在：" + port.Id
+                                             + " 变奏 " + (v + 1) + "（源 " + sourcePath + "）");
+                        }
+
+                        continue;
+                    }
+
+                    byte[] bytes = File.ReadAllBytes(sourcePath);
+                    bool wrote = force || !BytesEqual(targetPath, bytes);
+                    if (wrote)
+                    {
+                        File.WriteAllBytes(targetPath, bytes);
+                        AssetDatabase.ImportAsset(targetPath, ImportAssetOptions.ForceUpdate);
+                        copied++;
+                    }
+                    else
+                    {
+                        unchanged++;
+                    }
+
+                    if (ApplyImportSettings(recipe, targetPath))
+                        settingsFixed++;
+                }
+            }
+
+            return missing;
         }
 
         static bool BuildOne(SfxRecipe recipe, bool force, out bool wrote, out bool settingsFixed)
@@ -306,6 +398,10 @@ namespace PirateCrew.EditorTools
             foreach (SfxRecipe recipe in SfxCatalog.All)
                 expected.Add(Path.GetFileName(PathFor(recipe)));
 
+            // 搬运素材的变奏（SfxExplosion_2.wav 等）也是合法资产，不能被当成孤儿删掉
+            foreach (string portedName in Game2AudioAssets.AllTargetFileNames())
+                expected.Add(portedName);
+
             int removed = 0;
             string[] guids = AssetDatabase.FindAssets("t:AudioClip", new[] { AudioRoot });
             for (int i = 0; i < guids.Length; i++)
@@ -347,9 +443,12 @@ namespace PirateCrew.EditorTools
             sb.AppendLine("# 程序化音频资产（Sfx / Ambient / Music）");
             sb.AppendLine();
             sb.AppendLine("> wav 落在构建资产目录 `Assets/Resources/PirateCrewAudio/`（平铺，分类只体现在文件名前缀），");
-            sb.AppendLine("> 由 `Assets/Editor/AudioAssetBuilder.cs` **程序化合成**生成，");
-            sb.AppendLine("> 不是下载或外部素材：波形 100% 来自 `Assets/Scripts/PirateCrew/Audio/Synth/` 的");
-            sb.AppendLine("> 纯函数（正弦/三角/噪声 + ADSR + 滤波 + Schroeder 混响 + 和弦工具），零版权风险。");
+            sb.AppendLine("> 由两类来源组成：");
+            sb.AppendLine("> ① **程序化合成**：波形 100% 来自 `Assets/Scripts/PirateCrew/Audio/Synth/` 的");
+            sb.AppendLine(">    纯函数（正弦/三角/噪声 + ADSR + 滤波 + Schroeder 混响 + 和弦工具），零版权风险；");
+            sb.AppendLine("> ② **搬运**：隔壁同一作者的 Game-2（stick-world）自产 WAV，映射表见");
+            sb.AppendLine(">    `Assets/Scripts/PirateCrew/Audio/Game2AudioAssets.cs`（每条都登记了源文件相对路径，可逐条核对）；");
+            sb.AppendLine(">    这类资产的文件名与搬运前一致或加 `_2`/`_3` 变奏后缀，由本脚本按「字节不变则不写」幂等同步。");
             sb.AppendLine("> 本 README 留在 `Assets/Art/Audio/`（文档不进构建）。");
             sb.AppendLine("> 重新生成：菜单 `PirateCrew/音频/生成程序化音频资产（幂等）`，或");
             sb.AppendLine("> `-executeMethod PirateCrew.EditorTools.AudioAssetBuilder.BuildAll`。");
@@ -390,6 +489,29 @@ namespace PirateCrew.EditorTools
                   .AppendLine(" |");
             }
 
+            sb.AppendLine();
+            sb.AppendLine("## 搬运素材清单（源：隔壁 Game-2 自产 WAV）");
+            sb.AppendLine();
+            sb.AppendLine("映射的唯一定义在 `Assets/Scripts/PirateCrew/Audio/Game2AudioAssets.cs`，本表由它生成；");
+            sb.AppendLine("「目标事件」为空表示没有对应 EventBus 事件、需要手动调 `AudioService` 的公开 API。");
+            sb.AppendLine();
+            sb.AppendLine("| 本项目音效 | 目标资产（第 1 个是主变奏） | 源文件（相对 Game-2 assets/audio） | 目标事件 | 说明 |");
+            sb.AppendLine("| --- | --- | --- | --- | --- |");
+
+            foreach (Game2Port port in Game2AudioAssets.All)
+            {
+                string[] targets = Game2AudioAssets.TargetFileNames(port.Id);
+                sb.Append("| ").Append(port.Id)
+                  .Append(" | ").Append(string.Join(", ", targets)).Append(".wav")
+                  .Append(" | ").Append(string.Join(", ", port.Sources))
+                  .Append(" | ").Append(port.WiredToEventBus ? port.EventName : "（无事件）")
+                  .Append(" | ").Append(port.Note)
+                  .AppendLine(" |");
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("> 变奏（`_2`/`_3`…）由播放侧随机抽取，配合 `AudioVariation` 的 ±8% 音高 / ±10% 音量抖动消解重复感；");
+            sb.AppendLine("> 主变奏的文件名与搬运前完全一致，因此覆盖写不会改变 Unity 资产 GUID。");
             sb.AppendLine();
             sb.AppendLine("## 剪辑解析（资产优先，回退兜底）");
             sb.AppendLine();

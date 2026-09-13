@@ -58,7 +58,7 @@ namespace PirateCrew.PirateCrew.Fx
         /// <summary>Sprite 特效（环/冲击波/伤害数字）对象池上限。</summary>
         public const int MaxPooledSprites = 48;
 
-        /// <summary>基准爆炸半径（世界单位）：cannonball size=100 → radius=70px → 70/32=2.1875u
+        /// <summary>基准爆炸半径（世界单位）：cannonball size=100 → radius=70px → 70/16=4.375u
         /// （`WeaponCatalog.cs:130` size=100，`ExplosionResolver.Radius`）。其余武器按比例缩放。</summary>
         public const float ReferenceRadiusWorld = 70f / LevelGeometry.PixelsPerUnit;
 
@@ -170,28 +170,28 @@ namespace PirateCrew.PirateCrew.Fx
             return 0.90f + 0.50f * ExplosionVisualScale(explosionSize);
         }
 
-        /// <summary>火球粒子初速（世界单位/秒）。</summary>
+        /// <summary>火球粒子初速（世界单位/秒）。速度类 ×2（格 1→2 单位）。</summary>
         public static float FireballSpeed(float explosionSize)
-        {
-            return 3.5f + 2.0f * ExplosionVisualScale(explosionSize);
-        }
-
-        /// <summary>火花初速（世界单位/秒；比火球快，读作"迸射"）。</summary>
-        public static float SparkSpeed(float explosionSize)
         {
             return 7.0f + 4.0f * ExplosionVisualScale(explosionSize);
         }
 
-        /// <summary>木屑初速（世界单位/秒）。</summary>
-        public static float DebrisSpeed(float explosionSize)
+        /// <summary>火花初速（世界单位/秒；比火球快，读作"迸射"）。速度类 ×2。</summary>
+        public static float SparkSpeed(float explosionSize)
         {
-            return 4.0f + 2.5f * ExplosionVisualScale(explosionSize);
+            return 14.0f + 8.0f * ExplosionVisualScale(explosionSize);
         }
 
-        /// <summary>烟雾上浮速度（世界单位/秒）。</summary>
+        /// <summary>木屑初速（世界单位/秒）。速度类 ×2。</summary>
+        public static float DebrisSpeed(float explosionSize)
+        {
+            return 8.0f + 5.0f * ExplosionVisualScale(explosionSize);
+        }
+
+        /// <summary>烟雾上浮速度（世界单位/秒）。速度类 ×2。</summary>
         public static float SmokeRiseSpeed(float explosionSize)
         {
-            return 0.6f + 0.4f * ExplosionVisualScale(explosionSize);
+            return 1.2f + 0.8f * ExplosionVisualScale(explosionSize);
         }
 
         /// <summary>
@@ -213,16 +213,16 @@ namespace PirateCrew.PirateCrew.Fx
             return ExplosionRadiusWorld(explosionSize) * 0.18f;
         }
 
-        /// <summary>火花粒子尺寸（世界单位）。</summary>
+        /// <summary>火花粒子尺寸（世界单位）。比例不变；半径本身已 ×2 → 输出随之 ×2，上下限同步 ×2。</summary>
         public static float SparkSize(float explosionSize)
         {
-            return Mathf.Clamp(ExplosionRadiusWorld(explosionSize) * 0.06f, 0.05f, 0.14f);
+            return Mathf.Clamp(ExplosionRadiusWorld(explosionSize) * 0.06f, 0.10f, 0.28f);
         }
 
-        /// <summary>木屑粒子尺寸（世界单位）。</summary>
+        /// <summary>木屑粒子尺寸（世界单位）。比例不变；半径已 ×2 → 输出 ×2，上下限同步 ×2。</summary>
         public static float DebrisSize(float explosionSize)
         {
-            return Mathf.Clamp(ExplosionRadiusWorld(explosionSize) * 0.045f, 0.05f, 0.11f);
+            return Mathf.Clamp(ExplosionRadiusWorld(explosionSize) * 0.045f, 0.10f, 0.22f);
         }
 
         /// <summary>
@@ -250,41 +250,44 @@ namespace PirateCrew.PirateCrew.Fx
         // 水花（WaterSplashFx）
         // ==================================================================
 
-        /// <summary>水花飞沫粒子数：随入水竖直速度增大（更快 = 更大水花）。</summary>
+        /// <summary>水花飞沫粒子数：随入水竖直速度增大（更快 = 更大水花）。
+        /// 【输入量纲变了】<paramref name="fallSpeed"/> 是世界速度，格 1→2 单位后同样场景下翻倍，
+        /// 故系数减半（1.5 → 0.75）以**保持粒子数与旧口径逐值相同**。</summary>
         public static int SplashDropletCount(float fallSpeed)
         {
             float s = Mathf.Max(0f, fallSpeed);
-            return Mathf.Clamp(8 + Mathf.RoundToInt(s * 1.5f), 10, 40);
+            return Mathf.Clamp(8 + Mathf.RoundToInt(s * 0.75f), 10, 40);
         }
 
-        /// <summary>水花泡沫粒子数。</summary>
+        /// <summary>水花泡沫粒子数（系数减半，见 <see cref="SplashDropletCount"/>）。</summary>
         public static int SplashFoamCount(float fallSpeed)
         {
-            return Mathf.Clamp(4 + Mathf.RoundToInt(Mathf.Max(0f, fallSpeed) * 0.5f), 6, 14);
+            return Mathf.Clamp(4 + Mathf.RoundToInt(Mathf.Max(0f, fallSpeed) * 0.25f), 6, 14);
         }
 
-        /// <summary>水花飞沫寿命（秒）。</summary>
+        /// <summary>水花飞沫寿命（秒）。时刻类不乘；速度项系数减半以保持输出（见 <see cref="SplashDropletCount"/>）。</summary>
         public static float SplashLifetime(float fallSpeed)
         {
-            return Mathf.Clamp(0.35f + Mathf.Max(0f, fallSpeed) * 0.02f, 0.35f, 0.60f);
+            return Mathf.Clamp(0.35f + Mathf.Max(0f, fallSpeed) * 0.01f, 0.35f, 0.60f);
         }
 
-        /// <summary>水花飞沫尺寸（世界单位）。</summary>
+        /// <summary>水花飞沫尺寸（世界单位）。常数项 ×2、上下限 ×2；速度项系数不变
+        /// （<paramref name="fallSpeed"/> 本身已 ×2，故该项自动 ×2）。</summary>
         public static float SplashDropletSize(float fallSpeed)
         {
-            return Mathf.Clamp(0.06f + Mathf.Max(0f, fallSpeed) * 0.004f, 0.06f, 0.14f);
+            return Mathf.Clamp(0.12f + Mathf.Max(0f, fallSpeed) * 0.004f, 0.12f, 0.28f);
         }
 
-        /// <summary>涟漪最大直径（世界单位）。</summary>
+        /// <summary>涟漪最大直径（世界单位）。常数项 ×2、上下限 ×2；速度项系数不变（输入已 ×2）。</summary>
         public static float RippleDiameter(float fallSpeed)
         {
-            return Mathf.Clamp(1.2f + Mathf.Max(0f, fallSpeed) * 0.06f, 1.2f, 3.0f);
+            return Mathf.Clamp(2.4f + Mathf.Max(0f, fallSpeed) * 0.06f, 2.4f, 6.0f);
         }
 
-        /// <summary>涟漪动画时长（秒）。</summary>
+        /// <summary>涟漪动画时长（秒）。时刻类不乘；速度项系数减半以保持输出。</summary>
         public static float RippleLifetime(float fallSpeed)
         {
-            return Mathf.Clamp(0.55f + Mathf.Max(0f, fallSpeed) * 0.02f, 0.55f, 1.00f);
+            return Mathf.Clamp(0.55f + Mathf.Max(0f, fallSpeed) * 0.01f, 0.55f, 1.00f);
         }
 
         // ==================================================================
@@ -353,12 +356,12 @@ namespace PirateCrew.PirateCrew.Fx
         }
 
         /// <summary>伤害数字基础世界高度（单位）。
-        /// 【AI 提案】取 0.30：单位总高 0.5（Art Bible §5.2），数字约为单位高的 3/5，
+        /// 【AI 提案】取 0.60（格 1→2 单位 ×2）：单位 AABB 总高 1.0（Art Bible §5.2），数字约为单位高的 3/5，
         /// 在默认 45° 相机（距离 18）下屏上约 15-20px，压过"单位竖高 ≥25px"判据里的可读性门槛。</summary>
-        public const float DamageNumberBaseHeight = 0.30f;
+        public const float DamageNumberBaseHeight = 0.60f;
 
-        /// <summary>伤害数字上浮距离（世界单位，0.9s 内）。</summary>
-        public const float DamageNumberRise = 0.85f;
+        /// <summary>伤害数字上浮距离（世界单位，0.9s 内）。距离类 ×2。</summary>
+        public const float DamageNumberRise = 1.70f;
 
         /// <summary>伤害数字存活时长（秒）。</summary>
         public const float DamageNumberLifetime = 0.90f;
@@ -372,16 +375,16 @@ namespace PirateCrew.PirateCrew.Fx
         /// `M2BattleSceneSetup.cs:399-419` 的**单色不发光细线（线宽 0.06）**，本拖尾是
         /// 带宽度衰减 + 暖色 additive 的**发光尾迹**，语义是"已经飞出去的实体"，不是"将要飞去哪"。
         /// </summary>
-        public const float TrailBaseWidth = 0.05f;
+        public const float TrailBaseWidth = 0.10f;
 
-        /// <summary>爆炸类武器的拖尾增宽（读作"危险物"）。</summary>
-        public const float TrailExplosiveWidthBonus = 0.02f;
+        /// <summary>爆炸类武器的拖尾增宽（读作"危险物"）。宽度类 ×2。</summary>
+        public const float TrailExplosiveWidthBonus = 0.04f;
 
         /// <summary>拖尾残留时长（秒）。越短越"利落"，避免拖影盖住命中反馈。</summary>
         public const float TrailTime = 0.18f;
 
-        /// <summary>拖尾最小顶点间距（世界单位）。</summary>
-        public const float TrailMinVertexDistance = 0.08f;
+        /// <summary>拖尾最小顶点间距（世界单位）。距离类 ×2。</summary>
+        public const float TrailMinVertexDistance = 0.16f;
 
         /// <summary>按武器取拖尾宽度。</summary>
         public static float TrailWidth(WeaponId weapon)
@@ -401,8 +404,9 @@ namespace PirateCrew.PirateCrew.Fx
         // 回合/选中标记（TurnMarkerFx）
         // ==================================================================
 
-        /// <summary>地面光环直径（世界单位）。单位总高 0.5（Art Bible §5.2），环略大于脚底，读作"站在这里"。</summary>
-        public const float TurnMarkerDiameter = 0.90f;
+        /// <summary>地面光环直径（世界单位）。单位 AABB 总高 1.0（Art Bible §5.2），环略大于脚底，读作"站在这里"。
+        /// 直径类 ×2（格 1→2 单位）。</summary>
+        public const float TurnMarkerDiameter = 1.80f;
 
         /// <summary>光环脉动频率（Hz）。</summary>
         public const float TurnMarkerPulseHz = 1.6f;

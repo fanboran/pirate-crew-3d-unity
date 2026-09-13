@@ -23,7 +23,7 @@ namespace PirateCrew.PirateCrew.Water
     [DisallowMultipleComponent]
     public sealed class WaterTessellator : MonoBehaviour
     {
-        [Tooltip("目标格距（世界单位）。默认 0.8：最短波长 2.4 下每波约 3 格。")]
+        [Tooltip("目标格距（世界单位）。默认 1.6（格 1→2 单位 ×2）：最短波长 4.8 下每波约 3 格。")]
         [SerializeField] float targetCellSize = WaterMeshRules.DefaultCellSize;
 
         [Tooltip("每轴格数上限（防止把水做太大时网格爆炸）。")]

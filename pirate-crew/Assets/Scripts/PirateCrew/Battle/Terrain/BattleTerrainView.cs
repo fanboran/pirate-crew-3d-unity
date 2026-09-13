@@ -240,11 +240,14 @@ namespace PirateCrew.PirateCrew.Battle
             if (height < 0.01f)
                 height = 0.01f;   // 防御：0 高度会让 PhysX 产生退化碰撞体
 
-            go.transform.localScale = new Vector3(1f, height, 1f);
+            // 1 格 = LevelGeometry.TileWorldSize 世界单位（格 1→2 单位后碰撞块边长随之放大，与视觉壳同口径）。
+            float size = LevelGeometry.TileWorldSize;
+            go.transform.localScale = new Vector3(size, height, size);
+            Vector2 center = LevelGeometry.TileCenterWorld(gx, gy);
             go.transform.localPosition = new Vector3(
-                gx + 0.5f,
+                center.x,
                 LevelGeometry.GroundTopY + height * 0.5f,
-                gy + 0.5f);
+                center.y);
         }
 
         // ------------------------------------------------------------------

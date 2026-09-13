@@ -30,11 +30,10 @@ namespace PirateCrew.Tests.Audio
 
         static IEnumerable<SfxId> AllIds()
         {
-            SfxRecipe[] all = SfxCatalog.All;
-            var ids = new List<SfxId>(all.Length);
-            for (int i = 0; i < all.Length; i++)
-                ids.Add(all[i].Id);
-            return ids;
+            // 只遍历「有程序化合成实现」的 id：纯外部搬运素材（如环境底床垫底 BedPad）
+            // 本来就没有合成配方，对它做渲染断言等于把「没有合成」误判成「渲染失败」。
+            // 判据见 SynthRenderer.CanRender / Game2AudioAssets。
+            return SynthRenderer.RenderableIds();
         }
 
         // ------------------------------------------------------------------
@@ -56,6 +55,27 @@ namespace PirateCrew.Tests.Audio
                 SfxRecipe recipe = SfxCatalog.Get((SfxId)i);
                 Assert.That(recipe.DurationSeconds, Is.GreaterThan(0d), recipe.Id + " 未登记或时长为 0");
                 Assert.That(recipe.Recipe, Is.Not.EqualTo("(未登记)"));
+            }
+        }
+
+        [Test]
+        public void Catalog_NonRenderableIdsAreExactlyTheExternalOnlyOnes()
+        {
+            // 「不可合成」与「搬运来的纯外部素材」必须一一对应：
+            // 不可合成却又不在搬运表里 = 漏登记（运行时会静默无声）。
+            var nonRenderable = new List<SfxId>();
+            SfxRecipe[] all = SfxCatalog.All;
+            for (int i = 0; i < all.Length; i++)
+            {
+                if (!SynthRenderer.CanRender(all[i].Id))
+                    nonRenderable.Add(all[i].Id);
+            }
+
+            CollectionAssert.AreEquivalent(new[] { SfxId.BedPad }, nonRenderable);
+            for (int i = 0; i < nonRenderable.Count; i++)
+            {
+                Assert.That(Game2AudioAssets.IsPorted(nonRenderable[i]), Is.True,
+                    nonRenderable[i] + " 不可合成却又不在 Game-2 搬运表里（运行时会静默无声）");
             }
         }
 

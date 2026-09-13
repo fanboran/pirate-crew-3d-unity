@@ -42,7 +42,7 @@ Material:
     - _FoamPulseStrength: 0.6
     - _FoamSpeed: 0.25
     - _FoamStrength: 0.85
-    - _FoamWidth: 1.6
+    - _FoamWidth: 3.2
     - _FresnelPower: 5
     - _FresnelStrength: 1
     - _HeightFieldFoamStrength: 0.6
@@ -53,7 +53,7 @@ Material:
     - _RefractionBlend: 0.22
     - _RefractionDepthFade: 1.6
     - _RefractionStrength: 0.035
-    - _ShoreFadeDistance: 4
+    - _ShoreFadeDistance: 8
     - _ShorelineFoamGain: 1.6
     - _Smoothness: 0.92
     - _SpecularIntensity: 2.2

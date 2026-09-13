@@ -38,11 +38,12 @@ namespace PirateCrew.PirateCrew.Fx
         const float TrailPollInterval = 0.25f;
 
         /// <summary>判定"弹体落水"的水面抬高阈值（世界单位）：爆心 y 低于
-        /// <c>WaterSurfaceY + 此值</c> 视为入水。取 0.05 是为了不与"贴地爆炸（y≈0）"混淆。</summary>
-        const float WaterDetectLift = 0.05f;
+        /// <c>WaterSurfaceY + 此值</c> 视为入水。取 0.1（格 1→2 单位 ×2）是为了不与"贴地爆炸（y≈0）"混淆。</summary>
+        const float WaterDetectLift = 0.1f;
 
-        /// <summary>弹体落水的默认水花冲击速度（事件载荷不带速度，【AI 提案】）。</summary>
-        const float ProjectileSplashSpeed = 5f;
+        /// <summary>弹体落水的默认水花冲击速度（世界单位/秒，事件载荷不带速度，【AI 提案】）。
+        /// 速度类 ×2（格 1→2 单位；重力/落差翻倍 → 同场景落速确实翻倍）。</summary>
+        const float ProjectileSplashSpeed = 10f;
 
         /// <summary>拖尾跟踪集合的修剪阈值（超过就按当前弹体重建，避免 id 集合无限增长）。</summary>
         const int TrailTrackLimit = 256;

@@ -15,8 +15,10 @@ namespace PirateCrew.PirateCrew.Battle
     ///   · 瓦片网格与「实心 / 空」判据：原版关卡 XML 的 <c>&lt;row&gt;</c> 行压缩串
     ///     （<c>tile:count</c>）给出每个 (gridX, gridY) 的瓦片名，<c>-</c> = 空、
     ///     <c>tile_ripple_*</c> / <c>boat_ripple_*</c> = 水（非实心），其余为陆地。
-    ///   · 1 瓦片 = 32px（§5.4 的 <c>&gt;&gt;5</c>）；本工程沿用 1 瓦片 = 1 世界单位
-    ///     （<see cref="LevelGeometry.PixelsPerUnit"/>）。
+    ///   · 1 瓦片 = 32px（§5.4 的 <c>&gt;&gt;5</c>）；本工程沿用 **1 瓦片 = 2 世界单位**
+    ///     （<see cref="LevelGeometry.TileWorldSize"/>，故 1 单位 = 16px = <see cref="LevelGeometry.PixelsPerUnit"/>）。
+    ///     格号 ↔ 世界坐标的换算**只走** <see cref="LevelGeometry.WorldToTileIndex"/> /
+    ///     <see cref="LevelGeometry.TileCenterWorld"/>，不要在这里手搓 <c>+0.5f</c>。
     ///   · 每列最上方的实心瓦片 = 该列**地表**（2D 里角色站的就是它）。本类用
     ///     <c>altitude = heightTiles − topSolidRow</c> 表示该地表在关卡里的高度。
     ///   · 空列（整列无水陆瓦片，如 level_1 的第 19/40 列）= 原版的水道。
@@ -34,7 +36,8 @@ namespace PirateCrew.PirateCrew.Battle
     ///     换算系数与上界推导见 <c>PlatformClusterLayout.TileBlocksPerRow</c>。
     ///   · <b>纵深 <c>gridZ</c> = <c>rowY − 1</c></b>：岛在 3D 里占的 Z 范围就是它在原版里占的行范围
     ///     （"土/岩行 = 岛体厚度"）。减 1 是为了让单位的 <c>(gridX, gridY)</c> 正好落在它脚下的
-    ///     地面格上（原版对象 y 是"脚底行 − 1"），使 <c>BattleController</c> 的 <c>z = gridY + 0.5</c>
+    ///     地面格上（原版对象 y 是"脚底行 − 1"），使 <c>BattleController</c> 的
+    ///     <c>z = (gridY + 0.5) × TileWorldSize</c>
     ///     与 <see cref="SurfaceWorldY(int,int)"/> 同时命中同一格。详见 <c>Data/LevelTileMaps</c> 类头。
     ///   · <b>每格块高</b> = 簇基准（行号给出）+ 局部 1 块（原版行串只说"这格是陆地"）。
         ///   · ⚠ <b>2026-09-13 平台化修正（推翻"永不挖洞"）</b>：用户诉求是
@@ -71,7 +74,7 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>竞技场纵深格数（= 关卡 heightTiles）。</summary>
         public int DepthTiles { get; }
 
-        /// <summary>单块世界高度（提案/待定，见类头；0.25 = 8px）。</summary>
+        /// <summary>单块世界高度（提案/待定，见类头；0.5 = 8px，格 1→2 单位后随格放大）。</summary>
         public float BlockWorldHeight { get; }
 
         /// <summary>全平坦地面（无抬升块）的网格。</summary>
@@ -300,9 +303,9 @@ namespace PirateCrew.PirateCrew.Battle
         /// 水面以下的**虚空哨兵**：平台模式的水格没有地表，游戏性查询返回此值，
         /// 使 AI 投掷模拟能走到 <c>p.y &lt;= WaterSurfaceY</c> 的「落水」分支
         /// （见 <c>AiEvaluation.SimulateFromWorld</c>；不能返回 <see cref="LevelGeometry.WaterSurfaceY"/> 本身，
-        /// 否则会与"落到地表"分支同时命中而不是判定落水）。
+        /// 否则会与"落到地表"分支同时命中而不是判定落水）。余量随格世界尺寸（0.25 格 = 1 单位）。
         /// </summary>
-        public static float WaterVoidY => LevelGeometry.WaterSurfaceY - 0.5f;
+        public static float WaterVoidY => LevelGeometry.WaterSurfaceY - LevelGeometry.TileWorldSize * 0.5f;
 
         /// <summary>
         /// 世界 XZ 处的**游戏性**地表世界 Y：平台模式的水格返回 <see cref="WaterVoidY"/>（落水哨兵）；
@@ -310,8 +313,8 @@ namespace PirateCrew.PirateCrew.Battle
         /// </summary>
         public float SurfaceWorldYAtWorld(float worldX, float worldZ)
         {
-            int gx = Mathf.FloorToInt(worldX);
-            int gy = Mathf.FloorToInt(worldZ);
+            int gx = LevelGeometry.WorldToTileIndex(worldX);
+            int gy = LevelGeometry.WorldToTileIndex(worldZ);
             int index = IndexOf(gx, gy);
             if (index < 0)
                 return LevelGeometry.GroundTopY;
@@ -397,10 +400,10 @@ namespace PirateCrew.PirateCrew.Battle
             if (radiusWorld <= 0f)
                 return 0;
 
-            int minX = Mathf.Max(0, Mathf.FloorToInt(centerWorld.x - radiusWorld));
-            int maxX = Mathf.Min(WidthTiles - 1, Mathf.FloorToInt(centerWorld.x + radiusWorld));
-            int minY = Mathf.Max(0, Mathf.FloorToInt(centerWorld.z - radiusWorld));
-            int maxY = Mathf.Min(DepthTiles - 1, Mathf.FloorToInt(centerWorld.z + radiusWorld));
+            int minX = Mathf.Max(0, LevelGeometry.WorldToTileIndex(centerWorld.x - radiusWorld));
+            int maxX = Mathf.Min(WidthTiles - 1, LevelGeometry.WorldToTileIndex(centerWorld.x + radiusWorld));
+            int minY = Mathf.Max(0, LevelGeometry.WorldToTileIndex(centerWorld.z - radiusWorld));
+            int maxY = Mathf.Min(DepthTiles - 1, LevelGeometry.WorldToTileIndex(centerWorld.z + radiusWorld));
 
             float radiusSqr = radiusWorld * radiusWorld;
             int destroyed = 0;
@@ -417,11 +420,12 @@ namespace PirateCrew.PirateCrew.Battle
                     if (localBlocks <= 0)
                         localBlocks = _blocks[index];   // 防御：异常数据下退回总块高
 
+                    Vector2 cellCenterXZ = LevelGeometry.TileCenterWorld(gx, gy);
                     var cellCenter = new Vector3(
-                        gx + 0.5f,
+                        cellCenterXZ.x,
                         LevelGeometry.GroundTopY + _baseBlocks[index] * BlockWorldHeight
                             + localBlocks * BlockWorldHeight * 0.5f,
-                        gy + 0.5f);
+                        cellCenterXZ.y);
 
                     if ((cellCenter - centerWorld).sqrMagnitude > radiusSqr)
                         continue;

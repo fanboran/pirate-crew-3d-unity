@@ -28,7 +28,7 @@ namespace PirateCrew.PirateCrew.Fx
                 return;
 
             // 命中点在躯干高度（枢轴上方一点），不是脚底。
-            Vector3 hitPoint = worldPosition + Vector3.up * 0.06f;
+            Vector3 hitPoint = worldPosition + Vector3.up * 0.12f;   // 抬高量 ×2（格 1→2 单位）
 
             FxPool.RentParticles().Play(new FxBurstSpec
             {
@@ -37,12 +37,12 @@ namespace PirateCrew.PirateCrew.Fx
                 Count = FxRules.HitSparkCount(damage, maxHealth),
                 Lifetime = FxRules.HitSparkLifetime(damage, maxHealth),
                 LifetimeVariance = 0.35f,
-                Speed = 4.50f,
+                Speed = 9f,
                 SpeedVariance = 0.40f,
-                StartSize = 0.07f,
+                StartSize = 0.14f,
                 EndSize = 0.55f,
                 Gravity = 0.50f,
-                Radius = 0.10f,
+                Radius = 0.2f,
                 StartAlpha = 1.00f,
                 EndAlpha = 0.55f,
                 FadeStart = 0.50f,
@@ -57,16 +57,16 @@ namespace PirateCrew.PirateCrew.Fx
                 Count = FxRules.HitDustCount(damage, maxHealth),
                 Lifetime = 0.45f,
                 LifetimeVariance = 0.30f,
-                Speed = 1.40f,
+                Speed = 2.8f,
                 SpeedVariance = 0.40f,
-                StartSize = 0.09f,
+                StartSize = 0.18f,
                 EndSize = 1.90f,
                 Gravity = 0.15f,
-                Radius = 0.12f,
+                Radius = 0.24f,
                 StartAlpha = 0.70f,
                 EndAlpha = 0.30f,
                 FadeStart = 0.40f,
-                RiseSpeed = 0.25f,
+                RiseSpeed = 0.5f,
                 SortingFudge = 2f,
             });
 
@@ -88,16 +88,16 @@ namespace PirateCrew.PirateCrew.Fx
                 Count = 8,
                 Lifetime = 0.70f,
                 LifetimeVariance = 0.30f,
-                Speed = 1.10f,
+                Speed = 2.2f,
                 SpeedVariance = 0.40f,
-                StartSize = 0.16f,
+                StartSize = 0.32f,
                 EndSize = 1.80f,
                 Gravity = 0f,
-                Radius = 0.16f,
+                Radius = 0.32f,
                 StartAlpha = 0.50f,
                 EndAlpha = 0.25f,
                 FadeStart = 0.40f,
-                RiseSpeed = 0.45f,
+                RiseSpeed = 0.9f,
                 SortingFudge = 3f,
             });
         }

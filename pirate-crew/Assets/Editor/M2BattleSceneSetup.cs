@@ -148,7 +148,7 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 程序化创建 PirateBase 预制体：Cube 视觉（12×16px → 0.375×0.5 单位，1 单位 = 32px）
+        /// 程序化创建 PirateBase 预制体：Cube 视觉（12×16px → 0.75×1.0 单位，1 单位 = 16px）
         /// + BoxCollider + Rigidbody + <see cref="PirateBase"/> + <see cref="UnitOutlineBinder"/>。
         /// </summary>
         static GameObject BuildPiratePrefab()
@@ -158,8 +158,10 @@ namespace PirateCrew.EditorTools
 
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = "PirateBase";
-            // §4.1：AABB 12×16px（left/rightExtent=6、top/bottomExtent=8）；1 单位 = 32px。
-            go.transform.localScale = new Vector3(12f / 32f, 16f / 32f, 12f / 32f);
+            // §4.1：AABB 12×16px（left/rightExtent=6、top/bottomExtent=8）；1 单位 = 16px
+            // （格 1→2 单位后 px 足迹随格放大：0.375×0.5 → 0.75×1.0，与 LevelGeometry.UnitPivotHeight 自洽）。
+            go.transform.localScale = new Vector3(
+                LevelGeometry.PixelsToUnits(12f), LevelGeometry.PixelsToUnits(16f), LevelGeometry.PixelsToUnits(12f));
 
             // 单位材质 = PirateOutline（本体 Pass + inverted hull 描边 Pass 一体），
             // 由 UnitOutlineBinder 用 MaterialPropertyBlock 逐单位写 _OutlineState。
@@ -202,8 +204,9 @@ namespace PirateCrew.EditorTools
             // 水面高度改为全局常量（地图是平坦的 XZ 竞技场，不再由 waterTileY 推出）。
             LevelData data = LevelCatalog.Get(LevelNumber);
             float waterWorldY = LevelGeometry.WaterSurfaceY;
-            float worldWidth = data.WidthTiles;
-            float worldDepth = data.HeightTiles;
+            // 格 1→2 单位（用户裁决 2026-09-14）：竞技场世界尺寸 = 格数 × TileWorldSize。
+            float worldWidth = LevelGeometry.TileToWorld(data.WidthTiles);
+            float worldDepth = LevelGeometry.TileToWorld(data.HeightTiles);
 
             // 竞技场中心（相机与相机目标都以此为准）。
             Vector3 arenaCenter = new Vector3(worldWidth * 0.5f, LevelGeometry.GroundTopY, worldDepth * 0.5f);
@@ -302,9 +305,10 @@ namespace PirateCrew.EditorTools
         // 战斗相机参数（pitch 45° / yaw 0 对齐 Godot orbit_camera.gd；
         // 距离 18→15 为提案调整：r2 出图实测出厂机位单位仅 21px < 判据 A-2 的 25px 下限，
         // 18/15 缩放后 ≈25px 达标，出处 docs/M2-3D空间模型对齐.md §相机行 + 美术品控 AR-R2-006）
+        // 【格 1→2 单位 ×2】15 → 30：相机取景按"看同样的格数"放大，FOV 不动、俯角不动。
         // ------------------------------------------------------------------
 
-        const float CameraDistance = 15f;
+        const float CameraDistance = 30f;
         const float CameraPitchDegrees = 45f;
         const float CameraFieldOfView = 60f;
 
@@ -334,8 +338,8 @@ namespace PirateCrew.EditorTools
         ///
         /// 【r3 修问题 5：两级 → 五级同心坡】原实现只有两级（-0.6 外扩 6 / -1.6 外扩 16），
         /// 台阶之间是一整块平色，只在两条边界处各出现一条硬色界，读不出"浅滩→中水→深水"渐变。
-        /// 现按场景设计 §5.1「海床坡向外 8-12 单位缓降到 y=-3」铺 5 级同心台阶
-        /// （外扩 5→9→15→24→36，顶面 waterWorldY-0.45 → -3.5），使 waterDepth 连续下沉，
+        /// 现按场景设计 §5.1「海床坡向外 8-12 单位缓降到 y=-3」铺 5 级同心台阶（格 1→2 单位后整段 ×2：向外 16-24、降到 y=-6）
+        /// （外扩 10→18→30→48→72，顶面 waterWorldY-0.9 → -7.0），使 waterDepth 连续下沉，
         /// 对上 shader 的三档水色（场景设计判据 Q-17：水色标准差 > 4）。
         /// 用**覆盖全竞技场的同心块**（而不是只有竞技场外的环）：环形会在竞技场矩形内缘留下
         /// 一条"深/浅"硬色界，正好又变成一条直线切边。
@@ -343,15 +347,17 @@ namespace PirateCrew.EditorTools
         /// </summary>
         static void CreateSeabedShelves(float worldWidth, float worldDepth, float waterWorldY)
         {
-            CreateSeabedShelf("Seabed_L0", worldWidth, worldDepth, waterWorldY - 0.45f, 5f,
+            // 深度/外扩全为世界距离类 → 格 1→2 单位后 ×2（0.45→0.9 … 36→72），
+            // 使 waterDepth 的读数在"同一格数"处取到同一档水色。
+            CreateSeabedShelf("Seabed_L0", worldWidth, worldDepth, waterWorldY - 0.90f, 10f,
                 BattleSceneLighting.WetSandMaterial, new Color(0.62f, 0.53f, 0.40f, 1f));
-            CreateSeabedShelf("Seabed_L1", worldWidth, worldDepth, waterWorldY - 1.00f, 9f,
+            CreateSeabedShelf("Seabed_L1", worldWidth, worldDepth, waterWorldY - 2.00f, 18f,
                 BattleSceneLighting.WetSandMaterial, new Color(0.52f, 0.43f, 0.32f, 1f));
-            CreateSeabedShelf("Seabed_L2", worldWidth, worldDepth, waterWorldY - 1.80f, 15f,
+            CreateSeabedShelf("Seabed_L2", worldWidth, worldDepth, waterWorldY - 3.60f, 30f,
                 BattleSceneLighting.RockMaterial, new Color(0.46f, 0.41f, 0.34f, 1f));
-            CreateSeabedShelf("Seabed_L3", worldWidth, worldDepth, waterWorldY - 2.70f, 24f,
+            CreateSeabedShelf("Seabed_L3", worldWidth, worldDepth, waterWorldY - 5.40f, 48f,
                 BattleSceneLighting.RockMaterial, new Color(0.42f, 0.38f, 0.32f, 1f));
-            CreateSeabedShelf("Seabed_L4", worldWidth, worldDepth, waterWorldY - 3.50f, 36f,
+            CreateSeabedShelf("Seabed_L4", worldWidth, worldDepth, waterWorldY - 7.00f, 72f,
                 BattleSceneLighting.RockMaterial, new Color(0.36f, 0.33f, 0.29f, 1f));
         }
 
@@ -359,7 +365,7 @@ namespace PirateCrew.EditorTools
         static void CreateSeabedShelf(string name, float worldWidth, float worldDepth, float topY, float spread,
             string materialName, Color fallbackColor)
         {
-            const float thickness = 0.5f;
+            const float thickness = 1.0f;   // 世界厚度 ×2（格 1→2 单位）
 
             var shelf = GameObject.CreatePrimitive(PrimitiveType.Cube);
             shelf.name = name;
@@ -390,7 +396,8 @@ namespace PirateCrew.EditorTools
             camera.backgroundColor = new Color(0.53f, 0.72f, 0.88f, 1f);
             camera.fieldOfView = CameraFieldOfView;
             camera.nearClipPlane = 0.1f;
-            camera.farClipPlane = 200f;
+            // 远裁剪面 ×2：竞技场世界尺寸翻倍后 50 格关 = 100×100 单位，200 已不够。
+            camera.farClipPlane = 400f;
             return camera;
         }
 
@@ -405,7 +412,7 @@ namespace PirateCrew.EditorTools
             // BattleCameraController 只平滑移动该目标。
             var transposer = vcam.AddCinemachineComponent<CinemachineTransposer>();
             transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
-            // 3D 化：45° 俯角、距离 18（对齐 Godot orbit_camera.gd 的 pitch/distance 默认值）。
+            // 3D 化：45° 俯角、距离 30（对齐 Godot orbit_camera.gd 的 pitch/distance 默认值；格 1→2 单位后 ×2）。
             transposer.m_FollowOffset = BattleCameraOffset;
             transposer.m_XDamping = 0f;
             transposer.m_YDamping = 0f;
@@ -462,16 +469,16 @@ namespace PirateCrew.EditorTools
         /// 触发落水即死（§4.4）；任何接在中间（尤其水面之上）的几何都会把落水变成"站在隐形地板上"。
         /// 所以本物体与海床台阶一样销毁 Collider、且不投影。
         ///
-        /// 【尺寸】竞技场外扩 44（略大于最外环 L4 的 34，保证环形坡之外仍有兜底），
+        /// 【尺寸】竞技场外扩 88（略大于最外环 L4 的 72，保证环形坡之外仍有兜底），
         /// 材质复用海床台阶的岩材质（保证浅深水读深一致）。
-        /// 【提案/待定】高度 -3.6（深于 L4 的 -2.9，不参与浅深水过渡读深）是 AI 调参值；
+        /// 【提案/待定】高度 -7.2（深于 L4 的 -7.0，不参与浅深水过渡读深）是 AI 调参值；
         /// 观感验收时可调，但**必须保持无碰撞**。
         /// </summary>
         static void CreateFarSeabed(float worldWidth, float worldDepth, float waterWorldY)
         {
-            const float thickness = 0.5f;
-            const float margin = 44f;
-            float topY = waterWorldY - 3.6f;
+            const float thickness = 1.0f;   // 世界厚度 ×2（格 1→2 单位）
+            const float margin = 88f;       // 外扩 ×2（须大于最外环 L4 的 72）
+            float topY = waterWorldY - 7.2f;
 
             var seabed = GameObject.CreatePrimitive(PrimitiveType.Cube);
             seabed.name = "Seabed_Far";
@@ -504,7 +511,8 @@ namespace PirateCrew.EditorTools
         static Transform CreateWaterPlane(float worldWidth, float worldDepth, float waterWorldY)
         {
             // margin 是**每侧**外扩量（原实现把它当总量用在 +margin，故每侧只有一半）。
-            const float margin = 100f;
+            // 格 1→2 单位后 ×2（100 → 200），保持"水边落在雾/视锥之外"的同一观感。
+            const float margin = 200f;
 
             var water = GameObject.CreatePrimitive(PrimitiveType.Cube);
             water.name = "Water";

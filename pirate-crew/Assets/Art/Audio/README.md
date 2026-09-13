@@ -1,9 +1,12 @@
 # 程序化音频资产（Sfx / Ambient / Music）
 
 > wav 落在构建资产目录 `Assets/Resources/PirateCrewAudio/`（平铺，分类只体现在文件名前缀），
-> 由 `Assets/Editor/AudioAssetBuilder.cs` **程序化合成**生成，
-> 不是下载或外部素材：波形 100% 来自 `Assets/Scripts/PirateCrew/Audio/Synth/` 的
-> 纯函数（正弦/三角/噪声 + ADSR + 滤波 + Schroeder 混响 + 和弦工具），零版权风险。
+> 由两类来源组成：
+> ① **程序化合成**：波形 100% 来自 `Assets/Scripts/PirateCrew/Audio/Synth/` 的
+>    纯函数（正弦/三角/噪声 + ADSR + 滤波 + Schroeder 混响 + 和弦工具），零版权风险；
+> ② **搬运**：隔壁同一作者的 Game-2（stick-world）自产 WAV，映射表见
+>    `Assets/Scripts/PirateCrew/Audio/Game2AudioAssets.cs`（每条都登记了源文件相对路径，可逐条核对）；
+>    这类资产的文件名与搬运前一致或加 `_2`/`_3` 变奏后缀，由本脚本按「字节不变则不写」幂等同步。
 > 本 README 留在 `Assets/Art/Audio/`（文档不进构建）。
 > 重新生成：菜单 `PirateCrew/音频/生成程序化音频资产（幂等）`，或
 > `-executeMethod PirateCrew.EditorTools.AudioAssetBuilder.BuildAll`。
@@ -48,6 +51,32 @@
 | UiError | SfxUiError.wav | Sfx | 0.32 | 否 | 2D | 0.55 | 无事件；公开 API PlayUi 手动触发 | 低沉粗糙双音：方波 160 Hz + 120 Hz 交替（各 140 ms），5 Hz 调幅，噪声粗糙化 |
 | VictoryJingle | MusicVictoryJingle.wav | Music | 4.00 | 否 | 2D | 0.70 | match_finished（Outcome = Team0Win，1P 玩家胜） | A 小调 i-VI-III-VII（Am-F-C-G）进行，每和弦 1 秒：低音 + 琶音（八分）+ 旋律层；每和弦由 MusicTheory.TriadOnDegree 生成，失谐叠加 + 混响 30% |
 | DefeatJingle | MusicDefeatJingle.wav | Music | 3.60 | 否 | 2D | 0.66 | match_finished（LevelFailed / Draw / 1P 模式下 AI 胜） | A 和声小调下行 i-VII-VI-V（Am-G-F-E），每和弦 0.9 秒，低音区弦垫（失谐锯齿 + 低通）+ 下行旋律 E4-D4-C4-B3；混响 30% |
+| BedPad | AmbientBedPad.wav | Ambient | 22.00 | 是 | 2D | 0.34 | battle_started → AudioService.StartAmbientBed（底床第 3 层「垫底」） | 外部素材（非合成）：隔壁 Game-2 自产 bgm/ambient_pad.wav，44100 Hz 单声道 22.0 s 无缝循环；搬运登记见 Game2AudioAssets.cs。本 id 无程序化合成，资产缺失时静音（SynthRenderer.CanRender = false） |
+
+## 搬运素材清单（源：隔壁 Game-2 自产 WAV）
+
+映射的唯一定义在 `Assets/Scripts/PirateCrew/Audio/Game2AudioAssets.cs`，本表由它生成；
+「目标事件」为空表示没有对应 EventBus 事件、需要手动调 `AudioService` 的公开 API。
+
+| 本项目音效 | 目标资产（第 1 个是主变奏） | 源文件（相对 Game-2 assets/audio） | 目标事件 | 说明 |
+| --- | --- | --- | --- | --- |
+| BedPad | AmbientBedPad.wav | bgm/ambient_pad.wav | battle_started | 环境底床主循环（22 s 无缝垫底）；battle_started 由 AudioService.StartAmbientBed 起播，受镜头离场中心的距离衰减 |
+| SeagullCry1 | AmbientSeagullCry1.wav | sfx/bird_chirp_a.wav | battle_started | 鸟鸣变体 1；battle_started 后按随机间隔点缀（AudioService 的海鸥/鸟鸣例程） |
+| SeagullCry2 | AmbientSeagullCry2.wav | sfx/bird_chirp_b.wav | battle_started | 鸟鸣变体 2；同 SeagullCry1 |
+| SeagullCry3 | AmbientSeagullCry3.wav | sfx/bird_chirp_c.wav | battle_started | 鸟鸣变体 3；同 SeagullCry1 |
+| Explosion | SfxExplosion, SfxExplosion_2, SfxExplosion_3.wav | sfx/magikill_blast_a.wav, sfx/magikill_blast_b.wav, sfx/clang_b.wav | battle_projectile_detonated | 爆炸（炮弹/炸药/巨石等）；battle_projectile_detonated 按爆心世界坐标 3D 播放，3 变奏随机 |
+| WoodCrack | SfxWoodCrack, SfxWoodCrack_2.wav | sfx/harvest_wood.wav, sfx/harvest_hit_c.wav | battle_projectile_detonated | 木箱/火药桶碎裂；battle_projectile_detonated（木质武器）3D 播放 |
+| FleshHit | SfxFleshHit, SfxFleshHit_2, SfxFleshHit_3.wav | sfx/thump_a.wav, sfx/thump_b.wav, sfx/headbutt.wav | crew_damaged | 受击闷响；crew_damaged 载荷无坐标 → 2D 播放（待裁决项） |
+| CrewDown | SfxCrewDown, SfxCrewDown_2, SfxCrewDown_3.wav | sfx/bodyfall_a.wav, sfx/bodyfall_b.wav, sfx/bodyfall_c.wav | crew_died | 倒地/阵亡；crew_died 载荷无坐标 → 2D 播放（待裁决项） |
+| ThrowWhoosh | SfxThrowWhoosh, SfxThrowWhoosh_2, SfxThrowWhoosh_3, SfxThrowWhoosh_4.wav | sfx/swoosh_a.wav, sfx/swoosh_b.wav, sfx/swoosh_c.wav, sfx/swoosh_d.wav | battle_shot_released | 投掷出手 whoosh；battle_shot_released 按拖拽距离映射音高/音量，4 变奏随机 |
+| TurnStart | SfxTurnStart.wav | sfx/battle_started.wav | turn_started | 回合开始提示音（用户裁决：用 Game-2 的 battle_started 素材）；turn_started 2D 播放 |
+| VictoryJingle | MusicVictoryJingle.wav | sfx/battle_ended_win.wav | match_finished | 胜利乐句；match_finished（Team0Win，或 1P 下玩家胜） |
+| DefeatJingle | MusicDefeatJingle.wav | sfx/battle_ended_lose.wav | match_finished | 失败乐句；match_finished（LevelFailed / Draw / 1P 下 AI 胜） |
+| UiClick | SfxUiClick.wav | sfx/ui_click.wav | （无事件） | 按钮点击；当前无对应 EventBus 事件，UI 层未接线 → 调 AudioService.PlayUi(SfxId.UiClick) |
+| UiPanelOpen | SfxUiPanelOpen.wav | sfx/ui_confirm.wav | （无事件） | 面板展开/确认；当前无对应 EventBus 事件，UI 层未接线 → 调 AudioService.PlayUi(SfxId.UiPanelOpen) |
+
+> 变奏（`_2`/`_3`…）由播放侧随机抽取，配合 `AudioVariation` 的 ±8% 音高 / ±10% 音量抖动消解重复感；
+> 主变奏的文件名与搬运前完全一致，因此覆盖写不会改变 Unity 资产 GUID。
 
 ## 剪辑解析（资产优先，回退兜底）
 

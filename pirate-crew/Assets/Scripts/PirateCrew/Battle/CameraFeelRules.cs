@@ -105,7 +105,8 @@ namespace PirateCrew.PirateCrew.Battle
     ///   · 原版回合推进阈值 = 10 帧 @25fps = 0.4s（§3.1），所以任何聚焦动画应在 ≲0.4s 内完成；
     ///   · 原版 AI 决策后先给镜头再执行（§6.1），Unity 侧 <c>AiController.executeDelayFrames = 12</c>
     ///     ≈ 0.2s @60fps，故跟随回焦也要短；
-    ///   · 震屏幅度取"不遮挡 30px 选中判定"的量级：峰值 ≈ 0.35 世界单位 ≈ 11px。
+    ///   · 震屏幅度取"不遮挡 30px 选中判定"的量级：峰值 ≈ 0.7 世界单位 ≈ 11px
+///     （px 口径不变；格 1→2 单位后世界值 ×2，见 <see cref="DefaultMaxShakeAmplitude"/>）。
     /// </summary>
     public static class CameraFeelRules
     {
@@ -119,8 +120,8 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>默认震屏频率（Hz，提案；≈ 每 3.3 帧一次往复）。</summary>
         public const float DefaultShakeFrequencyHz = 18f;
 
-        /// <summary>默认震屏峰值位移（世界单位，提案）：0.35 ≈ 11px，小于 30px 选中半径。</summary>
-        public const float DefaultMaxShakeAmplitude = 0.35f;
+        /// <summary>默认震屏峰值位移（世界单位，提案）：0.7 ≈ 11px（px 口径不变），小于 30px 选中半径。</summary>
+        public const float DefaultMaxShakeAmplitude = 0.7f;
 
         /// <summary>默认峰值滚转（度，提案）：1.2° 属"轻微"，不产生晕动。</summary>
         public const float DefaultMaxShakeRollDegrees = 1.2f;
@@ -268,8 +269,8 @@ namespace PirateCrew.PirateCrew.Battle
         // 落水 / 死亡的下压
         // ------------------------------------------------------------------
 
-        /// <summary>落水时相机焦点下压的位移（世界单位，提案）：0.45 ≈ 14px，克制、不抢戏。</summary>
-        public const float DrownDipWorldUnits = 0.45f;
+        /// <summary>落水时相机焦点下压的位移（世界单位，提案）：0.9 ≈ 14px（px 口径不变），克制、不抢戏。</summary>
+        public const float DrownDipWorldUnits = 0.9f;
 
         /// <summary>下压持续时长（秒，提案）。</summary>
         public const float DrownDipDurationSeconds = 0.5f;
@@ -277,8 +278,8 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>落水后镜头停留在落水点的时长（秒，提案）：够看清下沉，随即回焦。</summary>
         public const float DrownFocusHoldSeconds = 0.45f;
 
-        /// <summary>普通死亡（非落水）的轻微震屏峰值（世界单位，提案）。</summary>
-        public const float DeathShakeAmplitude = 0.18f;
+        /// <summary>普通死亡（非落水）的轻微震屏峰值（世界单位，提案）：0.36 ≈ 5.8px（px 口径不变）。</summary>
+        public const float DeathShakeAmplitude = 0.36f;
 
         /// <summary>
         /// 下压曲线：<c>−amount · (1 − t)²</c>（向下为负），t≥1 回到 0。

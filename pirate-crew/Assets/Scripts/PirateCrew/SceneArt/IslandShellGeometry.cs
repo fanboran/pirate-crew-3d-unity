@@ -10,6 +10,7 @@ namespace PirateCrew.PirateCrew.SceneArt
         /// <summary>
         /// 顶面边缘倒角宽度（世界单位）。
         /// 【2026-09-14 用户裁决 1「顶面边缘圆润」：0.15 → 0.35（区间 0.3-0.5）】
+        /// 【格 1→2 单位 ×2】0.35 → 0.7：倒角是"占一格的比例"，格放大后同比例即同观感。
         /// </summary>
         public float ChamferWidth;
 
@@ -68,19 +69,19 @@ namespace PirateCrew.PirateCrew.SceneArt
             {
                 return new IslandShellSettings
                 {
-                    // 用户裁决 1：顶面边缘圆润，倒角 0.15 → 0.35。
-                    ChamferWidth = 0.35f,
-                    ChamferHeight = 0.35f,
-                    SideLayers = 3,
-                    LayerRecess = 0.04f,
-                    BoundaryJitter = 0.08f,
-                    SkirtBottomY = -0.6f,
-                    LowPlateYOffset = 0.006f,
-                    UndersideBottomY = -1.15f,
-                    SideThickness = 2.4f,
-                    UndersideTaperDepth = 1.1f,
-                    UndersideTipRatio = 0.22f,
-                    UndersideRings = 4,
+                    // 用户裁决 1：顶面边缘圆润，倒角 0.15 → 0.35（格 1→2 单位后再 ×2 = 0.7）。
+                    ChamferWidth = 0.7f,
+                    ChamferHeight = 0.7f,
+                    SideLayers = 3,              // 段数（非距离量）不动
+                    LayerRecess = 0.08f,         // 凹缝进深 ×2
+                    BoundaryJitter = 0.16f,      // 剪影扰动 ×2
+                    SkirtBottomY = -1.2f,        // 下沿世界 Y ×2（水面 -0.4 之下）
+                    LowPlateYOffset = 0.012f,    // z-fighting 抬高量 ×2
+                    UndersideBottomY = -2.3f,    // 岛底下限世界 Y ×2
+                    SideThickness = 4.8f,        // 厚底收形厚度 ×2（用户裁决 1 的 2.4 随之 ×2）
+                    UndersideTaperDepth = 2.2f,  // 收尖深度 ×2
+                    UndersideTipRatio = 0.22f,   // 比例（无量纲）不动
+                    UndersideRings = 4,          // 环数（非距离量）不动
                 };
             }
         }
@@ -128,7 +129,9 @@ namespace PirateCrew.PirateCrew.SceneArt
             float ch = Mathf.Max(0.01f, s.ChamferHeight);
             int layers = Mathf.Max(1, s.SideLayers);
 
-            float x0 = gx, x1 = gx + 1f, z0 = gy, z1 = gy + 1f;
+            // 格号 → 世界坐标（1 格 = LevelGeometry.TileWorldSize 单位；不要写成 gx..gx+1）。
+            float x0 = LevelGeometry.TileToWorld(gx), x1 = LevelGeometry.TileToWorld(gx + 1);
+            float z0 = LevelGeometry.TileToWorld(gy), z1 = LevelGeometry.TileToWorld(gy + 1);
 
             // 顶面（内缩 c）：与该格地表严格等高。
             b.AddQuad(
@@ -168,7 +171,8 @@ namespace PirateCrew.PirateCrew.SceneArt
                 return s.UndersideBottomY;
 
             float minSurface = grid.ClusterSurfaceMinWorldY(clusterIndex);
-            return Mathf.Max(minSurface - Mathf.Max(0.2f, s.SideThickness), s.UndersideBottomY);
+        // 侧壁最小厚度 0.4（旧 0.2 ×2）。
+            return Mathf.Max(minSurface - Mathf.Max(0.4f, s.SideThickness), s.UndersideBottomY);
         }
 
         enum ShellSide { North, South, West, East }
@@ -323,7 +327,8 @@ namespace PirateCrew.PirateCrew.SceneArt
         public static void AddLowZonePlate(MeshBuffers b, int gx, int gy, float yOffset)
         {
             float y = LevelGeometry.GroundTopY + yOffset;
-            float x0 = gx, x1 = gx + 1f, z0 = gy, z1 = gy + 1f;
+            float x0 = LevelGeometry.TileToWorld(gx), x1 = LevelGeometry.TileToWorld(gx + 1);
+            float z0 = LevelGeometry.TileToWorld(gy), z1 = LevelGeometry.TileToWorld(gy + 1);
             b.AddQuad(
                 new Vector3(x0, y, z0),
                 new Vector3(x1, y, z0),
@@ -372,13 +377,13 @@ namespace PirateCrew.PirateCrew.SceneArt
         }
 
         /// <summary>竞技场外缘"岸线抖动"幅度（世界单位）。【AI 提案：r3 白框修复】</summary>
-        const float EdgeJitter = 0.35f;
+        const float EdgeJitter = 0.7f;      // 距离类 ×2（格 1→2 单位）
 
         /// <summary>
         /// 环形水平带的最大带宽（世界单位）。【AI 提案：r3 白框修复】
         /// 原实现允许 1.0-1.2 宽的实心直边环带，45° 相机下读成"混凝土跑道"；收窄到 0.5 后
         /// 结合开缺抖动读作浪沫/暗水斑，而非一条盖在水上的跑道。</summary>
-        const float MaxRingBandWidth = 0.5f;
+        const float MaxRingBandWidth = 1.0f;    // 距离类 ×2
 
         /// <summary>
         /// 竞技场外一圈"潮间带坡"：由边界 <paramref name="innerOffset"/> 处（y=innerY）
@@ -396,7 +401,7 @@ namespace PirateCrew.PirateCrew.SceneArt
             if (b == null || outerOffset <= innerOffset)
                 return;
 
-            float seg = Mathf.Max(0.25f, segmentLength);
+            float seg = Mathf.Max(0.5f, segmentLength);   // 分段长度类 ×2（格 1→2 单位）
 
             // 北 / 南带（沿 X 铺，含四角的延伸段）。
             AddStripAlongX(b, -innerOffset, arenaWidth + innerOffset, 0f, -1f, innerOffset, outerOffset,
@@ -473,7 +478,7 @@ namespace PirateCrew.PirateCrew.SceneArt
             if (b == null || outerOffset <= innerOffset)
                 return;
 
-            float seg = Mathf.Max(0.25f, segmentLength);
+            float seg = Mathf.Max(0.5f, segmentLength);   // 分段长度类 ×2（格 1→2 单位）
             float width = Mathf.Min(outerOffset - innerOffset, MaxRingBandWidth);
 
             AddRingStripAlongX(b, -innerOffset, arenaWidth + innerOffset, 0f, -1f, innerOffset, width, y, seg, 31);
@@ -498,8 +503,8 @@ namespace PirateCrew.PirateCrew.SceneArt
 
                 float inA = innerOffset + Mathf.Max(0f, SceneArtHash.SignedHash(sa, 1, 7)) * width * 0.45f;
                 float inB = innerOffset + Mathf.Max(0f, SceneArtHash.SignedHash(sb, 1, 7)) * width * 0.45f;
-                float outA = Mathf.Max(inA + 0.12f, innerOffset + width + SceneArtHash.SignedHash(sa, 2, 9) * width * 0.5f);
-                float outB = Mathf.Max(inB + 0.12f, innerOffset + width + SceneArtHash.SignedHash(sb, 2, 9) * width * 0.5f);
+                float outA = Mathf.Max(inA + 0.24f, innerOffset + width + SceneArtHash.SignedHash(sa, 2, 9) * width * 0.5f);
+                float outB = Mathf.Max(inB + 0.24f, innerOffset + width + SceneArtHash.SignedHash(sb, 2, 9) * width * 0.5f);
 
                 b.AddQuad(
                     new Vector3(xa, y, edgeAt + outwardSign * inA),
@@ -525,8 +530,8 @@ namespace PirateCrew.PirateCrew.SceneArt
 
                 float inA = innerOffset + Mathf.Max(0f, SceneArtHash.SignedHash(sa, 1, 7)) * width * 0.45f;
                 float inB = innerOffset + Mathf.Max(0f, SceneArtHash.SignedHash(sb, 1, 7)) * width * 0.45f;
-                float outA = Mathf.Max(inA + 0.12f, innerOffset + width + SceneArtHash.SignedHash(sa, 2, 9) * width * 0.5f);
-                float outB = Mathf.Max(inB + 0.12f, innerOffset + width + SceneArtHash.SignedHash(sb, 2, 9) * width * 0.5f);
+                float outA = Mathf.Max(inA + 0.24f, innerOffset + width + SceneArtHash.SignedHash(sa, 2, 9) * width * 0.5f);
+                float outB = Mathf.Max(inB + 0.24f, innerOffset + width + SceneArtHash.SignedHash(sb, 2, 9) * width * 0.5f);
 
                 b.AddQuad(
                     new Vector3(edgeAt + outwardSign * inA, y, za),
@@ -647,7 +652,9 @@ namespace PirateCrew.PirateCrew.SceneArt
                 MeshBuffers target = info.Kind == PlatformClusterKind.Ship ? buffers.WoodDark : buffers.Rock;
                 AddClusterUnderside(target, grid, info, c, s);
 
-                float cx0 = info.X0, cx1 = info.X1 + 1f, cz0 = info.Z0, cz1 = info.Z1 + 1f;
+                // 簇包络（格）→ 世界（1 格 = LevelGeometry.TileWorldSize 单位）。
+                float cx0 = LevelGeometry.TileToWorld(info.X0), cx1 = LevelGeometry.TileToWorld(info.X1 + 1);
+                float cz0 = LevelGeometry.TileToWorld(info.Z0), cz1 = LevelGeometry.TileToWorld(info.Z1 + 1);
                 int clusterSalt = 101 + c * 17;
 
                 // 【用户裁决 2：悬浮岛】水线暗带 / 湿沙暗带 / 泡沫线都只在**岛底确实入水**时才画
@@ -655,7 +662,7 @@ namespace PirateCrew.PirateCrew.SceneArt
                 // 会读成"水面上浮着一圈白边"的错位。贴水档（基准 0）照旧保留四段过渡
                 // （沙 → 暗湿沙 → 泡沫 → 水）。
                 float islandBottomY = IslandBottomWorldY(grid, c, s);
-                if (islandBottomY >= LevelGeometry.WaterSurfaceY + 0.05f)
+                if (islandBottomY >= LevelGeometry.WaterSurfaceY + 0.1f)
                     continue;
 
                 // 湿沙暗带（r5 新增）：贴在簇包络外沿、比平台材质暗的一圈斜带，
@@ -665,12 +672,12 @@ namespace PirateCrew.PirateCrew.SceneArt
 
                 // 细泡沫线：写在独立 Foam 组（unlit 半透明白，与水面泡沫同材质），
                 // 贴在簇包络外的水面上（平台入水处的一圈浪沫）。
-                // y 取 WaterSurfaceY+0.07（= -0.13）：水立方体细分网格的顶面在 WaterSurfaceY+0.05=-0.15，
+                // y 取 WaterSurfaceY+0.14（= -0.26）：水立方体细分网格的顶面在 WaterSurfaceY+0.1=-0.30，
                 // 与 SceneArtBuilder 的岸边泡沫带同口径（WaterTopY+0.01），低于它会被水面盖住。
                 // 【r5】内侧由 0.02 外移到 0.07，让湿沙暗带不被泡沫整段盖住；开缺后泡沫缝隙里
                 // 露出暗湿沙，四段过渡才成立。
                 AddWaterlineFoam(buffers.Foam, cx0, cx1, cz0, cz1,
-                    LevelGeometry.WaterSurfaceY + 0.07f, 0.07f, 0.30f, clusterSalt);
+                    LevelGeometry.WaterSurfaceY + 0.14f, 0.14f, 0.60f, clusterSalt);
             }
         }
 
@@ -693,10 +700,11 @@ namespace PirateCrew.PirateCrew.SceneArt
 
             // 岛底平面（侧壁与收形锥的分界）与锥尖。
             float bottomY = IslandBottomWorldY(grid, clusterIndex, s);
-            float tipY = bottomY - Mathf.Max(0.05f, s.UndersideTaperDepth);
+            float tipY = bottomY - Mathf.Max(0.1f, s.UndersideTaperDepth);
 
-            float x0 = cluster.X0, x1 = cluster.X1 + 1f;
-            float z0 = cluster.Z0, z1 = cluster.Z1 + 1f;
+            // 簇包络（格）→ 世界（1 格 = LevelGeometry.TileWorldSize 单位）。
+            float x0 = LevelGeometry.TileToWorld(cluster.X0), x1 = LevelGeometry.TileToWorld(cluster.X1 + 1);
+            float z0 = LevelGeometry.TileToWorld(cluster.Z0), z1 = LevelGeometry.TileToWorld(cluster.Z1 + 1);
 
             if (cluster.Kind == PlatformClusterKind.Ship)
             {
@@ -711,10 +719,10 @@ namespace PirateCrew.PirateCrew.SceneArt
 
             // 水线暗部环：只在岛底真的入水时画（从台顶下缘罩到水面之下），
             // 把"平台底部悬空"的缝隙收口，读作"入水的接触暗部"（r2 诊断问题 3）。
-            if (bottomY < LevelGeometry.WaterSurfaceY + 0.05f)
+            if (bottomY < LevelGeometry.WaterSurfaceY + 0.1f)
             {
                 AddWaterlineBand(b, x0, x1, z0, z1,
-                    LevelGeometry.GroundTopY + 0.05f, LevelGeometry.WaterSurfaceY - 0.12f, 0.03f);
+                    LevelGeometry.GroundTopY + 0.1f, LevelGeometry.WaterSurfaceY - 0.24f, 0.06f);
             }
         }
 
@@ -729,8 +737,8 @@ namespace PirateCrew.PirateCrew.SceneArt
         static void AddIslandTaperUnderside(MeshBuffers b, TileTerrainGrid grid, in PlatformClusterInfo cluster,
             int clusterIndex, float bottomY, float tipY, in IslandShellSettings s)
         {
-            float cx = (cluster.X0 + cluster.X1 + 1f) * 0.5f;
-            float cz = (cluster.Z0 + cluster.Z1 + 1f) * 0.5f;
+            float cx = LevelGeometry.TileToWorld((cluster.X0 + cluster.X1 + 1) * 0.5f);
+            float cz = LevelGeometry.TileToWorld((cluster.Z0 + cluster.Z1 + 1) * 0.5f);
 
             int rings = Mathf.Max(2, s.UndersideRings);
             int cells = 0;
@@ -760,15 +768,15 @@ namespace PirateCrew.PirateCrew.SceneArt
                 return;
 
             // 钟乳 / 垂藤：3-5 根细锥从岛底不同 xz 垂到不同深度（保留 r2 修复的细节层）。
-            float halfX = Mathf.Max(0.5f, (cluster.X1 - cluster.X0 + 1) * 0.5f);
-            float halfZ = Mathf.Max(0.5f, (cluster.Z1 - cluster.Z0 + 1) * 0.5f);
+            float halfX = LevelGeometry.TileToWorld(Mathf.Max(0.5f, (cluster.X1 - cluster.X0 + 1) * 0.5f));
+            float halfZ = LevelGeometry.TileToWorld(Mathf.Max(0.5f, (cluster.Z1 - cluster.Z0 + 1) * 0.5f));
             int drips = 3 + (int)(SceneArtHash.Hash01(clusterIndex, 5, 23) * 3f);
             for (int i = 0; i < drips; i++)
             {
                 float dx = cx + SceneArtHash.SignedHash(clusterIndex, i, 29) * halfX * 0.6f;
                 float dz = cz + SceneArtHash.SignedHash(clusterIndex, i, 31) * halfZ * 0.6f;
-                float dripLen = 0.18f + SceneArtHash.Hash01(clusterIndex, i, 37) * 0.42f;
-                b.AddFrustum(new Vector3(dx, tipY + 0.05f, dz), 0.03f, 0.07f, dripLen, 5,
+                float dripLen = 0.36f + SceneArtHash.Hash01(clusterIndex, i, 37) * 0.84f;
+                b.AddFrustum(new Vector3(dx, tipY + 0.1f, dz), 0.06f, 0.14f, dripLen, 5,
                     i * 47f, capTop: false, capBottom: true);
             }
         }
@@ -843,8 +851,10 @@ namespace PirateCrew.PirateCrew.SceneArt
             float nx = alongX ? 0f : 1f;
             float nz = alongX ? 1f : 0f;
 
-            int side1 = grid.ClusterIndexOf(Mathf.FloorToInt(mx + nx * 0.25f), Mathf.FloorToInt(mz + nz * 0.25f));
-            int side2 = grid.ClusterIndexOf(Mathf.FloorToInt(mx - nx * 0.25f), Mathf.FloorToInt(mz - nz * 0.25f));
+            int side1 = grid.ClusterIndexOf(LevelGeometry.WorldToTileIndex(mx + nx * 0.5f),
+                LevelGeometry.WorldToTileIndex(mz + nz * 0.5f));
+            int side2 = grid.ClusterIndexOf(LevelGeometry.WorldToTileIndex(mx - nx * 0.5f),
+                LevelGeometry.WorldToTileIndex(mz - nz * 0.5f));
 
             return side1 == clusterIndex && side2 == clusterIndex;
         }
@@ -879,17 +889,17 @@ namespace PirateCrew.PirateCrew.SceneArt
         // 混凝土跑道/跑道白线（sea-shore 横切面灰白带 std≈1.3、像素数 r3→r4 完全未变）。
         // 现改为与 AddRingStripAlongX/Z 同款的"分段 + 确定性开缺 + 带宽扰动 + 内外缘抖动"。
         /// <summary>每段泡沫的长度下限（世界单位）。</summary>
-        const float FoamSegmentMin = 0.6f;
+        const float FoamSegmentMin = 1.2f;      // 距离类 ×2
         /// <summary>每段泡沫的长度上限（世界单位）。</summary>
-        const float FoamSegmentMax = 1.2f;
+        const float FoamSegmentMax = 2.4f;      // 距离类 ×2
         /// <summary>段保留率（≈55%，其余开缺）——泡沫本来就该断续。</summary>
         const float FoamKeepRatio = 0.55f;
         /// <summary>单段带宽下限（世界单位）。</summary>
-        const float FoamBandWidthMin = 0.08f;
+        const float FoamBandWidthMin = 0.16f;   // 距离类 ×2
         /// <summary>单段带宽上限（世界单位）。</summary>
-        const float FoamBandWidthMax = 0.42f;
+        const float FoamBandWidthMax = 0.84f;   // 距离类 ×2
         /// <summary>泡沫内外缘沿法线的抖动幅度（世界单位）。</summary>
-        const float FoamEdgeJitter = 0.10f;
+        const float FoamEdgeJitter = 0.20f;     // 距离类 ×2
 
         /// <summary>
         /// 水线细泡沫线（水平薄带，绕簇包络一圈）：从包络外 <paramref name="innerGap"/> 起、
@@ -917,7 +927,7 @@ namespace PirateCrew.PirateCrew.SceneArt
             if (b == null || outerGap <= innerGap)
                 return;
 
-            float ex = 0.6f;   // 角部外延，避免四条带在角上留缝
+            float ex = 1.2f;   // 角部外延，避免四条带在角上留缝（距离类 ×2）
 
             // 北(-Z) / 南(+Z)
             AddWaterlineFoamStrip(b, x0 - ex, x1 + ex, z0, -1f, innerGap, y, true, salt + 61);
@@ -957,8 +967,8 @@ namespace PirateCrew.PirateCrew.SceneArt
 
                 float inA = Mathf.Max(0f, innerGap + SceneArtHash.SignedHash(salt, i, 11) * FoamEdgeJitter);
                 float inB = Mathf.Max(0f, innerGap + SceneArtHash.SignedHash(salt, i + 1, 11) * FoamEdgeJitter);
-                float outA = Mathf.Max(inA + 0.05f, inA + widthA + SceneArtHash.SignedHash(salt, i, 13) * FoamEdgeJitter);
-                float outB = Mathf.Max(inB + 0.05f, inB + widthB + SceneArtHash.SignedHash(salt, i + 1, 13) * FoamEdgeJitter);
+                float outA = Mathf.Max(inA + 0.1f, inA + widthA + SceneArtHash.SignedHash(salt, i, 13) * FoamEdgeJitter);
+                float outB = Mathf.Max(inB + 0.1f, inB + widthB + SceneArtHash.SignedHash(salt, i + 1, 13) * FoamEdgeJitter);
 
                 if (alongX)
                 {
@@ -985,17 +995,17 @@ namespace PirateCrew.PirateCrew.SceneArt
 
         // ---- 湿沙暗带参数（【AI 提案：r5】）----
         /// <summary>湿沙暗带陆侧（靠平台）相对水面的抬高 → y = WaterSurfaceY+0.09。</summary>
-        const float WetSandLandRise = 0.09f;
+        const float WetSandLandRise = 0.18f;    // 距离类 ×2
         /// <summary>湿沙暗带水侧（靠外）相对水面的抬高 → y = WaterSurfaceY+0.06。</summary>
-        const float WetSandSeaRise = 0.06f;
+        const float WetSandSeaRise = 0.12f;     // 距离类 ×2
         /// <summary>湿沙暗带内侧相对包络的名义外扩（0.0 = 贴包络）。</summary>
         const float WetSandInnerOffset = 0.0f;
         /// <summary>湿沙暗带内侧外扩的抖动幅度（世界单位）。</summary>
-        const float WetSandInnerJitter = 0.03f;
+        const float WetSandInnerJitter = 0.06f; // 距离类 ×2
         /// <summary>湿沙暗带外侧名义外扩（包络外 0.0-0.25 的中值）。</summary>
-        const float WetSandOuterOffset = 0.20f;
+        const float WetSandOuterOffset = 0.40f; // 距离类 ×2
         /// <summary>外侧外扩的抖动幅度（世界单位）→ 实际落在 0.15-0.25。</summary>
-        const float WetSandOuterJitter = 0.05f;
+        const float WetSandOuterJitter = 0.10f; // 距离类 ×2
         /// <summary>湿沙带段保留率（湿沙是连续潮区，只做轻微开缺打断"跑道"读感）。</summary>
         const float WetSandKeepRatio = 0.78f;
 
@@ -1089,7 +1099,7 @@ namespace PirateCrew.PirateCrew.SceneArt
             float topY, float bottomY, int seed)
         {
             float cx = (x0 + x1) * 0.5f, cz = (z0 + z1) * 0.5f;
-            float inset = 0.06f;
+            float inset = 0.12f;      // 距离类 ×2
 
             Vector3 tl = new Vector3(x0 + inset, topY, z1 - inset);   // -X,+Z
             Vector3 tr = new Vector3(x1 - inset, topY, z1 - inset);   // +X,+Z
@@ -1109,15 +1119,15 @@ namespace PirateCrew.PirateCrew.SceneArt
             b.AddQuad(br, bl, bow, stern, new Vector3(0f, 0.4f, 1f));
 
             // 龙骨木（沿中心轴，强化"船"读感）。
-            Vector3 k0 = bow + Vector3.down * 0.06f;
-            Vector3 k1 = stern + Vector3.down * 0.06f;
-            b.AddBentTube(new[] { k0, k1 }, 0.08f, 0.08f, 5);
+            Vector3 k0 = bow + Vector3.down * 0.12f;
+            Vector3 k1 = stern + Vector3.down * 0.12f;
+            b.AddBentTube(new[] { k0, k1 }, 0.16f, 0.16f, 5);
 
             // 水线木带：沿两舷顶缘一圈薄条（暗木，强化侧板分层）。
-            float bandY = topY - 0.16f;
+            float bandY = topY - 0.32f;   // 距离类 ×2
             b.AddQuad(
                 new Vector3(x0 + inset, topY, z1 - inset), new Vector3(x1 - inset, topY, z1 - inset),
-                new Vector3(x1 - inset, bandY, z1 - inset + 0.02f), new Vector3(x0 + inset, bandY, z1 - inset + 0.02f),
+                new Vector3(x1 - inset, bandY, z1 - inset + 0.04f), new Vector3(x0 + inset, bandY, z1 - inset + 0.04f),
                 new Vector3(0f, 0.4f, 1f));
         }
 

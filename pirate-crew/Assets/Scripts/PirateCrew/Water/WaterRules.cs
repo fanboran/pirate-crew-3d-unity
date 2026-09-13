@@ -63,26 +63,29 @@ namespace PirateCrew.PirateCrew.Water
         /// <summary>重力加速度（m/s²，与 LevelGeometry 的物理换算无关，仅用于深水色散）。</summary>
         public const float Gravity = 9.81f;
 
-        /// <summary>最小波长（世界单位），防止参数为 0 导致除零。</summary>
-        public const float MinWavelength = 0.25f;
+        /// <summary>最小波长（世界单位），防止参数为 0 导致除零。距离类 ×2（格 1→2 单位）。</summary>
+        public const float MinWavelength = 0.5f;
 
-        /// <summary>竞技场最短允许波峰间距（世界单位）——协调者定的观感下限。</summary>
-        public const float MinCrestSpacing = 2f;
+        /// <summary>竞技场最短允许波峰间距（世界单位）——协调者定的观感下限。距离类 ×2。</summary>
+        public const float MinCrestSpacing = 4f;
 
         /// <summary>
         /// 默认 4 条波（与 shader 的 <c>_W1…_W4</c> Properties 默认值一一对应）。
         ///
-        /// 【默认值依据（提案/待定）】竞技场 50×17 单位、相机 45° 俯视 18 单位。
-        /// 波长取 13 / 7.5 / 4.2 / 2.4（最短 2.4 ≥ 2 的观感下限，否则单位站上去像"踩碎浪"）；
-        /// 振幅合计 0.139 < 地面到水面的 0.2 间距 → 浪尖不会穿出地面（有测试断言）；
-        /// Σ Q·A·k = 0.081 ≪ 1 → 绝不自交。波速按深水色散 → 长浪快、短浪慢，符合观感。
+        /// 【默认值依据（提案/待定）】竞技场 100×34 世界单位、相机 45° 俯视 30 单位。
+        /// 【格 1→2 单位 ×2】波长/振幅整体 ×2（26 / 15 / 8.4 / 4.8，振幅 0.110 / 0.080 / 0.056 / 0.032），
+        /// 使"同一格数处有几个浪"的观感与旧口径一致：
+        /// 最短波长 4.8 ≥ <see cref="MinCrestSpacing"/> 4 的观感下限，否则单位站上去像"踩碎浪"；
+        /// 振幅合计 0.278 < 地面到水面的 0.4 间距 → 浪尖不会穿出地面（有测试断言）；
+        /// Σ Q·A·k 与波长/振幅同倍缩放后**保持不变**（Q·A·k 中 A 加倍、k 减半）→ 仍 0.081 ≪ 1，绝不自交。
+        /// 波速按深水色散（<see cref="Gravity"/> 保持物理值 9.81）→ 长浪快、短浪慢，符合观感。
         /// </summary>
         public static readonly WaterWave[] DefaultWaves =
         {
-            new WaterWave(new Vector2(1.00f, 0.25f), 13.0f, 0.055f, 0.65f, 1.00f),
-            new WaterWave(new Vector2(0.60f, 1.00f), 7.5f, 0.040f, 0.60f, 1.15f),
-            new WaterWave(new Vector2(-0.30f, 1.00f), 4.2f, 0.028f, 0.55f, 1.30f),
-            new WaterWave(new Vector2(1.00f, -0.50f), 2.4f, 0.016f, 0.50f, 1.50f),
+            new WaterWave(new Vector2(1.00f, 0.25f), 26.0f, 0.110f, 0.65f, 1.00f),
+            new WaterWave(new Vector2(0.60f, 1.00f), 15.0f, 0.080f, 0.60f, 1.15f),
+            new WaterWave(new Vector2(-0.30f, 1.00f), 8.4f, 0.056f, 0.55f, 1.30f),
+            new WaterWave(new Vector2(1.00f, -0.50f), 4.8f, 0.032f, 0.50f, 1.50f),
         };
 
         /// <summary>相位 <c>θ = k·(D·x) − ω·t</c>。</summary>

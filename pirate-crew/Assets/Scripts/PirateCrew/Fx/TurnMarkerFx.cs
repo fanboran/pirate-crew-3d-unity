@@ -85,7 +85,7 @@ namespace PirateCrew.PirateCrew.Fx
 
             Vector3 position = _target.position
                                - Vector3.up * LevelGeometry.UnitPivotHeight
-                               + Vector3.up * 0.02f;
+                               + Vector3.up * 0.04f;   // 抬高量 ×2（格 1→2 单位）
             _ring.SetPosition(position);
             _hasPosition = true;
             _lastPosition = position;

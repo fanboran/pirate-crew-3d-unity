@@ -55,10 +55,10 @@ namespace PirateCrew.PirateCrew.Water
         [SerializeField] bool enableSimulation = true;
 
         [Header("模拟域（世界 XZ，正方形，以竞技场中心为中心）")]
-        [Tooltip("域边长（世界单位）。64 覆盖 50×17 竞技场与两侧海床台阶。")]
+        [Tooltip("域边长（世界单位）。128 覆盖 100×34 竞技场与两侧海床台阶（格 1→2 单位 ×2）。")]
         [SerializeField] float domainSize = WaterSimRules.DefaultDomainSize;
 
-        [Tooltip("每轴格数。128² ≈ 1.6 万格，C# 每步约 0.4ms（Release 实测）。")]
+        [Tooltip("每轴格数。128² ≈ 1.6 万格，C# 每步约 0.4ms（Release 实测）。dx = 域边长/本值 = 1.0 世界单位 = 半格（格数不动，格距随域 ×2）。")]
         [SerializeField] int cellsPerAxis = WaterSimRules.DefaultCellsPerAxis;
 
         [Tooltip("用于取竞技场中心的关卡号（域中心 = W/2, D/2）。改关卡时要与 BattleController 一致。")]
@@ -68,34 +68,34 @@ namespace PirateCrew.PirateCrew.Water
         [SerializeField] bool useCustomDomainCenter = false;
 
         [Tooltip("自定义域中心（世界 XZ）。")]
-        [SerializeField] Vector2 customDomainCenter = new Vector2(25f, 8.5f);
+        [SerializeField] Vector2 customDomainCenter = new Vector2(50f, 17f);
 
-        [Tooltip("波速（世界单位/秒）。CFL 上限会自动约束 dt。")]
-        [SerializeField] float waveSpeed = 9f;
+        [Tooltip("波速（世界单位/秒）。CFL 上限会自动约束 dt。格 1→2 单位后 ×2（9→18），保持每格每秒的行进观感与 CFL 余量。")]
+        [SerializeField] float waveSpeed = 18f;
 
         [Tooltip("模拟固定步长（秒）。1/60 时 CFL = 0.30，余量 39%。")]
         [SerializeField] float fixedStep = 1f / 60f;
 
         [Header("域边缘涌浪源（克制起见默认很轻）")]
         [SerializeField] bool enableEdgeSwell = true;
-        [Tooltip("涌浪振幅（世界单位）。默认 0.02，约 2cm。")]
-        [SerializeField] float edgeSwellAmplitude = 0.02f;
+        [Tooltip("涌浪振幅（世界单位）。默认 0.04（格 1→2 单位 ×2）。")]
+        [SerializeField] float edgeSwellAmplitude = 0.04f;
         [Tooltip("涌浪周期（秒）。默认 6s，慢涌。")]
         [SerializeField] float edgeSwellPeriod = 6f;
         [Tooltip("注入边：0=−Z 1=+Z 2=−X 3=+X。")]
         [SerializeField, Range(0, 3)] int edgeSwellEdge = 0;
 
         [Header("事件注入")]
-        [Tooltip("爆炸涟漪半径（世界单位）。")]
-        [SerializeField] float splashRadiusWorld = 3.5f;
-        [Tooltip("爆炸涟漪峰值高度（世界单位）。")]
-        [SerializeField] float splashAmplitude = 0.06f;
+        [Tooltip("爆炸涟漪半径（世界单位）。格 1→2 单位 ×2（3.5→7）。")]
+        [SerializeField] float splashRadiusWorld = 7f;
+        [Tooltip("爆炸涟漪峰值高度（世界单位）。格 1→2 单位 ×2（0.06→0.12）。")]
+        [SerializeField] float splashAmplitude = 0.12f;
         [Tooltip("落水/爆炸同时在水面留下的泡沫量（0-1）。")]
         [SerializeField, Range(0f, 1f)] float splashFoam = 0.35f;
 
         [Header("纹理编码")]
-        [Tooltip("高度编码满量程（世界单位）：±该值映射到 [0,1]。")]
-        [SerializeField] float heightEncodeScale = 0.25f;
+        [Tooltip("高度编码满量程（世界单位）：±该值映射到 [0,1]。格 1→2 单位 ×2（0.25→0.5，编码对比度口径不变）。")]
+        [SerializeField] float heightEncodeScale = 0.5f;
 
         [Header("烘焙资产（Editor/WaterAssetBuilder 生成，可为空=不做障碍反射）")]
         [SerializeField] Texture2D obstacleMap;
@@ -180,7 +180,9 @@ namespace PirateCrew.PirateCrew.Water
 
             LevelData level = LevelCatalog.Get(domainLevelNumber);
             if (level.WidthTiles > 0 && level.HeightTiles > 0)
-                return new Vector2(level.WidthTiles * 0.5f, level.HeightTiles * 0.5f);
+                // 竞技场中心 = 格数 × TileWorldSize / 2（格 1→2 单位后 W/2 → W·1）。
+                return new Vector2(LevelGeometry.TileToWorld(level.WidthTiles * 0.5f),
+                    LevelGeometry.TileToWorld(level.HeightTiles * 0.5f));
 
             return customDomainCenter;
         }
@@ -434,7 +436,8 @@ namespace PirateCrew.PirateCrew.Water
         {
             if (!(payload is ProjectileDetonatedPayload detonated))
                 return;
-            if (detonated.Position.y > LevelGeometry.WaterSurfaceY + 0.5f)
+            // 距水面 1.0 世界单位以上算"空中爆炸"（格 1→2 单位后 0.5 → 1.0）。
+            if (detonated.Position.y > LevelGeometry.WaterSurfaceY + 1.0f)
                 return; // 空中爆炸不搅水
 
             InjectSplash(detonated.Position, 1f);

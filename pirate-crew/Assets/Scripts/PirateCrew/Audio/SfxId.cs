@@ -91,5 +91,15 @@ namespace PirateCrew.PirateCrew.Audio
 
         /// <summary>失败短乐句（A 和声小调下行 i-VII-VI-V，约 3.6 秒）。</summary>
         DefeatJingle = 23,
+
+        // ---------------- 环境底床（外部素材，无程序化合成） ----------------
+        /// <summary>
+        /// 环境底床垫底循环：**外部素材**（隔壁 Game-2 自产的
+        /// <c>bgm/ambient_pad.wav</c>，22 秒无缝单声道），由
+        /// <see cref="Game2AudioAssets"/> 登记、<c>AudioAssetBuilder.SyncPortedAssets</c> 搬入；
+        /// 本 id 没有 <c>SynthRenderer</c> 实现（<see cref="SynthRenderer.CanRender"/> 为 false），
+        /// 资产缺失时静音而不是回落成别的音色。
+        /// </summary>
+        BedPad = 24,
     }
 }

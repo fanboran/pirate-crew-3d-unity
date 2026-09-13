@@ -32,7 +32,7 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>每列最大抬升块数（列式旧模式的竖直压缩上限，仅兜底路径使用）。</summary>
         public const int MaxBlocksPerColumn = 8;
 
-        /// <summary>单块世界高度 = 8px = 0.25 单位（可玩性优先的竖直压缩）。</summary>
+        /// <summary>单块世界高度 = 8px = 0.5 单位（可玩性优先的竖直压缩；格 1→2 单位后随格放大）。</summary>
         public static float DefaultBlockWorldHeight => LevelGeometry.PixelsToUnits(8f);
 
         /// <summary>该关卡是否已转写地形数据（= <see cref="Data.LevelTileMaps"/> 收录了 1–33 全部关卡）。</summary>
