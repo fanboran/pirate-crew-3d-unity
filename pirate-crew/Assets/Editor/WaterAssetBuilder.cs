@@ -33,6 +33,15 @@ namespace PirateCrew.EditorTools
         public const string TextureFolder = "Assets/Art/Textures/Water";
         public const string ObstacleMapPath = TextureFolder + "/WaterObstacleMap.png";
 
+        /// <summary>
+        /// 海水材质资产路径（<see cref="BattleSceneLighting.WaterMaterial"/> 的同名资产）。
+        /// 材质参数由本类 <see cref="ApplyMaterialDefaults"/> 显式落盘。
+        /// </summary>
+        public const string OceanMaterialPath = "Assets/Art/Materials/Environment/Water_Ocean.mat";
+
+        /// <summary>海水 shader 名（与 PirateWater.shader 的 Shader 声明一致）。</summary>
+        public const string WaterShaderName = "PirateCrew/PirateWater";
+
         /// <summary>Battle 场景未打开时的兜底关卡号（与 Assets/Scenes/Battle.unity 的 fallbackLevelNumber 一致）。</summary>
         public const int FallbackLevelNumber = 1;
 
@@ -88,6 +97,10 @@ namespace PirateCrew.EditorTools
                       + " | 关卡 " + levelNumber + (transcribed ? "（已转写地形）" : "（未转写→平坦地面）")
                       + " | 域中心 (" + center.x + ", " + center.y + ") 边长 " + domainSize
                       + " | 障碍格 " + obstacleCount + " / " + (cells * cells));
+
+            // 材质参数在此一并落盘：ArtGate 的步骤 ①（BattleSceneLighting.BuildAll）会用旧默认值写一遍
+            // Water_Ocean.mat，而本步骤（⑥.5）在其后执行 —— 顺序保证 PirateWater.shader 的新默认值生效。
+            ApplyMaterialDefaults();
         }
 
         static int ResolveLevelNumber()
@@ -127,6 +140,182 @@ namespace PirateCrew.EditorTools
             importer.textureCompression = TextureImporterCompression.Uncompressed;
             importer.maxTextureSize = Mathf.Max(64, size);
             importer.SaveAndReimport();
+        }
+
+        // ------------------------------------------------------------------
+        // 海水材质参数落盘
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 把 <c>PirateWater.shader</c> 的默认参数**显式写进** <see cref="OceanMaterialPath"/>。
+        ///
+        /// 【为什么必须落盘而不是只改 shader Properties 默认值】
+        ///   Water_Ocean.mat 里已序列化了一整份旧参数（如 <c>_ReflectionStrength 0.55</c>、
+        ///   <c>_SunSpecColor (1,0.95,0.82)</c>）——序列化值优先于 shader 默认值，只改 shader 不会生效。
+        ///   本方法把新默认值逐条写进材质资产，保证出图用的就是 r5 参数。
+        ///
+        /// 【幂等】可重复执行；材质文件缺失时按 <see cref="WaterShaderName"/> 新建。
+        /// 【调用点】<see cref="BakeObstacleMap"/> 末尾（ArtGate 步骤 ⑥.5，晚于步骤 ① 的材质生成）；
+        ///   也可单独用菜单 <c>Tools/PirateCrew/Water/Apply Ocean Material Defaults</c>
+        ///   或无头 <c>-executeMethod PirateCrew.EditorTools.WaterAssetBuilder.ApplyMaterialDefaults</c>。
+        /// </summary>
+        [MenuItem("Tools/PirateCrew/Water/Apply Ocean Material Defaults")]
+        public static void ApplyMaterialDefaults()
+        {
+            Material m = AssetDatabase.LoadAssetAtPath<Material>(OceanMaterialPath);
+            if (m == null)
+            {
+                Shader shader = Shader.Find(WaterShaderName);
+                if (shader == null)
+                {
+                    Debug.LogError("[WaterAssetBuilder] 找不到 shader " + WaterShaderName + "，跳过海水材质参数落盘。");
+                    return;
+                }
+
+                EnsureMaterialFolder();
+                m = new Material(shader);
+                AssetDatabase.CreateAsset(m, OceanMaterialPath);
+                Debug.Log("[WaterAssetBuilder] 新建海水材质：" + OceanMaterialPath);
+            }
+
+            // ---- r4 实测修正：三档水色整体提亮（只抬明度、保持青蓝色相）----
+            SetColor(m, "_ShallowColor", "#5FB8DD");
+            SetColor(m, "_MidColor", "#3F99C6");
+            SetColor(m, "_DeepColor", "#2C7499");
+            // 浅→深完成深度 4 → 5：同深度下更多面积停留在较亮档 = 降等效吸收系数。
+            SetFloat(m, "_ShoreFadeDistance", 5f);
+
+            // ---- 太阳光路（暖金 + 平水面镜射宽瓣 + 伪地平线暖带）----
+            SetColor(m, "_SunSpecColor", "#FFDB73");       // (1.0, 0.86, 0.45) 暖金 hue≈45
+            SetFloat(m, "_SunSpecBroadStrength", 1.6f);
+            SetFloat(m, "_SunSpecLaneShininess", 24f);
+            SetFloat(m, "_SunSpecWaveStrength", 0.65f);
+            SetFloat(m, "_SunSpecBroadShininess", 50f);
+            SetFloat(m, "_SunSpecLaneWidth", 2.5f);
+            SetFloat(m, "_SunSpecPatchScale", 8f);
+            SetFloat(m, "_SunSpecPatchDepth", 0.40f);
+            SetFloat(m, "_SunSpecCrestBias", 0.70f);
+            SetFloat(m, "_SunSpecAzBandDeg", 22f);
+            SetFloat(m, "_SunSpecAzBandStrength", 0.55f);
+            SetFloat(m, "_SunSpecSlopeBoost", 12f);
+            SetFloat(m, "_SunSpecStrength", 8f);
+            SetFloat(m, "_SunSpecShininess", 320f);
+            SetFloat(m, "_SunSpecGlitter", 0.55f);
+            SetFloat(m, "_SunSheenStrength", 0.20f);
+
+            // ---- 亮点不再被中性白加色拉青：镜面降权、反射提权、折射降权 ----
+            SetFloat(m, "_SpecularIntensity", 0.5f);
+            SetFloat(m, "_ReflectionStrength", 1.0f);
+            SetFloat(m, "_RefractionBlend", 0.22f);
+
+            // ---- 其余参数与 shader 默认值对齐（避免旧序列化值残留）----
+            SetColor(m, "_CausticColor", "#CCFFEB");       // (0.80, 1.0, 0.92)
+            SetFloat(m, "_CausticStrength", 0.30f);
+            SetFloat(m, "_CausticScale", 0.55f);
+            SetFloat(m, "_CausticSpeed", 0.35f);
+            SetFloat(m, "_CausticWarp", 0.60f);
+            SetFloat(m, "_CausticDepthFade", 2.2f);
+
+            SetColor(m, "_FoamColor", "#F0F7FF");          // (0.941, 0.969, 1.0)
+            SetFloat(m, "_FoamWidth", 1.6f);
+            SetFloat(m, "_FoamNoiseScale", 5f);
+            SetFloat(m, "_FoamNoiseScale2", 13f);
+            SetFloat(m, "_FoamSpeed", 0.25f);
+            SetFloat(m, "_FoamStrength", 0.85f);
+            SetFloat(m, "_ShorelineFoamGain", 1.6f);
+            SetFloat(m, "_FoamBreakup", 0.45f);
+            SetFloat(m, "_FoamPulseSpeed", 0.55f);
+            SetFloat(m, "_FoamPulseFrequency", 1.2f);
+            SetFloat(m, "_FoamPulseStrength", 0.60f);
+
+            SetFloat(m, "_RefractionStrength", 0.035f);
+            SetFloat(m, "_RefractionDepthFade", 1.6f);
+            SetFloat(m, "_HeightFieldNormalStrength", 0.35f);
+            SetFloat(m, "_HeightFieldFoamStrength", 0.60f);
+            SetFloat(m, "_ObstacleFoamBoost", 1.20f);
+            SetFloat(m, "_FresnelPower", 5f);
+            SetFloat(m, "_FresnelStrength", 1f);
+            SetFloat(m, "_Smoothness", 0.92f);
+            SetFloat(m, "_Opacity", 0.82f);
+            SetFloat(m, "_DebugMode", 0f);
+
+            SetVector(m, "_W1Dir", new Vector4(1f, 0f, 0.25f, 0f));
+            SetFloat(m, "_W1Length", 13f);
+            SetFloat(m, "_W1Amp", 0.055f);
+            SetFloat(m, "_W1Steep", 0.65f);
+            SetFloat(m, "_W1Speed", 1f);
+            SetVector(m, "_W2Dir", new Vector4(0.6f, 0f, 1f, 0f));
+            SetFloat(m, "_W2Length", 7.5f);
+            SetFloat(m, "_W2Amp", 0.04f);
+            SetFloat(m, "_W2Steep", 0.60f);
+            SetFloat(m, "_W2Speed", 1.15f);
+            SetVector(m, "_W3Dir", new Vector4(-0.3f, 0f, 1f, 0f));
+            SetFloat(m, "_W3Length", 4.2f);
+            SetFloat(m, "_W3Amp", 0.028f);
+            SetFloat(m, "_W3Steep", 0.55f);
+            SetFloat(m, "_W3Speed", 1.30f);
+            SetVector(m, "_W4Dir", new Vector4(1f, 0f, -0.5f, 0f));
+            SetFloat(m, "_W4Length", 2.4f);
+            SetFloat(m, "_W4Amp", 0.016f);
+            SetFloat(m, "_W4Steep", 0.50f);
+            SetFloat(m, "_W4Speed", 1.50f);
+
+            SetFloat(m, "_WaveScaleA", 0.32f);
+            SetFloat(m, "_WaveSpeedA", 0.45f);
+            SetFloat(m, "_WaveStrengthA", 0.55f);
+            SetVector(m, "_WaveDirectionA", new Vector4(1f, 0f, 0.35f, 0f));
+            SetFloat(m, "_WaveScaleB", 0.95f);
+            SetFloat(m, "_WaveSpeedB", 0.85f);
+            SetFloat(m, "_WaveStrengthB", 0.28f);
+            SetVector(m, "_WaveDirectionB", new Vector4(-0.4f, 0f, 1f, 0f));
+
+            EditorUtility.SetDirty(m);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[WaterAssetBuilder] 海水材质参数已落盘：" + OceanMaterialPath
+                      + "（水色提亮 / 暖金太阳光路 / 反射提权 / 折射降权）");
+        }
+
+        static void EnsureMaterialFolder()
+        {
+            if (!AssetDatabase.IsValidFolder("Assets/Art/Materials"))
+                AssetDatabase.CreateFolder("Assets/Art", "Materials");
+            if (!AssetDatabase.IsValidFolder("Assets/Art/Materials/Environment"))
+                AssetDatabase.CreateFolder("Assets/Art/Materials", "Environment");
+        }
+
+        static void SetFloat(Material m, string name, float value)
+        {
+            if (m.HasProperty(name))
+                m.SetFloat(name, value);
+            else
+                Debug.LogWarning("[WaterAssetBuilder] 材质缺少属性 " + name + "（shader 与材质不同步？）");
+        }
+
+        static void SetColor(Material m, string name, string hex)
+        {
+            if (!m.HasProperty(name))
+            {
+                Debug.LogWarning("[WaterAssetBuilder] 材质缺少属性 " + name + "（shader 与材质不同步？）");
+                return;
+            }
+            m.SetColor(name, ParseHex(hex));
+        }
+
+        static void SetVector(Material m, string name, Vector4 value)
+        {
+            if (m.HasProperty(name))
+                m.SetVector(name, value);
+            else
+                Debug.LogWarning("[WaterAssetBuilder] 材质缺少属性 " + name + "（shader 与材质不同步？）");
+        }
+
+        /// <summary>解析 "#RRGGBB"（sRGB，与 BattleSceneLighting.Hex 同口径）为 Color。</summary>
+        static Color ParseHex(string hex)
+        {
+            if (ColorUtility.TryParseHtmlString(hex, out Color color))
+                return color;
+            Debug.LogWarning("[WaterAssetBuilder] 无法解析颜色 " + hex + "，退回白色。");
+            return Color.white;
         }
     }
 }

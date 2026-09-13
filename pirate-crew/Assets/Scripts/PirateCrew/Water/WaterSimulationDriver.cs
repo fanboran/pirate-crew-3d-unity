@@ -107,6 +107,7 @@ namespace PirateCrew.PirateCrew.Water
         float _accumulator;
         float _simTime;
         Texture2D _fallbackObstacle;
+        Light _sunLight;
         bool _subscribed;
 
         /// <summary>模拟是否在运行（供测试/报告读取）。</summary>
@@ -309,28 +310,58 @@ namespace PirateCrew.PirateCrew.Water
         /// <summary>
         /// 把太阳方向发布成全局 uniform（供 <c>PirateWater.shader</c> 的太阳光路用）。
         /// 语义 = **从水面指向光源**的世界方向 L = <c>-sun.transform.forward</c>，
-        /// 与 URP 主光 <c>GetMainLight().direction</c> 同向——shader 里直接用它的 dot 做 Blinn-Phong，
-        /// 不能再取负（r3 的符号错误正是"画面里完全没有光路"的元凶之一）。
+        /// 与 URP 主光 <c>GetMainLight().direction</c>（= <c>_MainLightPosition.xyz</c> = <c>-light.forward</c>）同向，
+        /// shader 里直接用它的 dot 做镜面，不能再取负（r3 的符号错误正是"画面里完全没有光路"的元凶之一）。
         ///
         /// 【为什么 sun 需要专门传】水面是 Transparent、SRP Batcher 走的材质 uniform 里没有太阳方向；
         /// 而 <c>GetMainLight()</c> 在 ForwardLit 里可用，但场景主光由 <see cref="RenderSettings.sun"/>
-        /// 权威给出，这里显式对齐 <c>BattleSceneLighting.CreateDirectionalLight</c> 的姿态。
+        /// 权威给出，这里显式对齐实际主光姿态。
         ///
-        /// 【兜底】本场景的 <c>Battle.unity</c> 没有把主光登记为 sun（<c>m_Sun: {fileID: 0}</c>），
-        /// 若发 0 会让高光方向依赖 shader 回退分支、行为不显式；故 sun 为空时用主光固定姿态
-        /// <c>Euler(48,140,0)</c> 反推 L（= -(0.43,-0.74,-0.51) ≈ (-0.43,0.74,0.51)）。
-        /// 该 Euler 与 <c>M2BattleSceneSetup</c>/<c>AmbientTimeOfDayCatalog</c> 正午档逐值相同，
-        /// 故兜底方向与实际主光一致。
+        /// 【为什么不能只发静态正午姿态】本场景的 <c>Battle.unity</c> 没有把主光登记为 sun
+        /// （<c>m_Sun: {fileID: 0}</c>），但运行时的 <c>AmbientDirector</c> 会旋转它指向的光源
+        /// （昼夜档位）。若 sun 为空就永远发固定 Euler(48,140) 的 L，切到其它时段后水面光路方向
+        /// 会与真实主光相反/错位。故解析顺序为
+        /// <c>RenderSettings.sun</c> → 场景里最亮的启用平行光（缓存）→ 静态正午兜底。
         /// </summary>
         void PublishSunDirection()
         {
-            Light sun = RenderSettings.sun;
+            Light sun = RenderSettings.sun != null ? RenderSettings.sun : _sunLight;
+            if (sun == null)
+            {
+                // 缓存失效（光源被销毁/换场景）时重解析一次。
+                _sunLight = FindBrightestDirectionalLight();
+                sun = _sunLight;
+            }
+
             Vector3 toLight = sun != null ? -sun.transform.forward : FallbackSunToLight;
             Shader.SetGlobalVector(GlobalSunDir, new Vector4(toLight.x, toLight.y, toLight.z, 0f));
         }
 
         /// <summary>
-        /// sun 未接线时的兜底「指向光源」方向：由主光固定姿态 <c>Euler(48,140,0)</c> 反推
+        /// 找场景里最亮的启用平行光（sun 未登记时的兜底；只在缓存失效时调用，非每帧）。
+        /// 只按"平行光 + 启用 + 强度最高"挑选，不跨模块引用 AmbientDirector，保持水体模块独立。
+        /// </summary>
+        static Light FindBrightestDirectionalLight()
+        {
+            Light[] lights = Object.FindObjectsOfType<Light>();
+            Light best = null;
+            float bestIntensity = -1f;
+            for (int i = 0; i < lights.Length; i++)
+            {
+                Light l = lights[i];
+                if (l == null || l.type != LightType.Directional || !l.enabled)
+                    continue;
+                if (l.intensity > bestIntensity)
+                {
+                    bestIntensity = l.intensity;
+                    best = l;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// sun 未接线且找不到平行光时的兜底「指向光源」方向：由主光固定姿态 <c>Euler(48,140,0)</c> 反推
         /// （<c>Vector3.back</c> 旋转后即指向光源的 L ≈ (-0.43,0.74,0.51)）。静态只算一次。
         /// </summary>
         static readonly Vector3 FallbackSunToLight = Quaternion.Euler(48f, 140f, 0f) * Vector3.back;
