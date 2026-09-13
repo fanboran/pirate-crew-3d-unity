@@ -255,7 +255,9 @@ namespace PirateCrew.Tests
         [Test]
         public void PendingBattleLevelNumber_UsesSelectedLevelWhenTranscribed()
         {
-            CampaignApi.Progress.CompleteLevel("level_01", 1);   // level_04 的前置已转写关卡
+            CampaignApi.Progress.CompleteLevel("level_01", 1);
+            CampaignApi.Progress.CompleteLevel("level_02", 1);
+            CampaignApi.Progress.CompleteLevel("level_03", 1);   // 33 关全量后 level_04 前置为严格顺序
             Assert.That(CampaignApi.SelectLevel("level_04"), Is.True);
 
             Assert.That(CampaignApi.PendingBattleLevelNumberOr(1), Is.EqualTo(4),
@@ -270,8 +272,8 @@ namespace PirateCrew.Tests
             Assert.That(CampaignApi.SelectLevel("level_02"), Is.True);
             Assert.That(CampaignApi.PendingLevelId, Is.EqualTo("level_02"));
 
-            Assert.That(CampaignApi.PendingBattleLevelNumberOr(1), Is.EqualTo(1),
-                "level_02 的数据还没转写 → 回退，接入方不会抛 KeyNotFoundException");
+            Assert.That(CampaignApi.PendingBattleLevelNumberOr(1), Is.EqualTo(2),
+                "level_02 已转写（33 关全量）→ 用所选关卡号，不回退");
         }
 
         // ------------------------------------------------------------------

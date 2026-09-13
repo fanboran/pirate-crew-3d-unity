@@ -78,13 +78,19 @@ namespace PirateCrew.PirateCrew.Data
     /// <summary>
     /// 关卡目录的纯 C# 静态转写。
     ///
-    /// 【出处】静态逆向文档 §7.2「关卡数量与配置」代表关表，以及 §4.3（坐标换算）、§5.5（水面/空投）。
+    /// 【出处】静态逆向文档 §7.2「关卡数量与配置」代表关表与尺寸表，以及 §4.3（坐标换算/队伍归属）、
+    ///         §5.5（水面 / 空投 / 初始武器）与 §7.1（1P 战役 1–15、2P 面板 16–33）。
     ///
-    /// 【转写范围】只转写 3 个代表性关卡，覆盖三种形态：
-    ///   1. level_1  —— 新手关（小规模 5v3，全员保底樱桃炸弹，空投炸药；水面 y=14）
-    ///   2. level_4  —— 多对多混战关（6v6，空投含 seagull / piecesOfEight 等特殊武器；水面 y=17）
-    ///   3. level_27 —— 1v1 对等决斗关（2P 面板，双船长单挑；水面 y=19）
-    /// 其余 30 关在 <see cref="PendingLevelNumbers"/> 显式标注「待补」。
+    /// 【转写范围】<b>全部 33 关</b>（§7.2：total_levels = 33），无「待补」关卡。
+    ///   本文件保留三个代表关作为范式样板（覆盖三种形态，也是 §7.2 代表表的原班人马）：
+    ///     1. level_1  —— 新手关（小规模 5v3，全员保底樱桃炸弹，空投炸药；水面 y=14）
+    ///     2. level_4  —— 多对多混战关（6v6，空投含 seagull / piecesOfEight 等特殊武器；水面 y=17）
+    ///     3. level_27 —— 1v1 对等决斗关（2P 面板，双船长单挑；水面 y=19）
+    ///   其余 30 关按同一范式拆到分部文件，规模上限与可读性考虑：
+    ///     - `LevelCatalog.Levels2.cs` —— level_2–level_15（level_4 除外）
+    ///     - `LevelCatalog.Levels3.cs` —— level_16–level_33（level_27 除外）
+    ///   三个文件的静态字段由本文件的静态构造函数统一汇总成 <see cref="All"/>，顺序即关卡号升序，
+    ///   避免分部类跨文件静态字段初始化顺序不确定带来的隐患。
     ///
     /// 【布阵字段来源】§7.2 代表表只给出双方人数与武器池概览，**不含每个单位的坐标 / luck / 初始武器**；
     /// 这些字段只存在于原版关卡 XML（`<obj>` 的属性）里。为把"双方出战单位列表"的字段结构落全，
@@ -92,7 +98,7 @@ namespace PirateCrew.PirateCrew.Data
     /// XML 有而文档 §7.2 未收录的字段（每单位坐标/luck/初始武器、potentialWeapons.maxChests、
     /// XML players 属性）均已在此与各武器装备的 Remark 中注明，未臆造任何数值。
     /// </summary>
-    public static class LevelCatalog
+    public static partial class LevelCatalog
     {
         /// <summary>原版关卡总数（§1 / §7.2：total_levels = 33）。</summary>
         public const int TotalLevels = 33;
@@ -289,9 +295,72 @@ namespace PirateCrew.PirateCrew.Data
                 }),
             });
 
-        static readonly List<LevelData> _all = new List<LevelData> { _level1, _level4, _level27 };
+        // ------------------------------------------------------------------
+        // 汇总：静态构造函数保证「先初始化 33 个关卡字段，再建索引与列表」
+        //
+        // 分部类（本文件 + Levels2 + Levels3）的静态字段初始化顺序在跨文件时是未定义的，
+        // 若把汇总写在字段初始化式里（如 _all = new List<LevelData> { _level1, ... }），
+        // 就可能读到尚未初始化的 struct 字段（全 0）而静默得到空关卡。
+        // 显式静态构造函数可保证：所有静态字段初始化式执行完毕后，才执行函数体。
+        // ------------------------------------------------------------------
+        static readonly Dictionary<int, LevelData> _byNumber;
+        static readonly List<LevelData> _all;
+        static readonly List<int> _pending;
 
-        static readonly List<int> _pending = BuildPendingLevels();
+        static LevelCatalog()
+        {
+            _byNumber = BuildIndex();
+            _all = BuildAllLevels();
+            _pending = BuildPendingLevels();
+        }
+
+        /// <summary>逐关登记（新增关卡时在本表补一行即可，顺序不敏感）。</summary>
+        static Dictionary<int, LevelData> BuildIndex()
+        {
+            var map = new Dictionary<int, LevelData>(TotalLevels);
+            map[_level1.LevelNumber] = _level1;
+            map[_level2.LevelNumber] = _level2;
+            map[_level3.LevelNumber] = _level3;
+            map[_level4.LevelNumber] = _level4;
+            map[_level5.LevelNumber] = _level5;
+            map[_level6.LevelNumber] = _level6;
+            map[_level7.LevelNumber] = _level7;
+            map[_level8.LevelNumber] = _level8;
+            map[_level9.LevelNumber] = _level9;
+            map[_level10.LevelNumber] = _level10;
+            map[_level11.LevelNumber] = _level11;
+            map[_level12.LevelNumber] = _level12;
+            map[_level13.LevelNumber] = _level13;
+            map[_level14.LevelNumber] = _level14;
+            map[_level15.LevelNumber] = _level15;
+            map[_level16.LevelNumber] = _level16;
+            map[_level17.LevelNumber] = _level17;
+            map[_level18.LevelNumber] = _level18;
+            map[_level19.LevelNumber] = _level19;
+            map[_level20.LevelNumber] = _level20;
+            map[_level21.LevelNumber] = _level21;
+            map[_level22.LevelNumber] = _level22;
+            map[_level23.LevelNumber] = _level23;
+            map[_level24.LevelNumber] = _level24;
+            map[_level25.LevelNumber] = _level25;
+            map[_level26.LevelNumber] = _level26;
+            map[_level27.LevelNumber] = _level27;
+            map[_level28.LevelNumber] = _level28;
+            map[_level29.LevelNumber] = _level29;
+            map[_level30.LevelNumber] = _level30;
+            map[_level31.LevelNumber] = _level31;
+            map[_level32.LevelNumber] = _level32;
+            map[_level33.LevelNumber] = _level33;
+            return map;
+        }
+
+        static List<LevelData> BuildAllLevels()
+        {
+            var all = new List<LevelData>(TotalLevels);
+            for (int n = 1; n <= TotalLevels; n++)
+                all.Add(Get(n));
+            return all;
+        }
 
         static List<int> BuildPendingLevels()
         {
@@ -304,13 +373,13 @@ namespace PirateCrew.PirateCrew.Data
             return pending;
         }
 
-        /// <summary>已转写的 3 个代表关。</summary>
+        /// <summary>已转写的关卡（= 全部 33 关，按关卡号升序）。</summary>
         public static IReadOnlyList<LevelData> All => _all;
 
-        /// <summary>已转写的关卡数量（应为 3）。</summary>
+        /// <summary>已转写的关卡数量（应为 33 = <see cref="TotalLevels"/>）。</summary>
         public static int Count => _all.Count;
 
-        /// <summary>已转写的关卡号集合。</summary>
+        /// <summary>已转写的关卡号集合（1..33，升序）。</summary>
         public static IReadOnlyList<int> TranscribedLevelNumbers
         {
             get
@@ -322,30 +391,26 @@ namespace PirateCrew.PirateCrew.Data
             }
         }
 
-        /// <summary>其余关卡号（1–33 中未转写的 30 关），显式标注「待补」。</summary>
+        /// <summary>
+        /// 「待补」关卡号（1–33 中未转写者）。33 关已于本次全部补齐，恒为空列表；
+        /// 保留属性是为了不打断 <c>M2DataAssetGenerator</c> 等既有调用方的编译。
+        /// </summary>
         public static IReadOnlyList<int> PendingLevelNumbers => _pending;
 
-        /// <summary>该关卡号是否已转写。</summary>
+        /// <summary>该关卡号是否已转写。33 关全部转写后 = 关卡号是否落在 1–<see cref="TotalLevels"/>。</summary>
         public static bool IsTranscribed(int levelNumber)
         {
-            for (int i = 0; i < _all.Count; i++)
-            {
-                if (_all[i].LevelNumber == levelNumber)
-                    return true;
-            }
-            return false;
+            return levelNumber >= 1 && levelNumber <= TotalLevels;
         }
 
-        /// <summary>按关卡号取数据；未转写时抛 <see cref="KeyNotFoundException"/>。</summary>
+        /// <summary>按关卡号取数据；关卡号落在 1–33 之外时抛 <see cref="KeyNotFoundException"/>。</summary>
         public static LevelData Get(int levelNumber)
         {
-            for (int i = 0; i < _all.Count; i++)
-            {
-                if (_all[i].LevelNumber == levelNumber)
-                    return _all[i];
-            }
+            if (_byNumber.TryGetValue(levelNumber, out LevelData level))
+                return level;
+
             throw new KeyNotFoundException(
-                "LevelCatalog 尚未转写关卡 " + levelNumber + "（见 PendingLevelNumbers，待补）。");
+                "LevelCatalog 中不存在关卡 " + levelNumber + "（合法范围 1–" + TotalLevels + "）。");
         }
 
         // ------------------------------------------------------------------

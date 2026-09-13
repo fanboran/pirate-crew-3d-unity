@@ -6,21 +6,28 @@ namespace PirateCrew.Tests
 {
     /// <summary>
     /// LevelCatalog 的纯 C# 断言（对应静态逆向文档 §7.2 / §4.3 / §5.5）。
-    /// 只覆盖 3 个已转写代表关的不变量；其余 30 关标注「待补」。
+    /// 覆盖全部 33 关的通用不变量；与原始关卡 XML 的逐字段比对见
+    /// <see cref="LevelCatalogJsonParityTests"/>。
     /// </summary>
     public class LevelCatalogTests
     {
         [Test]
-        public void Count_Is3_AndLevelNumbersUnique()
+        public void Count_Is33_AndLevelNumbersAre1To33()
         {
-            Assert.That(LevelCatalog.Count, Is.EqualTo(3));
             Assert.That(LevelCatalog.TotalLevels, Is.EqualTo(33));
+            Assert.That(LevelCatalog.Count, Is.EqualTo(33));
 
             var seen = new HashSet<int>();
             foreach (LevelData level in LevelCatalog.All)
                 Assert.That(seen.Add(level.LevelNumber), Is.True, "关卡号重复: " + level.LevelNumber);
 
-            Assert.That(seen, Is.EquivalentTo(new[] { 1, 4, 27 }));
+            var expected = new List<int>();
+            for (int n = 1; n <= 33; n++) expected.Add(n);
+            Assert.That(seen, Is.EquivalentTo(expected));
+
+            // All 按关卡号升序（分发表 1..33 顺序），便于外部按下标取用
+            for (int i = 0; i < LevelCatalog.All.Count; i++)
+                Assert.That(LevelCatalog.All[i].LevelNumber, Is.EqualTo(i + 1));
         }
 
         [Test]
@@ -150,23 +157,59 @@ namespace PirateCrew.Tests
         }
 
         // ------------------------------------------------------------------
-        // 待补关卡标注
+        // 待补关卡标注：33 关全部补齐后应无待补
         // ------------------------------------------------------------------
 
         [Test]
-        public void PendingLevels_AreExplicitlyMarked()
+        public void PendingLevels_AreEmpty_All33Transcribed()
         {
-            Assert.That(LevelCatalog.PendingLevelNumbers.Count, Is.EqualTo(30));
-            foreach (int n in new[] { 1, 4, 27 })
+            Assert.That(LevelCatalog.PendingLevelNumbers, Is.Empty, "33 关应已全部转写，无「待补」关卡");
+
+            for (int n = 1; n <= 33; n++)
                 Assert.That(LevelCatalog.IsTranscribed(n), Is.True, "关卡 " + n + " 应已转写");
 
-            var pending = new HashSet<int>(LevelCatalog.PendingLevelNumbers);
-            Assert.That(LevelCatalog.IsTranscribed(2), Is.False);
-            Assert.That(pending.Contains(2), Is.True);
-            Assert.That(pending.Contains(33), Is.True);
-            Assert.That(pending.Contains(4), Is.False);
+            Assert.That(LevelCatalog.TranscribedLevelNumbers.Count, Is.EqualTo(33));
+            Assert.That(LevelCatalog.IsTranscribed(0), Is.False, "0 号不是合法关卡号");
+            Assert.That(LevelCatalog.IsTranscribed(34), Is.False, "34 号超出 TotalLevels");
 
-            Assert.Throws<KeyNotFoundException>(() => LevelCatalog.Get(2));
+            // 越界关卡号在取数时立刻抛错，而不是返回默认 struct
+            Assert.Throws<KeyNotFoundException>(() => LevelCatalog.Get(0));
+            Assert.Throws<KeyNotFoundException>(() => LevelCatalog.Get(34));
+            Assert.DoesNotThrow(() => LevelCatalog.Get(2));
+            Assert.DoesNotThrow(() => LevelCatalog.Get(33));
+        }
+
+        // ------------------------------------------------------------------
+        // 关卡尺寸与模式（§7.2 尺寸表）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void LevelMetadata_MatchesDoc72SizeTable()
+        {
+            int[,] expected =
+            {
+                { 1, 50, 17, 1 },  { 2, 47, 27, 1 },  { 3, 40, 23, 1 },  { 4, 56, 18, 1 },
+                { 5, 44, 20, 1 },  { 6, 115, 28, 1 }, { 7, 24, 12, 1 },  { 8, 20, 35, 1 },
+                { 9, 59, 25, 1 },  { 10, 77, 32, 1 },{ 11, 44, 16, 1 }, { 12, 44, 26, 1 },
+                { 13, 90, 7, 1 },  { 14, 48, 31, 1 },{ 15, 86, 20, 1 }, { 16, 50, 17, 1 },
+                { 17, 47, 28, 1 }, { 18, 40, 21, 1 },{ 19, 56, 18, 1 }, { 20, 44, 18, 1 },
+                { 21, 63, 35, 2 }, { 22, 115, 28, 2 },{ 23, 24, 16, 2 }, { 24, 23, 34, 2 },
+                { 25, 59, 27, 2 }, { 26, 77, 32, 2 },{ 27, 21, 20, 2 }, { 28, 44, 20, 2 },
+                { 29, 44, 26, 2 }, { 30, 90, 12, 2 },{ 31, 48, 30, 2 }, { 32, 86, 20, 2 },
+                { 33, 41, 33, 1 },
+            };
+
+            for (int i = 0; i < expected.GetLength(0); i++)
+            {
+                LevelData level = LevelCatalog.Get(expected[i, 0]);
+                Assert.That(level.WidthTiles, Is.EqualTo(expected[i, 1]),
+                    "关卡 " + level.LevelNumber + " 宽度与 §7.2 尺寸表不符");
+                Assert.That(level.HeightTiles, Is.EqualTo(expected[i, 2]),
+                    "关卡 " + level.LevelNumber + " 高度与 §7.2 尺寸表不符");
+                Assert.That(level.Name, Is.EqualTo("level_" + level.LevelNumber), "关卡名应为键名");
+                Assert.That(level.OriginalXmlPlayers, Is.EqualTo(expected[i, 3]),
+                    "关卡 " + level.LevelNumber + " XML players 属性与原始关卡 XML 不符");
+            }
         }
     }
 }

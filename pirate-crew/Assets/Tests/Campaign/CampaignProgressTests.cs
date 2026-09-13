@@ -33,10 +33,10 @@ namespace PirateCrew.Tests
 
             progress.CompleteLevel("level_01", 2);
 
+            // 33 关全量转写后解锁链为严格顺序（2026-09-14）。
             Assert.That(progress.IsUnlocked("level_02"), Is.True);
-            Assert.That(progress.IsUnlocked("level_03"), Is.True);
-            Assert.That(progress.IsUnlocked("level_04"), Is.True);
-            Assert.That(progress.IsUnlocked("level_05"), Is.False, "level_05 需要 level_04 通关");
+            Assert.That(progress.IsUnlocked("level_03"), Is.False, "level_03 需要 level_02 通关");
+            Assert.That(progress.IsUnlocked("level_04"), Is.False);
             Assert.That(progress.IsUnlocked("level_15"), Is.False);
         }
 
@@ -45,12 +45,14 @@ namespace PirateCrew.Tests
         {
             var progress = new CampaignProgress();
 
-            // 只打通「已转写」的两关即可推进整条链（未转写关卡不阻塞，提案/待定）。
+            // 33 关全量转写后需按顺序通关（2026-09-14，旧「跳关推进」口径废止）。
             progress.CompleteLevel("level_01", 1);
+            progress.CompleteLevel("level_02", 1);
+            progress.CompleteLevel("level_03", 1);
             progress.CompleteLevel("level_04", 1);
 
             Assert.That(progress.IsUnlocked("level_05"), Is.True);
-            Assert.That(progress.IsUnlocked("level_15"), Is.True, "链条上再没有已转写关卡拦截");
+            Assert.That(progress.IsUnlocked("level_15"), Is.False, "level_15 仍需中间关卡通关");
         }
 
         [Test]

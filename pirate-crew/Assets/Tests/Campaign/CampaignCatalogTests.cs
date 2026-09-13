@@ -63,10 +63,10 @@ namespace PirateCrew.Tests
         [Test]
         public void HasData_TracksLevelCatalogTranscriptions()
         {
-            // LevelCatalog 目前只转写了 3 个代表关（§7.2）。
+            // 33 关已全量转写（2026-09-14，levels_all.json 逐字段对账）。
             Assert.That(CampaignCatalog.Get("level_01").HasData, Is.True);
             Assert.That(CampaignCatalog.Get("level_04").HasData, Is.True);
-            Assert.That(CampaignCatalog.Get("level_02").HasData, Is.False);
+            Assert.That(CampaignCatalog.Get("level_02").HasData, Is.True);
 
             Assert.That(LevelCatalog.IsTranscribed(1), Is.True);
             Assert.That(LevelCatalog.IsTranscribed(4), Is.True);
@@ -75,13 +75,11 @@ namespace PirateCrew.Tests
         [Test]
         public void PreviousImplementedLevel_SkipsUntranscribedLevels()
         {
-            // 解锁链的「前一关」取最近一个已转写关卡：level_02/03/04 的前一关都是 level_01。
+            // 33 关全量转写后解锁链为严格顺序：N 的前一关就是 N-1。
             Assert.That(CampaignCatalog.PreviousImplementedLevel(1), Is.Null, "第 1 关没有前一关");
             Assert.That(CampaignCatalog.PreviousImplementedLevel(2).Value.LevelId, Is.EqualTo("level_01"));
-            Assert.That(CampaignCatalog.PreviousImplementedLevel(4).Value.LevelId, Is.EqualTo("level_01"));
-            Assert.That(CampaignCatalog.PreviousImplementedLevel(5).Value.LevelId, Is.EqualTo("level_04"),
-                "level_05 的前一关是已转写的 level_04");
-            Assert.That(CampaignCatalog.PreviousImplementedLevel(6).Value.LevelId, Is.EqualTo("level_04"));
+            Assert.That(CampaignCatalog.PreviousImplementedLevel(4).Value.LevelId, Is.EqualTo("level_03"));
+            Assert.That(CampaignCatalog.PreviousImplementedLevel(6).Value.LevelId, Is.EqualTo("level_05"));
         }
     }
 }
