@@ -40,10 +40,21 @@
 //   （内缘-外缘 0→3→6→11→20→34，顶面从 waterWorldY-0.18 逐级降到 -2.9），
 //   于是 waterDepth 呈连续"浅 → 中 → 深"三级，正好对上三档海水色，也是假焦散的可见区。
 //
-// 【太阳光路（r3 新增）】旧 GGX 镜像在 Smoothness=0.92 下 α≈0.0064、高光只有亚像素级，
-//   1080p 里看不到"阳光光路"。现额外叠一条 Blinn-Phong 宽镜面（_SunSpecShininess 200-600）+
-//   波光破碎（_SunSpecGlitter），太阳方向由全局 `_WaterSunDir`（WaterSimulationDriver 从
-//   RenderSettings.sun 传）给出，未接驱动时退回 GetMainLight().direction。
+// 【太阳光路（r4 重做：r3 版本画面里完全没出现的原因）】
+//   r3 叠了一条 Blinn-Phong 窄镜面（_SunSpecShininess 320）+ 全局 `_WaterSunDir`，但三条原因使其归零：
+//   ① 方向符号反了：`_WaterSunDir` 由驱动发的是「从水面指向光源」L = -sun.forward（光朝向的反），
+//      r3 片元里又取负 → 得到朝下的「光传播方向」，half 的 y 分量只剩 ~0 → saturate(dot(n,half))≈0，
+//      恒无高光。（本场景 m_Sun 为 0，r3 实际走 mainLight.direction 回退，故①是潜在 bug；见驱动注释。）
+//   ② 镜面几何不可达：主光 Euler(48,140) 的 L≈(-0.43,0.74,0.51)，而取景相机在 +Z 侧朝 -Z
+//      （M2BattleSceneSetup.CameraDistance/Pitch），半角向量离竖直 ~42°，而 Gerstner 低频法线
+//      最大只倾斜 ~7.5° → 平水面上不存在镜面解，窄瓣（可见半角 ~3.8°）无处可亮。
+//   ③ 法线太碎：r3 用含 FBM 高频细节的法线做 pow(·,320)，逐像素抖动把光路打散并平均归零。
+//   r4 方案：低频法线（几何 + Gerstner 解析法线，**不含高频细节**）水平斜率乘 `_SunSpecSlopeBoost`
+//   后走「宽瓣」（`_SunSpecBroadShininess` 默认 60）→ 沿太阳方位拉出连续光路；窄瓣（shininess 320）
+//   再叠回受控高频细节 + 噪声掩码 → 稀疏波光闪点。光路色 `_SunSpecColor`（暖金 hue≈43）以
+//   **权重混合**（lerp）而非无限相加——加法会被水体蓝底拉成青白（正是"最亮像素是薄荷绿"的成因）。
+//   `_WaterSunDir` 语义 = 从水面指向光源 L（驱动发 -sun.forward；与 GetMainLight().direction 同向），
+//   未接驱动（w 全 0）时退回 GetMainLight().direction。
 //
 // 【Pass 与 LightMode】只有 ForwardLit（"UniversalForward"）一个 Pass。
 //   不做 ShadowCaster（透明水面不投影）、不做 DepthOnly（透明物体不进不透明深度预通道；
@@ -157,12 +168,14 @@ Shader "PirateCrew/PirateWater"
         _Smoothness             ("光滑度", Range(0.0, 1.0)) = 0.92
         _SpecularIntensity      ("主光镜面强度（风格化，非能量守恒）", Range(0.0, 8.0)) = 2.2
 
-        // ---- 太阳光路（Blinn-Phong 宽镜面 + 波光破碎）【AI 提案：r3 修问题 4】----
-        // 旧的 GGX 镜面在 _Smoothness=0.92 下 α=(1-s)²≈0.0064 → 高光只有亚像素级，1080p 根本
-        // 看不到"阳光光路"。这里显式加一条 shininess 200-600 的宽镜面，让太阳方向在水面拉出
-        // 一条连通的高光带（峰值 > Bloom threshold，可由 _SunSpecStrength 调）。
-        _SunSpecStrength        ("太阳光路强度", Range(0.0, 20.0)) = 8.0
-        _SunSpecShininess       ("太阳光路锐度（200-600）", Range(20.0, 1200.0)) = 320.0
+        // ---- 太阳光路（宽瓣连续光路 + 窄瓣波光闪点）【AI 提案：r4 修"太阳不知在哪"】----
+        // 为什么需要斜率放大、为什么用"混色"而不是"加色"：见文件头【太阳光路（r4 重做）】。
+        _SunSpecColor           ("太阳光路色（暖金 hue≈43）", Color) = (1.0, 0.95, 0.82, 1.0)
+        _SunSpecBroadStrength   ("宽瓣强度（>1 加宽饱和核心）", Range(0.0, 2.0)) = 1.3
+        _SunSpecBroadShininess  ("宽瓣锐度（60-120=大范围光路）", Range(10.0, 240.0)) = 60.0
+        _SunSpecSlopeBoost      ("宽瓣法线斜率放大（拉出光路）", Range(1.0, 16.0)) = 8.0
+        _SunSpecStrength        ("窄瓣（闪点）强度", Range(0.0, 20.0)) = 8.0
+        _SunSpecShininess       ("窄瓣锐度（400+ = 细闪点）", Range(20.0, 1200.0)) = 320.0
         _SunSpecGlitter         ("波光破碎强度（0=整片光路）", Range(0.0, 1.0)) = 0.55
 
         // ---- 不透明度 ----
@@ -263,6 +276,10 @@ Shader "PirateCrew/PirateWater"
                 float  _SunSpecStrength;
                 float  _SunSpecShininess;
                 float  _SunSpecGlitter;
+                float4 _SunSpecColor;
+                float  _SunSpecBroadStrength;
+                float  _SunSpecBroadShininess;
+                float  _SunSpecSlopeBoost;
                 float  _Opacity;
                 float  _DebugMode;
             CBUFFER_END
@@ -275,7 +292,7 @@ Shader "PirateCrew/PirateWater"
             SAMPLER(sampler_WaterObstacleMap);
             float4 _WaterSimOrigin;   // (中心X, 中心Z, 域边长, 每轴格数)
             float  _WaterSimEnabled;  // 0 = 未接驱动，跳过高度场/障碍两路
-            float4 _WaterSunDir;      // 太阳方向（光传播方向，由驱动从 RenderSettings.sun 读；未接时为 0）
+            float4 _WaterSunDir;      // 从水面指向光源 L（驱动发 -sun.forward；未接时为 0 → 退回主光方向）
 
             // ------------------------------------------------------------------
             // 程序化噪声（与 PirateSurface / PirateTerrain 内的副本一致，刻意重复以免多一条 include 链）
@@ -650,19 +667,45 @@ Shader "PirateCrew/PirateWater"
 
                 color = color + specular;
 
-                // ---- 太阳光路（Blinn-Phong 宽镜面 + 波光破碎）【AI 提案：r3 修问题 4】----
-                // 太阳方向优先用全局 _WaterSunDir（驱动从 RenderSettings.sun 传入，见
-                // WaterSimulationDriver.GlobalSunDir）；未接驱动时退回主光方向，保证不会没有光路。
+                // ---- 太阳光路：宽瓣连续光路 + 窄瓣波光闪点【r4】----
+                // 诊断与符号约定见文件头【太阳光路（r4 重做）】。
+                // _WaterSunDir = 从水面指向光源 L（驱动发 -sun.forward）；未接驱动（w 全 0）时退回主光方向。
+                // 绝不能在这里再取负——r3 的 -_WaterSunDir 正是"画面里完全没有光路"的第一嫌疑。
                 float3 sunToLight = dot(_WaterSunDir.xyz, _WaterSunDir.xyz) > 1e-4
-                    ? normalize(-_WaterSunDir.xyz) : normalize(mainLight.direction);
+                    ? normalize(_WaterSunDir.xyz) : normalize(mainLight.direction);
+
+                // (1) 低频高光法线：只用 Gerstner 解析法线（不含 FBM 细节），水平斜率放大
+                //     `_SunSpecSlopeBoost` 把可达倾角抬到半角向量附近（否则镜面解不存在，见文件头 ②）。
+                //     竖直侧壁仍用几何法线（水是 Cube，有 0.1 高的侧壁）。
+                float3 nSpecLow = normalize(float3(nGerst.x * _SunSpecSlopeBoost, nGerst.y,
+                                                   nGerst.z * _SunSpecSlopeBoost));
+                nSpecLow = normalize(lerp(geometricNormalWS, nSpecLow, saturate(geometricNormalWS.y)));
+
                 float3 halfVec = normalize(sunToLight + viewDirWS);
-                float sunSpecTerm = pow(saturate(dot(n, halfVec)), max(_SunSpecShininess, 1.0));
-                // 波光破碎：低频噪声把光路切成一片片反光鳞瓣（_SunSpecGlitter=0 → 连续整条光路）。
-                float sparkle = lerp(1.0, 1.5 * PirateFbm(IN.positionWS.xz * 3.0 + float2(t * 0.7, -t * 0.5)) + 0.25,
-                    _SunSpecGlitter);
-                half3 sunSpecular = mainLight.color * lightAtten
-                                  * (half)(sunSpecTerm * sparkle * _SunSpecStrength);
-                color = color + sunSpecular;
+                float broadTerm = pow(saturate(dot(nSpecLow, halfVec)),
+                                      max(_SunSpecBroadShininess, 1.0));
+
+                // (2) 窄瓣：在低频法线上叠回受控高频细节 → 逐像素抖动，只有少数像素命中镜面角
+                //     （天然稀疏 = 波光闪点）。_SunSpecGlitter=0 时退化为与宽瓣同一条连续光路。
+                float3 nSpecFlick = normalize(nSpecLow
+                    + float3(waveA.x + waveB.x, 0.0, waveA.z + waveB.z) * _SunSpecGlitter);
+                float flickTerm = pow(saturate(dot(nSpecFlick, halfVec)),
+                                      max(_SunSpecShininess, 1.0));
+
+                // 闪点稀疏掩码：噪声峰才放行；_SunSpecGlitter=0 时 step 关掉掩码（整条光路连续）。
+                float sparkleNoise = PirateFbm(IN.positionWS.xz * 3.0 + float2(t * 0.7, -t * 0.5));
+                float flickMask = saturate((sparkleNoise - 0.65) * 5.0);
+                flickMask = lerp(1.0, flickMask, step(0.001, _SunSpecGlitter));
+
+                // 权重（0-1）：宽瓣线性；窄瓣用 1-exp 软饱和，避免 _SunSpecStrength=8 直接把权重顶满。
+                half broadWeight = saturate((half)(broadTerm * _SunSpecBroadStrength));
+                half flickWeight = (1.0h - exp(-(half)(flickTerm * _SunSpecStrength))) * (half)flickMask;
+                half sunPathWeight = saturate(broadWeight + flickWeight);
+
+                // (3) 按权重把水体色混向太阳色：饱和处即暖金色相（hue≈43），
+                //     过 235 的"近白"像素是暖白（R255 G249 B238）而非纯白——加法会被水体蓝底
+                //     （_MidColor B≈0.48 线性）拉成青白，正是"最亮像素是薄荷绿"的成因，故必须混色。
+                color = lerp(color, (half3)_SunSpecColor.rgb, sunPathWeight);
                 color = lerp(color, _FoamColor.rgb, foam);
                 color = MixFog(color, IN.fogFactor);
 

@@ -41,7 +41,10 @@ namespace PirateCrew.PirateCrew.Water
         /// <summary>(中心X, 中心Z, 域边长, 保留)。</summary>
         public const string GlobalOrigin = "_WaterSimOrigin";
 
-        /// <summary>太阳方向（世界空间光传播方向 xyz，w=0）。供水面 shader 的镜面光路用。</summary>
+        /// <summary>
+        /// 太阳方向（世界空间，**从水面指向光源** L = -sun.forward，xyz，w=0）。
+        /// 供水面 shader 的镜面光路用；语义与 URP <c>GetMainLight().direction</c> 同向（不是光传播方向）。
+        /// </summary>
         public const string GlobalSunDir = "_WaterSunDir";
 
         /// <summary>驱动单例（供 <see cref="InjectSplash"/> 使用；可为 null）。</summary>
@@ -305,26 +308,32 @@ namespace PirateCrew.PirateCrew.Water
 
         /// <summary>
         /// 把太阳方向发布成全局 uniform（供 <c>PirateWater.shader</c> 的太阳光路用）。
-        /// 取 <see cref="RenderSettings.sun"/> 的 -forward（光传播方向）；场景没设 sun 时发 0，
-        /// shader 会自动退回 URP 主光方向（<c>GetMainLight().direction</c>），不会没有光路。
+        /// 语义 = **从水面指向光源**的世界方向 L = <c>-sun.transform.forward</c>，
+        /// 与 URP 主光 <c>GetMainLight().direction</c> 同向——shader 里直接用它的 dot 做 Blinn-Phong，
+        /// 不能再取负（r3 的符号错误正是"画面里完全没有光路"的元凶之一）。
         ///
         /// 【为什么 sun 需要专门传】水面是 Transparent、SRP Batcher 走的材质 uniform 里没有太阳方向；
-        /// 而 <c>GetMainLight()</c> 在透明 Pass 里可用，但场景主光由 RenderSettings.sun 权威给出，
-        /// 这里对齐"世界方向约 (0.43,-0.74,-0.51)"的主光姿态（阳光感打光调研 §光姿态）。
+        /// 而 <c>GetMainLight()</c> 在 ForwardLit 里可用，但场景主光由 <see cref="RenderSettings.sun"/>
+        /// 权威给出，这里显式对齐 <c>BattleSceneLighting.CreateDirectionalLight</c> 的姿态。
+        ///
+        /// 【兜底】本场景的 <c>Battle.unity</c> 没有把主光登记为 sun（<c>m_Sun: {fileID: 0}</c>），
+        /// 若发 0 会让高光方向依赖 shader 回退分支、行为不显式；故 sun 为空时用主光固定姿态
+        /// <c>Euler(48,140,0)</c> 反推 L（= -(0.43,-0.74,-0.51) ≈ (-0.43,0.74,0.51)）。
+        /// 该 Euler 与 <c>M2BattleSceneSetup</c>/<c>AmbientTimeOfDayCatalog</c> 正午档逐值相同，
+        /// 故兜底方向与实际主光一致。
         /// </summary>
         void PublishSunDirection()
         {
             Light sun = RenderSettings.sun;
-            if (sun != null)
-            {
-                Vector3 dir = -sun.transform.forward;
-                Shader.SetGlobalVector(GlobalSunDir, new Vector4(dir.x, dir.y, dir.z, 0f));
-            }
-            else
-            {
-                Shader.SetGlobalVector(GlobalSunDir, Vector4.zero);
-            }
+            Vector3 toLight = sun != null ? -sun.transform.forward : FallbackSunToLight;
+            Shader.SetGlobalVector(GlobalSunDir, new Vector4(toLight.x, toLight.y, toLight.z, 0f));
         }
+
+        /// <summary>
+        /// sun 未接线时的兜底「指向光源」方向：由主光固定姿态 <c>Euler(48,140,0)</c> 反推
+        /// （<c>Vector3.back</c> 旋转后即指向光源的 L ≈ (-0.43,0.74,0.51)）。静态只算一次。
+        /// </summary>
+        static readonly Vector3 FallbackSunToLight = Quaternion.Euler(48f, 140f, 0f) * Vector3.back;
 
         // ------------------------------------------------------------------
         // 障碍图（烘焙资产 → 模拟格）
