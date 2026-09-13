@@ -65,9 +65,23 @@ namespace PirateCrew.PirateCrew.ArtReview
             Application.targetFrameRate = 60;
             QualitySettings.vSyncCount = 0;
 
-            // 直接进战斗场景（跳过主菜单；结算链不订阅属预期，本工具只看画面）。
+            // 等 Bootstrapper 的引导流程走完（它会异步加载主菜单并覆盖任何抢先加载的场景），
+            // 再切战斗场景——否则 LoadScene(Battle) 会被随后的 MainMenu 加载顶掉，拍到的全是菜单。
+            float bootDeadline = Time.unscaledTime + 15f;
+            while (SceneManager.GetActiveScene().name != SceneNames.MainMenu
+                && Time.unscaledTime < bootDeadline)
+                yield return null;
+            yield return new WaitForSeconds(0.5f);
+
             SceneManager.LoadScene(SceneNames.Battle, LoadSceneMode.Single);
             yield return null;
+            if (SceneManager.GetActiveScene().name != SceneNames.Battle)
+            {
+                Debug.LogError("[PlayerArtCapture] Battle 场景加载失败，当前场景："
+                    + SceneManager.GetActiveScene().name + "——中止采集");
+                Application.Quit(1);
+                yield break;
+            }
 
             // 等战斗就绪：单位已生成。超时也要出图（至少能看场景本身）。
             float deadline = Time.unscaledTime + ReadyTimeoutSeconds;
