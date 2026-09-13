@@ -65,10 +65,12 @@ namespace PirateCrew.EditorTools
     ///   ② 脚下灰色刀片状碎片：根因是**手持武器的铁刀片穿到脚底平面以下**，不是接触阴影片
     ///      （阴影片是 y=+0.02 的水平 quad、近黑；碎片实测取色 (70,67,61) = CrewIron 0.431/0.416/0.388
     ///      在阴影下的值，形状是 0.014×0.150 的竖直薄板）。见 <see cref="ApplyHeldWeaponFloorFit"/>。
-    ///   ③ 帽子/脸：**所有布帽件（Bandana/Tricorn）**换成三角帽网格（压扁帽冠 + 34° 上翻三檐、
-    ///      檐外缘 1.30×头半径）、删掉读作"肉瘤"的左侧 <c>BandanaKnot</c>、鼻长减半并贴回头球面。
+    ///   ③ 帽子/脸：**所有布帽件（Bandana/Tricorn）**换成三角帽网格（压扁帽冠 + 高上翻三檐、
+    ///      檐外缘 1.05×头半径）、删掉读作"肉瘤"的左侧 <c>BandanaKnot</c>、鼻长减半并贴回头球面。
     ///      r5 只改了名为 <c>Tricorn</c> 的船长件，非船长特写主体的下翻圆台头巾没被覆盖 →
-    ///      复验仍读作"红桶帽"。见 <see cref="ApplyHeadDetails"/>。
+    ///      复验仍读作"红桶帽"。r7 按 r6 复验重算几何：檐半径 1.30→**1.05**×头半径、
+    ///      上翻角 34°→**46°**、冠高 0.44→**0.34**×头半径、每片檐径向**收短 14%**。
+    ///      见 <see cref="ApplyHeadDetails"/> 与 <see cref="BuildTricornFlatMeshData"/>。
     ///   三者都只改建预制体时的网格/参数/材质常量，不动 shader、不动运行时链路。
     ///
     /// 【发光说明】火把/火焰用 <c>Flame</c> 材质的高亮 base color（#FF7A1A）借 HDR + Bloom 出光。
@@ -189,10 +191,11 @@ namespace PirateCrew.EditorTools
         const float MinHeldBladeLength = 0.046f;
 
         /// <summary>
-        /// 三角帽帽冠高 = 基准头半径 × 0.44（复验判据"冠高 ≤ 0.45×头径"；0.44×0.0775 ≈ 0.0341，
-        /// 与 r5 的 0.034 同值，只是把口径写成比值的显式形式）。
+        /// 三角帽帽冠高 = 基准头半径 × **0.34**（r7：0.44 → 0.34）。
+        /// r6 复验"冠顶反而高于檐顶"（应檐上缘高于冠顶）——压低冠高，让高上翻的檐缘抬到冠顶之上；
+        /// 0.34×0.0775 ≈ 0.0264，仍满足规范"冠高 ≤ 0.45×头径"（= 0.45×2×0.0775 ≈ 0.0698）。
         /// </summary>
-        static readonly float TricornCrownHeight = ReferenceHeadRadius * 0.44f;
+        static readonly float TricornCrownHeight = ReferenceHeadRadius * 0.34f;
 
         /// <summary>三角帽帽冠底口半径（与原 Tricorn 的 crownRadius 0.048 一致，保证坐在头球上无缝）。</summary>
         const float TricornCrownBottomRadius = 0.048f;
@@ -201,17 +204,33 @@ namespace PirateCrew.EditorTools
         const float TricornCrownTopRadius = 0.036f;
 
         /// <summary>
-        /// 三角帽檐**外缘半径**（世界单位）= 基准头半径 × 1.30（复验判据"檐宽 ≈ 1.3×头径"）。
-        /// r5 取 0.085（≈1.10×头半径）——帽檐外扩不足，配下翻圆台头巾就读作"贝雷帽/桶帽"。
-        /// r6 起三片檐统一按**上翻后外缘落在此半径**来建模（见 <see cref="BuildTricornFlatMeshData"/>）。
+        /// 三角帽檐**外缘半径**（世界单位）= 基准头半径 × **1.05**（r7：1.30 → 1.05）。
+        /// 【为什么收】**r6 复验**：帽宽/头高实测 1.7-1.9（目标 ≤1.35）——1.30×头半径的三片檐
+        /// 把剪影撑成一顶宽檐桶帽，且右檐甩出细长红三角。<b>几何核对（按帽冠底口半径 0.048、
+        /// 上翻 46°、檐片再收短 14% 计算）</b>：三檐最大水平半径 0.0891（= 1.150×头半径），
+        /// 帽宽/头径 = 1.15（旧值 1.472）；檐缘上缘 y=+0.0332 已高于冠顶 y=0.0264（差 +0.0068），
+        /// 满足"檐上缘高于冠顶"。
+        /// 本值只决定"上翻后外缘应落在哪"→ 反解檐长（见 <see cref="BuildTricornFlatMeshData"/>）；
+        /// 檐片再乘 <see cref="TricornFlapShorten"/> 收短消尖角。
         /// </summary>
-        static readonly float TricornBrimRadius = ReferenceHeadRadius * 1.30f;
+        static readonly float TricornBrimRadius = ReferenceHeadRadius * 1.05f;
 
         /// <summary>
-        /// 三角帽三片檐的上翻角（度）。复验判据"檐外扩角 ≥ 30°"——r5 的 20° 上翻不足，
-        /// 剪影压不出三角帽的尖角；r6 取 34°（留 4° 余量）。
+        /// 三角帽三片檐的上翻角（度）。r7：34° → **46°**（取复验给定的 42-48° 中值）。
+        /// 【为什么翻更高】r6 复验"冠顶反而高于檐顶"要改成"檐上缘高于冠顶"：上翻角越大，檐缘抬得越高
+        /// （檐外缘 y ≈ 檐长×sin(角)），且径向水平外扩越小 → 同时帮到帽宽判据。
+        /// 几何核对：46° 下檐缘上缘 y=+0.0332 > 冠顶 y=0.0264。
         /// </summary>
-        const float TricornFoldDegrees = 34f;
+        const float TricornFoldDegrees = 46f;
+
+        /// <summary>
+        /// 三角帽檐片**径向长度收缩系数**（r7 新增）：檐片长度（圆心→檐尖）再乘 (1 − 该值) = **0.86（收 14%）**。
+        /// 【为什么收】r6 复验"右檐甩细长红三角"——檐片是薄盒，其**外缘两角的对角**是剪影上最远的点，
+        /// 正是那根细长尖角。沿径向收短把对角一起收回（三檐最大水平半径 0.0933→0.0891）。
+        /// 【为什么不会在帽冠处开裂】檐片**内缘**位置只由帽冠底口半径 0.048 与上翻角决定
+        /// （推导见 <see cref="BuildTricornFlatMeshData"/>），与檐长无关；收短只动外端。
+        /// </summary>
+        const float TricornFlapShorten = 0.14f;
 
         /// <summary>三角帽檐厚（闭合盒，保证薄配件描边完整；规范 R-9 禁单面 Quad）。</summary>
         const float TricornBrimThickness = 0.010f;
@@ -335,18 +354,21 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 三角帽塑形（r5 起草 / r6 按复验判据重算几何）：压扁帽冠 + 三片上翻帽檐。
+        /// 三角帽塑形（r5 起草 / r6 按复验判据重算几何 / r7 收口）：压扁帽冠 + 三片上翻帽檐。
         ///
         /// 【坐标系】帽冠底口在 y=0（装配侧把它摆在 <c>HeadPivot + HeadRadius×0.80</c>，
         /// 底口半径 0.048 正好等于头球在该高度的截面半径 → 坐下无缝）。
-        /// 【r6 檐片几何（复验判据：檐外扩角 ≥30°、檐外缘 ≈1.3×头半径）】
+        /// 【r7 檐片几何（复验判据：帽宽/头高 ≤1.35、檐上缘高于冠顶、消细长尖角）】
         ///   檐片是薄盒，先平放（内缘在帽冠底口 x=<see cref="TricornCrownBottomRadius"/> 处），
-        ///   再整体绕 Z **上翻** <see cref="TricornFoldDegrees"/>° = 34°。旋转把内缘从
+        ///   再整体绕 Z **上翻** <see cref="TricornFoldDegrees"/>°（= 46°，r7 由 34° 抬高）。旋转把内缘从
         ///   (inner, 0) 转到 (0.048cosf, 0.048sinf)，故装配时先给 y 一个 −0.048·sinf 的补偿，
-        ///   使**上翻后的内缘恰好回到帽冠底口平面 y=0**（檐片不会插进头球）。
-        ///   上翻后的外缘 x = 0.048 + L·cosf（L = 檐片长），令其等于
-        ///   <see cref="TricornBrimRadius"/> 反解 L = (R_brim − 0.048)/cosf。
-        ///   外缘随之抬高 L·sinf ≈ 0.036 → 帽檐上缘略高于帽冠顶（0.034），剪影即三角帽。
+        ///   使**上翻后的内缘恰好回到帽冠底口平面 y=0**（檐片不会插进头球；该位置与檐长无关，
+        ///   故檐片收短不会在帽冠处开裂）。
+        ///   上翻后的外缘轴向 x = 0.048 + L·cosf（L = 檐片长），令其等于
+        ///   <see cref="TricornBrimRadius"/> 反解 L = (R_brim − 0.048)/cosf，再乘
+        ///   (1 − <see cref="TricornFlapShorten"/>) 收短 14% 消掉外缘对角尖角。
+        ///   几何核对：R_brim = 1.05×头半径、46°、收 14% → 三檐最大水平半径 0.0891（1.150×头半径），
+        ///   檐缘上缘 y ≈ +0.0332 高于冠顶 y = 0.0264（r7 冠高 0.34×头半径）→ 剪影即三角帽。
         /// 【朝向】三片 120° 均布，并整体绕 Y 转 −90° → 一片正对**前方 +Z**、两片朝后侧，
         ///   与真实三角帽的"前一后二"角位一致（0/120/240 会转成"一右两左"的歪剪影）。
         /// 【为什么用盒做檐】闭合几何才有完整描边（规范 R-9 明令薄配件禁单面 Quad）。
@@ -365,8 +387,10 @@ namespace PirateCrew.EditorTools
             float cosF = Mathf.Cos(fold * Mathf.Deg2Rad);
             float sinF = Mathf.Sin(fold * Mathf.Deg2Rad);
 
-            // 上翻后外缘落到 TricornBrimRadius；内缘上翻后回到帽冠底口平面（见方法头推导）。
-            float flapLength = (TricornBrimRadius - TricornCrownBottomRadius) / cosF;
+            // 上翻后外缘落到 TricornBrimRadius，再收短 TricornFlapShorten 消对角尖角；
+            // 内缘上翻后回到帽冠底口平面（与檐长无关，见方法头推导）。
+            float flapLength = (TricornBrimRadius - TricornCrownBottomRadius) / cosF
+                               * (1f - TricornFlapShorten);
             float flapCenterX = TricornCrownBottomRadius * cosF + flapLength * 0.5f;
             float flapCenterY = -TricornCrownBottomRadius * sinF;
 
@@ -896,7 +920,7 @@ namespace PirateCrew.EditorTools
         /// <summary>
         /// 帽子与脸（r5 起草 / r6 按复验重做）：
         ///   · <b>三角帽</b>：把**所有布帽件**（<c>Bandana</c> 与 <c>Tricorn</c>）统一换成
-        ///     <see cref="TricornFlatKey"/> 网格（压扁帽冠 + 三片 34° 上翻帽檐，外缘 1.30×头半径），
+        ///     <see cref="TricornFlatKey"/> 网格（压扁帽冠 + 三片 46° 上翻帽檐，外缘 1.05×头半径），
         ///     并归位到 <c>HeadRadius×0.80</c>（帽冠底口与头球相切的高度）、清零歪戴角。
         ///     <b>为什么不能只改 Tricorn</b>：r5 就是这么做的，但特写主体是**非船长**职业
         ///     （红队 FirstAlive = 水手），它的帽子叫 <c>Bandana</c>、网格是
@@ -962,7 +986,7 @@ namespace PirateCrew.EditorTools
                 filter.sharedMesh = addOns.TricornFlat;
 
             // 帽冠底口落在头球在 0.80r 处的截面半径上（与原 Tricorn 的装配口径一致）；
-            // 网格按基准头半径建模，故整体按 headRatio 缩放，保持"檐 1.3×头半径"的比值。
+            // 网格按基准头半径建模，故整体按 headRatio 缩放，保持"檐 1.05×头半径"的比值（r7）。
             hat.localRotation = Quaternion.identity;   // 原头巾有 12° 歪戴，三角帽不歪
             hat.localPosition = new Vector3(0f, ReferenceHeadRadius * 0.80f * headRatio, 0f);
             hat.localScale = Vector3.one * headRatio;

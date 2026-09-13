@@ -40,6 +40,20 @@ namespace PirateCrew.UI
         /// <summary>§4.1 血条总帧数（28 帧）。</summary>
         const int HealthBarFrames = 28;
 
+        /// <summary>
+        /// 名册队色名的文字色（r7：由 <c>UiTheme.TeamColor × 0.75</c> 改为写死的高对比提亮色）。
+        ///
+        /// 【r6 复验】旧写法把队伍色压暗 0.75 后压在深木底 #3A2A1E 上，实测 WCAG 对比度只有
+        /// **3.76（红）/ 2.80（蓝）**，均低于正文所需的 4.5:1。
+        /// 【r7 修法】改为**提亮混合**的固定色、不再压暗：红 **#FF8A7A**、蓝 **#7FB0FF**。
+        /// 【WCAG 2.1 计算（相对亮度 L；背景 #3A2A1E → L=0.0265）】
+        ///   · #FF8A7A：L=0.4084 → (0.4084+0.05)/(0.0265+0.05) = **5.99:1** ✓ ≥4.5
+        ///   · #7FB0FF：L=0.4279 → (0.4279+0.05)/(0.0265+0.05) = **6.25:1** ✓ ≥4.5
+        /// alpha 固定 1（<c>Color</c> 的 <c>*</c> 会连 alpha 一起乘，文字不能半透明）。
+        /// </summary>
+        static readonly Color RosterNameRed = new Color(0xFF / 255f, 0x8A / 255f, 0x7A / 255f, 1f);
+        static readonly Color RosterNameBlue = new Color(0x7F / 255f, 0xB0 / 255f, 0xFF / 255f, 1f);
+
         /// <summary>名册最多显示的行数（当前转写关卡最大 12 人）。</summary>
         const int MaxRosterRows = 12;
 
@@ -353,11 +367,9 @@ namespace PirateCrew.UI
                 if (view.nameLabel != null)
                 {
                     UiTextUtil.SetText(view.nameLabel, UiTextRules.RosterRow(pirate.TeamNumber, pirate.CrewType));
-                    // 名文字按队伍着色（r4 评审 N13：奶油色区分弱）。RGB 压暗保对比（alpha 必须保 1，
-                    // Color 的 * 会连 alpha 一起乘导致文字半透明）：红/蓝乘 0.75 档在深木底上
-                    // 对比 ≈4.6/3.5（≥ WCAG 大文本与非文本 3:1 口径）。
-                    Color team = UiTheme.TeamColor(pirate.TeamIndex);
-                    view.nameLabel.color = new Color(team.r * 0.75f, team.g * 0.75f, team.b * 0.75f, 1f);
+                    // 名文字按队伍着色（r4 评审 N13：奶油色区分弱）。r7 换成写死的高对比提亮色
+                    // （旧 TeamColor×0.75 实测仅 3.76/2.80，低于 4.5）——见 RosterNameRed/Blue 的 WCAG 计算。
+                    view.nameLabel.color = pirate.TeamIndex == 0 ? RosterNameRed : RosterNameBlue;
                 }
 
                 if (view.teamSwatch != null)

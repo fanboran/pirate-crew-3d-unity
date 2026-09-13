@@ -25,6 +25,9 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
+    - _BreakupScale: 0.0222
+    - _BreakupSpeed: 0.06
+    - _BreakupTintDepth: 0.04
     - _CausticDepthFade: 2.2
     - _CausticScale: 0.55
     - _CausticSpeed: 0.35

@@ -152,7 +152,7 @@ namespace PirateCrew.EditorTools
         /// 【为什么必须落盘而不是只改 shader Properties 默认值】
         ///   Water_Ocean.mat 里已序列化了一整份旧参数（如 <c>_ShallowColor #4DA6D9</c>、
         ///   <c>_ReflectionStrength 0.55</c>）——序列化值优先于 shader 默认值，只改 shader 不会生效。
-        ///   本方法把新默认值逐条写进材质资产，保证出图用的就是 r6 参数。
+        ///   本方法把新默认值逐条写进材质资产，保证出图用的就是这批参数（r7：含下调后的四个镜射权重）。
         ///
         /// 【幂等】可重复执行；材质文件缺失时按 <see cref="WaterShaderName"/> 新建。
         /// 【调用点】<see cref="BakeObstacleMap"/> 末尾（ArtGate 步骤 ⑥.5，晚于步骤 ① 的材质生成）；
@@ -191,21 +191,25 @@ namespace PirateCrew.EditorTools
             SetFloat(m, "_BreakupTintDepth", 0.04f);    // ±4%，均值零漂移
             SetFloat(m, "_BreakupSpeed", 0.06f);
 
-            // ---- 太阳光路（暖金 + 平水面镜射宽瓣；r6 删除伪地平线暖带）----
+            // ---- 太阳光路（暖金 + 平水面镜射宽瓣；r6 删除伪地平线暖带，r7 下调镜射权重让水读蓝）----
+            // 【r7 关键】r6 只回蓝了基础色、没动镜射权重 → 复验"水回蓝在渲染上没发生"（掠射亮部 hue
+            // 与 r5 逐像素同为 42-45 暖金、中性灰 sat<0.10 占 20-56%）。落盘这四键与 shader Properties
+            // 默认值同步：宽瓣主项 1.6→0.8、宽瓣辅项 0.65→0.4、窄瓣 8.0→5.0、掠射 sheen 0.20→0.10。
+            // 判据：水窗蓝像素(hue 190-225, sat>0.15)>60%、中性灰<15%、暖亮仅 2-6% 且在太阳方位窄条。
             SetColor(m, "_SunSpecColor", "#FFDB73");       // (1.0, 0.86, 0.45) 暖金 hue≈45
-            SetFloat(m, "_SunSpecBroadStrength", 1.6f);
+            SetFloat(m, "_SunSpecBroadStrength", 0.8f);
             SetFloat(m, "_SunSpecLaneShininess", 24f);
-            SetFloat(m, "_SunSpecWaveStrength", 0.65f);
+            SetFloat(m, "_SunSpecWaveStrength", 0.4f);
             SetFloat(m, "_SunSpecBroadShininess", 50f);
             SetFloat(m, "_SunSpecLaneWidth", 2.5f);
             SetFloat(m, "_SunSpecPatchScale", 8f);
             SetFloat(m, "_SunSpecPatchDepth", 0.40f);
             SetFloat(m, "_SunSpecCrestBias", 0.70f);
             SetFloat(m, "_SunSpecSlopeBoost", 12f);
-            SetFloat(m, "_SunSpecStrength", 8f);
+            SetFloat(m, "_SunSpecStrength", 5f);
             SetFloat(m, "_SunSpecShininess", 320f);
             SetFloat(m, "_SunSpecGlitter", 0.55f);
-            SetFloat(m, "_SunSheenStrength", 0.20f);
+            SetFloat(m, "_SunSheenStrength", 0.10f);
 
             // ---- 亮点不再被中性白加色拉青：镜面降权、反射降权（r6：1.0 → 0.7，让基础蓝透出来）----
             SetFloat(m, "_SpecularIntensity", 0.5f);
@@ -276,7 +280,7 @@ namespace PirateCrew.EditorTools
             EditorUtility.SetDirty(m);
             AssetDatabase.SaveAssets();
             Debug.Log("[WaterAssetBuilder] 海水材质参数已落盘：" + OceanMaterialPath
-                      + "（水色回蓝 / 暖金只在太阳镜射瓣 / 反射 0.7 / 低频破坏噪声）");
+                      + "（水色回蓝 / 镜射四权重下调[宽瓣1.6→0.8,辅项0.65→0.4,窄瓣8→5,sheen0.2→0.1] / 反射 0.7 / 低频破坏噪声）");
         }
 
         static void EnsureMaterialFolder()

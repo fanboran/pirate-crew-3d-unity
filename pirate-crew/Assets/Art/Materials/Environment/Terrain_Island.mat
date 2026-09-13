@@ -83,6 +83,8 @@ Material:
     - _SlopeRockEnd: 0.72
     - _SlopeRockStart: 0.45
     - _Smoothness: 0.25
+    - _VerticalWarmPower: 1.5
+    - _VerticalWarmStrength: 0.12
     - _WaterLevelY: -0.2
     - _WetBandWidth: 0.45
     - _WetDarken: 0.3
@@ -96,5 +98,6 @@ Material:
     - _RockColor: {r: 0.54901963, g: 0.48235294, b: 0.41568628, a: 1}
     - _SandColor: {r: 0.76862746, g: 0.654902, b: 0.41568628, a: 1}
     - _SeamColor: {r: 0.4862745, g: 0.45882353, b: 0.41568628, a: 1}
+    - _VerticalWarmColor: {r: 0.5412, g: 0.4587999, b: 0.36079997, a: 1}
     - _WetSandColor: {r: 0.659, g: 0.553, b: 0.361, a: 1}
   m_BuildTextureStacks: []

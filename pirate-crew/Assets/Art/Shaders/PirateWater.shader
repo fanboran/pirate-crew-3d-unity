@@ -69,6 +69,14 @@
 //     蓝底拉成青白（r4 亮水 hue 168-172 的成因）。`_SunSheenStrength` 另给掠射水面一层极轻暖光泽，
 //     保证"看不到太阳和地平线"的取景也有阳光感。r6 起反射强度回落到 0.7（r5 的 1.0 把天空暖带
 //     糊满水面），基础水色另叠一层大尺度低频破坏噪声（±4%）打断 34-81px 的可见重复花纹。
+//   · 【r7 收口：真杠杆是镜射权重，不是基础色】r6 已把三档基础色回蓝（hue 209-216 ✓），但**镜射权重
+//     未动** → 复验的掠射亮部 hue 与 r5 **逐像素相同**（42-45 暖金）、水窗中性灰 sat<0.10 占 20-56%：
+//     暖金镜射瓣/掠射 sheen 把基础蓝整片盖住。r7 下调四个杠杆（Properties 默认值 + WaterAssetBuilder
+//     落盘值两处同步）：`_SunSpecBroadStrength` 1.6→0.8、`_SunSpecWaveStrength` 0.65→0.4、
+//     `_SunSheenStrength` 0.20→0.10、`_SunSpecStrength`（窄瓣）8.0→5.0 ——
+//     暖金只剩紧贴镜面角的碎点，水体整体读蓝。
+//     【判据】水窗蓝像素（hue 190-225, sat>0.15）占比 >60%；中性灰 sat<0.10 <15%；
+//     暖亮（hue 30-60）只占 2-6% 且分布在太阳方位窄条（不再铺满整片水面）。
 //
 // 【Pass 与 LightMode】只有 ForwardLit（"UniversalForward"）一个 Pass。
 //   不做 ShadowCaster（透明水面不投影）、不做 DepthOnly（透明物体不进不透明深度预通道；
@@ -195,19 +203,27 @@ Shader "PirateCrew/PirateWater"
         // ---- 太阳光路（宽瓣软带 + 窄瓣闪点 + 伪地平线暖带）【AI 提案：r5 修"太阳不知在哪"】----
         // 为什么平水面镜射、为什么混色而不是加色：见文件头【太阳光路（r5）】。
         _SunSpecColor           ("太阳光路色（暖金 hue≈45）", Color) = (1.0, 0.86, 0.45, 1.0)
-        _SunSpecBroadStrength   ("宽瓣主项强度（平水面光路带）", Range(0.0, 2.0)) = 1.6
+        // r7：1.6 → 0.8。r6 复验"水回蓝在渲染上没发生"——基础色已蓝，但宽瓣主项强度把暖金
+        // 沿太阳方位铺满水面。降权后暖金只在镜面角窄条出现。判据见文件头【r7 收口】。
+        _SunSpecBroadStrength   ("宽瓣主项强度（平水面光路带）", Range(0.0, 2.0)) = 0.8
         _SunSpecLaneShininess   ("宽瓣主项锐度（越小光路越大）", Range(6.0, 120.0)) = 24.0
-        _SunSpecWaveStrength    ("宽瓣辅项强度（任意机位暖波光）", Range(0.0, 2.0)) = 0.65
+        // r7：0.65 → 0.4。宽瓣辅项（放大波法线的暖波光）是"任意机位保底"，也是最容易把
+        // 大片水面染暖的一项（它不依赖太阳是否在取景方位）。压到 0.4 后只剩波峰碎点。
+        _SunSpecWaveStrength    ("宽瓣辅项强度（任意机位暖波光）", Range(0.0, 2.0)) = 0.4
         _SunSpecBroadShininess  ("宽瓣辅项锐度（波法线指数）", Range(10.0, 240.0)) = 50.0
         _SunSpecLaneWidth       ("宽瓣沿太阳方位加宽（拉成光路带）", Range(1.0, 6.0)) = 2.5
         _SunSpecPatchScale      ("宽瓣碎块噪声尺度（世界单位⁻¹）", Float) = 8.0
         _SunSpecPatchDepth      ("宽瓣碎块深度（不挖洞）", Range(0.0, 1.0)) = 0.40
         _SunSpecCrestBias       ("宽瓣波峰偏置（填实空心环）", Range(0.0, 1.0)) = 0.70
         _SunSpecSlopeBoost      ("窄瓣法线斜率放大（拉出闪点）", Range(1.0, 16.0)) = 12.0
-        _SunSpecStrength        ("窄瓣（闪点）强度", Range(0.0, 20.0)) = 8.0
+        // r7：8.0 → 5.0。窄瓣权重走 1−exp(−flickTerm·strength) 软饱和；8.0 时只要命中就直接顶满 1.0
+        // → 亮成纯暖金碎块。5.0 保留"闪点"读数但不再顶满（1−exp(−5)≈0.993 仍够亮，命中率不变）。
+        _SunSpecStrength        ("窄瓣（闪点）强度", Range(0.0, 20.0)) = 5.0
         _SunSpecShininess       ("窄瓣锐度（400+ = 细闪点）", Range(20.0, 1200.0)) = 320.0
         _SunSpecGlitter         ("波光破碎强度（0=整片光路）", Range(0.0, 1.0)) = 0.55
-        _SunSheenStrength       ("掠射暖光泽（阳光感保底）", Range(0.0, 1.0)) = 0.20
+        // r7：0.20 → 0.10。掠射 sheen 是"看不到太阳也有阳光感"的保底项，但它按 pow(1−V.y,3) 在
+        // 整片掠射水面（远景/水缘）恒起作用，是水窗中性灰占比高的直接来源之一，故减半。
+        _SunSheenStrength       ("掠射暖光泽（阳光感保底）", Range(0.0, 1.0)) = 0.10
 
         // ---- 不透明度 ----
         _Opacity                ("基础不透明度", Range(0.0, 1.0)) = 0.82

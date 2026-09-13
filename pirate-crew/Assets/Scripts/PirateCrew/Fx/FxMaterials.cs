@@ -100,18 +100,22 @@ namespace PirateCrew.PirateCrew.Fx
         static readonly FxMaterialSpec[] Specs =
         {
             // ---- 爆炸 ----
-            // 亮度两轮压制（r4/r5 各一轮后续，r6 再砍一轮 Intensity）：
+            // 亮度三轮压制（r4/r5 后续各一轮，r6 一轮，r7 再收一档）：
             //   r4/r5 已把 core/fire 的 Tint ×0.60 / ×0.70、Intensity 同步乘同系数；
-            //   r6 在此基础上**再乘 0.60**（只乘 Intensity，不再压 Tint），最终值：
-            //     core：1.70 × 0.60 × 0.60 = **0.612**
-            //     fire：1.15 × 0.70 × 0.60 = **0.483**
-            //   动机：r5 实测 V>0.99 死白像素 6.48%（r4 5.22%）——砍亮度后不降反升，
-            //   说明白不是单纯亮度高，而是**大尺寸粒子大量重叠**饱和；r6 同时把尺寸砍半
-            //   （见 FxRules.FireballStartSize/ExplosionCoreStartSize），这里再压 Intensity 收口。
+            //   r6 在此基础上**再乘 0.60**（只乘 Intensity，不再压 Tint）；
+            //   r7 再乘一档（core ×0.70 / fire ×0.80），最终值：
+            //     core：1.70 × 0.60 × 0.60 × 0.70 = **0.4284 ≈ 0.43**
+            //     fire：1.15 × 0.70 × 0.60 × 0.80 = **0.3864 ≈ 0.39**
+            //   动机（r6 复验）：[Blocker] 爆炸过曝——火球框内 V>0.99 占 68%、全图 5.9%。
+            //   评审定位火球框里的白大部分是**水面金色冲刷**（爆炸机位朝太阳方位，宽瓣+sheen 把整片
+            //   水洗成亮金）——r7 把 PirateWater 的镜射四权重下调后这部分会大幅缓解（见 PirateWater.shader
+            //   文件头【r7 收口】）；此外**再压爆炸粒子本体一档**做双保险。
+            //   判据：全图 V>0.99（max 通道>252）≤2%、火球框内 ≤25%、
+            //   橙壳（r−b>60 且 r>g>b）在火球盘内 ≥2000px（即压白而不灭火球橙）。
             // 系数与 FxAssetBuilder 的烘焙侧（Fx_ExplosionCore/Fire .mat）保持同源：那边读本表的
             // spec.Intensity 后再乘它自己的亮度系数，故本表改值会自动传导到烘焙资产。
-            new FxMaterialSpec { Name = "Fx_ExplosionFire",  Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = ScaleRgb(FxRules.ExplosionFireColor(), 0.70f), Intensity = 0.483f },
-            new FxMaterialSpec { Name = "Fx_ExplosionCore",  Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = ScaleRgb(FxRules.ExplosionCoreColor(), 0.60f), Intensity = 0.612f },
+            new FxMaterialSpec { Name = "Fx_ExplosionFire",  Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = ScaleRgb(FxRules.ExplosionFireColor(), 0.70f), Intensity = 0.3864f },
+            new FxMaterialSpec { Name = "Fx_ExplosionCore",  Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = ScaleRgb(FxRules.ExplosionCoreColor(), 0.60f), Intensity = 0.4284f },
             new FxMaterialSpec { Name = "Fx_Sparks",         Additive = true,  Texture = FxTextureKind.Spark,      Tint = FxRules.SparkColor(),         Intensity = 1.80f },
             new FxMaterialSpec { Name = "Fx_FineSparks",     Additive = true,  Texture = FxTextureKind.FineSpark,  Tint = FxRules.ExplosionCoreColor(), Intensity = 1.90f },
             new FxMaterialSpec { Name = "Fx_Star4",          Additive = true,  Texture = FxTextureKind.Star4,      Tint = FxRules.ExplosionCoreColor(), Intensity = 1.60f },

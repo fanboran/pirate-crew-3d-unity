@@ -85,7 +85,7 @@ namespace PirateCrew.PirateCrew.Fx
         // （其它特效若要用仍可用，r6 未删资产）。爆炸粒子系统数 7 → 6。
         //
         // 【亮度】材质侧 core/fire 的 _Intensity 在 r5 已砍（×0.60 / ×0.70）的基础上
-        // **再乘 0.60**（最终值见 FxMaterials.Specs：core 0.612、fire 0.483）。
+        // **再乘 0.60**（最终值见 FxMaterials.Specs：core 0.4284、fire 0.3864）。
 
         /// <summary>爆炸半径（世界单位）= (size/2 + 20) / 32。出处：`ExplosionResolver.Radius` + `LevelGeometry.PixelsPerUnit`。</summary>
         public static float ExplosionRadiusWorld(float explosionSize)

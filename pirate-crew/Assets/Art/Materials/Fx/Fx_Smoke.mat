@@ -32,5 +32,5 @@ Material:
     - _DebugMode: 0
     - _Intensity: 1
     m_Colors:
-    - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _Color: {r: 0.54901963, g: 0.5411765, b: 0.5254902, a: 1}
   m_BuildTextureStacks: []

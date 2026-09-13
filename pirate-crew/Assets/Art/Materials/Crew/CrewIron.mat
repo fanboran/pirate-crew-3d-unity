@@ -33,9 +33,9 @@ Material:
     - _OutlineDistanceAttenuation: 0.4
     - _OutlineExpandMode: 0
     - _OutlineState: 0
-    - _OutlineWidth: 0.006
-    - _OutlineWidthHover: 0.0025
-    - _OutlineWidthSelected: 0.006
+    - _OutlineWidth: 0.01
+    - _OutlineWidthHover: 0.0042
+    - _OutlineWidthSelected: 0.01
     - _Smoothness: 0.35
     m_Colors:
     - _BaseColor: {r: 0.431, g: 0.416, b: 0.388, a: 1}
