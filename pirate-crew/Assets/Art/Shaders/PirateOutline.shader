@@ -14,6 +14,19 @@
 // 【实现路径】inverted hull（法线外扩 + 只画背面）：
 //   第 1 个 Pass（Base）  ：正常画本体（简单 Lambert + SH 环境光）。
 //   第 2 个 Pass（Outline）：Cull Front 只画背面，顶点沿法线外扩，得到一圈描边。
+//   第 3 个 Pass（DepthOnly）：写入 URP 深度（_CameraDepthTexture / 深度预通道）。
+//   第 4 个 Pass（ShadowCaster）：写入主光阴影图 —— 单位投影的来源（2026-09-13 补，
+//     补前单位不投影、画面"平"；见 docs/描边Shader调试.md §七-2）。
+//
+// 【四个 Pass 的 LightMode 唯一性（2026-09-13 补 ShadowCaster 时特意复核）】
+//   Base        = "UniversalForward"
+//   Outline     = "SRPDefaultUnlit"
+//   DepthOnly   = "DepthOnly"
+//   ShadowCaster= "ShadowCaster"
+//   四者互不相同；且都在 URP 的 ShaderTagId 取用列表内（不透明前向 DrawObjectsPass
+//   取 SRPDefaultUnlit / UniversalForward / UniversalForwardOnly；阴影通道取 ShadowCaster；
+//   深度通道取 DepthOnly）。任何"再加一个与既有 Pass 同 LightMode 的 Pass"都会被静默丢弃，
+//   详见 §八-2 的真实事故复盘与第 2 个 Pass 上方的注释。
 //   hover 与 selected 的差异（翻译自 Godot，逐条对应）：
 //     | 维度     | hover                              | selected                          |
 //     | 颜色     | 淡白 a≈0.22                        | 青色 #49d9d6 a≈0.949              |
@@ -55,9 +68,17 @@
 //     struct Light / GetMainLight              -> URP/RealtimeLights.hlsl:12/97（经 Lighting.hlsl 引入）
 //     SampleSH                                 -> URP/GlobalIllumination.hlsl:21（经 Lighting.hlsl 引入）
 //     _Time                                    -> URP/UnityInput.hlsl:40
+//     ShadowCasterPass.hlsl                    -> URP/Shaders/ShadowCasterPass.hlsl:55/75（官方阴影 Pass）
+//     ApplyShadowBias                          -> URP/Shadows.hlsl:471（ShadowCasterPass 调用）
+//     **LerpWhiteTo                              -> core/CommonMaterial.hlsl:352/359
+//        —— URP/Shadows.hlsl:298 调用它却**不自己 include** CommonMaterial.hlsl（只对"调用者已引入"
+//           的场景自洽）。故 ShadowCaster Pass 内必须先 include CommonMaterial.hlsl，否则真实编译报
+//           `undeclared identifier 'LerpWhiteTo' at Shadows.hlsl(298) (on d3d11)`（2026-09-13 实测，
+//           与 §八-1 的 BRDFData 事故同型：符号存在 ≠ include 自洽）。**
 //   注：core 与 URP 均未声明 ComputeScreenPos，故屏幕 UV 由 clip.xy/w 手算，未使用该函数。
 //   注：本清单只能证明"符号存在"，**不能**证明 include 自洽——GlobalIllumination.hlsl 那次
-//       静态核对全绿、真实编译照样失败（见下方 Base Pass 的踩坑记录）。
+//       静态核对全绿、真实编译照样失败（见下方 Base Pass 的踩坑记录）；Shadows.hlsl 的
+//       LerpWhiteTo 是同一类事故的第二次实例。
 // ============================================================================
 
 Shader "PirateCrew/PirateOutline"
@@ -431,6 +452,69 @@ Shader "PirateCrew/PirateOutline"
             {
                 return half4(0.0, 0.0, 0.0, 0.0);
             }
+            ENDHLSL
+        }
+
+        // ====================================================================
+        // Pass 4 / ShadowCaster：把单位写入主光阴影图（单位投影的唯一来源）
+        //
+        // 【为什么必须有这个 Pass】URP 的主光阴影图只由标了 "LightMode" = "ShadowCaster" 的
+        //   Pass 填充。本 shader 自带本体 Pass（不是 URP/Lit），补 Pass 之前单位既不投影、
+        //   也不进阴影图 —— 画面因此缺少一个关键深度线索（"看起来平"的主因）。
+        //
+        // 【实现方式】直接 include URP 官方 ShadowCasterPass.hlsl（URP/Lit 也走它），
+        //   而不是手写：那里已包含 ApplyShadowBias（法线偏移防自阴影条纹）与
+        //   _LightDirection / _LightPosition 的常量缓冲读取（由 ShadowUtils 在阴影通道前设置）。
+        //   该文件里的 `_BaseMap` / `_Cutoff` 代码全部在 `#if defined(_ALPHATEST_ON)` 内，
+        //   本 shader 不声明该关键字，故不会引用不存在的属性（这也是它比 DepthOnlyPass.hlsl
+        //   好用的地方：后者在非 AlphaTest 场景仍需 _BaseMap）。
+        //
+        // 【Alpha 与本体一致】本体 Pass 是不透明（ZWrite On、无 Blend、alpha 恒 1），
+        //   故这里同样不做 alpha 裁剪、不声明 _ALPHATEST_ON —— 阴影形状 = 本体轮廓。
+        //   若将来本体接透明/镂空，必须同步给这里加 _ALPHATEST_ON 与同样的裁剪，否则阴影会变"实心"。
+        //
+        // 【ColorMask 0 不需要写】阴影图只关心深度，但 URP 官方 Pass 由 URP 的阴影
+        //   RenderTarget 配置决定写入通道，Pass 内不写 ColorMask 也能正确只留深度；
+        //   Lit.shader 写了 `ColorMask 0` 是防御性写法。这里显式写上，与官方一致（无害）。
+        //
+        // 【_CASTING_PUNCTUAL_LIGHT_SHADOW】本工程只有一盏方向光（URP Asset 关了点光阴影），
+        //   理论上恒为方向光分支；但仍保留该 multi_compile（URP 官方 Pass 也保留），
+        //   这样将来加点光/聚光阴影时不用回来补，只多 1 个变体。
+        // ====================================================================
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode" = "ShadowCaster" }
+
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull Back           // 与本体 Pass 一致：阴影形状取自正面轮廓
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex   ShadowPassVertex
+            #pragma fragment ShadowPassFragment
+
+            // 方向光阴影 vs 点/聚光阴影的 Normal Bias 公式不同（见 ShadowCasterPass.hlsl 头注释）。
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+
+            // 【include 顺序是硬要求 —— 2026-09-13 真实报错，不要再"顺手删掉"这两行】
+            //   URP 的 Shadows.hlsl:298 调用 LerpWhiteTo()，该函数定义在 core 的
+            //   CommonMaterial.hlsl 里，而 **Shadows.hlsl 自己并不 include 它** ——
+            //   它只对"调用者已引入 CommonMaterial.hlsl"的场景自洽。
+            //   实测（Unity 一次真实导入，d3d11）：
+            //     Shader error in 'PirateCrew/PirateOutline': undeclared identifier 'LerpWhiteTo'
+            //       at .../universal@14.0.12/ShaderLibrary/Shadows.hlsl(298) (on d3d11)
+            //   根因：本 Pass 原先只 include ShadowCasterPass.hlsl，而它只带 Core.hlsl + Shadows.hlsl。
+            //   URP 官方 Lit.shader 的 ShadowCaster Pass 之所以没事，是因为它先 include 了
+            //   LitInput.hlsl（其第 5 行显式 include CommonMaterial.hlsl）。
+            //   故此处照抄官方顺序：Core.hlsl → CommonMaterial.hlsl → ShadowCasterPass.hlsl。
+            //   这是「符号存在 ≠ include 自洽」的又一实例（同类事故见 §八-1 的 BRDFData）。
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
+            // 该 include 自带 Core.hlsl + Shadows.hlsl（含 ApplyShadowBias、TransformWorldToHClip）。
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/ShadowCasterPass.hlsl"
             ENDHLSL
         }
     }
