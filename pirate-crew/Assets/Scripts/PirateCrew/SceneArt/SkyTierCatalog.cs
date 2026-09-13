@@ -87,5 +87,59 @@ namespace PirateCrew.PirateCrew.SceneArt
         {
             return All[TierIndexForLevel(levelNumber) - 1];
         }
+
+        // ------------------------------------------------------------------
+        // 远景剪影分层色（【AI 提案】：满足"逐层提亮 + 雾衰减"的验收）
+        // ------------------------------------------------------------------
+
+        /// <summary>远景剪影层数（近 / 中 / 远）。</summary>
+        public const int FarSilhouetteLayers = 3;
+
+        /// <summary>
+        /// 远景剪影"逐层提亮 + 雾衰减"的基色（【AI 提案】）。
+        ///
+        /// 【依据与目标】场景文档 §6.3 要求远岛按距离变浅；品控 B-2/B-3 要求
+        /// 远岛至少 3 层、逐层提亮，远景岛与背景 ΔL* ≥ 25、地平线带 L* ≥ 78。
+        /// 做法：先按层号在 <c>FarSilhouetteNear #7E93A8</c>（L*≈59）与
+        /// <c>FarSilhouetteFar #AFC2D4</c>（L*≈78）之间线性插值，再把最远层向该档
+        /// <see cref="SkyTier.HorizonHex"/>（雾色）混 25% —— 即"越远越亮、越蓝灰"。
+        /// 近层保持近档原色，从而与雾化后的天空仍有足够 ΔL*（对比不糊）。
+        /// </summary>
+        /// <param name="layerIndex">层号：0=近 / 1=中 / 2=远。</param>
+        /// <param name="levelNumber">关卡号（决定该档雾色）。</param>
+        public static string FarSilhouetteHex(int layerIndex, int levelNumber = 1)
+        {
+            int last = FarSilhouetteLayers - 1;
+            float t = last <= 0 ? 0f : Mathf.Clamp01(layerIndex / (float)last);
+
+            Color near = SceneArtPalette.Hex(SceneArtPalette.FarSilhouetteNear);
+            Color far = SceneArtPalette.Hex(SceneArtPalette.FarSilhouetteFar);
+            Color baseColor = Blend(near, far, t);
+
+            // 雾衰减：最远层再向地平线雾色靠 25%。
+            Color fog = SceneArtPalette.Hex(ForLevel(levelNumber).HorizonHex);
+            Color blended = Blend(baseColor, fog, 0.25f * t);
+            return ToHex(blended);
+        }
+
+        /// <summary>两个颜色按 <paramref name="t"/> 线性插值（纯 C#，不用 <c>Color.Lerp</c> 也避免依赖）。</summary>
+        static Color Blend(Color a, Color b, float t)
+        {
+            t = Mathf.Clamp01(t);
+            return new Color(
+                a.r + (b.r - a.r) * t,
+                a.g + (b.g - a.g) * t,
+                a.b + (b.b - a.b) * t,
+                a.a + (b.a - a.a) * t);
+        }
+
+        /// <summary>颜色转 <c>#RRGGBB</c>（纯 C#，不用 <c>ColorUtility</c> 的 ECall）。</summary>
+        static string ToHex(Color color)
+        {
+            int r = Mathf.Clamp(Mathf.RoundToInt(color.r * 255f), 0, 255);
+            int g = Mathf.Clamp(Mathf.RoundToInt(color.g * 255f), 0, 255);
+            int b = Mathf.Clamp(Mathf.RoundToInt(color.b * 255f), 0, 255);
+            return "#" + r.ToString("X2") + g.ToString("X2") + b.ToString("X2");
+        }
     }
 }

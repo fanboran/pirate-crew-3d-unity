@@ -4,6 +4,60 @@ using UnityEngine;
 namespace PirateCrew.PirateCrew.SceneArt
 {
     /// <summary>
+    /// 远景/植被的**分层附加材质组**（【AI 提案】，可选）：把"一整条同色"的远景拆成可分别配色的层。
+    ///
+    /// 【为什么要拆】一个材质组只能有一个基色，而验收要求：
+    ///   · 远岛 ≥3 层、逐层提亮 + 雾衰减（近 <c>#7E93A8</c> → 远 <c>#AFC2D4</c>）；
+    ///   · 云"中心实、边缘虚"（顶点 alpha 在本工程 <see cref="MeshBuffers"/> 里没有通道，只能用高/低 alpha 两层近似）；
+    ///   · 草梢两档绿 + 草根渐暗（场景文档 §3.4 的梢 <c>#7BC67E</c> / 根 <c>#2D5A2D</c>）。
+    /// 这些都需要"同几何、不同材质"，故由编辑器侧建这些缓冲并各落一个材质组。
+    ///
+    /// 【不传时（<c>tiers == null</c>）】全部远景剪影并进 <see cref="ScenePropBuffers.Silhouette"/>、
+    /// 云并进 <see cref="ScenePropBuffers.Cloud"/>、草并进 <see cref="ScenePropBuffers.Foliage"/>，
+    /// 即保持旧的单组行为（无头测试走这条，不产生未登记材质）。
+    /// </summary>
+    public sealed class ScenePropTierBuffers
+    {
+        /// <summary>远岛近层（最暗，与天空拉开 ΔL*）。</summary>
+        public readonly MeshBuffers SilhouetteNear;
+
+        /// <summary>远岛中层。</summary>
+        public readonly MeshBuffers SilhouetteMid;
+
+        /// <summary>远岛远层（最亮最蓝灰，负责抬高地平线亮度）。</summary>
+        public readonly MeshBuffers SilhouetteFar;
+
+        /// <summary>云核（高 alpha）。</summary>
+        public readonly MeshBuffers CloudCore;
+
+        /// <summary>云缘（低 alpha，近似顶点 alpha 渐变的外圈）。</summary>
+        public readonly MeshBuffers CloudFringe;
+
+        /// <summary>远景帆船帆布（<c>#E8E8E0</c>，非过曝）。</summary>
+        public readonly MeshBuffers SailFar;
+
+        /// <summary>草根（暗绿 <c>#2D5A2D</c>）。</summary>
+        public readonly MeshBuffers GrassRoot;
+
+        /// <summary>草梢亮档（介于 <c>GrassMid</c> 与 <c>GrassLight</c> 之间）。</summary>
+        public readonly MeshBuffers GrassLight;
+
+        public ScenePropTierBuffers(MeshBuffers silhouetteNear, MeshBuffers silhouetteMid,
+            MeshBuffers silhouetteFar, MeshBuffers cloudCore, MeshBuffers cloudFringe,
+            MeshBuffers sailFar, MeshBuffers grassRoot, MeshBuffers grassLight)
+        {
+            SilhouetteNear = silhouetteNear;
+            SilhouetteMid = silhouetteMid;
+            SilhouetteFar = silhouetteFar;
+            CloudCore = cloudCore;
+            CloudFringe = cloudFringe;
+            SailFar = sailFar;
+            GrassRoot = grassRoot;
+            GrassLight = grassLight;
+        }
+    }
+
+    /// <summary>
     /// 把 <see cref="SceneLayout"/> 的摆位表"翻译成三角面"（纯 C#，无头可测）。
     ///
     /// 【为什么单独一层】编辑器构建器（<c>Assets/Editor/SceneArtBuilder.cs</c>）与性能自证用例
@@ -17,13 +71,24 @@ namespace PirateCrew.PirateCrew.SceneArt
     public static class ScenePropComposer
     {
         /// <summary>
-        /// 按摆位表生成全部道具几何。远景剪影的基座高度由 <see cref="HorizonBaseY"/> 决定（见其注释）。
+        /// 按摆位表生成全部道具几何（单组模式：远景剪影/云/草都并进 <see cref="ScenePropBuffers"/> 既有组）。
         /// </summary>
         /// <param name="buffers">分材质组的三角面缓冲（原地追加）。</param>
         /// <param name="layout">摆位表（<see cref="ScenePropLayout.Build"/> 的产物）。</param>
         /// <param name="seed">随机种子（关卡号派生；只影响形状抖动，不影响摆位）。</param>
         /// <param name="arenaDepth">竞技场纵深（算远景基座高度用）。</param>
         public static void Compose(ScenePropBuffers buffers, SceneLayout layout, int seed, int arenaDepth)
+        {
+            Compose(buffers, layout, seed, arenaDepth, null);
+        }
+
+        /// <summary>
+        /// 按摆位表生成全部道具几何；<paramref name="tiers"/> 非空时把远景/草按层写进各自材质组。
+        /// 远景剪影的基座高度由 <see cref="HorizonBaseY"/> 决定（见其注释）。
+        /// </summary>
+        /// <param name="tiers">分层附加材质组（编辑器侧用；无头测试传 null）。</param>
+        public static void Compose(ScenePropBuffers buffers, SceneLayout layout, int seed, int arenaDepth,
+            ScenePropTierBuffers tiers)
         {
             if (buffers == null || layout == null)
                 return;
@@ -87,7 +152,19 @@ namespace PirateCrew.PirateCrew.SceneArt
                         break;
 
                     case ScenePropKind.GrassTuft:
-                        ScenePropGeometry.AddGrassTuft(buffers, p.Position, p.Scale, s);
+                        // 单组模式：整簇写进植被档（保持旧行为）。
+                        // 分层模式：下段写草根暗档、上段按摆位 Tier 写中绿（Foliage）或亮绿（GrassLight）。
+                        if (tiers == null)
+                        {
+                            ScenePropGeometry.AddGrassTuft(buffers.Foliage, null,
+                                p.Position, p.Scale, s, p.YawDegrees);
+                        }
+                        else
+                        {
+                            ScenePropGeometry.AddGrassTuft(
+                                p.Tier == 1 ? tiers.GrassLight : buffers.Foliage, tiers.GrassRoot,
+                                p.Position, p.Scale, s, p.YawDegrees);
+                        }
                         break;
 
                     case ScenePropKind.RidgeRock:
@@ -107,22 +184,39 @@ namespace PirateCrew.PirateCrew.SceneArt
                         break;
 
                     case ScenePropKind.CloudPuff:
-                        ScenePropGeometry.AddCloudPuff(buffers, p.Position, p.Scale, s);
+                        if (tiers == null)
+                            ScenePropGeometry.AddCloudPuff(buffers.Cloud, null, p.Position, p.Scale, s);
+                        else
+                            ScenePropGeometry.AddCloudPuff(tiers.CloudCore, tiers.CloudFringe,
+                                p.Position, p.Scale, s);
                         break;
 
                     case ScenePropKind.FarIsland:
-                        ScenePropGeometry.AddFarIsland(buffers,
+                        ScenePropGeometry.AddFarIsland(
+                            tiers == null ? buffers.Silhouette : FarSilhouetteTarget(tiers, p.Tier),
                             new Vector3(p.Position.x, HorizonBaseY(p.Position.z, arenaDepth) - 0.6f, p.Position.z),
-                            p.Scale, p.Height, s);
+                            p.Scale, p.Height, s, p.Tier);
                         break;
 
                     case ScenePropKind.FarShip:
-                        ScenePropGeometry.AddFarShip(buffers,
+                        ScenePropGeometry.AddFarShip(
+                            tiers == null ? buffers.Silhouette : tiers.SilhouetteNear,
+                            tiers == null ? buffers.Cloud : tiers.SailFar,
                             new Vector3(p.Position.x, HorizonBaseY(p.Position.z, arenaDepth) - 0.4f, p.Position.z),
                             p.Scale, s);
                         break;
                 }
             }
+        }
+
+        /// <summary>按远岛层号（0 近 / 1 中 / 2 远）取目标材质组。</summary>
+        static MeshBuffers FarSilhouetteTarget(ScenePropTierBuffers tiers, int tier)
+        {
+            if (tier <= 0)
+                return tiers.SilhouetteNear;
+            if (tier == 1)
+                return tiers.SilhouetteMid;
+            return tiers.SilhouetteFar;
         }
 
         /// <summary>

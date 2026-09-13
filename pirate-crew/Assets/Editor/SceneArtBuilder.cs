@@ -91,6 +91,21 @@ namespace PirateCrew.EditorTools
         /// <summary>线环带的分段长度（世界单位）。【AI 提案】</summary>
         const float BandSegmentLength = 1f;
 
+        /// <summary>
+        /// 云核基色（【AI 提案】<c>#E4EAF0</c>，最大通道 240）。r2 出图中云是"硬边纯白 255"，
+        /// 故**亮度封顶 240、禁用纯白**；内核用高 alpha，边缘由 <see cref="CloudFringeHex"/> 低 alpha 近似衰减。
+        /// </summary>
+        const string CloudCoreHex = "#E4EAF0";
+
+        /// <summary>云缘基色（【AI 提案】<c>#D9E2EA</c>，最大通道 234）：更暗更透，读作云的虚边。</summary>
+        const string CloudFringeHex = "#D9E2EA";
+
+        /// <summary>
+        /// 草梢亮档（【AI 提案】<c>#63A964</c>）：介于 <see cref="SceneArtPalette.GrassMid"/>（#4A8C4A）
+        /// 与 <see cref="SceneArtPalette.GrassLight"/>（#7BC67E）之间，与保留中绿档的草丛形成两色变化。
+        /// </summary>
+        const string GrassLightHex = "#63A964";
+
         // ------------------------------------------------------------------
         // 入口
         // ------------------------------------------------------------------
@@ -133,6 +148,14 @@ namespace PirateCrew.EditorTools
             // ---- 三角面缓冲：按材质分组 ----
             var buffers = new ScenePropBuffers();
 
+            // 远景/植被**分层附加材质组**（【提案】）：远岛近/中/远 3 层、云核/云缘、远帆、草根/草梢。
+            // 一个材质组只能一个基色，而验收要求"远岛逐层提亮+雾衰减""云中心实边缘虚""草两档绿+根渐暗"，
+            // 故拆成多组；几何调度仍共用 ScenePropComposer（编辑器与无头测试同一份逻辑）。
+            var tiers = new ScenePropTierBuffers(
+                new MeshBuffers(), new MeshBuffers(), new MeshBuffers(),
+                new MeshBuffers(), new MeshBuffers(), new MeshBuffers(),
+                new MeshBuffers(), new MeshBuffers());
+
             // 1. 潮间带湿沙坡（沙→湿沙→泡沫→水 四段过渡里的前两段）
             IslandShellGeometry.AddOffsetBand(buffers.SandWet, arenaW, arenaD,
                 0f, TideSlopeWidth, LevelGeometry.GroundTopY, -0.6f, BandSegmentLength);
@@ -154,7 +177,7 @@ namespace PirateCrew.EditorTools
                 : EmptyLayout(arenaW, arenaD);
 
             // 调度（摆位 → 三角面）在纯 C# 的 ScenePropComposer 里，编辑器与性能用例共用同一份。
-            ScenePropComposer.Compose(buffers, layout, propSeed, arenaD);
+            ScenePropComposer.Compose(buffers, layout, propSeed, arenaD, tiers);
 
             // 4b. 模块化构件（kit）：把平台簇伪装成大船 / 空岛 / 梯田小岛。
             //     构件注册表 + 配方在 SceneKitCatalog（纯 C#），几何在 SceneKitGeometry，
@@ -184,6 +207,16 @@ namespace PirateCrew.EditorTools
             groups += EmitGroup(root, "FarSilhouette", buffers.Silhouette, materials.Silhouette, false, false);
             groups += EmitGroup(root, "Clouds", buffers.Cloud, materials.Cloud, false, false);
 
+            // 远景/植被分层组（提案）：远岛 3 层、云核/缘、远帆、草根/梢。
+            groups += EmitGroup(root, "FarSilNear", tiers.SilhouetteNear, materials.SilhouetteNear, false, false);
+            groups += EmitGroup(root, "FarSilMid", tiers.SilhouetteMid, materials.SilhouetteMid, false, false);
+            groups += EmitGroup(root, "FarSilFar", tiers.SilhouetteFar, materials.SilhouetteFar, false, false);
+            groups += EmitGroup(root, "CloudCore", tiers.CloudCore, materials.CloudCore, false, false);
+            groups += EmitGroup(root, "CloudFringe", tiers.CloudFringe, materials.CloudFringe, false, false);
+            groups += EmitGroup(root, "SailFar", tiers.SailFar, materials.SailFar, false, false);
+            groups += EmitGroup(root, "GrassRoot", tiers.GrassRoot, materials.GrassRoot, true, true);
+            groups += EmitGroup(root, "GrassLight", tiers.GrassLight, materials.GrassLight, true, true);
+
             // 6. 把湿沙材质接给地形壳（潮沟贴片）
             WireTerrainWetMaterial(root, materials.SandWet);
 
@@ -207,8 +240,11 @@ namespace PirateCrew.EditorTools
                 + " / 植被 " + buffers.Foliage.TriangleCount
                 + " / 布 " + buffers.Cloth.TriangleCount
                 + " / 湿沙 " + buffers.SandWet.TriangleCount
-                + " / 剪影 " + buffers.Silhouette.TriangleCount
-                + " / 云 " + buffers.Cloud.TriangleCount + "）\n"
+                + " / 剪影 " + (tiers.SilhouetteNear.TriangleCount + tiers.SilhouetteMid.TriangleCount
+                    + tiers.SilhouetteFar.TriangleCount)
+                + " / 云 " + (tiers.CloudCore.TriangleCount + tiers.CloudFringe.TriangleCount)
+                + " / 草梢亮 " + tiers.GrassLight.TriangleCount
+                + " / 草根暗 " + tiers.GrassRoot.TriangleCount + "）\n"
                 + "  网格资产: " + SceneMeshFolder + " / 材质资产: " + SceneMaterialFolder);
         }
 
@@ -403,6 +439,16 @@ namespace PirateCrew.EditorTools
             public readonly Material Silhouette;
             public readonly Material Cloud;
 
+            // ---- 分层组（提案）：远岛三层 / 云核·缘 / 远帆 / 草根·梢 ----
+            public readonly Material SilhouetteNear;
+            public readonly Material SilhouetteMid;
+            public readonly Material SilhouetteFar;
+            public readonly Material CloudCore;
+            public readonly Material CloudFringe;
+            public readonly Material SailFar;
+            public readonly Material GrassRoot;
+            public readonly Material GrassLight;
+
             public SceneArtMaterials()
             {
                 // ---- 道具材质（PBR 本体 + 描边置零；见 EnsureOutlineMaterial）----
@@ -434,7 +480,24 @@ namespace PirateCrew.EditorTools
                 SkyTierCatalog.SkyTier tier = SkyTierCatalog.ForLevel(1);
                 Silhouette = EnsureUnlitOpaque("Scene_Silhouette",
                     tier.Index == 1 ? SceneArtPalette.FarSilhouetteNear : SceneArtPalette.FarSilhouetteFar);
-                Cloud = EnsureUnlitTransparent("Scene_Cloud", SceneArtPalette.CloudWhite, 0.62f);
+                Cloud = EnsureUnlitTransparent("Scene_Cloud", CloudCoreHex, 0.62f);
+
+                // ---- 远景剪影三层：近/中/远逐层提亮 + 雾衰减（【提案】档 1 地平线雾色）----
+                SilhouetteNear = EnsureUnlitOpaque("Scene_SilhouetteNear", SkyTierCatalog.FarSilhouetteHex(0, 1));
+                SilhouetteMid = EnsureUnlitOpaque("Scene_SilhouetteMid", SkyTierCatalog.FarSilhouetteHex(1, 1));
+                SilhouetteFar = EnsureUnlitOpaque("Scene_SilhouetteFar", SkyTierCatalog.FarSilhouetteHex(2, 1));
+
+                // ---- 云：核（高 alpha）/ 缘（低 alpha）两层近似"中心 1 → 边缘 0"的顶点 alpha 渐变；
+                //      基色亮度封顶 240（#E4EAF0 / #D9E2EA），禁止纯 255 ----
+                CloudCore = EnsureUnlitTransparent("Scene_CloudCore", CloudCoreHex, 0.92f);
+                CloudFringe = EnsureUnlitTransparent("Scene_CloudFringe", CloudFringeHex, 0.30f);
+
+                // ---- 远帆：单独走 SailFarWhite #E8E8E0（最大通道 232，非过曝纯白）----
+                SailFar = EnsureUnlitOpaque("Scene_SailFar", SceneArtPalette.SailFarWhite);
+
+                // ---- 草：根暗档（GrassDark #2D5A2D）/ 梢亮档（介于 GrassMid↔GrassLight）----
+                GrassRoot = EnsureOutlineMaterial("Scene_GrassRoot", SceneArtPalette.GrassDark);
+                GrassLight = EnsureOutlineMaterial("Scene_GrassLight", GrassLightHex);
             }
         }
 

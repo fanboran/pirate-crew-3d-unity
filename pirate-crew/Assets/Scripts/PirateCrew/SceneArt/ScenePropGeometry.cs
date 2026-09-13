@@ -219,19 +219,41 @@ namespace PirateCrew.PirateCrew.SceneArt
             flag.AppendTransformed(cloth, SceneArtRot.Trs(basePos, yaw, Vector3.one));
         }
 
-        /// <summary>告示牌：柱 0.8 + 牌 0.6×0.4、斜角 10°（场景文档 §4.4；文字内容【待定】，本轮不画字）。</summary>
+        /// <summary>
+        /// 告示牌：**两根立柱 + 三块横板 + 顶部压条**（场景文档 §4.4「柱 0.8 + 牌 0.6×0.4、斜角 10°」；
+        /// 文字内容【待定】，本轮不画字）。
+        ///
+        /// 【提案·重塑】旧版是"单根细杆 + 一片 0.62×0.42 平板（木档亮色）"，在远景/地平线处被读成
+        /// "橙色纸片 / 灯塔告示牌"（r2 出图工单 005/007）。现改为厚木构造：双柱 + 三板带板缝 + 顶压条，
+        /// 并**统一走暗木档**（去掉亮色板面的"纸片反光感"）；牌面尺寸保持与 §4.4 同量级。
+        /// </summary>
         public static void AddSignPost(ScenePropBuffers b, Vector3 basePos, float yawDegrees, float postHeight = 0.8f)
         {
             Quaternion yaw = SceneArtRot.Euler(0f, yawDegrees, 0f);
-            var post = new MeshBuffers();
-            post.AddFrustum(Vector3.zero, 0.06f, 0.05f, postHeight, 6);
-            b.Wood.AppendTransformed(post, SceneArtRot.Trs(basePos, yaw, Vector3.one));
+            Matrix4x4 world = SceneArtRot.Trs(basePos, yaw, Vector3.one);
+            // 牌面绕 X 后仰 10°（§4.4）。
+            Matrix4x4 boardLocal = SceneArtRot.Trs(
+                new Vector3(0f, postHeight, 0f), SceneArtRot.Euler(10f, 0f, 0f), Vector3.one);
+
+            var wood = new MeshBuffers();
+
+            // 两根立柱：径 0.05、总高 postHeight + 0.18（比旧版单柱稳，不再是"一根细杆顶纸片"）。
+            const float halfSpan = 0.26f;
+            wood.AddFrustum(new Vector3(-halfSpan, 0f, 0f), 0.05f, 0.042f, postHeight + 0.18f, 6);
+            wood.AddFrustum(new Vector3(halfSpan, 0f, 0f), 0.05f, 0.042f, postHeight + 0.18f, 6);
 
             var board = new MeshBuffers();
-            board.AddBox(new Vector3(0f, 0f, 0f), new Vector3(0.62f, 0.42f, 0.05f));
-            var matrix = SceneArtRot.Trs(basePos, yaw, Vector3.one)
-                * SceneArtRot.Trs(new Vector3(0f, postHeight + 0.05f, 0.03f), SceneArtRot.Euler(10f, 0f, 0f), Vector3.one);
-            b.WoodDark.AppendTransformed(board, matrix);
+            for (int i = 0; i < 3; i++)
+            {
+                float y = -0.14f + i * 0.14f;
+                board.AddBox(new Vector3(0f, y, 0.03f), new Vector3(0.56f, 0.12f, 0.06f));
+            }
+
+            // 顶部压条：给牌面一个"是木牌不是纸片"的收口。
+            board.AddBox(new Vector3(0f, 0.17f, 0.03f), new Vector3(0.62f, 0.05f, 0.08f));
+            wood.AppendTransformed(board, boardLocal);
+
+            b.WoodDark.AppendTransformed(wood, world);
         }
 
         // ------------------------------------------------------------------
@@ -320,7 +342,12 @@ namespace PirateCrew.PirateCrew.SceneArt
                 float length = 2.2f + 0.8f * SceneArtHash.Hash01(seed, i, 23);
                 float pitch = -0.22f - 0.42f * SceneArtHash.Hash01(seed, i, 29);
                 Vector3 dir = new Vector3(Mathf.Cos(ang), Mathf.Tan(pitch), Mathf.Sin(ang)).normalized;
-                leaves.AddLeaf(top, dir, length, 0.42f, 0.85f, 3);
+                // 【提案】叶形加宽 + 分段弯垂（旧值 width 0.42 / droop 0.85 / 3 段 →
+                // 远景读成"细绿条带"）：宽度 0.62-0.90、4-5 段折面使下垂成弧线，宽长比从 ~0.15 提到 ~0.30。
+                float width = 0.62f + 0.28f * SceneArtHash.Hash01(seed, i, 31);
+                float droop = 0.95f + 0.35f * SceneArtHash.Hash01(seed, i, 37);
+                int segments = 4 + (int)(SceneArtHash.Hash01(seed, i, 41) * 2f);   // 4-5 段
+                leaves.AddLeaf(top, dir, length, width, droop, segments);
             }
 
             b.Foliage.AppendTransformed(leaves, SceneArtRot.Trs(basePos, Quaternion.identity, Vector3.one));
@@ -345,25 +372,48 @@ namespace PirateCrew.PirateCrew.SceneArt
         }
 
         /// <summary>
-        /// 草丛：单簇 0.2-0.4、3-5 片窄叶（场景文档 §3.4「单簇 0.2-0.4」）。
-        /// 本轮用不透明低模叶代替 alpha-test 贴片（工程 0 贴图约束，见报告取舍）。
+        /// 草丛：单簇 0.2-0.4、**3-5 片**窄叶（场景文档 §3.4「单簇 0.2-0.4」，梢 <c>#7BC67E</c> / 根 <c>#2D5A2D</c>）。
+        ///
+        /// 【两段式 —— 用几何近似"顶点色渐暗"】本工程的 <see cref="MeshBuffers"/> 无顶点色通道
+        /// （每面只写位置+法线），故把每片叶**沿高度切成两段**：
+        ///   · 下段（0→42%）写进 <paramref name="root"/>（暗绿档 <c>#2D5A2D</c>）；
+        ///   · 上段（42%→梢）写进 <paramref name="shade"/>（中绿/亮绿档，由摆位的 Tier 选）。
+        /// 这样"底部渐暗 + 两档绿色"落到材质分组上，视觉等效于场景文档要求的顶点色遮罩。
+        ///
+        /// 【双面】叶片用闭合低模圆管（<see cref="MeshBuffers.AddRod"/>）而非零厚度贴片，
+        /// 任意角度都不被背面剔除，也不会有"纸片"薄边。
+        /// <paramref name="root"/> 为 null 时（无头测试的简化调用）两段都写进 <paramref name="shade"/>。
         /// </summary>
-        public static void AddGrassTuft(ScenePropBuffers b, Vector3 basePos, float scale, int seed)
+        public static void AddGrassTuft(MeshBuffers shade, MeshBuffers root, Vector3 basePos,
+            float scale, int seed, float yawDegrees = 0f)
         {
-            var grass = new MeshBuffers();
-            int blades = 3 + (int)(SceneArtHash.Hash01(seed, 0, 5) * 3f);
+            if (shade == null)
+                return;
+
+            MeshBuffers rootTarget = root ?? shade;
+
+            var tops = new MeshBuffers();
+            var roots = new MeshBuffers();
+            int blades = 3 + (int)(SceneArtHash.Hash01(seed, 0, 5) * 3f);   // 3-5 片
             for (int i = 0; i < blades; i++)
             {
                 float ang = Mathf.PI * 2f * i / blades + SceneArtHash.Hash01(seed, i, 3) * 0.9f;
                 float h = (0.18f + 0.22f * SceneArtHash.Hash01(seed, i, 9)) * scale;
                 float offset = 0.05f * SceneArtHash.Hash01(seed, i, 15);
                 Vector3 baseLocal = new Vector3(Mathf.Cos(ang) * offset, 0f, Mathf.Sin(ang) * offset);
+                // 叶片外倾 + 梢端上抬，使丛有"散开"的体量而不是一束平行线。
                 Vector3 tip = baseLocal + new Vector3(
-                    Mathf.Cos(ang) * h * 0.45f, h, Mathf.Sin(ang) * h * 0.45f);
-                grass.AddRod(baseLocal, tip, 0.022f, 3);
+                    Mathf.Cos(ang) * h * 0.5f, h, Mathf.Sin(ang) * h * 0.5f);
+                Vector3 mid = Vector3.Lerp(baseLocal, tip, 0.42f);
+
+                roots.AddRod(baseLocal, mid, 0.026f, 2);
+                tops.AddRod(mid, tip, 0.019f, 2);
             }
 
-            b.Foliage.AppendTransformed(grass, SceneArtRot.Trs(basePos, Quaternion.identity, Vector3.one));
+            Quaternion yaw = SceneArtRot.Euler(0f, yawDegrees, 0f);
+            Matrix4x4 world = SceneArtRot.Trs(basePos, yaw, Vector3.one);
+            rootTarget.AppendTransformed(roots, world);
+            shade.AppendTransformed(tops, world);
         }
 
         /// <summary>贝壳碎屑：0.05-0.12 的扁平小片（场景文档 §3.3）。走布档（浅色）。</summary>
@@ -593,22 +643,53 @@ namespace PirateCrew.PirateCrew.SceneArt
         // 加分项 P1：低模积云（球体扰动 + 平底）
         // ------------------------------------------------------------------
 
-        /// <summary>低模积云团：3-5 个扁圆团块簇成（场景文档 §6.2「每团 20-80 三角面，球体扰动+平底」）。</summary>
-        public static void AddCloudPuff(ScenePropBuffers b, Vector3 center, float radius, int seed)
+        /// <summary>
+        /// 低模积云团（场景文档 §6.2「每团 20-80 三角面，球体扰动+平底」）。
+        ///
+        /// 【提案·两层近似 alpha 渐变】<see cref="MeshBuffers"/> 无顶点色/顶点 alpha 通道，
+        /// 无法真的做"中心 alpha 1 → 边缘 alpha 0"的逐顶点渐变。这里把一朵云拆成两组几何：
+        ///   · <paramref name="core"/>：3 个**大尺度、强重叠**的扁球（彼此中心距 ≤ 0.35 × 半径），
+        ///     由较高 alpha 的云核材质渲染；
+        ///   · <paramref name="fringe"/>：4 个**小尺度、绕核心一圈**的扁球，由低 alpha 的云缘材质渲染。
+        /// 叠加后视觉上得到"中心实、边缘虚"的软边，替代真正的顶点 alpha 渐变（亮度上限由材质色封顶 240）。
+        /// 每朵云的核心 ≥3 瓣重叠，满足"无硬边、非过曝纯白"的验收。
+        /// <paramref name="fringe"/> 为 null 时全部写进 <paramref name="core"/>（无头测试的简化调用）。
+        /// </summary>
+        public static void AddCloudPuff(MeshBuffers core, MeshBuffers fringe, Vector3 center, float radius, int seed)
         {
-            var cloud = new MeshBuffers();
-            int blobs = 3 + (int)(SceneArtHash.Hash01(seed, 0, 7) * 3f);
-            for (int i = 0; i < blobs; i++)
+            if (core == null && fringe == null)
+                return;
+
+            MeshBuffers coreTarget = core ?? fringe;
+            MeshBuffers fringeTarget = fringe ?? coreTarget;
+
+            // ---- 核心：3 瓣强重叠（不同尺度/偏移）----
+            var coreLocal = new MeshBuffers();
+            for (int i = 0; i < 3; i++)
             {
-                float ang = Mathf.PI * 2f * i / blobs + SceneArtHash.Hash01(seed, i, 11);
-                float dist = radius * 0.5f * SceneArtHash.Hash01(seed, i, 13);
-                float r = radius * (0.5f + 0.3f * SceneArtHash.Hash01(seed, i, 17));
-                cloud.AddRock(
-                    new Vector3(Mathf.Cos(ang) * dist, r * 0.35f, Mathf.Sin(ang) * dist),
-                    r, new Vector3(1.5f, 0.62f, 1.25f), seed + i * 7, 7);
+                float ang = Mathf.PI * 2f * i / 3f + SceneArtHash.Hash01(seed, i, 7) * 0.8f;
+                float dist = radius * 0.34f * SceneArtHash.Hash01(seed, i, 13);
+                float r = radius * (0.58f + 0.20f * SceneArtHash.Hash01(seed, i, 17));
+                coreLocal.AddRock(
+                    new Vector3(Mathf.Cos(ang) * dist, r * 0.42f, Mathf.Sin(ang) * dist),
+                    r, new Vector3(1.55f, 0.60f, 1.25f), seed + i * 11, 6);
             }
 
-            b.Cloud.AppendTransformed(cloud, SceneArtRot.Trs(center, Quaternion.identity, Vector3.one));
+            // ---- 边缘：4 瓣小团绕核心一圈（低 alpha 材质）----
+            var fringeLocal = new MeshBuffers();
+            for (int i = 0; i < 4; i++)
+            {
+                float ang = Mathf.PI * 2f * i / 4f + SceneArtHash.Hash01(seed, i, 19) * 0.9f;
+                float dist = radius * (0.72f + 0.28f * SceneArtHash.Hash01(seed, i, 23));
+                float r = radius * (0.28f + 0.16f * SceneArtHash.Hash01(seed, i, 29));
+                fringeLocal.AddRock(
+                    new Vector3(Mathf.Cos(ang) * dist, r * 0.34f, Mathf.Sin(ang) * dist),
+                    r, new Vector3(1.45f, 0.55f, 1.20f), seed + i * 17, 5);
+            }
+
+            Matrix4x4 world = SceneArtRot.Trs(center, Quaternion.identity, Vector3.one);
+            coreTarget.AppendTransformed(coreLocal, world);
+            fringeTarget.AppendTransformed(fringeLocal, world);
         }
 
         // ------------------------------------------------------------------
@@ -617,13 +698,21 @@ namespace PirateCrew.PirateCrew.SceneArt
 
         /// <summary>
         /// 远景剪影岛：不规则起伏的棱柱剪影（**边缘必须有起伏，不许是三角尖**，场景文档 §6.3）。
-        /// 岛体从 <paramref name="baseY"/> 起（<c>baseY</c> 由场景侧按"与水面远缘同屏高"反推，
-        /// 见 <c>SceneArtBuilder</c> 的说明），顶脊由 7 个高度不一的峰组成。
+        /// 岛体从 <paramref name="basePos"/>.y 起（基座高度由场景侧按"与水面远缘同屏高"反推，
+        /// 见 <c>ScenePropComposer.HorizonBaseY</c>），顶脊由 <paramref name="segments"/> 个高度不一的峰组成。
+        ///
+        /// 【提案·分层】<paramref name="tier"/> 0=近 / 1=中 / 2=远：远层用更少的峰与更平缓的脊线
+        /// （远景在雾里只应剩剪影轮廓，细节多了反而像"贴图"），近层保留更多起伏。
+        /// 颜色不在这里定，由使用方按 tier 选"近档 / 中档 / 远档"材质（SceneArtBuilder）。
         /// </summary>
-        public static void AddFarIsland(ScenePropBuffers b, Vector3 basePos, float width, float height, int seed)
+        public static void AddFarIsland(MeshBuffers target, Vector3 basePos, float width, float height, int seed, int tier = 0)
         {
+            if (target == null)
+                return;
+
+            // 近层 7 峰、中层 6 峰、远层 5 峰（提案）。
+            int segments = tier >= 2 ? 5 : tier == 1 ? 6 : 7;
             var island = new MeshBuffers();
-            const int segments = 7;
             float half = width * 0.5f;
 
             var top = new Vector3[segments];
@@ -636,8 +725,10 @@ namespace PirateCrew.PirateCrew.SceneArt
                 float envelope = Mathf.Sin(Mathf.PI * Mathf.Clamp01(t)) * 0.75f + 0.25f;
                 float peak = 0.55f + 0.45f * SceneArtHash.Hash01(seed, i, 23);
                 float h = height * envelope * peak;
-                top[i] = new Vector3(x, h, SceneArtHash.SignedHash(seed, i, 29) * 0.12f * width);
-                bottom[i] = new Vector3(x, 0f, SceneArtHash.SignedHash(seed, i, 31) * 0.18f * width);
+                // 远层压平起伏（雾里只留轮廓），近层保留完整剪影起伏。
+                float depthJitter = tier >= 2 ? 0.06f : tier == 1 ? 0.09f : 0.12f;
+                top[i] = new Vector3(x, h, SceneArtHash.SignedHash(seed, i, 29) * depthJitter * width);
+                bottom[i] = new Vector3(x, 0f, SceneArtHash.SignedHash(seed, i, 31) * (depthJitter + 0.06f) * width);
             }
 
             for (int i = 0; i < segments - 1; i++)
@@ -654,12 +745,20 @@ namespace PirateCrew.PirateCrew.SceneArt
                     (top[i] + top[i + 1]) * 0.5f + Vector3.up * 0.4f, Vector3.up);
             }
 
-            b.Silhouette.AppendTransformed(island, SceneArtRot.Trs(basePos, Quaternion.identity, Vector3.one));
+            target.AppendTransformed(island, SceneArtRot.Trs(basePos, Quaternion.identity, Vector3.one));
         }
 
-        /// <summary>远景帆船剪影：船身 (4-8 单位) + 2 片白帆（场景文档 §6.3）。船身走剪影档、帆走云白档。</summary>
-        public static void AddFarShip(ScenePropBuffers b, Vector3 basePos, float scale, int seed)
+        /// <summary>
+        /// 远景帆船剪影：船身 (4-8 单位) + 2 片帆（场景文档 §6.3）。船身走**剪影档**、帆走**远帆白档**。
+        ///
+        /// 【提案·帆色核验】旧版帆与云共用 <c>CloudWhite #FFFFFF</c>（会过曝纯白）；
+        /// 现帆单独走 <c>SailFarWhite #E8E8E0</c>（最大通道 232，非过曝），船身与近层剪影同色。
+        /// </summary>
+        public static void AddFarShip(MeshBuffers hullTarget, MeshBuffers sailTarget, Vector3 basePos, float scale, int seed)
         {
+            if (hullTarget == null && sailTarget == null)
+                return;
+
             float len = 5.5f * scale;
             float beam = 1.8f * scale;
             float mast = 4.2f * scale;
@@ -670,7 +769,8 @@ namespace PirateCrew.PirateCrew.SceneArt
             hull.AddFrustum(new Vector3(0f, 0.6f * scale, 0f), 0.11f * scale, 0.07f * scale, mast, 5);
 
             var world = SceneArtRot.Trs(basePos, SceneArtRot.Euler(0f, seed * 29f % 360f, 0f), Vector3.one);
-            b.Silhouette.AppendTransformed(hull, world);
+            if (hullTarget != null)
+                hullTarget.AppendTransformed(hull, world);
 
             var sails = new MeshBuffers();
             float sailTop = 0.6f * scale + mast;
@@ -687,7 +787,8 @@ namespace PirateCrew.PirateCrew.SceneArt
                 new Vector3(len * 0.28f, sailTop - 2.2f * scale, -0.9f * scale),
                 new Vector3(len * 0.28f, sailTop - 0.6f * scale, -0.2f * scale),
                 Vector3.right);
-            b.Cloud.AppendTransformed(sails, world);
+            if (sailTarget != null)
+                sailTarget.AppendTransformed(sails, world);
         }
 
         // ------------------------------------------------------------------

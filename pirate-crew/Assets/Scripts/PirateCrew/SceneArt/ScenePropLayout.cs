@@ -92,8 +92,16 @@ namespace PirateCrew.PirateCrew.SceneArt
         /// <summary>是否在竞技场矩形内。</summary>
         public readonly bool InsideArena;
 
+        /// <summary>
+        /// 形状/分层变体索引（0 起）【AI 提案】。用途：
+        ///   · <see cref="ScenePropKind.FarIsland"/>：0=近层 / 1=中层 / 2=远层（决定剪影目标材质与雾衰减）；
+        ///   · <see cref="ScenePropKind.GrassTuft"/>：0=中绿（Foliage 档）/ 1=亮绿（草亮档）；
+        /// 其余种类恒为 0。
+        /// </summary>
+        public readonly int Tier;
+
         public PropPlacement(ScenePropKind kind, Vector3 position, float yawDegrees, float scale,
-            float length, float height, bool insideArena, float rollDegrees = 0f)
+            float length, float height, bool insideArena, float rollDegrees = 0f, int tier = 0)
         {
             Kind = kind;
             Position = position;
@@ -103,6 +111,7 @@ namespace PirateCrew.PirateCrew.SceneArt
             Height = height;
             InsideArena = insideArena;
             RollDegrees = rollDegrees;
+            Tier = tier;
         }
     }
 
@@ -296,7 +305,7 @@ namespace PirateCrew.PirateCrew.SceneArt
         static bool TryPlace(SceneLayout layout, List<Vector4> placed, ScenePropKind kind,
             Vector3 position, float yaw, float scale, float length, float height,
             bool insideArena, IReadOnlyList<Vector2Int> spawnCells, float minSpacing,
-            bool requireSpawnClearance = true, float roll = 0f)
+            bool requireSpawnClearance = true, float roll = 0f, int tier = 0)
         {
             if (!SceneLayoutRules.IsHeightAllowedAt(height, position.z, insideArena))
                 return false;
@@ -316,7 +325,7 @@ namespace PirateCrew.PirateCrew.SceneArt
                     return false;
             }
 
-            layout.Add(new PropPlacement(kind, position, yaw, scale, length, height, insideArena, roll));
+            layout.Add(new PropPlacement(kind, position, yaw, scale, length, height, insideArena, roll, tier));
             placed.Add(new Vector4(position.x, position.z, 0f, minSpacing));
             return true;
         }
@@ -698,8 +707,13 @@ namespace PirateCrew.PirateCrew.SceneArt
                     if (!IsBeyondGrassClearance(x, z, spawnCells))
                         continue;
 
+                    // 【提案】随机绕 Y 旋转（旧版恒 0° → 全场草叶朝向一致，远景读成同一张贴片），
+                    // 并按约 45% 概率落到"亮绿档"（SceneArtPalette.GrassMid ↔ GrassLight 之间），
+                    // 与保留中绿档的草丛形成两色变化（场景文档 §3.4 要求梢 #7BC67E / 根 #2D5A2D）。
+                    int shade = rng.Chance(0.45f) ? 1 : 0;
                     if (TryPlace(layout, placed, ScenePropKind.GrassTuft, new Vector3(x, surface, z),
-                            0f, rng.Range(0.8f, 1.2f), 0f, 0.4f, true, null, 0.22f, false))
+                            rng.Range(0f, 360f), rng.Range(0.8f, 1.2f), 0f, 0.4f, true, null, 0.22f, false,
+                            0f, shade))
                     {
                         // 到量即停。
                         if (layout.CountOf(ScenePropKind.GrassTuft) >= target)
@@ -772,13 +786,17 @@ namespace PirateCrew.PirateCrew.SceneArt
 
         static void AddClouds(SceneLayout layout, SceneArtRandom rng, float arenaW, float arenaD)
         {
+            // 低模积云（场景文档 §6.2/§6.4）：8-20 朵，散布远侧 y=+12~+20。
+            // 【提案】每朵固定 ≥3 瓣重叠（几何侧保证，见 ScenePropGeometry.AddCloudPuff）——
+            // 旧图里"硬边纯白扁四边形"的根因是单瓣低模球 + 纯白 unlit，材质亮度现封顶 240、
+            // 每朵拆成"核（高 alpha）+ 缘（低 alpha）"两层近似中心→边缘的 alpha 渐变。
             int target = rng.RangeInt(8, 21);
             for (int i = 0; i < target; i++)
             {
                 float x = rng.Range(-30f, arenaW + 30f);
                 float z = rng.Range(-58f, -12f);
                 float y = rng.Range(12f, 20f);
-                float radius = rng.Range(2.2f, 5.5f);
+                float radius = rng.Range(2.4f, 5.2f);
                 TryPlace(layout, new List<Vector4>(), ScenePropKind.CloudPuff, new Vector3(x, y, z),
                         rng.Range(0f, 360f), radius, 0f, 0f, false, null, 0f, false);
             }
@@ -786,28 +804,51 @@ namespace PirateCrew.PirateCrew.SceneArt
 
         static void AddFarIslands(SceneLayout layout, SceneArtRandom rng, float arenaW, float arenaD)
         {
-            int target = rng.RangeInt(3, 6);
+            // 远景剪影岛（场景文档 §6.3 / M8）：**3 层剪影群**（【提案】，替代"一整条暗棕陆带"的一刀切）：
+            //   tier 0 近层：最近、最暗（FarSilhouetteNear #7E93A8），与天空拉开 ΔL*；
+            //   tier 1 中层：居中，向远档与地平线雾色各混一档；
+            //   tier 2 远层：最远、最亮最蓝灰（FarSilhouetteFar #AFC2D4 再叠雾），负责抬高地平线带亮度（目标 L*≥78）。
+            // 数量 4-5 座（既有测试要求 3-5，且保证三层都出现：i % 3）。
+            int target = rng.RangeInt(4, 6);
+            var empty = new List<Vector4>();
             for (int i = 0; i < target; i++)
             {
-                float x = rng.Range(-25f, arenaW + 25f);
-                float z = rng.Range(-70f, -38f);
-                float width = rng.Range(18f, 55f);
-                float height = rng.Range(8f, 24f);
-                TryPlace(layout, new List<Vector4>(), ScenePropKind.FarIsland, new Vector3(x, 0f, z),
-                        rng.Range(0f, 360f), width, 0f, height, false, null, 0f, false);
+                int tier = i % 3;
+                float zMin, zMax, wMin, wMax, hMin, hMax;
+                switch (tier)
+                {
+                    case 0:   // 近层
+                        zMin = -40f; zMax = -30f; wMin = 20f; wMax = 40f; hMin = 7f; hMax = 14f;
+                        break;
+                    case 1:   // 中层
+                        zMin = -56f; zMax = -44f; wMin = 32f; wMax = 58f; hMin = 9f; hMax = 17f;
+                        break;
+                    default:  // 远层
+                        zMin = -76f; zMax = -60f; wMin = 48f; wMax = 84f; hMin = 11f; hMax = 20f;
+                        break;
+                }
+
+                float x = rng.Range(-30f, arenaW + 30f);
+                float z = rng.Range(zMin, zMax);
+                float width = rng.Range(wMin, wMax);
+                float height = rng.Range(hMin, hMax);
+                TryPlace(layout, empty, ScenePropKind.FarIsland, new Vector3(x, 0f, z),
+                        rng.Range(0f, 360f), width, 0f, height, false, null, 0f, false, 0f, tier);
             }
         }
 
         static void AddFarShips(SceneLayout layout, SceneArtRandom rng, float arenaW, float arenaD)
         {
+            // 远景帆船剪影（加分项 P5）：1-2 艘，落在远岛近层之前的水面上（同用近层剪影色；帆另走 SailFarWhite）。
             int target = rng.RangeInt(1, 3);
+            var empty = new List<Vector4>();
             for (int i = 0; i < target; i++)
             {
                 float x = rng.Range(0f, arenaW);
                 float z = rng.Range(-42f, -26f);
                 float scale = rng.Range(0.8f, 1.3f);
-                TryPlace(layout, new List<Vector4>(), ScenePropKind.FarShip, new Vector3(x, 0f, z),
-                        rng.Range(-20f, 20f), scale, 0f, 6f * scale, false, null, 0f, false);
+                TryPlace(layout, empty, ScenePropKind.FarShip, new Vector3(x, 0f, z),
+                        rng.Range(-20f, 20f), scale, 0f, 6f * scale, false, null, 0f, false, 0f, 0);
             }
         }
 
