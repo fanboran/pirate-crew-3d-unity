@@ -77,13 +77,25 @@ namespace PirateCrew.PirateCrew.SceneArt.Lowpoly
             if (_materialCache.TryGetValue(slot, out cached) && cached != null)
                 return cached;
 
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            // 【播放器剥离教训（r11 实测）】URP/Lit 若没有任何材质资产引用，构建里整个缺席
+            // → Shader.Find 返回 null → 错误 shader 洋红。本工程被资产引用的活 shader 是
+            // 自研 PirateSurface（Scene_* 族在播放器里渲染正常），故它排第一；
+            // PirateSurface 是三档色阶 shader，把 A/B/C 三槽同色即得平色低模观感。
+            Shader shader = Shader.Find("PirateCrew/PirateSurface");
+            if (shader == null)
+                shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null)
                 shader = Shader.Find("Standard");
             if (shader == null)
                 return null;
 
             var material = new Material(shader) { name = "Lowpoly_" + slot };
+            if (material.HasProperty("_BaseColorA"))
+            {
+                material.SetColor("_BaseColorA", ColorOf(slot));
+                material.SetColor("_BaseColorB", ColorOf(slot));
+                material.SetColor("_BaseColorC", ColorOf(slot));
+            }
             if (material.HasProperty("_BaseColor"))
                 material.SetColor("_BaseColor", ColorOf(slot));
             if (material.HasProperty("_Color"))

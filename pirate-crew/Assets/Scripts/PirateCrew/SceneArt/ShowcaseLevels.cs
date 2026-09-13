@@ -153,9 +153,9 @@ namespace PirateCrew.PirateCrew.SceneArt
         static int[] TwinShipBlocks()
         {
             var b = new int[WidthTiles * DepthTiles];
-            // 双大船并列：北船 gx3-16×gy0-6，南船 gx3-16×gy8-14，中间 gy7 一格水道；甲板 y5。
-            Fill(b, 3, 16, 0, 6, Blocks(5f));
-            Fill(b, 3, 16, 8, 14, Blocks(5f));
+            // 双大船并列：北船 gx3-16×gy0-6，南船 gx3-16×gy8-14，中间 gy7 一格水道；甲板 y3（r11 实测 y5 船底悬空 2 单位，降 2 龙骨贴水）。
+            Fill(b, 3, 16, 0, 6, Blocks(3f));
+            Fill(b, 3, 16, 8, 14, Blocks(3f));
             return b;
         }
 
@@ -236,7 +236,7 @@ namespace PirateCrew.PirateCrew.SceneArt
         {
             Vector3 deckCenter = new Vector3(
                 LevelGeometry.TileToWorld(centerTileX),
-                LevelGeometry.GroundTopY + TerrainCatalog.DefaultBlockWorldHeight * Blocks(5f),
+                LevelGeometry.GroundTopY + TerrainCatalog.DefaultBlockWorldHeight * Blocks(3f),
                 LevelGeometry.TileToWorld(centerTileZ));
             var parts = SceneKitCatalog.BuildCompleteShip(
                 SceneKitCatalog.LargeShipRecipe, deckCenter, yaw, seed,

@@ -669,7 +669,7 @@ namespace PirateCrew.PirateCrew.SceneArt
 
             // ---- 甲板铺板（沿长轴一条条；可站面由地形格提供，铺板是贴面装饰） ----
             // 板宽 0.9→1.8、舷边留白 0.35→0.7、抬升 0.03→0.06、板长端距 0.4→0.8、板厚 0.06→0.12（世界值 ×2）
-            int planks = Mathf.Max(3, Mathf.RoundToInt(hullBeam / 1.8f));
+            int planks = Mathf.Max(3, Mathf.RoundToInt(hullBeam / 1.2f));   // 1.8→1.2：r11 实测铺板露缝太宽（梯子感），加密到缝宽 < 板宽 1/3
             for (int i = 0; i < planks; i++)
             {
                 float lateral = Mathf.Lerp(-halfBeam + 0.7f, halfBeam - 0.7f, (i + 0.5f) / planks);
