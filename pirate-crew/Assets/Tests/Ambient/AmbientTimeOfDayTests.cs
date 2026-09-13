@@ -8,8 +8,8 @@ namespace PirateCrew.PirateCrew.Ambient.Tests
     ///
     /// 【最关键的一条】<c>Noon_MatchesBattleSceneLightingCurrentValues</c>：
     /// 任务书要求"默认正午，不要改变默认可玩状态"。正午档必须与
-    /// <c>Assets/Editor/BattleSceneLighting.cs</c> 写死的现状**逐值一致**（主光 1.35 / Euler(48,140,0)，
-    /// 出处：场景设计 §6.5 + 美术风格指南 §4.1 Q-7 裁决 / 雾 #B0D4F1 · 25→140 / 环境光 1.0），
+    /// <c>Assets/Editor/BattleSceneLighting.cs</c> 写死的现状**逐值一致**（主光 1.55 / Euler(48,140,0)，
+    /// 出处：docs/阳光感打光调研.md §4 调法 2 / 雾 #B0D4F1 · 25→140 / 环境光 0.85），
     /// 否则"默认档"一应用就把画面改了。
     /// </summary>
     [TestFixture]
@@ -28,13 +28,14 @@ namespace PirateCrew.PirateCrew.Ambient.Tests
             AmbientLightingPreset noon = AmbientTimeOfDayCatalog.For(AmbientTimeOfDay.Noon);
 
             // 出处：Assets/Editor/BattleSceneLighting.cs CreateDirectionalLight / ApplySceneAtmosphere
-            //（主光方位已按 docs/场景设计-战斗竞技场.md §6.5 裁决为 Euler(48,140,0)、强度 1.35）。
-            Assert.AreEqual(1.35f, noon.SunIntensity, 1e-4f);
+            //（主光 1.55 / 环境光 0.85 = 直射:天光 ≈4:1，docs/阳光感打光调研.md §4 调法 2；
+            // 姿态 Euler(48,140,0) 维持场景设计 §6.5 原裁决）。
+            Assert.AreEqual(1.55f, noon.SunIntensity, 1e-4f);
             Assert.AreEqual(48f, noon.SunEuler.x, 1e-4f);
             Assert.AreEqual(140f, noon.SunEuler.y, 1e-4f);
             Assert.AreEqual(25f, noon.FogStart, 1e-4f);
             Assert.AreEqual(140f, noon.FogEnd, 1e-4f);
-            Assert.AreEqual(1.00f, noon.AmbientIntensity, 1e-4f);
+            Assert.AreEqual(0.85f, noon.AmbientIntensity, 1e-4f);
 
             Color fog = AmbientTimeOfDayCatalog.Hex("#B0D4F1");
             Assert.AreEqual(fog.r, noon.FogColor.r, 1e-4f);

@@ -73,18 +73,19 @@ namespace PirateCrew.PirateCrew.Ambient
     ///
     /// 【正午档为什么必须"逐值等于"现状】
     /// 任务书要求"默认正午，不要改变默认可玩状态"。本工程当前光照由
-    /// <c>Assets/Editor/BattleSceneLighting.cs</c> 写死：主光 <c>#FFF4E0</c>/1.35、<c>Euler(48,140,0)</c>、
-    /// 线性雾 <c>#B0D4F1</c> start 25 / end 140、环境光 <c>#C8DDF0</c>/1.0。
+    /// <c>Assets/Editor/BattleSceneLighting.cs</c> 写死：主光 <c>#FFF4E0</c>/1.55、<c>Euler(48,140,0)</c>、
+    /// 线性雾 <c>#B0D4F1</c> start 25 / end 140、环境光强度 0.85。
     /// 因此 <see cref="AmbientTimeOfDay.Noon"/> 预设**照抄这些数值**——应用正午档前后画面零变化，
-    /// 只有主动切档才改变氛围。主光口径的裁决出处：<c>docs/场景设计-战斗竞技场.md</c> §6.5 +
-    /// <c>docs/美术风格指南.md</c> §4.1 Q-7（强度 1.2–1.4 取 1.35、姿态 <c>Euler(48,140,0)</c>）。
+    /// 只有主动切档才改变氛围。主光口径的裁决出处：<c>docs/阳光感打光调研.md</c> §4 调法 2
+    /// （直射:天光 ≈4:1 → 主光 1.55 / 环境光 0.85；姿态 <c>Euler(48,140,0)</c> 维持原裁决）。
     /// **改 BattleSceneLighting 的主光必须同步这里**，否则一开局 <c>applyPresetOnStart</c> 就把旧值写回去。
     ///
     /// 【黄昏/阴云档的强度怎么来的】**相对正午的比例是提案/待定**。<c>docs/美术风格指南.md</c> §4.6
     /// 给了三档强度 1.9 / 1.6 / 1.4，按比例（黄昏/正午 = 1.6/1.9 = 0.842、
     /// 风暴/正午 = 1.4/1.9 = 0.737）乘到工程现状上得到本文件的取值。
-    /// 【注意】本文件取 0.93 / 0.81 是按"旧正午 1.1"算的历史提案；正午改为 1.35 后，
-    /// 若仍按文档比例应约 1.14 / 1.00，但**未改**（保持现值，避免把未验收的换算当既定事实）。
+    /// 【环境光强度 2026-09-13 按比例缩放】正午环境光 1.00→0.85 后，黄昏/阴云若不跟着缩，
+    /// 会反超正午破坏"正午>黄昏>阴云"单调性（有测试钉住）。同乘 0.85：
+    /// 黄昏 0.90→0.765、阴云 0.75→0.64。主光强度未动（0.93/0.81 保持历史提案值），
     /// 切档观感需人眼验收后再定，届时一并更新本注释。
     ///
     /// 【雾色/环境色出处】美术风格指南 §4.6 与场景设计 §6.1 的档位表（该表本身已标【AI 提案】）；
@@ -124,7 +125,7 @@ namespace PirateCrew.PirateCrew.Ambient
                         AmbientTimeOfDay.Dusk,
                         Hex(DuskSunHex), 0.93f, new Vector3(24f, -30f, 0f),
                         Hex(DuskFogHex), 22f, 120f,
-                        Hex(DuskAmbientHex), 0.90f,
+                        Hex(DuskAmbientHex), 0.765f,
                         Hex(DuskSkyHex));
 
                 case AmbientTimeOfDay.Overcast:
@@ -132,15 +133,15 @@ namespace PirateCrew.PirateCrew.Ambient
                         AmbientTimeOfDay.Overcast,
                         Hex(OvercastSunHex), 0.81f, new Vector3(56f, -28f, 0f),
                         Hex(OvercastFogHex), 18f, 100f,
-                        Hex(OvercastAmbientHex), 0.75f,
+                        Hex(OvercastAmbientHex), 0.64f,
                         Hex(OvercastSkyHex));
 
                 default:
                     return new AmbientLightingPreset(
                         AmbientTimeOfDay.Noon,
-                        Hex(NoonSunHex), 1.35f, new Vector3(48f, 140f, 0f),
+                        Hex(NoonSunHex), 1.55f, new Vector3(48f, 140f, 0f),
                         Hex(NoonFogHex), 25f, 140f,
-                        Hex(NoonAmbientHex), 1.00f,
+                        Hex(NoonAmbientHex), 0.85f,
                         Hex(NoonSkyHex));
             }
         }

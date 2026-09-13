@@ -523,23 +523,23 @@ namespace PirateCrew.EditorTools
             Override(tonemapping.mode, true);
             tonemapping.mode.value = TonemappingMode.Neutral;
 
-            // ---- Bloom：写实"阳光感"（threshold 0.85 / intensity 0.55 / scatter 0.70）----
-            // 数值出处：基准调研（Blender 离线 PBR 管线）「Bloom threshold 0.85、强」。
-            // 旧值（Gamma 时代）threshold=1.05 / intensity=0.32 / scatter=0.62 偏保守。
-            //   threshold 1.05→0.85：Linear 下 HDR 亮部（太阳盘/水面镜面亮带/黄铜高光）的线性亮度
-            //     范围比 Gamma 大得多，0.85（线性）≈0.94（sRGB 感知）就已经"接近白"，
-            //     降到 0.85 才能让辉光从太阳与水面亮带真正溢出，而不是只在死白像素上出现。
-            //   intensity 0.32→0.55、scatter 0.62→0.70：辉光更亮、扩散更广（scatter 越大越"雾"）。
+            // ---- Bloom：写实"阳光感"（threshold 1.05 / intensity 0.42 / scatter 0.62）----
+            // 数值出处：docs/阳光感打光调研.md §4 调法 3（17 条官方文档来源）。
+            //   threshold 0.85→1.05：URP 文档明确 Threshold 是 gamma 空间截断、默认 0.9；
+            //     0.85 会把大片近白地面也点进辉光，是"亮而糊/刺"的直接来源，
+            //     且已偏离美术风格指南 §4.5 自己定的 Bloom 区间（1.0-1.2）。
+            //   intensity 0.55→0.42、scatter 0.70→0.62：回指南区间（0.25-0.45 / 0.55-0.7），
+            //     辉光只从太阳盘/水面镜面亮带/黄铜高光溢出，不再糊整片画面。
             //   tint=#FFF4E0 = GDD 主光暖色 → 高光晕染偏暖，与环境冷色形成冷暖对比。
             //   highQualityFiltering=false → 性能取舍：Bloom 是 soft-knee 多 mip 模糊，
             //     高质量滤波在该分辨率下观感差异小、开销明显（报告里说明）。
             Bloom bloom = EnsureVolumeComponent<Bloom>(profile);
             Override(bloom.threshold, true);
-            bloom.threshold.value = 0.85f;
+            bloom.threshold.value = 1.05f;
             Override(bloom.intensity, true);
-            bloom.intensity.value = 0.55f;
+            bloom.intensity.value = 0.42f;
             Override(bloom.scatter, true);
-            bloom.scatter.value = 0.70f;
+            bloom.scatter.value = 0.62f;
             Override(bloom.tint, true);
             // tint 经 URP PostProcessPass.cs:1136 `m_Bloom.tint.value.linear` 自行线性化，
             // 故这里给 sRGB 原值（给 .linear 会双重转换）。
@@ -761,9 +761,11 @@ namespace PirateCrew.EditorTools
             RenderSettings.ambientSkyColor = Hex("#7EA8CC");     // 冷蓝补光（朝上法线）
             RenderSettings.ambientEquatorColor = Hex("#93A2AC"); // 地平中性（竖直法线）
             RenderSettings.ambientGroundColor = Hex("#C9A268");  // 暖地面反弹（朝下法线）
-            // 强度 1.0：与 AmbientDirector 正午档的 ambientIntensity=1.00 逐值一致，
+            // 强度 0.85：与 AmbientDirector 正午档的 ambientIntensity=0.85 逐值一致，
             //   保证 applyPresetOnStart 后环境光强度零跳变（该档只写强度，不写三色 → 三色梯度保留）。
-            RenderSettings.ambientIntensity = 1f;
+            //   1.00→0.85：拉开直射:天光比例（docs/阳光感打光调研.md §4 调法 2，
+            //   Unreal 官方"晴天天空约占总照度 20%"≈4:1；旧 1.35:1.00 仅 ≈2.6:1，天光过强=灰蒙蒙）。
+            RenderSettings.ambientIntensity = 0.85f;
         }
 
         /// <summary>
@@ -792,11 +794,15 @@ namespace PirateCrew.EditorTools
             light.type = LightType.Directional;
             light.color = Hex("#FFF4E0");
             // 旧值 1.1 / Euler(50,-30,0) 已作废：方位 -30° 让朝镜头的面全部背光，是画面发平主因之一。
-            light.intensity = 1.35f;
+            // 1.35→1.55：与 ambientIntensity 0.85 配对拉开直射:天光到 ≈4:1（阳光感七要素之
+            //   "阴影做深+天光收敛"，docs/阳光感打光调研.md §4 调法 2）。
+            light.intensity = 1.55f;
             // 投影是"看起来像 3D"的主要深度线索之一（对齐 Godot 基准的 shadow_enabled）。
             // LightShadows.Soft 需要 URP Asset 打开 m_SoftShadowsSupported（ConfigureUrpAsset 已打开）。
             light.shadows = LightShadows.Soft;
-            light.shadowStrength = 0.7f;
+            // 0.7→0.86：阴影做深拉清"直射 vs 天光"分界（调研 §4 调法 1）。本工程
+            //   PirateSurface.shader:452-454 的环境光不乘阴影衰减，深阴影不会死黑。
+            light.shadowStrength = 0.86f;
             // 48° 仰角 + 140° 方位：入射方向约 (0.43,-0.74,-0.51)，光从相机侧后方来，
             // 朝镜头的面受光、阴影朝屏幕右下延伸。**不得回退到 -30°**（见上文裁决出处与两案夹角计算）。
             // 天空盒的太阳盘（ConfigureSkyAndAmbient 的 _SunDisk/_SunSize）由本方向光驱动，
