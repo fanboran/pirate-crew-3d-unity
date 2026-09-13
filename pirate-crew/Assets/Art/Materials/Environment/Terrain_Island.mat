@@ -22,28 +22,65 @@ Material:
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
-    m_TexEnvs: []
+    m_TexEnvs:
+    - _GrassBumpMap:
+        m_Texture: {fileID: 2800000, guid: c0044ea7b489ef3499bb77d17bb7ae25, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _GrassNoiseMap:
+        m_Texture: {fileID: 2800000, guid: a338cfba4cf0eec43aaadc907de749ad, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _RockBumpMap:
+        m_Texture: {fileID: 2800000, guid: 6c8304e9d6223964fabd3a66bf80fcff, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _RockNoiseMap:
+        m_Texture: {fileID: 2800000, guid: c297e9af40566fe4d8e4eeb746d24e1f, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SandBumpMap:
+        m_Texture: {fileID: 2800000, guid: e2cbfd26a7b55bf448628a8d7e21669a, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SandNoiseMap:
+        m_Texture: {fileID: 2800000, guid: 375496748c570bf4ab69e8d201789008, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
     - _AmbientStrength: 1
     - _BlendSoftness: 0.5
     - _BlockSize: 1
-    - _BlockTintStrength: 0.12
+    - _BlockTintStrength: 0.06
+    - _BlockWarp: 0.4
     - _DebugMode: 0
     - _EdgePower: 3
     - _EdgeStrength: 0
     - _FacetStrength: 0.6
+    - _GrassBumpScale: 1.1
+    - _GrassDetailAlbedoStrength: 1
+    - _GrassNoiseWorldScale: 0.25
+    - _GrassSmoothness: 0.4
     - _HeightGrassRock: 3
     - _HeightSandGrass: 0.6
     - _Metallic: 0
     - _NoiseScale: 2
     - _NoiseStrength: 0.35
+    - _NoiseWarpStrength: 0.18
     - _RippleDistort: 0.35
     - _RippleScale: 16
     - _RippleStrength: 0.1
+    - _RockBumpScale: 1.2
+    - _RockDetailAlbedoStrength: 1
+    - _RockNoiseWorldScale: 0.5
+    - _RockSmoothness: 0.55
+    - _SandBumpScale: 1
+    - _SandDetailAlbedoStrength: 1
+    - _SandNoiseWorldScale: 0.35
     - _SlopeRockEnd: 0.72
     - _SlopeRockStart: 0.45
-    - _Smoothness: 0.15
+    - _Smoothness: 0.25
     - _WaterLevelY: -0.2
     - _WetBandWidth: 0.45
     - _WetDarken: 0.3

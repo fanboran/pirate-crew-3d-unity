@@ -22,23 +22,35 @@ Material:
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
-    m_TexEnvs: []
+    m_TexEnvs:
+    - _BumpMap:
+        m_Texture: {fileID: 2800000, guid: e2cbfd26a7b55bf448628a8d7e21669a, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DetailNoiseMap:
+        m_Texture: {fileID: 2800000, guid: 375496748c570bf4ab69e8d201789008, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
     - _AmbientStrength: 1
+    - _BumpScale: 1
     - _ColorRampBias: 0.5
     - _ColorRampContrast: 1.5
     - _DebugMode: 0
+    - _DetailAlbedoStrength: 1
     - _DetailNoiseScale: 18
     - _DetailNormalStrength: 0.45
     - _EdgeWear: 0
     - _Metallic: 0
     - _NoiseScale: 4.5
     - _NoiseStrength: 0.4
+    - _NoiseWarpStrength: 0.18
+    - _NoiseWorldScale: 0.35
     - _RippleDistort: 0.35
     - _RippleScale: 16
     - _RippleStrength: 0.1
-    - _Smoothness: 0.12
+    - _Smoothness: 0.25
     - _WaterLevelY: -0.2
     - _WetBandWidth: 0.45
     - _WetDarken: 0.3
