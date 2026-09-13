@@ -306,21 +306,29 @@ namespace PirateCrew.EditorTools
         /// 【为什么必须有】<c>PirateWater</c> 的浅深水过渡与岸边泡沫靠 <c>_CameraDepthTexture</c>
         /// 读出"水面之下还有多远才是实体"。竞技场是浮在海上的沙岛（地面顶面 y=0、水面 y=-0.2），
         /// 岛外若没有海床，水面之后的场景深度就是天空 → 处处"深水"，既无浅深水过渡、也无泡沫。
-        /// 故在岛外铺两层**会写深度**的台阶（材质须带 DepthOnly Pass）：
-        ///   浅台 顶面 y=-0.6、外扩 6  → 视深度差约 0.6 → 对应海水"浅/中"两档
-        ///   中台 顶面 y=-1.6、外扩 16 → 视深度差约 2.0 → 对应"中/深"两档
-        ///   再外面没有几何 → 场景深度=天空 → 纯深水色
+        /// 故在岛外铺多层**会写深度**的同心台阶（材质须带 DepthOnly Pass）。
         ///
-        /// 【提案/待定】台阶的深度与外扩距离是 AI 调参值（依据 PirateWater 的 _ShoreFadeDistance=4 反推），
-        /// 观感验收时可调。wave I3 做场景美术陈设时可以替换成真实海床网格，
-        /// 但**必须保留"写深度"这一职责**，否则水面会退化成一片深蓝。
+        /// 【r3 修问题 5：两级 → 五级同心坡】原实现只有两级（-0.6 外扩 6 / -1.6 外扩 16），
+        /// 台阶之间是一整块平色，只在两条边界处各出现一条硬色界，读不出"浅滩→中水→深水"渐变。
+        /// 现按场景设计 §5.1「海床坡向外 8-12 单位缓降到 y=-3」铺 5 级同心台阶
+        /// （外扩 5→9→15→24→36，顶面 waterWorldY-0.45 → -3.5），使 waterDepth 连续下沉，
+        /// 对上 shader 的三档水色（场景设计判据 Q-17：水色标准差 > 4）。
+        /// 用**覆盖全竞技场的同心块**（而不是只有竞技场外的环）：环形会在竞技场矩形内缘留下
+        /// 一条"深/浅"硬色界，正好又变成一条直线切边。
+        /// 【提案/待定】级数与深度为 AI 取值，观感验收时可调，但**必须保留"写深度"这一职责**。
         /// </summary>
         static void CreateSeabedShelves(float worldWidth, float worldDepth, float waterWorldY)
         {
-            CreateSeabedShelf("Seabed_Shallow", worldWidth, worldDepth, waterWorldY - 0.4f, 6f,
+            CreateSeabedShelf("Seabed_L0", worldWidth, worldDepth, waterWorldY - 0.45f, 5f,
+                BattleSceneLighting.WetSandMaterial, new Color(0.62f, 0.53f, 0.40f, 1f));
+            CreateSeabedShelf("Seabed_L1", worldWidth, worldDepth, waterWorldY - 1.00f, 9f,
                 BattleSceneLighting.WetSandMaterial, new Color(0.52f, 0.43f, 0.32f, 1f));
-            CreateSeabedShelf("Seabed_Mid", worldWidth, worldDepth, waterWorldY - 1.4f, 16f,
+            CreateSeabedShelf("Seabed_L2", worldWidth, worldDepth, waterWorldY - 1.80f, 15f,
+                BattleSceneLighting.RockMaterial, new Color(0.46f, 0.41f, 0.34f, 1f));
+            CreateSeabedShelf("Seabed_L3", worldWidth, worldDepth, waterWorldY - 2.70f, 24f,
                 BattleSceneLighting.RockMaterial, new Color(0.42f, 0.38f, 0.32f, 1f));
+            CreateSeabedShelf("Seabed_L4", worldWidth, worldDepth, waterWorldY - 3.50f, 36f,
+                BattleSceneLighting.RockMaterial, new Color(0.36f, 0.33f, 0.29f, 1f));
         }
 
         /// <summary>单层海床台阶：Cube 顶面在 <paramref name="topY"/>，向四周外扩 <paramref name="spread"/>。</summary>
@@ -420,22 +428,24 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 海面下的"远海床"兜底（仅平台关）：水面之下、**无碰撞**的大平面，铺在两层海床台阶
-        /// （<see cref="CreateSeabedShelves"/> 的 -0.6 / -1.6）之下，保证平台间隙向下看到的是海床
-        /// 而不是天空盒。
+        /// 海面下的"远海床"兜底（仅平台关）：水面之下、**无碰撞**的大平面，铺在五级环形海床台阶
+        /// （<see cref="CreateSeabedShelves"/> 的 L0..L4，最深 -2.9）之下，保证平台间隙向下看到的是
+        /// 海床而不是天空盒。
         ///
         /// 【为什么必须无碰撞】单位从平台间隙落下后应继续穿越 <see cref="LevelGeometry.WaterSurfaceY"/>
         /// 触发落水即死（§4.4）；任何接在中间（尤其水面之上）的几何都会把落水变成"站在隐形地板上"。
         /// 所以本物体与海床台阶一样销毁 Collider、且不投影。
         ///
-        /// 【尺寸】竞技场外扩 40（与水面一致），材质复用海床台阶的岩材质（保证浅深水读深一致）。
-        /// 【提案/待定】高度 -2.6 是 AI 调参值；观感验收时可调，但**必须保持无碰撞**。
+        /// 【尺寸】竞技场外扩 44（略大于最外环 L4 的 34，保证环形坡之外仍有兜底），
+        /// 材质复用海床台阶的岩材质（保证浅深水读深一致）。
+        /// 【提案/待定】高度 -3.6（深于 L4 的 -2.9，不参与浅深水过渡读深）是 AI 调参值；
+        /// 观感验收时可调，但**必须保持无碰撞**。
         /// </summary>
         static void CreateFarSeabed(float worldWidth, float worldDepth, float waterWorldY)
         {
             const float thickness = 0.5f;
-            const float margin = 40f;
-            float topY = waterWorldY - 2.6f;   // 深于 Seabed_Mid(-1.6)：纯远景，不参与浅深水过渡读深
+            const float margin = 44f;
+            float topY = waterWorldY - 3.6f;
 
             var seabed = GameObject.CreatePrimitive(PrimitiveType.Cube);
             seabed.name = "Seabed_Far";
@@ -456,13 +466,19 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 水面：**XZ 水平面**（比地面外扩一圈），无碰撞体——落水判定用世界 Y 阈值，不靠碰撞。
+        /// 水面：**XZ 水平面**（比地面外扩一大圈），无碰撞体——落水判定用世界 Y 阈值，不靠碰撞。
         /// 材质：PirateWater（双层波法线 + 菲涅尔 + Scene Depth 浅深水/岸边泡沫）；
         /// 它依赖 _CameraDepthTexture（URP Asset 已打开）与岛外海床台阶（<see cref="CreateSeabedShelves"/>）。
+        ///
+        /// 【r3 修问题 1：水面外扩 40 → 200（每侧 20 → 100）】原水面只到竞技场外 20，
+        /// 而远海床到外 44，于是水面矩形的直边在画面里露出来、边外是米色的 Seabed_Far ——
+        /// 就是 r2 诊断的"水面矩形直边可见（左 x0-120 / 右 x1700-1920 两条直线斜边）+ 框外米色板"。
+        /// 外扩到每侧 100 后，水边落到线性雾（<c>fogEndDistance=140</c>）之外/视锥之外，与天空自然衔接。
         /// </summary>
         static Transform CreateWaterPlane(float worldWidth, float worldDepth, float waterWorldY)
         {
-            const float margin = 40f;
+            // margin 是**每侧**外扩量（原实现把它当总量用在 +margin，故每侧只有一半）。
+            const float margin = 100f;
 
             var water = GameObject.CreatePrimitive(PrimitiveType.Cube);
             water.name = "Water";
@@ -470,7 +486,8 @@ namespace PirateCrew.EditorTools
             // 所以这里直接放在该高度上（不要再加偏移，否则运行时会跳一下）。
             water.transform.position = new Vector3(
                 worldWidth * 0.5f, waterWorldY, worldDepth * 0.5f);
-            water.transform.localScale = new Vector3(worldWidth + margin, 0.1f, worldDepth + margin);
+            water.transform.localScale = new Vector3(
+                worldWidth + margin * 2f, 0.1f, worldDepth + margin * 2f);
 
             var collider = water.GetComponent<Collider>();
             if (collider != null)

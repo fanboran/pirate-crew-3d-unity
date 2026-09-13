@@ -41,6 +41,9 @@ namespace PirateCrew.PirateCrew.Water
         /// <summary>(中心X, 中心Z, 域边长, 保留)。</summary>
         public const string GlobalOrigin = "_WaterSimOrigin";
 
+        /// <summary>太阳方向（世界空间光传播方向 xyz，w=0）。供水面 shader 的镜面光路用。</summary>
+        public const string GlobalSunDir = "_WaterSunDir";
+
         /// <summary>驱动单例（供 <see cref="InjectSplash"/> 使用；可为 null）。</summary>
         public static WaterSimulationDriver Instance { get; private set; }
 
@@ -180,6 +183,8 @@ namespace PirateCrew.PirateCrew.Water
 
         void Update()
         {
+            PublishSunDirection();
+
             if (!enableSimulation || _field == null)
             {
                 Shader.SetGlobalFloat(GlobalEnabled, 0f);
@@ -287,6 +292,7 @@ namespace PirateCrew.PirateCrew.Water
             }
 
             Shader.SetGlobalFloat(GlobalEnabled, enableSimulation ? 1f : 0f);
+            PublishSunDirection();
             PublishOrigin();
         }
 
@@ -295,6 +301,29 @@ namespace PirateCrew.PirateCrew.Water
             // w = 每轴格数（shader 用它算纹理 texel 做曲率 2 阶差分）。
             Shader.SetGlobalVector(GlobalOrigin,
                 new Vector4(DomainCenter.x, DomainCenter.y, domainSize, _field != null ? _field.CellsX : 0f));
+        }
+
+        /// <summary>
+        /// 把太阳方向发布成全局 uniform（供 <c>PirateWater.shader</c> 的太阳光路用）。
+        /// 取 <see cref="RenderSettings.sun"/> 的 -forward（光传播方向）；场景没设 sun 时发 0，
+        /// shader 会自动退回 URP 主光方向（<c>GetMainLight().direction</c>），不会没有光路。
+        ///
+        /// 【为什么 sun 需要专门传】水面是 Transparent、SRP Batcher 走的材质 uniform 里没有太阳方向；
+        /// 而 <c>GetMainLight()</c> 在透明 Pass 里可用，但场景主光由 RenderSettings.sun 权威给出，
+        /// 这里对齐"世界方向约 (0.43,-0.74,-0.51)"的主光姿态（阳光感打光调研 §光姿态）。
+        /// </summary>
+        void PublishSunDirection()
+        {
+            Light sun = RenderSettings.sun;
+            if (sun != null)
+            {
+                Vector3 dir = -sun.transform.forward;
+                Shader.SetGlobalVector(GlobalSunDir, new Vector4(dir.x, dir.y, dir.z, 0f));
+            }
+            else
+            {
+                Shader.SetGlobalVector(GlobalSunDir, Vector4.zero);
+            }
         }
 
         // ------------------------------------------------------------------

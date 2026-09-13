@@ -83,7 +83,7 @@ namespace PirateCrew.PirateCrew.SceneArt
                         break;
 
                     case SceneKitPiece.RockChunk:
-                        SceneKitGeometry.AddRockChunk(target, p.Position, p.Scale, s);
+                        SceneKitGeometry.AddRockChunk(target, p.Position, p.Scale, p.YawDegrees, s);
                         break;
 
                     case SceneKitPiece.Prop:

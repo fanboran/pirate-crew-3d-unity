@@ -36,9 +36,14 @@
 //
 // 【本场景为什么必须有海床(shelf)才能看到浅深水过渡（别当多余几何删掉）】
 //   竞技场是"浮在海上的沙岛"：地面顶面 y=0，水面 y=-0.2。
-//   M2BattleSceneSetup.CreateSeabedShelves() 在岛外生成两层**只写深度、不碰撞**的台阶
-//   （浅台 y=-0.6 外扩 6 → 中台 y=-1.6 外扩 16 → 再外面才是无底深海），
-//   于是 waterDepth 呈"小 → 中 → 极大"三级，正好对上三档海水色，也是假焦散的可见区。
+//   M2BattleSceneSetup.CreateSeabedShelves() 在岛外生成 5 级**只写深度、不碰撞**的环形台阶
+//   （内缘-外缘 0→3→6→11→20→34，顶面从 waterWorldY-0.18 逐级降到 -2.9），
+//   于是 waterDepth 呈连续"浅 → 中 → 深"三级，正好对上三档海水色，也是假焦散的可见区。
+//
+// 【太阳光路（r3 新增）】旧 GGX 镜像在 Smoothness=0.92 下 α≈0.0064、高光只有亚像素级，
+//   1080p 里看不到"阳光光路"。现额外叠一条 Blinn-Phong 宽镜面（_SunSpecShininess 200-600）+
+//   波光破碎（_SunSpecGlitter），太阳方向由全局 `_WaterSunDir`（WaterSimulationDriver 从
+//   RenderSettings.sun 传）给出，未接驱动时退回 GetMainLight().direction。
 //
 // 【Pass 与 LightMode】只有 ForwardLit（"UniversalForward"）一个 Pass。
 //   不做 ShadowCaster（透明水面不投影）、不做 DepthOnly（透明物体不进不透明深度预通道；
@@ -152,6 +157,14 @@ Shader "PirateCrew/PirateWater"
         _Smoothness             ("光滑度", Range(0.0, 1.0)) = 0.92
         _SpecularIntensity      ("主光镜面强度（风格化，非能量守恒）", Range(0.0, 8.0)) = 2.2
 
+        // ---- 太阳光路（Blinn-Phong 宽镜面 + 波光破碎）【AI 提案：r3 修问题 4】----
+        // 旧的 GGX 镜面在 _Smoothness=0.92 下 α=(1-s)²≈0.0064 → 高光只有亚像素级，1080p 根本
+        // 看不到"阳光光路"。这里显式加一条 shininess 200-600 的宽镜面，让太阳方向在水面拉出
+        // 一条连通的高光带（峰值 > Bloom threshold，可由 _SunSpecStrength 调）。
+        _SunSpecStrength        ("太阳光路强度", Range(0.0, 20.0)) = 8.0
+        _SunSpecShininess       ("太阳光路锐度（200-600）", Range(20.0, 1200.0)) = 320.0
+        _SunSpecGlitter         ("波光破碎强度（0=整片光路）", Range(0.0, 1.0)) = 0.55
+
         // ---- 不透明度 ----
         _Opacity                ("基础不透明度", Range(0.0, 1.0)) = 0.82
 
@@ -247,6 +260,9 @@ Shader "PirateCrew/PirateWater"
                 float  _ReflectionStrength;
                 float  _Smoothness;
                 float  _SpecularIntensity;
+                float  _SunSpecStrength;
+                float  _SunSpecShininess;
+                float  _SunSpecGlitter;
                 float  _Opacity;
                 float  _DebugMode;
             CBUFFER_END
@@ -259,6 +275,7 @@ Shader "PirateCrew/PirateWater"
             SAMPLER(sampler_WaterObstacleMap);
             float4 _WaterSimOrigin;   // (中心X, 中心Z, 域边长, 每轴格数)
             float  _WaterSimEnabled;  // 0 = 未接驱动，跳过高度场/障碍两路
+            float4 _WaterSunDir;      // 太阳方向（光传播方向，由驱动从 RenderSettings.sun 读；未接时为 0）
 
             // ------------------------------------------------------------------
             // 程序化噪声（与 PirateSurface / PirateTerrain 内的副本一致，刻意重复以免多一条 include 链）
@@ -454,16 +471,23 @@ Shader "PirateCrew/PirateWater"
                 // 与几何法线混合，保证竖直侧壁不会被当成水平面（水是 Cube，有 0.1 高的侧壁）。
                 n = normalize(lerp(geometricNormalWS, n, saturate(geometricNormalWS.y)));
 
-                // ---- 场景深度 → 浅深水 ----
+                // ---- 场景深度 → 浅深水三档【r3 修问题 5】----
                 float2 screenUV = IN.positionCS.xy * _ScreenParams.zw;
                 float  rawDepth = SampleSceneDepth(screenUV);
                 float  sceneEye = LinearEyeDepth(rawDepth, _ZBufferParams);
                 float  surfaceEye = -TransformWorldToView(IN.positionWS).z;
                 float  waterDepth = clamp(sceneEye - surfaceEye, 0.0, 200.0);
 
-                float depthMix = saturate(waterDepth / max(_ShoreFadeDistance, 0.01));
-                half3 waterColor = lerp(_ShallowColor.rgb, _MidColor.rgb, saturate(depthMix * 2.0h));
-                waterColor = lerp(waterColor, _DeepColor.rgb, saturate(depthMix * 2.0h - 1.0h));
+                // 按场景设计 §5.1 的三档水深（浅滩 0~0.5 / 中水 0.5~2 / 深水 >2）重映射：
+                // _ShoreFadeDistance 仍作"到深水的完成深度"（材质设 4）；
+                // 浅→中在 0.25·S（=1.0）处完成，中→深从 0.25·S 到 S（1.0→4.0）。
+                // 旧写法把浅→中压到 2.0 才完成、中→深到 4.0 —— 与 5 级海床坡（0.18~2.9）对不上，
+                // 大部分水域停在中水色、深水档几乎不出现，读成"一整块平色"（r2 诊断）。
+                float shallowToMid = saturate(waterDepth / max(_ShoreFadeDistance * 0.25, 0.01));
+                float midToDeep = saturate((waterDepth - _ShoreFadeDistance * 0.25)
+                                           / max(_ShoreFadeDistance * 0.75, 0.01));
+                half3 waterColor = lerp(_ShallowColor.rgb, _MidColor.rgb, (half)shallowToMid);
+                waterColor = lerp(waterColor, _DeepColor.rgb, (half)midToDeep);
 
                 // ---- 高度场模拟（全局；驱动缺席时 enabled=0，整段跳过）----
                 float2 simUV = (IN.positionWS.xz - _WaterSimOrigin.xy) / max(_WaterSimOrigin.z, 1e-4) + 0.5;
@@ -625,6 +649,20 @@ Shader "PirateCrew/PirateWater"
                                * mainLight.color * lightAtten * (half)_SpecularIntensity;
 
                 color = color + specular;
+
+                // ---- 太阳光路（Blinn-Phong 宽镜面 + 波光破碎）【AI 提案：r3 修问题 4】----
+                // 太阳方向优先用全局 _WaterSunDir（驱动从 RenderSettings.sun 传入，见
+                // WaterSimulationDriver.GlobalSunDir）；未接驱动时退回主光方向，保证不会没有光路。
+                float3 sunToLight = dot(_WaterSunDir.xyz, _WaterSunDir.xyz) > 1e-4
+                    ? normalize(-_WaterSunDir.xyz) : normalize(mainLight.direction);
+                float3 halfVec = normalize(sunToLight + viewDirWS);
+                float sunSpecTerm = pow(saturate(dot(n, halfVec)), max(_SunSpecShininess, 1.0));
+                // 波光破碎：低频噪声把光路切成一片片反光鳞瓣（_SunSpecGlitter=0 → 连续整条光路）。
+                float sparkle = lerp(1.0, 1.5 * PirateFbm(IN.positionWS.xz * 3.0 + float2(t * 0.7, -t * 0.5)) + 0.25,
+                    _SunSpecGlitter);
+                half3 sunSpecular = mainLight.color * lightAtten
+                                  * (half)(sunSpecTerm * sparkle * _SunSpecStrength);
+                color = color + sunSpecular;
                 color = lerp(color, _FoamColor.rgb, foam);
                 color = MixFog(color, IN.fogFactor);
 

@@ -289,10 +289,24 @@ namespace PirateCrew.PirateCrew.SceneArt
             return b;
         }
 
+        /// <summary>竞技场外缘"岸线抖动"幅度（世界单位）。【AI 提案：r3 白框修复】</summary>
+        const float EdgeJitter = 0.35f;
+
+        /// <summary>
+        /// 环形水平带的最大带宽（世界单位）。【AI 提案：r3 白框修复】
+        /// 原实现允许 1.0-1.2 宽的实心直边环带，45° 相机下读成"混凝土跑道"；收窄到 0.5 后
+        /// 结合开缺抖动读作浪沫/暗水斑，而非一条盖在水上的跑道。</summary>
+        const float MaxRingBandWidth = 0.5f;
+
         /// <summary>
         /// 竞技场外一圈"潮间带坡"：由边界 <paramref name="innerOffset"/> 处（y=innerY）
         /// 缓降到 <paramref name="outerOffset"/> 处（y=outerY）。四边各成一条带，拐角由南北带补满。
         /// 【依据场景文档 §3.3「1.5-3 单位宽湿沙坡，从 y=0 缓降到 y=-0.6」】
+        ///
+        /// 【提案/待定（r3 白框修复）】内/外缘沿墙轴按确定性哈希做 ±<see cref="EdgeJitter"/> 的
+        /// "岸线抖动"，使湿沙坡与水面的交界不再是一条笔直切线（r2 诊断：直切线 + 平色读成
+        /// "混凝土跑道/一张方纸的边"）。竖直端点仍严格是 <paramref name="innerY"/> /
+        /// <paramref name="outerY"/>（既有用例口径不变）；内缘只向外让，绝不进可玩区。
         /// </summary>
         public static void AddOffsetBand(MeshBuffers b, float arenaWidth, float arenaDepth,
             float innerOffset, float outerOffset, float innerY, float outerY, float segmentLength)
@@ -301,48 +315,61 @@ namespace PirateCrew.PirateCrew.SceneArt
                 return;
 
             float seg = Mathf.Max(0.25f, segmentLength);
-            float ix0 = -innerOffset, ix1 = arenaWidth + innerOffset;
-            float iz0 = -innerOffset, iz1 = arenaDepth + innerOffset;
-            float ox0 = -outerOffset, ox1 = arenaWidth + outerOffset;
-            float oz0 = -outerOffset, oz1 = arenaDepth + outerOffset;
 
             // 北 / 南带（沿 X 铺，含四角的延伸段）。
-            AddStripAlongX(b, ix0, ix1, iz0, oz0, innerY, outerY, seg, -1f);
-            AddStripAlongX(b, ix0, ix1, iz1, oz1, innerY, outerY, seg, 1f);
+            AddStripAlongX(b, -innerOffset, arenaWidth + innerOffset, 0f, -1f, innerOffset, outerOffset,
+                innerY, outerY, seg, 11);
+            AddStripAlongX(b, -innerOffset, arenaWidth + innerOffset, arenaDepth, 1f, innerOffset, outerOffset,
+                innerY, outerY, seg, 12);
 
             // 西 / 东带（沿 Z 铺，只覆盖竞技场纵深，拐角交给南北带）。
-            AddStripAlongZ(b, iz0, iz1, ix0, ox0, innerY, outerY, seg, -1f);
-            AddStripAlongZ(b, iz0, iz1, ix1, ox1, innerY, outerY, seg, 1f);
+            AddStripAlongZ(b, -innerOffset, arenaDepth + innerOffset, 0f, -1f, innerOffset, outerOffset,
+                innerY, outerY, seg, 13);
+            AddStripAlongZ(b, -innerOffset, arenaDepth + innerOffset, arenaWidth, 1f, innerOffset, outerOffset,
+                innerY, outerY, seg, 14);
         }
 
-        static void AddStripAlongX(MeshBuffers b, float xFrom, float xTo, float innerZ, float outerZ,
-            float innerY, float outerY, float seg, float outwardSign)
+        static void AddStripAlongX(MeshBuffers b, float xFrom, float xTo, float edgeAt, float outwardSign,
+            float innerOffset, float outerOffset, float innerY, float outerY, float seg, int salt)
         {
             int steps = Mathf.Max(1, Mathf.CeilToInt(Mathf.Abs(xTo - xFrom) / seg));
             for (int i = 0; i < steps; i++)
             {
                 float xa = Mathf.Lerp(xFrom, xTo, i / (float)steps);
                 float xb = Mathf.Lerp(xFrom, xTo, (i + 1) / (float)steps);
-                var ia = new Vector3(xa, innerY, innerZ);
-                var ib = new Vector3(xb, innerY, innerZ);
-                var ob = new Vector3(xb, outerY, outerZ);
-                var oa = new Vector3(xa, outerY, outerZ);
+
+                // 逐顶点抖动：相邻段共享端点 → 折线连续，不会裂开。
+                float inA = innerOffset + Mathf.Max(0f, SceneArtHash.SignedHash(i, 0, salt)) * EdgeJitter;
+                float inB = innerOffset + Mathf.Max(0f, SceneArtHash.SignedHash(i + 1, 0, salt)) * EdgeJitter;
+                float outA = outerOffset + SceneArtHash.SignedHash(i, 1, salt) * EdgeJitter;
+                float outB = outerOffset + SceneArtHash.SignedHash(i + 1, 1, salt) * EdgeJitter;
+
+                var ia = new Vector3(xa, innerY, edgeAt + outwardSign * inA);
+                var ib = new Vector3(xb, innerY, edgeAt + outwardSign * inB);
+                var ob = new Vector3(xb, outerY, edgeAt + outwardSign * outB);
+                var oa = new Vector3(xa, outerY, edgeAt + outwardSign * outA);
                 b.AddQuad(ia, ib, ob, oa, new Vector3(0f, 1f, outwardSign));
             }
         }
 
-        static void AddStripAlongZ(MeshBuffers b, float zFrom, float zTo, float innerX, float outerX,
-            float innerY, float outerY, float seg, float outwardSign)
+        static void AddStripAlongZ(MeshBuffers b, float zFrom, float zTo, float edgeAt, float outwardSign,
+            float innerOffset, float outerOffset, float innerY, float outerY, float seg, int salt)
         {
             int steps = Mathf.Max(1, Mathf.CeilToInt(Mathf.Abs(zTo - zFrom) / seg));
             for (int i = 0; i < steps; i++)
             {
                 float za = Mathf.Lerp(zFrom, zTo, i / (float)steps);
                 float zb = Mathf.Lerp(zFrom, zTo, (i + 1) / (float)steps);
-                var ia = new Vector3(innerX, innerY, za);
-                var ib = new Vector3(innerX, innerY, zb);
-                var ob = new Vector3(outerX, outerY, zb);
-                var oa = new Vector3(outerX, outerY, za);
+
+                float inA = innerOffset + Mathf.Max(0f, SceneArtHash.SignedHash(i, 0, salt)) * EdgeJitter;
+                float inB = innerOffset + Mathf.Max(0f, SceneArtHash.SignedHash(i + 1, 0, salt)) * EdgeJitter;
+                float outA = outerOffset + SceneArtHash.SignedHash(i, 1, salt) * EdgeJitter;
+                float outB = outerOffset + SceneArtHash.SignedHash(i + 1, 1, salt) * EdgeJitter;
+
+                var ia = new Vector3(edgeAt + outwardSign * inA, innerY, za);
+                var ib = new Vector3(edgeAt + outwardSign * inB, innerY, zb);
+                var ob = new Vector3(edgeAt + outwardSign * outB, outerY, zb);
+                var oa = new Vector3(edgeAt + outwardSign * outA, outerY, za);
                 b.AddQuad(ia, ib, ob, oa, new Vector3(outwardSign, 1f, 0f));
             }
         }
@@ -350,6 +377,13 @@ namespace PirateCrew.PirateCrew.SceneArt
         /// <summary>
         /// 环形**水平**带（泡沫线/暗水带）：在边界外 <paramref name="innerOffset"/> ~
         /// <paramref name="outerOffset"/> 之间铺一条 y 恒定的环带。四边各一条，拐角由南北带补满。
+        ///
+        /// 【提案/待定（r3 白框修复）】原实现是一圈**均匀实心的直边环带**，45° 相机下与湿沙坡、
+        /// 危险带叠成"混凝土跑道/方纸边"（r2 诊断：全宽浅灰白围框 y≈700-830）。现改为
+        /// **贴边的不规则泡沫斑块**：
+        ///   · 带宽收窄到 ≤ <see cref="MaxRingBandWidth"/>；
+        ///   · 沿周长按确定性哈希开缺（有斑有缝）+ 内外缘抖动 → 读作浪沫而非切边；
+        ///   · 顶点仍严格在 y、仍全部落在竞技场矩形之外（既有用例口径不变）。
         /// </summary>
         public static void AddFlatRingBand(MeshBuffers b, float arenaWidth, float arenaDepth,
             float innerOffset, float outerOffset, float y, float segmentLength)
@@ -358,43 +392,65 @@ namespace PirateCrew.PirateCrew.SceneArt
                 return;
 
             float seg = Mathf.Max(0.25f, segmentLength);
-            float ix0 = -innerOffset, ix1 = arenaWidth + innerOffset;
-            float iz0 = -innerOffset, iz1 = arenaDepth + innerOffset;
-            float ox0 = -outerOffset, ox1 = arenaWidth + outerOffset;
-            float oz0 = -outerOffset, oz1 = arenaDepth + outerOffset;
+            float width = Mathf.Min(outerOffset - innerOffset, MaxRingBandWidth);
 
-            AddRingStripAlongX(b, ix0, ix1, iz0, oz0, y, seg, -1f);
-            AddRingStripAlongX(b, ix0, ix1, iz1, oz1, y, seg, 1f);
-            AddRingStripAlongZ(b, iz0, iz1, ix0, ox0, y, seg, -1f);
-            AddRingStripAlongZ(b, iz0, iz1, ix1, ox1, y, seg, 1f);
+            AddRingStripAlongX(b, -innerOffset, arenaWidth + innerOffset, 0f, -1f, innerOffset, width, y, seg, 31);
+            AddRingStripAlongX(b, -innerOffset, arenaWidth + innerOffset, arenaDepth, 1f, innerOffset, width, y, seg, 32);
+            AddRingStripAlongZ(b, -innerOffset, arenaDepth + innerOffset, 0f, -1f, innerOffset, width, y, seg, 33);
+            AddRingStripAlongZ(b, -innerOffset, arenaDepth + innerOffset, arenaWidth, 1f, innerOffset, width, y, seg, 34);
         }
 
-        static void AddRingStripAlongX(MeshBuffers b, float xFrom, float xTo, float innerZ, float outerZ,
-            float y, float seg, float outwardSign)
+        static void AddRingStripAlongX(MeshBuffers b, float xFrom, float xTo, float edgeAt, float outwardSign,
+            float innerOffset, float width, float y, float seg, int salt)
         {
             int steps = Mathf.Max(1, Mathf.CeilToInt(Mathf.Abs(xTo - xFrom) / seg));
             for (int i = 0; i < steps; i++)
             {
+                // 生成-消散：按确定性哈希开缺，把实心环带打散成泡沫斑块（约一半段留下）。
+                if (SceneArtHash.Hash01(i, 0, salt) < 0.48f)
+                    continue;
+
                 float xa = Mathf.Lerp(xFrom, xTo, i / (float)steps);
                 float xb = Mathf.Lerp(xFrom, xTo, (i + 1) / (float)steps);
+                int sa = salt + i, sb = salt + i + 1;
+
+                float inA = innerOffset + Mathf.Max(0f, SceneArtHash.SignedHash(sa, 1, 7)) * width * 0.45f;
+                float inB = innerOffset + Mathf.Max(0f, SceneArtHash.SignedHash(sb, 1, 7)) * width * 0.45f;
+                float outA = Mathf.Max(inA + 0.12f, innerOffset + width + SceneArtHash.SignedHash(sa, 2, 9) * width * 0.5f);
+                float outB = Mathf.Max(inB + 0.12f, innerOffset + width + SceneArtHash.SignedHash(sb, 2, 9) * width * 0.5f);
+
                 b.AddQuad(
-                    new Vector3(xa, y, innerZ), new Vector3(xb, y, innerZ),
-                    new Vector3(xb, y, outerZ), new Vector3(xa, y, outerZ),
+                    new Vector3(xa, y, edgeAt + outwardSign * inA),
+                    new Vector3(xb, y, edgeAt + outwardSign * inB),
+                    new Vector3(xb, y, edgeAt + outwardSign * outB),
+                    new Vector3(xa, y, edgeAt + outwardSign * outA),
                     new Vector3(0f, 1f, outwardSign));
             }
         }
 
-        static void AddRingStripAlongZ(MeshBuffers b, float zFrom, float zTo, float innerX, float outerX,
-            float y, float seg, float outwardSign)
+        static void AddRingStripAlongZ(MeshBuffers b, float zFrom, float zTo, float edgeAt, float outwardSign,
+            float innerOffset, float width, float y, float seg, int salt)
         {
             int steps = Mathf.Max(1, Mathf.CeilToInt(Mathf.Abs(zTo - zFrom) / seg));
             for (int i = 0; i < steps; i++)
             {
+                if (SceneArtHash.Hash01(i, 0, salt) < 0.48f)
+                    continue;
+
                 float za = Mathf.Lerp(zFrom, zTo, i / (float)steps);
                 float zb = Mathf.Lerp(zFrom, zTo, (i + 1) / (float)steps);
+                int sa = salt + i, sb = salt + i + 1;
+
+                float inA = innerOffset + Mathf.Max(0f, SceneArtHash.SignedHash(sa, 1, 7)) * width * 0.45f;
+                float inB = innerOffset + Mathf.Max(0f, SceneArtHash.SignedHash(sb, 1, 7)) * width * 0.45f;
+                float outA = Mathf.Max(inA + 0.12f, innerOffset + width + SceneArtHash.SignedHash(sa, 2, 9) * width * 0.5f);
+                float outB = Mathf.Max(inB + 0.12f, innerOffset + width + SceneArtHash.SignedHash(sb, 2, 9) * width * 0.5f);
+
                 b.AddQuad(
-                    new Vector3(innerX, y, za), new Vector3(innerX, y, zb),
-                    new Vector3(outerX, y, zb), new Vector3(outerX, y, za),
+                    new Vector3(edgeAt + outwardSign * inA, y, za),
+                    new Vector3(edgeAt + outwardSign * inB, y, zb),
+                    new Vector3(edgeAt + outwardSign * outB, y, zb),
+                    new Vector3(edgeAt + outwardSign * outA, y, za),
                     new Vector3(outwardSign, 1f, 0f));
             }
         }
@@ -494,6 +550,8 @@ namespace PirateCrew.PirateCrew.SceneArt
         /// <summary>
         /// 把所有平台簇底部按材质写入：<see cref="PlatformClusterKind.Ship"/> → 暗木（水线以下船板/龙骨），
         /// 空岛 / 梯田岛 → 岩。编辑器 <c>SceneArtBuilder</c> 用这个，使底部与既有材质组（DrawCall）合并。
+        /// 同时沿每个簇包络在**水线**处补一圈窄暗部（并入暗木/岩）与一条细泡沫线（并入 Foam 组）：
+        /// 修 r2 诊断「平台与水面交界是平直切边、无底面感、无接触暗部、无浪」。
         /// </summary>
         public static void AddPlatformUndersides(ScenePropBuffers buffers, TileTerrainGrid grid,
             in IslandShellSettings s)
@@ -506,10 +564,19 @@ namespace PirateCrew.PirateCrew.SceneArt
                 PlatformClusterInfo info = grid.ClusterAt(c);
                 MeshBuffers target = info.Kind == PlatformClusterKind.Ship ? buffers.WoodDark : buffers.Rock;
                 AddClusterUnderside(target, grid, info, c, s);
+
+                // 细泡沫线：写在独立 Foam 组（unlit 半透明白，与水面泡沫同材质），
+                // 贴在簇包络外的水面上（平台入水处的一圈浪沫）。
+                // y 取 WaterSurfaceY+0.07（= -0.13）：水立方体细分网格的顶面在 WaterSurfaceY+0.05=-0.15，
+                // 与 SceneArtBuilder 的岸边泡沫带同口径（WaterTopY+0.01），低于它会被水面盖住。
+                AddWaterlineFoam(buffers.Foam, info.X0, info.X1 + 1f, info.Z0, info.Z1 + 1f,
+                    LevelGeometry.WaterSurfaceY + 0.07f, 0.02f, 0.30f);
             }
         }
 
-        /// <summary>单簇底部：按伪装类型选形。</summary>
+        /// <summary>
+        /// 单簇底部：按伪装类型选形，并在水线处补一圈窄暗部（接触暗部）。
+        /// </summary>
         public static void AddClusterUnderside(MeshBuffers b, TileTerrainGrid grid, in PlatformClusterInfo cluster,
             int clusterIndex, in IslandShellSettings s)
         {
@@ -524,17 +591,81 @@ namespace PirateCrew.PirateCrew.SceneArt
             if (cluster.Kind == PlatformClusterKind.Ship)
             {
                 AddShipHullUnderside(b, x0, x1, z0, z1, topY, bottomY, clusterIndex);
-                return;
             }
-
-            if (cluster.Kind == PlatformClusterKind.SkyIsland)
+            else if (cluster.Kind == PlatformClusterKind.SkyIsland)
             {
                 AddIslandConeUnderside(b, x0, x1, z0, z1, topY, bottomY, s.UndersideTipRatio, clusterIndex);
-                return;
+            }
+            else
+            {
+                // 梯田岛：岩层（两段收窄的台锥 + 棱线碎石感）。
+                AddTerraceRockUnderside(b, x0, x1, z0, z1, topY, bottomY, s.UndersideTipRatio, clusterIndex);
             }
 
-            // 梯田岛：岩层（两段收窄的台锥 + 棱线碎石感）。
-            AddTerraceRockUnderside(b, x0, x1, z0, z1, topY, bottomY, s.UndersideTipRatio, clusterIndex);
+            // 水线暗部环：从台顶下缘(y=+0.05) 罩到水面之下(y=waterY-0.12)，把"平台底部悬空"的
+            // 缝隙收口，读作"入水的接触暗部"（r2 诊断问题 3）。
+            AddWaterlineBand(b, x0, x1, z0, z1, topY + 0.05f, LevelGeometry.WaterSurfaceY - 0.12f, 0.03f);
+        }
+
+        /// <summary>
+        /// 水线暗部环（竖直薄带，绕簇包络矩形一圈）：顶 <paramref name="topY"/>、底
+        /// <paramref name="bottomY"/>，向内缩 <paramref name="inset"/> 避免与地块壳外壁 z-fight。
+        /// 【提案/待定】尺寸为 AI 取值，意图是"平台入水处一圈窄暗部"（r2 诊断问题 3）。
+        /// </summary>
+        public static void AddWaterlineBand(MeshBuffers b, float x0, float x1, float z0, float z1,
+            float topY, float bottomY, float inset)
+        {
+            if (b == null || bottomY >= topY)
+                return;
+
+            float ax0 = x0 + inset, ax1 = x1 - inset, az0 = z0 + inset, az1 = z1 - inset;
+
+            // 北(-Z) / 南(+Z)：沿 X 的竖直薄带。
+            b.AddQuad(new Vector3(ax0, topY, az0), new Vector3(ax1, topY, az0),
+                new Vector3(ax1, bottomY, az0), new Vector3(ax0, bottomY, az0), new Vector3(0f, 0f, -1f));
+            b.AddQuad(new Vector3(ax1, topY, az1), new Vector3(ax0, topY, az1),
+                new Vector3(ax0, bottomY, az1), new Vector3(ax1, bottomY, az1), new Vector3(0f, 0f, 1f));
+            // 西(-X) / 东(+X)：沿 Z 的竖直薄带。
+            b.AddQuad(new Vector3(ax0, topY, az1), new Vector3(ax0, topY, az0),
+                new Vector3(ax0, bottomY, az0), new Vector3(ax0, bottomY, az1), new Vector3(-1f, 0f, 0f));
+            b.AddQuad(new Vector3(ax1, topY, az0), new Vector3(ax1, topY, az1),
+                new Vector3(ax1, bottomY, az1), new Vector3(ax1, bottomY, az0), new Vector3(1f, 0f, 0f));
+        }
+
+        /// <summary>
+        /// 水线细泡沫线（水平薄带，绕簇包络一圈）：从包络外 <paramref name="innerGap"/> 铺到
+        /// <paramref name="outerGap"/>，总宽 = outerGap-innerGap ≤ 0.3 格（场景文档 §5.3 泡沫环宽
+        /// 0.4-1.2 的下限再做窄化，作为"平台入水"的浪沫）。【提案/待定】
+        /// </summary>
+        public static void AddWaterlineFoam(MeshBuffers b, float x0, float x1, float z0, float z1,
+            float y, float innerGap, float outerGap)
+        {
+            if (b == null || outerGap <= innerGap)
+                return;
+
+            float ex = 0.6f;   // 角部外延，避免四条带在角上留缝
+
+            // 北(-Z) / 南(+Z)
+            AddWaterlineFoamStrip(b, x0 - ex, x1 + ex, z0 - outerGap, z0 - innerGap, y, true);
+            AddWaterlineFoamStrip(b, x0 - ex, x1 + ex, z1 + innerGap, z1 + outerGap, y, true);
+            // 西(-X) / 东(+X)
+            AddWaterlineFoamStrip(b, z0 - ex, z1 + ex, x0 - outerGap, x0 - innerGap, y, false);
+            AddWaterlineFoamStrip(b, z0 - ex, z1 + ex, x1 + innerGap, x1 + outerGap, y, false);
+        }
+
+        static void AddWaterlineFoamStrip(MeshBuffers b, float alongFrom, float alongTo,
+            float nearAt, float farAt, float y, bool alongX)
+        {
+            if (alongX)
+            {
+                b.AddQuad(new Vector3(alongFrom, y, nearAt), new Vector3(alongTo, y, nearAt),
+                    new Vector3(alongTo, y, farAt), new Vector3(alongFrom, y, farAt), Vector3.up);
+            }
+            else
+            {
+                b.AddQuad(new Vector3(nearAt, y, alongFrom), new Vector3(nearAt, y, alongTo),
+                    new Vector3(farAt, y, alongTo), new Vector3(farAt, y, alongFrom), Vector3.up);
+            }
         }
 
         /// <summary>

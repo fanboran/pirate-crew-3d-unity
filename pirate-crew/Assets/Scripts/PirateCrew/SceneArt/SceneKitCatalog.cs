@@ -365,7 +365,10 @@ namespace PirateCrew.PirateCrew.SceneArt
                     continue;
                 }
 
-                // 梯田小岛：每级台阶收一圈岩台；顶层放高台掩体 + 红队旗位。
+                // 梯田小岛：沿每级台阶的棱线撒**不规则礁石**（3 种形/朝向/尺度，见
+                // SceneKitGeometry.AddRockChunk），而不是逐格叠同款 IslandTop 岩台——
+                // 旧写法对每个棱线格调一次 AddIslandTop（每次都铺一圈 10 个盒子），
+                // 一个台面就叠出上百个同形石块，r2 诊断读成"奶酪楔岩块层层码叠 / 撕碎的卡纸"。
                 for (int gz = info.Z0; gz <= info.Z1; gz++)
                 {
                     for (int gx = info.X0; gx <= info.X1; gx++)
@@ -373,15 +376,19 @@ namespace PirateCrew.PirateCrew.SceneArt
                         int blocks = map.BlocksAt(gx, gz);
                         if (blocks <= 0)
                             continue;
-                        // 只在"比邻居高"的棱线上收岩台，避免铺满整个顶面。
+                        // 只在"比邻居高"的棱线上放，避免铺满整个顶面。
                         bool edge = blocks > map.BlocksAt(gx - 1, gz) || blocks > map.BlocksAt(gx + 1, gz)
                             || blocks > map.BlocksAt(gx, gz - 1) || blocks > map.BlocksAt(gx, gz + 1);
                         if (!edge)
                             continue;
+                        // 抽样：只保留约 1/4 棱线格，礁石不连成一条石墙。
+                        if (SceneArtHash.Hash01(gx, gz, 77) > 0.26f)
+                            continue;
 
-                        layout.Add(new KitPart(SceneKitPiece.IslandTop, SceneKitMaterial.Rock,
+                        float r = 0.16f + SceneArtHash.Hash01(gx, gz, 78) * 0.26f;
+                        layout.Add(new KitPart(SceneKitPiece.RockChunk, SceneKitMaterial.Rock,
                             new Vector3(gx + 0.5f, LevelGeometry.GroundTopY + blocks * block, gz + 0.5f),
-                            0f, 1f, 0.42f, 0.42f));
+                            SceneArtHash.Hash01(gx, gz, 79) * 360f, r, 0f, 0f));
                     }
                 }
 

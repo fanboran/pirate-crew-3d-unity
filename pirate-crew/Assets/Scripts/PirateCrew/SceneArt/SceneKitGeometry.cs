@@ -158,15 +158,63 @@ namespace PirateCrew.PirateCrew.SceneArt
             }
         }
 
-        /// <summary>棱线岩块（岩唇之外的散落石）：低多边形不规则石块，顶面贴地。</summary>
-        public static void AddRockChunk(MeshBuffers b, Vector3 surfacePos, float radius, int seed)
+        /// <summary>
+        /// 棱线岩块（岩唇之外的散落石）：低多边形不规则石块，顶面贴地。
+        ///
+        /// 【提案/待定（r3 修复问题 2）】原实现每块都调 <c>AddRock(radius, aspect=(1,0.75,1), 7 段)</c>，
+        /// 同形同朝向、只在种子上略有差异 → r2 诊断读成"上百个同款奶酪楔岩块层层码叠"。
+        /// 现按 <paramref name="seed"/> 确定性取 **3 种形态**（圆钝礁石 / 扁长礁板 / 尖峭岩笋），
+        /// 并用 <paramref name="yawDegrees"/> 做绕 Y 朝向、用调用方给出的半径做尺度变化。
+        /// </summary>
+        public static void AddRockChunk(MeshBuffers b, Vector3 surfacePos, float radius, float yawDegrees, int seed)
         {
-            if (b == null)
+            if (b == null || radius <= 0f)
                 return;
 
+            // 3 种形态：(x 半径, y 半高, z 半径) + 段数 + 埋入比例。
+            int form = ((seed % 3) + 3) % 3;
+            int facets;
+            Vector3 size;
+            float sink;
+            switch (form)
+            {
+                case 0: facets = 7; size = new Vector3(1.00f, 0.62f, 1.00f); sink = 0.55f; break; // 圆钝礁石
+                case 1: facets = 6; size = new Vector3(1.35f, 0.42f, 0.78f); sink = 0.45f; break; // 扁长礁板
+                default: facets = 5; size = new Vector3(0.72f, 0.95f, 0.86f); sink = 0.60f; break; // 尖峭岩笋
+            }
+
+            float yaw = yawDegrees * Mathf.Deg2Rad;
+            float cos = Mathf.Cos(yaw), sin = Mathf.Sin(yaw);
+
             // 中心下移，使石块顶面大致在地表附近（不抬高碰撞语义）。
-            Vector3 c = surfacePos + Vector3.down * (radius * 0.55f);
-            b.AddRock(c, radius, new Vector3(1f, 0.75f, 1f), seed, 7);
+            Vector3 center = surfacePos + Vector3.down * (radius * sink);
+            float rx = radius * size.x, ry = radius * size.y, rz = radius * size.z;
+
+            Vector3[] ring = new Vector3[facets];
+            for (int i = 0; i < facets; i++)
+            {
+                float a = Mathf.PI * 2f * i / facets;
+                float jitter = 0.74f + 0.52f * SceneArtHash.Hash01(seed, i, 11);
+                float lx = Mathf.Cos(a) * rx * jitter;
+                float lz = Mathf.Sin(a) * rz * jitter;
+                float wy = ry * (0.22f * SceneArtHash.SignedHash(seed, i, 23));
+                ring[i] = center + new Vector3(lx * cos - lz * sin, wy, lx * sin + lz * cos);
+            }
+
+            float tx = rx * 0.28f * SceneArtHash.SignedHash(seed, 0, 31);
+            float tz = rz * 0.28f * SceneArtHash.SignedHash(seed, 1, 37);
+            Vector3 top = center + new Vector3(tx * cos - tz * sin, ry, tx * sin + tz * cos);
+            float bx = rx * 0.2f * SceneArtHash.SignedHash(seed, 2, 41);
+            float bz = rz * 0.2f * SceneArtHash.SignedHash(seed, 3, 43);
+            Vector3 bottom = center + new Vector3(bx * cos - bz * sin, -ry, bx * sin + bz * cos);
+
+            for (int i = 0; i < facets; i++)
+            {
+                int j = (i + 1) % facets;
+                Vector3 outward = new Vector3(ring[i].x - center.x, 0.35f * ry, ring[i].z - center.z);
+                b.AddQuad(ring[i], top, ring[j], bottom,
+                    outward.sqrMagnitude > 1e-12f ? outward.normalized : Vector3.up);
+            }
         }
     }
 }
