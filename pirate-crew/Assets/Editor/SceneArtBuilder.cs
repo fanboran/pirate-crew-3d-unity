@@ -324,25 +324,32 @@ namespace PirateCrew.EditorTools
         /// </summary>
         static void WireTerrainWetMaterial(GameObject sceneArtRoot, Material wetMaterial)
         {
-            if (sceneArtRoot == null || wetMaterial == null)
+            if (wetMaterial == null)
                 return;
 
-            Transform parent = sceneArtRoot.transform.parent;
-            if (parent == null)
-                return;
-
+            // SceneArt 根是 new GameObject 直接挂场景根（无父节点，M2BattleSceneSetup 装配顺序），
+            // 旧版在 parent==null 时静默 return → 湿沙材质永不接线、buildUnderside 永不关 →
+            // 运行时又生成一份单材质平台底部（r3 岸线洋红带的第二成因）。
+            // 现在按 兄弟扫描 → 场景全局 兜底，找不到必须告警，不允许静默跳过。
             BattleTerrainView view = null;
-            for (int i = 0; i < parent.childCount; i++)
+            Transform parent = sceneArtRoot != null ? sceneArtRoot.transform.parent : null;
+            if (parent != null)
             {
-                view = parent.GetChild(i).GetComponent<BattleTerrainView>();
-                if (view != null)
-                    break;
+                for (int i = 0; i < parent.childCount; i++)
+                {
+                    view = parent.GetChild(i).GetComponent<BattleTerrainView>();
+                    if (view != null)
+                        break;
+                }
             }
 
             if (view == null)
+                view = Object.FindObjectOfType<BattleTerrainView>();
+
+            if (view == null)
             {
-                Debug.LogWarning("[SceneArtBuilder] 没找到 BattleTerrainView，潮沟湿沙材质未接线"
-                    + "（地形壳会回落用 blockMaterial，不影响可玩性）。");
+                Debug.LogWarning("[SceneArtBuilder] 没找到 BattleTerrainView，潮沟湿沙材质未接线、"
+                    + "buildUnderside 未关闭（运行时会额外生成一份平台底部，且用 blockMaterial）。");
                 return;
             }
 

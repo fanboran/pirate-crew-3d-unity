@@ -255,19 +255,24 @@ namespace PirateCrew.PirateCrew.Battle
         {
             // ---- 实心格：台地壳 ----
             MeshBuffers shell = IslandShellGeometry.BuildSolidShell(grid, ShellSettings);
-            ApplyBuffers(EnsureShellMesh(root), shell, ResolveShellMaterial(), true);
+            ApplyBuffers(EnsureShellMesh(root), _shellRenderer, shell, ResolveShellMaterial());
+            ShellTriangleCount = shell.TriangleCount;
             ApplyShellShaderTuning();
 
             // ---- 0 块列：湿沙潮沟贴片（平台化后仅列式旧地形的平地面格） ----
             MeshBuffers low = IslandShellGeometry.BuildLowZone(grid, ShellSettings.LowPlateYOffset);
-            ApplyBuffers(EnsureLowZoneMesh(root), low, ResolveWetMaterial(), false);
+            ApplyBuffers(EnsureLowZoneMesh(root), _lowZoneRenderer, low, ResolveWetMaterial());
+            LowZoneTriangleCount = low.TriangleCount;
 
             // ---- 悬空平台底部：船体 / 岩锥 / 岩层（场景美术已生成时由 buildUnderside 关闭） ----
             if (buildUnderside)
             {
                 var under = new MeshBuffers();
                 IslandShellGeometry.AddPlatformUnderside(under, grid, ShellSettings);
-                ApplyBuffers(EnsureUnderShellMesh(root), under, ResolveShellMaterial(), false);
+                // 目标渲染器必须显式传：旧签名 isShell:false 会把材质写到 lowZone，
+                // underside 渲染器保持空材质 → 播放器构建里落到 URP 默认材质（构建缺席）
+                // → error 洋红（r3 岸线连续洋红带根因，98.5% 像素归因见 external/harness-magenta/）。
+                ApplyBuffers(EnsureUnderShellMesh(root), _underShellRenderer, under, ResolveShellMaterial());
                 UndersideTriangleCount = under.TriangleCount;
             }
             else
@@ -337,7 +342,7 @@ namespace PirateCrew.PirateCrew.Battle
             return _lowZoneMesh;
         }
 
-        void ApplyBuffers(Mesh mesh, MeshBuffers buffers, Material material, bool isShell)
+        void ApplyBuffers(Mesh mesh, MeshRenderer target, MeshBuffers buffers, Material material)
         {
             _vertexScratch.Clear();
             _normalScratch.Clear();
@@ -354,17 +359,19 @@ namespace PirateCrew.PirateCrew.Battle
 
             mesh.RecalculateBounds();
 
-            if (isShell)
+            // 空材质 = 播放器构建里的粉色 error 方块（URP 默认材质不保证入构建），
+            // 材质解析失败宁可告警并隐藏，绝不留空。
+            if (target != null)
             {
-                ShellTriangleCount = buffers.TriangleCount;
-                if (_shellRenderer != null)
-                    _shellRenderer.sharedMaterial = material;
-            }
-            else
-            {
-                LowZoneTriangleCount = buffers.TriangleCount;
-                if (_lowZoneRenderer != null)
-                    _lowZoneRenderer.sharedMaterial = material;
+                if (material != null)
+                {
+                    target.sharedMaterial = material;
+                }
+                else
+                {
+                    target.enabled = false;
+                    Debug.LogWarning("[BattleTerrainView] 材质解析失败，" + target.name + " 已隐藏（粉色方块防线）。");
+                }
             }
         }
 
@@ -450,12 +457,23 @@ namespace PirateCrew.PirateCrew.Battle
             if (_fallbackMaterial != null)
                 return _fallbackMaterial;
 
+            // 兜底链顺序：URP/Lit 在播放器构建里**不保证入包**（r3 实测 globalgamemanagers 缺席，
+            // 无 .mat 引用它）；PirateSurface 在 Always Included 里（ArtGate ⓪ 步保证），
+            // 作为安全兜底一定可用。全部落空则返回 null——ApplyBuffers 会隐藏渲染器并告警，
+            // 绝不让空材质落到 URP 默认材质（构建缺席 = 粉色方块）。
             Shader shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null)
+                shader = Shader.Find("PirateCrew/PirateSurface");
+            if (shader == null)
                 shader = Shader.Find("Standard");
+            if (shader == null)
+            {
+                Debug.LogWarning("[BattleTerrainView] 兜底 shader 全部落空，地形视觉层隐藏。");
+                return null;
+            }
             _fallbackMaterial = new Material(shader) { name = "TerrainFallback" };
 
-            // 与 URP/Lit / Standard 两种属性名都兼容。
+            // 与 URP/Lit / PirateSurface / Standard 的属性名都兼容。
             Color sand = new Color(0.62f, 0.52f, 0.38f, 1f);
             if (_fallbackMaterial.HasProperty("_BaseColor"))
                 _fallbackMaterial.SetColor("_BaseColor", sand);
