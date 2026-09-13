@@ -76,7 +76,13 @@ namespace PirateCrew.PirateCrew.Fx
 
             Shader shader = FxMaterials.GetShader(additive);
             if (shader != null)
+            {
                 fx._material = new Material(shader) { name = name + "_Mat", hideFlags = HideFlags.DontSave };
+                // 必须绑回 renderer：CreatePrimitive 自带 URP builtin 默认材质，播放器构建里
+                // 该材质的 shader 不会被收入（工程内无引用）→ 渲染成粉色 error 占位方块
+                // （r3 的"单位脚下洋红方块"根因，回合/选中光环全中招）。
+                fx._renderer.sharedMaterial = fx._material;
+            }
 
             if (fx._renderer != null)
                 fx._renderer.enabled = fx._material != null;

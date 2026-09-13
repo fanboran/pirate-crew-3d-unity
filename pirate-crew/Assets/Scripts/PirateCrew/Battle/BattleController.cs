@@ -672,6 +672,12 @@ namespace PirateCrew.PirateCrew.Battle
                     material.color = TintFor(id);
                     renderer.material = material;
                 }
+                else
+                {
+                    // 找不到 shader 时禁用渲染器而不是留着图元默认材质——
+                    // 播放器构建里 builtin 默认材质会被剥离，渲染成粉色方块。
+                    renderer.enabled = false;
+                }
             }
         }
 
