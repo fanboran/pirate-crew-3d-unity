@@ -171,6 +171,139 @@ namespace PirateCrew.UI
             RefreshWeaponPanel(hide: true);
             RefreshRoster();
             RefreshTurnHint();
+            InitModeSystem();
+        }
+
+        // ------------------------------------------------------------------
+        // 模式系统（r12 用户裁决：不同模式左键语义不同；顶栏可点击 + 快捷键 1/2/3）
+        //
+        // 【移动】左键=选角色；按住角色拖拽=跳跃；拖空白=转视角。
+        // 【操作】炮台模式：AD 转向、WS 力度、左键/空格=开火。
+        // 【观察】我的世界同款：鼠标移动=转视角，无任何游戏点击（准星只在此时显示）。
+        // 【例外声明】本类原约定"事件驱动不 Update"——输入模式轮询无法事件化，特此豁免。
+        // ------------------------------------------------------------------
+
+        public enum BattleHudMode { Move, Act, Observe }
+
+        BattleHudMode _mode = BattleHudMode.Move;
+        Transform _moveSeg, _actSeg, _observeSeg, _crosshair;
+        MaskableGraphic _hintText;
+        BattleCameraController _cameraController;
+
+        void InitModeSystem()
+        {
+            _moveSeg = DeepFind(transform, "MoveSegment");
+            _actSeg = DeepFind(transform, "ActionSegment");
+            _observeSeg = DeepFind(transform, "ObserveSegment");
+            _crosshair = DeepFind(transform, "Crosshair");
+            _hintText = DeepFind(transform, "HintText") != null
+                ? DeepFind(transform, "HintText").GetComponent<MaskableGraphic>()
+                : null;
+
+            BindModeButton(_moveSeg, BattleHudMode.Move);
+            BindModeButton(_actSeg, BattleHudMode.Act);
+            BindModeButton(_observeSeg, BattleHudMode.Observe);
+
+            SetHudMode(BattleHudMode.Move);
+        }
+
+        void BindModeButton(Transform seg, BattleHudMode mode)
+        {
+            if (seg == null)
+                return;
+            var button = seg.GetComponent<Button>();
+            if (button != null)
+                button.onClick.AddListener(() => SetHudMode(mode));
+        }
+
+        void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
+                SetHudMode(BattleHudMode.Move);
+            else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
+                SetHudMode(BattleHudMode.Act);
+            else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3))
+                SetHudMode(BattleHudMode.Observe);
+            else if (Input.GetKeyDown(KeyCode.Escape) && _mode == BattleHudMode.Observe)
+                SetHudMode(BattleHudMode.Move);
+
+            // 准星只属于观察模式（r12 用户裁决）。
+            if (_crosshair != null)
+                _crosshair.gameObject.SetActive(_mode == BattleHudMode.Observe);
+        }
+
+        void SetHudMode(BattleHudMode mode)
+        {
+            _mode = mode;
+
+            if (_cameraController == null)
+                _cameraController = FindObjectOfType<BattleCameraController>();
+            if (_cameraController != null)
+                _cameraController.SetObserveMode(mode == BattleHudMode.Observe);
+            if (aimController != null)
+            {
+                aimController.SetWeaponPreference(mode == BattleHudMode.Act);
+                aimController.InputEnabled = mode != BattleHudMode.Observe;
+            }
+
+            RefreshModeSegments();
+            RefreshModeHint();
+        }
+
+        void RefreshModeSegments()
+        {
+            ApplySegmentVisual(_moveSeg, _mode == BattleHudMode.Move);
+            ApplySegmentVisual(_actSeg, _mode == BattleHudMode.Act);
+            ApplySegmentVisual(_observeSeg, _mode == BattleHudMode.Observe);
+        }
+
+        void ApplySegmentVisual(Transform seg, bool selected)
+        {
+            if (seg == null)
+                return;
+
+            // 描边=当前模式信号（色取自运行时 UiTheme；与烘焙侧 ModeActiveStroke 同源）。
+            var outline = seg.GetComponent<Outline>();
+            if (outline == null)
+            {
+                outline = seg.gameObject.AddComponent<Outline>();
+                outline.effectDistance = new Vector2(1.5f, -1.5f);
+                outline.useGraphicAlpha = true;
+            }
+            outline.effectColor = UiTheme.BrassLight;
+            outline.enabled = selected;
+
+            var label = seg.Find("Label");
+            var graphic = label != null ? label.GetComponent<MaskableGraphic>() : null;
+            if (graphic != null)
+                UiTextUtil.SetColor(graphic, selected
+                    ? new Color(0x2A / 255f, 0x1D / 255f, 0x0E / 255f, 1f)   // InkOnGold 同源
+                    : UiTheme.TextLight);
+        }
+
+        void RefreshModeHint()
+        {
+            if (_hintText == null)
+                return;
+            string text = _mode == BattleHudMode.Move
+                ? "左键选角色　按住角色拖拽=跳跃　拖空白=转视角"
+                : _mode == BattleHudMode.Act
+                    ? "AD 转向　WS 力度　左键/空格 发射（先在下方选武器）"
+                    : "鼠标移动=转视角　滚轮缩放　1/2/Esc 返回";
+            UiTextUtil.SetText(_hintText, text);
+        }
+
+        static Transform DeepFind(Transform root, string name)
+        {
+            if (root.name == name)
+                return root;
+            for (int i = 0; i < root.childCount; i++)
+            {
+                Transform found = DeepFind(root.GetChild(i), name);
+                if (found != null)
+                    return found;
+            }
+            return null;
         }
 
         void OnEnable()

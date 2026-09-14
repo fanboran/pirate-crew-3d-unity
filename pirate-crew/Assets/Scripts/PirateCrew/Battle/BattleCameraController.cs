@@ -471,7 +471,8 @@ namespace PirateCrew.PirateCrew.Battle
             if (!_manualCaptured || _transposer == null)
                 return;
 
-            Vector3 direction = OffsetDirectionForPitch(PitchForDistance(_manualDistance));
+            Vector3 direction = OffsetDirectionForPitch(
+                ObserveMode ? _observePitchDegrees : _dragPitchDegrees);
             _transposer.m_FollowOffset =
                 Quaternion.AngleAxis(_manualYaw, Vector3.up) * (direction * _manualDistance);
         }
@@ -774,6 +775,32 @@ namespace PirateCrew.PirateCrew.Battle
         GameObject _freeAnchor;
         Transform _followBeforeFree;
 
+        // ---- 观察模式（我的世界同款；HUD 快捷键 3 进入、1/2/Esc 或任何聚焦退出）----
+        public bool ObserveMode { get; private set; }
+        float _observePitchDegrees = 45f;
+        float _dragPitchDegrees = 45f;
+
+        /// <summary>进入/退出观察模式：进入=冻结跟随锚 + 鼠标转视角；退出=恢复跟随。</summary>
+        public void SetObserveMode(bool on)
+        {
+            if (ObserveMode == on)
+                return;
+
+            ObserveMode = on;
+            if (on)
+            {
+                if (!_manualCaptured)
+                    CaptureManualCameraBase();
+                _observePitchDegrees = Mathf.Clamp(PitchOf(_baseOffsetDirection), 12f, 78f);
+                if (_freeAnchor == null)
+                    ToggleFreeAnchor();
+            }
+            else
+            {
+                ExitFreeAnchor();
+            }
+        }
+
         /// <summary>中键：把 Follow 换到当前焦点的静态锚（相机不再跟人，环绕/缩放即自由视角）；再按恢复。</summary>
         void ToggleFreeAnchor()
         {
@@ -802,6 +829,7 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>任何一次聚焦/跟随赋 Follow 前调用：自由视角是临时态，聚焦即回归跟随。</summary>
         void ExitFreeAnchor()
         {
+            ObserveMode = false;
             if (_freeAnchor == null)
                 return;
             Destroy(_freeAnchor);
@@ -914,6 +942,7 @@ namespace PirateCrew.PirateCrew.Battle
             _targetDistance = _baseDistance;
             _manualYaw = 0f;
             _targetYaw = 0f;
+            _dragPitchDegrees = Mathf.Clamp(PitchOf(_baseOffsetDirection), 12f, 78f);
             _manualCaptured = true;
         }
 
@@ -925,14 +954,20 @@ namespace PirateCrew.PirateCrew.Battle
             // 【r12 用户反馈】左键拖空白处也要能环绕（瞄准拖拽以"按在单位上"开始，二者不打架）。
             if (aimThrow == null)
                 aimThrow = FindObjectOfType<AimThrowController>();
-            bool orbitHeld = Input.GetMouseButton(1)
-                || (Input.GetMouseButton(0) && (aimThrow == null || !aimThrow.IsAiming));
+            bool leftOrbit = Input.GetMouseButton(0) && !ObserveMode
+                && (aimThrow == null || (!aimThrow.IsAiming && !aimThrow.PressStartedOnUnit));
+            bool orbitHeld = Input.GetMouseButton(1) || leftOrbit;
 
             if (enableManualOrbit && orbitHeld)
             {
+                // 拖拽环绕 = 水平转 yaw + 垂直改俯仰（12°..78° 夹紧）——左/右键同规则。
                 float dx = Input.GetAxis("Mouse X");
                 if (Mathf.Abs(dx) > 1e-5f)
                     _targetYaw += dx * orbitDegreesPerMouseUnit;
+                float dy = Input.GetAxis("Mouse Y");
+                if (Mathf.Abs(dy) > 1e-5f)
+                    _dragPitchDegrees = Mathf.Clamp(
+                        _dragPitchDegrees - dy * 0.35f, 12f, 78f);
             }
 
             // 【r12 用户反馈】中键解除/恢复跟随锚定：解除后相机冻结在当前焦点，环绕+缩放即自由视角；
@@ -940,7 +975,17 @@ namespace PirateCrew.PirateCrew.Battle
             if (Input.GetMouseButtonDown(2))
                 ToggleFreeAnchor();
 
-            if (enableManualZoom)
+            // 【观察模式（我的世界同款）】鼠标移动即转视角（不按任何键），YS 改俯仰（12°..78° 夹紧）。
+            if (ObserveMode)
+            {
+                _targetYaw += Input.GetAxis("Mouse X") * orbitDegreesPerMouseUnit;
+                _observePitchDegrees = Mathf.Clamp(
+                    _observePitchDegrees - Input.GetAxis("Mouse Y") * 0.35f, 12f, 78f);
+            }
+
+            // 滚轮缩放；炮台瞄准时滚轮让给力度（AimThrowController），不再同时拉相机。
+            bool zoomBlocked = aimThrow != null && aimThrow.IsTurretAiming;
+            if (enableManualZoom && !zoomBlocked)
             {
                 float scroll = Input.mouseScrollDelta.y;
                 if (Mathf.Abs(scroll) > 1e-5f)

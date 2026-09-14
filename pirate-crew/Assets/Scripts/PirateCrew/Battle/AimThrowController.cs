@@ -105,17 +105,38 @@ namespace PirateCrew.PirateCrew.Battle
                 battleCamera = Camera.main;
         }
 
+        /// <summary>观察模式下关闭全部游戏点击（选人/取消/炮台/悬停），左键完全让给相机。</summary>
+        public bool InputEnabled { get; set; } = true;
+
         void Update()
         {
             if (battle == null || battleCamera == null)
                 return;
 
+            if (!InputEnabled)
+            {
+                SetHoverTarget(null);
+                return;
+            }
+
             // HUD 点击拦截：鼠标悬在 UGUI 上时不要开始新的选中/瞄准操作。
-            // 否则点武器面板 / end go / 返回按钮时，同一次按下也会进 OnPrimaryDown，
-            // 在已选角色阶段被当成"点空白"而 CancelAim()，把刚选的武器和角色选中一起清掉。
             // 只拦「按下」——已经开始拖拽后光标掠过面板仍应继续拖，避免手感断裂。
             if (Input.GetMouseButtonDown(0) && !IsPointerOverUi())
                 OnPrimaryDown();
+
+            // 【r12 按下归属权契约】松手结算：空白按下若没拖动（<6px，相机没消费它）= 取消选择；
+            // 拖动过 = 相机拿去转视角了，不取消。按下瞬间不再立刻 CancelAim（旧口径与空白拖拽转视角打架）。
+            if (Input.GetMouseButtonUp(0))
+            {
+                PressStartedOnUnit = false;
+                if (_emptyPressPending)
+                {
+                    _emptyPressPending = false;
+                    if (_phase == Phase.CharacterSelected && !IsTurretAiming
+                        && Vector2.Distance(Input.mousePosition, _emptyPressScreen) < 6f)
+                        CancelAim();
+                }
+            }
 
             if (_phase == Phase.Dragging)
             {
@@ -124,6 +145,9 @@ namespace PirateCrew.PirateCrew.Battle
                 if (Input.GetMouseButtonUp(0))
                     ReleaseDrag();
             }
+
+            // 【炮台模式】操作模式 + 已武装武器 + 已选角色时，键盘瞄准（AD/WS/滚轮/空格）。
+            UpdateTurret();
 
             if (Input.GetKeyDown(KeyCode.Escape))
                 CancelAim();
@@ -181,6 +205,7 @@ namespace PirateCrew.PirateCrew.Battle
             if (_phase == Phase.Idle)
             {
                 PirateBase picked = PickTeamCharacter(mouse);
+                PressStartedOnUnit = picked != null;
                 if (picked != null)
                     battle.SelectCharacter(picked);
                 return;
@@ -191,15 +216,26 @@ namespace PirateCrew.PirateCrew.Battle
                 // 直接放置类武器（锚/海鸥/潮汐/加农）：点击即生成，不走拖拽、不显示弹弓预览。
                 if (_useWeapon && _directPlacement)
                 {
+                    PressStartedOnUnit = true;
                     PlaceDirectWeapon();
                     return;
                 }
 
                 PirateBase picked = PickTeamCharacter(mouse);
+                PressStartedOnUnit = picked != null;
                 if (picked == null)
                 {
-                    // 点空处：取消选择。
-                    CancelAim();
+                    // 【炮台模式】操作模式 + 已武装：左键=开火（弹道由 UpdateTurret 实时合成）。
+                    if (IsTurretAiming)
+                    {
+                        ReleaseDrag();
+                        return;
+                    }
+
+                    // 【移动模式】点空处不立刻取消——延迟到松手结算（见 Update），
+                    // 让"空白按下拖拽"能被相机消费为转视角。
+                    _emptyPressPending = true;
+                    _emptyPressScreen = mouse;
                     return;
                 }
 
@@ -208,6 +244,66 @@ namespace PirateCrew.PirateCrew.Battle
 
                 BeginDrag();
             }
+        }
+
+        // ------------------------------------------------------------------
+        // 按下归属权（r12：相机据此让位，帧序无关）
+        // ------------------------------------------------------------------
+
+        /// <summary>本次左键按下是否落在单位交互上（选中/切换/瞄准/放置）。相机据此决定是否消费为环绕。</summary>
+        public bool PressStartedOnUnit { get; private set; }
+        bool _emptyPressPending;
+        Vector2 _emptyPressScreen;
+
+        // ------------------------------------------------------------------
+        // 炮台模式（r12 用户裁决：操作模式=像发射大炮一样瞄准）
+        // ------------------------------------------------------------------
+
+        bool _preferWeapon;
+        bool _turretAiming;
+        float _turretYawRad;
+        float _turretPower = 0.6f;
+
+        /// <summary>炮台瞄准进行中（相机据此把滚轮让给力度）。</summary>
+        public bool IsTurretAiming => _turretAiming;
+
+        /// <summary>HUD 模式开关调用：操作模式=优先用武器（拖空白不再取消武装），移动模式=拖拽即跳跃。</summary>
+        public void SetWeaponPreference(bool preferWeapon)
+        {
+            _preferWeapon = preferWeapon;
+            if (!preferWeapon && _phase != Phase.Dragging)
+                _useWeapon = false;
+        }
+
+        /// <summary>
+        /// 大炮式键盘瞄准：A/D 转向、W/S 力度、滚轮微调、空格/回车发射；轨迹预览实时刷新。
+        /// 合成等效拖拽向量喂给 <see cref="ResolveThrow"/>——与拖拽路径共用同一套换算，口径不分叉。
+        /// </summary>
+        void UpdateTurret()
+        {
+            bool armed = _preferWeapon && _useWeapon && _selected != null && _selected.Alive
+                && _phase != Phase.Dragging;
+            _turretAiming = armed;
+            if (!armed)
+                return;
+
+            float dt = Time.deltaTime;
+            float rot = (Input.GetKey(KeyCode.A) ? -1f : 0f) + (Input.GetKey(KeyCode.D) ? 1f : 0f);
+            _turretYawRad += rot * 1.6f * dt;
+            float pow = (Input.GetKey(KeyCode.W) ? 1f : 0f) + (Input.GetKey(KeyCode.S) ? -1f : 0f);
+            _turretPower = Mathf.Clamp01(_turretPower + pow * 0.45f * dt
+                + Input.mouseScrollDelta.y * 0.04f);
+
+            float dragLength = Mathf.Max(minDragPixels + 4f, _turretPower * _twangMax / 0.25f);
+            _dragScreen = new Vector2(Mathf.Sin(_turretYawRad), Mathf.Cos(_turretYawRad)) * dragLength;
+
+            (Vector3 dir, float speed, float _, float _) = ResolveThrow();
+            if (trajectory != null)
+                trajectory.Show(_originWorld, dir, speed, _weight);
+
+            if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.KeypadEnter)
+                || Input.GetKeyDown(KeyCode.Return))
+                ReleaseDrag();
         }
 
         /// <summary>

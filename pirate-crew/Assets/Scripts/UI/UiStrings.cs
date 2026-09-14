@@ -284,6 +284,9 @@ namespace PirateCrew.UI
         /// <summary>模式开关：操作。</summary>
         public const string BattleModeAction = "操作";
 
+        /// <summary>模式开关：观察（r12 用户裁决；我的世界同款鼠标转视角）。</summary>
+        public const string BattleModeObserve = "观察";
+
         /// <summary>名册标题模板。</summary>
         public const string BattleRosterTitleFormat = "船员名册 · 第 {0} 关";
 
@@ -330,7 +333,7 @@ namespace PirateCrew.UI
         public const string BattleHintGeneral = "空格 瞄准　E 聚焦　Esc 取消";
 
         /// <summary>操作提示：瞄准态。</summary>
-        public const string BattleHintAiming = "滚轮调力度　左右调方位　上下调俯仰　回车发射";
+        public const string BattleHintAiming = "AD 转向　WS 力度　滚轮微调　空格 发射";
 
         /// <summary>操作提示：移动模式。</summary>
         public const string BattleHintMove = "左键拖空白环绕　滚轮缩放　中键解除跟随　左键选中　双击聚焦";

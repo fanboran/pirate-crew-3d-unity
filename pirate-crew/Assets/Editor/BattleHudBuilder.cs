@@ -80,12 +80,12 @@ namespace PirateCrew.EditorTools
         /// <summary>文字槽中心偏移：槽外缘退到条边 12px → 半宽 320 − 12 − 62 = 246。</summary>
         const float TopBarSlotCenterX = 246f;
 
-        /// <summary>模式开关单段尺寸（两段并排 = 336，居中占据条内中间区）。</summary>
-        const float TopBarSegmentWidth = 168f;
+        /// <summary>模式开关单段尺寸（r12 三段：移动/操作/观察，3×104 + 2×12 缝 = 336，占条内中间区）。</summary>
+        const float TopBarSegmentWidth = 104f;
         const float TopBarSegmentHeight = 30f;
 
-        /// <summary>模式开关单段中心偏移（±88 使两段占 −172..172，与两侧文字槽各留 24px 净间距）。</summary>
-        const float TopBarSegmentCenterX = 88f;
+        /// <summary>模式开关单段中心偏移（−112/0/+112 使三段占 −164..164，与两侧文字槽各留 32px 净间距）。</summary>
+        const float TopBarSegmentCenterX = 112f;
 
         // ---------------- 右上状态 ----------------
 
@@ -207,13 +207,15 @@ namespace PirateCrew.EditorTools
             CreateSlotText(topBar, "TimerText", TopBarSlotCenterX, UiTextRules.Timer(0),
                 BattleUiTheme.Tok.TextOnGlass, body);
 
-            // 模式开关：静态二态展示，不挂 Button 以免出现「按了没反应」。
-            // 【移动】= 当前选中段：金玻璃 + 深墨字 + 1px 亮金外描边（唯一强调色只上底不上字，§1.2）；
-            // 【操作】= 未选中段：中性深玻璃 + 浅米字（色相区分，不用乘色压暗 —— 理由见 BuildToggleSegment）。
-            BuildToggleSegment(topBar, "ActionSegment", UiStrings.BattleModeAction, TopBarSegmentCenterX,
-                false, body);
+            // 模式开关（r12 用户裁决：可点击 + 快捷键角标 1/2/3，运行时 BattleHud 接 onClick 与键位）：
+            // 【移动】拖拽=跳跃；【操作】炮台模式（AD 转向 WS 力度 空格发射）；【观察】我的世界同款鼠标转视角。
+            // 选中段=金玻璃+深墨字+亮金外描边；未选中段=中性深玻璃+浅米字（色相区分，见 BuildToggleSegment）。
+            BuildToggleSegment(topBar, "ActionSegment", UiStrings.BattleModeAction, 0f,
+                false, body, "2");
+            BuildToggleSegment(topBar, "ObserveSegment", UiStrings.BattleModeObserve, TopBarSegmentCenterX,
+                false, body, "3");
             BuildToggleSegment(topBar, "MoveSegment", UiStrings.BattleModeMove, -TopBarSegmentCenterX,
-                true, body);
+                true, body, "1");
 
             // 右上：回合提示 + 双方存活（两块内容片，各自稳定底衬）。
             RectTransform status = MenuUiBuilder.CreateGlassPanel("TeamStatusPanel", hudRoot,
@@ -331,13 +333,16 @@ namespace PirateCrew.EditorTools
         /// 参照 game-2：选中页签用琥珀底、未选中用中性底，同一套"色相区分"语言。
         /// </summary>
         static void BuildToggleSegment(Transform parent, string name, string label, float x,
-            bool selected, TMP_FontAsset font)
+            bool selected, TMP_FontAsset font, string hotkey)
         {
             RectTransform segment = MenuUiBuilder.CreateGlassPanel(name, parent,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(x, 0f),
                 new Vector2(TopBarSegmentWidth, TopBarSegmentHeight),
                 selected ? GlassPanelSpriteBuilder.Tone.Primary : GlassPanelSpriteBuilder.Tone.Button,
                 GlassPanelSpriteBuilder.Geo.Chip);
+
+            // r12：挂 Button（onClick 由运行时 BattleHud 绑定）；transitong 用默认（无 targetGraphic 着色）。
+            segment.gameObject.AddComponent<Button>();
 
             // 外描边是「当前」的第二重信号（只画在填充之外，不影响文字对比度）。
             if (selected)
@@ -347,6 +352,16 @@ namespace PirateCrew.EditorTools
                 MenuUiBuilder.FontScale.Hud, TextAlignmentOptions.Center,
                 selected ? BattleUiTheme.Tok.InkOnGold : BattleUiTheme.Tok.TextOnGlass, font);
             MenuUiBuilder.Stretch(text.rectTransform);
+
+            // 快捷键角标（右上角小字，r12 用户要求"把快捷键标在附近"）。
+            TextMeshProUGUI key = MenuUiBuilder.CreateTextExact("Hotkey", segment, hotkey,
+                MenuUiBuilder.FontScale.Hint, TextAlignmentOptions.Center,
+                selected ? BattleUiTheme.Tok.InkOnGold : BattleUiTheme.Tok.TextOnGlass, font);
+            key.rectTransform.anchorMin = new Vector2(1f, 1f);
+            key.rectTransform.anchorMax = new Vector2(1f, 1f);
+            key.rectTransform.pivot = new Vector2(1f, 1f);
+            key.rectTransform.anchoredPosition = new Vector2(-3f, -1f);
+            key.rectTransform.sizeDelta = new Vector2(16f, 14f);
         }
 
         /// <summary>
