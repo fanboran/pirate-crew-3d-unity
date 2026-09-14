@@ -1,15 +1,15 @@
 # 海盗军团夺宝 3D · Pirate Crew 3D
 
-**把敌人的浮空岛轰进海里。**回合制投掷对战——环绕角色转视角、装填、开炮，看抛物线划过阳光下的云海，然后一炮把对手掀进天空的尽头。
+**把敌人的浮空岛轰进海里**。回合制投掷对战——环绕角色转视角、装填、开炮，看抛物线划过阳光下的云海，然后一炮把对手掀进天空的尽头。
 
 > Unity 2022.3 写实 PBR 重制 · 向 Nitrome《Mutiny》（中译《海盗军团抢宝藏》）致敬的 3D 学习重制 · 求职作品集项目（非商业）
 >
-> **当前版本 v0.1** · [下载 Windows 版](../../releases/tag/v0.1.0) · 1P vs AI / 2P 同屏热座
+> **当前版本 v0.1** · [下载 Windows 版](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.1.0) · 1P vs AI / 2P 同屏热座
 
 [![Unity](https://img.shields.io/badge/Unity-2022.3-black?logo=unity)](https://unity.com)
-[![URP](https://img.shields.io/badge/渲染-URP_14写实PBR-blue)](https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@14)
-[![Tests](https://img.shields.io/badge/测试-997条·6秒不启动引擎-green)](#质量工程)
-[![Release](https://img.shields.io/badge/下载-v0.1.0-orange)](../../releases/tag/v0.1.0)
+[![URP](https://img.shields.io/badge/%E6%B8%B2%E6%9F%93-URP_14%E5%86%99%E5%AE%9EPBR-blue)](https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@14)
+[![Tests](https://img.shields.io/badge/%E6%B5%8B%E8%AF%95-997%E6%9D%A1%C2%B76%E7%A7%92%E4%B8%8D%E5%90%AF%E5%8A%A8%E5%BC%95%E6%93%8E-green)](#质量工程)
+[![Release](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-v0.1.0-orange)](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.1.0)
 
 ---
 
@@ -17,7 +17,7 @@
 
 ## 三个关卡，三种心情
 
-首发聚焦三个手作样板关——岛屿由放样曲线与低模几何直接生成，**没有任何方块拼接**。
+首发聚焦三个手作样板关——岛屿由放样曲线与低模几何直接生成**，没有任何方块拼接**。
 
 ### ☁️ 云端漫步
 
@@ -78,9 +78,9 @@
 | **显卡** | DirectX 11 兼容 | DirectX 11 兼容，2 GB 显存 |
 | **存储** | 1 GB 可用空间 | 1 GB 可用空间 |
 
-## 质量工程（写给招聘方）
+## 质量工程
 
-这个仓库同时是一份**游戏客户端开发的工程作品集**：
+这个仓库同时是一份**游戏客户端开发的工程作品集**——玩法之外，这些工程实践是本项目的另一半卖点：
 
 - **997 条测试，6 秒跑完**：战斗数值/回合规则/AI 评估写成纯 C# 静态类，配套自研**无头验证台**（`dotnet` 直引 Unity 编译产物 + NUnit）——不启动引擎即可编译全工程并跑测试，多 agent 并行开发时绕开 `Library/` 独占锁
 - **数值三层架构**：纯 C# Catalog 是唯一真值来源（可无头测试）→ ScriptableObject 序列化投影 → Editor 幂等生成器，数值永不分叉
@@ -91,7 +91,7 @@
 
 ## 运行
 
-**玩（推荐）**：从 [Releases](../../releases/tag/v0.1.0) 下载 `PirateCrew3D_v0.1.0_win64.zip`，解压双击 `PirateCrew3D.exe`。
+**玩（推荐）**：从 [Releases](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.1.0) 下载 `PirateCrew3D_v0.1.0_win64.zip`，解压双击 `PirateCrew3D.exe`。
 
 **从源码跑**：Unity Hub 打开 `pirate-crew/` 子目录（**不是仓库根**），Unity 2022.3.62f1c1，菜单 `PirateCrew → 管线 → 一键构建全部资产与场景`（可选），Play `Bootstrapper` 场景。
 
