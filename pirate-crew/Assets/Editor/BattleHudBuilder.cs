@@ -341,7 +341,12 @@ namespace PirateCrew.EditorTools
                 selected ? GlassPanelSpriteBuilder.Tone.Primary : GlassPanelSpriteBuilder.Tone.Button,
                 GlassPanelSpriteBuilder.Geo.Chip);
 
-            // r12：挂 Button（onClick 由运行时 BattleHud 绑定）；transitong 用默认（无 targetGraphic 着色）。
+            // r12：挂 Button（onClick 由运行时 BattleHud 绑定）。
+            // 【必须手动开 raycast】CreateGlassPanel 的 Image 一律 raycastTarget=false（面板装饰纪律），
+            // 而 Button 依赖自身 Graphic 接收点击——不开就是"点了没反应"。
+            var segmentImage = segment.GetComponent<Image>();
+            if (segmentImage != null)
+                segmentImage.raycastTarget = true;
             segment.gameObject.AddComponent<Button>();
 
             // 外描边是「当前」的第二重信号（只画在填充之外，不影响文字对比度）。

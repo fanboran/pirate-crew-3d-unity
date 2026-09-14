@@ -192,12 +192,17 @@ namespace PirateCrew.UI
 
         void InitModeSystem()
         {
-            _moveSeg = DeepFind(transform, "MoveSegment");
-            _actSeg = DeepFind(transform, "ActionSegment");
-            _observeSeg = DeepFind(transform, "ObserveSegment");
-            _crosshair = DeepFind(transform, "Crosshair");
-            _hintText = DeepFind(transform, "HintText") != null
-                ? DeepFind(transform, "HintText").GetComponent<MaskableGraphic>()
+            // 【r12 事故修】BattleHud 组件挂在 canvas 下独立的 "BattleHud" 节点上，
+            // 而 TopBar/准星/提示条是 canvas 的**兄弟分支**——从自己子树找全是 null，
+            // 模式系统整个瞎掉（点击无反应/准星关不掉/无提示）。必须从 Canvas 根全树找。
+            Canvas parentCanvas = GetComponentInParent<Canvas>();
+            Transform searchRoot = parentCanvas != null ? parentCanvas.transform : transform;
+            _moveSeg = DeepFind(searchRoot, "MoveSegment");
+            _actSeg = DeepFind(searchRoot, "ActionSegment");
+            _observeSeg = DeepFind(searchRoot, "ObserveSegment");
+            _crosshair = DeepFind(searchRoot, "Crosshair");
+            _hintText = DeepFind(searchRoot, "HintText") != null
+                ? DeepFind(searchRoot, "HintText").GetComponent<MaskableGraphic>()
                 : null;
 
             BindModeButton(_moveSeg, BattleHudMode.Move);
@@ -291,7 +296,7 @@ namespace PirateCrew.UI
             if (_hintText == null)
                 return;
             string text = _mode == BattleHudMode.Move
-                ? "左键选角色　按住角色拖拽=跳跃　拖空白=转视角"
+                ? "左键选角色　拖动=环绕角色转视角　AD 转向　滚轮 力度　空格 跳"
                 : _mode == BattleHudMode.Act
                     ? "AD 转向　WS 力度　滚轮微调　回车 开炮（左键只点按钮）"
                     : "点击准星选人并返回　WASD/Space/Shift 移动　滚轮缩放　Esc 返回";

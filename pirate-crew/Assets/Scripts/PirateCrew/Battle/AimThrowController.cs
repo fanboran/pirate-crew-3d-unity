@@ -238,25 +238,23 @@ namespace PirateCrew.PirateCrew.Battle
                 }
 
                 PirateBase picked = PickTeamCharacter(mouse);
-                PressStartedOnUnit = picked != null;
-                if (picked == null)
+                if (picked != null && picked != _selected)
                 {
-                    // 【炮台模式】炮台瞄准中左键不放炮（r12 用户裁决：太容易走火，开火=回车），
-                    // 也不取消武装——左键只服务于 UI 按钮。
-                    if (IsTurretAiming)
-                        return;
-
-                    // 【移动模式】点空处不立刻取消——延迟到松手结算（见 Update），
-                    // 让"空白按下拖拽"能被相机消费为转视角。
-                    _emptyPressPending = true;
-                    _emptyPressScreen = mouse;
+                    // 点到别的本队角色：切换选中（角色中心随切）。
+                    PressStartedOnUnit = true;
+                    battle.SelectCharacter(picked);
                     return;
                 }
 
-                if (picked != _selected)
-                    battle.SelectCharacter(picked);
-
-                BeginDrag();
+                // 【r12 用户裁决】其余一切左键按下（含点在当前角色身上、点空白）
+                // 都交给相机做"环绕角色转视角"——跳跃瞄准 = 转视角 + AD/滚轮，不再弹弓拖拽。
+                // 点空白仍是"延迟取消"（松手没拖动才取消选择）。
+                PressStartedOnUnit = false;
+                if (picked == null && !IsTurretAiming)
+                {
+                    _emptyPressPending = true;
+                    _emptyPressScreen = mouse;
+                }
             }
         }
 
@@ -295,11 +293,19 @@ namespace PirateCrew.PirateCrew.Battle
         /// </summary>
         void UpdateTurret()
         {
-            bool armed = _preferWeapon && _useWeapon && _selected != null && _selected.Alive
+            // 武器炮台：操作模式 + 已武装武器。
+            bool weaponTurret = _preferWeapon && _useWeapon && _selected != null && _selected.Alive
                 && _phase != Phase.Dragging;
-            _turretAiming = armed;
-            if (!armed)
+            // 跳跃炮台：移动模式 + 已选角色（r12 用户裁决：跳跃=环绕角色转视角瞄准，不再弹弓）。
+            bool jumpTurret = !_preferWeapon && _phase == Phase.CharacterSelected
+                && _selected != null && _selected.Alive;
+
+            _turretAiming = weaponTurret || jumpTurret;
+            if (!_turretAiming)
                 return;
+
+            if (_selected != null)
+                _originWorld = _selected.transform.position;
 
             float dt = Time.deltaTime;
             float rot = (Input.GetKey(KeyCode.A) ? -1f : 0f) + (Input.GetKey(KeyCode.D) ? 1f : 0f);
@@ -315,7 +321,10 @@ namespace PirateCrew.PirateCrew.Battle
             if (trajectory != null)
                 trajectory.Show(_originWorld, dir, speed, _weight);
 
-            if (Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Return))
+            // 开火：武器=回车（防走火）；跳跃=空格或回车。
+            bool fire = Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Return)
+                || (jumpTurret && Input.GetKeyDown(KeyCode.Space));
+            if (fire)
                 ReleaseDrag();
         }
 
