@@ -38,7 +38,7 @@ namespace PirateCrew.UI
         /// <summary>半径上限（px，**提案/待定**）：防止近处单位把拾取圈撑得过大、误选邻居。</summary>
         public const float MaxRadiusPixels = 64f;
 
-        /// <summary>单位世界高度（= Flash 16px / 32px 每单位 = 0.5；§4.1 的 top/bottomExtent=8）。</summary>
+        /// <summary>单位世界高度（= Flash 16px / 16px 每单位 = 1.0；格 1→2 单位后由 0.5 乘 2；§4.1 的 top/bottomExtent=8）。</summary>
         public const float UnitWorldHeight = CrewCatalog.TopExtent * 2f / LevelGeometry.PixelsPerUnit;
 
         /// <summary>

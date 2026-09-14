@@ -204,7 +204,7 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>
         /// Flash 速度（px/帧）→ 世界速度（单位/秒）的比例：
-        /// <c>1 / (PixelsPerUnit * FrameSeconds) = 1 / 1.28 = 0.78125</c>。
+        /// <c>1 / (PixelsPerUnit * FrameSeconds) = 1 / 0.64 = 1.5625</c>（格 1→2 单位后 PixelsPerUnit=16）。
         /// </summary>
         public const float FlashSpeedScale = 1f / (PixelsPerUnit * FrameSeconds);
 
@@ -420,7 +420,8 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>
         /// Flash 重力加速度（weight px/帧²）→ Unity 世界重力 Y（单位/秒²，向下为负）：
-        /// <c>-weight / (32 * 0.04²) = -19.53125 * weight</c>。重力沿 -Y（垂直向下），与水平面正交。
+        /// <c>-weight / (16 * 0.04²) = -39.0625 * weight</c>（格 1→2 单位后由 -19.53125 乘 2）。
+        /// 重力沿 -Y（垂直向下），与水平面正交。
         /// </summary>
         public static float WorldGravityY(float weight)
         {

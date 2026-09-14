@@ -92,7 +92,7 @@ namespace PirateCrew.PirateCrew.Ambient
         /// <summary>竞技场纵深（世界 Z，单位）。</summary>
         public readonly float Depth;
 
-        /// <summary>水面高度（世界 Y，恒 -0.2）。</summary>
+        /// <summary>水面高度（世界 Y，恒 -0.4；格 1→2 单位后由 -0.2 乘 2）。</summary>
         public readonly float WaterY;
 
         /// <summary>地面顶面高度（世界 Y，恒 0）。</summary>
@@ -106,7 +106,7 @@ namespace PirateCrew.PirateCrew.Ambient
             GroundY = groundY;
         }
 
-        /// <summary>按本工程固定高度口径构造（地面 y=0、水面 y=-0.2）。</summary>
+        /// <summary>按本工程固定高度口径构造（地面 y=0、水面 y=-0.4）。</summary>
         public static AmbientArena FromTiles(float widthTiles, float depthTiles)
         {
             return new AmbientArena(widthTiles, depthTiles, Battle.LevelGeometry.WaterSurfaceY, Battle.LevelGeometry.GroundTopY);

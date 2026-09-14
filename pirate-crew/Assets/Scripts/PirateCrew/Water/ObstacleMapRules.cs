@@ -10,7 +10,7 @@ namespace PirateCrew.PirateCrew.Water
     ///   · 竞技场范围内：地形地表（<see cref="TileTerrainGrid.SurfaceWorldYAtWorld"/>）**高于水面** → 障碍
     ///     （沙岛本体、被抬升的台子、礁石）；地形低于水面 → 开阔水；
     ///   · 竞技场范围外：没有地形（只有水面之下的海床台阶）→ 开阔水。
-    ///   本工程地面顶面 y=0、水面 y=-0.2 → 整个沙岛都是障碍，海浪在岛缘反射——这正是要的"浪拍岸"。
+    ///   本工程地面顶面 y=0、水面 y=-0.4（格 ×2 后；旧口径 -0.2）→ 整个沙岛都是障碍，海浪在岛缘反射——这正是要的"浪拍岸"。
     ///
     /// 【为什么单独成类】<c>Assets/Editor/WaterAssetBuilder.cs</c> 只负责把这里的输出编码成 PNG；
     /// 判据留在纯 C# 里，就能在无头验证台用 <see cref="TileTerrainGrid"/>（也是纯 C#）抽格断言
