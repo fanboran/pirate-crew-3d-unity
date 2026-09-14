@@ -204,13 +204,13 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         public void ScreenDragToArenaDirection_YawZero_EqualsMinusDrag()
         {
             // yaw=0 且相机水平朝向 +Z 时：right=(1,0,0)、forward=(0,0,1)，
-            // horiz = right*(-dx) + forward*(-dy) → 等价于 Godot 的 (-dx, 0, -dy)。
+            // 直接瞄准语义：horiz = right*dx + forward*dy → (0.6, 0, 0.8)（拖向哪扔向哪，r12 用户裁决）。
             Vector3 dir = LevelGeometry.ScreenDragToArenaDirection(
                 new Vector3(1f, 0f, 0f), new Vector3(0f, 0f, 1f), 3f, 4f);
 
-            Assert.AreEqual(-0.6f, dir.x, 1e-5f);
+            Assert.AreEqual(0.6f, dir.x, 1e-5f);
             Assert.AreEqual(0f, dir.y, 1e-6f);
-            Assert.AreEqual(-0.8f, dir.z, 1e-5f);
+            Assert.AreEqual(0.8f, dir.z, 1e-5f);
 
             // 零拖拽返回零，不产生 NaN。
             Assert.AreEqual(0f, LevelGeometry.ScreenDragToArenaDirection(
@@ -221,13 +221,13 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         public void ScreenDragToArenaDirection_YawNinety_RotatesWithCamera()
         {
             // yaw=90°：right=(0,0,-1)、forward=(1,0,0)（绕 Y 旋转 90°）。
-            // 同一拖拽 (3,4) → horiz = right*(-3) + forward*(-4) = (-4, 0, 3) → (-0.8, 0, 0.6)。
+            // 同一拖拽 (3,4) → horiz = right*3 + forward*4 = (4, 0, -3) → (0.8, 0, -0.6)。
             Vector3 dir = LevelGeometry.ScreenDragToArenaDirection(
                 new Vector3(0f, 0f, -1f), new Vector3(1f, 0f, 0f), 3f, 4f);
 
-            Assert.AreEqual(-0.8f, dir.x, 1e-5f);
+            Assert.AreEqual(0.8f, dir.x, 1e-5f);
             Assert.AreEqual(0f, dir.y, 1e-6f);
-            Assert.AreEqual(0.6f, dir.z, 1e-5f);
+            Assert.AreEqual(-0.6f, dir.z, 1e-5f);
 
             // 与 yaw=0 的同一拖拽方向不同 → 映射确实随相机环绕而旋转（而非硬编码）。
             Vector3 yaw0 = LevelGeometry.ScreenDragToArenaDirection(

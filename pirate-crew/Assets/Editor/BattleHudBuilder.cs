@@ -431,13 +431,26 @@ namespace PirateCrew.EditorTools
 
         static void BuildCrosshair(Transform hudRoot)
         {
+            // 【r12 用户裁决】FPS 式细小十字（两根 2px 细条，白字深描边），替换 64px 大环；
+            // 白色 + 深描边保证在角色/水面/天空任何底色上都可读，跟随锚定时常驻可见。
             RectTransform crosshair = MenuUiBuilder.CreateRect("Crosshair", hudRoot);
-            MenuUiBuilder.SetAnchored(crosshair, new Vector2(0.5f, 0.5f), new Vector2(64f, 64f), Vector2.zero);
+            MenuUiBuilder.SetAnchored(crosshair, new Vector2(0.5f, 0.5f), new Vector2(18f, 18f), Vector2.zero);
 
-            var image = crosshair.gameObject.AddComponent<Image>();
-            image.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.Crosshair);
-            image.color = BattleUiTheme.Tok.Select;
-            image.raycastTarget = false;
+            Color fill = Color.white;
+            void Bar(string name, float w, float h)
+            {
+                var rect = MenuUiBuilder.CreateRect(name, crosshair);
+                rect.sizeDelta = new Vector2(w, h);
+                rect.anchoredPosition = Vector2.zero;
+                var img = rect.gameObject.AddComponent<Image>();
+                img.color = fill;
+                img.raycastTarget = false;
+                var outline = img.gameObject.AddComponent<UnityEngine.UI.Outline>();
+                outline.effectColor = new Color(0f, 0f, 0f, 0.55f);
+                outline.effectDistance = new Vector2(1f, -1f);
+            }
+            Bar("CrossH", 18f, 2f);
+            Bar("CrossV", 2f, 18f);
         }
 
         // ------------------------------------------------------------------

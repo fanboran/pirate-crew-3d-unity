@@ -384,16 +384,18 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>
         /// 由相机基向量把屏幕拖拽 (dx, dy) 映射成世界水平方向（已归一化，y = 0）。
-        /// <c>horiz = camRight.xz * (-dx) + camForward.xz * (-dy)</c>。
-        /// Godot 版硬编码为 <c>(-dx, 0, -dy)</c>，在相机 yaw 变化后会失真；本实现按相机基向量投影，
-        /// yaw = 0 时与其等价，yaw 变化时仍正确。
+        /// <c>horiz = camRight.xz * dx + camForward.xz * dy</c>（直接瞄准：拖向哪扔向哪）。
+        /// 相机 yaw 变化时映射随基向量旋转，预览与实弹永远同口径。
         /// </summary>
         public static Vector3 ScreenDragToArenaDirection(Vector3 cameraRight, Vector3 cameraForward, float dragX, float dragY)
         {
             Vector3 right = new Vector3(cameraRight.x, 0f, cameraRight.z);
             Vector3 forward = new Vector3(cameraForward.x, 0f, cameraForward.z);
 
-            Vector3 horiz = right * (-dragX) + forward * (-dragY);
+            // 【r12 用户裁决"拖向哪扔向哪"】玩家输入采用**直接瞄准**语义（拖拽方向=投掷方向），
+            // 不再做 Flash 弹弓取反（旧口径实测第一次上手就反，直觉性优先于原版输入习惯）；
+            // 预览与实弹共用本函数，口径仍唯一。
+            Vector3 horiz = right * dragX + forward * dragY;
             if (horiz.sqrMagnitude < 1e-12f)
                 return Vector3.zero;
 

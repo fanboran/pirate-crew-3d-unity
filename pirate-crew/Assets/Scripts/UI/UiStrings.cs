@@ -296,8 +296,8 @@ namespace PirateCrew.UI
         /// <summary>武器面板标题模板。</summary>
         public const string BattleWeaponPanelFormat = "{0} · 选择行动";
 
-        /// <summary>抛自己按钮。</summary>
-        public const string BattleThrowSelf = "抛自己";
+        /// <summary>抛自己按钮（r12 用户裁决：对外文案叫"跳跃"，机制仍是抛出自己）。</summary>
+        public const string BattleThrowSelf = "跳跃";
 
         /// <summary>结束回合按钮。</summary>
         public const string BattleEndGo = "结束回合";
@@ -454,7 +454,7 @@ namespace PirateCrew.UI
         // ==================================================================
 
         /// <summary>无法投掷。</summary>
-        public const string ErrorNoThrow = "该船员本回合不能再抛自己了。";
+        public const string ErrorNoThrow = "该船员本回合不能再跳跃了。";
 
         /// <summary>落水警告。</summary>
         public const string ErrorWater = "危险：这里落水会直接出局！";
