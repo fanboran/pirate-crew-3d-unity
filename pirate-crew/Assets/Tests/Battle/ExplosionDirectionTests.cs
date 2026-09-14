@@ -21,7 +21,7 @@ namespace PirateCrew.PirateCrew.Battle.Tests
     {
         const float Size = 100f;        // radius = 100/2 + 20 = 70
         const float MaxDamage = 50f;
-        const float Scale = LevelGeometry.FlashSpeedScale;   // 0.78125
+        const float Scale = LevelGeometry.FlashSpeedScale;   // 1.5625（= 1/(16×0.04)，格 1→2 单位后由 0.78125 ×2）
 
         static ExplosionResult ResolveOne(float cx, float cy, float tx, float ty)
         {
@@ -57,7 +57,7 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             UnityEngine.Vector3 dv = ToWorldDelta(hit);
             Assert.AreEqual(0f, dv.x, 1e-5f);
             Assert.AreEqual(0f, dv.z, 1e-5f);
-            Assert.AreEqual(14.0625f, dv.y, 1e-4f);
+            Assert.AreEqual(28.125f, dv.y, 1e-4f, "18（Flash px/帧）× FlashSpeedScale 1.5625 = 28.125");
             Assert.Greater(dv.y, 0f, "爆炸必须把人往上掀（世界 +Y）");
         }
 

@@ -26,7 +26,9 @@ namespace PirateCrew.PirateCrew.Water.Tests
             float dt = 1f / 60f;
             float cfl = WaterSimRules.CflNumber(cfg.WaveSpeed, dt, cfg.Dx);
 
-            Assert.AreEqual(0.30f, cfl, 0.005f);
+            // 格 1→2 单位后默认域格距 Dx = 128/128 = 1.0 世界单位（旧 0.5），
+            // 波速 c=9 不变 → C = 9×(1/60)/1.0 = 0.15，仍远低于 CflLimit ≈ 0.495（数值验证稳定）。
+            Assert.AreEqual(0.15f, cfl, 0.005f);
             Assert.IsTrue(WaterSimRules.IsStable(cfg.WaveSpeed, dt, cfg.Dx));
             Assert.IsTrue(cfl <= WaterSimRules.CflLimit);
         }

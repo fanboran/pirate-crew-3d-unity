@@ -64,17 +64,18 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         {
             TileTerrainGrid grid = TerrainCatalog.Build(1, 50, 17);
 
-            // 单块 8px = 0.25 世界单位（TerrainCatalog.DefaultBlockWorldHeight）。
-            Assert.AreEqual(0.25f, grid.BlockWorldHeight, 1e-6f);
+            // 单块 8px = 8/16 = 0.5 世界单位（TerrainCatalog.DefaultBlockWorldHeight；格 1→2 单位后由 0.25 ×2）。
+            Assert.AreEqual(0.5f, grid.BlockWorldHeight, 1e-6f);
 
-            // 平台地面：地表 = 总块高 × 0.25（草岛 13 块 → 3.25；左船体 5 块 → 1.25）。
-            Assert.AreEqual(LevelGeometry.GroundTopY + 3.25f, grid.SurfaceWorldY(24, 5), 1e-5f);
-            Assert.AreEqual(LevelGeometry.GroundTopY + 1.25f, grid.SurfaceWorldY(17, 10), 1e-5f);
+            // 平台地面：地表 = 总块高 × 0.5（草岛 13 块 → 6.5；左船体 5 块 → 2.5）。
+            Assert.AreEqual(LevelGeometry.GroundTopY + 6.5f, grid.SurfaceWorldY(24, 5), 1e-5f);
+            Assert.AreEqual(LevelGeometry.GroundTopY + 2.5f, grid.SurfaceWorldY(17, 10), 1e-5f);
 
-            // 水格（(21,8) 海面）：游戏性查询返回虚空哨兵（低于水面），使 AI 投掷模拟走落水分支。
-            Assert.Less(grid.SurfaceWorldYAtWorld(21.5f, 8.5f), LevelGeometry.WaterSurfaceY,
+            // 水格（(21,8) 海面，格心世界 (44,17) = TileCenterWorld(21,8)）：游戏性查询返回虚空哨兵
+            //（低于水面），使 AI 投掷模拟走落水分支。
+            Assert.Less(grid.SurfaceWorldYAtWorld(44f, 17f), LevelGeometry.WaterSurfaceY,
                 "水格地表必须低于水面，否则 AI 落水判定失效");
-            Assert.AreEqual(TileTerrainGrid.WaterVoidY, grid.SurfaceWorldYAtWorld(21.5f, 8.5f), 1e-6f);
+            Assert.AreEqual(TileTerrainGrid.WaterVoidY, grid.SurfaceWorldYAtWorld(44f, 17f), 1e-6f);
 
             // 出生位安全（原版 8 个出生位都站在自己那座岛的甲板/草地上）。
             Assert.IsTrue(TerrainCatalog.IsPlatformSpawnSafe(grid, 17, 10), "红队 (17,10) 在左船体甲板上");
@@ -165,11 +166,13 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             var blocks = new int[5 * 5];
             for (int i = 0; i < blocks.Length; i++)
                 blocks[i] = 4;
-            var grid = new TileTerrainGrid(5, 5, blocks, 0.25f);
+            var grid = new TileTerrainGrid(5, 5, blocks, 0.5f);
 
             var destroyed = new System.Collections.Generic.List<int>();
-            // 爆心在格 (2,2) 中心的地面高度；半径 1.2 → 命中正交 4 邻 + 自身，共 5 格。
-            int count = grid.DestroyInRadius(new Vector3(2.5f, 0f, 2.5f), 1.2f, destroyed);
+            // 爆心在格 (2,2) 的格心（格 1→2 单位后 TileCenterWorld(2,2) = (5,5)；格心高度 =
+            // 4 块 × 0.5 × 0.5 = 1.0）；半径 2.2 → 命中正交 4 邻 + 自身，共 5 格
+            //（正交 3D 距离 2.0 ≤ 2.2；对角 2.83 > 2.2 不命中）。
+            int count = grid.DestroyInRadius(new Vector3(5f, 1f, 5f), 2.2f, destroyed);
 
             Assert.AreEqual(5, count);
             Assert.AreEqual(5, destroyed.Count);
@@ -178,7 +181,7 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             Assert.AreEqual(0, grid.BlocksAt(2, 1));
             Assert.AreEqual(0, grid.BlocksAt(3, 2));
             Assert.AreEqual(0, grid.BlocksAt(2, 3));
-            Assert.AreEqual(4, grid.BlocksAt(3, 3), "对角（3D 距离 1.5 > 1.2）不应被摧毁");
+            Assert.AreEqual(4, grid.BlocksAt(3, 3), "对角（3D 距离 2.83 > 2.2）不应被摧毁");
         }
 
         [Test]

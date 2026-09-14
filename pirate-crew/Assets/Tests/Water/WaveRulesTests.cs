@@ -19,12 +19,13 @@ namespace PirateCrew.PirateCrew.Water.Tests
         // ------------------------------------------------------------------
 
         [Test]
-        public void Defaults_ShortestCrestSpacingAtLeastTwoUnits()
+        public void Defaults_ShortestCrestSpacingAtLeastFourUnits()
         {
-            // 协调者口径：波峰间距不宜小于 2 单位，否则单位站上去像"踩碎浪"。
+            // 协调者口径：波峰间距不宜小于 4 单位（格 1→2 单位后由 2 ×2，WaterRules.MinCrestSpacing），
+            // 否则单位站上去像"踩碎浪"。默认最短波长 4.8（旧 2.4 ×2）。
             float min = WaterRules.MinWavelengthOf(Defaults);
             Assert.That(min, Is.GreaterThanOrEqualTo(WaterRules.MinCrestSpacing));
-            Assert.AreEqual(2.4f, min, 1e-4f);
+            Assert.AreEqual(4.8f, min, 1e-4f);
         }
 
         [Test]
@@ -39,7 +40,8 @@ namespace PirateCrew.PirateCrew.Water.Tests
         [Test]
         public void Defaults_CrestStaysBelowGroundLevel()
         {
-            // 水面 y = -0.2，地面顶面 y = 0；振幅之和 0.139 < 0.2 → 浪尖(-0.061)仍在地面之下。
+            // 水面 y = -0.4（格 1→2 单位后由 -0.2 ×2），地面顶面 y = 0；
+            // 振幅之和 0.278 < 0.4 → 浪尖(-0.122)仍在地面之下。
             float ampSum = WaterRules.MaxAmplitude(Defaults);
             Assert.That(ampSum, Is.LessThan(Mathf.Abs(LevelGeometry.WaterSurfaceY)));
             Assert.That(LevelGeometry.WaterSurfaceY + ampSum, Is.LessThan(LevelGeometry.GroundTopY));

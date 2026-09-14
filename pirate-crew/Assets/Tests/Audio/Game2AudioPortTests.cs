@@ -15,6 +15,8 @@ namespace PirateCrew.Tests.Audio
     /// 所以这四条要对表逐项断言：
     ///   ① 每条映射至少有 1 个源文件，且变奏数与源文件数一致；
     ///   ② 源文件在 Game-2 目录里确实存在（源目录不在的机器上跳过——wav 已随工程提交）；
+    ///     上游重构后迁移走的源改查 <see cref="ArchivedSourceRelocations"/> 登记位置，
+    ///     并逐字节核对已搬运副本（见该表注释）。
     ///   ③ 每条映射的目标事件**确实被 AudioService 订阅**（或在表里明确标注为手动 API）；
     ///   ④ 每个变奏的目标资产都已落在 Resources/PirateCrewAudio。
     /// </summary>
@@ -188,6 +190,27 @@ namespace PirateCrew.Tests.Audio
         // ② / ④ 源文件与目标资产都存在
         // ------------------------------------------------------------------
 
+        /// <summary>
+        /// 已知**上游迁移**的源文件登记表（测试侧，键 = 搬运表里的源相对路径）。
+        ///
+        /// 【2026-09-14 核对结论】BedPad 的源 <c>bgm/ambient_pad.wav</c> 在 game-2 的 bgm 系统
+        /// 重做（单文件垫底 → <c>music_manifest.json</c> 分层 OGG）后已从规范资产树移除；
+        /// 唯一残本在其构建备份快照里，且与本工程已搬运的目标资产 <c>AmbientBedPad.wav</c>
+        /// **逐字节相同**（MD5 4aa22883022587a05ff98a0455226141）——搬运本身无损，
+        /// 只是上游没有正本了。故对这类源：注册路径找不到时改查迁移登记位置，
+        /// 并**逐字节**核对该残本与已搬运目标资产一致（残本损坏 = 目标也不可信）。
+        /// 快照位于 .temp 临时区，若哪天也被清理，本测试会失败并把
+        /// 「BedPad 原源彻底丢失」顶到台面上，由协调者重新裁决。
+        /// </summary>
+        static readonly Dictionary<string, string> ArchivedSourceRelocations =
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                {
+                    "bgm/ambient_pad.wav",
+                    "F:/VSCode/game-2/.temp/building-pipeline-v2/.temp/_restore_morning/stick-world/assets/audio/bgm/ambient_pad.wav"
+                },
+            };
+
         [Test]
         public void Port_SourcesExistInGame2Checkout()
         {
@@ -202,9 +225,50 @@ namespace PirateCrew.Tests.Audio
                 for (int i = 0; i < port.Sources.Length; i++)
                 {
                     string path = RelativeToPlatform(Game2AudioAssets.SourcePath(port, i));
-                    Assert.That(File.Exists(path), Is.True, port.Id + " 的源文件不存在: " + path);
+                    if (File.Exists(path))
+                        continue;
+
+                    // 源在注册路径不存在：若是已登记的上游迁移（如 BedPad），改查迁移位置，
+                    // 并要求它与本工程已搬运的目标资产逐字节相同（源以"已搬运副本"的形式存续）。
+                    string relocated;
+                    if (ArchivedSourceRelocations.TryGetValue(port.Sources[i], out relocated)
+                        && File.Exists(RelativeToPlatform(relocated)))
+                    {
+                        AssertSourceMatchesPortedTarget(port, relocated);
+                        continue;
+                    }
+
+                    Assert.That(File.Exists(path), Is.True,
+                        port.Id + " 的源文件不存在（且不在上游迁移登记表里）: " + path);
                 }
             }
+        }
+
+        /// <summary>迁移残本必须与已搬运的目标资产逐字节相同——否则搬运数据已不可信。</summary>
+        static void AssertSourceMatchesPortedTarget(Game2Port port, string relocatedPath)
+        {
+            string root = FindProjectRoot();
+            Assert.That(root, Is.Not.Null, "找不到工程根，无法核对 " + port.Id + " 的已搬运资产");
+
+            string targetPath = Path.Combine(root, "Assets", "Resources", "PirateCrewAudio",
+                Game2AudioAssets.TargetFileName(port.Id, 0) + ".wav");
+
+            Assert.That(File.Exists(targetPath), Is.True,
+                port.Id + " 的目标资产缺失（运行时会回落到程序化合成）: " + targetPath);
+
+            byte[] sourceHash;
+            using (var stream = File.OpenRead(RelativeToPlatform(relocatedPath)))
+                sourceHash = System.Security.Cryptography.SHA256.Create()
+                    .ComputeHash(stream);
+
+            byte[] targetHash;
+            using (var stream = File.OpenRead(targetPath))
+                targetHash = System.Security.Cryptography.SHA256.Create()
+                    .ComputeHash(stream);
+
+            Assert.That(Convert.ToBase64String(sourceHash),
+                Is.EqualTo(Convert.ToBase64String(targetHash)),
+                port.Id + " 的上游残本与已搬运资产不一致（搬运数据被改动过）");
         }
 
         [Test]

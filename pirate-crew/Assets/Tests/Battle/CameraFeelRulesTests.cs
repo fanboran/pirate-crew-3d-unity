@@ -410,24 +410,26 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         [Test]
         public void CloseUpPreset_IsWithinUserRuledRanges()
         {
-            // 裁决：特写距离 5–7、俯角 25–35°。
-            Assert.That(BattleCameraController.CloseUpDistance, Is.InRange(5f, 7f), "特写档距离应在 5–7");
+            // 裁决：特写俯角 25–35°；距离区间 = 旧 5–7 ×2 = 10–14
+            // （相机取景按「看同样的格数」等比放大：格 1→2 单位后档位距离一律 ×2，
+            //  见 BattleCameraController.cs:44 与 CloseUpDistance=12 的类头注释）。
+            Assert.That(BattleCameraController.CloseUpDistance, Is.InRange(10f, 14f), "特写档距离应在 10–14（旧 5–7 ×2）");
             Assert.That(BattleCameraController.CloseUpPitchDegrees, Is.InRange(25f, 35f), "特写档俯角应在 25–35°");
         }
 
         [Test]
-        public void FullFieldPreset_KeepsLegacy45DegreesAtDistance15()
+        public void FullFieldPreset_KeepsLegacy45DegreesAtDistance30()
         {
-            // 裁决：滚轮后拉可到旧的 45° 全场视角（距离 15）。
-            Assert.AreEqual(15f, BattleCameraController.FullFieldDistance, 1e-4f);
+            // 裁决：滚轮后拉可到旧的 45° 全场视角；格 1→2 单位后距离由 15 ×2 = 30（俯角 45° 不变）。
+            Assert.AreEqual(30f, BattleCameraController.FullFieldDistance, 1e-4f);
             Assert.AreEqual(45f, BattleCameraController.FullFieldPitchDegrees, 1e-4f);
         }
 
         [Test]
-        public void ZoomBounds_AllowPushInToThreeAndPullBackToTwentyFive()
+        public void ZoomBounds_AllowPushInToSixAndPullBackToFifty()
         {
-            Assert.AreEqual(3f, BattleCameraController.MinManualDistance, 1e-4f, "前推最近 3");
-            Assert.AreEqual(25f, BattleCameraController.MaxManualDistance, 1e-4f, "后拉最远 25");
+            Assert.AreEqual(6f, BattleCameraController.MinManualDistance, 1e-4f, "前推最近 6（旧 3 ×2）");
+            Assert.AreEqual(50f, BattleCameraController.MaxManualDistance, 1e-4f, "后拉最远 50（旧 25 ×2）");
             // 特写档与全场档都必须落在可用缩放区间内。
             Assert.That(BattleCameraController.CloseUpDistance,
                 Is.InRange(BattleCameraController.MinManualDistance, BattleCameraController.MaxManualDistance));

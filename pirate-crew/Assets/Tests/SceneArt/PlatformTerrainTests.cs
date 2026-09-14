@@ -142,11 +142,14 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             }
 
             // 原版读数：西侧草岛（x23–28）顶行 4 → 12 块基准 → 13 块总高；
-            // 左船体甲板（x0–18）顶行 11 → 4 块基准 → 5 块总高。两座岛的高差 = 2 世界单位。
+            // 左船体甲板（x0–18）顶行 11 → 4 块基准 → 5 块总高。
+            // 【2026-09-14 修复】单块世界高度 = 0.5 单位（TerrainCatalog.DefaultBlockWorldHeight =
+            // PixelsToUnits(8)，格 1→2 世界单位后随格放大），地表 = 块数 × 0.5；
+            // 旧期望 1.25/3.25 是 0.25 时代的口径。两座岛的高差 = (13−5)×0.5 = 4 世界单位。
             Assert.AreEqual(13, grid.BlocksAt(24, 5), "(24,5) 属西侧草岛 → 13 块");
             Assert.AreEqual(5, grid.BlocksAt(17, 10), "(17,10) 属左船体 → 5 块");
-            Assert.AreEqual(1.25f, grid.SurfaceWorldY(17, 10), 1e-5f, "左船体地表 = 1.25 世界单位");
-            Assert.AreEqual(3.25f, grid.SurfaceWorldY(24, 5), 1e-5f, "西侧草岛地表 = 3.25 世界单位");
+            Assert.AreEqual(2.5f, grid.SurfaceWorldY(17, 10), 1e-5f, "左船体地表 = 2.5 世界单位");
+            Assert.AreEqual(6.5f, grid.SurfaceWorldY(24, 5), 1e-5f, "西侧草岛地表 = 6.5 世界单位");
         }
 
         [Test]
@@ -184,7 +187,12 @@ namespace PirateCrew.PirateCrew.Battle.Tests
 
             Assert.AreEqual(0, grid.BlocksAt(17, 10));
             Assert.IsFalse(grid.IsGroundAt(17, 10), "平台被炸空后该格应变成水");
-            Assert.Less(grid.SurfaceWorldYAtWorld(17.5f, 10.5f), LevelGeometry.WaterSurfaceY);
+            // 【2026-09-14 修复：格→世界换算】SurfaceWorldYAtWorld 收世界坐标；
+            // (17,10) 格中心的世界坐标 = TileToWorld(格号+0.5) = (35, 21)
+            // （1 格 = 2 世界单位，旧断言把格号当世界坐标会查到 (8,5) 那格）。
+            Assert.Less(
+                grid.SurfaceWorldYAtWorld(LevelGeometry.TileToWorld(17.5f), LevelGeometry.TileToWorld(10.5f)),
+                LevelGeometry.WaterSurfaceY);
         }
 
         [Test]
@@ -192,9 +200,18 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         {
             TileTerrainGrid grid = Level1();
 
-            // 中央沙洲（岛 6：x20–39 / gridZ 8–12）内部炸一发：命中范围内整格清零。
+            // 中央沙洲（岛 6：包络 x[20,39] / z[8,12]，但包络只是包围盒——实际地面集中在
+            // gridZ=11/12 两行，gridZ=10 在岛中部是水）内部炸一发：命中范围内整格清零。
+            // 【2026-09-14 修复：格→世界换算】DestroyInRadius 收世界坐标；爆心取沙洲地面格 (30,11)
+            // 的格中心世界坐标（TileToWorld(30.5), TileToWorld(11.5) = (61, 23)），高度取该格
+            // 地表（DestroyInRadius 的格心高度 = 簇基准 + 局部堆高一半，距地表 0.25 < 半径 1.2，
+            // 见 TileTerrainGrid.cs:423-428）；旧断言把格号当世界坐标，实际炸在了 (15,5) 附近的水/桅区。
+            Assert.IsTrue(grid.IsGroundAt(30, 11), "(30,11) 应是沙洲地面格（gridZ=10 中部是水）");
+            float centerY = grid.SurfaceWorldY(30, 11);
             var destroyed = new List<int>();
-            int count = grid.DestroyInRadius(new Vector3(30.5f, 1.5f, 10.5f), 1.2f, destroyed);
+            int count = grid.DestroyInRadius(
+                new Vector3(LevelGeometry.TileToWorld(30.5f), centerY, LevelGeometry.TileToWorld(11.5f)),
+                1.2f, destroyed);
 
             Assert.Greater(count, 0, "沙洲上炸一发应至少摧毁 1 格");
             Assert.AreEqual(count, destroyed.Count);

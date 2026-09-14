@@ -15,7 +15,7 @@ namespace PirateCrew.PirateCrew.Water.Tests
         [Test]
         public void IsObstacle_FollowsTerrainHeightRelativeToWater()
         {
-            // 4×4 网格：只有 (1,1) 堆了 8 块（8×0.25 = 2.0 单位高）。
+            // 4×4 网格：只有 (1,1) 堆了 8 块（8×0.25 = 2.0 单位高，块高为本测试自定参数）。
             var blocks = new int[16];
             blocks[1 + 1 * 4] = 8;
             var grid = new TileTerrainGrid(4, 4, blocks, 0.25f);
@@ -24,9 +24,10 @@ namespace PirateCrew.PirateCrew.Water.Tests
             const float waterY = 1.0f;
             const float arenaW = 4f, arenaD = 4f;
 
-            // 抽格：柱心 (1.5, 1.5) → 障碍；平地格心 (0.5, 0.5) → 非障碍。
-            Assert.IsTrue(ObstacleMapRules.IsObstacleAt(grid, 1.5f, 1.5f, waterY, arenaW, arenaD));
-            Assert.IsFalse(ObstacleMapRules.IsObstacleAt(grid, 0.5f, 0.5f, waterY, arenaW, arenaD));
+            // 抽格：格 1→2 单位后格心 = TileCenterWorld，柱心 (1,1) → (3,3) → 障碍；
+            // 平地格心 (0,0) → (1,1) → 非障碍。
+            Assert.IsTrue(ObstacleMapRules.IsObstacleAt(grid, 3f, 3f, waterY, arenaW, arenaD));
+            Assert.IsFalse(ObstacleMapRules.IsObstacleAt(grid, 1f, 1f, waterY, arenaW, arenaD));
         }
 
         [Test]

@@ -326,12 +326,22 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
 
             // 【为什么不再限制 y 窗口】岛高来自原版行号（level_1 最低的船体甲板也有 1.25 世界单位），
             // 固定窗口会漏掉整段墙。这里只按墙平面（x）与 Z 跨度取顶点，看横向偏移是否有多种。
+            //
+            // 【2026-09-14 修复：格号必须换算成世界坐标】1 瓦片 = 2 世界单位（LevelGeometry.TileWorldSize），
+            // 旧断言拿格号直接比世界 x/z（墙实际在 x = 格号×2 处），窗口内永远筛不到顶点。
+            float wallWorldX = LevelGeometry.TileToWorld(wallX);        // 西侧墙面的世界 x 平面
+            float wallWorldZ0 = LevelGeometry.TileToWorld(wallZ0);
+            float wallWorldZ1 = LevelGeometry.TileToWorld(wallZ1 + 1);  // 行号 → 世界 z 取格子上缘
+
             var xs = new HashSet<int>();
             Vector3[] v = shell.ToVertices();
             for (int i = 0; i < v.Length; i++)
             {
-                if (Mathf.Abs(v[i].x - wallX) < 0.25f
-                    && v[i].z > wallZ0 - 0.5f && v[i].z < wallZ1 + 1.5f)
+                // 西侧墙面贴在 x=wallWorldX 平面上，剪影扰动只向岛内（+X）偏移，
+                // 幅度上限 = BoundaryJitter(0.16) + 凹缝 LayerRecess(0.08)（IslandShellSettings.Default），
+                // 窗口放宽到 +0.5 也碰不到下一列的墙（列间距 = TileWorldSize = 2）。
+                if (v[i].x > wallWorldX - 0.25f && v[i].x < wallWorldX + 0.5f
+                    && v[i].z > wallWorldZ0 - 0.25f && v[i].z < wallWorldZ1 + 0.25f)
                 {
                     xs.Add(Mathf.RoundToInt(v[i].x * 1000f));
                 }

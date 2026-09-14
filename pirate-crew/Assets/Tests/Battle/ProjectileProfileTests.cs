@@ -13,38 +13,38 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         static WeaponStats Stats(WeaponId id) => WeaponCatalog.Get(id);
 
         // ------------------------------------------------------------------
-        // AABB → Collider 半尺寸（1 单位 = 32px）
+        // AABB → Collider 半尺寸（1 单位 = 16px，格 1→2 单位后 PixelsPerUnit=16）
         // ------------------------------------------------------------------
 
         [Test]
-        public void Cannonball_Aabb10px_BecomesHalfWidth0Point3125()
+        public void Cannonball_Aabb10px_BecomesHalfWidth0Point625()
         {
             ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.Cannonball));
-            // 10 / 32 = 0.3125；全宽 0.625
-            Assert.AreEqual(0.3125f, p.HalfWidth, 1e-6f);
-            Assert.AreEqual(0.3125f, p.HalfHeight, 1e-6f);
-            Assert.AreEqual(0.625f, p.ColliderWidth, 1e-6f);
-            Assert.AreEqual(0.625f, p.ColliderHeight, 1e-6f);
+            // 10 / 16 = 0.625；全宽 1.25
+            Assert.AreEqual(0.625f, p.HalfWidth, 1e-6f);
+            Assert.AreEqual(0.625f, p.HalfHeight, 1e-6f);
+            Assert.AreEqual(1.25f, p.ColliderWidth, 1e-6f);
+            Assert.AreEqual(1.25f, p.ColliderHeight, 1e-6f);
             Assert.AreEqual(ProjectileShape.Sphere, p.Shape);
         }
 
         [Test]
-        public void Boulder_Aabb31px_BecomesHalfWidth0Point96875()
+        public void Boulder_Aabb31px_BecomesHalfWidth1Point9375()
         {
             ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.Boulder));
-            // 31 / 32 = 0.96875
-            Assert.AreEqual(0.96875f, p.HalfWidth, 1e-6f);
+            // 31 / 16 = 1.9375
+            Assert.AreEqual(1.9375f, p.HalfWidth, 1e-6f);
         }
 
         [Test]
         public void GunpowderBarrel_IsBox_WithVerticalRadius15px()
         {
             ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.GunpowderBarrel));
-            // 水平 16/32 = 0.5；垂直 15/32 = 0.46875；全宽 1.0、全高 0.9375
-            Assert.AreEqual(0.5f, p.HalfWidth, 1e-6f);
-            Assert.AreEqual(0.46875f, p.HalfHeight, 1e-6f);
-            Assert.AreEqual(1.0f, p.ColliderWidth, 1e-6f);
-            Assert.AreEqual(0.9375f, p.ColliderHeight, 1e-6f);
+            // 水平 16/16 = 1.0；垂直 15/16 = 0.9375；全宽 2.0、全高 1.875
+            Assert.AreEqual(1.0f, p.HalfWidth, 1e-6f);
+            Assert.AreEqual(0.9375f, p.HalfHeight, 1e-6f);
+            Assert.AreEqual(2.0f, p.ColliderWidth, 1e-6f);
+            Assert.AreEqual(1.875f, p.ColliderHeight, 1e-6f);
             Assert.AreEqual(ProjectileShape.Box, p.Shape);
         }
 
@@ -52,8 +52,8 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         public void WoodenCrate_IsBox_SameAabbAsBarrel()
         {
             ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.WoodenCrate));
-            Assert.AreEqual(0.5f, p.HalfWidth, 1e-6f);
-            Assert.AreEqual(0.46875f, p.HalfHeight, 1e-6f);
+            Assert.AreEqual(1.0f, p.HalfWidth, 1e-6f);
+            Assert.AreEqual(0.9375f, p.HalfHeight, 1e-6f);
             Assert.AreEqual(ProjectileShape.Box, p.Shape);
         }
 
@@ -265,22 +265,23 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         public void FallbackHalfSize_UsedWhenAabbIsMissing()
         {
             // §5.2 里 seagull / tidalWave / voodooDoll / cannon / SweepingFlame 的 AABB 各格为「—」。
-            // 兜底 8px = 0.25 世界单位（提案/待定）。
+            // 兜底 8px = 8/16 = 0.5 世界单位（提案/待定；格 1→2 单位后由 0.25 ×2）。
             Assert.AreEqual(8f, ProjectileProfile.HorizontalHalfSizePixels(Stats(WeaponId.Seagull)), 1e-6f);
             ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.VoodooDoll));
-            Assert.AreEqual(0.25f, p.HalfWidth, 1e-6f);
-            Assert.AreEqual(0.25f, p.HalfHeight, 1e-6f);
+            Assert.AreEqual(0.5f, p.HalfWidth, 1e-6f);
+            Assert.AreEqual(0.5f, p.HalfHeight, 1e-6f);
         }
 
         [Test]
         public void Anchor_HasExplicitAabb48By96()
         {
             // §5.2 anchor：l/r=48、top=96、bottom=0 —— 使用显式 AABB，不走兜底。
+            // 世界半尺寸 = px / PixelsPerUnit(16)：48/16 = 3、96/16 = 6。
             Assert.AreEqual(48f, ProjectileProfile.HorizontalHalfSizePixels(Stats(WeaponId.Anchor)), 1e-6f);
             Assert.AreEqual(96f, ProjectileProfile.VerticalHalfSizePixels(Stats(WeaponId.Anchor)), 1e-6f);
             ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.Anchor));
-            Assert.AreEqual(1.5f, p.HalfWidth, 1e-6f);
-            Assert.AreEqual(3f, p.HalfHeight, 1e-6f);
+            Assert.AreEqual(3f, p.HalfWidth, 1e-6f);
+            Assert.AreEqual(6f, p.HalfHeight, 1e-6f);
         }
 
         [Test]

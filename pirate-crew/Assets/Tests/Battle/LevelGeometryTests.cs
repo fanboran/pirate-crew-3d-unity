@@ -16,50 +16,52 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         // ------------------------------------------------------------------
 
         [Test]
-        public void PixelsToUnits_ThirtyTwoPixels_IsOneUnit()
+        public void PixelsToUnits_ThirtyTwoPixels_IsTwoUnits()
         {
-            // 决策 1：1 瓦片 = 32px = 1 单位。
-            Assert.AreEqual(1f, LevelGeometry.PixelsToUnits(32f), 1e-6f);
+            // 决策 1：1 瓦片 = 32px；格 1→2 单位后 1 瓦片 = 2 世界单位（LevelGeometry.TileWorldSize=2，
+            // PixelsPerUnit = 32/2 = 16）。故 32px = 32/16 = 2 单位。
+            Assert.AreEqual(2f, LevelGeometry.PixelsToUnits(32f), 1e-6f);
         }
 
         [Test]
         public void PixelToArena_MapsPxToWorldXZ()
         {
             // 3D 重投影：Flash 的 px → 世界 X，py → 世界 Z（纵深，**不取负**），高度恒为地面顶面 0。
-            // (64px, 96px) → (64/32, 0, 96/32) = (2, 0, 3)
+            // (64px, 96px) → (64/16, 0, 96/16) = (4, 0, 6)。
             Vector3 world = LevelGeometry.PixelToArena(64f, 96f);
-            Assert.AreEqual(2f, world.x, 1e-6f);
+            Assert.AreEqual(4f, world.x, 1e-6f);
             Assert.AreEqual(0f, world.y, 1e-6f);
-            Assert.AreEqual(3f, world.z, 1e-6f);
+            Assert.AreEqual(6f, world.z, 1e-6f);
         }
 
         [Test]
         public void GridToArena_MatchesSection4_3Formula()
         {
-            // §4.3：世界 X = gridX + 0.5、Z = gridY + 0.5、Y = 地面 + UnitPivotHeight（脚底贴地）。
-            // gridX=17 → 17.5；gridY=10 → 10.5；Y = 0 + 0.25 = 0.25。
+            // §4.3：世界 X = (gridX + 0.5) × TileWorldSize(2)、Z 同理、Y = 地面 + UnitPivotHeight（脚底贴地）。
+            // gridX=17 → 17.5×2 = 35；gridY=10 → 10.5×2 = 21；Y = 0 + 0.5 = 0.5。
             Vector3 world = LevelGeometry.GridToArena(17, 10);
-            Assert.AreEqual(17.5f, world.x, 1e-5f);
-            Assert.AreEqual(0.25f, world.y, 1e-5f);
-            Assert.AreEqual(10.5f, world.z, 1e-5f);
+            Assert.AreEqual(35f, world.x, 1e-5f);
+            Assert.AreEqual(0.5f, world.y, 1e-5f);
+            Assert.AreEqual(21f, world.z, 1e-5f);
 
-            // UnitPivotHeight = PixelsToUnits(16 - BottomExtent=8) = 8/32 = 0.25。
-            Assert.AreEqual(0.25f, LevelGeometry.UnitPivotHeight, 1e-5f);
+            // UnitPivotHeight = PixelsToUnits(16 - BottomExtent=8) = 8/16 = 0.5（半格内偏移随格世界尺寸放大）。
+            Assert.AreEqual(0.5f, LevelGeometry.UnitPivotHeight, 1e-5f);
         }
 
         [Test]
         public void ArenaToPixel_IsInverseOfPixelToArena_AndIgnoresHeight()
         {
-            // (560px, 344px) → (17.5, 0, 10.75) → 回读仍是 (560, 344)。
+            // (560px, 344px) → (35, 0, 21.5) → 回读仍是 (560, 344)。
             Vector3 world = LevelGeometry.PixelToArena(560f, 344f);
             Vector2 px = LevelGeometry.ArenaToPixel(world);
             Assert.AreEqual(560f, px.x, 1e-4f);
             Assert.AreEqual(344f, px.y, 1e-4f);
 
             // ArenaToPixel 只看平面分量：高度 y 不参与（爆炸的 3D 距离另行按高度处理）。
+            // (2, 123, 3) → (2×16, 3×16) = (32, 48)。
             Vector2 planar = LevelGeometry.ArenaToPixel(new Vector3(2f, 123f, 3f));
-            Assert.AreEqual(64f, planar.x, 1e-4f);
-            Assert.AreEqual(96f, planar.y, 1e-4f);
+            Assert.AreEqual(32f, planar.x, 1e-4f);
+            Assert.AreEqual(48f, planar.y, 1e-4f);
         }
 
         // ------------------------------------------------------------------
@@ -67,10 +69,11 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         // ------------------------------------------------------------------
 
         [Test]
-        public void WaterSurfaceY_IsGlobalMinusPointTwo()
+        public void WaterSurfaceY_IsGlobalMinusPointFour()
         {
-            // §4.4 3D 化：水面改为全局常量 WaterSurfaceY = -0.2，不再由关卡 waterTileY 推出。
-            Assert.AreEqual(-0.2f, LevelGeometry.WaterSurfaceY, 1e-5f);
+            // §4.4 3D 化：水面改为全局常量 WaterSurfaceY = -0.4（比地面低 0.4 单位 = 6.4px，
+            // 格 1→2 单位后由 -0.2 乘 2；LevelGeometry.cs:197），不再由关卡 waterTileY 推出。
+            Assert.AreEqual(-0.4f, LevelGeometry.WaterSurfaceY, 1e-5f);
         }
 
         [Test]
@@ -88,17 +91,18 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         // ------------------------------------------------------------------
 
         [Test]
-        public void FlashSpeedScale_IsZeroPoint78125()
+        public void FlashSpeedScale_IsOnePoint5625()
         {
-            // 1 / (32 * 0.04) = 1 / 1.28 = 0.78125
-            Assert.AreEqual(0.78125f, LevelGeometry.FlashSpeedScale, 1e-7f);
+            // 1 / (16 * 0.04) = 1 / 0.64 = 1.5625（格 1→2 单位后 PixelsPerUnit 32→16，比例由 0.78125 翻倍）。
+            Assert.AreEqual(1.5625f, LevelGeometry.FlashSpeedScale, 1e-7f);
         }
 
         [Test]
-        public void WorldGravityY_WeightOne_IsMinus19Point53125()
+        public void WorldGravityY_WeightOne_IsMinus39Point0625()
         {
-            // -1 / (32 * 0.04^2) = -1 / 0.0512 = -19.53125；重力沿 -Y，与水平面正交。
-            Assert.AreEqual(-19.53125f, LevelGeometry.WorldGravityY(1f), 1e-5f);
+            // -1 / (16 * 0.04^2) = -1 / 0.0256 = -39.0625；重力沿 -Y，与水平面正交
+            // （格 1→2 单位后由 -19.53125 乘 2，LevelGeometry.WorldGravityY）。
+            Assert.AreEqual(-39.0625f, LevelGeometry.WorldGravityY(1f), 1e-5f);
         }
 
         [Test]
@@ -106,11 +110,11 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         {
             // 3D 重投影：Flash 平面速度 (vx, vy) → 世界 (X, Z)，高度分量恒为 0
             // （仰角由 ApplyThrowLift 提供，不由 Flash 平面速度提供）。
-            // vx=4 → 4*0.78125 = 3.125；vy=10 → 10*0.78125 = 7.8125。
+            // vx=4 → 4×1.5625 = 6.25；vy=10 → 10×1.5625 = 15.625。
             Vector3 v = LevelGeometry.FlashVelocityToArena(4f, 10f);
-            Assert.AreEqual(3.125f, v.x, 1e-5f);
+            Assert.AreEqual(6.25f, v.x, 1e-5f);
             Assert.AreEqual(0f, v.y, 1e-5f);
-            Assert.AreEqual(7.8125f, v.z, 1e-5f);
+            Assert.AreEqual(15.625f, v.z, 1e-5f);
         }
 
         [Test]
@@ -119,11 +123,11 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             // 击退/爆炸的速度增量同样落在平面：Flash (dvx, dvy) → 世界 (X, Z)，y = 0。
             // §5 的 3D 化：原先塞在 vy 里的 -6k 抬升项改由 ExplosionResolver 的三维泛化
             // 作为独立的 +Y 输出（见 docs/M2-3D空间模型对齐.md §5），本函数只管平面两分量。
-            // dvx=2 → 1.5625；dvy=-6 → -4.6875。
+            // dvx=2 → 3.125；dvy=-6 → -9.375。
             Vector3 dv = LevelGeometry.FlashVelocityDeltaToArena(2f, -6f);
-            Assert.AreEqual(1.5625f, dv.x, 1e-5f);
+            Assert.AreEqual(3.125f, dv.x, 1e-5f);
             Assert.AreEqual(0f, dv.y, 1e-6f);
-            Assert.AreEqual(-4.6875f, dv.z, 1e-5f);
+            Assert.AreEqual(-9.375f, dv.z, 1e-5f);
         }
 
         // ------------------------------------------------------------------
@@ -182,7 +186,7 @@ namespace PirateCrew.PirateCrew.Battle.Tests
             Vector3 v = LevelGeometry.FlashLaunchVelocityToWorld(vx, vy);
 
             Assert.AreEqual(speed * LevelGeometry.FlashSpeedScale, v.magnitude, 1e-5f);
-            Assert.AreEqual(speed / 1.28f, v.magnitude, 1e-4f);
+            Assert.AreEqual(speed / 0.64f, v.magnitude, 1e-4f);
             Assert.Greater(v.y, 0f, "含抬升的初速必须有向上的竖直分量");
 
             // 水平朝向 = Flash 平面速度 (vx, vy) 的方向；仰角 = atan(ThrowLift)。
@@ -268,17 +272,17 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         [Test]
         public void ThrowTrajectory_Predict_WithPhysXFrame_OnlyGravityActsOnY()
         {
-            // 用真实物理常数（dt = FrameSeconds = 1/25、g = WorldGravityY(1) = -19.53125）
+            // 用真实物理常数（dt = FrameSeconds = 1/25、g = WorldGravityY(1) = -39.0625）
             // 验证"预览 = 实弹"：重力只作用在 Y，水平面（XZ）匀速。
-            // g*dt = -0.78125 → 手算：
-            //   第 1 步：vy=-0.78125 → y=-0.03125；第 2 步：vy=-1.5625 → y=-0.09375；
-            //   第 3 步：vy=-2.34375 → y=-0.1875。x 每步 +10*0.04=0.4，z 恒为 0。
+            // g*dt = -1.5625 → 手算：
+            //   第 1 步：vy=-1.5625  → y=-0.0625；第 2 步：vy=-3.125 → y=-0.1875；
+            //   第 3 步：vy=-4.6875 → y=-0.375。x 每步 +10*0.04=0.4，z 恒为 0。
             var buffer = new Vector3[3];
             ThrowTrajectory.Predict(
                 Vector3.zero, new Vector3(10f, 0f, 0f), LevelGeometry.WorldGravityY(1f),
                 buffer, 3, LevelGeometry.FrameSeconds);
 
-            float[] expectedY = { -0.03125f, -0.09375f, -0.1875f };
+            float[] expectedY = { -0.0625f, -0.1875f, -0.375f };
             for (int i = 0; i < 3; i++)
             {
                 Assert.AreEqual(10f * LevelGeometry.FrameSeconds * (i + 1), buffer[i].x, 1e-5f,
@@ -293,8 +297,8 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         [Test]
         public void SelectionRadiusWorld_IsThirtyPixelsInUnits()
         {
-            // 30 / 32 = 0.9375
-            Assert.AreEqual(0.9375f, LevelGeometry.SelectionRadiusWorld, 1e-6f);
+            // 30 / 16 = 1.875（屏幕空间 30px 阈值不变，换算除数随 PixelsPerUnit 32→16 改）。
+            Assert.AreEqual(1.875f, LevelGeometry.SelectionRadiusWorld, 1e-6f);
         }
     }
 }

@@ -26,9 +26,10 @@ namespace PirateCrew.PirateCrew.Fx.Tests
         [Test]
         public void ExplosionRadiusWorld_Cannonball_MatchesSizeOverTwoPlusPadding()
         {
-            // cannonball size=100（WeaponCatalog.cs:130）→ radius=(50+20)px=70px → 70/32=2.1875u
+            // cannonball size=100（WeaponCatalog.cs:130）→ radius=(50+20)px=70px → 70/16=4.375u
+            //（1 单位 = 16px，格 1→2 单位后由 70/32=2.1875 ×2）。
             float radius = FxRules.ExplosionRadiusWorld(100f);
-            Assert.AreEqual(70f / 32f, radius, 1e-4f);
+            Assert.AreEqual(70f / 16f, radius, 1e-4f);
             Assert.AreEqual(1f, FxRules.ExplosionVisualScale(100f), 1e-4f, "cannonball 是基准，缩放应为 1");
         }
 

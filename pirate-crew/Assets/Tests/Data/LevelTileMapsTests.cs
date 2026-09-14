@@ -316,8 +316,16 @@ namespace PirateCrew.Tests
                 }
 
                 Assert.GreaterOrEqual(min, 0, "最低岛不得低于水面基准");
-                Assert.LessOrEqual(max * TerrainCatalog.DefaultBlockWorldHeight + 0.25f, 9f,
-                    "level_" + n + " 最高岛顶（含 1 块局部）应 ≤ 9 世界单位（相机全场档可达性）");
+                // 【2026-09-14 修复：相机机位/块高双变更后的天花板】全场档相机（距离 30、俯角 45°，
+                // BattleCameraController.FullFieldDistance/FullFieldPitchDegrees）只比聚焦点高
+                // 30·sin45° ≈ 21.2 世界单位，最高岛顶天花板由 PlatformClusterLayout.TileMaxBaseBlocks
+                // 的推导给出 = 36 块基准 + 1 块局部 = 18.5 世界单位（单块 0.5，见
+                // TerrainCatalog.DefaultBlockWorldHeight）。旧断言 9 与 +0.25 都是块高 0.25 时代的口径。
+                Assert.LessOrEqual(
+                    (max + PlatformClusterLayout.TileLocalBlocks) * TerrainCatalog.DefaultBlockWorldHeight,
+                    (PlatformClusterLayout.TileMaxBaseBlocks + PlatformClusterLayout.TileLocalBlocks)
+                        * TerrainCatalog.DefaultBlockWorldHeight,
+                    "level_" + n + " 最高岛顶（含 1 块局部）不得超过相机全场档可达天花板 18.5 世界单位");
 
                 if (max == min)
                 {
@@ -326,7 +334,7 @@ namespace PirateCrew.Tests
                 }
 
                 Assert.GreaterOrEqual(max - min, 8,
-                    "level_" + n + " 有竖直结构（原版行号给出），最高-最低岛高差应 ≥ 8 块 = 2 世界单位");
+                    "level_" + n + " 有竖直结构（原版行号给出），最高-最低岛高差应 ≥ 8 块 = 4 世界单位");
             }
 
             // 33 关里"原版本身全贴水"的关（其余都有竖直结构，做成错落悬浮）。

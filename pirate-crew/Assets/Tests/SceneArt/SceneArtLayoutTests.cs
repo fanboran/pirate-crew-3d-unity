@@ -329,11 +329,14 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
                 "灌木 15-30 组（§3.4）");
 
             int grass = layout.CountOf(ScenePropKind.GrassTuft);
-            // 【2026-09-14 起以原版 tile 地图为准】§3.4 的 400-1500 下限是按**旧手写布局**
-            // （411 格陆地）标定的；原版 level_1 只有 163 格陆地（50×17 的原版行串里大片是海面），
-            // 草丛实例数随之降到 ~366，故下限按陆地面积等比下调（163/411 ≈ 0.4）。
-            Assert.That(grass, Is.InRange(300, SceneLayoutRules.MaxGrassTufts),
-                "草丛 200-1500 实例（船面不撒草后下限再下调，用户裁决船上不长草）");
+            // 【2026-09-14 修复：船上禁草后草量进一步下调】原版 level_1 的陆地格本就只有 163 个，
+            // 用户裁决"船上不长草"（ScenePropLayout.AddGrass 排除 PlatformSurface.Ship 格，见
+            // ScenePropLayout.cs:696-699）后候选池再缩，seed=7 实测产出 222 簇。
+            // 旧下限 300（更早是文档 §3.4 的 400）按旧布局标定，已无候选池依据——
+            // 下限改为实测值留出 1/3 余量的 150（防"船面禁草"误伤成全场无草的回归线），
+            // 上限沿用源码常量 MaxGrassTufts（SceneLayoutRules.cs:122）。文档 §3.4 的数字需要另行修订。
+            Assert.That(grass, Is.InRange(150, SceneLayoutRules.MaxGrassTufts),
+                "草丛应有合理密度（seed=7 实测 222；上限 " + SceneLayoutRules.MaxGrassTufts + "）");
         }
 
         [Test]

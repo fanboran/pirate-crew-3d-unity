@@ -133,7 +133,10 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
             Assert.AreEqual(10, groups[0].WidthTiles, "船体长度 = 原版船区 X 跨度");
             AssertShipHasCompleteSilhouette(kit, groups[0]);
             Assert.AreEqual(1, kit.CountInCluster(0, SceneKitPiece.Mast), "横桁区+桅盘共 6 格宽 → 1 桅");
-            Assert.AreEqual(1, kit.CountInCluster(3, SceneKitPiece.Mast), "远处船体（无桅区）走配方默认桅数");
+            // 【2026-09-14 修复】"配方默认桅数"的档位判据是世界单位的船长（MastOffsetsFor：
+            // hullLength ≥ 10 → 大船 2 桅，见 SceneKitCatalog.cs:559）。远处船体 8 格 =
+            // 16 世界单位 ≥ 10 → 走大船配方默认 2 桅；旧期望 1 是格数（8 < 10）时代的口径。
+            Assert.AreEqual(2, kit.CountInCluster(3, SceneKitPiece.Mast), "远处船体（无桅区）船长 16 世界单位 ≥ 10 → 配方默认 2 桅");
             Assert.AreEqual(0, kit.CountOf(SceneKitPiece.IslandTop), "没有岛簇 → 没有岩唇");
         }
 
@@ -230,21 +233,29 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
 
                 AssertShipHasCompleteSilhouette(kit, group);
 
+                // 【2026-09-14 修复：格→世界换算】放样船体摆在世界坐标（BuildFor 的 cx =
+                // TileToWorld(包络中心)，长度 = TileToWorld(WidthTiles)），包络 X0/X1 是格号，
+                // 直接比较会在 1 格 = 2 世界单位（LevelGeometry.TileWorldSize）下整体差一倍。
                 float hullMinX, hullMaxX;
                 HullSpanX(kit, group.PrimaryCluster, out hullMinX, out hullMaxX);
-                Assert.AreEqual(group.X0, hullMinX, 0.05f,
+                Assert.AreEqual(LevelGeometry.TileToWorld(group.X0), hullMinX, 0.05f,
                     "船体长度 = 原版船区 X 跨度（左端应贴住合并包络的左端）");
-                Assert.AreEqual(group.X1 + 1, hullMaxX, 0.05f,
+                Assert.AreEqual(LevelGeometry.TileToWorld(group.X1 + 1), hullMaxX, 0.05f,
                     "船体长度 = 原版船区 X 跨度（右端应贴住合并包络的右端）");
 
                 minWidth = Mathf.Min(minWidth, group.WidthTiles);
                 maxWidth = Mathf.Max(maxWidth, group.WidthTiles);
 
                 // 桅位落在甲板范围内（桅必须立在船上，不能悬在船外）。
-                IReadOnlyList<float> masts = SceneKitCatalog.MastOffsetsFor(map, group, group.WidthTiles);
+                // 【2026-09-14 修复】桅位偏移是世界单位，上限 = 半长（世界）——与
+                // MastOffsetsFor 的钳制 limit = halfLen − 2.4 同口径；旧式 WidthTiles×0.5
+                // 混用格号与世界单位，会把被钳到船艉附近的合法桅位误判成越界。
+                IReadOnlyList<float> masts = SceneKitCatalog.MastOffsetsFor(map, group,
+                    LevelGeometry.TileToWorld(group.WidthTiles));
                 Assert.GreaterOrEqual(masts.Count, 1, "每艘船至少 1 桅");
                 for (int m = 0; m < masts.Count; m++)
-                    Assert.LessOrEqual(Mathf.Abs(masts[m]), group.WidthTiles * 0.5f, "桅位必须在船体内");
+                    Assert.LessOrEqual(Mathf.Abs(masts[m]),
+                        LevelGeometry.TileToWorld(group.WidthTiles) * 0.5f, "桅位必须在船体内");
             }
 
             Assert.GreaterOrEqual(minWidth, 8, "每艘都应是可读的整船（≥8 单位长）");
@@ -280,10 +291,14 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
                     AssertShipHasCompleteSilhouette(kit, groups[g]);
                     shipTotal++;
 
+                    // 【2026-09-14 修复：格→世界换算】放样船体外沿是世界坐标（1 格 = 2 世界单位），
+                    // 与合并包络（格号）比较须经 LevelGeometry.TileToWorld 换算。
                     float hullMinX, hullMaxX;
                     HullSpanX(kit, groups[g].PrimaryCluster, out hullMinX, out hullMaxX);
-                    Assert.AreEqual(groups[g].X0, hullMinX, 0.05f, "level_" + level.LevelNumber + " 船体左端");
-                    Assert.AreEqual(groups[g].X1 + 1, hullMaxX, 0.05f, "level_" + level.LevelNumber + " 船体右端");
+                    Assert.AreEqual(LevelGeometry.TileToWorld(groups[g].X0), hullMinX, 0.05f,
+                        "level_" + level.LevelNumber + " 船体左端");
+                    Assert.AreEqual(LevelGeometry.TileToWorld(groups[g].X1 + 1), hullMaxX, 0.05f,
+                        "level_" + level.LevelNumber + " 船体右端");
 
                     mastTotal += kit.CountInCluster(groups[g].PrimaryCluster, SceneKitPiece.Mast);
                 }
@@ -618,15 +633,23 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
         {
             SceneKitLayout kit = SceneKitCatalog.BuildLevel1(7);
 
+            float maxY = float.MinValue;
             for (int i = 0; i < kit.Parts.Count; i++)
             {
                 KitPart p = kit.Parts[i];
                 Assert.GreaterOrEqual(p.Position.y, LevelGeometry.GroundTopY - 1e-4f,
                     p.Piece + " 的摆放点不得低于基础地面");
-                // 桅/帆/索具会高于平台顶面（那是正常的高物），但仍应在合理高度内。
-                Assert.LessOrEqual(p.Position.y, LevelGeometry.GroundTopY + 8f,
-                    p.Piece + " 的摆放点高度异常");
+                maxY = Mathf.Max(maxY, p.Position.y);
             }
+
+            // 桅/帆/索具会高于平台顶面（那是正常的高物），但仍应在合理高度内。
+            // 【2026-09-14 修复】上限从 GroundTopY+8 提到 +12：格 1→2 世界单位后大船桅高 8.4
+            // （SceneKitCatalog.LargeShipRecipe），桅顶瞭望巢挂在 deckY + 0.94×桅高（BuildCompleteShip），
+            // level_1 最高甲板 deckY ≈ 1.5 → 理论最高 ≈ 9.4——旧上限 8 把正常的桅顶件判成了异常。
+            // 12 = 桅顶理论值再留余量，仍能抓住"高度翻倍 / NaN 爆表"式的尺寸推导回归。
+            TestContext.Progress.WriteLine("[kit 高度] level_1 构件最高摆放 y = " + maxY);
+            Assert.LessOrEqual(maxY, LevelGeometry.GroundTopY + 12f,
+                "构件最高摆放点 " + maxY + " 异常（桅顶理论值 ≈ deckY + 0.94×8.4 ≈ 9.4）");
         }
 
         [Test]

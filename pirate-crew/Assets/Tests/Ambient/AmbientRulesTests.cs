@@ -30,7 +30,7 @@ namespace PirateCrew.PirateCrew.Ambient.Tests
 
             Assert.AreEqual(50f, arena.Width, 1e-5f);
             Assert.AreEqual(17f, arena.Depth, 1e-5f);
-            Assert.AreEqual(-0.2f, arena.WaterY, 1e-5f, "水面 y 来自 LevelGeometry.WaterSurfaceY");
+            Assert.AreEqual(-0.4f, arena.WaterY, 1e-5f, "水面 y 来自 LevelGeometry.WaterSurfaceY（格 1→2 单位后 -0.2→-0.4）");
             Assert.AreEqual(0f, arena.GroundY, 1e-5f, "地面顶面 y 来自 LevelGeometry.GroundTopY");
             Assert.AreEqual(25f, arena.CenterX, 1e-5f);
             Assert.AreEqual(8.5f, arena.CenterZ, 1e-5f);

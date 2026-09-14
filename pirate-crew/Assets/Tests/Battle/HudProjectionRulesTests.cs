@@ -149,8 +149,12 @@ namespace PirateCrew.Tests
             // 基准半径 / 基准距离必须与 Flash 30px 与相机默认距离 18 对齐。
             Assert.AreEqual(30f, HudProjectionRules.ReferenceRadiusPixels, 1e-4f);
             Assert.AreEqual(18f, HudProjectionRules.ReferenceDistance, 1e-4f);
-            // 单位世界高度 = 16px / 32px 每单位。
-            Assert.AreEqual(16f / 32f, HudProjectionRules.UnitWorldHeight, 1e-4f);
+            // 【2026-09-14 修复】单位世界高度 = Flash 竖高 16px ÷ 每单位像素数。
+            // 格 1→2 世界单位后 PixelsPerUnit = TilePixels(32) / TileWorldSize(2) = 16
+            // （LevelGeometry.cs:175-181），故现值 = 16/16 = 1.0；旧期望 16/32 = 0.5 是
+            // 32px/单位时代的口径（HudProjectionRules.UnitWorldHeight 的公式本身没变）。
+            Assert.AreEqual(16f / LevelGeometry.PixelsPerUnit, HudProjectionRules.UnitWorldHeight, 1e-4f);
+            Assert.AreEqual(1f, HudProjectionRules.UnitWorldHeight, 1e-4f, "现值 = 16px ÷ 16px/单位 = 1 世界单位");
             Assert.AreEqual(16f, CrewCatalog.TopExtent * 2f, 1e-4f);
         }
     }
