@@ -227,6 +227,11 @@ namespace PirateCrew.UI
             else if (Input.GetKeyDown(KeyCode.Escape) && _mode == BattleHudMode.Observe)
                 SetHudMode(BattleHudMode.Move);
 
+            // 【观察模式】点击=准星点选角色；命中即选中并自动返回移动模式（r12 用户裁决）。
+            if (_mode == BattleHudMode.Observe && Input.GetMouseButtonDown(0)
+                && aimController != null && aimController.HandleObserveClick())
+                SetHudMode(BattleHudMode.Move);
+
             // 准星只属于观察模式（r12 用户裁决）。
             if (_crosshair != null)
                 _crosshair.gameObject.SetActive(_mode == BattleHudMode.Observe);
@@ -288,8 +293,8 @@ namespace PirateCrew.UI
             string text = _mode == BattleHudMode.Move
                 ? "左键选角色　按住角色拖拽=跳跃　拖空白=转视角"
                 : _mode == BattleHudMode.Act
-                    ? "AD 转向　WS 力度　左键/空格 发射（先在下方选武器）"
-                    : "鼠标移动=转视角　滚轮缩放　1/2/Esc 返回";
+                    ? "AD 转向　WS 力度　滚轮微调　回车 开炮（左键只点按钮）"
+                    : "点击准星选人并返回　WASD/Space/Shift 移动　滚轮缩放　Esc 返回";
             UiTextUtil.SetText(_hintText, text);
         }
 

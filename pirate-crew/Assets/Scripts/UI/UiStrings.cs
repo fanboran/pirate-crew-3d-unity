@@ -333,7 +333,7 @@ namespace PirateCrew.UI
         public const string BattleHintGeneral = "空格 瞄准　E 聚焦　Esc 取消";
 
         /// <summary>操作提示：瞄准态。</summary>
-        public const string BattleHintAiming = "AD 转向　WS 力度　滚轮微调　空格 发射";
+        public const string BattleHintAiming = "AD 转向　WS 力度　滚轮微调　回车 开炮";
 
         /// <summary>操作提示：移动模式。</summary>
         public const string BattleHintMove = "左键拖空白环绕　滚轮缩放　中键解除跟随　左键选中　双击聚焦";

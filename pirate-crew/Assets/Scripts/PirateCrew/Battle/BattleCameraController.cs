@@ -779,6 +779,30 @@ namespace PirateCrew.PirateCrew.Battle
         public bool ObserveMode { get; private set; }
         float _observePitchDegrees = 45f;
         float _dragPitchDegrees = 45f;
+        const float ObserveFlySpeed = 12f;
+
+        /// <summary>观察模式飞行：WASD 沿相机水平朝向平移、Space 升 / Shift 降（我的世界创造式）。</summary>
+        void UpdateObserveFly()
+        {
+            if (_freeAnchor == null || fallbackCamera == null)
+                return;
+
+            Transform cam = fallbackCamera.transform;
+            Vector3 flatFwd = Vector3.Scale(cam.forward, new Vector3(1f, 0f, 1f)).normalized;
+            Vector3 flatRight = Vector3.Scale(cam.right, new Vector3(1f, 0f, 1f)).normalized;
+
+            float fwd = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
+            float side = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
+            float up = (Input.GetKey(KeyCode.Space) ? 1f : 0f)
+                - (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? 1f : 0f);
+
+            if (fwd == 0f && side == 0f && up == 0f)
+                return;
+
+            _freeAnchor.transform.position +=
+                (flatFwd * fwd + flatRight * side + Vector3.up * up)
+                * (ObserveFlySpeed * Time.deltaTime);
+        }
 
         /// <summary>进入/退出观察模式：进入=冻结跟随锚 + 鼠标转视角；退出=恢复跟随。</summary>
         public void SetObserveMode(bool on)
@@ -975,12 +999,14 @@ namespace PirateCrew.PirateCrew.Battle
             if (Input.GetMouseButtonDown(2))
                 ToggleFreeAnchor();
 
-            // 【观察模式（我的世界同款）】鼠标移动即转视角（不按任何键），YS 改俯仰（12°..78° 夹紧）。
+            // 【观察模式（我的世界同款）】鼠标移动即转视角（不按任何键），垂直改俯仰（12°..78° 夹紧）；
+            // WASD 相机相对平移 + Space/Shift 升降（驾驶跟随锚，角色聚焦会自动收回去）。
             if (ObserveMode)
             {
                 _targetYaw += Input.GetAxis("Mouse X") * orbitDegreesPerMouseUnit;
                 _observePitchDegrees = Mathf.Clamp(
                     _observePitchDegrees - Input.GetAxis("Mouse Y") * 0.35f, 12f, 78f);
+                UpdateObserveFly();
             }
 
             // 滚轮缩放；炮台瞄准时滚轮让给力度（AimThrowController），不再同时拉相机。

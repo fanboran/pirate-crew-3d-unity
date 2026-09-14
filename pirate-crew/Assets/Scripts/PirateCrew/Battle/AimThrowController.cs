@@ -105,8 +105,24 @@ namespace PirateCrew.PirateCrew.Battle
                 battleCamera = Camera.main;
         }
 
-        /// <summary>观察模式下关闭全部游戏点击（选人/取消/炮台/悬停），左键完全让给相机。</summary>
+        /// <summary>观察模式下关闭常规游戏输入（拖拽/取消/炮台/悬停）；准星点选走 <see cref="HandleObserveClick"/>。</summary>
         public bool InputEnabled { get; set; } = true;
+
+        /// <summary>
+        /// 【观察模式】屏幕中心准星点选：命中本队存活角色则选中并返回 true（HUD 据此自动退出观察），
+        /// 未命中返回 false（留在观察）。左键点击本身不做任何其他事。
+        /// </summary>
+        public bool HandleObserveClick()
+        {
+            if (battle == null)
+                return false;
+            Vector2 center = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
+            PirateBase picked = PickTeamCharacter(center);
+            if (picked == null)
+                return false;
+            battle.SelectCharacter(picked);
+            return true;
+        }
 
         void Update()
         {
@@ -225,12 +241,10 @@ namespace PirateCrew.PirateCrew.Battle
                 PressStartedOnUnit = picked != null;
                 if (picked == null)
                 {
-                    // 【炮台模式】操作模式 + 已武装：左键=开火（弹道由 UpdateTurret 实时合成）。
+                    // 【炮台模式】炮台瞄准中左键不放炮（r12 用户裁决：太容易走火，开火=回车），
+                    // 也不取消武装——左键只服务于 UI 按钮。
                     if (IsTurretAiming)
-                    {
-                        ReleaseDrag();
                         return;
-                    }
 
                     // 【移动模式】点空处不立刻取消——延迟到松手结算（见 Update），
                     // 让"空白按下拖拽"能被相机消费为转视角。
@@ -301,8 +315,7 @@ namespace PirateCrew.PirateCrew.Battle
             if (trajectory != null)
                 trajectory.Show(_originWorld, dir, speed, _weight);
 
-            if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.KeypadEnter)
-                || Input.GetKeyDown(KeyCode.Return))
+            if (Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Return))
                 ReleaseDrag();
         }
 
