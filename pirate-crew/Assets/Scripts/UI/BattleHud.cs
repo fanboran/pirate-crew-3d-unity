@@ -1,5 +1,6 @@
 using System;
 using PirateCrew.Core;
+using PirateCrew.PirateCrew.Audio;
 using PirateCrew.PirateCrew.Battle;
 using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
@@ -107,6 +108,14 @@ namespace PirateCrew.UI
 
         PirateBase[] _pirateByRow = new PirateBase[MaxRosterRows];
 
+        // ---- 动效与 UI 音效（规则在 UiMotionRules，驱动在 UiMotion；数值为提案/待定） ----
+        UiMotion _motion;
+        CanvasGroup _panelGroup;
+        RectTransform _panelRect;
+        bool _panelVisible;
+        /// <summary>首次状态直接落位（不打动效、不出声），之后的翻转才播动效。</summary>
+        bool _panelResolved;
+
         /// <summary>HUD 是否已接好核心战场引用（供装配自检测试断言）。</summary>
         public bool HasCoreReferences => battle != null && turnManager != null && aimController != null;
 
@@ -162,6 +171,7 @@ namespace PirateCrew.UI
 
         void Awake()
         {
+            _motion = gameObject.AddComponent<UiMotion>();
             WireWeaponButtons();
             WireCommandButtons();
 
@@ -218,7 +228,11 @@ namespace PirateCrew.UI
                 return;
             var button = seg.GetComponent<Button>();
             if (button != null)
-                button.onClick.AddListener(() => SetHudMode(mode));
+                button.onClick.AddListener(() =>
+                {
+                    ButtonFeedback(button, success: true);
+                    SetHudMode(mode);
+                });
         }
 
         void Update()
@@ -367,12 +381,28 @@ namespace PirateCrew.UI
         // 玩家命令
         // ------------------------------------------------------------------
 
+        /// <summary>
+        /// 按钮统一反馈：UiClick（失败时 UiError）+ punch 缩放。
+        /// 同一模块内的表现层反馈，直接调用 <see cref="AudioService"/> 静态入口，不走 EventBus。
+        /// </summary>
+        void ButtonFeedback(Button button, bool success)
+        {
+            AudioService.PlayUi(success ? SfxId.UiClick : SfxId.UiError);
+            if (button != null && success && _motion != null)
+                _motion.Punch(button.image != null ? button.image : button.GetComponent<Graphic>(),
+                    UiMotionRules.PunchSeconds);
+        }
+
         void OnWeaponClicked(int weaponId)
         {
             if (aimController == null)
                 return;
 
-            if (aimController.SelectWeapon((WeaponId)weaponId))
+            bool selected = aimController.SelectWeapon((WeaponId)weaponId);
+            ButtonFeedback(weaponButtons != null && weaponId >= 0 && weaponId < weaponButtons.Length
+                ? weaponButtons[weaponId]
+                : null, selected);
+            if (selected)
                 RefreshWeaponPanel();
         }
 
@@ -381,6 +411,7 @@ namespace PirateCrew.UI
             if (aimController == null)
                 return;
 
+            ButtonFeedback(throwSelfButton, success: true);
             aimController.SelectThrowSelf();
             RefreshWeaponPanel();
         }
@@ -390,12 +421,14 @@ namespace PirateCrew.UI
             if (aimController == null)
                 return;
 
+            ButtonFeedback(endGoButton, success: true);
             aimController.EndGo();
             RefreshWeaponPanel(hide: true);
         }
 
         void OnBackClicked()
         {
+            ButtonFeedback(backButton, success: true);
             EventBus.Publish(GoBackEvent);
         }
 
@@ -418,6 +451,14 @@ namespace PirateCrew.UI
             RefreshTurnHint();
             RefreshRoster();
             RefreshWeaponPanel();
+            PunchTurnBanner();
+        }
+
+        /// <summary>回合横幅弹出（每次换行动单位都给一次"轮到谁了"的视觉重音）。</summary>
+        void PunchTurnBanner()
+        {
+            if (turnHintText != null && _motion != null)
+                _motion.Punch(turnHintText, UiMotionRules.PunchSeconds);
         }
 
         void OnTurnEnded(object payload)
@@ -467,6 +508,7 @@ namespace PirateCrew.UI
                 }
             }
 
+            PunchTurnBanner();
             RefreshWeaponPanel(hide: true);
         }
 
@@ -518,7 +560,7 @@ namespace PirateCrew.UI
                 if (view.teamSwatch != null)
                     view.teamSwatch.color = UiTheme.TeamColor(pirate.TeamIndex);
 
-                UpdateRowBar(view, pirate.Alive ? pirate.Health : 0, pirate.MaxHealth);
+                UpdateRowBar(view, pirate.Alive ? pirate.Health : 0, pirate.MaxHealth, snap: true);
                 row++;
             }
 
@@ -560,18 +602,36 @@ namespace PirateCrew.UI
                     continue;
 
                 UpdateRowBar(rosterRows[i], alive ? health : 0, maxHealth);
+                // 受击重音：血量标签轻弹一下（死亡行也会经这里滚到 0，一并覆盖）
+                if (_motion != null && rosterRows[i].healthLabel != null)
+                    _motion.Punch(rosterRows[i].healthLabel, UiMotionRules.PunchSeconds);
                 return;
             }
         }
 
-        static void UpdateRowBar(RosterRowView view, int health, int maxHealth)
+        /// <summary>
+        /// 血条落值：默认走 <see cref="UiMotion"/> 的指数滚动（伤害数字先跳、血条紧随）；
+        /// <c>snap=true</c> 用于名册初次构建/重建，直接钉位不滚动。
+        /// </summary>
+        void UpdateRowBar(RosterRowView view, int health, int maxHealth, bool snap = false)
         {
             if (view == null)
                 return;
 
             float ratio = HealthRatio(health, maxHealth);
             if (view.healthFill != null)
-                view.healthFill.rectTransform.anchorMax = new Vector2(ratio, 1f);
+            {
+                if (_motion == null || snap)
+                {
+                    view.healthFill.rectTransform.anchorMax = new Vector2(ratio, 1f);
+                    if (_motion != null)
+                        _motion.SnapFill(view.healthFill, ratio);
+                }
+                else
+                {
+                    _motion.SetFillTarget(view.healthFill, ratio);
+                }
+            }
 
             if (view.healthLabel != null)
                 UiTextUtil.SetText(view.healthLabel, UiTextRules.Hp(health, maxHealth));
@@ -657,8 +717,7 @@ namespace PirateCrew.UI
                 && team != null
                 && !team.AiControlled;
 
-            if (weaponPanelRoot != null)
-                weaponPanelRoot.SetActive(visible);
+            SetWeaponPanelVisible(visible);
 
             if (!visible)
                 return;
@@ -701,6 +760,55 @@ namespace PirateCrew.UI
                     bool equipped = inventory != null && inventory.HasEquipped && inventory.EquippedIndex == i;
                     background.color = equipped ? UiTheme.BrassLight : Color.white;
                 }
+            }
+        }
+
+        /// <summary>
+        /// 武器面板显隐的唯一入口：只有状态翻转才动效（<see cref="RefreshWeaponPanel"/> 刷新很频繁，
+        /// 不能每次都重播滑入）。出现 = 滑入淡入 + UiPanelOpen 音；消失 = 快速淡出（协程收尾 SetActive(false)）。
+        /// </summary>
+        void SetWeaponPanelVisible(bool visible)
+        {
+            if (_panelVisible == visible && _panelResolved)
+                return;
+            bool animate = _panelResolved;
+            _panelVisible = visible;
+            _panelResolved = true;
+
+            if (weaponPanelRoot == null)
+                return;
+
+            if (_panelRect == null)
+                _panelRect = weaponPanelRoot.transform as RectTransform;
+            if (_panelGroup == null)
+            {
+                _panelGroup = weaponPanelRoot.GetComponent<CanvasGroup>();
+                if (_panelGroup == null)
+                    _panelGroup = weaponPanelRoot.AddComponent<CanvasGroup>();
+            }
+
+            if (visible)
+            {
+                if (animate && _motion != null)
+                {
+                    _motion.ShowPanel(weaponPanelRoot, UiMotionRules.PanelShowSeconds,
+                        UiMotionRules.PanelSlideOffsetPixels);
+                    AudioService.PlayUi(SfxId.UiPanelOpen);
+                }
+                else
+                {
+                    weaponPanelRoot.SetActive(true);
+                    _panelGroup.alpha = 1f;
+                    _panelGroup.interactable = true;
+                    _panelGroup.blocksRaycasts = true;
+                }
+            }
+            else
+            {
+                if (animate && _motion != null)
+                    _motion.HidePanel(weaponPanelRoot, UiMotionRules.PanelHideSeconds);
+                else
+                    weaponPanelRoot.SetActive(false);
             }
         }
     }
