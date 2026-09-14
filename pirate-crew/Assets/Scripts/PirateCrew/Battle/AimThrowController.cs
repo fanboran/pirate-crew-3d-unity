@@ -333,7 +333,7 @@ namespace PirateCrew.PirateCrew.Battle
             }
 
             _dragScreen = (Vector2)Input.mousePosition - _dragStartScreen;
-            (Vector3 dir, float speed) = ResolveThrow();
+            (Vector3 dir, float speed, float _, float _) = ResolveThrow();
 
             if (trajectory != null)
                 trajectory.Show(_originWorld, dir, speed, _weight);
@@ -345,7 +345,7 @@ namespace PirateCrew.PirateCrew.Battle
         /// 相机绕转后仍正确；<b>大小</b>取 <see cref="Ballistics.TwangVelocity"/> 的模长，
         /// 保留 Flash 的 0.25 系数与 twangMax 限速语义。抬升由 LevelGeometry.ThrowVelocity 统一施加。
         /// </summary>
-        (Vector3 dir, float speed) ResolveThrow()
+        (Vector3 dir, float speed, float vxFlash, float vyFlash) ResolveThrow()
         {
             (float vx, float vy) = Ballistics.TwangVelocity(_dragScreen.x, _dragScreen.y, _twangMax);
             float speed = Mathf.Sqrt(vx * vx + vy * vy);
@@ -355,7 +355,10 @@ namespace PirateCrew.PirateCrew.Battle
                 ? LevelGeometry.ScreenDragToArenaDirection(cam.right, cam.forward, _dragScreen.x, _dragScreen.y)
                 : Vector3.zero;
 
-            return (dir, speed);
+            // 【r12 实测修"跳跃方向和预览相反"】实弹换算（FlashLaunchVelocityToWorld）是世界轴直映射，
+            // 相机被环绕/跟随偏转后与预览（相机相对方向）分叉甚至相反。弹弓取反语义由
+            // ScreenDragToArenaDirection 统一承载，这里把方向转成世界轴的 Flash 分量供下游换算。
+            return (dir, speed, dir.x * speed, dir.z * speed);
         }
 
         void ReleaseDrag()
@@ -376,8 +379,7 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
             }
 
-            (float vx, float vy) = Ballistics.TwangVelocity(
-                _dragScreen.x, _dragScreen.y, _twangMax);
+            (Vector3 _, float _, float vx, float vy) = ResolveThrow();
 
             PirateBase pirate = _selected;
             Vector3 aimWorld = ResolveAimPointWorld();

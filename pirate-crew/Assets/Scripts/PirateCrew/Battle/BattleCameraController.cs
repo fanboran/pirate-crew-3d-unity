@@ -719,7 +719,10 @@ namespace PirateCrew.PirateCrew.Battle
 
             // 参照库"Follow 切到目标"：跟随时把 vcam 的 Follow 直接指向弹体/角色，镜头最跟手。
             if (virtualCamera != null)
+            {
+                ExitFreeAnchor();
                 virtualCamera.Follow = target;
+            }
         }
 
         /// <summary>结束跟随并停在 <paramref name="position"/>（同时把中转 Target 也搬过去，切回不跳帧）。</summary>
@@ -757,7 +760,53 @@ namespace PirateCrew.PirateCrew.Battle
         void RestoreDefaultFollow()
         {
             if (virtualCamera != null)
+            {
+                ExitFreeAnchor();
                 virtualCamera.Follow = cameraTarget;
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // 自由视角锚定（r12：中键切换）
+        // ------------------------------------------------------------------
+
+        AimThrowController aimThrow;
+        GameObject _freeAnchor;
+        Transform _followBeforeFree;
+
+        /// <summary>中键：把 Follow 换到当前焦点的静态锚（相机不再跟人，环绕/缩放即自由视角）；再按恢复。</summary>
+        void ToggleFreeAnchor()
+        {
+            if (virtualCamera == null)
+                return;
+
+            if (_freeAnchor == null)
+            {
+                _followBeforeFree = virtualCamera.Follow;
+                _freeAnchor = new GameObject("CameraFreeAnchor");
+                _freeAnchor.transform.position = _followBeforeFree != null
+                    ? _followBeforeFree.position
+                    : transform.position + transform.forward * 10f;
+                virtualCamera.Follow = _freeAnchor.transform;
+            }
+            else
+            {
+                if (_followBeforeFree != null)
+                    virtualCamera.Follow = _followBeforeFree;
+                Destroy(_freeAnchor);
+                _freeAnchor = null;
+                _followBeforeFree = null;
+            }
+        }
+
+        /// <summary>任何一次聚焦/跟随赋 Follow 前调用：自由视角是临时态，聚焦即回归跟随。</summary>
+        void ExitFreeAnchor()
+        {
+            if (_freeAnchor == null)
+                return;
+            Destroy(_freeAnchor);
+            _freeAnchor = null;
+            _followBeforeFree = null;
         }
 
         bool IsFollowTargetActive()
@@ -873,12 +922,23 @@ namespace PirateCrew.PirateCrew.Battle
             if (!_manualCaptured)
                 return;
 
-            if (enableManualOrbit && Input.GetMouseButton(1))
+            // 【r12 用户反馈】左键拖空白处也要能环绕（瞄准拖拽以"按在单位上"开始，二者不打架）。
+            if (aimThrow == null)
+                aimThrow = FindObjectOfType<AimThrowController>();
+            bool orbitHeld = Input.GetMouseButton(1)
+                || (Input.GetMouseButton(0) && (aimThrow == null || !aimThrow.IsAiming));
+
+            if (enableManualOrbit && orbitHeld)
             {
                 float dx = Input.GetAxis("Mouse X");
                 if (Mathf.Abs(dx) > 1e-5f)
                     _targetYaw += dx * orbitDegreesPerMouseUnit;
             }
+
+            // 【r12 用户反馈】中键解除/恢复跟随锚定：解除后相机冻结在当前焦点，环绕+缩放即自由视角；
+            // 任何一次聚焦/跟随（Follow 被赋值处）自动退出自由视角回到角色。
+            if (Input.GetMouseButtonDown(2))
+                ToggleFreeAnchor();
 
             if (enableManualZoom)
             {

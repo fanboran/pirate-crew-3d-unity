@@ -97,8 +97,8 @@ namespace PirateCrew.EditorTools
 
         // ---------------- 底部 ----------------
 
-        /// <summary>提示条（通栏条是唯一允许近贴边的元素，仍留 16px）。</summary>
-        const float HintBarWidth = 720f;
+        /// <summary>提示条（r12 起挪到右下角，宽度收窄避开名册/武器面板的视觉轴线）。</summary>
+        const float HintBarWidth = 620f;
         const float HintBarHeight = 32f;
         const float HintBarBottom = 16f;
 
@@ -711,8 +711,9 @@ namespace PirateCrew.EditorTools
             // 操作提示条：屏幕底缘之上 16px（通栏条是 §1.7 允许的近贴边例外），720px 居中。
             // 【底为什么用内容片而非框架】提示条整条都是文字，框不下"框架 + 内容片"两级；
             // 直接用 0.88 的内容片（浅米字 ≥9.5:1），厚度带/高光/噪点照旧 → 仍是玻璃观感。
+            // 【r12 用户反馈】提示条从底缘居中挪到右下角（"放在界面旁边"，不占画面中心视线）。
             RectTransform hintBar = MenuUiBuilder.CreateGlassPanel("HintBar", hudRoot,
-                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, HintBarBottom),
+                new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-16f, HintBarBottom),
                 new Vector2(HintBarWidth, HintBarHeight), GlassPanelSpriteBuilder.Tone.Dense,
                 GlassPanelSpriteBuilder.Geo.Panel);
 

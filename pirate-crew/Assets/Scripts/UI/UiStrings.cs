@@ -333,7 +333,7 @@ namespace PirateCrew.UI
         public const string BattleHintAiming = "滚轮调力度　左右调方位　上下调俯仰　回车发射";
 
         /// <summary>操作提示：移动模式。</summary>
-        public const string BattleHintMove = "移动鼠标环视　左键选中　双击聚焦";
+        public const string BattleHintMove = "左键拖空白环绕　滚轮缩放　中键解除跟随　左键选中　双击聚焦";
 
         /// <summary>操作提示：武器菜单。</summary>
         public const string BattleHintWeaponMenu = "滚轮选择　回车确认";
