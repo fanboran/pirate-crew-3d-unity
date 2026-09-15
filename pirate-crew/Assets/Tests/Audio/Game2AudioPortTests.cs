@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using NUnit.Framework;
 using PirateCrew.PirateCrew.Audio;
 using PirateCrew.PirateCrew.Battle;
@@ -336,13 +337,36 @@ namespace PirateCrew.Tests.Audio
 
         /// <summary>
         /// 找 Unity 工程根（含 <c>Assets/Resources/PirateCrewAudio</c> 的目录）。
-        /// 优先环境变量（无头验证台用快照目录时显式指定），否则从测试程序集目录逐级向上找。
+        /// 顺序：环境变量（无头验证台用快照目录时显式指定）→ Unity 侧 <c>Application.dataPath</c>
+        /// （EditMode 下直指 <c>&lt;工程&gt;/Assets</c>）→ 从测试程序集目录逐级向上找。
         /// </summary>
         static string FindProjectRoot()
         {
             string env = Environment.GetEnvironmentVariable("PIRATECREW_PROJECT_ROOT");
             if (!string.IsNullOrEmpty(env) && IsProjectRoot(env))
                 return env;
+
+            // Unity EditMode：dataPath = <工程>/Assets，其父目录即工程根。
+            // 必须走【反射】：无头验证台没有 Unity 运行时，直接 call icall 会在 JIT 编译期炸出
+            // SecurityException（try/catch 拦不住，本文件 2026-09-14 实测）；反射调用则把同一错误
+            // 包成可捕获的 TargetInvocationException。
+            try
+            {
+                Type appType = Type.GetType("UnityEngine.Application, UnityEngine.CoreModule");
+                PropertyInfo dataPath = appType?.GetProperty("dataPath",
+                    BindingFlags.Public | BindingFlags.Static);
+                string assets = dataPath?.GetValue(null) as string;
+                if (!string.IsNullOrEmpty(assets))
+                {
+                    string parent = Path.GetDirectoryName(assets.Replace('/', Path.DirectorySeparatorChar));
+                    if (IsProjectRoot(parent))
+                        return parent;
+                }
+            }
+            catch (Exception)
+            {
+                // 无 Unity 运行时：忽略，走 BaseDirectory 上溯
+            }
 
             var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
             while (dir != null)

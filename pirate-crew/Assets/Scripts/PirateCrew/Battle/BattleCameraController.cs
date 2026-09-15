@@ -271,10 +271,10 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>当前是否处于 AI 旁观态（调试/测试用）。</summary>
         public bool SpectatorMode => _spectator;
 
-        /// <summary>场景里**烘焙的** Transposer 距离（Awake 从 FollowOffset 捕获；仍是 18→15 提案的 15）。</summary>
+        /// <summary>场景里**烘焙的** Transposer 距离（Awake 从 FollowOffset 捕获；= <see cref="FullFieldDistance"/> 30）。</summary>
         public float BakedDistance => _baseDistance;
 
-        /// <summary>场景里**烘焙的** Transposer 俯角（度，由 FollowOffset 反推；仍是 45°）。</summary>
+        /// <summary>场景里**烘焙的** Transposer 俯角（度，由 FollowOffset 反推；= <see cref="FullFieldPitchDegrees"/> 45°）。</summary>
         public float BakedPitchDegrees => PitchOf(_baseOffsetDirection);
 
         /// <summary>运行时当前距离目标（默认特写档 <see cref="CloseUpDistance"/>；滚轮可改到 [6,50]）。</summary>
@@ -453,8 +453,8 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>
-        /// 进入跟随特写档：距离/俯角立刻切到 <see cref="CloseUpDistance"/> 6 / 30°，yaw 归零
-        /// （面向 +Z，与烘焙机位同朝向），并立即写进 Transposer —— "开局 / 换行动单位即特写"，不平滑过渡。
+        /// 进入跟随特写档：距离/俯角立刻切到 <see cref="CloseUpDistance"/> 12 / <see cref="CloseUpPitchDegrees"/> 30°，
+        /// yaw 归零（面向 +Z，与烘焙机位同朝向），并立即写进 Transposer —— "开局 / 换行动单位即特写"，不平滑过渡。
         /// </summary>
         void EnterCloseUpView()
         {
@@ -462,6 +462,9 @@ namespace PirateCrew.PirateCrew.Battle
             _targetYaw = 0f;
             _manualDistance = CloseUpDistance;
             _targetDistance = CloseUpDistance;
+            // 特写档的俯角也要切：_dragPitchDegrees 初始化/捕获自烘焙机位（45°），只切距离的话
+            // 特写会带着 45° 烘焙俯角运行（PlayMode 门禁 2026-09-14 抓到——旧实现从未真正进入 30°）。
+            _dragPitchDegrees = CloseUpPitchDegrees;
             WriteFollowOffset();
         }
 

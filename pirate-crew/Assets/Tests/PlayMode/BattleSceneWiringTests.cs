@@ -88,17 +88,18 @@ namespace PirateCrew.Tests
             float runtimeDistance = offset.magnitude;
             float runtimePitch = Mathf.Atan2(offset.y, new Vector2(offset.x, offset.z).magnitude) * Mathf.Rad2Deg;
 
-            // ---- 档一：烘焙值（场景资产里的 45°/15 仍保留，M2BattleSceneSetup 不在本轮改动域）----
-            Assert.AreEqual(15f, controller.BakedDistance, 0.1f,
-                "烘焙 FollowOffset 距焦点应为 15（18→15 提案：AR-R2-006 单位 ≥25px 可读）");
-            Assert.AreEqual(45f, controller.BakedPitchDegrees, 0.5f, "烘焙俯角应为 45°");
+            // ---- 档一：烘焙值（场景资产里的 45°/距离 30 = FullField 预设；×2 扫荡后由 15→30）----
+            Assert.AreEqual(BattleCameraController.FullFieldDistance, controller.BakedDistance, 0.1f,
+                "烘焙 FollowOffset 距离应等于 FullField 预设常量（45°/30）");
+            Assert.AreEqual(BattleCameraController.FullFieldPitchDegrees, controller.BakedPitchDegrees, 0.5f,
+                "烘焙俯角应等于 FullField 预设常量（45°）");
 
-            // ---- 档二：运行时默认 = 角色特写（用户裁决 2026-09-14：距离 5–7、俯角 25–35°，看向行动单位）----
-            Assert.That(controller.RuntimeDistance, Is.InRange(5f, 7f),
-                "运行时默认机位应为特写档（距离 5–7）");
+            // ---- 档二：运行时默认 = 角色特写（用户裁决 2026-09-14；×2 后特写距离 12，区间留扫描余量）----
+            Assert.That(controller.RuntimeDistance, Is.InRange(10f, 14f),
+                "运行时默认机位应为特写档（距离 10–14）");
             Assert.That(controller.RuntimePitchDegrees, Is.InRange(25f, 35f),
                 "运行时默认机位应为特写档（俯角 25–35°）");
-            Assert.That(runtimeDistance, Is.InRange(5f, 7f),
+            Assert.That(runtimeDistance, Is.InRange(10f, 14f),
                 "运行时 Transposer 距离应已被覆盖为特写档（Awake 立即写入）");
             Assert.That(runtimePitch, Is.InRange(25f, 35f),
                 "运行时 Transposer 俯角应已被覆盖为特写档（Awake 立即写入）");
