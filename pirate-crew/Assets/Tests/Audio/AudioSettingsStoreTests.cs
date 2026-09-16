@@ -103,10 +103,12 @@ namespace PirateCrew.Tests.Audio
             mixer.SetAll(1f, 1f, 1f, 1f);
             AudioSettingsStore.ApplyDefaults(mixer);
 
-            Assert.That(mixer.GetVolume(AudioCategory.Master), Is.EqualTo(AudioSettingsStore.DefaultVolume).Within(1e-6f));
-            Assert.That(mixer.GetVolume(AudioCategory.Sfx), Is.EqualTo(AudioSettingsStore.DefaultVolume).Within(1e-6f));
-            Assert.That(mixer.GetVolume(AudioCategory.Ambient), Is.EqualTo(AudioSettingsStore.DefaultVolume).Within(1e-6f));
-            Assert.That(mixer.GetVolume(AudioCategory.Music), Is.EqualTo(AudioSettingsStore.DefaultVolume).Within(1e-6f));
+            // 【2026-09-16 起】出厂默认按类别拆分：用户反馈"背景音乐有点大"后，
+            // 环境（浪/风/垫底 pad）0.8→0.5、音乐（胜负乐句）0.8→0.7，主/音效维持 0.8。
+            Assert.That(mixer.GetVolume(AudioCategory.Master), Is.EqualTo(AudioSettingsStore.DefaultMasterVolume).Within(1e-6f));
+            Assert.That(mixer.GetVolume(AudioCategory.Sfx), Is.EqualTo(AudioSettingsStore.DefaultSfxVolume).Within(1e-6f));
+            Assert.That(mixer.GetVolume(AudioCategory.Ambient), Is.EqualTo(AudioSettingsStore.DefaultAmbientVolume).Within(1e-6f));
+            Assert.That(mixer.GetVolume(AudioCategory.Music), Is.EqualTo(AudioSettingsStore.DefaultMusicVolume).Within(1e-6f));
         }
 
         [Test]
