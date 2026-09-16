@@ -42,6 +42,16 @@ namespace PirateCrew.EditorTools
         /// <summary>海水 shader 名（与 PirateWater.shader 的 Shader 声明一致）。</summary>
         public const string WaterShaderName = "PirateCrew/PirateWater";
 
+        /// <summary>
+        /// M4 大海域海面材质路径（<see cref="OceanRig"/> 的推荐显式材质）。
+        /// 与上方 <see cref="OceanMaterialPath"/>（旧 PirateWater 用的 Water_Ocean.mat）是两个资产。
+        /// 参数由 <see cref="ApplyOceanMaterialDefaults"/> 显式落盘。
+        /// </summary>
+        public const string OceanM4MaterialPath = "Assets/Art/Materials/Environment/Ocean_Water.mat";
+
+        /// <summary>大海域 shader 名（与 Art/Shaders/Ocean/PirateOcean.shader 的声明一致）。</summary>
+        public const string OceanShaderName = "PirateCrew/Ocean";
+
         /// <summary>Battle 场景未打开时的兜底关卡号（与 Assets/Scenes/Battle.unity 的 fallbackLevelNumber 一致）。</summary>
         public const int FallbackLevelNumber = 1;
 
@@ -101,6 +111,7 @@ namespace PirateCrew.EditorTools
             // 材质参数在此一并落盘：ArtGate 的步骤 ①（BattleSceneLighting.BuildAll）会用旧默认值写一遍
             // Water_Ocean.mat，而本步骤（⑥.5）在其后执行 —— 顺序保证 PirateWater.shader 的新默认值生效。
             ApplyMaterialDefaults();
+            ApplyOceanMaterialDefaults();
         }
 
         static int ResolveLevelNumber()
@@ -289,6 +300,174 @@ namespace PirateCrew.EditorTools
                 AssetDatabase.CreateFolder("Assets/Art", "Materials");
             if (!AssetDatabase.IsValidFolder("Assets/Art/Materials/Environment"))
                 AssetDatabase.CreateFolder("Assets/Art/Materials", "Environment");
+        }
+
+        // ------------------------------------------------------------------
+        // M4 大海域海面材质落盘（PirateCrew/Ocean + OceanRig 用）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 把 M4 大海域参数显式写进 <see cref="OceanMaterialPath"/>（PirateCrew/Ocean shader）。
+        ///
+        /// 【单一事实源】波表/半径/淡出全部取自 <see cref="OceanRules"/> 与 <see cref="OceanGridRules"/>
+        /// 常量及 <see cref="WaterRules.DefaultWaves"/>（chop ×2 口径——旧 Water_Ocean.mat 里的
+        /// _W1Length=13 是格 1→2 换算前的遗留值，新海洋材质与 C# 契约对齐）。
+        /// 【幂等】可重复执行；材质缺失时按 <see cref="OceanShaderName"/> 新建。
+        /// 【调用点】<see cref="BakeObstacleMap"/> 末尾；也可单独菜单/无头
+        /// <c>-executeMethod PirateCrew.EditorTools.WaterAssetBuilder.ApplyOceanMaterialDefaults</c>。
+        /// </summary>
+        [MenuItem("Tools/PirateCrew/Water/Apply Ocean (M4) Material Defaults")]
+        public static void ApplyOceanMaterialDefaults()
+        {
+            Material m = AssetDatabase.LoadAssetAtPath<Material>(OceanM4MaterialPath);
+            if (m == null)
+            {
+                Shader shader = Shader.Find(OceanShaderName);
+                if (shader == null)
+                {
+                    Debug.LogError("[WaterAssetBuilder] 找不到 shader " + OceanShaderName
+                                   + "（Ocean/PirateOcean.shader 未导入？），跳过 M4 海洋材质落盘。");
+                    return;
+                }
+
+                EnsureMaterialFolder();
+                m = new Material(shader);
+                AssetDatabase.CreateAsset(m, OceanM4MaterialPath);
+                Debug.Log("[WaterAssetBuilder] 新建 M4 海洋材质：" + OceanM4MaterialPath);
+            }
+
+            // ---- 三档海水色（美术风格指南 §2.1：#4DA6D9 / #2B7AB8 / #1A4F7A）----
+            SetColor(m, "_ShallowColor", "#4DA6D9");
+            SetColor(m, "_MidColor", "#2B7AB8");
+            SetColor(m, "_DeepColor", "#1A4F7A");
+            SetFloat(m, "_ShoreFadeDistance", 5f);
+
+            // ---- 长涌 swell ×2（OceanRules.DefaultSwellWaves）----
+            SetVector(m, "_S1Dir", new Vector4(1f, 0f, 0.15f, 0f));
+            SetFloat(m, "_S1Length", 120f);
+            SetFloat(m, "_S1Amp", 1.10f);
+            SetFloat(m, "_S1Steep", 0.75f);
+            SetFloat(m, "_S1Speed", 1f);
+            SetVector(m, "_S2Dir", new Vector4(0.55f, 0f, 1f, 0f));
+            SetFloat(m, "_S2Length", 72f);
+            SetFloat(m, "_S2Amp", 0.65f);
+            SetFloat(m, "_S2Steep", 0.70f);
+            SetFloat(m, "_S2Speed", 1.05f);
+
+            // ---- 4 波 chop（WaterRules.DefaultWaves，格 1→2 单位 ×2 契约值）----
+            SetVector(m, "_W1Dir", new Vector4(1f, 0f, 0.25f, 0f));
+            SetFloat(m, "_W1Length", 26f);
+            SetFloat(m, "_W1Amp", 0.110f);
+            SetFloat(m, "_W1Steep", 0.65f);
+            SetFloat(m, "_W1Speed", 1f);
+            SetVector(m, "_W2Dir", new Vector4(0.6f, 0f, 1f, 0f));
+            SetFloat(m, "_W2Length", 15f);
+            SetFloat(m, "_W2Amp", 0.080f);
+            SetFloat(m, "_W2Steep", 0.60f);
+            SetFloat(m, "_W2Speed", 1.15f);
+            SetVector(m, "_W3Dir", new Vector4(-0.3f, 0f, 1f, 0f));
+            SetFloat(m, "_W3Length", 8.4f);
+            SetFloat(m, "_W3Amp", 0.056f);
+            SetFloat(m, "_W3Steep", 0.55f);
+            SetFloat(m, "_W3Speed", 1.30f);
+            SetVector(m, "_W4Dir", new Vector4(1f, 0f, -0.5f, 0f));
+            SetFloat(m, "_W4Length", 4.8f);
+            SetFloat(m, "_W4Amp", 0.032f);
+            SetFloat(m, "_W4Steep", 0.50f);
+            SetFloat(m, "_W4Speed", 1.50f);
+
+            // ---- 网格密度与淡出（OceanGridRules / OceanRules 常量）----
+            SetFloat(m, "_GridCellSize", OceanGridRules.CellSize);
+            SetFloat(m, "_GridUniformRadius", OceanGridRules.UniformRadius);
+            SetFloat(m, "_GridRingGrowth", OceanGridRules.RingGrowth);
+            SetFloat(m, "_DisplaceFadeStart", OceanRules.DisplaceFadeStart);
+            SetFloat(m, "_DisplaceFadeEnd", OceanRules.DisplaceFadeEnd);
+            SetColor(m, "_HorizonColor", "#B0D4F1");
+            SetFloat(m, "_HorizonFadeStart", OceanRules.HorizonFadeStart);
+            SetFloat(m, "_HorizonFadeEnd", OceanRules.HorizonFadeEnd);
+            SetFloat(m, "_DetailFarFadeStart", OceanRules.DetailFarFadeStart);
+            SetFloat(m, "_DetailFarFadeEnd", OceanRules.DetailFarFadeEnd);
+
+            // ---- 白帽（OceanRules 常量）----
+            SetFloat(m, "_WhitecapStrength", 1f);
+            SetFloat(m, "_WhitecapJacobianThreshold", OceanRules.WhitecapJacobianThreshold);
+            SetFloat(m, "_WhitecapSoftness", OceanRules.WhitecapSoftness);
+            SetFloat(m, "_WhitecapShoreScale", OceanRules.WhitecapShoreScale);
+            SetFloat(m, "_WhitecapNoiseScale", 0.08f);
+
+            // ---- 波背背光透射/薄层散射（技法吸收自 HPWater BSDF diffT；色 #8FD4EC 与浅水色同族）----
+            SetColor(m, "_SssColor", "#8FD4EC");
+            SetFloat(m, "_SssStrength", 0.5f);
+            SetFloat(m, "_SssHeightRef", 0.9f);
+            SetFloat(m, "_SssPathScale", 2.5f);
+            SetFloat(m, "_SssExtinction", 1.2f);
+            SetFloat(m, "_SssPhaseG", 0.6f);
+
+            // ---- 折射 / 焦散 / 岸沫 / 高度场（沿旧件 r7 参数）----
+            SetFloat(m, "_RefractionStrength", 0.035f);
+            SetFloat(m, "_RefractionBlend", 0.22f);
+            SetFloat(m, "_RefractionDepthFade", 1.6f);
+            SetColor(m, "_CausticColor", "#CCFFEB");
+            SetFloat(m, "_CausticStrength", 0.30f);
+            SetFloat(m, "_CausticScale", 0.55f);
+            SetFloat(m, "_CausticSpeed", 0.35f);
+            SetFloat(m, "_CausticWarp", 0.60f);
+            SetFloat(m, "_CausticDepthFade", 2.2f);
+            SetColor(m, "_FoamColor", "#F0F7FF");
+            SetFloat(m, "_FoamWidth", 1.6f);
+            SetFloat(m, "_FoamNoiseScale", 5f);
+            SetFloat(m, "_FoamNoiseScale2", 13f);
+            SetFloat(m, "_FoamSpeed", 0.25f);
+            SetFloat(m, "_FoamStrength", 0.85f);
+            SetFloat(m, "_ShorelineFoamGain", 1.6f);
+            SetFloat(m, "_FoamBreakup", 0.45f);
+            SetFloat(m, "_FoamPulseSpeed", 0.55f);
+            SetFloat(m, "_FoamPulseFrequency", 1.2f);
+            SetFloat(m, "_FoamPulseStrength", 0.60f);
+            SetFloat(m, "_HeightFieldNormalStrength", 0.35f);
+            SetFloat(m, "_HeightFieldFoamStrength", 0.60f);
+            SetFloat(m, "_ObstacleFoamBoost", 1.20f);
+
+            // ---- 破坏噪声 / 菲涅尔 / 反射 / 太阳光路（沿旧件 r7 权重）----
+            SetFloat(m, "_BreakupScale", 0.0222f);
+            SetFloat(m, "_BreakupTintDepth", 0.04f);
+            SetFloat(m, "_BreakupSpeed", 0.06f);
+            SetFloat(m, "_FresnelPower", 5f);
+            SetFloat(m, "_FresnelStrength", 1f);
+            SetFloat(m, "_ReflectionStrength", 0.7f);
+            SetFloat(m, "_Smoothness", 0.92f);
+            SetFloat(m, "_SpecularIntensity", 0.5f);
+            SetColor(m, "_SunSpecColor", "#FFDB73");
+            SetFloat(m, "_SunSpecBroadStrength", 0.8f);
+            SetFloat(m, "_SunSpecLaneShininess", 24f);
+            SetFloat(m, "_SunSpecWaveStrength", 0.4f);
+            SetFloat(m, "_SunSpecBroadShininess", 50f);
+            SetFloat(m, "_SunSpecLaneWidth", 2.5f);
+            SetFloat(m, "_SunSpecPatchScale", 8f);
+            SetFloat(m, "_SunSpecPatchDepth", 0.40f);
+            SetFloat(m, "_SunSpecCrestBias", 0.70f);
+            SetFloat(m, "_SunSpecSlopeBoost", 12f);
+            SetFloat(m, "_SunSpecStrength", 5f);
+            SetFloat(m, "_SunSpecShininess", 320f);
+            SetFloat(m, "_SunSpecGlitter", 0.55f);
+            SetFloat(m, "_SunSheenStrength", 0.10f);
+
+            // ---- 细节法线 / 不透明度 / 调试 ----
+            SetFloat(m, "_WaveScaleA", 0.32f);
+            SetFloat(m, "_WaveSpeedA", 0.45f);
+            SetFloat(m, "_WaveStrengthA", 0.55f);
+            SetVector(m, "_WaveDirectionA", new Vector4(1f, 0f, 0.35f, 0f));
+            SetFloat(m, "_WaveScaleB", 0.95f);
+            SetFloat(m, "_WaveSpeedB", 0.85f);
+            SetFloat(m, "_WaveStrengthB", 0.28f);
+            SetVector(m, "_WaveDirectionB", new Vector4(-0.4f, 0f, 1f, 0f));
+            SetFloat(m, "_Opacity", 0.82f);
+            SetFloat(m, "_DebugMode", 0f);
+
+            EditorUtility.SetDirty(m);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[WaterAssetBuilder] M4 海洋材质参数已落盘：" + OceanMaterialPath
+                      + "（§2.1 三档海水色 / swell×2+chop×4 / 包络与淡出取 OceanRules 常量）");
         }
 
         static void SetFloat(Material m, string name, float value)

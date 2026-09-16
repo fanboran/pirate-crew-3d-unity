@@ -40,10 +40,17 @@ namespace PirateCrew.PirateCrew.Water.Tests
         [Test]
         public void Defaults_CrestStaysBelowGroundLevel()
         {
-            // 水面 y = -0.4（格 1→2 单位后由 -0.2 ×2），地面顶面 y = 0；
-            // 振幅之和 0.278 < 0.4 → 浪尖(-0.122)仍在地面之下。
+            // 波峰硬约束（M4 用户裁决）：竞技场附近波峰最高点 < -0.10（不穿岛基湿沙带；
+            // 岛顶最低 +0.5、静水面 -0.4）。换算：近岸振幅预算 = -0.10 − (-0.4) = 0.30
+            // （OceanRules.ShoreAmplitudeBudget），旧口径是"振幅和 < 0.4（水面距地面）"→ 0.278 上限，
+            // 新口径放宽到 0.30 → chop 振幅和 0.278 仍达标：波峰 -0.122 < -0.10 ✓。
+            // 长涌（振幅 0.5~1.2）不参与近岸预算：OceanRules.SwellEnvelope 在竞技场保护圈内把它压 0
+            //（见 OceanRulesTests）。
             float ampSum = WaterRules.MaxAmplitude(Defaults);
-            Assert.That(ampSum, Is.LessThan(Mathf.Abs(LevelGeometry.WaterSurfaceY)));
+            Assert.That(LevelGeometry.WaterSurfaceY + ampSum,
+                Is.LessThan(OceanRules.MaxCrestWorldY),
+                $"chop 波峰 {LevelGeometry.WaterSurfaceY + ampSum} 必须低于 {OceanRules.MaxCrestWorldY}");
+            Assert.That(ampSum, Is.LessThanOrEqualTo(OceanRules.ShoreAmplitudeBudget));
             Assert.That(LevelGeometry.WaterSurfaceY + ampSum, Is.LessThan(LevelGeometry.GroundTopY));
         }
 
