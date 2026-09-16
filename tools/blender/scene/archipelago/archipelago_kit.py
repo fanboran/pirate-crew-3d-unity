@@ -329,20 +329,13 @@ def terrace_body(acc, outline, layers, side_mat_fn, cap_mats, rng,
     for li in range(len(layers) - 1):
         z0, s0, cx0, cy0 = layers[li]
         z1, s1, cx1, cy1 = layers[li + 1]
-        # 梯田形制：陡坎（近竖直，不遮下层平台）+ 窄过渡斜坡（坎顶处快速收进）
-        # 若从本层轮廓直接起斜坡，45° 视角下斜锥投影会盖住下层整个顶面（第 4 轮实证）
-        z_shelf = max(z0 + 0.06, z1 - 0.18)
-        for sub, jm in ((1, 1.1), (2, 0.55)):              # 陡坎
-            z = z0 + (z_shelf - z0) * sub / 2.0
-            rings.append(_ring(outline, z, s0 * 0.995, cx0, cy0, jm))
-            ring_mat.append(side_mat_fn(z))
-        for sub in (1, 2):                                 # 坎顶过渡（窄带内完成收分+平移）
-            f = sub / 2.0
-            z = z_shelf + (z1 - z_shelf) * f
-            sc = s0 + (s1 - s0) * f
-            cx = cx0 + (cx1 - cx0) * f
-            cy = cy0 + (cy1 - cy0) * f
-            rings.append(_ring(outline, z, sc, cx, cy, 0.5))
+        # 梯田形制：竖坎立在下层（更小层）轮廓处（s 恒 = s1）——若从本层轮廓起坡，
+        # 坡会吃掉本层整个顶面环带（第 7 轮实证）。坎壁分 3 段加地层 jitter。
+        for sub in (1, 2, 3):
+            f = sub / 3.0
+            z = z0 + (z1 - z0) * f
+            jm = jm_cycle[(li * 3 + sub) % len(jm_cycle)] * 0.8
+            rings.append(_ring(outline, z, s1, cx1, cy1, jm))
             ring_mat.append(side_mat_fn(z))
         rings.append(_ring(outline, z1, s1, cx1, cy1, 1.0))
         ring_mat.append(side_mat_fn(z1))
@@ -681,10 +674,14 @@ def setup_render(scene):
 
 
 def aim_preview_lights(scene, target=(0.0, 0.0, 1.2)):
-    """ST.setup_preview_world 的灯只有位置没有姿态（AREA 默认 -Z）——这里补 look-at。"""
+    """ST.setup_preview_world 的灯只有位置没有姿态（AREA 默认 -Z）——这里补 look-at；
+    并按美术风格指南 §2.5「暗面 ≥ 同色系暗档 0.9 倍、靠冷环境光托底」给补光/轮廓光
+    做能量补偿（仅预览环境：ST 基线距离衰减后背光面死黑，实测 RGB 49,42,36）。"""
     t = mathutils.Vector(target)
+    boost = {'ST_Fill': 2.5, 'ST_Rim': 1.8}
     for o in scene.objects:
         if o.type == 'LIGHT':
+            o.data.energy = o.data.energy * boost.get(o.name, 1.0)
             d = t - o.location
             o.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
 
@@ -744,10 +741,11 @@ def render_views(scene, obj, name, out_dir):
     tz = ctr[2]
     base = VIEWS_CFG.get(name, {}).get('d_mult', 1.0)
     d *= base
+    # 机位与 ST key 灯（+X,-Y,+Z）同侧（样板纪律：主光打亮朝镜头的面），否则画面主体全背光
     views = [
-        ('front34', (ctr[0] - 0.72 * d, ctr[1] - 0.70 * d, ctr[2] + 0.42 * d), ctr),
-        ('side', (ctr[0] - 1.02 * d, ctr[1] + 0.16 * d, ctr[2] + 0.20 * d), ctr),
-        ('back', (ctr[0] + 0.60 * d, ctr[1] + 0.74 * d, ctr[2] + 0.36 * d), ctr),
+        ('front34', (ctr[0] + 0.72 * d, ctr[1] - 0.70 * d, ctr[2] + 0.42 * d), ctr),
+        ('side', (ctr[0] + 1.02 * d, ctr[1] - 0.16 * d, ctr[2] + 0.20 * d), ctr),
+        ('back', (ctr[0] - 0.60 * d, ctr[1] + 0.74 * d, ctr[2] + 0.36 * d), ctr),
     ]
     for vn, loc, target in views:
         cam_data = bpy.data.cameras.new('kit_cam')
@@ -928,9 +926,9 @@ def _build_terrace(acc, rng, P, big):
     boxes = []
     zone_mats = [
         [(M_SANDM, M_SANDL), M_SANDM, M_SANDL],                # L1：沙（低频半区）
-        [(M_GRASSM, M_GRASSD), M_GRASSM, M_GRASSL],            # L2：草
+        [(M_GRASSM, M_GRASSL), M_GRASSM, M_GRASSL],            # L2：草（亮系半区，暗档留给坎壁）
         [(M_GRASSL, M_GRASSM), M_GRASSL, M_GRASSM],            # L3：亮草
-        [(M_GRASSM, M_GRASSL), M_GRASSL, M_GRASSD],            # L4：草
+        [(M_GRASSL, M_GRASSM), M_GRASSL, M_GRASSM],            # L4：亮草
     ]
     for li, (z, sc, cx, cy) in enumerate(layers):
         if li == 0:
@@ -939,9 +937,14 @@ def _build_terrace(acc, rng, P, big):
             hw = P['layers'][li][1]
             ol = outline_with_normals(superellipse_pts(hw, P['layers'][li][2], P['n_pow'],
                                                        SEG_ARC if not big else SEG_ARC_BIG), rng)
+        # 顶面拼板铺到"下一层轮廓比"（竖坎立在下层轮廓处，环带全宽可见 = 梯田平台）
+        if li < len(layers) - 1:
+            ratio = (P['layers'][li + 1][1] / P['layers'][li][1]) + 0.04   # 略压到坎壁内防缝
+        else:
+            ratio = 0.52
         top_surface(acc, P['layers'][li][1], P['layers'][li][2], P['n_pow'], z,
                     banded_mats(zone_mats[min(li, len(zone_mats) - 1)], n_out=8 if li < 2 else 6),
-                    n_seg=8 if li < 2 else 6, ring_scales=(0.58, 0.24), off=(cx, cy))
+                    n_seg=8 if li < 2 else 6, ring_scales=(ratio, ratio * 0.45), off=(cx, cy))
         hw, hd = P['layers'][li][1], P['layers'][li][2]
         boxes.append(sbox(cx, cy, z, hw * 2 - 0.4, hd * 2 - 0.4))
 
@@ -1377,10 +1380,11 @@ def build_turtle(acc, rng):
         hw, hd = P['rings'][li][1], P['rings'][li][2]
         ol = outline if li == 0 else outline_with_normals(
             superellipse_pts(hw, hd, P['n_pow'], SEG_ARC), rng)
+        ratio = (P['rings'][li + 1][1] / P['rings'][li][1]) + 0.04 if li < 2 else 0.55
         top_surface(acc, hw, hd, P['n_pow'], z,
                      lambda zone, k, _l=li: (M_ROCKM, M_ROCKD, M_ROCKL)[zone] if (k + _l) % 2 == 0
                      else (M_ROCKL, M_ROCKM, M_ROCKM)[zone],
-                     n_seg=10 if li == 0 else 6, ring_scales=(0.6, 0.26), off=(cx, cy))
+                     n_seg=10 if li == 0 else 6, ring_scales=(ratio, ratio * 0.45), off=(cx, cy))
         # 鳞纹六边形凸片（两圈六方格排布，加大加密 = 龟甲身份符号）
         if li < 2:
             n_out = 8 if li == 0 else 6
