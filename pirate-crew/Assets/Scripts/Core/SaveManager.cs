@@ -101,7 +101,7 @@ namespace PirateCrew.Core
         {
             if (Instance != null && Instance != this)
             {
-                Debug.LogWarning("[SaveManager] 已存在实例，销毁重复对象: " + name);
+                global::PirateCrew.Core.Log.Warn("[SaveManager] 已存在实例，销毁重复对象: " + name);
                 Destroy(gameObject);
                 return;
             }
@@ -175,7 +175,7 @@ namespace PirateCrew.Core
             SaveData data = Io.LoadSlot(slot);
             if (data == null)
             {
-                Debug.LogWarning("[SaveManager] 读档失败或槽位不存在: " + slot);
+                global::PirateCrew.Core.Log.Warn("[SaveManager] 读档失败或槽位不存在: " + slot);
                 return null;
             }
 
@@ -266,7 +266,7 @@ namespace PirateCrew.Core
 
             if (AutoSaveDataProvider == null)
             {
-                Debug.LogWarning("[SaveManager] 未注册 AutoSaveDataProvider，跳过自动存档");
+                global::PirateCrew.Core.Log.Warn("[SaveManager] 未注册 AutoSaveDataProvider，跳过自动存档");
                 return false;
             }
 
@@ -283,7 +283,7 @@ namespace PirateCrew.Core
 
             if (data == null)
             {
-                Debug.LogWarning("[SaveManager] 自动存档数据源返回 null，跳过本次");
+                global::PirateCrew.Core.Log.Warn("[SaveManager] 自动存档数据源返回 null，跳过本次");
                 return false;
             }
 

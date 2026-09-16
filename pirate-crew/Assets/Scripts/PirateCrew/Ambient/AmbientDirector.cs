@@ -248,7 +248,7 @@ namespace PirateCrew.PirateCrew.Ambient
 
             if (verboseLog)
             {
-                Debug.Log("[Ambient] 环境与活物就绪。\n"
+                global::PirateCrew.Core.Log.Info("[Ambient] 环境与活物就绪。\n"
                     + "  竞技场: " + _arena.Width + "×" + _arena.Depth
                     + "（禁飞区 X " + _noFly.MinX.ToString("0.0") + "~" + _noFly.MaxX.ToString("0.0")
                     + "，天花板 y=" + _noFly.CeilingY + "）\n"
@@ -388,7 +388,7 @@ namespace PirateCrew.PirateCrew.Ambient
             else if (!_warnedMissingSun)
             {
                 _warnedMissingSun = true;
-                Debug.LogWarning("[Ambient] sunLight 未接线：昼夜档位只切换雾与环境光，主光不动"
+                global::PirateCrew.Core.Log.Warn("[Ambient] sunLight 未接线：昼夜档位只切换雾与环境光，主光不动"
                     + "（接线清单见交付报告）。");
             }
 

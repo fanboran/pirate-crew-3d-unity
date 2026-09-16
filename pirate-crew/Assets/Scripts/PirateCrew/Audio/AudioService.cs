@@ -176,7 +176,7 @@ namespace PirateCrew.PirateCrew.Audio
         {
             if (_instance != null && _instance != this)
             {
-                Debug.LogWarning("[AudioService] 已存在实例，销毁重复对象: " + name);
+                global::PirateCrew.Core.Log.Warn("[AudioService] 已存在实例，销毁重复对象: " + name);
                 Destroy(gameObject);
                 return;
             }
@@ -189,7 +189,7 @@ namespace PirateCrew.PirateCrew.Audio
             BuildSources();
             SubscribeEvents();
 
-            Debug.Log("[AudioService] 已启动：音效 " + SfxCatalog.Count + " 条配方，"
+            global::PirateCrew.Core.Log.Info("[AudioService] 已启动：音效 " + SfxCatalog.Count + " 条配方，"
                       + "播放池 " + VoicePoolSize + " 路。");
         }
 
@@ -916,7 +916,7 @@ namespace PirateCrew.PirateCrew.Audio
                     }
                     catch (Exception e)
                     {
-                        Debug.LogWarning("[AudioService] ClipProvider 异常（改用资产/回退合成）: " + e.Message);
+                        global::PirateCrew.Core.Log.Warn("[AudioService] ClipProvider 异常（改用资产/回退合成）: " + e.Message);
                     }
                 }
 
@@ -930,7 +930,7 @@ namespace PirateCrew.PirateCrew.Audio
             // 搬运登记的 id 有变奏没解析到 → 多半是资产没拷全，早点告警（否则只是少几个变奏，静默无声）
             if (Game2AudioAssets.IsPorted(id) && resolved.Count < names.Length)
             {
-                Debug.LogWarning("[AudioService] " + id + " 的变奏资产缺 " + (names.Length - resolved.Count)
+                global::PirateCrew.Core.Log.Warn("[AudioService] " + id + " 的变奏资产缺 " + (names.Length - resolved.Count)
                                  + "/" + names.Length + " 个（已解析到的变奏仍会播放）；"
                                  + "请跑 PiratesCrew/音频/生成程序化音频资产（幂等）或检查 Resources/PirateCrewAudio。");
             }
@@ -956,7 +956,7 @@ namespace PirateCrew.PirateCrew.Audio
             // 纯外部素材（如底床垫底）没有合成实现：资产缺失就静音，而不是回落成别的音色
             if (!SynthRenderer.CanRender(id))
             {
-                Debug.LogWarning("[AudioService] " + id + " 是外部搬运素材且资产缺失，本次静音（无合成回退）。");
+                global::PirateCrew.Core.Log.Warn("[AudioService] " + id + " 是外部搬运素材且资产缺失，本次静音（无合成回退）。");
                 return null;
             }
 
@@ -997,7 +997,7 @@ namespace PirateCrew.PirateCrew.Audio
             if (!_listenerPresent && !_listenerWarned)
             {
                 _listenerWarned = true;
-                Debug.LogWarning("[AudioService] 当前场景没有 AudioListener，音频将不发声（仅告警一次）。");
+                global::PirateCrew.Core.Log.Warn("[AudioService] 当前场景没有 AudioListener，音频将不发声（仅告警一次）。");
             }
 
             return _listenerPresent;

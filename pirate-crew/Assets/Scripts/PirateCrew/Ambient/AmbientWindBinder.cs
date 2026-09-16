@@ -61,7 +61,7 @@ namespace PirateCrew.PirateCrew.Ambient
             if (sceneArtRoot == null)
             {
                 if (verbose)
-                    Debug.LogWarning("[Ambient] SceneArt 根节点未接线，植被风摆跳过（场景仍是静态的）。");
+                    global::PirateCrew.Core.Log.Warn("[Ambient] SceneArt 根节点未接线，植被风摆跳过（场景仍是静态的）。");
                 return 0;
             }
 
@@ -82,7 +82,7 @@ namespace PirateCrew.PirateCrew.Ambient
             if (child == null)
             {
                 if (verbose)
-                    Debug.LogWarning("[Ambient] SceneArt 下没找到 " + objectName
+                    global::PirateCrew.Core.Log.Warn("[Ambient] SceneArt 下没找到 " + objectName
                         + "，该组不做风摆（可能该组为空未生成，或 SceneArtBuilder 尚未跑）。");
                 return 0;
             }
@@ -91,7 +91,7 @@ namespace PirateCrew.PirateCrew.Ambient
             if (renderer == null)
             {
                 if (verbose)
-                    Debug.LogWarning("[Ambient] " + objectName + " 上没有 MeshRenderer，跳过风摆。");
+                    global::PirateCrew.Core.Log.Warn("[Ambient] " + objectName + " 上没有 MeshRenderer，跳过风摆。");
                 return 0;
             }
 

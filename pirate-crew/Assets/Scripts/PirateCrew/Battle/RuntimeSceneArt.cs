@@ -164,7 +164,7 @@ namespace PirateCrew.PirateCrew.Battle
 
             if (!LevelCatalog.IsTranscribed(levelNumber))
             {
-                Debug.LogWarning("[RuntimeSceneArt] LevelCatalog 未转写关卡 " + levelNumber
+                global::PirateCrew.Core.Log.Warn("[RuntimeSceneArt] LevelCatalog 未转写关卡 " + levelNumber
                     + "，静态陈设留空（不生成与关卡错位的几何）。");
                 LastLevelNumber = levelNumber;
                 LastClusterCount = 0;
@@ -358,7 +358,7 @@ namespace PirateCrew.PirateCrew.Battle
         {
             if (!_warned.Add(index))
                 return;
-            Debug.LogWarning("[RuntimeSceneArt] 材质组 " + GroupNames[index] + " 跳过：" + reason
+            global::PirateCrew.Core.Log.Warn("[RuntimeSceneArt] 材质组 " + GroupNames[index] + " 跳过：" + reason
                 + "（该组几何不渲染；这不影响地形与玩法）。");
         }
 

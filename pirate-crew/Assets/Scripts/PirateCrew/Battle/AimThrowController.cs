@@ -553,7 +553,7 @@ namespace PirateCrew.PirateCrew.Battle
 
             if (spawned == 0)
             {
-                Debug.LogWarning("[AimThrowController] 武器 " + weapon
+                global::PirateCrew.Core.Log.Warn("[AimThrowController] 武器 " + weapon
                     + " 的专用机制尚未实现（TODO 见 ProjectileProfile.SupportsGenericProjectile），本次未生成弹体。");
             }
 

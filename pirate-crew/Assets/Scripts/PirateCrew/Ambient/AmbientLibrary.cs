@@ -255,7 +255,7 @@ namespace PirateCrew.PirateCrew.Ambient
         {
             Shader shader = Shader.Find(name);
             if (shader == null)
-                Debug.LogWarning("[Ambient] 找不到 shader " + name
+                global::PirateCrew.Core.Log.Warn("[Ambient] 找不到 shader " + name
                     + "（可能未编译或未进构建）。请先在有渲染路径的编辑器里 read_console 确认 shader 无编译错误。");
             return shader;
         }

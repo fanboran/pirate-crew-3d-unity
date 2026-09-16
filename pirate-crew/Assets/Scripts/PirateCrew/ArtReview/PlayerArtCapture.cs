@@ -180,7 +180,7 @@ namespace PirateCrew.PirateCrew.ArtReview
                     ClearFocusSelection();
             }
 
-            Debug.Log("[PlayerArtCapture] 采集完成，退出。目录：" + _outDir);
+            global::PirateCrew.Core.Log.Info("[PlayerArtCapture] 采集完成，退出。目录：" + _outDir);
             yield return new WaitForSeconds(0.5f);
             Application.Quit(0);
         }
@@ -287,7 +287,7 @@ namespace PirateCrew.PirateCrew.ArtReview
         {
             Vector3 blast = center + new Vector3(0f, 0.5f, 0f);
             Fx.FxApi.PlayExplosion(blast, ExplosionSize);
-            Debug.Log("[PlayerArtCapture] 已引爆 FX：center=" + blast.ToString("F2")
+            global::PirateCrew.Core.Log.Info("[PlayerArtCapture] 已引爆 FX：center=" + blast.ToString("F2")
                 + " size=" + ExplosionSize + "，等 " + ExplosionWarmupSeconds + "s 取闪光峰值。");
         }
 

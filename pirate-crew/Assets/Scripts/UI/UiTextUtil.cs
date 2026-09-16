@@ -88,7 +88,7 @@ namespace PirateCrew.UI
 
             if (WarnedRoles.Add(role))
             {
-                Debug.LogWarning("[UiTextUtil] 字体资产缺失（角色：" + role + "），"
+                global::PirateCrew.Core.Log.Warn("[UiTextUtil] 字体资产缺失（角色：" + role + "），"
                     + "将回落到 TMP 默认字体——中文可能显示为方块。"
                     + "请在编辑器执行 Window/TextMeshPro/Import TMP Essential Resources，"
                     + "再跑菜单 PirateCrew/Fonts/生成 TMP 中文字体资产（幂等）。");

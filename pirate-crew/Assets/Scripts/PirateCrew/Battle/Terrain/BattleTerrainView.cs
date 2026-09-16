@@ -406,7 +406,7 @@ namespace PirateCrew.PirateCrew.Battle
                 else
                 {
                     target.enabled = false;
-                    Debug.LogWarning("[BattleTerrainView] 材质解析失败，" + target.name + " 已隐藏（粉色方块防线）。");
+                    global::PirateCrew.Core.Log.Warn("[BattleTerrainView] 材质解析失败，" + target.name + " 已隐藏（粉色方块防线）。");
                 }
             }
         }
@@ -504,7 +504,7 @@ namespace PirateCrew.PirateCrew.Battle
                 shader = Shader.Find("Standard");
             if (shader == null)
             {
-                Debug.LogWarning("[BattleTerrainView] 兜底 shader 全部落空，地形视觉层隐藏。");
+                global::PirateCrew.Core.Log.Warn("[BattleTerrainView] 兜底 shader 全部落空，地形视觉层隐藏。");
                 return null;
             }
             _fallbackMaterial = new Material(shader) { name = "TerrainFallback" };

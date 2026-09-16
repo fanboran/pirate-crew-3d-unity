@@ -28,7 +28,7 @@ namespace PirateCrew.Core
             // 重复实例保护：从别的场景误入 Bootstrapper 时，只保留首个实例。
             if (Instance != null && Instance != this)
             {
-                Debug.LogWarning("[Bootstrapper] 已存在实例，销毁重复对象: " + name);
+                global::PirateCrew.Core.Log.Warn("[Bootstrapper] 已存在实例，销毁重复对象: " + name);
                 Destroy(gameObject);
                 return;
             }

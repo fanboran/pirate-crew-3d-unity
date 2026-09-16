@@ -76,13 +76,13 @@ namespace PirateCrew.PirateCrew.Battle
         void OnValidate()
         {
             if (diameter <= 0.01f)
-                Debug.LogWarning("[ContactShadowDecal] " + name + " 直径 " + diameter
+                global::PirateCrew.Core.Log.Warn("[ContactShadowDecal] " + name + " 直径 " + diameter
                     + " 过小（建议 " + DefaultDiameter + "），接触阴影不可见。", this);
             if (groundOffset < MinGroundOffset)
-                Debug.LogWarning("[ContactShadowDecal] " + name + " 贴地抬高 " + groundOffset
+                global::PirateCrew.Core.Log.Warn("[ContactShadowDecal] " + name + " 贴地抬高 " + groundOffset
                     + " 低于下限 " + MinGroundOffset + "，可能与地形 z-fight（脚下碎片）。", this);
             if (centerAlpha <= 0.02f || centerAlpha > 1f)
-                Debug.LogWarning("[ContactShadowDecal] " + name + " 中心不透明度 " + centerAlpha
+                global::PirateCrew.Core.Log.Warn("[ContactShadowDecal] " + name + " 中心不透明度 " + centerAlpha
                     + " 不在 (0.02, 1]，接触阴影不可见/过黑。", this);
         }
 #endif

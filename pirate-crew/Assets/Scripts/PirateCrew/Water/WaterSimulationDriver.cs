@@ -388,7 +388,7 @@ namespace PirateCrew.PirateCrew.Water
             }
             catch (System.Exception e)
             {
-                Debug.LogWarning("[WaterSimulationDriver] 障碍图不可读（TextureImporter 需 Is Readable）："
+                global::PirateCrew.Core.Log.Warn("[WaterSimulationDriver] 障碍图不可读（TextureImporter 需 Is Readable）："
                                  + e.Message + "，本次模拟不做障碍反射。");
                 return;
             }

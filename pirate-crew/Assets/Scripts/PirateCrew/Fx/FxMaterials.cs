@@ -205,7 +205,7 @@ namespace PirateCrew.PirateCrew.Fx
             if (!_warnedShaderFallback)
             {
                 _warnedShaderFallback = true;
-                Debug.LogWarning("[FxMaterials] 未找到 " + (additive ? AdditiveShaderName : AlphaShaderName)
+                global::PirateCrew.Core.Log.Warn("[FxMaterials] 未找到 " + (additive ? AdditiveShaderName : AlphaShaderName)
                     + "，回落为 " + (fallback != null ? fallback.name : "null")
                     + "。请在编辑器执行 PirateCrew/Fx/生成特效贴图与材质，并确认 FX shader 编译无错。");
             }

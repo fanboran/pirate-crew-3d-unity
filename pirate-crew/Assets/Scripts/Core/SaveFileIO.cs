@@ -117,7 +117,7 @@ namespace PirateCrew.Core
                     return null;
                 }
 
-                Debug.LogWarning("[SaveFileIO] 存档损坏，尝试从 .bak 回滚: " + path + "\n" + e);
+                global::PirateCrew.Core.Log.Warn("[SaveFileIO] 存档损坏，尝试从 .bak 回滚: " + path + "\n" + e);
                 if (AttemptRollback(path))
                     return LoadSlot(slot, false);
 
@@ -150,7 +150,7 @@ namespace PirateCrew.Core
             }
             catch (Exception e)
             {
-                Debug.LogWarning("[SaveFileIO] 元数据读取失败，按空处理: " + path + "\n" + e);
+                global::PirateCrew.Core.Log.Warn("[SaveFileIO] 元数据读取失败，按空处理: " + path + "\n" + e);
                 return null;
             }
         }
@@ -230,7 +230,7 @@ namespace PirateCrew.Core
                 }
 
                 File.Copy(backupPath, path, true);
-                Debug.LogWarning("[SaveFileIO] 已从 .bak 回滚: " + backupPath);
+                global::PirateCrew.Core.Log.Warn("[SaveFileIO] 已从 .bak 回滚: " + backupPath);
                 return true;
             }
             catch (Exception e)
@@ -249,7 +249,7 @@ namespace PirateCrew.Core
             }
             catch (Exception e)
             {
-                Debug.LogWarning("[SaveFileIO] 删除临时文件失败: " + path + "\n" + e);
+                global::PirateCrew.Core.Log.Warn("[SaveFileIO] 删除临时文件失败: " + path + "\n" + e);
             }
         }
     }

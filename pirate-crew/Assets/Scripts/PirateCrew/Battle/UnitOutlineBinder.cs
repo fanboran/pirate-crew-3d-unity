@@ -307,9 +307,9 @@ namespace PirateCrew.PirateCrew.Battle
 
             sb.Append("\n  → 缺 _OutlineState 的部件数：").Append(missing);
             if (missing > 0)
-                Debug.LogWarning(sb.ToString());
+                global::PirateCrew.Core.Log.Warn(sb.ToString());
             else
-                Debug.Log(sb.ToString());
+                global::PirateCrew.Core.Log.Info(sb.ToString());
         }
 
         void LateUpdate()
@@ -373,7 +373,7 @@ namespace PirateCrew.PirateCrew.Battle
             if (_warnedClobbered)
                 return;
             _warnedClobbered = true;
-            Debug.LogWarning("[UnitOutlineBinder] " + name + " 的 MPB 在外部被改写过（" + probe.name
+            global::PirateCrew.Core.Log.Warn("[UnitOutlineBinder] " + name + " 的 MPB 在外部被改写过（" + probe.name
                 + " 上的 _OutlineState 与本类期望的 " + state + " 不一致），已强制重写。"
                 + "若是对象池复用/外来组件整块 SetPropertyBlock，请在那之后调用 RefreshRenderers()。");
         }
@@ -471,7 +471,7 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
 
             _warnedMissingProperty = true;
-            Debug.LogWarning("[UnitOutlineBinder] " + name + " 有 " + badCount + "/"
+            global::PirateCrew.Core.Log.Warn("[UnitOutlineBinder] " + name + " 有 " + badCount + "/"
                 + _outlineRenderers.Length + " 个部件的材质不含 _OutlineState 属性，"
                 + "描边状态不会被应用，首个：" + bad
                 + "。请把单位材质换成 PirateOutline shader（见 M2BattleSceneSetup.EnsureOutlineMaterial）。");
