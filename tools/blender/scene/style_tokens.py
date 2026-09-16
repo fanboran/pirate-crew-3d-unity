@@ -214,8 +214,6 @@ def setup_preview_world(scene):
         data.size = 60.0
         obj = bpy.data.objects.new(name, data)
         obj.location = location
-        d = bpy.data.curves.new(name + "_t", type="TEXT")  # 占位，用 track-to 简化为 look_direction
-        bpy.data.curves.remove(d)
         scene.collection.objects.link(obj)
         return obj
 
