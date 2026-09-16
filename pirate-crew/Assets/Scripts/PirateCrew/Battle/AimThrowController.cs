@@ -271,13 +271,32 @@ namespace PirateCrew.PirateCrew.Battle
         // 炮台模式（r12 用户裁决：操作模式=像发射大炮一样瞄准）
         // ------------------------------------------------------------------
 
+        // 瞄准手感常量（原 r12 数值原样收进常量区，禁散落魔法数）。
+        /// <summary>A/D 转向速率（弧度/秒）。</summary>
+        const float TurretYawRadiansPerSecond = 1.6f;
+        /// <summary>W/S 力度增速（比例/秒）。</summary>
+        const float TurretPowerPerSecond = 0.45f;
+        /// <summary>滚轮力度微调（比例/格）。</summary>
+        const float TurretPowerPerScrollNotch = 0.04f;
+
         bool _preferWeapon;
         bool _turretAiming;
         float _turretYawRad;
         float _turretPower = 0.6f;
+        bool _scopeActive;
 
         /// <summary>炮台瞄准进行中（相机据此把滚轮让给力度）。</summary>
         public bool IsTurretAiming => _turretAiming;
+
+        /// <summary>当前炮台蓄力比例（0..1；供相机的力度-镜头耦合，M4 §3.2）。</summary>
+        public float ChargeRatio => Mathf.Clamp01(_turretPower);
+
+        /// <summary>
+        /// Scope 瞄准模式（M4 §3.2，提案）：炮台瞄准中按 Shift 切换。生效时相机 FOV 收敛到
+        /// <see cref="CameraFeelRules.ScopeTargetFov"/>、瞄准灵敏度 ×<see cref="CameraFeelRules.ScopeAimSensitivityScale"/>。
+        /// 退出炮台瞄准自动退出。
+        /// </summary>
+        public bool IsScopeActive => _scopeActive;
 
         /// <summary>HUD 模式开关调用：操作模式=优先用武器（拖空白不再取消武装），移动模式=拖拽即跳跃。</summary>
         public void SetWeaponPreference(bool preferWeapon)
@@ -290,6 +309,7 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>
         /// 大炮式键盘瞄准：A/D 转向、W/S 力度、滚轮微调、空格/回车发射；轨迹预览实时刷新。
         /// 合成等效拖拽向量喂给 <see cref="ResolveThrow"/>——与拖拽路径共用同一套换算，口径不分叉。
+        /// Scope（Shift 切换）下灵敏度整体 ×0.4，弹道预览步数随力度延长（M4 §3.2）。
         /// </summary>
         void UpdateTurret()
         {
@@ -302,24 +322,37 @@ namespace PirateCrew.PirateCrew.Battle
 
             _turretAiming = weaponTurret || jumpTurret;
             if (!_turretAiming)
+            {
+                // 退出瞄准即退出 Scope（相机侧混合目标随之回落）。
+                _scopeActive = false;
                 return;
+            }
+
+            // 【M4 §3.2】Scope：Shift 切换；生效时 yaw/力度/滚轮灵敏度同步 ×0.4。
+            if (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift))
+                _scopeActive = !_scopeActive;
+            float sensitivity = _scopeActive ? CameraFeelRules.ScopeAimSensitivityScale : 1f;
 
             if (_selected != null)
                 _originWorld = _selected.transform.position;
 
             float dt = Time.deltaTime;
             float rot = (Input.GetKey(KeyCode.A) ? -1f : 0f) + (Input.GetKey(KeyCode.D) ? 1f : 0f);
-            _turretYawRad += rot * 1.6f * dt;
+            _turretYawRad += rot * TurretYawRadiansPerSecond * sensitivity * dt;
             float pow = (Input.GetKey(KeyCode.W) ? 1f : 0f) + (Input.GetKey(KeyCode.S) ? -1f : 0f);
-            _turretPower = Mathf.Clamp01(_turretPower + pow * 0.45f * dt
-                + Input.mouseScrollDelta.y * 0.04f);
+            _turretPower = Mathf.Clamp01(_turretPower + pow * TurretPowerPerSecond * sensitivity * dt
+                + Input.mouseScrollDelta.y * TurretPowerPerScrollNotch * sensitivity);
 
             float dragLength = Mathf.Max(minDragPixels + 4f, _turretPower * _twangMax / 0.25f);
             _dragScreen = new Vector2(Mathf.Sin(_turretYawRad), Mathf.Cos(_turretYawRad)) * dragLength;
 
             (Vector3 dir, float speed, float _, float _) = ResolveThrow();
             if (trajectory != null)
-                trajectory.Show(_originWorld, dir, speed, _weight);
+            {
+                // 弹道预览步数随力度延长（15 步保底 → 大力度长弧线）。
+                trajectory.Show(_originWorld, dir, speed, _weight,
+                    ThrowTrajectory.StepsForSpeed(speed, _twangMax));
+            }
 
             // 开火：武器=回车（防走火）；跳跃=空格或回车。
             bool fire = Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Return)
@@ -454,7 +487,11 @@ namespace PirateCrew.PirateCrew.Battle
             (Vector3 dir, float speed, float _, float _) = ResolveThrow();
 
             if (trajectory != null)
-                trajectory.Show(_originWorld, dir, speed, _weight);
+            {
+                // 弹道预览步数随力度延长（与炮台路径同口径，M4 §3.2）。
+                trajectory.Show(_originWorld, dir, speed, _weight,
+                    ThrowTrajectory.StepsForSpeed(speed, _twangMax));
+            }
         }
 
         /// <summary>

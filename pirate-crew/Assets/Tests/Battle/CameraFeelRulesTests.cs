@@ -405,6 +405,8 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         // ------------------------------------------------------------------
         // 默认机位档位（用户裁决 2026-09-14：默认角色特写，滚轮可拉到旧 45° 全场）
         //   这些是 BattleCameraController 的 public static 常量/纯函数，无需实例化 MonoBehaviour。
+        //   【M4 更新】手动上限 50→160、新增全景档（docs/M4-大海域世界化.md §1/§3.2），
+        //   相关断言已随 API 更新（注明 M4）。
         // ------------------------------------------------------------------
 
         [Test]
@@ -426,10 +428,11 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         }
 
         [Test]
-        public void ZoomBounds_AllowPushInToSixAndPullBackToFifty()
+        public void ZoomBounds_AllowPushInToSixAndPullBackToFar()
         {
+            // 【M4 更新】后拉最远 160（原 50，docs/M4-大海域世界化.md §1 大海域档位）；前推最近 6 不变。
             Assert.AreEqual(6f, BattleCameraController.MinManualDistance, 1e-4f, "前推最近 6（旧 3 ×2）");
-            Assert.AreEqual(50f, BattleCameraController.MaxManualDistance, 1e-4f, "后拉最远 50（旧 25 ×2）");
+            Assert.AreEqual(160f, BattleCameraController.MaxManualDistance, 1e-4f, "后拉最远 160（M4 §3.2 档位放大）");
             // 特写档与全场档都必须落在可用缩放区间内。
             Assert.That(BattleCameraController.CloseUpDistance,
                 Is.InRange(BattleCameraController.MinManualDistance, BattleCameraController.MaxManualDistance));
@@ -440,20 +443,38 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         }
 
         [Test]
-        public void PitchForDistance_InterpolatesCloseUpToFullFieldAndSaturates()
+        public void PanoramaDistanceForSpan_ClampsPerM4Contract()
         {
+            // 【M4 新增】全景档 = clamp(span × 0.55, 60, 160)（docs/M4-大海域世界化.md §1）。
+            Assert.AreEqual(60f, BattleCameraController.PanoramaDistanceForSpan(100f), 1e-4f,
+                "默认跨度 100u → 55 被 60 下限托住（缺省行为）");
+            Assert.AreEqual(60f, BattleCameraController.PanoramaDistanceForSpan(50f), 1e-4f, "小图也保 60 下限");
+            Assert.AreEqual(110f, BattleCameraController.PanoramaDistanceForSpan(200f), 1e-4f);
+            Assert.AreEqual(160f, BattleCameraController.PanoramaDistanceForSpan(300f), 1e-4f, "大图被 160 上限夹住");
+            Assert.AreEqual(BattleCameraController.MaxManualDistance,
+                BattleCameraController.PanoramaDistanceForSpan(300f), 1e-4f, "上限与手动缩放上限一致");
+            Assert.AreEqual(BattleCameraController.PanoramaDistanceForSpan(
+                BattleCameraController.DefaultWorldSpan), 60f, 1e-4f, "默认跨度 = 现行 100u 图");
+        }
+
+        [Test]
+        public void PitchForDistance_InterpolatesThroughThreeAnchorsAndSaturates()
+        {
+            // 特写锚：≤12 → 30°；比特写更近也不变。
             Assert.AreEqual(BattleCameraController.CloseUpPitchDegrees,
                 BattleCameraController.PitchForDistance(BattleCameraController.CloseUpDistance), 1e-3f);
-            // 比特写更近也不改变俯角（夹在特写档）。
             Assert.AreEqual(BattleCameraController.CloseUpPitchDegrees,
                 BattleCameraController.PitchForDistance(BattleCameraController.MinManualDistance), 1e-3f);
-            // 到全场距离恰好是旧的 45°。
+            // 全场锚：30u 处恰为旧 45°。
             Assert.AreEqual(BattleCameraController.FullFieldPitchDegrees,
                 BattleCameraController.PitchForDistance(BattleCameraController.FullFieldDistance), 1e-3f);
-            // 再远也维持 45°（不继续抬头）。
-            Assert.AreEqual(BattleCameraController.FullFieldPitchDegrees,
+            // 【M4 更新】全景锚：全景档处外推到 55°，再远维持（原断言"45° 饱和到 50"已随外推废止）。
+            float panorama = BattleCameraController.PanoramaDistanceForSpan(100f);
+            Assert.AreEqual(BattleCameraController.PanoramaPitchDegrees,
+                BattleCameraController.PitchForDistance(panorama), 1e-3f);
+            Assert.AreEqual(BattleCameraController.PanoramaPitchDegrees,
                 BattleCameraController.PitchForDistance(BattleCameraController.MaxManualDistance), 1e-3f);
-            // 单调不减。
+            // 单调不减（横跨三段）。
             float previous = float.MinValue;
             for (int i = 0; i <= 20; i++)
             {
@@ -463,6 +484,39 @@ namespace PirateCrew.PirateCrew.Battle.Tests
                 Assert.GreaterOrEqual(pitch, previous - 1e-4f, "俯角应随距离单调不减");
                 previous = pitch;
             }
+        }
+
+        // ------------------------------------------------------------------
+        // M4 手感：Scope / 力度-镜头耦合（docs/M4-大海域世界化.md §3.2，提案数值）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void ScopeFov_BlendsFromBaseToSniperTarget()
+        {
+            Assert.AreEqual(60f, CameraFeelRules.ScopeFov(60f, 0f), 1e-5f, "未进入 Scope = 基准 FOV");
+            Assert.AreEqual(CameraFeelRules.ScopeTargetFov, CameraFeelRules.ScopeFov(60f, 1f), 1e-5f, "完全进入 = 28");
+            Assert.AreEqual(44f, CameraFeelRules.ScopeFov(60f, 0.5f), 1e-4f);
+        }
+
+        [Test]
+        public void Scope_Constants_AreSensible()
+        {
+            Assert.AreEqual(28f, CameraFeelRules.ScopeTargetFov, 1e-4f, "M4 §3.2：FOV 60→28");
+            Assert.AreEqual(0.25f, CameraFeelRules.ScopeBlendSeconds, 1e-4f, "M4 §3.2：平滑收敛 0.25s");
+            Assert.AreEqual(0.4f, CameraFeelRules.ScopeAimSensitivityScale, 1e-4f, "M4 §3.2：灵敏度 ×0.4");
+            Assert.That(CameraFeelRules.ProjectileFollowFocusScale,
+                Is.InRange(0f, 1f), "追焦平滑缩放应是减速因子");
+            Assert.Less(CameraFeelRules.ProjectileFollowFocusScale, 1f, "追焦要比回焦更慢（迟滞感）");
+        }
+
+        [Test]
+        public void ChargeZoomDistance_MapsPowerLinearlyBetweenAnchors()
+        {
+            Assert.AreEqual(12f, CameraFeelRules.ChargeZoomDistance(12f, 60f, 0f), 1e-5f, "零力度 = 近档");
+            Assert.AreEqual(60f, CameraFeelRules.ChargeZoomDistance(12f, 60f, 1f), 1e-5f, "满力 = 全景档");
+            Assert.AreEqual(36f, CameraFeelRules.ChargeZoomDistance(12f, 60f, 0.5f), 1e-4f);
+            Assert.AreEqual(12f, CameraFeelRules.ChargeZoomDistance(12f, 60f, -1f), 1e-5f, "越界夹回近档");
+            Assert.AreEqual(60f, CameraFeelRules.ChargeZoomDistance(12f, 60f, 2f), 1e-5f, "越界夹回全景");
         }
 
         [Test]

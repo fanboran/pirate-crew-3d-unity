@@ -20,6 +20,9 @@ namespace PirateCrew.PirateCrew.Battle
     ///   · 速度换算统一走 <see cref="LevelGeometry"/>（预览与实弹同源）。
     ///   · 角色被约束在战斗平面（XY，z 固定），保留 z 仅作表现深度——对应原版纯 2D 物理。
     ///   · 保底武器由 <see cref="ResetForTurnStart"/> 调用 <see cref="WeaponInventory.EnsureFallbackWeapon"/> 完成。
+    ///   · 落地翻滚 / 落水死亡演出（M4 §3.1，忠实转写 Flash 逆向）：刚体旋转保持冻结，
+    ///     翻滚与演出全部作用在运行时创建的视觉滚动 Pivot 上（<see cref="RollRules"/> 出换算，
+    ///     本类只做接地检测与 Rigidbody 线速度 / 视觉 Transform 的胶水）。
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     public class PirateBase : MonoBehaviour
@@ -41,6 +44,10 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("代码驱动动画组件；留空则 Awake 时从子节点抓。仅用于投掷/受击的表现通知。")]
         [SerializeField] CrewVisualAnimator visualAnimator;
 
+        [Header("落地翻滚（M4 §3.1，忠实转写 Flash 逆向）")]
+        [Tooltip("总开关：关闭后无翻滚、无落地弹跳/摩擦转写、无落水旋转演出。")]
+        [SerializeField] bool enableRolling = true;
+
         int _pirateId = -1;
         int _health;
         bool _alive;
@@ -51,6 +58,20 @@ namespace PirateCrew.PirateCrew.Battle
         bool _hovered;
         bool _thrown;
         bool _weaponFired;
+
+        // ---- 落地翻滚 / 落水演出（规则全在 RollRules，这里只存推进状态）----
+        Transform _rollPivot;                // 视觉滚动枢轴（Awake 运行时包在 Visual 与 Body 之间）
+        Quaternion _rollRotation = Quaternion.identity;
+        float _rollAngle;                    // 标量滚动角（度；语义见 RollRules 类头）
+        float _groundDampPendingSeconds;     // 接地阻尼的步进余数
+        bool _groundContactQueued;           // OnCollision* 队列的"法线朝上接触"，下一物理步消费
+        Vector3 _preStepVelocity;            // 本物理步步前速度（反弹用它近似碰撞前 vy）
+        bool _drownPerforming;               // 落水死亡旋转下沉演出进行中
+        float _drownSpinSpeed;               // 演出角速度（度/秒，落水瞬间定格）
+        Vector3 _drownSpinAxis = Vector3.forward;
+
+        /// <summary>"法线朝上"的接触判定阈：normal.y ≥ 0.5（约 ≤60° 斜面按地面处理，提案）。</summary>
+        const float GroundNormalMinUp = 0.5f;
 
         /// <summary>角色运行时唯一 id（由 BattleController 分配）。</summary>
         public int PirateId => _pirateId;
@@ -136,6 +157,40 @@ namespace PirateCrew.PirateCrew.Battle
             _alive = true;
             if (body != null)
                 body.interpolation = RigidbodyInterpolation.Interpolate;
+
+            // M4 §3.1：运行时在 Visual 与 Body 之间包一层滚动 Pivot（不改 CrewVisualPrefabBuilder 产物）。
+            if (enableRolling)
+                CreateRollPivot();
+        }
+
+        /// <summary>
+        /// 在 <c>CrewVisualRig</c> 的 Visual 与 Body 之间插入滚动 Pivot。
+        /// Pivot 的 localScale 取 Visual localScale 的逐分量倒数，恰好抵消 Visual 的非均匀缩放——
+        /// Pivot 之下的数值矩阵 = 单位阵，任意刚体旋转都不产生剪切；静止时 Body 的世界矩阵与
+        /// 插入前完全一致，<see cref="CrewVisualAnimator"/> 对 rig.Body 的读写无感知。
+        /// </summary>
+        void CreateRollPivot()
+        {
+            if (_rollPivot != null)
+                return;
+
+            CrewVisualRig rig = GetComponentInChildren<CrewVisualRig>(true);
+            if (rig == null || rig.Body == null)
+                return;
+
+            Transform visual = rig.transform;
+            Vector3 visualScale = visual.localScale;
+
+            _rollPivot = new GameObject("RollPivot").transform;
+            _rollPivot.SetParent(visual, false);
+            _rollPivot.localPosition = Vector3.zero;
+            _rollPivot.localRotation = Quaternion.identity;
+            _rollPivot.localScale = new Vector3(
+                visualScale.x > 1e-5f ? 1f / visualScale.x : 1f,
+                visualScale.y > 1e-5f ? 1f / visualScale.y : 1f,
+                visualScale.z > 1e-5f ? 1f / visualScale.z : 1f);
+
+            rig.Body.SetParent(_rollPivot, false);
         }
 
         /// <summary>
@@ -156,6 +211,10 @@ namespace PirateCrew.PirateCrew.Battle
             _action = ActionState.Start;
             _inventory = new WeaponInventory(entry.InitialWeapons);
             Drowned = false;
+
+            // 翻滚/演出状态复位（战斗重建时不得残留上一场的滚动角与落水演出）。
+            _drownPerforming = false;
+            SnapRollUpright();
 
             transform.position = entry.WorldPosition;
             gameObject.name = entry.TypeName + "_T" + entry.TeamIndex + "_" + pirateId;
@@ -228,6 +287,7 @@ namespace PirateCrew.PirateCrew.Battle
             if (LevelGeometry.IsBelowWater(transform.position.y, waterWorldY))
             {
                 Drowned = true;   // 表现层据此播"下沉"而不是"倒地"（docs/角色造型规范.md §4）
+                BeginDrownPerformance();   // M4 §3.1：落水死亡旋转下沉演出（Character.as:164-180 转写）
                 Kill();
                 return true;
             }
@@ -258,6 +318,9 @@ namespace PirateCrew.PirateCrew.Battle
             _weaponFired = false;
             _inventory.Unequip();
             _inventory.EnsureFallbackWeapon();
+            // M4 §3.1 瞄准保护：单位成为当前行动者时滚动角必须已归零。
+            // 原版靠落地接触阻尼自然收敛；这里在回合边界主动补一个保证（空中被开回合的边角情况也归零）。
+            SnapRollUpright();
         }
 
         /// <summary>§3.4 抛自己：thrown=true、canThrow=false（回合继续）。</summary>
@@ -351,6 +414,171 @@ namespace PirateCrew.PirateCrew.Battle
             if (body.IsSleeping())
                 return false;
             return body.velocity.sqrMagnitude > thresholdSqr;
+        }
+
+        // ------------------------------------------------------------------
+        // 落地翻滚 / 落水演出（M4 §3.1；换算与推进规则全在 RollRules）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 翻滚推进（每个物理步）：
+        ///   1. 恒转——空中与地面同源，转速 = 48°/s × 水平速度（Flash <c>rotation += vx*3</c>）；
+        ///   2. 接地阻尼——接地期间每 0.04s 滚动角 ×0.5、&lt;1° 归零（Character.as:685-697）；
+        ///   3. 地面线性摩擦——直接衰减刚体水平速度，78.125 u/s²（Solid.as:269 转写）。
+        /// 刚体旋转保持冻结，全部旋转只写视觉滚动 Pivot。
+        /// </summary>
+        void FixedUpdate()
+        {
+            // 消费上一步 OnCollision* 队列的"法线朝上接触"（物理步之后触发，故滞后一步，物理语义足够）。
+            bool grounded = _groundContactQueued;
+            _groundContactQueued = false;
+
+            if (body != null && !body.isKinematic)
+                _preStepVelocity = body.velocity;   // 物理步步前速度；反弹用它近似碰撞前 vy
+
+            if (!enableRolling || _rollPivot == null)
+                return;
+
+            if (_drownPerforming)
+            {
+                AdvanceDrownPerformance();
+                return;
+            }
+
+            if (body == null || body.isKinematic)
+                return;
+
+            Vector3 velocity = body.velocity;
+            Vector3 flat = new Vector3(velocity.x, 0f, velocity.z);
+            float horizontalSpeed = flat.magnitude;
+            float dt = Time.fixedDeltaTime;
+
+            // 1) 恒转（前滚翻：轴 = up × 水平速度）。
+            if (horizontalSpeed > 1e-4f)
+            {
+                _rollAngle = RollRules.AdvanceRollAngle(_rollAngle, horizontalSpeed, dt);
+                Vector3 axis = RollRules.RollAxis(velocity);
+                if (axis.sqrMagnitude > 0.5f)
+                {
+                    float deltaDegrees = RollRules.SpinDegreesPerSecond(horizontalSpeed) * dt;
+                    _rollRotation = Quaternion.AngleAxis(deltaDegrees, axis) * _rollRotation;
+                }
+            }
+
+            // 2) 接地阻尼（角减半时视觉旋转同步朝直立收敛一半）。
+            if (grounded && _rollAngle > 0f)
+            {
+                float before = _rollAngle;
+                _rollAngle = RollRules.DampGroundAngle(
+                    _rollAngle, dt, ref _groundDampPendingSeconds);
+                if (_rollAngle <= 0f)
+                {
+                    _rollRotation = Quaternion.identity;
+                }
+                else if (before > 1e-5f)
+                {
+                    float keep = Mathf.Clamp01(Mathf.Abs(_rollAngle / before));
+                    _rollRotation = Quaternion.Slerp(Quaternion.identity, _rollRotation, keep);
+                }
+            }
+
+            // 3) 地面线性摩擦：只衰减水平分量，方向不变（|vx| -= 2 px/接触帧 的连续等效）。
+            if (grounded && horizontalSpeed > 1e-6f)
+            {
+                float after = RollRules.GroundSpeedAfterFriction(horizontalSpeed, dt);
+                if (after < horizontalSpeed)
+                    body.velocity = flat * (after / horizontalSpeed) + Vector3.up * velocity.y;
+            }
+
+            if (_rollPivot.localRotation != _rollRotation)
+                _rollPivot.localRotation = _rollRotation;
+        }
+
+        void OnCollisionEnter(Collision collision)
+        {
+            HandleRollContact(collision, isNewContact: true);
+        }
+
+        void OnCollisionStay(Collision collision)
+        {
+            HandleRollContact(collision, isNewContact: false);
+        }
+
+        /// <summary>
+        /// 接触结算：任一接触点法线朝上即视为"接地"（供阻尼/摩擦），并在<b>开始接触</b>时施加
+        /// 落地反弹 <c>vy → -0.2·vy</c>（Solid.as:263-276 转写；用步前速度近似碰撞前 vy，
+        /// 因为 OnCollision 回调时 PhysX 已把法向速度清零）。持续接触不重复反弹（提案取舍：原版
+        /// 逐接触帧翻转的微震荡在 Unity 里表现为贴地稳定，观感一致且不会阻碍刚体入睡）。
+        /// </summary>
+        void HandleRollContact(Collision collision, bool isNewContact)
+        {
+            if (!enableRolling || body == null || body.isKinematic || _drownPerforming)
+                return;
+
+            var contacts = collision.contacts;
+            float bestUp = 0f;
+            for (int i = 0; i < contacts.Length; i++)
+                bestUp = Mathf.Max(bestUp, contacts[i].normal.y);
+            if (bestUp < GroundNormalMinUp)
+                return;
+
+            _groundContactQueued = true;
+
+            if (isNewContact && _preStepVelocity.y < -1e-4f)
+            {
+                float upSpeed = RollRules.LandBounceUpSpeed(-_preStepVelocity.y);
+                Vector3 v = body.velocity;
+                body.velocity = new Vector3(v.x, upSpeed, v.z);
+            }
+        }
+
+        /// <summary>
+        /// 落水死亡旋转下沉演出（Character.as:164-180 转写）：转速 = 64°/s × 合速度（落水瞬间定格），
+        /// 全速度每 0.04s ×0.8，且竖直速度钳到至少 2.34375 u/s（=1.5 px/帧）持续下沉。
+        /// </summary>
+        void BeginDrownPerformance()
+        {
+            if (!enableRolling)
+                return;
+
+            _drownPerforming = true;
+            Vector3 velocity = body != null ? body.velocity : Vector3.zero;
+            _drownSpinSpeed = RollRules.WaterSpinDegreesPerSecond(velocity.magnitude);
+            _drownSpinAxis = RollRules.RollAxis(velocity);
+            if (_drownSpinAxis.sqrMagnitude < 0.5f)
+                _drownSpinAxis = Vector3.forward;   // 近垂直入水：兜底绕世界 Z 侧滚，演出保持稳定
+        }
+
+        void AdvanceDrownPerformance()
+        {
+            float dt = Time.fixedDeltaTime;
+
+            if (body != null && !body.isKinematic)
+            {
+                Vector3 v = body.velocity * RollRules.WaterDampFactor(dt);
+                v.y = Mathf.Min(v.y, -RollRules.WaterSinkSpeedUnitsPerSecond);
+                body.velocity = v;
+            }
+
+            float deltaDegrees = _drownSpinSpeed * dt;
+            if (deltaDegrees > 0f)
+                _rollRotation = Quaternion.AngleAxis(deltaDegrees, _drownSpinAxis) * _rollRotation;
+
+            if (_rollPivot != null)
+                _rollPivot.localRotation = _rollRotation;
+        }
+
+        /// <summary>
+        /// 瞄准保护（M4 §3.1）：把滚动角/滚动旋转立即归零。
+        /// 由 <see cref="ResetForTurnStart"/> 在回合边界调用，保证"单位成为当前行动者且静止时滚动角已归零"。
+        /// </summary>
+        public void SnapRollUpright()
+        {
+            _rollAngle = 0f;
+            _groundDampPendingSeconds = 0f;
+            _rollRotation = Quaternion.identity;
+            if (_rollPivot != null)
+                _rollPivot.localRotation = Quaternion.identity;
         }
 
         // ------------------------------------------------------------------

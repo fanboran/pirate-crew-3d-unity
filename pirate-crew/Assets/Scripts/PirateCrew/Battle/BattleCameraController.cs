@@ -41,11 +41,18 @@ namespace PirateCrew.PirateCrew.Battle
     ///   （12 世界单位）、俯角 <see cref="CloseUpPitchDegrees"/>（30°）、看向行动单位（lookAt 抬高 =
     ///   单位视觉高 1.85 × <see cref="LookAtHeightRatio"/> 0.65 ≈ 1.20；1.85 与
     ///   <c>CrewVisualPrefabBuilder.TargetUnitHeight</c> 同源——**角色自身尺寸不随格放大**）。
-    ///   相机取景按「看同样的格数」等比放大：格 1→2 单位后档位距离一律 ×2。滚轮可后拉到旧的 45° 全场档
-    ///   （距离 <see cref="FullFieldDistance"/> 30）再往后到 <see cref="MaxManualDistance"/> 50，
-    ///   前推最近 <see cref="MinManualDistance"/> 6；俯角随距离在 30°↔45° 间插值
-    ///   （<see cref="PitchForDistance"/>）。**"零输入守 45°/15 出厂"的旧口径已废止**；
-    ///   无输入时相机保持当前跟随目标。
+///   相机取景按「看同样的格数」等比放大：格 1→2 单位后档位距离一律 ×2。滚轮可后拉到旧的 45° 全场档
+///   （距离 <see cref="FullFieldDistance"/> 30）再往后到 <see cref="MaxManualDistance"/> 160（M4 大海域档位），
+///   前推最近 <see cref="MinManualDistance"/> 6；俯角随距离在 30°↔45°↔55° 间插值
+///   （<see cref="PitchForDistance"/>，全景档随 <see cref="SetWorldSpan"/> 的地图跨度自适应）。
+///   **"零输入守 45°/15 出厂"的旧口径已废止**；
+///   无输入时相机保持当前跟随目标。
+///
+/// 【M4 手感（docs/M4-大海域世界化.md §3.2，数值提案/待定）】
+///   · Scope 模式：AimThrowController 里 Shift 切换，本类把 FOV 从基准 60 平滑收敛到 28（0.25s）；
+///   · 力度-镜头耦合：炮台蓄力比例越大相机越拉远（特写 → 全景线性映射），松手恢复蓄力前距离；
+///   · 弹体追焦：跟随弹体时聚焦平滑更慢更轻（<see cref="CameraFeelRules.ProjectileFollowFocusScale"/>），
+///     落点震屏逻辑不变。
     ///
     /// 【安全底线（勿破坏）】
     ///   · **场景里烘焙的** Transposer FollowOffset = 45°/距离 30（18→15→30 提案；
@@ -174,8 +181,31 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>滚轮前推最近距离（世界单位，旧值 3 ×2 = 6）。</summary>
         public const float MinManualDistance = 6f;
 
-        /// <summary>滚轮后拉最远距离（世界单位，旧值 25 ×2 = 50）。</summary>
-        public const float MaxManualDistance = 50f;
+        /// <summary>
+        /// 滚轮后拉最远距离（世界单位）。<b>M4 改 50 → 160</b>（docs/M4-大海域世界化.md §1/§3.2：
+        /// 大地图手动上限外推；既有断言已随 M4 更新）。
+        /// </summary>
+        public const float MaxManualDistance = 160f;
+
+        // ---- M4 大海域档位（docs/M4-大海域世界化.md §1/§3.2；取值为提案/待定）----
+
+        /// <summary>默认地图可玩跨度（世界单位）= 现行竞技场 100u；未调 <see cref="SetWorldSpan"/> 时的缺省。</summary>
+        public const float DefaultWorldSpan = 100f;
+
+        /// <summary>全景档距离随地图跨度的比例：全景 = clamp(span × 0.55, 60, 160)（M4 §1）。</summary>
+        public const float PanoramaSpanScale = 0.55f;
+
+        /// <summary>全景档距离下限（世界单位，M4 §1）。</summary>
+        public const float MinPanoramaDistance = 60f;
+
+        /// <summary>全景档俯角（度，提案）：从全场档 45° 继续外推到 55°，越远越俯视。</summary>
+        public const float PanoramaPitchDegrees = 55f;
+
+        /// <summary>全景档距离 = clamp(span × <see cref="PanoramaSpanScale"/>, <see cref="MinPanoramaDistance"/>, <see cref="MaxManualDistance"/>)。</summary>
+        public static float PanoramaDistanceForSpan(float spanUnits)
+        {
+            return Mathf.Clamp(spanUnits * PanoramaSpanScale, MinPanoramaDistance, MaxManualDistance);
+        }
 
         /// <summary>
         /// 单位视觉总高（世界单位）= 1.85，与 <c>CrewVisualPrefabBuilder.TargetUnitHeight</c> 同源
@@ -245,6 +275,12 @@ namespace PirateCrew.PirateCrew.Battle
         float _manualDistance;
         float _targetDistance;
 
+        // ---- M4：Scope / 力度-镜头耦合 / 全景档（数值见 CameraFeelRules 与上方常量区）----
+        float _panoramaDistance = PanoramaDistanceForSpan(DefaultWorldSpan);
+        float _scopeBlend;              // Scope FOV 混合系数 0..1（按 ScopeBlendSeconds 线性推进）
+        bool _chargeZoomActive;         // 炮台蓄力拉远生效中（结束时恢复蓄力前距离）
+        float _preChargeDistance;
+
         /// <summary>跟随状态机的时间参数。</summary>
         CameraFeelTimings Timings => new CameraFeelTimings(
             followTimeoutSeconds, detonationHoldSeconds, followReturnSeconds);
@@ -277,11 +313,25 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>场景里**烘焙的** Transposer 俯角（度，由 FollowOffset 反推；= <see cref="FullFieldPitchDegrees"/> 45°）。</summary>
         public float BakedPitchDegrees => PitchOf(_baseOffsetDirection);
 
-        /// <summary>运行时当前距离目标（默认特写档 <see cref="CloseUpDistance"/>；滚轮可改到 [6,50]）。</summary>
+        /// <summary>运行时当前距离目标（默认特写档 <see cref="CloseUpDistance"/>；滚轮可改到 [6,160]）。</summary>
         public float RuntimeDistance => _manualCaptured ? _targetDistance : CloseUpDistance;
 
-        /// <summary>运行时当前俯角（度，由距离插值：特写 30° ↔ 全场 45°）。</summary>
-        public float RuntimePitchDegrees => PitchForDistance(RuntimeDistance);
+        /// <summary>运行时当前俯角（度，由距离插值：特写 30° ↔ 全场 45° ↔ 全景 55° 外推）。</summary>
+        public float RuntimePitchDegrees => PitchForDistance(RuntimeDistance, _panoramaDistance);
+
+        /// <summary>当前全景档距离（由 <see cref="SetWorldSpan"/> 决定；默认跨度 100u → 60）。</summary>
+        public float PanoramaDistance => _panoramaDistance;
+
+        /// <summary>
+        /// 【M4 新增】按地图可玩跨度设置全景档：距离 = clamp(span × 0.55, 60, 160)、
+        /// 俯角插值相应外推（docs/M4-大海域世界化.md §1/§3.2）。
+        /// 由 Battle 场景接线方在世界地图建成后调用；不调用时默认 span=100（全景 60），
+        /// 既有特写档/手动缩放行为不变。
+        /// </summary>
+        public void SetWorldSpan(float spanUnits)
+        {
+            _panoramaDistance = PanoramaDistanceForSpan(spanUnits);
+        }
 
         void Awake()
         {
@@ -334,6 +384,49 @@ namespace PirateCrew.PirateCrew.Battle
             // 手动相机输入用 Update 采样（LateUpdate 处理画面平滑）。
             if (enableManualOrbit || enableManualZoom)
                 UpdateManualCameraInput();
+
+            // M4 §3.2 力度-镜头耦合：炮台蓄力越大相机越拉远（近档→全景线性映射），松手恢复。
+            // 独立于手动缩放开关——它是瞄准手感的一部分。
+            UpdateChargeZoom();
+        }
+
+        /// <summary>Scope FOV 混合推进（LateUpdate，暂停时也收敛）：目标态取自 <see cref="AimThrowController.IsScopeActive"/>。</summary>
+        void AdvanceScopeBlend(float unscaledDt)
+        {
+            if (aimThrow == null)
+                aimThrow = FindObjectOfType<AimThrowController>();
+
+            bool desired = aimThrow != null && aimThrow.IsScopeActive;
+            float step = unscaledDt / Mathf.Max(1e-4f, CameraFeelRules.ScopeBlendSeconds);
+            _scopeBlend = Mathf.MoveTowards(_scopeBlend, desired ? 1f : 0f, step);
+        }
+
+        /// <summary>
+        /// 力度-镜头耦合（M4 §3.2，提案）：炮台瞄准期间把缩放目标覆写为
+        /// "特写档 → 全景档 × 蓄力比例"的线性映射；瞄准结束恢复蓄力前的手动距离。
+        /// 期间滚轮已由 <see cref="AimThrowController.IsTurretAiming"/> 让给力度，二者不打架。
+        /// </summary>
+        void UpdateChargeZoom()
+        {
+            if (aimThrow == null)
+                aimThrow = FindObjectOfType<AimThrowController>();
+
+            bool charging = aimThrow != null && aimThrow.IsTurretAiming;
+            if (charging)
+            {
+                if (!_chargeZoomActive)
+                {
+                    _chargeZoomActive = true;
+                    _preChargeDistance = _targetDistance;
+                }
+                _targetDistance = CameraFeelRules.ChargeZoomDistance(
+                    CloseUpDistance, _panoramaDistance, aimThrow.ChargeRatio);
+            }
+            else if (_chargeZoomActive)
+            {
+                _chargeZoomActive = false;
+                _targetDistance = _preChargeDistance;
+            }
         }
 
         void LateUpdate()
@@ -344,10 +437,15 @@ namespace PirateCrew.PirateCrew.Battle
             AdvancePushIn(unscaledDt);
             AdvanceHitStop(unscaledDt);
             AdvanceDip(unscaledDt);
+            AdvanceScopeBlend(unscaledDt);
 
             Vector3 goal = ResolveGoalPosition();
 
-            float lerp = focusLerpPerSecond * (_spectator ? CameraFeelRules.SpectatorFocusScale : 1f);
+            // 聚焦平滑速率：旁观更慢（看戏）；跟随弹体时也更慢更轻（M4 §3.2"轻跟+迟滞"）。
+            float focusScale = _spectator ? CameraFeelRules.SpectatorFocusScale : 1f;
+            if (_followState == CameraFollowState.FollowProjectile)
+                focusScale = Mathf.Min(focusScale, CameraFeelRules.ProjectileFollowFocusScale);
+            float lerp = focusLerpPerSecond * focusScale;
             float t = CameraFeelRules.ApproachAlpha(lerp, Time.deltaTime);
             if (!_cleanInitialized)
             {
@@ -445,15 +543,28 @@ namespace PirateCrew.PirateCrew.Battle
             return new Vector3(0f, Mathf.Sin(p), Mathf.Cos(p));
         }
 
-        /// <summary>
-        /// 俯角随距离插值：≤ <see cref="CloseUpDistance"/> → <see cref="CloseUpPitchDegrees"/>（30°）；
-        /// ≥ <see cref="FullFieldDistance"/> → <see cref="FullFieldPitchDegrees"/>（45°）；之间线性过渡。
-        /// 于是滚轮后拉到 15 就是旧的 45° 全场视角。
-        /// </summary>
+        /// <summary>俯角随距离插值（默认跨度，供测试与工具直调）：
+        /// ≤ <see cref="CloseUpDistance"/> → <see cref="CloseUpPitchDegrees"/>（30°）；
+        /// ≤ <see cref="FullFieldDistance"/> → 30°..45° 线性（30u 处恰为旧 45° 全场）；
+        /// ≤ 全景档 → 45°..<see cref="PanoramaPitchDegrees"/> 继续外推（M4 大海域档位）；
+        /// 再远维持全景俯角。</summary>
         public static float PitchForDistance(float distance)
         {
-            float t = Mathf.InverseLerp(CloseUpDistance, FullFieldDistance, distance);
-            return Mathf.Lerp(CloseUpPitchDegrees, FullFieldPitchDegrees, t);
+            return PitchForDistance(distance, PanoramaDistanceForSpan(DefaultWorldSpan));
+        }
+
+        /// <summary>同上，但全景档距离由调用方给（实例按当前 <see cref="SetWorldSpan"/> 跨度取）。</summary>
+        public static float PitchForDistance(float distance, float panoramaDistance)
+        {
+            if (distance <= FullFieldDistance)
+            {
+                float nearT = Mathf.InverseLerp(CloseUpDistance, FullFieldDistance, distance);
+                return Mathf.Lerp(CloseUpPitchDegrees, FullFieldPitchDegrees, nearT);
+            }
+
+            float panorama = Mathf.Max(panoramaDistance, FullFieldDistance + 0.01f);
+            float farT = Mathf.InverseLerp(FullFieldDistance, panorama, distance);
+            return Mathf.Lerp(FullFieldPitchDegrees, PanoramaPitchDegrees, farT);
         }
 
         /// <summary>
@@ -466,6 +577,8 @@ namespace PirateCrew.PirateCrew.Battle
             _targetYaw = 0f;
             _manualDistance = CloseUpDistance;
             _targetDistance = CloseUpDistance;
+            // 换行动单位即脱离炮台瞄准：力度-镜头耦合立即失效（否则恢复逻辑会盖掉这次聚焦）。
+            _chargeZoomActive = false;
             // 特写档的俯角也要切：_dragPitchDegrees 初始化/捕获自烘焙机位（45°），只切距离的话
             // 特写会带着 45° 烘焙俯角运行（PlayMode 门禁 2026-09-14 抓到——旧实现从未真正进入 30°）。
             _dragPitchDegrees = CloseUpPitchDegrees;
@@ -591,7 +704,8 @@ namespace PirateCrew.PirateCrew.Battle
             if (!_baseFovCaptured)
                 return;
 
-            float fov = _baseFov;
+            // Scope 基准：60 → 28 随混合系数收敛（M4 §3.2）；推近/旁观在其上小幅度叠加。
+            float fov = CameraFeelRules.ScopeFov(_baseFov, _scopeBlend);
             if (aiSpectatorEnabled)
                 fov = CameraFeelRules.SpectatorFov(fov, CameraFeelRules.SpectatorFovDeltaDegrees, _spectator);
             if (_pushInActive)

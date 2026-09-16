@@ -22,8 +22,58 @@ namespace PirateCrew.PirateCrew.Battle
     /// </summary>
     public static class ThrowTrajectory
     {
-        /// <summary>默认采样步数（§5.1 原版预览 15 段）。</summary>
+        /// <summary>默认采样步数（§5.1 原版预览 15 段；也是预览步数的保底下限）。</summary>
         public const int DefaultSteps = 15;
+
+        /// <summary>
+        /// 最大采样步数（<b>提案/待定</b>，M4 §3.2）：大地图长弧线下 15 步不够画完整条抛物线，
+        /// 满力（twangMax=20 px/帧）时取该值。
+        /// </summary>
+        public const int MaxSteps = 60;
+
+        /// <summary>
+        /// 预览步数随初速延长（M4 §3.2，提案）：力度 0 → <see cref="DefaultSteps"/>，
+        /// 力度满（= twangMax）→ <see cref="MaxSteps"/>，线性、两端夹紧。
+        /// twangMax ≤ 0（非法输入）时退回 <see cref="DefaultSteps"/>。
+        /// </summary>
+        public static int StepsForSpeed(float speedPixelsPerFrame, float twangMax)
+        {
+            if (twangMax <= 0f)
+                return DefaultSteps;
+            float t = Mathf.Clamp01(speedPixelsPerFrame / twangMax);
+            return Mathf.Clamp(
+                Mathf.RoundToInt(Mathf.Lerp(DefaultSteps, MaxSteps, t)),
+                DefaultSteps, MaxSteps);
+        }
+
+        /// <summary>
+        /// 从采样序列求预测落点：找第一个从地面上方穿到 <paramref name="groundY"/> 以下的相邻点对，
+        /// 按 y 线性插值出穿地点。找不到（整条弧线都在地面上方，如步数不够长）返回 false。
+        /// 采样序列语义与 <see cref="Predict"/> 一致：第 i 个元素 = 第 i+1 步结束时的位置。
+        /// </summary>
+        public static bool TryGetImpactPoint(
+            Vector3 origin, Vector3[] samples, int count, float groundY, out Vector3 impact)
+        {
+            impact = Vector3.zero;
+            if (samples == null || count <= 0)
+                return false;
+
+            Vector3 previous = origin;
+            for (int i = 0; i < count && i < samples.Length; i++)
+            {
+                Vector3 current = samples[i];
+                if (previous.y > groundY && current.y <= groundY)
+                {
+                    float span = previous.y - current.y;
+                    float t = span > 1e-6f ? (previous.y - groundY) / span : 0f;
+                    impact = Vector3.Lerp(previous, current, t);
+                    return true;
+                }
+                previous = current;
+            }
+
+            return false;
+        }
 
         /// <summary>
         /// 半隐式欧拉逐步积分，写入 <paramref name="buffer"/>（长度需 &gt;= <paramref name="steps"/>）。

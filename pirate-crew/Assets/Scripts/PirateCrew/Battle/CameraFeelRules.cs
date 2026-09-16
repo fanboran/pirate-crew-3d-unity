@@ -293,6 +293,51 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         // ------------------------------------------------------------------
+        // Scope 瞄准（M4 §3.2，提案/待定：战舰世界式瞄准仪式，数值待手感实测调参）
+        // ------------------------------------------------------------------
+
+        /// <summary>Scope 模式的目标 FOV（度，提案）：60 → 28，长焦"瞄准仪式"。</summary>
+        public const float ScopeTargetFov = 28f;
+
+        /// <summary>Scope 进入/退出的平滑收敛时长（秒，提案）：0.25s。</summary>
+        public const float ScopeBlendSeconds = 0.25f;
+
+        /// <summary>Scope 模式的瞄准灵敏度缩放（提案）：炮台 yaw/力度增速/滚轮微调同步 ×0.4。</summary>
+        public const float ScopeAimSensitivityScale = 0.4f;
+
+        /// <summary>
+        /// Scope 混合后的 FOV：<c>lerp(base, 28, blend01)</c>。blend 由胶水层按
+        /// <see cref="ScopeBlendSeconds"/> 线性推进（进入与退出同一条曲线，"退出平滑回"）。
+        /// </summary>
+        public static float ScopeFov(float baseFov, float blend01)
+        {
+            return Mathf.Lerp(baseFov, ScopeTargetFov, Mathf.Clamp01(blend01));
+        }
+
+        // ------------------------------------------------------------------
+        // 力度-镜头耦合（M4 §3.2，提案/待定：蓄力越大相机越拉远，松手恢复）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 蓄力期间的目标距离：近档（特写）→ 全景档随蓄力比例线性映射。
+        /// 端点由胶水层给（近档 = 特写距离 12；全景 = 地图跨度档），曲线恒为线性。
+        /// </summary>
+        public static float ChargeZoomDistance(float nearDistance, float panoramaDistance, float power01)
+        {
+            return Mathf.Lerp(nearDistance, panoramaDistance, Mathf.Clamp01(power01));
+        }
+
+        // ------------------------------------------------------------------
+        // 弹体追焦（M4 §3.2：抛出后镜头轻跟弹体，带迟滞）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 跟随弹体时的聚焦平滑缩放（提案）：&lt;1 = 比"回焦点"更慢、更轻，形成迟滞感；
+        /// 落点震屏（爆炸/伤害）逻辑不受影响，仍按各自规则施加。
+        /// </summary>
+        public const float ProjectileFollowFocusScale = 0.75f;
+
+        // ------------------------------------------------------------------
         // 跟随状态机
         // ------------------------------------------------------------------
 
