@@ -6,6 +6,7 @@ using PirateCrew.CrewManagement;
 using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
 using PirateCrew.PirateCrew.Visual;
+using PirateCrew.PirateCrew.Battle.WorldMaps;
 using UnityEngine;
 
 namespace PirateCrew.PirateCrew.Battle
@@ -75,6 +76,10 @@ namespace PirateCrew.PirateCrew.Battle
                  + "由 M2BattleSceneSetup 装配；为空时场景保持无静态陈设（地形与玩法不受影响）。")]
         [SerializeField] RuntimeSceneArt sceneArt;
 
+        [Header("M4 世界地图（可选）")]
+        [Tooltip("世界地图的 kit 资产表（FBX 预制体引用）；为空时世界地图用灰盒站面兜底。")]
+        [SerializeField] WorldMapAssetSet worldMapAssetSet;
+
         [Header("层掩码")]
         [Tooltip("爆炸候选与单位射线用的层。")]
         [SerializeField] LayerMask pirateLayerMask = ~0;
@@ -90,6 +95,8 @@ namespace PirateCrew.PirateCrew.Battle
         readonly List<int> _destroyedTerrainCells = new List<int>();
         readonly BattleTeam[] _teams = new BattleTeam[2];
         BattlePlan _plan;
+        /// <summary>M4：本局激活的世界地图（null = 走原版关卡 1–33 链路，见 BuildPlan 优先级）。</summary>
+        WorldMapDefinition _worldMap;
         bool _spawned;
         bool _matchFinished;
         float _waterWorldY;
@@ -112,6 +119,12 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>水面世界 Y（Unity 约定，y 向上）。</summary>
         public float WaterWorldY => _waterWorldY;
+
+        /// <summary>本局是否为世界地图模式（地形/陈设/破坏/水面走 WorldMaps 分支）。</summary>
+        public bool IsWorldMapActive => _worldMap != null;
+
+        /// <summary>本局的世界地图定义（非世界地图模式返回 null）。</summary>
+        public WorldMapDefinition WorldMap => _worldMap;
 
         /// <summary>爆炸/单位射线层掩码。</summary>
         public LayerMask PirateLayerMask => pirateLayerMask;
@@ -149,6 +162,9 @@ namespace PirateCrew.PirateCrew.Battle
                 p.y = _waterWorldY;
                 waterPlane.position = p;
             }
+
+            if (_worldMap != null)
+                SetupWorldMapEnvironment();
 
             EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(LevelNumber, TeamCount));
 
@@ -207,6 +223,19 @@ namespace PirateCrew.PirateCrew.Battle
 
         void BuildPlan()
         {
+            // 【M4 世界地图】选图优先级：ArtReview 覆盖 > 世界地图(-worldMap / SetPending) >
+            // 场景 level 资产 > CampaignApi 待战关 > fallback。命中世界地图时本局走 WorldMaps 分支：
+            // 出战计划由目录直构（关卡号 101–108），地形/陈设/破坏/水面在对应阶段分流。
+            if (ArtReview.ArtReviewCaptureOverride.LevelNumber <= 0 && WorldMapRuntime.TryGetPending(out _worldMap))
+            {
+                _plan = WorldMapRuntime.BuildBattlePlan(_worldMap);
+                _waterWorldY = _plan.WaterWorldY;
+                _teams[0] = new BattleTeam(1, aiControlled: false);
+                _teams[1] = new BattleTeam(2, aiControlled: team1IsAi);
+                return;
+            }
+            _worldMap = null;
+
             // 【关卡注入】场景未指定 level 资产时，改由战役侧「已选、等待结算的关卡」决定加载哪张竞技场
             // （CampaignApi.PendingBattleLevelNumberOr 是 M3 agent 备好的衔接点：只在 LevelCatalog
             // 已转写的关卡上生效，未转写/无待战关卡时回落到 fallbackLevelNumber，不会抛 KeyNotFound）。
@@ -243,6 +272,15 @@ namespace PirateCrew.PirateCrew.Battle
         /// </summary>
         void BuildTerrain()
         {
+            // 【M4 世界地图】站面 box 栅格化为逻辑格（块高 = TopY/0.5）；碰撞与视觉由
+            // WorldMapComposer 的独立 BoxCollider/灰盒负责，terrainView 的瓦片渲染不参与。
+            if (_worldMap != null)
+            {
+                Terrain = WorldMapRuntime.BuildTerrainGrid(_worldMap)
+                          ?? TileTerrainGrid.Flat(_plan.WidthTiles, _plan.DepthTiles);
+                return;
+            }
+
             int levelNumber = _plan.LevelNumber;
 
             // 【样板三关】逻辑格子 = ShowcaseLevels 手拼的隐形高度场（只喂站位 Y 与 AI 落点）；
@@ -278,10 +316,54 @@ namespace PirateCrew.PirateCrew.Battle
         /// </summary>
         void RebuildSceneArt()
         {
+            // 【M4 世界地图】原版陈设装配器不适用：kit 件 + 灰盒站面由 WorldMapComposer 摆放。
+            if (_worldMap != null)
+            {
+                Transform artRoot = sceneArt != null ? sceneArt.transform : transform;
+                WorldMapComposer.Build(artRoot, _worldMap, worldMapAssetSet);
+                return;
+            }
+
             if (sceneArt == null)
                 return;
 
             sceneArt.RebuildFor(LevelNumber);
+        }
+
+        /// <summary>
+        /// M4 世界地图的环境接线（Start 调用）：大海域海面（<see cref="Water.OceanRig"/> 替换旧
+        /// Water Cube，落水死亡仍是纯 Y 阈值判定，不依赖水面碰撞）、相机全景档随地图跨度、
+        /// 远裁剪保住 4200u 远场裙边、氛围档按地图定义。旧 waterPlane 直接关闭。
+        /// </summary>
+        void SetupWorldMapEnvironment()
+        {
+            if (waterPlane != null)
+                waterPlane.gameObject.SetActive(false);
+
+            Water.OceanRig.Create(
+                Water.OceanConfig.ForArena(
+                    new Vector2(_worldMap.SpanX * 0.5f, _worldMap.SpanZ * 0.5f),
+                    _worldMap.SpanX * 0.5f, _worldMap.SpanZ * 0.5f),
+                material: null,
+                parent: transform,
+                followCamera: battleCamera != null ? battleCamera.GetComponent<Camera>() : null);
+
+            Camera cam = battleCamera != null ? battleCamera.GetComponent<Camera>() : Camera.main;
+            if (cam != null)
+                cam.farClipPlane = Mathf.Max(cam.farClipPlane, 4500f);
+            if (battleCamera != null)
+                battleCamera.SetWorldSpan(Mathf.Max(_worldMap.SpanX, _worldMap.SpanZ));
+
+            var ambientDirector = FindObjectOfType<Ambient.AmbientDirector>();
+            if (ambientDirector != null)
+            {
+                Ambient.AmbientTimeOfDay tier = Ambient.AmbientTimeOfDay.Noon;
+                if (string.Equals(_worldMap.AmbientTier, "Dusk", StringComparison.OrdinalIgnoreCase))
+                    tier = Ambient.AmbientTimeOfDay.Dusk;
+                else if (string.Equals(_worldMap.AmbientTier, "Storm", StringComparison.OrdinalIgnoreCase))
+                    tier = Ambient.AmbientTimeOfDay.Overcast;
+                ambientDirector.SetTimeOfDay(tier);
+            }
         }
 
         /// <summary>
@@ -594,7 +676,9 @@ namespace PirateCrew.PirateCrew.Battle
         {
             // 【样板三关】地形不可摧毁（原版语义：原版没有地形破坏，只有木箱/火药桶可破坏——
             // 逆向文档 §对比表）。样板关的格子只是隐形逻辑高度场，炸了会让站位高度漂移。
-            if (SceneArt.ShowcaseLevels.IsShowcase(LevelNumber))
+            // 【M4 世界地图】同理禁破坏：站面碰撞是独立 BoxCollider，炸格子只会造成
+            // 「逻辑说有洞、碰撞还在」的失真。
+            if (SceneArt.ShowcaseLevels.IsShowcase(LevelNumber) || _worldMap != null)
                 return;
 
             if (Terrain == null)
