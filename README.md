@@ -4,12 +4,12 @@
 
 > Unity 2022.3 写实 PBR 重制 · 向 Nitrome《Mutiny》（中译《海盗军团抢宝藏》）致敬的 3D 学习重制 · 求职作品集项目（非商业）
 >
-> **当前版本 v0.1** · [下载 Windows 版](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.1.0) · 1P vs AI / 2P 同屏热座
+> **当前版本 v1.0** · [下载 Windows 版](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v1.0.0) · 1P vs AI / 2P 同屏热座
 
 [![Unity](https://img.shields.io/badge/Unity-2022.3-black?logo=unity)](https://unity.com)
 [![URP](https://img.shields.io/badge/%E6%B8%B2%E6%9F%93-URP_14%E5%86%99%E5%AE%9EPBR-blue)](https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@14)
-[![Tests](https://img.shields.io/badge/%E6%B5%8B%E8%AF%95-1021%E6%9D%A1%E5%85%A8%E7%BB%BF-green)](#质量工程)
-[![Release](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-v0.1.0-orange)](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.1.0)
+[![Tests](https://img.shields.io/badge/%E6%B5%8B%E8%AF%95-1027%E6%9D%A1%E5%85%A8%E7%BB%BF-green)](#质量工程)
+[![Release](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-v1.0.0-orange)](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v1.0.0)
 
 ---
 
@@ -82,7 +82,7 @@
 
 这个仓库同时是一份**游戏客户端开发的工程作品集**——玩法之外，这些工程实践是本项目的另一半卖点：
 
-- **1021 条测试全绿**：战斗数值/回合规则/AI 评估写成纯 C# 静态类，配套自研**无头验证台**（`dotnet` 直引 Unity 编译产物 + NUnit）——不启动引擎即可编译全工程并跑纯逻辑测试（6 秒内），多 agent 并行开发时绕开 `Library/` 独占锁；需要 Unity 运行时的少量用例（存档 I/O 等）由 batchmode EditMode/PlayMode 门禁收口
+- **1027 条测试全绿**：战斗数值/回合规则/AI 评估写成纯 C# 静态类，配套自研**无头验证台**（`dotnet` 直引 Unity 编译产物 + NUnit）——不启动引擎即可编译全工程并跑纯逻辑测试（6 秒内），多 agent 并行开发时绕开 `Library/` 独占锁；需要 Unity 运行时的少量用例（存档 I/O 等）由 batchmode EditMode/PlayMode 门禁收口
 - **数值三层架构**：纯 C# Catalog 是唯一真值来源（可无头测试）→ ScriptableObject 序列化投影 → Editor 幂等生成器，数值永不分叉
 - **ArtGate 程序化烘焙管线**：13 步一键产出噪声贴图/材质/字体/音效/网格/场景，资产可复现、不入库
 - **视觉迭代闭环**：播放器自截图（8 机位）→ 程序化像素判据（洋红/对比度/WCAG/色相扫描）→ 修复 → 重拍，每轮迭代有像素级验收档案

@@ -18,17 +18,20 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 载荷 | `string` 场景名（`transition` 默认 `true`）<br>**或** `IDictionary<string, object>`：`"path"`（`string`，必填）、`"transition"`（`bool`，可选，缺省 `true`） |
-| 发布方 | `UI/MainMenuController`（Battle 按钮）等业务侧 |
+| 载荷 | `string` 场景名（`transition` 默认 `true`）<br>**或** `IDictionary<string, object>`：`"path"`（`string`，必填）、`"transition"`（`bool`，可选，缺省 `true`）、`"replaceTop"`（`bool`，可选，缺省 `false`） |
+| 发布方 | `UI/MainMenuController`（Battle 按钮）、`UI/BattleHud`（再来一局，`replaceTop: true`）、`Campaign/CampaignApi.SelectLevel`（可选 `replaceTopScene`）等业务侧 |
 | 订阅方 | `Core/SceneLoader.OnChangeSceneRequest` |
 | 备注 | 两种载荷形式都接受；字典形式用于显式控制过渡。缺 `"path"` 或类型不符时**静默忽略**（不抛异常） |
+
+> **`"replaceTop"` 语义**（发布收口新增）：把当前场景名**替换**而非追加到返回栈顶——用于"再来一局"这类
+> 同场景重载：栈深不变，重开后 `go_back` 仍回到进战前的场景（选关/主菜单），而不是栈里残留的上一局 Battle。
 
 ### 1.2 `go_back` —— 请求返回上一场景
 
 | 项 | 内容 |
 | --- | --- |
 | 载荷 | 无（`null`） |
-| 发布方 | 业务侧（如 `UI/BattlePlaceholder` 返回按钮） |
+| 发布方 | 业务侧（如 `UI/BattleHud` 返回按钮/返回确认弹窗） |
 | 订阅方 | `Core/SceneLoader.OnGoBackRequest` |
 | 备注 | 走 `SceneLoader` 的返回栈；栈空时 `GoBack()` 不抛异常（M1 有测试锁定） |
 
