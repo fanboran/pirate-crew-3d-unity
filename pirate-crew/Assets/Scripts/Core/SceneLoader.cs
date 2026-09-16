@@ -69,7 +69,7 @@ namespace PirateCrew.Core
         {
             if (Instance != null && Instance != this)
             {
-                Debug.LogWarning("[SceneLoader] 已存在实例，销毁重复对象: " + name);
+                global::PirateCrew.Core.Log.Warn("[SceneLoader] 已存在实例，销毁重复对象: " + name);
                 Destroy(gameObject);
                 return;
             }
@@ -96,11 +96,16 @@ namespace PirateCrew.Core
         /// </summary>
         /// <param name="sceneName">目标场景名或路径（必须在 Build Settings 中）。</param>
         /// <param name="transition">是否使用过渡动画，默认 true。</param>
-        public void ChangeScene(string sceneName, bool transition = true)
+        /// <param name="replaceTop">
+        /// true 时把当前场景名**替换**（而非追加）到场景栈顶——用于"重开一局"这类
+        /// 同场景重载：栈深不变，重开后 go_back 仍回到进战前的那个场景（选关/主菜单），
+        /// 而不是栈里残留的上一局 Battle。
+        /// </param>
+        public void ChangeScene(string sceneName, bool transition = true, bool replaceTop = false)
         {
             if (_isLoading)
             {
-                Debug.LogWarning("[SceneLoader] 正在加载中，忽略请求: " + sceneName);
+                global::PirateCrew.Core.Log.Warn("[SceneLoader] 正在加载中，忽略请求: " + sceneName);
                 return;
             }
 
@@ -118,10 +123,15 @@ namespace PirateCrew.Core
 
             _isLoading = true;
 
-            // 记录当前场景，供 GoBack 使用（对应 Godot 的 current_scene.scene_file_path 入栈）
+            // 记录当前场景，供 GoBack 使用（对应 Godot 的 current_scene.scene_file_path 入栈）。
+            // replaceTop：先弹出当前场景再压入（净效果 = 栈顶替换），栈深保持不变。
             var current = SceneManager.GetActiveScene();
             if (!string.IsNullOrEmpty(current.name))
+            {
+                if (replaceTop && _sceneStack.Count > 0)
+                    _sceneStack.Pop();
                 _sceneStack.Push(current.name);
+            }
 
             RaiseSceneLoadStarted(sceneName);
             StartCoroutine(LoadRoutine(sceneName, transition));
@@ -132,7 +142,7 @@ namespace PirateCrew.Core
         {
             if (_sceneStack.Count == 0)
             {
-                Debug.LogWarning("[SceneLoader] 场景栈为空，无法返回");
+                global::PirateCrew.Core.Log.Warn("[SceneLoader] 场景栈为空，无法返回");
                 return;
             }
 
@@ -294,7 +304,12 @@ namespace PirateCrew.Core
                     if (dict.TryGetValue("transition", out var transitionValue) && transitionValue is bool flag)
                         transition = flag;
 
-                    ChangeScene(target, transition);
+                    // "replaceTop"：重开一局类请求用（同场景重载但不堆栈，见 ChangeScene 注释）。
+                    bool replaceTop = false;
+                    if (dict.TryGetValue("replaceTop", out var replaceValue) && replaceValue is bool replaceFlag)
+                        replaceTop = replaceFlag;
+
+                    ChangeScene(target, transition, replaceTop);
                     break;
                 }
             }

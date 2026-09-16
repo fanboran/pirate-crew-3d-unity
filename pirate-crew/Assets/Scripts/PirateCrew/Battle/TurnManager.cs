@@ -84,6 +84,10 @@ namespace PirateCrew.PirateCrew.Battle
 
         void Update()
         {
+            // 暂停中：inactivity 是纯帧计数，timeScale=0 冻不住它——必须在此显式冻结回合推进。
+            if (BattlePause.IsPaused)
+                return;
+
             if (!_started || _currentTeam == null || battle == null)
                 return;
 

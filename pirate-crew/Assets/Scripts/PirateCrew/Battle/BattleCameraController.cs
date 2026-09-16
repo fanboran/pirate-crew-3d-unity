@@ -327,6 +327,10 @@ namespace PirateCrew.PirateCrew.Battle
 
         void Update()
         {
+            // 暂停中：冻结手动相机输入（环绕/缩放），画面平滑交由 LateUpdate 原样收敛。
+            if (BattlePause.IsPaused)
+                return;
+
             // 手动相机输入用 Update 采样（LateUpdate 处理画面平滑）。
             if (enableManualOrbit || enableManualZoom)
                 UpdateManualCameraInput();
@@ -652,6 +656,10 @@ namespace PirateCrew.PirateCrew.Battle
             if (!enableHitStop || _sceneUnloading)
                 return;
 
+            // 暂停中不启动顿帧（timeScale 已被 BattlePause 归 0，两者都改 timeScale 会互相踩）。
+            if (BattlePause.IsPaused)
+                return;
+
             bool matchOver = battle != null && battle.IsMatchOver;
             if (!CameraFeelRules.ShouldApplyHitStop(matchOver, sceneTransitioning: false, Time.timeScale))
                 return;
@@ -685,7 +693,9 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
 
             _hitStopActive = false;
-            Time.timeScale = _hitStopSavedTimeScale;
+            // 顿帧期间玩家可能按了暂停（timeScale 被压到 0）：此时不能把 saved 值(1)盖回去，
+            // 否则"暂停"被静默解除——保持 0，等 BattlePause.Resume 统一恢复。
+            Time.timeScale = BattlePause.IsPaused ? 0f : _hitStopSavedTimeScale;
             _hitStopSavedTimeScale = 1f;
         }
 

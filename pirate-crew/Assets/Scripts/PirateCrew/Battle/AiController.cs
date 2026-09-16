@@ -237,6 +237,10 @@ namespace PirateCrew.PirateCrew.Battle
 
         void Update()
         {
+            // 暂停中：评估分片与延迟计数都是逐帧推进的，timeScale=0 冻不住（见 BattlePause 类注释）。
+            if (BattlePause.IsPaused)
+                return;
+
             switch (_phase)
             {
                 case Phase.Evaluating:

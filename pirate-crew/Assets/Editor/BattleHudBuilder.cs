@@ -162,6 +162,23 @@ namespace PirateCrew.EditorTools
             public Button endGoButton;
             public Button backButton;
             public BattleHud.RosterRowView[] rosterRows;
+
+            // ---- 发布收口新增：暂停 / 结算 / 返回确认 ----
+            public Button pauseButton;
+            public GameObject pausePanelRoot;
+            public Button resumeButton;
+            public Button pauseRestartButton;
+            public Button pauseBackButton;
+            public GameObject confirmDialogRoot;
+            public TextMeshProUGUI confirmMessage;
+            public Button confirmOkButton;
+            public Button confirmCancelButton;
+            public GameObject settlementPanelRoot;
+            public TextMeshProUGUI settlementTitleText;
+            public TextMeshProUGUI settlementLinesText;
+            public Image[] settlementStars;
+            public Button settlementRestartButton;
+            public Button settlementBackButton;
         }
 
         /// <summary>在 <paramref name="canvas"/> 下重建整套 HUD 节点（不负责清旧节点，由调用方处理）。</summary>
@@ -183,6 +200,13 @@ namespace PirateCrew.EditorTools
             BuildRoster(hudRoot, title, body, secondary, result);
             BuildWeaponPanel(hudRoot, title, body, secondary, result);
             BuildLabelsAndHints(hudRoot, body, secondary, result);
+
+            // 模态层最后建（同级节点后建者画在上层）：暂停 / 结算 / 返回确认。
+            // 三块面板默认隐藏，运行时由 BattleHud 控制显隐。
+            BuildPausePanel(hudRoot, title, body, secondary, result);
+            BuildSettlementPanel(hudRoot, title, body, secondary, result);
+            BuildBackConfirm(canvas.transform, result);
+            BuildPauseButton(hudRoot, body, result);
 
             return result;
         }
@@ -777,6 +801,135 @@ namespace PirateCrew.EditorTools
             MenuUiBuilder.SetAnchored(focus.rectTransform, new Vector2(0.5f, 1f), new Vector2(200f, 24f),
                 new Vector2(0f, -Safe - TopBarHeight - 6f));
             focus.gameObject.SetActive(false);
+        }
+
+        // ------------------------------------------------------------------
+        // 模态层：暂停按钮 / 暂停面板 / 结算面板 / 返回确认（发布收口）
+        // 【接线口径】本组方法只建节点，全部行为在 BattleHud（运行时）里。
+        // ------------------------------------------------------------------
+
+        /// <summary>左下「暂停」按钮（与返回按钮并排；Esc 等价，见 BattleHud 的 Esc 链）。</summary>
+        static void BuildPauseButton(Transform hudRoot, TMP_FontAsset body, Result result)
+        {
+            // 返回按钮中心 (96,34) 右缘 176 → 本按钮左缘 184、中心 244。
+            result.pauseButton = MenuUiBuilder.CreateButton("PauseButton", hudRoot, UiStrings.BattlePauseButton,
+                new Vector2(0f, 0f), new Vector2(244f, 34f), new Vector2(120f, 36f), body,
+                UiSprites.Kind.ButtonWood, BattleUiTheme.Tok.TextOnGlass, MenuUiBuilder.FontScale.Body);
+        }
+
+        /// <summary>暂停面板：压暗遮罩 + 已暂停标题 + 继续/再来一局/返回主菜单。</summary>
+        static void BuildPausePanel(Transform hudRoot, TMP_FontAsset title, TMP_FontAsset body,
+            TMP_FontAsset secondary, Result result)
+        {
+            RectTransform root = MenuUiBuilder.CreateRect("PausePanel", hudRoot);
+            MenuUiBuilder.Stretch(root);
+            MenuUiBuilder.CreateDimOverlay("DimOverlay", root);
+
+            RectTransform card = MenuUiBuilder.CreateGlassPanel("PauseCard", root,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(520f, 380f), GlassPanelSpriteBuilder.Tone.Dense);
+
+            MenuUiBuilder.CreateDenseChip("TitleChip", card, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -46f), new Vector2(320f, 52f));
+            TextMeshProUGUI titleText = MenuUiBuilder.CreateText("PauseTitle", card, UiStrings.BattlePauseTitle,
+                UiTheme.FontBanner, TextAlignmentOptions.Center, BattleUiTheme.Tok.TitleOnGlass, title);
+            MenuUiBuilder.SetAnchored(titleText.rectTransform, new Vector2(0.5f, 1f), new Vector2(320f, 48f),
+                new Vector2(0f, -46f));
+            MenuUiBuilder.ApplyTitleOutline(titleText);
+
+            result.pausePanelRoot = root.gameObject;
+            result.resumeButton = MenuUiBuilder.CreateButton("ResumeButton", card, UiStrings.BattleResume,
+                new Vector2(0.5f, 1f), new Vector2(0f, -128f), new Vector2(320f, 56f), body,
+                UiSprites.Kind.ButtonBrass, BattleUiTheme.Tok.InkOnGold, MenuUiBuilder.FontScale.Hud);
+            result.pauseRestartButton = MenuUiBuilder.CreateButton("PauseRestartButton", card,
+                UiStrings.BattleRestart,
+                new Vector2(0.5f, 1f), new Vector2(0f, -200f), new Vector2(320f, 52f), body,
+                UiSprites.Kind.ButtonWood, BattleUiTheme.Tok.TextOnGlass, MenuUiBuilder.FontScale.Hud);
+            result.pauseBackButton = MenuUiBuilder.CreateButton("PauseBackButton", card,
+                UiStrings.BackToMainMenu,
+                new Vector2(0.5f, 1f), new Vector2(0f, -268f), new Vector2(320f, 52f), body,
+                UiSprites.Kind.ButtonDanger, BattleUiTheme.Tok.TextOnGlass, MenuUiBuilder.FontScale.Hud);
+
+            root.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// 结算面板：胜负大字 + 三星 + 明细行 + 再来一局/返回。
+        /// 星级图标同规范 §3.4（图形星，不用「★」字符）；战役局才有星级/经验行（运行时填充）。
+        /// </summary>
+        static void BuildSettlementPanel(Transform hudRoot, TMP_FontAsset title, TMP_FontAsset body,
+            TMP_FontAsset secondary, Result result)
+        {
+            RectTransform root = MenuUiBuilder.CreateRect("SettlementPanel", hudRoot);
+            MenuUiBuilder.Stretch(root);
+            MenuUiBuilder.CreateDimOverlay("DimOverlay", root);
+
+            RectTransform card = MenuUiBuilder.CreateGlassPanel("SettlementCard", root,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(720f, 560f), GlassPanelSpriteBuilder.Tone.Dense);
+
+            TextMeshProUGUI titleText = MenuUiBuilder.CreateText("SettlementTitle", card, string.Empty,
+                UiTheme.FontBanner, TextAlignmentOptions.Center, BattleUiTheme.Tok.TitleOnGlass, title);
+            MenuUiBuilder.SetAnchored(titleText.rectTransform, new Vector2(0.5f, 1f), new Vector2(600f, 72f),
+                new Vector2(0f, -36f));
+            MenuUiBuilder.ApplyTitleOutline(titleText);
+
+            // 三星（居中一排 40px 图标；未得星压暗，运行时按星级点亮）。
+            var stars = new Image[3];
+            float step = 52f;
+            float startX = -(3 - 1) * 0.5f * step;
+            for (int i = 0; i < 3; i++)
+            {
+                RectTransform icon = MenuUiBuilder.CreateRect("Star" + i, card);
+                MenuUiBuilder.SetAnchored(icon, new Vector2(0.5f, 1f), new Vector2(40f, 40f),
+                    new Vector2(startX + i * step, -132f));
+                var image = icon.gameObject.AddComponent<Image>();
+                image.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.Star);
+                image.raycastTarget = false;
+                image.color = UiTheme.WithAlpha(UiTheme.Ink, 0.35f);
+                stars[i] = image;
+            }
+            result.settlementStars = stars;
+
+            TextMeshProUGUI lines = MenuUiBuilder.CreateText("SettlementLines", card, string.Empty,
+                MenuUiBuilder.FontScale.Hud, TextAlignmentOptions.Center, BattleUiTheme.Tok.TextOnGlass, secondary);
+            MenuUiBuilder.SetAnchored(lines.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(600f, 180f),
+                new Vector2(0f, -30f));
+
+            TextMeshProUGUI hint = MenuUiBuilder.CreateText("SettlementHint", card, UiStrings.SettlementStarRuleHint,
+                MenuUiBuilder.FontScale.Hint, TextAlignmentOptions.Center,
+                UiTheme.WithAlpha(BattleUiTheme.Tok.TextOnGlass, 0.8f), secondary);
+            MenuUiBuilder.SetAnchored(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(640f, 40f),
+                new Vector2(0f, 96f));
+
+            result.settlementPanelRoot = root.gameObject;
+            result.settlementTitleText = titleText;
+            result.settlementLinesText = lines;
+            result.settlementRestartButton = MenuUiBuilder.CreateButton("SettlementRestartButton", card,
+                UiStrings.BattleRestart,
+                new Vector2(0.5f, 0f), new Vector2(-130f, 44f), new Vector2(220f, 52f), body,
+                UiSprites.Kind.ButtonBrass, BattleUiTheme.Tok.InkOnGold, MenuUiBuilder.FontScale.Hud);
+            result.settlementBackButton = MenuUiBuilder.CreateButton("SettlementBackButton", card,
+                UiStrings.Back,
+                new Vector2(0.5f, 0f), new Vector2(130f, 44f), new Vector2(220f, 52f), body,
+                UiSprites.Kind.ButtonWood, BattleUiTheme.Tok.TextOnGlass, MenuUiBuilder.FontScale.Hud);
+
+            root.gameObject.SetActive(false);
+        }
+
+        /// <summary>返回确认弹窗（BackButton 与暂停面板的「返回主菜单」共用；文案=BackConfirm）。</summary>
+        static void BuildBackConfirm(Transform canvas, Result result)
+        {
+            MenuUiBuilder.ConfirmDialogResult dialog =
+                MenuUiBuilder.BuildConfirmDialog(canvas.transform, UiStrings.BackConfirm);
+
+            // 确认框挂在 Canvas 直下（压过 HudLayout 全部元素），改名避免与场景装配按名查找冲突。
+            dialog.Root.name = "BackConfirmDialog";
+
+            result.confirmDialogRoot = dialog.Root;
+            result.confirmMessage = dialog.Message;
+            result.confirmOkButton = dialog.OkButton;
+            result.confirmCancelButton = dialog.CancelButton;
         }
     }
 }

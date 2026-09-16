@@ -125,6 +125,24 @@ namespace PirateCrew.EditorTools
             SetArray(so.FindProperty("weaponLabels"), result.weaponLabels);
             SetRosterRows(so.FindProperty("rosterRows"), result.rosterRows);
 
+            // 模态层（发布收口）：暂停 / 结算 / 返回确认。
+            SetRef(so, "pauseButton", result.pauseButton);
+            SetRef(so, "pausePanelRoot", result.pausePanelRoot);
+            SetRef(so, "resumeButton", result.resumeButton);
+            SetRef(so, "pauseRestartButton", result.pauseRestartButton);
+            SetRef(so, "pauseBackButton", result.pauseBackButton);
+            SetRef(so, "confirmDialogRoot", result.confirmDialogRoot);
+            SetRef(so, "confirmMessage", result.confirmMessage);
+            SetRef(so, "confirmOkButton", result.confirmOkButton);
+            SetRef(so, "confirmCancelButton", result.confirmCancelButton);
+            SetRef(so, "settlementPanelRoot", result.settlementPanelRoot);
+            SetRef(so, "settlementTitleText", result.settlementTitleText);
+            SetRef(so, "settlementLinesText", result.settlementLinesText);
+            SetRef(so, "settlementRestartButton", result.settlementRestartButton);
+            SetRef(so, "settlementBackButton", result.settlementBackButton);
+            if (result.settlementStars != null)
+                SetArray(so.FindProperty("settlementStars"), result.settlementStars);
+
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

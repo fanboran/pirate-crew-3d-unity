@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Text;
+using PirateCrew.Campaign;
 using PirateCrew.Core;
+using PirateCrew.CrewManagement;
 using PirateCrew.PirateCrew.Audio;
 using PirateCrew.PirateCrew.Battle;
 using PirateCrew.PirateCrew.Combat;
@@ -35,8 +39,11 @@ namespace PirateCrew.UI
     [DisallowMultipleComponent]
     public sealed class BattleHud : MonoBehaviour
     {
-        /// <summary>返回主菜单事件名（与 SceneLoader / BattlePlaceholder 约定一致）。</summary>
+        /// <summary>返回主菜单事件名（与 Core/SceneLoader 的 go_back 约定一致）。</summary>
         const string GoBackEvent = "go_back";
+
+        /// <summary>EventBus 场景切换事件名（与 Core/SceneLoader 约定一致；重开一局的 replaceTop 走字典载荷）。</summary>
+        const string ChangeSceneEvent = "change_scene";
 
         /// <summary>§4.1 血条总帧数（28 帧）。</summary>
         const int HealthBarFrames = 28;
@@ -102,11 +109,36 @@ namespace PirateCrew.UI
         [Header("返回")]
         [SerializeField] Button backButton;
 
+        [Header("暂停（发布收口）")]
+        [SerializeField] Button pauseButton;
+        [SerializeField] GameObject pausePanelRoot;
+        [SerializeField] Button resumeButton;
+        [SerializeField] Button pauseRestartButton;
+        [SerializeField] Button pauseBackButton;
+
+        [Header("返回确认弹窗")]
+        [SerializeField] GameObject confirmDialogRoot;
+        [SerializeField] MaskableGraphic confirmMessage;
+        [SerializeField] Button confirmOkButton;
+        [SerializeField] Button confirmCancelButton;
+
+        [Header("结算面板（发布收口）")]
+        [SerializeField] GameObject settlementPanelRoot;
+        [SerializeField] MaskableGraphic settlementTitleText;
+        [SerializeField] MaskableGraphic settlementLinesText;
+        [Tooltip("三颗星图标，索引 0-2；未得星压暗，得星点亮黄铜色。")]
+        [SerializeField] Image[] settlementStars = new Image[3];
+        [SerializeField] Button settlementRestartButton;
+        [SerializeField] Button settlementBackButton;
+
         // ------------------------------------------------------------------
         // 运行时状态
         // ------------------------------------------------------------------
 
         PirateBase[] _pirateByRow = new PirateBase[MaxRosterRows];
+
+        /// <summary>这一局是否战役局（BattleStarted 时有待结算关卡）。结算面板按它决定显示哪些行。</summary>
+        bool _campaignBattle;
 
         // ---- 动效与 UI 音效（规则在 UiMotionRules，驱动在 UiMotion；数值为提案/待定） ----
         UiMotion _motion;
@@ -176,7 +208,24 @@ namespace PirateCrew.UI
             WireCommandButtons();
 
             if (backButton != null)
-                backButton.onClick.AddListener(OnBackClicked);
+                backButton.onClick.AddListener(ShowBackConfirm);
+
+            if (pauseButton != null)
+                pauseButton.onClick.AddListener(OnPauseButtonClicked);
+            if (resumeButton != null)
+                resumeButton.onClick.AddListener(ClosePause);
+            if (pauseRestartButton != null)
+                pauseRestartButton.onClick.AddListener(RestartBattle);
+            if (pauseBackButton != null)
+                pauseBackButton.onClick.AddListener(ShowBackConfirm);
+            if (confirmOkButton != null)
+                confirmOkButton.onClick.AddListener(ConfirmLeaveBattle);
+            if (confirmCancelButton != null)
+                confirmCancelButton.onClick.AddListener(HideConfirmDialog);
+            if (settlementRestartButton != null)
+                settlementRestartButton.onClick.AddListener(RestartBattle);
+            if (settlementBackButton != null)
+                settlementBackButton.onClick.AddListener(OnBackClicked);
 
             RefreshWeaponPanel(hide: true);
             RefreshRoster();
@@ -243,8 +292,21 @@ namespace PirateCrew.UI
                 SetHudMode(BattleHudMode.Act);
             else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3))
                 SetHudMode(BattleHudMode.Observe);
-            else if (Input.GetKeyDown(KeyCode.Escape) && _mode == BattleHudMode.Observe)
-                SetHudMode(BattleHudMode.Move);
+            else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                // Esc 优先级：暂停中→恢复；观察模式→退出观察（r12 口径，提示条有写）；
+                // 瞄准中→不抢（AimThrowController 用 Esc 取消瞄准）；否则→打开暂停。
+                if (BattlePause.IsPaused)
+                    ClosePause();
+                else if (_mode == BattleHudMode.Observe)
+                    SetHudMode(BattleHudMode.Move);
+                else if (aimController == null || !aimController.IsAiming)
+                    OpenPause();
+            }
+
+            // 暂停时冻结瞄准输入（Esc/点击都不再进 AimThrow；恢复时按当前模式还原）。
+            if (aimController != null && BattlePause.IsPaused)
+                aimController.InputEnabled = false;
 
             // 【观察模式】点击=准星点选角色；命中即选中并自动返回移动模式（r12 用户裁决）。
             if (_mode == BattleHudMode.Observe && Input.GetMouseButtonDown(0)
@@ -344,6 +406,11 @@ namespace PirateCrew.UI
 
         void OnDisable()
         {
+            // 离场兜底：暂停中直接回主菜单/选关，绝不能把 timeScale=0 带出战斗场景
+            // （EventBus 静态事件跨场景存活，SceneLoader 的 unscaled 过渡动画不受影响，
+            // 但主菜单的所有缩放时间会停摆）。重开一局路径已显式 ForceResume，这里再兜一道。
+            BattlePause.ForceResume();
+
             EventBus.Unsubscribe(BattleEvents.BattleStarted, OnBattleStarted);
             EventBus.Unsubscribe(BattleEvents.TurnStarted, OnTurnStarted);
             EventBus.Unsubscribe(BattleEvents.TurnEnded, OnTurnEnded);
@@ -428,8 +495,202 @@ namespace PirateCrew.UI
 
         void OnBackClicked()
         {
-            ButtonFeedback(backButton, success: true);
+            ButtonFeedback(settlementBackButton != null && settlementBackButton.interactable
+                ? settlementBackButton
+                : backButton, success: true);
             EventBus.Publish(GoBackEvent);
+        }
+
+        // ------------------------------------------------------------------
+        // 暂停 / 返回确认 / 结算 / 重开（发布收口）
+        // ------------------------------------------------------------------
+
+        void OnPauseButtonClicked()
+        {
+            ButtonFeedback(pauseButton, success: true);
+            OpenPause();
+        }
+
+        /// <summary>
+        /// 进入暂停：timeScale=0（冻物理/粒子）+ BattlePause 状态位（冻 TurnManager/AI/相机的
+        /// 逐帧计数，见 BattlePause 类注释）。瞄准输入在 Update 里随 IsPaused 持续关闭。
+        /// </summary>
+        void OpenPause()
+        {
+            if (BattlePause.IsPaused || (turnManager != null && battle != null && battle.IsMatchOver))
+                return;
+
+            BattlePause.Pause();
+            RefreshWeaponPanel(hide: true);
+            if (pausePanelRoot != null)
+                pausePanelRoot.SetActive(true);
+            AudioService.PlayUi(SfxId.UiPanelOpen);
+        }
+
+        void ClosePause()
+        {
+            if (!BattlePause.IsPaused)
+                return;
+
+            BattlePause.Resume();
+            HidePausePanel();
+            // 还原瞄准输入口径：观察模式本就禁输入，其余模式放开。
+            if (aimController != null)
+                aimController.InputEnabled = _mode != BattleHudMode.Observe;
+            AudioService.PlayUi(SfxId.UiClick);
+        }
+
+        void HidePausePanel()
+        {
+            if (pausePanelRoot != null)
+                pausePanelRoot.SetActive(false);
+        }
+
+        /// <summary>
+        /// 再来一局：重载 Battle 场景。
+        /// 战役局用「栈顶替换」重新 SelectLevel（保留待结算归属，且 go_back 仍回选关）；
+        /// 非战役局直接以 replaceTop 重载 Battle（清掉栈顶的旧 Battle 残留）。
+        /// </summary>
+        void RestartBattle()
+        {
+            AudioService.PlayUi(SfxId.UiClick);
+            BattlePause.ForceResume();
+
+            if (_campaignBattle && CampaignApi.LastSettlement != null)
+            {
+                CampaignApi.SelectLevel(CampaignApi.LastSettlement.Value.LevelId, replaceTopScene: true);
+                return;
+            }
+
+            EventBus.Publish(ChangeSceneEvent, new Dictionary<string, object>
+            {
+                { "path", SceneNames.Battle },
+                { "replaceTop", true },
+            });
+        }
+
+        /// <summary>返回主菜单/选关前先确认（BackConfirm）；对局已结束时直接走（结算面板的返回按钮不经过这里）。</summary>
+        void ShowBackConfirm()
+        {
+            if (confirmDialogRoot == null)
+            {
+                // 没装配确认框时退回旧行为，保证功能不缺。
+                OnBackClicked();
+                return;
+            }
+
+            if (confirmMessage != null)
+                UiTextUtil.SetText(confirmMessage, UiStrings.BackConfirm);
+            confirmDialogRoot.SetActive(true);
+            AudioService.PlayUi(SfxId.UiPanelOpen);
+        }
+
+        void ConfirmLeaveBattle()
+        {
+            HideConfirmDialog();
+            BattlePause.ForceResume();
+            AudioService.PlayUi(SfxId.UiClick);
+            EventBus.Publish(GoBackEvent);
+        }
+
+        void HideConfirmDialog()
+        {
+            if (confirmDialogRoot != null)
+                confirmDialogRoot.SetActive(false);
+        }
+
+        /// <summary>
+        /// 结算面板：胜负大字 + 得分；战役局追加 关卡/星级/经验/新招募/首次通关 行。
+        /// 星级行同时点亮三颗星图标。数据源 = CampaignApi.LastSettlement / LastReward
+        /// （CampaignApi 先于本组件订阅 match_finished，此刻必已算完）。
+        /// </summary>
+        void ShowSettlement(MatchFinishedPayload finished)
+        {
+            if (settlementPanelRoot == null)
+                return;
+
+            var lines = new List<string>();
+
+            if (settlementTitleText != null)
+            {
+                UiTextUtil.SetText(settlementTitleText,
+                    UiTextRules.OutcomeTitle((MatchOutcome)finished.Outcome, finished.Team1IsAi));
+            }
+
+            if (finished.Score > 0)
+                lines.Add(UiTextRules.SettlementScore(finished.Score));
+
+            CampaignSettlement settlement = CampaignApi.LastSettlement ?? default;
+            bool hasCampaign = _campaignBattle && CampaignApi.LastSettlement != null;
+            if (hasCampaign)
+            {
+                lines.Add(UiTextRules.SettlementLevel(UiTextRules.LevelName(settlement.LevelNumber)));
+                lines.Add(UiTextRules.SettlementStars(settlement.Stars, StarRules.MaxStars));
+                SetSettlementStars(settlement.Stars);
+
+                if (CampaignApi.LastReward is CrewRewardPayload reward)
+                {
+                    if (reward.XpPerCrew > 0)
+                        lines.Add(UiTextRules.SettlementXp(reward.XpPerCrew));
+
+                    if (reward.UnlockedCrewIds is { Length: > 0 })
+                    {
+                        lines.Add(UiTextRules.SettlementUnlock(
+                            string.Join("、", DisplayNamesOf(reward.UnlockedCrewIds))));
+                    }
+                }
+
+                if (settlement.FirstClear)
+                    lines.Add(UiStrings.SettlementRowFirstClear);
+            }
+            else
+            {
+                SetSettlementStars(0);
+            }
+
+            if (settlementLinesText != null)
+                UiTextUtil.SetText(settlementLinesText, string.Join("\n", lines));
+
+            settlementPanelRoot.SetActive(true);
+            // 胜负短乐句走音乐通道（Music 分类，受音乐滑条控制）；不可用时回落面板开合音。
+            bool jingle = AudioService.PlayMusic((MatchOutcome)finished.Outcome == MatchOutcome.Team0Win
+                ? SfxId.VictoryJingle
+                : SfxId.DefeatJingle);
+            if (!jingle)
+                AudioService.PlayUi(SfxId.UiPanelOpen);
+        }
+
+        void SetSettlementStars(int stars)
+        {
+            if (settlementStars == null)
+                return;
+
+            for (int i = 0; i < settlementStars.Length; i++)
+            {
+                if (settlementStars[i] != null)
+                    settlementStars[i].color = i < stars
+                        ? UiTheme.Brass
+                        : UiTheme.WithAlpha(UiTheme.Ink, 0.35f);
+            }
+        }
+
+        static string[] DisplayNamesOf(string[] crewIds)
+        {
+            var names = new string[crewIds.Length];
+            for (int i = 0; i < crewIds.Length; i++)
+            {
+                names[i] = CrewRosterCatalog.TryGet(crewIds[i], out CrewRosterEntry entry)
+                    ? entry.DisplayName
+                    : crewIds[i];
+            }
+
+            return names;
+        }
+
+        void HideSettlementPanel()
+        {
+            if (settlementPanelRoot != null)
+                settlementPanelRoot.SetActive(false);
         }
 
         // ------------------------------------------------------------------
@@ -440,6 +701,16 @@ namespace PirateCrew.UI
         {
             if (payload is BattleStartedPayload started && rosterTitle != null)
                 UiTextUtil.SetText(rosterTitle, UiTextRules.RosterTitle(started.LevelNumber));
+
+            // BattleStarted 时仍有待结算关卡 = 这一局从选关进来（结算面板要显示星级/经验）。
+            // 注意时序：CampaignApi 先订阅（主菜单 Awake），它的 stale 清理先跑完才轮到这里。
+            _campaignBattle = CampaignApi.PendingLevelId != null;
+
+            // 重开一局经场景重载进来：清掉可能残留的暂停态（静态字段跨场景存活）。
+            BattlePause.ForceResume();
+            HidePausePanel();
+            HideSettlementPanel();
+            HideConfirmDialog();
 
             BuildRoster();
             RefreshTurnHint();
@@ -506,6 +777,8 @@ namespace PirateCrew.UI
                         ? UiTextRules.SettlementScore(finished.Score)
                         : string.Empty);
                 }
+
+                ShowSettlement(finished);
             }
 
             PunchTurnBanner();
