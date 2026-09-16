@@ -1,0 +1,139 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Ocean_Water
+  m_Shader: {fileID: 4800000, guid: 8437c5f0566b839468ff2e108bb608c3, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs: []
+    m_Ints: []
+    m_Floats:
+    - _BreakupScale: 0.0222
+    - _BreakupSpeed: 0.06
+    - _BreakupTintDepth: 0.04
+    - _CausticDepthFade: 2.2
+    - _CausticScale: 0.55
+    - _CausticSpeed: 0.35
+    - _CausticStrength: 0.3
+    - _CausticWarp: 0.6
+    - _DebugMode: 0
+    - _DetailFarFadeEnd: 1600
+    - _DetailFarFadeStart: 600
+    - _DisplaceFadeEnd: 3000
+    - _DisplaceFadeStart: 2000
+    - _FoamBreakup: 0.45
+    - _FoamNoiseScale: 5
+    - _FoamNoiseScale2: 13
+    - _FoamPulseFrequency: 1.2
+    - _FoamPulseSpeed: 0.55
+    - _FoamPulseStrength: 0.6
+    - _FoamSpeed: 0.25
+    - _FoamStrength: 0.85
+    - _FoamWidth: 1.6
+    - _FresnelPower: 5
+    - _FresnelStrength: 1
+    - _GridCellSize: 1.6
+    - _GridRingGrowth: 1.25
+    - _GridUniformRadius: 128
+    - _HeightFieldFoamStrength: 0.6
+    - _HeightFieldNormalStrength: 0.35
+    - _HorizonFadeEnd: 3900
+    - _HorizonFadeStart: 2600
+    - _ObstacleFoamBoost: 1.2
+    - _Opacity: 0.94
+    - _ReflectionStrength: 0.7
+    - _RefractionBlend: 0.22
+    - _RefractionDepthFade: 1.6
+    - _RefractionStrength: 0.035
+    - _S1Amp: 1.1
+    - _S1Length: 120
+    - _S1Speed: 1
+    - _S1Steep: 0.75
+    - _S2Amp: 0.65
+    - _S2Length: 72
+    - _S2Speed: 1.05
+    - _S2Steep: 0.7
+    - _ShoreFadeDistance: 5
+    - _ShorelineFoamGain: 1.6
+    - _Smoothness: 0.92
+    - _SpecularIntensity: 0.5
+    - _SssExtinction: 1.2
+    - _SssHeightRef: 0.9
+    - _SssPathScale: 2.5
+    - _SssPhaseG: 0.6
+    - _SssStrength: 0.5
+    - _SunSheenStrength: 0.1
+    - _SunSpecBroadShininess: 50
+    - _SunSpecBroadStrength: 0.5
+    - _SunSpecCrestBias: 0.25
+    - _SunSpecGlitter: 0.55
+    - _SunSpecLaneShininess: 24
+    - _SunSpecLaneWidth: 2.5
+    - _SunSpecPatchDepth: 0.4
+    - _SunSpecPatchScale: 8
+    - _SunSpecShininess: 320
+    - _SunSpecSlopeBoost: 12
+    - _SunSpecStrength: 5
+    - _SunSpecWaveStrength: 0.4
+    - _W1Amp: 0.11
+    - _W1Length: 26
+    - _W1Speed: 1
+    - _W1Steep: 0.65
+    - _W2Amp: 0.08
+    - _W2Length: 15
+    - _W2Speed: 1.15
+    - _W2Steep: 0.6
+    - _W3Amp: 0.056
+    - _W3Length: 8.4
+    - _W3Speed: 1.3
+    - _W3Steep: 0.55
+    - _W4Amp: 0.032
+    - _W4Length: 4.8
+    - _W4Speed: 1.5
+    - _W4Steep: 0.5
+    - _WaveScaleA: 0.32
+    - _WaveScaleB: 0.95
+    - _WaveSpeedA: 0.45
+    - _WaveSpeedB: 0.85
+    - _WaveStrengthA: 0.55
+    - _WaveStrengthB: 0.28
+    - _WhitecapJacobianThreshold: 0.85
+    - _WhitecapNoiseScale: 0.08
+    - _WhitecapShoreScale: 0.35
+    - _WhitecapSoftness: 0.15
+    - _WhitecapStrength: 1
+    m_Colors:
+    - _CausticColor: {r: 0.8, g: 1, b: 0.92156863, a: 1}
+    - _DeepColor: {r: 0.101960786, g: 0.30980393, b: 0.47843137, a: 1}
+    - _FoamColor: {r: 0.9411765, g: 0.96862745, b: 1, a: 1}
+    - _HorizonColor: {r: 0.6901961, g: 0.83137256, b: 0.94509804, a: 1}
+    - _MidColor: {r: 0.16862746, g: 0.47843137, b: 0.72156864, a: 1}
+    - _S1Dir: {r: 1, g: 0, b: 0.15, a: 0}
+    - _S2Dir: {r: 0.55, g: 0, b: 1, a: 0}
+    - _ShallowColor: {r: 0.3019608, g: 0.6509804, b: 0.8509804, a: 1}
+    - _SssColor: {r: 0.56078434, g: 0.83137256, b: 0.9254902, a: 1}
+    - _SunSpecColor: {r: 1, g: 0.85882354, b: 0.4509804, a: 1}
+    - _W1Dir: {r: 1, g: 0, b: 0.25, a: 0}
+    - _W2Dir: {r: 0.6, g: 0, b: 1, a: 0}
+    - _W3Dir: {r: -0.3, g: 0, b: 1, a: 0}
+    - _W4Dir: {r: 1, g: 0, b: -0.5, a: 0}
+    - _WaveDirectionA: {r: 1, g: 0, b: 0.35, a: 0}
+    - _WaveDirectionB: {r: -0.4, g: 0, b: 1, a: 0}
+  m_BuildTextureStacks: []

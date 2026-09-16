@@ -64,16 +64,14 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             spanX: 150f, spanZ: 150f, ambientTier: "Noon",
             terrain: new[]
             {
-                // 中央断桅桥 + 两侧礁阶引桥，串起艏/艉两截巨舰
-                // （朝向按 manifest 实测：船/桥长轴沿本地 Z，yaw 90 转到东西向；断口朝桥）
+                // 主战线连成一体（M 岛与断船/桅桥重叠），南线沙洲环做侧翼
+                new WorldKitPlacement("Archipelago", "TerraceIslandM", 55f, 75f, 0f),
+                new WorldKitPlacement("Archipelago", "TerraceIslandM", 95f, 75f, 0f),
                 new WorldKitPlacement("Marine", "WreckBowHalf", 40f, 75f, 90f),
                 new WorldKitPlacement("Marine", "WreckSternHalf", 110f, 75f, 90f),
                 new WorldKitPlacement("Marine", "MastBridge", 75f, 75f, 90f),
-                new WorldKitPlacement("Archipelago", "ReefStepsA", 56.5f, 75f, 0f),
-                new WorldKitPlacement("Archipelago", "ReefStepsA", 93.5f, 75f, 0f),
-                // 南线环线：沙洲 ×2 + 泻湖心岛
-                new WorldKitPlacement("Archipelago", "SandBarL", 50f, 55f, 315f),
-                new WorldKitPlacement("Archipelago", "SandBarL", 100f, 55f, 45f),
+                new WorldKitPlacement("Archipelago", "SandBarL", 55f, 62f, 315f),
+                new WorldKitPlacement("Archipelago", "SandBarL", 95f, 62f, 45f),
                 new WorldKitPlacement("Archipelago", "AtollCore", 75f, 45f, 0f),
             },
             horizon: new[]
@@ -86,30 +84,23 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             horizonFeatures: new[] { "WhaleSurfacing" },
             props: new[]
             {
-                new WorldPropPlacement("Campfire", 39.5f, 0.5f, 75f, 0f),
-                new WorldPropPlacement("CannonEmplacement", 45.2f, 0.5f, 73.3f, 200f),
-                new WorldPropPlacement("Campfire", 113f, 0.5f, 75f, 0f),
-                new WorldPropPlacement("CannonEmplacement", 106.5f, 0.5f, 76.3f, 160f),
-                new WorldPropPlacement("TreasureMound", 75f, 4.5f, 75f, 0f),
-                new WorldPropPlacement("PalmTall", 72f, 1.0f, 43f, 15f),
-                new WorldPropPlacement("PalmLean", 79f, 1.0f, 47f, 200f),
-                new WorldPropPlacement("Driftwood", 48f, 0.5f, 57f, 60f),
-                new WorldPropPlacement("Driftwood", 101f, 0.5f, 56f, 120f),
-                new WorldPropPlacement("RockS", 62f, 1.5f, 75f, 0f),
-                new WorldPropPlacement("RockS", 99f, 1.5f, 75f, 0f),
-                new WorldPropPlacement("GrassTuft", 76f, 0.5f, 47f, 0f),
-                new WorldPropPlacement("GrassTuft", 71f, 0.5f, 44f, 90f),
+                new WorldPropPlacement("Campfire", 55f, 0.5f, 78f, 0f),
+                new WorldPropPlacement("Campfire", 95f, 0.5f, 72f, 0f),
+                new WorldPropPlacement("TreasureMound", 77.2f, 4.5f, 73.7f, 0f),
+                new WorldPropPlacement("CannonEmplacement", 48f, 0.5f, 71f, 200f),
+                new WorldPropPlacement("CannonEmplacement", 102f, 0.5f, 79f, 160f),
+                new WorldPropPlacement("PalmTall", 70f, 1f, 42f, 15f),
+                new WorldPropPlacement("Driftwood", 60f, 0.5f, 52f, 60f),
+                new WorldPropPlacement("GrassTuft", 78f, 0.5f, 47f, 0f),
             },
             spawns: new[]
             {
-                // 红队 ×3：艏段 +0.5 大甲板（x 33.24..38.26，镜像后台阶沿 -X 升向断口）
-                new WorldMapSpawn(0, "redPirate", 35.2f, 74.3f, 5),
-                new WorldMapSpawn(0, "redPirate", 36.4f, 75.9f, 5),
-                new WorldMapSpawn(0, "redPirateCaptain", 36.2f, 74.8f, 5),
-                // 蓝队 ×3：艉楼（x 104.18..108.18，面向断桥）+ 主甲板（x 109.7..114.1）
-                new WorldMapSpawn(1, "bluePirate", 106.5f, 74.5f, 2),
-                new WorldMapSpawn(1, "bluePirate", 111f, 76f, 2),
-                new WorldMapSpawn(1, "bluePirateCaptain", 113.5f, 75f, 2),
+                new WorldMapSpawn(0, "redPirate", 52f, 73f, 5),
+                new WorldMapSpawn(0, "redPirate", 58f, 77f, 5),
+                new WorldMapSpawn(0, "redPirateCaptain", 55f, 79f, 5),
+                new WorldMapSpawn(1, "bluePirate", 92f, 73f, 2),
+                new WorldMapSpawn(1, "bluePirate", 98f, 77f, 2),
+                new WorldMapSpawn(1, "bluePirateCaptain", 95f, 79f, 2),
             },
             airdropPool: new[]
             {
@@ -127,21 +118,18 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             spanX: 190f, spanZ: 190f, ambientTier: "Noon",
             terrain: new[]
             {
-                // 三段 90° 环礁弧（西/北/南），东侧留 礁门 缺口
-                // （弧段资产经镜像后隆起朝本地 +Z：yaw 0=北、90=东、180=南、270=西）
+                // 本阵 M 岛贴环礁带（西压弧带/东压门口栈道），接敌 1-2 跳
                 new WorldKitPlacement("Archipelago", "AtollArcA", 95f, 95f, 270f),
                 new WorldKitPlacement("Archipelago", "AtollArcA", 95f, 95f, 0f),
                 new WorldKitPlacement("Archipelago", "AtollArcA", 95f, 95f, 180f),
                 new WorldKitPlacement("Archipelago", "AtollCore", 95f, 95f, 0f),
                 new WorldKitPlacement("Archipelago", "MangroveHummock", 78f, 108f, 20f),
                 new WorldKitPlacement("Archipelago", "MangroveHummock", 112f, 82f, 200f),
-                // 礁门：北南两座短海蚀柱 + 横跨缺口的三级礁阶栈道
                 new WorldKitPlacement("Archipelago", "SeaStackShort", 135f, 70f, 0f),
                 new WorldKitPlacement("Archipelago", "SeaStackShort", 135f, 120f, 0f),
                 new WorldKitPlacement("Archipelago", "ReefStepsA", 133f, 95f, 0f),
-                // 双方本阵
-                new WorldKitPlacement("Archipelago", "TerraceIslandM", 30f, 95f, 0f),
-                new WorldKitPlacement("Marine", "PierHead", 152f, 95f, 0f),
+                new WorldKitPlacement("Archipelago", "TerraceIslandM", 60f, 95f, 0f),
+                new WorldKitPlacement("Archipelago", "TerraceIslandM", 130f, 95f, 0f),
             },
             horizon: new[]
             {
@@ -168,14 +156,14 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             },
             spawns: new[]
             {
-                new WorldMapSpawn(0, "redPirate", 24f, 92f, 5),
-                new WorldMapSpawn(0, "redPirate", 25.5f, 92.5f, 5),
-                new WorldMapSpawn(0, "redPirate", 31f, 92f, 5),
-                new WorldMapSpawn(0, "redPirateCaptain", 24f, 99f, 5),
-                new WorldMapSpawn(1, "bluePirate", 150.5f, 93f, 2),
-                new WorldMapSpawn(1, "bluePirate", 153f, 97f, 2),
-                new WorldMapSpawn(1, "bluePirate", 149.5f, 96.5f, 2),
-                new WorldMapSpawn(1, "bluePirateCaptain", 152.5f, 92.5f, 2),
+                new WorldMapSpawn(0, "redPirate", 57f, 93f, 5),
+                new WorldMapSpawn(0, "redPirate", 62f, 97f, 5),
+                new WorldMapSpawn(0, "redPirate", 59.5f, 98f, 5),
+                new WorldMapSpawn(0, "redPirateCaptain", 62f, 92f, 5),
+                new WorldMapSpawn(1, "bluePirate", 127f, 93f, 2),
+                new WorldMapSpawn(1, "bluePirate", 132f, 97f, 2),
+                new WorldMapSpawn(1, "bluePirate", 129.5f, 98f, 2),
+                new WorldMapSpawn(1, "bluePirateCaptain", 132f, 92f, 2),
             },
             airdropPool: new[]
             {
@@ -312,16 +300,16 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             },
             spawns: new[]
             {
-                new WorldMapSpawn(0, "redPirate", 44f, 115f, 5),
-                new WorldMapSpawn(0, "redPirate", 50f, 124f, 5),
-                new WorldMapSpawn(0, "redPirate", 57f, 116f, 5),
-                new WorldMapSpawn(0, "redPirate", 63f, 125f, 5),
-                new WorldMapSpawn(0, "redPirateCaptain", 40f, 126f, 5),
-                new WorldMapSpawn(1, "bluePirate", 196f, 115f, 2),
-                new WorldMapSpawn(1, "bluePirate", 190f, 124f, 2),
-                new WorldMapSpawn(1, "bluePirate", 183f, 116f, 2),
-                new WorldMapSpawn(1, "bluePirate", 177f, 125f, 2),
-                new WorldMapSpawn(1, "bluePirateCaptain", 200f, 126f, 2),
+                new WorldMapSpawn(0, "redPirate", 85f, 117f, 5),
+                new WorldMapSpawn(0, "redPirate", 91f, 123f, 5),
+                new WorldMapSpawn(0, "redPirate", 85f, 121.5f, 5),
+                new WorldMapSpawn(0, "redPirate", 91f, 117f, 5),
+                new WorldMapSpawn(0, "redPirateCaptain", 88f, 120f, 5),
+                new WorldMapSpawn(1, "bluePirate", 153f, 117f, 2),
+                new WorldMapSpawn(1, "bluePirate", 159f, 123f, 2),
+                new WorldMapSpawn(1, "bluePirate", 153f, 121.5f, 2),
+                new WorldMapSpawn(1, "bluePirate", 159f, 117f, 2),
+                new WorldMapSpawn(1, "bluePirateCaptain", 156f, 120f, 2),
             },
             airdropPool: new[]
             {
@@ -343,7 +331,7 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             spanX: 180f, spanZ: 180f, ambientTier: "Dusk",
             terrain: new[]
             {
-                // 红树墩迷宫：4×4 交错网格（偶数行东移 14u），间距留 10-12u 跳距
+                // 本阵贴迷宫西/东中段，横向接敌
                 new WorldKitPlacement("Archipelago", "MangroveHummock", 48f, 45f, 0f),
                 new WorldKitPlacement("Archipelago", "MangroveHummock", 76f, 45f, 25f),
                 new WorldKitPlacement("Archipelago", "MangroveHummock", 104f, 45f, 0f),
@@ -360,9 +348,8 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
                 new WorldKitPlacement("Archipelago", "MangroveHummock", 90f, 123f, 190f),
                 new WorldKitPlacement("Archipelago", "MangroveHummock", 118f, 123f, 0f),
                 new WorldKitPlacement("Archipelago", "MangroveHummock", 146f, 123f, 60f),
-                // 双方本阵（西南 / 东北）
-                new WorldKitPlacement("Archipelago", "TerraceIslandM", 48f, 20f, 0f),
-                new WorldKitPlacement("Archipelago", "TerraceIslandM", 132f, 148f, 0f),
+                new WorldKitPlacement("Archipelago", "TerraceIslandM", 36f, 84f, 0f),
+                new WorldKitPlacement("Archipelago", "TerraceIslandM", 144f, 84f, 0f),
             },
             horizon: new[]
             {
@@ -397,14 +384,14 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             },
             spawns: new[]
             {
-                new WorldMapSpawn(0, "redPirate", 40f, 16f, 5),
-                new WorldMapSpawn(0, "redPirate", 45f, 24f, 5),
-                new WorldMapSpawn(0, "redPirate", 53f, 15.5f, 5),
-                new WorldMapSpawn(0, "redPirateCaptain", 56f, 24f, 5),
-                new WorldMapSpawn(1, "bluePirate", 124f, 144f, 2),
-                new WorldMapSpawn(1, "bluePirate", 130f, 152f, 2),
-                new WorldMapSpawn(1, "bluePirate", 137f, 143f, 2),
-                new WorldMapSpawn(1, "bluePirateCaptain", 141f, 151f, 2),
+                new WorldMapSpawn(0, "redPirate", 33f, 82f, 5),
+                new WorldMapSpawn(0, "redPirate", 39f, 87f, 5),
+                new WorldMapSpawn(0, "redPirate", 33f, 85.5f, 5),
+                new WorldMapSpawn(0, "redPirateCaptain", 39f, 81f, 5),
+                new WorldMapSpawn(1, "bluePirate", 141f, 82f, 2),
+                new WorldMapSpawn(1, "bluePirate", 147f, 87f, 2),
+                new WorldMapSpawn(1, "bluePirate", 141f, 85.5f, 2),
+                new WorldMapSpawn(1, "bluePirateCaptain", 147f, 81f, 2),
             },
             airdropPool: new[]
             {
@@ -424,20 +411,17 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             spanX: 260f, spanZ: 260f, ambientTier: "Noon",
             terrain: new[]
             {
-                // 西北臂上行：本阵 → 沙洲 → 台地 ×2 → 礁阶 → 龟甲王座
-                new WorldKitPlacement("Archipelago", "TerraceIslandL", 50f, 200f, 0f),
+                // 本阵沿螺旋内收一格（远征图，接敌距离减半）
                 new WorldKitPlacement("Archipelago", "SandBarL", 95f, 200f, 0f),
+                new WorldKitPlacement("Archipelago", "TerraceIslandM", 118f, 193f, 0f),
                 new WorldKitPlacement("Archipelago", "TerraceIslandM", 133f, 190f, 0f),
                 new WorldKitPlacement("Archipelago", "TerraceIslandM", 163f, 164f, 0f),
                 new WorldKitPlacement("Archipelago", "ReefStepsA", 185f, 140f, 0f),
                 new WorldKitPlacement("Archipelago", "TerraceIslandM", 185f, 125f, 0f),
                 new WorldKitPlacement("Archipelago", "TurtleShellIsle", 215f, 110f, 0f),
-                // 东南臂下行：王座 → 台地 → 本阵
                 new WorldKitPlacement("Archipelago", "TerraceIslandM", 250f, 82f, 0f),
-                new WorldKitPlacement("Archipelago", "TerraceIslandL", 215f, 46f, 0f),
-                // 王座西侧余脉沙洲（接 M2）
+                new WorldKitPlacement("Archipelago", "TerraceIslandM", 228f, 58f, 0f),
                 new WorldKitPlacement("Archipelago", "SandBarL", 160f, 115f, 0f),
-                // 西南火山缘环场（缺口朝东 → yaw 90，实测宽口在资产 +Z，转后对准本阵东南臂）
                 new WorldKitPlacement("Archipelago", "VolcanoRimA", 150f, 40f, 90f),
             },
             horizon: new[]
@@ -473,16 +457,14 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             },
             spawns: new[]
             {
-                new WorldMapSpawn(0, "redPirate", 34f, 192f, 5),
-                new WorldMapSpawn(0, "redPirate", 42f, 200f, 5),
-                new WorldMapSpawn(0, "redPirate", 50f, 192f, 5),
-                new WorldMapSpawn(0, "redPirate", 58f, 202f, 5),
-                new WorldMapSpawn(0, "redPirateCaptain", 40f, 210f, 5),
-                new WorldMapSpawn(1, "bluePirate", 200f, 38f, 2),
-                new WorldMapSpawn(1, "bluePirate", 208f, 46f, 2),
-                new WorldMapSpawn(1, "bluePirate", 216f, 36f, 2),
-                new WorldMapSpawn(1, "bluePirate", 224f, 46f, 2),
-                new WorldMapSpawn(1, "bluePirateCaptain", 204f, 50f, 2),
+                new WorldMapSpawn(0, "redPirate", 115f, 191f, 5),
+                new WorldMapSpawn(0, "redPirate", 121f, 195f, 5),
+                new WorldMapSpawn(0, "redPirate", 115f, 194.5f, 5),
+                new WorldMapSpawn(0, "redPirateCaptain", 121f, 190f, 5),
+                new WorldMapSpawn(1, "bluePirate", 225f, 56f, 2),
+                new WorldMapSpawn(1, "bluePirate", 231f, 60f, 2),
+                new WorldMapSpawn(1, "bluePirate", 225f, 59.5f, 2),
+                new WorldMapSpawn(1, "bluePirateCaptain", 231f, 55f, 2),
             },
             airdropPool: new[]
             {
@@ -504,9 +486,8 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             spanX: 200f, spanZ: 200f, ambientTier: "Storm",
             terrain: new[]
             {
-                // 中央海蚀柱纵队：礁阶 → 短柱 → 栈桥 → 短柱 → 高柱（顶盘 +6.0）
-                // （栈桥长轴沿本地 Z，yaw 90 转东西向；东侧原重复的 SeaStackShort 已删）
-                new WorldKitPlacement("Archipelago", "TerraceIslandM", 35f, 100f, 0f),
+                // 本阵内移贴柱链两端（103u 接敌）
+                new WorldKitPlacement("Archipelago", "TerraceIslandM", 55f, 100f, 0f),
                 new WorldKitPlacement("Archipelago", "ReefStepsA", 60f, 100f, 0f),
                 new WorldKitPlacement("Archipelago", "SeaStackShort", 75f, 100f, 0f),
                 new WorldKitPlacement("Marine", "PierLong", 95f, 100f, 90f),
@@ -514,8 +495,7 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
                 new WorldKitPlacement("Archipelago", "SeaStackTall", 130f, 100f, 0f),
                 new WorldKitPlacement("Archipelago", "SeaStackShort", 140f, 100f, 0f),
                 new WorldKitPlacement("Marine", "PierLong", 158f, 100f, 90f),
-                new WorldKitPlacement("Archipelago", "TerraceIslandM", 178f, 100f, 0f),
-                // 灯塔高地（北翼，唯一灯源）
+                new WorldKitPlacement("Archipelago", "TerraceIslandM", 158f, 100f, 0f),
                 new WorldKitPlacement("Archipelago", "TerraceIslandM", 100f, 122f, 0f),
                 new WorldKitPlacement("Marine", "LighthouseTower", 100f, 145f, 0f),
             },
@@ -546,14 +526,14 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             },
             spawns: new[]
             {
-                new WorldMapSpawn(0, "redPirate", 28f, 95f, 5),
-                new WorldMapSpawn(0, "redPirate", 33f, 105f, 5),
-                new WorldMapSpawn(0, "redPirate", 41f, 97.5f, 5),
-                new WorldMapSpawn(0, "redPirateCaptain", 43f, 104f, 5),
-                new WorldMapSpawn(1, "bluePirate", 171f, 95f, 2),
-                new WorldMapSpawn(1, "bluePirate", 175f, 105f, 2),
-                new WorldMapSpawn(1, "bluePirate", 184.5f, 96.5f, 2),
-                new WorldMapSpawn(1, "bluePirateCaptain", 186f, 104f, 2),
+                new WorldMapSpawn(0, "redPirate", 50f, 96f, 5),
+                new WorldMapSpawn(0, "redPirate", 55f, 103f, 5),
+                new WorldMapSpawn(0, "redPirate", 60f, 96f, 5),
+                new WorldMapSpawn(0, "redPirateCaptain", 58f, 104f, 5),
+                new WorldMapSpawn(1, "bluePirate", 153f, 96f, 2),
+                new WorldMapSpawn(1, "bluePirate", 158f, 103f, 2),
+                new WorldMapSpawn(1, "bluePirate", 163f, 96f, 2),
+                new WorldMapSpawn(1, "bluePirateCaptain", 161f, 104f, 2),
             },
             airdropPool: new[]
             {
@@ -574,9 +554,8 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             spanX: 280f, spanZ: 280f, ambientTier: "Dusk",
             terrain: new[]
             {
-                // 东西主轴：本阵 → 沙洲 → 礁阶 → 沉没广场 → 栈桥 → 台地 → 桥头 → 心岛 → 台地 → 本阵
-                // （栈桥 yaw 90 转东西向；广场中央 z 135.4..144.6 是死亡水池，礁阶从南台北跳北台）
-                new WorldKitPlacement("Archipelago", "TerraceIslandL", 55f, 140f, 0f),
+                // 本阵贴主轴两端（西岛压沙洲/礁阶/广场；东岛压心岛链）
+                new WorldKitPlacement("Archipelago", "TerraceIslandL", 100f, 140f, 0f),
                 new WorldKitPlacement("Archipelago", "SandBarL", 105f, 140f, 0f),
                 new WorldKitPlacement("Archipelago", "ReefStepsA", 135f, 140f, 0f),
                 new WorldKitPlacement("Archipelago", "SunkenPlaza", 155f, 140f, 0f),
@@ -585,8 +564,7 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
                 new WorldKitPlacement("Marine", "PierHead", 225f, 140f, 0f),
                 new WorldKitPlacement("Archipelago", "AtollCore", 240f, 140f, 0f),
                 new WorldKitPlacement("Archipelago", "TerraceIslandM", 230f, 158f, 0f),
-                new WorldKitPlacement("Archipelago", "TerraceIslandL", 230f, 190f, 0f),
-                // 南北两翼红树回路
+                new WorldKitPlacement("Archipelago", "TerraceIslandL", 205f, 175f, 0f),
                 new WorldKitPlacement("Archipelago", "MangroveHummock", 155f, 85f, 20f),
                 new WorldKitPlacement("Archipelago", "ReefStepsA", 155f, 108f, 90f),
                 new WorldKitPlacement("Archipelago", "MangroveHummock", 200f, 75f, 0f),
@@ -595,7 +573,6 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
                 new WorldKitPlacement("Archipelago", "ReefStepsA", 155f, 172f, 90f),
                 new WorldKitPlacement("Archipelago", "MangroveHummock", 200f, 205f, 40f),
                 new WorldKitPlacement("Archipelago", "SandBarL", 180f, 200f, 90f),
-                // 门柱双塔（视觉语义「沉都之门」，不可登顶的卫哨）
                 new WorldKitPlacement("Archipelago", "SeaStackTall", 200f, 105f, 0f),
                 new WorldKitPlacement("Archipelago", "SeaStackTall", 200f, 175f, 0f),
             },
@@ -639,18 +616,18 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             },
             spawns: new[]
             {
-                new WorldMapSpawn(0, "redPirate", 38f, 128f, 5),
-                new WorldMapSpawn(0, "redPirate", 45f, 136f, 5),
-                new WorldMapSpawn(0, "redPirate", 52f, 127f, 5),
-                new WorldMapSpawn(0, "redPirate", 40f, 146f, 5),
-                new WorldMapSpawn(0, "redPirate", 48f, 152f, 5),
-                new WorldMapSpawn(0, "redPirateCaptain", 57f, 140f, 5),
-                new WorldMapSpawn(1, "bluePirate", 214f, 180f, 2),
-                new WorldMapSpawn(1, "bluePirate", 222f, 188f, 2),
-                new WorldMapSpawn(1, "bluePirate", 230f, 178f, 2),
-                new WorldMapSpawn(1, "bluePirate", 218f, 193f, 2),
-                new WorldMapSpawn(1, "bluePirate", 228f, 202f, 2),
-                new WorldMapSpawn(1, "bluePirateCaptain", 238f, 190f, 2),
+                new WorldMapSpawn(0, "redPirate", 96f, 134f, 5),
+                new WorldMapSpawn(0, "redPirate", 103f, 142f, 5),
+                new WorldMapSpawn(0, "redPirate", 96f, 144f, 5),
+                new WorldMapSpawn(0, "redPirate", 104f, 133f, 5),
+                new WorldMapSpawn(0, "redPirate", 97f, 148.5f, 5),
+                new WorldMapSpawn(0, "redPirateCaptain", 104f, 148f, 5),
+                new WorldMapSpawn(1, "bluePirate", 201f, 171f, 2),
+                new WorldMapSpawn(1, "bluePirate", 209f, 179f, 2),
+                new WorldMapSpawn(1, "bluePirate", 217f, 171f, 2),
+                new WorldMapSpawn(1, "bluePirate", 203f, 187f, 2),
+                new WorldMapSpawn(1, "bluePirate", 213f, 188f, 2),
+                new WorldMapSpawn(1, "bluePirateCaptain", 221f, 180f, 2),
             },
             airdropPool: new[]
             {

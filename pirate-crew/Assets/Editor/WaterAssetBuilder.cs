@@ -196,6 +196,7 @@ namespace PirateCrew.EditorTools
             SetColor(m, "_DeepColor", "#1E5E88");
             // 浅→深完成深度 4 → 5：同深度下更多面积停留在较亮档 = 降等效吸收系数。
             SetFloat(m, "_ShoreFadeDistance", 5f);
+            // ---- 太阳光路（M4 实拍修正：高机位俯视整海染金的收紧项，与 shader 默认值同源）----
 
             // ---- 大尺度低频破坏噪声（打断 34-81px 可见重复花纹 / tiling 自相关）----
             SetFloat(m, "_BreakupScale", 0.0222f);      // ≈1/45 世界单位（世界尺度 30-60 内）
@@ -208,14 +209,14 @@ namespace PirateCrew.EditorTools
             // 默认值同步：宽瓣主项 1.6→0.8、宽瓣辅项 0.65→0.4、窄瓣 8.0→5.0、掠射 sheen 0.20→0.10。
             // 判据：水窗蓝像素(hue 190-225, sat>0.15)>60%、中性灰<15%、暖亮仅 2-6% 且在太阳方位窄条。
             SetColor(m, "_SunSpecColor", "#FFDB73");       // (1.0, 0.86, 0.45) 暖金 hue≈45
-            SetFloat(m, "_SunSpecBroadStrength", 0.8f);
+            SetFloat(m, "_SunSpecBroadStrength", 0.5f);  // M4 实拍修正（0.8 旧机位口径）
             SetFloat(m, "_SunSpecLaneShininess", 24f);
             SetFloat(m, "_SunSpecWaveStrength", 0.4f);
             SetFloat(m, "_SunSpecBroadShininess", 50f);
             SetFloat(m, "_SunSpecLaneWidth", 2.5f);
             SetFloat(m, "_SunSpecPatchScale", 8f);
             SetFloat(m, "_SunSpecPatchDepth", 0.40f);
-            SetFloat(m, "_SunSpecCrestBias", 0.70f);
+            SetFloat(m, "_SunSpecCrestBias", 0.25f);  // M4 实拍修正（整海染金主因之一）
             SetFloat(m, "_SunSpecSlopeBoost", 12f);
             SetFloat(m, "_SunSpecStrength", 5f);
             SetFloat(m, "_SunSpecShininess", 320f);
@@ -255,7 +256,7 @@ namespace PirateCrew.EditorTools
             SetFloat(m, "_FresnelPower", 5f);
             SetFloat(m, "_FresnelStrength", 1f);
             SetFloat(m, "_Smoothness", 0.92f);
-            SetFloat(m, "_Opacity", 0.82f);
+            SetFloat(m, "_Opacity", 0.94f);   // M4 实拍修正：0.82 近场看穿海床
             SetFloat(m, "_DebugMode", 0f);
 
             SetVector(m, "_W1Dir", new Vector4(1f, 0f, 0.25f, 0f));
@@ -438,14 +439,14 @@ namespace PirateCrew.EditorTools
             SetFloat(m, "_Smoothness", 0.92f);
             SetFloat(m, "_SpecularIntensity", 0.5f);
             SetColor(m, "_SunSpecColor", "#FFDB73");
-            SetFloat(m, "_SunSpecBroadStrength", 0.8f);
+            SetFloat(m, "_SunSpecBroadStrength", 0.5f);  // M4 实拍修正（0.8 旧机位口径）
             SetFloat(m, "_SunSpecLaneShininess", 24f);
             SetFloat(m, "_SunSpecWaveStrength", 0.4f);
             SetFloat(m, "_SunSpecBroadShininess", 50f);
             SetFloat(m, "_SunSpecLaneWidth", 2.5f);
             SetFloat(m, "_SunSpecPatchScale", 8f);
             SetFloat(m, "_SunSpecPatchDepth", 0.40f);
-            SetFloat(m, "_SunSpecCrestBias", 0.70f);
+            SetFloat(m, "_SunSpecCrestBias", 0.25f);  // M4 实拍修正（整海染金主因之一）
             SetFloat(m, "_SunSpecSlopeBoost", 12f);
             SetFloat(m, "_SunSpecStrength", 5f);
             SetFloat(m, "_SunSpecShininess", 320f);
@@ -461,7 +462,7 @@ namespace PirateCrew.EditorTools
             SetFloat(m, "_WaveSpeedB", 0.85f);
             SetFloat(m, "_WaveStrengthB", 0.28f);
             SetVector(m, "_WaveDirectionB", new Vector4(-0.4f, 0f, 1f, 0f));
-            SetFloat(m, "_Opacity", 0.82f);
+            SetFloat(m, "_Opacity", 0.94f);   // M4 实拍修正：0.82 近场看穿海床
             SetFloat(m, "_DebugMode", 0f);
 
             EditorUtility.SetDirty(m);

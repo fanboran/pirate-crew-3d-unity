@@ -22,8 +22,9 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         /// <summary>栅格化：世界地图的 1 瓦片 = <see cref="LevelGeometry.TileWorldSize"/>（2u）。</summary>
         public const float RasterTileSize = 2f;
 
-        /// <summary>出生点离站面边缘的最小余量（u）；角色占地 ≈0.5。</summary>
-        public const float SpawnEdgeMargin = 1.2f;
+        /// <summary>出生点离站面边缘的最小余量（u）——本义是"不悬空站出台沿"（角色宽 0.375）；
+        /// 1.2u 的初始值过严（把贴台沿的合法出生全判死），实测收敛到 0.35。【M4 实拍修正】</summary>
+        public const float SpawnEdgeMargin = 0.35f;
 
         // ------------------------------------------------------------------
         // box 世界展开

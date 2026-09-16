@@ -1,0 +1,109 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0b590f7d63d07f748b31bab857a8b7c8, type: 3}
+  m_Name: WorldMapAssetSet
+  m_EditorClassIdentifier: 
+  entries:
+  - assetName: AtollArcA
+    prefab: {fileID: 919132149155446097, guid: 421f91539ea98af488510f67c98aa4f1, type: 3}
+  - assetName: AtollCore
+    prefab: {fileID: 919132149155446097, guid: 7a8e633479431f843a714c25063a3553, type: 3}
+  - assetName: MangroveHummock
+    prefab: {fileID: 919132149155446097, guid: de38bce7dfc06e34d99530c4c9048f8c, type: 3}
+  - assetName: ReefStepsA
+    prefab: {fileID: 919132149155446097, guid: 9e1ccfb0a551b67438e3ba385b3f7983, type: 3}
+  - assetName: SandBarL
+    prefab: {fileID: 919132149155446097, guid: 8aa263b8e86628a4cb3650091f7f9d02, type: 3}
+  - assetName: SeaStackShort
+    prefab: {fileID: 919132149155446097, guid: 34ed7502f2b837543b1528f564f278bc, type: 3}
+  - assetName: SeaStackTall
+    prefab: {fileID: 919132149155446097, guid: ca8a46151aca5dc43bd57a4874641fd5, type: 3}
+  - assetName: SunkenPlaza
+    prefab: {fileID: 919132149155446097, guid: 33c44bfcb8e319341886db9c095c1555, type: 3}
+  - assetName: TerraceIslandL
+    prefab: {fileID: 919132149155446097, guid: d109e5f10ad1cf748afaf91f4865c66d, type: 3}
+  - assetName: TerraceIslandM
+    prefab: {fileID: 919132149155446097, guid: dee6df7fcb500ab4cbff31817f8e71a6, type: 3}
+  - assetName: TurtleShellIsle
+    prefab: {fileID: 919132149155446097, guid: 266b88d1b6d49e846a5a947b12ff2a7c, type: 3}
+  - assetName: VolcanoRimA
+    prefab: {fileID: 919132149155446097, guid: fd448ce1a12a79d4fa111c94bfbc0afa, type: 3}
+  - assetName: CloudBankL
+    prefab: {fileID: 919132149155446097, guid: a024137f377ee2d408471c90e2c35ceb, type: 3}
+  - assetName: DistantIsleL
+    prefab: {fileID: 919132149155446097, guid: c3a9f5b21eb73034b9fd0ef883641649, type: 3}
+  - assetName: DistantIsleM
+    prefab: {fileID: 919132149155446097, guid: 54a4b7a90b276454492c4b054c3baf3e, type: 3}
+  - assetName: DistantIsleS
+    prefab: {fileID: 919132149155446097, guid: 9885fd46ebb62b74eb406e22a46f7d46, type: 3}
+  - assetName: FarFleet
+    prefab: {fileID: 919132149155446097, guid: 042b69d5979269d4ca9c95acc698dafe, type: 3}
+  - assetName: GiantRibs
+    prefab: {fileID: 919132149155446097, guid: 74bb819b2d6d622429d91e0f23e6136c, type: 3}
+  - assetName: LeviathanTentacle
+    prefab: {fileID: 919132149155446097, guid: 27e3bd9a3598e6146b60e12178fc4420, type: 3}
+  - assetName: WhaleSurfacing
+    prefab: {fileID: 919132149155446097, guid: bd4f2d618f9c45b44bb21b2cfed3f92a, type: 3}
+  - assetName: AnchorMonument
+    prefab: {fileID: 919132149155446097, guid: 2e544ef59369bd84ebeec15141d96111, type: 3}
+  - assetName: BuoyRing
+    prefab: {fileID: 919132149155446097, guid: d446dea68d3d7c44fb32e69696856477, type: 3}
+  - assetName: LighthouseTower
+    prefab: {fileID: 919132149155446097, guid: 9ccb88655dc39d4448bd23f6c47c5212, type: 3}
+  - assetName: MastBridge
+    prefab: {fileID: 919132149155446097, guid: e12d33f623df3734db9206441f4570c3, type: 3}
+  - assetName: PierHead
+    prefab: {fileID: 919132149155446097, guid: c592dedae08052741af67cc2feabdb3c, type: 3}
+  - assetName: PierLong
+    prefab: {fileID: 919132149155446097, guid: 1bc1440356539df48931365cdd97e965, type: 3}
+  - assetName: RowboatBeached
+    prefab: {fileID: 919132149155446097, guid: 6f03871feae76b94292a009d0f68b1e8, type: 3}
+  - assetName: WreckBowHalf
+    prefab: {fileID: 919132149155446097, guid: f44d01c0df479fd4894dc467fe8ceb98, type: 3}
+  - assetName: WreckSternHalf
+    prefab: {fileID: 919132149155446097, guid: d0b5541b2f23c6546bfd514c7ed6e31d, type: 3}
+  - assetName: BarrelWood
+    prefab: {fileID: 919132149155446097, guid: 249e6ae9f132dd24f9004e7e820deae7, type: 3}
+  - assetName: Campfire
+    prefab: {fileID: 919132149155446097, guid: 05aa66213ba268b4fbca55b54c521bbd, type: 3}
+  - assetName: CannonEmplacement
+    prefab: {fileID: 919132149155446097, guid: 8709c591b2260d64e86d6b01ce2a8e98, type: 3}
+  - assetName: CrateStack
+    prefab: {fileID: 919132149155446097, guid: ffe0a048a2df228439757e48b2cc5cf3, type: 3}
+  - assetName: Driftwood
+    prefab: {fileID: 919132149155446097, guid: a7011948ec481044b8b1cc208e2a119b, type: 3}
+  - assetName: FernClump
+    prefab: {fileID: 919132149155446097, guid: 855365dddca226e4b989a30326c729aa, type: 3}
+  - assetName: GrassTuft
+    prefab: {fileID: 919132149155446097, guid: 88d922183f0d14d4ca6c97ca78699c62, type: 3}
+  - assetName: PalmDead
+    prefab: {fileID: 919132149155446097, guid: 68343c26c2132de4bbfe97c9a8f6d188, type: 3}
+  - assetName: PalmLean
+    prefab: {fileID: 919132149155446097, guid: 84f48bbd25fdb3543a9a3bcda9532f66, type: 3}
+  - assetName: PalmTall
+    prefab: {fileID: 919132149155446097, guid: 3ea44ca8a1a97f04c92972fed7e2235f, type: 3}
+  - assetName: RockFlat
+    prefab: {fileID: 919132149155446097, guid: bee1cd0ec5b0f74439748249feb61b1c, type: 3}
+  - assetName: RockL
+    prefab: {fileID: 919132149155446097, guid: e4661c53839562240b476005e9c75cdf, type: 3}
+  - assetName: RockM
+    prefab: {fileID: 919132149155446097, guid: 6c1be5d11592ab7408b269f775a49dd7, type: 3}
+  - assetName: RockS
+    prefab: {fileID: 919132149155446097, guid: 37a97f74cca0c8444ad3df891270abbe, type: 3}
+  - assetName: RuinArch
+    prefab: {fileID: 919132149155446097, guid: d30309b2554f280448aef7e1b603a00e, type: 3}
+  - assetName: RuinColumnBroken
+    prefab: {fileID: 919132149155446097, guid: c2820f4256b4f7149b806f7a61bcabc6, type: 3}
+  - assetName: ShipWheelPost
+    prefab: {fileID: 919132149155446097, guid: 4e07b172c0257b9448b0376ff631adb9, type: 3}
+  - assetName: TreasureMound
+    prefab: {fileID: 919132149155446097, guid: d587c35b5c036984db54e361df9509d6, type: 3}

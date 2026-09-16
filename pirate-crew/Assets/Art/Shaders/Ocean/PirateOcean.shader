@@ -182,7 +182,7 @@ Shader "PirateCrew/Ocean"
         _SunSpecLaneWidth       ("宽瓣沿太阳方位加宽（拉成光路带）", Range(1.0, 6.0)) = 2.5
         _SunSpecPatchScale      ("宽瓣碎块噪声尺度（世界单位⁻¹）", Float) = 8.0
         _SunSpecPatchDepth      ("宽瓣碎块深度（不挖洞）", Range(0.0, 1.0)) = 0.40
-        _SunSpecCrestBias       ("宽瓣波峰偏置（填实空心环）", Range(0.0, 1.0)) = 0.70
+        _SunSpecCrestBias       ("宽瓣波峰偏置（填实空心环）", Range(0.0, 1.0)) = 0.25
         _SunSpecSlopeBoost      ("窄瓣法线斜率放大（拉出闪点）", Range(1.0, 16.0)) = 12.0
         _SunSpecStrength        ("窄瓣（闪点）强度", Range(0.0, 20.0)) = 5.0
         _SunSpecShininess       ("窄瓣锐度（400+ = 细闪点）", Range(20.0, 1200.0)) = 320.0
@@ -859,6 +859,14 @@ Shader "PirateCrew/Ocean"
                 half flickWeight = (1.0h - exp(-(half)(flickTerm * _SunSpecStrength))) * (half)flickMask;
                 half sheen = (half)(pow(saturate(1.0 - viewDirWS.y), 3.0) * _SunSheenStrength);
                 half sunPathWeight = saturate(broadWeight + flickWeight + sheen);
+
+                // 【M4 实拍修正 2026-09-17】高机位俯视时平水面镜射方向≈天顶，与太阳仰角天然接近，
+                // 旧宽瓣光路整屏饱和 → 整海被 lerp 成暖金。物理门：只有视线朝太阳方位（水平投影对齐）
+                // 才可能出现光路带；背对太阳时权重归零。平方让过渡收敛。
+                float azimuthFacing = saturate(dot(
+                    normalize(float3(-viewDirWS.x, 0.0, -viewDirWS.z)),
+                    normalize(float3(sunToLight.x, 0.0, sunToLight.z))));
+                sunPathWeight = saturate(sunPathWeight * azimuthFacing * azimuthFacing);
 
                 // 混色（不是加色）：暖金只落在镜射权重处，水体整体读蓝（r7 结论）。
                 color = lerp(color, (half3)_SunSpecColor.rgb, sunPathWeight);

@@ -30,7 +30,7 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             var collisionRoot = new GameObject("Stands");
             collisionRoot.transform.SetParent(root.transform, false);
             for (int i = 0; i < standBoxes.Count; i++)
-                BuildStandBox(collisionRoot.transform, standBoxes[i]);
+                BuildStandBox(collisionRoot.transform, standBoxes[i], assetSet, i + map.LevelNumber * 7);
 
             var kitRoot = new GameObject("Kit");
             kitRoot.transform.SetParent(root.transform, false);
@@ -58,24 +58,82 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             return root.transform;
         }
 
-        static void BuildStandBox(Transform root, in WorldMapRules.WorldBox box)
+        static void BuildStandBox(Transform root, in WorldMapRules.WorldBox box,
+            WorldMapAssetSet assetSet, int seed)
         {
             var go = new GameObject(string.Format("Stand_{0:F0}_{1:F0}_{2:F1}",
                 box.Center.x, box.Center.y, box.TopY));
             go.transform.SetParent(root, false);
             // box.Center 为平面 (X, Z)；摆放根在海平面 y=0，顶面 = TopY。
-            go.transform.position = new Vector3(box.Center.x, 0f, box.Center.y);
-            go.transform.rotation = Quaternion.Euler(0f, box.YawDeg, 0f);
-
             float height = box.TopY + ColliderDepth;
+            // 【M4 实拍修正】视觉顶面下沉 0.06：kit FBX 的甲板与站面同高，同高会 z-fighting
+            // （整图白模闪烁的元凶）；下沉后 kit 表面赢，灰盒只在 kit 缺位处可见。
+            const float visualDrop = 0.06f;
+            go.transform.localPosition = new Vector3(
+                box.Center.x, box.TopY - visualDrop - height * 0.5f, box.Center.y);
+            go.transform.localRotation = Quaternion.Euler(0f, box.YawDeg, 0f);
+            // 灰盒视觉 = 按 box 尺寸缩放的立方体（kit FBX 接入后作为其下的底座/兜底）。
+            go.transform.localScale = new Vector3(box.Size.x, height, box.Size.y);
+
             var collider = go.AddComponent<BoxCollider>();
-            collider.size = new Vector3(box.Size.x, height, box.Size.y);
-            collider.center = new Vector3(0f, box.TopY - height * 0.5f, 0f);
+            collider.size = Vector3.one;
+            collider.center = new Vector3(0f, visualDrop * 0.5f, 0f);
 
             var filter = go.AddComponent<MeshFilter>();
             filter.sharedMesh = CubeMesh();
             var renderer = go.AddComponent<MeshRenderer>();
+            // 【有限色板纪律】灰盒只用色板共享材质（3 档），不做逐块抖动——低多边形的色彩层次
+            // 来自色板本身 + 植被散布 + 光照，不是随机扰动（行业实践；逐块实例化还会爆材质预算）。
             renderer.sharedMaterial = BandMaterial(box.TopY);
+
+            ScatterDecorations(go.transform, box, assetSet, seed);
+        }
+
+        /// <summary>
+        /// 程序化散布：每块站面按确定性哈希撒 2-4 个植被/碎岩装饰（高度带决定种类：
+        /// 低=草丛/碎岩/蕨、中=蕨/斜棕榈/中岩/草、高=岩），位置在 box 内缩 3u 的矩形里抖动，
+        /// y 吸附站面顶。密度由代码保证，不再依赖手摆。
+        /// </summary>
+        static void ScatterDecorations(Transform parent, in WorldMapRules.WorldBox box,
+            WorldMapAssetSet assetSet, int seed)
+        {
+            if (assetSet == null || box.Size.x < 3f || box.Size.y < 3f)
+                return;
+            uint h = (uint)(seed * 2654435761u);
+            int count = 2 + (int)((h >> 17) % 3u);
+            string[] lowPool = { "GrassTuft", "RockS", "FernClump" };
+            string[] midPool = { "FernClump", "PalmLean", "RockM", "GrassTuft" };
+            string[] highPool = { "RockM", "RockS" };
+            var pool = box.TopY <= 1.5f ? lowPool : (box.TopY <= 3.0f ? midPool : highPool);
+
+            float rad = box.YawDeg * Mathf.Deg2Rad;
+            float cos = Mathf.Cos(rad), sin = Mathf.Sin(rad);
+            for (int i = 0; i < count; i++)
+            {
+                h = h * 1664525u + 1013904223u;
+                float fx = ((h >> 8) % 1000u) / 1000f - 0.5f;
+                h = h * 1664525u + 1013904223u;
+                float fz = ((h >> 8) % 1000u) / 1000f - 0.5f;
+                h = h * 1664525u + 1013904223u;
+                float yaw = ((h >> 8) % 1000u) / 1000f * 360f;
+
+                string asset = pool[(int)((h >> 9) % (uint)pool.Length)];
+                GameObject prefab = assetSet.Get(asset);
+                if (prefab == null)
+                    continue;
+
+                float lx = fx * (box.Size.x - 3f);
+                float lz = fz * (box.Size.y - 3f);
+                var go = Object.Instantiate(prefab, parent);
+                go.name = "Decor_" + asset;
+                // 世界位置：站面中心 + 旋转偏移；y = 站面顶（道具原点在落地面）。
+                go.transform.localPosition = new Vector3(
+                    box.Center.x + lx * cos - lz * sin,
+                    box.TopY,
+                    box.Center.y + lx * sin + lz * cos);
+                go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+                go.isStatic = true;
+            }
         }
 
         static void BuildKitPlacement(Transform root, string group, in WorldKitPlacement placement,

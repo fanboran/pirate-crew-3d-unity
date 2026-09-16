@@ -110,6 +110,7 @@ namespace PirateCrew.PirateCrew.Water
         void BuildContent(Material material)
         {
             _material = material != null ? material : ResolveOrCreateMaterial();
+            ApplyDebugOverride(_material);
 
             _mesh = BuildDiscMesh(OceanGridRules.RingRadii(), OceanGridRules.Segments);
             TriangleCount = _mesh.triangles.Length / 3;
@@ -121,6 +122,25 @@ namespace PirateCrew.PirateCrew.Water
             renderer.sharedMaterial = _material;
             // 透明水面：不投影（与旧 PirateWater 同口径）； receives shadows 走 shader 的主光阴影项。
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        /// <summary>
+        /// 调试覆盖：命令行 <c>-oceanDebug &lt;0-13&gt;</c> 强制 shader 的 _DebugMode
+        /// （1=纯水色 4=全泡沫 11=白帽 12=包络…），用于实拍二分定位颜色链问题。缺省不干预。
+        /// </summary>
+        void ApplyDebugOverride(Material material)
+        {
+            string[] args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] == "-oceanDebug"
+                    && float.TryParse(args[i + 1], out float mode))
+                {
+                    material.SetFloat("_DebugMode", mode);
+                    Debug.Log("[OceanRig] 调试档 _DebugMode=" + mode);
+                    return;
+                }
+            }
         }
 
         Material ResolveOrCreateMaterial()

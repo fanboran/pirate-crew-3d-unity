@@ -79,6 +79,9 @@ namespace PirateCrew.PirateCrew.Battle
         [Header("M4 世界地图（可选）")]
         [Tooltip("世界地图的 kit 资产表（FBX 预制体引用）；为空时世界地图用灰盒站面兜底。")]
         [SerializeField] WorldMapAssetSet worldMapAssetSet;
+        [Tooltip("大海域海面材质（Ocean_Water.mat）；必须由场景引用入构建包——运行时 Shader.Find "
+                 + "在播放器里查不到未引用的 shader（实拍踩坑：海面变纯白兜底盘）。为空时运行时兜底。")]
+        [SerializeField] Material worldOceanMaterial;
 
         [Header("层掩码")]
         [Tooltip("爆炸候选与单位射线用的层。")]
@@ -340,11 +343,13 @@ namespace PirateCrew.PirateCrew.Battle
             if (waterPlane != null)
                 waterPlane.gameObject.SetActive(false);
 
+            HideBakedMinimapTiles();
+
             Water.OceanRig.Create(
                 Water.OceanConfig.ForArena(
                     new Vector2(_worldMap.SpanX * 0.5f, _worldMap.SpanZ * 0.5f),
                     _worldMap.SpanX * 0.5f, _worldMap.SpanZ * 0.5f),
-                material: null,
+                material: worldOceanMaterial,
                 parent: transform,
                 followCamera: battleCamera != null ? battleCamera.GetComponent<Camera>() : null);
 
@@ -363,6 +368,22 @@ namespace PirateCrew.PirateCrew.Battle
                 else if (string.Equals(_worldMap.AmbientTier, "Storm", StringComparison.OrdinalIgnoreCase))
                     tier = Ambient.AmbientTimeOfDay.Overcast;
                 ambientDirector.SetTimeOfDay(tier);
+            }
+        }
+
+        /// <summary>
+        /// 世界地图模式下隐藏烘焙的 IslandLayer 小地图底板——它按原版关卡网格烘死（IslandTile_*），
+        /// 与世界地图的栅格不符；小地图的帧框与运行时单位点不受影响。同场景一次性清理，非跨模块引用。
+        /// </summary>
+        void HideBakedMinimapTiles()
+        {
+            foreach (var image in FindObjectsOfType<UnityEngine.UI.Image>(true))
+            {
+                if (image.name.StartsWith("IslandTile_") && image.transform.parent != null)
+                {
+                    image.transform.parent.gameObject.SetActive(false);
+                    return; // 全部 IslandTile_* 同属一层，关掉父级一次即可
+                }
             }
         }
 

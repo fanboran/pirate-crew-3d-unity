@@ -293,6 +293,12 @@ namespace PirateCrew.PirateCrew.ArtReview
 
         Shot[] BuildShots()
         {
+            // 【M4 世界地图】经典六机位按 50×17 老竞技场写死，在 150–280u 的大海域图上全部失焦；
+            // world 模式改走按地图跨度动态计算的机位组。该组只在播放器 -worldMap 模式使用，
+            // 不属于与 ArtReviewShots.cs 互为镜像的经典清单（镜像铁律不覆盖）。
+            if (Battle.WorldMaps.WorldMapRuntime.TryGetPending(out var worldMap))
+                return BuildWorldShots(worldMap);
+
             Vector3 c = _arenaCenter;
 
             // battle-45/hud-fullscreen 瞄准"两队出生区中点"而非纯竞技场中心，让两队都尽量入画
@@ -324,6 +330,63 @@ namespace PirateCrew.PirateCrew.ArtReview
                 c + new Vector3(0f, 5f, -7f), 60f, c + new Vector3(0f, 0.5f, 0f)));
 
             return shots.ToArray();
+        }
+
+        /// <summary>
+        /// 世界地图机位组（-worldMap 模式专用）：全景斜 45° / 正俯瞰 / 海平线远眺 / 双方出生群近景。
+        /// 距离全部按跨度 span 比例计算，far clip 在 <see cref="SetupCamera"/> 里随 world 模式放宽到 4500。
+        /// 不做特写/爆炸机位——经典清单里那两张依赖老竞技场的聚焦与爆心约定。
+        /// </summary>
+        Shot[] BuildWorldShots(Battle.WorldMaps.WorldMapDefinition map)
+        {
+            var c = new Vector3(map.SpanX * 0.5f, 0f, map.SpanZ * 0.5f);
+            float span = Mathf.Max(map.SpanX, map.SpanZ);
+
+            var shots = new System.Collections.Generic.List<Shot>
+            {
+                NewShot("world-pano", true,
+                    c + new Vector3(span * 0.42f, span * 0.62f, span * 0.6f), 55f, c),
+                NewShot("world-overhead", false,
+                    c + new Vector3(0f, span * 0.92f, 0.01f), 50f, c),
+                NewShot("world-horizon", false,
+                    new Vector3(c.x, 2.5f, -span * 0.12f), 60f,
+                    c + new Vector3(0f, 6f, span * 0.18f)),
+            };
+
+            Vector3 team0 = TeamSpawnCentroid(0);
+            Vector3 team1 = TeamSpawnCentroid(1);
+            if (team0.sqrMagnitude > 0f)
+                shots.Add(SpawnGroupShot("world-team0-spawn", team0));
+            if (team1.sqrMagnitude > 0f)
+                shots.Add(SpawnGroupShot("world-team1-spawn", team1));
+
+            return shots.ToArray();
+        }
+
+        /// <summary>某队全部出生点的地面质心（取不到单位时返回 Vector3.zero，调用方跳过）。</summary>
+        Vector3 TeamSpawnCentroid(int teamIndex)
+        {
+            if (_controller == null || _controller.AllPirates == null)
+                return Vector3.zero;
+            Vector3 sum = Vector3.zero;
+            int count = 0;
+            foreach (var pirate in _controller.AllPirates)
+            {
+                if (pirate == null || !pirate.gameObject.activeInHierarchy)
+                    continue;
+                if (pirate.TeamIndex != teamIndex)
+                    continue;
+                sum += pirate.transform.position;
+                count++;
+            }
+            return count > 0 ? sum / count : Vector3.zero;
+        }
+
+        /// <summary>出生群近景：从南侧 16u、高 7u 斜视质心（FOV 55 下群像入画、局部地形可辨）。</summary>
+        Shot SpawnGroupShot(string name, Vector3 centroid)
+        {
+            var aim = centroid + new Vector3(0f, 1.4f, 0f);
+            return NewShot(name, false, centroid + new Vector3(0f, 7f, -16f), 55f, aim);
         }
 
         /// <summary>
@@ -403,7 +466,10 @@ namespace PirateCrew.PirateCrew.ArtReview
             _camera.transform.rotation = shot.Rotation;
             _camera.fieldOfView = shot.Fov;
             _camera.nearClipPlane = 0.05f;
-            _camera.farClipPlane = 300f;
+            // M4 世界地图：4200u 远场裙边与远景装饰要入画，far 放宽；经典图维持 300 防远景糊近景排序。
+            _camera.farClipPlane = Battle.WorldMaps.WorldMapRuntime.TryGetPending(out _)
+                ? 4500f
+                : 300f;
             _camera.enabled = true;
 
             if (_hud != null)

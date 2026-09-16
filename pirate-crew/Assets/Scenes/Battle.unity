@@ -11312,6 +11312,7 @@ MonoBehaviour:
   line: {fileID: 702650532}
   sampleCount: 15
   includeOrigin: 1
+  showImpactMarker: 1
 --- !u!120 &702650532
 LineRenderer:
   serializedVersion: 2
@@ -17743,6 +17744,8 @@ MonoBehaviour:
   projectilePrefab: {fileID: 0}
   terrainView: {fileID: 1522083222}
   sceneArt: {fileID: 690848759}
+  worldMapAssetSet: {fileID: 11400000, guid: 82a37de6cdab81f45884cd25654dcc63, type: 2}
+  worldOceanMaterial: {fileID: 2100000, guid: 5c411554b70d3074baae864c4c531403, type: 2}
   pirateLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
