@@ -29,8 +29,6 @@ namespace PirateCrew.EditorTools
     public static class SceneSetup
     {
         const string ScenesFolder = "Assets/Scenes";
-        const string MaterialsFolder = "Assets/Art/Materials";
-        const string GroundMaterialPath = MaterialsFolder + "/BattleGround.mat";
 
         static readonly Vector2 CenterAnchor = new Vector2(0.5f, 0.5f);
 
@@ -39,7 +37,6 @@ namespace PirateCrew.EditorTools
         public static void BuildAll()
         {
             EnsureFolder(ScenesFolder);
-            EnsureFolder(MaterialsFolder);
 
             BuildBootstrapperScene();
             BuildMainMenuScene();
@@ -51,8 +48,8 @@ namespace PirateCrew.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("[SceneSetup] M1 场景重建完成：Assets/Scenes/{Bootstrapper,MainMenu,Battle}.unity，"
-                + "Build Settings 顺序 0/1/2。");
+            Debug.Log("[SceneSetup] 菜单场景重建完成：Assets/Scenes/{Bootstrapper,MainMenu}.unity（含视频设置服务与设置面板），"
+                + "Build Settings 登记 5 场景。");
         }
 
         // ------------------------------------------------------------------
@@ -65,6 +62,22 @@ namespace PirateCrew.EditorTools
 
             var go = new GameObject("Bootstrapper");
             go.AddComponent<Bootstrapper>();
+
+            // 视频设置服务（全屏 / 画质档切换）：必须持有两份 URP Asset 的序列化引用，
+            // 播放器构建才会把它们（及其 Renderer）打进包里，运行时切换才有的换。
+            // 放在 Bootstrapper 场景里随首场景加载，Awake 即应用持久化的设置。
+            var videoGo = new GameObject("VideoSettings");
+            var video = videoGo.AddComponent<global::PirateCrew.PirateCrew.Settings.VideoSettingsService>();
+            var performant = AssetDatabase.LoadAssetAtPath<UnityEngine.Rendering.RenderPipelineAsset>(
+                "Assets/Settings/URP/PC_Performant_URPAsset.asset");
+            var balanced = AssetDatabase.LoadAssetAtPath<UnityEngine.Rendering.RenderPipelineAsset>(
+                "Assets/Settings/URP/PC_Balanced_URPAsset.asset");
+            if (performant == null || balanced == null)
+                Debug.LogError("[SceneSetup] 未找到 URP 画质资产（Assets/Settings/URP/），视频设置将无法切画质。");
+            var videoSo = new SerializedObject(video);
+            videoSo.FindProperty("performantPipeline").objectReferenceValue = performant;
+            videoSo.FindProperty("balancedPipeline").objectReferenceValue = balanced;
+            videoSo.ApplyModifiedPropertiesWithoutUndo();
 
             SaveScene(scene, SceneNames.Bootstrapper);
         }
@@ -129,8 +142,12 @@ namespace PirateCrew.EditorTools
             MenuUiBuilder.SetAnchored(statusText.rectTransform, new Vector2(0f, 0f), new Vector2(500f, 26f),
                 new Vector2(UiTheme.Safe, UiTheme.Safe + 28f));
 
-            // 设置界面（占位，默认隐藏）。
+            // 设置界面（真接线：音量滑条 ×4 / 画质档 / 窗口模式；默认隐藏）。
             MenuUiBuilder.SettingsPanelResult settings = MenuUiBuilder.BuildSettingsPanel(canvas.transform);
+
+            // 退出确认框（默认隐藏；正文为退出确认文案）。
+            MenuUiBuilder.ConfirmDialogResult quitConfirm =
+                MenuUiBuilder.BuildConfirmDialog(canvas.transform, UiStrings.MainQuitConfirm);
 
             // 控制器对象 + 序列化引用绑定。
             var controllerGo = new GameObject("MainMenuController", typeof(RectTransform));
@@ -147,45 +164,25 @@ namespace PirateCrew.EditorTools
             so.FindProperty("versionText").objectReferenceValue = versionText;
             so.FindProperty("settingsPanel").objectReferenceValue = settings.Root;
             so.FindProperty("settingsBackButton").objectReferenceValue = settings.BackButton;
+            so.FindProperty("settingsRestoreButton").objectReferenceValue = settings.RestoreButton;
+            so.FindProperty("masterVolumeSlider").objectReferenceValue = settings.MasterSlider;
+            so.FindProperty("sfxVolumeSlider").objectReferenceValue = settings.SfxSlider;
+            so.FindProperty("musicVolumeSlider").objectReferenceValue = settings.MusicSlider;
+            so.FindProperty("ambientVolumeSlider").objectReferenceValue = settings.AmbientSlider;
+            so.FindProperty("qualityHighButton").objectReferenceValue = settings.QualityHighButton;
+            so.FindProperty("qualitySmoothButton").objectReferenceValue = settings.QualitySmoothButton;
+            so.FindProperty("fullscreenOnButton").objectReferenceValue = settings.FullscreenOnButton;
+            so.FindProperty("fullscreenOffButton").objectReferenceValue = settings.FullscreenOffButton;
+            so.FindProperty("quitConfirmPanel").objectReferenceValue = quitConfirm.Root;
+            so.FindProperty("quitConfirmOkButton").objectReferenceValue = quitConfirm.OkButton;
+            so.FindProperty("quitConfirmCancelButton").objectReferenceValue = quitConfirm.CancelButton;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             SaveScene(scene, SceneNames.MainMenu);
         }
 
-        static void BuildBattleScene()
-        {
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-
-            // 深蓝清屏色；相机置于 -Z 侧、identity 旋转即看向 +Z 方向（场景原点）。
-            Camera camera = CreateCamera(new Color(0.02f, 0.05f, 0.12f, 1f));
-            camera.transform.position = new Vector3(0f, 2f, -8f);
-            camera.transform.rotation = Quaternion.identity;
-
-            // URP/Lit 无光照会全黑，补一盏平行光。
-            CreateDirectionalLight();
-            CreateGround();
-
-            Canvas canvas = CreateCanvas("BattleCanvas");
-            CreateEventSystem();
-
-            // 占位说明改中文（规范 §4.10 第 16 条）。
-            TextMeshProUGUI title = MenuUiBuilder.CreateText("PlaceholderText", canvas.transform,
-                UiStrings.BattlePlaceholderNote, UiTheme.FontTitle, TextAlignmentOptions.Center,
-                UiTheme.TextLight, MenuUiBuilder.TitleFont);
-            MenuUiBuilder.SetAnchored(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(900f, 70f),
-                new Vector2(0f, -60f));
-
-            Button backButton = MenuUiBuilder.CreateButton("BackButton", canvas.transform,
-                UiStrings.BackToMainMenu, new Vector2(0.5f, 0f), new Vector2(0f, 60f),
-                new Vector2(240f, 48f), MenuUiBuilder.BodyFont, UiSprites.Kind.ButtonWood);
-
-            var placeholder = backButton.gameObject.AddComponent<BattlePlaceholder>();
-            var so = new SerializedObject(placeholder);
-            so.FindProperty("backButton").objectReferenceValue = backButton;
-            so.ApplyModifiedPropertiesWithoutUndo();
-
-            SaveScene(scene, SceneNames.Battle);
-        }
+        // Battle.unity 自 M2 起归 M2BattleSceneSetup 全量重建（完整战斗场景），
+        // 本类不再生成 M1 占位场景（占位场景与 BattlePlaceholder 脚本均已删除）。
 
         // ------------------------------------------------------------------
         // 场景内容辅助
@@ -229,47 +226,6 @@ namespace PirateCrew.EditorTools
             return camera;
         }
 
-        static void CreateDirectionalLight()
-        {
-            var go = new GameObject("Directional Light", typeof(Light));
-            var light = go.GetComponent<Light>();
-            light.type = LightType.Directional;
-            light.color = Color.white;
-            light.intensity = 1f;
-            go.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
-        }
-
-        static void CreateGround()
-        {
-            var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            ground.name = "Ground";
-            ground.transform.localScale = new Vector3(2f, 1f, 2f);
-            ground.GetComponent<MeshRenderer>().sharedMaterial = EnsureGroundMaterial();
-        }
-
-        static Material EnsureGroundMaterial()
-        {
-            var material = AssetDatabase.LoadAssetAtPath<Material>(GroundMaterialPath);
-            if (material != null)
-                return material;
-
-            var shader = Shader.Find("Universal Render Pipeline/Lit");
-            if (shader == null)
-            {
-                Debug.LogWarning("[SceneSetup] 未找到 URP/Lit shader，退回内置 Standard。");
-                shader = Shader.Find("Standard");
-            }
-
-            material = new Material(shader) { name = "BattleGround" };
-            var gray = new Color(0.35f, 0.35f, 0.35f, 1f);
-            material.color = gray;
-            if (material.HasProperty("_BaseColor"))
-                material.SetColor("_BaseColor", gray);
-
-            AssetDatabase.CreateAsset(material, GroundMaterialPath);
-            return material;
-        }
-
         // ------------------------------------------------------------------
         // 保存与 Build Settings
         // ------------------------------------------------------------------
@@ -283,12 +239,21 @@ namespace PirateCrew.EditorTools
 
         static void RegisterBuildSettings()
         {
-            string[] names = { SceneNames.Bootstrapper, SceneNames.MainMenu, SceneNames.Battle };
+            // 与 M3SceneSetup.RegisterBuildSettings 同一份 5 场景列表（幂等；顺序即 index）：
+            // Bootstrapper=0（入口）、MainMenu=1、Battle=2、CrewManagement=3、LevelSelect=4。
+            // SceneLoader 与既有测试都按名字加载，顺序不影响。
+            string[] names =
+            {
+                SceneNames.Bootstrapper,
+                SceneNames.MainMenu,
+                SceneNames.Battle,
+                SceneNames.CrewManagement,
+                SceneNames.LevelSelect,
+            };
             var scenes = new EditorBuildSettingsScene[names.Length];
             for (int i = 0; i < names.Length; i++)
                 scenes[i] = new EditorBuildSettingsScene(ScenesFolder + "/" + names[i] + ".unity", true);
 
-            // 顺序即 index：Bootstrapper=0（入口）、MainMenu=1、Battle=2。
             EditorBuildSettings.scenes = scenes;
         }
 

@@ -83,7 +83,13 @@ namespace PirateCrew.UI
         public const string MainStatusNoSave = "暂无存档";
 
         /// <summary>主菜单左下版本号（版本号数字保留半角）。</summary>
-        public const string MainVersion = "版本 0.1";
+        public const string MainVersion = "版本 1.0";
+
+        /// <summary>主菜单：退出确认弹窗正文。</summary>
+        public const string MainQuitConfirm = "确定要退出游戏吗？";
+
+        /// <summary>主菜单状态：设置已保存。</summary>
+        public const string MainStatusSettingsSaved = "设置已保存。";
 
         // ==================================================================
         // 船员管理（§4.3）
@@ -344,11 +350,20 @@ namespace PirateCrew.UI
         /// <summary>操作提示：聚焦态。</summary>
         public const string BattleHintFocus = "拖动环视　滚轮调距　E 退出";
 
-        /// <summary>战斗占位场景提示。</summary>
-        public const string BattlePlaceholderNote = "战斗场景（占位）";
-
         /// <summary>小地图面板标题。</summary>
         public const string BattleMinimapTitle = "海图";
+
+        /// <summary>暂停按钮 / 暂停面板触发（含快捷键提示，按键字母按规范保留半角）。</summary>
+        public const string BattlePauseButton = "暂停 (Esc)";
+
+        /// <summary>暂停面板标题。</summary>
+        public const string BattlePauseTitle = "已暂停";
+
+        /// <summary>暂停面板动作：继续游戏。</summary>
+        public const string BattleResume = "继续游戏";
+
+        /// <summary>暂停 / 结算动作：再来一局（重载本关）。</summary>
+        public const string BattleRestart = "再来一局";
 
         // ==================================================================
         // 结算（§4.7）
@@ -398,44 +413,32 @@ namespace PirateCrew.UI
             "通关得 1 星；阵亡不超过 1 人得 2 星；全员存活且拾取所有宝箱得 3 星。";
 
         // ==================================================================
-        // 设置（§4.8；本轮为占位界面，选项未接线——见 SettingsPlaceholderNote）
+        // 设置（§4.8；音量/画质/窗口模式均已真接线，存储走设置槽位 9）
         // ==================================================================
 
         /// <summary>设置标题。</summary>
         public const string SettingsTitle = "设置";
 
-        /// <summary>设置页签：画面。</summary>
-        public const string SettingsTabVideo = "画面";
+        /// <summary>设置项：总音量（乘在全部分类之上）。</summary>
+        public const string SettingsFieldVolumeMaster = "总音量";
 
-        /// <summary>设置页签：音频。</summary>
-        public const string SettingsTabAudio = "音频";
+        /// <summary>设置项：音效音量。</summary>
+        public const string SettingsFieldVolumeSfx = "音效";
 
-        /// <summary>设置页签：控制。</summary>
-        public const string SettingsTabControl = "控制";
+        /// <summary>设置项：音乐音量。</summary>
+        public const string SettingsFieldVolumeMusic = "音乐";
 
-        /// <summary>设置页签：语言。</summary>
-        public const string SettingsTabLanguage = "语言";
+        /// <summary>设置项：环境音音量。</summary>
+        public const string SettingsFieldVolumeAmbient = "环境";
 
-        /// <summary>设置项：渲染风格。</summary>
-        public const string SettingsFieldRenderStyle = "渲染风格";
+        /// <summary>设置项：画质档（高画质=PC_Balanced / 流畅=PC_Performant）。</summary>
+        public const string SettingsFieldQuality = "画质";
 
-        /// <summary>设置项：纯色描边。</summary>
-        public const string SettingsOptionToon = "纯色描边";
+        /// <summary>设置项：高画质（默认）。</summary>
+        public const string SettingsOptionQualityHigh = "高画质";
 
-        /// <summary>设置项：平滑。</summary>
-        public const string SettingsOptionSmooth = "平滑";
-
-        /// <summary>设置项：瞄准模式。</summary>
-        public const string SettingsFieldAimMode = "瞄准模式";
-
-        /// <summary>设置项：拖拽。</summary>
-        public const string SettingsOptionDrag = "拖拽";
-
-        /// <summary>设置项：键盘。</summary>
-        public const string SettingsOptionKeyboard = "键盘";
-
-        /// <summary>设置项：分辨率。</summary>
-        public const string SettingsFieldResolution = "分辨率";
+        /// <summary>设置项：流畅（低配档）。</summary>
+        public const string SettingsOptionQualitySmooth = "流畅";
 
         /// <summary>设置项：窗口模式。</summary>
         public const string SettingsFieldWindowMode = "窗口模式";
@@ -449,8 +452,8 @@ namespace PirateCrew.UI
         /// <summary>设置动作：恢复默认。</summary>
         public const string SettingsRestore = "恢复默认";
 
-        /// <summary>设置占位说明（本界面未接线）。</summary>
-        public const string SettingsPlaceholderNote = "本页为界面占位：选项尚未接线到实际设置，点击不会改变游戏行为。";
+        /// <summary>设置提示：音量改动在关闭面板时保存（避免拖动滑条写盘）。</summary>
+        public const string SettingsSaveHint = "改动将在关闭设置时自动保存。";
 
         // ==================================================================
         // 错误与边界（§4.9）

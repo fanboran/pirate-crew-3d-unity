@@ -41,8 +41,21 @@ namespace PirateCrew.PirateCrew.Audio
         /// <summary>音乐音量键。</summary>
         public const string MusicKey = "audio.music";
 
-        /// <summary>默认音量（提案/待定）。</summary>
-        public const float DefaultVolume = 0.8f;
+        // ---- 出厂默认音量（提案/待定；2026-09-16 用户实测反馈"背景音乐有点大"后下调环境/音乐两路）----
+        /// <summary>总音量默认。</summary>
+        public const float DefaultMasterVolume = 0.8f;
+
+        /// <summary>音效默认。</summary>
+        public const float DefaultSfxVolume = 0.8f;
+
+        /// <summary>环境默认（浪/风/垫底 pad——用户口中的"背景音乐"主体，0.8 → 0.5）。</summary>
+        public const float DefaultAmbientVolume = 0.5f;
+
+        /// <summary>音乐默认（胜负短乐句，0.8 → 0.7）。</summary>
+        public const float DefaultMusicVolume = 0.7f;
+
+        /// <summary>旧总开关默认（兜底路径用；新代码按上面四路分别取默认）。</summary>
+        public const float DefaultVolume = DefaultMasterVolume;
 
         /// <summary>把混音器当前四类音量写入存档数据（纯函数，不落盘）。</summary>
         public static void WriteTo(SaveData data, VolumeMixer mixer)
@@ -90,25 +103,32 @@ namespace PirateCrew.PirateCrew.Audio
             return TryApplyFrom(data, mixer);
         }
 
-        /// <summary>把混音器当前音量落盘到音频槽位；无 SaveManager 实例或写失败返回 false。</summary>
+        /// <summary>
+        /// 把混音器当前音量落盘到音频槽位；无 SaveManager 实例或写失败返回 false。
+        /// 读改写：保留同槽里视频设置（<c>video.*</c>）的键——旧版整槽替换会把它们抹掉，
+        /// 导致"改一次音量，全屏/画质设置被重置"。
+        /// </summary>
         public static bool TrySaveFrom(VolumeMixer mixer)
         {
             SaveManager save = SaveManager.Instance;
             if (save == null || mixer == null)
                 return false;
 
-            var data = new SaveData();
+            SaveData data = save.SlotExists(SettingsSlot) ? save.LoadFromSlot(SettingsSlot) : null;
+            if (data == null)
+                data = new SaveData();
+
             WriteTo(data, mixer);
             return save.SaveToSlot(SettingsSlot, data, SettingsDisplayName);
         }
 
-        /// <summary>四类默认音量的便捷写入（首次启动/重置设置用）。</summary>
+        /// <summary>四类默认音量的便捷写入（首次启动/重置设置用；环境/音乐出厂偏低，见上）。</summary>
         public static void ApplyDefaults(VolumeMixer mixer)
         {
             if (mixer == null)
                 return;
 
-            mixer.SetAll(DefaultVolume, DefaultVolume, DefaultVolume, DefaultVolume);
+            mixer.SetAll(DefaultMasterVolume, DefaultSfxVolume, DefaultAmbientVolume, DefaultMusicVolume);
         }
 
         static bool Apply(SaveData data, VolumeMixer mixer, string key, AudioCategory category)

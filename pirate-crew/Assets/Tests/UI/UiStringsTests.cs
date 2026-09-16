@@ -185,7 +185,10 @@ namespace PirateCrew.Tests
             Assert.AreEqual("瞄准中", UiStrings.BattleAiming);
             Assert.AreEqual("聚焦中", UiStrings.BattleFocusing);
             Assert.AreEqual("选择武器", UiStrings.BattleWeaponListTitle);
-            Assert.AreEqual("战斗场景（占位）", UiStrings.BattlePlaceholderNote);
+            // 【发布收口】M1 时代的占位场景文案随 BattlePlaceholder 一并退役。
+            Assert.AreEqual("暂停 (Esc)", UiStrings.BattlePauseButton);
+            Assert.AreEqual("再来一局", UiStrings.BattleRestart);
+            Assert.AreEqual("版本 1.0", UiStrings.MainVersion);
         }
 
         [Test]

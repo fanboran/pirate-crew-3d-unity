@@ -646,19 +646,29 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // 设置界面（§3.7；本轮为界面占位，选项未接线）
+        // 设置界面（§3.7；音量/画质/窗口模式真接线，控制器为 MainMenuController）
         // ------------------------------------------------------------------
 
-        /// <summary>设置面板构建产物。</summary>
+        /// <summary>设置面板构建产物（控制器按字段名接线）。</summary>
         public sealed class SettingsPanelResult
         {
             public GameObject Root;
             public Button BackButton;
+            public Button RestoreButton;
+            public Slider MasterSlider;
+            public Slider SfxSlider;
+            public Slider MusicSlider;
+            public Slider AmbientSlider;
+            public Button QualityHighButton;
+            public Button QualitySmoothButton;
+            public Button FullscreenOnButton;
+            public Button FullscreenOffButton;
         }
 
         /// <summary>
-        /// 搭「设置」界面（默认隐藏）。按规范 §3.7 线框图：分类页签 + 键值行 + 恢复默认/返回。
-        /// 【占位声明】所有选项控件**未接线**，面板底部有醒目说明（规范 §3.7「至少做出界面与持久化占位」）。
+        /// 搭「设置」界面（默认隐藏）：四条音量滑条 + 画质档 + 窗口模式 + 恢复默认/返回。
+        /// 【接线纪律】本方法只建控件，不改任何真实设置；应用与持久化都在
+        /// <c>MainMenuController</c>（运行时）里做——构建器拿不到运行时服务。
         /// </summary>
         public static SettingsPanelResult BuildSettingsPanel(Transform canvas)
         {
@@ -674,8 +684,7 @@ namespace PirateCrew.EditorTools
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
                 new Vector2(1280f, 700f), UiSprites.Kind.PanelWood);
 
-            // 金标题落在"内容片"（较实玻璃）上：金 #F2D06B 叠纯白最坏底 7.76:1；
-            // 框架层 0.74 自身也有 4.52:1（达标）——内层加片是为了留足余量，见 GlassPanelSpriteBuilder 分层纪律。
+            // 金标题落在"内容片"（较实玻璃）上：金 #F2D06B 叠纯白最坏底 7.76:1；框架层自身 4.52:1 兜底。
             // 【顺序纪律】UGUI 后建的同级节点画在上层：背衬必须先建，再建文字。
             CreateDenseChip("TitleChip", panel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -28f), new Vector2(620f, 52f));
@@ -686,57 +695,129 @@ namespace PirateCrew.EditorTools
                 new Vector2(0f, -28f));
             ApplyTitleOutline(titleText);
 
-            // 分类页签（画面选中=黄铜，其余=木板）。
-            string[] tabs =
-            {
-                UiStrings.SettingsTabVideo, UiStrings.SettingsTabAudio,
-                UiStrings.SettingsTabControl, UiStrings.SettingsTabLanguage,
-            };
-            float tabStart = -(tabs.Length - 1) * 0.5f * 176f;
-            for (int i = 0; i < tabs.Length; i++)
-            {
-                UiSprites.Kind skin = i == 0 ? UiSprites.Kind.ButtonBrass : UiSprites.Kind.ButtonWood;
-                Button tab = CreateButton("Tab" + i, panel, tabs[i], new Vector2(0.5f, 1f),
-                    new Vector2(tabStart + i * 176f, -104f), new Vector2(160f, 44f), body, skin);
-                TextMeshProUGUI label = tab.GetComponentInChildren<TextMeshProUGUI>(true);
-                if (label != null)
-                    label.color = LabelColorOf(skin);
-            }
+            var result = new SettingsPanelResult();
 
-            // 键值行（羊皮纸行底 + 深色墨字 + 选项块）。
-            BuildSettingsRow(panel, 0, UiStrings.SettingsFieldRenderStyle,
-                new[] { UiStrings.SettingsOptionToon, UiStrings.SettingsOptionSmooth }, 0, body, secondary);
-            BuildSettingsRow(panel, 1, UiStrings.SettingsFieldAimMode,
-                new[] { UiStrings.SettingsOptionDrag, UiStrings.SettingsOptionKeyboard }, 0, body, secondary);
-            BuildSettingsRow(panel, 2, UiStrings.SettingsFieldResolution,
-                new[] { "1920×1080" }, 0, body, secondary);
-            BuildSettingsRow(panel, 3, UiStrings.SettingsFieldWindowMode,
-                new[] { UiStrings.SettingsOptionFullscreen, UiStrings.SettingsOptionWindowed }, 0, body, secondary);
+            // 音量四行（滑条实时改 AudioService，关面板时统一落盘）。
+            result.MasterSlider = BuildVolumeRow(panel, 0, UiStrings.SettingsFieldVolumeMaster, body, secondary);
+            result.SfxSlider = BuildVolumeRow(panel, 1, UiStrings.SettingsFieldVolumeSfx, body, secondary);
+            result.MusicSlider = BuildVolumeRow(panel, 2, UiStrings.SettingsFieldVolumeMusic, body, secondary);
+            result.AmbientSlider = BuildVolumeRow(panel, 3, UiStrings.SettingsFieldVolumeAmbient, body, secondary);
 
-            // 占位说明：浅米字直接压玻璃框架（5.56:1）——框架是"框"，正文优先放内容片。
-            TextMeshProUGUI note = CreateText("PlaceholderNote", panel, UiStrings.SettingsPlaceholderNote,
+            // 画质档（二选一选项块；选中态由控制器按 VideoSettingsService 刷新）。
+            BuildSettingsRow(panel, 4, UiStrings.SettingsFieldQuality, body, secondary,
+                out result.QualityHighButton, out result.QualitySmoothButton,
+                UiStrings.SettingsOptionQualityHigh, UiStrings.SettingsOptionQualitySmooth);
+            BuildSettingsRow(panel, 5, UiStrings.SettingsFieldWindowMode, body, secondary,
+                out result.FullscreenOnButton, out result.FullscreenOffButton,
+                UiStrings.SettingsOptionFullscreen, UiStrings.SettingsOptionWindowed);
+
+            // 提示：浅米字直接压玻璃框架（5.56:1）——框架是"框"，提示放底部通带。
+            TextMeshProUGUI note = CreateText("SaveHint", panel, UiStrings.SettingsSaveHint,
                 UiTheme.FontHint, TextAlignmentOptions.Center, UiTheme.TextLight, secondary);
             SetAnchored(note.rectTransform, new Vector2(0.5f, 0f), new Vector2(1180f, 30f),
                 new Vector2(0f, 116f));
 
-            Button restore = CreateButton("RestoreButton", panel, UiStrings.SettingsRestore,
+            result.RestoreButton = CreateButton("RestoreButton", panel, UiStrings.SettingsRestore,
                 new Vector2(0.5f, 0f), new Vector2(-260f, 56f), new Vector2(240f, 52f), body,
                 UiSprites.Kind.ButtonParchment);
-            Button back = CreateButton("SettingsBackButton", panel, UiStrings.Back,
+            result.BackButton = CreateButton("SettingsBackButton", panel, UiStrings.Back,
                 new Vector2(0.5f, 0f), new Vector2(260f, 56f), new Vector2(240f, 52f), body,
                 UiSprites.Kind.ButtonWood);
 
             root.gameObject.SetActive(false);
 
-            return new SettingsPanelResult { Root = root.gameObject, BackButton = back };
+            return result;
         }
 
-        static void BuildSettingsRow(Transform panel, int index, string field, string[] options,
-            int selectedIndex, TMP_FontAsset body, TMP_FontAsset secondary)
+        /// <summary>行高与行距（六行布局：四条滑条 + 两组选项块）。</summary>
+        const float SettingsRowPitch = 64f;
+        const float SettingsRowTop = -150f;
+        const float SettingsRowHeight = 52f;
+
+        /// <summary>建一行「字段名 + 音量滑条」（滑条实时驱动，落盘由控制器统一做）。</summary>
+        static Slider BuildVolumeRow(Transform panel, int index, string field,
+            TMP_FontAsset body, TMP_FontAsset secondary)
         {
-            float y = -160f - index * 72f;
+            RectTransform row = CreateSettingsRowBackground(panel, index);
+
+            TextMeshProUGUI label = CreateText("Field", row, field, UiTheme.FontBody,
+                TextAlignmentOptions.MidlineLeft, UiTheme.Ink, body);
+            SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(300f, 40f),
+                new Vector2(24f, 0f));
+
+            // 滑条（UGUI 标准三件套：底槽 / 填充 / 手柄；皮肤用玻璃小件）。
+            RectTransform sliderRect = CreateRect("Slider", row);
+            SetAnchored(sliderRect, new Vector2(1f, 0.5f), new Vector2(560f, 32f), new Vector2(-24f, 0f));
+            sliderRect.gameObject.AddComponent<Image>().sprite = GetGlass(GlassPanelSpriteBuilder.Tone.Button, chip: true);
+            sliderRect.gameObject.GetComponent<Image>().type = Image.Type.Sliced;
+
+            var slider = sliderRect.gameObject.AddComponent<Slider>();
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = 0f;
+            slider.maxValue = 1f;
+            slider.wholeNumbers = false;
+
+            RectTransform fillArea = CreateRect("Fill Area", sliderRect);
+            fillArea.anchorMin = new Vector2(0f, 0f);
+            fillArea.anchorMax = new Vector2(1f, 1f);
+            fillArea.offsetMin = new Vector2(8f, 6f);
+            fillArea.offsetMax = new Vector2(-8f, -6f);
+
+            RectTransform fill = CreateRect("Fill", fillArea);
+            Stretch(fill);
+            var fillImage = fill.gameObject.AddComponent<Image>();
+            fillImage.sprite = GetGlass(GlassPanelSpriteBuilder.Tone.Primary, chip: true);
+            fillImage.type = Image.Type.Sliced;
+            fillImage.raycastTarget = false;
+            slider.fillRect = fill;
+
+            RectTransform handleArea = CreateRect("Handle Slide Area", sliderRect);
+            handleArea.anchorMin = Vector2.zero;
+            handleArea.anchorMax = Vector2.one;
+            handleArea.offsetMin = new Vector2(8f, 0f);
+            handleArea.offsetMax = new Vector2(-8f, 0f);
+
+            RectTransform handle = CreateRect("Handle", handleArea);
+            handle.sizeDelta = new Vector2(16f, 0f);
+            handle.anchorMin = new Vector2(0f, 0f);
+            handle.anchorMax = new Vector2(0f, 1f);
+            var handleImage = handle.gameObject.AddComponent<Image>();
+            handleImage.sprite = GetGlass(GlassPanelSpriteBuilder.Tone.ButtonLight, chip: true);
+            handleImage.type = Image.Type.Sliced;
+            handleImage.raycastTarget = false;
+
+            slider.handleRect = handle;
+            slider.targetGraphic = handleImage;
+
+            return slider;
+        }
+
+        /// <summary>建一行「字段名 + 二选一选项块」，返回两个选项按钮（选中态由控制器刷新）。</summary>
+        static void BuildSettingsRow(Transform panel, int index, string field,
+            TMP_FontAsset body, TMP_FontAsset secondary,
+            out Button primaryOption, out Button secondaryOption, string primaryLabel, string secondaryLabel)
+        {
+            RectTransform row = CreateSettingsRowBackground(panel, index);
+
+            TextMeshProUGUI label = CreateText("Field", row, field, UiTheme.FontBody,
+                TextAlignmentOptions.MidlineLeft, UiTheme.Ink, body);
+            SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(300f, 40f),
+                new Vector2(24f, 0f));
+
+            primaryOption = CreateButton("Option0", row, primaryLabel, new Vector2(1f, 0.5f),
+                new Vector2(-448f, 0f), new Vector2(200f, 40f), secondary, UiSprites.Kind.ButtonWood,
+                UiTheme.TextLight, UiTheme.FontHint);
+            secondaryOption = CreateButton("Option1", row, secondaryLabel, new Vector2(1f, 0.5f),
+                new Vector2(-236f, 0f), new Vector2(200f, 40f), secondary, UiSprites.Kind.ButtonWood,
+                UiTheme.TextLight, UiTheme.FontHint);
+        }
+
+        /// <summary>设置行的玻璃底 + 字段名（滑条行与选项行共用）。</summary>
+        static RectTransform CreateSettingsRowBackground(Transform panel, int index)
+        {
+            float y = SettingsRowTop - index * SettingsRowPitch;
             RectTransform row = CreateRect("Row" + index, panel);
-            SetAnchored(row, new Vector2(0.5f, 1f), new Vector2(1150f, 56f), new Vector2(0f, y));
+            SetAnchored(row, new Vector2(0.5f, 1f), new Vector2(1150f, SettingsRowHeight), new Vector2(0f, y));
 
             var background = row.gameObject.AddComponent<Image>();
             // 设置行底 = 暖白亚克力小件（深墨字压亮玻璃 ≥8.56:1，最坏底 = 纯白场景）。
@@ -744,33 +825,55 @@ namespace PirateCrew.EditorTools
             background.type = Image.Type.Sliced;
             background.color = Color.white;
             background.raycastTarget = false;
+            return row;
+        }
 
-            TextMeshProUGUI label = CreateText("Field", row, field, UiTheme.FontBody,
-                TextAlignmentOptions.MidlineLeft, UiTheme.Ink, body);
-            SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(300f, 40f),
-                new Vector2(24f, 0f));
+        /// <summary>确认弹窗构建产物。</summary>
+        public sealed class ConfirmDialogResult
+        {
+            public GameObject Root;
+            public TextMeshProUGUI Message;
+            public Button OkButton;
+            public Button CancelButton;
+        }
 
-            for (int i = 0; i < options.Length; i++)
+        /// <summary>
+        /// 搭通用确认弹窗（默认隐藏）：压暗遮罩 + 面板 + 正文 + 确定/取消。
+        /// 语义由调用方定义（退出游戏 / 放弃本局返回主菜单），本工厂不绑任何行为。
+        /// </summary>
+        public static ConfirmDialogResult BuildConfirmDialog(Transform canvas, string defaultMessage)
+        {
+            RectTransform root = CreateRect("ConfirmDialog", canvas);
+            Stretch(root);
+
+            CreateDimOverlay("DimOverlay", root);
+
+            RectTransform panel = CreatePanel("ConfirmCard", root,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(640f, 280f), UiSprites.Kind.PanelWood);
+
+            CreateDenseChip("MessageChip", panel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -96f), new Vector2(560f, 96f));
+
+            TextMeshProUGUI message = CreateText("Message", panel, defaultMessage,
+                UiTheme.FontSection, TextAlignmentOptions.Center, UiTheme.TextLight, BodyFont);
+            SetAnchored(message.rectTransform, new Vector2(0.5f, 1f), new Vector2(520f, 80f),
+                new Vector2(0f, -96f));
+
+            var result = new ConfirmDialogResult
             {
-                // 选项块：选中用黄铜，未选用木板；本轮不挂 Button（未接线，避免死按钮）。
-                RectTransform chip = CreateRect("Option" + i, row);
-                SetAnchored(chip, new Vector2(1f, 0.5f),
-                    new Vector2(200f, 40f), new Vector2(-24f - (options.Length - 1 - i) * 212f, 0f));
+                Root = root.gameObject,
+                Message = message,
+                OkButton = CreateButton("OkButton", panel, UiStrings.Confirm,
+                    new Vector2(0.5f, 0f), new Vector2(-140f, 48f), new Vector2(220f, 52f),
+                    BodyFont, UiSprites.Kind.ButtonBrass, UiTheme.Ink, UiTheme.FontHud),
+                CancelButton = CreateButton("CancelButton", panel, UiStrings.Cancel,
+                    new Vector2(0.5f, 0f), new Vector2(140f, 48f), new Vector2(220f, 52f),
+                    BodyFont, UiSprites.Kind.ButtonWood, UiTheme.TextLight, UiTheme.FontHud),
+            };
 
-                var chipImage = chip.gameObject.AddComponent<Image>();
-                // 选中 = 金玻璃，未选 = 深玻璃（两级同为亚克力，靠明度区分层级）。
-                chipImage.sprite = GetGlass(i == selectedIndex
-                    ? GlassPanelSpriteBuilder.Tone.Primary
-                    : GlassPanelSpriteBuilder.Tone.Button, chip: true);
-                chipImage.type = Image.Type.Sliced;
-                chipImage.color = Color.white;
-                chipImage.raycastTarget = false;
-
-                TextMeshProUGUI chipLabel = CreateTextExact("Label", chip, options[i], FontScale.Hint,
-                    TextAlignmentOptions.Center,
-                    i == selectedIndex ? UiTheme.Ink : UiTheme.TextLight, secondary);
-                Stretch(chipLabel.rectTransform);
-            }
+            root.gameObject.SetActive(false);
+            return result;
         }
 
         /// <summary>确保工程内文件夹存在。</summary>
