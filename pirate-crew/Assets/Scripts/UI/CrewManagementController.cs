@@ -198,7 +198,7 @@ namespace PirateCrew.UI
                 return;
             }
 
-            EventBus.Publish(ChangeSceneEvent, M3Scenes.LevelSelect);
+            EventBus.Publish(ChangeSceneEvent, SceneNames.LevelSelect);
         }
 
         void OnSaveClicked()

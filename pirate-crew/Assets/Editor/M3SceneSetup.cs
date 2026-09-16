@@ -124,7 +124,7 @@ namespace PirateCrew.EditorTools
             so.FindProperty("bodyFont").objectReferenceValue = bodyFont;
             so.ApplyModifiedPropertiesWithoutUndo();
 
-            SaveScene(scene, M3Scenes.CrewManagement);
+            SaveScene(scene, SceneNames.CrewManagement);
         }
 
         // ------------------------------------------------------------------
@@ -225,7 +225,7 @@ namespace PirateCrew.EditorTools
 
             so.ApplyModifiedPropertiesWithoutUndo();
 
-            SaveScene(scene, M3Scenes.LevelSelect);
+            SaveScene(scene, SceneNames.LevelSelect);
         }
 
         // ------------------------------------------------------------------
@@ -390,8 +390,8 @@ namespace PirateCrew.EditorTools
                 SceneNames.Bootstrapper,
                 SceneNames.MainMenu,
                 SceneNames.Battle,
-                M3Scenes.CrewManagement,
-                M3Scenes.LevelSelect,
+                SceneNames.CrewManagement,
+                SceneNames.LevelSelect,
             };
 
             var scenes = new EditorBuildSettingsScene[names.Length];

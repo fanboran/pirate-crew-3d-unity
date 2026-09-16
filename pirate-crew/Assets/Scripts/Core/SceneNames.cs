@@ -16,7 +16,13 @@ namespace PirateCrew.Core
         /// <summary>主菜单场景（index 1）。</summary>
         public const string MainMenu = "MainMenu";
 
-        /// <summary>战斗场景占位（index 2，M2 实现）。</summary>
+        /// <summary>战斗场景（index 2，完整战斗与 HUD）。</summary>
         public const string Battle = "Battle";
+
+        /// <summary>船员管理场景（index 3；招募 / 编成，M3）。</summary>
+        public const string CrewManagement = "CrewManagement";
+
+        /// <summary>关卡选择场景（index 4；选关 → 进 Battle，M3）。</summary>
+        public const string LevelSelect = "LevelSelect";
     }
 }

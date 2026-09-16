@@ -393,7 +393,7 @@ namespace PirateCrew.UI
 
         void OnCrewClicked()
         {
-            EventBus.Publish(ChangeSceneEvent, M3Scenes.CrewManagement);
+            EventBus.Publish(ChangeSceneEvent, SceneNames.CrewManagement);
         }
 
         void OnBackClicked()

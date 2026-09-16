@@ -5,21 +5,6 @@ using UnityEngine.UI;
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// M3 新增场景名常量（<c>CrewManagement</c> / <c>LevelSelect</c>）。
-    ///
-    /// 【为什么不在 Core/SceneNames】<c>Core/SceneNames.cs</c> 是 M2 前的既有文件，
-    ///   M3 实施期间限定 Core 只读（见 M3 派单白名单），故两个新场景名暂放这里。
-    /// </summary>
-    public static class M3Scenes
-    {
-        /// <summary>船员管理场景（招募 / 编成）。</summary>
-        public const string CrewManagement = "CrewManagement";
-
-        /// <summary>关卡选择场景（选关 → 进 Battle）。</summary>
-        public const string LevelSelect = "LevelSelect";
-    }
-
-    /// <summary>
     /// M3 界面用的 UGUI 构建辅助（运行时建控件）。
     ///
     /// 【本波次改造（中文化 + 材质感）】
