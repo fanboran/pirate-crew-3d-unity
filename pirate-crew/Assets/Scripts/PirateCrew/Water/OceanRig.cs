@@ -59,6 +59,13 @@ namespace PirateCrew.PirateCrew.Water
         static readonly int ArenaCenterId = Shader.PropertyToID(OceanGlobals.ArenaCenter);
         static readonly int GridCenterId = Shader.PropertyToID(OceanGlobals.GridCenter);
 
+        /// <summary>
+        /// 当前活跃的海面（批次 F 增设）：<see cref="Create"/> 赋值，OnDestroy 清空（只清自己，
+        /// 避免换图时旧 rig 的销毁误清新 rig）。为 null = 旧竞技场模式（无大海域海面），
+        /// 表现层消费方（<see cref="FloatingPropView"/> 等）据此逐帧早退，不动 transform。
+        /// </summary>
+        public static OceanRig Instance { get; private set; }
+
         OceanConfig _config;
         Mesh _mesh;
         Material _material;
@@ -67,6 +74,13 @@ namespace PirateCrew.PirateCrew.Water
 
         /// <summary>当前配置（只读快照）。</summary>
         public OceanConfig Config => _config;
+
+        /// <summary>
+        /// 网格中心的世界 XZ（批次 F 增设，只读）：transform.position 即网格中心、
+        /// Y 恒为 <see cref="LevelGeometry.WaterSurfaceY"/>（<see cref="ApplyPosition"/> 维护），
+        /// 供水面高度采样器对齐 shader 的 <c>_OceanGridCenter</c>（环宽梯子以此为圆心）。
+        /// </summary>
+        public Vector2 GridCenterXZ => new Vector2(transform.position.x, transform.position.z);
 
         /// <summary>当前网格（调试/报告用）。</summary>
         public Mesh OceanMesh => _mesh;
@@ -97,6 +111,7 @@ namespace PirateCrew.PirateCrew.Water
             rig.BuildContent(material);
             rig.ApplyPosition(true);
             rig.PublishGlobals();
+            Instance = rig; // 批次 F：表现层（FloatingPropView 等）的静态访问入口
             return rig;
         }
 
@@ -237,6 +252,9 @@ namespace PirateCrew.PirateCrew.Water
 
         void OnDestroy()
         {
+            if (Instance == this)
+                Instance = null; // 只清自己：换图后新 rig 已就位时，旧 rig 销毁不得清掉它
+
             if (_mesh != null)
                 Destroy(_mesh);
             if (_ownsMaterial && _material != null)
