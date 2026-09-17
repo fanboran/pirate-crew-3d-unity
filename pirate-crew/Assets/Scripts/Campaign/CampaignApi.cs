@@ -41,7 +41,6 @@ namespace PirateCrew.Campaign
         public const int ProgressSlot = 1;
 
         /// <summary>EventBus 场景切换事件名（与 <c>Core/SceneLoader</c> 约定一致）。</summary>
-        const string ChangeSceneEvent = "change_scene";
 
         /// <summary>存档显示名。</summary>
         const string ProgressDisplayName = "海盗军团进度";
@@ -138,7 +137,7 @@ namespace PirateCrew.Campaign
                 new CampaignLevelSelectedPayload(level.LevelId, level.LevelNumber, level.Chapter));
 
             // 走 EventBus 请求场景切换（UI 不直接持有 SceneLoader，见 Core/SceneLoader 约定）。
-            EventBus.Publish(ChangeSceneEvent, SceneNames.Battle);
+            EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
             return true;
         }
 

@@ -18,7 +18,8 @@ namespace PirateCrew.Core
     ///
     /// 【约定】
     ///   1. 事件名保留 Godot 版的 snake_case 字符串（跨模块兼容 Godot 版心智）
-    ///   2. payload 类型为 object，建议用 Dictionary 以保持可扩展性
+    ///   2. payload 类型为 object——工程现状是各模块具名 Payload 类 + 订阅侧 `is` 模式匹配
+    ///      （不是早期设想的 Dictionary）；载荷类型变更属破坏性变更，须同步契约登记表
     ///   3. 订阅方在 OnDestroy 中退订，防止内存泄漏
     ///   4. Publish 在遍历前对监听者列表做快照，允许回调中安全地订阅/退订
     ///

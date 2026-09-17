@@ -37,6 +37,9 @@
 
 ### 1.3 场景流转生命周期（`SceneLoader` 广播）
 
+> `scene_load_started` / `scene_load_completed` / `scene_transition_finished` 当前**暂无订阅方**'
+> （发布侧保留，供过场动画/音频挂接；命名常量在 `Core/SceneEvents`）。
+
 | 事件名 | 载荷 | 时机 |
 | --- | --- | --- |
 | `scene_load_started` | `string` 场景名 | 开始异步加载 |
@@ -48,6 +51,9 @@
 
 ### 1.4 存档（`SaveManager` 广播）
 
+> `save_completed` / `load_completed` / `auto_save_triggered` 当前**暂无订阅方**'
+> （发布侧保留；命名常量在 `Core/SaveEvents`）。
+
 | 事件名 | 载荷 | 时机 |
 | --- | --- | --- |
 | `save_completed` | `int` 槽位号 | 存档成功 |
@@ -56,12 +62,12 @@
 
 ---
 
-## 2. 提案/待定（M2 战斗，尚未落地）
+## 2. 已实现（M2 战斗）
 
-> ⚠ 以下事件名为**提案**，用于 M2 战斗模块的跨模块通信，实现以 `Scripts/PirateCrew/Battle/BattleEvents.cs` 为准。
-> 代码落地后须把本节内容上移为「已实现」，并补全实际载荷类型。
+> 实现以 `Scripts/PirateCrew/Battle/BattleEvents.cs`（代码侧常量类）为准；本表为登记表。
+> §3.3 是 M3 新增订阅方明细（事件定义不在此重复登记）。
 
-| 提案事件名 | 拟用载荷 | 拟发布方 | 拟订阅方 |
+| 事件名 | 载荷 | 发布方 | 订阅方 |
 | --- | --- | --- | --- |
 | `battle_started` | 关卡序号 | `BattleController` | HUD / 相机 |
 | `turn_started` | 队伍编号 | `TurnManager` | HUD / 相机（pan 到行动角色） |
@@ -74,6 +80,8 @@
 | `ai_decided` | 角色 id + 队伍 + 动作种类（`AiActionKind`）+ 武器槽位 + 目标 id + 分数 + 是否跳过（`AiDecidedPayload`） | `AiController` | HUD / 武器效果执行器（§6.3 特殊武器的实际表现） |
 | `battle_projectile_detonated` | 武器 id + 爆心世界坐标（`ProjectileDetonatedPayload`） | `WeaponProjectile` | 表现层（爆炸特效/音效） |
 | `battle_mine_beep` | 武器 id + 引信经过帧数 + 位置（`MineBeepPayload`） | `WeaponProjectile`（mine 引信） | 音频层（§5.2 beepTimes 滴答声） |
+| `battle_shot_released` | 武器 id + 出手位置（`ShotReleasedPayload`） | `AimThrowController` | 音频层（发射音） |
+| `camera_focus_requested` | 目标 Transform | `TurnManager` / `WeaponProjectile`（voodoo 切镜）/ `AimThrowController` 等 | 相机（`BattleCameraController`） |
 
 > **武器运行时事件备注**：`battle_projectile_detonated` / `battle_mine_beep` 的常量与载荷定义在
 > `Battle/BattleEvents.cs`，由 `Battle/WeaponProjectile.cs` 发布（弹体引爆 / 地雷引信蜂鸣）。

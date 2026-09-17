@@ -39,12 +39,6 @@ namespace PirateCrew.UI
     [DisallowMultipleComponent]
     public sealed class BattleHud : MonoBehaviour
     {
-        /// <summary>返回主菜单事件名（与 Core/SceneLoader 的 go_back 约定一致）。</summary>
-        const string GoBackEvent = "go_back";
-
-        /// <summary>EventBus 场景切换事件名（与 Core/SceneLoader 约定一致；同场景重载由 SceneLoader 自动不压栈）。</summary>
-        const string ChangeSceneEvent = "change_scene";
-
         /// <summary>§4.1 血条总帧数（28 帧）。</summary>
         const int HealthBarFrames = 28;
 
@@ -515,7 +509,7 @@ namespace PirateCrew.UI
             ButtonFeedback(settlementBackButton != null && settlementBackButton.interactable
                 ? settlementBackButton
                 : backButton, success: true);
-            EventBus.Publish(GoBackEvent);
+            EventBus.Publish(SceneEvents.GoBack);
         }
 
         // ------------------------------------------------------------------
@@ -578,7 +572,7 @@ namespace PirateCrew.UI
                 return;
             }
 
-            EventBus.Publish(ChangeSceneEvent, SceneNames.Battle);
+            EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
         }
 
         /// <summary>返回主菜单/选关前先确认（BackConfirm）；对局已结束时直接走（结算面板的返回按钮不经过这里）。</summary>
@@ -602,13 +596,26 @@ namespace PirateCrew.UI
             HideConfirmDialog();
             BattlePause.ForceResume();
             AudioService.PlayUi(SfxId.UiClick);
-            EventBus.Publish(GoBackEvent);
+            EventBus.Publish(SceneEvents.GoBack);
         }
 
         void HideConfirmDialog()
         {
             if (confirmDialogRoot != null)
                 confirmDialogRoot.SetActive(false);
+        }
+
+        /// <summary>
+        /// 结算乐句的唯一决策口（纯函数；审计 代码审计报告 §一.4 的修复）：
+        /// 直接委托 <see cref="AudioEventMapper.MusicForMatchOutcome"/>——音频层的裁决
+        /// （含「2P 热座蓝队获胜不放任何乐句」口径）对 HUD 生效，HUD 不再自建
+        /// 「Team0Win 之外皆败」的旁路逻辑。Tests/Audio 与 Tests/UI 双侧锁该口径。
+        /// </summary>
+        public static bool SettlementJingleFor(int outcome, bool team1IsAi, out SfxId jingle)
+        {
+            bool hasMusic = AudioEventMapper.MusicForMatchOutcome(
+                (MatchOutcome)outcome, team1IsAi, out jingle);
+            return hasMusic;
         }
 
         /// <summary>
@@ -664,11 +671,11 @@ namespace PirateCrew.UI
                 UiTextUtil.SetText(settlementLinesText, string.Join("\n", lines));
 
             settlementPanelRoot.SetActive(true);
-            // 胜负短乐句走音乐通道（Music 分类，受音乐滑条控制）；不可用时回落面板开合音。
-            bool jingle = AudioService.PlayMusic((MatchOutcome)finished.Outcome == MatchOutcome.Team0Win
-                ? SfxId.VictoryJingle
-                : SfxId.DefeatJingle);
-            if (!jingle)
+            // 胜负短乐句走音乐通道（Music 分类，受音乐滑条控制）；乐句裁决 = mapper（见 SettlementJingleFor），
+            // 不可用/2P 蓝队胜不播时回落面板开合音。
+            bool played = SettlementJingleFor(finished.Outcome, finished.Team1IsAi, out SfxId jingle)
+                          && AudioService.PlayMusic(jingle);
+            if (!played)
                 AudioService.PlayUi(SfxId.UiPanelOpen);
         }
 

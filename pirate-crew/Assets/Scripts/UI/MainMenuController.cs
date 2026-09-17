@@ -23,7 +23,6 @@ namespace PirateCrew.UI
     public sealed class MainMenuController : MonoBehaviour
     {
         /// <summary>EventBus 场景切换事件名（payload 为 string 场景名，与 SceneLoader 约定一致）。</summary>
-        const string ChangeSceneEvent = "change_scene";
 
         [SerializeField] Button battleButton;
         [SerializeField] Button campaignButton;
@@ -156,19 +155,19 @@ namespace PirateCrew.UI
         {
             M3UiBuilder.ButtonFeedback(battleButton, true, _motion);
             CampaignApi.AbortPendingLevel();
-            EventBus.Publish(ChangeSceneEvent, SceneNames.Battle);
+            EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
         }
 
         void OnCampaignClicked()
         {
             M3UiBuilder.ButtonFeedback(campaignButton, true, _motion);
-            EventBus.Publish(ChangeSceneEvent, SceneNames.LevelSelect);
+            EventBus.Publish(SceneEvents.ChangeScene, SceneNames.LevelSelect);
         }
 
         void OnCrewClicked()
         {
             M3UiBuilder.ButtonFeedback(crewButton, true, _motion);
-            EventBus.Publish(ChangeSceneEvent, SceneNames.CrewManagement);
+            EventBus.Publish(SceneEvents.ChangeScene, SceneNames.CrewManagement);
         }
 
         // ------------------------------------------------------------------

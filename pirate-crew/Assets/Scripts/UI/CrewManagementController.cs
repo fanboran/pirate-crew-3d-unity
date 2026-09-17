@@ -24,8 +24,6 @@ namespace PirateCrew.UI
     /// </summary>
     public sealed class CrewManagementController : MonoBehaviour
     {
-        const string ChangeSceneEvent = "change_scene";
-        const string GoBackEvent = "go_back";
 
         const float RowHeight = 44f;
 
@@ -213,7 +211,7 @@ namespace PirateCrew.UI
             }
 
             M3UiBuilder.ButtonFeedback(levelSelectButton, true, _motion);
-            EventBus.Publish(ChangeSceneEvent, SceneNames.LevelSelect);
+            EventBus.Publish(SceneEvents.ChangeScene, SceneNames.LevelSelect);
         }
 
         void OnSaveClicked()
@@ -228,7 +226,7 @@ namespace PirateCrew.UI
         void OnBackClicked()
         {
             M3UiBuilder.ButtonFeedback(backButton, true, _motion);
-            EventBus.Publish(GoBackEvent);
+            EventBus.Publish(SceneEvents.GoBack);
         }
 
         // ------------------------------------------------------------------

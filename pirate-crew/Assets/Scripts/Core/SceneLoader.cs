@@ -78,14 +78,14 @@ namespace PirateCrew.Core
             CreateOverlay();
 
             // 对应 Godot _ready 里订阅 EventBus 的 "change_scene" / "go_back"
-            EventBus.Subscribe("change_scene", OnChangeSceneRequest);
-            EventBus.Subscribe("go_back", OnGoBackRequest);
+            EventBus.Subscribe(SceneEvents.ChangeScene, OnChangeSceneRequest);
+            EventBus.Subscribe(SceneEvents.GoBack, OnGoBackRequest);
         }
 
         void OnDestroy()
         {
-            EventBus.Unsubscribe("change_scene", OnChangeSceneRequest);
-            EventBus.Unsubscribe("go_back", OnGoBackRequest);
+            EventBus.Unsubscribe(SceneEvents.ChangeScene, OnChangeSceneRequest);
+            EventBus.Unsubscribe(SceneEvents.GoBack, OnGoBackRequest);
 
             if (Instance == this)
                 Instance = null;
@@ -280,19 +280,19 @@ namespace PirateCrew.Core
         void RaiseSceneLoadStarted(string sceneName)
         {
             SceneLoadStarted?.Invoke(sceneName);
-            EventBus.Publish("scene_load_started", sceneName);
+            EventBus.Publish(SceneEvents.SceneLoadStarted, sceneName);
         }
 
         void RaiseSceneLoadCompleted(string sceneName)
         {
             SceneLoadCompleted?.Invoke(sceneName);
-            EventBus.Publish("scene_load_completed", sceneName);
+            EventBus.Publish(SceneEvents.SceneLoadCompleted, sceneName);
         }
 
         void RaiseSceneTransitionFinished(string sceneName)
         {
             SceneTransitionFinished?.Invoke(sceneName);
-            EventBus.Publish("scene_transition_finished", sceneName);
+            EventBus.Publish(SceneEvents.SceneTransitionFinished, sceneName);
         }
 
         // ------------------------------------------------------------------

@@ -162,7 +162,7 @@ namespace PirateCrew.Core
             UpsertMetaSlot(slot, data.DisplayName, data.Timestamp);
 
             SaveCompleted?.Invoke(slot);
-            EventBus.Publish("save_completed", slot);
+            EventBus.Publish(SaveEvents.SaveCompleted, slot);
             return true;
         }
 
@@ -180,7 +180,7 @@ namespace PirateCrew.Core
             }
 
             LoadCompleted?.Invoke(slot);
-            EventBus.Publish("load_completed", slot);
+            EventBus.Publish(SaveEvents.LoadCompleted, slot);
             return data;
         }
 
@@ -289,7 +289,7 @@ namespace PirateCrew.Core
 
             // 对应 Godot：先发信号，再写盘
             AutoSaveTriggered?.Invoke(AutoSaveSlot);
-            EventBus.Publish("auto_save_triggered", AutoSaveSlot);
+            EventBus.Publish(SaveEvents.AutoSaveTriggered, AutoSaveSlot);
 
             return SaveToSlot(AutoSaveSlot, data, "自动存档");
         }
