@@ -185,6 +185,20 @@ namespace PirateCrew.PirateCrew.Water
         /// </summary>
         public void ConfigureWorldDomain(Vector2 center, float spanUnits)
         {
+            ConfigureWorldDomain(center, spanUnits, null, 0f, 0f, 0f);
+        }
+
+        /// <summary>
+        /// 带地形数据的域重载（审计 视觉§四.2 的修复）：世界地图模式由装配方传入
+        /// <see cref="BattleController"/> 已栅格化的站面 <see cref="TileTerrainGrid"/> 与水面/图幅，
+        /// 掩码改由 <see cref="ObstacleMapRules.Bake"/> 按"地表高于水面 → 障碍"实时烘焙——
+        /// 不再采样 M2 烘焙的旧竞技场 PNG（域扩大后旧图只盖住一小角，岛缘无反射、涟漪穿岛）。
+        /// <paramref name="terrainGrid"/> 为 null 时回落序列化 <paramref name="obstacleMap"/> PNG 路径
+        /// （旧关卡行为不变）。
+        /// </summary>
+        public void ConfigureWorldDomain(Vector2 center, float spanUnits,
+            TileTerrainGrid terrainGrid, float waterWorldY, float arenaWidth, float arenaDepth)
+        {
             float newSize = WaterSimRules.WorldDomainSizeForSpan(spanUnits);
 
             if (_field == null)
@@ -210,7 +224,17 @@ namespace PirateCrew.PirateCrew.Water
             // 单步过长时自动夹到 CFL 上限（与 Awake 同口径；域扩大只会放宽该上限）。
             fixedStep = Mathf.Clamp(fixedStep, 1f / 240f, _field.MaxStableDt);
 
-            BuildObstacleMask();
+            if (terrainGrid != null)
+            {
+                // 世界图路径：从站面栅格直接烘（判据与 Editor 烘 PNG 同源：ObstacleMapRules）。
+                _obstacleMask = ObstacleMapRules.Bake(
+                    terrainGrid, center, newSize, Mathf.Max(_field.CellsX, _field.CellsZ),
+                    waterWorldY, arenaWidth, arenaDepth);
+            }
+            else
+            {
+                BuildObstacleMask();
+            }
             _field.SetObstacleFromMask(_obstacleMask);
 
             // 像素缓冲随格数重建；纹理尺寸不变（格数不动）时复用，变了才重建。

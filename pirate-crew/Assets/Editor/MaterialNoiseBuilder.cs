@@ -21,7 +21,7 @@ namespace PirateCrew.EditorTools
     ///   同一哲学：算法在本仓库内、可复算、可审查、可重跑出**逐像素一致**的结果。
     ///   风格指南 §3.3 也明确「先程序化生成法线/噪声贴图，再考虑手绘」。
     ///
-    /// 【产物】<c>Assets/Art/Textures/Materials/</c>（与 Fx/、Water/ 同级，新目录）
+    /// 【产物】<c>Assets/Resources/MaterialNoise/</c>（2026-09-17 起入 Resources：WorldMapComposer 的站面材质用 Resources.Load 双平台读取，审计 视觉§四.4）
     ///   Noise_Sand_Albedo.png   / Noise_Sand_Normal.png
     ///   Noise_Grass_Albedo.png  / Noise_Grass_Normal.png
     ///   Noise_Rock_Albedo.png   / Noise_Rock_Normal.png
@@ -102,7 +102,7 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>贴图目录（新目录；与 Textures/Fx、Textures/Water 同级）。</summary>
-        public const string TextureFolder = "Assets/Art/Textures/Materials";
+        public const string TextureFolder = "Assets/Resources/MaterialNoise";
 
         /// <summary>
         /// 贴图边长。**v2：256 → 512**（六张全部；风格指南 §3.3 的 256² 是下限口径）。

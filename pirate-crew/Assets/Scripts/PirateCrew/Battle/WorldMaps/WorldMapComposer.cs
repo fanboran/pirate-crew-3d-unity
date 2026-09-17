@@ -1,9 +1,6 @@
 using System.Collections.Generic;
 using PirateCrew.PirateCrew.Water;
 using UnityEngine;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 namespace PirateCrew.PirateCrew.Battle.WorldMaps
 {
@@ -42,8 +39,12 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         /// <summary>shader 缺失时的回退目标（原灰盒路径用的 URP/Lit 纯色）。</summary>
         const string FallbackLitShaderName = "Universal Render Pipeline/Lit";
 
-        /// <summary>细节噪声贴图目录（口径 = MaterialNoiseBuilder.TextureFolder，Editor 侧唯一产出点）。</summary>
-        const string DetailTextureFolder = "Assets/Art/Textures/Materials";
+        /// <summary>
+        /// 细节噪声贴图的 Resources 根（审计 视觉§四.4 打包降级修复：贴图资产整体挪入
+        /// <c>Assets/Resources/MaterialNoise/</c>，Resources.Load 双平台可读；
+        /// 产出点 <c>MaterialNoiseBuilder.TextureFolder</c> 已同步指到新位置）。
+        /// </summary>
+        const string DetailNoiseResourcesRoot = "MaterialNoise/";
 
         /// <summary>构建整图（碰撞 + 灰盒 + 已配置的 kit 视觉）。返回根 Transform。</summary>
         public static Transform Build(Transform parent, WorldMapDefinition map, WorldMapAssetSet assetSet)
@@ -443,23 +444,19 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             //   转岩、sandWeight=0，同样不染湿沙）。参数仍对齐旧口径：将来接入滩涂级低站面
             //   （TopY≤0.05，如浅滩 kit）时潮痕带自动生效，无需再改这里。【提案/待定】
 
-            // ---- 细节噪声贴图（三族 albedo+法线；仅编辑器内接线，见函数内注释）----
-#if UNITY_EDITOR
+            // ---- 细节噪声贴图（三族 albedo+法线；Resources.Load，编辑器与打包构建一致）----
             ApplyTerrainDetailTextures(mat);
-#endif
             return mat;
         }
 
-#if UNITY_EDITOR
         /// <summary>
         /// 给站面材质挂三族细节噪声贴图（沙/草/岩各 albedo+法线，512² 程序化资产，
         /// 由 MaterialNoiseBuilder 产出）。世界尺度与强度逐值抄旧路径
         /// <c>BattleSceneLighting.ApplyTerrainDetailTextures</c>（BattleSceneLighting.cs:597-616）。
         ///
-        /// 【为什么包在 #if UNITY_EDITOR】本类是运行时程序集，MaterialNoiseBuilder 在 Editor
-        /// 程序集不可引用；运行时同步读资产只能走 AssetDatabase（仅编辑器可用）。
-        /// 打包构建下走不到这里：两条强度保持 shader 默认 0 → 退回「纯色 + 程序化噪声」，
-        /// 与旧路径「贴图缺失→强度置 0」的降级语义一致（BattleSceneLighting.cs:578-581）。
+        /// 【读取口径】<c>Resources.Load</c>（审计 视觉§四.4：原 <c>AssetDatabase</c> 仅编辑器可读，
+        /// 打包构建下六张贴图全部缺失 → 强度保持 0 退回「纯色+程序化噪声」。贴图已挪入
+        /// <c>Assets/Resources/MaterialNoise/</c>，双平台一致；缺资产时维持同一降级语义）。
         /// </summary>
         static void ApplyTerrainDetailTextures(Material m)
         {
@@ -477,11 +474,11 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             ok &= AssignDetailTexture(m, "Noise_Rock_Albedo",  "_RockNoiseMap",  "_RockDetailAlbedoStrength", 1f);
             ok &= AssignDetailTexture(m, "Noise_Sand_Normal",  "_SandBumpMap",   "_SandBumpScale",  1.0f);
             ok &= AssignDetailTexture(m, "Noise_Grass_Normal", "_GrassBumpMap",  "_GrassBumpScale", 1.1f);
-            ok &= AssignDetailTexture(m, "Noise_Rock_Normal",  "_RockBumpMap",   "_RockBumpScale",  1.2f);
+            ok &= AssignDetailTexture(m, "Noise_Rock_Normal",  "_RockBumpMap",   "_RockBumpScale", 1.2f);
 
             if (!ok)
-                global::PirateCrew.Core.Log.Warn("[WorldMapComposer] 站面材质细节噪声贴图缺失（先跑菜单 PirateCrew/渲染/"
-                    + "生成程序化材质噪声贴图）：对应强度已置 0，站面退回纯色+程序化噪声。");
+                global::PirateCrew.Core.Log.Warn("[WorldMapComposer] 站面材质细节噪声贴图缺失（Resources/MaterialNoise/ 下应"
+                    + "有 MaterialNoiseBuilder 的产物）：对应强度已置 0，站面退回纯色+程序化噪声。");
         }
 
         /// <summary>赋一张细节贴图并打开对应强度；返回 false = 缺失（强度保持 0，行为退回改动前）。
@@ -493,8 +490,7 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             if (!m.HasProperty(textureProperty))
                 return false;
 
-            Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(
-                DetailTextureFolder + "/" + fileName + ".png");
+            Texture2D texture = Resources.Load<Texture2D>(DetailNoiseResourcesRoot + fileName);
             if (texture == null)
                 return false;
 
@@ -502,7 +498,6 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             m.SetFloat(strengthProperty, strength);
             return true;
         }
-#endif
 
         /// <summary>
         /// shader 缺失时的回退材质：原灰盒 URP/Lit 纯色三档（色板与明度纪律原样保留）。

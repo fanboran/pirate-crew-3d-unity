@@ -354,11 +354,17 @@ namespace PirateCrew.PirateCrew.Battle
 
             // 水模拟域重配（装配期一次）：驱动常驻后其 Awake 推出的默认域仍钉在旧竞技场口径，
             // 需要显式搬到世界地图图心；Instance 为空（未接线）时静默跳过，不阻塞装配。
+            // 地形栅格（Awake → BuildTerrain 已建）一并传入：障碍掩码按世界图站面实时烘，
+            // 涟漪在岛缘反射、不再穿岛（视觉审计 §四.2）。
             if (Water.WaterSimulationDriver.Instance != null)
             {
                 Water.WaterSimulationDriver.Instance.ConfigureWorldDomain(
                     new Vector2(_worldMap.SpanX * 0.5f, _worldMap.SpanZ * 0.5f),
-                    Mathf.Max(_worldMap.SpanX, _worldMap.SpanZ));
+                    Mathf.Max(_worldMap.SpanX, _worldMap.SpanZ),
+                    Terrain,
+                    LevelGeometry.WaterSurfaceY,
+                    _plan.WidthTiles * LevelGeometry.TileWorldSize,
+                    _plan.DepthTiles * LevelGeometry.TileWorldSize);
             }
 
             HideBakedMinimapTiles();
