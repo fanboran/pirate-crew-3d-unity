@@ -75,9 +75,25 @@ namespace PirateCrew.PirateCrew.Ambient
         }
     }
 
+    /// <summary>环境光来源（视觉遗留 #6 的开关）。</summary>
+    public enum AmbientSkySource
+    {
+        /// <summary>三色 Trilight（**现役基准**：<c>BattleSceneLighting.ApplyThreePointAmbient</c> 的三灯分层）。</summary>
+        Trilight = 0,
+
+        /// <summary>天空盒驱动（环境光 SH 由天空盒卷积而来，有方向与色彩变化）。</summary>
+        Skybox = 1,
+    }
+
     /// <summary>
     /// 三档天空盒预设目录（纯 C#）。**数值全部为【提案/待定】**——本目录是视觉审计
     /// 遗留 #6「环境光从 Trilight 平铺升级为天空盒驱动」的参数方案，须实拍验收后转正。
+    ///
+    /// 【接线开关：<see cref="DefaultAmbientSource"/>】它是本功能唯一的开关，**默认 <see cref="AmbientSkySource.Trilight"/>**
+    /// ——即默认不改变现役画面基准。理由：任务书的前置门要求"视觉批次 A–F 实拍转正后"才动全局参数
+    /// （环境光一换全场景观感基准就变，两轮调参会互相覆盖）；把开关做成常量而不是场景里的序列化字段，
+    /// 是为了让"翻转"成为**一处改动**（序列化字段会被旧值钉住，改代码默认值对已存场景无效——这是本项目
+    /// 踩过的坑）。翻转步骤见 `docs/环境光天空盒化-预研与接线清单.md` §6。
     ///
     /// 【为什么色值不另起一套】三色直接取既有单一事实源，避免"同一档天空两处色值"：
     ///   · 天顶色   = <see cref="SkyTierCatalog"/> 该档的 <c>ZenithHex</c>
@@ -109,6 +125,101 @@ namespace PirateCrew.PirateCrew.Ambient
     /// </summary>
     public static class AmbientSkyboxCatalog
     {
+        // ------------------------------------------------------------------
+        // 接线开关与 shader / 属性名（运行时与 Editor 生成器共用，禁止散落魔法字符串）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// **环境光来源开关**（本功能唯一的开关）。默认 <see cref="AmbientSkySource.Trilight"/>：
+        /// 不改变现役画面基准（A–F 实拍转正前不动全局参数，任务书前置门）。
+        /// </summary>
+        public const AmbientSkySource DefaultAmbientSource = AmbientSkySource.Trilight;
+
+        /// <summary>是否启用天空盒驱动环境光（<c>AmbientDirector.ApplyPreset</c> 读它）。</summary>
+        public static bool SkyboxAmbientEnabled => DefaultAmbientSource == AmbientSkySource.Skybox;
+
+        /// <summary>渐变天空盒 shader 名（与 PirateGradientSky.shader 的 Shader 声明一致）。</summary>
+        public const string SkyShaderName = "PirateCrew/Skybox/PirateGradientSky";
+
+        public const string ZenithColorProperty      = "_SkyZenithColor";
+        public const string HorizonColorProperty     = "_SkyHorizonColor";
+        public const string GroundColorProperty      = "_SkyGroundColor";
+        public const string HorizonBlendProperty     = "_SkyHorizonBlend";
+        public const string GroundBlendProperty      = "_SkyGroundBlend";
+        public const string GradientPowerProperty    = "_SkyGradientPower";
+        public const string ExposureProperty         = "_SkyExposure";
+        public const string SunDiskColorProperty     = "_SkySunDiskColor";
+        public const string SunDiskSizeProperty      = "_SkySunDiskSize";
+        public const string SunDiskSoftnessProperty  = "_SkySunDiskSoftness";
+        public const string SunDiskIntensityProperty = "_SkySunDiskIntensity";
+
+        /// <summary>三档档位（顺序即 <c>skyboxMaterials[]</c> 的下标顺序，与枚举值一致）。</summary>
+        public static readonly AmbientTimeOfDay[] Tiers =
+        {
+            AmbientTimeOfDay.Noon,
+            AmbientTimeOfDay.Dusk,
+            AmbientTimeOfDay.Overcast,
+        };
+
+        /// <summary>
+        /// 把一档预设写进天空盒材质（全部属性逐值覆盖），返回**实际写入的属性个数**。
+        ///
+        /// 【为什么写在运行时目录里】Editor 的生成器（<c>SkyAssetBuilder</c>）与运行时程序化建材质
+        /// （<c>AmbientDirector.ResolveSkyboxMaterial</c> 的兜底路径）必须写同一组属性，
+        /// 两处各写一份就是"改一处忘另一处"的温床；本方法 + 上面的属性名常量是它们共同的唯一出口。
+        /// 写的是 sRGB 原值——Unity 对普通 Color 属性自动做 sRGB→Linear 转换（口径见
+        /// <c>Assets/Editor/BattleSceneLighting.cs</c> 类头「色空间」段）。
+        ///
+        /// 【返回值是漂移探测器】<c>Material.HasProperty</c> 查不到就跳过（shader 属性改名时不会崩），
+        /// 但"静默跳过"会让预设悄悄失效——调用方拿返回值与 <see cref="MaterialPropertyCount"/> 比对即可发现。
+        /// </summary>
+        public static int ApplyPreset(Material material, AmbientTimeOfDay timeOfDay)
+        {
+            return ApplyPreset(material, For(timeOfDay));
+        }
+
+        /// <summary>把一档预设写进材质（显式传预设，避免重复取目录）；返回实际写入的属性个数。</summary>
+        public static int ApplyPreset(Material material, AmbientSkyboxPreset preset)
+        {
+            if (material == null)
+                return 0;
+
+            int written = 0;
+            written += SetColor(material, ZenithColorProperty, preset.ZenithColor);
+            written += SetColor(material, HorizonColorProperty, preset.HorizonColor);
+            written += SetColor(material, GroundColorProperty, preset.GroundColor);
+            written += SetFloat(material, HorizonBlendProperty, preset.HorizonBlend);
+            written += SetFloat(material, GroundBlendProperty, preset.GroundBlend);
+            written += SetFloat(material, GradientPowerProperty, preset.GradientPower);
+            written += SetFloat(material, ExposureProperty, preset.Exposure);
+            written += SetColor(material, SunDiskColorProperty, preset.SunDiskColor);
+            written += SetFloat(material, SunDiskSizeProperty, preset.SunDiskSize);
+            written += SetFloat(material, SunDiskSoftnessProperty, preset.SunDiskSoftness);
+            written += SetFloat(material, SunDiskIntensityProperty, preset.SunDiskIntensity);
+            return written;
+        }
+
+        /// <summary>预设涉及的材质属性个数（= <see cref="ApplyPreset(Material, AmbientSkyboxPreset)"/> 的正常返回值）。</summary>
+        public const int MaterialPropertyCount = 11;
+
+        static int SetColor(Material material, string property, Color value)
+        {
+            if (!material.HasProperty(property))
+                return 0;
+
+            material.SetColor(property, value);
+            return 1;
+        }
+
+        static int SetFloat(Material material, string property, float value)
+        {
+            if (!material.HasProperty(property))
+                return 0;
+
+            material.SetFloat(property, value);
+            return 1;
+        }
+
         // ------------------------------------------------------------------
         // 档位 → SkyTierCatalog 档号（1/2/3）
         // ------------------------------------------------------------------

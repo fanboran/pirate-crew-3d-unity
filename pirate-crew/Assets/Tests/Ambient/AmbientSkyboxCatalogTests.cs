@@ -216,6 +216,40 @@ namespace PirateCrew.PirateCrew.Ambient.Tests
             Assert.Greater(dusk.SunDiskSoftness, noon.SunDiskSoftness, "黄昏的日盘必须比正午柔（更像「发光」而非硬圆盘）");
         }
 
+        /// <summary>
+        /// **接线开关默认必须是 Trilight**（= 现役画面基准不变）。
+        ///
+        /// 任务书的前置门：视觉批次 A–F 的【提案/待定】数值实拍转正前不动全局参数，否则两轮调参互相覆盖。
+        /// 这条测试就是那道门的机器可读形式——谁把开关翻成 Skybox，必须同时（在提交信息里）说明
+        /// A–F 已转正，并重跑装配链与出图（步骤见 docs/环境光天空盒化-预研与接线清单.md §6）。
+        /// </summary>
+        [Test]
+        public void Switch_DefaultsToTrilight_SoBaselineIsUnchanged()
+        {
+            Assert.AreEqual(AmbientSkySource.Trilight, AmbientSkyboxCatalog.DefaultAmbientSource,
+                "环境光来源开关默认必须是 Trilight：A–F 实拍转正前不改变现役画面基准");
+            Assert.IsFalse(AmbientSkyboxCatalog.SkyboxAmbientEnabled,
+                "开关与 DefaultAmbientSource 必须一致（SkyboxAmbientEnabled 是它的派生读法）");
+        }
+
+        /// <summary>
+        /// <see cref="AmbientSkyboxCatalog.Tiers"/> 的下标必须等于 <see cref="AmbientTimeOfDay"/> 的枚举值
+        /// ——<c>AmbientDirector.skyboxMaterials[]</c> 是**按枚举值索引**的序列化数组，
+        /// 顺序错了会"切黄昏用正午的天"，且不会报任何错。
+        /// </summary>
+        [Test]
+        public void Tiers_IndexMatchesAmbientTimeOfDayEnumValues()
+        {
+            Assert.AreEqual(AmbientTimeOfDayCatalog.Count, AmbientSkyboxCatalog.Tiers.Length,
+                "Tiers 必须覆盖全部档位");
+
+            for (int i = 0; i < AmbientSkyboxCatalog.Tiers.Length; i++)
+            {
+                Assert.AreEqual(i, (int)AmbientSkyboxCatalog.Tiers[i],
+                    "Tiers[" + i + "] 必须是枚举值为 " + i + " 的档位（序列化数组按下标取档）");
+            }
+        }
+
         // ------------------------------------------------------------------
         // 辅助
         // ------------------------------------------------------------------

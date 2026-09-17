@@ -89,6 +89,12 @@ namespace PirateCrew.PirateCrew.Ambient
         [SerializeField] AmbientTimeOfDay timeOfDay = AmbientTimeOfDay.Noon;
         [SerializeField] bool applyPresetOnStart = true;
 
+        [Tooltip("三档天空盒材质（可选；下标 = AmbientTimeOfDay：0 正午 / 1 黄昏 / 2 阴云）。"
+            + "留空或对应项为空时，按 AmbientSkyboxCatalog 程序化建一张（切档时就地重写参数）——"
+            + "这样本功能不依赖场景接线即可生效。仅在环境光来源开关 = 天空盒时才被读取，"
+            + "开关见 AmbientSkyboxCatalog.DefaultAmbientSource（默认 Trilight = 现役基准不变）。")]
+        [SerializeField] Material[] skyboxMaterials;
+
         [Tooltip("灯笼点光。**默认关**：本工程 PirateSurface / PirateOutline 只取主方向光，"
             + "额外的点光对场上绝大多数材质不产生照明（等于纯开销）。"
             + "灯笼的「亮」由自发光辉光片承担；将来 shader 补 _ADDITIONAL_LIGHTS 后再打开。")]
@@ -118,6 +124,11 @@ namespace PirateCrew.PirateCrew.Ambient
 
         int _alarmFrames;
         bool _warnedMissingSun;
+        bool _warnedMissingSkybox;
+
+        /// <summary>运行时程序化建的天空盒材质（<see cref="ResolveSkyboxMaterial"/> 的兜底路径；Teardown 里销毁）。</summary>
+        Material _runtimeSkyboxMaterial;
+
         bool _built;
 
         /// <summary>全部活物 + 环境动效的三角面合计（报告用）。</summary>
@@ -268,6 +279,17 @@ namespace PirateCrew.PirateCrew.Ambient
             EventBus.Unsubscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
             EventBus.Unsubscribe(BattleEvents.BattleStarted, OnBattleStarted);
 
+            // 运行时建的天空盒材质是 DontSave 的孤儿资产，必须显式销毁（本工程资源生命周期的口径，
+            // 同 _runtimeMeshes 的处理）。
+            if (_runtimeSkyboxMaterial != null)
+            {
+                if (Application.isPlaying)
+                    Destroy(_runtimeSkyboxMaterial);
+                else
+                    DestroyImmediate(_runtimeSkyboxMaterial);
+                _runtimeSkyboxMaterial = null;
+            }
+
             if (_windBinder != null)
             {
                 _windBinder.Restore();
@@ -404,9 +426,56 @@ namespace PirateCrew.PirateCrew.Ambient
             RenderSettings.fogEndDistance = preset.FogEnd;
             RenderSettings.ambientIntensity = preset.AmbientIntensity;
 
+            // ---- 环境光来源（视觉遗留 #6）----
+            // 开关默认 Trilight = 现役基准：下面这个分支不执行，三色由场景烘焙提供（本方法只写强度，
+            // 见 AmbientTimeOfDayCatalog 类头"三方逐值一致"）。开关翻成 Skybox 后，环境光的 SH
+            // 完全由天空盒卷积而来（ambientSky/Equator/GroundColor 失效），此时才写 skybox 与模式。
+            if (AmbientSkyboxCatalog.SkyboxAmbientEnabled)
+            {
+                Material skybox = ResolveSkyboxMaterial(timeOfDay);
+                if (skybox != null)
+                {
+                    RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Skybox;
+                    RenderSettings.skybox = skybox;
+                }
+                else if (!_warnedMissingSkybox)
+                {
+                    _warnedMissingSkybox = true;
+                    global::PirateCrew.Core.Log.Warn("[Ambient] 环境光来源开关=天空盒，但拿不到天空盒材质"
+                        + "（shader 未入构建且场景未接线）→ 本次退回 Trilight 三色，画面不跳变。");
+                }
+            }
+
             // Skybox 环境模式下 ambientLight 不生效（URP 从天空盒取），此时只改强度。
             if (RenderSettings.ambientMode != UnityEngine.Rendering.AmbientMode.Skybox)
                 RenderSettings.ambientLight = preset.AmbientColor;
+        }
+
+        /// <summary>
+        /// 取该档天空盒材质：优先用场景接线的 <c>skyboxMaterials[]</c>（资产引用，出包自包含），
+        /// 留空则程序化建一张（按 <see cref="AmbientSkyboxCatalog"/> 写参数，切档时就地重写）——
+        /// 后者让本功能不必等场景接线即可生效，shader 由 ArtGate ⓪ 登记进 Always Included 保证入包。
+        /// </summary>
+        Material ResolveSkyboxMaterial(AmbientTimeOfDay tier)
+        {
+            int index = (int)tier;
+            if (skyboxMaterials != null && index >= 0 && index < skyboxMaterials.Length
+                && skyboxMaterials[index] != null)
+                return skyboxMaterials[index];
+
+            if (_runtimeSkyboxMaterial == null)
+            {
+                Shader shader = Shader.Find(AmbientSkyboxCatalog.SkyShaderName);
+                if (shader == null)
+                    return null;
+
+                _runtimeSkyboxMaterial = new Material(shader) { name = "RuntimeGradientSky" };
+                _runtimeSkyboxMaterial.hideFlags = HideFlags.DontSave;
+            }
+
+            // 每次切档都重写参数：三档共用这一张运行时材质。
+            AmbientSkyboxCatalog.ApplyPreset(_runtimeSkyboxMaterial, tier);
+            return _runtimeSkyboxMaterial;
         }
 
         // ------------------------------------------------------------------

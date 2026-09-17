@@ -36,32 +36,11 @@ namespace PirateCrew.EditorTools
         /// <summary>天空盒材质目录（本脚本专属）。</summary>
         public const string SkyMaterialFolder = "Assets/Art/Materials/Sky";
 
-        /// <summary>渐变天空盒 shader 名（与 PirateGradientSky.shader 的 Shader 声明一致）。</summary>
-        public const string SkyShaderName = "PirateCrew/Skybox/PirateGradientSky";
+        /// <summary>渐变天空盒 shader 名（唯一事实源在运行时目录 <see cref="AmbientSkyboxCatalog"/>）。</summary>
+        public const string SkyShaderName = AmbientSkyboxCatalog.SkyShaderName;
 
-        // ------------------------------------------------------------------
-        // 属性名（接线轮若要在运行时改档，用这些常量；禁止散落魔法字符串）
-        // ------------------------------------------------------------------
-
-        public const string ZenithColorProperty     = "_SkyZenithColor";
-        public const string HorizonColorProperty    = "_SkyHorizonColor";
-        public const string GroundColorProperty     = "_SkyGroundColor";
-        public const string HorizonBlendProperty    = "_SkyHorizonBlend";
-        public const string GroundBlendProperty     = "_SkyGroundBlend";
-        public const string GradientPowerProperty   = "_SkyGradientPower";
-        public const string ExposureProperty        = "_SkyExposure";
-        public const string SunDiskColorProperty    = "_SkySunDiskColor";
-        public const string SunDiskSizeProperty     = "_SkySunDiskSize";
-        public const string SunDiskSoftnessProperty = "_SkySunDiskSoftness";
-        public const string SunDiskIntensityProperty = "_SkySunDiskIntensity";
-
-        /// <summary>三档档位（顺序 = 材质生成顺序，日志按此顺序打印）。</summary>
-        public static readonly AmbientTimeOfDay[] Tiers =
-        {
-            AmbientTimeOfDay.Noon,
-            AmbientTimeOfDay.Dusk,
-            AmbientTimeOfDay.Overcast,
-        };
+        /// <summary>三档档位（顺序 = 材质生成顺序 = <c>skyboxMaterials[]</c> 下标顺序）。</summary>
+        public static AmbientTimeOfDay[] Tiers => AmbientSkyboxCatalog.Tiers;
 
         /// <summary>档位对应的材质文件名（不含扩展名）。</summary>
         public static string MaterialFileName(AmbientTimeOfDay timeOfDay)
@@ -111,7 +90,15 @@ namespace PirateCrew.EditorTools
                 AmbientTimeOfDay tier = Tiers[i];
                 AmbientSkyboxPreset preset = AmbientSkyboxCatalog.For(tier);
                 Material material = EnsureMaterial(tier, shader);
-                ApplyPreset(material, preset);
+                int written = AmbientSkyboxCatalog.ApplyPreset(material, preset);
+                if (written < AmbientSkyboxCatalog.MaterialPropertyCount)
+                {
+                    // 漂移探测：shader 属性改名后 HasProperty 会静默跳过，预设就悄悄失效了。
+                    Debug.LogWarning("[SkyAssetBuilder] " + MaterialFileName(tier)
+                        + ".mat 只写进了 " + written + "/" + AmbientSkyboxCatalog.MaterialPropertyCount
+                        + " 个属性——shader 属性名与 AmbientSkyboxCatalog 里的常量可能已不一致。");
+                }
+
                 EditorUtility.SetDirty(material);
 
                 log.Append("\n  ").Append(MaterialFileName(tier)).Append(".mat")
@@ -134,22 +121,6 @@ namespace PirateCrew.EditorTools
             Debug.Log(log.ToString());
         }
 
-        /// <summary>把一档预设写进材质（全部属性，逐值覆盖）。</summary>
-        static void ApplyPreset(Material material, AmbientSkyboxPreset preset)
-        {
-            SetColor(material, ZenithColorProperty, preset.ZenithColor);
-            SetColor(material, HorizonColorProperty, preset.HorizonColor);
-            SetColor(material, GroundColorProperty, preset.GroundColor);
-            SetFloat(material, HorizonBlendProperty, preset.HorizonBlend);
-            SetFloat(material, GroundBlendProperty, preset.GroundBlend);
-            SetFloat(material, GradientPowerProperty, preset.GradientPower);
-            SetFloat(material, ExposureProperty, preset.Exposure);
-            SetColor(material, SunDiskColorProperty, preset.SunDiskColor);
-            SetFloat(material, SunDiskSizeProperty, preset.SunDiskSize);
-            SetFloat(material, SunDiskSoftnessProperty, preset.SunDiskSoftness);
-            SetFloat(material, SunDiskIntensityProperty, preset.SunDiskIntensity);
-        }
-
         /// <summary>取/建材质资产，并保证 shader 正确（幂等：已存在的材质会就地换 shader）。</summary>
         static Material EnsureMaterial(AmbientTimeOfDay tier, Shader shader)
         {
@@ -168,24 +139,6 @@ namespace PirateCrew.EditorTools
             }
 
             return material;
-        }
-
-        static void SetColor(Material m, string property, Color value)
-        {
-            if (m.HasProperty(property))
-                m.SetColor(property, value);
-            else
-                Debug.LogWarning("[SkyAssetBuilder] 材质上找不到颜色属性 " + property
-                    + "（shader 属性名可能已改名）。");
-        }
-
-        static void SetFloat(Material m, string property, float value)
-        {
-            if (m.HasProperty(property))
-                m.SetFloat(property, value);
-            else
-                Debug.LogWarning("[SkyAssetBuilder] 材质上找不到数值属性 " + property
-                    + "（shader 属性名可能已改名）。");
         }
 
         static void EnsureFolder(string path)
