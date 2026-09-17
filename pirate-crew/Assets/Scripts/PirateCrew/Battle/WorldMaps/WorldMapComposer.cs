@@ -58,10 +58,16 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
                 root.transform.SetParent(parent, false);
 
             var standBoxes = WorldMapRules.AllStandBoxes(map);
+
+            // 【层级顺序】三个根按「站面 → 装饰 → kit」建立：装饰的父级必须是**未缩放**的根
+            // （理由见 ScatterDecorations 的坐标系注释），所以不能挂在站面方块下。
             var collisionRoot = new GameObject("Stands");
             collisionRoot.transform.SetParent(root.transform, false);
+            var decorRoot = new GameObject("Decor");
+            decorRoot.transform.SetParent(root.transform, false);
             for (int i = 0; i < standBoxes.Count; i++)
-                BuildStandBox(collisionRoot.transform, standBoxes[i], assetSet, i + map.LevelNumber * 7);
+                BuildStandBox(collisionRoot.transform, decorRoot.transform, standBoxes[i], assetSet,
+                    i + map.LevelNumber * 7);
 
             var kitRoot = new GameObject("Kit");
             kitRoot.transform.SetParent(root.transform, false);
@@ -69,26 +75,20 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
                 BuildKitPlacement(kitRoot.transform, "Terrain", map.Terrain[i], assetSet);
             for (int i = 0; i < map.Horizon.Count; i++)
                 BuildKitPlacement(kitRoot.transform, "Horizon", map.Horizon[i], assetSet);
+
+            // 手摆道具（叙事件：篝火/炮位/宝箱堆/遗迹…）——落水即跳过并告警，见 BuildProp。
+            var propRoot = new GameObject("Props");
+            propRoot.transform.SetParent(root.transform, false);
             for (int i = 0; i < map.Props.Count; i++)
-            {
-                WorldPropPlacement prop = map.Props[i];
-                GameObject prefab = assetSet != null ? assetSet.Get(prop.Asset) : null;
-                if (prefab == null)
-                    continue;
-                var go = Object.Instantiate(prefab, kitRoot.transform);
-                go.name = "Prop_" + prop.Asset;
-                // 落地吸附：道具 y 一律吸附到所在 (x,z) 的地表顶高（目录里的 y 只是提示），
-                // 水面件（浮标等）吸附到水面 —— 消掉「摆错高度」这一整类手工错误。
-                go.transform.position = new Vector3(
-                    prop.Position.x,
-                    WorldMapRules.HeightAtWorld(standBoxes, new Vector2(prop.Position.x, prop.Position.z)),
-                    prop.Position.z);
-                go.transform.rotation = Quaternion.Euler(0f, prop.YawDeg, 0f);
-                go.isStatic = true;
-                // 批次 F：水面件（浮标等）吸附后 y = WaterSurfaceY，资格判定用**吸附后**的最终 y——
-                // "贴水"与否以落点为准，目录里的提示 y 不参与（Props 路径本来也不读它）。
-                ApplyFloatingViewIfEligible(go, go.transform.position.y);
-            }
+                BuildProp(propRoot.transform, map, standBoxes, assetSet, map.Props[i]);
+
+            // 死水礁石场（规则层确定性摆放，纯视觉、无碰撞）：紧凑化后 86–96% 的图面是空海，
+            // 这一层把它读成"有礁、有浅滩、有残骸的海"。与手摆 Props 走同一个实例化出口。
+            var reefRoot = new GameObject("ReefField");
+            reefRoot.transform.SetParent(root.transform, false);
+            var reefField = ReefFieldRules.Place(map);
+            for (int i = 0; i < reefField.Count; i++)
+                BuildProp(reefRoot.transform, map, standBoxes, assetSet, reefField[i]);
 
             // M4 远景特征接线：HorizonSeed/HorizonFeatures 的唯一消费点。规则层（纯 C#，可测）
             // 产出确定性环带摆放，这里走与手摆 Horizon 完全相同的 kit 接入路径（BuildKitPlacement：
@@ -106,7 +106,45 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             return root.transform;
         }
 
-        static void BuildStandBox(Transform root, in WorldMapRules.WorldBox box,
+        /// <summary>
+        /// 实例化一个道具（手摆 Props 与规则层礁石场共用出口）：y 一律吸附到所在 (x,z) 的地表顶高
+        /// （目录里的 y 只是提示，无站面时吸附到静水面）——消掉「摆错高度」这一整类手工错误。
+        ///
+        /// 【陆地道具不许落水】吸附结果是水面 = 该 xz 没有站面，说明坐标在紧凑化/重摆后漂到海里。
+        /// 若该资产又不在 <see cref="ReefFieldRules.AllowedOnOpenWater"/> 白名单里（石质件/浮件），
+        /// 就**不生成**并在编辑器/开发构建里点名报警：浮在浪上的篝火/木箱是最刺眼的一类穿帮，
+        /// 宁可缺件也要把问题推回数据侧修。规则见 WorldMapPropPlacementTests（无头可测）。
+        /// </summary>
+        static void BuildProp(Transform root, WorldMapDefinition map,
+            List<WorldMapRules.WorldBox> standBoxes, WorldMapAssetSet assetSet, in WorldPropPlacement prop)
+        {
+            GameObject prefab = assetSet != null ? assetSet.Get(prop.Asset) : null;
+            if (prefab == null)
+                return;
+
+            float groundY = WorldMapRules.HeightAtWorld(
+                standBoxes, new Vector2(prop.Position.x, prop.Position.z));
+            if (groundY <= LevelGeometry.WaterSurfaceY + 0.001f
+                && !ReefFieldRules.AllowedOnOpenWater(prop.Asset))
+            {
+                global::PirateCrew.Core.Log.Warn(string.Format(
+                    "[WorldMapComposer] {0} 的道具 {1} 落在 ({2:F1},{3:F1}) 无站面的水面上，已跳过——"
+                    + "请把它挪到站面 box 上（布局探针见 external/layout-report.txt）。",
+                    map.Id, prop.Asset, prop.Position.x, prop.Position.z));
+                return;
+            }
+
+            var go = Object.Instantiate(prefab, root);
+            go.name = "Prop_" + prop.Asset;
+            go.transform.position = new Vector3(prop.Position.x, groundY, prop.Position.z);
+            go.transform.rotation = Quaternion.Euler(0f, prop.YawDeg, 0f);
+            go.isStatic = true;
+            // 批次 F：水面件（浮标等）吸附后 y = WaterSurfaceY，资格判定用**吸附后**的最终 y——
+            // "贴水"与否以落点为准，目录里的提示 y 不参与（Props 路径本来也不读它）。
+            ApplyFloatingViewIfEligible(go, go.transform.position.y);
+        }
+
+        static void BuildStandBox(Transform root, Transform decorParent, in WorldMapRules.WorldBox box,
             WorldMapAssetSet assetSet, int seed)
         {
             var go = new GameObject(string.Format("Stand_{0:F0}_{1:F0}_{2:F1}",
@@ -135,13 +173,20 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             // （行业实践；逐块实例化还会爆材质预算）。
             renderer.sharedMaterial = BandMaterial(box.TopY);
 
-            ScatterDecorations(go.transform, box, assetSet, seed);
+            ScatterDecorations(decorParent, box, assetSet, seed);
         }
 
         /// <summary>
-        /// 程序化散布：每块站面按确定性哈希撒 2-4 个植被/碎岩装饰（高度带决定种类：
+        /// 程序化散布：每块站面按确定性哈希撒 4-6 个植被/碎岩装饰（高度带决定种类：
         /// 低=草丛/碎岩/蕨、中=蕨/斜棕榈/中岩/草、高=岩），位置在 box 内缩 3u 的矩形里抖动，
         /// y 吸附站面顶。密度由代码保证，不再依赖手摆。
+        ///
+        /// 【坐标系铁律：装饰的父级必须是未缩放的根】站面方块自己带着
+        /// <c>localScale = (Size.x, 顶高+4, Size.y)</c>（用单位立方体拉伸成 box 的实现），
+        /// 把装饰挂成它的子物体、再写 <c>localPosition</c> 会被父级缩放**再乘一遍**——
+        /// 实测 50~147 件装饰全部被甩到图外 3000~12000u 处，实拍里"散布几乎不可见"
+        /// （docs/审计/地图设计审计报告.md §二.6）的根因就是这个。故装饰一律挂 <c>Decor</c> 根、
+        /// 写世界坐标；散布位置只有一处数学（下面的 lx/lz → 世界），不再经过父变换。
         /// </summary>
         static void ScatterDecorations(Transform parent, in WorldMapRules.WorldBox box,
             WorldMapAssetSet assetSet, int seed)
@@ -149,7 +194,8 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             if (assetSet == null || box.Size.x < 3f || box.Size.y < 3f)
                 return;
             uint h = (uint)(seed * 2654435761u);
-            int count = 2 + (int)((h >> 17) % 3u);
+            // 密度 4-6 件/站面（交接 §20 既定方向：原 2-4 件在 150-280u 的大图上看不出层次）。
+            int count = 4 + (int)((h >> 17) % 3u);
             string[] lowPool = { "GrassTuft", "RockS", "FernClump" };
             string[] midPool = { "FernClump", "PalmLean", "RockM", "GrassTuft" };
             string[] highPool = { "RockM", "RockS" };
@@ -175,8 +221,8 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
                 float lz = fz * (box.Size.y - 3f);
                 var go = Object.Instantiate(prefab, parent);
                 go.name = "Decor_" + asset;
-                // 世界位置：站面中心 + 旋转偏移；y = 站面顶（道具原点在落地面）。
-                go.transform.localPosition = new Vector3(
+                // 世界位置：站面中心 + 按 box 总转角旋转的局部偏移；y = 站面顶（道具原点在落地面）。
+                go.transform.position = new Vector3(
                     box.Center.x + lx * cos - lz * sin,
                     box.TopY,
                     box.Center.y + lx * sin + lz * cos);
@@ -321,7 +367,7 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             Shader shader = Shader.Find(TerrainShaderName);
             if (shader == null)
             {
-                Debug.LogError("[WorldMapComposer] Shader.Find 找不到 " + TerrainShaderName
+                global::PirateCrew.Core.Log.Error("[WorldMapComposer] Shader.Find 找不到 " + TerrainShaderName
                     + "（被剔除/未编译？），站面回退 " + FallbackLitShaderName + " 纯色。");
                 return null;
             }
@@ -434,7 +480,7 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             ok &= AssignDetailTexture(m, "Noise_Rock_Normal",  "_RockBumpMap",   "_RockBumpScale",  1.2f);
 
             if (!ok)
-                Debug.LogWarning("[WorldMapComposer] 站面材质细节噪声贴图缺失（先跑菜单 PirateCrew/渲染/"
+                global::PirateCrew.Core.Log.Warn("[WorldMapComposer] 站面材质细节噪声贴图缺失（先跑菜单 PirateCrew/渲染/"
                     + "生成程序化材质噪声贴图）：对应强度已置 0，站面退回纯色+程序化噪声。");
         }
 
