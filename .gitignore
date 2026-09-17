@@ -13,3 +13,6 @@ external/
 .zcode/
 export/art-review/*/*.png
 export/art-review/r1/
+
+# Python 缓存（Blender 无头管线副产物）
+__pycache__/
