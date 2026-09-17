@@ -10,6 +10,15 @@ namespace PirateCrew.PirateCrew.Water
     /// 把高度/法线/泡沫打包进一张 128×128 的 <see cref="Texture2D"/> 上传给水面 shader，
     /// 并注入三类扰动（域边缘涌浪 / 爆炸事件 / 落水事件）。
     ///
+    /// 【域契约：驱动常驻、旧水面渲染定向退役】本驱动是海洋 shader 高度场全局变量
+    /// （<c>_WaterHeightField/_WaterObstacleMap/_WaterSimOrigin/_WaterSimEnabled</c>）的唯一发布者，
+    /// 因此**必须常驻运行**：物体失活会停掉 Update 并触发 <see cref="OnDisable"/> 把
+    /// <c>_WaterSimEnabled</c> 置 0，涟漪/泡沫累积/障碍绕射路径随之整体静默失效。
+    /// 退役同物体上的旧水面（MeshRenderer + <see cref="WaterTessellator"/>）只能做**组件级禁用**，
+    /// 不能对 GameObject SetActive(false)；世界地图装配期由 <see cref="BattleController"/>
+    /// 调 <see cref="ConfigureWorldDomain"/> 把模拟域搬到图心（默认域由关卡目录推出，
+    /// 只对旧竞技场成立）。
+    ///
     /// 【分工，避免双重计高】
     ///   · 宏观形状（浪的几何轮廓、菲涅尔/镜面的低频倾斜）：<c>PirateWater.shader</c> 的
     ///     Gerstner 顶点位移 + 解析法线，**不经过本模拟**；
@@ -116,7 +125,8 @@ namespace PirateCrew.PirateCrew.Water
         /// <summary>当前模拟域边长（世界单位）。</summary>
         public float DomainSize => domainSize;
 
-        /// <summary>模拟域中心 XZ（世界坐标）。</summary>
+        /// <summary>模拟域中心 XZ（世界坐标）。Awake 按关卡/自定义中心推出；世界地图模式由
+        /// <see cref="ConfigureWorldDomain"/> 显式指定为图心。</summary>
         public Vector2 DomainCenter { get; private set; }
 
         void Awake()
@@ -150,6 +160,72 @@ namespace PirateCrew.PirateCrew.Water
             PublishGlobals();
             UploadTexture();
             BattleEventsSubscribe();
+        }
+
+        /// <summary>
+        /// 把模拟域重配到世界地图（场景装配期调用一次，无每帧开销）：域心 = 图心 <paramref name="center"/>，
+        /// 域边长 = <see cref="WaterSimRules.WorldDomainSizeForSpan"/>（随跨度伸缩，clamp [128, 256]）。
+        /// 随后安全重建：新 <see cref="WaterFieldConfig"/>（Dx = 域边长/格数）→ 重建波动场与障碍掩码 →
+        /// 重建像素缓冲/高度纹理 → 重发布全部全局变量（<see cref="PublishGlobals"/> 尾部已含
+        /// <see cref="PublishOrigin"/>）→ 立即 <see cref="UploadTexture"/> 填一帧有效像素。
+        /// 事件注入（<see cref="InjectSplashInternal"/> 的 uv 判定）读的正是本类的 center/size，随新域自动生效。
+        ///
+        /// 【为什么需要】Awake 推出的默认域由关卡目录/自定义中心决定（旧竞技场口径），
+        /// 与世界地图 150–260u 的跨度对不上；装配方在世界地图模式调用本方法完成搬迁。
+        /// 防御分支：Awake 尚未执行时只把新值落进序列化字段（自定义中心绕开关卡推导），初始化交给 Awake。
+        /// </summary>
+        public void ConfigureWorldDomain(Vector2 center, float spanUnits)
+        {
+            float newSize = WaterSimRules.WorldDomainSizeForSpan(spanUnits);
+
+            if (_field == null)
+            {
+                domainSize = newSize;
+                useCustomDomainCenter = true;
+                customDomainCenter = center;
+                return;
+            }
+
+            domainSize = newSize;
+            DomainCenter = center;
+
+            // 重建波动场：纯 C# 分配，装配期一次性（旧场无原生资源，交给 GC）。
+            var cfg = WaterFieldConfig.Default;
+            cfg.CellsX = Mathf.Max(8, cellsPerAxis);
+            cfg.CellsZ = Mathf.Max(8, cellsPerAxis);
+            cfg.Dx = domainSize / cfg.CellsX;
+            cfg.WaveSpeed = Mathf.Max(waveSpeed, 0.1f);
+
+            _field = new WaterWaveField2D(cfg);
+
+            // 单步过长时自动夹到 CFL 上限（与 Awake 同口径；域扩大只会放宽该上限）。
+            fixedStep = Mathf.Clamp(fixedStep, 1f / 240f, _field.MaxStableDt);
+
+            BuildObstacleMask();
+            _field.SetObstacleFromMask(_obstacleMask);
+
+            // 像素缓冲随格数重建；纹理尺寸不变（格数不动）时复用，变了才重建。
+            _pixels = new Color32[cfg.CellsX * cfg.CellsZ];
+            if (_heightTexture == null || _heightTexture.width != cfg.CellsX
+                || _heightTexture.height != cfg.CellsZ)
+            {
+                if (_heightTexture != null)
+                    Destroy(_heightTexture);
+                _heightTexture = new Texture2D(cfg.CellsX, cfg.CellsZ, TextureFormat.RGBA32, false, true)
+                {
+                    name = "WaterHeightField_RT",
+                    wrapMode = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear,
+                    anisoLevel = 0,
+                };
+            }
+
+            // 旧域的步长累积与涌浪相位对新城无意义，清零让涌浪从新边界重新起波。
+            _accumulator = 0f;
+            _simTime = 0f;
+
+            UploadTexture();
+            PublishGlobals();
         }
 
         void OnDisable()

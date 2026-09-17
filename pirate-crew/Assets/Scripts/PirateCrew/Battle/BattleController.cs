@@ -57,7 +57,8 @@ namespace PirateCrew.PirateCrew.Battle
         [SerializeField] CrewVisualPrefabEntry[] crewVisualPrefabs = new CrewVisualPrefabEntry[0];
         [SerializeField] Transform team0Root;
         [SerializeField] Transform team1Root;
-        [Tooltip("水面视觉对象；运行时把 y 设为水位（§5.5）。")]
+        [Tooltip("旧水面物体（承载常驻的 WaterSimulationDriver 水模拟）。世界地图模式下只定向禁用其"
+                 + "MeshRenderer/WaterTessellator，物体保持活跃；运行时把 y 设为水位（§5.5）。")]
         [SerializeField] Transform waterPlane;
         [SerializeField] TurnManager turnManager;
         [SerializeField] AimThrowController aimController;
@@ -336,12 +337,28 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>
         /// M4 世界地图的环境接线（Start 调用）：大海域海面（<see cref="Water.OceanRig"/> 替换旧
         /// Water Cube，落水死亡仍是纯 Y 阈值判定，不依赖水面碰撞）、相机全景档随地图跨度、
-        /// 远裁剪保住 4200u 远场裙边、氛围档按地图定义。旧 waterPlane 直接关闭。
+        /// 远裁剪保住 4200u 远场裙边、氛围档按地图定义。
+        ///
+        /// 【水模拟契约】旧 waterPlane 只做**定向退役**（禁 MeshRenderer/WaterTessellator 两个组件，
+        /// GameObject 保持活跃，见 <see cref="RetireLegacyWaterPlane"/>），并把常驻的
+        /// <see cref="Water.WaterSimulationDriver"/> 模拟域重配到本地图：域心 = 图心
+        /// (SpanX/2, SpanZ/2)、域边长随最大跨度（<see cref="Water.WaterSimulationDriver.ConfigureWorldDomain"/>，
+        /// 纯函数规则在 <see cref="Water.WaterSimRules.WorldDomainSizeForSpan"/>，clamp [128, 256]）。
+        /// 直接组件调用沿用 <c>Water.OceanRig.Create</c> / <c>Water.WaterSimulationDriver.InjectSplash</c>
+        /// 的先例，不做 GameObject.Find。
         /// </summary>
         void SetupWorldMapEnvironment()
         {
-            if (waterPlane != null)
-                waterPlane.gameObject.SetActive(false);
+            RetireLegacyWaterPlane();
+
+            // 水模拟域重配（装配期一次）：驱动常驻后其 Awake 推出的默认域仍钉在旧竞技场口径，
+            // 需要显式搬到世界地图图心；Instance 为空（未接线）时静默跳过，不阻塞装配。
+            if (Water.WaterSimulationDriver.Instance != null)
+            {
+                Water.WaterSimulationDriver.Instance.ConfigureWorldDomain(
+                    new Vector2(_worldMap.SpanX * 0.5f, _worldMap.SpanZ * 0.5f),
+                    Mathf.Max(_worldMap.SpanX, _worldMap.SpanZ));
+            }
 
             HideBakedMinimapTiles();
 
@@ -369,6 +386,29 @@ namespace PirateCrew.PirateCrew.Battle
                     tier = Ambient.AmbientTimeOfDay.Overcast;
                 ambientDirector.SetTimeOfDay(tier);
             }
+        }
+
+        /// <summary>
+        /// 定向退役旧水面：只禁 MeshRenderer 与 <see cref="Water.WaterTessellator"/>（enabled = false），
+        /// **不关 GameObject**——同物体上的 <see cref="Water.WaterSimulationDriver"/> 是新海洋 shader
+        /// 高度场全局变量（涟漪/泡沫累积/障碍绕射）的唯一发布者，整物体失活会连带停掉它并触发其
+        /// OnDisable 把 <c>_WaterSimEnabled</c> 清 0，高度场路径整体静默失效，所以驱动必须常驻。
+        /// 物体上没有碰撞体（Transform/Filter/Renderer/Tessellator/Driver 五件套），保持活跃不会挡
+        /// 瞄准/爆炸射线；渲染与逐帧细分随两个组件停用，无残留开销。带 null 容错：旧场景缺某个组件
+        /// 时静默跳过。旧竞技场模式不进世界地图分支、不走本方法，水面行为完全不变。
+        /// </summary>
+        void RetireLegacyWaterPlane()
+        {
+            if (waterPlane == null)
+                return;
+
+            Renderer legacyRenderer = waterPlane.GetComponent<Renderer>();
+            if (legacyRenderer != null)
+                legacyRenderer.enabled = false;
+
+            Water.WaterTessellator legacyTessellator = waterPlane.GetComponent<Water.WaterTessellator>();
+            if (legacyTessellator != null)
+                legacyTessellator.enabled = false;
         }
 
         /// <summary>

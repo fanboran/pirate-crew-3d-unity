@@ -34,6 +34,38 @@ namespace PirateCrew.PirateCrew.Water
         /// <summary>默认每轴格数；dx = 128/128 = 1.0 世界单位 = **半格**（与旧口径的"半格"一致，故格数不动）。</summary>
         public const int DefaultCellsPerAxis = 128;
 
+        /// <summary>
+        /// 世界地图模拟域相对地图跨度的收缩系数【提案/待定】：域边长 = 跨度 × 0.9。
+        /// 取 0.9 而非 1.0 的依据：域边界是海绵吸收层 + 涌浪注入带（贴边约 10 格），
+        /// 把边界收在图缘略内侧，让吸收/涌浪带落在玩家可见海域的边缘而非图外空白，
+        /// 把固定的 128² 分辨率预算集中花在可见海面上；图缘之外是任务无关的远海，不需要涟漪细节。
+        /// </summary>
+        public const float WorldDomainSpanFactor = 0.9f;
+
+        /// <summary>
+        /// 世界地图模拟域边长下限【提案/待定】（= <see cref="DefaultDomainSize"/>）：
+        /// 小跨度地图不缩域，保住旧竞技场调好的格距分辨率（128 格 / 128u = 每格 1u）
+        /// 与波速行进观感——域再小，涟漪/涌浪会显得"局促"且编码对比度漂移。
+        /// </summary>
+        public const float MinWorldDomainSize = DefaultDomainSize;
+
+        /// <summary>
+        /// 世界地图模拟域边长上限【提案/待定】：格数固定 128 时 256u 对应 dx = 2.0u，
+        /// 默认涟漪半径 7u 仍占约 3.5 格解析；域再大涟漪会糊成不可辨的钝斑。
+        /// </summary>
+        public const float MaxWorldDomainSize = 256f;
+
+        /// <summary>
+        /// 世界地图模式下的模拟域边长：随地图跨度等比伸缩（×<see cref="WorldDomainSpanFactor"/>），
+        /// clamp 到 [<see cref="MinWorldDomainSize"/>, <see cref="MaxWorldDomainSize"/>]。
+        /// 【稳定性】域扩大只会让格距 dx 变大 → 库朗数 C = c·dt/dx 变小，不会破坏 CFL 稳定域
+        /// （驱动默认 c=18、dt=1/60 时 C ∈ [0.15, 0.30]，全部 ≤ <see cref="CflLimit"/>）。
+        /// </summary>
+        public static float WorldDomainSizeForSpan(float spanUnits)
+        {
+            return Mathf.Clamp(spanUnits * WorldDomainSpanFactor, MinWorldDomainSize, MaxWorldDomainSize);
+        }
+
         /// <summary>库朗数 <c>C = c·dt/dx</c>。</summary>
         public static float CflNumber(float waveSpeed, float dt, float dx)
         {
