@@ -19,3 +19,6 @@ __pycache__/
 
 # M4 世界地图实拍：原始 PNG 不入库，入库的是 1280 宽 JPEG（同 art-review 惯例）
 export/worldmap-captures-r2/*/*.png
+
+# 天空盒环境光三档实拍：同上，原始 PNG 不入库，入库 1280 宽 JPEG
+export/ambient-skybox-debug/*/*.png

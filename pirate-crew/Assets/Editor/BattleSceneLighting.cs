@@ -2,6 +2,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using PirateCrew.PirateCrew.Ambient;
 
 namespace PirateCrew.EditorTools
 {
@@ -922,6 +923,26 @@ namespace PirateCrew.EditorTools
                 sky.SetFloat("_Exposure", 1.1f);
             EditorUtility.SetDirty(sky);
 
+            // ---- 环境光来源（视觉遗留 #6，2026-09-17 翻转）----
+            // 开关=天空盒时改用三档渐变天空盒（Sky_Noon；三档材质由 SkyAssetBuilder 生成，
+            // ArtGate 步骤 ①.5 在场景装配之前）。BattleSky（内置 Procedural）继续维护不删——
+            // 它是回退锚点：把 AmbientSkyboxCatalog.DefaultAmbientSource 改回 Trilight 即整体回退。
+            if (AmbientSkyboxCatalog.SkyboxAmbientEnabled)
+            {
+                Material gradientSky = SkyAssetBuilder.LoadMaterial(AmbientTimeOfDay.Noon);
+                if (gradientSky != null)
+                {
+                    RenderSettings.skybox = gradientSky;
+                    ApplyThreePointAmbient();   // 其内部分支写 ambientMode=Skybox
+                    return true;
+                }
+
+                // 跳步执行（没跑 ArtGate ①.5）时的兜底：回退 BattleSky + Trilight，不阻塞装配。
+                Debug.LogWarning("[BattleSceneLighting] 环境光来源开关=天空盒，但找不到 "
+                    + SkyAssetBuilder.MaterialPath(AmbientTimeOfDay.Noon)
+                    + "（先执行 PirateCrew.EditorTools.SkyAssetBuilder.BuildAll）→ 本次回退 BattleSky + Trilight。");
+            }
+
             RenderSettings.skybox = sky;
             ApplyThreePointAmbient();
             return true;
@@ -957,6 +978,21 @@ namespace PirateCrew.EditorTools
         /// </summary>
         public static void ApplyThreePointAmbient()
         {
+            // ---- 环境光来源开关（视觉遗留 #6，2026-09-17 翻转）----
+            // Skybox 模式：环境光 SH 完全由天空盒卷积而来，下面三色在 Lighting 窗口里仍可填但不生效，
+            // 故只切模式直接返回。Trilight 三灯分层路径**完整保留**——它是唯一能单独配"冷补/暖反弹"
+            // 的方案，也是翻案出问题时的回退锚点（改回 AmbientSkyboxCatalog.DefaultAmbientSource 即整体回退）。
+            if (AmbientSkyboxCatalog.SkyboxAmbientEnabled)
+            {
+                RenderSettings.ambientMode = AmbientMode.Skybox;
+                // Skybox 模式下 ambientIntensity 仍生效（环境探针的整体倍率，Lighting 窗口的
+                // "Intensity Multiplier"）。取目录正午档的 0.85 而不是写死字面量——烘焙值必须与
+                // 运行时 AmbientDirector.ApplyPreset 写的值逐值一致，否则编辑器与运行时亮度不一致。
+                RenderSettings.ambientIntensity =
+                    AmbientTimeOfDayCatalog.For(AmbientTimeOfDay.Noon).AmbientIntensity;
+                return;
+            }
+
             // AmbientMode.Trilight 就是 Lighting 窗口里的 "Gradient"（Skybox / Gradient / Color）。
             RenderSettings.ambientMode = AmbientMode.Trilight;
             RenderSettings.ambientSkyColor = Hex("#7EA8CC");     // 冷蓝补光（朝上法线）

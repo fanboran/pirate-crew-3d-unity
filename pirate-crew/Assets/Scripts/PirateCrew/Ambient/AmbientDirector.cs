@@ -126,6 +126,9 @@ namespace PirateCrew.PirateCrew.Ambient
         bool _warnedMissingSun;
         bool _warnedMissingSkybox;
 
+        /// <summary>命令行 -ambientTimeOfDay 覆盖生效中（真 = SetTimeOfDay 的调用方档位被忽略）。</summary>
+        bool _cliTierOverride;
+
         /// <summary>运行时程序化建的天空盒材质（<see cref="ResolveSkyboxMaterial"/> 的兜底路径；Teardown 里销毁）。</summary>
         Material _runtimeSkyboxMaterial;
 
@@ -251,6 +254,20 @@ namespace PirateCrew.PirateCrew.Ambient
             // 现有事件契约里唯一带"世界坐标"的爆炸事件（未新增任何事件）。
             EventBus.Subscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
             EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
+
+            // 命令行档位覆盖（-ambientTimeOfDay，见 AmbientTimeOfDayCatalog）：三档对比捕图 / 试玩
+            // 验证用，优先级**高于**世界地图档（BattleController 稍后 SetTimeOfDay 会被 _cliTierOverride 拦下）。
+            string[] commandLineArgs = global::System.Environment.GetCommandLineArgs();
+            if (AmbientTimeOfDayCatalog.TryParseCommandLineTier(commandLineArgs, out AmbientTimeOfDay cliTier))
+            {
+                timeOfDay = cliTier;
+                _cliTierOverride = true;
+            }
+            else if (AmbientTimeOfDayCatalog.CommandLineTierSwitchPresent(commandLineArgs))
+            {
+                global::PirateCrew.Core.Log.Warn("[Ambient] " + AmbientTimeOfDayCatalog.CommandLineTierSwitch
+                    + " 的档名不合法（应为 Noon/Dusk/Overcast，Storm=Overcast 别名）→ 忽略，按地图档运行。");
+            }
 
             if (applyPresetOnStart)
                 ApplyPreset();
@@ -386,6 +403,11 @@ namespace PirateCrew.PirateCrew.Ambient
         /// <summary>切换昼夜/天气档位（主光 + 雾 + 环境光同步切换，美术风格指南判据 C-5）。</summary>
         public void SetTimeOfDay(AmbientTimeOfDay value)
         {
+            // 命令行显式指定的档位优先级最高（-ambientTimeOfDay，对比捕图用）：
+            // 世界地图/BattleController 的切档被覆盖，保证拍出来的就是目标档。
+            if (_cliTierOverride)
+                value = timeOfDay;
+
             timeOfDay = value;
             ApplyPreset();
         }

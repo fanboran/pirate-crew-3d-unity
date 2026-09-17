@@ -217,18 +217,21 @@ namespace PirateCrew.PirateCrew.Ambient.Tests
         }
 
         /// <summary>
-        /// **接线开关默认必须是 Trilight**（= 现役画面基准不变）。
+        /// **接线开关当前默认是 Skybox**（2026-09-17 用户拍板翻转）。
         ///
-        /// 任务书的前置门：视觉批次 A–F 的【提案/待定】数值实拍转正前不动全局参数，否则两轮调参互相覆盖。
-        /// 这条测试就是那道门的机器可读形式——谁把开关翻成 Skybox，必须同时（在提交信息里）说明
-        /// A–F 已转正，并重跑装配链与出图（步骤见 docs/环境光天空盒化-预研与接线清单.md §6）。
+        /// 【这条测试的历史】它最初叫 <c>Switch_DefaultsToTrilight_SoBaselineIsUnchanged</c>，钉的是
+        /// 任务书前置门——"视觉批次 A–F 实拍转正前不动全局参数"。用户拍板"你自己干"后翻转；
+        /// A–F 与天空盒由此改为**同一轮实拍验收**（此前没有已转正的基线图，不存在被作废的调参轮）。
+        /// 若要把环境光整体回退到三灯分层，把 <see cref="AmbientSkyboxCatalog.DefaultAmbientSource"/>
+        /// 改回 <see cref="AmbientSkySource.Trilight"/> 即可（Trilight 路径完整保留，见
+        /// BattleSceneLighting.ApplyThreePointAmbient），本测试随之改回旧断言。
         /// </summary>
         [Test]
-        public void Switch_DefaultsToTrilight_SoBaselineIsUnchanged()
+        public void Switch_DefaultsToSkybox_AmbientUpgradeLanded()
         {
-            Assert.AreEqual(AmbientSkySource.Trilight, AmbientSkyboxCatalog.DefaultAmbientSource,
-                "环境光来源开关默认必须是 Trilight：A–F 实拍转正前不改变现役画面基准");
-            Assert.IsFalse(AmbientSkyboxCatalog.SkyboxAmbientEnabled,
+            Assert.AreEqual(AmbientSkySource.Skybox, AmbientSkyboxCatalog.DefaultAmbientSource,
+                "环境光来源开关当前默认是天空盒驱动（2026-09-17 翻转，见测试注释）");
+            Assert.IsTrue(AmbientSkyboxCatalog.SkyboxAmbientEnabled,
                 "开关与 DefaultAmbientSource 必须一致（SkyboxAmbientEnabled 是它的派生读法）");
         }
 
@@ -248,6 +251,43 @@ namespace PirateCrew.PirateCrew.Ambient.Tests
                 Assert.AreEqual(i, (int)AmbientSkyboxCatalog.Tiers[i],
                     "Tiers[" + i + "] 必须是枚举值为 " + i + " 的档位（序列化数组按下标取档）");
             }
+        }
+
+        /// <summary>
+        /// 命令行档位覆盖解析（纯函数）：大小写不敏感、Storm 是 Overcast 的别名（与世界地图
+        /// <c>AmbientTier</c> 字段同一套叫法）、未提供或档名不合法都返回 false——后者由调用方告警，
+        /// 不静默吞（拼错档名却继续跑会让人以为在拍目标档）。
+        /// </summary>
+        [Test]
+        public void CommandLineTier_ParsesNamesCaseInsensitive_AndRejectsGarbage()
+        {
+            Assert.IsTrue(AmbientTimeOfDayCatalog.TryParseCommandLineTier(
+                new[] { "PirateCrew3D.exe", "-ambientTimeOfDay", "Noon" }, out AmbientTimeOfDay tier));
+            Assert.AreEqual(AmbientTimeOfDay.Noon, tier);
+
+            Assert.IsTrue(AmbientTimeOfDayCatalog.TryParseCommandLineTier(
+                new[] { "exe", "-ambientTimeOfDay", "dusk" }, out tier));
+            Assert.AreEqual(AmbientTimeOfDay.Dusk, tier);
+
+            // Storm 别名：与世界地图 AmbientTier 的写法对齐。
+            Assert.IsTrue(AmbientTimeOfDayCatalog.TryParseCommandLineTier(
+                new[] { "exe", "-ambientTimeOfDay", "STORM" }, out tier));
+            Assert.AreEqual(AmbientTimeOfDay.Overcast, tier);
+
+            // 缺值 / 未知档名 / 开关不存在：都不覆盖。
+            Assert.IsFalse(AmbientTimeOfDayCatalog.TryParseCommandLineTier(
+                new[] { "exe", "-ambientTimeOfDay" }, out _));
+            Assert.IsFalse(AmbientTimeOfDayCatalog.TryParseCommandLineTier(
+                new[] { "exe", "-ambientTimeOfDay", "sunset" }, out _));
+            Assert.IsFalse(AmbientTimeOfDayCatalog.TryParseCommandLineTier(
+                new[] { "exe", "-worldMap", "wreck_hymn" }, out _));
+            Assert.IsFalse(AmbientTimeOfDayCatalog.TryParseCommandLineTier(null, out _));
+
+            // 开关存在性探针：区分"没给"与"给了但不合法"（后者要告警）。
+            Assert.IsTrue(AmbientTimeOfDayCatalog.CommandLineTierSwitchPresent(
+                new[] { "exe", "-ambientTimeOfDay", "sunset" }));
+            Assert.IsFalse(AmbientTimeOfDayCatalog.CommandLineTierSwitchPresent(new[] { "exe" }));
+            Assert.IsFalse(AmbientTimeOfDayCatalog.CommandLineTierSwitchPresent(null));
         }
 
         // ------------------------------------------------------------------

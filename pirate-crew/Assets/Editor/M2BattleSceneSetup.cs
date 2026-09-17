@@ -930,6 +930,21 @@ namespace PirateCrew.EditorTools
             SetRef(so, "targetCamera", targetCamera);
             SetInt(so, "arenaWidthTiles", widthTiles);
             SetInt(so, "arenaDepthTiles", depthTiles);
+
+            // 三档天空盒材质（视觉遗留 #6 接线）：下标 = AmbientTimeOfDay。某档材质缺失就写 null——
+            // AmbientDirector 运行时按 AmbientSkyboxCatalog 程序化兜底，不因跳步执行而断。
+            // （材质本体由 SkyAssetBuilder.BuildAll 生成，ArtGate 步骤 ①.5 在场景装配之前。）
+            SerializedProperty skyboxArray = so.FindProperty("skyboxMaterials");
+            if (skyboxArray != null)
+            {
+                skyboxArray.arraySize = AmbientSkyboxCatalog.Tiers.Length;
+                for (int i = 0; i < AmbientSkyboxCatalog.Tiers.Length; i++)
+                {
+                    Material tierSky = SkyAssetBuilder.LoadMaterial(AmbientSkyboxCatalog.Tiers[i]);
+                    skyboxArray.GetArrayElementAtIndex(i).objectReferenceValue = tierSky;
+                }
+            }
+
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

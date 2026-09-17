@@ -183,6 +183,72 @@ namespace PirateCrew.PirateCrew.Ambient
             return (AmbientTimeOfDay)value;
         }
 
+        // ------------------------------------------------------------------
+        // 命令行档位覆盖（三档对比捕图 / 试玩验证用）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 命令行开关：<c>-ambientTimeOfDay Noon|Dusk|Overcast</c>（大小写不敏感，Storm 是 Overcast 的别名，
+        /// 与世界地图 <c>AmbientTier</c> 字段同一套叫法）。与 <c>-worldMap</c>/<c>-oceanDebug</c> 同风格：
+        /// 各模块解析自己的开关，解析逻辑是纯函数、无头可测。
+        /// </summary>
+        public const string CommandLineTierSwitch = "-ambientTimeOfDay";
+
+        /// <summary>
+        /// 从命令行参数解析氛围档覆盖。未提供返回 false；**显式给了但不合法也返回 false**
+        /// （调用方负责告警，不静默吞——拼错档名却继续跑会让人以为在拍目标档）。
+        /// 纯 C#，无头可测。
+        /// </summary>
+        public static bool TryParseCommandLineTier(string[] args, out AmbientTimeOfDay tier)
+        {
+            tier = Default;
+            if (args == null)
+                return false;
+
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (string.CompareOrdinal(args[i], CommandLineTierSwitch) != 0)
+                    continue;
+
+                string token = args[i + 1];
+                if (string.Equals(token, "Noon", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    tier = AmbientTimeOfDay.Noon;
+                    return true;
+                }
+                if (string.Equals(token, "Dusk", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    tier = AmbientTimeOfDay.Dusk;
+                    return true;
+                }
+                if (string.Equals(token, "Overcast", System.StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(token, "Storm", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    tier = AmbientTimeOfDay.Overcast;
+                    return true;
+                }
+
+                return false;
+            }
+
+            return false;
+        }
+
+        /// <summary>命令行里是否出现 <see cref="CommandLineTierSwitch"/>（与解析结果配合区分"没给"和"给了但不合法"）。</summary>
+        public static bool CommandLineTierSwitchPresent(string[] args)
+        {
+            if (args == null)
+                return false;
+
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (string.CompareOrdinal(args[i], CommandLineTierSwitch) == 0)
+                    return true;
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// sRGB 十六进制解析（纯 C#）。**刻意不用 <c>ColorUtility.TryParseHtmlString</c>**——
         /// 它是原生 ECall，脱离 Unity 运行时必抛 <c>SecurityException</c>，

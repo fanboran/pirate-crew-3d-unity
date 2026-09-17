@@ -130,10 +130,15 @@ namespace PirateCrew.PirateCrew.Ambient
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// **环境光来源开关**（本功能唯一的开关）。默认 <see cref="AmbientSkySource.Trilight"/>：
-        /// 不改变现役画面基准（A–F 实拍转正前不动全局参数，任务书前置门）。
+        /// **环境光来源开关**（本功能唯一的开关）。
+        ///
+        /// 【2026-09-17 翻转】用户拍板"你自己干"→ 翻为 <see cref="AmbientSkySource.Skybox"/>：
+        /// 环境光改由天空盒卷积驱动（有方向与色彩变化），Trilight 三色路径保留为回退锚点未删。
+        /// 此前默认 Trilight 是任务书前置门（A–F 实拍转正前不动全局参数）的钉子，对应测试
+        /// `Switch_DefaultsToSkybox_AmbientUpgradeLanded` 记录了这次翻转；A–F 与天空盒改为
+        /// **同一轮实拍验收**。翻转操作三步见 `docs/环境光天空盒化-预研与接线清单.md` §6。
         /// </summary>
-        public const AmbientSkySource DefaultAmbientSource = AmbientSkySource.Trilight;
+        public const AmbientSkySource DefaultAmbientSource = AmbientSkySource.Skybox;
 
         /// <summary>是否启用天空盒驱动环境光（<c>AmbientDirector.ApplyPreset</c> 读它）。</summary>
         public static bool SkyboxAmbientEnabled => DefaultAmbientSource == AmbientSkySource.Skybox;
