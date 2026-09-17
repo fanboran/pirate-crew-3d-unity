@@ -16,3 +16,6 @@ export/art-review/r1/
 
 # Python 缓存（Blender 无头管线副产物）
 __pycache__/
+
+# M4 世界地图实拍：原始 PNG 不入库，入库的是 1280 宽 JPEG（同 art-review 惯例）
+export/worldmap-captures-r2/*/*.png
