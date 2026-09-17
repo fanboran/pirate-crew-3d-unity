@@ -8,15 +8,23 @@
 //   S) 长涌 swell ×2（波长 120/72u、振幅 1.10/0.65，外海"茫茫大海"的主载体）与现有 4 波 chop
 //      叠加为 6 波 Gerstner；位移与法线仍同一组解析导数（与顶点位移同源，沿用旧件结论）。
 //   E) 长涌近岸包络：距竞技场中心 ≤ 保护半径时长涌振幅压到 0（波峰硬约束：波峰最高点 < -0.10，
-//      不穿岛基湿沙带——水面 -0.4、chop 振幅和 0.278 → 近岸波峰 -0.122 ✓），保护圈外 260u 内
-//      smoothstep 爬到 1（外海全涌）。包络参数由 OceanRig 以全局 _OceanArenaCenter 发布，
-//      C# 契约在 OceanRules.SwellEnvelope（两边同式）。
+//      不穿岛基湿沙带——水面 -0.4、chop 振幅和 0.278 → 近岸波峰 -0.122 ✓），保护圈外 110u 内
+//      smoothstep 爬到 1（外海全涌）。保护圈 = 竞技场半径+12、全涌起点 = 半径+122：
+//      按"可见海域预算"（docs/审计/视觉审计报告.md §三，【提案/待定】）全涌起点须 ≤310u（图心系）
+//      且落在 55° 俯角画面可见斜距 ≤~350u 内——最大世界地图（跨度 260 → 半径 ≈184）全涌起点
+//      ≈306u ✓，长涌在玩家看得见的距离就是全涌。包络参数由 OceanRig 以全局 _OceanArenaCenter
+//      发布，C# 契约在 OceanRules.SwellEnvelope（两边同式）。
 //   W) 波峰白帽：雅可比（陡度）阈值触发 + 波高门槛 + 世界空间双层噪声碎化边缘 +
 //      近岸降权（OceanRules.WhitecapMask 同式）。
 //   H) 地平线融合：位移在 2000→3000u 淡出到 0（远场只留法线扰动，海天线不闪）、
-//      2600→3900u 颜色融进雾色 #B0D4F1 且 alpha→1（海天线干净）；网格裙边由 OceanRig
-//      铺到 4200u ≥ 4000u 契约。另有"网格密度 LOD"：波长不足以被当前环宽解析（λ < 3×环宽）的
-//      短波几何位移淡出（OceanRules.WaveGeometricFade 同式），法线不受影响 → 远处无几何 boiling。
+//      1000→1400u 颜色融进雾色 #B0D4F1 且 alpha→1（海天线干净）——按"可见海域预算"，
+//      正午雾 150→1200u（雾侧批次），融合在 1200u 处过半、1400u 收满，海面在雾色饱和区
+//      无缝并入天空；旧 2600→3900 在新雾纲下早被雾糊成纯色板，融合形同虚设。
+//      网格裙边由 OceanRig 铺到 4200u ≥ 4000u 契约。另有"网格密度 LOD"：波长不足以被
+//      当前环宽解析（λ < 3×环宽）的短波几何位移淡出（OceanRules.WaveGeometricFade 同式），
+//      法线不受影响 → 远处无几何 boiling。环宽增长率 1.15（_GridRingGrowth 与 C# 镜像
+//      OceanGridRules.RingGrowth 三处同值）下 300u 处环宽 ≈26u，λ120 长涌在包络起点
+//      （≈306u）即被完整解析（每波 4.6 顶点 > 3 顶点达标线）。
 //   另加：波背背光透射 + 薄层散射——技法吸收自 HPWater BSDF 的 diffT 项
 //   （G_backlit × Beer-Lambert 透射 × Henyey 相位；厚度用绝对波高近似，近岸自动弱、外海强；
 //   详见 docs/M4-海面选型与实现.md 的 HPWater 吸收表）。
@@ -90,18 +98,23 @@ Shader "PirateCrew/Ocean"
         _W4Speed                ("W4 相速倍率", Float) = 1.50
 
         // ---- 网格密度（OceanRig/OceanGridRules 落盘口径；shader 只用来算 LOD 淡出）----
+        // RingGrowth=1.15：300u 处环宽 ≈26u → λ120 长涌在包络起点（≈306u）几何淡出仍 = 1.0
+        //（可见海域预算：全涌发生在画面可见区内，几何必须跟得上）；与 OceanGridRules.RingGrowth 同值。
         _GridCellSize           ("近场格距（世界单位）", Float) = 1.6
         _GridUniformRadius      ("均匀区半径（世界单位）", Float) = 128.0
-        _GridRingGrowth         ("环宽增长率", Float) = 1.25
+        _GridRingGrowth         ("环宽增长率", Float) = 1.15
 
         // ---- 顶点位移远场淡出（海天线不闪）----
         _DisplaceFadeStart      ("位移淡出起点（距相机，世界单位）", Range(200.0, 4000.0)) = 2000.0
         _DisplaceFadeEnd        ("位移淡出终点（距相机，世界单位）", Range(400.0, 5000.0)) = 3000.0
 
         // ---- 地平线融合（雾色 #B0D4F1，美术风格指南 §2.1/品控 Q-12）----
+        // 可见海域预算（docs/审计/视觉审计报告.md §三，【提案/待定】）：正午雾 150→1200u，
+        // 融合 1000→1400 在雾饱和区前后把海面颜色/alpha 收敛到雾色，海天线干净不露硬边；
+        // 与 OceanRules.HorizonFadeStart/End 及 Ocean_Water.mat 三处同值。
         _HorizonColor           ("地平线/雾色 #B0D4F1", Color) = (0.6902, 0.8314, 0.9451, 1.0)
-        _HorizonFadeStart       ("地平线融合起点（距相机，世界单位）", Range(400.0, 6000.0)) = 2600.0
-        _HorizonFadeEnd         ("地平线融合终点（距相机，世界单位）", Range(800.0, 8000.0)) = 3900.0
+        _HorizonFadeStart       ("地平线融合起点（距相机，世界单位）", Range(400.0, 6000.0)) = 1000.0
+        _HorizonFadeEnd         ("地平线融合终点（距相机，世界单位）", Range(800.0, 8000.0)) = 1400.0
 
         // ---- 高频细节法线（旧的双层 FBM，叠加在 Gerstner 解析法线之上；远处淡出防闪点）----
         _WaveScaleA             ("A 层细节波尺度", Float) = 0.32

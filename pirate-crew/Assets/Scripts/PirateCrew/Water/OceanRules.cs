@@ -30,8 +30,18 @@ namespace PirateCrew.PirateCrew.Water
     /// 换算：-0.10 − 水面(-0.4) = 近岸可用振幅预算 0.30；现有 4 波 chop 振幅合计 0.278 →
     /// 近岸波峰 -0.122 &lt; -0.10 ✓。长涌（振幅 0.5~1.2，远超预算）**只允许出现在外海**——
     /// 由 <see cref="SwellEnvelope"/> 在竞技场近岸保护圈内把长涌振幅压到 0，
-    /// 保护圈半径覆盖全部 M4 地图跨度（≤280u）后在外海平滑升到 1。
+    /// 圈外经 <see cref="SwellRampWidth"/> 爬坡后在外海平滑升到 1。
     /// 外海没有岛/角色，"茫茫大海"的全振幅涌浪在那里才是想要的。
+    ///
+    /// 【可见海域预算（统一契约，抄自 docs/审计/视觉审计报告.md §三；数值【提案/待定】，实拍验收后转正）】
+    /// 相机/雾/海洋三套尺度纲必须自洽，本类常量按下表取值；后续调参先改审计文档再改这里：
+    /// | 子系统         | 契约值                          | 本类落点                          |
+    /// | -------------- | ------------------------------- | --------------------------------- |
+    /// | 全景相机       | 距离 ≤160u                      | （BattleCameraController，不在本类） |
+    /// | 画面可见海面   | 55° 俯角斜距 ≤~350u             | 全涌起点必须 &lt; 350（见下）      |
+    /// | 正午雾         | 150→1200u                       | （雾侧批次负责，本表只作对齐基准）|
+    /// | 全涌起点       | 图心系 ≤310u                    | 半径+<see cref="ShorePadding"/>+<see cref="SwellRampWidth"/> = 半径+122 → 最大世界地图 ≈306 ✓ |
+    /// | 地平线融合     | 1000→1400u（雾饱和前收干净海天线） | <see cref="HorizonFadeStart"/>/<see cref="HorizonFadeEnd"/> |
     /// </summary>
     public static class OceanRules
     {
@@ -88,11 +98,21 @@ namespace PirateCrew.PirateCrew.Water
         /// <summary>默认竞技场半径（半对角，世界单位）。覆盖 M4 最大跨度 280u（半对角 ≈198）+ 余量。</summary>
         public const float DefaultArenaRadius = 200f;
 
-        /// <summary>保护圈外扩余量（世界单位）：岛缘/湿沙带外再留一圈缓冲。</summary>
-        public const float ShorePadding = 24f;
+        /// <summary>
+        /// 保护圈外扩余量（世界单位）：岛缘/湿沙带外再留一圈缓冲（smoothstep 的 0 平台）。
+        /// 可见海域预算：全涌起点 = 竞技场半径 + <see cref="ShorePadding"/> + <see cref="SwellRampWidth"/>
+        /// ≤ 310u（图心系），12 是罩住湿沙带（竞技场半径内缘）所需的最小缓冲——
+        /// 旧值 24 把全涌起点推远 12u，属于无收益的预算浪费。
+        /// </summary>
+        public const float ShorePadding = 12f;
 
-        /// <summary>包络爬坡宽度（世界单位）：保护圈外从 0 升到 1 的距离。</summary>
-        public const float SwellRampWidth = 260f;
+        /// <summary>
+        /// 包络爬坡宽度（世界单位）：保护圈外从 0 升到 1 的距离。
+        /// 可见海域预算换算：最大 M4 世界地图跨度 260u → 图心半径 ≈184，全涌起点 = 184+12+110 ≈ 306 ≤ 310 ✓，
+        /// 落在 55° 俯角画面可见斜距 ≤~350u 内——长涌必须在玩家看得到的距离全涌，否则"茫茫大海"白做；
+        /// 旧值 260 时全涌起点 ≈456u，全在画面外与雾饱和区。
+        /// </summary>
+        public const float SwellRampWidth = 110f;
 
         /// <summary>近岸保护半径：圈内长涌振幅 = 0（波峰契约在这里生效）。</summary>
         public static float ProtectRadius(float arenaRadius)
@@ -232,11 +252,15 @@ namespace PirateCrew.PirateCrew.Water
         // 地平线融合（雾色 #B0D4F1，见美术风格指南 §2.1/品控 Q-12）
         // ------------------------------------------------------------------
 
-        /// <summary>地平线融合起点（距相机，世界单位）。</summary>
-        public const float HorizonFadeStart = 2600f;
+        /// <summary>地平线融合起点（距相机，世界单位）。可见海域预算：1000（雾 150→1200 的浓雾段起）。</summary>
+        public const float HorizonFadeStart = 1000f;
 
-        /// <summary>地平线融合终点：之外水面完全等于雾色、alpha=1（海天线干净）。</summary>
-        public const float HorizonFadeEnd = 3900f;
+        /// <summary>
+        /// 地平线融合终点：之外水面完全等于雾色、alpha=1（海天线干净）。可见海域预算：1400。
+        /// 新雾终点 1200（雾侧批次）：融合在 1200 处过半、1400 收满——海面在雾色全饱和前后
+        /// 无缝并入天空，海天线不露硬边；旧值 3900 时雾早已把海面糊成纯色板，这条融合等于没写。
+        /// </summary>
+        public const float HorizonFadeEnd = 1400f;
 
         /// <summary>地平线融合比例 ∈ [0→1]（颜色向雾色混合、alpha 向 1 混合）。</summary>
         public static float HorizonFade(float distanceToCamera)

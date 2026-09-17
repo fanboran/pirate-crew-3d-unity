@@ -144,6 +144,29 @@ namespace PirateCrew.PirateCrew.Water.Tests
             Assert.That(full - protect, Is.EqualTo(OceanRules.SwellRampWidth).Within(1e-4f));
         }
 
+        [Test]
+        public void EnvelopeConstants_PinVisibleSeaBudgetValues()
+        {
+            // 钉住"可见海域预算"（docs/审计/视觉审计报告.md §三）采用的包络常量：
+            // 保护余量 12 + 爬坡 110 → 全涌起点 = 竞技场半径+122。改常量必须先过审计文档契约表。
+            Assert.AreEqual(12f, OceanRules.ShorePadding);
+            Assert.AreEqual(110f, OceanRules.SwellRampWidth);
+        }
+
+        [Test]
+        public void FullSwellRadius_EntersVisibleSeaBudget()
+        {
+            // 契约（【提案/待定】，实拍验收后转正）：全涌起点（图心系）≤310u，
+            // 且须落在 55° 俯角画面可见斜距 ≤~350u 内——长涌必须在玩家看得到的距离全涌。
+            // 默认竞技场口径（半径 200）：200+12+110 = 322，钉住 ramp 总量不超 122。
+            Assert.That(OceanRules.FullSwellRadius(OceanRules.DefaultArenaRadius),
+                Is.LessThanOrEqualTo(322f));
+            // 最大 M4 世界地图（跨度 260u → 图心半对角 ≈184）：184+122 ≈306 ≤ 310 ✓。
+            float largestWorldRadius = 260f * Mathf.Sqrt(0.5f);
+            Assert.That(OceanRules.FullSwellRadius(largestWorldRadius),
+                Is.LessThanOrEqualTo(310f));
+        }
+
         // ------------------------------------------------------------------
         // 远场淡出与地平线
         // ------------------------------------------------------------------
@@ -173,6 +196,17 @@ namespace PirateCrew.PirateCrew.Water.Tests
             Assert.AreEqual(0f, OceanRules.HorizonFade(OceanRules.HorizonFadeStart), 1e-5f);
             Assert.AreEqual(1f, OceanRules.HorizonFade(OceanRules.HorizonFadeEnd), 1e-5f);
             Assert.That(OceanRules.HorizonFadeEnd, Is.LessThan(OceanGridRules.HorizonRadius));
+        }
+
+        [Test]
+        public void HorizonFade_PinVisibleSeaBudgetValues()
+        {
+            // 钉住"可见海域预算"的融合窗：1000→1400（正午雾 150→1200 饱和区前后收干净海天线）。
+            // 旧 2600→3900 在新雾纲下形同虚设；改这两个值必须先改审计文档契约表。
+            Assert.AreEqual(1000f, OceanRules.HorizonFadeStart);
+            Assert.AreEqual(1400f, OceanRules.HorizonFadeEnd);
+            // 融合终点必须压住雾终点（1200）：海面在雾色全饱和前已开始并入雾色。
+            Assert.That(OceanRules.HorizonFadeStart, Is.LessThanOrEqualTo(1200f));
         }
 
         [Test]
@@ -348,7 +382,8 @@ namespace PirateCrew.PirateCrew.Water.Tests
                 OceanGridRules.TriangleCount(rings));
             Assert.AreEqual(OceanGridRules.TriangleCount(rings) * 3, OceanGridRules.IndexCount(rings));
 
-            // 规模核对（不计性能，但也不能失控）：默认梯子 ~110 环 → 顶点 < 40k、面 < 80k。
+            // 规模核对（不计性能，但也不能失控）：RingGrowth=1.15 梯子 ~123 环（均匀步进 81 格到 ≈129.6
+            // + 增长 42 环，128 边界按浮点累加舍入）→ 顶点 ≈3.16 万、面 ≈6.27 万。
             Assert.That(rings, Is.InRange(90, 200));
             Assert.That(OceanGridRules.VertexCount(rings), Is.LessThan(40000));
             Assert.That(OceanGridRules.TriangleCount(rings), Is.LessThan(80000));
@@ -360,6 +395,32 @@ namespace PirateCrew.PirateCrew.Water.Tests
         {
             // 步进对齐的口径：相机移动不足一格时网格原地不动。
             Assert.AreEqual(OceanGridRules.CellSize, OceanGridRules.SnapStep, 1e-6f);
+        }
+
+        [Test]
+        public void RingGrowth_PinVisibleSeaBudgetValue()
+        {
+            // 钉住"可见海域预算"采用的增长率 1.15（shader _GridRingGrowth 默认值与
+            // Ocean_Water.mat 序列化值同值，三处必须一起改）。
+            Assert.AreEqual(1.15f, OceanGridRules.RingGrowth, 1e-5f);
+        }
+
+        [Test]
+        public void LongSwell_FullyResolvedAtFullSwellStart()
+        {
+            // 可见海域预算核心验证：全涌起点（最大世界地图 ≈184+122 ≈306u，图心系）处，
+            // λ120 长涌必须被网格完整解析（几何淡出 = 1.0），否则"全涌进画面"只是包络数值游戏——
+            // 位移早就被网格密度枪毙了。λ120 全解析的充要条件：环宽 ≤ λ/3 = 40u。
+            float largestWorldRadius = 260f * Mathf.Sqrt(0.5f);
+            float swellStart = OceanRules.FullSwellRadius(largestWorldRadius);
+            float cell = OceanGridRules.RingWidthAtRadius(swellStart);
+            Assert.That(cell, Is.LessThanOrEqualTo(40f),
+                $"全涌起点 {swellStart:F0}u 处环宽 {cell:F1}u 超过 λ120 的 3 顶点/波上限 40u");
+            Assert.AreEqual(1f, OceanRules.WaveGeometricFade(120f, cell), 1e-5f);
+            // 锚点核对（RingGrowth=1.15 口径）：300u 处环宽 ≈26u（旧 1.25 时 ≈45u，位移只剩 62%）。
+            float cell300 = OceanGridRules.RingWidthAtRadius(300f);
+            Assert.That(cell300, Is.LessThanOrEqualTo(30f), $"300u 处环宽 {cell300:F1}u 应 ≈26u 量级");
+            Assert.AreEqual(1f, OceanRules.WaveGeometricFade(120f, cell300), 1e-5f);
         }
     }
 }

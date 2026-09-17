@@ -50,12 +50,12 @@ Material:
     - _FresnelPower: 5
     - _FresnelStrength: 1
     - _GridCellSize: 1.6
-    - _GridRingGrowth: 1.25
+    - _GridRingGrowth: 1.15
     - _GridUniformRadius: 128
     - _HeightFieldFoamStrength: 0.6
     - _HeightFieldNormalStrength: 0.35
-    - _HorizonFadeEnd: 3900
-    - _HorizonFadeStart: 2600
+    - _HorizonFadeEnd: 1400
+    - _HorizonFadeStart: 1000
     - _ObstacleFoamBoost: 1.2
     - _Opacity: 0.94
     - _ReflectionStrength: 0.7

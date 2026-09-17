@@ -26,8 +26,17 @@ namespace PirateCrew.PirateCrew.Water
         /// <summary>均匀细网格半径（世界单位）。128 与 WaterSimRules.DefaultDomainSize 同尺度，覆盖竞技场核心区。</summary>
         public const float UniformRadius = 128f;
 
-        /// <summary>中场环带宽度增长率（每环比上一环宽 25%）。</summary>
-        public const float RingGrowth = 1.25f;
+        /// <summary>
+        /// 中场环带宽度增长率（每环比上一环宽 15%）。
+        /// 【可见海域预算】增长率决定"波几何在多远还能被网格解析"：λ120 长涌全解析要求
+        /// 环宽 ≤ λ/3 = 40u（<see cref="OceanRules.WaveGeometricFade"/> 达 1.0 的线性区）。
+        /// 1.15 下全涌起点（最大世界地图 ≈306u）处环宽 ≈26u < 40 → 长涌一进画面就是完整位移；
+        /// 旧值 1.25 时 300u 处环宽已 ≈45u、~500u 前几何位移全灭，长涌包络被网格密度枪毙。
+        /// 代价核对：裙边到 4200u 总环数 ~123 环（均匀区浮点累加实际步进 81 格到 ≈129.6 + 增长 42 环）
+        /// → 顶点 ≈3.16 万、三角面 ≈6.27 万，仍在 16 位索引内（<see cref="Needs32BitIndices"/> 为 false；
+        /// OceanRig 的 32 位索引路径按需兜底）。
+        /// </summary>
+        public const float RingGrowth = 1.15f;
 
         /// <summary>地平线裙边半径（世界单位）。M4 §1/§5 硬要求 ≥ 4000。</summary>
         public const float HorizonRadius = 4200f;
@@ -95,6 +104,8 @@ namespace PirateCrew.PirateCrew.Water
         /// 供 <see cref="OceanRules.WaveGeometricFade"/> 判定"当前网格能否解析这条波"。
         /// 均匀区内恒 <see cref="CellSize"/>；之外的闭式解与 <see cref="RingRadii"/> 的累加梯子一致
         /// （同调日志/同调 pow，环边界处的半环误差对淡出无感）。
+        /// 【可见海域预算锚点】RingGrowth=1.15 时 300u 处环宽 ≈26u（旧 1.25 时 ≈45u）：
+        /// λ120 长涌在该距离的几何淡出 = clamp01((120/(3×26) − 0.7)/0.3) = 1.0，位移完整。
         /// </summary>
         public static float RingWidthAtRadius(float radius)
         {
