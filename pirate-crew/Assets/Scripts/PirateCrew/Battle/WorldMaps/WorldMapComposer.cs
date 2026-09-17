@@ -48,6 +48,11 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         /// <summary>构建整图（碰撞 + 灰盒 + 已配置的 kit 视觉）。返回根 Transform。</summary>
         public static Transform Build(Transform parent, WorldMapDefinition map, WorldMapAssetSet assetSet)
         {
+            // 换图重建 = 旧图已随场景卸载销毁的时点：上一张图缓存的三档站面材质已无引用者，
+            // 在此销毁释放（static 字典跨场景常驻，不 here 释放会在整个会话里越积越占）。
+            // 每张图重建 3 个材质的成本可忽略，换来「缓存不跨图滞留」的明确生命周期。
+            ReleaseBandMaterialCache();
+
             var root = new GameObject("WorldMap_" + map.Id);
             if (parent != null)
                 root.transform.SetParent(parent, false);
@@ -83,6 +88,20 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
                 // 批次 F：水面件（浮标等）吸附后 y = WaterSurfaceY，资格判定用**吸附后**的最终 y——
                 // "贴水"与否以落点为准，目录里的提示 y 不参与（Props 路径本来也不读它）。
                 ApplyFloatingViewIfEligible(go, go.transform.position.y);
+            }
+
+            // M4 远景特征接线：HorizonSeed/HorizonFeatures 的唯一消费点。规则层（纯 C#，可测）
+            // 产出确定性环带摆放，这里走与手摆 Horizon 完全相同的 kit 接入路径（BuildKitPlacement：
+            // 同一张资产表、同样的缺件静默跳过与静态标记）——不发明第二套实例化机制。
+            // 特征件在玩法区外（环带 200–280u > 地图对角半径），无碰撞、isStatic、随 root 销毁。
+            var horizonFeatures = HorizonFeatureRules.Place(map);
+            for (int i = 0; i < horizonFeatures.Count; i++)
+            {
+                HorizonFeatureRules.HorizonFeaturePlacement feature = horizonFeatures[i];
+                BuildKitPlacement(kitRoot.transform, "HorizonFeature",
+                    new WorldKitPlacement("Horizon", feature.Asset,
+                        feature.Position.x, feature.Position.z, feature.YawDeg, feature.Position.y),
+                    assetSet);
             }
             return root.transform;
         }
@@ -222,6 +241,22 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         }
 
         static readonly Dictionary<int, Material> _bandMaterials = new Dictionary<int, Material>();
+
+        /// <summary>
+        /// 释放三档共享站面材质缓存并清空字典（换图重建时由 <see cref="Build"/> 开头调用）。
+        /// static 字典跨场景常驻，材质是运行时 new 出来的对象、不随场景卸载销毁——不 here 释放
+        /// 会在整个编辑器会话/进程里无人认领地滞留。Object.Destroy 延迟到帧末也不影响正确性：
+        /// 旧图的站面已无引用，字典同步清空即视为释放完成。
+        /// </summary>
+        public static void ReleaseBandMaterialCache()
+        {
+            foreach (var pair in _bandMaterials)
+            {
+                if (pair.Value != null)
+                    Object.Destroy(pair.Value);
+            }
+            _bandMaterials.Clear();
+        }
 
         /// <summary>
         /// 站面分带材质（三档共享缓存，不按 box 实例化——有限色板/材质预算纪律不变）。

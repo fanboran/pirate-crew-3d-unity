@@ -33,7 +33,9 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         }
     }
 
-    /// <summary>地形/船坞/远景件摆放（根 = 海平面 y=0；Yaw 绕 Y 轴，度，逆时针俯视）。</summary>
+    /// <summary>地形/船坞/远景件摆放（根默认 = 海平面 y=0；Yaw 绕 Y 轴，度，逆时针俯视）。
+    /// positionY 供需要脱离海平面的摆放显式给值（远景特征环：鲸半浸下沉 / 云带抬空，
+    /// 见 <see cref="HorizonFeatureRules"/>）；目录手摆件不传即维持 y=0 旧口径。</summary>
     public struct WorldKitPlacement
     {
         public readonly string Kit;
@@ -41,11 +43,11 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         public readonly Vector3 Position;
         public readonly float YawDeg;
 
-        public WorldKitPlacement(string kit, string asset, float x, float z, float yawDeg = 0f)
+        public WorldKitPlacement(string kit, string asset, float x, float z, float yawDeg = 0f, float positionY = 0f)
         {
             Kit = kit;
             Asset = asset;
-            Position = new Vector3(x, 0f, z);
+            Position = new Vector3(x, positionY, z);
             YawDeg = yawDeg;
         }
     }
