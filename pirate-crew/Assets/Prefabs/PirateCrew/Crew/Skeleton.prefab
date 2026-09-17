@@ -493,6 +493,7 @@ MonoBehaviour:
   bodyCollider: {fileID: 2232888606075178183}
   freezeRotation: 1
   visualAnimator: {fileID: 6004218235955922577}
+  enableRolling: 1
 --- !u!114 &1771963001774163864
 MonoBehaviour:
   m_ObjectHideFlags: 0
