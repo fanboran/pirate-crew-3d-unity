@@ -49,6 +49,22 @@
 
 ## 工作分解（五阶段，每阶段独立提交、门禁全绿才进下一阶段）
 
+> ### ✅ 阶段 1 已完成（2026-09-17，基准 `3c6b51d`）
+>
+> **前置核对结果：Track 8①② 未完成**（`Assets/Scripts/` 下仍是 `PirateCrew.Runtime` +
+> `PirateCrew.Rendering` 两个 asmdef，无三合一提交）→ 按本文规定**只做了阶段 1，未动场景**。
+>
+> 交付物：
+> - `pirate-crew/Assets/Editor/SceneWiringAudit.cs`（转储/比对工具，阶段 3 的等价性验收仪器）；
+> - [`docs/审计/场景接线审计报告.md`](审计/场景接线审计报告.md)（F-1…F-9 + 四 Prefab 切分契约 + 阶段 2–5 细化）；
+> - `pirate-crew/Assets/Scenes/README.md`（场景契约：装配链铁律 + 三类切分 + 改前必跑转储）。
+>
+> 实测要点：372 对象 / 23 根 / Prefab 实例 0 / 1741 引用（跨根 26 条，且**全部是场景内互指**→
+> 整体收进单 Prefab 即可全部内化）；Find 存量按根因分三类（字段未序列化 / 字段不存在 / 全局兜底）；
+> 163 个 `IslandTile_*` 按 level 1 烘死混在 HUD 里；新发现 `Scene_SandWet.mat` 缺失致运行时该组静默跳过。
+>
+> **阶段 2–5 的开工条件**：等 Track 8①② 落地（否则与 asmdef 大搬家互相踩）。届时按审计报告 §五 推进。
+
 1. **场景接线审计**：编辑器实测层级 → 产出「归 Prefab / 留生成」切分契约
    （写进 AGENTS.md 场景节或 `Assets/Scenes/README.md`，标注哪些结构手工、哪些生成）。
 2. **试点 Prefab 化**：HUD 栈（BattleHudBuilder 产物）、相机 rig、队伍挂点、服务宿主——

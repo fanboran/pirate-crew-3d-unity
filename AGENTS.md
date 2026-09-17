@@ -80,6 +80,8 @@
 | 查 Unity 实现参照 / 本机 API 陷阱 | [docs/M2-Unity参照库调研.md](docs/M2-Unity参照库调研.md)（4 个参照库 + R1-R9 风险清单） |
 | 加跨模块事件 / 查事件契约 | [docs/EventBus事件契约.md](docs/EventBus事件契约.md)（事件名与载荷登记表，禁止散落魔法字符串） |
 | 调描边 shader 参数 | [docs/描边Shader调试.md](docs/描边Shader调试.md) |
+| **改 Battle 场景 / 装配脚本前必读** | [pirate-crew/Assets/Scenes/README.md](pirate-crew/Assets/Scenes/README.md)（场景来源 / 装配链顺序铁律 / 归 Prefab 与留生成的切分契约 / 改前必跑的转储命令） |
+| 查场景接线的实测证据与修复计划 | [docs/审计/场景接线审计报告.md](docs/审计/场景接线审计报告.md)（372 对象/23 根/26 条跨根引用/Find 存量根因，基准 `3c6b51d`） |
 | **查 3D 空间模型 / 坐标口径（动坐标、相机、投掷、爆炸前必读）** | [docs/M2-3D空间模型对齐.md](docs/M2-3D空间模型对齐.md)（**XZ 竞技场** + Flash 数值的分工契约） |
 | 查 3D 化进行中状态 / 并行分工 | [docs/M2-3D化-并行推进与交接.md](docs/M2-3D化-并行推进与交接.md) |
 | 查 Godot 版某系统怎么设计的 | `../game-3/pirate-crew-3d/docs/` 与 `../game-3/docs/` |
