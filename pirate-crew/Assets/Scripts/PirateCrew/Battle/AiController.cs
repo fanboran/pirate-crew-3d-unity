@@ -22,11 +22,11 @@ namespace PirateCrew.PirateCrew.Battle
     /// 【兜底】<see cref="TurnManager"/> 另设看门狗：本类若因异常/无候选迟迟不返回，
     ///         由 TurnManager 强制结束回合（AI 队回合绝不卡死）。
     ///
-    /// 【M2 已知边界（与武器运行时相关，属另一 agent）】
-    ///   §6.3 的 tidalWave / seagull / voodooDoll / 箱体 / cannon 等特殊武器的<b>实际效果</b>
-    ///   （生成浪、海鸥投弹、交换速度、放置箱体）需要各自武器脚本；本类当前只完成
-    ///   「选中角色 + 装备槽位 + 扣行动经济 + 广播 ai_decided（含落点/目标/速度）」，
-    ///   效果执行由后续武器运行时订阅 <see cref="BattleEvents.AiDecided"/> 或由 BattleController 接线。
+    /// 【特殊武器的执行】§6.3 的 tidalWave / seagull / voodooDoll / 箱体 / cannon 等特殊武器的
+    ///   <b>实际效果</b>已由 <c>WeaponProjectile</c>（及其规则层）在弹体内部实现：本类用武器时
+    ///   只做「选中角色 + 装备槽位 + 扣行动经济」，随后经 <see cref="BattleController.SpawnWeaponProjectiles"/>
+    ///   生成弹体，落点/目标/速度随生成参数传入，不再依赖订阅 <see cref="BattleEvents.AiDecided"/> 二次分发
+    ///   （该事件保留给表现层/调试做观测）。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class AiController : MonoBehaviour

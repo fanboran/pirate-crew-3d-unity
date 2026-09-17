@@ -120,7 +120,7 @@ namespace PirateCrew.Tests
         }
 
         [Test]
-        public void Hp_And_Percent_And_Timer_Format()
+        public void Hp_And_Percent_Format()
         {
             Assert.AreEqual("80/100", UiTextRules.Hp(80, 100));
             Assert.AreEqual(79, UiTextRules.Percent(0.786f));
@@ -128,8 +128,6 @@ namespace PirateCrew.Tests
             Assert.AreEqual(100, UiTextRules.Percent(2f));
             Assert.AreEqual("79%", UiTextRules.StrengthPercent(0.786f));
             Assert.AreEqual("力度 79%", UiTextRules.StrengthLabel(0.786f));
-            Assert.AreEqual("时间 0:45", UiTextRules.Timer(45));
-            Assert.AreEqual("时间 1:05", UiTextRules.Timer(65));
         }
 
         [Test]
@@ -137,7 +135,9 @@ namespace PirateCrew.Tests
         {
             Assert.AreEqual("移动", UiTextRules.ModeLabel(true));
             Assert.AreEqual("操作", UiTextRules.ModeLabel(false));
-            Assert.AreEqual("回合 3/20", UiTextRules.TurnCounter(3, 20));
+            // 【UI 审计 P1-4】原版 §3 无回合上限，回合计数不带「/满值」。
+            Assert.AreEqual("回合 1", UiTextRules.TurnCounter(1));
+            Assert.AreEqual("回合 3", UiTextRules.TurnCounter(3));
             Assert.AreEqual("存活 4/5", UiTextRules.Alive(4, 5));
         }
 

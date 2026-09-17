@@ -256,8 +256,8 @@ namespace PirateCrew.UI
         /// <summary>选关状态：新船员加入。</summary>
         public const string LevelStatusNewCrewFormat = "新船员已加入名册：{0}";
 
-        /// <summary>选关状态：固定竞技场提示（M3 边界）。</summary>
-        public const string LevelStatusFixedArena = "提示：本轮战斗固定加载第 1 关竞技场，选关只决定结算归属。";
+        /// <summary>选关状态：出战加载说明（与实际行为一致：选哪关加载哪关）【AI 提案/待定】。</summary>
+        public const string LevelStatusFixedArena = "提示：出战会加载所选关卡的竞技场，结算记到该关。";
 
         /// <summary>关卡名模板（15 关统一用「第 N 关」，花名待定）。</summary>
         public const string LevelNameFormat = "第 {0} 关";
@@ -311,12 +311,6 @@ namespace PirateCrew.UI
         /// <summary>结束回合按钮。</summary>
         public const string BattleEndGo = "结束回合";
 
-        /// <summary>瞄准标签。</summary>
-        public const string BattleAiming = "瞄准中";
-
-        /// <summary>聚焦标签。</summary>
-        public const string BattleFocusing = "聚焦中";
-
         /// <summary>力度数字模板（瞄准态，不标「力度」二字）。</summary>
         public const string BattleStrengthFormat = "{0}%";
 
@@ -329,11 +323,12 @@ namespace PirateCrew.UI
         /// <summary>存活计数模板（顶部信息条用）。</summary>
         public const string BattleAliveFormat = "存活 {0}/{1}";
 
-        /// <summary>回合计数模板。</summary>
-        public const string BattleTurnFormat = "回合 {0}/{1}";
-
-        /// <summary>计时模板。</summary>
-        public const string BattleTimerFormat = "时间 {0}:{1}";
+        /// <summary>
+        /// 回合计数模板（顶部信息条用）。
+        /// 【为什么没有「/上限」】原版回合流程（逆向文档 §3）没有回合上限，
+        /// 旧「回合 1/20」的 20 是无数据来源的假上限，随 UI 审计 P1-4 退役。
+        /// </summary>
+        public const string BattleTurnFormat = "回合 {0}";
 
         /// <summary>操作提示：角色模式通用。</summary>
         public const string BattleHintGeneral = "空格 瞄准　E 聚焦　Esc 取消";

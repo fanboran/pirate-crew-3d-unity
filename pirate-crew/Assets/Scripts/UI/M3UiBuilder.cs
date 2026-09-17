@@ -1,3 +1,4 @@
+using PirateCrew.PirateCrew.Audio;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -20,6 +21,57 @@ namespace PirateCrew.UI
     {
         /// <summary>按钮不可用态底色（去饱和 + 55% 透明，§6.1）。</summary>
         public static Color DisabledButtonColor => UiTheme.Disabled(UiTheme.WoodMid);
+
+        // ------------------------------------------------------------------
+        // 菜单 juice（UI 审计 P2-9）：复用战斗内同款动效原语与 UI 音效，不新造效果
+        // （时长/曲线全在 <see cref="UiMotionRules"/>；音效复用 <see cref="AudioService"/> 既有 UI 音）。
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// M3 界面按钮统一反馈（与战斗内 <c>BattleHud.ButtonFeedback</c> 同口径）：
+        /// 成功 = UiClick 音 + punch 缩放；失败 = UiError 音（不弹，靠状态提示条说话）。
+        /// </summary>
+        public static void ButtonFeedback(Button button, bool success, UiMotion motion)
+        {
+            AudioService.PlayUi(success ? SfxId.UiClick : SfxId.UiError);
+            if (success && motion != null && button != null && button.image != null)
+                motion.Punch(button.image, UiMotionRules.PunchSeconds);
+        }
+
+        /// <summary>
+        /// 模态面板打开：UiPanelOpen 音 + 自下方 24px 滑入淡入（无 <paramref name="motion"/> 时退化为直接显示）。
+        /// 面板缺 CanvasGroup 时补一个（<see cref="UiMotion.ShowPanel"/> 的淡入依赖它）。
+        /// </summary>
+        public static void OpenPanel(GameObject panel, UiMotion motion)
+        {
+            if (panel == null)
+                return;
+
+            if (motion != null)
+            {
+                if (panel.GetComponent<CanvasGroup>() == null)
+                    panel.AddComponent<CanvasGroup>();
+                motion.ShowPanel(panel, UiMotionRules.PanelShowSeconds, UiMotionRules.PanelSlideOffsetPixels);
+            }
+            else
+            {
+                panel.SetActive(true);
+            }
+
+            AudioService.PlayUi(SfxId.UiPanelOpen);
+        }
+
+        /// <summary>模态面板关闭：快速淡出（协程收尾 <c>SetActive(false)</c>；无 motion 时直接隐藏）。</summary>
+        public static void ClosePanel(GameObject panel, UiMotion motion)
+        {
+            if (panel == null)
+                return;
+
+            if (motion != null)
+                motion.HidePanel(panel, UiMotionRules.PanelHideSeconds);
+            else
+                panel.SetActive(false);
+        }
 
         /// <summary>列表行底色（羊皮纸，§1.2 正文底）。</summary>
         public static Color RowColor => UiTheme.Parchment;

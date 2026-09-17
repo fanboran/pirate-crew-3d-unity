@@ -182,8 +182,7 @@ namespace PirateCrew.Tests
             // 裁决改为"跳跃"（UiStrings.cs:303）——动作语义从"投掷自己"改为"跳跃位移"。
             Assert.AreEqual("跳跃", UiStrings.BattleThrowSelf);
             Assert.AreEqual("结束回合", UiStrings.BattleEndGo);
-            Assert.AreEqual("瞄准中", UiStrings.BattleAiming);
-            Assert.AreEqual("聚焦中", UiStrings.BattleFocusing);
+            // 【UI 审计 P1-5】"瞄准中 / 聚焦中"两个标签随永久隐藏的死节点一并退役，不再断言。
             Assert.AreEqual("选择武器", UiStrings.BattleWeaponListTitle);
             // 【发布收口】M1 时代的占位场景文案随 BattlePlaceholder 一并退役。
             Assert.AreEqual("暂停 (Esc)", UiStrings.BattlePauseButton);

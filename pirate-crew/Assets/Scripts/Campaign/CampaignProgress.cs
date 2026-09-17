@@ -12,11 +12,11 @@ namespace PirateCrew.Campaign
     ///   对应关系：<c>_completed_levels</c> → <see cref="_stars"/>、<c>get_level_stars</c> → <see cref="GetStars"/>、
     ///   <c>complete_level</c> → <see cref="CompleteLevel"/>、<c>is_level_unlocked</c> → <see cref="IsUnlocked"/>。
     ///
-    /// 【对 Godot 版的唯一语义改动（提案/待定）】解锁链**跳过未转写数据的关卡**：
-    ///   Godot 是「前一序号关卡已完成」，但本工程 <c>LevelCatalog</c> 只转写了 3 关，
-    ///   严格按前一号判定会让演示链卡在 <c>level_02</c>。
-    ///   现规则见 <see cref="IsUnlocked"/>；实现见
-    ///   <see cref="CampaignCatalog.PreviousImplementedLevel"/>。取消该提案只需把那里换成「前一序号」。
+    /// 【解锁链】与 Godot 同为「前一关已通关才解锁」；「前一关」经
+    ///   <see cref="CampaignCatalog.PreviousImplementedLevel"/> 取「最近一个有转写数据的前一关」——
+    ///   <c>LevelCatalog</c> 33 关已全部转写，现状即普通顺序解锁；该间接层保留的意义是
+    ///   将来若个别关卡号缺数据，解锁链自动绕开缺口而非卡死。
+    ///   规则见 <see cref="IsUnlocked"/>。
     ///
     /// 【纯 C#】不引用任何 UnityEngine 类型，可在无头验证台直接断言。
     /// </summary>
@@ -76,8 +76,8 @@ namespace PirateCrew.Campaign
         /// <summary>
         /// 关卡是否已解锁。
         ///
-        /// 【规则】序号最小的已转写关卡默认解锁；其余关卡要求
-        /// 「序号更小的、最近的一个已转写关卡」已通关（跳过未转写关卡，见类头说明）。
+        /// 【规则】第 1 关默认解锁；其余关卡要求「最近一个有转写数据的前一关」已通关
+        /// （33 关全转写的现状下就是普通顺序解锁，见类头说明）。
         /// </summary>
         public bool IsUnlocked(string levelId)
         {

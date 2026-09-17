@@ -4,9 +4,9 @@ using PirateCrew.PirateCrew.Combat;
 namespace PirateCrew.PirateCrew.Battle.Tests
 {
     /// <summary>
-    /// <see cref="BattleFlowRules"/> / <see cref="TeamTurnTracker"/> 测试。
-    /// 覆盖：§3.1 inactivity 边界（10 vs 11）与两路分支、§3.2 回合开始重置/保底武器、
-    /// §3.4 行动经济三路径、§4.3「每回合每队只有 1 个角色行动」、§3.3 胜负与得分。
+    /// <see cref="BattleFlowRules"/> 测试。
+    /// 覆盖：§3.1 inactivity 边界（10 vs 11）与两路分支、§3.2 保底武器判定、
+    /// §3.4 行动经济三路径、§3.3 胜负与得分。
     /// </summary>
     [TestFixture]
     public class BattleFlowRulesTests
@@ -45,26 +45,19 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         }
 
         // ------------------------------------------------------------------
-        // §3.2 回合开始重置 / 保底武器
+        // §3.2 保底武器判定
         // ------------------------------------------------------------------
 
         [Test]
-        public void BeginCharacterTurn_EmptyInventory_FlagsFallback()
+        public void ShouldGrantFallbackWeapon_EmptyInventory_Grants()
         {
-            CharacterTurnReset reset = BattleFlowRules.BeginCharacterTurn(weaponCount: 0);
-            Assert.IsTrue(reset.NeedsFallbackWeapon);
-            Assert.AreEqual(0, reset.Evilness, "§3.2 evilness 每回合清零");
-            Assert.IsTrue(reset.Action.CanThrow);
-            Assert.IsTrue(reset.Action.CanShoot);
-            Assert.IsFalse(reset.Action.Thrown);
-            Assert.IsFalse(reset.Action.Fired);
+            Assert.IsTrue(BattleFlowRules.ShouldGrantFallbackWeapon(weaponCount: 0));
         }
 
         [Test]
-        public void BeginCharacterTurn_HasWeapons_NoFallback()
+        public void ShouldGrantFallbackWeapon_HasWeapons_NoGrant()
         {
-            CharacterTurnReset reset = BattleFlowRules.BeginCharacterTurn(weaponCount: 2);
-            Assert.IsFalse(reset.NeedsFallbackWeapon);
+            Assert.IsFalse(BattleFlowRules.ShouldGrantFallbackWeapon(weaponCount: 2));
         }
 
         // ------------------------------------------------------------------
@@ -118,54 +111,8 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         }
 
         // ------------------------------------------------------------------
-        // §4.3 每回合每队只有 1 个角色行动
+        // §3.3 回合交替
         // ------------------------------------------------------------------
-
-        [Test]
-        public void TeamTurnTracker_OnlyOneCharacterPerTurn()
-        {
-            var tracker = new TeamTurnTracker(1);
-            tracker.StartTurn();
-
-            Assert.AreEqual(1, tracker.TotalTurnsTaken, "startTurn 使 totalTurnsTaken++");
-            Assert.IsFalse(tracker.HasSelection);
-
-            Assert.IsTrue(tracker.Select(0, alive: true));
-            Assert.AreEqual(0, tracker.SelectedIndex);
-
-            // 换人应被拒绝（本回合已锁定角色 0）。
-            Assert.IsFalse(tracker.Select(1, alive: true), "每回合每队只能有 1 个角色行动");
-
-            // continueTurn：允许再次选中同一角色做第 2 个动作。
-            Assert.IsTrue(tracker.Select(0, alive: true, again: true));
-        }
-
-        [Test]
-        public void TeamTurnTracker_SelectDeadCharacter_Rejected()
-        {
-            var tracker = new TeamTurnTracker(1);
-            tracker.StartTurn();
-            Assert.IsFalse(tracker.Select(0, alive: false), "原版 select() 拒绝死亡角色");
-            Assert.IsFalse(tracker.HasSelection);
-        }
-
-        [Test]
-        public void TeamTurnTracker_TurnCompleteLifecycle()
-        {
-            var tracker = new TeamTurnTracker(2);
-            tracker.StartTurn();
-            Assert.IsFalse(tracker.IsTurnComplete(true), "未选角色 → 回合未完成");
-
-            tracker.Select(0, alive: true);
-            tracker.ApplyThrowSelf();
-            Assert.IsFalse(tracker.IsTurnComplete(true), "抛自己后回合继续");
-
-            tracker.ApplyUseWeapon();
-            Assert.IsTrue(tracker.IsTurnComplete(true), "用武器后回合完成");
-
-            tracker.FinishTurn();
-            Assert.IsFalse(tracker.HasSelection);
-        }
 
         [Test]
         public void NextTeamNumber_Alternates()

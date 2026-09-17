@@ -52,10 +52,13 @@ namespace PirateCrew.UI
         [SerializeField] Button quitConfirmOkButton;
         [SerializeField] Button quitConfirmCancelButton;
 
-        bool _loadedProgress;
+        /// <summary>面板开合动效驱动（菜单 juice 与战斗内同口径；数值/曲线全在 UiMotionRules）。</summary>
+        UiMotion _motion;
 
         void Awake()
         {
+            _motion = gameObject.AddComponent<UiMotion>();
+
             if (battleButton != null)
                 battleButton.onClick.AddListener(OnBattleClicked);
             if (campaignButton != null)
@@ -78,13 +81,29 @@ namespace PirateCrew.UI
             WireVolumeSlider(ambientVolumeSlider, AudioCategory.Ambient);
 
             if (qualityHighButton != null)
-                qualityHighButton.onClick.AddListener(() => SetQuality(VideoSettingsStore.QualityHigh));
+                qualityHighButton.onClick.AddListener(() =>
+                {
+                    M3UiBuilder.ButtonFeedback(qualityHighButton, true, _motion);
+                    SetQuality(VideoSettingsStore.QualityHigh);
+                });
             if (qualitySmoothButton != null)
-                qualitySmoothButton.onClick.AddListener(() => SetQuality(VideoSettingsStore.QualitySmooth));
+                qualitySmoothButton.onClick.AddListener(() =>
+                {
+                    M3UiBuilder.ButtonFeedback(qualitySmoothButton, true, _motion);
+                    SetQuality(VideoSettingsStore.QualitySmooth);
+                });
             if (fullscreenOnButton != null)
-                fullscreenOnButton.onClick.AddListener(() => SetFullscreen(true));
+                fullscreenOnButton.onClick.AddListener(() =>
+                {
+                    M3UiBuilder.ButtonFeedback(fullscreenOnButton, true, _motion);
+                    SetFullscreen(true);
+                });
             if (fullscreenOffButton != null)
-                fullscreenOffButton.onClick.AddListener(() => SetFullscreen(false));
+                fullscreenOffButton.onClick.AddListener(() =>
+                {
+                    M3UiBuilder.ButtonFeedback(fullscreenOffButton, true, _motion);
+                    SetFullscreen(false);
+                });
 
             if (quitConfirmOkButton != null)
                 quitConfirmOkButton.onClick.AddListener(ConfirmQuit);
@@ -99,9 +118,10 @@ namespace PirateCrew.UI
             if (versionText != null)
                 versionText.text = UiStrings.MainVersion;
 
-            // M3 管理循环接线：订阅战斗结算事件（幂等），并读一次存档进度。
+            // M3 管理循环接线：订阅战斗结算事件（幂等），并把存档进度读入静态内存
+            // （CampaignApi.Progress / 名册等后续读取都依赖这次载入；无返回值可接）。
             CampaignApi.EnsureBootstrapped();
-            _loadedProgress = CampaignApi.LoadProgress();
+            CampaignApi.LoadProgress();
         }
 
         void OnDestroy()
@@ -134,17 +154,20 @@ namespace PirateCrew.UI
         /// <summary>进入战斗：走 EventBus → SceneLoader 链路。这是「非战役入口」，先放弃可能残留的待结算关卡。</summary>
         void OnBattleClicked()
         {
+            M3UiBuilder.ButtonFeedback(battleButton, true, _motion);
             CampaignApi.AbortPendingLevel();
             EventBus.Publish(ChangeSceneEvent, SceneNames.Battle);
         }
 
         void OnCampaignClicked()
         {
+            M3UiBuilder.ButtonFeedback(campaignButton, true, _motion);
             EventBus.Publish(ChangeSceneEvent, SceneNames.LevelSelect);
         }
 
         void OnCrewClicked()
         {
+            M3UiBuilder.ButtonFeedback(crewButton, true, _motion);
             EventBus.Publish(ChangeSceneEvent, SceneNames.CrewManagement);
         }
 
@@ -158,18 +181,19 @@ namespace PirateCrew.UI
                 return;
 
             RefreshSettingsControls();
-            settingsPanel.SetActive(true);
+            M3UiBuilder.OpenPanel(settingsPanel, _motion);
         }
 
         void CloseSettings()
         {
+            M3UiBuilder.ButtonFeedback(settingsBackButton, true, _motion);
+
             // 关面板统一落盘：拖动滑条的过程不写盘，避免一次拖动几十次 IO。
             AudioService.SaveVolumes();
             if (VideoSettingsService.Instance != null)
                 VideoSettingsService.Instance.SaveSettings();
 
-            if (settingsPanel != null)
-                settingsPanel.SetActive(false);
+            M3UiBuilder.ClosePanel(settingsPanel, _motion);
 
             if (statusText != null)
                 statusText.text = UiStrings.MainStatusSettingsSaved;
@@ -177,6 +201,7 @@ namespace PirateCrew.UI
 
         void RestoreDefaults()
         {
+            M3UiBuilder.ButtonFeedback(settingsRestoreButton, true, _motion);
             AudioService.SetVolume(AudioCategory.Master, AudioSettingsStore.DefaultMasterVolume);
             AudioService.SetVolume(AudioCategory.Sfx, AudioSettingsStore.DefaultSfxVolume);
             AudioService.SetVolume(AudioCategory.Music, AudioSettingsStore.DefaultMusicVolume);
@@ -291,8 +316,8 @@ namespace PirateCrew.UI
             if (quitConfirmPanel != null)
             {
                 if (settingsPanel != null)
-                    settingsPanel.SetActive(false);
-                quitConfirmPanel.SetActive(true);
+                    M3UiBuilder.ClosePanel(settingsPanel, _motion);
+                M3UiBuilder.OpenPanel(quitConfirmPanel, _motion);
                 return;
             }
 
@@ -303,13 +328,14 @@ namespace PirateCrew.UI
 
         void ConfirmQuit()
         {
+            M3UiBuilder.ButtonFeedback(quitConfirmOkButton, true, _motion);
             Application.Quit();
         }
 
         void CancelQuit()
         {
-            if (quitConfirmPanel != null)
-                quitConfirmPanel.SetActive(false);
+            M3UiBuilder.ButtonFeedback(quitConfirmCancelButton, true, _motion);
+            M3UiBuilder.ClosePanel(quitConfirmPanel, _motion);
         }
     }
 }

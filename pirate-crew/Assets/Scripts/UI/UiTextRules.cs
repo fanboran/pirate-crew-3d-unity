@@ -183,17 +183,13 @@ namespace PirateCrew.UI
             return string.Format(UiStrings.BattleAliveFormat, alive, total);
         }
 
-        /// <summary>回合计数。</summary>
-        public static string TurnCounter(int turn, int maxTurn)
+        /// <summary>
+        /// 回合计数（对局第 N 手，不带上限——原版 §3 无回合上限，
+        /// 旧「回合 N/20」的假上限随 UI 审计 P1-4 退役）。
+        /// </summary>
+        public static string TurnCounter(int turn)
         {
-            return string.Format(UiStrings.BattleTurnFormat, turn, maxTurn);
-        }
-
-        /// <summary>计时（秒 → <c>时间 m:ss</c>；秒补零两位，对齐 GDD HUD 草图「00:45」）。</summary>
-        public static string Timer(int totalSeconds)
-        {
-            int seconds = totalSeconds < 0 ? 0 : totalSeconds;
-            return string.Format(UiStrings.BattleTimerFormat, seconds / 60, (seconds % 60).ToString("D2"));
+            return string.Format(UiStrings.BattleTurnFormat, turn);
         }
 
         /// <summary>力度数字（瞄准态，不标「力度」）。</summary>

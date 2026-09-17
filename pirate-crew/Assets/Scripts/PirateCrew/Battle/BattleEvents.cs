@@ -43,9 +43,6 @@ namespace PirateCrew.PirateCrew.Battle
         /// <summary>请求战斗相机聚焦某目标（载荷 <see cref="Transform"/>，§3.2 panToCharacter）。</summary>
         public const string CameraFocusRequested = "camera_focus_requested";
 
-        /// <summary>瞄准姿态更新（载荷 float：当前拖拽距离 px）。</summary>
-        public const string AimUpdated = "battle_aim_updated";
-
         /// <summary>投掷/发射释放（载荷 float：释放时的拖拽距离 px）。</summary>
         public const string ShotReleased = "battle_shot_released";
 

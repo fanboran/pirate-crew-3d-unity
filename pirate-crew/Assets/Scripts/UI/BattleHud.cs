@@ -18,8 +18,8 @@ namespace PirateCrew.UI
     /// 战斗 HUD（UGUI，翻译自 Godot <c>battle_hud.tscn</c> + <c>scripts/ui/hud.gd</c>）。
     ///
     /// 【布局依据】docs/UI-UX与中文本地化规范.md §3.5 线框图 + §2.3 元素清单：
-    ///   顶部（小地图 / 模式开关 / 回合与计时 / 双方存活）、屏幕中心准星、
-    ///   左下船员名册、底部中央武器面板（返回按钮移左下）、底部瞄准/聚焦标签与操作提示。
+    ///   顶部（小地图 / 模式开关 / 回合计数 / 双方存活）、屏幕中心准星、
+    ///   左下船员名册、底部中央武器面板（返回按钮移左下）、底部操作提示。
     ///   具体节点由 <c>Assets/Editor/BattleHudBuilder.cs</c> 构建，本类只做数据绑定与刷新。
     ///
     /// 【本波次改造】
@@ -247,7 +247,11 @@ namespace PirateCrew.UI
         BattleHudMode _mode = BattleHudMode.Move;
         Transform _moveSeg, _actSeg, _observeSeg, _crosshair;
         MaskableGraphic _hintText;
+        MaskableGraphic _turnCounterText;
         BattleCameraController _cameraController;
+
+        /// <summary>对局第 N 手（每次 turn_started 递增；原版 §3 无回合上限，故不带满值）。</summary>
+        int _turnNumber;
 
         void InitModeSystem()
         {
@@ -262,6 +266,11 @@ namespace PirateCrew.UI
             _crosshair = DeepFind(searchRoot, "Crosshair");
             _hintText = DeepFind(searchRoot, "HintText") != null
                 ? DeepFind(searchRoot, "HintText").GetComponent<MaskableGraphic>()
+                : null;
+            // 回合计数槽与模式开关同属 TopBar（跨分支），走同一条 DeepFind 通道
+            // （SerializeField 由 BattleUiTheme 接线，新增槽先走运行时查找兜底）。
+            _turnCounterText = DeepFind(searchRoot, "TurnCounterText") != null
+                ? DeepFind(searchRoot, "TurnCounterText").GetComponent<MaskableGraphic>()
                 : null;
 
             BindModeButton(_moveSeg, BattleHudMode.Move);
@@ -312,10 +321,6 @@ namespace PirateCrew.UI
             if (_mode == BattleHudMode.Observe && Input.GetMouseButtonDown(0)
                 && aimController != null && aimController.HandleObserveClick())
                 SetHudMode(BattleHudMode.Move);
-
-            // 准星只属于观察模式（r12 用户裁决）。
-            if (_crosshair != null)
-                _crosshair.gameObject.SetActive(_mode == BattleHudMode.Observe);
         }
 
         void SetHudMode(BattleHudMode mode)
@@ -334,6 +339,18 @@ namespace PirateCrew.UI
 
             RefreshModeSegments();
             RefreshModeHint();
+            RefreshCrosshair();
+        }
+
+        /// <summary>准星只属于观察模式（r12 用户裁决）；只在模式切换时刷一次，不再每帧 SetActive。</summary>
+        void RefreshCrosshair()
+        {
+            if (_crosshair == null)
+                return;
+
+            bool visible = _mode == BattleHudMode.Observe;
+            if (_crosshair.gameObject.activeSelf != visible)
+                _crosshair.gameObject.SetActive(visible);
         }
 
         void RefreshModeSegments()
@@ -702,6 +719,10 @@ namespace PirateCrew.UI
             if (payload is BattleStartedPayload started && rosterTitle != null)
                 UiTextUtil.SetText(rosterTitle, UiTextRules.RosterTitle(started.LevelNumber));
 
+            // 回合计数归零（battle_started 恒先于第一手 turn_started 发布，见 BattleController.Start）。
+            _turnNumber = 0;
+            RefreshTurnCounter();
+
             // BattleStarted 时仍有待结算关卡 = 这一局从选关进来（结算面板要显示星级/经验）。
             // 注意时序：CampaignApi 先订阅（主菜单 Awake），它的 stale 清理先跑完才轮到这里。
             _campaignBattle = CampaignApi.PendingLevelId != null;
@@ -719,10 +740,19 @@ namespace PirateCrew.UI
 
         void OnTurnStarted(object payload)
         {
+            _turnNumber++;
+            RefreshTurnCounter();
             RefreshTurnHint();
             RefreshRoster();
             RefreshWeaponPanel();
             PunchTurnBanner();
+        }
+
+        /// <summary>回合计数槽（顶部信息条）：显示对局第 N 手，不带上限（原版 §3 无回合上限）。</summary>
+        void RefreshTurnCounter()
+        {
+            if (_turnCounterText != null)
+                UiTextUtil.SetText(_turnCounterText, UiTextRules.TurnCounter(Mathf.Max(1, _turnNumber)));
         }
 
         /// <summary>回合横幅弹出（每次换行动单位都给一次"轮到谁了"的视觉重音）。</summary>

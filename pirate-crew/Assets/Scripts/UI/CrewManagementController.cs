@@ -18,7 +18,8 @@ namespace PirateCrew.UI
     ///   · 名册变化订阅 <see cref="CrewManagementEvents"/> 事件刷新列表。
     ///
     /// 【本波次改造】文本 TMP 化 + 全中文（<see cref="UiStrings"/> / <see cref="UiTextRules"/>）；
-    /// 行/按钮换羊皮纸 + 木板九宫格；行字号提为正文下限 20（规范 §1.4 硬约束）。
+    /// 行/按钮换羊皮纸 + 木板九宫格；行字号走 <see cref="UiTheme.FontBody"/> 旧档入口
+    /// （渲染经 MenuUiBuilder.ScaleLegacyFont 落到裁决后的 FontScale.Body 15，见 UiTheme 字号段说明）。
     /// 事件契约与订阅清单不变。
     /// </summary>
     public sealed class CrewManagementController : MonoBehaviour
@@ -40,8 +41,13 @@ namespace PirateCrew.UI
         [Tooltip("正文中文字体（霞鹜文楷 Medium SDF）；运行时建列表行用。")]
         [SerializeField] TMP_FontAsset bodyFont;
 
+        /// <summary>按钮/列表动效驱动（菜单 juice 与战斗内同口径；数值/曲线全在 UiMotionRules）。</summary>
+        UiMotion _motion;
+
         void Awake()
         {
+            _motion = gameObject.AddComponent<UiMotion>();
+
             // 保证结算监听已挂上（从主菜单进来时主菜单已调用过，这里是幂等的兜底）。
             CampaignApi.EnsureBootstrapped();
 
@@ -61,6 +67,10 @@ namespace PirateCrew.UI
         {
             SetStatus(string.Empty);
             Refresh();
+
+            // 列表首现动效（只在进场播一次；之后的 roster 事件重建不重播，避免每次上阵都闪动）。
+            if (crewListContainer != null)
+                M3UiBuilder.OpenPanel(crewListContainer.gameObject, _motion);
         }
 
         void OnDestroy()
@@ -140,7 +150,7 @@ namespace PirateCrew.UI
                     bool active = CrewManagementApi.IsActive(crewId);
                     if (actionLabel != null)
                         actionLabel.text = active ? UiStrings.CrewRemove : UiStrings.CrewEnlist;
-                    action.onClick.AddListener(() => OnToggleActive(crewId));
+                    action.onClick.AddListener(() => OnToggleActive(crewId, action));
                 }
                 else
                 {
@@ -171,19 +181,22 @@ namespace PirateCrew.UI
         // 按钮
         // ------------------------------------------------------------------
 
-        void OnToggleActive(string crewId)
+        void OnToggleActive(string crewId, Button action)
         {
             if (CrewManagementApi.IsActive(crewId))
             {
                 CrewManagementApi.RemoveFromActive(crewId);
+                M3UiBuilder.ButtonFeedback(action, true, _motion);
                 SetStatus(string.Format(UiStrings.CrewStatusRemovedFormat, DisplayName(crewId)));
             }
             else if (CrewManagementApi.AddToActive(crewId))
             {
+                M3UiBuilder.ButtonFeedback(action, true, _motion);
                 SetStatus(string.Format(UiStrings.CrewStatusEnlistedFormat, DisplayName(crewId)));
             }
             else
             {
+                M3UiBuilder.ButtonFeedback(action, false, _motion);
                 SetStatus(string.Format(UiStrings.CrewStatusFullFormat, CrewManagementApi.Roster.MaxSize));
             }
 
@@ -194,22 +207,27 @@ namespace PirateCrew.UI
         {
             if (CrewManagementApi.Roster.Active.Count == 0)
             {
+                M3UiBuilder.ButtonFeedback(levelSelectButton, false, _motion);
                 SetStatus(UiStrings.CrewStatusEmptyRoster);
                 return;
             }
 
+            M3UiBuilder.ButtonFeedback(levelSelectButton, true, _motion);
             EventBus.Publish(ChangeSceneEvent, SceneNames.LevelSelect);
         }
 
         void OnSaveClicked()
         {
-            SetStatus(CampaignApi.SaveProgress()
+            bool saved = CampaignApi.SaveProgress();
+            M3UiBuilder.ButtonFeedback(saveButton, saved, _motion);
+            SetStatus(saved
                 ? string.Format(UiStrings.CrewStatusSavedFormat, CampaignApi.ProgressSlot)
                 : UiStrings.CrewStatusSaveFailed);
         }
 
         void OnBackClicked()
         {
+            M3UiBuilder.ButtonFeedback(backButton, true, _motion);
             EventBus.Publish(GoBackEvent);
         }
 

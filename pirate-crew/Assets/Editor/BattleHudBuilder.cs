@@ -29,7 +29,7 @@ namespace PirateCrew.EditorTools
     /// 【布局口径（本波次统一，向参照物 game-2 的"紧凑贴边少占屏"看齐）】
     ///   · 外安全边距 <see cref="Safe"/> = 16px（旧 24px；参照物 SCREEN_MARGIN 是 12px）；
     ///   · 面板内边距 <see cref="PanelPadding"/> = 14px（旧 24px）；面板间距 <see cref="Gap"/> = 12px；
-    ///   · 顶部信息条 = 一条 640×42 玻璃条（回合计数槽 | 模式开关两段 | 计时槽），
+    ///   · 顶部信息条 = 一条 640×42 玻璃条（回合计数槽 | 模式开关三段），
     ///     居中摆在**小地图（左上）与状态面板（右上）之间**，三者互不重叠（旧版 704 宽顶栏
     ///     与小地图水平重叠、把「海图」标题压住了）；
     ///   · 名册面板高度随实际出战行数收缩（VerticalLayoutGroup + ContentSizeFitter），不留空槽；
@@ -65,14 +65,16 @@ namespace PirateCrew.EditorTools
         /// 顶部信息条宽度。【为什么是 640】条要居中(0.5,1)且不与两侧面板重叠：
         /// 小地图右缘 = 16+240 = 256，状态面板左缘 = 1920−16−320 = 1584；
         /// 居中条允许的半宽 = min(960−256−12, 1584−960−12) = min(692, 612) = 612 → ≤1224 都行，
-        /// 640 是"够放 回合槽 112 + 开关 336 + 计时槽 112 + 内边距"的紧凑值。
+        /// 640 承载「回合槽 124 + 开关 336 + 内边距」仍有余（原右侧的计时槽已删：
+        /// 原版（逆向文档 §3）没有回合上限、也没有玩家限时语义，写死的「回合 1/20 / 时间 0:00」
+        /// 是无人更新的假表）。
         /// </summary>
         const float TopBarWidth = 640f;
 
         /// <summary>顶部信息条高度（42 = 内边距 6 ×2 + 控件 30）。</summary>
         const float TopBarHeight = 42f;
 
-        /// <summary>条内文字槽（内容片）尺寸：回合计数 / 计时各一块。
+        /// <summary>条内文字槽（内容片）尺寸：回合计数一块。
         /// 124 宽是按最长文案反推的：「玩家 2，该你了」（回合提示，6 字 × 18px ≈ 108）留 8px 余量。</summary>
         const float TopBarSlotWidth = 124f;
         const float TopBarSlotHeight = 30f;
@@ -225,11 +227,11 @@ namespace PirateCrew.EditorTools
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -Safe),
                 new Vector2(TopBarWidth, TopBarHeight), GlassPanelSpriteBuilder.Tone.Frame);
 
-            // 回合计数（左）与计时（右）：各压一块内容片（金/浅米字在框架上对比不足，见 BattleUiTheme.Tok）。
-            CreateSlotText(topBar, "TurnCounterText", -TopBarSlotCenterX, UiTextRules.TurnCounter(1, 20),
+            // 回合计数（左）：压一块内容片（金/浅米字在框架上对比不足，见 BattleUiTheme.Tok）。
+            // 初值只是编辑期占位；运行期由 BattleHud 订阅 turn_started 事件驱动真实回合数
+            // （原版 §3 无回合上限，故只显示「回合 N」，不带上限）。
+            CreateSlotText(topBar, "TurnCounterText", -TopBarSlotCenterX, UiTextRules.TurnCounter(1),
                 BattleUiTheme.Tok.TitleOnGlass, body);
-            CreateSlotText(topBar, "TimerText", TopBarSlotCenterX, UiTextRules.Timer(0),
-                BattleUiTheme.Tok.TextOnGlass, body);
 
             // 模式开关（r12 用户裁决：可点击 + 快捷键角标 1/2/3，运行时 BattleHud 接 onClick 与键位）：
             // 【移动】拖拽=跳跃；【操作】炮台模式（AD 转向 WS 力度 空格发射）；【观察】我的世界同款鼠标转视角。
@@ -759,7 +761,7 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // 底部：瞄准/聚焦标签、操作提示条、返回按钮
+        // 底部：操作提示条、返回按钮
         // ------------------------------------------------------------------
 
         static void BuildLabelsAndHints(Transform hudRoot, TMP_FontAsset body, TMP_FontAsset secondary,
@@ -787,20 +789,8 @@ namespace PirateCrew.EditorTools
                 UiSprites.Kind.ButtonWood, BattleUiTheme.Tok.TextOnGlass, MenuUiBuilder.FontScale.Body);
             result.backButton = back;
 
-            // 瞄准 / 聚焦标签（默认隐藏，等玩法接线后由逻辑控制显隐）。
-            TextMeshProUGUI aim = MenuUiBuilder.CreateTextExact("AimLabel", hudRoot,
-                UiStrings.BattleAiming, MenuUiBuilder.FontScale.Hud, TextAlignmentOptions.Center,
-                BattleUiTheme.Tok.Select, body);
-            MenuUiBuilder.SetAnchored(aim.rectTransform, new Vector2(0.5f, 0f), new Vector2(240f, 28f),
-                new Vector2(0f, WeaponPanelBottom + WeaponPanelHeight + 8f));
-            aim.gameObject.SetActive(false);
-
-            TextMeshProUGUI focus = MenuUiBuilder.CreateTextExact("FocusLabel", hudRoot,
-                UiStrings.BattleFocusing, MenuUiBuilder.FontScale.Body, TextAlignmentOptions.Center,
-                BattleUiTheme.Tok.Select, secondary);
-            MenuUiBuilder.SetAnchored(focus.rectTransform, new Vector2(0.5f, 1f), new Vector2(200f, 24f),
-                new Vector2(0f, -Safe - TopBarHeight - 6f));
-            focus.gameObject.SetActive(false);
+            // 【已删 AimLabel / FocusLabel】旧装配建了「瞄准中 / 聚焦中」两个标签后 SetActive(false)，
+            // 运行时无任何显隐驱动，属永久隐藏的死节点（UI 审计 P1-5），连文字常量一并退役。
         }
 
         // ------------------------------------------------------------------
@@ -891,9 +881,11 @@ namespace PirateCrew.EditorTools
             }
             result.settlementStars = stars;
 
+            // 明细行容器：600×220（原 180，战役局满行「评分/关卡/星级/经验/新招募/首通」约 6 行时
+            // 18px 行高 × 行距已贴下缘，加高留余量；与底部星级规则提示（y 96..136）净距 4px→44px）。
             TextMeshProUGUI lines = MenuUiBuilder.CreateText("SettlementLines", card, string.Empty,
                 MenuUiBuilder.FontScale.Hud, TextAlignmentOptions.Center, BattleUiTheme.Tok.TextOnGlass, secondary);
-            MenuUiBuilder.SetAnchored(lines.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(600f, 180f),
+            MenuUiBuilder.SetAnchored(lines.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(600f, 220f),
                 new Vector2(0f, -30f));
 
             TextMeshProUGUI hint = MenuUiBuilder.CreateText("SettlementHint", card, UiStrings.SettlementStarRuleHint,

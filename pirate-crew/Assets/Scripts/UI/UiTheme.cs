@@ -71,31 +71,40 @@ namespace PirateCrew.UI
         public const float DisabledTextAlpha = 0.4f;
 
         // ------------------------------------------------------------------
-        // 字号 Token（§1.4，1080p 基准 px；正文下限 20 为硬约束）
+        // 字号 Token（§1.4，1080p 基准 px）
+        //
+        // 【双轨口径（UI 审计 P2-6 收口）】全项目字号有两套，裁决后的基准是
+        //   <c>MenuUiBuilder.FontScale</c>（用户裁决「整体下调一档」：Hud 18 / Body 15 / Tiny 13），
+        //   HUD 与全部新装配一律走它；本段旧档常量是 M3 菜单场景的既有取值，暂不迁移
+        //   （SceneSetup / M3SceneSetup 等构建器还在传这些数字）。两套并不冲突：
+        //   旧档数字经 <c>MenuUiBuilder.CreateText</c> 的 ScaleLegacyFont 映射后，
+        //   **渲染出来的同样是 FontScale 新档**——差异只在调用入口，不在最终字号。
+        //   规范 §1.4 旧的「正文 ≥20 硬约束」已按同一裁决改为「正文 ≥16、辅助 ≥14、角标 ≥12」；
+        //   新代码请直接引用 MenuUiBuilder.FontScale（Editor 侧）或按其档位取值，勿再新增本段引用。
         // ------------------------------------------------------------------
 
-        /// <summary>主菜单游戏名。</summary>
+        /// <summary>主菜单游戏名（渲染落 FontScale.Display 48）。</summary>
         public const int FontDisplay = 64;
 
-        /// <summary>结算横幅「胜利 / 失败」。</summary>
+        /// <summary>结算横幅「胜利 / 失败」（渲染落 FontScale.Banner 36）。</summary>
         public const int FontBanner = 48;
 
-        /// <summary>界面标题。</summary>
+        /// <summary>界面标题（渲染落 FontScale.Title 26）。</summary>
         public const int FontTitle = 36;
 
-        /// <summary>区块小标题。</summary>
+        /// <summary>区块小标题（渲染落 FontScale.Section 20）。</summary>
         public const int FontSection = 24;
 
-        /// <summary>HUD 常读信息（回合、存活、武器名）。</summary>
+        /// <summary>HUD 常读信息（回合、存活、武器名；渲染落 FontScale.Hud 18）。</summary>
         public const int FontHud = 24;
 
-        /// <summary>正文 / 按钮 / 行文本（下限）。</summary>
+        /// <summary>正文 / 按钮 / 行文本（渲染落 FontScale.Body 15）。</summary>
         public const int FontBody = 20;
 
-        /// <summary>辅助提示、错误说明。</summary>
+        /// <summary>辅助提示、错误说明（渲染落 FontScale.Hint 14）。</summary>
         public const int FontHint = 18;
 
-        /// <summary>角标、页码、占位符。</summary>
+        /// <summary>角标、页码、占位符（渲染落 FontScale.Tiny 13）。</summary>
         public const int FontTiny = 16;
 
         // ------------------------------------------------------------------

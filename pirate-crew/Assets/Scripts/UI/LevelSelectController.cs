@@ -11,8 +11,8 @@ namespace PirateCrew.UI
     /// <summary>
     /// 关卡选择界面（M3）：3 章节 × 5 关网格，显示解锁/星级状态，点选即进战斗。
     ///
-    /// 【M3 边界（界面上必须说清）】本轮 Battle 场景固定加载第 1 关竞技场，
-    ///   选关只决定「结算记到哪一关」——底部提示会写明，避免演示时误以为真的换了地图。
+    /// 【加载行为】出战会加载所选关卡的竞技场（<c>CampaignApi.SelectLevel</c> → Battle 场景按
+    ///   <c>LevelCatalog</c> 数据搭建），星级与结算记到该关；底部提示与此一致。
     ///
     /// 【本波次改造】
     ///   · 结算由「顶部单行横幅」改为**模态弹窗**（规范 §3.6，AI 提案）；字段照旧取
@@ -58,8 +58,12 @@ namespace PirateCrew.UI
         int _chapter = 1;
         string _settledLevelId;
 
+        /// <summary>结算弹窗开合动效驱动（菜单 juice 与战斗内同口径；数值/曲线全在 UiMotionRules）。</summary>
+        UiMotion _motion;
+
         void Awake()
         {
+            _motion = gameObject.AddComponent<UiMotion>();
             CampaignApi.EnsureBootstrapped();
 
             if (crewButton != null)
@@ -69,7 +73,7 @@ namespace PirateCrew.UI
             if (settlementReplayButton != null)
                 settlementReplayButton.onClick.AddListener(OnReplayClicked);
             if (settlementBackButton != null)
-                settlementBackButton.onClick.AddListener(CloseSettlement);
+                settlementBackButton.onClick.AddListener(OnSettlementBackClicked);
 
             EventBus.Subscribe(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
         }
@@ -93,7 +97,7 @@ namespace PirateCrew.UI
             if (settlementReplayButton != null)
                 settlementReplayButton.onClick.RemoveListener(OnReplayClicked);
             if (settlementBackButton != null)
-                settlementBackButton.onClick.RemoveListener(CloseSettlement);
+                settlementBackButton.onClick.RemoveListener(OnSettlementBackClicked);
 
             EventBus.Unsubscribe(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
         }
@@ -174,7 +178,7 @@ namespace PirateCrew.UI
             }
 
             if (settlementModal != null)
-                settlementModal.SetActive(true);
+                M3UiBuilder.OpenPanel(settlementModal, _motion);
 
             CampaignApi.ClearLastResult();
 
@@ -197,22 +201,30 @@ namespace PirateCrew.UI
             }
         }
 
+        /// <summary>结算弹窗「返回选关」：按钮反馈 + 关弹窗（Add/Remove 同一方法目标，退订可靠）。</summary>
+        void OnSettlementBackClicked()
+        {
+            M3UiBuilder.ButtonFeedback(settlementBackButton, true, _motion);
+            CloseSettlement();
+        }
+
         void CloseSettlement()
         {
-            if (settlementModal != null)
-                settlementModal.SetActive(false);
+            M3UiBuilder.ClosePanel(settlementModal, _motion);
         }
 
         void OnReplayClicked()
         {
             if (CrewManagementApi.Roster.Active.Count == 0)
             {
+                M3UiBuilder.ButtonFeedback(settlementReplayButton, false, _motion);
                 CloseSettlement();
                 if (statusText != null)
                     statusText.text = UiStrings.LevelStatusEmptyRoster;
                 return;
             }
 
+            M3UiBuilder.ButtonFeedback(settlementReplayButton, true, _motion);
             if (!string.IsNullOrEmpty(_settledLevelId))
                 CampaignApi.SelectLevel(_settledLevelId);
         }
@@ -276,7 +288,11 @@ namespace PirateCrew.UI
                 if (label != null)
                     label.color = UiTheme.Ink;
 
-                button.onClick.AddListener(() => OnChapterClicked(captured));
+                button.onClick.AddListener(() =>
+                {
+                    M3UiBuilder.ButtonFeedback(button, true, _motion);
+                    OnChapterClicked(captured);
+                });
             }
         }
 
@@ -322,7 +338,7 @@ namespace PirateCrew.UI
                 {
                     if (actionLabel != null)
                         actionLabel.text = stars > 0 ? UiStrings.LevelReplay : UiStrings.LevelFight;
-                    action.onClick.AddListener(() => OnLevelClicked(levelId));
+                    action.onClick.AddListener(() => OnLevelClicked(levelId, action));
                 }
                 else
                 {
@@ -374,15 +390,17 @@ namespace PirateCrew.UI
             Refresh();
         }
 
-        void OnLevelClicked(string levelId)
+        void OnLevelClicked(string levelId, Button action)
         {
             if (CrewManagementApi.Roster.Active.Count == 0)
             {
+                M3UiBuilder.ButtonFeedback(action, false, _motion);
                 if (statusText != null)
                     statusText.text = UiStrings.LevelStatusEmptyRoster;
                 return;
             }
 
+            M3UiBuilder.ButtonFeedback(action, true, _motion);
             // 成功时由 CampaignApi 直接请求切场景；失败（未解锁）留个提示。
             if (!CampaignApi.SelectLevel(levelId)
                 && statusText != null)
@@ -393,11 +411,13 @@ namespace PirateCrew.UI
 
         void OnCrewClicked()
         {
+            M3UiBuilder.ButtonFeedback(crewButton, true, _motion);
             EventBus.Publish(ChangeSceneEvent, SceneNames.CrewManagement);
         }
 
         void OnBackClicked()
         {
+            M3UiBuilder.ButtonFeedback(backButton, true, _motion);
             EventBus.Publish(GoBackEvent);
         }
 

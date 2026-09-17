@@ -171,7 +171,7 @@ namespace PirateCrew.EditorTools
                 CenterAnchor, CenterAnchor, new Vector2(0f, 52f), new Vector2(1000f, 560f),
                 UiSprites.Kind.PanelWood);
 
-            // 固定竞技场提示（M3 边界，§4.4）+ 状态提示。
+            // 出战加载说明（文案与实际行为一致：选哪关加载哪关）+ 状态提示。
             TextMeshProUGUI hint = MenuUiBuilder.CreateText("FixedArenaHint", canvas.transform,
                 UiStrings.LevelStatusFixedArena, UiTheme.FontHint, TextAlignmentOptions.Center,
                 UiTheme.WithAlpha(UiTheme.TextLight, 0.8f), secondaryFont);

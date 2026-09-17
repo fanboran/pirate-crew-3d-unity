@@ -18,129 +18,17 @@ namespace PirateCrew.PirateCrew.Battle
     }
 
     /// <summary>
-    /// 回合开始时需要对单个角色做的重置集合（§3.2 <c>Team.startTurn</c>）。
-    /// </summary>
-    public readonly struct CharacterTurnReset
-    {
-        /// <summary>行动经济复位（thrown/fired=false，canThrow/canShoot=true）。</summary>
-        public readonly ActionState Action;
-
-        /// <summary>邪恶度复位（§3.2 <c>c.evilness = 0</c>）。</summary>
-        public readonly int Evilness;
-
-        /// <summary>背包为空，需要补保底武器（§3.2/§5.5 cannonball）。</summary>
-        public readonly bool NeedsFallbackWeapon;
-
-        public CharacterTurnReset(ActionState action, int evilness, bool needsFallbackWeapon)
-        {
-            Action = action;
-            Evilness = evilness;
-            NeedsFallbackWeapon = needsFallbackWeapon;
-        }
-    }
-
-    /// <summary>
-    /// 单支队伍的回合状态机（纯 C#，可无头测试）。
-    ///
-    /// 【对应章节】§3.2（startTurn / select / isTurnComplete / continueTurn / finishTurn）、
-    ///             §4.3（<b>每回合只有 1 个角色行动</b>：<c>selectedCharacter</c> 是单值）。
-    ///
-    /// 行动经济规则不在此重复实现，统一委托 <see cref="TurnRules"/>。
-    /// </summary>
-    public sealed class TeamTurnTracker
-    {
-        /// <summary>队伍编号（1 = 红队，2 = 蓝队）。</summary>
-        public int TeamNumber { get; }
-
-        /// <summary>本回合选中角色在队伍列表中的索引；-1 = 尚未选择。</summary>
-        public int SelectedIndex { get; private set; } = -1;
-
-        /// <summary>该队累计消耗的回合数（§3.3 得分公式）。</summary>
-        public int TotalTurnsTaken { get; private set; }
-
-        /// <summary>当前选中角色的行动经济状态。</summary>
-        public ActionState Action { get; private set; } = ActionState.Start;
-
-        /// <summary>本回合是否已选出唯一行动角色。</summary>
-        public bool HasSelection => SelectedIndex >= 0;
-
-        public TeamTurnTracker(int teamNumber)
-        {
-            TeamNumber = teamNumber;
-        }
-
-        /// <summary>§3.2 startTurn：totalTurnsTaken++、清 selectedCharacter、行动经济复位。</summary>
-        public void StartTurn()
-        {
-            TotalTurnsTaken++;
-            SelectedIndex = -1;
-            Action = ActionState.Start;
-        }
-
-        /// <summary>
-        /// §3.2 select：选中本回合唯一行动角色。
-        /// <paramref name="again"/> = true 表示 continueTurn 的"同一角色做第 2 个动作"。
-        /// 存活校验失败、或本回合已选过别的角色（且非 again）时返回 false —— 这条即
-        /// "<b>每回合每队只有 1 个角色行动</b>" 的强制点。
-        /// </summary>
-        public bool Select(int index, bool alive, bool again = false)
-        {
-            if (!alive)
-                return false;                 // 原版 select() 内部拒绝 !alive
-            if (HasSelection && !again)
-                return false;                 // 本回合已锁定角色，不允许换人
-            if (index < 0)
-                return false;
-
-            SelectedIndex = index;
-            if (!again)
-                Action = ActionState.Start;   // 首次选择：清 thrown/throwFinished/weaponSelected
-            return true;
-        }
-
-        /// <summary>§3.2 isTurnComplete：已选角色且行动经济耗尽（或角色死亡）。</summary>
-        public bool IsTurnComplete(bool selectedAlive)
-        {
-            if (!HasSelection)
-                return false;                 // 还没选人 → 回合尚未开始动作
-            return TurnRules.IsTurnComplete(selectedAlive, Action);
-        }
-
-        /// <summary>抛自己（§3.4）：canThrow=false，回合继续。</summary>
-        public void ApplyThrowSelf()
-        {
-            Action = TurnRules.ApplyThrowSelf(Action);
-        }
-
-        /// <summary>用武器（§3.4）：canThrow/canShoot 全 false，回合结束。</summary>
-        public void ApplyUseWeapon()
-        {
-            Action = TurnRules.ApplyUseWeapon(Action);
-        }
-
-        /// <summary>点 end go（§3.4）：立即结束回合。</summary>
-        public void ApplyEndGo()
-        {
-            Action = TurnRules.ApplyEndGo(Action);
-        }
-
-        /// <summary>§3.2 finishTurn：清 selectedCharacter。</summary>
-        public void FinishTurn()
-        {
-            SelectedIndex = -1;
-        }
-    }
-
-    /// <summary>
     /// 战斗推进/行动经济的纯规则汇总层。
     ///
     /// 【架构】本类<b>只做转译与组合</b>，不重复实现 <see cref="TurnRules"/> 里已有的规则；
-    ///         TurnRules 缺失的部分（回合开始重置集合、经验分、分路决策）在此补齐并说明。
+    ///         TurnRules 缺失的部分（经验分、分路决策）在此补齐并说明。
     ///         全部静态/纯 C#，不依赖 MonoBehaviour / GameObject。
     ///
-    /// 【对应章节】§3.1（inactivity &gt; 10 两路分支）、§3.2（startTurn / finishTurn / isTurnComplete /
-    ///             continueTurn / 保底武器 / evilness 复位）、§3.3（回合交替、胜负、得分）、
-    ///             §3.4（投自己/用武器/end go 三路径行动经济）。
+    /// 【对应章节】§3.1（inactivity &gt; 10 两路分支）、§3.2（isTurnComplete / 保底武器判定）、
+    ///             §3.3（回合交替、胜负、得分）、§3.4（投自己/用武器/end go 三路径行动经济）。
+    ///
+    /// 【为什么没有"队伍回合状态机"】回合内的选中角色 / 行动经济 / 累计回合数由运行时的
+    /// <see cref="BattleTeam"/> 直接持有与校验（比纯数据副本更严）；规则判定统一委托 <see cref="TurnRules"/>。
     /// </summary>
     public static class BattleFlowRules
     {
@@ -185,27 +73,13 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         // ------------------------------------------------------------------
-        // §3.2 回合开始重置
+        // §3.2 回合开始判定
         // ------------------------------------------------------------------
 
         /// <summary>§3.2/§5.5 保底武器判定：<c>hasWeapons.length &lt; 1</c>。</summary>
         public static bool ShouldGrantFallbackWeapon(int weaponCount)
         {
             return weaponCount < 1;
-        }
-
-        /// <summary>
-        /// §3.2 <c>startTurn</c> 对每个角色要做的重置：
-        /// <c>canShoot = true; canThrow = true; weaponSelected = false; weaponLocked = false; evilness = 0</c>，
-        /// 若背包为空则标记需要补保底 weapon（cannonball）。
-        /// （TurnRules 只建模了行动经济、没有 evilness / 保底武器，故在此补齐。）
-        /// </summary>
-        public static CharacterTurnReset BeginCharacterTurn(int weaponCount)
-        {
-            return new CharacterTurnReset(
-                ActionState.Start,
-                evilness: 0,
-                needsFallbackWeapon: ShouldGrantFallbackWeapon(weaponCount));
         }
 
         // ------------------------------------------------------------------

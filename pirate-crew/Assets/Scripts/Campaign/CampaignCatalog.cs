@@ -37,9 +37,10 @@ namespace PirateCrew.Campaign
         }
 
         /// <summary>
-        /// 该关卡的数据是否已转写进 <c>LevelCatalog</c>（§7.2 只转写了 3 个代表关）。
-        /// <b>注意</b>：这只表示「数值数据存在」，不代表 Battle 场景真的会加载它——
-        /// 本轮 <c>BattleController</c> 固定加载第 1 关竞技场（见交付报告）。
+        /// 该关卡的数据是否已转写进 <c>LevelCatalog</c>（33 关已全部转写，1–15 恒为 true）。
+        /// <b>注意</b>：这只表示「数值数据存在」；Battle 场景按
+        /// <c>CampaignApi.PendingBattleLevelNumberOr</c> 注入的所选关卡号取数据，
+        /// 无待战关卡的非战役局回落第 1 关（<c>BattleController.fallbackLevelNumber</c>）。
         /// </summary>
         public bool HasData => LevelCatalog.IsTranscribed(LevelNumber);
     }
@@ -123,9 +124,10 @@ namespace PirateCrew.Campaign
         /// <summary>
         /// 序号小于 <paramref name="levelNumber"/> 的最后一个「已转写数据」的关卡；没有则返回 null。
         ///
-        /// 【用途】顺序解锁的「前一关」判定。本工程的关卡数据只转写了 3 关
-        /// （<c>LevelCatalog.TranscribedLevelNumbers</c>），严格按「前一序号」判定会让演示链在
-        /// <c>level_02</c> 断掉，故解锁链**跳过未转写关卡**（提案/待定，见 <c>CampaignProgress.IsUnlocked</c>）。
+        /// 【用途】顺序解锁的「前一关」判定（<c>CampaignProgress.IsUnlocked</c>）。
+        /// 33 关已全部转写（<c>LevelCatalog.IsTranscribed</c> 对 1–33 恒真），
+        /// 现状下本方法就是「前一序号关」；保留「跳过缺数据关卡」的扫描写法，
+        /// 将来若个别关卡号缺数据，解锁链会自动绕开缺口而不是断链。
         /// </summary>
         public static CampaignLevel? PreviousImplementedLevel(int levelNumber)
         {
