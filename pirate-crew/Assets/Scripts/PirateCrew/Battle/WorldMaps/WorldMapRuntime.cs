@@ -89,7 +89,11 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
                 entries.Add(new SpawnPlanEntry(
                     spawn.TeamIndex, spawn.Archetype, spawn.Luck, gridX, gridY,
                     new Vector3(spawn.X, surfaceY + LevelGeometry.UnitPivotHeight, spawn.Z),
-                    spawn.Archetype.EndsWith("Captain") ? CaptainWeapons() : CherryBombOnly()));
+                    // 方案 D 分层军火：初配真值在目录（近程基线 / 船长含全图级旗舰）；
+                    // 未配（null）时回落战役惯例，外部构造的 definition 不破。
+                    spawn.Archetype.EndsWith("Captain")
+                        ? map.CaptainWeapons ?? CaptainWeapons()
+                        : map.CrewWeapons ?? CherryBombOnly()));
             }
 
             WorldMapRules.TryRasterize(map, out int widthTiles, out int depthTiles, out _);

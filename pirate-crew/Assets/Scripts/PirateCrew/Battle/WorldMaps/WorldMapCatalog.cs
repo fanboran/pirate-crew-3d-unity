@@ -56,12 +56,51 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         };
 
         // ------------------------------------------------------------------
+        // 方案 D 分层军火（2026-09-17 用户裁决；数值照抄原版不放大）
+        // 【分层依据】逆向 §5.1/§5.2：twangMax 20 = 近程档（cherry/dynamite/mine/boulder/
+        // piecesOfEight/voodoo）；twangMax 30 = 中程档（banana/parachuteBomb/rumBottle，
+        // 初速 ×1.5 → 射程 ×2.25）；cannon/seagull/tidalWave/anchor/voodooDoll = 全图级
+        // （射程 = 地图本身）。配比【提案/待定】，试玩后调。
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 普通船员近程基线：樱桃×∞ + 每图一件主题近程变化件（避免八图人手完全同款）。
+        /// </summary>
+        static List<WeaponStack> CrewLoadout(WeaponId nearVariant, int nearCount = 2) => new List<WeaponStack>
+        {
+            new WeaponStack(WeaponId.CherryBomb, 10),
+            new WeaponStack(nearVariant, nearCount),
+        };
+
+        /// <summary>
+        /// 船长初配 = 樱桃×∞ + 炸药×5 + <b>本图主题近程件</b>（比船员厚 3 发）+ 全图级旗舰×1
+        /// （可变参数支持终章双旗舰）。按图主题选，叙事理由见各图注释。
+        /// </summary>
+        static List<WeaponStack> CaptainLoadout(
+            WeaponId nearVariant, int nearCount, WeaponId flagship, WeaponId? flagship2 = null)
+        {
+            var loadout = new List<WeaponStack>
+            {
+                new WeaponStack(WeaponId.CherryBomb, 10),
+                new WeaponStack(WeaponId.Dynamite, 5),
+                new WeaponStack(nearVariant, nearCount),
+                new WeaponStack(flagship, 1),
+            };
+            if (flagship2.HasValue)
+                loadout.Add(new WeaponStack(flagship2.Value, 1));
+            return loadout;
+        }
+
+        // ------------------------------------------------------------------
         // 1. wreck_hymn 搁浅圣母号（150×150，3v3，正午）
         // ------------------------------------------------------------------
 
         static readonly WorldMapDefinition WreckHymn = Register(new WorldMapDefinition(
             id: "wreck_hymn", displayName: "搁浅圣母号", levelNumber: 101,
             spanX: 150f, spanZ: 150f, ambientTier: "Noon",
+            // 【方案 D 军火】船员近程变化件见 crewWeapons；船长旗舰：搁浅圣母号的沉锚从天而降（沉船叙事）。
+            crewWeapons: CrewLoadout(WeaponId.Dynamite, 2),
+            captainWeapons: CaptainLoadout(WeaponId.Dynamite, 5, WeaponId.Anchor),
             terrain: new[]
             {
                 // 【语义】圣母号斜着撞上礁滩后断成两截，倒下的主桅横跨断口；两队的本阵分踞
@@ -143,6 +182,9 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
             {
                 new WeaponStack(WeaponId.CherryBomb, 10),
                 new WeaponStack(WeaponId.Dynamite, 10),
+                new WeaponStack(WeaponId.Banana, 10),
+                new WeaponStack(WeaponId.RumBottle, 10),
+                new WeaponStack(WeaponId.Seagull, 10),
             },
             horizonSeed: 101));
 
@@ -153,6 +195,9 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         static readonly WorldMapDefinition AtollRing = Register(new WorldMapDefinition(
             id: "atoll_ring", displayName: "环礁", levelNumber: 102,
             spanX: 190f, spanZ: 190f, ambientTier: "Noon",
+            // 【方案 D 军火】船员近程变化件见 crewWeapons；船长旗舰：临海王座的潮权。
+            crewWeapons: CrewLoadout(WeaponId.Mine, 1),
+            captainWeapons: CaptainLoadout(WeaponId.Mine, 4, WeaponId.TidalWave),
             terrain: new[]
             {
                 // 【语义】外环礁三面抱水、东北留一道口子（船能开进来的那条道）；泻湖里散着礁盘、
@@ -247,6 +292,9 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         static readonly WorldMapDefinition GhostHarbor = Register(new WorldMapDefinition(
             "ghost_harbor", displayName: "鬼火港", levelNumber: 103,
             spanX: 220f, spanZ: 220f, ambientTier: "Dusk",
+            // 【方案 D 军火】船员近程变化件见 crewWeapons；船长旗舰：鬼火港的诅咒人偶。
+            crewWeapons: CrewLoadout(WeaponId.Dynamite, 2),
+            captainWeapons: CaptainLoadout(WeaponId.Dynamite, 5, WeaponId.VoodooDoll),
             terrain: new[]
             {
                 // 【语义】鬼火港是一座沉了一半的港口城：中央长码头（栈桥三段 + 沉没广场 + 灯塔岛）
@@ -368,6 +416,9 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         static readonly WorldMapDefinition TurtleBack = Register(new WorldMapDefinition(
             id: "turtle_back", displayName: "巨龟环脊", levelNumber: 104,
             spanX: 240f, spanZ: 240f, ambientTier: "Noon",
+            // 【方案 D 军火】船员近程变化件见 crewWeapons；船长旗舰：巨龟环脊高地的重炮压制。
+            crewWeapons: CrewLoadout(WeaponId.Mine, 1),
+            captainWeapons: CaptainLoadout(WeaponId.Mine, 4, WeaponId.Cannon),
             terrain: new[]
             {
                 // 【语义】巨龟环脊：龟背甲是图心战场，东西两翼各一座大岛是本阵（形状不同：
@@ -481,6 +532,9 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         static readonly WorldMapDefinition MangroveVeil = Register(new WorldMapDefinition(
             id: "mangrove_veil", displayName: "红树帷幔", levelNumber: 105,
             spanX: 180f, spanZ: 180f, ambientTier: "Dusk",
+            // 【方案 D 军火】船员近程变化件见 crewWeapons；船长旗舰：红树林梢的海鸟越过密林投弹。
+            crewWeapons: CrewLoadout(WeaponId.Mine, 2),
+            captainWeapons: CaptainLoadout(WeaponId.Mine, 5, WeaponId.Seagull),
             terrain: new[]
             {
                 // 【语义】红树帷幔：一片退潮后露出的红树林泥滩，4×4 的树丛岛交错成棋盘迷宫
@@ -579,6 +633,9 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         static readonly WorldMapDefinition SpiralThrone = Register(new WorldMapDefinition(
             id: "spiral_throne", displayName: "螺旋王座", levelNumber: 106,
             spanX: 260f, spanZ: 260f, ambientTier: "Noon",
+            // 【方案 D 军火】船员近程变化件见 crewWeapons；船长旗舰：临海王座的潮权。
+            crewWeapons: CrewLoadout(WeaponId.Dynamite, 1),
+            captainWeapons: CaptainLoadout(WeaponId.Dynamite, 4, WeaponId.TidalWave),
             terrain: new[]
             {
                 // 【语义】螺旋王座：一条由外向内收的岛链绕着图心转一圈，尽头是中央的火山口
@@ -691,6 +748,9 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         static readonly WorldMapDefinition StormCape = Register(new WorldMapDefinition(
             id: "storm_cape", displayName: "雷暴岬", levelNumber: 107,
             spanX: 200f, spanZ: 200f, ambientTier: "Storm",
+            // 【方案 D 军火】船员近程变化件见 crewWeapons；船长旗舰：雷暴岬的炮声即雷声。
+            crewWeapons: CrewLoadout(WeaponId.Dynamite, 2),
+            captainWeapons: CaptainLoadout(WeaponId.Dynamite, 5, WeaponId.Cannon),
             terrain: new[]
             {
                 // 【语义】雷暴岬是一道横贯东西的海蚀柱链：柱与柱之间靠栈桥与礁阶勉强连成一条
@@ -790,6 +850,7 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
                 new WeaponStack(WeaponId.Anchor, 2),
                 new WeaponStack(WeaponId.Seagull, 2),
                 new WeaponStack(WeaponId.Dynamite, 2),
+                new WeaponStack(WeaponId.ParachuteBomb, 10),
             },
             horizonSeed: 107));
 
@@ -800,6 +861,9 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         static readonly WorldMapDefinition SunkenGate = Register(new WorldMapDefinition(
             id: "sunken_gate", displayName: "沉都之门", levelNumber: 108,
             spanX: 280f, spanZ: 280f, ambientTier: "Dusk",
+            // 【方案 D 军火】沉都之门终章：诅咒与沉锚双旗舰。
+            crewWeapons: CrewLoadout(WeaponId.Dynamite, 2),
+            captainWeapons: CaptainLoadout(WeaponId.Dynamite, 5, WeaponId.VoodooDoll, WeaponId.Anchor),
             terrain: new[]
             {
                 // 【语义】沉都之门是一座沉进海里的城：东西主轴（西岛 → 沙洲 → 礁阶 → 沉没广场 →
