@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using PirateCrew.Campaign;
 using PirateCrew.Core;
-using PirateCrew.CrewManagement;
 using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
 using PirateCrew.PirateCrew.Visual;
@@ -240,16 +238,18 @@ namespace PirateCrew.PirateCrew.Battle
             }
             _worldMap = null;
 
-            // 【关卡注入】场景未指定 level 资产时，改由战役侧「已选、等待结算的关卡」决定加载哪张竞技场
-            // （CampaignApi.PendingBattleLevelNumberOr 是 M3 agent 备好的衔接点：只在 LevelCatalog
-            // 已转写的关卡上生效，未转写/无待战关卡时回落到 fallbackLevelNumber，不会抛 KeyNotFound）。
+            // 【关卡注入】场景未指定 level 资产时，改由战役侧注入的出征载荷决定加载哪张竞技场：
+            // Campaign 在 SelectLevel 时把「关卡序号 + 编成快照」写进 Core 的 BattleLaunchContext，
+            // 战斗侧只读它、不认识 Campaign（架构审计 P0-1 的反向依赖修正）。
+            // 只在 LevelCatalog 已转写的关卡上生效，未转写/无待战关卡时回落 fallbackLevelNumber，
+            // 不会抛 KeyNotFound。
             // 美术评审专用覆盖（PlayerArtCapture -artReviewLevel N）：优先级最高，仅用于无头出图验收，
             // 正常玩法不走这条（走 CampaignApi 选关链）。
             int levelNumber = ArtReview.ArtReviewCaptureOverride.LevelNumber;
             if (levelNumber <= 0)
             {
                 levelNumber = level == null
-                    ? CampaignApi.PendingBattleLevelNumberOr(fallbackLevelNumber)
+                    ? BattleLaunchContext.PendingLevelNumberOr(fallbackLevelNumber)
                     : level.LevelNumber;
             }
 
@@ -468,7 +468,7 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
             }
 
-            string[] activeSymbols = ResolveActiveRosterSymbols();
+            string[] activeSymbols = InjectedBattleSymbols();
             bool filterRed = activeSymbols != null && CountRedMatching(activeSymbols) > 0;
 
             for (int i = 0; i < _plan.Entries.Count; i++)
@@ -541,36 +541,24 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>
-        /// 当前编成阵容对应的战斗导出符号（§4.2）。返回 null 表示**不做过滤**（回落全队）：
-        ///   · 非战役入口（<see cref="CampaignApi.PendingLevelId"/> 为空）——主菜单直进 / 2P / PlayMode
-        ///     直接加载场景，编成不应改变关卡作者写好的出征名单；
-        ///   · 编成为空，或没有一名船员能映射到 <see cref="Data.CrewCatalog"/> 的导出符号。
+        /// 本局出战的战斗导出符号（由 Campaign 在选关时注入，见 <see cref="BattleLaunchContext"/>）。
+        /// 返回 null 表示**不做过滤**（回落关卡作者写好的全队）：
+        ///   · 非战役入口（无注入）——主菜单直进 / 2P / PlayMode 直接加载场景，
+        ///     编成不应改变关卡作者写好的出征名单；
+        ///   · 注入里没有可用符号。
         ///
-        /// 【为什么用「战役入口」做开关】<c>CrewManagementApi.Roster</c> 是个跨场景常驻的静态名册，
-        /// 初始名册（sailor）始终非空，若无条件过滤会让「直接 Play 战斗场景」从 5 人变 1 人
-        /// （破坏既有 PlayMode 用例与手感）。战役入口才代表「本局按编成出征」。
+        /// 【为什么用「战役入口」做开关】名册是跨场景常驻的静态状态，初始名册（sailor）始终非空，
+        /// 若无条件过滤会让「直接 Play 战斗场景」从 5 人变 1 人（破坏既有 PlayMode 用例与手感）。
+        /// 战役入口才代表「本局按编成出征」——船员 id 到符号的映射在 Campaign 侧完成，
+        /// 本方法只消费符号，不认识名册类型（架构审计 P0-1 反向依赖修正）。
         /// </summary>
-        string[] ResolveActiveRosterSymbols()
+        string[] InjectedBattleSymbols()
         {
-            if (CampaignApi.PendingLevelId == null)
+            if (!BattleLaunchContext.HasPending)
                 return null;
 
-            IReadOnlyList<string> active = CrewManagementApi.Roster.Active;
-            if (active == null || active.Count == 0)
-                return null;
-
-            var symbols = new List<string>(active.Count);
-            for (int i = 0; i < active.Count; i++)
-            {
-                if (CrewRosterCatalog.TryGet(active[i], out CrewRosterEntry entry)
-                    && !string.IsNullOrEmpty(entry.BattleSymbol)
-                    && !symbols.Contains(entry.BattleSymbol))
-                {
-                    symbols.Add(entry.BattleSymbol);
-                }
-            }
-
-            return symbols.Count > 0 ? symbols.ToArray() : null;
+            string[] symbols = BattleLaunchContext.Pending.ActiveBattleSymbols;
+            return symbols == null || symbols.Length == 0 ? null : symbols;
         }
 
         int CountRedMatching(string[] symbols)
