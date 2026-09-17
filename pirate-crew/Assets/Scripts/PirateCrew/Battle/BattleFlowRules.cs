@@ -18,6 +18,24 @@ namespace PirateCrew.PirateCrew.Battle
     }
 
     /// <summary>
+    /// AI 队回合每个物理步（Flash 帧）的推进决策。
+    /// </summary>
+    public enum AiTickDecision
+    {
+        /// <summary>活动（弹体在飞/角色在动/瞄准中）：回合内容合法推进中，看门狗重置、本步不推进。</summary>
+        ResetWatchdogAndWait = 0,
+
+        /// <summary>评估超时：强制收尾，保证回合循环不卡死。</summary>
+        ForceResolve = 1,
+
+        /// <summary>分帧评估中：看门狗继续计（它防的就是评估卡死），inactivity 冻结。</summary>
+        WaitThinking = 2,
+
+        /// <summary>已有决策且场上无活动：落入通用 inactivity 推进。</summary>
+        Proceed = 3,
+    }
+
+    /// <summary>
     /// 战斗推进/行动经济的纯规则汇总层。
     ///
     /// 【架构】本类<b>只做转译与组合</b>，不重复实现 <see cref="TurnRules"/> 里已有的规则；
@@ -50,6 +68,24 @@ namespace PirateCrew.PirateCrew.Battle
                 return TurnAdvanceDecision.Wait;
 
             return turnComplete ? TurnAdvanceDecision.AdvanceTurn : TurnAdvanceDecision.ContinueTurn;
+        }
+
+        /// <summary>
+        /// AI 队回合的看门狗推进决策（审计 代码审计报告 §一.3 的修复口径，测试钉住）：
+        /// **活动优先于超时**——弹体飞行/角色翻滚是回合的合法内容，看门狗必须重置，
+        /// 否则长弹道武器（dynamite 飞 7-10s）在飞行途中被强制收尾、在飞弹体被销毁。
+        /// 超时只在"无活动且评估迟迟不出结果"时兜底。
+        /// </summary>
+        public static AiTickDecision DecideAiTick(
+            bool anythingActive, bool isThinking, int watchdogFrames, int timeoutFrames)
+        {
+            if (anythingActive)
+                return AiTickDecision.ResetWatchdogAndWait;
+            if (watchdogFrames > timeoutFrames)
+                return AiTickDecision.ForceResolve;
+            if (isThinking)
+                return AiTickDecision.WaitThinking;
+            return AiTickDecision.Proceed;
         }
 
         /// <summary>是否应推进到下一队（委托 TurnRules.ShouldAdvanceTurn）。</summary>

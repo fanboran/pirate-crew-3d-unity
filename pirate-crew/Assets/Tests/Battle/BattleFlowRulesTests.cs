@@ -5,8 +5,8 @@ namespace PirateCrew.PirateCrew.Battle.Tests
 {
     /// <summary>
     /// <see cref="BattleFlowRules"/> 测试。
-    /// 覆盖：§3.1 inactivity 边界（10 vs 11）与两路分支、§3.2 保底武器判定、
-    /// §3.4 行动经济三路径、§3.3 胜负与得分。
+    /// 覆盖：§3.1 inactivity 边界（10 vs 11）与两路分支、AI 看门狗推进决策（审计 §一.3）、
+    /// §3.2 保底武器判定、§3.4 行动经济三路径、§3.3 胜负与得分。
     /// </summary>
     [TestFixture]
     public class BattleFlowRulesTests
@@ -42,6 +42,61 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         {
             Assert.AreEqual(TurnRules.DefaultInactivityThreshold, BattleFlowRules.InactivityThreshold);
             Assert.AreEqual(10, BattleFlowRules.InactivityThreshold);
+        }
+
+        // ------------------------------------------------------------------
+        // AI 看门狗推进决策（审计 代码审计报告 §一.3：活动期间不得强制收尾）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void DecideAiTick_ActivityBeatsTimeout_ResetsWatchdog()
+        {
+            // 弹体飞行 7-10s 属合法回合内容：即使看门狗早已超时，也必须重置而不是掐回合
+            //（否则 OnTurnEnded 会把在飞弹体直接销毁）。
+            Assert.AreEqual(AiTickDecision.ResetWatchdogAndWait,
+                BattleFlowRules.DecideAiTick(
+                    anythingActive: true, isThinking: false, watchdogFrames: 9999, timeoutFrames: 600));
+        }
+
+        [Test]
+        public void DecideAiTick_ActivityWhileThinking_ResetsWatchdog()
+        {
+            Assert.AreEqual(AiTickDecision.ResetWatchdogAndWait,
+                BattleFlowRules.DecideAiTick(
+                    anythingActive: true, isThinking: true, watchdogFrames: 100, timeoutFrames: 600));
+        }
+
+        [Test]
+        public void DecideAiTick_TimeoutWithoutActivity_ForcesResolve()
+        {
+            Assert.AreEqual(AiTickDecision.ForceResolve,
+                BattleFlowRules.DecideAiTick(
+                    anythingActive: false, isThinking: true, watchdogFrames: 601, timeoutFrames: 600));
+        }
+
+        [Test]
+        public void DecideAiTick_AtExactTimeoutStillThinking_Waits()
+        {
+            // 严格大于才强制（与 inactivity > 10 同款边界口径）。
+            Assert.AreEqual(AiTickDecision.WaitThinking,
+                BattleFlowRules.DecideAiTick(
+                    anythingActive: false, isThinking: true, watchdogFrames: 600, timeoutFrames: 600));
+        }
+
+        [Test]
+        public void DecideAiTick_ThinkingWithoutActivity_Waits()
+        {
+            Assert.AreEqual(AiTickDecision.WaitThinking,
+                BattleFlowRules.DecideAiTick(
+                    anythingActive: false, isThinking: true, watchdogFrames: 10, timeoutFrames: 600));
+        }
+
+        [Test]
+        public void DecideAiTick_IdleNotThinking_Proceeds()
+        {
+            Assert.AreEqual(AiTickDecision.Proceed,
+                BattleFlowRules.DecideAiTick(
+                    anythingActive: false, isThinking: false, watchdogFrames: 10, timeoutFrames: 600));
         }
 
         // ------------------------------------------------------------------

@@ -28,6 +28,11 @@ namespace PirateCrew.PirateCrew.Battle
     ///   · 竞技场是 <b>XZ 水平面</b>、重力沿 <b>-Y</b>：弹体在 X/Z 上惯性飞行、在 Y 上受重力。
     ///   · 刚体<b>只锁旋转、不锁位置</b>。
     ///
+    /// 【Flash 帧口径（审计 代码审计报告 §一.2）】「每帧 N」语义——tidalWave 每帧伤害、
+    ///   地雷引信 tick、anchor hold/fade、voodoo 10/20 帧、海鸥投弹/炮 AI 间隔、火焰存活——
+    ///   全部在 <c>FixedUpdate</c>（fixedDeltaTime=0.04 = Flash 25fps 帧）里推进，与刷新率解耦；
+    ///   Update 只留输入轮询（GetMouseButtonDown 仅按下帧为真）与出界/落水清退。
+    ///
     /// 【6 把特殊武器的接线范围（重要，评审必读）】
     ///   · anchor：从落点正上方等速下砸（<see cref="AnchorRules"/>）、命中 60 固定伤害、落地 hold+fade。
     ///   · tidalWave：从左侧横扫、每帧对范围内角色 5 点伤害（<see cref="TidalWaveRules"/>）。
@@ -140,6 +145,26 @@ namespace PirateCrew.PirateCrew.Battle
             vy = worldVelocity.y / LevelGeometry.FlashSpeedScale;
         }
 
+        /// <summary>
+        /// 火焰击退的世界增量（纯函数，供无头测试钉口径；审计 代码审计报告 §一.5 的修复）：
+        /// 原版 <c>Knockback</c> 的 vx 是「随机 ±水平量」、vy 负值上抛——2D 侧视里水平轴就是世界 X。
+        /// 3D 竞技场目标可能在火焰的任意方位，这里把同一份随机水平量投到
+        /// <paramref name="awayBearingXZ"/>（目标 − 火焰 的水平向量）的方位轴上，竖直上抛不变；
+        /// 方位退化为零向量（目标与火焰几乎重合）时回退世界 +X。
+        /// </summary>
+        public static Vector3 FlameKnockbackWorldDelta(Vector2 awayBearingXZ, float random01)
+        {
+            SweepingFlameRules.Knockback(random01, out float vxFlash, out float vyFlash);
+            Vector2 dir = awayBearingXZ.sqrMagnitude > 1e-4f
+                ? awayBearingXZ.normalized
+                : Vector2.right;
+            float horizontal = vxFlash * LevelGeometry.FlashSpeedScale;
+            return new Vector3(
+                dir.x * horizontal,
+                -vyFlash * LevelGeometry.FlashSpeedScale,
+                dir.y * horizontal);
+        }
+
         void Awake()
         {
             if (body == null)
@@ -242,18 +267,29 @@ namespace PirateCrew.PirateCrew.Battle
             if (!_initialized || _detonated || body == null)
                 return;
 
-            // 锚：等速下砸（§5.1「恒 vy=40」），手动推进位置。
+            // 锚：等速下砸（§5.1「恒 vy=40」），手动推进位置、无重力。
             if (_mechanic == ProjectileMechanic.AnchorDrop)
             {
                 AdvanceAnchor();
-                return;
+            }
+            else if (!body.isKinematic && _profile.UsesGravity)
+            {
+                // 手动按 Weight 放大全局重力（weight=1.5 的 boulder；weight=1 与全局一致）。
+                // §5.2 weight=0（cannonball / 海鸥 / 潮汐 / 火焰）与已摆位件不施加重力。
+                body.AddForce(Physics.gravity * _profile.GravityScale, ForceMode.Acceleration);
             }
 
-            if (body.isKinematic || !_profile.UsesGravity)
-                return;   // §5.2 weight=0（cannonball / 海鸥 / 潮汐 / 火焰）无重力
+            if (Time.frameCount < _armedFrame)
+                return;
 
-            // 手动按 Weight 放大全局重力（weight=1.5 的 boulder；weight=1 与全局一致）。
-            body.AddForce(Physics.gravity * _profile.GravityScale, ForceMode.Acceleration);
+            // 【Flash 帧口径】逐帧计数与逐帧伤害在物理步推进（类头「Flash 帧口径」注记）：
+            // 原先在渲染帧 Update 里，60/144Hz 屏上 tidalWave 每秒伤害（60Hz=300HP/s、
+            // 144Hz=720HP/s，原版 25fps=125HP/s）、引信时长、anchor/voodoo 时间线、
+            // 海鸥/炮 AI 间隔全部随刷新率漂移。
+            if (_mechanic != ProjectileMechanic.Generic)
+                UpdateSpecial();
+            else
+                UpdateMineFuse();
         }
 
         void Update()
@@ -269,9 +305,8 @@ namespace PirateCrew.PirateCrew.Battle
 
             if (_mechanic != ProjectileMechanic.Generic)
             {
+                // 特殊机制的逐帧行为已移至 FixedUpdate（Flash 帧口径）；这里只做出界/落水清退。
                 HandleSpecialBounds();
-                if (!_detonated)
-                    UpdateSpecial();
                 _contact = false;
                 _clicked = false;
                 _blastHit = false;
@@ -289,7 +324,7 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
             }
 
-            UpdateMineFuse();
+            // 输入轮询必须留在渲染帧（GetMouseButtonDown 只在按下的那一帧为真）。
             UpdateClickTrigger();
 
             FlashRestComponents(body.velocity, out float vx, out float vy);
@@ -765,13 +800,13 @@ namespace PirateCrew.PirateCrew.Battle
                 _flameHitIds.Add(target.PirateId);
                 target.SubtractHealth(SweepingFlameRules.DamagePerSegment);
 
-                SweepingFlameRules.Knockback(Random.value, out float vxFlash, out float vyFlash);
-                // Flash 击退：vx 水平、vy 竖直（负 = 上抛）→ 世界 (X, +Y)。
-                Vector3 delta = new Vector3(
-                    vxFlash * LevelGeometry.FlashSpeedScale,
-                    -vyFlash * LevelGeometry.FlashSpeedScale,
-                    0f);
-                target.ApplyImpulseDelta(delta);
+                // 击退方向按「目标相对火焰的方位」给出（审计 代码审计报告 §一.5）：
+                // 原版 vx 是随机 ±水平量，2D 侧视里水平就是世界 X；3D 下目标可能在火焰
+                // 任意方位，把同一份随机量投到远离火焰的方位轴上，竖直上抛不变。
+                Vector2 away = new Vector2(
+                    target.transform.position.x - transform.position.x,
+                    target.transform.position.z - transform.position.z);
+                target.ApplyImpulseDelta(FlameKnockbackWorldDelta(away, Random.value));
             }
         }
 

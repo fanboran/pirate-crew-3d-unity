@@ -13,11 +13,16 @@ namespace PirateCrew.PirateCrew.Battle
     ///
     /// 【对 Godot 版的修正】Godot <c>turn_manager.gd</c> 的 <c>end_turn()</c> 全工程无调用方、
     /// 回合永不推进（已 grep 证实）。本实现把推进链真正接上：
-    /// <c>Update</c> 累计 inactivity → 超阈值按 isTurnComplete 分路 → <c>EndTeamTurn</c> → 下一队 <c>BeginTeamTurn</c>。
+    /// <c>FixedUpdate</c> 累计 inactivity → 超阈值按 isTurnComplete 分路 → <c>EndTeamTurn</c> → 下一队 <c>BeginTeamTurn</c>。
     ///
     /// 【inactivity 语义】原版任何"有事发生"都会清零计数（角色在动 / 武器在飞 / 当前队未选角色等）。
     /// 本实现：<see cref="BattleController.IsAnythingActive"/> 为 true 即清零；
     /// 人类队尚未选角色时视为等待输入，始终清零（对应 §3.1 "Team.advance（当前队且未选角色）清零"）。
+    ///
+    /// 【计时口径（审计 代码审计报告 §一.2）】原版的"帧"是 Flash 25fps 帧；工程在
+    /// <c>BattleController.ApplyPhysicsConvention</c> 把 <c>fixedDeltaTime</c> 设为 0.04s（25Hz）
+    /// 对齐该口径。inactivity / AI 看门狗一律在 <c>FixedUpdate</c> 里计数——放渲染帧 Update
+    /// 会让回合节奏随刷新率漂移（60fps 下阈值 10 帧 = 0.167s，是原版 0.4s 的 2.4 倍快）。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class TurnManager : MonoBehaviour
@@ -40,7 +45,7 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("兜底：AI 队回合无决策时自动结束，保证回合循环不卡死（aiController 为空时也走这条）。")]
         [SerializeField] bool autoResolveAiTurns = true;
 
-        [Tooltip("AI 决策看门狗（帧）：超时强制结束本回合，避免评估异常/无候选导致回合卡死。")]
+        [Tooltip("AI 决策看门狗（Flash 帧，25Hz）：超时强制结束本回合，避免评估异常/无候选导致回合卡死。")]
         [SerializeField] int aiTurnTimeoutFrames = 600;
 
         int _inactivityFrames;
@@ -82,9 +87,9 @@ namespace PirateCrew.PirateCrew.Battle
             EndTeamTurn();
         }
 
-        void Update()
+        void FixedUpdate()
         {
-            // 暂停中：inactivity 是纯帧计数，timeScale=0 冻不住它——必须在此显式冻结回合推进。
+            // 暂停（timeScale=0）时 FixedUpdate 本就停跑，此守卫兜底非 timeScale 型暂停。
             if (BattlePause.IsPaused)
                 return;
 
@@ -101,15 +106,27 @@ namespace PirateCrew.PirateCrew.Battle
             // 0) AI 队：看门狗 + 思考期间冻结 inactivity。
             if (_currentTeam.AiControlled && aiController != null)
             {
-                _aiWatchdogFrames++;
-                if (_aiWatchdogFrames > aiTurnTimeoutFrames)
+                switch (BattleFlowRules.DecideAiTick(
+                    battle.IsAnythingActive(), aiController.IsThinking, _aiWatchdogFrames, aiTurnTimeoutFrames))
                 {
-                    ForceResolveAiTurn();   // 兜底：评估失败/超时也必须能推进回合
-                    return;
+                    case AiTickDecision.ResetWatchdogAndWait:
+                        // 活动（弹体飞行/角色翻滚/瞄准中）是回合的合法内容：重置看门狗。
+                        // 否则 dynamite 等长弹道武器飞 7-10s 就被强制收尾——审计 §一.3：
+                        // ForceResolveAiTurn → OnTurnEnded 会把仍在飞的弹体直接销毁。
+                        _aiWatchdogFrames = 0;
+                        return;
+
+                    case AiTickDecision.ForceResolve:
+                        // 兜底：评估失败/超时也必须能推进回合（ForceResolveAiTurn 内部清零看门狗）。
+                        ForceResolveAiTurn();
+                        return;
+
+                    case AiTickDecision.WaitThinking:
+                        _aiWatchdogFrames++;   // 分帧评估中：看门狗继续计（它防的就是评估卡死）
+                        return;
                 }
 
-                if (aiController.IsThinking)
-                    return;   // 分帧评估中：不累计 inactivity（§6.1 决策期间相机停止滚动）
+                // Proceed：AI 已有决策且场上无活动 → 落入下方通用 inactivity 推进。
             }
 
             // 1) 有任何"活动"（角色在动/瞄准中）→ 清零，不推进。
