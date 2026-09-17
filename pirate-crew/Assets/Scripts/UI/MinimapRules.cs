@@ -155,5 +155,33 @@ namespace PirateCrew.UI
 
         /// <summary>面板边框色（**提案/待定**）。</summary>
         public static readonly Color BorderColor = new Color(0.55f, 0.62f, 0.7f, 0.9f);
+
+        // ------------------------------------------------------------------
+        // 俯视海图（M4 世界地图模式；方案 D 裁决：海图是全图级武器的瞄准 UI）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 世界系站面 box（旋转矩形）→ 海图归一化矩形（UGUI 锚点口径 Rect(minU, minV, w, h)）。
+        /// u/v 口径与 <see cref="ArenaToNormalized"/> 一致（v 翻转：+Z 朝相机 → 图下方）。
+        /// 旋转矩形取其水平 AABB（海图是示意图，不逐角绘制）。
+        /// </summary>
+        public static Rect WorldBoxToChartRect(
+            Vector2 center, Vector2 size, float yawDeg, float width, float depth)
+        {
+            float rad = yawDeg * Mathf.Deg2Rad;
+            float cos = Mathf.Abs(Mathf.Cos(rad)), sin = Mathf.Abs(Mathf.Sin(rad));
+            float halfX = (cos * size.x + sin * size.y) * 0.5f;
+            float halfZ = (sin * size.x + cos * size.y) * 0.5f;
+
+            float uMin = width > 1e-6f ? (center.x - halfX) / width : 0f;
+            float uMax = width > 1e-6f ? (center.x + halfX) / width : 0f;
+            float vMax = depth > 1e-6f ? 1f - (center.y - halfZ) / depth : 0f;
+            float vMin = depth > 1e-6f ? 1f - (center.y + halfZ) / depth : 0f;
+            return Rect.MinMaxRect(uMin, vMin, uMax, vMax);
+        }
+
+        /// <summary>海图岛层色（站面示意；**提案/待定**：取实心瓦片同系沙色、提高不透明度便于瞄准读图）。</summary>
+        public static Color WorldChartIslandColor => new Color(
+            SolidTileColor.r, SolidTileColor.g, SolidTileColor.b, 0.85f);
     }
 }

@@ -350,6 +350,7 @@ namespace PirateCrew.PirateCrew.Battle
         void SetupWorldMapEnvironment()
         {
             RetireLegacyWaterPlane();
+            RetireLegacySeabedShelves();
 
             // 水模拟域重配（装配期一次）：驱动常驻后其 Awake 推出的默认域仍钉在旧竞技场口径，
             // 需要显式搬到世界地图图心；Instance 为空（未接线）时静默跳过，不阻塞装配。
@@ -409,6 +410,26 @@ namespace PirateCrew.PirateCrew.Battle
             Water.WaterTessellator legacyTessellator = waterPlane.GetComponent<Water.WaterTessellator>();
             if (legacyTessellator != null)
                 legacyTessellator.enabled = false;
+        }
+
+        /// <summary>
+        /// M2 海床浅台的世界地图退役（地图审计 §二.5"矩形海床板穿帮"的修复）：
+        /// <c>M2BattleSceneSetup.CreateSeabedShelves</c> 烘焙的矩形台阶（命名前缀 <c>Seabed_</c>：
+        /// L0–L4 + Far，根级无父节点）在世界地图的全景/俯视机位下显形为硬边矩形接缝，
+        /// 把泻湖读成土黄色。按前缀禁用即可——Battle 场景按 Single 模式整载重载，
+        /// 旧 33 关进图时烘焙物自动恢复，无需还原逻辑。
+        /// 【命名契约】新增海床件必须遵守 <c>Seabed_</c> 前缀，否则世界图模式漏关。
+        /// </summary>
+        void RetireLegacySeabedShelves()
+        {
+            const string SeabedPrefix = "Seabed_";
+            var scene = gameObject.scene;
+            var roots = scene.GetRootGameObjects();
+            for (int i = 0; i < roots.Length; i++)
+            {
+                if (roots[i].name.StartsWith(SeabedPrefix, StringComparison.Ordinal))
+                    roots[i].SetActive(false);
+            }
         }
 
         /// <summary>

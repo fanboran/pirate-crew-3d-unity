@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using PirateCrew.PirateCrew.Battle;
+using PirateCrew.PirateCrew.Battle.WorldMaps;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -62,6 +63,9 @@ namespace PirateCrew.UI
         Image[] _tiles = new Image[0];
         int _tileVersion = -1;
         bool _built;
+        /// <summary>世界地图海图模式：按实际图跨度映射、旧 level_1 烘焙岛层隐藏、改用站面 box 岛层。</summary>
+        bool _worldChartMode;
+        RectTransform _worldChartLayer;
 
         /// <summary>接线自检（供 PlayMode 装配测试断言）。</summary>
         public bool HasMinimapWiring =>
@@ -97,8 +101,85 @@ namespace PirateCrew.UI
         // Start 在所有 Awake 之后执行，此时单位已生成（见 BattleController.Awake → SpawnTeams）。
         void Start()
         {
+            ConfigureWorldChartFromRuntime();
             TryBuild();
         }
+
+        /// <summary>
+        /// 世界地图海图模式自探测（UI 审计 P0-2 / 地图审计 §二.10 的修复）：
+        /// 本局是世界地图时，把换算范围改为实际图跨度、隐藏装配期烘好的 level_1 岛层、
+        /// 改从站面 box 生成海图岛层——否则世界图单位点位会被压进左上 1/9、底下垫着不相关的岛形。
+        /// <see cref="WorldMapRuntime.TryGetPending"/> 不清除待战状态，Start 时查询安全
+        /// （BattleController.Awake 消费 pending 也不清）。public 供测试与选关 UI 显式调用。
+        /// </summary>
+        public void ConfigureWorldChartFromRuntime()
+        {
+            if (!WorldMapRuntime.TryGetPending(out WorldMapDefinition map) || map == null)
+                return;
+
+            _worldChartMode = true;
+            arenaWidth = Mathf.Max(1f, map.SpanX);
+            arenaDepth = Mathf.Max(1f, map.SpanZ);
+
+            // 旧 33 关的烘焙岛层退位（先退订地形刷新再断开，防 BuildTiles 复用它）。
+            if (terrain != null)
+            {
+                terrain.Changed -= OnTerrainChanged;
+                terrain = null;
+            }
+            if (tileLayer != null)
+                tileLayer.gameObject.SetActive(false);
+
+            BuildWorldChartIslands(WorldMapRules.AllStandBoxes(map));
+        }
+
+        /// <summary>按站面 box 铺海图岛层（每 box 一块，旋转取 AABB；口径见 MinimapRules.WorldBoxToChartRect）。</summary>
+        void BuildWorldChartIslands(List<WorldMapRules.WorldBox> boxes)
+        {
+            if (dotLayer == null || boxes == null || boxes.Count == 0)
+                return;
+
+            RectTransform parent = dotLayer;
+            var chartLayerGo = new GameObject("WorldChartLayer", typeof(RectTransform));
+            var chartRect = chartLayerGo.GetComponent<RectTransform>();
+            chartRect.SetParent(parent, false);
+            chartRect.anchorMin = Vector2.zero;
+            chartRect.anchorMax = Vector2.one;
+            chartRect.offsetMin = Vector2.zero;
+            chartRect.offsetMax = Vector2.zero;
+            _worldChartLayer = chartRect;
+
+            Color island = MinimapRules.WorldChartIslandColor;
+            for (int i = 0; i < boxes.Count; i++)
+            {
+                Rect r = MinimapRules.WorldBoxToChartRect(
+                    boxes[i].Center, boxes[i].Size, boxes[i].YawDeg, arenaWidth, arenaDepth);
+
+                var go = new GameObject("ChartIsland_" + i, typeof(RectTransform), typeof(Image));
+                var rect = go.GetComponent<RectTransform>();
+                rect.SetParent(chartRect, false);
+                rect.anchorMin = new Vector2(Mathf.Clamp01(r.xMin), Mathf.Clamp01(r.yMin));
+                rect.anchorMax = new Vector2(Mathf.Clamp01(r.xMax), Mathf.Clamp01(r.yMax));
+                rect.offsetMin = Vector2.zero;
+                rect.offsetMax = Vector2.zero;
+
+                var image = go.GetComponent<Image>();
+                image.raycastTarget = false;
+                image.color = island;
+            }
+        }
+
+        /// <summary>海图岛层引用（测试用；非世界图为 null）。</summary>
+        public RectTransform WorldChartLayer => _worldChartLayer;
+
+        /// <summary>是否处于世界地图海图模式（测试用）。</summary>
+        public bool IsWorldChartMode => _worldChartMode;
+
+        /// <summary>当前换算范围 X（测试/调试用；世界图模式下 = 图跨度）。</summary>
+        public float ArenaWidth => arenaWidth;
+
+        /// <summary>当前换算范围 Z（测试/调试用）。</summary>
+        public float ArenaDepth => arenaDepth;
 
         void OnEnable()
         {
