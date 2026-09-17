@@ -1021,22 +1021,19 @@ namespace PirateCrew.EditorTools
             // ---- 雾（空气透视）----
             // 颜色取天空地平色一带 #B0D4F1（提案：与 Procedural Sky 的地平色近似即可；
             //   若之后调了天空盒参数，需回来对齐，否则远山/远海会与天空"接缝"）。
-            // 【写实化为何不改雾色/距离】AmbientDirector 在 Start 会用正午档预设覆写
-            //   fogColor/fogStart/fogEnd（AmbientTimeOfDayCatalog.cs 的正午档 = 本处逐值），
-            //   该文件不在本波次白名单；若此处单方面改值，运行时会跳回旧值、编辑器与运行时不一致。
-            //   故**保持与正午档逐值相同**（#B0D4F1 / 50 / 280），"地平线衔接"改为由天空盒
-            //   的 _SkyTint/_GroundColor（同属该色族）保证，见 ConfigureSkyAndAmbient。
+            // 【写值口径】正午雾色/雾距 = AmbientTimeOfDayCatalog 正午档 = Battle.unity RenderSettings
+            //   烘焙值，**三方逐值一致**：运行时 AmbientDirector.ApplyPreset 会覆写 fogColor/fogStart/
+            //   fogEnd，只改本处不改另外两处，运行时会跳回预设值、编辑器与运行时画面不一致。
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = Hex("#B0D4F1");
-            // 距离依据（level_1：竞技场 100×34 世界单位，相机距中心 30 单位）——格 1→2 单位后整段 ×2：
-            //   start=50 —— 相机到竞技场远缘约 60~70 单位，取 50 让**前景竞技场基本不被雾洗白**，
-            //              只在远端（远景地面/海面）开始出现雾；
-            //   end=280  —— 岛外海面最远约 100~160 单位 → 得到 18%~40% 的雾量，形成空气透视但不淹没画面；
-            //              远到 280 之外（接近相机 farClip=400）基本完全融入地平色。
-            // 每关竞技场尺寸不同（LevelData.WidthTiles/HeightTiles），若关卡明显更大，这两个值需按比例调。
-            RenderSettings.fogStartDistance = 50f;
-            RenderSettings.fogEndDistance = 280f;
+            // 距离按审计契约「可见海域预算」（docs/审计/视觉审计报告.md §三）【提案/待定】：
+            //   全景相机距离 82~160u、55° 俯角下画面可见海面斜距 ≤~350u。
+            //   start=150 —— 主战区在全景与近景取景下都不被雾洗白（雾从视野远端才开始）；
+            //   end=1200 —— 雾全饱和点落在海洋侧地平线融合（1000→1400）区间内，
+            //               远海平滑并入雾色（= 天空地平色族），海天线在雾饱和前收干净。
+            RenderSettings.fogStartDistance = 150f;
+            RenderSettings.fogEndDistance = 1200f;
 
             // ---- 全局 Volume ----
             var volumeGo = new GameObject("GlobalVolume");

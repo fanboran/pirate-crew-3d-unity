@@ -8,9 +8,10 @@ namespace PirateCrew.PirateCrew.Ambient.Tests
     ///
     /// 【最关键的一条】<c>Noon_MatchesBattleSceneLightingCurrentValues</c>：
     /// 任务书要求"默认正午，不要改变默认可玩状态"。正午档必须与
-    /// <c>Assets/Editor/BattleSceneLighting.cs</c> 写死的现状**逐值一致**（主光 1.55 / Euler(48,140,0)，
-    /// 出处：docs/阳光感打光调研.md §4 调法 2 / 雾 #B0D4F1 · 50→280（格 1→2 单位后由 25→140 ×2）
-    /// / 环境光 0.85），否则"默认档"一应用就把画面改了。
+    /// <c>Assets/Editor/BattleSceneLighting.cs</c> 的写值及 Battle.unity RenderSettings 烘焙值
+    /// **三方逐值一致**（主光 1.55 / Euler(48,140,0)，出处：docs/阳光感打光调研.md §4 调法 2 /
+    /// 雾 #B0D4F1 · 150→1200，口径为审计契约「可见海域预算」docs/审计/视觉审计报告.md §三
+    /// 【提案/待定】/ 环境光 0.85），否则"默认档"一应用就把画面改了。
     /// </summary>
     [TestFixture]
     public class AmbientTimeOfDayTests
@@ -30,13 +31,16 @@ namespace PirateCrew.PirateCrew.Ambient.Tests
             // 出处：Assets/Editor/BattleSceneLighting.cs CreateDirectionalLight / ApplySceneAtmosphere
             //（主光 1.55 / 环境光 0.85 = 直射:天光 ≈4:1，docs/阳光感打光调研.md §4 调法 2；
             // 姿态 Euler(48,140,0) 维持场景设计 §6.5 原裁决）。
-            // 雾距离 50→280：格 1→2 单位后整段 ×2（旧 25→140；BattleSceneLighting.cs:1038-1039 与
-            // AmbientTimeOfDayCatalog.cs:143 的正午档逐值相同）。
+            // 雾距离 150→1200：审计契约「可见海域预算」（docs/审计/视觉审计报告.md §三【提案/待定】）。
+            // 【改一处必须改另一处】BattleSceneLighting 的雾写值是方法内私有字面量、无 public 常量可引，
+            // 因此本测试把"目录正午档值"与"BattleSceneLighting 写值"两组数都钉在这里；
+            // Battle.unity RenderSettings 的烘焙值（m_LinearFogStart/m_LinearFogEnd）也是同一组数
+            // ——三方任何一方改动都必须同步另两方，并更新本测试。
             Assert.AreEqual(1.55f, noon.SunIntensity, 1e-4f);
             Assert.AreEqual(48f, noon.SunEuler.x, 1e-4f);
             Assert.AreEqual(140f, noon.SunEuler.y, 1e-4f);
-            Assert.AreEqual(50f, noon.FogStart, 1e-4f);
-            Assert.AreEqual(280f, noon.FogEnd, 1e-4f);
+            Assert.AreEqual(150f, noon.FogStart, 1e-4f);
+            Assert.AreEqual(1200f, noon.FogEnd, 1e-4f);
             Assert.AreEqual(0.85f, noon.AmbientIntensity, 1e-4f);
 
             Color fog = AmbientTimeOfDayCatalog.Hex("#B0D4F1");
@@ -70,6 +74,18 @@ namespace PirateCrew.PirateCrew.Ambient.Tests
 
             Assert.Greater(noon.AmbientIntensity, dusk.AmbientIntensity);
             Assert.Greater(dusk.AmbientIntensity, overcast.AmbientIntensity);
+        }
+
+        [Test]
+        public void Presets_FogDistances_PinVisibleSeaBudgetProposal()
+        {
+            // 黄昏/阴云雾距同为契约表【提案/待定】（docs/审计/视觉审计报告.md §三「可见海域预算」）：
+            // 黄昏 130→1000、阴云 110→800，维持"正午>黄昏>阴云"的距离单调性（阴云能见度最差）。
+            // 实拍验收后随契约表一起转正；改这里必须同步目录与契约表。
+            Assert.AreEqual(130f, AmbientTimeOfDayCatalog.For(AmbientTimeOfDay.Dusk).FogStart, 1e-4f);
+            Assert.AreEqual(1000f, AmbientTimeOfDayCatalog.For(AmbientTimeOfDay.Dusk).FogEnd, 1e-4f);
+            Assert.AreEqual(110f, AmbientTimeOfDayCatalog.For(AmbientTimeOfDay.Overcast).FogStart, 1e-4f);
+            Assert.AreEqual(800f, AmbientTimeOfDayCatalog.For(AmbientTimeOfDay.Overcast).FogEnd, 1e-4f);
         }
 
         [Test]

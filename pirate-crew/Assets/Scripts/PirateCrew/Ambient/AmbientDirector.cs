@@ -384,6 +384,11 @@ namespace PirateCrew.PirateCrew.Ambient
                 sunLight.color = preset.SunColor;
                 sunLight.intensity = preset.SunIntensity;
                 sunLight.transform.rotation = Quaternion.Euler(preset.SunEuler);
+
+                // 登记 RenderSettings.sun：场景烘焙的 m_Sun 为空（{fileID: 0}），下游（如
+                // WaterSimulationDriver 的太阳方向兜底链、URP 主光阴影判定）只能靠
+                // "找最亮平行光"兜底；这里在应用档位时显式登记是正路（判空，未接线不覆盖场景默认）。
+                RenderSettings.sun = sunLight;
             }
             else if (!_warnedMissingSun)
             {

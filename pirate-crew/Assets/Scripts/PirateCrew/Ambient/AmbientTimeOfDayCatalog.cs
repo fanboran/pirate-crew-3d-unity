@@ -71,14 +71,22 @@ namespace PirateCrew.PirateCrew.Ambient
     /// <summary>
     /// 昼夜/天气档位目录（纯 C#）。
     ///
-    /// 【正午档为什么必须"逐值等于"现状】
-    /// 任务书要求"默认正午，不要改变默认可玩状态"。本工程当前光照由
-    /// <c>Assets/Editor/BattleSceneLighting.cs</c> 写死：主光 <c>#FFF4E0</c>/1.55、<c>Euler(48,140,0)</c>、
-    /// 线性雾 <c>#B0D4F1</c> start 25 / end 140、环境光强度 0.85。
-    /// 因此 <see cref="AmbientTimeOfDay.Noon"/> 预设**照抄这些数值**——应用正午档前后画面零变化，
-    /// 只有主动切档才改变氛围。主光口径的裁决出处：<c>docs/阳光感打光调研.md</c> §4 调法 2
+    /// 【正午档为什么必须与场景初始光照"三方逐值一致"】
+    /// 任务书要求"默认正午，不要改变默认可玩状态"：<see cref="AmbientTimeOfDay.Noon"/> 的每个值
+    /// 都必须与 <c>Assets/Editor/BattleSceneLighting.cs</c> 的写值、以及 Battle 场景 RenderSettings
+    /// 的烘焙值**三方逐值一致**：主光 <c>#FFF4E0</c>/1.55、<c>Euler(48,140,0)</c>、
+    /// 线性雾 <c>#B0D4F1</c> start 150 / end 1200、环境光强度 0.85。
+    /// 这样 <c>applyPresetOnStart</c> 应用正午档时画面零变化，只有主动切档才改变氛围。
+    /// 【雾距的口径】审计契约「可见海域预算」（docs/审计/视觉审计报告.md §三）【提案/待定】：
+    /// 全景相机距离 ≤160u、55° 俯角下画面可见海面斜距 ≤~350u——正午雾 150→1200 保住主战区
+    /// 不被雾洗白，远海由海洋侧地平线融合（1000→1400）在雾全饱和前收干净海天线。
+    /// 主光口径的裁决出处：<c>docs/阳光感打光调研.md</c> §4 调法 2
     /// （直射:天光 ≈4:1 → 主光 1.55 / 环境光 0.85；姿态 <c>Euler(48,140,0)</c> 维持原裁决）。
-    /// **改 BattleSceneLighting 的主光必须同步这里**，否则一开局 <c>applyPresetOnStart</c> 就把旧值写回去。
+    /// **改 BattleSceneLighting 的主光/雾距必须同步这里与场景烘焙值（三方一起改）**，
+    /// 否则一开局 <c>applyPresetOnStart</c> 就把预设值写回去、编辑器与运行时画面不一致。
+    ///
+    /// 【黄昏/阴云的雾距怎么来的】同为契约表【提案/待定】：黄昏 130→1000、阴云 110→800，
+    /// 维持"正午>黄昏>阴云"的距离单调性（阴云能见度最差），有测试钉住（AmbientTimeOfDayTests）。
     ///
     /// 【黄昏/阴云档的强度怎么来的】**相对正午的比例是提案/待定**。<c>docs/美术风格指南.md</c> §4.6
     /// 给了三档强度 1.9 / 1.6 / 1.4，按比例（黄昏/正午 = 1.6/1.9 = 0.842、
@@ -124,7 +132,7 @@ namespace PirateCrew.PirateCrew.Ambient
                     return new AmbientLightingPreset(
                         AmbientTimeOfDay.Dusk,
                         Hex(DuskSunHex), 0.93f, new Vector3(24f, -30f, 0f),
-                        Hex(DuskFogHex), 44f, 240f,
+                        Hex(DuskFogHex), 130f, 1000f,
                         Hex(DuskAmbientHex), 0.765f,
                         Hex(DuskSkyHex));
 
@@ -132,7 +140,7 @@ namespace PirateCrew.PirateCrew.Ambient
                     return new AmbientLightingPreset(
                         AmbientTimeOfDay.Overcast,
                         Hex(OvercastSunHex), 0.81f, new Vector3(56f, -28f, 0f),
-                        Hex(OvercastFogHex), 36f, 200f,
+                        Hex(OvercastFogHex), 110f, 800f,
                         Hex(OvercastAmbientHex), 0.64f,
                         Hex(OvercastSkyHex));
 
@@ -140,7 +148,7 @@ namespace PirateCrew.PirateCrew.Ambient
                     return new AmbientLightingPreset(
                         AmbientTimeOfDay.Noon,
                         Hex(NoonSunHex), 1.55f, new Vector3(48f, 140f, 0f),
-                        Hex(NoonFogHex), 50f, 280f,
+                        Hex(NoonFogHex), 150f, 1200f,
                         Hex(NoonAmbientHex), 0.85f,
                         Hex(NoonSkyHex));
             }
