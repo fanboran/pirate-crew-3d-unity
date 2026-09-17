@@ -163,6 +163,24 @@ namespace PirateCrew.PirateCrew.Fx
             _playing = false;
         }
 
+        /// <summary>
+        /// 销毁本实例的运行时材质（<see cref="FxPool"/> 池超额清理 / 池清空时调用）。
+        /// 材质带 <c>HideFlags.DontSave</c>，不进场景也不被 <c>Resources.UnloadUnusedAssets</c>
+        /// 回收——特效体被 Destroy 时若不显式销毁，材质就成了无人释放的孤儿。
+        /// 归还复用路径（<see cref="PrepareForPool"/>）**不**调这里，材质随实例复用。
+        /// </summary>
+        internal void ReleaseForDestroy()
+        {
+            if (_material == null)
+                return;
+
+            if (Application.isPlaying)
+                Object.Destroy(_material);
+            else
+                Object.DestroyImmediate(_material);
+            _material = null;
+        }
+
         void Update()
         {
             if (_billboard)

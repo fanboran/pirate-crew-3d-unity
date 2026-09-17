@@ -205,7 +205,8 @@ namespace PirateCrew.PirateCrew.SceneArt
                 case 1:
                 {
                     // 云朵场：Lowpoly 几何以原点为中心生成，平移到 20×15 格场的心 (20, 15)。
-                    // BuildCloudField 幂等（同 parent 同名旧根先删后建），多次 Rebuild 不堆积。
+                    // BuildCloudField 幂等（同 parent 同名旧根先删后建，旧根的运行时网格一并回收），
+                    // 多次 Rebuild 不堆积 GameObject 也不泄漏 Mesh。
                     Lowpoly.LowpolyStageReport cloudStage =
                         Lowpoly.LowpolyStageBuilder.BuildCloudField(root, null);
                     cloudStage.Root.transform.position = new Vector3(

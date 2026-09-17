@@ -29,7 +29,7 @@ namespace PirateCrew.PirateCrew.SceneArt.Lowpoly
 
     /// <summary>
     /// 低模关卡的 **Unity 装配入口**（几何层 → GameObject）：把
-    /// <see cref="CloudFieldGeometry"/> / <see cref="HillIslandGeometry"/> 写好的
+    /// <see cref="CloudFieldGeometry"/> 写好的
     /// <see cref="LowpolyBuffers"/> 落成 MeshFilter + MeshRenderer + Collider。
     ///
     /// 【渲染铁律】每个 MeshRenderer 创建后**显式绑定材质**：URP Lit 纯色程序化材质
@@ -39,10 +39,8 @@ namespace PirateCrew.PirateCrew.SceneArt.Lowpoly
     /// 【碰撞策略（选稳的）】
     ///   · 云朵：每朵云 **双 BoxCollider**（台面平盒顶面 = TopY，角色必站平面；
     ///     云身粗盒接住侧面打来的弹体）。静态、无 Rigidbody —— 盒子组合最稳最便宜。
-    ///   · 山包：各材质槽网格挂 **静态非凸 MeshCollider**（分层棱台壳即所见即所撞，
-    ///     台面是网格平顶；静态不动的近凸壳 PhysX 稳定）。
     ///
-    /// 【接线归协调者】本类不进任何场景烘焙流程；由关卡装配器在需要时调用两个 Build 入口。
+    /// 【接线归协调者】本类不进任何场景烘焙流程；由关卡装配器在需要时调用 Build 入口。
     /// </summary>
     public static class LowpolyStageBuilder
     {
@@ -174,34 +172,6 @@ namespace PirateCrew.PirateCrew.SceneArt.Lowpoly
             return report;
         }
 
-        /// <summary>
-        /// 构建山包大岛（幂等：同 parent 下同名旧根先删后建）。
-        /// 返回报告含 8 个山顶出生点建议。
-        /// </summary>
-        public static LowpolyStageReport BuildHillIsland(Transform parent, HillIslandSpec spec)
-        {
-            if (spec == null)
-                spec = HillIslandSpec.Default;
-
-            var buffers = new LowpolyBuffers();
-            HillIslandGeometry.Compose(buffers, spec);
-
-            GameObject root = FreshChild(parent, "LowpolyHillIsland");
-
-            // 渲染 + 碰撞：4 个山体材质槽各落 1 网格，静态非凸 MeshCollider（所见即所撞）。
-            int meshes = EmitBuffers(buffers, root, LowpolySlotSet.Hill, addMeshCollider: true);
-
-            var report = new LowpolyStageReport
-            {
-                Root = root,
-                Triangles = buffers.TotalTriangles,
-                MeshCount = meshes,
-                HillTopY = HillIslandGeometry.TopSurfaceY(spec),
-            };
-            report.SpawnPoints.AddRange(HillIslandGeometry.SpawnPoints(spec));
-            return report;
-        }
-
         // ------------------------------------------------------------------
         // 内部
         // ------------------------------------------------------------------
@@ -280,7 +250,13 @@ namespace PirateCrew.PirateCrew.SceneArt.Lowpoly
             }
         }
 
-        /// <summary>幂等子节点：同 parent 下同名旧根（连同其网格）先删后建。</summary>
+        /// <summary>
+        /// 幂等子节点：同 parent 下同名旧根（连同其网格）先删后建。
+        /// 【资源泄漏防线】<see cref="EmitMesh"/> 每次构建都 new Mesh 挂 MeshFilter，只 Destroy
+        /// GameObject 不会销毁 Mesh 本体（独立原生对象）——每次进关重建就泄全部槽位网格，
+        /// 故删旧根前先回收其下全部运行时网格（模式照抄 Ambient/AmbientLibrary.Dispose；
+        /// 材质走 <see cref="GetOrCreateMaterial"/> 静态缓存，**绝不**在此销毁）。
+        /// </summary>
         static GameObject FreshChild(Transform parent, string name)
         {
             if (parent != null)
@@ -288,6 +264,7 @@ namespace PirateCrew.PirateCrew.SceneArt.Lowpoly
                 Transform existing = parent.Find(name);
                 if (existing != null)
                 {
+                    ReleaseStageMeshes(existing);
                     GameObject old = existing.gameObject;
                     if (Application.isPlaying)
                         Object.Destroy(old);
@@ -302,6 +279,23 @@ namespace PirateCrew.PirateCrew.SceneArt.Lowpoly
             go.transform.localPosition = Vector3.zero;
             go.isStatic = true;
             return go;
+        }
+
+        /// <summary>销毁旧舞台根下全部 MeshFilter 引用的运行时网格（本类产的 Mesh 全部运行时 new，可安全销毁）。</summary>
+        static void ReleaseStageMeshes(Transform stageRoot)
+        {
+            MeshFilter[] filters = stageRoot.GetComponentsInChildren<MeshFilter>(true);
+            for (int i = 0; i < filters.Length; i++)
+            {
+                Mesh mesh = filters[i] != null ? filters[i].sharedMesh : null;
+                if (mesh == null)
+                    continue;
+
+                if (Application.isPlaying)
+                    Object.Destroy(mesh);
+                else
+                    Object.DestroyImmediate(mesh);
+            }
         }
     }
 }

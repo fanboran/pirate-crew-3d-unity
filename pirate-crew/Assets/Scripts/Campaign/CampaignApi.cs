@@ -19,10 +19,12 @@ namespace PirateCrew.Campaign
     ///   全程不改 PirateCrew/（黑名单），只订阅它已有的事件。
     ///
     /// 【本轮边界（重要）】
-    ///   1. 选关只决定**结算归属的关卡**，Battle 场景仍固定加载第 1 关竞技场
-    ///      （<c>BattleController.fallbackLevelNumber = 1</c> 且场景内 <c>level</c> 资产为 level_1）；
-    ///      真正按所选关卡加载需要 BattleController 增一个读取入口（见交付报告「需要协调者裁决的改动」）。
-    ///   2. 编成阵容不注入出战名单（同上原因），只影响「结算给谁发经验」。
+    ///   1. 选关同时决定**结算归属的关卡与加载的竞技场**：Battle 场景未指定 level 资产时，
+    ///      <c>BattleController.BuildPlan()</c> 经 <see cref="PendingBattleLevelNumberOr"/> 取
+    ///      「已选、等待结算」的关卡号注入；无待战关卡时回落 <c>BattleController.fallbackLevelNumber</c>。
+    ///   2. 编成阵容注入出战名单：战役入口那一局（<see cref="PendingLevelId"/> 非空）红队按
+    ///      <c>CrewManagementApi.Roster.Active</c> 过滤出征名单（<c>BattleController.ResolveActiveRosterSymbols</c>）；
+    ///      主菜单直进战斗 / 2P 不过滤，保持关卡作者写好的布阵。
     ///   3. 宝箱未实装，星级用 <c>chestsTotal = 0</c>（3★ 退化为「通关 + 全员存活」，见 <see cref="StarRules"/>）。
     ///
     /// 【存档】本类是管理循环存档的所有者：槽位 <see cref="ProgressSlot"/>（1），
@@ -172,12 +174,11 @@ namespace PirateCrew.Campaign
         /// <summary>
         /// 待战关卡在 <c>LevelCatalog</c> 里的关卡序号；无法确定时返回 <paramref name="fallback"/>。
         ///
-        /// 【用途 / 现状】这是给 **Battle 侧关卡注入** 预留的衔接点：
-        ///   本轮 <c>BattleController.BuildPlan()</c> 固定用 <c>fallbackLevelNumber</c>，
-        ///   接入时只需在 `level == null` 分支改用它（一行），就能让「选关」真正决定加载哪张竞技场。
-        ///   详见 M3 交付报告的「需要协调者裁决的改动」。
-        ///   由于 <c>LevelCatalog</c> 目前只转写了 3 关，未转写的关卡返回 <paramref name="fallback"/>，
-        ///   接入方不会因为 <c>KeyNotFoundException</c> 崩掉。
+        /// 【用途 / 现状】这是 **Battle 侧关卡注入** 的衔接点：
+        ///   <c>BattleController.BuildPlan()</c> 在场景未指定 level 资产时用它取所选关卡号，
+        ///   让「选关」决定加载哪张竞技场（见 <c>BattleController.cs</c> 的「关卡注入」注释）。
+        ///   <c>LevelCatalog</c> 已 33 关全量转写（<c>IsTranscribed</c> 对 1–33 恒真），
+        ///   故正常选关后恒返回所选关卡号；仅关卡号越界 / 未选关时回落 <paramref name="fallback"/>。
         /// </summary>
         public static int PendingBattleLevelNumberOr(int fallback)
         {
@@ -312,6 +313,16 @@ namespace PirateCrew.Campaign
         /// <summary>清空全部静态状态（测试 / 重开档用）。</summary>
         public static void Reset()
         {
+            // 【先退订再置标志】EnsureBootstrapped 订阅的三个事件必须在这里对称退订：
+            // 方法组转换每次生成新委托实例，靠 EventBus 的 Contains 去重兜底属于实现细节；
+            // Reset 不退订会让 EventBus 里残留监听者（架构违规：订阅方必须退订，见 EventBus 约定 3）。
+            if (_bootstrapped)
+            {
+                EventBus.Unsubscribe(BattleEvents.BattleStarted, OnBattleStarted);
+                EventBus.Unsubscribe(BattleEvents.CrewDied, OnCrewDied);
+                EventBus.Unsubscribe(BattleEvents.MatchFinished, OnMatchFinished);
+            }
+
             _manager = new CampaignManager();
             _bootstrapped = false;
             _playerDeaths = 0;

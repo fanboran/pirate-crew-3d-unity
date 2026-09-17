@@ -5,10 +5,10 @@ using UnityEngine;
 namespace PirateCrew.PirateCrew.SceneArt.Lowpoly
 {
     /// <summary>
-    /// 低多边形关卡几何（Lowpoly/SceneArt）：云朵平台场 + 山包大岛两个独立生成器。
+    /// 低多边形关卡几何（Lowpoly/SceneArt）：云朵平台场生成器。
     ///
     /// 【分工】与 SceneArt 既有管线同构：
-    ///   · 纯 C# 几何层（<see cref="CloudFieldGeometry"/> / <see cref="HillIslandGeometry"/>）
+    ///   · 纯 C# 几何层（<see cref="CloudFieldGeometry"/>）
     ///     只往 <see cref="MeshBuffers"/> 写顶点/三角面——无头可测、确定性（同 seed 同几何）；
     ///   · Unity 装配层（<see cref="LowpolyStageBuilder"/>）把缓冲落成 MeshFilter + MeshRenderer
     ///     + Collider，并显式绑定程序化 URP Lit 材质（渲染铁律：不绑 = 构建里粉色炸弹）。

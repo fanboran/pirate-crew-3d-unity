@@ -120,6 +120,8 @@ namespace PirateCrew.PirateCrew.Fx
 
             if (stack.Count >= FxRules.MaxPooledSprites)
             {
+                // 池超额：特效体连同其每实例材质一起销毁（DontSave 材质不显式销毁即成孤儿）。
+                sprite.ReleaseForDestroy();
                 Object.Destroy(sprite.gameObject);
                 return;
             }
@@ -149,7 +151,10 @@ namespace PirateCrew.PirateCrew.Fx
                     {
                         FxSpriteFx s = SpritePool[blend, billboard].Pop();
                         if (s != null)
+                        {
+                            s.ReleaseForDestroy();
                             Object.Destroy(s.gameObject);
+                        }
                     }
                 }
             }

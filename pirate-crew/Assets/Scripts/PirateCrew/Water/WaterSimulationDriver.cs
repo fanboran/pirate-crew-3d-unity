@@ -119,6 +119,15 @@ namespace PirateCrew.PirateCrew.Water
         Light _sunLight;
         bool _subscribed;
 
+        /// <summary>
+        /// 平行光解析的负缓存：一次解析找不到平行光时，到该时刻前不再 <c>FindObjectsOfType</c>
+        /// （否则 sun 未登记且场景无平行光时会退化为每帧全场景扫描）。
+        /// </summary>
+        float _sunSearchAllowedTime;
+
+        /// <summary>平行光解析失败后的重扫间隔（秒）：期间走静态兜底方向，最迟一个间隔后自愈。</summary>
+        const float SunSearchRetryInterval = 3f;
+
         /// <summary>模拟是否在运行（供测试/报告读取）。</summary>
         public bool IsRunning => enableSimulation && _field != null;
 
@@ -237,6 +246,9 @@ namespace PirateCrew.PirateCrew.Water
                 Shader.SetGlobalFloat(GlobalEnabled, 0f);
                 Instance = null;
             }
+
+            // 重新激活时允许立即重扫一次平行光（换场景后主光可能已更换）。
+            _sunSearchAllowedTime = 0f;
         }
 
         void OnDestroy()
@@ -246,6 +258,13 @@ namespace PirateCrew.PirateCrew.Water
                 Instance = null;
             if (Shader.GetGlobalFloat(GlobalEnabled) != 0f)
                 Shader.SetGlobalFloat(GlobalEnabled, 0f);
+
+            // 【资源泄漏防线】_heightTexture / _fallbackObstacle 都是运行时 new 的纹理
+            // （独立原生对象，不随场景卸载立即释放），销毁时显式释放（模式同 OceanRig.OnDestroy）。
+            if (_heightTexture != null)
+                Destroy(_heightTexture);
+            if (_fallbackObstacle != null)
+                Destroy(_fallbackObstacle);
         }
 
         /// <summary>模拟域中心：竞技场中心（W/2, D/2）。拿不到关卡数据时退回自定义值。</summary>
@@ -404,9 +423,12 @@ namespace PirateCrew.PirateCrew.Water
         void PublishSunDirection()
         {
             Light sun = RenderSettings.sun != null ? RenderSettings.sun : _sunLight;
-            if (sun == null)
+            if (sun == null && Time.time >= _sunSearchAllowedTime)
             {
                 // 缓存失效（光源被销毁/换场景）时重解析一次。
+                // 【负缓存】场景里确实没有平行光时也只按 <see cref="SunSearchRetryInterval"/>
+                // 间隔重扫，期间直接走静态兜底方向——不能每帧 FindObjectsOfType 全场景扫描。
+                _sunSearchAllowedTime = Time.time + SunSearchRetryInterval;
                 _sunLight = FindBrightestDirectionalLight();
                 sun = _sunLight;
             }

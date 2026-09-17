@@ -214,7 +214,7 @@ namespace PirateCrew.PirateCrew.Battle
                 {
                     // 整格已摧毁：移除碰撞块（回到基础地面）。
                     if (existing != null)
-                        Destroy(existing);
+                        DestroyUnityObject(existing);
                     _cellObjects[index] = null;
                 }
                 else
@@ -431,12 +431,21 @@ namespace PirateCrew.PirateCrew.Battle
             _shellRenderer.SetPropertyBlock(mpb);
         }
 
+        void OnDestroy()
+        {
+            // 组件销毁时 GameObject 层级由 Unity 收走，但运行时 new 的 Mesh / Material 是独立的
+            // 原生对象，不随场景卸载立即释放（要等 Resources.UnloadUnusedAssets）；这里显式销毁。
+            ClearAll();
+            DestroyUnityObject(_fallbackMaterial);
+            _fallbackMaterial = null;
+        }
+
         void ClearAll()
         {
             for (int i = 0; i < _cellObjects.Length; i++)
             {
                 if (_cellObjects[i] != null)
-                    Destroy(_cellObjects[i]);
+                    DestroyUnityObject(_cellObjects[i]);
             }
 
             _cellObjects = new GameObject[0];
@@ -444,9 +453,14 @@ namespace PirateCrew.PirateCrew.Battle
             LowZoneTriangleCount = 0;
             UndersideTriangleCount = 0;
 
+            // 【资源泄漏防线】_shellMesh 等是运行时 new 的合并网格（数万顶点 UInt32），
+            // 只 Destroy 挂靠的 GameObject 不会销毁 Mesh 本体——每次 Render() 重建就泄一轮。
+            // 故随 GameObject 一起显式销毁（模式照抄 Ambient/AmbientLibrary.Dispose），
+            // 之后引用置 null 的既有逻辑不动。
             if (_shellObject != null)
             {
-                Destroy(_shellObject);
+                DestroyUnityObject(_shellObject);
+                DestroyUnityObject(_shellMesh);
                 _shellObject = null;
                 _shellFilter = null;
                 _shellRenderer = null;
@@ -455,7 +469,8 @@ namespace PirateCrew.PirateCrew.Battle
 
             if (_lowZoneObject != null)
             {
-                Destroy(_lowZoneObject);
+                DestroyUnityObject(_lowZoneObject);
+                DestroyUnityObject(_lowZoneMesh);
                 _lowZoneObject = null;
                 _lowZoneFilter = null;
                 _lowZoneRenderer = null;
@@ -464,12 +479,28 @@ namespace PirateCrew.PirateCrew.Battle
 
             if (_underShellObject != null)
             {
-                Destroy(_underShellObject);
+                DestroyUnityObject(_underShellObject);
+                DestroyUnityObject(_underShellMesh);
                 _underShellObject = null;
                 _underShellFilter = null;
                 _underShellRenderer = null;
                 _underShellMesh = null;
             }
+        }
+
+        /// <summary>
+        /// 运行时用 Object.Destroy、编辑器（EditMode 测试 / 装配期重建）用 Object.DestroyImmediate
+        /// （模式照抄 <c>Ambient/AmbientLibrary</c>）。
+        /// </summary>
+        static void DestroyUnityObject(UnityEngine.Object obj)
+        {
+            if (obj == null)
+                return;
+
+            if (Application.isPlaying)
+                UnityEngine.Object.Destroy(obj);
+            else
+                UnityEngine.Object.DestroyImmediate(obj);
         }
 
         Material ResolveShellMaterial()
