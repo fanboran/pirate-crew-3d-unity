@@ -92,16 +92,48 @@ namespace PirateCrew.Core
         }
 
         /// <summary>
-        /// 切换到指定场景（异步加载 + 可选过渡动画）。
+        /// 切换到指定场景（异步加载 + 可选过渡动画）——**前进导航**：把当前场景压入返回栈。
+        /// 目标与当前场景同名时视为「原地重载」，不压栈（「再来一局」不堆历史）。
         /// </summary>
         /// <param name="sceneName">目标场景名或路径（必须在 Build Settings 中）。</param>
         /// <param name="transition">是否使用过渡动画，默认 true。</param>
-        /// <param name="replaceTop">
-        /// true 时把当前场景名**替换**（而非追加）到场景栈顶——用于"重开一局"这类
-        /// 同场景重载：栈深不变，重开后 go_back 仍回到进战前的那个场景（选关/主菜单），
-        /// 而不是栈里残留的上一局 Battle。
-        /// </param>
-        public void ChangeScene(string sceneName, bool transition = true, bool replaceTop = false)
+        public void ChangeScene(string sceneName, bool transition = true)
+        {
+            RequestSceneChange(sceneName, transition, pushCurrent: true);
+        }
+
+        /// <summary>
+        /// 返回上一个场景（对应 Godot go_back）：弹栈加载，**不**把当前场景压回栈——
+        /// 否则每次「进二级页 → 返回」都会把已离开的场景残留在栈里，栈永不收敛
+        /// （审计 代码审计报告 §一.1）。栈空时仅告警。
+        /// </summary>
+        public void GoBack()
+        {
+            if (_sceneStack.Count == 0)
+            {
+                global::PirateCrew.Core.Log.Warn("[SceneLoader] 场景栈为空，无法返回");
+                return;
+            }
+
+            string previousScene = _sceneStack.Pop();
+            RequestSceneChange(previousScene, true, pushCurrent: false);
+        }
+
+        /// <summary>
+        /// 前进导航是否把当前场景记为返回点（纯函数，供无头测试钉口径）：
+        /// 当前/目标场景名为空（如编辑器未命名测试场景）无从记录，不压；
+        /// 目标与当前同名 = 原地重载（「再来一局」），不压——原 <c>replaceTop</c> 补丁由此退役，
+        /// 它「先弹再压」在首次重开时会误吃栈顶下方的正确历史。
+        /// 栈不变式：栈里只存「要返回去的场景」，当前场景不在栈上。
+        /// </summary>
+        public static bool ShouldRecordReturnPoint(string currentSceneName, string targetSceneName)
+        {
+            if (string.IsNullOrEmpty(currentSceneName) || string.IsNullOrEmpty(targetSceneName))
+                return false;
+            return currentSceneName != targetSceneName;
+        }
+
+        void RequestSceneChange(string sceneName, bool transition, bool pushCurrent)
         {
             if (_isLoading)
             {
@@ -123,31 +155,12 @@ namespace PirateCrew.Core
 
             _isLoading = true;
 
-            // 记录当前场景，供 GoBack 使用（对应 Godot 的 current_scene.scene_file_path 入栈）。
-            // replaceTop：先弹出当前场景再压入（净效果 = 栈顶替换），栈深保持不变。
             var current = SceneManager.GetActiveScene();
-            if (!string.IsNullOrEmpty(current.name))
-            {
-                if (replaceTop && _sceneStack.Count > 0)
-                    _sceneStack.Pop();
+            if (pushCurrent && ShouldRecordReturnPoint(current.name, sceneName))
                 _sceneStack.Push(current.name);
-            }
 
             RaiseSceneLoadStarted(sceneName);
             StartCoroutine(LoadRoutine(sceneName, transition));
-        }
-
-        /// <summary>返回上一个场景（对应 Godot go_back）。栈空时仅告警。</summary>
-        public void GoBack()
-        {
-            if (_sceneStack.Count == 0)
-            {
-                global::PirateCrew.Core.Log.Warn("[SceneLoader] 场景栈为空，无法返回");
-                return;
-            }
-
-            string previousScene = _sceneStack.Pop();
-            ChangeScene(previousScene, true);
         }
 
         /// <summary>清空场景栈（对应 Godot clear_stack）。</summary>
@@ -304,12 +317,7 @@ namespace PirateCrew.Core
                     if (dict.TryGetValue("transition", out var transitionValue) && transitionValue is bool flag)
                         transition = flag;
 
-                    // "replaceTop"：重开一局类请求用（同场景重载但不堆栈，见 ChangeScene 注释）。
-                    bool replaceTop = false;
-                    if (dict.TryGetValue("replaceTop", out var replaceValue) && replaceValue is bool replaceFlag)
-                        replaceTop = replaceFlag;
-
-                    ChangeScene(target, transition, replaceTop);
+                    ChangeScene(target, transition);
                     break;
                 }
             }

@@ -42,7 +42,7 @@ namespace PirateCrew.UI
         /// <summary>返回主菜单事件名（与 Core/SceneLoader 的 go_back 约定一致）。</summary>
         const string GoBackEvent = "go_back";
 
-        /// <summary>EventBus 场景切换事件名（与 Core/SceneLoader 约定一致；重开一局的 replaceTop 走字典载荷）。</summary>
+        /// <summary>EventBus 场景切换事件名（与 Core/SceneLoader 约定一致；同场景重载由 SceneLoader 自动不压栈）。</summary>
         const string ChangeSceneEvent = "change_scene";
 
         /// <summary>§4.1 血条总帧数（28 帧）。</summary>
@@ -564,9 +564,8 @@ namespace PirateCrew.UI
         }
 
         /// <summary>
-        /// 再来一局：重载 Battle 场景。
-        /// 战役局用「栈顶替换」重新 SelectLevel（保留待结算归属，且 go_back 仍回选关）；
-        /// 非战役局直接以 replaceTop 重载 Battle（清掉栈顶的旧 Battle 残留）。
+        /// 再来一局：重载 Battle 场景。SceneLoader 对同名目标自动不压栈（原地重载），
+        /// 栈顶的返回点（选关/主菜单）天然保住，无需 replaceTop 补丁（已退役）。
         /// </summary>
         void RestartBattle()
         {
@@ -575,15 +574,11 @@ namespace PirateCrew.UI
 
             if (_campaignBattle && CampaignApi.LastSettlement != null)
             {
-                CampaignApi.SelectLevel(CampaignApi.LastSettlement.Value.LevelId, replaceTopScene: true);
+                CampaignApi.SelectLevel(CampaignApi.LastSettlement.Value.LevelId);
                 return;
             }
 
-            EventBus.Publish(ChangeSceneEvent, new Dictionary<string, object>
-            {
-                { "path", SceneNames.Battle },
-                { "replaceTop", true },
-            });
+            EventBus.Publish(ChangeSceneEvent, SceneNames.Battle);
         }
 
         /// <summary>返回主菜单/选关前先确认（BackConfirm）；对局已结束时直接走（结算面板的返回按钮不经过这里）。</summary>

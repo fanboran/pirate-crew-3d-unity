@@ -81,5 +81,31 @@ namespace PirateCrew.Tests
             Assert.DoesNotThrow(() => _loader.ChangeScene(string.Empty));
             Assert.That(_loader.IsLoading, Is.False);
         }
+
+        // ------------------------------------------------------------------
+        // 压栈口径（审计 代码审计报告 §一.1：GoBack 交错导航后栈残留错误场景）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void ShouldRecordReturnPoint_ForwardToDifferentScene_Records()
+        {
+            // 前进导航：把当前场景记为返回点。
+            Assert.That(SceneLoader.ShouldRecordReturnPoint("LevelSelect", "Battle"), Is.True);
+        }
+
+        [Test]
+        public void ShouldRecordReturnPoint_SameSceneReload_DoesNotRecord()
+        {
+            // 「再来一局」= 原地重载：不堆历史（原 replaceTop 补丁的场景由此退役）。
+            Assert.That(SceneLoader.ShouldRecordReturnPoint("Battle", "Battle"), Is.False);
+        }
+
+        [Test]
+        public void ShouldRecordReturnPoint_EmptySceneName_DoesNotRecord()
+        {
+            Assert.That(SceneLoader.ShouldRecordReturnPoint(string.Empty, "Battle"), Is.False);
+            Assert.That(SceneLoader.ShouldRecordReturnPoint("Battle", string.Empty), Is.False);
+            Assert.That(SceneLoader.ShouldRecordReturnPoint(null, "Battle"), Is.False);
+        }
     }
 }

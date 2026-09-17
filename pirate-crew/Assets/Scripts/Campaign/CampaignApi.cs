@@ -107,14 +107,12 @@ namespace PirateCrew.Campaign
 
         /// <summary>
         /// 选定关卡（校验已解锁）→ 广播 <see cref="CampaignEvents.LevelSelected"/> → 请求切到 Battle 场景。
+        /// 同场景重载（「再来一局」）由 SceneLoader 按同名目标自动不压栈，无需调用方区分
+        /// （原 replaceTopScene 补丁退役，见 代码审计报告 §一.1）。
         /// </summary>
         /// <param name="levelId">关卡 id。</param>
-        /// <param name="replaceTopScene">
-        /// true 时用「栈顶替换」方式切场景（结算面板的"再来一局"用）：
-        /// Battle → Battle 重载不堆栈，战后 go_back 仍回选关界面。
-        /// </param>
         /// <returns>关卡非法或未解锁返回 false，且不发起场景切换。</returns>
-        public static bool SelectLevel(string levelId, bool replaceTopScene = false)
+        public static bool SelectLevel(string levelId)
         {
             if (!Manager.TrySelectLevel(levelId))
                 return false;
@@ -126,18 +124,7 @@ namespace PirateCrew.Campaign
                 new CampaignLevelSelectedPayload(level.LevelId, level.LevelNumber, level.Chapter));
 
             // 走 EventBus 请求场景切换（UI 不直接持有 SceneLoader，见 Core/SceneLoader 约定）。
-            if (replaceTopScene)
-            {
-                EventBus.Publish(ChangeSceneEvent, new System.Collections.Generic.Dictionary<string, object>
-                {
-                    { "path", SceneNames.Battle },
-                    { "replaceTop", true },
-                });
-            }
-            else
-            {
-                EventBus.Publish(ChangeSceneEvent, SceneNames.Battle);
-            }
+            EventBus.Publish(ChangeSceneEvent, SceneNames.Battle);
             return true;
         }
 
