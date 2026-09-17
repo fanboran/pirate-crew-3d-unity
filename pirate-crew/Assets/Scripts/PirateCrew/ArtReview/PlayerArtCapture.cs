@@ -356,9 +356,9 @@ namespace PirateCrew.PirateCrew.ArtReview
             Vector3 team0 = TeamSpawnCentroid(0);
             Vector3 team1 = TeamSpawnCentroid(1);
             if (team0.sqrMagnitude > 0f)
-                shots.Add(SpawnGroupShot("world-team0-spawn", team0));
+                shots.Add(SpawnGroupShot("world-team0-spawn", team0, team1));
             if (team1.sqrMagnitude > 0f)
-                shots.Add(SpawnGroupShot("world-team1-spawn", team1));
+                shots.Add(SpawnGroupShot("world-team1-spawn", team1, team0));
 
             return shots.ToArray();
         }
@@ -383,10 +383,68 @@ namespace PirateCrew.PirateCrew.ArtReview
         }
 
         /// <summary>出生群近景：从南侧 16u、高 7u 斜视质心（FOV 55 下群像入画、局部地形可辨）。</summary>
-        Shot SpawnGroupShot(string name, Vector3 centroid)
+        Shot SpawnGroupShot(string name, Vector3 centroid, Vector3 enemyCentroid)
         {
-            var aim = centroid + new Vector3(0f, 1.4f, 0f);
-            return NewShot(name, false, centroid + new Vector3(0f, 7f, -16f), 55f, aim);
+            // 视线轴 = 本队质心 → 敌方质心（只取水平分量）。
+            Vector3 toEnemy = enemyCentroid - centroid;
+            toEnemy.y = 0f;
+            if (toEnemy.sqrMagnitude < 1e-4f)
+                toEnemy = Vector3.forward;   // 两队重合（数据异常）时退回固定朝向，不产生 NaN
+            toEnemy.Normalize();
+
+            // 【自适应抬升】机位在出生群**背后**（远离敌方那一侧）——而出生群多半落在岛上，
+            // "背后"往往正好是同一座岛的中部，kit 视觉件（梯田台地、龟背穹顶、断船船体）
+            // 比站面 box 高得多，固定 7u 高度会让画面被近处巨物糊满（实测 spiral_throne 蓝队
+            // 机位遮挡 77.9%、角色只剩几个像素）。故先量一次"出生群 30u 内的最高视觉件顶面"，
+            // 机位高度与后退距离随它上抬——这条就是"出生机位画面 ≥1/3 是可读战场"的落实。
+            float skylineTop = MaxVisualTopNear(centroid, SpawnShotClearRadius);
+            float lift = Mathf.Max(0f, skylineTop + SpawnShotClearance - SpawnShotHeight);
+            float eyeY = SpawnShotHeight + lift;
+            float distance = SpawnShotDistance + lift * SpawnShotLiftToDistance;
+
+            Vector3 eye = centroid - toEnemy * distance + Vector3.up * eyeY;
+            Vector3 aim = centroid + Vector3.up * SpawnShotAimHeight + toEnemy * SpawnShotAimPush;
+            return NewShot(name, false, eye, 55f, aim);
+        }
+
+        /// <summary>出生群机位：沿「本队→敌方」轴反推机位（距离/高度/瞄准前推，单位 u）。</summary>
+        const float SpawnShotDistance = 16f;
+        const float SpawnShotHeight = 7f;
+        const float SpawnShotAimHeight = 1.4f;
+        const float SpawnShotAimPush = 6f;
+        /// <summary>量天际线的半径（u）：出生群周边这么大范围里的最高视觉件决定机位抬升。</summary>
+        const float SpawnShotClearRadius = 30f;
+        /// <summary>机位要高出天际线的余量（u）。</summary>
+        const float SpawnShotClearance = 5f;
+        /// <summary>每抬升 1u 额外后退多少 u（保持俯角不失控、群像不贴脸）。</summary>
+        const float SpawnShotLiftToDistance = 0.7f;
+
+        /// <summary>
+        /// 出生群周边 <paramref name="radius"/> 内最高视觉件的顶面高度（世界 y）。
+        /// 只统计**尺寸合理**的 MeshRenderer：海面裙边那类 4200u 的巨网格不算天际线
+        /// （它的包围盒顶面是波峰，会把机位抬到天上）。取不到任何件时返回 0。
+        /// </summary>
+        static float MaxVisualTopNear(Vector3 center, float radius)
+        {
+            var renderers = Object.FindObjectsOfType<MeshRenderer>();
+            float top = 0f;
+            float r2 = radius * radius;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                MeshRenderer mr = renderers[i];
+                if (mr == null)
+                    continue;
+                Bounds b = mr.bounds;
+                // 巨网格（海面裙边/远景幕布）不计入天际线
+                if (b.size.x > radius * 2f || b.size.z > radius * 2f)
+                    continue;
+                var dxz = new Vector2(b.center.x - center.x, b.center.z - center.z);
+                if (dxz.sqrMagnitude > r2)
+                    continue;
+                if (b.max.y > top)
+                    top = b.max.y;
+            }
+            return top;
         }
 
         /// <summary>
