@@ -1,10 +1,7 @@
 {
-    "name": "PirateCrew.Runtime",
+    "name": "PirateCrew.Core",
     "rootNamespace": "PirateCrew",
-    "references": [
-        "Cinemachine",
-        "Unity.TextMeshPro"
-    ],
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

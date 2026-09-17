@@ -3,6 +3,10 @@
     "rootNamespace": "PirateCrew.Tests",
     "references": [
         "GUID:00cac168e2a0d6a4b8b82ddb0c739f37",
+        "PirateCrew.Core",
+        "PirateCrew.Campaign",
+        "PirateCrew.CrewManagement",
+        "PirateCrew.UI",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],
