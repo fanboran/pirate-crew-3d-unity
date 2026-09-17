@@ -410,11 +410,12 @@ namespace PirateCrew.PirateCrew.Audio
             if (!(payload is MatchFinishedPayload finished))
                 return;
 
-            SfxId cue = AudioEventMapper.MusicForMatchOutcome(
-                (MatchOutcome)finished.Outcome, finished.Team1IsAi, out bool hasMusic);
+            // 乐句裁决 = mapper 唯一真值（false = 这一局不放任何乐句，2P 热座蓝队胜）。
+            if (!AudioEventMapper.MusicForMatchOutcome(
+                (MatchOutcome)finished.Outcome, finished.Team1IsAi, out SfxId cue))
+                return;
 
-            if (hasMusic)
-                PlayMusic(cue);
+            PlayMusic(cue);
         }
 
         void OnSceneLoadStarted(object payload)

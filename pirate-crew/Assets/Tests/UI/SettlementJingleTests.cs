@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using PirateCrew.PirateCrew.Audio;
 using PirateCrew.PirateCrew.Battle;
+using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
 using PirateCrew.UI;
 

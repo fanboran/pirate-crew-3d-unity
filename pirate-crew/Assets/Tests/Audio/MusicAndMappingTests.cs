@@ -218,24 +218,25 @@ namespace PirateCrew.Tests.Audio
         [Test]
         public void Mapper_OutcomeToMusicCue()
         {
-            AudioEventMapper.MusicForMatchOutcome(MatchOutcome.Team0Win, true, out bool victory);
-            Assert.That(victory, Is.True);
-            Assert.That(AudioEventMapper.MusicForMatchOutcome(MatchOutcome.Team0Win, true, out _),
-                Is.EqualTo(SfxId.VictoryJingle));
+            // 新口径：返回值 = 是否放乐句，out = 乐句（与 BattleHud.SettlementJingleFor 同一契约）。
+            Assert.That(AudioEventMapper.MusicForMatchOutcome(MatchOutcome.Team0Win, true, out SfxId victory),
+                Is.True);
+            Assert.That(victory, Is.EqualTo(SfxId.VictoryJingle));
 
-            Assert.That(AudioEventMapper.MusicForMatchOutcome(MatchOutcome.LevelFailed, true, out bool failed),
-                Is.EqualTo(SfxId.DefeatJingle));
-            Assert.That(failed, Is.True);
+            Assert.That(AudioEventMapper.MusicForMatchOutcome(MatchOutcome.LevelFailed, true, out SfxId failed),
+                Is.True);
+            Assert.That(failed, Is.EqualTo(SfxId.DefeatJingle));
 
-            Assert.That(AudioEventMapper.MusicForMatchOutcome(MatchOutcome.Draw, true, out _),
-                Is.EqualTo(SfxId.DefeatJingle));
+            Assert.That(AudioEventMapper.MusicForMatchOutcome(MatchOutcome.Draw, true, out SfxId draw),
+                Is.True);
+            Assert.That(draw, Is.EqualTo(SfxId.DefeatJingle));
 
-            Assert.That(AudioEventMapper.MusicForMatchOutcome(MatchOutcome.Team1Win, true, out bool aiWin),
-                Is.EqualTo(SfxId.DefeatJingle), "1P 模式 AI 胜 = 玩家失败");
-            Assert.That(aiWin, Is.True);
+            Assert.That(AudioEventMapper.MusicForMatchOutcome(MatchOutcome.Team1Win, true, out SfxId aiWin),
+                Is.True, "1P 模式 AI 胜 = 玩家失败");
+            Assert.That(aiWin, Is.EqualTo(SfxId.DefeatJingle));
 
-            AudioEventMapper.MusicForMatchOutcome(MatchOutcome.Team1Win, false, out bool hotseatBlueWin);
-            Assert.That(hotseatBlueWin, Is.False, "2P 热座蓝队获胜时不应误放胜利/失败乐句");
+            Assert.That(AudioEventMapper.MusicForMatchOutcome(MatchOutcome.Team1Win, false, out _),
+                Is.False, "2P 热座蓝队获胜时不应误放胜利/失败乐句");
         }
 
         [Test]

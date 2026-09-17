@@ -48,44 +48,47 @@ namespace PirateCrew.PirateCrew.Audio
         }
 
         /// <summary>
-        /// 对局结果 → 结果乐句。<paramref name="hasMusic"/> 为 false 时表示这一局
-        /// 不该放乐句（2P 热座下蓝队获胜，对红队玩家既非胜也非败，放任何一段都错）。
+        /// 对局结果 → 结果乐句裁决（唯一真值）。返回 false 表示这一局**不该放乐句**
+        /// （2P 热座下蓝队获胜，对红队玩家既非胜也非败，放任何一段都错），此时
+        /// <paramref name="jingle"/> 的值无意义。
         ///
         /// 映射依据：<see cref="MatchOutcome"/>（<c>Combat/TurnRules.cs</c>）与
         /// <c>MatchFinishedPayload.Team1IsAi</c>（1P 模式为 true）。
+        /// 【口径消费方】<c>AudioService.OnMatchFinished</c> 与
+        /// <c>BattleHud.SettlementJingleFor</c> 都走本方法，两侧测试锁同一致性。
         /// </summary>
-        public static SfxId MusicForMatchOutcome(MatchOutcome outcome, bool team1IsAi, out bool hasMusic)
+        public static bool MusicForMatchOutcome(MatchOutcome outcome, bool team1IsAi, out SfxId jingle)
         {
             switch (outcome)
             {
                 case MatchOutcome.Team0Win:
-                    hasMusic = true;
-                    return SfxId.VictoryJingle;
+                    jingle = SfxId.VictoryJingle;
+                    return true;
 
                 case MatchOutcome.LevelFailed:
                     // 1P 模式玩家失败（含双方全灭）
-                    hasMusic = true;
-                    return SfxId.DefeatJingle;
+                    jingle = SfxId.DefeatJingle;
+                    return true;
 
                 case MatchOutcome.Draw:
-                    hasMusic = true;
-                    return SfxId.DefeatJingle;
+                    jingle = SfxId.DefeatJingle;
+                    return true;
 
                 case MatchOutcome.Team1Win:
                     if (team1IsAi)
                     {
                         // 1P：AI（蓝队）获胜 = 玩家失败
-                        hasMusic = true;
-                        return SfxId.DefeatJingle;
+                        jingle = SfxId.DefeatJingle;
+                        return true;
                     }
 
                     // 2P 热座：蓝队（玩家 2）获胜，对红队玩家不是失败，不放乐句
-                    hasMusic = false;
-                    return SfxId.VictoryJingle;
+                    jingle = SfxId.VictoryJingle;   // 占位：返回值为 false 时调用方不得使用
+                    return false;
 
                 default:
-                    hasMusic = false;
-                    return SfxId.VictoryJingle;
+                    jingle = SfxId.VictoryJingle;   // 占位：返回值为 false 时调用方不得使用
+                    return false;
             }
         }
 
