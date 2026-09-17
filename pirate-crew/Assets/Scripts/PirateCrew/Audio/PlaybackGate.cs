@@ -37,7 +37,7 @@ namespace PirateCrew.PirateCrew.Audio
 
         readonly double _debounceSeconds;
         readonly int[] _maxVoices;
-        readonly Dictionary<string, double> _lastStartSeconds = new Dictionary<string, double>();
+        readonly Dictionary<int, double> _lastStartSeconds = new Dictionary<int, double>();
         readonly List<Voice> _active = new List<Voice>();
 
         struct Voice
@@ -76,13 +76,13 @@ namespace PirateCrew.PirateCrew.Audio
 
         /// <summary>
         /// 只做去抖判定：同 key 在窗口内重复调用返回 false。
+        /// key 为音效 id 的整型值（调用方传 <c>(int)SfxId</c>）：整型直存字典，
+        /// 播放热路径零装箱、零字符串分配（旧版 string key 每次播放都要 <c>id.ToString()</c>，
+        /// 受击/地雷蜂鸣这类高频音效吃 GC）。key 唯一性由调用方保证（同一音效恒用同一 id）。
         /// 放行时会记录本次时间，被拒绝时不记录（保证窗口内第一次请求总能过）。
         /// </summary>
-        public bool ShouldPlay(string key, double nowSeconds)
+        public bool ShouldPlay(int key, double nowSeconds)
         {
-            if (string.IsNullOrEmpty(key))
-                return true;
-
             if (_lastStartSeconds.TryGetValue(key, out double last))
             {
                 if (nowSeconds - last < _debounceSeconds)
@@ -100,7 +100,7 @@ namespace PirateCrew.PirateCrew.Audio
         /// 【顺序】先查并发上限再去抖：并发满时不应消耗去抖窗口，
         /// 否则「名额刚满→名额释放」之间 50 ms 内的请求会被误杀。
         /// </summary>
-        public bool TryAcquire(string key, AudioCategory category, double nowSeconds, double durationSeconds)
+        public bool TryAcquire(int key, AudioCategory category, double nowSeconds, double durationSeconds)
         {
             Trim(nowSeconds);
 

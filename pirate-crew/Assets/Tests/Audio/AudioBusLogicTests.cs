@@ -92,38 +92,42 @@ namespace PirateCrew.Tests.Audio
         }
 
         // ------------------------------------------------------------------
-        // PlaybackGate：同帧去抖
+        // PlaybackGate：同帧去抖（key 为音效 id 整型值，与 AudioService 调用方式一致）
         // ------------------------------------------------------------------
 
         [Test]
         public void Gate_DebounceWindow_IsFiftyMilliseconds()
         {
             var gate = new PlaybackGate();
+            int key = (int)SfxId.Explosion;
 
-            Assert.That(gate.ShouldPlay("explosion", 0d), Is.True, "窗口内第一次必须放行");
-            Assert.That(gate.ShouldPlay("explosion", 0.03d), Is.False, "30 ms 内应被去抖");
-            Assert.That(gate.ShouldPlay("explosion", 0.049d), Is.False);
-            Assert.That(gate.ShouldPlay("explosion", 0.05d), Is.True, "满 50 ms 后应放行");
+            Assert.That(gate.ShouldPlay(key, 0d), Is.True, "窗口内第一次必须放行");
+            Assert.That(gate.ShouldPlay(key, 0.03d), Is.False, "30 ms 内应被去抖");
+            Assert.That(gate.ShouldPlay(key, 0.049d), Is.False);
+            Assert.That(gate.ShouldPlay(key, 0.05d), Is.True, "满 50 ms 后应放行");
         }
 
         [Test]
         public void Gate_DebounceIsPerKey_NotGlobal()
         {
             var gate = new PlaybackGate();
+            int keyA = (int)SfxId.Explosion;
+            int keyB = (int)SfxId.FleshHit;
 
-            Assert.That(gate.ShouldPlay("a", 0d), Is.True);
-            Assert.That(gate.ShouldPlay("b", 0.001d), Is.True, "不同音效互不影响");
-            Assert.That(gate.ShouldPlay("a", 0.002d), Is.False);
+            Assert.That(gate.ShouldPlay(keyA, 0d), Is.True);
+            Assert.That(gate.ShouldPlay(keyB, 0.001d), Is.True, "不同音效互不影响");
+            Assert.That(gate.ShouldPlay(keyA, 0.002d), Is.False);
         }
 
         [Test]
         public void Gate_BlockedCallDoesNotExtendWindow()
         {
             var gate = new PlaybackGate();
+            int key = (int)SfxId.Bounce;
 
-            Assert.That(gate.ShouldPlay("k", 0d), Is.True);
-            Assert.That(gate.ShouldPlay("k", 0.03d), Is.False);
-            Assert.That(gate.ShouldPlay("k", 0.051d), Is.True,
+            Assert.That(gate.ShouldPlay(key, 0d), Is.True);
+            Assert.That(gate.ShouldPlay(key, 0.03d), Is.False);
+            Assert.That(gate.ShouldPlay(key, 0.051d), Is.True,
                 "被拒绝的调用不应刷新时间戳（否则连点会永远播不出来）");
         }
 
@@ -132,13 +136,13 @@ namespace PirateCrew.Tests.Audio
         {
             var gate = new PlaybackGate(PlaybackGate.DefaultDebounceSeconds, maxVoicesPerCategory: 2);
 
-            Assert.That(gate.TryAcquire("a", AudioCategory.Sfx, 0d, 1d), Is.True);
-            Assert.That(gate.TryAcquire("b", AudioCategory.Sfx, 0d, 1d), Is.True);
-            Assert.That(gate.TryAcquire("c", AudioCategory.Sfx, 0d, 1d), Is.False, "超过并发上限应丢弃新请求");
+            Assert.That(gate.TryAcquire((int)SfxId.Explosion, AudioCategory.Sfx, 0d, 1d), Is.True);
+            Assert.That(gate.TryAcquire((int)SfxId.WoodCrack, AudioCategory.Sfx, 0d, 1d), Is.True);
+            Assert.That(gate.TryAcquire((int)SfxId.FleshHit, AudioCategory.Sfx, 0d, 1d), Is.False, "超过并发上限应丢弃新请求");
             Assert.That(gate.VoiceCappedCount, Is.EqualTo(1));
 
             // 1 秒后旧占位过期，名额恢复
-            Assert.That(gate.TryAcquire("c", AudioCategory.Sfx, 1.01d, 1d), Is.True);
+            Assert.That(gate.TryAcquire((int)SfxId.FleshHit, AudioCategory.Sfx, 1.01d, 1d), Is.True);
         }
 
         [Test]
@@ -146,16 +150,16 @@ namespace PirateCrew.Tests.Audio
         {
             var gate = new PlaybackGate(PlaybackGate.DefaultDebounceSeconds, maxVoicesPerCategory: 1);
 
-            Assert.That(gate.TryAcquire("a", AudioCategory.Sfx, 0d, 1d), Is.True);
-            Assert.That(gate.TryAcquire("b", AudioCategory.Sfx, 0d, 1d), Is.False);
-            Assert.That(gate.TryAcquire("c", AudioCategory.Ambient, 0d, 1d), Is.True, "分类之间不共享名额");
+            Assert.That(gate.TryAcquire((int)SfxId.Explosion, AudioCategory.Sfx, 0d, 1d), Is.True);
+            Assert.That(gate.TryAcquire((int)SfxId.WoodCrack, AudioCategory.Sfx, 0d, 1d), Is.False);
+            Assert.That(gate.TryAcquire((int)SfxId.WaterSplash, AudioCategory.Ambient, 0d, 1d), Is.True, "分类之间不共享名额");
         }
 
         [Test]
         public void Gate_ActiveCount_TrimsExpired()
         {
             var gate = new PlaybackGate();
-            gate.TryAcquire("a", AudioCategory.Sfx, 0d, 0.5d);
+            gate.TryAcquire((int)SfxId.Explosion, AudioCategory.Sfx, 0d, 0.5d);
 
             Assert.That(gate.ActiveCount(AudioCategory.Sfx, 0.1d), Is.EqualTo(1));
             Assert.That(gate.ActiveCount(AudioCategory.Sfx, 0.6d), Is.EqualTo(0));
@@ -165,11 +169,11 @@ namespace PirateCrew.Tests.Audio
         public void Gate_Reset_ClearsAllState()
         {
             var gate = new PlaybackGate();
-            gate.TryAcquire("a", AudioCategory.Sfx, 0d, 5d);
+            gate.TryAcquire((int)SfxId.Explosion, AudioCategory.Sfx, 0d, 5d);
             gate.Reset();
 
             Assert.That(gate.ActiveCount(AudioCategory.Sfx, 0.1d), Is.EqualTo(0));
-            Assert.That(gate.ShouldPlay("a", 0.1d), Is.True, "去抖记录也应清空");
+            Assert.That(gate.ShouldPlay((int)SfxId.Explosion, 0.1d), Is.True, "去抖记录也应清空");
             Assert.That(gate.VoiceCappedCount, Is.EqualTo(0));
         }
 

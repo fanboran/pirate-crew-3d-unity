@@ -46,6 +46,9 @@ namespace PirateCrew.PirateCrew.Battle
         [SerializeField] bool showImpactMarker = true;
 
         Vector3[] _buffer;
+        /// <summary>喂 LineRenderer 的位置缓存（grow-only）：Show 随瞄准逐帧调用，
+        /// 旧实现每次 <c>new Vector3[steps+offset]</c>，这里改为按需扩容、永不缩容。</summary>
+        Vector3[] _positions;
         LineRenderer _impactMarker;
 
         void Awake()
@@ -87,15 +90,21 @@ namespace PirateCrew.PirateCrew.Battle
                 originWorld, horizontalDirection, speedPixelsPerFrame, weight, _buffer, steps);
 
             int offset = includeOrigin ? 1 : 0;
-            var positions = new Vector3[steps + offset];
+            int total = steps + offset;
+            if (_positions == null || _positions.Length < total)
+                _positions = new Vector3[total];
+
             if (includeOrigin)
-                positions[0] = originWorld;
+                _positions[0] = originWorld;
 
             for (int i = 0; i < steps; i++)
-                positions[i + offset] = _buffer[i];
+                _positions[i + offset] = _buffer[i];
 
-            line.positionCount = positions.Length;
-            line.SetPositions(positions);
+            // positionCount 先行赋值；SetPositions 只取数组前 positionCount 个条目
+            // （Unity 2022.3 手册明确忽略超出部分），故缓存数组大于本次点数也安全——
+            // 整条线刷新零分配。
+            line.positionCount = total;
+            line.SetPositions(_positions);
 
             if (showImpactMarker
                 && ThrowTrajectory.TryGetImpactPoint(

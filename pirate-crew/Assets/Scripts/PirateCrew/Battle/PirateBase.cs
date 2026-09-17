@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using PirateCrew.Core;
 using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
@@ -18,7 +19,8 @@ namespace PirateCrew.PirateCrew.Battle
     ///   · <c>CharacterBody3D</c> + 手搓 <c>_THROWN_GRAVITY</c> → Unity <see cref="Rigidbody"/>，
     ///     重力交给 PhysX（<c>useGravity</c> + <c>Physics.gravity</c>），不逐帧改 velocityY。
     ///   · 速度换算统一走 <see cref="LevelGeometry"/>（预览与实弹同源）。
-    ///   · 角色被约束在战斗平面（XY，z 固定），保留 z 仅作表现深度——对应原版纯 2D 物理。
+    ///   · 竞技场是 XZ 水平面（地面顶面 y=0，重力沿 -Y），位置**不**约束、只锁旋转保持直立
+    ///     ——见 docs/M2-3D空间模型对齐.md。
     ///   · 保底武器由 <see cref="ResetForTurnStart"/> 调用 <see cref="WeaponInventory.EnsureFallbackWeapon"/> 完成。
     ///   · 落地翻滚 / 落水死亡演出（M4 §3.1，忠实转写 Flash 逆向）：刚体旋转保持冻结，
     ///     翻滚与演出全部作用在运行时创建的视觉滚动 Pivot 上（<see cref="RollRules"/> 出换算，
@@ -69,6 +71,9 @@ namespace PirateCrew.PirateCrew.Battle
         bool _drownPerforming;               // 落水死亡旋转下沉演出进行中
         float _drownSpinSpeed;               // 演出角速度（度/秒，落水瞬间定格）
         Vector3 _drownSpinAxis = Vector3.forward;
+        /// <summary>接触点临时列表（grow-only）：OnCollision* 每物理帧都触发，<c>collision.contacts</c>
+        /// 每次分配新 <c>ContactPoint[]</c>，改用预分配列表 + <see cref="Collision.GetContacts"/>。</summary>
+        readonly List<ContactPoint> _contactScratch = new List<ContactPoint>(8);
 
         /// <summary>"法线朝上"的接触判定阈：normal.y ≥ 0.5（约 ≤60° 斜面按地面处理，提案）。</summary>
         const float GroundNormalMinUp = 0.5f;
@@ -515,10 +520,14 @@ namespace PirateCrew.PirateCrew.Battle
             if (!enableRolling || body == null || body.isKinematic || _drownPerforming)
                 return;
 
-            var contacts = collision.contacts;
+            // GetContacts 填入预分配列表（先手动清空保证内容恰为本次接触点，零 GC 分配），
+            // 与 collision.contacts 是同一批接触点：判定语义不变——任一接触点法线朝上即接地。
+            _contactScratch.Clear();
+            collision.GetContacts(_contactScratch);
+
             float bestUp = 0f;
-            for (int i = 0; i < contacts.Length; i++)
-                bestUp = Mathf.Max(bestUp, contacts[i].normal.y);
+            for (int i = 0; i < _contactScratch.Count; i++)
+                bestUp = Mathf.Max(bestUp, _contactScratch[i].normal.y);
             if (bestUp < GroundNormalMinUp)
                 return;
 

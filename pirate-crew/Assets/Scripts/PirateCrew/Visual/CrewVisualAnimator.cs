@@ -49,6 +49,10 @@ namespace PirateCrew.PirateCrew.Visual
         Vector3 _bodyBasePosition;
         Vector3 _bodyBaseScale;
 
+        /// <summary>受击白闪写入器（Awake 缓存 + 首次使用惰性兜底，避免 Update 链路每帧
+        /// <c>GetComponent</c> 扫描；binder 与本组件同物体，见 <see cref="UnitOutlineBinder"/>）。</summary>
+        UnitOutlineBinder _outlineBinder;
+
         /// <summary>当前表现状态（调试/测试可见）。</summary>
         public CrewVisualState CurrentState => ResolveState();
 
@@ -66,6 +70,10 @@ namespace PirateCrew.PirateCrew.Visual
                 rig = GetComponentInChildren<CrewVisualRig>(true);
             if (pirate == null)
                 pirate = GetComponent<PirateBase>();
+            // 白闪 binder 由 prefab 静态挂载（RequireComponent(PirateBase)），Awake 即可拿到；
+            // 抓不到也不报警——ApplyHitFlash 里会惰性兜底（覆盖手工组装/时序边角）。
+            if (_outlineBinder == null)
+                _outlineBinder = GetComponent<UnitOutlineBinder>();
 
             CaptureBasePose();
         }
@@ -372,14 +380,16 @@ namespace PirateCrew.PirateCrew.Visual
 
         void ApplyHitFlash()
         {
-            var binder = GetComponent<UnitOutlineBinder>();
-            if (binder == null)
+            // 已在 Awake 缓存；此兜底只在缓存未命中时扫一次，命中后不再逐帧 GetComponent。
+            if (_outlineBinder == null)
+                _outlineBinder = GetComponent<UnitOutlineBinder>();
+            if (_outlineBinder == null)
                 return;
 
             // 受击期间按规则给闪白强度，其余时刻复位为 0；
             // binder.SetColorFlash 内部做"值未变则不置脏"，每帧调用无额外开销。
             float strength = _hitActive ? CrewAnimationRules.HitFlashStrength(_hitElapsed) : 0f;
-            binder.SetColorFlash(strength);
+            _outlineBinder.SetColorFlash(strength);
         }
 
         static void SetArmRotation(Transform pivot, float degrees)

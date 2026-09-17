@@ -66,6 +66,13 @@ namespace PirateCrew.PirateCrew.Audio
         public const float AmbientUpdateIntervalSeconds = 0.25f;
 
         /// <summary>
+        /// AudioListener 未命中时的重扫间隔（秒，提案/待定）：保留"场景后补监听器"兜底
+        /// （最迟一个间隔后恢复发声），同时把最坏情况（场景始终没有监听器）的全场扫描
+        /// 限到每秒一次。
+        /// </summary>
+        const double ListenerProbeRetrySeconds = 1.0d;
+
+        /// <summary>
         /// 场景开始加载事件名。Core 的 SceneLoader 直接发字符串字面量
         /// （<c>Core/SceneLoader.cs:260</c>，无公开常量），已登记在
         /// <c>docs/EventBus事件契约.md</c> §1.3；这里定一个本地常量避免魔法字符串散落。
@@ -139,6 +146,9 @@ namespace PirateCrew.PirateCrew.Audio
         bool _listenerCheckDone;
         bool _listenerPresent;
         bool _listenerWarned;
+        /// <summary>监听器未命中时的下次允许重扫时刻（unscaled 秒）：避免爆炸多目标同帧
+        /// 结算时每次播放都 <c>FindObjectOfType</c> 全场扫描。</summary>
+        double _nextListenerProbeTime;
 
         bool _bedActive;
         Coroutine _birdRoutine;
@@ -607,7 +617,8 @@ namespace PirateCrew.PirateCrew.Audio
             if (gain <= 0f)
                 return false;
 
-            if (!_gate.TryAcquire(id.ToString(), recipe.Category, Now, recipe.DurationSeconds))
+            // 整型 key 直存闸门字典，替代 id.ToString()（受击/地雷蜂鸣高频路径避免装箱+字符串分配）。
+            if (!_gate.TryAcquire((int)id, recipe.Category, Now, recipe.DurationSeconds))
                 return false;
 
             AudioClip clip = ResolveClip(id);
@@ -984,13 +995,20 @@ namespace PirateCrew.PirateCrew.Audio
 
         /// <summary>
         /// 没有 AudioListener 时：只告警一次、跳过本次播放、不抛异常。
-        /// 不做一次性缓存（未命中时每次重新查找），这样后面场景补上监听器后立即恢复发声。
+        /// 找到后缓存判定直接放行；未命中则按 <see cref="ListenerProbeRetrySeconds"/> 限频重扫——
+        /// 爆炸多目标同帧结算会连续走播放路径，逐次 <c>FindObjectOfType</c> 全场扫描是纯浪费，
+        /// 而"后补监听器立即恢复发声"的兜底语义保留（延迟至多一个间隔）。
         /// </summary>
         bool EnsureListener()
         {
             if (_listenerPresent)
                 return true;
 
+            double now = Now;
+            if (now < _nextListenerProbeTime)
+                return false;
+
+            _nextListenerProbeTime = now + ListenerProbeRetrySeconds;
             _listenerPresent = FindObjectOfType<AudioListener>() != null;
             _listenerCheckDone = true;
 

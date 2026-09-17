@@ -77,10 +77,12 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         public static BattlePlan BuildBattlePlan(WorldMapDefinition map)
         {
             var entries = new List<SpawnPlanEntry>(map.Spawns.Count);
+            // AllStandBoxes 每次调用都重建整张 box 表（返回新 List），只读用途——
+            // 必须提到 spawn 循环外算一次复用，不能逐出生点重建。
+            var boxes = WorldMapRules.AllStandBoxes(map);
             for (int i = 0; i < map.Spawns.Count; i++)
             {
                 WorldMapSpawn spawn = map.Spawns[i];
-                var boxes = WorldMapRules.AllStandBoxes(map);
                 float surfaceY = WorldMapRules.HeightAtWorld(boxes, new Vector2(spawn.X, spawn.Z));
                 int gridX = Mathf.FloorToInt(spawn.X / WorldMapRules.RasterTileSize);
                 int gridY = Mathf.FloorToInt(spawn.Z / WorldMapRules.RasterTileSize);
