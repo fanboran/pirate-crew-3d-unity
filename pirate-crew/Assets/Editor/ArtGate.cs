@@ -37,6 +37,8 @@ namespace PirateCrew.EditorTools
     ///                                    P-9/P-10 不达标）——所以这一步失败必须让管线整体失败。
     ///   ① BattleSceneLighting.BuildAll   环境材质 / 后处理 Volume / URP 设置——场景与材质引用的前置资产
     ///                                    （内部也会幂等地再调一次 MaterialNoiseBuilder，两者不冲突）
+    ///   ①.5 SkyAssetBuilder.BuildAll     三档天空盒材质（视觉审计遗留 #6 的资产层；只出资产，
+    ///                                    **不写 RenderSettings**——接线要等 A–F 实拍转正，理由见该脚本头）
     ///   ② FontAssetBuilder.BuildAll      TMP 中文字体——HUD/菜单文本的字形前置
     ///   ③ FxAssetBuilder.BuildAll        特效贴图 / 材质（+ Always Included Shaders）
     ///   ④ AudioAssetBuilder.BuildAll     wav 导入设置（落 Resources/PirateCrewAudio，运行时资产优先）
@@ -82,6 +84,7 @@ namespace PirateCrew.EditorTools
                 new Step("⓪ 运行时 shader 入构建保障", EnsureRuntimeShadersIncluded),
                 new Step("⓪.5 程序化材质噪声贴图（沙/草/岩 albedo+法线）", BuildMaterialNoiseTextures),
                 new Step("① 渲染基础（环境材质 / Volume / URP）", BattleSceneLighting.BuildAll),
+                new Step("①.5 天空盒三档材质（遗留 #6 资产层，不接线）", SkyAssetBuilder.BuildAll),
                 new Step("② TMP 中文字体", FontAssetBuilder.BuildAll),
                 new Step("③ 特效贴图 / 材质", FxAssetBuilder.BuildAll),
                 new Step("④ 音频 wav 导入设置", AudioAssetBuilder.BuildAll),
@@ -165,6 +168,13 @@ namespace PirateCrew.EditorTools
         /// 【URP/Particles-Unlit 曾入榜后移除（r3 轮实证）】：Always Included 会强制编译该 shader 的
         /// 全变体，在无头构建环境连爆 20 条 d3d11 编译 OOM（BSDF/Common.hlsl 解析内存）；
         /// 而它只是 FxMaterials 的回落档——主 FX shader 已在本列表保证入包，回落永不触发。
+        ///
+        /// 【PirateCrew/Skybox/PirateGradientSky 为什么在榜】它是"孤儿材质"那一条的**现行实例**：
+        /// 三张天空盒材质（Assets/Art/Materials/Sky/*.mat，由 SkyAssetBuilder 生成）目前 0 个场景引用
+        /// （视觉审计遗留 #6 的接线轮才会写 RenderSettings.skybox），构包时会随 shader 一起被剥离。
+        /// 那样本工程唯一的 shader 编译门禁（构建播放器 → grep "shader error"）会**因为根本没编译而报 0 条**
+        /// ——"没编译 = 没错误"的假绿。登记进榜让门禁真正覆盖这个 shader；接线后它被场景材质可达引用，
+        /// 留榜也无害（同 Fx/Additive 的先例）。
         /// </summary>
         static readonly string[] RuntimeFindShaderNames =
         {
@@ -173,6 +183,7 @@ namespace PirateCrew.EditorTools
             FxMaterials.AdditiveShaderName,
             FxMaterials.AlphaShaderName,
             OutlineRendererFeature.OutlinePostShaderName,
+            SkyAssetBuilder.SkyShaderName,
         };
 
         /// <summary>

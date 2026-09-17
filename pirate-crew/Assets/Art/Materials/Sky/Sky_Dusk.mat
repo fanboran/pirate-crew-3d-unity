@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Sky_Dusk
+  m_Shader: {fileID: 4800000, guid: de27155ca1713914596f93f53aa6ce5f, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs: []
+    m_Ints: []
+    m_Floats:
+    - _SkyExposure: 1.05
+    - _SkyGradientPower: 1.8
+    - _SkyGroundBlend: 0.4
+    - _SkyHorizonBlend: 0.2
+    - _SkySunDiskIntensity: 2.6
+    - _SkySunDiskSize: 0.065
+    - _SkySunDiskSoftness: 0.06
+    m_Colors:
+    - _SkyGroundColor: {r: 0.76862746, g: 0.654902, b: 0.41568628, a: 1}
+    - _SkyHorizonColor: {r: 0.9490196, g: 0.69803923, b: 0.47843137, a: 1}
+    - _SkySunDiskColor: {r: 1, g: 0.9411765, b: 0.78431374, a: 1}
+    - _SkyZenithColor: {r: 0.24313726, g: 0.49803922, b: 0.70980394, a: 1}
+  m_BuildTextureStacks: []

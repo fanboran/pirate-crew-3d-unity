@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Sky_Overcast
+  m_Shader: {fileID: 4800000, guid: de27155ca1713914596f93f53aa6ce5f, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs: []
+    m_Ints: []
+    m_Floats:
+    - _SkyExposure: 0.95
+    - _SkyGradientPower: 1.3
+    - _SkyGroundBlend: 0.5
+    - _SkyHorizonBlend: 0.3
+    - _SkySunDiskIntensity: 0
+    - _SkySunDiskSize: 0
+    - _SkySunDiskSoftness: 0
+    m_Colors:
+    - _SkyGroundColor: {r: 0.43137255, g: 0.47843137, b: 0.50980395, a: 1}
+    - _SkyHorizonColor: {r: 0.6039216, g: 0.5568628, b: 0.5254902, a: 1}
+    - _SkySunDiskColor: {r: 1, g: 0.9098039, b: 0.8156863, a: 1}
+    - _SkyZenithColor: {r: 0.14117648, g: 0.2901961, b: 0.44705883, a: 1}
+  m_BuildTextureStacks: []
