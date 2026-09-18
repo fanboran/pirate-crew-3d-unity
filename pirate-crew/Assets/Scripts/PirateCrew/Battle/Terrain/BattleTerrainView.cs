@@ -37,7 +37,7 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("地形块材质；为空时运行时用 URP/Lit 建一个兜底材质。视觉壳与碰撞块共用。")]
         [SerializeField] Material blockMaterial;
 
-        [Tooltip("潮沟（0 块列）湿沙材质；为空时回落 blockMaterial。由 SceneArtBuilder 可选接线。")]
+        [Tooltip("潮沟（0 块列）湿沙材质；为空时回落 blockMaterial。场景烘焙时可选接线。")]
         [SerializeField] Material wetMaterial;
 
         [Tooltip("是否用海岛地块壳替换方块外观（关闭则回到「每格一个可见立方体」）。")]

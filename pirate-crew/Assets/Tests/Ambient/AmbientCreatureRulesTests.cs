@@ -213,11 +213,11 @@ namespace PirateCrew.PirateCrew.Ambient.Tests
         }
 
         [Test]
-        public void Shore_TideSlope_MatchesSceneArtBuilderContract()
+        public void Shore_TideSlope_MatchesSceneBakeContract()
         {
             Assert.AreEqual(0f, AmbientShore.TideSlopeY(0f), 1e-5f, "边界处 = 地面顶面");
             Assert.AreEqual(-0.6f, AmbientShore.TideSlopeY(AmbientShore.TideSlopeWidth), 1e-5f,
-                "坡外缘 = -0.6（SceneArtBuilder 的潮间带底高）");
+                "坡外缘 = -0.6（场景烘焙的潮间带底高）");
             Assert.AreEqual(-0.6f, AmbientShore.TideSlopeY(99f), 1e-5f, "超出坡宽后夹住");
             Assert.AreEqual(-0.192f, AmbientShore.TideSlopeY(AmbientShore.CrabShoreOffset), 0.01f);
         }

@@ -83,7 +83,7 @@ namespace PirateCrew.PirateCrew.Ambient
             {
                 if (verbose)
                     global::PirateCrew.Core.Log.Warn("[Ambient] SceneArt 下没找到 " + objectName
-                        + "，该组不做风摆（可能该组为空未生成，或 SceneArtBuilder 尚未跑）。");
+                        + "，该组不做风摆（可能该组为空未生成）。");
                 return 0;
             }
 
