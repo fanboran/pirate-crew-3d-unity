@@ -259,6 +259,23 @@ namespace PirateCrew.UI
         /// <summary>选关状态：出战加载说明（与实际行为一致：选哪关加载哪关）【AI 提案/待定】。</summary>
         public const string LevelStatusFixedArena = "提示：出战会加载所选关卡的竞技场，结算记到该关。";
 
+        // —— 大海域页签（M4 八图 UI 入口，UI 审计 P0-1）——
+
+        /// <summary>第 4 个页签名（M4 世界地图入口）。</summary>
+        public const string LevelTabWorldSeas = "大海域";
+
+        /// <summary>大海域页签的页头（{0} = 海图张数）【AI 提案/待定】。</summary>
+        public const string WorldSeasHeaderFormat = "大海域　{0} 张海域图　全部可出战";
+
+        /// <summary>海图行状态后缀（海图战无解锁/星级语义）。</summary>
+        public const string WorldRowAvailable = "可出战";
+
+        /// <summary>海图行出战按钮。</summary>
+        public const string WorldSetSail = "出海";
+
+        /// <summary>选关状态：海图 id 不在目录（数据异常兜底，正常流程不可达）。</summary>
+        public const string WorldStatusMapMissing = "海域图数据缺失，请重启游戏。";
+
         /// <summary>关卡名模板（15 关统一用「第 N 关」，花名待定）。</summary>
         public const string LevelNameFormat = "第 {0} 关";
 

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
+using PirateCrew.PirateCrew.Battle.WorldMaps;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -9,10 +10,16 @@ using UnityEngine.UI;
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 关卡选择界面（M3）：3 章节 × 5 关网格，显示解锁/星级状态，点选即进战斗。
+    /// 关卡选择界面（M3）：3 章节 × 5 关网格，显示解锁/星级状态，点选即进战斗；
+    /// 第 4 个「大海域」页签列出 M4 的 8 张世界地图，点选出海（UI 审计 P0-1 的修复）。
     ///
-    /// 【加载行为】出战会加载所选关卡的竞技场（<c>CampaignApi.SelectLevel</c> → Battle 场景按
-    ///   <c>LevelCatalog</c> 数据搭建），星级与结算记到该关；底部提示与此一致。
+    /// 【加载行为】战役页签：出战加载所选关卡的竞技场（<c>CampaignApi.SelectLevel</c> →
+    ///   Battle 场景按 <c>LevelCatalog</c> 数据搭建），星级与结算记到该关。
+    ///   大海域页签：<c>WorldMapRuntime.SetPending</c> → Battle 走 WorldMaps 分支（kit 岛 +
+    ///   俯视海图 + 全图级旗舰）；海图战用地图自带布阵，不消耗编成阵容、不记战役进度。
+    ///
+    /// 【双通道互斥】SetPending / SelectLevel 各自清对方通道的待战态
+    /// （见 <see cref="WorldMapRuntime"/> 类注释），本页是两条通道唯一的交汇 UI。
     ///
     /// 【本波次改造】
     ///   · 结算由「顶部单行横幅」改为**模态弹窗**（规范 §3.6，AI 提案）；字段照旧取
@@ -25,6 +32,14 @@ namespace PirateCrew.UI
     {
 
         const float RowHeight = 44f;
+        const float TabSpacing = 170f;
+        const float TabWidth = 160f;
+
+        /// <summary>
+        /// 「大海域」页签的伪章节号：战役章节是 1..<see cref="CampaignCatalog.ChapterCount"/>，
+        /// 负数永不撞；不写入 <see cref="CampaignApi.CurrentChapter"/>（章节记忆只归战役页签）。
+        /// </summary>
+        const int WorldTabChapter = -1;
 
         [Header("引用（场景内直连）")]
         [SerializeField] TextMeshProUGUI headerText;
@@ -241,6 +256,15 @@ namespace PirateCrew.UI
 
         void RefreshHeader()
         {
+            if (_chapter == WorldTabChapter)
+            {
+                if (headerText != null)
+                    headerText.text = string.Format(UiStrings.WorldSeasHeaderFormat, WorldMapCatalog.Count);
+                if (chapterNameText != null)
+                    chapterNameText.text = UiStrings.LevelTabWorldSeas;
+                return;
+            }
+
             if (headerText == null)
                 return;
 
@@ -265,6 +289,16 @@ namespace PirateCrew.UI
 
             M3UiBuilder.ClearChildren(chapterContainer);
 
+            // 页签组相对容器左缘居中：场景把容器按 3 个战役页签的宽度锚定（520 宽），
+            // 第 4 个「大海域」是运行时新增，按整体组宽回推起点，加页签后视觉仍居中。
+            int tabCount = CampaignCatalog.ChapterCount + 1;
+            float groupWidth = TabSpacing * (tabCount - 1) + TabWidth;
+            var containerRect = chapterContainer as RectTransform;
+            float containerWidth = containerRect != null && containerRect.rect.width > 0f
+                ? containerRect.rect.width
+                : 520f;
+            float groupOffset = (containerWidth - groupWidth) * 0.5f;
+
             for (int chapter = 1; chapter <= CampaignCatalog.ChapterCount; chapter++)
             {
                 int captured = chapter;
@@ -279,8 +313,8 @@ namespace PirateCrew.UI
                 rect.anchorMin = new Vector2(0f, 0.5f);
                 rect.anchorMax = new Vector2(0f, 0.5f);
                 rect.pivot = new Vector2(0f, 0.5f);
-                rect.sizeDelta = new Vector2(160f, 44f);
-                rect.anchoredPosition = new Vector2((chapter - 1) * 170f, 0f);
+                rect.sizeDelta = new Vector2(TabWidth, 44f);
+                rect.anchoredPosition = new Vector2(groupOffset + (chapter - 1) * TabSpacing, 0f);
 
                 TextMeshProUGUI label = M3UiBuilder.GetButtonLabel(button);
                 if (label != null)
@@ -292,10 +326,39 @@ namespace PirateCrew.UI
                     OnChapterClicked(captured);
                 });
             }
+
+            // 「大海域」页签（M4 八图入口）。
+            bool worldSelected = _chapter == WorldTabChapter;
+            Button worldButton = M3UiBuilder.CreateButton("ChapterWorldSeas", chapterContainer,
+                UiStrings.LevelTabWorldSeas, UiTheme.FontBody, bodyFont,
+                worldSelected ? UiSprites.Kind.ButtonBrass : UiSprites.Kind.ButtonWood);
+
+            RectTransform worldRect = worldButton.GetComponent<RectTransform>();
+            worldRect.anchorMin = new Vector2(0f, 0.5f);
+            worldRect.anchorMax = new Vector2(0f, 0.5f);
+            worldRect.pivot = new Vector2(0f, 0.5f);
+            worldRect.sizeDelta = new Vector2(TabWidth, 44f);
+            worldRect.anchoredPosition = new Vector2(groupOffset + CampaignCatalog.ChapterCount * TabSpacing, 0f);
+
+            TextMeshProUGUI worldLabel = M3UiBuilder.GetButtonLabel(worldButton);
+            if (worldLabel != null)
+                worldLabel.color = UiTheme.Ink;
+
+            worldButton.onClick.AddListener(() =>
+            {
+                M3UiBuilder.ButtonFeedback(worldButton, true, _motion);
+                OnWorldTabClicked();
+            });
         }
 
         void RebuildLevelList()
         {
+            if (_chapter == WorldTabChapter)
+            {
+                RebuildWorldMapList();
+                return;
+            }
+
             if (levelListContainer == null)
                 return;
 
@@ -350,6 +413,44 @@ namespace PirateCrew.UI
             }
         }
 
+        /// <summary>
+        /// 大海域列表（M4 八图）：全部可出战——海图战用地图自带布阵（<c>map.Spawns</c>），
+        /// 没有解锁/星级语义；日后若要接战役进度解锁，在此分支扩展。
+        /// </summary>
+        void RebuildWorldMapList()
+        {
+            if (levelListContainer == null)
+                return;
+
+            UiTextUtil.WarnIfMissing(bodyFont, "海图列表");
+            M3UiBuilder.ClearChildren(levelListContainer);
+
+            IReadOnlyList<WorldMapDefinition> maps = WorldMapCatalog.All;
+            for (int i = 0; i < maps.Count; i++)
+            {
+                WorldMapDefinition map = maps[i];
+                RectTransform row = M3UiBuilder.CreateRow(levelListContainer, i, RowHeight);
+
+                string label = map.DisplayName + "　"
+                               + Mathf.RoundToInt(map.SpanX) + "×" + Mathf.RoundToInt(map.SpanZ)
+                               + "　" + UiStrings.WorldRowAvailable;
+
+                TextMeshProUGUI text = M3UiBuilder.CreateText("Label", row, label, UiTheme.FontBody,
+                    TextAlignmentOptions.MidlineLeft, UiTheme.Ink, bodyFont);
+
+                Button action = M3UiBuilder.CreateButton("Action", row, string.Empty, UiTheme.FontHint,
+                    bodyFont);
+                TextMeshProUGUI actionLabel = M3UiBuilder.GetButtonLabel(action);
+                if (actionLabel != null)
+                    actionLabel.text = UiStrings.WorldSetSail;
+
+                string mapId = map.Id;
+                action.onClick.AddListener(() => OnWorldMapClicked(mapId, action));
+
+                M3UiBuilder.LayoutRowContent(row, text, action, RowHeight);
+            }
+        }
+
         static string[] DisplayNames(string[] crewIds)
         {
             var names = new string[crewIds.Length];
@@ -386,6 +487,25 @@ namespace PirateCrew.UI
             _chapter = chapter;
             CampaignApi.CurrentChapter = chapter;
             Refresh();
+        }
+
+        void OnWorldTabClicked()
+        {
+            // 不写 CampaignApi.CurrentChapter：章节记忆只归战役页签，点回战役页签即恢复。
+            _chapter = WorldTabChapter;
+            Refresh();
+        }
+
+        /// <summary>出海（M4 世界图）：<see cref="WorldMapRuntime.SetPending"/> 成功即切 Battle。</summary>
+        void OnWorldMapClicked(string mapId, Button action)
+        {
+            M3UiBuilder.ButtonFeedback(action, true, _motion);
+            // 海图战用地图自带布阵（map.Spawns），不消耗编成阵容 → 不做空编成拦截；
+            // SetPending 成功时已同步清战役出征注入（双通道互斥，见 WorldMapRuntime 类注释）。
+            if (WorldMapRuntime.SetPending(mapId))
+                EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
+            else if (statusText != null)
+                statusText.text = UiStrings.WorldStatusMapMissing;
         }
 
         void OnLevelClicked(string levelId, Button action)
