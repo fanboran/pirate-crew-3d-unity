@@ -3,17 +3,22 @@ using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
 using PirateCrew.PirateCrew.Battle;
+using PirateCrew.PirateCrew.Battle.WorldMaps;
 using PirateCrew.PirateCrew.Combat;
 
 namespace PirateCrew.Tests
 {
     /// <summary>
-    /// 星级评价、战役结算与 M3 闭环接线（<c>battle_started</c> / <c>crew_died</c> / <c>match_finished</c> → 进度 + 奖励）。
-    /// 纯 C#：<see cref="CampaignApi.SelectLevel"/> 只发事件（无 SaveManager / 无 SceneLoader 时不会触发 Unity API）。
+    /// 星级评价、海图结算与 M3 闭环接线（<c>battle_started</c> / <c>crew_died</c> / <c>match_finished</c> → 进度 + 奖励）。
+    /// 一代退场后结算键 = 海图 id：待战海图由 <see cref="WorldMapRuntime.SetPending"/> 设置，
+    /// <c>CampaignApi</c> 在 battle_started 时收养它为待结算归属。
+    /// 纯 C#：发事件不触发 Unity API（无 SaveManager / 无 SceneLoader 时安全）。
     /// </summary>
     public class CampaignSettlementTests
     {
-        CampaignLevelCompletedPayload? _lastCompleted;
+        const string MapA = "wreck_hymn";   // WorldMapCatalog 首张海图（id 以目录为准，SetUp 里兜底校验）
+
+        CampaignMapCompletedPayload? _lastCompleted;
 
         [SetUp]
         public void SetUp()
@@ -23,7 +28,9 @@ namespace PirateCrew.Tests
             CrewManagementApi.Reset();
             CampaignApi.EnsureBootstrapped();
             _lastCompleted = null;
-            EventBus.Subscribe(CampaignEvents.LevelCompleted, OnLevelCompleted);
+            Assert.That(WorldMapCatalog.TryGet(MapA, out _), Is.True,
+                "测试依赖目录里存在海图 " + MapA);
+            EventBus.Subscribe(CampaignEvents.MapCompleted, OnMapCompleted);
         }
 
         [TearDown]
@@ -34,16 +41,16 @@ namespace PirateCrew.Tests
             CrewManagementApi.Reset();
         }
 
-        void OnLevelCompleted(object payload)
+        void OnMapCompleted(object payload)
         {
-            if (payload is CampaignLevelCompletedPayload completed)
+            if (payload is CampaignMapCompletedPayload completed)
                 _lastCompleted = completed;
         }
 
-        /// <summary>把一局战斗的事件序列打完（可选阵亡数）。</summary>
+        /// <summary>把一局海图战的事件序列打完（可选阵亡数）；battle_started 前须已 SetPending。</summary>
         static void PlayBattle(int outcome, int score, int playerDeaths)
         {
-            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(1, 2));
+            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(101, 2));
             for (int i = 0; i < playerDeaths; i++)
                 EventBus.Publish(BattleEvents.CrewDied, new CrewDiedPayload(i, 0, "redPirate"));
 
@@ -82,45 +89,37 @@ namespace PirateCrew.Tests
         // ------------------------------------------------------------------
 
         [Test]
-        public void TrySelectLevel_RejectsLockedAndUnknown()
+        public void SelectMap_AdoptsPendingAndSettlesByMapId()
         {
             var manager = new CampaignManager();
+            manager.SelectMap(MapA);
 
-            Assert.That(manager.TrySelectLevel("level_01"), Is.True);
-            Assert.That(manager.PendingLevelId, Is.EqualTo("level_01"));
-            Assert.That(manager.CurrentChapter, Is.EqualTo(1));
+            Assert.That(manager.PendingMapId, Is.EqualTo(MapA));
+            manager.SelectMap(null);
+            Assert.That(manager.HasPendingMap, Is.False, "空 id 归一化为 null，不产生待结算");
+            Assert.That(manager.HasPendingMap, Is.False);
 
-            Assert.That(manager.TrySelectLevel("level_05"), Is.False, "未解锁");
-            Assert.That(manager.PendingLevelId, Is.EqualTo("level_01"), "拒绝时保留原待结算关卡");
-
-            Assert.That(manager.TrySelectLevel("level_99"), Is.False);
-        }
-
-        [Test]
-        public void TrySettle_WritesProgressAndClearsPending()
-        {
-            var manager = new CampaignManager();
-            manager.TrySelectLevel("level_01");
-
+            manager.SelectMap(MapA);
             bool settled = manager.TrySettle(new CampaignResult(true, 0, 0, 0, 1200), out CampaignSettlement settlement);
 
             Assert.That(settled, Is.True);
+            Assert.That(settlement.MapId, Is.EqualTo(MapA));
             Assert.That(settlement.Stars, Is.EqualTo(3));
             Assert.That(settlement.FirstClear, Is.True);
             Assert.That(settlement.Improved, Is.True);
             Assert.That(settlement.Score, Is.EqualTo(1200));
-            Assert.That(manager.Progress.GetStars("level_01"), Is.EqualTo(3));
-            Assert.That(manager.HasPendingLevel, Is.False, "结算后应清空待结算关卡");
+            Assert.That(manager.Progress.GetStars(MapA), Is.EqualTo(3));
+            Assert.That(manager.HasPendingMap, Is.False, "结算后应清空待结算海图");
 
             Assert.That(manager.TrySettle(new CampaignResult(true, 0, 0, 0, 1200), out _), Is.False,
-                "没有待结算关卡时不应重复结算");
+                "没有待结算海图时不应重复结算");
         }
 
         [Test]
         public void TrySettle_FailedRun_RecordsNothing()
         {
             var manager = new CampaignManager();
-            manager.TrySelectLevel("level_01");
+            manager.SelectMap(MapA);
 
             manager.TrySettle(new CampaignResult(false, 3, 0, 0, 10), out CampaignSettlement settlement);
 
@@ -130,62 +129,63 @@ namespace PirateCrew.Tests
         }
 
         // ------------------------------------------------------------------
-        // M3 闭环接线（CampaignApi 订阅战斗事件）
+        // M3 闭环接线（CampaignApi 订阅战斗事件，收养待战海图）
         // ------------------------------------------------------------------
 
         [Test]
-        public void MatchFinished_ClearedLevel_WritesProgressAndGrantsXp()
+        public void MatchFinished_ClearedMap_WritesProgressAndGrantsXp()
         {
-            Assert.That(CampaignApi.SelectLevel("level_01"), Is.True);
-            Assert.That(CampaignApi.PendingLevelId, Is.EqualTo("level_01"));
+            Assert.That(WorldMapRuntime.SetPending(MapA), Is.True);
 
             PlayBattle(outcome: CampaignManager.PlayerWinOutcome, score: 1500, playerDeaths: 1);
 
-            Assert.That(CampaignApi.Progress.GetStars("level_01"), Is.EqualTo(2), "阵亡 1 人 → 2★");
-            Assert.That(_lastCompleted?.LevelId, Is.EqualTo("level_01"));
+            Assert.That(CampaignApi.Progress.GetStars(MapA), Is.EqualTo(2), "阵亡 1 人 → 2★");
+            Assert.That(_lastCompleted?.MapId, Is.EqualTo(MapA));
             Assert.That(_lastCompleted?.Stars, Is.EqualTo(2));
 
-            // 奖励发给编成阵容（初始只有水手），此时还没到招募门槛（第 3 关）。
+            // 奖励发给编成阵容（初始只有水手）；累计 2 星还不到炮手的 3 星门槛。
             Assert.That(CrewManagementApi.Progression.GetXp(CrewRosterCatalog.InitialCrewId),
                 Is.EqualTo(CrewProgressionRules.XpAward(2)));
             Assert.That(CrewManagementApi.Roster.UnlockedCount, Is.EqualTo(1));
             Assert.That(CampaignApi.LastReward?.XpPerCrew, Is.EqualTo(CrewProgressionRules.XpAward(2)));
-            Assert.That(CampaignApi.PendingLevelId, Is.Null);
+            Assert.That(CampaignApi.HasPendingMap, Is.False, "结算后待结算海图应清空");
         }
 
         [Test]
         public void MatchFinished_PerfectRun_GivesThreeStars()
         {
-            CampaignApi.SelectLevel("level_01");
+            WorldMapRuntime.SetPending(MapA);
 
             PlayBattle(CampaignManager.PlayerWinOutcome, 2000, playerDeaths: 0);
 
-            Assert.That(CampaignApi.Progress.GetStars("level_01"), Is.EqualTo(3));
+            Assert.That(CampaignApi.Progress.GetStars(MapA), Is.EqualTo(3));
         }
 
         [Test]
-        public void MatchFinished_UnlocksCrewAtThirdClear()
+        public void MatchFinished_TotalStars_GatesRecruitment()
         {
-            // 顺序打通 level_01 → level_02 → level_03（未转写关卡不阻塞，提案/待定）。
-            CampaignApi.SelectLevel("level_01");
-            PlayBattle(CampaignManager.PlayerWinOutcome, 1000, 0);
+            // 门槛口径（一代退场执行决策）：炮手 3 星 / 狙击手 5 星（数值沿用，语义 = 累计星数）。
+            WorldMapRuntime.SetPending(MapA);
+            PlayBattle(CampaignManager.PlayerWinOutcome, 1000, 0);   // +3 星
 
-            Assert.That(CampaignApi.SelectLevel("level_02"), Is.True, "level_01 通关后 level_02 解锁");
-            PlayBattle(CampaignManager.PlayerWinOutcome, 1000, 0);
-
-            Assert.That(CampaignApi.SelectLevel("level_03"), Is.True);
-            PlayBattle(CampaignManager.PlayerWinOutcome, 1000, 0);
-
-            Assert.That(CrewManagementApi.IsUnlocked("gunner"), Is.True, "第 3 关通关后炮手入列（gdd §5.2，提案）");
-            Assert.That(CrewManagementApi.IsUnlocked("sniper"), Is.False, "狙击手要第 5 关");
+            Assert.That(CrewManagementApi.IsUnlocked("gunner"), Is.True, "3 星达标 → 炮手入列（gdd §5.2，提案）");
+            Assert.That(CrewManagementApi.IsUnlocked("sniper"), Is.False, "狙击手要 5 星");
             Assert.That(CampaignApi.LastReward?.UnlockedCrewIds, Is.EqualTo(new[] { "gunner" }));
-            Assert.That(CampaignApi.Progress.MaxCompletedLevelNumber, Is.EqualTo(3));
+
+            // 第二张图 2★（阵亡 1 人）→ 累计 5 星 → 狙击手入列。
+            const string mapB = "atoll_ring";
+            Assert.That(WorldMapCatalog.TryGet(mapB, out _), Is.True, "测试依赖目录里存在海图 " + mapB);
+            WorldMapRuntime.SetPending(mapB);
+            PlayBattle(CampaignManager.PlayerWinOutcome, 1000, 1);
+
+            Assert.That(CrewManagementApi.IsUnlocked("sniper"), Is.True);
+            Assert.That(CampaignApi.Progress.TotalStars, Is.EqualTo(5));
         }
 
         [Test]
         public void MatchFinished_FailedRun_KeepsProgressAndGivesNoXp()
         {
-            CampaignApi.SelectLevel("level_01");
+            WorldMapRuntime.SetPending(MapA);
 
             PlayBattle((int)MatchOutcome.LevelFailed, 0, playerDeaths: 3);
 
@@ -196,9 +196,9 @@ namespace PirateCrew.Tests
         }
 
         [Test]
-        public void MatchFinished_WithoutPendingLevel_DoesNotSettle()
+        public void MatchFinished_WithoutPendingMap_DoesNotSettle()
         {
-            // 主菜单「进入战斗」直接进战场的情况：没有待结算关卡，不应写任何进度。
+            // 样板三关 / 主菜单直进等「没有待战海图」的局：不应写任何进度。
             PlayBattle(CampaignManager.PlayerWinOutcome, 900, 0);
 
             Assert.That(CampaignApi.Progress.CompletedCount, Is.EqualTo(0));
@@ -209,71 +209,38 @@ namespace PirateCrew.Tests
         [Test]
         public void DeathsCounter_ResetsBetweenBattles()
         {
-            CampaignApi.SelectLevel("level_01");
+            WorldMapRuntime.SetPending(MapA);
             PlayBattle(CampaignManager.PlayerWinOutcome, 900, playerDeaths: 2);
-            Assert.That(CampaignApi.Progress.GetStars("level_01"), Is.EqualTo(1));
+            Assert.That(CampaignApi.Progress.GetStars(MapA), Is.EqualTo(1));
 
             // 第二局：事件序列重新从 battle_started 开始，阵亡数必须归零 → 3★ 并刷新记录。
-            CampaignApi.SelectLevel("level_01");
+            WorldMapRuntime.SetPending(MapA);
             PlayBattle(CampaignManager.PlayerWinOutcome, 900, playerDeaths: 0);
 
-            Assert.That(CampaignApi.Progress.GetStars("level_01"), Is.EqualTo(3));
+            Assert.That(CampaignApi.Progress.GetStars(MapA), Is.EqualTo(3));
         }
 
         [Test]
-        public void StalePendingLevel_IsCancelledByNonCampaignBattle()
+        public void StalePendingMap_IsCancelledByMaplessBattle()
         {
-            // 场景：选关进了 level_01 的战斗 → 玩家没打完就退回 → 又从主菜单直接「进入战斗」。
-            CampaignApi.SelectLevel("level_01");
+            // 场景：海图战没打完就退 → 下一局没有任何待战海图（直接 Play）。
+            WorldMapRuntime.SetPending(MapA);
 
-            // 第一局（战役入口）：battle_started 消费掉「本次是战役局」标记，待结算关卡保留。
-            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(1, 2));
-            Assert.That(CampaignApi.PendingLevelId, Is.EqualTo("level_01"));
+            // 第一局：battle_started 收养待战海图为待结算归属。
+            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(101, 2));
+            Assert.That(CampaignApi.HasPendingMap, Is.True);
 
-            // 第二局（主菜单直进）：没有 SelectLevel，待结算关卡必须被清掉。
-            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(1, 2));
-            Assert.That(CampaignApi.PendingLevelId, Is.Null, "非战役入口的新一局应丢弃陈旧待结算关卡");
+            // 第二局（无待战海图）：陈旧待结算必须被清掉。
+            WorldMapRuntime.ClearPending();
+            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(101, 2));
+            Assert.That(CampaignApi.HasPendingMap, Is.False, "无待战海图的新一局应丢弃陈旧待结算");
 
             EventBus.Publish(BattleEvents.MatchFinished, new MatchFinishedPayload(
                 CampaignManager.PlayerWinOutcome, 800, true));
 
-            Assert.That(CampaignApi.Progress.CompletedCount, Is.EqualTo(0), "主菜单直进战斗的结果不得记成战役进度");
+            Assert.That(CampaignApi.Progress.CompletedCount, Is.EqualTo(0), "无归属一局的结果不得记成战役进度");
             Assert.That(CampaignApi.LastSettlement, Is.Null);
             Assert.That(_lastCompleted, Is.Null);
-        }
-
-        // ------------------------------------------------------------------
-        // Battle 侧关卡注入的衔接点
-        // ------------------------------------------------------------------
-
-        [Test]
-        public void PendingBattleLevelNumber_FallsBackWhenNoSelection()
-        {
-            Assert.That(CampaignApi.PendingBattleLevelNumberOr(7), Is.EqualTo(7), "未选关 → 回退");
-        }
-
-        [Test]
-        public void PendingBattleLevelNumber_UsesSelectedLevelWhenTranscribed()
-        {
-            CampaignApi.Progress.CompleteLevel("level_01", 1);
-            CampaignApi.Progress.CompleteLevel("level_02", 1);
-            CampaignApi.Progress.CompleteLevel("level_03", 1);   // 33 关全量后 level_04 前置为严格顺序
-            Assert.That(CampaignApi.SelectLevel("level_04"), Is.True);
-
-            Assert.That(CampaignApi.PendingBattleLevelNumberOr(1), Is.EqualTo(4),
-                "level_04 在 LevelCatalog 里有数据 → 用所选关卡号");
-        }
-
-        [Test]
-        public void PendingBattleLevelNumber_FallsBackWhenLevelHasNoData()
-        {
-            // level_02 必须先解锁才能选中（前置已转写关卡 level_01 通关）。
-            CampaignApi.Progress.CompleteLevel("level_01", 1);
-            Assert.That(CampaignApi.SelectLevel("level_02"), Is.True);
-            Assert.That(CampaignApi.PendingLevelId, Is.EqualTo("level_02"));
-
-            Assert.That(CampaignApi.PendingBattleLevelNumberOr(1), Is.EqualTo(2),
-                "level_02 已转写（33 关全量）→ 用所选关卡号，不回退");
         }
 
         // ------------------------------------------------------------------
@@ -283,7 +250,7 @@ namespace PirateCrew.Tests
         [Test]
         public void SaveRoundTrip_RestoresCampaignProgressAndRoster()
         {
-            CampaignApi.SelectLevel("level_01");
+            WorldMapRuntime.SetPending(MapA);
             PlayBattle(CampaignManager.PlayerWinOutcome, 1500, 0);
             CrewManagementApi.Recruit("gunner");
             CrewManagementApi.SetActiveRoster(new[] { "sailor", "gunner" });
@@ -298,9 +265,8 @@ namespace PirateCrew.Tests
 
             CampaignApi.ReadFrom(data);
 
-            Assert.That(CampaignApi.Progress.GetStars("level_01"), Is.EqualTo(3));
+            Assert.That(CampaignApi.Progress.GetStars(MapA), Is.EqualTo(3));
             Assert.That(CampaignApi.Progress.TotalStars, Is.EqualTo(3));
-            Assert.That(CampaignApi.IsLevelUnlocked("level_02"), Is.True, "读档后解锁链应恢复");
             Assert.That(CrewManagementApi.Roster.Active, Is.EqualTo(new[] { "sailor", "gunner" }));
             Assert.That(CrewManagementApi.Progression.GetXp("sailor"),
                 Is.EqualTo(CrewProgressionRules.XpAward(3)));
@@ -316,24 +282,26 @@ namespace PirateCrew.Tests
         }
 
         [Test]
-        public void CampaignSaveCodec_ToleratesCorruptedEntries()
+        public void CampaignSaveCodec_ToleratesCorruptedAndLegacyEntries()
         {
             var progress = new CampaignProgress();
-            CampaignSaveCodec.ReadInto("level_01:3||level_99:2|broken|level_04:abc", progress);
+            // level_01 是一代旧档键：不在海图目录 → 必须被静默丢弃（旧档不迁移）。
+            CampaignSaveCodec.ReadInto("wreck_hymn:3||level_99:2|broken|wreck_hymn:abc", progress);
 
-            Assert.That(progress.GetStars("level_01"), Is.EqualTo(3));
-            Assert.That(progress.CompletedCount, Is.EqualTo(1), "未知关卡 / 非数字星级 / 残缺段都应跳过");
+            Assert.That(progress.GetStars("wreck_hymn"), Is.EqualTo(3));
+            Assert.That(progress.GetStars("level_01"), Is.EqualTo(0), "一代旧键不应进新进度");
+            Assert.That(progress.CompletedCount, Is.EqualTo(1), "未知 id / 非数字星级 / 残缺段都应跳过");
         }
 
         [Test]
         public void CampaignSaveCodec_JoinSkipsZeroStars()
         {
             var progress = new CampaignProgress();
-            progress.CompleteLevel("level_01", 2);
+            progress.CompleteLevel(MapA, 2);
 
             string raw = CampaignSaveCodec.Join(progress.Snapshot());
 
-            Assert.That(raw, Is.EqualTo("level_01:2"));
+            Assert.That(raw, Is.EqualTo(MapA + ":2"));
             Assert.That(CampaignSaveCodec.Join(null), Is.EqualTo(string.Empty));
         }
     }

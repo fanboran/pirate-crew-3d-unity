@@ -190,6 +190,12 @@ namespace PirateCrew.PirateCrew.Battle
         public const float GroundTopY = 0f;
 
         /// <summary>
+        /// 单个地形块的世界高度 = 8px = <b>0.5 单位</b>（可玩性优先的竖直压缩）。
+        /// 全工程块高语义的单一来源：站位高度场（样板三关/世界图栅格）与视图层的方块尺寸都取它。
+        /// </summary>
+        public static float BlockWorldHeight => PixelsToUnits(8f);
+
+        /// <summary>
         /// 水面世界 Y。落水即死（§4.4）的判据基准；对齐 Godot 基准的水位（其水面在地面下方一点）。
         /// 比地面低 <b>0.4 单位</b>（= 6.4px；格 1→2 单位后 px 语义不变，故由 0.2 乘 2），
         /// 角色掉出地面后下落约 0.9 单位即判定落水。
@@ -456,14 +462,6 @@ namespace PirateCrew.PirateCrew.Battle
             return BuildPlan(
                 data.LevelNumber, data.WidthTiles, data.HeightTiles, data.OriginalXmlPlayers,
                 data.Units);
-        }
-
-        /// <summary>由 Unity 关卡资产 <see cref="LevelDefinition"/> 生成出战计划（运行时路径）。</summary>
-        public static BattlePlan BuildBattlePlan(LevelDefinition definition)
-        {
-            return BuildPlan(
-                definition.LevelNumber, definition.WidthTiles, definition.HeightTiles,
-                definition.OriginalXmlPlayers, definition.Units);
         }
 
         static BattlePlan BuildPlan(

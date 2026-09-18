@@ -26,7 +26,7 @@ namespace PirateCrew.PirateCrew.Battle
     /// <summary>
     /// 战斗组装与结算根（翻译自 Godot <c>scripts/battle.gd</c> 的运行时职责）。
     ///
-    /// 【对应章节】§4.3（按关卡 XML 坐标/队伍实例化出战单位）、§5.5（水位 = waterTileY*32）、
+    /// 【对应章节】§4.3（按布阵坐标/队伍实例化出战单位）、§5.5（水位 = waterTileY*32）、
     ///             §5.3（Physics.OverlapSphere 取候选 → <see cref="ExplosionResolver"/> 纯逻辑算分 →
     ///             应用伤害与击退）、§3.3（胜负 <see cref="TurnRules.ComputeOutcome"/> /
     ///             得分 <see cref="ScoreRules.LevelScore"/>）、§4.4（落水即死）。
@@ -39,15 +39,16 @@ namespace PirateCrew.PirateCrew.Battle
     /// 本类把世界坐标投到 XZ 平面换成 Flash 像素，再拿回结果：
     /// 平面两分量经 <see cref="LevelGeometry.FlashVelocityDeltaToArena"/> 落到世界 (X, Z)，
     /// 竖直项 <c>DeltaVUp</c>（含原版固定上抛 6k）直接落到世界 +Y。
+    ///
+    /// 【内容来源（一代瓦片竞技场退场后）】唯一玩法路径 = 世界海域图
+    ///（<c>WorldMapRuntime</c> 待战：选关页出海 / 播放器 -worldMap）；样板三关
+    ///（<c>SceneArt.ShowcaseLevels</c> 1–3）保留为美术样板（-artReviewLevel 出图）与
+    /// 无待战图时的兜底场。原「场景 level 资产 / 战役注入关卡序号 / LevelCatalog 33 关」
+    /// 三条一代链路已随一代退场删除。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class BattleController : MonoBehaviour
     {
-        [Header("关卡数据")]
-        [Tooltip("优先使用本资产；为空时回退到 LevelCatalog 的 fallbackLevelNumber。")]
-        [SerializeField] LevelDefinition level;
-        [SerializeField] int fallbackLevelNumber = 1;
-
         [Header("组装引用（场景内直连）")]
         [SerializeField] PirateBase piratePrefab;
         [Tooltip("按职业外观档覆盖预制体（可选）。命中则用职业预制体，未命中/为空回落 piratePrefab；"
@@ -94,18 +95,17 @@ namespace PirateCrew.PirateCrew.Battle
 
         readonly List<PirateBase> _allPirates = new List<PirateBase>();
         readonly List<WeaponProjectile> _projectiles = new List<WeaponProjectile>();
-        readonly List<int> _destroyedTerrainCells = new List<int>();
         readonly BattleTeam[] _teams = new BattleTeam[2];
         BattlePlan _plan;
-        /// <summary>M4：本局激活的世界地图（null = 走原版关卡 1–33 链路，见 BuildPlan 优先级）。</summary>
+        /// <summary>M4：本局激活的世界地图（null = 样板三关路径）。</summary>
         WorldMapDefinition _worldMap;
         bool _spawned;
         bool _matchFinished;
         float _waterWorldY;
         int _nextPirateId;
 
-        /// <summary>当前关卡序号。</summary>
-        public int LevelNumber => _plan != null ? _plan.LevelNumber : fallbackLevelNumber;
+        /// <summary>本场战斗序号（世界图 101–108 / 样板 1–3）。</summary>
+        public int LevelNumber => _plan != null ? _plan.LevelNumber : 1;
 
         /// <summary>队伍数量（恒 2）。</summary>
         public int TeamCount => 2;
@@ -225,42 +225,29 @@ namespace PirateCrew.PirateCrew.Battle
 
         void BuildPlan()
         {
-            // 【M4 世界地图】选图优先级：ArtReview 覆盖 > 世界地图(-worldMap / SetPending) >
-            // 场景 level 资产 > CampaignApi 待战关 > fallback。命中世界地图时本局走 WorldMaps 分支：
-            // 出战计划由目录直构（关卡号 101–108），地形/陈设/破坏/水面在对应阶段分流。
-            if (ArtReview.ArtReviewCaptureOverride.LevelNumber <= 0 && WorldMapRuntime.TryGetPending(out _worldMap))
+            // 【内容来源二选一】优先级：样板覆盖(-artReviewLevel 1–3，仅美术出图用) >
+            // 世界海域图(-worldMap / 选关页 SetPending) > 样板第 1 关兜底（直接 Play 战斗场景的开发路径，
+            // 与一代退场前的默认同为"云端漫步"场）。
+            int overrideLevel = ArtReview.ArtReviewCaptureOverride.LevelNumber;
+            if (overrideLevel > 0 && SceneArt.ShowcaseLevels.IsShowcase(overrideLevel))
             {
+                _worldMap = null;
+                _plan = LevelGeometry.BuildBattlePlan(
+                    SceneArt.ShowcaseLevels.BuildLevelData(overrideLevel).Value);
+            }
+            else if (overrideLevel <= 0 && WorldMapRuntime.TryGetPending(out _worldMap))
+            {
+                // 出战计划由海图目录直构（关卡号 101–108），地形/陈设/水面在对应阶段分流。
                 _plan = WorldMapRuntime.BuildBattlePlan(_worldMap);
-                _waterWorldY = _plan.WaterWorldY;
-                _teams[0] = new BattleTeam(1, aiControlled: false);
-                _teams[1] = new BattleTeam(2, aiControlled: team1IsAi);
-                return;
             }
-            _worldMap = null;
-
-            // 【关卡注入】场景未指定 level 资产时，改由战役侧注入的出征载荷决定加载哪张竞技场：
-            // Campaign 在 SelectLevel 时把「关卡序号 + 编成快照」写进 Core 的 BattleLaunchContext，
-            // 战斗侧只读它、不认识 Campaign（架构审计 P0-1 的反向依赖修正）。
-            // 只在 LevelCatalog 已转写的关卡上生效，未转写/无待战关卡时回落 fallbackLevelNumber，
-            // 不会抛 KeyNotFound。
-            // 美术评审专用覆盖（PlayerArtCapture -artReviewLevel N）：优先级最高，仅用于无头出图验收，
-            // 正常玩法不走这条（走 CampaignApi 选关链）。
-            int levelNumber = ArtReview.ArtReviewCaptureOverride.LevelNumber;
-            if (levelNumber <= 0)
+            else
             {
-                levelNumber = level == null
-                    ? BattleLaunchContext.PendingLevelNumberOr(fallbackLevelNumber)
-                    : level.LevelNumber;
+                _worldMap = null;
+                Debug.LogWarning("[BattleController] 无待战海图，回落样板第 1 关"
+                    + "（正常出海走选关页或播放器 -worldMap <地图id>）。");
+                _plan = LevelGeometry.BuildBattlePlan(
+                    SceneArt.ShowcaseLevels.BuildLevelData(1).Value);
             }
-
-            // 【样板三关】1/2/3 号被 ShowcaseLevels 覆盖（云朵场/双大船/山包+空岛）：
-            // 出战数据手写（自由几何场景），不经 LevelCatalog 的原版转写表。
-            LevelData? showcaseData = SceneArt.ShowcaseLevels.BuildLevelData(levelNumber);
-
-            _plan = level != null && ArtReview.ArtReviewCaptureOverride.LevelNumber <= 0
-                ? LevelGeometry.BuildBattlePlan(level)
-                : LevelGeometry.BuildBattlePlan(
-                    showcaseData != null ? showcaseData.Value : LevelCatalog.Get(levelNumber));
 
             _waterWorldY = _plan.WaterWorldY;
             _teams[0] = new BattleTeam(1, aiControlled: false);
@@ -268,16 +255,14 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>
-        /// 构建瓦片地形网格。**优先走平台簇布局**（<see cref="PlatformClusterLayout.BuildFor"/> 对任意关
-        /// 都能推导出逐格水陆的平台地图，见其类头规则表）——场景里不再烘死大地面，
-        /// 可站面全部来自这条路径；关卡数据未转写时退回 <see cref="TerrainCatalog"/> 的旧列式地形，
-        /// 再退回平坦竞技场（与既有行为一致）。
-        /// 网格无论是否转写都非 null（<see cref="Terrain"/>），便于 AI/小地图统一查询。
+        /// 构建瓦片地形网格（逻辑高度场，AI/站位/小地图统一查询）。
+        /// 世界图：站面 box 栅格化为逻辑格（块高 = TopY/0.5）；碰撞与视觉由
+        /// WorldMapComposer 的独立 BoxCollider/灰盒负责。样板三关：ShowcaseLevels 手拼的
+        /// 隐形高度场；BattleTerrainView 只建碰撞层（隐形 BoxCollider），不建格子渲染层。
+        /// 网格恒非 null（<see cref="Terrain"/>）。
         /// </summary>
         void BuildTerrain()
         {
-            // 【M4 世界地图】站面 box 栅格化为逻辑格（块高 = TopY/0.5）；碰撞与视觉由
-            // WorldMapComposer 的独立 BoxCollider/灰盒负责，terrainView 的瓦片渲染不参与。
             if (_worldMap != null)
             {
                 Terrain = WorldMapRuntime.BuildTerrainGrid(_worldMap)
@@ -285,42 +270,18 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
             }
 
-            int levelNumber = _plan.LevelNumber;
-
-            // 【样板三关】逻辑格子 = ShowcaseLevels 手拼的隐形高度场（只喂站位 Y 与 AI 落点）；
-            // BattleTerrainView 只建碰撞层（隐形 BoxCollider），不建格子渲染层。
-            if (SceneArt.ShowcaseLevels.IsShowcase(levelNumber))
-            {
-                Terrain = SceneArt.ShowcaseLevels.BuildLogicGrid(levelNumber);
-                if (terrainView != null)
-                    terrainView.RenderCollidersOnly(Terrain);
-                return;
-            }
-
-            TileTerrainGrid built = null;
-            if (PlatformClusterLayout.TryBuildFor(levelNumber, out PlatformMap map)
-                && map.WidthTiles == _plan.WidthTiles && map.DepthTiles == _plan.DepthTiles)
-            {
-                built = new TileTerrainGrid(_plan.WidthTiles, _plan.DepthTiles, null,
-                    TerrainCatalog.DefaultBlockWorldHeight, map);
-            }
-
-            if (built == null)
-                built = TerrainCatalog.Build(levelNumber, _plan.WidthTiles, _plan.DepthTiles);
-
-            Terrain = built ?? TileTerrainGrid.Flat(_plan.WidthTiles, _plan.DepthTiles);
-
+            Terrain = SceneArt.ShowcaseLevels.BuildLogicGrid(LevelNumber);
             if (terrainView != null)
-                terrainView.Render(built);
+                terrainView.RenderCollidersOnly(Terrain);
         }
 
         /// <summary>
-        /// 按**实际关卡号**重建关卡无关的静态陈设（船 / 岛 / 道具的合并网格）。
-        /// 只做表现：不触碰地形破坏协议（那是 <see cref="BattleTerrainView"/> 的职责）。
+        /// 按内容来源重建静态陈设。世界图：kit 件 + 灰盒站面由 <see cref="WorldMapComposer"/> 摆放；
+        /// 样板三关：<see cref="RuntimeSceneArt"/> 走自由几何装配（云朵/双大船/山包+空岛）。
+        /// 只做表现：不触碰地形协议。
         /// </summary>
         void RebuildSceneArt()
         {
-            // 【M4 世界地图】原版陈设装配器不适用：kit 件 + 灰盒站面由 WorldMapComposer 摆放。
             if (_worldMap != null)
             {
                 Transform artRoot = sceneArt != null ? sceneArt.transform : transform;
@@ -474,15 +435,9 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
             }
 
-            string[] activeSymbols = InjectedBattleSymbols();
-            bool filterRed = activeSymbols != null && CountRedMatching(activeSymbols) > 0;
-
             for (int i = 0; i < _plan.Entries.Count; i++)
             {
                 SpawnPlanEntry entry = _plan.Entries[i];
-                if (entry.TeamIndex == 0 && filterRed && !MatchesAny(entry.TypeName, activeSymbols))
-                    continue;
-
                 Transform root = entry.TeamIndex == 0 ? team0Root : team1Root;
                 if (root == null)
                     root = transform;
@@ -544,51 +499,6 @@ namespace PirateCrew.PirateCrew.Battle
             }
 
             return null;
-        }
-
-        /// <summary>
-        /// 本局出战的战斗导出符号（由 Campaign 在选关时注入，见 <see cref="BattleLaunchContext"/>）。
-        /// 返回 null 表示**不做过滤**（回落关卡作者写好的全队）：
-        ///   · 非战役入口（无注入）——主菜单直进 / 2P / PlayMode 直接加载场景，
-        ///     编成不应改变关卡作者写好的出征名单；
-        ///   · 注入里没有可用符号。
-        ///
-        /// 【为什么用「战役入口」做开关】名册是跨场景常驻的静态状态，初始名册（sailor）始终非空，
-        /// 若无条件过滤会让「直接 Play 战斗场景」从 5 人变 1 人（破坏既有 PlayMode 用例与手感）。
-        /// 战役入口才代表「本局按编成出征」——船员 id 到符号的映射在 Campaign 侧完成，
-        /// 本方法只消费符号，不认识名册类型（架构审计 P0-1 反向依赖修正）。
-        /// </summary>
-        string[] InjectedBattleSymbols()
-        {
-            if (!BattleLaunchContext.HasPending)
-                return null;
-
-            string[] symbols = BattleLaunchContext.Pending.ActiveBattleSymbols;
-            return symbols == null || symbols.Length == 0 ? null : symbols;
-        }
-
-        int CountRedMatching(string[] symbols)
-        {
-            int n = 0;
-            for (int i = 0; i < _plan.Entries.Count; i++)
-            {
-                SpawnPlanEntry entry = _plan.Entries[i];
-                if (entry.TeamIndex == 0 && MatchesAny(entry.TypeName, symbols))
-                    n++;
-            }
-            return n;
-        }
-
-        static bool MatchesAny(string typeName, string[] symbols)
-        {
-            if (string.IsNullOrEmpty(typeName) || symbols == null)
-                return false;
-            for (int i = 0; i < symbols.Length; i++)
-            {
-                if (string.Equals(typeName, symbols[i], System.StringComparison.Ordinal))
-                    return true;
-            }
-            return false;
         }
 
         /// <summary>取队伍（teamIndex 0/1）。</summary>
@@ -736,34 +646,11 @@ namespace PirateCrew.PirateCrew.Battle
             if (caster != null)
                 caster.AddEvilness(result.EvilnessGain);
 
-            // 【瓦片地形破坏】爆炸同时整格摧毁半径内的地形块（§5.4：角色/AI 可借墙弹；
-            // 文档未定义地形 HP，本工程取「一次爆炸整格摧毁」为最简可玩口径，见 TileTerrainGrid 类头）。
-            DestroyTerrainInBlast(worldCenter, radiusWorld);
-
             // §5.3：对箱体以距离判定命中即 box.explode()（火药桶连锁）。
             // M2 近似：以爆心球形 OverlapSphere 扫描场上的可连锁弹体（文档为 AABB 最近点距离）。
             TriggerChainReactions(worldCenter, radiusWorld, source);
 
             return result;
-        }
-
-        /// <summary>爆炸范围内整格摧毁地形块，并通知视图刷新。</summary>
-        void DestroyTerrainInBlast(Vector3 worldCenter, float radiusWorld)
-        {
-            // 【样板三关】地形不可摧毁（原版语义：原版没有地形破坏，只有木箱/火药桶可破坏——
-            // 逆向文档 §对比表）。样板关的格子只是隐形逻辑高度场，炸了会让站位高度漂移。
-            // 【M4 世界地图】同理禁破坏：站面碰撞是独立 BoxCollider，炸格子只会造成
-            // 「逻辑说有洞、碰撞还在」的失真。
-            if (SceneArt.ShowcaseLevels.IsShowcase(LevelNumber) || _worldMap != null)
-                return;
-
-            if (Terrain == null)
-                return;
-
-            _destroyedTerrainCells.Clear();
-            int destroyed = Terrain.DestroyInRadius(worldCenter, radiusWorld, _destroyedTerrainCells);
-            if (destroyed > 0 && terrainView != null)
-                terrainView.ApplyDestruction(_destroyedTerrainCells);
         }
 
         /// <summary>扫描爆炸范围内可连锁引爆的弹体（§5.2 gunpowderBarrel），逐个触发。</summary>

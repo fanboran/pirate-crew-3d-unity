@@ -1,38 +1,30 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Data;
 using PirateCrew.PirateCrew.SceneArt;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace PirateCrew.PirateCrew.Battle
 {
-    /// <summary>
-    /// 场景美术的**运行时装配**：把纯 C# 的摆位表（<see cref="ScenePropLayout"/> 的道具、
-    /// <see cref="SceneKitCatalog.BuildFor"/> 的构件、<see cref="IslandShellGeometry.AddPlatformUndersides"/>
-    /// 的平台底部）合成为**每个材质组一个合并网格**（1 组 = 1 DrawCall），再挂成
-    /// <see cref="MeshFilter"/> + <see cref="MeshRenderer"/>。
-    ///
-    /// ==================================================================
-    /// 【为什么需要它：烘焙侧退位】
-    /// ==================================================================
-    /// 旧做法是编辑器把 **level_1** 的陈设烘成静态网格存进场景（<c>Assets/Editor/SceneArtBuilder.cs</c>）。
-    /// 换关卡时地形瓦片会变（<see cref="TerrainCatalog"/> / <see cref="PlatformClusterLayout.BuildFor"/> 支持任意关），
-    /// 但烘死的陈设不变 → 平台簇与陈设脱节。现在场景烘成**关卡无关**（材质资产 + 接线保留），
-    /// 陈设在开局按**实际关卡号**在运行时重建，见 <see cref="RebuildFor"/>。
-    ///
-    /// 【它不做什么（边界）】可破坏地形仍完全由 <see cref="BattleTerrainView"/> 负责：
-    /// 碰撞块、视觉壳、爆炸后的 <c>ApplyDestruction</c> 重建协议一概不碰。本类只负责**静态陈设**
-    /// （道具 / kit / 平台底部），故爆炸打掉一格平台后，该格上的静态陈设不会逐格消失——
-    /// 这是"静态陈设"的固有取舍（合并网格无法逐格删），已与"地形走 BattleTerrainView"的分工一致。
-    ///
-    /// 【材质从哪来】场景里由 <c>M2BattleSceneSetup</c> 烘焙时写进 <see cref="groupMaterials"/>
-    /// （按 <see cref="GroupNames"/> 的顺序，资产在 <c>Assets/Art/Materials/Scene/</c>）。
-    /// 【取舍】没有新建 ScriptableObject 资产、没有走 Resources 路径常量：材质仍是
-    /// <c>SceneArtBuilder</c> 生成的同一批 .mat 资产，场景只是多了一个组件持引用。
-    /// 好处是"最小侵入、不新增资产类型、与既有材质管线同源"；代价是场景文件里多一条组件记录，
-    /// 且换材质名/顺序时要同步改这里的表（顺序错 = 组与材质错配，故 <see cref="GroupNames"/>
-    /// 是唯一的顺序权威，编辑器侧按它填）。
-    /// </summary>
+        /// <summary>
+        /// 场景美术的**运行时装配**：把样板三关的摆位表（<see cref="ShowcaseLevels.ComposeInto"/> 的
+        /// 自由几何：云朵/双大船/山包+超美空岛）合成为**每个材质组一个合并网格**（1 组 = 1 DrawCall），
+        /// 再挂成 <see cref="MeshFilter"/> + <see cref="MeshRenderer"/>。
+        ///
+        /// ==================================================================
+        /// 【一代退场后的职责边界】
+        /// ==================================================================
+        /// 世界海域图的陈设走 <c>WorldMapComposer</c>（kit FBX + 灰盒站面），不经本类；
+        /// 一代 33 关的道具/构件装配链（<c>ScenePropLayout</c> / <c>SceneKitCatalog.BuildFor</c> /
+        /// 平台底部）随一代退场删除。本类只服务样板三关。
+        ///
+        /// 【材质从哪来】场景里由 <c>M2BattleSceneSetup</c> 烘焙时写进 <see cref="groupMaterials"/>
+        /// （按 <see cref="GroupNames"/> 的顺序，资产在 <c>Assets/Art/Materials/Scene/</c>）。
+        /// 【取舍】没有新建 ScriptableObject 资产、没有走 Resources 路径常量：材质仍是
+        /// <c>SceneArtBuilder</c> 生成的同一批 .mat 资产，场景只是多了一个组件持引用。
+        /// 好处是"最小侵入、不新增资产类型、与既有材质管线同源"；代价是场景文件里多一条组件记录，
+        /// 且换材质名/顺序时要同步改这里的表（顺序错 = 组与材质错配，故 <see cref="GroupNames"/>
+        /// 是唯一的顺序权威，编辑器侧按它填）。
+        /// </summary>
     [DisallowMultipleComponent]
     public sealed class RuntimeSceneArt : MonoBehaviour
     {
@@ -107,9 +99,6 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("材质组材质（顺序必须与 RuntimeSceneArt.GroupNames 一致）；由 M2BattleSceneSetup 烘焙时写入。")]
         [SerializeField] Material[] groupMaterials = new Material[GroupCount];
 
-        [Tooltip("远景/植被是否走分层材质组（关闭则远景并进单组，与旧烘焙口径一致）。")]
-        [SerializeField] bool useTieredGroups = true;
-
         [Tooltip("超美空岛根（场景内静态物，由 FloatingIslandShowcaseMenu.PlaceIntoBattleCenter 烘进场景）。"
             + "只有样板第 3 关激活，其余关卡隐藏。")]
         [SerializeField] GameObject skyIslandRoot;
@@ -137,35 +126,22 @@ namespace PirateCrew.PirateCrew.Battle
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 按实际关卡号重建全部静态陈设（幂等：先删上次生成的组）。由 <c>BattleController.Awake</c> 调用。
-        /// 关卡数据未转写时不生成任何陈设（清空 + 告警），避免"layout 与关卡对不上"的错位。
+        /// 按关卡号重建全部静态陈设（幂等：先删上次生成的组）。由 <c>BattleController.Awake</c> 调用。
+        /// 只服务样板三关（自由几何装配）；非样板关留空并告警（世界图陈设走 WorldMapComposer）。
         /// </summary>
         public void RebuildFor(int levelNumber)
         {
             Clear();
 
-            // 场景内静态空岛：只有样板第 3 关可见（其余关卡/旧关一律隐藏）。
+            // 场景内静态空岛：只有样板第 3 关可见（其余关一律隐藏）。
             if (skyIslandRoot != null && skyIslandRoot.activeSelf != (levelNumber == 3))
                 skyIslandRoot.SetActive(levelNumber == 3);
 
-            // 【样板三关】自由几何装配（云朵/双大船/山包+超美空岛），完全不走格子链——
-            // 轮廓由 ShowcaseLevels 的几何装配器生成，格子只作为隐形逻辑高度场存在。
-            if (SceneArt.ShowcaseLevels.IsShowcase(levelNumber))
+            if (!SceneArt.ShowcaseLevels.IsShowcase(levelNumber))
             {
-                var showcaseBuffers = new ScenePropBuffers();
-                ShowcaseLevels.ComposeInto(showcaseBuffers, levelNumber, Root);
-
-                LastGroupCount = EmitGroups(showcaseBuffers, null);
-                LastLevelNumber = levelNumber;
-                LastClusterCount = 0;
-                LastTriangleCount = showcaseBuffers.TotalTriangles;
-                return;
-            }
-
-            if (!LevelCatalog.IsTranscribed(levelNumber))
-            {
-                global::PirateCrew.Core.Log.Warn("[RuntimeSceneArt] LevelCatalog 未转写关卡 " + levelNumber
-                    + "，静态陈设留空（不生成与关卡错位的几何）。");
+                // 一代瓦片竞技场退场后，本装配器只服务样板三关；世界图陈设走 WorldMapComposer。
+                global::PirateCrew.Core.Log.Warn("[RuntimeSceneArt] 非样板关 " + levelNumber
+                    + "，静态陈设留空（世界图陈设由 WorldMapComposer 装配）。");
                 LastLevelNumber = levelNumber;
                 LastClusterCount = 0;
                 LastTriangleCount = 0;
@@ -173,46 +149,15 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
             }
 
-            LevelData level = LevelCatalog.Get(levelNumber);
-            PlatformMap map = PlatformClusterLayout.BuildFor(level);
+            // 【样板三关】自由几何装配（云朵/双大船/山包+超美空岛），完全不走格子链——
+            // 轮廓由 ShowcaseLevels 的几何装配器生成，格子只作为隐形逻辑高度场存在。
+            var showcaseBuffers = new ScenePropBuffers();
+            ShowcaseLevels.ComposeInto(showcaseBuffers, levelNumber, Root);
 
-            TileTerrainGrid grid = map != null
-                && map.WidthTiles == level.WidthTiles && map.DepthTiles == level.HeightTiles
-                ? new TileTerrainGrid(level.WidthTiles, level.HeightTiles, null,
-                    TerrainCatalog.DefaultBlockWorldHeight, map)
-                : TileTerrainGrid.Flat(level.WidthTiles, level.HeightTiles);
-
-            int seed = levelNumber * 1013 + 7;
-
-            var buffers = new ScenePropBuffers();
-            bool tiered = useTieredGroups && HasTierMaterials();
-            ScenePropTierBuffers tiers = tiered
-                ? new ScenePropTierBuffers(new MeshBuffers(), new MeshBuffers(), new MeshBuffers(),
-                    new MeshBuffers(), new MeshBuffers(), new MeshBuffers(), new MeshBuffers(), new MeshBuffers())
-                : null;
-
-            // 1. 道具（搁浅船 / 栈桥 / 箱桶 / 旗 / 棕榈 / 草丛 / 礁石 / 远景剪影 / 云）。
-            SceneLayout propLayout = ScenePropLayout.Build(grid, CollectSpawnCells(level), seed);
-            ScenePropComposer.Compose(buffers, propLayout, seed, level.HeightTiles, tiers);
-
-            // 2. 模块化构件（大船 / 空岛 / 梯田小岛的伪装）。
-            int kitSeed = seed + 500;
-            SceneKitComposer.Compose(buffers, SceneKitCatalog.BuildFor(levelNumber, map, kitSeed), kitSeed);
-
-            // 3. 悬空平台底部（船体侧板+龙骨 / 岩锥 / 岩层）——与 kit 用同一批材质组合并。
-            if (map != null)
-                IslandShellGeometry.AddPlatformUndersides(buffers, grid, IslandShellSettings.Default);
-
-            // 4. 落水危险虚线（绕竞技场矩形一圈）。
-            IslandShellGeometry.AddDashedBorder(buffers.Danger, level.WidthTiles, level.HeightTiles,
-                DangerLineOffset, WaterTopY + 0.012f, 0.9f, 0.55f, DangerLineWidth);
-
-            // 5. 落盘：每个非空材质组 = 1 网格 + 1 渲染器。
-            LastGroupCount = EmitGroups(buffers, tiers);
-
+            LastGroupCount = EmitGroups(showcaseBuffers, null);
             LastLevelNumber = levelNumber;
-            LastClusterCount = map != null ? map.Clusters.Count : 0;
-            LastTriangleCount = buffers.TotalTriangles;
+            LastClusterCount = 0;
+            LastTriangleCount = showcaseBuffers.TotalTriangles;
         }
 
         /// <summary>删除本组件上次生成的组（幂等重建用）。</summary>
@@ -339,19 +284,6 @@ namespace PirateCrew.PirateCrew.Battle
             return material;
         }
 
-        bool HasTierMaterials()
-        {
-            if (groupMaterials == null || groupMaterials.Length < GroupCount)
-                return false;
-
-            for (int i = GFarSilNear; i <= GGrassLight; i++)
-            {
-                if (groupMaterials[i] == null)
-                    return false;
-            }
-            return true;
-        }
-
         readonly HashSet<int> _warned = new HashSet<int>();
 
         void WarnMissing(int index, string reason)
@@ -360,18 +292,6 @@ namespace PirateCrew.PirateCrew.Battle
                 return;
             global::PirateCrew.Core.Log.Warn("[RuntimeSceneArt] 材质组 " + GroupNames[index] + " 跳过：" + reason
                 + "（该组几何不渲染；这不影响地形与玩法）。");
-        }
-
-        static List<Vector2Int> CollectSpawnCells(LevelData level)
-        {
-            var cells = new List<Vector2Int>();
-            if (level.Units == null)
-                return cells;
-
-            for (int i = 0; i < level.Units.Count; i++)
-                cells.Add(new Vector2Int(level.Units[i].gridX, level.Units[i].gridY));
-
-            return cells;
         }
 
         static void DestroyObject(Object target)

@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.PirateCrew.Audio;
+using PirateCrew.PirateCrew.Battle.WorldMaps;
 using PirateCrew.PirateCrew.Settings;
 using TMPro;
 using UnityEngine;
@@ -150,12 +152,18 @@ namespace PirateCrew.UI
         // 导航
         // ------------------------------------------------------------------
 
-        /// <summary>进入战斗：走 EventBus → SceneLoader 链路。这是「非战役入口」，先放弃可能残留的待结算关卡。</summary>
+        /// <summary>
+        /// 进入战斗（一代退场后）：直接出海**第一张海图**（目录声明序）；
+        /// 想挑图走「战役」入口的选图页。目录为空（数据异常）时退回选图页兜底。
+        /// </summary>
         void OnBattleClicked()
         {
             M3UiBuilder.ButtonFeedback(battleButton, true, _motion);
-            CampaignApi.AbortPendingLevel();
-            EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
+            IReadOnlyList<WorldMapDefinition> maps = WorldMapCatalog.All;
+            if (maps.Count > 0 && WorldMapRuntime.SetPending(maps[0].Id))
+                EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
+            else
+                EventBus.Publish(SceneEvents.ChangeScene, SceneNames.LevelSelect);
         }
 
         void OnCampaignClicked()

@@ -101,17 +101,17 @@ namespace PirateCrew.CrewManagement
         }
 
         /// <summary>
-        /// 关卡结算：给本关编成阵容发经验 + 按通关关卡序号招募新船员，并广播事件。
+        /// 海图战结算：给编成阵容发经验 + 按「累计星数」过招募门槛招募新船员，并广播事件。
         ///
         /// 【调用方】<c>CampaignApi</c>（跨模块命令走本方法；通知走事件）。
+        /// 【门槛口径】一代退场后无关卡序号可依，招募门槛改为累计星数
+        ///（<c>CrewRosterCatalog</c> 的 <c>UnlockStars</c>，数值沿用一代的 0/3/5/7/10/13）。
         /// </summary>
-        /// <param name="levelId">关卡 id（<c>CampaignCatalog</c> 的 <c>level_01</c> 形式）。</param>
-        /// <param name="stars">本关星级（0 = 未通关）。</param>
-        /// <param name="clearedLevelNumber">
-        /// 已通关的战役关卡序号（用于招募判定）；未通关传 0。
-        /// </param>
+        /// <param name="mapId">海图 id（<c>WorldMapCatalog</c> 收录，如 <c>wreck_hymn</c>）。</param>
+        /// <param name="stars">本局星级（0 = 未通关）。</param>
+        /// <param name="totalStars">结算后的累计星数（招募判定基准）。</param>
         /// <returns>本次结算的奖励载荷（供调用方记录/展示）。</returns>
-        public static CrewRewardPayload GrantLevelReward(string levelId, int stars, int clearedLevelNumber)
+        public static CrewRewardPayload GrantMapReward(string mapId, int stars, int totalStars)
         {
             string[] activeIds = Roster.ActiveCopy();
             int xpPerCrew = CrewProgressionRules.XpAward(stars);
@@ -122,29 +122,29 @@ namespace PirateCrew.CrewManagement
                     Progression.GrantXp(activeIds[i], xpPerCrew);
             }
 
-            List<string> unlocked = UnlockCrewsForLevel(clearedLevelNumber);
+            List<string> unlocked = UnlockCrewsForStars(totalStars);
 
-            var payload = new CrewRewardPayload(levelId, stars, xpPerCrew, activeIds, unlocked.ToArray());
+            var payload = new CrewRewardPayload(mapId, stars, xpPerCrew, activeIds, unlocked.ToArray());
             EventBus.Publish(CrewManagementEvents.RewardGranted, payload);
             PublishRosterUpdated();
             return payload;
         }
 
         /// <summary>
-        /// 招募所有解锁条件 ≤ <paramref name="clearedLevelNumber"/> 且尚未拥有的船员。
+        /// 招募所有解锁星数 ≤ <paramref name="totalStars"/> 且尚未拥有的船员。
         /// </summary>
         /// <returns>本次新招募的船员 id 列表。</returns>
-        public static List<string> UnlockCrewsForLevel(int clearedLevelNumber)
+        public static List<string> UnlockCrewsForStars(int totalStars)
         {
             var unlocked = new List<string>();
-            if (clearedLevelNumber <= 0)
+            if (totalStars <= 0)
                 return unlocked;
 
             IReadOnlyList<CrewRosterEntry> all = CrewRosterCatalog.All;
             for (int i = 0; i < all.Count; i++)
             {
                 CrewRosterEntry entry = all[i];
-                if (!entry.IsInitial && entry.UnlockLevelNumber <= clearedLevelNumber
+                if (!entry.IsInitial && entry.UnlockStars <= totalStars
                     && Roster.Recruit(entry.Id))
                 {
                     unlocked.Add(entry.Id);

@@ -4,55 +4,22 @@ using PirateCrew.Campaign;
 namespace PirateCrew.Tests
 {
     /// <summary>
-    /// 关卡进度（星级 + 顺序解锁）的纯 C# 断言。
-    /// 【基准】Godot <c>progression.gd</c>：星级取历史最好、第一关默认解锁、其余需前一关完成；
-    ///   「跳过未转写关卡」是本作提案（见 <see cref="CampaignProgress"/> 类头）。
+    /// 海图进度（海图 id → 星级）的纯 C# 断言。一代的「顺序解锁链」随一代退场：
+    /// 8 张海图全部可出战，进度只剩「星级记录」一个职责（键 = 海图 id，值域由
+    /// <c>WorldMapCatalog</c> 校验）。
     /// </summary>
     public class CampaignProgressTests
     {
+        const string MapA = "wreck_hymn";
+
         [Test]
-        public void FreshProgress_OnlyFirstLevelUnlocked()
+        public void FreshProgress_IsEmpty()
         {
             var progress = new CampaignProgress();
 
-            Assert.That(progress.IsUnlocked("level_01"), Is.True, "progression.gd:25 第一关默认解锁");
-            Assert.That(progress.GetStars("level_01"), Is.EqualTo(0));
+            Assert.That(progress.GetStars(MapA), Is.EqualTo(0));
             Assert.That(progress.CompletedCount, Is.EqualTo(0));
             Assert.That(progress.TotalStars, Is.EqualTo(0));
-            Assert.That(progress.MaxCompletedLevelNumber, Is.EqualTo(0));
-        }
-
-        [Test]
-        public void UnlockChain_SkipsUntranscribedLevels()
-        {
-            var progress = new CampaignProgress();
-
-            // level_02..level_04 的前一「已转写」关卡都是 level_01（见 Catalog 测试）。
-            Assert.That(progress.IsUnlocked("level_02"), Is.False);
-            Assert.That(progress.IsUnlocked("level_04"), Is.False);
-
-            progress.CompleteLevel("level_01", 2);
-
-            // 33 关全量转写后解锁链为严格顺序（2026-09-14）。
-            Assert.That(progress.IsUnlocked("level_02"), Is.True);
-            Assert.That(progress.IsUnlocked("level_03"), Is.False, "level_03 需要 level_02 通关");
-            Assert.That(progress.IsUnlocked("level_04"), Is.False);
-            Assert.That(progress.IsUnlocked("level_15"), Is.False);
-        }
-
-        [Test]
-        public void UnlockChain_FullRun()
-        {
-            var progress = new CampaignProgress();
-
-            // 33 关全量转写后需按顺序通关（2026-09-14，旧「跳关推进」口径废止）。
-            progress.CompleteLevel("level_01", 1);
-            progress.CompleteLevel("level_02", 1);
-            progress.CompleteLevel("level_03", 1);
-            progress.CompleteLevel("level_04", 1);
-
-            Assert.That(progress.IsUnlocked("level_05"), Is.True);
-            Assert.That(progress.IsUnlocked("level_15"), Is.False, "level_15 仍需中间关卡通关");
         }
 
         [Test]
@@ -60,9 +27,9 @@ namespace PirateCrew.Tests
         {
             var progress = new CampaignProgress();
 
-            Assert.That(progress.CompleteLevel("level_01", 3), Is.True, "首次通关应记为改进");
-            Assert.That(progress.CompleteLevel("level_01", 1), Is.False, "低星重打不降级");
-            Assert.That(progress.GetStars("level_01"), Is.EqualTo(3));
+            Assert.That(progress.CompleteLevel(MapA, 3), Is.True, "首次通关应记为改进");
+            Assert.That(progress.CompleteLevel(MapA, 1), Is.False, "低星重打不降级");
+            Assert.That(progress.GetStars(MapA), Is.EqualTo(3));
             Assert.That(progress.CompletedCount, Is.EqualTo(1));
             Assert.That(progress.TotalStars, Is.EqualTo(3));
         }
@@ -72,8 +39,9 @@ namespace PirateCrew.Tests
         {
             var progress = new CampaignProgress();
 
-            Assert.That(progress.CompleteLevel("level_01", 0), Is.False, "0 星不算通关");
-            Assert.That(progress.CompleteLevel("level_99", 3), Is.False, "未知关卡");
+            Assert.That(progress.CompleteLevel(MapA, 0), Is.False, "0 星不算通关");
+            Assert.That(progress.CompleteLevel("level_99", 3), Is.False, "不在海图目录的 id");
+            Assert.That(progress.CompleteLevel("level_01", 3), Is.False, "一代旧档键不进新进度");
             Assert.That(progress.CompleteLevel(null, 3), Is.False);
             Assert.That(progress.CompletedCount, Is.EqualTo(0), "未通关不应计入通关数");
         }
@@ -83,53 +51,52 @@ namespace PirateCrew.Tests
         {
             var progress = new CampaignProgress();
 
-            progress.SetStars("level_01", 99);
+            progress.SetStars(MapA, 99);
 
-            Assert.That(progress.GetStars("level_01"), Is.EqualTo(StarRules.MaxStars));
+            Assert.That(progress.GetStars(MapA), Is.EqualTo(StarRules.MaxStars));
         }
 
         [Test]
-        public void CompletedLevels_CountOnceEvenIfReplayedBetter()
+        public void SetStars_RejectsIdsOutsideMapCatalog()
         {
             var progress = new CampaignProgress();
-            progress.CompleteLevel("level_01", 1);
-            progress.CompleteLevel("level_01", 3);
+
+            progress.SetStars("level_01", 3);
+
+            Assert.That(progress.CompletedCount, Is.EqualTo(0), "一代旧档键（level_01）读档时静默丢弃");
+        }
+
+        [Test]
+        public void CompletedMaps_CountOnceEvenIfReplayedBetter()
+        {
+            var progress = new CampaignProgress();
+            progress.CompleteLevel(MapA, 1);
+            progress.CompleteLevel(MapA, 3);
 
             Assert.That(progress.CompletedCount, Is.EqualTo(1));
             Assert.That(progress.TotalStars, Is.EqualTo(3));
         }
 
         [Test]
-        public void NextPlayableLevel_SkipsLockedAndCompleted()
+        public void TotalStars_SumsAcrossMaps()
         {
             var progress = new CampaignProgress();
-            Assert.That(progress.NextPlayableLevelId(), Is.EqualTo("level_01"));
+            progress.CompleteLevel("wreck_hymn", 3);
+            progress.CompleteLevel("atoll_ring", 2);
 
-            progress.CompleteLevel("level_01", 1);
-            Assert.That(progress.NextPlayableLevelId(), Is.EqualTo("level_02"),
-                "level_02 已解锁（前一已转写关卡完成），优先推荐");
-        }
-
-        [Test]
-        public void MaxCompletedLevelNumber_TracksHighestCleared()
-        {
-            var progress = new CampaignProgress();
-            progress.CompleteLevel("level_04", 2);
-            progress.CompleteLevel("level_01", 3);
-
-            Assert.That(progress.MaxCompletedLevelNumber, Is.EqualTo(4));
+            Assert.That(progress.TotalStars, Is.EqualTo(5), "招募门槛（累计星数）的数据源");
         }
 
         [Test]
         public void Reset_ClearsEverything()
         {
             var progress = new CampaignProgress();
-            progress.CompleteLevel("level_01", 3);
+            progress.CompleteLevel(MapA, 3);
 
             progress.Reset();
 
             Assert.That(progress.CompletedCount, Is.EqualTo(0));
-            Assert.That(progress.IsCompleted("level_01"), Is.False);
+            Assert.That(progress.IsCompleted(MapA), Is.False);
         }
     }
 }

@@ -120,19 +120,13 @@ namespace PirateCrew.PirateCrew.SceneArt.Showcase
         }
 
         /// <summary>
-        /// 按 level_1 的竞技场取默认展示位（与 SceneArtBuilder 的构建口径同源：
-        /// 场地中心 X / 远缘 Z = 0 / 地面 y = 0）。关卡未转写时退化为原点远侧的通用位。
+        /// 按样板第 1 关（云端漫步）的竞技场取默认展示位（与 SceneArtBuilder 的构建口径同源：
+        /// 场地中心 X / 远缘 Z = 0 / 地面 y = 0）。
         /// </summary>
         public static Vector3 DefaultBackdropRootPosition(FloatingIslandSpec spec)
         {
-            if (!LevelCatalog.IsTranscribed(1))
-            {
-                // 关卡数据缺失的兜底：摆到原点远侧，仍然保证 PlacementHeight 的净空契约。
-                return BackdropRootPosition(spec, 0f, 0f, LevelGeometry.GroundTopY);
-            }
-
-            LevelData level = LevelCatalog.Get(1);
-            float halfWidth = LevelGeometry.TileToWorld(level.WidthTiles) * 0.5f;
+            // 样板第 1 关的场地：ShowcaseLevels.WidthTiles × DepthTiles（20×15 格，1 格 = 2 单位）。
+            float halfWidth = LevelGeometry.TileToWorld(ShowcaseLevels.WidthTiles) * 0.5f;
             float farEdgeZ = 0f;   // GridToArena 的 Z 从 0 起（见 LevelGeometry 类头），远缘即 Z=0。
             return BackdropRootPosition(spec, halfWidth, farEdgeZ, LevelGeometry.GroundTopY);
         }

@@ -70,13 +70,7 @@ namespace PirateCrew.PirateCrew.Water
         [Tooltip("每轴格数。128² ≈ 1.6 万格，C# 每步约 0.4ms（Release 实测）。dx = 域边长/本值 = 1.0 世界单位 = 半格（格数不动，格距随域 ×2）。")]
         [SerializeField] int cellsPerAxis = WaterSimRules.DefaultCellsPerAxis;
 
-        [Tooltip("用于取竞技场中心的关卡号（域中心 = W/2, D/2）。改关卡时要与 BattleController 一致。")]
-        [SerializeField] int domainLevelNumber = 1;
-
-        [Tooltip("勾上则忽略上面的关卡号，直接用下面的自定义中心。")]
-        [SerializeField] bool useCustomDomainCenter = false;
-
-        [Tooltip("自定义域中心（世界 XZ）。")]
+        [Tooltip("自定义域中心（世界 XZ）。世界图模式由 BattleController 开局按图心重配（ConfigureWorldDomain），本值只在编辑器裸跑时生效。")]
         [SerializeField] Vector2 customDomainCenter = new Vector2(50f, 17f);
 
         [Tooltip("波速（世界单位/秒）。CFL 上限会自动约束 dt。格 1→2 单位后 ×2（9→18），保持每格每秒的行进观感与 CFL 余量。")]
@@ -204,7 +198,6 @@ namespace PirateCrew.PirateCrew.Water
             if (_field == null)
             {
                 domainSize = newSize;
-                useCustomDomainCenter = true;
                 customDomainCenter = center;
                 return;
             }
@@ -291,18 +284,12 @@ namespace PirateCrew.PirateCrew.Water
                 Destroy(_fallbackObstacle);
         }
 
-        /// <summary>模拟域中心：竞技场中心（W/2, D/2）。拿不到关卡数据时退回自定义值。</summary>
+        /// <summary>
+        /// 模拟域中心：取自定义值。世界图模式由 BattleController 开局
+        /// <see cref="ConfigureWorldDomain"/> 按图心重配，运行时不会走到这里。
+        /// </summary>
         Vector2 ResolveDomainCenter()
         {
-            if (useCustomDomainCenter)
-                return customDomainCenter;
-
-            LevelData level = LevelCatalog.Get(domainLevelNumber);
-            if (level.WidthTiles > 0 && level.HeightTiles > 0)
-                // 竞技场中心 = 格数 × TileWorldSize / 2（格 1→2 单位后 W/2 → W·1）。
-                return new Vector2(LevelGeometry.TileToWorld(level.WidthTiles * 0.5f),
-                    LevelGeometry.TileToWorld(level.HeightTiles * 0.5f));
-
             return customDomainCenter;
         }
 

@@ -1,6 +1,6 @@
 using System.IO;
 using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.PirateCrew.SceneArt;
 using PirateCrew.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -29,15 +29,9 @@ namespace PirateCrew.EditorTools
     ///   面板的位置/尺寸/背景/描边归 <see cref="BattleUiTheme"/> / <see cref="BattleHudBuilder"/>
     ///   （木质框观感）；只有面板缺失时才兜底建一个朴素面板，避免覆盖 UI 波次的样式。
     ///
-    /// 【本轮新增：小地图岛烘焙】按 tile 数据（<see cref="TerrainCatalog"/> / <see cref="PlatformClusterLayout"/>）
-    ///   把「沙台 / 草格 / 海面」画进 <c>IslandLayer</c>：
-    ///   · 旧版小地图岛是运行期 <c>BattleMinimap.BuildTiles</c> 用 <c>MinimapRules.TileColor</c> 画的灰岩色矩形
-    ///     （r3 实测 #898D7E，与实岛沙 #F7D384 不符），而 <c>MinimapRules.cs</c> / <c>BattleMinimap.cs</c>
-    ///     不在本波次文件域内；
-    ///   · 本脚本按同一份瓦片数据逐格上色（浅台 = 沙 #F0D48A 系、抬起的台面 = 草 #6FA86F 系、
-    ///     水 = <see cref="UiTheme.Sea"/>），岛轮廓 = 平台簇的真实逐格形状（不再是矩形兜底）；
-    ///   · 因此运行期的瓦片点阵不再需要（会被烘焙层整片盖住，却仍要建 width×depth 个 Image），
-    ///     本轮起 <c>BattleMinimap.terrain</c> 显式清空 —— 代价是地形被炸后小地图不再变化（静态岛）。
+    /// 【一代退场后的岛层】本脚本不再按关卡瓦片烘焙岛层（一代数据源已删）。世界图运行时
+    ///   走 <c>BattleMinimap.ConfigureWorldChartFromRuntime</c>（海图模式），样板三关走点阵层；
+    ///   <c>BattleMinimap.terrain</c> 仍显式清空（瓦片点阵不参与）。
     ///     彻底修法（需改本波次文件域外的两个文件，见 docs/待办事项.md）：让 <c>MinimapRules.TileColor</c>
     ///     按格面语义取沙/草色、恢复 terrain 接线后删掉本烘焙层。
     /// </summary>
@@ -54,37 +48,6 @@ namespace PirateCrew.EditorTools
 
         const string Team0RootName = "Team0_Red";
         const string Team1RootName = "Team1_Blue";
-        const int FallbackLevelNumber = 1;
-
-        /// <summary>
-        /// 岛格沙色（浅台 / 滩）。【提案/待定】色值取 r3 美术复验工单给的 <c>#F0D48A 系</c>
-        /// （实测实岛沙为 <c>#F7D384</c>；这里稍压一点亮度，避免小地图比实景还亮）。
-        /// </summary>
-        static readonly Color SandTileColor = new Color(0xF0 / 255f, 0xD4 / 255f, 0x8A / 255f, 1f);
-
-        /// <summary>岛格草色（抬起的台面）。【提案/待定】色值取工单给的 <c>#6FA86F 系</c>。</summary>
-        static readonly Color GrassTileColor = new Color(0x6F / 255f, 0xA8 / 255f, 0x6F / 255f, 1f);
-
-        // ------------------------------------------------------------------
-        // P2-2 岸线侵蚀参数（把「轴对齐矩形岛」打散成不规则岸线）
-        // ------------------------------------------------------------------
-
-        /// <summary>边缘格朝向水一侧的缩进下限（单位 = 格宽；r4 工单 0.2-0.4 格）。</summary>
-        const float ErosionInsetMin = 0.20f;
-
-        /// <summary>边缘格朝向水一侧的缩进上限（单位 = 格宽）。</summary>
-        const float ErosionInsetMax = 0.40f;
-
-        /// <summary>凸角圆角 Sprite 的持久资产路径（单角圆角：缺角在贴图左上）。</summary>
-        const string CoastCornerSpritePath = "Assets/Art/Textures/UI/MinimapCoastCorner.png";
-
-        /// <summary>凸角 Sprite 的烘焙尺寸（像素）。</summary>
-        const int CoastCornerSpriteSize = 32;
-
-        /// <summary>凸角圆弧半径占边长的比例（0.42 → 圆角明显但仍是方块主体）。</summary>
-        const float CoastCornerRadiusRatio = 0.42f;
-
-        static Sprite _coastCornerSprite;
 
         /// <summary>小地图在屏幕左上角的外边距（本波次统一口径 16px，与 BattleHudBuilder.Safe 一致；
         /// 原版 mapHolder 挂在 (20,20)，§2.3）。</summary>
@@ -143,14 +106,16 @@ namespace PirateCrew.EditorTools
                 return;
             }
 
-            ResolveArenaTiles(battle, out int widthTiles, out int depthTiles);
-            int levelNumber = ResolveLevelNumber(battle);
+            // 一代退场后：小地图不再按关卡瓦片烘焙岛层（一代数据源已删）。
+            // 世界图运行时走 BattleMinimap.ConfigureWorldChartFromRuntime（海图模式），
+            // 样板三关走点阵层；旧场景里已烘焙的 IslandLayer 保持原样（不新增烘焙）。
+            int widthTiles = ShowcaseLevels.WidthTiles;
+            int depthTiles = ShowcaseLevels.DepthTiles;
 
             RectTransform panel = EnsurePanel(canvas.transform, widthTiles, depthTiles);
             RectTransform dotLayer = EnsureDotLayer(panel);
             RectTransform tileLayer = EnsureTileLayer(dotLayer);
-            RectTransform islandLayer = EnsureIslandLayer(dotLayer, tileLayer);
-            int islandTiles = BakeIslandTiles(islandLayer, levelNumber, widthTiles, depthTiles);
+            EnsureIslandLayer(dotLayer, tileLayer);
 
             var minimap = panel.GetComponent<BattleMinimap>();
             if (minimap == null)
@@ -171,8 +136,8 @@ namespace PirateCrew.EditorTools
             Debug.Log("[HudMinimapSceneSetup] 小地图接线完成。\n"
                 + "  场景: " + BattleScenePath + "\n"
                 + "  面板: " + MinimapPanelName + "（左上角，原版 mapHolder 在 (20,20)，§2.3）\n"
-                + "  竞技场: " + widthTiles + " × " + depthTiles + " 瓦片（关卡 " + levelNumber + "）\n"
-                + "  岛层: " + IslandLayerName + "（沙/草逐格烘焙，共 " + islandTiles + " 格；水 = UI_SEA）\n"
+                + "  面板口径: " + widthTiles + " × " + depthTiles + " 瓦片（样板第 1 关）\n"
+                + "  岛层: " + IslandLayerName + "（不再烘焙；世界图走运行时海图模式）\n"
                 + "  单位根: " + (team0 != null ? team0.name : "null") + " / "
                 + (team1 != null ? team1.name : "null"));
         }
@@ -300,298 +265,6 @@ namespace PirateCrew.EditorTools
             return layer;
         }
 
-        /// <summary>
-        /// 按关卡瓦片数据烘焙小地图岛（幂等：每次接线先清空重建）。
-        ///
-        /// 【配色】浅台 / 滩 = <see cref="SandTileColor"/>，抬起来的台面（块高 &gt; 本簇最低块高）= <see cref="GrassTileColor"/>；
-        /// 水格不画（点阵区底色 = 面板的「羊皮纸 × UI_SEA」，即 <see cref="UiTheme.Sea"/> 系）。
-        /// 锚点口径与 <c>BattleMinimap.BuildTiles</c> 逐格一致，
-        /// 保证单位点（按 <c>MinimapRules.ArenaToNormalized</c> 归一化定位）与岛格严格对齐。
-        ///
-        /// 【P2-2 岸线侵蚀（r4：三块岛是轴对齐矩形，加一个漂浮小矩形）】
-        /// 光按 tile 逐格画，矩形数据仍会画出矩形轮廓（平台簇本身是若干嵌套矩形 Step）。
-        /// 本轮在逐格基础上做两层处理，把直角岸线打散：
-        ///   ① <b>半格侵蚀</b>：朝向水的边按确定性哈希缩进 <see cref="ErosionInsetMin"/>–<see cref="ErosionInsetMax"/> 格宽
-        ///      （同一 (格,边) 每次都得同一值，可复现、可截图对比，不用 Random）；
-        ///   ② <b>凸角圆角化</b>：相邻两条水边的凸角格改用单角圆角 Sprite，并用 <c>localScale</c> 镜像把缺角
-        ///      旋到正确那一角（贴图缺角在左上；镜像映射见 <see cref="BakeIslandTiles"/> 内注释）；
-        ///   ③ <b>剔除孤立漂浮块</b>：四邻皆水的单格与任何岛都不连通，在小地图上读作"UI 残留"（r4 那个漂浮小矩形
-        ///      经查是关卡的「北侧小空岛」簇 ④，共 8 格、并非单格残留；单格残留在这里被剔除，簇 ④ 则被同一套
-        ///      侵蚀+圆角重画成不规则小岛，不再是一个漂浮方块）。
-        /// </summary>
-        /// <returns>烘焙出的岛格数（0 = 该关未转写地形 / 非平台关）。</returns>
-        static int BakeIslandTiles(RectTransform layer, int levelNumber, int widthTiles, int depthTiles)
-        {
-            if (layer == null)
-                return 0;
-
-            for (int i = layer.childCount - 1; i >= 0; i--)
-                Object.DestroyImmediate(layer.GetChild(i).gameObject);
-
-            // 只做平台化关卡：列式旧地形（level_4/27）整图都是「有地面」，逐格上色会糊成一块沙色大矩形，
-            // 故非平台关直接关掉本层，把绘制让回运行期的灰岩色点阵。
-            if (!TerrainCatalog.IsPlatformLevel(levelNumber))
-            {
-                layer.gameObject.SetActive(false);
-                return 0;
-            }
-
-            layer.gameObject.SetActive(true);
-
-            // 水不用画：运行期瓦片点阵已停画（见 WriteReferences 的 terrain 清空），
-            // 点阵区的底色就是面板自己的「羊皮纸 × UI_SEA」底色（= UiTheme.Sea 系），
-            // 再铺一层反而会在面板里出现一块色调不同的矩形。这里只画岛格。
-            TileTerrainGrid grid = TerrainCatalog.Build(levelNumber, widthTiles, depthTiles);
-            if (grid == null)
-                return 0;
-
-            Sprite cornerSprite = GetCoastCornerSprite();   // 生成失败回落方角（不阻塞接线）
-            float tileW = 1f / widthTiles;
-            float tileH = 1f / depthTiles;
-
-            int tiles = 0;
-            int isolated = 0;
-            for (int gy = 0; gy < depthTiles; gy++)
-            {
-                for (int gx = 0; gx < widthTiles; gx++)
-                {
-                    if (!IsGroundAt(grid, gx, gy))
-                        continue;
-
-                    // 四邻是否水（越界按水算）。gy-1 = 屏幕上方（z 小）、gy+1 = 屏幕下方。
-                    bool waterLeft = !IsGroundAt(grid, gx - 1, gy);
-                    bool waterRight = !IsGroundAt(grid, gx + 1, gy);
-                    bool waterUp = !IsGroundAt(grid, gx, gy - 1);
-                    bool waterDown = !IsGroundAt(grid, gx, gy + 1);
-                    int waterSides = (waterLeft ? 1 : 0) + (waterRight ? 1 : 0)
-                                     + (waterUp ? 1 : 0) + (waterDown ? 1 : 0);
-
-                    // ③ 孤立漂浮块（与任何岛格不连通）：剔除，避免小地图出现漂浮小方块。
-                    if (waterSides == 4)
-                    {
-                        isolated++;
-                        continue;
-                    }
-
-                    var go = new GameObject("IslandTile_" + gx + "_" + gy,
-                        typeof(RectTransform), typeof(Image));
-                    var rect = go.GetComponent<RectTransform>();
-                    rect.SetParent(layer, false);
-
-                    var image = go.GetComponent<Image>();
-                    image.color = IslandTileColor(grid, gx, gy);
-                    image.raycastTarget = false;
-
-                    bool convexCorner = waterSides == 2
-                        && (waterLeft && waterUp || waterLeft && waterDown
-                            || waterRight && waterUp || waterRight && waterDown);
-
-                    if (convexCorner && cornerSprite != null)
-                    {
-                        // ② 凸角格：整格铺满 + 单角圆角 Sprite，靠镜像缩放把缺角旋到水里那一侧。
-                        // 贴图缺角在「屏幕左上」；localScale 镜像映射：
-                        //   缺角目标 = 左上 → (1,1) / 右上 → (-1,1) / 左下 → (1,-1) / 右下 → (-1,-1)。
-                        image.sprite = cornerSprite;
-                        image.type = Image.Type.Simple;
-                        rect.anchorMin = new Vector2(gx * tileW, 1f - (gy + 1) * tileH);
-                        rect.anchorMax = new Vector2((gx + 1) * tileW, 1f - gy * tileH);
-                        rect.offsetMin = Vector2.zero;
-                        rect.offsetMax = Vector2.zero;
-                        rect.localScale = new Vector3(waterRight ? -1f : 1f, waterDown ? -1f : 1f, 1f);
-                    }
-                    else
-                    {
-                        // ① 直边/尖端：朝向水的边做确定性半格侵蚀（0.20–0.40 格宽），其余边贴满。
-                        float insetLeft = waterLeft ? ErosionInset(gx, gy, 0) : 0f;
-                        float insetRight = waterRight ? ErosionInset(gx, gy, 1) : 0f;
-                        float insetDown = waterDown ? ErosionInset(gx, gy, 2) : 0f;
-                        float insetUp = waterUp ? ErosionInset(gx, gy, 3) : 0f;
-
-                        // 直接用归一化 anchor 表达缩进（offset 恒 0）：与层级像素尺寸解耦，
-                        // 不依赖 RectTransform 布局是否已刷新。
-                        rect.anchorMin = new Vector2(
-                            gx * tileW + insetLeft * tileW,
-                            1f - (gy + 1) * tileH + insetDown * tileH);
-                        rect.anchorMax = new Vector2(
-                            (gx + 1) * tileW - insetRight * tileW,
-                            1f - gy * tileH - insetUp * tileH);
-                        rect.offsetMin = Vector2.zero;
-                        rect.offsetMax = Vector2.zero;
-                    }
-
-                    tiles++;
-                }
-            }
-
-            LogIslandComposition(grid, widthTiles, depthTiles, tiles, isolated);
-            return tiles;
-        }
-
-        /// <summary>取格子是否地面；越界按水（false）。</summary>
-        static bool IsGroundAt(TileTerrainGrid grid, int gx, int gy)
-        {
-            if (grid == null)
-                return false;
-            if (gx < 0 || gy < 0 || gx >= grid.WidthTiles || gy >= grid.DepthTiles)
-                return false;
-            return grid.IsGroundAt(gx, gy);
-        }
-
-        /// <summary>
-        /// 确定性哈希（Wang hash 变体）→ [0,1)，用作某格某边的侵蚀缩进量。
-        /// 【为什么不用 UnityEngine.Random】接线可反复执行，必须每次得到同一条岸线，
-        /// 否则每次重建 HUD 小地图形状都会变，无法做截图前后对比。
-        /// </summary>
-        static float ErosionInset(int gx, int gy, int side)
-        {
-            uint h = (uint)(gx * 73856093 ^ gy * 19349663 ^ side * 83492791);
-            h ^= h >> 13;
-            h *= 1274126177u;
-            h ^= h >> 16;
-            float t = (h & 0xFFFFFFu) / (float)0xFFFFFFu;
-            return Mathf.Lerp(ErosionInsetMin, ErosionInsetMax, t);
-        }
-
-        /// <summary>
-        /// 输出岛/簇组成日志：既便于报告核对「漂浮小矩形」是谁，也便于测试断言。
-        /// 小簇（≤12 格）单独点名——r4 的漂浮小矩形即 <c>sky_islet_north</c>（8 格）这个真簇。
-        /// </summary>
-        static void LogIslandComposition(TileTerrainGrid grid, int widthTiles, int depthTiles,
-            int tiles, int isolated)
-        {
-            var sb = new System.Text.StringBuilder();
-            sb.Append("[HudMinimapSceneSetup] 岛层组成：").Append(tiles).Append(" 格（剔除孤立漂浮块 ")
-              .Append(isolated).Append(" 个）。");
-            int clusterCount = grid.ClusterCount;
-            for (int c = 0; c < clusterCount; c++)
-            {
-                PlatformClusterInfo info = grid.ClusterAt(c);
-                int cells = 0;
-                for (int gy = info.Z0; gy <= info.Z1 && gy < depthTiles; gy++)
-                {
-                    for (int gx = info.X0; gx <= info.X1 && gx < widthTiles; gx++)
-                    {
-                        if (gx >= 0 && gy >= 0 && grid.ClusterIndexOf(gx, gy) == c)
-                            cells++;
-                    }
-                }
-
-                sb.Append("\n  簇 ").Append(c).Append(" ").Append(info.Name)
-                  .Append("：").Append(cells).Append(" 格，包络 x").Append(info.X0).Append("-").Append(info.X1)
-                  .Append(" / z").Append(info.Z0).Append("-").Append(info.Z1);
-                if (cells <= 12)
-                    sb.Append("（小簇：小地图上易被读作漂浮小矩形）");
-            }
-
-            Debug.Log(sb.ToString());
-        }
-
-        // ------------------------------------------------------------------
-        // 凸角圆角 Sprite（生成一次落盘，随场景复用）
-        // ------------------------------------------------------------------
-
-        /// <summary>
-        /// 取/生成「单角圆角」贴图（缺角在贴图左上，其余三角为实心方角）。
-        /// 持久资产：负 localScale 镜像即可复用成四个角的圆角，无需四个 Sprite。
-        /// 生成失败返回 null（调用方回落到方角侵蚀，不阻塞接线）。
-        /// </summary>
-        static Sprite GetCoastCornerSprite()
-        {
-            if (_coastCornerSprite != null)
-                return _coastCornerSprite;
-
-            _coastCornerSprite = AssetDatabase.LoadAssetAtPath<Sprite>(CoastCornerSpritePath);
-            if (_coastCornerSprite != null)
-                return _coastCornerSprite;
-
-            try
-            {
-                EnsureFolder("Assets/Art");
-                EnsureFolder("Assets/Art/Textures");
-                EnsureFolder("Assets/Art/Textures/UI");
-
-                const int n = CoastCornerSpriteSize;
-                float radius = n * CoastCornerRadiusRatio;
-                var pixels = new Color32[n * n];
-                for (int y = 0; y < n; y++)
-                {
-                    for (int x = 0; x < n; x++)
-                    {
-                        float fx = x + 0.5f;
-                        float fy = y + 0.5f;   // 纹理坐标 y 向上：左上 = x 小、y 大
-                        bool inside = true;
-                        if (fx < radius && fy > n - radius)
-                        {
-                            float dx = fx - radius;
-                            float dy = fy - (n - radius);
-                            inside = dx * dx + dy * dy <= radius * radius;
-                        }
-
-                        pixels[y * n + x] = inside
-                            ? new Color32(255, 255, 255, 255)
-                            : new Color32(255, 255, 255, 0);
-                    }
-                }
-
-                var texture = new Texture2D(n, n, TextureFormat.RGBA32, false);
-                texture.SetPixels32(pixels);
-                texture.Apply(false, false);
-                byte[] png = texture.EncodeToPNG();
-                Object.DestroyImmediate(texture);
-
-                string absolute = Path.Combine(Application.dataPath,
-                    CoastCornerSpritePath.Substring("Assets/".Length).Replace('/', Path.DirectorySeparatorChar));
-                File.WriteAllBytes(absolute, png);
-                AssetDatabase.ImportAsset(CoastCornerSpritePath, ImportAssetOptions.ForceSynchronousImport);
-
-                var importer = AssetImporter.GetAtPath(CoastCornerSpritePath) as TextureImporter;
-                if (importer != null)
-                {
-                    importer.textureType = TextureImporterType.Sprite;
-                    importer.spriteImportMode = SpriteImportMode.Single;
-                    importer.mipmapEnabled = false;
-                    importer.wrapMode = TextureWrapMode.Clamp;
-                    importer.filterMode = FilterMode.Bilinear;
-                    importer.alphaIsTransparency = true;
-                    importer.textureCompression = TextureImporterCompression.Uncompressed;
-                    importer.SaveAndReimport();
-                }
-
-                _coastCornerSprite = AssetDatabase.LoadAssetAtPath<Sprite>(CoastCornerSpritePath);
-                return _coastCornerSprite;
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogWarning("[HudMinimapSceneSetup] 生成凸角圆角 Sprite 失败，岛角回落方角："
-                    + e.Message);
-                return null;
-            }
-        }
-
-        /// <summary>递归确保资产目录存在（AssetDatabase.CreateFolder 不建中间层级）。</summary>
-        static void EnsureFolder(string path)
-        {
-            if (AssetDatabase.IsValidFolder(path))
-                return;
-
-            string parent = Path.GetDirectoryName(path).Replace('\\', '/');
-            string leaf = Path.GetFileName(path);
-            if (!string.IsNullOrEmpty(parent) && !AssetDatabase.IsValidFolder(parent))
-                EnsureFolder(parent);
-            AssetDatabase.CreateFolder(parent, leaf);
-        }
-
-        /// <summary>
-        /// 岛格取色：块高高于所属平台簇的最低块高 = 抬起来的台面（草），否则 = 浅台/滩（沙）。
-        /// 即「沙台打底、其上草格」，与 3D 场景里台地顶面长草、裙边是沙的观感一致。
-        /// </summary>
-        static Color IslandTileColor(TileTerrainGrid grid, int gx, int gy)
-        {
-            int cluster = grid.ClusterIndexOf(gx, gy);
-            int minBlocks = cluster >= 0 ? grid.ClusterAt(cluster).MinBlocks : 0;
-            return grid.BlocksAt(gx, gy) > minBlocks ? GrassTileColor : SandTileColor;
-        }
-
         // ------------------------------------------------------------------
         // 引用注入（SerializedObject，字段名与 BattleMinimap 一一对应）
         // ------------------------------------------------------------------
@@ -643,41 +316,6 @@ namespace PirateCrew.EditorTools
 
         /// <summary>小地图面板每瓦片像素数（**提案/待定**：原版 dotSize=3，本工程放大以便辨认）。</summary>
         const float DefaultPixelsPerTile = 5f;
-
-        // ------------------------------------------------------------------
-        // 场景查询工具（Editor 期；不使用 GameObject.Find）
-        // ------------------------------------------------------------------
-
-        /// <summary>读 BattleController 上的关卡资产（未指定时返回 null）。</summary>
-        static LevelDefinition ReadLevel(BattleController battle)
-        {
-            var so = new SerializedObject(battle);
-            SerializedProperty prop = so.FindProperty("level");
-            return prop != null ? prop.objectReferenceValue as LevelDefinition : null;
-        }
-
-        /// <summary>解析当前场景实际会加载的关卡号（BattleController.level 为空时回落 level_1）。</summary>
-        static int ResolveLevelNumber(BattleController battle)
-        {
-            LevelDefinition level = ReadLevel(battle);
-            return level != null ? level.LevelNumber : FallbackLevelNumber;
-        }
-
-        static void ResolveArenaTiles(BattleController battle, out int widthTiles, out int depthTiles)
-        {
-            LevelDefinition level = ReadLevel(battle);
-
-            if (level != null)
-            {
-                widthTiles = level.WidthTiles;
-                depthTiles = level.HeightTiles;
-                return;
-            }
-
-            LevelData fallback = LevelCatalog.Get(FallbackLevelNumber);
-            widthTiles = fallback.WidthTiles;
-            depthTiles = fallback.HeightTiles;
-        }
 
         static T FindFirstComponent<T>() where T : Component
         {

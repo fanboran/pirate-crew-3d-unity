@@ -89,7 +89,7 @@ namespace PirateCrew.PirateCrew.ArtReview
                 }
                 else if (args[i] == "-artReviewLevel"
                     && int.TryParse(args[i + 1], out int levelArg)
-                    && levelArg >= 1 && levelArg <= Data.LevelCatalog.TotalLevels)
+                    && levelArg >= 1 && levelArg <= SceneArt.ShowcaseLevels.LastLevel)
                 {
                     // 多关卡出图验收：覆盖 BattleController 的关卡解析（见 ArtReviewCaptureOverride）。
                     ArtReviewCaptureOverride.LevelNumber = levelArg;

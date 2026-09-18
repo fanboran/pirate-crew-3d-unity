@@ -17,7 +17,7 @@ namespace PirateCrew.Tests
     /// 【验证闭环】对应 <c>M2BattleSceneSetup</c> 的装配结果：
     ///   · 关键 <c>[SerializeField]</c> 引用非空（BattleController / TurnManager /
     ///     AimThrowController / TrajectoryPreview / BattleCameraController / BattleHud）；
-    ///   · 双方船员数量 = <see cref="LevelCatalog"/> 关卡数据（level_1：红 5 / 蓝 3）；
+    ///   · 双方船员数量 = 样板第 1 关（云端漫步）数据（红 4 / 蓝 4）；
     ///   · 单位站位落在 XZ 竞技场（<see cref="LevelGeometry.GridToArena"/>，脚底贴地、枢轴抬高）；
     ///   · 水面世界 Y = <see cref="LevelGeometry.WaterSurfaceY"/>（3D 化的全局水位常量）；
     ///   · 相机是真 3D：**烘焙机位**透视 + 45° 俯角 + 距离 15（正交侧视是 2D 时代的遗留），

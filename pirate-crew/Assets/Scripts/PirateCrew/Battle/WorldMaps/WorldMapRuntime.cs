@@ -12,14 +12,10 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
     /// ② 播放器/批处理命令行 <c>-worldMap &lt;id&gt;</c>（无头捕图与试玩验证走这条，
     ///    与 ArtReview 的 <c>-artReviewLevel</c> 同风格，但优先级低于它）。
     ///
-    /// 【与 BattleController 的契约】BuildPlan 优先级：ArtReview 覆盖 &gt; 世界地图 &gt; 场景 level 资产
-    /// &gt; CampaignApi 待战关 &gt; fallback；世界地图激活时 BuildTerrain 走栅格化块表、
-    /// RebuildSceneArt 与爆炸破坏全部跳过（<see cref="WorldMapComposer"/> 负责表现层）。
-    ///
-    /// 【双通道互斥】待战世界地图（本类）与战役出征注入（<see cref="BattleLaunchContext"/>）
-    /// 是两条平行的进战斗通道：优先级已保证同持时世界地图胜出，但**写入侧必须互斥清对方**——
-    /// <see cref="SetPending"/> 清战役注入、<c>CampaignApi.SelectLevel</c> 清本类待战，
-    /// 否则「打完海图再选战役关」会因海图待战未清而再次加载海图（通道生命周期见各自注释）。
+    /// 【与 BattleController 的契约】进图优先级：样板覆盖（-artReviewLevel 1–3，美术出图）&gt;
+    /// 世界地图 &gt; 样板第 1 关兜底（直接 Play）；世界地图激活时 BuildTerrain 走栅格化块表、
+    /// 陈设由 <see cref="WorldMapComposer"/> 负责表现层。一代退场后这是**唯一的玩法进图通道**，
+    /// 战役结算归属也由它决定（<c>CampaignApi</c> 在 battle_started 时读取）。
     /// </summary>
     public static class WorldMapRuntime
     {
@@ -28,16 +24,12 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         static string _pendingMapId;
         static bool _commandLineScanned;
 
-        /// <summary>
-        /// 设定待战世界地图（id 不存在时返回 false，不改动现状——含不清战役注入）。
-        /// 成功即清战役出征注入（双通道互斥，见类注释）。
-        /// </summary>
+        /// <summary>设定待战世界地图（id 不在目录时返回 false，不改动现状）。</summary>
         public static bool SetPending(string mapId)
         {
             if (!WorldMapCatalog.TryGet(mapId, out _))
                 return false;
             _pendingMapId = mapId;
-            BattleLaunchContext.Clear();
             return true;
         }
 

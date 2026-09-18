@@ -82,18 +82,12 @@ namespace PirateCrew.Campaign
     }
 
     /// <summary>
-    /// 一次关卡结算的结果（战役侧；船员奖励见 <c>CrewManagement.CrewRewardPayload</c>）。
+    /// 一场海图战结算的结果（战役侧；船员奖励见 <c>CrewManagement.CrewRewardPayload</c>）。
     /// </summary>
     public readonly struct CampaignSettlement
     {
-        /// <summary>关卡 id。</summary>
-        public readonly string LevelId;
-
-        /// <summary>战役内全局序号（= 招募门槛判定的关卡序号）。</summary>
-        public readonly int LevelNumber;
-
-        /// <summary>章节号。</summary>
-        public readonly int Chapter;
+        /// <summary>海图 id（<c>WorldMapCatalog</c> 收录，如 <c>wreck_hymn</c>）。</summary>
+        public readonly string MapId;
 
         /// <summary>是否通关。</summary>
         public readonly bool Cleared;
@@ -107,15 +101,13 @@ namespace PirateCrew.Campaign
         /// <summary>是否刷新了星级记录（首次通关或星级提高）。</summary>
         public readonly bool Improved;
 
-        /// <summary>1P 关卡得分。</summary>
+        /// <summary>1P 得分。</summary>
         public readonly int Score;
 
-        public CampaignSettlement(string levelId, int levelNumber, int chapter,
+        public CampaignSettlement(string mapId,
             bool cleared, int stars, bool firstClear, bool improved, int score)
         {
-            LevelId = levelId;
-            LevelNumber = levelNumber;
-            Chapter = chapter;
+            MapId = mapId;
             Cleared = cleared;
             Stars = stars;
             FirstClear = firstClear;

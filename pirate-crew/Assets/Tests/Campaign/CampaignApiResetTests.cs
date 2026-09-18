@@ -3,6 +3,7 @@ using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
 using PirateCrew.PirateCrew.Battle;
+using PirateCrew.PirateCrew.Battle.WorldMaps;
 
 namespace PirateCrew.Tests
 {
@@ -62,8 +63,8 @@ namespace PirateCrew.Tests
             CampaignApi.Reset();
             CampaignApi.EnsureBootstrapped();
 
-            CampaignApi.SelectLevel("level_01");
-            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(1, 2));
+            WorldMapRuntime.SetPending("wreck_hymn");
+            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(101, 2));
             EventBus.Publish(BattleEvents.CrewDied, new CrewDiedPayload(0, 0, "redPirate"));
             EventBus.Publish(BattleEvents.MatchFinished, new MatchFinishedPayload(
                 CampaignManager.PlayerWinOutcome, 1200, true));
@@ -71,7 +72,7 @@ namespace PirateCrew.Tests
             Assert.That(CampaignApi.LastSettlement, Is.Not.Null, "一局恰好结算一次");
             Assert.That(CampaignApi.LastSettlement?.Stars, Is.EqualTo(2),
                 "发布一次 crew_died 只允许计一次阵亡（双订阅会把 1 死计成 2 → 1★）");
-            Assert.That(CampaignApi.Progress.GetStars("level_01"), Is.EqualTo(2));
+            Assert.That(CampaignApi.Progress.GetStars("wreck_hymn"), Is.EqualTo(2));
         }
 
         /// <summary>重复 EnsureBootstrapped 不叠加订阅（EventBus 去重 + 幂等标志的既有保证，回归保护）。</summary>
@@ -82,8 +83,8 @@ namespace PirateCrew.Tests
             CampaignApi.EnsureBootstrapped();
             CampaignApi.EnsureBootstrapped();
 
-            CampaignApi.SelectLevel("level_01");
-            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(1, 2));
+            WorldMapRuntime.SetPending("wreck_hymn");
+            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(101, 2));
             EventBus.Publish(BattleEvents.CrewDied, new CrewDiedPayload(0, 0, "redPirate"));
             EventBus.Publish(BattleEvents.MatchFinished, new MatchFinishedPayload(
                 CampaignManager.PlayerWinOutcome, 1200, true));
@@ -104,8 +105,8 @@ namespace PirateCrew.Tests
             Assert.That(EventBus.HasListeners(BattleEvents.MatchFinished), Is.True,
                 "Reset 后再 EnsureBootstrapped 应恢复订阅");
 
-            CampaignApi.SelectLevel("level_01");
-            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(1, 2));
+            WorldMapRuntime.SetPending("wreck_hymn");
+            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(101, 2));
             EventBus.Publish(BattleEvents.MatchFinished, new MatchFinishedPayload(
                 CampaignManager.PlayerWinOutcome, 900, true));
 

@@ -173,7 +173,7 @@ namespace PirateCrew.Tests
         public void CrewRows_AreChinese()
         {
             Assert.AreEqual("水手　等级 3　经验 120", UiTextRules.CrewRow("水手", 3, 120));
-            Assert.AreEqual("狙击手　（第 5 关通关后招募）", UiTextRules.CrewRowLocked("狙击手", 5));
+            Assert.AreEqual("狙击手　（累计 5 星后招募）", UiTextRules.CrewRowLocked("狙击手", 5));
         }
 
         [Test]

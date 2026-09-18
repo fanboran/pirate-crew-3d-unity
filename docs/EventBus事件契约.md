@@ -105,8 +105,8 @@
 | 事件名 | 载荷 | 发布方 | 订阅方 |
 | --- | --- | --- | --- |
 | `crew_roster_updated` | `RosterUpdatedPayload`（已拥有数 + 当前编成 id 数组） | `CrewManagementApi` | `UI/CrewManagementController`（重建名册列表） |
-| `crew_unlocked` | `CrewUnlockedPayload`（船员 id + 显示名） | `CrewManagementApi.UnlockCrewsForLevel` | `UI/CrewManagementController`、`UI/LevelSelectController`（提示新船员） |
-| `crew_reward_granted` | `CrewRewardPayload`（关卡 id + 星级 + 每人经验 + 出战 id 数组 + 新招募 id 数组） | `CrewManagementApi.GrantLevelReward` | **暂无订阅方**：M3 的结算横幅读 `CampaignApi.LastReward` 静态快照；该事件留给存档/成就/音频层接入 |
+| `crew_unlocked` | `CrewUnlockedPayload`（船员 id + 显示名） | `CrewManagementApi.UnlockCrewsForStars` | `UI/CrewManagementController`、`UI/LevelSelectController`（提示新船员） |
+| `crew_reward_granted` | `CrewRewardPayload`（海图 id + 星级 + 每人经验 + 出战 id 数组 + 新招募 id 数组） | `CrewManagementApi.GrantMapReward` | **暂无订阅方**：M3 的结算弹窗读 `CampaignApi.LastReward` 静态快照；该事件留给存档/成就/音频层接入 |
 
 ### 3.2 战役模块广播
 

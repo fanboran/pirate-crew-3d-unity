@@ -737,15 +737,6 @@ namespace PirateCrew.PirateCrew.SceneArt
         }
 
         /// <summary>
-        /// 把 level_1 的平台簇映射成整套 kit 摆放 = <c>BuildFor(1, BuildLevel1(), seed)</c> 的等价委托
-        /// （既有测试与烘焙沿用它，行为逐值不变）。
-        /// </summary>
-        public static SceneKitLayout BuildLevel1(int seed)
-        {
-            return BuildFor(1, PlatformClusterLayout.BuildLevel1(), seed);
-        }
-
-        /// <summary>
         /// 把**任意关**的平台簇映射成整套 kit 摆放（确定性）。**按构件族装配**（<see cref="BuildGroups"/>）：
         ///   · 船族（同一艘船的几个原版区）→ **整船剪影只装配一次**：船体长度 = 合并包络的 X 跨度（含桅区）、
         ///     船宽 = 主船体区自身的格纵深（船体才与平台贴合）、桅位 = 原版桅区；
@@ -789,7 +780,7 @@ namespace PirateCrew.PirateCrew.SceneArt
             if (map == null)
                 return layout;
 
-            float block = TerrainCatalog.DefaultBlockWorldHeight;
+            float block = LevelGeometry.BlockWorldHeight;
             IReadOnlyList<SceneKitGroup> groups = BuildGroups(map);
 
             for (int g = 0; g < groups.Count; g++)

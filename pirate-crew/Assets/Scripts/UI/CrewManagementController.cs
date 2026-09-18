@@ -1,6 +1,7 @@
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
+using PirateCrew.PirateCrew.Battle.WorldMaps;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -58,7 +59,7 @@ namespace PirateCrew.UI
 
             EventBus.Subscribe(CrewManagementEvents.RosterUpdated, OnRosterChanged);
             EventBus.Subscribe(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
-            EventBus.Subscribe(CampaignEvents.LevelCompleted, OnLevelCompleted);
+            EventBus.Subscribe(CampaignEvents.MapCompleted, OnMapCompleted);
         }
 
         void Start()
@@ -82,7 +83,7 @@ namespace PirateCrew.UI
 
             EventBus.Unsubscribe(CrewManagementEvents.RosterUpdated, OnRosterChanged);
             EventBus.Unsubscribe(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
-            EventBus.Unsubscribe(CampaignEvents.LevelCompleted, OnLevelCompleted);
+            EventBus.Unsubscribe(CampaignEvents.MapCompleted, OnMapCompleted);
         }
 
         // ------------------------------------------------------------------
@@ -131,7 +132,7 @@ namespace PirateCrew.UI
                     ? UiTextRules.CrewRow(entry.DisplayName,
                         CrewManagementApi.Progression.GetLevel(entry.Id),
                         CrewManagementApi.Progression.GetXp(entry.Id))
-                    : UiTextRules.CrewRowLocked(entry.DisplayName, entry.UnlockLevelNumber);
+                    : UiTextRules.CrewRowLocked(entry.DisplayName, entry.UnlockStars);
 
                 TextMeshProUGUI text = M3UiBuilder.CreateText("Label", row, label, UiTheme.FontBody,
                     TextAlignmentOptions.MidlineLeft,
@@ -244,12 +245,12 @@ namespace PirateCrew.UI
                 SetStatus(string.Format(UiStrings.CrewStatusNewCrewFormat, unlocked.DisplayName));
         }
 
-        void OnLevelCompleted(object payload)
+        void OnMapCompleted(object payload)
         {
-            if (!(payload is CampaignLevelCompletedPayload completed))
+            if (!(payload is CampaignMapCompletedPayload completed))
                 return;
 
-            string levelName = LevelDisplayName(completed.LevelId, completed.LevelNumber);
+            string levelName = MapDisplayName(completed.MapId);
             if (completed.Cleared)
                 SetStatus(string.Format(UiStrings.CrewStatusClearedFormat, levelName, completed.Stars));
             else
@@ -269,13 +270,12 @@ namespace PirateCrew.UI
             return UiTextRules.CrewNameById(crewId);
         }
 
-        /// <summary>关卡 id / 序号 → 中文关卡名（目录查不到时用「第 N 关」）。</summary>
-        static string LevelDisplayName(string levelId, int levelNumber)
+        /// <summary>海图 id → 中文海图名（目录查不到时回退原始 id）。</summary>
+        static string MapDisplayName(string mapId)
         {
-            if (CampaignCatalog.TryGet(levelId, out CampaignLevel level))
-                return level.DisplayName;
-
-            return UiTextRules.LevelName(levelNumber);
+            return WorldMapCatalog.TryGet(mapId, out WorldMapDefinition map)
+                ? map.DisplayName
+                : mapId;
         }
     }
 }

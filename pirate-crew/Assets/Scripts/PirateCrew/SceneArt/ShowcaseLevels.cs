@@ -16,7 +16,7 @@ namespace PirateCrew.PirateCrew.SceneArt
     /// 弹体/站立碰撞由 BattleTerrainView 的隐形 BoxCollider 碰撞层 + 各几何体自带 Collider 共同承担。
     ///
     /// 【尺度】1 格 = 2 单位（LevelGeometry.TileWorldSize）；块高 0.5 单位
-    /// （TerrainCatalog.DefaultBlockWorldHeight = PixelsToUnits(8)）；水面 y=-0.2。
+    /// （LevelGeometry.BlockWorldHeight = PixelsToUnits(8)）；水面 y=-0.2。
     /// 关卡场地统一 20×15 格（40×30 单位）。
     /// </summary>
     public static class ShowcaseLevels
@@ -130,12 +130,12 @@ namespace PirateCrew.PirateCrew.SceneArt
             int[] blocks = levelNumber == 1 ? CloudFieldBlocks()
                 : levelNumber == 2 ? TwinShipBlocks()
                 : HillBlocks();
-            return new TileTerrainGrid(WidthTiles, DepthTiles, blocks, TerrainCatalog.DefaultBlockWorldHeight);
+            return new TileTerrainGrid(WidthTiles, DepthTiles, blocks, LevelGeometry.BlockWorldHeight);
         }
 
         /// <summary>目标世界高度 → 块数（块高 0.5 单位）。</summary>
         static int Blocks(float worldY) =>
-            Mathf.Max(1, Mathf.RoundToInt(worldY / TerrainCatalog.DefaultBlockWorldHeight));
+            Mathf.Max(1, Mathf.RoundToInt(worldY / LevelGeometry.BlockWorldHeight));
 
         static int[] CloudFieldBlocks()
         {
@@ -237,7 +237,7 @@ namespace PirateCrew.PirateCrew.SceneArt
         {
             Vector3 deckCenter = new Vector3(
                 LevelGeometry.TileToWorld(centerTileX),
-                LevelGeometry.GroundTopY + TerrainCatalog.DefaultBlockWorldHeight * Blocks(3f),
+                LevelGeometry.GroundTopY + LevelGeometry.BlockWorldHeight * Blocks(3f),
                 LevelGeometry.TileToWorld(centerTileZ));
             var parts = SceneKitCatalog.BuildCompleteShip(
                 SceneKitCatalog.LargeShipRecipe, deckCenter, yaw, seed,

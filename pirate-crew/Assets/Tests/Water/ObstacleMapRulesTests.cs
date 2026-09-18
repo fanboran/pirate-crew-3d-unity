@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using PirateCrew.PirateCrew.Battle;
+using PirateCrew.PirateCrew.SceneArt;
 using PirateCrew.PirateCrew.Water;
 using UnityEngine;
 
@@ -92,7 +93,8 @@ namespace PirateCrew.PirateCrew.Water.Tests
         [Test]
         public void Bake_IsDeterministic()
         {
-            var grid = TerrainCatalog.Build(1, 50, 17) ?? TileTerrainGrid.Flat(50, 17);
+            var grid = ShowcaseLevels.BuildLogicGrid(1)
+                           ?? TileTerrainGrid.Flat(ShowcaseLevels.WidthTiles, ShowcaseLevels.DepthTiles);
             var center = new Vector2(25f, 8.5f);
 
             bool[] a = ObstacleMapRules.Bake(grid, center, 64f, 64, -0.2f, 50f, 17f);

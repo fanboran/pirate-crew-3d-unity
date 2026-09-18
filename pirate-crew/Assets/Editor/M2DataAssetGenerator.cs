@@ -7,8 +7,10 @@ using UnityEngine;
 namespace PirateCrew.EditorTools
 {
     /// <summary>
-    /// 把纯 C# 目录表（WeaponCatalog / CrewCatalog / LevelCatalog / BalanceConfig.Defaults）
+    /// 把纯 C# 目录表（WeaponCatalog / CrewCatalog / BalanceConfig.Defaults）
     /// 写进 ScriptableObject <c>.asset</c>，供 Unity 侧引用与策划调参。
+    /// 一代退场后不再生成关卡资产（<c>Assets/Data/Levels/</c> 遗留资产已失去消费方，
+    /// 手工删除即可；世界海图走 <c>WorldMapCatalog</c> 纯 C# 目录，无 SO 资产）。
     ///
     /// 【入口】
     ///   菜单: PirateCrew/Data/生成 M2 数值资产
@@ -17,7 +19,6 @@ namespace PirateCrew.EditorTools
     /// 【产物】
     ///   Assets/Data/Weapons/*.asset          17 件武器
     ///   Assets/Data/Crews/*.asset            每种海盗符号一个（属性共享，仅种类/队伍不同）
-    ///   Assets/Data/Levels/*.asset           3 个代表关
     ///   Assets/Data/Balance/BalanceConfig.asset
     ///
     /// 【幂等】同名资产已存在时复用该实例并覆盖字段，不产生重名副本。
@@ -29,7 +30,6 @@ namespace PirateCrew.EditorTools
         const string RootFolder = "Assets/Data";
         const string WeaponsFolder = RootFolder + "/Weapons";
         const string CrewsFolder = RootFolder + "/Crews";
-        const string LevelsFolder = RootFolder + "/Levels";
         const string BalanceFolder = RootFolder + "/Balance";
 
         /// <summary>无头 -executeMethod 入口；也可从菜单调用。</summary>
@@ -39,20 +39,18 @@ namespace PirateCrew.EditorTools
             EnsureFolder(RootFolder);
             EnsureFolder(WeaponsFolder);
             EnsureFolder(CrewsFolder);
-            EnsureFolder(LevelsFolder);
             EnsureFolder(BalanceFolder);
 
             var manifest = new List<string>();
             int weaponCount = GenerateWeapons(manifest);
             int crewCount = GenerateCrews(manifest);
-            int levelCount = GenerateLevels(manifest);
             GenerateBalance(manifest);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
             Debug.Log("[M2DataAssetGenerator] M2 数值资产生成完成："
-                + weaponCount + " 件武器 / " + crewCount + " 名船员 / " + levelCount + " 个关卡 / 1 份平衡常数。\n"
+                + weaponCount + " 件武器 / " + crewCount + " 名船员 / 1 份平衡常数。\n"
                 + string.Join("\n", manifest));
         }
 
@@ -93,26 +91,6 @@ namespace PirateCrew.EditorTools
                 manifest.Add("  [船员] " + path);
             }
             return symbols.Count;
-        }
-
-        // ------------------------------------------------------------------
-        // 关卡
-        // ------------------------------------------------------------------
-
-        static int GenerateLevels(List<string> manifest)
-        {
-            IReadOnlyList<LevelData> all = LevelCatalog.All;
-            for (int i = 0; i < all.Count; i++)
-            {
-                LevelData data = all[i];
-                string file = string.IsNullOrEmpty(data.Name) ? "Level_" + data.LevelNumber : data.Name;
-                string path = LevelsFolder + "/" + file + ".asset";
-                LevelDefinition asset = EnsureAsset<LevelDefinition>(path);
-                asset.Apply(data);
-                EditorUtility.SetDirty(asset);
-                manifest.Add("  [关卡] " + path + "（待补关卡见 LevelCatalog.PendingLevelNumbers）");
-            }
-            return all.Count;
         }
 
         // ------------------------------------------------------------------

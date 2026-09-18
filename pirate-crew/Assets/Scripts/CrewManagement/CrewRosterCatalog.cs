@@ -15,31 +15,33 @@ namespace PirateCrew.CrewManagement
         public readonly string DisplayName;
 
         /// <summary>
-        /// 战役关卡序号达到该值时招募开放；<c>0</c> 表示初始船员。
-        /// <b>提案/待定</b>：数值取自 Godot 项目设计文档 <c>../game-3/docs/gdd.md</c> §5.2 的「解锁」列，
-        /// 非逆向文档结论——<b>原版 Flash 没有船员招募系统</b>
-        /// （见 <c>docs/参考游戏逆向-海盗军团抢宝藏-静态.md</c> §7.3 末「无金币/商店系统，只有关卡得分 + 解锁进度」），
+        /// 累计星数达到该值时招募开放；<c>0</c> 表示初始船员。
+        /// 【口径（一代退场执行决策）】原「战役关卡序号（1–15）」门槛改为「累计星数（8 图满分 24）」，
+        /// 数值沿用 Godot 设计文档 <c>../game-3/docs/gdd.md</c> §5.2 的「解锁」列——量级恰好匹配
+        ///（3/5/7/10/13 星 ≈ 打通 1/2/3/4/5 张海图）。<b>提案/待定</b>：非逆向文档结论——
+        /// <b>原版 Flash 没有船员招募系统</b>
+        ///（见 <c>docs/参考游戏逆向-海盗军团抢宝藏-静态.md</c> §7.3 末「无金币/商店系统，只有关卡得分 + 解锁进度」），
         /// 因此本表整体属于本项目自创设计，需人工确认。
         /// </summary>
-        public readonly int UnlockLevelNumber;
+        public readonly int UnlockStars;
 
         /// <summary>
         /// 对应战斗数据层的海盗导出符号（<c>PirateCrew.PirateCrew.Data.CrewCatalog.ExportSymbols</c>，§4.2）。
-        /// <b>提案/待定</b>：M3 的编成还不会注入战斗（见 <c>CampaignApi</c> 类头「本轮边界」），
+        /// <b>提案/待定</b>：海图战用地图自带布阵，编成暂不注入战斗（见 <c>CampaignApi</c> 类头），
         /// 该映射仅供后续打通时参考，未经确认。
         /// </summary>
         public readonly string BattleSymbol;
 
-        public CrewRosterEntry(string id, string displayName, int unlockLevelNumber, string battleSymbol)
+        public CrewRosterEntry(string id, string displayName, int unlockStars, string battleSymbol)
         {
             Id = id;
             DisplayName = displayName;
-            UnlockLevelNumber = unlockLevelNumber;
+            UnlockStars = unlockStars;
             BattleSymbol = battleSymbol;
         }
 
-        /// <summary>是否为初始船员（无需通关任何关卡）。</summary>
-        public bool IsInitial => UnlockLevelNumber <= 0;
+        /// <summary>是否为初始船员（无需任何星数）。</summary>
+        public bool IsInitial => UnlockStars <= 0;
     }
 
     /// <summary>

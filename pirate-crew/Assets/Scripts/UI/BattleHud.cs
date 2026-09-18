@@ -6,6 +6,7 @@ using PirateCrew.Core;
 using PirateCrew.CrewManagement;
 using PirateCrew.PirateCrew.Audio;
 using PirateCrew.PirateCrew.Battle;
+using PirateCrew.PirateCrew.Battle.WorldMaps;
 using PirateCrew.PirateCrew.Combat;
 using PirateCrew.PirateCrew.Data;
 using TMPro;
@@ -566,9 +567,11 @@ namespace PirateCrew.UI
             AudioService.PlayUi(SfxId.UiClick);
             BattlePause.ForceResume();
 
-            if (_campaignBattle && CampaignApi.LastSettlement != null)
+            if (_campaignBattle && CampaignApi.LastSettlement != null
+                && WorldMapRuntime.SetPending(CampaignApi.LastSettlement.Value.MapId))
             {
-                CampaignApi.SelectLevel(CampaignApi.LastSettlement.Value.LevelId);
+                // 再战同一张海图：SetPending(同图) + 原地重载（同名目标自动不压栈）。
+                EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
                 return;
             }
 
@@ -643,7 +646,7 @@ namespace PirateCrew.UI
             bool hasCampaign = _campaignBattle && CampaignApi.LastSettlement != null;
             if (hasCampaign)
             {
-                lines.Add(UiTextRules.SettlementLevel(UiTextRules.LevelName(settlement.LevelNumber)));
+                lines.Add(UiTextRules.SettlementLevel(MapDisplayName(settlement.MapId)));
                 lines.Add(UiTextRules.SettlementStars(settlement.Stars, StarRules.MaxStars));
                 SetSettlementStars(settlement.Stars);
 
@@ -706,6 +709,14 @@ namespace PirateCrew.UI
             return names;
         }
 
+        /// <summary>海图 id → 中文海图名（目录查不到时回退原始 id）。</summary>
+        static string MapDisplayName(string mapId)
+        {
+            return WorldMapCatalog.TryGet(mapId, out WorldMapDefinition map)
+                ? map.DisplayName
+                : mapId;
+        }
+
         void HideSettlementPanel()
         {
             if (settlementPanelRoot != null)
@@ -727,7 +738,7 @@ namespace PirateCrew.UI
 
             // BattleStarted 时仍有待结算关卡 = 这一局从选关进来（结算面板要显示星级/经验）。
             // 注意时序：CampaignApi 先订阅（主菜单 Awake），它的 stale 清理先跑完才轮到这里。
-            _campaignBattle = CampaignApi.PendingLevelId != null;
+            _campaignBattle = CampaignApi.HasPendingMap;
 
             // 重开一局经场景重载进来：清掉可能残留的暂停态（静态字段跨场景存活）。
             BattlePause.ForceResume();

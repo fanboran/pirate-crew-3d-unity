@@ -96,7 +96,7 @@ namespace PirateCrew.PirateCrew.Battle
         /// <param name="depthTiles">纵深格数（&gt; 0）。</param>
         /// <param name="blocks">每格堆叠块数（长度须 = widthTiles × depthTiles，行主序）。
         /// 传 null 视为全 0（平坦地面）。</param>
-        /// <param name="blockWorldHeight">单块世界高度（&lt;= 0 时用 <see cref="TerrainCatalog.DefaultBlockWorldHeight"/>）。</param>
+        /// <param name="blockWorldHeight">单块世界高度（&lt;= 0 时用 <see cref="LevelGeometry.BlockWorldHeight"/>）。</param>
         public TileTerrainGrid(int widthTiles, int depthTiles, int[] blocks, float blockWorldHeight)
             : this(widthTiles, depthTiles, blocks, blockWorldHeight, null)
         {
@@ -111,7 +111,7 @@ namespace PirateCrew.PirateCrew.Battle
         {
             WidthTiles = Mathf.Max(1, widthTiles);
             DepthTiles = Mathf.Max(1, depthTiles);
-            BlockWorldHeight = blockWorldHeight > 0f ? blockWorldHeight : TerrainCatalog.DefaultBlockWorldHeight;
+            BlockWorldHeight = blockWorldHeight > 0f ? blockWorldHeight : LevelGeometry.BlockWorldHeight;
 
             int expected = WidthTiles * DepthTiles;
             _blocks = new int[expected];

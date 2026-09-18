@@ -3,6 +3,7 @@ using Cinemachine;
 using PirateCrew.PirateCrew.Ambient;
 using PirateCrew.PirateCrew.Battle;
 using PirateCrew.PirateCrew.Data;
+using PirateCrew.PirateCrew.SceneArt;
 using PirateCrew.PirateCrew.Visual;
 using PirateCrew.UI;
 using UnityEditor;
@@ -25,7 +26,8 @@ namespace PirateCrew.EditorTools
     /// 【对应章节】
     ///   §3.2（CameraBrain/panToCharacter 的目标点）、§3.3（胜负）、§3.4（两阶段操作 + end go）、
     ///   §4.3（按关卡数据生成出战单位）、§4.4（落水即死 → 可站面必须高于水面；平台关由逐格平台提供，
-    ///   不铺整块 y=0 地面，见 <see cref="CreateGround"/> / <see cref="CreateFarSeabed"/>）.
+    ///   不铺整块 y=0 地面（一代退场后海床台阶/远海床兜底装配段已删；旧场景遗留由
+    ///   BattleController.RetireLegacySeabedShelves 运行时定向隐藏）.
     ///
     /// 【幂等】
     ///   · 预制体用 <see cref="PrefabUtility.SaveAsPrefabAsset(GameObject,string,out bool)"/> 覆盖同名资产；
@@ -74,12 +76,11 @@ namespace PirateCrew.EditorTools
         const string OutlineMaterialPath = MaterialFolder + "/PirateOutlineUnit.mat";
         const string OutlineShaderName = "PirateCrew/PirateOutline";
         const string BattleScenePath = ScenesFolder + "/Battle.unity";
-        const string LevelAssetPath = "Assets/Data/Levels/level_1.asset";
 
         /// <summary>地形块父节点名（BattleTerrainView 挂在其下）。</summary>
         const string TerrainRootName = "Terrain";
 
-        /// <summary>场景美术陈设根节点名（<see cref="SceneArtBuilder.Apply"/> 的挂载点，波次 I3 填充内容）。</summary>
+        /// <summary>场景美术陈设根节点名（样板三关的自由几何由 RuntimeSceneArt 运行时装配）。</summary>
         const string SceneArtRootName = "SceneArt";
 
         /// <summary>
@@ -88,9 +89,6 @@ namespace PirateCrew.EditorTools
         /// <see cref="RuntimeSceneArt.GroupMaterialNames"/> 从本目录装载并写进组件的序列化数组。
         /// </summary>
         const string SceneArtMaterialFolder = "Assets/Art/Materials/Scene";
-
-        /// <summary>场景装配使用的关卡号（LevelCatalog 已转写的 level_1）。</summary>
-        const int LevelNumber = 1;
 
         /// <summary>名册行数，与 BattleHud.MaxRosterRows 对齐（level_4 最多 12 人）。</summary>
         const int RosterRows = 12;
@@ -132,7 +130,7 @@ namespace PirateCrew.EditorTools
             Debug.Log("[M2BattleSceneSetup] Battle 战斗场景重建完成。\n"
                 + "  场景: " + BattleScenePath + "（Build Settings index 2）\n"
                 + "  预制体: " + PiratePrefabPath + "\n"
-                + "  关卡数据: " + LevelAssetPath + "（回退 LevelCatalog.Get(" + LevelNumber + ")）\n"
+                + "  内容: 大海域海图（唯一玩法路径）+ 样板三关兜底（ShowcaseLevels）\n"
                 + "  渲染: 环境材质库 " + BattleSceneLighting.EnvironmentMaterialFolder
                 + " / 后处理 " + BattleSceneLighting.VolumeProfilePath
                 + " / URP " + BattleSceneLighting.UrpAssetPath + "（软阴影+深度图+MSAA2）\n"
@@ -200,13 +198,12 @@ namespace PirateCrew.EditorTools
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            // 关卡数据驱动尺寸（§4.3）。3D 化后 widthTiles → 世界 X，heightTiles → 世界 Z（纵深）；
-            // 水面高度改为全局常量（地图是平坦的 XZ 竞技场，不再由 waterTileY 推出）。
-            LevelData data = LevelCatalog.Get(LevelNumber);
+            // 场地尺寸 = 样板第 1 关（云端漫步，20×15 格；一代退场后这是兜底场）。
+            // 3D 化后 widthTiles → 世界 X，heightTiles → 世界 Z（纵深）；水面高度为全局常量。
             float waterWorldY = LevelGeometry.WaterSurfaceY;
             // 格 1→2 单位（用户裁决 2026-09-14）：竞技场世界尺寸 = 格数 × TileWorldSize。
-            float worldWidth = LevelGeometry.TileToWorld(data.WidthTiles);
-            float worldDepth = LevelGeometry.TileToWorld(data.HeightTiles);
+            float worldWidth = LevelGeometry.TileToWorld(ShowcaseLevels.WidthTiles);
+            float worldDepth = LevelGeometry.TileToWorld(ShowcaseLevels.DepthTiles);
 
             // 竞技场中心（相机与相机目标都以此为准）。
             Vector3 arenaCenter = new Vector3(worldWidth * 0.5f, LevelGeometry.GroundTopY, worldDepth * 0.5f);
@@ -241,26 +238,13 @@ namespace PirateCrew.EditorTools
             Transform ground = null;
             Transform water = CreateWaterPlane(worldWidth, worldDepth, waterWorldY);
 
-            // 水面（含平台间隙）之下的远海床兜底：无碰撞，单位落水判定不受影响。
-            CreateFarSeabed(worldWidth, worldDepth, waterWorldY);
-
-            // 岛外海床台阶（纯表现、无碰撞）：PirateWater 的浅深水过渡与岸边泡沫依赖
-            // _CameraDepthTexture 有东西可读，详见 CreateSeabedShelves 与 PirateWater.shader 头注释。
-            CreateSeabedShelves(worldWidth, worldDepth, waterWorldY);
-
             // 瓦片地形（可选）。网格在运行时由 BattleController 从 PlatformClusterLayout 推导并 Render，
             // 这里只创建承载视图的根节点与材质。
             BattleTerrainView terrainView = CreateTerrainView();
 
-            // 场景美术陈设根节点。
-            // 【烘焙退位】SceneArtBuilder.Apply 仍要跑：它负责**生成/更新材质资产**、
-            // 把湿沙材质接给 BattleTerrainView（并关掉运行时的单材质平台底部）。
-            // 但它同时会把 level_1 的陈设烘成**静态合并网格**——那些是关卡专属的，现在由
-            // 运行时 RuntimeSceneArt 按实际关卡重建，故 Apply 之后立刻把那批 GameObject 删掉
-            // （网格资产留在磁盘上备查，不再被场景引用）。
+            // 场景美术陈设根节点：一代烘焙工具（SceneArtBuilder）已随一代退场删除，
+            // 材质资产（Assets/Art/Materials/Scene/）保留，由 RuntimeSceneArt 消费。
             var sceneArt = new GameObject(SceneArtRootName);
-            RunArtHook("SceneArtBuilder.Apply", () => SceneArtBuilder.Apply(sceneArt));
-            PruneBakedScenery(sceneArt);
 
             // 运行时陈设装配器：持有一份材质组材质（顺序 = RuntimeSceneArt.GroupNames），
             // 开局由 BattleController.RebuildSceneArt → RuntimeSceneArt.RebuildFor(实际关卡号) 重建。
@@ -273,7 +257,7 @@ namespace PirateCrew.EditorTools
             // 活物（波次 ambient）：挂 SceneArt 子节点，接线 ground/sun/队伍根/相机与瓦片数。
             // 不接线时 AmbientDirector 有容错回落（自动取父节点、Camera.main），但瓦片数只能靠默认 50×17。
             BuildAmbientDirector(sceneArt.transform, ground, sunLight, team0Root, team1Root, camera,
-                data.WidthTiles, data.HeightTiles);
+                ShowcaseLevels.WidthTiles, ShowcaseLevels.DepthTiles);
 
             // 规则宿主。
             var turnManager = new GameObject("TurnManager").AddComponent<TurnManager>();
@@ -328,64 +312,6 @@ namespace PirateCrew.EditorTools
             }
         }
 
-        /// <summary>
-        /// 岛外海床台阶（纯表现、无碰撞、不投影）。
-        ///
-        /// 【为什么必须有】<c>PirateWater</c> 的浅深水过渡与岸边泡沫靠 <c>_CameraDepthTexture</c>
-        /// 读出"水面之下还有多远才是实体"。竞技场是浮在海上的沙岛（地面顶面 y=0、水面 y=-0.2），
-        /// 岛外若没有海床，水面之后的场景深度就是天空 → 处处"深水"，既无浅深水过渡、也无泡沫。
-        /// 故在岛外铺多层**会写深度**的同心台阶（材质须带 DepthOnly Pass）。
-        ///
-        /// 【r3 修问题 5：两级 → 五级同心坡】原实现只有两级（-0.6 外扩 6 / -1.6 外扩 16），
-        /// 台阶之间是一整块平色，只在两条边界处各出现一条硬色界，读不出"浅滩→中水→深水"渐变。
-        /// 现按场景设计 §5.1「海床坡向外 8-12 单位缓降到 y=-3」铺 5 级同心台阶（格 1→2 单位后整段 ×2：向外 16-24、降到 y=-6）
-        /// （外扩 10→18→30→48→72，顶面 waterWorldY-0.9 → -7.0），使 waterDepth 连续下沉，
-        /// 对上 shader 的三档水色（场景设计判据 Q-17：水色标准差 > 4）。
-        /// 用**覆盖全竞技场的同心块**（而不是只有竞技场外的环）：环形会在竞技场矩形内缘留下
-        /// 一条"深/浅"硬色界，正好又变成一条直线切边。
-        /// 【提案/待定】级数与深度为 AI 取值，观感验收时可调，但**必须保留"写深度"这一职责**。
-        /// </summary>
-        static void CreateSeabedShelves(float worldWidth, float worldDepth, float waterWorldY)
-        {
-            // 深度/外扩全为世界距离类 → 格 1→2 单位后 ×2（0.45→0.9 … 36→72），
-            // 使 waterDepth 的读数在"同一格数"处取到同一档水色。
-            CreateSeabedShelf("Seabed_L0", worldWidth, worldDepth, waterWorldY - 0.90f, 10f,
-                BattleSceneLighting.WetSandMaterial, new Color(0.62f, 0.53f, 0.40f, 1f));
-            CreateSeabedShelf("Seabed_L1", worldWidth, worldDepth, waterWorldY - 2.00f, 18f,
-                BattleSceneLighting.WetSandMaterial, new Color(0.52f, 0.43f, 0.32f, 1f));
-            CreateSeabedShelf("Seabed_L2", worldWidth, worldDepth, waterWorldY - 3.60f, 30f,
-                BattleSceneLighting.RockMaterial, new Color(0.46f, 0.41f, 0.34f, 1f));
-            CreateSeabedShelf("Seabed_L3", worldWidth, worldDepth, waterWorldY - 5.40f, 48f,
-                BattleSceneLighting.RockMaterial, new Color(0.42f, 0.38f, 0.32f, 1f));
-            CreateSeabedShelf("Seabed_L4", worldWidth, worldDepth, waterWorldY - 7.00f, 72f,
-                BattleSceneLighting.RockMaterial, new Color(0.36f, 0.33f, 0.29f, 1f));
-        }
-
-        /// <summary>单层海床台阶：Cube 顶面在 <paramref name="topY"/>，向四周外扩 <paramref name="spread"/>。</summary>
-        static void CreateSeabedShelf(string name, float worldWidth, float worldDepth, float topY, float spread,
-            string materialName, Color fallbackColor)
-        {
-            const float thickness = 1.0f;   // 世界厚度 ×2（格 1→2 单位）
-
-            var shelf = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            shelf.name = name;
-            shelf.transform.position = new Vector3(
-                worldWidth * 0.5f, topY - thickness * 0.5f, worldDepth * 0.5f);
-            shelf.transform.localScale = new Vector3(
-                worldWidth + spread * 2f, thickness, worldDepth + spread * 2f);
-
-            // 无碰撞：它是纯水下观感几何；角色掉出竞技场后应继续落到水面判定线以下（§4.4），
-            // 不希望被海床接住。
-            var collider = shelf.GetComponent<Collider>();
-            if (collider != null)
-                Object.DestroyImmediate(collider);
-
-            var renderer = shelf.GetComponent<MeshRenderer>();
-            renderer.sharedMaterial = EnsureEnvironmentMaterial(materialName, fallbackColor);
-            // 不投影：水下几何投影会在水面上打出莫名暗斑。
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        }
-
         static Camera CreateCamera(bool useSkybox)
         {
             var go = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
@@ -433,75 +359,9 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 地面：**XZ 水平面**（厚 0.2 的 Cube，顶面 y = <see cref="LevelGeometry.GroundTopY"/>）。
-        /// 角色脚底贴在顶面上，所以从 X 或 Z 任一侧掉出去都会落到水面以下（§4.4）。
-        /// 原先是 XY 竖直薄板（2D 侧视遗留）。
-        /// 材质：干沙（PirateSurface 程序化三档沙色，GDD §10.4 沙地三档）。
-        ///
-        /// 【已退役：不再被 Battle 场景调用】场景烘成关卡无关后，任何关卡的可站面都由
-        /// <c>PlatformClusterLayout.BuildFor</c> 的逐格平台提供（见 <see cref="BuildBattleScene"/> 的
-        /// "不建带碰撞的大地面"）；整块 y=0 地面会接住从平台间隙掉落的单位、破坏"落水即死"。
-        /// 方法保留是因为 <c>M3SceneSetup</c> 等非战斗场景仍可能需要一块实体地面；
-        /// 战斗场景的视觉兜底改用无碰撞的 <see cref="CreateFarSeabed"/>。
-        /// </summary>
-        static Transform CreateGround(float worldWidth, float worldDepth)
-        {
-            const float thickness = 0.2f;
-
-            var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            ground.name = "Ground";
-            ground.transform.position = new Vector3(
-                worldWidth * 0.5f,
-                LevelGeometry.GroundTopY - thickness * 0.5f,
-                worldDepth * 0.5f);
-            ground.transform.localScale = new Vector3(worldWidth, thickness, worldDepth);
-            ground.GetComponent<MeshRenderer>().sharedMaterial = EnsureEnvironmentMaterial(
-                BattleSceneLighting.DrySandMaterial, new Color(0.82f, 0.74f, 0.53f, 1f));
-            return ground.transform;
-        }
-
-        /// <summary>
-        /// 海面下的"远海床"兜底（仅平台关）：水面之下、**无碰撞**的大平面，铺在五级环形海床台阶
-        /// （<see cref="CreateSeabedShelves"/> 的 L0..L4，最深 -2.9）之下，保证平台间隙向下看到的是
-        /// 海床而不是天空盒。
-        ///
-        /// 【为什么必须无碰撞】单位从平台间隙落下后应继续穿越 <see cref="LevelGeometry.WaterSurfaceY"/>
-        /// 触发落水即死（§4.4）；任何接在中间（尤其水面之上）的几何都会把落水变成"站在隐形地板上"。
-        /// 所以本物体与海床台阶一样销毁 Collider、且不投影。
-        ///
-        /// 【尺寸】竞技场外扩 88（略大于最外环 L4 的 72，保证环形坡之外仍有兜底），
-        /// 材质复用海床台阶的岩材质（保证浅深水读深一致）。
-        /// 【提案/待定】高度 -7.2（深于 L4 的 -7.0，不参与浅深水过渡读深）是 AI 调参值；
-        /// 观感验收时可调，但**必须保持无碰撞**。
-        /// </summary>
-        static void CreateFarSeabed(float worldWidth, float worldDepth, float waterWorldY)
-        {
-            const float thickness = 1.0f;   // 世界厚度 ×2（格 1→2 单位）
-            const float margin = 88f;       // 外扩 ×2（须大于最外环 L4 的 72）
-            float topY = waterWorldY - 7.2f;
-
-            var seabed = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            seabed.name = "Seabed_Far";
-            seabed.transform.position = new Vector3(
-                worldWidth * 0.5f, topY - thickness * 0.5f, worldDepth * 0.5f);
-            seabed.transform.localScale = new Vector3(
-                worldWidth + margin * 2f, thickness, worldDepth + margin * 2f);
-
-            var collider = seabed.GetComponent<Collider>();
-            if (collider != null)
-                Object.DestroyImmediate(collider);
-
-            var renderer = seabed.GetComponent<MeshRenderer>();
-            // 与 CreateSeabedShelf 的岩材质同色兜底：材质库缺失时不会生成两份不同色的同名资产。
-            renderer.sharedMaterial = EnsureEnvironmentMaterial(
-                BattleSceneLighting.RockMaterial, new Color(0.42f, 0.38f, 0.32f, 1f));
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        }
-
-        /// <summary>
         /// 水面：**XZ 水平面**（比地面外扩一大圈），无碰撞体——落水判定用世界 Y 阈值，不靠碰撞。
         /// 材质：PirateWater（双层波法线 + 菲涅尔 + Scene Depth 浅深水/岸边泡沫）；
-        /// 它依赖 _CameraDepthTexture（URP Asset 已打开）与岛外海床台阶（<see cref="CreateSeabedShelves"/>）。
+        /// 它依赖 _CameraDepthTexture（URP Asset 已打开）。
         ///
         /// 【r3 修问题 1：水面外扩 40 → 200（每侧 20 → 100）】原水面只到竞技场外 20，
         /// 而远海床到外 44，于是水面矩形的直边在画面里露出来、边外是米色的 Seabed_Far ——
@@ -585,38 +445,6 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 删除 <see cref="SceneArtBuilder.Apply"/> 烘出的**关卡专属静态陈设**（<c>SceneArt_*</c> 合并网格）。
-        ///
-        /// 【为什么】场景要烘成"关卡无关"：level_1 的平台簇 / 道具位置烘死进场景后，换关卡（地形瓦片会变）
-        /// 就会与平台簇脱节。陈设改由运行时 <see cref="RuntimeSceneArt"/> 按实际关卡重建。
-        /// Apply 保留的职责：生成/更新材质资产、把湿沙材质接给 <see cref="BattleTerrainView"/>。
-        /// 被删的只是场景里的渲染节点（网格资产留在磁盘备查，不再被引用）。
-        ///
-        /// 【只删 Apply 造的】**必须在建 Ambient 子节点之前调用**（ambient 挂在同一根下，
-        /// 这里按 <c>SceneArt_</c> 前缀识别，即使顺序变了也不会误删 Ambient）。
-        /// </summary>
-        static void PruneBakedScenery(GameObject sceneArtRoot)
-        {
-            if (sceneArtRoot == null)
-                return;
-
-            var doomed = new System.Collections.Generic.List<GameObject>();
-            for (int i = 0; i < sceneArtRoot.transform.childCount; i++)
-            {
-                GameObject child = sceneArtRoot.transform.GetChild(i).gameObject;
-                if (child.name.StartsWith("SceneArt_"))
-                    doomed.Add(child);
-            }
-
-            for (int i = 0; i < doomed.Count; i++)
-                Object.DestroyImmediate(doomed[i]);
-
-            if (doomed.Count > 0)
-                Debug.Log("[M2BattleSceneSetup] 烘焙退位：移除 " + doomed.Count
-                    + " 个关卡专属静态陈设节点（改由 RuntimeSceneArt 按实际关卡运行时重建）。");
-        }
-
-        /// <summary>
         /// 把材质组材质写进 <see cref="RuntimeSceneArt"/> 的序列化数组（顺序 = <see cref="RuntimeSceneArt.GroupNames"/>）。
         /// 材质来自 <c>SceneArtBuilder</c> 生成的 <c>Assets/Art/Materials/Scene/Scene_*.mat</c>；
         /// 缺失的槽留 null（运行时该组跳过并告警，不影响地形与玩法）。
@@ -656,7 +484,7 @@ namespace PirateCrew.EditorTools
             {
                 Debug.LogWarning("[M2BattleSceneSetup] RuntimeSceneArt 缺 " + missing.Count
                     + " 个材质组材质（" + string.Join("、", missing) + "）；对应组运行时跳过。"
-                    + "请确认 SceneArtBuilder.Apply 已成功跑过（它负责生成这批 .mat）。");
+                    + "请确认 Assets/Art/Materials/Scene/ 下的 Scene_*.mat 材质齐全。");
             }
         }
 
@@ -830,10 +658,6 @@ namespace PirateCrew.EditorTools
                 Debug.LogError("[M2BattleSceneSetup] PirateBase 预制体缺失 PirateBase 组件，BattleController.piratePrefab 无法接线。");
 
             var so = new SerializedObject(battle);
-            // 【关卡注入】不指定 level 资产：让 BattleController.BuildPlan 走「战役已选关卡 → 否则 fallback」
-            // 分支（CampaignApi.PendingBattleLevelNumberOr(1)）。直接 Play 场景时无待战关卡 → 仍加载 level_1，
-            // 与旧行为一致；从选关界面进入时才真正加载所选关卡。level_1.asset 仍由 M2DataAssetGenerator 生成备查。
-            SetInt(so, "fallbackLevelNumber", LevelNumber);
             SetRef(so, "piratePrefab", prefabComponent);
             SetRef(so, "team0Root", team0Root);
             SetRef(so, "team1Root", team1Root);

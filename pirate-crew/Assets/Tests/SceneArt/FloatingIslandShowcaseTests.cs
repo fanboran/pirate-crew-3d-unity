@@ -147,10 +147,10 @@ namespace PirateCrew.PirateCrew.SceneArt.Tests
         {
             FloatingIslandSpec spec = DefaultSpec();
 
-            // level_1：50×17 格 × 2 单位/格 → 中心 X=50、远缘 Z=0。
+            // 样板第 1 关：20×15 格 × 2 单位/格 → 中心 X=20、远缘 Z=0。
             Vector3 pos = FloatingIslandScenePlan.DefaultBackdropRootPosition(spec);
 
-            Assert.AreEqual(50f, pos.x, 1e-3f, "展示位应水平对准竞技场中心");
+            Assert.AreEqual(20f, pos.x, 1e-3f, "展示位应水平对准竞技场中心");
             Assert.AreEqual(FloatingIslandComposer.PlacementHeight(spec, 0f), pos.y, 1e-4f,
                 "展示位高度必须走 PlacementHeight（净空契约的唯一入口）");
             Assert.LessOrEqual(pos.z, -FloatingIslandScenePlan.FarEdgeGap - spec.RadiusZ,

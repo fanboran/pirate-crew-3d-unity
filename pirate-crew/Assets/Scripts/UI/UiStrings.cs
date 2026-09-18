@@ -108,7 +108,7 @@ namespace PirateCrew.UI
         public const string CrewRowFormat = "{0}　等级 {1}　经验 {2}";
 
         /// <summary>船员管理行文本模板（未解锁）。</summary>
-        public const string CrewRowLockedFormat = "{0}　（第 {1} 关通关后招募）";
+        public const string CrewRowLockedFormat = "{0}　（累计 {1} 星后招募）";
 
         /// <summary>船员管理动作：上阵。</summary>
         public const string CrewEnlist = "上阵";
@@ -264,11 +264,14 @@ namespace PirateCrew.UI
         /// <summary>第 4 个页签名（M4 世界地图入口）。</summary>
         public const string LevelTabWorldSeas = "大海域";
 
-        /// <summary>大海域页签的页头（{0} = 海图张数）【AI 提案/待定】。</summary>
-        public const string WorldSeasHeaderFormat = "大海域　{0} 张海域图　全部可出战";
+        /// <summary>选关页页头（一代退场后只有大海域一页；{0} = 海图张数，{1}/{2} = 累计/满分星数）【AI 提案/待定】。</summary>
+        public const string WorldSeasHeaderFormat = "大海域　{0} 张海域图　累计 {1}/{2} 星";
 
-        /// <summary>海图行状态后缀（海图战无解锁/星级语义）。</summary>
+        /// <summary>海图行状态后缀（未通关）。</summary>
         public const string WorldRowAvailable = "可出战";
+
+        /// <summary>海图行状态后缀（已通关，行内另附星级图标）。</summary>
+        public const string WorldRowCleared = "已通关";
 
         /// <summary>海图行出战按钮。</summary>
         public const string WorldSetSail = "出海";

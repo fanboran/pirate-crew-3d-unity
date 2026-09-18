@@ -1,6 +1,6 @@
 using System.IO;
 using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.PirateCrew.SceneArt;
 using PirateCrew.PirateCrew.Water;
 using UnityEditor;
 using UnityEngine;
@@ -52,26 +52,12 @@ namespace PirateCrew.EditorTools
         /// <summary>大海域 shader 名（与 Art/Shaders/Ocean/PirateOcean.shader 的声明一致）。</summary>
         public const string OceanShaderName = "PirateCrew/Ocean";
 
-        /// <summary>Battle 场景未打开时的兜底关卡号（与 Assets/Scenes/Battle.unity 的 fallbackLevelNumber 一致）。</summary>
-        public const int FallbackLevelNumber = 1;
-
         [MenuItem("Tools/PirateCrew/Water/Bake Obstacle Map")]
         public static void BakeObstacleMap()
         {
-            int levelNumber = ResolveLevelNumber();
-            LevelData level = LevelCatalog.Get(levelNumber);
-            if (level.WidthTiles <= 0 || level.HeightTiles <= 0)
-            {
-                Debug.LogError("[WaterAssetBuilder] 关卡 " + levelNumber + " 尺寸无效，烘焙中止。");
-                return;
-            }
-
-            int width = level.WidthTiles;
-            int depth = level.HeightTiles;
-            TileTerrainGrid grid = TerrainCatalog.Build(levelNumber, width, depth);
-            bool transcribed = grid != null;
-            if (grid == null)
-                grid = TileTerrainGrid.Flat(width, depth);
+            int width = ShowcaseLevels.WidthTiles;
+            int depth = ShowcaseLevels.DepthTiles;
+            TileTerrainGrid grid = ShowcaseLevels.BuildLogicGrid(1);
 
             int cells = WaterSimRules.DefaultCellsPerAxis;
             float domainSize = WaterSimRules.DefaultDomainSize;
@@ -104,7 +90,7 @@ namespace PirateCrew.EditorTools
             ApplyImporterSettings(cells);
 
             Debug.Log("[WaterAssetBuilder] 障碍图烘焙完成：" + ObstacleMapPath
-                      + " | 关卡 " + levelNumber + (transcribed ? "（已转写地形）" : "（未转写→平坦地面）")
+                      + " | 样板第 1 关（" + width + "×" + depth + "）"
                       + " | 域中心 (" + center.x + ", " + center.y + ") 边长 " + domainSize
                       + " | 障碍格 " + obstacleCount + " / " + (cells * cells));
 
@@ -112,14 +98,6 @@ namespace PirateCrew.EditorTools
             // Water_Ocean.mat，而本步骤（⑥.5）在其后执行 —— 顺序保证 PirateWater.shader 的新默认值生效。
             ApplyMaterialDefaults();
             ApplyOceanMaterialDefaults();
-        }
-
-        static int ResolveLevelNumber()
-        {
-            BattleController battle = Object.FindObjectOfType<BattleController>();
-            if (battle != null)
-                return battle.LevelNumber;
-            return FallbackLevelNumber;
         }
 
         static void EnsureFolder()

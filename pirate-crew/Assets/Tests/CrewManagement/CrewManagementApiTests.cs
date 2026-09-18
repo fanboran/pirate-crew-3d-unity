@@ -79,25 +79,25 @@ namespace PirateCrew.Tests
         }
 
         [Test]
-        public void GrantLevelReward_GivesXpToActiveRosterOnly()
+        public void GrantMapReward_GivesXpToActiveRosterOnly()
         {
             CrewManagementApi.Recruit("gunner");
             CrewManagementApi.SetActiveRoster(new[] { "gunner" });   // 水手下阵
 
-            CrewRewardPayload reward = CrewManagementApi.GrantLevelReward("level_01", stars: 3, clearedLevelNumber: 1);
+            CrewRewardPayload reward = CrewManagementApi.GrantMapReward("wreck_hymn", stars: 3, totalStars: 3);
 
             Assert.That(reward.XpPerCrew, Is.EqualTo(CrewProgressionRules.XpAward(3)));
             Assert.That(reward.CrewIds, Is.EqualTo(new[] { "gunner" }));
             Assert.That(CrewManagementApi.Progression.GetXp("gunner"), Is.EqualTo(reward.XpPerCrew));
             Assert.That(CrewManagementApi.Progression.GetXp("sailor"), Is.EqualTo(0), "下阵船员不发经验");
-            Assert.That(_lastReward?.LevelId, Is.EqualTo("level_01"));
+            Assert.That(_lastReward?.LevelId, Is.EqualTo("wreck_hymn"));
         }
 
         [Test]
-        public void GrantLevelReward_UnlocksCrewsAtThreshold()
+        public void GrantMapReward_UnlocksCrewsAtStarThreshold()
         {
-            // 通关到第 3 关：炮手（门槛 3）入列，狙击手（门槛 5）仍锁。
-            CrewRewardPayload reward = CrewManagementApi.GrantLevelReward("level_03", stars: 2, clearedLevelNumber: 3);
+            // 累计 3 星（门槛口径 = 星数）：炮手（门槛 3）入列，狙击手（门槛 5）仍锁。
+            CrewRewardPayload reward = CrewManagementApi.GrantMapReward("wreck_hymn", stars: 2, totalStars: 3);
 
             Assert.That(reward.UnlockedCrewIds, Is.EqualTo(new[] { "gunner" }));
             Assert.That(CrewManagementApi.IsUnlocked("gunner"), Is.True);
@@ -106,9 +106,9 @@ namespace PirateCrew.Tests
         }
 
         [Test]
-        public void GrantLevelReward_OnFailedLevel_GivesNothing()
+        public void GrantMapReward_OnFailedLevel_GivesNothing()
         {
-            CrewRewardPayload reward = CrewManagementApi.GrantLevelReward("level_03", stars: 0, clearedLevelNumber: 0);
+            CrewRewardPayload reward = CrewManagementApi.GrantMapReward("wreck_hymn", stars: 0, totalStars: 0);
 
             Assert.That(reward.XpPerCrew, Is.EqualTo(0));
             Assert.That(reward.UnlockedCrewIds, Is.Empty);

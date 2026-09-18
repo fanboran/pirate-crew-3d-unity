@@ -61,16 +61,16 @@ namespace PirateCrew.CrewManagement
     /// <summary><see cref="CrewManagementEvents.RewardGranted"/> 载荷。</summary>
     public readonly struct CrewRewardPayload
     {
-        /// <summary>结算是哪一关（<c>CampaignCatalog</c> 的关卡 id，如 <c>level_01</c>）。</summary>
+        /// <summary>结算是哪张海图（<c>WorldMapCatalog</c> 的海图 id，如 <c>wreck_hymn</c>）。</summary>
         public readonly string LevelId;
 
-        /// <summary>本关星级（0 = 未通关）。</summary>
+        /// <summary>本局星级（0 = 未通关）。</summary>
         public readonly int Stars;
 
         /// <summary>每个出战船员获得的经验。</summary>
         public readonly int XpPerCrew;
 
-        /// <summary>实际获得经验的船员 id（= 本关编成阵容）。</summary>
+        /// <summary>实际获得经验的船员 id（= 编成阵容）。</summary>
         public readonly string[] CrewIds;
 
         /// <summary>本次结算新招募的船员 id（无则空数组）。</summary>

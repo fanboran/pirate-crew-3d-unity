@@ -1,22 +1,18 @@
 using System;
 using System.Collections.Generic;
+using PirateCrew.PirateCrew.Battle.WorldMaps;
 
 namespace PirateCrew.Campaign
 {
     /// <summary>
-    /// 单人战役的关卡进度（星级 + 顺序解锁）。
+    /// 大海域的结算进度（海图 id → 星级）。一代的「顺序解锁链」随一代退场：
+    /// 8 张海图全部可出战（见选关页），进度只剩「星级记录」一个职责。
     ///
-    /// 【出处】语义翻译自 Godot <c>modules/crew_management/scripts/progression.gd</c>
-    ///   （Godot 版把「关卡完成/星级/解锁」放在船员管理模块的 Progression 里；
-    ///    Unity 版按职责把「关卡进度」归到 Campaign，「船员经验」归到 CrewManagement）。
-    ///   对应关系：<c>_completed_levels</c> → <see cref="_stars"/>、<c>get_level_stars</c> → <see cref="GetStars"/>、
-    ///   <c>complete_level</c> → <see cref="CompleteLevel"/>、<c>is_level_unlocked</c> → <see cref="IsUnlocked"/>。
+    /// 【出处】语义源自 Godot <c>modules/crew_management/scripts/progression.gd</c>
+    ///   （<c>_completed_levels</c> → <see cref="_stars"/>、<c>complete_level</c> → <see cref="CompleteLevel"/>）。
     ///
-    /// 【解锁链】与 Godot 同为「前一关已通关才解锁」；「前一关」经
-    ///   <see cref="CampaignCatalog.PreviousImplementedLevel"/> 取「最近一个有转写数据的前一关」——
-    ///   <c>LevelCatalog</c> 33 关已全部转写，现状即普通顺序解锁；该间接层保留的意义是
-    ///   将来若个别关卡号缺数据，解锁链自动绕开缺口而非卡死。
-    ///   规则见 <see cref="IsUnlocked"/>。
+    /// 【键值域】键 = 海图 id（<c>WorldMapCatalog</c> 收录的 <c>wreck_hymn</c> 等）；
+    /// 旧存档里的 <c>level_01</c> 形式键会被 <see cref="SetStars"/> 静默丢弃（旧档不迁移，弃档）。
     ///
     /// 【纯 C#】不引用任何 UnityEngine 类型，可在无头验证台直接断言。
     /// </summary>
@@ -24,10 +20,10 @@ namespace PirateCrew.Campaign
     {
         readonly Dictionary<string, int> _stars = new Dictionary<string, int>(StringComparer.Ordinal);
 
-        /// <summary>已通关关卡数。</summary>
+        /// <summary>已通关海图数。</summary>
         public int CompletedCount => _stars.Count;
 
-        /// <summary>累计星数（全 15 关满分 45 星）。</summary>
+        /// <summary>累计星数（8 图满分 24 星；招募门槛按本值判定）。</summary>
         public int TotalStars
         {
             get
@@ -40,86 +36,37 @@ namespace PirateCrew.Campaign
             }
         }
 
-        /// <summary>关卡星级；未通关返回 0。</summary>
-        public int GetStars(string levelId)
+        /// <summary>海图星级；未通关返回 0。</summary>
+        public int GetStars(string mapId)
         {
-            if (string.IsNullOrEmpty(levelId))
+            if (string.IsNullOrEmpty(mapId))
                 return 0;
 
-            return _stars.TryGetValue(levelId, out int stars) ? stars : 0;
+            return _stars.TryGetValue(mapId, out int stars) ? stars : 0;
         }
 
-        /// <summary>该关卡是否已通关（星级 &gt; 0）。</summary>
-        public bool IsCompleted(string levelId)
+        /// <summary>该海图是否已通关（星级 &gt; 0）。</summary>
+        public bool IsCompleted(string mapId)
         {
-            return GetStars(levelId) > 0;
+            return GetStars(mapId) > 0;
         }
 
         /// <summary>
-        /// 记录通关（对应 Godot <c>complete_level</c>）：**取历史最好成绩**，重打低星不会降级。
-        /// 星级 &lt;= 0 视为未通关，不记录（Godot 会写入 0，本作显式忽略以免污染 <see cref="CompletedCount"/>）。
+        /// 记录通关：**取历史最好成绩**，重打低星不会降级。
+        /// 星级 &lt;= 0 视为未通关，不记录（以免污染 <see cref="CompletedCount"/>）。
         /// </summary>
         /// <returns>本次是否刷新了记录（首次通关或星级提高）。</returns>
-        public bool CompleteLevel(string levelId, int stars)
+        public bool CompleteLevel(string mapId, int stars)
         {
-            if (!CampaignCatalog.TryGet(levelId, out _) || stars <= 0)
+            if (string.IsNullOrEmpty(mapId) || !WorldMapCatalog.TryGet(mapId, out _) || stars <= 0)
                 return false;
 
-            int previous = GetStars(levelId);
+            int previous = GetStars(mapId);
             if (stars <= previous)
                 return false;
 
-            _stars[levelId] = Math.Min(stars, StarRules.MaxStars);
+            _stars[mapId] = Math.Min(stars, StarRules.MaxStars);
             return true;
-        }
-
-        /// <summary>
-        /// 关卡是否已解锁。
-        ///
-        /// 【规则】第 1 关默认解锁；其余关卡要求「最近一个有转写数据的前一关」已通关
-        /// （33 关全转写的现状下就是普通顺序解锁，见类头说明）。
-        /// </summary>
-        public bool IsUnlocked(string levelId)
-        {
-            if (!CampaignCatalog.TryGet(levelId, out CampaignLevel level))
-                return false;
-
-            CampaignLevel? previous = CampaignCatalog.PreviousImplementedLevel(level.LevelNumber);
-            if (previous == null)
-                return true;
-
-            return IsCompleted(previous.Value.LevelId);
-        }
-
-        /// <summary>下一个待挑战的关卡 id（已解锁但未通关的最小序号关卡）；全部通关返回 null。</summary>
-        public string NextPlayableLevelId()
-        {
-            IReadOnlyList<CampaignLevel> all = CampaignCatalog.All;
-            for (int i = 0; i < all.Count; i++)
-            {
-                if (!IsCompleted(all[i].LevelId) && IsUnlocked(all[i].LevelId))
-                    return all[i].LevelId;
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// 已通关关卡里的最大序号（没有通关记录返回 0）。船员招募门槛按这个值判定。
-        /// </summary>
-        public int MaxCompletedLevelNumber
-        {
-            get
-            {
-                int max = 0;
-                foreach (string levelId in _stars.Keys)
-                {
-                    if (CampaignCatalog.TryGet(levelId, out CampaignLevel level) && level.LevelNumber > max)
-                        max = level.LevelNumber;
-                }
-
-                return max;
-            }
         }
 
         /// <summary>清空进度。</summary>
@@ -128,19 +75,19 @@ namespace PirateCrew.Campaign
             _stars.Clear();
         }
 
-        /// <summary>已通关关卡及其星级的只读快照（存档 / UI 用）。</summary>
+        /// <summary>已通关海图及其星级的只读快照（存档 / UI 用）。</summary>
         public IReadOnlyDictionary<string, int> Snapshot()
         {
             return new Dictionary<string, int>(_stars, StringComparer.Ordinal);
         }
 
-        /// <summary>直接写入星级（读档用）；≤0 或非法关卡忽略。</summary>
-        public void SetStars(string levelId, int stars)
+        /// <summary>直接写入星级（读档用）；id 不在目录 / ≤0 星忽略。</summary>
+        public void SetStars(string mapId, int stars)
         {
-            if (!CampaignCatalog.TryGet(levelId, out _) || stars <= 0)
+            if (string.IsNullOrEmpty(mapId) || !WorldMapCatalog.TryGet(mapId, out _) || stars <= 0)
                 return;
 
-            _stars[levelId] = Math.Min(stars, StarRules.MaxStars);
+            _stars[mapId] = Math.Min(stars, StarRules.MaxStars);
         }
     }
 }
