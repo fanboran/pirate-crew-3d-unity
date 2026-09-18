@@ -109,9 +109,13 @@ Shader "PirateCrew/Skybox/PirateGradientSky"
                 float  _SkySunDiskIntensity;
             CBUFFER_END
 
-            // ---- URP 全局：主光方向（指向光源）----
-            // 由 URP 每帧 SetGlobalVector 写入（ForwardLights.cs:511），不在 UnityPerMaterial 里。
-            float4 _MainLightPosition;
+            // ---- 主光方向（指向光源）----
+            // _MainLightPosition 由 URP 的 Input.hlsl 声明（com.unity.render-pipelines.universal
+            // 14.0.12/ShaderLibrary/Input.hlsl:101，经 Core.hlsl 的 include 链进入本 Pass），
+            // 这里**不要重复声明**——重复声明会报 redefinition，且该错误只在真实图形 API 的
+            // 变体编译（播放器构建）时暴露，-nographics 导入不报（本项目 2026-09-18 实测踩坑）。
+            // URP 每帧 ForwardLights.SetupShaderLightConstants 里 SetGlobalVector 写值
+            // （.../Runtime/ForwardLights.cs:511），早于天空盒 Pass（ScriptableRenderer.cs:1161）。
 
             struct Attributes
             {

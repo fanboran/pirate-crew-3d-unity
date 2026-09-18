@@ -90,7 +90,7 @@ def analyze(tier, path):
 
 
 def checks(m):
-    """返回 (该图的 [失败项]，空列表 = 过)。"""
+    """返回 (该图的 [失败项]，空列表 = 过)。太阳盘单列 advisories（见调用处）。"""
     fails = []
     tag = f"{m['tier']}/{m['file']}"
     if m["magenta"] > MAGENTA_MAX:
@@ -99,8 +99,6 @@ def checks(m):
         if m["sky_lum"] <= SKY_LUM_MIN:
             fails.append(f"{tag} 天空上带亮度 {m['sky_lum']:.3f} ≤ {SKY_LUM_MIN}"
                          "（天空盒 Pass 可能被静默丢弃）")
-        if m["tier"] in ("noon", "dusk") and m["sun_pixels"] < SUN_PIXELS_MIN:
-            fails.append(f"{tag} 未见太阳盘亮斑（{m['sun_pixels']} px < {SUN_PIXELS_MIN}）")
         if m["tier"] == "overcast" and m["sun_pixels"] > SUN_PIXELS_MAX_OVERCAST:
             fails.append(f"{tag} 阴云档出现成片过曝亮斑（{m['sun_pixels']} px）——乌云蔽日不应有盘")
         if m["tier"] == "dusk" and m["horizon_warm_r_minus_b"] <= 0:
@@ -110,18 +108,32 @@ def checks(m):
     return fails
 
 
+def advisories(m):
+    """提示级（不阻断）：太阳盘是否可见取决于机位是否朝向太阳方位——
+    现有 world-horizon 机位不朝太阳（2026-09-18 实测 noon 7px / dusk 1px、盘不在画面内），
+    把"没盘"判失败会误报；要判日盘需给 BuildWorldShots 加一个朝阳机位（实拍轮待办）。"""
+    notes = []
+    if m["file"].startswith("world-horizon") and m["tier"] in ("noon", "dusk"):
+        if m["sun_pixels"] < SUN_PIXELS_MIN:
+            notes.append(f"{m['tier']}/world-horizon 未见太阳盘亮斑（{m['sun_pixels']} px）——"
+                         "机位不朝太阳方位时属预期；判日盘需加朝阳机位")
+    return notes
+
+
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else "export/ambient-skybox-debug"
     tiers = ("noon", "dusk", "overcast")
 
     rows = []
     failures = []
+    notes = []
     for tier in tiers:
         for pattern in ("*.png", "*.jpg"):
             for path in sorted(glob.glob(os.path.join(root, tier, pattern))):
                 m = analyze(tier, path)
                 rows.append(m)
                 failures += checks(m)
+                notes += advisories(m)
 
     if not rows:
         print(f"未找到图片：{root}/<tier>/world-*.png|jpg")
@@ -153,6 +165,10 @@ def main():
             f"overcast={spread['overcast']:.3f}）——阴云应是铅灰不是干净蓝")
 
     print()
+    for n in notes:
+        print("⚠ " + n)
+    if notes:
+        print()
     if failures:
         print(f"初筛不通过（{len(failures)} 项）：")
         for f in failures:
