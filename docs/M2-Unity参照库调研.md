@@ -555,3 +555,38 @@ grep -n "cameraColorTargetHandle\|BlitCameraTexture\|ReAllocateIfNeeded" \
 7. `CombatHudController`（订阅事件显示 HUD）。
 
 以上均在 M2 范围内；海战/大世界等远期系统不在本次调研覆盖。
+
+---
+
+## 7. external/ 目录总登记与使用公约（提案/待定）
+
+> 本节登记 `external/` 的定位、现存内容与使用公约。**7.3 使用公约已经用户确认（2026-09-18）**，
+> 并已同步回写 AGENTS.md（无头验证台副本路径、跑测产物路径、顶层目录结构注释、参照库登记要求）。
+
+### 7.1 定位与边界
+
+`external/` 是 gitignore 的工作台目录，按定位只应存放四类内容：**参照库、无头验证台母本、Flash 逆向材料、Blender 建模源文件**。
+此前每开一条任务线就复制一份 harness 副本、每轮 batchmode 门禁往根下落一批 log/xml，一个月积出 70+ 目录与 250+ 散文件，且无回收机制——公约（7.3）即针对这两个来源。
+
+### 7.2 现存登记
+
+| 路径 | 内容 | 上游 / 说明 |
+| --- | --- | --- |
+| `core-reference/eventbus-adammyhre` | Unity-Event-Bus | <https://github.com/adammyhre/Unity-Event-Bus>（M1 EventBus 参照） |
+| `core-reference/savesystem-shapedbyrain` | save-load-system | <https://github.com/shapedbyrainstudios/save-load-system>（M1 存档参照） |
+| `core-reference/sceneloader-mygamedevtools` | scene-loader | <https://github.com/mygamedevtools/scene-loader>（M1 场景流转参照） |
+| `core-reference/scenetransition-lightgive` | TransitionManager | <https://github.com/LightGive/TransitionManager>（M1 场景切换参照） |
+| `m2-combat-reference/`（4 库） | 弹弓/轨迹/描边/RTS相机 | 上游与版本见本文 §1.1，用法见 §2 |
+| `fluid-ref/FLIP` | Unity_FLIP_Fluid_Simulation | <https://github.com/lamp-cap/Unity_FLIP_Fluid_Simulation>（水体参照） |
+| `fluid-ref/HPWater` | HPWater | <https://github.com/AshenOneArt/HPWater>（水体参照） |
+| `swf-decompile/` + `tools/` | game.swf、levels_all.json、ffdec 反编译器 | Flash 原版逆向材料与工具链，逆向文档的原始依据 |
+| `m2-harness/` | 无头验证台母本 | 用法见 `external/m2-harness/README.md` |
+| `*-work/`（blender-pilot / icon / scene-kit / worldkit×4） | sailor_pilot 等 .blend 源 | `tools/blender/` 管线的模型源文件；FBX 成品入 `Assets/Art/Models/SceneKit/` |
+
+登记时另有一批当日跑测产物（bisect-*、ocean-debug-*、build/ 等）未列入上表——它们属 7.3 所指的跑测产物，随调查线收尾清除。
+
+### 7.3 使用公约
+
+1. `external/` 只收 7.2 所列四类；跑测产物（日志、test-results、构建输出、调试截图工作副本）不进本目录；
+2. harness 副本与门禁日志一律写系统临时目录（如 `$TEMP/pc3d-harness-<域>/`），任务线收尾即删；AGENTS.md「无头验证台」的副本路径惯例已同步改为临时目录；
+3. 判图/管线小脚本用完转移到对应 `tools/` 子目录或删除，不在 `external/` 根堆积。

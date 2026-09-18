@@ -38,14 +38,14 @@
   退出码 0 = 工程可打开；非 0 先查输出里的 error 再处置。
 - 无头跑测试（M1 起有 EditMode/PlayMode 测试）：
   ```bash
-  "F:/Unity/2022.3.62f1c1/Editor/Unity.exe" -batchmode -nographics -projectPath "F:/VSCode/pirate-crew-3d-unity/pirate-crew" -runTests -testPlatform EditMode -testResults "F:/VSCode/pirate-crew-3d-unity/external/test-results.xml" -logFile -
+  "F:/Unity/2022.3.62f1c1/Editor/Unity.exe" -batchmode -nographics -projectPath "F:/VSCode/pirate-crew-3d-unity/pirate-crew" -runTests -testPlatform EditMode -testResults "$TEMP/pc3d-test-results.xml" -logFile -
   ```
-  （PlayMode 把 `EditMode` 换 `PlayMode`。）
+  （PlayMode 把 `EditMode` 换 `PlayMode`；test-results 写系统临时目录，跑测产物不落 `external/`。）
 - **batchmode 铁律**：必须显式带 `-projectPath` 且加 `-nographics`。缺 `-projectPath` 会打开 EditorPrefs 里的"最近工程"（可能污染/锁住别的项目——本项目曾因此产生杀不死的僵尸进程卡住 `Temp/UnityLockfile`，只能重启机器清理）；当前环境不带 `-nographics` 会卡在 GfxDevice 创建。一次只跑一个 Unity 进程。
 - **无头验证台**（M2 起，不入库）：`external/m2-harness/` 用 `dotnet` 引用 Unity 已编译程序集 + NuGet NUnit，**不启动 Unity 就能编译工程源码并跑纯 C# 测试**，用于多 agent 并行时绕开 Library 独占锁。
   ```bash
-  cp external/m2-harness/M2Harness.csproj external/harness-<域>/   # 同级深度，各 agent 一份副本避免抢 obj/bin
-  cd external/harness-<域> && dotnet test M2Harness.csproj -p:HarnessScope=<All|Data|Combat>
+  H="$TEMP/pc3d-harness-<域>" && mkdir -p "$H" && cp external/m2-harness/M2Harness.csproj "$H"/   # 副本放系统临时目录（external/ 只放母本），各 agent 一份避免抢 obj/bin；任务线收尾即删
+  cd "$H" && dotnet test M2Harness.csproj -p:HarnessScope=<All|Data|Combat>
   ```
   **边界**：`GameObject` / `MonoBehaviour` / `ScriptableObject` 的实例化走原生 `ECall`，脱离 Unity 运行时必抛 `SecurityException`；所以战斗数值/回合规则这类核心逻辑**刻意写成纯 C# 静态类**以便无头测试，MonoBehaviour 胶水层仍由 batchmode 收口。详见 `external/m2-harness/README.md`。
 - **GitHub 查询纪律**：查 GitHub 上的代码/仓库/README 用 WebFetch 或 `git clone --depth 1`；**不要用匿名 `curl` 硬打 `api.github.com`**（匿名限额 60 次/时，触发限流后连正常诊断都会被污染）。
@@ -93,7 +93,7 @@
 ## 核心行为指令
 
 1. **参照库强制**（自原项目 rule.md，全项目最重要的规则）：AI 无参照写代码容易 API 幻觉、边界遗漏，但**翻译移植和等效重构表现非常稳定**。每次写新功能或重写模块前——
-   - 下载星标多、维护活跃、玩法相似的开源 Unity 项目到 `external/<功能名>-reference/`（已 gitignore）；
+   - 下载星标多、维护活跃、玩法相似的开源 Unity 项目到 `external/<功能名>-reference/`（已 gitignore），clone 完成后在 [docs/M2-Unity参照库调研.md](docs/M2-Unity参照库调研.md) §7 登记（库名 / 上游 URL / 用途）；
    - 读懂其核心实现后基于参照翻译改编；
    - 参照库不入库。例外：简单 bug 修复、单行改动、参数调整。
 2. **图形学调试截图规范**（自原项目 rule.md，Unity 版）：Shader/渲染效果开发必须——在 shader 中实现 `debug_mode` 拆分管线步骤 → 用 `ScreenCapture.CaptureScreenshot` 或 Editor 脚本逐层截图存 `export/<功能名>-debug/` → 写一页 README 说明每张图应看到什么 → 列关键参数调参指南。
@@ -130,7 +130,7 @@ pirate-crew-3d-unity/           # 仓库根（文档与规则）
 ├── AGENTS.md                   # 本文件
 ├── README.md                   # 项目门面（翻译规范表在此）
 ├── docs/                       # 任务书与设计文档
-├── external/                   # 开源参照库（gitignored，不入库）
+├── external/                   # 工作台（gitignored）：参照库 / harness母本 / 逆向材料 / Blender建模源四类；跑测产物禁入，公约见调研文档§7
 └── pirate-crew/                # Unity 工程本体（Unity Hub 打开这个）
     ├── Assets/
     │   ├── Scripts/{Core,Campaign,PirateCrew,CrewManagement,UI}/
