@@ -18954,10 +18954,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   blockRoot: {fileID: 1734244402}
-  blockMaterial: {fileID: 2100000, guid: 730f2a909b7b33749be4d98270f1d43d, type: 2}
-  wetMaterial: {fileID: 0}
-  enableVisualShell: 1
-  buildUnderside: 1
 --- !u!4 &1734244402
 Transform:
   m_ObjectHideFlags: 0

@@ -425,21 +425,17 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 瓦片地形视图：根节点 + <see cref="BattleTerrainView"/> + 地块材质。
-        /// 具体地形块由运行时 <c>BattleController.BuildTerrain → BattleTerrainView.Render</c> 生成。
-        /// 材质：PirateTerrain（按世界高度/坡度混合沙/草/岩 + 低多边形块面感 + #2A2A2A 边缘压暗）。
+        /// 瓦片地形视图：根节点 + <see cref="BattleTerrainView"/>（**纯碰撞层**——隐形 BoxCollider，
+        /// 视觉由烘焙 prefab / WorldMapComposer 承担）。具体地形块由运行时
+        /// <c>BattleController.BuildTerrain → RenderCollidersOnly</c> 生成。
         /// </summary>
         static BattleTerrainView CreateTerrainView()
         {
             var go = new GameObject(TerrainRootName);
             var view = go.AddComponent<BattleTerrainView>();
 
-            Material material = EnsureEnvironmentMaterial(
-                BattleSceneLighting.TerrainMaterial, new Color(0.55f, 0.46f, 0.33f, 1f));
-
             var so = new SerializedObject(view);
             so.FindProperty("blockRoot").objectReferenceValue = go.transform;
-            so.FindProperty("blockMaterial").objectReferenceValue = material;
             so.ApplyModifiedPropertiesWithoutUndo();
             return view;
         }
