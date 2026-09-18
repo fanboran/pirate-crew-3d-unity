@@ -47,7 +47,8 @@ namespace PirateCrew.EditorTools
     ///   生成/更新材质资产、把湿沙材质接给 <see cref="BattleTerrainView"/>。它烘出的**关卡专属静态陈设**
     ///   （level_1 的平台簇 / 道具合并网格）立即被删掉，改由运行时 <see cref="RuntimeSceneArt"/> 按
     ///   **实际关卡号**重建（<c>BattleController.RebuildSceneArt</c> → <c>RuntimeSceneArt.RebuildFor</c>）。
-    ///   本文件负责把材质组材质数组（顺序 = <c>RuntimeSceneArt.GroupNames</c>）写进场景里的该组件。
+    ///   本文件负责把烘焙 prefab 引用（SceneArtBaker 产物）写进场景里的该组件——
+    ///   材质/几何已烘焙进 prefab，原 21 槽材质数组随运行时几何生成退役（糖豆人式资产架构）。
     ///
     /// 【约定】本工程未装 TMP，UI 一律 legacy UnityEngine.UI（见 SceneSetup 类头）。
     ///         不手写 .unity/.prefab YAML，全部走 UnityEditor API。
@@ -82,13 +83,6 @@ namespace PirateCrew.EditorTools
 
         /// <summary>场景美术陈设根节点名（样板三关的自由几何由 RuntimeSceneArt 运行时装配）。</summary>
         const string SceneArtRootName = "SceneArt";
-
-        /// <summary>
-        /// 场景美术材质资产目录（<c>SceneArtBuilder.SceneMaterialFolder</c> 同值）。
-        /// 运行时 <see cref="RuntimeSceneArt"/> 复用这批材质：烘焙时按
-        /// <see cref="RuntimeSceneArt.GroupMaterialNames"/> 从本目录装载并写进组件的序列化数组。
-        /// </summary>
-        const string SceneArtMaterialFolder = "Assets/Art/Materials/Scene";
 
         /// <summary>名册行数，与 BattleHud.MaxRosterRows 对齐（level_4 最多 12 人）。</summary>
         const int RosterRows = 12;
@@ -246,8 +240,8 @@ namespace PirateCrew.EditorTools
             // 材质资产（Assets/Art/Materials/Scene/）保留，由 RuntimeSceneArt 消费。
             var sceneArt = new GameObject(SceneArtRootName);
 
-            // 运行时陈设装配器：持有一份材质组材质（顺序 = RuntimeSceneArt.GroupNames），
-            // 开局由 BattleController.RebuildSceneArt → RuntimeSceneArt.RebuildFor(实际关卡号) 重建。
+            // 运行时陈设装配器：持有烘焙 prefab 引用（SceneArtBaker 产物），
+            // 开局由 BattleController.RebuildSceneArt → RuntimeSceneArt.RebuildFor(实际关卡号) 实例化。
             RuntimeSceneArt runtimeSceneArt = sceneArt.AddComponent<RuntimeSceneArt>();
             WireRuntimeSceneArt(runtimeSceneArt);
 
@@ -455,9 +449,9 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 把材质组材质写进 <see cref="RuntimeSceneArt"/> 的序列化数组（顺序 = <see cref="RuntimeSceneArt.GroupNames"/>）。
-        /// 材质来自 <c>SceneArtBuilder</c> 生成的 <c>Assets/Art/Materials/Scene/Scene_*.mat</c>；
-        /// 缺失的槽留 null（运行时该组跳过并告警，不影响地形与玩法）。
+        /// 接线 <see cref="RuntimeSceneArt"/>（糖豆人式资产架构）：只写场景根引用与烘焙 prefab 引用
+        /// （按路径装载 SceneArtBaker 的产物，缺资产留 null——运行时该件告警留空、不影响玩法）。
+        /// 材质不再接线：几何/材质已烘焙进 prefab（原 21 槽 groupMaterials 数组随运行时几何生成退役）。
         /// </summary>
         static void WireRuntimeSceneArt(RuntimeSceneArt runtimeSceneArt)
         {
@@ -465,43 +459,17 @@ namespace PirateCrew.EditorTools
                 return;
 
             var so = new SerializedObject(runtimeSceneArt);
-            SerializedProperty array = so.FindProperty("groupMaterials");
-            if (array == null)
-            {
-                Debug.LogError("[M2BattleSceneSetup] RuntimeSceneArt.groupMaterials 字段未找到（字段名漂移？）");
-                return;
-            }
-
-            var missing = new System.Collections.Generic.List<string>();
-            int count = RuntimeSceneArt.GroupNames.Length;
-            array.arraySize = count;
-            for (int i = 0; i < count; i++)
-            {
-                string path = SceneArtMaterialFolder + "/" + RuntimeSceneArt.GroupMaterialNames[i] + ".mat";
-                var material = AssetDatabase.LoadAssetAtPath<Material>(path);
-                if (material == null)
-                    missing.Add(RuntimeSceneArt.GroupMaterialNames[i]);
-                array.GetArrayElementAtIndex(i).objectReferenceValue = material;
-            }
 
             SerializedProperty root = so.FindProperty("sceneryRoot");
             if (root != null)
                 root.objectReferenceValue = runtimeSceneArt.transform;
 
-            // 烘焙件引用（糖豆人式资产架构）：按路径装载 SceneArtBaker 的产物，缺资产留 null
-            //（运行时该件告警留空、不影响玩法）——场景重建与烘焙谁先谁后都能拿到正确引用。
             SetPrefabRefIfExists(so, "galleonPrefab", "Assets/Art/Models/SceneKit/Ship_Galleon.prefab");
             SetPrefabRefIfExists(so, "longboatPrefab", "Assets/Art/Models/SceneKit/Ship_Longboat.prefab");
+            SetPrefabRefIfExists(so, "cloudFieldPrefab", "Assets/Art/Models/SceneKit/CloudField.prefab");
             SetPrefabRefIfExists(so, "dangerBorderPrefab", "Assets/Art/Models/SceneKit/ShowcaseDangerBorder.prefab");
 
             so.ApplyModifiedPropertiesWithoutUndo();
-
-            if (missing.Count > 0)
-            {
-                Debug.LogWarning("[M2BattleSceneSetup] RuntimeSceneArt 缺 " + missing.Count
-                    + " 个材质组材质（" + string.Join("、", missing) + "）；对应组运行时跳过。"
-                    + "请确认 Assets/Art/Materials/Scene/ 下的 Scene_*.mat 材质齐全。");
-            }
         }
 
         /// <summary>按路径装载烘焙 prefab 写进序列化引用；资产不存在时留 null 并记提示（不阻断重建）。</summary>

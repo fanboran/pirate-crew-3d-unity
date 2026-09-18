@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using PirateCrew.PirateCrew.Battle;
 using PirateCrew.PirateCrew.SceneArt;
+using PirateCrew.PirateCrew.SceneArt.Lowpoly;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -50,21 +51,26 @@ namespace PirateCrew.EditorTools
         // 入口
         // ------------------------------------------------------------------
 
-        [MenuItem("PirateCrew/烘焙/样板场景件（船/危险线）")]
+        /// <summary>低模云槽位材质目录（运行时 GetOrCreateMaterial 的烘焙落盘版）。</summary>
+        const string LowpolyMaterialFolder = "Assets/Art/Materials/Lowpoly";
+
+        [MenuItem("PirateCrew/烘焙/样板场景件（船/云场/危险线）")]
         public static void BuildAll()
         {
             EnsureFolder(BakeFolder);
             EnsureFolder(MeshFolder);
+            EnsureFolder(LowpolyMaterialFolder);
 
             BakeShip("Ship_Galleon", SceneKitCatalog.LargeShipRecipe);
             BakeShip("Ship_Longboat", SceneKitCatalog.SmallBoatRecipe);
+            BakeCloudField();
             BakeDangerBorder();
             WireBattleScene();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("[SceneArtBaker] 样板场景件烘焙完成：" + BakeFolder
-                + "（船 ×2 + 危险线；同配方重跑逐顶点一致，见确定性测试）。");
+                + "（船 ×2 + 云场 + 危险线；同配方重跑逐顶点一致，见确定性测试）。");
         }
 
         // ------------------------------------------------------------------
@@ -97,6 +103,128 @@ namespace PirateCrew.EditorTools
             EmitGroupMesh(root, "SceneArt_Cloth", buffers.Cloth, "Scene_Cloth", castShadows: true);
 
             SavePrefab(root, BakeFolder + "/" + prefabName + ".prefab");
+        }
+
+        // ------------------------------------------------------------------
+        // 云场（阶段 B：几何纯 C#，装配壳落成 prefab）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 烘云场：低模云几何（<see cref="CloudFieldGeometry"/>，同种子必得同一片云）由
+        /// <see cref="LowpolyStageBuilder.BuildCloudField"/> 装配（2 个材质槽网格 + 每云双 BoxCollider），
+        /// 烘焙 = 把运行时网格/材质**落成资产**后存 prefab——运行时只实例化，不再逐帧 new Mesh。
+        /// 实例摆位（场心格 10, 7.5）在 <c>ShowcaseLevels.BakedPlacements</c>。
+        /// </summary>
+        static void BakeCloudField()
+        {
+            LowpolyStageReport report = LowpolyStageBuilder.BuildCloudField(null, CloudFieldSpec.Default);
+            GameObject root = report.Root;   // "LowpolyCloudField"：网格子物体 + Colliders/（每云双 BoxCollider）
+            root.name = "CloudField";
+
+            // 网格 → 资产（就地覆写保 GUID），渲染器改引资产网格。
+            foreach (MeshFilter filter in root.GetComponentsInChildren<MeshFilter>(true))
+            {
+                Mesh runtimeMesh = filter.sharedMesh;
+                if (runtimeMesh == null)
+                    continue;
+                Mesh asset = EnsureMeshAssetFromRuntime(MeshFolder + "/" + runtimeMesh.name + ".asset", runtimeMesh);
+                filter.sharedMesh = asset;
+            }
+
+            // 材质 → 资产（Lowpoly 槽位材质原本只在运行时缓存，烘焙侧落盘同参数 .mat）。
+            foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                Material source = renderer.sharedMaterial;
+                if (source == null)
+                    continue;
+                renderer.sharedMaterial = EnsureCloudMaterialAsset(source.name);
+            }
+
+            SavePrefab(root, BakeFolder + "/CloudField.prefab");
+        }
+
+        /// <summary>按运行时材质名（"Lowpoly_&lt;槽位&gt;"）落盘同参数材质资产（幂等）。</summary>
+        static Material EnsureCloudMaterialAsset(string runtimeMaterialName)
+        {
+            LowpolyMaterialSlot slot;
+            switch (runtimeMaterialName)
+            {
+                case "Lowpoly_CloudWarmWhite": slot = LowpolyMaterialSlot.CloudWarmWhite; break;
+                case "Lowpoly_CloudPaleGold": slot = LowpolyMaterialSlot.CloudPaleGold; break;
+                default:
+                    Debug.LogWarning("[SceneArtBaker] 未登记的低模槽位材质 " + runtimeMaterialName
+                        + "——按 URP/Lit 白色落盘（检查 LowpolyStageBuilder.GetOrCreateMaterial 的槽位表）。");
+                    return EnsureMaterialAsset(
+                        LowpolyMaterialFolder + "/" + runtimeMaterialName + ".mat", runtimeMaterialName,
+                        "Universal Render Pipeline/Lit", Color.white);
+            }
+
+            // 参数照抄 LowpolyStageBuilder.GetOrCreateMaterial：PirateSurface 平色（A/B/C 同色）、
+            // _Smoothness 0.06、_Metallic 0——播放器里被资产引用的活 shader 是 PirateSurface（r11 教训）。
+            Material material = EnsureMaterialAsset(
+                LowpolyMaterialFolder + "/" + runtimeMaterialName + ".mat", runtimeMaterialName,
+                "PirateCrew/PirateSurface", LowpolyStageBuilder.ColorOf(slot));
+            if (material.HasProperty("_BaseColorA"))
+            {
+                material.SetColor("_BaseColorA", LowpolyStageBuilder.ColorOf(slot));
+                material.SetColor("_BaseColorB", LowpolyStageBuilder.ColorOf(slot));
+                material.SetColor("_BaseColorC", LowpolyStageBuilder.ColorOf(slot));
+            }
+            if (material.HasProperty("_Smoothness"))
+                material.SetFloat("_Smoothness", 0.06f);
+            if (material.HasProperty("_Metallic"))
+                material.SetFloat("_Metallic", 0f);
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        /// <summary>材质资产就地覆写（存在则改色/改 shader，不存在则 CreateAsset）。</summary>
+        static Material EnsureMaterialAsset(string path, string name, string shaderName, Color color)
+        {
+            Shader shader = Shader.Find(shaderName);
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(shader != null ? shader : Shader.Find("Standard")) { name = name };
+                AssetDatabase.CreateAsset(material, path);
+            }
+            else if (shader != null && material.shader != shader)
+            {
+                material.shader = shader;
+            }
+
+            if (material.HasProperty("_BaseColor"))
+                material.SetColor("_BaseColor", color);
+            if (material.HasProperty("_Color"))
+                material.SetColor("_Color", color);
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        /// <summary>
+        /// 把运行时 Mesh 的数据写进资产网格（就地覆写保 GUID；与 EnsureMeshAsset 的缓冲版同口径）。
+        /// </summary>
+        static Mesh EnsureMeshAssetFromRuntime(string path, Mesh runtimeMesh)
+        {
+            Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+            if (mesh == null)
+            {
+                mesh = new Mesh { name = System.IO.Path.GetFileNameWithoutExtension(path) };
+                mesh.indexFormat = IndexFormat.UInt32;
+                AssetDatabase.CreateAsset(mesh, path);
+            }
+            else
+            {
+                mesh.indexFormat = IndexFormat.UInt32;
+                mesh.Clear(false);
+            }
+
+            mesh.SetVertices(new List<Vector3>(runtimeMesh.vertices));
+            mesh.SetNormals(new List<Vector3>(runtimeMesh.normals));
+            mesh.SetTriangles(new List<int>(runtimeMesh.triangles), 0, true);
+            mesh.RecalculateBounds();
+            EditorUtility.SetDirty(mesh);
+            return mesh;
         }
 
         // ------------------------------------------------------------------
@@ -223,6 +351,7 @@ namespace PirateCrew.EditorTools
             var so = new SerializedObject(sceneArt);
             SetPrefabRef(so, "galleonPrefab", BakeFolder + "/Ship_Galleon.prefab");
             SetPrefabRef(so, "longboatPrefab", BakeFolder + "/Ship_Longboat.prefab");
+            SetPrefabRef(so, "cloudFieldPrefab", BakeFolder + "/CloudField.prefab");
             SetPrefabRef(so, "dangerBorderPrefab", BakeFolder + "/ShowcaseDangerBorder.prefab");
             so.ApplyModifiedPropertiesWithoutUndo();
 

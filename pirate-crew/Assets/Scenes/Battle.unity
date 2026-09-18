@@ -10670,30 +10670,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   sceneryRoot: {fileID: 942141986}
-  groupMaterials:
-  - {fileID: 2100000, guid: 1fc6a57c4f6414c46aa7e050d35630c9, type: 2}
-  - {fileID: 2100000, guid: dfde1981db19caa4e880758aa2e2eb07, type: 2}
-  - {fileID: 2100000, guid: aab56f9e76be3344cbe7479fc22550c3, type: 2}
-  - {fileID: 2100000, guid: d53eef7c4f9b6c34daf61258daa21089, type: 2}
-  - {fileID: 2100000, guid: de2c2a5829efa1243b3bf3408cf4e82a, type: 2}
-  - {fileID: 2100000, guid: b9aaedb8c524ec5498939619fa5dc194, type: 2}
-  - {fileID: 2100000, guid: 4118c22837c9bbc4596cdffdc6c53256, type: 2}
-  - {fileID: 2100000, guid: 82682be139d65f648a4a06a3c73e5b96, type: 2}
-  - {fileID: 0}
-  - {fileID: 2100000, guid: 2c403dee80fa36d4b93d12d5fe3afae1, type: 2}
-  - {fileID: 2100000, guid: 81c640c44112fb448b6c6eddf521447a, type: 2}
-  - {fileID: 2100000, guid: 43cd4b7ff3db7d14ea01f8309b8ab180, type: 2}
-  - {fileID: 2100000, guid: e01b0152868a0e240b978cf50c74095b, type: 2}
-  - {fileID: 2100000, guid: 7e4d4fcfc69ff34459a2cf8ce53b7caa, type: 2}
-  - {fileID: 2100000, guid: d64ae260eaae53742a13b8e793df215f, type: 2}
-  - {fileID: 2100000, guid: c5407f508cbbb27419dd59ecd91a397f, type: 2}
-  - {fileID: 2100000, guid: b284cb3bfcef4ef4998548a010bc97a6, type: 2}
-  - {fileID: 2100000, guid: ad27eb06837c12e44a96e59e6f2433f9, type: 2}
-  - {fileID: 2100000, guid: 67752c5e4a10571418665b8a8421885d, type: 2}
-  - {fileID: 2100000, guid: a00531713c9371c4899ddf0d6be8f5b0, type: 2}
-  - {fileID: 2100000, guid: ac61be01376e3fb4898d28d45d8b156c, type: 2}
   galleonPrefab: {fileID: 434597776370597602, guid: 78ec277795ed2474b90f54ec21237012, type: 3}
   longboatPrefab: {fileID: 6319633843063842594, guid: de357682da429e04693edc62097aad9a, type: 3}
+  cloudFieldPrefab: {fileID: 2782845269019241609, guid: 3c21a67daefea5e43aac3ccbbbedb046, type: 3}
   dangerBorderPrefab: {fileID: 7729139605862933881, guid: bc57cf7423ee4f74194389e403a17f27, type: 3}
   skyIslandRoot: {fileID: 674867737}
 --- !u!4 &942141986

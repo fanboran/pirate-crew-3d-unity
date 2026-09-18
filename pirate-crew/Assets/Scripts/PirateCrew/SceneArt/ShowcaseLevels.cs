@@ -243,6 +243,13 @@ namespace PirateCrew.PirateCrew.SceneArt
 
             switch (levelNumber)
             {
+                case 1:
+                    // 云场平移到 20×15 格场心（与原 ComposeInto case 1 的 BuildCloudField 落点同值）。
+                    list.Add(new ShowcasePiecePlacement(ShowcasePieceId.CloudField,
+                        new Vector3(LevelGeometry.TileToWorld(10f), 0f, LevelGeometry.TileToWorld(7.5f)),
+                        0f, "CloudField"));
+                    break;
+
                 case 2:
                     // 双大船并列：北船 (格 10.0, 3.5) yaw 180 / 南船 (格 10.0, 11.5) yaw 0——
                     // 与原 ComposeShipAt 同位；甲板面 y3 = GroundTopY + 块高 × Blocks(3)。
