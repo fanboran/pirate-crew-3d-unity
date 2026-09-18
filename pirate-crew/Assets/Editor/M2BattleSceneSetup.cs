@@ -26,8 +26,8 @@ namespace PirateCrew.EditorTools
     /// 【对应章节】
     ///   §3.2（CameraBrain/panToCharacter 的目标点）、§3.3（胜负）、§3.4（两阶段操作 + end go）、
     ///   §4.3（按关卡数据生成出战单位）、§4.4（落水即死 → 可站面必须高于水面；平台关由逐格平台提供，
-    ///   不铺整块 y=0 地面（一代退场后海床台阶/远海床兜底装配段已删；旧场景遗留由
-    ///   BattleController.RetireLegacySeabedShelves 运行时定向隐藏）.
+    ///   不铺整块 y=0 地面（一代退场后海床台阶/远海床兜底装配段已删；重烘后的场景不再含一代残留，
+    ///   BattleController 的旧退役器已随之删除——渲染退役在烘焙期落实，见 CreateWaterPlane）。
     ///
     /// 【幂等】
     ///   · 预制体用 <see cref="PrefabUtility.SaveAsPrefabAsset(GameObject,string,out bool)"/> 覆盖同名资产；
@@ -389,13 +389,23 @@ namespace PirateCrew.EditorTools
 
             water.GetComponent<MeshRenderer>().sharedMaterial = EnsureEnvironmentMaterial(
                 BattleSceneLighting.WaterMaterial, new Color(0.13f, 0.42f, 0.68f, 1f));
-            // 水面 shader 没有 ShadowCaster Pass（透明水体不投影）；显式关掉投影，免去阴影通道空跑一次。
-            water.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+            // 【海面渲染统一走 OceanRig（2026-09-19，管线合并前置）】本物体只作为常驻
+            // WaterSimulationDriver 的宿主：Renderer 与 WaterTessellator 在烘焙期就禁用，
+            // 运行时不再需要"定向退役"逻辑（BattleController 的 RetireLegacyWaterPlane 已删）。
+            // 海面由 BattleController.SetupBattleEnvironment 创建的 OceanRig 圆盘渲染——
+            // 世界图与样板关同一条路径。水面 shader 没有 ShadowCaster Pass（透明水体不投影）；
+            // 组件禁用后 shadowCastingMode 无所谓，仍显式关掉防误开。
+            MeshRenderer waterRenderer = water.GetComponent<MeshRenderer>();
+            waterRenderer.enabled = false;
+            waterRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
             // Gerstner 顶点位移需要足够的网格密度——Cube 顶面只有 4 个顶点，
             // 不细分则波峰几何画不出来（明暗法线仍正常，因为解析法线逐像素重算）。
             // 细分粒度用组件默认（0.8 单位/格，上限 192 格/轴，见 WaterMeshRules）。
-            water.AddComponent<global::PirateCrew.PirateCrew.Water.WaterTessellator>();
+            // 随 Renderer 一并禁用：逐帧细分服务于旧 PirateWater 平面，海面圆盘不需要它。
+            var tessellator = water.AddComponent<global::PirateCrew.PirateCrew.Water.WaterTessellator>();
+            tessellator.enabled = false;
 
             // 波动方程水面模拟（只驱动观感：法线扰动 + 泡沫源，不参与任何玩法判定）。
             // 障碍图由 WaterAssetBuilder.BakeObstacleMap 烘焙（ArtGate 在本步骤之前执行）。

@@ -61,8 +61,8 @@ Material:
     - _SunSpecAzBandDeg: 22
     - _SunSpecAzBandStrength: 0.55
     - _SunSpecBroadShininess: 50
-    - _SunSpecBroadStrength: 0.8
-    - _SunSpecCrestBias: 0.7
+    - _SunSpecBroadStrength: 0.5
+    - _SunSpecCrestBias: 0.25
     - _SunSpecGlitter: 0.55
     - _SunSpecLaneShininess: 24
     - _SunSpecLaneWidth: 2.5

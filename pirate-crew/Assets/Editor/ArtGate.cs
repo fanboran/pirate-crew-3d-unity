@@ -44,12 +44,18 @@ namespace PirateCrew.EditorTools
     ///   ④ AudioAssetBuilder.BuildAll     wav 导入设置（落 Resources/PirateCrewAudio，运行时资产优先）
     ///   ⑤ AmbientAssetBuilder.BuildAll   活物网格 / 材质（AmbientDirector 运行时引用）
     ///   ⑥ CrewVisualPrefabBuilder.BuildAll 角色网格 / 材质 / 7 个职业预制体——M2 要按职业装载
-    ///   ⑦ M2BattleSceneSetup.BuildAll    战斗场景（内部再调 BattleSceneLighting、SceneArtBuilder.Apply、
-    ///                                    BattleUiTheme.Apply，并做 crewVisualPrefabs / 相机 battle /
-    ///                                    AmbientDirector 三项接线）
+    ///   ⑦ M2BattleSceneSetup.BuildAll    战斗场景（内部再调 BattleSceneLighting、BattleUiTheme.Apply，
+    ///                                    并做 crewVisualPrefabs / 相机 battle /
+    ///                                    AmbientDirector 三项接线）。**推倒重建**：烘进场景的手工件
+    ///                                    （空岛 / 资产表接线）都会被洗掉，必须排在它后面
+    ///   ⑦.5 空岛样板件摆入战斗场景       FloatingIslandShowcaseMenu.PlaceIntoBattleCenter——第 3 关地面；
+    ///                                    必须在 ⑦ 之后（否则被洗掉，cb3b388 同类教训）
     ///   ⑧ HudMinimapSceneSetup.WireMinimap 小地图增量接线（需 ⑦ 的 Battle.unity 已存在；只接线不改样式）
     ///   ⑨ SceneSetup.BuildAll            M1 菜单 / 引导场景批量重建
     ///   ⑩ M3SceneSetup.BuildAll          M3 管理场景——**必须最后**，它会重写 Build Settings 场景列表
+    ///   ⑩.5 WorldKit 资产表 + 海面材质   WorldMapAssetSetBuilder.BuildAll——打开 Battle 写入
+    ///                                    worldMapAssetSet / worldOceanMaterial 两个场景引用（链尾收口）；
+    ///                                    放 ⑩ 后因为它要改场景，而 ⑦ 会重烘场景、先写必被洗掉
     ///
     /// 【复核提示】`PirateSurface` / `PirateTerrain` 的 `_DebugMode` 档 5 = 湿掩码、档 6 = 沙纹、
     /// 档 7 = 细节贴图（r3 复验 N4 返工新增），编辑器里可把沙/地形材质临时切到这几档快速验证：
@@ -92,9 +98,11 @@ namespace PirateCrew.EditorTools
                 new Step("⑥ 角色网格 / 材质 / 7 职业预制体", CrewVisualPrefabBuilder.BuildAll),
                 new Step("⑥.5 水面障碍图烘焙（⑦ 的 WaterSimulationDriver 要引用它）", WaterAssetBuilder.BakeObstacleMap),
                 new Step("⑦ 战斗场景（含 1-3 项接线 + 水体组件）", M2BattleSceneSetup.BuildAll),
+                new Step("⑦.5 空岛样板件摆入战斗场景（第 3 关地面）", FloatingIslandShowcaseMenu.PlaceIntoBattleCenter),
                 new Step("⑧ 小地图增量接线", HudMinimapSceneSetup.WireMinimap),
                 new Step("⑨ M1 菜单 / 引导场景", SceneSetup.BuildAll),
                 new Step("⑩ M3 管理场景（必须最后，重写 Build Settings）", M3SceneSetup.BuildAll),
+                new Step("⑩.5 WorldKit 资产表 + 海面材质接线（链尾收口）", WorldMapAssetSetBuilder.BuildAll),
             };
 
             var failures = new List<string>();

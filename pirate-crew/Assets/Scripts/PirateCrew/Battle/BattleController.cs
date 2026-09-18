@@ -56,8 +56,8 @@ namespace PirateCrew.PirateCrew.Battle
         [SerializeField] CrewVisualPrefabEntry[] crewVisualPrefabs = new CrewVisualPrefabEntry[0];
         [SerializeField] Transform team0Root;
         [SerializeField] Transform team1Root;
-        [Tooltip("旧水面物体（承载常驻的 WaterSimulationDriver 水模拟）。世界地图模式下只定向禁用其"
-                 + "MeshRenderer/WaterTessellator，物体保持活跃；运行时把 y 设为水位（§5.5）。")]
+        [Tooltip("水面物体（承载常驻的 WaterSimulationDriver 水模拟；其 MeshRenderer/WaterTessellator "
+                 + "已在装配期禁用，海面渲染统一走 OceanRig）。运行时只把 y 设为水位（§5.5）。")]
         [SerializeField] Transform waterPlane;
         [SerializeField] TurnManager turnManager;
         [SerializeField] AimThrowController aimController;
@@ -165,8 +165,7 @@ namespace PirateCrew.PirateCrew.Battle
                 waterPlane.position = p;
             }
 
-            if (_worldMap != null)
-                SetupWorldMapEnvironment();
+            SetupBattleEnvironment();
 
             EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(LevelNumber, TeamCount));
 
@@ -296,44 +295,47 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>
-        /// M4 世界地图的环境接线（Start 调用）：大海域海面（<see cref="Water.OceanRig"/> 替换旧
-        /// Water Cube，落水死亡仍是纯 Y 阈值判定，不依赖水面碰撞）、相机全景档随地图跨度、
-        /// 远裁剪保住 4200u 远场裙边、氛围档按地图定义。
+        /// 战斗环境接线（Start 调用，**所有内容来源统一走这一条路径**）：
+        /// 大海域海面（<see cref="Water.OceanRig"/> 圆盘，世界图按图幅、样板关按竞技场外扩）、
+        /// 水模拟域重配（障碍掩码按本局地形实时烘）。落水死亡仍是纯 Y 阈值判定，不依赖水面碰撞。
         ///
-        /// 【水模拟契约】旧 waterPlane 只做**定向退役**（禁 MeshRenderer/WaterTessellator 两个组件，
-        /// GameObject 保持活跃，见 <see cref="RetireLegacyWaterPlane"/>），并把常驻的
-        /// <see cref="Water.WaterSimulationDriver"/> 模拟域重配到本地图：域心 = 图心
-        /// (SpanX/2, SpanZ/2)、域边长随最大跨度（<see cref="Water.WaterSimulationDriver.ConfigureWorldDomain"/>，
-        /// 纯函数规则在 <see cref="Water.WaterSimRules.WorldDomainSizeForSpan"/>，clamp [128, 256]）。
+        /// 【退役器为何删除（2026-09-19，管线合并前置）】旧场景靠运行时退役器藏一代残留
+        /// （Seabed_* 海床 / 烘焙小地图瓦层 / 旧水面渲染）。场景重烘后：装配器已不产 Seabed_* 与
+        /// 烘焙瓦层，旧水面的 Renderer/WaterTessellator 在 <c>M2BattleSceneSetup.CreateWaterPlane</c>
+        /// 烘焙期就置为禁用——渲染退役在场景层落实，运行时不再需要任何"定向隐藏"逻辑。
+        ///
+        /// 【水模拟契约】<c>Water.WaterSimulationDriver</c> 常驻（其物体失活会触发 OnDisable 清
+        /// <c>_WaterSimEnabled</c>，高度场路径整体静默失效，所以驱动必须活跃），模拟域按本局重配：
+        /// 域心 = 图心、域边长随最大跨度（<see cref="Water.WaterSimRules.WorldDomainSizeForSpan"/>，
+        /// clamp [128, 256]）；地形栅格传入后障碍掩码按站面实时烘，涟漪在岛缘反射、不再穿岛。
         /// 直接组件调用沿用 <c>Water.OceanRig.Create</c> / <c>Water.WaterSimulationDriver.InjectSplash</c>
         /// 的先例，不做 GameObject.Find。
         /// </summary>
-        void SetupWorldMapEnvironment()
+        void SetupBattleEnvironment()
         {
-            RetireLegacyWaterPlane();
-            RetireLegacySeabedShelves();
+            // 域尺寸：世界图取图幅，样板关取出战计划的竞技场（单位一致，1 格 = 2u）。
+            float spanX = _worldMap != null ? _worldMap.SpanX : _plan.WidthTiles * LevelGeometry.TileWorldSize;
+            float spanZ = _worldMap != null ? _worldMap.SpanZ : _plan.DepthTiles * LevelGeometry.TileWorldSize;
+            var arenaCenter = new Vector2(spanX * 0.5f, spanZ * 0.5f);
 
             // 水模拟域重配（装配期一次）：驱动常驻后其 Awake 推出的默认域仍钉在旧竞技场口径，
-            // 需要显式搬到世界地图图心；Instance 为空（未接线）时静默跳过，不阻塞装配。
-            // 地形栅格（Awake → BuildTerrain 已建）一并传入：障碍掩码按世界图站面实时烘，
+            // 需要显式搬到本局图心；Instance 为空（未接线）时静默跳过，不阻塞装配。
+            // 地形栅格（Awake → BuildTerrain 已建）一并传入：障碍掩码按站面实时烘，
             // 涟漪在岛缘反射、不再穿岛（视觉审计 §四.2）。
             if (Water.WaterSimulationDriver.Instance != null)
             {
                 Water.WaterSimulationDriver.Instance.ConfigureWorldDomain(
-                    new Vector2(_worldMap.SpanX * 0.5f, _worldMap.SpanZ * 0.5f),
-                    Mathf.Max(_worldMap.SpanX, _worldMap.SpanZ),
+                    arenaCenter,
+                    Mathf.Max(spanX, spanZ),
                     Terrain,
                     LevelGeometry.WaterSurfaceY,
                     _plan.WidthTiles * LevelGeometry.TileWorldSize,
                     _plan.DepthTiles * LevelGeometry.TileWorldSize);
             }
 
-            HideBakedMinimapTiles();
-
             Water.OceanRig.Create(
                 Water.OceanConfig.ForArena(
-                    new Vector2(_worldMap.SpanX * 0.5f, _worldMap.SpanZ * 0.5f),
-                    _worldMap.SpanX * 0.5f, _worldMap.SpanZ * 0.5f),
+                    arenaCenter, spanX * 0.5f, spanZ * 0.5f),
                 material: worldOceanMaterial,
                 parent: transform,
                 followCamera: battleCamera != null ? battleCamera.GetComponent<Camera>() : null);
@@ -341,78 +343,29 @@ namespace PirateCrew.PirateCrew.Battle
             Camera cam = battleCamera != null ? battleCamera.GetComponent<Camera>() : Camera.main;
             if (cam != null)
                 cam.farClipPlane = Mathf.Max(cam.farClipPlane, 4500f);
-            if (battleCamera != null)
-                battleCamera.SetWorldSpan(Mathf.Max(_worldMap.SpanX, _worldMap.SpanZ));
 
-            var ambientDirector = FindObjectOfType<Ambient.AmbientDirector>();
-            if (ambientDirector != null)
+            // 大地图专属：全景档随图幅 + 氛围档按地图定义（样板关保持场景烘焙的正午档与既有相机边界）。
+            if (_worldMap != null)
             {
-                Ambient.AmbientTimeOfDay tier = Ambient.AmbientTimeOfDay.Noon;
-                if (string.Equals(_worldMap.AmbientTier, "Dusk", StringComparison.OrdinalIgnoreCase))
-                    tier = Ambient.AmbientTimeOfDay.Dusk;
-                else if (string.Equals(_worldMap.AmbientTier, "Storm", StringComparison.OrdinalIgnoreCase))
-                    tier = Ambient.AmbientTimeOfDay.Overcast;
-                ambientDirector.SetTimeOfDay(tier);
+                if (battleCamera != null)
+                    battleCamera.SetWorldSpan(Mathf.Max(spanX, spanZ));
+                SetupWorldMapAmbient();
             }
         }
 
-        /// <summary>
-        /// 定向退役旧水面：只禁 MeshRenderer 与 <see cref="Water.WaterTessellator"/>（enabled = false），
-        /// **不关 GameObject**——同物体上的 <see cref="Water.WaterSimulationDriver"/> 是新海洋 shader
-        /// 高度场全局变量（涟漪/泡沫累积/障碍绕射）的唯一发布者，整物体失活会连带停掉它并触发其
-        /// OnDisable 把 <c>_WaterSimEnabled</c> 清 0，高度场路径整体静默失效，所以驱动必须常驻。
-        /// 物体上没有碰撞体（Transform/Filter/Renderer/Tessellator/Driver 五件套），保持活跃不会挡
-        /// 瞄准/爆炸射线；渲染与逐帧细分随两个组件停用，无残留开销。带 null 容错：旧场景缺某个组件
-        /// 时静默跳过。旧竞技场模式不进世界地图分支、不走本方法，水面行为完全不变。
-        /// </summary>
-        void RetireLegacyWaterPlane()
+        /// <summary>世界图的氛围档接线：Storm→Overcast、Dusk→Dusk、其余→Noon。</summary>
+        void SetupWorldMapAmbient()
         {
-            if (waterPlane == null)
+            var ambientDirector = FindObjectOfType<Ambient.AmbientDirector>();
+            if (ambientDirector == null)
                 return;
 
-            Renderer legacyRenderer = waterPlane.GetComponent<Renderer>();
-            if (legacyRenderer != null)
-                legacyRenderer.enabled = false;
-
-            Water.WaterTessellator legacyTessellator = waterPlane.GetComponent<Water.WaterTessellator>();
-            if (legacyTessellator != null)
-                legacyTessellator.enabled = false;
-        }
-
-        /// <summary>
-        /// M2 海床浅台的世界地图退役（地图审计 §二.5"矩形海床板穿帮"的修复）：
-        /// <c>M2BattleSceneSetup.CreateSeabedShelves</c> 烘焙的矩形台阶（命名前缀 <c>Seabed_</c>：
-        /// L0–L4 + Far，根级无父节点）在世界地图的全景/俯视机位下显形为硬边矩形接缝，
-        /// 把泻湖读成土黄色。按前缀禁用即可——Battle 场景按 Single 模式整载重载，
-        /// 旧 33 关进图时烘焙物自动恢复，无需还原逻辑。
-        /// 【命名契约】新增海床件必须遵守 <c>Seabed_</c> 前缀，否则世界图模式漏关。
-        /// </summary>
-        void RetireLegacySeabedShelves()
-        {
-            const string SeabedPrefix = "Seabed_";
-            var scene = gameObject.scene;
-            var roots = scene.GetRootGameObjects();
-            for (int i = 0; i < roots.Length; i++)
-            {
-                if (roots[i].name.StartsWith(SeabedPrefix, StringComparison.Ordinal))
-                    roots[i].SetActive(false);
-            }
-        }
-
-        /// <summary>
-        /// 世界地图模式下隐藏烘焙的 IslandLayer 小地图底板——它按原版关卡网格烘死（IslandTile_*），
-        /// 与世界地图的栅格不符；小地图的帧框与运行时单位点不受影响。同场景一次性清理，非跨模块引用。
-        /// </summary>
-        void HideBakedMinimapTiles()
-        {
-            foreach (var image in FindObjectsOfType<UnityEngine.UI.Image>(true))
-            {
-                if (image.name.StartsWith("IslandTile_") && image.transform.parent != null)
-                {
-                    image.transform.parent.gameObject.SetActive(false);
-                    return; // 全部 IslandTile_* 同属一层，关掉父级一次即可
-                }
-            }
+            Ambient.AmbientTimeOfDay tier = Ambient.AmbientTimeOfDay.Noon;
+            if (string.Equals(_worldMap.AmbientTier, "Dusk", StringComparison.OrdinalIgnoreCase))
+                tier = Ambient.AmbientTimeOfDay.Dusk;
+            else if (string.Equals(_worldMap.AmbientTier, "Storm", StringComparison.OrdinalIgnoreCase))
+                tier = Ambient.AmbientTimeOfDay.Overcast;
+            ambientDirector.SetTimeOfDay(tier);
         }
 
         /// <summary>
