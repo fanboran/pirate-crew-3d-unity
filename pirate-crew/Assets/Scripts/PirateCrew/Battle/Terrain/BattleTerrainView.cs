@@ -1,31 +1,22 @@
 using System;
-using System.Collections.Generic;
-using PirateCrew.PirateCrew.SceneArt;
 using UnityEngine;
 
 namespace PirateCrew.PirateCrew.Battle
 {
     /// <summary>
-    /// 瓦片地形的场景视图（MonoBehaviour 薄壳）：把纯 C# 的 <see cref="TileTerrainGrid"/> 渲染成
-    /// **有倒角/岩层/裙边的海岛地块壳**，并在爆炸破坏后同步更新。
+    /// 瓦片地形的场景视图（MonoBehaviour 薄壳）：把纯 C# 的 <see cref="TileTerrainGrid"/>
+    /// 落成**隐形碰撞层**——每实心格一个 Cube + BoxCollider（Renderer 关闭），是单位与弹体的
+    /// 物理地面。视觉层不在本类：样板三关外观由烘焙 prefab（<c>RuntimeSceneArt</c>）承担，
+    /// 世界图外观由 <c>WorldMapComposer</c> 的 kit 件与站面承担。
     ///
-    /// 【分层（视觉层与碰撞层解耦，方案见 <c>docs/场景设计-战斗竞技场.md</c> §3.1/§9.1）】
-    ///   · 碰撞层：每实心格一个 Cube + BoxCollider，**Renderer 关闭**（不可见但仍是单位的物理地面）；
-    ///   · 视觉层：由 <see cref="IslandShellGeometry"/> 生成的"台地壳"——顶面与该格
-    ///     <see cref="TileTerrainGrid.SurfaceWorldY"/> 严格等高（偏差 ≤ ±0.02）、边缘 0.15 宽 45° 倒角、
-    ///     侧面 3 段岩层、同列沿 Z 的剪影扰动、边界台地外侧下延成裙边（到 y=-0.6）；
-    ///     0 块列（原版水道列）另铺一层湿沙"潮沟"贴片。
-    ///   · 高度/破坏/归一化等规则全部仍在 <see cref="TileTerrainGrid"/> 与
-    ///     <see cref="TerrainCatalog"/>（纯 C#，可无头测试）；本类不含任何数值推导。
+    /// 【一代视觉壳为何删除（2026-09-19，管线合并阶段 D）】旧"台地壳/潮沟/平台底部"路径由
+    /// <c>IslandShellGeometry</c> 在运行时逐格生成合并网格——该几何生成器已随糖豆人式资产架构
+    /// 改岗为编辑器烘焙器（<c>Assets/Editor/SceneArtBaker.cs</c>），运行时程序集不再含几何生成代码，
+    /// 本类的视觉路径随之退役（<c>Render</c>/<c>ApplyDestruction</c> 退役前已无调用方——
+    /// 一代退场后战斗只有世界图与样板三关两条路，都不建格子渲染层）。
     ///
-    /// 【为什么整块合成一个网格】每关实心格约 700 个，若每格一个 Renderer 就是约 700 个 DrawCall
-    ///   （预算见场景文档 §8：≤250）。故把全部格合成 **1 个网格**（同类共材质），
-    ///   破坏时整块重建（爆炸是回合制下的低频事件，重建约几毫秒，可接受）。
-    ///   代价：失去逐格视锥剔除（合并网格只有一个包围盒）。三角面总量约 3 万，桌面 1080p 无压力。
-    ///
-    /// 【接线】由 <c>M2BattleSceneSetup</c> 在场景里创建并接好 <c>blockRoot</c> / <c>blockMaterial</c>；
-    ///   运行时由 <c>BattleController.Awake</c> 调 <see cref="Render"/>，爆炸时调 <see cref="ApplyDestruction"/>。
-    ///   <c>wetMaterial</c> 由 <c>SceneArtBuilder</c> 可选接管（潮沟湿沙），为空时回落 <c>blockMaterial</c>。
+    /// 【接线】由 <c>M2BattleSceneSetup</c> 在场景里创建并接好 <c>blockRoot</c>；
+    /// 运行时由 <c>BattleController.BuildTerrain</c> 调 <see cref="RenderCollidersOnly"/>。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class BattleTerrainView : MonoBehaviour
@@ -34,62 +25,23 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("地形块父节点；为空时用本物体 transform。")]
         [SerializeField] Transform blockRoot;
 
-        [Tooltip("地形块材质；为空时运行时用 URP/Lit 建一个兜底材质。视觉壳与碰撞块共用。")]
-        [SerializeField] Material blockMaterial;
-
-        [Tooltip("潮沟（0 块列）湿沙材质；为空时回落 blockMaterial。场景烘焙时可选接线。")]
-        [SerializeField] Material wetMaterial;
-
-        [Tooltip("是否用海岛地块壳替换方块外观（关闭则回到「每格一个可见立方体」）。")]
-        [SerializeField] bool enableVisualShell = true;
-
-        [Tooltip("是否由运行时视图生成平台底部（船体/岩锥）。场景美术已在构建期生成底部时应关闭，避免重复几何。")]
-        [SerializeField] bool buildUnderside = true;
-
         // 运行时的纯 C# 网格（非 UnityEngine.Object，不进 Inspector；由 BattleController 注入）。
         TileTerrainGrid grid;
 
         GameObject[] _cellObjects = new GameObject[0];
-        Material _fallbackMaterial;
-
-        // 视觉壳（合并网格）：整块地形 1 个 MeshRenderer，破坏时整块重建。
-        GameObject _shellObject;
-        MeshFilter _shellFilter;
-        MeshRenderer _shellRenderer;
-        Mesh _shellMesh;
-
-        // 潮沟湿沙贴片（0 块列）。
-        GameObject _lowZoneObject;
-        MeshFilter _lowZoneFilter;
-        MeshRenderer _lowZoneRenderer;
-        Mesh _lowZoneMesh;
-
-        // 悬空平台底部（船体侧板+龙骨 / 岩锥 / 岩层）：单个合并网格。
-        GameObject _underShellObject;
-        MeshFilter _underShellFilter;
-        MeshRenderer _underShellRenderer;
-        Mesh _underShellMesh;
-
-        // 复用缓冲，避免每次破坏都产生大数组垃圾。
-        readonly List<Vector3> _vertexScratch = new List<Vector3>(60000);
-        readonly List<Vector3> _normalScratch = new List<Vector3>(60000);
-        readonly List<int> _indexScratch = new List<int>(120000);
 
         int _version;
 
-        /// <summary>视觉壳参数（= 场景文档 §3.1 的取值；见 <see cref="IslandShellSettings.Default"/>）。</summary>
-        static IslandShellSettings ShellSettings => IslandShellSettings.Default;
-
-        /// <summary>当前地形网格；未 <see cref="Render"/> 前为 null。</summary>
+        /// <summary>当前地形网格；未渲染前为 null。</summary>
         public TileTerrainGrid Grid => grid;
 
         /// <summary>地形变化计数（小地图等只在变化时刷新）。</summary>
         public int Version => _version;
 
-        /// <summary>地形发生变化（初次渲染 / 破坏后）时触发。同场景内直接订阅，不走 EventBus。</summary>
+        /// <summary>地形发生变化（初次渲染/重建）时触发。同场景内直接订阅，不走 EventBus。</summary>
         public event Action Changed;
 
-        /// <summary>已建出的碰撞地形块数量（调试/测试用）；视觉壳不计入。</summary>
+        /// <summary>已建出的碰撞地形块数量（调试/测试用）。</summary>
         public int BlockObjectCount
         {
             get
@@ -105,15 +57,6 @@ namespace PirateCrew.PirateCrew.Battle
             }
         }
 
-        /// <summary>视觉壳的三角面数（报告/性能自证用；未建壳时为 0）。</summary>
-        public int ShellTriangleCount { get; private set; }
-
-        /// <summary>潮沟贴片的三角面数。</summary>
-        public int LowZoneTriangleCount { get; private set; }
-
-        /// <summary>悬空平台底部的三角面数（船体/岩锥/岩层）。</summary>
-        public int UndersideTriangleCount { get; private set; }
-
         /// <summary>该格当前堆叠块数（小地图点阵用）；无网格时返回 0。</summary>
         public int BlocksAtCell(int cellIndex)
         {
@@ -123,43 +66,8 @@ namespace PirateCrew.PirateCrew.Battle
         }
 
         /// <summary>
-        /// 按网格重建全部地形（幂等：先清旧物）。由 <c>BattleController.Awake</c> 调用。
-        /// </summary>
-        public void Render(TileTerrainGrid terrainGrid)
-        {
-            grid = terrainGrid;
-            ClearAll();
-
-            if (grid == null)
-            {
-                Bump();
-                return;
-            }
-
-            Transform root = blockRoot != null ? blockRoot : transform;
-            _cellObjects = new GameObject[grid.WidthTiles * grid.DepthTiles];
-
-            for (int gy = 0; gy < grid.DepthTiles; gy++)
-            {
-                for (int gx = 0; gx < grid.WidthTiles; gx++)
-                {
-                    int index = gx + gy * grid.WidthTiles;
-                    if (grid.BlocksAt(gx, gy) <= 0)
-                        continue;
-
-                    _cellObjects[index] = CreateCollisionBlock(root, index);
-                }
-            }
-
-            if (enableVisualShell)
-                RebuildVisualShell(root);
-
-            Bump();
-        }
-
-        /// <summary>
-        /// 样板三关模式：只建**碰撞层**（每实心格一个隐形 Cube+BoxCollider，单位与弹体的物理地面），
-        /// 不建格子视觉壳——外观全部由 ShowcaseLevels 的自由几何承担（玩家看不到任何格子）。
+        /// 只建**碰撞层**（每实心格一个隐形 Cube+BoxCollider，单位与弹体的物理地面），
+        /// 不建视觉——外观由烘焙件承担（样板三关玩家看不到任何格子）。幂等：先清旧物。
         /// </summary>
         public void RenderCollidersOnly(TileTerrainGrid terrainGrid)
         {
@@ -190,65 +98,12 @@ namespace PirateCrew.PirateCrew.Battle
             Bump();
         }
 
-        /// <summary>
-        /// 爆炸破坏后刷新被摧毁的格（高度归零 → 移除碰撞块并重建视觉壳）。
-        /// </summary>
-        public void ApplyDestruction(IReadOnlyList<int> cellIndices)
-        {
-            if (grid == null || cellIndices == null || cellIndices.Count == 0)
-                return;
-
-            Transform root = blockRoot != null ? blockRoot : transform;
-            bool any = false;
-
-            for (int i = 0; i < cellIndices.Count; i++)
-            {
-                int index = cellIndices[i];
-                if (index < 0 || index >= _cellObjects.Length)
-                    continue;
-
-                any = true;
-                GameObject existing = _cellObjects[index];
-
-                if (grid.BlocksAt(grid.CellXOf(index), grid.CellYOf(index)) <= 0)
-                {
-                    // 整格已摧毁：移除碰撞块（回到基础地面）。
-                    if (existing != null)
-                        DestroyUnityObject(existing);
-                    _cellObjects[index] = null;
-                }
-                else
-                {
-                    // 逐块递减：复用/重建该格的碰撞块并改高度。
-                    if (existing == null)
-                    {
-                        existing = CreateCollisionBlock(root, index);
-                        _cellObjects[index] = existing;
-                    }
-                    else
-                    {
-                        ApplyBlockTransform(existing, index);
-                    }
-                }
-            }
-
-            if (!any)
-                return;
-
-            // 视觉壳随破坏同步降高/消失（场景文档 §9.1 的硬要求）。
-            if (enableVisualShell)
-                RebuildVisualShell(root);
-
-            Bump();
-        }
-
         // ------------------------------------------------------------------
         // 碰撞层
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 碰撞块：仍是 Cube + BoxCollider（单位的物理地面，<c>BattleController.cs:253-257</c> 依赖它），
-        /// 但 **Renderer 关闭** —— 外观交给视觉壳。
+        /// 碰撞块：Cube + BoxCollider（单位的物理地面），**Renderer 关闭**——外观交给烘焙件。
         /// </summary>
         GameObject CreateCollisionBlock(Transform root, int index)
         {
@@ -273,7 +128,7 @@ namespace PirateCrew.PirateCrew.Battle
             if (height < 0.01f)
                 height = 0.01f;   // 防御：0 高度会让 PhysX 产生退化碰撞体
 
-            // 1 格 = LevelGeometry.TileWorldSize 世界单位（格 1→2 单位后碰撞块边长随之放大，与视觉壳同口径）。
+            // 1 格 = LevelGeometry.TileWorldSize 世界单位。
             float size = LevelGeometry.TileWorldSize;
             go.transform.localScale = new Vector3(size, height, size);
             Vector2 center = LevelGeometry.TileCenterWorld(gx, gy);
@@ -283,161 +138,9 @@ namespace PirateCrew.PirateCrew.Battle
                 center.y);
         }
 
-        // ------------------------------------------------------------------
-        // 视觉层（海岛地块壳）
-        // ------------------------------------------------------------------
-
-        void RebuildVisualShell(Transform root)
-        {
-            // ---- 实心格：台地壳 ----
-            MeshBuffers shell = IslandShellGeometry.BuildSolidShell(grid, ShellSettings);
-            ApplyBuffers(EnsureShellMesh(root), _shellRenderer, shell, ResolveShellMaterial());
-            ShellTriangleCount = shell.TriangleCount;
-            ApplyShellShaderTuning();
-
-            // ---- 0 块列：湿沙潮沟贴片（平台化后仅列式旧地形的平地面格） ----
-            MeshBuffers low = IslandShellGeometry.BuildLowZone(grid, ShellSettings.LowPlateYOffset);
-            ApplyBuffers(EnsureLowZoneMesh(root), _lowZoneRenderer, low, ResolveWetMaterial());
-            LowZoneTriangleCount = low.TriangleCount;
-
-            // ---- 悬空平台底部：船体 / 岩锥 / 岩层（场景美术已生成时由 buildUnderside 关闭） ----
-            if (buildUnderside)
-            {
-                var under = new MeshBuffers();
-                IslandShellGeometry.AddPlatformUnderside(under, grid, ShellSettings);
-                // 目标渲染器必须显式传：旧签名 isShell:false 会把材质写到 lowZone，
-                // underside 渲染器保持空材质 → 播放器构建里落到 URP 默认材质（构建缺席）
-                // → error 洋红（r3 岸线连续洋红带根因，98.5% 像素归因见 external/harness-magenta/）。
-                ApplyBuffers(EnsureUnderShellMesh(root), _underShellRenderer, under, ResolveShellMaterial());
-                UndersideTriangleCount = under.TriangleCount;
-            }
-            else
-            {
-                UndersideTriangleCount = 0;
-            }
-        }
-
-        Mesh EnsureUnderShellMesh(Transform root)
-        {
-            if (_underShellObject == null)
-            {
-                _underShellObject = new GameObject("TerrainUnderside");
-                _underShellObject.transform.SetParent(root, false);
-                _underShellFilter = _underShellObject.AddComponent<MeshFilter>();
-                _underShellRenderer = _underShellObject.AddComponent<MeshRenderer>();
-                _underShellMesh = new Mesh { name = "TerrainUndersideMesh" };
-                _underShellMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-                _underShellFilter.sharedMesh = _underShellMesh;
-
-                _underShellRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
-                _underShellRenderer.receiveShadows = true;
-                _underShellRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.BlendProbes;
-            }
-
-            return _underShellMesh;
-        }
-
-        Mesh EnsureShellMesh(Transform root)
-        {
-            if (_shellObject == null)
-            {
-                _shellObject = new GameObject("TerrainShell");
-                _shellObject.transform.SetParent(root, false);
-                _shellFilter = _shellObject.AddComponent<MeshFilter>();
-                _shellRenderer = _shellObject.AddComponent<MeshRenderer>();
-                _shellMesh = new Mesh { name = "TerrainShellMesh" };
-                _shellMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-                _shellFilter.sharedMesh = _shellMesh;
-
-                // 只受主光投影（场景文档 §8：全场唯一投影光源）。
-                _shellRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
-                _shellRenderer.receiveShadows = true;
-                _shellRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.BlendProbes;
-            }
-
-            return _shellMesh;
-        }
-
-        Mesh EnsureLowZoneMesh(Transform root)
-        {
-            if (_lowZoneObject == null)
-            {
-                _lowZoneObject = new GameObject("TerrainLowZone");
-                _lowZoneObject.transform.SetParent(root, false);
-                _lowZoneFilter = _lowZoneObject.AddComponent<MeshFilter>();
-                _lowZoneRenderer = _lowZoneObject.AddComponent<MeshRenderer>();
-                _lowZoneMesh = new Mesh { name = "TerrainLowZoneMesh" };
-                _lowZoneMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-                _lowZoneFilter.sharedMesh = _lowZoneMesh;
-
-                // 潮沟是"刚退潮的沙洼"：不投影（否则会在自己身上打出一层脏影）。
-                _lowZoneRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                _lowZoneRenderer.receiveShadows = true;
-            }
-
-            return _lowZoneMesh;
-        }
-
-        void ApplyBuffers(Mesh mesh, MeshRenderer target, MeshBuffers buffers, Material material)
-        {
-            _vertexScratch.Clear();
-            _normalScratch.Clear();
-            _indexScratch.Clear();
-            buffers.CopyTo(_vertexScratch, _normalScratch, _indexScratch);
-
-            mesh.Clear(false);
-            if (_vertexScratch.Count > 0)
-            {
-                mesh.SetVertices(_vertexScratch);
-                mesh.SetNormals(_normalScratch);
-                mesh.SetTriangles(_indexScratch, 0, true);
-            }
-
-            mesh.RecalculateBounds();
-
-            // 空材质 = 播放器构建里的粉色 error 方块（URP 默认材质不保证入构建），
-            // 材质解析失败宁可告警并隐藏，绝不留空。
-            if (target != null)
-            {
-                if (material != null)
-                {
-                    target.sharedMaterial = material;
-                }
-                else
-                {
-                    target.enabled = false;
-                    global::PirateCrew.Core.Log.Warn("[BattleTerrainView] 材质解析失败，" + target.name + " 已隐藏（粉色方块防线）。");
-                }
-            }
-        }
-
-        /// <summary>
-        /// 用 MaterialPropertyBlock（不改渲染波次生成的材质资产）把地形高度混合阈值调到
-        /// 与场景文档 §3.1 的高度分层表一致：1-2 块 = 干沙、3-5 块 = 岩沙过渡、6-8 块 = 礁岩。
-        /// **提案**：Environment 里的 <c>Terrain_Island</c> 材质默认 <c>_HeightSandGrass=0.6</c>、
-        /// <c>_HeightGrassRock=3.0</c>（那是渲染波次按"低平台"设的），按本关高度分布会整片变草；
-        /// 这里覆盖为 0.85 / 1.35，使 y≥1.5（6 块以上）读作岩、1 块读作沙。
-        /// 覆盖只作用于本 Renderer，材质资产本身不动。
-        /// </summary>
-        void ApplyShellShaderTuning()
-        {
-            if (_shellRenderer == null)
-                return;
-
-            var mpb = new MaterialPropertyBlock();
-            _shellRenderer.GetPropertyBlock(mpb);
-            mpb.SetFloat("_HeightSandGrass", 0.85f);
-            mpb.SetFloat("_HeightGrassRock", 1.35f);
-            _shellRenderer.SetPropertyBlock(mpb);
-        }
-
         void OnDestroy()
         {
-            // 组件销毁时 GameObject 层级由 Unity 收走，但运行时 new 的 Mesh / Material 是独立的
-            // 原生对象，不随场景卸载立即释放（要等 Resources.UnloadUnusedAssets）；这里显式销毁。
             ClearAll();
-            DestroyUnityObject(_fallbackMaterial);
-            _fallbackMaterial = null;
         }
 
         void ClearAll()
@@ -449,43 +152,6 @@ namespace PirateCrew.PirateCrew.Battle
             }
 
             _cellObjects = new GameObject[0];
-            ShellTriangleCount = 0;
-            LowZoneTriangleCount = 0;
-            UndersideTriangleCount = 0;
-
-            // 【资源泄漏防线】_shellMesh 等是运行时 new 的合并网格（数万顶点 UInt32），
-            // 只 Destroy 挂靠的 GameObject 不会销毁 Mesh 本体——每次 Render() 重建就泄一轮。
-            // 故随 GameObject 一起显式销毁（模式照抄 Ambient/AmbientLibrary.Dispose），
-            // 之后引用置 null 的既有逻辑不动。
-            if (_shellObject != null)
-            {
-                DestroyUnityObject(_shellObject);
-                DestroyUnityObject(_shellMesh);
-                _shellObject = null;
-                _shellFilter = null;
-                _shellRenderer = null;
-                _shellMesh = null;
-            }
-
-            if (_lowZoneObject != null)
-            {
-                DestroyUnityObject(_lowZoneObject);
-                DestroyUnityObject(_lowZoneMesh);
-                _lowZoneObject = null;
-                _lowZoneFilter = null;
-                _lowZoneRenderer = null;
-                _lowZoneMesh = null;
-            }
-
-            if (_underShellObject != null)
-            {
-                DestroyUnityObject(_underShellObject);
-                DestroyUnityObject(_underShellMesh);
-                _underShellObject = null;
-                _underShellFilter = null;
-                _underShellRenderer = null;
-                _underShellMesh = null;
-            }
         }
 
         /// <summary>
@@ -501,53 +167,6 @@ namespace PirateCrew.PirateCrew.Battle
                 UnityEngine.Object.Destroy(obj);
             else
                 UnityEngine.Object.DestroyImmediate(obj);
-        }
-
-        Material ResolveShellMaterial()
-        {
-            if (blockMaterial != null)
-                return blockMaterial;
-
-            return ResolveFallbackMaterial();
-        }
-
-        Material ResolveWetMaterial()
-        {
-            if (wetMaterial != null)
-                return wetMaterial;
-
-            return ResolveShellMaterial();
-        }
-
-        Material ResolveFallbackMaterial()
-        {
-            if (_fallbackMaterial != null)
-                return _fallbackMaterial;
-
-            // 兜底链顺序：URP/Lit 在播放器构建里**不保证入包**（r3 实测 globalgamemanagers 缺席，
-            // 无 .mat 引用它）；PirateSurface 在 Always Included 里（ArtGate ⓪ 步保证），
-            // 作为安全兜底一定可用。全部落空则返回 null——ApplyBuffers 会隐藏渲染器并告警，
-            // 绝不让空材质落到 URP 默认材质（构建缺席 = 粉色方块）。
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-            if (shader == null)
-                shader = Shader.Find("PirateCrew/PirateSurface");
-            if (shader == null)
-                shader = Shader.Find("Standard");
-            if (shader == null)
-            {
-                global::PirateCrew.Core.Log.Warn("[BattleTerrainView] 兜底 shader 全部落空，地形视觉层隐藏。");
-                return null;
-            }
-            _fallbackMaterial = new Material(shader) { name = "TerrainFallback" };
-
-            // 与 URP/Lit / PirateSurface / Standard 的属性名都兼容。
-            Color sand = new Color(0.62f, 0.52f, 0.38f, 1f);
-            if (_fallbackMaterial.HasProperty("_BaseColor"))
-                _fallbackMaterial.SetColor("_BaseColor", sand);
-            if (_fallbackMaterial.HasProperty("_Color"))
-                _fallbackMaterial.SetColor("_Color", sand);
-
-            return _fallbackMaterial;
         }
 
         void Bump()
