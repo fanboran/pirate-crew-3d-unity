@@ -3,6 +3,7 @@ using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
 using PirateCrew.PirateCrew.Battle;
+using PirateCrew.PirateCrew.Battle.WorldMaps;
 
 namespace PirateCrew.Tests
 {
@@ -174,6 +175,76 @@ namespace PirateCrew.Tests
             CampaignApi.Reset();
 
             Assert.That(BattleLaunchContext.HasPending, Is.False);
+        }
+    }
+
+    /// <summary>
+    /// 双通道互斥：待战世界地图（<see cref="WorldMapRuntime"/>）与战役出征注入
+    /// （<see cref="BattleLaunchContext"/>）写入侧必须互斥清对方——
+    /// 否则「打完海图 → 回选关 → 选战役关」会因海图待战未清而再次加载海图。
+    /// </summary>
+    public class WorldMapCampaignInterlockTests
+    {
+        [SetUp]
+        public void SetUp()
+        {
+            EventBus.ClearAll();
+            CampaignApi.Reset();
+            WorldMapRuntime.ClearPending();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            WorldMapRuntime.ClearPending();
+            CampaignApi.Reset();
+            EventBus.ClearAll();
+        }
+
+        [Test]
+        public void SetWorldMapPending_ClearsCampaignInjection()
+        {
+            BattleLaunchContext.SetPending(5, "level_05", new[] { "redPirate" });
+
+            Assert.That(WorldMapRuntime.SetPending("wreck_hymn"), Is.True);
+
+            Assert.That(WorldMapRuntime.TryGetPending(out WorldMapDefinition map), Is.True);
+            Assert.That(map.Id, Is.EqualTo("wreck_hymn"));
+            Assert.That(BattleLaunchContext.HasPending, Is.False,
+                "出海必须丢弃陈旧战役注入，否则战役侧留着一局永不打的待战关卡");
+        }
+
+        [Test]
+        public void SetWorldMapPending_InvalidId_RejectsWithoutTouchingCampaign()
+        {
+            BattleLaunchContext.SetPending(5, "level_05", new[] { "redPirate" });
+
+            Assert.That(WorldMapRuntime.SetPending("no_such_map"), Is.False);
+
+            Assert.That(WorldMapRuntime.TryGetPending(out _), Is.False);
+            Assert.That(BattleLaunchContext.HasPending, Is.True, "选图失败不应误清战役注入");
+        }
+
+        [Test]
+        public void SelectLevel_ClearsWorldMapPending()
+        {
+            Assert.That(WorldMapRuntime.SetPending("wreck_hymn"), Is.True);
+
+            Assert.That(CampaignApi.SelectLevel("level_01"), Is.True);
+
+            Assert.That(WorldMapRuntime.TryGetPending(out _), Is.False,
+                "选战役关必须丢掉陈旧海图待战，否则战斗侧按优先级仍会加载海图");
+            Assert.That(BattleLaunchContext.HasPending, Is.True);
+        }
+
+        [Test]
+        public void CampaignReset_ClearsWorldMapPending()
+        {
+            Assert.That(WorldMapRuntime.SetPending("atoll_ring"), Is.True);
+
+            CampaignApi.Reset();
+
+            Assert.That(WorldMapRuntime.TryGetPending(out _), Is.False);
         }
     }
 }

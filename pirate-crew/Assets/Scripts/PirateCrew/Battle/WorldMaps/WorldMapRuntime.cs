@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PirateCrew.Core;
 using PirateCrew.PirateCrew.Data;
 using UnityEngine;
 
@@ -7,13 +8,18 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
     /// <summary>
     /// 世界地图的运行时入口：待战状态、命令行解析、<see cref="BattlePlan"/> 构建。
     ///
-    /// 【进图途径】① 程序调用 <see cref="SetPending"/>（未来的选关 UI 走这条）；
+    /// 【进图途径】① 程序调用 <see cref="SetPending"/>（选关 UI 的「大海域」页签走这条）；
     /// ② 播放器/批处理命令行 <c>-worldMap &lt;id&gt;</c>（无头捕图与试玩验证走这条，
     ///    与 ArtReview 的 <c>-artReviewLevel</c> 同风格，但优先级低于它）。
     ///
     /// 【与 BattleController 的契约】BuildPlan 优先级：ArtReview 覆盖 &gt; 世界地图 &gt; 场景 level 资产
     /// &gt; CampaignApi 待战关 &gt; fallback；世界地图激活时 BuildTerrain 走栅格化块表、
     /// RebuildSceneArt 与爆炸破坏全部跳过（<see cref="WorldMapComposer"/> 负责表现层）。
+    ///
+    /// 【双通道互斥】待战世界地图（本类）与战役出征注入（<see cref="BattleLaunchContext"/>）
+    /// 是两条平行的进战斗通道：优先级已保证同持时世界地图胜出，但**写入侧必须互斥清对方**——
+    /// <see cref="SetPending"/> 清战役注入、<c>CampaignApi.SelectLevel</c> 清本类待战，
+    /// 否则「打完海图再选战役关」会因海图待战未清而再次加载海图（通道生命周期见各自注释）。
     /// </summary>
     public static class WorldMapRuntime
     {
@@ -22,16 +28,32 @@ namespace PirateCrew.PirateCrew.Battle.WorldMaps
         static string _pendingMapId;
         static bool _commandLineScanned;
 
-        /// <summary>设定待战世界地图（id 不存在时返回 false，不改动现状）。</summary>
+        /// <summary>
+        /// 设定待战世界地图（id 不存在时返回 false，不改动现状——含不清战役注入）。
+        /// 成功即清战役出征注入（双通道互斥，见类注释）。
+        /// </summary>
         public static bool SetPending(string mapId)
         {
             if (!WorldMapCatalog.TryGet(mapId, out _))
                 return false;
             _pendingMapId = mapId;
+            BattleLaunchContext.Clear();
             return true;
         }
 
         public static void ClearPending() => _pendingMapId = null;
+
+        /// <summary>
+        /// 关闭 Domain Reload 时静态字段不会自动清空，进入播放前强制重置
+        /// （与 <c>BattleLaunchContext.ResetOnEnterPlayMode</c> 同一手法）；
+        /// 命令行扫描标志一并复位，让每次播放重新解析 <c>-worldMap</c>。
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetOnEnterPlayMode()
+        {
+            ClearPending();
+            _commandLineScanned = false;
+        }
 
         /// <summary>
         /// 取当前待战地图（命令行 <c>-worldMap</c> 优先，其次 <see cref="SetPending"/>）。

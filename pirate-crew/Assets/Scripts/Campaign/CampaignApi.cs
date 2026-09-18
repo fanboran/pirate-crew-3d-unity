@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
 using PirateCrew.PirateCrew.Battle;
+using PirateCrew.PirateCrew.Battle.WorldMaps;
 using PirateCrew.PirateCrew.Data;
 using UnityEngine;
 
@@ -122,6 +123,10 @@ namespace PirateCrew.Campaign
                 return false;
 
             _campaignBattleRequested = true;
+
+            // 双通道互斥（见 WorldMapRuntime 类注释）：选战役关时丢掉陈旧的海图待战，
+            // 否则「打完海图 → 回选关 → 选战役关」仍会因海图待战未清而再次加载海图。
+            WorldMapRuntime.ClearPending();
 
             CampaignLevel level = CampaignCatalog.Get(levelId);
 
@@ -364,7 +369,9 @@ namespace PirateCrew.Campaign
             LastSettlement = null;
             LastReward = null;
             // 出征注入与「待战关卡」同生命周期：Reset 不清会让下一局加载上一局选过的竞技场。
+            // 海图待战同批清（双通道互斥的另一侧，测试域隔离也需要）。
             BattleLaunchContext.Clear();
+            WorldMapRuntime.ClearPending();
         }
 
         /// <summary>
