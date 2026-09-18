@@ -8,7 +8,7 @@
 
 [![Unity](https://img.shields.io/badge/Unity-2022.3-black?logo=unity)](https://unity.com)
 [![URP](https://img.shields.io/badge/%E6%B8%B2%E6%9F%93-URP_14%E5%86%99%E5%AE%9EPBR-blue)](https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@14)
-[![Tests](https://img.shields.io/badge/%E6%B5%8B%E8%AF%95-1027%E6%9D%A1%E5%85%A8%E7%BB%BF-green)](#质量工程)
+[![Tests](https://img.shields.io/badge/%E6%B5%8B%E8%AF%95-1157%E6%9D%A1%E5%85%A8%E7%BB%BF-green)](#质量工程)
 [![Release](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-v1.0.0-orange)](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v1.0.0)
 
 ---
@@ -62,7 +62,7 @@
 
 - **回合规则忠实原版**：每回合一名角色行动，先跳一次再攻击；开火即交回合；落水即死——全部逐条对齐原版反编译结论（见[逆向文档](docs/参考游戏逆向-海盗军团抢宝藏-静态.md)）
 - **AI 对手**：原版行为模型——自抛 50 次模拟落点、评估命中/落水/地形收益，还会记仇（evilness 加权）；也可切换 2P 同屏热座
-- **海盗生涯循环**：港口招募 → 编成出战小队 → 选关 → 星级结算 → 存档
+- **海盗生涯循环**：港口招募 → 编成出战小队 → 选图出海 → 星级结算 → 存档（大海域 8 张海图全部可出战，招募按累计星数解锁）
 
 ## 🎯 预览 = 实弹
 
@@ -82,7 +82,7 @@
 
 这个仓库同时是一份**游戏客户端开发的工程作品集**——玩法之外，这些工程实践是本项目的另一半卖点：
 
-- **1027 条测试全绿**：战斗数值/回合规则/AI 评估写成纯 C# 静态类，配套自研**无头验证台**（`dotnet` 直引 Unity 编译产物 + NUnit）——不启动引擎即可编译全工程并跑纯逻辑测试（6 秒内），多 agent 并行开发时绕开 `Library/` 独占锁；需要 Unity 运行时的少量用例（存档 I/O 等）由 batchmode EditMode/PlayMode 门禁收口
+- **1157 条测试全绿**：战斗数值/回合规则/AI 评估写成纯 C# 静态类，配套自研**无头验证台**（`dotnet` 直引 Unity 编译产物 + NUnit）——不启动引擎即可编译全工程并跑纯逻辑测试（6 秒内），多 agent 并行开发时绕开 `Library/` 独占锁；需要 Unity 运行时的少量用例（存档 I/O 等）由 batchmode EditMode/PlayMode 门禁收口
 - **数值三层架构**：纯 C# Catalog 是唯一真值来源（可无头测试）→ ScriptableObject 序列化投影 → Editor 幂等生成器，数值永不分叉
 - **ArtGate 程序化烘焙管线**：13 步一键产出噪声贴图/材质/字体/音效/网格/场景，资产可复现、不入库
 - **视觉迭代闭环**：播放器自截图（8 机位）→ 程序化像素判据（洋红/对比度/WCAG/色相扫描）→ 修复 → 重拍，每轮迭代有像素级验收档案
@@ -124,9 +124,9 @@ pirate-crew/Assets/
 
 ## 开发状态与路线图
 
-- ✅ **v0.1（当前）**：三个自由几何样板关、三模式操作、17/17 武器、回合制对战闭环、AI 对手、2P 热座、海盗生涯循环（招募/编成/选关/结算）、写实 PBR、音效
-- 🔜 **v0.1.x**：手感 juice（hit-stop/屏震/运镜）、观察模式润色、云色与光照微调
-- 🗺️ **远期**：战役 33 关地图全面重制为自由几何、本地化（英文）、手柄支持
+- ✅ **v0.1（当前）**：大海域 8 张世界海图（kit 岛 + 径向大海面）为唯一战斗内容、三个自由几何样板关（美术宣传层）、三模式操作、17/17 武器、回合制对战闭环、AI 对手、2P 热座、海盗生涯循环（招募/编成/出海/星级结算）、写实 PBR、音效
+- 🔜 **v0.1.x**：手感 juice（hit-stop/屏震/运镜）、观察模式润色、海面视觉打磨
+- 🗺️ **远期**：Blender 岛体管线批量扩容大海域、本地化（英文）、手柄支持
 
 ## 文档
 
