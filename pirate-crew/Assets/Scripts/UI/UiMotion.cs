@@ -54,6 +54,37 @@ namespace PirateCrew.UI
             _punches.Remove(target);
         }
 
+        /// <summary>
+        /// pop：从 0.6 起手 back-out 弹到 1（<see cref="UiMotionRules.PopScale"/>）。
+        /// 与 punch 共用取消表（同一目标后到取消先到）。回合徽章 / 星级 / 弹窗入场用。
+        /// </summary>
+        public void Pop(Graphic target)
+        {
+            if (target == null)
+                return;
+
+            if (_punches.TryGetValue(target, out Coroutine running) && running != null)
+                StopCoroutine(running);
+
+            _punches[target] = StartCoroutine(PopRoutine(target));
+        }
+
+        IEnumerator PopRoutine(Graphic target)
+        {
+            Transform tr = target.rectTransform;
+            float t = 0f;
+            while (t < 1f)
+            {
+                t = Mathf.Min(1f, t + Time.unscaledDeltaTime / UiMotionRules.PopSeconds);
+                float s = UiMotionRules.PopScale(t);
+                tr.localScale = new Vector3(s, s, 1f);
+                yield return null;
+            }
+
+            tr.localScale = Vector3.one;
+            _punches.Remove(target);
+        }
+
         // ------------------------------------------------------------------
         // 面板 滑入/淡出（CanvasGroup 透明度 + 根节点纵向位移）
         // ------------------------------------------------------------------
@@ -189,6 +220,86 @@ namespace PirateCrew.UI
             ApplyRatio(state);
         }
 
+        // ------------------------------------------------------------------
+        // damage ghost 双条（主填充快、白色残影慢；见 UiMotionRules.StepGhost）
+        // ------------------------------------------------------------------
+
+        sealed class GhostPair
+        {
+            public Image Fill;
+            public Image Ghost;
+            public float FillCurrent, FillTarget;
+            public float GhostCurrent;
+        }
+
+        readonly List<GhostPair> _ghosts = new List<GhostPair>();
+
+        /// <summary>建档/重置（双条）：主填充与 ghost 都钉在 <paramref name="ratio"/>。</summary>
+        public void SnapFillPair(Image fill, Image ghost, float ratio)
+        {
+            GhostPair pair = FindOrCreateGhost(fill, ghost);
+            pair.FillCurrent = ratio;
+            pair.FillTarget = ratio;
+            pair.GhostCurrent = ratio;
+            ApplyGhostPair(pair);
+        }
+
+        /// <summary>
+        /// 双条落值：主填充快速追（<see cref="UiMotionRules.HealthDrainSpeedPerSecond"/>），
+        /// 白色 ghost 只降不升、慢速追（<see cref="UiMotionRules.StepGhost"/>）——
+        /// 受击时主条先掉、白条拖出残影。
+        /// </summary>
+        public void SetFillPairTarget(Image fill, Image ghost, float ratio)
+        {
+            GhostPair pair = FindOrCreateGhost(fill, ghost);
+            pair.FillTarget = Mathf.Clamp01(ratio);
+            if (!gameObject.activeInHierarchy)
+            {
+                pair.FillCurrent = pair.FillTarget;
+                pair.GhostCurrent = UiMotionRules.StepGhost(pair.GhostCurrent, pair.FillTarget, 0f);
+            }
+            ApplyGhostPair(pair);
+        }
+
+        GhostPair FindOrCreateGhost(Image fill, Image ghost)
+        {
+            for (int i = 0; i < _ghosts.Count; i++)
+            {
+                if (_ghosts[i].Fill == fill && _ghosts[i].Ghost == ghost)
+                    return _ghosts[i];
+            }
+
+            var pair = new GhostPair { Fill = fill, Ghost = ghost };
+            _ghosts.Add(pair);
+            return pair;
+        }
+
+        void ApplyGhostPair(GhostPair pair)
+        {
+            if (pair.Fill != null)
+                pair.Fill.rectTransform.anchorMax = new Vector2(pair.FillCurrent, 1f);
+            if (pair.Ghost != null)
+                pair.Ghost.rectTransform.anchorMax = new Vector2(pair.GhostCurrent, 1f);
+        }
+
+        void StepGhosts(float dt)
+        {
+            for (int i = _ghosts.Count - 1; i >= 0; i--)
+            {
+                GhostPair pair = _ghosts[i];
+                if (pair.Fill == null && pair.Ghost == null)
+                {
+                    _ghosts.RemoveAt(i);
+                    continue;
+                }
+
+                pair.FillCurrent = UiMotionRules.ApproachExponential(
+                    pair.FillCurrent, pair.FillTarget, dt, UiMotionRules.HealthDrainSpeedPerSecond);
+                pair.GhostCurrent = UiMotionRules.StepGhost(pair.GhostCurrent, pair.FillTarget, dt);
+                ApplyGhostPair(pair);
+            }
+        }
+
         FillState FindOrCreate(Image fill)
         {
             for (int i = 0; i < _fills.Count; i++)
@@ -227,6 +338,8 @@ namespace PirateCrew.UI
                     state.Current, state.Target, dt, UiMotionRules.HealthDrainSpeedPerSecond);
                 ApplyRatio(state);
             }
+
+            StepGhosts(dt);
         }
 
         // ------------------------------------------------------------------

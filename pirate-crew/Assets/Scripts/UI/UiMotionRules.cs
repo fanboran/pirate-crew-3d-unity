@@ -105,5 +105,58 @@ namespace PirateCrew.UI
             float next = Mathf.Lerp(current, target, 1f - Mathf.Exp(-speedPerSecond * dt));
             return Mathf.Abs(target - next) < HealthDrainSnapEpsilon ? target : next;
         }
+
+        // ------------------------------------------------------------------
+        // damage ghost（血条受击白条残影，格斗游戏经典反馈）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// ghost 残影的追赶速率（1/秒）。比 <see cref="HealthDrainSpeedPerSecond"/> 慢一档——
+        /// 主填充先跳到新血量，白条在后面"拖"出一段受击痕迹，约 1s 内追平。
+        /// </summary>
+        public const float GhostDrainSpeedPerSecond = 2.2f;
+
+        /// <summary>
+        /// ghost 的单帧步进规则：<b>只降不升</b>—— 掉血时慢速追（残影语义），
+        /// 回血 / 重建时直接钉到新值（不留白）。返回更新后的 ghost 比例。
+        /// </summary>
+        public static float StepGhost(float ghost, float fill, float deltaSeconds)
+        {
+            if (fill >= ghost)
+                return fill;   // 回血或持平：白条立即让位
+            return ApproachExponential(ghost, fill, deltaSeconds, GhostDrainSpeedPerSecond);
+        }
+
+        // ------------------------------------------------------------------
+        // pop / back-out（回合徽章 / 星级 / 弹窗的"弹一下"）
+        // ------------------------------------------------------------------
+
+        /// <summary>pop 总时长（秒）：比 punch 略慢，因为过冲更大幅度。</summary>
+        public const float PopSeconds = 0.24f;
+
+        /// <summary>pop 过冲缩放（1.18 = 明显但不含糊）。</summary>
+        public const float PopOvershootScale = 1.18f;
+
+        /// <summary>back-out 缓动（f(0)=0，f(1)=1，先过冲到 &gt;1 再回落——"弹一下"的来源）。</summary>
+        public static float EaseOutBack(float t01)
+        {
+            const float c1 = 1.70158f;
+            const float c3 = c1 + 1f;
+            float t = Mathf.Clamp01(t01);
+            float inv = t - 1f;
+            return 1f + c3 * inv * inv * inv + c1 * inv * inv;
+        }
+
+        /// <summary>
+        /// pop 缩放曲线：从 0.6 起手，back-out 逼近 1，叠加一个半程正弦过冲脉冲
+        /// （峰值 ≈ 1.04 × 1.18 ≈ 1.23；<c>f(1)=1</c> 且两端脉冲为零，不抖）。
+        /// </summary>
+        public static float PopScale(float t01)
+        {
+            float t = Mathf.Clamp01(t01);
+            float baseScale = 0.6f + 0.4f * EaseOutBack(t);
+            float pulse = 1f + (PopOvershootScale - 1f) * Mathf.Sin(Mathf.PI * t);
+            return baseScale * pulse;
+        }
     }
 }
