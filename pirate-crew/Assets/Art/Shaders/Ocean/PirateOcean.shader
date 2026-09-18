@@ -226,7 +226,7 @@ Shader "PirateCrew/Ocean"
             Tags { "LightMode" = "UniversalForward" }
 
             // 透明水面：不写深度（否则会挡住自己与后续透明物），但仍做深度测试被不透明物体遮挡。
-            Cull Back
+            Cull Off
             ZWrite Off
             ZTest LEqual
             Blend SrcAlpha OneMinusSrcAlpha
