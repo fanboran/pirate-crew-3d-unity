@@ -26,9 +26,11 @@ namespace PirateCrew.PirateCrew.Ambient
     ///   植被/旗帜既能向地面投影，也能接收其他物件的投影（本体 ForwardLit 已采样主光阴影）。
     ///   曾经的"风摆 shader 无 ShadowCaster → 关投影"取舍已随该 Pass 落地而作废。
     ///
-    /// 【不做全局搜索】只从传入的 <c>SceneArt</c> 根节点下按**直接子节点名**取
-    /// （<see cref="Transform.Find"/>，等价于层级内查找，不是 <c>GameObject.Find</c>）。
-    /// 找不到就跳过并记一条警告（容错：SceneArt 波次可能尚未跑、或某组为空没有生成）。
+    /// 【不全局搜索】优先按传入的 <c>SceneArt</c> 根节点**直接子节点名**取
+    /// （<see cref="Transform.Find"/>，等价于层级内查找，不是 <c>GameObject.Find</c>）；
+    /// 直接子节点没有时再在该根的**后代**里按同名匹配（烘焙 prefab 实例内部的组渲染器，
+    /// 如 <c>Ship_Galleon/SceneArt_Cloth</c>——深度只限 SceneArt 子树，不做全场景搜索）。
+    /// 找不到就跳过并记一条警告（容错：烘焙件可能未跑、或某组为空没有生成）。
     /// </summary>
     public sealed class AmbientWindBinder
     {
@@ -78,21 +80,40 @@ namespace PirateCrew.PirateCrew.Ambient
             if (windMaterial == null)
                 return 0;
 
-            Transform child = root.Find(objectName);
-            if (child == null)
+            // 【烘焙化后改为深度查找（2026-09-19）】组渲染器可能在烘焙 prefab 实例内部
+            //（如 SceneArt/Ship_Galleon_North/SceneArt_Cloth）——Transform.Find 只查直接子节点，
+            // 会静默漏绑整船的帆/索具风摆。改为全后代同名匹配，命中几个绑几个（多船各绑各的）。
+            Transform top = root.Find(objectName);
+            if (top != null)
             {
-                if (verbose)
-                    global::PirateCrew.Core.Log.Warn("[Ambient] SceneArt 下没找到 " + objectName
-                        + "，该组不做风摆（可能该组为空未生成）。");
-                return 0;
+                int bound = BindRenderer(top, objectName, windMaterial, verbose) ? 1 : 0;
+                return bound;
             }
 
+            int count = 0;
+            Transform[] descendants = root.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < descendants.Length; i++)
+            {
+                if (descendants[i].name != objectName)
+                    continue;
+                if (BindRenderer(descendants[i], objectName, windMaterial, verbose))
+                    count++;
+            }
+
+            if (count == 0 && verbose)
+                global::PirateCrew.Core.Log.Warn("[Ambient] SceneArt 下没找到 " + objectName
+                    + "，该组不做风摆（可能该组为空未生成）。");
+            return count;
+        }
+
+        bool BindRenderer(Transform child, string objectName, Material windMaterial, bool verbose)
+        {
             var renderer = child.GetComponent<MeshRenderer>();
             if (renderer == null)
             {
                 if (verbose)
                     global::PirateCrew.Core.Log.Warn("[Ambient] " + objectName + " 上没有 MeshRenderer，跳过风摆。");
-                return 0;
+                return false;
             }
 
             _bound.Add(renderer);
@@ -103,7 +124,7 @@ namespace PirateCrew.PirateCrew.Ambient
             // 写实方向：风摆 shader 已有 ShadowCaster Pass（与本体共享同一份风摆位移），
             // 故显式保留投影 On —— 植被/旗帜投到地面，并由本体 ForwardLit 接收其他物件的投影。
             renderer.shadowCastingMode = ShadowCastingMode.On;
-            return 1;
+            return true;
         }
 
         /// <summary>恢复全部原材质与原阴影设置（模块销毁/关闭开关时调用）。</summary>

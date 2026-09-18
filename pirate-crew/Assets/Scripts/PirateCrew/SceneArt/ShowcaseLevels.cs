@@ -5,6 +5,45 @@ using UnityEngine;
 
 namespace PirateCrew.PirateCrew.SceneArt
 {
+    /// <summary>烘焙陈设件种类（= SceneArtBaker 的产物；一个种类一个 prefab 资产）。</summary>
+    public enum ShowcasePieceId
+    {
+        /// <summary>落水危险虚线（样板三关共用一圈）。</summary>
+        DangerBorder = 0,
+
+        /// <summary>大帆船（LargeShipRecipe + 种子 20 的固定输出）。</summary>
+        Galleon = 1,
+
+        /// <summary>小艇（SmallBoatRecipe + 种子 20 的固定输出）。</summary>
+        Longboat = 2,
+
+        /// <summary>低模云场（阶段 B 落地）。</summary>
+        CloudField = 3,
+    }
+
+    /// <summary>一件烘焙陈设的摆位（纯数据）。prefab 原点 = 配方展开原点（船=甲板中心）。</summary>
+    public readonly struct ShowcasePiecePlacement
+    {
+        public readonly ShowcasePieceId Piece;
+
+        /// <summary>实例世界位置。</summary>
+        public readonly Vector3 Position;
+
+        /// <summary>绕 Y 朝向（度）。与配方展开的 yaw 语义一致（cos/sin 长轴）。</summary>
+        public readonly float YawDegrees;
+
+        /// <summary>实例名（层级可读性，非逻辑键）。</summary>
+        public readonly string InstanceName;
+
+        public ShowcasePiecePlacement(ShowcasePieceId piece, Vector3 position, float yawDegrees, string instanceName)
+        {
+            Piece = piece;
+            Position = position;
+            YawDegrees = yawDegrees;
+            InstanceName = instanceName;
+        }
+    }
+
     /// <summary>
     /// 样板三关（DEMO v0.1，用户 2026-09-14 裁决）：关卡号 1/2/3 覆盖为
     /// 「云朵场（低模，高低错落）」「双大帆船并列（结构画全）」「山包大岛 + 超美空岛」。
@@ -183,6 +222,41 @@ namespace PirateCrew.PirateCrew.SceneArt
             for (int y = y0; y <= y1; y++)
                 for (int x = x0; x <= x1; x++)
                     blocks[y * WidthTiles + x] = value;
+        }
+
+        // ------------------------------------------------------------------
+        // 烘焙件摆位表（糖豆人式资产架构：数据层只记「件 id + 摆位」，几何/种子已烘焙进 prefab）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 某样板关的烘焙件摆位表（<see cref="RuntimeSceneArt"/> 实例化消费）。
+        /// 摆位与 <see cref="ComposeInto"/> 的过程式摆法逐值同源（北/南船格坐标、云场场心）；
+        /// 换这里的数 = 换摆位，不需要重新烘焙。
+        /// </summary>
+        public static List<ShowcasePiecePlacement> BakedPlacements(int levelNumber)
+        {
+            var list = new List<ShowcasePiecePlacement>
+            {
+                // 危险虚线绕 20×15 格竞技场一圈，几何按场景原点烘焙，实例恒在原点。
+                new ShowcasePiecePlacement(ShowcasePieceId.DangerBorder, Vector3.zero, 0f, "DangerBorder"),
+            };
+
+            switch (levelNumber)
+            {
+                case 2:
+                    // 双大船并列：北船 (格 10.0, 3.5) yaw 180 / 南船 (格 10.0, 11.5) yaw 0——
+                    // 与原 ComposeShipAt 同位；甲板面 y3 = GroundTopY + 块高 × Blocks(3)。
+                    float deckY = LevelGeometry.GroundTopY + LevelGeometry.BlockWorldHeight * Blocks(3f);
+                    list.Add(new ShowcasePiecePlacement(ShowcasePieceId.Galleon,
+                        new Vector3(LevelGeometry.TileToWorld(10.0f), deckY, LevelGeometry.TileToWorld(3.5f)),
+                        180f, "Ship_Galleon_North"));
+                    list.Add(new ShowcasePiecePlacement(ShowcasePieceId.Galleon,
+                        new Vector3(LevelGeometry.TileToWorld(10.0f), deckY, LevelGeometry.TileToWorld(11.5f)),
+                        0f, "Ship_Galleon_South"));
+                    break;
+            }
+
+            return list;
         }
 
         // ------------------------------------------------------------------

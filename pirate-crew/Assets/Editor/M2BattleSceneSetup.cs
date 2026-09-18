@@ -488,6 +488,12 @@ namespace PirateCrew.EditorTools
             if (root != null)
                 root.objectReferenceValue = runtimeSceneArt.transform;
 
+            // 烘焙件引用（糖豆人式资产架构）：按路径装载 SceneArtBaker 的产物，缺资产留 null
+            //（运行时该件告警留空、不影响玩法）——场景重建与烘焙谁先谁后都能拿到正确引用。
+            SetPrefabRefIfExists(so, "galleonPrefab", "Assets/Art/Models/SceneKit/Ship_Galleon.prefab");
+            SetPrefabRefIfExists(so, "longboatPrefab", "Assets/Art/Models/SceneKit/Ship_Longboat.prefab");
+            SetPrefabRefIfExists(so, "dangerBorderPrefab", "Assets/Art/Models/SceneKit/ShowcaseDangerBorder.prefab");
+
             so.ApplyModifiedPropertiesWithoutUndo();
 
             if (missing.Count > 0)
@@ -496,6 +502,23 @@ namespace PirateCrew.EditorTools
                     + " 个材质组材质（" + string.Join("、", missing) + "）；对应组运行时跳过。"
                     + "请确认 Assets/Art/Materials/Scene/ 下的 Scene_*.mat 材质齐全。");
             }
+        }
+
+        /// <summary>按路径装载烘焙 prefab 写进序列化引用；资产不存在时留 null 并记提示（不阻断重建）。</summary>
+        static void SetPrefabRefIfExists(SerializedObject so, string fieldName, string path)
+        {
+            SerializedProperty prop = so.FindProperty(fieldName);
+            if (prop == null)
+            {
+                Debug.LogError("[M2BattleSceneSetup] RuntimeSceneArt 找不到序列化字段 " + fieldName + "（字段名漂移？）");
+                return;
+            }
+
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            prop.objectReferenceValue = prefab;
+            if (prefab == null)
+                Debug.LogWarning("[M2BattleSceneSetup] 烘焙件缺失（" + path + "）——先跑 "
+                    + "PirateCrew/烘焙/样板场景件（SceneArtBaker.BuildAll），样板关该件将留空。");
         }
 
         static TrajectoryPreview CreateTrajectoryPreview()

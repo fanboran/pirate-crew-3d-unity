@@ -10692,6 +10692,9 @@ MonoBehaviour:
   - {fileID: 2100000, guid: 67752c5e4a10571418665b8a8421885d, type: 2}
   - {fileID: 2100000, guid: a00531713c9371c4899ddf0d6be8f5b0, type: 2}
   - {fileID: 2100000, guid: ac61be01376e3fb4898d28d45d8b156c, type: 2}
+  galleonPrefab: {fileID: 434597776370597602, guid: 78ec277795ed2474b90f54ec21237012, type: 3}
+  longboatPrefab: {fileID: 6319633843063842594, guid: de357682da429e04693edc62097aad9a, type: 3}
+  dangerBorderPrefab: {fileID: 7729139605862933881, guid: bc57cf7423ee4f74194389e403a17f27, type: 3}
   skyIslandRoot: {fileID: 674867737}
 --- !u!4 &942141986
 Transform:
