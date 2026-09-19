@@ -48,6 +48,18 @@ namespace PirateCrew.PirateCrew.ArtReview
         const string WeaponPanelShotName = "hud-weaponpanel";
 
         /// <summary>
+        /// 纯 HUD 演示机位（空白背景）：相机 cullingMask=0 + 纯色清屏，画面只剩 HUD 本体——
+        /// 复杂 3D 场景会把 HUD 淹没，观感验收要在"空白窗口"里看（用户 2026-09-19 裁决）。
+        /// armed 版带武器面板（复用特写选中）。
+        /// </summary>
+        const string ShowcaseShotName = "hud-showcase";
+
+        const string ShowcaseArmedShotName = "hud-showcase-armed";
+
+        /// <summary>演示底色（中亮蓝灰）：深底 HUD 与红蓝队色在其上对比最清晰。</summary>
+        static readonly Color ShowcaseBackdrop = new Color(0x8E / 255f, 0x97 / 255f, 0xA6 / 255f, 1f);
+
+        /// <summary>
         /// 主动引爆用的爆炸 size：取 160（`WeaponCatalog.cs` banana / parachuteBomb 档），
         /// 比 cannonball 基准 100（`CannonRules.cs:45`）大一档，纯为评审画面里火光可辨——
         /// size→视觉由 <c>FxRules.ExplosionVisualScale</c> 映射（100→scale 1.0、160→1.43，
@@ -151,16 +163,17 @@ namespace PirateCrew.PirateCrew.ArtReview
 
             foreach (Shot shot in BuildShots())
             {
-                // 选中态只在特写/武器面板机位需要（G-1 验收"选中青描边"；HUD 样板要武器面板滑入）；
+                // 选中态只在特写/武器面板/HUD 演示机位需要（G-1 验收"选中青描边"；HUD 样板要武器面板滑入）；
                 // 它带的可视化（脚下标记/描边）会污染其它评审图（r3：单位脚下洋红方块出现在所有机位）
                 // ——故拍特写前才选中，拍完立刻清掉，其余机位保持无选中。
-                if (shot.Name == UnitCloseupShotName || shot.Name == WeaponPanelShotName)
+                if (shot.Name == UnitCloseupShotName || shot.Name == WeaponPanelShotName
+                    || shot.Name == ShowcaseArmedShotName)
                     SelectFocusUnitForCloseup();
 
                 SetupCamera(shot);
 
                 // 武器面板滑入是 0.16s 动效 + 事件刷新，等它收尾再截（否则拍到半途）。
-                if (shot.Name == WeaponPanelShotName)
+                if (shot.Name == WeaponPanelShotName || shot.Name == ShowcaseArmedShotName)
                     yield return new WaitForSeconds(0.6f);
 
                 // 爆炸瞬间：先真的引爆再等火光/烟起来，否则拍到的只是空场中景。
@@ -327,9 +340,11 @@ namespace PirateCrew.PirateCrew.ArtReview
             if (_focusUnit != null)
             {
                 // 武器面板机位（带 HUD、同 battle-45 参数）：选中单位 → 面板滑入 → 截图。
-                // 拍完不清选中，紧随其后的特写直接复用。
+                // 拍完不清选中，紧随其后的纯 HUD 武装演示与特写直接复用。
                 shots.Add(NewShot(WeaponPanelShotName, true,
                     c + new Vector3(0f, 11.5f, 10.61f), 60f, aim));
+                // 纯 HUD 武装演示（空白背景 + 武器面板开）。
+                shots.Add(NewShot(ShowcaseArmedShotName, true, c, 60f, c));
 
                 Vector3 u = _focusUnit.position;
                 shots.Add(NewShot(UnitCloseupShotName, false,
@@ -340,6 +355,9 @@ namespace PirateCrew.PirateCrew.ArtReview
             // 【必须与 ArtReviewShots.cs 的 explosion-moment 同步】Offset (0,5,-7)、瞄准中心+0.5y。
             shots.Add(NewShot(ExplosionShotName, false,
                 c + new Vector3(0f, 5f, -7f), 60f, c + new Vector3(0f, 0.5f, 0f)));
+
+            // 纯 HUD 常态演示（空白背景）放最末：不依赖选中，3D/粒子全被裁掉。
+            shots.Add(NewShot(ShowcaseShotName, true, c, 60f, c));
 
             return shots.ToArray();
         }
@@ -541,6 +559,20 @@ namespace PirateCrew.PirateCrew.ArtReview
                 ? 4500f
                 : 300f;
             _camera.enabled = true;
+
+            // 纯 HUD 演示：裁掉全部 3D 层 + 纯色清屏（"空白窗口里看 HUD"）；其余机位恢复正常渲染。
+            bool showcase = shot.Name == ShowcaseShotName || shot.Name == ShowcaseArmedShotName;
+            if (showcase)
+            {
+                _camera.cullingMask = 0;
+                _camera.clearFlags = CameraClearFlags.SolidColor;
+                _camera.backgroundColor = ShowcaseBackdrop;
+            }
+            else
+            {
+                _camera.cullingMask = ~0;
+                _camera.clearFlags = CameraClearFlags.Skybox;
+            }
 
             if (_hud != null)
                 _hud.enabled = shot.HudVisible;
