@@ -522,122 +522,19 @@ namespace PirateCrew.EditorTools
             Stretch(controllerGo.GetComponent<RectTransform>());
             var hud = controllerGo.AddComponent<BattleHud>();
 
-            // ---- TopRight：回合提示 / 状态（§3.2）----
-            RectTransform topRight = CreatePanel("TopRightPanel", canvas.transform, new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-16f, -16f), new Vector2(640f, 90f));
-            Text turnHint = CreateText("TurnHintText", topRight, string.Empty, 26,
-                TextAnchor.UpperRight, new Color(1f, 0.85f, 0.3f, 1f));
-            SetAnchoredRect(turnHint.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), Vector2.zero, new Vector2(640f, 34f));
-            Text teamStatus = CreateText("TeamStatusText", topRight, string.Empty, 20,
-                TextAnchor.UpperRight, new Color(0.85f, 0.9f, 1f, 1f));
-            SetAnchoredRect(teamStatus.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(0f, -38f), new Vector2(640f, 30f));
-
-            // ---- BottomCenter：武器面板（§3.4；17 种武器分 3 行）----
-            RectTransform weaponPanel = CreatePanel("WeaponPanel", canvas.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 24f), new Vector2(920f, 200f));
-            var panelImage = weaponPanel.gameObject.AddComponent<Image>();
-            panelImage.color = new Color(0f, 0f, 0f, 0.55f);
-            panelImage.raycastTarget = false;
-
-            Text weaponTitle = CreateText("WeaponPanelTitle", weaponPanel, string.Empty, 22,
-                TextAnchor.MiddleCenter, new Color(1f, 0.9f, 0.6f, 1f));
-            SetAnchoredRect(weaponTitle.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 78f), new Vector2(880f, 26f));
-
-            Button throwButton = CreateButton("ThrowSelfButton", weaponPanel, "throw character",
-                new Vector2(0.5f, 0.5f), new Vector2(-100f, 46f), new Vector2(180f, 34f), out _);
-            Button endGoButton = CreateButton("EndGoButton", weaponPanel, "end go",
-                new Vector2(0.5f, 0.5f), new Vector2(100f, 46f), new Vector2(180f, 34f), out _);
-
-            // 17 个武器按钮，3 行 × 6 列（索引 = WeaponId 枚举值）。
-            var weaponButtons = new Button[WeaponCatalog.Count];
-            var weaponLabels = new Text[WeaponCatalog.Count];
-            for (int i = 0; i < WeaponCatalog.Count; i++)
-            {
-                int row = i / 6;
-                int col = i % 6;
-                float x = -300f + col * 148f;
-                float y = 8f - row * 38f;
-                weaponButtons[i] = CreateButton("WeaponButton_" + (WeaponId)i, weaponPanel, string.Empty,
-                    new Vector2(0.5f, 0.5f), new Vector2(x, y), new Vector2(140f, 34f), out Text label);
-                weaponLabels[i] = label;
-            }
-
-            // ---- BottomLeft：名册 + 血条（§4.1 / §4.5）----
-            Text rosterTitle = CreateText("RosterTitle", canvas.transform, "Roster", 20,
-                TextAnchor.LowerLeft, new Color(0.9f, 0.95f, 1f, 1f));
-            SetAnchoredRect(rosterTitle.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(16f, 420f), new Vector2(340f, 26f));
-
-            RectTransform rosterContainer = CreatePanel("RosterContainer", canvas.transform, new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(16f, 16f), new Vector2(340f, 400f));
-
-            var rows = new BattleHud.RosterRowView[RosterRows];
-            for (int i = 0; i < RosterRows; i++)
-                rows[i] = CreateRosterRow(rosterContainer, i);
-
-            // ---- 返回主菜单（保留 go_back 通路）----
-            Button backButton = CreateButton("BackButton", canvas.transform, "返回主菜单",
-                new Vector2(0f, 1f), new Vector2(96f, -20f), new Vector2(160f, 40f), out _);
-
+            // 战场三引用在此接线；HUD 的全部节点与序列化字段由 BattleUiTheme.Apply 重建并回写。
+            // （旧一代"先搭旧结构再被 Apply 清掉"的装配段已随名册退役删除——Apply 会清掉
+            // Canvas 下除 BattleHud/MinimapPanel 之外的全部子节点，旧装配是纯死路径。）
             var so = new SerializedObject(hud);
             so.FindProperty("battle").objectReferenceValue = battle;
             so.FindProperty("turnManager").objectReferenceValue = turnManager;
             so.FindProperty("aimController").objectReferenceValue = aimController;
-            so.FindProperty("turnHintText").objectReferenceValue = turnHint;
-            so.FindProperty("teamStatusText").objectReferenceValue = teamStatus;
-            so.FindProperty("weaponPanelRoot").objectReferenceValue = weaponPanel.gameObject;
-            so.FindProperty("weaponPanelTitle").objectReferenceValue = weaponTitle;
-            SetObjectArray(so.FindProperty("weaponButtons"), weaponButtons);
-            SetObjectArray(so.FindProperty("weaponLabels"), weaponLabels);
-            so.FindProperty("throwSelfButton").objectReferenceValue = throwButton;
-            so.FindProperty("endGoButton").objectReferenceValue = endGoButton;
-            so.FindProperty("rosterTitle").objectReferenceValue = rosterTitle;
-            SetRosterRows(so.FindProperty("rosterRows"), rows);
-            so.FindProperty("backButton").objectReferenceValue = backButton;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             // ---- 波次 I4 钩子（UI 主题）----
-            // 放在全部子节点与 [SerializeField] 接线完成之后：I4 只换皮、不改接线。
             RunArtHook("BattleUiTheme.Apply", () => BattleUiTheme.Apply(canvas.gameObject));
 
             return hud;
-        }
-
-        static BattleHud.RosterRowView CreateRosterRow(RectTransform parent, int index)
-        {
-            var rowGo = new GameObject("RosterRow_" + index, typeof(RectTransform));
-            var rowRect = rowGo.GetComponent<RectTransform>();
-            rowRect.SetParent(parent, false);
-            rowRect.anchorMin = new Vector2(0f, 1f);
-            rowRect.anchorMax = new Vector2(0f, 1f);
-            rowRect.pivot = new Vector2(0f, 1f);
-            rowRect.sizeDelta = new Vector2(336f, 26f);
-            rowRect.anchoredPosition = new Vector2(0f, -index * 28f);
-
-            var swatch = CreateImage("Swatch", rowRect, new Vector2(10f, 18f), new Vector2(4f, -4f), new Color(0.6f, 0.6f, 0.6f, 1f));
-            Text name = CreateText("NameText", rowRect, string.Empty, 17, TextAnchor.MiddleLeft, Color.white);
-            SetAnchoredRect(name.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -4f), new Vector2(150f, 22f));
-
-            Image barBg = CreateImage("BarBg", rowRect, new Vector2(120f, 12f), new Vector2(178f, -7f), new Color(0.12f, 0.12f, 0.12f, 0.9f));
-            Image fill = CreateImage("BarFill", barBg.rectTransform, Vector2.zero, Vector2.zero, new Color(0.35f, 0.85f, 0.35f, 1f));
-            var fillRect = fill.rectTransform;
-            fillRect.anchorMin = new Vector2(0f, 0f);
-            fillRect.anchorMax = new Vector2(1f, 1f);
-            fillRect.offsetMin = Vector2.zero;
-            fillRect.offsetMax = Vector2.zero;
-
-            Text hp = CreateText("HpText", rowRect, string.Empty, 15, TextAnchor.MiddleLeft, new Color(0.9f, 0.9f, 0.9f, 1f));
-            SetAnchoredRect(hp.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(304f, -4f), new Vector2(32f, 22f));
-
-            return new BattleHud.RosterRowView
-            {
-                root = rowGo,
-                teamSwatch = swatch,
-                nameLabel = name,
-                healthFill = fill,
-                healthLabel = hp,
-            };
         }
 
         // ------------------------------------------------------------------
@@ -843,23 +740,6 @@ namespace PirateCrew.EditorTools
             arrayProp.arraySize = values.Length;
             for (int i = 0; i < values.Length; i++)
                 arrayProp.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
-        }
-
-        static void SetRosterRows(SerializedProperty arrayProp, BattleHud.RosterRowView[] rows)
-        {
-            if (arrayProp == null || rows == null)
-                return;
-
-            arrayProp.arraySize = rows.Length;
-            for (int i = 0; i < rows.Length; i++)
-            {
-                SerializedProperty element = arrayProp.GetArrayElementAtIndex(i);
-                element.FindPropertyRelative("root").objectReferenceValue = rows[i].root;
-                element.FindPropertyRelative("teamSwatch").objectReferenceValue = rows[i].teamSwatch;
-                element.FindPropertyRelative("nameLabel").objectReferenceValue = rows[i].nameLabel;
-                element.FindPropertyRelative("healthFill").objectReferenceValue = rows[i].healthFill;
-                element.FindPropertyRelative("healthLabel").objectReferenceValue = rows[i].healthLabel;
-            }
         }
 
         // ------------------------------------------------------------------

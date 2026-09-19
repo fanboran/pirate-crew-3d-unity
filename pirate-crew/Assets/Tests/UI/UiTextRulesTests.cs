@@ -98,31 +98,12 @@ namespace PirateCrew.Tests
             Assert.AreEqual("电脑回合，行动中……", UiTextRules.TurnHint(true, 2));
         }
 
-        [Test]
-        public void TeamStatus_ReportsBothTeams()
-        {
-            Assert.AreEqual("红队 存活 5/5　蓝队 存活 4/5",
-                UiTextRules.TeamStatus(5, 5, 4, 5));
-        }
+        // 【名册文案家族已随左下名册退役】TeamStatus / RosterRow / RosterTitle /
+        // WeaponPanelTitle / TurnCounter / Alive 的断言一并删除（图标优先裁决）。
 
         [Test]
-        public void RosterRow_UsesTeamAndProfessionChinese()
+        public void Percent_Format()
         {
-            Assert.AreEqual("红队 水手", UiTextRules.RosterRow(1, "redPirate"));
-            Assert.AreEqual("蓝队 狙击手", UiTextRules.RosterRow(2, "bluePirate"));
-        }
-
-        [Test]
-        public void RosterTitle_And_WeaponPanelTitle_AreChinese()
-        {
-            Assert.AreEqual("船员名册 · 第 3 关", UiTextRules.RosterTitle(3));
-            Assert.AreEqual("水手 · 选择行动", UiTextRules.WeaponPanelTitle("redPirate"));
-        }
-
-        [Test]
-        public void Hp_And_Percent_Format()
-        {
-            Assert.AreEqual("80/100", UiTextRules.Hp(80, 100));
             Assert.AreEqual(79, UiTextRules.Percent(0.786f));
             Assert.AreEqual(0, UiTextRules.Percent(-1f));
             Assert.AreEqual(100, UiTextRules.Percent(2f));
@@ -131,14 +112,10 @@ namespace PirateCrew.Tests
         }
 
         [Test]
-        public void ModeAndCounters()
+        public void ModeLabels()
         {
             Assert.AreEqual("移动", UiTextRules.ModeLabel(true));
             Assert.AreEqual("操作", UiTextRules.ModeLabel(false));
-            // 【UI 审计 P1-4】原版 §3 无回合上限，回合计数不带「/满值」。
-            Assert.AreEqual("回合 1", UiTextRules.TurnCounter(1));
-            Assert.AreEqual("回合 3", UiTextRules.TurnCounter(3));
-            Assert.AreEqual("存活 4/5", UiTextRules.Alive(4, 5));
         }
 
         // ------------------------------------------------------------------

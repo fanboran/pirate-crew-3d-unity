@@ -181,9 +181,9 @@ namespace PirateCrew.Tests
             Assert.IsNotNull(hud, "Battle 场景应有 BattleHud");
             Assert.IsTrue(hud.HasCoreReferences, "BattleHud 核心引用未接线");
             Assert.AreEqual(17, hud.WeaponSlotCount, "HUD 应有 17 个武器槽（§5.2）");
-            Assert.IsTrue(hud.HasWeaponWiring, "HUD 武器按钮/文本未全部接线");
-            Assert.AreEqual(12, hud.RosterRowCount, "HUD 名册应有 12 行");
-            Assert.IsTrue(hud.HasRosterWiring, "HUD 名册控件未全部接线");
+            Assert.IsTrue(hud.HasWeaponWiring, "HUD 武器图标格未全部接线");
+            Assert.IsTrue(hud.HasTeamBarWiring, "HUD 双队血条（段+pips）未全部接线");
+            Assert.IsTrue(hud.HasModeWiring, "HUD 模式图标钮未全部接线");
 
             // ---- 回合开始与推进 ----
             Assert.IsTrue(turnManager.Started, "TurnManager 应已开始第一回合");

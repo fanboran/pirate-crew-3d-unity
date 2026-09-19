@@ -301,9 +301,6 @@ namespace PirateCrew.UI
         /// <summary>电脑回合提示。</summary>
         public const string BattleTurnAi = "电脑回合，行动中……";
 
-        /// <summary>双方存活模板（修正既有「只统计当前行动队」缺陷）。</summary>
-        public const string BattleTeamStatusFormat = "红队 存活 {0}/{1}　蓝队 存活 {2}/{3}";
-
         /// <summary>模式开关：移动。</summary>
         public const string BattleModeMove = "移动";
 
@@ -312,18 +309,6 @@ namespace PirateCrew.UI
 
         /// <summary>模式开关：观察（r12 用户裁决；我的世界同款鼠标转视角）。</summary>
         public const string BattleModeObserve = "观察";
-
-        /// <summary>名册标题模板。</summary>
-        public const string BattleRosterTitleFormat = "船员名册 · 第 {0} 关";
-
-        /// <summary>名册行模板（队伍 + 职业中文）。</summary>
-        public const string BattleRosterRowFormat = "{0} {1}";
-
-        /// <summary>生命数字模板（纯数字，无英文）。</summary>
-        public const string BattleHpFormat = "{0}/{1}";
-
-        /// <summary>武器面板标题模板。</summary>
-        public const string BattleWeaponPanelFormat = "{0} · 选择行动";
 
         /// <summary>抛自己按钮（r12 用户裁决：对外文案叫"跳跃"，机制仍是抛出自己）。</summary>
         public const string BattleThrowSelf = "跳跃";
@@ -340,15 +325,8 @@ namespace PirateCrew.UI
         /// <summary>武器列表标题。</summary>
         public const string BattleWeaponListTitle = "选择武器";
 
-        /// <summary>存活计数模板（顶部信息条用）。</summary>
-        public const string BattleAliveFormat = "存活 {0}/{1}";
-
-        /// <summary>
-        /// 回合计数模板（顶部信息条用）。
-        /// 【为什么没有「/上限」】原版回合流程（逆向文档 §3）没有回合上限，
-        /// 旧「回合 1/20」的 20 是无数据来源的假上限，随 UI 审计 P1-4 退役。
-        /// </summary>
-        public const string BattleTurnFormat = "回合 {0}";
+        /// <summary>武器面板未装备时的提示（图标格已表意，这里只留一行兜底）。</summary>
+        public const string BattleWeaponPickHint = "点图标选择武器";
 
         /// <summary>操作提示：角色模式通用。</summary>
         public const string BattleHintGeneral = "空格 瞄准　E 聚焦　Esc 取消";

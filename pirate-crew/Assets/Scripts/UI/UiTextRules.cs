@@ -146,51 +146,9 @@ namespace PirateCrew.UI
             return aiControlled ? UiStrings.BattleTurnAi : string.Format(UiStrings.BattleTurnYouFormat, teamNumber);
         }
 
-        /// <summary>双方存活：「红队 存活 a/b　蓝队 存活 c/d」（修正只统计当前队的缺陷）。</summary>
-        public static string TeamStatus(int redAlive, int redTotal, int blueAlive, int blueTotal)
-        {
-            return string.Format(UiStrings.BattleTeamStatusFormat, redAlive, redTotal, blueAlive, blueTotal);
-        }
-
-        /// <summary>名册标题。</summary>
-        public static string RosterTitle(int levelNumber)
-        {
-            return string.Format(UiStrings.BattleRosterTitleFormat, levelNumber);
-        }
-
-        /// <summary>名册行：队伍中文 + 职业中文。</summary>
-        public static string RosterRow(int teamNumber, string battleSymbol)
-        {
-            return string.Format(UiStrings.BattleRosterRowFormat,
-                UiTheme.TeamName(teamNumber), CrewNameByBattleSymbol(battleSymbol));
-        }
-
-        /// <summary>生命数字。</summary>
-        public static string Hp(int health, int maxHealth)
-        {
-            return string.Format(UiStrings.BattleHpFormat, health, maxHealth);
-        }
-
-        /// <summary>武器面板标题。</summary>
-        public static string WeaponPanelTitle(string battleSymbol)
-        {
-            return string.Format(UiStrings.BattleWeaponPanelFormat, CrewNameByBattleSymbol(battleSymbol));
-        }
-
-        /// <summary>存活计数。</summary>
-        public static string Alive(int alive, int total)
-        {
-            return string.Format(UiStrings.BattleAliveFormat, alive, total);
-        }
-
-        /// <summary>
-        /// 回合计数（对局第 N 手，不带上限——原版 §3 无回合上限，
-        /// 旧「回合 N/20」的假上限随 UI 审计 P1-4 退役）。
-        /// </summary>
-        public static string TurnCounter(int turn)
-        {
-            return string.Format(UiStrings.BattleTurnFormat, turn);
-        }
+        // 【名册文案家族已随左下名册退役】TeamStatus / RosterTitle / RosterRow / Hp /
+        // WeaponPanelTitle / Alive / TurnCounter 及其 UiStrings 模板一并删除——
+        // 双方存活由顶栏血条分段 + pips 图形化，回合数由徽章纯数字表达（图标优先裁决）。
 
         /// <summary>力度数字（瞄准态，不标「力度」）。</summary>
         public static string StrengthPercent(float normalized01)
