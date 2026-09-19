@@ -66,6 +66,19 @@ namespace PirateCrew.UI
         /// <summary>世界地图海图模式：按实际图跨度映射、旧 level_1 烘焙岛层隐藏、改用站面 box 岛层。</summary>
         bool _worldChartMode;
         RectTransform _worldChartLayer;
+        /// <summary>Refresh 上次校准点径时的点层像素宽（漂移 >0.5px 时重设全部点径）。</summary>
+        float _dotLayerWidthForSize = -1f;
+
+        /// <summary>
+        /// 有效每瓦像素 = 点层实际像素宽 / 场地跨度——点径随面板尺寸自动缩放
+        /// （r11 海图放大裁决；布局未生效 rect=0 时回落序列化的 <see cref="pixelsPerTile"/>）。
+        /// </summary>
+        float EffectivePixelsPerTile()
+        {
+            if (dotLayer != null && dotLayer.rect.width > 1f && arenaWidth > 1e-6f)
+                return dotLayer.rect.width / arenaWidth;
+            return pixelsPerTile;
+        }
 
         /// <summary>接线自检（供 PlayMode 装配测试断言）。</summary>
         public bool HasMinimapWiring =>
@@ -234,7 +247,7 @@ namespace PirateCrew.UI
             if (found.Count == 0)
                 return false;
 
-            float size = dotSizePixels > 0f ? dotSizePixels : MinimapRules.DotSizePixels(pixelsPerTile);
+            float size = dotSizePixels > 0f ? dotSizePixels : MinimapRules.DotSizePixels(EffectivePixelsPerTile());
             _units = found.ToArray();
             _dots = new Image[_units.Length];
             _visibility = new float[_units.Length];
@@ -366,6 +379,20 @@ namespace PirateCrew.UI
 
             if (dotLayer == null || _dots.Length == 0)
                 return;
+
+            // 点径随面板校准：布局首帧 rect.width 才生效、以及运行时面板尺寸变化
+            // （r11 海图放大）时，把全部点位直径重设一遍（数量 = 单位数，代价可忽略）。
+            float layerWidth = dotLayer.rect.width;
+            if (layerWidth > 1f && Mathf.Abs(layerWidth - _dotLayerWidthForSize) > 0.5f)
+            {
+                _dotLayerWidthForSize = layerWidth;
+                float size = dotSizePixels > 0f ? dotSizePixels : MinimapRules.DotSizePixels(EffectivePixelsPerTile());
+                for (int i = 0; i < _dots.Length; i++)
+                {
+                    if (_dots[i] != null)
+                        _dots[i].rectTransform.sizeDelta = new Vector2(size, size);
+                }
+            }
 
             for (int i = 0; i < _units.Length; i++)
             {

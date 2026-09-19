@@ -1,7 +1,7 @@
 # UI HUD 样板档案（多彩卡通 · 设计系统版）
 
 > 多彩卡通 UI（2026-09-19 用户三轮裁决 + game-2 管线对齐）的**样板屏验收图**——战斗 HUD 与组件陈列页。
-> 原始 PNG 在 `export/uihud-r6/`、`export/ui-gallery-r2/`（不入库），此处为压缩归档版。
+> 原始 PNG 在 `export/uihud-r8/`、`export/ui-gallery-r2/`（不入库），此处为压缩归档版。
 > 复现：ArtGate 全链 → 播放器构建 → `external/build/PirateCrew3D.exe -artReviewOut <dir>`，
 > 陈列页另跑 `PirateCrew3D.exe -uiGalleryOut <dir>`。
 > 设计意图与纪律见 [docs/设计/UI设计语言.md](../../设计/UI设计语言.md)。
@@ -29,7 +29,9 @@
 
 ## 已知取舍（待用户验收裁决）
 
-- 小地图仍是矩形深底面板（圆形罗盘化留待裁决后做）。
+- 小地图仍是矩形深底面板（圆形罗盘化留待裁决后做）。r11 起 320×220 + 瓦片点阵/单位点
+  （曾静默空白三轮：BuildAll 单独重存洗掉 BattleMinimap 组件，已把 WireMinimap 挂进重建链 +
+  PlayMode 装配断言防复发）。
 - 血槽端箍/底暗带在满血条上被填充遮挡，残血可辨（gallery 队条样例 0.34/0.62 段可直接核）。
 - 暂停/确认/结算 Modal 观感未在静帧覆盖（动效需实玩验收）。
 

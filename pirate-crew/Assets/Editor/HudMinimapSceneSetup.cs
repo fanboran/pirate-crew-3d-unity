@@ -304,12 +304,18 @@ namespace PirateCrew.EditorTools
             if (tileLayerProp != null)
                 tileLayerProp.objectReferenceValue = tileLayer;
 
-            // 【本轮取舍】terrain 显式清空：小地图岛改由 IslandLayer 按同一份 tile 数据烘焙成沙/草色，
-            // 运行期再画一遍灰岩色点阵既会被整片盖住、又要白建 width×depth（level_1 = 850）个 Image。
-            // 代价：地形被炸后小地图不再变化（静态岛）——恢复动态需先改 MinimapRules.cs / BattleMinimap.cs。
+            // 【terrain 接回（r11 复盘）】旧取舍曾把 terrain 清空、靠烘焙岛层表现地形；
+            // 一代退场后岛层不再烘焙，清空 terrain 导致样板关海图只剩单位点、观感近乎空板。
+            // 现接 BattleTerrainView（运行时 RenderCollidersOnly 填 Grid）→ 样板关有灰岩
+            // 点阵；世界图走运行时海图岛层（ConfigureWorldChartFromRuntime），两态都有内容。
+            // 代价：width×depth 个一次性 Image（level_1 = 850），构建一次、刷新只写 alpha。
+            BattleTerrainView terrainView = FindFirstComponent<BattleTerrainView>();
             SerializedProperty terrainProp = so.FindProperty("terrain");
             if (terrainProp != null)
-                terrainProp.objectReferenceValue = null;
+                terrainProp.objectReferenceValue = terrainView;
+            if (terrainView == null)
+                Debug.LogWarning("[HudMinimapSceneSetup] 场景里未找到 BattleTerrainView，"
+                    + "样板关小地图瓦片点阵不可用（单位点与世界图岛层不受影响）。");
 
             so.ApplyModifiedPropertiesWithoutUndo();
         }

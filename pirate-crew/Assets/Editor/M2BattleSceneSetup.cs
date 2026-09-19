@@ -116,6 +116,14 @@ namespace PirateCrew.EditorTools
 
             GameObject piratePrefab = BuildPiratePrefab();
             BuildBattleScene(piratePrefab);
+
+            // ---- 小地图接线（场景保存后补）----
+            // 【为什么必须在本链内】BuildBattleScene 从零新建场景再 SaveScene 覆盖——
+            // BattleMinimap 组件与 unitRoots 接线由 HudMinimapSceneSetup 增量补挂，
+            // 只存在于旧场景文件里；单独跑 BuildAll 曾把组件整颗洗掉（c78fdea 复盘，
+            // 海图空白静默三轮），故每次重建后立即补接线，不再依赖 ArtGate ⑧ 单独跟跑。
+            RunArtHook("HudMinimapSceneSetup.WireMinimap", HudMinimapSceneSetup.WireMinimap);
+
             RegisterBuildSettings();
 
             AssetDatabase.SaveAssets();

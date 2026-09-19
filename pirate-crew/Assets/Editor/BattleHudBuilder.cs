@@ -54,13 +54,14 @@ namespace PirateCrew.EditorTools
         /// 模式钮 y 偏移算错符号沉到屏幕垂直中部，故改为单一"距顶"语义）。</summary>
         const float TopBandFromTop = 40f;
 
-        /// <summary>队血条宽 / 高（红蓝镜像等长；段宽运行时按实际人数重排）。</summary>
-        const float TeamBarWidth = 640f;
+        /// <summary>队血条宽 / 高（红蓝镜像等长；段宽运行时按实际人数重排）。
+        /// r11 用户裁决"海图太小"后小地图加宽到 320，血条从 640 收到 572 保镜像等长。</summary>
+        const float TeamBarWidth = 572f;
         const float TeamBarHeight = 26f;
         const float SegmentGap = 4f;
 
         /// <summary>红条左端 = 小地图右缘 + 8；蓝条右端 = 1920 - 同值（镜像对称）。</summary>
-        const float TeamBarInsetX = 248f;
+        const float TeamBarInsetX = 344f;
 
         /// <summary>pip 尺寸 / 间距（血条正下方一排职业头像）。</summary>
         const float PipSize = 30f;
@@ -682,8 +683,11 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>小地图面板尺寸（高度含标题条；圆形罗盘化在 BattleMinimap 侧单独任务）。</summary>
-        const float MinimapWidth = 224f;
-        const float MinimapHeight = 150f;
+        /// <summary>小地图面板尺寸（高度含标题条）。r11 用户裁决"海图太小"：224×150 →
+        /// 320×220——大海域海图（跨度 150-280 单位）在旧尺寸下每单位不足 1px，点位挤不可辨；
+        /// 点径随面板自动放大见 BattleMinimap 的推导口径。圆形罗盘化仍是待裁决项。</summary>
+        const float MinimapWidth = 320f;
+        const float MinimapHeight = 220f;
         const float MinimapCaptionHeight = 22f;
 
         static void BuildMinimap(Transform canvas)
