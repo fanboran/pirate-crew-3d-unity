@@ -36,6 +36,12 @@ namespace PirateCrew.UI
         /// <summary>危险动作按钮的状态槽组。</summary>
         public static readonly string[] Danger = { "danger_normal", "danger_hover", "danger_pressed", "btn_disabled" };
 
+        /// <summary>强调按钮的状态槽组（金叠加底+金边——选中态语义，隔壁 ACCENT）。</summary>
+        public static readonly string[] Accent = { "accent_normal", "accent_hover", "accent_pressed", "btn_disabled" };
+
+        /// <summary>纸面按钮的状态槽组（奶油纸底+墨边——亮背景形态，隔壁 btn_ink）。</summary>
+        public static readonly string[] Ink = { "btn_ink_normal", "btn_ink_hover", "btn_ink_pressed", "btn_ink_disabled" };
+
         /// <summary>选中态槽（accent hover 档：金底叠加 + 金边）。</summary>
         public const string AccentHover = "accent_hover";
 

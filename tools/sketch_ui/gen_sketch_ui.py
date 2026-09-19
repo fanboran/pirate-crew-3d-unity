@@ -319,6 +319,25 @@ def build_preview(slots: list) -> None:
     out.save(os.path.join(PREVIEW_DIR, "_preview_9slice.png"))
     print("[sketch] preview -> export/sketch-ui/_preview_9slice.png")
 
+## 大件槽：额外切 9 砖（panel_tl/bc/... 命名）供 Unity Tiled 平铺组装——
+## Godot StyleBoxTexture 的边带是 TILE 平铺，Unity Sliced 是边带拉伸；
+## 大面板（600px+）上 Sliced 会把 76px 的墨线小波浪拉成 1000px 缓波，
+## 手绘感的"密度"就是这边丢的。砖块=边带整平铺周期段，Tiled 重复即复刻 Godot。
+TILE_SLOTS = ("panel", "panel_light", "progress_bg", "btn_normal",
+              "btn_primary_normal", "danger_normal")
+
+def slice_tiles(slot: str) -> None:
+    for f in range(FRAMES):
+        src = Image.open(os.path.join(OUT_DIR, "%s_f%d.png" % (slot, f))).convert("RGBA")
+        m, e = MARGIN, TEX - MARGIN
+        parts = {
+            "tl": (0, 0, m, m),           "tc": (m, 0, e, m),           "tr": (e, 0, TEX, m),
+            "ml": (0, m, m, e),           "mc": (m, m, e, e),           "mr": (e, m, TEX, e),
+            "bl": (0, e, m, TEX),         "bc": (m, e, e, TEX),         "br": (e, e, TEX, TEX),
+        }
+        for part, box in parts.items():
+            src.crop(box).save(os.path.join(OUT_DIR, "%s_%s_f%d.png" % (slot, part, f)))
+
 def main() -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
     count = 0
@@ -331,6 +350,9 @@ def main() -> None:
         render_sep(True, f).save(os.path.join(OUT_DIR, "sep_v_f%d.png" % f))
         count += 2
     print("[sketch] %d textures -> %s" % (count, OUT_DIR))
+    for slot in TILE_SLOTS:
+        slice_tiles(slot)
+    print("[sketch] 9-slice tiles for %d slots" % len(TILE_SLOTS))
     failures = []
     for slot in RECIPES:
         img = Image.open(os.path.join(OUT_DIR, slot + "_f0.png")).convert("RGBA")

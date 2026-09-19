@@ -60,6 +60,15 @@ namespace PirateCrew.UI
         /// <summary>危险动作（深酒红 #8A1F1F，沿用 UiTheme.DangerDark；暖白其上 8.0:1）。</summary>
         public static readonly Color Danger = Rgb(0x8A, 0x1F, 0x1F);
 
+        /// <summary>语义色·信息（天蓝，压 InkDeep 6.9:1；Toast/通知/链接）。</summary>
+        public static readonly Color Info = Rgb(0x7F, 0xB0, 0xFF);
+
+        /// <summary>语义色·警告（香蕉黄，压 InkDeep 9.6:1；资源不足/警告通知）。</summary>
+        public static readonly Color Warn = Rgb(0xF0, 0xD0, 0x48);
+
+        /// <summary>语义色·成功（瓶绿提亮，压 InkDeep 5.6:1；完工/增益）。</summary>
+        public static readonly Color Success = Rgb(0x7E, 0xD4, 0x9A);
+
         // ---- 队色 / 队名文字（沿用既有高对比口径，收编 BattleHud 的两份写死色） ----
 
         /// <summary>红队主色（血条段 / 徽章环 / 点位；图形用，非文字）。</summary>

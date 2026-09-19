@@ -135,21 +135,30 @@ namespace PirateCrew.EditorTools
             foreach (string guid in AssetDatabase.FindAssets("t:Texture2D", new[] { SketchFolder }))
             {
                 string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-                if (AssetImporter.GetAtPath(assetPath) is TextureImporter importer
-                    && (importer.textureType != TextureImporterType.Sprite
-                        || importer.spriteBorder != new Vector4(10f, 10f, 10f, 10f)))
+                if (AssetImporter.GetAtPath(assetPath) is TextureImporter importer)
                 {
-                    importer.textureType = TextureImporterType.Sprite;
-                    importer.spriteImportMode = SpriteImportMode.Single;
-                    importer.spritePixelsPerUnit = 100f;
-                    importer.spriteBorder = new Vector4(10f, 10f, 10f, 10f);   // 烘焙 MARGIN=10
-                    importer.mipmapEnabled = false;
-                    importer.alphaIsTransparency = true;
-                    importer.wrapMode = TextureWrapMode.Clamp;
-                    importer.filterMode = FilterMode.Bilinear;
-                    importer.textureCompression = TextureImporterCompression.Uncompressed;
-                    importer.SaveAndReimport();
-                    touched++;
+                    // 九砖子件走 Tiled 平铺，需要 Repeat（Clamp 会在砖边缘渗色）；
+                    // 整图槽走 Sliced，Clamp 防 border 区渗色。
+                    string name = System.IO.Path.GetFileNameWithoutExtension(assetPath);
+                    bool isBrick = System.Text.RegularExpressions.Regex.IsMatch(
+                        name, @"_(tl|tc|tr|ml|mc|mr|bl|bc|br)_f\d$");
+                    var wrap = isBrick ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
+                    if (importer.textureType != TextureImporterType.Sprite
+                        || importer.spriteBorder != new Vector4(10f, 10f, 10f, 10f)
+                        || importer.wrapMode != wrap)
+                    {
+                        importer.textureType = TextureImporterType.Sprite;
+                        importer.spriteImportMode = SpriteImportMode.Single;
+                        importer.spritePixelsPerUnit = 100f;
+                        importer.spriteBorder = new Vector4(10f, 10f, 10f, 10f);   // 烘焙 MARGIN=10
+                        importer.mipmapEnabled = false;
+                        importer.alphaIsTransparency = true;
+                        importer.wrapMode = wrap;
+                        importer.filterMode = FilterMode.Bilinear;
+                        importer.textureCompression = TextureImporterCompression.Uncompressed;
+                        importer.SaveAndReimport();
+                        touched++;
+                    }
                 }
             }
             Debug.Log("[UiSkinAssetBaker] 手绘皮肤导入参数：新设 " + touched + " 张。");

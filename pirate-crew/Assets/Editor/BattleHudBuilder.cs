@@ -264,10 +264,19 @@ namespace PirateCrew.EditorTools
                     new Vector2(TeamBarWidth, TeamBarHeight));
             }
 
-            // 把面板底换成血条凹槽皮肤（CreatePanel 建的是手绘 panel，这里要槽感）。
-            var barImage = barRoot.GetComponent<Image>();
-            barImage.sprite = LoadSkin(CartoonSpriteFactory.Shape.BarTrack);
-            barImage.type = Image.Type.Sliced;
+            // 凹槽底：26px 矮件**不走**九砖（上下边带 20px 已占 77%，中缝 6px 塞不下
+            // 76px 平铺砖，Tiled 会向 rect 外溢出渲染——r13 实拍黑块事故）；单图 Sliced，
+            // 水平拉伸对 10px 高边带的墨线密度损伤可忽略。
+            var legacySlice = barRoot.GetComponent<Sketch9Slice>();
+            if (legacySlice != null)
+                Object.DestroyImmediate(legacySlice);
+            var groove = barRoot.gameObject.GetComponent<Image>();
+            if (groove == null)
+                groove = barRoot.gameObject.AddComponent<Image>();
+            groove.sprite = SketchSkin.Frame("progress_bg", 0);
+            groove.type = Image.Type.Sliced;
+            groove.color = Color.white;
+            groove.raycastTarget = false;
             Boil(barRoot.gameObject, "progress_bg");
             view.root = barRoot.gameObject;
 
@@ -707,14 +716,18 @@ namespace PirateCrew.EditorTools
             UiKit.SetAnchored(panel, new Vector2(0f, 1f), new Vector2(MinimapWidth, MinimapHeight),
                 new Vector2(Safe, -Safe));
 
-            var image = panel.GetComponent<Image>();
-            if (image == null)
-                image = panel.gameObject.AddComponent<Image>();
-            image.sprite = LoadSkin(CartoonSpriteFactory.Shape.PanelInk);
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;   // panel 槽已烘 InkDeep 半透明，乘色会加深一倍
-            image.raycastTarget = false;
-            Boil(panel.gameObject, "panel");
+            // 面板底：panel 槽九砖平铺（320×220 大件,墨线密度恒定）。复用旧面板时
+            // 清掉历史 Image/沸腾件再加 9slice（场景重存洗组件教训：外观件统一在这里兜底）。
+            var legacyImage = panel.GetComponent<Image>();
+            if (legacyImage != null)
+                Object.DestroyImmediate(legacyImage);
+            var legacyBoil = panel.GetComponent<SketchBoil>();
+            if (legacyBoil != null)
+                Object.DestroyImmediate(legacyBoil);
+            var slice = panel.GetComponent<Sketch9Slice>();
+            if (slice == null)
+                slice = panel.gameObject.AddComponent<Sketch9Slice>();
+            slice.Slot = "panel";
 
             var legacyOutline = panel.GetComponent<Outline>();
             if (legacyOutline != null)

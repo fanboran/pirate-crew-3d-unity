@@ -55,141 +55,478 @@ namespace PirateCrew.UI
         static void BuildControlsPage(RectTransform root, TMP_FontAsset body,
             TMP_FontAsset secondary, TMP_FontAsset title)
         {
-            PageTitle(root, "UI 设计系统 · 控件档位（全部件 = UiKit 真实长相）", title);
+            PageTitle(root, "UI 设计系统 · 组件陈列（全部件 = UiKit 真实长相 · 可交互验证）", title);
 
-            float lx = -560f, cx = 0f, rx = 560f;
-            ColumnLabel(root, lx, "按钮变体表（Primary / Dark / Danger）", secondary);
-            UiKit.ActionButton("VPrimary", root, UiGlyphs.Glyph.ThrowArc, "主行动 · Primary",
-                UiKit.ButtonKind.Primary, At(lx, 330f), new Vector2(300f, 48f), body);
-            UiKit.ActionButton("VDark", root, UiGlyphs.Glyph.Flag, "常规件 · Dark",
-                UiKit.ButtonKind.Dark, At(lx, 270f), new Vector2(300f, 48f), body);
-            UiKit.ActionButton("VDanger", root, UiGlyphs.Glyph.Cross, "危险动作 · Danger",
-                UiKit.ButtonKind.Danger, At(lx, 210f), new Vector2(300f, 48f), body);
-            UiKit.ActionButton("VSmall", root, UiGlyphs.Glyph.Check, "小尺寸档",
-                UiKit.ButtonKind.Dark, At(lx, 156f), new Vector2(200f, 40f), body);
+            // 窗体（对齐隔壁 component_gallery：大面板承载全部分组），双列各 4 组。
+            RectTransform window = UiKit.CreatePanel("Window", root,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1840f, 1016f));
 
-            ColumnLabel(root, lx, "图标钮（46 · 快捷键角标）", secondary, 96f);
-            UiKit.IconButton("IconPause", root, UiGlyphs.Glyph.Pause, At(lx - 100f, 42f),
-                new Vector2(46f, 46f), UiSkin.InkSoft, UiSkin.TextOnInk);
-            UiKit.IconButton("IconPlay", root, UiGlyphs.Glyph.Play, At(lx - 40f, 42f),
-                new Vector2(46f, 46f), UiSkin.Gold, UiSkin.InkOnGold);
-            UiKit.IconButton("IconEye", root, UiGlyphs.Glyph.Eye, At(lx + 20f, 42f),
-                new Vector2(46f, 46f), UiSkin.InkSoft, UiSkin.TextOnInk, hotkey: "3");
+            // 左列：按钮 / 标签 / 输入 / 页签；右列：滑条进度 / 列表 / 反馈 / 键鼠。
+            float ly = 436f, ry = 436f;
+            float lx = -900f, rx = 40f;
+            BuildButtonsSection(window, lx, ref ly, body);
+            BuildLabelsSection(window, lx, ref ly, body, secondary);
+            BuildInputsSection(window, lx, ref ly, body, secondary);
+            BuildTabsSection(window, lx, ref ly, body, secondary);
 
-            ColumnLabel(root, cx, "血条族（凹槽 + ghost 残影 + 主填充）", secondary);
-            BuildTeamBarSample(root, At(cx, 330f));
-            BuildUnitBarSample(root, At(cx, 268f));
-            BuildPipSample(root, At(cx, 200f));
-
-            ColumnLabel(root, cx, "字号档位（UiSkin.Font 唯一真值）", secondary, 140f);
-            FontRow(root, cx - 250f, 92f, "Display " + UiSkin.Font.Display, UiSkin.Font.Display, title);
-            FontRow(root, cx - 250f, 52f, "Title " + UiSkin.Font.Title + " 界面标题", UiSkin.Font.Title, title);
-            FontRow(root, cx - 250f, 20f, "Section " + UiSkin.Font.Section + " 区块标题", UiSkin.Font.Section, body);
-            FontRow(root, cx - 250f, -12f, "Body " + UiSkin.Font.Body + " 按钮与行文本", UiSkin.Font.Body, body);
-            FontRow(root, cx - 250f, -42f, "Hint " + UiSkin.Font.Hint + " 辅助提示 / Tiny " + UiSkin.Font.Tiny + " 角标", UiSkin.Font.Hint, secondary);
-
-            ColumnLabel(root, rx, "底色与语义色板", secondary);
-            string[] names = { "InkDeep 容器底", "InkSoft 嵌件底", "BarTrack 凹槽", "Gold 强调",
-                "TeamRed", "TeamBlue", "Danger", "DeadGray" };
-            Color[] colors = { UiSkin.InkDeep, UiSkin.InkSoft, UiSkin.BarTrackInk, UiSkin.Gold,
-                UiSkin.TeamRed, UiSkin.TeamBlue, UiSkin.Danger, UiSkin.DeadGray };
-            for (int i = 0; i < names.Length; i++)
-            {
-                float x = rx - 220f + (i % 2) * 230f;
-                float y = 330f - (i / 2) * 56f;
-                Swatch(root, At(x, y), colors[i], names[i], secondary);
-            }
-
-            ColumnLabel(root, rx, "手绘槽位（panel 面板 / btn 按钮 / cell 格 · 0.12s 沸腾）", secondary, 96f);
-            SketchImage(root, At(rx - 150f, 40f), "panel", Color.white, "面板", secondary);
-            SketchImage(root, At(rx + 30f, 40f), "btn_normal", Color.white, "按钮", secondary);
-            SketchImage(root, At(rx + 190f, 40f), "cell", UiSkin.TeamRed, "彩格(tint)", secondary);
-
-            Footer(root, secondary);
+            BuildSlidersSection(window, rx, ref ry, body, secondary);
+            BuildListsSection(window, rx, ref ry, body, secondary);
+            BuildFeedbackSection(window, rx, ref ry, body, secondary, root);
+            BuildKeymapSection(window, rx, ref ry, secondary);
         }
 
-        static void BuildTeamBarSample(RectTransform root, Vector2 center)
+        // ---- 分组骨架（对齐隔壁 SECTIONS 数据驱动：标题+行）----
+
+        static void SectionHeader(RectTransform parent, float x, ref float y, string text,
+            TMP_FontAsset font)
         {
-            // 合成队条：4 段（不同存量）+ 段缝露凹槽——顶部血条的等比样例。
-            const float width = 520f, height = 26f, gap = 4f;
-            RectTransform bar = UiKit.CreateRect("SampleTeamBar", root);
+            TextMeshProUGUI header = UiKit.CreateText("SectionHeader", parent, text, UiSkin.Font.Section,
+                TextAlignmentOptions.MidlineLeft, UiSkin.Gold, font);
+            header.enableWordWrapping = false;
+            header.rectTransform.anchorMin = header.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            header.rectTransform.pivot = new Vector2(0f, 0.5f);
+            header.rectTransform.sizeDelta = new Vector2(860f, 34f);
+            header.rectTransform.anchoredPosition = new Vector2(x, y);
+            y -= 52f;
+        }
+
+        static void RowLabel(RectTransform parent, float x, float y, string text,
+            TMP_FontAsset font)
+        {
+            TextMeshProUGUI label = UiKit.CreateText("RowLabel", parent, text, UiSkin.Font.Hint,
+                TextAlignmentOptions.MidlineLeft, UiSkin.TextDim, font);
+            label.enableWordWrapping = false;
+            label.rectTransform.anchorMin = label.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            label.rectTransform.pivot = new Vector2(0f, 0.5f);
+            label.rectTransform.sizeDelta = new Vector2(120f, 24f);
+            label.rectTransform.anchoredPosition = new Vector2(x, y);
+        }
+
+        static Button DemoButton(RectTransform parent, float x, float y, float width, float height,
+            string label, UiKit.ButtonKind kind, TMP_FontAsset font, bool interactable = true,
+            bool withIcon = false)
+        {
+            Button button = UiKit.ActionButton("Demo_" + label, parent,
+                UiGlyphs.Glyph.Helm, label, kind, new Vector2(x + width * 0.5f, y),
+                new Vector2(width, height), font, withIcon);
+            button.interactable = interactable;
+            return button;
+        }
+
+        // ---- (1) 按钮 / BUTTON ----
+
+        static void BuildButtonsSection(RectTransform parent, float x, ref float y,
+            TMP_FontAsset font)
+        {
+            SectionHeader(parent, x, ref y, "按钮 / BUTTON", font);
+            DemoButton(parent, x, y, 166f, 44f, "普通按钮", UiKit.ButtonKind.Dark, font);
+            DemoButton(parent, x + 176f, y, 166f, 44f, "强调按钮", UiKit.ButtonKind.Accent, font);
+            DemoButton(parent, x + 352f, y, 166f, 44f, "主行动", UiKit.ButtonKind.Primary, font);
+            DemoButton(parent, x + 528f, y, 166f, 44f, "危险按钮", UiKit.ButtonKind.Danger, font);
+            DemoButton(parent, x + 704f, y, 156f, 44f, "禁用按钮", UiKit.ButtonKind.Dark, font, interactable: false);
+            y -= 56f;
+
+            RowLabel(parent, x, y, "尺寸：", font);
+            DemoButton(parent, x + 80f, y, 160f, 26f, "小型 26", UiKit.ButtonKind.Dark, font);
+            DemoButton(parent, x + 250f, y, 160f, 32f, "标准 32", UiKit.ButtonKind.Dark, font);
+            DemoButton(parent, x + 420f, y, 160f, 44f, "大型 44", UiKit.ButtonKind.Dark, font);
+            y -= 56f;
+
+            RowLabel(parent, x, y, "亮背景：", font);
+            DemoButton(parent, x + 80f, y, 166f, 44f, "纸面按钮", UiKit.ButtonKind.Paper, font);
+            DemoButton(parent, x + 256f, y, 176f, 44f, "纸面·主行动", UiKit.ButtonKind.Paper, font);
+            UiKit.IconButton("IconSquare", parent, UiGlyphs.Glyph.Helm,
+                new Vector2(x + 512f, y), new Vector2(44f, 44f), UiSkin.InkSoft, UiSkin.TextOnInk);
+            y -= 58f;
+        }
+
+        // ---- (2) 标签 / LABEL ----
+
+        static void BuildLabelsSection(RectTransform parent, float x, ref float y,
+            TMP_FontAsset body, TMP_FontAsset secondary)
+        {
+            SectionHeader(parent, x, ref y, "标签 / LABEL", secondary);
+            FontRow(parent, x, y, "Title " + UiSkin.Font.Title + " —— 界面标题", UiSkin.Font.Title, body);
+            y -= 30f;
+            FontRow(parent, x, y, "Section " + UiSkin.Font.Section + " —— 区块小标题", UiSkin.Font.Section, body);
+            y -= 30f;
+            FontRow(parent, x, y, "Body " + UiSkin.Font.Body + " —— 按钮与正文文字", UiSkin.Font.Body, body);
+            y -= 30f;
+            FontRow(parent, x, y, "Hint " + UiSkin.Font.Hint + " —— 辅助说明文字", UiSkin.Font.Hint, secondary);
+            y -= 30f;
+            FontRow(parent, x, y, "Tiny " + UiSkin.Font.Tiny + " —— 徽标与角标", UiSkin.Font.Tiny, secondary);
+            y -= 36f;
+
+            RowLabel(parent, x, y, "语义色：", secondary);
+            var semantics = new (string, Color)[]
+            {
+                ("强调金", UiSkin.Gold), ("信息", UiSkin.Info), ("警告", UiSkin.Warn),
+                ("危险", UiSkin.TeamRedText), ("成功", UiSkin.Success),
+            };
+            for (int i = 0; i < semantics.Length; i++)
+            {
+                TextMeshProUGUI label = UiKit.CreateText("Sem" + i, parent, semantics[i].Item1,
+                    UiSkin.Font.Body, TextAlignmentOptions.MidlineLeft, semantics[i].Item2, body);
+                label.enableWordWrapping = false;
+                label.rectTransform.anchorMin = label.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+                label.rectTransform.pivot = new Vector2(0f, 0.5f);
+                label.rectTransform.sizeDelta = new Vector2(150f, 26f);
+                label.rectTransform.anchoredPosition = new Vector2(x + 90f + i * 158f, y);
+            }
+            y -= 54f;
+        }
+
+        // ---- (3) 输入 / INPUT ----
+
+        static void BuildInputsSection(RectTransform parent, float x, ref float y,
+            TMP_FontAsset body, TMP_FontAsset secondary)
+        {
+            SectionHeader(parent, x, ref y, "输入 / INPUT", secondary);
+
+            RowLabel(parent, x, y, "文本框：", secondary);
+            BuildInputField(parent, new Vector2(x + 250f, y), new Vector2(320f, 44f),
+                "输入海盗团名…", body);
+            y -= 56f;
+
+            RowLabel(parent, x, y, "开关：", secondary);
+            BuildToggle(parent, new Vector2(x + 175f, y), new Vector2(170f, 44f), "开（选中）", body, true);
+            BuildToggle(parent, new Vector2(x + 335f, y), new Vector2(110f, 44f), "关", body, false);
+            BuildCheckBox(parent, new Vector2(x + 467f, y), "复选项（选中）", body, true);
+            BuildCheckBox(parent, new Vector2(x + 707f, y), "复选项", body, false);
+            y -= 56f;
+
+            RowLabel(parent, x, y, "下拉：", secondary);
+            DemoButton(parent, x + 90f, y, 240f, 44f, "中 · 下拉选项", UiKit.ButtonKind.Dark, font: body);
+            RowLabel(parent, x + 350f, y, "（完整下拉交互待波次 B）", secondary);
+            y -= 58f;
+        }
+
+        static void BuildInputField(RectTransform parent, Vector2 center, Vector2 size,
+            string placeholder, TMP_FontAsset font)
+        {
+            RectTransform rect = UiKit.CreateRect("InputField", parent);
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = size;
+            rect.anchoredPosition = center;
+
+            var groove = rect.gameObject.AddComponent<Image>();
+            groove.sprite = SketchSkin.Frame("groove", 0);
+            groove.type = Image.Type.Sliced;
+            groove.color = Color.white;
+            groove.raycastTarget = true;
+            var boil = rect.gameObject.AddComponent<SketchBoil>();
+            boil.Slot = "groove";
+
+            var area = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
+            area.transform.SetParent(rect, false);
+            var areaRect = (RectTransform)area.transform;
+            areaRect.anchorMin = Vector2.zero;
+            areaRect.anchorMax = Vector2.one;
+            areaRect.offsetMin = new Vector2(12f, 4f);
+            areaRect.offsetMax = new Vector2(-12f, -4f);
+
+            TextMeshProUGUI text = UiKit.CreateText("Text", areaRect.transform, string.Empty,
+                UiSkin.Font.Body, TextAlignmentOptions.MidlineLeft, UiSkin.TextOnInk, font);
+            UiKit.Stretch(text.rectTransform);
+
+            TextMeshProUGUI hint = UiKit.CreateText("Placeholder", areaRect.transform, placeholder,
+                UiSkin.Font.Body, TextAlignmentOptions.MidlineLeft, UiSkin.TextDim, font);
+            UiKit.Stretch(hint.rectTransform);
+
+            var input = rect.gameObject.AddComponent<TMPro.TMP_InputField>();
+            input.textComponent = text;
+            input.placeholder = hint;
+            input.targetGraphic = groove;
+        }
+
+        static void BuildToggle(RectTransform parent, Vector2 center, Vector2 size, string label,
+            TMP_FontAsset font, bool isOn)
+        {
+            RectTransform rect = UiKit.CreateRect("Toggle_" + label, parent);
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = size;
+            rect.anchoredPosition = center;
+
+            var back = rect.gameObject.AddComponent<Image>();
+            back.sprite = SketchSkin.Frame("btn_normal", 0);
+            back.type = Image.Type.Sliced;
+            back.color = Color.white;
+            back.raycastTarget = true;
+            var boil = rect.gameObject.AddComponent<SketchBoil>();
+            boil.Slot = "btn_normal";
+
+            Image check = UiKit.CreateGlyph("Check", rect, UiGlyphs.Glyph.Check, UiSkin.Gold);
+            check.rectTransform.anchorMin = check.rectTransform.anchorMax = new Vector2(0f, 0.5f);
+            check.rectTransform.pivot = new Vector2(0f, 0.5f);
+            check.rectTransform.sizeDelta = new Vector2(22f, 22f);
+            check.rectTransform.anchoredPosition = new Vector2(12f, 0f);
+
+            TextMeshProUGUI text = UiKit.CreateText("Label", rect, label, UiSkin.Font.Body,
+                TextAlignmentOptions.MidlineLeft, UiSkin.TextOnInk, font);
+            text.enableWordWrapping = false;
+            text.rectTransform.anchorMin = text.rectTransform.anchorMax = new Vector2(0f, 0.5f);
+            text.rectTransform.pivot = new Vector2(0f, 0.5f);
+            text.rectTransform.sizeDelta = new Vector2(size.x - 48f, size.y);
+            text.rectTransform.anchoredPosition = new Vector2(42f, 0f);
+
+            var toggle = rect.gameObject.AddComponent<Toggle>();
+            toggle.targetGraphic = back;
+            toggle.graphic = check;
+            toggle.isOn = isOn;
+        }
+
+        static void BuildCheckBox(RectTransform parent, Vector2 center, string label,
+            TMP_FontAsset font, bool isOn)
+        {
+            RectTransform rect = UiKit.CreateRect("Check_" + label, parent);
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(34f, 34f);
+            rect.anchoredPosition = center;
+
+            var back = rect.gameObject.AddComponent<Image>();
+            back.sprite = SketchSkin.Frame("btn_normal", 0);
+            back.type = Image.Type.Sliced;
+            back.color = Color.white;
+            back.raycastTarget = true;
+            var boil = rect.gameObject.AddComponent<SketchBoil>();
+            boil.Slot = "btn_normal";
+
+            Image check = UiKit.CreateGlyph("Check", rect, UiGlyphs.Glyph.Check, UiSkin.Gold);
+            UiKit.Stretch(check.rectTransform, 5f);
+
+            TextMeshProUGUI text = UiKit.CreateText("Label", parent, label, UiSkin.Font.Body,
+                TextAlignmentOptions.MidlineLeft, UiSkin.TextOnInk, font);
+            text.enableWordWrapping = false;
+            text.rectTransform.anchorMin = text.rectTransform.anchorMax = new Vector2(0f, 0.5f);
+            text.rectTransform.pivot = new Vector2(0f, 0.5f);
+            text.rectTransform.sizeDelta = new Vector2(190f, 26f);
+            text.rectTransform.anchoredPosition = center + new Vector2(26f, 0f);
+
+            var toggle = rect.gameObject.AddComponent<Toggle>();
+            toggle.targetGraphic = back;
+            toggle.graphic = check;
+            toggle.isOn = isOn;
+        }
+
+        // ---- (4) 页签 / TABS ----
+
+        static void BuildTabsSection(RectTransform parent, float x, ref float y,
+            TMP_FontAsset body, TMP_FontAsset secondary)
+        {
+            SectionHeader(parent, x, ref y, "页签 / TABS", secondary);
+            TextMeshProUGUI pageBody = UiKit.CreateText("TabPageBody", parent,
+                "「总览」页内容 —— 选中页签带金色马克笔下划线",
+                UiSkin.Font.Body, TextAlignmentOptions.MidlineLeft, UiSkin.TextDim, body);
+            pageBody.enableWordWrapping = false;
+            pageBody.rectTransform.anchorMin = pageBody.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            pageBody.rectTransform.pivot = new Vector2(0f, 0.5f);
+            pageBody.rectTransform.sizeDelta = new Vector2(860f, 26f);
+            pageBody.rectTransform.anchoredPosition = new Vector2(x, y - 50f);
+
+            string[] titles = { "总览", "编制", "科技" };
+            SketchWidgets.Tabs(parent, new Vector2(x + 330f, y), new Vector2(660f, 42f),
+                titles, body, 0, index =>
+                {
+                    pageBody.text = "「" + titles[index] + "」页内容 —— 选中页签带金色马克笔下划线";
+                });
+            y -= 84f;
+
+            RowLabel(parent, x, y, "独立页签：", secondary);
+            SketchWidgets.Tabs(parent, new Vector2(x + 400f, y), new Vector2(440f, 38f),
+                new[] { "树", "总览", "指挥链" }, body, 1, null);
+            y -= 50f;
+        }
+
+        // ---- (5) 滑条与进度 / SLIDER & PROGRESS ----
+
+        static void BuildSlidersSection(RectTransform parent, float x, ref float y,
+            TMP_FontAsset body, TMP_FontAsset secondary)
+        {
+            SectionHeader(parent, x, ref y, "滑条与进度 / SLIDER & PROGRESS", secondary);
+
+            RowLabel(parent, x, y, "滑条：", secondary);
+            BuildSlider(parent, new Vector2(x + 330f, y), new Vector2(360f, 30f), 0.65f);
+            y -= 56f;
+
+            RowLabel(parent, x, y, "进度条：", secondary);
+            RectTransform bar = UiKit.CreateRect("ProgressDemo", parent);
             bar.anchorMin = bar.anchorMax = bar.pivot = new Vector2(0.5f, 0.5f);
-            bar.anchoredPosition = center;
-            bar.sizeDelta = new Vector2(width, height);
+            bar.sizeDelta = new Vector2(360f, 22f);
+            bar.anchoredPosition = new Vector2(x + 330f, y);
             var track = bar.gameObject.AddComponent<Image>();
             track.sprite = SketchSkin.Frame("progress_bg", 0);
             track.type = Image.Type.Sliced;
+            track.color = Color.white;
             track.raycastTarget = false;
             var trackBoil = bar.gameObject.AddComponent<SketchBoil>();
             trackBoil.Slot = "progress_bg";
-
-            float segW = (width - 4f - 3f * gap) / 4f;
-            float[] fills = { 1f, 0.62f, 0.34f, 0.85f };
-            for (int i = 0; i < 4; i++)
-            {
-                RectTransform seg = UiKit.CreateRect("Seg" + i, bar);
-                seg.anchorMin = seg.anchorMax = seg.pivot = new Vector2(0f, 0.5f);
-                seg.sizeDelta = new Vector2(segW, height - 6f);
-                seg.anchoredPosition = new Vector2(2f + i * (segW + gap), 0f);
-
-                Image ghost = UiKit.CreateTinted("Ghost", seg, CartoonSpriteFactory.Shape.Pill,
-                    UiSkin.DamageGhost);
-                UiKit.Stretch(ghost.rectTransform);
-                SetFill(ghost, 1f);
-                Image fill = UiKit.CreateTinted("Fill", seg, CartoonSpriteFactory.Shape.Pill,
-                    UiSkin.TeamRed);
-                UiKit.Stretch(fill.rectTransform);
-                SetFill(fill, fills[i]);
-            }
+            RectTransform fill = UiKit.CreateRect("Fill", bar);
+            fill.anchorMin = new Vector2(0f, 0f);
+            fill.anchorMax = new Vector2(0.4f, 1f);
+            fill.offsetMin = Vector2.zero;
+            fill.offsetMax = Vector2.zero;
+            var fillImage = fill.gameObject.AddComponent<Image>();
+            fillImage.sprite = SketchSkin.Frame("progress_fill", 0);
+            fillImage.type = Image.Type.Sliced;
+            fillImage.color = Color.white;
+            fillImage.raycastTarget = false;
+            var fillBoil = fill.gameObject.AddComponent<SketchBoil>();
+            fillBoil.Slot = "progress_fill";
+            y -= 56f;
         }
 
-        static void BuildUnitBarSample(RectTransform root, Vector2 center)
+        static void BuildSlider(RectTransform parent, Vector2 center, Vector2 size, float value)
         {
-            // 静态陈列 damage ghost 语义：白残影 0.62 领先、主填充 0.45 落后。
-            UiKit.BarView bar = UiKit.CreateBar("SampleUnitBar", root, center,
-                new Vector2(280f, 16f), UiSkin.TeamBlue);
-            SetFill(bar.Ghost, 0.62f);
-            SetFill(bar.Fill, 0.45f);
+            RectTransform rect = UiKit.CreateRect("Slider", parent);
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = size;
+            rect.anchoredPosition = center;
+
+            var back = rect.gameObject.AddComponent<Image>();
+            back.sprite = SketchSkin.Frame("groove", 0);
+            back.type = Image.Type.Sliced;
+            back.color = Color.white;
+            back.raycastTarget = false;
+            var backBoil = rect.gameObject.AddComponent<SketchBoil>();
+            backBoil.Slot = "groove";
+
+            RectTransform fillArea = UiKit.CreateRect("FillArea", rect);
+            fillArea.anchorMin = Vector2.zero;
+            fillArea.anchorMax = Vector2.one;
+            fillArea.offsetMin = new Vector2(4f, 4f);
+            fillArea.offsetMax = new Vector2(-4f, -4f);
+            RectTransform fill = UiKit.CreateRect("Fill", fillArea);
+            fill.anchorMin = Vector2.zero;
+            fill.pivot = new Vector2(0f, 0.5f);
+            fill.anchorMax = new Vector2(0f, 1f);
+            fill.offsetMin = Vector2.zero;
+            fill.offsetMax = Vector2.zero;
+            var fillImage = fill.gameObject.AddComponent<Image>();
+            fillImage.sprite = SketchSkin.Frame("fill", 0);
+            fillImage.type = Image.Type.Sliced;
+            fillImage.color = UiSkin.Gold;
+            fillImage.raycastTarget = false;
+
+            RectTransform handleArea = UiKit.CreateRect("HandleArea", rect);
+            handleArea.anchorMin = Vector2.zero;
+            handleArea.anchorMax = Vector2.one;
+            handleArea.offsetMin = new Vector2(14f, 0f);
+            handleArea.offsetMax = new Vector2(-14f, 0f);
+            RectTransform handle = UiKit.CreateRect("Handle", handleArea);
+            handle.sizeDelta = new Vector2(26f, 26f);
+            handle.pivot = new Vector2(0.5f, 0.5f);
+            var handleImage = handle.gameObject.AddComponent<Image>();
+            handleImage.sprite = SketchSkin.Frame("pip", 0);
+            handleImage.type = Image.Type.Simple;
+            handleImage.color = UiSkin.Gold;
+            handleImage.raycastTarget = true;
+
+            var slider = rect.gameObject.AddComponent<Slider>();
+            slider.targetGraphic = handleImage;
+            slider.fillRect = fill;
+            slider.handleRect = handle;
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.value = value;
         }
 
-        static void BuildPipSample(RectTransform root, Vector2 center)
+        // ---- (6) 列表 / ITEM LIST ----
+
+        static void BuildListsSection(RectTransform parent, float x, ref float y,
+            TMP_FontAsset body, TMP_FontAsset secondary)
         {
-            string[] keys = { "sailor", "gunner", "sniper", "hooker", "arsonist", "captain" };
-            float step = 38f, x0 = center.x - (keys.Length * step - 8f) / 2f;
-            for (int i = 0; i < keys.Length; i++)
+            SectionHeader(parent, x, ref y, "列表 / ITEM LIST", secondary);
+            string[] rows =
             {
-                RectTransform pip = UiKit.CreateRect("Pip" + keys[i], root);
-                pip.anchorMin = pip.anchorMax = pip.pivot = new Vector2(0.5f, 0.5f);
-                pip.sizeDelta = new Vector2(32f, 32f);
-                pip.anchoredPosition = new Vector2(x0 + i * step, center.y);
-
-                var frame = pip.gameObject.AddComponent<Image>();
-                frame.sprite = SketchSkin.Frame("cell", 0);
-                frame.type = Image.Type.Sliced;
-                frame.color = UiSkin.CellBase(UiSkin.CrewColor(keys[i]));
-                frame.raycastTarget = false;
-                var pipBoil = pip.gameObject.AddComponent<SketchBoil>();
-                pipBoil.Slot = "cell";
-
-                Image icon = UiKit.CreateRect("Icon", pip).gameObject.AddComponent<Image>();
-                icon.sprite = LoadCrewIcon(keys[i]);
-                icon.type = Image.Type.Simple;
-                icon.raycastTarget = false;
-                UiKit.Stretch(icon.rectTransform, 3f);
+                "第一海盗团 · 12 人",
+                "皇家炮手队 · 8 人",
+                "中央领航舰队 · 5 人",
+                "北境骨侯团 · 9 人",
+                "黑石商队 · 3 人",
+            };
+            for (int i = 0; i < rows.Length; i++)
+            {
+                RectTransform row = UiKit.CreateRect("ListRow_" + i, parent);
+                row.anchorMin = row.anchorMax = new Vector2(0.5f, 0.5f);
+                row.pivot = new Vector2(0f, 0.5f);
+                row.sizeDelta = new Vector2(850f, 32f);
+                row.anchoredPosition = new Vector2(x, y);
+                var back = row.gameObject.AddComponent<Image>();
+                back.sprite = SketchSkin.Frame(i % 2 == 0 ? "panel_light" : "groove", 0);
+                back.type = Image.Type.Sliced;
+                back.color = Color.white;
+                back.raycastTarget = false;
+                var boil = row.gameObject.AddComponent<SketchBoil>();
+                boil.Slot = i % 2 == 0 ? "panel_light" : "groove";
+                TextMeshProUGUI text = UiKit.CreateText("Row", row, rows[i], UiSkin.Font.Body,
+                    TextAlignmentOptions.MidlineLeft, UiSkin.TextOnInk, body);
+                text.enableWordWrapping = false;
+                UiKit.Stretch(text.rectTransform, 12f);
+                y -= 36f;
             }
-            // 死亡态 pip：灰底骷髅。
-            RectTransform dead = UiKit.CreateRect("PipDead", root);
-            dead.anchorMin = dead.anchorMax = dead.pivot = new Vector2(0.5f, 0.5f);
-            dead.sizeDelta = new Vector2(32f, 32f);
-            dead.anchoredPosition = new Vector2(x0 + keys.Length * step, center.y);
-            var deadFrame = dead.gameObject.AddComponent<Image>();
-            deadFrame.sprite = SketchSkin.Frame("cell", 0);
-            deadFrame.type = Image.Type.Sliced;
-            deadFrame.color = UiSkin.DeadGray;
-            deadFrame.raycastTarget = false;
-            var deadBoil = dead.gameObject.AddComponent<SketchBoil>();
-            deadBoil.Slot = "cell";
-            UiKit.CreateGlyph("Skull", dead, UiGlyphs.Glyph.Skull, UiSkin.InkDeep);
+            y -= 16f;
+        }
+
+        // ---- (7) 反馈 / TOAST & CONFIRM ----
+
+        static void BuildFeedbackSection(RectTransform parent, float x, ref float y,
+            TMP_FontAsset body, TMP_FontAsset secondary, RectTransform toastLayer)
+        {
+            SectionHeader(parent, x, ref y, "反馈 / TOAST & CONFIRM", secondary);
+            MakeToastButton(parent, x, y, 190f, "信息 Toast", UiSkin.Info, "这是一条信息通知", body, toastLayer);
+            MakeToastButton(parent, x + 200f, y, 190f, "警告 Toast", UiSkin.Warn, "石料储备不足", body, toastLayer);
+            MakeToastButton(parent, x + 400f, y, 190f, "错误 Toast", UiSkin.TeamRedText, "编队已溃散", body, toastLayer);
+            Button confirm = DemoButton(parent, x + 600f, y, 220f, 44f, "确认框", UiKit.ButtonKind.Primary,
+                font: body);
+            confirm.onClick.AddListener(() => ShowConfirmDemo(toastLayer, body));
+            y -= 56f;
+        }
+
+        static void MakeToastButton(RectTransform parent, float x, float y, float width,
+            string label, Color color, string message, TMP_FontAsset font, RectTransform toastLayer)
+        {
+            Button button = DemoButton(parent, x, y, width, 44f, label, UiKit.ButtonKind.Dark, font: font);
+            button.onClick.AddListener(() => SketchWidgets.Toast(toastLayer, message, color, font));
+        }
+
+        static void ShowConfirmDemo(RectTransform layer, TMP_FontAsset font)
+        {
+            UiKit.ModalView modal = UiKit.CreateModal("ConfirmDemo", layer, new Vector2(620f, 300f));
+            modal.Root.gameObject.SetActive(true);
+            TextMeshProUGUI title = UiKit.CreateText("Title", modal.Card, "拆除建筑",
+                UiSkin.Font.Title, TextAlignmentOptions.Center, UiSkin.Gold, font);
+            UiKit.SetAnchored(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(480f, 48f),
+                new Vector2(0f, -36f));
+            TextMeshProUGUI body = UiKit.CreateText("Body", modal.Card,
+                "拆除后将返还 50% 材料，确定拆除「草棚」吗？",
+                UiSkin.Font.Body, TextAlignmentOptions.Center, UiSkin.TextOnInk, font);
+            UiKit.SetAnchored(body.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(520f, 60f),
+                new Vector2(0f, 10f));
+            Button ok = UiKit.ActionButton("Ok", modal.Card, UiGlyphs.Glyph.Check, "拆除",
+                UiKit.ButtonKind.Danger, new Vector2(-140f, -96f), new Vector2(220f, 50f), font);
+            Button cancel = UiKit.ActionButton("Cancel", modal.Card, UiGlyphs.Glyph.Cross, "取消",
+                UiKit.ButtonKind.Dark, new Vector2(140f, -96f), new Vector2(220f, 50f), font);
+            ok.onClick.AddListener(() => Object.Destroy(modal.Root));
+            cancel.onClick.AddListener(() => Object.Destroy(modal.Root));
+        }
+
+        // ---- (8) 键鼠说明 / KEYMAP ----
+
+        static void BuildKeymapSection(RectTransform parent, float x, ref float y,
+            TMP_FontAsset secondary)
+        {
+            SectionHeader(parent, x, ref y, "键鼠说明 / KEYMAP", secondary);
+            var keys = new (string, string)[]
+            {
+                ("左键", "选角色 / 点图标施展武器"),
+                ("右键拖动", "转动视角"),
+                ("滚轮", "投掷力度蓄力"),
+                ("空格", "跳跃"),
+            };
+            foreach (var (key, desc) in keys)
+            {
+                SketchWidgets.KeymapRow(parent, new Vector2(x, y), key, desc, secondary);
+                y -= 46f;
+            }
         }
 
         // ------------------------------------------------------------------
@@ -357,39 +694,6 @@ namespace PirateCrew.UI
             LeftLabel(root, x, y, 560f, content, size, UiSkin.TextOnInk, font);
         }
 
-        static void Swatch(RectTransform root, Vector2 center, Color color, string name,
-            TMP_FontAsset secondary)
-        {
-            // 色板用不透明 cell 槽（btn 槽白 7% 透明底乘色后颜色不可辨）；
-            // 直接挂页面根（r12 事故：把本方法自建的空容器当 root 传下去，子块坐标叠算成 2×center）。
-            SketchImage(root, center, "cell", color, null, null, new Vector2(104f, 44f));
-
-            // 色板名放色块右侧（r9：居中 160 宽盒左端压进色块内一半）。
-            LeftLabel(root, center.x + 58f, center.y, 120f, name, UiSkin.Font.Tiny,
-                UiSkin.TextOnInk, secondary);
-        }
-
-        /// <summary>建一个手绘槽样块（实底槽乘色 / 固定槽传 white），挂沸腾。</summary>
-        static void SketchImage(RectTransform root, Vector2 center, string slot, Color color,
-            string name, TMP_FontAsset secondary, Vector2? size = null)
-        {
-            RectTransform rect = UiKit.CreateRect("Sketch_" + slot, root);
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = size ?? new Vector2(120f, 64f);
-            rect.anchoredPosition = center;
-            var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = SketchSkin.Frame(slot, 0);
-            image.type = Image.Type.Sliced;
-            image.color = color;
-            image.raycastTarget = false;
-            var boil = rect.gameObject.AddComponent<SketchBoil>();
-            boil.Slot = slot;
-
-            if (name != null)
-                Label(root, At(center.x, center.y - 46f), name, UiSkin.Font.Tiny,
-                    UiSkin.TextDim, secondary);
-        }
-
         static void Label(RectTransform root, Vector2 position, string content, int size,
             Color color, TMP_FontAsset font)
         {
@@ -412,14 +716,6 @@ namespace PirateCrew.UI
                 text.rectTransform.pivot = new Vector2(0.5f, 0.5f);
             text.rectTransform.sizeDelta = new Vector2(1400f, 24f);
             text.rectTransform.anchoredPosition = new Vector2(0f, -496f);
-        }
-
-        /// <summary>血条填充比例（anchorMax.x 表达，与 UiMotion 同口径）。</summary>
-        static void SetFill(Image fill, float ratio)
-        {
-            RectTransform rect = fill.rectTransform;
-            rect.anchorMax = new Vector2(Mathf.Clamp01(ratio), 1f);
-            rect.offsetMax = Vector2.zero;
         }
 
         static Sprite LoadWeaponIcon(WeaponId id)

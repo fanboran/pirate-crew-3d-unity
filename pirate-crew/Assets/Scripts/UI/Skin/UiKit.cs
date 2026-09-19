@@ -144,7 +144,9 @@ namespace PirateCrew.UI
             return image;
         }
 
-        /// <summary>建深底面板（固定色 InkDeep + 亮边线；承载暖白 / 金 / 彩色件）。</summary>
+        /// <summary>建深底手绘面板（panel 槽九砖平铺 + 沸腾；承载暖白 / 金 / 彩色件）。
+        /// 根上没有 Image——面板外观由 <see cref="Sketch9Slice"/> 的九个子砖承担，
+        /// 换槽用 <c>GetComponent&lt;Sketch9Slice&gt;().SetSlot(...)</c>。</summary>
         public static RectTransform CreatePanel(string name, Transform parent, Vector2 anchor, Vector2 pivot,
             Vector2 anchoredPosition, Vector2 size)
         {
@@ -155,12 +157,8 @@ namespace PirateCrew.UI
             rect.anchoredPosition = anchoredPosition;
             rect.sizeDelta = size;
 
-            var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = SkinSprite(CartoonSpriteFactory.Shape.PanelInk);
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;
-            image.raycastTarget = false;
-            AddBoil(rect, "panel");
+            var slice = rect.gameObject.AddComponent<Sketch9Slice>();
+            slice.Slot = "panel";
             return rect;
         }
 
@@ -197,13 +195,15 @@ namespace PirateCrew.UI
             };
         }
 
-        /// <summary>chip 底色 → 手绘按钮状态槽组（Gold=金实底主按钮 / Danger=危险 / 其余常规）。</summary>
+        /// <summary>chip 底色 → 手绘按钮状态槽组（Gold=金实底主按钮 / Danger=危险 / TextOnInk=纸面 / 其余常规）。</summary>
         public static string[] ButtonStateSlots(Color chipColor)
         {
             if (chipColor == UiSkin.Gold)
                 return SketchSkin.BtnPrimary;
             if (chipColor == UiSkin.Danger)
                 return SketchSkin.Danger;
+            if (chipColor == UiSkin.TextOnInk)
+                return SketchSkin.Ink;
             return SketchSkin.Btn;
         }
 
@@ -286,20 +286,28 @@ namespace PirateCrew.UI
         // 调用点只报"档位"，底色/字色组合的唯一出处在这里，杜绝各处手配漂移）
         // ------------------------------------------------------------------
 
-        /// <summary>按钮档位。Primary=金色主行动点；Dark=深底常规件；Danger=破坏性动作。</summary>
+        /// <summary>按钮档位（对齐隔壁 SketchButton 五 kind）：
+        /// Primary=金色主行动点；Dark=深底常规件；Danger=破坏性动作；
+        /// Accent=金叠加选中态；Paper=纸面亮背景形态（主菜单暖金天空用）。</summary>
         public enum ButtonKind
         {
             /// <summary>主行动点（投掷 / 继续 / 再来一局 / 确认）：金底深字。全屏同时只该有一枚高亮。</summary>
             Primary,
 
-            /// <summary>常规件（结束回合 / 取消 / 次按钮）：InkSoft 底暖白字。</summary>
+            /// <summary>常规件（结束回合 / 取消 / 次按钮）：手绘深底暖白字。</summary>
             Dark,
 
             /// <summary>破坏性动作（返回主菜单 / 放弃）：酒红底暖白字。</summary>
             Danger,
+
+            /// <summary>强调态（选中 / 激活）：金叠加底金边金字。</summary>
+            Accent,
+
+            /// <summary>纸面形态（亮背景上的"纸签"）：奶油纸底深墨字。</summary>
+            Paper,
         }
 
-        /// <summary>档位 → (chip 底色, 字/图标色)。强调色纪律：<see cref="UiSkin.Gold"/> 只在 Primary 出现。</summary>
+        /// <summary>档位 → (chip 底色→槽推断, 字/图标色)。强调色纪律：<see cref="UiSkin.Gold"/> 只在 Primary/Accent 出现。</summary>
         public static (Color chip, Color label) ButtonVariant(ButtonKind kind)
         {
             switch (kind)
@@ -307,7 +315,23 @@ namespace PirateCrew.UI
                 case ButtonKind.Primary: return (UiSkin.Gold, UiSkin.InkOnGold);
                 case ButtonKind.Dark: return (UiSkin.InkSoft, UiSkin.TextOnInk);
                 case ButtonKind.Danger: return (UiSkin.Danger, UiSkin.TextOnInk);
+                case ButtonKind.Accent: return (UiSkin.Gold, UiSkin.Gold);
+                case ButtonKind.Paper: return (UiSkin.TextOnInk, UiSkin.InkOnGold);
                 default: return (UiSkin.InkSoft, UiSkin.TextOnInk);
+            }
+        }
+
+        /// <summary>档位 → 状态槽组（kind 直查——Accent 与 Primary 同为金字面，
+        /// 走 chip 色推断会撞槽，故 kind 路径不经 <see cref="ButtonStateSlots"/>）。</summary>
+        public static string[] KindStateSlots(ButtonKind kind)
+        {
+            switch (kind)
+            {
+                case ButtonKind.Primary: return SketchSkin.BtnPrimary;
+                case ButtonKind.Danger: return SketchSkin.Danger;
+                case ButtonKind.Accent: return SketchSkin.Accent;
+                case ButtonKind.Paper: return SketchSkin.Ink;
+                default: return SketchSkin.Btn;
             }
         }
 
@@ -317,10 +341,11 @@ namespace PirateCrew.UI
         /// position 相对父容器中心（anchor/pivot 0.5,0.5）。
         /// </summary>
         public static Button ActionButton(string name, Transform parent, UiGlyphs.Glyph glyph,
-            string label, ButtonKind kind, Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font)
+            string label, ButtonKind kind, Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font,
+            bool withIcon = true)
         {
             (Color chipColor, Color labelColor) = ButtonVariant(kind);
-            string[] stateSlots = ButtonStateSlots(chipColor);
+            string[] stateSlots = KindStateSlots(kind);
             RectTransform rect = CreateRect(name, parent);
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
@@ -338,19 +363,29 @@ namespace PirateCrew.UI
             rect.gameObject.AddComponent<UiPressSink>();
             AddBoil(rect, stateSlots[0], stateSlots);
 
-            Image icon = CreateGlyph("Icon", rect, glyph, labelColor);
-            icon.rectTransform.anchorMin = icon.rectTransform.anchorMax = new Vector2(0f, 0.5f);
-            icon.rectTransform.pivot = new Vector2(0f, 0.5f);
-            icon.rectTransform.sizeDelta = new Vector2(24f, 24f);
-            icon.rectTransform.anchoredPosition = new Vector2(12f, 0f);
+            if (withIcon)
+            {
+                Image icon = CreateGlyph("Icon", rect, glyph, labelColor);
+                icon.rectTransform.anchorMin = icon.rectTransform.anchorMax = new Vector2(0f, 0.5f);
+                icon.rectTransform.pivot = new Vector2(0f, 0.5f);
+                icon.rectTransform.sizeDelta = new Vector2(24f, 24f);
+                icon.rectTransform.anchoredPosition = new Vector2(12f, 0f);
 
-            TextMeshProUGUI text = CreateText("Text", rect, label, UiSkin.Font.Body,
-                TextAlignmentOptions.MidlineLeft, labelColor, font, raycast: false);
-            text.enableWordWrapping = false;
-            text.rectTransform.anchorMin = text.rectTransform.anchorMax = new Vector2(0f, 0.5f);
-            text.rectTransform.pivot = new Vector2(0f, 0.5f);
-            text.rectTransform.sizeDelta = new Vector2(size.x - 48f, size.y);
-            text.rectTransform.anchoredPosition = new Vector2(42f, 0f);
+                TextMeshProUGUI text = CreateText("Text", rect, label, UiSkin.Font.Body,
+                    TextAlignmentOptions.MidlineLeft, labelColor, font, raycast: false);
+                text.enableWordWrapping = false;
+                text.rectTransform.anchorMin = text.rectTransform.anchorMax = new Vector2(0f, 0.5f);
+                text.rectTransform.pivot = new Vector2(0f, 0.5f);
+                text.rectTransform.sizeDelta = new Vector2(size.x - 48f, size.y);
+                text.rectTransform.anchoredPosition = new Vector2(42f, 0f);
+            }
+            else
+            {
+                TextMeshProUGUI text = CreateText("Text", rect, label, UiSkin.Font.Body,
+                    TextAlignmentOptions.Center, labelColor, font, raycast: false);
+                text.enableWordWrapping = false;
+                Stretch(text.rectTransform, 10f);
+            }
 
             return button;
         }
