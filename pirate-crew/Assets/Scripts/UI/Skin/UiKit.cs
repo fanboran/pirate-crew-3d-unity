@@ -265,6 +265,112 @@ namespace PirateCrew.UI
             return button;
         }
 
+        // ------------------------------------------------------------------
+        // 按钮变体表（对齐 game-2 sketch_style._build_variants 的表驱动思路：
+        // 调用点只报"档位"，底色/字色组合的唯一出处在这里，杜绝各处手配漂移）
+        // ------------------------------------------------------------------
+
+        /// <summary>按钮档位。Primary=金色主行动点；Dark=深底常规件；Danger=破坏性动作。</summary>
+        public enum ButtonKind
+        {
+            /// <summary>主行动点（投掷 / 继续 / 再来一局 / 确认）：金底深字。全屏同时只该有一枚高亮。</summary>
+            Primary,
+
+            /// <summary>常规件（结束回合 / 取消 / 次按钮）：InkSoft 底暖白字。</summary>
+            Dark,
+
+            /// <summary>破坏性动作（返回主菜单 / 放弃）：酒红底暖白字。</summary>
+            Danger,
+        }
+
+        /// <summary>档位 → (chip 底色, 字/图标色)。强调色纪律：<see cref="UiSkin.Gold"/> 只在 Primary 出现。</summary>
+        public static (Color chip, Color label) ButtonVariant(ButtonKind kind)
+        {
+            switch (kind)
+            {
+                case ButtonKind.Primary: return (UiSkin.Gold, UiSkin.InkOnGold);
+                case ButtonKind.Dark: return (UiSkin.InkSoft, UiSkin.TextOnInk);
+                case ButtonKind.Danger: return (UiSkin.Danger, UiSkin.TextOnInk);
+                default: return (UiSkin.InkSoft, UiSkin.TextOnInk);
+            }
+        }
+
+        /// <summary>
+        /// 图文按钮（图标在左、文字跟右）——模式/动作钮的统一长相，档位色走
+        /// <see cref="ButtonVariant"/>；BattleHud 的投掷/结束回合与各模态按钮共用。
+        /// position 相对父容器中心（anchor/pivot 0.5,0.5）。
+        /// </summary>
+        public static Button ActionButton(string name, Transform parent, UiGlyphs.Glyph glyph,
+            string label, ButtonKind kind, Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font)
+        {
+            (Color chipColor, Color labelColor) = ButtonVariant(kind);
+            RectTransform rect = CreateRect(name, parent);
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = size;
+            rect.anchoredPosition = anchoredPosition;
+
+            var image = rect.gameObject.AddComponent<Image>();
+            image.sprite = SkinSprite(CartoonSpriteFactory.Shape.Chip);
+            image.type = Image.Type.Sliced;
+            image.color = chipColor;
+
+            var button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.colors = FourState(chipColor);
+            rect.gameObject.AddComponent<UiPressSink>();
+
+            Image icon = CreateGlyph("Icon", rect, glyph, labelColor);
+            icon.rectTransform.anchorMin = icon.rectTransform.anchorMax = new Vector2(0f, 0.5f);
+            icon.rectTransform.pivot = new Vector2(0f, 0.5f);
+            icon.rectTransform.sizeDelta = new Vector2(24f, 24f);
+            icon.rectTransform.anchoredPosition = new Vector2(12f, 0f);
+
+            TextMeshProUGUI text = CreateText("Text", rect, label, UiSkin.Font.Body,
+                TextAlignmentOptions.MidlineLeft, labelColor, font, raycast: false);
+            text.enableWordWrapping = false;
+            text.rectTransform.anchorMin = text.rectTransform.anchorMax = new Vector2(0f, 0.5f);
+            text.rectTransform.pivot = new Vector2(0f, 0.5f);
+            text.rectTransform.sizeDelta = new Vector2(size.x - 48f, size.y);
+            text.rectTransform.anchoredPosition = new Vector2(42f, 0f);
+
+            return button;
+        }
+
+        // ------------------------------------------------------------------
+        // 运行时字体（播放器 / Gallery：字体资产经 Resources 打进包）
+        // ------------------------------------------------------------------
+
+        /// <summary>运行时字体档。<see cref="MenuUiBuilder"/> 是 Editor 类，运行时改从
+        /// Resources/Fonts/ 取同一批 SDF 资产（由 FontAssetBuilder 复制入 Resources）。</summary>
+        public enum RuntimeFontKind
+        {
+            /// <summary>标题手写体。</summary>
+            Title,
+
+            /// <summary>正文。</summary>
+            Body,
+
+            /// <summary>次级说明。</summary>
+            Secondary,
+        }
+
+        /// <summary>取运行时可用的字体资产；Resources 缺失（未跑 FontAssetBuilder）时返回
+        /// null 交 TMP 默认兜底并告警一次。</summary>
+        public static TMP_FontAsset RuntimeFont(RuntimeFontKind kind)
+        {
+            string path = "Fonts/" + kind switch
+            {
+                RuntimeFontKind.Title => "StickHand-Regular SDF",
+                RuntimeFontKind.Body => "LXGWWenKaiLite-Medium SDF",
+                _ => "LXGWWenKaiLite-Regular SDF",
+            };
+            TMP_FontAsset font = Resources.Load<TMP_FontAsset>(path);
+            if (font == null)
+                Debug.LogWarning("[UiKit] Resources/" + path + " 缺失（跑 PirateCrew/资产/烘焙字体 后可用），回落 TMP 默认字体");
+            return font;
+        }
+
         /// <summary>chip 的反相字色（亮底给深墨、深底给暖白——角标 / 覆盖文字的便捷取色）。</summary>
         public static Color InverseOf(Color chipColor)
         {

@@ -211,6 +211,7 @@ namespace PirateCrew.EditorTools
             }
 
             LinkFallbacks();
+            CopyToResources();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -222,6 +223,32 @@ namespace PirateCrew.EditorTools
                 + "    次级  " + Specs[1].AssetPath + "\n"
                 + "  说明: 这些是 TMP 字体资产，只对 TextMeshProUGUI/TextMeshPro 生效；\n"
                 + "        legacy UnityEngine.UI.Text 请直接引用 .ttf（Unity 已导入为 Dynamic Font）。");
+        }
+
+        /// <summary>
+        /// 把三份 SDF 资产复制一份进 <c>Assets/Resources/Fonts/</c>：播放器运行时
+        /// （<see cref="PirateCrew.UI.UiKit.RuntimeFont"/>，Gallery / 运行时动态文本）
+        /// 只能经 Resources 加载，Art 路径在包内不可寻址。子资产（图集/材质）随
+        /// CopyAsset 一并复制；源 ttf 引用保留，Dynamic 模式在包内仍可按需光栅化新字形。
+        /// 幂等：副本存在则先删再拷，保证与 Art 版同步。
+        /// </summary>
+        static void CopyToResources()
+        {
+            const string targetFolder = "Assets/Resources/Fonts";
+            EnsureFolder("Assets/Resources");
+            EnsureFolder(targetFolder);
+
+            foreach (FontSpec spec in Specs)
+            {
+                string targetPath = targetFolder + "/" + spec.AssetFileName + ".asset";
+                if (AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(targetPath) != null)
+                    AssetDatabase.DeleteAsset(targetPath);
+                if (!AssetDatabase.CopyAsset(spec.AssetPath, targetPath))
+                    Debug.LogError("[FontAssetBuilder] 复制字体到 Resources 失败: " + spec.AssetPath
+                        + " → " + targetPath);
+            }
+            Debug.Log("[FontAssetBuilder] 已同步字体副本到 " + targetFolder
+                + "（运行时 UiKit.RuntimeFont 取这批）");
         }
 
         static TMP_FontAsset CreateOne(FontSpec spec, Font sourceFont)

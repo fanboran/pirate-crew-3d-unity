@@ -75,15 +75,48 @@ namespace PirateCrew.UI
         {
             switch (shape)
             {
-                case Shape.Chip: return new Spec { size = 32, radius = 6f, border = 8 };
-                case Shape.Slot: return new Spec { size = 48, radius = 10f, border = 12 };
+                case Shape.Chip: return new Spec { size = 32, radius = UiSkin.RadiusChip, border = 8 };
+                case Shape.Slot: return new Spec { size = 48, radius = UiSkin.RadiusSlot, border = 12 };
                 case Shape.Pill: return new Spec { size = 20, radius = 10f, border = 6 };
                 case Shape.Ring: return new Spec { size = 96, radius = 48f, border = 0 };
                 case Shape.Circle: return new Spec { size = 48, radius = 24f, border = 0 };
-                case Shape.PanelInk: return new Spec { size = 48, radius = 8f, border = 12 };
+                case Shape.PanelInk: return new Spec { size = 48, radius = UiSkin.RadiusPanel, border = 12 };
                 case Shape.BarTrack: return new Spec { size = 20, radius = 10f, border = 6 };
                 default: return new Spec { size = 32, radius = 6f, border = 8 };
             }
+        }
+
+        // ------------------------------------------------------------------
+        // 设计语言修饰（2026-09-19 用户裁决"连血条都要有风格修饰"后加入；
+        // 设计意图详见 docs/设计/UI设计语言.md §三.3）
+        //
+        // 【两段卡通明暗】tintable 家族不做纯平涂：贴图灰度分"顶亮带 1.0 / 主段 ~0.88"
+        // 两档阶梯——乘色后顶带=染色全值、主段=染色略暗，任意色相下都保留卡通体积
+        // （糖豆人/哈迪斯填充的"上受光"读感，不用渐变保持平涂纪律）。
+        // 【凹槽构造线】BarTrack = 顶 1px 内反光 + 底 30% 暗带 + 两端 2px 端箍
+        // （木桶箍的极度抽象——凹槽是"被箍住的容器"不是一条黑缝）。
+        // 【切片安全】所有修饰只依赖 y（垂直）或落在九宫格 border 区（端箍），
+        // 任意拉伸下形态稳定；依赖 x 的斜纹类纹理会被中段拉伸抹除，一律不做。
+        // ------------------------------------------------------------------
+
+        /// <summary>tintable 件主段灰度（顶亮带恒 1.0；乘染色 = 主段略暗）。</summary>
+        const float ShadeLow = 0.88f;
+
+        /// <summary>Pill（血条填充）主段更深——液体的上受光更强。</summary>
+        const float ShadeLowPill = 0.82f;
+
+        /// <summary>顶亮带的底线（贴图 y 上 32% 为亮带；py 向上为正）。</summary>
+        const float HighlightTopRatio = 0.32f;
+
+        static float ShadeOf(Shape shape, float py, int n)
+        {
+            if (shape == Shape.PanelInk || shape == Shape.BarTrack)
+                return 1f;   // 固定色家族的修饰走构造线，不做明暗阶梯
+
+            float hiLine = (n * 0.5f) - n * HighlightTopRatio;   // py > hiLine = 亮带
+            if (shape == Shape.Ring || shape == Shape.Circle)
+                hiLine = 0f;                                     // 圆件以赤道分界
+            return py > hiLine ? 1f : (shape == Shape.Pill ? ShadeLowPill : ShadeLow);
         }
 
         static readonly Dictionary<Shape, Sprite> Cache = new Dictionary<Shape, Sprite>();
@@ -154,6 +187,37 @@ namespace PirateCrew.UI
 
                     // 1px 细边（贴着形状边缘向内）。
                     Color c = dIn < 1f ? edgeColor : fillColor;
+
+                    if (dIn >= 1f)
+                    {
+                        if (tintable)
+                        {
+                            // 两段卡通明暗：顶亮带 1.0 / 主段 ~0.88（乘色后保留体积）。
+                            float shade = ShadeOf(shape, py, n);
+                            c = new Color(c.r * shade, c.g * shade, c.b * shade, c.a);
+                        }
+                        else if (shape == Shape.BarTrack)
+                        {
+                            // 凹槽构造线：顶 1px 内反光 → 底 40% 暗带 → 两端 3px 端箍。
+                            // 【端箍必须落在 border 区内】九宫格中段是 border 内侧整段
+                            // 拉伸，画在中段采样区的竖线会被拉成杂线；只有 border 区
+                            // （BarTrack border=6，两端 6px）被原样复制到条的两端。
+                            if (py > half - 2f)
+                                c = Tint(c, 0.16f);
+                            else if (py < -(half - 1f - n * 0.40f))
+                                c = new Color(c.r * 0.70f, c.g * 0.70f, c.b * 0.70f, c.a);
+
+                            float ax = Mathf.Abs(px);
+                            if (ax > half - 5.5f && ax < half - 2.5f)
+                                c = Tint(c, 0.20f);
+                        }
+                        else if (shape == Shape.PanelInk && py > half - 2f)
+                        {
+                            // 面板上沿 1px 微光（与凹槽顶反光同语言）。
+                            c = Tint(c, 0.06f);
+                        }
+                    }
+
                     pixels[y * n + x] = new Color(c.r, c.g, c.b, coverage);
                 }
             }
@@ -177,6 +241,12 @@ namespace PirateCrew.UI
                 case Shape.BarTrack: return UiSkin.BarTrackInk;
                 default: return Color.white;
             }
+        }
+
+        /// <summary>向白色抬升（构造线的反光叠加；tint=0.1 即混入 10% 白）。</summary>
+        static Color Tint(Color color, float amount)
+        {
+            return Color.Lerp(color, Color.white, amount);
         }
 
         /// <summary>

@@ -921,7 +921,7 @@ namespace PirateCrew.UI
                         bool alive = pirate.Alive;
                         if (pip.frame != null)
                             pip.frame.color = alive
-                                ? UiSkin.CrewColor(pirate.CrewType)
+                                ? UiSkin.CellBase(UiSkin.CrewColor(pirate.CrewType))
                                 : UiSkin.WithAlpha(UiSkin.DeadGray, 0.55f);
                         if (pip.icon != null)
                         {
@@ -1181,12 +1181,12 @@ namespace PirateCrew.UI
                 bool owned = inventory != null && inventory.Contains(id);
                 weaponButtons[i].interactable = owned;
 
-                // 格底 = 武器语义色；未拥有压暗；已装备换金。
+                // 格底 = 武器语义色暗档（CellBase：静物全彩跳出灰底）；未拥有压暗；已装备换金。
                 if (weaponFrames != null && i < weaponFrames.Length && weaponFrames[i] != null)
                 {
                     Color frameColor = equipped && i == (int)equippedId
                         ? UiSkin.Gold
-                        : owned ? UiSkin.WeaponColor(id) : UiSkin.WithAlpha(UiSkin.InkSoft, 0.55f);
+                        : owned ? UiSkin.WeaponCellBase(id) : UiSkin.WithAlpha(UiSkin.InkSoft, 0.55f);
                     weaponFrames[i].color = frameColor;
                 }
             }

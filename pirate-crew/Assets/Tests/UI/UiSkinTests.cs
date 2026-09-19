@@ -66,11 +66,26 @@ namespace PirateCrew.Tests.UI
         [Test]
         public void CrewColor_KnownBattleSymbols_NonFallback()
         {
-            string[] symbols = { "redPirate", "bluePirate", "gunner", "sniper", "hooker", "arsonist", "skeleton",
-                "redPirateCaptain", "bluePirateCaptain" };
-            Color fallback = UiSkin.CrewColor("__unknown__");
+            // §4.2 导出符号 → 职业短名（与 3D 外观侧 CrewVisualCatalog.ProfessionFromBattleSymbol
+            // 同源；r9 出图事故回归锁：cabinBoy 曾落 unknown → 钢灰底+舵轮占位）。
+            Assert.AreEqual("sniper", UiSkin.CrewKey("cabinBoy"));
+            Assert.AreEqual("captain", UiSkin.CrewKey("cabinBoyCaptain"));
+            Assert.AreEqual("gunner", UiSkin.CrewKey("soldier"));
+            Assert.AreEqual("hooker", UiSkin.CrewKey("blindPirate"));
+            Assert.AreEqual("arsonist", UiSkin.CrewKey("oldPirate"));
+            Assert.AreEqual("arsonist", UiSkin.CrewKey("rainbowBeard"));
+            Assert.AreEqual("skeleton", UiSkin.CrewKey("skeletonPirate"));
+            Assert.AreEqual("captain", UiSkin.CrewKey("bossGuy"));
+            Assert.AreEqual("sailor", UiSkin.CrewKey("tribe"));
+            Assert.AreEqual("sailor", UiSkin.CrewKey("__unknown__"), "无法识别回落 sailor（与外观侧同口径）");
+
+            // 已知符号（含 §4.2 全族）不得再出现 unknown 钢灰兜底色。
+            Color steel = UiSkin.Rgb(0x8A, 0x97, 0xA8);
+            string[] symbols = { "redPirate", "bluePirate", "gunner", "sniper", "hooker", "arsonist",
+                "skeleton", "redPirateCaptain", "bluePirateCaptain", "cabinBoy", "soldier",
+                "blindPirate", "oldPirate", "rainbowBeard", "skeletonPirate", "bossGuy" };
             foreach (string symbol in symbols)
-                Assert.AreNotEqual(fallback, UiSkin.CrewColor(symbol), "职业符号 {0} 落到了兜底色", symbol);
+                Assert.AreNotEqual(steel, UiSkin.CrewColor(symbol), "职业符号 {0} 落到了兜底色", symbol);
         }
 
         [Test]

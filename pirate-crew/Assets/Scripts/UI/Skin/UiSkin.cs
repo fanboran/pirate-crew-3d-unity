@@ -85,14 +85,25 @@ namespace PirateCrew.UI
         // 形状 / 间距（防"驾驭不住"：圆角与描边都收着来，参数全 Token 化，样板验收后可整体调档）
         // ------------------------------------------------------------------
 
-        /// <summary>面板圆角（px）。</summary>
+        /// <summary>
+        /// 【档位纪律（对齐 game-2 StickTokens 的分档思路，2026-09-19 用户"风格不统一"裁决后收口）】
+        ///   · 圆角只有两档：容器 <see cref="RadiusPanel"/>=8（面板/大格/小地图）、控件
+        ///     <see cref="RadiusChip"/>=6（按钮/chip/提示条）；全圆只许出现在 Pill 血条与圆钮
+        ///     （Ring/Circle 贴图）——此前 Slot 独立 10px 档已并入 8，消灭"四档混用"；
+        ///   · 底色只有三档语义：InkDeep=独立容器底 / InkSoft=容器内嵌件与浮空控件底 /
+        ///     BarTrackInk=有填充压顶的凹槽底（血条族专用）；同屏近黑底不得再有第四种；
+        ///   · 强调色只有 <see cref="Gold"/> 一档（主行动按钮 / 选中态 / 星级）——队色与
+        ///     武器 / 职业色是内容色，只上图形与图标，不上操作按钮底（红蓝队徽章环除外）。
+        /// </summary>
+
+        /// <summary>面板 / 大图标格 / 小地图圆角（px）——"容器"档。</summary>
         public const float RadiusPanel = 8f;
 
-        /// <summary>按钮 / chip 圆角。</summary>
+        /// <summary>按钮 / chip / 提示条圆角——"控件"档。</summary>
         public const float RadiusChip = 6f;
 
-        /// <summary>图标格（武器槽）圆角，略大让彩色格子更圆润可爱。</summary>
-        public const float RadiusSlot = 10f;
+        /// <summary>图标格（武器槽 / pip）圆角 = 容器档（原独立 10px 档已并入）。</summary>
+        public const float RadiusSlot = RadiusPanel;
 
         /// <summary>可选细描边宽（tintable 皮肤烘在贴图里；0 = 不要描边的件）。</summary>
         public const float StrokeThin = 1f;
@@ -187,9 +198,22 @@ namespace PirateCrew.UI
         /// （sailor/gunner/sniper/hooker/arsonist/skeleton/captain）。职业色与图标资产
         /// （<c>Resources/UIIcons/Crew_&lt;短名&gt;</c>）都以短名为键——符号带队伍前后缀
         /// 的全部归一到同档职业。
+        ///
+        /// 【与 3D 外观侧同源】映射规则对齐 <c>CrewVisualCatalog.ProfessionFromBattleSymbol</c>
+        /// （§4.2 导出符号 27 个全覆盖：cabinBoy→sniper、soldier→gunner、blindPirate→hooker、
+        /// oldPirate/rainbowBeard→arsonist、skeletonPirate→skeleton、Captain 后缀与 bossGuy→captain、
+        /// tribe→sailor、无法识别回落 sailor）——r9 出图事故：本表曾用更窄的符号命名空间，
+        /// 蓝队 cabinBoy 落 unknown → 钢灰底+舵轮占位，而 3D 模型却解析正确，两侧各说各话。
         /// </summary>
         public static string CrewKey(string crewType)
         {
+            if (string.IsNullOrEmpty(crewType))
+                return "sailor";
+
+            // 船长变体优先（redPirateCaptain / cabinBoyCaptain / bossGuy...）。
+            if (crewType.IndexOf("Captain", System.StringComparison.Ordinal) >= 0)
+                return "captain";
+
             switch (crewType)
             {
                 case "redPirate":
@@ -197,33 +221,41 @@ namespace PirateCrew.UI
                 case "sailor":
                 case "redSailor":
                 case "blueSailor":
+                case "tribe":
+                case "tribeChief":
                     return "sailor";
                 case "gunner":
                 case "redGunner":
                 case "blueGunner":
+                case "soldier":
                     return "gunner";
                 case "sniper":
                 case "redSniper":
                 case "blueSniper":
+                case "cabinBoy":
+                case "femalePirate":
                     return "sniper";
                 case "hooker":
                 case "redHooker":
                 case "blueHooker":
+                case "blindPirate":
                     return "hooker";
                 case "arsonist":
                 case "redArsonist":
                 case "blueArsonist":
+                case "oldPirate":
+                case "rainbowBeard":
                     return "arsonist";
                 case "skeleton":
                 case "redSkeleton":
                 case "blueSkeleton":
+                case "skeletonPirate":
                     return "skeleton";
-                case "redPirateCaptain":
-                case "bluePirateCaptain":
-                case "captain":
+                case "bossGuy":
+                case "bossGuyZombie":
                     return "captain";
                 default:
-                    return "unknown";
+                    return "sailor";   // 与外观侧同回落（ProfessionFromBattleSymbol default→Sailor）
             }
         }
 
@@ -242,6 +274,17 @@ namespace PirateCrew.UI
                 default: return Rgb(0x8A, 0x97, 0xA8);             // 未知·钢灰
             }
         }
+
+        /// <summary>格底暗档系数：内容色格底向 <see cref="InkDeep"/> 压 22%——
+        /// "深底让彩色跳出来"在格子尺度上的应用（静物/头像保持全彩，图底不再同色相融，
+        /// r9 出图裁决：铁球贴灰蓝底 / 香蕉贴金底近隐身）。装配与运行时刷新同源调用。</summary>
+        public static Color CellBase(Color contentColor)
+        {
+            return Color.Lerp(contentColor, InkDeep, 0.22f);
+        }
+
+        /// <summary>武器格底（<see cref="WeaponColor"/> 的暗档）。</summary>
+        public static Color WeaponCellBase(WeaponId id) => CellBase(WeaponColor(id));
 
         // ------------------------------------------------------------------
         // 工具（纯函数，可无头断言）
