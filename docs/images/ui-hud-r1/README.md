@@ -2,7 +2,7 @@
 
 > **手绘涂鸦 UI**（2026-09-20 用户裁决：隔壁 game-2/stick-world 的 UI 素材与生成流水线
 > **原封不动搬来，只换配色为本项目色板**）的样板屏验收图——战斗 HUD 与组件陈列页。
-> 原始 PNG 在 `export/art-review/r12/`、`export/art-review/r12-gallery/`（不入库），此处为压缩归档版。
+> 原始 PNG 在 `export/art-review/r13/`、`export/art-review/r13-gallery/`（不入库），此处为压缩归档版。
 > 复现：`python tools/sketch_ui/gen_sketch_ui.py`（烘 96 张沸腾贴图）→ ArtGate 全链 → 播放器构建 →
 > `external/build/PirateCrew3D.exe -artReviewOut <dir>`，陈列页另跑 `PirateCrew3D.exe -uiGalleryOut <dir>`。
 > 设计意图与纪律见 [docs/设计/UI设计语言.md](../../设计/UI设计语言.md)。
@@ -28,7 +28,7 @@
 
 ## 判读（每张图应看到什么）
 
-| 图 | 应看到 | 实测（r12） |
+| 图 | 应看到 | 实测（r13） |
 | --- | --- | --- |
 | `hud-showcase.jpg` | 空白背景纯 HUD：全部件呈**手绘不规则墨线边缘**（沸腾贴图九宫格） | 通过（亲眼验收） |
 | `hud-showcase-armed.jpg` | 同上 + 武器面板：红蓝血条**手绘段**镜像等长 + 职业色 pips（cell 槽）+ 中央红环徽章 + 手写体提示 + 模式三钮贴右上 + 底部带同底边线；**跳跃=金实底墨边手绘钮** | 通过（亲眼验收） |
@@ -51,8 +51,12 @@
 
 - `4ff7f92` UI 地基 / `3deb7cb` HUD 重设计 / `f89a45e` 首拍修正 / r4-r6 平涂语言三轮（见 git 历史）
 - r8-r11：海图放大+内容回归、档位纪律、防撞自检（见 git 历史）
-- 本轮（r12）：**手绘涂鸦皮肤整体移植**——tools/sketch_ui 烘焙管线、SketchSkin/SketchBoil、
+- r12：**手绘涂鸦皮肤整体移植**——tools/sketch_ui 烘焙管线、SketchSkin/SketchBoil、
   UiKit 换供给、字体全切 StickHand、字号八档上调、gallery 修复
+
+- r13：**组件陈列页一比一复刻隔壁 8 分组**（buttons/labels/inputs/tabs/sliders/lists/feedback/keymap）
+  + 大面板九砖平铺（Sketch9Slice，复刻 Godot TILE 边带行为——Sliced 拉伸是观感差异硬根因）；
+  矮件纪律（高 <2×边带+砖 回单图，血条悬浮黑块实拍事故）。
 
 门禁：EditMode **1160/0/1**、编译 0 错、装配链 exit 0、ArtGate 18 步全绿、播放器构建成功、
 烘焙自检 **32 槽 ALL TILING-CLEAN**、导入参数 96 张落 .meta、防撞警告 **0**。
