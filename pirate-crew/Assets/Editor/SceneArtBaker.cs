@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using PirateCrew.PirateCrew.Battle;
 using PirateCrew.PirateCrew.SceneArt;
 using PirateCrew.PirateCrew.SceneArt.Lowpoly;
+using PirateCrew.PirateCrew.SceneArt.Showcase;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -10,24 +11,24 @@ using UnityEngine.Rendering;
 namespace PirateCrew.EditorTools
 {
     /// <summary>
-    /// 样板场景件**编辑器烘焙器**（糖豆人式资产架构，任务书阶段 A/B）：配方 + 种子 → 按材质组
-    /// 合并网格 → 落 prefab 资产。几何生成从此退出运行时——战斗 Awake 只做实例化组装。
+    /// 样板场景件**编辑器烘焙器**（糖豆人式资产架构）：几何 → 按材质组合并网格 →
+    /// 落 prefab 资产。几何生成从此退出运行时——战斗 Awake 只做实例化组装。
     ///
     /// 【产物】（全部在 <see cref="BakeFolder"/>，与 Blender 手作 FBX 同目录同清单）
-    ///   · Ship_Galleon.prefab   —— <see cref="SceneKitCatalog.LargeShipRecipe"/>（配方+种子=固定输出）
-    ///   · Ship_Longboat.prefab  —— <see cref="SceneKitCatalog.SmallBoatRecipe"/>
+    ///   · CloudField.prefab          —— 低模云场（第 1 关主景）
+    ///   · Islets_L02.prefab          —— 碎岛礁群（第 2 关主景，岛壳从逻辑高度场直出）
     ///   · ShowcaseDangerBorder.prefab —— 落水危险虚线（样板三关共用）
-    /// 每个材质组一个合并子网格（命名/投影口径照抄 RuntimeSceneArt.EmitGroup：
-    /// "SceneArt_&lt;组名&gt;"——AmbientWindBinder 靠该名做风摆绑定，不能改）。
+    /// 2026-09-19 起程序化双船（Ship_Galleon/Ship_Longboat）退役：观感不可接受（用户裁决），
+    /// 船类资产此后一律走 Blender 手作管线。
+    /// 每个材质组一个合并子网格（命名口径 "SceneArt_&lt;组名&gt;"——历史风摆绑定契约，不能改）。
     ///
-    /// 【确定性】同配方 + 同种子必得逐顶点一致的输出（EditMode 断言见
-    /// Tests/SceneArt/SceneArtBakeDeterminismTests.cs）。多样性靠"更多预制变体"而非运行时随机：
-    /// 需要第 N 种船时加一条配方烘焙第 N 个 prefab，运行时零成本换装。
+    /// 【确定性】同输入必得逐顶点一致的输出（EditMode 断言见
+    /// Tests/SceneArt/SceneArtBakeDeterminismTests.cs）。
     ///
     /// 【幂等】网格资产就地覆写（GUID 稳定，prefab 引用不漂）、prefab 覆盖保存、场景接线重写。
     ///
     /// 【入口】
-    ///   菜单: PirateCrew/烘焙/样板场景件（船/危险线）
+    ///   菜单: PirateCrew/烘焙/样板场景件（云场/碎岛/危险线）
     ///   无头: -batchmode -nographics -quit -executeMethod PirateCrew.EditorTools.SceneArtBaker.BuildAll
     /// </summary>
     public static class SceneArtBaker
@@ -36,7 +37,7 @@ namespace PirateCrew.EditorTools
         // 路径常量
         // ------------------------------------------------------------------
 
-        /// <summary>烘焙产物目录（与 Blender 手作件同目录——阶段 C「命名统一」的落点）。</summary>
+        /// <summary>烘焙产物目录（与 Blender 手作件同目录——「命名统一」的落点）。</summary>
         const string BakeFolder = "Assets/Art/Models/SceneKit";
 
         /// <summary>烘焙网格资产目录（prefab 引用的独立 .asset，不内嵌）。</summary>
@@ -54,55 +55,59 @@ namespace PirateCrew.EditorTools
         /// <summary>低模云槽位材质目录（运行时 GetOrCreateMaterial 的烘焙落盘版）。</summary>
         const string LowpolyMaterialFolder = "Assets/Art/Materials/Lowpoly";
 
-        [MenuItem("PirateCrew/烘焙/样板场景件（船/云场/危险线）")]
+        [MenuItem("PirateCrew/烘焙/样板场景件（云场/碎岛/危险线）")]
         public static void BuildAll()
         {
             EnsureFolder(BakeFolder);
             EnsureFolder(MeshFolder);
             EnsureFolder(LowpolyMaterialFolder);
 
-            BakeShip("Ship_Galleon", SceneKitCatalog.LargeShipRecipe);
-            BakeShip("Ship_Longboat", SceneKitCatalog.SmallBoatRecipe);
             BakeCloudField();
+            BakeIslets();
             BakeDangerBorder();
             WireBattleScene();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("[SceneArtBaker] 样板场景件烘焙完成：" + BakeFolder
-                + "（船 ×2 + 云场 + 危险线；同配方重跑逐顶点一致，见确定性测试）。");
+                + "（云场 + 碎岛 + 危险线；同输入重跑逐顶点一致，见确定性测试）。");
         }
 
         // ------------------------------------------------------------------
-        // 船（配方 → prefab）
+        // 碎岛礁群（L2「碎岛雨」：逻辑高度场 → 岛壳 prefab）
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 烘一艘船：配方展开（<see cref="SceneKitCatalog.BuildCompleteShip"/>，甲板中心=原点、yaw=0、
-        /// 种子与样板第 2 关 <c>ShowcaseLevels.ComposeInto</c> 的 Compose 种子同值 20）→
-        /// <see cref="SceneKitComposer.Compose"/> 按材质写缓冲 → 非空组各落一个合并子网格。
-        /// 实例摆位（格坐标/yaw）在 <c>ShowcaseLevels.BakedPlacements</c>——运行时只 Instantiate。
+        /// 烘碎岛：直接拿第 2 关的**逻辑高度场**（<see cref="ShowcaseLevels.BuildLogicGrid"/>）
+        /// 走 <see cref="IslandShellGeometry.BuildSolidShell"/> 烘整场岛壳——顶面与碰撞层
+        /// 严格等高（按构造对齐，改布局=改高度场+重烘，两处不会静默分叉）。
+        /// 材质复用 L3 空岛的岩层中档（IslandMaterialCatalog.RockMid），与空岛观感同族。
+        /// 实例摆位恒在原点（几何世界坐标直出），见 <c>ShowcaseLevels.BakedPlacements</c>。
         /// </summary>
-        static void BakeShip(string prefabName, in ShipRecipe recipe)
+        static void BakeIslets()
         {
-            const int composeSeed = 20;   // 与样板第 2 关 ShowcaseLevels.ComposeInto 的 Compose 种子同值
+            TileTerrainGrid grid = ShowcaseLevels.BuildLogicGrid(2);
+            MeshBuffers shell = IslandShellGeometry.BuildSolidShell(grid, IslandShellSettings.Default);
+            if (shell.IsEmpty)
+            {
+                Debug.LogError("[SceneArtBaker] L2 碎岛高度场烘出空岛壳（IsletRainBlocks 全空？）——不入 prefab。");
+                return;
+            }
 
-            var buffers = new ScenePropBuffers();
-            var layout = new SceneKitLayout();
-            List<KitPart> parts = SceneKitCatalog.BuildCompleteShip(recipe, Vector3.zero, 0f, composeSeed,
-                recipe.HullLength, recipe.BowLength, recipe.SternLength, recipe.HullBeam,
-                mastAlongOffsets: null);
-            for (int i = 0; i < parts.Count; i++)
-                layout.Add(parts[i]);
-            SceneKitComposer.Compose(buffers, layout, composeSeed);
+            Material rock = AssetDatabase.LoadAssetAtPath<Material>(
+                FloatingIslandScenePlan.MaterialAssetPath(IslandMaterial.RockMid));
+            if (rock == null)
+            {
+                // 回退：空岛材质还没烘（先跑 ArtGate ⑦.5）时，用同 shader 纯色保证"宁缺不粉"之外还有第二道保险。
+                rock = EnsureMaterialAsset(
+                    SceneMaterialFolder + "/Scene_IsletRock.mat", "Scene_IsletRock",
+                    "PirateCrew/PirateSurface", new Color(0.42f, 0.38f, 0.33f, 1f));
+            }
 
-            var root = new GameObject(prefabName);
-            EmitGroupMesh(root, "SceneArt_Wood", buffers.Wood, "Scene_Wood", castShadows: true);
-            EmitGroupMesh(root, "SceneArt_WoodDark", buffers.WoodDark, "Scene_WoodDark", castShadows: true);
-            EmitGroupMesh(root, "SceneArt_Metal", buffers.Metal, "Scene_Metal", castShadows: true);
-            EmitGroupMesh(root, "SceneArt_Cloth", buffers.Cloth, "Scene_Cloth", castShadows: true);
+            var root = new GameObject("Islets_L02");
+            EmitGroupMesh(root, "SceneArt_Islets", shell, rock, castShadows: true);
 
-            SavePrefab(root, BakeFolder + "/" + prefabName + ".prefab");
+            SavePrefab(root, BakeFolder + "/Islets_L02.prefab");
         }
 
         // ------------------------------------------------------------------
@@ -254,10 +259,26 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 非空缓冲 → "SceneArt_&lt;组名&gt;" 子物体（合并网格 + 材质 + 投影口径）。
-        /// 【命名契约】AmbientWindBinder 按名绑定风摆（Cloth=帆/索具），改名 = 风摆静默失效。
+        /// 【命名契约】历史风摆绑定按名匹配（"SceneArt_"+组名），改名 = 风摆静默失效。
         /// </summary>
         static void EmitGroupMesh(GameObject root, string objectName, MeshBuffers source,
             string materialName, bool castShadows)
+        {
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(
+                SceneMaterialFolder + "/" + materialName + ".mat");
+            if (material == null)
+            {
+                Debug.LogError("[SceneArtBaker] 缺材质 " + SceneMaterialFolder + "/" + materialName
+                    + ".mat——组 " + objectName + " 不入 prefab（渲染铁律：宁缺不粉）。");
+                return;
+            }
+
+            EmitGroupMesh(root, objectName, source, material, castShadows);
+        }
+
+        /// <summary>显式材质版：材质由调用方装载/兜底（碎岛用空岛岩石材质族）。</summary>
+        static void EmitGroupMesh(GameObject root, string objectName, MeshBuffers source,
+            Material material, bool castShadows)
         {
             if (source == null || source.IsEmpty)
                 return;
@@ -269,15 +290,6 @@ namespace PirateCrew.EditorTools
             child.transform.localScale = Vector3.one;
 
             Mesh mesh = EnsureMeshAsset(MeshFolder + "/" + objectName + ".asset", source);
-            Material material = AssetDatabase.LoadAssetAtPath<Material>(
-                SceneMaterialFolder + "/" + materialName + ".mat");
-            if (material == null)
-            {
-                Debug.LogError("[SceneArtBaker] 缺材质 " + SceneMaterialFolder + "/" + materialName
-                    + ".mat——组 " + objectName + " 无材质不入 prefab（渲染铁律：宁缺不粉）。");
-                Object.DestroyImmediate(child);
-                return;
-            }
 
             var filter = child.AddComponent<MeshFilter>();
             filter.sharedMesh = mesh;
@@ -349,9 +361,8 @@ namespace PirateCrew.EditorTools
             }
 
             var so = new SerializedObject(sceneArt);
-            SetPrefabRef(so, "galleonPrefab", BakeFolder + "/Ship_Galleon.prefab");
-            SetPrefabRef(so, "longboatPrefab", BakeFolder + "/Ship_Longboat.prefab");
             SetPrefabRef(so, "cloudFieldPrefab", BakeFolder + "/CloudField.prefab");
+            SetPrefabRef(so, "isletsPrefab", BakeFolder + "/Islets_L02.prefab");
             SetPrefabRef(so, "dangerBorderPrefab", BakeFolder + "/ShowcaseDangerBorder.prefab");
             so.ApplyModifiedPropertiesWithoutUndo();
 

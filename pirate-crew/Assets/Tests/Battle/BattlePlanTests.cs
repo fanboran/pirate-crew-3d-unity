@@ -19,12 +19,13 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         [Test]
         public void Showcase1_Plan_HasExpectedTeamSplit()
         {
-            // 云端漫步：3 redPirate + 1 redPirateCaptain（红4） vs 3 cabinBoy + 1 cabinBoyCaptain（蓝4）
+            // 云端漫步（教学关，设计文档 L01 §4）：3 redPirate + 1 redPirateCaptain（红4，玩家优势）
+            // vs 2 cabinBoy + 1 cabinBoyCaptain（蓝3）。
             BattlePlan plan = LevelGeometry.BuildBattlePlan(Showcase1());
 
-            Assert.AreEqual(8, plan.Entries.Count);
+            Assert.AreEqual(7, plan.Entries.Count);
             Assert.AreEqual(4, plan.CountForTeam(0));
-            Assert.AreEqual(4, plan.CountForTeam(1));
+            Assert.AreEqual(3, plan.CountForTeam(1));
             Assert.AreEqual(1, plan.OriginalXmlPlayers);
             Assert.AreEqual(ShowcaseLevels.FirstLevel, plan.LevelNumber);
         }
@@ -107,39 +108,41 @@ namespace PirateCrew.PirateCrew.Battle.Tests
         }
 
         [Test]
-        public void Showcase1_Captain_HasFiniteSecondWeaponStack()
+        public void Showcase1_TeachingLoadout_CherryBombOnly()
         {
-            // redPirateCaptain：cherryBomb×10（无限）+ banana×6（有限）
+            // 教学关武器收敛（设计文档 L01 §5）：全员只有 cherryBomb×10（无限）一种初始武器；
+            // 空投池 = {Dynamite}——不提前引入引爆时机/操控类机制。
             BattlePlan plan = LevelGeometry.BuildBattlePlan(Showcase1());
-            SpawnPlanEntry captain = default;
-            bool found = false;
+
             for (int i = 0; i < plan.Entries.Count; i++)
             {
-                if (plan.Entries[i].TypeName == "redPirateCaptain")
-                {
-                    captain = plan.Entries[i];
-                    found = true;
-                    break;
-                }
+                SpawnPlanEntry e = plan.Entries[i];
+                Assert.AreEqual(1, e.InitialWeapons.Count, e.TypeName + " 教学关应只有一种初始武器");
+                Assert.AreEqual(WeaponId.CherryBomb, e.InitialWeapons[0].id, e.TypeName + " 初始武器应为 cherryBomb");
+                Assert.IsTrue(e.InitialWeapons[0].IsInfinite, "cherryBomb×10 应为无限");
             }
 
-            Assert.IsTrue(found, "云端漫步应含 redPirateCaptain");
-            Assert.IsTrue(captain.InitialWeapons[0].IsInfinite, "cherryBomb×10 应为无限");
-            Assert.AreEqual(6, captain.InitialWeapons[1].count, "banana×6 应为有限 6");
-            Assert.IsFalse(captain.InitialWeapons[1].IsInfinite);
+            Assert.AreEqual(1, Showcase1().PotentialWeapons.Count, "空投池应恰 1 种");
+            Assert.AreEqual(WeaponId.Dynamite, Showcase1().PotentialWeapons[0].id, "空投池应为 dynamite");
         }
 
         [Test]
-        public void Showcase2_Plan_BuildsThreeVsThree()
+        public void Showcase2_Plan_BuildsFourVsFour()
         {
-            // 第二份数据集交叉验证（双雄并舷）：3 v 3，水面常量同源。
+            // 第二份数据集交叉验证（碎岛雨，设计文档 L02 §4）：4 v 4，水面常量同源。
             LevelData data = ShowcaseLevels.BuildLevelData(2).Value;
             BattlePlan plan = LevelGeometry.BuildBattlePlan(data);
 
-            Assert.AreEqual(6, plan.Entries.Count);
-            Assert.AreEqual(3, plan.CountForTeam(0));
-            Assert.AreEqual(3, plan.CountForTeam(1));
+            Assert.AreEqual(8, plan.Entries.Count);
+            Assert.AreEqual(4, plan.CountForTeam(0));
+            Assert.AreEqual(4, plan.CountForTeam(1));
             Assert.AreEqual(LevelGeometry.WaterSurfaceY, plan.WaterWorldY, 1e-5f);
+
+            // 空投池 = {Mine, RumBottle, Banana}（设计文档 L02 §5）。
+            Assert.AreEqual(3, data.PotentialWeapons.Count);
+            Assert.AreEqual(WeaponId.Mine, data.PotentialWeapons[0].id);
+            Assert.AreEqual(WeaponId.RumBottle, data.PotentialWeapons[1].id);
+            Assert.AreEqual(WeaponId.Banana, data.PotentialWeapons[2].id);
         }
     }
 }

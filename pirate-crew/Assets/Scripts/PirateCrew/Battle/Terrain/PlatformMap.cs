@@ -61,7 +61,7 @@ namespace PirateCrew.PirateCrew.Battle
 
         /// <summary>
         /// 出生队列掩码：<c>bit0 = 红队(team0)</c>、<c>bit1 = 蓝队(team1)</c>、<c>0 = 中立</c>。
-        /// 供 kit 配方区分「出生台地」与「中立场景簇」（见 <c>SceneArt/SceneKitCatalog.cs</c> 的配方）。
+        /// 供建关侧区分「出生台地」与「中立场景簇」（原 kit 配方已随程序化船退役）。
         /// </summary>
         public readonly int SpawnTeamMask;
 

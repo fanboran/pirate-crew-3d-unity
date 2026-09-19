@@ -460,9 +460,8 @@ namespace PirateCrew.EditorTools
             if (root != null)
                 root.objectReferenceValue = runtimeSceneArt.transform;
 
-            SetPrefabRefIfExists(so, "galleonPrefab", "Assets/Art/Models/SceneKit/Ship_Galleon.prefab");
-            SetPrefabRefIfExists(so, "longboatPrefab", "Assets/Art/Models/SceneKit/Ship_Longboat.prefab");
             SetPrefabRefIfExists(so, "cloudFieldPrefab", "Assets/Art/Models/SceneKit/CloudField.prefab");
+            SetPrefabRefIfExists(so, "isletsPrefab", "Assets/Art/Models/SceneKit/Islets_L02.prefab");
             SetPrefabRefIfExists(so, "dangerBorderPrefab", "Assets/Art/Models/SceneKit/ShowcaseDangerBorder.prefab");
 
             so.ApplyModifiedPropertiesWithoutUndo();

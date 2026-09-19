@@ -6,16 +6,15 @@ namespace PirateCrew.PirateCrew.Battle
 {
     /// <summary>
     /// 场景美术的**运行时装配**：样板三关的静态陈设由**编辑器烘焙 prefab** 提供
-    /// （<c>SceneArtBaker</c> 产出：配方 + 种子 → 按材质组合并网格 → prefab），本类只按
+    /// （<c>SceneArtBaker</c> 产出：几何 → 按材质组合并网格 → prefab），本类只按
     /// 关卡号读取摆位表（<see cref="ShowcaseLevels.BakedPlacements"/>）做**实例化组装**。
     ///
     /// ==================================================================
     /// 【糖豆人式资产架构（管线合并任务书）】
     /// ==================================================================
-    /// 几何生成退出运行时：船体放样 / 云场合成 / 材质合并 / 网格落盘全部发生在编辑器烘焙期
-    /// （Assets/Editor/SceneArtBaker.cs），同配方重跑逐顶点一致（确定性测试钉住）。
-    /// 多样性来自"更多预制变体"而非运行时随机——需要第 N 种船时加一条配方烘焙第 N 个
-    /// prefab，运行时零成本换装。
+    /// 几何生成退出运行时：云场合成 / 碎岛岛壳 / 材质合并 / 网格落盘全部发生在编辑器烘焙期
+    /// （Assets/Editor/SceneArtBaker.cs），同输入重跑逐顶点一致（确定性测试钉住）。
+    /// 多样性来自"更多预制变体"而非运行时随机，运行时零成本换装。
     ///
     /// 【世界海域图不经本类】陈设走 <see cref="WorldMapComposer"/>（kit FBX + 灰盒站面）。
     ///
@@ -35,14 +34,11 @@ namespace PirateCrew.PirateCrew.Battle
         [Tooltip("生成物的父节点；为空时用本物体 transform（SceneArt 根）。")]
         [SerializeField] Transform sceneryRoot;
 
-        [Tooltip("烘焙件：大帆船（LargeShipRecipe+种子 20 的固定输出）。由 SceneArtBaker 烘焙并接线。")]
-        [SerializeField] GameObject galleonPrefab;
-
-        [Tooltip("烘焙件：小艇（SmallBoatRecipe+种子 20 的固定输出）。由 SceneArtBaker 烘焙并接线。")]
-        [SerializeField] GameObject longboatPrefab;
-
-        [Tooltip("烘焙件：低模云场（CloudFieldSpec 默认构图+种子的固定输出）。由 SceneArtBaker 烘焙并接线。")]
+        [Tooltip("烘焙件：低模云场（第 1 关主景）。由 SceneArtBaker 烘焙并接线。")]
         [SerializeField] GameObject cloudFieldPrefab;
+
+        [Tooltip("烘焙件：碎岛礁群（第 2 关主景，岛壳与逻辑高度场按构造对齐）。由 SceneArtBaker 烘焙并接线。")]
+        [SerializeField] GameObject isletsPrefab;
 
         [Tooltip("烘焙件：落水危险虚线（样板三关共用一圈）。由 SceneArtBaker 烘焙并接线。")]
         [SerializeField] GameObject dangerBorderPrefab;
@@ -135,9 +131,8 @@ namespace PirateCrew.PirateCrew.Battle
         {
             switch (piece)
             {
-                case ShowcasePieceId.Galleon: return galleonPrefab;
-                case ShowcasePieceId.Longboat: return longboatPrefab;
                 case ShowcasePieceId.CloudField: return cloudFieldPrefab;
+                case ShowcasePieceId.Islets: return isletsPrefab;
                 case ShowcasePieceId.DangerBorder: return dangerBorderPrefab;
                 default: return null;
             }

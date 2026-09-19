@@ -43,13 +43,11 @@ namespace PirateCrew.EditorTools
         /// </summary>
         static readonly UpstreamEntry[] Upstreams =
         {
-            // ---- SceneKit：C# 烘焙件（程序化，配方 + 种子 = 固定输出）----
-            new UpstreamEntry { PathInModels = "SceneKit/Ship_Galleon.prefab", Origin = "programmatic",
-                Source = "SceneArtBaker.BakeShip: SceneKitCatalog.LargeShipRecipe, ComposeSeed=20" },
-            new UpstreamEntry { PathInModels = "SceneKit/Ship_Longboat.prefab", Origin = "programmatic",
-                Source = "SceneArtBaker.BakeShip: SceneKitCatalog.SmallBoatRecipe, ComposeSeed=20" },
+            // ---- SceneKit：C# 烘焙件（程序化，输入 = 固定输出）----
             new UpstreamEntry { PathInModels = "SceneKit/CloudField.prefab", Origin = "programmatic",
                 Source = "SceneArtBaker.BakeCloudField: CloudFieldSpec.Default, Seed=26091401" },
+            new UpstreamEntry { PathInModels = "SceneKit/Islets_L02.prefab", Origin = "programmatic",
+                Source = "SceneArtBaker.BakeIslets: ShowcaseLevels.BuildLogicGrid(2) + IslandShellGeometry.BuildSolidShell" },
             new UpstreamEntry { PathInModels = "SceneKit/ShowcaseDangerBorder.prefab", Origin = "programmatic",
                 Source = "SceneArtBaker.BakeDangerBorder: IslandShellGeometry.AddDashedBorder 20x15" },
             new UpstreamEntry { PathInModels = "SceneKit/Baked", Origin = "programmatic",

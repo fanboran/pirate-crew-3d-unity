@@ -29,7 +29,7 @@ namespace PirateCrew.PirateCrew.Ambient
     /// 【不全局搜索】优先按传入的 <c>SceneArt</c> 根节点**直接子节点名**取
     /// （<see cref="Transform.Find"/>，等价于层级内查找，不是 <c>GameObject.Find</c>）；
     /// 直接子节点没有时再在该根的**后代**里按同名匹配（烘焙 prefab 实例内部的组渲染器，
-    /// 如 <c>Ship_Galleon/SceneArt_Cloth</c>——深度只限 SceneArt 子树，不做全场景搜索）。
+    /// 如 <c>Islets_L02/SceneArt_Islets</c>——深度只限 SceneArt 子树，不做全场景搜索）。
     /// 找不到就跳过并记一条警告（容错：烘焙件可能未跑、或某组为空没有生成）。
     /// </summary>
     public sealed class AmbientWindBinder
@@ -81,7 +81,7 @@ namespace PirateCrew.PirateCrew.Ambient
                 return 0;
 
             // 【烘焙化后改为深度查找（2026-09-19）】组渲染器可能在烘焙 prefab 实例内部
-            //（如 SceneArt/Ship_Galleon_North/SceneArt_Cloth）——Transform.Find 只查直接子节点，
+            //（如 SceneArt/Islets_L02/SceneArt_Islets）——Transform.Find 只查直接子节点，
             // 会静默漏绑整船的帆/索具风摆。改为全后代同名匹配，命中几个绑几个（多船各绑各的）。
             Transform top = root.Find(objectName);
             if (top != null)

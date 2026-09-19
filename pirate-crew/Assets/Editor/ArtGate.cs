@@ -99,7 +99,7 @@ namespace PirateCrew.EditorTools
                 new Step("⑥.5 水面障碍图烘焙（⑦ 的 WaterSimulationDriver 要引用它）", WaterAssetBuilder.BakeObstacleMap),
                 new Step("⑦ 战斗场景（含 1-3 项接线 + 水体组件）", M2BattleSceneSetup.BuildAll),
                 new Step("⑦.5 空岛样板件摆入战斗场景（第 3 关地面）", FloatingIslandShowcaseMenu.PlaceIntoBattleCenter),
-                new Step("⑦.6 样板场景件烘焙（船/危险线 → prefab + 接线）", SceneArtBaker.BuildAll),
+                new Step("⑦.6 样板场景件烘焙（云场/碎岛/危险线 → prefab + 接线）", SceneArtBaker.BuildAll),
                 new Step("⑦.7 场景资产总清单（SceneKit+WorldKit 上游登记）", SceneAssetManifestBuilder.BuildAll),
                 new Step("⑧ 小地图增量接线", HudMinimapSceneSetup.WireMinimap),
                 new Step("⑨ M1 菜单 / 引导场景", SceneSetup.BuildAll),
