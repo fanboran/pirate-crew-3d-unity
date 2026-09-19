@@ -51,6 +51,9 @@ namespace PirateCrew.UI
             Canvas canvas = root.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
             canvas.sortingOrder = 5;                       // 压过单位本体、不与屏幕 HUD 抢层
+            // 【世界空间 Canvas 不设 worldCamera 就不渲染】主相机在 Awake 阶段已就绪
+            // （BattleController 先建相机后发 battle_started），此处直接取。
+            canvas.worldCamera = Camera.main;
 
             RectTransform rect = root.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(Width, Height);

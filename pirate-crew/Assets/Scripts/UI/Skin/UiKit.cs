@@ -78,6 +78,31 @@ namespace PirateCrew.UI
         }
 
         // ------------------------------------------------------------------
+        // Sprite 来源（双轨同源：Editor 装配场景必须引用持久 PNG，运行时用内存 Sprite）
+        // ------------------------------------------------------------------
+
+#if UNITY_EDITOR
+        /// <summary>Editor 下从 <c>Assets/Art/Sprites/UI/</c> 取烘焙 PNG（场景序列化不丢引用）；
+        /// 资产缺失（未跑 <c>UiSkinAssetBaker</c>）时回落内存 Sprite 并保持可用。</summary>
+        static Sprite SkinSprite(CartoonSpriteFactory.Shape shape)
+        {
+            Sprite sprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/Art/Sprites/UI/Cartoon_" + shape + ".png");
+            return sprite != null ? sprite : CartoonSpriteFactory.Get(shape);
+        }
+
+        static Sprite GlyphSprite(UiGlyphs.Glyph glyph)
+        {
+            Sprite sprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/Art/Sprites/UI/Glyph_" + glyph + ".png");
+            return sprite != null ? sprite : UiGlyphs.Get(glyph);
+        }
+#else
+        static Sprite SkinSprite(CartoonSpriteFactory.Shape shape) => CartoonSpriteFactory.Get(shape);
+        static Sprite GlyphSprite(UiGlyphs.Glyph glyph) => UiGlyphs.Get(glyph);
+#endif
+
+        // ------------------------------------------------------------------
         // 图形件（tintable 染色）
         // ------------------------------------------------------------------
 
@@ -86,7 +111,7 @@ namespace PirateCrew.UI
         {
             RectTransform rect = CreateRect(name, parent);
             var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = CartoonSpriteFactory.Get(shape);
+            image.sprite = SkinSprite(shape);
             image.type = shape == CartoonSpriteFactory.Shape.Ring
                 || shape == CartoonSpriteFactory.Shape.Circle
                 ? Image.Type.Simple : Image.Type.Sliced;
@@ -100,7 +125,7 @@ namespace PirateCrew.UI
         {
             RectTransform rect = CreateRect(name, parent);
             var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = UiGlyphs.Get(glyph);
+            image.sprite = GlyphSprite(glyph);
             image.type = Image.Type.Simple;
             image.color = color;
             image.raycastTarget = false;
@@ -119,7 +144,7 @@ namespace PirateCrew.UI
             rect.sizeDelta = size;
 
             var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = CartoonSpriteFactory.Get(CartoonSpriteFactory.Shape.PanelInk);
+            image.sprite = SkinSprite(CartoonSpriteFactory.Shape.PanelInk);
             image.type = Image.Type.Sliced;
             image.color = Color.white;
             image.raycastTarget = false;
@@ -182,7 +207,7 @@ namespace PirateCrew.UI
             rect.anchoredPosition = anchoredPosition;
 
             var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = CartoonSpriteFactory.Get(shape);
+            image.sprite = SkinSprite(CartoonSpriteFactory.Shape.Chip);
             image.type = Image.Type.Sliced;
             image.color = chipColor;
 
@@ -212,7 +237,7 @@ namespace PirateCrew.UI
             rect.anchoredPosition = anchoredPosition;
 
             var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = CartoonSpriteFactory.Get(CartoonSpriteFactory.Shape.Chip);
+            image.sprite = SkinSprite(CartoonSpriteFactory.Shape.Chip);
             image.type = Image.Type.Sliced;
             image.color = chipColor;
 
@@ -275,7 +300,7 @@ namespace PirateCrew.UI
             root.anchoredPosition = anchoredPosition;
 
             var track = root.gameObject.AddComponent<Image>();
-            track.sprite = CartoonSpriteFactory.Get(CartoonSpriteFactory.Shape.BarTrack);
+            track.sprite = SkinSprite(CartoonSpriteFactory.Shape.BarTrack);
             track.type = Image.Type.Sliced;
             track.color = Color.white;
             track.raycastTarget = false;

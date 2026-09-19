@@ -451,10 +451,10 @@ namespace PirateCrew.UI
             if (hintText == null)
                 return;
             string text = _mode == BattleHudMode.Move
-                ? "左键选角色　拖动=环绕角色转视角　AD 转向　滚轮 力度　空格 跳"
+                ? "左键选角色　拖动转视角　滚轮力度　空格跳"
                 : _mode == BattleHudMode.Act
-                    ? "AD 转向　WS 力度　滚轮微调　回车 开炮（左键只点按钮）"
-                    : "点击准星选人并返回　WASD/Space/Shift 移动　滚轮缩放　Esc 返回";
+                    ? "AD 转向　WS 力度　回车开炮"
+                    : "准星点人返回　WASD 移动　Esc 返回";
             UiTextUtil.SetText(hintText, text);
         }
 
@@ -948,7 +948,28 @@ namespace PirateCrew.UI
                     && bar.pips[i].root != null)
                     bar.pips[i].root.SetActive(false);
             }
+
+            // 段按实际人数满格重排（4v4 时每段 1/4 宽，不留空槽——装配期按 6 人预建只是骨架）。
+            if (count > 0 && bar.segments != null && bar.segmentRoot != null)
+            {
+                float trackWidth = bar.segmentRoot.sizeDelta.x;
+                float segmentWidth = (trackWidth - 4f - (count - 1) * SegmentGap) / count;
+                for (int i = 0; i < count && i < bar.segments.Length; i++)
+                {
+                    var rect = bar.segments[i] != null
+                        ? bar.segments[i].root.transform as RectTransform
+                        : null;
+                    if (rect == null)
+                        continue;
+
+                    rect.sizeDelta = new Vector2(segmentWidth, rect.sizeDelta.y);
+                    rect.anchoredPosition = new Vector2(2f + i * (segmentWidth + SegmentGap), 0f);
+                }
+            }
         }
+
+        /// <summary>段间距（与 BattleHudBuilder.SegmentGap 同源）。</summary>
+        const float SegmentGap = 4f;
 
         static int SegmentKey(int teamIndex, int slot) => teamIndex * 100 + slot;
 

@@ -44,6 +44,9 @@ namespace PirateCrew.PirateCrew.ArtReview
         /// <summary>单角色特写机位名（与 <c>ArtReviewShots</c> 的 slug 保持一致）。</summary>
         const string UnitCloseupShotName = "unit-closeup";
 
+        /// <summary>武器面板机位（HUD 样板验收）：选中单位让面板滑入后截图，拍完不清（特写接着用同一选中）。</summary>
+        const string WeaponPanelShotName = "hud-weaponpanel";
+
         /// <summary>
         /// 主动引爆用的爆炸 size：取 160（`WeaponCatalog.cs` banana / parachuteBomb 档），
         /// 比 cannonball 基准 100（`CannonRules.cs:45`）大一档，纯为评审画面里火光可辨——
@@ -148,13 +151,17 @@ namespace PirateCrew.PirateCrew.ArtReview
 
             foreach (Shot shot in BuildShots())
             {
-                // 选中态只在特写机位需要（G-1 验收"选中青描边"）；它带的可视化（脚下标记/描边）
-                // 会污染其它评审图（r3：单位脚下洋红方块出现在所有机位）——故拍特写前才选中，
-                // 拍完立刻清掉，其余机位保持无选中。
-                if (shot.Name == UnitCloseupShotName)
+                // 选中态只在特写/武器面板机位需要（G-1 验收"选中青描边"；HUD 样板要武器面板滑入）；
+                // 它带的可视化（脚下标记/描边）会污染其它评审图（r3：单位脚下洋红方块出现在所有机位）
+                // ——故拍特写前才选中，拍完立刻清掉，其余机位保持无选中。
+                if (shot.Name == UnitCloseupShotName || shot.Name == WeaponPanelShotName)
                     SelectFocusUnitForCloseup();
 
                 SetupCamera(shot);
+
+                // 武器面板滑入是 0.16s 动效 + 事件刷新，等它收尾再截（否则拍到半途）。
+                if (shot.Name == WeaponPanelShotName)
+                    yield return new WaitForSeconds(0.6f);
 
                 // 爆炸瞬间：先真的引爆再等火光/烟起来，否则拍到的只是空场中景。
                 if (shot.Name == ExplosionShotName)
@@ -319,6 +326,11 @@ namespace PirateCrew.PirateCrew.ArtReview
 
             if (_focusUnit != null)
             {
+                // 武器面板机位（带 HUD、同 battle-45 参数）：选中单位 → 面板滑入 → 截图。
+                // 拍完不清选中，紧随其后的特写直接复用。
+                shots.Add(NewShot(WeaponPanelShotName, true,
+                    c + new Vector3(0f, 11.5f, 10.61f), 60f, aim));
+
                 Vector3 u = _focusUnit.position;
                 shots.Add(NewShot(UnitCloseupShotName, false,
                     u + new Vector3(1.1f, 0.9f, 1.4f), 45f, u + new Vector3(0f, 1.2f, 0f)));

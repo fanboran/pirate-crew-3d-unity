@@ -459,23 +459,25 @@ namespace PirateCrew.EditorTools
             UiKit.Stretch(result.hintText.rectTransform, 8f);
 
             // 左下：暂停 / 返回图标钮。
+            // 【坐标口径】UiKit.IconButton 的锚点固定在画布中心（anchor/pivot 0.5,0.5），
+            // position 是相对中心的偏移——左下角 = (-(960-39), -(540-39))。
             result.pauseButton = UiKit.IconButton("PauseButton", hudRoot, UiGlyphs.Glyph.Pause,
-                new Vector2(Safe + 23f, Safe + 23f), new Vector2(46f, 46f),
+                new Vector2(-(960f - Safe - 23f), -(540f - Safe - 23f)), new Vector2(46f, 46f),
                 UiSkin.InkSoft, UiSkin.TextOnInk);
             result.backButton = UiKit.IconButton("BackButton", hudRoot, UiGlyphs.Glyph.Helm,
-                new Vector2(Safe + 46f + 8f + 23f, Safe + 23f), new Vector2(46f, 46f),
+                new Vector2(-(960f - Safe - 46f - 8f - 23f), -(540f - Safe - 23f)), new Vector2(46f, 46f),
                 UiSkin.InkSoft, UiSkin.TextOnInk);
 
-            // 右上：模式三图标钮（0=移动 1=操作 2=观察；快捷键 1/2/3）。
+            // 右上：模式三图标钮（0=移动 1=操作 2=观察；快捷键 1/2/3；操作钮在最右）。
             result.modeButtons = new Button[3];
             result.modeFrames = new Image[3];
             UiGlyphs.Glyph[] glyphs = { UiGlyphs.Glyph.MovePad, UiGlyphs.Glyph.Crosshair, UiGlyphs.Glyph.Eye };
             for (int i = 0; i < 3; i++)
             {
-                // 从右往左排：操作钮（2）在最右。
                 int slotFromRight = 2 - i;
                 Vector2 position = new Vector2(
-                    -(Safe + ModeButtonSize * 0.5f + slotFromRight * (ModeButtonSize + 8f)), -40f);
+                    960f - Safe - ModeButtonSize * 0.5f - slotFromRight * (ModeButtonSize + 8f),
+                    540f - Safe - ModeButtonSize * 0.5f);
                 Button button = UiKit.IconButton("ModeButton_" + (BattleHud.BattleHudMode)i, hudRoot,
                     glyphs[i], position, new Vector2(ModeButtonSize, ModeButtonSize),
                     UiSkin.InkSoft, UiSkin.TextOnInk, hotkey: (i + 1).ToString());
