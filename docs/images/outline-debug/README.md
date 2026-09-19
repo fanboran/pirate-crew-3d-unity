@@ -1,7 +1,7 @@
 # 描边调试截图（M2 单位悬停/选中描边）
 
 > 本目录是 AGENTS.md「图形学调试截图规范」要求的产物页：**每张图 + 应看到什么 + 怎么复现**。
-> 调参指南（参数含义/区间/常见症状速查）在 [docs/描边Shader调试.md](../../docs/描边Shader调试.md)，
+> 调参指南（参数含义/区间/常见症状速查）在 [docs/技术/描边Shader调试.md(../../../docs/技术/描边Shader调试.md)，
 > 本文只管"这批图是什么、说明了什么"。
 >
 > 采集时间：2026-09-13；采集方式：图形界面编辑器 + play mode（MCP `manage_camera` / `execute_menu_item`）。
@@ -17,7 +17,7 @@
 | `debug-mode-3-outline-mask.png` | `_DebugMode=3` 只显示描边掩码 | 单位位置是**不透明、不流动的纯青色实心剪影**（忽略虚线、忽略 hover 半透明）。同为实心，原因同档 2 |
 | `debug-mode-4-depth-normal-raw.png` | `_DebugMode=4` 深度/法线原始数据 | 单位本体换成数据可视化：**R=世界法线.x 映射、G=世界法线.y 映射、B=视空间深度**（越远越亮，50m 封顶）。正交相机在 z=-10、单位在 z=0，故 B≈0.2；正面法线朝相机 → R=G≈0.5。本图无描边 |
 | `01-live-selection-cyan-outline.png` | **真实选中通路**（非强制档） | 画面里**只有 1 个单位**带青色虚线描边，其余同名单位没有——证明 `选中角色 → BattleTeam.Select → PirateBase.SetSelected → UnitOutlineBinder → MaterialPropertyBlock → shader` 整条链接通 |
-| `00-evidence-shader-compile-error-magenta.png` | **故障证据**（着色器编译失败） | 全场单位呈**品红**（URP 的错误材质），HUD/地形正常。对应 `PirateOutline.shader` 只 include `GlobalIllumination.hlsl` 导致 `unrecognized identifier 'BRDFData'` 的那次事故，详见 [docs/描边Shader调试.md](../../docs/描边Shader调试.md) §八 |
+| `00-evidence-shader-compile-error-magenta.png` | **故障证据**（着色器编译失败） | 全场单位呈**品红**（URP 的错误材质），HUD/地形正常。对应 `PirateOutline.shader` 只 include `GlobalIllumination.hlsl` 导致 `unrecognized identifier 'BRDFData'` 的那次事故，详见 [docs/技术/描边Shader调试.md(../../../docs/技术/描边Shader调试.md) §八 |
 
 ## 程序化判据（不是"看图觉得对"）
 
@@ -59,4 +59,4 @@
   不是描边失效。要改观感有两个独立杠杆：调小 `_DashFrequency`（更长虚线）、或让战斗相机拉近（`BattleCameraController` / 正交尺寸）。
   这两条都涉及美术取向，**由观感验收决定，本次未擅自改**。
 - 单位材质换成 `PirateOutline` 后**没有 ShadowCaster Pass**，单位不投影；本体着色也从 URP/Lit 换成了
-  shader 内的简单 Lambert + SH。若观感验收要求阴影/更丰富的光照，见 `docs/描边Shader调试.md` §七-2。
+  shader 内的简单 Lambert + SH。若观感验收要求阴影/更丰富的光照，见 `docs/技术/描边Shader调试.md` §七-2。

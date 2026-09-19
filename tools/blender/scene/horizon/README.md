@@ -1,6 +1,6 @@
 # tools/blender/scene/horizon —— 远景装饰 kit（HorizonKit，8 件）无头建模管线
 
-> **这份目录解决什么问题**：M4 大海域世界化的「远景是舞台幕布」层（`docs/M4-大海域世界化.md` §1/§2.1）——
+> **这份目录解决什么问题**：M4 大海域世界化的「远景是舞台幕布」层（`docs/技术/M4-大海域世界化.md` §1/§2.1）——
 > 地图不可达区域堆纯剪影装饰，让地平线永远有内容。8 件远景件全部 **Blender 5.2 无头纯程序化**建模、
 > 零贴图、shade_flat、**无站面无碰撞**（不产 standable manifest）。低多边形但精细度靠**轮廓层次**取胜：
 > 山脊起伏、云团堆叠、鲸背弧线、螺旋盘绕、肋拱错落——不做表面小细节（远景看的是剪影与体量感）。
@@ -24,7 +24,7 @@
 | 路径 | 内容 |
 | --- | --- |
 | `pirate-crew/Assets/Art/Models/WorldKit/Horizon/<名>.fbx` | 8 件远景件（每件单网格 ≤2 材质槽） |
-| `export/worldkit-horizon/<名>-front34.jpg / -side.jpg` | 每件 2 视角预览 1024² q90（中性灰底三灯，`view_transform=Standard` 防 AgX 洗色） |
+| `docs/images/worldkit-horizon/<名>-front34.jpg / -side.jpg` | 每件 2 视角预览 1024² q90（中性灰底三灯，`view_transform=Standard` 防 AgX 洗色） |
 | `external/worldkit-horizon-work/horizon_kit_debug.blend` | 调参用 GUI 缓存（gitignored） |
 
 预览相机**拉远到 150–340 单位**（`horizon_kit.py` 参数区 `CAM` 表），模拟玩家从可玩区远眺的真实观景距离——
@@ -77,7 +77,7 @@
   实测踩坑见 `tools/blender/scene/README.md`）。
 - 材质：`materialImportMode=None`，按槽名前缀 `Kit_` 用 URP/Lit 重建（色值与
   `style_tokens.SLOTS` 同源）；远景件**不要**生成碰撞体（无 standable manifest，不可达区域装饰）。
-- 远景件摆放距离参考（`docs/美术风格指南.md` §4.4 雾绑定 Q-9）：剪影 Z 落在雾 end 的 70% 以内
+- 远景件摆放距离参考（`docs/设计/美术风格指南.md` §4.4 雾绑定 Q-9）：剪影 Z 落在雾 end 的 70% 以内
   （end=140 时 Z≈-38~-70）；FarFar 槽件可更远，靠雾色同化自然分层。
 
 ## 调参行号（`horizon_kit.py`）

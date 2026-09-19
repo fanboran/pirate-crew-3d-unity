@@ -11,7 +11,7 @@
 
 ## ✅ 截图已产出（2026-09-13，图形界面编辑器 + play mode）
 
-**5 档截图已实际采集并逐档核验**，产物在仓库根 [`export/outline-debug/`](../export/outline-debug/)：
+**5 档截图已实际采集并逐档核验**，产物在仓库根 [`docs/images/outline-debug/`](../images/outline-debug/)：
 
 | 文件 | `_DebugMode` | 实测判据（2560×1440 全图扫描） |
 | --- | --- | --- |
@@ -387,7 +387,7 @@ dotnet build VerifyEditorOutline.csproj
 
 ## 七、待办 / 已知限制
 
-1. ~~真实截图未产出~~ → **已产出并核验**（见文首与 `export/outline-debug/`）。
+1. ~~真实截图未产出~~ → **已产出并核验**（见文首与 `docs/images/outline-debug/`）。
 2. `PirateOutline.shader` **没有 ShadowCaster Pass**：单位材质换成它之后单位不投影，且本体光照是 shader 内的简单 Lambert + SH（不再是 URP/Lit）。若观感验收要求阴影/更丰富光照，补一个 `LightMode = "ShadowCaster"` 的极简 Pass（注意 `_LightDirection` / `ApplyShadowBias`），或改成"本体保持 URP/Lit + 描边走复制网格"（代价是共面 z-fighting 与网格复制管理）。
 3. ~~`OutlineRendererFeature` 需要手工加到 URP Renderer 资产~~ → **已挂上**（`PC_Balanced_Renderer.asset`，`isActive=true`）。但 `maskLayer` 已收窄为 `0`，等于当前不参与渲染，见 §6.2。
 4. `outline.gdshader` 的 `outline_near_boost`（近处增粗）未移植。
@@ -405,7 +405,7 @@ dotnet build VerifyEditorOutline.csproj
 
 - **现象**：`PirateOutline.shader` 只 include `GlobalIllumination.hlsl`。进 play mode 后 Console：
   `Shader error in 'PirateCrew/PirateOutline': unrecognized identifier 'BRDFData' at .../ShaderLibrary/GlobalIllumination.hlsl(353) (on d3d11)`；
-  全场景里所有用该 shader 的单位变成**品红**（URP 错误材质）。故障留档见 `export/outline-debug/00-evidence-shader-compile-error-magenta.png`。
+  全场景里所有用该 shader 的单位变成**品红**（URP 错误材质）。故障留档见 `docs/images/outline-debug/00-evidence-shader-compile-error-magenta.png`。
 - **根因**：`GlobalIllumination.hlsl` 自身不 include `BRDF.hlsl`，而它的 `GlobalIllumination(BRDFData, ...)` 函数体用到了 `BRDFData`。
   它只对"调用者已引入 BRDF"的场景自洽（`Lighting.hlsl` 就是那个调用者）。
 - **修法**：include 改成 `Lighting.hlsl`（URP 自带 Lit/SimpleLit 也走它）。

@@ -49,9 +49,9 @@
 | 文件 | 内容 |
 | --- | --- |
 | `pirate-crew/Assets/Art/Textures/AppIcon.png` | **主图标** 1024×1024，覆盖写入（`.meta` 不动，Unity 引用不变） |
-| `export/icon-blender/previous_procedural.png` | 原程序化平面图标备份（仅首次渲染时创建） |
-| `export/icon-blender/preview_512.jpg` | 512×512 JPG 预览，快速评审用 |
-| `export/icon-blender/icon_16.png` / `icon_32.png` / `icon_48.png` | 小尺寸验收：16px 应仍能认出"金环 + 白骷髅 + 交叉骨"，眼窝为两个暗点 |
+| `docs/images/icon-blender/previous_procedural.png` | 原程序化平面图标备份（仅首次渲染时创建） |
+| `docs/images/icon-blender/preview_512.jpg` | 512×512 JPG 预览，快速评审用 |
+| `docs/images/icon-blender/icon_16.png` / `icon_32.png` / `icon_48.png` | 小尺寸验收：16px 应仍能认出"金环 + 白骷髅 + 交叉骨"，眼窝为两个暗点 |
 | `external/icon-blender-work/icon_debug.blend` | 场景缓存（gitignored），调参时开 GUI 用 |
 
 ## 若对成品不满意，最可能要调的三个参数

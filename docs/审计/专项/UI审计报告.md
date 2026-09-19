@@ -34,7 +34,7 @@ M4 的 8 张语义图（`WorldMapCatalog`，关卡号 101–108）目前只能�
 `CampaignCatalog`（3 章 × 5 关 =「第 1 关…第 15 关」，`LevelSelectController.cs:291`、
 `CampaignCatalog.cs:155`）。两套关卡体系在 UI 层完全脱节。
 
-→ 即 `docs/交接与恢复指南.md` §20 待办第 4 项「战役 UI 重绑 8 图」，尚未开工。
+→ 即 `docs/项目/交接与恢复指南.md` §20 待办第 4 项「战役 UI 重绑 8 图」，尚未开工。
 
 ### 2. 小地图是"level_1 专用"，打任何其他关卡都是错的
 

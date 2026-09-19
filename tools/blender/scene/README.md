@@ -1,6 +1,6 @@
 # tools/blender/scene —— 场景资产样板（大帆船 + 木栈桥）无头建模管线
 
-> **这份目录解决什么问题**：美术验收清单（`docs/待办事项.md` r8+）登记过两个场景件缺口——
+> **这份目录解决什么问题**：美术验收清单（`docs/项目/待办事项.md` r8+）登记过两个场景件缺口——
 > "大帆船（含白帆）补船体、木栈桥入水立柱"。本管线用 Blender 5.2 无头脚本**纯程序化**建模这两件
 > 样板资产并导出 FBX，作为 Unity 侧 `SceneArt/`（程序化场景）的替代观感升级候选。
 > **零外部素材、零下载贴图**：全部 Blender 图元 + Principled BSDF 纯色，配色取项目调色板。
@@ -24,8 +24,8 @@
 | --- | --- |
 | `pirate-crew/Assets/Art/Models/SceneKit/Flagship.fbx` | 大帆船（单网格 5 材质槽） |
 | `pirate-crew/Assets/Art/Models/SceneKit/Dock.fbx` | 木栈桥（单网格 3 材质槽） |
-| `export/scene-kit-pilot/flagship-{front34,side,back}.jpg` | 船预览 1024²（艏3/4 / 正侧 / 艉3/4，中性灰背景 + 三灯） |
-| `export/scene-kit-pilot/dock-{front34,side,back}.jpg` | 栈桥预览 1024²（同上） |
+| `docs/images/scene-kit-pilot/flagship-{front34,side,back}.jpg` | 船预览 1024²（艏3/4 / 正侧 / 艉3/4，中性灰背景 + 三灯） |
+| `docs/images/scene-kit-pilot/dock-{front34,side,back}.jpg` | 栈桥预览 1024²（同上） |
 | `external/scene-kit-work/scene_kit_debug.blend` | 调参用 GUI 缓存（gitignored） |
 
 控制台会打印每件资产的统计（`STAT` 行：三角面数 / 材质槽 / 包围盒）。
@@ -85,4 +85,4 @@
   自动退出（0=成功 / 1=失败）。
 - **场景已由协调者手工登记**进 `ProjectSettings/EditorBuildSettings.asset`（本机 batchmode 下
   `EditorBuildSettings.scenes` API 改动不落盘，脚本侧不做登记）。
-- 验收判图：Blender 侧 6 张预览在 `export/scene-kit-pilot/`；Unity 侧实机图由协调者采集后归档。
+- 验收判图：Blender 侧 6 张预览在 `docs/images/scene-kit-pilot/`；Unity 侧实机图由协调者采集后归档。

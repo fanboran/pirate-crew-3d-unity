@@ -11,14 +11,10 @@ external/
 
 # ZCode 工具本地状态（会话计划等，非项目产物）
 .zcode/
-export/art-review/*/*.png
-export/art-review/r1/
 
 # Python 缓存（Blender 无头管线副产物）
 __pycache__/
 
-# M4 世界地图实拍：原始 PNG 不入库，入库的是 1280 宽 JPEG（同 art-review 惯例）
-export/worldmap-captures-r2/*/*.png
-
-# 天空盒环境光三档实拍：同上，原始 PNG 不入库，入库 1280 宽 JPEG
-export/ambient-skybox-debug/*/*.png
+# export/ 出图暂存目录：整目录不入库，零例外（过程截图/原始 PNG/评审画廊全本地留存）
+# 被文档引用的图与判据档案入库在 docs/images/（见 AGENTS.md「export 产物入库策略」）
+export/

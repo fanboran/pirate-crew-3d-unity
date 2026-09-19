@@ -1,6 +1,6 @@
 # M4 八图布局重摆——实拍验收（r2）
 
-> 这轮图是 [docs/隔壁交接-1-八图布局重摆与出生构图.md](../../docs/隔壁交接-1-八图布局重摆与出生构图.md)
+> 这轮图是 [docs/隔壁交接-1-八图布局重摆与出生构图.md(../../../docs/隔壁交接-1-八图布局重摆与出生构图.md)
 > 的验收产物。机位组由 `PlayerArtCapture.BuildWorldShots` 产出（`-worldMap <id> -artReviewOut <dir>`）：
 > **world-pano / world-overhead / world-horizon / world-team0-spawn / world-team1-spawn**。
 > 原始 PNG 未入库（.gitignore 排除），入库的是 1280 宽的 JPEG（quality 80）。

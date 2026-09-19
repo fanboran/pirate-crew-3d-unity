@@ -2,7 +2,7 @@
 
 > 生成日期：2026-09-12　里程碑：M2「补最小可玩闭环」战斗模块
 > 依据（只读）：`F:\VSCode\game-3\pirate-crew-3d\modules\pirate_crew\**`、`core\`、`config\`、`docs\`
-> 对照基线：`docs/参考游戏逆向-海盗军团抢宝藏-静态.md`（Nitrome 原版 Flash 逆向，868 行）
+> 对照基线：`docs/技术/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md`（Nitrome 原版 Flash 逆向，868 行）
 > 用途：遵守 AGENTS.md「翻译纪律：先读 Godot 版实现再动手」。本文件是**摘要/翻译指令**，不是设计文档；冲突时以 Flash 原版玩法为准。
 
 ---
@@ -376,7 +376,7 @@
 | 火药桶运行时数值 | `gunpowder_barrel.gd:16-20` |
 | config 火药桶数值 | `config/weapon_config.json:3-9` |
 | JSON 从未被加载 | `core/autoload/config_manager.gd:19` |
-| Flash 武器总表 | `docs/参考游戏逆向-海盗军团抢宝藏-静态.md` §5.2（L407-429） |
+| Flash 武器总表 | `docs/技术/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md` §5.2（L407-429） |
 | Flash 爆炸公式 | 同上 §5.3（L431-458） |
 | Flash AI 伪代码 | 同上 §6（L513-637） |
 | Flash 回合流程 | 同上 §3（L125-244） |

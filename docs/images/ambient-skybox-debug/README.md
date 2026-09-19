@@ -2,7 +2,7 @@
 
 > **本目录是什么**：环境光从 Trilight 三色切换为天空盒驱动（`AmbientSkyboxCatalog.DefaultAmbientSource
 > = Skybox`，2026-09-17 用户拍板翻转）后的三档氛围实拍对比图，供用户终审。
-> 数值口径见 [`../../docs/环境光天空盒化-预研与接线清单.md`](../../docs/环境光天空盒化-预研与接线清单.md) §四
+> 数值口径见 [`../../docs/技术/环境光天空盒化-预研与接线清单.md`(../../../docs/技术/环境光天空盒化-预研与接线清单.md) §四
 > （全部【提案/待定】）；程序化判据见 `tools/ambient/judge_ambient_captures.py`（初筛），人眼看图为终审。
 >
 > 原始 PNG 不入库（.gitignore），入库的是 1280 宽 JPEG（同 art-review / worldmap-captures-r2 惯例）。
@@ -40,16 +40,16 @@ python tools/ambient/judge_ambient_captures.py export/ambient-skybox-debug
 ## 复现
 
 ```bash
-# 1) 资产与场景（编辑器必须关闭；四步链顺序见 docs/交接与恢复指南.md §23）
+# 1) 资产与场景（编辑器必须关闭；四步链顺序见 docs/项目/交接与恢复指南.md §23）
 Unity.exe -batchmode -nographics -quit -projectPath .../pirate-crew \
   -executeMethod PirateCrew.EditorTools.SkyAssetBuilder.BuildAll -logFile -
 # 2) 四步装配链（M2BattleSceneSetup.BuildAll → WireMinimap → M3SceneSetup.BuildAll
 #    → WorldMapAssetSetBuilder.BuildAll）
 # 3) 重建播放器（grep "shader error" 必须 0）
 # 4) 三档出图（各跑一次播放器）
-external/build/PirateCrew3D.exe -worldMap wreck_hymn -ambientTimeOfDay Noon     -artReviewOut export/ambient-skybox-debug/noon
-external/build/PirateCrew3D.exe -worldMap wreck_hymn -ambientTimeOfDay Dusk     -artReviewOut export/ambient-skybox-debug/dusk
-external/build/PirateCrew3D.exe -worldMap wreck_hymn -ambientTimeOfDay Overcast -artReviewOut export/ambient-skybox-debug/overcast
+external/build/PirateCrew3D.exe -worldMap wreck_hymn -ambientTimeOfDay Noon     -artReviewOut docs/images/ambient-skybox-debug/noon
+external/build/PirateCrew3D.exe -worldMap wreck_hymn -ambientTimeOfDay Dusk     -artReviewOut docs/images/ambient-skybox-debug/dusk
+external/build/PirateCrew3D.exe -worldMap wreck_hymn -ambientTimeOfDay Overcast -artReviewOut docs/images/ambient-skybox-debug/overcast
 # 5) 判据初筛 → 压缩入库 → 人眼终审
 python tools/ambient/judge_ambient_captures.py export/ambient-skybox-debug
 ```

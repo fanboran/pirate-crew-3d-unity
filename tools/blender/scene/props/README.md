@@ -1,6 +1,6 @@
 # tools/blender/scene/props —— WorldKit 道具套件(18 件)无头建模
 
-> **这份目录解决什么问题**:M4 大海域世界化的道具域产出(docs/M4-大海域世界化.md §4.3 分工表)。
+> **这份目录解决什么问题**:M4 大海域世界化的道具域产出(docs/技术/M4-大海域世界化.md §4.3 分工表)。
 > `props_kit.py` 用 Blender 5.2 无头脚本**纯程序化**建模 18 件道具并导出 FBX,供
 > `WorldMapComposer` 在世界地图上摆放。**零外部素材、零贴图**:全部 bpy/bmesh 图元 +
 > Principled BSDF 纯色(槽值唯一来源 `tools/blender/scene/style_tokens.py`),细节全靠几何
@@ -24,7 +24,7 @@
 | 路径 | 内容 |
 | --- | --- |
 | `pirate-crew/Assets/Art/Models/WorldKit/Props/<名>.fbx` | 18 件道具(单网格多 Kit_ 槽) |
-| `export/worldkit-props/<名>-front34.jpg / <名>-side.jpg` | 预览 1024² q90(右前上 3/4 + 正侧;Standard 视图,灰底三灯) |
+| `docs/images/worldkit-props/<名>-front34.jpg / <名>-side.jpg` | 预览 1024² q90(右前上 3/4 + 正侧;Standard 视图,灰底三灯) |
 | `external/worldkit-props-work/props_debug.blend` | 调参用 GUI 缓存(gitignored) |
 
 控制台每件打印一行 `STAT`(三角面数 / 材质槽 / 包围盒);完整运行日志示例 `external/propskit-run2.log`。
