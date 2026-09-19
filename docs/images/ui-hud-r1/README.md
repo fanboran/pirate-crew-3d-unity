@@ -1,46 +1,58 @@
-# UI HUD 样板档案（多彩卡通 · 设计系统版）
+# UI HUD 样板档案（手绘涂鸦皮肤 · game-2 移植版）
 
-> 多彩卡通 UI（2026-09-19 用户三轮裁决 + game-2 管线对齐）的**样板屏验收图**——战斗 HUD 与组件陈列页。
-> 原始 PNG 在 `export/uihud-r8/`、`export/ui-gallery-r2/`（不入库），此处为压缩归档版。
-> 复现：ArtGate 全链 → 播放器构建 → `external/build/PirateCrew3D.exe -artReviewOut <dir>`，
-> 陈列页另跑 `PirateCrew3D.exe -uiGalleryOut <dir>`。
+> **手绘涂鸦 UI**（2026-09-20 用户裁决：隔壁 game-2/stick-world 的 UI 素材与生成流水线
+> **原封不动搬来，只换配色为本项目色板**）的样板屏验收图——战斗 HUD 与组件陈列页。
+> 原始 PNG 在 `export/art-review/r12/`、`export/art-review/r12-gallery/`（不入库），此处为压缩归档版。
+> 复现：`python tools/sketch_ui/gen_sketch_ui.py`（烘 96 张沸腾贴图）→ ArtGate 全链 → 播放器构建 →
+> `external/build/PirateCrew3D.exe -artReviewOut <dir>`，陈列页另跑 `PirateCrew3D.exe -uiGalleryOut <dir>`。
 > 设计意图与纪律见 [docs/设计/UI设计语言.md](../../设计/UI设计语言.md)。
 
-## 风格定案（三轮裁决 + game-2 机制对齐）
+## 风格定案（手绘涂鸦 · 本轮裁决）
 
-- **高饱和多彩**：17 武器 / 7 职业各有语义色相（哈迪斯式深底 + 宝石彩图标 + 金强调），色表唯一真值在 `UiSkin.WeaponColor/CrewColor`；**格底一律暗档**（`CellBase`：内容色向 InkDeep 压 22%——静物全彩跳出灰底）。
-- **两段卡通明暗**（r9 定案的构件修饰语言）：全部 tintable 件分「顶亮带 / 主段 0.88」灰度阶梯，乘色后保留——糖豆人式上受光体积；血槽另有顶 1px 反光 + 底 40% 暗带 + 两端 3px 端箍（"被箍住的容器"）。
-- **形状收敛**：圆角两档（容器 8 / 控件 6）+ 全圆 Pill；1px 细边；无贴纸硬投影。
-- **图标优先**：武器=静物图标格、名册=职业头像 pips、回合=徽章纯数字、动作钮=符号图标。
-- **架构纪律**（学 game-2 ui_global）：Token 单源（UiSkin）→ 按钮变体表（UiKit.ButtonKind）→ zone 布局常量 + 装配期防撞自检（`[HUD 布局防撞]`）→ 组件陈列页回归（ui-gallery 两图）。
+- **素材与流水线原样移植**：`tools/sketch_ui/gen_sketch_ui.py` = game-2 `gen_sketch_ui_a10.py`
+  逐行移植——wobbly 圆角矩形 + cos 整数频率噪声 + 三帧沸腾 + 面板 wobble 1.8 + 纸感噪点 +
+  九宫格平铺自检三关，几何参数零改动；**只改了配色区**（换成 UiSkin 色板：夜海靛蓝深底 +
+  金强调 + TeamRed 语义红，白系三级描边与 btn_ink 纸面槽沿用上游）。
+- **tint 槽是唯一新增**：`pip/ring/fill/cell` 四槽烘白实底+墨边，运行时 `Image.color` 乘色
+  （队色血条/职业色 pip/内容色武器格）——白系边乘深色会隐形，彩底件一律走墨边。
+- **沸腾驱动**：`SketchBoil` 每 0.12s 换帧、实例 ID 相位逐件错开；按钮四态 = 四槽贴图切换
+  （指针事件实现），ColorBlock tint 关闭。**时序铁律：OnEnable 不得 Apply**（AddComponent
+  同步触发时 Slot 尚未赋值，r12 gallery 全页错图的事故）。
+- **字体**：全 UI 统一 StickHand 手写体（隔壁"文字统一 StickHand"纪律）；字号八档整体上调
+  （Display 52 / Banner 42 / Title 30 / Section 24 / Hud 22 / Body 18 / Hint 16 / Tiny 15）——
+  2026-09-20"文字可读性很差"裁决。
+- **架构纪律**（学 game-2 ui_global）：Token 单源（UiSkin）→ 按钮变体表（UiKit.ButtonKind →
+  SketchSkin 槽组）→ zone 布局常量 + 装配期防撞自检 → 组件陈列页回归（ui-gallery 两图）。
+- 上一版"两段卡通明暗 + 凹槽构造线"的平涂语言（r4-r11）已被手绘皮肤整体取代，
+  `CartoonSpriteFactory` 仅存几何纯函数（SdRoundRect 仍被 UiGlyphs/测试引用）。
 
 ## 判读（每张图应看到什么）
 
-| 图 | 应看到 | 实测（r6/r2） |
+| 图 | 应看到 | 实测（r12） |
 | --- | --- | --- |
-| `hud-showcase.jpg` | **空白背景纯 HUD 演示**：中亮蓝灰纯底上 HUD 全要素一览 | 通过 |
-| `hud-showcase-armed.jpg` | 同上 + 武器面板打开：顶部红蓝血条**镜像等长**（各 640，中轴对称）+ 条下职业色头像 pips（**两队都有**——r9 曾因 CrewKey 漏 §4.2 符号蓝队全灰占位）+ 中央 64px 减重徽章 + 描边提示文字 + **模式三钮贴右上角**（r10 曾因 y 轴语义混用沉到垂直中部）+ 底部带三段同底边线（[暂停/返回][面板贴底][提示条]） | 通过（r6，诊断代理 12 项复核） |
-| `hud-fullscreen.jpg` | 同套 HUD 压真实战场：提示文字有描边在沙地亮部可读、部件不遮战场 | 通过（r6） |
-| `hud-weaponpanel.jpg` | 底部面板：9×2 彩色图标格（**格底暗档**，铁球/香蕉/金币可辨）+ 底行武器名/说明（**不压第二排格**——r9 曾因格子 y 多加一格高下沉 70px）+ 右列（头像带底格/名/HP/跳跃/结束回合） | 通过（r6） |
+| `hud-showcase.jpg` | 空白背景纯 HUD：全部件呈**手绘不规则墨线边缘**（沸腾贴图九宫格） | 通过（亲眼验收） |
+| `hud-showcase-armed.jpg` | 同上 + 武器面板：红蓝血条**手绘段**镜像等长 + 职业色 pips（cell 槽）+ 中央红环徽章 + 手写体提示 + 模式三钮贴右上 + 底部带同底边线；**跳跃=金实底墨边手绘钮** | 通过（亲眼验收） |
+| `hud-fullscreen.jpg` | 同套 HUD 压真实战场 | 通过 |
+| `hud-weaponpanel.jpg` | 底部面板：9×2 手绘格（内容色暗档底 + 静物图标）+ 武器名/说明行 + 右列（头像格/名/HP/跳跃/结束回合） | 通过 |
 | `battle-45.jpg` | 玩家视角整体协调 | 通过 |
-| `unit-closeup.jpg` | 头顶细血条 + 选中描边 | 通过 |
-| `ui-gallery.jpg` | **组件陈列页·控件档位**（game-2 component_gallery 等价物）：按钮三变体/图标钮/血条族（含 ghost 残影与端箍）/pips/5 档字号/8 色板/圆角两档，全部件=UiKit 真实长相（改 Token 后出此图即视觉回归） | 通过（r2） |
-| `ui-gallery-icons.jpg` | **组件陈列页·图标集**：17 武器格（暗档底+中文名）/7 职业头像/13 符号 | 通过（r2） |
+| `unit-closeup.jpg` | 头顶细血条（progress_bg/fill 槽，同样沸腾） | 通过 |
+| `ui-gallery.jpg` | **组件陈列页**：按钮三变体（金实底/深底/酒红，各带手绘框）/图标钮/血条族/pips/5 档字号/8 色板（cell 槽紧凑块）/手绘槽三样——**颜色必须鲜亮**（r12 曾全页被默认 panel 槽污染成暗色，根因见上时序铁律） | 通过（修复后亲眼验收） |
+| `ui-gallery-icons.jpg` | 17 武器格（内容色暗档底 + 中文名）/7 职业头像/13 符号 | 通过 |
 
 ## 已知取舍（待用户验收裁决）
 
-- 小地图仍是矩形深底面板（圆形罗盘化留待裁决后做）。r11 起 320×220 + 瓦片点阵/单位点
-  （曾静默空白三轮：BuildAll 单独重存洗掉 BattleMinimap 组件，已把 WireMinimap 挂进重建链 +
-  PlayMode 装配断言防复发）。
-- 血槽端箍/底暗带在满血条上被填充遮挡，残血可辨（gallery 队条样例 0.34/0.62 段可直接核）。
+- 小地图仍是矩形深底面板（圆形罗盘化留待裁决后做）；内部瓦片点阵在样板海域偏稀。
+- 沸腾是 3 帧循环动画，静帧只能看到其中一帧的边缘扰动（实玩才见"线在抖"）。
+- danger 按钮的 14% 红叠加槽在深底上读作"实底酒红"，与 UiSkin.Danger 标注色一致，是预期观感。
 - 暂停/确认/结算 Modal 观感未在静帧覆盖（动效需实玩验收）。
+- 玩家徽章环仍在用 tint ring 圆片（队色圆片+白数字），哈迪斯式"金线环"细节可再打磨。
 
 ## 关键提交
 
-- `4ff7f92` UI 地基（UiSkin/卡通皮肤工厂/符号库/UiKit/图标绘制器/动效扩展 + 15 测试）
-- `3deb7cb` HUD 重设计（BattleHud/BattleHudBuilder/BattleUiTheme 重写 + 头顶血条 + 名册退役）
-- `f89a45e` 首拍三轮修正 + 烘焙资产与 Battle 场景入库
-- `61f5a9e`/`32d1d57` showcase 机位 + 档案判据
-- 本轮（r4-r6）：zone 整带重排+防撞自检、两段明暗+凹槽构造线、按钮变体表、CrewKey §4.2 补全、格子 y 修正、陈列页+字体 Resources、设计语言文档
+- `4ff7f92` UI 地基 / `3deb7cb` HUD 重设计 / `f89a45e` 首拍修正 / r4-r6 平涂语言三轮（见 git 历史）
+- r8-r11：海图放大+内容回归、档位纪律、防撞自检（见 git 历史）
+- 本轮（r12）：**手绘涂鸦皮肤整体移植**——tools/sketch_ui 烘焙管线、SketchSkin/SketchBoil、
+  UiKit 换供给、字体全切 StickHand、字号八档上调、gallery 修复
 
-门禁：EditMode **1160/0/1**、harness 0 错（36 ECall 基线持平）、四步装配链 exit 0、ArtGate 18 步全绿、播放器 shader error **0**、防撞警告 **0**。
+门禁：EditMode **1160/0/1**、编译 0 错、装配链 exit 0、ArtGate 18 步全绿、播放器构建成功、
+烘焙自检 **32 槽 ALL TILING-CLEAN**、导入参数 96 张落 .meta、防撞警告 **0**。

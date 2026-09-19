@@ -21,6 +21,7 @@ namespace PirateCrew.EditorTools
     {
         const string SkinFolder = "Assets/Art/Sprites/UI";
         const string IconFolder = "Assets/Resources/UIIcons";
+        const string SketchFolder = "Assets/Resources/UI/Sketch";
 
         /// <summary>九宫格贴图导入口径（渐变/细边禁不起压缩）。</summary>
         static void ImportSprite(string assetPath, Vector4 border)
@@ -70,13 +71,17 @@ namespace PirateCrew.EditorTools
             }
         }
 
-        /// <summary>烘焙全部：皮肤九宫格 + 符号图标 + 武器/职业图标集。</summary>
+        /// <summary>烘焙全部：手绘皮肤导入参数 + 平色九宫格 + 符号图标 + 武器/职业图标集。</summary>
         [MenuItem("PirateCrew/UI/重烘焙卡通皮肤与图标集")]
         public static void BakeAll()
         {
             int count = 0;
 
-            // 1) 平色九宫格皮肤（Cartoon_<Shape>.png）。
+            // 0) 手绘涂鸦皮肤（tools/sketch_ui/gen_sketch_ui.py 产的 PNG 已在仓库里，
+            //    这里只批设导入口径：sprite + 九宫格 border=10——缺这步 Resources.Load<Sprite> 为 null）。
+            count += EnsureSketchImports();
+
+            // 1) 平色九宫格皮肤（Cartoon_<Shape>.png；几何纯函数仍被 UiGlyphs/测试引用）。
             foreach (CartoonSpriteFactory.Shape shape in System.Enum.GetValues(typeof(CartoonSpriteFactory.Shape)))
             {
                 Texture2D texture = CartoonSpriteFactory.CreateTexture(shape, out Vector4 border);
@@ -111,6 +116,44 @@ namespace PirateCrew.EditorTools
             AssetDatabase.Refresh();
             Debug.Log("[UiSkinAssetBaker] 卡通皮肤与图标烘焙完成，共 " + count + " 张（"
                 + SkinFolder + " + " + IconFolder + "）。");
+        }
+
+        /// <summary>
+        /// 批设手绘贴图导入口径（幂等：已是 sprite+border=10 的跳过不重导）。
+        /// 独立菜单项供单跑；<see cref="BakeAll"/> 与场景装配链都会先走这里。
+        /// </summary>
+        [MenuItem("PirateCrew/UI/设定手绘皮肤导入参数")]
+        public static int EnsureSketchImports()
+        {
+            if (!System.IO.Directory.Exists(SketchFolder))
+            {
+                Debug.LogWarning("[UiSkinAssetBaker] " + SketchFolder + " 不存在（先跑 tools/sketch_ui/gen_sketch_ui.py）");
+                return 0;
+            }
+
+            int touched = 0;
+            foreach (string guid in AssetDatabase.FindAssets("t:Texture2D", new[] { SketchFolder }))
+            {
+                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                if (AssetImporter.GetAtPath(assetPath) is TextureImporter importer
+                    && (importer.textureType != TextureImporterType.Sprite
+                        || importer.spriteBorder != new Vector4(10f, 10f, 10f, 10f)))
+                {
+                    importer.textureType = TextureImporterType.Sprite;
+                    importer.spriteImportMode = SpriteImportMode.Single;
+                    importer.spritePixelsPerUnit = 100f;
+                    importer.spriteBorder = new Vector4(10f, 10f, 10f, 10f);   // 烘焙 MARGIN=10
+                    importer.mipmapEnabled = false;
+                    importer.alphaIsTransparency = true;
+                    importer.wrapMode = TextureWrapMode.Clamp;
+                    importer.filterMode = FilterMode.Bilinear;
+                    importer.textureCompression = TextureImporterCompression.Uncompressed;
+                    importer.SaveAndReimport();
+                    touched++;
+                }
+            }
+            Debug.Log("[UiSkinAssetBaker] 手绘皮肤导入参数：新设 " + touched + " 张。");
+            return touched;
         }
     }
 }

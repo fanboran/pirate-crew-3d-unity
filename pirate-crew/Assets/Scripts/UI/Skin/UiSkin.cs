@@ -124,7 +124,8 @@ namespace PirateCrew.UI
         public const float ButtonFadeSeconds = 0.09f;
 
         // ------------------------------------------------------------------
-        // 字号（全项目唯一真值；自 MenuUiBuilder.FontScale 迁来，用户 2026-09-14 裁决整体下调一档）
+        // 字号（全项目唯一真值。2026-09-20 用户裁决"文字可读性很差"后整体上调 2~4 档；
+        // 字号跟控件走的纪律不变：按钮文字 ≥ 控件高的 1/2，调控件尺寸同步审字号）
         // ------------------------------------------------------------------
 
         /// <summary>字号档位。旧 UiTheme.Font* 旧档常量经 Editor 侧 ScaleLegacyFont 映射后的
@@ -132,28 +133,28 @@ namespace PirateCrew.UI
         public static class Font
         {
             /// <summary>主菜单游戏名。</summary>
-            public const int Display = 48;
+            public const int Display = 52;
 
             /// <summary>结算横幅（胜利 / 失败）。</summary>
-            public const int Banner = 36;
+            public const int Banner = 42;
 
             /// <summary>界面标题。</summary>
-            public const int Title = 26;
+            public const int Title = 30;
 
             /// <summary>区块标题 / 面板标题条。</summary>
-            public const int Section = 20;
+            public const int Section = 24;
 
             /// <summary>HUD 常读 / 名册名 / 模式开关 / 回合计时。</summary>
-            public const int Hud = 18;
+            public const int Hud = 22;
 
             /// <summary>按钮 / 列表行文本 / 说明。</summary>
-            public const int Body = 15;
+            public const int Body = 18;
 
             /// <summary>辅助提示 / 通栏提示条。</summary>
-            public const int Hint = 14;
+            public const int Hint = 16;
 
-            /// <summary>角标 / HP 数字 / 快捷键角标。</summary>
-            public const int Tiny = 13;
+            /// <summary>角标 / HP 数字 / 快捷键角标（手写体小字可读性下限，不再低于 15）。</summary>
+            public const int Tiny = 15;
         }
 
         // ------------------------------------------------------------------

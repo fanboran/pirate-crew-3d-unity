@@ -133,8 +133,10 @@ namespace PirateCrew.EditorTools
         {
             MenuUiBuilder.EnsureFonts();
             TMP_FontAsset title = MenuUiBuilder.TitleFont;
-            TMP_FontAsset body = MenuUiBuilder.BodyFont;
-            TMP_FontAsset secondary = MenuUiBuilder.SecondaryFont;
+            // 隔壁纪律「文字统一 StickHand」：HUD 常读文字全部手写体（笔画等粗，
+            // 1080p 小字号可读性远好于霞鹜文楷细笔画——2026-09-20 可读性裁决）。
+            TMP_FontAsset body = MenuUiBuilder.TitleFont;
+            TMP_FontAsset secondary = MenuUiBuilder.TitleFont;
 
             RectTransform hudRoot = UiKit.CreateRect("HudLayout", canvas.transform);
             UiKit.Stretch(hudRoot);
@@ -262,10 +264,11 @@ namespace PirateCrew.EditorTools
                     new Vector2(TeamBarWidth, TeamBarHeight));
             }
 
-            // 把面板底换成血条凹槽皮肤（CreatePanel 建的是 InkDeep 面板，这里要槽感）。
+            // 把面板底换成血条凹槽皮肤（CreatePanel 建的是手绘 panel，这里要槽感）。
             var barImage = barRoot.GetComponent<Image>();
             barImage.sprite = LoadSkin(CartoonSpriteFactory.Shape.BarTrack);
             barImage.type = Image.Type.Sliced;
+            Boil(barRoot.gameObject, "progress_bg");
             view.root = barRoot.gameObject;
 
             view.segmentRoot = barRoot;
@@ -328,6 +331,7 @@ namespace PirateCrew.EditorTools
                 frame.sprite = LoadSkin(CartoonSpriteFactory.Shape.Slot);
                 frame.type = Image.Type.Sliced;
                 frame.color = UiSkin.InkSoft;
+                Boil(pip.gameObject, "cell");
 
                 Image icon = UiKit.CreateGlyph("Icon", pip, UiGlyphs.Glyph.Helm, Color.white);
                 UiKit.Stretch(icon.rectTransform, 4f);
@@ -374,7 +378,7 @@ namespace PirateCrew.EditorTools
             // 深色 1px 斜投影保可读（r9 出图裁决：沙地亮部直接吞掉裸浅灰字，
             // 与准星同口径的 Shadow 方案，不上底色容器）。
             result.turnHintText = UiKit.CreateText("TurnHintText", hudRoot, string.Empty,
-                UiSkin.Font.Hint, TextAlignmentOptions.Center, UiSkin.TextOnInk, MenuUiBuilder.BodyFont);
+                UiSkin.Font.Hint, TextAlignmentOptions.Center, UiSkin.TextOnInk, MenuUiBuilder.TitleFont);
             result.turnHintText.enableWordWrapping = false;
             result.turnHintText.rectTransform.anchorMin = result.turnHintText.rectTransform.anchorMax =
                 new Vector2(0.5f, 1f);
@@ -433,6 +437,7 @@ namespace PirateCrew.EditorTools
                 frame.sprite = LoadSkin(CartoonSpriteFactory.Shape.Slot);
                 frame.type = Image.Type.Sliced;
                 frame.color = UiSkin.WeaponCellBase((WeaponId)i);
+                Boil(cell.gameObject, "cell");
 
                 var button = cell.gameObject.AddComponent<Button>();
                 button.targetGraphic = frame;
@@ -478,6 +483,7 @@ namespace PirateCrew.EditorTools
             portraitFrame.type = Image.Type.Sliced;
             portraitFrame.color = UiSkin.InkSoft;
             portraitFrame.raycastTarget = false;
+            Boil(portrait.gameObject, "cell");
 
             RectTransform portraitIcon = UiKit.CreateRect("Icon", portrait);
             UiKit.Stretch(portraitIcon, 3f);
@@ -542,8 +548,9 @@ namespace PirateCrew.EditorTools
             var hintImage = hint.gameObject.AddComponent<Image>();
             hintImage.sprite = LoadSkin(CartoonSpriteFactory.Shape.Chip);
             hintImage.type = Image.Type.Sliced;
-            hintImage.color = UiSkin.InkSoft;
+            hintImage.color = Color.white;   // btn 槽自带来的半透明深底，不再乘色
             hintImage.raycastTarget = false;
+            Boil(hint.gameObject, "btn_normal");
 
             result.hintText = UiKit.CreateText("HintText", hint, UiStrings.BattleHintMove, UiSkin.Font.Hint,
                 TextAlignmentOptions.Center, UiSkin.TextOnInk, secondary);
@@ -705,8 +712,9 @@ namespace PirateCrew.EditorTools
                 image = panel.gameObject.AddComponent<Image>();
             image.sprite = LoadSkin(CartoonSpriteFactory.Shape.PanelInk);
             image.type = Image.Type.Sliced;
-            image.color = UiSkin.InkDeep;
+            image.color = Color.white;   // panel 槽已烘 InkDeep 半透明，乘色会加深一倍
             image.raycastTarget = false;
+            Boil(panel.gameObject, "panel");
 
             var legacyOutline = panel.GetComponent<Outline>();
             if (legacyOutline != null)
@@ -732,7 +740,7 @@ namespace PirateCrew.EditorTools
             if (caption == null)
             {
                 caption = UiKit.CreateText("MinimapCaption", panel, UiStrings.BattleMinimapTitle,
-                    UiSkin.Font.Hint, TextAlignmentOptions.MidlineLeft, UiSkin.TextDim, MenuUiBuilder.SecondaryFont);
+                    UiSkin.Font.Hint, TextAlignmentOptions.MidlineLeft, UiSkin.TextDim, MenuUiBuilder.TitleFont);
             }
 
             UiKit.SetAnchored(caption.rectTransform, new Vector2(0f, 1f),
@@ -752,12 +760,21 @@ namespace PirateCrew.EditorTools
         // 资产加载
         // ------------------------------------------------------------------
 
-        /// <summary>皮肤 PNG（Editor 装配必须引用持久资产；缺失回落内存 Sprite）。</summary>
+        /// <summary>手绘皮肤 PNG（Resources/UI/Sketch/，gen_sketch_ui.py 产物——
+        /// Editor 与播放器同走 Resources 一份两用；缺失告警，由导入参数烘焙兜底）。</summary>
         static Sprite LoadSkin(CartoonSpriteFactory.Shape shape)
         {
-            Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(
-                "Assets/Art/Sprites/UI/Cartoon_" + shape + ".png");
-            return sprite != null ? sprite : CartoonSpriteFactory.Get(shape);
+            string slot = SketchSkin.SlotOfShape(shape);
+            Sprite sprite = Resources.Load<Sprite>("UI/Sketch/" + slot + "_f0");
+            if (sprite == null)
+                Debug.LogWarning("[BattleHudBuilder] UI/Sketch/" + slot + "_f0 缺失（跑 tools/sketch_ui/gen_sketch_ui.py + 导入参数）");
+            return sprite;
+        }
+
+        /// <summary>给静态手绘件挂沸腾驱动（场景序列化 Slot，运行时 0.12s 重掷帧）。</summary>
+        static void Boil(GameObject go, string slot)
+        {
+            go.AddComponent<SketchBoil>().Slot = slot;
         }
 
         /// <summary>武器静物图标 PNG（UiSkinAssetBaker 产物）。</summary>

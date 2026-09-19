@@ -60,7 +60,7 @@ namespace PirateCrew.UI
             rect.localScale = Vector3.one;                  // 尺寸由 sizeDelta 直接表达（世界单位）
 
             var track = root.gameObject.AddComponent<Image>();
-            track.sprite = CartoonSpriteFactory.Get(CartoonSpriteFactory.Shape.BarTrack);
+            track.sprite = SketchSkin.Frame("progress_bg", 0);
             track.type = Image.Type.Sliced;
             track.color = Color.white;
             track.raycastTarget = false;
@@ -68,7 +68,7 @@ namespace PirateCrew.UI
             var fillGo = new GameObject("Fill", typeof(RectTransform));
             fillGo.transform.SetParent(rect, false);
             var fill = fillGo.AddComponent<Image>();
-            fill.sprite = CartoonSpriteFactory.Get(CartoonSpriteFactory.Shape.Pill);
+            fill.sprite = SketchSkin.Frame("fill", 0);
             fill.type = Image.Type.Sliced;
             fill.color = UiSkin.TeamFill(pirate.TeamIndex);
             fill.raycastTarget = false;
@@ -77,6 +77,12 @@ namespace PirateCrew.UI
             fillRect.anchorMax = Vector2.one;
             fillRect.offsetMin = Vector2.zero;
             fillRect.offsetMax = Vector2.zero;
+
+            // 头顶条也沸腾（同 SketchSkin 节拍；fill/track 各自独立相位）。
+            var trackBoil = root.AddComponent<SketchBoil>();
+            trackBoil.Slot = "progress_bg";
+            var fillBoil = fillGo.AddComponent<SketchBoil>();
+            fillBoil.Slot = "fill";
 
             var bar = root.AddComponent<OverheadHealthBar>();
             bar._fill = fill;

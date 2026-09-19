@@ -82,11 +82,11 @@ namespace PirateCrew.UI
             BuildPipSample(root, At(cx, 200f));
 
             ColumnLabel(root, cx, "字号档位（UiSkin.Font 唯一真值）", secondary, 140f);
-            FontRow(root, cx - 250f, 96f, "Display 48", UiSkin.Font.Display, title);
-            FontRow(root, cx - 250f, 56f, "Title 26 界面标题", UiSkin.Font.Title, title);
-            FontRow(root, cx - 250f, 24f, "Section 20 区块标题", UiSkin.Font.Section, body);
-            FontRow(root, cx - 250f, -4f, "Body 15 按钮与行文本", UiSkin.Font.Body, body);
-            FontRow(root, cx - 250f, -30f, "Hint 14 辅助提示 / Tiny 13 角标", UiSkin.Font.Hint, secondary);
+            FontRow(root, cx - 250f, 92f, "Display " + UiSkin.Font.Display, UiSkin.Font.Display, title);
+            FontRow(root, cx - 250f, 52f, "Title " + UiSkin.Font.Title + " 界面标题", UiSkin.Font.Title, title);
+            FontRow(root, cx - 250f, 20f, "Section " + UiSkin.Font.Section + " 区块标题", UiSkin.Font.Section, body);
+            FontRow(root, cx - 250f, -12f, "Body " + UiSkin.Font.Body + " 按钮与行文本", UiSkin.Font.Body, body);
+            FontRow(root, cx - 250f, -42f, "Hint " + UiSkin.Font.Hint + " 辅助提示 / Tiny " + UiSkin.Font.Tiny + " 角标", UiSkin.Font.Hint, secondary);
 
             ColumnLabel(root, rx, "底色与语义色板", secondary);
             string[] names = { "InkDeep 容器底", "InkSoft 嵌件底", "BarTrack 凹槽", "Gold 强调",
@@ -100,13 +100,10 @@ namespace PirateCrew.UI
                 Swatch(root, At(x, y), colors[i], names[i], secondary);
             }
 
-            ColumnLabel(root, rx, "圆角两档 + 全圆（Pill 仅血条）", secondary, 96f);
-            ShapeSwatch(root, At(rx - 150f, 40f), CartoonSpriteFactory.Shape.PanelInk,
-                UiSkin.InkDeep, "容器 8px", secondary);
-            ShapeSwatch(root, At(rx + 30f, 40f), CartoonSpriteFactory.Shape.Chip,
-                UiSkin.InkSoft, "控件 6px", secondary);
-            ShapeSwatch(root, At(rx + 190f, 40f), CartoonSpriteFactory.Shape.Pill,
-                UiSkin.TeamRed, "全圆", secondary);
+            ColumnLabel(root, rx, "手绘槽位（panel 面板 / btn 按钮 / cell 格 · 0.12s 沸腾）", secondary, 96f);
+            SketchImage(root, At(rx - 150f, 40f), "panel", Color.white, "面板", secondary);
+            SketchImage(root, At(rx + 30f, 40f), "btn_normal", Color.white, "按钮", secondary);
+            SketchImage(root, At(rx + 190f, 40f), "cell", UiSkin.TeamRed, "彩格(tint)", secondary);
 
             Footer(root, secondary);
         }
@@ -120,9 +117,11 @@ namespace PirateCrew.UI
             bar.anchoredPosition = center;
             bar.sizeDelta = new Vector2(width, height);
             var track = bar.gameObject.AddComponent<Image>();
-            track.sprite = CartoonSpriteFactory.Get(CartoonSpriteFactory.Shape.BarTrack);
+            track.sprite = SketchSkin.Frame("progress_bg", 0);
             track.type = Image.Type.Sliced;
             track.raycastTarget = false;
+            var trackBoil = bar.gameObject.AddComponent<SketchBoil>();
+            trackBoil.Slot = "progress_bg";
 
             float segW = (width - 4f - 3f * gap) / 4f;
             float[] fills = { 1f, 0.62f, 0.34f, 0.85f };
@@ -165,10 +164,12 @@ namespace PirateCrew.UI
                 pip.anchoredPosition = new Vector2(x0 + i * step, center.y);
 
                 var frame = pip.gameObject.AddComponent<Image>();
-                frame.sprite = CartoonSpriteFactory.Get(CartoonSpriteFactory.Shape.Slot);
+                frame.sprite = SketchSkin.Frame("cell", 0);
                 frame.type = Image.Type.Sliced;
                 frame.color = UiSkin.CellBase(UiSkin.CrewColor(keys[i]));
                 frame.raycastTarget = false;
+                var pipBoil = pip.gameObject.AddComponent<SketchBoil>();
+                pipBoil.Slot = "cell";
 
                 Image icon = UiKit.CreateRect("Icon", pip).gameObject.AddComponent<Image>();
                 icon.sprite = LoadCrewIcon(keys[i]);
@@ -182,10 +183,12 @@ namespace PirateCrew.UI
             dead.sizeDelta = new Vector2(32f, 32f);
             dead.anchoredPosition = new Vector2(x0 + keys.Length * step, center.y);
             var deadFrame = dead.gameObject.AddComponent<Image>();
-            deadFrame.sprite = CartoonSpriteFactory.Get(CartoonSpriteFactory.Shape.Slot);
+            deadFrame.sprite = SketchSkin.Frame("cell", 0);
             deadFrame.type = Image.Type.Sliced;
             deadFrame.color = UiSkin.DeadGray;
             deadFrame.raycastTarget = false;
+            var deadBoil = dead.gameObject.AddComponent<SketchBoil>();
+            deadBoil.Slot = "cell";
             UiKit.CreateGlyph("Skull", dead, UiGlyphs.Glyph.Skull, UiSkin.InkDeep);
         }
 
@@ -226,10 +229,12 @@ namespace PirateCrew.UI
                 portrait.anchoredPosition = center;
 
                 var ring = portrait.gameObject.AddComponent<Image>();
-                ring.sprite = CartoonSpriteFactory.Get(CartoonSpriteFactory.Shape.Slot);
+                ring.sprite = SketchSkin.Frame("cell", 0);
                 ring.type = Image.Type.Sliced;
                 ring.color = UiSkin.CrewColor(crew[i]);
                 ring.raycastTarget = false;
+                var ringBoil = portrait.gameObject.AddComponent<SketchBoil>();
+                ringBoil.Slot = "cell";
 
                 Image face = UiKit.CreateRect("Icon", portrait).gameObject.AddComponent<Image>();
                 face.sprite = LoadCrewIcon(crew[i]);
@@ -274,10 +279,12 @@ namespace PirateCrew.UI
             rect.anchoredPosition = center;
 
             var frame = rect.gameObject.AddComponent<Image>();
-            frame.sprite = CartoonSpriteFactory.Get(CartoonSpriteFactory.Shape.Slot);
+            frame.sprite = SketchSkin.Frame("cell", 0);
             frame.type = Image.Type.Sliced;
             frame.color = UiSkin.WeaponCellBase(id);
             frame.raycastTarget = false;
+            var weaponBoil = rect.gameObject.AddComponent<SketchBoil>();
+            weaponBoil.Slot = "cell";
 
             Image icon = UiKit.CreateRect("Icon", rect).gameObject.AddComponent<Image>();
             icon.sprite = LoadWeaponIcon(id);
@@ -353,37 +360,34 @@ namespace PirateCrew.UI
         static void Swatch(RectTransform root, Vector2 center, Color color, string name,
             TMP_FontAsset secondary)
         {
-            RectTransform rect = UiKit.CreateRect("Swatch", root);
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(100f, 30f);
-            rect.anchoredPosition = center;
-            var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = CartoonSpriteFactory.Get(CartoonSpriteFactory.Shape.Chip);
-            image.type = Image.Type.Sliced;
-            image.color = color;
-            image.raycastTarget = false;
+            // 色板用不透明 cell 槽（btn 槽白 7% 透明底乘色后颜色不可辨）；
+            // 直接挂页面根（r12 事故：把本方法自建的空容器当 root 传下去，子块坐标叠算成 2×center）。
+            SketchImage(root, center, "cell", color, null, null, new Vector2(104f, 44f));
 
             // 色板名放色块右侧（r9：居中 160 宽盒左端压进色块内一半）。
             LeftLabel(root, center.x + 58f, center.y, 120f, name, UiSkin.Font.Tiny,
                 UiSkin.TextOnInk, secondary);
         }
 
-        static void ShapeSwatch(RectTransform root, Vector2 center, CartoonSpriteFactory.Shape shape,
-            Color color, string name, TMP_FontAsset secondary)
+        /// <summary>建一个手绘槽样块（实底槽乘色 / 固定槽传 white），挂沸腾。</summary>
+        static void SketchImage(RectTransform root, Vector2 center, string slot, Color color,
+            string name, TMP_FontAsset secondary, Vector2? size = null)
         {
-            RectTransform rect = UiKit.CreateRect("Shape_" + shape, root);
+            RectTransform rect = UiKit.CreateRect("Sketch_" + slot, root);
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(120f, 64f);
+            rect.sizeDelta = size ?? new Vector2(120f, 64f);
             rect.anchoredPosition = center;
             var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = CartoonSpriteFactory.Get(shape);
-            image.type = shape == CartoonSpriteFactory.Shape.Pill
-                ? Image.Type.Simple : Image.Type.Sliced;
+            image.sprite = SketchSkin.Frame(slot, 0);
+            image.type = Image.Type.Sliced;
             image.color = color;
             image.raycastTarget = false;
+            var boil = rect.gameObject.AddComponent<SketchBoil>();
+            boil.Slot = slot;
 
-            Label(root, At(center.x, center.y - 46f), name, UiSkin.Font.Tiny,
-                UiSkin.TextDim, secondary);
+            if (name != null)
+                Label(root, At(center.x, center.y - 46f), name, UiSkin.Font.Tiny,
+                    UiSkin.TextDim, secondary);
         }
 
         static void Label(RectTransform root, Vector2 position, string content, int size,

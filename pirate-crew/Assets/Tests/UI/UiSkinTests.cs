@@ -95,17 +95,18 @@ namespace PirateCrew.Tests.UI
         }
 
         [Test]
-        public void FontScale_MatchesUserRuling_DownOneStep()
+        public void FontScale_MatchesUserRuling_UpTwoSteps()
         {
-            // 用户 2026-09-14 裁决的渲染档（原 UiTheme 旧档整体降一档）。
-            Assert.AreEqual(48, UiSkin.Font.Display);
-            Assert.AreEqual(36, UiSkin.Font.Banner);
-            Assert.AreEqual(26, UiSkin.Font.Title);
-            Assert.AreEqual(20, UiSkin.Font.Section);
-            Assert.AreEqual(18, UiSkin.Font.Hud);
-            Assert.AreEqual(15, UiSkin.Font.Body);
-            Assert.AreEqual(14, UiSkin.Font.Hint);
-            Assert.AreEqual(13, UiSkin.Font.Tiny);
+            // 用户 2026-09-20 裁决"文字可读性很差"：八档整体上调（Tiny 不低于 15——
+            // 手写体小字可读性下限）。字号跟控件走的纪律见 UiSkin.Font 注释。
+            Assert.AreEqual(52, UiSkin.Font.Display);
+            Assert.AreEqual(42, UiSkin.Font.Banner);
+            Assert.AreEqual(30, UiSkin.Font.Title);
+            Assert.AreEqual(24, UiSkin.Font.Section);
+            Assert.AreEqual(22, UiSkin.Font.Hud);
+            Assert.AreEqual(18, UiSkin.Font.Body);
+            Assert.AreEqual(16, UiSkin.Font.Hint);
+            Assert.AreEqual(15, UiSkin.Font.Tiny);
         }
     }
 }
