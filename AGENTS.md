@@ -137,7 +137,7 @@ pirate-crew-3d-unity/           # 仓库根（文档与规则）
     ├── Assets/
     │   ├── Scripts/{Core,Campaign,PirateCrew,CrewManagement,UI}/
     │   ├── Tests/              # NUnit 测试
-    │   ├── Prefabs/  Scenes/  Art/  Plugins/
+    │   ├── Prefabs/  Scenes/  Art/  # Plugins/ 等目录在首次放入资产时再建（空目录不入 git，防孤儿 meta）
     ├── Packages/               # manifest.json（AI Navigation / Cinemachine）
     └── ProjectSettings/        # Unity 工程设置（URP）
 ```
