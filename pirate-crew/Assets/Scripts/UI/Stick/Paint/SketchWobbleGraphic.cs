@@ -214,6 +214,8 @@ namespace PirateCrew.UI.Stick
     /// </summary>
     public sealed class SketchWobbleGraphic : MaskableGraphic
     {
+        // useLegacy 必须在 OnEnable 注册 mesh 回调前生效——构造器设置，Awake 里设太晚（实测全部自绘件静默空白）
+        protected SketchWobbleGraphic() { useLegacyMeshGeneration = false; }
         /// <summary>seed 基值：boiling 重掷序列由它决定（同基值同序列，确定性）。</summary>
         public int SeedBase = 0;
 
@@ -251,7 +253,6 @@ namespace PirateCrew.UI.Stick
         protected override void Awake()
         {
             base.Awake();
-            useLegacyMeshGeneration = false;
             // 纯绘制层不拦截点击（gd 的 _draw 不参与命中语义）
             raycastTarget = false;
             if (!_tokenColorApplied)

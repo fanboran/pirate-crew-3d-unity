@@ -779,7 +779,10 @@ namespace PirateCrew.EditorTools
             var scaler = go.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
+            // 对齐 Godot canvas_items+expand 口径：Expand(1) 外扩参考分辨率，超宽屏不留黑边也不压扁布局
+            // （matchWidthOrHeight 仅 MatchWidthOrHeight 模式生效，随之废弃）。存量已建 .unity 场景仍是旧口径，
+            // 不改场景文件——重建走本构建器，待界面换装批次统一跑。
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
             return canvas;
         }
 

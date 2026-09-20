@@ -1,4 +1,5 @@
 using PirateCrew.Data;
+using PirateCrew.UI.Stick;
 using UnityEngine;
 
 namespace PirateCrew.UI
@@ -24,64 +25,77 @@ namespace PirateCrew.UI
     public static class UiSkin
     {
         // ------------------------------------------------------------------
-        // 底色系（深饱和，让彩色图标"跳出来"；平涂，不半透明）
+        // 底色系（【P1 令牌接管】色值整体换血为 StickTokens——stick-world ui_tokens.json
+        // 的同源编译层，数值与 Godot 侧一致；UI 语义名全部保留，调用方零改动。
+        // 映射：InkDeep=WINDOW_BG / InkSoft=WINDOW_BG_LIGHT / TextOnInk=TEXT /
+        // TextDim=TEXT_DIM / Gold=ACCENT / InkOnGold=INK / BarTrackInk=GROOVE_BG /
+        // Info·Warn·Success=INFO·WARN·SUCCESS。窗底半透明是隔壁「窗户不是海报」
+        // 设计语言；WCAG 标注值按 tokens RGB 直算（与 Godot 侧同口径）。
         // ------------------------------------------------------------------
 
-        /// <summary>HUD / 卡片面板底（夜海靛蓝 #1C2333）。
-        /// 暖白 <see cref="TextOnInk"/> 压其上 = 13.7:1；金 <see cref="Gold"/> = 9.4:1
-        /// （WCAG 计算见 <see cref="ContrastRatio"/>，均远超 4.5:1）。</summary>
-        public static readonly Color InkDeep = Rgb(0x1C, 0x23, 0x33);
+        /// <summary>HUD / 卡片面板底。UI 语义 = StickTokens.WINDOW_BG（纯黑高不透明
+        /// "窗户"底，透 12% 画面）。正文 <see cref="TextOnInk"/>(=TEXT) 压其上 18.0:1、
+        /// 强调 <see cref="Gold"/>(=ACCENT) 10.6:1（WCAG 计算见 <see cref="ContrastRatio"/>）。</summary>
+        public static readonly Color InkDeep = StickTokens.WINDOW_BG;
 
-        /// <summary>面板底的亮一档（嵌套小容器 / 选中行底 #2A3350）。暖白其上 9.9:1。</summary>
-        public static readonly Color InkSoft = Rgb(0x2A, 0x33, 0x50);
+        /// <summary>面板底的次级档（嵌套小容器 / 选中行底）。UI 语义 = StickTokens.WINDOW_BG_LIGHT
+        /// （隔壁"次窗体底"：HUD 横条/内嵌区块）。正文其上 17.7:1。</summary>
+        public static readonly Color InkSoft = StickTokens.WINDOW_BG_LIGHT;
 
-        /// <summary>深底上的正文（暖白 #F5EFE0；压 InkDeep 13.7:1）。</summary>
-        public static readonly Color TextOnInk = Rgb(0xF5, 0xEF, 0xE0);
+        /// <summary>深底上的正文。UI 语义 = StickTokens.TEXT（压 InkDeep 18.0:1）。</summary>
+        public static readonly Color TextOnInk = StickTokens.TEXT;
 
-        /// <summary>深底上的次级文字（柔米 #CFC6B0；压 InkDeep 9.1:1，提示/角标用）。</summary>
-        public static readonly Color TextDim = Rgb(0xCF, 0xC6, 0xB0);
+        /// <summary>深底上的次级文字。UI 语义 = StickTokens.TEXT_DIM（白 55% 透明档；
+        /// 混入窗底后的有效对比 5.6:1 ≥4.5，提示/角标用）。</summary>
+        public static readonly Color TextDim = StickTokens.TEXT_DIM;
 
-        /// <summary>全局强调金（标题 / 选中态 / 星级 #F2C14E；压 InkDeep 9.4:1）。</summary>
-        public static readonly Color Gold = Rgb(0xF2, 0xC1, 0x4E);
+        /// <summary>全局强调色（标题 / 选中态 / 星级）。UI 语义 = StickTokens.ACCENT
+        /// （琥珀火光；压 InkDeep 10.6:1）。</summary>
+        public static readonly Color Gold = StickTokens.ACCENT;
 
-        /// <summary>金底上的深字（主按钮 / 选中 chip 的文字 #2A1D0E；原 InkOnGold 同源收编，
+        /// <summary>强调底上的深字（主按钮 / 选中 chip 的文字）。UI 语义 = StickTokens.INK
+        /// （隔壁深墨：亮底字色同族；压 Gold(=ACCENT) 10.2:1。原 InkOnGold 同源收编，
         /// 消灭 BattleHud 与 BattleUiTheme.Tok 的两份拷贝）。</summary>
-        public static readonly Color InkOnGold = Rgb(0x2A, 0x1D, 0x0E);
+        public static readonly Color InkOnGold = StickTokens.INK;
 
-        /// <summary>血条 / 凹槽底（近黑 #10141E；非文字元素，3:1 即可达标，实测远超）。</summary>
-        public static readonly Color BarTrackInk = Rgb(0x10, 0x14, 0x1E);
+        /// <summary>血条 / 凹槽底。UI 语义 = StickTokens.GROOVE_BG（隔壁"输入框/凹槽底"
+        /// 纯黑 45%）；非文字元素，3:1 即可达标。</summary>
+        public static readonly Color BarTrackInk = StickTokens.GROOVE_BG;
 
         /// <summary>血条受击残影（damage ghost 的白条，乘在队伍色下层慢慢追平）。</summary>
         public static readonly Color DamageGhost = new Color(1f, 1f, 1f, 0.85f);
 
-        /// <summary>阵亡单位 pip / 死亡标识（骨灰 #6E6A60，压 InkDeep 3.6:1——非文字图形 ≥3:1）。</summary>
+        /// <summary>阵亡单位 pip / 死亡标识（骨灰 #6E6A60，非靛蓝系保留原值；压窗底 3.8:1——
+        /// 非文字图形 ≥3:1）。</summary>
         public static readonly Color DeadGray = Rgb(0x6E, 0x6A, 0x60);
 
-        /// <summary>危险动作（深酒红 #8A1F1F，沿用 UiTheme.DangerDark；暖白其上 8.0:1）。</summary>
+        /// <summary>危险动作底（深酒红 #8A1F1F 保留——不随语义三色换血：隔壁 DANGER 亮红
+        /// 做按钮底时白字对比仅 3.2:1 不满足正文 AA；pirate 侧该色上压暖白文字 8.0:1）。</summary>
         public static readonly Color Danger = Rgb(0x8A, 0x1F, 0x1F);
 
-        /// <summary>语义色·信息（天蓝，压 InkDeep 6.9:1；Toast/通知/链接）。</summary>
-        public static readonly Color Info = Rgb(0x7F, 0xB0, 0xFF);
+        /// <summary>语义色·信息。UI 语义 = StickTokens.INFO（压 InkDeep 11.5:1；Toast/通知/链接）。</summary>
+        public static readonly Color Info = StickTokens.INFO;
 
-        /// <summary>语义色·警告（香蕉黄，压 InkDeep 9.6:1；资源不足/警告通知）。</summary>
-        public static readonly Color Warn = Rgb(0xF0, 0xD0, 0x48);
+        /// <summary>语义色·警告。UI 语义 = StickTokens.WARN（压 InkDeep 14.0:1；资源不足/警告通知）。</summary>
+        public static readonly Color Warn = StickTokens.WARN;
 
-        /// <summary>语义色·成功（瓶绿提亮，压 InkDeep 5.6:1；完工/增益）。</summary>
-        public static readonly Color Success = Rgb(0x7E, 0xD4, 0x9A);
+        /// <summary>语义色·成功。UI 语义 = StickTokens.SUCCESS（压 InkDeep 10.4:1；完工/增益）。</summary>
+        public static readonly Color Success = StickTokens.SUCCESS;
 
-        // ---- 队色 / 队名文字（沿用既有高对比口径，收编 BattleHud 的两份写死色） ----
+        // ---- 队色 / 队名文字（pirate 玩法语义色，不随 P1 令牌接管换血；收编 BattleHud 的两份写死色） ----
 
-        /// <summary>红队主色（血条段 / 徽章环 / 点位；图形用，非文字）。</summary>
+        /// <summary>红队主色（血条段 / 徽章环 / 点位；图形用，非文字；压窗底 5.8:1）。</summary>
         public static readonly Color TeamRed = Rgb(0xFF, 0x3A, 0x29);
 
-        /// <summary>蓝队主色（同上）。</summary>
+        /// <summary>蓝队主色（同上；蓝系但非旧"夜海蓝"靛蓝主色 #1C2333/#2A3350——
+        /// 队色对抗语义保留不换，压窗底 4.4:1 图形达标）。</summary>
         public static readonly Color TeamBlue = Rgb(0x33, 0x66, 0xFF);
 
-        /// <summary>红队**文字**色（#FF8A7A：TeamRed 直接做字在 InkDeep 上只有 4.4:1，
-        /// 提亮后 6.9:1 ≥4.5——r7 裁决沿用，只是搬家）。</summary>
+        /// <summary>红队**文字**色（#FF8A7A：TeamRed 直接做字在旧靛蓝底只有 4.4:1 的提亮档，
+        /// 压新窗底 9.0:1 ≥4.5——r7 裁决沿用，只是搬家）。</summary>
         public static readonly Color TeamRedText = Rgb(0xFF, 0x8A, 0x7A);
 
-        /// <summary>蓝队**文字**色（#7FB0FF，压 InkDeep 7.0:1）。</summary>
+        /// <summary>蓝队**文字**色（#7FB0FF，压窗底 9.4:1）。</summary>
         public static readonly Color TeamBlueText = Rgb(0x7F, 0xB0, 0xFF);
 
         /// <summary>队伍色（teamIndex 0=红，其余蓝）。文字场景请用 <see cref="TeamText"/>。</summary>
@@ -183,7 +197,7 @@ namespace PirateCrew.UI
                 case WeaponId.Dynamite: return Rgb(0xC9, 0x4F, 0x3D);     // 警示砖红
                 case WeaponId.Boulder: return Rgb(0x9C, 0x7A, 0x5A);      // 岩棕
                 case WeaponId.Banana: return Rgb(0xF0, 0xD0, 0x48);       // 香蕉黄
-                case WeaponId.Mine: return Rgb(0x3E, 0x5C, 0x8C);         // 钢蓝
+                case WeaponId.Mine: return Rgb(0x3E, 0x5C, 0x8C);         // 钢蓝（武器色系中最贴近旧靛蓝主色的一档——水雷玩法语义保留不换，仅标记）
                 case WeaponId.ParachuteBomb: return Rgb(0x58, 0xA8, 0xE0); // 伞天蓝
                 case WeaponId.RumBottle: return Rgb(0x4E, 0x8C, 0x5A);    // 瓶绿
                 case WeaponId.PiecesOfEight: return Rgb(0xF2, 0xC1, 0x4E); // 金币金
@@ -287,7 +301,8 @@ namespace PirateCrew.UI
 
         /// <summary>格底暗档系数：内容色格底向 <see cref="InkDeep"/> 压 22%——
         /// "深底让彩色跳出来"在格子尺度上的应用（静物/头像保持全彩，图底不再同色相融，
-        /// r9 出图裁决：铁球贴灰蓝底 / 香蕉贴金底近隐身）。装配与运行时刷新同源调用。</summary>
+        /// r9 出图裁决：铁球贴灰蓝底 / 香蕉贴金底近隐身）。装配与运行时刷新同源调用。
+        /// （InkDeep 已接管为半透明窗底，Lerp 后格底 α≈0.97，视觉近实底。）</summary>
         public static Color CellBase(Color contentColor)
         {
             return Color.Lerp(contentColor, InkDeep, 0.22f);

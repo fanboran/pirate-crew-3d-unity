@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using PirateCrew.Data;
 using PirateCrew.UI;
+using PirateCrew.UI.Stick;
 using UnityEngine;
 
 namespace PirateCrew.Tests.UI
@@ -41,12 +42,44 @@ namespace PirateCrew.Tests.UI
         [Test]
         public void TextColors_OnInkDeepPanel_MeetWcagAA()
         {
-            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.TextOnInk, UiSkin.InkDeep), 4.5f, "正文暖白");
-            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.TextDim, UiSkin.InkDeep), 4.5f, "次级柔米");
-            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.Gold, UiSkin.InkDeep), 4.5f, "强调金");
+            // P1 令牌接管后底色 = StickTokens.WINDOW_BG 系（"窗户"黑玻璃），断言仍走
+            // InkDeep/InkSoft 语义名——换血只换值不改名，此处数值按 tokens RGB 重算。
+            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.TextOnInk, UiSkin.InkDeep), 4.5f, "正文白(=TEXT)");
+            // TEXT_DIM 是 55% 透明档：ContrastRatio 不吃 alpha，须先混到底色再断言
+            // （渲染时透明度才生效），否则对比度虚高。
+            Assert.GreaterOrEqual(UiSkin.ContrastRatio(BlendedOver(UiSkin.TextDim, UiSkin.InkDeep), UiSkin.InkDeep), 4.5f,
+                "次级文字(=TEXT_DIM)混底后有效对比");
+            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.Gold, UiSkin.InkDeep), 4.5f, "强调琥珀(=ACCENT)");
             Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.TeamRedText, UiSkin.InkDeep), 4.5f, "红队文字");
             Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.TeamBlueText, UiSkin.InkDeep), 4.5f, "蓝队文字");
-            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.TextOnInk, UiSkin.InkSoft), 4.5f, "暖白压亮档底");
+            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.TextOnInk, UiSkin.InkSoft), 4.5f, "正文压次级底(=WINDOW_BG_LIGHT)");
+        }
+
+        [Test]
+        public void PanelBaseColors_AreStickTokensPipelined()
+        {
+            // P1 令牌接管回归锁：底色系必须继续取自 StickTokens（防手改回魔法值、
+            // 与 stick-world ui_tokens.json 漂移）。武器/职业/队色是 pirate 玩法语义，不在本锁内。
+            Assert.AreEqual(StickTokens.WINDOW_BG, UiSkin.InkDeep, "面板底");
+            Assert.AreEqual(StickTokens.WINDOW_BG_LIGHT, UiSkin.InkSoft, "次级面板底");
+            Assert.AreEqual(StickTokens.TEXT, UiSkin.TextOnInk, "正文");
+            Assert.AreEqual(StickTokens.TEXT_DIM, UiSkin.TextDim, "次级文字");
+            Assert.AreEqual(StickTokens.ACCENT, UiSkin.Gold, "强调");
+            Assert.AreEqual(StickTokens.INK, UiSkin.InkOnGold, "强调底深字");
+            Assert.AreEqual(StickTokens.GROOVE_BG, UiSkin.BarTrackInk, "凹槽底");
+            Assert.AreEqual(StickTokens.INFO, UiSkin.Info, "语义·信息");
+            Assert.AreEqual(StickTokens.WARN, UiSkin.Warn, "语义·警告");
+            Assert.AreEqual(StickTokens.SUCCESS, UiSkin.Success, "语义·成功");
+        }
+
+        /// <summary>半透明前景按 alpha 混到不透明底上（sRGB 直混，与渲染合成同式）。</summary>
+        static Color BlendedOver(Color foreground, Color background)
+        {
+            return new Color(
+                foreground.r * foreground.a + background.r * (1f - foreground.a),
+                foreground.g * foreground.a + background.g * (1f - foreground.a),
+                foreground.b * foreground.a + background.b * (1f - foreground.a),
+                1f);
         }
 
         [Test]

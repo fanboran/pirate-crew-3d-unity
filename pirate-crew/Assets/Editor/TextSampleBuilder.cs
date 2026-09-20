@@ -105,6 +105,7 @@ namespace PirateCrew.EditorTools
         /// <summary>搭样张场景；字体缺失等致命问题时返回 false（调用方决定报错/退出方式）。</summary>
         static bool TryBuildSampleScene()
         {
+            EditorSceneManager.SaveOpenScenes(); // GUI 模式下场景 dirty 会弹模态保存框挂起批处理
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             Canvas canvas = CreateSampleCanvas();
@@ -302,7 +303,8 @@ namespace PirateCrew.EditorTools
             var scaler = go.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(CanvasWidth, CanvasHeight);
-            scaler.matchWidthOrHeight = 0.5f;
+            // 对齐 Godot canvas_items+expand 口径（Expand(1)；采样画布渲染尺寸=参考分辨率时缩放恒 1，输出不受影响）。
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
             return canvas;
         }

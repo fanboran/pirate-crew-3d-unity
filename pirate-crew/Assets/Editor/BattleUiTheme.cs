@@ -16,7 +16,9 @@ namespace PirateCrew.EditorTools
     ///   3. 用 <see cref="SerializedObject"/> 把 <see cref="BattleHud"/> 的
     ///      <c>[SerializeField]</c> 引用重新指向新节点。
     ///
-    /// 【契约】只改外观与节点归属，不改 Canvas 的 RenderMode / CanvasScaler（1920×1080 match 0.5），
+    /// 【契约】只改外观与节点归属，不改 Canvas 的 RenderMode / CanvasScaler
+    /// （1920×1080 + ScreenMatchMode.Expand，对齐 Godot canvas_items+expand 口径；
+    /// 存量已建 .unity 场景仍是旧 match 0.5 口径，待重建批次经构建器统一刷新），
     /// 不新增/变更 EventBus 事件。可重复调用（每次场景重建都会调一次）。
     /// </summary>
     public static class BattleUiTheme

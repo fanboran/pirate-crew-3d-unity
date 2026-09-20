@@ -91,7 +91,8 @@ namespace PirateCrew.UI
             var scaler = go.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(Width, Height);
-            scaler.matchWidthOrHeight = 0.5f;
+            // 对齐 Godot canvas_items+expand 口径：Expand(1) 外扩参考分辨率（陈列画布与各构建器统一）。
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
             // 全屏深底：陈列页控件在真实所属的 InkDeep 上展示。
             RectTransform backdrop = UiKit.CreateRect("Backdrop", go.transform);

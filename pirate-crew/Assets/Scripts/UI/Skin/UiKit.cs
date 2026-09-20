@@ -80,15 +80,16 @@ namespace PirateCrew.UI
         }
 
         // ------------------------------------------------------------------
-        // Sprite 来源（手绘涂鸦贴图：Editor 与播放器都走 Resources/UI/Sketch/ 同源）
+        // Sprite 来源（手绘涂鸦贴图：Editor 与播放器统一走 SketchSkin.Frame 同源出口）
         // ------------------------------------------------------------------
 
 #if UNITY_EDITOR
         /// <summary>Editor 下从 Resources 取烘焙手绘贴图（PNG 是持久资产，场景序列化
-        /// 引用不丢；未烘焙时返回 null 由调用方告警）。</summary>
+        /// 引用不丢；未烘焙时返回 null 由调用方告警）。统一走 SketchSkin.Frame——
+        /// StickWorld 集/pirate 专属槽分流在其内部（与播放器分支同口径）。</summary>
         static Sprite SkinSprite(CartoonSpriteFactory.Shape shape)
         {
-            return Resources.Load<Sprite>("UI/Sketch/" + SketchSkin.SlotOfShape(shape) + "_f0");
+            return SketchSkin.Frame(SketchSkin.SlotOfShape(shape), 0);
         }
 
         static Sprite GlyphSprite(UiGlyphs.Glyph glyph)

@@ -348,7 +348,8 @@ namespace PirateCrew.EditorTools
             var scaler = go.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
+            // 对齐 Godot canvas_items+expand 口径：Expand(1) 外扩参考分辨率（存量场景待重建批次刷新）。
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
             return canvas;
         }

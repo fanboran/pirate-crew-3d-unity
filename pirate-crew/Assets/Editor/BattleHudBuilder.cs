@@ -773,14 +773,14 @@ namespace PirateCrew.EditorTools
         // 资产加载
         // ------------------------------------------------------------------
 
-        /// <summary>手绘皮肤 PNG（Resources/UI/Sketch/，gen_sketch_ui.py 产物——
-        /// Editor 与播放器同走 Resources 一份两用；缺失告警，由导入参数烘焙兜底）。</summary>
+        /// <summary>手绘皮肤 PNG（统一走 SketchSkin.Frame——StickWorld 集/pirate 专属槽
+        /// 分流在其内部；Editor 与播放器同走 Resources 一份两用；缺失告警）。</summary>
         static Sprite LoadSkin(CartoonSpriteFactory.Shape shape)
         {
             string slot = SketchSkin.SlotOfShape(shape);
-            Sprite sprite = Resources.Load<Sprite>("UI/Sketch/" + slot + "_f0");
+            Sprite sprite = SketchSkin.Frame(slot, 0);
             if (sprite == null)
-                Debug.LogWarning("[BattleHudBuilder] UI/Sketch/" + slot + "_f0 缺失（跑 tools/sketch_ui/gen_sketch_ui.py + 导入参数）");
+                Debug.LogWarning("[BattleHudBuilder] 手绘槽 " + slot + "_f0 缺失（StickWorld 集缺失属同步事故；tint 槽跑 tools/sketch_ui/gen_sketch_ui.py 烘焙）");
             return sprite;
         }
 

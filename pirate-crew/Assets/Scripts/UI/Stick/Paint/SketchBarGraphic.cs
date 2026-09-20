@@ -17,6 +17,8 @@ namespace PirateCrew.UI.Stick
     /// </summary>
     public sealed class SketchBarGraphic : MaskableGraphic
     {
+        // useLegacy 必须在 OnEnable 注册 mesh 回调前生效——构造器设置，Awake 里设太晚（实测全部自绘件静默空白）
+        protected SketchBarGraphic() { useLegacyMeshGeneration = false; }
         /// <summary>底色（progress_painter.gd:12 COLOR_BG，半透明黑 60%）。</summary>
         public Color BackgroundColor = new Color(0f, 0f, 0f, 0.6f);
 
@@ -39,12 +41,12 @@ namespace PirateCrew.UI.Stick
         {
             base.Awake();
             // 走 VertexHelper 路径（Awake 先于首次网格重建，场景反序列化也覆盖到）
-            useLegacyMeshGeneration = false;
             // 纯绘制层不拦截点击（gd 侧为 Node2D _draw，本就不参与 UI 命中）
             raycastTarget = false;
         }
 
-        private void Reset()
+        // Reset 是编辑器魔法方法（非 virtual），必须 new 隐藏否则 CS0114 警告
+        private new void Reset()
         {
             raycastTarget = false;
         }
