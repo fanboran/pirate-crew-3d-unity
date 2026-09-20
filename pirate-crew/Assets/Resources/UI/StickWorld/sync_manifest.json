@@ -1,0 +1,907 @@
+{
+  "files": {
+    "Scripts/UI/Stick/Tokens/StickTokens.generated.cs": {
+      "root": "unity_assets",
+      "sha256": "8b69fa3ed3aa6f1f6a10bb11608496cb2e38204d49fa8fa65d360e474d57cb2d",
+      "size": 21103,
+      "source": "generated"
+    },
+    "fonts/LXGWWenKaiLite-Medium.ttf": {
+      "sha256": "9c8898ec71a66b08cf1f21e77041183a5eced157df6da597c5e43a8b3fbc6697",
+      "size": 11541276,
+      "source": "stick-world/assets/fonts/LXGWWenKaiLite-Medium.ttf"
+    },
+    "fonts/LXGWWenKaiLite-Regular.ttf": {
+      "sha256": "5bb7cd7160e38316908f3316973ff134ca925d821f1a3dceb3ff9341eb85fbe6",
+      "size": 11732724,
+      "source": "stick-world/assets/fonts/LXGWWenKaiLite-Regular.ttf"
+    },
+    "fonts/StickHand-Regular.ttf": {
+      "sha256": "573aec82e2a0359bedac767629919db95b022b0f5ae5301eba76305d6fc5fa0f",
+      "size": 1523348,
+      "source": "stick-world/assets/fonts/StickHand-Regular.ttf"
+    },
+    "fonts/ZCOOLKuaiLe-Regular.ttf": {
+      "sha256": "812a6fc1fe54b6d73a419245c32dfeba8aa33104d5be90d1cf6af082007cb71d",
+      "size": 1514968,
+      "source": "stick-world/assets/fonts/ZCOOLKuaiLe-Regular.ttf"
+    },
+    "icons/两本书_64.png": {
+      "sha256": "8d67497d62e4c7152387b624af195c28ab32a68f1ac7943a2d99954b5c92a29d",
+      "size": 2062,
+      "source": "stick-world/assets/icons/两本书_64.png"
+    },
+    "icons/传送门_64.png": {
+      "sha256": "cf31b3fac138721fa17aab82b1cd13e5d9e398299b06324c6b72d02a12cf6b5e",
+      "size": 3355,
+      "source": "stick-world/assets/icons/传送门_64.png"
+    },
+    "icons/信封_64.png": {
+      "sha256": "f0542fb0c0230e307783e92baf0e1413cbac2e837cbefc5953806e7ba8c6cdbc",
+      "size": 2370,
+      "source": "stick-world/assets/icons/信封_64.png"
+    },
+    "icons/医疗箱_64.png": {
+      "sha256": "27a381ea05c5f7d9322c9f1d2e338e214053c0878796f10bbcc7e75dfb862fe3",
+      "size": 2430,
+      "source": "stick-world/assets/icons/医疗箱_64.png"
+    },
+    "icons/十字镐_64.png": {
+      "sha256": "669ed32768aab8f77ef7811201115d4dde7c3f0eef49c9872b782718e713b19c",
+      "size": 2601,
+      "source": "stick-world/assets/icons/十字镐_64.png"
+    },
+    "icons/印章_64.png": {
+      "sha256": "d2fcc51488372156d7c80760130ec9e85cadb7536d46f2b622107a1585111108",
+      "size": 3252,
+      "source": "stick-world/assets/icons/印章_64.png"
+    },
+    "icons/卷地图_64.png": {
+      "sha256": "e1d5dc0e613ade92209e044a5bd3777d5df35cae54ec76db47da55a33707841a",
+      "size": 2578,
+      "source": "stick-world/assets/icons/卷地图_64.png"
+    },
+    "icons/卷轴_64.png": {
+      "sha256": "becefa98963aeae3bb48be191d088509bae8591f0af5c68819d6a819e62220e2",
+      "size": 2787,
+      "source": "stick-world/assets/icons/卷轴_64.png"
+    },
+    "icons/哨子_64.png": {
+      "sha256": "7a14f209451df712adbea4576f0236ad68a8b7ea48c875b22189974041a0e7e8",
+      "size": 3047,
+      "source": "stick-world/assets/icons/哨子_64.png"
+    },
+    "icons/团子串_64.png": {
+      "sha256": "f9b2e867a13821560cb9d769a1d963201dffaa6aad2355527695efb38d38a322",
+      "size": 2780,
+      "source": "stick-world/assets/icons/团子串_64.png"
+    },
+    "icons/圆柱_64.png": {
+      "sha256": "50655956e4f905022bc41d223ff57b153affb4a8b1a5793da8e29616177b7b98",
+      "size": 1606,
+      "source": "stick-world/assets/icons/圆柱_64.png"
+    },
+    "icons/圆环_64.png": {
+      "sha256": "0c6303ed41961163bd0429919ce7492a644999726472c58a4d4a6cd6512687c6",
+      "size": 3692,
+      "source": "stick-world/assets/icons/圆环_64.png"
+    },
+    "icons/圆盾_64.png": {
+      "sha256": "d08c8ea9b89a5e96332b0804876aff5f7c67080e278b39292125b6d8936efd0d",
+      "size": 2469,
+      "source": "stick-world/assets/icons/圆盾_64.png"
+    },
+    "icons/圆锥_64.png": {
+      "sha256": "444ff3e1ef21ba5e88f2abd9e20e8d88fba47645e890f65ddcaeb665f58a9fcb",
+      "size": 2424,
+      "source": "stick-world/assets/icons/圆锥_64.png"
+    },
+    "icons/天平_64.png": {
+      "sha256": "075dc9de9e4a8d7f990f423896d36a2267b1f09e07a012aa7205ae43b2d73f91",
+      "size": 4269,
+      "source": "stick-world/assets/icons/天平_64.png"
+    },
+    "icons/头盔_64.png": {
+      "sha256": "f862f745f104792740a2cc24802a37d9a6ee7b32f1e1257d0b1684a2d8123fc0",
+      "size": 2857,
+      "source": "stick-world/assets/icons/头盔_64.png"
+    },
+    "icons/奖章_64.png": {
+      "sha256": "497b783fc97883515ba387d055aac2ceb119ec130eb6c6fc189b99d90156a7f8",
+      "size": 2810,
+      "source": "stick-world/assets/icons/奖章_64.png"
+    },
+    "icons/小木船_64.png": {
+      "sha256": "6d8d89d802449e41de240689266d1432e09fb0663515ac24bb1b1c984001302f",
+      "size": 3352,
+      "source": "stick-world/assets/icons/小木船_64.png"
+    },
+    "icons/小炮_64.png": {
+      "sha256": "3f34edae62d11d2b773629d2d3e73d5cdfe81be15007be1f5e842f007d5a3a66",
+      "size": 3401,
+      "source": "stick-world/assets/icons/小炮_64.png"
+    },
+    "icons/小鱼干_64.png": {
+      "sha256": "15b671e84d89307f22d45acaf92d21617e0edaf472d366b700251240b7d3846c",
+      "size": 2763,
+      "source": "stick-world/assets/icons/小鱼干_64.png"
+    },
+    "icons/布头巾_64.png": {
+      "sha256": "5390b881504af6cee3e4251022cb683ca579cd1bbea7aca4ad762115bf624e5b",
+      "size": 2599,
+      "source": "stick-world/assets/icons/布头巾_64.png"
+    },
+    "icons/布腿带_64.png": {
+      "sha256": "6f49bc5ea12371d0005165440704f8f598ae7eeea08bf3f061f0c7d545275c4a",
+      "size": 2954,
+      "source": "stick-world/assets/icons/布腿带_64.png"
+    },
+    "icons/布衣_64.png": {
+      "sha256": "b40527575bc142dbbe4cb323c012b613100aedfec47c8327cac39e014187f30a",
+      "size": 2605,
+      "source": "stick-world/assets/icons/布衣_64.png"
+    },
+    "icons/帐篷_64.png": {
+      "sha256": "eec52493020fcd1af69bb15d194f39436f79d2a85e8f67eb54d04cbda25b84dd",
+      "size": 2910,
+      "source": "stick-world/assets/icons/帐篷_64.png"
+    },
+    "icons/弓箭_64.png": {
+      "sha256": "f0d1c72989461d2e4dc22abcd7c6ab9aea0a08d3322eb7525dfbf58457cb3a69",
+      "size": 3337,
+      "source": "stick-world/assets/icons/弓箭_64.png"
+    },
+    "icons/弹弓_64.png": {
+      "sha256": "39f22b7dd36abe223b7f269200a30e9edddbd5969bf8eafa83a39a725c6314fe",
+      "size": 2068,
+      "source": "stick-world/assets/icons/弹弓_64.png"
+    },
+    "icons/心形气球_64.png": {
+      "sha256": "a1a9049bf38d0f71c958d835d82f63b234f0a75e13b6ee3e2fec56d7be2bfa63",
+      "size": 2588,
+      "source": "stick-world/assets/icons/心形气球_64.png"
+    },
+    "icons/战鼓_64.png": {
+      "sha256": "162bed5c038b82ea830a37e48acdef8a181975935739724581af563f310c97f9",
+      "size": 3636,
+      "source": "stick-world/assets/icons/战鼓_64.png"
+    },
+    "icons/房屋_64.png": {
+      "sha256": "3601668118b7b727a79e839b2c162d8639711b996feaefd839727683719a5954",
+      "size": 2583,
+      "source": "stick-world/assets/icons/房屋_64.png"
+    },
+    "icons/手推车_64.png": {
+      "sha256": "2cea311d93c673080637eef836dcafa2b9ee7bfccf71a5bcbc7e5d935909fb6b",
+      "size": 2673,
+      "source": "stick-world/assets/icons/手推车_64.png"
+    },
+    "icons/按按钮小手_64.png": {
+      "sha256": "3c82104a73b02c4739b15e0c3923f4089d7b28409f71f1d0f9cfcca42828c9d2",
+      "size": 2695,
+      "source": "stick-world/assets/icons/按按钮小手_64.png"
+    },
+    "icons/提灯_64.png": {
+      "sha256": "d4678cc30f15ae7f82c672ba45f77224db9cf6de05eefefa9112f9b5b67a8573",
+      "size": 3035,
+      "source": "stick-world/assets/icons/提灯_64.png"
+    },
+    "icons/放大镜_64.png": {
+      "sha256": "69f5ad388e0c56a0c5c69b5ede22624d95570233c2a0d0c7c0b34a1875b33d05",
+      "size": 2734,
+      "source": "stick-world/assets/icons/放大镜_64.png"
+    },
+    "icons/斧头_64.png": {
+      "sha256": "533fda3db1a2dd2e625153803596640c4f3d35b7605e623ebeb31c3c7c61bc76",
+      "size": 1794,
+      "source": "stick-world/assets/icons/斧头_64.png"
+    },
+    "icons/旗帜_64.png": {
+      "sha256": "9f9796c82a9fc287890a2240685b17885f31e0868ca4b38db0281346c23bac49",
+      "size": 1500,
+      "source": "stick-world/assets/icons/旗帜_64.png"
+    },
+    "icons/星章_64.png": {
+      "sha256": "8859b378e6729de9cca683500bc806f25a3bbac232348f6b06a2d633198ca03d",
+      "size": 5328,
+      "source": "stick-world/assets/icons/星章_64.png"
+    },
+    "icons/望远镜_64.png": {
+      "sha256": "bd9787a09d44326435dc8ebc97b74ff3d7f7804d2bfd918bc03dad06a3984976",
+      "size": 2327,
+      "source": "stick-world/assets/icons/望远镜_64.png"
+    },
+    "icons/木桶_64.png": {
+      "sha256": "692d272aaa70f3890d70550cdd774e1904e67c01f9e1a2611374f2c10d82d25b",
+      "size": 2656,
+      "source": "stick-world/assets/icons/木桶_64.png"
+    },
+    "icons/木锯_64.png": {
+      "sha256": "a5da10c75e85836ce9a57bf7cdb01a3c9a783896361e22a4ce236e1e5ad9e40e",
+      "size": 2605,
+      "source": "stick-world/assets/icons/木锯_64.png"
+    },
+    "icons/木门_64.png": {
+      "sha256": "459aecb96000d083378ebf281efb0c564cb248bf82397552368c508b51667cdc",
+      "size": 1732,
+      "source": "stick-world/assets/icons/木门_64.png"
+    },
+    "icons/板条箱_64.png": {
+      "sha256": "03d0f964213810d502ee7c9333d4e7ad702117ec204b90b57bb89770878c4d3c",
+      "size": 2422,
+      "source": "stick-world/assets/icons/板条箱_64.png"
+    },
+    "icons/橄榄枝_64.png": {
+      "sha256": "88be7a81c5262baf632540fe0f2980fff2df6d8cd5eaf54a224ba64cd4b2b05a",
+      "size": 4162,
+      "source": "stick-world/assets/icons/橄榄枝_64.png"
+    },
+    "icons/正球_64.png": {
+      "sha256": "5891df44f6517b904a6c9a7103e6020bb8806312d948c1dc61ebcd3c8d418860",
+      "size": 2945,
+      "source": "stick-world/assets/icons/正球_64.png"
+    },
+    "icons/水壶_64.png": {
+      "sha256": "bd2700d21b615dbe68e550bd2105783e4b58643bfd13ff6d88d864b756436704",
+      "size": 3175,
+      "source": "stick-world/assets/icons/水壶_64.png"
+    },
+    "icons/沙漏_64.png": {
+      "sha256": "762c13b5483e18f369e70a01cac5672cf0da28a332307c27c5a97614141213d4",
+      "size": 3601,
+      "source": "stick-world/assets/icons/沙漏_64.png"
+    },
+    "icons/法杖_64.png": {
+      "sha256": "f4c995d383046088178b166869ed6548a616eb588d004ad7af44a64c096e1ed9",
+      "size": 1057,
+      "source": "stick-world/assets/icons/法杖_64.png"
+    },
+    "icons/火柴人_64.png": {
+      "sha256": "2bf3d99b16de229d40e429662542e588fd0a5c6ebeaff51617757ffe9c4470e1",
+      "size": 3018,
+      "source": "stick-world/assets/icons/火柴人_64.png"
+    },
+    "icons/爱心_64.png": {
+      "sha256": "fd1a49494a8406498641d561233036c3c0fab23014d745997dbf28c7ddb9a871",
+      "size": 2866,
+      "source": "stick-world/assets/icons/爱心_64.png"
+    },
+    "icons/狗尾巴草_64.png": {
+      "sha256": "73448ecd46c599f92ea0bae8c9e04a0060d2afaa6b4d5f146b96786a3265f71d",
+      "size": 3195,
+      "source": "stick-world/assets/icons/狗尾巴草_64.png"
+    },
+    "icons/狗骨头_64.png": {
+      "sha256": "65c276b7ddd7383be1cc390b7c6633f8ce92fc2c55b18af09eeb80b39e4dc0b3",
+      "size": 3159,
+      "source": "stick-world/assets/icons/狗骨头_64.png"
+    },
+    "icons/王冠_64.png": {
+      "sha256": "efb5e9ddfe772c459407a99bea65f03f2b1b4be29d5598cfb17210be455b9a77",
+      "size": 4355,
+      "source": "stick-world/assets/icons/王冠_64.png"
+    },
+    "icons/皮护胫_64.png": {
+      "sha256": "308a2da7fd0f6c0c4f1e1d752334c659a970ee77a0d476a3c6ff94750fad1e8c",
+      "size": 2164,
+      "source": "stick-world/assets/icons/皮护胫_64.png"
+    },
+    "icons/皮甲_64.png": {
+      "sha256": "383724e053145db16f7bd4f0d4487bffb14668b66aecd9bd9ac72c3fd2c5c3a5",
+      "size": 2704,
+      "source": "stick-world/assets/icons/皮甲_64.png"
+    },
+    "icons/皮盔_64.png": {
+      "sha256": "18da18cef9a23b74c030155cbec308e0e21ffcba97751e5aaac7cf32ac0fe0fc",
+      "size": 2841,
+      "source": "stick-world/assets/icons/皮盔_64.png"
+    },
+    "icons/瞭望塔_64.png": {
+      "sha256": "dab4d2539e686e07712dc9f1931c0d66bdcd166d463400b768f198c11b80c880",
+      "size": 2885,
+      "source": "stick-world/assets/icons/瞭望塔_64.png"
+    },
+    "icons/短剑_64.png": {
+      "sha256": "cb515f71677d2d57d6b2ade5290951e2d2e0aaca88f1de51022fe244dacdaa9f",
+      "size": 3510,
+      "source": "stick-world/assets/icons/短剑_64.png"
+    },
+    "icons/石料_64.png": {
+      "sha256": "c4c30ec0d607bc461592a11f053a861d98fe7f3b143ac8a352983eec4c3a13ab",
+      "size": 2197,
+      "source": "stick-world/assets/icons/石料_64.png"
+    },
+    "icons/矿石_64.png": {
+      "sha256": "0afedecbfe67baecdbe794388453cb3a0cea60a3ac5bfcc6a4d9959f9c6b0b9f",
+      "size": 3036,
+      "source": "stick-world/assets/icons/矿石_64.png"
+    },
+    "icons/科技树_64.png": {
+      "sha256": "88206b48f0cac439cd0adf1bb0841e5ece51a7d49cc68837f88c61d14683faec",
+      "size": 2991,
+      "source": "stick-world/assets/icons/科技树_64.png"
+    },
+    "icons/立方体_64.png": {
+      "sha256": "35c25e346c99cf70c6acdc3c82ae5463d737fa1a0effdc74818d2c56c9c27d96",
+      "size": 2149,
+      "source": "stick-world/assets/icons/立方体_64.png"
+    },
+    "icons/篝火_64.png": {
+      "sha256": "8d499d52c2dbd7efaa9fafbcbc6489b71990527fa287e05fad1e778abe5622bc",
+      "size": 3529,
+      "source": "stick-world/assets/icons/篝火_64.png"
+    },
+    "icons/绷带_64.png": {
+      "sha256": "b9c56db15528033330b2a308a3ecbe02ea1250776ff51e437c5cef38131f87ce",
+      "size": 2795,
+      "source": "stick-world/assets/icons/绷带_64.png"
+    },
+    "icons/罗盘_64.png": {
+      "sha256": "6ac03c9ad9d0cad42f9b0058fa02283a58cfd2d97d564c40aa124596dfd7f746",
+      "size": 3727,
+      "source": "stick-world/assets/icons/罗盘_64.png"
+    },
+    "icons/羽毛笔_64.png": {
+      "sha256": "13f3f67cc858b7ad3d70c071b519055870b9045d8cdd6e6349550268d39b9d69",
+      "size": 4118,
+      "source": "stick-world/assets/icons/羽毛笔_64.png"
+    },
+    "icons/背包_64.png": {
+      "sha256": "940848bcfb3533fe30946faca3668a5950c32c8edf9542f7edae7f9038afaf93",
+      "size": 2430,
+      "source": "stick-world/assets/icons/背包_64.png"
+    },
+    "icons/苹果_64.png": {
+      "sha256": "10e5f2c99d0e00a273ce8b83b3c63f0714428b099ed19cc3887e6ac4bf4fd627",
+      "size": 3014,
+      "source": "stick-world/assets/icons/苹果_64.png"
+    },
+    "icons/茶杯_64.png": {
+      "sha256": "557e679e510a6dbfd7e4e846c510aa17877a18717de4664e05c2999d722ec352",
+      "size": 3361,
+      "source": "stick-world/assets/icons/茶杯_64.png"
+    },
+    "icons/药瓶_64.png": {
+      "sha256": "dce5e5cf05bbef9641572d573a0ed005b44f4e39549bb5b81556809bcbb5d8a8",
+      "size": 2899,
+      "source": "stick-world/assets/icons/药瓶_64.png"
+    },
+    "icons/试管架_64.png": {
+      "sha256": "a81619b68cf0385dab4eabe327d5a41d4031f2c1b1b8152d2431fbc2cd871fc8",
+      "size": 4225,
+      "source": "stick-world/assets/icons/试管架_64.png"
+    },
+    "icons/账本_64.png": {
+      "sha256": "2053d44b464357a9341bda7c58fdca0b8b6c1a387adc3212369166ada7b0da86",
+      "size": 1710,
+      "source": "stick-world/assets/icons/账本_64.png"
+    },
+    "icons/货运板车_64.png": {
+      "sha256": "abdced4e020cf1e6e0f781f1d6bd682837eb0fb6d1eae7a93e588f3707fd1502",
+      "size": 3271,
+      "source": "stick-world/assets/icons/货运板车_64.png"
+    },
+    "icons/路牌_64.png": {
+      "sha256": "e5faf5020380632c36e9f17bda79d866dc0c74e3c79e0e2b6df523b3abe520ba",
+      "size": 2654,
+      "source": "stick-world/assets/icons/路牌_64.png"
+    },
+    "icons/金币_64.png": {
+      "sha256": "d83d6d36a98601e0584d493620d39ad5e2e502716c9af6de5f7fb0dbcff87fa5",
+      "size": 3174,
+      "source": "stick-world/assets/icons/金币_64.png"
+    },
+    "icons/金砂_64.png": {
+      "sha256": "aca86af59614ab3279e2978a333f67e8ebd01bbfeec17a6918c6d9387f7a3fcd",
+      "size": 2676,
+      "source": "stick-world/assets/icons/金砂_64.png"
+    },
+    "icons/钥匙串_64.png": {
+      "sha256": "cfd453546c66c0bc28b4b9d75d984440780717fa5b4d29715337a680a50d2221",
+      "size": 3536,
+      "source": "stick-world/assets/icons/钥匙串_64.png"
+    },
+    "icons/钱袋_64.png": {
+      "sha256": "650823a8ca8b1f0083e41a1555ca50de70cb2f7799f60042e024aabd7c201915",
+      "size": 2847,
+      "source": "stick-world/assets/icons/钱袋_64.png"
+    },
+    "icons/钻石_64.png": {
+      "sha256": "0b8b45057531248c4051bc556fe9d47a68df3eac48e2f98080ed625844e5554f",
+      "size": 2745,
+      "source": "stick-world/assets/icons/钻石_64.png"
+    },
+    "icons/铁砧_64.png": {
+      "sha256": "613b7a777ef976de93b846d0cfd4e13d5b42c2a92d6b736316fef44e19a7fcaf",
+      "size": 2310,
+      "source": "stick-world/assets/icons/铁砧_64.png"
+    },
+    "icons/铁锹_64.png": {
+      "sha256": "934887b176a606285c6573616ad01ebbf55cc4be6483f257cba6eb2ec5364bd6",
+      "size": 1527,
+      "source": "stick-world/assets/icons/铁锹_64.png"
+    },
+    "icons/锁子头罩_64.png": {
+      "sha256": "25e3eb186571d589afe3cc3263d13a3c21b2edcf6b94db2b340f8b3126d074fa",
+      "size": 2583,
+      "source": "stick-world/assets/icons/锁子头罩_64.png"
+    },
+    "icons/锁子护腿_64.png": {
+      "sha256": "c228dc3c135b0e421fca7d72c7a7f2420fdc9a89c014ad9751fd96e8bedd9570",
+      "size": 1754,
+      "source": "stick-world/assets/icons/锁子护腿_64.png"
+    },
+    "icons/锁子甲_64.png": {
+      "sha256": "f5927bbf77004a7d40ba68a05d04e0c9521afba8a22896270119a01b1dbddaba",
+      "size": 2158,
+      "source": "stick-world/assets/icons/锁子甲_64.png"
+    },
+    "icons/锚_64.png": {
+      "sha256": "ab2eb86192590a3bde6f68ba8fe8da6bcb32d146e031192040f0dcab7a900987",
+      "size": 3065,
+      "source": "stick-world/assets/icons/锚_64.png"
+    },
+    "icons/锥形瓶_64.png": {
+      "sha256": "f3498fc7673b1047c8bbbdfeb1c9f1dd8c051d6223342c111f1aeb9e402f166f",
+      "size": 2972,
+      "source": "stick-world/assets/icons/锥形瓶_64.png"
+    },
+    "icons/锻造锤_64.png": {
+      "sha256": "45c8de11ae79873e3f75b29b3563e6924405da21f8690a3f710427abf8d052b9",
+      "size": 1859,
+      "source": "stick-world/assets/icons/锻造锤_64.png"
+    },
+    "icons/长矛_64.png": {
+      "sha256": "6d66b1dc64a7bf40ed76632ab77ac1d61e2bc04c7bc0b8c2e9aafee9a4b7f461",
+      "size": 908,
+      "source": "stick-world/assets/icons/长矛_64.png"
+    },
+    "icons/面包_64.png": {
+      "sha256": "1f9eaa16dd0c0baf7d94f25e8786b1d53788aab40c8912ae18c4a35dd8dac18a",
+      "size": 2721,
+      "source": "stick-world/assets/icons/面包_64.png"
+    },
+    "icons/饭团_64.png": {
+      "sha256": "74e64b40c5f6847a4443a3862f05a54b5e319812c2da94dd6626ed159c2c8c03",
+      "size": 2902,
+      "source": "stick-world/assets/icons/饭团_64.png"
+    },
+    "icons/马蹄铁_64.png": {
+      "sha256": "2b3057877e5423e4d40254e57735aaeeeebe3e6001ac7473ee9b423a475340b0",
+      "size": 4115,
+      "source": "stick-world/assets/icons/马蹄铁_64.png"
+    },
+    "icons/高背椅_64.png": {
+      "sha256": "f5eb9fa0fe00d80616e5af18d68d6454912a86c1a782b882c5a5a537042d166b",
+      "size": 2988,
+      "source": "stick-world/assets/icons/高背椅_64.png"
+    },
+    "icons/麦穗_64.png": {
+      "sha256": "7a047db5d6e814424054a5846963909072f91ae0aa738afcece57b48d426ec5c",
+      "size": 3401,
+      "source": "stick-world/assets/icons/麦穗_64.png"
+    },
+    "icons/麻袋_64.png": {
+      "sha256": "bc5f8888f72b0936f7668b76d6b12500d86c796b5290fc41b947999551611054",
+      "size": 2995,
+      "source": "stick-world/assets/icons/麻袋_64.png"
+    },
+    "icons/齿轮_64.png": {
+      "sha256": "4cd9cda34f97906e061d31c652033b9191c024978fd800816def1ed5de638122",
+      "size": 3641,
+      "source": "stick-world/assets/icons/齿轮_64.png"
+    },
+    "sketch/accent_hover_f0.png": {
+      "sha256": "b52c322b3a65280da3fe38d09183a8dbec5b666d62cc1441f3d42feccd367ce2",
+      "size": 2479,
+      "source": "stick-world/assets/ui/sketch/accent_hover_f0.png"
+    },
+    "sketch/accent_hover_f1.png": {
+      "sha256": "87ca5b17d54894317edabf3327afeb80d680445cb00389100802002d17b24ba1",
+      "size": 2490,
+      "source": "stick-world/assets/ui/sketch/accent_hover_f1.png"
+    },
+    "sketch/accent_hover_f2.png": {
+      "sha256": "41ef60f106f790d0b118f3f287667c626ed624d2f973acec73c281c0e18a4776",
+      "size": 2408,
+      "source": "stick-world/assets/ui/sketch/accent_hover_f2.png"
+    },
+    "sketch/accent_normal_f0.png": {
+      "sha256": "8c91a1e9d0b5da20dc25dba0e89749bb65decafeae663b4b3820193abfedecf3",
+      "size": 3173,
+      "source": "stick-world/assets/ui/sketch/accent_normal_f0.png"
+    },
+    "sketch/accent_normal_f1.png": {
+      "sha256": "d9d5830f61b0cdd942bf60ce0197d3d0fda4323a1392015c7749b7b236832c73",
+      "size": 3274,
+      "source": "stick-world/assets/ui/sketch/accent_normal_f1.png"
+    },
+    "sketch/accent_normal_f2.png": {
+      "sha256": "d47c85406cad74de9588c6125e477086c2148a3af88f6165d9dff613ebdd2a9a",
+      "size": 3111,
+      "source": "stick-world/assets/ui/sketch/accent_normal_f2.png"
+    },
+    "sketch/accent_pressed_f0.png": {
+      "sha256": "9b666bc22732f87e401c43ade1b2a8854ce9e3642596e6428ad45b990479886e",
+      "size": 654,
+      "source": "stick-world/assets/ui/sketch/accent_pressed_f0.png"
+    },
+    "sketch/accent_pressed_f1.png": {
+      "sha256": "58145949f276395780f4af398b7ec9f344b9687e8a6b1d6add3d0c7a4e73cfb3",
+      "size": 609,
+      "source": "stick-world/assets/ui/sketch/accent_pressed_f1.png"
+    },
+    "sketch/accent_pressed_f2.png": {
+      "sha256": "93b45154ece46ddcbe04659d058304f893d7be9e520af93013931d6091bc4c76",
+      "size": 602,
+      "source": "stick-world/assets/ui/sketch/accent_pressed_f2.png"
+    },
+    "sketch/btn_disabled_f0.png": {
+      "sha256": "fb378bb40e9dc8f08445001b027ca3eb005d84d95c69e6a7c0a494f3f7d5e84b",
+      "size": 574,
+      "source": "stick-world/assets/ui/sketch/btn_disabled_f0.png"
+    },
+    "sketch/btn_disabled_f1.png": {
+      "sha256": "51f83c64627b9a9ce2dd81f2776b0a2aa7ed846963bf02e6076d9d41821eb2ea",
+      "size": 581,
+      "source": "stick-world/assets/ui/sketch/btn_disabled_f1.png"
+    },
+    "sketch/btn_disabled_f2.png": {
+      "sha256": "7be54cb22e3db2a274c52a28a4cf674e9cab6db50527d73e2d961c74c2abb90c",
+      "size": 606,
+      "source": "stick-world/assets/ui/sketch/btn_disabled_f2.png"
+    },
+    "sketch/btn_hover_f0.png": {
+      "sha256": "8f32e1f4597658a66afe53d67779f5731d78827c9774e5a5ee62fec2bc614972",
+      "size": 1596,
+      "source": "stick-world/assets/ui/sketch/btn_hover_f0.png"
+    },
+    "sketch/btn_hover_f1.png": {
+      "sha256": "caf67b54478d359c56995563c5191c3b820422aa6ba53877e514738597a37e44",
+      "size": 1629,
+      "source": "stick-world/assets/ui/sketch/btn_hover_f1.png"
+    },
+    "sketch/btn_hover_f2.png": {
+      "sha256": "ac8b0dd6114d5538ebbe2926f1db7a9b943415086eba2d8ddcd80c338c357ebc",
+      "size": 1579,
+      "source": "stick-world/assets/ui/sketch/btn_hover_f2.png"
+    },
+    "sketch/btn_ink_disabled_f0.png": {
+      "sha256": "d5fc654364105938fc95b14781895715ff0cb7fcfb0648b13ddb1dc2fd4d36ad",
+      "size": 3105,
+      "source": "stick-world/assets/ui/sketch/btn_ink_disabled_f0.png"
+    },
+    "sketch/btn_ink_disabled_f1.png": {
+      "sha256": "45873127343fd8085aec1f787318d0f7bcbc0d6f3bad8df80eea9e82d7800c8d",
+      "size": 3207,
+      "source": "stick-world/assets/ui/sketch/btn_ink_disabled_f1.png"
+    },
+    "sketch/btn_ink_disabled_f2.png": {
+      "sha256": "59ab2f3bb15ecfe88ba0497ca75d8e04cf5eab37998241fc01a77042b4228d34",
+      "size": 3067,
+      "source": "stick-world/assets/ui/sketch/btn_ink_disabled_f2.png"
+    },
+    "sketch/btn_ink_hover_f0.png": {
+      "sha256": "be71fa94f3ecbc87f987ded160acb9e013210fe13419b5d03214222cb5dbbefb",
+      "size": 3153,
+      "source": "stick-world/assets/ui/sketch/btn_ink_hover_f0.png"
+    },
+    "sketch/btn_ink_hover_f1.png": {
+      "sha256": "f6e66a3b85c9b3df7b6c41a48bd0bede6f11d3efe794ce2292579f1f05d3e1f4",
+      "size": 3227,
+      "source": "stick-world/assets/ui/sketch/btn_ink_hover_f1.png"
+    },
+    "sketch/btn_ink_hover_f2.png": {
+      "sha256": "99c40990e69ba44259e08e8a80d8f68ac1d8425028ffa5723fc090ee3d753973",
+      "size": 3080,
+      "source": "stick-world/assets/ui/sketch/btn_ink_hover_f2.png"
+    },
+    "sketch/btn_ink_normal_f0.png": {
+      "sha256": "2a9ada7a36155ae048b964b5cb5174bf61eb2810b9e3ba89a93f229e2ad5ccc4",
+      "size": 3292,
+      "source": "stick-world/assets/ui/sketch/btn_ink_normal_f0.png"
+    },
+    "sketch/btn_ink_normal_f1.png": {
+      "sha256": "52912efeb4d6340e0eb8112ae5d29ebf856178b8c6e1fd020254cc20dcaffaa1",
+      "size": 3375,
+      "source": "stick-world/assets/ui/sketch/btn_ink_normal_f1.png"
+    },
+    "sketch/btn_ink_normal_f2.png": {
+      "sha256": "c0c5bf0a0b3bde89538a200463934ecdbdb2dabc9fd133b3c7c36b631a0faa1b",
+      "size": 3230,
+      "source": "stick-world/assets/ui/sketch/btn_ink_normal_f2.png"
+    },
+    "sketch/btn_ink_pressed_f0.png": {
+      "sha256": "f3a834820ff19bd6686e5cb5bc1e794e59cd240b1b9303853a523da71ea0efc1",
+      "size": 3213,
+      "source": "stick-world/assets/ui/sketch/btn_ink_pressed_f0.png"
+    },
+    "sketch/btn_ink_pressed_f1.png": {
+      "sha256": "f447d63141eedaaf85b94e80197b37f181a89ce3b145dc52a7f4a4a25b4be8ba",
+      "size": 3268,
+      "source": "stick-world/assets/ui/sketch/btn_ink_pressed_f1.png"
+    },
+    "sketch/btn_ink_pressed_f2.png": {
+      "sha256": "2dbc1492eb155a86826dd6fb5e85e075f6a7aa8cbbff1d4592b73d73b21000ed",
+      "size": 3163,
+      "source": "stick-world/assets/ui/sketch/btn_ink_pressed_f2.png"
+    },
+    "sketch/btn_normal_f0.png": {
+      "sha256": "1f1e0efd3eb0c7b1e7f965c6c5db43b21a45eba56146eb31f1a4b9038e39a5ed",
+      "size": 1177,
+      "source": "stick-world/assets/ui/sketch/btn_normal_f0.png"
+    },
+    "sketch/btn_normal_f1.png": {
+      "sha256": "5d2c257820657187b7c0980639769362285742f3c1c01d4dbce7311634c449e4",
+      "size": 1179,
+      "source": "stick-world/assets/ui/sketch/btn_normal_f1.png"
+    },
+    "sketch/btn_normal_f2.png": {
+      "sha256": "03855a05b1d9d29e8b9a6d84166785f4405815bb344f647615cc01c4a911de9a",
+      "size": 1146,
+      "source": "stick-world/assets/ui/sketch/btn_normal_f2.png"
+    },
+    "sketch/btn_pressed_f0.png": {
+      "sha256": "de11148cd7d78ee11cf4a353eb5b041e4dc239ef8f4dbdc11b1227036c119653",
+      "size": 3199,
+      "source": "stick-world/assets/ui/sketch/btn_pressed_f0.png"
+    },
+    "sketch/btn_pressed_f1.png": {
+      "sha256": "75080d011321605344e27df7c0088934269406d28886470dad624dc693376dae",
+      "size": 3310,
+      "source": "stick-world/assets/ui/sketch/btn_pressed_f1.png"
+    },
+    "sketch/btn_pressed_f2.png": {
+      "sha256": "290c9d037c75fc55ca038ebcc2ba2f74b1c7839dc39bcee75f1decde027d3b25",
+      "size": 3237,
+      "source": "stick-world/assets/ui/sketch/btn_pressed_f2.png"
+    },
+    "sketch/btn_primary_disabled_f0.png": {
+      "sha256": "89b73398496bc5d73d4a40a66f741f1181a87e2d048afef833d5e0755ef2d64e",
+      "size": 2664,
+      "source": "stick-world/assets/ui/sketch/btn_primary_disabled_f0.png"
+    },
+    "sketch/btn_primary_disabled_f1.png": {
+      "sha256": "098dd2f840100997cbc292adc536f472cd755502e8d998c3845fc06c56ff9460",
+      "size": 2735,
+      "source": "stick-world/assets/ui/sketch/btn_primary_disabled_f1.png"
+    },
+    "sketch/btn_primary_disabled_f2.png": {
+      "sha256": "a78318f8dbcb437542c76f7638d5cfb1fdd216d859640b04cb3625026b347661",
+      "size": 2665,
+      "source": "stick-world/assets/ui/sketch/btn_primary_disabled_f2.png"
+    },
+    "sketch/btn_primary_hover_f0.png": {
+      "sha256": "400bc32a9d4ed069f3820d0fbce3db46f56287493f034a54e6c293ec8a4fe280",
+      "size": 2933,
+      "source": "stick-world/assets/ui/sketch/btn_primary_hover_f0.png"
+    },
+    "sketch/btn_primary_hover_f1.png": {
+      "sha256": "66c70aa07de9319b2af5012da5ba34129a23ed26f76cb0d21df33de327e01b53",
+      "size": 2995,
+      "source": "stick-world/assets/ui/sketch/btn_primary_hover_f1.png"
+    },
+    "sketch/btn_primary_hover_f2.png": {
+      "sha256": "90f68d254827842beda4e65532f5a4a7c45bdcc6941b9f199f4afbb7f3e6d381",
+      "size": 2904,
+      "source": "stick-world/assets/ui/sketch/btn_primary_hover_f2.png"
+    },
+    "sketch/btn_primary_normal_f0.png": {
+      "sha256": "d41ce272a3e430749bd080437bca487def8272e5a17510b2014224e6c87489c7",
+      "size": 2933,
+      "source": "stick-world/assets/ui/sketch/btn_primary_normal_f0.png"
+    },
+    "sketch/btn_primary_normal_f1.png": {
+      "sha256": "d60dee3323ea02d4998643691c93af6b3c9cef0c7faaa36d9dbfdb00ec1918fb",
+      "size": 3003,
+      "source": "stick-world/assets/ui/sketch/btn_primary_normal_f1.png"
+    },
+    "sketch/btn_primary_normal_f2.png": {
+      "sha256": "da5f3822c1a6d780bd01d5224abf0f407e4ddb69b09bedfc5d924d9396fb8d58",
+      "size": 2902,
+      "source": "stick-world/assets/ui/sketch/btn_primary_normal_f2.png"
+    },
+    "sketch/btn_primary_pressed_f0.png": {
+      "sha256": "e8f21e7bdd736adeec14f96d5ff688d971efd5149df2e57b10d4130818a0bd54",
+      "size": 2829,
+      "source": "stick-world/assets/ui/sketch/btn_primary_pressed_f0.png"
+    },
+    "sketch/btn_primary_pressed_f1.png": {
+      "sha256": "cc9d6b9130a95cc32a1c59c61e46ac7336f94dd53f043d1d3ee900239c7abb17",
+      "size": 2858,
+      "source": "stick-world/assets/ui/sketch/btn_primary_pressed_f1.png"
+    },
+    "sketch/btn_primary_pressed_f2.png": {
+      "sha256": "c64001ac0dd56799413380ca3552ffd94aae165a20b8c69c5a3c749a442794eb",
+      "size": 2794,
+      "source": "stick-world/assets/ui/sketch/btn_primary_pressed_f2.png"
+    },
+    "sketch/danger_hover_f0.png": {
+      "sha256": "869ccb03789479e74d3da13774cb429cdd0d57b393a903cc6aacb1fd53eac6cc",
+      "size": 2600,
+      "source": "stick-world/assets/ui/sketch/danger_hover_f0.png"
+    },
+    "sketch/danger_hover_f1.png": {
+      "sha256": "d04d2fd0b308bbf31201ad13cb9224d1bc27d3f1c6eb3f6253eff31627c12804",
+      "size": 2594,
+      "source": "stick-world/assets/ui/sketch/danger_hover_f1.png"
+    },
+    "sketch/danger_hover_f2.png": {
+      "sha256": "04404ef0c65bd479d87f500a11a3af3b796d2649421a4ef682ac121df8907a6f",
+      "size": 2513,
+      "source": "stick-world/assets/ui/sketch/danger_hover_f2.png"
+    },
+    "sketch/danger_normal_f0.png": {
+      "sha256": "58ddb11169b61c8a1bd4778513811fa7b42888fe1db9a6628ccae1aef2f6e437",
+      "size": 3219,
+      "source": "stick-world/assets/ui/sketch/danger_normal_f0.png"
+    },
+    "sketch/danger_normal_f1.png": {
+      "sha256": "d4c044d6555a4b003a14bc795594465442812a256a8ceb8a70b0acfc98f729cc",
+      "size": 3307,
+      "source": "stick-world/assets/ui/sketch/danger_normal_f1.png"
+    },
+    "sketch/danger_normal_f2.png": {
+      "sha256": "48ceb677e91d888d6a71eb2b9f5515cfdb9e6cbac9d9f5760a3ca606424651ca",
+      "size": 3187,
+      "source": "stick-world/assets/ui/sketch/danger_normal_f2.png"
+    },
+    "sketch/groove_f0.png": {
+      "sha256": "38b342c191f9807c8d1191241266714f0e36c8fe73a1893c51c924a81dc175f2",
+      "size": 2556,
+      "source": "stick-world/assets/ui/sketch/groove_f0.png"
+    },
+    "sketch/groove_f1.png": {
+      "sha256": "8bc993e753fce235206320869afb39db3db877b972342a822ef5fecdd78dec6e",
+      "size": 2589,
+      "source": "stick-world/assets/ui/sketch/groove_f1.png"
+    },
+    "sketch/groove_f2.png": {
+      "sha256": "a01c6e39cac290619c9a432177c59421a4ccafa61f9a31bcc563e109c272970a",
+      "size": 2514,
+      "source": "stick-world/assets/ui/sketch/groove_f2.png"
+    },
+    "sketch/groove_focus_f0.png": {
+      "sha256": "be871be34ae1f2a4665af3e9b60ea8a480653eefac52159c0af25408b0c1d547",
+      "size": 3217,
+      "source": "stick-world/assets/ui/sketch/groove_focus_f0.png"
+    },
+    "sketch/groove_focus_f1.png": {
+      "sha256": "be89927638dae8d3e1de0c750a57dc459ad6838cf087555e77eb22bdd6a74109",
+      "size": 3288,
+      "source": "stick-world/assets/ui/sketch/groove_focus_f1.png"
+    },
+    "sketch/groove_focus_f2.png": {
+      "sha256": "0ffb73bf088f9a7a800030ebf9c388bf9e2288c332adc434291fa5077710136e",
+      "size": 3200,
+      "source": "stick-world/assets/ui/sketch/groove_focus_f2.png"
+    },
+    "sketch/panel_f0.png": {
+      "sha256": "776369a8bdfa5e3365f88026e7301682d2101c36961e5560ef98662de953ae19",
+      "size": 11331,
+      "source": "stick-world/assets/ui/sketch/panel_f0.png"
+    },
+    "sketch/panel_f1.png": {
+      "sha256": "40f00d0ec0c513df8bd37f1b19947c15340eb9a7539c0ea19cdb6adb6543dc03",
+      "size": 11276,
+      "source": "stick-world/assets/ui/sketch/panel_f1.png"
+    },
+    "sketch/panel_f2.png": {
+      "sha256": "d1aa0207013586f397e0c5c389074ebec5cc5c23d0ac2266a030233fdf382261",
+      "size": 11339,
+      "source": "stick-world/assets/ui/sketch/panel_f2.png"
+    },
+    "sketch/panel_light_f0.png": {
+      "sha256": "4c96d91e18e9a46431ca03b33234ed913e123e98eadd8dc77b718a87c1b93c84",
+      "size": 11994,
+      "source": "stick-world/assets/ui/sketch/panel_light_f0.png"
+    },
+    "sketch/panel_light_f1.png": {
+      "sha256": "34258d5f67e9c8f334c5d5b58f5c2c3207b1730aa1fa65fea555a8dd9c737163",
+      "size": 11864,
+      "source": "stick-world/assets/ui/sketch/panel_light_f1.png"
+    },
+    "sketch/panel_light_f2.png": {
+      "sha256": "3fb3cf0ff44ce747effd602d76b0e76c30230a69703564e2537f60ce544eba01",
+      "size": 11876,
+      "source": "stick-world/assets/ui/sketch/panel_light_f2.png"
+    },
+    "sketch/progress_bg_f0.png": {
+      "sha256": "c75c3ea56f742d2449432de7d817e56e52510d180477da15e9ebee38b01ce5d4",
+      "size": 2626,
+      "source": "stick-world/assets/ui/sketch/progress_bg_f0.png"
+    },
+    "sketch/progress_bg_f1.png": {
+      "sha256": "d19ce91b1322417b62bfa3307d53d38dfc54a2ded737b84fe8189e1be0a7e999",
+      "size": 2740,
+      "source": "stick-world/assets/ui/sketch/progress_bg_f1.png"
+    },
+    "sketch/progress_bg_f2.png": {
+      "sha256": "c6f116e1ae9f39203fdc5c13042578d06083d75ab4a2dc071140ee577f5ad241",
+      "size": 2629,
+      "source": "stick-world/assets/ui/sketch/progress_bg_f2.png"
+    },
+    "sketch/progress_fill_f0.png": {
+      "sha256": "3e62b914081649e2ce5e869049df44af03b785b3933279221f2d9059a27a7c69",
+      "size": 2659,
+      "source": "stick-world/assets/ui/sketch/progress_fill_f0.png"
+    },
+    "sketch/progress_fill_f1.png": {
+      "sha256": "cef777647a2d87d2c87033b7bdad3734ffd650c3dc287d980a0a6b886a9eb7a2",
+      "size": 2744,
+      "source": "stick-world/assets/ui/sketch/progress_fill_f1.png"
+    },
+    "sketch/progress_fill_f2.png": {
+      "sha256": "381c0c6675052c07a0222aef8b125d3d793c30f10222a1024009055b6cf958ac",
+      "size": 2606,
+      "source": "stick-world/assets/ui/sketch/progress_fill_f2.png"
+    },
+    "sketch/sep_h_f0.png": {
+      "sha256": "0f177f8ff1bab43e4aee38ab013c1568f6502a4aa313c3d98f1063b68e5a09a8",
+      "size": 414,
+      "source": "stick-world/assets/ui/sketch/sep_h_f0.png"
+    },
+    "sketch/sep_h_f1.png": {
+      "sha256": "cb41765e1f3759c144ee6f7b334e184d13af1bf6d5f81c5a01bcc4725d7d971b",
+      "size": 422,
+      "source": "stick-world/assets/ui/sketch/sep_h_f1.png"
+    },
+    "sketch/sep_h_f2.png": {
+      "sha256": "a5965cec0154bb4828455831a6a44a0d351f9035c08d022ef2f5b8e3c3a1f2c5",
+      "size": 428,
+      "source": "stick-world/assets/ui/sketch/sep_h_f2.png"
+    },
+    "sketch/sep_v_f0.png": {
+      "sha256": "43815ab3af07c4f69daa2c644a1e1c2ba86a8ee2f5bcb296cf5bae5b84e80044",
+      "size": 468,
+      "source": "stick-world/assets/ui/sketch/sep_v_f0.png"
+    },
+    "sketch/sep_v_f1.png": {
+      "sha256": "021959ac32e8414045d72ee4848c1c854f66af1943e86c023aecd16516121aba",
+      "size": 513,
+      "source": "stick-world/assets/ui/sketch/sep_v_f1.png"
+    },
+    "sketch/sep_v_f2.png": {
+      "sha256": "1bde8bdd10d8709d8147ccc8cc2604e759d713e72c574fb15e45e2a6b4e48cca",
+      "size": 490,
+      "source": "stick-world/assets/ui/sketch/sep_v_f2.png"
+    },
+    "sketch/tab_hover_f0.png": {
+      "sha256": "a84e13738781cb80be96c05c375bd4f9b4e8d76a94a5728b96aeccc4ad3eae38",
+      "size": 831,
+      "source": "stick-world/assets/ui/sketch/tab_hover_f0.png"
+    },
+    "sketch/tab_hover_f1.png": {
+      "sha256": "d6ec9427c45d5f136d57bb867ed4b0da6e2d2a5c8f86de0b62194bffd8643ff2",
+      "size": 799,
+      "source": "stick-world/assets/ui/sketch/tab_hover_f1.png"
+    },
+    "sketch/tab_hover_f2.png": {
+      "sha256": "897ed8e6004f1488a79c6d5c4a295a90c254ad7e2cbdf984c593fb14952d9e5d",
+      "size": 805,
+      "source": "stick-world/assets/ui/sketch/tab_hover_f2.png"
+    },
+    "sketch/tab_selected_f0.png": {
+      "sha256": "168fcf8d1e57d1a87fc303d624c4825ea5b3bfbf1b162fcf5f6acc9564a0fcce",
+      "size": 3096,
+      "source": "stick-world/assets/ui/sketch/tab_selected_f0.png"
+    },
+    "sketch/tab_selected_f1.png": {
+      "sha256": "9bf10a699a4b3879fb2036ba2bb9c7f31b231c57f4219dfc34041cb5bf8b0593",
+      "size": 3186,
+      "source": "stick-world/assets/ui/sketch/tab_selected_f1.png"
+    },
+    "sketch/tab_selected_f2.png": {
+      "sha256": "e781470769aac66b0ba335e69006a0059ea363ac3ed4024b1828b71c36790662",
+      "size": 3179,
+      "source": "stick-world/assets/ui/sketch/tab_selected_f2.png"
+    },
+    "ui_tokens.json": {
+      "sha256": "9338b9ebc3b391715320c09a76f8cdf98bc060c8eeb0da72b53cd5f5cd84b8f8",
+      "size": 13979,
+      "source": "stick-world/assets/config/ui_tokens.json"
+    }
+  },
+  "generated_at": "2026-09-20T06:42:34+00:00",
+  "source_commit": "bb917e280117e42e1aa9cf5df20f671a4824ccd0"
+}

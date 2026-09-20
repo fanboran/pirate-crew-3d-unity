@@ -1,0 +1,898 @@
+{
+	"colors": {
+		"ACCENT": [
+			0.95,
+			0.68,
+			0.25,
+			1.0
+		],
+		"ACCENT_BG": [
+			0.95,
+			0.68,
+			0.25,
+			0.14
+		],
+		"ACCENT_TEXT": [
+			0.1,
+			0.08,
+			0.04,
+			1.0
+		],
+		"BORDER": [
+			1.0,
+			1.0,
+			1.0,
+			0.16
+		],
+		"BORDER_PANEL": [
+			1.0,
+			1.0,
+			1.0,
+			0.3
+		],
+		"BORDER_STRONG": [
+			1.0,
+			1.0,
+			1.0,
+			0.38
+		],
+		"BTN_BG": [
+			1.0,
+			1.0,
+			1.0,
+			0.07
+		],
+		"BTN_BG_DISABLED": [
+			1.0,
+			1.0,
+			1.0,
+			0.03
+		],
+		"BTN_BG_HOVER": [
+			1.0,
+			1.0,
+			1.0,
+			0.15
+		],
+		"BTN_BG_PRESSED": [
+			1.0,
+			1.0,
+			1.0,
+			0.04
+		],
+		"CONTENT_PALETTE": [
+			[
+				0.78,
+				0.72,
+				0.48,
+				1.0
+			],
+			[
+				0.66,
+				0.76,
+				0.34,
+				1.0
+			],
+			[
+				0.48,
+				0.68,
+				0.32,
+				1.0
+			],
+			[
+				0.33,
+				0.52,
+				0.28,
+				1.0
+			],
+			[
+				0.3,
+				0.58,
+				0.52,
+				1.0
+			],
+			[
+				0.35,
+				0.62,
+				0.64,
+				1.0
+			],
+			[
+				0.2,
+				0.42,
+				0.38,
+				1.0
+			],
+			[
+				0.42,
+				0.62,
+				0.8,
+				1.0
+			],
+			[
+				0.35,
+				0.48,
+				0.66,
+				1.0
+			],
+			[
+				0.95,
+				0.68,
+				0.25,
+				1.0
+			],
+			[
+				0.62,
+				0.44,
+				0.26,
+				1.0
+			],
+			[
+				0.45,
+				0.3,
+				0.18,
+				1.0
+			],
+			[
+				0.8,
+				0.68,
+				0.42,
+				1.0
+			],
+			[
+				0.52,
+				0.42,
+				0.3,
+				1.0
+			],
+			[
+				0.62,
+				0.52,
+				0.4,
+				1.0
+			],
+			[
+				0.62,
+				0.62,
+				0.58,
+				1.0
+			],
+			[
+				0.44,
+				0.45,
+				0.47,
+				1.0
+			],
+			[
+				0.66,
+				0.36,
+				0.3,
+				1.0
+			],
+			[
+				0.52,
+				0.27,
+				0.25,
+				1.0
+			],
+			[
+				0.48,
+				0.38,
+				0.52,
+				1.0
+			]
+		],
+		"CONTENT_PALETTE_NAMES": {
+			"amber": 9,
+			"blood_earth": 18,
+			"brick": 17,
+			"clay": 14,
+			"dusk_blue": 8,
+			"earth": 13,
+			"forest": 3,
+			"grape": 19,
+			"grass": 2,
+			"iron": 16,
+			"lake": 5,
+			"meadow": 1,
+			"pine": 6,
+			"sand": 12,
+			"sky_blue": 7,
+			"stone": 15,
+			"teal_tree": 4,
+			"umber": 11,
+			"wheat": 0,
+			"wood": 10
+		},
+		"DANGER": [
+			0.9,
+			0.34,
+			0.3,
+			1.0
+		],
+		"DANGER_BG": [
+			0.9,
+			0.34,
+			0.3,
+			0.14
+		],
+		"GROOVE_BG": [
+			0.0,
+			0.0,
+			0.0,
+			0.45
+		],
+		"INFO": [
+			0.55,
+			0.78,
+			1.0,
+			1.0
+		],
+		"INK": [
+			0.05,
+			0.04,
+			0.03,
+			1.0
+		],
+		"MODAL_DIM": [
+			0.0,
+			0.0,
+			0.0,
+			0.6
+		],
+		"SUCCESS": [
+			0.45,
+			0.8,
+			0.48,
+			1.0
+		],
+		"TEXT": [
+			0.93,
+			0.94,
+			0.96,
+			1.0
+		],
+		"TEXT_DIM": [
+			0.93,
+			0.94,
+			0.96,
+			0.55
+		],
+		"TEXT_DISABLED": [
+			0.93,
+			0.94,
+			0.96,
+			0.25
+		],
+		"TEXT_FAINT": [
+			0.93,
+			0.94,
+			0.96,
+			0.32
+		],
+		"WARN": [
+			0.98,
+			0.82,
+			0.3,
+			1.0
+		],
+		"WINDOW_BG": [
+			0.012,
+			0.014,
+			0.02,
+			0.88
+		],
+		"WINDOW_BG_LIGHT": [
+			0.02,
+			0.024,
+			0.034,
+			0.72
+		]
+	},
+	"control_sizes": {
+		"BTN_H": 32.0,
+		"BTN_H_LG": 44.0,
+		"BTN_H_SM": 26.0,
+		"ROW_H": 36.0
+	},
+	"font_sizes": {
+		"FONT_BANNER": 44,
+		"FONT_BODY": 15,
+		"FONT_DISPLAY": 36,
+		"FONT_HINT": 12,
+		"FONT_HUD": 17,
+		"FONT_SECTION": 14,
+		"FONT_TINY": 11,
+		"FONT_TITLE": 24
+	},
+	"fonts": {
+		"embolden": 0.6,
+		"files": [
+			"LXGWWenKaiLite-Medium.ttf",
+			"LXGWWenKaiLite-Regular.ttf",
+			"StickHand-Regular.ttf",
+			"ZCOOLKuaiLe-Regular.ttf"
+		],
+		"hand_path": "res://assets/fonts/StickHand-Regular.ttf",
+		"primary_font": "StickHand-Regular.ttf"
+	},
+	"icons": {
+		"dir": "res://assets/icons/",
+		"motifs": {
+			"两本书": "两本书_64.png",
+			"传送门": "传送门_64.png",
+			"信封": "信封_64.png",
+			"医疗箱": "医疗箱_64.png",
+			"十字镐": "十字镐_64.png",
+			"印章": "印章_64.png",
+			"卷地图": "卷地图_64.png",
+			"卷轴": "卷轴_64.png",
+			"哨子": "哨子_64.png",
+			"团子串": "团子串_64.png",
+			"圆柱": "圆柱_64.png",
+			"圆环": "圆环_64.png",
+			"圆盾": "圆盾_64.png",
+			"圆锥": "圆锥_64.png",
+			"天平": "天平_64.png",
+			"头盔": "头盔_64.png",
+			"奖章": "奖章_64.png",
+			"小木船": "小木船_64.png",
+			"小炮": "小炮_64.png",
+			"小鱼干": "小鱼干_64.png",
+			"布头巾": "布头巾_64.png",
+			"布腿带": "布腿带_64.png",
+			"布衣": "布衣_64.png",
+			"帐篷": "帐篷_64.png",
+			"弓箭": "弓箭_64.png",
+			"弹弓": "弹弓_64.png",
+			"心形气球": "心形气球_64.png",
+			"战鼓": "战鼓_64.png",
+			"房屋": "房屋_64.png",
+			"手推车": "手推车_64.png",
+			"按按钮小手": "按按钮小手_64.png",
+			"提灯": "提灯_64.png",
+			"放大镜": "放大镜_64.png",
+			"斧头": "斧头_64.png",
+			"旗帜": "旗帜_64.png",
+			"星章": "星章_64.png",
+			"望远镜": "望远镜_64.png",
+			"木桶": "木桶_64.png",
+			"木锯": "木锯_64.png",
+			"木门": "木门_64.png",
+			"板条箱": "板条箱_64.png",
+			"橄榄枝": "橄榄枝_64.png",
+			"正球": "正球_64.png",
+			"水壶": "水壶_64.png",
+			"沙漏": "沙漏_64.png",
+			"法杖": "法杖_64.png",
+			"火柴人": "火柴人_64.png",
+			"爱心": "爱心_64.png",
+			"狗尾巴草": "狗尾巴草_64.png",
+			"狗骨头": "狗骨头_64.png",
+			"王冠": "王冠_64.png",
+			"皮护胫": "皮护胫_64.png",
+			"皮甲": "皮甲_64.png",
+			"皮盔": "皮盔_64.png",
+			"瞭望塔": "瞭望塔_64.png",
+			"短剑": "短剑_64.png",
+			"石料": "石料_64.png",
+			"矿石": "矿石_64.png",
+			"科技树": "科技树_64.png",
+			"立方体": "立方体_64.png",
+			"篝火": "篝火_64.png",
+			"绷带": "绷带_64.png",
+			"罗盘": "罗盘_64.png",
+			"羽毛笔": "羽毛笔_64.png",
+			"背包": "背包_64.png",
+			"苹果": "苹果_64.png",
+			"茶杯": "茶杯_64.png",
+			"药瓶": "药瓶_64.png",
+			"试管架": "试管架_64.png",
+			"账本": "账本_64.png",
+			"货运板车": "货运板车_64.png",
+			"路牌": "路牌_64.png",
+			"金币": "金币_64.png",
+			"金砂": "金砂_64.png",
+			"钥匙串": "钥匙串_64.png",
+			"钱袋": "钱袋_64.png",
+			"钻石": "钻石_64.png",
+			"铁砧": "铁砧_64.png",
+			"铁锹": "铁锹_64.png",
+			"锁子头罩": "锁子头罩_64.png",
+			"锁子护腿": "锁子护腿_64.png",
+			"锁子甲": "锁子甲_64.png",
+			"锚": "锚_64.png",
+			"锥形瓶": "锥形瓶_64.png",
+			"锻造锤": "锻造锤_64.png",
+			"长矛": "长矛_64.png",
+			"面包": "面包_64.png",
+			"饭团": "饭团_64.png",
+			"马蹄铁": "马蹄铁_64.png",
+			"高背椅": "高背椅_64.png",
+			"麦穗": "麦穗_64.png",
+			"麻袋": "麻袋_64.png",
+			"齿轮": "齿轮_64.png"
+		},
+		"semantic": {
+			"res_diamond": "钻石",
+			"res_gold": "金币",
+			"res_metal": "铁砧",
+			"res_metal_ore": "铁砧",
+			"res_stone": "石料",
+			"res_wood": "板条箱"
+		}
+	},
+	"layout": {
+		"MODAL_MARGIN": 48.0,
+		"SCREEN_MARGIN": 12.0
+	},
+	"meta": {
+		"source_commit": "bb917e280117e42e1aa9cf5df20f671a4824ccd0",
+		"source_repo": "stick-world",
+		"version": 1
+	},
+	"misc": {},
+	"motion": {
+		"T_FADE": 0.12,
+		"T_PANEL": 0.18,
+		"T_TOAST": 3.0
+	},
+	"shape": {
+		"BORDER_W": 1,
+		"PAD_X": 12,
+		"PAD_Y": 6,
+		"RADIUS": 3,
+		"RADIUS_PANEL": 6
+	},
+	"sketch": {
+		"boil_fps": 7.5,
+		"button_variants": {
+			"ACCENT": {
+				"bg_alpha": 1.0,
+				"fake_bold": true,
+				"icon_mode": "BADGE_LEFT",
+				"outline_color": {
+					"rgba": [
+						0.05,
+						0.04,
+						0.03,
+						1.0
+					],
+					"token": "INK"
+				},
+				"outline_px": 0,
+				"slot_base": "accent",
+				"slots": {
+					"disabled": "accent_disabled",
+					"hover": "accent_hover",
+					"normal": "accent_normal",
+					"pressed": "accent_pressed"
+				},
+				"text_colors": {
+					"disabled": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							0.25
+						],
+						"token": "TEXT_DISABLED"
+					},
+					"focus": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							1.0
+						],
+						"token": "TEXT"
+					},
+					"hover": {
+						"rgba": [
+							0.1,
+							0.08,
+							0.04,
+							1.0
+						],
+						"token": "ACCENT_TEXT"
+					},
+					"normal": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							1.0
+						],
+						"token": "TEXT"
+					},
+					"pressed": {
+						"rgba": [
+							0.1,
+							0.08,
+							0.04,
+							1.0
+						],
+						"token": "ACCENT_TEXT"
+					}
+				}
+			},
+			"DANGER": {
+				"bg_alpha": 1.0,
+				"fake_bold": false,
+				"icon_mode": "BADGE_LEFT",
+				"outline_color": {
+					"rgba": [
+						0.05,
+						0.04,
+						0.03,
+						1.0
+					],
+					"token": "INK"
+				},
+				"outline_px": 3,
+				"slot_base": "danger",
+				"slots": {
+					"disabled": "danger_disabled",
+					"hover": "danger_hover",
+					"normal": "danger_normal",
+					"pressed": "danger_pressed"
+				},
+				"text_colors": {
+					"disabled": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							0.25
+						],
+						"token": "TEXT_DISABLED"
+					},
+					"focus": {
+						"rgba": [
+							0.9,
+							0.34,
+							0.3,
+							1.0
+						],
+						"token": "DANGER"
+					},
+					"hover": {
+						"rgba": [
+							0.915,
+							0.439,
+							0.405,
+							1.0
+						],
+						"token": ""
+					},
+					"normal": {
+						"rgba": [
+							0.9,
+							0.34,
+							0.3,
+							1.0
+						],
+						"token": "DANGER"
+					},
+					"pressed": {
+						"rgba": [
+							0.93,
+							0.538,
+							0.51,
+							1.0
+						],
+						"token": ""
+					}
+				}
+			},
+			"DARK": {
+				"bg_alpha": 1.0,
+				"fake_bold": false,
+				"icon_mode": "BADGE_LEFT",
+				"outline_color": {
+					"rgba": [
+						0.05,
+						0.04,
+						0.03,
+						1.0
+					],
+					"token": "INK"
+				},
+				"outline_px": 3,
+				"slot_base": "btn",
+				"slots": {
+					"disabled": "btn_disabled",
+					"hover": "btn_hover",
+					"normal": "btn_normal",
+					"pressed": "btn_pressed"
+				},
+				"text_colors": {
+					"disabled": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							0.25
+						],
+						"token": "TEXT_DISABLED"
+					},
+					"focus": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							1.0
+						],
+						"token": "TEXT"
+					},
+					"hover": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							1.0
+						],
+						"token": "TEXT"
+					},
+					"normal": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							1.0
+						],
+						"token": "TEXT"
+					},
+					"pressed": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							1.0
+						],
+						"token": "TEXT"
+					}
+				}
+			},
+			"ICON_SQUARE": {
+				"bg_alpha": 1.0,
+				"fake_bold": false,
+				"icon_mode": "CENTER",
+				"outline_color": {
+					"rgba": [
+						0.05,
+						0.04,
+						0.03,
+						1.0
+					],
+					"token": "INK"
+				},
+				"outline_px": 0,
+				"self_draw": true,
+				"slot_base": "",
+				"slots": {},
+				"text_colors": {
+					"disabled": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							0.25
+						],
+						"token": "TEXT_DISABLED"
+					},
+					"focus": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							1.0
+						],
+						"token": "TEXT"
+					},
+					"hover": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							1.0
+						],
+						"token": "TEXT"
+					},
+					"normal": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							1.0
+						],
+						"token": "TEXT"
+					},
+					"pressed": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							1.0
+						],
+						"token": "TEXT"
+					}
+				}
+			},
+			"PAPER": {
+				"bg_alpha": 1.0,
+				"fake_bold": false,
+				"icon_mode": "BADGE_LEFT",
+				"outline_color": {
+					"rgba": [
+						0.05,
+						0.04,
+						0.03,
+						1.0
+					],
+					"token": "INK"
+				},
+				"outline_px": 0,
+				"slot_base": "btn_ink",
+				"slots": {
+					"disabled": "btn_ink_disabled",
+					"hover": "btn_ink_hover",
+					"normal": "btn_ink_normal",
+					"pressed": "btn_ink_pressed"
+				},
+				"text_colors": {
+					"disabled": {
+						"rgba": [
+							0.1,
+							0.08,
+							0.04,
+							0.45
+						],
+						"token": ""
+					},
+					"focus": {
+						"rgba": [
+							0.1,
+							0.08,
+							0.04,
+							1.0
+						],
+						"token": "ACCENT_TEXT"
+					},
+					"hover": {
+						"rgba": [
+							0.1,
+							0.08,
+							0.04,
+							1.0
+						],
+						"token": "ACCENT_TEXT"
+					},
+					"normal": {
+						"rgba": [
+							0.1,
+							0.08,
+							0.04,
+							1.0
+						],
+						"token": "ACCENT_TEXT"
+					},
+					"pressed": {
+						"rgba": [
+							0.1,
+							0.08,
+							0.04,
+							1.0
+						],
+						"token": "ACCENT_TEXT"
+					}
+				}
+			},
+			"PRIMARY": {
+				"bg_alpha": 1.0,
+				"fake_bold": true,
+				"icon_mode": "BADGE_LEFT",
+				"outline_color": {
+					"rgba": [
+						0.05,
+						0.04,
+						0.03,
+						1.0
+					],
+					"token": "INK"
+				},
+				"outline_px": 0,
+				"slot_base": "btn_primary",
+				"slots": {
+					"disabled": "btn_primary_disabled",
+					"hover": "btn_primary_hover",
+					"normal": "btn_primary_normal",
+					"pressed": "btn_primary_pressed"
+				},
+				"text_colors": {
+					"disabled": {
+						"rgba": [
+							0.93,
+							0.94,
+							0.96,
+							0.25
+						],
+						"token": "TEXT_DISABLED"
+					},
+					"focus": {
+						"rgba": [
+							0.1,
+							0.08,
+							0.04,
+							1.0
+						],
+						"token": "ACCENT_TEXT"
+					},
+					"hover": {
+						"rgba": [
+							0.1,
+							0.08,
+							0.04,
+							1.0
+						],
+						"token": "ACCENT_TEXT"
+					},
+					"normal": {
+						"rgba": [
+							0.1,
+							0.08,
+							0.04,
+							1.0
+						],
+						"token": "ACCENT_TEXT"
+					},
+					"pressed": {
+						"rgba": [
+							0.1,
+							0.08,
+							0.04,
+							1.0
+						],
+						"token": "ACCENT_TEXT"
+					}
+				}
+			}
+		},
+		"frames": 3,
+		"icon_inline_max_width": 18,
+		"missing_files": [],
+		"nine_patch_margin": 10,
+		"panel_pad_x": 16,
+		"panel_pad_y": 12,
+		"slot_count": 27,
+		"slots": [
+			"panel",
+			"panel_light",
+			"groove",
+			"groove_focus",
+			"btn_normal",
+			"btn_hover",
+			"btn_pressed",
+			"btn_disabled",
+			"accent_normal",
+			"accent_hover",
+			"accent_pressed",
+			"btn_primary_normal",
+			"btn_primary_hover",
+			"btn_primary_pressed",
+			"btn_primary_disabled",
+			"btn_ink_normal",
+			"btn_ink_hover",
+			"btn_ink_pressed",
+			"btn_ink_disabled",
+			"danger_normal",
+			"danger_hover",
+			"tab_selected",
+			"tab_hover",
+			"progress_bg",
+			"progress_fill",
+			"sep_h",
+			"sep_v"
+		]
+	}
+}
