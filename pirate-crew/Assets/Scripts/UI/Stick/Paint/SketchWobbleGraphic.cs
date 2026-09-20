@@ -242,12 +242,6 @@ namespace PirateCrew.UI.Stick
         private int _tick;
         private float _next;
 
-        protected SketchWobbleGraphic()
-        {
-            // 走 VertexHelper 路径（反序列化后 Awake 再兜一道，见 Awake）
-            useLegacyMeshGeneration = false;
-        }
-
         /// <summary>颜色默认取 StickTokens：填充=窗底 WINDOW_BG，描边=墨线 INK（键名 = ui_tokens.json 原键）。</summary>
         private Color DefaultTokenColor()
         {

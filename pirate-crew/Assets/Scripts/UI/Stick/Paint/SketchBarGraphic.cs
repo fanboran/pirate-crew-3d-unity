@@ -35,15 +35,10 @@ namespace PirateCrew.UI.Stick
         /// <summary>进度只读快照（调试/HUD 绑定用）。</summary>
         public float Progress => _progress;
 
-        protected SketchBarGraphic()
-        {
-            // 走 VertexHelper 路径（Awake 再兜一道）
-            useLegacyMeshGeneration = false;
-        }
-
         protected override void Awake()
         {
             base.Awake();
+            // 走 VertexHelper 路径（Awake 先于首次网格重建，场景反序列化也覆盖到）
             useLegacyMeshGeneration = false;
             // 纯绘制层不拦截点击（gd 侧为 Node2D _draw，本就不参与 UI 命中）
             raycastTarget = false;
