@@ -21,8 +21,9 @@ namespace PirateCrew.UI
         /// <summary>每个槽位的沸腾帧数（烘焙管线 FRAMES=3）。</summary>
         public const int FrameCount = 3;
 
-        /// <summary>沸腾重掷节拍（隔壁 sketch_draw 的 0.12s，全项目 UI 同一"活"感）。</summary>
-        public const float BoilSeconds = 0.12f;
+        /// <summary>沸腾帧节拍（隔壁 sketch_textures 的 _FrameDriver 7.5fps，像素级复刻对齐口径；
+        /// 注意与 sketch_draw 侧 wobble 重掷的 0.12s 是两套时钟，后者在 SketchWobbleGraphic 内）。</summary>
+        public const float BoilSeconds = 1f / 7.5f;
 
         /// <summary>九宫格边带宽（烘焙 MARGIN=10；圆槽 pip/ring 不切片不受此值约束）。</summary>
         public const int NineSliceBorder = 10;
