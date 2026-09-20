@@ -1,9 +1,9 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Combat;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 一条弹体生成计划（纯 C#；由 <c>BattleController</c> 实例化）。

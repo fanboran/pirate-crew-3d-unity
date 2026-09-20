@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace PirateCrew.PirateCrew.Visual
+namespace PirateCrew.Visual
 {
     /// <summary>
     /// 程序化网格工厂：按 docs/角色造型规范.md §6.2 的生成器清单，

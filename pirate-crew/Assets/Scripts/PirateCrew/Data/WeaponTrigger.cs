@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Data
+namespace PirateCrew.Data
 {
     /// <summary>
     /// 武器引爆 / 触发条件（对应静态逆向文档 §5.2「触发/引爆条件」列）。

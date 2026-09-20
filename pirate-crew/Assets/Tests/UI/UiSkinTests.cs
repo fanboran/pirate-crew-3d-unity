@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using PirateCrew.UI;
 using UnityEngine;
 

@@ -1,8 +1,8 @@
 using System;
 using NUnit.Framework;
 using PirateCrew.CrewManagement;
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Combat;
+using PirateCrew.Data;
 using PirateCrew.UI;
 
 namespace PirateCrew.Tests

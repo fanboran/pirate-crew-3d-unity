@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Ambient;
-using PirateCrew.PirateCrew.Fx;
-using PirateCrew.PirateCrew.Rendering;
+using PirateCrew.Ambient;
+using PirateCrew.Fx;
+using PirateCrew.Rendering;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;

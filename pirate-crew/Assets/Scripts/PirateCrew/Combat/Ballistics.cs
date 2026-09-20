@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Combat
+namespace PirateCrew.Combat
 {
     /// <summary>
     /// 投掷弹道纯逻辑（Flash 2D 平面口径）。

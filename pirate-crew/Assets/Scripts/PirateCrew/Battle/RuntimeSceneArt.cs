@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.SceneArt;
+using PirateCrew.SceneArt;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 场景美术的**运行时装配**：样板三关的静态陈设由**编辑器烘焙 prefab** 提供

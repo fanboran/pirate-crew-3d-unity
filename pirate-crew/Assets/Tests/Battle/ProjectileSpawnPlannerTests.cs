@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// <see cref="ProjectileSpawnPlanner"/> 测试：把「用武器」翻译成弹体生成计划（位置/初速/数量）。

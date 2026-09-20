@@ -1,4 +1,4 @@
-namespace PirateCrew.PirateCrew.Audio.Synth
+namespace PirateCrew.Audio.Synth
 {
     /// <summary>
     /// 合成专用的确定性伪随机数发生器（xorshift32；纯 C#、无 UnityEngine.Random）。

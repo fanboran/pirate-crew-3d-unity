@@ -1,5 +1,5 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Battle;
 using PirateCrew.UI;
 using UnityEngine;
 

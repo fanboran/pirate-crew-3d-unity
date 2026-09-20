@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.WorldMaps
+namespace PirateCrew.Battle.WorldMaps
 {
     /// <summary>
     /// 死水区礁石场（纯 C#，确定性，无头可测）。

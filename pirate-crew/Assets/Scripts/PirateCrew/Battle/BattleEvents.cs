@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 战斗模块的 EventBus 事件契约集中登记（对应逆向文档 §3.1/§3.2/§3.3/§8.1）。
@@ -183,7 +183,7 @@ namespace PirateCrew.PirateCrew.Battle
     /// <summary>match_finished 载荷。</summary>
     public readonly struct MatchFinishedPayload
     {
-        /// <summary>对局结果（<c>PirateCrew.PirateCrew.Combat.MatchOutcome</c> 的整数值）。</summary>
+        /// <summary>对局结果（<c>PirateCrew.Combat.MatchOutcome</c> 的整数值）。</summary>
         public readonly int Outcome;
 
         /// <summary>1P 关卡得分（§3.3 / §7.3；2P 模式该值为 0）。</summary>

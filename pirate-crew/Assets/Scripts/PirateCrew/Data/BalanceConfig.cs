@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Data
+namespace PirateCrew.Data
 {
     /// <summary>
     /// 全局平衡常数的 ScriptableObject 汇总。

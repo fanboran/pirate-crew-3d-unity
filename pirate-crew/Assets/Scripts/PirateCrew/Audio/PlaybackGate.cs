@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 播放闸门（纯 C#，可无头测试）：同帧去抖 + 分类播放上限。

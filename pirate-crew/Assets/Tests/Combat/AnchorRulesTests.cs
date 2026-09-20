@@ -1,7 +1,7 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Combat;
+using PirateCrew.Combat;
 
-namespace PirateCrew.PirateCrew.Combat.Tests
+namespace PirateCrew.Combat.Tests
 {
     /// <summary>
     /// <see cref="AnchorRules"/> 测试（§5.2 anchor 行 / §5.1 速度汇总）。

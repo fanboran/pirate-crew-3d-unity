@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water
+namespace PirateCrew.Water
 {
     /// <summary>
     /// 水面网格细分规则（纯 C#，无头可测）。

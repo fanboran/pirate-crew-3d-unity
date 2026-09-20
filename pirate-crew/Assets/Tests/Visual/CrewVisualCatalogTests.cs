@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Visual.Tests
+namespace PirateCrew.Visual.Tests
 {
     /// <summary>
     /// <see cref="CrewVisualCatalog"/> 断言：符号/名册 id → 职业外观档映射、中文名、调色板。

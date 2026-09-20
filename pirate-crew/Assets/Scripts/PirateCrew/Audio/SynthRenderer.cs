@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Audio.Synth;
+using PirateCrew.Audio.Synth;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 音效渲染调度器：<see cref="SfxId"/> → 波形缓冲（离线一次性生成，确定性）。

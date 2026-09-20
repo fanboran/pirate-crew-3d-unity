@@ -1,7 +1,7 @@
 using System;
-using PirateCrew.PirateCrew.Audio.Synth;
+using PirateCrew.Audio.Synth;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>噪声塑形用的滤波器类型。</summary>
     public enum NoiseFilterKind

@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Audio.Synth
+namespace PirateCrew.Audio.Synth
 {
     /// <summary>
     /// 程序化合成的中间缓冲（纯 C#，不引用 UnityEngine，可在无头验证台实例化与测试）。

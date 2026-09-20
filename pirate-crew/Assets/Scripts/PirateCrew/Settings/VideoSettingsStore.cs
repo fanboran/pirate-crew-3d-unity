@@ -1,7 +1,7 @@
 using System.Globalization;
 using PirateCrew.Core;
 
-namespace PirateCrew.PirateCrew.Settings
+namespace PirateCrew.Settings
 {
     /// <summary>
     /// 视频设置（全屏 / 画质档）的持久化与档位定义（纯 C#，可无头测试）。

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Visual.Tests
+namespace PirateCrew.Visual.Tests
 {
     /// <summary>
     /// <see cref="CrewMeshFactory"/> / <see cref="CrewMeshLibrary"/> 的纯 C# 断言：

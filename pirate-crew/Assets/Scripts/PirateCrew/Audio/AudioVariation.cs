@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 一次性音效的「变奏」规则（纯 C#，可无头测试）。

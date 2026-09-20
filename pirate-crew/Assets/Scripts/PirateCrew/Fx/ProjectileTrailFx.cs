@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>
     /// 投掷物拖尾：给飞行中的弹体挂一条**发光尾迹**（TrailRenderer）。

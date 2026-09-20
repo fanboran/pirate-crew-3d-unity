@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>
     /// 特效贴图的运行时缓存：把 <see cref="FxTextureRules"/> 生成的像素上传成 <c>Texture2D</c>。

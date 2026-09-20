@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Battle;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.SceneArt.Tests
+namespace PirateCrew.SceneArt.Tests
 {
     /// <summary>
     /// 样板三关**设计契约测试**（关卡制作管线阶段 2 门禁：R 规则的可测项落成用例）。

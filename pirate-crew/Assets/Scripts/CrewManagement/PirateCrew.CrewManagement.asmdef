@@ -3,7 +3,7 @@
     "rootNamespace": "PirateCrew",
     "references": [
         "PirateCrew.Core",
-        "PirateCrew.Runtime"
+        "PirateCrew.Gameplay"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

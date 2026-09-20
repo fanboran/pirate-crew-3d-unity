@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.SceneArt.Showcase
+namespace PirateCrew.SceneArt.Showcase
 {
     /// <summary>
     /// 空岛尺寸/构图参数（纯 C#，无头可测）。全部字段都有默认值，<see cref="Default"/> 即"交付构图"。

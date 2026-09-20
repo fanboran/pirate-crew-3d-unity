@@ -1,7 +1,7 @@
 using System;
-using PirateCrew.PirateCrew.Audio.Synth;
+using PirateCrew.Audio.Synth;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 结果短乐句合成：胜利 / 失败（各 3–5 秒，小调式）。

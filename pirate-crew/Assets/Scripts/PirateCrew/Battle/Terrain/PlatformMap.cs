@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>平台簇的伪装类型（决定视觉底部与 kit 配方）。</summary>
     public enum PlatformClusterKind

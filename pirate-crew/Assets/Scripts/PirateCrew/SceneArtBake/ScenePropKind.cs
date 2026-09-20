@@ -1,4 +1,4 @@
-namespace PirateCrew.PirateCrew.SceneArt
+namespace PirateCrew.SceneArt
 {
     /// <summary>场景装饰的种类（决定用哪个几何生成器与哪个材质组）。
     /// 原在 <c>ScenePropLayout.cs</c>（一代道具布局器已退场）；烘焙几何层仍消费本枚举。</summary>

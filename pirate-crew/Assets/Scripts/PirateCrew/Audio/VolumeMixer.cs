@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 分类音量混音器（纯 C#，无 UnityEngine，可无头测试）。

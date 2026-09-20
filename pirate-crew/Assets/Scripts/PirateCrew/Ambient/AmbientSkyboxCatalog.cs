@@ -1,7 +1,7 @@
 using UnityEngine;
-using PirateCrew.PirateCrew.SceneArt;
+using PirateCrew.SceneArt;
 
-namespace PirateCrew.PirateCrew.Ambient
+namespace PirateCrew.Ambient
 {
     /// <summary>
     /// 一档天空盒预设（纯 C# 值类型，无头可测）。

@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Combat
+namespace PirateCrew.Combat
 {
     /// <summary>
     /// 武器触发/引爆方式（§5.2 触发条件列）。

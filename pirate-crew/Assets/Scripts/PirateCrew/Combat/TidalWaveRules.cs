@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Combat
+namespace PirateCrew.Combat
 {
     /// <summary>
     /// 潮汐巨浪（tidalWave）专用规则（纯 C#，不引用 MonoBehaviour / GameObject）。

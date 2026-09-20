@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Fx;
+using PirateCrew.Fx;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx.Tests
+namespace PirateCrew.Fx.Tests
 {
     /// <summary>
     /// <see cref="FxTextureRules"/> 的纯像素用例（无头可跑：本类只返回 <c>Color32[]</c>，不建 Texture2D）。

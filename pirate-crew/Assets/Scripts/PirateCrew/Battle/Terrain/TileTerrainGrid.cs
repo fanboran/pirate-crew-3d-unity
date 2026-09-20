@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 瓦片地形网格（纯 C#，不引用 MonoBehaviour / GameObject，可在无头验证台断言）。

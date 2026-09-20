@@ -1,9 +1,9 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Battle.WorldMaps;
+using PirateCrew.Battle.WorldMaps;
 using PirateCrew.UI;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.UI.Tests
+namespace PirateCrew.UI.Tests
 {
     /// <summary>
     /// 俯视海图（M4 世界地图模式）的装配行为测试——<see cref="BattleMinimap.ConfigureWorldChartFromRuntime"/>

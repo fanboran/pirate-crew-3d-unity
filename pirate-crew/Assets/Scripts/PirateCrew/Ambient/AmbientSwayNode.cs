@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Ambient
+namespace PirateCrew.Ambient
 {
     /// <summary>摆动模式。</summary>
     public enum AmbientSwayMode

@@ -1,7 +1,7 @@
 using System;
-using PirateCrew.PirateCrew.Audio.Synth;
+using PirateCrew.Audio.Synth;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 环境音合成：海浪循环、风声循环、海鸥鸣叫（3 个变体）。

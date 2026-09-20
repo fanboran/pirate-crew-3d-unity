@@ -1,7 +1,7 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Combat;
+using PirateCrew.Combat;
 
-namespace PirateCrew.PirateCrew.Combat.Tests
+namespace PirateCrew.Combat.Tests
 {
     /// <summary>
     /// <see cref="SeagullRules"/> 测试（§5.2 seagull 行 / §6.3 AI 评分）。

@@ -1,6 +1,6 @@
 using NUnit.Framework;
 
-namespace PirateCrew.PirateCrew.Combat.Tests
+namespace PirateCrew.Combat.Tests
 {
     /// <summary>
     /// ExplosionResolver 测试（3D 球泛化）。期望值全部可由逆向文档 §5.3 的公式手算复核，

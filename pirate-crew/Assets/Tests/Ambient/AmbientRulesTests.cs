@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Ambient.Tests
+namespace PirateCrew.Ambient.Tests
 {
     /// <summary>
     /// 环境模块"边界与不变量"的纯 C# 用例（无头可跑，不碰 GameObject）。

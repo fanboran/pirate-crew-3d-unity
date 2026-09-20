@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Ambient.Tests
+namespace PirateCrew.Ambient.Tests
 {
     /// <summary>
     /// 昼夜/天气档位的纯 C# 用例。

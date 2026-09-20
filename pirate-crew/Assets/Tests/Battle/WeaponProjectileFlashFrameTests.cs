@@ -1,8 +1,8 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Battle;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// <see cref="WeaponProjectile"/> 纯函数口径测试。

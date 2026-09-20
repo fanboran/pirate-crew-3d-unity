@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Battle;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>
     /// 爆炸特效：**三层结构**（亮核 → 橙色中透体 → 暗烟低透）+ 火花 + 木屑/沙尘 + 地面冲击波环。

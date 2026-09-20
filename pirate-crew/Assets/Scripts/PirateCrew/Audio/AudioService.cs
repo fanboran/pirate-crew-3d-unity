@@ -2,12 +2,12 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using PirateCrew.Core;
-using PirateCrew.PirateCrew.Audio.Synth;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Combat;
+using PirateCrew.Audio.Synth;
+using PirateCrew.Battle;
+using PirateCrew.Combat;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 音频服务（模块内静态服务，**刻意不放在 Core/**，避免动地基）。

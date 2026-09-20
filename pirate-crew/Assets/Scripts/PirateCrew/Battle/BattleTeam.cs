@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Combat;
+using PirateCrew.Combat;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 战斗队伍（普通 C# 类，非 MonoBehaviour）。

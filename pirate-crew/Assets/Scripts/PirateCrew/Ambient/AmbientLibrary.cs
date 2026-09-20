@@ -1,9 +1,9 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.SceneArt;
+using PirateCrew.SceneArt;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace PirateCrew.PirateCrew.Ambient
+namespace PirateCrew.Ambient
 {
     /// <summary>
     /// 环境模块的网格库（运行时程序化生成；纯表现、无资产依赖）。

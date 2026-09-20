@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using UnityEditor;
 using UnityEngine;
 

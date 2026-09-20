@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Ambient.Tests
+namespace PirateCrew.Ambient.Tests
 {
     /// <summary>
     /// 活物行为规则的纯 C# 用例（海鸥路径 / 螃蟹状态 / 鱼群 boids）。

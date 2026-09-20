@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Battle.WorldMaps;
+using PirateCrew.Battle.WorldMaps;
 
 namespace PirateCrew.Campaign
 {

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.SceneArt
+namespace PirateCrew.SceneArt
 {
     /// <summary>
     /// 三角面缓冲（纯 C#，无头可测）：所有程序化几何先写进这里，再由 Unity 侧一次性

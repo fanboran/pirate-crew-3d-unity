@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using PirateCrew.Core;
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Battle;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Ambient
+namespace PirateCrew.Ambient
 {
     /// <summary>
     /// 环境与活物总控（MonoBehaviour，场景里唯一需要挂的 Ambient 组件）。
@@ -833,7 +833,7 @@ namespace PirateCrew.PirateCrew.Ambient
             float topY = baseY + AmbientMeshFactory.PostHeight + 0.05f;
 
             // 缆绳：3 段折线，中间下垂（低模里 3 折已读作"绳"）。
-            var ropeBuffers = new global::PirateCrew.PirateCrew.SceneArt.MeshBuffers();
+            var ropeBuffers = new global::PirateCrew.SceneArt.MeshBuffers();
             Vector3 a = new Vector3(leftX, topY, z);
             Vector3 m1 = new Vector3(Mathf.Lerp(leftX, rightX, 0.34f), topY - 0.16f, z);
             Vector3 m2 = new Vector3(Mathf.Lerp(leftX, rightX, 0.66f), topY - 0.16f, z);

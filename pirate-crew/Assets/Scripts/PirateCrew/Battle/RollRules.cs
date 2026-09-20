@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 落地翻滚 / 落水死亡演出的纯 C# 规则层（忠实转写 Flash 逆向，docs/M4-大海域世界化.md §3.1）。

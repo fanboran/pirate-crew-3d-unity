@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Battle;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>
     /// 「轮到谁」的地面光环（回合/选中反馈）。

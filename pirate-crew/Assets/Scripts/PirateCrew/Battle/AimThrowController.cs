@@ -1,10 +1,10 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Combat;
+using PirateCrew.Data;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 瞄准 / 投掷控制器（翻译自 Godot <c>scripts/aiming/aim_controller.gd</c> + <c>battle.gd</c> 的发射段，3D 重写）。

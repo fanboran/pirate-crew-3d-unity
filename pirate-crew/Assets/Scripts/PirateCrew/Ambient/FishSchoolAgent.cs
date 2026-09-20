@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Ambient
+namespace PirateCrew.Ambient
 {
     /// <summary>
     /// 一群水下鱼（简化 boids：分离 / 对齐 / 聚集 + 锚点回归 + 水体盒约束）。

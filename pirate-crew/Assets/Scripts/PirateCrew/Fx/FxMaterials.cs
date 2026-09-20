@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>特效材质档（每个档对应 `Assets/Art/Materials/Fx/` 下一个 .mat）。</summary>
     public enum FxMaterial

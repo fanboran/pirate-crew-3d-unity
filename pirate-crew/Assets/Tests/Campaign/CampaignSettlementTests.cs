@@ -2,9 +2,9 @@ using NUnit.Framework;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Battle.WorldMaps;
-using PirateCrew.PirateCrew.Combat;
+using PirateCrew.Battle;
+using PirateCrew.Battle.WorldMaps;
+using PirateCrew.Combat;
 
 namespace PirateCrew.Tests
 {

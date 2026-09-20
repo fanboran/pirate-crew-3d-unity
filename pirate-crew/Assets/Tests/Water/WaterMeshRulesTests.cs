@@ -1,7 +1,7 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Water;
+using PirateCrew.Water;
 
-namespace PirateCrew.PirateCrew.Water.Tests
+namespace PirateCrew.Water.Tests
 {
     /// <summary>
     /// <see cref="WaterMeshRules"/> 测试：水面细分网格的格数/顶点数/采样充分性。

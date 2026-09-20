@@ -1,9 +1,9 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Data;
-using PirateCrew.PirateCrew.SceneArt;
+using PirateCrew.Data;
+using PirateCrew.SceneArt;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// 出战计划生成测试（§4.3 坐标/队伍、§4.1 luck、§5.5 初始武器、§4.4 全局水面常量）。

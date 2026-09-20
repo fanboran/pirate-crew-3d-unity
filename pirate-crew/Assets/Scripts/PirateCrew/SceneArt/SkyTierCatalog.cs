@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.SceneArt
+namespace PirateCrew.SceneArt
 {
     /// <summary>
     /// 天空三档预设（纯 C#，无头可测）。

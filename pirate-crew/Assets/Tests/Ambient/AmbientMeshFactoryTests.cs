@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using NUnit.Framework;
-using PirateCrew.PirateCrew.SceneArt;
+using PirateCrew.SceneArt;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Ambient.Tests
+namespace PirateCrew.Ambient.Tests
 {
     /// <summary>
     /// 程序化网格工厂的纯 C# 用例：每个网格非空、三角面在预算内、包围盒符合设计尺寸。

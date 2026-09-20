@@ -1,7 +1,7 @@
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
-using PirateCrew.PirateCrew.Battle.WorldMaps;
+using PirateCrew.Battle.WorldMaps;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;

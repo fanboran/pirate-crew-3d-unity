@@ -67,7 +67,7 @@ namespace PirateCrew.EditorTools
             // 播放器构建才会把它们（及其 Renderer）打进包里，运行时切换才有的换。
             // 放在 Bootstrapper 场景里随首场景加载，Awake 即应用持久化的设置。
             var videoGo = new GameObject("VideoSettings");
-            var video = videoGo.AddComponent<global::PirateCrew.PirateCrew.Settings.VideoSettingsService>();
+            var video = videoGo.AddComponent<global::PirateCrew.Settings.VideoSettingsService>();
             var performant = AssetDatabase.LoadAssetAtPath<UnityEngine.Rendering.RenderPipelineAsset>(
                 "Assets/Settings/URP/PC_Performant_URPAsset.asset");
             var balanced = AssetDatabase.LoadAssetAtPath<UnityEngine.Rendering.RenderPipelineAsset>(

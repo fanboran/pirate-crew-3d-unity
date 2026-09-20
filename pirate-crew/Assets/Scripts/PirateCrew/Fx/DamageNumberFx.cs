@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>
     /// 伤害数字：程序化点阵字形 + 上浮淡出（Art Bible §7.2「伤害数字 粗体无衬线，弹出后上飘淡出」）。

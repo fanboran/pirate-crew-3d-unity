@@ -1,6 +1,6 @@
 using NUnit.Framework;
 using PirateCrew.Core;
-using PirateCrew.PirateCrew.Audio;
+using PirateCrew.Audio;
 
 namespace PirateCrew.Tests.Audio
 {

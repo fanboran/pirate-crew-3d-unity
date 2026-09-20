@@ -24,7 +24,7 @@
 补充约束（本工程架构铁律，来自 AGENTS.md）：
 - 模块间只走 `PirateCrew.Core.EventBus` 静态字符串事件中心（`Publish/Subscribe(string, Action<object>)`）。
 - 禁止 `GameObject.Find`、禁止跨模块 `GetComponent` 裸引用；引用一律 `[SerializeField]` 直连。
-- 命名空间：战斗 `PirateCrew.PirateCrew.Combat`，界面 `PirateCrew.UI`。
+- 命名空间：战斗 `PirateCrew.Combat`，界面 `PirateCrew.UI`。
 - 纯逻辑层已存在：`Assets/Scripts/PirateCrew/Combat/Ballistics.cs`（`TwangVelocity` / `FullForceDragDistance` / `PredictTrajectory`）、`TurnRules.cs`、`ExplosionResolver.cs`、`WeaponTriggerRules.cs`、`ScoreRules.cs`。**M2 要补的是表现层（输入/轨迹线/描边/相机），不要重写纯逻辑。**
 
 ---
@@ -245,7 +245,7 @@ internal void HandleTargetLock()
 ```
 PirateCrew.Core            EventBus / SceneLoader（已存在，不改）
         ↑ 只发事件字符串
-PirateCrew.PirateCrew.Combat   表现层新增：CombatUnitView / SlingshotController /
+PirateCrew.Combat   表现层新增：CombatUnitView / SlingshotController /
                                TrajectoryView / BattleCameraDirector /
                                UnitSelectionController / CombatPlane
         ↑
@@ -274,13 +274,13 @@ PirateCrew.UI            新增：CombatHudController（只订阅事件显示文
 
 > 以下只是「类名 / 职责 / 关键方法签名」，不是可直接编译的完整实现；方法体留待实现时按参照模式补。
 
-**(1) `CombatPlane`（静态工具，`PirateCrew.PirateCrew.Combat`）**
+**(1) `CombatPlane`（静态工具，`PirateCrew.Combat`）**
 职责：统一「逆向文档的 2D 逻辑坐标（y 向下、单位 px）」与「Unity 3D 世界坐标（y 向上）」的映射，避免各脚本各写一套符号。
 - 逆向文档坐标为 Flash 像素；建议 1 世界单位 = 1 格（32px），保留 `const float PixelsPerUnit = 32f`。
 - 提供 `Vector3 LogicToWorld(float x, float yLogic, float planeZ = 0f)`、`(float x, float yLogic) WorldToLogic(Vector3 world)`。
 - 提供 `float GravityYLogic`（逻辑重力，取世界 `Physics.gravity.y` 的负向转换）供 `Ballistics.PredictTrajectory(weight:)` 使用。
 
-**(2) `CombatUnitView : MonoBehaviour`（`PirateCrew.PirateCrew.Combat`）**
+**(2) `CombatUnitView : MonoBehaviour`（`PirateCrew.Combat`）**
 职责：一个可行动角色的视图数据载体与局部选中表现；不订阅 EventBus（由控制器调用）。
 - `[SerializeField] int unitId;`、`[SerializeField] int teamId;`、`[SerializeField] Transform aimOrigin;`、`[SerializeField] Rigidbody body;`、`[SerializeField] Renderer[] outlineRenderers;`
 - `public int UnitId => unitId; public int TeamId => teamId; public Transform AimOrigin => aimOrigin; public Rigidbody Body => body;`
@@ -288,7 +288,7 @@ PirateCrew.UI            新增：CombatHudController（只订阅事件显示文
 - `public void SetSelected(bool selected)`：切换 `gameObject.layer` 到 `Outlined` 层（能力 c）；用缓存的 `int` 层索引，避免 `LayerMask.NameToLayer` 每帧查。
 - `public void FreezeForAim(bool frozen)`：拖拽瞄准时 `body.isKinematic = frozen` + 速度清零（借鉴 2.2 `Ball`），发射前解冻。
 
-**(3) `SlingshotController : MonoBehaviour`（`PirateCrew.PirateCrew.Combat`）**
+**(3) `SlingshotController : MonoBehaviour`（`PirateCrew.Combat`）**
 职责：把鼠标拖拽翻译成 `Ballistics` 初速并发射；对应 §5.1 + §3.4 两阶段操作。
 - `enum AimPhase { Idle, Pulling, Flying }`
 - `[SerializeField] CombatUnitView activeUnit;`
@@ -302,7 +302,7 @@ PirateCrew.UI            新增：CombatHudController（只订阅事件显示文
 - 每次 `UpdateDrag`：`EventBus.Publish("combat_aim_updated", force01)` 给力度条；并调 `trajectory.Show(...)`。
 - 满力距离用 `Ballistics.FullForceDragDistance(twangMax)`，不要另写常数。
 
-**(4) `TrajectoryView : MonoBehaviour`（`PirateCrew.PirateCrew.Combat`）**
+**(4) `TrajectoryView : MonoBehaviour`（`PirateCrew.Combat`）**
 职责：把 `Ballistics.PredictTrajectory` 的 15 个逻辑点画出来；支持点阵/连线两种模式。
 - `[SerializeField] LineRenderer line;`
 - `[SerializeField] GameObject dotPrefab; [SerializeField] Transform dotParent; [SerializeField] int dotCount = 15;`
@@ -312,7 +312,7 @@ PirateCrew.UI            新增：CombatHudController（只订阅事件显示文
 - 内部：调 `Ballistics.PredictTrajectory(origin.x, origin.y, vx, vy, weight, dotCount)`；`line.positionCount = points.Length; line.SetPositions(worldArr);`（**不要用已过时的 `SetVertexCount`，见 §4 R3**）。
 - 点阵模式在 `Awake` 预实例化 `dotCount` 个 dot（借鉴 2.2 `PrepareDots`），`Show` 时只改位置与缩放，不增删对象。
 
-**(5) `UnitSelectionController : MonoBehaviour`（`PirateCrew.PirateCrew.Combat`）**
+**(5) `UnitSelectionController : MonoBehaviour`（`PirateCrew.Combat`）**
 职责：鼠标点选/悬停本队角色，驱动 `SetSelected` 并广播事件。
 - `[SerializeField] LayerMask unitMask;`
 - `[SerializeField] LayerMask aimPlaneMask;`
@@ -321,7 +321,7 @@ PirateCrew.UI            新增：CombatHudController（只订阅事件显示文
 - `void Select(CombatUnitView unit)`：`_selected?.SetSelected(false)` → `_selected = unit` → `unit.SetSelected(true)` → `EventBus.Publish("combat_unit_selected", unit.UnitId)`；并 `EventBus.Publish("combat_camera_focus_requested", unit.transform)`。
 - 悬停高亮：`Update` 里对非选中同队单位做 raycast，命中就 `SetHover(true)`（对应 §4.5 `hoverCharacter` 30px 内高亮）；可加节流（每 2~3 帧一次）省性能。
 
-**(6) `BattleCameraDirector : MonoBehaviour`（`PirateCrew.PirateCrew.Combat`）**
+**(6) `BattleCameraDirector : MonoBehaviour`（`PirateCrew.Combat`）**
 职责：§8.1 的相机平移 + 自动跟镜；基于参照库 2.4 的「移动 CameraTarget」模式。
 - `[SerializeField] CinemachineVirtualCamera battleVcam;`
 - `[SerializeField] CinemachineVirtualCamera transitionVcam;`（可选，过场机位）

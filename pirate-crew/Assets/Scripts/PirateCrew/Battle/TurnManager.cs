@@ -2,7 +2,7 @@ using System;
 using PirateCrew.Core;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 回合驱动器（MonoBehaviour 薄壳，规则在 <see cref="BattleFlowRules"/> / <see cref="TurnRules"/>）。

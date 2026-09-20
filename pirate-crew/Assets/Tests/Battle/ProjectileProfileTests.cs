@@ -1,7 +1,7 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// <see cref="ProjectileProfile"/> 参数推导测试（§5.2 武器总表 → PhysX 参数映射）。

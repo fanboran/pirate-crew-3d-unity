@@ -1,9 +1,9 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Data;
-using PirateCrew.PirateCrew.Fx;
+using PirateCrew.Data;
+using PirateCrew.Fx;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx.Tests
+namespace PirateCrew.Fx.Tests
 {
     /// <summary>
     /// <see cref="FxRules"/> 的纯 C# 用例（无头可跑，不碰任何 ECall）。

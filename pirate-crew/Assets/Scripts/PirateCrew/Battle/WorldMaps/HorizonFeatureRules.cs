@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.WorldMaps
+namespace PirateCrew.Battle.WorldMaps
 {
     /// <summary>
     /// 世界地图远景特征放置规则（纯 C#，无头可测）：把 <see cref="WorldMapDefinition.HorizonFeatures"/>

@@ -1,10 +1,10 @@
 using System.IO;
 using Cinemachine;
-using PirateCrew.PirateCrew.Ambient;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Data;
-using PirateCrew.PirateCrew.SceneArt;
-using PirateCrew.PirateCrew.Visual;
+using PirateCrew.Ambient;
+using PirateCrew.Battle;
+using PirateCrew.Data;
+using PirateCrew.SceneArt;
+using PirateCrew.Visual;
 using PirateCrew.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -406,12 +406,12 @@ namespace PirateCrew.EditorTools
             // 不细分则波峰几何画不出来（明暗法线仍正常，因为解析法线逐像素重算）。
             // 细分粒度用组件默认（0.8 单位/格，上限 192 格/轴，见 WaterMeshRules）。
             // 随 Renderer 一并禁用：逐帧细分服务于旧 PirateWater 平面，海面圆盘不需要它。
-            var tessellator = water.AddComponent<global::PirateCrew.PirateCrew.Water.WaterTessellator>();
+            var tessellator = water.AddComponent<global::PirateCrew.Water.WaterTessellator>();
             tessellator.enabled = false;
 
             // 波动方程水面模拟（只驱动观感：法线扰动 + 泡沫源，不参与任何玩法判定）。
             // 障碍图由 WaterAssetBuilder.BakeObstacleMap 烘焙（ArtGate 在本步骤之前执行）。
-            var driver = water.AddComponent<global::PirateCrew.PirateCrew.Water.WaterSimulationDriver>();
+            var driver = water.AddComponent<global::PirateCrew.Water.WaterSimulationDriver>();
             var obstacleMap = AssetDatabase.LoadAssetAtPath<Texture2D>(
                 "Assets/Art/Textures/Water/WaterObstacleMap.png");
             if (obstacleMap != null)

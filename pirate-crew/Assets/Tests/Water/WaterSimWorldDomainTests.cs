@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water.Tests
+namespace PirateCrew.Water.Tests
 {
     /// <summary>
     /// <see cref="WaterSimRules.WorldDomainSizeForSpan"/> 测试：世界地图模拟域边长的等比伸缩

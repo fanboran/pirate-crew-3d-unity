@@ -379,9 +379,9 @@ dotnet build VerifyEditorOutline.csproj
 
 `OutlineRendererFeature.cs` 用到 URP 类型，位于 `Assets/Scripts/PirateCrew/Rendering/`，
 该目录带独立 asmdef（`PirateCrew.Rendering.asmdef`，引用 URP/Core 运行时程序集），
-因为 `PirateCrew.Runtime.asmdef` 无法引用 URP。
+因为 `PirateCrew.Gameplay.asmdef` 无法引用 URP。
 而 `OutlineStateRules` / `UnitOutlineBinder` **只用 UnityEngine 类型**（MPB + `Shader.PropertyToID`），
-所以放在 `Battle/`（`PirateCrew.Runtime`）里，不需要碰 URP 程序集。
+所以放在 `Battle/`（`PirateCrew.Gameplay`）里，不需要碰 URP 程序集。
 
 ---
 

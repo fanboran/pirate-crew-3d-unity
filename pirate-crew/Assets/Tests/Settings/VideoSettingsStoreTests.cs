@@ -1,6 +1,6 @@
 using PirateCrew.Core;
-using PirateCrew.PirateCrew.Audio;
-using PirateCrew.PirateCrew.Settings;
+using PirateCrew.Audio;
+using PirateCrew.Settings;
 using NUnit.Framework;
 
 namespace PirateCrew.Tests.Settings

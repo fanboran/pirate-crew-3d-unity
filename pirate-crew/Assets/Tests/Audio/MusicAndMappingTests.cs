@@ -1,9 +1,9 @@
 using System;
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Audio;
-using PirateCrew.PirateCrew.Audio.Synth;
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Audio;
+using PirateCrew.Audio.Synth;
+using PirateCrew.Combat;
+using PirateCrew.Data;
 
 namespace PirateCrew.Tests.Audio
 {

@@ -1,9 +1,9 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Water;
+using PirateCrew.Battle;
+using PirateCrew.Water;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water.Tests
+namespace PirateCrew.Water.Tests
 {
     /// <summary>
     /// <see cref="FloatingPropView.EligibleForFloatingView"/> 资格判定测试（批次 F）：

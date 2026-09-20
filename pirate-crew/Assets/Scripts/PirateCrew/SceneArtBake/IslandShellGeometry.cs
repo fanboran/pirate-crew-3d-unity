@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Battle;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.SceneArt
+namespace PirateCrew.SceneArt
 {
     /// <summary>地形视觉壳的可调参数（默认值 = 场景文档 §3.1 的【AI 提案】取值 + 用户裁决的厚底参数）。</summary>
     public struct IslandShellSettings

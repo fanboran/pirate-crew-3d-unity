@@ -1,7 +1,7 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Combat;
+using PirateCrew.Combat;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// <see cref="BattleFlowRules"/> 测试。

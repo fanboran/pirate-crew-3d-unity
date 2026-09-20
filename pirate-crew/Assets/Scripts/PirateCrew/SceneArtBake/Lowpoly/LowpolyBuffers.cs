@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.SceneArt;
+using PirateCrew.SceneArt;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.SceneArt.Lowpoly
+namespace PirateCrew.SceneArt.Lowpoly
 {
     /// <summary>
     /// 低多边形关卡几何（Lowpoly/SceneArt）：云朵平台场生成器。

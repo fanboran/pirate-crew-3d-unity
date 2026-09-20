@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Combat;
+using PirateCrew.Data;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 事件载荷 → 播放决策的纯映射（可无头测试）。

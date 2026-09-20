@@ -1,4 +1,4 @@
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 音频总线分类（音量分组）。Master 是总闸，其余三类各自独立。

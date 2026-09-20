@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Audio.Synth
+namespace PirateCrew.Audio.Synth
 {
     /// <summary>
     /// 单极点一阶滤波器（纯值类型，逐个样本调用，可测）。

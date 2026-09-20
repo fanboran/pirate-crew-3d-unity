@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Audio.Synth
+namespace PirateCrew.Audio.Synth
 {
     /// <summary>和弦性质（三和弦）。</summary>
     public enum ChordQuality

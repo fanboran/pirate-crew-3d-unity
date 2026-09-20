@@ -1,6 +1,6 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Battle.WorldMaps;
+using PirateCrew.Battle;
+using PirateCrew.Battle.WorldMaps;
 using UnityEngine;
 using UnityEngine.UI;
 

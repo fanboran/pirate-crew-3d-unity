@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water
+namespace PirateCrew.Water
 {
     /// <summary>
     /// 大海域海面的分级网格规则（纯 C#，无头可测）。

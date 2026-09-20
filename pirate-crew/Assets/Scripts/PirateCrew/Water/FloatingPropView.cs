@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Battle;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water
+namespace PirateCrew.Water
 {
     /// <summary>
     /// 漂浮道具的水面起伏视图（批次 F，**纯表现**）：每帧采样

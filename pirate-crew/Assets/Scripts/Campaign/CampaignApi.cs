@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Battle.WorldMaps;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Battle;
+using PirateCrew.Battle.WorldMaps;
+using PirateCrew.Data;
 using UnityEngine;
 
 namespace PirateCrew.Campaign

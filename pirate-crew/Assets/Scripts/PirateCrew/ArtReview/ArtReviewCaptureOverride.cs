@@ -1,4 +1,4 @@
-namespace PirateCrew.PirateCrew.ArtReview
+namespace PirateCrew.ArtReview
 {
     /// <summary>
     /// 美术评审的关卡号覆盖（无头出图专用）。由 PlayerArtCapture 解析

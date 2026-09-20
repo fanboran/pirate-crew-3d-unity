@@ -1,4 +1,4 @@
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 描边状态判定的纯逻辑（不引用 UnityEngine，可在无头验证台断言）。

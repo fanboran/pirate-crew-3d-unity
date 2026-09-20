@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Visual.Tests
+namespace PirateCrew.Visual.Tests
 {
     /// <summary>
     /// <see cref="CrewAnimationRules"/> 断言：状态时长 / 曲线 / 幅度按 docs/角色造型规范.md §4 表

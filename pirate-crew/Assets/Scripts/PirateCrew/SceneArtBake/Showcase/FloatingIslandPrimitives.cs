@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.SceneArt.Showcase
+namespace PirateCrew.SceneArt.Showcase
 {
     /// <summary>
     /// 空岛形态库（纯 C#，无头可测）：把 <see cref="MeshBuffers"/> 已有的图元

@@ -1,7 +1,7 @@
 using System;
-using PirateCrew.PirateCrew.Audio.Synth;
+using PirateCrew.Audio.Synth;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 反馈音合成：单位选中、武器切换、回合开始/结束、危险提示。

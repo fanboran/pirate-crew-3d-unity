@@ -1,6 +1,6 @@
 using NUnit.Framework;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// <see cref="OutlineStateRules"/> 测试：§4.5 悬停/选中描边档位的纯逻辑判定。

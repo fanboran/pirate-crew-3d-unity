@@ -15,7 +15,7 @@ namespace PirateCrew.Core
     /// 也不会留下"空 if"；两个标记任一成立即保留（并集语义）。
     ///
     /// 【调用约定】跨命名空间调用统一写全限定 <c>global::PirateCrew.Core.Log.…</c>
-    /// （部分模块处于 <c>PirateCrew.PirateCrew.*</c> 命名空间，非限定名 <c>PirateCrew.Core</c>
+    /// （部分模块处于 <c>PirateCrew.*</c> 命名空间，非限定名 <c>PirateCrew.Core</c>
     /// 会先命中子命名空间 <c>PirateCrew.PirateCrew</c> 导致解析失败）。
     /// </summary>
     public static class Log

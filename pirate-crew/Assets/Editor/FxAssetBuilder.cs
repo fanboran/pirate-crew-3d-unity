@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using PirateCrew.PirateCrew.Fx;
+using PirateCrew.Fx;
 using UnityEditor;
 using UnityEngine;
 

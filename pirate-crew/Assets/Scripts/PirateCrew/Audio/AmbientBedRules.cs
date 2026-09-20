@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>环境底床的一层（纯值类型）。</summary>
     public readonly struct AmbientBedLayer

@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Combat;
+using PirateCrew.Combat;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// 爆炸结算的方向/分量测试（§5.3 + 交付约束 C）。3D 化后（2026-09-13）的语义：

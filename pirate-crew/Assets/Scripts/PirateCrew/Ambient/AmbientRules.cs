@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Ambient
+namespace PirateCrew.Ambient
 {
     /// <summary>
     /// 环境与活物（Ambient）模块的**纯 C# 规则层**：竞技场边界、禁飞区、风相位、预算与确定性随机。

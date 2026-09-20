@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.SceneArt;
-using PirateCrew.PirateCrew.SceneArt.Lowpoly;
-using PirateCrew.PirateCrew.SceneArt.Showcase;
+using PirateCrew.Battle;
+using PirateCrew.SceneArt;
+using PirateCrew.SceneArt.Lowpoly;
+using PirateCrew.SceneArt.Showcase;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;

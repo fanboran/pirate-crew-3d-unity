@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using PirateCrew.Core;
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
-using PirateCrew.PirateCrew.Visual;
+using PirateCrew.Combat;
+using PirateCrew.Data;
+using PirateCrew.Visual;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 战斗中的海盗角色运行时（翻译自 Godot <c>scripts/characters/pirate_base.gd</c>，3D 语义重写）。

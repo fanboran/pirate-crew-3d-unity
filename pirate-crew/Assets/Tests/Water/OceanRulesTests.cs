@@ -1,9 +1,9 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Water;
+using PirateCrew.Battle;
+using PirateCrew.Water;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water.Tests
+namespace PirateCrew.Water.Tests
 {
     /// <summary>
     /// <see cref="OceanRules"/> 测试：M4 大海域的波表契约（长涌 60-120u/0.5-1.2）、波峰硬约束

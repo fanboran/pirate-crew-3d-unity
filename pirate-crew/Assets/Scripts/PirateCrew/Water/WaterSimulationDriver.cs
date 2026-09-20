@@ -1,9 +1,9 @@
 using PirateCrew.Core;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Battle;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water
+namespace PirateCrew.Water
 {
     /// <summary>
     /// 二维波动方程水面的运行驱动：持有 <see cref="WaterWaveField2D"/>、每帧固定步长推进、

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>程序化特效贴图种类（与 `Assets/Art/Textures/Fx/*.png` 一一对应）。</summary>
     public enum FxTextureKind

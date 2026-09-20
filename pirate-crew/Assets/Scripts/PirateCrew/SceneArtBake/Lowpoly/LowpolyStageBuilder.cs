@@ -1,9 +1,9 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.SceneArt;
+using PirateCrew.SceneArt;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace PirateCrew.PirateCrew.SceneArt.Lowpoly
+namespace PirateCrew.SceneArt.Lowpoly
 {
     /// <summary>一次 <see cref="LowpolyStageBuilder"/> 构建的产出报告（供关卡装配器与日志用）。</summary>
     public sealed class LowpolyStageReport

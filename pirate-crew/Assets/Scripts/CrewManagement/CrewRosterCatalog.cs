@@ -26,7 +26,7 @@ namespace PirateCrew.CrewManagement
         public readonly int UnlockStars;
 
         /// <summary>
-        /// 对应战斗数据层的海盗导出符号（<c>PirateCrew.PirateCrew.Data.CrewCatalog.ExportSymbols</c>，§4.2）。
+        /// 对应战斗数据层的海盗导出符号（<c>PirateCrew.Data.CrewCatalog.ExportSymbols</c>，§4.2）。
         /// <b>提案/待定</b>：海图战用地图自带布阵，编成暂不注入战斗（见 <c>CampaignApi</c> 类头），
         /// 该映射仅供后续打通时参考，未经确认。
         /// </summary>

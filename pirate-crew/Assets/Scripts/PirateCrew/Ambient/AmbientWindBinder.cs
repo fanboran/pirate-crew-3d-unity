@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace PirateCrew.PirateCrew.Ambient
+namespace PirateCrew.Ambient
 {
     /// <summary>
     /// 把场景美术波次（<c>Assets/Editor/SceneArtBuilder.cs</c>）生成的**合并网格**换成顶点风摆材质，

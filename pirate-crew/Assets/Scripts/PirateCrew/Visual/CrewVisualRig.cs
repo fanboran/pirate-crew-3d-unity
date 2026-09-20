@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace PirateCrew.PirateCrew.Visual
+namespace PirateCrew.Visual
 {
     /// <summary>
     /// 标记组件：挂在"阵营色部件"的渲染器所在 GameObject 上。

@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.SceneArt;
+using PirateCrew.SceneArt;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Ambient
+namespace PirateCrew.Ambient
 {
     /// <summary>
     /// 环境活物/动效道具的**程序化网格工厂**（纯 C#，无头可测）。

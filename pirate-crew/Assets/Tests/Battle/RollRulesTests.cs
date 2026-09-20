@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// <see cref="RollRules"/> 纯逻辑测试（M4 §3.1 落地翻滚，忠实转写 Flash 逆向；

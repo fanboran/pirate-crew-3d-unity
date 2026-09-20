@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 空间音频的纯规则（可无头测试）：2D/3D 混合、距离衰减、拖拽力度映射、地雷蜂鸣强度。

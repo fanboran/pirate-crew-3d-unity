@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Water;
+using PirateCrew.Water;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.WorldMaps
+namespace PirateCrew.Battle.WorldMaps
 {
     /// <summary>
     /// 世界地图运行时组装：站面 box → BoxCollider + 分带地形材质视觉。

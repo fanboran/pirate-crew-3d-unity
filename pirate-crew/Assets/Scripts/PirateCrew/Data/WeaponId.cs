@@ -1,4 +1,4 @@
-namespace PirateCrew.PirateCrew.Data
+namespace PirateCrew.Data
 {
     /// <summary>
     /// 原版《海盗军团抢宝藏》(Mutiny) 的 17 种武器 id。

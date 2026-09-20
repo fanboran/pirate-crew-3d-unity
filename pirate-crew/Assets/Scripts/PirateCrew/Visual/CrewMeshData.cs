@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Visual
+namespace PirateCrew.Visual
 {
     /// <summary>
     /// 程序化网格的**纯 C# 数据载体**（顶点 / 法线 / UV / 三角面索引）。

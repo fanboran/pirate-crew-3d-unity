@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Audio.Synth
+namespace PirateCrew.Audio.Synth
 {
     /// <summary>
     /// 固定长度循环延迟线（单声道；回声/混响/梳状滤波的公共积木）。

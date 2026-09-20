@@ -1,7 +1,7 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// <see cref="ProjectileLifetimeRules"/> + <see cref="WeaponInventory"/> 复用测试。

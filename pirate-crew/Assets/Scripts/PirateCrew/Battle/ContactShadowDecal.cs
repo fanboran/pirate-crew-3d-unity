@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 单位脚底「接触阴影面片」标记组件（美术风格指南 §4.1 `:239` 的落地载体，判据 A-6 `:536`）。

@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using PirateCrew.PirateCrew.Audio;
-using PirateCrew.PirateCrew.Audio.Synth;
+using PirateCrew.Audio;
+using PirateCrew.Audio.Synth;
 using UnityEditor;
 using UnityEngine;
 

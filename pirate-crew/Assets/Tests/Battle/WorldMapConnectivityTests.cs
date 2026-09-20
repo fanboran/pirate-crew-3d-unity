@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Battle.WorldMaps;
+using PirateCrew.Battle.WorldMaps;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// M4 大海域世界地图的硬约束校验（docs/M4-大海域世界化.md §2.2/§4.2）：

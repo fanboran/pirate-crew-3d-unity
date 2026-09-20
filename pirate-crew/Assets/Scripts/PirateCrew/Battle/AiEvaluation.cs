@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Combat;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// AI 决定的动作种类（§3.4 三路径 / §6.1 汇总执行）。

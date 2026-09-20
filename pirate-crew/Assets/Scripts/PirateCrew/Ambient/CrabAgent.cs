@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Ambient
+namespace PirateCrew.Ambient
 {
     /// <summary>
     /// 岸边螃蟹：沿一条岸边线段横爬往返 + 双钳摆动 + 遇单位靠近缩进沙里。

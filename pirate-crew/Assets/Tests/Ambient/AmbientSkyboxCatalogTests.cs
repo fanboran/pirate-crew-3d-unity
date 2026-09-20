@@ -1,8 +1,8 @@
 using NUnit.Framework;
 using UnityEngine;
-using PirateCrew.PirateCrew.SceneArt;
+using PirateCrew.SceneArt;
 
-namespace PirateCrew.PirateCrew.Ambient.Tests
+namespace PirateCrew.Ambient.Tests
 {
     /// <summary>
     /// 三档天空盒预设的纯 C# 用例（视觉审计遗留 #6 的参数方案）。

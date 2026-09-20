@@ -10,7 +10,7 @@ namespace PirateCrew.Campaign
     {
         /// <summary>
         /// 通关的 <c>BattleEvents.MatchFinished</c> 结果码
-        /// （= <c>PirateCrew.PirateCrew.Combat.MatchOutcome</c> 的 <c>Team0Win = 0</c>，§3.3）。
+        /// （= <c>PirateCrew.Combat.MatchOutcome</c> 的 <c>Team0Win = 0</c>，§3.3）。
         /// </summary>
         public const int PlayerWinOutcome = 0;
 

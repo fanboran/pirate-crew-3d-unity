@@ -1,8 +1,8 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Fx;
+using PirateCrew.Fx;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx.Tests
+namespace PirateCrew.Fx.Tests
 {
     /// <summary>
     /// <see cref="FxDigitFont"/> 的纯点阵用例（无头可跑）。

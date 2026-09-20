@@ -2,7 +2,7 @@ using PirateCrew.Core;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace PirateCrew.PirateCrew.Settings
+namespace PirateCrew.Settings
 {
     /// <summary>
     /// 视频设置服务（全屏 / 画质档的应用出口）。

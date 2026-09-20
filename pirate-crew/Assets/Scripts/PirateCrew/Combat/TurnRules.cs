@@ -1,4 +1,4 @@
-namespace PirateCrew.PirateCrew.Combat
+namespace PirateCrew.Combat
 {
     /// <summary>
     /// 单回合两阶段操作的纯状态（§3.4）。

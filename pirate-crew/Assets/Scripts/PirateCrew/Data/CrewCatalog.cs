@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PirateCrew.PirateCrew.Data
+namespace PirateCrew.Data
 {
     /// <summary>
     /// 海盗共享属性快照（纯 C# 结构）。出处：静态逆向文档 §4.1。

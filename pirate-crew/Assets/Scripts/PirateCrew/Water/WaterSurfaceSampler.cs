@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Battle;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water
+namespace PirateCrew.Water
 {
     /// <summary>
     /// 水面高度采样器（纯 C# 静态类，无 GameObject/引擎运行时依赖，可无头测）：

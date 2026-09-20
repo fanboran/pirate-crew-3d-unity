@@ -4,7 +4,7 @@ using PirateCrew.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace PirateCrew.PirateCrew.ArtReview
+namespace PirateCrew.ArtReview
 {
     /// <summary>
     /// 独立播放器的自动评审出图：协调者在命令行传 <c>-artReviewOut &lt;绝对目录&gt;</c> 启动播放器，

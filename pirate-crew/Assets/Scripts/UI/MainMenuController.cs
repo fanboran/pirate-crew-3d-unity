@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
-using PirateCrew.PirateCrew.Audio;
-using PirateCrew.PirateCrew.Battle.WorldMaps;
-using PirateCrew.PirateCrew.Settings;
+using PirateCrew.Audio;
+using PirateCrew.Battle.WorldMaps;
+using PirateCrew.Settings;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;

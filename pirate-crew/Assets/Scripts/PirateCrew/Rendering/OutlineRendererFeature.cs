@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
-namespace PirateCrew.PirateCrew.Rendering
+namespace PirateCrew.Rendering
 {
     /// <summary>
     /// M2 全屏后处理描边（对应 Godot modules/pirate_crew/shaders/outline_post.gdshader）。
@@ -28,7 +28,7 @@ namespace PirateCrew.PirateCrew.Rendering
     /// 【程序集说明】
     ///   本文件位于 Assets/Scripts/PirateCrew/Rendering/，该目录带独立 asmdef
     ///   （PirateCrew.Rendering.asmdef，引用 URP/Core 运行时程序集）。
-    ///   原因：PirateCrew.Runtime.asmdef 的 references 为空，无法引用 URP 类型。
+    ///   原因：PirateCrew.Gameplay.asmdef 的 references 为空，无法引用 URP 类型。
     /// </summary>
     [DisallowMultipleRendererFeature("PirateCrew Outline")]
     public class OutlineRendererFeature : ScriptableRendererFeature

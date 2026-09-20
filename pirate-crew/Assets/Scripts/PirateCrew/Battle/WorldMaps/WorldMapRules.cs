@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.WorldMaps
+namespace PirateCrew.Battle.WorldMaps
 {
     /// <summary>
     /// 世界地图规则层（纯 C#，无头可测）：站面 box 的世界展开、栅格化、连通性与布阵校验。

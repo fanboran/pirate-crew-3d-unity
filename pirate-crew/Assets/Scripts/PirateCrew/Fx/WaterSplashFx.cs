@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Battle;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>
     /// 入水水花特效：飞沫水柱 + 水沫 + 两道扩散涟漪。

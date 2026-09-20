@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Data
+namespace PirateCrew.Data
 {
     /// <summary>
     /// 武器栈条目：一件武器 + 数量。

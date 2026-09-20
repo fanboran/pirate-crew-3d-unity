@@ -1,10 +1,10 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.SceneArt;
-using PirateCrew.PirateCrew.Water;
+using PirateCrew.Battle;
+using PirateCrew.SceneArt;
+using PirateCrew.Water;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water.Tests
+namespace PirateCrew.Water.Tests
 {
     /// <summary>
     /// <see cref="ObstacleMapRules"/> 测试：烘焙障碍图与地形高度一致（抽格断言）、

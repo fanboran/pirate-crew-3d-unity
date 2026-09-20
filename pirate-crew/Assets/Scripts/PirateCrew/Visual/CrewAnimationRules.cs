@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Visual
+namespace PirateCrew.Visual
 {
     /// <summary>
     /// 角色视觉状态（表现层状态机，与 <c>PirateBase</c> 的玩法状态位解耦）。

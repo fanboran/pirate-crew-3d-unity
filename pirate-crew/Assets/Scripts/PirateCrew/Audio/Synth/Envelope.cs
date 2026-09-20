@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Audio.Synth
+namespace PirateCrew.Audio.Synth
 {
     /// <summary>
     /// ADSR 分段包络（纯值类型 + 纯函数，可逐点断言）。

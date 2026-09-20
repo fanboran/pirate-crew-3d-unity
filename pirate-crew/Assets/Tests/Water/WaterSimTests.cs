@@ -3,7 +3,7 @@ using System.Diagnostics;
 using NUnit.Framework;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water.Tests
+namespace PirateCrew.Water.Tests
 {
     /// <summary>
     /// <see cref="WaterSimRules"/> + <see cref="WaterWaveField2D"/> 测试：

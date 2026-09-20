@@ -1,5 +1,5 @@
 {
-    "name": "PirateCrew.Runtime",
+    "name": "PirateCrew.Gameplay",
     "rootNamespace": "PirateCrew",
     "references": [
         "PirateCrew.Core",

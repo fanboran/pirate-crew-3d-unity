@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.WorldMaps
+namespace PirateCrew.Battle.WorldMaps
 {
     /// <summary>
     /// 大海域世界地图的数据载体（纯 C#，无头可测）。契约：docs/M4-大海域世界化.md §1/§2/§4.2。

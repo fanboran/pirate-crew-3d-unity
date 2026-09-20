@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water
+namespace PirateCrew.Water
 {
     /// <summary>二维波动方程水面模拟的配置（值类型，便于测试里造小场）。</summary>
     public struct WaterFieldConfig

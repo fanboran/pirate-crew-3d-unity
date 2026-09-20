@@ -1,4 +1,4 @@
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Battle;
 using UnityEngine;
 using UnityEngine.UI;
 

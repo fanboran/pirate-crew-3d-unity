@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water
+namespace PirateCrew.Water
 {
     /// <summary>
     /// 把水面的低模网格（工程默认是 <c>PrimitiveType.Cube</c>，顶面仅 4 个角点）

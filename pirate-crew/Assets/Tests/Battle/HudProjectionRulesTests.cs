@@ -1,6 +1,6 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Battle;
+using PirateCrew.Data;
 using PirateCrew.UI;
 using UnityEngine;
 
@@ -10,7 +10,7 @@ namespace PirateCrew.Tests
     /// HUD 透视尺度规则的纯逻辑测试（无头可跑）。
     ///
     /// 【背景】HUD 本体是 UGUI ScreenSpaceOverlay（不随透视变形）；但拾取半径是**屏幕像素口径**
-    /// （Flash §3.4 的 30px，见 <see cref="PirateCrew.PirateCrew.Battle.LevelGeometry.SelectionRadiusPixels"/>），
+    /// （Flash §3.4 的 30px，见 <see cref="PirateCrew.Battle.LevelGeometry.SelectionRadiusPixels"/>），
     /// 透视下同一世界高度在不同距离上的屏幕尺寸不同。<see cref="HudProjectionRules"/> 给出
     /// **提案/待定**的缩放公式；本测试锁定公式行为，供后续验收决定是否接入 AimThrowController。
     /// </summary>

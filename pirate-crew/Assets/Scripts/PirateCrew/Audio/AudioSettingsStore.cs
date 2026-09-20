@@ -1,7 +1,7 @@
 using System.Globalization;
 using PirateCrew.Core;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 音量设置的持久化（走 Core 的现有键值 API，**不修改 Core 任何文件**）。

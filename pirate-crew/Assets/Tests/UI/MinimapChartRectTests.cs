@@ -1,9 +1,9 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Battle.WorldMaps;
+using PirateCrew.Battle.WorldMaps;
 using PirateCrew.UI;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.UI.Tests
+namespace PirateCrew.UI.Tests
 {
     /// <summary>
     /// <see cref="MinimapRules.WorldBoxToChartRect"/> 纯函数口径（无头可跑：

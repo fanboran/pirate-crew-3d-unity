@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Audio.Synth
+namespace PirateCrew.Audio.Synth
 {
     /// <summary>
     /// 抖动 / 失谐 / 颤音工具（纯函数）——「反电子味」的核心手段。

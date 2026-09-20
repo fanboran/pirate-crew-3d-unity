@@ -1,8 +1,8 @@
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Battle;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.SceneArt.Showcase
+namespace PirateCrew.SceneArt.Showcase
 {
     /// <summary>
     /// 空岛展示件的**落场景计划**（纯 C#，无头可测）：给 Editor 装配层

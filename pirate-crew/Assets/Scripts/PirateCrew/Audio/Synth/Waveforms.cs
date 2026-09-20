@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Audio.Synth
+namespace PirateCrew.Audio.Synth
 {
     /// <summary>
     /// 基础波形表（纯函数；相位口径为 [ 0,1 ) 的归一化相位，返回 [-1,1]）。

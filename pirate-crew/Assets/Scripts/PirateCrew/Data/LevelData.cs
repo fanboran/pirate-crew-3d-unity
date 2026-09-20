@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PirateCrew.PirateCrew.Data
+namespace PirateCrew.Data
 {
     /// <summary>
     /// 单场战斗的数据快照（纯 C#）。世界海域图与样板三关共用这一载体：

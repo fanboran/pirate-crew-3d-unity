@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>
     /// 特效模块的**公开静态出口**（对应架构原则「跨模块调用的公共出口放各模块 <c>XxxApi</c>」）。

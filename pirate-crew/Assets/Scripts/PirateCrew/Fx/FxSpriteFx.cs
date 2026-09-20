@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>
     /// 对象池化的「单片四边形」特效体：地面光环、冲击波环、涟漪、伤害数字都用它。

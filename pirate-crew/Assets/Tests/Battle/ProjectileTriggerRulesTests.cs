@@ -1,11 +1,11 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Combat;
+using PirateCrew.Data;
 using UnityEngine;
-using DataTrigger = PirateCrew.PirateCrew.Data.WeaponTrigger;
-using CombatTrigger = PirateCrew.PirateCrew.Combat.WeaponTrigger;
+using DataTrigger = PirateCrew.Data.WeaponTrigger;
+using CombatTrigger = PirateCrew.Combat.WeaponTrigger;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// <see cref="ProjectileTriggerRules"/> 引爆判定测试（§5.2 五类触发）。

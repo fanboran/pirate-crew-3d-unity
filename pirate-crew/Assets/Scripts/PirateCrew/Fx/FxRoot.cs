@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using PirateCrew.Core;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Battle;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>
     /// 特效总控：订阅 EventBus 的**现有**事件，把它们翻译成具体特效调用。

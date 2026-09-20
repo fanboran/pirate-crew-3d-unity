@@ -1,5 +1,5 @@
 using System.IO;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using PirateCrew.UI;
 using UnityEditor;
 using UnityEngine;

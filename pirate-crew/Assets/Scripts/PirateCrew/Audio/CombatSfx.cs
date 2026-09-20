@@ -1,7 +1,7 @@
 using System;
-using PirateCrew.PirateCrew.Audio.Synth;
+using PirateCrew.Audio.Synth;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 战斗音效合成（爆炸、木质碎裂、命中、入水、投掷、弹跳、滚动、地雷蜂鸣、阵亡）。

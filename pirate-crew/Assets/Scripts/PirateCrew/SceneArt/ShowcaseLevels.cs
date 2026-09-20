@@ -1,9 +1,9 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Battle;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.SceneArt
+namespace PirateCrew.SceneArt
 {
     /// <summary>烘焙陈设件种类（= SceneArtBaker 的产物；一个种类一个 prefab 资产）。</summary>
     public enum ShowcasePieceId

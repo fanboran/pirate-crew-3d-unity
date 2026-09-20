@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Battle.WorldMaps;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Battle.WorldMaps;
+using PirateCrew.Data;
 
-namespace PirateCrew.PirateCrew.Battle.WorldMaps.Tests
+namespace PirateCrew.Battle.WorldMaps.Tests
 {
     /// <summary>
     /// 方案 D 分层军火（2026-09-17 用户裁决）的数据层测试（无头可跑）：

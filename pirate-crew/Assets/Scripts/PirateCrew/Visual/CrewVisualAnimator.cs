@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Battle;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Visual
+namespace PirateCrew.Visual
 {
     /// <summary>
     /// 角色视觉动画驱动（代码驱动，**不依赖 Animator 资产/AnimatorController**）。

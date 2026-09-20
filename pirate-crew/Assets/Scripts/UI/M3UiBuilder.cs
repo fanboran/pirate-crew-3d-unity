@@ -1,4 +1,4 @@
-using PirateCrew.PirateCrew.Audio;
+using PirateCrew.Audio;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;

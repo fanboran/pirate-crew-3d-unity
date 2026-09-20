@@ -1,6 +1,6 @@
-using PirateCrew.PirateCrew.Combat;
+using PirateCrew.Combat;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// §3.1 主循环里 <c>inactivity &gt; 10</c> 之后的分支决策。

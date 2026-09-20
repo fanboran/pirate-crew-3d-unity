@@ -1,6 +1,6 @@
 using NUnit.Framework;
 
-namespace PirateCrew.PirateCrew.Combat.Tests
+namespace PirateCrew.Combat.Tests
 {
     /// <summary>
     /// Ballistics 测试。期望值全部可由逆向文档 §5.1 / §5.4 的公式手算复核。

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Combat
+namespace PirateCrew.Combat
 {
     /// <summary>
     /// 关卡得分规则。

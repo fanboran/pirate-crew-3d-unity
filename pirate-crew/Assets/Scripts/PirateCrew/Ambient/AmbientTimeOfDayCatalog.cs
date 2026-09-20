@@ -1,7 +1,7 @@
 using System.Globalization;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Ambient
+namespace PirateCrew.Ambient
 {
     /// <summary>昼夜/天气档位（默认 <see cref="AmbientTimeOfDay.Noon"/>，不改变默认可玩状态）。</summary>
     public enum AmbientTimeOfDay

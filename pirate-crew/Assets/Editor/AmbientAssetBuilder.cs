@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Ambient;
+using PirateCrew.Ambient;
 using UnityEditor;
 using UnityEngine;
 

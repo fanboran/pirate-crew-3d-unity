@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 相机"跟随弹体"状态机的状态（见 <see cref="CameraFeelRules.Advance"/>）。

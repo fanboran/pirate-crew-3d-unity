@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Battle.WorldMaps;
+using PirateCrew.Battle;
+using PirateCrew.Battle.WorldMaps;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// 世界地图**摆件层**的硬约束（docs/审计/地图设计审计报告.md §二.6/§二.8 的测试化）：

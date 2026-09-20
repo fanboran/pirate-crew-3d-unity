@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>弹体外观图元（程序化兜底构建用；仅表现，不参与物理）。</summary>
     public enum ProjectileShape

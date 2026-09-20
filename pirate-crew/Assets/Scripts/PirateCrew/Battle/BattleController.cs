@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using PirateCrew.Core;
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
-using PirateCrew.PirateCrew.Visual;
-using PirateCrew.PirateCrew.Battle.WorldMaps;
+using PirateCrew.Combat;
+using PirateCrew.Data;
+using PirateCrew.Visual;
+using PirateCrew.Battle.WorldMaps;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 职业视觉预制体选择项：外观档 → 预制体。由 <c>CrewVisualPrefabBuilder</c> 生成预制体后，

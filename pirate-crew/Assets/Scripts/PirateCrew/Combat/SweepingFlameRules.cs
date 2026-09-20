@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Combat
+namespace PirateCrew.Combat
 {
     /// <summary>
     /// 蔓延火焰（SweepingFlame）专用规则（纯 C#，不引用 MonoBehaviour / GameObject）。

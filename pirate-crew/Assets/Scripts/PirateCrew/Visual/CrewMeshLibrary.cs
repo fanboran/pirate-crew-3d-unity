@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Visual
+namespace PirateCrew.Visual
 {
     /// <summary>
     /// 角色零件网格库：把 docs/角色造型规范.md §6.2 的生成器清单固化成一份**确定性零件表**

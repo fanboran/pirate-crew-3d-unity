@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Audio;
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Audio;
+using PirateCrew.Battle;
 
 namespace PirateCrew.Tests.Audio
 {

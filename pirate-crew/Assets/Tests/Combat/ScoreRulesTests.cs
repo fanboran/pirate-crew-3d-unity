@@ -1,6 +1,6 @@
 using NUnit.Framework;
 
-namespace PirateCrew.PirateCrew.Combat.Tests
+namespace PirateCrew.Combat.Tests
 {
     /// <summary>
     /// ScoreRules 测试。公式出自逆向文档 §3.3 / §7.3：

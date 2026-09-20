@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>
     /// 伤害数字用的**程序化点阵字模**（3×5 像素字形，只覆盖数字与几个符号）。

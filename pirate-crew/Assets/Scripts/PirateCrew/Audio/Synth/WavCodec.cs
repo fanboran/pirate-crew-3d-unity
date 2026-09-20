@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Audio.Synth
+namespace PirateCrew.Audio.Synth
 {
     /// <summary>
     /// 16 位 PCM WAV 编解码（纯 C#，无 UnityEngine，可在无头验证台逐字节测试）。

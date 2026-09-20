@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Combat
+namespace PirateCrew.Combat
 {
     /// <summary>
     /// 加农炮（cannon）专用规则（纯 C#，不引用 MonoBehaviour / GameObject）。

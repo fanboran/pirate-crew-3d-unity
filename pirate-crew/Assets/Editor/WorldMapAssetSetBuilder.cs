@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Battle.WorldMaps;
+using PirateCrew.Battle;
+using PirateCrew.Battle.WorldMaps;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -12,7 +12,7 @@ namespace PirateCrew.EditorTools
     /// M4 世界套件（WorldKit）换装管线：扫描 <c>Assets/Art/Models/WorldKit/**</c> 的 FBX，
     /// 按踩坑参数导入（<c>SceneKitPilotSetup</em> 同款：useFileScale=false / bakeAxisConversion=true /
     /// materialImportMode=None），按 <c>Kit_*</c> 槽名生成 URP 材质并写回 renderer，
-    /// 生成 <see cref="PirateCrew.PirateCrew.Battle.WorldMaps.WorldMapAssetSet"/> 资产
+    /// 生成 <see cref="PirateCrew.Battle.WorldMaps.WorldMapAssetSet"/> 资产
     /// （资产名 → FBX 根对象引用），最后把它赋给 Battle.unity 的 BattleController 字段。
     ///
     /// 入口（菜单 / 无头）：<c>PirateCrew.EditorTools.WorldMapAssetSetBuilder.BuildAll</c>。

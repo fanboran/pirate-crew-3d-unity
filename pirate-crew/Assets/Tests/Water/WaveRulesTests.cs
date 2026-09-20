@@ -1,9 +1,9 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Water;
+using PirateCrew.Battle;
+using PirateCrew.Water;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water.Tests
+namespace PirateCrew.Water.Tests
 {
     /// <summary>
     /// <see cref="WaterRules"/> 测试：Gerstner 波几何与解析法线的一致性、默认参数的安全边界、

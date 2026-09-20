@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using PirateCrew.Core;
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Combat;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 武器弹体运行时（MonoBehaviour 薄壳）。

@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Battle;
 
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 一条「隔壁 Game-2 素材 → 本项目 SfxId」的搬运记录（纯值类型，可无头断言）。

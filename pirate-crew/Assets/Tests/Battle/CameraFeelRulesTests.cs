@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// <see cref="CameraFeelRules"/> 纯逻辑测试（可在无头验证台跑，不碰 MonoBehaviour/Cinemachine）。

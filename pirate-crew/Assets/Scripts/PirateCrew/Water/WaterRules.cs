@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water
+namespace PirateCrew.Water
 {
     /// <summary>
     /// 单条方向波（Gerstner / sum-of-sines）的参数与解析量（纯 C#，无头可测）。

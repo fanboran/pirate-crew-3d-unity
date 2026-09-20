@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using PirateCrew.Core;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 敌方 AI 的 MonoBehaviour 薄壳：时间片驱动 <see cref="AiEvaluation"/>，并把决定交回

@@ -1,8 +1,8 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Water;
+using PirateCrew.Water;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water.Tests
+namespace PirateCrew.Water.Tests
 {
     /// <summary>
     /// <see cref="WaterSurfaceSampler"/> 测试（批次 F）：与 PirateOcean.shader 的 OceanGerstner

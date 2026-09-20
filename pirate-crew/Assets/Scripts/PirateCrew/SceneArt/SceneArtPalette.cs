@@ -1,7 +1,7 @@
 using System.Globalization;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.SceneArt
+namespace PirateCrew.SceneArt
 {
     /// <summary>
     /// 场景美术调色板（纯 C#，无头可测）：把 <c>docs/美术风格指南.md</c> §2.1 与

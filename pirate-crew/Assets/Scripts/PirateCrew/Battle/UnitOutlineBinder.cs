@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Visual;
+using PirateCrew.Visual;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 描边表现绑定器：把 <see cref="PirateBase"/> 的 Selected / Hovered / Alive 状态位每帧写进

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 角色的武器背包（纯 C#，不引用 MonoBehaviour）。

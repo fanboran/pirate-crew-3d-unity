@@ -1,6 +1,6 @@
 using NUnit.Framework;
 
-namespace PirateCrew.PirateCrew.Combat.Tests
+namespace PirateCrew.Combat.Tests
 {
     /// <summary>
     /// TurnRules 测试。规则出自逆向文档 §3.1（inactivity &gt; 10）、§3.2（isTurnComplete）、

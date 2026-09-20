@@ -1,4 +1,4 @@
-namespace PirateCrew.PirateCrew.SceneArt
+namespace PirateCrew.SceneArt
 {
     /// <summary>
     /// 由整数坐标派生的确定性哈希（给网格顶点抖动用，不依赖遍历顺序）。

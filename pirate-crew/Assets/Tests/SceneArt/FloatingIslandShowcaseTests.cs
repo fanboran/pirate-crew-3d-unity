@@ -1,9 +1,9 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.SceneArt;
-using PirateCrew.PirateCrew.SceneArt.Showcase;
+using PirateCrew.SceneArt;
+using PirateCrew.SceneArt.Showcase;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.SceneArt.Tests
+namespace PirateCrew.SceneArt.Tests
 {
     /// <summary>
     /// 空岛展示件管线的纯 C# 用例（无头可跑，不 new 任何 Unity 对象）。

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Combat
+namespace PirateCrew.Combat
 {
     /// <summary>
     /// 爆炸命中目标的最小数据结构（不引用 MonoBehaviour，便于纯逻辑测试）。

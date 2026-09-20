@@ -1,4 +1,4 @@
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using UnityEngine;
 
 namespace PirateCrew.UI

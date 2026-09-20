@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 
-namespace PirateCrew.PirateCrew.Battle.WorldMaps
+namespace PirateCrew.Battle.WorldMaps
 {
     /// <summary>
     /// 大海域世界地图目录（8 张，语义设计，M4）。

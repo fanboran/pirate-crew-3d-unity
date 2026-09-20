@@ -1,4 +1,4 @@
-using PirateCrew.PirateCrew.Rendering;
+using PirateCrew.Rendering;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;

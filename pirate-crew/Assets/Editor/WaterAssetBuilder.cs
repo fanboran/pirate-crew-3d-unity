@@ -1,7 +1,7 @@
 using System.IO;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.SceneArt;
-using PirateCrew.PirateCrew.Water;
+using PirateCrew.Battle;
+using PirateCrew.SceneArt;
+using PirateCrew.Water;
 using UnityEditor;
 using UnityEngine;
 

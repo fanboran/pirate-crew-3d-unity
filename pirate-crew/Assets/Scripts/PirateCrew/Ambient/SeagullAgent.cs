@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Ambient
+namespace PirateCrew.Ambient
 {
     /// <summary>
     /// 单只海鸥的运行时行为（MonoBehaviour 薄壳，**由 <see cref="AmbientDirector"/> 统一 <c>Tick</c>**，

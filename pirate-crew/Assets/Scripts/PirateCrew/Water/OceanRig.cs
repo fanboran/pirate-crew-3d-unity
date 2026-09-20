@@ -1,7 +1,7 @@
-using PirateCrew.PirateCrew.Battle;
+using PirateCrew.Battle;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Water
+namespace PirateCrew.Water
 {
     /// <summary>大海域海面的域配置（纯数据）。见 <see cref="OceanRules"/> 的半径规则。</summary>
     public struct OceanConfig
@@ -39,8 +39,8 @@ namespace PirateCrew.PirateCrew.Water
     ///
     /// 【自包含接线（协调者只需一行）】
     /// <code>
-    /// var ocean = PirateCrew.PirateCrew.Water.OceanRig.Create(
-    ///     PirateCrew.PirateCrew.Water.OceanConfig.ForArena(new Vector2(w * 0.5f, d * 0.5f), w * 0.5f, d * 0.5f));
+    /// var ocean = PirateCrew.Water.OceanRig.Create(
+    ///     PirateCrew.Water.OceanConfig.ForArena(new Vector2(w * 0.5f, d * 0.5f), w * 0.5f, d * 0.5f));
     /// </code>
     /// 不依赖场景里已有的 Water Cube（旧 <see cref="WaterTessellator"/> 水面可整体退役）；
     /// 与 <see cref="WaterSimulationDriver"/> 的涟漪注入天然兼容——驱动发布的是**全局**纹理/向量，

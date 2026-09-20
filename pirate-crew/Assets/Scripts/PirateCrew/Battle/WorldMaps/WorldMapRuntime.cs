@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using PirateCrew.Core;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.WorldMaps
+namespace PirateCrew.Battle.WorldMaps
 {
     /// <summary>
     /// 世界地图的运行时入口：待战状态、命令行解析、<see cref="BattlePlan"/> 构建。

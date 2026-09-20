@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Combat;
+using PirateCrew.Combat;
 
-namespace PirateCrew.PirateCrew.Combat.Tests
+namespace PirateCrew.Combat.Tests
 {
     /// <summary>
     /// <see cref="VoodooDollRules"/> 测试（§5.2 voodooDoll 行 / §4.2 目标选择 30px）。

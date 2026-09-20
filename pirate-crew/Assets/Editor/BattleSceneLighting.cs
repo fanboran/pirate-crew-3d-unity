@@ -2,7 +2,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
-using PirateCrew.PirateCrew.Ambient;
+using PirateCrew.Ambient;
 
 namespace PirateCrew.EditorTools
 {

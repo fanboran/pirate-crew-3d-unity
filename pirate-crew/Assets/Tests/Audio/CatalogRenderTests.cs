@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Audio;
-using PirateCrew.PirateCrew.Audio.Synth;
+using PirateCrew.Audio;
+using PirateCrew.Audio.Synth;
 
 namespace PirateCrew.Tests.Audio
 {

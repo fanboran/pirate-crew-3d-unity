@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.SceneArt.Showcase
+namespace PirateCrew.SceneArt.Showcase
 {
     /// <summary>一个建议出生位（脚底贴草皮面；站位朝向由装配器决定）。</summary>
     public readonly struct IslandSpawnPoint

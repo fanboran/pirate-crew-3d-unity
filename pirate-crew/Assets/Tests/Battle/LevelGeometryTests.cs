@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle.Tests
+namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// <see cref="LevelGeometry"/> 测试（3D 重投影版，契约见 docs/M2-3D空间模型对齐.md）。

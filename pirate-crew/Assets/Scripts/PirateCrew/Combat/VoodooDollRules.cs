@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PirateCrew.PirateCrew.Combat
+namespace PirateCrew.Combat
 {
     /// <summary>
     /// 巫毒娃娃（voodooDoll）专用规则（纯 C#，不引用 MonoBehaviour / GameObject）。

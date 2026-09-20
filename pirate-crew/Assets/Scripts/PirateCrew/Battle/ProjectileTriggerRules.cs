@@ -1,9 +1,9 @@
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
-using DataTrigger = PirateCrew.PirateCrew.Data.WeaponTrigger;
-using CombatTrigger = PirateCrew.PirateCrew.Combat.WeaponTrigger;
+using PirateCrew.Combat;
+using PirateCrew.Data;
+using DataTrigger = PirateCrew.Data.WeaponTrigger;
+using CombatTrigger = PirateCrew.Combat.WeaponTrigger;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 武器引爆判定的桥接（纯 C#）。

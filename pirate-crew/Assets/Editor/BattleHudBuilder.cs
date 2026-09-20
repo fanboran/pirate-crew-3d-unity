@@ -1,4 +1,4 @@
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using PirateCrew.UI;
 using TMPro;
 using UnityEditor;

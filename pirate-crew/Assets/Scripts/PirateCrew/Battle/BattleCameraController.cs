@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using Cinemachine;
 using PirateCrew.Core;
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Combat;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Battle
+namespace PirateCrew.Battle
 {
     /// <summary>
     /// 战斗相机控制（Cinemachine 跟随 + panToCharacter + 战斗"手感"）。
@@ -20,7 +20,7 @@ namespace PirateCrew.PirateCrew.Battle
     /// 【API 版本】目标 Cinemachine 2.9.7（风险清单 R2）：用 <c>CinemachineVirtualCamera</c>（2.x），
     ///   不是 Unity 6 的 <c>CinemachineCamera</c>。
     ///
-    /// 【为什么这里能直接用强类型】<c>PirateCrew.Runtime.asmdef</c> 的 references 显式列了 <c>"Cinemachine"</c>。
+    /// 【为什么这里能直接用强类型】<c>PirateCrew.Gameplay.asmdef</c> 的 references 显式列了 <c>"Cinemachine"</c>。
     ///   注意 Unity 只对名称以 "UnityEngine." 开头的程序集（如 uGUI 的 <c>UnityEngine.UI</c>）自动引用；
     ///   Cinemachine 是普通包程序集，asmdef 不显式引用就编译不过——不要误以为"引用了 UnityEngine 就够"。
     ///
@@ -67,7 +67,7 @@ namespace PirateCrew.PirateCrew.Battle
     public sealed class BattleCameraController : MonoBehaviour
     {
         [Header("Cinemachine（2.9.7）")]
-        [Tooltip("CinemachineVirtualCamera 组件（Cinemachine 2.x）。依赖 PirateCrew.Runtime.asmdef 对 Cinemachine 程序集的显式引用。")]
+        [Tooltip("CinemachineVirtualCamera 组件（Cinemachine 2.x）。依赖 PirateCrew.Gameplay.asmdef 对 Cinemachine 程序集的显式引用。")]
         [SerializeField] CinemachineVirtualCamera virtualCamera;
 
         [Tooltip("虚拟相机的 Follow 目标（空物体）；本脚本平滑移动它来实现跟随/平移。")]

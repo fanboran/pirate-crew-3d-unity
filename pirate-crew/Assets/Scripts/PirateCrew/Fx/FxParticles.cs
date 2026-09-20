@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>
     /// 一次粒子爆发的参数包（纯数据）。由各特效脚本按 <see cref="FxRules"/> 的映射填好后交给

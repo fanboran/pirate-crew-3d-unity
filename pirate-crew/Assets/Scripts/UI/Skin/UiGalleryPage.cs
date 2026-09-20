@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Data;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;

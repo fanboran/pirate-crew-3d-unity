@@ -1,6 +1,6 @@
 using System;
 
-namespace PirateCrew.PirateCrew.Combat
+namespace PirateCrew.Combat
 {
     /// <summary>
     /// 船锚（anchor）专用规则（纯 C#，不引用 MonoBehaviour / GameObject，便于无头测试）。

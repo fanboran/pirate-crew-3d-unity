@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Visual;
+using PirateCrew.Battle;
+using PirateCrew.Visual;
 using UnityEditor;
 using UnityEngine;
 

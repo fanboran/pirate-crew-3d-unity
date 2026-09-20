@@ -1,4 +1,4 @@
-namespace PirateCrew.PirateCrew.Audio
+namespace PirateCrew.Audio
 {
     /// <summary>
     /// 程序化音效清单（全部为原创合成，零第三方素材，符合版权纪律）。

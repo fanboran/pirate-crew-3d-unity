@@ -1,9 +1,9 @@
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Battle;
+using PirateCrew.Combat;
+using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.PirateCrew.Fx
+namespace PirateCrew.Fx
 {
     /// <summary>伤害数字分档（决定字号与颜色）。</summary>
     public enum DamageTier

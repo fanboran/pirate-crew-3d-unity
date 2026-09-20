@@ -1,11 +1,11 @@
 using NUnit.Framework;
-using PirateCrew.PirateCrew.Audio;
-using PirateCrew.PirateCrew.Battle;
-using PirateCrew.PirateCrew.Combat;
-using PirateCrew.PirateCrew.Data;
+using PirateCrew.Audio;
+using PirateCrew.Battle;
+using PirateCrew.Combat;
+using PirateCrew.Data;
 using PirateCrew.UI;
 
-namespace PirateCrew.PirateCrew.UI.Tests
+namespace PirateCrew.UI.Tests
 {
     /// <summary>
     /// 结算乐句口径一致性（审计 代码审计报告 §一.4 + 测试缺口 1）：

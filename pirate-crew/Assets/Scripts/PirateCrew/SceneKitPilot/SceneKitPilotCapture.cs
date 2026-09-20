@@ -3,7 +3,7 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace PirateCrew.PirateCrew.SceneKitPilot
+namespace PirateCrew.SceneKitPilot
 {
     /// <summary>
     /// 场景资产样板（SceneKit Pilot）的运行时自动出图钩子：协调者给播放器传

@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace PirateCrew.PirateCrew.Data
+namespace PirateCrew.Data
 {
     /// <summary>
     /// 单件武器的静态数值（纯 C# 数据结构，可在无头验证台断言）。
