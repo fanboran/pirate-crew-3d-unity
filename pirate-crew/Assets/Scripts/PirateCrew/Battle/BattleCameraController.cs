@@ -40,8 +40,9 @@ namespace PirateCrew.Battle
     ///   等整数档 OrthoSize 决定（像素网格在世界空间对齐的前提）；Transposer 距离固定
     ///   <see cref="OrthoTransposerDistance"/>（只定机位，不再表达视野）；俯角统一
     ///   <see cref="OrthoPitchDegrees"/> 45°（不再随档位插值——等距观感要求统一俯角）；
-    ///   **旋转锁死只平移**：右键/左键环绕输入被禁用（等距轴测前提），中键自由锚与
-    ///   观察模式（我的世界式自由视角）保留为调试出口。
+    ///   **俯角锁定 + 方位可旋转**（创始人 2026-09-21 口述裁决，修正步骤 1 的「旋转锁死」提案）：
+    ///   右键拖拽环绕只改方位角，俯角恒 <see cref="OrthoPitchDegrees"/> 45° 不动；
+    ///   中键自由锚与观察模式（我的世界式自由视角）保留为调试出口。
     ///   开局与每次换行动单位进入**跟随特写档**（size <see cref="CloseUpOrthoSize"/>），
     ///   lookAt 抬高 = 单位视觉高 1.85 × <see cref="LookAtHeightRatio"/> 0.65 ≈ 1.20。
     ///   滚轮按整数档缩放 OrthoSize，夹 [<see cref="MinOrthoSize"/>, <see cref="MaxOrthoSize"/>]。
@@ -144,7 +145,7 @@ namespace PirateCrew.Battle
         [Tooltip("落水时相机焦点下压位移（世界单位）。")]
         [SerializeField] float drownDipWorldUnits = CameraFeelRules.DrownDipWorldUnits;
 
-        [Header("玩家相机微操（等距口径：旋转锁死只平移；滚轮整数档缩放 OrthoSize；观察模式/中键自由锚为调试出口）")]
+        [Header("玩家相机微操（等距口径：俯角锁 45° + 右键方位环绕；滚轮整数档缩放 OrthoSize；观察模式/中键自由锚为调试出口）")]
         [Tooltip("滚轮缩放（OrthoSize 整数档，夹在 [MinOrthoSize, MaxOrthoSize] 常量内）。默认开。")]
         [SerializeField] bool enableManualZoom = true;
 
@@ -383,7 +384,7 @@ namespace PirateCrew.Battle
                 return;
 
             // 手动相机输入用 Update 采样（LateUpdate 处理画面平滑）。
-            // 环绕已随等距口径锁死，但观察模式/中键自由锚/滚轮缩放仍在此处理。
+            // 方位环绕（右键）与观察模式/中键自由锚/滚轮缩放在此处理；俯角锁定不进输入。
             UpdateManualCameraInput();
 
             // M4 §3.2 力度-镜头耦合：炮台蓄力越大相机越拉远（近档→全景线性映射），松手恢复。
@@ -1104,9 +1105,13 @@ namespace PirateCrew.Battle
             if (aimThrow == null)
                 aimThrow = FindObjectOfType<AimThrowController>();
 
-            // 【等距像素卡通 · 旋转锁死只平移（渲染篇 §2）】右键/左键拖拽环绕输入整体禁用——
-            // 等距轴测观感的前提。r12 的"左键空白处环绕"与"右键环绕"随之退役；
-            // 调试需要自由视角时走观察模式（我的世界式）或中键自由锚。
+            // 【等距像素卡通 · 俯角锁定 + 方位可旋转（创始人 2026-09-21 口述裁决）】
+            // 右键拖拽环绕 = 只改方位角 yaw；俯角恒 45°（_dragPitchDegrees 无输入路径改它，
+            // 观察模式的自由俯仰是主动调试出口）。r12 的"左键空白处环绕"保持退役——
+            // 左键是瞄准拖拽，环绕让给右键。自由旋转下像素网格非轴向对齐的观感问题
+            // （旋转 30° 时地面像素线变斜线）留 M1 对照图裁决是否 45° snap（待定项）。
+            if (Input.GetMouseButton(1))
+                _targetYaw += Input.GetAxis("Mouse X") * orbitDegreesPerMouseUnit;
 
             // 【r12 用户反馈】中键解除/恢复跟随锚定：解除后相机冻结在当前焦点，缩放即自由视角；
             // 任何一次聚焦/跟随（Follow 被赋值处）自动退出自由视角回到角色。
