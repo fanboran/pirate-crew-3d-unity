@@ -3,6 +3,7 @@
     "rootNamespace": "PirateCrew",
     "references": [
         "PirateCrew.Core",
+        "PirateCrew.Rendering",
         "Cinemachine",
         "Unity.TextMeshPro"
     ],

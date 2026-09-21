@@ -48,6 +48,12 @@ namespace PirateCrew.EditorTools.BuildSystem
         public const string ToonPilot = "ToonPilot";
 
         /// <summary>
+        /// 像素化着色路径（v3 蓝本重写线）试点场景：开发/测试专用，**不进发行包**。
+        /// 它是 <c>-pixelartOut</c> 出图入口的载体（物体 pass 写 G-buffer → 低分辨率域着色 → 上屏）。
+        /// </summary>
+        public const string PixelartPilot = "PixelartPilot";
+
+        /// <summary>
         /// 发行场景集（顺序即包内 index，必须 <c>[0] = Bootstrapper</c>）。
         /// 名字一律取自 <see cref="SceneNames"/>——那些常量是运行时 <c>SceneLoader.ChangeScene</c> 的入参，
         /// 只有共用同一批常量，<see cref="Validate"/> 才能证明「运行时会切到的场景都在包里」。
@@ -65,6 +71,7 @@ namespace PirateCrew.EditorTools.BuildSystem
         static readonly string[] _developmentOnlySceneNames =
         {
             ToonPilot,
+            PixelartPilot,
         };
 
         /// <summary>发行场景集的场景名（只读视图，顺序即包内 index）。</summary>

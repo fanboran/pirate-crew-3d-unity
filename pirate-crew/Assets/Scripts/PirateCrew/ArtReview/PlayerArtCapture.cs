@@ -38,6 +38,9 @@ namespace PirateCrew.ArtReview
         const int Height = 1080;
         const float ReadyTimeoutSeconds = 60f;
 
+        /// <summary>像素化着色路径试点场景名（与 <c>PixelartPilotSetup.SceneName</c> 一致）。</summary>
+        const string PixelartPilotSceneName = "PixelartPilot";
+
         /// <summary>爆炸机位名（与 <c>ArtReviewShots</c> 的 slug 保持一致）。</summary>
         const string ExplosionShotName = "explosion-moment";
 
@@ -108,6 +111,14 @@ namespace PirateCrew.ArtReview
                 ToonPilotMode = true;
             }
 
+            // 像素化着色路径（v3 蓝本重写线）试点出图：进 PixelartPilot 场景（见 RunPixelartCapture）。
+            string pixelartOut = CommandLineOptions.GetValue(ToolFlags.PixelartOut);
+            if (!string.IsNullOrEmpty(pixelartOut))
+            {
+                outDir = pixelartOut;
+                PixelartMode = true;
+            }
+
             // 多关卡出图验收：覆盖 BattleController 的关卡解析（见 ArtReviewCaptureOverride）。
             if (CommandLineOptions.TryGetInt(ToolFlags.ArtReviewLevel, out int levelArg)
                 && levelArg >= 1 && levelArg <= SceneArt.ShowcaseLevels.LastLevel)
@@ -125,6 +136,9 @@ namespace PirateCrew.ArtReview
 
         /// <summary>-toonPilotOut 模式标记：进 ToonPilot 试点场景出图（正交机位 + Toon 调试档）。</summary>
         public static bool ToonPilotMode { get; private set; }
+
+        /// <summary>-pixelartOut 模式标记：进 PixelartPilot 试点场景出图（像素化着色路径）。</summary>
+        public static bool PixelartMode { get; private set; }
 
         IEnumerator Start()
         {
@@ -144,6 +158,13 @@ namespace PirateCrew.ArtReview
             if (ToonPilotMode)
             {
                 yield return RunToonPilotCapture();
+                yield break;
+            }
+
+            // 像素化着色路径试点模式：另一个独立小场景（图元几何），同样与 Battle 出图链解耦。
+            if (PixelartMode)
+            {
+                yield return RunPixelartCapture();
                 yield break;
             }
 
@@ -292,6 +313,139 @@ namespace PirateCrew.ArtReview
             global::PirateCrew.Core.Log.Info("[PlayerArtCapture] Toon 试点采集完成，退出。目录：" + _outDir);
             yield return new WaitForSeconds(0.5f);
             Application.Quit(0);
+        }
+
+        // ================================================================
+        // 像素化着色路径出图（-pixelartOut）：v3 蓝本重写线的验收出口
+        // ================================================================
+
+        /// <summary>
+        /// PixelartPilot 场景采集：三档机位（宽/中/近）+ 抖动档对照 + 低分辨率档对照。
+        /// 文件一律 1920×1080 无损 PNG（判据脚本要求原始 PNG）。
+        ///
+        /// 【拍的东西分别想回答什么】
+        /// <list type="bullet">
+        ///   <item><c>pa-wide/mid/close</c>：新路径的基本观感——色带切分位置、档数、暗面亮度；
+        ///         低分辨率格子是否硬（判据脚本量块边长）。</item>
+        ///   <item><c>pa-mid-dither-*</c>：抖动两种图案对照（0 = 4×4 Bayer 矩阵 / 1 = v3 的
+        ///         1-bit 密度图案），以及幅度 0.5 与 1.0 的两档。</item>
+        ///   <item><c>pa-mid-rt*</c>：低分辨率档对照（180 = v3 自身档 / 360 / 90）——
+        ///         "粗得好看"是不是偏好来源，这条直接给数据。</item>
+        /// </list>
+        ///
+        /// 【为什么 RT 档对照排在最后】改 <c>renderHeight</c> 会让 rig 重分配缓冲并重设
+        /// Cast 相机的 targetTexture；万一重分配有闪失，损失的是最后几张而不是全部。
+        /// </summary>
+        IEnumerator RunPixelartCapture()
+        {
+            SceneManager.LoadScene(PixelartPilotSceneName, LoadSceneMode.Single);
+            yield return null;
+            if (SceneManager.GetActiveScene().name != PixelartPilotSceneName)
+            {
+                Debug.LogError("[PlayerArtCapture] PixelartPilot 场景加载失败（Build Settings 未注册？），当前："
+                    + SceneManager.GetActiveScene().name);
+                Application.Quit(1);
+                yield break;
+            }
+
+            // 等 rig 首帧分配缓冲 + 相机 snap + 光全局下发完成。
+            yield return new WaitForSeconds(1.5f);
+
+            Camera cam = Camera.main;
+            if (cam == null)
+            {
+                Debug.LogError("[PlayerArtCapture] PixelartPilot 场景里找不到 MainCamera。");
+                Application.Quit(1);
+                yield break;
+            }
+
+            var rig = cam.GetComponent<global::PirateCrew.Rendering.Pixelart.PixelartCameraRig>();
+            if (rig == null)
+            {
+                Debug.LogError("[PlayerArtCapture] 相机上没有 PixelartCameraRig——这条路没被装配。");
+                Application.Quit(1);
+                yield break;
+            }
+
+            Vector3 basePos = cam.transform.position;
+            Quaternion baseRot = cam.transform.rotation;
+            Vector3 forward = baseRot * Vector3.forward;
+            Vector3 target = basePos + forward * 30f; // 装配常量：基准机位到目标 30u
+
+            Directory.CreateDirectory(_outDir);
+
+            // (文件名, 正交size, 沿视线推进系数, 抖动图案 -1=不动/0=Bayer/1=密度图案, 抖动幅度, RT高 0=不动)
+            (string name, float size, float zoom, int ditherMode, float ditherStrength, int rtHeight)[] shots =
+            {
+                ("pa-wide",                     7f,   1f,   -1, 0f,   0),
+                ("pa-mid",                      3.2f, 0.5f, -1, 0f,   0),
+                ("pa-close",                    1.6f, 0.3f, -1, 0f,   0),
+                ("pa-mid-dither-bayer05",       3.2f, 0.5f,  0, 0.5f, 0),
+                ("pa-mid-dither-pattern05",     3.2f, 0.5f,  1, 0.5f, 0),
+                ("pa-mid-dither-pattern10",     3.2f, 0.5f,  1, 1.0f, 0),
+                ("pa-close-dither-pattern05",   1.6f, 0.3f,  1, 0.5f, 0),
+                ("pa-mid-rt360",                3.2f, 0.5f, -1, 0f,   360),
+                ("pa-mid-rt90",                 3.2f, 0.5f, -1, 0f,   90),
+            };
+
+            foreach (var shot in shots)
+            {
+                if (shot.rtHeight > 0 && shot.rtHeight != rig.renderHeight)
+                    rig.renderHeight = shot.rtHeight;
+
+                cam.orthographicSize = shot.size;
+                cam.transform.position = target - forward * (30f * shot.zoom);
+                cam.transform.rotation = baseRot;
+
+                if (shot.ditherMode >= 0)
+                    SetPixelartDither(shot.ditherMode, shot.ditherStrength);
+                else
+                    SetPixelartDither(-1, 0f);   // 显式清 MPB：否则上一张的抖动档会延续到本张
+
+                // 改 RT/抖动后多等一帧，让缓冲重分配与 MPB 生效。
+                yield return new WaitForEndOfFrame();
+                yield return new WaitForEndOfFrame();
+                yield return new WaitForEndOfFrame();
+
+                string path = Path.Combine(_outDir, shot.name + ".png");
+                ScreenCapture.CaptureScreenshot(path);
+                float waitDeadline = Time.unscaledTime + 10f;
+                while (!File.Exists(path) && Time.unscaledTime < waitDeadline)
+                    yield return null;
+                yield return new WaitForSeconds(0.2f);
+            }
+
+            SetPixelartDither(-1, 0f);
+            global::PirateCrew.Core.Log.Info("[PlayerArtCapture] 像素化路径试点采集完成，退出。目录：" + _outDir);
+            yield return new WaitForSeconds(0.5f);
+            Application.Quit(0);
+        }
+
+        /// <summary>
+        /// 给场景里所有走本路径物体 shader 的 renderer 覆盖抖动参数（MPB，不动材质资产）。
+        /// <paramref name="mode"/> &lt; 0 = 清 MPB 还原材质默认值。
+        /// </summary>
+        static void SetPixelartDither(int mode, float strength)
+        {
+            foreach (MeshRenderer renderer in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+            {
+                Material mat = renderer.sharedMaterial;
+                if (mat == null || mat.shader == null
+                    || mat.shader.name != global::PirateCrew.Rendering.Pixelart.PixelartPath.ObjectShaderName)
+                    continue;
+
+                if (mode < 0)
+                {
+                    renderer.SetPropertyBlock(null);
+                    continue;
+                }
+
+                var block = new MaterialPropertyBlock();
+                renderer.GetPropertyBlock(block);
+                block.SetFloat("_DitherMode", mode);
+                block.SetFloat("_DitherStrength", strength);
+                renderer.SetPropertyBlock(block);
+            }
         }
 
         /// <summary>

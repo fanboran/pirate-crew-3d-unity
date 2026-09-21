@@ -167,6 +167,12 @@ namespace PirateCrew.Core
         /// <summary>等距像素卡通试点出图目录：<c>-toonPilotOut &lt;绝对目录&gt;</c>。</summary>
         public const string ToonPilotOut = "-toonPilotOut";
 
+        /// <summary>
+        /// 像素化着色路径（v3 蓝本重写线）试点出图目录：<c>-pixelartOut &lt;绝对目录&gt;</c>。
+        /// 进 <c>PixelartPilot</c> 场景，机位与抖动档见 <c>PlayerArtCapture.RunPixelartCapture</c>。
+        /// </summary>
+        public const string PixelartOut = "-pixelartOut";
+
         /// <summary>场景资产样板出图目录：<c>-sceneKitOut &lt;绝对目录&gt;</c>。</summary>
         public const string SceneKitOut = "-sceneKitOut";
 
