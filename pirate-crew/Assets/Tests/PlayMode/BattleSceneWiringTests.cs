@@ -102,8 +102,9 @@ namespace PirateCrew.Tests
             Assert.AreEqual(BattleCameraController.OrthoTransposerDistance, runtimeDistance, 0.1f,
                 "运行时 Transposer 距离应保持恒定（正交下缩放不再改写距离）");
             Assert.AreEqual(BattleCameraController.OrthoPitchDegrees, runtimePitch, 0.5f,
-                "运行时 Transposer 俯角应保持等距俯角（45°，Awake 立即写入）");
-            Assert.AreEqual(0f, offset.x, 1e-4f, "yaw = 0：相机偏移应落在 +Z/+Y 平面内");
+                "运行时 Transposer 俯角应保持真等距俯角（35.264°，Awake 立即写入）");
+            Assert.AreEqual(offset.z, offset.x, 1e-4f,
+                "真等距（渲染篇 §2.1）：相机偏移水平分量在 X/Z 等分（方位 45°；原 +Z/+Y 平面口径已废）");
         }
 
         [UnityTest]

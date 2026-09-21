@@ -425,7 +425,8 @@ namespace PirateCrew.Battle.Tests
         {
             // 等距轴测：俯角统一 45°（不再随档位插值）；Transposer 距离恒 30（只定机位，不表达视野）；
             // 全场档 size 17 = 旧透视全场档（距离 30 + FOV 60 → 等效半高 30×tan30° ≈ 17.3）取整。
-            Assert.AreEqual(45f, BattleCameraController.OrthoPitchDegrees, 1e-4f);
+            // 真等距俯角（渲染篇 §2.1 创始人裁决 2026-09-21）：35.264° = arctan(1/√2)，原 45° 提案已废。
+            Assert.AreEqual(35.264f, BattleCameraController.OrthoPitchDegrees, 1e-3f);
             Assert.AreEqual(30f, BattleCameraController.OrthoTransposerDistance, 1e-4f);
             Assert.AreEqual(17, BattleCameraController.FullFieldOrthoSize);
         }
@@ -506,12 +507,14 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void OffsetDirectionForPitch_RoundTripsThroughPitchOf()
         {
-            // 烘焙机位的偏移格式是 (0, d·sinP, d·cosP)；两个 helper 必须互逆（PlayMode 用它反推俯角）。
-            foreach (float pitch in new[] { 30f, 45f, 25f, 35f })
+            // 烘焙机位是真等距：offset 三分量中水平两分量等分（方位 45°）、竖直分量 sinθ；
+            // 两个 helper 必须互逆（PlayMode 用它反推俯角）。原「x==0（+Z/+Y 平面）」是方位 0°
+            // 的旧提案口径，随渲染篇 §2.1 真等距裁决废（yaw 0 = 等距基准方位 45°）。
+            foreach (float pitch in new[] { 30f, 35.264f, 25f, 45f })
             {
                 Vector3 dir = BattleCameraController.OffsetDirectionForPitch(pitch);
                 Assert.AreEqual(1f, dir.magnitude, 1e-4f, "单位方向模长应为 1");
-                Assert.AreEqual(0f, dir.x, 1e-5f, "yaw=0 时偏移应在 +Z/+Y 平面内");
+                Assert.AreEqual(dir.z, dir.x, 1e-5f, "真等距：水平分量在 X/Z 上等分（方位 45°）");
                 Assert.AreEqual(pitch, BattleCameraController.PitchOf(dir), 1e-3f);
             }
         }

@@ -296,7 +296,8 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         const float CameraDistance = 30f;
-        const float CameraPitchDegrees = 45f;
+        // 真等距俯角（渲染篇 §2.1 创始人裁决）：35.264° = arctan(1/√2)，菱形宽:高 1.732:1。
+        const float CameraPitchDegrees = 35.264f;
         const float CameraFieldOfView = 60f;
         const float CameraOrthoSize = BattleCameraController.FullFieldOrthoSize;
 
@@ -308,11 +309,10 @@ namespace PirateCrew.EditorTools
         {
             get
             {
-                float pitch = CameraPitchDegrees * Mathf.Deg2Rad;
-                return new Vector3(
-                    0f,
-                    CameraDistance * Mathf.Sin(pitch),
-                    CameraDistance * Mathf.Cos(pitch));
+                // 真等距：视线沿立方对角线，offset 三分量必相等（30/√3 ≈ 17.32）——方位 45°
+                // 由此自动满足（勿混用「水平 0.5 + 竖直 sinθ」那组值，会烘出 39.2° 俯角）。
+                float diagonal = CameraDistance * 0.57735027f;
+                return new Vector3(diagonal, diagonal, diagonal);
             }
         }
 

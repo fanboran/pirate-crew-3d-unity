@@ -98,15 +98,15 @@ namespace PirateCrew.EditorTools
             driverGo.transform.SetParent(root.transform);
             driverGo.AddComponent<global::PirateCrew.Rendering.ToonLightDriver>();
 
-            // 主相机：正交 45° 俯角看向岛台（旋转锁死的等距口径，渲染篇 §2）。
+            // 主相机：正交真等距（俯角 35.264°、方位 45°）看向岛台（渲染篇 §2/§2.1）。
             var camGo = new GameObject("ToonPilotCamera");
             camGo.tag = "MainCamera";
             camGo.transform.SetParent(root.transform);
-            Vector3 target = new Vector3(0f, 1.2f, 0f);
-            // Euler(45,0,0) 的 forward = (0,-0.707,+0.707)（低头俯视朝 +Z），
-            // 相机须在目标的 +Y/-Z 侧：basePos = target - forward*30 → target + (0, 21.2, -21.2)。
-            camGo.transform.position = target + new Vector3(0f, 21.2f, -21.2f);
-            camGo.transform.rotation = Quaternion.Euler(45f, 0f, 0f);
+            Vector3 target = new Vector3(0f, 1.0f, 0f);
+            // 【真等距口径（渲染篇 §2.1 裁决）】俯角 35.264° + 方位 45° ⇔ 视线沿立方对角线：
+            // offset = 30×(1,1,1)/√3 ≈ (17.32,17.32,17.32)，用 LookAt 定朝向（免手推 Euler）。
+            camGo.transform.position = target + new Vector3(17.32f, 17.32f, 17.32f);
+            camGo.transform.LookAt(target);
             var camera = camGo.AddComponent<Camera>();
             camera.orthographic = true;
             camera.orthographicSize = 7f;

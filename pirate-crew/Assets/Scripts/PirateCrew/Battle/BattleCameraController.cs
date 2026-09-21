@@ -39,9 +39,9 @@ namespace PirateCrew.Battle
     ///   相机为**正交投影**：视野由 <see cref="CloseUpOrthoSize"/>/<see cref="FullFieldOrthoSize"/>
     ///   等整数档 OrthoSize 决定（像素网格在世界空间对齐的前提）；Transposer 距离固定
     ///   <see cref="OrthoTransposerDistance"/>（只定机位，不再表达视野）；俯角统一
-    ///   <see cref="OrthoPitchDegrees"/> 45°（不再随档位插值——等距观感要求统一俯角）；
-    ///   **俯角锁定 + 方位可旋转**（创始人 2026-09-21 口述裁决，修正步骤 1 的「旋转锁死」提案）：
-    ///   右键拖拽环绕只改方位角，俯角恒 <see cref="OrthoPitchDegrees"/> 45° 不动；
+    ///   <see cref="OrthoPitchDegrees"/> 35.264°（真等距，见渲染篇 §2.1；不再随档位插值）；
+    ///   **俯角锁定真等距 35.264° + 方位可旋转**（创始人 2026-09-21 裁决：俯角取真等距见渲染篇 §2.1，
+    ///   方位可右键环绕是本会话的修正指令）：右键拖拽环绕只改方位角，俯角不动；
     ///   中键自由锚与观察模式（我的世界式自由视角）保留为调试出口。
     ///   开局与每次换行动单位进入**跟随特写档**（size <see cref="CloseUpOrthoSize"/>），
     ///   lookAt 抬高 = 单位视觉高 1.85 × <see cref="LookAtHeightRatio"/> 0.65 ≈ 1.20。
@@ -170,7 +170,12 @@ namespace PirateCrew.Battle
 
         /// <summary>等距俯角（度）。统一 45°（不再随档位插值）——等距轴测观感的前提；
         /// 观察模式（调试出口）仍可自由俯仰。</summary>
-        public const float OrthoPitchDegrees = 45f;
+        /// <summary>
+        /// 等距俯角。【创始人裁决 2026-09-21】真等距 35.264°（arctan(1/√2)）：菱形宽:高 = 1.732:1、
+        /// 地面线与水平成 30°（渲染篇 §2.1 投影比表）；原 45° 提案已废。方位角 45° 由 Transposer
+        /// 烘焙 offset 落定（30×(1,1,1)/√3，三分量必相等）；方位可右键环绕（同裁决修正）。
+        /// </summary>
+        public const float OrthoPitchDegrees = 35.264f;
 
         /// <summary>特写档 OrthoSize（正交半高，世界单位，整数）。开局/换行动单位的默认机位：
         /// RT 高 360px 下 1u ≈ 36px，单位 1.85u ≈ 67px（判据 A-2 的 ≥25px 富余充足）。</summary>
@@ -544,16 +549,22 @@ namespace PirateCrew.Battle
                 new Vector2(offsetDirection.x, offsetDirection.z).magnitude) * Mathf.Rad2Deg;
         }
 
-        /// <summary>俯角（度）→ yaw=0 的 +Z/+Y 平面内单位偏移方向（与烘焙机位同格式）。</summary>
+        /// <summary>
+        /// 俯角（度）→ **真等距基准方向**（渲染篇 §2.1 裁决）：视线沿立方对角线，
+        /// 水平分量在 +X/+Z 上等分（方位 45°）、竖直分量 sinθ——θ=35.264° 时三分量等分
+        /// (0.577,0.577,0.577) = (1,1,1)/√3。`_manualYaw` 是相对该基准的方位偏移
+        ///（右键环绕），故 0 方位 = 等距基准朝向（菱形构图），不是"面向 +Z"。
+        /// </summary>
         public static Vector3 OffsetDirectionForPitch(float pitchDegrees)
         {
             float p = pitchDegrees * Mathf.Deg2Rad;
-            return new Vector3(0f, Mathf.Sin(p), Mathf.Cos(p));
+            float horiz = Mathf.Cos(p) * 0.70710678f; // 水平分量在 X/Z 等分（方位 45°）
+            return new Vector3(horiz, Mathf.Sin(p), horiz);
         }
 
         /// <summary>
         /// 进入跟随特写档：OrthoSize 立刻切到 <see cref="CloseUpOrthoSize"/>，yaw 归零
-        /// （面向 +Z，与烘焙机位同朝向）、俯角切 <see cref="OrthoPitchDegrees"/>，
+        /// （回到真等距基准方位 45°，与烘焙机位同朝向）、俯角切 <see cref="OrthoPitchDegrees"/>，
         /// 并立即写进 Transposer/Lens —— "开局 / 换行动单位即特写"，不平滑过渡。
         /// </summary>
         void EnterCloseUpView()
