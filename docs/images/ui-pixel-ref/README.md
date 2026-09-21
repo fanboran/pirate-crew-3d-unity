@@ -12,14 +12,16 @@
 
 ## 〇、工程化参照：`external/terraria-ref/`（本地，不入库）
 
-除了这两张截图片段，**游戏本体的原始贴图也解出来了**（41 件，含你两张样本图的**原始件**）：
+除了这两张截图片段，还备了两批工程化参照（都在 `external/terraria-ref/`，本地）：
+**① 全部 137 张成就图标**（64×64，从 wiki 直下，`achievements/`）；
+**② 游戏本体解包出来的 UI 原始件 41 张**（含你两张样本图的**原始件**）：
 `external/terraria-ref/UI/PlayerResourceSets/HorizontalBars/{HP_Panel_Middle,HP_Fill,Panel_Left,…}.png`
 就是第一张样本图的来源，`FancyClassic/` 是第二张的心/星来源。
 版权原因产物只在本地工作区，**不入库、不进构建**；提取方法与 XNB 布局见
 [泰拉瑞亚参照资产提取.md](../../技术/资产管线/泰拉瑞亚参照资产提取.md)。
 
-> 惟"成就图标总表"（`Achievements.xnb`）暂时解不出——解码器在第一个 LZX 帧就失败，
-> 原因与下一步排查方向记在那篇文档 §三。其余成就边框/内衬板已解出。
+> 成就图标改走 wiki 直下即全量拿到（137/137）；游戏本体的 `Achievements.xnb` 那张总表
+> 仍解不出（解码器首帧失败），但已无必要——wiki 提供的正是同一批 64×64 图标。
 
 ---
 
