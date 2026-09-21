@@ -6,49 +6,59 @@ using UnityEngine.Rendering.Universal;
 namespace PirateCrew.EditorTools
 {
     /// <summary>
-    /// 把 <see cref="OutlineRendererFeature"/> 程序化挂到 URP 的两个 Renderer 资产上。
+    /// 把全屏 Sobel 描边 Feature（<see cref="OutlineRendererFeature"/>）从两档 URP Renderer 上**摘除**，
+    /// 并清掉渲染器资产里的孤儿子资产——写实观感栈退役的一部分（任务书 §3 表 M2b 行）。
     ///
-    /// 【背景】描边代码（Scripts/PirateCrew/Rendering/OutlineRendererFeature.cs）与
-    ///         PirateOutlinePost.shader 已就位，但没有任何 Renderer 资产引用它，
-    ///         因此 URP 后处理描边实际不生效——本脚本补上这个挂载缺口。
+    /// 【为什么退役】它与像素块感互斥，且职责已被反壳描边完全接管：
+    ///   · 全屏 Sobel 是**屏幕空间邻域算子**——它按物理像素邻域算梯度，在"全分辨率渲染 → point 降采到
+    ///     640×360"的管线里，边缘强度在降采后被 3× 欠采成断续/抖动的线（渲染篇 §3.1 推论 4 同一机理）；
+    ///   · 反向壳描边（`PirateToon.shader` 的 `SRPDefaultUnlit` pass）在**几何域**出线，线宽由 RT 高
+    ///     直接定义（渲染篇 §5 线宽公式），降采后天然均匀；
+    ///   · 选中反馈也不再依赖它（审计 §2.3：它只是调试期遗留）。
+    ///   · 附带收益：少一次全屏深度采样 pass，且 `_CameraDepthTexture` 少一个消费者。
+    ///
+    /// 【为什么改的是"安装器"而不是删脚本】本类原为 `M2UrpRendererFeatureSetup`（挂载器）。
+    /// 挂载器留着 = 任何人重跑一次 `PirateCrew/Rendering/*` 就可能把退役项装回去（M0 的配置漂移
+    /// 同族事故）。所以把它**改成退役器**：名字与入口换成 Retire，行为是先卸再清孤儿子资产、
+    /// 且幂等（已摘除时报告"无变化"，不会重复写资产）。`OutlineRendererFeature.cs` 与
+    /// `PirateOutlinePost.shader` 本体保留（删类型会影响构建里的 shader 保活清单，且反壳描边
+    /// 调试时可能还要对照），只是**没有任何 Renderer 引用它**。
     ///
     /// 【入口】
-    ///   菜单: PirateCrew/Rendering/挂载描边 RendererFeature
-    ///   无头: -batchmode -nographics -quit -executeMethod PirateCrew.EditorTools.M2UrpRendererFeatureSetup.SetupAll
+    ///   菜单: PirateCrew/Rendering/摘除全屏 Sobel 描边 Feature
+    ///   无头: -batchmode -nographics -quit -executeMethod PirateCrew.EditorTools.M2UrpRendererFeatureSetup.RetireAll
     ///
-    /// 【幂等】Renderer 上已存在 OutlineRendererFeature 时只补齐 shader 引用并跳过，
-    ///         不重复 AddObjectToAsset / 不重复入列。
-    ///
-    /// 【程序集】本脚本在 Assets/Editor（Assembly-CSharp-Editor），能引用 autoReferenced 的
-    ///           PirateCrew.Rendering 程序集（其 asmdef 已引用 URP Core/Universal Runtime）；
-    ///           未修改任何 .asmdef。
+    /// 【验证】摘除后两档 Renderer 的 `m_RendererFeatures` 只应剩 Pixation 一项；
+    /// 出图判据见 docs/技术/资产管线/像素海面技术方案.md 之外的渲染篇 §9 排障速查。
     /// </summary>
     public static class M2UrpRendererFeatureSetup
     {
         const string PerformantRendererPath = "Assets/Settings/URP/PC_Performant_Renderer.asset";
         const string BalancedRendererPath = "Assets/Settings/URP/PC_Balanced_Renderer.asset";
-        const string OutlinePostShaderPath = "Assets/Art/Shaders/PirateOutlinePost.shader";
-        const string FeatureName = "PirateCrew Outline";
 
-        /// <summary>无头 -executeMethod 入口；也可从菜单调用。</summary>
-        [MenuItem("PirateCrew/Rendering/挂载描边 RendererFeature")]
-        public static void SetupAll()
+        /// <summary>无头 -executeMethod 入口；也可从菜单调用。幂等。</summary>
+        [MenuItem("PirateCrew/Rendering/摘除全屏 Sobel 描边 Feature")]
+        public static void RetireAll()
         {
-            int added = 0;
-            added += SetupRenderer(PerformantRendererPath);
-            added += SetupRenderer(BalancedRendererPath);
+            int removed = 0;
+            removed += Retire(BalancedRendererPath);
+            removed += Retire(PerformantRendererPath);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("[M2UrpRendererFeatureSetup] 描边 RendererFeature 挂载完成：新增 " + added
-                + " 个（其余为已存在，幂等跳过）。\n"
-                + "  " + PerformantRendererPath + "\n"
-                + "  " + BalancedRendererPath);
+            if (removed == 0)
+            {
+                Debug.Log("[M2UrpRendererFeatureSetup] 两档 Renderer 上都没有 OutlineRendererFeature（已摘除，幂等无变化）。");
+                return;
+            }
+            Debug.Log("[M2UrpRendererFeatureSetup] 已摘除全屏 Sobel 描边 Feature " + removed + " 处：\n"
+                + "  " + BalancedRendererPath + "\n  " + PerformantRendererPath + "\n"
+                + "  替代物 = PirateToon.shader 的反壳描边 pass（SRPDefaultUnlit，墨色 StickTokens.INK）。");
         }
 
-        /// <summary>挂载单个 Renderer；返回新增的 Feature 数量（0 = 已存在或资产缺失）。</summary>
-        static int SetupRenderer(string path)
+        /// <summary>摘除单个 Renderer 上的 Outline Feature；返回摘除数量（0 = 本来就没有）。</summary>
+        static int Retire(string path)
         {
             var rendererData = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(path);
             if (rendererData == null)
@@ -58,50 +68,42 @@ namespace PirateCrew.EditorTools
                 return 0;
             }
 
-            // 幂等：已存在同类 Feature 时只补齐 shader 引用。
+            int removed = 0;
             var features = rendererData.rendererFeatures;
             if (features != null)
             {
-                for (int i = 0; i < features.Count; i++)
+                for (int i = features.Count - 1; i >= 0; i--)
                 {
-                    if (features[i] is OutlineRendererFeature existing)
-                    {
-                        EnsureShader(existing);
-                        EditorUtility.SetDirty(rendererData);
-                        Debug.Log("[M2UrpRendererFeatureSetup] " + path + " 已存在 OutlineRendererFeature，跳过。");
-                        return 0;
-                    }
+                    var feature = features[i];
+                    if (feature == null || feature.GetType() != typeof(OutlineRendererFeature))
+                        continue;
+
+                    features.RemoveAt(i);
+                    AssetDatabase.RemoveObjectFromAsset(feature);
+                    Object.DestroyImmediate(feature, true);
+                    removed++;
+                    Debug.Log("[M2UrpRendererFeatureSetup] 已摘除 OutlineRendererFeature -> " + path);
                 }
             }
 
-            var feature = ScriptableObject.CreateInstance<OutlineRendererFeature>();
-            feature.name = FeatureName;
-            EnsureShader(feature);
-            feature.SetActive(true);
+            // 清掉渲染器资产里的**游离**同名子资产（列表里没引用但还留在文件里的），
+            // 否则反复挂载/摘除会在 .asset 里堆一堆死对象。
+            foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(AssetDatabase.GetAssetPath(rendererData)))
+            {
+                if (asset == null || asset.GetType() != typeof(OutlineRendererFeature))
+                    continue;
+                if (features != null && features.Contains((ScriptableRendererFeature)asset))
+                    continue;
 
-            // 作为 Renderer 资产的子资产保存，引用才能随资产持久化（否则重开工程会丢引用）。
-            AssetDatabase.AddObjectToAsset(feature, rendererData);
+                AssetDatabase.RemoveObjectFromAsset(asset);
+                Object.DestroyImmediate(asset, true);
+                removed++;
+                Debug.Log("[M2UrpRendererFeatureSetup] 已清除游离的 OutlineRendererFeature 子资产 -> " + path);
+            }
 
-            features.Add(feature);
-            EditorUtility.SetDirty(rendererData);
-            Debug.Log("[M2UrpRendererFeatureSetup] 已挂载 OutlineRendererFeature -> " + path);
-            return 1;
-        }
-
-        /// <summary>补齐描边后处理 shader 引用（留空时 Feature 会退化为 Shader.Find，出包有被剔除风险）。</summary>
-        static void EnsureShader(OutlineRendererFeature feature)
-        {
-            if (feature.settings == null)
-                feature.settings = new OutlineRendererFeature.OutlineSettings();
-
-            if (feature.settings.outlinePostShader == null)
-                feature.settings.outlinePostShader = AssetDatabase.LoadAssetAtPath<Shader>(OutlinePostShaderPath);
-
-            if (feature.settings.outlinePostShader == null)
-                Debug.LogWarning("[M2UrpRendererFeatureSetup] 未找到描边 shader: " + OutlinePostShaderPath
-                    + "，运行时会回退到 Shader.Find(\"" + OutlineRendererFeature.OutlinePostShaderName + "\")。");
-
-            EditorUtility.SetDirty(feature);
+            if (removed > 0)
+                EditorUtility.SetDirty(rendererData);
+            return removed;
         }
     }
 }
