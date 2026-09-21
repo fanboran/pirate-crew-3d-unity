@@ -1,4 +1,5 @@
 using PirateCrew.Audio;
+using PirateCrew.UI.Stick;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -8,19 +9,22 @@ namespace PirateCrew.UI
     /// <summary>
     /// M3 界面用的 UGUI 构建辅助（运行时建控件）。
     ///
-    /// 【本波次改造（中文化 + 材质感）】
+    /// 【视觉层（StickUI 复刻层）】
     ///   · 文本统一 <see cref="TextMeshProUGUI"/>（中文字体由调用方注入，见 <see cref="CreateText"/> 的 font 参数）；
-    ///   · 按钮/行底改用 <see cref="UiSprites"/> 的程序化九宫格贴图（木板 / 羊皮纸），
-    ///     不再是纯色 <see cref="Image"/>（规范 §1.2 / §6.1）；
-    ///   · 配色一律取 <see cref="UiTheme"/> Token，禁止散落色值。
+    ///   · 行底 = <see cref="SketchPanel"/>（Light Tone，panel_light 槽——HUD 横条/内嵌区块档）；
+    ///   · 按钮 = <see cref="SketchButton"/>（Dark 变体；四态贴图槽 + 五态字色 + 伪粗全由
+    ///     <see cref="StickTokens.ButtonVariants"/> 变体表驱动）；
+    ///   · 配色一律取 <see cref="StickTokens"/> 令牌，禁止散落色值。
     ///
-    /// 【列表行数随名册/章节变化】运行时生成比摆 Prefab 更省接线；行数少、非高频，
+    /// 【列表行数随名册/海图变化】运行时生成比摆 Prefab 更省接线；行数少、非高频，
     ///   不构成性能顾虑。
     /// </summary>
     public static class M3UiBuilder
     {
-        /// <summary>按钮不可用态底色（去饱和 + 55% 透明，§6.1）。</summary>
-        public static Color DisabledButtonColor => UiTheme.Disabled(UiTheme.WoodMid);
+        /// <summary>按钮不可用态乘色。手绘语言乘色全白（<see cref="SketchButton"/> 的
+        /// WhiteStates 纪律：状态反馈靠贴图切换，不叠色）——禁用视觉由 btn_disabled
+        /// 贴图槽 + TEXT_DISABLED 字色承载。</summary>
+        public static Color DisabledButtonColor => Color.white;
 
         // ------------------------------------------------------------------
         // 菜单 juice（UI 审计 P2-9）：复用战斗内同款动效原语与 UI 音效，不新造效果
@@ -73,9 +77,6 @@ namespace PirateCrew.UI
                 panel.SetActive(false);
         }
 
-        /// <summary>列表行底色（羊皮纸，§1.2 正文底）。</summary>
-        public static Color RowColor => UiTheme.Parchment;
-
         /// <summary>建一个带 RectTransform 的空 UI 对象。</summary>
         public static RectTransform CreateRect(string name, Transform parent)
         {
@@ -103,43 +104,18 @@ namespace PirateCrew.UI
             return text;
         }
 
-        /// <summary>建按钮（程序化木板/羊皮纸九宫格底 + 居中 TMP 文本）。</summary>
+        /// <summary>
+        /// 建按钮（StickUI 复刻层：SketchButton Dark 变体 + 居中文本；四态贴图槽/五态字色/
+        /// 伪粗由控件本体的变体表驱动，调用方不再配色）。初值尺寸为占位，行内按钮随后
+        /// 由 <see cref="LayoutRowContent"/> 按行高重摆。
+        /// </summary>
         public static Button CreateButton(string name, Transform parent, string label, int fontSize,
-            TMP_FontAsset font, UiSprites.Kind skin = UiSprites.Kind.ButtonWood)
+            TMP_FontAsset font)
         {
-            RectTransform rect = CreateRect(name, parent);
-
-            var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = UiSprites.Get(skin);
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;
-
-            var button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = image;
-            ApplyFourState(button, image, skin);
-
-            TextMeshProUGUI text = CreateText("Text", rect, label, fontSize, TextAlignmentOptions.Center,
-                UiTheme.TextLight, font);
-            Stretch(text.rectTransform);
-
-            return button;
-        }
-
-        /// <summary>按钮四态配色（§6.1）：normal / hover 提亮 / pressed 压暗 / disabled 去饱和。</summary>
-        public static void ApplyFourState(Button button, Image target, UiSprites.Kind skin)
-        {
-            if (button == null || target == null)
-                return;
-
-            ColorBlock colors = button.colors;
-            Color baseColor = skin == UiSprites.Kind.ButtonParchment ? UiTheme.Parchment : UiTheme.WoodMid;
-            colors.normalColor = baseColor;
-            colors.highlightedColor = UiTheme.Hover(baseColor);
-            colors.pressedColor = UiTheme.Pressed(baseColor);
-            colors.selectedColor = UiTheme.Hover(baseColor);
-            colors.disabledColor = UiTheme.Disabled(baseColor);
-            colors.fadeDuration = 0.09f;
-            button.colors = colors;
+            return SketchButton.Create(parent, name,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(150f, StickTokens.BTN_H),   // BTN_H=32 令牌占位；行内会被重摆
+                font, StickTokens.SketchButtonKind.Dark, label, fontSize);
         }
 
         /// <summary>取按钮上的 TMP 文本（建行时写动作文案用）。</summary>
@@ -147,6 +123,11 @@ namespace PirateCrew.UI
         {
             return button != null ? button.GetComponentInChildren<TextMeshProUGUI>(true) : null;
         }
+
+        /// <summary>星形图标贴图（程序化五角星形状件）。【UiSprites 残留点】形状件不属于
+        /// 木纸皮肤，统一清退时随图标层一并裁决；本属性是两屏（列表行星级 / 结算弹窗
+        /// 星级）唯一的 UiSprites 出口。</summary>
+        public static Sprite StarIcon => UiSprites.Get(UiSprites.Kind.Star);
 
         /// <summary>
         /// 在行内右侧（动作按钮左边）摆一排星级图标（规范 §3.4：星级改图标，不用「★」字符）。
@@ -173,15 +154,17 @@ namespace PirateCrew.UI
                 icon.anchoredPosition = new Vector2(i * step, 0f);
 
                 var image = icon.gameObject.AddComponent<Image>();
-                image.sprite = UiSprites.Get(UiSprites.Kind.Star);
+                image.sprite = StarIcon;
                 image.raycastTarget = false;
-                image.color = i < stars ? UiTheme.Brass : UiTheme.WithAlpha(UiTheme.Ink, 0.35f);
+                // 点亮 = ACCENT（金阶，承接旧黄铜星语义）；熄灭 = INK @ 0.35（暗剪影）。
+                image.color = i < stars ? StickTokens.ACCENT : WithAlpha(StickTokens.INK, 0.35f);
             }
 
             return container;
         }
 
-        /// <summary>在列表容器里建一行（纵向堆叠，锚在容器顶部；底为羊皮纸九宫格）。</summary>
+        /// <summary>在列表容器里建一行（纵向堆叠，锚在容器顶部；底为 SketchPanel Light
+        /// 槽 panel_light——列表行/内嵌区块档的整图 Tiled，随 sketch 槽帧轮换沸腾）。</summary>
         public static RectTransform CreateRow(Transform container, int index, float rowHeight,
             float spacing = 6f, float leftPadding = 8f)
         {
@@ -192,11 +175,12 @@ namespace PirateCrew.UI
             row.sizeDelta = new Vector2(-leftPadding * 2f, rowHeight);
             row.anchoredPosition = new Vector2(0f, -index * (rowHeight + spacing));
 
-            var background = row.gameObject.AddComponent<Image>();
-            background.sprite = UiSprites.Get(UiSprites.Kind.PanelParchment);
-            background.type = Image.Type.Sliced;
-            background.color = RowColor;
-            background.raycastTarget = false;
+            // 行底板：SketchPanel.Create 是点锚出口，建完再拉伸铺满行矩形；
+            // 底板不拦截点击（SketchPanel 内 Image raycastTarget=false），命中留给动作钮。
+            SketchPanel backplate = SketchPanel.Create(row, "Backplate",
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero,
+                SketchPanel.Tone.Light);
+            Stretch(backplate.GetComponent<RectTransform>());
 
             return row;
         }
@@ -262,6 +246,14 @@ namespace PirateCrew.UI
                 rect.sizeDelta = new Vector2(buttonWidth, buttonHeight);
                 rect.anchoredPosition = new Vector2(-16f, 0f);
             }
+        }
+
+        /// <summary>把颜色整体乘上 alpha（保留原 RGB；令牌色降透明度的本地出口，
+        /// 不再借道 UiTheme）。</summary>
+        static Color WithAlpha(Color color, float alpha)
+        {
+            color.a = alpha;
+            return color;
         }
     }
 }

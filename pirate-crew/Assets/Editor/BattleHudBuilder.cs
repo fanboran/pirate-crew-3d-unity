@@ -1,5 +1,6 @@
 using PirateCrew.Data;
 using PirateCrew.UI;
+using PirateCrew.UI.Stick;
 using TMPro;
 using UnityEditor;
 using UnityEngine;
@@ -398,10 +399,10 @@ namespace PirateCrew.EditorTools
             // 描边组合（r10 复盘：单道 1px 斜投影在沙地亮部上仍被吞）——
             // 1.5px 四向 Outline 近黑 + 1px 斜投影，卡通字的"贴纸边"读感。
             var hintOutline = result.turnHintText.gameObject.AddComponent<UnityEngine.UI.Outline>();
-            hintOutline.effectColor = new Color(0f, 0f, 0f, 0.78f);
+            hintOutline.effectColor = new Color(StickTokens.INK.r, StickTokens.INK.g, StickTokens.INK.b, 0.78f); // 墨色收编（复刻令牌，原近黑字面量）
             hintOutline.effectDistance = new Vector2(2.2f, 2.2f);
             var hintShadow = result.turnHintText.gameObject.AddComponent<UnityEngine.UI.Shadow>();
-            hintShadow.effectColor = new Color(0f, 0f, 0f, 0.5f);
+            hintShadow.effectColor = new Color(StickTokens.INK.r, StickTokens.INK.g, StickTokens.INK.b, 0.5f); // 墨色收编
             hintShadow.effectDistance = new Vector2(1f, -1f);
         }
 
@@ -600,7 +601,7 @@ namespace PirateCrew.EditorTools
                 img.color = Color.white;
                 img.raycastTarget = false;
                 var outline = img.gameObject.AddComponent<UnityEngine.UI.Outline>();
-                outline.effectColor = new Color(0f, 0f, 0f, 0.55f);
+                outline.effectColor = new Color(StickTokens.INK.r, StickTokens.INK.g, StickTokens.INK.b, 0.55f); // 墨色收编
                 outline.effectDistance = new Vector2(1f, -1f);
             }
             Bar("CrossH", 18f, 2f);

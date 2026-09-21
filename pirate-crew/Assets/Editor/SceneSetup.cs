@@ -1,6 +1,7 @@
 using System.IO;
 using PirateCrew.Core;
 using PirateCrew.UI;
+using PirateCrew.UI.Stick;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -8,6 +9,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+// StickTokens 令牌是 Stick 复刻层的单一真相源，using static 提到顶层免逐处限定（同 SketchButton.cs）。
+using static PirateCrew.UI.Stick.StickTokens;
 
 namespace PirateCrew.EditorTools
 {
@@ -18,13 +21,15 @@ namespace PirateCrew.EditorTools
     ///   菜单: PirateCrew/Scenes/批量重建 M1 场景
     ///   无头: -batchmode -quit -executeMethod PirateCrew.EditorTools.SceneSetup.BuildAll
     ///
-    /// 【产物】Assets/Scenes/{Bootstrapper,MainMenu,Battle}.unity，Build Settings 顺序 0/1/2。
+    /// 【产物】Assets/Scenes/{Bootstrapper,MainMenu}.unity（Battle 归 M2BattleSceneSetup 重建）；
+    ///   Build Settings 登记 5 场景（见 RegisterBuildSettings）。
     ///
-    /// 【本波次改造（中文化 + 海盗风重设计）】
-    ///   · 主菜单按 docs/UI-UX与中文本地化规范.md §3.2 线框图重排：羊皮纸卷轴标题底板 +
-    ///     木板背景 + 黄铜/木板/羊皮纸/危险红四类按钮 + 「设置」「退出游戏」两个新按钮（§4.2）；
-    ///   · 文本统一 <see cref="TextMeshProUGUI"/> + 中文字体（<see cref="MenuUiBuilder"/>）；
-    ///   · Battle 占位场景文案改中文「战斗场景（占位）」（§4.10 第 16 条）。
+    /// 【主菜单视觉口径（StickUI 复刻层）】stick-world 设计语言：WINDOW_BG 窗户底
+    /// （88% 黑，相机暖色透底，不铺死黑）+ StickHand 标题（TEXT 字色 + INK 墨描边）+
+    /// <see cref="SketchButton"/> 菜单列（六变体四态沸腾，高 BTN_H=32）+
+    /// <see cref="SketchPanel"/> 底板的设置/退出确认弹窗 + <see cref="SketchSeparator"/> 分隔线；
+    /// 颜色/字号一律 <see cref="StickTokens"/> 令牌。控制器
+    /// <see cref="MainMenuController"/> 的 [SerializeField] 引用契约不变（按字段名回写）。
     /// </summary>
     public static class SceneSetup
     {
@@ -86,70 +91,77 @@ namespace PirateCrew.EditorTools
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            // 深棕暖色清屏色（木板背景之下的兜底色）。
+            // 深棕暖色清屏色：StickUI「窗户」语义的透底——WINDOW_BG 88% 黑留 12% 让它透出，不动。
             CreateCamera(new Color(0.14f, 0.10f, 0.07f, 1f));
 
             Canvas canvas = CreateCanvas("MainMenuCanvas");
             CreateEventSystem();
 
-            TMP_FontAsset titleFont = MenuUiBuilder.TitleFont;
-            TMP_FontAsset bodyFont = MenuUiBuilder.BodyFont;
-            TMP_FontAsset secondaryFont = MenuUiBuilder.SecondaryFont;
+            // StickUI 复刻层单字体纪律（UiKit.RuntimeFont 同口径）：全部 StickHand。
+            TMP_FontAsset handFont = MenuUiBuilder.TitleFont;
 
-            // z=0 背景：全屏木板 + 四周压暗，形成「船舱木墙」底。
-            MenuUiBuilder.CreateWoodBackdrop("WoodBackdrop", canvas.transform, Color.white);
-            MenuUiBuilder.CreateWoodBackdrop("Vignette", canvas.transform, new Color(0f, 0f, 0f, 0.35f));
+            // z=0 背景：WINDOW_BG 原值（88% 黑）全屏一层——「窗户不是海报」，相机暖色透 12%，
+            // 不铺死黑（stick-world window 底同口径；不再叠压暗 vignette 以免毁掉透底）。
+            CreateStickBackdrop(canvas.transform);
 
-            // 标题底板：羊皮纸卷轴 + 黄铜描边（§3.2）。
-            RectTransform titleBoard = MenuUiBuilder.CreatePanel("TitleBoard", canvas.transform,
-                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -160f),
-                new Vector2(760f, 120f), UiSprites.Kind.PanelParchment);
-            TextMeshProUGUI title = MenuUiBuilder.CreateText("Title", titleBoard,
-                UiStrings.MainTitle, UiTheme.FontDisplay, TextAlignmentOptions.Center, UiTheme.Ink, titleFont);
-            MenuUiBuilder.Stretch(title.rectTransform, 8f);
-            MenuUiBuilder.ApplyTitleOutline(title);
+            // 标题：StickHand + FONT_BANNER=44（stick-world 横幅档；旧 48 就近取档）+
+            // TEXT 亮字 + INK 墨描边 3px 口径（TMP 0.2，同 ControlsSampleBuilder 样张）。
+            TextMeshProUGUI title = MenuUiBuilder.CreateTextExact("Title", canvas.transform,
+                UiStrings.MainTitle, (int)FONT_BANNER, TextAlignmentOptions.Center, TEXT, handFont);
+            MenuUiBuilder.SetAnchored(title.rectTransform, new Vector2(0.5f, 1f),
+                new Vector2(800f, 70f), new Vector2(0f, -170f));
+            MenuUiBuilder.ApplyStickTitleOutline(title);
 
-            // 5 个按钮竖排居中（§3.2：主按钮 480×64；次按钮 480×52）。
-            Button battleButton = MenuUiBuilder.CreateButton("BattleButton", canvas.transform,
-                UiStrings.MainBattle, CenterAnchor, new Vector2(0f, 110f), new Vector2(480f, 64f),
-                bodyFont, UiSprites.Kind.ButtonBrass, UiTheme.Ink, UiTheme.FontHud);
+            // 标题下手绘波浪分隔线。
+            SketchSeparator.Create(canvas.transform, "TitleSeparator", new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f), new Vector2(0f, -252f), new Vector2(420f, 2f),
+                SketchSeparator.Direction.Horizontal);
 
-            Button campaignButton = MenuUiBuilder.CreateButton("CampaignButton", canvas.transform,
-                UiStrings.MainCampaign, CenterAnchor, new Vector2(0f, 34f), new Vector2(480f, 64f),
-                bodyFont, UiSprites.Kind.ButtonWood);
+            // 菜单按钮列：SketchButton 六变体（Dark 为主，主行动「进入战斗」Primary，
+            // 「退出游戏」Danger），高 BTN_H=32、宽 480，中心距 48（32 高 + 16 间距）。
+            // 字号 0 = 控件默认档（gd 主题 Button = FONT_HUD）。
+            SketchButton battleButton = SketchButton.Create(canvas.transform, "BattleButton",
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 110f), new Vector2(480f, BTN_H),
+                handFont, SketchButtonKind.Primary, UiStrings.MainBattle, 0f);
 
-            Button crewButton = MenuUiBuilder.CreateButton("CrewButton", canvas.transform,
-                UiStrings.MainCrew, CenterAnchor, new Vector2(0f, -42f), new Vector2(480f, 64f),
-                bodyFont, UiSprites.Kind.ButtonWood);
+            SketchButton campaignButton = SketchButton.Create(canvas.transform, "CampaignButton",
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 62f), new Vector2(480f, BTN_H),
+                handFont, SketchButtonKind.Dark, UiStrings.MainCampaign, 0f);
 
-            Button settingsButton = MenuUiBuilder.CreateButton("SettingsButton", canvas.transform,
-                UiStrings.MainSettings, CenterAnchor, new Vector2(0f, -112f), new Vector2(480f, 52f),
-                bodyFont, UiSprites.Kind.ButtonParchment);
+            SketchButton crewButton = SketchButton.Create(canvas.transform, "CrewButton",
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 14f), new Vector2(480f, BTN_H),
+                handFont, SketchButtonKind.Dark, UiStrings.MainCrew, 0f);
 
-            Button quitButton = MenuUiBuilder.CreateButton("QuitButton", canvas.transform,
-                UiStrings.MainQuit, CenterAnchor, new Vector2(0f, -178f), new Vector2(480f, 52f),
-                bodyFont, UiSprites.Kind.ButtonDanger);
+            SketchButton settingsButton = SketchButton.Create(canvas.transform, "SettingsButton",
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -34f), new Vector2(480f, BTN_H),
+                handFont, SketchButtonKind.Dark, UiStrings.MainSettings, 0f);
 
-            // 左下：版本号 + 存档状态（§3.2 左下 24,24 FONT_HINT）。
-            TextMeshProUGUI versionText = MenuUiBuilder.CreateText("VersionText", canvas.transform,
-                UiStrings.MainVersion, UiTheme.FontHint, TextAlignmentOptions.BottomLeft,
-                UiTheme.BrassLight, secondaryFont);
-            MenuUiBuilder.SetAnchored(versionText.rectTransform, new Vector2(0f, 0f), new Vector2(400f, 26f),
-                new Vector2(UiTheme.Safe, UiTheme.Safe));
+            SketchButton quitButton = SketchButton.Create(canvas.transform, "QuitButton",
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -82f), new Vector2(480f, BTN_H),
+                handFont, SketchButtonKind.Danger, UiStrings.MainQuit, 0f);
 
-            TextMeshProUGUI statusText = MenuUiBuilder.CreateText("StatusText", canvas.transform,
-                string.Empty, UiTheme.FontHint, TextAlignmentOptions.BottomLeft, UiTheme.TextLight, secondaryFont);
-            MenuUiBuilder.SetAnchored(statusText.rectTransform, new Vector2(0f, 0f), new Vector2(500f, 26f),
-                new Vector2(UiTheme.Safe, UiTheme.Safe + 28f));
+            // 左下：版本号 + 存档状态（SCREEN_MARGIN=12 安全边距；角标/次级口径
+            // FONT_TINY=11 + TEXT_FAINT，状态反馈用 TEXT_DIM 略提一级）。
+            TextMeshProUGUI versionText = MenuUiBuilder.CreateTextExact("VersionText", canvas.transform,
+                UiStrings.MainVersion, (int)FONT_TINY, TextAlignmentOptions.BottomLeft, TEXT_FAINT, handFont);
+            MenuUiBuilder.SetAnchored(versionText.rectTransform,
+                new Vector2(0f, 0f), new Vector2(400f, 20f), new Vector2(SCREEN_MARGIN, SCREEN_MARGIN));
 
-            // 设置界面（真接线：音量滑条 ×4 / 画质档 / 窗口模式；默认隐藏）。
+            TextMeshProUGUI statusText = MenuUiBuilder.CreateTextExact("StatusText", canvas.transform,
+                string.Empty, (int)FONT_TINY, TextAlignmentOptions.BottomLeft, TEXT_DIM, handFont);
+            MenuUiBuilder.SetAnchored(statusText.rectTransform,
+                new Vector2(0f, 0f), new Vector2(500f, 20f),
+                new Vector2(SCREEN_MARGIN, SCREEN_MARGIN + 20f));
+
+            // 设置界面（真接线：音量滑条 ×4 / 画质档 / 窗口模式；默认隐藏；SketchPanel Dark 底板）。
             MenuUiBuilder.SettingsPanelResult settings = MenuUiBuilder.BuildSettingsPanel(canvas.transform);
 
-            // 退出确认框（默认隐藏；正文为退出确认文案）。
+            // 退出确认框（默认隐藏；正文为退出确认文案；SketchPanel Dark 底板）。
             MenuUiBuilder.ConfirmDialogResult quitConfirm =
                 MenuUiBuilder.BuildConfirmDialog(canvas.transform, UiStrings.MainQuitConfirm);
 
-            // 控制器对象 + 序列化引用绑定。
+            // 控制器对象 + 序列化引用绑定（字段名契约零改动：SketchButton 是 Button 子类、
+            // SketchPanel 根 GameObject 照常赋 [SerializeField] GameObject）。
             var controllerGo = new GameObject("MainMenuController", typeof(RectTransform));
             controllerGo.transform.SetParent(canvas.transform, false);
             var controller = controllerGo.AddComponent<MainMenuController>();
@@ -179,6 +191,21 @@ namespace PirateCrew.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
 
             SaveScene(scene, SceneNames.MainMenu);
+        }
+
+        /// <summary>全屏「窗户」底：WINDOW_BG 原值（0.88 黑）纯色 Image，raycast 关闭
+        /// （装饰层，不挡主菜单按钮命中）。</summary>
+        static void CreateStickBackdrop(Transform parent)
+        {
+            RectTransform rect = MenuUiBuilder.CreateRect("WindowBackdrop", parent);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            var image = rect.gameObject.AddComponent<Image>();
+            image.color = WINDOW_BG;        // StickTokens.WINDOW_BG：不铺死黑，留 12% 透相机底色
+            image.raycastTarget = false;
         }
 
         // Battle.unity 自 M2 起归 M2BattleSceneSetup 全量重建（完整战斗场景），

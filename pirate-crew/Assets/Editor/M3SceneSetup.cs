@@ -2,6 +2,7 @@ using System.IO;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.UI;
+using PirateCrew.UI.Stick;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -23,12 +24,16 @@ namespace PirateCrew.EditorTools
     ///   Assets/Scenes/CrewManagement.unity、Assets/Scenes/LevelSelect.unity；
     ///   Build Settings = Bootstrapper(0) / MainMenu(1) / Battle(2) / CrewManagement(3) / LevelSelect(4)。
     ///
-    /// 【本波次改造（中文化 + 海盗风重设计）】
-    ///   · 按 docs/UI-UX与中文本地化规范.md §3.3 / §3.4 线框图重排；木板 / 羊皮纸 / 黄铜三段材质；
-    ///   · 文本统一 TMP + 中文字体（<see cref="MenuUiBuilder"/>），行字号 = 正文下限 20；
-    ///   · 选关页把「上一局结算」从单行横幅改为**模态弹窗**（§3.6）：星级 / 评分 / 经验 / 招募 /
-    ///     首次通关 + 星级规则提示，数据源仍是 CampaignApi（沿用 LevelSelectController 原逻辑）；
-    ///   · 新增自定义结算弹窗节点并接线到 <see cref="LevelSelectController"/>。
+    /// 【视觉层（StickUI 复刻层，docs/UI-UX与中文本地化规范.md §3.3 / §3.4 / §3.6 线框不变）】
+    ///   · 背景 = WINDOW_BG 令牌（alpha 提到 1）全屏底板；相机背景不动，只换 UI 层；
+    ///   · 容器底 = <see cref="SketchPanel"/>（Dark 槽 panel）；列表行底由 M3UiBuilder 出
+    ///     Light 槽 panel_light；
+    ///   · 按钮 = <see cref="SketchButton"/>（Dark 为次级行动，Primary 为屏内主行动）；
+    ///   · 文字层级取 <see cref="StickTokens"/> 字号档 + TEXT / TEXT_DIM / TEXT_FAINT 色阶；
+    ///   · 分隔线 = <see cref="SketchSeparator"/> 波浪自绘；
+    ///   · 文本统一 TMP + 中文字体（字体入口仍在 <see cref="MenuUiBuilder"/>）；
+    ///   · 选关页「上一局结算」为模态弹窗（§3.6），数据源 CampaignApi（沿用
+    ///     LevelSelectController 原逻辑），接线契约不变。
     /// </summary>
     public static class M3SceneSetup
     {
@@ -53,7 +58,7 @@ namespace PirateCrew.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("[M3SceneSetup] M3 管理场景重建完成（全中文 + 木板/羊皮纸/黄铜材质）。\n"
+            Debug.Log("[M3SceneSetup] M3 管理场景重建完成（StickUI 复刻层视觉）。\n"
                 + "  场景: " + ScenesFolder + "/CrewManagement.unity、"
                 + ScenesFolder + "/LevelSelect.unity\n"
                 + "  Build Settings: Bootstrapper(0) / MainMenu(1) / Battle(2, 未重建) / "
@@ -76,39 +81,38 @@ namespace PirateCrew.EditorTools
             TMP_FontAsset bodyFont = MenuUiBuilder.BodyFont;
             TMP_FontAsset secondaryFont = MenuUiBuilder.SecondaryFont;
 
-            MenuUiBuilder.CreateWoodBackdrop("WoodBackdrop", canvas.transform, Color.white);
-            MenuUiBuilder.CreateWoodBackdrop("Vignette", canvas.transform, new Color(0f, 0f, 0f, 0.35f));
+            CreateWindowBackdrop(canvas.transform);
 
-            TextMeshProUGUI title = MenuUiBuilder.CreateText("Title", canvas.transform, UiStrings.CrewTitle,
-                UiTheme.FontTitle, TextAlignmentOptions.Center, UiTheme.BrassLight, titleFont);
-            MenuUiBuilder.SetAnchored(title.rectTransform, TopCenterAnchor, new Vector2(900f, 50f),
+            // 文字层级：标题 FONT_TITLE + TEXT；概况 FONT_BODY + TEXT；状态 FONT_HINT + TEXT_DIM。
+            TextMeshProUGUI title = M3UiBuilder.CreateText("Title", canvas.transform, UiStrings.CrewTitle,
+                (int)StickTokens.FONT_TITLE, TextAlignmentOptions.Center, StickTokens.TEXT, titleFont);
+            M3UiBuilder.SetAnchored(title.rectTransform, TopCenterAnchor, new Vector2(900f, 50f),
                 new Vector2(0f, -36f));
-            MenuUiBuilder.ApplyTitleOutline(title);
 
-            TextMeshProUGUI summary = MenuUiBuilder.CreateText("SummaryText", canvas.transform, string.Empty,
-                UiTheme.FontBody, TextAlignmentOptions.Center, UiTheme.TextLight, bodyFont);
-            MenuUiBuilder.SetAnchored(summary.rectTransform, TopCenterAnchor, new Vector2(1700f, 36f),
+            TextMeshProUGUI summary = M3UiBuilder.CreateText("SummaryText", canvas.transform, string.Empty,
+                (int)StickTokens.FONT_BODY, TextAlignmentOptions.Center, StickTokens.TEXT, bodyFont);
+            M3UiBuilder.SetAnchored(summary.rectTransform, TopCenterAnchor, new Vector2(1700f, 36f),
                 new Vector2(0f, -96f));
 
-            // 名册容器（木板底 + 黄铜框；行由 CrewManagementController 运行时生成）。
-            RectTransform list = MenuUiBuilder.CreatePanel("CrewList", canvas.transform,
-                CenterAnchor, CenterAnchor, new Vector2(0f, 24f), new Vector2(1000f, 600f),
-                UiSprites.Kind.PanelWood);
+            // 名册容器（SketchPanel Dark 槽 panel——大面板主底档；行由 CrewManagementController 运行时生成）。
+            RectTransform list = CreateStickPanel("CrewList", canvas.transform,
+                CenterAnchor, CenterAnchor, new Vector2(0f, 24f), new Vector2(1000f, 600f));
 
-            TextMeshProUGUI status = MenuUiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
-                UiTheme.FontHint, TextAlignmentOptions.Center, UiTheme.TextLight, secondaryFont);
-            MenuUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(1700f, 36f),
+            TextMeshProUGUI status = M3UiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
+                (int)StickTokens.FONT_HINT, TextAlignmentOptions.Center, StickTokens.TEXT_DIM, secondaryFont);
+            M3UiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(1700f, 36f),
                 new Vector2(0f, 128f));
 
-            Button levelSelectButton = MenuUiBuilder.CreateButton("LevelSelectButton", canvas.transform,
+            // 屏内按钮：选关/返回 = Dark 次级档；保存 = Primary 主行动档。
+            Button levelSelectButton = CreateSketchButton("LevelSelectButton", canvas.transform,
                 UiStrings.CrewLevelSelect, BottomCenterAnchor, new Vector2(-300f, 56f), new Vector2(260f, 52f),
-                bodyFont, UiSprites.Kind.ButtonWood);
-            Button saveButton = MenuUiBuilder.CreateButton("SaveButton", canvas.transform,
+                bodyFont, StickTokens.SketchButtonKind.Dark);
+            Button saveButton = CreateSketchButton("SaveButton", canvas.transform,
                 UiStrings.CrewSave, BottomCenterAnchor, new Vector2(0f, 56f), new Vector2(260f, 52f),
-                bodyFont, UiSprites.Kind.ButtonParchment);
-            Button backButton = MenuUiBuilder.CreateButton("BackButton", canvas.transform,
+                bodyFont, StickTokens.SketchButtonKind.Primary);
+            Button backButton = CreateSketchButton("BackButton", canvas.transform,
                 UiStrings.BackToMainMenu, BottomCenterAnchor, new Vector2(300f, 56f), new Vector2(260f, 52f),
-                bodyFont, UiSprites.Kind.ButtonWood);
+                bodyFont, StickTokens.SketchButtonKind.Dark);
 
             var controllerGo = new GameObject("CrewManagementController", typeof(RectTransform));
             controllerGo.transform.SetParent(canvas.transform, false);
@@ -143,52 +147,52 @@ namespace PirateCrew.EditorTools
             TMP_FontAsset bodyFont = MenuUiBuilder.BodyFont;
             TMP_FontAsset secondaryFont = MenuUiBuilder.SecondaryFont;
 
-            MenuUiBuilder.CreateWoodBackdrop("WoodBackdrop", canvas.transform, Color.white);
-            MenuUiBuilder.CreateWoodBackdrop("Vignette", canvas.transform, new Color(0f, 0f, 0f, 0.35f));
+            CreateWindowBackdrop(canvas.transform);
 
-            TextMeshProUGUI title = MenuUiBuilder.CreateText("Title", canvas.transform, UiStrings.LevelTitle,
-                UiTheme.FontTitle, TextAlignmentOptions.Center, UiTheme.BrassLight, titleFont);
-            MenuUiBuilder.SetAnchored(title.rectTransform, TopCenterAnchor, new Vector2(900f, 50f),
+            // 文字层级：标题 FONT_TITLE + TEXT；统计行 FONT_HUD + TEXT；章节字 FONT_SECTION + TEXT；
+            // 说明/状态 FONT_HINT + TEXT_DIM / TEXT_FAINT。
+            TextMeshProUGUI title = M3UiBuilder.CreateText("Title", canvas.transform, UiStrings.LevelTitle,
+                (int)StickTokens.FONT_TITLE, TextAlignmentOptions.Center, StickTokens.TEXT, titleFont);
+            M3UiBuilder.SetAnchored(title.rectTransform, TopCenterAnchor, new Vector2(900f, 50f),
                 new Vector2(0f, -32f));
-            MenuUiBuilder.ApplyTitleOutline(title);
 
-            TextMeshProUGUI header = MenuUiBuilder.CreateText("HeaderText", canvas.transform, string.Empty,
-                UiTheme.FontHud, TextAlignmentOptions.Center, UiTheme.TextLight, bodyFont);
-            MenuUiBuilder.SetAnchored(header.rectTransform, TopCenterAnchor, new Vector2(1700f, 36f),
+            TextMeshProUGUI header = M3UiBuilder.CreateText("HeaderText", canvas.transform, string.Empty,
+                (int)StickTokens.FONT_HUD, TextAlignmentOptions.Center, StickTokens.TEXT, bodyFont);
+            M3UiBuilder.SetAnchored(header.rectTransform, TopCenterAnchor, new Vector2(1700f, 36f),
                 new Vector2(0f, -88f));
 
-            TextMeshProUGUI chapterName = MenuUiBuilder.CreateText("ChapterNameText", canvas.transform,
-                string.Empty, UiTheme.FontBody, TextAlignmentOptions.Center, UiTheme.BrassLight, secondaryFont);
-            MenuUiBuilder.SetAnchored(chapterName.rectTransform, TopCenterAnchor, new Vector2(1200f, 30f),
+            TextMeshProUGUI chapterName = M3UiBuilder.CreateText("ChapterNameText", canvas.transform,
+                string.Empty, (int)StickTokens.FONT_SECTION, TextAlignmentOptions.Center,
+                StickTokens.TEXT, secondaryFont);
+            M3UiBuilder.SetAnchored(chapterName.rectTransform, TopCenterAnchor, new Vector2(1200f, 30f),
                 new Vector2(0f, -128f));
 
             // 章节页签行（按钮由控制器运行时生成，尺寸 160×44，间距 170）。
-            RectTransform chapters = MenuUiBuilder.CreateRect("ChapterContainer", canvas.transform);
-            MenuUiBuilder.SetAnchored(chapters, TopCenterAnchor, new Vector2(520f, 44f), new Vector2(0f, -186f));
+            RectTransform chapters = M3UiBuilder.CreateRect("ChapterContainer", canvas.transform);
+            M3UiBuilder.SetAnchored(chapters, TopCenterAnchor, new Vector2(520f, 44f), new Vector2(0f, -186f));
 
-            // 关卡列表容器（木板底 + 黄铜框；行由控制器运行时生成）。
-            RectTransform list = MenuUiBuilder.CreatePanel("LevelList", canvas.transform,
-                CenterAnchor, CenterAnchor, new Vector2(0f, 52f), new Vector2(1000f, 560f),
-                UiSprites.Kind.PanelWood);
+            // 海图列表容器（SketchPanel Dark 槽 panel——大面板主底档；行由控制器运行时生成）。
+            RectTransform list = CreateStickPanel("LevelList", canvas.transform,
+                CenterAnchor, CenterAnchor, new Vector2(0f, 52f), new Vector2(1000f, 560f));
 
             // 出战加载说明（文案与实际行为一致：选哪关加载哪关）+ 状态提示。
-            TextMeshProUGUI hint = MenuUiBuilder.CreateText("FixedArenaHint", canvas.transform,
-                UiStrings.LevelStatusFixedArena, UiTheme.FontHint, TextAlignmentOptions.Center,
-                UiTheme.WithAlpha(UiTheme.TextLight, 0.8f), secondaryFont);
-            MenuUiBuilder.SetAnchored(hint.rectTransform, BottomCenterAnchor, new Vector2(1700f, 30f),
+            TextMeshProUGUI hint = M3UiBuilder.CreateText("FixedArenaHint", canvas.transform,
+                UiStrings.LevelStatusFixedArena, (int)StickTokens.FONT_HINT, TextAlignmentOptions.Center,
+                StickTokens.TEXT_DIM, secondaryFont);
+            M3UiBuilder.SetAnchored(hint.rectTransform, BottomCenterAnchor, new Vector2(1700f, 30f),
                 new Vector2(0f, 96f));
 
-            TextMeshProUGUI status = MenuUiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
-                UiTheme.FontHint, TextAlignmentOptions.Center, UiTheme.BrassLight, secondaryFont);
-            MenuUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(1700f, 32f),
+            TextMeshProUGUI status = M3UiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
+                (int)StickTokens.FONT_HINT, TextAlignmentOptions.Center, StickTokens.TEXT_DIM, secondaryFont);
+            M3UiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(1700f, 32f),
                 new Vector2(0f, 128f));
 
-            Button crewButton = MenuUiBuilder.CreateButton("CrewButton", canvas.transform,
+            Button crewButton = CreateSketchButton("CrewButton", canvas.transform,
                 UiStrings.MainCrew, BottomCenterAnchor, new Vector2(-180f, 52f), new Vector2(260f, 52f),
-                bodyFont, UiSprites.Kind.ButtonWood);
-            Button backButton = MenuUiBuilder.CreateButton("BackButton", canvas.transform,
+                bodyFont, StickTokens.SketchButtonKind.Dark);
+            Button backButton = CreateSketchButton("BackButton", canvas.transform,
                 UiStrings.Back, BottomCenterAnchor, new Vector2(180f, 52f), new Vector2(260f, 52f),
-                bodyFont, UiSprites.Kind.ButtonWood);
+                bodyFont, StickTokens.SketchButtonKind.Dark);
 
             SettlementRefs settlement = BuildSettlementModal(canvas.transform, titleFont, bodyFont, secondaryFont);
 
@@ -254,51 +258,48 @@ namespace PirateCrew.EditorTools
         {
             var refs = new SettlementRefs();
 
-            RectTransform root = MenuUiBuilder.CreateRect("SettlementModal", canvas);
-            MenuUiBuilder.Stretch(root);
+            RectTransform root = M3UiBuilder.CreateRect("SettlementModal", canvas);
+            M3UiBuilder.Stretch(root);
             refs.Root = root.gameObject;
 
-            MenuUiBuilder.CreateDimOverlay("DimOverlay", root);
+            CreateDimOverlay(root);
 
-            RectTransform card = MenuUiBuilder.CreatePanel("SettlementCard", root,
-                CenterAnchor, CenterAnchor, Vector2.zero, new Vector2(900f, 620f), UiSprites.Kind.PanelWood);
+            // 结算卡片（SketchPanel Dark 槽 panel——模态主底档）。
+            RectTransform card = CreateStickPanel("SettlementCard", root,
+                CenterAnchor, CenterAnchor, Vector2.zero, new Vector2(900f, 620f));
 
-            TextMeshProUGUI title = MenuUiBuilder.CreateText("Title", card, string.Empty,
-                UiTheme.FontBanner, TextAlignmentOptions.Center, UiTheme.BrassLight, titleFont);
-            MenuUiBuilder.SetAnchored(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(800f, 60f),
+            // 文字层级：胜负横幅 FONT_DISPLAY + TEXT；行值 FONT_BODY + TEXT；细则 FONT_HINT + TEXT_FAINT。
+            TextMeshProUGUI title = M3UiBuilder.CreateText("Title", card, string.Empty,
+                (int)StickTokens.FONT_DISPLAY, TextAlignmentOptions.Center, StickTokens.TEXT, titleFont);
+            M3UiBuilder.SetAnchored(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(800f, 60f),
                 new Vector2(0f, -30f));
-            MenuUiBuilder.ApplyTitleOutline(title);
             refs.Title = title;
 
-            // 星级图标（3 枚，点亮 = 黄铜）。
+            // 星级图标（3 枚，点亮 = ACCENT 金阶；运行时由 LevelSelectController.ApplyStars 重写）。
             var stars = new Image[StarRules.MaxStars];
             for (int i = 0; i < stars.Length; i++)
             {
-                RectTransform icon = MenuUiBuilder.CreateRect("Star" + i, card);
-                MenuUiBuilder.SetAnchored(icon, new Vector2(0.5f, 1f), new Vector2(44f, 44f),
+                RectTransform icon = M3UiBuilder.CreateRect("Star" + i, card);
+                M3UiBuilder.SetAnchored(icon, new Vector2(0.5f, 1f), new Vector2(44f, 44f),
                     new Vector2((i - (stars.Length - 1) * 0.5f) * 52f, -110f));
 
                 var image = icon.gameObject.AddComponent<Image>();
-                image.sprite = MenuUiBuilder.GetSprite(UiSprites.Kind.Star);
+                image.sprite = M3UiBuilder.StarIcon;
                 image.raycastTarget = false;
-                image.color = UiTheme.Brass;
+                image.color = StickTokens.ACCENT;
                 stars[i] = image;
             }
             refs.Stars = stars;
 
-            TextMeshProUGUI starsText = MenuUiBuilder.CreateText("StarsText", card, string.Empty,
-                UiTheme.FontBody, TextAlignmentOptions.Center, UiTheme.TextLight, bodyFont);
-            MenuUiBuilder.SetAnchored(starsText.rectTransform, new Vector2(0.5f, 1f), new Vector2(320f, 30f),
+            TextMeshProUGUI starsText = M3UiBuilder.CreateText("StarsText", card, string.Empty,
+                (int)StickTokens.FONT_BODY, TextAlignmentOptions.Center, StickTokens.TEXT, bodyFont);
+            M3UiBuilder.SetAnchored(starsText.rectTransform, new Vector2(0.5f, 1f), new Vector2(320f, 30f),
                 new Vector2(0f, -160f));
             refs.StarsText = starsText;
 
-            // 黄铜分隔线。
-            RectTransform divider = MenuUiBuilder.CreateRect("Divider", card);
-            MenuUiBuilder.SetAnchored(divider, new Vector2(0.5f, 1f), new Vector2(760f, 2f),
-                new Vector2(0f, -196f));
-            var dividerImage = divider.gameObject.AddComponent<Image>();
-            dividerImage.color = UiTheme.Brass;
-            dividerImage.raycastTarget = false;
+            // 波浪分隔线（SketchSeparator 自绘档；高度 8 容纳 1.3px 线宽 + 羽化带）。
+            SketchSeparator.Create(card, "Divider", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -196f), new Vector2(760f, 8f));
 
             refs.LevelText = BuildSettlementRow(card, "LevelRow", -232f, bodyFont);
             refs.ScoreText = BuildSettlementRow(card, "ScoreRow", -276f, bodyFont);
@@ -306,19 +307,20 @@ namespace PirateCrew.EditorTools
             refs.UnlockText = BuildSettlementRow(card, "UnlockRow", -364f, bodyFont);
             refs.FirstClearText = BuildSettlementRow(card, "FirstClearRow", -408f, bodyFont);
 
-            TextMeshProUGUI rule = MenuUiBuilder.CreateText("StarRuleText", card,
-                UiStrings.SettlementStarRuleHint, UiTheme.FontHint, TextAlignmentOptions.Center,
-                UiTheme.WithAlpha(UiTheme.TextLight, 0.85f), secondaryFont);
-            MenuUiBuilder.SetAnchored(rule.rectTransform, new Vector2(0.5f, 1f), new Vector2(840f, 44f),
+            TextMeshProUGUI rule = M3UiBuilder.CreateText("StarRuleText", card,
+                UiStrings.SettlementStarRuleHint, (int)StickTokens.FONT_HINT, TextAlignmentOptions.Center,
+                StickTokens.TEXT_FAINT, secondaryFont);
+            M3UiBuilder.SetAnchored(rule.rectTransform, new Vector2(0.5f, 1f), new Vector2(840f, 44f),
                 new Vector2(0f, -456f));
             refs.StarRuleText = rule;
 
-            refs.ReplayButton = MenuUiBuilder.CreateButton("ReplayButton", card, UiStrings.LevelReplay,
+            // 弹窗按钮：再战 = Primary 主行动档；返回选图 = Dark 次级档。
+            refs.ReplayButton = CreateSketchButton("ReplayButton", card, UiStrings.LevelReplay,
                 new Vector2(0.5f, 0f), new Vector2(-150f, 52f), new Vector2(260f, 52f),
-                bodyFont, UiSprites.Kind.ButtonBrass, UiTheme.Ink);
-            refs.BackButton = MenuUiBuilder.CreateButton("BackToSelectButton", card,
+                bodyFont, StickTokens.SketchButtonKind.Primary);
+            refs.BackButton = CreateSketchButton("BackToSelectButton", card,
                 UiStrings.SettlementBackToSelect, new Vector2(0.5f, 0f), new Vector2(150f, 52f),
-                new Vector2(260f, 52f), bodyFont, UiSprites.Kind.ButtonWood);
+                new Vector2(260f, 52f), bodyFont, StickTokens.SketchButtonKind.Dark);
 
             root.gameObject.SetActive(false);
             return refs;
@@ -327,11 +329,61 @@ namespace PirateCrew.EditorTools
         /// <summary>结算弹窗里的「左标签 + 右值」行（用整行一个左对齐文本，形如「关卡　第 3 关」）。</summary>
         static TextMeshProUGUI BuildSettlementRow(Transform card, string name, float y, TMP_FontAsset bodyFont)
         {
-            TextMeshProUGUI text = MenuUiBuilder.CreateText(name, card, string.Empty, UiTheme.FontBody,
-                TextAlignmentOptions.MidlineLeft, UiTheme.TextLight, bodyFont);
-            MenuUiBuilder.SetAnchored(text.rectTransform, new Vector2(0.5f, 1f), new Vector2(760f, 36f),
+            TextMeshProUGUI text = M3UiBuilder.CreateText(name, card, string.Empty, (int)StickTokens.FONT_BODY,
+                TextAlignmentOptions.MidlineLeft, StickTokens.TEXT, bodyFont);
+            M3UiBuilder.SetAnchored(text.rectTransform, new Vector2(0.5f, 1f), new Vector2(760f, 36f),
                 new Vector2(0f, y));
             return text;
+        }
+
+        // ------------------------------------------------------------------
+        // StickUI 复刻层装配出口（两屏视觉统一走 StickTokens 令牌 + Sketch 控件族；
+        // 中文字体入口仍在 MenuUiBuilder，皮肤族方法不再引用）
+        // ------------------------------------------------------------------
+
+        /// <summary>全屏底板：WINDOW_BG 令牌（alpha 由 0.88 提到 1 作不透明背景）。
+        /// 场景相机背景不动，只换 UI 层；不拦截点击。</summary>
+        static void CreateWindowBackdrop(Transform parent)
+        {
+            RectTransform rect = M3UiBuilder.CreateRect("WindowBackdrop", parent);
+            M3UiBuilder.Stretch(rect);
+
+            var image = rect.gameObject.AddComponent<Image>();
+            Color bg = StickTokens.WINDOW_BG;
+            bg.a = 1f;
+            image.color = bg;
+            image.raycastTarget = false;
+        }
+
+        /// <summary>建 StickUI 面板底（SketchPanel：panel 槽整图 Tiled + 帧轮换沸腾；
+        /// 九宫格 border=10 由导入设置携带）。tone 固定 Dark = 大面板主底档。</summary>
+        static RectTransform CreateStickPanel(string name, Transform parent, Vector2 anchor,
+            Vector2 pivot, Vector2 anchoredPosition, Vector2 size)
+        {
+            SketchPanel panel = SketchPanel.Create(parent, name, anchor, pivot, anchoredPosition,
+                size, SketchPanel.Tone.Dark);
+            return (RectTransform)panel.transform;
+        }
+
+        /// <summary>建 SketchButton（变体表驱动四态槽/五态字色/伪粗，调用方不另配色）。
+        /// 字号取 FONT_BODY 正文档；pivot 沿用旧按钮装配口径 (0.5, 0.5)。</summary>
+        static Button CreateSketchButton(string name, Transform parent, string label, Vector2 anchor,
+            Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font,
+            StickTokens.SketchButtonKind kind)
+        {
+            return SketchButton.Create(parent, name, anchor, new Vector2(0.5f, 0.5f),
+                anchoredPosition, size, font, kind, label, (int)StickTokens.FONT_BODY);
+        }
+
+        /// <summary>模态压暗遮罩：MODAL_DIM 令牌；拦截点击承载模态语义。</summary>
+        static void CreateDimOverlay(Transform parent)
+        {
+            RectTransform rect = M3UiBuilder.CreateRect("DimOverlay", parent);
+            M3UiBuilder.Stretch(rect);
+
+            var image = rect.gameObject.AddComponent<Image>();
+            image.color = StickTokens.MODAL_DIM;
+            image.raycastTarget = true;   // 挡住底下的点击，符合模态语义。
         }
 
         // ------------------------------------------------------------------

@@ -1,10 +1,13 @@
 using System.Collections.Generic;
 using System.IO;
 using PirateCrew.UI;
+using PirateCrew.UI.Stick;
 using TMPro;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
+// StickTokens 令牌是 Stick 复刻层的单一真相源，using static 提到顶层免逐处限定（同 SketchButton.cs）。
+using static PirateCrew.UI.Stick.StickTokens;
 
 namespace PirateCrew.EditorTools
 {
@@ -21,7 +24,15 @@ namespace PirateCrew.EditorTools
     ///   3. 统一控件工厂：亚克力玻璃（半透明）+ TMP，四态配色走 <see cref="UiTheme"/> Token；
     ///      本类是**全局字号体系的唯一入口**（<see cref="FontScale"/>，见下）。
     ///
-    /// 【设计语言：半透明亚克力（液态玻璃）】本波次按用户裁决换皮：木板 / 羊皮纸的"纯色海报感"
+    /// 【双栈现状】主菜单链路（<see cref="BuildSettingsPanel"/> / <see cref="BuildConfirmDialog"/> 与
+    /// SceneSetup.BuildMainMenuScene）已切 StickUI 复刻层：底板走 <see cref="SketchPanel"/>（Tiled 单图）、
+    /// 按钮走 <see cref="SketchButton"/>（六变体四态沸腾）、分隔线走 <see cref="SketchSeparator"/>，
+    /// 颜色/字号一律 <see cref="StickTokens"/> 令牌（stick-world ui_tokens.json 同源）。
+    /// 船员管理 / 选关 / 结算（M3SceneSetup）P2 起已切 StickUI 复刻层，本类玻璃族工厂仅余 MainMenu 设置面板内部豁免项在用
+    /// （<see cref="CreatePanel"/> / <see cref="CreateButton"/> / <see cref="CreateWoodBackdrop"/>），
+    /// 这些方法的视觉语义不得随主菜单换装漂移。
+    ///
+    /// 【设计语言：半透明亚克力（液态玻璃）】M3 链路的皮肤：木板 / 羊皮纸的"纯色海报感"
     /// 全量替换为半透明亚克力 —— 场景从面板底下透出来，靠「半透明底 + 顶部高光带 + 双色 1px 描边
     /// + 3px 更透的厚度带 + ±2% 噪点」做玻璃拟态（UGUI 无真模糊，取舍说明见
     /// <see cref="GlassPanelSpriteBuilder"/> 的类注释）。风格参照隔壁 game-2（stick-world）的
@@ -512,6 +523,44 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
+        /// 给标题类文本挂 StickUI 口径的「墨色描边」（INK 3px 档：色 <see cref="StickTokens.INK"/>、
+        /// TMP 归一化宽 <see cref="SketchButton.TmpOutlineWidth"/>=0.2，与 ControlsSampleBuilder
+        /// 样张标题同口径）。材质落成 <c>Assets/Art/Materials/UI/TmpTitleOutlineInk.mat</c> 持久资产
+        /// （场景重开不丢描边；与 M3 链路仍在用的 TmpTitleOutline.mat 分开，互不污染）。
+        /// </summary>
+        public static void ApplyStickTitleOutline(TextMeshProUGUI text)
+        {
+            if (text == null || text.font == null)
+                return;
+
+            const string path = "Assets/Art/Materials/UI/TmpTitleOutlineInk.mat";
+
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                try
+                {
+                    EnsureFolder("Assets/Art/Materials");
+                    EnsureFolder("Assets/Art/Materials/UI");
+
+                    material = new Material(text.font.material) { name = "TmpTitleOutlineInk" };
+                    material.SetColor("_OutlineColor", INK);
+                    material.SetFloat("_OutlineWidth", SketchButton.TmpOutlineWidth);
+                    material.EnableKeyword("OUTLINE_ON");
+                    AssetDatabase.CreateAsset(material, path);
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning("[MenuUiBuilder] 生成 Stick 标题描边材质失败（" + path + "）："
+                        + e.Message + "\n  标题将不带描边，仅靠 TEXT 亮字压暗底保可读性。");
+                }
+            }
+
+            if (material != null)
+                text.fontSharedMaterial = material;
+        }
+
+        /// <summary>
         /// 建面板底（**本波次起改为亚克力玻璃**）。
         ///
         /// 【兼容口径】签名保留旧的 <paramref name="skin"/>（域外构建器仍在传 <see cref="UiSprites.Kind"/>），
@@ -672,61 +721,76 @@ namespace PirateCrew.EditorTools
         /// </summary>
         public static SettingsPanelResult BuildSettingsPanel(Transform canvas)
         {
-            TMP_FontAsset title = TitleFont;
-            TMP_FontAsset body = BodyFont;
-            TMP_FontAsset secondary = SecondaryFont;
+            // StickUI 复刻层单字体纪律（UiKit.RuntimeFont 同口径）：全部 StickHand。
+            TMP_FontAsset hand = TitleFont;
 
             RectTransform root = CreateRect("SettingsPanel", canvas);
             Stretch(root);
 
             CreateDimOverlay("DimOverlay", root);
-            RectTransform panel = CreatePanel("SettingsCard", root,
+
+            // 底板：SketchPanel Dark（Tiled 单图 + 沸腾帧轮换；stick-world 大弹窗主底）。
+            SketchPanel card = SketchPanel.Create(root.transform, "SettingsCard",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(1280f, 700f), UiSprites.Kind.PanelWood);
+                new Vector2(1280f, 700f), SketchPanel.Tone.Dark);
+            RectTransform panel = (RectTransform)card.transform;
 
-            // 金标题落在"内容片"（较实玻璃）上：金 #F2D06B 叠纯白最坏底 7.76:1；框架层自身 4.52:1 兜底。
-            // 【顺序纪律】UGUI 后建的同级节点画在上层：背衬必须先建，再建文字。
-            CreateDenseChip("TitleChip", panel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -28f), new Vector2(620f, 52f));
-
-            TextMeshProUGUI titleText = CreateText("Title", panel, UiStrings.SettingsTitle,
-                UiTheme.FontTitle, TextAlignmentOptions.Center, UiTheme.BrassLight, title);
+            // 标题：TEXT 亮字 + INK 墨描边（stick-world 标题档 FONT_TITLE=24），直接压面板底。
+            TextMeshProUGUI titleText = CreateTextExact("Title", panel, UiStrings.SettingsTitle,
+                (int)FONT_TITLE, TextAlignmentOptions.Center, TEXT, hand);
             SetAnchored(titleText.rectTransform, new Vector2(0.5f, 1f), new Vector2(600f, 48f),
                 new Vector2(0f, -28f));
-            ApplyTitleOutline(titleText);
+            ApplyStickTitleOutline(titleText);
+
+            // 标题下手绘波浪分隔线（SketchSeparator 自绘，BORDER@0.35）。
+            SketchSeparator.Create(panel, "TitleSeparator", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -96f), new Vector2(900f, 2f), SketchSeparator.Direction.Horizontal);
 
             var result = new SettingsPanelResult();
 
             // 音量四行（滑条实时改 AudioService，关面板时统一落盘）。
-            result.MasterSlider = BuildVolumeRow(panel, 0, UiStrings.SettingsFieldVolumeMaster, body, secondary);
-            result.SfxSlider = BuildVolumeRow(panel, 1, UiStrings.SettingsFieldVolumeSfx, body, secondary);
-            result.MusicSlider = BuildVolumeRow(panel, 2, UiStrings.SettingsFieldVolumeMusic, body, secondary);
-            result.AmbientSlider = BuildVolumeRow(panel, 3, UiStrings.SettingsFieldVolumeAmbient, body, secondary);
+            result.MasterSlider = BuildVolumeRow(panel, 0, UiStrings.SettingsFieldVolumeMaster, hand);
+            result.SfxSlider = BuildVolumeRow(panel, 1, UiStrings.SettingsFieldVolumeSfx, hand);
+            result.MusicSlider = BuildVolumeRow(panel, 2, UiStrings.SettingsFieldVolumeMusic, hand);
+            result.AmbientSlider = BuildVolumeRow(panel, 3, UiStrings.SettingsFieldVolumeAmbient, hand);
 
             // 画质档（二选一选项块；选中态由控制器按 VideoSettingsService 刷新）。
-            BuildSettingsRow(panel, 4, UiStrings.SettingsFieldQuality, body, secondary,
+            BuildSettingsRow(panel, 4, UiStrings.SettingsFieldQuality, hand,
                 out result.QualityHighButton, out result.QualitySmoothButton,
                 UiStrings.SettingsOptionQualityHigh, UiStrings.SettingsOptionQualitySmooth);
-            BuildSettingsRow(panel, 5, UiStrings.SettingsFieldWindowMode, body, secondary,
+            BuildSettingsRow(panel, 5, UiStrings.SettingsFieldWindowMode, hand,
                 out result.FullscreenOnButton, out result.FullscreenOffButton,
                 UiStrings.SettingsOptionFullscreen, UiStrings.SettingsOptionWindowed);
 
-            // 提示：浅米字直接压玻璃框架（5.56:1）——框架是"框"，提示放底部通带。
-            TextMeshProUGUI note = CreateText("SaveHint", panel, UiStrings.SettingsSaveHint,
-                UiTheme.FontHint, TextAlignmentOptions.Center, UiTheme.TextLight, secondary);
+            // 提示：角标档 FONT_TINY=11 + TEXT_FAINT（stick-world 次级文字口径），放底部通带。
+            TextMeshProUGUI note = CreateTextExact("SaveHint", panel, UiStrings.SettingsSaveHint,
+                (int)FONT_TINY, TextAlignmentOptions.Center, TEXT_FAINT, hand);
             SetAnchored(note.rectTransform, new Vector2(0.5f, 0f), new Vector2(1180f, 30f),
                 new Vector2(0f, 116f));
 
-            result.RestoreButton = CreateButton("RestoreButton", panel, UiStrings.SettingsRestore,
-                new Vector2(0.5f, 0f), new Vector2(-260f, 56f), new Vector2(240f, 52f), body,
-                UiSprites.Kind.ButtonParchment);
-            result.BackButton = CreateButton("SettingsBackButton", panel, UiStrings.Back,
-                new Vector2(0.5f, 0f), new Vector2(260f, 56f), new Vector2(240f, 52f), body,
-                UiSprites.Kind.ButtonWood);
+            // 恢复默认 / 返回：手绘按钮 Dark 变体（高 BTN_H=32；Accent 金强调留给确认类主行动）。
+            result.RestoreButton = CreateSketchButton("RestoreButton", panel, UiStrings.SettingsRestore,
+                new Vector2(0.5f, 0f), new Vector2(-260f, 56f), new Vector2(240f, BTN_H),
+                SketchButtonKind.Dark);
+            result.BackButton = CreateSketchButton("SettingsBackButton", panel, UiStrings.Back,
+                new Vector2(0.5f, 0f), new Vector2(260f, 56f), new Vector2(240f, BTN_H),
+                SketchButtonKind.Dark);
 
             root.gameObject.SetActive(false);
 
             return result;
+        }
+
+        /// <summary>
+        /// 主菜单链路专用的手绘按钮装配出口：StickHand 单字体 + 字号 0 = 控件默认档
+        /// （gd 主题 Button = FONT_HUD），四态沸腾/五态字色全在 <see cref="SketchButton"/> 内。
+        /// 返回类型是 <see cref="Button"/> 子类，控制器 [SerializeField] Button 字段直赋兼容。
+        /// </summary>
+        static Button CreateSketchButton(string name, Transform parent, string label, Vector2 anchor,
+            Vector2 anchoredPosition, Vector2 size, SketchButtonKind kind)
+        {
+            return SketchButton.Create(parent, name, anchor, new Vector2(0.5f, 0.5f),
+                anchoredPosition, size, TitleFont, kind, label, 0f);
         }
 
         /// <summary>行高与行距（六行布局：四条滑条 + 两组选项块）。</summary>
@@ -734,14 +798,16 @@ namespace PirateCrew.EditorTools
         const float SettingsRowTop = -150f;
         const float SettingsRowHeight = 52f;
 
-        /// <summary>建一行「字段名 + 音量滑条」（滑条实时驱动，落盘由控制器统一做）。</summary>
-        static Slider BuildVolumeRow(Transform panel, int index, string field,
-            TMP_FontAsset body, TMP_FontAsset secondary)
+        /// <summary>建一行「字段名 + 音量滑条」（滑条实时驱动，落盘由控制器统一做）。
+        /// 【换装最小半径】滑条三件套保持 UGUI 标准件（控制器按 <see cref="Slider"/> 契约接线），
+        /// 只换行底板与字段名文字。</summary>
+        static Slider BuildVolumeRow(Transform panel, int index, string field, TMP_FontAsset hand)
         {
             RectTransform row = CreateSettingsRowBackground(panel, index);
 
-            TextMeshProUGUI label = CreateText("Field", row, field, UiTheme.FontBody,
-                TextAlignmentOptions.MidlineLeft, UiTheme.Ink, body);
+            // 字段名：TEXT 亮字压 panel_light 暗底（stick-world Light 档同为暗色系，浅字才可读）。
+            TextMeshProUGUI label = CreateTextExact("Field", row, field, (int)FONT_BODY,
+                TextAlignmentOptions.MidlineLeft, TEXT, hand);
             SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(300f, 40f),
                 new Vector2(24f, 0f));
 
@@ -792,40 +858,37 @@ namespace PirateCrew.EditorTools
             return slider;
         }
 
-        /// <summary>建一行「字段名 + 二选一选项块」，返回两个选项按钮（选中态由控制器刷新）。</summary>
-        static void BuildSettingsRow(Transform panel, int index, string field,
-            TMP_FontAsset body, TMP_FontAsset secondary,
+        /// <summary>建一行「字段名 + 二选一选项块」，返回两个选项按钮（选中态由控制器刷新）。
+        /// 【换装最小半径】选项块保持玻璃 <see cref="CreateButton"/>：控制器
+        /// <c>SetChipSelected</c> 靠 image.color 乘色表达选中态，与手绘四态贴图机制冲突，
+        /// 换手绘须先重定义选中态语义（本波次不动控制器）。</summary>
+        static void BuildSettingsRow(Transform panel, int index, string field, TMP_FontAsset hand,
             out Button primaryOption, out Button secondaryOption, string primaryLabel, string secondaryLabel)
         {
             RectTransform row = CreateSettingsRowBackground(panel, index);
 
-            TextMeshProUGUI label = CreateText("Field", row, field, UiTheme.FontBody,
-                TextAlignmentOptions.MidlineLeft, UiTheme.Ink, body);
+            TextMeshProUGUI label = CreateTextExact("Field", row, field, (int)FONT_BODY,
+                TextAlignmentOptions.MidlineLeft, TEXT, hand);
             SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(300f, 40f),
                 new Vector2(24f, 0f));
 
             primaryOption = CreateButton("Option0", row, primaryLabel, new Vector2(1f, 0.5f),
-                new Vector2(-448f, 0f), new Vector2(200f, 40f), secondary, UiSprites.Kind.ButtonWood,
+                new Vector2(-448f, 0f), new Vector2(200f, 40f), hand, UiSprites.Kind.ButtonWood,
                 UiTheme.TextLight, UiTheme.FontHint);
             secondaryOption = CreateButton("Option1", row, secondaryLabel, new Vector2(1f, 0.5f),
-                new Vector2(-236f, 0f), new Vector2(200f, 40f), secondary, UiSprites.Kind.ButtonWood,
+                new Vector2(-236f, 0f), new Vector2(200f, 40f), hand, UiSprites.Kind.ButtonWood,
                 UiTheme.TextLight, UiTheme.FontHint);
         }
 
-        /// <summary>设置行的玻璃底 + 字段名（滑条行与选项行共用）。</summary>
+        /// <summary>设置行的底板 + 字段名（滑条行与选项行共用）：
+        /// SketchPanel Light（Tiled 单图，stick-world「HUD 横条/内嵌区块」档）。</summary>
         static RectTransform CreateSettingsRowBackground(Transform panel, int index)
         {
             float y = SettingsRowTop - index * SettingsRowPitch;
-            RectTransform row = CreateRect("Row" + index, panel);
-            SetAnchored(row, new Vector2(0.5f, 1f), new Vector2(1150f, SettingsRowHeight), new Vector2(0f, y));
-
-            var background = row.gameObject.AddComponent<Image>();
-            // 设置行底 = 暖白亚克力小件（深墨字压亮玻璃 ≥8.56:1，最坏底 = 纯白场景）。
-            background.sprite = GetGlass(GlassPanelSpriteBuilder.Tone.Light, chip: true);
-            background.type = Image.Type.Sliced;
-            background.color = Color.white;
-            background.raycastTarget = false;
-            return row;
+            SketchPanel rowPanel = SketchPanel.Create(panel, "Row" + index,
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, y),
+                new Vector2(1150f, SettingsRowHeight), SketchPanel.Tone.Light);
+            return (RectTransform)rowPanel.transform;
         }
 
         /// <summary>确认弹窗构建产物。</summary>
@@ -848,15 +911,15 @@ namespace PirateCrew.EditorTools
 
             CreateDimOverlay("DimOverlay", root);
 
-            RectTransform panel = CreatePanel("ConfirmCard", root,
+            // 底板：SketchPanel Dark（stick-world 大弹窗主底）；消息直接压面板，不再垫内容片。
+            SketchPanel card = SketchPanel.Create(root.transform, "ConfirmCard",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(640f, 280f), UiSprites.Kind.PanelWood);
+                new Vector2(640f, 280f), SketchPanel.Tone.Dark);
+            RectTransform panel = (RectTransform)card.transform;
 
-            CreateDenseChip("MessageChip", panel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -96f), new Vector2(560f, 96f));
-
-            TextMeshProUGUI message = CreateText("Message", panel, defaultMessage,
-                UiTheme.FontSection, TextAlignmentOptions.Center, UiTheme.TextLight, BodyFont);
+            // 正文：TEXT_DIM 暗字（StickConfirmDialog 消息档同色）、FONT_HUD=17 常读档。
+            TextMeshProUGUI message = CreateTextExact("Message", panel, defaultMessage,
+                (int)FONT_HUD, TextAlignmentOptions.Center, TEXT_DIM, TitleFont);
             SetAnchored(message.rectTransform, new Vector2(0.5f, 1f), new Vector2(520f, 80f),
                 new Vector2(0f, -96f));
 
@@ -864,12 +927,14 @@ namespace PirateCrew.EditorTools
             {
                 Root = root.gameObject,
                 Message = message,
-                OkButton = CreateButton("OkButton", panel, UiStrings.Confirm,
-                    new Vector2(0.5f, 0f), new Vector2(-140f, 48f), new Vector2(220f, 52f),
-                    BodyFont, UiSprites.Kind.ButtonBrass, UiTheme.Ink, UiTheme.FontHud),
-                CancelButton = CreateButton("CancelButton", panel, UiStrings.Cancel,
-                    new Vector2(0.5f, 0f), new Vector2(140f, 48f), new Vector2(220f, 52f),
-                    BodyFont, UiSprites.Kind.ButtonWood, UiTheme.TextLight, UiTheme.FontHud),
+                // 确认 = Accent 金强调（StickKit.Confirm 默认 kind 同语义）、取消 = Dark 常规；
+                // 高 BTN_H=32。
+                OkButton = CreateSketchButton("OkButton", panel, UiStrings.Confirm,
+                    new Vector2(0.5f, 0f), new Vector2(-140f, 48f), new Vector2(220f, BTN_H),
+                    SketchButtonKind.Accent),
+                CancelButton = CreateSketchButton("CancelButton", panel, UiStrings.Cancel,
+                    new Vector2(0.5f, 0f), new Vector2(140f, 48f), new Vector2(220f, BTN_H),
+                    SketchButtonKind.Dark),
             };
 
             root.gameObject.SetActive(false);
