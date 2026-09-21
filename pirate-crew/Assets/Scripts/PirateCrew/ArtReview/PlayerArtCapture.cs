@@ -102,6 +102,12 @@ namespace PirateCrew.ArtReview
                 {
                     outDir = args[i + 1];
                 }
+                else if (args[i] == "-toonPilotOut")
+                {
+                    // 等距像素卡通步骤 2 试点出图：进 ToonPilot 场景（见 RunToonPilotCapture）。
+                    outDir = args[i + 1];
+                    ToonPilotMode = true;
+                }
                 else if (args[i] == "-artReviewLevel"
                     && int.TryParse(args[i + 1], out int levelArg)
                     && levelArg >= 1 && levelArg <= SceneArt.ShowcaseLevels.LastLevel)
@@ -118,6 +124,9 @@ namespace PirateCrew.ArtReview
             DontDestroyOnLoad(go);
         }
 
+        /// <summary>-toonPilotOut 模式标记：进 ToonPilot 试点场景出图（正交机位 + Toon 调试档）。</summary>
+        public static bool ToonPilotMode { get; private set; }
+
         IEnumerator Start()
         {
             Screen.SetResolution(Width, Height, false);
@@ -131,6 +140,13 @@ namespace PirateCrew.ArtReview
                 && Time.unscaledTime < bootDeadline)
                 yield return null;
             yield return new WaitForSeconds(0.5f);
+
+            // Toon 试点模式：独立小场景（岛台+船员+海面），与 Battle 出图链完全解耦。
+            if (ToonPilotMode)
+            {
+                yield return RunToonPilotCapture();
+                yield break;
+            }
 
             SceneManager.LoadScene(SceneNames.Battle, LoadSceneMode.Single);
             yield return null;
@@ -203,6 +219,106 @@ namespace PirateCrew.ArtReview
             global::PirateCrew.Core.Log.Info("[PlayerArtCapture] 采集完成，退出。目录：" + _outDir);
             yield return new WaitForSeconds(0.5f);
             Application.Quit(0);
+        }
+
+        // ================================================================
+        // Toon 试点出图（-toonPilotOut）：等距像素卡通步骤 2 的验收出口
+        // ================================================================
+
+        /// <summary>
+        /// ToonPilot 场景采集：5 张 1920×1080 无损 PNG（判据脚本要求原始 PNG——JPEG 会抹掉
+        /// 2px 宽的描边线，judge_toon_pilot 的校准结论）。机位沿装配好的 45° 视线推进
+        /// （zoom 系数），后两张切 <c>_DebugMode</c>（档位灰阶 / 只描边）供分层诊断。
+        /// </summary>
+        IEnumerator RunToonPilotCapture()
+        {
+            SceneManager.LoadScene("ToonPilot", LoadSceneMode.Single);
+            yield return null;
+            if (SceneManager.GetActiveScene().name != "ToonPilot")
+            {
+                Debug.LogError("[PlayerArtCapture] ToonPilot 场景加载失败（Build Settings 未注册？），当前："
+                    + SceneManager.GetActiveScene().name);
+                Application.Quit(1);
+                yield break;
+            }
+
+            // 等 ToonLightDriver 首帧下发 + 像素化 Feature 首帧完成。
+            yield return new WaitForSeconds(1.5f);
+
+            Camera cam = Camera.main;
+            if (cam == null)
+            {
+                Debug.LogError("[PlayerArtCapture] ToonPilot 场景里找不到 MainCamera。");
+                Application.Quit(1);
+                yield break;
+            }
+
+            Vector3 basePos = cam.transform.position;
+            Quaternion baseRot = cam.transform.rotation;
+            Vector3 forward = baseRot * Vector3.forward;
+            Vector3 target = basePos + forward * 30f; // 装配常量：基准机位到目标 30u
+
+            Directory.CreateDirectory(_outDir);
+            (string name, float size, float zoom, float debug)[] shots =
+            {
+                ("toon-wide", 7f, 1f, 0f),
+                ("toon-mid", 3.2f, 0.5f, 0f),
+                ("toon-close", 1.6f, 0.3f, 0f),
+                ("toon-bands", 3.2f, 0.5f, 1f),   // 档位灰阶：色带切分位置 + dither 撕边形态
+                ("toon-ink", 3.2f, 0.5f, 3f),     // 只描边：本体 discard，只剩反壳墨线
+            };
+
+            foreach (var shot in shots)
+            {
+                cam.orthographicSize = shot.size;
+                // 沿视线推进（保持 45° 俯角与旋转锁死——等距口径不动，只改距离与视场）。
+                cam.transform.position = target - forward * (30f * shot.zoom);
+                cam.transform.rotation = baseRot;
+
+                SetToonDebugMode(shot.debug);
+
+                yield return new WaitForEndOfFrame();
+                yield return new WaitForEndOfFrame();
+                yield return new WaitForEndOfFrame();
+
+                string path = Path.Combine(_outDir, shot.name + ".png");
+                ScreenCapture.CaptureScreenshot(path);
+                float waitDeadline = Time.unscaledTime + 10f;
+                while (!File.Exists(path) && Time.unscaledTime < waitDeadline)
+                    yield return null;
+                yield return new WaitForSeconds(0.2f);
+            }
+
+            SetToonDebugMode(0f);
+            global::PirateCrew.Core.Log.Info("[PlayerArtCapture] Toon 试点采集完成，退出。目录：" + _outDir);
+            yield return new WaitForSeconds(0.5f);
+            Application.Quit(0);
+        }
+
+        /// <summary>
+        /// 给场景里所有 PirateToon 材质的 renderer 设 <c>_DebugMode</c>（MPB 覆盖，不动材质资产）；
+        /// 传 0 清 MPB 还原。采集场景无批次压力，MPB 打断 SRP Batcher 无所谓。
+        /// </summary>
+        static void SetToonDebugMode(float mode)
+        {
+            foreach (MeshRenderer renderer in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+            {
+                Material mat = renderer.sharedMaterial;
+                if (mat == null || mat.shader == null || mat.shader.name != "PirateCrew/PirateToon")
+                    continue;
+
+                if (mode > 0f)
+                {
+                    var block = new MaterialPropertyBlock();
+                    renderer.GetPropertyBlock(block);
+                    block.SetFloat("_DebugMode", mode);
+                    renderer.SetPropertyBlock(block);
+                }
+                else
+                {
+                    renderer.SetPropertyBlock(null);
+                }
+            }
         }
 
         void CollectSceneRefs()

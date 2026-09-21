@@ -144,6 +144,12 @@ namespace PirateCrew.Rendering
                 desc.depthBufferBits = 0;
                 desc.msaaSamples = 1;
 
+                // 下发实际 RT 尺寸给 Toon 全局 uniform（PirateToon 描边线宽公式 2/RT高 与
+                // Bayer 块对齐都要它，渲染篇 §5/红线 4）。放在这里而不是每帧 Execute：
+                // 尺寸只在相机 setup 时变化（分辨率切换/进入 Game 视图）。
+                Shader.SetGlobalFloat(ToonShaderGlobals.PixelRTHeight, height);
+                Shader.SetGlobalFloat(ToonShaderGlobals.PixelRTWidth, width);
+
                 // FilterMode.Point 与 shader 的 sampler_PointClamp 双保险（渲染篇三大坑 #1：灰边）。
                 RenderingUtils.ReAllocateIfNeeded(ref m_LowRes, desc, FilterMode.Point,
                     TextureWrapMode.Clamp, name: kLowResRtName);
