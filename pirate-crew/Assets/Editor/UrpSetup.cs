@@ -24,15 +24,15 @@ namespace PirateCrew.EditorTools
             EnsureFolder(SettingsFolder, "Settings");
             EnsureFolder(UrpFolder, "URP");
 
-            // 高画质档：HDR + 4x MSAA + 更远阴影
+            // 高画质档：HDR 关 + MSAA 关（等距像素卡通口径：MSAA 的平滑边经像素化降采成脏边）+ 更远阴影
             var balancedRenderer = CreateOrLoadRendererData("PC_Balanced_Renderer");
             var balanced = CreateOrLoadPipelineAsset("PC_Balanced_URPAsset", balancedRenderer);
-            Tune(balanced, hdr: true, msaaSampleCount: 4, shadowDistance: 50f, cascadeCount: 4);
+            Tune(balanced, hdr: false, msaaSampleCount: 0, shadowDistance: 50f, cascadeCount: 4);
 
-            // 低画质档：关 HDR + 2x MSAA + 近阴影
+            // 低画质档：HDR 关 + MSAA 关 + 近阴影
             var performantRenderer = CreateOrLoadRendererData("PC_Performant_Renderer");
             var performant = CreateOrLoadPipelineAsset("PC_Performant_URPAsset", performantRenderer);
-            Tune(performant, hdr: false, msaaSampleCount: 2, shadowDistance: 25f, cascadeCount: 2);
+            Tune(performant, hdr: false, msaaSampleCount: 0, shadowDistance: 25f, cascadeCount: 2);
 
             // 工程默认走 Balanced；低画质档再单独覆盖为 Performant
             GraphicsSettings.defaultRenderPipeline = balanced;

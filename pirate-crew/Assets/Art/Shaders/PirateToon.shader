@@ -68,6 +68,10 @@ Shader "PirateCrew/PirateToon"
         _InkColor               ("描边墨色（与 UI 令牌 INK 同色）", Color) = (0.09, 0.08, 0.11, 1.0)
         _OutlinePixels          ("描边线宽（RT 像素数；1080p 屏幕×3）", Range(0.25, 4.0)) = 1.0
 
+        // ---- 自发光（灯体/宝石；裁决 D1：夜色基调 + 自发光灯，柔光靠手绘径向贴片而非 bloom）----
+        _EmissiveColor          ("自发光色（黑 = 关）", Color) = (0, 0, 0, 1)
+        _EmissiveStrength       ("自发光强度", Range(0.0, 4.0)) = 0.0
+
         // ---- 调试 ----
         _DebugMode              ("调试 0正常 1档位 2光照 3只描边 4Bayer 5亮部 6暗部", Range(0.0, 6.0)) = 0.0
     }
@@ -117,6 +121,8 @@ Shader "PirateCrew/PirateToon"
                 float  _VertexThresholdStrength;
                 float4 _InkColor;
                 float  _OutlinePixels;
+                float4 _EmissiveColor;
+                float  _EmissiveStrength;
                 float  _DebugMode;
             CBUFFER_END
 
@@ -216,6 +222,9 @@ Shader "PirateCrew/PirateToon"
                 // 光色乘在亮暗两侧（替换色已含色相偏移，光色只给整体明暗/暖冷），环境光加法。
                 half3 color = albedo * _ToonLightColor.rgb + _ToonAmbientColor.rgb;
 
+                // 自发光加在色带之后：灯体/宝石不受色带切分影响，夜里是一块纯亮（裁决 D1）。
+                color += _EmissiveColor.rgb * _EmissiveStrength;
+
                 // [DEBUG] 档 1：档位灰阶（kMain 直接输出——看色带切分位置与 dither 撕边形态；
                 //   3 档时输出 0=深档 0.5=暗档 1=亮档的离散灰阶）。
                 if (_DebugMode > 0.5 && _DebugMode < 1.5)
@@ -282,6 +291,8 @@ Shader "PirateCrew/PirateToon"
                 float  _VertexThresholdStrength;
                 float4 _InkColor;
                 float  _OutlinePixels;
+                float4 _EmissiveColor;
+                float  _EmissiveStrength;
                 float  _DebugMode;
             CBUFFER_END
 

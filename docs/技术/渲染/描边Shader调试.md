@@ -1,5 +1,12 @@
 # 描边 Shader 调试说明（M2 单位选中 / 悬停描边）
 
+> ⚠ **口径已升级（2026-09-21，等距像素卡通方向）**：本文的宽度口径（NDC 半屏高比例、0.002~0.012、1080p 校准例）与
+> `_OutlineDistanceAttenuation` 属**透视时代**。现行口径见[渲染管线-等距像素卡通.md](渲染管线-等距像素卡通.md) §5：
+> 线宽在 **RT 空间**定义（`2 ÷ RT高 × 像素数`）；且**正交下 `clip.w ≡ 1`，`_OutlineDistanceAttenuation` 恒等于 1（空操作）**——
+> 调它不会有任何效果。风格描边（墨色卡线）现由 `PirateToon` 的 ToonInk pass 承担；本文的 `PirateOutline*` 与全屏 Sobel
+> `PirateOutlinePost` 是**选中/悬停反馈**系统（`OutlineRendererFeature` 已列入立项 M2b 退役）。
+> 下文 §八 的踩坑记录（独立 LightMode 铁律等）**依然有效**，保留为知识库。
+
 > 关联交付物：
 > - `pirate-crew/Assets/Art/Shaders/PirateOutline.shader` —— 单体描边（inverted hull，含 5 档 `_DebugMode`）
 > - `pirate-crew/Assets/Art/Shaders/PirateOutlinePost.shader` —— 全屏后处理描边（mask Sobel + 虚线，含 5 档 `_DebugMode`）

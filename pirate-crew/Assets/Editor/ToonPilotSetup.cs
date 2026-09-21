@@ -32,6 +32,14 @@ namespace PirateCrew.EditorTools
         const string MeshFolder = "Assets/Art/Models/SceneKit/Baked";
         const string MaterialFolder = "Assets/Art/Materials/Toon";
         const string BuildSettingsAsset = "ProjectSettings/EditorBuildSettings.asset";
+        const string TextureFolder = "Assets/Art/Textures/Fx";
+
+        /// <summary>
+        /// 【夜色档（2026-09-21 裁决 D1：自发光灯 + 夜色）】true = 夜景 + 自发光灯；false = 白昼档（原常量）。
+        /// 柔光的实现物是"手绘径向贴片"（灯头 halo + 地面光池，量化 + Bayer 抖动烘进 PNG），
+        /// **不引 bloom、不加附加光**——与「色带不吃实时投影」同源：局部光靠画出来的贴片表达。
+        /// </summary>
+        const bool NightMode = true;
 
         [MenuItem("PirateCrew/ToonPilot/烘焙试点场景")]
         public static void BuildAll()
@@ -40,11 +48,22 @@ namespace PirateCrew.EditorTools
 
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            float deckY = BakePilotIslet();
+            PirateCrew.Battle.TileTerrainGrid isletGrid = BakePilotIslet();
+            if (isletGrid == null)
+                return;
+            float deckY = isletGrid.SurfaceWorldY(2, 2);
             Material sea = EnsureToonMaterial("ToonPilot_Sea", HexGamma("2E5F80"), HexGamma("1C3A52"), 0f); // 大平面不描边；深调海面
             Material ground = sea; // 试点阶段海面即"地面"；真像素海面是 M2f 裁决 #7
             Material crewRed = EnsureToonMaterial("ToonPilot_CrewRed", HexGamma("DE524D"), HexGamma("6B3352"));
             Material crewBlue = EnsureToonMaterial("ToonPilot_CrewBlue", HexGamma("598CD9"), HexGamma("345085"));
+
+            // ---- 夜色档资产：自发光灯头 + 手绘径向柔光（halo / 地面光池）----
+            Material lampHead = EnsureToonMaterial("ToonPilot_LampHead", HexGamma("FFF3C4"), HexGamma("7A5C34"),
+                outlinePixels: 2f, emissive: HexGamma("FFE08A"), emissiveStrength: 2.6f);
+            Material halo = EnsureFxMaterial("ToonPilot_LampHalo",
+                EnsureRadialTexture(TextureFolder + "/ToonPilot_GlowHalo.png", "FFD98A", 4));
+            Material pool = EnsureFxMaterial("ToonPilot_LampPool",
+                EnsureRadialTexture(TextureFolder + "/ToonPilot_GlowPool.png", "FFC97A", 3));
 
             // ---- 场景内容 ----
             var root = new GameObject("ToonPilot");
@@ -79,20 +98,25 @@ namespace PirateCrew.EditorTools
             SpawnToonCrew("Assets/Prefabs/PirateCrew/Crew/Sniper.prefab", "ToonPilot_CrewBlue", crewBlue,
                 new Vector3(1.6f, deckY + 0.25f, -1.0f), -35f, root.transform);
 
+            // 自发光灯 ×2（灯柱 + 自发光灯头 + halo 朝相机 + 地面光池）。落位查地形格面高，避免悬空/埋地。
+            SpawnLamp(root.transform, isletGrid, new Vector2(-1.4f, 1.4f), lampHead, halo, pool);
+            SpawnLamp(root.transform, isletGrid, new Vector2(1.5f, -1.5f), lampHead, halo, pool);
+
             // 左上单光（方向同 Battle 主光口径 Euler(48,140)，无阴影——色带表面接实时投影必脏）。
+            // 夜色档换冷月光：环境越暗，自发光灯的光池越跳（参考观感正是"暗场 + 暖光点"）。
             var sunGo = new GameObject("ToonSun");
             sunGo.transform.SetParent(root.transform);
             sunGo.transform.rotation = Quaternion.Euler(48f, 140f, 0f);
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = HexGamma("FFF5E0");
-            sun.intensity = 1.1f;
+            sun.color = HexGamma(NightMode ? "9FB6D8" : "FFF5E0");
+            sun.intensity = NightMode ? 0.42f : 1.1f;
             sun.shadows = LightShadows.None;
             RenderSettings.sun = sun;
 
             // 扁平环境光（ToonLightDriver 会把它下发为 _ToonAmbientColor）。
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = HexGamma("1A1E28"); // 收小环境光：加法环境光会抬平明暗跨度（参照图最暗像素是真暗）
+            RenderSettings.ambientLight = HexGamma(NightMode ? "0B0E18" : "1A1E28"); // 收小环境光：加法环境光会抬平明暗跨度（参照图最暗像素是真暗）
 
             var driverGo = new GameObject("ToonLightDriver");
             driverGo.transform.SetParent(root.transform);
@@ -113,7 +137,7 @@ namespace PirateCrew.EditorTools
             camera.nearClipPlane = 0.3f;
             camera.farClipPlane = 100f;
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = HexGamma("7E9BB4"); // 天空色板起步值（裁决 #5）；深调以留明暗跨度
+            camera.backgroundColor = HexGamma(NightMode ? "0A0F1C" : "7E9BB4"); // 天空色板起步值（裁决 #5）；夜色档给深蓝夜空
             camGo.AddComponent<AudioListener>();
 
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), ScenePath);
@@ -128,8 +152,8 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
         // 试点岛台：手写 6×6 对称山丘高度场 → 岛壳 → 平滑法线 → 网格资产 + prefab
         // ------------------------------------------------------------------
-        /// <summary>烘焙岛台并返回台面顶世界高度（腿部落位用；-1 = 失败）。</summary>
-        static float BakePilotIslet()
+        /// <summary>烘焙岛台并返回地形格（腿部落位 + 灯具贴地都用它查面高；null = 失败）。</summary>
+        static PirateCrew.Battle.TileTerrainGrid BakePilotIslet()
         {
             // 高度场（行主序，块数；1 档裙边、2 档腰、3 档顶）：同 L2 碎岛的列式模式。
             int[] blocks =
@@ -146,7 +170,7 @@ namespace PirateCrew.EditorTools
             if (shell.IsEmpty)
             {
                 Debug.LogError("[ToonPilotSetup] 试点岛壳烘出空网格（高度场/设置有误），中止。");
-                return -1f;
+                return null;
             }
 
             Vector3[] vertices = shell.ToVertices();
@@ -172,7 +196,7 @@ namespace PirateCrew.EditorTools
             string prefabPath = MeshFolder + "/ToonPilot_Islet.prefab";
             PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
             Object.DestroyImmediate(root);
-            return grid.SurfaceWorldY(2, 2);
+            return grid;
         }
 
         /// <summary>
@@ -247,7 +271,8 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>创建/更新 PirateToon 试点材质（幂等；重跑覆盖 = 常量表是唯一调色入口）。</summary>
-        static Material EnsureToonMaterial(string name, Color bright, Color shadow, float outlinePixels = 2f)
+        static Material EnsureToonMaterial(string name, Color bright, Color shadow, float outlinePixels = 2f,
+            Color? emissive = null, float emissiveStrength = 0f)
         {
             string path = MaterialFolder + "/" + name + ".mat";
             Shader toon = Shader.Find("PirateCrew/PirateToon");
@@ -272,9 +297,147 @@ namespace PirateCrew.EditorTools
             mat.SetFloat("_ShadowFeather", 0f);   // 硬切主路径（裁决 #2 对照开关，默认硬切）
             mat.SetFloat("_DitherStrength", 0f);  // 默认关：参照图无有序抖动，开 1.0 会织出 12px 网眼
             mat.SetFloat("_OutlinePixels", outlinePixels); // 岛台/船员 2px：实测 1px 经降采样不可见（裁决#3 对照数据）
+            mat.SetColor("_EmissiveColor", emissive ?? Color.black); // 自发光（裁决 D1：灯体/宝石）
+            mat.SetFloat("_EmissiveStrength", emissiveStrength);
             // 海面关描边时同步把队列覆写回 2000（Geometry）：描边物 SubShader 是 Geometry+50
             // 整体晚画，海面若也 +50 会排到描边物之后、fill 全屏盖掉壳环（六轮实测的根因之一）。
             mat.renderQueue = outlinePixels < 0.01f ? 2000 : 2050;
+            EditorUtility.SetDirty(mat);
+            return mat;
+        }
+
+        /// <summary>世界 XZ → 地形格面高（格 2u、网格原点在 (-6,·,-6)，越界夹到格内）。</summary>
+        static float SurfaceYAt(PirateCrew.Battle.TileTerrainGrid grid, float x, float z)
+        {
+            int col = Mathf.Clamp(Mathf.FloorToInt((x + 6f) / 2f), 0, 5);
+            int row = Mathf.Clamp(Mathf.FloorToInt((z + 6f) / 2f), 0, 5);
+            return grid.SurfaceWorldY(col, row);
+        }
+
+        /// <summary>
+        /// 自发光灯（裁决 D1）：灯柱/灯头（PirateToon，灯头带自发光）+ halo 贴片（朝真等距机位，机位不旋转
+        /// 故朝向固定）+ 地面光池贴片（平铺在面高 +0.02）。灯头自发光是"发光体"，halo/光池是"画出来的柔光"
+        /// ——三者合起来才是参考图那种"暗场里的暖光点"，不依赖 bloom 也不加附加光。
+        /// </summary>
+        static void SpawnLamp(Transform parent, PirateCrew.Battle.TileTerrainGrid grid, Vector2 xz,
+            Material headMaterial, Material haloMaterial, Material poolMaterial)
+        {
+            if (headMaterial == null || haloMaterial == null || poolMaterial == null)
+                return;
+
+            float y = SurfaceYAt(grid, xz.x, xz.y);
+            var lampRoot = new GameObject("ToonPilot_Lamp");
+            lampRoot.transform.SetParent(parent);
+            lampRoot.transform.position = new Vector3(xz.x, y, xz.y);
+
+            GameObject post = NewPrimitive(PrimitiveType.Cube, "Lamp_Post", lampRoot.transform);
+            post.transform.localPosition = new Vector3(0f, 0.75f, 0f);
+            post.transform.localScale = new Vector3(0.12f, 1.5f, 0.12f);
+            post.GetComponent<MeshRenderer>().sharedMaterial = headMaterial;
+
+            GameObject bulb = NewPrimitive(PrimitiveType.Cube, "Lamp_Bulb", lampRoot.transform);
+            bulb.transform.localPosition = new Vector3(0f, 1.62f, 0f);
+            bulb.transform.localScale = new Vector3(0.34f, 0.34f, 0.34f);
+            bulb.GetComponent<MeshRenderer>().sharedMaterial = headMaterial;
+
+            GameObject glow = NewPrimitive(PrimitiveType.Quad, "Lamp_Halo", lampRoot.transform);
+            glow.transform.localPosition = new Vector3(0f, 1.62f, 0f);
+            glow.transform.rotation = Quaternion.LookRotation(new Vector3(1f, 1f, 1f).normalized); // 朝向固定：真等距机位不旋转
+            glow.transform.localScale = new Vector3(3.2f, 3.2f, 1f);
+            glow.GetComponent<MeshRenderer>().sharedMaterial = haloMaterial;
+
+            GameObject pool = NewPrimitive(PrimitiveType.Quad, "Lamp_Pool", lampRoot.transform);
+            pool.transform.localPosition = new Vector3(0f, 0.02f, 0f);
+            pool.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            pool.transform.localScale = new Vector3(2.8f, 1.8f, 1f);
+            pool.GetComponent<MeshRenderer>().sharedMaterial = poolMaterial;
+        }
+
+        /// <summary>建图元并去掉 Collider（试点场景无物理；与海面 quad 同口径）。</summary>
+        static GameObject NewPrimitive(PrimitiveType type, string name, Transform parent)
+        {
+            GameObject go = GameObject.CreatePrimitive(type);
+            go.name = name;
+            Object.DestroyImmediate(go.GetComponent<Collider>());
+            go.transform.SetParent(parent);
+            return go;
+        }
+
+        /// <summary>
+        /// 手绘径向柔光贴图（裁决 D1）：RGB = tint，A = 径向衰减，**4 档量化 + 4×4 Bayer 中点归一抖动**
+        /// （与色带同一套抖动手法与矩阵口径），发成 PNG 并按像素纹理三条导入（Point / mip off / 不压缩）。
+        /// 这是本方向规格下生产的第一件像素贴图，同时充当资产篇 §3 的样板。
+        /// </summary>
+        static Texture2D EnsureRadialTexture(string path, string tintHex, int steps)
+        {
+            const int N = 64;
+            int[] bayer =
+            {
+                 0,  8,  2, 10,
+                12,  4, 14,  6,
+                 3, 11,  1,  9,
+                15,  7, 13,  5,
+            };
+            Color tint = HexGamma(tintHex);
+            var tex = new Texture2D(N, N, TextureFormat.RGBA32, false);
+            for (int y = 0; y < N; y++)
+            {
+                for (int x = 0; x < N; x++)
+                {
+                    float dx = (x + 0.5f) / N * 2f - 1f;
+                    float dy = (y + 0.5f) / N * 2f - 1f;
+                    float v = Mathf.Clamp01(1f - Mathf.Sqrt(dx * dx + dy * dy));
+                    v *= v; // 收边：越靠外掉得越快，只有灯芯附近是实心亮
+                    float dither = (bayer[(y & 3) * 4 + (x & 3)] + 0.5f) / 16f - 0.5f;
+                    float q = Mathf.Clamp01(Mathf.Round(v * (steps - 1f) + dither) / (steps - 1f));
+                    tex.SetPixel(x, y, new Color(tint.r, tint.g, tint.b, q));
+                }
+            }
+            tex.Apply();
+
+            EnsureFolder("Assets/Art/Textures");
+            EnsureFolder(TextureFolder);
+            // File IO 必须绝对路径（batchmode 下相对路径按进程 CWD 解析——本文件 §18 教训）。
+            string abs = Path.GetFullPath(Path.Combine(Application.dataPath, "..", path));
+            File.WriteAllBytes(abs, tex.EncodeToPNG());
+            Object.DestroyImmediate(tex);
+            AssetDatabase.ImportAsset(path);
+
+            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer != null)
+            {
+                importer.textureType = TextureImporterType.Default;
+                importer.filterMode = FilterMode.Point;              // 像素纹理三条（资产篇 §3）
+                importer.mipmapEnabled = false;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.sRGBTexture = true;
+                importer.alphaIsTransparency = true;
+                importer.wrapMode = TextureWrapMode.Clamp;
+                importer.SaveAndReimport();
+            }
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        }
+
+        /// <summary>创建/更新加法混合贴片材质（halo / 光池）：Blend SrcAlpha One；tint 烘在贴图里。</summary>
+        static Material EnsureFxMaterial(string name, Texture2D tex)
+        {
+            Shader fx = Shader.Find("PirateCrew/Fx/Additive");
+            if (fx == null)
+            {
+                Debug.LogError("[ToonPilotSetup] 找不到 PirateCrew/Fx/Additive（柔光贴片用）。");
+                return null;
+            }
+            string path = MaterialFolder + "/" + name + ".mat";
+            Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null)
+            {
+                mat = new Material(fx) { name = name };
+                AssetDatabase.CreateAsset(mat, path);
+            }
+            mat.shader = fx;
+            if (tex != null)
+                mat.SetTexture("_BaseMap", tex);
+            mat.renderQueue = 3000; // Transparent：柔光画在几何之后
             EditorUtility.SetDirty(mat);
             return mat;
         }

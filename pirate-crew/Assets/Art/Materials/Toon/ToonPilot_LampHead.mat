@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: ToonPilot_CrewBlue
+  m_Name: ToonPilot_LampHead
   m_Shader: {fileID: 4800000, guid: 1202e87ab9509164295dd9f39484a7bf, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -28,16 +28,16 @@ Material:
     - _BandCount: 2
     - _DebugMode: 0
     - _DitherStrength: 0
-    - _EmissiveStrength: 0
+    - _EmissiveStrength: 2.6
     - _OutlinePixels: 2
     - _ShadowFeather: 0
     - _ShadowThreshold: 0.5
     - _ShadowThreshold2: 0.25
     - _VertexThresholdStrength: 1
     m_Colors:
-    - _BaseColor: {r: 0.34901962, g: 0.54901963, b: 0.8509804, a: 1}
-    - _EmissiveColor: {r: 0, g: 0, b: 0, a: 1}
+    - _BaseColor: {r: 1, g: 0.9529412, b: 0.76862746, a: 1}
+    - _EmissiveColor: {r: 1, g: 0.8784314, b: 0.5411765, a: 1}
     - _InkColor: {r: 0.05, g: 0.04, b: 0.03, a: 1}
-    - _ShadowColor: {r: 0.20392157, g: 0.3137255, b: 0.52156866, a: 1}
+    - _ShadowColor: {r: 0.47843137, g: 0.36078432, b: 0.20392157, a: 1}
     - _ShadowColor2: {r: 0.31999996, g: 0.29999998, b: 0.45, a: 1}
   m_BuildTextureStacks: []
