@@ -14,15 +14,23 @@ namespace PirateCrew.EditorTools
     /// 改成场景里的显式 <c>[SerializeField]</c> 连线。
     ///
     /// 【入口】
-    ///   菜单: PirateCrew/接线/写入 Battle 运行期查找接线
+    ///   菜单: PirateCrew/接线/写入 Battle 运行期查找接线 → <see cref="Wire"/>
+    ///   装配链: <see cref="BattleScenePipeline"/> 第 ⑥ 步 → <see cref="WireScene"/>
     ///   无头: -batchmode -nographics -quit -projectPath &lt;P&gt; \
-    ///         -executeMethod PirateCrew.EditorTools.BattleLookupWiring.Wire -logFile -
+    ///         -executeMethod PirateCrew.EditorTools.BattleLookupWiring.WireFromCommandLine -logFile -
     ///   只读校验（CI 用，缺接线或字段名漂移时退出码 1）：
     ///         -executeMethod PirateCrew.EditorTools.BattleLookupWiring.Verify
     ///
     /// 【前置 / 顺序】必须在 <see cref="M2BattleSceneSetup.BuildAll"/> **之后**跑
     /// （BuildAll 会 <c>NewScene(EmptyScene)</c> 全量重建，把这份接线抹掉），与
     /// <see cref="HudMinimapSceneSetup.WireMinimap"/> 同级——两者都可在 BuildAll 之后任意顺序执行。
+    /// 链内位置见 <see cref="BattleScenePipeline.Steps"/>。
+    ///
+    /// 【绝不终止进程】<see cref="WireScene"/> 只做事并返回问题清单；终止进程是顶层 CLI 入口
+    /// （<see cref="WireFromCommandLine"/>）的职责。这条纪律是可组合性的前提——
+    /// 本方法曾在 batchmode 下直接 <c>EditorApplication.Exit</c>，于是整条 <see cref="ArtGate"/>
+    /// 跑到这一步**整个编辑器就退出了**，后面的场景装配与折叠一步都没跑，
+    /// 表现为"日志戛然而止 + 后续步骤凭空消失"，排查起来极其费时。
     ///
     /// 【为什么单独一个脚本】<c>M2BattleSceneSetup.cs</c> / <c>HudMinimapSceneSetup.cs</c> 不在本
     /// 轨道文件域内，不能改；本脚本复用它们的代码模式（<c>SerializedObject</c> 写私有
@@ -51,17 +59,29 @@ namespace PirateCrew.EditorTools
             public Object Value;
         }
 
+        /// <summary>菜单入口：写接线，失败只在 Console 报错（不终止编辑器）。</summary>
         [MenuItem("PirateCrew/接线/写入 Battle 运行期查找接线")]
         public static void Wire()
         {
+            WireScene();
+        }
+
+        /// <summary>
+        /// **装配链步骤 / 唯一实质入口**：写三条接线并返回问题清单（空 = 成功）。
+        /// 不终止进程（理由见类头「绝不终止进程」）。
+        /// 调用方若要"失败即中断重建"，请自行检查返回值/抛出（<see cref="BattleScenePipeline"/> 就是这么做的）。
+        /// </summary>
+        public static List<string> WireScene()
+        {
+            var problems = new List<string>();
+
             Scene scene;
-            if (!TryOpenBattleScene(out scene))
+            if (!TryOpenBattleScene(out scene, problems))
             {
-                Finish(1);
-                return;
+                Report(problems);
+                return problems;
             }
 
-            var problems = new List<string>();
             var applied = new List<string>();
 
             var aim = FindInScene<AimThrowController>(scene);
@@ -106,10 +126,23 @@ namespace PirateCrew.EditorTools
 
             for (int i = 0; i < applied.Count; i++)
                 Debug.Log("[BattleLookupWiring] " + applied[i]);
+            Report(problems);
+
+            return problems;
+        }
+
+        /// <summary>无头 CLI 入口：写接线并以退出码报告成败（供 CI / 手工诊断）。</summary>
+        public static void WireFromCommandLine()
+        {
+            List<string> problems = WireScene();
+            if (Application.isBatchMode)
+                EditorApplication.Exit(problems.Count > 0 ? 1 : 0);
+        }
+
+        static void Report(List<string> problems)
+        {
             for (int i = 0; i < problems.Count; i++)
                 Debug.LogError("[BattleLookupWiring] " + problems[i]);
-
-            Finish(problems.Count > 0 ? 1 : 0);
         }
 
         /// <summary>
@@ -119,14 +152,16 @@ namespace PirateCrew.EditorTools
         [MenuItem("PirateCrew/接线/校验 Battle 运行期查找接线")]
         public static void Verify()
         {
+            var problems = new List<string>();
+
             Scene scene;
-            if (!TryOpenBattleScene(out scene))
+            if (!TryOpenBattleScene(out scene, problems))
             {
+                Report(problems);
                 Finish(1);
                 return;
             }
 
-            var problems = new List<string>();
             var ok = new List<string>();
 
             Check<BattleCameraController>(scene, "aimThrow", ok, problems);
@@ -225,22 +260,22 @@ namespace PirateCrew.EditorTools
             ok.Add(typeof(T).Name + "." + field + " = " + prop.objectReferenceValue.name);
         }
 
-        static bool TryOpenBattleScene(out Scene scene)
+        static bool TryOpenBattleScene(out Scene scene, List<string> problems)
         {
             scene = default;
 
             // 用 AssetDatabase 判存在，避免 batchmode 下依赖当前工作目录。
             if (AssetDatabase.LoadAssetAtPath<SceneAsset>(BattleScenePath) == null)
             {
-                Debug.LogError("[BattleLookupWiring] 找不到 " + BattleScenePath
-                               + "，请先运行 PirateCrew.EditorTools.M2BattleSceneSetup.BuildAll。");
+                problems.Add("找不到 " + BattleScenePath
+                             + "，请先运行 PirateCrew.EditorTools.M2BattleSceneSetup.BuildAll。");
                 return false;
             }
 
             scene = EditorSceneManager.OpenScene(BattleScenePath, OpenSceneMode.Single);
             if (!scene.IsValid())
             {
-                Debug.LogError("[BattleLookupWiring] 打开场景失败: " + BattleScenePath);
+                problems.Add("打开场景失败: " + BattleScenePath);
                 return false;
             }
 

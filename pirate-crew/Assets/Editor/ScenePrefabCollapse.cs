@@ -93,44 +93,61 @@ namespace PirateCrew.EditorTools
         };
 
         // ------------------------------------------------------------------
-        // 菜单 / 命令行入口
+        // 装配链入口（失败即抛，不终止进程）/ 菜单 / 命令行
         // ------------------------------------------------------------------
 
-        [MenuItem("PirateCrew/Scenes/折叠为 Prefab/① Battle 战斗场景", false, 40)]
+        /// <summary>
+        /// 折叠 Battle（<see cref="BattleScenePipeline"/> 的最后一步）。
+        /// **失败即抛**：折叠失败还继续往下跑的代价是"场景留在裸对象态"，必须让管线红。
+        /// </summary>
         public static void CollapseBattle()
         {
-            RunBatch(new[] { "Battle" }, true);
+            RunOrThrow(new[] { "Battle" }, true);
         }
 
-        [MenuItem("PirateCrew/Scenes/折叠为 Prefab/② 三个 UI 场景", false, 41)]
+        /// <summary>折叠三个 UI 场景（<see cref="ArtGate"/> 的链尾步骤会一并折叠）。失败即抛。</summary>
         public static void CollapseUiScenes()
         {
-            RunBatch(new[] { "MainMenu", "LevelSelect", "CrewManagement" }, true);
+            RunOrThrow(new[] { "MainMenu", "LevelSelect", "CrewManagement" }, true);
         }
 
-        [MenuItem("PirateCrew/Scenes/折叠为 Prefab/③ 全部目标", false, 42)]
-        public static void CollapseAll()
+        [MenuItem("PirateCrew/Scenes/折叠为 Prefab/③ 折叠全部目标", false, 42)]
+        public static void CollapseAllFromMenu()
         {
-            RunBatch(AllKeys(), true);
+            RunAndLog(AllKeys(), true);
         }
 
         [MenuItem("PirateCrew/Scenes/折叠为 Prefab/校验折叠态（只读）", false, 43)]
+        public static void VerifyAllFromMenu()
+        {
+            RunAndLog(AllKeys(), false);
+        }
+
+        /// <summary>折叠全部目标（<see cref="ArtGate"/> 的链尾步骤）。任一项失败即抛出。</summary>
+        public static void CollapseAll()
+        {
+            RunOrThrow(AllKeys(), true);
+        }
+
+        /// <summary>只读校验全部目标。任一项不合规即抛出。</summary>
         public static void VerifyAll()
         {
-            RunBatch(AllKeys(), false);
+            RunOrThrow(AllKeys(), false);
         }
 
         /// <summary>
         /// 无头总入口。
         /// <c>-collapseMode</c>：collapse（默认）| verify；
         /// <c>-collapseTargets</c>：分号分隔的 Key（省略 = 全部）。
+        /// 本方法是**顶层入口**，故由它负责把结果转成进程退出码。
         /// </summary>
         public static void FromCommandLine()
         {
             string mode = ArgValue("-collapseMode") ?? "collapse";
             string targets = ArgValue("-collapseTargets");
             string[] keys = string.IsNullOrEmpty(targets) ? AllKeys() : targets.Split(';');
-            RunBatch(keys, !string.Equals(mode, "verify", System.StringComparison.OrdinalIgnoreCase));
+            List<string> problems = Run(keys, !string.Equals(mode, "verify", System.StringComparison.OrdinalIgnoreCase));
+            Finish(problems.Count == 0 ? 0 : 1);
         }
 
         internal static string[] AllKeys()
@@ -153,7 +170,11 @@ namespace PirateCrew.EditorTools
             return null;
         }
 
-        static void RunBatch(string[] keys, bool collapse)
+        /// <summary>
+        /// 跑一批目标，返回问题清单（空 = 全部通过）。**不抛异常、不终止进程**——
+        /// 报告方式留给调用方：菜单只打日志、装配链让它抛、CLI 转退出码。
+        /// </summary>
+        static List<string> Run(string[] keys, bool collapse)
         {
             var problems = new List<string>();
             for (int i = 0; i < keys.Length; i++)
@@ -174,13 +195,27 @@ namespace PirateCrew.EditorTools
             {
                 Debug.Log("[ScenePrefabCollapse] " + (collapse ? "折叠" : "校验") + "通过："
                           + string.Join("、", keys));
-                Finish(0);
-                return;
+                return problems;
             }
 
             for (int i = 0; i < problems.Count; i++)
                 Debug.LogError("[ScenePrefabCollapse] " + problems[i]);
-            Finish(1);
+            return problems;
+        }
+
+        /// <summary>装配链用：失败即抛，让外层管线把它记成管线失败（而不是静默继续）。</summary>
+        static void RunOrThrow(string[] keys, bool collapse)
+        {
+            List<string> problems = Run(keys, collapse);
+            if (problems.Count > 0)
+                throw new System.InvalidOperationException("[ScenePrefabCollapse] " + (collapse ? "折叠" : "校验")
+                    + "失败 " + problems.Count + " 项：\n  · " + string.Join("\n  · ", problems));
+        }
+
+        /// <summary>菜单用：失败已在 Console 报错，不再抛（菜单里抛异常会弹一堆堆栈，无助于定位）。</summary>
+        static void RunAndLog(string[] keys, bool collapse)
+        {
+            Run(keys, collapse);
         }
 
         // ------------------------------------------------------------------
@@ -242,6 +277,13 @@ namespace PirateCrew.EditorTools
             }
 
             instance.name = entry.RootName;
+
+            // 【必须回退一次覆盖】实例化不是"纯拷贝"：有些组件会在挂载时把**运行期解析出来的值**写进实例
+            // （实测 TMP 的 <c>m_sharedMaterial</c> —— 它从字体资产解析出材质并落到实例上）。
+            // 这些值和源 Prefab 存储的值不同，引擎就会把它记成"Prefab 实例覆盖"，
+            // 于是场景不再满足折叠态的纯实例契约（校验会红，且场景文件里多出一串没人写过的 diff）。
+            // 回退后取的就是 Prefab 自己的值；运行期该解析的照样解析（TMP 仍会从字体取材质）。
+            PrefabUtility.RevertPrefabInstance(instance, InteractionMode.AutomatedAction);
 
             if (!EditorSceneManager.MarkSceneDirty(scene) && scene.isDirty == false)
                 EditorSceneManager.MarkSceneDirty(scene);
