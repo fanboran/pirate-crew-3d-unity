@@ -4,6 +4,7 @@ using PirateCrew.Core;
 using PirateCrew.Combat;
 using PirateCrew.Data;
 using PirateCrew.Visual;
+using PirateCrew.Battle.Levels;
 using PirateCrew.Battle.WorldMaps;
 using UnityEngine;
 
@@ -40,11 +41,11 @@ namespace PirateCrew.Battle
     /// 平面两分量经 <see cref="LevelGeometry.FlashVelocityDeltaToArena"/> 落到世界 (X, Z)，
     /// 竖直项 <c>DeltaVUp</c>（含原版固定上抛 6k）直接落到世界 +Y。
     ///
-    /// 【内容来源（一代瓦片竞技场退场后）】唯一玩法路径 = 世界海域图
-    ///（<c>WorldMapRuntime</c> 待战：选关页出海 / 播放器 -worldMap）；样板三关
-    ///（<c>SceneArt.ShowcaseLevels</c> 1–3）保留为美术样板（-artReviewLevel 出图）与
-    /// 无待战图时的兜底场。原「场景 level 资产 / 战役注入关卡序号 / LevelCatalog 33 关」
-    /// 三条一代链路已随一代退场删除。
+    /// 【内容来源】关卡数据全部来自**关卡资产**（<c>Assets/Data/**</c>）：海图
+    /// （<c>WorldMapCatalog</c> 的 8 张）与关卡快照（<c>SceneArt.ShowcaseLevels</c> 读的 1–3）。
+    /// 本类**不再判定内容来源**——优先级（-artReviewLevel 覆盖 &gt; -worldMap 待战 &gt; 兜底关 1）
+    /// 只写在 <see cref="LevelSourceResolver"/> 一处，结果经 <see cref="LevelSource"/> 注入。
+    /// 原「场景 level 资产 / 战役注入关卡序号 / LevelCatalog 33 关」三条一代链路已随一代退场删除。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class BattleController : MonoBehaviour
@@ -97,7 +98,9 @@ namespace PirateCrew.Battle
         readonly List<WeaponProjectile> _projectiles = new List<WeaponProjectile>();
         readonly BattleTeam[] _teams = new BattleTeam[2];
         BattlePlan _plan;
-        /// <summary>M4：本局激活的世界地图（null = 样板三关路径）。</summary>
+        /// <summary>本局的关卡来源（计划/地形/水位/图幅/氛围档都在它里面；解析只发生在 Battle/Levels）。</summary>
+        LevelSource _source;
+        /// <summary>M4：本局激活的世界地图（null = 关卡资产路径）。</summary>
         WorldMapDefinition _worldMap;
         bool _spawned;
         bool _matchFinished;
@@ -149,8 +152,9 @@ namespace PirateCrew.Battle
 
         void Awake()
         {
-            BuildPlan();
-            BuildTerrain();
+            if (!BuildLevelSource())
+                return;
+
             RebuildSceneArt();
             ApplyPhysicsConvention();
             SpawnTeams();
@@ -158,6 +162,10 @@ namespace PirateCrew.Battle
 
         void Start()
         {
+            // Awake 取不到关卡资产时已报错，这里不再往下推进（回合/结算都需要出战计划）。
+            if (_plan == null)
+                return;
+
             if (waterPlane != null)
             {
                 Vector3 p = waterPlane.position;
@@ -178,16 +186,17 @@ namespace PirateCrew.Battle
         void OnEnable()
         {
             // §5.2 limitedToTurn=true 的弹体在回合结束时销毁；常驻类（mine/箱体）保留。
-            EventBus.Subscribe(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Subscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
         }
 
         void OnDisable()
         {
-            EventBus.Unsubscribe(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Unsubscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
         }
 
-        void OnTurnEnded(object payload)
+        void OnTurnEnded(int teamNumber)
         {
+            // 载荷是队伍编号，本方法只做“回合结束”的收尾（清掉到期的弹体），不用队伍号。
             for (int i = _projectiles.Count - 1; i >= 0; i--)
             {
                 WeaponProjectile projectile = _projectiles[i];
@@ -222,76 +231,64 @@ namespace PirateCrew.Battle
         // 组装
         // ------------------------------------------------------------------
 
-        void BuildPlan()
+        /// <summary>
+        /// 组装本局：**关卡从哪里来**这件事整块交给 <see cref="LevelSourceResolver"/>
+        /// （全仓唯一的内容来源判定处；重构前这段分叉散在本类的 BuildPlan / BuildTerrain /
+        /// RebuildSceneArt / SetupBattleEnvironment 四处，战斗根类同时是内容路由器）。
+        ///
+        /// 解析结果把出战计划、逻辑高度场、水位、图幅、氛围档全部算好，本方法只做两件本地事：
+        /// 取出计划/地形（供 <see cref="Plan"/> / <see cref="Terrain"/> 查询），以及给非海图路径
+        /// 建碰撞层（<c>BattleTerrainView</c> 只建隐形 BoxCollider，不建格子渲染层）。
+        /// </summary>
+        /// <returns>取到关卡内容返回 true；资产缺失（构建配置错误）返回 false 并报错。</returns>
+        bool BuildLevelSource()
         {
-            // 【内容来源二选一】优先级：样板覆盖(-artReviewLevel 1–3，仅美术出图用) >
-            // 世界海域图(-worldMap / 选关页 SetPending) > 样板第 1 关兜底（直接 Play 战斗场景的开发路径，
-            // 与一代退场前的默认同为"云端漫步"场）。
-            int overrideLevel = ArtReview.ArtReviewCaptureOverride.LevelNumber;
-            if (overrideLevel > 0 && SceneArt.ShowcaseLevels.IsShowcase(overrideLevel))
+            _source = LevelSourceResolver.Resolve();
+            if (_source == null)
             {
-                _worldMap = null;
-                _plan = LevelGeometry.BuildBattlePlan(
-                    SceneArt.ShowcaseLevels.BuildLevelData(overrideLevel).Value);
-            }
-            else if (overrideLevel <= 0 && WorldMapRuntime.TryGetPending(out _worldMap))
-            {
-                // 出战计划由海图目录直构（关卡号 101–108），地形/陈设/水面在对应阶段分流。
-                _plan = WorldMapRuntime.BuildBattlePlan(_worldMap);
-            }
-            else
-            {
-                _worldMap = null;
-                Debug.LogWarning("[BattleController] 无待战海图，回落样板第 1 关"
-                    + "（正常出海走选关页或播放器 -worldMap <地图id>）。");
-                _plan = LevelGeometry.BuildBattlePlan(
-                    SceneArt.ShowcaseLevels.BuildLevelData(1).Value);
+                Debug.LogError("[BattleController] 取不到任何关卡数据：检查 Assets/Data/Levels/Resources/LevelCatalog.asset "
+                    + "是否已生成并列入构建（或开发者机上的 Assets/Data/**/_golden/*.json 是否齐全）。本局不组建战斗。");
+                return false;
             }
 
-            _waterWorldY = _plan.WaterWorldY;
+            if (!string.IsNullOrEmpty(_source.Notice))
+                Debug.LogWarning(_source.Notice);
+
+            _worldMap = _source.WorldMap;
+            _plan = _source.Plan;
+            Terrain = _source.Terrain;
+            _waterWorldY = _source.WaterWorldY;
+
             _teams[0] = new BattleTeam(1, aiControlled: false);
             _teams[1] = new BattleTeam(2, aiControlled: team1IsAi);
-        }
 
-        /// <summary>
-        /// 构建瓦片地形网格（逻辑高度场，AI/站位/小地图统一查询）。
-        /// 世界图：站面 box 栅格化为逻辑格（块高 = TopY/0.5）；碰撞与视觉由
-        /// WorldMapComposer 的独立 BoxCollider/灰盒负责。样板三关：ShowcaseLevels 手拼的
-        /// 隐形高度场；BattleTerrainView 只建碰撞层（隐形 BoxCollider），不建格子渲染层。
-        /// 网格恒非 null（<see cref="Terrain"/>）。
-        /// </summary>
-        void BuildTerrain()
-        {
-            if (_worldMap != null)
-            {
-                Terrain = WorldMapRuntime.BuildTerrainGrid(_worldMap)
-                          ?? TileTerrainGrid.Flat(_plan.WidthTiles, _plan.DepthTiles);
-                return;
-            }
-
-            Terrain = SceneArt.ShowcaseLevels.BuildLogicGrid(LevelNumber);
-            if (terrainView != null)
+            // 非海图路径的地形只有碰撞层（视觉由烘焙件负责）；海图路径的碰撞与灰盒由 WorldMapComposer 摆。
+            if (!_source.IsWorldMapActive && terrainView != null)
                 terrainView.RenderCollidersOnly(Terrain);
+
+            return true;
         }
 
         /// <summary>
         /// 按内容来源重建静态陈设。世界图：kit 件 + 灰盒站面由 <see cref="WorldMapComposer"/> 摆放；
-        /// 样板三关：<see cref="RuntimeSceneArt"/> 走自由几何装配（云朵/双大船/山包+空岛）。
+        /// 关卡资产（样板关等）：<see cref="RuntimeSceneArt"/> 走烘焙 prefab 装配（云朵/碎岛/危险虚线）。
         /// 只做表现：不触碰地形协议。
         /// </summary>
         void RebuildSceneArt()
         {
-            if (_worldMap != null)
+            Transform artRoot = sceneArt != null ? sceneArt.transform : transform;
+
+            switch (_source.Kind)
             {
-                Transform artRoot = sceneArt != null ? sceneArt.transform : transform;
-                WorldMapComposer.Build(artRoot, _worldMap, worldMapAssetSet);
-                return;
+                case LevelSourceKind.WorldMap:
+                    WorldMapComposer.Build(artRoot, _source.WorldMap, worldMapAssetSet);
+                    break;
+
+                default:
+                    if (sceneArt != null)
+                        sceneArt.RebuildFor(_source.LevelNumber);
+                    break;
             }
-
-            if (sceneArt == null)
-                return;
-
-            sceneArt.RebuildFor(LevelNumber);
         }
 
         /// <summary>
@@ -313,14 +310,15 @@ namespace PirateCrew.Battle
         /// </summary>
         void SetupBattleEnvironment()
         {
-            // 域尺寸：世界图取图幅，样板关取出战计划的竞技场（单位一致，1 格 = 2u）。
-            float spanX = _worldMap != null ? _worldMap.SpanX : _plan.WidthTiles * LevelGeometry.TileWorldSize;
-            float spanZ = _worldMap != null ? _worldMap.SpanZ : _plan.DepthTiles * LevelGeometry.TileWorldSize;
+            // 域尺寸与环境半径：海图取图幅、关卡资产取竞技场世界尺寸——差别已在 LevelSource 里算完，
+            // 本方法只读数字（不判"这局是不是海图"）。
+            float spanX = _source.SpanX;
+            float spanZ = _source.SpanZ;
             var arenaCenter = new Vector2(spanX * 0.5f, spanZ * 0.5f);
 
             // 水模拟域重配（装配期一次）：驱动常驻后其 Awake 推出的默认域仍钉在旧竞技场口径，
             // 需要显式搬到本局图心；Instance 为空（未接线）时静默跳过，不阻塞装配。
-            // 地形栅格（Awake → BuildTerrain 已建）一并传入：障碍掩码按站面实时烘，
+            // 地形栅格（Awake → BuildLevelSource 已建）一并传入：障碍掩码按站面实时烘，
             // 涟漪在岛缘反射、不再穿岛（视觉审计 §四.2）。
             if (Water.WaterSimulationDriver.Instance != null)
             {
@@ -329,8 +327,8 @@ namespace PirateCrew.Battle
                     Mathf.Max(spanX, spanZ),
                     Terrain,
                     LevelGeometry.WaterSurfaceY,
-                    _plan.WidthTiles * LevelGeometry.TileWorldSize,
-                    _plan.DepthTiles * LevelGeometry.TileWorldSize);
+                    _source.ArenaWorldWidth,
+                    _source.ArenaWorldDepth);
             }
 
             Water.OceanRig.Create(
@@ -344,26 +342,30 @@ namespace PirateCrew.Battle
             if (cam != null)
                 cam.farClipPlane = Mathf.Max(cam.farClipPlane, 4500f);
 
-            // 大地图专属：全景档随图幅 + 氛围档按地图定义（样板关保持场景烘焙的正午档与既有相机边界）。
-            if (_worldMap != null)
+            // 大地图专属（图幅/氛围档由关卡数据给出）：全景档随图幅 + 氛围档按海图定义；
+            // 关卡资产路径这两项都是"未提供"（CameraWorldSpan = 0 / AmbientTier = null），
+            // 于是保持场景烘焙的正午档与既有相机边界。
+            if (_source.CameraWorldSpan > 0f)
             {
                 if (battleCamera != null)
-                    battleCamera.SetWorldSpan(Mathf.Max(spanX, spanZ));
-                SetupWorldMapAmbient();
+                    battleCamera.SetWorldSpan(_source.CameraWorldSpan);
             }
+
+            if (!string.IsNullOrEmpty(_source.AmbientTier))
+                SetupWorldMapAmbient(_source.AmbientTier);
         }
 
-        /// <summary>世界图的氛围档接线：Storm→Overcast、Dusk→Dusk、其余→Noon。</summary>
-        void SetupWorldMapAmbient()
+        /// <summary>海图的氛围档接线：Storm→Overcast、Dusk→Dusk、其余→Noon。</summary>
+        void SetupWorldMapAmbient(string ambientTier)
         {
             var ambientDirector = FindObjectOfType<Ambient.AmbientDirector>();
             if (ambientDirector == null)
                 return;
 
             Ambient.AmbientTimeOfDay tier = Ambient.AmbientTimeOfDay.Noon;
-            if (string.Equals(_worldMap.AmbientTier, "Dusk", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(ambientTier, "Dusk", StringComparison.OrdinalIgnoreCase))
                 tier = Ambient.AmbientTimeOfDay.Dusk;
-            else if (string.Equals(_worldMap.AmbientTier, "Storm", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(ambientTier, "Storm", StringComparison.OrdinalIgnoreCase))
                 tier = Ambient.AmbientTimeOfDay.Overcast;
             ambientDirector.SetTimeOfDay(tier);
         }

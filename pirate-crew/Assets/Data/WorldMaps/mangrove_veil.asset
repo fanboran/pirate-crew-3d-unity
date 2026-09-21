@@ -1,0 +1,393 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e7b7370315b81fed88d39beb49e174ea, type: 3}
+  m_Name: mangrove_veil
+  m_EditorClassIdentifier: 
+  data:
+    id: mangrove_veil
+    displayName: 红树帷幔
+    levelNumber: 105
+    spanX: 180
+    spanZ: 180
+    ambientTier: Dusk
+    crewWeapons:
+    - id: 1
+      count: 10
+    - id: 5
+      count: 2
+    captainWeapons:
+    - id: 1
+      count: 10
+    - id: 2
+      count: 5
+    - id: 5
+      count: 5
+    - id: 12
+      count: 1
+    airdropPool:
+    - id: 1
+      count: 10
+    - id: 4
+      count: 10
+    - id: 5
+      count: 2
+    - id: 7
+      count: 2
+    terrain:
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 48
+      y: 0
+      z: 45
+      yawDeg: 0
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 76
+      y: 0
+      z: 45
+      yawDeg: 25
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 104
+      y: 0
+      z: 45
+      yawDeg: 0
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 132
+      y: 0
+      z: 45
+      yawDeg: 70
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 62
+      y: 0
+      z: 71
+      yawDeg: 40
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 90
+      y: 0
+      z: 71
+      yawDeg: 0
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 118
+      y: 0
+      z: 71
+      yawDeg: 210
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 146
+      y: 0
+      z: 71
+      yawDeg: 15
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 48
+      y: 0
+      z: 97
+      yawDeg: 80
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 76
+      y: 0
+      z: 97
+      yawDeg: 0
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 104
+      y: 0
+      z: 97
+      yawDeg: 300
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 132
+      y: 0
+      z: 97
+      yawDeg: 45
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 62
+      y: 0
+      z: 123
+      yawDeg: 10
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 90
+      y: 0
+      z: 123
+      yawDeg: 190
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 118
+      y: 0
+      z: 123
+      yawDeg: 0
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 146
+      y: 0
+      z: 123
+      yawDeg: 60
+    - kit: Archipelago
+      asset: TerraceIslandM
+      x: 36
+      y: 0
+      z: 84
+      yawDeg: 0
+    - kit: Archipelago
+      asset: TerraceIslandM
+      x: 144
+      y: 0
+      z: 84
+      yawDeg: 0
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 48
+      y: 0
+      z: 19
+      yawDeg: 0
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 104
+      y: 0
+      z: 19
+      yawDeg: 30
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 76
+      y: 0
+      z: 149
+      yawDeg: 0
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 132
+      y: 0
+      z: 149
+      yawDeg: 45
+    - kit: Archipelago
+      asset: AtollCore
+      x: 22
+      y: 0
+      z: 34
+      yawDeg: 0
+    - kit: Archipelago
+      asset: AtollCore
+      x: 158
+      y: 0
+      z: 134
+      yawDeg: 0
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 40
+      y: 0
+      z: 137
+      yawDeg: 90
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 140
+      y: 0
+      z: 31
+      yawDeg: 90
+    horizon:
+    - kit: Horizon
+      asset: DistantIsleS
+      x: 90
+      y: 0
+      z: -50
+      yawDeg: 0
+    - kit: Horizon
+      asset: DistantIsleS
+      x: -40
+      y: 0
+      z: 160
+      yawDeg: 30
+    - kit: Horizon
+      asset: DistantIsleS
+      x: 240
+      y: 0
+      z: 120
+      yawDeg: 0
+    - kit: Horizon
+      asset: CloudBankL
+      x: 30
+      y: 0
+      z: 220
+      yawDeg: 0
+    - kit: Horizon
+      asset: CloudBankL
+      x: 160
+      y: 0
+      z: -30
+      yawDeg: 15
+    - kit: Horizon
+      asset: FarFleet
+      x: 250
+      y: 0
+      z: 250
+      yawDeg: 0
+    props:
+    - asset: Campfire
+      x: 46
+      y: 0.5
+      z: 20
+      yawDeg: 0
+    - asset: CannonEmplacement
+      x: 100
+      y: 0.5
+      z: 21
+      yawDeg: 240
+    - asset: Campfire
+      x: 130
+      y: 0.5
+      z: 150
+      yawDeg: 0
+    - asset: CannonEmplacement
+      x: 136
+      y: 0.5
+      z: 147
+      yawDeg: 60
+    - asset: Campfire
+      x: 22
+      y: 0.5
+      z: 34
+      yawDeg: 0
+    - asset: RockM
+      x: 158
+      y: 0.5
+      z: 134
+      yawDeg: 0
+    - asset: BarrelWood
+      x: 40
+      y: 0.5
+      z: 137
+      yawDeg: 0
+    - asset: CrateStack
+      x: 140
+      y: 0.5
+      z: 31
+      yawDeg: 0
+    - asset: TreasureMound
+      x: 104
+      y: 1
+      z: 97
+      yawDeg: 0
+    - asset: FernClump
+      x: 46
+      y: 1
+      z: 46
+      yawDeg: 0
+    - asset: FernClump
+      x: 78
+      y: 1
+      z: 44
+      yawDeg: 90
+    - asset: FernClump
+      x: 92
+      y: 1
+      z: 72
+      yawDeg: 0
+    - asset: FernClump
+      x: 110
+      y: 1
+      z: 98
+      yawDeg: 180
+    - asset: GrassTuft
+      x: 64
+      y: 1
+      z: 124
+      yawDeg: 0
+    - asset: GrassTuft
+      x: 95
+      y: 1
+      z: 124
+      yawDeg: 90
+    - asset: GrassTuft
+      x: 148
+      y: 1
+      z: 122
+      yawDeg: 0
+    - asset: Driftwood
+      x: 50
+      y: 1
+      z: 96
+      yawDeg: 20
+    - asset: Driftwood
+      x: 134
+      y: 1
+      z: 72
+      yawDeg: 110
+    - asset: BarrelWood
+      x: 74
+      y: 1
+      z: 98
+      yawDeg: 0
+    - asset: BarrelWood
+      x: 108
+      y: 1
+      z: 46
+      yawDeg: 0
+    - asset: RockS
+      x: 88
+      y: 1
+      z: 46
+      yawDeg: 0
+    - asset: RockS
+      x: 62
+      y: 1
+      z: 98
+      yawDeg: 0
+    spawns:
+    - teamIndex: 0
+      archetype: redPirate
+      x: 33
+      z: 82
+      luck: 5
+    - teamIndex: 0
+      archetype: redPirate
+      x: 39
+      z: 87
+      luck: 5
+    - teamIndex: 0
+      archetype: redPirate
+      x: 33
+      z: 85.5
+      luck: 5
+    - teamIndex: 0
+      archetype: redPirateCaptain
+      x: 39
+      z: 81
+      luck: 5
+    - teamIndex: 1
+      archetype: bluePirate
+      x: 141
+      z: 82
+      luck: 2
+    - teamIndex: 1
+      archetype: bluePirate
+      x: 147
+      z: 87
+      luck: 2
+    - teamIndex: 1
+      archetype: bluePirate
+      x: 141
+      z: 85.5
+      luck: 2
+    - teamIndex: 1
+      archetype: bluePirateCaptain
+      x: 147
+      z: 81
+      luck: 2
+    horizonSeed: 105
+    horizonFeatures:
+    - LeviathanTentacle

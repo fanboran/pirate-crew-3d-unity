@@ -1,0 +1,481 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e7b7370315b81fed88d39beb49e174ea, type: 3}
+  m_Name: ghost_harbor
+  m_EditorClassIdentifier: 
+  data:
+    id: ghost_harbor
+    displayName: 鬼火港
+    levelNumber: 103
+    spanX: 220
+    spanZ: 220
+    ambientTier: Dusk
+    crewWeapons:
+    - id: 1
+      count: 10
+    - id: 2
+      count: 2
+    captainWeapons:
+    - id: 1
+      count: 10
+    - id: 2
+      count: 5
+    - id: 2
+      count: 5
+    - id: 14
+      count: 1
+    airdropPool:
+    - id: 1
+      count: 10
+    - id: 7
+      count: 10
+    - id: 14
+      count: 1
+    - id: 6
+      count: 2
+    terrain:
+    - kit: Marine
+      asset: PierLong
+      x: 85
+      y: 0
+      z: 110
+      yawDeg: 90
+    - kit: Marine
+      asset: PierHead
+      x: 105
+      y: 0
+      z: 110
+      yawDeg: 0
+    - kit: Marine
+      asset: PierLong
+      x: 125
+      y: 0
+      z: 110
+      yawDeg: 90
+    - kit: Archipelago
+      asset: SunkenPlaza
+      x: 105
+      y: 0
+      z: 60
+      yawDeg: 0
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 105
+      y: 0
+      z: 85
+      yawDeg: 90
+    - kit: Archipelago
+      asset: TerraceIslandM
+      x: 105
+      y: 0
+      z: 128
+      yawDeg: 0
+    - kit: Marine
+      asset: LighthouseTower
+      x: 105
+      y: 0
+      z: 150
+      yawDeg: 0
+    - kit: Marine
+      asset: WreckBowHalf
+      x: 40
+      y: 0
+      z: 90
+      yawDeg: 90
+    - kit: Marine
+      asset: WreckSternHalf
+      x: 170
+      y: 0
+      z: 90
+      yawDeg: 90
+    - kit: Archipelago
+      asset: SandBarL
+      x: 58
+      y: 0
+      z: 100
+      yawDeg: 20
+    - kit: Archipelago
+      asset: TerraceIslandM
+      x: 152
+      y: 0
+      z: 98
+      yawDeg: 0
+    - kit: Archipelago
+      asset: TerraceIslandL
+      x: 60
+      y: 0
+      z: 165
+      yawDeg: 0
+    - kit: Archipelago
+      asset: TerraceIslandL
+      x: 170
+      y: 0
+      z: 60
+      yawDeg: 0
+    - kit: Archipelago
+      asset: TerraceIslandM
+      x: 110
+      y: 0
+      z: 192
+      yawDeg: 0
+    - kit: Archipelago
+      asset: TerraceIslandM
+      x: 32
+      y: 0
+      z: 105
+      yawDeg: 0
+    - kit: Archipelago
+      asset: TerraceIslandM
+      x: 192
+      y: 0
+      z: 150
+      yawDeg: 0
+    - kit: Archipelago
+      asset: SandBarL
+      x: 60
+      y: 0
+      z: 40
+      yawDeg: 20
+    - kit: Archipelago
+      asset: SandBarL
+      x: 165
+      y: 0
+      z: 190
+      yawDeg: 340
+    - kit: Archipelago
+      asset: AtollCore
+      x: 105
+      y: 0
+      z: 25
+      yawDeg: 0
+    - kit: Archipelago
+      asset: MangroveHummock
+      x: 150
+      y: 0
+      z: 30
+      yawDeg: 30
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 95
+      y: 0
+      z: 132
+      yawDeg: 0
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 152
+      y: 0
+      z: 132
+      yawDeg: 0
+    - kit: Archipelago
+      asset: SeaStackShort
+      x: 25
+      y: 0
+      z: 60
+      yawDeg: 0
+    - kit: Archipelago
+      asset: SeaStackShort
+      x: 200
+      y: 0
+      z: 105
+      yawDeg: 0
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 110
+      y: 0
+      z: 174
+      yawDeg: 0
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 194
+      y: 0
+      z: 112
+      yawDeg: 0
+    - kit: Archipelago
+      asset: SeaStackShort
+      x: 196
+      y: 0
+      z: 128
+      yawDeg: 0
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 105
+      y: 0
+      z: 42
+      yawDeg: 0
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 128
+      y: 0
+      z: 130
+      yawDeg: 0
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 85
+      y: 0
+      z: 52
+      yawDeg: 0
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 165
+      y: 0
+      z: 172
+      yawDeg: 0
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 40
+      y: 0
+      z: 62
+      yawDeg: 0
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 185
+      y: 0
+      z: 105
+      yawDeg: 0
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 110
+      y: 0
+      z: 165
+      yawDeg: 0
+    horizon:
+    - kit: Horizon
+      asset: DistantIsleM
+      x: 110
+      y: 0
+      z: -70
+      yawDeg: 0
+    - kit: Horizon
+      asset: DistantIsleS
+      x: -60
+      y: 0
+      z: 260
+      yawDeg: 20
+    - kit: Horizon
+      asset: CloudBankL
+      x: 40
+      y: 0
+      z: 40
+      yawDeg: 0
+    - kit: Horizon
+      asset: CloudBankL
+      x: 200
+      y: 0
+      z: 180
+      yawDeg: 30
+    - kit: Horizon
+      asset: FarFleet
+      x: 330
+      y: 0
+      z: 110
+      yawDeg: 0
+    props:
+    - asset: Campfire
+      x: 100
+      y: 0.5
+      z: 69
+      yawDeg: 0
+    - asset: CannonEmplacement
+      x: 112
+      y: 0.5
+      z: 52
+      yawDeg: 120
+    - asset: RuinColumnBroken
+      x: 98
+      y: 0.5
+      z: 64
+      yawDeg: 0
+    - asset: RuinColumnBroken
+      x: 110
+      y: 0.5
+      z: 68
+      yawDeg: 40
+    - asset: RuinArch
+      x: 105
+      y: 0.5
+      z: 47
+      yawDeg: 0
+    - asset: ShipWheelPost
+      x: 105
+      y: 1
+      z: 112
+      yawDeg: 0
+    - asset: CrateStack
+      x: 88
+      y: 1
+      z: 111
+      yawDeg: 0
+    - asset: CrateStack
+      x: 126
+      y: 1
+      z: 109
+      yawDeg: 90
+    - asset: BarrelWood
+      x: 82
+      y: 1
+      z: 110
+      yawDeg: 0
+    - asset: BarrelWood
+      x: 122
+      y: 1
+      z: 110
+      yawDeg: 0
+    - asset: Campfire
+      x: 102
+      y: 0.5
+      z: 152
+      yawDeg: 0
+    - asset: TreasureMound
+      x: 108
+      y: 0.5
+      z: 148
+      yawDeg: 0
+    - asset: PalmDead
+      x: 96
+      y: 0.5
+      z: 70
+      yawDeg: 0
+    - asset: FernClump
+      x: 148
+      y: 0.5
+      z: 100
+      yawDeg: 0
+    - asset: GrassTuft
+      x: 60
+      y: 0.5
+      z: 98
+      yawDeg: 0
+    - asset: RockM
+      x: 160
+      y: 0.5
+      z: 94
+      yawDeg: 0
+    - asset: Campfire
+      x: 56
+      y: 0.5
+      z: 162
+      yawDeg: 0
+    - asset: CannonEmplacement
+      x: 66
+      y: 0.5
+      z: 168
+      yawDeg: 210
+    - asset: RuinArch
+      x: 44
+      y: 0.5
+      z: 170
+      yawDeg: 0
+    - asset: RuinColumnBroken
+      x: 62
+      y: 0.5
+      z: 156
+      yawDeg: 30
+    - asset: PalmDead
+      x: 38
+      y: 0.5
+      z: 158
+      yawDeg: 0
+    - asset: Campfire
+      x: 174
+      y: 0.5
+      z: 56
+      yawDeg: 0
+    - asset: CannonEmplacement
+      x: 164
+      y: 0.5
+      z: 50
+      yawDeg: 150
+    - asset: RuinArch
+      x: 186
+      y: 0.5
+      z: 50
+      yawDeg: 0
+    - asset: CrateStack
+      x: 178
+      y: 0.5
+      z: 66
+      yawDeg: 0
+    - asset: AnchorMonument
+      x: 110
+      y: 0.5
+      z: 190
+      yawDeg: 0
+    - asset: PalmDead
+      x: 102
+      y: 0.5
+      z: 196
+      yawDeg: 0
+    - asset: Campfire
+      x: 30
+      y: 0.5
+      z: 102
+      yawDeg: 0
+    - asset: RockM
+      x: 194
+      y: 0.5
+      z: 152
+      yawDeg: 0
+    - asset: Driftwood
+      x: 62
+      y: 0.5
+      z: 42
+      yawDeg: 20
+    - asset: BarrelWood
+      x: 150
+      y: 0.5
+      z: 32
+      yawDeg: 0
+    spawns:
+    - teamIndex: 0
+      archetype: redPirate
+      x: 95
+      z: 66
+      luck: 5
+    - teamIndex: 0
+      archetype: redPirate
+      x: 97
+      z: 71
+      luck: 5
+    - teamIndex: 0
+      archetype: redPirate
+      x: 101
+      z: 52
+      luck: 5
+    - teamIndex: 0
+      archetype: redPirateCaptain
+      x: 108
+      z: 66
+      luck: 5
+    - teamIndex: 1
+      archetype: bluePirate
+      x: 144
+      z: 94
+      luck: 2
+    - teamIndex: 1
+      archetype: bluePirate
+      x: 148
+      z: 103
+      luck: 2
+    - teamIndex: 1
+      archetype: bluePirate
+      x: 158
+      z: 93
+      luck: 2
+    - teamIndex: 1
+      archetype: bluePirateCaptain
+      x: 173.5
+      z: 90
+      luck: 2
+    horizonSeed: 103
+    horizonFeatures:
+    - GiantRibs
+    - WhaleSurfacing

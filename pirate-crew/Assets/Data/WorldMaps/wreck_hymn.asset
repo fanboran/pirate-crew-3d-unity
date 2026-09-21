@@ -1,0 +1,306 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e7b7370315b81fed88d39beb49e174ea, type: 3}
+  m_Name: wreck_hymn
+  m_EditorClassIdentifier: 
+  data:
+    id: wreck_hymn
+    displayName: 搁浅圣母号
+    levelNumber: 101
+    spanX: 150
+    spanZ: 150
+    ambientTier: Noon
+    crewWeapons:
+    - id: 1
+      count: 10
+    - id: 2
+      count: 2
+    captainWeapons:
+    - id: 1
+      count: 10
+    - id: 2
+      count: 5
+    - id: 2
+      count: 5
+    - id: 11
+      count: 1
+    airdropPool:
+    - id: 1
+      count: 10
+    - id: 2
+      count: 10
+    - id: 4
+      count: 10
+    - id: 7
+      count: 10
+    - id: 12
+      count: 10
+    terrain:
+    - kit: Archipelago
+      asset: TerraceIslandM
+      x: 54
+      y: 0
+      z: 74
+      yawDeg: 10
+    - kit: Archipelago
+      asset: TerraceIslandM
+      x: 96
+      y: 0
+      z: 76
+      yawDeg: -14
+    - kit: Marine
+      asset: WreckBowHalf
+      x: 40
+      y: 0
+      z: 79
+      yawDeg: 96
+    - kit: Marine
+      asset: WreckSternHalf
+      x: 112
+      y: 0
+      z: 70
+      yawDeg: 78
+    - kit: Marine
+      asset: MastBridge
+      x: 76
+      y: 0
+      z: 74
+      yawDeg: 88
+    - kit: Archipelago
+      asset: SandBarL
+      x: 44
+      y: 0
+      z: 50
+      yawDeg: 25
+    - kit: Archipelago
+      asset: SandBarL
+      x: 30
+      y: 0
+      z: 96
+      yawDeg: 340
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 58
+      y: 0
+      z: 106
+      yawDeg: 270
+    - kit: Archipelago
+      asset: AtollCore
+      x: 118
+      y: 0
+      z: 62
+      yawDeg: 0
+    - kit: Archipelago
+      asset: ReefStepsA
+      x: 96
+      y: 0
+      z: 44
+      yawDeg: 90
+    - kit: Archipelago
+      asset: TerraceIslandL
+      x: 110
+      y: 0
+      z: 118
+      yawDeg: 0
+    - kit: Archipelago
+      asset: TerraceIslandM
+      x: 76
+      y: 0
+      z: 128
+      yawDeg: 12
+    - kit: Archipelago
+      asset: SeaStackShort
+      x: 22
+      y: 0
+      z: 40
+      yawDeg: 0
+    - kit: Archipelago
+      asset: SeaStackShort
+      x: 132
+      y: 0
+      z: 112
+      yawDeg: 0
+    horizon:
+    - kit: Horizon
+      asset: DistantIsleM
+      x: 75
+      y: 0
+      z: -60
+      yawDeg: 0
+    - kit: Horizon
+      asset: DistantIsleS
+      x: -50
+      y: 0
+      z: 190
+      yawDeg: 30
+    - kit: Horizon
+      asset: CloudBankL
+      x: 150
+      y: 0
+      z: 30
+      yawDeg: 0
+    - kit: Horizon
+      asset: FarFleet
+      x: 200
+      y: 0
+      z: 120
+      yawDeg: 0
+    props:
+    - asset: Campfire
+      x: 50
+      y: 0.5
+      z: 72
+      yawDeg: 0
+    - asset: CannonEmplacement
+      x: 58
+      y: 0.5
+      z: 71
+      yawDeg: 200
+    - asset: CrateStack
+      x: 51
+      y: 0.5
+      z: 78
+      yawDeg: 0
+    - asset: Campfire
+      x: 100
+      y: 0.5
+      z: 80
+      yawDeg: 0
+    - asset: CannonEmplacement
+      x: 92
+      y: 0.5
+      z: 71
+      yawDeg: 160
+    - asset: ShipWheelPost
+      x: 101
+      y: 0.5
+      z: 72
+      yawDeg: 0
+    - asset: TreasureMound
+      x: 80
+      y: 1.5
+      z: 74
+      yawDeg: 0
+    - asset: BarrelWood
+      x: 72
+      y: 1.5
+      z: 74
+      yawDeg: 0
+    - asset: TreasureMound
+      x: 76
+      y: 0.5
+      z: 126
+      yawDeg: 0
+    - asset: PalmTall
+      x: 70
+      y: 0.5
+      z: 132
+      yawDeg: 15
+    - asset: RuinColumnBroken
+      x: 82
+      y: 0.5
+      z: 130
+      yawDeg: 30
+    - asset: Campfire
+      x: 104
+      y: 0.5
+      z: 116
+      yawDeg: 0
+    - asset: RuinArch
+      x: 118
+      y: 0.5
+      z: 124
+      yawDeg: 0
+    - asset: PalmLean
+      x: 116
+      y: 0.5
+      z: 110
+      yawDeg: 0
+    - asset: GrassTuft
+      x: 100
+      y: 0.5
+      z: 128
+      yawDeg: 0
+    - asset: RockM
+      x: 124
+      y: 0.5
+      z: 116
+      yawDeg: 0
+    - asset: Driftwood
+      x: 42
+      y: 0.5
+      z: 48
+      yawDeg: 60
+    - asset: BarrelWood
+      x: 34
+      y: 0.5
+      z: 96
+      yawDeg: 0
+    - asset: CrateStack
+      x: 46
+      y: 0.5
+      z: 52
+      yawDeg: 20
+    - asset: PalmDead
+      x: 30
+      y: 0.5
+      z: 100
+      yawDeg: 0
+    - asset: RockS
+      x: 96
+      y: 0.5
+      z: 42
+      yawDeg: 0
+    - asset: RockM
+      x: 118
+      y: 0.5
+      z: 60
+      yawDeg: 0
+    - asset: AnchorMonument
+      x: 58
+      y: 0.5
+      z: 106
+      yawDeg: 0
+    spawns:
+    - teamIndex: 0
+      archetype: redPirate
+      x: 50
+      z: 72
+      luck: 5
+    - teamIndex: 0
+      archetype: redPirate
+      x: 56.6
+      z: 76.2
+      luck: 5
+    - teamIndex: 0
+      archetype: redPirateCaptain
+      x: 54
+      z: 79
+      luck: 5
+    - teamIndex: 1
+      archetype: bluePirate
+      x: 92
+      z: 74
+      luck: 2
+    - teamIndex: 1
+      archetype: bluePirate
+      x: 98
+      z: 76
+      luck: 2
+    - teamIndex: 1
+      archetype: bluePirateCaptain
+      x: 104
+      z: 78
+      luck: 2
+    horizonSeed: 101
+    horizonFeatures:
+    - WhaleSurfacing

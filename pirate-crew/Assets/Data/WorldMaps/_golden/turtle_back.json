@@ -1,0 +1,605 @@
+{
+  "schema": 1,
+  "kind": "world_map",
+  "id": "turtle_back",
+  "displayName": "巨龟环脊",
+  "levelNumber": 104,
+  "spanX": 240,
+  "spanZ": 240,
+  "ambientTier": "Noon",
+  "horizonSeed": 104,
+  "crewWeapons": [
+    {
+      "id": 1,
+      "count": 10
+    },
+    {
+      "id": 5,
+      "count": 1
+    }
+  ],
+  "captainWeapons": [
+    {
+      "id": 1,
+      "count": 10
+    },
+    {
+      "id": 2,
+      "count": 5
+    },
+    {
+      "id": 5,
+      "count": 4
+    },
+    {
+      "id": 15,
+      "count": 1
+    }
+  ],
+  "airdropPool": [
+    {
+      "id": 1,
+      "count": 10
+    },
+    {
+      "id": 4,
+      "count": 10
+    },
+    {
+      "id": 2,
+      "count": 10
+    },
+    {
+      "id": 3,
+      "count": 2
+    },
+    {
+      "id": 12,
+      "count": 2
+    },
+    {
+      "id": 13,
+      "count": 1
+    }
+  ],
+  "terrain": [
+    {
+      "kit": "Archipelago",
+      "asset": "TurtleShellIsle",
+      "x": 120,
+      "y": 0,
+      "z": 120,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "TerraceIslandL",
+      "x": 55,
+      "y": 0,
+      "z": 120,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "TerraceIslandM",
+      "x": 88,
+      "y": 0,
+      "z": 120,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "TerraceIslandL",
+      "x": 190,
+      "y": 0,
+      "z": 120,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "TerraceIslandM",
+      "x": 156,
+      "y": 0,
+      "z": 120,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "ReefStepsA",
+      "x": 120,
+      "y": 0,
+      "z": 84,
+      "yawDeg": 90
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "SeaStackShort",
+      "x": 120,
+      "y": 0,
+      "z": 60,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "ReefStepsA",
+      "x": 120,
+      "y": 0,
+      "z": 156,
+      "yawDeg": 90
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "SeaStackShort",
+      "x": 120,
+      "y": 0,
+      "z": 180,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "TerraceIslandM",
+      "x": 120,
+      "y": 0,
+      "z": 35,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "TerraceIslandM",
+      "x": 120,
+      "y": 0,
+      "z": 200,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "TerraceIslandL",
+      "x": 35,
+      "y": 0,
+      "z": 195,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "ReefStepsA",
+      "x": 40,
+      "y": 0,
+      "z": 80,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "ReefStepsA",
+      "x": 48,
+      "y": 0,
+      "z": 96,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "SeaStackShort",
+      "x": 72,
+      "y": 0,
+      "z": 190,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "ReefStepsA",
+      "x": 95,
+      "y": 0,
+      "z": 185,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "TerraceIslandM",
+      "x": 25,
+      "y": 0,
+      "z": 60,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "TerraceIslandM",
+      "x": 215,
+      "y": 0,
+      "z": 165,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "SandBarL",
+      "x": 215,
+      "y": 0,
+      "z": 100,
+      "yawDeg": 90
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "ReefStepsA",
+      "x": 215,
+      "y": 0,
+      "z": 140,
+      "yawDeg": 90
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "ReefStepsA",
+      "x": 215,
+      "y": 0,
+      "z": 125,
+      "yawDeg": 90
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "AtollCore",
+      "x": 200,
+      "y": 0,
+      "z": 30,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "ReefStepsA",
+      "x": 205,
+      "y": 0,
+      "z": 50,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "ReefStepsA",
+      "x": 210,
+      "y": 0,
+      "z": 66,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Archipelago",
+      "asset": "SeaStackShort",
+      "x": 215,
+      "y": 0,
+      "z": 78,
+      "yawDeg": 0
+    }
+  ],
+  "horizon": [
+    {
+      "kit": "Horizon",
+      "asset": "DistantIsleM",
+      "x": 120,
+      "y": 0,
+      "z": -60,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Horizon",
+      "asset": "DistantIsleM",
+      "x": 120,
+      "y": 0,
+      "z": 320,
+      "yawDeg": 180
+    },
+    {
+      "kit": "Horizon",
+      "asset": "DistantIsleS",
+      "x": -40,
+      "y": 0,
+      "z": 200,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Horizon",
+      "asset": "CloudBankL",
+      "x": 30,
+      "y": 0,
+      "z": 30,
+      "yawDeg": 0
+    },
+    {
+      "kit": "Horizon",
+      "asset": "CloudBankL",
+      "x": 220,
+      "y": 0,
+      "z": 210,
+      "yawDeg": 20
+    },
+    {
+      "kit": "Horizon",
+      "asset": "FarFleet",
+      "x": 340,
+      "y": 0,
+      "z": 300,
+      "yawDeg": 0
+    }
+  ],
+  "props": [
+    {
+      "asset": "Campfire",
+      "x": 44,
+      "y": 0.5,
+      "z": 118,
+      "yawDeg": 0
+    },
+    {
+      "asset": "CannonEmplacement",
+      "x": 62,
+      "y": 0.5,
+      "z": 128,
+      "yawDeg": 200
+    },
+    {
+      "asset": "Campfire",
+      "x": 196,
+      "y": 0.5,
+      "z": 122,
+      "yawDeg": 0
+    },
+    {
+      "asset": "CannonEmplacement",
+      "x": 178,
+      "y": 0.5,
+      "z": 112,
+      "yawDeg": 160
+    },
+    {
+      "asset": "TreasureMound",
+      "x": 115,
+      "y": 3.5,
+      "z": 123,
+      "yawDeg": 0
+    },
+    {
+      "asset": "PalmTall",
+      "x": 38,
+      "y": 0.5,
+      "z": 132,
+      "yawDeg": 0
+    },
+    {
+      "asset": "PalmTall",
+      "x": 66,
+      "y": 0.5,
+      "z": 108,
+      "yawDeg": 180
+    },
+    {
+      "asset": "PalmLean",
+      "x": 178,
+      "y": 0.5,
+      "z": 130,
+      "yawDeg": 0
+    },
+    {
+      "asset": "PalmDead",
+      "x": 206,
+      "y": 0.5,
+      "z": 110,
+      "yawDeg": 0
+    },
+    {
+      "asset": "RockL",
+      "x": 126,
+      "y": 1,
+      "z": 112,
+      "yawDeg": 0
+    },
+    {
+      "asset": "RockM",
+      "x": 112,
+      "y": 2,
+      "z": 126,
+      "yawDeg": 0
+    },
+    {
+      "asset": "RockFlat",
+      "x": 128,
+      "y": 1,
+      "z": 132,
+      "yawDeg": 30
+    },
+    {
+      "asset": "GrassTuft",
+      "x": 118,
+      "y": 2,
+      "z": 116,
+      "yawDeg": 0
+    },
+    {
+      "asset": "FernClump",
+      "x": 124,
+      "y": 3,
+      "z": 118,
+      "yawDeg": 0
+    },
+    {
+      "asset": "Driftwood",
+      "x": 88,
+      "y": 0.5,
+      "z": 114,
+      "yawDeg": 90
+    },
+    {
+      "asset": "BarrelWood",
+      "x": 190,
+      "y": 0.5,
+      "z": 126,
+      "yawDeg": 0
+    },
+    {
+      "asset": "Campfire",
+      "x": 118,
+      "y": 0.5,
+      "z": 38,
+      "yawDeg": 0
+    },
+    {
+      "asset": "RockM",
+      "x": 125,
+      "y": 0.5,
+      "z": 32,
+      "yawDeg": 0
+    },
+    {
+      "asset": "PalmDead",
+      "x": 120,
+      "y": 0.5,
+      "z": 203,
+      "yawDeg": 0
+    },
+    {
+      "asset": "RockFlat",
+      "x": 113,
+      "y": 0.5,
+      "z": 197,
+      "yawDeg": 20
+    },
+    {
+      "asset": "Campfire",
+      "x": 40,
+      "y": 0.5,
+      "z": 190,
+      "yawDeg": 0
+    },
+    {
+      "asset": "RuinColumnBroken",
+      "x": 30,
+      "y": 0.5,
+      "z": 200,
+      "yawDeg": 0
+    },
+    {
+      "asset": "PalmTall",
+      "x": 46,
+      "y": 0.5,
+      "z": 202,
+      "yawDeg": 0
+    },
+    {
+      "asset": "GrassTuft",
+      "x": 28,
+      "y": 0.5,
+      "z": 188,
+      "yawDeg": 0
+    },
+    {
+      "asset": "CannonEmplacement",
+      "x": 52,
+      "y": 0.5,
+      "z": 182,
+      "yawDeg": 200
+    },
+    {
+      "asset": "Campfire",
+      "x": 214,
+      "y": 0.5,
+      "z": 162,
+      "yawDeg": 0
+    },
+    {
+      "asset": "CrateStack",
+      "x": 210,
+      "y": 0.5,
+      "z": 170,
+      "yawDeg": 0
+    },
+    {
+      "asset": "RockM",
+      "x": 25,
+      "y": 0.5,
+      "z": 62,
+      "yawDeg": 0
+    },
+    {
+      "asset": "FernClump",
+      "x": 30,
+      "y": 0.5,
+      "z": 55,
+      "yawDeg": 0
+    },
+    {
+      "asset": "PalmLean",
+      "x": 202,
+      "y": 0.5,
+      "z": 32,
+      "yawDeg": 0
+    }
+  ],
+  "spawns": [
+    {
+      "teamIndex": 0,
+      "archetype": "redPirate",
+      "x": 85,
+      "z": 117,
+      "luck": 5
+    },
+    {
+      "teamIndex": 0,
+      "archetype": "redPirate",
+      "x": 91,
+      "z": 123,
+      "luck": 5
+    },
+    {
+      "teamIndex": 0,
+      "archetype": "redPirate",
+      "x": 85,
+      "z": 121.5,
+      "luck": 5
+    },
+    {
+      "teamIndex": 0,
+      "archetype": "redPirate",
+      "x": 91,
+      "z": 117,
+      "luck": 5
+    },
+    {
+      "teamIndex": 0,
+      "archetype": "redPirateCaptain",
+      "x": 88,
+      "z": 120,
+      "luck": 5
+    },
+    {
+      "teamIndex": 1,
+      "archetype": "bluePirate",
+      "x": 153,
+      "z": 117,
+      "luck": 2
+    },
+    {
+      "teamIndex": 1,
+      "archetype": "bluePirate",
+      "x": 159,
+      "z": 123,
+      "luck": 2
+    },
+    {
+      "teamIndex": 1,
+      "archetype": "bluePirate",
+      "x": 153,
+      "z": 121.5,
+      "luck": 2
+    },
+    {
+      "teamIndex": 1,
+      "archetype": "bluePirate",
+      "x": 159,
+      "z": 117,
+      "luck": 2
+    },
+    {
+      "teamIndex": 1,
+      "archetype": "bluePirateCaptain",
+      "x": 156,
+      "z": 120,
+      "luck": 2
+    }
+  ],
+  "horizonFeatures": [
+    "WhaleSurfacing",
+    "LeviathanTentacle"
+  ]
+}

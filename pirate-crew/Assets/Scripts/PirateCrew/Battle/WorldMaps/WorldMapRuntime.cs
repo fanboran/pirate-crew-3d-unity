@@ -37,14 +37,17 @@ namespace PirateCrew.Battle.WorldMaps
 
         /// <summary>
         /// 关闭 Domain Reload 时静态字段不会自动清空，进入播放前强制重置
-        /// （与 <c>BattleLaunchContext.ResetOnEnterPlayMode</c> 同一手法）；
-        /// 命令行扫描标志一并复位，让每次播放重新解析 <c>-worldMap</c>。
+        /// （由唯一入口 <c>Core/GameEntryPoint</c> 调用）；
+        /// 命令行扫描标志一并复位，让每次播放重新取 <c>-worldMap</c>。
+        /// 关卡资产缓存（<c>LevelAssetLibrary</c> → 本目录）同批清空——同一播放里改了资产要能重读。
         /// </summary>
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetOnEnterPlayMode()
+        [GameBootstrap(GameBootstrapPhase.ResetStatics, order: 20)]
+        internal static void ResetStatics()
         {
             ClearPending();
             _commandLineScanned = false;
+            LevelAssetLibrary.Reset();
+            WorldMapCatalog.ResetCache();
         }
 
         /// <summary>
@@ -60,28 +63,28 @@ namespace PirateCrew.Battle.WorldMaps
             return false;
         }
 
+        /// <summary>
+        /// 取命令行指定的海图（<c>-worldMap &lt;id&gt;</c>）。argv 由
+        /// <see cref="CommandLineOptions"/> 统一解析（唯一入口解析一次，本类不再自扫命令行）；
+        /// 只扫描一次并缓存结果（id 不在目录里时告警并忽略）。
+        /// </summary>
         static void ScanCommandLine()
         {
             if (_commandLineScanned)
                 return;
             _commandLineScanned = true;
-            string[] args = EnvironmentGetArgs();
-            for (int i = 0; i < args.Length - 1; i++)
-            {
-                if (string.CompareOrdinal(args[i], CommandLineSwitch) == 0)
-                {
-                    if (WorldMapCatalog.TryGet(args[i + 1], out _))
-                        _pendingMapId = args[i + 1];
-                    else
-                        Debug.LogWarning(string.Format(
-                            "[WorldMapRuntime] -worldMap {0} 不在目录中，忽略（共 {1} 张：wreck_hymn…sunken_gate）",
-                            args[i + 1], WorldMapCatalog.Count));
-                    return;
-                }
-            }
-        }
 
-        static string[] EnvironmentGetArgs() => System.Environment.GetCommandLineArgs();
+            string requested = CommandLineOptions.GetValue(ToolFlags.WorldMap);
+            if (requested == null)
+                return;
+
+            if (WorldMapCatalog.TryGet(requested, out _))
+                _pendingMapId = requested;
+            else
+                Debug.LogWarning(string.Format(
+                    "[WorldMapRuntime] -worldMap {0} 不在目录中，忽略（共 {1} 张：wreck_hymn…sunken_gate）",
+                    requested, WorldMapCatalog.Count));
+        }
 
         // ------------------------------------------------------------------
         // 战斗计划
