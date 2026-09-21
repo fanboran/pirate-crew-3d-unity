@@ -1,4 +1,9 @@
 # Unity 生成产物（任意层级）
+#
+# ⚠ 下面 [Bb]uild/ 没有锚点，会连带命中「名字叫 Build 的源码目录」。本项目已有一处命中：
+#   pirate-crew/Assets/Editor/Build/（出包脚本源码）。该目录在 pirate-crew/.gitignore 里被
+#   显式反选回来——深层 .gitignore 的规则优先于本文件，所以那里能覆盖这里。
+#   以后再建名字含 Build 的源码目录，记得同样加反选（否则文件会在 git status 里整体消失且不报错）。
 [Ll]ibrary/
 [Tt]emp/
 [Oo]bj/
@@ -17,4 +22,9 @@ __pycache__/
 
 # export/ 出图暂存目录：整目录不入库，零例外（过程截图/原始 PNG/评审画廊全本地留存）
 # 被文档引用的图与判据档案入库在 docs/images/（见 AGENTS.md「export 产物入库策略」）
-export/
+#
+# ⚠ 逐条锚定，不用不带斜杠的 `export/`：那种写法会静默吞掉任意深度的同名目录，
+#   已实际吃掉过 `tools/blender/export/`（工具源码目录，被迫改名才救回来）。
+#   仓库内合法的出图暂存目录就这两处；新增的要显式加一行，别图省事放宽规则。
+/export/
+/pirate-crew/export/

@@ -1,3 +1,27 @@
-# Unity .meta 必须稳定行尾：缺省时 Windows 上 LF/CRLF 漂移会污染 diff、淹没真实变更
-# （2026-09-17 代码审计 §七：47 个 .fbx.meta 行尾漂移事故）。FBX 等二进制由 Git 自动识别，不在此列。
+# 行尾策略：Unity 写出的文本资产一律 LF，Git 原样存取，不做 CRLF 转换。
+#
+# 【为什么】本仓库 core.autocrlf=true。缺省时 git 在签出时把 LF 转成 CRLF，而 Unity 每次改写文件
+# 又写回 LF——于是「Unity 一保存，整个文件变成一行尾 diff」，真实变更被淹没。
+# （2026-09-17 代码审计 §七：47 个 .fbx.meta 行尾漂移事故即此类。）
+#
+# 【加这些规则的代价是零，已实测】2026-09-21 验证：全仓索引里 i/crlf 文件数为 0，
+# 也就是说这 6 类扩展名的内容在 git 里本来就存成 LF；加上 eol=lf 只固定"以后签出也是 LF"，
+# 不改变已入库内容的任何一个字节。验证方法见 docs/项目/构建与发布手册.md「仓库卫生」。
+# 若要改动本文件，先跑一次同款验证再提交（命令也在同一节）。
+#
+# 【为什么不给 *.cs 也钉 eol=lf】工作树里 .cs 有 18 个 CRLF 文件（363 个里），
+# 钉上会让它们立刻显示为已修改（行尾不匹配），而那批文件分属其他轨道。留待各轨道自行统一。
+# 【FBX / PNG / AudioClip 等二进制】Git 靠内容自动识别为二进制，不在此列。
+
+# Unity 序列化资产（YAML）
 *.meta text eol=lf
+*.unity text eol=lf
+*.prefab text eol=lf
+*.asset text eol=lf
+*.mat text eol=lf
+*.controller text eol=lf
+
+# 数据与脚本（golden JSON 逐字节对拍、Python/Blender 管线脚本必须 LF）
+*.json text eol=lf
+*.py text eol=lf
+*.sh text eol=lf

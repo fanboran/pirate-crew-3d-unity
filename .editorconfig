@@ -1,0 +1,109 @@
+# Pirate Crew 3D · 代码风格约定
+#
+# 【这份文件的定位】把「本仓库实际在用的风格」写下来，供编辑器/IDE 与新人（含新会话的 AI）对齐。
+# 每一条都是**照实测统计定的**，不是理想化规范——写与实际不符的规则只会制造无意义的告警。
+# 实测口径与样本见 docs/项目/开发者指南.md「编码规范」一节（统计日期 2026-09-21）。
+#
+# 【不是格式化器的替代品】Unity 工程里没有装 Roslyn 分析器，所以这里的 dotnet_* 命名规则
+# 在 Rider / VS 里是提示、在 Unity 编译时**不产生告警**。改代码时按它写，但不要指望 CI 拦住违规。
+#
+# 【写注释的纪律】注释行里**不要出现等号**。实测（editorconfig-core-js 3.0.2，2026-09-21）：
+# 含等号的 `#` 注释会被这条链路上的解析器当成一条属性（键名变成 "# …"，值被等号切开），
+# 于是注释静默变成数据。写"约等于""上限为某某"这类话时用汉字或箭头，别用等号。
+
+root = true
+
+# ---------------------------------------------------------------------------
+# 全局：UTF-8 无 BOM、LF、末尾留一个换行、不留行尾空格
+#   实测：.cs 里 0 个带 BOM；345/363 个工作树文件是 LF；全部以 0x0A 结尾。
+#   LF 是仓库级决定，理由见根目录 .gitattributes 的注释（Unity 写 LF，别让 git 转 CRLF）。
+# ---------------------------------------------------------------------------
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# ---------------------------------------------------------------------------
+# C#：项目的主要语言。风格实测：4 空格缩进（0 个 Tab 文件）、Allman 花括号（换行后才 {）、
+# 块级 namespace（292/292，无一使用 file-scoped 语法）、行宽 P99 为 107 → 上限设 120。
+# ---------------------------------------------------------------------------
+[*.cs]
+indent_size = 4
+max_line_length = 120
+
+# 花括号另起一行（Allman），与全仓一致
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+
+# namespace 用块语法（不用 file-scoped；本项目 292 个文件全是块语法）
+csharp_style_namespace_declarations = block_scoped:warning
+
+# using 指令排在 namespace 之外，System.* 在前
+csharp_style_using_directive_placement = outside_namespace:suggestion
+dotnet_sort_system_directives_first = true
+
+# 单行语句也加花括号：本项目大量使用「早退 + 单行 If」的守卫写法，加括号可防后续插入语句时踩坑
+csharp_prefer_braces = true:suggestion
+
+# var：允许，但只在右侧类型显而易见时用。项目现状是两者混用（显式类型居多），
+# 所以这里给的是建议而非强制——新代码跟随所在文件的既有写法。
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+
+# 表达式成员：属性用箭头体，方法用块（项目现状）
+csharp_style_expression_bodied_properties = true:suggestion
+csharp_style_expression_bodied_methods = false:suggestion
+
+# 命名：私有字段（含 static）用 _camelCase（实测 45 处 vs 1 处）
+#   —— 仅有的例外是「static readonly 只读查表」这类常量式字段（如 ReleaseGate.SkyTop），
+#   那里省略下划线更易读，属已知的历史写法，不强制改。
+dotnet_naming_rule.private_fields_underscore.severity = suggestion
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private, protected, private_protected
+dotnet_naming_style.underscore_camel.required_prefix = _
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+
+# 常量与公开成员用 PascalCase（public const string IconAssetPath / public static readonly BuildArg[] Args）
+dotnet_naming_rule.constants_pascal.severity = suggestion
+dotnet_naming_rule.constants_pascal.symbols = constants
+dotnet_naming_rule.constants_pascal.style = pascal
+dotnet_naming_symbols.constants.applicable_kinds = field
+dotnet_naming_symbols.constants.required_modifiers = const
+dotnet_naming_style.pascal.capitalization = pascal_case
+
+# ---------------------------------------------------------------------------
+# JSON：2 空格（Packages/manifest.json 的实测口径）。
+#   .asmdef 虽然也是 JSON，但实测用 4 空格，且改它会动到各模块的装配文件——所以不给 *.asmdef
+#   单独设规则，让它走上面的 [*] 默认（4 空格）。
+# ---------------------------------------------------------------------------
+[*.json]
+indent_size = 2
+
+# ---------------------------------------------------------------------------
+# Unity 序列化资产：**机器写的，不要手动格式化**。缩进口径由 Unity 决定（YAML 为 2 空格）。
+# 这些文件的行尾由 .gitattributes 钉成 LF，编辑器不要在这里做视觉改写。
+# ---------------------------------------------------------------------------
+[*.{unity,prefab,asset,mat,controller,meta}]
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = false
+
+# ---------------------------------------------------------------------------
+# Markdown：行尾双空格是有意义的换行记号，不许裁掉
+# ---------------------------------------------------------------------------
+[*.md]
+trim_trailing_whitespace = false
+
+# ---------------------------------------------------------------------------
+# Python（Blender 无头管线的工具脚本）：4 空格
+# ---------------------------------------------------------------------------
+[*.py]
+indent_size = 4
