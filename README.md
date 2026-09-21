@@ -135,7 +135,7 @@ pirate-crew/Assets/
 | 项目状态与恢复入口 | [docs/项目/交接与恢复指南.md](docs/项目/交接与恢复指南.md) |
 | 数值与玩法权威（原版逆向） | [docs/技术/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md](docs/技术/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md) |
 | 3D 空间模型口径 | [docs/设计/M2-3D空间模型对齐.md](docs/设计/M2-3D空间模型对齐.md) |
-| 跨模块事件契约 | [docs/技术/EventBus事件契约.md](docs/技术/EventBus事件契约.md) |
+| 跨模块事件契约 | [docs/技术/架构/EventBus事件契约.md](docs/技术/架构/EventBus事件契约.md) |
 | 视觉迭代档案 | `docs/images/art-review/*/诊断报告.md` |
 
 ## 致谢

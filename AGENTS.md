@@ -75,13 +75,15 @@
 | **先看这个：新会话恢复入口** | [docs/项目/交接与恢复指南.md](docs/项目/交接与恢复指南.md)（项目状态 / 环境铁律 / 关键决策与理由 / 遗留 TODO / 恢复顺序） |
 | 当前待办 / 已完成归档 | [docs/项目/待办事项.md](docs/项目/待办事项.md) |
 | **查文档总目录（按设计/技术/审计/项目分类）** | [docs/README.md](docs/README.md) |
-| **当前主任务书（资产架构裁决方向）** | [docs/技术/管线合并-糖豆人式资产架构任务书.md](docs/技术/管线合并-糖豆人式资产架构任务书.md)（程序化生成改岗编辑器烘焙器，几何退出运行时） |
+| **当前主任务书（美术翻新立项，提案待确认）** | [docs/技术/美术翻新-等距像素卡通立项任务书.md](docs/技术/美术翻新-等距像素卡通立项任务书.md)（里程碑 M0→M5 / 技术方案总纲 / 裁决点登记表 / 风险登记册 / 排期） |
+| 查渲染/资产实现口径与外部调研 | [docs/技术/渲染/README.md](docs/技术/渲染/README.md) 与 [docs/技术/资产管线/README.md](docs/技术/资产管线/README.md)（等距像素卡通口径 + 赛璐璐/描边/像素化/量化四份调研，来源均带 URL） |
+| 查资产架构三层分离（烘焙器岗位） | [docs/技术/架构/管线合并-糖豆人式资产架构任务书.md](docs/技术/架构/管线合并-糖豆人式资产架构任务书.md)（程序化生成改岗编辑器烘焙器，几何退出运行时） |
 | 了解项目目标、翻译规范、里程碑 | [README.md](README.md) |
 | **查数值与玩法的权威依据（公式/武器表/回合规则/AI 伪代码）** | [docs/技术/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md](docs/技术/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md)（2D 原版 Flash 逆向，868 行） |
 | 查 Godot 版某文件该翻译成什么 / 哪些是空骨架 | [docs/技术/参考逆向/M2-Godot基准摘要.md](docs/技术/参考逆向/M2-Godot基准摘要.md)（`.gd → .cs` 对照 + 空 TODO 清单） |
-| 查 Unity 实现参照 / 本机 API 陷阱 | [docs/技术/M2-Unity参照库调研.md](docs/技术/M2-Unity参照库调研.md)（4 个参照库 + R1-R9 风险清单） |
-| 加跨模块事件 / 查事件契约 | [docs/技术/EventBus事件契约.md](docs/技术/EventBus事件契约.md)（事件名与载荷登记表，禁止散落魔法字符串） |
-| 调描边 shader 参数 | [docs/技术/描边Shader调试.md](docs/技术/描边Shader调试.md) |
+| 查 Unity 实现参照 / 本机 API 陷阱 | [docs/技术/架构/M2-Unity参照库调研.md](docs/技术/架构/M2-Unity参照库调研.md)（4 个参照库 + R1-R9 风险清单） |
+| 加跨模块事件 / 查事件契约 | [docs/技术/架构/EventBus事件契约.md](docs/技术/架构/EventBus事件契约.md)（事件名与载荷登记表，禁止散落魔法字符串） |
+| 调描边 shader 参数 | [docs/技术/渲染/描边Shader调试.md](docs/技术/渲染/描边Shader调试.md) |
 | **改 Battle 场景 / 装配脚本前必读** | [pirate-crew/Assets/Scenes/README.md](pirate-crew/Assets/Scenes/README.md)（场景来源 / 装配链顺序铁律 / 归 Prefab 与留生成的切分契约 / 改前必跑的转储命令） |
 | 查场景接线的实测证据与修复计划 | [docs/审计/专项/场景接线审计报告.md](docs/审计/专项/场景接线审计报告.md)（372 对象/23 根/26 条跨根引用/Find 存量根因，基准 `3c6b51d`） |
 | **查 3D 空间模型 / 坐标口径（动坐标、相机、投掷、爆炸前必读）** | [docs/设计/M2-3D空间模型对齐.md](docs/设计/M2-3D空间模型对齐.md)（**XZ 竞技场** + Flash 数值的分工契约） |
@@ -95,11 +97,11 @@
 ## 核心行为指令
 
 1. **参照库强制**（自原项目 rule.md，全项目最重要的规则）：AI 无参照写代码容易 API 幻觉、边界遗漏，但**翻译移植和等效重构表现非常稳定**。每次写新功能或重写模块前——
-   - 下载星标多、维护活跃、玩法相似的开源 Unity 项目到 `external/<功能名>-reference/`（已 gitignore），clone 完成后在 [docs/技术/M2-Unity参照库调研.md](docs/技术/M2-Unity参照库调研.md) §7 登记（库名 / 上游 URL / 用途）；
+   - 下载星标多、维护活跃、玩法相似的开源 Unity 项目到 `external/<功能名>-reference/`（已 gitignore），clone 完成后在 [docs/技术/架构/M2-Unity参照库调研.md](docs/技术/架构/M2-Unity参照库调研.md) §7 登记（库名 / 上游 URL / 用途）；
    - 读懂其核心实现后基于参照翻译改编；
    - 参照库不入库。例外：简单 bug 修复、单行改动、参数调整。
 2. **图形学调试截图规范**（自原项目 rule.md，Unity 版）：Shader/渲染效果开发必须——在 shader 中实现 `debug_mode` 拆分管线步骤 → 用 `ScreenCapture.CaptureScreenshot` 或 Editor 脚本逐层截图存 `export/<功能名>-debug/` → 写一页 README 说明每张图应看到什么 → 列关键参数调参指南。
-   - **改动 shader 必须先在**有渲染路径的编辑器里**验证编译**："`read_console` 里 0 条 shader error"是唯一算数的标准。静态核对 `#include` / 符号**只能证明"符号存在"**，证明不了 include 链自洽、更证明不了额外 Pass 会被执行——两个真实事故：① `GlobalIllumination.hlsl` 自身不 include `BRDF.hlsl` 却在函数体用 `BRDFData`；② 描边 Pass 与本体 Pass 同标 `LightMode="UniversalForward"`，被 URP **静默丢弃**（本体正常、就是没描边、Console 无报错）。完整复盘见 [docs/技术/描边Shader调试.md](docs/技术/描边Shader调试.md) §八。
+   - **改动 shader 必须先在**有渲染路径的编辑器里**验证编译**："`read_console` 里 0 条 shader error"是唯一算数的标准。静态核对 `#include` / 符号**只能证明"符号存在"**，证明不了 include 链自洽、更证明不了额外 Pass 会被执行——两个真实事故：① `GlobalIllumination.hlsl` 自身不 include `BRDF.hlsl` 却在函数体用 `BRDFData`；② 描边 Pass 与本体 Pass 同标 `LightMode="UniversalForward"`，被 URP **静默丢弃**（本体正常、就是没描边、Console 无报错）。完整复盘见 [docs/技术/渲染/描边Shader调试.md](docs/技术/渲染/描边Shader调试.md) §八。
    - **URP 里加额外 Pass 必须给它一个独立且未被占用的 `LightMode`**（本项目描边 Pass 用 `"SRPDefaultUnlit"`），不能复用本体 Pass 的 `UniversalForward`。
    - **出图优先走 MCP，不另开 Unity 进程**（`Library/` 锁独占）：编辑器开着时用 `execute_menu_item` 跑采集菜单、`manage_camera` 取图、`read_console` 查 shader 报错；采集期间**编辑器不能暂停**（画面不重绘）。注意 `manage_camera` 的 `output_folder` 要显式指定，默认会往 `Assets/Screenshots/` 落图，会把临时截图混进 Unity 资产。判图要用**程序化判据**（按色相扫像素 + 区域主色），不要只靠"看着像"。
    - 参考模板：`docs/images/outline-debug/`（README 含每张图的预期 + 实测像素判据 + 复现步骤）。
@@ -116,7 +118,7 @@
 1. **两层结构**：仓库根放文档与 AGENTS.md，Unity 工程本体放 `pirate-crew/` 子目录（Unity Hub 打开的是它，不是仓库根）。
 2. **模块划分**：`Assets/Scripts/` 下按功能分 `Core/`（引导器/事件总线/存档）、`Campaign/`、`PirateCrew/`、`CrewManagement/`、`UI/`；一个模块一个 C# 命名空间（`PirateCrew.Combat` 等）。
 3. **耦合原则**：模块间通信走 `Core/EventBus.cs`（静态 C# 事件中心，对应 Godot 的 event_bus autoload）；**禁止** `GameObject.Find`、跨模块 `GetComponent` 裸引用。跨模块调用的公共出口放各模块 `XxxApi.cs`。
-   - **事件契约必须登记**：EventBus 用字符串键，没有编译期检查——拼错一个字母就是"发了但没人收到"的静默故障。事件名一律 snake_case，且必须登记在 [docs/技术/EventBus事件契约.md](docs/技术/EventBus事件契约.md)（事件名 / 载荷类型 / 发布方 / 订阅方）；代码侧用常量类承载（如 `BattleEvents.cs`），禁止散落魔法字符串。载荷类型变更属破坏性变更，须同步更新登记表与所有订阅方。
+   - **事件契约必须登记**：EventBus 用字符串键，没有编译期检查——拼错一个字母就是"发了但没人收到"的静默故障。事件名一律 snake_case，且必须登记在 [docs/技术/架构/EventBus事件契约.md](docs/技术/架构/EventBus事件契约.md)（事件名 / 载荷类型 / 发布方 / 订阅方）；代码侧用常量类承载（如 `BattleEvents.cs`），禁止散落魔法字符串。载荷类型变更属破坏性变更，须同步更新登记表与所有订阅方。
    - **不该用 EventBus 的场景**：同一模块内部调用（直接方法调用或 `[SerializeField]` 引用）、父子层级生命周期通知、每帧高频数据（`Publish` 会分配委托快照，高频吃 GC）。别把强关系伪装成松耦合。
 4. **命名规范**：C# 类型与文件 PascalCase（文件名=类名）；Godot 版搬来的 snake_case 资产入 Assets 时重命名。Prefab 按模块归位，每个可实例化场景一个 Prefab。
 5. **依赖分层**：`Core/`（服务层）← 玩法模块（Campaign/PirateCrew/CrewManagement）← Bootstrapper 场景（组装根，`DontDestroyOnLoad` 挂全局服务）。高层可依赖低层，反向禁止。

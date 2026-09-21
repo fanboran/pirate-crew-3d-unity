@@ -11,7 +11,7 @@
 
 ## ✅ 截图已产出（2026-09-13，图形界面编辑器 + play mode）
 
-**5 档截图已实际采集并逐档核验**，产物在仓库根 [`docs/images/outline-debug/`](../images/outline-debug/)：
+**5 档截图已实际采集并逐档核验**，产物在仓库根 [`docs/images/outline-debug/`](../../images/outline-debug/)：
 
 | 文件 | `_DebugMode` | 实测判据（2560×1440 全图扫描） |
 | --- | --- | --- |

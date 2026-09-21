@@ -17,7 +17,7 @@
 - 【原始诉求】当前 Unity 版界面存在两个问题：**术语与界面文案为英文**（用户明确不满）、**视觉是用 `Image` 纯色块拼的**（无美术效果）。本规范解决这两点，并给出可逐图品控的验收判据。
 - 【依据】现有 UI 代码全部在 `pirate-crew/Assets/Scripts/UI/`（`BattleHud.cs` / `MainMenuController.cs` / `CrewManagementController.cs` / `LevelSelectController.cs` / `M3UiBuilder.cs` / `BattleMinimap.cs`），装配代码在 `pirate-crew/Assets/Editor/M2BattleSceneSetup.cs`、`SceneSetup.cs`、`M3SceneSetup.cs`、`HudMinimapSceneSetup.cs`。
 - 【依据】风格契约由用户确定：**风格化写实海盗风 = 木质 / 羊皮纸 / 黄铜三段材质语言 + 高对比中文标题字 + 深色描边保证可读性**；配色沿用 GDD 调色板（`game-3/docs/gdd.md:812-835`）。
-- 本文**不覆盖**：3D 场景物件外观、描边 shader 参数（见 `docs/技术/描边Shader调试.md`）、3D 空间模型（见 `docs/设计/M2-3D空间模型对齐.md`）。
+- 本文**不覆盖**：3D 场景物件外观、描边 shader 参数（见 `docs/技术/渲染/描边Shader调试.md`）、3D 空间模型（见 `docs/设计/M2-3D空间模型对齐.md`）。
 
 ---
 

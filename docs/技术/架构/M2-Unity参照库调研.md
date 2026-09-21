@@ -522,7 +522,7 @@ MIT 允许使用、修改、分发，但要求保留版权声明与许可文本�
 
 验收标准自检：
 
-- [x] `docs/技术/M2-Unity参照库调研.md` 存在且 ≥250 行。
+- [x] `docs/技术/架构/M2-Unity参照库调研.md` 存在且 ≥250 行。
 - [x] `external/m2-combat-reference/` 下 ≥2 个 clone（实际 4 个，每个能力至少 1 个）。
 - [x] 每条 API 风险均附本地核对命令与结论（R1–R9）。
 - [x] `git status` 只多出本文档（`external/` 在 .gitignore 第 10 行，不入库）。
