@@ -132,7 +132,7 @@ namespace PirateCrew.EditorTools
                 + "  环境材质: " + materialCount + " 个 → " + EnvironmentMaterialFolder + "\n"
                 + "  细节贴图: " + MaterialNoiseBuilder.TextureFolder + "（由 MaterialNoiseBuilder 生成）\n"
                 + "  后处理: " + (profile != null ? VolumeProfilePath : "（生成失败）") + "\n"
-                + "  URP: " + UrpAssetPath + "（软阴影 on / 深度图 on / MSAA 2）");
+                + "  URP: " + UrpAssetPath + "（软阴影 on / 深度图 on / **MSAA 0**——像素化裁决）；");
         }
 
         /// <summary>读取环境材质；调用方需对 null 做兜底（生成失败时退回 URP/Lit）。</summary>
@@ -783,12 +783,18 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 配置 URP Asset：打开软阴影、打开深度图、MSAA 4→2、ColorGradingMode 切 HDR，
+        /// 配置 URP Asset：打开软阴影、打开深度图、**MSAA 关**、ColorGradingMode 切 HDR，
         /// 并强制主光阴影三件套（距离 ≥100 / Cascade 4 / 分辨率 2048；距离随格 1→2 单位 ×2，cascade 级数不动）。
         /// 取舍见报告：软阴影是本波次"光影氛围"的必要项；深度图是 PirateWater 泡沫/浅深水的硬依赖；
-        /// 阴影三件套是植被"投影 + 受影"（PirateAmbientWind 的 ShadowCaster/ForwardLit）与单位投影的载体；
-        /// MSAA 降档用来抵消前两项带来的带宽/开销增长；ColorGradingMode=HDR 是 Linear+HDR 的配套
-        /// （LDR LUT 会把 >1 的高光在 tonemap 前压平，见方法内注释）。
+        /// 阴影三件套是植被"投影 + 受影"（PirateAmbientWind 的 ShadowCaster/ForwardLit）与单位投影的载体。
+        ///
+        /// 【MSAA = 0 是像素化裁决的硬项，不是性能取舍】
+        /// 见 [渲染管线-等距像素卡通.md](../../../docs/技术/渲染/渲染管线-等距像素卡通.md) §2 的红线表：
+        /// 「MSAA **0** —— 边缘平滑与像素化冲突（"灰边"头号来源）」，§4 的排查表第一条也是
+        /// "像素有灰边 → MSAA 没关 / RT filter 不是 Point"。
+        /// 本行过去写 2（旧的"写实光影"口径下的降档取舍，与像素化目标冲突），
+        /// 后果是**每跑一次资产管线就把裁决改回去且不报错**——只有人眼在实拍里看出灰边才会发现。
+        /// 故此处固定写 0；要改必须同步改那份裁决文档。
         /// </summary>
         public static void ConfigureUrpAsset()
         {
@@ -804,8 +810,8 @@ namespace PirateCrew.EditorTools
             // 公共 setter：水面 shader 的 SampleSceneDepth 依赖它。
             asset.supportsCameraDepthTexture = true;
 
-            // 公共 setter：MSAA 4 → 2（见上取舍）。
-            asset.msaaSampleCount = 2;
+            // 公共 setter：MSAA **关**（0）。理由见方法头「MSAA = 0 是像素化裁决的硬项」。
+            asset.msaaSampleCount = 0;
 
             // ---- ColorGradingMode：LDR → **HDR**（Linear + HDR 渲染的配套项）----
             // 依据：URP 的 ColorGradingLutPass 在 HDR 模式下用 R16G16B16A16_SFloat 的 LUT

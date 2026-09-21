@@ -81,6 +81,7 @@
 | **本次工业级重构的范围/判据/执行记录** | [docs/项目/工业级重构总纲.md](docs/项目/工业级重构总纲.md) 与 [docs/项目/重构迁移报告.md](docs/项目/重构迁移报告.md) |
 | **当前主任务书（美术翻新立项，提案待确认）** | [docs/技术/美术翻新-等距像素卡通立项任务书.md](docs/技术/美术翻新-等距像素卡通立项任务书.md)（里程碑 M0→M5 / 技术方案总纲 / 裁决点登记表 / 风险登记册 / 排期） |
 | 查渲染/资产实现口径与外部调研 | [docs/技术/渲染/README.md](docs/技术/渲染/README.md) 与 [docs/技术/资产管线/README.md](docs/技术/资产管线/README.md)（等距像素卡通口径 + 赛璐璐/描边/像素化/量化四份调研，来源均带 URL） |
+| **做 UI 像素化（Beveled Pixel）前必读** | [docs/images/ui-pixel-ref/README.md](docs/images/ui-pixel-ref/README.md)（创始人指定的标准参照 + **逐像素量出的斜面几何表**：2px 基本单位、框架只用同色相三档明暗、格子件字形单元 16px）+ [美术风格指南](docs/设计/美术风格指南.md) §5；参照素材在 `external/terraria-ref/`（137 张成就图标 + 41 张 UI 原始件，版权原因不入库） |
 | 查资产架构三层分离（烘焙器岗位） | [docs/技术/架构/管线合并-糖豆人式资产架构任务书.md](docs/技术/架构/管线合并-糖豆人式资产架构任务书.md)（程序化生成改岗编辑器烘焙器，几何退出运行时） |
 | 了解项目目标、翻译规范、里程碑 | [README.md](README.md) |
 | **查数值与玩法的权威依据（公式/武器表/回合规则/AI 伪代码）** | [docs/技术/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md](docs/技术/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md)（2D 原版 Flash 逆向，868 行） |
@@ -88,7 +89,7 @@
 | 查 Unity 实现参照 / 本机 API 陷阱 | [docs/技术/架构/M2-Unity参照库调研.md](docs/技术/架构/M2-Unity参照库调研.md)（4 个参照库 + R1-R9 风险清单） |
 | 加跨模块事件 / 查事件契约 | [docs/技术/架构/EventBus事件契约.md](docs/技术/架构/EventBus事件契约.md)（事件名与载荷登记表，禁止散落魔法字符串） |
 | 调描边 shader 参数 | [docs/技术/渲染/描边Shader调试.md](docs/技术/渲染/描边Shader调试.md) |
-| **改 Battle 场景 / 装配脚本前必读** | [pirate-crew/Assets/Scenes/README.md](pirate-crew/Assets/Scenes/README.md)（场景来源 / 装配链顺序铁律 / 归 Prefab 与留生成的切分契约 / 改前必跑的转储命令） |
+| **改 Battle 场景 / 装配链前必读** | [pirate-crew/Assets/Scenes/README.md](pirate-crew/Assets/Scenes/README.md)（**折叠态契约**：四个场景各是一个 Prefab 实例，不许往里手摆东西 / **八步装配链**顺序即代码 / 改前必跑的转储比对命令） |
 | 查场景接线的实测证据与修复计划 | [docs/审计/专项/场景接线审计报告.md](docs/审计/专项/场景接线审计报告.md)（372 对象/23 根/26 条跨根引用/Find 存量根因，基准 `3c6b51d`） |
 | **查 3D 空间模型 / 坐标口径（动坐标、相机、投掷、爆炸前必读）** | [docs/设计/M2-3D空间模型对齐.md](docs/设计/M2-3D空间模型对齐.md)（**XZ 竞技场** + Flash 数值的分工契约） |
 | （已归档）M2 3D 化并行分工记录 | [docs/项目/归档/M2-3D化-并行推进与交接.md](docs/项目/归档/M2-3D化-并行推进与交接.md) |
