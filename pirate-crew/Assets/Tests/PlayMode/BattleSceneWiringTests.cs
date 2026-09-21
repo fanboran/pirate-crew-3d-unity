@@ -40,14 +40,14 @@ namespace PirateCrew.Tests
         }
 
         /// <summary>
-        /// 复核相机是"真 3D"（透视，非正交）且机位分两档：
-        ///   · **烘焙值档**：场景里烘焙的 Transposer 仍是 18→15 提案的 45°/距离 15（M2BattleSceneSetup 不在改动域）；
-        ///   · **运行时默认档**：BattleCameraController 在 Awake 把它覆盖成**角色特写**（距离 5–7、俯角 25–35°，
-        ///     用户裁决 2026-09-14）。
+        /// 复核相机是**等距像素卡通口径**（正交 + 斜 45° 俯视 + 整数 OrthoSize 档，创始人裁决 2026-09-21，
+        /// docs/技术/渲染管线-等距像素卡通.md §2）且机位分两档：
+        ///   · **烘焙值档**：场景里烘焙的 Transposer 45°/距离 30（正交下距离只定机位）+ Lens 正交全场档 size；
+        ///   · **运行时默认档**：BattleCameraController 在 Awake 把视野覆盖成**角色特写**（size 档 4–6）。
         /// 用纯反射读 Cinemachine 组件，避免在 PlayModeTests.asmdef 里新增对 Cinemachine
         /// 程序集的引用（Unity 的程序集引用不传递）。烘焙值从控制器的捕获属性读（Awake 里存下原值）。
         /// </summary>
-        static void AssertPerspectiveTiltedCamera(BattleCameraController controller, Component vcam)
+        static void AssertOrthographicTiltedCamera(BattleCameraController controller, Component vcam)
         {
             Assert.IsNotNull(controller, "BattleCameraController 为空");
             Assert.IsNotNull(vcam, "BattleCameraController.virtualCamera 为空");
@@ -57,15 +57,15 @@ namespace PirateCrew.Tests
             object lens = vcam.GetType().GetField("m_Lens", PublicInstance)?.GetValue(vcam);
             Assert.IsNotNull(lens, "CinemachineVirtualCamera.m_Lens 读取失败");
             // 注意：LensSettings.Orthographic 是**属性**（内部由 ModeOverride / m_OrthoFromCamera 推出），
-            // 不是字段——用 GetField 会拿到 null（2026-09-13 PlayMode 实跑才发现）；FieldOfView 才是字段。
+            // 不是字段——用 GetField 会拿到 null（2026-09-13 PlayMode 实跑才发现）；OrthographicSize 才是字段。
             PropertyInfo orthoProperty = lens.GetType().GetProperty(
                 "Orthographic", PublicInstance | BindingFlags.IgnoreCase);
-            FieldInfo fovField = lens.GetType().GetField("FieldOfView", PublicInstance);
+            FieldInfo orthoSizeField = lens.GetType().GetField("OrthographicSize", PublicInstance);
             Assert.IsNotNull(orthoProperty, "LensSettings.Orthographic 属性不存在");
-            Assert.IsNotNull(fovField, "LensSettings.FieldOfView 字段不存在");
-            Assert.IsFalse((bool)orthoProperty.GetValue(lens, null),
-                "相机应为透视（正交侧视是 2D 时代的遗留，见 docs/M2-3D空间模型对齐.md）");
-            Assert.Greater((float)fovField.GetValue(lens), 0f, "透视相机应有正 FOV");
+            Assert.IsNotNull(orthoSizeField, "LensSettings.OrthographicSize 字段不存在");
+            Assert.IsTrue((bool)orthoProperty.GetValue(lens, null),
+                "相机应为正交（等距像素卡通，见 docs/技术/渲染管线-等距像素卡通.md §2）");
+            Assert.Greater((float)orthoSizeField.GetValue(lens), 0f, "正交相机应有正 OrthoSize");
 
             Component transposer = null;
             // ⚠ Cinemachine 2.x 把管线组件（Transposer 等）挂在 vcam 的**子物体**上（"cm" 节点），
@@ -88,21 +88,21 @@ namespace PirateCrew.Tests
             float runtimeDistance = offset.magnitude;
             float runtimePitch = Mathf.Atan2(offset.y, new Vector2(offset.x, offset.z).magnitude) * Mathf.Rad2Deg;
 
-            // ---- 档一：烘焙值（场景资产里的 45°/距离 30 = FullField 预设；×2 扫荡后由 15→30）----
-            Assert.AreEqual(BattleCameraController.FullFieldDistance, controller.BakedDistance, 0.1f,
-                "烘焙 FollowOffset 距离应等于 FullField 预设常量（45°/30）");
-            Assert.AreEqual(BattleCameraController.FullFieldPitchDegrees, controller.BakedPitchDegrees, 0.5f,
-                "烘焙俯角应等于 FullField 预设常量（45°）");
+            // ---- 档一：烘焙值（场景资产里的 45°/距离 30；正交下距离恒定，视野档由 OrthoSize 表达）----
+            Assert.AreEqual(BattleCameraController.OrthoTransposerDistance, controller.BakedDistance, 0.1f,
+                "烘焙 FollowOffset 距离应等于正交机位常量（45°/30）");
+            Assert.AreEqual(BattleCameraController.OrthoPitchDegrees, controller.BakedPitchDegrees, 0.5f,
+                "烘焙俯角应等于等距俯角常量（45°）");
+            Assert.AreEqual(BattleCameraController.FullFieldOrthoSize, controller.BakedOrthoSize, 0.1f,
+                "烘焙 OrthoSize 应等于全场档常量（17）");
 
-            // ---- 档二：运行时默认 = 角色特写（用户裁决 2026-09-14；×2 后特写距离 12，区间留扫描余量）----
-            Assert.That(controller.RuntimeDistance, Is.InRange(10f, 14f),
-                "运行时默认机位应为特写档（距离 10–14）");
-            Assert.That(controller.RuntimePitchDegrees, Is.InRange(25f, 35f),
-                "运行时默认机位应为特写档（俯角 25–35°）");
-            Assert.That(runtimeDistance, Is.InRange(10f, 14f),
-                "运行时 Transposer 距离应已被覆盖为特写档（Awake 立即写入）");
-            Assert.That(runtimePitch, Is.InRange(25f, 35f),
-                "运行时 Transposer 俯角应已被覆盖为特写档（Awake 立即写入）");
+            // ---- 档二：运行时默认 = 角色特写（size 档 4–6，区间留扫描余量）；距离/俯角恒定 ----
+            Assert.That(controller.RuntimeOrthoSize, Is.InRange(4, 6),
+                "运行时默认视野应为特写档（size 4–6）");
+            Assert.AreEqual(BattleCameraController.OrthoTransposerDistance, runtimeDistance, 0.1f,
+                "运行时 Transposer 距离应保持恒定（正交下缩放不再改写距离）");
+            Assert.AreEqual(BattleCameraController.OrthoPitchDegrees, runtimePitch, 0.5f,
+                "运行时 Transposer 俯角应保持等距俯角（45°，Awake 立即写入）");
             Assert.AreEqual(0f, offset.x, 1e-4f, "yaw = 0：相机偏移应落在 +Z/+Y 平面内");
         }
 
@@ -173,8 +173,8 @@ namespace PirateCrew.Tests
             Assert.AreEqual(LevelGeometry.WaterSurfaceY, controller.WaterWorldY, 1e-4f, "计划水位应为 WaterSurfaceY");
             Assert.AreEqual(controller.WaterWorldY, waterPlane.position.y, 1e-3f, "水面 y 应等于计划水位");
 
-            // ---- 相机：真 3D（透视）；机位分两档——烘焙 45°/15 保留，运行时默认被覆盖为角色特写 ----
-            AssertPerspectiveTiltedCamera(camController, (Component)Field(camController, "virtualCamera"));
+            // ---- 相机：等距像素卡通（正交 + 45° 俯视）；烘焙全场档保留，运行时默认被覆盖为角色特写 ----
+            AssertOrthographicTiltedCamera(camController, (Component)Field(camController, "virtualCamera"));
 
             // ---- HUD 接线 ----
             var hud = Object.FindObjectOfType<BattleHud>();

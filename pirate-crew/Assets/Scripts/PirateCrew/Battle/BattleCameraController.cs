@@ -35,31 +35,34 @@ namespace PirateCrew.Battle
     ///   5. 顿帧（hitstop）：仅在武器引爆瞬间把 <c>Time.timeScale</c> 压到安全下限再弹回；
     ///      安全上限与"为什么不破坏回合推进"的论证见 <see cref="CameraFeelRules"/> 的顿帧小节。
     ///
-    /// 【默认机位 — 用户裁决 2026-09-14：角色特写优先（"以角色特写视角操控这个角色"）】
-    ///   开局与**每次换行动单位**（<c>TurnStarted.PanTarget</c> / <c>CameraFocusRequested</c> →
-    ///   <see cref="FocusOn(Transform)"/>）相机进入**跟随特写档**：距离 <see cref="CloseUpDistance"/>
-    ///   （12 世界单位）、俯角 <see cref="CloseUpPitchDegrees"/>（30°）、看向行动单位（lookAt 抬高 =
-    ///   单位视觉高 1.85 × <see cref="LookAtHeightRatio"/> 0.65 ≈ 1.20；1.85 与
-    ///   <c>CrewVisualPrefabBuilder.TargetUnitHeight</c> 同源——**角色自身尺寸不随格放大**）。
-///   相机取景按「看同样的格数」等比放大：格 1→2 单位后档位距离一律 ×2。滚轮可后拉到旧的 45° 全场档
-///   （距离 <see cref="FullFieldDistance"/> 30）再往后到 <see cref="MaxManualDistance"/> 160（M4 大海域档位），
-///   前推最近 <see cref="MinManualDistance"/> 6；俯角随距离在 30°↔45°↔55° 间插值
-///   （<see cref="PitchForDistance"/>，全景档随 <see cref="SetWorldSpan"/> 的地图跨度自适应）。
-///   **"零输入守 45°/15 出厂"的旧口径已废止**；
-///   无输入时相机保持当前跟随目标。
-///
-/// 【M4 手感（docs/M4-大海域世界化.md §3.2，数值提案/待定）】
-///   · Scope 模式：AimThrowController 里 Shift 切换，本类把 FOV 从基准 60 平滑收敛到 28（0.25s）；
-///   · 力度-镜头耦合：炮台蓄力比例越大相机越拉远（特写 → 全景线性映射），松手恢复蓄力前距离；
-///   · 弹体追焦：跟随弹体时聚焦平滑更慢更轻（<see cref="CameraFeelRules.ProjectileFollowFocusScale"/>），
-///     落点震屏逻辑不变。
+    /// 【默认机位 — 等距像素卡通（创始人裁决 2026-09-21，docs/技术/渲染管线-等距像素卡通.md §2）】
+    ///   相机为**正交投影**：视野由 <see cref="CloseUpOrthoSize"/>/<see cref="FullFieldOrthoSize"/>
+    ///   等整数档 OrthoSize 决定（像素网格在世界空间对齐的前提）；Transposer 距离固定
+    ///   <see cref="OrthoTransposerDistance"/>（只定机位，不再表达视野）；俯角统一
+    ///   <see cref="OrthoPitchDegrees"/> 45°（不再随档位插值——等距观感要求统一俯角）；
+    ///   **旋转锁死只平移**：右键/左键环绕输入被禁用（等距轴测前提），中键自由锚与
+    ///   观察模式（我的世界式自由视角）保留为调试出口。
+    ///   开局与每次换行动单位进入**跟随特写档**（size <see cref="CloseUpOrthoSize"/>），
+    ///   lookAt 抬高 = 单位视觉高 1.85 × <see cref="LookAtHeightRatio"/> 0.65 ≈ 1.20。
+    ///   滚轮按整数档缩放 OrthoSize，夹 [<see cref="MinOrthoSize"/>, <see cref="MaxOrthoSize"/>]。
+    ///
+    /// 【旧透视口径（距离档位 12/30/160 + 30°↔45°↔55° 俯角插值 + FOV 特效）已于 2026-09-21
+    ///   随等距像素卡通切换退役】；Scope 瞄准/推近/旁观等"FOV 特效"以**当量比率**映射到
+    ///   OrthoSize（<see cref="ApplyFov"/>：size = 当前手动档 × fov 当量 / 烘焙 FOV），手感量级连续。
+    ///
+    /// 【M4 手感（docs/M4-大海域世界化.md §3.2，数值提案/待定）】
+    ///   · Scope 模式：AimThrowController 里 Shift 切换，本类把等效 FOV 从基准 60 平滑收敛到 28（0.25s）
+    ///     ——正交下表现为 OrthoSize 等比收小（画面放大）；
+    ///   · 力度-镜头耦合：炮台蓄力比例越大相机越拉远（特写 → 全景线性映射），松手恢复蓄力前档位；
+    ///   · 弹体追焦：跟随弹体时聚焦平滑更慢更轻（<see cref="CameraFeelRules.ProjectileFollowFocusScale"/>），
+    ///     落点震屏逻辑不变。
     ///
     /// 【安全底线（勿破坏）】
-    ///   · **场景里烘焙的** Transposer FollowOffset = 45°/距离 30（18→15→30 提案；
-    ///     <c>M2BattleSceneSetup</c> 同步改为 30）：<c>BattleSceneWiringTests.AssertPerspectiveTiltedCamera</c>
-    ///     断言该**烘焙值**（透视 + 45° + 距离 30 + offset.x=0，经 <see cref="BakedDistance"/> /
-    ///     <see cref="BakedPitchDegrees"/> 读出）；运行时本脚本把它覆盖为特写档，同测试另断言
-    ///     "运行时默认 = 特写档"（<see cref="RuntimeDistance"/> / <see cref="RuntimePitchDegrees"/>）。
+    ///   · **场景里烘焙的** Transposer FollowOffset = 45°/距离 30 + 正交 Lens（size
+    ///     <see cref="FullFieldOrthoSize"/>）：<c>BattleSceneWiringTests.AssertOrthographicTiltedCamera</c>
+    ///     断言该**烘焙值**（正交 + 45° + 距离 30 + offset.x=0，经 <see cref="BakedDistance"/> /
+    ///     <see cref="BakedPitchDegrees"/>/<see cref="BakedOrthoSize"/> 读出）；运行时本脚本把它覆盖为
+    ///     特写档，同测试另断言"运行时默认 = 特写档"（<see cref="RuntimeOrthoSize"/>）。
     ///   · 震屏只加在"相机目标位置"上，且**玩家按住左键（正在拖拽瞄准）时一律不施加**；
     ///     <see cref="FocusPoint"/> 返回的是**去震屏**的干净位置，不影响 panToCharacter 的"离相机中心最近"判定。
     /// </summary>
@@ -141,71 +144,60 @@ namespace PirateCrew.Battle
         [Tooltip("落水时相机焦点下压位移（世界单位）。")]
         [SerializeField] float drownDipWorldUnits = CameraFeelRules.DrownDipWorldUnits;
 
-        [Header("玩家相机微操（用户拍板默认开启：右键环绕 + 滚轮缩放；默认特写档，滚轮可拉到旧 45° 全场）")]
-        [Tooltip("右键拖拽环绕（改 Transposer 的 yaw，保持当前俯角/距离不变）。默认开。")]
-        [SerializeField] bool enableManualOrbit = true;
-
-        [Tooltip("滚轮缩放（改 Transposer 距离，夹在 [MinManualDistance, MaxManualDistance] 常量内）。默认开。")]
+        [Header("玩家相机微操（等距口径：旋转锁死只平移；滚轮整数档缩放 OrthoSize；观察模式/中键自由锚为调试出口）")]
+        [Tooltip("滚轮缩放（OrthoSize 整数档，夹在 [MinOrthoSize, MaxOrthoSize] 常量内）。默认开。")]
         [SerializeField] bool enableManualZoom = true;
 
-        [Tooltip("右键每单位 Mouse X 的环绕角度（度）。")]
+        [Tooltip("观察模式/环绕遗留的鼠标灵敏度（度/单位 Mouse X）。")]
         [SerializeField] float orbitDegreesPerMouseUnit = 3f;
-
-        [Tooltip("滚轮每格缩放的距离（世界单位；随格 1→2 单位 ×2 = 3）。")]
-        [SerializeField] float zoomStepPerNotch = 3f;
 
         [Tooltip("手动相机平滑速率（1/s）。")]
         [SerializeField] float manualSmoothingPerSecond = 10f;
 
         // ------------------------------------------------------------------
-        // 机位档位常量（用户裁决 2026-09-14：默认角色特写，滚轮后拉到旧 45° 全场）
+        // 机位档位常量（等距像素卡通 · 正交口径：创始人裁决 2026-09-21，
+        // docs/技术/渲染管线-等距像素卡通.md §2；数值为【AI 提案·首轮试产校准】，
+        // 美术指南待定项 #2/#4 落定后回写）。
         //
-        // 【为什么是 const 而不是 SerializeField】场景 Battle.unity 由禁改的 M2BattleSceneSetup 烘焙，
-        //   里面仍写着旧的 minManualDistance=12 / maxManualDistance=26；若走序列化字段，本轮的
-        //   "最近 6 / 最远 50" 会被场景里的旧值盖掉。故档位口径一律走常量，场景里的旧键失效（Unity 自动忽略）。
+        // 【为什么是 const 而不是 SerializeField】场景 Battle.unity 由 M2BattleSceneSetup 烘焙，
+        //   序列化字段的旧值会盖掉新档位口径（×2 扫荡期的老教训）；档位一律走常量。
         // ------------------------------------------------------------------
 
-        /// <summary>特写档距离（世界单位，旧值 6 ×2 = 12；格 1→2 单位后按「看同样的格数」等比放大）。
-        /// 开局 / 换行动单位时的默认机位。</summary>
-        public const float CloseUpDistance = 12f;
+        /// <summary>正交下 Transposer 距离不再表达视野（视野由 OrthoSize 决定），固定 30 只决定
+        /// 机位高度与裁剪范围（far clip 200/400 足够覆盖世界图大跨度）。</summary>
+        public const float OrthoTransposerDistance = 30f;
 
-        /// <summary>特写档俯角（度，用户裁决区间 25–35 取中值 30）。</summary>
-        public const float CloseUpPitchDegrees = 30f;
+        /// <summary>等距俯角（度）。统一 45°（不再随档位插值）——等距轴测观感的前提；
+        /// 观察模式（调试出口）仍可自由俯仰。</summary>
+        public const float OrthoPitchDegrees = 45f;
 
-        /// <summary>全场档距离（世界单位）= 18→15→30（格 1→2 单位后 ×2）；滚轮拉到此处即旧 45° 全场视角。</summary>
-        public const float FullFieldDistance = 30f;
+        /// <summary>特写档 OrthoSize（正交半高，世界单位，整数）。开局/换行动单位的默认机位：
+        /// RT 高 360px 下 1u ≈ 36px，单位 1.85u ≈ 67px（判据 A-2 的 ≥25px 富余充足）。</summary>
+        public const int CloseUpOrthoSize = 5;
 
-        /// <summary>全场档俯角（度）= 旧的出厂俯角 45°。</summary>
-        public const float FullFieldPitchDegrees = 45f;
+        /// <summary>全场档 OrthoSize：纵向 2×17=34u 覆盖样板关 30u 全场；与旧透视全场档
+        /// （距离 30 + FOV 60 → 等效半高 30×tan30° ≈ 17.3）同量级取整。</summary>
+        public const int FullFieldOrthoSize = 17;
 
-        /// <summary>滚轮前推最近距离（世界单位，旧值 3 ×2 = 6）。</summary>
-        public const float MinManualDistance = 6f;
+        /// <summary>滚轮前推最近档（整数；再近单位贴脸、RT 下像素过粗）。</summary>
+        public const int MinOrthoSize = 3;
 
-        /// <summary>
-        /// 滚轮后拉最远距离（世界单位）。<b>M4 改 50 → 160</b>（docs/M4-大海域世界化.md §1/§3.2：
-        /// 大地图手动上限外推；既有断言已随 M4 更新）。
-        /// </summary>
-        public const float MaxManualDistance = 160f;
+        /// <summary>滚轮后拉最远档（整数；覆盖世界图全景跨度）。</summary>
+        public const int MaxOrthoSize = 60;
 
-        // ---- M4 大海域档位（docs/M4-大海域世界化.md §1/§3.2；取值为提案/待定）----
+        /// <summary>滚轮每格缩放的 OrthoSize 步进（整数档——像素网格在世界空间对齐的前提）。</summary>
+        public const int OrthoZoomStep = 1;
+
+        /// <summary>全景档 OrthoSize = clamp(round(span × 0.3), 全场档, 60)：span 100u → 30、160u → 48。</summary>
+        public static int PanoramaOrthoSizeForSpan(float spanUnits)
+        {
+            return Mathf.Clamp(Mathf.RoundToInt(spanUnits * 0.3f), FullFieldOrthoSize, MaxOrthoSize);
+        }
+
+        // ---- M4 大海域档位（docs/M4-大海域世界化.md §1/§3.2；正交 size 化，取值为提案/待定）----
 
         /// <summary>默认地图可玩跨度（世界单位）= 现行竞技场 100u；未调 <see cref="SetWorldSpan"/> 时的缺省。</summary>
         public const float DefaultWorldSpan = 100f;
-
-        /// <summary>全景档距离随地图跨度的比例：全景 = clamp(span × 0.55, 60, 160)（M4 §1）。</summary>
-        public const float PanoramaSpanScale = 0.55f;
-
-        /// <summary>全景档距离下限（世界单位，M4 §1）。</summary>
-        public const float MinPanoramaDistance = 60f;
-
-        /// <summary>全景档俯角（度，提案）：从全场档 45° 继续外推到 55°，越远越俯视。</summary>
-        public const float PanoramaPitchDegrees = 55f;
-
-        /// <summary>全景档距离 = clamp(span × <see cref="PanoramaSpanScale"/>, <see cref="MinPanoramaDistance"/>, <see cref="MaxManualDistance"/>)。</summary>
-        public static float PanoramaDistanceForSpan(float spanUnits)
-        {
-            return Mathf.Clamp(spanUnits * PanoramaSpanScale, MinPanoramaDistance, MaxManualDistance);
-        }
 
         /// <summary>
         /// 单位视觉总高（世界单位）= 1.85，与 <c>CrewVisualPrefabBuilder.TargetUnitHeight</c> 同源
@@ -241,8 +233,9 @@ namespace PirateCrew.Battle
         float _hitStopSavedTimeScale = 1f;
         bool _sceneUnloading;
 
-        // ---- FOV 推近 / 旁观 ----
-        float _baseFov = 60f;
+        // ---- FOV 当量 / 正交 size ----
+        float _baseFov = 60f;             // 烘焙 FOV（正交 Lens 里仍写 60）：Scope/推近/旁观等特效的当量分母
+        float _baseOrthoSize = FullFieldOrthoSize; // 烘焙 OrthoSize（正交视野档的捕获基准）
         bool _baseFovCaptured;
         float _pushInElapsed;
         bool _pushInActive;
@@ -272,14 +265,16 @@ namespace PirateCrew.Battle
         bool _manualCaptured;
         float _manualYaw;
         float _targetYaw;
-        float _manualDistance;
-        float _targetDistance;
+        // 正交口径：距离恒 <see cref="OrthoTransposerDistance"/>（不再被缩放改写），
+        // 视野档位由 _manual/_targetOrthoSize 承载（整数档目标，浮点平滑中值）。
+        float _manualOrthoSize = FullFieldOrthoSize;
+        float _targetOrthoSize = FullFieldOrthoSize;
 
         // ---- M4：Scope / 力度-镜头耦合 / 全景档（数值见 CameraFeelRules 与上方常量区）----
-        float _panoramaDistance = PanoramaDistanceForSpan(DefaultWorldSpan);
-        float _scopeBlend;              // Scope FOV 混合系数 0..1（按 ScopeBlendSeconds 线性推进）
-        bool _chargeZoomActive;         // 炮台蓄力拉远生效中（结束时恢复蓄力前距离）
-        float _preChargeDistance;
+        float _panoramaOrthoSize = PanoramaOrthoSizeForSpan(DefaultWorldSpan);
+        float _scopeBlend;              // Scope 等效 FOV 混合系数 0..1（按 ScopeBlendSeconds 线性推进）
+        bool _chargeZoomActive;         // 炮台蓄力拉远生效中（结束时恢复蓄力前档位）
+        float _preChargeOrthoSize;
 
         /// <summary>跟随状态机的时间参数。</summary>
         CameraFeelTimings Timings => new CameraFeelTimings(
@@ -307,30 +302,36 @@ namespace PirateCrew.Battle
         /// <summary>当前是否处于 AI 旁观态（调试/测试用）。</summary>
         public bool SpectatorMode => _spectator;
 
-        /// <summary>场景里**烘焙的** Transposer 距离（Awake 从 FollowOffset 捕获；= <see cref="FullFieldDistance"/> 30）。</summary>
+        /// <summary>场景里**烘焙的** Transposer 距离（Awake 从 FollowOffset 捕获；正交口径下恒 = <see cref="OrthoTransposerDistance"/> 30）。</summary>
         public float BakedDistance => _baseDistance;
 
-        /// <summary>场景里**烘焙的** Transposer 俯角（度，由 FollowOffset 反推；= <see cref="FullFieldPitchDegrees"/> 45°）。</summary>
+        /// <summary>场景里**烘焙的** Transposer 俯角（度，由 FollowOffset 反推；= <see cref="OrthoPitchDegrees"/> 45°）。</summary>
         public float BakedPitchDegrees => PitchOf(_baseOffsetDirection);
 
-        /// <summary>运行时当前距离目标（默认特写档 <see cref="CloseUpDistance"/>；滚轮可改到 [6,160]）。</summary>
-        public float RuntimeDistance => _manualCaptured ? _targetDistance : CloseUpDistance;
+        /// <summary>场景里**烘焙的** OrthoSize（= <see cref="FullFieldOrthoSize"/> 全场档）。</summary>
+        public float BakedOrthoSize => _baseOrthoSize;
 
-        /// <summary>运行时当前俯角（度，由距离插值：特写 30° ↔ 全场 45° ↔ 全景 55° 外推）。</summary>
-        public float RuntimePitchDegrees => PitchForDistance(RuntimeDistance, _panoramaDistance);
+        /// <summary>运行时距离（正交口径下恒 <see cref="OrthoTransposerDistance"/>，不再表达视野；保留给接线测试断言）。</summary>
+        public float RuntimeDistance => OrthoTransposerDistance;
 
-        /// <summary>当前全景档距离（由 <see cref="SetWorldSpan"/> 决定；默认跨度 100u → 60）。</summary>
-        public float PanoramaDistance => _panoramaDistance;
+        /// <summary>运行时俯角（度；正交口径统一 <see cref="OrthoPitchDegrees"/> 45°，观察模式除外）。</summary>
+        public float RuntimePitchDegrees =>
+            ObserveMode ? _observePitchDegrees : _dragPitchDegrees;
+
+        /// <summary>运行时 OrthoSize 档（四舍五入到整数；默认特写档 <see cref="CloseUpOrthoSize"/>，滚轮可改到 [3,60]）。</summary>
+        public int RuntimeOrthoSize => Mathf.RoundToInt(_targetOrthoSize);
+
+        /// <summary>当前全景档 OrthoSize（由 <see cref="SetWorldSpan"/> 决定；默认跨度 100u → 30）。</summary>
+        public int PanoramaOrthoSize => Mathf.RoundToInt(_panoramaOrthoSize);
 
         /// <summary>
-        /// 【M4 新增】按地图可玩跨度设置全景档：距离 = clamp(span × 0.55, 60, 160)、
-        /// 俯角插值相应外推（docs/M4-大海域世界化.md §1/§3.2）。
-        /// 由 Battle 场景接线方在世界地图建成后调用；不调用时默认 span=100（全景 60），
-        /// 既有特写档/手动缩放行为不变。
+        /// 【M4 新增】按地图可玩跨度设置全景档：OrthoSize = clamp(round(span × 0.3), 全场档, 60)
+        /// （docs/M4-大海域世界化.md §1/§3.2 的正交化转写）。由 Battle 场景接线方在世界地图建成后调用；
+        /// 不调用时默认 span=100（全景 30），既有特写档/手动缩放行为不变。
         /// </summary>
         public void SetWorldSpan(float spanUnits)
         {
-            _panoramaDistance = PanoramaDistanceForSpan(spanUnits);
+            _panoramaOrthoSize = PanoramaOrthoSizeForSpan(spanUnits);
         }
 
         void Awake()
@@ -382,8 +383,8 @@ namespace PirateCrew.Battle
                 return;
 
             // 手动相机输入用 Update 采样（LateUpdate 处理画面平滑）。
-            if (enableManualOrbit || enableManualZoom)
-                UpdateManualCameraInput();
+            // 环绕已随等距口径锁死，但观察模式/中键自由锚/滚轮缩放仍在此处理。
+            UpdateManualCameraInput();
 
             // M4 §3.2 力度-镜头耦合：炮台蓄力越大相机越拉远（近档→全景线性映射），松手恢复。
             // 独立于手动缩放开关——它是瞄准手感的一部分。
@@ -402,8 +403,8 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// 力度-镜头耦合（M4 §3.2，提案）：炮台瞄准期间把缩放目标覆写为
-        /// "特写档 → 全景档 × 蓄力比例"的线性映射；瞄准结束恢复蓄力前的手动距离。
+        /// 力度-镜头耦合（M4 §3.2 的正交转写，提案）：炮台瞄准期间把缩放档覆写为
+        /// "特写档 → 全景档 × 蓄力比例"的线性映射；瞄准结束恢复蓄力前的手动档。
         /// 期间滚轮已由 <see cref="AimThrowController.IsTurretAiming"/> 让给力度，二者不打架。
         /// </summary>
         void UpdateChargeZoom()
@@ -417,16 +418,22 @@ namespace PirateCrew.Battle
                 if (!_chargeZoomActive)
                 {
                     _chargeZoomActive = true;
-                    _preChargeDistance = _targetDistance;
+                    _preChargeOrthoSize = _targetOrthoSize;
                 }
-                _targetDistance = CameraFeelRules.ChargeZoomDistance(
-                    CloseUpDistance, _panoramaDistance, aimThrow.ChargeRatio);
+                _targetOrthoSize = ChargeZoomOrthoSize(
+                    CloseUpOrthoSize, _panoramaOrthoSize, aimThrow.ChargeRatio);
             }
             else if (_chargeZoomActive)
             {
                 _chargeZoomActive = false;
-                _targetDistance = _preChargeDistance;
+                _targetOrthoSize = _preChargeOrthoSize;
             }
+        }
+
+        /// <summary>蓄力比例 → 特写档与全景档之间的线性 OrthoSize（旧透视版 ChargeZoomDistance 的正交当量）。</summary>
+        public static float ChargeZoomOrthoSize(int closeUpSize, float panoramaSize, float chargeRatio)
+        {
+            return Mathf.Lerp(closeUpSize, panoramaSize, Mathf.Clamp01(chargeRatio));
         }
 
         void LateUpdate()
@@ -543,49 +550,25 @@ namespace PirateCrew.Battle
             return new Vector3(0f, Mathf.Sin(p), Mathf.Cos(p));
         }
 
-        /// <summary>俯角随距离插值（默认跨度，供测试与工具直调）：
-        /// ≤ <see cref="CloseUpDistance"/> → <see cref="CloseUpPitchDegrees"/>（30°）；
-        /// ≤ <see cref="FullFieldDistance"/> → 30°..45° 线性（30u 处恰为旧 45° 全场）；
-        /// ≤ 全景档 → 45°..<see cref="PanoramaPitchDegrees"/> 继续外推（M4 大海域档位）；
-        /// 再远维持全景俯角。</summary>
-        public static float PitchForDistance(float distance)
-        {
-            return PitchForDistance(distance, PanoramaDistanceForSpan(DefaultWorldSpan));
-        }
-
-        /// <summary>同上，但全景档距离由调用方给（实例按当前 <see cref="SetWorldSpan"/> 跨度取）。</summary>
-        public static float PitchForDistance(float distance, float panoramaDistance)
-        {
-            if (distance <= FullFieldDistance)
-            {
-                float nearT = Mathf.InverseLerp(CloseUpDistance, FullFieldDistance, distance);
-                return Mathf.Lerp(CloseUpPitchDegrees, FullFieldPitchDegrees, nearT);
-            }
-
-            float panorama = Mathf.Max(panoramaDistance, FullFieldDistance + 0.01f);
-            float farT = Mathf.InverseLerp(FullFieldDistance, panorama, distance);
-            return Mathf.Lerp(FullFieldPitchDegrees, PanoramaPitchDegrees, farT);
-        }
-
         /// <summary>
-        /// 进入跟随特写档：距离/俯角立刻切到 <see cref="CloseUpDistance"/> 12 / <see cref="CloseUpPitchDegrees"/> 30°，
-        /// yaw 归零（面向 +Z，与烘焙机位同朝向），并立即写进 Transposer —— "开局 / 换行动单位即特写"，不平滑过渡。
+        /// 进入跟随特写档：OrthoSize 立刻切到 <see cref="CloseUpOrthoSize"/>，yaw 归零
+        /// （面向 +Z，与烘焙机位同朝向）、俯角切 <see cref="OrthoPitchDegrees"/>，
+        /// 并立即写进 Transposer/Lens —— "开局 / 换行动单位即特写"，不平滑过渡。
         /// </summary>
         void EnterCloseUpView()
         {
             _manualYaw = 0f;
             _targetYaw = 0f;
-            _manualDistance = CloseUpDistance;
-            _targetDistance = CloseUpDistance;
+            _manualOrthoSize = CloseUpOrthoSize;
+            _targetOrthoSize = CloseUpOrthoSize;
             // 换行动单位即脱离炮台瞄准：力度-镜头耦合立即失效（否则恢复逻辑会盖掉这次聚焦）。
             _chargeZoomActive = false;
-            // 特写档的俯角也要切：_dragPitchDegrees 初始化/捕获自烘焙机位（45°），只切距离的话
-            // 特写会带着 45° 烘焙俯角运行（PlayMode 门禁 2026-09-14 抓到——旧实现从未真正进入 30°）。
-            _dragPitchDegrees = CloseUpPitchDegrees;
+            _dragPitchDegrees = OrthoPitchDegrees;
             WriteFollowOffset();
         }
 
-        /// <summary>把当前 yaw / 距离 / 俯角（由距离插值）写进 Transposer 的 FollowOffset。</summary>
+        /// <summary>把当前 yaw / 俯角写进 Transposer 的 FollowOffset；距离用烘焙基准
+        /// （正交口径下恒 <see cref="OrthoTransposerDistance"/>，缩放不再改写距离）。</summary>
         void WriteFollowOffset()
         {
             if (!_manualCaptured || _transposer == null)
@@ -594,7 +577,7 @@ namespace PirateCrew.Battle
             Vector3 direction = OffsetDirectionForPitch(
                 ObserveMode ? _observePitchDegrees : _dragPitchDegrees);
             _transposer.m_FollowOffset =
-                Quaternion.AngleAxis(_manualYaw, Vector3.up) * (direction * _manualDistance);
+                Quaternion.AngleAxis(_manualYaw, Vector3.up) * (direction * _baseDistance);
         }
 
         // ------------------------------------------------------------------
@@ -667,12 +650,20 @@ namespace PirateCrew.Battle
         void CaptureBaseLens()
         {
             if (virtualCamera != null)
+            {
                 _baseFov = virtualCamera.m_Lens.FieldOfView;
+                _baseOrthoSize = virtualCamera.m_Lens.OrthographicSize;
+            }
             else if (fallbackCamera != null)
+            {
                 _baseFov = fallbackCamera.fieldOfView;
+                _baseOrthoSize = fallbackCamera.orthographicSize;
+            }
 
             if (_baseFov <= 0f)
                 _baseFov = 60f;
+            if (_baseOrthoSize <= 0f)
+                _baseOrthoSize = FullFieldOrthoSize;
             _baseFovCaptured = true;
         }
 
@@ -704,7 +695,8 @@ namespace PirateCrew.Battle
             if (!_baseFovCaptured)
                 return;
 
-            // Scope 基准：60 → 28 随混合系数收敛（M4 §3.2）；推近/旁观在其上小幅度叠加。
+            // FOV 当量链（透视时代的特效语义原样保留）：
+            // Scope 基准 60 → 28 随混合系数收敛（M4 §3.2）；推近/旁观在其上小幅度叠加。
             float fov = CameraFeelRules.ScopeFov(_baseFov, _scopeBlend);
             if (aiSpectatorEnabled)
                 fov = CameraFeelRules.SpectatorFov(fov, CameraFeelRules.SpectatorFovDeltaDegrees, _spectator);
@@ -712,17 +704,22 @@ namespace PirateCrew.Battle
                 fov = CameraFeelRules.PushInFov(
                     fov, selectionPushInDegrees, _pushInElapsed, selectionPushInDurationSeconds);
 
+            // 正交当量换算：视角比率 fov/baseFov ≈ OrthoSize 的缩放比率（Scope 时 ×28/60 ≈ 画面放大 2.1 倍），
+            // 作用于**当前手动档**——滚轮档位与特效缩放自然叠加。
+            float ratio = fov / Mathf.Max(1e-3f, _baseFov);
+            float size = Mathf.Max(1f, _manualOrthoSize * ratio);
+
             if (virtualCamera != null)
             {
                 LensSettings lens = virtualCamera.m_Lens;
-                if (Mathf.Approximately(lens.FieldOfView, fov))
+                if (Mathf.Approximately(lens.OrthographicSize, size))
                     return;
-                lens.FieldOfView = fov;
+                lens.OrthographicSize = size;
                 virtualCamera.m_Lens = lens;
             }
             else if (fallbackCamera != null)
             {
-                fallbackCamera.fieldOfView = fov;
+                fallbackCamera.orthographicSize = size;
             }
         }
 
@@ -1089,8 +1086,10 @@ namespace PirateCrew.Battle
             if (_baseDistance > 1e-4f)
                 _baseOffsetDirection = offset / _baseDistance;
 
-            _manualDistance = _baseDistance;
-            _targetDistance = _baseDistance;
+            // 正交口径：距离不进手动态（恒烘焙值 30）；视野档从烘焙 OrthoSize 起步
+            //（Awake 随后的 EnterCloseUpView 会切到特写档）。
+            _manualOrthoSize = _baseOrthoSize;
+            _targetOrthoSize = _baseOrthoSize;
             _manualYaw = 0f;
             _targetYaw = 0f;
             _dragPitchDegrees = Mathf.Clamp(PitchOf(_baseOffsetDirection), 12f, 78f);
@@ -1102,32 +1101,21 @@ namespace PirateCrew.Battle
             if (!_manualCaptured)
                 return;
 
-            // 【r12 用户反馈】左键拖空白处也要能环绕（瞄准拖拽以"按在单位上"开始，二者不打架）。
             if (aimThrow == null)
                 aimThrow = FindObjectOfType<AimThrowController>();
-            bool leftOrbit = Input.GetMouseButton(0) && !ObserveMode
-                && (aimThrow == null || (!aimThrow.IsAiming && !aimThrow.PressStartedOnUnit));
-            bool orbitHeld = Input.GetMouseButton(1) || leftOrbit;
 
-            if (enableManualOrbit && orbitHeld)
-            {
-                // 拖拽环绕 = 水平转 yaw + 垂直改俯仰（12°..78° 夹紧）——左/右键同规则。
-                float dx = Input.GetAxis("Mouse X");
-                if (Mathf.Abs(dx) > 1e-5f)
-                    _targetYaw += dx * orbitDegreesPerMouseUnit;
-                float dy = Input.GetAxis("Mouse Y");
-                if (Mathf.Abs(dy) > 1e-5f)
-                    _dragPitchDegrees = Mathf.Clamp(
-                        _dragPitchDegrees - dy * 0.35f, 12f, 78f);
-            }
+            // 【等距像素卡通 · 旋转锁死只平移（渲染篇 §2）】右键/左键拖拽环绕输入整体禁用——
+            // 等距轴测观感的前提。r12 的"左键空白处环绕"与"右键环绕"随之退役；
+            // 调试需要自由视角时走观察模式（我的世界式）或中键自由锚。
 
-            // 【r12 用户反馈】中键解除/恢复跟随锚定：解除后相机冻结在当前焦点，环绕+缩放即自由视角；
+            // 【r12 用户反馈】中键解除/恢复跟随锚定：解除后相机冻结在当前焦点，缩放即自由视角；
             // 任何一次聚焦/跟随（Follow 被赋值处）自动退出自由视角回到角色。
             if (Input.GetMouseButtonDown(2))
                 ToggleFreeAnchor();
 
             // 【观察模式（我的世界同款）】鼠标移动即转视角（不按任何键），垂直改俯仰（12°..78° 夹紧）；
             // WASD 相机相对平移 + Space/Shift 升降（驾驶跟随锚，角色聚焦会自动收回去）。
+            // 观察模式是主动的调试出口，允许破坏等距口径（含自由 yaw/俯仰）。
             if (ObserveMode)
             {
                 _targetYaw += Input.GetAxis("Mouse X") * orbitDegreesPerMouseUnit;
@@ -1136,16 +1124,17 @@ namespace PirateCrew.Battle
                 UpdateObserveFly();
             }
 
-            // 滚轮缩放；炮台瞄准时滚轮让给力度（AimThrowController），不再同时拉相机。
+            // 滚轮缩放 OrthoSize（整数档）；炮台瞄准时滚轮让给力度（AimThrowController），不再同时拉相机。
             bool zoomBlocked = aimThrow != null && aimThrow.IsTurretAiming;
             if (enableManualZoom && !zoomBlocked)
             {
                 float scroll = Input.mouseScrollDelta.y;
                 if (Mathf.Abs(scroll) > 1e-5f)
                 {
-                    _targetDistance = Mathf.Clamp(
-                        _targetDistance - scroll * zoomStepPerNotch,
-                        MinManualDistance, MaxManualDistance);
+                    // 滚轮向上（scroll>0）= 拉近 = size 收小；按整数档步进，浮点先取整防漂移。
+                    _targetOrthoSize = Mathf.Clamp(
+                        Mathf.Round(_targetOrthoSize) - Mathf.Sign(scroll) * OrthoZoomStep,
+                        MinOrthoSize, MaxOrthoSize);
                 }
             }
         }
@@ -1164,14 +1153,14 @@ namespace PirateCrew.Battle
                 changed = true;
             }
 
-            if (!Mathf.Approximately(_manualDistance, _targetDistance))
+            if (!Mathf.Approximately(_manualOrthoSize, _targetOrthoSize))
             {
-                _manualDistance = Mathf.Lerp(_manualDistance, _targetDistance, t);
+                _manualOrthoSize = Mathf.Lerp(_manualOrthoSize, _targetOrthoSize, t);
                 changed = true;
             }
 
-            // 关键：无输入且已收敛时**不写** FollowOffset —— 保证"无输入时保持当前跟随目标"不抖；
-            // 出厂态不再是 45°/15（该旧口径已废止，默认特写档见 EnterCloseUpView）。
+            // 关键：无输入且已收敛时**不写** FollowOffset —— 保证"无输入时保持当前跟随目标"不抖。
+            // OrthoSize 的写入统一走 ApplyFov（当量比率作用于当前手动档），此处只推进平滑值。
             if (!changed)
                 return;
 

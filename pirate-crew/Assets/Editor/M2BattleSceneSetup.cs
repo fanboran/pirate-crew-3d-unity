@@ -288,15 +288,17 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         // ------------------------------------------------------------------
-        // 战斗相机参数（pitch 45° / yaw 0 对齐 Godot orbit_camera.gd；
-        // 距离 18→15 为提案调整：r2 出图实测出厂机位单位仅 21px < 判据 A-2 的 25px 下限，
-        // 18/15 缩放后 ≈25px 达标，出处 docs/M2-3D空间模型对齐.md §相机行 + 美术品控 AR-R2-006）
-        // 【格 1→2 单位 ×2】15 → 30：相机取景按"看同样的格数"放大，FOV 不动、俯角不动。
+        // 战斗相机参数（等距像素卡通 · 正交口径，创始人裁决 2026-09-21：
+        // docs/技术/渲染管线-等距像素卡通.md §2——斜 45° 轴测 + 正交投影 + 整数 OrthoSize）。
+        // 俯角 45° / 距离 30 沿用 M2 空间契约（对齐 Godot orbit_camera.gd；正交下距离只定机位）；
+        // 视野档由 OrthoSize 表达（此处烘全场档，运行时 BattleCameraController 切特写档）。
+        // FOV 60 仍写进 Lens：Scope/推近等"FOV 当量特效"的换算分母，正交下不参与投影。
         // ------------------------------------------------------------------
 
         const float CameraDistance = 30f;
         const float CameraPitchDegrees = 45f;
         const float CameraFieldOfView = 60f;
+        const float CameraOrthoSize = BattleCameraController.FullFieldOrthoSize;
 
         /// <summary>
         /// 相机相对焦点的偏移（+Z/+Y 侧俯视竞技场）。这个朝向也是"屏幕拖拽 → 世界 XZ 方向"
@@ -322,7 +324,9 @@ namespace PirateCrew.EditorTools
             var camera = go.GetComponent<Camera>();
             camera.clearFlags = useSkybox ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.53f, 0.72f, 0.88f, 1f);
-            camera.fieldOfView = CameraFieldOfView;
+            // 正交（无 Cinemachine 的回退路径）：视野档与 vcam 烘焙同源。
+            camera.orthographic = true;
+            camera.orthographicSize = CameraOrthoSize;
             camera.nearClipPlane = 0.1f;
             // 远裁剪面 ×2：竞技场世界尺寸翻倍后 50 格关 = 100×100 单位，200 已不够。
             camera.farClipPlane = 400f;
@@ -340,16 +344,18 @@ namespace PirateCrew.EditorTools
             // BattleCameraController 只平滑移动该目标。
             var transposer = vcam.AddCinemachineComponent<CinemachineTransposer>();
             transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
-            // 3D 化：45° 俯角、距离 30（对齐 Godot orbit_camera.gd 的 pitch/distance 默认值；格 1→2 单位后 ×2）。
+            // 45° 俯角、距离 30（对齐 Godot orbit_camera.gd 的 pitch/distance 默认值；格 1→2 单位后 ×2）。
             transposer.m_FollowOffset = BattleCameraOffset;
             transposer.m_XDamping = 0f;
             transposer.m_YDamping = 0f;
             transposer.m_ZDamping = 0f;
 
-            // 透视相机 + 斜俯视 —— 正交侧视是"2D 化"的遗留
-            // （详见 docs/M2-3D空间模型对齐.md，改回正交前先读那份文档）。
+            // 正交投影 + 斜 45° 俯视 —— 等距像素卡通方向的口径（创始人裁决 2026-09-21，
+            // docs/技术/渲染管线-等距像素卡通.md §2）。旧"透视=真 3D"的口径随新方向废止：
+            // M2 空间契约（XZ 竞技场/45°/分路）不变，只有投影方式换正交。
             LensSettings lens = vcam.m_Lens;
-            lens.Orthographic = false;
+            lens.Orthographic = true;
+            lens.OrthographicSize = CameraOrthoSize;
             lens.FieldOfView = CameraFieldOfView;
             lens.NearClipPlane = 0.1f;
             lens.FarClipPlane = 200f;

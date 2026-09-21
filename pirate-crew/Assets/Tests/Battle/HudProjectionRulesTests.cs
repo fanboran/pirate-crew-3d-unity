@@ -38,29 +38,31 @@ namespace PirateCrew.Tests
         }
 
         /// <summary>
-        /// 用户裁决 2026-09-14：默认机位从 45°/15 改成**角色特写**（距离
-        /// <see cref="BattleCameraController.CloseUpDistance"/>）。判据 A-2 / R-6 是"1080p 下单位竖高 ≥25px"，
-        /// 故按特写档距离重算；同时校验旧的 45° 全场档（距离 15）拉远后仍 ≥25px，不丢可读性。
+        /// 等距像素卡通（创始人裁决 2026-09-21）：正交口径的可读性判据。
+        /// 判据 A-2 / R-6 的"1080p 下单位竖高 ≥25px"按**屏幕像素**口径核算——
+        /// 正交 + 全屏像素化（RT 高 360）下，屏幕高 1080 = RT 高 ×3，单位屏幕高 =
+        /// 视觉高 ÷ (2 × OrthoSize) × 1080。特写档 size
+        /// <see cref="BattleCameraController.CloseUpOrthoSize"/> 与全场档 size
+        /// <see cref="BattleCameraController.FullFieldOrthoSize"/> 都必须守住下限。
         /// 高度取**视觉总高 1.85**（Godot 对齐后的角色高），不再用旧口径的 0.5。
         /// </summary>
         [Test]
-        public void ProjectedScreenHeight_AtCloseUpCamera_Exceeds25PxReadabilityFloor()
+        public void OrthographicUnitHeight_AtPresetSizes_Exceeds25PxReadabilityFloor()
         {
+            const float ScreenPixelsPerRtPixel = 3f; // RT 360 → 屏幕 1080（渲染篇 §3）
             float visualHeight = BattleCameraController.UnitVisualHeight;   // 1.85，与 CrewVisualPrefabBuilder 同源
+            float rtHeight = ScreenHeight / ScreenPixelsPerRtPixel;
 
-            float closeUpPx = HudProjectionRules.ProjectedScreenHeightPixels(
-                visualHeight, BattleCameraController.CloseUpDistance, Fov, ScreenHeight);
+            // RT 像素口径 → 屏幕像素口径（每块 = 3×3 屏幕像素）。特写 1.85/(2×5)×360 ≈ 67 RT px ≈ 200 屏幕px。
+            float closeUpPx = visualHeight
+                / (2f * BattleCameraController.CloseUpOrthoSize) * rtHeight * ScreenPixelsPerRtPixel;
             Assert.GreaterOrEqual(closeUpPx, 25f,
-                "特写档（距离 " + BattleCameraController.CloseUpDistance + "）下单位竖高应 ≥25px（判据 A-2/R-6）");
+                "特写档（size " + BattleCameraController.CloseUpOrthoSize + "）下单位屏幕竖高应 ≥25px（判据 A-2/R-6）");
 
-            float fullFieldPx = HudProjectionRules.ProjectedScreenHeightPixels(
-                visualHeight, BattleCameraController.FullFieldDistance, Fov, ScreenHeight);
-            Assert.GreaterOrEqual(fullFieldPx, 25f, "全场档（距离 15）拉远后单位竖高仍应 ≥25px");
-
-            Assert.IsTrue(
-                BattleCameraController.CloseUpPitchDegrees > 0f
-                && BattleCameraController.CloseUpPitchDegrees < 45f,
-                "特写档俯角应比旧 45° 更平视");
+            float fullFieldPx = visualHeight
+                / (2f * BattleCameraController.FullFieldOrthoSize) * rtHeight * ScreenPixelsPerRtPixel;
+            Assert.GreaterOrEqual(fullFieldPx, 25f,
+                "全场档（size " + BattleCameraController.FullFieldOrthoSize + "）下单位屏幕竖高仍应 ≥25px");
         }
 
         [Test]
