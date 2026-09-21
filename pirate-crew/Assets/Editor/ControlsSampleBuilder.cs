@@ -91,7 +91,7 @@ namespace PirateCrew.EditorTools
         // 场景搭建（摆位表逐字）
         // ------------------------------------------------------------------
 
-        static bool TryBuildSampleScene()
+        internal static bool TryBuildSampleScene()
         {
             // 不 NewScene 不保存：GUI 模式下任何场景保存路径都会弹模态框挂起批处理
             // （NewScene 弹"是否保存"、SaveOpenScenes 对脏场景弹保存框——强杀恢复的
@@ -321,6 +321,16 @@ namespace PirateCrew.EditorTools
                 {
                     if (g is UnityEngine.UI.Image || g is TextMeshProUGUI)
                         continue;
+                    if (g.canvasRenderer == null)
+                    {
+                        // 实测 5 个编辑器帧后 CR 仍未被 lazy 建（正常 Image 同帧已有）——
+                        // 显式补建并验证存活：若同帧即亡则记亡，为渲染管线兜底取证
+                        var crNew = g.gameObject.AddComponent<CanvasRenderer>();
+                        g.SetAllDirty();
+                        Debug.Log("[diag][SelfDraw] " + g.GetType().Name + "@" + g.transform.name
+                            + " CR-CREATED alive=" + (crNew != null && !crNew.Equals(null))
+                            + " (post-add " + (g.canvasRenderer != null) + ")");
+                    }
                     Mesh m = g.canvasRenderer != null ? g.canvasRenderer.GetMesh() : null;
                     Debug.Log("[diag][SelfDraw] " + g.GetType().Name + "@" + g.transform.name
                         + " rect=" + ((RectTransform)g.transform).rect.size
