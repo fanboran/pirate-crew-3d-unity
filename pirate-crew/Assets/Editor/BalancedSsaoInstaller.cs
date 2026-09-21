@@ -98,6 +98,31 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
+        /// 卸载 Balanced 档的 SSAO（等距像素卡通步骤 2 退役项；立项任务书 §3「SSAO Feature 退役」
+        /// 原排 M2b，随步骤 2 一并执行——色带表面上的屏幕空间遮蔽是脏渐变来源，且像素管线下
+        /// 「640×360 域内完成一切颜色处理」的红线容不下全屏 AO 模糊）。反装 = 只清不装。
+        /// 入口：菜单 / 无头 -executeMethod PirateCrew.EditorTools.BalancedSsaoInstaller.UninstallBalancedSsao。
+        /// </summary>
+        [MenuItem("PirateCrew/Rendering/卸载 SSAO RendererFeature（Balanced）")]
+        public static void UninstallBalancedSsao()
+        {
+            var ssaoType = typeof(UniversalRendererData).Assembly.GetType(SsaoFeatureTypeName);
+            var rendererData = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(RendererPath);
+            if (ssaoType == null || rendererData == null)
+            {
+                Debug.LogWarning("[BalancedSsaoInstaller] 卸载跳过（类型或 Renderer 资产不存在，无需处理）。");
+                return;
+            }
+
+            int removed = RemoveExistingFeatures(rendererData, ssaoType);
+            EditorUtility.SetDirty(rendererData);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Debug.Log("[BalancedSsaoInstaller] SSAO 卸载完成 -> " + RendererPath + "，移除 " + removed + " 个实例。");
+        }
+
+        /// <summary>
         /// 移除同类 Feature 与游离子资产，返回移除数。列表内的先出列再卸子资产，
         /// 列表外但已序列化成子资产的（此前接线残留）也一并清掉，防止反复运行堆积孤儿对象。
         /// </summary>
