@@ -691,6 +691,14 @@ namespace PirateCrew.Battle
             box.size = new Vector3(profile.ColliderWidth, profile.ColliderHeight, profile.ColliderDepth);
             box.isTrigger = false;
 
+            // 放置/常驻类（mine / gunpowderBarrel / woodenCrate / cannon）脚下补一张接触阴影面片：
+            // 实时阴影全关，跨回合摆在地上的弹体若没有脚下压暗就会"浮"在沙面上（与船员同源问题，判据 A-6）。
+            // 判据 = ProjectileProfile.IsPersistent（= !limitedToTurn，§5.2 里恰好是这四件）；
+            // 飞行弹体（落地即爆/本回合即消失）不挂——面片没有可被看到的窗口。
+            // 尺寸/贴地高度/不透明度的换算与理由见 ProjectileContactShadow 类头。
+            if (ProjectileContactShadow.ShouldAttach(profile))
+                ProjectileContactShadow.Attach(go.transform, profile);
+
             WeaponProjectile projectile = go.GetComponent<WeaponProjectile>();
             if (projectile == null)
                 projectile = go.AddComponent<WeaponProjectile>();
