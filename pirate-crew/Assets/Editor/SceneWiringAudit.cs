@@ -22,9 +22,15 @@ namespace PirateCrew.EditorTools
     ///   菜单: PirateCrew/Audit/场景接线转储（Battle）
     ///   无头: -batchmode -nographics -quit -projectPath &lt;P&gt; \
     ///         -executeMethod PirateCrew.EditorTools.SceneWiringAudit.DumpBattle \
-    ///         [-sceneAuditOut &lt;绝对目录&gt;] [-sceneAuditScene Assets/Scenes/xxx.unity]
+    ///         [-sceneAuditOut &lt;绝对目录&gt;] [-sceneAuditScene Assets/Scenes/xxx.unity] \
+    ///         [-sceneAuditStripRoot &lt;载体根名&gt;]
     ///   比对: 菜单 PirateCrew/Audit/比对两次转储（选两份 tsv）；或 -executeMethod
     ///         SceneWiringAudit.DiffFromCommandLine -sceneAuditDiff "a.tsv;b.tsv"
+    ///
+    /// 【对齐折叠前后的路径】场景折叠成 Prefab 后多一层载体根（BattleRig / MainMenuScreen…），
+    /// 转储时用 <c>-sceneAuditStripRoot</c> 剥掉它，折叠前后就得到**同一套对象路径**；
+    /// 于是"新增 0 / 删除 0"成为"没有对象被增删、没有对象被搬动"的机械证据。
+    /// 不剥的话，199 行会因路径多了个前缀而被判成"删除 + 新增"，比对失去意义。
     ///
     /// 【产物】&lt;out&gt;/hierarchy-&lt;场景名&gt;.txt（人读树）、hierarchy-&lt;场景名&gt;.tsv（机读）、
     /// summary-&lt;场景名&gt;.txt（统计：对象数/深度/组件直方图/空引用直方图/跨根引用数）。
@@ -64,20 +70,31 @@ namespace PirateCrew.EditorTools
             Dump(scene.path, DefaultOutDir);
         }
 
-        /// <summary>无头入口：读命令行可选参数后转储。</summary>
+        /// <summary>
+        /// 无头入口：读命令行可选参数后转储。
+        ///
+        /// <c>-sceneAuditStripRoot &lt;名&gt;</c>：剥掉同名的最外层载体根再转储。
+        /// 场景折叠成 Prefab 后多了一层载体根（BattleRig 等），折叠前后的两次转储要靠这个开关
+        /// 对齐路径——不剥的话 199 行全部因"路径多了个前缀"被判成删除+新增，比对就失去意义。
+        /// 剥掉载体根后，折叠前后应得到**同样的路径集合**，于是"新增 0 / 删除 0"成为
+        /// "没有对象被增删、没有对象被搬动"的等价性硬证据。
+        /// </summary>
         public static void DumpBattleFromCommandLine()
         {
             string scene = ArgValue("-sceneAuditScene") ?? DefaultScene;
             string outDir = ArgValue("-sceneAuditOut") ?? DefaultOutDir;
-            Dump(scene, outDir);
+            Dump(scene, outDir, ArgValue("-sceneAuditStripRoot"));
         }
 
         // ------------------------------------------------------------------
         // 转储
         // ------------------------------------------------------------------
 
-        public static void Dump(string scenePath, string outDir)
+        /// <summary>转储一个场景。<paramref name="stripRoot"/> 非空时剥掉同名载体根（见 DumpBattleFromCommandLine）。</summary>
+        public static void Dump(string scenePath, string outDir, string stripRoot = null)
         {
+            s_strip = stripRoot;
+
             if (!File.Exists(scenePath))
             {
                 Debug.LogError("[SceneWiringAudit] 场景不存在: " + scenePath);
@@ -90,7 +107,7 @@ namespace PirateCrew.EditorTools
             var rows = new List<NodeRow>();
             GameObject[] roots = scene.GetRootGameObjects();
             foreach (GameObject root in roots)
-                Walk(root, null, 0, rows);
+                Walk(root, rows);
 
             string sceneName = Path.GetFileNameWithoutExtension(scenePath);
             string txtPath = Path.Combine(outDir, "hierarchy-" + sceneName + ".txt");
@@ -120,52 +137,94 @@ namespace PirateCrew.EditorTools
             public List<string> Disabled = new List<string>();
         }
 
-        static void Walk(GameObject go, string parentPath, int depth, List<NodeRow> rows)
+        /// <summary>转储时剥掉的载体根名（见 <see cref="DumpBattleFromCommandLine"/>）。</summary>
+        static string s_strip;
+
+        /// <summary>
+        /// 对象在转储里的路径（不含载体根）。
+        /// 深度由路径段数推出而不是另算一遍，保证"路径"与"缩进"永远自洽。
+        /// </summary>
+        static string AuditPath(Transform t)
         {
-            string path = parentPath == null ? go.name : parentPath + "/" + go.name;
-            var row = new NodeRow
-            {
-                Depth = depth,
-                Path = path,
-                ActiveSelf = go.activeSelf,
-                ActiveInHierarchy = go.activeInHierarchy,
-                Layer = go.layer,
-                Tag = go.tag,
-                LocalPosition = go.transform.localPosition,
-            };
+            var chain = new List<string>();
+            for (Transform p = t; p != null; p = p.parent)
+                chain.Add(p.name);
+            chain.Reverse();
 
-            PrefabInstanceStatus status = PrefabUtility.GetPrefabInstanceStatus(go);
-            row.PrefabStatus = status.ToString();
-            if (status != PrefabInstanceStatus.NotAPrefab)
-            {
-                UnityEngine.Object src = PrefabUtility.GetCorrespondingObjectFromSource(go);
-                row.PrefabSource = src == null ? "?" : AssetDatabase.GetAssetPath(src);
-            }
+            if (!string.IsNullOrEmpty(s_strip) && chain.Count > 0 && chain[0] == s_strip)
+                chain.RemoveAt(0);
 
-            var names = new List<string>();
-            Component[] comps = go.GetComponents<Component>();
-            foreach (Component c in comps)
+            return string.Join("/", chain.ToArray());
+        }
+
+        /// <summary>载体根本身不产出行（它的子对象就是折叠前的根，深度归零）。</summary>
+        static bool IsStrippedRoot(GameObject go)
+        {
+            return !string.IsNullOrEmpty(s_strip) && go.transform.parent == null && go.name == s_strip;
+        }
+
+        static void Walk(GameObject go, List<NodeRow> rows)
+        {
+            if (!IsStrippedRoot(go))
             {
-                if (c == null)
+                string path = AuditPath(go.transform);
+                var row = new NodeRow
                 {
-                    names.Add("!MissingScript");
-                    continue;
+                    Depth = DepthOf(path),
+                    Path = path,
+                    ActiveSelf = go.activeSelf,
+                    ActiveInHierarchy = go.activeInHierarchy,
+                    Layer = go.layer,
+                    Tag = go.tag,
+                    LocalPosition = go.transform.localPosition,
+                };
+
+                PrefabInstanceStatus status = PrefabUtility.GetPrefabInstanceStatus(go);
+                row.PrefabStatus = status.ToString();
+                if (status != PrefabInstanceStatus.NotAPrefab)
+                {
+                    UnityEngine.Object src = PrefabUtility.GetCorrespondingObjectFromSource(go);
+                    row.PrefabSource = src == null ? "?" : AssetDatabase.GetAssetPath(src);
                 }
 
-                names.Add(c.GetType().Name);
+                var names = new List<string>();
+                Component[] comps = go.GetComponents<Component>();
+                foreach (Component c in comps)
+                {
+                    if (c == null)
+                    {
+                        names.Add("!MissingScript");
+                        continue;
+                    }
 
-                var behaviour = c as Behaviour;
-                if (behaviour != null && !behaviour.enabled)
-                    row.Disabled.Add(c.GetType().Name);
+                    names.Add(c.GetType().Name);
 
-                CollectRefs(c, row);
+                    var behaviour = c as Behaviour;
+                    if (behaviour != null && !behaviour.enabled)
+                        row.Disabled.Add(c.GetType().Name);
+
+                    CollectRefs(c, row);
+                }
+                row.Components = string.Join(",", names.ToArray());
+                rows.Add(row);
             }
-            row.Components = string.Join(",", names.ToArray());
-            rows.Add(row);
 
             Transform t = go.transform;
             for (int i = 0; i < t.childCount; i++)
-                Walk(t.GetChild(i).gameObject, path, depth + 1, rows);
+                Walk(t.GetChild(i).gameObject, rows);
+        }
+
+        /// <summary>路径段数 - 1（"="a/b/c" → 2）；空路径记为 0。</summary>
+        static int DepthOf(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return 0;
+
+            int depth = 0;
+            for (int i = 0; i < path.Length; i++)
+                if (path[i] == '/')
+                    depth++;
+            return depth;
         }
 
         /// <summary>收集一个组件上所有 ObjectReference 序列化字段的指向（含数组元素）。</summary>
@@ -211,23 +270,11 @@ namespace PirateCrew.EditorTools
         {
             var comp = obj as Component;
             if (comp != null)
-                return "<场景内> " + HierarchyPath(comp.transform);
+                return "<场景内> " + AuditPath(comp.transform);
             var go = obj as GameObject;
             if (go != null)
-                return "<场景内> " + HierarchyPath(go.transform);
+                return "<场景内> " + AuditPath(go.transform);
             return "<内存对象> " + obj.name + " (" + obj.GetType().Name + ")";
-        }
-
-        static string HierarchyPath(Transform t)
-        {
-            var sb = new StringBuilder(t.name);
-            Transform p = t.parent;
-            while (p != null)
-            {
-                sb.Insert(0, p.name + "/");
-                p = p.parent;
-            }
-            return sb.ToString();
         }
 
         // ------------------------------------------------------------------
@@ -244,7 +291,7 @@ namespace PirateCrew.EditorTools
                 sb.Append("  [").Append(r.Components).Append(']');
                 if (!r.ActiveSelf)
                     sb.Append("  (inactive)");
-                if (r.PrefabStatus == "Instance")
+                if (IsPrefabInstance(r.PrefabStatus))
                     sb.Append("  {prefab: ").Append(r.PrefabSource).Append('}');
                 else if (r.PrefabStatus != "NotAPrefab")
                     sb.Append("  {prefab: ").Append(r.PrefabStatus).Append('}');
@@ -314,7 +361,7 @@ namespace PirateCrew.EditorTools
                     maxDepth = r.Depth;
                 if (!r.ActiveSelf)
                     inactive++;
-                if (r.PrefabStatus == "Instance")
+                if (IsPrefabInstance(r.PrefabStatus))
                     prefabInstances++;
                 if (r.Components.Contains("!MissingScript"))
                     missingScripts++;
@@ -379,6 +426,18 @@ namespace PirateCrew.EditorTools
                 sb.AppendLine(kv.Value.ToString().PadLeft(6) + "  " + kv.Key);
 
             File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+        }
+
+        /// <summary>
+        /// 该对象是否属于某个 Prefab 实例。
+        /// <c>PrefabInstanceStatus</c> 取值里**没有 "Instance"**——场景里的实例对象报
+        /// <c>Connected</c>（连着源资产）/ <c>Disconnected</c>（源资产丢失），只有"完全不属于 Prefab"
+        /// 才报 <c>NotAPrefab</c>。旧写法拿 "Instance" 比较，在折叠后的场景里会计出 0 个实例对象
+        /// （把"全场景都是 Prefab 实例"读成"零复用"），是本计数最容易踩的坑。
+        /// </summary>
+        static bool IsPrefabInstance(string status)
+        {
+            return status == "Connected" || status == "Disconnected";
         }
 
         /// <summary>把 "IslandTile_12" 这类带编号的名字归一成 "IslandTile_#"，避免直方图被实例淹没。</summary>
