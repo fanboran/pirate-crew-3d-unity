@@ -21,12 +21,10 @@ namespace PirateCrew.Core
     ///   4. 加载阶段通知（本地 event + 转发到 EventBus）
     ///
     /// 【使用方式】
-    ///   (a) 直接调用: SceneLoader.Instance.ChangeScene("GameScene")
-    ///   (b) 通过 EventBus 解耦:
-    ///       EventBus.Publish("change_scene", "GameScene")
-    ///       EventBus.Publish("change_scene", new Dictionary&lt;string, object&gt; {
-    ///           { "path", "GameScene" }, { "transition", true } })
-    ///       EventBus.Publish("go_back")
+    ///   (a) 直接调用: SceneLoader.Instance.ChangeScene("GameScene")（或经 <see cref="Services"/> 取实例）
+    ///   (b) 通过 EventBus 解耦（载荷类型编译期受检，登记见 <see cref="SceneEvents.RegisterContracts"/>）:
+    ///       EventBus.Publish(SceneEvents.ChangeScene, "GameScene")
+    ///       EventBus.Publish(SceneEvents.GoBack)
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class SceneLoader : MonoBehaviour
@@ -78,13 +76,13 @@ namespace PirateCrew.Core
             CreateOverlay();
 
             // 对应 Godot _ready 里订阅 EventBus 的 "change_scene" / "go_back"
-            EventBus.Subscribe(SceneEvents.ChangeScene, OnChangeSceneRequest);
+            EventBus.Subscribe<string>(SceneEvents.ChangeScene, OnChangeSceneRequest);
             EventBus.Subscribe(SceneEvents.GoBack, OnGoBackRequest);
         }
 
         void OnDestroy()
         {
-            EventBus.Unsubscribe(SceneEvents.ChangeScene, OnChangeSceneRequest);
+            EventBus.Unsubscribe<string>(SceneEvents.ChangeScene, OnChangeSceneRequest);
             EventBus.Unsubscribe(SceneEvents.GoBack, OnGoBackRequest);
 
             if (Instance == this)
@@ -299,31 +297,19 @@ namespace PirateCrew.Core
         // EventBus 请求处理（对应 Godot _on_change_scene_request / _on_go_back_request）
         // ------------------------------------------------------------------
 
-        void OnChangeSceneRequest(object payload)
+        /// <summary>
+        /// 处理 <c>change_scene</c>：载荷是目标场景名。
+        /// 空名直接忽略（不改现状、不报错——发起方可能在场景卸载竞态里发了空值）。
+        /// </summary>
+        void OnChangeSceneRequest(string sceneName)
         {
-            switch (payload)
-            {
-                case null:
-                    return;
-                case string sceneName:
-                    ChangeScene(sceneName, true);
-                    break;
-                case IDictionary<string, object> dict:
-                {
-                    if (!dict.TryGetValue("path", out var path) || !(path is string target) || string.IsNullOrEmpty(target))
-                        return;
+            if (string.IsNullOrEmpty(sceneName))
+                return;
 
-                    bool transition = true;
-                    if (dict.TryGetValue("transition", out var transitionValue) && transitionValue is bool flag)
-                        transition = flag;
-
-                    ChangeScene(target, transition);
-                    break;
-                }
-            }
+            ChangeScene(sceneName, true);
         }
 
-        void OnGoBackRequest(object payload)
+        void OnGoBackRequest()
         {
             GoBack();
         }

@@ -10,13 +10,13 @@ using UnityEngine;
 namespace PirateCrew.Audio
 {
     /// <summary>
-    /// 音频服务（模块内静态服务，**刻意不放在 Core/**，避免动地基）。
+    /// 音频服务（模块内静态服务，**刻意不放在 Core/**：Core 不引用高层程序集）。
     ///
-    /// 【架构定位】模块级单例 MonoBehaviour，由自身的
-    /// <see cref="RuntimeInitializeOnLoadMethodAttribute"/> 在进入播放前自动创建并
-    /// <c>DontDestroyOnLoad</c>——因此不需要修改 <c>Core/Bootstrapper</c> 或任何场景。
-    /// 若协调者将来希望由 Bootstrapper 统一组装，只要在 Bootstrapper 里 AddComponent，
-    /// Awake 的重复实例保护会自动让后到的实例自毁。
+    /// 【架构定位】模块级单例 MonoBehaviour，由**组合根统一装配**：本类用
+    /// <see cref="GameBootstrapAttribute"/> 声明一个接线入口（<see cref="Install"/>），
+    /// 由唯一入口 <c>Core/GameEntryPoint</c> 在进入播放前调用它创建对象并
+    /// <c>DontDestroyOnLoad</c>——因此不需要修改任何场景或 Bootstrapper。
+    /// （本类不再自挂引擎回调：启动期只有 GameEntryPoint 一处，见 Core/GameEntryPoint 的注释。）
     ///
     /// 【触发方式（两条并存）】
     ///   ① **EventBus 订阅**（只订阅现有事件，不新增、不改他人文件；订阅表见
@@ -170,9 +170,9 @@ namespace PirateCrew.Audio
             public float Weight;
         }
 
-        /// <summary>进入播放前自动引导（无需改 Bootstrapper / 场景）。</summary>
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        static void AutoBootstrap()
+        /// <summary>组合根驱动的接线入口（<c>Core/GameEntryPoint</c> 在进入播放前调用一次）。</summary>
+        [GameBootstrap(GameBootstrapPhase.Initialize, order: 10)]
+        internal static void Install()
         {
             if (_instance != null)
                 return;
@@ -260,18 +260,23 @@ namespace PirateCrew.Audio
 
         // ==================================================================
         // EventBus 订阅（只订阅现有事件，不新增、不改他人文件）
+        //
+        // 【为什么用动态订阅】这里的订阅是**按名字表循环注册**的：处理器从
+        // <see cref="EventNames"/> 取名字再查表拿到委托，编译期固定不了每个事件的具体载荷类型，
+        // 所以走 EventBus 的低层逃生口 SubscribeDynamic（语义与限制见该方法注释：
+        // 不受契约表保护、也不会收到类型不匹配告警）。这是全工程唯一允许用它的地方。
         // ==================================================================
 
         void SubscribeEvents()
         {
             for (int i = 0; i < EventNames.Length; i++)
-                EventBus.Subscribe(EventNames[i], HandlerFor(EventNames[i]));
+                EventBus.SubscribeDynamic(EventNames[i], HandlerFor(EventNames[i]));
         }
 
         void UnsubscribeEvents()
         {
             for (int i = 0; i < EventNames.Length; i++)
-                EventBus.Unsubscribe(EventNames[i], HandlerFor(EventNames[i]));
+                EventBus.UnsubscribeDynamic(EventNames[i], HandlerFor(EventNames[i]));
 
             _handlers.Clear();
         }
@@ -330,6 +335,11 @@ namespace PirateCrew.Audio
             _handlers[eventName] = handler;
             return handler;
         }
+
+        // 【下面是动态处理器（Action<object>）】它们的载荷是 object 而不是具体 Payload —— 不是漏改：
+        // 订阅表是 string[] EventNames，处理器按事件名查表取得，编译期无法为每条固定载荷类型，
+        // 所以走 EventBus 的逃生口 SubscribeDynamic（见 SubscribeEvents 的说明）。
+        // 处理器内部仍按真实类型收窄（payload is XxxPayload），语义与泛型订阅一致。
 
         void OnBattleStarted(object payload)
         {

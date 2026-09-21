@@ -11,7 +11,7 @@ namespace PirateCrew.CrewManagement
     ///   模块状态（名册 + 经验）是**纯 C# 静态持有**的，不需要 MonoBehaviour、不需要摆进场景：
     ///   · 战斗场景会卸载管理场景，状态必须跨场景存活；
     ///   · MonoBehaviour 实例化在无头验证台不可用，纯 C# 才能被 NUnit 直接断言。
-    ///   进入播放时用 <see cref="RuntimeInitializeOnLoadMethodAttribute"/> 清空静态残留（与 Core/EventBus 同一手法）。
+    ///   进入播放时由唯一入口 <c>Core/GameEntryPoint</c> 调用 <see cref="ResetStatics"/> 清空静态残留。
     ///
     /// 【跨模块用法】其他模块只调本类公开方法（架构原则：跨模块调用的出口放 XxxApi），
     ///   状态变化通过 <see cref="CrewManagementEvents"/> 的事件广播给 UI。
@@ -182,10 +182,10 @@ namespace PirateCrew.CrewManagement
 
         /// <summary>
         /// 关闭 Domain Reload 时静态字段不会自动清空，进入播放前强制重置
-        /// （与 <c>Core/EventBus</c> 的 <c>ResetOnEnterPlayMode</c> 同一手法）。
+        /// （由唯一入口 <c>Core/GameEntryPoint</c> 调用）。
         /// </summary>
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetOnEnterPlayMode()
+        [GameBootstrap(GameBootstrapPhase.ResetStatics, order: 31)]
+        internal static void ResetStatics()
         {
             _roster = null;
             _progression = null;

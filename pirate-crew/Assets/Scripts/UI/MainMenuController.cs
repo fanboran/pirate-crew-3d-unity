@@ -119,9 +119,9 @@ namespace PirateCrew.UI
             if (versionText != null)
                 versionText.text = UiStrings.MainVersion;
 
-            // M3 管理循环接线：订阅战斗结算事件（幂等），并把存档进度读入静态内存
-            // （CampaignApi.Progress / 名册等后续读取都依赖这次载入；无返回值可接）。
-            CampaignApi.EnsureBootstrapped();
+            // M3 管理循环接线（订阅结算事件 + 首次读进度）已上移到组合根：
+            // Core/GameEntryPoint → CampaignApi.Install()。这里只做一次"进菜单时从存档刷新进度"，
+            // 因为本场景可能出现"打完一局回到菜单"的情形（无存档时静默返回 false）。
             CampaignApi.LoadProgress();
         }
 

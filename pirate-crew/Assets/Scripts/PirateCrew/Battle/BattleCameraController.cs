@@ -85,6 +85,11 @@ namespace PirateCrew.Battle
                  + "但投掷跟随、落水/死亡的定焦无法定位（需在场景里接线）。")]
         [SerializeField] BattleController battle;
 
+        [Tooltip("瞄准/投掷控制器（同场景显式注入，由 EditorTools.BattleLookupWiring 接线）。"
+                 + "本类每帧采样它的 IsScopeActive / IsTurretAiming / ChargeRatio（Scope 视野混合、力度-镜头耦合），"
+                 + "是**热路径依赖**——所以必须显式注入，绝不做每帧回退扫描（清退报告 2026-09-21）。")]
+        [SerializeField] AimThrowController aimThrow;
+
         [Header("参数")]
         [Tooltip("panToCharacter 的平滑速度（1/s）。默认 6 → 90% 到位约 0.384s，贴合原版 10 帧 @25fps 的回合节奏（§3.1）。")]
         [SerializeField] float focusLerpPerSecond = 6f;
@@ -308,6 +313,12 @@ namespace PirateCrew.Battle
         /// <summary>当前是否处于 AI 旁观态（调试/测试用）。</summary>
         public bool SpectatorMode => _spectator;
 
+        /// <summary>
+        /// <see cref="aimThrow"/> 是否来自**装配期注入**（而非 Awake 的一次性兜底）。
+        /// 供 PlayMode 装配完整性测试区分"装配接线"与"兜底也能跑"——兜底成功不算过关。
+        /// </summary>
+        public bool AimThrowWiredByAssembly { get; private set; }
+
         /// <summary>场景里**烘焙的** Transposer 距离（Awake 从 FollowOffset 捕获；正交口径下恒 = <see cref="OrthoTransposerDistance"/> 30）。</summary>
         public float BakedDistance => _baseDistance;
 
@@ -342,6 +353,9 @@ namespace PirateCrew.Battle
 
         void Awake()
         {
+            // 依赖解析：一次性（装配期注入优先，兜底只跑一次）——见 ResolveAimThrowOnce。
+            ResolveAimThrowOnce();
+
             ConfigureVirtualCamera();
             CaptureBaseLens();
             CaptureManualCameraBase();
@@ -351,31 +365,56 @@ namespace PirateCrew.Battle
                 _cleanPosition = cameraTarget.position;
         }
 
+        /// <summary>
+        /// 解析 <see cref="aimThrow"/>：**只在 Awake 跑一次**（不是每帧轮询）。
+        ///
+        /// 【为什么是显式注入】它是每帧热路径依赖（Update 的蓄力耦合、LateUpdate 的 Scope 混合），
+        /// 旧写法 `if (aimThrow == null) aimThrow = FindObjectOfType&lt;...&gt;()` 把"每帧全场扫描"
+        /// 当成了懒加载兜底——改名/挪层级/失活都会静默失效且无编译期保护。
+        ///
+        /// 【兜底为什么保留一次】场景是**装配脚本的产物**：没有跑
+        /// <c>EditorTools.BattleLookupWiring.Wire</c> 的旧场景里该字段为空。一次兜底把
+        /// "静默失效"降级成"可用但吵闹"，同时把真正的装配缺陷交给
+        /// <see cref="AimThrowWiredByAssembly"/>（PlayMode 测试断言它）去失败。
+        /// </summary>
+        void ResolveAimThrowOnce()
+        {
+            AimThrowWiredByAssembly = aimThrow != null;
+            if (aimThrow != null)
+                return;
+
+            aimThrow = FindObjectOfType<AimThrowController>();
+            Log.Warn("[BattleCameraController] aimThrow 未经装配接线，已一次性兜底解析"
+                     + (aimThrow != null ? "成功" : "失败（Scope 视野混合与力度-镜头耦合将不生效）")
+                     + "。修复：跑 PirateCrew.EditorTools.BattleLookupWiring.Wire（写 Battle.unity），"
+                     + "把它写进 BattleCameraController.aimThrow 序列化字段。");
+        }
+
         void OnEnable()
         {
             _sceneUnloading = false;
-            EventBus.Subscribe(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Subscribe(BattleEvents.TurnEnded, OnTurnEnded);
-            EventBus.Subscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
-            EventBus.Subscribe(BattleEvents.ActionSelected, OnActionSelected);
-            EventBus.Subscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
-            EventBus.Subscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
-            EventBus.Subscribe(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Subscribe(BattleEvents.AiThinking, OnAiThinking);
-            EventBus.Subscribe(BattleEvents.MatchFinished, OnMatchFinished);
+            EventBus.Subscribe<TurnStartedPayload>(BattleEvents.TurnStarted, OnTurnStarted);
+            EventBus.Subscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Subscribe<Transform>(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Subscribe<ActionSelectedPayload>(BattleEvents.ActionSelected, OnActionSelected);
+            EventBus.Subscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Subscribe<CrewDamagedPayload>(BattleEvents.CrewDamaged, OnCrewDamaged);
+            EventBus.Subscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Subscribe<AiThinkingPayload>(BattleEvents.AiThinking, OnAiThinking);
+            EventBus.Subscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
         }
 
         void OnDisable()
         {
-            EventBus.Unsubscribe(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Unsubscribe(BattleEvents.TurnEnded, OnTurnEnded);
-            EventBus.Unsubscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
-            EventBus.Unsubscribe(BattleEvents.ActionSelected, OnActionSelected);
-            EventBus.Unsubscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
-            EventBus.Unsubscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
-            EventBus.Unsubscribe(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Unsubscribe(BattleEvents.AiThinking, OnAiThinking);
-            EventBus.Unsubscribe(BattleEvents.MatchFinished, OnMatchFinished);
+            EventBus.Subscribe<TurnStartedPayload>(BattleEvents.TurnStarted, OnTurnStarted);
+            EventBus.Subscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Subscribe<Transform>(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Subscribe<ActionSelectedPayload>(BattleEvents.ActionSelected, OnActionSelected);
+            EventBus.Subscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Subscribe<CrewDamagedPayload>(BattleEvents.CrewDamaged, OnCrewDamaged);
+            EventBus.Subscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Subscribe<AiThinkingPayload>(BattleEvents.AiThinking, OnAiThinking);
+            EventBus.Subscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
 
             // 兜底：任何情况下都不能把 timeScale 留在压低状态（否则整个工程"卡死"）。
             _sceneUnloading = true;
@@ -400,9 +439,7 @@ namespace PirateCrew.Battle
         /// <summary>Scope FOV 混合推进（LateUpdate，暂停时也收敛）：目标态取自 <see cref="AimThrowController.IsScopeActive"/>。</summary>
         void AdvanceScopeBlend(float unscaledDt)
         {
-            if (aimThrow == null)
-                aimThrow = FindObjectOfType<AimThrowController>();
-
+            // aimThrow 由 Awake 一次性解析（装配注入优先），此处只读——不再每帧 FindObjectOfType。
             bool desired = aimThrow != null && aimThrow.IsScopeActive;
             float step = unscaledDt / Mathf.Max(1e-4f, CameraFeelRules.ScopeBlendSeconds);
             _scopeBlend = Mathf.MoveTowards(_scopeBlend, desired ? 1f : 0f, step);
@@ -415,9 +452,7 @@ namespace PirateCrew.Battle
         /// </summary>
         void UpdateChargeZoom()
         {
-            if (aimThrow == null)
-                aimThrow = FindObjectOfType<AimThrowController>();
-
+            // 同上：只读 Awake 解析好的注入引用。
             bool charging = aimThrow != null && aimThrow.IsTurretAiming;
             if (charging)
             {
@@ -907,7 +942,7 @@ namespace PirateCrew.Battle
         // 自由视角锚定（r12：中键切换）
         // ------------------------------------------------------------------
 
-        AimThrowController aimThrow;
+        // aimThrow 的声明见文件顶部「组装引用」段（[SerializeField] 注入，Awake 一次性解析）。
         GameObject _freeAnchor;
         Transform _followBeforeFree;
 
@@ -1113,8 +1148,8 @@ namespace PirateCrew.Battle
             if (!_manualCaptured)
                 return;
 
-            if (aimThrow == null)
-                aimThrow = FindObjectOfType<AimThrowController>();
+            // aimThrow 已由 Awake 一次性解析（见 ResolveAimThrowOnce）——本方法在 Update 路径上，
+            // 任何"回退再扫一次"都是每帧全场查询，绝不允许。
 
             // 【等距像素卡通 · 俯角锁定 + 方位可旋转（创始人 2026-09-21 口述裁决）】
             // 右键拖拽环绕 = 只改方位角 yaw；俯角恒 45°（_dragPitchDegrees 无输入路径改它，
@@ -1203,37 +1238,39 @@ namespace PirateCrew.Battle
         // EventBus 回调
         // ------------------------------------------------------------------
 
-        void OnTurnStarted(object payload)
+        void OnTurnStarted(TurnStartedPayload turn)
         {
             // §3.2 panToCharacter：TurnStartedPayload 已带默认镜头目标。
             _spectator = false;
 
-            if (payload is TurnStartedPayload turn && turn.PanTarget != null)
+            if (turn.PanTarget != null)
                 FocusOn(turn.PanTarget);
         }
 
-        void OnTurnEnded(object payload)
+        void OnTurnEnded(int teamNumber)
         {
+            // 载荷是队伍编号，本控制器不用——只借“回合结束”这个时机退出旁观态。
             _spectator = false;
         }
 
-        void OnCameraFocusRequested(object payload)
+        void OnCameraFocusRequested(Transform target)
         {
             // FocusRequested 在规则层优先级最高：任何时候都取消跟随（回合推进绝不被跟随拖住）。
-            if (payload is Transform target)
+            if (target != null)
                 FocusOn(target);
         }
 
-        void OnAiThinking(object payload)
+        void OnAiThinking(AiThinkingPayload thinking)
         {
+            // 载荷（队伍 / 待评估角色数）不进镜头逻辑，只用“开始思考”这个时机。
             // §8.1：AI 决策中相机停止自动滚动；配合更慢的聚焦 + 略外扩 FOV 形成"旁观"感。
             if (aiSpectatorEnabled)
                 _spectator = true;
         }
 
-        void OnActionSelected(object payload)
+        void OnActionSelected(ActionSelectedPayload action)
         {
-            if (!(payload is ActionSelectedPayload action) || battle == null)
+            if (battle == null)
                 return;
 
             switch (action.Kind)
@@ -1256,11 +1293,8 @@ namespace PirateCrew.Battle
             }
         }
 
-        void OnProjectileDetonated(object payload)
+        void OnProjectileDetonated(ProjectileDetonatedPayload detonated)
         {
-            if (!(payload is ProjectileDetonatedPayload detonated))
-                return;
-
             bool wasFollowing = _followState == CameraFollowState.FollowProjectile;
             if (wasFollowing)
             {
@@ -1278,9 +1312,9 @@ namespace PirateCrew.Battle
                 StartHitStop();
         }
 
-        void OnCrewDamaged(object payload)
+        void OnCrewDamaged(CrewDamagedPayload damaged)
         {
-            if (!(payload is CrewDamagedPayload damaged) || !enableShake)
+            if (!enableShake)
                 return;
 
             if (damaged.MaxHealth <= 0)
@@ -1296,9 +1330,9 @@ namespace PirateCrew.Battle
                 amplitude, 0f, shakeDurationSeconds * 0.5f, shakeFrequencyHz));
         }
 
-        void OnCrewDied(object payload)
+        void OnCrewDied(CrewDiedPayload died)
         {
-            if (!(payload is CrewDiedPayload died) || battle == null)
+            if (battle == null)
                 return;
 
             PirateBase pirate = FindPirate(died.PirateId);
@@ -1318,7 +1352,7 @@ namespace PirateCrew.Battle
             }
         }
 
-        void OnMatchFinished(object payload)
+        void OnMatchFinished(MatchFinishedPayload payload)
         {
             _spectator = false;
             _pushInActive = false;

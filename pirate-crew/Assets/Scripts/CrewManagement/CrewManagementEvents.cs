@@ -1,4 +1,5 @@
 using System;
+using PirateCrew.Core;
 
 namespace PirateCrew.CrewManagement
 {
@@ -24,6 +25,15 @@ namespace PirateCrew.CrewManagement
 
         /// <summary>关卡结算给船员发经验/招募（载荷 <see cref="CrewRewardPayload"/>）。</summary>
         public const string RewardGranted = "crew_reward_granted";
+
+        /// <summary>把本类事件与期望载荷类型登记进 <see cref="EventCatalog"/>（由唯一入口调用）。</summary>
+        [GameBootstrap(GameBootstrapPhase.Contracts, order: 31)]
+        public static void RegisterContracts()
+        {
+            EventCatalog.Add<RosterUpdatedPayload>(RosterUpdated);
+            EventCatalog.Add<CrewUnlockedPayload>(CrewUnlocked);
+            EventCatalog.Add<CrewRewardPayload>(RewardGranted);
+        }
     }
 
     /// <summary><see cref="CrewManagementEvents.RosterUpdated"/> 载荷。</summary>

@@ -103,6 +103,12 @@ namespace PirateCrew.Water
         [Header("烘焙资产（Editor/WaterAssetBuilder 生成，可为空=不做障碍反射）")]
         [SerializeField] Texture2D obstacleMap;
 
+        [Header("太阳方向来源（同场景显式注入，由 EditorTools.BattleLookupWiring 接线）")]
+        [Tooltip("主平行光。解析顺序：RenderSettings.sun → 本字段 → 静态正午方向。"
+                 + "由装配接线从 AmbientDirector.sunLight 抄写；不接线时靠 AmbientDirector 登记 "
+                 + "RenderSettings.sun（AmbientDirector.cs 的运行时登记），仍正确——故不接也不报错。")]
+        [SerializeField] Light sunLight;
+
         WaterWaveField2D _field;
         Texture2D _heightTexture;
         Color32[] _pixels;
@@ -110,17 +116,7 @@ namespace PirateCrew.Water
         float _accumulator;
         float _simTime;
         Texture2D _fallbackObstacle;
-        Light _sunLight;
         bool _subscribed;
-
-        /// <summary>
-        /// 平行光解析的负缓存：一次解析找不到平行光时，到该时刻前不再 <c>FindObjectsOfType</c>
-        /// （否则 sun 未登记且场景无平行光时会退化为每帧全场景扫描）。
-        /// </summary>
-        float _sunSearchAllowedTime;
-
-        /// <summary>平行光解析失败后的重扫间隔（秒）：期间走静态兜底方向，最迟一个间隔后自愈。</summary>
-        const float SunSearchRetryInterval = 3f;
 
         /// <summary>模拟是否在运行（供测试/报告读取）。</summary>
         public bool IsRunning => enableSimulation && _field != null;
@@ -263,9 +259,6 @@ namespace PirateCrew.Water
                 Shader.SetGlobalFloat(GlobalEnabled, 0f);
                 Instance = null;
             }
-
-            // 重新激活时允许立即重扫一次平行光（换场景后主光可能已更换）。
-            _sunSearchAllowedTime = 0f;
         }
 
         void OnDestroy()
@@ -427,48 +420,21 @@ namespace PirateCrew.Water
         ///
         /// 【为什么不能只发静态正午姿态】本场景的 <c>Battle.unity</c> 没有把主光登记为 sun
         /// （<c>m_Sun: {fileID: 0}</c>），但运行时的 <c>AmbientDirector</c> 会旋转它指向的光源
-        /// （昼夜档位）。若 sun 为空就永远发固定 Euler(48,140) 的 L，切到其它时段后水面光路方向
+        /// （昼夜档位）并**登记 <c>RenderSettings.sun</c>**（<c>AmbientDirector.cs:434</c>）。
+        /// 若 sun 为空就永远发固定 Euler(48,140) 的 L，切到其它时段后水面光路方向
         /// 会与真实主光相反/错位。故解析顺序为
-        /// <c>RenderSettings.sun</c> → 场景里最亮的启用平行光（缓存）→ 静态正午兜底。
+        /// <c>RenderSettings.sun</c> → 装配注入的 <see cref="sunLight"/> → 静态正午兜底。
+        ///
+        /// 【2026-09-21 清退】旧实现第三档是"扫全场找最亮平行光"（<c>FindObjectsOfType&lt;Light&gt;</c>
+        /// + 负缓存限频），已随接线清退删除：它找的就是 <see cref="sunLight"/> 这个槽
+        /// （由装配接线从 AmbientDirector 抄写），而 <c>RenderSettings.sun</c> 已覆盖运行时主路径。
+        /// 详见 docs/审计/专项/运行期查找清退报告.md。
         /// </summary>
         void PublishSunDirection()
         {
-            Light sun = RenderSettings.sun != null ? RenderSettings.sun : _sunLight;
-            if (sun == null && Time.time >= _sunSearchAllowedTime)
-            {
-                // 缓存失效（光源被销毁/换场景）时重解析一次。
-                // 【负缓存】场景里确实没有平行光时也只按 <see cref="SunSearchRetryInterval"/>
-                // 间隔重扫，期间直接走静态兜底方向——不能每帧 FindObjectsOfType 全场景扫描。
-                _sunSearchAllowedTime = Time.time + SunSearchRetryInterval;
-                _sunLight = FindBrightestDirectionalLight();
-                sun = _sunLight;
-            }
-
+            Light sun = RenderSettings.sun != null ? RenderSettings.sun : sunLight;
             Vector3 toLight = sun != null ? -sun.transform.forward : FallbackSunToLight;
             Shader.SetGlobalVector(GlobalSunDir, new Vector4(toLight.x, toLight.y, toLight.z, 0f));
-        }
-
-        /// <summary>
-        /// 找场景里最亮的启用平行光（sun 未登记时的兜底；只在缓存失效时调用，非每帧）。
-        /// 只按"平行光 + 启用 + 强度最高"挑选，不跨模块引用 AmbientDirector，保持水体模块独立。
-        /// </summary>
-        static Light FindBrightestDirectionalLight()
-        {
-            Light[] lights = Object.FindObjectsOfType<Light>();
-            Light best = null;
-            float bestIntensity = -1f;
-            for (int i = 0; i < lights.Length; i++)
-            {
-                Light l = lights[i];
-                if (l == null || l.type != LightType.Directional || !l.enabled)
-                    continue;
-                if (l.intensity > bestIntensity)
-                {
-                    bestIntensity = l.intensity;
-                    best = l;
-                }
-            }
-            return best;
         }
 
         /// <summary>
@@ -529,7 +495,7 @@ namespace PirateCrew.Water
         {
             if (_subscribed)
                 return;
-            EventBus.Subscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Subscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
             _subscribed = true;
         }
 
@@ -537,14 +503,12 @@ namespace PirateCrew.Water
         {
             if (!_subscribed)
                 return;
-            EventBus.Unsubscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Unsubscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
             _subscribed = false;
         }
 
-        void OnProjectileDetonated(object payload)
+        void OnProjectileDetonated(ProjectileDetonatedPayload detonated)
         {
-            if (!(payload is ProjectileDetonatedPayload detonated))
-                return;
             // 距水面 1.0 世界单位以上算"空中爆炸"（格 1→2 单位后 0.5 → 1.0）。
             if (detonated.Position.y > LevelGeometry.WaterSurfaceY + 1.0f)
                 return; // 空中爆炸不搅水

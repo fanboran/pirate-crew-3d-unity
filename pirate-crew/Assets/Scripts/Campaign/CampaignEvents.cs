@@ -1,3 +1,5 @@
+using PirateCrew.Core;
+
 namespace PirateCrew.Campaign
 {
     /// <summary>
@@ -15,6 +17,13 @@ namespace PirateCrew.Campaign
     {
         /// <summary>一场海图战结算完成（载荷 <see cref="CampaignMapCompletedPayload"/>）。</summary>
         public const string MapCompleted = "campaign_map_completed";
+
+        /// <summary>把本类事件与期望载荷类型登记进 <see cref="EventCatalog"/>（由唯一入口调用）。</summary>
+        [GameBootstrap(GameBootstrapPhase.Contracts, order: 30)]
+        public static void RegisterContracts()
+        {
+            EventCatalog.Add<CampaignMapCompletedPayload>(MapCompleted);
+        }
     }
 
     /// <summary><see cref="CampaignEvents.MapCompleted"/> 载荷。</summary>

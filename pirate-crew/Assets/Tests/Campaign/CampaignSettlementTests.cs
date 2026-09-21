@@ -30,7 +30,7 @@ namespace PirateCrew.Tests
             _lastCompleted = null;
             Assert.That(WorldMapCatalog.TryGet(MapA, out _), Is.True,
                 "测试依赖目录里存在海图 " + MapA);
-            EventBus.Subscribe(CampaignEvents.MapCompleted, OnMapCompleted);
+            EventBus.Subscribe<CampaignMapCompletedPayload>(CampaignEvents.MapCompleted, OnMapCompleted);
         }
 
         [TearDown]
@@ -41,10 +41,9 @@ namespace PirateCrew.Tests
             CrewManagementApi.Reset();
         }
 
-        void OnMapCompleted(object payload)
+        void OnMapCompleted(CampaignMapCompletedPayload completed)
         {
-            if (payload is CampaignMapCompletedPayload completed)
-                _lastCompleted = completed;
+            _lastCompleted = completed;
         }
 
         /// <summary>把一局海图战的事件序列打完（可选阵亡数）；battle_started 前须已 SetPending。</summary>

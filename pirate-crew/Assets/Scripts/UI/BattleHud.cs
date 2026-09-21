@@ -91,6 +91,9 @@ namespace PirateCrew.UI
         [SerializeField] BattleController battle;
         [SerializeField] TurnManager turnManager;
         [SerializeField] AimThrowController aimController;
+        [Tooltip("战斗相机控制器（同场景显式注入，由 EditorTools.BattleLookupWiring 接线）："
+                 + "观察模式开关要转交给它（SetObserveMode）。缺失时观察模式只切 UI 态、相机不动。")]
+        [SerializeField] BattleCameraController cameraController;
 
         [Header("顶栏双队血条")]
         [SerializeField] TeamBarView teamBarRed;
@@ -255,6 +258,8 @@ namespace PirateCrew.UI
         void Awake()
         {
             _motion = gameObject.AddComponent<UiMotion>();
+            // 依赖解析必须在 InitModeButtons 之前（它内部会走 SetHudMode → 驱动相机）。
+            ResolveCameraControllerOnce();
             WireWeaponButtons();
             WireCommandButtons();
             InitModeButtons();
@@ -262,14 +267,14 @@ namespace PirateCrew.UI
 
         void OnEnable()
         {
-            EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
-            EventBus.Subscribe(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Subscribe(BattleEvents.TurnEnded, OnTurnEnded);
-            EventBus.Subscribe(BattleEvents.ActionSelected, OnActionSelected);
-            EventBus.Subscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
-            EventBus.Subscribe(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Subscribe(BattleEvents.MatchFinished, OnMatchFinished);
-            EventBus.Subscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Subscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
+            EventBus.Subscribe<TurnStartedPayload>(BattleEvents.TurnStarted, OnTurnStarted);
+            EventBus.Subscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Subscribe<ActionSelectedPayload>(BattleEvents.ActionSelected, OnActionSelected);
+            EventBus.Subscribe<CrewDamagedPayload>(BattleEvents.CrewDamaged, OnCrewDamaged);
+            EventBus.Subscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Subscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
+            EventBus.Subscribe<Transform>(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
         }
 
         void OnDisable()
@@ -277,14 +282,14 @@ namespace PirateCrew.UI
             // 离场兜底：暂停中直接回主菜单/选关，绝不能把 timeScale=0 带出战斗场景。
             BattlePause.ForceResume();
 
-            EventBus.Unsubscribe(BattleEvents.BattleStarted, OnBattleStarted);
-            EventBus.Unsubscribe(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Unsubscribe(BattleEvents.TurnEnded, OnTurnEnded);
-            EventBus.Unsubscribe(BattleEvents.ActionSelected, OnActionSelected);
-            EventBus.Unsubscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
-            EventBus.Unsubscribe(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Unsubscribe(BattleEvents.MatchFinished, OnMatchFinished);
-            EventBus.Unsubscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Subscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
+            EventBus.Subscribe<TurnStartedPayload>(BattleEvents.TurnStarted, OnTurnStarted);
+            EventBus.Subscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Subscribe<ActionSelectedPayload>(BattleEvents.ActionSelected, OnActionSelected);
+            EventBus.Subscribe<CrewDamagedPayload>(BattleEvents.CrewDamaged, OnCrewDamaged);
+            EventBus.Subscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Subscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
+            EventBus.Subscribe<Transform>(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
         }
 
         void WireWeaponButtons()
@@ -340,7 +345,29 @@ namespace PirateCrew.UI
 
         BattleHudMode _mode = BattleHudMode.Move;
         Transform _crosshair;
-        BattleCameraController _cameraController;
+
+        /// <summary>
+        /// 战斗相机解析：**只在 Awake 跑一次**（旧写法在 <see cref="SetHudMode"/> 里
+        /// <c>if (_cameraController == null) _cameraController = FindObjectOfType&lt;...&gt;()</c>，
+        /// 于是每次模式切换都可能全场扫描一次）。
+        ///
+        /// 装配期注入优先；未注入时一次性兜底并吵闹——真正的装配缺陷由
+        /// <see cref="CameraControllerWiredByAssembly"/>（PlayMode 装配测试断言）钉住。
+        /// </summary>
+        void ResolveCameraControllerOnce()
+        {
+            CameraControllerWiredByAssembly = cameraController != null;
+            if (cameraController != null)
+                return;
+
+            cameraController = FindObjectOfType<BattleCameraController>();
+            Log.Warn("[BattleHud] cameraController 未经装配接线，已一次性兜底解析"
+                     + (cameraController != null ? "成功" : "失败（观察模式将不再驱动相机）")
+                     + "。修复：跑 PirateCrew.EditorTools.BattleLookupWiring.Wire（写 Battle.unity）。");
+        }
+
+        /// <summary>本类的 <see cref="cameraController"/> 是否来自**装配期注入**。PlayMode 装配测试读它。</summary>
+        public bool CameraControllerWiredByAssembly { get; private set; }
 
         void InitModeButtons()
         {
@@ -399,10 +426,9 @@ namespace PirateCrew.UI
         {
             _mode = mode;
 
-            if (_cameraController == null)
-                _cameraController = FindObjectOfType<BattleCameraController>();
-            if (_cameraController != null)
-                _cameraController.SetObserveMode(mode == BattleHudMode.Observe);
+            // 相机引用在 Awake 已解析完（ResolveCameraControllerOnce）——此处不再查找。
+            if (cameraController != null)
+                cameraController.SetObserveMode(mode == BattleHudMode.Observe);
             if (aimController != null)
             {
                 aimController.SetWeaponPreference(mode == BattleHudMode.Act);
@@ -661,7 +687,21 @@ namespace PirateCrew.UI
             if (settlementPanelRoot == null)
                 return;
 
-            var lines = new List<string>();
+            // 「显示哪几行 / 亮几颗星」是纯规则（SettlementPanelRules，可无头测）；
+            // 本方法只负责：读数据源 → 交给规则 → 把行种类渲染成文本 → 摆 UI。
+            CampaignSettlement settlement = CampaignApi.LastSettlement ?? default;
+            bool hasCampaignSettlement = CampaignApi.LastSettlement != null;
+            CrewRewardPayload? reward = CampaignApi.LastReward;
+
+            var input = new SettlementPanelRules.PanelInput(
+                finished.Score,
+                _campaignBattle,
+                hasCampaignSettlement,
+                settlement.Stars,
+                settlement.FirstClear,
+                reward != null,
+                reward?.XpPerCrew ?? 0,
+                reward?.UnlockedCrewIds?.Length ?? 0);
 
             if (settlementTitleText != null)
             {
@@ -669,42 +709,51 @@ namespace PirateCrew.UI
                     UiTextRules.OutcomeTitle((MatchOutcome)finished.Outcome, finished.Team1IsAi));
             }
 
-            if (finished.Score > 0)
-                lines.Add(UiTextRules.SettlementScore(finished.Score));
-
-            CampaignSettlement settlement = CampaignApi.LastSettlement ?? default;
-            bool hasCampaign = _campaignBattle && CampaignApi.LastSettlement != null;
-            if (hasCampaign)
+            List<SettlementPanelRules.RowKind> rows = SettlementPanelRules.RowsFor(input);
+            var lines = new List<string>(rows.Count);
+            for (int i = 0; i < rows.Count; i++)
             {
-                lines.Add(UiTextRules.SettlementLevel(MapDisplayName(settlement.MapId)));
-                lines.Add(UiTextRules.SettlementStars(settlement.Stars, StarRules.MaxStars));
-
-                if (CampaignApi.LastReward is CrewRewardPayload reward)
-                {
-                    if (reward.XpPerCrew > 0)
-                        lines.Add(UiTextRules.SettlementXp(reward.XpPerCrew));
-
-                    if (reward.UnlockedCrewIds is { Length: > 0 })
-                    {
-                        lines.Add(UiTextRules.SettlementUnlock(
-                            string.Join("、", DisplayNamesOf(reward.UnlockedCrewIds))));
-                    }
-                }
-
-                if (settlement.FirstClear)
-                    lines.Add(UiStrings.SettlementRowFirstClear);
+                string line = SettlementRowText(rows[i], input, settlement, reward);
+                if (line != null)
+                    lines.Add(line);
             }
 
             if (settlementLinesText != null)
                 UiTextUtil.SetText(settlementLinesText, string.Join("\n", lines));
 
-            SetSettlementStars(hasCampaign ? settlement.Stars : 0);
+            SetSettlementStars(SettlementPanelRules.LitStarsFor(input));
             OpenModal(settlementPanelRoot, settlementCard);
 
             bool played = SettlementJingleFor(finished.Outcome, finished.Team1IsAi, out SfxId jingle)
                           && AudioService.PlayMusic(jingle);
             if (!played)
                 AudioService.PlayUi(SfxId.UiPanelOpen);
+        }
+
+        /// <summary>把一行行种类渲染成文本（文案全部来自 <see cref="UiTextRules"/>，本方法只做映射）。</summary>
+        static string SettlementRowText(SettlementPanelRules.RowKind kind,
+            in SettlementPanelRules.PanelInput input, in CampaignSettlement settlement, CrewRewardPayload? reward)
+        {
+            switch (kind)
+            {
+                case SettlementPanelRules.RowKind.Score:
+                    return UiTextRules.SettlementScore(input.Score);
+                case SettlementPanelRules.RowKind.Level:
+                    return UiTextRules.SettlementLevel(MapDisplayName(settlement.MapId));
+                case SettlementPanelRules.RowKind.Stars:
+                    return UiTextRules.SettlementStars(settlement.Stars, StarRules.MaxStars);
+                case SettlementPanelRules.RowKind.Xp:
+                    return UiTextRules.SettlementXp(input.XpPerCrew);
+                case SettlementPanelRules.RowKind.Unlock:
+                    // 规则只在 HasReward 时才会给出 Unlock 行；这里再守一道，避免数据源中途变了就 NRE。
+                    return reward.HasValue
+                        ? UiTextRules.SettlementUnlock(string.Join("、", DisplayNamesOf(reward.Value.UnlockedCrewIds)))
+                        : null;
+                case SettlementPanelRules.RowKind.FirstClear:
+                    return UiStrings.SettlementRowFirstClear;
+                default:
+                    return null;
+            }
         }
 
         /// <summary>三星逐颗点亮：颜色分层 + 逐颗延迟 pop（juice）。</summary>
@@ -758,8 +807,9 @@ namespace PirateCrew.UI
         // EventBus 回调
         // ------------------------------------------------------------------
 
-        void OnBattleStarted(object payload)
+        void OnBattleStarted(BattleStartedPayload payload)
         {
+            // 载荷（关卡/队伍数）不进 HUD，只用“一局开始”这个时机重建面板。
             _turnNumber = 0;
             RefreshBadge();
 
@@ -778,8 +828,9 @@ namespace PirateCrew.UI
             RefreshWeaponPanel(hide: true);
         }
 
-        void OnTurnStarted(object payload)
+        void OnTurnStarted(TurnStartedPayload payload)
         {
+            // 行动角色/镜头目标由相机层消费，HUD 只刷新回合徽章与队伍条。
             _turnNumber++;
             RefreshBadge(punch: true);
             RefreshTurnHint();
@@ -787,55 +838,48 @@ namespace PirateCrew.UI
             RefreshWeaponPanel();
         }
 
-        void OnTurnEnded(object payload)
+        void OnTurnEnded(int teamNumber)
         {
+            // 队伍编号不进 HUD，只用“回合结束”这个时机收起武器面板。
             RefreshWeaponPanel(hide: true);
         }
 
-        void OnActionSelected(object payload)
+        void OnActionSelected(ActionSelectedPayload action)
         {
+            // 动作种类不进 HUD（面板收起与队伍条刷新与种类无关）。
             RefreshWeaponPanel(hide: true);
             RefreshTeamBars();
         }
 
-        void OnCrewDamaged(object payload)
+        void OnCrewDamaged(CrewDamagedPayload damaged)
         {
-            if (payload is CrewDamagedPayload damaged)
-            {
-                UpdateUnitSegment(damaged.TeamIndex, damaged.PirateId, damaged.Health, damaged.MaxHealth);
-                RefreshTurnHint();
-            }
+            UpdateUnitSegment(damaged.TeamIndex, damaged.PirateId, damaged.Health, damaged.MaxHealth);
+            RefreshTurnHint();
         }
 
-        void OnCrewDied(object payload)
+        void OnCrewDied(CrewDiedPayload died)
         {
-            if (payload is CrewDiedPayload died)
-            {
-                UpdateUnitSegment(died.TeamIndex, died.PirateId, 0, CrewCatalog.MaxHealth);
-                MarkPipDead(died.TeamIndex, died.PirateId);
-                RefreshTurnHint();
-            }
+            UpdateUnitSegment(died.TeamIndex, died.PirateId, 0, CrewCatalog.MaxHealth);
+            MarkPipDead(died.TeamIndex, died.PirateId);
+            RefreshTurnHint();
         }
 
-        void OnMatchFinished(object payload)
+        void OnMatchFinished(MatchFinishedPayload finished)
         {
-            if (payload is MatchFinishedPayload finished)
+            if (turnHintText != null)
             {
-                if (turnHintText != null)
-                {
-                    UiTextUtil.SetText(turnHintText, UiTextRules.OutcomeTitle(
-                        (MatchOutcome)finished.Outcome, finished.Team1IsAi));
-                }
-
-                ShowSettlement(finished);
+                UiTextUtil.SetText(turnHintText, UiTextRules.OutcomeTitle(
+                    (MatchOutcome)finished.Outcome, finished.Team1IsAi));
             }
 
+            ShowSettlement(finished);
             RefreshWeaponPanel(hide: true);
         }
 
-        void OnCameraFocusRequested(object payload)
+        void OnCameraFocusRequested(Transform target)
         {
             // 回合开始 pan 与玩家点选角色都会走这里；点选时 aimController.SelectedCharacter 已就绪。
+            // 焦点 Transform 由相机层消费（HUD 只借这个时机收起/弹出武器面板）。
             RefreshWeaponPanel();
         }
 

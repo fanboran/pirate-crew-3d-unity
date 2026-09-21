@@ -141,6 +141,17 @@ namespace PirateCrew.Tests
             Assert.IsNotNull(Field(camController, "virtualCamera"), "BattleCameraController.virtualCamera 未接线");
             Assert.IsNotNull(Field(camController, "cameraTarget"), "BattleCameraController.cameraTarget 未接线");
 
+            // ---- 运行期查找清退后的显式接线（2026-09-21「接线清退」轨道）----
+            // 这三条原来是运行时的 FindObjectOfType 兜底（BattleCameraController 甚至每帧扫），
+            // 现改为 [SerializeField] 显式注入 + Awake 一次性兜底。这里断言"确实来自装配接线"
+            // （WiredByAssembly），而不是"兜底也能跑"——兜底是给旧场景的降级通道，不是合格标准。
+            // 修复命令：PirateCrew.EditorTools.BattleLookupWiring.Wire（会写 Battle.unity）。
+            Assert.IsNotNull(Field(camController, "aimThrow"),
+                "BattleCameraController.aimThrow 未接线（跑 BattleLookupWiring.Wire）");
+            Assert.IsTrue(camController.AimThrowWiredByAssembly,
+                "BattleCameraController.aimThrow 未经装配接线，只在跑一次性兜底"
+                + "（跑 PirateCrew.EditorTools.BattleLookupWiring.Wire 写入 Battle.unity）");
+
             Assert.IsNotNull(Object.FindObjectOfType<TrajectoryPreview>(), "Battle 场景应有 TrajectoryPreview");
 
             // ---- 关卡数据驱动的出征数量一致 ----
@@ -181,6 +192,26 @@ namespace PirateCrew.Tests
             var hud = Object.FindObjectOfType<BattleHud>();
             Assert.IsNotNull(hud, "Battle 场景应有 BattleHud");
             Assert.IsTrue(hud.HasCoreReferences, "BattleHud 核心引用未接线");
+            Assert.IsNotNull(Field(hud, "cameraController"),
+                "BattleHud.cameraController 未接线（跑 BattleLookupWiring.Wire）");
+            Assert.IsTrue(hud.CameraControllerWiredByAssembly,
+                "BattleHud.cameraController 未经装配接线，只在跑一次性兜底"
+                + "（跑 PirateCrew.EditorTools.BattleLookupWiring.Wire 写入 Battle.unity）");
+
+            // 水面太阳方向：第三档"扫全场找最亮平行光"已退役，来源改为
+            // RenderSettings.sun（AmbientDirector 运行时登记）→ 装配注入的 sunLight → 静态正午方向。
+            var waterDriver = Object.FindObjectOfType<PirateCrew.Water.WaterSimulationDriver>();
+            Assert.IsNotNull(waterDriver, "Battle 场景应有 WaterSimulationDriver（水面波动模拟）");
+            Assert.IsNotNull(Field(waterDriver, "sunLight"),
+                "WaterSimulationDriver.sunLight 未接线（跑 BattleLookupWiring.Wire）");
+
+            // 特效层：FxRoot 由组合根在 BeforeSceneLoad 建立（进程级常驻，无场景可接线），
+            // 它唯一的查找白名单条目是"每局一次地拿 BattleController"——这里断言那一发**真的命中了**，
+            // 否则 crew_damaged/crew_died 的按 id 定位会静默降级。
+            PirateCrew.Fx.FxRoot fx = PirateCrew.Fx.FxRoot.Instance;
+            Assert.IsNotNull(fx, "组合根未建立 [FxRoot]（FxBootstrap.Install 未跑？）");
+            Assert.IsNotNull(Field(fx, "_battle"),
+                "FxRoot 未解析到战场根（BattleController）——单位注册表与弹体拖尾会本局缺席");
             Assert.AreEqual(17, hud.WeaponSlotCount, "HUD 应有 17 个武器槽（§5.2）");
             Assert.IsTrue(hud.HasWeaponWiring, "HUD 武器图标格未全部接线");
             Assert.IsTrue(hud.HasTeamBarWiring, "HUD 双队血条（段+pips）未全部接线");

@@ -47,9 +47,6 @@ namespace PirateCrew.UI
         {
             _motion = gameObject.AddComponent<UiMotion>();
 
-            // 保证结算监听已挂上（从主菜单进来时主菜单已调用过，这里是幂等的兜底）。
-            CampaignApi.EnsureBootstrapped();
-
             if (levelSelectButton != null)
                 levelSelectButton.onClick.AddListener(OnLevelSelectClicked);
             if (saveButton != null)
@@ -57,9 +54,9 @@ namespace PirateCrew.UI
             if (backButton != null)
                 backButton.onClick.AddListener(OnBackClicked);
 
-            EventBus.Subscribe(CrewManagementEvents.RosterUpdated, OnRosterChanged);
-            EventBus.Subscribe(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
-            EventBus.Subscribe(CampaignEvents.MapCompleted, OnMapCompleted);
+            EventBus.Subscribe<RosterUpdatedPayload>(CrewManagementEvents.RosterUpdated, OnRosterChanged);
+            EventBus.Subscribe<CrewUnlockedPayload>(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
+            EventBus.Subscribe<CampaignMapCompletedPayload>(CampaignEvents.MapCompleted, OnMapCompleted);
         }
 
         void Start()
@@ -81,9 +78,9 @@ namespace PirateCrew.UI
             if (backButton != null)
                 backButton.onClick.RemoveListener(OnBackClicked);
 
-            EventBus.Unsubscribe(CrewManagementEvents.RosterUpdated, OnRosterChanged);
-            EventBus.Unsubscribe(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
-            EventBus.Unsubscribe(CampaignEvents.MapCompleted, OnMapCompleted);
+            EventBus.Unsubscribe<RosterUpdatedPayload>(CrewManagementEvents.RosterUpdated, OnRosterChanged);
+            EventBus.Unsubscribe<CrewUnlockedPayload>(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
+            EventBus.Unsubscribe<CampaignMapCompletedPayload>(CampaignEvents.MapCompleted, OnMapCompleted);
         }
 
         // ------------------------------------------------------------------
@@ -234,22 +231,19 @@ namespace PirateCrew.UI
         // 事件回调
         // ------------------------------------------------------------------
 
-        void OnRosterChanged(object payload)
+        void OnRosterChanged(RosterUpdatedPayload payload)
         {
+            // 列表数据从 CrewManagementApi 现取，载荷只作“名册变了”的信号。
             Refresh();
         }
 
-        void OnCrewUnlocked(object payload)
+        void OnCrewUnlocked(CrewUnlockedPayload unlocked)
         {
-            if (payload is CrewUnlockedPayload unlocked)
-                SetStatus(string.Format(UiStrings.CrewStatusNewCrewFormat, unlocked.DisplayName));
+            SetStatus(string.Format(UiStrings.CrewStatusNewCrewFormat, unlocked.DisplayName));
         }
 
-        void OnMapCompleted(object payload)
+        void OnMapCompleted(CampaignMapCompletedPayload completed)
         {
-            if (!(payload is CampaignMapCompletedPayload completed))
-                return;
-
             string levelName = MapDisplayName(completed.MapId);
             if (completed.Cleared)
                 SetStatus(string.Format(UiStrings.CrewStatusClearedFormat, levelName, completed.Stars));

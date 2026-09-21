@@ -145,16 +145,12 @@ namespace PirateCrew.Water
         /// </summary>
         void ApplyDebugOverride(Material material)
         {
-            string[] args = System.Environment.GetCommandLineArgs();
-            for (int i = 0; i < args.Length - 1; i++)
+            // argv 由 Core.CommandLineOptions 统一解析（唯一入口解析一次），本类只取值。
+            if (global::PirateCrew.Core.CommandLineOptions.TryGetFloat(
+                    global::PirateCrew.Core.ToolFlags.OceanDebug, out float mode))
             {
-                if (args[i] == "-oceanDebug"
-                    && float.TryParse(args[i + 1], out float mode))
-                {
-                    material.SetFloat("_DebugMode", mode);
-                    Debug.Log("[OceanRig] 调试档 _DebugMode=" + mode);
-                    return;
-                }
+                material.SetFloat("_DebugMode", mode);
+                Debug.Log("[OceanRig] 调试档 _DebugMode=" + mode);
             }
         }
 

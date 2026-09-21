@@ -60,7 +60,6 @@ namespace PirateCrew.UI
         void Awake()
         {
             _motion = gameObject.AddComponent<UiMotion>();
-            CampaignApi.EnsureBootstrapped();
 
             if (crewButton != null)
                 crewButton.onClick.AddListener(OnCrewClicked);
@@ -71,7 +70,7 @@ namespace PirateCrew.UI
             if (settlementBackButton != null)
                 settlementBackButton.onClick.AddListener(OnSettlementBackClicked);
 
-            EventBus.Subscribe(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
+            EventBus.Subscribe<CrewUnlockedPayload>(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
         }
 
         void Start()
@@ -91,7 +90,7 @@ namespace PirateCrew.UI
             if (settlementBackButton != null)
                 settlementBackButton.onClick.RemoveListener(OnSettlementBackClicked);
 
-            EventBus.Unsubscribe(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
+            EventBus.Unsubscribe<CrewUnlockedPayload>(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
         }
 
         // ------------------------------------------------------------------
@@ -327,9 +326,9 @@ namespace PirateCrew.UI
             EventBus.Publish(SceneEvents.GoBack);
         }
 
-        void OnCrewUnlocked(object payload)
+        void OnCrewUnlocked(CrewUnlockedPayload unlocked)
         {
-            if (statusText != null && payload is CrewUnlockedPayload unlocked)
+            if (statusText != null)
                 statusText.text = string.Format(UiStrings.LevelStatusNewCrewFormat, unlocked.DisplayName);
         }
     }

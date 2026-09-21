@@ -91,31 +91,30 @@ namespace PirateCrew.ArtReview
         Battle.BattleController _controller;
         Vector3 _arenaCenter;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        static void Boot()
+        /// <summary>
+        /// 组合根接线入口（唯一入口 <c>Core/GameEntryPoint</c> 在进入播放前调用；不带对应开关时零开销）。
+        /// 命令行由 <see cref="CommandLineOptions"/> 统一解析——本类不自扫 argv。
+        /// </summary>
+        [GameBootstrap(GameBootstrapPhase.Initialize, order: 100)]
+        internal static void Install()
         {
-            string outDir = null;
-            string[] args = System.Environment.GetCommandLineArgs();
-            for (int i = 0; i < args.Length - 1; i++)
+            string outDir = CommandLineOptions.GetValue(ToolFlags.ArtReviewOut);
+
+            // 等距像素卡通步骤 2 试点出图：进 ToonPilot 场景（见 RunToonPilotCapture）。
+            string toonPilotOut = CommandLineOptions.GetValue(ToolFlags.ToonPilotOut);
+            if (!string.IsNullOrEmpty(toonPilotOut))
             {
-                if (args[i] == "-artReviewOut")
-                {
-                    outDir = args[i + 1];
-                }
-                else if (args[i] == "-toonPilotOut")
-                {
-                    // 等距像素卡通步骤 2 试点出图：进 ToonPilot 场景（见 RunToonPilotCapture）。
-                    outDir = args[i + 1];
-                    ToonPilotMode = true;
-                }
-                else if (args[i] == "-artReviewLevel"
-                    && int.TryParse(args[i + 1], out int levelArg)
-                    && levelArg >= 1 && levelArg <= SceneArt.ShowcaseLevels.LastLevel)
-                {
-                    // 多关卡出图验收：覆盖 BattleController 的关卡解析（见 ArtReviewCaptureOverride）。
-                    ArtReviewCaptureOverride.LevelNumber = levelArg;
-                }
+                outDir = toonPilotOut;
+                ToonPilotMode = true;
             }
+
+            // 多关卡出图验收：覆盖 BattleController 的关卡解析（见 ArtReviewCaptureOverride）。
+            if (CommandLineOptions.TryGetInt(ToolFlags.ArtReviewLevel, out int levelArg)
+                && levelArg >= 1 && levelArg <= SceneArt.ShowcaseLevels.LastLevel)
+            {
+                ArtReviewCaptureOverride.LevelNumber = levelArg;
+            }
+
             if (string.IsNullOrEmpty(outDir))
                 return; // 正常启动：零开销，什么都不装。
 

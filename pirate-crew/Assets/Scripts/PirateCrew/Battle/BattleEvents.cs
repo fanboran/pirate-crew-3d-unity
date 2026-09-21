@@ -1,3 +1,4 @@
+using PirateCrew.Core;
 using PirateCrew.Data;
 using UnityEngine;
 
@@ -57,6 +58,31 @@ namespace PirateCrew.Battle
 
         /// <summary>地雷引信蜂鸣（载荷 <see cref="MineBeepPayload"/>；§5.2 beepTimes，供音频层播放滴答）。</summary>
         public const string MineBeep = "battle_mine_beep";
+
+        /// <summary>
+        /// 把本类全部事件与**期望载荷类型**登记进 <see cref="EventCatalog"/>——契约的代码侧真源。
+        ///
+        /// 【为什么要这一份】事件名是字符串键，编译期查不出"键配错载荷"；登记之后
+        /// <see cref="EventBus"/> 能在运行期对拍并告警，测试也能反射校验「常量都有登记 / 登记无僵尸」。
+        /// 新增事件时：这里加一行 + 文档表格加一行（见 <see cref="EventCatalog"/> 类注释的三步）。
+        /// </summary>
+        [GameBootstrap(GameBootstrapPhase.Contracts, order: 20)]
+        public static void RegisterContracts()
+        {
+            EventCatalog.Add<BattleStartedPayload>(BattleStarted);
+            EventCatalog.Add<TurnStartedPayload>(TurnStarted);
+            EventCatalog.Add<int>(TurnEnded);
+            EventCatalog.Add<ActionSelectedPayload>(ActionSelected);
+            EventCatalog.Add<CrewDamagedPayload>(CrewDamaged);
+            EventCatalog.Add<CrewDiedPayload>(CrewDied);
+            EventCatalog.Add<MatchFinishedPayload>(MatchFinished);
+            EventCatalog.Add<Transform>(CameraFocusRequested);
+            EventCatalog.Add<float>(ShotReleased);
+            EventCatalog.Add<AiThinkingPayload>(AiThinking);
+            EventCatalog.Add<AiDecidedPayload>(AiDecided);
+            EventCatalog.Add<ProjectileDetonatedPayload>(ProjectileDetonated);
+            EventCatalog.Add<MineBeepPayload>(MineBeep);
+        }
     }
 
     /// <summary>动作种类（<see cref="BattleEvents.ActionSelected"/> 载荷用，对应 §3.4 三路径）。</summary>

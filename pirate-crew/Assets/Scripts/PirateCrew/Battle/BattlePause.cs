@@ -1,3 +1,4 @@
+using PirateCrew.Core;
 using UnityEngine;
 
 namespace PirateCrew.Battle
@@ -48,8 +49,12 @@ namespace PirateCrew.Battle
             Time.timeScale = 1f;
         }
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetOnEnterPlayMode()
+        /// <summary>
+        /// 关闭 Domain Reload 时静态字段跨播放存活，进入播放前强制复位
+        /// （由唯一入口 <c>Core/GameEntryPoint</c> 调用。）
+        /// </summary>
+        [GameBootstrap(GameBootstrapPhase.ResetStatics, order: 32)]
+        internal static void ResetStatics()
         {
             ForceResume();
         }

@@ -72,7 +72,11 @@ namespace PirateCrew.Campaign
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 订阅战斗事件、接上结算流程。幂等；由 UI 层（主菜单/选关页）在 Awake 调用。
+        /// 订阅战斗事件、接上结算流程。幂等。
+        ///
+        /// 【谁调用】组合根（<see cref="Install"/>，由 <c>Core/GameEntryPoint</c> 装配）——
+        /// 重构前由 UI 层三个控制器在 <c>Awake</c> 里调用，那是"接线藏在表现层、
+        /// 换一个进入路径就少一份接线"的隐式初始化（架构审计 P0-3）。测试与诊断仍可直接调用。
         /// </summary>
         public static void EnsureBootstrapped()
         {
@@ -80,9 +84,9 @@ namespace PirateCrew.Campaign
                 return;
 
             _bootstrapped = true;
-            EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
-            EventBus.Subscribe(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Subscribe(BattleEvents.MatchFinished, OnMatchFinished);
+            EventBus.Subscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
+            EventBus.Subscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Subscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
         }
 
         // ------------------------------------------------------------------
@@ -103,9 +107,9 @@ namespace PirateCrew.Campaign
         // 战斗事件处理（静态订阅；EventBus 在进入播放时会清空，靠 EnsureBootstrapped 重订阅）
         // ------------------------------------------------------------------
 
-        static void OnBattleStarted(object payload)
+        static void OnBattleStarted(BattleStartedPayload payload)
         {
-            // 每一局开打都从 0 计阵亡（不区分是哪个入口进的战斗）。
+            // 每一局开打都从 0 计阵亡（不区分是哪个入口进的战斗）；本事件载荷（关卡/队伍数）此处不用。
             _playerDeaths = 0;
 
             // 结算归属 = 本局实际加载的世界海图。没有待战海图（样板三关 / 直接 Play）时
@@ -116,17 +120,14 @@ namespace PirateCrew.Campaign
                 Manager.AbortLevel();
         }
 
-        static void OnCrewDied(object payload)
+        static void OnCrewDied(CrewDiedPayload died)
         {
-            if (payload is CrewDiedPayload died && died.TeamIndex == CrewCatalog.RedTeamIndex)
+            if (died.TeamIndex == CrewCatalog.RedTeamIndex)
                 _playerDeaths++;
         }
 
-        static void OnMatchFinished(object payload)
+        static void OnMatchFinished(MatchFinishedPayload finished)
         {
-            if (!(payload is MatchFinishedPayload finished))
-                return;
-
             // 非海图入口（样板三关 / 直接 Play 战斗场景）没有待结算海图 → 不结算。
             if (!Manager.HasPendingMap)
                 return;
@@ -225,9 +226,9 @@ namespace PirateCrew.Campaign
             // Reset 不退订会让 EventBus 里残留监听者（架构违规：订阅方必须退订，见 EventBus 约定 3）。
             if (_bootstrapped)
             {
-                EventBus.Unsubscribe(BattleEvents.BattleStarted, OnBattleStarted);
-                EventBus.Unsubscribe(BattleEvents.CrewDied, OnCrewDied);
-                EventBus.Unsubscribe(BattleEvents.MatchFinished, OnMatchFinished);
+                EventBus.Unsubscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
+                EventBus.Unsubscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
+                EventBus.Unsubscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
             }
 
             _manager = new CampaignManager();
@@ -240,11 +241,26 @@ namespace PirateCrew.Campaign
         }
 
         /// <summary>
-        /// 关闭 Domain Reload 时静态字段不会自动清空，进入播放前强制重置
-        /// （与 <c>Core/EventBus</c> 的 <c>ResetOnEnterPlayMode</c> 同一手法）。
+        /// 组合根接线入口：订阅结算链 + 读进度存档。
+        /// 由唯一入口 <c>Core/GameEntryPoint</c> 在"服务宿主已就绪"之后调用
+        /// （装配顺序见该类的 Enter 方法：先 EnsureInstalled 再跑 Initialize 阶段）。
         /// </summary>
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetOnEnterPlayMode()
+        [GameBootstrap(GameBootstrapPhase.Initialize, order: 40)]
+        public static void Install()
+        {
+            EnsureBootstrapped();
+
+            // 进度读档从 UI 层（MainMenuController.Awake）上移到组合根：进度的所有者是本类，
+            // 不该由"哪个界面先被打开"决定它有没有被载入（无存档时静默返回 false）。
+            LoadProgress();
+        }
+
+        /// <summary>
+        /// 关闭 Domain Reload 时静态字段不会自动清空，进入播放前强制重置。
+        /// 由唯一入口 <c>Core/GameEntryPoint</c> 调用。
+        /// </summary>
+        [GameBootstrap(GameBootstrapPhase.ResetStatics, order: 30)]
+        internal static void ResetStatics()
         {
             Reset();
         }

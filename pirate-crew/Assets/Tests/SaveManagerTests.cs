@@ -254,12 +254,8 @@ namespace PirateCrew.Tests
             int busSlot = -1;
             _manager.SaveCompleted += slot => localSlot = slot;
 
-            Action<object> handler = payload =>
-            {
-                if (payload is int slot)
-                    busSlot = slot;
-            };
-            EventBus.Subscribe("save_completed", handler);
+            Action<int> handler = slot => busSlot = slot;
+            EventBus.Subscribe(SaveEvents.SaveCompleted, handler);
 
             try
             {
@@ -267,7 +263,7 @@ namespace PirateCrew.Tests
             }
             finally
             {
-                EventBus.Unsubscribe("save_completed", handler);
+                EventBus.Unsubscribe(SaveEvents.SaveCompleted, handler);
             }
 
             Assert.That(localSlot, Is.EqualTo(5));
@@ -282,12 +278,8 @@ namespace PirateCrew.Tests
             int localSlot = -1;
             int busSlot = -1;
             _manager.LoadCompleted += slot => localSlot = slot;
-            Action<object> handler = payload =>
-            {
-                if (payload is int slot)
-                    busSlot = slot;
-            };
-            EventBus.Subscribe("load_completed", handler);
+            Action<int> handler = slot => busSlot = slot;
+            EventBus.Subscribe(SaveEvents.LoadCompleted, handler);
 
             try
             {
@@ -295,7 +287,7 @@ namespace PirateCrew.Tests
             }
             finally
             {
-                EventBus.Unsubscribe("load_completed", handler);
+                EventBus.Unsubscribe(SaveEvents.LoadCompleted, handler);
             }
 
             Assert.That(localSlot, Is.EqualTo(6));

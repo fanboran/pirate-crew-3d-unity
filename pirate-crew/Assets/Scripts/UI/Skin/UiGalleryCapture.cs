@@ -1,5 +1,6 @@
 using System.Collections;
 using System.IO;
+using PirateCrew.Core;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -25,16 +26,14 @@ namespace PirateCrew.UI
 
         string _outDir;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Boot()
+        /// <summary>
+        /// 组合根接线入口（唯一入口 <c>Core/GameEntryPoint</c> 在进入播放前调用；不带开关时零开销）。
+        /// </summary>
+        [GameBootstrap(GameBootstrapPhase.Initialize, order: 120)]
+        internal static void Install()
         {
-            string outDir = null;
-            string[] args = System.Environment.GetCommandLineArgs();
-            for (int i = 0; i < args.Length - 1; i++)
-            {
-                if (args[i] == "-uiGalleryOut")
-                    outDir = args[i + 1];
-            }
+            string outDir = global::PirateCrew.Core.CommandLineOptions.GetValue(
+                global::PirateCrew.Core.ToolFlags.UiGalleryOut);
             if (string.IsNullOrEmpty(outDir))
                 return;   // 正常启动零开销。
 

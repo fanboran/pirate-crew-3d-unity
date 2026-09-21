@@ -24,9 +24,9 @@ namespace PirateCrew.Tests
             _lastUnlockedId = null;
             _lastReward = null;
 
-            EventBus.Subscribe(CrewManagementEvents.RosterUpdated, OnRosterUpdated);
-            EventBus.Subscribe(CrewManagementEvents.CrewUnlocked, OnUnlocked);
-            EventBus.Subscribe(CrewManagementEvents.RewardGranted, OnReward);
+            EventBus.Subscribe<RosterUpdatedPayload>(CrewManagementEvents.RosterUpdated, OnRosterUpdated);
+            EventBus.Subscribe<CrewUnlockedPayload>(CrewManagementEvents.CrewUnlocked, OnUnlocked);
+            EventBus.Subscribe<CrewRewardPayload>(CrewManagementEvents.RewardGranted, OnReward);
         }
 
         [TearDown]
@@ -36,18 +36,16 @@ namespace PirateCrew.Tests
             CrewManagementApi.Reset();
         }
 
-        void OnRosterUpdated(object payload) => _rosterUpdatedCount++;
+        void OnRosterUpdated(RosterUpdatedPayload payload) => _rosterUpdatedCount++;
 
-        void OnUnlocked(object payload)
+        void OnUnlocked(CrewUnlockedPayload unlocked)
         {
-            if (payload is CrewUnlockedPayload unlocked)
-                _lastUnlockedId = unlocked.CrewId;
+            _lastUnlockedId = unlocked.CrewId;
         }
 
-        void OnReward(object payload)
+        void OnReward(CrewRewardPayload reward)
         {
-            if (payload is CrewRewardPayload reward)
-                _lastReward = reward;
+            _lastReward = reward;
         }
 
         [Test]

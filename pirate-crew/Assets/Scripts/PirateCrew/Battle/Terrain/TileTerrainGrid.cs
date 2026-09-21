@@ -29,26 +29,23 @@ namespace PirateCrew.Battle
     ///   · （Godot 版本身没有地形实现——<c>island_generator.gd</c> 是 20 行空桩，
     ///     <c>battle.tscn</c> 只有一块 50×50 的平地。它只贡献「XZ + 向上为正」这套空间约定。）
     ///
-    /// 三、<b>行号 → 高度 / 纵深（2026-09-14 定稿，取代旧的"行序直接当 Z"）</b>
+    /// 三、<b>行号 → 高度 / 纵深</b>
     ///   · <b>行号 <c>rowY</c> = 离水面的竖直高度</b>（原版 2D 侧视图的竖直轴）。每座岛（原版
     ///     <c>&lt;row&gt;</c> 行串的 4 连通域）取自己最上面一行地面格到水线的行数差，换算成该岛的
-    ///     悬浮基准高度（<c>PlatformClusterInfo.BaseHeight</c>）——原版越高的岛，3D 里浮得越高。
-    ///     换算系数与上界推导见 <c>PlatformClusterLayout.TileBlocksPerRow</c>。
+    ///     悬浮基准高度——原版越高的岛，3D 里浮得越高（旧一代 33 关的「行串 → 悬浮基准」推导随
+    ///     一代瓦片竞技场一起退役，实现只留在 git 历史里）。
     ///   · <b>纵深 <c>gridZ</c> = <c>rowY − 1</c></b>：岛在 3D 里占的 Z 范围就是它在原版里占的行范围
     ///     （"土/岩行 = 岛体厚度"）。减 1 是为了让单位的 <c>(gridX, gridY)</c> 正好落在它脚下的
     ///     地面格上（原版对象 y 是"脚底行 − 1"），使 <c>BattleController</c> 的
     ///     <c>z = (gridY + 0.5) × TileWorldSize</c>
-    ///     与 <see cref="SurfaceWorldY(int,int)"/> 同时命中同一格。详见 <c>Data/LevelTileMaps</c> 类头。
+    ///     与 <see cref="SurfaceWorldY(int,int)"/> 同时命中同一格。
     ///   · <b>每格块高</b> = 簇基准（行号给出）+ 局部 1 块（原版行串只说"这格是陆地"）。
-        ///   · ⚠ <b>2026-09-13 平台化修正（推翻"永不挖洞"）</b>：用户诉求是
-        ///     「一堆高高低低的**悬空平台**浮在海面上，平台间是水（掉落即死）」，
-        ///     故本类新增 **<see cref="PlatformMap"/> 模式**：逐格带「簇归属」，
-        ///     <c>Cluster &lt; 0</c> 的格是**水**（无地面、无碰撞，单位走上去必落水）。
-        ///     旧版「每列一个高度、全图都有基础地面」的列式数据仍被支持（构造函数的
-        ///     <c>platforms == null</c> 分支与 <see cref="Flat"/>），保证合成/兜底地形与既有 AI 用例逐值不变。
-        ///     <b>2026-09-14 起 33 关全部走平台模式</b>（原版 <c>&lt;row&gt;</c> 行串推导，见
-        ///     <c>Data/LevelTileMaps</c> 与 <c>PlatformClusterLayout.BuildFromTileMap</c>）；
-        ///     <see cref="TerrainCatalog"/> 不再为任何关卡生成列式地形（旧的 level_4/27 手抄列高表已删除）。
+        ///   · <b>{ 有地面 / 是水 } 的两种构造形态</b>：① <b>列式栅格</b>（<c>blocks</c> 全图铺底、
+        ///     0 = 基础地面）——**关卡资产走的就是这一种**，海图的站面栅格与关卡资产的高度场在
+        ///     资产里都只有这一份形态（见 <c>docs/技术/架构/关卡数据资产.md</c>）；
+        ///     ② <b>平台簇模式</b>（构造函数收 <see cref="PlatformMap"/>，逐格带簇归属、
+        ///     <c>Cluster &lt; 0</c> 的水格无地面无碰撞）——一代"悬空平台群浮在海面上"的形态，
+        ///     现役内容已无生产者，保留只为合成/兜底地形与既有 AI 用例逐值不变。
         ///     为兼容旧查询，<see cref="SurfaceWorldY(int,int)"/> 对**场内水格**仍报基础地面高度，
         ///     但游戏性查询 <see cref="SurfaceWorldYAtWorld(float,float)"/> 对水格返回
         ///     <see cref="WaterVoidY"/>（水面以下的虚空哨兵），AI 投掷模拟据此判定「落水」。

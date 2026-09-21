@@ -1,5 +1,6 @@
 using System.Collections;
 using System.IO;
+using PirateCrew.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -10,9 +11,10 @@ namespace PirateCrew.SceneKitPilot
     /// <c>-sceneKitOut &lt;绝对目录&gt;</c> 启动，本组件加载 SceneKitPilot showcase 场景，
     /// 就绪后绕拍 6 张 1280×720 PNG 落盘，完毕 <c>Application.Quit(0)</c>，失败 Quit(1)。
     ///
-    /// 【零侵入】不带该参数启动（正常游玩/测试）时 Boot 里直接返回，零开销。
-    /// 【零项目类引用】手法仿 <c>ArtReview/PlayerArtCapture</c> 但独立实现，只依赖 UnityEngine——
-    /// 本组件是"样板验收工具"，不与战斗/核心模块发生任何编译耦合。
+    /// 【零侵入】不带该参数启动（正常游玩/测试）时装配入口直接返回，零开销。
+    /// 【零战斗耦合】手法仿 <c>ArtReview/PlayerArtCapture</c> 但独立实现：除
+    /// <c>Core.CommandLineOptions</c>（命令行统一解析处）外不引用任何项目类型，
+    /// 与战斗模块零编译耦合。
     /// 查找场景节点用根对象按名扫描（仅本调试组件允许；运行时代码仍禁 GameObject.Find）。
     ///
     /// 【已知坑（教训内化）】
@@ -48,16 +50,13 @@ namespace PirateCrew.SceneKitPilot
         string _outDir;
         Camera _camera;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        static void Boot()
+        /// <summary>
+        /// 组合根接线入口（唯一入口 <c>Core/GameEntryPoint</c> 在进入播放前调用；不带开关时零开销）。
+        /// </summary>
+        [GameBootstrap(GameBootstrapPhase.Initialize, order: 110)]
+        internal static void Install()
         {
-            string outDir = null;
-            string[] args = System.Environment.GetCommandLineArgs();
-            for (int i = 0; i < args.Length - 1; i++)
-            {
-                if (args[i] == "-sceneKitOut")
-                    outDir = args[i + 1];
-            }
+            string outDir = CommandLineOptions.GetValue(ToolFlags.SceneKitOut);
             if (string.IsNullOrEmpty(outDir))
                 return;     // 正常启动：零开销，什么都不装。
 

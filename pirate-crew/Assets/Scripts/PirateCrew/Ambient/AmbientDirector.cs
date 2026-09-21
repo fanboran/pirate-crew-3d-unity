@@ -252,12 +252,13 @@ namespace PirateCrew.Ambient
             }
 
             // 现有事件契约里唯一带"世界坐标"的爆炸事件（未新增任何事件）。
-            EventBus.Subscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
-            EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
+            EventBus.Subscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Subscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
 
             // 命令行档位覆盖（-ambientTimeOfDay，见 AmbientTimeOfDayCatalog）：三档对比捕图 / 试玩
             // 验证用，优先级**高于**世界地图档（BattleController 稍后 SetTimeOfDay 会被 _cliTierOverride 拦下）。
-            string[] commandLineArgs = global::System.Environment.GetCommandLineArgs();
+            // argv 由 Core.CommandLineOptions 统一解析一次，这里只读原始 argv。
+            string[] commandLineArgs = global::PirateCrew.Core.CommandLineOptions.RawArgs;
             if (AmbientTimeOfDayCatalog.TryParseCommandLineTier(commandLineArgs, out AmbientTimeOfDay cliTier))
             {
                 timeOfDay = cliTier;
@@ -293,8 +294,8 @@ namespace PirateCrew.Ambient
 
         void Teardown()
         {
-            EventBus.Unsubscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
-            EventBus.Unsubscribe(BattleEvents.BattleStarted, OnBattleStarted);
+            EventBus.Unsubscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Unsubscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
 
             // 运行时建的天空盒材质是 DontSave 的孤儿资产，必须显式销毁（本工程资源生命周期的口径，
             // 同 _runtimeMeshes 的处理）。
@@ -360,16 +361,14 @@ namespace PirateCrew.Ambient
         // 事件
         // ------------------------------------------------------------------
 
-        void OnBattleStarted(object payload)
+        void OnBattleStarted(BattleStartedPayload payload)
         {
+            // 载荷（关卡/队伍数）不进环境逻辑，只用“一局开始”这个时机复位惊吓计时。
             _alarmFrames = 0;
         }
 
-        void OnProjectileDetonated(object payload)
+        void OnProjectileDetonated(ProjectileDetonatedPayload detonated)
         {
-            if (!(payload is ProjectileDetonatedPayload detonated))
-                return;
-
             Vector3 blast = detonated.Position;
 
             for (int i = 0; i < _gulls.Count; i++)
