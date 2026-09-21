@@ -113,5 +113,90 @@ namespace PirateCrew.EditorTools.Art
         {
             return "Point / mip off / Uncompressed(RGBA32) / sRGB on / alphaIsTransparency off";
         }
+
+        // ==================================================================
+        // UI 九宫格 Sprite 档（Beveled Pixel 族）
+        // ==================================================================
+
+        /// <summary>
+        /// Beveled Pixel UI 的九宫格 Sprite 目录（<see cref="BeveledPixelSpriteBuilder"/> 的产物）。
+        ///
+        /// 【为什么**不**把它并进 <see cref="PixelRoot"/> 约定域】<see cref="Apply"/> 把
+        /// <c>textureType</c> 定死为 <c>Default</c>——那是一张"给模型用的贴图"；
+        /// 九宫格件必须是 <c>Sprite</c>（唯一能带 <c>spriteBorder</c> 的类型）。
+        /// 一旦并进域内，后处理器会把它们改回 Default：<c>LoadAssetAtPath&lt;Sprite&gt;</c> 返回 null、
+        /// 切片边框消失、UGUI 拿到空 sprite —— **画面退化成白块但控制台一声不响**，
+        /// 正是本项目定义过的那种"改了看不出问题"型事故。
+        ///
+        /// 【那为什么还要放在这个类里】因为下面五项**必须逐字一致**（Point / 无 mip /
+        /// Uncompressed / sRGB on / alphaIsTransparency 关），它们是"像素"这件事的定义，
+        /// 不是"3D 贴图"这件事的定义。值只有一处，改一处两边都动——
+        /// 这比"各写各的、靠注释提醒保持一致"可靠得多。
+        /// </summary>
+        public const string UiSpriteFolder = "Assets/Art/Sprites/UI/Pixel";
+
+        /// <summary>UI 九宫格件的导入设置（Sprite 口径）。<paramref name="border"/> = 九宫格切片。</summary>
+        public static void ApplySprite(TextureImporter importer, Vector4 border)
+        {
+            if (importer == null)
+                return;
+
+            // ---- Sprite 专有（与 3D 贴图档的唯一差异就在这里）----
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.spritePixelsPerUnit = 100f;             // 1 贴图像素 = 1 UI 像素（StickUI 既有口径）
+            importer.spriteBorder = border;                   // 九宫格切片：四角四边不拉伸
+            importer.wrapMode = TextureWrapMode.Clamp;        // 切片件不参与平铺（与 3D 档"保持 Repeat"的分歧点）
+
+            // ---- 与 3D 贴图档逐字相同的五项（见 Expectation）----
+            importer.filterMode = FilterMode.Point;
+            importer.mipmapEnabled = false;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.sRGBTexture = true;
+            importer.alphaIsTransparency = false;
+
+            importer.SaveAndReimport();
+        }
+
+        /// <summary>
+        /// 断言 UI 九宫格件的导入设置；返回违反项清单（空 = 合规）。
+        /// 比 <see cref="Check"/> 多两条 Sprite 断言（必须是 Sprite、切片边框必须是期望值）——
+        /// 后者挡的是"贴图变了但边框没更新"这类**画面对、切片错**的静默故障。
+        /// </summary>
+        public static System.Collections.Generic.List<string> CheckSprite(TextureImporter importer, Vector4 border)
+        {
+            var problems = new System.Collections.Generic.List<string>();
+            if (importer == null)
+            {
+                problems.Add("importer 为空（AssetImporter.GetAtPath 拿不到 TextureImporter？）");
+                return problems;
+            }
+
+            if (importer.textureType != TextureImporterType.Sprite)
+                problems.Add("textureType=" + importer.textureType + "（应为 Sprite —— 否则九宫格边框不存在）");
+            if (importer.spriteImportMode != SpriteImportMode.Single)
+                problems.Add("spriteImportMode=" + importer.spriteImportMode + "（应为 Single）");
+            if (importer.spriteBorder != border)
+                problems.Add("spriteBorder=" + importer.spriteBorder + "（应为 " + border + "）");
+
+            if (importer.filterMode != FilterMode.Point)
+                problems.Add("filterMode=" + importer.filterMode + "（应为 Point）");
+            if (importer.mipmapEnabled)
+                problems.Add("mipmapEnabled=true（应为 false）");
+            if (importer.textureCompression != TextureImporterCompression.Uncompressed)
+                problems.Add("textureCompression=" + importer.textureCompression + "（应为 Uncompressed）");
+            if (!importer.sRGBTexture)
+                problems.Add("sRGBTexture=false（应为 true）");
+            if (importer.alphaIsTransparency)
+                problems.Add("alphaIsTransparency=true（应为 false —— 会把 RGB 膨胀进切角的透明像素）");
+
+            return problems;
+        }
+
+        /// <summary>UI 九宫格件的验收判据描述（与 <see cref="Expectation"/> 并列，写进报告）。</summary>
+        public static string SpriteExpectation()
+        {
+            return "Sprite(Single, 100 PPU, border 已设, Clamp) + " + Expectation();
+        }
     }
 }

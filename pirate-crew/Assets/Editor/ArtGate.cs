@@ -49,6 +49,9 @@ namespace PirateCrew.EditorTools
     ///                                    WorldKit 资产表 → 折叠为 BattleRig.prefab 实例。
     ///                                    这八步的顺序是**真实依赖**（每步读写上一步落在场景里的东西），
     ///                                    已固化成代码而不是本文档里要背的表——逐条理由见该类的 Steps。
+    ///   ⑦.5 BeveledPixelSpriteBuilder.BuildAll  UI 九宫格（像素斜面浮雕）全族重烘焙 + 判据 + 接触表。
+    ///                                    无顺序依赖（只读调色板真源、只写自己的图集目录），
+    ///                                    放这里是因为它属"资产产出"而不是"场景装配"。
     ///   ⑨ SceneSetup.BuildAll            M1 菜单 / 引导场景批量重建
     ///   ⑩ M3SceneSetup.BuildAll         M3 管理场景（它会重写 Build Settings 场景列表）
     ///   ⑪ ScenePrefabCollapse.CollapseAll **必须最后**：四个场景（Battle/MainMenu/LevelSelect/
@@ -98,6 +101,8 @@ namespace PirateCrew.EditorTools
                 new Step("⑥.5 水面障碍图烘焙（⑦ 的 WaterSimulationDriver 要引用它）", WaterAssetBuilder.BakeObstacleMap),
                 new Step("⑦ Battle 场景子链（八步：骨架→摆件→烘焙→清单→接线→WorldKit→折叠为 Prefab）",
                     BattleScenePipeline.Build),
+                new Step("⑦.5 Beveled Pixel UI 九宫格（调色板派生，纯 CPU 像素）",
+                    BeveledPixelSpriteBuilder.BuildAll),
                 new Step("⑨ M1 菜单 / 引导场景", SceneSetup.BuildAll),
                 new Step("⑩ M3 管理场景（重写 Build Settings 场景列表）", M3SceneSetup.BuildAll),
                 new Step("⑪ 四个场景折叠为 Prefab 实例（**必须在所有场景装配之后**）",
