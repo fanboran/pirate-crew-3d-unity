@@ -445,6 +445,10 @@ namespace PirateCrew.EditorTools
                 SceneNames.Battle,
                 SceneNames.CrewManagement,
                 SceneNames.LevelSelect,
+                // ToonPilot：等距像素卡通风格测试场景（步骤 2 起）。**必须留在列表里**——
+                // 本列表是幂等全量写入，漏登记会在每次跑装配链时把该场景踢出 Build Settings
+                //（实测事故：播放器 -toonPilotOut 因场景不在包内而 LoadScene 失败）。
+                "ToonPilot",
             };
 
             var scenes = new EditorBuildSettingsScene[names.Length];
