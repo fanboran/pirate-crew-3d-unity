@@ -9,6 +9,12 @@
 [Mm]emoryCaptures/
 [Rr]ecordings/
 
+# ↑ 以上 [Bb]uild/ 的意图是「Unity 构建产物目录」，但它没有锚点，会连带命中
+#   Assets/Editor/Build/（出包脚本的源码目录）。这里显式反选回来：
+#   git 的规则是「父目录被排除后无法再反选其内容」，所以反选的必须是目录本身。
+#   不要删这两行——删了 Assets/Editor/Build/ 会在 git status 里整体消失，且不报错。
+!Assets/Editor/Build/
+
 # batch 验证日志
 batch_log.txt
 
@@ -29,6 +35,10 @@ batch_log.txt
 *.unitypackage
 *.app
 sysinfo.txt
+
+# Unity MCP 的 manage_camera 默认 output_folder 会往这里落图（见 AGENTS.md「出图优先走 MCP」）。
+# 截图是过程产物，按 export/ 同款纪律不入库；要留证据的图拷进 docs/images/。
+/Assets/Screenshots/
 
 # Crashlytics
 crashlytics-build.properties

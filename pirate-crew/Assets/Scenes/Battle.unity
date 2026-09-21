@@ -4895,6 +4895,7 @@ MonoBehaviour:
   battle: {fileID: 839286156}
   turnManager: {fileID: 543906418}
   aimController: {fileID: 562070000}
+  cameraController: {fileID: 1080582936}
   teamBarRed:
     root: {fileID: 935905765}
     segmentRoot: {fileID: 935905766}
@@ -9912,6 +9913,7 @@ MonoBehaviour:
   cameraTarget: {fileID: 1130113475}
   fallbackCamera: {fileID: 1192617690}
   battle: {fileID: 839286156}
+  aimThrow: {fileID: 562070000}
   focusLerpPerSecond: 6
   activePriority: 20
   enableShake: 1
@@ -12471,6 +12473,7 @@ MonoBehaviour:
   splashFoam: 0.35
   heightEncodeScale: 0.5
   obstacleMap: {fileID: 2800000, guid: 983f919b10a04c044829e8f4f7ed57aa, type: 3}
+  sunLight: {fileID: 991509684}
 --- !u!114 &1304573459
 MonoBehaviour:
   m_ObjectHideFlags: 0
