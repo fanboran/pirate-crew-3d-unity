@@ -1,0 +1,194 @@
+# Pirate Crew 3D · CI
+#
+# 【本文件的状态：未验证】这份 workflow 从来没有在 GitHub 上跑过（本仓库此前没有任何 .github/）。
+# 本机也没有 Docker / GitHub Runner，所以**无法在本机证明它是绿的**。已经做过的验证只有语法：
+#   npx --yes js-yaml .github/workflows/ci.yml    # 解析通过，无报警
+# 首次推送后请按 docs/项目/构建与发布手册.md「CI 配置与 secrets」一节的步骤逐项核对。
+# ★ 特别注意两个可能第一次就红的位置：
+#   1) unity-builder 的 `buildMethod` 自定义构建法（本仓库的出包入口）是否被 game-ci 正确透传；
+#      若报「找不到构建方法」，改为让 unity-builder 走默认方法，或改用 unity-test-runner 同款
+#      「直接调 Unity.exe -executeMethod」的写法。
+#   2) Linux runner 构建 Windows 播放器需要镜像里带 Windows Build Support 模块。
+# 这两点都在文档里按「未验证」登记，不要当成已知可用。
+#
+# 【三个 job 的分工】
+#   repo-gates   —— 不需要 Unity、不需要 license、几十秒。版本号漂移 / 发行场景集漏场景 /
+#                   缺 .meta 这三类问题在这里拦下（脚本 .github/scripts/repo_gates.py，
+#                   本机可跑：python .github/scripts/repo_gates.py all）。
+#   unity-tests  —— 干净机器上复现 EditMode + PlayMode 门禁（对应总纲 §5 判据）。
+#   build-windows—— 出包，只在手动触发或推 v* tag 时跑（一次几十分钟，不该每次 push 都烧）。
+#
+# 【本机环境 vs CI 环境的差异（必须知道）】
+#   本机：Windows + Unity 2022.3.62f1c1（路径 F:/Unity/2022.3.62f1c1/Editor/Unity.exe）+ 只装了
+#         Mono 脚本后端（无 Windows IL2CPP 模块）+ 无头验证台 external/m2-harness（不入库）。
+#   CI ：Ubuntu runner + game-ci 的 unityci/editor 镜像 + license 从 secrets 注入。
+#   两个直接后果：
+#     · 无头验证台（external/m2-harness/*.csproj）**在 CI 里跑不了**——它用 HintPath 指向本机
+#       F:\Unity\... 的 UnityEngine/UnityEditor DLL。所以 CI 的静态 job 用纯文本门禁（repo-gates）
+#       替代，而不是假装能在云上编译 Unity 程序集。
+#     · 本机默认的 Mono 后端与 CI 镜像提供的模块不一定一致；出包 job 故意不指定
+#       -buildScriptingBackend，让两边都用各自的缺省，差异由产物报告记录（构建报告里如实写后端）。
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "refactor/**"
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build_flavor:
+        description: "出包档（release = 发行档，development = 带调试符号）"
+        required: false
+        default: release
+        type: choice
+        options:
+          - release
+          - development
+
+# 同一分支上后一次推送取消前一次：CI 是给当前代码要结论，不排队等历史提交。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UNITY_VERSION: 2022.3.62f1c1
+  PROJECT_PATH: pirate-crew
+
+jobs:
+  # ------------------------------------------------------------------
+  # 不需要 Unity 的静态门禁：便宜、快、且拦的都是最难在事后发现的问题
+  # ------------------------------------------------------------------
+  repo-gates:
+    name: 仓库门禁（纯文本，无需 Unity）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 版本号单一真源
+        run: python .github/scripts/repo_gates.py version
+
+      - name: 发行场景集交叉校验
+        run: python .github/scripts/repo_gates.py scenes
+
+      - name: 仓库卫生（行尾策略 / .meta 配对 / IDE 产物）
+        run: python .github/scripts/repo_gates.py hygiene
+
+  # ------------------------------------------------------------------
+  # Unity 门禁：EditMode + PlayMode（总纲 §5 的两条判据）
+  # ------------------------------------------------------------------
+  unity-tests:
+    name: Unity 测试（${{ matrix.testMode }}）
+    needs: repo-gates
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        testMode:
+          - EditMode
+          - PlayMode
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT_PATH }}/Library
+          key: Library-${{ env.PROJECT_PATH }}-${{ env.UNITY_VERSION }}-${{ hashFiles(format('{0}/Packages/manifest.json', env.PROJECT_PATH)) }}
+          restore-keys: |
+            Library-${{ env.PROJECT_PATH }}-${{ env.UNITY_VERSION }}-
+            Library-${{ env.PROJECT_PATH }}-
+
+      # secrets 清单见 docs/项目/构建与发布手册.md「CI 配置与 secrets」。
+      # Personal 用 UNITY_LICENSE；Plus/Pro 用 UNITY_EMAIL + UNITY_PASSWORD + UNITY_SERIAL。
+      # 三个都留空则本 job 一定失败——这不是 bug，是「没有 license 就无法跑 Unity」的事实。
+      - uses: game-ci/unity-test-runner@v4
+        id: tests
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: ${{ env.PROJECT_PATH }}
+          unityVersion: ${{ env.UNITY_VERSION }}
+          testMode: ${{ matrix.testMode }}
+          artifactsPath: test-results-${{ matrix.testMode }}
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: ${{ matrix.testMode }} 测试结果
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.testMode }}
+          path: ${{ steps.tests.outputs.artifactsPath }}
+          retention-days: 14
+
+  # ------------------------------------------------------------------
+  # 出包：与总纲 §5 的「出包 = exit 0 + 产物存在」同一条判据
+  # ------------------------------------------------------------------
+  build-windows:
+    name: 出包 Windows64
+    needs: unity-tests
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT_PATH }}/Library
+          key: Library-${{ env.PROJECT_PATH }}-${{ env.UNITY_VERSION }}-${{ hashFiles(format('{0}/Packages/manifest.json', env.PROJECT_PATH)) }}
+          restore-keys: |
+            Library-${{ env.PROJECT_PATH }}-${{ env.UNITY_VERSION }}-
+            Library-${{ env.PROJECT_PATH }}-
+
+      # 版本号不从 workflow 传：真源是 BuildVersion.cs 的 Current（见 docs/项目/构建与发布手册.md）。
+      # CI 只注入「这次构建来自哪个 commit / 哪个分支」——那是 CI 才知道、仓库里读不到的信息。
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: ${{ env.PROJECT_PATH }}
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: StandaloneWindows64
+          buildMethod: PirateCrew.EditorTools.BuildSystem.BuildScript.BuildFromCommandLineArgs
+          customParameters: >-
+            -buildFlavor ${{ github.event.inputs.build_flavor || 'release' }}
+            -buildCommit ${{ github.sha }}
+            -buildBranch ${{ github.ref_name }}
+            -buildOutput build/win64
+          allowDirtyBuild: true
+
+      # 构建报告（json + md）随产物一起上传：报告里有 commit、场景清单、体积、耗时、
+      # 本次强制写入的 PlayerSettings——出问题时它是第一手证据。
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-windows64-report
+          path: |
+            build/win64/build-report.json
+            build/win64/build-report.md
+          retention-days: 14
+          if-no-files-found: warn
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: PirateCrew3D-win64
+          path: |
+            build/win64/**
+            build/*.zip
+          retention-days: 14
