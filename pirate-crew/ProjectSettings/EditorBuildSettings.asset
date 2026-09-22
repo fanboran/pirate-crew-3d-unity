@@ -26,4 +26,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/ToonPilot.unity
     guid: 7ca1c2d57dffd1642a24e1d1de82ab62
+  - enabled: 1
+    path: Assets/Scenes/PixelartCloud.unity
+    guid: 32cb3f0ba847add4f87c21b83a7d0382
   m_configObjects: {}

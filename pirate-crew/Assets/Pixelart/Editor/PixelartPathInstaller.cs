@@ -321,7 +321,7 @@ namespace PirateCrew.EditorTools
             var colors = new List<Color>();
             var seen = new HashSet<string>();
 
-            string[] guids = AssetDatabase.FindAssets("t:Material", new[] { "Assets/Art/Materials/Pixelart" });
+            string[] guids = AssetDatabase.FindAssets("t:Material", new[] { PixelartStageKit.MaterialFolder });
             for (int i = 0; i < guids.Length; i++)
             {
                 string path = AssetDatabase.GUIDToAssetPath(guids[i]);
@@ -338,7 +338,7 @@ namespace PirateCrew.EditorTools
             if (colors.Count == 0)
             {
                 Debug.LogWarning("[PixelartPathInstaller] 没扫到任何本路径材质（"
-                    + "Assets/Art/Materials/Pixelart）——调色板会是空的，调色板那一趟自动跳过。"
+                    + PixelartStageKit.MaterialFolder + "）——调色板会是空的，调色板那一趟自动跳过。"
                     + "先跑 PixelartPilotSetup.BuildAll 造材质再重跑本装配器。");
                 return null;
             }

@@ -31,7 +31,7 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class DitherPatternBaker
     {
-        const string OutputFolder = "Assets/Art/Textures/Fx/Dither";
+        const string OutputFolder = "Assets/Pixelart/Textures/Dither";
 
         /// <summary>
         /// 九张图案的位图（'1' = 亮纹素 → 纹理值 255；'0' = 暗纹素 → 0）。

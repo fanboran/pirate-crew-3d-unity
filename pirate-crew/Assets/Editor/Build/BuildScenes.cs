@@ -54,6 +54,13 @@ namespace PirateCrew.EditorTools.BuildSystem
         public const string PixelartPilot = "PixelartPilot";
 
         /// <summary>
+        /// 云彩关像素化试点场景（L01 真实内容走本路径）：开发/测试专用，**不进发行包**。
+        /// 它是 <c>-pixelartOut -pixelartCloud</c> 出图入口的载体，装配器见
+        /// <c>PixelartCloudPilotSetup</c>，只影响观感裁决，不影响主战斗场景。
+        /// </summary>
+        public const string PixelartCloud = "PixelartCloud";
+
+        /// <summary>
         /// 发行场景集（顺序即包内 index，必须 <c>[0] = Bootstrapper</c>）。
         /// 名字一律取自 <see cref="SceneNames"/>——那些常量是运行时 <c>SceneLoader.ChangeScene</c> 的入参，
         /// 只有共用同一批常量，<see cref="Validate"/> 才能证明「运行时会切到的场景都在包里」。
@@ -72,6 +79,7 @@ namespace PirateCrew.EditorTools.BuildSystem
         {
             ToonPilot,
             PixelartPilot,
+            PixelartCloud,
         };
 
         /// <summary>发行场景集的场景名（只读视图，顺序即包内 index）。</summary>

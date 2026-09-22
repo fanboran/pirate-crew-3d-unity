@@ -78,16 +78,16 @@ namespace PirateCrew.Rendering.Pixelart
         // ==================== 资产路径（装配器用；资产名也必须集中）====================
 
         /// <summary>shader 资产目录。</summary>
-        public const string ShaderFolder = "Assets/Art/Shaders/Pixelart";
+        public const string ShaderFolder = "Assets/Pixelart/Shaders";
 
         /// <summary>连通域 compute 资产目录。</summary>
-        public const string ConnectivityComputeFolder = "Assets/Art/Compute/Connectivity";
+        public const string ConnectivityComputeFolder = "Assets/Pixelart/Compute/Connectivity";
 
         /// <summary>其余 compute 资产目录。</summary>
-        public const string ComputeFolder = "Assets/Art/Compute";
+        public const string ComputeFolder = "Assets/Pixelart/Compute";
 
         /// <summary>调色板资产路径（装配器按场景材质色生成并写在这里）。</summary>
-        public const string PaletteAssetPath = "Assets/Settings/Pixelart/Palette.asset";
+        public const string PaletteAssetPath = "Assets/Pixelart/Palette/Palette.asset";
 
         /// <summary>渲染器资产所在目录（装配器创建，本路径专用）。</summary>
         public const string RendererFolder = "Assets/Settings/URP";

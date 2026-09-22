@@ -6,6 +6,8 @@ using UnityEngine.SceneManagement;
 // 类型别名：本文件多处要用试点场景的取景常量（俯角/可见米数/机位方向），
 // 全限定写太长、直接 using 整个命名空间又怕与既有类型重名，故用同类别名。
 using PixelartPilotScene = PirateCrew.Rendering.Pixelart.PixelartPilotScene;
+// 云彩关试点场景的取景常量（`-pixelartCloud` 档用；两场景共用俯角/方位/机位距离）。
+using PixelartCloudScene = PirateCrew.Rendering.Pixelart.PixelartCloudScene;
 
 namespace PirateCrew.ArtReview
 {
@@ -43,6 +45,9 @@ namespace PirateCrew.ArtReview
 
         /// <summary>像素化着色路径试点场景名（取自共享常量，装配器与出图脚本同一个来源）。</summary>
         const string PixelartPilotSceneName = global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.SceneName;
+
+        /// <summary>云彩关像素化试点场景名（`-pixelartCloud` 档；内容 = L01 真实云场 + 真实出生表）。</summary>
+        const string PixelartCloudSceneName = global::PirateCrew.Rendering.Pixelart.PixelartCloudScene.SceneName;
 
         /// <summary>爆炸机位名（与 <c>ArtReviewShots</c> 的 slug 保持一致）。</summary>
         const string ExplosionShotName = "explosion-moment";
@@ -120,6 +125,10 @@ namespace PirateCrew.ArtReview
             {
                 outDir = pixelartOut;
                 PixelartMode = true;
+                // 【拍哪个场景】默认 `PixelartPilot`（图元几何，验机制）；加 `-pixelartCloud` 改拍
+                // `PixelartCloud`（云彩关真实内容，验"这套观感用在真关卡上"）。两个档共用同一条
+                // 采集流程与同一个判据脚本，只有场景名/构图中心/档位表不同。
+                PixelartCloudMode = CommandLineOptions.Has(ToolFlags.PixelartCloud);
             }
 
             // 多关卡出图验收：覆盖 BattleController 的关卡解析（见 ArtReviewCaptureOverride）。
@@ -142,6 +151,9 @@ namespace PirateCrew.ArtReview
 
         /// <summary>-pixelartOut 模式标记：进 PixelartPilot 试点场景出图（像素化着色路径）。</summary>
         public static bool PixelartMode { get; private set; }
+
+        /// <summary>-pixelartCloud 模式标记：`-pixelartOut` 改拍云彩关试点场景 PixelartCloud。</summary>
+        public static bool PixelartCloudMode { get; private set; }
 
         IEnumerator Start()
         {
@@ -339,52 +351,12 @@ namespace PirateCrew.ArtReview
         /// 正交 size 与"推进系数"。曾经两边各写一份（场景 35.264°、脚本 30°），
         /// 那张"30° 对照图"根本不是同一场景的机位，比对结论全是错的。
         /// </summary>
-        IEnumerator RunPixelartCapture()
+        /// <summary>
+        /// 试点场景（图元几何）的档位表：宽/中/近三档 + 抖动两范式 + 边缘光 + 降档 A/B + 五张调试缓冲。
+        /// </summary>
+        static (string name, float visibleMeters, float zoom, int ditherMode, float ditherStrength, int debugMode)[] PilotShots()
         {
-            SceneManager.LoadScene(PixelartPilotSceneName, LoadSceneMode.Single);
-            yield return null;
-            if (SceneManager.GetActiveScene().name != PixelartPilotSceneName)
-            {
-                Debug.LogError("[PlayerArtCapture] PixelartPilot 场景加载失败（Build Settings 未注册？），当前："
-                    + SceneManager.GetActiveScene().name);
-                Application.Quit(1);
-                yield break;
-            }
-
-            // 等 rig 首帧分配缓冲 + 相机 snap + 光全局下发完成。
-            yield return new WaitForSeconds(1.5f);
-
-            Camera cam = Camera.main;
-            if (cam == null)
-            {
-                Debug.LogError("[PlayerArtCapture] PixelartPilot 场景里找不到 MainCamera。");
-                Application.Quit(1);
-                yield break;
-            }
-
-            var rig = cam.GetComponent<global::PirateCrew.Rendering.Pixelart.PixelartCameraRig>();
-            if (rig == null)
-            {
-                Debug.LogError("[PlayerArtCapture] 相机上没有 PixelartCameraRig——这条路没被装配。");
-                Application.Quit(1);
-                yield break;
-            }
-
-            // 机位口径取自共享常量（场景装配用的是同一份）。
-            Vector3 target = global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.Target;
-            Vector3 orbitDir = global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.CameraDirection(
-                global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.PitchDegrees,
-                global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.AzimuthDegrees);
-            const float cameraDistance = global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.CameraDistance;
-
-            Directory.CreateDirectory(_outDir);
-
-            // (文件名, 可见高度(米), 推进系数, 抖动图案 -1=不动/0=Bayer/1=密度图案, 抖动幅度, 调试档)
-            // 【可见高度列】机位按"看得见多少米"给，与屏幕分辨率解耦；rig 会把它换算成
-            // "每艺术像素多少米"，再由艺术像素数（= 屏幕 ÷ 放大倍数）推出正交 size
-            // ⇒ **分辨率越高看到的范围越大**（1080p 宽机位 28m、1440p 同一档 37m）。
-            // 【调试档列】0 = 正常；1/2/3 = 直接吐 albedo/法线/逐物体参数缓冲（拆管线排查用）。
-            (string name, float visibleMeters, float zoom, int ditherMode, float ditherStrength, int debugMode)[] shots =
+            return new (string, float, float, int, float, int)[]
             {
                 ("pa-wide",        PixelartPilotScene.WideVisibleMeters,  1.0f, -1, 0f, 0),
                 ("pa-mid",         PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 0),
@@ -402,8 +374,84 @@ namespace PirateCrew.ArtReview
                 ("dbg-outline",    PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 4),
                 ("dbg-connect",    PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 5),
             };
+        }
 
-            LogCrewRenderersOnce();
+        /// <summary>
+        /// 云彩关档位表（真实内容）：三档取景 + 一张抖动态 + 两张调试缓冲。
+        ///
+        /// 【为什么表比试点短】试点那张表是**机制验收**用的（抖动两范式对照、边缘光通路、降档 A/B、
+        /// 五种调试缓冲）；云彩关那张表是**观感裁决**用的——它只需要回答"整片云场、云上的船员、
+        /// 台柱与描边的细节"三件事，外加"墨线/色带缓冲是不是正常"两张证据图。
+        /// 机制那一层已经在试点场景验过，不在这里重复。
+        /// </summary>
+        static (string name, float visibleMeters, float zoom, int ditherMode, float ditherStrength, int debugMode)[] CloudShots()
+        {
+            return new (string, float, float, int, float, int)[]
+            {
+                ("pc-wide",       PixelartCloudScene.WideVisibleMeters,  1.0f, -1, 0f, 0),
+                ("pc-mid",        PixelartCloudScene.MidVisibleMeters,   0.6f, -1, 0f, 0),
+                ("pc-close",      PixelartCloudScene.CloseVisibleMeters, 0.6f, -1, 0f, 0),
+                // 密度图案那一档：云台是大面积同色块，v3 口径的 1-bit 密度图案在这里比试点更能看出好坏。
+                ("pc-mid-density", PixelartCloudScene.MidVisibleMeters,  0.6f,  1, 1.0f, 0),
+                ("pc-dbg-albedo",  PixelartCloudScene.MidVisibleMeters,  0.6f, -1, 0f, 1),
+                ("pc-dbg-outline", PixelartCloudScene.MidVisibleMeters,  0.6f, -1, 0f, 4),
+            };
+        }
+
+        IEnumerator RunPixelartCapture()
+        {
+            // 【拍哪个场景】`-pixelartCloud` ⇒ 云彩关（真实内容）；否则试点（图元几何）。
+            string sceneName = PixelartCloudMode ? PixelartCloudSceneName : PixelartPilotSceneName;
+            SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
+            yield return null;
+            if (SceneManager.GetActiveScene().name != sceneName)
+            {
+                Debug.LogError("[PlayerArtCapture] " + sceneName + " 场景加载失败（Build Settings 未注册？），当前："
+                    + SceneManager.GetActiveScene().name);
+                Application.Quit(1);
+                yield break;
+            }
+
+            // 等 rig 首帧分配缓冲 + 相机 snap + 光全局下发完成。
+            yield return new WaitForSeconds(1.5f);
+
+            Camera cam = Camera.main;
+            if (cam == null)
+            {
+                Debug.LogError("[PlayerArtCapture] " + sceneName + " 场景里找不到 MainCamera。");
+                Application.Quit(1);
+                yield break;
+            }
+
+            var rig = cam.GetComponent<global::PirateCrew.Rendering.Pixelart.PixelartCameraRig>();
+            if (rig == null)
+            {
+                Debug.LogError("[PlayerArtCapture] 相机上没有 PixelartCameraRig——这条路没被装配。");
+                Application.Quit(1);
+                yield break;
+            }
+
+            // 机位口径取自共享常量（场景装配用的是同一份）——**不是本脚本自己摆的**。
+            Vector3 target = PixelartCloudMode
+                ? global::PirateCrew.Rendering.Pixelart.PixelartCloudScene.Target
+                : global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.Target;
+            Vector3 orbitDir = global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.CameraDirection(
+                global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.PitchDegrees,
+                global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.AzimuthDegrees);
+            const float cameraDistance = global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.CameraDistance;
+
+            Directory.CreateDirectory(_outDir);
+
+            // (文件名, 可见高度(米), 推进系数, 抖动图案 -1=不动/0=Bayer/1=密度图案, 抖动幅度, 调试档)
+            // 【可见高度列】机位按"看得见多少米"给，与屏幕分辨率解耦；rig 会把它换算成
+            // "每艺术像素多少米"，再由艺术像素数（= 屏幕 ÷ 放大倍数）推出正交 size
+            // ⇒ **分辨率越高看到的范围越大**（1080p 宽机位 28m、1440p 同一档 37m）。
+            // 【调试档列】0 = 正常；1/2/3 = 直接吐 albedo/法线/逐物体参数缓冲（拆管线排查用）。
+            (string name, float visibleMeters, float zoom, int ditherMode, float ditherStrength, int debugMode)[] shots =
+                PixelartCloudMode ? CloudShots() : PilotShots();
+
+            // 船员 renderer 的期望条数 = 角色数 × 2（Body + Head）：试点 2 人、云彩关 7 人。
+            LogCrewRenderersOnce(PixelartCloudMode ? 7 * 2 : 2 * 2);
 
             foreach (var shot in shots)
             {
@@ -457,7 +505,7 @@ namespace PirateCrew.ArtReview
         /// 从编辑器侧看一切正常会把排查带偏，所以要一份**运行期**的读数：
         /// 活动/启用状态、世界包围盒、材质、层、以及它会走哪个渲染队列。
         /// </summary>
-        static void LogCrewRenderersOnce()
+        static void LogCrewRenderersOnce(int expectedRenderers)
         {
             var report = new System.Text.StringBuilder("[PlayerArtCapture] 角色 renderer 运行期读数：");
             int found = 0;
@@ -494,7 +542,8 @@ namespace PirateCrew.ArtReview
                     t = t.parent;
                 }
             }
-            report.Append("\n    共 ").Append(found).Append(" 个（期望 4 = 2 角色 × Body+Head）");
+            report.Append("\n    共 ").Append(found).Append(" 个（期望 ").Append(expectedRenderers)
+                .Append(" = 角色数 × Body+Head）");
             global::PirateCrew.Core.Log.Info(report.ToString());
         }
 

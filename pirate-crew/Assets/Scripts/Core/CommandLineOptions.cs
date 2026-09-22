@@ -173,6 +173,13 @@ namespace PirateCrew.Core
         /// </summary>
         public const string PixelartOut = "-pixelartOut";
 
+        /// <summary>
+        /// `-pixelartOut` 的场景切换：<c>-pixelartCloud</c>（无值，出现即生效）⇒ 改拍
+        /// <c>PixelartCloud</c>（云彩关 L01 真实内容：云场 + 落水危险线 + 按关卡出生表摆的 7 个船员）。
+        /// 不带它时拍 <c>PixelartPilot</c>（图元几何，验机制）。两个档共用同一条采集流程与判据脚本。
+        /// </summary>
+        public const string PixelartCloud = "-pixelartCloud";
+
         /// <summary>场景资产样板出图目录：<c>-sceneKitOut &lt;绝对目录&gt;</c>。</summary>
         public const string SceneKitOut = "-sceneKitOut";
 

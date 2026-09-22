@@ -159,6 +159,12 @@ DOWNGRADE_AB_MIN_DIFF = 0.001 # 连通域降档 A/B 的最小像素差异率（�
 OUTLINE_VIEW_MIN_PIXELS = 200 # dbg-outline 视图里黑像素（= 墨线）的下限
 CONNECT_MIN_DISTINCT = 3      # dbg-connect 视图里 r 通道（连通比例）的不同取值数下限
 
+# 云彩关（`pc-*`）专属：画面里"云"的占比下限。
+# 【为什么这条判得动】云的 albedo 是暖白/淡金（色相 ≈ 43°）、海面是蓝（色相 ≈ 205°）、
+# 阵营红是 357°——三者色相分得很开，所以"云到底在不在画面里"可以用色相统计客观量出来。
+# 它防的是"云场件没摆进来/被摆到镜头外/材质还是旧链的"这类静默失败（画面会是一片海）。
+CLOUD_MIN_SHARE = 0.10
+
 
 def ink_metrics(a, radius):
     """描边的两条硬指标（口径与 tools/pixel-review/ink_gap_probe.py 同一套）。
@@ -311,7 +317,9 @@ def judge_one(path, pixel_scale):
     notes = []
     # 调试档（dbg-*）是**中间缓冲**的直接视图：albedo/参数缓冲按设计就是平涂、法线缓冲按设计满是跳变，
     # 所以除块边长外的四项判据在它们身上不成立，只判块边长（否则会把"设计如此"误报成故障）。
-    is_debug_view = name.startswith("dbg-")
+    # 【为什么是"含"不是"以...开头"】云彩关那套档位用场景前缀命名（`pc-dbg-albedo`），
+    # 用 startswith 会把它们当成最终画面、拿观感判据去量中间缓冲（平涂是设计如此，必假报）。
+    is_debug_view = "dbg-" in name
     # 调试视图是**中间缓冲的直接视图**（数据不是最终画面）：块边长这条只对最终出图判——
     # 中间缓冲本来就可能是平涂的（逐物体参数那张就是），拿"块对齐"去量它会把设计如此报成故障。
     # 最终出图的块边长仍由 pa-* 硬判（那才是像素化的验收对象）。
@@ -422,8 +430,71 @@ def main(argv):
     print("---")
     failures += judge_outline_closure(files, scale)
     failures += judge_downgrade_ab(files)
+    failures += judge_cloud_presence(files)
     print("结论：" + ("全部核心判据通过" if failures == 0 else "%d 项 FAIL" % failures))
     return 0 if failures == 0 else 1
+
+
+def _hsv(a):
+    """整图 → (色相 0..360, 饱和度 0..1, 明度 0..1) 三个数组。
+
+    【为什么用色相而不是"离某个 RGB 多远"】云的亮面会被色带量化 + 环境光染色，
+    RGB 距离法在暗档上必然失准；色相在"乘一个亮度系数"下不变，是这类判据里最稳的那一维。
+    """
+    f = a.astype(np.float64) / 255.0
+    r, g, b = f[:, :, 0], f[:, :, 1], f[:, :, 2]
+    mx = np.max(f, axis=2)
+    mn = np.min(f, axis=2)
+    diff = mx - mn
+    safe = np.maximum(mx, 1e-6)
+    sat = np.where(mx > 1e-6, diff / safe, 0.0)
+    hue = np.zeros_like(mx)
+    nz = diff > 1e-6
+    is_r = nz & (mx == r)
+    is_g = nz & (mx == g) & ~is_r
+    is_b = nz & (mx == b) & ~is_r & ~is_g
+    hue[is_r] = (60.0 * ((g - b) / np.where(nz, diff, 1.0)))[is_r] % 360.0
+    hue[is_g] = (60.0 * ((b - r) / np.where(nz, diff, 1.0)) + 120.0)[is_g]
+    hue[is_b] = (60.0 * ((r - g) / np.where(nz, diff, 1.0)) + 240.0)[is_b]
+    return hue, sat, mx
+
+
+def judge_cloud_presence(files):
+    """云彩关（`pc-*`）专属：证"云台在场"。
+
+    【这条判据防什么】云场件没摆进来、被摆到镜头外、或材质没换成暖白/淡金——三种都会让
+    画面变成"一片海加几个小人"，而从判据表上的块边长/平坦度/色数**全都看不出来**
+    （像素化本身完全正常）。所以单列一条：低分辨率画面里暖色（云）的占比必须过线。
+    """
+    targets = [p for p in files
+               if os.path.basename(p) in ("pc-wide.png", "pc-mid.png")]
+    if not targets:
+        print("（跳过云场在场判据：需要 pc-wide / pc-mid 两张图；本轮是试点场景的档位）")
+        return 0
+
+    failures = 0
+    for path in targets:
+        img = Image.open(path).convert("RGB")
+        a = np.asarray(img).astype(int)
+        # 块边长先夹一次：`low_res_view` 按块边长取块心，块边长接近图高时会取成空图
+        # （检测失败时报的是 0，那种图上抽低分辨率域等于原图）。
+        b_raw = block_size(img)
+        b = b_raw if 2 <= b_raw <= min(a.shape[0], a.shape[1]) // 8 else 1
+        lr = low_res_view(a, b)
+        hue, sat, val = _hsv(lr)
+        # 云：暖色相 + 有一定明度（云的暗面也是暖白 × 环境光，明度不会掉到海面那一档）。
+        cloud = (hue >= 20.0) & (hue <= 75.0) & (sat >= 0.03) & (val >= 0.40)
+        sea = (hue >= 170.0) & (hue <= 240.0) & (sat >= 0.15)
+        share = float(cloud.mean())
+        name = os.path.basename(path)
+        line = "    云场占比 %.1f%% / 海面占比 %.1f%%" % (share * 100.0, float(sea.mean()) * 100.0)
+        if share < CLOUD_MIN_SHARE:
+            print("FAIL %s " % name + line + "（云占比 < %.0f%% ⇒ 云场没进画面/没换成暖色）"
+                  % (CLOUD_MIN_SHARE * 100.0))
+            failures += 1
+        else:
+            print("OK   %s %s" % (name, line))
+    return failures
 
 
 def judge_downgrade_ab(files):

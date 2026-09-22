@@ -31,7 +31,7 @@ namespace PirateCrew.Rendering.Pixelart
     public sealed class PixelartPalette : ScriptableObject
     {
         /// <summary>烘焙用 compute 的固定路径（`CreateFromColors` 在编辑器里按它自动写引用）。</summary>
-        public const string BakeComputeAssetPath = "Assets/Art/Compute/Palette/PaletteGenerationCIEDE.compute";
+        public const string BakeComputeAssetPath = "Assets/Pixelart/Compute/Palette/PaletteGenerationCIEDE.compute";
 
         /// <summary>烘焙 kernel 名（`PaletteGenerationCIEDE.compute` 里 `#pragma kernel Main`）。</summary>
         public const string BakeKernelName = "Main";
