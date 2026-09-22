@@ -46,9 +46,10 @@ namespace PirateCrew.Battle
     ///   **俯角锁 <see cref="OrthoPitchDegrees"/> 30° + 方位可自由旋转**：右键拖拽环绕只改方位角，
     ///   俯角没有任何输入路径（观察模式的自由俯仰是主动调试出口）；
     ///   中键自由锚与观察模式（我的世界式自由视角）保留为调试出口。
-    ///   开局与每次换行动单位进入**跟随特写档**（size <see cref="CloseUpOrthoSize"/>），
+    ///   开局与每次换行动单位进入**基准机位**（size <see cref="CloseUpOrthoSize"/>），
     ///   lookAt 抬高 = 单位视觉高 1.85 × <see cref="LookAtHeightRatio"/> 0.65 ≈ 1.20。
-    ///   滚轮按整数档缩放 OrthoSize，夹 [<see cref="MinOrthoSize"/>, <see cref="MaxOrthoSize"/>]。
+    ///   **没有滚轮缩放（创始人裁决 2026-09-23，说了两遍）**：相机取景恒为基准机位；
+    ///   以后说"缩放"只指像素比例（PixelScale 3:1 → 4:1/5:1/2:1），画面长相恒定。
     ///
     /// 【旧透视口径（距离档位 12/30/160 + 30°↔45°↔55° 俯角插值 + FOV 特效）已于 2026-09-21
     ///   随等距像素卡通切换退役】；Scope 瞄准/推近/旁观等"FOV 特效"以**当量比率**映射到
@@ -154,8 +155,8 @@ namespace PirateCrew.Battle
         [SerializeField] float drownDipWorldUnits = CameraFeelRules.DrownDipWorldUnits;
 
         [Header("玩家相机微操（等距口径：俯角锁 30° + 右键方位环绕；滚轮整数档缩放 OrthoSize；观察模式/中键自由锚为调试出口）")]
-        [Tooltip("滚轮缩放（OrthoSize 整数档，夹在 [MinOrthoSize, MaxOrthoSize] 常量内）。默认开。")]
-        [SerializeField] bool enableManualZoom = true;
+        [Tooltip("【已退役 2026-09-23（无滚轮缩放裁决）】保留序列化兼容，运行期不再读取。")]
+        [SerializeField] bool enableManualZoom = false;
 
         [Tooltip("观察模式/环绕遗留的鼠标灵敏度（度/单位 Mouse X）。")]
         [SerializeField] float orbitDegreesPerMouseUnit = 3f;
@@ -188,21 +189,25 @@ namespace PirateCrew.Battle
         /// </summary>
         public const float OrthoPitchDegrees = PixelartPilotScene.PitchDegrees;
 
-        /// <summary>特写档 OrthoSize（正交半高，世界单位，整数）。开局/换行动单位的默认机位：
-        /// RT 高 360px 下 1u ≈ 36px，单位 1.85u ≈ 67px（判据 A-2 的 ≥25px 富余充足）。</summary>
-        public const int CloseUpOrthoSize = 5;
+        /// <summary>
+        /// **基准机位 OrthoSize（正交半高；唯一取景档）= 可见 14 m**——中机位口径（r12 取景表）。
+        /// 创始人裁决 2026-09-23：**没有滚轮缩放**，相机取景恒为这一档；以后说"缩放"只指
+        /// 像素比例（PixelScale 3:1 → 4:1/5:1/2:1，画面长相恒定）。**要改基准只动这一个数。**
+        /// </summary>
+        public const int CloseUpOrthoSize = 7;
 
         /// <summary>全场档 OrthoSize：纵向 2×17=34u 覆盖样板关 30u 全场；与旧透视全场档
-        /// （距离 30 + FOV 60 → 等效半高 30×tan30° ≈ 17.3）同量级取整。</summary>
+        /// （距离 30 + FOV 60 → 等效半高 30×tan30° ≈ 17.3）同量级取整。
+        /// 【2026-09-23 起退役为内部基准捕获值】输入侧已无滚轮，玩家不再可达此档。</summary>
         public const int FullFieldOrthoSize = 17;
 
-        /// <summary>滚轮前推最近档（整数；再近单位贴脸、RT 下像素过粗）。</summary>
+        /// <summary>【已退役 2026-09-23（无滚轮缩放裁决）】仅留存防历史测试引用断链，不得新用。</summary>
         public const int MinOrthoSize = 3;
 
-        /// <summary>滚轮后拉最远档（整数；覆盖世界图全景跨度）。</summary>
+        /// <summary>【已退役 2026-09-23（无滚轮缩放裁决）】仅留存防历史测试引用断链，不得新用。</summary>
         public const int MaxOrthoSize = 60;
 
-        /// <summary>滚轮每格缩放的 OrthoSize 步进（整数档——像素网格在世界空间对齐的前提）。</summary>
+        /// <summary>【已退役 2026-09-23（无滚轮缩放裁决）】仅留存防历史测试引用断链，不得新用。</summary>
         public const int OrthoZoomStep = 1;
 
         /// <summary>全景档 OrthoSize = clamp(round(span × 0.3), 全场档, 60)：span 100u → 30、160u → 48。</summary>
@@ -1201,19 +1206,8 @@ namespace PirateCrew.Battle
                 UpdateObserveFly();
             }
 
-            // 滚轮缩放 OrthoSize（整数档）；炮台瞄准时滚轮让给力度（AimThrowController），不再同时拉相机。
-            bool zoomBlocked = aimThrow != null && aimThrow.IsTurretAiming;
-            if (enableManualZoom && !zoomBlocked)
-            {
-                float scroll = Input.mouseScrollDelta.y;
-                if (Mathf.Abs(scroll) > 1e-5f)
-                {
-                    // 滚轮向上（scroll>0）= 拉近 = size 收小；按整数档步进，浮点先取整防漂移。
-                    _targetOrthoSize = Mathf.Clamp(
-                        Mathf.Round(_targetOrthoSize) - Mathf.Sign(scroll) * OrthoZoomStep,
-                        MinOrthoSize, MaxOrthoSize);
-                }
-            }
+            // 【无滚轮缩放——创始人裁决 2026-09-23】取景恒为基准机位，此路没有输入；
+            // 以后说"缩放"只指像素比例（PixelartPilotScene.PixelScale 3:1 → 4:1/5:1/2:1）。
         }
 
         void SmoothManualCamera(float deltaTime)
