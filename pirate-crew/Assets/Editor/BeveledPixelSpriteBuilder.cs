@@ -1267,6 +1267,7 @@ namespace PirateCrew.EditorTools
             List<string> problems = Verify();
             string sheet = BuildContactSheet();
             string showcase = BuildShowcaseSheet();
+            BuildComponentSheet();
 
             Debug.Log("[BeveledPixelSpriteBuilder] Beveled Pixel 重烘焙完成，共 " + targets.Length
                 + " 张：" + SpriteFolder + "（接触表 " + sheet + "；美术稿 " + showcase
@@ -2301,13 +2302,17 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 美术稿：**按真实全屏画布排**——3× 口径下全屏 = **640×360 艺术像素**
-        /// （= 1920×1080 屏幕）；元素尺寸按"不抠像素"给足：海图 144、主面板 320×280、
-        /// 按钮 ~90×32、条 288×40、标题字模 2×（10 艺术像素 ≈ 游戏内 TMP 正文口径）。
-        /// 内容按"一局游戏"排（两张船员卡/海图/敌情/提示——零件墙读不出观感）。
-        /// 这是给创始人看的"成品长什么样"，也是接触表之外的**构图级自证**：
-        /// 件与件的间距/内边距全部按艺术像素平面坐标排，拼起来没有半格错位。
-        /// 输出 1×：1080p 下 1:1 = **实际屏幕像素**的整屏外观（验收主图）。
+        /// 美术稿：**按比例令牌表排**（全屏 640×360 艺术像素 = 1920×1080 屏幕 @3×）。
+        /// 令牌表（art px，基准 = 正文字号 12）：正文 12 / 标题 24 / 条高 24（= 6 框+12 填+6 框，
+        /// 与参照血条同构）/ 按钮高 36、内边距 12 / 面板内边距 12 / 小件：位点 12、环 24、
+        /// 头像格 48、小地图 144。**元素尺寸一律跟着字号走，不许各玩各的**（创始人判过
+        /// "血条这么粗干什么、按钮这么大文字就这么大点"）。
+        ///
+        /// 【文字不在这里画】图上文字要显示**游戏实际用的中文字体**（像素字体），
+        /// 而本生成器是纯 CPU 像素、不带字体光栅化——所以这里只出构图 + 文字清单
+        /// （<c>export/ui-pixel-4a/showcase-labels.json</c>：文本/位置/字号/颜色），
+        /// 由 <c>tools/ui-review/stamp_showcase_text.py</c> 用真字体盖字（后处理步骤，
+        /// 见 docs/images/ui-font/README.md）。**1× 输出 = 实际屏幕像素**。
         /// </summary>
         public static string BuildShowcaseSheet()
         {
@@ -2320,80 +2325,200 @@ namespace PirateCrew.EditorTools
             for (int i = 0; i < px.Length; i++)
                 px[i] = backdrop;
 
-            Color32 white = Slot("WHITE_HOT");
-            Color32 ink = Slot("INK");
-            Color32 dim = Mix(Slot("WHITE_HOT"), backdrop, 0.45f);   // 次要文字
+            // 文字清单（画布坐标以**左上**为锚，单位=艺术像素；字体在 python 侧光栅化）
+            var labels = new List<string>();
 
-            // ================= 左：主船员卡（320×280 艺术像素）=================
-            DrawShadowAt(px, W, 24 * u, 40 * u, 320 * u, 280 * u);
-            DrawOne(px, W, Tone.Frame, Piece.Plate, State.Normal, 24 * u, 40 * u, 320 * u, 280 * u);
-            DrawText(px, W, 40 * u, 292 * u, "CREW", white, ink, 3);
-            DrawSized(px, W, "Pixel_Sep_H", 40 * u, 286 * u, 288 * u, 2 * u);
+            // ================= 左：主船员卡（336 宽 × 300 高；内边距 12）=================
+            DrawShadowAt(px, W, 24 * u, 24 * u, 336 * u, 300 * u);
+            DrawOne(px, W, Tone.Frame, Piece.Plate, State.Normal, 24 * u, 24 * u, 336 * u, 300 * u);
+            DrawSized(px, W, "Pixel_Sep_H", 36 * u, 280 * u, 312 * u, 2 * u);
+            labels.Add(Label("船员", 36, 48, 24, "white"));
 
-            // 头像格（Dense 内嵌 + 选人圈）+ 名牌
-            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 40 * u, 224 * u, 56 * u, 56 * u);
-            DrawSized(px, W, "Pixel_Ring", 52 * u, 236 * u, 32 * u, 32 * u);
-            DrawText(px, W, 112 * u, 264 * u, "CAPTAIN", white, ink, 3);
-            DrawText(px, W, 112 * u, 244 * u, "LV 7   ATK 12   SPD 7", dim, new Color32(0, 0, 0, 0), 2);
+            // 头像格（48 = 4B）+ 选人圈（24 = 2B）+ 名牌
+            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 36 * u, 220 * u, 48 * u, 48 * u);
+            DrawSized(px, W, "Pixel_Ring", 48 * u, 232 * u, 24 * u, 24 * u);
+            labels.Add(Label("船长", 96, 96, 24, "white"));
+            labels.Add(Label("等级 7　攻 12　速 7", 96, 128, 12, "dim"));
 
-            // 血条 / 蓝条（金框 288×40，填充 24 高）+ 状态位点
-            DrawText(px, W, 40 * u, 204 * u, "HP", white, ink, 3);
-            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 40 * u, 162 * u, 288 * u, 40 * u);
-            DrawFill(px, W, FillKind.Red, 52 * u, 174 * u, 210 * u, 24 * u);
-            DrawText(px, W, 40 * u, 144 * u, "MP", white, ink, 3);
-            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 40 * u, 102 * u, 288 * u, 40 * u);
-            DrawFill(px, W, FillKind.Blue, 52 * u, 114 * u, 118 * u, 24 * u);
+            // 血条 / 魔法条（条高 24 = 2B：6 框 + 12 填 + 6 框，与参照血条同构）
+            labels.Add(Label("生命", 36, 148, 12, "white"));
+            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 36 * u, 172 * u, 312 * u, 24 * u);
+            DrawFill(px, W, FillKind.Red, 42 * u, 178 * u, 240 * u, 12 * u);
+            labels.Add(Label("魔法", 36, 196, 12, "white"));
+            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 36 * u, 124 * u, 312 * u, 24 * u);
+            DrawFill(px, W, FillKind.Blue, 42 * u, 130 * u, 135 * u, 12 * u);
+
+            // 状态位点（12 = 1B，与字号同格）
             for (int i = 0; i < 5; i++)
                 DrawSized(px, W, i < 3 ? "Pixel_Pip_On" : "Pixel_Pip_Off",
-                    (72 + i * 24) * u, 144 * u, PipSize, PipSize);
+                    (36 + i * 24) * u, 96 * u, 12 * u, 12 * u);
 
-            // 三态按钮同台：常态+焦点框 / 悬停 / 按压（84/92/84 × 32）
-            DrawOne(px, W, Tone.Primary, Piece.Plate, State.Normal, 40 * u, 60 * u, 84 * u, 32 * u);
-            DrawSized(px, W, "Pixel_Focus", 40 * u - 2, 60 * u - 2, 84 * u + 4, 32 * u + 4);
-            DrawTextCentered(px, W, 82 * u, 76 * u, "OK", ink, Slot("SAND_LIGHT"), 3);
-            DrawOne(px, W, Tone.Light, Piece.Plate, State.Hovered, 132 * u, 60 * u, 92 * u, 32 * u);
-            DrawTextCentered(px, W, 178 * u, 76 * u, "MENU", ink, new Color32(0, 0, 0, 0), 3);
-            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Pressed, 232 * u, 60 * u, 84 * u, 32 * u);
-            DrawTextCentered(px, W, 274 * u, 76 * u, "QUIT", white, ink, 3);
+            // 三态按钮（高 36 = 3B，宽 96；常态+焦点环 / 悬停 / 按压）
+            DrawOne(px, W, Tone.Primary, Piece.Plate, State.Normal, 36 * u, 48 * u, 96 * u, 36 * u);
+            DrawSized(px, W, "Pixel_Focus", 34 * u, 46 * u, 100 * u, 40 * u);
+            labels.Add(Label("确定", 72, 288, 12, "ink"));
+            DrawOne(px, W, Tone.Light, Piece.Plate, State.Hovered, 144 * u, 48 * u, 96 * u, 36 * u);
+            labels.Add(Label("菜单", 180, 288, 12, "ink"));
+            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Pressed, 252 * u, 48 * u, 96 * u, 36 * u);
+            labels.Add(Label("退出", 288, 288, 12, "white"));
 
-            // ================= 右上：海图小地图（144×144 艺术像素 = 432 屏幕像素）=================
+            // ================= 右上：海图小地图（144 = 12B）=================
             DrawShadowAt(px, W, 456 * u, 192 * u, 144 * u, 144 * u);
             DrawOne(px, W, Tone.Sea, Piece.Plate, State.Normal, 456 * u, 192 * u, 144 * u, 144 * u);
             DrawOne(px, W, Tone.Sea, Piece.Track, State.Normal, 468 * u, 204 * u, 120 * u, 120 * u);
-            DrawSized(px, W, "Pixel_Ring", 508 * u, 252 * u, 40 * u, 40 * u);
-            DrawSized(px, W, "Pixel_Pip_Off", 476 * u, 298 * u, PipSize, PipSize);
-            DrawSized(px, W, "Pixel_Fill_Red", 566 * u, 214 * u, 8 * u, 8 * u);
-            DrawText(px, W, 468 * u, 320 * u, "MAP", white, ink, 3);
+            DrawSized(px, W, "Pixel_Ring", 516 * u, 252 * u, 24 * u, 24 * u);
+            DrawSized(px, W, "Pixel_Pip_Off", 472 * u, 310 * u, 12 * u, 12 * u);
+            DrawSized(px, W, "Pixel_Fill_Red", 564 * u, 216 * u, 12 * u, 12 * u);
+            labels.Add(Label("海图", 470, 38, 12, "white"));
 
-            // ================= 右列：敌情卡 / 敌条 / 警告按钮 / 页点 / Toast =================
-            DrawShadowAt(px, W, 456 * u, 148 * u, 144 * u, 36 * u);
-            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Normal, 456 * u, 148 * u, 144 * u, 36 * u);
-            DrawText(px, W, 468 * u, 158 * u, "FOE", white, ink, 3);
+            // ================= 右列：敌情卡 / 敌条 / 警告按钮 / Toast =================
+            DrawShadowAt(px, W, 456 * u, 150 * u, 144 * u, 30 * u);
+            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Normal, 456 * u, 150 * u, 144 * u, 30 * u);
+            labels.Add(Label("敌船", 468, 180, 24, "white"));
 
-            DrawOne(px, W, Tone.Danger, Piece.Track, State.Normal, 456 * u, 104 * u, 144 * u, 40 * u);
-            DrawFill(px, W, FillKind.Red, 468 * u, 116 * u, 36 * u, 24 * u);
+            DrawOne(px, W, Tone.Danger, Piece.Track, State.Normal, 456 * u, 114 * u, 144 * u, 24 * u);
+            DrawFill(px, W, FillKind.Red, 462 * u, 120 * u, 30 * u, 12 * u);
 
-            DrawOne(px, W, Tone.Warn, Piece.Plate, State.Normal, 472 * u, 56 * u, 100 * u, 32 * u);
-            DrawTextCentered(px, W, 522 * u, 72 * u, "WARN", ink, new Color32(0, 0, 0, 0), 3);
-            for (int i = 0; i < 4; i++)
-                DrawSized(px, W, i == 0 ? "Pixel_Pip_On" : "Pixel_Pip_Off",
-                    (360 + i * 28) * u, 52 * u, PipSize, PipSize);
+            DrawOne(px, W, Tone.Warn, Piece.Plate, State.Normal, 456 * u, 54 * u, 108 * u, 36 * u);
+            labels.Add(Label("警告", 498, 282, 12, "ink"));
 
-            DrawShadowAt(px, W, 360 * u, 12 * u, 256 * u, 36 * u);
-            DrawOne(px, W, Tone.Light, Piece.Plate, State.Normal, 360 * u, 12 * u, 256 * u, 36 * u);
-            DrawText(px, W, 376 * u, 22 * u, "CAPTAIN ABOARD", ink, new Color32(0, 0, 0, 0), 3);
-
-            // ================= 右下：第二张船员卡（低血 + 警告位点）=================
-            DrawShadowAt(px, W, 360 * u, 104 * u, 80 * u, 76 * u);
-            DrawOne(px, W, Tone.Frame, Piece.Plate, State.Normal, 360 * u, 104 * u, 80 * u, 76 * u);
-            DrawText(px, W, 368 * u, 164 * u, "CREW 2", white, ink, 2);
-            DrawSized(px, W, "Pixel_Sep_H", 368 * u, 158 * u, 64 * u, 2 * u);
-            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 368 * u, 132 * u, 64 * u, 20 * u);
-            DrawFill(px, W, FillKind.Red, 372 * u, 138 * u, 10 * u, 8 * u);
-            DrawSized(px, W, "Pixel_Pip_On", 368 * u, 108 * u, PipSize, PipSize);
+            DrawShadowAt(px, W, 372 * u, 12 * u, 228 * u, 36 * u);
+            DrawOne(px, W, Tone.Light, Piece.Plate, State.Normal, 372 * u, 12 * u, 228 * u, 36 * u);
+            labels.Add(Label("船长已登船", 384, 324, 12, "ink"));
 
             // 1×：1080p 下 1:1 = 实际屏幕像素的整屏外观（验收主图）
-            return WriteZoomedSheet(px, W, H, ShowcaseRelativePath, 1);
+            string sheet = WriteZoomedSheet(px, W, H, ShowcaseRelativePath, 1);
+            WriteLabels("export/ui-pixel-4a/showcase-labels.json", labels);
+            return sheet;
+        }
+
+        /// <summary>文字清单条目（JSON 一行）：文本 / 左上锚（艺术像素）/ 字号 / 颜色槽位语义。</summary>
+        static string Label(string text, int x, int y, int size, string color)
+        {
+            return "{\"text\": \"" + text + "\", \"x\": " + x + ", \"y\": " + y
+                + ", \"size\": " + size + ", \"color\": \"" + color + "\"}";
+        }
+
+        /// <summary>写文字清单（python 后处理用它盖中文/拉丁字；见 BuildShowcaseSheet 注释）。</summary>
+        static void WriteLabels(string relativePath, List<string> labels)
+        {
+            string abs = Path.Combine(RepoRoot(), relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(abs));
+            File.WriteAllText(abs,
+                "{\n  \"labels\": [\n    " + string.Join(",\n    ", labels.ToArray()) + "\n  ]\n}\n");
+        }
+
+        // ==================================================================
+        // 十一b2、组件总表（超级完全体）：全部件 × 全状态 × 中文标注的设计系统图
+        // ==================================================================
+
+        /// <summary>
+        /// **组件总表**：把整套皮的分区上齐——面板族 7 tone × 三态、凹槽 7 tone、
+        /// 填充 5 色、语义件 7 件、页签 7 tone、三态按钮组合。件按**令牌表尺寸**画
+        /// （见 <see cref="BuildShowcaseSheet"/> 注释里的比例系统），标注用真字体后处理盖。
+        /// 画布 640×760 艺术像素（1× 输出 = 1920×2280 屏幕像素）。同样只出构图 + 文字清单。
+        /// </summary>
+        public static string BuildComponentSheet()
+        {
+            int u = Unit;
+            int W = 640 * u, H = 1240 * u;      // 单列全表：高一点，宁可长不挤
+            var px = new Color32[W * H];
+            Color32 backdrop = Mix(Slot("SEA_DEEP"), Slot("INK"), 0.45f);
+            for (int i = 0; i < px.Length; i++)
+                px[i] = backdrop;
+
+            var labels = new List<string>();
+            Tone[] tones = (Tone[])Enum.GetValues(typeof(Tone));
+            string[] toneNames = { "面板", "内容", "羊皮纸", "海图", "黄铜", "危险", "警告" };
+
+            // ---- 标题带 ----
+            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 24 * u, (H / u - 60) * u, 592 * u, 44 * u);
+            labels.Add(Label("Beveled Pixel 组件总表", 36, 28, 24, "white"));
+            labels.Add(Label("正文 12 / 标题 24 / 条高 24 / 按钮高 36（艺术像素，×3 = 屏幕像素）",
+                36, 62, 12, "dim"));
+
+            // ---- ① 面板族：7 tone × 三态（常态 / 悬停 / 按压），件 132×30 ----
+            int rowTop = H / u - 100;
+            labels.Add(Label("面板 Plate（常态 / 悬停 / 按压）", 24, H / u - rowTop - 4, 12, "white"));
+            rowTop -= 40;
+            for (int i = 0; i < tones.Length; i++)
+            {
+                int cy = rowTop - i * 46;
+                labels.Add(Label(toneNames[i], 24, H / u - cy - 16, 12, "white"));
+                DrawOne(px, W, tones[i], Piece.Plate, State.Normal, 96 * u, (cy - 30) * u, 132 * u, 30 * u);
+                DrawOne(px, W, tones[i], Piece.Plate, State.Hovered, 236 * u, (cy - 30) * u, 132 * u, 30 * u);
+                DrawOne(px, W, tones[i], Piece.Plate, State.Pressed, 376 * u, (cy - 30) * u, 132 * u, 30 * u);
+            }
+            rowTop -= 7 * 46 + 16;
+
+            // ---- ② 凹槽 Track：7 tone（各带 60% 填充）----
+            labels.Add(Label("凹槽 Track（槽底 + 60% 填充）", 24, H / u - rowTop - 4, 12, "white"));
+            rowTop -= 40;
+            for (int i = 0; i < tones.Length; i++)
+            {
+                int cy = rowTop - i * 46;
+                labels.Add(Label(toneNames[i], 24, H / u - cy - 16, 12, "white"));
+                DrawOne(px, W, tones[i], Piece.Track, State.Normal, 96 * u, (cy - 30) * u, 132 * u, 30 * u);
+                DrawFill(px, W, FillOfTone(tones[i]), 102 * u, (cy - 24) * u, 120 * u, 18 * u);
+            }
+            rowTop -= 7 * 46 + 16;
+
+            // ---- ③ 填充 5 色 ----
+            labels.Add(Label("填充 Fill", 24, H / u - rowTop - 4, 12, "white"));
+            rowTop -= 24;
+            FillKind[] fills = (FillKind[])Enum.GetValues(typeof(FillKind));
+            string[] fillNames = { "红 生命", "蓝 魔法", "暖橙 冷却", "海蓝 航行", "中性 进度" };
+            for (int i = 0; i < fills.Length; i++)
+            {
+                int cxx = 24 + i * 120;
+                labels.Add(Label(fillNames[i], cxx, H / u - rowTop - 6, 12, "white"));
+                DrawFill(px, W, fills[i], cxx * u, (rowTop - 34) * u, 108 * u, 24 * u);
+            }
+            rowTop -= 46 + 16;
+
+            // ---- ④ 语义件（原生尺寸）----
+            labels.Add(Label("语义件（选人圈 / 焦点框 / 位点 / 分隔线 / 投影）", 24, H / u - rowTop - 4, 12, "white"));
+            rowTop -= 24;
+            int sy = rowTop - 40;
+            DrawSized(px, W, "Pixel_Ring", 24 * u, (sy - 24) * u, 24 * u, 24 * u);
+            labels.Add(Label("选人圈", 56, H / u - sy + 40, 12, "dim"));
+            DrawSized(px, W, "Pixel_Focus", 116 * u, (sy - 24) * u, 24 * u, 24 * u);
+            labels.Add(Label("焦点框", 148, H / u - sy + 40, 12, "dim"));
+            DrawSized(px, W, "Pixel_Pip_On", 208 * u, (sy - 14) * u, 12 * u, 12 * u);
+            DrawSized(px, W, "Pixel_Pip_Off", 228 * u, (sy - 14) * u, 12 * u, 12 * u);
+            labels.Add(Label("位点 亮/暗", 248, H / u - sy + 40, 12, "dim"));
+            DrawSized(px, W, "Pixel_Sep_H", 336 * u, (sy - 8) * u, 96 * u, 4 * u);
+            labels.Add(Label("分隔线", 440, H / u - sy + 40, 12, "dim"));
+            DrawShadowAt(px, W, 500 * u, (sy - 30) * u, 96 * u, 30 * u);
+            DrawOne(px, W, Tone.Frame, Piece.Plate, State.Normal, 500 * u, (sy - 30) * u, 96 * u, 30 * u);
+            labels.Add(Label("投影", 500, H / u - sy + 40, 12, "dim"));
+            rowTop -= 40 + 16;
+
+            // ---- ⑤ 页签 Tab（7 tone 贴宿主）----
+            labels.Add(Label("页签 Tab（贴宿主面板顶边）", 24, H / u - rowTop - 4, 12, "white"));
+            rowTop -= 24;
+            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 24 * u, (rowTop - 60) * u, 592 * u, 60 * u);
+            for (int i = 0; i < tones.Length; i++)
+                DrawOne(px, W, tones[i], Piece.Tab, State.Normal,
+                    (40 + i * 80) * u, (rowTop - 22) * u, 72 * u, 24 * u);
+            rowTop -= 60 + 16;
+
+            // ---- ⑥ 三态按钮组合 ----
+            labels.Add(Label("按钮（常态+焦点 / 悬停 / 按压）", 24, H / u - rowTop - 4, 12, "white"));
+            rowTop -= 24;
+            DrawOne(px, W, Tone.Primary, Piece.Plate, State.Normal, 24 * u, (rowTop - 36) * u, 120 * u, 36 * u);
+            DrawSized(px, W, "Pixel_Focus", 22 * u, (rowTop - 38) * u, 124 * u, 40 * u);
+            labels.Add(Label("确定", 68, H / u - rowTop + 6, 12, "ink"));
+            DrawOne(px, W, Tone.Light, Piece.Plate, State.Hovered, 168 * u, (rowTop - 36) * u, 120 * u, 36 * u);
+            labels.Add(Label("菜单", 212, H / u - rowTop + 6, 12, "ink"));
+            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Pressed, 312 * u, (rowTop - 36) * u, 120 * u, 36 * u);
+            labels.Add(Label("退出", 356, H / u - rowTop + 6, 12, "white"));
+            DrawOne(px, W, Tone.Warn, Piece.Plate, State.Normal, 456 * u, (rowTop - 36) * u, 120 * u, 36 * u);
+            labels.Add(Label("警告", 500, H / u - rowTop + 6, 12, "ink"));
+
+            string sheet = WriteZoomedSheet(px, W, H, "export/ui-pixel-4a/components-1x.png", 1);
+            WriteLabels("export/ui-pixel-4a/components-labels.json", labels);
+            return sheet;
         }
 
         // ==================================================================
