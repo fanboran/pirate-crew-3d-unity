@@ -54,11 +54,17 @@ namespace PirateCrew.EditorTools.BuildSystem
         public const string PixelartPilot = "PixelartPilot";
 
         /// <summary>
-        /// 云彩关像素化试点场景（L01 真实内容走本路径）：开发/测试专用，**不进发行包**。
-        /// 它是 <c>-pixelartOut -pixelartCloud</c> 出图入口的载体，装配器见
-        /// <c>PixelartCloudPilotSetup</c>，只影响观感裁决，不影响主战斗场景。
+        /// 关卡像素化试点场景（三个样板关的真实内容走本路径）：开发/测试专用，**不进发行包**。
+        /// 它们是 <c>-pixelartOut -pixelartLevel &lt;N&gt;</c> 出图入口的载体，装配器见
+        /// <c>PixelartLevelPilotSetup</c>，取景口径见 <c>PixelartLevelScene</c>；
+        /// 只影响观感裁决与宣传图，不影响主战斗场景。
         /// </summary>
-        public const string PixelartCloud = "PixelartCloud";
+        public static readonly string[] PixelartLevelScenes =
+        {
+            "PixelartCloud",        // 关卡 1 云端漫步
+            "PixelartIslets",       // 关卡 2 碎岛雨
+            "PixelartSkyIsland",    // 关卡 3 天空之岛
+        };
 
         /// <summary>
         /// 发行场景集（顺序即包内 index，必须 <c>[0] = Bootstrapper</c>）。
@@ -75,12 +81,17 @@ namespace PirateCrew.EditorTools.BuildSystem
         };
 
         /// <summary>仅开发/测试集：发行包不含，Build Settings 需要含（播放器出图入口依赖）。</summary>
-        static readonly string[] _developmentOnlySceneNames =
+        static readonly string[] _developmentOnlySceneNames = BuildDevelopmentOnlySet();
+
+        /// <summary>仅开发场景集 = 固定两项 + <see cref="PixelartLevelScenes"/>（表在别处，避免两处维护）。</summary>
+        static string[] BuildDevelopmentOnlySet()
         {
-            ToonPilot,
-            PixelartPilot,
-            PixelartCloud,
-        };
+            var set = new string[2 + PixelartLevelScenes.Length];
+            set[0] = ToonPilot;
+            set[1] = PixelartPilot;
+            PixelartLevelScenes.CopyTo(set, 2);
+            return set;
+        }
 
         /// <summary>发行场景集的场景名（只读视图，顺序即包内 index）。</summary>
         public static IReadOnlyList<string> ReleaseSceneSet

@@ -139,6 +139,56 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
+        /// 从**关卡自己的材质**派生一个本路径材质：取原材质的 <c>_BaseColor</c>（没有就 <c>_Color</c>）
+        /// 作 albedo，其余按本路径的配方走。资产落在 `Assets/Pixelart/Materials/PixelartDerived_<原名>.mat`
+        /// （幂等：重跑覆盖）。
+        ///
+        /// 【为什么要有派生档】关卡 2/3 的岛体有十几个材质槽（岩三档 / 草三档 / 土 / 石 / 木 / 水 / 沫 /
+        /// 云 / 晶 / 光 / 旗），逐个在手写表里挑色号既慢又会让"岛还是那座岛的颜色"这件事失去保证。
+        /// 派生保证**色相与明度关系取自关卡自身**（草比岩亮、岩暗档比亮档暗），观感差异只来自
+        /// 本路径的色带量化——这正是要看的东西。
+        ///
+        /// 【与"不许静默"的边界】派生本身不静默：每个材质打一行"从 X 派生，取色 #RRGGBB"；
+        /// 拿不到色值时**报错并返回 null**（而不是拿白色顶上）；装配收尾还有
+        /// <see cref="AssertObjectShaderOnly"/> 保证没有漏网的旧 shader。
+        /// </summary>
+        public static Material EnsureDerivedMaterial(Material source, string logTag)
+        {
+            if (source == null)
+                return null;
+
+            // 取色优先 _BaseColor（URP Lit / PirateSurface 都写它），
+            // 其次 _Color（内置着色器），最后 **_BaseColorA**——本仓的 `PirateCrew/PirateSurface`
+            // 把三档色写成 `_BaseColorA/B/C`（`LowpolyStageBuilder.ColorOf` 的落点），
+            // 空岛的岩/草/土/石/木九个槽位都在这一档上（实测：只看 _BaseColor 时它们全部"取不到色"，
+            // 报错 9 行、材质一个都没换——这类"字段名选错⇒整类材质落空"是这一层的典型坑）。
+            Color albedo;
+            if (source.HasProperty("_BaseColor"))
+                albedo = source.GetColor("_BaseColor");
+            else if (source.HasProperty("_Color"))
+                albedo = source.GetColor("_Color");
+            else if (source.HasProperty("_BaseColorA"))
+                albedo = source.GetColor("_BaseColorA");
+            else
+            {
+                Debug.LogError(logTag + " 材质 \"" + source.name
+                    + "\" 既没有 _BaseColor / _Color 也没有 _BaseColorA，无法派生——"
+                    + "请手工在映射表里给它一条。");
+                return null;
+            }
+
+            string name = "PixelartDerived_" + source.name;
+            Material derived = EnsureMaterial(name, albedo, 3f);
+            if (derived != null)
+            {
+                Debug.Log(logTag + " 派生材质：" + name + " ← 原材质 \"" + source.name
+                    + "\" 的取色 #" + ColorUtility.ToHtmlStringRGB(albedo) + "。");
+            }
+
+            return derived;
+        }
+
+        /// <summary>
         /// 把一整棵子树（含预制体实例）上的 renderer 全部换成**按材质名映射**的本路径材质，
         /// 并按 <see cref="AssertObjectShaderOnly"/> 的判据收口。
         ///
@@ -149,7 +199,8 @@ namespace PirateCrew.EditorTools
         public static int SwapMaterials(
             GameObject root,
             System.Collections.Generic.Dictionary<string, Material> byOriginalMaterialName,
-            string logTag)
+            string logTag,
+            bool deriveMissing = false)
         {
             int swapped = 0;
             int unmapped = 0;
@@ -164,13 +215,30 @@ namespace PirateCrew.EditorTools
                     renderer.sharedMaterial = replacement;
                     swapped++;
                 }
+                else if (deriveMissing && original != null)
+                {
+                    // 【派生档】关卡 2/3 的岛体有十几个材质槽（岩/草/土/木/水/云/晶…），逐个手挑色号
+                    // 既慢又容易漂；这里从**关卡自己的材质色**派生（创始人 2026-09-22 对帧级调色板
+                    // 的同一条口径："从场景材质色自动生成"）。派生是显式的：每个材质一行日志说清
+                    // "从谁派生、取了什么色"，装配完还有 AssertObjectShaderOnly 兜底。
+                    Material derived = EnsureDerivedMaterial(original, logTag);
+                    if (derived != null)
+                    {
+                        renderer.sharedMaterial = derived;
+                        swapped++;
+                    }
+                    else
+                    {
+                        unmapped++;
+                    }
+                }
                 else
                 {
                     unmapped++;
                     Debug.LogError(logTag + " 材质未登记：物体 \"" + renderer.name + "\" 挂的是 \""
                         + (original != null ? original.name : "<无>") + "\"（不在映射表里）——"
                         + "它不会写 7 张 G-buffer，那一带像素的 MRT 通道是未定义内容（花屏且无报错）。"
-                        + "请在本装配器的映射表里补一条。");
+                        + "要么在本装配器的映射表里补一条，要么用 deriveMissing: true 走派生档。");
                 }
             }
 

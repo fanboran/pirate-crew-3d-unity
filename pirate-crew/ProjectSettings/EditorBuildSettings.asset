@@ -29,4 +29,10 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/PixelartCloud.unity
     guid: 32cb3f0ba847add4f87c21b83a7d0382
+  - enabled: 1
+    path: Assets/Scenes/PixelartIslets.unity
+    guid: 3032ed99d7c68f1488c6de4e077305ad
+  - enabled: 1
+    path: Assets/Scenes/PixelartSkyIsland.unity
+    guid: 4a56321ff9160334096206a87d2b169d
   m_configObjects: {}

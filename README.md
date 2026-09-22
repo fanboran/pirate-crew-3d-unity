@@ -13,7 +13,11 @@
 
 ---
 
-![天空之岛](docs/images/art-review/r11-l3/arena-overview.jpg)
+![云端漫步 · 像素化着色路径](docs/images/promo/hero-l1.jpg)
+
+> 上图与本文各图是**像素化着色路径试点场景**（`-pixelartOut -pixelartLevel <N>`）的实拍——
+> 这条路径正在试点、**尚未接进游戏本体**（本体仍是旧视觉链）。口径、读数与偏差项见
+> [像素化路径 r9 归档](docs/images/pixelart-path/r9/README.md)。
 
 ## 三个关卡，三种心情
 
@@ -23,13 +27,17 @@
 
 低模云朵平台场：11 朵云高低错落漂浮在海面上空，主角云可驻一整队。掉下云 = 落水，风力、距离、力度全靠一条实时抛物线预览。
 
-![云端漫步](docs/images/art-review/r12-l1/arena-overview.jpg)
+![云端漫步](docs/images/promo/l1-overview.jpg)
 
 ### ⚓ 双雄并舷
 
 两艘 28×14 单位的放样大帆船并列漂在航道两侧——15 站横剖面渐变船体、双桅、帆装、瞭望巢、索具，结构画全。中间一条水道，两边甲板对轰，把对方轰进海里。
 
-![双雄并舷](docs/images/art-review/r12-l2/arena-overview.jpg)
+![碎岛雨](docs/images/promo/l2-overview.jpg)
+
+> 注：本图是像素化路径下第 2 关**当前的内容**（碎岛礁盘，无船）；上文描述的「双雄并舷」双帆船
+> 是已退役的程序化船体，船类资产待 Blender 管线重做（见 [待办](docs/项目/待办事项.md)）。
+> 这张图本身也有一处已定位的缺陷（礁盘侧壁被描边整片涂黑），原因与修复方向见 [r9 归档](docs/images/pixelart-path/r9/README.md) §4。
 
 ### 🏝️ 天空之岛
 
@@ -45,7 +53,7 @@
 | **2 操作** | 纯炮台：A/D 转向、W/S 力度、滚轮微调、**回车开炮**（左键只点按钮，防走火） |
 | **3 观察** | 我的世界同款：鼠标转视角、WASD 平移、Space/Shift 升降；点击准星选角色即返回 |
 
-![实战视角](docs/images/art-review/r12-l1/battle-45.jpg)
+![实战视角](docs/images/promo/l1-battle.jpg)
 
 ## 💣 17 种武器，17 种坏心眼
 

@@ -42,6 +42,16 @@
   于是相邻像素几乎必不同 → 跳变率**接近 0.9~1.0**（实测幅度 0.5 时 ≈ 0.91，1.0 时 ≈ 1.00）。
   这就是"撕边"而不是"渐变态"的量化含义。
 
+两档判据（2026-09-22 起）
+----------------------
+- **试点档（`pa-*`，图元几何）＝ 机制验收**：块边长 / 平坦占比 / 跳变率 / 亮暗跨度**全是硬门禁**。
+  这个场地就是为"色带是平的、光照没被旁路、抖动两范式可分辨"校准出来的，拿它当门禁最锋利。
+- **关卡档（`pl1-/pl2-/pl3-`，三个样板关真实内容；旧名 `pc-`）＝ 观感裁决 + 宣传图**：
+  硬门禁是"块边长 / 色数 / 墨线在写缓冲 / 光照未旁路（同机位比对 albedo 调试图）/ 场地在场"；
+  平坦占比、跳变率、亮暗跨度在这档**只打印读数**——真实关卡有山体棱面、多材料、水面、单位，
+  结构本身比试点密，拿试点阈值卡它等于拿"棋盘有没有杂色"去判"风景画有没有杂色"。
+  关卡档的"光照有没有生效"由 `judge_not_bypassed` 直接回答（与内容无关）。
+
 退出码：全部核心判据通过 = 0，有 FAIL = 1。
 """
 
@@ -159,11 +169,14 @@ DOWNGRADE_AB_MIN_DIFF = 0.001 # 连通域降档 A/B 的最小像素差异率（�
 OUTLINE_VIEW_MIN_PIXELS = 200 # dbg-outline 视图里黑像素（= 墨线）的下限
 CONNECT_MIN_DISTINCT = 3      # dbg-connect 视图里 r 通道（连通比例）的不同取值数下限
 
-# 云彩关（`pc-*`）专属：画面里"云"的占比下限。
-# 【为什么这条判得动】云的 albedo 是暖白/淡金（色相 ≈ 43°）、海面是蓝（色相 ≈ 205°）、
-# 阵营红是 357°——三者色相分得很开，所以"云到底在不在画面里"可以用色相统计客观量出来。
-# 它防的是"云场件没摆进来/被摆到镜头外/材质还是旧链的"这类静默失败（画面会是一片海）。
-CLOUD_MIN_SHARE = 0.10
+# 关卡档（`pl<关卡号>-*`，旧名 `pc-*`）专属：画面里"场地内容"的占比下限。
+# 【为什么这条判得动】场地内容（云/岩/草/沙/木）与单位都是暖色或高亮度，海面与天空背景是
+# 蓝且偏暗（色相 205°/230°）——两边分得开，所以"场地到底在不在画面里"可以用色相+明度统计客观量出来。
+# 它防的是"场地件没摆进来/被摆到镜头外/材质还是旧链的"这类静默失败（画面会是一片海）。
+CONTENT_MIN_SHARE = 0.10
+
+# 光照未旁路判据：同机位"最终图 vs albedo 调试图"的差异下限（完全相同 = 光照被旁路）。
+BYPASS_MIN_DIFF = 0.30
 
 
 def ink_metrics(a, radius):
@@ -294,7 +307,7 @@ def judge_outline_closure(files, pixel_scale):
     return 0
 
 
-def judge_one(path, pixel_scale):
+def judge_one(path, pixel_scale, strict=True):
     img = Image.open(path).convert("RGB")
     a = np.asarray(img).astype(int)
     b = block_size(img)
@@ -349,7 +362,8 @@ def judge_one(path, pixel_scale):
                  "jump": jump, "flat": flat, "span": span}
         return name, stats, notes
     if span < LIGHTING_MIN_SPAN:
-        notes.append("FAIL 亮暗跨度 %.2f < %.2f（画面只剩各材质 albedo 原色 ⇒ "
+        notes.append(("FAIL " if strict else "（读数，不判定）")
+                     + "亮暗跨度 %.2f < %.2f（画面只剩各材质 albedo 原色 ⇒ "
                      "光照/色带很可能被整屏旁路，检查 prop.a 之类通道语义是否冲突）"
                      % (span, LIGHTING_MIN_SPAN))
 
@@ -375,10 +389,12 @@ def judge_one(path, pixel_scale):
                 notes.append("OK   跳变率 %.2f = 渐变态抖动（Bayer 4×4）" % jump)
     else:
         if flat < FLAT_MIN:
-            notes.append("FAIL 平坦占比 %.3f < %.2f（无抖动档色带应是平的，出现杂色/渐变）"
+            notes.append(("FAIL " if strict else "（读数，不判定）")
+                         + "平坦占比 %.3f < %.2f（无抖动档色带应是平的，出现杂色/渐变）"
                          % (flat, FLAT_MIN))
         if jump > JUMP_MAX_NO_DITHER:
-            notes.append("FAIL 跳变率 %.3f > %.2f（无抖动档相邻像素不应大量不同）"
+            notes.append(("FAIL " if strict else "（读数，不判定）")
+                         + "跳变率 %.3f > %.2f（无抖动档相邻像素不应大量不同）"
                          % (jump, JUMP_MAX_NO_DITHER))
 
     stats = {"block": b, "rt_width": rt_width, "colors": colors,
@@ -414,7 +430,16 @@ def main(argv):
     print("%-34s %5s %6s %7s %7s %8s %8s"
           % ("文件", "块边长", "RT宽", "色数", "跳变率", "平坦占比", "亮暗跨度"))
     for path in files:
-        name, stats, notes = judge_one(path, scale)
+        # 【两档判据】试点档（pa-*）是**机制验收**：观感三项（平坦占比/跳变率/亮暗跨度）在这里是硬门禁——
+        # 它们是为"色带是平的""光照没被整屏旁路"这两件事校准的，而试点场景正是把这两件事单拎出来看的场地。
+        # 关卡档（plN-*/pc-*）是**真实内容 + 宣传图**：三种材料、山体棱面、水面、单位混在一张画面里，
+        # 平坦占比与跳变率天然比试点低（内容本身有结构），拿试点阈值卡它等于拿"棋盘上有没有杂色"
+        # 去判"风景画有没有杂色"。故这三项在关卡档只**打印读数**；关卡档的硬门禁换成下面这条
+        # 与内容无关的 **judge_not_bypassed**（同机位比对最终图与 albedo 调试图，相同 = 光照被旁路）。
+        base = os.path.basename(path)
+        strict = not (base.startswith("pl1-") or base.startswith("pl2-")
+                      or base.startswith("pl3-") or base.startswith("pc-"))
+        name, stats, notes = judge_one(path, scale, strict)
         if stats is None:
             print("%-34s %s" % (name, notes[0]))
             failures += 1
@@ -428,9 +453,10 @@ def main(argv):
                 failures += 1
 
     print("---")
+    failures += judge_not_bypassed(files)
     failures += judge_outline_closure(files, scale)
     failures += judge_downgrade_ab(files)
-    failures += judge_cloud_presence(files)
+    failures += judge_level_presence(files)
     print("结论：" + ("全部核心判据通过" if failures == 0 else "%d 项 FAIL" % failures))
     return 0 if failures == 0 else 1
 
@@ -459,41 +485,101 @@ def _hsv(a):
     return hue, sat, mx
 
 
-def judge_cloud_presence(files):
-    """云彩关（`pc-*`）专属：证"云台在场"。
+def judge_not_bypassed(files):
+    """**光照没被整屏旁路**（与内容无关的硬判据）：同机位的 `-mid` 与其 `-dbg-albedo` 逐像素比对。
 
-    【这条判据防什么】云场件没摆进来、被摆到镜头外、或材质没换成暖白/淡金——三种都会让
-    画面变成"一片海加几个小人"，而从判据表上的块边长/平坦度/色数**全都看不出来**
-    （像素化本身完全正常）。所以单列一条：低分辨率画面里暖色（云）的占比必须过线。
+    【为什么这条比"亮暗跨度"靠得住】本路径真出过一次事故：`prop.a` 与 `_AAScale` 撞通道，
+    每个不透明像素都被当成"墨线像素"原样输出 albedo——症状是"所有面同色、没有任何光影、无报错"。
+    当时的兜底判据是"亮暗跨度"，但跨度是**受内容影响**的（场地本来就平/本来就暗时它自然低）。
+    更硬的问法是：**最终画面与"只吐 albedo"的调试图是不是同一张**——同机位、同几何，
+    只差"有没有走光照与色带"。完全相同 ⇒ 光照那一趟没生效；明显不同 ⇒ 它在生效。
+    阈值 30%：实测正常档在 95%~100%。
     """
-    targets = [p for p in files
-               if os.path.basename(p) in ("pc-wide.png", "pc-mid.png")]
-    if not targets:
-        print("（跳过云场在场判据：需要 pc-wide / pc-mid 两张图；本轮是试点场景的档位）")
+    pairs = []
+    by_name = {}
+    for p in files:
+        by_name.setdefault(os.path.basename(p), p)
+    for name, path in by_name.items():
+        if not name.endswith("-mid.png"):
+            continue
+        albedo = by_name.get(name[:-len("-mid.png")] + "-dbg-albedo.png")
+        if albedo:
+            pairs.append((name, path, albedo))
+
+    if not pairs:
+        print("（跳过光照未旁路判据：没有同机位的 -mid 与 -dbg-albedo 成对图）")
         return 0
 
     failures = 0
-    for path in targets:
+    for name, final_path, albedo_path in sorted(pairs):
+        a = np.asarray(Image.open(final_path).convert("RGB")).astype(int)
+        b = np.asarray(Image.open(albedo_path).convert("RGB")).astype(int)
+        if a.shape != b.shape:
+            print("FAIL %s 与 albedo 调试图尺寸不同，无法比对" % name)
+            failures += 1
+            continue
+        diff = float((a != b).any(axis=2).mean())
+        if diff < BYPASS_MIN_DIFF:
+            print("FAIL %s 与同机位 albedo 调试图只有 %.1f%% 的像素不同（< %.0f%%）⇒ "
+                  "光照/色带整趟没生效（画面≈各材质原色）" % (name, diff * 100.0, BYPASS_MIN_DIFF * 100.0))
+            failures += 1
+        else:
+            print("OK   %s 与同机位 albedo 图差 %.1f%% ⇒ 光照与色带在生效" % (name, diff * 100.0))
+    return failures
+
+
+def judge_level_presence(files):
+    """关卡档（`pl<关卡号>-*`；旧命名 `pc-*`）专属：证"场地内容在场"。
+
+    【这条判据防什么】场地件没摆进来、被摆到镜头外、或材质没换成暖色系——三种都会让画面变成
+    "一片海"，而从判据表上的块边长/平坦度/色数**全都看不出来**（像素化本身完全正常）。
+    所以单列一条：低分辨率画面里"非海面"的占比必须过线。
+
+    【判法】海面与天空背景都是"蓝 + 偏暗"（色相 170~255、饱和度 ≥0.12、明度 ≤0.80），
+    场地内容（云/岩/草/沙/木与单位）要么暖色、要么灰白高亮——按这两条分类，统计非海的占比。
+    阈值 10%：实测 关1-wide 约 15%、关1-mid 约 55%。
+    """
+    targets = []
+    for p in files:
+        name = os.path.basename(p)
+        if not name.endswith(".png"):
+            continue
+        head = name[:-4]
+        # pl<关卡号>-wide / pl<关卡号>-mid（含旧的 pc-wide / pc-mid）
+        if head == "pc-wide" or head == "pc-mid":
+            targets.append(p)
+            continue
+        for prefix in ("pl1-", "pl2-", "pl3-"):
+            if head == prefix + "wide" or head == prefix + "mid":
+                targets.append(p)
+                break
+
+    if not targets:
+        print("（跳过场地在场判据：没有 plN-wide/plN-mid 或 pc-wide/pc-mid 这类档位图）")
+        return 0
+
+    failures = 0
+    for path in sorted(targets):
         img = Image.open(path).convert("RGB")
         a = np.asarray(img).astype(int)
-        # 块边长先夹一次：`low_res_view` 按块边长取块心，块边长接近图高时会取成空图
-        # （检测失败时报的是 0，那种图上抽低分辨率域等于原图）。
+        # 块边长先夹一次：`low_res_view` 按块边长取块心，块边长接近图高时会取成空图。
         b_raw = block_size(img)
         b = b_raw if 2 <= b_raw <= min(a.shape[0], a.shape[1]) // 8 else 1
         lr = low_res_view(a, b)
         hue, sat, val = _hsv(lr)
-        # 云：暖色相 + 有一定明度（云的暗面也是暖白 × 环境光，明度不会掉到海面那一档）。
-        cloud = (hue >= 20.0) & (hue <= 75.0) & (sat >= 0.03) & (val >= 0.40)
-        sea = (hue >= 170.0) & (hue <= 240.0) & (sat >= 0.15)
-        share = float(cloud.mean())
+        sea = (hue >= 170.0) & (hue <= 255.0) & (sat >= 0.12) & (val <= 0.80)
+        content = ~sea
+        warm = (hue >= 20.0) & (hue <= 120.0) & (sat >= 0.15) & (val >= 0.35)
+        share = float(content.mean())
         name = os.path.basename(path)
-        line = "    云场占比 %.1f%% / 海面占比 %.1f%%" % (share * 100.0, float(sea.mean()) * 100.0)
-        if share < CLOUD_MIN_SHARE:
-            print("FAIL %s " % name + line + "（云占比 < %.0f%% ⇒ 云场没进画面/没换成暖色）"
-                  % (CLOUD_MIN_SHARE * 100.0))
+        line = "    场地占比 %.1f%%（暖色内容 %.1f%% / 海与背景 %.1f%%）" % (
+            share * 100.0, float(warm.mean()) * 100.0, float(sea.mean()) * 100.0)
+        if share < CONTENT_MIN_SHARE:
+            print("FAIL %s " % name + line
+                  + "（场地占比 < %.0f%% ⇒ 场地件没进画面/没换成暖色）" % (CONTENT_MIN_SHARE * 100.0))
             failures += 1
         else:
-            print("OK   %s %s" % (name, line))
+            print("OK   %s" % name + line)
     return failures
 
 

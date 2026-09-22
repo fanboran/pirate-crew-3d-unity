@@ -27,7 +27,7 @@
 | 场景常量（取景/像素档位） | `Assets/Scripts/PirateCrew/Rendering/Pixelart/PixelartPilotScene.cs`、`PixelartCloudScene.cs` | 同上；**取景口径的唯一来源**，装配器与出图脚本都读它 |
 | 出图脚本（播放器侧） | `Assets/Scripts/PirateCrew/ArtReview/PlayerArtCapture.cs` | 与既有出图链同文件（`-artReviewOut` / `-toonPilotOut` / `-pixelartOut` 共用一个入口） |
 | 判据脚本 | `tools/pixel-review/judge_pixelart_pilot.py`（另 `ink_gap_probe.py`） | 仓库工具目录（Python） |
-| 试点场景 | `Assets/Scenes/PixelartPilot.unity`、`PixelartCloud.unity` | Unity 场景必须在 `Assets/Scenes/`（Build Settings 与出图链按名切换） |
+| 场景（试点 + 三个关卡） | `Assets/Scenes/PixelartPilot.unity`、`PixelartCloud.unity`（关卡 1）、`PixelartIslets.unity`（关卡 2）、`PixelartSkyIsland.unity`（关卡 3） | Unity 场景必须在 `Assets/Scenes/`（Build Settings 与出图链按名切换） |
 | 档案（每轮出图 + 判据读数） | `docs/images/pixelart-path/r*/README.md` | 文档区 |
 | 实现口径 / 接口契约 | `docs/技术/渲染/像素化着色路径.md`、`像素化着色路径-P4P5接口契约.md` | 文档区 |
 
@@ -38,14 +38,15 @@
 | 想找什么 | 单一来源 |
 | --- | --- |
 | 像素档位（一个艺术像素占几屏幕像素）、俯角/方位/机位距离、可见米数梯子 | `PixelartPilotScene`（`PixelScale` / `PitchDegrees` / `AzimuthDegrees` / `CameraDistance` / `Wide|Mid|CloseVisibleMeters`） |
-| 云彩关的构图中心与可见米数 | `PixelartCloudScene`（`Target` / `LevelNumber` / `Wide|Mid|CloseVisibleMeters`） |
+| **三个关卡**的场景名/构图中心/可见米数 | `PixelartLevelScene`（`Levels` 表；一关一条，含 `ShotPrefix`） |
 | 双档缓冲尺寸、G-buffer/结果缓冲的分配与随机写位 | `PixelartCameraRig`（`NewBuffer` / `NewColor` 调用处） |
 | 全局纹理与常量名（`_Pixelart*`）、pass 名、asset 路径、特征顺序 | `PixelartPath`（**唯一登记处**，别在别处写字面量） |
 | 装配顺序（7 个 Feature 的执行次序） | `PixelartPathInstaller.CastFeatureOrder` |
+| 关卡试点场景装配（含空岛合成、派生材质） | `PixelartLevelPilotSetup`（编辑器侧）；共用件 `PixelartStageKit` |
 | 逐物体材质参数的配方（色带档/描边开关/吸附/抖动图案） | `PixelartStageKit.EnsureMaterial` |
 | 太阳高度/方位、环境暗部色的取值理由 | `PixelartStageKit.CreateSunAndAmbient`（为什么 58° 写在那里） |
-| 出图档位（机位/抖动/调试档） | `PlayerArtCapture.PilotShots` / `CloudShots` |
-| 判据阈值（块边长/平坦占比/亮暗跨度/云场占比） | `tools/pixel-review/judge_pixelart_pilot.py` 顶部常量区 |
+| 出图档位（机位/抖动/调试档） | `PlayerArtCapture.PilotShots` / `LevelShots` |
+| 判据阈值（块边长/平坦占比/亮暗跨度/场地占比/光照未旁路） | `tools/pixel-review/judge_pixelart_pilot.py` 顶部常量区（**两档判据**见模块 docstring） |
 | 调试档编号（0–5、8/9 的语义） | 契约文档 §8 落地口径表 |
 
 ## 4. 怎么跑（全部 batchmode，一次只跑一个 Unity 进程）
@@ -70,10 +71,12 @@ P="F:/VSCode/pirate-crew-3d-unity/pirate-crew"
   -buildFlavor development -buildScenes development -logFile -
 
 # ④ 出图 + 判据（判据必须跑程序化那一套，不靠"看着像"）
-"$OUT/PirateCrew3D.exe" -pixelartOut "$OUT/export/pixelart-r8"                 # 试点场景
-"$OUT/PirateCrew3D.exe" -pixelartOut "$OUT/export/pixelart-cloud-r8" -pixelartCloud   # 云彩关
+"$OUT/PirateCrew3D.exe" -pixelartOut "$OUT/export/pixelart-r8"                  # 试点场景（档位名 pa-*）
+"$OUT/PirateCrew3D.exe" -pixelartOut "$OUT/export/pixelart-l1-r9" -pixelartLevel 1   # 关卡 1（pl1-*）
+"$OUT/PirateCrew3D.exe" -pixelartOut "$OUT/export/pixelart-l2-r9" -pixelartLevel 2   # 关卡 2（pl2-*）
+"$OUT/PirateCrew3D.exe" -pixelartOut "$OUT/export/pixelart-l3-r9" -pixelartLevel 3   # 关卡 3（pl3-*）
 python tools/pixel-review/judge_pixelart_pilot.py export/pixelart-r8
-python tools/pixel-review/judge_pixelart_pilot.py export/pixelart-cloud-r8
+python tools/pixel-review/judge_pixelart_pilot.py export/pixelart-l1-r9
 ```
 
 **已知的两个默认关闭项**（都留了开关，别当成漏做）：
@@ -85,7 +88,9 @@ python tools/pixel-review/judge_pixelart_pilot.py export/pixelart-cloud-r8
 
 ## 5. 判据与档案
 
-- 判据：块边长（像素化是否生效）、跳变率/平坦占比（色带是否平）、色数、**亮暗跨度**
-  （"光照被整屏旁路"的回归判据）、云场占比（`pc-*`，云台是否在场）、降档 A/B、墨线像素数。
+- 判据分**两档**：机制档（`pa-*`，试点场景）四项全为硬门禁；观感档（`pl<关卡>-*`，真实内容）
+  硬门禁是块边长/色数/墨线/**光照未旁路**（同机位比对最终图与 albedo 调试图）/场地在场，
+  平坦占比与亮暗跨度在这档只打印读数（真实关卡结构密，见判据脚本的模块 docstring）。
 - 每轮实拍与读数归档在 `docs/images/pixelart-path/r<轮次>/README.md`；
-  最新一轮（r8）含**角色台柱底径调整**与**云彩关接入**两项的实拍。
+  最新一轮（r9）含**三个关卡全部走本路径 + README 宣传图换新**，并记录了第 2 关一处已定位的描边缺陷；
+  r8 含**角色台柱底径调整**与**云彩关（关卡 1）接入**。
