@@ -32,6 +32,10 @@ Shader "PirateCrew/Pixelart/PixelartObject"
         _DitherPatternSize  ("图案边长（纹素）：4/6/8/16，须与图案资产一致", Float) = 4.0
         _NormalEdgeLevel    ("法线边加成档（0 = 不加深法线转折线；P4 生效）", Range(0.0, 1.0)) = 0.0
         _AAScale            ("抗锯齿缩放（P4 连通域用；本阶段未消费，先占位）", Range(0.0, 1.0)) = 1.0
+
+        // ---- 反向壳描边（外轮廓）----
+        _InkColor           ("描边墨色", Color) = (0.07, 0.05, 0.08, 1.0)
+        _OutlinePixels      ("描边线宽（低分辨率像素数；0 = 本物体不描边）", Range(0.0, 4.0)) = 1.2
     }
 
     SubShader
@@ -72,6 +76,8 @@ Shader "PirateCrew/Pixelart/PixelartObject"
                 float  _DitherPatternSize;
                 float  _NormalEdgeLevel;
                 float  _AAScale;
+                float4 _InkColor;
+                float  _OutlinePixels;
             CBUFFER_END
 
             TEXTURE2D(_DitherPattern);
@@ -156,6 +162,115 @@ Shader "PirateCrew/Pixelart/PixelartObject"
                 half dither = DitherValue(pixelCoord);
 
                 output.prop = half4(_MainLightLevel, dither, _NormalEdgeLevel, _AAScale);
+                return output;
+            }
+            ENDHLSL
+        }
+
+        // ====================================================================
+        // Pass 2 / PixelartInk：外轮廓反向壳描边（写进同一批 G-buffer）
+        //
+        // 【为什么是反向壳】正交投影下沿法线外扩的壳，投影宽度只与法线朝屏的分量有关，
+        // 天然等宽、且只在轮廓外留一圈（内部被随后画的本体盖回）——不需要屏幕空间边缘检测。
+        //
+        // 【线宽单位 = 低分辨率像素】外扩量 = _PixelartUnitSize × _OutlinePixels，
+        // 其中 _PixelartUnitSize 是"1 低分辨率像素的世界尺寸"（BeforeRender 每帧下发）。
+        // 于是"线宽在低分辨率域定义"这条（渲染篇 §5）自动成立：放大上屏后线宽就是整数屏像素，
+        // 不会出现半像素毛边。
+        //
+        // 【墨线不走光照】片元往 G-buffer 写 prop.a = 1 当"这是墨线"的标记，着色 pass 见到就直接
+        // 原样输出——否则墨线会被色带量化 + 环境光染成"深蓝的带"，就不是墨线了。
+        //
+        // 【大平面不描边】_OutlinePixels = 0 时本 pass 整片丢弃（地面/海面这种铺满画面的大平面，
+        // 壳环会顶到画面边缘，既无观感意义又白填一遍）。
+        // ====================================================================
+        Pass
+        {
+            Name "PixelartInk"
+            Tags { "LightMode" = "PixelartInk" }
+
+            Cull Front
+            ZWrite Off
+            ZTest LEqual
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex   PixelartInkVertex
+            #pragma fragment PixelartInkFragment
+            #pragma multi_compile_instancing
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            CBUFFER_START(UnityPerMaterial)
+                float4 _BaseColor;
+                float  _MainLightLevel;
+                float  _DitherMode;
+                float  _DitherStrength;
+                float  _DitherPatternSize;
+                float  _NormalEdgeLevel;
+                float  _AAScale;
+                float4 _InkColor;
+                float  _OutlinePixels;
+            CBUFFER_END
+
+            // 全局：1 低分辨率像素的世界尺寸（PixelartBeforeRenderFeature 下发）。
+            float _PixelartUnitSize = 0.0389;
+
+            struct AttributesInk
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS   : NORMAL;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            struct VaryingsInk
+            {
+                float4 positionCS : SV_POSITION;
+                UNITY_VERTEX_OUTPUT_STEREO
+            };
+
+            struct GBufferOutInk
+            {
+                half4 albedo : SV_Target0;
+                half4 normal : SV_Target1;
+                half4 prop   : SV_Target2;
+            };
+
+            VaryingsInk PixelartInkVertex(AttributesInk input)
+            {
+                VaryingsInk output;
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+                float3 positionVS = TransformWorldToView(TransformObjectToWorld(input.positionOS.xyz));
+                float3 normalVS = TransformWorldToViewDir(TransformObjectToWorldNormal(input.normalOS), true);
+
+                // 不归一化法线的 xy：斜面自然变细（ToonRP 口径，渲染篇 §5）。
+                // 但纯归一化会更"等宽"——这里取归一化，因为本路径的线宽是**观感主参数**、
+                // 不希望它随面朝向抖动。归一化后对所有朝向都严格 _OutlinePixels 个低分辨率像素。
+                float2 dir = normalVS.xy;
+                float  len = max(length(dir), 1e-4);
+                float  width = _PixelartUnitSize * _OutlinePixels;
+
+                positionVS.xy += (dir / len) * width;
+                // 【不要沿视线拉近】墨线是背面外扩：它的深度天然在本体背面（比本体远、比身后地面近），
+                // 靠"后画 + LEqual"就能做到"本体内部不落墨、轮廓外落墨"。
+                // 第一版照抄了旧链的"拉近 5 倍线宽"（那是为 ZWrite Off + 先画壳的写法服务的），
+                // 结果壳比本体更近 ⇒ 本体被 LEqual 挡掉、整个剪影被墨色糊住。
+
+                output.positionCS = mul(UNITY_MATRIX_P, float4(positionVS, 1.0));
+                return output;
+            }
+
+            GBufferOutInk PixelartInkFragment(VaryingsInk input)
+            {
+                if (_OutlinePixels < 0.01)
+                    discard;
+
+                GBufferOutInk output;
+                output.albedo = half4(_InkColor.rgb, 1.0);
+                output.normal = half4(0.0, 0.0, 1.0, 1.0);
+                output.prop   = half4(1.0, 0.5, 0.0, 1.0);   // a=1 ⇒ 着色 pass 原样输出（不吃光照/色带）
                 return output;
             }
             ENDHLSL

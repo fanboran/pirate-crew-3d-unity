@@ -25,6 +25,7 @@ namespace PirateCrew.Rendering.Pixelart
         sealed class Pass : ScriptableRenderPass
         {
             static readonly ShaderTagId kPixelartOpaque = new ShaderTagId(PixelartPath.OpaqueShaderTagName);
+            static readonly ShaderTagId kPixelartInk = new ShaderTagId(PixelartPath.InkShaderTagName);
 
             readonly ProfilingSampler m_Sampler = new ProfilingSampler("Pixelart Object");
             readonly RenderTargetIdentifier[] m_Mrt = new RenderTargetIdentifier[3];
@@ -80,8 +81,17 @@ namespace PirateCrew.Rendering.Pixelart
                 cmd.Clear();
 
                 SortingCriteria sorting = renderingData.cameraData.defaultOpaqueSortFlags;
-                DrawingSettings drawSettings = CreateDrawingSettings(kPixelartOpaque, ref renderingData, sorting);
-                context.DrawRenderers(renderingData.cullResults, ref drawSettings, ref m_Filtering);
+
+                // 本体先画、墨线后画。顺序不是审美偏好，是深度决定的：
+                // 墨线壳是**背面外扩**，它的深度在本体背面（比本体远、比身后的地面近）。
+                // 后画 + ZTest LEqual ⇒ 内部被本体挡掉（不写进去），轮廓外那一圈留在已经画好的
+                // 地面之上。反过来先画墨线，它不写深度（ZWrite Off），随后画的地面会把轮廓环**整个盖掉**
+                // ——实测症状就是"加了描边但一根线都看不到"。
+                DrawingSettings bodySettings = CreateDrawingSettings(kPixelartOpaque, ref renderingData, sorting);
+                context.DrawRenderers(renderingData.cullResults, ref bodySettings, ref m_Filtering);
+
+                DrawingSettings inkSettings = CreateDrawingSettings(kPixelartInk, ref renderingData, sorting);
+                context.DrawRenderers(renderingData.cullResults, ref inkSettings, ref m_Filtering);
 
                 // 画完把三张 G-buffer 设成 shader 全局：下一趟着色 pass 只吃全局、不重绑目标。
                 rig.PublishBuffersToShaders(cmd);

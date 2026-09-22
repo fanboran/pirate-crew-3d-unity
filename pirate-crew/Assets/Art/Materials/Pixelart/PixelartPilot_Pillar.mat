@@ -35,6 +35,8 @@ Material:
     - _DitherStrength: 0
     - _MainLightLevel: 3
     - _NormalEdgeLevel: 0
+    - _OutlinePixels: 1.2
     m_Colors:
     - _BaseColor: {r: 0.7882353, g: 0.6627451, b: 0.47843137, a: 1}
+    - _InkColor: {r: 0.07058824, g: 0.047058824, b: 0.078431375, a: 1}
   m_BuildTextureStacks: []

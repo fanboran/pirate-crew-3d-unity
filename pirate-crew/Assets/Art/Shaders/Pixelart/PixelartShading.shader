@@ -84,6 +84,11 @@ Shader "PirateCrew/Pixelart/PixelartShading"
                 float3 normalWS = SAMPLE_TEXTURE2D(_PixelartNormalBuffer, sampler_PixelartNormalBuffer, uv).xyz;
                 float4 prop     = SAMPLE_TEXTURE2D(_PixelartPropertyBuffer, sampler_PixelartPropertyBuffer, uv);
 
+                // 墨线像素：原样输出。墨线是"画上去的线"，不参与色带量化、也不吃环境光——
+                // 否则深墨色会被环境光染成带色偏的暗带，看上去就不是墨线了（prop.a 是墨线标记）。
+                if (prop.a > 0.5)
+                    return half4(albedo.rgb, 1.0);
+
                 float level  = prop.r;
                 float dither = (prop.g - 0.5) * 2.0;      // 0..1 → -1..+1
 

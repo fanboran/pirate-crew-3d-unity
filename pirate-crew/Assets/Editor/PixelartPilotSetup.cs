@@ -35,8 +35,27 @@ namespace PirateCrew.EditorTools
         const string MaterialFolder = "Assets/Art/Materials/Pixelart";
         const string DitherFolder = "Assets/Art/Textures/Fx/Dither";
 
-        /// <summary>低分辨率 RT 高（v3 自身档：高 180 → 16:9 即 320×180）。</summary>
-        const int RenderHeight = 180;
+        /// <summary>低分辨率 RT 高。360 = 1920 宽屏上 1 像素 = 3 屏幕像素（原 180 = 6 屏幕像素，颗粒过粗）。</summary>
+        const int RenderHeight = 360;
+
+        /// <summary>
+        /// 俯角：**30°（经典像素等距 2:1）**，不是真等距 35.264°。
+        ///
+        /// 【为什么】地面轴的屏幕斜率 = sinθ：30° 恰为 **0.5 = 2 像素横移 / 1 像素下降**，
+        /// 像素阶梯因此是**规则的**（每 2 格一段）；35.264° 是 0.5773，与像素网格无整数比，
+        /// 栅格化出来的阶梯长度必然忽长忽短（手绘像素等距沿用至今的都是 2:1 这一档）。
+        /// 这一条是渲染篇 §2.1 表里"30° = 经典像素等距"那一行的实拍依据。
+        /// </summary>
+        const float CameraPitchDegrees = 30f;
+
+        /// <summary>方位角：固定 45°（对角线，只有它给出对称菱形）。</summary>
+        const float CameraAzimuthDegrees = 45f;
+
+        const float CameraDistance = 30f;
+        const float CameraOrthoSize = 7f;
+
+        /// <summary>角色身高（Unity 胶囊图元高 2 × scale；scale 1 = 2.0m）。</summary>
+        const float CrewHeight = 2.0f;
 
         [MenuItem("PirateCrew/Pixelart/烘焙像素化试点场景")]
         public static void BuildAll()
@@ -58,8 +77,9 @@ namespace PirateCrew.EditorTools
 
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            // ---------------- 材质 ----------------
-            Material ground = EnsureMaterial("PixelartPilot_Ground", HexGamma("4A6E86"), 2f);
+            // ---------------- 材质（最后一个参数 = 描边线宽，低分辨率像素）----------------
+            // 地面不描边（铺满画面的大平面的壳环会顶到边缘，且无观感意义）。
+            Material ground = EnsureMaterial("PixelartPilot_Ground", HexGamma("4A6E86"), 2f, outlinePixels: 0f);
             Material rock = EnsureMaterial("PixelartPilot_Rock", HexGamma("D8BE8A"), 3f);
             Material pillar = EnsureMaterial("PixelartPilot_Pillar", HexGamma("C9A97A"), 3f);
             Material crewRed = EnsureMaterial("PixelartPilot_CrewRed", HexGamma("DE524D"), 3f);
@@ -67,27 +87,41 @@ namespace PirateCrew.EditorTools
 
             var root = new GameObject("PixelartPilot");
 
-            // ---------------- 几何（全部图元，几何正确性由引擎保证） ----------------
+            // ---------------- 几何 ----------------
+            // 【尺寸口径】台阶整体 5×5、三级各高 0.45（总高 1.35）；角色 2.0m 高 ——
+            // 上一版台阶 6×6、角色 1.2m，角色在画面里太小（宽机位只占屏高 8.6%），
+            // 且角色落点是拍脑袋给的坐标，正好落在台阶体积内（脚底埋进 0.6）。
+            // 现在角色落点按"台面高度 + 在足迹内/外"算清楚，见 AddCrew 的调用处。
             GameObject groundMesh = NewPrimitive(PrimitiveType.Plane, "Ground", root.transform, ground);
-            groundMesh.transform.localPosition = new Vector3(0f, 0f, 0f);
+            groundMesh.transform.localPosition = Vector3.zero;
             groundMesh.transform.localScale = new Vector3(6f, 1f, 6f);   // 60×60（Plane 图元 10×10）
 
-            // 三级台阶：每级都是一个立方体，朝向相同但高度不同——色带会按面法线切出不同的档。
-            AddBox(root.transform, "Step1", new Vector3(0f, 0.3f, 0f), new Vector3(6f, 0.6f, 6f), rock);
-            AddBox(root.transform, "Step2", new Vector3(0f, 0.9f, 0f), new Vector3(4f, 0.6f, 4f), rock);
-            AddBox(root.transform, "Step3", new Vector3(0f, 1.5f, 0f), new Vector3(2.4f, 0.6f, 2.4f), rock);
+            const float stepHeight = 0.45f;
+            AddBox(root.transform, "Step1", new Vector3(0f, stepHeight * 0.5f, 0f),
+                new Vector3(5.0f, stepHeight, 5.0f), rock);                       // 顶面 y=0.45，足迹 ±2.5
+            AddBox(root.transform, "Step2", new Vector3(0f, stepHeight * 1.5f, 0f),
+                new Vector3(3.5f, stepHeight, 3.5f), rock);                       // 顶面 y=0.90，足迹 ±1.75
+            AddBox(root.transform, "Step3", new Vector3(0f, stepHeight * 2.5f, 0f),
+                new Vector3(2.2f, stepHeight, 2.2f), rock);                       // 顶面 y=1.35，足迹 ±1.10
 
-            // 立柱：竖直面 + 顶面，用来看"同一朝向在不同光角下是不是同一档"。
-            AddBox(root.transform, "Pillar", new Vector3(-3.6f, 1.3f, -2.4f), new Vector3(1.2f, 2.6f, 1.2f), pillar);
+            // 立柱：站在地面上、完全在台阶足迹之外（x=-3.4 < -2.5）。
+            AddBox(root.transform, "Pillar", new Vector3(-3.4f, 1.1f, -1.6f), new Vector3(1.0f, 2.2f, 1.2f), pillar);
 
-            // 船员：胶囊 + 球头（省掉既有船员 prefab 的全部依赖）。
-            AddCrew(root.transform, "CrewRed", new Vector3(2.6f, 0f, 2.4f), 150f, crewRed);
-            AddCrew(root.transform, "CrewBlue", new Vector3(-2.2f, 0f, 3.2f), -35f, crewBlue);
+            // 角色：
+            // - 红：站在**二级台阶台面**上（y=0.90，x/z=1.45 在 ±1.75 内、±1.10 外 ⇒ 不在三级体积里）
+            // - 蓝：站在**地面**上、台阶足迹之外（x=-3.3 < -2.5）
+            AddCrew(root.transform, "CrewRed", new Vector3(1.45f, stepHeight * 2f, 1.45f), 200f, crewRed);
+            AddCrew(root.transform, "CrewBlue", new Vector3(-3.3f, 0f, 2.6f), -30f, crewBlue);
 
             // ---------------- 光 ----------------
+            // 【太阳高度 58° 是算出来的，不是随手给的】3 档色带下"顶面 / 朝光立面 / 背光立面"
+            // 必须落进三个不同档，否则**台阶会读成一块平面**（实测：仰角 48° 时顶面与朝光立面
+            // 的 ndotl 只差 0.23、量化后同档 ⇒ 三级台阶糊成一整块菱形）。
+            // 抬高仰角会拉开"竖直面 vs 水平面"的 ndotl 差：58° 时顶面/朝光立面/背光面 ≈ 1.0 / 0.5 / 0.0 三档。
+            // 方位角沿用本仓"左上光"惯例 140°。
             var sunGo = new GameObject("PixelartSun");
             sunGo.transform.SetParent(root.transform);
-            sunGo.transform.rotation = Quaternion.Euler(48f, 140f, 0f);
+            sunGo.transform.rotation = Quaternion.Euler(58f, 140f, 0f);
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
             sun.color = HexGamma("FFF5E0");
@@ -100,17 +134,23 @@ namespace PirateCrew.EditorTools
             RenderSettings.ambientMode = AmbientMode.Flat;
             RenderSettings.ambientLight = HexGamma("14182A");
 
-            // ---------------- 相机（正交真等距：俯角 35.264°、方位 45°） ----------------
+            // ---------------- 相机（正交；俯角 30° = 经典像素等距 2:1） ----------------
             var camGo = new GameObject("PixelartPilotCamera");
             camGo.tag = "MainCamera";
             camGo.transform.SetParent(root.transform);
-            Vector3 target = new Vector3(0f, 1.0f, 0f);
-            camGo.transform.position = target + new Vector3(17.32f, 17.32f, 17.32f);   // 视线沿立方对角线
+            Vector3 target = new Vector3(0f, 0.9f, 0f);       // 构图中心：台阶腰高
+            float pitch = CameraPitchDegrees * Mathf.Deg2Rad;
+            float azim = CameraAzimuthDegrees * Mathf.Deg2Rad;
+            // 俯角 θ、方位 φ 时相机在目标上方方向 = (cosθ·sinφ, sinθ, cosθ·cosφ)
+            // （θ=30°、φ=45° ⇒ (0.6124, 0.5, 0.6124)；真等距 35.264° 那一档就是等分 (1,1,1)/√3）。
+            Vector3 dir = new Vector3(Mathf.Cos(pitch) * Mathf.Sin(azim), Mathf.Sin(pitch),
+                Mathf.Cos(pitch) * Mathf.Cos(azim));
+            camGo.transform.position = target + dir * CameraDistance;
             camGo.transform.LookAt(target);
 
             var camera = camGo.AddComponent<Camera>();
             camera.orthographic = true;
-            camera.orthographicSize = 7f;
+            camera.orthographicSize = CameraOrthoSize;
             camera.nearClipPlane = 0.3f;
             camera.farClipPlane = 200f;
             camera.clearFlags = CameraClearFlags.SolidColor;
@@ -158,28 +198,36 @@ namespace PirateCrew.EditorTools
             go.transform.localScale = scale;
         }
 
-        /// <summary>船员：胶囊身体（图元高 2，scale 0.6 → 身高 1.2）+ 球头。脚底贴 y=0。</summary>
-        static void AddCrew(Transform parent, string name, Vector3 groundPosition, float yawDegrees, Material material)
+        /// <summary>
+        /// 角色：胶囊身体 + 球头（图元自带，省掉既有船员 prefab 的全部依赖）。
+        /// <paramref name="feetWorldY"/> 是**脚底所在高度**：调用方必须按"站在哪个面上"给，
+        /// 别给地面高度了事——上一版把角色放在台阶足迹内、脚底却是 y=0，于是半个身子埋进台阶里。
+        /// </summary>
+        static void AddCrew(Transform parent, string name, Vector3 feetPosition, float yawDegrees, Material material)
         {
             var crewRoot = new GameObject(name);
             crewRoot.transform.SetParent(parent);
-            crewRoot.transform.localPosition = groundPosition;
+            crewRoot.transform.localPosition = feetPosition;
             crewRoot.transform.localRotation = Quaternion.Euler(0f, yawDegrees, 0f);
 
+            float scale = CrewHeight * 0.5f;          // 胶囊图元高 2 ⇒ scale = 身高/2
+            float headScale = CrewHeight * 0.4f;      // 头径 ≈ 0.4 × 身高（低模大头，读得清）
+            float bodyCenter = CrewHeight * 0.5f;     // 胶囊中心在身高一半处
+
             GameObject body = NewPrimitive(PrimitiveType.Capsule, name + "_Body", crewRoot.transform, material);
-            body.transform.localPosition = new Vector3(0f, 0.6f, 0f);
-            body.transform.localScale = new Vector3(0.6f, 0.6f, 0.6f);
+            body.transform.localPosition = new Vector3(0f, bodyCenter, 0f);
+            body.transform.localScale = new Vector3(scale, scale, scale);
 
             GameObject head = NewPrimitive(PrimitiveType.Sphere, name + "_Head", crewRoot.transform, material);
-            head.transform.localPosition = new Vector3(0f, 1.45f, 0f);
-            head.transform.localScale = new Vector3(0.45f, 0.45f, 0.45f);
+            head.transform.localPosition = new Vector3(0f, CrewHeight * 1.05f, 0f);
+            head.transform.localScale = new Vector3(headScale, headScale, headScale);
         }
 
         /// <summary>
         /// 新建/就地更新物体材质（幂等：重跑覆盖，常量表是唯一调色入口）。
         /// 只设"这个物体该长什么样"的逐物体参数；着色数学全在走 shader 全局的那一趟里。
         /// </summary>
-        static Material EnsureMaterial(string name, Color albedo, float bandCount)
+        static Material EnsureMaterial(string name, Color albedo, float bandCount, float outlinePixels = 1.2f)
         {
             string path = MaterialFolder + "/" + name + ".mat";
             Shader shader = Shader.Find(PixelartPath.ObjectShaderName);
@@ -204,6 +252,10 @@ namespace PirateCrew.EditorTools
             mat.SetFloat("_DitherStrength", 0f);   // 默认关（v3 自己的材质默认也是 0）；出图时用 MPB 拨开对照
             mat.SetFloat("_NormalEdgeLevel", 0f);  // P4 接连通域后才有效
 
+            // 反向壳描边：线宽单位 = 低分辨率像素（1.2 px ≈ 360 档下 3~4 屏幕像素）。
+            mat.SetColor("_InkColor", HexGamma("120C14"));   // 墨色：比纯黑带一点紫（阴影里不发死）
+            mat.SetFloat("_OutlinePixels", outlinePixels);
+
             // 挂上 v3 口径的密度图案（_DitherMode 拨到 1 即生效，不必重烘场景）。
             var pattern = AssetDatabase.LoadAssetAtPath<Texture2D>(DitherFolder + "/ToonDither_0.png");
             if (pattern != null)
@@ -219,78 +271,63 @@ namespace PirateCrew.EditorTools
         /// <summary>
         /// 把场景写进 Build Settings（编辑器里 Play / 按名 LoadScene 用）。
         ///
-        /// 【实现口径】先读出现有清单，就地拼成"去重后的目标清单"，再整表写回——
-        /// 不用 <c>InsertArrayElementAtIndex(arraySize)</c> 追加：那个 API 在末尾插入时
-        /// **新元素是末元素的副本**，随后若字段写入没落盘，就会留下一条重复场景
-        /// （实测：本脚本第一版把 ToonPilot 写成了两条、新场景反而没进去）。
-        /// 写回用 <c>AssetDatabase.SaveAssetIfDirty</c>（ProjectSettings 资产按 <c>SaveAssets</c> 不落盘），
-        /// 最后**读文件回验**并把结果打进日志——注册这类"默默不生效"的活，不读回等于没做。
+        /// 【为什么走文本直改而不是 SerializedObject】`EditorBuildSettingsScene.guid` 在 2022.3 是
+        /// <c>GUID</c> **结构体**而不是字符串——用 <c>SerializedProperty.stringValue</c> 读它直接抛
+        /// "type is not a supported string value"，而异常发生在写完 path 之前，于是**插进去了半条脏记录**
+        /// （实测：本脚本第一版把 ToonPilot 变成两条、新场景反而没进去，且只在日志里留一行异常）。
+        /// 本仓既有装配脚本（`ToonPilotSetup`）对同一问题也是走 YAML 直改，这里沿用同一条路。
+        ///
+        /// 【实现口径】先找**最后一条 guid 行**（每个场景条目的末行），在它之后插入完整的三行条目；
+        /// 幂等靠"文本里已有该 path 就跳过"；写完**读文件回验**并把条数打进日志——
+        /// 注册这类"默默不生效"的活，不读回等于没做。
         /// 播放器出包不受本文件影响：`BuildScript` 是显式把场景集传给 <c>BuildPlayerOptions</c> 的。
         /// </summary>
         static void RegisterInBuildSettings(string scenePath)
         {
             AssetDatabase.ImportAsset(scenePath);   // 确保 .meta（guid）已生成
 
-            Object settings = LoadProjectSettingsObject("ProjectSettings/EditorBuildSettings.asset");
-            if (settings == null)
+            string guid = AssetDatabase.AssetPathToGUID(scenePath);
+            if (string.IsNullOrEmpty(guid))
             {
-                Debug.LogError("[PixelartPilotSetup] 读不到 EditorBuildSettings.asset，场景未注册。");
+                Debug.LogError("[PixelartPilotSetup] 场景 guid 解析失败：" + scenePath);
                 return;
             }
 
-            var so = new SerializedObject(settings);
-            SerializedProperty scenes = so.FindProperty("m_Scenes");
-            if (scenes == null)
+            // File IO 必须绝对路径（batchmode 下相对路径按进程 CWD 解析）。
+            string abs = System.IO.Path.GetFullPath(System.IO.Path.Combine(
+                Application.dataPath, "..", "ProjectSettings/EditorBuildSettings.asset")).Replace('\\', '/');
+
+            string text;
+            try
             {
-                Debug.LogError("[PixelartPilotSetup] EditorBuildSettings 没有 m_Scenes 字段，未注册场景。");
+                text = System.IO.File.ReadAllText(abs);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError("[PixelartPilotSetup] 读 EditorBuildSettings.asset 失败：" + e.Message);
                 return;
             }
 
-            // 1) 收现状（按路径去重，保留原顺序；顺带清掉历史重复项）。
-            var paths = new System.Collections.Generic.List<string>();
-            var guids = new System.Collections.Generic.List<string>();
-            for (int i = 0; i < scenes.arraySize; i++)
+            if (!text.Contains("path: " + scenePath))
             {
-                SerializedProperty element = scenes.GetArrayElementAtIndex(i);
-                string path = element.FindPropertyRelative("path").stringValue;
-                if (string.IsNullOrEmpty(path) || paths.Contains(path))
-                    continue;
-
-                paths.Add(path);
-                guids.Add(element.FindPropertyRelative("guid").stringValue);
-            }
-
-            // 2) 目标清单 = 现状 + 本场景（已在则原样）。
-            if (!paths.Contains(scenePath))
-            {
-                string guid = AssetDatabase.AssetPathToGUID(scenePath);
-                if (string.IsNullOrEmpty(guid))
+                string newline = text.Contains("\r\n") ? "\r\n" : "\n";
+                System.Text.RegularExpressions.MatchCollection guids =
+                    System.Text.RegularExpressions.Regex.Matches(text, @"guid: [0-9a-f]{32}");
+                if (guids.Count == 0)
                 {
-                    Debug.LogError("[PixelartPilotSetup] 场景 guid 解析失败：" + scenePath);
+                    Debug.LogError("[PixelartPilotSetup] EditorBuildSettings 里找不到任何场景条目，未注册。");
                     return;
                 }
-                paths.Add(scenePath);
-                guids.Add(guid);
+
+                System.Text.RegularExpressions.Match last = guids[guids.Count - 1];
+                string entry = newline + "  - enabled: 1" + newline + "    path: " + scenePath
+                    + newline + "    guid: " + guid;
+                text = text.Insert(last.Index + last.Length, entry);
+                System.IO.File.WriteAllText(abs, text);
             }
 
-            // 3) 整表写回。
-            scenes.ClearArray();
-            for (int i = 0; i < paths.Count; i++)
-            {
-                scenes.InsertArrayElementAtIndex(i);
-                SerializedProperty element = scenes.GetArrayElementAtIndex(i);
-                element.FindPropertyRelative("enabled").boolValue = true;
-                element.FindPropertyRelative("path").stringValue = paths[i];
-                element.FindPropertyRelative("guid").stringValue = guids[i];
-            }
-
-            so.ApplyModifiedPropertiesWithoutUndo();
-            AssetDatabase.SaveAssetIfDirty(settings);
-
-            // 4) 读回验证（不读回就不知道到底落盘没有）。
-            string[] verify = System.IO.File.ReadAllLines(
-                System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..",
-                    "ProjectSettings/EditorBuildSettings.asset")));
+            // 读回验证。
+            string[] verify = System.IO.File.ReadAllLines(abs);
             int registered = 0;
             bool found = false;
             foreach (string line in verify)
@@ -309,7 +346,7 @@ namespace PirateCrew.EditorTools
                 Debug.Log("[PixelartPilotSetup] Build Settings 注册回验通过：" + scenePath
                     + "，共 " + registered + " 条场景。");
 
-            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
         }
 
         /// <summary>ProjectSettings 下的资产要用 LoadAllAssetsAtPath 才拿得到（同 UrpSetup 口径）。</summary>

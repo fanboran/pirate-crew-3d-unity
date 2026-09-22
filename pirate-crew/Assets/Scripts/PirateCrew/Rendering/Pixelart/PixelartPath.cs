@@ -35,6 +35,9 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>物体 pass 的 ShaderTagId：材质里只有这一条 LightMode 的 pass 会被画。</summary>
         public const string OpaqueShaderTagName = "PixelartOpaque";
 
+        /// <summary>墨线（反向壳）pass 的 ShaderTagId：先于本体画，只留轮廓外一圈。</summary>
+        public const string InkShaderTagName = "PixelartInk";
+
         /// <summary>渲染器资产所在目录（装配器创建，本路径专用，不碰既有两档渲染器）。</summary>
         public const string RendererFolder = "Assets/Settings/URP";
 

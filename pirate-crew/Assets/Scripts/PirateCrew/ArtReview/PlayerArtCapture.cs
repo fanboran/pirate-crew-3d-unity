@@ -370,22 +370,27 @@ namespace PirateCrew.ArtReview
             Vector3 basePos = cam.transform.position;
             Quaternion baseRot = cam.transform.rotation;
             Vector3 forward = baseRot * Vector3.forward;
-            Vector3 target = basePos + forward * 30f; // 装配常量：基准机位到目标 30u
+
+            // 构图中心用**场景常量**而不是"从当前位置外推"：机位要按俯角重算，
+            // 从旧朝向推出来的目标点会随镜头一起跑（这一条是实拍踩出来的）。
+            Vector3 target = new Vector3(0f, 0.9f, 0f);
+            const float cameraDistance = 30f;
 
             Directory.CreateDirectory(_outDir);
 
-            // (文件名, 正交size, 沿视线推进系数, 抖动图案 -1=不动/0=Bayer/1=密度图案, 抖动幅度, RT高 0=不动)
-            (string name, float size, float zoom, int ditherMode, float ditherStrength, int rtHeight)[] shots =
+            // (文件名, 正交size, 推进系数, 俯角, 抖动图案 -1=不动/0=Bayer/1=密度图案, 抖动幅度, RT高 0=不动)
+            (string name, float size, float zoom, float pitch, int ditherMode, float ditherStrength, int rtHeight)[] shots =
             {
-                ("pa-wide",                     7f,   1f,   -1, 0f,   0),
-                ("pa-mid",                      3.2f, 0.5f, -1, 0f,   0),
-                ("pa-close",                    1.6f, 0.3f, -1, 0f,   0),
-                ("pa-mid-dither-bayer05",       3.2f, 0.5f,  0, 0.5f, 0),
-                ("pa-mid-dither-pattern05",     3.2f, 0.5f,  1, 0.5f, 0),
-                ("pa-mid-dither-pattern10",     3.2f, 0.5f,  1, 1.0f, 0),
-                ("pa-close-dither-pattern05",   1.6f, 0.3f,  1, 0.5f, 0),
-                ("pa-mid-rt360",                3.2f, 0.5f, -1, 0f,   360),
-                ("pa-mid-rt90",                 3.2f, 0.5f, -1, 0f,   90),
+                ("pa-wide",                 7.0f, 1.0f, 30f,     -1, 0f,   0),
+                ("pa-mid",                  3.2f, 0.5f, 30f,     -1, 0f,   0),
+                ("pa-close",                1.6f, 0.3f, 30f,     -1, 0f,   0),
+                // 阶梯规则性对照：同样取景，只换俯角（30° = 2:1 规则阶梯 / 35.264° = sinθ=0.5773 非整数比）
+                ("pa-mid-pitch35",          3.2f, 0.5f, 35.264f, -1, 0f,   0),
+                // 颗粒度对照：默认 RT 高 360（1 像素 = 3 屏幕像素），另拍 180（6 屏幕像素）与 720（1.5 → 2）
+                ("pa-mid-rt180",            3.2f, 0.5f, 30f,     -1, 0f,   180),
+                ("pa-mid-rt720",            3.2f, 0.5f, 30f,     -1, 0f,   720),
+                // 抖动范式对照（v3 的 1-bit 密度图案）
+                ("pa-mid-dither-pattern05", 3.2f, 0.5f, 30f,      1, 0.5f, 0),
             };
 
             foreach (var shot in shots)
@@ -393,9 +398,14 @@ namespace PirateCrew.ArtReview
                 if (shot.rtHeight > 0 && shot.rtHeight != rig.renderHeight)
                     rig.renderHeight = shot.rtHeight;
 
+                // 俯角/方位按参数重算（方位固定 45°：只有它给对称菱形）。
+                float pitchRad = shot.pitch * Mathf.Deg2Rad;
+                float azimRad = 45f * Mathf.Deg2Rad;
+                Vector3 dir = new Vector3(Mathf.Cos(pitchRad) * Mathf.Sin(azimRad), Mathf.Sin(pitchRad),
+                    Mathf.Cos(pitchRad) * Mathf.Cos(azimRad));
                 cam.orthographicSize = shot.size;
-                cam.transform.position = target - forward * (30f * shot.zoom);
-                cam.transform.rotation = baseRot;
+                cam.transform.position = target + dir * (cameraDistance * shot.zoom);
+                cam.transform.LookAt(target);
 
                 if (shot.ditherMode >= 0)
                     SetPixelartDither(shot.ditherMode, shot.ditherStrength);
