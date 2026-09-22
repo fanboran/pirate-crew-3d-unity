@@ -62,7 +62,6 @@ namespace PirateCrew.EditorTools.BuildSystem
         public static readonly string[] PixelartLevelScenes =
         {
             "PixelartCloud",        // 关卡 1 云端漫步
-            "PixelartIslets",       // 关卡 2 碎岛雨
             "PixelartSkyIsland",    // 关卡 3 天空之岛
         };
 

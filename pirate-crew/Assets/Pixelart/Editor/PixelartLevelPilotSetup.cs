@@ -49,7 +49,6 @@ namespace PirateCrew.EditorTools
 
         // ---- 内容件（与 SceneArtBaker 的产物路径一致）----
         const string CloudFieldPrefabPath = "Assets/Art/Models/SceneKit/CloudField.prefab";
-        const string IsletsPrefabPath = "Assets/Art/Models/SceneKit/Islets_L02.prefab";
         const string DangerBorderPrefabPath = "Assets/Art/Models/SceneKit/ShowcaseDangerBorder.prefab";
 
         /// <summary>海面替身尺寸：Plane 图元 10×10 × 16 = 160×160（与试点场景同量级）。</summary>
@@ -83,7 +82,6 @@ namespace PirateCrew.EditorTools
         // ---- 单关入口（batchmode 调试用；菜单只留 BuildAll）----
 
         public static void BuildLevel1() => BuildSingle(1);
-        public static void BuildLevel2() => BuildSingle(2);
         public static void BuildLevel3() => BuildSingle(3);
 
         static void BuildSingle(int levelNumber)
@@ -325,7 +323,6 @@ namespace PirateCrew.EditorTools
             switch (piece)
             {
                 case ShowcasePieceId.CloudField: return CloudFieldPrefabPath;
-                case ShowcasePieceId.Islets: return IsletsPrefabPath;
                 case ShowcasePieceId.DangerBorder: return DangerBorderPrefabPath;
                 default: return null;
             }

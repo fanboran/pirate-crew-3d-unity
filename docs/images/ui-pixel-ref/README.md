@@ -132,9 +132,9 @@
 - 本目录发布的**由本工程色板重新生成**的对照图（不含参照素材本身）：
   - [`gen-contact-sheet-2x.png`](gen-contact-sheet-2x.png)（2× 放大，全族接触表：7 tone×6 列 +
     页签区 + 语义件区 + 5 填充；**行/列/分区都印了 3×5 字模标注**，底纹棋盘用来读透明切角与环内）；
-  - [`gen-showcase-1x.png`](gen-showcase-1x.png)（**1× = 实际屏幕像素**，1080p 验收主图）与
-    [`gen-showcase-2x.png`](gen-showcase-2x.png)（同版式放大，读边带用）——**美术稿**：
-    全件按战斗 HUD 构图合成（船员卡/页签组/海图小地图/敌条/警告按钮/页点/Toast）；
+  - [`gen-showcase-1x.png`](gen-showcase-1x.png)（**全屏 640×360 艺术像素 = 1920×1080 屏幕，1× 输出
+    即实际屏幕像素**，验收主图）——**美术稿**：整屏构图（船员卡/海图小地图/敌情/警告按钮/页点/Toast），
+    元素尺寸给足、标题字模 3×；
   - [`gen-corner-8x.png`](gen-corner-8x.png)（8× 放大，左上角特写：外环沿切角斜线闭合、
     斜面与内暗线是它里面两条同心环；u=2 波次的图，角结构不变）；
   - [`gen-bar-24px-compare-4x.png`](gen-bar-24px-compare-4x.png)（4× 放大，u=2 波次的

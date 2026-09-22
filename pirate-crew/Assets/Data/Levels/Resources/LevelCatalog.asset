@@ -14,7 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   levels:
     - {fileID: 11400000, guid: 812a920da0a19bd2f271f16e90218a5f, type: 2}
-    - {fileID: 11400000, guid: bec82258253dfe91f5fd59906df3b260, type: 2}
     - {fileID: 11400000, guid: 5a4400309cb0e2d9aaab9a56012f069e, type: 2}
   worldMaps:
     - {fileID: 11400000, guid: cf041cce65e1c21b3b5f78200041e3fb, type: 2}

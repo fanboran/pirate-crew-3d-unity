@@ -7,8 +7,9 @@ namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// 出战计划生成测试（§4.3 坐标/队伍、§4.1 luck、§5.5 初始武器、§4.4 全局水面常量）。
-    /// 坐标按 3D 重投影语义（gridY→Z 纵深），数据源 = 样板第 1/2 关的手写
+    /// 坐标按 3D 重投影语义（gridY→Z 纵深），数据源 = 样板第 1 关的
     /// <see cref="ShowcaseLevels"/> 数据（一代退场后 BuildBattlePlan 的纯 C# 入口），无头可跑。
+    /// 关卡 2「碎岛雨」已删除（2026-09-22），本文件只覆盖关卡 1。
     /// </summary>
     [TestFixture]
     public class BattlePlanTests
@@ -124,25 +125,6 @@ namespace PirateCrew.Battle.Tests
 
             Assert.AreEqual(1, Showcase1().PotentialWeapons.Count, "空投池应恰 1 种");
             Assert.AreEqual(WeaponId.Dynamite, Showcase1().PotentialWeapons[0].id, "空投池应为 dynamite");
-        }
-
-        [Test]
-        public void Showcase2_Plan_BuildsFourVsFour()
-        {
-            // 第二份数据集交叉验证（碎岛雨，设计文档 L02 §4）：4 v 4，水面常量同源。
-            LevelData data = ShowcaseLevels.BuildLevelData(2).Value;
-            BattlePlan plan = LevelGeometry.BuildBattlePlan(data);
-
-            Assert.AreEqual(8, plan.Entries.Count);
-            Assert.AreEqual(4, plan.CountForTeam(0));
-            Assert.AreEqual(4, plan.CountForTeam(1));
-            Assert.AreEqual(LevelGeometry.WaterSurfaceY, plan.WaterWorldY, 1e-5f);
-
-            // 空投池 = {Mine, RumBottle, Banana}（设计文档 L02 §5）。
-            Assert.AreEqual(3, data.PotentialWeapons.Count);
-            Assert.AreEqual(WeaponId.Mine, data.PotentialWeapons[0].id);
-            Assert.AreEqual(WeaponId.RumBottle, data.PotentialWeapons[1].id);
-            Assert.AreEqual(WeaponId.Banana, data.PotentialWeapons[2].id);
         }
     }
 }

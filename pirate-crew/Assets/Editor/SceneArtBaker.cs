@@ -16,7 +16,6 @@ namespace PirateCrew.EditorTools
     ///
     /// 【产物】（全部在 <see cref="BakeFolder"/>，与 Blender 手作 FBX 同目录同清单）
     ///   · CloudField.prefab          —— 低模云场（第 1 关主景）
-    ///   · Islets_L02.prefab          —— 碎岛礁群（第 2 关主景，岛壳从逻辑高度场直出）
     ///   · ShowcaseDangerBorder.prefab —— 落水危险虚线（样板三关共用）
     /// 2026-09-19 起程序化双船（Ship_Galleon/Ship_Longboat）退役：观感不可接受（用户裁决），
     /// 船类资产此后一律走 Blender 手作管线。
@@ -63,51 +62,13 @@ namespace PirateCrew.EditorTools
             EnsureFolder(LowpolyMaterialFolder);
 
             BakeCloudField();
-            BakeIslets();
             BakeDangerBorder();
             WireBattleScene();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("[SceneArtBaker] 样板场景件烘焙完成：" + BakeFolder
-                + "（云场 + 碎岛 + 危险线；同输入重跑逐顶点一致，见确定性测试）。");
-        }
-
-        // ------------------------------------------------------------------
-        // 碎岛礁群（L2「碎岛雨」：逻辑高度场 → 岛壳 prefab）
-        // ------------------------------------------------------------------
-
-        /// <summary>
-        /// 烘碎岛：直接拿第 2 关的**逻辑高度场**（<see cref="ShowcaseLevels.BuildLogicGrid"/>）
-        /// 走 <see cref="IslandShellGeometry.BuildSolidShell"/> 烘整场岛壳——顶面与碰撞层
-        /// 严格等高（按构造对齐，改布局=改高度场+重烘，两处不会静默分叉）。
-        /// 材质复用 L3 空岛的岩层中档（IslandMaterialCatalog.RockMid），与空岛观感同族。
-        /// 实例摆位恒在原点（几何世界坐标直出），见 <c>ShowcaseLevels.BakedPlacements</c>。
-        /// </summary>
-        static void BakeIslets()
-        {
-            TileTerrainGrid grid = ShowcaseLevels.BuildLogicGrid(2);
-            MeshBuffers shell = IslandShellGeometry.BuildSolidShell(grid, IslandShellSettings.Default);
-            if (shell.IsEmpty)
-            {
-                Debug.LogError("[SceneArtBaker] L2 碎岛高度场烘出空岛壳（IsletRainBlocks 全空？）——不入 prefab。");
-                return;
-            }
-
-            Material rock = AssetDatabase.LoadAssetAtPath<Material>(
-                FloatingIslandScenePlan.MaterialAssetPath(IslandMaterial.RockMid));
-            if (rock == null)
-            {
-                // 回退：空岛材质还没烘（先跑 ArtGate ⑦.5）时，用同 shader 纯色保证"宁缺不粉"之外还有第二道保险。
-                rock = EnsureMaterialAsset(
-                    SceneMaterialFolder + "/Scene_IsletRock.mat", "Scene_IsletRock",
-                    "PirateCrew/PirateSurface", new Color(0.42f, 0.38f, 0.33f, 1f));
-            }
-
-            var root = new GameObject("Islets_L02");
-            EmitGroupMesh(root, "SceneArt_Islets", shell, rock, castShadows: true);
-
-            SavePrefab(root, BakeFolder + "/Islets_L02.prefab");
+                + "（云场 + 危险线；同输入重跑逐顶点一致，见确定性测试）。");
         }
 
         // ------------------------------------------------------------------
@@ -362,7 +323,6 @@ namespace PirateCrew.EditorTools
 
             var so = new SerializedObject(sceneArt);
             SetPrefabRef(so, "cloudFieldPrefab", BakeFolder + "/CloudField.prefab");
-            SetPrefabRef(so, "isletsPrefab", BakeFolder + "/Islets_L02.prefab");
             SetPrefabRef(so, "dangerBorderPrefab", BakeFolder + "/ShowcaseDangerBorder.prefab");
             so.ApplyModifiedPropertiesWithoutUndo();
 

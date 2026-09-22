@@ -19,7 +19,8 @@ namespace PirateCrew.Battle.Tests
     /// 【它多验了什么（无头侧验不到的）】
     ///   ① 手写/generated 的 `.asset` YAML 真能被 Unity 反序列化成 <see cref="LevelDefinition"/> /
     ///      <see cref="WorldMapDefinitionAsset"/>（<c>m_Script</c> guid 对得上、字段名与类型吻合）；
-    ///   ② <c>Resources.Load("LevelCatalog")</c> 能取到清单，且清单把 11 张资产全带进来；
+    ///   ② <c>Resources.Load("LevelCatalog")</c> 能取到清单，且清单把 10 张资产全带进来
+    ///      （8 张海图 + 2 张关卡；关卡 2「碎岛雨」已删除 2026-09-22，号段有意不连续）；
     ///   ③ 校验器（<see cref="PirateCrew.EditorTools.LevelAssetValidator"/>）在同一批资产上零错误。
     ///
     /// 跑法：Test Runner → EditMode；无头见 docs/项目/工业级重构总纲.md §5。
@@ -39,7 +40,7 @@ namespace PirateCrew.Battle.Tests
                 + "清单必须落在 Assets/Data/Levels/Resources/ 下才会进构建包");
 
             Assert.That(catalog.WorldMaps.Count, Is.EqualTo(8), "清单里的海图数不对");
-            Assert.That(catalog.Levels.Count, Is.EqualTo(3), "清单里的关卡数不对");
+            Assert.That(catalog.Levels.Count, Is.EqualTo(2), "清单里的关卡数不对（关卡 2 已删除，只剩 1、3）");
 
             for (int i = 0; i < catalog.WorldMaps.Count; i++)
                 Assert.That(catalog.WorldMaps[i], Is.Not.Null, "清单 worldMaps[" + i + "] 是空引用");
@@ -88,7 +89,9 @@ namespace PirateCrew.Battle.Tests
                 checkedAssets++;
             }
 
-            Assert.That(checkedAssets, Is.EqualTo(11), "应有 8 张海图 + 3 张关卡资产");
+            // 计数 = 上面两轮循环各自找到的资产数：8 张海图 + 2 张关卡 = 10
+            //（关卡 2 已删除，不参与计数；关卡号不连续不影响这里——它只数文件）。
+            Assert.That(checkedAssets, Is.EqualTo(10), "应有 8 张海图 + 2 张关卡资产");
         }
 
         [Test]

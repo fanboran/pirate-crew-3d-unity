@@ -139,7 +139,8 @@ namespace PirateCrew.ArtReview
                     else
                     {
                         Debug.LogError("[PlayerArtCapture] -pixelartLevel " + level
-                            + " 不在取景表里（1..3）——回落到关卡 " + PixelartDefaultLevel + "。");
+                            + " 不在取景表里（现存样板关 1 与 3，号段有意不连续）——回落到关卡 "
+                            + PixelartDefaultLevel + "。");
                         if (PixelartLevelScene.TryGet(PixelartDefaultLevel, out PixelartLevelView fallback))
                         {
                             PixelartLevel = PixelartDefaultLevel;

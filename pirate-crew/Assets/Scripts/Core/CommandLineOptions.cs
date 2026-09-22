@@ -174,7 +174,7 @@ namespace PirateCrew.Core
         public const string PixelartOut = "-pixelartOut";
 
         /// <summary>
-        /// `-pixelartOut` 的场景切换：<c>-pixelartLevel &lt;1|2|3&gt;</c> ⇒ 改拍该关的关卡试点场景
+        /// `-pixelartOut` 的场景切换：<c>-pixelartLevel &lt;1|3&gt;</c>（现存样板关，号段不连续）⇒ 改拍该关的关卡试点场景
         /// （真实内容：场地件 + 按关卡出生表摆的单位；场景名与取景口径见 `PixelartLevelScene`）。
         /// 不带它时拍 <c>PixelartPilot</c>（图元几何，验机制）。两个档共用同一条采集流程与判据脚本。
         /// </summary>

@@ -7,23 +7,32 @@ using UnityEngine;
 namespace PirateCrew.SceneArt.Tests
 {
     /// <summary>
-    /// 样板三关**设计契约测试**（关卡制作管线阶段 2 门禁：R 规则的可测项落成用例）。
+    /// 样板关**设计契约测试**（关卡制作管线阶段 2 门禁：R 规则的可测项落成用例）。
     /// 设计真源 = docs/设计/关卡/L0N-*.md；这里钉住「数据层 ↔ 设计文档」不无声分叉——
     /// 改设计先改文档，再改 ShowcaseLevels，然后让这里的断言跟着新口径走。
     /// 规则出处：docs/设计/关卡设计语言-参照游戏全场景分析.md §4（R1-R18）。
     /// </summary>
     public class ShowcaseLevelDesignTests
     {
+        /// <summary>
+        /// 现存样板关号。关卡 2「碎岛雨」已删除（2026-09-22），号段有意不连续——
+        /// 所以这里写**显式清单**而不是 <c>FirstLevel..LastLevel</c> 的连续区间：
+        /// 区间会在 2 上取到空数据（抛异常），而"遍历数据源里现存的关"会让数据源整片缺失时
+        /// 循环体一次都不跑、门禁变成空跑绿灯。显式清单两者都避开：缺哪关就红在哪关。
+        /// </summary>
+        static readonly int[] ExistingLevels = { 1, 3 };
+
         // ------------------------------------------------------------------
-        // 硬门禁：站位 / 难度旋钮（三关全查）
+        // 硬门禁：站位 / 难度旋钮（全关普查）
         // ------------------------------------------------------------------
 
         [Test]
         public void AllLevels_EverySpawn_OnSolidGround()
         {
             // R2 引申：出生点必须落在实心格上（否则开局悬空/落水，"开局就是靶子"都不算）。
-            for (int level = ShowcaseLevels.FirstLevel; level <= ShowcaseLevels.LastLevel; level++)
+            for (int l = 0; l < ExistingLevels.Length; l++)
             {
+                int level = ExistingLevels[l];
                 LevelData data = ShowcaseLevels.BuildLevelData(level).Value;
                 TileTerrainGrid grid = ShowcaseLevels.BuildLogicGrid(level);
 
@@ -41,17 +50,32 @@ namespace PirateCrew.SceneArt.Tests
         public void EnemyLuck_LadderIs_One_Two_Five()
         {
             // 关间难度曲线（设计文档 README curve 块）：蓝方 luck 1→2→5；红方（玩家）恒 5。
-            int[] expectedBlueLuck = { 1, 2, 5 };
-            for (int level = ShowcaseLevels.FirstLevel; level <= ShowcaseLevels.LastLevel; level++)
+            for (int l = 0; l < ExistingLevels.Length; l++)
             {
+                int level = ExistingLevels[l];
                 LevelData data = ShowcaseLevels.BuildLevelData(level).Value;
                 for (int i = 0; i < data.Units.Count; i++)
                 {
                     LevelUnit unit = data.Units[i];
-                    int expected = unit.teamIndex == 0 ? 5 : expectedBlueLuck[level - 1];
+                    int expected = unit.teamIndex == 0 ? 5 : ExpectedBlueLuck(level);
                     Assert.AreEqual(expected, unit.luck,
                         "关 " + level + " " + unit.typeName + "(team " + unit.teamIndex + ") luck 应为 " + expected);
                 }
+            }
+        }
+
+        /// <summary>
+        /// 蓝方 luck 按**关卡号**取值（难度曲线 1/2/5）。关卡 2 已删除（2026-09-22）后号段不连续，
+        /// 不能用「下标 = 关卡号 - 1」的连续假设（那会把关 3 读成 2）；这里按键取，curve 表本身照留。
+        /// </summary>
+        static int ExpectedBlueLuck(int level)
+        {
+            switch (level)
+            {
+                case 1: return 1;
+                case 2: return 2;   // 关卡 2 已删除：此档只作难度曲线的完整刻度记录，不再被遍历到
+                case 3: return 5;
+                default: return 5;  // 新增关卡需同时登记 curve 档位
             }
         }
 
@@ -77,46 +101,6 @@ namespace PirateCrew.SceneArt.Tests
             Assert.AreEqual(5, min, "最低云应为 5 块（y2.5）");
             Assert.AreEqual(15, max, "最高云应为 15 块（y7.5 北云）");
             Assert.AreEqual(4, tiers.Count, "云场应有 4 个高度档");
-        }
-
-        // ------------------------------------------------------------------
-        // L2 碎岛雨：母题度量（R2/R3/R6/R9）
-        // ------------------------------------------------------------------
-
-        [Test]
-        public void L02_IsletRain_SevenClusters_SixtyNineTiles()
-        {
-            // 设计文档 L02 §3：7 座独立岛、69 格平台面积（人均 8.6，R2 ≥4）。
-            TileTerrainGrid grid = ShowcaseLevels.BuildLogicGrid(2);
-            int solid = 0;
-            ForEachSolid(grid, (blocks) => solid++);
-
-            Assert.AreEqual(69, solid, "碎岛雨平台总格数应为 69");
-            Assert.AreEqual(7, CountClusters(grid), "碎岛雨应有 7 座独立岛（4 连通域）");
-        }
-
-        [Test]
-        public void L02_IsletRain_MaxWaterGapWithinRowOrColumn_IsFive()
-        {
-            // R3 常规水距 1-5：行/列方向「首末实心格之间」的最大空档 ≤5（红主岛↔C3 的 5 格
-            // 大跨是设计文档「东北快线」的明确高风险选择，压在 R3 上限）。
-            TileTerrainGrid grid = ShowcaseLevels.BuildLogicGrid(2);
-            int maxGap = 0;
-
-            for (int y = 0; y < ShowcaseLevels.DepthTiles; y++)
-                maxGap = Mathf.Max(maxGap, MaxOpenRunBetweenSolids(grid, y, horizontal: true));
-            for (int x = 0; x < ShowcaseLevels.WidthTiles; x++)
-                maxGap = Mathf.Max(maxGap, MaxOpenRunBetweenSolids(grid, x, horizontal: false));
-
-            Assert.AreEqual(5, maxGap, "碎岛雨最大水隙应为 5 格（R3 常规上限，设计文档东北快线）");
-        }
-
-        [Test]
-        public void L02_IsletRain_AllTops_SingleTier()
-        {
-            // 原版 L2 全场 1 层（关卡设计语言 §1 表）：碎岛同高 → 抛物线计算不带高度修正。
-            TileTerrainGrid grid = ShowcaseLevels.BuildLogicGrid(2);
-            ForEachSolid(grid, (blocks) => Assert.AreEqual(1, blocks, "碎岛顶面应恒 1 块（y0.5）"));
         }
 
         // ------------------------------------------------------------------
@@ -168,75 +152,6 @@ namespace PirateCrew.SceneArt.Tests
                     if (blocks > 0)
                         visit(blocks);
                 }
-        }
-
-        /// <summary>行/列方向：首末实心格之间的最大连续空档（两端边距不计——那是场外留白）。</summary>
-        static int MaxOpenRunBetweenSolids(TileTerrainGrid grid, int index, bool horizontal)
-        {
-            int length = horizontal ? grid.WidthTiles : grid.DepthTiles;
-            int first = -1, last = -1;
-            for (int i = 0; i < length; i++)
-            {
-                bool solid = horizontal ? grid.BlocksAt(i, index) > 0 : grid.BlocksAt(index, i) > 0;
-                if (!solid)
-                    continue;
-                if (first < 0)
-                    first = i;
-                last = i;
-            }
-
-            if (first < 0)
-                return 0;   // 整行/列无岛：场外留白，不参与水距统计
-
-            int maxRun = 0, run = 0;
-            for (int i = first; i <= last; i++)
-            {
-                bool solid = horizontal ? grid.BlocksAt(i, index) > 0 : grid.BlocksAt(index, i) > 0;
-                if (solid)
-                    run = 0;
-                else
-                    maxRun = Mathf.Max(maxRun, ++run);
-            }
-            return maxRun;
-        }
-
-        /// <summary>实心格 4 连通域计数（R9 的"独立平台簇数"口径）。</summary>
-        static int CountClusters(TileTerrainGrid grid)
-        {
-            var seen = new bool[grid.WidthTiles * grid.DepthTiles];
-            int clusters = 0;
-            var queue = new Queue<int>();
-
-            for (int start = 0; start < seen.Length; start++)
-            {
-                if (seen[start] || grid.BlocksAt(start % grid.WidthTiles, start / grid.WidthTiles) <= 0)
-                    continue;
-
-                clusters++;
-                queue.Enqueue(start);
-                seen[start] = true;
-                while (queue.Count > 0)
-                {
-                    int cell = queue.Dequeue();
-                    int cx = cell % grid.WidthTiles, cy = cell / grid.WidthTiles;
-                    TryVisit(grid, seen, queue, cx + 1, cy);
-                    TryVisit(grid, seen, queue, cx - 1, cy);
-                    TryVisit(grid, seen, queue, cx, cy + 1);
-                    TryVisit(grid, seen, queue, cx, cy - 1);
-                }
-            }
-            return clusters;
-        }
-
-        static void TryVisit(TileTerrainGrid grid, bool[] seen, Queue<int> queue, int x, int y)
-        {
-            if (x < 0 || y < 0 || x >= grid.WidthTiles || y >= grid.DepthTiles)
-                return;
-            int cell = y * grid.WidthTiles + x;
-            if (seen[cell] || grid.BlocksAt(x, y) <= 0)
-                return;
-            seen[cell] = true;
-            queue.Enqueue(cell);
         }
     }
 }

@@ -32,7 +32,7 @@
 | --- | --- | --- |
 | ① | `M2BattleSceneSetup.BuildAll` | `NewScene(EmptyScene)` 全量重建——它敢扔掉旧场景，因为后面每步都会把该补的补回来 |
 | ② | `FloatingIslandShowcaseMenu.PlaceIntoBattleCenter` | 空岛样板件（第 3 关地面）；在 ① 之后，否则被重建洗掉 |
-| ③ | `SceneArtBaker.BuildAll` | 样板场景件烘焙（云场/碎岛/危险线 → prefab + 接线） |
+| ③ | `SceneArtBaker.BuildAll` | 样板场景件烘焙（云场/危险线 → prefab + 接线） |
 | ④ | `SceneAssetManifestBuilder.BuildAll` | 场景资产总清单 |
 | ⑤ | `HudMinimapSceneSetup.WireMinimap` | 小地图面板/层级/引用增量接线；必须在 ① 之后（曾因此静默坏过三轮，c78fdea） |
 | ⑥ | `BattleLookupWiring.Wire` | 运行期查找清退的三条显式接线（`aimThrow` / `cameraController` / `sunLight`） |

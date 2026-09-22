@@ -1,12 +1,11 @@
 {
   "manifestVersion": 1,
   "note": "场景资产总清单（生成器 SceneAssetManifestBuilder.BuildAll；手工编辑会被覆盖）。格式为提案/待定。",
-  "assetCount": 83,
+  "assetCount": 81,
   "assets": [
     { "path": "SceneKit/Baked/Lowpoly_CloudPaleGold.asset", "kind": "mesh", "origin": "programmatic", "source": "SceneArtBaker 烘焙网格资产（被同目录 prefab 引用，不单独摆放）" },
     { "path": "SceneKit/Baked/Lowpoly_CloudWarmWhite.asset", "kind": "mesh", "origin": "programmatic", "source": "SceneArtBaker 烘焙网格资产（被同目录 prefab 引用，不单独摆放）" },
     { "path": "SceneKit/Baked/SceneArt_DangerLine.asset", "kind": "mesh", "origin": "programmatic", "source": "SceneArtBaker 烘焙网格资产（被同目录 prefab 引用，不单独摆放）" },
-    { "path": "SceneKit/Baked/SceneArt_Islets.asset", "kind": "mesh", "origin": "programmatic", "source": "SceneArtBaker 烘焙网格资产（被同目录 prefab 引用，不单独摆放）" },
     { "path": "SceneKit/Baked/ToonPilot_CrewBlue_Body.asset", "kind": "mesh", "origin": "programmatic", "source": "SceneArtBaker 烘焙网格资产（被同目录 prefab 引用，不单独摆放）" },
     { "path": "SceneKit/Baked/ToonPilot_CrewBlue_Head.asset", "kind": "mesh", "origin": "programmatic", "source": "SceneArtBaker 烘焙网格资产（被同目录 prefab 引用，不单独摆放）" },
     { "path": "SceneKit/Baked/ToonPilot_CrewRed_Body.asset", "kind": "mesh", "origin": "programmatic", "source": "SceneArtBaker 烘焙网格资产（被同目录 prefab 引用，不单独摆放）" },
@@ -16,7 +15,6 @@
     { "path": "SceneKit/CloudField.prefab", "kind": "prefab", "origin": "programmatic", "source": "SceneArtBaker.BakeCloudField: CloudFieldSpec.Default, Seed=26091401" },
     { "path": "SceneKit/Dock.fbx", "kind": "fbx", "origin": "handmade", "source": "tools/blender/scene/build_scene_kit.py（Blender 无头）" },
     { "path": "SceneKit/Flagship.fbx", "kind": "fbx", "origin": "handmade", "source": "tools/blender/scene/build_scene_kit.py（Blender 无头）" },
-    { "path": "SceneKit/Islets_L02.prefab", "kind": "prefab", "origin": "programmatic", "source": "SceneArtBaker.BakeIslets: ShowcaseLevels.BuildLogicGrid(2) + IslandShellGeometry.BuildSolidShell" },
     { "path": "SceneKit/ShowcaseDangerBorder.prefab", "kind": "prefab", "origin": "programmatic", "source": "SceneArtBaker.BakeDangerBorder: IslandShellGeometry.AddDashedBorder 20x15" },
     { "path": "WorldKit/Archipelago/AtollArcA.fbx", "kind": "fbx", "origin": "handmade", "source": "tools/blender/scene/archipelago/（Blender 无头批量，style_tokens.py 统一风格）" },
     { "path": "WorldKit/Archipelago/AtollArcA.standable.json", "kind": "standable", "origin": "generated", "source": "tools/blender/scene/sync_standables.py（GENERATED，勿手改）" },

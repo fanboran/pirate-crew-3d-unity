@@ -15,8 +15,6 @@ namespace PirateCrew.SceneArt
         /// <summary>低模云场（第 1 关「云端漫步」主景）。</summary>
         CloudField = 1,
 
-        /// <summary>碎岛礁群（第 2 关「碎岛雨」主景：岛壳烘焙，与逻辑高度场按构造对齐）。</summary>
-        Islets = 2,
     }
 
     /// <summary>一件烘焙陈设的摆位（纯数据）。prefab 原点 = 几何烘焙原点（云场=构图中心，碎岛=竞技场原点）。</summary>
@@ -101,8 +99,11 @@ namespace PirateCrew.SceneArt
 
         /// <summary>
         /// 某样板关的烘焙件摆位表（<see cref="RuntimeSceneArt"/> 实例化消费）。
-        /// 换这里的数 = 换摆位，不需要重新烘焙；碎岛壳例外——它与逻辑高度场按构造对齐，
-        /// 改 L2 布局必须重跑 SceneArtBaker（资产栅格 → Islets prefab）。
+        /// 换这里的数 = 换摆位，不需要重新烘焙。
+        ///
+        /// 【号段有意不连续】现存样板关是 1（云端漫步）与 3（天空之岛）；第 2 关「碎岛雨」
+        /// 已删除（创始人 2026-09-22，连关卡资产一起删），关卡号不做重编号——重编号会牵动
+        /// 存档/选关/测试的既有语义，而空号在数据层是允许的（校验器不要求号段连续）。
         /// </summary>
         public static List<ShowcasePiecePlacement> BakedPlacements(int levelNumber)
         {

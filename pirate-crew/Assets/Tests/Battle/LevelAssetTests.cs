@@ -110,10 +110,10 @@ namespace PirateCrew.Battle.Tests
         /// 这两条通道由 <c>LevelAssetLibrary</c> 自己选（<c>Resources.Load</c> 是原生 ECall，
         /// 脱离 Unity 运行时必抛 <c>SecurityException</c>），所以期望值随环境而变，用
         /// <c>UNITY_EDITOR</c> 区分——EditMode 测试定义它，无头验证台不定义。
-        /// 断言强度不变：两条通道都必须给出 8 张海图 / 3 张关卡。
+        /// 断言强度不变：两条通道都必须给出 8 张海图 / 2 张关卡（关卡 2 已删除 2026-09-22）。
         /// </summary>
         [Test]
-        public void Library_LoadedFrom_MatchesEnvironment_WithAllEightMapsAndThreeLevels()
+        public void Library_LoadedFrom_MatchesEnvironment_WithAllEightMapsAndTwoLevels()
         {
             // 先触达数据（惰性加载在首次取用时发生），再断言来源——LoadedFrom 在加载前恒为 None。
             int maps = LevelAssetLibrary.WorldMaps.Count;
@@ -133,7 +133,7 @@ namespace PirateCrew.Battle.Tests
 
         /// <summary>
         /// golden JSON 兜底通道**单独**钉一遍，两条环境都跑：强制跳过 Unity 资产清单后，
-        /// 数据必须仍能凑齐 8 张海图 / 3 张关卡，且与清单里的语义一致（条数对不上即红）。
+        /// 数据必须仍能凑齐 8 张海图 / 2 张关卡，且与清单里的语义一致（条数对不上即红）。
         /// 没有这条，兜底通道就只在无头环境被间接覆盖，Unity 侧坏了没人知道。
         /// </summary>
         [Test]
@@ -206,14 +206,14 @@ namespace PirateCrew.Battle.Tests
         };
 
         /// <summary>
-        /// 关卡（样板三关）骨架：关卡号|资产名|显示名|格子|waterTileY|maxChests|sourceXmlMaxChests
+        /// 关卡（现存样板关）骨架：关卡号|资产名|显示名|格子|waterTileY|maxChests|sourceXmlMaxChests
         /// ‖编成（符号/队/格/luck）‖军火‖高度场（实心格数/块高总和/加权摘要）‖烘焙件。
         /// 数值出处：迁移前 `ShowcaseLevels.cs` 与各关设计文档 docs/设计/关卡/L0N-*.md。
+        /// 关卡 2「碎岛雨」已删除（2026-09-22），号段有意不连续——故表里只有 1、3 两行。
         /// </summary>
         static readonly string[] FrozenLevelSignatures =
         {
             "1|cloud_walk|云端漫步|20x15|14|3|3||units=redPirate/0/8/6/5;redPirate/0/12/9/5;redPirate/0/10/4/5;redPirateCaptain/0/10/11/5;cabinBoy/1/12/6/1;cabinBoy/1/8/9/1;cabinBoyCaptain/1/13/7/1|air=Dynamite:10|raster=solid48/total422/digest68270|pieces=0/DangerBorder;1/CloudField",
-            "2|islet_rain|碎岛雨|20x15|14|3|3||units=redPirate/0/3/3/5;redPirate/0/6/3/5;redPirate/0/3/5/5;redPirateCaptain/0/6/5/5;cabinBoy/1/16/11/2;cabinBoy/1/13/11/2;cabinBoy/1/16/9/2;cabinBoyCaptain/1/13/9/2|air=Mine:10|RumBottle:10|Banana:10|raster=solid69/total69/digest10269|pieces=0/DangerBorder;2/Islets_L02",
             "3|sky_island|天空之岛|20x15|14|3|3||units=redPirate/0/11/5/5;redPirate/0/13/6/5;redPirate/0/11/8/5;redPirateCaptain/0/12/6/5;cabinBoy/1/6/5/5;cabinBoy/1/8/5/5;cabinBoy/1/5/7/5;cabinBoy/1/8/8/5;cabinBoyCaptain/1/6/8/5|air=TidalWave:10|Anchor:10|Seagull:10|raster=solid96/total2688/digest404544|pieces=0/DangerBorder",
         };
 
@@ -247,10 +247,13 @@ namespace PirateCrew.Battle.Tests
         public void LevelSourceResolver_PriorityIsUnchanged()
         {
             // ① -artReviewLevel 覆盖命中关卡资产 → 走关卡资产（哪怕同时有待战海图）
-            LevelSource overridden = LevelSourceResolver.Resolve(2, WorldMapCatalog.All[0]);
+            //    用关卡 3 而非关卡 1：只有非兜底关号才能证明"覆盖优先于兜底"。
+            //    （关卡 2 已删除（2026-09-22），号段有意不连续——覆盖到不存在的关号会落到
+            //    兜底关 1 并留告警，不再能承担这条断言。）
+            LevelSource overridden = LevelSourceResolver.Resolve(3, WorldMapCatalog.All[0]);
             Assert.That(overridden, Is.Not.Null);
             Assert.That(overridden.Kind, Is.EqualTo(LevelSourceKind.Showcase));
-            Assert.That(overridden.LevelNumber, Is.EqualTo(2));
+            Assert.That(overridden.LevelNumber, Is.EqualTo(3));
             Assert.That(overridden.Notice, Is.Null, "覆盖命中时不该有回落告警");
 
             // ② 无覆盖 + 有待战海图 → 走海图
@@ -294,7 +297,7 @@ namespace PirateCrew.Battle.Tests
             "mangrove_veil", "spiral_throne", "storm_cape", "sunken_gate",
         };
 
-        static readonly string[] LevelAssetNames = { "cloud_walk", "islet_rain", "sky_island" };
+        static readonly string[] LevelAssetNames = { "cloud_walk", "sky_island" };
 
         static IEnumerable<WorldMapAssetPayload> WorldMapPayloads()
         {

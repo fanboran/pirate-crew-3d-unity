@@ -15,6 +15,13 @@ namespace PirateCrew.SceneArt.Tests
     /// </summary>
     public class SceneArtBakeDeterminismTests
     {
+        /// <summary>
+        /// 现存样板关号。关卡 2「碎岛雨」已删除（2026-09-22），号段有意不连续——
+        /// 显式清单而非 <c>FirstLevel..LastLevel</c> 连续区间：区间会在关卡 2 上取到空摆位表
+        /// 而误判，显式清单则让"哪一关的烘焙件丢了"直接红在那一关。
+        /// </summary>
+        static readonly int[] ExistingLevels = { 1, 3 };
+
         // ------------------------------------------------------------------
         // 断言工具
         // ------------------------------------------------------------------
@@ -71,20 +78,6 @@ namespace PirateCrew.SceneArt.Tests
             AssertBuffersIdentical(a.CloudPaleGold, b.CloudPaleGold, "CloudPaleGold");
         }
 
-        [Test]
-        public void Islets_SameGridTwice_VertexIdentical()
-        {
-            // 碎岛壳直接从 L2 逻辑高度场烘出（SceneArtBaker.BakeIslets 同源路径）：
-            // 两次独立建场 + 建壳应逐顶点一致——钉住"改布局必须连带重烘"的资产契约。
-            MeshBuffers a = IslandShellGeometry.BuildSolidShell(
-                ShowcaseLevels.BuildLogicGrid(2), IslandShellSettings.Default);
-            MeshBuffers b = IslandShellGeometry.BuildSolidShell(
-                ShowcaseLevels.BuildLogicGrid(2), IslandShellSettings.Default);
-
-            Assert.Greater(a.VertexCount, 0, "碎岛礁群应有几何");
-            AssertBuffersIdentical(a, b, "Islets_L02");
-        }
-
         // ------------------------------------------------------------------
         // 用例：摆位表契约（数据层 ↔ 烘焙件的口径钉死）
         // ------------------------------------------------------------------
@@ -92,20 +85,6 @@ namespace PirateCrew.SceneArt.Tests
         [Test]
         public void PlacementTable_MatchesBakedGeometryOrigin()
         {
-            // 碎岛：几何世界坐标直出（与逻辑高度场按构造对齐），实例必须恒在原点、不旋转。
-            var placements2 = ShowcaseLevels.BakedPlacements(2);
-            int islets = 0;
-            for (int i = 0; i < placements2.Count; i++)
-            {
-                if (placements2[i].Piece == ShowcasePieceId.Islets)
-                {
-                    islets++;
-                    Assert.AreEqual(Vector3.zero, placements2[i].Position, "碎岛实例应恒在原点（几何即布局）");
-                    Assert.AreEqual(0f, placements2[i].YawDegrees, "碎岛实例不应旋转");
-                }
-            }
-            Assert.AreEqual(1, islets, "碎岛雨应恰摆一组碎岛礁群");
-
             // 云场：实例在场心（格 10, 7.5）。
             var placements1 = ShowcaseLevels.BakedPlacements(1);
             int clouds = 0;
@@ -121,9 +100,10 @@ namespace PirateCrew.SceneArt.Tests
             }
             Assert.AreEqual(1, clouds, "云端漫步应恰摆一片云场");
 
-            // 三关共用危险虚线于原点。
-            for (int level = ShowcaseLevels.FirstLevel; level <= ShowcaseLevels.LastLevel; level++)
+            // 现存关卡共用危险虚线于原点。
+            for (int l = 0; l < ExistingLevels.Length; l++)
             {
+                int level = ExistingLevels[l];
                 var list = ShowcaseLevels.BakedPlacements(level);
                 bool hasBorder = false;
                 for (int i = 0; i < list.Count; i++)

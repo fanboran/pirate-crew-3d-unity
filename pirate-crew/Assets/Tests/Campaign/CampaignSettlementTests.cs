@@ -197,7 +197,7 @@ namespace PirateCrew.Tests
         [Test]
         public void MatchFinished_WithoutPendingMap_DoesNotSettle()
         {
-            // 样板三关 / 主菜单直进等「没有待战海图」的局：不应写任何进度。
+            // 样板关 / 主菜单直进等「没有待战海图」的局：不应写任何进度。
             PlayBattle(CampaignManager.PlayerWinOutcome, 900, 0);
 
             Assert.That(CampaignApi.Progress.CompletedCount, Is.EqualTo(0));

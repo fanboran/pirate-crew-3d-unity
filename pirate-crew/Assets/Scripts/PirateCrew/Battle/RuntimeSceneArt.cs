@@ -37,10 +37,7 @@ namespace PirateCrew.Battle
         [Tooltip("烘焙件：低模云场（第 1 关主景）。由 SceneArtBaker 烘焙并接线。")]
         [SerializeField] GameObject cloudFieldPrefab;
 
-        [Tooltip("烘焙件：碎岛礁群（第 2 关主景，岛壳与逻辑高度场按构造对齐）。由 SceneArtBaker 烘焙并接线。")]
-        [SerializeField] GameObject isletsPrefab;
-
-        [Tooltip("烘焙件：落水危险虚线（样板三关共用一圈）。由 SceneArtBaker 烘焙并接线。")]
+        [Tooltip("烘焙件：落水危险虚线（现存样板关共用一圈）。由 SceneArtBaker 烘焙并接线。")]
         [SerializeField] GameObject dangerBorderPrefab;
 
         [Tooltip("超美空岛根（场景内静态物，由 FloatingIslandShowcaseMenu.PlaceIntoBattleCenter 烘进场景）。"
@@ -132,7 +129,6 @@ namespace PirateCrew.Battle
             switch (piece)
             {
                 case ShowcasePieceId.CloudField: return cloudFieldPrefab;
-                case ShowcasePieceId.Islets: return isletsPrefab;
                 case ShowcasePieceId.DangerBorder: return dangerBorderPrefab;
                 default: return null;
             }

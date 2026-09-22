@@ -73,7 +73,6 @@ namespace PirateCrew.Rendering.Pixelart
         static readonly View[] _views =
         {
             new View(1, "PixelartCloud",     new Vector3(20f, 4.5f, 15f),  32f, 16f, 7f),
-            new View(2, "PixelartIslets",    new Vector3(20f, 1.5f, 15f),  32f, 18f, 8f),
             new View(3, "PixelartSkyIsland", new Vector3(20f, 12.5f, 15f), 30f, 16f, 7f),
         };
 
