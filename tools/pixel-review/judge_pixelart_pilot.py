@@ -437,8 +437,12 @@ def main(argv):
         # 去判"风景画有没有杂色"。故这三项在关卡档只**打印读数**；关卡档的硬门禁换成下面这条
         # 与内容无关的 **judge_not_bypassed**（同机位比对最终图与 albedo 调试图，相同 = 光照被旁路）。
         base = os.path.basename(path)
-        strict = not (base.startswith("pl1-") or base.startswith("pl2-")
-                      or base.startswith("pl3-") or base.startswith("pc-"))
+        # 关卡档 = `pl<关卡号>-*`（关卡号 1/3 是样板关、101–108 是海图）或旧的 `pc-*`。
+        # 【用正则而不是 startswith("pl1-")】海图的档位名是 `pl101-*`——`startswith("pl1-")`
+        # 认不出它，于是海图被当成"机制档"用试点阈值硬卡（实测：八张海图齐刷刷在
+        # 亮暗跨度上红 0.29，看着像八个内容缺陷，其实是判据认错了档）。
+        is_level_shot = re.match(r"^(pl\d+-|pc-)", base) is not None
+        strict = not is_level_shot
         name, stats, notes = judge_one(path, scale, strict)
         if stats is None:
             print("%-34s %s" % (name, notes[0]))
@@ -545,14 +549,11 @@ def judge_level_presence(files):
         if not name.endswith(".png"):
             continue
         head = name[:-4]
-        # pl<关卡号>-wide / pl<关卡号>-mid（含旧的 pc-wide / pc-mid）
-        if head == "pc-wide" or head == "pc-mid":
+        # `pl<关卡号>-wide` / `pl<关卡号>-mid`（含旧的 pc-wide / pc-mid）。
+        # 【用正则】海图档位名是 `pl101-*`；写死 `pl1-/pl2-/pl3-` 的枚举会让八张海图
+        # **静默跳过**这条判据（看着像"通过了"，其实是没查）。
+        if re.match(r"^(pl\d+-(wide|mid)|pc-(wide|mid))\.png$", name):
             targets.append(p)
-            continue
-        for prefix in ("pl1-", "pl2-", "pl3-"):
-            if head == prefix + "wide" or head == prefix + "mid":
-                targets.append(p)
-                break
 
     if not targets:
         print("（跳过场地在场判据：没有 plN-wide/plN-mid 或 pc-wide/pc-mid 这类档位图）")

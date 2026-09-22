@@ -243,6 +243,11 @@ namespace PirateCrew.Battle.Tests
         // 关卡来源解析（B3 的收口点）
         // ------------------------------------------------------------------
 
+        /// <summary>
+        /// 解析优先级：① 出图覆盖 → ② 选关页点选的样板关 → ③ 待战海图 → ④ 兜底关 1。
+        /// 本用例钉 ①③④（调用点显式传 <c>pendingShowcaseLevel: 0</c> 表明"无样板关待战"）；
+        /// 第 ② 级与两个待战槽位的互斥/复位在 <c>ShowcaseLevelSelectionTests</c>。
+        /// </summary>
         [Test]
         public void LevelSourceResolver_PriorityIsUnchanged()
         {
@@ -250,21 +255,21 @@ namespace PirateCrew.Battle.Tests
             //    用关卡 3 而非关卡 1：只有非兜底关号才能证明"覆盖优先于兜底"。
             //    （关卡 2 已删除（2026-09-22），号段有意不连续——覆盖到不存在的关号会落到
             //    兜底关 1 并留告警，不再能承担这条断言。）
-            LevelSource overridden = LevelSourceResolver.Resolve(3, WorldMapCatalog.All[0]);
+            LevelSource overridden = LevelSourceResolver.Resolve(3, WorldMapCatalog.All[0], 0);
             Assert.That(overridden, Is.Not.Null);
             Assert.That(overridden.Kind, Is.EqualTo(LevelSourceKind.Showcase));
             Assert.That(overridden.LevelNumber, Is.EqualTo(3));
             Assert.That(overridden.Notice, Is.Null, "覆盖命中时不该有回落告警");
 
             // ② 无覆盖 + 有待战海图 → 走海图
-            LevelSource worldMap = LevelSourceResolver.Resolve(0, WorldMapCatalog.All[0]);
+            LevelSource worldMap = LevelSourceResolver.Resolve(0, WorldMapCatalog.All[0], 0);
             Assert.That(worldMap.Kind, Is.EqualTo(LevelSourceKind.WorldMap));
             Assert.That(worldMap.WorldMap.Id, Is.EqualTo(WorldMapCatalog.All[0].Id));
             Assert.That(worldMap.CameraWorldSpan, Is.GreaterThan(0f), "海图必须给出相机全景档的图幅");
             Assert.That(worldMap.AmbientTier, Is.Not.Null, "海图必须有氛围档");
 
             // ③ 无覆盖 + 无待战海图 → 兜底关卡 1（并提示）
-            LevelSource fallback = LevelSourceResolver.Resolve(0, null);
+            LevelSource fallback = LevelSourceResolver.Resolve(0, null, 0);
             Assert.That(fallback.Kind, Is.EqualTo(LevelSourceKind.Showcase));
             Assert.That(fallback.LevelNumber, Is.EqualTo(LevelSourceResolver.FallbackLevelNumber));
             Assert.That(fallback.Notice, Is.Not.Null, "兜底必须留下提示（原来的 LogWarning 语义）");
@@ -275,12 +280,12 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void LevelSourceResolver_TerrainAndWaterComeFromSource()
         {
-            LevelSource worldMap = LevelSourceResolver.Resolve(0, WorldMapCatalog.All[0]);
+            LevelSource worldMap = LevelSourceResolver.Resolve(0, WorldMapCatalog.All[0], 0);
             Assert.That(worldMap.Terrain, Is.Not.Null);
             Assert.That(worldMap.Terrain.WidthTiles, Is.EqualTo(worldMap.Plan.WidthTiles));
             Assert.That(worldMap.WaterWorldY, Is.EqualTo(LevelGeometry.WaterSurfaceY));
 
-            LevelSource level = LevelSourceResolver.Resolve(1, null);
+            LevelSource level = LevelSourceResolver.Resolve(1, null, 0);
             Assert.That(level.Terrain, Is.Not.Null);
             Assert.That(level.Terrain.BlocksAt(8, 6), Is.GreaterThan(0), "L1 首个出生点那一格必须是实心");
             Assert.That(level.Terrain.WidthTiles, Is.EqualTo(ShowcaseLevels.WidthTiles));

@@ -8,43 +8,81 @@ namespace PirateCrew.Battle.WorldMaps
     /// <summary>
     /// 世界地图的运行时入口：待战状态、命令行解析、<see cref="BattlePlan"/> 构建。
     ///
-    /// 【进图途径】① 程序调用 <see cref="SetPending"/>（选关 UI 的「大海域」页签走这条）；
+    /// 【待战状态 = 两个互斥槽位】同一次只可能有一个有效，写入口彼此清空对方：
+    ///   · <see cref="SetPending"/> —— 世界海图（选关页海图行 / 主菜单「进入战斗」/ 结算「再战」）；
+    ///   · <see cref="SetPendingShowcase"/> —— 手作样板关（选关页样板行）。
+    /// 读侧也守住这条互斥：<see cref="TryGetPending"/> 在样板待战期间恒返回 false。
+    ///
+    /// 【进图途径】① 程序调用上面两个入口（选关 UI 走这条）；
     /// ② 播放器/批处理命令行 <c>-worldMap &lt;id&gt;</c>（无头捕图与试玩验证走这条，
     ///    与 ArtReview 的 <c>-artReviewLevel</c> 同风格，但优先级低于它）。
     ///
-    /// 【与 BattleController 的契约】进图优先级：样板覆盖（-artReviewLevel 1–3，美术出图）&gt;
-    /// 世界地图 &gt; 样板第 1 关兜底（直接 Play）；世界地图激活时 BuildTerrain 走栅格化块表、
+    /// 【与 BattleController 的契约】进图优先级由 <c>LevelSourceResolver</c> **一处**决定：
+    /// 出图覆盖（-artReviewLevel，美术出图）&gt; 选关页点选的样板关 &gt; 世界地图 &gt;
+    /// 样板第 1 关兜底（直接 Play）；世界地图激活时 BuildTerrain 走栅格化块表、
     /// 陈设由 <see cref="WorldMapComposer"/> 负责表现层。一代退场后这是**唯一的玩法进图通道**，
-    /// 战役结算归属也由它决定（<c>CampaignApi</c> 在 battle_started 时读取）。
+    /// 战役结算归属也由它决定（<c>CampaignApi</c> 在 battle_started 时读取；样板关不记星，
+    /// 见 <see cref="SetPendingShowcase"/>）。
     /// </summary>
     public static class WorldMapRuntime
     {
         const string CommandLineSwitch = "-worldMap";
 
         static string _pendingMapId;
+        static int _pendingShowcaseLevel;
         static bool _commandLineScanned;
 
-        /// <summary>设定待战世界地图（id 不在目录时返回 false，不改动现状）。</summary>
+        /// <summary>设定待战世界地图（id 不在目录时返回 false，不改动现状；
+        /// 成功即清掉待战样板关——两个槽位互斥，避免上一局的待战内容泄漏到本局）。</summary>
         public static bool SetPending(string mapId)
         {
             if (!WorldMapCatalog.TryGet(mapId, out _))
                 return false;
             _pendingMapId = mapId;
+            _pendingShowcaseLevel = 0;
             return true;
         }
 
         public static void ClearPending() => _pendingMapId = null;
 
         /// <summary>
+        /// 设定待战的手作样板关（选关页样板行；关卡号必须已加载出关卡资产，否则返回 false 且不改动现状）。
+        /// 成功即清掉待战海图——两个槽位互斥。
+        ///
+        /// 【为什么不记星】星级进度的键是**海图 id**（<c>CampaignProgress</c> 只认它），
+        /// 样板关没有这个键，所以选关页不给样板行画星级；本状态只决定"这一局加载哪份内容"。
+        /// </summary>
+        public static bool SetPendingShowcase(int levelNumber)
+        {
+            if (!LevelAssetLibrary.TryGetLevel(levelNumber, out _))
+                return false;
+            _pendingShowcaseLevel = levelNumber;
+            _pendingMapId = null;
+            return true;
+        }
+
+        /// <summary>取待战样板关的关卡号；返回 false 表示本局不是选关页点进来的样板关。</summary>
+        public static bool TryGetPendingShowcase(out int levelNumber)
+        {
+            levelNumber = _pendingShowcaseLevel;
+            return levelNumber > 0;
+        }
+
+        /// <summary>清掉待战样板关（<see cref="SetPendingShowcase"/> 的反操作；静态复位与测试域隔离用）。</summary>
+        public static void ClearPendingShowcase() => _pendingShowcaseLevel = 0;
+
+        /// <summary>
         /// 关闭 Domain Reload 时静态字段不会自动清空，进入播放前强制重置
         /// （由唯一入口 <c>Core/GameEntryPoint</c> 调用）；
         /// 命令行扫描标志一并复位，让每次播放重新取 <c>-worldMap</c>。
         /// 关卡资产缓存（<c>LevelAssetLibrary</c> → 本目录）同批清空——同一播放里改了资产要能重读。
+        /// **两个待战槽位都要清**：漏一个就会让上一局的待战内容串到下一局（静态残留）。
         /// </summary>
         [GameBootstrap(GameBootstrapPhase.ResetStatics, order: 20)]
         internal static void ResetStatics()
         {
             ClearPending();
+            ClearPendingShowcase();
             _commandLineScanned = false;
             LevelAssetLibrary.Reset();
             WorldMapCatalog.ResetCache();
@@ -52,11 +90,19 @@ namespace PirateCrew.Battle.WorldMaps
 
         /// <summary>
         /// 取当前待战地图（命令行 <c>-worldMap</c> 优先，其次 <see cref="SetPending"/>）。
-        /// 返回 false 表示本局不走世界地图。
+        /// 返回 false 表示本局不走世界地图——**待战样板关期间恒为 false**：互斥由读侧一起守，
+        /// 因为命令行开关可能在 <see cref="SetPendingShowcase"/> 之后才被首次扫描到，
+        /// 不挡住它，样板局的海图 HUD 与结算归属就会被那张图抢走。
         /// </summary>
         public static bool TryGetPending(out WorldMapDefinition map)
         {
             ScanCommandLine();
+            if (_pendingShowcaseLevel > 0)
+            {
+                map = null;
+                return false;
+            }
+
             if (_pendingMapId != null && WorldMapCatalog.TryGet(_pendingMapId, out map))
                 return true;
             map = null;

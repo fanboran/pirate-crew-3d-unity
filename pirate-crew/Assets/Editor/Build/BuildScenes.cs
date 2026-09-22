@@ -63,6 +63,11 @@ namespace PirateCrew.EditorTools.BuildSystem
         {
             "PixelartCloud",        // 关卡 1 云端漫步
             "PixelartSkyIsland",    // 关卡 3 天空之岛
+            // 八张世界海图（关卡 101–108）：像素化试点场景由
+            // `PixelartWorldMapPilotSetup` 烘制，出图走 `-pixelartLevel 101..108`。
+            // 它们必须进**播放器**的场景集——出图链是按场景名 LoadScene 的。
+            "PixelartMap101", "PixelartMap102", "PixelartMap103", "PixelartMap104",
+            "PixelartMap105", "PixelartMap106", "PixelartMap107", "PixelartMap108",
         };
 
         /// <summary>

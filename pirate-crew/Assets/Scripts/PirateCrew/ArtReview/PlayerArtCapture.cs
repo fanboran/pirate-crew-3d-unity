@@ -6,7 +6,8 @@ using UnityEngine.SceneManagement;
 // 类型别名：本文件多处要用试点场景的取景常量（俯角/可见米数/机位方向），
 // 全限定写太长、直接 using 整个命名空间又怕与既有类型重名，故用同类别名。
 using PixelartPilotScene = PirateCrew.Rendering.Pixelart.PixelartPilotScene;
-// 关卡试点场景的取景表（`-pixelartLevel N` 档用；俯角/方位/机位距离与试点场景同源）。
+// 关卡/海图试点场景的取景表（`-pixelartLevel N` 档用；构图中心、可见米数与机位距离的唯一来源，
+// 俯角/方位仍与试点场景同源）。
 using PixelartLevelScene = PirateCrew.Rendering.Pixelart.PixelartLevelScene;
 using PixelartLevelView = PirateCrew.Rendering.Pixelart.PixelartLevelScene.View;
 
@@ -126,8 +127,10 @@ namespace PirateCrew.ArtReview
             {
                 outDir = pixelartOut;
                 PixelartMode = true;
-                // 【拍哪个场景】默认 `PixelartPilot`（图元几何，验机制）；加 `-pixelartLevel <1|2|3>`
+                // 【拍哪个场景】默认 `PixelartPilot`（图元几何，验机制）；加 `-pixelartLevel N`
                 // 改拍该关的关卡试点场景（真实内容，验"这套观感用在真关卡上"，也是宣传图的成图入口）。
+                // N 取 `PixelartLevelScene` 取景表里的号：样板关 1 / 3，以及海图 101–108
+                // （海图号段有意不连续——1–33 是原版转写关卡号）。
                 // 两个档共用同一条采集流程与同一个判据脚本，只有场景名/构图中心/档位前缀不同。
                 if (CommandLineOptions.TryGetInt(ToolFlags.PixelartLevel, out int level))
                 {
@@ -139,7 +142,7 @@ namespace PirateCrew.ArtReview
                     else
                     {
                         Debug.LogError("[PlayerArtCapture] -pixelartLevel " + level
-                            + " 不在取景表里（现存样板关 1 与 3，号段有意不连续）——回落到关卡 "
+                            + " 不在取景表里（现存样板关 1 与 3、海图 101–108，号段有意不连续）——回落到关卡 "
                             + PixelartDefaultLevel + "。");
                         if (PixelartLevelScene.TryGet(PixelartDefaultLevel, out PixelartLevelView fallback))
                         {
@@ -463,7 +466,12 @@ namespace PirateCrew.ArtReview
             Vector3 orbitDir = global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.CameraDirection(
                 global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.PitchDegrees,
                 global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.AzimuthDegrees);
-            const float cameraDistance = global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.CameraDistance;
+            // 【机位距离也取自取景表，不再写死 60】海图的跨度 150–280 m，60 m 的基准只罩得住
+            // 40×30 的样板关：近侧半张图会落到正交相机背后被近平面裁掉（画面"少了半张地图"、无报错）。
+            // 样板关算出来仍是 60 ⇒ 老场景出图逐字节不变（推导见 PixelartLevelScene.CameraDistanceFor）。
+            float cameraDistance = levelMode
+                ? PixelartLevelScene.CameraDistanceFor(PixelartLevelViewCache)
+                : global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.CameraDistance;
 
             Directory.CreateDirectory(_outDir);
 
@@ -483,8 +491,14 @@ namespace PirateCrew.ArtReview
                 expectedCrews = 0;
                 if (global::PirateCrew.Data.LevelAssetLibrary.TryGetLevel(PixelartLevel, out var payload))
                     expectedCrews = payload.units.Count;
+                // 海图 101–108 不在 `LevelAssetLibrary` 的关卡表里（它只收样板关），
+                // 人数改从海图出生表读——否则日志会写"期望 -1 个"，把正常的海图误报成读取问题。
+                if (expectedCrews == 0
+                    && Battle.WorldMaps.WorldMapCatalog.TryGetByLevelNumber(PixelartLevel,
+                        out Battle.WorldMaps.WorldMapDefinition worldMap))
+                    expectedCrews = worldMap.Spawns.Count;
                 if (expectedCrews == 0)
-                    expectedCrews = -1;   // 读不到时用 -1：日志会写"期望 -1 个"，一眼看出是读取问题
+                    expectedCrews = -1;   // 两边都读不到时用 -1：日志会写"期望 -1 个"，一眼看出是读取问题
             }
 
             LogCrewRenderersOnce(expectedCrews * 2);

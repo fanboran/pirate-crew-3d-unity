@@ -9,7 +9,7 @@ namespace PirateCrew.Battle.Levels
         /// <summary>大海域海图（<c>-worldMap</c> / 选关页 SetPending）。</summary>
         WorldMap = 0,
 
-        /// <summary>非海图战斗场（关卡资产；-artReviewLevel 覆盖或直接 Play 的兜底关）。</summary>
+        /// <summary>非海图战斗场（关卡资产；选关页点选的样板关、-artReviewLevel 覆盖、或直接 Play 的兜底关）。</summary>
         Showcase = 1,
     }
 
@@ -91,12 +91,16 @@ namespace PirateCrew.Battle.Levels
     /// 【为什么要有它】重构前这段分叉写死在 <c>BattleController</c> 的四处
     /// （BuildPlan / BuildTerrain / RebuildSceneArt / SetupBattleEnvironment），
     /// 战斗根类同时是内容路由器。现在分叉只在这里出现一次，且是可注入参数的纯函数
-    /// （无头可测：<see cref="Resolve(int, WorldMapDefinition)"/> 不碰命令行与静态状态）。
+    /// （无头可测：<see cref="Resolve(int, WorldMapDefinition, int)"/> 不碰命令行与静态状态）。
     ///
-    /// 【优先级（语义与重构前逐条一致）】
+    /// 【优先级（自上而下，命中即返回）】
     ///   ① <c>-artReviewLevel N</c>（美术出图覆盖，N 有对应关卡资产）→ 该关卡资产；
-    ///   ② 否则若没有出图覆盖且有待战海图（<c>-worldMap &lt;id&gt;</c> 或选关页 SetPending）→ 海图；
-    ///   ③ 否则 → 第 1 张关卡资产兜底（直接 Play 战斗场景的开发路径）。
+    ///      出图覆盖是工具专用通道，**有值时其它通道一律让位**（覆盖到不存在的关号时
+    ///      也不改走待战内容，落兜底关 1 并留告警，与原语义一致）；
+    ///   ② 选关页点选的手作样板关（<c>WorldMapRuntime.SetPendingShowcase</c>）→ 该关卡资产；
+    ///      比待战海图优先：用户刚点的这一行就是明确意图，而待战海图可能是上一局的残留；
+    ///   ③ 待战海图（<c>-worldMap &lt;id&gt;</c> 或选关页 SetPending）→ 海图；
+    ///   ④ 都没有 → 第 1 张关卡资产兜底（直接 Play 战斗场景的开发路径）。
     /// </summary>
     public static class LevelSourceResolver
     {
@@ -111,7 +115,8 @@ namespace PirateCrew.Battle.Levels
         {
             int overrideLevel = ArtReview.ArtReviewCaptureOverride.LevelNumber;
             WorldMapDefinition pending = WorldMapRuntime.TryGetPending(out WorldMapDefinition map) ? map : null;
-            return Resolve(overrideLevel, pending);
+            int pendingShowcase = WorldMapRuntime.TryGetPendingShowcase(out int levelNumber) ? levelNumber : 0;
+            return Resolve(overrideLevel, pending, pendingShowcase);
         }
 
         /// <summary>
@@ -119,15 +124,31 @@ namespace PirateCrew.Battle.Levels
         /// </summary>
         /// <param name="showcaseOverrideLevel">出图覆盖的关卡号；&lt;= 0 = 未启用。</param>
         /// <param name="pendingWorldMap">待战海图；null = 无。</param>
-        public static LevelSource Resolve(int showcaseOverrideLevel, WorldMapDefinition pendingWorldMap)
+        /// <param name="pendingShowcaseLevel">选关页点选的手作样板关关卡号；&lt;= 0 = 无。
+        /// 默认值让既有调用点（只关心覆盖 / 海图两级）不必改。</param>
+        public static LevelSource Resolve(int showcaseOverrideLevel, WorldMapDefinition pendingWorldMap,
+            int pendingShowcaseLevel = 0)
         {
             bool overridden = showcaseOverrideLevel > 0;
-            if (overridden && LevelAssetLibrary.TryGetLevel(showcaseOverrideLevel, out LevelAssetPayload asset))
-                return FromShowcase(showcaseOverrideLevel, asset, null);
+            if (overridden)
+            {
+                // ① 出图覆盖：命中即用；命中不了（关号已不存在）也**不**改走 ②/③，直接落 ④。
+                if (LevelAssetLibrary.TryGetLevel(showcaseOverrideLevel, out LevelAssetPayload asset))
+                    return FromShowcase(showcaseOverrideLevel, asset, null);
+            }
+            else
+            {
+                // ② 选关页点选的样板关优先于待战海图。
+                if (pendingShowcaseLevel > 0
+                    && LevelAssetLibrary.TryGetLevel(pendingShowcaseLevel, out LevelAssetPayload showcase))
+                    return FromShowcase(pendingShowcaseLevel, showcase, null);
 
-            if (!overridden && pendingWorldMap != null)
-                return FromWorldMap(pendingWorldMap);
+                // ③ 待战海图。
+                if (pendingWorldMap != null)
+                    return FromWorldMap(pendingWorldMap);
+            }
 
+            // ④ 兜底：样板第 1 关（并留告警）。
             if (!LevelAssetLibrary.TryGetLevel(FallbackLevelNumber, out LevelAssetPayload fallback))
                 return null;
 

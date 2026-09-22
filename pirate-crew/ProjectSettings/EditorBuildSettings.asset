@@ -32,3 +32,27 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/PixelartSkyIsland.unity
     guid: 4a56321ff9160334096206a87d2b169d
+  - enabled: 1
+    path: Assets/Scenes/PixelartMap101.unity
+    guid: ca7dcc171dfc09e4bba64ab474da33b3
+  - enabled: 1
+    path: Assets/Scenes/PixelartMap102.unity
+    guid: c05a2a81d7288ab49a939748de365eb7
+  - enabled: 1
+    path: Assets/Scenes/PixelartMap103.unity
+    guid: b3c309fd163cd2c418ad91803d1d315a
+  - enabled: 1
+    path: Assets/Scenes/PixelartMap104.unity
+    guid: ca84dfe78212b924d8c09e627b2683b8
+  - enabled: 1
+    path: Assets/Scenes/PixelartMap105.unity
+    guid: 631d58ceee693ff499f7e845675eaaab
+  - enabled: 1
+    path: Assets/Scenes/PixelartMap106.unity
+    guid: e5538ccec433c1a4db6f70009f565bf6
+  - enabled: 1
+    path: Assets/Scenes/PixelartMap107.unity
+    guid: 27456dda7171e204387d1413428eed27
+  - enabled: 1
+    path: Assets/Scenes/PixelartMap108.unity
+    guid: 3a9268bb90aac2e4aa6b0be6cb7f600c

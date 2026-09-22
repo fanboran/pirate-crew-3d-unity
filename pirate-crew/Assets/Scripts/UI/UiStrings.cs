@@ -264,8 +264,9 @@ namespace PirateCrew.UI
         /// <summary>第 4 个页签名（M4 世界地图入口）。</summary>
         public const string LevelTabWorldSeas = "大海域";
 
-        /// <summary>选关页页头（一代退场后只有大海域一页；{0} = 海图张数，{1}/{2} = 累计/满分星数）【AI 提案/待定】。</summary>
-        public const string WorldSeasHeaderFormat = "大海域　{0} 张海域图　累计 {1}/{2} 星";
+        /// <summary>选关页页头（列表按关卡号升序，样板关在前；{0} = 总关数，{1} = 手作样板关数，
+        /// {2} = 海图张数，{3}/{4} = 累计/满分星数。星级只记在海图上，故满分 = 海图数 × 3）【AI 提案/待定】。</summary>
+        public const string LevelSelectHeaderFormat = "共 {0} 关　手作样板 {1}　海域图 {2}　累计 {3}/{4} 星";
 
         /// <summary>海图行状态后缀（未通关）。</summary>
         public const string WorldRowAvailable = "可出战";
@@ -276,8 +277,14 @@ namespace PirateCrew.UI
         /// <summary>海图行出战按钮。</summary>
         public const string WorldSetSail = "出海";
 
+        /// <summary>选关页样板关行的标识后缀（样板关不是"海域图"，行里必须一眼看得出来）。</summary>
+        public const string LevelRowShowcaseTag = "手作样板关";
+
         /// <summary>选关状态：海图 id 不在目录（数据异常兜底，正常流程不可达）。</summary>
         public const string WorldStatusMapMissing = "海域图数据缺失，请重启游戏。";
+
+        /// <summary>选关状态：样板关号取不到关卡资产（数据异常兜底，正常流程不可达）。</summary>
+        public const string LevelStatusShowcaseMissing = "样板关卡数据缺失，请重启游戏。";
 
         /// <summary>关卡名模板（15 关统一用「第 N 关」，花名待定）。</summary>
         public const string LevelNameFormat = "第 {0} 关";
