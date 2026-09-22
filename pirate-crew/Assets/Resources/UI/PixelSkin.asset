@@ -1,0 +1,114 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 05ea1f30b569a6f42a017f378ba6ebff, type: 3}
+  m_Name: PixelSkin
+  m_EditorClassIdentifier: 
+  plates:
+  - {fileID: 21300000, guid: 86edb145fb09c504e84cb01955324d23, type: 3}
+  - {fileID: 21300000, guid: 70040167e0aa9cb4b9af4b749d9e6530, type: 3}
+  - {fileID: 21300000, guid: 21c93bcf9b6881248b88f672a1ceb8ca, type: 3}
+  - {fileID: 21300000, guid: 5c50baf3b9665a64c86e009005911df8, type: 3}
+  - {fileID: 21300000, guid: ea8822694feba7d4782763e925b10b88, type: 3}
+  - {fileID: 21300000, guid: 5e8f8bbe431aef347927e78d046f7b2a, type: 3}
+  - {fileID: 21300000, guid: 794832aaf3792544282f87bae29f37c8, type: 3}
+  - {fileID: 21300000, guid: 7c076468bd37ff347a061787bf7a9f40, type: 3}
+  - {fileID: 21300000, guid: 88d161614333e9043958ed422569077b, type: 3}
+  - {fileID: 21300000, guid: 48e70227b7b014b408937767524c61f7, type: 3}
+  - {fileID: 21300000, guid: 2ebdb2990a764c04f815eb3be087ccae, type: 3}
+  - {fileID: 21300000, guid: 0c8232d8826aeb84781dae474f755487, type: 3}
+  - {fileID: 21300000, guid: 69ab047423608af439be5b6f19ab6706, type: 3}
+  - {fileID: 21300000, guid: 66bfa237db7050345986cc4cec4ff963, type: 3}
+  - {fileID: 21300000, guid: ab3c2f0a019c12f4389511050b302c21, type: 3}
+  - {fileID: 21300000, guid: be42cbe86a3d17b4bb26129e4fa1bfe6, type: 3}
+  - {fileID: 21300000, guid: 8d9d68d7532765647965df6642a9efab, type: 3}
+  - {fileID: 21300000, guid: ac849b9325e887348809f9f3f0c98568, type: 3}
+  - {fileID: 21300000, guid: 8bf4b7ba503f5b4418343a36635150ef, type: 3}
+  - {fileID: 21300000, guid: 7801159eff656c8478615c571c40d61c, type: 3}
+  - {fileID: 21300000, guid: 67d9ee424c8d4104ba747597ff904e96, type: 3}
+  tracks:
+  - {fileID: 21300000, guid: f0786e1322ec3e94a969f63925fc7422, type: 3}
+  - {fileID: 21300000, guid: 8ad5857003211d74596db6fb697ae6b0, type: 3}
+  - {fileID: 21300000, guid: eaaf0a1d980934e4fbd6dd0cb6eaab71, type: 3}
+  - {fileID: 21300000, guid: a6c2a8babf20ca54199732da344ccbcb, type: 3}
+  - {fileID: 21300000, guid: ab7da2ad93bcb7e43a082c6946737312, type: 3}
+  - {fileID: 21300000, guid: 4caaf9c0dad1b0a44b1bb97b1e66929e, type: 3}
+  - {fileID: 21300000, guid: eb4a2195f7d8c4e479390889dad2ca62, type: 3}
+  tabs:
+  - {fileID: 21300000, guid: 88a13b43fb972f74d94036ecc8af4aa3, type: 3}
+  - {fileID: 21300000, guid: c8444668220981e4b98a641b5640f51d, type: 3}
+  - {fileID: 21300000, guid: b33203efea54f694497b3af79094aecb, type: 3}
+  - {fileID: 21300000, guid: 33802259c187a1f4a9d363c892e15684, type: 3}
+  - {fileID: 21300000, guid: 2ebb9621201054a4fa576dad5147ba8c, type: 3}
+  - {fileID: 21300000, guid: 2abbfba57357647499b4e165caae5f34, type: 3}
+  - {fileID: 21300000, guid: 07ea7bef0cd552749bf3ae9dcc740d4b, type: 3}
+  fills:
+  - {fileID: 21300000, guid: 9b855ebbef55daa44a5957fb835d49eb, type: 3}
+  - {fileID: 21300000, guid: 567787af9d8177f4799367234ac8f356, type: 3}
+  - {fileID: 21300000, guid: d602046ef6b87db458083ce9d333e1cd, type: 3}
+  - {fileID: 21300000, guid: c24c5842353711d4cb186667a8d07a95, type: 3}
+  - {fileID: 21300000, guid: df0fb74f482fe204fbea49e594c2fe40, type: 3}
+  ring: {fileID: 21300000, guid: a612beba705387d438f9ff0d18691a0c, type: 3}
+  focus: {fileID: 21300000, guid: 0fa70ea4e9fdc0449868ebdd9927b0d7, type: 3}
+  pipOn: {fileID: 21300000, guid: 697ee72a45eb47d42aa18815fd0f526f, type: 3}
+  pipOff: {fileID: 21300000, guid: eacd069cce3af1a49b3c2f8777c182d9, type: 3}
+  separatorH: {fileID: 21300000, guid: 88fd13c15935da54eb1427e52c2407a4, type: 3}
+  separatorV: {fileID: 21300000, guid: 3da9d14a895e5064e89de5d10590f152, type: 3}
+  shadow: {fileID: 21300000, guid: 5438e89fafbbe5a4c8b969fd2d415100, type: 3}
+  toneColors:
+  - serializedVersion: 2
+    rgba: 4286605146
+  - serializedVersion: 2
+    rgba: 4283252019
+  - serializedVersion: 2
+    rgba: 4281279774
+  - serializedVersion: 2
+    rgba: 4283252019
+  - serializedVersion: 2
+    rgba: 4281279774
+  - serializedVersion: 2
+    rgba: 4280097046
+  - serializedVersion: 2
+    rgba: 4293980400
+  - serializedVersion: 2
+    rgba: 4288927208
+  - serializedVersion: 2
+    rgba: 4288256409
+  - serializedVersion: 2
+    rgba: 4292453965
+  - serializedVersion: 2
+    rgba: 4290279979
+  - serializedVersion: 2
+    rgba: 4286205722
+  - serializedVersion: 2
+    rgba: 4288927208
+  - serializedVersion: 2
+    rgba: 4280787657
+  - serializedVersion: 2
+    rgba: 4280831083
+  - serializedVersion: 2
+    rgba: 4280892159
+  - serializedVersion: 2
+    rgba: 4280427212
+  - serializedVersion: 2
+    rgba: 4282657326
+  - serializedVersion: 2
+    rgba: 4287289855
+  - serializedVersion: 2
+    rgba: 4282229736
+  - serializedVersion: 2
+    rgba: 4281621626
+  ink:
+    serializedVersion: 2
+    rgba: 4278716941
+  paperWhite:
+    serializedVersion: 2
+    rgba: 4293980400

@@ -49,7 +49,8 @@ namespace PirateCrew.EditorTools
     ///                                    WorldKit 资产表 → 折叠为 BattleRig.prefab 实例。
     ///                                    这八步的顺序是**真实依赖**（每步读写上一步落在场景里的东西），
     ///                                    已固化成代码而不是本文档里要背的表——逐条理由见该类的 Steps。
-    ///   ⑦.5 BeveledPixelSpriteBuilder.BuildAll  UI 九宫格（像素斜面浮雕）全族重烘焙 + 判据 + 接触表。
+    ///   ⑦.5 BeveledPixelSpriteBuilder.BuildAll  UI 九宫格（像素斜面浮雕）全族重烘焙 + 判据 + 接触表
+    ///                                    + 美术稿 + 运行时图集（Resources/UI/PixelSkin.asset）。
     ///                                    无顺序依赖（只读调色板真源、只写自己的图集目录），
     ///                                    放这里是因为它属"资产产出"而不是"场景装配"。
     ///   ⑨ SceneSetup.BuildAll            M1 菜单 / 引导场景批量重建

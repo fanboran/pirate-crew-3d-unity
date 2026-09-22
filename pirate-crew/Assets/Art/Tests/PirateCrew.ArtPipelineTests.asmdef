@@ -3,7 +3,8 @@
     "rootNamespace": "PirateCrew.ArtPipeline.Tests",
     "references": [
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEditor.TestRunner",
+        "PirateCrew.UI"
     ],
     "includePlatforms": [
         "Editor"
