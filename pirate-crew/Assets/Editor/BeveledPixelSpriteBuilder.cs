@@ -201,8 +201,18 @@ namespace PirateCrew.EditorTools
         /// </summary>
         public static readonly Vector2 PressOffset = PirateCrew.UI.PixelSkin.PressOffset;
 
-        /// <summary>悬停态的色阶上抬比例：每档向亮侧邻档混这个比例（S4 顶档除外，见类头 §三）。</summary>
-        public const float HoverLift = 0.25f;
+        /// <summary>
+        /// 悬停态的色阶上抬比例：每档向亮侧邻档混这个比例（S4 顶档除外，见类头 §三）。
+        /// 0.25 在实机看只够"仔细看才不同"（创始人 2026-09-22 走查"悬停和按压太不明显"），
+        /// 提到 0.5 —— 抬升仍夹在原值与亮邻之间（单调与锁板都成立），但一眼可辨。
+        /// </summary>
+        public const float HoverLift = 0.5f;
+
+        /// <summary>
+        /// 按压态的整条下沉比例：对调高光/阴影之外，每档再向**暗侧邻档**混这个比例——
+        /// "按下去 = 沉下去"。只靠对调时，1px 唇边换边在实机几乎不可读（同上走查）。
+        /// </summary>
+        public const float PressSink = 0.5f;
 
         /// <summary>选人圈 / 焦点框边长（px）= 8u。都是 2u 厚的方环，带与 Plate 同款的切角。</summary>
         public const int RingSize = 8 * Unit;
@@ -351,6 +361,23 @@ namespace PirateCrew.EditorTools
                     S2 = Mix(S2, S3, t),
                     S1 = Mix(S1, S2, t),
                     Floor = Mix(Floor, S1, t),
+                };
+            }
+
+            /// <summary>
+            /// <see cref="Lifted"/> 的镜像：整条阶梯向**暗侧**沉一档（按压态）。S4 是唯一没有暗侧
+            /// 邻档语义的顶档，但也一起沉（顶档沉向 S3）——按压读的是"整块变暗"，不是某一道带。
+            /// 沉完同样单调、自成一个锁板集合（判据侧按状态取表，见 <c>CheckPaletteLock</c>）。
+            /// </summary>
+            public Ramp Sunk(float t)
+            {
+                return new Ramp
+                {
+                    S4 = Mix(S4, S3, t),
+                    S3 = Mix(S3, S2, t),
+                    S2 = Mix(S2, S1, t),
+                    S1 = Mix(S1, Floor, t),
+                    Floor = Mix(Floor, Slot("INK"), t),
                 };
             }
         }
@@ -598,11 +625,14 @@ namespace PirateCrew.EditorTools
         /// </summary>
         public static Texture2D CreateTexture(Tone tone, Piece piece, State state, out Vector4 border)
         {
-            // 悬停 = 整条色阶上抬一档（S4 不动）；按压 = 高光/阴影对调。两条互斥、
-            // 都不改变分层几何——所以先定阶梯、再画同心环，环的画法对状态无感知。
+            // 悬停 = 整条色阶上抬一档（S4 不动）；按压 = 高光/阴影对调 + 整条下沉一档
+            // （"按下去 = 沉下去"，只对调时 1px 唇边换边实机几乎不可读）。两条互斥、
+            // 都不改变分层几何——先定阶梯、再画同心环，环的画法对状态无感知。
             Ramp r = RampOf(tone);
             if (state == State.Hovered)
                 r = r.Lifted(HoverLift);
+            else if (state == State.Pressed)
+                r = r.Sunk(PressSink);
 
             Edge lit = Edge.Lit(r);
             Edge shade = Edge.Shade(r);
@@ -1882,10 +1912,12 @@ namespace PirateCrew.EditorTools
                     break;
                 default:
                 {
-                    // plate / tab：本 tone 的色阶（悬停态是抬升后的阶梯——自成一张锁板表）
+                    // plate / tab：本 tone 的色阶。悬停是抬升后的阶梯、按压是下沉后的阶梯——
+                    // 各自成一张锁板表（混出来的中间档不在常态表里，按状态取才锁得住）
                     Tone tone = ToneOfName(name);
-                    Ramp r = ParseStateTail(name.Substring("Pixel_".Length)) == State.Hovered
-                        ? RampOf(tone).Lifted(HoverLift)
+                    State tail = ParseStateTail(name.Substring("Pixel_".Length));
+                    Ramp r = tail == State.Hovered ? RampOf(tone).Lifted(HoverLift)
+                        : tail == State.Pressed ? RampOf(tone).Sunk(PressSink)
                         : RampOf(tone);
                     allowed.Add(r.S1);
                     allowed.Add(r.S2);
@@ -2574,14 +2606,17 @@ namespace PirateCrew.EditorTools
             cursor += 44 + 12 + 28;
 
             // ---- ⑤ 页签：贴宿主面板顶边（底边无带），选中用提亮 tone ----
-            Section("页签 Tab —— 底边无带、贴宿主面板顶边；未选中 = 内容片 tone，选中 = 提亮 tone");
+            // 页签是**一条带**：等宽相邻零间隙（相邻两道描边贴在一起正好是分隔线），
+            // 且整体压进宿主描边 2 艺术像素——留缝或悬在描边外，页签就和宿主"分家"了
+            //（创始人 2026-09-22 走查"页签 Tab 有缝隙"）。
+            Section("页签 Tab —— 等宽相邻零间隙、压住宿主描边；未选中 = 内容片 tone，选中 = 提亮 tone");
             string[] tabNames = { "甲板", "船员", "海图" };
-            Lay(Tone.Frame, Piece.Plate, State.Normal, 24, cursor + 26, 592, 60);
+            Lay(Tone.Frame, Piece.Plate, State.Normal, 24, cursor + 24, 592, 60);
             for (int i = 0; i < tabNames.Length; i++)
             {
-                int x = 40 + i * 60;
-                Lay(i == 1 ? Tone.Light : Tone.Dense, Piece.Tab, State.Normal, x, cursor, 48, 24);
-                labels.Add(Label(tabNames[i], x + 12, cursor + 6, 12, i == 1 ? "ink" : "white"));
+                int x = 40 + i * 48;
+                Lay(i == 1 ? Tone.Light : Tone.Dense, Piece.Tab, State.Normal, x, cursor + 2, 48, 24);
+                labels.Add(Label(tabNames[i], x + 12, cursor + 8, 12, i == 1 ? "ink" : "white"));
             }
             cursor += 24 + 60 + 28;
 

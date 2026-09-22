@@ -75,8 +75,16 @@ def main():
             if size not in cache:
                 cache[size] = ImageFont.truetype(font_path, size)
             color = roles.get(item.get("color", "white"), roles["white"])
-            draw.text((int(item["x"]) * SCALE, int(item["y"]) * SCALE), item["text"],
-                      font=cache[size], fill=color)
+            # 清单里的 (x, y) 是**行盒左上**（盒高 = size 艺术像素）。盖字时把**实际墨迹**
+            # 居中进这个盒：像素字体的 ascent/descent 不对称，直接用左上锚会让字贴向一边——
+            # 按钮上就是"离上边近、离下边远"（创始人 2026-09-22 走查）。
+            font = cache[size]
+            bbox = font.getbbox(item["text"])
+            if bbox is None:
+                continue
+            center_y = (int(item["y"]) + item["size"] / 2.0) * SCALE
+            top_y = center_y - (bbox[1] + bbox[3]) / 2.0
+            draw.text((int(item["x"]) * SCALE, top_y), item["text"], font=font, fill=color)
         image.save(sheet)
         stamped += 1
         print("已盖字 %d 条 → %s（%dx%d）"

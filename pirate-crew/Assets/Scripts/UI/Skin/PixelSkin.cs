@@ -79,8 +79,12 @@ namespace PirateCrew.UI
         /// <summary>低于它装配就不能用九宫格（角会切进内容区），装配侧应断言。</summary>
         public const int PlateMinRender = 2 * PlateBorder;
 
-        /// <summary>按压态元素位移：右下 1px（贴图里不烘位移，烘了九宫格切片错位）。</summary>
-        public static readonly Vector2 PressOffset = new Vector2(1f, -1f);
+        /// <summary>
+        /// 按压态元素位移：右下 **1 艺术像素**（= Unit，与投影同距；贴图里不烘位移，
+        /// 烘了九宫格切片错位）。原值 (1,-1) 只有 1 屏幕像素——比一个艺术像素还小，
+        /// 既看不出"沉下去"、又把件挪出了像素栅格（创始人 2026-09-22 走查"按压太不明显"）。
+        /// </summary>
+        public static readonly Vector2 PressOffset = new Vector2(Unit, -Unit);
 
         /// <summary>面板投影相对面板本体的偏移：右下 1u（投影是独立剪影件）。</summary>
         public static readonly Vector2 ShadowOffset = new Vector2(Unit, -Unit);

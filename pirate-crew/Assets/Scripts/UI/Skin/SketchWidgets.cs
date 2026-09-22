@@ -33,7 +33,9 @@ namespace PirateCrew.UI
                 int index = i;
                 RectTransform tab = UiKit.CreateRect("Tab_" + titles[i], root);
                 tab.anchorMin = tab.anchorMax = tab.pivot = new Vector2(0f, 0.5f);
-                tab.sizeDelta = new Vector2(SnapUnit(tabWidth - 6f), SnapUnit(root.sizeDelta.y));
+                // 页签**等宽相邻、零间隙**：页签是一条带，不是各自独立的小牌——
+                // 相邻两道描边贴在一起正好读成分隔线（创始人 2026-09-22 走查"页签有缝隙"）。
+                tab.sizeDelta = new Vector2(SnapUnit(tabWidth), SnapUnit(root.sizeDelta.y));
                 tab.anchoredPosition = new Vector2(Mathf.Round(i * tabWidth), 0f);
 
                 var image = tab.gameObject.AddComponent<Image>();

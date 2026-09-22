@@ -29,6 +29,14 @@ namespace PirateCrew.EditorTools
     ///   <c>Assets/Art/Fonts/LXGWWenKaiLite-Regular.ttf</c> 即可显示中文（无需 TMP）。
     ///   本脚本生成的 SDF 资产只对 TextMeshProUGUI / TextMeshPro 生效，两者不通用。
     ///
+    /// 【像素字体档（FusionPixel12，创始人 2026-09-22 定选"上方的字体"）】
+    ///   缝合像素 12px 比例版（OFL 1.1）按**位图口径**进 TMP：
+    ///   samplingPointSize = 12（字体原生设计尺寸）、GlyphRenderMode.RASTER_HINTED
+    ///   （位图栅格化，**不走 SDFAA**——SDF 会给像素字形糊出灰边）、atlasPadding = 0、
+    ///   图集 filterMode = Point、material 换 TextMeshPro/Bitmap shader。
+    ///   显示字号必须是采样尺寸的**整数倍**（36 = 3×12 = 12 艺术像素 @3×，72 = 6×12），
+    ///   非整数倍会把 1 艺术像素拉成不均匀宽（创始人走查"说好了 3:1 像素风"）。
+    ///
     /// 【参数选择理由】
     ///   · AtlasPopulationMode = Dynamic（动态）：中文常用字形上万，静态烘焙要么字符集残缺
     ///     要么图集巨大（多张 2048 仍不够）并导致导入极慢。动态模式按需把实际用到的字形
@@ -89,6 +97,17 @@ namespace PirateCrew.EditorTools
                 AtlasHeight = 1024,
                 RenderMode = GlyphRenderMode.SDFAA,
                 Purpose = "次级说明（霞鹜文楷 Lite Regular；OFL 1.1）",
+            },
+            new FontSpec
+            {
+                SourceTtfPath = FontsFolder + "/FusionPixel12-zh_hans.ttf",
+                AssetFileName = "FusionPixel12-px",
+                SamplingPointSize = 12,
+                AtlasPadding = 0,
+                AtlasWidth = 1024,
+                AtlasHeight = 1024,
+                RenderMode = GlyphRenderMode.RASTER_HINTED,
+                Purpose = "像素 UI 正文（缝合像素 12px 比例版简体；OFL 1.1）——位图口径，见类头",
             },
             new FontSpec
             {
@@ -218,7 +237,8 @@ namespace PirateCrew.EditorTools
 
             Debug.Log("[FontAssetBuilder] 完成：新建/重建 " + created + " 个，跳过 " + skipped + " 个。\n"
                 + "  产物路径（供 UI/场景引用）:\n"
-                + "    标题  " + Specs[2].AssetPath + "（StickHand，fallback → 正文）\n"
+                + "    像素  " + Specs[2].AssetPath + "（FusionPixel12 位图档，显示字号取 12 的整数倍）\n"
+                + "    标题  " + Specs[3].AssetPath + "（StickHand，fallback → 正文）\n"
                 + "    正文  " + Specs[0].AssetPath + "\n"
                 + "    次级  " + Specs[1].AssetPath + "\n"
                 + "  说明: 这些是 TMP 字体资产，只对 TextMeshProUGUI/TextMeshPro 生效；\n"
@@ -274,6 +294,24 @@ namespace PirateCrew.EditorTools
             fontAsset.name = spec.AssetFileName;
             fontAsset.atlasPopulationMode = AtlasPopulationMode.Dynamic;
 
+            if (spec.RenderMode == GlyphRenderMode.RASTER_HINTED)
+            {
+                // 位图口径（像素字体专用）：图集 Point 过滤（整数倍缩放最近邻、不出灰边），
+                // 材质换 Bitmap shader（SDF shader 会把平涂字形当距离场解，边缘发脏）。
+                if (fontAsset.atlasTextures != null)
+                {
+                    foreach (Texture2D texture in fontAsset.atlasTextures)
+                        texture.filterMode = FilterMode.Point;
+                }
+                Shader bitmap = Shader.Find("TextMeshPro/Bitmap");
+                if (bitmap != null && fontAsset.material != null)
+                    fontAsset.material.shader = bitmap;
+                else
+                    Debug.LogWarning("[FontAssetBuilder] 找不到 TextMeshPro/Bitmap shader，"
+                        + spec.AssetFileName + " 暂用 SDF 材质显示（可能有灰边）——"
+                        + "确认 TMP Essential Resources 已导入。");
+            }
+
             AssetDatabase.CreateAsset(fontAsset, spec.AssetPath);
             PersistSubAssets(fontAsset);
             EditorUtility.SetDirty(fontAsset);
@@ -311,20 +349,35 @@ namespace PirateCrew.EditorTools
         /// <summary>标题字体缺字时回退到正文，避免标题里出现缺字方块。</summary>
         static void LinkFallbacks()
         {
+            // 注意下标：Specs 顺序 = 0 正文楷体 / 1 次级楷体 / 2 像素字体 / 3 标题手写体。
             TMP_FontAsset body = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(Specs[0].AssetPath);
-            TMP_FontAsset title = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(Specs[2].AssetPath);
-            if (body == null || title == null)
-                return;
-
-            if (title.fallbackFontAssetTable == null)
-                title.fallbackFontAssetTable = new List<TMP_FontAsset>();
-
-            if (!title.fallbackFontAssetTable.Contains(body))
+            TMP_FontAsset title = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(Specs[3].AssetPath);
+            if (body != null && title != null)
             {
-                title.fallbackFontAssetTable.Add(body);
-                EditorUtility.SetDirty(title);
-                Debug.Log("[FontAssetBuilder] 已把标题字体 fallback 指向正文字体: "
-                    + Specs[2].AssetPath + " → " + Specs[0].AssetPath);
+                if (title.fallbackFontAssetTable == null)
+                    title.fallbackFontAssetTable = new List<TMP_FontAsset>();
+                if (!title.fallbackFontAssetTable.Contains(body))
+                {
+                    title.fallbackFontAssetTable.Add(body);
+                    EditorUtility.SetDirty(title);
+                    Debug.Log("[FontAssetBuilder] 已把标题字体 fallback 指向正文字体: "
+                        + Specs[3].AssetPath + " → " + Specs[0].AssetPath);
+                }
+            }
+
+            // 像素字体（位图档）缺字 → 楷体正文兜底（罕见字形不至于出方块）。
+            TMP_FontAsset pixel = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(Specs[2].AssetPath);
+            if (body != null && pixel != null)
+            {
+                if (pixel.fallbackFontAssetTable == null)
+                    pixel.fallbackFontAssetTable = new List<TMP_FontAsset>();
+                if (!pixel.fallbackFontAssetTable.Contains(body))
+                {
+                    pixel.fallbackFontAssetTable.Add(body);
+                    EditorUtility.SetDirty(pixel);
+                    Debug.Log("[FontAssetBuilder] 已把像素字体 fallback 指向正文楷体: "
+                        + Specs[1].AssetPath + " → " + Specs[0].AssetPath);
+                }
             }
         }
 

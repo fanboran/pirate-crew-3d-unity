@@ -135,6 +135,10 @@
   - [`gen-showcase.png`](gen-showcase.png)（**全屏 640×360 艺术像素 = 1920×1080 屏幕，输出即
     实际屏幕像素**，验收主图）——**美术稿**：整屏构图（船员卡/海图小地图/敌情/警告按钮/页点/Toast），
     元素尺寸给足、标题字模 3×；
+  - [`gen-showcase-live.png`](gen-showcase-live.png)——**实机调试窗口**（游戏内真渲染截图）：
+    `UIShowcase.unity` 场景跑 `UiGalleryPage` 陈列页（全部件 = 运行时真件、可交互），
+    编辑器菜单 PirateCrew/UI/打开组件展示（构建并播放）即得；命令行出口
+    `UiShowcaseSceneSetup.CaptureFromCommandLine` 自动出这张图。
   - [`gen-components.png`](gen-components.png)（同尺度）——**组件总表**：面板族 7 tone × 三态、
     凹槽（真实血条用法）、填充 5 色、语义件、页签、三态按钮，一件一行、左列行名与行垂直居中；
     **图名不带 `-1x/-2x`**：那是旧口径的产物，容易被读成"这图才 1 倍大"，尺度一律印在图上；

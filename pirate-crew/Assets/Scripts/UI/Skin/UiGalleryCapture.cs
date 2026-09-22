@@ -79,8 +79,9 @@ namespace PirateCrew.UI
             yield return null;
         }
 
-        /// <summary>overlay Canvas（与战斗 HUD 同缩放口径）+ 全屏 InkDeep 底 + 陈列页内容。</summary>
-        static GameObject BuildCanvas(string pageName, bool iconsPage)
+    /// <summary>overlay Canvas（与战斗 HUD 同缩放口径）+ 全屏 InkDeep 底 + 陈列页内容。
+    /// 采集器与实机调试窗（<see cref="UiShowcaseBoot"/>）共用这条建法。</summary>
+    public static GameObject BuildCanvas(string pageName, bool iconsPage)
         {
             var go = new GameObject("UiGalleryCanvas_" + pageName, typeof(Canvas));
             Canvas canvas = go.GetComponent<Canvas>();

@@ -15,9 +15,15 @@
 | --- | --- | --- | --- |
 | `Bootstrapper.unity` | 手摆（组合根 + 视频设置） | 场景本体（**有意不折叠**） | 2 |
 | `MainMenu.unity` | `Editor/SceneSetup.cs` | `Assets/Prefabs/UI/MainMenuScreen.prefab` | 95 |
-| `LevelSelect.unity` | `Editor/M3SceneSetup.cs` | `Assets/Prefabs/UI/LevelSelectScreen.prefab` | 43 |
-| `CrewManagement.unity` | `Editor/M3SceneSetup.cs` | `Assets/Prefabs/UI/CrewManagementScreen.prefab` | 21 |
+| `LevelSelect.unity` | `Editor/ManagementSceneSetup.cs` | `Assets/Prefabs/UI/LevelSelectScreen.prefab` | 43 |
+| `CrewManagement.unity` | `Editor/ManagementSceneSetup.cs` | `Assets/Prefabs/UI/CrewManagementScreen.prefab` | 21 |
 | **`Battle.unity`** | `Editor/BattleScenePipeline.cs` 八步子链 | `Assets/Prefabs/PirateCrew/Battle/BattleRig.prefab` | 217（18 根） |
+| `UIShowcase.unity` | `Editor/UiShowcaseSceneSetup.cs` | 场景本体（相机 + `UiShowcaseBoot`，页面运行时自建） | 2 |
+
+`UIShowcase` 是**组件展示实机调试窗口**：内容刻意不折叠——场景里只有相机和一个引导件，
+页面由 `PixelShowcasePage` 运行时自建（组件总表的真件版，全页落在 3:1 艺术像素栅格 +
+像素字体），没有需要手维护的 UI 层级。入口：编辑器菜单
+PirateCrew/UI/打开组件展示（构建并播放）。
 
 `Bootstrapper` 只有 2 个对象且是入口场景，折它只增加一层间接，**有意保留手摆**。
 
@@ -30,7 +36,7 @@
 
 | # | 步骤 | 为什么在这个位置 |
 | --- | --- | --- |
-| ① | `M2BattleSceneSetup.BuildAll` | `NewScene(EmptyScene)` 全量重建——它敢扔掉旧场景，因为后面每步都会把该补的补回来 |
+| ① | `BattleSceneSetup.BuildAll` | `NewScene(EmptyScene)` 全量重建——它敢扔掉旧场景，因为后面每步都会把该补的补回来 |
 | ② | `FloatingIslandShowcaseMenu.PlaceIntoBattleCenter` | 空岛样板件（第 3 关地面）；在 ① 之后，否则被重建洗掉 |
 | ③ | `SceneArtBaker.BuildAll` | 样板场景件烘焙（云场/危险线 → prefab + 接线） |
 | ④ | `SceneAssetManifestBuilder.BuildAll` | 场景资产总清单 |
