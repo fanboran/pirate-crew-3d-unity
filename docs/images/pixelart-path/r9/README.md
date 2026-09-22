@@ -89,17 +89,17 @@ python tools/pixel-review/judge_pixelart_pilot.py export/pixelart-l1-r9   # 三�
 
 ## 5. README 宣传图（本轮交付）
 
+**最终只留两张 overview**（创始人 2026-09-22 当轮再定：`hero-l1` / `l2-overview` / `l1-battle`
+三张从 README 与 `docs/images/promo/` 撤下；pc-mid 仍留在本路径 r8 归档里）：
+
 | README 位置 | 新图 | 来源档位 |
 | --- | --- | --- |
-| 头图 | [hero-l1.jpg](../promo/hero-l1.jpg) | r8 `pc-mid`（创始人指定） |
 | 云端漫步 | [l1-overview.jpg](../promo/l1-overview.jpg) | `pl1-wide` |
-| 碎岛雨 | [l2-overview.jpg](../promo/l2-overview.jpg) | `pl2-wide`（**带 §4 的缺陷**） |
 | 天空之岛 | [l3-overview.jpg](../promo/l3-overview.jpg) | `pl3-wide` |
-| 实战视角 | [l1-battle.jpg](../promo/l1-battle.jpg) | `pl1-mid` |
 
-README 顶部与第 2 关图上都加了**如实标注**：这些是**试点场景**的实拍，这条路径**还没接进游戏本体**
-（本体仍是旧视觉链），且第 2 关那张有已定位缺陷。原宣传图（`docs/images/art-review/r11-l3`、`r12-l1`、
-`r12-l2`）保留在原处作历史存档。
+第 2 关那张（`pl2-wide`，带 §4 的缺陷）没进 README，只留在本节与本轮的出图目录里。
+README 的关卡小节加了**如实标注**：这些是**试点场景**的实拍，这条路径**还没接进游戏本体**
+（本体仍是旧视觉链）。原宣传图（`docs/images/art-review/r11-l3`、`r12-l1`、`r12-l2`）保留在原处作历史存档。
 
 ## 6. 仍待办（本轮新增）
 
