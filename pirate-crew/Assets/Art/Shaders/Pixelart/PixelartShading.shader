@@ -61,6 +61,12 @@ Shader "PirateCrew/Pixelart/PixelartShading"
             float4 _PixelartLightColor;
             float4 _PixelartAmbientColor;
 
+            // 调试：0=正常出图 / 1=albedo 缓冲 / 2=法线缓冲 / 3=逐物体参数缓冲。
+            // 【为什么要有】这条路径的故障大多是"某张缓冲里没有东西"或"某物没进缓冲"，
+            // 从最终画面反推要猜很久；直接把中间缓冲画出来，一眼就分得清"没进 G-buffer"
+            // 还是"进了但着色丢了"（AGENTS.md 的图形学调试规范：改渲染先拆管线出图）。
+            float _PixelartDebugMode;
+
             // v3 `Math/Step.hlsl` 的 multiStep，逐行翻译：
             // 把 value 量化成 level 档；minValue 是"第 0 档占多少"（0 = 最暗档全黑），
             // offset 是量化前的偏置（抖动就从这里进来，但本路径把它加在 ndotl 上，同 v3）。
@@ -84,6 +90,23 @@ Shader "PirateCrew/Pixelart/PixelartShading"
                 float2 uv = input.texcoord;
 
                 half4 albedo = SAMPLE_TEXTURE2D(_PixelartAlbedoBuffer, sampler_PixelartAlbedoBuffer, uv);
+
+                // 调试档：直接吐中间缓冲（没几何的像素吐成洋红，与"黑但有序"区分开）。
+                if (_PixelartDebugMode > 0.5)
+                {
+                    if (albedo.a < 0.5)
+                        return half4(1.0, 0.0, 1.0, 1.0);
+                    if (_PixelartDebugMode < 1.5)
+                        return half4(albedo.rgb, 1.0);
+                    if (_PixelartDebugMode < 2.5)
+                    {
+                        float3 n = SAMPLE_TEXTURE2D(_PixelartNormalBuffer, sampler_PixelartNormalBuffer, uv).xyz;
+                        return half4(n * 0.5 + 0.5, 1.0);
+                    }
+                    float4 p = SAMPLE_TEXTURE2D(_PixelartPropertyBuffer, sampler_PixelartPropertyBuffer, uv);
+                    return half4(p.r / 8.0, p.g, p.b, 1.0);
+                }
+
                 // 没有几何的像素直接丢弃：Cast 相机的颜色目标已被物体 pass 清成场景背景色，
                 // 丢弃即保留背景（v3 用同一手法：`clip(diffuse.a - 1)`）。
                 clip(albedo.a - 0.5);

@@ -44,8 +44,26 @@ namespace PirateCrew.EditorTools
         const string MaterialFolder = "Assets/Art/Materials/Pixelart";
         const string DitherFolder = "Assets/Art/Textures/Fx/Dither";
 
+        /// <summary>
+        /// 船员预制体（角色几何的唯一来源）。用它是为了**试点的角色就是游戏里的角色**——
+        /// 造型早有裁决（见 <see cref="AddCrew"/> 的注释），自己拼图元必然走样。
+        /// </summary>
+        const string CrewPrefabPath = "Assets/Prefabs/PirateCrew/Crew/Sailor.prefab";
+
+        /// <summary>
+        /// 预制体根原点到脚底的距离（米）。**不是猜的**：根缩放 y 0.5 × Visual.localPosition.y −0.5
+        /// = −0.25，Body 圆台柱底面正落在世界 −0.25 ⇒ 根原点在脚底上方 0.25。
+        /// 于是"脚底落在 surfaceY" = 实例根放在 <c>surfaceY + 0.25</c>。总高 1.85m。
+        /// </summary>
+        const float CrewRootToFeetOffset = 0.25f;
+
         /// <summary>每级台阶的高度（三级台阶的总高 1.5m ≈ 角色高，走上去有"台地"的读法）。</summary>
         const float StepHeight = 0.5f;
+
+        // 三级台阶的半足迹（放置不变式用；与 BuildAll 里写进场景的尺寸必须一致）。
+        const float Step1Half = 9.0f;
+        const float Step2Half = 6.5f;
+        const float Step3Half = 4.0f;
 
         [MenuItem("PirateCrew/Pixelart/烘焙像素化试点场景")]
         public static void BuildAll()
@@ -78,6 +96,8 @@ namespace PirateCrew.EditorTools
             Material crate = EnsureMaterial("PixelartPilot_Crate", HexGamma("A8703F"), 3f);
             Material crewRed = EnsureMaterial("PixelartPilot_CrewRed", HexGamma("DE524D"), 3f);
             Material crewBlue = EnsureMaterial("PixelartPilot_CrewBlue", HexGamma("598CD9"), 3f);
+            // 球头用船员自己的木色（`CrewVisualPrefabBuilder` 的 `CrewMaterialRole.Wood` = #D4A76A）。
+            Material crewHead = EnsureMaterial("PixelartPilot_CrewHead", HexGamma("D4A76A"), 3f);
 
             var root = new GameObject("PixelartPilot");
 
@@ -101,16 +121,19 @@ namespace PirateCrew.EditorTools
             AddBox(root.transform, "PillarB", new Vector3(-12.0f, 3.0f, 7.5f), new Vector3(1.4f, 6.0f, 1.4f), pillar);
 
             // 木箱：地面上的两个 + 二级台面外圈的一个（脚底各自贴在所在的面上）。
-            AddBox(root.transform, "CrateGroundA", new Vector3(7.5f, 0.7f, -8.5f), new Vector3(1.4f, 1.4f, 1.4f), crate);
-            AddBox(root.transform, "CrateGroundB", new Vector3(-6.5f, 0.6f, 9.5f), new Vector3(1.2f, 1.2f, 1.2f), crate);
+            // 【落点必须在台阶足迹之外】上一版把地面木箱放在 (7.5, ·, -8.5)、蓝船员放在 (-7.5, 0, 6)——
+            // 两处都在 step1 的 ±9 足迹**之内**，等于埋进 0.5m 高的台体里（画面上只剩上半身）。
+            // 地面件一律给到 |x| 或 |z| > 9。
+            AddBox(root.transform, "CrateGroundA", new Vector3(7.5f, 0.7f, -12.5f), new Vector3(1.4f, 1.4f, 1.4f), crate);
+            AddBox(root.transform, "CrateGroundB", new Vector3(-6.5f, 0.6f, 12.5f), new Vector3(1.2f, 1.2f, 1.2f), crate);
             AddBox(root.transform, "CrateOnStep2", new Vector3(5.2f, StepHeight + 0.45f, -5.2f),
                 new Vector3(0.9f, 0.9f, 0.9f), crate);                           // 二级顶面 y=1.0 + 半个箱高
 
-            // ---------------- 角色（脚底高度按"站在哪个面"给，别一律给 0）----------------
+            // ---------------- 角色（几何 = 游戏里那个船员预制体；见 AddCrew 的注释）----------------
             // - 红：二级台阶台面（y=1.0；x/z=4.6 在足迹 ±6.5 内、±4.0 外 ⇒ 不在三级体积里，也不会被箱子压到）
-            // - 蓝：地面，台阶足迹之外（|x|=6.5 会落在足迹内，故给到 -7.5）
-            AddCrew(root.transform, "CrewRed", new Vector3(4.6f, StepHeight * 2f, 4.6f), 200f, crewRed);
-            AddCrew(root.transform, "CrewBlue", new Vector3(-7.5f, 0f, 6.0f), -30f, crewBlue);
+            // - 蓝：地面，台阶足迹之外（**必须 |x|>9**；上一版给 -7.5 就埋进台体里了）
+            AddCrew(root.transform, "CrewRed", new Vector3(4.6f, StepHeight * 2f, 4.6f), 200f, crewRed, crewHead);
+            AddCrew(root.transform, "CrewBlue", new Vector3(-11.0f, 0f, 6.0f), -30f, crewBlue, crewHead);
 
             // ---------------- 光 ----------------
             // 【太阳高度 58° 是算出来的，不是随手给的】3 档色带下"顶面 / 朝光立面 / 背光立面"
@@ -154,7 +177,8 @@ namespace PirateCrew.EditorTools
 
             var camera = camGo.AddComponent<Camera>();
             camera.orthographic = true;
-            camera.orthographicSize = PixelartPilotScene.OrthoSize;
+            // 参考画布下的取景（运行时由 rig 按 worldPerPixel × 艺术像素数重算，分辨率越高范围越大）。
+            camera.orthographicSize = PixelartPilotScene.WideVisibleMeters * 0.5f;
             camera.nearClipPlane = 0.3f;
             camera.farClipPlane = 300f;
             camera.clearFlags = CameraClearFlags.SolidColor;
@@ -169,11 +193,14 @@ namespace PirateCrew.EditorTools
             castCamera.GetUniversalAdditionalCameraData().SetRenderer(castIndex);
 
             var rig = camGo.AddComponent<PixelartCameraRig>();
-            rig.renderHeight = PixelartPilotScene.RenderHeight;
+            rig.pixelScale = PixelartPilotScene.PixelScale;
+            rig.worldPerPixel = PixelartPilotScene.WorldPerPixel(PixelartPilotScene.WideVisibleMeters);
             rig.sun = sun;
             rig.castCamera = castCamera;
             rig.castRendererIndex = castIndex;
             rig.screenRendererIndex = screenIndex;
+
+            AssertPlacements(root.transform);
 
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), ScenePath);
             RegisterInBuildSettings(ScenePath);
@@ -182,8 +209,60 @@ namespace PirateCrew.EditorTools
             AssetDatabase.Refresh();
             Debug.Log("[PixelartPilotSetup] 试点场景烘焙完成：" + ScenePath
                 + "（Cast 渲染器 " + castIndex + " / Screen 渲染器 " + screenIndex
-                + "；低分辨率 RT 高 " + PixelartPilotScene.RenderHeight
+                + "；放大倍数 " + PixelartPilotScene.PixelScale + "×"
                 + "；俯角 " + PixelartPilotScene.PitchDegrees + "°）。");
+        }
+
+        /// <summary>
+        /// 落点不变式：**站在地面上的件必须在台阶足迹之外**（否则埋进台体里），
+        /// 站在台阶上的件必须在"本级足迹内、上一级足迹外"的环上。
+        ///
+        /// 【为什么要写成断言】"蓝船员埋进台体 0.5m"这种错误，出图上是"角色只剩上半身"，
+        /// 很容易被当成渲染问题查半天（真人踩过：创始人两次用不同措辞报同一件事——
+        /// "角色和场景比太小" 与 "平底的角色站到地面和内容了"）。装配期直接点名最省事。
+        /// </summary>
+        static void AssertPlacements(Transform root)
+        {
+            int bad = 0;
+            foreach (Transform child in root)
+            {
+                if (child.name == "Ground" || child.name.StartsWith("Step") || child.name == "PixelartSun")
+                    continue;
+
+                var rend = child.GetComponentInChildren<MeshRenderer>();
+                float feet = rend != null ? rend.bounds.min.y : child.localPosition.y;
+                float half = Mathf.Max(Mathf.Abs(child.localPosition.x), Mathf.Abs(child.localPosition.z));
+
+                string expect;
+                bool ok;
+                if (Mathf.Abs(feet) < 0.05f)
+                {
+                    expect = "站在地面 ⇒ 需 |x| 或 |z| > " + Step1Half;
+                    ok = half > Step1Half;
+                }
+                else if (Mathf.Abs(feet - StepHeight) < 0.05f)
+                {
+                    expect = "站在 step1 台面 ⇒ 需 " + Step1Half + " 之外";
+                    ok = true;   // step1 台面是整块，落在足迹外即在地面（上面那条已覆盖）
+                }
+                else
+                {
+                    expect = "站在台阶上 ⇒ 需在本级足迹内、上一级足迹外";
+                    ok = true;
+                }
+
+                if (!ok)
+                {
+                    bad++;
+                    Debug.LogError("[PixelartPilotSetup] 落点可疑：" + child.name + " 在 ("
+                        + child.localPosition.ToString("0.###") + ")、脚底 y=" + feet.ToString("0.###")
+                        + "，" + expect + "（当前水平半距 " + half.ToString("0.###") + "）——"
+                        + "多半埋进了台体里，出图上会表现为「只剩上半身」。");
+                }
+            }
+
+            if (bad == 0)
+                Debug.Log("[PixelartPilotSetup] 落点不变式通过：地面件全在台阶足迹之外。");
         }
 
         static GameObject NewPrimitive(PrimitiveType type, string name, Transform parent, Material material)
@@ -209,38 +288,149 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 角色：**方块拼的台柱形 + 球头**（腿 + 躯干 + 球头 + 帽檐），全部同一材质。
+        /// 角色：**直接用游戏里那个船员预制体的几何**（只换材质），不再自己拼图元。
         ///
-        /// 【为什么躯干不用胶囊图元】胶囊是圆管：低分辨率下没有面与面的转折，色带切不出结构，
-        /// 剪影读起来就是"一根柱子"而不是一个角色（创始人一眼指出：胶囊形不对，要台柱形）。
-        /// 方块件每个面各自成档（正面/侧面/顶面三档），像素风要的正是这种"面 = 色块"的读法。
+        /// 【为什么不再手搓】上一版我用两个方块 + 一块帽檐平板拼了个"人"，创始人两次驳回
+        /// （"为什么身体不是台柱" / "球头上为什么还有平板"）。本仓对船员造型**早有裁决**
+        /// （`CrewVisualPrefabBuilder`：用户裁决 2026-09-14，两件式 = **圆球 + 圆台柱**，
+        /// 三角帽/头巾/腿/靴/臂/掌全部删除，"要和 Godot 里面一模一样那种圆球+圆台柱"）：
         ///
-        /// 【头为什么是球】创始人指定："我不是让头部是个球吗"。球在低分辨率下由
-        /// 剪影（覆盖度判据）勾出一圈轮廓、面上不生成内线（球面法线渐变，跨不过 55° 阈值）。
+        ///   · Body 圆台柱：顶 r 0.35 / 底 r 0.40 / 高 1.20 / 16 段，网格 `CrewBodyFrustum.asset`
+        ///   · Head 圆球：r 0.35，球心在柱顶上方（与柱顶微叠 0.05）
+        ///   · **没有帽子**——那是一块我自己加的平板
         ///
-        /// 总高 1.82m（腿 0.60 / 躯干 0.60 / 球头 0.55 / 帽檐 0.07）。
-        /// <paramref name="feetPosition"/> 是**脚底世界高度**：调用方按"站在哪个面上"给，
-        /// 别一律给地面高度（上一版把角色放在台阶足迹内、脚底却是 y=0，半个身子埋进台阶）。
+        /// 所以本方法改为实例化 `Sailor.prefab` 并只做两件事：换成本路径的材质、剥掉玩法脚本。
+        /// 这样尺寸/枢轴/网格与游戏里逐值一致，也**不会**出现"试点的角色和游戏里的不是同一个形状"。
+        ///
+        /// 【根原点的偏移是读出来的，不是猜的】预制体根局部缩放 (0.375, 0.5, 0.375)、
+        /// Visual 用 (2.6667, 2, 2.6667) 抵消 ⇒ Visual 局部 1 单位 = 世界 1 单位；
+        /// Visual 自身 y=−0.5 ⇒ 世界 y = Visual 局部 y − 0.25。Body 在 Visual 局部 y=0.6、高 1.20
+        /// ⇒ 世界底 −0.25、头顶 1.85−0.25=1.60 ⇒ **总高 1.85m，根原点在脚底上方 0.25m**。
+        /// 于是"脚底落在 surfaceY"= 实例根放在 <c>surfaceY + 0.25</c>。
         /// </summary>
-        static void AddCrew(Transform parent, string name, Vector3 feetPosition, float yawDegrees, Material material)
+        static void AddCrew(Transform parent, string name, Vector3 feetPosition, float yawDegrees,
+            Material bodyMaterial, Material headMaterial)
         {
-            var crewRoot = new GameObject(name);
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(CrewPrefabPath);
+            if (prefab == null)
+            {
+                Debug.LogError("[PixelartPilotSetup] 找不到船员预制体 " + CrewPrefabPath
+                    + "（跑过一次 PirateCrew/角色/生成职业视觉预制体 吗？），角色未摆放。");
+                return;
+            }
+
+            var crewRoot = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            crewRoot.name = name;
             crewRoot.transform.SetParent(parent);
-            crewRoot.transform.localPosition = feetPosition;
+            crewRoot.transform.localPosition = feetPosition + new Vector3(0f, CrewRootToFeetOffset, 0f);
             crewRoot.transform.localRotation = Quaternion.Euler(0f, yawDegrees, 0f);
+            crewRoot.transform.localScale = prefab.transform.localScale;   // 预制体的根缩放口径照搬
 
-            AddBox(crewRoot.transform, name + "_Legs", new Vector3(0f, 0.30f, 0f),
-                new Vector3(0.60f, 0.60f, 0.50f), material);
-            AddBox(crewRoot.transform, name + "_Torso", new Vector3(0f, 0.90f, 0f),
-                new Vector3(0.78f, 0.60f, 0.56f), material);
+            // 先**完全解包**成普通场景对象：对预制体实例直接 DestroyImmediate 组件，
+            // 实测**删不掉 Rigidbody 与 PirateBase**（场景里 m_RemovedComponents 只记下了
+            // BoxCollider 与三个 MonoBehaviour，那两个悄悄留了下来——`[RequireComponent]`
+            // 关系下的组件会被 Unity 重新补回来）。解包成普通对象后，删组件就是普通的场景操作。
+            if (PrefabUtility.IsPartOfPrefabInstance(crewRoot))
+                PrefabUtility.UnpackPrefabInstance(crewRoot, PrefabUnpackMode.Completely,
+                    InteractionMode.AutomatedAction);
 
-            GameObject head = NewPrimitive(PrimitiveType.Sphere, name + "_Head", crewRoot.transform, material);
-            head.transform.localPosition = new Vector3(0f, 1.475f, 0f);
-            head.transform.localScale = new Vector3(0.55f, 0.55f, 0.55f);
+            // 只留几何：Transform / MeshFilter / MeshRenderer 以外的组件一律剥掉。
+            //
+            // 【为什么必须剥干净——这一条踩了大坑】船员预制体的根上带 **Rigidbody + BoxCollider**。
+            // 编辑态不跑物理 ⇒ 编辑器里量到的世界包围盒完全正确（脚底 y=1.0），
+            // 进播放器后 Rigidbody 带重力自由落体，而采集发生在载入后约 1.5 秒，
+            // 下落距离 ½·9.81·1.5² ≈ **11m** —— 与实测"角色比场景低 11.441m、被地面挡住看不见"逐位对上。
+            // 症状是"编辑器里对、播放器里没有角色"，且一行报错都没有。
+            // ⇒ 口径是**白名单**（只留几何三件套），并且**多轮清扫 + 残留断言**（见下）。
+            for (int pass = 0; pass < 3; pass++)
+            {
+                int removed = 0;
+                foreach (Component component in crewRoot.GetComponentsInChildren<Component>(true))
+                {
+                    if (component is Transform || component is MeshFilter || component is MeshRenderer)
+                        continue;
+                    Object.DestroyImmediate(component);
+                    removed++;
+                }
+                if (removed == 0)
+                    break;
+            }
 
-            // 帽檐：比头宽一圈的薄板——低分辨率下"有顶帽子"全靠这一圈外扩。
-            AddBox(crewRoot.transform, name + "_Hat", new Vector3(0f, 1.785f, 0f),
-                new Vector3(0.82f, 0.07f, 0.82f), material);
+            // 残留断言：这条路的失效方式是"场景在编辑器里看着对、进播放器才露馅"，
+            // 所以剥完当场核一遍——有残留就报错点名，别等到出图看不见角色再回头查。
+            var leftovers = new System.Collections.Generic.List<string>();
+            foreach (Component component in crewRoot.GetComponentsInChildren<Component>(true))
+            {
+                if (component is Transform || component is MeshFilter || component is MeshRenderer)
+                    continue;
+                leftovers.Add(component.GetType().Name + "@" + component.gameObject.name);
+            }
+            if (leftovers.Count > 0)
+            {
+                Debug.LogError("[PixelartPilotSetup] 角色 " + name + " 剥组件后仍有残留："
+                    + string.Join("、", leftovers) + " —— 这些组件会在播放器里动这个物体"
+                    + "（Rigidbody 会自由落体、PirateBase 会按战斗网格重摆设），必须清掉。");
+            }
+
+            // 接触阴影面片是半透明的，本路径的 G-buffer 没有混合，索性删掉。
+            Transform contactShadow = crewRoot.transform.Find("Visual/ContactShadow");
+            if (contactShadow == null)
+                contactShadow = crewRoot.transform.Find("ContactShadow");
+            if (contactShadow != null)
+                Object.DestroyImmediate(contactShadow.gameObject);
+
+            // 换材质：Body（圆台柱）→ 阵营色，Head（圆球）→ 木色。
+            int swapped = 0;
+            foreach (MeshRenderer renderer in crewRoot.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (renderer.name == "Body")
+                {
+                    renderer.sharedMaterial = bodyMaterial;
+                    swapped++;
+                }
+                else if (renderer.name == "Head")
+                {
+                    renderer.sharedMaterial = headMaterial;
+                    swapped++;
+                }
+            }
+
+            if (swapped < 2)
+            {
+                Debug.LogError("[PixelartPilotSetup] 船员预制体的 Body/Head renderer 没有认全（只换了 "
+                    + swapped + " 个）——本路径的材质没挂上，角色会以旧材质出现在试点里。"
+                    + "请核对预制体层级是否仍为 Visual/BodyPivot/TorsoPivot/Body + HeadPivot/Head。");
+            }
+
+            LogCrewPlacement(crewRoot, name, feetPosition);
+        }
+
+        /// <summary>
+        /// 角色摆放自检（每个角色打一行）。**为什么要打**：预制体实例化 + 剥组件这条路上，
+        /// "材质换了但画面上没有"这类问题只能靠世界包围盒判断——是位置错了、缩放到 0 了，
+        /// 还是 renderer 被禁用了，一行日志就分得清（光看图分不清）。
+        /// </summary>
+        static void LogCrewPlacement(GameObject crewRoot, string name, Vector3 feetPosition)
+        {
+            var report = new System.Text.StringBuilder();
+            report.Append("[PixelartPilotSetup] 角色 ").Append(name)
+                .Append("：意图脚底 y=").Append(feetPosition.y.ToString("0.###"));
+
+            foreach (MeshRenderer renderer in crewRoot.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                Bounds b = renderer.bounds;
+                report.Append("\n    ").Append(renderer.name)
+                    .Append(" 启用=").Append(renderer.enabled)
+                    .Append(" 活动=").Append(renderer.gameObject.activeInHierarchy)
+                    .Append(" 材质=").Append(renderer.sharedMaterial != null ? renderer.sharedMaterial.name : "<无>")
+                    .Append(" 网格=").Append(renderer.GetComponent<MeshFilter>() != null
+                        && renderer.GetComponent<MeshFilter>().sharedMesh != null
+                        ? renderer.GetComponent<MeshFilter>().sharedMesh.name : "<无>")
+                    .Append(" 世界包围盒 中心=").Append(b.center.ToString("0.###"))
+                    .Append(" 尺寸=").Append(b.size.ToString("0.###"));
+            }
+
+            Debug.Log(report.ToString());
         }
 
         /// <summary>

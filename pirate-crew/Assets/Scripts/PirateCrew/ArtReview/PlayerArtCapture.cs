@@ -3,6 +3,9 @@ using System.IO;
 using PirateCrew.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+// 类型别名：本文件多处要用试点场景的取景常量（俯角/可见米数/机位方向），
+// 全限定写太长、直接 using 整个命名空间又怕与既有类型重名，故用同类别名。
+using PixelartPilotScene = PirateCrew.Rendering.Pixelart.PixelartPilotScene;
 
 namespace PirateCrew.ArtReview
 {
@@ -376,24 +379,29 @@ namespace PirateCrew.ArtReview
 
             Directory.CreateDirectory(_outDir);
 
-            // (文件名, 正交size, 推进系数, 抖动图案 -1=不动/0=Bayer/1=密度图案, 抖动幅度, RT高 0=不动)
-            // 【正交 size 列】可见高度 = 2×size。角色高 1.82m ⇒ wide 档占屏高 6.5%、mid 10%、close 23%。
-            // 【RT 高列】0 = 用场景里的档（共享常量，现 216）。
-            (string name, float size, float zoom, int ditherMode, float ditherStrength, int rtHeight)[] shots =
+            // (文件名, 可见高度(米), 推进系数, 抖动图案 -1=不动/0=Bayer/1=密度图案, 抖动幅度, 调试档)
+            // 【可见高度列】机位按"看得见多少米"给，与屏幕分辨率解耦；rig 会把它换算成
+            // "每艺术像素多少米"，再由艺术像素数（= 屏幕 ÷ 放大倍数）推出正交 size
+            // ⇒ **分辨率越高看到的范围越大**（1080p 宽机位 28m、1440p 同一档 37m）。
+            // 【调试档列】0 = 正常；1/2/3 = 直接吐 albedo/法线/逐物体参数缓冲（拆管线排查用）。
+            (string name, float visibleMeters, float zoom, int ditherMode, float ditherStrength, int debugMode)[] shots =
             {
-                ("pa-wide",        14f, 1.0f, -1, 0f, 0),
-                ("pa-mid",          9f, 0.6f, -1, 0f, 0),
-                ("pa-close",        4f, 0.3f, -1, 0f, 0),
-                ("pa-mid-bayer",    9f, 0.6f,  0, 0.5f, 0),
-                ("pa-mid-density",  9f, 0.6f,  1, 1.0f, 0),
+                ("pa-wide",        PixelartPilotScene.WideVisibleMeters,  1.0f, -1, 0f, 0),
+                ("pa-mid",         PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 0),
+                ("pa-close",       PixelartPilotScene.CloseVisibleMeters, 0.3f, -1, 0f, 0),
+                ("pa-mid-bayer",   PixelartPilotScene.MidVisibleMeters,   0.6f,  0, 0.5f, 0),
+                ("pa-mid-density", PixelartPilotScene.MidVisibleMeters,   0.6f,  1, 1.0f, 0),
+                ("dbg-albedo",     PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 1),
+                ("dbg-normal",     PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 2),
+                ("dbg-prop",       PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 3),
             };
+
+            LogCrewRenderersOnce();
 
             foreach (var shot in shots)
             {
-                if (shot.rtHeight > 0 && shot.rtHeight != rig.renderHeight)
-                    rig.renderHeight = shot.rtHeight;
-
-                cam.orthographicSize = shot.size;
+                // 机位 = 改"每艺术像素多少米"（正交 size 由 rig 按它乘艺术像素数推出）。
+                rig.worldPerPixel = PixelartPilotScene.WorldPerPixel(shot.visibleMeters);
                 cam.transform.position = target + orbitDir * (cameraDistance * shot.zoom);
                 cam.transform.LookAt(target);
 
@@ -401,6 +409,9 @@ namespace PirateCrew.ArtReview
                     SetPixelartDither(shot.ditherMode, shot.ditherStrength);
                 else
                     SetPixelartDither(-1, 0f);   // 显式清 MPB：否则上一张的抖动档会延续到本张
+
+                Shader.SetGlobalFloat(
+                    global::PirateCrew.Rendering.Pixelart.PixelartPath.DebugModeId, shot.debugMode);
 
                 // 改 RT/抖动后多等一帧，让缓冲重分配与 MPB 生效。
                 yield return new WaitForEndOfFrame();
@@ -416,9 +427,57 @@ namespace PirateCrew.ArtReview
             }
 
             SetPixelartDither(-1, 0f);
+            Shader.SetGlobalFloat(global::PirateCrew.Rendering.Pixelart.PixelartPath.DebugModeId, 0f);
             global::PirateCrew.Core.Log.Info("[PlayerArtCapture] 像素化路径试点采集完成，退出。目录：" + _outDir);
             yield return new WaitForSeconds(0.5f);
             Application.Quit(0);
+        }
+
+        /// <summary>
+        /// 播放器侧打一遍"角色 renderer 到底长什么样"（只打一次）。
+        /// 【为什么要打】场景里装配正确、材质也对，却可能在**播放器里**因为别的原因不上屏；
+        /// 从编辑器侧看一切正常会把排查带偏，所以要一份**运行期**的读数：
+        /// 活动/启用状态、世界包围盒、材质、层、以及它会走哪个渲染队列。
+        /// </summary>
+        static void LogCrewRenderersOnce()
+        {
+            var report = new System.Text.StringBuilder("[PlayerArtCapture] 角色 renderer 运行期读数：");
+            int found = 0;
+            foreach (MeshRenderer renderer in FindObjectsByType<MeshRenderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (!renderer.name.Equals("Body") && !renderer.name.Equals("Head"))
+                    continue;
+                found++;
+                Bounds b = renderer.bounds;
+                Material mat = renderer.sharedMaterial;
+                report.Append("\n    ").Append(renderer.transform.parent != null
+                        ? renderer.transform.parent.parent != null
+                            ? renderer.transform.parent.parent.name : "?" : "?")
+                    .Append("/").Append(renderer.name)
+                    .Append(" 活动=").Append(renderer.gameObject.activeInHierarchy)
+                    .Append(" 启用=").Append(renderer.enabled)
+                    .Append(" 层=").Append(renderer.gameObject.layer)
+                    .Append(" 队列=").Append(mat != null ? mat.renderQueue.ToString() : "<无>")
+                    .Append(" 材质=").Append(mat != null ? mat.name : "<无>")
+                    .Append(" shader=").Append(mat != null && mat.shader != null ? mat.shader.name : "<无>")
+                    .Append(" 包围盒中心=").Append(b.center.ToString("0.###"))
+                    .Append(" 尺寸=").Append(b.size.ToString("0.###"));
+
+                // 把整条父链的变换也打出来：世界坐标对不上时，一眼就能看出是哪一层的
+                // 位置/缩放不对（编辑器里正确、播放器里差 11 米这种，只有父链能解释）。
+                Transform t = renderer.transform;
+                while (t != null)
+                {
+                    report.Append("\n        ↑ ").Append(t.name)
+                        .Append(" 局部位置=").Append(t.localPosition.ToString("0.###"))
+                        .Append(" 局部缩放=").Append(t.localScale.ToString("0.###"))
+                        .Append(" 世界位置=").Append(t.position.ToString("0.###"))
+                        .Append(" 场景=").Append(t.gameObject.scene.name);
+                    t = t.parent;
+                }
+            }
+            report.Append("\n    共 ").Append(found).Append(" 个（期望 4 = 2 角色 × Body+Head）");
+            global::PirateCrew.Core.Log.Info(report.ToString());
         }
 
         /// <summary>

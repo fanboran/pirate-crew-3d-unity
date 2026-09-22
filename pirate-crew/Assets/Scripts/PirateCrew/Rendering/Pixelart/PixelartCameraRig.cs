@@ -34,8 +34,17 @@ namespace PirateCrew.Rendering.Pixelart
         const string CastCameraName = "Pixelart Cast Camera";
 
         [Header("低分辨率域")]
-        [Tooltip("低分辨率 RT 的高度（像素）。宽按屏幕宽高比自适应并对齐偶数。216 = 1920 宽屏上 1 像素 5 屏幕像素。")]
-        [Min(32)] public int renderHeight = 216;
+        [Tooltip("像素化档位 = 一个艺术像素占几个**屏幕**像素（整数放大倍数，锁死）。5 = 1920×1080 下 384×216。")]
+        [Min(1)] public int pixelScale = 5;
+
+        [Tooltip("一个艺术像素的世界尺寸（米）。**这是美术口径的锚**：它与 RT 尺寸一起决定了"
+            + "可见世界范围 = 艺术像素数 × 本值（所以分辨率越高、看到的范围越大）。"
+            + "0.1296 = 1080p 下可见 28m 高。")]
+        [Min(0.001f)] public float worldPerPixel = 0.1296f;
+
+        [Tooltip("由 pixelScale/worldPerPixel 反推正交 size 并写进相机。"
+            + "关掉 = 相机自己管取景（本路径只保证像素网格整数倍，不保证范围随分辨率变大）。")]
+        public bool deriveOrthographicSize = true;
 
         [Header("渲染器索引（装配器写入；名字见 PixelartPath.CastRendererName / ScreenRendererName）")]
         [Tooltip("Cast 相机的渲染器索引（物体 pass + 着色）。-1 = 不改写（用场景里已配好的）。")]
@@ -202,9 +211,16 @@ namespace PirateCrew.Rendering.Pixelart
                 return;
 
             // 屏幕尺寸变化（窗口拉伸/分辨率切换）→ 低分辨率 RT 与上屏尺寸一起重算。
-            int wantWidth = ComputeWidth(renderHeight);
-            if (wantWidth != _allocatedWidth || renderHeight != _allocatedHeight)
+            ComputeTargetSize(out int wantWidth, out int wantHeight);
+            if (wantWidth != _allocatedWidth || wantHeight != _allocatedHeight)
                 EnsureBuffers();
+
+            // 由"一个艺术像素的世界尺寸"反推正交 size：可见世界 = 艺术像素数 × worldPerPixel，
+            // 所以**分辨率越高看到的范围越大**（1080p 28m 高 → 1440p 37m 高）。
+            if (deriveOrthographicSize)
+                _screenCamera.orthographicSize = RenderHeight * worldPerPixel * 0.5f;
+
+            LogScaleMapping();
 
             // Cast 相机必须与主相机同视野：它是代理，不是第二台取景器。
             _castCamera.orthographic = _screenCamera.orthographic;
@@ -220,12 +236,45 @@ namespace PirateCrew.Rendering.Pixelart
             PushLightGlobals();
         }
 
-        /// <summary>按屏幕宽高比算低分辨率宽度（偶数对齐，免半像素列；16:9 高 180 → 320）。</summary>
-        int ComputeWidth(int height)
+        /// <summary>
+        /// 按**实际屏幕**反推低分辨率 RT 尺寸：**锁"一个艺术像素占几个屏幕像素"这个整数倍数**。
+        ///
+        /// 【为什么口径是"锁倍数"而不是"锁 RT 高"】曾经是"高锁 216、宽随宽高比"，那套只在
+        /// **屏幕高恰好是 216 的整数倍**时成立：1920×1080 → 384×216、块 5（✓），但
+        /// 2560×1440 → 2560÷384 = 6.67（**非整数 ✗**）。非整数放大让块边长在 6/7 之间混排——
+        /// **全屏看着"像素不齐"、放大到 1:1 或整数倍看却是干净的**（创始人报的正是这个症状）。
+        ///
+        /// 【锁 5 倍在常见分辨率下都是整数】1920×1080 → 384×216、2560×1440 → 512×288、
+        /// 3840×2160 → 768×432、1600×900 → 320×180、1280×720 → 256×144。宽高都能被 5 整除的分辨率
+        /// 一律严格整数倍；个别不能被 5 整除的（1366×768）会有 ≤4 像素的残余落在一条边上，
+        /// 这个残余会打进日志，不静默。
+        /// </summary>
+        void ComputeTargetSize(out int width, out int height)
         {
-            float aspect = Screen.height > 0 ? Screen.width / (float)Screen.height : 16f / 9f;
-            return Mathf.Max(2, Mathf.CeilToInt(height * aspect * 0.5f) * 2);
+            int screenWidth = Mathf.Max(2, Screen.width);
+            int screenHeight = Mathf.Max(2, Screen.height);
+            int k = Mathf.Max(1, pixelScale);
+
+            int exactWidth = screenWidth / k * k;
+            int exactHeight = screenHeight / k * k;
+
+            _chosenScale = k;
+            _screenWidth = screenWidth;
+            _screenHeight = screenHeight;
+            _residualX = screenWidth - exactWidth;
+            _residualY = screenHeight - exactHeight;
+            _exactScale = _residualX == 0 && _residualY == 0;
+
+            width = Mathf.Max(2, screenWidth / k);
+            height = Mathf.Max(2, screenHeight / k);
         }
+
+        int _chosenScale = 5;
+        int _screenWidth;
+        int _screenHeight;
+        int _residualX;
+        int _residualY;
+        bool _exactScale = true;
 
         void EnsureCastCamera()
         {
@@ -278,8 +327,7 @@ namespace PirateCrew.Rendering.Pixelart
 
         void EnsureBuffers()
         {
-            int height = Mathf.Max(32, renderHeight);
-            int width = ComputeWidth(height);
+            ComputeTargetSize(out int width, out int height);
             if (width == _allocatedWidth && height == _allocatedHeight
                 && ResultBuffer != null && AlbedoBuffer != null)
                 return;
@@ -316,6 +364,35 @@ namespace PirateCrew.Rendering.Pixelart
 
             PushStaticGlobals();
         }
+
+        /// <summary>
+        /// 把"屏幕 ↔ 像素网格"的映射打一行日志（映射变化时打一次）。
+        /// 【为什么要打】"像素不齐"这种症状只能靠这组数判断：屏幕宽高、放大倍数、RT 尺寸、
+        /// 以及**残余像素**（不能被倍数整除时那几像素会落在一条边上）。
+        /// 静默的整数性失效正是这条路径最难发现的一类问题。
+        /// </summary>
+        void LogScaleMapping()
+        {
+            string key = _screenWidth + "x" + _screenHeight + "@" + _chosenScale;
+            if (key == _loggedMappingKey)
+                return;
+            _loggedMappingKey = key;
+
+            string line = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "[PixelartCameraRig] 像素网格：屏幕 {0}×{1} → 放大 {2}× → 艺术画布 {3}×{4}"
+                + "（块 {2} 屏幕像素，可见 {5:F1}m 高，每艺术像素 {6:F4}m）",
+                _screenWidth, _screenHeight, _chosenScale, RenderWidth, RenderHeight,
+                RenderHeight * worldPerPixel, worldPerPixel);
+
+            if (_exactScale)
+                Debug.Log(line + " —— 整数映射严格成立。");
+            else
+                Debug.LogWarning(line + " —— **非严格整数映射**：右/下残余 "
+                    + _residualX + "×" + _residualY + " 屏幕像素（落在一条边上）。"
+                    + "屏幕宽高同时能被 " + _chosenScale + " 整除时才会完全对齐。");
+        }
+
+        string _loggedMappingKey;
 
         /// <summary>
         /// 装配自检（只打一次）：把"这条路有没有接上"的证据写进日志。

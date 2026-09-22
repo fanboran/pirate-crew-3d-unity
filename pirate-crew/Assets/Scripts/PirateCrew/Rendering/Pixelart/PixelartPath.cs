@@ -87,6 +87,12 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>低分辨率 RT 的宽度（像素）。</summary>
         public static readonly int RTWidthId = Shader.PropertyToID("_PixelartRTWidth");
 
+        /// <summary>
+        /// 调试档（0 = 正常出图，1 = albedo 缓冲，2 = 法线缓冲，3 = 逐物体参数缓冲）。
+        /// 拆管线出图用：把中间缓冲直接画到屏幕上，故障是"没进 G-buffer"还是"着色丢了"一眼可判。
+        /// </summary>
+        public static readonly int DebugModeId = Shader.PropertyToID("_PixelartDebugMode");
+
         // ---------------- 运行期注册表 ----------------
 
         /// <summary>

@@ -60,8 +60,8 @@ RT_HEIGHT_PATTERN = re.compile(r"rt(\d+)")
 # 曾经"场景 35.264° / 出图脚本 30°"各写一份，比对结论全错——同一个坑不再踩第二次。
 SCENE_CONSTANTS_CS = os.path.join(
     "pirate-crew", "Assets", "Scripts", "PirateCrew", "Rendering", "Pixelart", "PixelartPilotScene.cs")
-RENDER_HEIGHT_PATTERN = re.compile(r"RenderHeight\s*=\s*(\d+)")
-FALLBACK_RT_HEIGHT = 216
+PIXEL_SCALE_PATTERN = re.compile(r"PixelScale\s*=\s*(\d+)")
+FALLBACK_PIXEL_SCALE = 5
 SCREEN_WIDTH = 1920
 
 # 无抖动样本的期望区间（见模块 docstring 的判据二/三）
@@ -75,16 +75,16 @@ LIGHTING_MIN_SHARE = 0.005  # 参与比较的颜色至少占低分辨率域的 0
 LIGHTING_MIN_LUMA = 25.0    # 剔除近黑的墨线（墨线是"画上去的线"，不参与光照统计）
 
 
-def read_render_height():
-    """从场景常量读 RT 高（读不到就用兜底值并说明）。"""
+def read_pixel_scale():
+    """从场景常量读像素档位（= 一个艺术像素占几个屏幕像素）。"""
     try:
         with open(SCENE_CONSTANTS_CS, "r", encoding="utf-8") as f:
             text = f.read()
     except OSError:
-        return FALLBACK_RT_HEIGHT, "（读不到 " + SCENE_CONSTANTS_CS + "，用兜底值）"
-    match = RENDER_HEIGHT_PATTERN.search(text)
+        return FALLBACK_PIXEL_SCALE, "（读不到 " + SCENE_CONSTANTS_CS + "，用兜底值）"
+    match = PIXEL_SCALE_PATTERN.search(text)
     if not match:
-        return FALLBACK_RT_HEIGHT, "（" + SCENE_CONSTANTS_CS + " 里没解析到 RenderHeight，用兜底值）"
+        return FALLBACK_PIXEL_SCALE, "（" + SCENE_CONSTANTS_CS + " 里没解析到 PixelScale，用兜底值）"
     return int(match.group(1)), ""
 
 
@@ -154,19 +154,13 @@ def lighting_span(lr):
     return (hi - lo) / hi if hi > 0 else 0.0
 
 
-def judge_one(path, default_rt):
+def judge_one(path, pixel_scale):
     img = Image.open(path).convert("RGB")
     a = np.asarray(img).astype(int)
     b = block_size(img)
 
     name = os.path.basename(path)
-    expected_rt = default_rt
-    match = RT_HEIGHT_PATTERN.search(name)
-    if match:
-        expected_rt = int(match.group(1))
-
-    aspect = a.shape[1] / a.shape[0]
-    expected_block = expected_block_size(a.shape[1], a.shape[0], expected_rt)
+    expected_block = pixel_scale    # 口径：锁"一个艺术像素占几个屏幕像素"
 
     if b < 2:
         return name, None, ["FAIL 块边长检测失败（画面没有被像素化，或整图同色）"]
@@ -181,10 +175,18 @@ def judge_one(path, default_rt):
     span = lighting_span(lr)
 
     notes = []
+    # 调试档（dbg-*）是**中间缓冲**的直接视图：albedo/参数缓冲按设计就是平涂、法线缓冲按设计满是跳变，
+    # 所以除块边长外的四项判据在它们身上不成立，只判块边长（否则会把"设计如此"误报成故障）。
+    is_debug_view = name.startswith("dbg-")
     if expected_block > 1 and b != expected_block:
-        notes.append("FAIL 块边长 %d ≠ 期望 %d（RT 高应 %d）" % (b, expected_block, expected_rt))
+        notes.append("FAIL 块边长 %d ≠ 期望 %d（像素档位，见 PixelartPilotScene.PixelScale）"
+                     % (b, expected_block))
     if colors < 2:
         notes.append("FAIL 低分辨率域只有一个颜色（某条 pass 没生效）")
+    if is_debug_view:
+        stats = {"block": b, "rt_width": rt_width, "colors": colors,
+                 "jump": jump, "flat": flat, "span": span}
+        return name, stats, notes
     if span < LIGHTING_MIN_SPAN:
         notes.append("FAIL 亮暗跨度 %.2f < %.2f（画面只剩各材质 albedo 原色 ⇒ "
                      "光照/色带很可能被整屏旁路，检查 prop.a 之类通道语义是否冲突）"
@@ -237,14 +239,14 @@ def main(argv):
         print("没有找到图片：" + argv[1])
         return 2
 
-    default_rt, rt_note = read_render_height()
-    print("RT 高（场景常量）：%d %s" % (default_rt, rt_note))
+    scale, scale_note = read_pixel_scale()
+    print("像素档位（场景常量）：%d× %s" % (scale, scale_note))
 
     failures = 0
     print("%-34s %5s %6s %7s %7s %8s %8s"
           % ("文件", "块边长", "RT宽", "色数", "跳变率", "平坦占比", "亮暗跨度"))
     for path in files:
-        name, stats, notes = judge_one(path, default_rt)
+        name, stats, notes = judge_one(path, scale)
         if stats is None:
             print("%-34s %s" % (name, notes[0]))
             failures += 1

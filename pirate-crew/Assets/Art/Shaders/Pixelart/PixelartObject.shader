@@ -219,7 +219,17 @@ Shader "PirateCrew/Pixelart/PixelartObject"
 
             Cull Front
             ZWrite Off
-            ZTest LEqual
+            // 【ZTest Always：这条是实测改出来的，不是照抄】渲染篇 §5 的配方写的是 LEqual + 沿视线拉近，
+            // 那套在本路径的取景下**下缘仍然一条线都没有**（实测：平台远侧/上缘墨线覆盖 97%，
+            // 近侧/下缘 0%，一条竖切上是"亮面 → 立面 → 地面"、中间零墨线）。
+            // 原因：深度测试的对手是**先画完的地面**（大平面在背景队列里先整片画完），
+            // 而壳在下缘那圈投射出的深度是物体的**背面**——一个 18m 见方的台面，它的背面深达十几米，
+            // "拉近 5 倍线宽"（0.65m）根本不够。
+            // 而深度测试对这条路径本来就是多余的：墨线**画在本体之前**，本体随后会把它盖回重叠区，
+            // 所以它只需要"别被先画的东西挡住"。改成 Always 之后环才闭合。
+            // 代价（反向壳固有限制，旧链也记过同一条）：**相邻物体互相漏线**——比如角色站在台面上时，
+            // 它底下那圈会被随后画的台面本体盖掉。要抑制得按层规划 Stencil，属后续项。
+            ZTest Always
 
             HLSLPROGRAM
             #pragma target 3.5
@@ -274,8 +284,17 @@ Shader "PirateCrew/Pixelart/PixelartObject"
 
                 float pixelWorld = _PixelartUnitSize * _OutlinePixels;
 
-                // 不对 normalVS.xy 归一：朝屏的法线数值不稳，斜面自然变细由分量自带（ToonRP 口径）。
-                positionVS.xy += normalVS.xy * pixelWorld;
+                // 【外扩方向必须归一化——这一条与旧链的取舍相反，实测结论在下面】
+                // 不归一化时，外扩量 = normalVS.xy 本身：法线朝屏的面（比如方盒的近侧立面）
+                // 外扩不足一个像素，**整圈线会被光栅化吃掉**。实测（1920 宽屏、RT 384×216、线宽 1）：
+                // 平台"远侧/上缘"墨线覆盖 97%，而**"近侧/下缘"是 0%**（一条竖切上是
+                // 亮面 → 立面 → 地面，中间零墨线）——因为近侧下缘那一圈对应的是**朝前的面**，
+                // 被 Cull Front 剔除，只剩底面在屏幕上下移 0.866 像素 ⇒ 不足一像素、没被光栅化。
+                // 归一化之后每个方向都严格 _OutlinePixels 个低分辨率像素，环才会闭合。
+                // 代价：斜面不再"自然变细"（线条等宽）——本路径要的正是等宽。
+                float2 dir = normalVS.xy;
+                float  len = max(length(dir), 1e-4);
+                positionVS.xy += (dir / len) * pixelWorld;
                 // 沿视线拉近 5× 线宽：覆盖正交俯视下"轮廓外侧那圈像素压在地面上"的深度差。
                 positionVS.z -= pixelWorld * 5.0;
 
