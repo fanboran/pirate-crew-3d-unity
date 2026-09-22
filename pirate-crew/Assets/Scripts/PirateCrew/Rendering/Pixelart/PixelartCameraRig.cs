@@ -51,8 +51,10 @@ namespace PirateCrew.Rendering.Pixelart
         [Range(0f, 2f)] public float aaScaler = 1.5f;
 
         [Header("墨线")]
-        [Tooltip("墨线颜色。默认 #120C14（与 UI 令牌 INK 同色）。")]
-        public Color inkColor = new Color(0.070588f, 0.047059f, 0.078431f, 1f);
+        [Tooltip("墨线颜色。**中性近黑**：UI 面板令牌 INK 是 #120C14（带一点紫，在面板底色上稳），"
+            + "但同一色画在 3D 的蓝灰地面上会读成紫——创始人 2026-09-22 报的就是这个。"
+            + "3D 侧用中性近黑，UI 侧维持令牌，两边各自服务自己的底色。")]
+        public Color inkColor = new Color(0.050980f, 0.050980f, 0.058824f, 1f);   // #0D0D0F
 
         [Header("渲染器索引（装配器写入；名字见 PixelartPath.CastRendererName / ScreenRendererName）")]
         [Tooltip("Cast 相机的渲染器索引。-1 = 不改写（用场景里已配好的）。")]

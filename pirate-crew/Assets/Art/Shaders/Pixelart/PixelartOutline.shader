@@ -116,10 +116,12 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 return (uint)round(saturate(packedValue) * 255.0);
             }
 
-            /// 邻域"要不要描边"：有几何覆盖（albedo.a）**且** 逐物体 applyOutline（palette.a）不为 0。
+            /// 该处"要不要描边"：有几何覆盖（albedo.a）**且** 逐物体 applyOutline（palette.a）不为 0。
             /// 覆盖那一条是**对清屏残留/垃圾值的保险**——正常时 applyOutline 只可能由几何写出、
             /// 两者同真（物体 pass 的 palette.a = `_OutlinePixels > 0.5 ? 1 : 0`）。
-            bool NeighborAppliesOutline(float2 uv)
+            ///
+            /// 【它对本像素与邻域用的是同一个判据】见 fragment 里那两条（本像素侧 / 邻域侧）的注释。
+            bool AppliesOutlineAt(float2 uv)
             {
                 float4 albedo = SAMPLE_TEXTURE2D(_PixelartAlbedoBuffer, sampler_PixelartAlbedoBuffer, uv);
                 if (albedo.a < 0.5)
@@ -148,6 +150,22 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     SAMPLE_TEXTURE2D(_PixelartConnectivityResultBuffer,
                         sampler_PixelartConnectivityResultBuffer, uvCenter).a);
 
+                // 【本像素自己是不是一个"要描边"的几何像素】
+                //
+                // 【为什么必须有这一条】照搬 v3 的 OutlinePass 时只检查**邻域**的 applyOutline，
+                // 而门控的 `closer` 位把墨线限制在"**更远**那一侧"。两者合起来有个结构性缺口：
+                // 物体**近侧**的剪影边（箱体压在更近的大平面上，例如台面下左/下右边缘贴着地面）
+                // 两侧都不满足——更远那一侧是物体自己（它的邻域是大平面，applyOutline = 0），
+                // 而更近那一侧过不了 closer 门控 ⇒ **整条近侧边一根线都没有**（实测墨线像素的
+                // 包围盒只到画面中段：只有上半的远端边缘有线）。
+                // v3 那个特征 `m_Active: 0`（从没跑过），所以这是它的代码第一次真跑时暴露的缺口。
+                //
+                // 补法：门控通过时，**本像素自己开着描边也算**。于是
+                //   · 远侧边（外面是背景/更远的面）→ 由**外侧**像素出线，与原来的观感一致；
+                //   · 近侧边（外面是更近的面）→ 由**物体自己的边界像素**出线。
+                // 两种情形互斥（同一方向只有一个更远侧）⇒ 线宽仍是 **1 艺术像素**，不会叠成两像素。
+                bool centerAppliesOutline = AppliesOutlineAt(uvCenter);
+
                 int connectedToRight = (connectCode & 128u) > 0u ? 1 : 0;   // bit7
                 int connectedToLeft  = (connectCode &  64u) > 0u ? 1 : 0;   // bit6
                 int connectedToUp    = (connectCode &  32u) > 0u ? 1 : 0;   // bit5
@@ -164,7 +182,7 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 if (connectedToRight < 1 && closerThanRight < 1)
                 {
                     gateHit += 1.0;
-                    if (NeighborAppliesOutline(uvCenter + float2(texel.x, 0.0)))
+                    if (centerAppliesOutline || AppliesOutlineAt(uvCenter + float2(texel.x, 0.0)))
                         marker = 1.0;
                 }
 
@@ -172,7 +190,7 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 if (connectedToLeft < 1 && closerThanLeft < 1)
                 {
                     gateHit += 1.0;
-                    if (NeighborAppliesOutline(uvCenter - float2(texel.x, 0.0)))
+                    if (centerAppliesOutline || AppliesOutlineAt(uvCenter - float2(texel.x, 0.0)))
                         marker = 1.0;
                 }
 
@@ -180,7 +198,7 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 if (connectedToUp < 1 && closerThanUp < 1)
                 {
                     gateHit += 1.0;
-                    if (NeighborAppliesOutline(uvCenter + float2(0.0, texel.y)))
+                    if (centerAppliesOutline || AppliesOutlineAt(uvCenter + float2(0.0, texel.y)))
                         marker = 1.0;
                 }
 
@@ -188,7 +206,7 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 if (connectedToDown < 1 && closerThanDown < 1)
                 {
                     gateHit += 1.0;
-                    if (NeighborAppliesOutline(uvCenter - float2(0.0, texel.y)))
+                    if (centerAppliesOutline || AppliesOutlineAt(uvCenter - float2(0.0, texel.y)))
                         marker = 1.0;
                 }
 
