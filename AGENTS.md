@@ -59,6 +59,26 @@
 - 改进待办项记录在 `docs/项目/待办事项.md`
 - **Unity MCP**：本工程已装 MCP for Unity（v10.0.0），ZCode 已配 `unity-mcp` server——Unity 编辑器打开本工程时，新会话的 AI 可直接用 manage_scene / manage_gameobject / manage_asset / read_console 工具操作编辑器（写完脚本先 read_console 查编译错误再用）；编辑器没开时这些工具不可用，改用 batchmode 验证
 
+- **验收优先"不出包"**：只是想看一眼画面 / 转一下相机 → 编辑器里 `PirateCrew/评审/进战斗（打开 Battle 并 Play）`
+  （`EditorPlayBattle.EnterBattle`），几秒钟；播放器侧有 `-bootBattle <关卡号|海图id>`，启动即进那一关
+  （`Bootstrapper` 跳过主菜单）。烘场景（约 2 分钟）与出包（约 4 分钟）只在两件事上必要：
+  ① 出图/判据要跑在播放器里，② 要一个能双击的独立窗口。**别再为"看一眼"去烘场景+出包**。
+- **Unity 锁（多会话/编辑器占用）**：跑 batchmode 前先看一眼 `pirate-crew/Temp/UnityLockfile` 在不在、
+  `Get-Process Unity` 有几个。报「似乎有另一个正在运行的 Unity 实例打开了此项目」时**不要反复重试**——
+  先查是谁占着（`Get-CimInstance Win32_Process` 看 StartTime/CPU），挂住的（CPU 满载、没有窗口）可
+  `Stop-Process -Force` 后删掉锁文件：**场景/脚本改动都在磁盘上，杀进程不丢工作**。
+- **别人手上正在改的文件**：编译错误先确认是不是别人未保存完的临时件（`Assets/Editor/*Probe.cs` 这类）；
+  是就等它保存或绕开，**不要替他改**。多会话并行时提交用独立 index（`GIT_INDEX_FILE`），免得扫走别人的暂存。
+- **改渲染的验收口径**：日志说"某一趟在跑"**不等于画面对**（实测：物体 pass 在跑，内容却由叠加档
+  全分辨率画着旧材质 ⇒ 满屏平滑，没有墨线没有色带）。必须看画面；看画面用**游戏自带链路**
+  （`-artReviewOut` 一次 11 张 / `-pixelartOut [-pixelartLevel N]` 一次 6 张）或编辑器 Play，
+  **不要靠模拟点击一格格试**（慢、不可复现）。
+- **无头环境的硬边界**：批处理/无头（`-nographics`）只支持 1 张渲染目标、不支持 compute UAV ⇒
+  像素化路径靠 `PixelartCameraRig.DeviceSupportsPath` **整趟 inert**（不抛异常、不刷错误日志，
+  PlayMode 测试因此能在无头下跑）。播放器日志在 `%LOCALAPPDATA%Low\BoranFan\Pirate Crew 3D\Player.log`。
+- **耗时的活先说一声、放后台**：烘场景 / 出包 / 全套测试都是分钟级命令，跑之前跟用户说一句，
+  并用后台执行，别让他对着卡住的终端等；**能靠读代码或日志回答的问题就别跑命令**。
+
 ### 文档写作规范（借鉴姊妹项目 stick-world，本仓库同样适用）
 
 - **普通文档只写「是什么 / 怎么设计 / 为什么这么设计」**，不写「什么时候改的 / 之前是什么」这类变更记录。**Git 本身就是文档的历史版本**，变更过程交给提交历史，不在正文复述。
