@@ -45,12 +45,14 @@ namespace PirateCrew.Rendering.Pixelart
         public const int CoreBlitNearestPass = 0;
 
         /// <summary>
-        /// 主相机专用的「虚机保活层」（第 30 层，项目层表未占用）。像素化上屏器把主相机
-        /// cullingMask 收缩到只剩这一位——该层没有任何可渲染物，主相机照旧画不到世界物体；
-        /// 但 CinemachineBrain 按输出相机的掩码筛选候选虚机（TopCameraFromPriorityQueue 里
-        /// <c>mask &amp; (1 &lt;&lt; go.layer)</c>），掩码全 0 会让 Brain 永远选不到相机
-        /// （ActiveVirtualCamera = null ⇒ 旋转/缩放/镜头全部失效，画面钉死在烘焙机位）。
-        /// CameraRig 保留这一位；BattleCameraController 把虚机移到这一层。**两侧共用本常量**。
+        /// 主相机的「上屏器掩码保留位」（第 30 层，项目层表未占用）。像素化上屏器把主相机
+        /// cullingMask 收缩到只剩这一位——该层没有任何可渲染物，主相机照旧画不到世界物体。
+        ///
+        /// 【历史】Cinemachine 时代它是**虚机保活层**：Brain 按输出相机的掩码筛选候选虚机
+        /// （<c>mask &amp; (1 &lt;&lt; go.layer)</c>），掩码全 0 会让 Brain 永远选不到相机
+        /// ⇒ 旋转/缩放/镜头全部失效、画面钉死在烘焙机位（r13 实机事故，c42dfdc）。
+        /// 2026-09-23 相机去 Cinemachine 化后虚机不存在了，但 rig 的掩码写入逻辑保持不动
+        /// （保留位无副作用），本常量即该写入逻辑的唯一事实源。
         /// </summary>
         public const int VirtualCameraKeepAliveLayer = 30;
 

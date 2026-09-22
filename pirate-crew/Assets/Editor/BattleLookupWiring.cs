@@ -21,7 +21,7 @@ namespace PirateCrew.EditorTools
     ///   只读校验（CI 用，缺接线或字段名漂移时退出码 1）：
     ///         -executeMethod PirateCrew.EditorTools.BattleLookupWiring.Verify
     ///
-    /// 【前置 / 顺序】必须在 <see cref="M2BattleSceneSetup.BuildAll"/> **之后**跑
+    /// 【前置 / 顺序】必须在 <see cref="BattleSceneSetup.BuildAll"/> **之后**跑
     /// （BuildAll 会 <c>NewScene(EmptyScene)</c> 全量重建，把这份接线抹掉），与
     /// <see cref="HudMinimapSceneSetup.WireMinimap"/> 同级——两者都可在 BuildAll 之后任意顺序执行。
     /// 链内位置见 <see cref="BattleScenePipeline.Steps"/>。
@@ -32,7 +32,7 @@ namespace PirateCrew.EditorTools
     /// 跑到这一步**整个编辑器就退出了**，后面的场景装配与折叠一步都没跑，
     /// 表现为"日志戛然而止 + 后续步骤凭空消失"，排查起来极其费时。
     ///
-    /// 【为什么单独一个脚本】<c>M2BattleSceneSetup.cs</c> / <c>HudMinimapSceneSetup.cs</c> 不在本
+    /// 【为什么单独一个脚本】<c>BattleSceneSetup.cs</c> / <c>HudMinimapSceneSetup.cs</c> 不在本
     /// 轨道文件域内，不能改；本脚本复用它们的代码模式（<c>SerializedObject</c> 写私有
     /// <c>[SerializeField]</c>、不手写 .unity YAML、不新增对象），只补字段值。
     ///
@@ -41,9 +41,9 @@ namespace PirateCrew.EditorTools
     ///
     /// 【接哪三条】三条都是"场景内对象 → 场景内对象"，与 docs/审计/专项/场景接线审计报告.md F-3 的
     /// 修法一致：
-    ///   · <c>BattleCameraController.aimThrow</c> ← 根对象 <c>AimThrowController</c>
+    ///   · <c>BattleCameraDriver.aimThrow</c> ← 根对象 <c>AimThrowController</c>
     ///     （**热路径**：Update 的力度-镜头耦合、LateUpdate 的 Scope 视野混合每帧读它）；
-    ///   · <c>BattleHud.cameraController</c> ← 根对象 <c>BattleCameraController</c>
+    ///   · <c>BattleHud.cameraController</c> ← 根对象 <c>BattleCameraDriver</c>
     ///     （观察模式开关要转交给相机）；
     ///   · <c>WaterSimulationDriver.sunLight</c> ← <c>AmbientDirector.sunLight</c>
     ///     （水面太阳光路方向；解析顺序 <c>RenderSettings.sun</c> → 本字段 → 静态正午方向）。
@@ -85,15 +85,15 @@ namespace PirateCrew.EditorTools
             var applied = new List<string>();
 
             var aim = FindInScene<AimThrowController>(scene);
-            var battleCamera = FindInScene<BattleCameraController>(scene);
+            var battleCamera = FindInScene<BattleCameraDriver>(scene);
             var hud = FindInScene<BattleHud>(scene);
             var water = FindInScene<WaterSimulationDriver>(scene);
             var ambient = FindInScene<Ambient.AmbientDirector>(scene);
 
             if (battleCamera == null)
-                problems.Add("场景里没有 BattleCameraController——请先跑 M2BattleSceneSetup.BuildAll。");
+                problems.Add("场景里没有 BattleCameraDriver——请先跑 BattleSceneSetup.BuildAll。");
             if (hud == null)
-                problems.Add("场景里没有 BattleHud——请先跑 M2BattleSceneSetup.BuildAll。");
+                problems.Add("场景里没有 BattleHud——请先跑 BattleSceneSetup.BuildAll。");
 
             if (battleCamera != null)
                 ApplyWires(battleCamera, new[]
@@ -164,7 +164,7 @@ namespace PirateCrew.EditorTools
 
             var ok = new List<string>();
 
-            Check<BattleCameraController>(scene, "aimThrow", ok, problems);
+            Check<BattleCameraDriver>(scene, "aimThrow", ok, problems);
             Check<BattleHud>(scene, "cameraController", ok, problems);
             Check<WaterSimulationDriver>(scene, "sunLight", ok, problems);
 
@@ -268,7 +268,7 @@ namespace PirateCrew.EditorTools
             if (AssetDatabase.LoadAssetAtPath<SceneAsset>(BattleScenePath) == null)
             {
                 problems.Add("找不到 " + BattleScenePath
-                             + "，请先运行 PirateCrew.EditorTools.M2BattleSceneSetup.BuildAll。");
+                             + "，请先运行 PirateCrew.EditorTools.BattleSceneSetup.BuildAll。");
                 return false;
             }
 

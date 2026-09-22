@@ -1,5 +1,4 @@
 using System.IO;
-using Cinemachine;
 using PirateCrew.Ambient;
 using PirateCrew.Battle;
 using PirateCrew.Data;
@@ -138,7 +137,7 @@ namespace PirateCrew.EditorTools
                 + " / 后处理 " + BattleSceneLighting.VolumeProfilePath
                 + " / URP " + BattleSceneLighting.UrpAssetPath + "（软阴影+深度图+MSAA2）\n"
                 + "  接线: BattleController / TurnManager / AimThrowController / TrajectoryPreview / "
-                + "BattleCameraController（含 battle 手感源）/ BattleHud / "
+                + "BattleCameraDriver（含 battle 手感源）/ BattleHud / "
                 + "crewVisualPrefabs（7 职业）/ SceneArt.Ambient（活物）/ "
                 + "RuntimeSceneArt（材质组数组，关卡无关的场景美术）的全部 [SerializeField] 引用。\n"
                 + "  场景美术: 关卡专属静态陈设不入场景（烘焙退位），开局由 RuntimeSceneArt 按实际关卡重建。");
@@ -216,13 +215,8 @@ namespace PirateCrew.EditorTools
             bool hasSkybox = BattleSceneLighting.ConfigureSkyAndAmbient();
 
             Camera camera = CreateCamera(hasSkybox);
-            camera.gameObject.AddComponent<CinemachineBrain>();
             camera.transform.position = arenaCenter + BattleCameraOffset;
             camera.transform.rotation = Quaternion.LookRotation(-BattleCameraOffset.normalized, Vector3.up);
-
-            Transform cameraTarget = new GameObject("CameraTarget").transform;
-            cameraTarget.position = arenaCenter;
-            CinemachineVirtualCamera virtualCamera = CreateVirtualCamera(cameraTarget);
 
             Light sunLight = BattleSceneLighting.CreateDirectionalLight();
 
@@ -269,7 +263,7 @@ namespace PirateCrew.EditorTools
             // 规则宿主。
             var turnManager = new GameObject("TurnManager").AddComponent<TurnManager>();
             var aimController = new GameObject("AimThrowController").AddComponent<AimThrowController>();
-            var battleCamera = new GameObject("BattleCameraController").AddComponent<BattleCameraController>();
+            var battleCamera = new GameObject("BattleCameraDriver").AddComponent<BattleCameraDriver>();
             TrajectoryPreview trajectory = CreateTrajectoryPreview();
             var battle = new GameObject("BattleController").AddComponent<BattleController>();
 
@@ -278,7 +272,7 @@ namespace PirateCrew.EditorTools
             WireBattleController(battle, piratePrefab, team0Root, team1Root, water, turnManager, aimController, battleCamera, terrainView, runtimeSceneArt);
             WireTurnManager(turnManager, battle);
             WireAimController(aimController, camera, battle, trajectory);
-            WireBattleCamera(battleCamera, battle, virtualCamera, cameraTarget, camera);
+            WireBattleCamera(battleCamera, battle, camera);
             WireHud(hud, battle, turnManager, aimController);
 
             // 供 Debug 查看的层级整理（不影响逻辑引用）。
@@ -295,17 +289,16 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
         // 战斗相机参数（等距像素卡通 · 正交口径，创始人裁决 2026-09-22：
         // docs/技术/渲染管线-等距像素卡通.md §2——斜轴测 + 正交投影 + 整数 OrthoSize）。
-        // **俯角 30° 与出图口径同源**（`BattleCameraController.OrthoPitchDegrees` ←
+        // **俯角 30° 与出图口径同源**（`CameraFraming.BasePitchDegrees` ←
         // `PixelartPilotScene.PitchDegrees`）：游戏内看到的投影必须与宣传图/观感图是同一个，
         // 否则"拿图比观感"这件事本身就错的。距离 30 沿用 3D 空间契约（正交下只定机位）；
-        // 视野档由 OrthoSize 表达（此处烘全场档，运行时 BattleCameraController 切特写档）。
-        // FOV 60 仍写进 Lens：Scope/推近等"FOV 当量特效"的换算分母，正交下不参与投影。
+        // 视野档由 OrthoSize 表达（此处烘全场档，运行时 BattleCameraDriver 切基准档）。
+        // FOV 60 是 Scope/推近等"FOV 当量特效"的换算分母（CameraFraming.BaseFov），正交下不参与投影。
         // ------------------------------------------------------------------
 
-        const float CameraDistance = 30f;
-        const float CameraPitchDegrees = BattleCameraController.OrthoPitchDegrees;
-        const float CameraFieldOfView = 60f;
-        const float CameraOrthoSize = BattleCameraController.FullFieldOrthoSize;
+        const float CameraDistance = CameraFraming.BaseDistance;
+        const float CameraPitchDegrees = CameraFraming.BasePitchDegrees;
+        const float CameraOrthoSize = CameraFraming.FullFieldOrthoSize;
 
         /// <summary>
         /// 相机相对焦点的偏移（+Z/+Y 侧俯视竞技场）。这个朝向也是"屏幕拖拽 → 世界 XZ 方向"
@@ -313,11 +306,11 @@ namespace PirateCrew.EditorTools
         ///
         /// 【为什么调运行期那个函数拿方向】俯角/方位的公式曾在装配器与运行期各写一份
         /// （装配器写「三分量相等」= 35.264°，出图脚本写 30°），烘出来的机位与运行时写的
-        /// 机位不是同一个角度，比对图全错。方向只由 <see cref="BattleCameraController.OffsetDirectionForPitch"/>
-        /// 给（θ=30°、方位 45° ⇒ (0.6124, 0.5, 0.6124)），距离由本类的 <c>CameraDistance</c> 定。
+        /// 机位不是同一个角度，比对图全错。方向只由 <see cref="CameraFraming.OffsetDirectionForPitch"/>
+        /// 给（θ=30°、方位 45° ⇒ (0.6124, 0.5, 0.6124)），距离由 <see cref="CameraFraming.BaseDistance"/> 定。
         /// </summary>
         static Vector3 BattleCameraOffset =>
-            BattleCameraController.OffsetDirectionForPitch(CameraPitchDegrees) * CameraDistance;
+            CameraFraming.OffsetDirectionForPitch(CameraPitchDegrees) * CameraDistance;
 
         /// <summary>
         /// **把 Battle 相机接上像素化着色路径**（创始人 2026-09-22 裁决：「以后走新管线」）。
@@ -325,11 +318,12 @@ namespace PirateCrew.EditorTools
         /// 【接了什么】
         /// <list type="number">
         ///   <item><see cref="PixelartCameraRig"/> 挂在**主相机**上：它自己建一台 local 恒等的 Cast 相机
-        ///         （继承主相机 Transform ⇒ Cinemachine 照旧驱动，取景/跟随逻辑一行不改），
+        ///         （继承主相机 Transform ⇒ <see cref="BattleCameraDriver"/> 怎么写主相机它就怎么跟，
+        ///         取景/跟随逻辑一行不改），
         ///         主相机退化成"不清屏不画东西"的上屏器；</item>
         ///   <item>两个渲染器索引由装配器查出（Cast / Screen）——**写死数字会在别的机器上错位**；</item>
-        ///   <item>`deriveOrthographicSize = false`：取景归 `BattleCameraController`（正交整数档 = 视野档，
-        ///         滚轮缩放/特写档都是玩法的一部分），本路径只管像素网格与着色；</item>
+        ///   <item>`deriveOrthographicSize = false`：取景归 `BattleCameraDriver`（正交整数档 = 视野档），
+        ///         本路径只管像素网格与着色；</item>
         ///   <item>第三个渲染器（叠加档）给半透明内容留一条路：本路径放不下混合，
         ///         少了它 FX / 危险虚线 / 接触阴影 / 弹道预览会**整类消失**；</item>
         ///   <item><see cref="PixelartContentConverter"/> 挂在同一个物体上：内容成型后按源材质取色，
@@ -389,46 +383,14 @@ namespace PirateCrew.EditorTools
             var camera = go.GetComponent<Camera>();
             camera.clearFlags = useSkybox ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.53f, 0.72f, 0.88f, 1f);
-            // 正交（无 Cinemachine 的回退路径）：视野档与 vcam 烘焙同源。
+            // 正交 + 全场档出厂机位：运行期 BattleCameraDriver.Awake 会切基准档并接管全部写入
+            //（near/far 亦由 Driver 按 CameraFraming.OrthoNearClip/OrthoFarClip 写成 0.1/200）。
             camera.orthographic = true;
             camera.orthographicSize = CameraOrthoSize;
             camera.nearClipPlane = 0.1f;
             // 远裁剪面 ×2：竞技场世界尺寸翻倍后 50 格关 = 100×100 单位，200 已不够。
             camera.farClipPlane = 400f;
             return camera;
-        }
-
-        static CinemachineVirtualCamera CreateVirtualCamera(Transform follow)
-        {
-            var go = new GameObject("BattleVCam");
-            var vcam = go.AddComponent<CinemachineVirtualCamera>();
-            vcam.Priority = 20;
-            vcam.Follow = follow;
-
-            // 参照库 rts-camera-cinemachine 的 "CameraTarget 中转"：vcam 跟随空目标，
-            // BattleCameraController 只平滑移动该目标。
-            var transposer = vcam.AddCinemachineComponent<CinemachineTransposer>();
-            transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
-            // 俯角 30°、方位 45°、距离 30（距离对齐 Godot orbit_camera.gd；格 1→2 单位后 ×2）。
-            transposer.m_FollowOffset = BattleCameraOffset;
-            transposer.m_XDamping = 0f;
-            transposer.m_YDamping = 0f;
-            transposer.m_ZDamping = 0f;
-
-            // 正交投影 + 30° 斜俯视 —— 等距像素卡通方向的口径（创始人 2026-09-22 裁决：
-            // 游戏内俯角固定 30°、方位可自由旋转；数值与出图口径同源，见上方相机参数段）。
-            // 旧"透视=真 3D"的口径随新方向废止：3D 空间契约（XZ 竞技场/分路）不变，只有投影方式换正交。
-            LensSettings lens = vcam.m_Lens;
-            lens.Orthographic = true;
-            lens.OrthographicSize = CameraOrthoSize;
-            lens.FieldOfView = CameraFieldOfView;
-            lens.NearClipPlane = 0.1f;
-            lens.FarClipPlane = 200f;
-            vcam.m_Lens = lens;
-
-            go.transform.position = follow.position + BattleCameraOffset;
-            go.transform.rotation = Quaternion.LookRotation(-BattleCameraOffset.normalized, Vector3.up);
-            return vcam;
         }
 
         /// <summary>
@@ -621,7 +583,7 @@ namespace PirateCrew.EditorTools
         static void WireBattleController(
             BattleController battle, GameObject piratePrefab,
             Transform team0Root, Transform team1Root, Transform waterPlane,
-            TurnManager turnManager, AimThrowController aimController, BattleCameraController battleCamera,
+            TurnManager turnManager, AimThrowController aimController, BattleCameraDriver battleCamera,
             BattleTerrainView terrainView, RuntimeSceneArt runtimeSceneArt)
         {
             var prefabComponent = piratePrefab != null ? piratePrefab.GetComponent<PirateBase>() : null;
@@ -769,13 +731,10 @@ namespace PirateCrew.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        static void WireBattleCamera(BattleCameraController controller, BattleController battle,
-            CinemachineVirtualCamera virtualCamera, Transform cameraTarget, Camera fallbackCamera)
+        static void WireBattleCamera(BattleCameraDriver controller, BattleController battle, Camera mainCamera)
         {
             var so = new SerializedObject(controller);
-            SetRef(so, "virtualCamera", virtualCamera);
-            SetRef(so, "cameraTarget", cameraTarget);
-            SetRef(so, "fallbackCamera", fallbackCamera);
+            SetRef(so, "mainCamera", mainCamera);
             // 手感数据源：投掷跟随/落水定焦要按 PirateId 定位单位与弹体。
             // 不接线时这些反馈静默降级（震屏/聚焦仍工作），故必须在此显式接线。
             SetRef(so, "battle", battle);

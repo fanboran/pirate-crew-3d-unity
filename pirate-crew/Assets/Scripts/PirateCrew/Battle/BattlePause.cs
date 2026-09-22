@@ -11,7 +11,7 @@ namespace PirateCrew.Battle
     /// 看门狗与延迟计数都是纯 Update 计数，暂停时照走就会"暂停期间回合自己推进"。
     /// 所以暂停 = timeScale 归零（冻物理）+ 各 Update 入口查询 <see cref="IsPaused"/>（冻逻辑）。
     ///
-    /// 【谁查询】TurnManager / AiController / BattleCameraController（Update 入口）、
+    /// 【谁查询】TurnManager / AiController / BattleCameraDriver（Update 入口）、
     /// BattleHud（输入与面板）、AimThrowController 经由 BattleHud 关掉 InputEnabled。
     ///
     /// 【静态残留】关闭 Domain Reload 时静态字段跨播放存活（与 CampaignApi 同一手法），

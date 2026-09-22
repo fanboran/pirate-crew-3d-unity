@@ -238,86 +238,83 @@ namespace PirateCrew.EditorTools
             catch { return -999; }
         }
 
-        // ---------------- camdiag：BattleCameraController 现场状态 ----------------
+        // ---------------- camdiag：BattleCameraDriver 现场状态 ----------------
 
-        /// <summary>反射捞相机控制器的私有状态 + 暂停标志：回答"输入链到底断在哪一层"。</summary>
+        /// <summary>反射捞相机 Driver 的私有状态 + 暂停标志：回答"输入链到底断在哪一层"。
+        /// 附带单一写入者现场比对：主相机实况必须逐位等于 Driver 的 LastFrame。</summary>
         static void RunCamDiag()
         {
             string dir = Path.GetFullPath(DiagDir);
             Directory.CreateDirectory(dir);
             var sb = new StringBuilder();
 
-            var cam = Object.FindFirstObjectByType<PirateCrew.Battle.BattleCameraController>();
+            var cam = Object.FindFirstObjectByType<PirateCrew.Battle.BattleCameraDriver>();
             if (cam == null)
             {
-                sb.AppendLine("BattleCameraController=<null>（活动对象里没有）—— 清点未激活与全部相机：");
-                foreach (var any in Object.FindObjectsByType<PirateCrew.Battle.BattleCameraController>(
+                sb.AppendLine("BattleCameraDriver=<null>（活动对象里没有）—— 清点未激活与全部相机：");
+                foreach (var any in Object.FindObjectsByType<PirateCrew.Battle.BattleCameraDriver>(
                     FindObjectsInactive.Include, FindObjectsSortMode.None))
-                    sb.AppendLine("  控制器(未活动): " + any.name
+                    sb.AppendLine("  Driver(未活动): " + any.name
                         + " activeInHierarchy=" + any.gameObject.activeInHierarchy
                         + " enabled=" + any.enabled);
             }
             else
             {
-                var t = typeof(PirateCrew.Battle.BattleCameraController);
+                var t = typeof(PirateCrew.Battle.BattleCameraDriver);
                 foreach (string name in new[] {
-                    "_manualCaptured", "_manualYaw", "_targetYaw",
-                    "_manualOrthoSize", "_targetOrthoSize", "_baseOrthoSize",
-                    "_baseDistance", "_dragPitchDegrees", "enableManualZoom", "orbitDegreesPerMouseUnit" })
+                    "_manualYaw", "_targetYaw",
+                    "_manualOrthoSize", "_targetOrthoSize", "_panoramaOrthoSize",
+                    "_cleanPosition", "_observePitchDegrees", "_scopeBlend" })
                 {
                     var fld = t.GetField(name, System.Reflection.BindingFlags.NonPublic
                         | System.Reflection.BindingFlags.Instance);
                     sb.AppendLine(name + " = " + (fld != null ? fld.GetValue(cam)?.ToString() ?? "null" : "<无字段>"));
                 }
                 sb.AppendLine("ObserveMode = " + cam.ObserveMode);
-                sb.AppendLine("BakedOrthoSize = " + cam.BakedOrthoSize);
+                sb.AppendLine("FollowState = " + cam.FollowState + "  Spectator = " + cam.SpectatorMode);
+                sb.AppendLine("RuntimeOrthoSize = " + cam.RuntimeOrthoSize
+                    + "  可见 " + cam.RuntimeVisibleMeters.ToString("F1") + " m"
+                    + "  全景档 = " + cam.PanoramaOrthoSize);
+                sb.AppendLine("aimThrow 装配接线 = " + cam.AimThrowWiredByAssembly);
+                var reader = cam.GetComponent<PirateCrew.Battle.CameraInputReader>();
+                sb.AppendLine("input reader = " + (reader != null
+                    ? "Orbit " + reader.OrbitDegreesPerMouseUnit + "°/鼠标单位" : "<null>"));
                 sb.AppendLine("mousePos = " + Input.mousePosition
                     + "  rightDown = " + Input.GetMouseButton(1));
-
-                // ---- Cinemachine 链体检（反射，不依赖编辑器程序集引用 Cinemachine）----
-                var fldVcam = t.GetField("virtualCamera", System.Reflection.BindingFlags.NonPublic
-                    | System.Reflection.BindingFlags.Instance);
-                var vcam = fldVcam?.GetValue(cam) as Behaviour;
-                if (vcam == null)
-                {
-                    sb.AppendLine("virtualCamera = <null> —— 控制器写的全是空气");
-                }
-                else
-                {
-                    sb.AppendLine("virtualCamera = " + vcam.name
-                        + " activeInHierarchy=" + vcam.gameObject.activeInHierarchy
-                        + " enabled=" + vcam.enabled);
-                    sb.AppendLine("vcam 组件: " + string.Join(", ", vcam.GetComponents<Component>()
-                        .Select(c => c == null ? "<缺失脚本>" : c.GetType().Name)));
-                    var prio = vcam.GetType().GetProperty("Priority");
-                    sb.AppendLine("vcam Priority = " + (prio != null ? prio.GetValue(vcam, null) : "?"));
-                    var lensFld = vcam.GetType().GetField("m_Lens");
-                    var lens = lensFld?.GetValue(vcam);
-                    sb.AppendLine("vcam lens.OrthographicSize = " + lens?.GetType()
-                        .GetField("OrthographicSize")?.GetValue(lens));
-                }
-
-                var mainCam = Camera.main;
-                if (mainCam != null)
-                {
-                    var comps = mainCam.GetComponents<Component>();
-                    sb.AppendLine("Main Camera 组件: " + string.Join(", ", comps
-                        .Select(c => c == null ? "<缺失脚本>" : c.GetType().Name)));
-                    var brain = comps.FirstOrDefault(c => c != null && c.GetType().Name == "CinemachineBrain");
-                    if (brain == null)
-                        sb.AppendLine("CinemachineBrain = <无> —— 没人把虚机应用到主相机（旋转/缩放全部无效的充分原因）");
-                    else
-                    {
-                        sb.AppendLine("Brain enabled = " + ((Behaviour)brain).enabled);
-                        var liveProp = brain.GetType().GetProperty("ActiveVirtualCamera");
-                        var live = liveProp?.GetValue(brain, null);
-                        sb.AppendLine("Brain.ActiveVirtualCamera = "
-                            + (live != null ? live.ToString() : "<null>"));
-                    }
-                }
             }
 
-            var pauseType = typeof(PirateCrew.Battle.BattleCameraController).Assembly
+            var mainCam = Camera.main;
+            if (mainCam != null)
+            {
+                var comps = mainCam.GetComponents<Component>();
+                sb.AppendLine("Main Camera 组件: " + string.Join(", ", comps
+                    .Select(c => c == null ? "<缺失脚本>" : c.GetType().Name)));
+                var brain = comps.FirstOrDefault(c => c != null && c.GetType().Name == "CinemachineBrain");
+                sb.AppendLine(brain != null
+                    ? "CinemachineBrain = 仍在（去 Cinemachine 化后应为无——残留即接线事故）"
+                    : "CinemachineBrain = 无（已退役，符合预期）");
+
+                if (cam != null && cam.LastFrame.Rotation != default)
+                {
+                    // 单一写入者守卫的现场版：主相机实况 vs Driver 声称的本帧取景。
+                    float posErr = Vector3.Distance(mainCam.transform.position, cam.LastFrame.Position);
+                    float rotErr = Quaternion.Angle(mainCam.transform.rotation, cam.LastFrame.Rotation);
+                    float sizeErr = Mathf.Abs(mainCam.orthographicSize - cam.LastFrame.OrthoSize);
+                    sb.AppendLine("LastFrame.Position = " + cam.LastFrame.Position.ToString("F2")
+                        + "  Rotation = " + cam.LastFrame.Rotation.eulerAngles.ToString("F1")
+                        + "  OrthoSize = " + cam.LastFrame.OrthoSize.ToString("F2"));
+                    sb.AppendLine("单一写入者比对：位置误差 " + posErr.ToString("F4")
+                        + " / 朝向误差 " + rotErr.ToString("F2") + "° / size 误差 " + sizeErr.ToString("F4")
+                        + (posErr < 0.01f && rotErr < 0.01f && sizeErr < 0.001f
+                            ? "  —— Driver 是唯一写入者 ✓"
+                            : "  —— **主相机被别人写了**（查残留的 Brain/脚本）"));
+                }
+                sb.AppendLine("Main Camera near/far = " + mainCam.nearClipPlane.ToString("F2")
+                    + " / " + mainCam.farClipPlane.ToString("F1")
+                    + "（应为 0.1/200，CameraFraming.OrthoNearClip/OrthoFarClip）");
+            }
+
+            var pauseType = typeof(PirateCrew.Battle.BattleCameraDriver).Assembly
                 .GetType("PirateCrew.Battle.BattlePause");
             var pauseProp = pauseType != null ? pauseType.GetProperty("IsPaused") : null;
             sb.AppendLine("BattlePause.IsPaused = "

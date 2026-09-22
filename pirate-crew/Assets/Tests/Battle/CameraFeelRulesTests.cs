@@ -403,78 +403,65 @@ namespace PirateCrew.Battle.Tests
         }
 
         // ------------------------------------------------------------------
-        // 默认机位档位（等距像素卡通 · 正交口径，创始人裁决 2026-09-21：
-        //   docs/技术/渲染管线-等距像素卡通.md §2——正交投影 + 整数 OrthoSize + 俯角统一 45°）
-        //   这些是 BattleCameraController 的 public static 常量/纯函数，无需实例化 MonoBehaviour。
-        //   旧透视档位（距离 12/30/160 + 30°↔45°↔55° 插值 + PitchForDistance）随切换退役，
-        //   断言已按正交 API 重写；M4 全景档语义转写为 size 档（span × 0.3）。
+        // 默认机位档位（等距像素卡通 · 正交口径，创始人裁决 2026-09-22/23：
+        //   正交投影 + 整数 OrthoSize + 俯角统一 30° + **无滚轮缩放**——取景恒为基准档）。
+        //   这些是 CameraFraming 的 public const 常量/纯函数，无需实例化 MonoBehaviour。
+        //   旧透视档位与滚轮缩放（MinOrthoSize/MaxOrthoSize/OrthoZoomStep）已随
+        //   2026-09-23 裁决退役，相关断言一并移除；M4 全景档语义转写为 size 档（span × 0.3）。
         // ------------------------------------------------------------------
 
         [Test]
-        public void CloseUpPreset_IsNearestReadableIntegerSize()
+        public void CloseUpPreset_IsTheOnlyFramingTier()
         {
-            // 特写档 size 5：RT 高 360 下 1u ≈ 36px、单位 1.85u ≈ 67px（判据 A-2 的 ≥25px 富余充足）。
-            Assert.That(BattleCameraController.CloseUpOrthoSize,
-                Is.InRange(BattleCameraController.MinOrthoSize, BattleCameraController.MaxOrthoSize));
-            Assert.Less(BattleCameraController.CloseUpOrthoSize,
-                BattleCameraController.FullFieldOrthoSize, "特写档应比全场档更近（size 更小）");
+            // 基准档 size 7 = 可见 14 m（r12 取景表的中机位，创始人 2026-09-23 定档、唯一档）。
+            Assert.AreEqual(7, CameraFraming.CloseUpOrthoSize, "基准机位 = 可见 14 m（改基准只动这一个数）");
+            Assert.AreEqual(14f, CameraFraming.CloseUpOrthoSize * 2f, 1e-4f, "可见高度 = 2 × OrthoSize");
+            Assert.Less(CameraFraming.CloseUpOrthoSize,
+                CameraFraming.FullFieldOrthoSize, "基准档应比全场档更近（size 更小）");
         }
 
         [Test]
         public void OrthographicPreset_UsesFixed30DegreesAndBakingDistance()
         {
             // 等距轴测：俯角锁 30°（不再随档位插值，方位角另由右键环绕自由旋转）；
-            // Transposer 距离恒 30（只定机位，不表达视野）；
+            // 机位距离恒 30（只定机位，不表达视野）；
             // 全场档 size 17 = 旧透视全场档（距离 30 + FOV 60 → 等效半高 30×tan30° ≈ 17.3）取整。
             // 【创始人 2026-09-22 裁决】游戏内俯角 = 出图俯角 30°（sin=0.5 → 规则像素阶梯）；
             // 旧的"真等距 35.264°"（2026-09-21）已废。
-            Assert.AreEqual(30f, BattleCameraController.OrthoPitchDegrees, 1e-3f);
-            Assert.AreEqual(30f, BattleCameraController.OrthoTransposerDistance, 1e-4f);
-            Assert.AreEqual(17, BattleCameraController.FullFieldOrthoSize);
-        }
-
-        [Test]
-        public void ZoomBounds_KeepIntegerStepsWithinReadableRange()
-        {
-            Assert.AreEqual(3, BattleCameraController.MinOrthoSize, "前推最近档 3（再近单位贴脸、RT 下像素过粗）");
-            Assert.AreEqual(60, BattleCameraController.MaxOrthoSize, "后拉最远档 60（覆盖世界图全景跨度）");
-            Assert.AreEqual(1, BattleCameraController.OrthoZoomStep, "整数档步进——像素网格在世界空间对齐的前提");
-            // 特写档与全场档都必须落在可用缩放区间内。
-            Assert.That(BattleCameraController.CloseUpOrthoSize,
-                Is.InRange(BattleCameraController.MinOrthoSize, BattleCameraController.MaxOrthoSize));
-            Assert.That(BattleCameraController.FullFieldOrthoSize,
-                Is.InRange(BattleCameraController.MinOrthoSize, BattleCameraController.MaxOrthoSize));
+            Assert.AreEqual(30f, CameraFraming.BasePitchDegrees, 1e-3f);
+            Assert.AreEqual(30f, CameraFraming.BaseDistance, 1e-4f);
+            Assert.AreEqual(17, CameraFraming.FullFieldOrthoSize);
         }
 
         [Test]
         public void PanoramaOrthoSizeForSpan_ClampsPerM4Contract()
         {
             // 【M4 的正交转写】全景档 size = clamp(round(span × 0.3), 17, 60)。
-            Assert.AreEqual(30, BattleCameraController.PanoramaOrthoSizeForSpan(100f),
+            Assert.AreEqual(30, CameraFraming.PanoramaOrthoSizeForSpan(100f),
                 "默认跨度 100u → 30");
-            Assert.AreEqual(17, BattleCameraController.PanoramaOrthoSizeForSpan(50f), "小图也保全场档下限");
-            Assert.AreEqual(60, BattleCameraController.PanoramaOrthoSizeForSpan(200f));
-            Assert.AreEqual(60, BattleCameraController.PanoramaOrthoSizeForSpan(300f), "大图被 60 上限夹住");
-            Assert.AreEqual(BattleCameraController.MaxOrthoSize,
-                BattleCameraController.PanoramaOrthoSizeForSpan(300f), "上限与手动缩放上限一致");
-            Assert.AreEqual(BattleCameraController.PanoramaOrthoSizeForSpan(
-                BattleCameraController.DefaultWorldSpan), 30, "默认跨度 = 现行 100u 图");
+            Assert.AreEqual(17, CameraFraming.PanoramaOrthoSizeForSpan(50f), "小图也保全场档下限");
+            Assert.AreEqual(60, CameraFraming.PanoramaOrthoSizeForSpan(200f));
+            Assert.AreEqual(60, CameraFraming.PanoramaOrthoSizeForSpan(300f), "大图被 60 上限夹住");
+            Assert.AreEqual(CameraFraming.PanoramaMaxOrthoSize,
+                CameraFraming.PanoramaOrthoSizeForSpan(300f), "上限 = PanoramaMaxOrthoSize 60");
+            Assert.AreEqual(CameraFraming.PanoramaOrthoSizeForSpan(
+                CameraFraming.DefaultWorldSpan), 30, "默认跨度 = 现行 100u 图");
         }
 
         [Test]
         public void ChargeZoomOrthoSize_LerpsCloseUpToPanoramaByChargeRatio()
         {
             // 力度-镜头耦合的正交当量：蓄力 0 = 特写档、蓄力满 = 全景档、线性之间。
-            Assert.AreEqual(5f, BattleCameraController.ChargeZoomOrthoSize(5, 30f, 0f), 1e-4f);
-            Assert.AreEqual(30f, BattleCameraController.ChargeZoomOrthoSize(5, 30f, 1f), 1e-4f);
-            Assert.AreEqual(17.5f, BattleCameraController.ChargeZoomOrthoSize(5, 30f, 0.5f), 1e-4f);
+            Assert.AreEqual(5f, CameraFraming.ChargeZoomOrthoSize(5, 30f, 0f), 1e-4f);
+            Assert.AreEqual(30f, CameraFraming.ChargeZoomOrthoSize(5, 30f, 1f), 1e-4f);
+            Assert.AreEqual(17.5f, CameraFraming.ChargeZoomOrthoSize(5, 30f, 0.5f), 1e-4f);
             // 越界钳制：蓄力比例只在 [0,1] 内取值。
-            Assert.AreEqual(5f, BattleCameraController.ChargeZoomOrthoSize(5, 30f, -1f), 1e-4f);
-            Assert.AreEqual(30f, BattleCameraController.ChargeZoomOrthoSize(5, 30f, 2f), 1e-4f);
+            Assert.AreEqual(5f, CameraFraming.ChargeZoomOrthoSize(5, 30f, -1f), 1e-4f);
+            Assert.AreEqual(30f, CameraFraming.ChargeZoomOrthoSize(5, 30f, 2f), 1e-4f);
         }
 
         // ------------------------------------------------------------------
-        // M4 手感：Scope / 力度-镜头耦合（docs/M4-大海域世界化.md §3.2，提案数值）
+        // M4 手感：Scope / 力度-镜头耦合（docs/大海域世界化.md §3.2，提案数值）
         // ------------------------------------------------------------------
 
         [Test]
@@ -509,15 +496,15 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void OffsetDirectionForPitch_RoundTripsThroughPitchOf()
         {
-            // 烘焙机位是真等距：offset 三分量中水平两分量等分（方位 45°）、竖直分量 sinθ；
-            // 两个 helper 必须互逆（PlayMode 用它反推俯角）。原「x==0（+Z/+Y 平面）」是方位 0°
+            // 烘焙机位：offset 三分量中水平两分量等分（方位 45°）、竖直分量 sinθ；
+            // 两个 helper 必须互逆。原「x==0（+Z/+Y 平面）」是方位 0°
             // 的旧提案口径，随渲染篇 §2.1 真等距裁决废（yaw 0 = 等距基准方位 45°）。
             foreach (float pitch in new[] { 30f, 35.264f, 25f, 45f })
             {
-                Vector3 dir = BattleCameraController.OffsetDirectionForPitch(pitch);
+                Vector3 dir = CameraFraming.OffsetDirectionForPitch(pitch);
                 Assert.AreEqual(1f, dir.magnitude, 1e-4f, "单位方向模长应为 1");
                 Assert.AreEqual(dir.z, dir.x, 1e-5f, "真等距：水平分量在 X/Z 上等分（方位 45°）");
-                Assert.AreEqual(pitch, BattleCameraController.PitchOf(dir), 1e-3f);
+                Assert.AreEqual(pitch, CameraFraming.PitchOf(dir), 1e-3f);
             }
         }
 
@@ -525,11 +512,11 @@ namespace PirateCrew.Battle.Tests
         public void LookAtHeight_FollowsGodotUnitHeightAndRatio()
         {
             // lookAt 抬高 = 单位视觉高 × 比例；视觉高与 CrewVisualPrefabBuilder.TargetUnitHeight 同源（1.85）。
-            Assert.That(BattleCameraController.UnitVisualHeight, Is.EqualTo(1.85f).Within(1e-4f),
+            Assert.That(CameraFraming.UnitVisualHeight, Is.EqualTo(1.85f).Within(1e-4f),
                 "单位视觉总高应 = Godot 1.85（1 格 = 1 Godot 单位 = 1 本工程单位）");
-            Assert.That(BattleCameraController.LookAtHeightRatio, Is.InRange(0.6f, 0.7f),
+            Assert.That(CameraFraming.LookAtHeightRatio, Is.InRange(0.6f, 0.7f),
                 "lookAt 抬高比例应在 0.6–0.7");
-            Assert.That(BattleCameraController.LookAtHeight,
+            Assert.That(CameraFraming.LookAtHeight,
                 Is.EqualTo(1.85f * 0.65f).Within(1e-4f), "lookAt 抬高 ≈ 1.20");
         }
     }

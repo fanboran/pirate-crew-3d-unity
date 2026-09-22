@@ -55,31 +55,31 @@ namespace PirateCrew.Tests
         }
 
         // ------------------------------------------------------------------
-        // BattleCameraController（原热路径每帧 FindObjectOfType<AimThrowController>）
+        // BattleCameraDriver（原热路径每帧 FindObjectOfType<AimThrowController>）
         // ------------------------------------------------------------------
 
         [Test]
-        public void BattleCameraController_AimThrow_IsSerializedInjectionPoint()
+        public void BattleCameraDriver_AimThrow_IsSerializedInjectionPoint()
         {
-            AssertSerializedField<BattleCameraController>("aimThrow", "AimThrowController",
+            AssertSerializedField<BattleCameraDriver>("aimThrow", "AimThrowController",
                 "修复：PirateCrew.EditorTools.BattleLookupWiring.Wire。");
         }
 
         [Test]
-        public void BattleCameraController_ExposesAssemblyWiringFlag()
+        public void BattleCameraDriver_ExposesAssemblyWiringFlag()
         {
-            AssertAssemblyFlag<BattleCameraController>("AimThrowWiredByAssembly",
+            AssertAssemblyFlag<BattleCameraDriver>("AimThrowWiredByAssembly",
                 "修复：PirateCrew.EditorTools.BattleLookupWiring.Wire。");
         }
 
         // ------------------------------------------------------------------
-        // BattleHud（原 SetHudMode 里按需 FindObjectOfType<BattleCameraController>）
+        // BattleHud（原 SetHudMode 里按需 FindObjectOfType<BattleCameraDriver>）
         // ------------------------------------------------------------------
 
         [Test]
         public void BattleHud_CameraController_IsSerializedInjectionPoint()
         {
-            AssertSerializedField<BattleHud>("cameraController", "BattleCameraController",
+            AssertSerializedField<BattleHud>("cameraController", "BattleCameraDriver",
                 "修复：PirateCrew.EditorTools.BattleLookupWiring.Wire。");
         }
 

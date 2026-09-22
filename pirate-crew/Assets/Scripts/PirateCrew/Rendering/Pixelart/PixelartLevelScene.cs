@@ -39,7 +39,7 @@ namespace PirateCrew.Rendering.Pixelart
     ///         （实测踩过：把 mid 绑成 0.35×跨度时，280 m 的地图里角色只有 150 m 地图里的一半大）。
     ///         32 m 是"一处台面群落 + 若干单位"的取景，与两张样板关的 README 成图同尺度、可直接对比；
     ///         mid 取 **14 m**（创始人 2026-09-22：「比当前的 mid 略微近一点的距离最好」，原 16 m）——
-    ///         14 m 同时是游戏内正交档 7（可见高度 = 2 × OrthoSize，见 `BattleCameraController.RuntimeVisibleMeters`），
+    ///         14 m 同时是游戏内正交档 7（可见高度 = 2 × OrthoSize，见 `BattleCameraDriver.RuntimeVisibleMeters`），
     ///         也就是"游戏内能滚轮滚到的那个档"，图与游戏内因此对得上。</item>
     ///   <item><b>整图总览另开一档</b>（只在海图档里出现，见 `PlayerArtCapture.LevelShots` 的 `-overview`）：
     ///         可见高度 = 0.85 × span，整张地图进画面。**为什么不把它当默认的 wide**：整图取景下场地

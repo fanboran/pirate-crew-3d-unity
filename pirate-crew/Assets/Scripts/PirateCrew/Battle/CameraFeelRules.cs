@@ -94,7 +94,7 @@ namespace PirateCrew.Battle
     ///
     /// 【分层】本类不引用 <c>MonoBehaviour</c> / <c>Cinemachine</c>，也不实例化 GameObject，
     ///         可在无头验证台（<c>external/harness-*</c>）直接断言；胶水层是
-    ///         <see cref="BattleCameraController"/>（订阅 EventBus、读写 Transform/Lens/Time）。
+    ///         <see cref="BattleCameraDriver"/>（订阅 EventBus、读写 Transform/Lens/Time）。
     ///
     /// 【对应章节】§5.3（爆炸 falloff 形状，震屏强度借它的线性衰减）、
     ///             §8.1（相机优先级：AI 决策中停止滚动 → 本类的"旁观"态）、

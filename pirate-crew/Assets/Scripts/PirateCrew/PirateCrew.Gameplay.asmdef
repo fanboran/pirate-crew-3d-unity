@@ -4,7 +4,6 @@
     "references": [
         "PirateCrew.Core",
         "PirateCrew.Rendering",
-        "Cinemachine",
         "Unity.TextMeshPro"
     ],
     "includePlatforms": [],

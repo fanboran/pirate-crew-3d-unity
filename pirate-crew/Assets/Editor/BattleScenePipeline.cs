@@ -50,8 +50,8 @@ namespace PirateCrew.EditorTools
         {
             // ① 全量重建：NewScene(EmptyScene) → 造全部对象 → SaveScene。
             //    它能安全地扔掉旧场景，是因为后面每一步都会把该补的东西补齐；正因如此它必须排第一。
-            new Step("① 重建 Battle 场景骨架（M2BattleSceneSetup.BuildAll）",
-                M2BattleSceneSetup.BuildAll),
+            new Step("① 重建 Battle 场景骨架（BattleSceneSetup.BuildAll）",
+                BattleSceneSetup.BuildAll),
 
             // ② 空岛样板件摆入（第 3 关地面）。必须在 ① 之后：① 的 NewScene 会把它洗掉。
             new Step("② 空岛样板件摆入（FloatingIslandShowcaseMenu.PlaceIntoBattleCenter）",
@@ -70,7 +70,7 @@ namespace PirateCrew.EditorTools
             new Step("⑤ 小地图接线（HudMinimapSceneSetup.WireMinimap）",
                 HudMinimapSceneSetup.WireMinimap),
 
-            // ⑥ 运行期查找清退的三条显式接线（BattleCameraController.aimThrow /
+            // ⑥ 运行期查找清退的三条显式接线（BattleCameraDriver.aimThrow /
             //    BattleHud.cameraController / WaterSimulationDriver.sunLight）。
             //    同样必须在 ① 之后。**注意**：本步原先不在 ArtGate 的步骤表里——
             //    整条资产管线重跑后场景会缺这三条线，只是运行时有一次性的 Find 兜底把它们盖住了，

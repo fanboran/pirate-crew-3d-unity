@@ -78,9 +78,9 @@ namespace PirateCrew.EditorTools
             "PirateCrew/ArtReview/PlayerArtCapture.cs:303 · FindObjectsByType",
             "PirateCrew/ArtReview/PlayerArtCapture.cs:574 · FindObjectsOfType",
             "PirateCrew/Audio/AudioService.cs:1023 · FindObjectOfType",
-            "PirateCrew/Battle/BattleCameraController.cs:404 · FindObjectOfType",
-            "PirateCrew/Battle/BattleCameraController.cs:419 · FindObjectOfType",
-            "PirateCrew/Battle/BattleCameraController.cs:1117 · FindObjectOfType",
+            "PirateCrew/Battle/BattleCameraDriver.cs:404 · FindObjectOfType",
+            "PirateCrew/Battle/BattleCameraDriver.cs:419 · FindObjectOfType",
+            "PirateCrew/Battle/BattleCameraDriver.cs:1117 · FindObjectOfType",
             "PirateCrew/Battle/BattleController.cs:360 · FindObjectOfType",
             "PirateCrew/Fx/FxRoot.cs:143 · FindObjectOfType",
             "PirateCrew/Fx/FxRoot.cs:293 · FindObjectsOfType",
@@ -103,7 +103,7 @@ namespace PirateCrew.EditorTools
             },
             new WhitelistEntry
             {
-                Path = "PirateCrew/Battle/BattleCameraController.cs",
+                Path = "PirateCrew/Battle/BattleCameraDriver.cs",
                 Token = "FindObjectOfType<AimThrowController>",
                 LineAtRegistration = 386,
                 Kind = Kind.Runtime,
@@ -136,11 +136,11 @@ namespace PirateCrew.EditorTools
             new WhitelistEntry
             {
                 Path = "UI/BattleHud.cs",
-                Token = "FindObjectOfType<BattleCameraController>",
+                Token = "FindObjectOfType<BattleCameraDriver>",
                 LineAtRegistration = 363,
                 Kind = Kind.Runtime,
                 Reason = "**一次性装配兜底**（Awake 里跑一次；旧写法在每次 SetHudMode 都可能扫一次，已删）："
-                         + "理由同 BattleCameraController——注入优先、兜底只为不静默，装配完整性由 "
+                         + "理由同 BattleCameraDriver——注入优先、兜底只为不静默，装配完整性由 "
                          + "CameraControllerWiredByAssembly（PlayMode 测试断言）钉住。",
             },
             new WhitelistEntry
@@ -556,7 +556,7 @@ namespace PirateCrew.EditorTools
         /// <summary>基线条目的处置结论（写死在脚本里：基线是一次性快照，不随扫描变化）。</summary>
         static string DispositionOf(string baseline)
         {
-            if (baseline.StartsWith("PirateCrew/Battle/BattleCameraController.cs", StringComparison.Ordinal))
+            if (baseline.StartsWith("PirateCrew/Battle/BattleCameraDriver.cs", StringComparison.Ordinal))
                 return "清退：改为 `[SerializeField] aimThrow`（装配注入）+ Awake 一次性兜底（不在热路径）";
             if (baseline.StartsWith("UI/BattleHud.cs", StringComparison.Ordinal))
                 return "清退：改为 `[SerializeField] cameraController`（装配注入）+ Awake 一次性兜底";

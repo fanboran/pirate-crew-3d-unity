@@ -93,7 +93,7 @@ namespace PirateCrew.UI
         [SerializeField] AimThrowController aimController;
         [Tooltip("战斗相机控制器（同场景显式注入，由 EditorTools.BattleLookupWiring 接线）："
                  + "观察模式开关要转交给它（SetObserveMode）。缺失时观察模式只切 UI 态、相机不动。")]
-        [SerializeField] BattleCameraController cameraController;
+        [SerializeField] BattleCameraDriver cameraController;
 
         [Header("顶栏双队血条")]
         [SerializeField] TeamBarView teamBarRed;
@@ -363,7 +363,7 @@ namespace PirateCrew.UI
             if (cameraController != null)
                 return;
 
-            cameraController = FindObjectOfType<BattleCameraController>();
+            cameraController = FindObjectOfType<BattleCameraDriver>();
             Log.Warn("[BattleHud] cameraController 未经装配接线，已一次性兜底解析"
                      + (cameraController != null ? "成功" : "失败（观察模式将不再驱动相机）")
                      + "。修复：跑 PirateCrew.EditorTools.BattleLookupWiring.Wire（写 Battle.unity）。");
@@ -503,7 +503,7 @@ namespace PirateCrew.UI
         /// <summary>
         /// 镜头档读数（临时调参用，创始人 2026-09-22：「我在游戏内调整一个我看着最顺眼的距离
         /// 当做基准」）。显示的是**出图取景表的同一个单位**——可见高度米数 = 2 × OrthoSize
-        /// （<see cref="BattleCameraController.RuntimeVisibleMeters"/>），所以滚轮挑完之后
+        /// （<see cref="BattleCameraDriver.RuntimeVisibleMeters"/>），所以滚轮挑完之后
         /// 念出这个数就能直接改 `PixelartLevelScene` 的 mid/wide/close。
         /// 基准定下后本读数可删（它只是提示条后缀，删掉不影响任何逻辑）。
         /// </summary>

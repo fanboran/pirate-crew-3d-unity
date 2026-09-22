@@ -17,7 +17,7 @@ namespace PirateCrew.Tests
     [TestFixture]
     public class HudProjectionRulesTests
     {
-        const float Fov = 60f;          // M2BattleSceneSetup.CameraFieldOfView（§2 相机）
+        const float Fov = 60f;          // BattleSceneSetup.CameraFieldOfView（§2 相机）
         const float ScreenHeight = 1080f;
         const float UnitHeight = 0.5f;  // 16px / 32px 每单位（§4.1 top/bottomExtent = 8）
 
@@ -42,27 +42,27 @@ namespace PirateCrew.Tests
         /// 判据 A-2 / R-6 的"1080p 下单位竖高 ≥25px"按**屏幕像素**口径核算——
         /// 正交 + 全屏像素化（RT 高 360）下，屏幕高 1080 = RT 高 ×3，单位屏幕高 =
         /// 视觉高 ÷ (2 × OrthoSize) × 1080。特写档 size
-        /// <see cref="BattleCameraController.CloseUpOrthoSize"/> 与全场档 size
-        /// <see cref="BattleCameraController.FullFieldOrthoSize"/> 都必须守住下限。
+        /// <see cref="CameraFraming.CloseUpOrthoSize"/> 与全场档 size
+        /// <see cref="CameraFraming.FullFieldOrthoSize"/> 都必须守住下限。
         /// 高度取**视觉总高 1.85**（Godot 对齐后的角色高），不再用旧口径的 0.5。
         /// </summary>
         [Test]
         public void OrthographicUnitHeight_AtPresetSizes_Exceeds25PxReadabilityFloor()
         {
             const float ScreenPixelsPerRtPixel = 3f; // RT 360 → 屏幕 1080（渲染篇 §3）
-            float visualHeight = BattleCameraController.UnitVisualHeight;   // 1.85，与 CrewVisualPrefabBuilder 同源
+            float visualHeight = CameraFraming.UnitVisualHeight;   // 1.85，与 CrewVisualPrefabBuilder 同源
             float rtHeight = ScreenHeight / ScreenPixelsPerRtPixel;
 
             // RT 像素口径 → 屏幕像素口径（每块 = 3×3 屏幕像素）。特写 1.85/(2×5)×360 ≈ 67 RT px ≈ 200 屏幕px。
             float closeUpPx = visualHeight
-                / (2f * BattleCameraController.CloseUpOrthoSize) * rtHeight * ScreenPixelsPerRtPixel;
+                / (2f * CameraFraming.CloseUpOrthoSize) * rtHeight * ScreenPixelsPerRtPixel;
             Assert.GreaterOrEqual(closeUpPx, 25f,
-                "特写档（size " + BattleCameraController.CloseUpOrthoSize + "）下单位屏幕竖高应 ≥25px（判据 A-2/R-6）");
+                "特写档（size " + CameraFraming.CloseUpOrthoSize + "）下单位屏幕竖高应 ≥25px（判据 A-2/R-6）");
 
             float fullFieldPx = visualHeight
-                / (2f * BattleCameraController.FullFieldOrthoSize) * rtHeight * ScreenPixelsPerRtPixel;
+                / (2f * CameraFraming.FullFieldOrthoSize) * rtHeight * ScreenPixelsPerRtPixel;
             Assert.GreaterOrEqual(fullFieldPx, 25f,
-                "全场档（size " + BattleCameraController.FullFieldOrthoSize + "）下单位屏幕竖高仍应 ≥25px");
+                "全场档（size " + CameraFraming.FullFieldOrthoSize + "）下单位屏幕竖高仍应 ≥25px");
         }
 
         [Test]

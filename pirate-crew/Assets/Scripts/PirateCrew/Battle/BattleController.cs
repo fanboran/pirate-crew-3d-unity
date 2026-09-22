@@ -63,7 +63,7 @@ namespace PirateCrew.Battle
         [SerializeField] Transform waterPlane;
         [SerializeField] TurnManager turnManager;
         [SerializeField] AimThrowController aimController;
-        [SerializeField] BattleCameraController battleCamera;
+        [SerializeField] BattleCameraDriver battleCamera;
 
         [Header("武器弹体（可选 Prefab；为空时程序化构建，无需重新装配既有场景）")]
         [Tooltip("弹体 Prefab；需要含 Rigidbody/Collider/WeaponProjectile。为空时用图元 + 颜色兜底构建。")]

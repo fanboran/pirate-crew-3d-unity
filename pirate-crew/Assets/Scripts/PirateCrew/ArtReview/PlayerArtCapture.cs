@@ -1068,13 +1068,11 @@ namespace PirateCrew.ArtReview
                 go.AddComponent<AudioListener>(); // 独立场景里可能没有监听器；多余监听器仅影响音频，不影响画面
                 _camera = go.AddComponent<Camera>();
             }
-            // 让评审相机接管渲染：禁用主相机（含 Cinemachine Brain）。
+            // 让评审相机接管渲染：禁用主相机（含历史上的 Cinemachine Brain）。
             Camera main = Camera.main;
             if (main != null && main != _camera)
                 main.enabled = false;
-            var brain = FindInRoots<Cinemachine.CinemachineBrain>();
-            if (brain != null)
-                brain.enabled = false;
+            DisableBehaviourByName("CinemachineBrain");
 
             _camera.transform.position = shot.Position;
             _camera.transform.rotation = shot.Rotation;
@@ -1113,6 +1111,25 @@ namespace PirateCrew.ArtReview
                     return found;
             }
             return null;
+        }
+
+        /// <summary>
+        /// 按类型名禁用一个 Behaviour（找不到就跳过）。按名字而不是类型引用，
+        /// 是为了让本程序集不必依赖那个组件所属的程序集（Cinemachine 已随相机重构退役）。
+        /// </summary>
+        static void DisableBehaviourByName(string typeName)
+        {
+            foreach (GameObject root in SceneManager.GetActiveScene().GetRootGameObjects())
+            {
+                foreach (Behaviour behaviour in root.GetComponentsInChildren<Behaviour>(true))
+                {
+                    if (behaviour != null && behaviour.GetType().Name == typeName && behaviour.enabled)
+                    {
+                        behaviour.enabled = false;
+                        return;
+                    }
+                }
+            }
         }
 
         static Transform FindRootByName(string name)

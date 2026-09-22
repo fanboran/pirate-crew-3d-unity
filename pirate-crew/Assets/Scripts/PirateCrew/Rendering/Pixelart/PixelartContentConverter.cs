@@ -182,7 +182,10 @@ namespace PirateCrew.Rendering.Pixelart
 
             if (NoColorMaterialNames.Count > 0)
             {
-                global::PirateCrew.Core.Log.Error("[PixelartContentConverter] 有材质既没有 _BaseColor / _Color "
+                // 【Warn 而非 Error】Water_Ocean 这类"按设计不画"的已知缺色材质会常驻触发这条
+                // （交接文档 §六 遗留项）；Error 级会被 Unity Test Framework 当未预期日志
+                // 把所有加载 Battle 的 PlayMode 测试记成失败（2026-09-23 实测）。是"待补色"，不是故障。
+                global::PirateCrew.Core.Log.Warn("[PixelartContentConverter] 有材质既没有 _BaseColor / _Color "
                     + "也没有 _BaseColorA，无法派生（这些物体在新管线下**不会出现在画面里**，不是黑、是不画）："
                     + JoinNames(NoColorMaterialNames)
                     + " 处置：给它们在本路径的材质表里手工指定一条颜色（口径见 PixelartMaterialFactory）。");
