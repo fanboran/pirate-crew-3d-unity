@@ -1,0 +1,31 @@
+{
+  // 资源管理器里隐藏派生/缓存/产物目录（路径相对仓库根）
+  "files.exclude": {
+    // 仓库根的非代码目录
+    ".zcode": true, // Zcode 工具缓存
+    "temp": true, // 临时目录
+    "export": true, // 导出产物
+    "external": true, // 工作台（gitignored：参照库/逆向材料/Blender 源）；要翻材料时临时改 false
+    // Unity 工程本体的自动生成目录
+    "pirate-crew/Library": true, // Unity 资产数据库缓存
+    "pirate-crew/Temp": true,
+    "pirate-crew/Logs": true,
+    "pirate-crew/UserSettings": true,
+    "pirate-crew/export": true,
+    "pirate-crew/obj": true, // csproj 构建中间产物（若生成）
+    "pirate-crew/bin": true,
+	"**/*.meta" : true
+  },
+  // 文件监听排除：Library/Temp 文件变动极多，排除后能明显降低 CPU 占用
+  "files.watcherExclude": {
+    "**/.zcode/**": true,
+    "temp/**": true,
+    "export/**": true,
+    "external/**": true,
+    "pirate-crew/Library/**": true,
+    "pirate-crew/Temp/**": true,
+    "pirate-crew/Logs/**": true,
+    "pirate-crew/UserSettings/**": true,
+    "pirate-crew/export/**": true
+  }
+}
