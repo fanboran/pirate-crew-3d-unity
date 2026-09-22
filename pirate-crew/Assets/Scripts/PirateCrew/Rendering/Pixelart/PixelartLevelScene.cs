@@ -34,14 +34,14 @@ namespace PirateCrew.Rendering.Pixelart
     /// 【三档取景的规则（海图）】一个艺术像素的世界尺寸 = 可见高度 ÷ 参考画布高，
     /// 可见高度是"美术锚"、与分辨率解耦（口径同 `PixelartPilotScene`）：
     /// <list type="bullet">
-    ///   <item><b>wide = 0.6 × span</b>：地图主体 + 周围一圈海。**不是 1.0×span**——实测过：
-    ///         1.0·span 时整帧只有 **6.6~7.9%** 的像素是场地（`judge_pixelart_pilot.py` 的"场地占比"判据），
-    ///         地图成了海中央的一小块，观感上是空镜。30° 俯角/45° 方位下正方形地图的屏幕足印
-    ///         ≈ 0.71·span 高 × 1.41·span 宽，0.6·span 的可见高度配合 16:9 让地图占满约 1/4 画面。</item>
-    ///   <item><b>mid = 0.35 × span</b>：一座岛/一处村落 —— 出生群与其周边地形可辨（实测场地占比 25~40%）。</item>
-    ///   <item><b>close = 0.12 × span</b>：看单位与身边陈设（单位身高 1.85 m 不随地图变，故这一档退化为
-    ///         "按比例取一小块"）。**注意**：近机位对准的是**地图几何中心**，中心若恰好是开阔水面，
-    ///         这一张就是纯海面（实测 106 的 10 m 档即如此）——所以海图的观感图以 wide/mid 为准。</item>
+    ///   <item><b>wide / mid / close = 32 / 16 / 7 m（与样板关同一组数，不随跨度缩放）</b>：
+    ///         **人物大小才是锚**——同一档在不同关卡里角色必须一样大，否则"横向比观感"这件事本身不成立
+    ///         （实测踩过：把 mid 绑成 0.35×跨度时，280 m 的地图里角色只有 150 m 地图里的一半大）。
+    ///         32 m 是"一处台面群落 + 若干单位"的取景，与两张样板关的 README 成图同尺度、可直接对比。</item>
+    ///   <item><b>整图总览另开一档</b>（只在海图档里出现，见 `PlayerArtCapture.LevelShots` 的 `-overview`）：
+    ///         可见高度 = 0.85 × span，整张地图进画面。**为什么不把它当默认的 wide**：整图取景下场地
+    ///         只占画面 8~12%（实测），单位缩到 1~2 个艺术像素 ⇒ 看不出任何观感。
+    ///         0.85 而不是 0.6/1.0：1.0 太松（同样的空镜问题），0.85 是"地图对角刚好进画面"的临界。</item>
     /// </list>
     ///
     /// 【这三个数不许各自漂】装配时会用地图定义现场推一遍场心、并用内容的实测包围盒
@@ -114,14 +114,14 @@ namespace PirateCrew.Rendering.Pixelart
             // 海图：Target = (span/2, 3, span/2)；wide = span、mid = 0.35 × span、close = 10。
             // 【span 是横纵相同的正方形】（八张图 SpanX == SpanZ，`WorldMapCatalog` 契约里没有"必须相等"
             // 的约束——真出现长方形时本表要按对角线取大者，届时两个方向的取景一起改）。
-            new View(101, "PixelartMap101",   new Vector3(75f, 3f, 75f),  90f, 52.5f, 18f),
-            new View(102, "PixelartMap102",   new Vector3(95f, 3f, 95f),  114f, 66.5f, 22.8f),
-            new View(103, "PixelartMap103",   new Vector3(110f, 3f, 110f),  132f, 77f, 26.4f),
-            new View(104, "PixelartMap104",   new Vector3(120f, 3f, 120f),  144f, 84f, 28.8f),
-            new View(105, "PixelartMap105",   new Vector3(90f, 3f, 90f),  108f, 63f, 21.6f),
-            new View(106, "PixelartMap106",   new Vector3(130f, 3f, 130f),  156f, 91f, 31.2f),
-            new View(107, "PixelartMap107",   new Vector3(100f, 3f, 100f),  120f, 70f, 24f),
-            new View(108, "PixelartMap108",   new Vector3(140f, 3f, 140f),  168f, 98f, 33.6f),
+            new View(101, "PixelartMap101",   new Vector3(75f, 3f, 75f),  32f, 16f, 7f),
+            new View(102, "PixelartMap102",   new Vector3(95f, 3f, 95f),  32f, 16f, 7f),
+            new View(103, "PixelartMap103",   new Vector3(110f, 3f, 110f),  32f, 16f, 7f),
+            new View(104, "PixelartMap104",   new Vector3(120f, 3f, 120f),  32f, 16f, 7f),
+            new View(105, "PixelartMap105",   new Vector3(90f, 3f, 90f),  32f, 16f, 7f),
+            new View(106, "PixelartMap106",   new Vector3(130f, 3f, 130f),  32f, 16f, 7f),
+            new View(107, "PixelartMap107",   new Vector3(100f, 3f, 100f),  32f, 16f, 7f),
+            new View(108, "PixelartMap108",   new Vector3(140f, 3f, 140f),  32f, 16f, 7f),
         };
 
         /// <summary>全部试点场景的取景口径（装配器与 Build Settings 登记共用）。</summary>

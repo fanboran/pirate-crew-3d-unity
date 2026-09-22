@@ -402,6 +402,29 @@ namespace PirateCrew.ArtReview
         }
 
         /// <summary>
+        /// 中/近机位该对准哪：**该关第一个出生点**（海图按 XZ 取出生点、Y 取那个点的场地高度 + 1.5）。
+        ///
+        /// 【为什么不是几何中心】海图的几何中心经常是开阔水面——106 的近机位就拍到过一整张纯海面
+        /// （块边长判据直接判"整图同色"）。出生点按定义落在台面上，永远有内容可看，
+        /// 而且它是**关卡数据**（`WorldMapCatalog` 的 Spawns），不是这里另写的一份坐标。
+        /// 样板关没有海图数据（竞技场中心就是主平台），直接沿用取景表里的构图中心。
+        /// </summary>
+        static Vector3 PixelartLevelDetailTarget(PixelartLevelView view, Vector3 fallback)
+        {
+            if (global::PirateCrew.Battle.WorldMaps.WorldMapCatalog.TryGetByLevelNumber(
+                    view.LevelNumber, out var map) && map.Spawns != null && map.Spawns.Count > 0)
+            {
+                var spawn = map.Spawns[0];
+                float surface = global::PirateCrew.Battle.WorldMaps.WorldMapRules.HeightAtWorld(
+                    global::PirateCrew.Battle.WorldMaps.WorldMapRules.AllStandBoxes(map),
+                    new Vector2(spawn.X, spawn.Z));
+                return new Vector3(spawn.X, surface + 1.5f, spawn.Z);
+            }
+
+            return fallback;
+        }
+
+        /// <summary>
         /// 关卡档位表（真实内容）：三档取景 + 一张抖动态 + 两张调试缓冲，档位名前缀 = `pl<关卡号>`。
         ///
         /// 【为什么表比试点短】试点那张表是**机制验收**用的（抖动两范式对照、边缘光通路、降档 A/B、
@@ -413,6 +436,25 @@ namespace PirateCrew.ArtReview
             PixelartLevelView view)
         {
             string p = view.ShotPrefix;
+
+            // 海图额外一张「整图总览」：可见高度 = 0.85×跨度，整张地图进画面。
+            // 跨度 = 取景表里 Target.x × 2（海图行的 Target 恒为 (跨度/2, ·, 跨度/2)，见 PixelartLevelScene）。
+            // 【为什么它不算 wide】整图取景下场地只占画面 8~12%、单位缩到 1~2 个艺术像素 ⇒ 看不出观感；
+            // 默认的 wide/mid/close 一律 32/16/7 m（人物为锚，与样板关同尺度，见取景表类头）。
+            if (view.LevelNumber >= 101)
+            {
+                return new (string, float, float, int, float, int)[]
+                {
+                    (p + "-wide",        view.WideVisibleMeters,  1.0f, -1, 0f, 0),
+                    (p + "-mid",         view.MidVisibleMeters,   0.6f, -1, 0f, 0),
+                    (p + "-close",       view.CloseVisibleMeters, 0.6f, -1, 0f, 0),
+                    (p + "-overview",    view.Target.x * 2f * 0.85f, 1.0f, -1, 0f, 0),
+                    (p + "-mid-density", view.MidVisibleMeters,   0.6f,  1, 1.0f, 0),
+                    (p + "-dbg-albedo",  view.MidVisibleMeters,   0.6f, -1, 0f, 1),
+                    (p + "-dbg-outline", view.MidVisibleMeters,   0.6f, -1, 0f, 4),
+                };
+            }
+
             return new (string, float, float, int, float, int)[]
             {
                 (p + "-wide",        view.WideVisibleMeters,  1.0f, -1, 0f, 0),
@@ -483,6 +525,15 @@ namespace PirateCrew.ArtReview
             (string name, float visibleMeters, float zoom, int ditherMode, float ditherStrength, int debugMode)[] shots =
                 levelMode ? LevelShots(PixelartLevelViewCache) : PilotShots();
 
+            // 【中/近机位对准"内容"而不是几何中心】wide 是"看全场"，中/近是"看场地上的东西"。
+            // 海图尤其明显：地图几何中心常常是开阔水面（106 的近机位就拍到过一整张纯海面），
+            // 所以中/近两档改用**该关第一个出生点**所在的位置当目标——出生点按定义在台面上，
+            // 一定踩得到内容（数据来源与摆人同一条：`WorldMapCatalog` 的 Spawns）。
+            // 样板关竞技场小、中心就是主平台，故这一项对它们无影响（值等于表里的 Target）。
+            Vector3 detailTarget = target;
+            if (levelMode)
+                detailTarget = PixelartLevelDetailTarget(PixelartLevelViewCache, target);
+
             // 船员 renderer 的期望条数 = 角色数 × 2（Body + Head）。关卡档从关卡资产读出人数，
             // 不写死数字——某关改了编成而这里没跟，出图会缺人却看不出来。
             int expectedCrews = 2;
@@ -506,9 +557,13 @@ namespace PirateCrew.ArtReview
             foreach (var shot in shots)
             {
                 // 机位 = 改"每艺术像素多少米"（正交 size 由 rig 按它乘艺术像素数推出）。
+                // `-overview` = 看整张地图（用取景表里的整图中心）；其余档 = 看内容（用出生点，见 detailTarget）。
+                // 这与"观感图要能横向比"是同一件事：wide/mid/close 三档到处都对着**场地上的东西**。
+                Vector3 shotTarget = shot.name.EndsWith("-overview") ? target : detailTarget;
+
                 rig.worldPerPixel = PixelartPilotScene.WorldPerPixel(shot.visibleMeters);
-                cam.transform.position = target + orbitDir * (cameraDistance * shot.zoom);
-                cam.transform.LookAt(target);
+                cam.transform.position = shotTarget + orbitDir * (cameraDistance * shot.zoom);
+                cam.transform.LookAt(shotTarget);
 
                 if (shot.ditherMode >= 0)
                     SetPixelartDither(shot.ditherMode, shot.ditherStrength);
