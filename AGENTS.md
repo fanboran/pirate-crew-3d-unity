@@ -44,8 +44,13 @@
 - **batchmode 铁律**：必须显式带 `-projectPath` 且加 `-nographics`。缺 `-projectPath` 会打开 EditorPrefs 里的"最近工程"（可能污染/锁住别的项目——本项目曾因此产生杀不死的僵尸进程卡住 `Temp/UnityLockfile`，只能重启机器清理）；当前环境不带 `-nographics` 会卡在 GfxDevice 创建。一次只跑一个 Unity 进程。
 - **无头验证台**（M2 起，不入库）：`external/m2-harness/` 用 `dotnet` 引用 Unity 已编译程序集 + NuGet NUnit，**不启动 Unity 就能编译工程源码并跑纯 C# 测试**，用于多 agent 并行时绕开 Library 独占锁。
   ```bash
-  H="$TEMP/pc3d-harness-<域>" && mkdir -p "$H" && cp external/m2-harness/M2Harness.csproj "$H"/   # 副本放系统临时目录（external/ 只放母本），各 agent 一份避免抢 obj/bin；任务线收尾即删
-  cd "$H" && dotnet test M2Harness.csproj -p:HarnessScope=<All|Data|Combat>
+  # 首选 run.sh（自动建副本 + 传 ProjectRoot + 跑完即删）：
+  external/m2-harness/run.sh <All|Data|Combat|DataEditor>
+  # 手工副本时【必须显式传 -p:ProjectRoot】——csproj 用自身位置反查工程根，
+  # 副本放临时目录后反查会指向不存在的路径，Compile 通配符抓不到任何文件，
+  # 编译会"0 错误"地空转过（2026-09-22 实测踩坑）：
+  H="$TEMP/pc3d-harness-<域>" && mkdir -p "$H" && cp external/m2-harness/M2Harness.csproj "$H"/
+  cd "$H" && dotnet test M2Harness.csproj -p:ProjectRoot="$PWD_ORIG/pirate-crew" -p:HarnessScope=<All|Data|Combat|DataEditor>
   ```
   **边界**：`GameObject` / `MonoBehaviour` / `ScriptableObject` 的实例化走原生 `ECall`，脱离 Unity 运行时必抛 `SecurityException`；所以战斗数值/回合规则这类核心逻辑**刻意写成纯 C# 静态类**以便无头测试，MonoBehaviour 胶水层仍由 batchmode 收口。详见 `external/m2-harness/README.md`。
 - **GitHub 查询纪律**：查 GitHub 上的代码/仓库/README 用 WebFetch 或 `git clone --depth 1`；**不要用匿名 `curl` 硬打 `api.github.com`**（匿名限额 60 次/时，触发限流后连正常诊断都会被污染）。

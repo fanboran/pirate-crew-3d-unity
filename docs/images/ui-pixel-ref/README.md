@@ -121,12 +121,23 @@
 §二/§三/§四 的测量已转写成生成器常数，实现口径见
 [Beveled Pixel 九宫格规范](../../技术/资产管线/BeveledPixel九宫格规范.md)：
 
-- 生成器：`Assets/Editor/BeveledPixelSpriteBuilder.cs`（7 tone × {凸起块, 按压块, 凹槽} + 5 填充，共 26 张）；
-- 判据：`Assets/Art/Tests/BeveledPixelSkinTests.cs`（直接读盘上 PNG 量色带边界与明暗方向）；
-- 本目录已发布三张**由本工程色板重新生成**的对照图（不含参照素材本身）：
-  - [`gen-contact-sheet-2x.png`](gen-contact-sheet-2x.png)（2× 放大，全族接触表，底纹棋盘用来读透明切角）；
-  - [`gen-bar-24px-compare-4x.png`](gen-bar-24px-compare-4x.png)（4× 放大，`Primary` 凹槽 + `Red` 填充合成到参照条的 24px 高度）；
-  - [`gen-corner-8x.png`](gen-corner-8x.png)（8× 放大，左上角特写：外环沿切角斜线闭合、斜面与内暗线是它里面两条同心环）。
+- 生成器：`Assets/Editor/BeveledPixelSpriteBuilder.cs`（7 tone × {常态, 悬停, 按压, 凹槽} +
+  页签 7 + 填充 5 + 语义件 7【选人圈/焦点框/位点×2/分隔线×2/投影】，共 47 张）；
+  **基本单位 u = 3px = 1080p 下一个 3D 像素块**（640×360 RT 最近邻放大，UI 与 3D 颗粒度 1:1 对齐，
+  判据会读 URP 渲染器资产反向锁这条）；
+- 运行时取用：`Assets/Scripts/UI/Skin/PixelSkin.cs` + 图集资产 `Resources/UI/PixelSkin.asset`
+  （装配侧唯一入口，规范 §四.2 有槽位映射表）；
+- 判据：`Assets/Art/Tests/BeveledPixelSkinTests.cs`（直接读盘上 PNG 按画法族复算透明形状、
+  量色带边界与明暗方向、页签平底、投影单色、位点中心对称、图集满格）；
+- 本目录发布的**由本工程色板重新生成**的对照图（不含参照素材本身）：
+  - [`gen-contact-sheet-2x.png`](gen-contact-sheet-2x.png)（2× 放大，全族接触表：7 tone×6 列 +
+    页签区 + 语义件区 + 5 填充；底纹棋盘用来读透明切角与环内）；
+  - [`gen-showcase-2x.png`](gen-showcase-2x.png)（2× 放大，**美术稿**：全件按战斗 HUD 构图合成——
+    船员卡/页签组/海图小地图/敌方条与页点，换装"成品长什么样"的靶子图）；
+  - [`gen-corner-8x.png`](gen-corner-8x.png)（8× 放大，左上角特写：外环沿切角斜线闭合、
+    斜面与内暗线是它里面两条同心环；u=2 波次的图，角结构不变）；
+  - [`gen-bar-24px-compare-4x.png`](gen-bar-24px-compare-4x.png)（4× 放大，u=2 波次的
+    `Primary` 凹槽 + `Red` 填充 24px 合成——段位同构证明；u=3 后同构关系不变、等比放大）。
 
 §二 的九段表在生成器里是逐段复现的（24px 合成：9 段、全偶数带宽、总高 24px，段位与厚度逐段同构），
 逐段对照表见规范 §六。**差别只在色相**——那正是本工程不抄参照色相、改用自己调色板的结果。
@@ -134,6 +145,9 @@
 **三层带在角上怎么收口**（走查改出来的两条，规范 §一.1/§一.2 有完整记录）：同心环（外环闭合、四角连着）
 + 切角按整格切。第一版按"上下横贯 + 左右补边"画，四角的轮廓线不闭合（创始人一眼看出），
 改成同心环后固化成判据：外环必须 8 连通为 1 段、无端点。
+
+**§五 待裁 #4 的后续**：小件不另设档维持全族统一；u 从 2px 改为 3px 是**颗粒度对齐**（上见），
+不是小件减档。
 
 
 ---
