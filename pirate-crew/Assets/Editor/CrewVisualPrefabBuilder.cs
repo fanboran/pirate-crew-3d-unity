@@ -34,9 +34,9 @@ namespace PirateCrew.EditorTools
     ///   </list>
     ///   于是等比缩放系数 k = <see cref="TargetUnitHeight"/> / 1.85 = 1，两件式尺寸即 Godot 原值：
     ///   <list type="bullet">
-    ///   <item>Body 圆台柱 = Godot <c>CylinderMesh(top_radius 0.35 / bottom_radius 0.4 / height 1.2)</c> × k
-    ///         → 顶 r <see cref="BodyTopRadius"/> 0.35 / 底 r <see cref="BodyBottomRadius"/> 0.40
-    ///         / 高 <see cref="BodyHeight"/> 1.20，底面贴脚底 y=0；</item>
+    ///   <item>Body 圆台柱 = 顶 r <see cref="BodyTopRadius"/> 0.35（Godot <c>top_radius 0.35</c>）
+    ///         / 底 r <see cref="BodyBottomRadius"/> **0.46**（Godot 是 0.40——这一项按创始人 2026-09-22
+    ///         裁决有意放大，理由见该常量的注释）/ 高 <see cref="BodyHeight"/> 1.20，底面贴脚底 y=0；</item>
     ///   <item>Head 圆球 = Godot <c>SphereMesh(radius 0.35, height 0.7)</c> × k → r <see cref="HeadSphereRadius"/> 0.35，
     ///         球心 y <see cref="HeadSphereCenterY"/> 1.50（球底 1.15 与柱顶 1.20 微叠 0.05，与 Godot 的
     ///         `1.2/2 − 0.7/2 = 0.05` 一致；总高 = 1.50 + 0.35 = 1.85）。</item>
@@ -145,8 +145,21 @@ namespace PirateCrew.EditorTools
         /// <summary>Body 圆台柱顶半径 = 0.35 × k = **0.35**（Godot <c>CylinderMesh.top_radius 0.35</c>）。</summary>
         static readonly float BodyTopRadius = 0.35f * GodotScale;
 
-        /// <summary>Body 圆台柱底半径 = 0.40 × k = **0.40**（Godot <c>bottom_radius 0.4</c>）→ 上窄下宽。</summary>
-        static readonly float BodyBottomRadius = 0.40f * GodotScale;
+        /// <summary>
+        /// Body 圆台柱底半径 = **0.46**（顶 r 0.35 / 高 1.20）→ 上窄下宽。
+        ///
+        /// 【与 Godot 基准的**有意偏离**（创始人裁决 2026-09-22）】Godot <c>pirate.tscn</c> 是
+        /// <c>bottom_radius 0.4</c>（锥度 0.35/0.40 = 0.875），像素化路径下**读不出台柱形**：
+        /// 中机位（可见 18m）里角色只有 15 个艺术像素高、9 个宽，上下口径差 2 个艺术像素不变；
+        /// 实测结论见 <c>docs/images/pixelart-path/r6/README.md</c> §2（"角色没台柱感"= 取景/锥度问题）。
+        /// 创始人原话「台柱下直径稍微改大一圈」⇒ 只放大底径、顶径与总高不动：
+        /// **底径 0.80 → 0.92（+15%）、锥度 0.35/0.46 = 0.761**（上下口径差 3.7 个艺术像素）。
+        ///
+        /// 【为什么只动底径】角色造型的其余部分（球头 r 0.35、总高 1.85、脚底贴地）是
+        /// 2026-09-14 的裁决项；本次是创始人**就"台柱感"这一条**给出的定向修正，不是重开造型。
+        /// 碰撞足迹仍由根级 BoxCollider 决定（0.375×0.5×0.375），**与视觉宽度无关**。
+        /// </summary>
+        static readonly float BodyBottomRadius = 0.46f * GodotScale;
 
         /// <summary>Body 圆台柱高 = 1.20 × k = **1.20**，底面贴脚底（局部 y 0..1.20）。</summary>
         static readonly float BodyHeight = 1.20f * GodotScale;
@@ -164,7 +177,7 @@ namespace PirateCrew.EditorTools
         /// <summary>
         /// 接触阴影面片直径（世界单位）= 目标视觉总高 × 1.1 ≈ **2.035**。
         /// 旧口径 `ContactShadowDecal.DefaultDiameter = 0.6` ≈ 旧总高 0.55 × 1.1；本次随角色放大按**同一比例**
-        /// 同步（≈ 两件式圆台柱底径 0.80 的 2.54 倍），保持"脚下压暗一圈、不外溢邻格"的观感。
+        /// 同步（≈ 两件式圆台柱底径 0.92 的 2.21 倍），保持"脚下压暗一圈、不外溢邻格"的观感。
         ///
         /// 【为什么不改 `ContactShadowDecal.DefaultDiameter`】那是 Scripts 侧的常量（本轮不在改动域内），
         ///   只作 `OnValidate` 提醒与参数留档；预制体真值由本常量写进 decal 的 `diameter` 序列化字段
@@ -186,7 +199,7 @@ namespace PirateCrew.EditorTools
         // 以免动到预算镜像表 CrewMeshLibrary.CountPartInstances 的既有断言）
         // ------------------------------------------------------------------
 
-        /// <summary>两件式 Body 圆台柱（顶 r 0.35 / 底 r 0.40 / h 1.20，16 段）。</summary>
+        /// <summary>两件式 Body 圆台柱（顶 r 0.35 / 底 r 0.46 / h 1.20，16 段；底径见常量注释）。</summary>
         const string BodyFrustumKey = "CrewBodyFrustum";
 
         /// <summary>两件式 Head 圆球（r 0.35，16×12）。</summary>
@@ -772,7 +785,7 @@ namespace PirateCrew.EditorTools
         ///   这里沿用"rig 装配 + 后处理"的既有做法，只把零件层整体替换。
         ///
         /// 【尺寸与位置（逐值对照 pirate.tscn）】
-        ///   · Body：<see cref="BodyFrustumKey"/> 网格按世界尺寸建模（顶 r 0.35 / 底 r 0.40 /
+        ///   · Body：<see cref="BodyFrustumKey"/> 网格按世界尺寸建模（顶 r 0.35 / 底 r 0.46 /
         ///     h 1.20），缩放恒为 1，中心放在柱高的中点 → 底面恰在脚底 y=0（Visual 局部 y=0）。
         ///   · Head：<see cref="HeadSphereKey"/> 网格半径 0.35，挂在 HeadPivot 下的原点 →
         ///     球心 y 1.50，球底 1.15 与柱顶 1.20 微叠 0.05（与 Godot 的 0.85−0.7/2−1.2/2 = 0.05 一致）。
