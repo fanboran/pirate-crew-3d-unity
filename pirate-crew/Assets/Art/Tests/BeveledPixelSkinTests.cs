@@ -457,47 +457,86 @@ namespace PirateCrew.ArtPipeline.Tests
                     continue;
                 }
 
-                // 明暗方向判据只对"三层带浮雕"族成立；页签底边无带（跳过竖直比较），
-                // 单语义件（环/位点/分隔线/投影）没有受光面结构，不查。
+                // 明暗方向判据只对"带边带的容器"族成立；单语义件（环/位点/分隔线/投影）没有受光面结构，不查。
                 if (t.kind != "plate" && t.kind != "tab")
                     continue;
 
-                // 贴图 y=0 在下：上带取 y=h-1，下带取 y=0；左 x=0，右 x=w-1。
-                float topRing = Lum(px[(h - 1) * w + w / 2]);
-                float bottomRing = Lum(px[0 * w + w / 2]);
-                float leftRing = Lum(px[(h / 2) * w + 0]);
-                float rightRing = Lum(px[(h / 2) * w + w - 1]);
-
                 bool pressed = t.name.EndsWith("_Pressed", StringComparison.Ordinal);
-                bool horizontalOk = pressed ? leftRing < rightRing : leftRing > rightRing;
-                if (!horizontalOk)
+                bool isTrack = t.name.StartsWith("Pixel_Track_", StringComparison.Ordinal);
+                // 贴图 y=0 在下：上带取 y=h-1，下带取 y=0；左 x=0，右 x=w-1。
+                float face = Lum(px[(h / 2) * w + w / 2]);
+
+                if (isTrack)
                 {
-                    problems.Add(t.name + "：水平方向明暗" + (pressed ? "没反向" : "不是左亮右暗")
-                        + "（左 " + leftRing.ToString("F1") + " / 右 " + rightRing.ToString("F1")
-                        + "）——" + (pressed ? "按压态应当高光右移" : "光必须来自左方"));
-                }
-                if (t.kind != "tab")
-                {
-                    bool verticalOk = pressed ? topRing < bottomRing : topRing > bottomRing;
-                    if (!verticalOk)
+                    // 条槽语法（金框血条）：外环受光侧比背光侧亮；内暗线 = 同侧外环（规则 1）。
+                    float topRing = Lum(px[(h - 1) * w + w / 2]);
+                    float bottomRing = Lum(px[0 * w + w / 2]);
+                    float leftRing = Lum(px[(h / 2) * w + 0]);
+                    float rightRing = Lum(px[(h / 2) * w + w - 1]);
+                    if (!(topRing > bottomRing))
                     {
-                        problems.Add(t.name + "：竖直方向明暗" + (pressed ? "没反向" : "不是上亮下暗")
-                            + "（上 " + topRing.ToString("F1") + " / 下 " + bottomRing.ToString("F1")
-                            + "）——" + (pressed ? "按压态应当高光下沉" : "光必须来自上方"));
+                        problems.Add(t.name + "：条槽外环不是上亮下暗（上 " + topRing.ToString("F1")
+                            + " / 下 " + bottomRing.ToString("F1") + "）——光必须来自上方。");
+                    }
+                    if (!(leftRing > rightRing))
+                    {
+                        problems.Add(t.name + "：条槽外环不是左亮右暗（左 " + leftRing.ToString("F1")
+                            + " / 右 " + rightRing.ToString("F1") + "）——光必须来自左方。");
+                    }
+                    // 索引推导：从顶往下逐层是 外环 d∈[0,u) → 斜面 d∈[u,2u) → 内暗线 d∈[2u,3u)，
+                    // 所以"上内暗线"取 y = h-1-(2×Unit)（**不是 h-1-u**，那一层是斜面——
+                    // 本用例第一版就栽在这个差一层上，red 过一轮）。
+                    int topRingIndex = (h - 1) * w + w / 2;
+                    int topLineIndex = (h - 1 - 2 * Unit) * w + w / 2;
+                    if (!Same(px[topLineIndex], px[topRingIndex]))
+                    {
+                        problems.Add(t.name + "：上内暗线 " + Hex(px[topLineIndex])
+                            + " 与上外环 " + Hex(px[topRingIndex])
+                            + " 不同色——条槽语法里这两道是同一个色，改散了凹感就没了。");
+                    }
+                    continue;
+                }
+
+                // 面板/按钮语法（工具对话框）：**近黑描边（四周）+ 受光侧一道唇边 + 平脸**。
+                // 描边比脸暗得多（参照实测描边近黑）；唇边只出现在本状态的受光侧
+                // （常态=上，按压=下——高光换到右下），另一侧唇边位置直接是脸色。
+                // 页签（tab）的底边是**定义性的无带平底**（与宿主面板贴合），故不查下边。
+                bool openBottom = t.kind == "tab";
+                float outlineTop = Lum(px[(h - 1) * w + w / 2]);
+                float outlineBottom = Lum(px[0 * w + w / 2]);
+                if (outlineTop > 0.5f * face || (!openBottom && outlineBottom > 0.5f * face))
+                {
+                    problems.Add(t.name + "：面板描边不是近黑（上 " + outlineTop.ToString("F1")
+                        + " / 下 " + outlineBottom.ToString("F1") + " vs 脸 " + face.ToString("F1")
+                        + "）——工具对话框语法的描边是近黑单线，不是同色相暗档。");
+                }
+                float topLip = Lum(px[(h - 1 - Unit) * w + w / 2]);
+                float bottomLip = Lum(px[Unit * w + w / 2]);
+                if (pressed)
+                {
+                    if (!(bottomLip > face))
+                    {
+                        problems.Add(t.name + "：按压态下唇边没点亮（下唇 " + bottomLip.ToString("F1")
+                            + " vs 脸 " + face.ToString("F1") + "）——按压要把受光唇边换到右下。");
+                    }
+                    if (topLip > face + 1f)
+                    {
+                        problems.Add(t.name + "：按压态上唇边还亮着（上唇 " + topLip.ToString("F1")
+                            + " vs 脸 " + face.ToString("F1") + "）——高光应当已经离开上边。");
                     }
                 }
-
-                // 内暗线 = 同侧外环（参照表读出的那条恒等式：凹感的来源）。
-                // 索引推导：贴图 y=0 在下，从顶往下逐层是 外环 d∈[0,u) → 斜面 d∈[u,2u) → 内暗线 d∈[2u,3u)，
-                // 所以"上内暗线"取 y = h-1-(2×Unit)（**不是 h-1-u**，那一层是斜面——
-                // 本用例第一版就栽在这个差一层上，red 过一轮）。
-                int topRingIndex = (h - 1) * w + w / 2;
-                int topLineIndex = (h - 1 - 2 * Unit) * w + w / 2;
-                if (!Same(px[topLineIndex], px[topRingIndex]))
+                else
                 {
-                    problems.Add(t.name + "：上内暗线 " + Hex(px[topLineIndex])
-                        + " 与上外环 " + Hex(px[topRingIndex])
-                        + " 不同色——参照表里这两道是同一个色，改散了凹感就没了。");
+                    if (!(topLip > face))
+                    {
+                        problems.Add(t.name + "：常态上唇边没点亮（上唇 " + topLip.ToString("F1")
+                            + " vs 脸 " + face.ToString("F1") + "）——光必须来自上方。");
+                    }
+                    if (!openBottom && bottomLip > face + 1f)
+                    {
+                        problems.Add(t.name + "：常态下唇边也亮着（下唇 " + bottomLip.ToString("F1")
+                            + " vs 脸 " + face.ToString("F1") + "）——唇边只该在受光侧。");
+                    }
                 }
             }
 

@@ -20,49 +20,56 @@ namespace PirateCrew.EditorTools
     /// 本类是"换皮不换骨"里的那张皮。两个生成器并存：玻璃族仍在役（4b 试点后才逐步退役），
     /// 图集目录也分开（<c>Assets/Art/Sprites/UI/Pixel/</c> vs <c>.../UI/</c>），互不覆盖。
     ///
-    /// 【几何从哪来：量出来的，不是想出来的】几何关系（基本单位 u / 外环-斜面-内暗线 三层 /
-    /// 同一色相 3 档明暗）逐条来自
-    /// [UI 像素化标准参照](../../../docs/images/ui-pixel-ref/README.md) §二 的逐像素竖切表，
-    /// 那一节是对创始人指定的 Terraria 截图片段取竖切量出来的（含**内暗线**这道——
-    /// 它是"平面色块"变成"有厚度的块"的唯一来源）。
+    /// 【几何从哪来：量出来的，不是想出来的】几何关系（基本单位 u / 层带结构 / 同一色相 3 档明暗）
+    /// 逐条来自 [UI 像素化标准参照](../../../docs/images/ui-pixel-ref/README.md) 与
+    /// [Beveled Pixel 九宫格规范](../../../docs/技术/资产管线/BeveledPixel九宫格规范.md) §一 的逐像素竖切表，
+    /// 那两张表是对创始人指定的参照截图取竖切量出来的。
+    /// **参照里有互不相同的两套语法，别互相推广**（本类第一版的教训）：
+    ///   · **条槽语法**（金框血条）：实测自 `ref-bars-life-mana.png` —— 外环/斜面/内暗线/槽底 四段，
+    ///     强对比的金色装饰框，**只用在条槽（Track）上**；
+    ///   · **面板/按钮语法**（工具对话框）：实测自 `ref-pixel-tool-dialog.png` ——
+    ///     **近黑描边 + 受光侧一道唇边 + 平脸**，低对比、单描边。把金框语法推广到面板上
+    ///     会读成"双层相框"（创始人一眼指出"和我给你的界面不一样"）。
     /// 本类只量**几何与色彩关系**，不复制它的任何贴图资源；色相一律换成
     /// <c>Assets/Data/Palette/pirate_palette.json</c> 的槽位（本工程色板），
-    /// 于是"换主题只换色相"成立。三类参照件与它们的取用边界见
-    /// [Beveled Pixel 九宫格规范](../../../docs/技术/资产管线/BeveledPixel九宫格规范.md)。
+    /// 于是"换主题只换色相"成立。
     ///
-    /// 【一、几何（单位 u = 2px，从外缘向内）】
+    /// 【一、两套边带语法（单位 u = 3px，从外缘向内）】
     /// <code>
-    ///   序号  层      上/左（受光侧）  下/右（背光侧）   厚度
-    ///   ①    外环     S2（同色相暗）   S1（更暗一档）    u
-    ///   ②    斜面     S4（同色相亮）   S3（同色相中）    u
-    ///   ③    内暗线   S2               S1                u
-    ///   ④    内部     见「二、两种内部」                 剩余（九宫格拉伸区）
-    /// </code>
-    /// 三条由参照表直接读出的规则，别改：
-    ///   1. **内暗线**（③）两侧颜色与同侧外环（①）**同色**——实测"外环 <c>#54481E</c> / 内暗线 <c>#54481E</c>"、
-    ///      "外环 <c>#2F261F</c> / 内暗线 <c>#2F261F</c>"。这不是巧合，是"外圈把块勒住 + 内圈把面压下去"的同一条线；
-    ///   2. **背光侧不是纯黑**（是 S3 中间档）——这是"铁牌/木牌"而不是"描边"的关键；
-    ///   3. **光永远来自左上**：上=左、下=右，四边只有两套色。
-    ///      实测参照里顶边比左边还亮一档（<c>#6C76C7</c> vs <c>#5A65C0</c>），本波次不拆这一档
-    ///      （要拆就得给每个 tone 第 5 档明暗），已登记为 4b 复核项；
-    ///   4. **三层带是同心环**：外环必须是一条**闭合圈**（沿切角斜线走），斜面与内暗线是它里面
-    ///      两条更小的闭合圈。按"上下横贯 + 左右补边"画会把两侧外环截断、四角不闭合——
-    ///      走查记录见 <c>CreateTexture</c> 方法头与规范 §一.1；判据 = 外环 8 连通 1 段且无端点。
+    ///   条槽 Track（金框血条语法，参照 bars）
+    ///     ① 外环    S2（受光侧）/ S1（背光侧）   u
+    ///     ② 斜面    S4 / S3                      u
+    ///     ③ 内暗线  S2 / S1（与外环同色，规则 1）u
+    ///     ④ 槽底    Floor                        剩余（九宫格拉伸区）
     ///
-    /// 【二、两种内部（Piece）】
-    ///   · <see cref="Piece.Plate"/> **凸起块**：内部 = S3（同色相中间档，平涂、无渐变——参照表
-    ///     "基色平涂"）。面板 / 按钮 / 列表行 / 标题条都用它。
-    ///   · <see cref="Piece.Track"/> **凹槽**：内部 = <c>Floor</c>（比最暗档再压一档）——条状件
-    ///     （血条/施法条/进度条）的**空槽底**，填充件画在它上面。
-    ///     实测空槽底带一道贴着上内暗线的 2px 次生亮带（<c>#801034</c> 压 <c>#551B1C</c>）；
-    ///     本波次**有意压平成单色**：满格时它整条被填充盖住、半格时才露出 2px，
-    ///     收益不抵"多一条派生规则"的维护成本。已登记为 4b 复核项。
+    ///   面板/按钮 Plate（工具对话框语法，参照 tool-dialog）
+    ///     ① 描边    INK（近黑，四周同色）        u
+    ///     ② 唇边    S4（**只在上/左**，背光侧无） u
+    ///     ③ 脸      S3（平涂）                   剩余（九宫格拉伸区）
+    /// </code>
+    /// 由参照表直接读出的规则，别改：
+    ///   1. **条槽的"内暗线"与同侧外环同色**——实测"外环 <c>#54481E</c> / 内暗线 <c>#54481E</c>"。
+    ///      这条只对 **Track** 成立；对话框的面板/按钮没有内暗线（加了就是双层相框）。
+    ///   2. **光永远来自左上**：上=左、下=右，受光侧才亮。
+    ///      〔已知偏差〕参照里顶边比左边还亮一档，本波次不拆（要拆就得给每个 tone 第 5 档明暗），
+    ///      登记为复核项（规范 §八）。
+    ///   3. **三层带是同心环**：外环（描边）必须是一条**闭合圈**（沿切角斜线走）。
+    ///      按"上下横贯 + 左右补边"画会把两侧外环截断、四角不闭合——走查记录见
+    ///      <c>CreateTexture</c> 方法头与规范 §一.1；判据 = 外环 8 连通 1 段且无端点。
+    ///
+    /// 【二、三种内部（Piece）】
+    ///   · <see cref="Piece.Plate"/> **凸起块**：对话框语法，内部 = S3 平涂。面板/按钮/列表行/标题条。
+    ///   · <see cref="Piece.Track"/> **凹槽**：金框语法，内部 = <c>Floor</c>（比最暗档再压一档）——
+    ///     条状件（血条/施法条/进度条）的**空槽底**，填充件画在它上面。
+    ///     [已知偏差] 实测槽底贴着一道 u 宽的次生亮带；本实现**有意压平成单色**（满格时被填充盖住），
+    ///     登记为复核项。
+    ///   · <see cref="Piece.Tab"/> **页签**：对话框语法 + 底边无带（border 下=0），与宿主面板贴合。
     ///
         /// 【三、状态（State）】按压 = **高光/阴影对调**（创始人裁决，不用 scale）：把上/左那套
         /// 与下/右那套整组互换，"凸"读成"凹"。位移 1px 右下**不在贴图里**——那是装配侧的事，
         /// 统一取 <see cref="PressOffset"/>（往贴图里烘位移会让九宫格切片错位）。
         /// 悬停 = **整条色阶上抬一档**（<see cref="HoverLift"/>）：S1~S3 与 Floor 各向亮侧邻档混
-        /// 25%，最亮的 S4（受光外环）不动——轮廓保持锐利、内部"点亮"。
+        /// 25%，最亮的 S4（唇边）不动——轮廓保持锐利、内部"点亮"。
         /// 这是「悬停 = 换一档明暗的整套贴图」的派生实现：不用多造 tone，也不出板
         /// （抬完的 5 档自成一个锁板集合）。
         ///
@@ -75,21 +82,20 @@ namespace PirateCrew.EditorTools
     /// <code>
     ///   Frame   （面板）    UI_BEVEL_HI / UI_PANEL    / UI_BEVEL_LO
     ///   Dense   （内容片）  UI_PANEL    / UI_BEVEL_LO  / 派生（面板最暗档再压一档）
-    ///   Light   （暖白牌）  WHITE_HOT   / SAIL_CANVAS / NEUTRAL_LIGHT
+    ///   Light   （暖白牌）  WHITE_HOT   / SAND_LIGHT  / NEUTRAL_LIGHT
     ///   Sea     （海图）    SEA_SHALLOW / SEA_MID     / SEA_DEEP
     ///   Primary （主行动点）SAND_LIGHT  / BRASS       / WOOD_DARK
-    ///   Danger  （危险）    HERO_RED    / UI_DANGER   / HERO_RED_DEEP
+    ///   Danger  （危险）    HERO_RED    / UI_DANGER   / SHADOW_DEEP
     ///   Warn    （警告）    GLOW_WARM   / UI_WARN     / SHADOW_WARM
     /// </code>
-    /// 调色板 UI 族目前只有 3 个中性槽（且都是**提案**态），凑不出第 4 档明暗，于是
+    /// 调色板 UI 族只有 3 个中性槽（**提案**态），凑不出第 4 档明暗，于是
     /// **S1 由 S2 派生**：<c>S1 = mix(S2, INK, 0.45)</c>（往本仓统一墨色 <c>INK</c> 压一步）。
-    /// 派生规则只有这一条，写在 <c>Ramp.Of</c> 里，不外扩。
-    /// 【提案/待定】S1 的派生（尤其浅色牌 Light 的外环是否该直接改用 <c>INK</c> 近黑——
-    /// 第三张参照图的工具控件就是近黑描边）由 4b 一屏试点出图裁决。
+    /// 派生规则只有这一条，写在 <c>Ramp.Of</c> 里，不外扩。**描边不再是派生值**——
+    /// 面板语法直接用 INK（参照的工具对话框就是近黑描边，这条已由 2026-09-22 的对照走查裁决）。
     ///
-    /// 【五、为什么产物是贴图而不是"平色 Image"】UGUI 的平色矩形画不出 3 层带（外环/斜面/内暗线）
+    /// 【五、为什么产物是贴图而不是"平色 Image"】UGUI 的平色矩形画不出多层带（描边/唇边）
     /// 又要在任意尺寸下不变形——九宫格（<c>spriteBorder</c>）正是为此存在的机制：
-    /// 只有四个角 + 四条边不拉伸，中心 1px 被拉长。故贴图尺寸必须
+    /// 只有四个角 + 四条边不拉伸，中心区被均匀拉长。故贴图尺寸必须
     /// <c>≥ 2 × border</c>（<see cref="PlateMinRender"/> = 24px），装配侧低于这个尺寸就会
     /// 把角切进内容区。判据见 <see cref="Verify"/>。
     ///
@@ -611,22 +617,34 @@ namespace PirateCrew.EditorTools
                     bool isLit = vertical ? x * 2 < n : y * 2 >= n;   // 竖直：左亮；水平：上亮
 
                     Color32 c;
-                    if (layer >= 3)
-                        c = body;
-                    else if (layer == 1)
-                        c = isLit ? top.Bevel : bottom.Bevel;  // 斜面：受光取最亮档、背光取中间档
+                    if (track)
+                    {
+                        // 条槽语法（金框血条语法，实测自参照 bars）：外环 / 斜面 / 内暗线 / 槽底 四段。
+                        if (layer >= 3)
+                            c = body;
+                        else if (layer == 1)
+                            c = isLit ? top.Bevel : bottom.Bevel;
+                        else
+                            c = isLit ? top.Ring : bottom.Ring;   // 外环与内暗线同色（规则 1）
+                    }
                     else
-                        c = isLit ? top.Ring : bottom.Ring;    // 外环与内暗线同色（规则 1）
+                    {
+                        // 面板/按钮语法（实测自参照 tool-dialog 面板与按钮）：**近黑描边 + 受光唇边 + 平脸**。
+                        // 与条槽语法是两套：dialog 的面板/按钮没有"内暗线"，多那道会读成双层相框；
+                        // 背光侧也没有唇边（实测按钮底缘就是一条更深的描边）。金框只活在条槽上。
+                        // 唇边跟着**状态的受光侧**走（按压态高光移到右下，唇边也要跟着换边）。
+                        bool litByState = state == State.Pressed ? !isLit : isLit;
+                        if (layer == 0)
+                            c = Slot("INK");
+                        else if (layer == 1 && litByState)
+                            c = isLit ? top.Bevel : bottom.Bevel; // 唇边：只在本状态的受光侧
+                        else
+                            c = body;
+                    }
 
                     px[y * n + x] = c;
                 }
             }
-
-            // 黄铜铆钉：只钉在 Frame 凸起块的四角（标题条/边框的角接缝上——真实铆钉的位置）。
-            // 1u 见方，左上像素提白、右下压木暗：把"光来自左上"缩进 2×2…u×u 的一格里讲完。
-            // 别的 tone 不钉（内容片/按钮满屏都是，钉了就是噪点）。
-            if (tone == Tone.Frame && piece == Piece.Plate)
-                DrawStuds(px, n);
 
             border = tab
                 ? new Vector4(PlateBorder, 0f, PlateBorder, PlateBorder)
@@ -643,47 +661,6 @@ namespace PirateCrew.EditorTools
             int dx = Math.Min(x, n - 1 - x) / Unit;
             int dy = (n - 1 - y) / Unit;
             return dx + dy < depth;
-        }
-
-        /// <summary>铆钉四枚：贴角 1u 处的 u×u 色块（Frame Plate 专用）。</summary>
-        static void DrawStuds(Color32[] px, int n)
-        {
-            Color32[] stud = StudColors();   // [0] 主体 / [1] 亮 / [2] 暗
-            int o = Unit;
-            int[] xs = { o, n - Unit - o };
-            int[] ys = { o, n - Unit - o };
-            for (int sx = 0; sx < 2; sx++)
-            {
-                for (int sy = 0; sy < 2; sy++)
-                {
-                    int bx = xs[sx], by = ys[sy];
-                    for (int j = 0; j < Unit; j++)
-                    {
-                        for (int i = 0; i < Unit; i++)
-                        {
-                            int xx = bx + i, yy = by + j;
-                            // 贴画面左上的那 1px = 亮、贴右下的那 1px = 暗、其余 = 主体
-                            int leftness = sx == 0 ? i : Unit - 1 - i;
-                            int topness = sy == 0 ? Unit - 1 - j : j;   // y 向上：下角原点的顶是 j 大的一侧
-                            int score = leftness + topness;
-                            px[yy * n + xx] = score == 2 * (Unit - 1) ? stud[1]
-                                : score == 0 ? stud[2]
-                                : stud[0];
-                        }
-                    }
-                }
-            }
-        }
-
-        /// <summary>铆钉三色：BRASS 主体 + 提白亮档 + 木暗暗档（锁板判据复用同一张表）。</summary>
-        public static Color32[] StudColors()
-        {
-            return new[]
-            {
-                Slot("BRASS"),
-                Mix(Slot("BRASS"), Slot("WHITE_HOT"), 0.45f),
-                Mix(Slot("BRASS"), Slot("WOOD_DARK"), 0.35f),
-            };
         }
 
         /// <summary>
@@ -1861,9 +1838,8 @@ namespace PirateCrew.EditorTools
                     allowed.Add(r.S3);
                     allowed.Add(r.S4);
                     allowed.Add(r.Floor);
-                    // Frame 凸起块的四角铆钉三色
-                    if (tone == Tone.Frame && name.StartsWith("Pixel_Plate_", StringComparison.Ordinal))
-                        allowed.AddRange(StudColors());
+                    // 面板/按钮语法的近黑描边（描边色 = 本仓统一墨色）
+                    allowed.Add(Slot("INK"));
                     break;
                 }
             }
@@ -1951,6 +1927,8 @@ namespace PirateCrew.EditorTools
         /// 与 5 种填充条。**这张图是换装的评审靶子**，也是九宫格语义的自证：
         /// 块被拉到 96px 宽时四角与四条边必须与 36px 时完全一样（只有中心被拉长）。
         /// 底纹是 6px 棋盘（不是为了好看——透明切角/环内只在有底纹的图上读得出来）。
+        /// **行/列/分区全用内置 3×5 字模标注**——"这块是干嘛的"必须一眼看得出来，
+        /// 7 行无色标的色阶表此前被创始人判过"意义不明"。
         /// </summary>
         public static string BuildContactSheet()
         {
@@ -1964,9 +1942,12 @@ namespace PirateCrew.EditorTools
             int tabH = 7 * u;
             int hostH = 10 * u;
             int rowSingles = 20 * u;
+            int labelW = 12 * u;            // 行名标签栏（"PRIMARY" = 7 字 × 4px = 28px < 36）
+            int headerH = 3 * u;            // 列名表头带
+            int contentX = pad + labelW;
 
-            int cols = pad + colMin + gap + (colWide + gap) * 5;
-            int rows = pad
+            int cols = contentX + colMin + gap + (colWide + gap) * 5;
+            int rows = pad + headerH
                 + (rowTone + gap) * 7
                 + (tabH + hostH + gap)
                 + (rowSingles + gap)
@@ -1985,9 +1966,27 @@ namespace PirateCrew.EditorTools
                 }
             }
 
+            Color32 labelInk = Slot("WHITE_HOT");
+            Color32 labelShadow = Slot("INK");
+
             // 版面用"从顶往下的游标"排（画布 y=0 在下，故每排一行游标就减）——
             // 用 y0 - r*step 那种反推在块数不一致时必然越界。
-            int cursorTop = rows - pad;
+            int cursorTop = rows - pad - headerH;
+
+            // 列名表头：与下面的六列逐一对应（最小尺寸 / 常态 / 悬停 / 按压 / 凹槽 / 槽内填充）
+            {
+                string[] headers = { "MIN", "NORMAL", "HOVER", "PRESS", "TRACK", "FILL" };
+                int hx = contentX;
+                int hy = rows - pad - 5;
+                DrawText(px, cols, hx + (colMin - 3 * 4 + 1) / 2 + 1, hy, headers[0], labelInk, labelShadow);
+                hx += colMin + gap;
+                for (int c = 1; c < headers.Length; c++)
+                {
+                    DrawText(px, cols, hx + (colWide - (headers[c].Length * 4 - 1)) / 2, hy,
+                        headers[c], labelInk, labelShadow);
+                    hx += colWide + gap;
+                }
+            }
 
             Tone[] tones = (Tone[])Enum.GetValues(typeof(Tone));
             for (int r = 0; r < tones.Length; r++)
@@ -1995,7 +1994,10 @@ namespace PirateCrew.EditorTools
                 Tone tone = tones[r];
                 int y = cursorTop - rowTone;
                 cursorTop = y - gap;
-                int x = pad;
+                int x = contentX;
+
+                // 行名（tone 用途）——7 行各有其名，别再靠猜
+                DrawText(px, cols, pad + 1, y + (rowTone - 5) / 2, ToneLabel(tone), labelInk, labelShadow);
 
                 // ① 最小可渲染尺寸 → ② 常态 → ③ 悬停 → ④ 按压 → ⑤ 凹槽 → ⑥ 槽内 60% 填充
                 DrawOne(px, cols, tone, Piece.Plate, State.Normal, x, y + (rowTone - colMin) / 2, colMin, colMin);
@@ -2018,8 +2020,9 @@ namespace PirateCrew.EditorTools
                 int hostW = 60 * u;
                 int hostY = cursorTop - tabH - hostH;
                 cursorTop = hostY - gap;
-                DrawOne(px, cols, Tone.Dense, Piece.Plate, State.Normal, pad, hostY, hostW, hostH);
-                int tx = pad + 2 * u;
+                DrawText(px, cols, pad + 1, hostY + hostH / 2, "TABS", labelInk, labelShadow);
+                DrawOne(px, cols, Tone.Dense, Piece.Plate, State.Normal, contentX, hostY, hostW, hostH);
+                int tx = contentX + 2 * u;
                 for (int r = 0; r < tones.Length; r++)
                 {
                     DrawOne(px, cols, tones[r], Piece.Tab, State.Normal, tx, hostY + hostH, 16 * u, tabH);
@@ -2032,7 +2035,8 @@ namespace PirateCrew.EditorTools
                 int y = cursorTop - rowSingles;
                 int cy = y + (rowSingles - 12 * u) / 2;      // 行内垂直居中基线
                 cursorTop = y - gap;
-                int x = pad;
+                int x = contentX;
+                DrawText(px, cols, pad + 1, y + rowSingles / 2, "PARTS", labelInk, labelShadow);
 
                 // 投影演示：阴影在右下错 1u，本体盖在上面
                 DrawShadowAt(px, cols, x, cy, 24 * u, 12 * u);
@@ -2066,8 +2070,10 @@ namespace PirateCrew.EditorTools
             {
                 int y = cursorTop - rowFill;
                 cursorTop = y - gap;
-                int x = pad + colMin + gap;
+                int x = contentX + colMin + gap;
                 int w = colWide + gap + colWide;
+                if (r == 0)
+                    DrawText(px, cols, pad + 1, y + rowFill / 2, "FILLS", labelInk, labelShadow);
                 DrawOne(px, cols, Tone.Frame, Piece.Track, State.Normal, x, y, w, rowFill);
                 int inset = 3 * Unit;
                 DrawFill(px, cols, fills[r], x + inset, y + inset, w - inset * 2, rowFill - inset * 2);
@@ -2099,6 +2105,21 @@ namespace PirateCrew.EditorTools
             int dx = Mathf.RoundToInt(ShadowOffset.x);
             int dy = Mathf.RoundToInt(ShadowOffset.y);
             DrawSized(canvas, canvasW, "Pixel_Shadow", ox + dx, oy + dy, w, h);
+        }
+
+        /// <summary>tone → 接触表行名（全大写，字模只有大写）。用途一眼可辨是这张表的硬指标。</summary>
+        static string ToneLabel(Tone tone)
+        {
+            switch (tone)
+            {
+                case Tone.Frame: return "FRAME";
+                case Tone.Dense: return "DENSE";
+                case Tone.Light: return "LIGHT";
+                case Tone.Sea: return "SEA";
+                case Tone.Primary: return "PRIMARY";
+                case Tone.Danger: return "DANGER";
+                default: return "WARN";
+            }
         }
 
         /// <summary>tone → 该 tone 的槽内填充色（海图配海蓝、危险配红、其余配暖橙/中性/蓝）。</summary>
@@ -2174,6 +2195,7 @@ namespace PirateCrew.EditorTools
         {
             { ' ', new[] { 0, 0, 0, 0, 0 } },
             { 'A', new[] { 2, 5, 7, 5, 5 } },
+            { 'B', new[] { 6, 5, 6, 5, 6 } },
             { 'C', new[] { 7, 4, 4, 4, 7 } },
             { 'D', new[] { 6, 5, 5, 5, 6 } },
             { 'E', new[] { 7, 4, 6, 4, 7 } },
@@ -2192,6 +2214,7 @@ namespace PirateCrew.EditorTools
             { 'S', new[] { 3, 4, 2, 1, 6 } },
             { 'T', new[] { 7, 2, 2, 2, 2 } },
             { 'U', new[] { 5, 5, 5, 5, 7 } },
+            { 'V', new[] { 5, 5, 5, 5, 2 } },
             { 'W', new[] { 5, 5, 7, 7, 5 } },
             { 'Y', new[] { 5, 5, 2, 2, 2 } },
             { '1', new[] { 2, 6, 2, 2, 7 } },
@@ -2232,15 +2255,19 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 美术稿：把全部件按战斗 HUD 的真实构图拼出来——船员卡（标题/名牌/血蓝条/属性行/
-        /// 三态按钮+焦点框）、页签组、海图小地图（选人圈+位点+敌点）、敌方条与页点。
+        /// 三态按钮+焦点框）、页签组、海图小地图（选人圈+位点+敌点）、敌方条/页点/Toast。
         /// 这是给创始人看的"成品长什么样"，也是接触表之外的**构图级自证**：
         /// 件与件的间距/内边距全部按 u 取整，拼起来没有半格错位。
+        ///
+        /// 【两版输出】**1× = 实际屏幕像素**（1080p 下 Canvas 1:1，怎么看就是屏幕上的样子）——
+        /// 验收主图；**2× = 放大检查**（读像素边带用）。版式按"留白优先"排：
+        /// 分区之间 ≥6u 空档、面板内边距 ≥5u，别把件堆成一坨（创始人判过"挤得也太密"）。
         /// 深海底色背景；标注字用内置 3×5 字模（游戏内文字走 TMP，不共享这套）。
         /// </summary>
         public static string BuildShowcaseSheet()
         {
             int u = Unit;
-            int W = 160 * u, H = 100 * u;
+            int W = 180 * u, H = 128 * u;
             var px = new Color32[W * H];
 
             // 背景：压暗的海渊色（比 Sea tone 更低一档，让所有面板浮起来）
@@ -2251,65 +2278,78 @@ namespace PirateCrew.EditorTools
             Color32 white = Slot("WHITE_HOT");
             Color32 ink = Slot("INK");
 
-            // ---- 右上：海图小地图（投影 + Sea 面板 + Sea 凹槽内底 + 选人圈 + 位点 + 敌点）----
-            DrawShadowAt(px, W, 86 * u, 66 * u, 24 * u, 24 * u);
-            DrawOne(px, W, Tone.Sea, Piece.Plate, State.Normal, 86 * u, 66 * u, 24 * u, 24 * u);
-            DrawOne(px, W, Tone.Sea, Piece.Track, State.Normal, 90 * u, 70 * u, 16 * u, 16 * u);
-            DrawSized(px, W, "Pixel_Ring", 95 * u, 75 * u, 8 * u, 8 * u);          // 选人圈（原生 8u，整数倍）
-            DrawSized(px, W, "Pixel_Pip_Off", 92 * u, 84 * u, PipSize, PipSize);   // 空槽位
-            DrawSized(px, W, "Pixel_Fill_Red", 100 * u, 72 * u, 2 * u, 2 * u);     // 敌方点
-            DrawText(px, W, 87 * u, 88 * u, "MAP", white, ink);
-
             // ---- 左上：页签组（宿主 Dense 面板 + 选中 Light / 未选中 Dense×2）----
-            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 6 * u, 70 * u, 56 * u, 18 * u);
-            DrawOne(px, W, Tone.Light, Piece.Tab, State.Normal, 8 * u, 88 * u, 16 * u, 7 * u);
-            DrawOne(px, W, Tone.Dense, Piece.Tab, State.Normal, 26 * u, 88 * u, 16 * u, 7 * u);
-            DrawOne(px, W, Tone.Dense, Piece.Tab, State.Normal, 44 * u, 88 * u, 16 * u, 7 * u);
-            DrawText(px, W, 9 * u, 82 * u, "LOG", white, ink);
+            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 8 * u, 100 * u, 56 * u, 18 * u);
+            DrawOne(px, W, Tone.Light, Piece.Tab, State.Normal, 10 * u, 118 * u, 16 * u, 7 * u);
+            DrawOne(px, W, Tone.Dense, Piece.Tab, State.Normal, 28 * u, 118 * u, 16 * u, 7 * u);
+            DrawOne(px, W, Tone.Dense, Piece.Tab, State.Normal, 46 * u, 118 * u, 16 * u, 7 * u);
+            DrawText(px, W, 13 * u, 107 * u, "LOG", white, ink);
 
-            // ---- 右下：敌方牌 + 敌方血条（30%）+ 页点 ----
-            DrawShadowAt(px, W, 86 * u, 30 * u, 24 * u, 8 * u);
-            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Normal, 86 * u, 30 * u, 24 * u, 8 * u);
-            DrawText(px, W, 86 * u + 2, 34 * u, "FOE", white, ink);
-            DrawOne(px, W, Tone.Danger, Piece.Track, State.Normal, 86 * u, 8 * u, 24 * u, 10 * u);
-            DrawFill(px, W, FillKind.Red, 87 * u, 11 * u, 7 * u, 4 * u);
-            DrawSized(px, W, "Pixel_Pip_On", 86 * u, 22 * u, PipSize, PipSize);
-            DrawSized(px, W, "Pixel_Pip_On", 93 * u, 22 * u, PipSize, PipSize);
-            DrawSized(px, W, "Pixel_Pip_Off", 100 * u, 22 * u, PipSize, PipSize);
+            // ---- 上右：海图小地图（投影 + Sea 面板 + Sea 凹槽内底 + 选人圈 + 位点 + 敌点）----
+            DrawShadowAt(px, W, 96 * u, 92 * u, 32 * u, 32 * u);
+            DrawOne(px, W, Tone.Sea, Piece.Plate, State.Normal, 96 * u, 92 * u, 32 * u, 32 * u);
+            DrawOne(px, W, Tone.Sea, Piece.Track, State.Normal, 101 * u, 97 * u, 22 * u, 22 * u);
+            DrawSized(px, W, "Pixel_Ring", 108 * u, 104 * u, 8 * u, 8 * u);          // 选人圈（原生 8u）
+            DrawSized(px, W, "Pixel_Pip_Off", 103 * u, 112 * u, PipSize, PipSize);   // 空槽位
+            DrawSized(px, W, "Pixel_Fill_Red", 118 * u, 99 * u, 2 * u, 2 * u);       // 敌方点
+            DrawText(px, W, 99 * u, 121 * u, "MAP", white, ink);
 
-            // ---- 左侧主卡：船员卡（这是 HUD 的核心构图）----
-            DrawShadowAt(px, W, 6 * u, 6 * u, 76 * u, 60 * u);
-            DrawOne(px, W, Tone.Frame, Piece.Plate, State.Normal, 6 * u, 6 * u, 76 * u, 60 * u);
-            DrawText(px, W, 10 * u, 57 * u, "CREW", white, ink);
-            DrawSized(px, W, "Pixel_Sep_H", 10 * u, 54 * u, 68 * u, 2 * u);
+            // ---- 左主卡：船员卡（HUD 核心构图；内边距 ≥5u、行距 ≥4u）----
+            DrawShadowAt(px, W, 8 * u, 8 * u, 84 * u, 84 * u);
+            DrawOne(px, W, Tone.Frame, Piece.Plate, State.Normal, 8 * u, 8 * u, 84 * u, 84 * u);
+            DrawText(px, W, 13 * u, 85 * u, "CREW", white, ink);
+            DrawSized(px, W, "Pixel_Sep_H", 13 * u, 81 * u, 74 * u, 2 * u);
 
             // 名牌（Light）+ 队长位点
-            DrawOne(px, W, Tone.Light, Piece.Plate, State.Normal, 10 * u, 48 * u, 32 * u, 6 * u);
-            DrawText(px, W, 12 * u, 50 * u, "CAPTAIN", ink, new Color32(0, 0, 0, 0));
-            DrawSized(px, W, "Pixel_Pip_On", 44 * u, 47 * u, PipSize, PipSize);
+            DrawOne(px, W, Tone.Light, Piece.Plate, State.Normal, 13 * u, 70 * u, 40 * u, 8 * u);
+            DrawText(px, W, 15 * u, 72 * u, "CAPTAIN", ink, new Color32(0, 0, 0, 0));
+            DrawSized(px, W, "Pixel_Pip_On", 56 * u, 70 * u, PipSize, PipSize);
 
-            // 血条 / 蓝条：Track 12u 高（= 参照条"6 框架 + 6 填充 + …"的同比例放大）
-            DrawText(px, W, 11 * u, 40 * u, "HP", white, ink);
-            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 18 * u, 34 * u, 58 * u, 12 * u);
-            DrawFill(px, W, FillKind.Red, 19 * u, 37 * u, 33 * u, 6 * u);
-            DrawText(px, W, 11 * u, 26 * u, "MP", white, ink);
-            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 18 * u, 20 * u, 58 * u, 12 * u);
-            DrawFill(px, W, FillKind.Blue, 19 * u, 23 * u, 24 * u, 6 * u);
+            // 血条 / 蓝条：Track 12u 高（= 参照条"框架 3u + 填充 6u + 框架 3u"的同比例）
+            DrawText(px, W, 13 * u, 60 * u, "HP", white, ink);
+            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 20 * u, 52 * u, 66 * u, 12 * u);
+            DrawFill(px, W, FillKind.Red, 23 * u, 55 * u, 36 * u, 6 * u);
+            DrawText(px, W, 13 * u, 40 * u, "MP", white, ink);
+            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 20 * u, 32 * u, 66 * u, 12 * u);
+            DrawFill(px, W, FillKind.Blue, 23 * u, 35 * u, 26 * u, 6 * u);
 
-            // 属性行（Dense）+ 分隔线
-            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 10 * u, 18 * u, 68 * u, 6 * u);
-            DrawText(px, W, 12 * u, 20 * u, "ATK 12  SPD 7", white, ink);
-            DrawSized(px, W, "Pixel_Sep_H", 10 * u, 17 * u, 68 * u, 2 * u);
+            // 属性行（Dense）
+            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 13 * u, 22 * u, 74 * u, 6 * u);
+            DrawText(px, W, 15 * u, 24 * u, "ATK 12  SPD 7", white, ink);
 
             // 三态按钮同台：常态+焦点框 / 悬停 / 按压
-            DrawOne(px, W, Tone.Primary, Piece.Plate, State.Normal, 10 * u, 10 * u, 18 * u, 8 * u);
-            DrawSized(px, W, "Pixel_Focus", 10 * u - 2, 10 * u - 2, 18 * u + 4, 8 * u + 4);
-            DrawTextCentered(px, W, 10 * u + 9 * u, 14 * u, "OK", ink, Slot("SAND_LIGHT"));
-            DrawOne(px, W, Tone.Light, Piece.Plate, State.Hovered, 31 * u, 10 * u, 20 * u, 8 * u);
-            DrawTextCentered(px, W, 31 * u + 10 * u, 14 * u, "MENU", ink, new Color32(0, 0, 0, 0));
-            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Pressed, 54 * u, 10 * u, 20 * u, 8 * u);
-            DrawTextCentered(px, W, 54 * u + 10 * u, 14 * u, "QUIT", white, ink);
+            DrawOne(px, W, Tone.Primary, Piece.Plate, State.Normal, 13 * u, 12 * u, 20 * u, 8 * u);
+            DrawSized(px, W, "Pixel_Focus", 13 * u - 2, 12 * u - 2, 20 * u + 4, 8 * u + 4);
+            DrawTextCentered(px, W, 13 * u + 10 * u, 16 * u, "OK", ink, Slot("SAND_LIGHT"));
+            DrawOne(px, W, Tone.Light, Piece.Plate, State.Hovered, 38 * u, 12 * u, 22 * u, 8 * u);
+            DrawTextCentered(px, W, 38 * u + 11 * u, 16 * u, "MENU", ink, new Color32(0, 0, 0, 0));
+            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Pressed, 65 * u, 12 * u, 22 * u, 8 * u);
+            DrawTextCentered(px, W, 65 * u + 11 * u, 16 * u, "QUIT", white, ink);
 
+            // ---- 右下：敌方牌 + 敌条 + 警告按钮 + 页点 + Toast（每块 ≥6u 空档）----
+            DrawShadowAt(px, W, 96 * u, 74 * u, 32 * u, 10 * u);
+            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Normal, 96 * u, 74 * u, 32 * u, 10 * u);
+            DrawText(px, W, 99 * u, 78 * u, "FOE", white, ink);
+
+            DrawOne(px, W, Tone.Danger, Piece.Track, State.Normal, 96 * u, 58 * u, 32 * u, 12 * u);
+            DrawFill(px, W, FillKind.Red, 99 * u, 61 * u, 9 * u, 6 * u);
+
+            DrawOne(px, W, Tone.Warn, Piece.Plate, State.Normal, 96 * u, 44 * u, 22 * u, 8 * u);
+            DrawTextCentered(px, W, 96 * u + 11 * u, 48 * u, "WARN", ink, new Color32(0, 0, 0, 0));
+
+            // 页点（2 亮 2 暗）
+            DrawSized(px, W, "Pixel_Pip_On", 96 * u, 30 * u, PipSize, PipSize);
+            DrawSized(px, W, "Pixel_Pip_On", 104 * u, 30 * u, PipSize, PipSize);
+            DrawSized(px, W, "Pixel_Pip_Off", 112 * u, 30 * u, PipSize, PipSize);
+            DrawSized(px, W, "Pixel_Pip_Off", 120 * u, 30 * u, PipSize, PipSize);
+
+            // Toast（Light + 投影）：右下角收尾，读"弹出提示"的整件
+            DrawShadowAt(px, W, 96 * u, 14 * u, 60 * u, 10 * u);
+            DrawOne(px, W, Tone.Light, Piece.Plate, State.Normal, 96 * u, 14 * u, 60 * u, 10 * u);
+            DrawText(px, W, 99 * u, 18 * u, "CAPTAIN ABOARD", ink, new Color32(0, 0, 0, 0));
+
+            // 1× = 实际屏幕像素（1080p 验收主图）；2× = 放大检查
+            WriteZoomedSheet(px, W, H, "export/ui-pixel-4a/showcase-1x.png", 1);
             return WriteZoomedSheet(px, W, H, ShowcaseRelativePath, SheetZoom);
         }
 
