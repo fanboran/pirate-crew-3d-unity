@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using TMPro;
 using UnityEditor;
 using UnityEngine;
@@ -103,7 +103,9 @@ namespace PirateCrew.EditorTools
                 SourceTtfPath = FontsFolder + "/FusionPixel12-zh_hans.ttf",
                 AssetFileName = "FusionPixel12-px",
                 SamplingPointSize = 12,
-                AtlasPadding = 0,
+                // padding 4：位图字形之间留空档——padding 0 时相邻字形格在图集里贴死，
+                // 任何非 Point 采样都会把邻居的字带进本字的格子（实机乱码的根因，2026-09-23）。
+                AtlasPadding = 4,
                 AtlasWidth = 1024,
                 AtlasHeight = 1024,
                 RenderMode = GlyphRenderMode.RASTER_HINTED,

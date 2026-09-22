@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using PirateCrew.UI;
 using UnityEditor;
@@ -62,12 +62,24 @@ namespace PirateCrew.EditorTools
         [MenuItem("PirateCrew/UI/采集组件展示截图（命令行出口）")]
         public static void CaptureFromCommandLine()
         {
-            string dir = GetArg("-uiShowcaseOut");
-            if (string.IsNullOrEmpty(dir))
-                dir = Path.GetFullPath(CaptureDir);
+            StartCapture(GetArg("-uiShowcaseOut"), exitOnFinish: true);
+        }
+
+        /// <summary>
+        /// 命令桥入口（**常开编辑器**）：启动截图流程但**绝不退出编辑器**——
+        /// 完成后只回写结果（2026-09-23 约定：编辑器常开，不再有任何 Exit）。
+        /// </summary>
+        public static void StartCapture()
+        {
+            StartCapture(Path.GetFullPath(CaptureDir), exitOnFinish: false);
+        }
+
+        static void StartCapture(string dir, bool exitOnFinish)
+        {
             SessionState.SetString(CaptureDirKey, dir);
             SessionState.SetInt(StateKey, 0);
             SessionState.SetBool(PendingKey, true);
+            SessionState.SetBool(ExitOnFinishKey, exitOnFinish);
             EditorApplication.update += CaptureStep;
             Debug.Log("[UiShowcaseSceneSetup] 实机截图流程启动 → " + dir);
         }
@@ -78,6 +90,7 @@ namespace PirateCrew.EditorTools
         const string StateKey = "UiShowcaseCapture.State";
         const string WaitKey = "UiShowcaseCapture.Wait";
         const string CaptureDirKey = "UiShowcaseCapture.Dir";
+        const string ExitOnFinishKey = "UiShowcaseCapture.ExitOnFinish";
 
         [InitializeOnLoadMethod]
         static void RehookCaptureAfterReload()
@@ -102,8 +115,10 @@ namespace PirateCrew.EditorTools
                     SessionState.SetInt(StateKey, 2);
                     break;
                 case 2:
-                    // Play 早期帧等三件事：UGUI 布局收口、TMP 动态图集把本页新字形光栅化、
-                    // Screen.SetResolution 落地。90 帧在装配机上是秒级，够稳。
+                    // 游戏视口必须**正好 1920×1080**：画布 640 艺术像素 × 3，视口差一点
+                    // （实测自由拉伸的 1998×1154）就把整页按 ~1.04 非整数倍缩放，
+                    // 像素字形的竖笔画 3px/4px 交替，读成"重影"（第一张实机截图的教训）。
+                    ForceGameViewSize(1920, 1080);
                     if (EditorApplication.isPlaying && Time.frameCount > 90)
                     {
                         Directory.CreateDirectory(dir);
@@ -132,7 +147,10 @@ namespace PirateCrew.EditorTools
                         {
                             SessionState.SetBool(PendingKey, false);
                             EditorApplication.update -= CaptureStep;
-                            EditorApplication.Exit(File.Exists(path) ? 0 : 1);
+                            Debug.Log("[UiShowcaseSceneSetup] 截图流程结束：" + path
+                                + "（存在=" + File.Exists(path) + "）");
+                            if (SessionState.GetBool(ExitOnFinishKey, false))
+                                EditorApplication.Exit(File.Exists(path) ? 0 : 1);
                         }
                         else
                         {
@@ -163,6 +181,37 @@ namespace PirateCrew.EditorTools
                     return args[i + 1];
             }
             return null;
+        }
+
+        /// <summary>
+        /// 把游戏视口钉到指定尺寸。`Screen.SetResolution` 在编辑器里管不住 Game 视图
+        /// （采集到的是视口实际大小），得走编辑器 API：优先 <c>PlayModeWindow.SetViewSize</c>，
+        /// 旧版本回落 <c>SetRenderingResolution</c>。都没有就打警告继续（出图尺寸会漂）。
+        /// </summary>
+        static void ForceGameViewSize(int width, int height)
+        {
+            System.Type playModeWindow = typeof(UnityEditor.Editor).Assembly
+                .GetType("UnityEditor.PlayModeWindow");
+            if (playModeWindow == null)
+            {
+                Debug.LogWarning("[UiShowcaseSceneSetup] 找不到 UnityEditor.PlayModeWindow，游戏视口尺寸未钉住");
+                return;
+            }
+            var setViewSize = playModeWindow.GetMethod("SetViewSize",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+                null, new[] { typeof(int), typeof(int) }, null);
+            if (setViewSize != null)
+            {
+                setViewSize.Invoke(null, new object[] { width, height });
+                return;
+            }
+            var setRendering = playModeWindow.GetMethod("SetRenderingResolution",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (setRendering != null)
+                setRendering.Invoke(null, new object[] { (uint)width, (uint)height });
+            else
+                Debug.LogWarning("[UiShowcaseSceneSetup] PlayModeWindow 无 SetViewSize/SetRenderingResolution，"
+                    + "游戏视口尺寸未钉住（出图可能非 1920×1080）");
         }
     }
 }
