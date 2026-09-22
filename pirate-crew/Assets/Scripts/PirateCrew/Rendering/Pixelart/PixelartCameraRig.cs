@@ -34,6 +34,9 @@ namespace PirateCrew.Rendering.Pixelart
     {
         const string CastCameraName = "Pixelart Cast Camera";
 
+        /// <summary>透明件叠加相机的物体名（子物体、local 恒等，随主相机一起动）。</summary>
+        const string OverlayCameraName = "Pixelart Overlay Camera";
+
         [Header("低分辨率域")]
         [Tooltip("像素化档位 = 一个艺术像素占几个**屏幕**像素（整数放大倍数，锁死）。3 = 1920×1080 下 640×360。")]
         [Min(1)] public int pixelScale = 3;
@@ -67,6 +70,13 @@ namespace PirateCrew.Rendering.Pixelart
         [Header("Cast 相机（留空则运行时按子物体 local 恒等自动创建）")]
         public Camera castCamera;
 
+        [Header("透明件叠加（可选：游戏本体用；试点场景不填）")]
+        [Tooltip("叠加相机的渲染器索引（`PixelartOverlay_Renderer` 的索引，由装配器查出后写入）。"
+            + "**-1 = 不建叠加相机**：本路径的物体 pass 只画不透明材质，半透明内容（FX/危险虚线/"
+            + "接触阴影/弹道预览）会整类消失，所以游戏本体的相机必须填这个索引；"
+            + "试点场景没有半透明内容，留 -1 即可。")]
+        public int overlayRendererIndex = -1;
+
         [Header("光")]
         [Tooltip("主光。留空则用 RenderSettings.sun（场景的烘焙主光）。")]
         public Light sun;
@@ -78,6 +88,9 @@ namespace PirateCrew.Rendering.Pixelart
         Camera _castCamera;
         UniversalAdditionalCameraData _castCameraData;
         bool _castCameraCreatedAtRuntime;
+
+        /// <summary>透明件叠加相机（只在 <see cref="overlayRendererIndex"/> ≥ 0 时存在；总是运行时自建）。</summary>
+        Camera _overlayCamera;
 
         int _allocatedWidth;
         int _allocatedHeight;
@@ -177,7 +190,34 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>本装配是否已就绪（缓冲与相机齐备；未就绪时各 Feature 直接跳过）。</summary>
         public bool IsReady
         {
-            get { return _castCamera != null && ResultBuffer != null && AlbedoBuffer != null && OutlineBuffer != null; }
+            get
+            {
+                return DeviceSupportsPath && _castCamera != null && ResultBuffer != null
+                    && AlbedoBuffer != null && OutlineBuffer != null;
+            }
+        }
+
+        /// <summary>物体 pass 的 G-buffer 张数（albedo/normal0/normal1/physical/shape/palette/rim）。</summary>
+        public const int GbufferCount = 7;
+
+        /// <summary>
+        /// **本设备能不能跑本路径**：要能同时绑 7 张渲染目标、且支持 compute 的 UAV 写。
+        ///
+        /// 【为什么必须挡住，而不是让它抛异常】无头环境（`-nographics`，PlayMode 测试用的空设备）
+        /// 只支持 1 张渲染目标、也不支持"格式可随机写"：物体 pass 的 `SetRenderTarget(7 张)` 会抛
+        /// `ArgumentException: colors.Length is 7 and exceeds the maximum number of supported render targets`，
+        /// 缓冲创建会刷 `RenderTexture.Create failed: format unsupported for random writes`。
+        /// 不挡的话，"能不能跑 PlayMode 测试"会变成"看设备支持不支持"，而且报错会污染
+        /// `LogAssert`（测试框架把意外 Error/Exception 记成失败）。
+        /// 挡在这里之后，本路径在这种设备上**整趟 inert**（每个 Feature 都先问 IsReady）——
+        /// 不抛异常、不刷错误日志，测试照跑，游戏在真 GPU 上照常。
+        ///
+        /// 目标平台是 Windows standalone（DX11/12 支持 8 张），所以这条不是"给低端机降级"，
+        /// 而是"给没有 GPU 的环境留一条不炸的路"。
+        /// </summary>
+        public static bool DeviceSupportsPath
+        {
+            get { return SystemInfo.supportedRenderTargetCount >= GbufferCount && SystemInfo.supportsComputeShaders; }
         }
 
         void OnEnable()
@@ -208,6 +248,7 @@ namespace PirateCrew.Rendering.Pixelart
 
             EnsureCastCamera();
             EnsureBuffers();
+            EnsureOverlayCamera();
             PixelartPath.ActiveRig = this;
         }
 
@@ -236,6 +277,13 @@ namespace PirateCrew.Rendering.Pixelart
                     DestroyImmediate(_castCamera.gameObject);
                 _castCamera = null;
                 _castCameraData = null;
+            }
+
+            if (_overlayCamera != null)
+            {
+                if (_overlayCamera.gameObject != null)
+                    DestroyImmediate(_overlayCamera.gameObject);
+                _overlayCamera = null;
             }
 
             ReleaseBuffers();
@@ -275,6 +323,16 @@ namespace PirateCrew.Rendering.Pixelart
             // 【层掩码用"主相机被清掉之前"的那份】主相机自己的 cullingMask 已被置 0（它只上屏），
             // 若这里跟着同步，Cast 相机就什么都看不见——症状是"画面只剩背景色"（且不报错）。
             _castCamera.cullingMask = _savedCullingMask;
+
+            // 叠加相机同样只跟着主相机走，不需要任何接线。
+            if (_overlayCamera != null)
+            {
+                _overlayCamera.orthographic = _screenCamera.orthographic;
+                _overlayCamera.orthographicSize = _screenCamera.orthographicSize;
+                _overlayCamera.nearClipPlane = _screenCamera.nearClipPlane;
+                _overlayCamera.farClipPlane = _screenCamera.farClipPlane;
+                _overlayCamera.backgroundColor = _screenCamera.backgroundColor;
+            }
 
             LogSelfCheckOnce();
             PushLightGlobals();
@@ -363,8 +421,83 @@ namespace PirateCrew.Rendering.Pixelart
             _screenCamera.cullingMask = 0;
         }
 
+        /// <summary>
+        /// 建**透明件叠加相机**（只有 <see cref="overlayRendererIndex"/> ≥ 0 时才建）。
+        ///
+        /// 【为什么必须有这么一台】本路径的几何只有一份"不透明数据 + 全屏着色"，**没有混合**：
+        /// 半透明内容在它下面会整类消失（不报错，就是不画）。这台相机用**标准 URP 渲染器**
+        /// （队列过滤成"只画 Transparent"，见 `PixelartPathInstaller.EnsureOverlayRenderer`）、
+        /// 在像素化成图**之后**（`depth + 1`）把那些内容画上去，保住 FX / 危险虚线 / 接触阴影 /
+        /// 弹道预览这些"看不清就没法玩"的东西。
+        ///
+        /// 【代价（已登记待办，别当成已解决）】它们的颗粒是全分辨率的（不参与像素化），
+        /// 而且这台相机的深度缓冲是空的 ⇒ 遮挡关系不判定（崖后的爆炸会画在崖前）。
+        /// </summary>
+        void EnsureOverlayCamera()
+        {
+            if (_overlayCamera != null || overlayRendererIndex < 0 || _screenCamera == null)
+                return;
+
+            var go = new GameObject(OverlayCameraName);
+            go.transform.SetParent(transform, false);   // local 恒等：随主相机（Cinemachine）一起动
+
+            _overlayCamera = go.AddComponent<Camera>();
+            _overlayCamera.orthographic = _screenCamera.orthographic;
+            _overlayCamera.orthographicSize = _screenCamera.orthographicSize;
+            _overlayCamera.nearClipPlane = _screenCamera.nearClipPlane;
+            _overlayCamera.farClipPlane = _screenCamera.farClipPlane;
+            // 只清深度、**保留像素化成图的颜色**（清颜色会把上屏结果抹掉）。
+            _overlayCamera.clearFlags = CameraClearFlags.Depth;
+            _overlayCamera.backgroundColor = _screenCamera.backgroundColor;
+            _overlayCamera.cullingMask = ~0;            // 画什么由渲染器的队列过滤决定，不用层
+            _overlayCamera.depth = _screenCamera.depth + 1f;
+            _overlayCamera.useOcclusionCulling = false;
+            _overlayCamera.allowHDR = false;
+            _overlayCamera.allowMSAA = false;
+
+            UniversalAdditionalCameraData data = _overlayCamera.GetUniversalAdditionalCameraData();
+            if (data == null)
+                data = _overlayCamera.gameObject.AddComponent<UniversalAdditionalCameraData>();
+            data.renderType = CameraRenderType.Base;
+            data.renderPostProcessing = false;
+            data.renderShadows = false;                 // 阴影已由 Cast 相机那趟画过
+            data.antialiasing = AntialiasingMode.None;
+            data.volumeLayerMask = 0;
+            data.requiresColorOption = CameraOverrideOption.Off;
+            data.requiresDepthOption = CameraOverrideOption.Off;
+            data.SetRenderer(overlayRendererIndex);
+
+            Debug.Log("[PixelartCameraRig] 透明件叠加相机已建（渲染器 " + overlayRendererIndex
+                + "，只画 Transparent 队列）—— FX / 危险虚线 / 接触阴影 / 弹道预览走这一档。");
+        }
+
+        /// <summary>
+        /// 设备不支持时打一行**警告**（只打一次，用 LogWarning 而不是 Error：无头测试里
+        /// Error/Exception 会被测试框架记成失败，而这条是环境事实、不是缺陷）。
+        /// 说清"本路径 inert、画面会停在主相机的空屏"，免得下次有人对着空屏查半天。
+        /// </summary>
+        static void LogUnsupportedDeviceOnce()
+        {
+            if (_unsupportedDeviceLogged)
+                return;
+            _unsupportedDeviceLogged = true;
+            Debug.LogWarning("[PixelartCameraRig] 本设备不支持本路径（需要同时绑 " + GbufferCount
+                + " 张渲染目标 + compute UAV）：当前 渲染目标上限 " + SystemInfo.supportedRenderTargetCount
+                + "、compute " + (SystemInfo.supportsComputeShaders ? "支持" : "不支持")
+                + "。像素化路径整趟 inert（常见于批处理 `-nographics` 与无头测试环境，真 GPU 上不会出现）。");
+        }
+
+        static bool _unsupportedDeviceLogged;
+
         void EnsureBuffers()
         {
+            // 设备跑不了（无头空设备 / 没有 compute）就不建缓冲：建了也绑不上，
+            // 只会刷一串 "RenderTexture.Create failed: format unsupported for random writes"（见 DeviceSupportsPath）。
+            if (!DeviceSupportsPath)
+            {
+                LogUnsupportedDeviceOnce();
+                return;
+            }
             ComputeTargetSize(out int width, out int height);
             if (width == _allocatedWidth && height == _allocatedHeight
                 && ResultBuffer != null && AlbedoBuffer != null)

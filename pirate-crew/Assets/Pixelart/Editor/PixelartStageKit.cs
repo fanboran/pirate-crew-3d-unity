@@ -93,40 +93,10 @@ namespace PirateCrew.EditorTools
             }
 
             mat.shader = shader;
-            mat.SetColor("_BaseColor", albedo);
-            mat.SetFloat("_MainLightLevel", bandCount);
-            mat.SetFloat("_DitherMode", 0f);       // 0 = Bayer 4×4 矩阵；1 = v3 的 1-bit 密度图案
-            mat.SetFloat("_DitherStrength", 0f);   // 默认关（v3 自己的材质默认也是 0）；出图时用 MPB 拨开对照
-            // ---- 连通域两项（Shape 缓冲的 b/a 通道）----
-            // 法线边加成：连通域判出"单元内法线差超阈值"时给该像素加档（内部转折提亮）。
-            // 单位是**色带步长**（着色里 `ndotl += singleLevel * 本值`），0.5 = 加半档。
-            mat.SetFloat("_NormalEdgeLevel", 0.5f);
-            mat.SetFloat("_NormalEdgeThreshold", 0.5f);
-            // AA 缩放：连通域降档的门控乘数，1 = 不缩放（v3 的 _AAScale 同义）。
-            mat.SetFloat("_AAScale", 1f);
 
-            // ---- 高光（Specular 那一趟的输入，Physical 缓冲的 r/g）----
-            // 数值取得保守（高光一重就压过色带）。
-            mat.SetFloat("_Smoothness", 0.25f);
-            mat.SetFloat("_Metallic", 0f);
-
-            // ---- 逐物体边缘光色 ----
-            // 默认**黑 = 本物体不出边缘光**（不改变已认过的画面）。要验证这条通路，
-            // 出图脚本里有一档 `pa-rim` 走 MaterialPropertyBlock 临时拨亮（见 PlayerArtCapture）。
-            mat.SetColor("_RimLightColor", Color.black);
-
-            // ---- 描边开关 ----
-            // >0 ⇒ 本物体的 applyOutline 置位（艺术画布上那一趟屏幕空间膨胀读它决定给谁出线）。
-            // 线宽固定 1 艺术像素，由那一趟保证；这里只有开/关。
-            mat.SetFloat("_OutlinePixels", outlinePixels);
-
-            // ---- 物体级像素吸附（v3 CommonPass 的第二层，默认开）----
-            mat.SetFloat("_SnapToPixelGrid", 1f);
-
-            // 队列：几何只靠深度测试分前后（描边改屏幕空间后不再与队列有关），一律 Geometry。
-            mat.renderQueue = 2000;
-
-            // 挂上 v3 口径的密度图案（_DitherMode 拨到 1 即生效，不必重烘场景）。
+            // 配方只有一份：运行期的 `PixelartMaterialFactory`（游戏本体在运行期造材质也要用它）。
+            // 本类只负责"把它落成资产"与"挂上抖动图案"（图案是工程内 png，运行期没有按路径加载的入口）。
+            PixelartMaterialFactory.Configure(mat, albedo, bandCount, outlinePixels);
             var pattern = AssetDatabase.LoadAssetAtPath<Texture2D>(DitherFolder + "/ToonDither_0.png");
             if (pattern != null)
             {
@@ -177,9 +147,10 @@ namespace PirateCrew.EditorTools
                 return null;
             }
 
-            string name = "PixelartDerived_" + source.name;
-            Material derived = EnsureMaterial(name, albedo, 3f);
-            if (derived != null)
+            // 命名口径与运行期转换器同源（`PixelartMaterialFactory.DerivedName`）：同一个源材质在
+            // "编辑器装配"与"运行期补扫"两条路上必须落到同一个名字，否则同一件东西会有两份材质。
+            string name = PixelartMaterialFactory.DerivedName(source.name);
+            Material derived = EnsureMaterial(name, albedo, 3f);            if (derived != null)
             {
                 Debug.Log(logTag + " 派生材质：" + name + " ← 原材质 \"" + source.name
                     + "\" 的取色 #" + ColorUtility.ToHtmlStringRGB(albedo) + "。");
@@ -584,14 +555,8 @@ namespace PirateCrew.EditorTools
                 return Color.white;
             }
 
-            if (hex[0] == '#')
-                hex = hex.Substring(1);
-
-            return new Color(
-                int.Parse(hex.Substring(0, 2), System.Globalization.NumberStyles.HexNumber) / 255f,
-                int.Parse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber) / 255f,
-                int.Parse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber) / 255f,
-                1f);
+            // 解析口径落在运行时的工厂里（游戏本体与编辑器侧必须同一个读法），这里只补空串这道闸。
+            return PixelartMaterialFactory.Hex(hex);
         }
 
         public static void EnsureFolder(string path)

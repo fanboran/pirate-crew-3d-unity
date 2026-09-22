@@ -6,6 +6,7 @@
         "PirateCrew.Core",
         "PirateCrew.Campaign",
         "PirateCrew.CrewManagement",
+        "PirateCrew.Rendering",
         "PirateCrew.UI",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"

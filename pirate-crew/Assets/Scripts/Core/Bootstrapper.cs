@@ -59,14 +59,30 @@ namespace PirateCrew.Core
 
         void Start()
         {
-            // 服务已在 Awake 中就绪，进入主菜单。
+            // 服务已在 Awake 中就绪，进入主菜单（默认）。
             if (!Services.TryGet<SceneLoader>(out SceneLoader loader))
             {
                 Debug.LogError("[Bootstrapper] SceneLoader 未创建，无法进入主菜单。");
                 return;
             }
 
-            loader.ChangeScene(SceneNames.MainMenu);
+            loader.ChangeScene(StartScene());
+        }
+
+        /// <summary>
+        /// 启动后进哪个场景：默认主菜单；带 <c>-bootBattle</c> 时**直接进战斗**。
+        ///
+        /// 【为什么要有这条】评审/试玩要的是"双击就看见目标画面"，而默认流程是
+        /// Bootstrapper → 主菜单 → 选关页 → 关卡 → 出战，每验一次都得点四下。
+        /// 具体关卡（关卡号或海图 id）由 <c>WorldMapRuntime</c> 读同一个开关决定——
+        /// 那一层在 Gameplay 程序集，Core 不能反向引用，所以这里只负责"跳过菜单"。
+        /// </summary>
+        static string StartScene()
+        {
+            if (CommandLineOptions.Has(ToolFlags.BootBattle))
+                return SceneNames.Battle;
+
+            return SceneNames.MainMenu;
         }
 
         void OnDestroy()

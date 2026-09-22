@@ -1,4 +1,5 @@
 using PirateCrew.Battle;
+using PirateCrew.Rendering.Pixelart;
 using UnityEngine;
 
 namespace PirateCrew.Water
@@ -35,7 +36,8 @@ namespace PirateCrew.Water
     /// <summary>
     /// 大海域海面的运行时载体（M4 §5.2）：自包含地创建"近场细分 + 中场环带 + 远场裙边"的
     /// 单张径向圆盘网格（<see cref="OceanGridRules"/>），跟随主相机、按格步进对齐，
-    /// 并把长涌包络/网格中心发布成全局变量供 <c>PirateOcean.shader</c> 消费。
+    /// 并把长涌包络/网格中心发布成全局变量供 <c>PirateOcean.shader</c> 消费
+    /// （仅当调用方显式传入旧 <c>PirateCrew/Ocean</c> 材质时有人消费；本类的替身海面不读它们）。
     ///
     /// 【自包含接线（协调者只需一行）】
     /// <code>
@@ -46,16 +48,20 @@ namespace PirateCrew.Water
     /// 与 <see cref="WaterSimulationDriver"/> 的涟漪注入天然兼容——驱动发布的是**全局**纹理/向量，
     /// 新 shader 按世界 XZ 采样，与水面网格的域无关，无需任何坐标映射适配。
     ///
-    /// 【材质】<paramref name="material"/> 缺省时按 <see cref="OceanShaderName"/> 查找并 new 一个
-    /// 运行时材质（编辑器/开发期足够；出正式资产用 Editor/WaterAssetBuilder.ApplyOceanMaterialDefaults
-    /// 落盘的 Ocean_Water.mat，再显式传入）。
+    /// 【材质（像素化路径的替身海面，如实标注）】活海面 <c>PirateCrew/Ocean</c>（半透明 + 波浪顶点动画）
+    /// **进不了本路径**：G-buffer 没有混合，也拉不动它的网格。故 <paramref name="material"/> 缺省时
+    /// 用 <see cref="PixelartMaterialFactory"/> 造一块**不透明平色 + 色带**的替身海面，
+    /// 与海图试点场景的替身海面**同色同档**（<see cref="PixelartMaterialFactory.Sea"/> /
+    /// <see cref="PixelartMaterialFactory.SeaBandCount"/>）、**0 描边**（海是背景，出线会把画面切碎）。
+    /// 真正的 3D 波浪观感留给"像素海面方案"那条待定项。
+    ///
+    /// 【当前实拍链的注意点】Battle 场景经由 <c>BattleController.worldOceanMaterial</c> 显式传入
+    /// 落盘资产 <c>Ocean_Water.mat</c>（旧 shader），本处兜底只在那个字段为空时才生效——
+    /// 要让实拍走替身海面，须把该字段清空/替换或改场景接线，见交接说明。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class OceanRig : MonoBehaviour
     {
-        /// <summary>海面 shader 名（与 Assets/Art/Shaders/Ocean/PirateOcean.shader 的声明一致）。</summary>
-        public const string OceanShaderName = "PirateCrew/Ocean";
-
         static readonly int ArenaCenterId = Shader.PropertyToID(OceanGlobals.ArenaCenter);
         static readonly int GridCenterId = Shader.PropertyToID(OceanGlobals.GridCenter);
 
@@ -95,7 +101,7 @@ namespace PirateCrew.Water
         /// 静态构建入口：创建 "OceanRig" 物体（网格 + 渲染器 + 本组件），定位到竞技场中心并发布全局。
         /// </summary>
         /// <param name="config">域配置（竞技场中心/半径）。</param>
-        /// <param name="material">海面材质；null = 按 <see cref="OceanShaderName"/> 现场创建。</param>
+        /// <param name="material">海面材质；null = 用 <see cref="PixelartMaterialFactory"/> 现场造替身海面（见类头）。</param>
         /// <param name="parent">可选父节点。</param>
         /// <param name="followCamera">可选跟随相机；null = 每帧用 Camera.main。</param>
         public static OceanRig Create(OceanConfig config, Material material = null,
@@ -124,6 +130,21 @@ namespace PirateCrew.Water
 
         void BuildContent(Material material)
         {
+            // 【为什么"给了材质也可能不用"】本路径放不下半透明几何，半透明内容一律被交到叠加档
+            // 画在成图之上——一个旧链的半透明海洋（`Ocean_Water.mat`，Queue=Transparent）接进来，
+            // 结果就是**一层全屏旧水盖住整个新管线画面**（实测：场地与单位全看不见）。所以即使
+            // 调用方显式传了材质，只要它不是本路径的物体 shader，就拒绝并改用替身海面（并且吵闹地报）。
+            if (material != null && material.shader != null
+                && material.shader.name != PixelartPath.ObjectShaderName)
+            {
+                global::PirateCrew.Core.Log.Error("[OceanRig] 传入的海面材质 \"" + material.name
+                    + "\" 用的是 " + material.shader.name + "，不是本路径的物体 shader（"
+                    + PixelartPath.ObjectShaderName + "）：半透明海洋会被叠加档整屏画在像素化成图之上、"
+                    + "把画面全盖住。已改用运行期造的不透明替身海面。"
+                    + "修复：清空 BattleController.worldOceanMaterial（装配链第 ⑦ 步别再写它）。");
+                material = null;
+            }
+
             _material = material != null ? material : ResolveOrCreateMaterial();
             ApplyDebugOverride(_material);
 
@@ -135,36 +156,59 @@ namespace PirateCrew.Water
 
             var renderer = gameObject.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = _material;
-            // 透明水面：不投影（与旧 PirateWater 同口径）； receives shadows 走 shader 的主光阴影项。
+            // 替身海面是不透明平色（本路径的 G-buffer 没有混合），不投影、靠深度参与遮挡；
+            // 光照在低分辨率域那几趟里按全局主光/环境色算，不看 URP 的 receiveShadows 开关。
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
         /// <summary>
-        /// 调试覆盖：命令行 <c>-oceanDebug &lt;0-13&gt;</c> 强制 shader 的 _DebugMode
-        /// （1=纯水色 4=全泡沫 11=白帽 12=包络…），用于实拍二分定位颜色链问题。缺省不干预。
+        /// 调试覆盖：命令行 <c>-oceanDebug &lt;0-13&gt;</c> 会去写海面材质的 <c>_DebugMode</c>
+        /// （旧 <c>PirateCrew/Ocean</c> 的档位：1=纯水色 4=全泡沫 11=白帽 12=包络…）。
+        ///
+        /// 【像素化路径没有这个档】替身海面用的是本路径物体 shader，**没有 `_DebugMode` 属性**，
+        /// 写进去是静默无效——所以这里**明确报错**而不是悄悄忽略；只有调用方显式传入的旧海面材质
+        /// （如 <c>Ocean_Water.mat</c>）才有该属性，那种情况仍照旧写入。
         /// </summary>
         void ApplyDebugOverride(Material material)
         {
             // argv 由 Core.CommandLineOptions 统一解析（唯一入口解析一次），本类只取值。
-            if (global::PirateCrew.Core.CommandLineOptions.TryGetFloat(
+            if (!global::PirateCrew.Core.CommandLineOptions.TryGetFloat(
                     global::PirateCrew.Core.ToolFlags.OceanDebug, out float mode))
+                return;
+
+            if (material != null && material.HasProperty("_DebugMode"))
             {
                 material.SetFloat("_DebugMode", mode);
                 Debug.Log("[OceanRig] 调试档 _DebugMode=" + mode);
+                return;
             }
+
+            Debug.LogError("[OceanRig] -oceanDebug=" + mode + " 未生效：当前是像素化路径的**替身海面**"
+                + "（物体 shader " + PixelartPath.ObjectShaderName + " 没有 _DebugMode 属性）。"
+                + "这个调试档只属于旧 PirateCrew/Ocean 材质——要逐档诊断旧海面，请显式传入 Ocean_Water.mat。");
         }
 
+        /// <summary>
+        /// 造替身海面材质（见类头：不透明平色 + 色带、0 描边，与海图试点替身同色同档）。
+        /// 物体 shader 缺失时退回 <c>Sprites/Default</c>——这是**构建包丢 shader**，不是逻辑错；
+        /// 宁可看见一块能识别的水色，也不要品红/不可见（旧实现的兜底语义保留）。
+        /// </summary>
         Material ResolveOrCreateMaterial()
         {
-            Shader shader = Shader.Find(OceanShaderName);
-            if (shader == null)
-            {
-                Debug.LogError($"[OceanRig] 找不到 shader {OceanShaderName}（工程未导入或被剔除），海面将显示为品红。");
-                shader = Shader.Find("Sprites/Default"); // 兜底：至少不是隐藏异常
-            }
-
             _ownsMaterial = true;
-            return new Material(shader) { name = "Ocean_Water_Runtime" };
+
+            Material mat = PixelartMaterialFactory.Create(
+                "PixelartOcean_Sea",
+                PixelartMaterialFactory.Sea,
+                PixelartMaterialFactory.SeaBandCount,
+                outlinePixels: 0f);
+            if (mat != null)
+                return mat;
+
+            Debug.LogError("[OceanRig] 替身海面材质未创建（物体 shader \"" + PixelartPath.ObjectShaderName
+                + "\" 不在包里），已回退 Sprites/Default。这是**构建包丢 shader 资产**，不是逻辑错误。");
+            Shader fallback = Shader.Find("Sprites/Default"); // 兜底：至少不是隐藏异常
+            return new Material(fallback) { name = "Ocean_Water_Runtime_Fallback" };
         }
 
         /// <summary>

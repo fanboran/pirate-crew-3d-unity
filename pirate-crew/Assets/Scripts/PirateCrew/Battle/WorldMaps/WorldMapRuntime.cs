@@ -120,6 +120,37 @@ namespace PirateCrew.Battle.WorldMaps
                 return;
             _commandLineScanned = true;
 
+            // `-bootBattle <关卡号|海图 id>`：启动即进该关（Bootstrapper 已跳过主菜单）。
+            // 关卡号 → 手作样板关通道；海图 id → 海图通道。与 `-worldMap` 等价但更直白，
+            // 两个都给时以 `-bootBattle` 为准（它是"我要看这一关"的显式表达）。
+            string boot = CommandLineOptions.GetValue(ToolFlags.BootBattle);
+            if (!string.IsNullOrEmpty(boot))
+            {
+                if (int.TryParse(boot, out int bootLevel) && bootLevel > 0)
+                {
+                    if (SetPendingShowcase(bootLevel))
+                    {
+                        Debug.Log("[WorldMapRuntime] -bootBattle " + bootLevel
+                            + "：启动即进手作样板关 " + bootLevel + "。");
+                        return;
+                    }
+
+                    Debug.LogWarning("[WorldMapRuntime] -bootBattle " + bootLevel
+                        + " 不是已登记的样板关（关卡表里没有它），忽略。");
+                }
+                else if (WorldMapCatalog.TryGet(boot, out _))
+                {
+                    _pendingMapId = boot;
+                    Debug.Log("[WorldMapRuntime] -bootBattle " + boot + "：启动即进海图。");
+                    return;
+                }
+                else
+                {
+                    Debug.LogWarning("[WorldMapRuntime] -bootBattle " + boot
+                        + " 既不是关卡号也不是海图 id，忽略。");
+                }
+            }
+
             string requested = CommandLineOptions.GetValue(ToolFlags.WorldMap);
             if (requested == null)
                 return;

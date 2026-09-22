@@ -4,6 +4,7 @@ using NUnit.Framework;
 using PirateCrew.Core;
 using PirateCrew.Battle;
 using PirateCrew.Data;
+using PirateCrew.Rendering.Pixelart;
 using PirateCrew.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -14,7 +15,7 @@ namespace PirateCrew.Tests
     /// <summary>
     /// Battle 场景装配完整性 PlayMode 测试（可选交付物，只能由协调者在 Unity 里跑）。
     ///
-    /// 【验证闭环】对应 <c>M2BattleSceneSetup</c> 的装配结果：
+    /// 【验证闭环】对应 <c>BattleSceneSetup</c> 的装配结果：
     ///   · 关键 <c>[SerializeField]</c> 引用非空（BattleController / TurnManager /
     ///     AimThrowController / TrajectoryPreview / BattleCameraController / BattleHud）；
     ///   · 双方船员数量 = 样板第 1 关（云端漫步）数据（红 4 / 蓝 4）；
@@ -105,6 +106,39 @@ namespace PirateCrew.Tests
                 "运行时 Transposer 俯角应保持等距俯角（30°，Awake 立即写入）");
             Assert.AreEqual(offset.z, offset.x, 1e-4f,
                 "相机偏移水平分量在 X/Z 等分（方位 45°——只有它给出对称菱形构图）");
+        }
+
+        [UnityTest]
+        public IEnumerator BattleCamera_HasPixelartPathWired()
+        {
+            yield return SceneManager.LoadSceneAsync(SceneNames.Battle);
+            yield return null;
+            yield return null;
+
+            // ---- 像素化路径接线（创始人 2026-09-22：「以后走新管线」）----
+            // 断的是"装配有没有真的发生"，不是数值：索引由装配器从 URP 资产里查出来，
+            // 写死数字会在别人的机器上错位，所以只要求"解出来了"（-1 = 没解出来）。
+            var rig = Object.FindObjectOfType<PixelartCameraRig>();
+            Assert.IsNotNull(rig, "Battle 场景的主相机应挂 PixelartCameraRig（否则游戏还在旧管线上）");
+
+            Assert.GreaterOrEqual(rig.castRendererIndex, 0,
+                "Cast 渲染器索引没解出来（-1）——像素化路径的物体/着色 pass 不会跑");
+            Assert.GreaterOrEqual(rig.screenRendererIndex, 0,
+                "Screen 渲染器索引没解出来（-1）——上屏 blit 不会跑，画面会停在上屏前");
+            Assert.GreaterOrEqual(rig.overlayRendererIndex, 0,
+                "透明件叠加渲染器索引没解出来（-1）——FX / 危险虚线 / 接触阴影 / 弹道预览会整类看不见");
+            Assert.AreNotEqual(rig.castRendererIndex, rig.screenRendererIndex,
+                "Cast 与 Screen 必须是两个不同的渲染器（挂成同一个会让主相机重跑物体 pass 并冲掉结果）");
+
+            Assert.IsFalse(rig.deriveOrthographicSize,
+                "deriveOrthographicSize 必须关：取景归 BattleCameraController（正交整数档 = 视野档），"
+                + "本路径只管像素网格与着色，开着会把玩家的缩放覆盖掉");
+            Assert.AreEqual(PixelartPilotScene.PixelScale, rig.pixelScale,
+                "像素档位必须等于出图口径 PixelartPilotScene.PixelScale（两边同一个艺术像素网格）");
+
+            var converter = Object.FindObjectOfType<PixelartContentConverter>();
+            Assert.IsNotNull(converter,
+                "Battle 场景应有 PixelartContentConverter（否则旧链材质在新管线下不画：不是黑，是消失）");
         }
 
         [UnityTest]

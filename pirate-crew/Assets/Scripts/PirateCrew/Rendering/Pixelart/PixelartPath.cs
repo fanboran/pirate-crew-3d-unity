@@ -98,6 +98,14 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>Screen 渲染器资产名（只有一拍上屏 blit）。</summary>
         public const string ScreenRendererName = "PixelartScreen_Renderer";
 
+        /// <summary>
+        /// 透明件叠加渲染器的资产名（第三个追加进 URP 资产的渲染器）。
+        /// **它不带本路径任何一趟**：是标准 URP 渲染，只把"画什么队列"过滤成"只画 Transparent"，
+        /// 让 FX / 危险虚线 / 接触阴影 / 弹道预览这些半透明内容不被像素化域漏掉
+        /// （像素化域是数据缓冲 + 全屏着色，放不下混合几何）。设计与代价见安装器的 <c>EnsureOverlayRenderer</c>。
+        /// </summary>
+        public const string OverlayRendererName = "PixelartOverlay_Renderer";
+
         // ==================== 纹理全局 ====================
 
         /// <summary>屏幕档 G-buffer：亮部色（rgb）+ 覆盖标记（a=1 有几何）。</summary>

@@ -236,17 +236,27 @@ namespace PirateCrew.EditorTools
             }
             field.SetValue(controller, set);
 
-            // 大海域海面材质：场景必须序列化引用它，shader 才会进构建包（运行时 Shader.Find 查不到）。
-            var oceanMat = AssetDatabase.LoadAssetAtPath<Material>(
-                "Assets/Art/Materials/Environment/Ocean_Water.mat");
-            if (oceanMat == null)
-                Debug.LogError("[WorldMapAssetSetBuilder] 缺 Ocean_Water.mat——先跑 "
-                    + "PirateCrew.EditorTools.WaterAssetBuilder.ApplyOceanMaterialDefaults");
-            else
+            // 大海域海面材质：**不再接线**（新管线口径，创始人 2026-09-22「以后走新管线」）。
+            //
+            // 【为什么这里必须留空而不是接 Ocean_Water.mat】那个材质用的是 `PirateCrew/Ocean`：
+            // 半透明（Queue=Transparent）。像素化路径的几何只有"不透明数据 + 全屏着色"，放不下混合，
+            // 于是半透明内容全被交给**叠加档**（`PixelartOverlay_Renderer` + 叠加相机）画在成图之上——
+            // 也就是说，接上它 = 一层全屏的旧水盖住整个新管线画面（实测：屏幕上看不到任何场地与单位，
+            // 全是旧管线的水）。留空后 `OceanRig` 会在运行期用 `PixelartMaterialFactory` 造
+            // **不透明替身海面**（平色 + 色带，与海图试点场景的替身同色同档）。
+            //
+            // 【为什么它必须在这里清，而不是在 BattleSceneSetup 里清】本步（装配链第 ⑦ 步）跑在
+            // BattleSceneSetup 的 BuildAll（第 ① 步）**之后**：在 ① 里清、⑦ 里再写回，等于没清
+            // （实测踩过：prefab 里仍是 Ocean_Water.mat）。
+            var oceanField = typeof(BattleController).GetField("worldOceanMaterial",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            if (oceanField == null)
+                Debug.LogError("[WorldMapAssetSetBuilder] worldOceanMaterial 字段不存在");
+            else if (oceanField.GetValue(controller) != null)
             {
-                var oceanField = typeof(BattleController).GetField("worldOceanMaterial",
-                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                oceanField.SetValue(controller, oceanMat);
+                oceanField.SetValue(controller, null);
+                Debug.Log("[WorldMapAssetSetBuilder] 已清空 worldOceanMaterial（旧半透明海洋会盖住新管线画面；"
+                    + "海面改由 OceanRig 运行期造不透明替身）。");
             }
 
             EditorSceneManager.MarkSceneDirty(scene);

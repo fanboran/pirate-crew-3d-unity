@@ -6,6 +6,7 @@ using PirateCrew.Data;
 using PirateCrew.Visual;
 using PirateCrew.Battle.Levels;
 using PirateCrew.Battle.WorldMaps;
+using PirateCrew.Rendering.Pixelart;
 using UnityEngine;
 
 namespace PirateCrew.Battle
@@ -69,12 +70,12 @@ namespace PirateCrew.Battle
         [SerializeField] GameObject projectilePrefab;
 
         [Header("瓦片地形（可选；为空时竞技场保持平坦地面）")]
-        [Tooltip("地形视图；由 M2BattleSceneSetup 装配。为空时地形系统仍会建网格（供 AI 查询），但不渲染碰撞块。")]
+        [Tooltip("地形视图；由 BattleSceneSetup 装配。为空时地形系统仍会建网格（供 AI 查询），但不渲染碰撞块。")]
         [SerializeField] BattleTerrainView terrainView;
 
         [Header("场景美术（可选）")]
         [Tooltip("关卡无关的静态陈设装配器：开局按实际关卡号重建船/岛/道具的合并网格。"
-                 + "由 M2BattleSceneSetup 装配；为空时场景保持无静态陈设（地形与玩法不受影响）。")]
+                 + "由 BattleSceneSetup 装配；为空时场景保持无静态陈设（地形与玩法不受影响）。")]
         [SerializeField] RuntimeSceneArt sceneArt;
 
         [Header("M4 世界地图（可选）")]
@@ -298,7 +299,7 @@ namespace PirateCrew.Battle
         ///
         /// 【退役器为何删除（2026-09-19，管线合并前置）】旧场景靠运行时退役器藏一代残留
         /// （Seabed_* 海床 / 烘焙小地图瓦层 / 旧水面渲染）。场景重烘后：装配器已不产 Seabed_* 与
-        /// 烘焙瓦层，旧水面的 Renderer/WaterTessellator 在 <c>M2BattleSceneSetup.CreateWaterPlane</c>
+        /// 烘焙瓦层，旧水面的 Renderer/WaterTessellator 在 <c>BattleSceneSetup.CreateWaterPlane</c>
         /// 烘焙期就置为禁用——渲染退役在场景层落实，运行时不再需要任何"定向隐藏"逻辑。
         ///
         /// 【水模拟契约】<c>Water.WaterSimulationDriver</c> 常驻（其物体失活会触发 OnDisable 清
@@ -589,7 +590,7 @@ namespace PirateCrew.Battle
                 ExplosionHit hit = result.Hits[i];
                 PirateBase target = candidates[hit.Index];
 
-                // ExplosionResolver 已 3D 泛化（docs/M2-3D空间模型对齐.md §5）：
+                // ExplosionResolver 已 3D 泛化（docs/3D空间模型对齐.md §5）：
                 // 击退的平面两分量 → 世界 (X, Z)，竖直输出 DeltaVUp（世界 +Y，含固定 6k 抬升）→ 世界 Y。
                 // 单位换算仍走 LevelGeometry.FlashSpeedScale（Flash px/帧 → 世界单位/秒）。
                 Vector3 deltaV = LevelGeometry.FlashVelocityDeltaToArena(hit.DeltaVx, hit.DeltaVy);
@@ -713,7 +714,14 @@ namespace PirateCrew.Battle
             return projectile;
         }
 
-        /// <summary>程序化兜底外观：图元 + 颜色（无 Prefab 时仍可区分武器）。</summary>
+        /// <summary>
+        /// 程序化兜底外观：图元 + 颜色（无 Prefab 时仍可区分武器）。
+        ///
+        /// 【为什么走像素化路径】弹体是**不透明**几何，本路径的物体 pass 正好收它（G-buffer 只收不透明）；
+        /// 颜色/色带/描边全走 <see cref="PixelartMaterialFactory"/> 的配方，不在调用点写档数。
+        /// 旧实现用 URP/Lit（或内置 Standard）的 `material.color`——那是旧前向着色链的材质，
+        /// 混进本路径的物体 pass 会"那片像素花屏、一行报错都没有"（见 PixelartStageKit 类头）。
+        /// </summary>
         static void BuildFallbackVisual(Transform parent, ProjectileProfile profile, WeaponId id)
         {
             GameObject visual = GameObject.CreatePrimitive(
@@ -731,21 +739,13 @@ namespace PirateCrew.Battle
             Renderer renderer = visual.GetComponent<Renderer>();
             if (renderer != null)
             {
-                Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-                if (shader == null)
-                    shader = Shader.Find("Standard");
-                if (shader != null)
-                {
-                    var material = new Material(shader);
-                    material.color = TintFor(id);
+                Material material = PixelartMaterialFactory.Create("PixelartProjectile", TintFor(id));
+                if (material != null)
                     renderer.material = material;
-                }
                 else
-                {
-                    // 找不到 shader 时禁用渲染器而不是留着图元默认材质——
+                    // 物体 shader 拿不到（构建被剔除）时禁用渲染器而不是留着图元默认材质——
                     // 播放器构建里 builtin 默认材质会被剥离，渲染成粉色方块。
                     renderer.enabled = false;
-                }
             }
         }
 

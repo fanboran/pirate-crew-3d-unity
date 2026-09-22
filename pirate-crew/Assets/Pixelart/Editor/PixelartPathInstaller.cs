@@ -62,6 +62,9 @@ namespace PirateCrew.EditorTools
         /// <summary>Screen 渲染器索引。</summary>
         public static int LastScreenIndex { get; private set; } = -1;
 
+        /// <summary>透明件叠加渲染器索引（见 <see cref="EnsureOverlayRenderer"/>）。</summary>
+        public static int LastOverlayIndex { get; private set; } = -1;
+
         [MenuItem("PirateCrew/Pixelart/装配像素化路径渲染器（两档 URP）")]
         public static void Install()
         {
@@ -144,6 +147,92 @@ namespace PirateCrew.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             return true;
+        }
+
+        /// <summary>
+        /// 装配/刷新**透明件叠加渲染器**并追加进两档 URP 资产，返回它的索引。
+        ///
+        /// 【它在解决什么】本路径的物体 pass 只画声明了 `LightMode = PixelartOpaque` 的材质，
+        /// 而像素化域是"数据缓冲 + 几趟全屏着色"——**没有混合，也放不下半透明几何**。
+        /// 于是半透明内容（爆炸/水花等 FX、水沫、危险虚线、接触阴影、弹道预览）在新管线下
+        /// 会**整类消失**（不报错，就是不画）。这一档让它们由一台"叠加相机"用**自己的材质**在
+        /// 像素化成图之上再画一遍：把渲染队列过滤设成"只画 Transparent、不画 Opaque"，
+        /// 相机的层掩码留全开——**半透明内容的判据是队列不是层**，不必要求全项目把 FX 挪到某个层上。
+        ///
+        /// 【已知代价（不要当成已解决）】
+        /// <list type="bullet">
+        ///   <item>这些内容是**全分辨率**画的，不参与像素化，与成图的颗粒不一致；</item>
+        ///   <item>叠加相机自带的深度缓冲是空的 ⇒ 它们的**遮挡关系不参与判定**：白刃落在崖后也会画在崖前。
+        ///         真解是"像素化域里的透明趟"（用现成的细像素深度缓冲做遮挡 + 在艺术画布上画），
+        ///         那件事另行处置（见 待办）。</item>
+        /// </list>
+        /// </summary>
+        public static bool EnsureOverlayRenderer(out int overlayIndex, out string error)
+        {
+            overlayIndex = -1;
+            error = null;
+
+            UniversalRendererData overlay = EnsureRendererData(PixelartPath.OverlayRendererName);
+            if (overlay == null)
+            {
+                error = "创建/加载叠加渲染器资产失败";
+                return false;
+            }
+
+            // 这一档要的是**标准的 URP 渲染**（不挂本路径任何一趟），所以清空特征列表。
+            RebuildFeatures(overlay, new System.Type[0]);
+            SetQueueFilter(overlay, opaque: false, transparent: true);
+
+            foreach (string path in UrpAssetPaths)
+            {
+                var asset = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(path);
+                if (asset == null)
+                {
+                    error = "未找到 URP 资产：" + path;
+                    return false;
+                }
+
+                if (!TryAppendRenderer(asset, overlay, out int index))
+                {
+                    error = "追加叠加渲染器失败：" + path;
+                    return false;
+                }
+
+                if (overlayIndex < 0)
+                    overlayIndex = index;
+                else if (overlayIndex != index)
+                {
+                    error = "两档 URP 资产的叠加渲染器索引不一致（" + overlayIndex + " vs " + index + "）";
+                    return false;
+                }
+            }
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            return true;
+        }
+
+        /// <summary>
+        /// 只留下"画什么队列"的过滤：不透明关、半透明开。URP 的渲染器**本来就有**这两个掩码
+        /// （`m_OpaqueLayerMask` / `m_TransparentLayerMask`），本仓从没有把它们当"队列过滤"用过——
+        /// 这里用 SerializedObject 写，避免赌 C# 字段的可见性。
+        /// </summary>
+        static void SetQueueFilter(UniversalRendererData rendererData, bool opaque, bool transparent)
+        {
+            var serialized = new SerializedObject(rendererData);
+            SerializedProperty opaqueProperty = serialized.FindProperty("m_OpaqueLayerMask");
+            SerializedProperty transparentProperty = serialized.FindProperty("m_TransparentLayerMask");
+            if (opaqueProperty == null || transparentProperty == null)
+            {
+                Debug.LogError("[PixelartPathInstaller] 渲染器上没有 m_OpaqueLayerMask / m_TransparentLayerMask —— "
+                    + "URP 版本变了？叠加档会把不透明几何也画一遍（画面重影）。");
+                return;
+            }
+
+            opaqueProperty.intValue = opaque ? ~0 : 0;
+            transparentProperty.intValue = transparent ? ~0 : 0;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(rendererData);
         }
 
         static UniversalRendererData EnsureRendererData(string assetName)

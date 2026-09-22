@@ -158,6 +158,14 @@ namespace PirateCrew.Core
         /// <summary>指定待战世界海图：<c>-worldMap &lt;id&gt;</c>（无头试玩/捕图）。</summary>
         public const string WorldMap = "-worldMap";
 
+        /// <summary>
+        /// **启动即进战斗**：<c>-bootBattle &lt;关卡号 | 海图 id&gt;</c>（评审/试玩用，创始人 2026-09-22 要求）。
+        /// 不加这个开关时启动流程是「Bootstrapper → 主菜单」，要点好几下才能进到战斗；
+        /// 加了这个开关就直接进该关的战斗场景，双击 exe 即可看到目标画面。
+        /// 关卡号走"手作样板关"通道（<c>1</c>/<c>3</c>），海图 id 走海图通道（<c>wreck_hymn</c> …）。
+        /// </summary>
+        public const string BootBattle = "-bootBattle";
+
         /// <summary>自动评审出图输出目录：<c>-artReviewOut &lt;绝对目录&gt;</c>（内置播放器）。</summary>
         public const string ArtReviewOut = "-artReviewOut";
 
