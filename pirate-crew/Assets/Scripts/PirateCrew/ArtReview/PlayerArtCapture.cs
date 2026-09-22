@@ -38,8 +38,8 @@ namespace PirateCrew.ArtReview
         const int Height = 1080;
         const float ReadyTimeoutSeconds = 60f;
 
-        /// <summary>像素化着色路径试点场景名（与 <c>PixelartPilotSetup.SceneName</c> 一致）。</summary>
-        const string PixelartPilotSceneName = "PixelartPilot";
+        /// <summary>像素化着色路径试点场景名（取自共享常量，装配器与出图脚本同一个来源）。</summary>
+        const string PixelartPilotSceneName = global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.SceneName;
 
         /// <summary>爆炸机位名（与 <c>ArtReviewShots</c> 的 slug 保持一致）。</summary>
         const string ExplosionShotName = "explosion-moment";
@@ -320,21 +320,21 @@ namespace PirateCrew.ArtReview
         // ================================================================
 
         /// <summary>
-        /// PixelartPilot 场景采集：三档机位（宽/中/近）+ 抖动档对照 + 低分辨率档对照。
+        /// PixelartPilot 场景采集：三档机位（宽/中/近）+ 两档抖动对照。
         /// 文件一律 1920×1080 无损 PNG（判据脚本要求原始 PNG）。
         ///
         /// 【拍的东西分别想回答什么】
         /// <list type="bullet">
-        ///   <item><c>pa-wide/mid/close</c>：新路径的基本观感——色带切分位置、档数、暗面亮度；
-        ///         低分辨率格子是否硬（判据脚本量块边长）。</item>
-        ///   <item><c>pa-mid-dither-*</c>：抖动两种图案对照（0 = 4×4 Bayer 矩阵 / 1 = v3 的
-        ///         1-bit 密度图案），以及幅度 0.5 与 1.0 的两档。</item>
-        ///   <item><c>pa-mid-rt*</c>：低分辨率档对照（180 = v3 自身档 / 360 / 90）——
-        ///         "粗得好看"是不是偏好来源，这条直接给数据。</item>
+        ///   <item><c>pa-wide/mid/close</c>：新路径的基本观感——色带切分位置、档数、暗面亮度、
+        ///         角色与场景的比例（创始人两次纠正的正是这块）；低分辨率格子是否硬（判据量块边长）。</item>
+        ///   <item><c>pa-mid-bayer / pa-mid-density</c>：抖动两种图案对照（0 = 4×4 Bayer 矩阵 /
+        ///         1 = v3 的 1-bit 密度图案）。</item>
         /// </list>
         ///
-        /// 【为什么 RT 档对照排在最后】改 <c>renderHeight</c> 会让 rig 重分配缓冲并重设
-        /// Cast 相机的 targetTexture；万一重分配有闪失，损失的是最后几张而不是全部。
+        /// 【机位不再自带俯角】俯角/方位/构图中心/机位距离全部取自
+        /// <see cref="global::PirateCrew.Rendering.Pixelart.PixelartPilotScene"/>——本表只给
+        /// 正交 size 与"推进系数"。曾经两边各写一份（场景 35.264°、脚本 30°），
+        /// 那张"30° 对照图"根本不是同一场景的机位，比对结论全是错的。
         /// </summary>
         IEnumerator RunPixelartCapture()
         {
@@ -367,30 +367,25 @@ namespace PirateCrew.ArtReview
                 yield break;
             }
 
-            Vector3 basePos = cam.transform.position;
-            Quaternion baseRot = cam.transform.rotation;
-            Vector3 forward = baseRot * Vector3.forward;
-
-            // 构图中心用**场景常量**而不是"从当前位置外推"：机位要按俯角重算，
-            // 从旧朝向推出来的目标点会随镜头一起跑（这一条是实拍踩出来的）。
-            Vector3 target = new Vector3(0f, 0.9f, 0f);
-            const float cameraDistance = 30f;
+            // 机位口径取自共享常量（场景装配用的是同一份）。
+            Vector3 target = global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.Target;
+            Vector3 orbitDir = global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.CameraDirection(
+                global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.PitchDegrees,
+                global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.AzimuthDegrees);
+            const float cameraDistance = global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.CameraDistance;
 
             Directory.CreateDirectory(_outDir);
 
-            // (文件名, 正交size, 推进系数, 俯角, 抖动图案 -1=不动/0=Bayer/1=密度图案, 抖动幅度, RT高 0=不动)
-            // 【俯角列】35.264 = 裁决档（默认，不许在这里改口径）；30 那张只是**对照图**
-            // （像素阶梯规则性问题，待裁决），不代表已采纳。
-            // 【RT 高列】0 = 用场景里的档（现 216）；180/270/360 是颗粒度梯子，供挑档。
-            (string name, float size, float zoom, float pitch, int ditherMode, float ditherStrength, int rtHeight)[] shots =
+            // (文件名, 正交size, 推进系数, 抖动图案 -1=不动/0=Bayer/1=密度图案, 抖动幅度, RT高 0=不动)
+            // 【正交 size 列】可见高度 = 2×size。角色高 1.82m ⇒ wide 档占屏高 6.5%、mid 10%、close 23%。
+            // 【RT 高列】0 = 用场景里的档（共享常量，现 216）。
+            (string name, float size, float zoom, int ditherMode, float ditherStrength, int rtHeight)[] shots =
             {
-                ("pa-wide",                 7.0f, 1.0f, 35.264f, -1, 0f,   0),
-                ("pa-mid",                  3.2f, 0.5f, 35.264f, -1, 0f,   0),
-                ("pa-close",                1.6f, 0.3f, 35.264f, -1, 0f,   0),
-                ("pa-mid-rt180",            3.2f, 0.5f, 35.264f, -1, 0f,   180),   // 原档（块 6 屏幕像素）
-                ("pa-mid-rt270",            3.2f, 0.5f, 35.264f, -1, 0f,   270),   // 块 4
-                ("pa-mid-rt360",            3.2f, 0.5f, 35.264f, -1, 0f,   360),   // 块 3（上一版，创始人判"太清晰"）
-                ("pa-mid-pitch30",          3.2f, 0.5f, 30f,     -1, 0f,   0),     // 俯角对照，未采纳
+                ("pa-wide",        14f, 1.0f, -1, 0f, 0),
+                ("pa-mid",          9f, 0.6f, -1, 0f, 0),
+                ("pa-close",        4f, 0.3f, -1, 0f, 0),
+                ("pa-mid-bayer",    9f, 0.6f,  0, 0.5f, 0),
+                ("pa-mid-density",  9f, 0.6f,  1, 1.0f, 0),
             };
 
             foreach (var shot in shots)
@@ -398,13 +393,8 @@ namespace PirateCrew.ArtReview
                 if (shot.rtHeight > 0 && shot.rtHeight != rig.renderHeight)
                     rig.renderHeight = shot.rtHeight;
 
-                // 俯角/方位按参数重算（方位固定 45°：只有它给对称菱形）。
-                float pitchRad = shot.pitch * Mathf.Deg2Rad;
-                float azimRad = 45f * Mathf.Deg2Rad;
-                Vector3 dir = new Vector3(Mathf.Cos(pitchRad) * Mathf.Sin(azimRad), Mathf.Sin(pitchRad),
-                    Mathf.Cos(pitchRad) * Mathf.Cos(azimRad));
                 cam.orthographicSize = shot.size;
-                cam.transform.position = target + dir * (cameraDistance * shot.zoom);
+                cam.transform.position = target + orbitDir * (cameraDistance * shot.zoom);
                 cam.transform.LookAt(target);
 
                 if (shot.ditherMode >= 0)

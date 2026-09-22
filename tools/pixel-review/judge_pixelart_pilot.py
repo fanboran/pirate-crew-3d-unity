@@ -24,6 +24,14 @@
    无抖动时应 > 0.9。
 4. **低分辨率色数**：色带档位 × 材质数 + 少量边缘色。数量级检查用（异常大→出现渐变/抗锯齿污染，
    异常小→全屏一个色，通常意味着某条 pass 没生效）。
+5. **亮暗跨度**（**这一条是"有没有光影"的回归判据**）：低分辨率颜色表里（只取占比 ≥0.5% 的
+   大色块、并剔除近黑的墨线），<c>(最亮 luma − 最暗 luma) / 最亮 luma</c>。
+   有光照时同一材质必然同时出现亮档（顶面）与暗档（背光面），跨度大；**光照被整屏旁路时
+   画面只剩各材质的 albedo 原色，跨度塌到 0.45 上下**。
+   这条判据是因为真出过事故才加的：`prop.a` 与 `_AAScale` 撞通道，
+   每个不透明像素都被当成"墨线像素"原样输出 albedo，症状是"所有面同色、没有任何光影、
+   且没有任何报错"——旧的四项判据全过（块边长/色数/平坦度都正常），只有这一条能抓住。
+   两轮实测：**正常 0.78 / 事故 0.45**，阈值取 0.60。
 
 抖动对照怎么读
 --------------
@@ -44,15 +52,40 @@ import sys
 import numpy as np
 from PIL import Image
 
-# 文件名里带 rt<N> 的样本说明那张的 RT 高是 N（判据按此推算期望块边长）
+# 文件名里带 rt<N> 的样本说明那张的 RT 高是 N（判据按此推算期望块边长）。
 RT_HEIGHT_PATTERN = re.compile(r"rt(\d+)")
-DEFAULT_RT_HEIGHT = 180
+
+# 【RT 高的单一来源】不在这里写死：装配与出图两边的 RT 档来自
+# Assets/Scripts/PirateCrew/Rendering/Pixelart/PixelartPilotScene.cs 的 RenderHeight。
+# 曾经"场景 35.264° / 出图脚本 30°"各写一份，比对结论全错——同一个坑不再踩第二次。
+SCENE_CONSTANTS_CS = os.path.join(
+    "pirate-crew", "Assets", "Scripts", "PirateCrew", "Rendering", "Pixelart", "PixelartPilotScene.cs")
+RENDER_HEIGHT_PATTERN = re.compile(r"RenderHeight\s*=\s*(\d+)")
+FALLBACK_RT_HEIGHT = 216
 SCREEN_WIDTH = 1920
 
 # 无抖动样本的期望区间（见模块 docstring 的判据二/三）
 FLAT_MIN = 0.90          # 平坦占比下限（无抖动）
 JUMP_MAX_NO_DITHER = 0.10   # 跳变率上限（无抖动）
 DITHER_SPLIT = 0.5       # 跳变率分界线：低于它 = 渐变态，高于它 = 两态撕边
+
+# 判据五：亮暗跨度
+LIGHTING_MIN_SPAN = 0.60    # 跨度下限（正常 0.78 / 光照被旁路 0.45）
+LIGHTING_MIN_SHARE = 0.005  # 参与比较的颜色至少占低分辨率域的 0.5%（滤掉零星边缘色）
+LIGHTING_MIN_LUMA = 25.0    # 剔除近黑的墨线（墨线是"画上去的线"，不参与光照统计）
+
+
+def read_render_height():
+    """从场景常量读 RT 高（读不到就用兜底值并说明）。"""
+    try:
+        with open(SCENE_CONSTANTS_CS, "r", encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return FALLBACK_RT_HEIGHT, "（读不到 " + SCENE_CONSTANTS_CS + "，用兜底值）"
+    match = RENDER_HEIGHT_PATTERN.search(text)
+    if not match:
+        return FALLBACK_RT_HEIGHT, "（" + SCENE_CONSTANTS_CS + " 里没解析到 RenderHeight，用兜底值）"
+    return int(match.group(1)), ""
 
 
 def block_size(img):
@@ -100,13 +133,34 @@ def low_res_view(a, b):
     return a[0:scan_bottom, 0:nx].reshape(scan_bottom // b, b, nx // b, b, 3)[:, 0, :, 0]
 
 
-def judge_one(path):
+def luma(c):
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+
+def lighting_span(lr):
+    """
+    亮暗跨度：(最亮 luma − 最暗 luma) / 最亮 luma，只统计占比 ≥0.5% 的大色块、
+    并剔除近黑的墨线。光照被整屏旁路时画面只剩各材质 albedo 原色 ⇒ 跨度塌到 0.45 上下。
+    """
+    flat = lr.reshape(-1, 3)
+    colors, counts = np.unique(flat, axis=0, return_counts=True)
+    share = counts / float(counts.sum())
+    keep = colors[share >= LIGHTING_MIN_SHARE]
+    lumas = [luma(c) for c in keep]
+    lumas = [v for v in lumas if v >= LIGHTING_MIN_LUMA]
+    if len(lumas) < 2:
+        return 0.0
+    hi, lo = max(lumas), min(lumas)
+    return (hi - lo) / hi if hi > 0 else 0.0
+
+
+def judge_one(path, default_rt):
     img = Image.open(path).convert("RGB")
     a = np.asarray(img).astype(int)
     b = block_size(img)
 
     name = os.path.basename(path)
-    expected_rt = DEFAULT_RT_HEIGHT
+    expected_rt = default_rt
     match = RT_HEIGHT_PATTERN.search(name)
     if match:
         expected_rt = int(match.group(1))
@@ -124,19 +178,31 @@ def judge_one(path):
     flat = float(((lr[:-1, :-1] == lr[:-1, 1:])
                   & (lr[:-1, :-1] == lr[1:, :-1])
                   & (lr[:-1, :-1] == lr[1:, 1:])).mean())
+    span = lighting_span(lr)
 
     notes = []
     if expected_block > 1 and b != expected_block:
         notes.append("FAIL 块边长 %d ≠ 期望 %d（RT 高应 %d）" % (b, expected_block, expected_rt))
     if colors < 2:
         notes.append("FAIL 低分辨率域只有一个颜色（某条 pass 没生效）")
+    if span < LIGHTING_MIN_SPAN:
+        notes.append("FAIL 亮暗跨度 %.2f < %.2f（画面只剩各材质 albedo 原色 ⇒ "
+                     "光照/色带很可能被整屏旁路，检查 prop.a 之类通道语义是否冲突）"
+                     % (span, LIGHTING_MIN_SPAN))
 
-    # 抖动档由文件名标注：含 dither 的样本按"抖动应明显改变跳变率"判，其余按无抖动区间判。
-    if "dither" in name:
-        if jump < DITHER_SPLIT:
-            notes.append("OK   跳变率 %.2f = 渐变态抖动（Bayer 一类，只有阈值附近翻档）" % jump)
-        else:
-            notes.append("OK   跳变率 %.2f = 两态撕边（1-bit 密度图案一类）" % jump)
+    # 抖动档由文件名标注：含 bayer/density/dither 的样本按"抖动应明显改变跳变率"判，
+    # 其余按无抖动区间判。密度图案（两态）期望跳变率 > 0.5，Bayer（渐变态）期望 < 0.5。
+    if "dither" in name or "bayer" in name or "density" in name:
+        if "density" in name:
+            if jump <= DITHER_SPLIT:
+                notes.append("FAIL 密度图案档跳变率 %.2f 未过 0.5（1-bit 两态应接近 1.0）" % jump)
+            else:
+                notes.append("OK   跳变率 %.2f = 两态撕边（1-bit 密度图案）" % jump)
+        elif "bayer" in name:
+            if jump >= DITHER_SPLIT:
+                notes.append("FAIL Bayer 档跳变率 %.2f 过了 0.5（有序抖动应是渐变态）" % jump)
+            else:
+                notes.append("OK   跳变率 %.2f = 渐变态抖动（Bayer 4×4）" % jump)
     else:
         if flat < FLAT_MIN:
             notes.append("FAIL 平坦占比 %.3f < %.2f（无抖动档色带应是平的，出现杂色/渐变）"
@@ -145,7 +211,8 @@ def judge_one(path):
             notes.append("FAIL 跳变率 %.3f > %.2f（无抖动档相邻像素不应大量不同）"
                          % (jump, JUMP_MAX_NO_DITHER))
 
-    stats = {"block": b, "rt_width": rt_width, "colors": colors, "jump": jump, "flat": flat}
+    stats = {"block": b, "rt_width": rt_width, "colors": colors,
+             "jump": jump, "flat": flat, "span": span}
     return name, stats, notes
 
 
@@ -170,16 +237,21 @@ def main(argv):
         print("没有找到图片：" + argv[1])
         return 2
 
+    default_rt, rt_note = read_render_height()
+    print("RT 高（场景常量）：%d %s" % (default_rt, rt_note))
+
     failures = 0
-    print("%-34s %5s %6s %7s %8s %8s" % ("文件", "块边长", "RT宽", "色数", "跳变率", "平坦占比"))
+    print("%-34s %5s %6s %7s %7s %8s %8s"
+          % ("文件", "块边长", "RT宽", "色数", "跳变率", "平坦占比", "亮暗跨度"))
     for path in files:
-        name, stats, notes = judge_one(path)
+        name, stats, notes = judge_one(path, default_rt)
         if stats is None:
             print("%-34s %s" % (name, notes[0]))
             failures += 1
             continue
-        print("%-34s %5d %6d %7d %8.3f %8.3f"
-              % (name, stats["block"], stats["rt_width"], stats["colors"], stats["jump"], stats["flat"]))
+        print("%-34s %5d %6d %7d %7.3f %8.3f %8.2f"
+              % (name, stats["block"], stats["rt_width"], stats["colors"],
+                 stats["jump"], stats["flat"], stats["span"]))
         for note in notes:
             print("    " + note)
             if note.startswith("FAIL"):

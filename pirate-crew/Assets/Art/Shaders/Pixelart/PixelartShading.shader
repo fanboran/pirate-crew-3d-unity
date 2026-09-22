@@ -15,6 +15,13 @@
 //   （其 lightmap 通道实际是空的、等于只吃 SH），本路径按渲染篇 §4.6 简化为单色环境光——
 //   这一项同时也是"暗部色"这个美术自由度的所在（暗面 = albedo × 环境色）。
 //
+// 【墨线（外轮廓）不在这一趟】它是物体 pass 的反向壳（`PixelartObject.shader` Pass 2），
+//   写进同一批 G-buffer，靠 prop.a = 1 标记；本途径见到标记就原样输出墨色、跳过色带与环境光。
+//   曾经有一版在这里按"覆盖度差 + 法线差"做屏幕空间轮廓检测——那是**自造方案，已撤掉**：
+//   渲染篇 §5 明确"不用屏幕空间边缘检测"（正交下反向壳线宽天然恒定、内缘不出杂线），
+//   蓝本 §8 裁决点 3 的推荐口径也是"外轮廓 = 反向壳"。v3 自己的 `OutlinePass.hlsl` 虽是
+//   屏幕空间方案，但它在 v3 里**是关着的**（蓝本 §4.3），且门控依赖 P4 才有的连通域结果。
+//
 // 【本阶段刻意留空的两处】
 //   ① 连通域降档：v3 在量化后按 `connect < threshold` 减一档（内部转折出"内线"）。
 //      它要 P4 的连通域三张缓冲，本阶段无输入，故不设该分支。
@@ -81,13 +88,14 @@ Shader "PirateCrew/Pixelart/PixelartShading"
                 // 丢弃即保留背景（v3 用同一手法：`clip(diffuse.a - 1)`）。
                 clip(albedo.a - 0.5);
 
-                float3 normalWS = SAMPLE_TEXTURE2D(_PixelartNormalBuffer, sampler_PixelartNormalBuffer, uv).xyz;
-                float4 prop     = SAMPLE_TEXTURE2D(_PixelartPropertyBuffer, sampler_PixelartPropertyBuffer, uv);
+                float4 prop = SAMPLE_TEXTURE2D(_PixelartPropertyBuffer, sampler_PixelartPropertyBuffer, uv);
 
                 // 墨线像素：原样输出。墨线是"画上去的线"，不参与色带量化、也不吃环境光——
                 // 否则深墨色会被环境光染成带色偏的暗带，看上去就不是墨线了（prop.a 是墨线标记）。
                 if (prop.a > 0.5)
                     return half4(albedo.rgb, 1.0);
+
+                float3 normalWS = SAMPLE_TEXTURE2D(_PixelartNormalBuffer, sampler_PixelartNormalBuffer, uv).xyz;
 
                 float level  = prop.r;
                 float dither = (prop.g - 0.5) * 2.0;      // 0..1 → -1..+1

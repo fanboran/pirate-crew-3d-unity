@@ -34,8 +34,8 @@ namespace PirateCrew.Rendering.Pixelart
         const string CastCameraName = "Pixelart Cast Camera";
 
         [Header("低分辨率域")]
-        [Tooltip("低分辨率 RT 的高度（像素）。宽按屏幕宽高比自适应并对齐偶数。180 = v3 自身档（320×180）。")]
-        [Min(32)] public int renderHeight = 180;
+        [Tooltip("低分辨率 RT 的高度（像素）。宽按屏幕宽高比自适应并对齐偶数。216 = 1920 宽屏上 1 像素 5 屏幕像素。")]
+        [Min(32)] public int renderHeight = 216;
 
         [Header("渲染器索引（装配器写入；名字见 PixelartPath.CastRendererName / ScreenRendererName）")]
         [Tooltip("Cast 相机的渲染器索引（物体 pass + 着色）。-1 = 不改写（用场景里已配好的）。")]
@@ -412,20 +412,63 @@ namespace PirateCrew.Rendering.Pixelart
         void PushLightGlobals()
         {
             Light light = sun != null ? sun : RenderSettings.sun;
+            Vector3 lightDir = Vector3.up;
+            Color lightColor = Color.white;
+
             if (light != null)
             {
                 // 指向光源（着色用 saturate(dot(L, N))）：Unity 的 forward 是光行进方向，取反。
-                Shader.SetGlobalVector(PixelartPath.LightDirId,
-                    new Vector4(-light.transform.forward.x, -light.transform.forward.y, -light.transform.forward.z, 0f));
-                Color lc = light.color * (light.intensity * lightIntensity);
-                Shader.SetGlobalColor(PixelartPath.LightColorId, lc);
+                lightDir = -light.transform.forward;
+                lightColor = light.color * (light.intensity * lightIntensity);
             }
 
             Color ambient = RenderSettings.ambientMode == UnityEngine.Rendering.AmbientMode.Flat
                 ? RenderSettings.ambientLight
                 : RenderSettings.ambientSkyColor;
-            Shader.SetGlobalColor(PixelartPath.AmbientColorId, ambient);
+
+            // 【颜色一律显式 .linear + SetGlobalVector】材质 Color 属性（albedo 那一侧）在
+            // 线性工程里会被自动做 sRGB→线性，而 shader **全局**颜色的转换行为是另一条路径、
+            // 口径不明确（同一份代码既可能"已转换"也可能"没转换"，取决于 Unity 版本与属性声明）。
+            // 本路径不赌它：三个颜色全局全部显式 .linear 下发。
+            Shader.SetGlobalVector(PixelartPath.LightDirId, new Vector4(lightDir.x, lightDir.y, lightDir.z, 0f));
+            Shader.SetGlobalVector(PixelartPath.LightColorId, ToLinear(lightColor));
+            Shader.SetGlobalVector(PixelartPath.AmbientColorId, ToLinear(ambient));
+
+            LogPushedValuesOnce(lightDir, lightColor, ambient);
         }
+
+        static Vector4 ToLinear(Color color)
+        {
+            Color linear = color.linear;
+            return new Vector4(linear.r, linear.g, linear.b, linear.a);
+        }
+
+        /// <summary>
+        /// 把实际下发的光照量打一行日志。
+        /// 【为什么值得专门打】"某面色号跟 albedo 逐位相同"这类症状可以来自三个完全不同的根因
+        /// （着色被旁路 / 光色是白的 / 线性-伽马错一层），只看出图分不清；把下发值打出来，
+        /// 判据脚本就能按 <c>sRGB(multiStep(ndotl)·lightColor·albedo + ambient·albedo)</c>
+        /// 算出**期望值**去对，颜色管线有没有错一层立刻可判。
+        /// </summary>
+        void LogPushedValuesOnce(Vector3 lightDir, Color lightColor, Color ambient)
+        {
+            if (_pushedValuesLogged)
+                return;
+            _pushedValuesLogged = true;
+
+            Color lightLinear = lightColor.linear;
+            Color ambientLinear = ambient.linear;
+            Debug.Log(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "[PixelartCameraRig] 下发值：lightDir=({0:F4},{1:F4},{2:F4}) "
+                + "lightColorLinear=({3:F4},{4:F4},{5:F4}) ambientLinear=({6:F4},{7:F4},{8:F4}) "
+                + "unitSize={9:F6} rt={10}x{11}",
+                lightDir.x, lightDir.y, lightDir.z,
+                lightLinear.r, lightLinear.g, lightLinear.b,
+                ambientLinear.r, ambientLinear.g, ambientLinear.b,
+                UnitSize, RenderWidth, RenderHeight));
+        }
+
+        bool _pushedValuesLogged;
 
         /// <summary>把三张 G-buffer 设成 shader 全局（物体 pass 画完后调；着色 pass 只吃全局）。</summary>
         public void PublishBuffersToShaders(CommandBuffer cmd)

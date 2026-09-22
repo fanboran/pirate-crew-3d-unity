@@ -29,7 +29,8 @@ namespace PirateCrew.Rendering.Pixelart
 
             readonly ProfilingSampler m_Sampler = new ProfilingSampler("Pixelart Object");
             readonly RenderTargetIdentifier[] m_Mrt = new RenderTargetIdentifier[3];
-            FilteringSettings m_Filtering;
+            FilteringSettings m_BackgroundFiltering;
+            FilteringSettings m_ForegroundFiltering;
             bool m_Logged;
 
             public Pass(LayerMask layerMask)
@@ -38,10 +39,17 @@ namespace PirateCrew.Rendering.Pixelart
                 SetLayerMask(layerMask);
             }
 
-            /// <summary>层掩码是 Feature 上的序列化字段，编辑器里改了要能立刻生效。</summary>
+            /// <summary>
+            /// 层掩码是 Feature 上的序列化字段，编辑器里改了要能立刻生效。
+            /// 同时按 renderQueue 把"大平面（背景）"与"描边物（前景）"分成两段——
+            /// 两段的绘制次序是描边成立的前提，见 <see cref="Execute"/>。
+            /// </summary>
             public void SetLayerMask(LayerMask layerMask)
             {
-                m_Filtering = new FilteringSettings(RenderQueueRange.opaque, layerMask);
+                m_BackgroundFiltering = new FilteringSettings(
+                    new RenderQueueRange(0, PixelartPath.BackgroundPlaneRenderQueue), layerMask);
+                m_ForegroundFiltering = new FilteringSettings(
+                    new RenderQueueRange(PixelartPath.ForegroundRenderQueueMin, 5000), layerMask);
             }
 
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -63,7 +71,8 @@ namespace PirateCrew.Rendering.Pixelart
                     m_Logged = true;
                     Debug.Log("[PixelartObjectFeature] 物体 pass 已在 " + camera.name + " 上执行：MRT "
                         + rig.AlbedoBuffer.width + "×" + rig.AlbedoBuffer.height
-                        + "、层掩码 " + m_Filtering.layerMask + "。");
+                        + "、层掩码 " + m_BackgroundFiltering.layerMask
+                        + "、大平面队列 < " + PixelartPath.ForegroundRenderQueueMin + "。");
                 }
 
                 CommandBuffer cmd = CommandBufferPool.Get();
@@ -82,16 +91,21 @@ namespace PirateCrew.Rendering.Pixelart
 
                 SortingCriteria sorting = renderingData.cameraData.defaultOpaqueSortFlags;
 
-                // 本体先画、墨线后画。顺序不是审美偏好，是深度决定的：
-                // 墨线壳是**背面外扩**，它的深度在本体背面（比本体远、比身后的地面近）。
-                // 后画 + ZTest LEqual ⇒ 内部被本体挡掉（不写进去），轮廓外那一圈留在已经画好的
-                // 地面之上。反过来先画墨线，它不写深度（ZWrite Off），随后画的地面会把轮廓环**整个盖掉**
-                // ——实测症状就是"加了描边但一根线都看不到"。
+                // ---------------- 绘制次序（三条都在描边配方里，缺一条描边就断）----------------
+                // ① **大平面（地面/海面）先整体画完**：墨线壳是"外扩 + 沿视线拉近"，轮廓外侧
+                //    那圈像素落在大平面上、大平面比物体背面更近；若大平面的本体在壳之后画，
+                //    它是 ZWrite On 的、会把壳环整圈盖掉（旧链的"海面回 2000、描边物 2050"
+                //    就是这条结论的另一种写法）。大平面靠材质的 renderQueue = 1999 落进背景段。
+                // ② **壳先画、本体后画**：壳 ZWrite Off 不留深度，本体随后按 LEqual 自然盖回
+                //    重叠区，只余轮廓环。反过来先画本体时，壳的外扩落在本体内侧（本体更近）
+                //    ⇒ LEqual 全灭 ⇒ 一根线都看不到。
+                // ③ 背景段不画壳（大平面的 _OutlinePixels = 0，壳会整片 discard；直接不画更省）。
                 DrawingSettings bodySettings = CreateDrawingSettings(kPixelartOpaque, ref renderingData, sorting);
-                context.DrawRenderers(renderingData.cullResults, ref bodySettings, ref m_Filtering);
+                context.DrawRenderers(renderingData.cullResults, ref bodySettings, ref m_BackgroundFiltering);
 
                 DrawingSettings inkSettings = CreateDrawingSettings(kPixelartInk, ref renderingData, sorting);
-                context.DrawRenderers(renderingData.cullResults, ref inkSettings, ref m_Filtering);
+                context.DrawRenderers(renderingData.cullResults, ref inkSettings, ref m_ForegroundFiltering);
+                context.DrawRenderers(renderingData.cullResults, ref bodySettings, ref m_ForegroundFiltering);
 
                 // 画完把三张 G-buffer 设成 shader 全局：下一趟着色 pass 只吃全局、不重绑目标。
                 rig.PublishBuffersToShaders(cmd);

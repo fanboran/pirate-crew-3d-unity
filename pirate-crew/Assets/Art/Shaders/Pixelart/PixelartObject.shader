@@ -2,16 +2,30 @@
 // PixelartObject.shader —— 像素化着色路径的**物体 pass**
 //
 // 【本 pass 只写数据，不着色】输出三张 MRT（低分辨率 G-buffer）：
-//   SV_Target0  albedo   rgb = 本物体亮部色；a = 1（着色 pass 用 a 判"这里有几何"）
+//   SV_Target0  albedo   rgb = 本物体亮部色；a = 覆盖标记（1 = 这里有几何）
 //   SV_Target1  normal   世界法线，原样存 [-1,1]（ARGBHalf，不做 ×0.5+0.5 编码——
 //                        编码只是 8 位时代的省空间手段，本路径用 16 位浮点，编解码是多余风险）
-//   SV_Target2  prop     r = 色带档数  g = 抖动偏移（0..1，中心 0.5）  b = 法线边加成档  a = AA 缩放
+//   SV_Target2  prop     r = 色带档数  g = 抖动偏移（0..1，中心 0.5）  b = 法线边加成档
+//                        a = **墨线标记（1 = 本像素是墨线）**
 //
-// 【为什么档数/抖动幅度是"逐物体"而不是全局】v3 把它们放在 Shape/Palette 缓冲里逐物体给
-//   （`DefaultPass.hlsl:70-80`），理由很实在：远景大平面与近景角色需要不同的色带档数，
-//   全局常量做不到。本路径只保留真正会被逐物体调的三个量，砍掉 v3 的优先级、
-//   法线边阈值、AA 缩放、outline 位——前两个在 v3 里分别是死 pass 的输入与连通域参数，
-//   后两个属于 P4/P5。
+// 【prop.a 那个坑，别再踩】它一度被写成 `_AAScale`（一个"抗锯齿缩放"占位属性），而那个属性
+//   的 Properties 默认值恰好是 **1.0** —— 于是**每一个不透明像素**都满足了着色 pass 里
+//   "prop.a > 0.5 即墨线、原样输出 albedo"的旁路条件，整张画面直接跳过全部着色数学。
+//   症状：所有面同色、与 albedo 逐位相同、没有任何光影，且没有任何报错。
+//   现在这个通道的语义是**排他的**（只有墨线 pass 写 1，本体 pass 必须写 0），
+//   且 `_AAScale` 属性已删除；将来要放"边缘遮蔽/连通域"之类的数据时，
+//   **必须换一个新通道并同时改着色 pass 的判据**，不许复用。
+//
+// 【内线（面转折）不在本 pass】蓝本 §8 裁决点 3 的推荐口径是
+//   「外轮廓 = 反向壳（本 pass）+ 内部转折 = 连通域降档（P4）」——两者正交。
+//   P4 的连通域三张缓冲落地前，内部转折没有输入，本阶段不设该分支。
+//
+// 【为什么档数/抖动幅度是"逐物体"而不是全局】v3 把它们放在 Palette 缓冲里逐物体给
+//   （`DefaultPass.hlsl:72-79`：r=主光档位 g=抖动偏移 b=边光档位 a=applyOutline 位），
+//   理由很实在：远景大平面与近景角色需要不同的色带档数，全局常量做不到。
+//   本路径的对应关系：Albedo = v3 的 Albedo，Normal = v3 的 Normal0，prop = v3 的 Palette。
+//   本仓尚未有连通域，故暂不建 v3 的 Shape 缓冲（priority / normalEdgeThreshold / AAScale
+//   三项全部是 P4 连通域与优先级仲裁的输入，见蓝本 §7.2 第 5 条的 4 张缓冲口径）。
 //
 // 【抖动坐标为什么就是 positionCS】几何是**直接渲进低分辨率 RT** 的，所以
 //   `positionCS.xy` 天然就是低分辨率像素坐标——一个低分辨率像素一个图案纹素，
@@ -31,11 +45,10 @@ Shader "PirateCrew/Pixelart/PixelartObject"
         _DitherPattern      ("1-bit 密度图案（v3 口径；需 Point/Repeat 导入）", 2D) = "gray" {}
         _DitherPatternSize  ("图案边长（纹素）：4/6/8/16，须与图案资产一致", Float) = 4.0
         _NormalEdgeLevel    ("法线边加成档（0 = 不加深法线转折线；P4 生效）", Range(0.0, 1.0)) = 0.0
-        _AAScale            ("抗锯齿缩放（P4 连通域用；本阶段未消费，先占位）", Range(0.0, 1.0)) = 1.0
 
         // ---- 反向壳描边（外轮廓）----
-        _InkColor           ("描边墨色", Color) = (0.07, 0.05, 0.08, 1.0)
-        _OutlinePixels      ("描边线宽（低分辨率像素数；0 = 本物体不描边）", Range(0.0, 4.0)) = 1.2
+        _InkColor           ("描边墨色（与 UI 令牌 INK 同色）", Color) = (0.07, 0.05, 0.08, 1.0)
+        _OutlinePixels      ("描边线宽（低分辨率像素数；0 = 本物体不描边）", Range(0.0, 4.0)) = 1.0
     }
 
     SubShader
@@ -75,7 +88,6 @@ Shader "PirateCrew/Pixelart/PixelartObject"
                 float  _DitherStrength;
                 float  _DitherPatternSize;
                 float  _NormalEdgeLevel;
-                float  _AAScale;
                 float4 _InkColor;
                 float  _OutlinePixels;
             CBUFFER_END
@@ -161,7 +173,8 @@ Shader "PirateCrew/Pixelart/PixelartObject"
                 uint2 pixelCoord = (uint2)input.positionCS.xy;
                 half dither = DitherValue(pixelCoord);
 
-                output.prop = half4(_MainLightLevel, dither, _NormalEdgeLevel, _AAScale);
+                // a = 墨线标记。本体必须写 0（语义排他，见文件头"prop.a 那个坑"）。
+                output.prop = half4(_MainLightLevel, dither, _NormalEdgeLevel, 0.0);
                 return output;
             }
             ENDHLSL
@@ -170,19 +183,34 @@ Shader "PirateCrew/Pixelart/PixelartObject"
         // ====================================================================
         // Pass 2 / PixelartInk：外轮廓反向壳描边（写进同一批 G-buffer）
         //
-        // 【为什么是反向壳】正交投影下沿法线外扩的壳，投影宽度只与法线朝屏的分量有关，
-        // 天然等宽、且只在轮廓外留一圈（内部被随后画的本体盖回）——不需要屏幕空间边缘检测。
+        // 【配方来源】本仓六轮实拍定案的配方，口径写在
+        //   渲染管线-等距像素卡通.md §5：`Cull Front + ZWrite Off + ZTest LEqual`，
+        //   顶点沿法线外扩、**不对 normalCS.xy 二次归一**（ToonRP 生产级公式），
+        //   线宽在**低分辨率域**定义（1 RT 像素起步），斜面前的 z-fight 用
+        //   **沿视线拉近 5× 线宽**解决（`positionVS.z -= pixelWorld * 5.0`）。
+        //   蓝本 §8 裁决点 3 的推荐口径同样是"外轮廓 = 反向壳"（v3 自己的
+        //   `OutlinePass.hlsl` 是屏幕空间方案，但它在 v3 里是关着的、且门控依赖 P4 的连通域）。
+        //
+        // 【三条因果链，缺一条描边就断】（旧链实测结论，逐条都有症状）
+        //   ① 壳先画、本体后画：重叠区由本体自然盖回、只余轮廓环。反过来先画本体时，
+        //      壳的背面外扩在**本体内侧**（本体更近），LEqual 全灭 ⇒ 一根线都看不到。
+        //   ② 壳 **不写深度**（ZWrite Off）：写了深度就会挡住随后画的本体，剪影被墨色糊住。
+        //   ③ 沿视线拉近 5× 线宽：正交俯视下**轮廓外侧那圈像素落在地面上、地面比壳更近**
+        //      （45° 俯视前下缘的深度差 ~0.4u），不拉近时前缘环输给地面深度。
+        //      配套要求大平面（地面/海面）**先于描边物**画完 —— 由 PixelartObjectFeature
+        //      按 renderQueue 分段保证（大平面回 1999，描边物在 Geometry）。
         //
         // 【线宽单位 = 低分辨率像素】外扩量 = _PixelartUnitSize × _OutlinePixels，
-        // 其中 _PixelartUnitSize 是"1 低分辨率像素的世界尺寸"（BeforeRender 每帧下发）。
-        // 于是"线宽在低分辨率域定义"这条（渲染篇 §5）自动成立：放大上屏后线宽就是整数屏像素，
-        // 不会出现半像素毛边。
+        //   其中 _PixelartUnitSize 是"1 低分辨率像素的世界尺寸"（BeforeRender 每帧下发）。
+        //   它与旧链公式 `2×_OutlinePixels / (RT高 × |P.m11|)` 等价（2/|P.m11| = 2×正交size），
+        //   但**不需要 abs/max 钳位**——旧链那个 `max(P.m11, 1e-6)` 曾在投影翻转时把线宽放大
+        //   ~5000 倍（壳推出屏幕、调试档全黑的实测事故），走 C# 下发的世界尺度直接绕开。
         //
         // 【墨线不走光照】片元往 G-buffer 写 prop.a = 1 当"这是墨线"的标记，着色 pass 见到就直接
-        // 原样输出——否则墨线会被色带量化 + 环境光染成"深蓝的带"，就不是墨线了。
+        //   原样输出——否则墨线会被色带量化 + 环境光染成"深蓝的带"，就不是墨线了。
         //
         // 【大平面不描边】_OutlinePixels = 0 时本 pass 整片丢弃（地面/海面这种铺满画面的大平面，
-        // 壳环会顶到画面边缘，既无观感意义又白填一遍）。
+        //   壳环会顶到画面边缘，既无观感意义、拉近补丁还会让壳整面盖住本体）。
         // ====================================================================
         Pass
         {
@@ -208,13 +236,12 @@ Shader "PirateCrew/Pixelart/PixelartObject"
                 float  _DitherStrength;
                 float  _DitherPatternSize;
                 float  _NormalEdgeLevel;
-                float  _AAScale;
                 float4 _InkColor;
                 float  _OutlinePixels;
             CBUFFER_END
 
-            // 全局：1 低分辨率像素的世界尺寸（PixelartBeforeRenderFeature 下发）。
-            float _PixelartUnitSize = 0.0389;
+            // 全局：1 低分辨率像素的世界尺寸（PixelartBeforeRenderFeature / rig 下发）。
+            float _PixelartUnitSize = 0.1296;
 
             struct AttributesInk
             {
@@ -245,18 +272,12 @@ Shader "PirateCrew/Pixelart/PixelartObject"
                 float3 positionVS = TransformWorldToView(TransformObjectToWorld(input.positionOS.xyz));
                 float3 normalVS = TransformWorldToViewDir(TransformObjectToWorldNormal(input.normalOS), true);
 
-                // 不归一化法线的 xy：斜面自然变细（ToonRP 口径，渲染篇 §5）。
-                // 但纯归一化会更"等宽"——这里取归一化，因为本路径的线宽是**观感主参数**、
-                // 不希望它随面朝向抖动。归一化后对所有朝向都严格 _OutlinePixels 个低分辨率像素。
-                float2 dir = normalVS.xy;
-                float  len = max(length(dir), 1e-4);
-                float  width = _PixelartUnitSize * _OutlinePixels;
+                float pixelWorld = _PixelartUnitSize * _OutlinePixels;
 
-                positionVS.xy += (dir / len) * width;
-                // 【不要沿视线拉近】墨线是背面外扩：它的深度天然在本体背面（比本体远、比身后地面近），
-                // 靠"后画 + LEqual"就能做到"本体内部不落墨、轮廓外落墨"。
-                // 第一版照抄了旧链的"拉近 5 倍线宽"（那是为 ZWrite Off + 先画壳的写法服务的），
-                // 结果壳比本体更近 ⇒ 本体被 LEqual 挡掉、整个剪影被墨色糊住。
+                // 不对 normalVS.xy 归一：朝屏的法线数值不稳，斜面自然变细由分量自带（ToonRP 口径）。
+                positionVS.xy += normalVS.xy * pixelWorld;
+                // 沿视线拉近 5× 线宽：覆盖正交俯视下"轮廓外侧那圈像素压在地面上"的深度差。
+                positionVS.z -= pixelWorld * 5.0;
 
                 output.positionCS = mul(UNITY_MATRIX_P, float4(positionVS, 1.0));
                 return output;
@@ -279,3 +300,4 @@ Shader "PirateCrew/Pixelart/PixelartObject"
 
     Fallback Off
 }
+

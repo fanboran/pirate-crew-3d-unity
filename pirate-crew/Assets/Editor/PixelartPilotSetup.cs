@@ -16,11 +16,21 @@ namespace PirateCrew.EditorTools
     /// 它刻意不复用既有试点场景的内容：那条链（`ToonPilot` 的岛壳/船员/描边装配）自身有未决缺陷，
     /// 拿它当基准会把"新路径的问题"和"旧装配的问题"混在一起。
     ///
-    /// 【内容全是图元】地面 + 三级台阶（三面朝向不同 → 色带切分一眼可辨）+ 一根立柱 + 两名船员
-    /// （胶囊 + 球头）。不引程序化网格生成器、不依赖任何既有装配脚本——几何正确性由 Unity 图元保证。
+    /// 【尺寸口径：场景要"扛得住一次跳跃"】角色高 1.82m（人的尺度），场地 160×160、中央台阶 18×18。
+    /// 这条是创始人两次纠正的结果：先是"角色在画面里太小"，改大角色之后又变成
+    /// "角色为什么这么大 / 场景为什么这么小"——**根因是把镜头推近了**（正交 size 一度只有 3.2，
+    /// 可见高度 6.4m，一个 2m 的角色占了 31% 屏高）。现在镜头可见高度 28m，角色占 6.5%，
+    /// 一次 2m 的跳跃在 18m 的台子上只挪一小段。
+    ///
+    /// 【内容全是图元】地面 + 三级台阶（三面朝向不同 → 色带切分一眼可辨）+ 两根立柱 + 三个木箱
+    /// + 两名船员（**方块拼的台柱身 + 球形头**）。不引程序化网格生成器、不依赖任何既有装配脚本
+    /// ——几何正确性由 Unity 图元保证。
     ///
     /// 【材质】全部新建（`Assets/Art/Materials/Pixelart/`），只吃本路径的物体 shader；
-    /// 逐物体的差异都在"色带档数"上：地面 2 档、岩石/立柱 3 档、船员 3 档。
+    /// 逐物体的差异都在"色带档数"上：地面 2 档、其余 3 档。
+    ///
+    /// 【取景口径不在这里】俯角/方位/机位距离/构图中心全在 <see cref="PixelartPilotScene"/>
+    /// ——出图脚本也要读同一份（各写一份的后果：场景 35.264°、出图脚本 30°，比对结论全错）。
     ///
     /// 【本机 batchmode 的两条教训照旧适用】File IO 必须绝对路径；Build Settings 走
     /// ProjectSettings 资产而不是 <c>EditorBuildSettings.scenes</c>（后者在 batchmode 下可能不落盘）。
@@ -30,40 +40,12 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class PixelartPilotSetup
     {
-        public const string SceneName = "PixelartPilot";
-        const string ScenePath = "Assets/Scenes/" + SceneName + ".unity";
+        const string ScenePath = "Assets/Scenes/" + PixelartPilotScene.SceneName + ".unity";
         const string MaterialFolder = "Assets/Art/Materials/Pixelart";
         const string DitherFolder = "Assets/Art/Textures/Fx/Dither";
 
-        /// <summary>
-        /// 低分辨率 RT 高。**216**（16:9 即 384×216），在 1920 宽屏上 1 像素 = **5 屏幕像素**。
-        ///
-        /// 【为什么是 216而不是别的】1920 宽屏要"一像素恰好整数屏幕像素"，RT 宽必须整除 1920：
-        /// 320 → 块 6（原档，创始人觉得太粗）、**384 → 块 5（本档）**、480 → 块 4、640 → 块 3。
-        /// 本档只比原档细一档（6→5，约 17%）；上一版直接跳到块 3（细一半）把像素感做没了。
-        /// 档位台账见 docs/技术/渲染/像素化着色路径.md §5。
-        /// </summary>
-        const int RenderHeight = 216;
-
-        /// <summary>
-        /// 俯角：**真等距 35.264°（渲染篇 §2.1 的创始人裁决档，2026-09-21）**。
-        ///
-        /// 【为什么这里写着 30° 的备忘】地面轴的屏幕斜率 = sinθ：35.264° 是 0.5773，
-        /// 与像素网格无整数比 ⇒ 栅格化出的像素阶梯**长度不固定**；30° 恰为 0.5 = 横移 2 像素 /
-        /// 下降 1 像素，才是手绘像素等距的规则网格。这是一条**待裁决**的口径问题
-        /// （像素阶梯规则性 vs 真等距投影），出图里留了一张 30° 对照图供比较，
-        /// **但默认档不许自行改动**——它是裁决项，不是实现细节。
-        /// </summary>
-        const float CameraPitchDegrees = 35.264f;
-
-        /// <summary>方位角：固定 45°（对角线，只有它给出对称菱形）。</summary>
-        const float CameraAzimuthDegrees = 45f;
-
-        const float CameraDistance = 30f;
-        const float CameraOrthoSize = 7f;
-
-        /// <summary>角色身高（Unity 胶囊图元高 2 × scale；scale 1 = 2.0m）。</summary>
-        const float CrewHeight = 2.0f;
+        /// <summary>每级台阶的高度（三级台阶的总高 1.5m ≈ 角色高，走上去有"台地"的读法）。</summary>
+        const float StepHeight = 0.5f;
 
         [MenuItem("PirateCrew/Pixelart/烘焙像素化试点场景")]
         public static void BuildAll()
@@ -75,7 +57,7 @@ namespace PirateCrew.EditorTools
                 return;
             }
 
-            // 抖动图案（P0-2 要用的 v3 1-bit 密度图案）先备齐，材质里挂好、_DitherMode 留在 0，
+            // 抖动图案（v3 的 1-bit 密度图案）先备齐，材质里挂好、_DitherMode 留在 0，
             // 想试 v3 口径就把材质上的 _DitherMode 拨到 1（不必重烘场景）。
             if (AssetDatabase.LoadAssetAtPath<Texture2D>(DitherFolder + "/ToonDither_0.png") == null)
                 DitherPatternBaker.Bake();
@@ -85,47 +67,56 @@ namespace PirateCrew.EditorTools
 
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            // ---------------- 材质（最后一个参数 = 描边线宽，低分辨率像素）----------------
-            // 地面不描边（铺满画面的大平面的壳环会顶到边缘，且无观感意义）。
-            Material ground = EnsureMaterial("PixelartPilot_Ground", HexGamma("4A6E86"), 2f, outlinePixels: 0f);
+            // ---------------- 材质（第二个参数 = 色带档数，第三个 = 描边线宽/低分辨率像素）----------------
+            // 地面不描边（铺满画面的大平面的壳环会顶到边缘、无观感意义），且队列压到 1999 ——
+            // 墨线壳是"外扩 + 沿视线拉近"，轮廓外侧那圈像素落在地面上；地面**必须先画完**，
+            // 否则它 ZWrite On 的本体会把壳环整圈盖掉（渲染篇 §5 + 旧链"海面回 2000"的同一结论）。
+            Material ground = EnsureMaterial("PixelartPilot_Ground", HexGamma("4A6E86"), 2f,
+                outlinePixels: 0f, renderQueue: PixelartPath.BackgroundPlaneRenderQueue);
             Material rock = EnsureMaterial("PixelartPilot_Rock", HexGamma("D8BE8A"), 3f);
             Material pillar = EnsureMaterial("PixelartPilot_Pillar", HexGamma("C9A97A"), 3f);
+            Material crate = EnsureMaterial("PixelartPilot_Crate", HexGamma("A8703F"), 3f);
             Material crewRed = EnsureMaterial("PixelartPilot_CrewRed", HexGamma("DE524D"), 3f);
             Material crewBlue = EnsureMaterial("PixelartPilot_CrewBlue", HexGamma("598CD9"), 3f);
 
             var root = new GameObject("PixelartPilot");
 
-            // ---------------- 几何 ----------------
-            // 【尺寸口径】台阶整体 5×5、三级各高 0.45（总高 1.35）；角色 2.0m 高 ——
-            // 上一版台阶 6×6、角色 1.2m，角色在画面里太小（宽机位只占屏高 8.6%），
-            // 且角色落点是拍脑袋给的坐标，正好落在台阶体积内（脚底埋进 0.6）。
-            // 现在角色落点按"台面高度 + 在足迹内/外"算清楚，见 AddCrew 的调用处。
+            // ---------------- 地面（160×160：一次跳跃在它上面微不足道）----------------
             GameObject groundMesh = NewPrimitive(PrimitiveType.Plane, "Ground", root.transform, ground);
             groundMesh.transform.localPosition = Vector3.zero;
-            groundMesh.transform.localScale = new Vector3(6f, 1f, 6f);   // 60×60（Plane 图元 10×10）
+            groundMesh.transform.localScale = new Vector3(16f, 1f, 16f);   // Plane 图元 10×10
 
-            const float stepHeight = 0.45f;
-            AddBox(root.transform, "Step1", new Vector3(0f, stepHeight * 0.5f, 0f),
-                new Vector3(5.0f, stepHeight, 5.0f), rock);                       // 顶面 y=0.45，足迹 ±2.5
-            AddBox(root.transform, "Step2", new Vector3(0f, stepHeight * 1.5f, 0f),
-                new Vector3(3.5f, stepHeight, 3.5f), rock);                       // 顶面 y=0.90，足迹 ±1.75
-            AddBox(root.transform, "Step3", new Vector3(0f, stepHeight * 2.5f, 0f),
-                new Vector3(2.2f, stepHeight, 2.2f), rock);                       // 顶面 y=1.35，足迹 ±1.10
+            // ---------------- 中央三级台阶（足迹 18 / 13 / 8）----------------
+            // 每级 0.5 高：三级总高 1.5m，和角色差不多高——远看能读出"这是个台地"。
+            AddBox(root.transform, "Step1", new Vector3(0f, StepHeight * 0.5f, 0f),
+                new Vector3(18f, StepHeight, 18f), rock);                        // 顶面 y=0.5，足迹 ±9.0
+            AddBox(root.transform, "Step2", new Vector3(0f, StepHeight * 1.5f, 0f),
+                new Vector3(13f, StepHeight, 13f), rock);                        // 顶面 y=1.0，足迹 ±6.5
+            AddBox(root.transform, "Step3", new Vector3(0f, StepHeight * 2.5f, 0f),
+                new Vector3(8f, StepHeight, 8f), rock);                          // 顶面 y=1.5，足迹 ±4.0
 
-            // 立柱：站在地面上、完全在台阶足迹之外（x=-3.4 < -2.5）。
-            AddBox(root.transform, "Pillar", new Vector3(-3.4f, 1.1f, -1.6f), new Vector3(1.0f, 2.2f, 1.2f), pillar);
+            // ---------------- 陈设（给"这是一张地图"的尺度参照）----------------
+            // 立柱：站在地面上、完全在台阶足迹之外（|x| > 9）。
+            AddBox(root.transform, "PillarA", new Vector3(11.5f, 3.0f, -4.5f), new Vector3(1.4f, 6.0f, 1.4f), pillar);
+            AddBox(root.transform, "PillarB", new Vector3(-12.0f, 3.0f, 7.5f), new Vector3(1.4f, 6.0f, 1.4f), pillar);
 
-            // 角色：
-            // - 红：站在**二级台阶台面**上（y=0.90，x/z=1.45 在 ±1.75 内、±1.10 外 ⇒ 不在三级体积里）
-            // - 蓝：站在**地面**上、台阶足迹之外（x=-3.3 < -2.5）
-            AddCrew(root.transform, "CrewRed", new Vector3(1.45f, stepHeight * 2f, 1.45f), 200f, crewRed);
-            AddCrew(root.transform, "CrewBlue", new Vector3(-3.3f, 0f, 2.6f), -30f, crewBlue);
+            // 木箱：地面上的两个 + 二级台面外圈的一个（脚底各自贴在所在的面上）。
+            AddBox(root.transform, "CrateGroundA", new Vector3(7.5f, 0.7f, -8.5f), new Vector3(1.4f, 1.4f, 1.4f), crate);
+            AddBox(root.transform, "CrateGroundB", new Vector3(-6.5f, 0.6f, 9.5f), new Vector3(1.2f, 1.2f, 1.2f), crate);
+            AddBox(root.transform, "CrateOnStep2", new Vector3(5.2f, StepHeight + 0.45f, -5.2f),
+                new Vector3(0.9f, 0.9f, 0.9f), crate);                           // 二级顶面 y=1.0 + 半个箱高
+
+            // ---------------- 角色（脚底高度按"站在哪个面"给，别一律给 0）----------------
+            // - 红：二级台阶台面（y=1.0；x/z=4.6 在足迹 ±6.5 内、±4.0 外 ⇒ 不在三级体积里，也不会被箱子压到）
+            // - 蓝：地面，台阶足迹之外（|x|=6.5 会落在足迹内，故给到 -7.5）
+            AddCrew(root.transform, "CrewRed", new Vector3(4.6f, StepHeight * 2f, 4.6f), 200f, crewRed);
+            AddCrew(root.transform, "CrewBlue", new Vector3(-7.5f, 0f, 6.0f), -30f, crewBlue);
 
             // ---------------- 光 ----------------
             // 【太阳高度 58° 是算出来的，不是随手给的】3 档色带下"顶面 / 朝光立面 / 背光立面"
             // 必须落进三个不同档，否则**台阶会读成一块平面**（实测：仰角 48° 时顶面与朝光立面
-            // 的 ndotl 只差 0.23、量化后同档 ⇒ 三级台阶糊成一整块菱形）。
-            // 抬高仰角会拉开"竖直面 vs 水平面"的 ndotl 差：58° 时顶面/朝光立面/背光面 ≈ 1.0 / 0.5 / 0.0 三档。
+            // 的 ndotl 只差 0.23、量化后同档 ⇒ 所有台面糊成一整块菱形）。
+            // 58° 时顶面/朝光立面/背光面 ≈ 0.85 / 0.41 / 0.0 三档。
             // 方位角沿用本仓"左上光"惯例 140°。
             var sunGo = new GameObject("PixelartSun");
             sunGo.transform.SetParent(root.transform);
@@ -137,30 +128,35 @@ namespace PirateCrew.EditorTools
             sun.shadows = LightShadows.None;    // 色带表面接实时投影必脏（渲染篇 §4.5）
             RenderSettings.sun = sun;
 
-            // 环境光 = 本路径的"暗部色"（暗面 = albedo × 环境色）。给一个偏冷的深色，
-            // 让暗面明显暗但不死黑（v3 的暗面来自 SH，本路径按渲染篇 §4.6 简化为单色）。
+            // 环境光 = 本路径的"暗部色"（暗面 = albedo × 环境色）。来源与取舍：
+            //   · 口径：渲染篇 §4.6"单平行光 + 单环境光"，蓝本 §7.2 第 5 条"GI 用扁平环境光"
+            //     ——v3 的暗面来自 SH（`_GlobalIlluminationBuffer` 的 lightmap 通道实际是空的，
+            //     等于只吃 SH，蓝本 §2 注意 2），本路径按裁决简化为这一项。
+            //   · **不能给太小**：旧链取 #1A1E28 是有配套的——它的暗部是材质上的
+            //     **替换式暗部色**（`_ShadowColor`，渲染篇 §4.2），本路径还没有那条通道，
+            //     暗面就是 albedo × 环境色；环境色压到 #1A1E28 时暗面落在 sRGB 0.08 上下，
+            //     与墨线（#120C14）几乎同值，轮廓线和暗面糊成一片，等于没有描边。
+            //   · **也不能给太大**：加法环境光会抬平明暗跨度（旧链实测结论）。
+            //   本档 #3A4760 让暗面落在 sRGB 0.2 上下：明显暗于亮面、又明显亮于墨线。
+            //   这一条是**美术旋钮**（改这里即整体调暗部亮度），不是机制。
             RenderSettings.ambientMode = AmbientMode.Flat;
-            RenderSettings.ambientLight = HexGamma("14182A");
+            RenderSettings.ambientLight = HexGamma("3A4760");
 
-            // ---------------- 相机（正交；俯角 30° = 经典像素等距 2:1） ----------------
+            // ---------------- 相机（正交，俯角 30° = 规则像素阶梯） ----------------
             var camGo = new GameObject("PixelartPilotCamera");
             camGo.tag = "MainCamera";
             camGo.transform.SetParent(root.transform);
-            Vector3 target = new Vector3(0f, 0.9f, 0f);       // 构图中心：台阶腰高
-            float pitch = CameraPitchDegrees * Mathf.Deg2Rad;
-            float azim = CameraAzimuthDegrees * Mathf.Deg2Rad;
-            // 俯角 θ、方位 φ 时相机在目标上方方向 = (cosθ·sinφ, sinθ, cosθ·cosφ)
-            // （θ=30°、φ=45° ⇒ (0.6124, 0.5, 0.6124)；真等距 35.264° 那一档就是等分 (1,1,1)/√3）。
-            Vector3 dir = new Vector3(Mathf.Cos(pitch) * Mathf.Sin(azim), Mathf.Sin(pitch),
-                Mathf.Cos(pitch) * Mathf.Cos(azim));
-            camGo.transform.position = target + dir * CameraDistance;
+            Vector3 target = PixelartPilotScene.Target;
+            Vector3 dir = PixelartPilotScene.CameraDirection(
+                PixelartPilotScene.PitchDegrees, PixelartPilotScene.AzimuthDegrees);
+            camGo.transform.position = target + dir * PixelartPilotScene.CameraDistance;
             camGo.transform.LookAt(target);
 
             var camera = camGo.AddComponent<Camera>();
             camera.orthographic = true;
-            camera.orthographicSize = CameraOrthoSize;
+            camera.orthographicSize = PixelartPilotScene.OrthoSize;
             camera.nearClipPlane = 0.3f;
-            camera.farClipPlane = 200f;
+            camera.farClipPlane = 300f;
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = HexGamma("0A0F1C");
             camGo.AddComponent<AudioListener>();
@@ -173,7 +169,7 @@ namespace PirateCrew.EditorTools
             castCamera.GetUniversalAdditionalCameraData().SetRenderer(castIndex);
 
             var rig = camGo.AddComponent<PixelartCameraRig>();
-            rig.renderHeight = RenderHeight;
+            rig.renderHeight = PixelartPilotScene.RenderHeight;
             rig.sun = sun;
             rig.castCamera = castCamera;
             rig.castRendererIndex = castIndex;
@@ -186,7 +182,8 @@ namespace PirateCrew.EditorTools
             AssetDatabase.Refresh();
             Debug.Log("[PixelartPilotSetup] 试点场景烘焙完成：" + ScenePath
                 + "（Cast 渲染器 " + castIndex + " / Screen 渲染器 " + screenIndex
-                + "；低分辨率 RT 高 " + RenderHeight + "）。");
+                + "；低分辨率 RT 高 " + PixelartPilotScene.RenderHeight
+                + "；俯角 " + PixelartPilotScene.PitchDegrees + "°）。");
         }
 
         static GameObject NewPrimitive(PrimitiveType type, string name, Transform parent, Material material)
@@ -199,20 +196,29 @@ namespace PirateCrew.EditorTools
             return go;
         }
 
+        static GameObject AddBoxObj(Transform parent, string name, Material material)
+        {
+            return NewPrimitive(PrimitiveType.Cube, name, parent, material);
+        }
+
         static void AddBox(Transform parent, string name, Vector3 position, Vector3 scale, Material material)
         {
-            GameObject go = NewPrimitive(PrimitiveType.Cube, name, parent, material);
+            GameObject go = AddBoxObj(parent, name, material);
             go.transform.localPosition = position;
             go.transform.localScale = scale;
         }
 
         /// <summary>
-        /// 角色：**方块拼的台柱形**（腿 + 躯干 + 头 + 帽檐），全部同一材质。
+        /// 角色：**方块拼的台柱形 + 球头**（腿 + 躯干 + 球头 + 帽檐），全部同一材质。
         ///
-        /// 【为什么不用胶囊图元】胶囊是圆管：低分辨率下没有面与面的转折，色带切不出结构，
-        /// 剪影读起来就是"一根柱子"而不是一个角色（创始人一眼指出）。方块件每个面各自成档
-        /// （正面/侧面/顶面三档），像素风要的正是这种"面 = 色块"的读法。
+        /// 【为什么躯干不用胶囊图元】胶囊是圆管：低分辨率下没有面与面的转折，色带切不出结构，
+        /// 剪影读起来就是"一根柱子"而不是一个角色（创始人一眼指出：胶囊形不对，要台柱形）。
+        /// 方块件每个面各自成档（正面/侧面/顶面三档），像素风要的正是这种"面 = 色块"的读法。
         ///
+        /// 【头为什么是球】创始人指定："我不是让头部是个球吗"。球在低分辨率下由
+        /// 剪影（覆盖度判据）勾出一圈轮廓、面上不生成内线（球面法线渐变，跨不过 55° 阈值）。
+        ///
+        /// 总高 1.82m（腿 0.60 / 躯干 0.60 / 球头 0.55 / 帽檐 0.07）。
         /// <paramref name="feetPosition"/> 是**脚底世界高度**：调用方按"站在哪个面上"给，
         /// 别一律给地面高度（上一版把角色放在台阶足迹内、脚底却是 y=0，半个身子埋进台阶）。
         /// </summary>
@@ -223,23 +229,31 @@ namespace PirateCrew.EditorTools
             crewRoot.transform.localPosition = feetPosition;
             crewRoot.transform.localRotation = Quaternion.Euler(0f, yawDegrees, 0f);
 
-            // 身高 2.0 的四段：腿 0.70 / 躯干 0.75 / 头 0.50 / 帽檐 0.08。
-            AddBox(crewRoot.transform, name + "_Legs", new Vector3(0f, 0.35f, 0f),
-                new Vector3(0.55f, 0.70f, 0.45f), material);
-            AddBox(crewRoot.transform, name + "_Torso", new Vector3(0f, 1.075f, 0f),
-                new Vector3(0.72f, 0.75f, 0.52f), material);
-            AddBox(crewRoot.transform, name + "_Head", new Vector3(0f, 1.70f, 0f),
-                new Vector3(0.50f, 0.50f, 0.50f), material);
+            AddBox(crewRoot.transform, name + "_Legs", new Vector3(0f, 0.30f, 0f),
+                new Vector3(0.60f, 0.60f, 0.50f), material);
+            AddBox(crewRoot.transform, name + "_Torso", new Vector3(0f, 0.90f, 0f),
+                new Vector3(0.78f, 0.60f, 0.56f), material);
+
+            GameObject head = NewPrimitive(PrimitiveType.Sphere, name + "_Head", crewRoot.transform, material);
+            head.transform.localPosition = new Vector3(0f, 1.475f, 0f);
+            head.transform.localScale = new Vector3(0.55f, 0.55f, 0.55f);
+
             // 帽檐：比头宽一圈的薄板——低分辨率下"有顶帽子"全靠这一圈外扩。
-            AddBox(crewRoot.transform, name + "_Hat", new Vector3(0f, 1.98f, 0f),
-                new Vector3(0.86f, 0.10f, 0.86f), material);
+            AddBox(crewRoot.transform, name + "_Hat", new Vector3(0f, 1.785f, 0f),
+                new Vector3(0.82f, 0.07f, 0.82f), material);
         }
 
         /// <summary>
         /// 新建/就地更新物体材质（幂等：重跑覆盖，常量表是唯一调色入口）。
         /// 只设"这个物体该长什么样"的逐物体参数；着色数学全在走 shader 全局的那一趟里。
+        ///
+        /// 【描边线宽为什么是 1】渲染篇 §5 的起步值是"RT 空间 1px"，旧链实测要 2px 的原因是
+        /// **旧架构**"全分辨率渲染 → 3× 点降采"会把 1px 线欠采掉；本路径几何**直接渲进
+        /// 低分辨率 RT**，1 低分辨率像素 = 1920 宽屏上 5 屏幕像素，1px 是实打实可见的。
+        /// 所以这里**不要**把旧链的 2px 当基准搬过来。
         /// </summary>
-        static Material EnsureMaterial(string name, Color albedo, float bandCount, float outlinePixels = 2.0f)
+        static Material EnsureMaterial(string name, Color albedo, float bandCount,
+            float outlinePixels = 1.0f, int renderQueue = -1)
         {
             string path = MaterialFolder + "/" + name + ".mat";
             Shader shader = Shader.Find(PixelartPath.ObjectShaderName);
@@ -264,10 +278,13 @@ namespace PirateCrew.EditorTools
             mat.SetFloat("_DitherStrength", 0f);   // 默认关（v3 自己的材质默认也是 0）；出图时用 MPB 拨开对照
             mat.SetFloat("_NormalEdgeLevel", 0f);  // P4 接连通域后才有效
 
-            // 反向壳描边：线宽单位 = 低分辨率像素。2.0 是本仓既有实测的"起可见"值
-            // （1 低分辨率像素在放大后太细，创始人看着"像没描边"）；本档 1 px = 5 屏幕像素。
-            mat.SetColor("_InkColor", HexGamma("120C14"));   // 墨色：比纯黑带一点紫（阴影里不发死）
+            // 反向壳描边（渲染篇 §5）：线宽单位 = 低分辨率像素；0 = 本物体不描边。
+            // 墨色与 UI 令牌 INK 同色（3D/2D 描边同色统一）。
+            mat.SetColor("_InkColor", HexGamma("120C14"));   // 比纯黑带一点紫（阴影里不发死）
             mat.SetFloat("_OutlinePixels", outlinePixels);
+
+            // -1 = 用 shader 里的 Queue（Geometry = 2000）；大平面由调用方压到 1999。
+            mat.renderQueue = renderQueue >= 0 ? renderQueue : 2000;
 
             // 挂上 v3 口径的密度图案（_DitherMode 拨到 1 即生效，不必重烘场景）。
             var pattern = AssetDatabase.LoadAssetAtPath<Texture2D>(DitherFolder + "/ToonDither_0.png");
@@ -360,15 +377,6 @@ namespace PirateCrew.EditorTools
                     + "，共 " + registered + " 条场景。");
 
             AssetDatabase.Refresh();
-        }
-
-        /// <summary>ProjectSettings 下的资产要用 LoadAllAssetsAtPath 才拿得到（同 UrpSetup 口径）。</summary>
-        static Object LoadProjectSettingsObject(string path)
-        {
-            Object[] all = AssetDatabase.LoadAllAssetsAtPath(path);
-            if (all != null && all.Length > 0)
-                return all[0];
-            return AssetDatabase.LoadAssetAtPath<Object>(path);
         }
 
         /// <summary>sRGB hex（Gamma 空间直存）→ Color，口径同 SceneArtPalette / ToonPilotSetup。</summary>

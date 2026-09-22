@@ -35,8 +35,19 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>物体 pass 的 ShaderTagId：材质里只有这一条 LightMode 的 pass 会被画。</summary>
         public const string OpaqueShaderTagName = "PixelartOpaque";
 
-        /// <summary>墨线（反向壳）pass 的 ShaderTagId：先于本体画，只留轮廓外一圈。</summary>
+        /// <summary>墨线（反向壳）pass 的 ShaderTagId：**先于本体画**，只留轮廓外一圈（渲染篇 §5）。</summary>
         public const string InkShaderTagName = "PixelartInk";
+
+        /// <summary>
+        /// 大平面（地面/海面）的渲染队列。**必须小于 2000**：墨线壳是"外扩 + 沿视线拉近"，
+        /// 轮廓外侧那圈像素落在大平面上、大平面比壳更近；大平面必须先画完，壳环才能在
+        /// 深度测试里赢下那圈像素（旧链的"海面回 2000、描边物 2050"是同一条结论的另一种写法）。
+        /// 大平面的材质还要把 `_OutlinePixels` 设为 0（不描边）。
+        /// </summary>
+        public const int BackgroundPlaneRenderQueue = 1999;
+
+        /// <summary>描边物所在队列的下界（= Unity 内置 Geometry）。</summary>
+        public const int ForegroundRenderQueueMin = 2000;
 
         /// <summary>渲染器资产所在目录（装配器创建，本路径专用，不碰既有两档渲染器）。</summary>
         public const string RendererFolder = "Assets/Settings/URP";
@@ -55,7 +66,7 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>G-buffer：世界法线（三通道，[-1,1] 原样存）。</summary>
         public static readonly int NormalBufferId = Shader.PropertyToID("_PixelartNormalBuffer");
 
-        /// <summary>G-buffer：逐物体着色参数（r=档数 g=抖动偏移 b=法线边加成档 a=AA 缩放）。</summary>
+        /// <summary>G-buffer：逐物体着色参数（r=档数 g=抖动偏移 b=法线边加成档 a=墨线标记）。</summary>
         public static readonly int PropertyBufferId = Shader.PropertyToID("_PixelartPropertyBuffer");
 
         /// <summary>主光方向（世界空间，**指向光源**；着色用 <c>saturate(dot(L, N))</c>）。</summary>
