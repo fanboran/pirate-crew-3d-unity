@@ -16,6 +16,8 @@ external/
 
 # ZCode 工具本地状态（会话计划等，非项目产物）
 .zcode/
+# ZCode 工具配置（从 .gitignore 同步生成，派生物不入库）
+.zcodeignore
 
 # Python 缓存（Blender 无头管线副产物）
 __pycache__/
