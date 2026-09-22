@@ -33,12 +33,12 @@ namespace PirateCrew.Battle
     ///   **取景恒为基准档 <see cref="CloseUpOrthoSize"/>（可见 14 m）——没有滚轮缩放**；
     ///   以后说"缩放"只指像素比例（PixelScale 3:1 → 4:1/5:1/2:1，画面长相恒定）。
     ///
-    /// 【环绕不重瞄（实机等价性关键，勿"顺手修掉"）】
-    ///   Cinemachine 时代的实机行为是：Transposer 只写位置不写朝向、Aim 档为空 ⇒
-    ///   **主相机朝向恒为烘焙机位 <see cref="ComputeRotation"/>，右键环绕只让相机绕焦点平移轨道、
-    ///   视线方向不变**（2026-09-23 实机探针验证：偏移旋转 60° 后朝向逐位不变、重瞄误差恰 60°）。
-    ///   去 Cinemachine 化后本类保持这一行为逐位等价。若创始人验收时裁决"要真的转视角"，
-    ///   改法是让 <see cref="ComputeRotation"/> 改为 LookRotation(focus − position)，一处改动。
+    /// 【环绕重瞄（2026-09-23 定案，推翻"不重瞄"旧口径）】
+    ///   Cinemachine 时代的实机行为是：Transposer 只写位置、Aim 档为空 ⇒ 朝向恒烘焙机位，
+    ///   右键环绕在视觉上是**平移拖拽**（实机探针验证过"逐位等价"——但等价的是错的行为）。
+    ///   创始人连驳多次（"还是拖动""我的旋转呢"）后定案：**右键环绕 = 画面绕焦点转动**，
+    ///   即 <see cref="ComputeRotationLooking"/>（LookRotation(focus − position)，本类头预告过的既定改法）。
+    ///   已知取舍沿用 r12 裁决：只有方位 45° 及其对称位给出对称菱形，别的方位地面阶梯长短不一，不做 snap。
     /// </summary>
     public static class CameraFraming
     {
@@ -172,13 +172,21 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// 相机朝向 = **烘焙机位**（俯角 <see cref="BasePitchDegrees"/>、方位 45°）+ 绕视线forward 的震屏滚转。
-        /// 【为什么不吃 yaw/观察俯角】环绕不重瞄是实机等价行为（见类头）——原链路里 Transposer 只写位置，
-        /// 朝向从不更新；滚转（原 Lens.Dutch）是唯一进朝向的量。
-        /// 【纯托管】四元数由正交基手工构造（<see cref="QuaternionFromForwardUp"/>）：
-        /// <c>Quaternion.LookRotation/AngleAxis</c> 是原生 icall，无头验证台跑不了；
-        /// 本实现与 Unity 的构造在良态输入（单位前向、与世界 up 不平行）下逐点等价。
+        /// 相机朝向 = **看向焦点**（<c>LookRotation(focus − position)</c> 的纯托管等价）+ 绕视线轴的震屏滚转。
+        /// 【为什么改】创始人裁决的"右键旋转"要求环绕时**画面绕焦点转动**；旧实现（<see cref="ComputeRotation"/>，
+        /// 朝向恒烘焙机位）把环绕做成了平移拖拽，2026-09-23 定案推翻。
+        /// 已知取舍（r12 裁决沿用）：只有方位 45° 及其对称位给出对称菱形，别的方位下地面阶梯长短不一，不做 snap。
+        /// 【纯托管】同 <see cref="ComputeRotation"/>；forward 须与世界 up 不平行（30° 俯角恒满足）。
         /// </summary>
+        public static Quaternion ComputeRotationLooking(Vector3 forwardToFocus, float rollDegrees)
+        {
+            Quaternion look = QuaternionFromForwardUp(forwardToFocus, Vector3.up);
+            if (Mathf.Approximately(rollDegrees, 0f))
+                return look;
+            return Multiply(look, FromAxisAngleZ(rollDegrees));
+        }
+
+        /// <summary>【已退役 2026-09-23（环绕重瞄裁决）】朝向恒烘焙机位的旧语义，仅历史测试引用；主链改用 <see cref="ComputeRotationLooking"/>。</summary>
         public static Quaternion ComputeRotation(float rollDegrees)
         {
             Vector3 forward = -OffsetDirectionForPitch(BasePitchDegrees);

@@ -19,9 +19,11 @@ namespace PirateCrew.Battle
     /// 【去 Cinemachine 化（2026-09-23，创始人认可方案）】正交竞技场相机 = 定长偏移 + 平滑跟随 +
     /// 抬高看点，全部数学在 <see cref="CameraFraming"/>；原 Brain 的掩码筛选与镜头应用链
     /// 造成过两次实机事故（r13 修复档案），随本重构退役。
-    /// 与原链路的**逐位等价关系**（实机探针 + CM 2.9.7 源码共同验证，2026-09-23）：
+    /// 与原链路的**等价关系**（实机探针 + CM 2.9.7 源码共同验证，2026-09-23）：
     ///   · 原链 = Transposer（阻尼 0）只写位置 + Aim 档为空 ⇒ 主相机**朝向恒为烘焙机位**，
-    ///     右键环绕只平移轨道、视线不变——本类 <see cref="CameraFraming.ComputeRotation"/> 保持该行为；
+    ///     右键环绕在视觉上是**平移拖拽**——该语义已被创始人裁决推翻（"还是拖动""我的旋转呢"
+    ///     连驳多次，2026-09-23 定案）：**环绕必须重瞄 = 画面绕焦点转动**，
+    ///     见 <see cref="CameraFraming.ComputeRotationLooking"/>；
     ///   · 原链的 lens near/far 由 Brain 每帧推送（0.1/200）——本类在 Awake 写一次同值；
     ///   · 跟随弹体时原链把 vcam.Follow 切到弹体（无阻尼 ⇒ 弹体位置精确上屏）——
     ///     本类在 FollowProjectile 态直接用弹体位置做焦点（不平滑），其余态用平滑焦点；
@@ -438,19 +440,23 @@ namespace PirateCrew.Battle
                 : 0f;
 
             // ---- 组装本帧取景 ----
-            // 朝向先定（烘焙机位 + 滚转）——震屏的相机平面基向量取自它（与原 fallbackCamera 基相同）。
-            Quaternion rotation = CameraFraming.ComputeRotation(roll);
-
-            // 焦点：自由锚 > 跟随弹体（原链 vcam.Follow 直切弹体、无阻尼 → 精确位置）> 平滑焦点。
+            // 焦点先定：自由锚 > 跟随弹体（原链 vcam.Follow 直切弹体、无阻尼 → 精确位置）> 平滑焦点。
             Vector3 appliedFocus = ResolveAppliedFocus();
+
+            Vector3 basePosition = CameraFraming.ComputePosition(
+                appliedFocus, _manualYaw, OffsetPitchForFraming, CameraFraming.BaseDistance);
+
+            // 朝向 = **看向焦点**（LookRotation(focus − position)）——右键环绕时画面**绕焦点转动**，
+            // 这才是创始人裁决的"旋转"；旧实现朝向恒烘焙机位，环绕在视觉上是平移拖拽
+            // （2026-09-23 定案推翻"环绕不重瞄"）。震屏的相机平面基向量取自它。
+            Quaternion rotation = CameraFraming.ComputeRotationLooking(
+                (appliedFocus - basePosition).normalized, roll);
 
             // 原链 cameraTarget.position 的等价物（锚定/观察进入时取它，保持同一瞬时值语义）。
             _cameraTargetDirtyPosition = appliedFocus + Vector3.up * dipOffset
                 + CameraFraming.PlaneOffsetToWorld(shake2D, rotation);
 
-            Vector3 position = CameraFraming.ComputePosition(
-                appliedFocus, _manualYaw, OffsetPitchForFraming, CameraFraming.BaseDistance)
-                + Vector3.up * dipOffset
+            Vector3 position = basePosition + Vector3.up * dipOffset
                 + CameraFraming.PlaneOffsetToWorld(shake2D, rotation);
 
             float orthoSize = CameraFraming.ComposeOrthoSize(
