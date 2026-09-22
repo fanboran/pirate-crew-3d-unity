@@ -65,17 +65,17 @@ MonoBehaviour:
   shadow: {fileID: 21300000, guid: 5438e89fafbbe5a4c8b969fd2d415100, type: 3}
   toneColors:
   - serializedVersion: 2
-    rgba: 4285491299
+    rgba: 4286605146
   - serializedVersion: 2
-    rgba: 4282794043
+    rgba: 4283252019
   - serializedVersion: 2
-    rgba: 4281149475
+    rgba: 4281279774
   - serializedVersion: 2
-    rgba: 4282794043
+    rgba: 4283252019
   - serializedVersion: 2
-    rgba: 4281149475
+    rgba: 4281279774
   - serializedVersion: 2
-    rgba: 4280031769
+    rgba: 4280097046
   - serializedVersion: 2
     rgba: 4293980400
   - serializedVersion: 2

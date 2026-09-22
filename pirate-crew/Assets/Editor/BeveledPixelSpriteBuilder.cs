@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using PirateCrew.EditorTools.Art;
 using UnityEditor;
 using UnityEngine;
@@ -215,8 +216,11 @@ namespace PirateCrew.EditorTools
         /// </summary>
         public static readonly Vector2 ShadowOffset = PirateCrew.UI.PixelSkin.ShadowOffset;
 
-        /// <summary>美术稿（showcase）：把全部件拼成一块战斗 HUD 风格的构图，落 export/ 评审。</summary>
-        const string ShowcaseRelativePath = "export/ui-pixel-4a/showcase-2x.png";
+        /// <summary>
+        /// 美术稿（showcase）评审图路径：**全屏 640×360 艺术像素**（3× 口径 = 1920×1080 屏幕），
+        /// 1× 输出 = 实际屏幕像素的整屏外观。落 export/ 暂存目录，评审后按需入 docs/images。
+        /// </summary>
+        const string ShowcaseRelativePath = "export/ui-pixel-4a/showcase-1x.png";
 
         /// <summary>运行时图集资产路径（Resources 内；BuildAll 末尾生成，运行时 PixelSkin 经它取图）。</summary>
         public const string AtlasAssetPath = "Assets/Resources/UI/PixelSkin.asset";
@@ -890,7 +894,12 @@ namespace PirateCrew.EditorTools
                 for (int i = 0; i < w; i++)
                 {
                     int sx = MapAxis(i, w, srcW, bL, bR);
-                    dst[(oy + j) * dstW + ox + i] = src[sy * srcW + sx];
+                    Color32 c = src[sy * srcW + sx];
+                    // 透明像素**跳过**（叠加语义，与 UGUI 一致）：环/焦点环/投影这类
+                    // 中间带空的件盖在别的件上时，不能把底下的像素擦成空洞。
+                    if (c.a == 0)
+                        continue;
+                    dst[(oy + j) * dstW + ox + i] = c;
                 }
             }
         }
@@ -1402,14 +1411,38 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// **UI 颗粒度 ↔ 3D 像素块对齐判据**（创始人 2026-09-22 要求）：读两档 URP 渲染器资产里
-        /// PixelationRendererFeature 的 <c>renderHeightPixels</c>，要求
-        /// <c>Unit == 1080 / renderHeightPixels</c>（1080p 基准下一个 3D 像素块的屏幕像素数）。
-        /// 改 RT 档而不同步改 Unit（或反之），四四方方的 UI 带就会和 3D 的块错半格——
+        /// **UI 颗粒度 ↔ 3D 像素比例对齐判据**（创始人 2026-09-22 裁决：全局锁 **3×**）。
+        /// 两个真源都要等于 <see cref="Unit"/>：
+        ///   ① **新管线**（PixelartCameraRig 蓝本）：反射读
+        ///      <c>PirateCrew.Rendering.Pixelart.PixelartPilotScene.PixelScale</c>
+        ///      ——"一个艺术像素占几个屏幕像素"，装配器把它写进场景里的 rig；
+        ///   ② **旧 Feature**（PixelationRendererFeature 遗留档）：读两档 URP 渲染器资产里的
+        ///      <c>renderHeightPixels</c>，换算 <c>1080 / 高度</c> = 块大小。
+        /// 改了任一侧而不同步 Unit（或反之），UI 的带就会和 3D 的块错半格——
         /// 这条判据把"对齐"从口头约定变成可复算的数字。
         /// </summary>
         static void CheckUnitAlignment(List<string> problems)
         {
+            // ① 新管线真源（3D 线源码里的常量；反射避免 Editor 预定义程序集直接依赖）
+            Type pilotScene = Type.GetType(
+                "PirateCrew.Rendering.Pixelart.PixelartPilotScene, PirateCrew.Rendering");
+            if (pilotScene != null)
+            {
+                FieldInfo scaleField = pilotScene.GetField("PixelScale",
+                    BindingFlags.Public | BindingFlags.Static);
+                if (scaleField != null)
+                {
+                    int scale = (int)scaleField.GetRawConstantValue();
+                    if (scale != Unit)
+                    {
+                        problems.Add("u 对齐判据：3D 像素比例 PixelartPilotScene.PixelScale=" + scale
+                            + " ≠ UI 基本单位 Unit=" + Unit
+                            + "——两侧必须落在同一个艺术像素网格（创始人 3× 裁决）。");
+                    }
+                }
+            }
+
+            // ② 旧 Feature 遗留档
             const int canonicalHeight = 1080;      // 基准出图分辨率（Canvas 参考分辨率同为 1920×1080）
             string[] rendererAssets =
             {
@@ -2219,11 +2252,18 @@ namespace PirateCrew.EditorTools
             { 'Y', new[] { 5, 5, 2, 2, 2 } },
             { '1', new[] { 2, 6, 2, 2, 7 } },
             { '2', new[] { 6, 1, 2, 4, 7 } },
+            { '3', new[] { 7, 1, 3, 1, 7 } },
             { '7', new[] { 7, 1, 2, 2, 2 } },
         };
 
-        /// <summary>画一行像素字（字宽 3+1px、高 5px，y=文字底部）。先落阴影再落本体。</summary>
-        static void DrawText(Color32[] canvas, int canvasW, int x, int y, string text, Color32 main, Color32 shadow)
+        /// <summary>
+        /// 画一行像素字（字宽 3+1 格、高 5 格，<paramref name="scale"/> 格 = 几个画布像素；
+        /// y = 文字底部）。先落阴影再落本体。**画布是艺术像素域**——3× 口径下
+        /// 全屏 = 640×360 艺术像素，字模 1 格 = 1 艺术像素 = 3 屏幕像素（1× 一档用于小字，
+        /// 标题用 2×＝10 艺术像素高，接近游戏内 TMP 正文口径）。
+        /// </summary>
+        static void DrawText(Color32[] canvas, int canvasW, int x, int y, string text,
+            Color32 main, Color32 shadow, int scale = 1)
         {
             for (int c = 0; c < text.Length; c++)
             {
@@ -2236,11 +2276,17 @@ namespace PirateCrew.EditorTools
                     {
                         if ((glyph[r] & (1 << (2 - b))) == 0)
                             continue;
-                        int gx = x + c * 4 + b;
-                        int gy = y + (4 - r);
-                        if (shadow.a != 0)
-                            canvas[(gy - 1) * canvasW + gx + 1] = shadow;
-                        canvas[gy * canvasW + gx] = main;
+                        int gx = x + c * 4 * scale + b * scale;
+                        int gy = y + (4 - r) * scale;
+                        for (int sy = 0; sy < scale; sy++)
+                        {
+                            for (int sx = 0; sx < scale; sx++)
+                            {
+                                if (shadow.a != 0)
+                                    canvas[(gy - scale + sy) * canvasW + gx + scale + sx] = shadow;
+                                canvas[(gy + sy) * canvasW + gx + sx] = main;
+                            }
+                        }
                     }
                 }
             }
@@ -2248,109 +2294,106 @@ namespace PirateCrew.EditorTools
 
         /// <summary>在 <c>(cx,cy)</c> 矩形中心画一行像素字（按钮标签用）。</summary>
         static void DrawTextCentered(Color32[] canvas, int canvasW, int cx, int cy,
-            string text, Color32 main, Color32 shadow)
+            string text, Color32 main, Color32 shadow, int scale = 1)
         {
-            DrawText(canvas, canvasW, cx - (text.Length * 4 - 1) / 2, cy - 2, text, main, shadow);
+            DrawText(canvas, canvasW,
+                cx - (text.Length * 4 - 1) * scale / 2, cy - 2 * scale, text, main, shadow, scale);
         }
 
         /// <summary>
-        /// 美术稿：把全部件按战斗 HUD 的真实构图拼出来——船员卡（标题/名牌/血蓝条/属性行/
-        /// 三态按钮+焦点框）、页签组、海图小地图（选人圈+位点+敌点）、敌方条/页点/Toast。
+        /// 美术稿：**按真实全屏画布排**——3× 口径下全屏 = **640×360 艺术像素**
+        /// （= 1920×1080 屏幕）；元素尺寸按"不抠像素"给足：海图 144、主面板 320×280、
+        /// 按钮 ~90×32、条 288×40、标题字模 2×（10 艺术像素 ≈ 游戏内 TMP 正文口径）。
+        /// 内容按"一局游戏"排（两张船员卡/海图/敌情/提示——零件墙读不出观感）。
         /// 这是给创始人看的"成品长什么样"，也是接触表之外的**构图级自证**：
-        /// 件与件的间距/内边距全部按 u 取整，拼起来没有半格错位。
-        ///
-        /// 【两版输出】**1× = 实际屏幕像素**（1080p 下 Canvas 1:1，怎么看就是屏幕上的样子）——
-        /// 验收主图；**2× = 放大检查**（读像素边带用）。版式按"留白优先"排：
-        /// 分区之间 ≥6u 空档、面板内边距 ≥5u，别把件堆成一坨（创始人判过"挤得也太密"）。
-        /// 深海底色背景；标注字用内置 3×5 字模（游戏内文字走 TMP，不共享这套）。
+        /// 件与件的间距/内边距全部按艺术像素平面坐标排，拼起来没有半格错位。
+        /// 输出 1×：1080p 下 1:1 = **实际屏幕像素**的整屏外观（验收主图）。
         /// </summary>
         public static string BuildShowcaseSheet()
         {
-            int u = Unit;
-            int W = 180 * u, H = 128 * u;
+            int u = Unit;                 // u = 1 艺术像素 = 3 屏幕像素
+            int W = 640 * u, H = 360 * u; // 全屏：1920×1080 @3×
             var px = new Color32[W * H];
 
-            // 背景：压暗的海渊色（比 Sea tone 更低一档，让所有面板浮起来）
-            Color32 backdrop = Mix(Slot("SEA_DEEP"), Slot("INK"), 0.30f);
+            // 背景：压暗的海渊色（比 Sea tone 再压一档，让板岩面板与金框条浮起来）
+            Color32 backdrop = Mix(Slot("SEA_DEEP"), Slot("INK"), 0.45f);
             for (int i = 0; i < px.Length; i++)
                 px[i] = backdrop;
 
             Color32 white = Slot("WHITE_HOT");
             Color32 ink = Slot("INK");
+            Color32 dim = Mix(Slot("WHITE_HOT"), backdrop, 0.45f);   // 次要文字
 
-            // ---- 左上：页签组（宿主 Dense 面板 + 选中 Light / 未选中 Dense×2）----
-            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 8 * u, 100 * u, 56 * u, 18 * u);
-            DrawOne(px, W, Tone.Light, Piece.Tab, State.Normal, 10 * u, 118 * u, 16 * u, 7 * u);
-            DrawOne(px, W, Tone.Dense, Piece.Tab, State.Normal, 28 * u, 118 * u, 16 * u, 7 * u);
-            DrawOne(px, W, Tone.Dense, Piece.Tab, State.Normal, 46 * u, 118 * u, 16 * u, 7 * u);
-            DrawText(px, W, 13 * u, 107 * u, "LOG", white, ink);
+            // ================= 左：主船员卡（320×280 艺术像素）=================
+            DrawShadowAt(px, W, 24 * u, 40 * u, 320 * u, 280 * u);
+            DrawOne(px, W, Tone.Frame, Piece.Plate, State.Normal, 24 * u, 40 * u, 320 * u, 280 * u);
+            DrawText(px, W, 40 * u, 292 * u, "CREW", white, ink, 3);
+            DrawSized(px, W, "Pixel_Sep_H", 40 * u, 286 * u, 288 * u, 2 * u);
 
-            // ---- 上右：海图小地图（投影 + Sea 面板 + Sea 凹槽内底 + 选人圈 + 位点 + 敌点）----
-            DrawShadowAt(px, W, 96 * u, 92 * u, 32 * u, 32 * u);
-            DrawOne(px, W, Tone.Sea, Piece.Plate, State.Normal, 96 * u, 92 * u, 32 * u, 32 * u);
-            DrawOne(px, W, Tone.Sea, Piece.Track, State.Normal, 101 * u, 97 * u, 22 * u, 22 * u);
-            DrawSized(px, W, "Pixel_Ring", 108 * u, 104 * u, 8 * u, 8 * u);          // 选人圈（原生 8u）
-            DrawSized(px, W, "Pixel_Pip_Off", 103 * u, 112 * u, PipSize, PipSize);   // 空槽位
-            DrawSized(px, W, "Pixel_Fill_Red", 118 * u, 99 * u, 2 * u, 2 * u);       // 敌方点
-            DrawText(px, W, 99 * u, 121 * u, "MAP", white, ink);
+            // 头像格（Dense 内嵌 + 选人圈）+ 名牌
+            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 40 * u, 224 * u, 56 * u, 56 * u);
+            DrawSized(px, W, "Pixel_Ring", 52 * u, 236 * u, 32 * u, 32 * u);
+            DrawText(px, W, 112 * u, 264 * u, "CAPTAIN", white, ink, 3);
+            DrawText(px, W, 112 * u, 244 * u, "LV 7   ATK 12   SPD 7", dim, new Color32(0, 0, 0, 0), 2);
 
-            // ---- 左主卡：船员卡（HUD 核心构图；内边距 ≥5u、行距 ≥4u）----
-            DrawShadowAt(px, W, 8 * u, 8 * u, 84 * u, 84 * u);
-            DrawOne(px, W, Tone.Frame, Piece.Plate, State.Normal, 8 * u, 8 * u, 84 * u, 84 * u);
-            DrawText(px, W, 13 * u, 85 * u, "CREW", white, ink);
-            DrawSized(px, W, "Pixel_Sep_H", 13 * u, 81 * u, 74 * u, 2 * u);
+            // 血条 / 蓝条（金框 288×40，填充 24 高）+ 状态位点
+            DrawText(px, W, 40 * u, 204 * u, "HP", white, ink, 3);
+            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 40 * u, 162 * u, 288 * u, 40 * u);
+            DrawFill(px, W, FillKind.Red, 52 * u, 174 * u, 210 * u, 24 * u);
+            DrawText(px, W, 40 * u, 144 * u, "MP", white, ink, 3);
+            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 40 * u, 102 * u, 288 * u, 40 * u);
+            DrawFill(px, W, FillKind.Blue, 52 * u, 114 * u, 118 * u, 24 * u);
+            for (int i = 0; i < 5; i++)
+                DrawSized(px, W, i < 3 ? "Pixel_Pip_On" : "Pixel_Pip_Off",
+                    (72 + i * 24) * u, 144 * u, PipSize, PipSize);
 
-            // 名牌（Light）+ 队长位点
-            DrawOne(px, W, Tone.Light, Piece.Plate, State.Normal, 13 * u, 70 * u, 40 * u, 8 * u);
-            DrawText(px, W, 15 * u, 72 * u, "CAPTAIN", ink, new Color32(0, 0, 0, 0));
-            DrawSized(px, W, "Pixel_Pip_On", 56 * u, 70 * u, PipSize, PipSize);
+            // 三态按钮同台：常态+焦点框 / 悬停 / 按压（84/92/84 × 32）
+            DrawOne(px, W, Tone.Primary, Piece.Plate, State.Normal, 40 * u, 60 * u, 84 * u, 32 * u);
+            DrawSized(px, W, "Pixel_Focus", 40 * u - 2, 60 * u - 2, 84 * u + 4, 32 * u + 4);
+            DrawTextCentered(px, W, 82 * u, 76 * u, "OK", ink, Slot("SAND_LIGHT"), 3);
+            DrawOne(px, W, Tone.Light, Piece.Plate, State.Hovered, 132 * u, 60 * u, 92 * u, 32 * u);
+            DrawTextCentered(px, W, 178 * u, 76 * u, "MENU", ink, new Color32(0, 0, 0, 0), 3);
+            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Pressed, 232 * u, 60 * u, 84 * u, 32 * u);
+            DrawTextCentered(px, W, 274 * u, 76 * u, "QUIT", white, ink, 3);
 
-            // 血条 / 蓝条：Track 12u 高（= 参照条"框架 3u + 填充 6u + 框架 3u"的同比例）
-            DrawText(px, W, 13 * u, 60 * u, "HP", white, ink);
-            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 20 * u, 52 * u, 66 * u, 12 * u);
-            DrawFill(px, W, FillKind.Red, 23 * u, 55 * u, 36 * u, 6 * u);
-            DrawText(px, W, 13 * u, 40 * u, "MP", white, ink);
-            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 20 * u, 32 * u, 66 * u, 12 * u);
-            DrawFill(px, W, FillKind.Blue, 23 * u, 35 * u, 26 * u, 6 * u);
+            // ================= 右上：海图小地图（144×144 艺术像素 = 432 屏幕像素）=================
+            DrawShadowAt(px, W, 456 * u, 192 * u, 144 * u, 144 * u);
+            DrawOne(px, W, Tone.Sea, Piece.Plate, State.Normal, 456 * u, 192 * u, 144 * u, 144 * u);
+            DrawOne(px, W, Tone.Sea, Piece.Track, State.Normal, 468 * u, 204 * u, 120 * u, 120 * u);
+            DrawSized(px, W, "Pixel_Ring", 508 * u, 252 * u, 40 * u, 40 * u);
+            DrawSized(px, W, "Pixel_Pip_Off", 476 * u, 298 * u, PipSize, PipSize);
+            DrawSized(px, W, "Pixel_Fill_Red", 566 * u, 214 * u, 8 * u, 8 * u);
+            DrawText(px, W, 468 * u, 320 * u, "MAP", white, ink, 3);
 
-            // 属性行（Dense）
-            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 13 * u, 22 * u, 74 * u, 6 * u);
-            DrawText(px, W, 15 * u, 24 * u, "ATK 12  SPD 7", white, ink);
+            // ================= 右列：敌情卡 / 敌条 / 警告按钮 / 页点 / Toast =================
+            DrawShadowAt(px, W, 456 * u, 148 * u, 144 * u, 36 * u);
+            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Normal, 456 * u, 148 * u, 144 * u, 36 * u);
+            DrawText(px, W, 468 * u, 158 * u, "FOE", white, ink, 3);
 
-            // 三态按钮同台：常态+焦点框 / 悬停 / 按压
-            DrawOne(px, W, Tone.Primary, Piece.Plate, State.Normal, 13 * u, 12 * u, 20 * u, 8 * u);
-            DrawSized(px, W, "Pixel_Focus", 13 * u - 2, 12 * u - 2, 20 * u + 4, 8 * u + 4);
-            DrawTextCentered(px, W, 13 * u + 10 * u, 16 * u, "OK", ink, Slot("SAND_LIGHT"));
-            DrawOne(px, W, Tone.Light, Piece.Plate, State.Hovered, 38 * u, 12 * u, 22 * u, 8 * u);
-            DrawTextCentered(px, W, 38 * u + 11 * u, 16 * u, "MENU", ink, new Color32(0, 0, 0, 0));
-            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Pressed, 65 * u, 12 * u, 22 * u, 8 * u);
-            DrawTextCentered(px, W, 65 * u + 11 * u, 16 * u, "QUIT", white, ink);
+            DrawOne(px, W, Tone.Danger, Piece.Track, State.Normal, 456 * u, 104 * u, 144 * u, 40 * u);
+            DrawFill(px, W, FillKind.Red, 468 * u, 116 * u, 36 * u, 24 * u);
 
-            // ---- 右下：敌方牌 + 敌条 + 警告按钮 + 页点 + Toast（每块 ≥6u 空档）----
-            DrawShadowAt(px, W, 96 * u, 74 * u, 32 * u, 10 * u);
-            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Normal, 96 * u, 74 * u, 32 * u, 10 * u);
-            DrawText(px, W, 99 * u, 78 * u, "FOE", white, ink);
+            DrawOne(px, W, Tone.Warn, Piece.Plate, State.Normal, 472 * u, 56 * u, 100 * u, 32 * u);
+            DrawTextCentered(px, W, 522 * u, 72 * u, "WARN", ink, new Color32(0, 0, 0, 0), 3);
+            for (int i = 0; i < 4; i++)
+                DrawSized(px, W, i == 0 ? "Pixel_Pip_On" : "Pixel_Pip_Off",
+                    (360 + i * 28) * u, 52 * u, PipSize, PipSize);
 
-            DrawOne(px, W, Tone.Danger, Piece.Track, State.Normal, 96 * u, 58 * u, 32 * u, 12 * u);
-            DrawFill(px, W, FillKind.Red, 99 * u, 61 * u, 9 * u, 6 * u);
+            DrawShadowAt(px, W, 360 * u, 12 * u, 256 * u, 36 * u);
+            DrawOne(px, W, Tone.Light, Piece.Plate, State.Normal, 360 * u, 12 * u, 256 * u, 36 * u);
+            DrawText(px, W, 376 * u, 22 * u, "CAPTAIN ABOARD", ink, new Color32(0, 0, 0, 0), 3);
 
-            DrawOne(px, W, Tone.Warn, Piece.Plate, State.Normal, 96 * u, 44 * u, 22 * u, 8 * u);
-            DrawTextCentered(px, W, 96 * u + 11 * u, 48 * u, "WARN", ink, new Color32(0, 0, 0, 0));
+            // ================= 右下：第二张船员卡（低血 + 警告位点）=================
+            DrawShadowAt(px, W, 360 * u, 104 * u, 80 * u, 76 * u);
+            DrawOne(px, W, Tone.Frame, Piece.Plate, State.Normal, 360 * u, 104 * u, 80 * u, 76 * u);
+            DrawText(px, W, 368 * u, 164 * u, "CREW 2", white, ink, 2);
+            DrawSized(px, W, "Pixel_Sep_H", 368 * u, 158 * u, 64 * u, 2 * u);
+            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 368 * u, 132 * u, 64 * u, 20 * u);
+            DrawFill(px, W, FillKind.Red, 372 * u, 138 * u, 10 * u, 8 * u);
+            DrawSized(px, W, "Pixel_Pip_On", 368 * u, 108 * u, PipSize, PipSize);
 
-            // 页点（2 亮 2 暗）
-            DrawSized(px, W, "Pixel_Pip_On", 96 * u, 30 * u, PipSize, PipSize);
-            DrawSized(px, W, "Pixel_Pip_On", 104 * u, 30 * u, PipSize, PipSize);
-            DrawSized(px, W, "Pixel_Pip_Off", 112 * u, 30 * u, PipSize, PipSize);
-            DrawSized(px, W, "Pixel_Pip_Off", 120 * u, 30 * u, PipSize, PipSize);
-
-            // Toast（Light + 投影）：右下角收尾，读"弹出提示"的整件
-            DrawShadowAt(px, W, 96 * u, 14 * u, 60 * u, 10 * u);
-            DrawOne(px, W, Tone.Light, Piece.Plate, State.Normal, 96 * u, 14 * u, 60 * u, 10 * u);
-            DrawText(px, W, 99 * u, 18 * u, "CAPTAIN ABOARD", ink, new Color32(0, 0, 0, 0));
-
-            // 1× = 实际屏幕像素（1080p 验收主图）；2× = 放大检查
-            WriteZoomedSheet(px, W, H, "export/ui-pixel-4a/showcase-1x.png", 1);
-            return WriteZoomedSheet(px, W, H, ShowcaseRelativePath, SheetZoom);
+            // 1×：1080p 下 1:1 = 实际屏幕像素的整屏外观（验收主图）
+            return WriteZoomedSheet(px, W, H, ShowcaseRelativePath, 1);
         }
 
         // ==================================================================
