@@ -31,12 +31,11 @@
 
 name: CI
 
+# 【只手动触发（创始人裁决 2026-09-22）】原先 `push: [main, refactor/**]` + `pull_request` 的写法
+# 会让**推工作分支**也烧一次 CI（实测：推 refactor/industrial-grade 触发了 CI #1，29 秒的 repo-gates）。
+# 那条分支的结论是「分支全留本地、不推远端」，所以自动触发没有意义；要跑就手动点 Actions →
+# Run workflow，并按下面的输入挑档。**改回自动触发前先问创始人。**
 on:
-  push:
-    branches:
-      - main
-      - "refactor/**"
-  pull_request:
   workflow_dispatch:
     inputs:
       build_flavor:
