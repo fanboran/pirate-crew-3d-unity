@@ -35,18 +35,26 @@ namespace PirateCrew.EditorTools
         const string MaterialFolder = "Assets/Art/Materials/Pixelart";
         const string DitherFolder = "Assets/Art/Textures/Fx/Dither";
 
-        /// <summary>低分辨率 RT 高。360 = 1920 宽屏上 1 像素 = 3 屏幕像素（原 180 = 6 屏幕像素，颗粒过粗）。</summary>
-        const int RenderHeight = 360;
+        /// <summary>
+        /// 低分辨率 RT 高。**216**（16:9 即 384×216），在 1920 宽屏上 1 像素 = **5 屏幕像素**。
+        ///
+        /// 【为什么是 216而不是别的】1920 宽屏要"一像素恰好整数屏幕像素"，RT 宽必须整除 1920：
+        /// 320 → 块 6（原档，创始人觉得太粗）、**384 → 块 5（本档）**、480 → 块 4、640 → 块 3。
+        /// 本档只比原档细一档（6→5，约 17%）；上一版直接跳到块 3（细一半）把像素感做没了。
+        /// 档位台账见 docs/技术/渲染/像素化着色路径.md §5。
+        /// </summary>
+        const int RenderHeight = 216;
 
         /// <summary>
-        /// 俯角：**30°（经典像素等距 2:1）**，不是真等距 35.264°。
+        /// 俯角：**真等距 35.264°（渲染篇 §2.1 的创始人裁决档，2026-09-21）**。
         ///
-        /// 【为什么】地面轴的屏幕斜率 = sinθ：30° 恰为 **0.5 = 2 像素横移 / 1 像素下降**，
-        /// 像素阶梯因此是**规则的**（每 2 格一段）；35.264° 是 0.5773，与像素网格无整数比，
-        /// 栅格化出来的阶梯长度必然忽长忽短（手绘像素等距沿用至今的都是 2:1 这一档）。
-        /// 这一条是渲染篇 §2.1 表里"30° = 经典像素等距"那一行的实拍依据。
+        /// 【为什么这里写着 30° 的备忘】地面轴的屏幕斜率 = sinθ：35.264° 是 0.5773，
+        /// 与像素网格无整数比 ⇒ 栅格化出的像素阶梯**长度不固定**；30° 恰为 0.5 = 横移 2 像素 /
+        /// 下降 1 像素，才是手绘像素等距的规则网格。这是一条**待裁决**的口径问题
+        /// （像素阶梯规则性 vs 真等距投影），出图里留了一张 30° 对照图供比较，
+        /// **但默认档不许自行改动**——它是裁决项，不是实现细节。
         /// </summary>
-        const float CameraPitchDegrees = 30f;
+        const float CameraPitchDegrees = 35.264f;
 
         /// <summary>方位角：固定 45°（对角线，只有它给出对称菱形）。</summary>
         const float CameraAzimuthDegrees = 45f;
@@ -199,9 +207,14 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 角色：胶囊身体 + 球头（图元自带，省掉既有船员 prefab 的全部依赖）。
-        /// <paramref name="feetWorldY"/> 是**脚底所在高度**：调用方必须按"站在哪个面上"给，
-        /// 别给地面高度了事——上一版把角色放在台阶足迹内、脚底却是 y=0，于是半个身子埋进台阶里。
+        /// 角色：**方块拼的台柱形**（腿 + 躯干 + 头 + 帽檐），全部同一材质。
+        ///
+        /// 【为什么不用胶囊图元】胶囊是圆管：低分辨率下没有面与面的转折，色带切不出结构，
+        /// 剪影读起来就是"一根柱子"而不是一个角色（创始人一眼指出）。方块件每个面各自成档
+        /// （正面/侧面/顶面三档），像素风要的正是这种"面 = 色块"的读法。
+        ///
+        /// <paramref name="feetPosition"/> 是**脚底世界高度**：调用方按"站在哪个面上"给，
+        /// 别一律给地面高度（上一版把角色放在台阶足迹内、脚底却是 y=0，半个身子埋进台阶）。
         /// </summary>
         static void AddCrew(Transform parent, string name, Vector3 feetPosition, float yawDegrees, Material material)
         {
@@ -210,24 +223,23 @@ namespace PirateCrew.EditorTools
             crewRoot.transform.localPosition = feetPosition;
             crewRoot.transform.localRotation = Quaternion.Euler(0f, yawDegrees, 0f);
 
-            float scale = CrewHeight * 0.5f;          // 胶囊图元高 2 ⇒ scale = 身高/2
-            float headScale = CrewHeight * 0.4f;      // 头径 ≈ 0.4 × 身高（低模大头，读得清）
-            float bodyCenter = CrewHeight * 0.5f;     // 胶囊中心在身高一半处
-
-            GameObject body = NewPrimitive(PrimitiveType.Capsule, name + "_Body", crewRoot.transform, material);
-            body.transform.localPosition = new Vector3(0f, bodyCenter, 0f);
-            body.transform.localScale = new Vector3(scale, scale, scale);
-
-            GameObject head = NewPrimitive(PrimitiveType.Sphere, name + "_Head", crewRoot.transform, material);
-            head.transform.localPosition = new Vector3(0f, CrewHeight * 1.05f, 0f);
-            head.transform.localScale = new Vector3(headScale, headScale, headScale);
+            // 身高 2.0 的四段：腿 0.70 / 躯干 0.75 / 头 0.50 / 帽檐 0.08。
+            AddBox(crewRoot.transform, name + "_Legs", new Vector3(0f, 0.35f, 0f),
+                new Vector3(0.55f, 0.70f, 0.45f), material);
+            AddBox(crewRoot.transform, name + "_Torso", new Vector3(0f, 1.075f, 0f),
+                new Vector3(0.72f, 0.75f, 0.52f), material);
+            AddBox(crewRoot.transform, name + "_Head", new Vector3(0f, 1.70f, 0f),
+                new Vector3(0.50f, 0.50f, 0.50f), material);
+            // 帽檐：比头宽一圈的薄板——低分辨率下"有顶帽子"全靠这一圈外扩。
+            AddBox(crewRoot.transform, name + "_Hat", new Vector3(0f, 1.98f, 0f),
+                new Vector3(0.86f, 0.10f, 0.86f), material);
         }
 
         /// <summary>
         /// 新建/就地更新物体材质（幂等：重跑覆盖，常量表是唯一调色入口）。
         /// 只设"这个物体该长什么样"的逐物体参数；着色数学全在走 shader 全局的那一趟里。
         /// </summary>
-        static Material EnsureMaterial(string name, Color albedo, float bandCount, float outlinePixels = 1.2f)
+        static Material EnsureMaterial(string name, Color albedo, float bandCount, float outlinePixels = 2.0f)
         {
             string path = MaterialFolder + "/" + name + ".mat";
             Shader shader = Shader.Find(PixelartPath.ObjectShaderName);
@@ -252,7 +264,8 @@ namespace PirateCrew.EditorTools
             mat.SetFloat("_DitherStrength", 0f);   // 默认关（v3 自己的材质默认也是 0）；出图时用 MPB 拨开对照
             mat.SetFloat("_NormalEdgeLevel", 0f);  // P4 接连通域后才有效
 
-            // 反向壳描边：线宽单位 = 低分辨率像素（1.2 px ≈ 360 档下 3~4 屏幕像素）。
+            // 反向壳描边：线宽单位 = 低分辨率像素。2.0 是本仓既有实测的"起可见"值
+            // （1 低分辨率像素在放大后太细，创始人看着"像没描边"）；本档 1 px = 5 屏幕像素。
             mat.SetColor("_InkColor", HexGamma("120C14"));   // 墨色：比纯黑带一点紫（阴影里不发死）
             mat.SetFloat("_OutlinePixels", outlinePixels);
 

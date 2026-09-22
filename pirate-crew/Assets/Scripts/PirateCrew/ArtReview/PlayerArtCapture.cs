@@ -379,18 +379,18 @@ namespace PirateCrew.ArtReview
             Directory.CreateDirectory(_outDir);
 
             // (文件名, 正交size, 推进系数, 俯角, 抖动图案 -1=不动/0=Bayer/1=密度图案, 抖动幅度, RT高 0=不动)
+            // 【俯角列】35.264 = 裁决档（默认，不许在这里改口径）；30 那张只是**对照图**
+            // （像素阶梯规则性问题，待裁决），不代表已采纳。
+            // 【RT 高列】0 = 用场景里的档（现 216）；180/270/360 是颗粒度梯子，供挑档。
             (string name, float size, float zoom, float pitch, int ditherMode, float ditherStrength, int rtHeight)[] shots =
             {
-                ("pa-wide",                 7.0f, 1.0f, 30f,     -1, 0f,   0),
-                ("pa-mid",                  3.2f, 0.5f, 30f,     -1, 0f,   0),
-                ("pa-close",                1.6f, 0.3f, 30f,     -1, 0f,   0),
-                // 阶梯规则性对照：同样取景，只换俯角（30° = 2:1 规则阶梯 / 35.264° = sinθ=0.5773 非整数比）
-                ("pa-mid-pitch35",          3.2f, 0.5f, 35.264f, -1, 0f,   0),
-                // 颗粒度对照：默认 RT 高 360（1 像素 = 3 屏幕像素），另拍 180（6 屏幕像素）与 720（1.5 → 2）
-                ("pa-mid-rt180",            3.2f, 0.5f, 30f,     -1, 0f,   180),
-                ("pa-mid-rt720",            3.2f, 0.5f, 30f,     -1, 0f,   720),
-                // 抖动范式对照（v3 的 1-bit 密度图案）
-                ("pa-mid-dither-pattern05", 3.2f, 0.5f, 30f,      1, 0.5f, 0),
+                ("pa-wide",                 7.0f, 1.0f, 35.264f, -1, 0f,   0),
+                ("pa-mid",                  3.2f, 0.5f, 35.264f, -1, 0f,   0),
+                ("pa-close",                1.6f, 0.3f, 35.264f, -1, 0f,   0),
+                ("pa-mid-rt180",            3.2f, 0.5f, 35.264f, -1, 0f,   180),   // 原档（块 6 屏幕像素）
+                ("pa-mid-rt270",            3.2f, 0.5f, 35.264f, -1, 0f,   270),   // 块 4
+                ("pa-mid-rt360",            3.2f, 0.5f, 35.264f, -1, 0f,   360),   // 块 3（上一版，创始人判"太清晰"）
+                ("pa-mid-pitch30",          3.2f, 0.5f, 30f,     -1, 0f,   0),     // 俯角对照，未采纳
             };
 
             foreach (var shot in shots)

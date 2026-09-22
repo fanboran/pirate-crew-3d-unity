@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-1187888892777752131
+--- !u!114 &-5575891616459615662
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -9,13 +9,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3db1252f83f9f364ba63da5a406bc204, type: 3}
-  m_Name: PixelartObjectFeature
+  m_Script: {fileID: 11500000, guid: 8f8b618e63f2f7c4281d3395ef01d233, type: 3}
+  m_Name: PixelartShadingFeature
   m_EditorClassIdentifier: 
   m_Active: 1
-  layerMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
+  shadingShader: {fileID: 4800000, guid: 44761eec6d6935f49acdceea2c35fec3, type: 3}
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -32,9 +30,9 @@ MonoBehaviour:
     debugReplacementPS: {fileID: 4800000, guid: cf852408f2e174538bcd9b7fda1c5ae7, type: 3}
     hdrDebugViewPS: {fileID: 4800000, guid: 573620ae32aec764abd4d728906d2587, type: 3}
   m_RendererFeatures:
-  - {fileID: 6623884752942696486}
-  - {fileID: -1187888892777752131}
-  - {fileID: 1940454021087941460}
+  - {fileID: 5158801176021776575}
+  - {fileID: 3002708894859089323}
+  - {fileID: -5575891616459615662}
   m_RendererFeatureMap: 
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
@@ -76,7 +74,7 @@ MonoBehaviour:
   m_CopyDepthMode: 1
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 1
---- !u!114 &1940454021087941460
+--- !u!114 &3002708894859089323
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -85,12 +83,14 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8f8b618e63f2f7c4281d3395ef01d233, type: 3}
-  m_Name: PixelartShadingFeature
+  m_Script: {fileID: 11500000, guid: 3db1252f83f9f364ba63da5a406bc204, type: 3}
+  m_Name: PixelartObjectFeature
   m_EditorClassIdentifier: 
   m_Active: 1
-  shadingShader: {fileID: 4800000, guid: 44761eec6d6935f49acdceea2c35fec3, type: 3}
---- !u!114 &6623884752942696486
+  layerMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+--- !u!114 &5158801176021776575
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
