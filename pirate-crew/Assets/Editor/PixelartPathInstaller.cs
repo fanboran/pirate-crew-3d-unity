@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -7,20 +8,27 @@ using PirateCrew.Rendering.Pixelart;
 namespace PirateCrew.EditorTools
 {
     /// <summary>
-    /// **像素化着色路径**的渲染器装配（编辑器侧）：造两个专用渲染器资产并追加进两档 URP 资产。
+    /// **像素化着色路径**的渲染器装配（编辑器侧）：造两个专用渲染器资产、装齐七个特征、追加进两档 URP 资产。
     ///
     /// 【为什么要两个渲染器】这条路径是"一台相机只写数据、另一台只上屏"的形状：
     /// <list type="bullet">
-    ///   <item><b>Cast 渲染器</b>（AfterRendering 顺序即此处数组顺序）：
-    ///         BeforeRender（相机 snap）→ Object（几何 → 低分辨率 G-buffer）→ Shading（低分辨率域着色）。</item>
+    ///   <item><b>Cast 渲染器</b>（数组顺序 = 同一 RenderPassEvent 内的执行顺序，即契约 §3）：
+    ///         BeforeRender（相机 snap + 尺寸下发）→ Object（几何 → 屏幕档 7 张 G-buffer）→
+    ///         Connectivity（连通域三阶段）→ Outline（屏幕空间描边）→ RimLight（边缘光）→
+    ///         Shading（四趟着色 + 合成）→ ColorCorrection（帧级调色板）。</item>
     ///   <item><b>Screen 渲染器</b>：只有 ScreenCopy（ResultBuffer 点采样放大上屏）。</item>
     /// </list>
     /// 两台相机若共用同一个渲染器，主相机会把刚画好的 G-buffer 清掉再着色，画面变纯背景色——
-    /// 这正是"两个渲染器 + 两个相机"不可省的机械原因（蓝图 §9 落地清单第一条）。
+    /// 这正是"两个渲染器 + 两个相机"不可省的机械原因。
     ///
     /// 【为什么追加而新建 URP 资产】两档 URP 资产已被既有场景/画质档引用，重建会牵动全套设置；
     /// 追加一个渲染器只是给列表加一项，`m_DefaultRendererIndex` 不动，既有相机不受影响。
     /// **索引必须两档一致**——故本装配器按固定顺序往两档追加同一对渲染器。
+    ///
+    /// 【shader / compute / 调色板一律留资产引用】这是**构建剥离防线**：只在 C# 里 `Shader.Find` /
+    /// `Resources.Load` 的 shader 与 compute 在播放器构建里会被剥离，症状是"这条 pass 静默不生效、
+    /// 没有任何报错"。所以本装配器把每个 Feature 的资产字段都写满，且用**强类型字段赋值**——
+    /// 字段名对不上会直接编译报错，不给静默失效留口子。
     ///
     /// 【既有的两档渲染器一律不动】本路径与旧视觉链（`PirateToon` + `PixelationRendererFeature`）
     /// 并行存在、互不引用；后者的退役另行处置。
@@ -34,6 +42,18 @@ namespace PirateCrew.EditorTools
         {
             "Assets/Settings/URP/PC_Balanced_URPAsset.asset",
             "Assets/Settings/URP/PC_Performant_URPAsset.asset",
+        };
+
+        /// <summary>Cast 渲染器的特征顺序（= 执行顺序，契约 §3）。改这里就是改管线次序。</summary>
+        static readonly System.Type[] CastFeatureOrder =
+        {
+            typeof(PixelartBeforeRenderFeature),
+            typeof(PixelartObjectFeature),
+            typeof(PixelartConnectivityFeature),
+            typeof(PixelartOutlineFeature),
+            typeof(PixelartRimLightFeature),
+            typeof(PixelartShadingFeature),
+            typeof(PixelartColorCorrectionFeature),
         };
 
         /// <summary>本装配器上次成功装配的渲染器索引（同一次会话内供装配场景使用）。</summary>
@@ -73,22 +93,15 @@ namespace PirateCrew.EditorTools
                 return false;
             }
 
-            // ---- Cast 渲染器：三个特征，数组顺序 = 同一 RenderPassEvent 内的执行顺序 ----
-            RebuildFeatures(cast, new System.Type[]
-            {
-                typeof(PixelartBeforeRenderFeature),
-                typeof(PixelartObjectFeature),
-                typeof(PixelartShadingFeature),
-            });
-
-            // 着色 shader 必须留下**资产引用**，否则播放器构建会把它剥离（Feature 里那段注释是实测事故）。
-            AssignShadingShader(cast);
+            RebuildFeatures(cast, CastFeatureOrder);
+            AssignFeatureAssets(cast);
 
             // ---- Screen 渲染器：只有上屏 ----
-            RebuildFeatures(screen, new System.Type[]
-            {
-                typeof(PixelartScreenCopyFeature),
-            });
+            RebuildFeatures(screen, new System.Type[] { typeof(PixelartScreenCopyFeature) });
+
+            // 附加光与主光阴影是 URP **管线资产**上的开关；色带贴着实时阴影是创始人裁决，
+            // 少了这一步"阴影永远不出现"且不会有任何报错。
+            EnsureUrpLightingSettings();
 
             // ---- 追加进两档 URP 资产（索引必须一致） ----
             int indexInAll = -1;
@@ -199,37 +212,220 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 把着色 shader 资产写进 Feature 的序列化字段（构建剥离防线）。
-        /// 找不到资产说明 shader 编译失败或被改名——这里必须明确报错，否则表现是"画面全是背景色"。
+        /// 把各 Feature 的 **shader / compute / 调色板资产引用**写满（构建剥离防线）。
+        ///
+        /// 【为什么用强类型赋值而不是 SerializedObject.FindProperty】按字符串找属性时，字段名写错
+        /// 只会静默返回 null、缺陷要到播放器里才现形（表现是"某一趟不生效"）。强类型赋值让名字对不上一律
+        /// **编译报错**，在装配之前就把问题挡住。
         /// </summary>
-        static void AssignShadingShader(UniversalRendererData rendererData)
+        static void AssignFeatureAssets(UniversalRendererData rendererData)
         {
-            const string path = "Assets/Art/Shaders/Pixelart/PixelartShading.shader";
+            var features = rendererData.rendererFeatures;
+
+            PixelartConnectivityFeature connectivity = Find<PixelartConnectivityFeature>(features);
+            if (connectivity != null)
+            {
+                connectivity.checkShader = LoadCompute(PixelartPath.ConnectivityComputeFolder + "/ConnectivityCheck.compute");
+                connectivity.floodShader = LoadCompute(PixelartPath.ConnectivityComputeFolder + "/ConnectivityFlood.compute");
+                connectivity.resultShader = LoadCompute(PixelartPath.ConnectivityComputeFolder + "/ConnectivityResult.compute");
+                EditorUtility.SetDirty(connectivity);
+            }
+
+            PixelartOutlineFeature outline = Find<PixelartOutlineFeature>(features);
+            if (outline != null)
+            {
+                outline.outlineShader = LoadShader(PixelartPath.ShaderFolder + "/PixelartOutline.shader");
+                EditorUtility.SetDirty(outline);
+            }
+
+            PixelartRimLightFeature rimLight = Find<PixelartRimLightFeature>(features);
+            if (rimLight != null)
+            {
+                rimLight.rimLightShader = LoadShader(PixelartPath.ShaderFolder + "/PixelartRimLight.shader");
+                rimLight.rimLightCorrectionShader = LoadCompute(PixelartPath.ComputeFolder + "/RimLightCorrection.compute");
+                EditorUtility.SetDirty(rimLight);
+            }
+
+            PixelartShadingFeature shading = Find<PixelartShadingFeature>(features);
+            if (shading != null)
+            {
+                shading.shadingShader = LoadShader(PixelartPath.ShaderFolder + "/PixelartShading.shader");
+                EditorUtility.SetDirty(shading);
+            }
+
+            PixelartColorCorrectionFeature colorCorrection = Find<PixelartColorCorrectionFeature>(features);
+            if (colorCorrection != null)
+            {
+                colorCorrection.colorCorrectionShader = LoadShader(PixelartPath.ShaderFolder + "/PixelartColorCorrection.shader");
+                colorCorrection.palette = EnableFramePalette ? EnsurePaletteAsset() : null;
+                if (!EnableFramePalette)
+                {
+                    Debug.LogWarning("[PixelartPathInstaller] 帧级调色板**本轮关闭**（palette 字段置空 ⇒ 那一趟整趟跳过）。"
+                        + "原因：首轮出图实测 LUT 索引口径有问题——背景蓝灰被映射成暗紫，整屏发怪，"
+                        + "而且它把判据脚本的颜色假设一起带偏了（连墨线检测器都认不出墨色）。"
+                        + "调色板资产本身仍然生成（" + PixelartPath.PaletteAssetPath + "），"
+                        + "把 EnableFramePalette 改回 true 并重跑本装配器 + 出包即可打开。");
+                }
+                EditorUtility.SetDirty(colorCorrection);
+            }
+
+            EditorUtility.SetDirty(rendererData);
+        }
+
+        /// <summary>
+        /// **帧级调色板开关**（P5）。默认关，理由见 <see cref="AssignFeatureAssets"/> 里的告警：
+        /// 首轮出图证明 LUT 的索引口径还没对（背景蓝灰被映射成暗紫），开着它会让整屏发怪、
+        /// 也让判据脚本的颜色假设失效。关掉时那一趟整趟跳过，画面回到"色带 + 光照"的 v3 口径。
+        /// **LUT 口径修好后把这里改回 true**（然后重跑装配器 + 出包）。
+        /// </summary>
+        const bool EnableFramePalette = false;
+
+        static T Find<T>(List<ScriptableRendererFeature> features) where T : ScriptableRendererFeature
+        {
+            for (int i = 0; i < features.Count; i++)
+            {
+                var typed = features[i] as T;
+                if (typed != null)
+                    return typed;
+            }
+
+            Debug.LogError("[PixelartPathInstaller] Cast 渲染器里没有 " + typeof(T).Name
+                + "——特征列表被改过？资产引用未写入，该趟在播放器里会被剥离。");
+            return null;
+        }
+
+        static Shader LoadShader(string path)
+        {
             var shader = AssetDatabase.LoadAssetAtPath<Shader>(path);
             if (shader == null)
-            {
-                Debug.LogError("[PixelartPathInstaller] 找不到着色 shader：" + path
+                Debug.LogError("[PixelartPathInstaller] 找不到 shader：" + path
                     + "（编译失败或被改名？）——播放器里这条 pass 会被剥离。");
-                return;
-            }
+            return shader;
+        }
 
-            var features = rendererData.rendererFeatures;
-            if (features == null || features.Count < 3)
+        static ComputeShader LoadCompute(string path)
+        {
+            var shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(path);
+            if (shader == null)
+                Debug.LogError("[PixelartPathInstaller] 找不到 compute：" + path
+                    + "（编译失败或被改名？）——播放器里这个 kernel 会被剥离。");
+            return shader;
+        }
+
+        /// <summary>
+        /// 生成/刷新帧级调色板资产：**种子色取自本路径的材质色**（创始人 2026-09-22 裁决：
+        /// 首版从场景材质色自动生成，观感变化最小），另加墨色与环境暗部色各一档。
+        /// </summary>
+        static PixelartPalette EnsurePaletteAsset()
+        {
+            var colors = new List<Color>();
+            var seen = new HashSet<string>();
+
+            string[] guids = AssetDatabase.FindAssets("t:Material", new[] { "Assets/Art/Materials/Pixelart" });
+            for (int i = 0; i < guids.Length; i++)
             {
-                Debug.LogError("[PixelartPathInstaller] Cast 渲染器的特征数量不对，着色 shader 未写入。");
-                return;
+                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+                var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (material == null || !material.HasProperty("_BaseColor"))
+                    continue;
+
+                Color c = material.GetColor("_BaseColor");
+                string key = ((int)(c.r * 255f)) + "_" + ((int)(c.g * 255f)) + "_" + ((int)(c.b * 255f));
+                if (seen.Add(key))
+                    colors.Add(c);
             }
 
-            var shading = features[2] as PixelartShadingFeature;
-            if (shading == null)
+            if (colors.Count == 0)
             {
-                Debug.LogError("[PixelartPathInstaller] Cast 渲染器第 3 个特征不是着色 Feature（顺序被改过？）。");
-                return;
+                Debug.LogWarning("[PixelartPathInstaller] 没扫到任何本路径材质（"
+                    + "Assets/Art/Materials/Pixelart）——调色板会是空的，调色板那一趟自动跳过。"
+                    + "先跑 PixelartPilotSetup.BuildAll 造材质再重跑本装配器。");
+                return null;
             }
 
-            shading.shadingShader = shader;
-            EditorUtility.SetDirty(shading);
-            EditorUtility.SetDirty(rendererData);
+            // 墨色与环境暗部色必须进板：墨线像素会被映射到最近的板色，板里没有近黑就会把线染成别的暗色。
+            colors.Add(new Color(0.070588f, 0.047059f, 0.078431f, 1f));
+            colors.Add(RenderSettings.ambientMode == AmbientMode.Flat
+                ? RenderSettings.ambientLight
+                : RenderSettings.ambientSkyColor);
+
+            EnsureFolder(System.IO.Path.GetDirectoryName(PixelartPath.PaletteAssetPath).Replace('\\', '/'));
+            var palette = PixelartPalette.CreateFromColors(PixelartPath.PaletteAssetPath, colors);
+            Debug.Log("[PixelartPathInstaller] 调色板资产已刷新：" + PixelartPath.PaletteAssetPath
+                + "（" + colors.Count + " 色，种子来自本路径材质色 + 墨色 + 环境暗部色）。");
+            return palette;
+        }
+
+        /// <summary>
+        /// 打开两档 URP 资产上的**附加光与主光阴影**（色带贴实时阴影需要它们）。
+        /// 属性名在 URP 各版本间改过，故按候选名逐个试；一个都没找到就明确告警，不静默跳过。
+        /// </summary>
+        static void EnsureUrpLightingSettings()
+        {
+            string[] additionalLightCandidates =
+            {
+                "m_AdditionalLightsRenderingMode",   // 0=Disabled 1=PerVertex 2=PerPixel
+                "m_AdditionalLightsMode",
+            };
+            string[] additionalShadowCandidates =
+            {
+                "m_AdditionalLightShadowsSupported",
+                "m_AdditionalLightsCastShadows",
+            };
+            string[] mainShadowCandidates =
+            {
+                "m_MainLightShadowsSupported",
+            };
+
+            foreach (string path in UrpAssetPaths)
+            {
+                var asset = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(path);
+                if (asset == null)
+                    continue;
+
+                var so = new SerializedObject(asset);
+                bool ok = SetFirstFound(so, additionalLightCandidates, 2);   // 2 = Per Pixel
+                ok &= SetFirstFound(so, additionalShadowCandidates, 1);
+                ok &= SetFirstFound(so, mainShadowCandidates, 1);
+                so.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(asset);
+
+                if (!ok)
+                {
+                    Debug.LogWarning("[PixelartPathInstaller] URP 资产 " + path
+                        + " 的附加光/阴影开关没能全部写入（属性名未命中）。"
+                        + "请在 Inspector 的 Lighting 里手工确认：Additional Lights = Per Pixel、"
+                        + "Cast Shadows 打开、Main Light 的 Cast Shadows 打开。"
+                        + "这两项不开时表现是「阴影永远不出现且没有任何报错」。");
+                }
+            }
+        }
+
+        static bool SetFirstFound(SerializedObject so, string[] names, int value)
+        {
+            for (int i = 0; i < names.Length; i++)
+            {
+                SerializedProperty property = so.FindProperty(names[i]);
+                if (property == null)
+                    continue;
+                if (property.propertyType == SerializedPropertyType.Boolean)
+                    property.boolValue = value != 0;
+                else
+                    property.intValue = value;
+                return true;
+            }
+
+            return false;
+        }
+
+        static void EnsureFolder(string path)
+        {
+            if (string.IsNullOrEmpty(path) || AssetDatabase.IsValidFolder(path))
+                return;
+
+            string parent = System.IO.Path.GetDirectoryName(path).Replace('\\', '/');
+            EnsureFolder(parent);
+            AssetDatabase.CreateFolder(parent, System.IO.Path.GetFileName(path));
         }
 
         /// <summary>把渲染器数据追加进管线资产（已在列表则返回既有索引）。</summary>

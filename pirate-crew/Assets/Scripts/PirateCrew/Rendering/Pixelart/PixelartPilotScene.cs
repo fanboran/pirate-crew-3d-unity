@@ -25,17 +25,21 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>
         /// **像素化档位 = 一个艺术像素占几个屏幕像素（锁死的整数放大倍数）**。
         ///
-        /// 常见分辨率下都是严格整数倍：1920×1080 → 384×216、2560×1440 → 512×288、
-        /// 3840×2160 → 768×432、1600×900 → 320×180。**非整数放大是"全屏看着像素不齐"的头号原因**
+        /// 常见分辨率下都是严格整数倍：1920×1080 → 640×360、2560×1440 → 853×480（非整数）、
+        /// 3840×2160 → 1280×720。**非整数放大是"全屏看着像素不齐"的头号原因**
         /// （块边长在 6/7 之间混排），所以这个数一旦定下就不要按分辨率去改它。
+        ///
+        /// 【为什么是 3 而不是 5】创始人 2026-09-22 裁决：**全局像素比例锁定 3×**——
+        /// UI 的基本单位（`PixelSkin.Unit` = 3 屏幕像素）就是按这个口径设计的，
+        /// 3D 与 UI 必须同一个艺术像素网格。`BeveledPixelSpriteBuilder` 的 u 对齐判据会断言本值。
         /// </summary>
-        public const int PixelScale = 5;
+        public const int PixelScale = 3;
 
         /// <summary>
-        /// 参考画布高（1080p ÷ 5 = 216 艺术像素）。**只用于把"看得见多少米"换算成
+        /// 参考画布高（1080p ÷ 3 = 360 艺术像素）。**只用于把"看得见多少米"换算成
         /// "每艺术像素多少米"**——真实画布尺寸由屏幕和 <see cref="PixelScale"/> 反推。
         /// </summary>
-        public const int ReferenceRenderHeight = 216;
+        public const int ReferenceRenderHeight = 360;
 
         /// <summary>俯角（度）。30° = 规则像素阶梯（2 像素横移 / 1 像素下降）。</summary>
         public const float PitchDegrees = 30f;
@@ -50,8 +54,9 @@ namespace PirateCrew.Rendering.Pixelart
         public static readonly Vector3 Target = new Vector3(0f, 1.2f, 0f);
 
         // ---------------- 机位梯子（按"可见多少米高"给，与分辨率解耦）----------------
-        // 一个艺术像素的世界尺寸 = 可见高度 ÷ 216；分辨率越高，艺术像素越多 ⇒ 可见范围越大
-        // （1080p 看 28m、1440p 看 37m）——这正是"艺术像素的世界尺寸固定"这条口径的含义。
+        // 一个艺术像素的世界尺寸 = 可见高度 ÷ 参考画布高（1080p 下 360）。
+        // **可见米数是美术锚、不随 PixelScale 变**：5×→3× 时取景不动、只是颗粒变细；
+        // 而屏幕分辨率越高、艺术像素越多 ⇒ 可见范围越大（1080p 看 28m、1440p 看 37m）。
 
         /// <summary>宽机位：可见 28m 高（1080p 下正交 size 14；场景装配时相机就是这一档）。</summary>
         public const float WideVisibleMeters = 28f;

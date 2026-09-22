@@ -61,7 +61,7 @@ RT_HEIGHT_PATTERN = re.compile(r"rt(\d+)")
 SCENE_CONSTANTS_CS = os.path.join(
     "pirate-crew", "Assets", "Scripts", "PirateCrew", "Rendering", "Pixelart", "PixelartPilotScene.cs")
 PIXEL_SCALE_PATTERN = re.compile(r"PixelScale\s*=\s*(\d+)")
-FALLBACK_PIXEL_SCALE = 5
+FALLBACK_PIXEL_SCALE = 3
 SCREEN_WIDTH = 1920
 
 # 无抖动样本的期望区间（见模块 docstring 的判据二/三）
@@ -154,6 +154,140 @@ def lighting_span(lr):
     return (hi - lo) / hi if hi > 0 else 0.0
 
 
+INK_MISS_MAX = 0.005          # 剪影外侧缺线占比上限（几何壳时代 2.7%；屏幕空间膨胀应趋近 0）
+DOWNGRADE_AB_MIN_DIFF = 0.001 # 连通域降档 A/B 的最小像素差异率（两张图逐位相同即没接上）
+OUTLINE_VIEW_MIN_PIXELS = 200 # dbg-outline 视图里黑像素（= 墨线）的下限
+CONNECT_MIN_DISTINCT = 3      # dbg-connect 视图里 r 通道（连通比例）的不同取值数下限
+
+
+def ink_metrics(a, radius):
+    """描边的两条硬指标（口径与 tools/pixel-review/ink_gap_probe.py 同一套）。
+
+    返回 (外侧缺线占比, 内部墨线像素数)：
+      · 外侧缺线占比 = 剪影边界像素里、"外侧 **一个艺术像素内**没有墨线"的比例。
+      · 内部墨线像素数 = 墨线像素中**不贴外轮廓**的那些（离未绘制区域超过一个艺术像素）。
+
+    【半径为什么是 pixelScale 而不是 1】墨线环宽 1 **艺术**像素 = `pixelScale` 屏幕像素，
+    且它按设计落在**更远的那一侧**（剪影处即底色侧）。所以"外侧有没有墨线"必须在
+    一个艺术像素的范围内问；用 ±1 屏幕像素去问，环必然"差一点没够着"，实测假报 20%。
+    """
+    flat = a.reshape(-1, 3)
+    step = max(1, flat.shape[0] // 200000)
+    sample = flat[::step].astype(np.int64)
+    keys = (sample[:, 0] >> 2) << 12 | (sample[:, 1] >> 2) << 6 | (sample[:, 2] >> 2)
+    values, counts = np.unique(keys, return_counts=True)
+    top = int(values[counts.argmax()])
+    bg = np.array([(top >> 12 & 63) << 2, (top >> 6 & 63) << 2, (top & 63) << 2])
+
+    r, g, b = a[:, :, 0], a[:, :, 1], a[:, :, 2]
+    ink = (r < 32) & (g < 32) & (b < 48)
+    # 几何内容 = 非底色且非墨线（墨线本身不是几何，把它算进内容会让边界落在墨线外沿）。
+    content = (np.abs(a - bg).sum(axis=2) > 30) & ~ink
+    h, w = content.shape
+    content[int(h * 0.95):, int(w * 0.93):] = False   # 右下角 Development Build 水印
+    content[int(h * 0.96):, : int(w * 0.08)] = False
+    drawn = content | ink
+
+    def at(mask, dy, dx):
+        out = np.roll(mask, (-dy, -dx), axis=(0, 1))
+        if dy > 0:
+            out[h - dy:] = False
+        elif dy < 0:
+            out[: -dy] = False
+        if dx > 0:
+            out[:, w - dx:] = False
+        elif dx < 0:
+            out[:, : -dx] = False
+        return out
+
+    offsets = [(dy, dx) for dy in range(-radius, radius + 1) for dx in range(-radius, radius + 1)]
+
+    outside4 = np.zeros_like(content)
+    for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+        outside4 |= ~at(content, dy, dx)
+    boundary = content & outside4
+
+    ink_near = np.zeros_like(content)
+    for dy, dx in offsets:
+        ink_near |= at(ink, dy, dx)
+    miss = boundary & ~ink_near
+
+    outside_near = np.zeros_like(content)
+    for dy, dx in offsets:
+        outside_near |= at(~drawn, dy, dx)
+    interior_ink = int((ink & ~outside_near).sum())
+
+    ratio = float(miss.sum()) / float(max(1, boundary.sum()))
+    return ratio, interior_ink
+
+
+def judge_outline_closure(files, pixel_scale):
+    """**描边闭合率**的决定性测法：拿两张同机位的中间缓冲对测。
+
+    【为什么不用单张出图测】试过、连错三次（底色写死 / 墨线被算进内容 / 找墨线的半径用了 1 屏幕像素
+    而环宽是 1 艺术像素）——单张图里"背景"与"墨线"都要靠颜色猜，猜错一次结论就整个翻面。
+    而这个仓库本来就有两张**语义明确**的调试视图（AGENTS.md 的拆管线出图规范）：
+      · `dbg-albedo`：无几何的像素被画成**洋红** (255,0,255) ⇒ 覆盖掩码 = 非洋红；
+      · `dbg-outline`：墨线标记画成**黑**、其余白 ⇒ 墨线掩码 = 近黑。
+    两张同机位、逐像素对齐 ⇒ 剪影边界与墨线都不需要猜。
+    """
+    albedo = outline = None
+    for path in files:
+        name = os.path.basename(path)
+        if name == "dbg-albedo.png":
+            albedo = path
+        elif name == "dbg-outline.png":
+            outline = path
+
+    if albedo is None or outline is None:
+        print("（跳过描边闭合：需要同时有 dbg-albedo 与 dbg-outline 两张图）")
+        return 0
+
+    cover = np.asarray(Image.open(albedo).convert("RGB")).astype(np.int32)
+    lines = np.asarray(Image.open(outline).convert("RGB")).astype(np.int32)
+    if cover.shape != lines.shape:
+        print("FAIL 描边闭合：两张调试图尺寸不同，无法比对")
+        return 1
+
+    # 覆盖 = 非洋红；墨线 = dbg-outline 里的近黑
+    covered = ~((cover[:, :, 0] > 200) & (cover[:, :, 1] < 80) & (cover[:, :, 2] > 200))
+    ink = lines.max(axis=2) < 40
+    h, w = covered.shape
+    radius = max(1, pixel_scale)
+
+    def at(mask, dy, dx):
+        out = np.roll(mask, (-dy, -dx), axis=(0, 1))
+        if dy > 0:
+            out[h - dy:] = False
+        elif dy < 0:
+            out[: -dy] = False
+        if dx > 0:
+            out[:, w - dx:] = False
+        elif dx < 0:
+            out[:, : -dx] = False
+        return out
+
+    boundary = np.zeros_like(covered)
+    for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+        boundary |= covered & ~at(covered, dy, dx)
+
+    near_ink = np.zeros_like(covered)
+    for dy in range(-radius, radius + 1):
+        for dx in range(-radius, radius + 1):
+            near_ink |= at(ink, dy, dx)
+
+    miss = boundary & ~near_ink
+    ratio = float(miss.sum()) / float(max(1, boundary.sum()))
+    # 【这条测法还没定案，所以只报不判】它假设"覆盖掩码的边界"就是物体剪影，但试点场景里
+    # **地面是一张 160×160 的大平面、铺满全屏** ⇒ 覆盖掩码没有边界（实测 100%）。
+    # 正确的剪影要用**深度/法线不连续**去定义（正好是连通域手里那份数据），留给下一轮。
+    # 现阶段描边是否闭合靠两件事交叉确认：`dbg-outline` 的墨线像素数 > 0，以及人眼过图。
+    print("WARN 描边闭合（中间缓冲对测）未定案：%d 个覆盖边界像素、缺线 %.2f%%"
+          "——地面铺满全屏使「覆盖边界」退化，该测法需要按深度/法线不连续重写，本轮不作为门禁"
+          % (int(boundary.sum()), ratio * 100.0))
+    return 0
+
+
 def judge_one(path, pixel_scale):
     img = Image.open(path).convert("RGB")
     a = np.asarray(img).astype(int)
@@ -178,12 +312,31 @@ def judge_one(path, pixel_scale):
     # 调试档（dbg-*）是**中间缓冲**的直接视图：albedo/参数缓冲按设计就是平涂、法线缓冲按设计满是跳变，
     # 所以除块边长外的四项判据在它们身上不成立，只判块边长（否则会把"设计如此"误报成故障）。
     is_debug_view = name.startswith("dbg-")
-    if expected_block > 1 and b != expected_block:
+    # 调试视图是**中间缓冲的直接视图**（数据不是最终画面）：块边长这条只对最终出图判——
+    # 中间缓冲本来就可能是平涂的（逐物体参数那张就是），拿"块对齐"去量它会把设计如此报成故障。
+    # 最终出图的块边长仍由 pa-* 硬判（那才是像素化的验收对象）。
+    if expected_block > 1 and b != expected_block and not is_debug_view:
         notes.append("FAIL 块边长 %d ≠ 期望 %d（像素档位，见 PixelartPilotScene.PixelScale）"
                      % (b, expected_block))
     if colors < 2:
         notes.append("FAIL 低分辨率域只有一个颜色（某条 pass 没生效）")
     if is_debug_view:
+        # 两个新增调试档有各自专属的判据（它们看的就是中间缓冲，不能用观感判据去量）。
+        if "outline" in name:
+            dark = int((a.max(axis=2) < 40).sum())
+            if dark < OUTLINE_VIEW_MIN_PIXELS:
+                notes.append("FAIL dbg-outline 里墨线像素只有 %d 个（< %d）⇒ 描边那一趟没写缓冲"
+                             % (dark, OUTLINE_VIEW_MIN_PIXELS))
+            else:
+                notes.append("OK   墨线像素 %d 个（描边那一趟在写缓冲）" % dark)
+        elif "connect" in name:
+            distinct = len(np.unique(lr[:, :, 0]))
+            if distinct < CONNECT_MIN_DISTINCT:
+                notes.append("FAIL dbg-connect 的连通比例只有 %d 个取值（< %d）⇒ 连通域判据没算出分布"
+                             % (distinct, CONNECT_MIN_DISTINCT))
+            else:
+                notes.append("OK   连通比例 %d 个取值（连通域判据算出分布了）" % distinct)
+
         stats = {"block": b, "rt_width": rt_width, "colors": colors,
                  "jump": jump, "flat": flat, "span": span}
         return name, stats, notes
@@ -191,6 +344,13 @@ def judge_one(path, pixel_scale):
         notes.append("FAIL 亮暗跨度 %.2f < %.2f（画面只剩各材质 albedo 原色 ⇒ "
                      "光照/色带很可能被整屏旁路，检查 prop.a 之类通道语义是否冲突）"
                      % (span, LIGHTING_MIN_SPAN))
+
+    # 描边闭合率：**单图测法只报数、不判定**——它要靠颜色猜"背景"与"墨线"，实测三种口径都会翻面
+    # （见 judge_outline_closure 的注释）。真正的判据是那两张中间缓冲的对测（main 里跑）。
+    if "mid" in name or "wide" in name:
+        miss_ratio, interior_ink = ink_metrics(a, max(1, pixel_scale))
+        notes.append("    单图缺线 %.2f%% / 内部墨线 %d 像素（仅供参考，不参与判定）"
+                     % (miss_ratio * 100.0, interior_ink))
 
     # 抖动档由文件名标注：含 bayer/density/dither 的样本按"抖动应明显改变跳变率"判，
     # 其余按无抖动区间判。密度图案（两态）期望跳变率 > 0.5，Bayer（渐变态）期望 < 0.5。
@@ -260,8 +420,47 @@ def main(argv):
                 failures += 1
 
     print("---")
+    failures += judge_outline_closure(files, scale)
+    failures += judge_downgrade_ab(files)
     print("结论：" + ("全部核心判据通过" if failures == 0 else "%d 项 FAIL" % failures))
     return 0 if failures == 0 else 1
+
+
+def judge_downgrade_ab(files):
+    """连通域降档（"内线"）的 A/B 判据。
+
+    【为什么必须 A/B】连通域降档**不画新东西**，它只是把"面转折处那一档"压低一档——
+    所以既不能靠"墨线像素数"也不能靠"色数"单独判出来，必须拿同一机位、
+    只差 `_PixelartAAThreshold`（降档门控）的两张图对比：
+    这一档确实生效时，转折处的像素会变，两张图必然有差异；没接上时两张**逐位相同**。
+    """
+    base, other = None, None
+    for path in files:
+        name = os.path.basename(path)
+        if name == "pa-mid.png":
+            base = path
+        elif name == "pa-mid-nodowngrade.png":
+            other = path
+
+    if base is None or other is None:
+        print("（跳过降档 A/B：需要同时有 pa-mid 与 pa-mid-nodowngrade 两张图）")
+        return 0
+
+    a = np.asarray(Image.open(base).convert("RGB")).astype(int)
+    b = np.asarray(Image.open(other).convert("RGB")).astype(int)
+    if a.shape != b.shape:
+        print("FAIL 降档 A/B 两张图尺寸不同，无法比对")
+        return 1
+
+    diff = float((a != b).any(axis=2).mean())
+    if diff < DOWNGRADE_AB_MIN_DIFF:
+        print("FAIL 降档 A/B：两张图只有 %.3f%% 的像素不同（< %.3f%%）⇒ "
+              "连通域降档很可能没生效（门控没接上 / 阈值没传到着色）"
+              % (diff * 100.0, DOWNGRADE_AB_MIN_DIFF * 100.0))
+        return 1
+
+    print("OK   降档 A/B：%.3f%% 的像素因降档而改变（内线在起作用）" % (diff * 100.0))
+    return 0
 
 
 if __name__ == "__main__":

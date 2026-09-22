@@ -391,19 +391,22 @@ namespace PirateCrew.ArtReview
                 ("pa-close",       PixelartPilotScene.CloseVisibleMeters, 0.3f, -1, 0f, 0),
                 ("pa-mid-bayer",   PixelartPilotScene.MidVisibleMeters,   0.6f,  0, 0.5f, 0),
                 ("pa-mid-density", PixelartPilotScene.MidVisibleMeters,   0.6f,  1, 1.0f, 0),
-                ("pa-mid-pull5",   PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 0),
+                ("pa-rim",         PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 0),
+                // 【降档 A/B 的对照档】连通域降档不画新东西、只把"面转折处那一档"压低一档，
+                // 所以它没法靠单张图的"墨线数/色数"判出来——必须拿同一机位、只差降档门控的两张图对比。
+                // `aaScaler = 0` ⇒ 阈值 0 ⇒ `connect < 0` 永不成立 ⇒ 降档整体关闭。
+                ("pa-mid-nodowngrade", PixelartPilotScene.MidVisibleMeters, 0.6f, -1, 0f, 0),
                 ("dbg-albedo",     PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 1),
                 ("dbg-normal",     PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 2),
                 ("dbg-prop",       PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 3),
+                ("dbg-outline",    PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 4),
+                ("dbg-connect",    PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 5),
             };
 
             LogCrewRenderersOnce();
 
             foreach (var shot in shots)
             {
-                // 描边拉近量对照档（其余档用 rig 的默认值）。
-                rig.inkDepthPull = shot.name == "pa-mid-pull5" ? 5f : 0f;
-
                 // 机位 = 改"每艺术像素多少米"（正交 size 由 rig 按它乘艺术像素数推出）。
                 rig.worldPerPixel = PixelartPilotScene.WorldPerPixel(shot.visibleMeters);
                 cam.transform.position = target + orbitDir * (cameraDistance * shot.zoom);
@@ -413,6 +416,17 @@ namespace PirateCrew.ArtReview
                     SetPixelartDither(shot.ditherMode, shot.ditherStrength);
                 else
                     SetPixelartDither(-1, 0f);   // 显式清 MPB：否则上一张的抖动档会延续到本张
+
+                // 边缘光只在 `pa-rim` 那一档拨亮：材质默认 `_RimLightColor` 全黑（不改变已认过的画面），
+                // 拨亮的那张用来证明"逐物体边缘光色 → 边缘光缓冲 → 合成"这条通路真的走通了
+                // ——它是本轮补回来的机制里最容易"接了一半"的一条（关键字/附加光开关/缓冲任一没接上，
+                // 画面只是少一点边缘提亮而不报错）。
+                // 【次序】必须放在 SetPixelartDither 之后：清 MPB 会把这里的覆盖一起清掉。
+                SetPixelartRim(shot.name == "pa-rim");
+
+                // 连通域降档的门控：只有 A/B 对照档关掉它（`aaScaler = 0` ⇒ 阈值 0 ⇒ 降档永不成立），
+                // 其余档回 rig 默认值（1.5 ⇒ 阈值 0.75，与 v3 同口径）。
+                rig.aaScaler = shot.name == "pa-mid-nodowngrade" ? 0f : 1.5f;
 
                 Shader.SetGlobalFloat(
                     global::PirateCrew.Rendering.Pixelart.PixelartPath.DebugModeId, shot.debugMode);
@@ -507,6 +521,32 @@ namespace PirateCrew.ArtReview
                 renderer.GetPropertyBlock(block);
                 block.SetFloat("_DitherMode", mode);
                 block.SetFloat("_DitherStrength", strength);
+                renderer.SetPropertyBlock(block);
+            }
+        }
+
+        /// <summary>
+        /// 给场景里所有本路径材质的 renderer 拨 <c>_RimLightColor</c>（MPB 覆盖，不动材质资产）。
+        /// 【为什么要这一档】逐物体边缘光色是"全部补齐"里最容易只接了一半的一条：
+        /// 它要穿过 物体 pass 的 RimLightProperty 缓冲 → 边缘光累加 blit（受连通域门控）
+        /// → 去孤立点 compute → 合成，任何一段没接上，画面都只是"少了点边缘提亮"而不报错。
+        /// 把这一档拨成明显偏暖的浅色，出图时"剪影内侧有没有一圈提亮"一眼可判。
+        /// 关 = 写回黑色（材质默认就是黑，等价于不参与）。
+        /// </summary>
+        static void SetPixelartRim(bool on)
+        {
+            Color rim = on ? new Color(0.42f, 0.30f, 0.16f, 1f) : Color.black;
+
+            foreach (MeshRenderer renderer in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+            {
+                Material mat = renderer.sharedMaterial;
+                if (mat == null || mat.shader == null
+                    || mat.shader.name != global::PirateCrew.Rendering.Pixelart.PixelartPath.ObjectShaderName)
+                    continue;
+
+                var block = new MaterialPropertyBlock();
+                renderer.GetPropertyBlock(block);
+                block.SetColor("_RimLightColor", rim);
                 renderer.SetPropertyBlock(block);
             }
         }

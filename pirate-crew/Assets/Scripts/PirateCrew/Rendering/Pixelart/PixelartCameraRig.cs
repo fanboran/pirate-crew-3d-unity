@@ -7,25 +7,26 @@ namespace PirateCrew.Rendering.Pixelart
     /// <summary>
     /// **像素化着色路径**的相机装配（挂在本场景的相机上，一场景一个）。
     ///
-    /// 【装配出什么】
+    /// 【装配出什么】（接口契约：docs/技术/渲染/像素化着色路径-P4P5接口契约.md §0/§1）
     /// <list type="bullet">
-    ///   <item><b>Cast 相机</b>：本相机的**子物体、local 恒等**——于是它自动继承主相机的 Transform，
-    ///         相机怎么动它怎么动，不需要任何接线（v3 `SloanePixelartCamera.cs:283-285` 的同一手法）。
-    ///         它 `targetTexture = ResultBuffer`，用 Cast 渲染器（物体 pass + 低分辨率域着色）。</item>
-    ///   <item><b>主相机退化成上屏器</b>：清空 cullingMask、清屏改 Nothing——它自己什么都不画，
+    ///   <item><b>Cast 相机</b>：本相机的**子物体、local 恒等**——自动继承主相机的 Transform，
+    ///         相机怎么动它怎么动，不需要任何接线（v3 `SloanePixelartCamera.cs:283-285` 同一手法）。
+    ///         它 `targetTexture = ResultBuffer`，用 Cast 渲染器（物体/连通域/描边/边缘光/着色/调色板）。</item>
+    ///   <item><b>主相机退化成上屏器</b>：清空 cullingMask、清屏改 Nothing——自己什么都不画，
     ///         由 Screen 渲染器上的 CopyFeature 把 ResultBuffer 点采样放大上屏。</item>
-    ///   <item><b>低分辨率缓冲</b>：3 张 G-buffer + 深度 + ResultBuffer，全部按
-    ///         「高锁档位、宽随屏幕宽高比、偶数对齐」分配（**这是本仓口径，不照抄 v3 的固定 320×180**：
+    ///   <item><b>两个分辨率域</b>：<b>屏幕档</b>（= 艺术画布 × pixelScale，几何与 7 张 G-buffer 在这里，
+    ///         连通域判据也在这里）+ <b>艺术画布</b>（= 屏幕 ÷ pixelScale，描边/着色/合成/调色板在这里）。
+    ///         尺寸都按「**锁 pixelScale 整数倍**」从实际屏幕反推（**这是本仓口径，不照抄 v3 的固定尺寸**：
     ///         v3 上屏那次 blit 不随宽高比调整，非 16:9 屏会横向拉伸——蓝图 §1.1 ⚠）。</item>
     /// </list>
     ///
-    /// 【为什么几何真的渲染在低分辨率】G-buffer 是低分辨率 RT，物体 pass 在它上面 DrawRenderers——
-    /// 光栅化分辨率由**渲染目标**决定，不由相机决定。所以这条路是"几何直接渲进低分辨率 RT"，
-    /// 没有"全分辨率渲染再降采"那一步（渲染篇 §3.1 推论 4 的前一半）。
+    /// 【为什么几何画在屏幕档】v3 的艺术画布 320×180、G-buffer 1600×900 = 画布 × 5 = 它的**屏幕分辨率**
+    /// ——"几何/G-buffer 就是常规延迟渲染的 G-buffer，全分辨率"，省 fill rate 的是**着色那几趟**。
+    /// 本仓同构（创始人 2026-09-22 裁决）。
     ///
-    /// 【光】主光方向/颜色与环境光每帧下发为 shader 全局（本路径不做 URP 的 shadow variant；
-    /// 色带表面接实时投影必脏、且试点场景就一盏平行光）。暗部色的来源是**环境光项**
-    /// （v3 口径：`diffuse = multiStep(ndotl)·lightColor·albedo`，暗面 = `albedo × 环境色`）。
+    /// 【像素密度口径】`worldPerPixel = 可见米数@1080p ÷ (1080 ÷ pixelScale)`：可见米数是**美术锚**、
+    /// 不随 pixelScale 变（所以 5×→3× 时取景不动、只是颗粒变细）；而**屏幕分辨率越高、可见范围越大**
+    /// （1080p 28m → 1440p 37m），因为艺术画布随屏幕变大。
     /// </summary>
     [RequireComponent(typeof(Camera))]
     [DisallowMultipleComponent]
@@ -34,24 +35,27 @@ namespace PirateCrew.Rendering.Pixelart
         const string CastCameraName = "Pixelart Cast Camera";
 
         [Header("低分辨率域")]
-        [Tooltip("像素化档位 = 一个艺术像素占几个**屏幕**像素（整数放大倍数，锁死）。5 = 1920×1080 下 384×216。")]
-        [Min(1)] public int pixelScale = 5;
+        [Tooltip("像素化档位 = 一个艺术像素占几个**屏幕**像素（整数放大倍数，锁死）。3 = 1920×1080 下 640×360。")]
+        [Min(1)] public int pixelScale = 3;
 
-        [Tooltip("一个艺术像素的世界尺寸（米）。**这是美术口径的锚**：它与 RT 尺寸一起决定了"
-            + "可见世界范围 = 艺术像素数 × 本值（所以分辨率越高、看到的范围越大）。"
-            + "0.1296 = 1080p 下可见 28m 高。")]
-        [Min(0.001f)] public float worldPerPixel = 0.1296f;
-
-        [Tooltip("**已不必需**：墨线改成 ZTest Always 后，环与大平面之间的深度竞争不存在了。"
-            + "留着这个旋钮是为了对照（5 = 渲染篇 §5 原配方的拉近量），非 0 时壳会整体向相机偏移。")]
-        [Range(0f, 40f)] public float inkDepthPull = 0f;
+        [Tooltip("一个艺术像素的世界尺寸（米）。它与艺术画布高一起决定可见世界范围 = 艺术像素数 × 本值。"
+            + "0.07778 = 1080p 下可见 28m 高（= 广角机位），改 pixelScale 时它要按"
+            + "「可见米数 ÷ (1080 ÷ pixelScale)」重算，取景才不动。")]
+        [Min(0.0001f)] public float worldPerPixel = 0.07778f;
 
         [Tooltip("由 pixelScale/worldPerPixel 反推正交 size 并写进相机。"
             + "关掉 = 相机自己管取景（本路径只保证像素网格整数倍，不保证范围随分辨率变大）。")]
         public bool deriveOrthographicSize = true;
 
+        [Tooltip("连通域降档阈值 = 本值 ÷ 2（v3 的 AAScaler 同口径，默认 0.75）。")]
+        [Range(0f, 2f)] public float aaScaler = 1.5f;
+
+        [Header("墨线")]
+        [Tooltip("墨线颜色。默认 #120C14（与 UI 令牌 INK 同色）。")]
+        public Color inkColor = new Color(0.070588f, 0.047059f, 0.078431f, 1f);
+
         [Header("渲染器索引（装配器写入；名字见 PixelartPath.CastRendererName / ScreenRendererName）")]
-        [Tooltip("Cast 相机的渲染器索引（物体 pass + 着色）。-1 = 不改写（用场景里已配好的）。")]
+        [Tooltip("Cast 相机的渲染器索引。-1 = 不改写（用场景里已配好的）。")]
         public int castRendererIndex = -1;
 
         [Tooltip("主相机（上屏）的渲染器索引。必须是只挂 CopyFeature 的那个 Screen 渲染器——"
@@ -59,14 +63,13 @@ namespace PirateCrew.Rendering.Pixelart
         public int screenRendererIndex = -1;
 
         [Header("Cast 相机（留空则运行时按子物体 local 恒等自动创建）")]
-        [Tooltip("低分辨率渲染代理相机。装配器会在编辑器侧建好并写进场景；为空时运行时自动创建。")]
         public Camera castCamera;
 
         [Header("光")]
         [Tooltip("主光。留空则用 RenderSettings.sun（场景的烘焙主光）。")]
         public Light sun;
 
-        [Tooltip("主光强度乘数（色带亮度整体的美术旋钮；URP 非物理模式下 _MainLightColor = color × intensity）。")]
+        [Tooltip("主光强度乘数（色带亮度整体的美术旋钮）。")]
         [Range(0f, 4f)] public float lightIntensity = 1f;
 
         Camera _screenCamera;
@@ -77,6 +80,15 @@ namespace PirateCrew.Rendering.Pixelart
         int _allocatedWidth;
         int _allocatedHeight;
 
+        // 屏幕 → 像素网格的映射（日志与整数性判断用）。
+        int _chosenScale = 3;
+        int _screenWidth;
+        int _screenHeight;
+        int _residualX;
+        int _residualY;
+        bool _exactScale = true;
+        string _loggedMappingKey;
+
         // 主相机被本组件改掉的设置（OnDisable 还原，避免"挂上来就回不去"）。
         CameraClearFlags _savedClearFlags;
         int _savedCullingMask;
@@ -84,39 +96,58 @@ namespace PirateCrew.Rendering.Pixelart
         bool _savedPostProcessing;
 
         /// <summary>上屏相机（主相机；本组件的宿主）。</summary>
-        public Camera ScreenCamera
-        {
-            get { return _screenCamera; }
-        }
+        public Camera ScreenCamera { get { return _screenCamera; } }
 
         /// <summary>低分辨率渲染代理相机（主相机的子物体）。</summary>
-        public Camera CastCamera
-        {
-            get { return _castCamera; }
-        }
+        public Camera CastCamera { get { return _castCamera; } }
 
-        /// <summary>低分辨率结果缓冲（Cast 相机的 targetTexture；FilterMode.Point = 上屏时点采样放大）。</summary>
+        /// <summary>低分辨率结果缓冲（Cast 相机的 targetTexture；Point = 上屏时点采样放大）。</summary>
         public RenderTexture ResultBuffer { get; private set; }
 
-        /// <summary>G-buffer：albedo（rgb）+ 覆盖标记（a）。</summary>
+        // ---- 屏幕档（几何 + G-buffer）----
+        /// <summary>G-buffer：亮部色 + 覆盖标记（a）。</summary>
         public RenderTexture AlbedoBuffer { get; private set; }
-
-        /// <summary>G-buffer：世界法线（原样存 [-1,1]）。</summary>
-        public RenderTexture NormalBuffer { get; private set; }
-
-        /// <summary>G-buffer：逐物体着色参数。</summary>
-        public RenderTexture PropertyBuffer { get; private set; }
-
-        /// <summary>G-buffer 的深度附件（物体 pass 的深度测试）。</summary>
+        /// <summary>G-buffer：屏幕空间几何法线（连通域输入）。</summary>
+        public RenderTexture Normal0Buffer { get; private set; }
+        /// <summary>G-buffer：切线空间法线贴图后的世界法线（着色输入）。</summary>
+        public RenderTexture Normal1Buffer { get; private set; }
+        /// <summary>G-buffer：光滑度 / 金属度。</summary>
+        public RenderTexture PhysicalBuffer { get; private set; }
+        /// <summary>G-buffer：优先级 / 法线边阈值 / AA 缩放。</summary>
+        public RenderTexture ShapeBuffer { get; private set; }
+        /// <summary>G-buffer：主光档数 / 抖动 / 边光档数 / applyOutline。</summary>
+        public RenderTexture PaletteBuffer { get; private set; }
+        /// <summary>G-buffer：逐物体边缘光色。</summary>
+        public RenderTexture RimLightPropertyBuffer { get; private set; }
+        /// <summary>屏幕档深度（可采样；着色里重建 positionWS 用）。</summary>
         public RenderTexture DepthBuffer { get; private set; }
 
-        /// <summary>低分辨率 RT 的当前宽度（像素）。</summary>
+        // ---- 艺术画布域 ----
+        /// <summary>连通域结论。</summary>
+        public RenderTexture ConnectivityResultBuffer { get; private set; }
+        /// <summary>墨线标记。</summary>
+        public RenderTexture OutlineBuffer { get; private set; }
+        /// <summary>漫反射结果。</summary>
+        public RenderTexture DiffuseBuffer { get; private set; }
+        /// <summary>高光结果。</summary>
+        public RenderTexture SpecularBuffer { get; private set; }
+        /// <summary>环境光结果。</summary>
+        public RenderTexture GIBuffer { get; private set; }
+        /// <summary>边缘光累加结果。</summary>
+        public RenderTexture RimLightBuffer { get; private set; }
+
+        /// <summary>艺术画布宽（像素）。</summary>
         public int RenderWidth { get; private set; }
-
-        /// <summary>低分辨率 RT 的当前高度（像素）。</summary>
+        /// <summary>艺术画布高（像素）。</summary>
         public int RenderHeight { get; private set; }
+        /// <summary>屏幕档宽（像素）= 艺术画布宽 × pixelScale。</summary>
+        public int FineWidth { get; private set; }
+        /// <summary>屏幕档高（像素）。</summary>
+        public int FineHeight { get; private set; }
+        /// <summary>本帧采用的像素化档位。</summary>
+        public int PixelScale { get { return _chosenScale; } }
 
-        /// <summary>1 低分辨率像素的世界长度 = 2×正交size ÷ RT高（相机 snap 用）。</summary>
+        /// <summary>1 艺术像素的世界长度（= 2×正交size ÷ 艺术画布高）。物体级吸附也用它。</summary>
         public float UnitSize
         {
             get
@@ -127,10 +158,24 @@ namespace PirateCrew.Rendering.Pixelart
             }
         }
 
+        /// <summary>1 细像素（屏幕档）的世界长度。</summary>
+        public float FineUnitSize
+        {
+            get
+            {
+                if (_screenCamera == null || FineHeight <= 0)
+                    return 0f;
+                return _screenCamera.orthographicSize * 2f / FineHeight;
+            }
+        }
+
+        /// <summary>连通域降档阈值（= aaScaler ÷ 2）。</summary>
+        public float AAThreshold { get { return aaScaler * 0.5f; } }
+
         /// <summary>本装配是否已就绪（缓冲与相机齐备；未就绪时各 Feature 直接跳过）。</summary>
         public bool IsReady
         {
-            get { return _castCamera != null && ResultBuffer != null && AlbedoBuffer != null; }
+            get { return _castCamera != null && ResultBuffer != null && AlbedoBuffer != null && OutlineBuffer != null; }
         }
 
         void OnEnable()
@@ -150,9 +195,8 @@ namespace PirateCrew.Rendering.Pixelart
             // 主相机先钉渲染器：它就是上屏器，不该跑物体/着色 pass。
             ApplyRendererIndex(_screenCamera, screenRendererIndex);
 
-            // 关掉主相机的后处理：它跑在像素化**之后**的全屏域（AfterRendering 之前），
-            // 作用对象是一张"什么都不画、不清屏"的颜色缓冲——既没意义又是"上采样后再做颜色操作"
-            // 这条红线的现成入口（渲染篇 §1 红线 4）。
+            // 关掉主相机的后处理：它跑在像素化**之后**的全屏域，作用对象是一张"什么都不画、不清屏"的
+            // 颜色缓冲——既没意义又是"上采样后再做颜色操作"这条红线的现成入口（渲染篇 §1 红线 4）。
             UniversalAdditionalCameraData screenData = _screenCamera.GetUniversalAdditionalCameraData();
             if (screenData != null)
             {
@@ -162,12 +206,9 @@ namespace PirateCrew.Rendering.Pixelart
 
             EnsureCastCamera();
             EnsureBuffers();
-            PushStaticGlobals();
-
             PixelartPath.ActiveRig = this;
         }
 
-        /// <summary>给相机钉渲染器索引（<paramref name="index"/> &lt; 0 = 不改写）。</summary>
         static void ApplyRendererIndex(Camera camera, int index)
         {
             if (camera == null || index < 0)
@@ -214,13 +255,12 @@ namespace PirateCrew.Rendering.Pixelart
             if (_castCamera == null)
                 return;
 
-            // 屏幕尺寸变化（窗口拉伸/分辨率切换）→ 低分辨率 RT 与上屏尺寸一起重算。
+            // 屏幕尺寸变化（窗口拉伸/分辨率切换）→ 两档缓冲与上屏尺寸一起重算。
             ComputeTargetSize(out int wantWidth, out int wantHeight);
             if (wantWidth != _allocatedWidth || wantHeight != _allocatedHeight)
                 EnsureBuffers();
 
-            // 由"一个艺术像素的世界尺寸"反推正交 size：可见世界 = 艺术像素数 × worldPerPixel，
-            // 所以**分辨率越高看到的范围越大**（1080p 28m 高 → 1440p 37m 高）。
+            // 由"一个艺术像素的世界尺寸"反推正交 size：可见世界 = 艺术像素数 × worldPerPixel。
             if (deriveOrthographicSize)
                 _screenCamera.orthographicSize = RenderHeight * worldPerPixel * 0.5f;
 
@@ -231,27 +271,24 @@ namespace PirateCrew.Rendering.Pixelart
             _castCamera.orthographicSize = _screenCamera.orthographicSize;
             _castCamera.backgroundColor = _screenCamera.backgroundColor;
             // 【层掩码用"主相机被清掉之前"的那份】主相机自己的 cullingMask 已被置 0（它只上屏），
-            // 若这里跟着同步，Cast 相机就什么都看不见——第一版的实测症状正是"画面只剩背景色"
-            // （物体 pass 的 cullResults 空、DrawRenderers 画不出任何东西，且不报错）。
+            // 若这里跟着同步，Cast 相机就什么都看不见——症状是"画面只剩背景色"（且不报错）。
             _castCamera.cullingMask = _savedCullingMask;
 
             LogSelfCheckOnce();
-
             PushLightGlobals();
         }
 
         /// <summary>
-        /// 按**实际屏幕**反推低分辨率 RT 尺寸：**锁"一个艺术像素占几个屏幕像素"这个整数倍数**。
+        /// 按**实际屏幕**反推两档尺寸：**锁"一个艺术像素占几个屏幕像素"这个整数倍数**（pixelScale）。
         ///
-        /// 【为什么口径是"锁倍数"而不是"锁 RT 高"】曾经是"高锁 216、宽随宽高比"，那套只在
-        /// **屏幕高恰好是 216 的整数倍**时成立：1920×1080 → 384×216、块 5（✓），但
-        /// 2560×1440 → 2560÷384 = 6.67（**非整数 ✗**）。非整数放大让块边长在 6/7 之间混排——
-        /// **全屏看着"像素不齐"、放大到 1:1 或整数倍看却是干净的**（创始人报的正是这个症状）。
+        /// 【为什么口径是"锁倍数"而不是"锁画布高"】曾经是"高锁 216、宽随宽高比"，那套只在
+        /// **屏幕高恰好是 216 的整数倍**时成立：1920×1080 → 384×216、块 5（✓），
+        /// 但 2560×1440 → 2560÷384 = 6.67（**非整数 ✗**）。非整数放大让块边长在 6/7 之间混排——
+        /// **全屏看着"像素不齐"、放大到 1:1 或整数倍看却是干净的**（创始人报过这个症状）。
         ///
-        /// 【锁 5 倍在常见分辨率下都是整数】1920×1080 → 384×216、2560×1440 → 512×288、
-        /// 3840×2160 → 768×432、1600×900 → 320×180、1280×720 → 256×144。宽高都能被 5 整除的分辨率
-        /// 一律严格整数倍；个别不能被 5 整除的（1366×768）会有 ≤4 像素的残余落在一条边上，
-        /// 这个残余会打进日志，不静默。
+        /// 【屏幕档 = 艺术画布 × pixelScale】取法确定，不依赖屏幕是否被整除——
+        /// 于是"屏幕档的块中心"与"艺术画布像素中心"是同一个点（`id*k + k/2`），
+        /// 点采样取到的就是它，降采与"直接在画布上光栅化"逐点等价。
         /// </summary>
         void ComputeTargetSize(out int width, out int height)
         {
@@ -272,13 +309,6 @@ namespace PirateCrew.Rendering.Pixelart
             width = Mathf.Max(2, screenWidth / k);
             height = Mathf.Max(2, screenHeight / k);
         }
-
-        int _chosenScale = 5;
-        int _screenWidth;
-        int _screenHeight;
-        int _residualX;
-        int _residualY;
-        bool _exactScale = true;
 
         void EnsureCastCamera()
         {
@@ -315,7 +345,9 @@ namespace PirateCrew.Rendering.Pixelart
 
             _castCameraData.renderType = CameraRenderType.Base;
             _castCameraData.renderPostProcessing = false;   // 后处理全在低分辨率域之后手工做
-            _castCameraData.renderShadows = false;
+            // 【阴影本轮打开】色带 × 实时阴影同屏是创始人 2026-09-22 的裁决（渲染篇 §4.6 原裁决为跳过）。
+            // 阴影图由 URP 的 MainLightShadow 在**主光**上跑；着色那几趟在低分辨率域读 shadowCoord。
+            _castCameraData.renderShadows = true;
             _castCameraData.requiresColorOption = CameraOverrideOption.Off;
             _castCameraData.requiresDepthOption = CameraOverrideOption.Off;
             _castCameraData.antialiasing = AntialiasingMode.None;
@@ -342,25 +374,37 @@ namespace PirateCrew.Rendering.Pixelart
             _allocatedHeight = height;
             RenderWidth = width;
             RenderHeight = height;
+            FineWidth = width * Mathf.Max(1, _chosenScale);
+            FineHeight = height * Mathf.Max(1, _chosenScale);
 
-            // G-buffer 三张：都是"数据"而非"颜色"，故 sRGB 一律关（线性值直存直取）。
-            // - albedo：UNorm8 足够（色带是有限调色板，且暗部误差被环境项吸收）
-            // - 法线：16 位浮点原样存 [-1,1]，不用 v3 的 SNorm16 + 字节打包
-            //   （那套打包与 MRT 格式强耦合、换格式即静默失效——蓝图 §2 注意 1；本路径不需要它）
-            AlbedoBuffer = NewBuffer(width, height, RenderTextureFormat.ARGB32, "PixelartAlbedo", false);
-            NormalBuffer = NewBuffer(width, height, RenderTextureFormat.ARGBHalf, "PixelartNormal", false);
-            PropertyBuffer = NewBuffer(width, height, RenderTextureFormat.ARGBHalf, "PixelartProperty", false);
-            DepthBuffer = new RenderTexture(width, height, 24, RenderTextureFormat.Depth)
-            {
-                name = "PixelartDepth",
-                filterMode = FilterMode.Point,
-                wrapMode = TextureWrapMode.Clamp,
-            };
-            DepthBuffer.Create();
+            // ---- 屏幕档：几何 + 7 张 G-buffer + 可采样深度 ----
+            // 格式都是"数据"而非颜色，故 sRGB 一律关（线性值直存直取）。
+            // albedo 用 8 位够（色带是有限调色板），其余用 16 位浮点：
+            //   v3 用 SNorm16 + PackFloatInt8bit 字节打包，那套与格式强耦合、换格式即静默失效
+            //   （蓝图 §2 注意 1）——本仓直存，不赌它。
+            AlbedoBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGB32, "PixelartAlbedo", false);
+            Normal0Buffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGBHalf, "PixelartNormal0", false);
+            Normal1Buffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGBHalf, "PixelartNormal1", false);
+            PhysicalBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGBHalf, "PixelartPhysical", false);
+            ShapeBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGBHalf, "PixelartShape", false);
+            PaletteBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGBHalf, "PixelartPalette", false);
+            RimLightPropertyBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGBHalf, "PixelartRimLightProperty", false);
+            DepthBuffer = NewDepth(FineWidth, FineHeight, "PixelartDepth");
 
-            // 结果缓冲 = Cast 相机的 targetTexture。FilterMode.Point 是像素化的最后一环
-            // （上屏 blit 走 CoreBlit 的 Nearest pass，点采样放大）。
-            ResultBuffer = NewBuffer(width, height, RenderTextureFormat.ARGB32, "PixelartResult", false);
+            // ---- 艺术画布域 ----
+            // 【两张带 UAV 的】连通域结论与边缘光都由 compute 用 `RWTexture2D` 写，
+            // 而 `RenderTextureDescriptor.enableRandomWrite` 不设就是**绑不上 UAV、写入被静默丢弃**
+            // （Unity 不抛异常）。所以这两张必须显式打开。
+            ConnectivityResultBuffer = NewColor(RenderWidth, RenderHeight, RenderTextureFormat.ARGB32, "PixelartConnectivityResult", false, randomWrite: true);
+            OutlineBuffer = NewColor(RenderWidth, RenderHeight, RenderTextureFormat.ARGB32, "PixelartOutline", false);
+            DiffuseBuffer = NewColor(RenderWidth, RenderHeight, RenderTextureFormat.ARGBHalf, "PixelartDiffuse", false);
+            SpecularBuffer = NewColor(RenderWidth, RenderHeight, RenderTextureFormat.ARGBHalf, "PixelartSpecular", false);
+            GIBuffer = NewColor(RenderWidth, RenderHeight, RenderTextureFormat.ARGBHalf, "PixelartGI", false);
+            RimLightBuffer = NewColor(RenderWidth, RenderHeight, RenderTextureFormat.ARGBHalf, "PixelartRimLight", false, randomWrite: true);
+
+            // 结果缓冲 = Cast 相机的 targetTexture。Point 是像素化的最后一环
+            // （上屏 blit 走 CoreBlit 的 Nearest pass）。
+            ResultBuffer = NewColor(RenderWidth, RenderHeight, RenderTextureFormat.ARGB32, "PixelartResult", false);
             ResultBuffer.filterMode = FilterMode.Point;
 
             if (_castCamera != null)
@@ -371,9 +415,9 @@ namespace PirateCrew.Rendering.Pixelart
 
         /// <summary>
         /// 把"屏幕 ↔ 像素网格"的映射打一行日志（映射变化时打一次）。
-        /// 【为什么要打】"像素不齐"这种症状只能靠这组数判断：屏幕宽高、放大倍数、RT 尺寸、
-        /// 以及**残余像素**（不能被倍数整除时那几像素会落在一条边上）。
-        /// 静默的整数性失效正是这条路径最难发现的一类问题。
+        /// 【为什么要打】"像素不齐"这种症状只能靠这组数判断：屏幕宽高、放大倍数、两档尺寸、
+        /// 以及**残余像素**（不能被倍数整除时那几像素会落在一条边上）。静默的整数性失效
+        /// 正是这条路径最难发现的一类问题。
         /// </summary>
         void LogScaleMapping()
         {
@@ -384,9 +428,9 @@ namespace PirateCrew.Rendering.Pixelart
 
             string line = string.Format(System.Globalization.CultureInfo.InvariantCulture,
                 "[PixelartCameraRig] 像素网格：屏幕 {0}×{1} → 放大 {2}× → 艺术画布 {3}×{4}"
-                + "（块 {2} 屏幕像素，可见 {5:F1}m 高，每艺术像素 {6:F4}m）",
+                + "（屏幕档 {5}×{6}，块 {2} 屏幕像素，可见 {7:F1}m 高，每艺术像素 {8:F4}m）",
                 _screenWidth, _screenHeight, _chosenScale, RenderWidth, RenderHeight,
-                RenderHeight * worldPerPixel, worldPerPixel);
+                FineWidth, FineHeight, RenderHeight * worldPerPixel, worldPerPixel);
 
             if (_exactScale)
                 Debug.Log(line + " —— 整数映射严格成立。");
@@ -396,21 +440,17 @@ namespace PirateCrew.Rendering.Pixelart
                     + "屏幕宽高同时能被 " + _chosenScale + " 整除时才会完全对齐。");
         }
 
-        string _loggedMappingKey;
-
         /// <summary>
         /// 装配自检（只打一次）：把"这条路有没有接上"的证据写进日志。
         /// 这条路径的失效方式大多是**静默**的（shader 被剥离 / 渲染器索引没写上 / 层掩码为 0 →
         /// 画面只剩背景色而不报错），所以首帧自检比事后猜要省事得多。
         /// </summary>
-        bool _selfCheckLogged;
-
         void LogSelfCheckOnce()
         {
-            if (_selfCheckLogged || !IsReady)
+            if (_selfCheckedLogged || !IsReady)
                 return;
 
-            _selfCheckLogged = true;
+            _selfCheckedLogged = true;
             int shaderMatched = 0;
             foreach (MeshRenderer renderer in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
             {
@@ -421,20 +461,36 @@ namespace PirateCrew.Rendering.Pixelart
 
             Debug.Log("[PixelartCameraRig] 自检：屏幕相机 " + _screenCamera.name
                 + "（层掩码 0 + 不清屏）、Cast 相机 " + (_castCamera != null ? _castCamera.name : "<无>")
-                + "（层掩码 " + _savedCullingMask + "）、低分辨率 RT " + RenderWidth + "×" + RenderHeight
+                + "（层掩码 " + _savedCullingMask + "）、艺术画布 " + RenderWidth + "×" + RenderHeight
+                + "、屏幕档 " + FineWidth + "×" + FineHeight
                 + "、走本路径物体 shader 的 renderer 数 " + shaderMatched
                 + "（为 0 说明材质没挂上 or 场景没内容）。");
         }
 
-        static RenderTexture NewBuffer(int width, int height, RenderTextureFormat format, string name, bool sRGB)
+        bool _selfCheckedLogged;
+
+        static RenderTexture NewColor(int width, int height, RenderTextureFormat format, string name, bool sRGB,
+            bool randomWrite = false)
         {
-            // Unity 2022.3 的 RenderTexture.sRGB 是只读的——sRGB 与否要在
-            // RenderTextureDescriptor 上给（这是本版本的正确 API，不是绕路）。
-            var desc = new RenderTextureDescriptor(width, height, format, 0)
+            return NewBuffer(width, height, format, 0, name, sRGB, randomWrite);
+        }
+
+        static RenderTexture NewDepth(int width, int height, string name)
+        {
+            return NewBuffer(width, height, RenderTextureFormat.Depth, 24, name, false);
+        }
+
+        static RenderTexture NewBuffer(int width, int height, RenderTextureFormat format, int depthBits,
+            string name, bool sRGB, bool randomWrite = false)
+        {
+            // Unity 2022.3 的 RenderTexture.sRGB 是只读的——sRGB 与否要在 RenderTextureDescriptor 上给
+            // （这是本版本的正确 API，不是绕路）。enableRandomWrite 同理：不设就是 compute 写不进去。
+            var desc = new RenderTextureDescriptor(Mathf.Max(1, width), Mathf.Max(1, height), format, depthBits)
             {
                 sRGB = sRGB,
                 useMipMap = false,
                 autoGenerateMips = false,
+                enableRandomWrite = randomWrite,
             };
             var rt = new RenderTexture(desc)
             {
@@ -449,16 +505,29 @@ namespace PirateCrew.Rendering.Pixelart
         void ReleaseBuffers()
         {
             // 逐个释放：v3 的释放循环在循环体内把容器置空，实际只放掉第 0 张（蓝图 §4.4 第 1 条）——
-            // 这里逐字段 Release，不做任何取巧。（缓冲是属性，ref 传参在 C# 里不合法，改返回值。）
-            ResultBuffer = Release(ResultBuffer);
+            // 这里逐字段 Release，不做任何取巧。
             AlbedoBuffer = Release(AlbedoBuffer);
-            NormalBuffer = Release(NormalBuffer);
-            PropertyBuffer = Release(PropertyBuffer);
+            Normal0Buffer = Release(Normal0Buffer);
+            Normal1Buffer = Release(Normal1Buffer);
+            PhysicalBuffer = Release(PhysicalBuffer);
+            ShapeBuffer = Release(ShapeBuffer);
+            PaletteBuffer = Release(PaletteBuffer);
+            RimLightPropertyBuffer = Release(RimLightPropertyBuffer);
             DepthBuffer = Release(DepthBuffer);
+            ConnectivityResultBuffer = Release(ConnectivityResultBuffer);
+            OutlineBuffer = Release(OutlineBuffer);
+            DiffuseBuffer = Release(DiffuseBuffer);
+            SpecularBuffer = Release(SpecularBuffer);
+            GIBuffer = Release(GIBuffer);
+            RimLightBuffer = Release(RimLightBuffer);
+            ResultBuffer = Release(ResultBuffer);
+
             _allocatedWidth = 0;
             _allocatedHeight = 0;
             RenderWidth = 0;
             RenderHeight = 0;
+            FineWidth = 0;
+            FineHeight = 0;
         }
 
         static RenderTexture Release(RenderTexture rt)
@@ -484,12 +553,22 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>下发与尺寸相关的全局量（尺寸变化时调一次；每帧由 BeforeRender pass 再确认）。</summary>
         void PushStaticGlobals()
         {
-            Shader.SetGlobalFloat(PixelartPath.RTHeightId, RenderHeight);
-            Shader.SetGlobalFloat(PixelartPath.RTWidthId, RenderWidth);
-            Shader.SetGlobalFloat(PixelartPath.UnitSizeId, UnitSize);
+            PushSizeGlobals();
         }
 
-        /// <summary>下发主光与环境光（每帧；色带数学只有这两个光源量）。</summary>
+        void PushSizeGlobals()
+        {
+            Shader.SetGlobalFloat(PixelartPath.RTHeightId, RenderHeight);
+            Shader.SetGlobalFloat(PixelartPath.RTWidthId, RenderWidth);
+            Shader.SetGlobalFloat(PixelartPath.FineHeightId, FineHeight);
+            Shader.SetGlobalFloat(PixelartPath.FineWidthId, FineWidth);
+            Shader.SetGlobalFloat(PixelartPath.UnitSizeId, UnitSize);
+            Shader.SetGlobalFloat(PixelartPath.FineUnitSizeId, FineUnitSize);
+            Shader.SetGlobalFloat(PixelartPath.SamplingScaleId, _chosenScale);
+            Shader.SetGlobalFloat(PixelartPath.AAThresholdId, AAThreshold);
+        }
+
+        /// <summary>下发主光/环境光/墨色（每帧；色带数学只有这几个光照量）。</summary>
         void PushLightGlobals()
         {
             Light light = sun != null ? sun : RenderSettings.sun;
@@ -507,17 +586,15 @@ namespace PirateCrew.Rendering.Pixelart
                 ? RenderSettings.ambientLight
                 : RenderSettings.ambientSkyColor;
 
-            // 【颜色一律显式 .linear + SetGlobalVector】材质 Color 属性（albedo 那一侧）在
-            // 线性工程里会被自动做 sRGB→线性，而 shader **全局**颜色的转换行为是另一条路径、
-            // 口径不明确（同一份代码既可能"已转换"也可能"没转换"，取决于 Unity 版本与属性声明）。
-            // 本路径不赌它：三个颜色全局全部显式 .linear 下发。
+            // 【颜色一律显式 .linear + SetGlobalVector】材质 Color 属性（albedo 那一侧）在线性工程里会被
+            // 自动做 sRGB→线性，而 shader **全局**颜色的转换行为是另一条路径、口径不明确。
+            // 本路径不赌它：所有颜色全局全部显式 .linear 下发。
             Shader.SetGlobalVector(PixelartPath.LightDirId, new Vector4(lightDir.x, lightDir.y, lightDir.z, 0f));
             Shader.SetGlobalVector(PixelartPath.LightColorId, ToLinear(lightColor));
             Shader.SetGlobalVector(PixelartPath.AmbientColorId, ToLinear(ambient));
+            Shader.SetGlobalVector(PixelartPath.InkColorId, ToLinear(inkColor));
 
-            // 每帧下发（出图脚本会逐档改它做对照，写在"尺寸变化时才下发"的那一处会不生效）。
-            Shader.SetGlobalFloat(PixelartPath.InkDepthPullId, inkDepthPull);
-
+            PushSizeGlobals();
             LogPushedValuesOnce(lightDir, lightColor, ambient);
         }
 
@@ -545,21 +622,35 @@ namespace PirateCrew.Rendering.Pixelart
             Debug.Log(string.Format(System.Globalization.CultureInfo.InvariantCulture,
                 "[PixelartCameraRig] 下发值：lightDir=({0:F4},{1:F4},{2:F4}) "
                 + "lightColorLinear=({3:F4},{4:F4},{5:F4}) ambientLinear=({6:F4},{7:F4},{8:F4}) "
-                + "unitSize={9:F6} rt={10}x{11}",
+                + "unitSize={9:F6} fineUnitSize={10:F6} rt={11}x{12} fine={13}x{14} k={15}",
                 lightDir.x, lightDir.y, lightDir.z,
                 lightLinear.r, lightLinear.g, lightLinear.b,
                 ambientLinear.r, ambientLinear.g, ambientLinear.b,
-                UnitSize, RenderWidth, RenderHeight));
+                UnitSize, FineUnitSize, RenderWidth, RenderHeight, FineWidth, FineHeight, _chosenScale));
         }
 
         bool _pushedValuesLogged;
 
-        /// <summary>把三张 G-buffer 设成 shader 全局（物体 pass 画完后调；着色 pass 只吃全局）。</summary>
-        public void PublishBuffersToShaders(CommandBuffer cmd)
+        /// <summary>
+        /// 把屏幕档的 7 张 G-buffer + 深度设成 shader 全局（物体 pass 画完后调；后续各趟只吃全局）。
+        /// </summary>
+        public void PublishGbuffers(CommandBuffer cmd)
         {
             cmd.SetGlobalTexture(PixelartPath.AlbedoBufferId, AlbedoBuffer);
-            cmd.SetGlobalTexture(PixelartPath.NormalBufferId, NormalBuffer);
-            cmd.SetGlobalTexture(PixelartPath.PropertyBufferId, PropertyBuffer);
+            cmd.SetGlobalTexture(PixelartPath.Normal0BufferId, Normal0Buffer);
+            cmd.SetGlobalTexture(PixelartPath.Normal1BufferId, Normal1Buffer);
+            cmd.SetGlobalTexture(PixelartPath.PhysicalBufferId, PhysicalBuffer);
+            cmd.SetGlobalTexture(PixelartPath.ShapeBufferId, ShapeBuffer);
+            cmd.SetGlobalTexture(PixelartPath.PaletteBufferId, PaletteBuffer);
+            cmd.SetGlobalTexture(PixelartPath.RimLightPropertyBufferId, RimLightPropertyBuffer);
+            cmd.SetGlobalTexture(PixelartPath.DepthBufferId, DepthBuffer);
+        }
+
+        /// <summary>把艺术画布域的结果缓冲设成全局（连通域结论 / 墨线标记，供着色各趟读）。</summary>
+        public void PublishArtBuffers(CommandBuffer cmd)
+        {
+            cmd.SetGlobalTexture(PixelartPath.ConnectivityResultId, ConnectivityResultBuffer);
+            cmd.SetGlobalTexture(PixelartPath.OutlineBufferId, OutlineBuffer);
         }
     }
 }

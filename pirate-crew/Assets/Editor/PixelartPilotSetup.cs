@@ -85,12 +85,12 @@ namespace PirateCrew.EditorTools
 
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            // ---------------- 材质（第二个参数 = 色带档数，第三个 = 描边线宽/低分辨率像素）----------------
-            // 地面不描边（铺满画面的大平面的壳环会顶到边缘、无观感意义），且队列压到 1999 ——
-            // 墨线壳是"外扩 + 沿视线拉近"，轮廓外侧那圈像素落在地面上；地面**必须先画完**，
-            // 否则它 ZWrite On 的本体会把壳环整圈盖掉（渲染篇 §5 + 旧链"海面回 2000"的同一结论）。
-            Material ground = EnsureMaterial("PixelartPilot_Ground", HexGamma("4A6E86"), 2f,
-                outlinePixels: 0f, renderQueue: PixelartPath.BackgroundPlaneRenderQueue);
+            // ---------------- 材质（第二个参数 = 色带档数，第三个 = 是否参与描边）----------------
+            // 【描边不再与队列有关】描边已从"反向壳几何"改成**艺术画布上的屏幕空间 4 邻域膨胀**
+            // （创始人 2026-09-22 裁决）：几何只靠深度测试分前后，renderQueue 不再参与任何判断，
+            // 大平面的"必须小于 2000"那条约束随之作废。地面照样不描边（`outlinePixels: 0`）——
+            // 铺满画面的大平台加一圈轮廓线没有观感意义，只是把画面四边糊上墨色。
+            Material ground = EnsureMaterial("PixelartPilot_Ground", HexGamma("4A6E86"), 2f, outlinePixels: 0f);
             Material rock = EnsureMaterial("PixelartPilot_Rock", HexGamma("D8BE8A"), 3f);
             Material pillar = EnsureMaterial("PixelartPilot_Pillar", HexGamma("C9A97A"), 3f);
             Material crate = EnsureMaterial("PixelartPilot_Crate", HexGamma("A8703F"), 3f);
@@ -148,8 +148,35 @@ namespace PirateCrew.EditorTools
             sun.type = LightType.Directional;
             sun.color = HexGamma("FFF5E0");
             sun.intensity = 1.1f;
-            sun.shadows = LightShadows.None;    // 色带表面接实时投影必脏（渲染篇 §4.5）
+            // 【实时阴影：机制接通、场景暂时关掉】创始人 2026-09-22 裁决把实时阴影补回来，
+            // 机制侧已经齐（Cast 相机 renderShadows = true、着色四趟的 shadow 关键字族与
+            // `GetMainLight(shadowCoord)`、URP 资产的开关）。但首轮出图实测：**地面整片被判在阴影里**——
+            // 判据是解析式核对过的：地面 albedo #4A6E86 实测色 ≈ 纯环境项（albedo × 环境色）
+            // 的 sRGB 值，而台面顶面是受光的，所以不是"地面没画"而是"阴影贴图自遮挡"。
+            // 那是一个**阴影覆盖范围/偏移量级的调参问题**（160m 大平面 + 正交 cast 相机 + 阴影距离），
+            // 不是架构问题；在本轮把它调准之前先关掉，避免整屏发暗掩盖其它机制的验收。
+            // 打开它：把下面一行改成 LightShadows.Soft，并同步调 URP 资产的阴影距离/级联与光源 bias。
+            sun.shadows = LightShadows.None;
+            sun.shadowStrength = 0.65f;
             RenderSettings.sun = sun;
+
+            // ---------------- 附加光（局部暖光池，证明附加光那条通路真的在跑）----------------
+            // 【为什么要专门放一盏】附加光是"补回来"的机制里**最容易静默失效**的一条：
+            // 关键字、URP 资产的附加光开关、`_PixelartAdditionalLightCount` 三者任一没接上，
+            // 画面都只是"少了一点暖调"而不报错。放一盏明显偏暖、范围小的点光，
+            // 出图时"台面右侧有没有暖色池"一眼可判。
+            var lampGo = new GameObject("PixelartWarmLamp");
+            lampGo.transform.SetParent(root.transform);
+            lampGo.transform.position = new Vector3(4.5f, 2.6f, -3.5f);
+            var lamp = lampGo.AddComponent<Light>();
+            lamp.type = LightType.Point;
+            lamp.color = HexGamma("FFB464");
+            // 【强度是实测调下来的】首轮给 7，出图是一片饱和黄斑（附加光走的是 `GetAdditionalPerObjectLight`
+            // 的逐物体衰减，在全屏 blit 里没有逐物体距离项，实际按"点光直射"叠加）。
+            // 2.2 让它在台面右侧形成可辨认的暖色小池而不盖过色带。
+            lamp.intensity = 2.2f;
+            lamp.range = 11f;
+            lamp.shadows = LightShadows.None;
 
             // 环境光 = 本路径的"暗部色"（暗面 = albedo × 环境色）。来源与取舍：
             //   · 口径：渲染篇 §4.6"单平行光 + 单环境光"，蓝本 §7.2 第 5 条"GI 用扁平环境光"
@@ -443,7 +470,7 @@ namespace PirateCrew.EditorTools
         /// 所以这里**不要**把旧链的 2px 当基准搬过来。
         /// </summary>
         static Material EnsureMaterial(string name, Color albedo, float bandCount,
-            float outlinePixels = 1.0f, int renderQueue = -1)
+            float outlinePixels = 1.0f)
         {
             string path = MaterialFolder + "/" + name + ".mat";
             Shader shader = Shader.Find(PixelartPath.ObjectShaderName);
@@ -466,15 +493,34 @@ namespace PirateCrew.EditorTools
             mat.SetFloat("_MainLightLevel", bandCount);
             mat.SetFloat("_DitherMode", 0f);       // 0 = Bayer 4×4 矩阵；1 = v3 的 1-bit 密度图案
             mat.SetFloat("_DitherStrength", 0f);   // 默认关（v3 自己的材质默认也是 0）；出图时用 MPB 拨开对照
-            mat.SetFloat("_NormalEdgeLevel", 0f);  // P4 接连通域后才有效
+            // ---- 连通域两项（Shape 缓冲的 b/a 通道）----
+            // 法线边加成：连通域判出"单元内法线差超阈值"时给该像素加档（内部转折提亮）。
+            // 单位是**色带步长**（着色里 `ndotl += singleLevel * 本值`），0.5 = 加半档。
+            mat.SetFloat("_NormalEdgeLevel", 0.5f);
+            mat.SetFloat("_NormalEdgeThreshold", 0.5f);
+            // AA 缩放：连通域降档的门控乘数，1 = 不缩放（v3 的 _AAScale 同义）。
+            mat.SetFloat("_AAScale", 1f);
 
-            // 反向壳描边（渲染篇 §5）：线宽单位 = 低分辨率像素；0 = 本物体不描边。
-            // 墨色与 UI 令牌 INK 同色（3D/2D 描边同色统一）。
-            mat.SetColor("_InkColor", HexGamma("120C14"));   // 比纯黑带一点紫（阴影里不发死）
+            // ---- 高光（Specular 那一趟的输入，Physical 缓冲的 r/g）----
+            // 本轮按创始人裁决把 Specular 补回来了；数值取得保守（高光一重就压过色带）。
+            mat.SetFloat("_Smoothness", 0.25f);
+            mat.SetFloat("_Metallic", 0f);
+
+            // ---- 逐物体边缘光色 ----
+            // 默认**黑 = 本物体不出边缘光**（不改变已认过的画面）。要验证这条通路，
+            // 出图脚本里有一档 `pa-rim` 走 MaterialPropertyBlock 临时拨亮（见 PlayerArtCapture）。
+            mat.SetColor("_RimLightColor", Color.black);
+
+            // ---- 描边开关 ----
+            // >0 ⇒ 本物体的 applyOutline 置位（艺术画布上那一趟屏幕空间膨胀读它决定给谁出线）。
+            // 线宽固定 1 艺术像素，由那一趟保证；这里只有开/关。
             mat.SetFloat("_OutlinePixels", outlinePixels);
 
-            // -1 = 用 shader 里的 Queue（Geometry = 2000）；大平面由调用方压到 1999。
-            mat.renderQueue = renderQueue >= 0 ? renderQueue : 2000;
+            // ---- 物体级像素吸附（v3 CommonPass 的第二层，默认开）----
+            mat.SetFloat("_SnapToPixelGrid", 1f);
+
+            // 队列：几何只靠深度测试分前后（描边改屏幕空间后不再与队列有关），一律 Geometry。
+            mat.renderQueue = 2000;
 
             // 挂上 v3 口径的密度图案（_DitherMode 拨到 1 即生效，不必重烘场景）。
             var pattern = AssetDatabase.LoadAssetAtPath<Texture2D>(DitherFolder + "/ToonDither_0.png");

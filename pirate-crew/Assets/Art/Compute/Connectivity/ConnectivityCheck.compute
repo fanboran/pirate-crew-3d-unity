@@ -1,0 +1,69 @@
+// ============================================================================
+// ConnectivityCheck.compute —— 连通域 · 第 1 段：屏幕档逐像素打点
+//
+// 【做什么】对**屏幕档**（FineW × FineH）每个细像素，对四个方向（+x / +y / −x / −y）各调一次
+//   判据本体 `PixelartConnectivityCheckConnectedDepthNormal`（见 Connectivity.hlsl），
+//   把结论打包进 ConnectivityDetail 的**四个通道各 1 字节**。位布局（v3 `:30-42` 原样）：
+//
+//       每通道（一个方向）8 位：
+//         bit7 = connected  （该方向是否连通）
+//         bit6 = closer     （中心是否比邻者更近）
+//         bit5 = center     （本像素是否是所在 pixelScale 单元的**正中心**）
+//       通道序：.x = +x（右）, .y = +y（上）, .z = −x（左）, .w = −y（下）
+//
+//   `center` 位是整条链的关键：它标出"每个低分辨率像素的代表样本"，Flood 与 Result 靠它在
+//   k×k 单元里定位中心（v3 的 Flood/Result 都只认这个位，不重新算坐标）。
+//
+// 【派发】`ceil(FineW / 8) × ceil(FineH / 8) × 1`（`[numthreads(8,8,1)]`），由
+//   `PixelartConnectivityFeature` 派发；尺寸从 `_PixelartFineWidth/Height` 全局读，kernel 不吃
+//   `_Width/_Height` 之类的私有 uniform（契约 §2.2 的"尺寸只走显式全局"）。
+//
+// 【与 v3 的差别】只有两处，且都在 Connectivity.hlsl 的头注里逐条留痕：
+//   ① 位打包从 `PackFloatInt8bit`(SNorm16) 改成"直存 UNorm8"（本仓缓冲是 ARGB32）；
+//   ② 越界守卫从 `>` 改成 `>=`（v3 用 `>` 会多跑一行一列，靠 `CeilToInt` 的派发余量兜着；
+//      蓝图 §4.4 末把它列为"无害但不该复刻"）。
+// ============================================================================
+
+#include "Connectivity.hlsl"
+
+#pragma kernel Main
+
+/// 输出：屏幕档的连通域 bitmap（逐方向 1 字节打包）。本 Feature 自己分配（ARGB32 +
+/// enableRandomWrite），并在三段跑完后 `SetGlobalTexture` 成全局供 Result 段之外的消费者用。
+RWTexture2D<float4> _PixelartConnectivityDetailBuffer;
+
+[numthreads(8,8,1)]
+void Main(uint3 id : SV_DispatchThreadID)
+{
+    int2 size = int2(_PixelartFineWidth, _PixelartFineHeight);
+
+    // 越界直接返回（DispatchCompute 的组数向上取整 ⇒ 右侧/下侧总有一小撮线程越界）。
+    if (id.x >= (uint)size.x || id.y >= (uint)size.y)
+        return;
+
+    int2 sourceCoord = int2(id.xy);
+
+    uint scale = (uint)max(_PixelartSamplingScale, 1.0);
+    uint halfScale = scale / 2u;
+
+    // 单元中心：两个轴的行/列索引都落在单元正中。k=3 时是 (1,1) mod 3（v3 `:30` 原样）。
+    uint isCenter = ((id.x % scale) == halfScale && (id.y % scale) == halfScale) ? 1u : 0u;
+
+    uint connected;
+    uint closer;
+    float4 result;
+
+    PixelartConnectivityCheckConnectedDepthNormal(sourceCoord, sourceCoord + int2(1, 0), size, 1, connected, closer);
+    result.x = PixelartConnectivityPackByte((connected << 7) + (closer << 6) + (isCenter << 5));
+
+    PixelartConnectivityCheckConnectedDepthNormal(sourceCoord, sourceCoord + int2(0, 1), size, 1, connected, closer);
+    result.y = PixelartConnectivityPackByte((connected << 7) + (closer << 6) + (isCenter << 5));
+
+    PixelartConnectivityCheckConnectedDepthNormal(sourceCoord, sourceCoord - int2(1, 0), size, 1, connected, closer);
+    result.z = PixelartConnectivityPackByte((connected << 7) + (closer << 6) + (isCenter << 5));
+
+    PixelartConnectivityCheckConnectedDepthNormal(sourceCoord, sourceCoord - int2(0, 1), size, 1, connected, closer);
+    result.w = PixelartConnectivityPackByte((connected << 7) + (closer << 6) + (isCenter << 5));
+
+    _PixelartConnectivityDetailBuffer[id.xy] = result;
+}

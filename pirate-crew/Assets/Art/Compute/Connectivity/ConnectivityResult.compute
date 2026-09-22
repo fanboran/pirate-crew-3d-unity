@@ -1,0 +1,116 @@
+// ============================================================================
+// ConnectivityResult.compute —— 连通域 · 第 3 段：降采成结论（艺术画布）
+//
+// 【做什么】对**艺术画布**（ArtW × ArtH）每个像素，遍历它对应的 k×k 细粒度单元
+//   （`center = id * k + k/2`，即"块中心那个细像素"），聚合出四个量写进
+//   ConnectivityResult（契约 §1.2）：
+//
+//       .r = 单元内"连通"占比          （totalConnected / k²）
+//       .g = 单元内"连通或更近"占比    （着色那趟的门控用它：`connect < _PixelartAAThreshold`
+//                                        ⇒ 降一档 = 内线）
+//       .b = 单元内最大法线差          （着色那趟的"法线边加成"门控，比 `_NormalEdgeThreshold`）
+//       .a = 跨单元四方向位（直存 UNorm8，位布局）：
+//              bit7 connectedRight  bit6 connectedLeft  bit5 connectedUp  bit4 connectedDown
+//              bit3 closerRight     bit2 closerLeft     bit1 closerUp     bit0 closerDown
+//
+//   `.a` 是**描边那趟**（`PixelartOutline.shader`）的墨线来源：邻域属于另一个物体
+//   （`connectedTo* < 1 && closerThan* < 1`）⇒ 画墨线（契约 §4.4）。**两侧解包必须照抄
+//   下面的位序**（v3 `BuffersResolver.hlsl:23-31` 的同名位序），一个位错就是静默失效。
+//
+// 【跨单元那四方向怎么判】拿 `center` 与**相邻单元的中心**（步长 = k 个细像素）再调一次同一个
+//   判据本体、`step = k`：中间 k−1 个像素逐步走一遍，等价于"从本单元中心走出去"。
+//
+// 【与 v3 的差别】① 位打包改直存 UNorm8；② 越界守卫 `>` → `>=`；
+//   ③ v3 的宏 `BUFFER_WIDTH/BUFFER_HEIGHT`（= `_Width * _SamplingScale`）换成显式全局
+//   `_PixelartFineWidth/Height`（本仓屏幕档尺寸不靠"画布尺寸 × 倍率"推，见契约 §0）；
+//   ④ v3 不查界的 k×k 采样窗口显式 clamp 到缓冲内（v3 靠"k=5 时窗口恰好不出界"兜着；
+//   本仓 k=3 同样不出界，但写死这层保护免得将来改 k 时静默读越界）；
+//   ⑤ `.b` 的 `z < 0` 门控改在视图空间判（Connectivity.hlsl 头注 ⑥）。
+// ============================================================================
+
+#include "Connectivity.hlsl"
+
+#pragma kernel Main
+
+/// 输入：Flood 之后的屏幕档 bitmap（只读）。
+Texture2D<float4> _PixelartConnectivityDetailBuffer;
+
+/// 输出：艺术画布上的连通域结论。**由 rig 分配**（`rig.ConnectivityResultBuffer`，ARGB32），
+/// 本 Feature 只写、不释放。
+RWTexture2D<float4> _PixelartConnectivityResultBuffer;
+
+[numthreads(8,8,1)]
+void Main(uint3 id : SV_DispatchThreadID)
+{
+    int2 artSize = int2(_PixelartRTWidth, _PixelartRTHeight);
+    int2 fineSize = int2(_PixelartFineWidth, _PixelartFineHeight);
+
+    if (id.x >= (uint)artSize.x || id.y >= (uint)artSize.y)
+        return;
+
+    int scale = (int)max(_PixelartSamplingScale, 1.0);
+    int halfScale = scale / 2;
+
+    // 本画布像素对应的细粒度**块中心**（v3 `:23-24` 原样）：
+    // 它同时是"画布像素中心的放大像"，所以这里的结论正好代表这个块。
+    int2 center = int2(id.xy) * scale + halfScale;
+
+    float cellCount = float(scale * scale);
+    float centerDepth = PixelartConnectivityEyeDepth(_PixelartDepthBuffer[center].r);
+
+    float totalConnectedCount = 0.0;
+    float totalConnectedOrCloserCount = 0.0;
+    float normalDiff = 0.0;
+
+    for (int i = -halfScale; i <= halfScale; i++)
+    {
+        for (int j = -halfScale; j <= halfScale; j++)
+        {
+            // ④（本仓加的）窗口 clamp：k 为偶数或将来改档位时不让它读出缓冲外。
+            int2 coord = clamp(center + int2(i, j), int2(0, 0), fineSize - 1);
+
+            float4 rawData = _PixelartConnectivityDetailBuffer[coord];
+            float currentDepth = PixelartConnectivityEyeDepth(_PixelartDepthBuffer[coord].r);
+
+            // 某一通道的 center 位为 1 ⇒ 这个细像素是（某单元的）中心 ⇒ 计一次"连通"。
+            int targetConnectedToCenter = 0;
+            targetConnectedToCenter += (PixelartConnectivityUnpackByte(rawData.r) & (1u << 5)) > 0 ? 1 : 0;
+            targetConnectedToCenter += (PixelartConnectivityUnpackByte(rawData.g) & (1u << 5)) > 0 ? 1 : 0;
+            targetConnectedToCenter += (PixelartConnectivityUnpackByte(rawData.b) & (1u << 5)) > 0 ? 1 : 0;
+            targetConnectedToCenter += (PixelartConnectivityUnpackByte(rawData.a) & (1u << 5)) > 0 ? 1 : 0;
+
+            if (targetConnectedToCenter > 0)
+                totalConnectedCount += 1.0;
+
+            // "更近"是补充项：更近的像素即使在单元内没连通上，也算作"有内容覆盖"
+            // （v3 `:60` 原样：`connected > 0 || currentDepth < centerDepth`）。
+            if (targetConnectedToCenter > 0 || currentDepth < centerDepth)
+                totalConnectedOrCloserCount += 1.0;
+
+            normalDiff = max(normalDiff, PixelartConnectivityNormalContinuous(coord, fineSize));
+        }
+    }
+
+    // 跨单元四方向（步长 = k 个细像素，中间逐步走一遍）。
+    uint connectedRight = 0u, closerRight = 0u;
+    uint connectedLeft = 0u, closerLeft = 0u;
+    uint connectedUp = 0u, closerUp = 0u;
+    uint connectedDown = 0u, closerDown = 0u;
+
+    PixelartConnectivityCheckConnectedDepthNormal(center, center + int2(scale, 0), fineSize, scale, connectedRight, closerRight);
+    PixelartConnectivityCheckConnectedDepthNormal(center, center - int2(scale, 0), fineSize, scale, connectedLeft, closerLeft);
+    PixelartConnectivityCheckConnectedDepthNormal(center, center + int2(0, scale), fineSize, scale, connectedUp, closerUp);
+    PixelartConnectivityCheckConnectedDepthNormal(center, center - int2(0, scale), fineSize, scale, connectedDown, closerDown);
+
+    float4 output = float4(totalConnectedCount / cellCount,
+                           totalConnectedOrCloserCount / cellCount,
+                           normalDiff,
+                           0.0);
+
+    output.a = PixelartConnectivityPackByte((connectedRight << 7) + (connectedLeft << 6)
+                                          + (connectedUp << 5) + (connectedDown << 4)
+                                          + (closerRight << 3) + (closerLeft << 2)
+                                          + (closerUp << 1) + (closerDown << 0));
+
+    _PixelartConnectivityResultBuffer[id.xy] = output;
+}

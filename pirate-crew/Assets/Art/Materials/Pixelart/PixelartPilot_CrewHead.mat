@@ -23,19 +23,31 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
+    - _BumpMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _DitherPattern:
         m_Texture: {fileID: 2800000, guid: e3399c0281140144bafddadaa81438b4, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _AAScale: 1
+    - _BumpScale: 1
     - _DitherMode: 0
     - _DitherPatternSize: 4
     - _DitherStrength: 0
     - _MainLightLevel: 3
-    - _NormalEdgeLevel: 0
+    - _Metallic: 0
+    - _NormalEdgeLevel: 0.5
+    - _NormalEdgeThreshold: 0.5
     - _OutlinePixels: 1
+    - _Priority: 0
+    - _Smoothness: 0.25
+    - _SnapToPixelGrid: 1
     m_Colors:
     - _BaseColor: {r: 0.83137256, g: 0.654902, b: 0.41568628, a: 1}
     - _InkColor: {r: 0.07058824, g: 0.047058824, b: 0.078431375, a: 1}
+    - _RimLightColor: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []

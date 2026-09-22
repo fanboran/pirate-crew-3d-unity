@@ -1,0 +1,107 @@
+// ============================================================================
+// ConnectivityFlood.compute —— 连通域 · 第 2 段：单元内传播（ping-pong，就地）
+//
+// 【做什么】把"跨单元/跨像素的连通性"在**一个艺术像素的 k×k 单元内**传播：
+//   一个像素的四个方向位描述的是"我和四邻连不连"；Flood 沿着这些方向把结论往外推，
+//   直到碰到"单元中心"为止。它解决的是**两个低分辨率像素之间到底连不连**
+//   （蓝图 §3.2），也就是 Result 段能用"单元中心之间跨 k 个细像素"重判一次的输入。
+//
+// 【怎么跑】由 `PixelartConnectivityFeature` 派发
+//   `max(1, RoundToInt(pixelScale × iterationScale))` 次（v3 是 RoundToInt(5 × 1.5) = 8；
+//   本仓 pixelScale = 3、iterationScale = 1.5 ⇒ RoundToInt(4.5) = 4）。
+//   **每次派发前**先把当前的 Detail 整张拷成 Prev（v3 `...RendererFeature.cs:82-91` 的
+//   `GetTemporaryRT` + `Blit`，本仓换成两张常驻 RT）：本 kernel 是"读 Prev、写 Detail"，
+//   不拷贝就会在邻居之间读出半新半旧的数据（同一张纹理既当 SRV 又当 UAV 会有竞争）。
+//
+// 【两个 kernel 名都叫 Main】与 v3 一致；C# 侧按名字 `FindKernel("Main")` 解析，不写死序号。
+//
+// 【与 v3 的差别】① 位打包改直存 UNorm8；② 越界守卫 `>` → `>=`；
+//   ③ `_PrevConnectivityMap` 改名 `_PixelartConnectivityPrevBuffer`（契约 §1.3 的名字）。
+//   传播逻辑（含四处 `colorMask` 通道选择、`halfScale` 半径、center 位短路）逐行照搬。
+// ============================================================================
+
+#include "Connectivity.hlsl"
+
+#pragma kernel Main
+
+/// 上一次迭代的备份（只读）。v3 叫 `_PrevConnectivityMap`；这里只被绑成 kernel 纹理
+/// （`cmd.SetComputeTextureParam`），**不作为全局量下发**。
+Texture2D<float4> _PixelartConnectivityPrevBuffer;
+
+/// 就地更新的 bitmap（读 Prev、写自己）。
+RWTexture2D<float4> _PixelartConnectivityDetailBuffer;
+
+/// 沿一个方向尝试把 `source` 的连通性写回自身（v3 `Flood`，`:11-50` 逐行）。
+///
+/// `colorMask` 是"选通哪个通道"的掩码（float4 里只有一个分量是 1）：一个通道 = 一个方向。
+/// `cellCenter` 是 `source` 所在 k×k 单元的正中心；`scale` = pixelScale。
+void PixelartConnectivityFlood(int2 source, int2 target, int2 cellCenter, float4 colorMask, int2 size, int scale)
+{
+    if (target.x >= size.x || target.y >= size.y || target.x < 0 || target.y < 0)
+        return;
+
+    // 只在**本单元内**传播（v3 `:14-16`）。
+    uint2 diff = uint2(abs(target - cellCenter));
+    uint halfScale = (uint)(scale / 2);
+    if (diff.x > halfScale || diff.y > halfScale)
+        return;
+
+    // 取 `source` 在这一方向上的那个字节（colorMask 选通道，四个分量相加即取到那一个）。
+    float4 rawData = colorMask * _PixelartConnectivityPrevBuffer[source];
+    uint data = PixelartConnectivityUnpackByte(rawData.r + rawData.g + rawData.b + rawData.a);
+
+    // 源自己就是单元中心 ⇒ 没什么要从它往外推的（中心是 Result 段的直接输入）。
+    int sourceConnectedToCenter = (data & (1u << 5)) > 0 ? 1 : 0;
+    if (sourceConnectedToCenter > 0)
+        return;
+
+    // 源在这个方向上本来就不连通 ⇒ 不传播。
+    int sourceConnectedToTarget = (data & (1u << 7)) > 0 ? 1 : 0;
+    if (sourceConnectedToTarget <= 0)
+        return;
+
+    int sourceCloserThanTarget = (data & (1u << 6)) > 0 ? 1 : 0;
+
+    // 目标四通道里只要有一个通道的 center 位是 1 ⇒ 目标（某单元的）中心，值得写回。
+    rawData = _PixelartConnectivityPrevBuffer[target];
+    int targetConnectedToCenter = 0;
+    targetConnectedToCenter += (PixelartConnectivityUnpackByte(rawData.r) & (1u << 5)) > 0 ? 1 : 0;
+    targetConnectedToCenter += (PixelartConnectivityUnpackByte(rawData.g) & (1u << 5)) > 0 ? 1 : 0;
+    targetConnectedToCenter += (PixelartConnectivityUnpackByte(rawData.b) & (1u << 5)) > 0 ? 1 : 0;
+    targetConnectedToCenter += (PixelartConnectivityUnpackByte(rawData.a) & (1u << 5)) > 0 ? 1 : 0;
+
+    if (targetConnectedToCenter > 0)
+    {
+        // 只改本方向那个通道（其余三个通道保持 Detail 上的现值），并把 bit5 置成"我就是中心"
+        // —— v3 `:44-48` 原样（写回后 source 在这个方向上变成"已由中心确认"）。
+        float4 outputColor = _PixelartConnectivityDetailBuffer[source];
+        outputColor *= (float4(1.0, 1.0, 1.0, 1.0) - colorMask);
+        outputColor += colorMask * PixelartConnectivityPackByte(
+            (uint)(sourceConnectedToTarget << 7) + (uint)(sourceCloserThanTarget << 6) + (1u << 5));
+
+        _PixelartConnectivityDetailBuffer[source] = outputColor;
+    }
+}
+
+[numthreads(8,8,1)]
+void Main(uint3 id : SV_DispatchThreadID)
+{
+    int2 size = int2(_PixelartFineWidth, _PixelartFineHeight);
+    if (id.x >= (uint)size.x || id.y >= (uint)size.y)
+        return;
+
+    int2 sourceCoord = int2(id.xy);
+
+    int scale = (int)max(_PixelartSamplingScale, 1.0);
+    int halfScale = scale / 2;
+
+    // 本像素所在 k×k 单元的正中心（v3 `:58-60`：`id - id % scale + scale/2`）。
+    int2 cellCenter = int2(int(id.x) - (int(id.x) % scale) + halfScale,
+                           int(id.y) - (int(id.y) % scale) + halfScale);
+
+    // 四方向各一次，colorMask 依次选 r/g/b/a（与 Check 段的通道序一一对应：右/上/左/下）。
+    PixelartConnectivityFlood(sourceCoord, sourceCoord + int2(1, 0), cellCenter, float4(1.0, 0.0, 0.0, 0.0), size, scale);
+    PixelartConnectivityFlood(sourceCoord, sourceCoord + int2(0, 1), cellCenter, float4(0.0, 1.0, 0.0, 0.0), size, scale);
+    PixelartConnectivityFlood(sourceCoord, sourceCoord - int2(1, 0), cellCenter, float4(0.0, 0.0, 1.0, 0.0), size, scale);
+    PixelartConnectivityFlood(sourceCoord, sourceCoord - int2(0, 1), cellCenter, float4(0.0, 0.0, 0.0, 1.0), size, scale);
+}

@@ -1,0 +1,84 @@
+// ============================================================================
+// RimLightCorrection.compute —— 边缘光缓冲的**清洁工**（3×3 去孤立点，就地）
+//
+// 【它是什么】v3 `ComputerShaders/RimLightCorrection.compute` 的翻译。扫每个像素的 3×3 邻域，
+//   若**一个非黑邻居都没有**就把自己的 rgb 清成 0（**保留 a**）。它是边缘光的**清洁工，
+//   不是累加器**——累加在 `PixelartRimLight.shader` 那一趟，本 kernel 只负责把"孤立的一个亮点"
+//   抹掉（门控是逐像素算出来的，量化/抗锯齿边缘上会留下单像素亮点，1 艺术像素的亮点在放大
+//   5 倍之后非常显眼）。
+//
+// 【为什么只作用于边缘光缓冲】因为边缘光缓冲里**只有**边缘光：墨线有它自己的缓冲
+//   （`_PixelartOutlineBuffer`）与自己的趟。v3 那边这条 compute 服务的是"逐物体边缘光色 × 32 个
+//   自定义 rim 光"，本仓无 rim 光列表（光向取主光，见 Includes/RimLight.hlsl 的文件头），
+//   但"去孤立点"这件事与光源数量无关，照搬成立。蓝本 §7.3 第 6 条那句"照搬 RimLightCorrection
+//   会把墨线洗掉"说的是**当年墨线写在边缘光缓冲里**的旧形状（本仓 r5 的反向壳）；P4 之后
+//   墨线走独立缓冲，那条警告已失效——真正要守的纪律只是"本 kernel 只许碰边缘光缓冲"。
+//
+// 【为什么就地读-写是安全的（不需要 ping-pong 的临时 RT）】本 kernel 读邻域、写自己，同一次
+//   派发内即读即写。可以证明**被清掉的像素恰好就是"原本 8 邻域全黑"的那些**，与线程调度无关：
+//   · 一个像素被清 ⇒ 它读到的 8 个邻居全黑；
+//   · 邻居里的"非原本黑"者只可能是**更早被清掉**的像素（没有别的途径变黑）；
+//   · 取最早被清的那个像素 p0：它读时还没有任何清发生 ⇒ p0 的邻居原本就全黑（p0 是孤立点）；
+//   · 而任何与"原本就是孤立点"的像素相邻的像素，按定义就是黑的 ⇒ 归纳下去，
+//     被清集合里永远不会出现"原本有非黑邻居"的像素，也就不会出现"清掉一个孤立点、
+//     把旁边一个像素连坐清掉"的连锁。
+//   于是结果与串行实现逐像素一致。（若将来 kernel 改成"写邻域"或不只是清零，这条论证
+//   立刻失效——那时必须换 ping-pong 临时 RT。）
+//
+// 【与 v3 的两处非语义差异】
+//   ① 尺寸从纹理本身取（`GetDimensions`），不再要 C# 下发 `_Width/_Height`——永远不会与缓冲
+//      实际尺寸不一致（v3 那两个 int 是 C# 传的，传错就是"整张不清"或"越界"）。
+//   ② 越界判据用 `>=`。v3 `:10` 是 `id.x > _Width || id.y > _Height`，靠派发的余量兜着越界
+//      一行一列（蓝本 §4.4 第 2 条点名的 bug），本仓直接判对。
+// ============================================================================
+
+#pragma kernel Main
+
+// 边缘光累加缓冲（艺术画布，ARGBHalf）。就地读-写（v3 同款）。
+// 【绑定点】Feature 用 `PixelartPath.RimLightBufferId`（= `_PixelartRimLightBuffer`）绑定，
+// 与 shader 全局同名——同一个资源在同名全局与 compute 绑定上是同一张缓冲。
+RWTexture2D<float4> _PixelartRimLightBuffer;
+
+[numthreads(8,8,1)]
+void Main(uint3 id : SV_DispatchThreadID)
+{
+    uint width, height;
+    _PixelartRimLightBuffer.GetDimensions(width, height);
+
+    if (id.x >= width || id.y >= height)
+        return;
+
+    uint2 coord = id.xy;
+
+    // 3×3 找非黑邻居（v3 `:16-35`，逐行翻译：x/y 各 -1..1、跳过自己、越界跳过）。
+    // 下标一律 uint2（RWTexture2D 的 operator[] 就该收 uint2）；邻域坐标先算成 int2 再判界，
+    // 避免"负坐标被回绕成巨大的 uint"这类经典越界。
+    bool hasNonBlackNeighbor = false;
+    for (int y = -1; y <= 1 && !hasNonBlackNeighbor; y++)
+    {
+        for (int x = -1; x <= 1; x++)
+        {
+            if (x == 0 && y == 0)
+                continue;
+
+            int2 neighborCoord = int2(coord) + int2(x, y);
+            if (neighborCoord.x < 0 || neighborCoord.y < 0
+                || neighborCoord.x >= int(width) || neighborCoord.y >= int(height))
+                continue;
+
+            float3 neighborColor = _PixelartRimLightBuffer[uint2(neighborCoord)].rgb;
+            if (neighborColor.r > 0.0 || neighborColor.g > 0.0 || neighborColor.b > 0.0)
+            {
+                hasNonBlackNeighbor = true;
+                break;
+            }
+        }
+    }
+
+    // 孤立点 ⇒ 清 rgb，保留 a（v3 `:39` 的行为）。ARGBHalf 上 rgb=0 就是"没有边缘光"。
+    if (!hasNonBlackNeighbor)
+    {
+        float4 current = _PixelartRimLightBuffer[coord];
+        _PixelartRimLightBuffer[coord] = float4(0.0, 0.0, 0.0, current.a);
+    }
+}
