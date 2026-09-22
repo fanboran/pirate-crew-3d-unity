@@ -10,7 +10,7 @@ namespace PirateCrew.UI.Stick
     /// 统一模态弹窗基类 —— 移植自 stick-world <c>stick_screen.gd</c>。
     ///
     /// 结构：全屏半透明遮罩（bg_alpha 0.55 纯压暗；gd 的 GenerativeBackdrop 生成艺术
-    /// 背景属 P2，此处先用纯色压暗）+ 居中面板（Sketch9Slice 九砖手绘，DARK 槽）+
+    /// 背景属 P2，此处先用纯色压暗）+ 居中面板（像素九宫格 Plate，DARK 档）+
     /// 垂直骨架（标题 / body 内容区 / footer 底栏）。所有弹窗共用此骨架 → 外观与
     /// 边距天然一致。面板内边距取 SketchPanel 令牌 16/12（gd 侧 PANEL_PAD_X/Y，
     /// stick_screen 头注释的"24/12"是旧 GlassStyle 描述，实际生效的是 SketchPanel 的 16/12）。
@@ -80,12 +80,12 @@ namespace PirateCrew.UI.Stick
             dimImage.color = new Color(0.02f, 0.03f, 0.06f, BgAlpha);   // gd dim_color
             dimImage.raycastTarget = true;
 
-            // 居中面板：九砖手绘底（backplate 与布局兄弟隔离——Sketch9Slice 的 9 块砖
-            // 是面板的直接子件，若布局挂面板根会把砖当内容排进去）
+            // 居中面板：像素九宫格底 + 投影（backplate 与布局兄弟隔离——面板外观件
+            // 是 Backplate 的孩子，若布局挂面板根会把它们当内容排进去）
             Panel = UiKit.CreateRect("Panel", transform);
             RectTransform backplate = UiKit.CreateRect("Backplate", Panel);
             StickUIKit.FullRect(backplate);
-            backplate.gameObject.AddComponent<Sketch9Slice>().Slot = "panel";
+            UiKit.EnsurePanel(backplate, PixelTone.Frame);
 
             // 垂直骨架：标题 / body / footer（separation 12 对齐 gd）
             RectTransform content = UiKit.CreateRect("Content", Panel);

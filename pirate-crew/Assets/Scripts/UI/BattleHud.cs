@@ -451,7 +451,9 @@ namespace PirateCrew.UI
                 _crosshair.gameObject.SetActive(visible);
         }
 
-        /// <summary>模式图标钮状态：当前段 = 金底 + 深墨字；其余 = 深底 + 暖白。</summary>
+        /// <summary>模式图标钮状态：选中 = 换悬停档贴图 + 开 Focus 环；未选中 = 常态贴图。
+        /// 【为什么不乘色】像素件的明暗色阶烘死在贴图里，状态必须换贴图
+        /// （与 <see cref="UiKit.ApplyPlateButton"/> 的 SpriteSwap 同口径）。</summary>
         void RefreshModeSegments()
         {
             if (modeFrames == null)
@@ -463,13 +465,21 @@ namespace PirateCrew.UI
                     continue;
 
                 bool selected = i == (int)_mode;
-                modeFrames[i].color = selected ? UiSkin.Gold : UiSkin.InkSoft;
-
-                Transform icon = modeFrames[i].transform.Find("Icon");
-                var graphic = icon != null ? icon.GetComponent<MaskableGraphic>() : null;
-                if (graphic != null)
-                    UiTextUtil.SetColor(graphic, selected ? UiSkin.InkOnGold : UiSkin.TextOnInk);
+                modeFrames[i].sprite = PixelSkin.Plate(PixelTone.Dense,
+                    selected ? PixelState.Hovered : PixelState.Normal);
+                SetFocusRing(modeFrames[i].transform, selected);
             }
+        }
+
+        /// <summary>开/关控件上的 Focus 环子件（选中态的唯一表达，替代旧乘色高亮）。</summary>
+        static void SetFocusRing(Transform control, bool visible)
+        {
+            if (control == null)
+                return;
+
+            Transform focus = control.Find("Focus");
+            if (focus != null && focus.gameObject.activeSelf != visible)
+                focus.gameObject.SetActive(visible);
         }
 
         void RefreshModeHint()
@@ -768,7 +778,10 @@ namespace PirateCrew.UI
                     continue;
 
                 bool lit = i < stars;
-                settlementStars[i].color = lit ? UiSkin.Gold : UiSkin.WithAlpha(UiSkin.DeadGray, 0.6f);
+                // 星级是 icon 族（可染色），但取色仍走像素皮调色板：亮 = 黄铜强调档，暗 = 暖白压 alpha。
+                settlementStars[i].color = lit
+                    ? PixelSkin.LightOf(PixelTone.Primary)
+                    : UiSkin.WithAlpha(PixelSkin.PaperWhite, 0.28f);
                 if (lit && isActiveAndEnabled)
                     StartCoroutine(PopStarDelayed(settlementStars[i], 0.12f * i));
             }
@@ -889,14 +902,11 @@ namespace PirateCrew.UI
 
         void RefreshBadge(bool punch = false)
         {
-            BattleTeam team = turnManager != null ? turnManager.CurrentTeam : null;
-
             if (badgeText != null)
                 UiTextUtil.SetText(badgeText, Mathf.Max(1, _turnNumber).ToString());
 
-            if (badgeRing != null)
-                badgeRing.color = team != null ? UiSkin.TeamFill(team.TeamIndex) : UiSkin.Gold;
-
+            // 徽章外观固定为像素皮（暖金环 + 黄铜宝石），不再按队色乘色——
+            // 队别由队血条 / 提示文字承载（像素件乘色会压平烘焙色阶）。
             if (punch && _motion != null && badgeRing != null)
                 _motion.Pop(badgeRing);
         }
@@ -951,8 +961,8 @@ namespace PirateCrew.UI
                     if (segment != null && segment.root != null)
                     {
                         segment.root.SetActive(true);
-                        if (segment.fill != null)
-                            segment.fill.color = UiSkin.TeamFill(teamIndex);
+                        // 段填充贴图（红/蓝队档）在装配期定死，运行时只推比例——
+                        // 不再给 fill 乘队色（像素件禁令）。
                         if (segment.ghost != null)
                             _motion.SnapFillPair(segment.fill, segment.ghost,
                                 pirate.Alive ? HealthRatio(pirate.Health, pirate.MaxHealth) : 0f);
@@ -963,10 +973,7 @@ namespace PirateCrew.UI
                     {
                         pip.root.SetActive(true);
                         bool alive = pirate.Alive;
-                        if (pip.frame != null)
-                            pip.frame.color = alive
-                                ? UiSkin.CellBase(UiSkin.CrewColor(pirate.CrewType))
-                                : UiSkin.WithAlpha(UiSkin.DeadGray, 0.55f);
+                        SetPipDimmed(pip.root, !alive);
                         if (pip.icon != null)
                         {
                             pip.icon.sprite = alive
@@ -997,7 +1004,7 @@ namespace PirateCrew.UI
             if (count > 0 && bar.segments != null && bar.segmentRoot != null)
             {
                 float trackWidth = bar.segmentRoot.sizeDelta.x;
-                float segmentWidth = (trackWidth - 4f - (count - 1) * SegmentGap) / count;
+                float segmentWidth = (trackWidth - SegmentInset - (count - 1) * SegmentGap) / count;
                 for (int i = 0; i < count && i < bar.segments.Length; i++)
                 {
                     var rect = bar.segments[i] != null
@@ -1007,13 +1014,25 @@ namespace PirateCrew.UI
                         continue;
 
                     rect.sizeDelta = new Vector2(segmentWidth, rect.sizeDelta.y);
-                    rect.anchoredPosition = new Vector2(2f + i * (segmentWidth + SegmentGap), 0f);
+                    rect.anchoredPosition = new Vector2(SegmentInset + i * (segmentWidth + SegmentGap), 0f);
                 }
             }
         }
 
-        /// <summary>段间距（与 BattleHudBuilder.SegmentGap 同源）。</summary>
-        const float SegmentGap = 4f;
+        /// <summary>段间距 / 段区左内边距（与 BattleHudBuilder 同源；3 = 1u，尺寸纪律）。</summary>
+        const float SegmentGap = 3f;
+        const float SegmentInset = 3f;
+
+        /// <summary>阵亡 pip 压暗：CanvasGroup alpha（不烘黑图、不给像素件乘色）。</summary>
+        static void SetPipDimmed(GameObject pipRoot, bool dimmed)
+        {
+            if (pipRoot == null)
+                return;
+
+            var group = pipRoot.GetComponent<CanvasGroup>();
+            if (group != null)
+                group.alpha = dimmed ? 0.55f : 1f;
+        }
 
         static int SegmentKey(int teamIndex, int slot) => teamIndex * 100 + slot;
 
@@ -1097,8 +1116,7 @@ namespace PirateCrew.UI
                 if (alreadyDead)
                     return;
 
-                if (pip.frame != null)
-                    pip.frame.color = UiSkin.WithAlpha(UiSkin.DeadGray, 0.55f);
+                SetPipDimmed(pip.root, true);
                 if (pip.icon != null)
                 {
                     pip.icon.sprite = UiGlyphs.Get(UiGlyphs.Glyph.Skull);
@@ -1205,7 +1223,10 @@ namespace PirateCrew.UI
                 UiTextUtil.SetText(weaponNameText, equipped
                     ? UiTextRules.WeaponName(equippedId)
                     : UiStrings.BattleWeaponPickHint);
-                UiTextUtil.SetColor(weaponNameText, equipped ? UiSkin.Gold : UiSkin.TextDim);
+                // 文字色从像素皮调色板取（黄铜强调档 / 暖白压 alpha 的次级档）。
+                UiTextUtil.SetColor(weaponNameText, equipped
+                    ? PixelSkin.LightOf(PixelTone.Primary)
+                    : UiSkin.WithAlpha(PixelSkin.PaperWhite, 0.72f));
             }
 
             if (weaponDescText != null)
@@ -1223,15 +1244,16 @@ namespace PirateCrew.UI
 
                 var id = (WeaponId)i;
                 bool owned = inventory != null && inventory.Contains(id);
+                // 未拥有 → 按钮禁用（UiPressSink 用 CanvasGroup 压暗，不烘黑图也不乘色）。
                 weaponButtons[i].interactable = owned;
 
-                // 格底 = 武器语义色暗档（CellBase：静物全彩跳出灰底）；未拥有压暗；已装备换金。
+                // 格底状态 = 换贴图 + Focus 环：已装备 = 悬停档 + 开环；其余 = 常态。
                 if (weaponFrames != null && i < weaponFrames.Length && weaponFrames[i] != null)
                 {
-                    Color frameColor = equipped && i == (int)equippedId
-                        ? UiSkin.Gold
-                        : owned ? UiSkin.WeaponCellBase(id) : UiSkin.WithAlpha(UiSkin.InkSoft, 0.55f);
-                    weaponFrames[i].color = frameColor;
+                    bool chosen = equipped && i == (int)equippedId;
+                    weaponFrames[i].sprite = PixelSkin.Plate(PixelTone.Dense,
+                        chosen ? PixelState.Hovered : PixelState.Normal);
+                    SetFocusRing(weaponFrames[i].transform, chosen);
                 }
             }
         }

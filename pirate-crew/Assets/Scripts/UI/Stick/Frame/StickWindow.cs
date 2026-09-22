@@ -65,12 +65,12 @@ namespace PirateCrew.UI.Stick
 
             StickUIKit.FullRect((RectTransform)transform);
 
-            // 面板：九砖手绘底 + 透明 raycast 拦截（gd _panel.mouse_filter=STOP——
+            // 面板：像素九宫格底 + 投影 + 透明 raycast 拦截（gd _panel.mouse_filter=STOP——
             // 根不拦截、面板拦截，面板外事件穿透到游戏）
             Panel = UiKit.CreateRect("Panel", transform);
             RectTransform backplate = UiKit.CreateRect("Backplate", Panel);
             StickUIKit.FullRect(backplate);
-            backplate.gameObject.AddComponent<Sketch9Slice>().Slot = "panel";
+            UiKit.EnsurePanel(backplate, PixelTone.Frame);
             Image blocker = Panel.gameObject.AddComponent<Image>();
             blocker.color = new Color(0f, 0f, 0f, 0f);
             blocker.raycastTarget = true;

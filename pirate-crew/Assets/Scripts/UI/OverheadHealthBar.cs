@@ -59,8 +59,10 @@ namespace PirateCrew.UI
             rect.sizeDelta = new Vector2(Width, Height);
             rect.localScale = Vector3.one;                  // 尺寸由 sizeDelta 直接表达（世界单位）
 
+            // 皮肤统一走 PixelSkin（Resources 图集由协调者烘焙）：凹槽 Track(Frame) + 队色档 Fill。
+            // 像素件不乘色——队色由"选哪张 Fill 贴图"表达（红队 Red / 蓝队 Blue）。
             var track = root.gameObject.AddComponent<Image>();
-            track.sprite = SketchSkin.Frame("progress_bg", 0);
+            track.sprite = PixelSkin.Track(PixelTone.Frame);
             track.type = Image.Type.Sliced;
             track.color = Color.white;
             track.raycastTarget = false;
@@ -68,21 +70,15 @@ namespace PirateCrew.UI
             var fillGo = new GameObject("Fill", typeof(RectTransform));
             fillGo.transform.SetParent(rect, false);
             var fill = fillGo.AddComponent<Image>();
-            fill.sprite = SketchSkin.Frame("fill", 0);
+            fill.sprite = PixelSkin.Fill(TeamFillKind(pirate.TeamIndex));
             fill.type = Image.Type.Sliced;
-            fill.color = UiSkin.TeamFill(pirate.TeamIndex);
+            fill.color = Color.white;
             fill.raycastTarget = false;
             RectTransform fillRect = fillGo.GetComponent<RectTransform>();
             fillRect.anchorMin = Vector2.zero;
             fillRect.anchorMax = Vector2.one;
             fillRect.offsetMin = Vector2.zero;
             fillRect.offsetMax = Vector2.zero;
-
-            // 头顶条也沸腾（同 SketchSkin 节拍；fill/track 各自独立相位）。
-            var trackBoil = root.AddComponent<SketchBoil>();
-            trackBoil.Slot = "progress_bg";
-            var fillBoil = fillGo.AddComponent<SketchBoil>();
-            fillBoil.Slot = "fill";
 
             var bar = root.AddComponent<OverheadHealthBar>();
             bar._fill = fill;
@@ -101,7 +97,7 @@ namespace PirateCrew.UI
 
             _pirate = pirate;
             _anchor = pirate.Body.transform;
-            _fill.color = UiSkin.TeamFill(pirate.TeamIndex);
+            _fill.sprite = PixelSkin.Fill(TeamFillKind(pirate.TeamIndex));
             _target = RatioOf(pirate.Health, pirate.MaxHealth);
             _ratio = _target;
             ApplyRatio();
@@ -127,6 +123,12 @@ namespace PirateCrew.UI
             if (maxHealth <= 0)
                 return 0f;
             return Mathf.Clamp01((float)health / maxHealth);
+        }
+
+        /// <summary>队号 → 填充档（0=红队 Red，其余蓝队 Blue；与顶栏合成血条同口径）。</summary>
+        static PixelFillKind TeamFillKind(int teamIndex)
+        {
+            return teamIndex == 0 ? PixelFillKind.Red : PixelFillKind.Blue;
         }
 
         void ApplyRatio()

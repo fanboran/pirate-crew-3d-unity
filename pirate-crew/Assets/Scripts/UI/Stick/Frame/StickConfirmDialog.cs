@@ -45,14 +45,14 @@ namespace PirateCrew.UI.Stick
             dimImage.color = StickTokens.MODAL_DIM;
             dimImage.raycastTarget = true;
 
-            // 居中紧凑窗口（九砖手绘底）
+            // 居中紧凑窗口（像素九宫格底 + 投影）
             _window = UiKit.CreateRect("Window", transform);
             _window.anchorMin = new Vector2(0.5f, 0.5f);
             _window.anchorMax = new Vector2(0.5f, 0.5f);
             _window.pivot = new Vector2(0.5f, 0.5f);
             RectTransform backplate = UiKit.CreateRect("Backplate", _window);
             StickUIKit.FullRect(backplate);
-            backplate.gameObject.AddComponent<Sketch9Slice>().Slot = "panel";
+            UiKit.EnsurePanel(backplate, PixelTone.Frame);
 
             // 内容骨架（separation 8 对齐 gd box）
             RectTransform content = UiKit.CreateRect("Content", _window);

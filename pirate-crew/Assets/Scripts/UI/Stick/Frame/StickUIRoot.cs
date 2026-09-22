@@ -29,7 +29,7 @@ namespace PirateCrew.UI.Stick
     /// 注册进具名槽，由槽管理显隐与布局空间；**槽不存在时报错**（对齐 gd push_warning，
     /// Unity 侧升级为 LogError 以便在控制台直接定位），禁止散落 add_child。
     /// gd 的 zone 定位引擎（place_in_zone）与主题挂载（StickTheme）不在 P1 范围：
-    /// zone 引擎待移植（注释占位），Unity 侧样式走 StickTokens/SketchSkin 令牌，
+    /// zone 引擎待移植（注释占位），Unity 侧样式走 StickTokens/PixelSkin 令牌，
     /// 无"整树挂 Theme"概念。
     /// </summary>
     [RequireComponent(typeof(Canvas))]

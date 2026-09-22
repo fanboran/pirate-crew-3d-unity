@@ -5,7 +5,7 @@ using UnityEngine.UI;
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 统一 UI 控件工厂（手绘涂鸦皮肤的唯一构建入口）。
+    /// 统一 UI 控件工厂（Beveled Pixel 皮肤的唯一构建入口）。
     ///
     /// 【为什么需要它】此前 Editor 玻璃构建器（MenuUiBuilder）与运行时构建器
     /// （M3UiBuilder/UiSprites 木纸系）双栈并行，运行时程序集拿不到新皮肤与字号映射，
@@ -14,13 +14,15 @@ namespace PirateCrew.UI
     ///
     /// 【用法纪律】
     ///   · 字号一律传 <see cref="UiSkin.Font"/> 档位；
-    ///   · 颜色一律传 <see cref="UiSkin"/> / <see cref="UiTheme"/> Token；
-    ///   · 可点击件用 <see cref="ChipButton"/> / <see cref="IconButton"/>（自带四态 + 按压下沉）。
+    ///   · **皮肤一律走 <see cref="PixelSkin"/>**——像素件的明暗色阶烘死在贴图里，
+    ///     所以像素件禁止 <c>Image.color</c> 乘色（乘了就把烘焙好的三档色阶压平）；
+    ///   · 按钮状态反馈一律 UGUI SpriteSwap（常态/悬停/按压三张 Plate），不用 ColorBlock 乘色；
+    ///     禁用态不烘黑图，靠 <see cref="UiPressSink"/> 的 CanvasGroup alpha≈0.55；
+    ///   · 可点击件用 <see cref="ChipButton"/> / <see cref="IconButton"/>（自带三态换图 + 按压位移）。
     ///
-    /// 皮肤来源：<see cref="SketchSkin"/>（game-2 手绘涂鸦沸腾贴图，烘焙管线
-    /// tools/sketch_ui/）+ <see cref="SketchBoil"/> 沸腾驱动；tint 槽（pip/ring/fill/cell）
-    /// 白底墨边，运行时 Image.color 乘色。符号图标：<see cref="UiGlyphs"/>。
-    /// 本类触碰 UGUI（ECall），只可在 Unity 里用。
+    /// 文字色：<see cref="PixelSkin.TextColorOn"/> / <see cref="PixelSkin.Ink"/> /
+    /// <see cref="PixelSkin.PaperWhite"/>（icon 与文字不受"禁止乘色"约束，但仍从调色板取色）。
+    /// 符号图标：<see cref="UiGlyphs"/>。本类触碰 UGUI（ECall），只可在 Unity 里用。
     /// </summary>
     public static class UiKit
     {
@@ -57,6 +59,16 @@ namespace PirateCrew.UI
             rect.anchoredPosition = anchoredPosition;
         }
 
+        /// <summary>铺满父容器后整体错位（投影件用：stretch + <see cref="PixelSkin.ShadowOffset"/>）。</summary>
+        static void StretchOffset(RectTransform rect, Vector2 offset)
+        {
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.offsetMin = offset;
+            rect.offsetMax = offset;
+        }
+
         // ------------------------------------------------------------------
         // 文本（字号 = UiSkin.Font 单轨）
         // ------------------------------------------------------------------
@@ -80,18 +92,116 @@ namespace PirateCrew.UI
         }
 
         // ------------------------------------------------------------------
-        // Sprite 来源（手绘涂鸦贴图：Editor 与播放器统一走 SketchSkin.Frame 同源出口）
+        // 像素件（全部走 PixelSkin 同源出口；禁止乘色）
+        // ------------------------------------------------------------------
+
+        /// <summary>建凸起块（Plate，九宫格）。像素件白贴图不乘色——色阶烘死在贴图里。</summary>
+        public static Image CreatePlate(string name, Transform parent, PixelTone tone,
+            PixelState state = PixelState.Normal)
+        {
+            Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
+            image.sprite = PixelSkin.Plate(tone, state);
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
+            image.raycastTarget = false;
+            return image;
+        }
+
+        /// <summary>建凹槽（Track，九宫格）：条状件的空槽底。</summary>
+        public static Image CreateTrack(string name, Transform parent, PixelTone tone)
+        {
+            Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
+            image.sprite = PixelSkin.Track(tone);
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
+            image.raycastTarget = false;
+            return image;
+        }
+
+        /// <summary>建填充条（Fill，九宫格）：画在 Track 内容区上的那一层。</summary>
+        public static Image CreateFill(string name, Transform parent, PixelFillKind kind)
+        {
+            Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
+            image.sprite = PixelSkin.Fill(kind);
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
+            image.raycastTarget = false;
+            return image;
+        }
+
+        /// <summary>
+        /// 建键盘焦点环：选中态包在控件**外沿**（比本体大 2px 外扩），默认隐藏由运行时开关。
+        /// 选中反馈从此是"多一件 Focus 环"，不再是给本体乘色。
+        /// </summary>
+        public static Image CreateFocusRing(string name, Transform parent)
+        {
+            Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
+            image.sprite = PixelSkin.Focus;
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
+            image.raycastTarget = false;
+            RectTransform rect = image.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = new Vector2(-2f, -2f);
+            rect.offsetMax = new Vector2(2f, 2f);
+            image.gameObject.SetActive(false);
+            return image;
+        }
+
+        /// <summary>（兼容重载）旧 tint 槽调用：**乘色机制退役**，改按 chip 色选 tone；
+        /// <paramref name="shape"/> 参数已无意义（贴图由 tone 决定），保留只为不打断旧调用点。</summary>
+        public static Image CreateTinted(string name, Transform parent, CartoonSpriteFactory.Shape shape, Color color)
+        {
+            return CreatePlate(name, parent, ToneOfChip(color));
+        }
+
+        static Image FindImage(Transform parent, string name)
+        {
+            Transform child = parent.Find(name);
+            return child != null ? child.GetComponent<Image>() : null;
+        }
+
+        /// <summary>
+        /// 面板皮肤：确保 panel 下有 <c>Shadow</c>（兄弟序 0）+ <c>Plate</c>（兄弟序 1）两件，
+        /// 返回 Plate 的 Image。**根节点自身不带 Graphic**（沿用旧九砖面板的层级口径：
+        /// 外观全在孩子上，调用方往根上挂的内容天然画在面板之上）。
+        ///
+        /// 【为什么投影是孩子】投影必须跟着面板做位移/缩放动画，只能是孩子；又因
+        /// 「父 Graphic 先于子 Graphic 绘制」，投影若与面板同体（都在根上）会盖住面板本体——
+        /// 故面板本体也下放成 Plate 孩子，兄弟序保证投影在下、本体在上。
+        /// 幂等：重跑装配复用同名孩子，只刷新贴图与切片。
+        /// </summary>
+        public static Image EnsurePanel(RectTransform panel, PixelTone tone)
+        {
+            Image shadow = FindImage(panel, "Shadow");
+            if (shadow == null)
+                shadow = CreateRect("Shadow", panel).gameObject.AddComponent<Image>();
+            shadow.sprite = PixelSkin.ShadowSprite;
+            shadow.type = Image.Type.Sliced;
+            shadow.color = Color.white;
+            shadow.raycastTarget = false;
+            StretchOffset(shadow.rectTransform, PixelSkin.ShadowOffset);
+            shadow.rectTransform.SetSiblingIndex(0);
+
+            Image plate = FindImage(panel, "Plate");
+            if (plate == null)
+                plate = CreateRect("Plate", panel).gameObject.AddComponent<Image>();
+            plate.sprite = PixelSkin.Plate(tone, PixelState.Normal);
+            plate.type = Image.Type.Sliced;
+            plate.color = Color.white;
+            plate.raycastTarget = true;   // 面板本体挡点击（内容件画在其上，不受影响）
+            Stretch(plate.rectTransform);
+            plate.rectTransform.SetSiblingIndex(1);
+            return plate;
+        }
+
+        // ------------------------------------------------------------------
+        // 图形件（符号图标 = 唯一允许 Image.color 染色的族）
         // ------------------------------------------------------------------
 
 #if UNITY_EDITOR
-        /// <summary>Editor 下从 Resources 取烘焙手绘贴图（PNG 是持久资产，场景序列化
-        /// 引用不丢；未烘焙时返回 null 由调用方告警）。统一走 SketchSkin.Frame——
-        /// StickWorld 集/pirate 专属槽分流在其内部（与播放器分支同口径）。</summary>
-        static Sprite SkinSprite(CartoonSpriteFactory.Shape shape)
-        {
-            return SketchSkin.Frame(SketchSkin.SlotOfShape(shape), 0);
-        }
-
+        /// <summary>符号图标 Sprite：优先 Editor 下烘焙 PNG（持久资产引用），缺失退内存生成。</summary>
         static Sprite GlyphSprite(UiGlyphs.Glyph glyph)
         {
             Sprite sprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(
@@ -99,41 +209,11 @@ namespace PirateCrew.UI
             return sprite != null ? sprite : UiGlyphs.Get(glyph);
         }
 #else
-        static Sprite SkinSprite(CartoonSpriteFactory.Shape shape) => SketchSkin.Frame(SkinSlot(shape), 0);
         static Sprite GlyphSprite(UiGlyphs.Glyph glyph) => UiGlyphs.Get(glyph);
 #endif
 
-        static string SkinSlot(CartoonSpriteFactory.Shape shape) => SketchSkin.SlotOfShape(shape);
-
-        // ------------------------------------------------------------------
-        // 图形件（tintable 染色）
-        // ------------------------------------------------------------------
-
-        /// <summary>建 tintable 图形（手绘 tint 槽 × Image.color 染色，带沸腾）。</summary>
-        public static Image CreateTinted(string name, Transform parent, CartoonSpriteFactory.Shape shape, Color color)
-        {
-            RectTransform rect = CreateRect(name, parent);
-            var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = SkinSprite(shape);
-            bool simple = shape == CartoonSpriteFactory.Shape.Ring
-                || shape == CartoonSpriteFactory.Shape.Circle;
-            image.type = simple ? Image.Type.Simple : Image.Type.Sliced;
-            image.color = color;
-            image.raycastTarget = false;
-            AddBoil(rect, SkinSlot(shape));
-            return image;
-        }
-
-        /// <summary>挂沸腾驱动（帧缺失时 SketchSkin 告警一次，Image 保留 f0/null 由导入器兜底）。</summary>
-        static void AddBoil(RectTransform rect, string slot, string[] stateSlots = null)
-        {
-            var boil = rect.gameObject.AddComponent<SketchBoil>();
-            boil.Slot = slot;
-            if (stateSlots != null)
-                boil.BindStates(stateSlots);
-        }
-
-        /// <summary>建符号图标（<see cref="UiGlyphs"/> × 染色；Type.Simple，不切片）。</summary>
+        /// <summary>建符号图标（<see cref="UiGlyphs"/> × 染色；Type.Simple，不切片）。
+        /// icon 不受"像素件禁止乘色"约束（无烘焙色阶），但仍从调色板取色。</summary>
         public static Image CreateGlyph(string name, Transform parent, UiGlyphs.Glyph glyph, Color color)
         {
             RectTransform rect = CreateRect(name, parent);
@@ -145,9 +225,8 @@ namespace PirateCrew.UI
             return image;
         }
 
-        /// <summary>建深底手绘面板（panel 槽九砖平铺 + 沸腾；承载暖白 / 金 / 彩色件）。
-        /// 根上没有 Image——面板外观由 <see cref="Sketch9Slice"/> 的九个子砖承担，
-        /// 换槽用 <c>GetComponent&lt;Sketch9Slice&gt;().SetSlot(...)</c>。</summary>
+        /// <summary>建深底像素面板（Plate(Frame) 九宫格 + 投影错位剪影；承载暖白 / 金 / 彩色件）。
+        /// 根上没有 Image——面板本体是 <c>Plate</c> 孩子，投影是 <c>Shadow</c> 孩子。</summary>
         public static RectTransform CreatePanel(string name, Transform parent, Vector2 anchor, Vector2 pivot,
             Vector2 anchoredPosition, Vector2 size)
         {
@@ -158,8 +237,7 @@ namespace PirateCrew.UI
             rect.anchoredPosition = anchoredPosition;
             rect.sizeDelta = size;
 
-            var slice = rect.gameObject.AddComponent<Sketch9Slice>();
-            slice.Slot = "panel";
+            EnsurePanel(rect, PixelTone.Frame);
             return rect;
         }
 
@@ -175,40 +253,51 @@ namespace PirateCrew.UI
         }
 
         // ------------------------------------------------------------------
-        // 按钮（四态乘色 + 按压下沉）
+        // 按钮（三态换图 + 按压位移 + 禁用透明）
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 按钮 ColorBlock——手绘语言下状态反馈靠贴图切换（<see cref="SketchBoil"/> 四槽），
-        /// tint 全白只留按压/禁用的极轻明度信号（避免乘色把手绘边框染脏）。
+        /// 把按钮接成像素件：常态/悬停/按压三张 Plate 走 UGUI SpriteSwap，禁用不烘黑图
+        /// （<see cref="UiPressSink"/> 用 CanvasGroup alpha≈0.55 表达）。
+        /// 【为什么用 SpriteSwap 而不是 ColorBlock】像素件的明暗色阶是烘死的，ColorBlock 的乘色
+        /// 会把整块压成单色；贴图切换才是这套语言的正确状态机制。
         /// </summary>
-        public static ColorBlock FourState(Color baseColor)
+        public static void ApplyPlateButton(Button button, Image image, PixelTone tone)
         {
-            return new ColorBlock
+            image.sprite = PixelSkin.Plate(tone, PixelState.Normal);
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
+            image.raycastTarget = true;
+
+            button.targetGraphic = image;
+            button.transition = Selectable.Transition.SpriteSwap;
+            button.spriteState = new SpriteState
             {
-                normalColor = Color.white,
-                highlightedColor = Color.white,
-                pressedColor = new Color(0.92f, 0.92f, 0.94f, 1f),
-                selectedColor = Color.white,
-                disabledColor = new Color(1f, 1f, 1f, 0.55f),
-                colorMultiplier = 1f,
-                fadeDuration = UiSkin.ButtonFadeSeconds,
+                highlightedSprite = PixelSkin.Plate(tone, PixelState.Hovered),
+                pressedSprite = PixelSkin.Plate(tone, PixelState.Pressed),
+                selectedSprite = PixelSkin.Plate(tone, PixelState.Hovered),
             };
+            if (button.GetComponent<UiPressSink>() == null)
+                button.gameObject.AddComponent<UiPressSink>();
         }
 
-        /// <summary>chip 底色 → 手绘按钮状态槽组（Gold=金实底主按钮 / Danger=危险 / TextOnInk=纸面 / 其余常规）。</summary>
-        public static string[] ButtonStateSlots(Color chipColor)
+        /// <summary>chip 底色 → 像素 tone（旧 Color 乘色槽退役：只保留"选哪一档贴图"的语义）。</summary>
+        public static PixelTone ToneOfChip(Color chipColor)
         {
             if (chipColor == UiSkin.Gold)
-                return SketchSkin.BtnPrimary;
+                return PixelTone.Primary;
             if (chipColor == UiSkin.Danger)
-                return SketchSkin.Danger;
+                return PixelTone.Danger;
+            if (chipColor == UiSkin.Warn)
+                return PixelTone.Warn;
             if (chipColor == UiSkin.TextOnInk)
-                return SketchSkin.Ink;
-            return SketchSkin.Btn;
+                return PixelTone.Light;
+            if (chipColor == UiSkin.InkDeep || chipColor == UiSkin.InkSoft)
+                return PixelTone.Dense;
+            return PixelTone.Light;   // btn_normal 族
         }
 
-        /// <summary>建文字按钮（彩色 chip 底 + 居中文字）。</summary>
+        /// <summary>建文字按钮（彩色 chip 底 + 居中文字）。字色由 tone 派生，不再手挑。</summary>
         public static Button ChipButton(string name, Transform parent, string label, Vector2 anchoredPosition,
             Vector2 size, Color chipColor, Color labelColor, TMP_FontAsset font,
             int fontSize = UiSkin.Font.Body, CartoonSpriteFactory.Shape shape = CartoonSpriteFactory.Shape.Chip)
@@ -219,20 +308,13 @@ namespace PirateCrew.UI
             rect.sizeDelta = size;
             rect.anchoredPosition = anchoredPosition;
 
-            string[] stateSlots = ButtonStateSlots(chipColor);
+            PixelTone tone = ToneOfChip(chipColor);
             var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = SketchSkin.Frame(stateSlots[0], 0);
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;   // 手绘四态靠贴图切换，底色烘死，不再叠乘色
-
             var button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = image;
-            button.colors = FourState(chipColor);
-            rect.gameObject.AddComponent<UiPressSink>();
-            AddBoil(rect, stateSlots[0], stateSlots);
+            ApplyPlateButton(button, image, tone);
 
             TextMeshProUGUI text = CreateText("Text", rect, label, fontSize,
-                TextAlignmentOptions.Center, labelColor, font, raycast: false);
+                TextAlignmentOptions.Center, PixelSkin.TextColorOn(tone), font, raycast: false);
             Stretch(text.rectTransform);
             return button;
         }
@@ -251,27 +333,21 @@ namespace PirateCrew.UI
             rect.sizeDelta = size;
             rect.anchoredPosition = anchoredPosition;
 
-            string[] stateSlots = ButtonStateSlots(chipColor);
+            PixelTone tone = ToneOfChip(chipColor);
             var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = SketchSkin.Frame(stateSlots[0], 0);
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;
-
             var button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = image;
-            button.colors = FourState(chipColor);
-            rect.gameObject.AddComponent<UiPressSink>();
-            AddBoil(rect, stateSlots[0], stateSlots);
+            ApplyPlateButton(button, image, tone);
 
-            Image icon = CreateGlyph("Icon", rect, glyph, glyphColor);
+            Color foreground = PixelSkin.TextColorOn(tone);
+            Image icon = CreateGlyph("Icon", rect, glyph, foreground);
             float inset = Mathf.Min(size.x, size.y) * 0.22f;
             Stretch(icon.rectTransform, inset);
 
             if (!string.IsNullOrEmpty(hotkey))
             {
-                // 快捷键角标（右上角小字；默认给 chip 反相色，可显式覆盖）。
+                // 快捷键角标（右上角小字；默认取 chip 底上的正文字色，可显式覆盖）。
                 TextMeshProUGUI key = CreateText("Hotkey", rect, hotkey, UiSkin.Font.Tiny,
-                    TextAlignmentOptions.Center, hotkeyColor ?? InverseOf(chipColor), null);
+                    TextAlignmentOptions.Center, hotkeyColor ?? foreground, null);
                 key.enableWordWrapping = false;
                 key.rectTransform.anchorMin = key.rectTransform.anchorMax = new Vector2(1f, 1f);
                 key.rectTransform.pivot = new Vector2(1f, 1f);
@@ -283,32 +359,32 @@ namespace PirateCrew.UI
         }
 
         // ------------------------------------------------------------------
-        // 按钮变体表（对齐 game-2 sketch_style._build_variants 的表驱动思路：
-        // 调用点只报"档位"，底色/字色组合的唯一出处在这里，杜绝各处手配漂移）
+        // 按钮变体表（档位 → tone；底色/字色组合的唯一出处在这里，杜绝各处手配漂移）
         // ------------------------------------------------------------------
 
-        /// <summary>按钮档位（对齐隔壁 SketchButton 五 kind）：
-        /// Primary=金色主行动点；Dark=深底常规件；Danger=破坏性动作；
-        /// Accent=金叠加选中态；Paper=纸面亮背景形态（主菜单暖金天空用）。</summary>
+        /// <summary>按钮档位：
+        /// Primary=主行动点（黄铜）；Dark=深底常规件；Danger=破坏性动作；
+        /// Accent=强调（暖橙）；Paper=浅牌形态（亮背景上的"纸签"）。</summary>
         public enum ButtonKind
         {
-            /// <summary>主行动点（投掷 / 继续 / 再来一局 / 确认）：金底深字。全屏同时只该有一枚高亮。</summary>
+            /// <summary>主行动点（投掷 / 继续 / 再来一局 / 确认）：黄铜底深字。全屏同时只该有一枚高亮。</summary>
             Primary,
 
-            /// <summary>常规件（结束回合 / 取消 / 次按钮）：手绘深底暖白字。</summary>
+            /// <summary>常规件（结束回合 / 取消 / 次按钮）：深底亮字。</summary>
             Dark,
 
-            /// <summary>破坏性动作（返回主菜单 / 放弃）：酒红底暖白字。</summary>
+            /// <summary>破坏性动作（返回主菜单 / 放弃）：红底亮字。</summary>
             Danger,
 
-            /// <summary>强调态（选中 / 激活）：金叠加底金边金字。</summary>
+            /// <summary>强调态（选中 / 激活）：暖橙底。</summary>
             Accent,
 
-            /// <summary>纸面形态（亮背景上的"纸签"）：奶油纸底深墨字。</summary>
+            /// <summary>浅牌形态（亮背景上的"纸签"）：暖白底墨字。</summary>
             Paper,
         }
 
-        /// <summary>档位 → (chip 底色→槽推断, 字/图标色)。强调色纪律：<see cref="UiSkin.Gold"/> 只在 Primary/Accent 出现。</summary>
+        /// <summary>档位 → (chip 底色→槽推断, 字/图标色)。保留给旧调用点读色，
+        /// 像素按钮实际走 <see cref="ToneOfKind"/> + <see cref="PixelSkin.TextColorOn"/>。</summary>
         public static (Color chip, Color label) ButtonVariant(ButtonKind kind)
         {
             switch (kind)
@@ -316,37 +392,36 @@ namespace PirateCrew.UI
                 case ButtonKind.Primary: return (UiSkin.Gold, UiSkin.InkOnGold);
                 case ButtonKind.Dark: return (UiSkin.InkSoft, UiSkin.TextOnInk);
                 case ButtonKind.Danger: return (UiSkin.Danger, UiSkin.TextOnInk);
-                case ButtonKind.Accent: return (UiSkin.Gold, UiSkin.Gold);
+                case ButtonKind.Accent: return (UiSkin.Warn, UiSkin.InkOnGold);
                 case ButtonKind.Paper: return (UiSkin.TextOnInk, UiSkin.InkOnGold);
                 default: return (UiSkin.InkSoft, UiSkin.TextOnInk);
             }
         }
 
-        /// <summary>档位 → 状态槽组（kind 直查——Accent 与 Primary 同为金字面，
-        /// 走 chip 色推断会撞槽，故 kind 路径不经 <see cref="ButtonStateSlots"/>）。</summary>
-        public static string[] KindStateSlots(ButtonKind kind)
+        /// <summary>档位 → 像素 tone（Primary/Accent 都是强调，但 Accent 用暖橙 Warn 区分于黄铜主行动点）。</summary>
+        public static PixelTone ToneOfKind(ButtonKind kind)
         {
             switch (kind)
             {
-                case ButtonKind.Primary: return SketchSkin.BtnPrimary;
-                case ButtonKind.Danger: return SketchSkin.Danger;
-                case ButtonKind.Accent: return SketchSkin.Accent;
-                case ButtonKind.Paper: return SketchSkin.Ink;
-                default: return SketchSkin.Btn;
+                case ButtonKind.Primary: return PixelTone.Primary;
+                case ButtonKind.Danger: return PixelTone.Danger;
+                case ButtonKind.Accent: return PixelTone.Warn;
+                case ButtonKind.Paper: return PixelTone.Light;
+                default: return PixelTone.Dense;
             }
         }
 
         /// <summary>
-        /// 图文按钮（图标在左、文字跟右）——模式/动作钮的统一长相，档位色走
-        /// <see cref="ButtonVariant"/>；BattleHud 的投掷/结束回合与各模态按钮共用。
+        /// 图文按钮（图标在左、文字跟右）——模式/动作钮的统一长相，档位色走 <see cref="ToneOfKind"/>；
+        /// BattleHud 的投掷/结束回合与各模态按钮共用。
         /// position 相对父容器中心（anchor/pivot 0.5,0.5）。
         /// </summary>
         public static Button ActionButton(string name, Transform parent, UiGlyphs.Glyph glyph,
             string label, ButtonKind kind, Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font,
             bool withIcon = true)
         {
-            (Color chipColor, Color labelColor) = ButtonVariant(kind);
-            string[] stateSlots = KindStateSlots(kind);
+            PixelTone tone = ToneOfKind(kind);
+            Color labelColor = PixelSkin.TextColorOn(tone);
             RectTransform rect = CreateRect(name, parent);
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
@@ -354,15 +429,8 @@ namespace PirateCrew.UI
             rect.anchoredPosition = anchoredPosition;
 
             var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = SketchSkin.Frame(stateSlots[0], 0);
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;
-
             var button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = image;
-            button.colors = FourState(chipColor);
-            rect.gameObject.AddComponent<UiPressSink>();
-            AddBoil(rect, stateSlots[0], stateSlots);
+            ApplyPlateButton(button, image, tone);
 
             if (withIcon)
             {
@@ -443,8 +511,20 @@ namespace PirateCrew.UI
             public Image Fill;
         }
 
+        /// <summary>旧 bar 语义色（Color）→ 像素填充档。乘色退役后只用来"选哪张 Fill 贴图"。</summary>
+        public static PixelFillKind FillKindOfColor(Color fillColor)
+        {
+            if (fillColor == UiSkin.TeamRed || fillColor == UiSkin.Danger)
+                return PixelFillKind.Red;
+            if (fillColor == UiSkin.TeamBlue)
+                return PixelFillKind.Blue;
+            if (fillColor == UiSkin.Warn || fillColor == UiSkin.Gold)
+                return PixelFillKind.Warn;
+            return PixelFillKind.Neutral;
+        }
+
         /// <summary>
-        /// 建双层血条：凹槽底 → 白色 ghost（受击残影，垫在下）→ 主填充（队色/职业色，在上）。
+        /// 建双层血条：Track(Frame) 凹槽底 → 暖白 ghost（受击残影，垫在下）→ 主填充（队色档，在上）。
         /// 两个填充都从左侧 anchorMax.x 表达比例。
         /// </summary>
         public static BarView CreateBar(string name, Transform parent, Vector2 anchoredPosition,
@@ -457,16 +537,15 @@ namespace PirateCrew.UI
             root.anchoredPosition = anchoredPosition;
 
             var track = root.gameObject.AddComponent<Image>();
-            track.sprite = SkinSprite(CartoonSpriteFactory.Shape.BarTrack);
+            track.sprite = PixelSkin.Track(PixelTone.Frame);
             track.type = Image.Type.Sliced;
             track.color = Color.white;
             track.raycastTarget = false;
-            AddBoil(root, "progress_bg");
 
-            Image ghost = CreateTinted("Ghost", root, CartoonSpriteFactory.Shape.Pill, UiSkin.DamageGhost);
+            Image ghost = CreateFill("Ghost", root, PixelFillKind.Neutral);
             Stretch(ghost.rectTransform);
 
-            Image fill = CreateTinted("Fill", root, CartoonSpriteFactory.Shape.Pill, fillColor);
+            Image fill = CreateFill("Fill", root, FillKindOfColor(fillColor));
             Stretch(fill.rectTransform);
 
             return new BarView { Root = root, Track = track, Ghost = ghost, Fill = fill };
