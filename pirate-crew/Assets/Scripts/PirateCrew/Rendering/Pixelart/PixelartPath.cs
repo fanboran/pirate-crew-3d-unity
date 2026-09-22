@@ -78,6 +78,12 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>环境光色（线性）——v3 的暗部来源就是它（albedo × 环境项）。</summary>
         public static readonly int AmbientColorId = Shader.PropertyToID("_PixelartAmbientColor");
 
+        /// <summary>
+        /// 墨线壳沿视线拉近的倍数（× 线宽的世界尺寸）。要超过"环宽 ÷ tan(俯角)"量级的深度差，
+        /// 否则近侧下缘的环会输给先画完的大平面（实测 30° 俯角下 5 档仍不够）。
+        /// </summary>
+        public static readonly int InkDepthPullId = Shader.PropertyToID("_PixelartInkDepthPull");
+
         /// <summary>1 低分辨率像素的世界长度（= 2×正交size ÷ RT高），相机 snap 与逐物体对齐共用。</summary>
         public static readonly int UnitSizeId = Shader.PropertyToID("_PixelartUnitSize");
 

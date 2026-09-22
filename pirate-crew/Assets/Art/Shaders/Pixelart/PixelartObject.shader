@@ -219,16 +219,12 @@ Shader "PirateCrew/Pixelart/PixelartObject"
 
             Cull Front
             ZWrite Off
-            // 【ZTest Always：这条是实测改出来的，不是照抄】渲染篇 §5 的配方写的是 LEqual + 沿视线拉近，
-            // 那套在本路径的取景下**下缘仍然一条线都没有**（实测：平台远侧/上缘墨线覆盖 97%，
-            // 近侧/下缘 0%，一条竖切上是"亮面 → 立面 → 地面"、中间零墨线）。
-            // 原因：深度测试的对手是**先画完的地面**（大平面在背景队列里先整片画完），
-            // 而壳在下缘那圈投射出的深度是物体的**背面**——一个 18m 见方的台面，它的背面深达十几米，
-            // "拉近 5 倍线宽"（0.65m）根本不够。
-            // 而深度测试对这条路径本来就是多余的：墨线**画在本体之前**，本体随后会把它盖回重叠区，
-            // 所以它只需要"别被先画的东西挡住"。改成 Always 之后环才闭合。
-            // 代价（反向壳固有限制，旧链也记过同一条）：**相邻物体互相漏线**——比如角色站在台面上时，
-            // 它底下那圈会被随后画的台面本体盖掉。要抑制得按层规划 Stencil，属后续项。
+            // 【ZTest Always + 远→近的绘制次序 = 逐物体独立描边】
+            // 深度竞争：环落在轮廓外侧，那圈像素的对手常常是**先画完的大平面**（正交俯视下比物体背面更近），
+            // 用 LEqual 时近侧下缘会整条丢光（实测覆盖 0%）。而"关掉深度测试"本身不会糊到近物上——
+            // 前提是绘制次序反过来：**远的物体先画**，近的物体随后画、它的本体会把覆盖处的环盖掉。
+            // 于是每个物体都有自己的环、遮挡关系也正确。两条必须成对，改一条就会退化成
+            // "全场景只有一圈外轮廓"或"远处的环糊到近物上"。
             ZTest Always
 
             HLSLPROGRAM
@@ -252,6 +248,8 @@ Shader "PirateCrew/Pixelart/PixelartObject"
 
             // 全局：1 低分辨率像素的世界尺寸（PixelartBeforeRenderFeature / rig 下发）。
             float _PixelartUnitSize = 0.1296;
+            // 全局：壳沿视线拉近的倍数（× 线宽的世界尺寸）。为什么是参数而不是常量见 Feature 的绘制次序注。
+            float _PixelartInkDepthPull = 12.0;
 
             struct AttributesInk
             {
@@ -296,7 +294,7 @@ Shader "PirateCrew/Pixelart/PixelartObject"
                 float  len = max(length(dir), 1e-4);
                 positionVS.xy += (dir / len) * pixelWorld;
                 // 沿视线拉近 5× 线宽：覆盖正交俯视下"轮廓外侧那圈像素压在地面上"的深度差。
-                positionVS.z -= pixelWorld * 5.0;
+                positionVS.z -= pixelWorld * _PixelartInkDepthPull;
 
                 output.positionCS = mul(UNITY_MATRIX_P, float4(positionVS, 1.0));
                 return output;

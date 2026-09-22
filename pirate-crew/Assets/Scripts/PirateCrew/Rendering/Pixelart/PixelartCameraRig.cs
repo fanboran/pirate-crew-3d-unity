@@ -42,6 +42,10 @@ namespace PirateCrew.Rendering.Pixelart
             + "0.1296 = 1080p 下可见 28m 高。")]
         [Min(0.001f)] public float worldPerPixel = 0.1296f;
 
+        [Tooltip("**已不必需**：墨线改成 ZTest Always 后，环与大平面之间的深度竞争不存在了。"
+            + "留着这个旋钮是为了对照（5 = 渲染篇 §5 原配方的拉近量），非 0 时壳会整体向相机偏移。")]
+        [Range(0f, 40f)] public float inkDepthPull = 0f;
+
         [Tooltip("由 pixelScale/worldPerPixel 反推正交 size 并写进相机。"
             + "关掉 = 相机自己管取景（本路径只保证像素网格整数倍，不保证范围随分辨率变大）。")]
         public bool deriveOrthographicSize = true;
@@ -510,6 +514,9 @@ namespace PirateCrew.Rendering.Pixelart
             Shader.SetGlobalVector(PixelartPath.LightDirId, new Vector4(lightDir.x, lightDir.y, lightDir.z, 0f));
             Shader.SetGlobalVector(PixelartPath.LightColorId, ToLinear(lightColor));
             Shader.SetGlobalVector(PixelartPath.AmbientColorId, ToLinear(ambient));
+
+            // 每帧下发（出图脚本会逐档改它做对照，写在"尺寸变化时才下发"的那一处会不生效）。
+            Shader.SetGlobalFloat(PixelartPath.InkDepthPullId, inkDepthPull);
 
             LogPushedValuesOnce(lightDir, lightColor, ambient);
         }

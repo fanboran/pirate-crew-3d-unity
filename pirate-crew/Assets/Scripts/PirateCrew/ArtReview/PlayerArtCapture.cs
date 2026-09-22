@@ -391,6 +391,7 @@ namespace PirateCrew.ArtReview
                 ("pa-close",       PixelartPilotScene.CloseVisibleMeters, 0.3f, -1, 0f, 0),
                 ("pa-mid-bayer",   PixelartPilotScene.MidVisibleMeters,   0.6f,  0, 0.5f, 0),
                 ("pa-mid-density", PixelartPilotScene.MidVisibleMeters,   0.6f,  1, 1.0f, 0),
+                ("pa-mid-pull5",   PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 0),
                 ("dbg-albedo",     PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 1),
                 ("dbg-normal",     PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 2),
                 ("dbg-prop",       PixelartPilotScene.MidVisibleMeters,   0.6f, -1, 0f, 3),
@@ -400,6 +401,9 @@ namespace PirateCrew.ArtReview
 
             foreach (var shot in shots)
             {
+                // 描边拉近量对照档（其余档用 rig 的默认值）。
+                rig.inkDepthPull = shot.name == "pa-mid-pull5" ? 5f : 0f;
+
                 // 机位 = 改"每艺术像素多少米"（正交 size 由 rig 按它乘艺术像素数推出）。
                 rig.worldPerPixel = PixelartPilotScene.WorldPerPixel(shot.visibleMeters);
                 cam.transform.position = target + orbitDir * (cameraDistance * shot.zoom);
