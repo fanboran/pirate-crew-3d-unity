@@ -18,7 +18,7 @@
 | `BattleGlobalVolumeProfile.asset` | 战斗场景的 Global Volume 后处理栈（六个组件，现全部停用） | `Assets/Scenes/Battle.unity`（唯一消费者） |
 
 URP 的 Renderer / URPAsset 在 `Assets/Settings/URP/`，不在这里；Renderer Feature 的挂载/摘除脚本在
-`Assets/Editor/`（`PixelationInstaller` 装、`M2UrpRendererFeatureSetup` 卸）。
+`Assets/Editor/`（`PixelationInstaller` 装、`UrpRendererFeatureRetire` 卸）。
 
 ---
 
@@ -104,7 +104,7 @@ M2a 定案后再删。停用是幂等的、可一键还原的中间态。
 | `PirateCrew Outline`（`OutlineRendererFeature`，全屏 Sobel） | **已摘除** | **已摘除** | 与像素块感互斥、职责由反壳描边接管（任务书 §3 表 M2b 行） |
 | `PirateCrew SSAO`（`BalancedSsaoInstaller`） | 见 `BalancedSsaoInstaller.cs` | 未装 | 退役项登记在 M2b，本轮未动（见下方"遗留"） |
 
-摘除动作由 `Assets/Editor/M2UrpRendererFeatureSetup.cs` 的 `RetireAll` 执行（幂等、含孤儿子资产清理），
+摘除动作由 `Assets/Editor/UrpRendererFeatureRetire.cs` 的 `RetireAll` 执行（幂等、含孤儿子资产清理），
 **原来的挂载器已改造成退役器**——否则任何人重跑一次挂载脚本就会把退役项装回去。
 `OutlineRendererFeature.cs` 与 `PirateOutlinePost.shader` 本体保留（不影响画面：没有 Renderer 引用它）。
 

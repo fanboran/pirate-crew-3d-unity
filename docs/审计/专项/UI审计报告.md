@@ -1,7 +1,7 @@
 # UI 审计——2026-09-17
 
 > **审计方式**：静态代码走查（运行时 UI 脚本 `Assets/Scripts/UI/` 全量 + Editor 装配脚本
-> `BattleHudBuilder` / `M3SceneSetup` / `HudMinimapSceneSetup` / `M2BattleSceneSetup` + 数据目录层），
+> `BattleHudBuilder` / `ManagementSceneSetup` / `HudMinimapSceneSetup` / `BattleSceneSetup` + 数据目录层），
 > 未启动编辑器实测。凡由代码推断、未经实机截图验证的结论，正文已标注。
 > **性质**：问题清单是**事实**（附可核对行号）；「建议修复顺序」一节是**提案/待定**，未经用户裁决。
 
@@ -9,8 +9,8 @@
 
 | 层 | 文件 |
 | --- | --- |
-| 运行时 | `BattleHud.cs`(1088 行) / `BattleMinimap.cs` / `LevelSelectController.cs` / `MainMenuController.cs` / `CrewManagementController.cs` / `M3UiBuilder.cs` / `UiTheme.cs` / `UiTextRules.cs` / `UiStrings.cs` / `UiMotion(.Rules).cs` / `MinimapRules.cs` / `HudProjectionRules.cs` |
-| Editor 装配 | `BattleHudBuilder.cs` / `M3SceneSetup.cs` / `HudMinimapSceneSetup.cs` / `M2BattleSceneSetup.cs`(UI 相关部分) / `SceneSetup.cs` / `MenuUiBuilder.cs`(字号体系) |
+| 运行时 | `BattleHud.cs`(1088 行) / `BattleMinimap.cs` / `LevelSelectController.cs` / `MainMenuController.cs` / `CrewManagementController.cs` / `RuntimeUiBuilder.cs` / `UiTheme.cs` / `UiTextRules.cs` / `UiStrings.cs` / `UiMotion(.Rules).cs` / `MinimapRules.cs` / `HudProjectionRules.cs` |
+| Editor 装配 | `BattleHudBuilder.cs` / `ManagementSceneSetup.cs` / `HudMinimapSceneSetup.cs` / `BattleSceneSetup.cs`(UI 相关部分) / `SceneSetup.cs` / `MenuUiBuilder.cs`(字号体系) |
 
 ## 总评
 
@@ -53,9 +53,9 @@ M4 的 8 张语义图（`WorldMapCatalog`，关卡号 101–108）目前只能�
 ### 3. 选关页挂着一句"假提示"，与实际行为相反
 
 界面常驻文案「本轮战斗固定加载第 1 关竞技场，选关只决定结算归属」
-（`UiStrings.cs:260`，摆放在选关页底部 `M3SceneSetup.cs:174-179`）。
+（`UiStrings.cs:260`，摆放在选关页底部 `ManagementSceneSetup.cs:174-179`）。
 但当前实现恰恰相反：装配时**刻意不**给 BattleController 注入 level 资产、
-让 BuildPlan 走「CampaignApi 待战关」分支（`M2BattleSceneSetup.cs:835` 注释、
+让 BuildPlan 走「CampaignApi 待战关」分支（`BattleSceneSetup.cs:835` 注释、
 `BattleController.cs:248-252`）——选哪关就真加载哪关的关卡数据。
 `LevelSelectController.cs:14-15` 的类头注释也还是这句过时声明。
 （该提示在 M3 当时应属实，后续接线改掉了行为、没改文案。）
@@ -89,9 +89,9 @@ M3 菜单场景走 `UiTheme.Font*`（Body 20 / Hud 24）。同一项目两套字
 
 ### 7. 菜单列表无滚动、容器大量留白；接 8 图必然溢出
 
-- 选关列表容器 1000×560，只放 5 行 × 50px = 250px（`M3SceneSetup.cs:170-172` +
+- 选关列表容器 1000×560，只放 5 行 × 50px = 250px（`ManagementSceneSetup.cs:170-172` +
   `LevelSelectController.cs:29` RowHeight 44 + 间距 6），下半截全空；
-- 船员列表容器 1000×600，只放 7 行 × 50px = 350px（`M3SceneSetup.cs:94-96`，全目录 7 名船员）；
+- 船员列表容器 1000×600，只放 7 行 × 50px = 350px（`ManagementSceneSetup.cs:94-96`，全目录 7 名船员）；
 - 全工程仅武器面板有 ScrollRect（`BattleHudBuilder.cs:695`），菜单列表没有滚动兜底。
   一旦按待办把 8 图塞进选关页，直接溢出面板。
 

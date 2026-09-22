@@ -1,6 +1,6 @@
 # tools/blender/scene/archipelago —— M4 地形件 kit（12 件大号地形）无头建模管线
 
-> **这份目录解决什么问题**：M4 大海域世界化（`docs/技术/M4-大海域世界化.md` §4.3 分工表）的
+> **这份目录解决什么问题**：M4 大海域世界化（`docs/技术/大海域世界化.md` §4.3 分工表）的
 > **地形件 subagent 域**——环礁弧/泻湖心岛/梯田岛/海蚀柱/沙洲/礁阶/红树墩/火山缘环/龟甲岛/
 > 沉没广场共 12 件大号地形，纯 bpy 程序化建模、零贴图、零 .blend 输入，Blender 无头批量导出
 > FBX + 站面 manifest。全部色值/粗糙度/预算/导出/站面校验取自 `tools/blender/scene/style_tokens.py`
@@ -52,7 +52,7 @@
 ## 坐标与站面口径（Unity 侧必读）
 
 - Blender 内 +Z 上、1 单位 = 1 米；**原点 = 足印中心、z=0 海平面**；水下裙边统一到 z=-3。
-  Unity 落位：根节点 y = -0.4（水面高度，见 `docs/技术/M4-大海域世界化.md` §1）。
+  Unity 落位：根节点 y = -0.4（水面高度，见 `docs/技术/大海域世界化.md` §1）。
 - 可站立顶面全部为 0.5 m 整数档、面内高低差 0（顶板拼装共用同一 z 常数）；
   manifest 在导出前经 `style_tokens.check_standable_boxes` 强制校验，违规即抛错退出。
 - manifest box 格式：`{"c":[x,y,z],"s":[sx,sy,sz],"yaw":度}`（Blender 本地系 Z-up）。

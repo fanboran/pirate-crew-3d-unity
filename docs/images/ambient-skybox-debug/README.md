@@ -43,7 +43,7 @@ python tools/ambient/judge_ambient_captures.py export/ambient-skybox-debug
 # 1) 资产与场景（编辑器必须关闭；四步链顺序见 docs/项目/交接与恢复指南.md §23）
 Unity.exe -batchmode -nographics -quit -projectPath .../pirate-crew \
   -executeMethod PirateCrew.EditorTools.SkyAssetBuilder.BuildAll -logFile -
-# 2) 四步装配链（M2BattleSceneSetup.BuildAll → WireMinimap → M3SceneSetup.BuildAll
+# 2) 四步装配链（BattleSceneSetup.BuildAll → WireMinimap → ManagementSceneSetup.BuildAll
 #    → WorldMapAssetSetBuilder.BuildAll）
 # 3) 重建播放器（grep "shader error" 必须 0）
 # 4) 三档出图（各跑一次播放器）

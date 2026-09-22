@@ -1,6 +1,6 @@
 # tools/blender/scene/props —— WorldKit 道具套件(18 件)无头建模
 
-> **这份目录解决什么问题**:M4 大海域世界化的道具域产出(docs/技术/M4-大海域世界化.md §4.3 分工表)。
+> **这份目录解决什么问题**:M4 大海域世界化的道具域产出(docs/技术/大海域世界化.md §4.3 分工表)。
 > `props_kit.py` 用 Blender 5.2 无头脚本**纯程序化**建模 18 件道具并导出 FBX,供
 > `WorldMapComposer` 在世界地图上摆放。**零外部素材、零贴图**:全部 bpy/bmesh 图元 +
 > Principled BSDF 纯色(槽值唯一来源 `tools/blender/scene/style_tokens.py`),细节全靠几何

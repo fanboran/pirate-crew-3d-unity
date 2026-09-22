@@ -522,7 +522,7 @@ MIT 允许使用、修改、分发，但要求保留版权声明与许可文本�
 
 验收标准自检：
 
-- [x] `docs/技术/架构/M2-Unity参照库调研.md` 存在且 ≥250 行。
+- [x] `docs/技术/架构/Unity参照库调研.md` 存在且 ≥250 行。
 - [x] `external/m2-combat-reference/` 下 ≥2 个 clone（实际 4 个，每个能力至少 1 个）。
 - [x] 每条 API 风险均附本地核对命令与结论（R1–R9）。
 - [x] `git status` 只多出本文档（`external/` 在 .gitignore 第 10 行，不入库）。
@@ -580,7 +580,7 @@ grep -n "cameraColorTargetHandle\|BlitCameraTexture\|ReAllocateIfNeeded" \
 | `fluid-ref/FLIP` | Unity_FLIP_Fluid_Simulation | <https://github.com/lamp-cap/Unity_FLIP_Fluid_Simulation>（水体参照） |
 | `fluid-ref/HPWater` | HPWater | <https://github.com/AshenOneArt/HPWater>（水体参照） |
 | `swf-decompile/` + `tools/` | game.swf、levels_all.json、ffdec 反编译器 | Flash 原版逆向材料与工具链，逆向文档的原始依据 |
-| `m2-harness/` | 无头验证台母本 | 用法见 `external/m2-harness/README.md` |
+| `harness/` | 无头验证台母本 | 用法见 `external/harness/README.md` |
 | `*-work/`（blender-pilot / icon / scene-kit / worldkit×4） | sailor_pilot 等 .blend 源 | `tools/blender/` 管线的模型源文件；FBX 成品入 `Assets/Art/Models/SceneKit/` |
 
 登记时另有一批当日跑测产物（bisect-*、ocean-debug-*、build/ 等）未列入上表——它们属 7.3 所指的跑测产物，随调查线收尾清除。

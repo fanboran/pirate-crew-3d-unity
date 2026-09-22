@@ -332,9 +332,9 @@ Godot 版有**三条并行**的描边路径，按状态选用（接线见 `modul
 ```bash
 # C# 侧（RendererFeature）：0 错误 0 警告
 cd /f/VSCode/pirate-crew-3d-unity
-mkdir -p external/harness-rendering && cp external/m2-harness/M2Harness.csproj external/harness-rendering/
+mkdir -p external/harness-rendering && cp external/harness/Harness.csproj external/harness-rendering/
 cd external/harness-rendering
-dotnet build M2Harness.csproj -p:HarnessScope=Rendering
+dotnet build Harness.csproj -p:HarnessScope=Rendering
 # → 已成功生成。0 个警告，0 个错误
 
 # Editor 侧（OutlineDebugCapture.cs）：不在 Rendering scope 内，另建临时验证台
@@ -358,8 +358,8 @@ dotnet build VerifyEditorOutline.csproj
 | 状态位来源 | `PirateBase.SetSelected / SetHover`（原本只有状态位、无表现）。选中状态的唯一性由 `BattleTeam.Select / StartTurn / FinishTurn` 同步（`TurnManager` 会直接调 `BattleTeam.Select`，只钩 `BattleController` 会漏） |
 | 悬停状态位 | `AimThrowController.UpdateHover()`——鼠标 30px 内最近的本队存活角色（§4.5 `Controller.hoverCharacter`）；拖拽中或鼠标在 UGUI 上时不悬停 |
 | 状态位 → 材质属性 | `Assets/Scripts/PirateCrew/Battle/UnitOutlineBinder.cs`：每帧把档位写进 `MaterialPropertyBlock`（`_OutlineState`），并按队伍写 `_BaseColor`（纯表现，红/蓝队可区分） |
-| 单位材质 | `Assets/Prefabs/PirateCrew/Materials/PirateOutlineUnit.mat`（`PirateOutline` shader），由 `M2BattleSceneSetup.EnsureOutlineMaterial()` 幂等生成 |
-| 预制体装配 | `M2BattleSceneSetup.BuildPiratePrefab()`——Cube + `PirateBase` + `UnitOutlineBinder`，材质即上面那个 |
+| 单位材质 | `Assets/Prefabs/PirateCrew/Materials/PirateOutlineUnit.mat`（`PirateOutline` shader），由 `BattleSceneSetup.EnsureOutlineMaterial()` 幂等生成 |
+| 预制体装配 | `BattleSceneSetup.BuildPiratePrefab()`——Cube + `PirateBase` + `UnitOutlineBinder`，材质即上面那个 |
 
 **为什么用 `MaterialPropertyBlock` 而不是 `renderer.material`**：后者会给每个单位克隆一份材质实例
 （12 个单位 = 12 份克隆），MPB 是逐渲染器覆盖，共享材质资产不被改脏。代价是该渲染器退出 SRP Batcher 批次，

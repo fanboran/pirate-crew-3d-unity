@@ -52,8 +52,8 @@
 # 1) 安装 Feature（幂等，两档渲染器）
 Unity.exe -batchmode -nographics -quit -projectPath pirate-crew \
   -executeMethod PirateCrew.EditorTools.PixelationInstaller.Install -logFile -
-# 2) 四步装配链重烘场景（M2BattleSceneSetup.BuildAll → HudMinimapSceneSetup.WireMinimap
-#    → M3SceneSetup.BuildAll → WorldMapAssetSetBuilder.BuildAll）
+# 2) 四步装配链重烘场景（BattleSceneSetup.BuildAll → HudMinimapSceneSetup.WireMinimap
+#    → ManagementSceneSetup.BuildAll → WorldMapAssetSetBuilder.BuildAll）
 # 3) 构建播放器（grep "shader error" 必须 0）
 # 4) external/build/PirateCrew3D.exe -artReviewOut export/pixel-review/r<N>
 ```

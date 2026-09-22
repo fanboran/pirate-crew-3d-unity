@@ -78,5 +78,5 @@ done
 ```
 
 > ⚠ 跑完 `BattleScenePipeline` 记得查 `ProjectSettings/EditorBuildSettings.asset`：装配链里的
-> `M2BattleSceneSetup.RegisterBuildSettings()` 会把 17 个场景覆盖成 3 个（入口/主菜单/战斗），
+> `BattleSceneSetup.RegisterBuildSettings()` 会把 17 个场景覆盖成 3 个（入口/主菜单/战斗），
 > 必须恢复（本轮实测又踩了一次）。

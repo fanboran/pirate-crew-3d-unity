@@ -15,9 +15,9 @@
 ## 0. 适用范围
 
 - 【原始诉求】当前 Unity 版界面存在两个问题：**术语与界面文案为英文**（用户明确不满）、**视觉是用 `Image` 纯色块拼的**（无美术效果）。本规范解决这两点，并给出可逐图品控的验收判据。
-- 【依据】现有 UI 代码全部在 `pirate-crew/Assets/Scripts/UI/`（`BattleHud.cs` / `MainMenuController.cs` / `CrewManagementController.cs` / `LevelSelectController.cs` / `M3UiBuilder.cs` / `BattleMinimap.cs`），装配代码在 `pirate-crew/Assets/Editor/M2BattleSceneSetup.cs`、`SceneSetup.cs`、`M3SceneSetup.cs`、`HudMinimapSceneSetup.cs`。
+- 【依据】现有 UI 代码全部在 `pirate-crew/Assets/Scripts/UI/`（`BattleHud.cs` / `MainMenuController.cs` / `CrewManagementController.cs` / `LevelSelectController.cs` / `RuntimeUiBuilder.cs` / `BattleMinimap.cs`），装配代码在 `pirate-crew/Assets/Editor/BattleSceneSetup.cs`、`SceneSetup.cs`、`ManagementSceneSetup.cs`、`HudMinimapSceneSetup.cs`。
 - 【依据】风格契约由用户确定：**风格化写实海盗风 = 木质 / 羊皮纸 / 黄铜三段材质语言 + 高对比中文标题字 + 深色描边保证可读性**；配色沿用 GDD 调色板（`game-3/docs/gdd.md:812-835`）。
-- 本文**不覆盖**：3D 场景物件外观、描边 shader 参数（见 `docs/技术/渲染/描边Shader调试.md`）、3D 空间模型（见 `docs/设计/M2-3D空间模型对齐.md`）。
+- 本文**不覆盖**：3D 场景物件外观、描边 shader 参数（见 `docs/技术/渲染/描边Shader调试.md`）、3D 空间模型（见 `docs/设计/3D空间模型对齐.md`）。
 
 ---
 
@@ -69,7 +69,7 @@
 | `UI_WOOD_MID` | `#A67B42` | 按钮正常态底 | 【依据】GDD 木材中阶 `gdd.md:820` |
 | `UI_WOOD_LIGHT` | `#D4A76A` | 按钮 hover 底 / 亮木条 | 【依据】GDD 木材亮阶 `gdd.md:820` |
 | `UI_BRASS` | `#C9A227` | 金描边、分隔线、星级 | 【依据】GDD §10.5「金色描边」`gdd.md:875` |
-| `UI_BRASS_LIGHT` | `#F2D06B` | 当前回合/关键数值高亮 | 【AI 提案】，沿用现有回合提示色 `M2BattleSceneSetup.cs:440`（`(1,0.85,0.3)`） |
+| `UI_BRASS_LIGHT` | `#F2D06B` | 当前回合/关键数值高亮 | 【AI 提案】，沿用现有回合提示色 `BattleSceneSetup.cs:440`（`(1,0.85,0.3)`） |
 | `UI_INK` | `#2A2A2A` | 羊皮纸上的正文 | 【依据】GDD 场景描边色 `gdd.md:830` |
 | `UI_TEXT_LIGHT` | `#F5E8C8` | 深底上的正文 | 【AI 提案】 |
 | `UI_TEAM_RED` | `#FF3A29` | 红队标识/血条 | 【依据】逆向 §8.1，`MinimapRules.cs:79` |
@@ -173,16 +173,16 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 启动 (Bootstrapper, 无 UI)
 └── 主菜单 MainMenu                        ← 现有 SceneSetup.cs:78-105（改造）
     ├── 进入战斗（非战役快捷入口）           ← 现有 MainMenuController.cs:66-70
-    ├── 单人战役 → 选关 LevelSelect         ← 现有 M3SceneSetup.cs:123-166（改造）
+    ├── 单人战役 → 选关 LevelSelect         ← 现有 ManagementSceneSetup.cs:123-166（改造）
     │   ├── 章节切换（1/2/3）
     │   ├── 关卡列表（解锁/星级）
     │   ├── 结算横幅（上一局结果）           ← 现有 LevelSelectController.cs:76-114（改造为弹窗）
     │   └── 出战 → 战斗 Battle
-    ├── 船员管理 CrewManagement             ← 现有 M3SceneSetup.cs:78-108（改造）
+    ├── 船员管理 CrewManagement             ← 现有 ManagementSceneSetup.cs:78-108（改造）
     ├── 设置 Settings                       ← 【新建】GDD §10.3 有菜单项，Unity 版未实现
     └── 退出游戏                            ← 【新建】当前无
 战斗 Battle（场景）
-├── HUD 常驻层                             ← 现有 M2BattleSceneSetup.cs:426-512（大改）
+├── HUD 常驻层                             ← 现有 BattleSceneSetup.cs:426-512（大改）
 ├── 瞄准层                                 ← 【新建】Godot 有，Unity 无
 ├── 返回确认弹窗                           ← 【新建】
 └── 结算弹窗                               ← 【新建】当前结算只在选关横幅显示
@@ -211,7 +211,7 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 | 模式开关 | 「移动 / 操作」二态，**不翻面**（`清单:5-6`） | 顶部中央 | 无，改造现有空位 |
 | 回合与计时 | 「回合 3/20」「时间 00:45」（GDD HUD 草图 `gdd.md:709`） | 顶部左 | 部分（现有 TopRight 只有回合提示） |
 | 双方存活 | 「红队 存活 5/5」「蓝队 存活 4/5」 | 顶部右 | 部分（现有 `TeamStatusText` 只报当前队，`BattleHud.cs:436-451`） |
-| 船员名册 | 每行：队伍色块 + 姓名 + 血条 + HP 数字；高亮当前选中 | 左下 | 现有 `RosterContainer`（`M2BattleSceneSetup.cs:483-484`） |
+| 船员名册 | 每行：队伍色块 + 姓名 + 血条 + HP 数字；高亮当前选中 | 左下 | 现有 `RosterContainer`（`BattleSceneSetup.cs:483-484`） |
 | 小地图 | 竞技场 XZ 俯视点阵 + 双方点位，死亡淡出 | 左上 | 现有 `BattleMinimap.cs` + `HudMinimapSceneSetup.cs` |
 | 当前武器与力度 | 武器名 +（瞄准态）力度数字**不标「力度」二字**（`清单:268`） | 角色旁小字 / 底部面板 | 无 |
 | 武器列表 | 已选中角色后 BottomCenter 弹出可选武器（`清单:211-216`） | 底部中央 | 现有 17 格平铺（改造为列表） |
@@ -279,7 +279,7 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- 对应现有代码：`M3SceneSetup.cs:78-108`（**改造**：标题/列表底/按钮全部换材质）；`CrewManagementController.cs:99-139` 运行时建行（**改造**：文案与四态）；`M3UiBuilder.cs:34-40` 纯色 Token（**改造为材质 sprite**）。
+- 对应现有代码：`ManagementSceneSetup.cs:78-108`（**改造**：标题/列表底/按钮全部换材质）；`CrewManagementController.cs:99-139` 运行时建行（**改造**：文案与四态）；`RuntimeUiBuilder.cs:34-40` 纯色 Token（**改造为材质 sprite**）。
 - 【AI 提案】未解锁行整行 55% 透明 + 灰化；「上阵/取消上阵」按钮宽度统一 220，避免行内跳动。
 
 ### 3.4 选关
@@ -302,7 +302,7 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- 对应现有代码：`M3SceneSetup.cs:123-166`（**改造**）；`LevelSelectController.cs:128-212`（**改造**：文案、星级图标化）；章节容器现有 `RebuildChapterButtons` 用绝对 `anchoredPosition = (chapter-1)*170`（`LevelSelectController.cs:154-167`，**保持**，但尺寸改 160×44 与本文一致）。
+- 对应现有代码：`ManagementSceneSetup.cs:123-166`（**改造**）；`LevelSelectController.cs:128-212`（**改造**：文案、星级图标化）；章节容器现有 `RebuildChapterButtons` 用绝对 `anchoredPosition = (chapter-1)*170`（`LevelSelectController.cs:154-167`，**保持**，但尺寸改 160×44 与本文一致）。
 - 【AI 提案】星级用 3 枚黄铜五角星图标（点亮/熄灭），不用「★★☆」纯文本；未解锁行灰化。
 
 ### 3.5 战斗 HUD
@@ -335,9 +335,9 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 ```
 
 - 对应现有代码与改造类型：
-  - `TopRightPanel` 640×90 anchor(1,1) offset(-16,-16)（`M2BattleSceneSetup.cs:437-438`）→ **改造**：拆为「顶部信息条」，回合提示改中文、存活拆双方。
-  - `WeaponPanel` 920×200 anchor(0.5,0) offset(0,24)（`M2BattleSceneSetup.cs:447-448`）→ **改造**：17 格平铺（3 行×6 列，`:463-475`）改为**滚动武器列表** + 当前武器信息。
-  - `RosterContainer` 340×400 anchor(0,0) offset(16,16)（`M2BattleSceneSetup.cs:483-484`）→ **改造**：位置让给小地图后移到 y=140，行文案中文，字号升到 20/16。
+  - `TopRightPanel` 640×90 anchor(1,1) offset(-16,-16)（`BattleSceneSetup.cs:437-438`）→ **改造**：拆为「顶部信息条」，回合提示改中文、存活拆双方。
+  - `WeaponPanel` 920×200 anchor(0.5,0) offset(0,24)（`BattleSceneSetup.cs:447-448`）→ **改造**：17 格平铺（3 行×6 列，`:463-475`）改为**滚动武器列表** + 当前武器信息。
+  - `RosterContainer` 340×400 anchor(0,0) offset(16,16)（`BattleSceneSetup.cs:483-484`）→ **改造**：位置让给小地图后移到 y=140，行文案中文，字号升到 20/16。
   - `RosterTitle` anchor(0,0) offset(16,420)（`:478-481`）→ **改造**：中文「船员名册 · 第 N 关」。
   - `BackButton` 160×40 anchor(0,1) offset(96,-20)（`:491-492`）→ **改造**：移到左下 `(24,24)`，避免与准星/顶栏争位置。
   - `MinimapPanel` anchor(0,1) offset(16,-48)，`pixelsPerTile=5`（`HudMinimapSceneSetup.cs:40-43,250`）→ **改造**：锚点改 `(0,1)` 偏移 `(24,-24)`，加木框。
@@ -414,7 +414,7 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 
 | 界面 | 控件 id | 中文文案 | 出处/标注 |
 | --- | --- | --- | --- |
-| 船员管理 | `Title` | 船员管理 | 【依据】现有 `M3SceneSetup.cs:81` |
+| 船员管理 | `Title` | 船员管理 | 【依据】现有 `ManagementSceneSetup.cs:81` |
 | 船员管理 | `SummaryText` | 编成 {0}/{1}：{2}　已拥有 {3}/{4}　总星数 {5} | 【依据】现有 `CrewManagementController.cs:94-96`（保持） |
 | 船员管理 | `SummaryText.Empty` | （未编成） | 【依据】现有 `CrewManagementController.cs:91` |
 | 船员管理 | 行文本 | {0}　等级 {1}　经验 {2} | 【AI 提案】替换现有「Lv. / XP」混排（`CrewManagementController.cs:114`） |
@@ -422,9 +422,9 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 | 船员管理 | `Action.Enlist` | 上阵 | 【依据】现有 `CrewManagementController.cs:127` |
 | 船员管理 | `Action.Remove` | 取消上阵 | 【依据】现有 `CrewManagementController.cs:127` |
 | 船员管理 | `Action.Locked` | 未解锁 | 【依据】现有 `CrewManagementController.cs:133` |
-| 船员管理 | `LevelSelectButton` | 选择关卡 | 【依据】现有 `M3SceneSetup.cs:94` |
-| 船员管理 | `SaveButton` | 保存进度 | 【依据】现有 `M3SceneSetup.cs:95` |
-| 船员管理 | `BackButton` | 返回主菜单 | 【依据】现有 `M3SceneSetup.cs:96` |
+| 船员管理 | `LevelSelectButton` | 选择关卡 | 【依据】现有 `ManagementSceneSetup.cs:94` |
+| 船员管理 | `SaveButton` | 保存进度 | 【依据】现有 `ManagementSceneSetup.cs:95` |
+| 船员管理 | `BackButton` | 返回主菜单 | 【依据】现有 `ManagementSceneSetup.cs:96` |
 | 船员管理 | 状态.换下 | 已把 {0} 换下。 | 【依据】现有 `CrewManagementController.cs:163` |
 | 船员管理 | 状态.编入 | 已把 {0} 编入阵容。 | 【依据】现有 `CrewManagementController.cs:167` |
 | 船员管理 | 状态.满编 | 编成上限 {0} 人，先换下一名再编入。 | 【依据】现有 `CrewManagementController.cs:171` |
@@ -452,7 +452,7 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 
 | 界面 | 控件 id | 中文文案 | 出处/标注 |
 | --- | --- | --- | --- |
-| 选关 | `Title` | 单人战役 | 【依据】现有 `M3SceneSetup.cs:126` / GDD `gdd.md:751` |
+| 选关 | `Title` | 单人战役 | 【依据】现有 `ManagementSceneSetup.cs:126` / GDD `gdd.md:751` |
 | 选关 | `HeaderText` | 单人战役　第 {0}/{1} 章　总星数 {2}/{3}{4} | 【依据】现有 `LevelSelectController.cs:138-141` |
 | 选关 | `HeaderText.Next` | 　建议下一关：{0} | 【依据】现有 `LevelSelectController.cs:136` |
 | 选关 | `HeaderText.AllClear` | 　全部关卡已通关 | 【依据】现有 `LevelSelectController.cs:135` |
@@ -464,8 +464,8 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 | 选关 | `Action.Replay` | 再战 | 【依据】现有 `LevelSelectController.cs:202` |
 | 选关 | `Action.Fight` | 出战 | 【依据】现有 `LevelSelectController.cs:202` |
 | 选关 | `Action.Locked` | 未解锁 | 【依据】现有 `LevelSelectController.cs:207` |
-| 选关 | `CrewButton` | 船员管理 | 【依据】现有 `M3SceneSetup.cs:152` |
-| 选关 | `BackButton` | 返回 | 【依据】现有 `M3SceneSetup.cs:153` |
+| 选关 | `CrewButton` | 船员管理 | 【依据】现有 `ManagementSceneSetup.cs:152` |
+| 选关 | `BackButton` | 返回 | 【依据】现有 `ManagementSceneSetup.cs:153` |
 | 选关 | 状态.空编成 | 编成阵容为空：先去船员管理编入至少 1 名船员。 | 【依据】现有 `LevelSelectController.cs:250` |
 | 选关 | 状态.未解锁 | 该关卡尚未解锁。 | 【依据】现有 `LevelSelectController.cs:258` |
 | 选关 | 状态.新船员 | 新船员已加入名册：{0} | 【依据】现有 `LevelSelectController.cs:275` |
@@ -491,9 +491,9 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 | 战斗 | 名册行文本 | {队伍} {职业} | 【AI 提案】改自 `BattleHud.cs:343,372`「T1 redPirate」；职业映射见 §4.3，队伍用「红队/蓝队」 |
 | 战斗 | `HpText` | {0}/{1} | 【依据】现有 `BattleHud.cs:404`（纯数字，无英文） |
 | 战斗 | `WeaponPanelTitle` | {0} · 选择行动 | 【AI 提案】改自 `BattleHud.cs:497`「<CrewType> — choose action」 |
-| 战斗 | `ThrowSelfButton` | 抛自己 | 【AI 提案】改自 `M2BattleSceneSetup.cs:458`「throw character」；原版官方说明「每回合抛自己一次，且必须在用武器之前」逆向 §8.4 `静态.md:741` |
-| 战斗 | `EndGoButton` | 结束回合 | 【AI 提案】改自 `M2BattleSceneSetup.cs:460`「end go」；原版说明「不使用武器直接结束回合」`静态.md:742` |
-| 战斗 | `BackButton` | 返回主菜单 | 【依据】现有 `M2BattleSceneSetup.cs:491`（已是中文，保留） |
+| 战斗 | `ThrowSelfButton` | 抛自己 | 【AI 提案】改自 `BattleSceneSetup.cs:458`「throw character」；原版官方说明「每回合抛自己一次，且必须在用武器之前」逆向 §8.4 `静态.md:741` |
+| 战斗 | `EndGoButton` | 结束回合 | 【AI 提案】改自 `BattleSceneSetup.cs:460`「end go」；原版说明「不使用武器直接结束回合」`静态.md:742` |
+| 战斗 | `BackButton` | 返回主菜单 | 【依据】现有 `BattleSceneSetup.cs:491`（已是中文，保留） |
 | 战斗 | 瞄准标签 | 瞄准中 | 【依据】任务清单 `battle_scene改进任务清单.md:269` |
 | 战斗 | 聚焦标签 | 聚焦中 | 【依据】任务清单 `battle_scene改进任务清单.md:244` |
 | 战斗 | 力度数字 | {0}% | 【依据】任务清单 `battle_scene改进任务清单.md:268`（不标「力度」二字） |
@@ -570,7 +570,7 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 | 设置 | `Field.WindowMode` | 窗口模式 | 【AI 提案】 |
 | 设置 | `Option.Fullscreen` / `Option.Windowed` | 全屏 / 窗口 | 【AI 提案】 |
 | 设置 | `Button.Restore` | 恢复默认 | 【AI 提案】 |
-| 设置 | `Button.Back` | 返回 | 【依据】现有 `M3SceneSetup.cs:153` |
+| 设置 | `Button.Back` | 返回 | 【依据】现有 `ManagementSceneSetup.cs:153` |
 | 通用 | `Button.Confirm` | 确定 | 【AI 提案】 |
 | 通用 | `Button.Cancel` | 取消 | 【依据】任务清单 Esc 语义 `battle_scene改进任务清单.md:84` |
 | 通用 | `Button.Yes` / `No` | 是 / 否 | 【AI 提案】 |
@@ -610,17 +610,17 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 | 9 | `"T" + pirate.TeamNumber + " " + pirate.CrewType` | `BattleHud.cs:343`、`BattleHud.cs:372` | 「{红队/蓝队} {职业中文}」（`CrewType` 是导出符号如 `redPirate`，需经 `CrewRosterCatalog.BattleSymbol` 反查中文） |
 | 10 | `selected.CrewType + " — choose action"` | `BattleHud.cs:497` | 「{职业中文} · 选择行动」 |
 | 11 | `WeaponCatalog.DisplayName`（17 个英文类名） | `WeaponCatalog.cs:129-225` | 见 §4.6 17 行中文名 |
-| 12 | `"throw character"`（`ThrowSelfButton`） | `M2BattleSceneSetup.cs:458` | 「抛自己」 |
-| 13 | `"end go"`（`EndGoButton`） | `M2BattleSceneSetup.cs:460` | 「结束回合」 |
-| 14 | `"Roster"`（`RosterTitle` 初值） | `M2BattleSceneSetup.cs:478` | 「船员名册」 |
+| 12 | `"throw character"`（`ThrowSelfButton`） | `BattleSceneSetup.cs:458` | 「抛自己」 |
+| 13 | `"end go"`（`EndGoButton`） | `BattleSceneSetup.cs:460` | 「结束回合」 |
+| 14 | `"Roster"`（`RosterTitle` 初值） | `BattleSceneSetup.cs:478` | 「船员名册」 |
 | 15 | `"Pirate Crew 3D"`（主菜单标题） | `SceneSetup.cs:82` | 「海盗军团夺宝 3D」 |
 | 16 | `"Battle 场景占位（M2 实现）"` | `SceneSetup.cs:127` | 「战斗场景（占位）」 |
-| 17 | 武器按钮对象名 `"WeaponButton_" + (WeaponId)i` | `M2BattleSceneSetup.cs:472` | **非用户可见**（GameObject 名），保留；仅表示施工作业面 |
-| 18 | 名册行字号 `17` / HP 字号 `15` | `M2BattleSceneSetup.cs:526,537` | 提升为 20 / 16（字号不属文案，但同属「全中文可读」前置条件） |
+| 17 | 武器按钮对象名 `"WeaponButton_" + (WeaponId)i` | `BattleSceneSetup.cs:472` | **非用户可见**（GameObject 名），保留；仅表示施工作业面 |
+| 18 | 名册行字号 `17` / HP 字号 `15` | `BattleSceneSetup.cs:526,537` | 提升为 20 / 16（字号不属文案，但同属「全中文可读」前置条件） |
 | 19 | `"Lv."` / `"XP "` 混排 | `CrewManagementController.cs:114` | 「等级 {0}　经验 {1}」 |
 | 20 | `"（第 " + n + " 关通关后招募）"` | `CrewManagementController.cs:116` | 保留（已中文） |
 
-【依据】除表中 20 条外，`MainMenuController.cs`、`LevelSelectController.cs`、`M3UiBuilder.cs`、`BattleMinimap.cs`、`M3SceneSetup.cs` 的界面文案**已是中文**，仅需按 §4 表格统一措辞与字号，不属英文替换范围。
+【依据】除表中 20 条外，`MainMenuController.cs`、`LevelSelectController.cs`、`RuntimeUiBuilder.cs`、`BattleMinimap.cs`、`ManagementSceneSetup.cs` 的界面文案**已是中文**，仅需按 §4 表格统一措辞与字号，不属英文替换范围。
 
 **统计**：现有会渲染的英文串 **17 类**（第 17 条为对象名不计入用户可见，故用户可见 16 类 + 17 个武器名 = **33 条**待替换）；本规范提供中文文案条目 **约 150 条**（§4.2–§4.9，含变体）。
 
@@ -659,7 +659,7 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 
 ### 5.3 TMP 使用要求（含中文字符集与动态字体集的取舍）
 
-【依据】本工程 `pirate-crew/Packages/manifest.json` **未列 `com.unity.textmeshpro`**（`manifest.json:1-23`），`Library/PackageCache` 里也没有 TMP；现有 UI 代码全部用 legacy `UnityEngine.UI.Text` + 内置 `LegacyRuntime.ttf`（`M2BattleSceneSetup.cs:679`、`M3UiBuilder.cs:45-54`、`SceneSetup.cs:150-152`）。
+【依据】本工程 `pirate-crew/Packages/manifest.json` **未列 `com.unity.textmeshpro`**（`manifest.json:1-23`），`Library/PackageCache` 里也没有 TMP；现有 UI 代码全部用 legacy `UnityEngine.UI.Text` + 内置 `LegacyRuntime.ttf`（`BattleSceneSetup.cs:679`、`RuntimeUiBuilder.cs:45-54`、`SceneSetup.cs:150-152`）。
 
 ⚠ 【AI 提案，重要技术结论】**`LegacyRuntime.ttf` 不含 CJK 字形**——继续用它渲染中文会得到空白/豆腐块。因此「全中文」在技术上有且只有两条路：
 
@@ -699,7 +699,7 @@ StickHand-Regular  →  LXGWWenKaiLite-Medium  →  LXGWWenKaiLite-Regular
 
 1. 【待定】协调者批准后，`manifest.json` 加 `com.unity.textmeshpro`，跑无头验证确认工程可开。
 2. 导入 4 个 TTF（`Assets/Art/Fonts/`），TMP 生成 `Font Asset`（Dynamic + fallback 链）；同时把 OFL 许可文本入库（§5.1 前置条件）。
-3. 新界面直接用 TMP；旧界面（`M2BattleSceneSetup` / `SceneSetup` / `M3SceneSetup` / `M3UiBuilder`）按 §3.8 对应表逐个把 `Text` 换 `TextMeshProUGUI`。
+3. 新界面直接用 TMP；旧界面（`BattleSceneSetup` / `SceneSetup` / `ManagementSceneSetup` / `RuntimeUiBuilder`）按 §3.8 对应表逐个把 `Text` 换 `TextMeshProUGUI`。
 4. 全部文案按 §4 表替换，跑「全文案扫描」脚本 + 截图验收（§8）。
 
 ---

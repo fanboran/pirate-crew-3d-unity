@@ -38,7 +38,7 @@
 - `Assets/Scenes/Battle.unity` 34539 行；MainMenu 8030、LevelSelect 4002、CrewManagement 1849、
   Bootstrapper 220。
 - 生成链（顺序敏感，交接文档 §2.1）：
-  `Editor/M2BattleSceneSetup.BuildAll → Editor/HudMinimapSceneSetup.WireMinimap → Editor/M3SceneSetup.BuildAll`。
+  `Editor/BattleSceneSetup.BuildAll → Editor/HudMinimapSceneSetup.WireMinimap → Editor/ManagementSceneSetup.BuildAll`。
 - Find 存量（清退清单，架构审计 P2-7 + 代码审计 §三.4）：
   `BattleCameraController.cs:397/412/1107`（aimThrow，前两处在每帧路径上——优先修）、
   `UI/BattleHud.cs:326`（相机，有缓存可容忍）、`BattleController.cs:362`（跨模块找 AmbientDirector）、
@@ -65,7 +65,7 @@
 >
 > **阶段 2–5 的开工条件**：Track 8①② **已落地**（`fcda283` 反向依赖修正 + `a3973ab` asmdef 五程序集，
 > 全量门禁全绿，2026-09-17 深夜）——前置已满足。开工仍需等**安静窗口**：天空盒对话在
-> `M2BattleSceneSetup.cs`/`BattleSceneLighting.cs` 有在途文件（恰是本任务要碰的装配脚本）。
+> `BattleSceneSetup.cs`/`BattleSceneLighting.cs` 有在途文件（恰是本任务要碰的装配脚本）。
 > 届时按审计报告 §五 推进：改前 dump → 改后 dump → Diff 等价。
 
 1. **场景接线审计**：编辑器实测层级 → 产出「归 Prefab / 留生成」切分契约

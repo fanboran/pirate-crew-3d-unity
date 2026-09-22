@@ -1,6 +1,6 @@
 # tools/blender/scene/marine —— 船与码头 kit（WorldKit-Marine）无头建模
 
-> **这份目录解决什么问题**：M4 大海域世界化（docs/技术/M4-大海域世界化.md §4.3 marine 域）的 9 件
+> **这份目录解决什么问题**：M4 大海域世界化（docs/技术/大海域世界化.md §4.3 marine 域）的 9 件
 > 船与码头资产，纯 Blender 无头程序化建模，与样板 `build_scene_kit.py`（Flagship/Dock）同风格同
 > 质量线的"残破/功能性扩展"。零贴图：细节全用几何（错缝板、撕裂板缘、焦黑区 Kit_WoodDark、
 > 锈蚀 Kit_Iron、缆绳盘绕、破洞暗腔+焦黑框）。槽/预算/站面工具一律 `import style_tokens as ST`。
