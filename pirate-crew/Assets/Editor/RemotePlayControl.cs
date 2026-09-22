@@ -82,6 +82,15 @@ namespace PirateCrew.EditorTools
                 return;
             }
 
+            if (content == "camdiag")
+            {
+                _busy = true;
+                try { RunCamDiag(); }
+                catch (System.Exception e) { Debug.LogError("[RemotePlayControl] camdiag 失败：" + e); }
+                EditorApplication.delayCall += () => _busy = false;
+                return;
+            }
+
             if (content.StartsWith("play:"))
             {
                 string target = content.Substring(5).Trim();
@@ -228,9 +237,62 @@ namespace PirateCrew.EditorTools
             catch { return -999; }
         }
 
-        static void CaptureRT(RenderTexture rt, string path)
+        // ---------------- camdiag：BattleCameraController 现场状态 ----------------
+
+        /// <summary>反射捞相机控制器的私有状态 + 暂停标志：回答"输入链到底断在哪一层"。</summary>
+        static void RunCamDiag()
         {
-            if (rt == null)
+            string dir = Path.GetFullPath(DiagDir);
+            Directory.CreateDirectory(dir);
+            var sb = new StringBuilder();
+
+            var cam = Object.FindFirstObjectByType<PirateCrew.Battle.BattleCameraController>();
+            if (cam == null)
+            {
+                sb.AppendLine("BattleCameraController=<null>（活动对象里没有）—— 清点未激活与全部相机：");
+                foreach (var any in Object.FindObjectsByType<PirateCrew.Battle.BattleCameraController>(
+                    FindObjectsInactive.Include, FindObjectsSortMode.None))
+                    sb.AppendLine("  控制器(未活动): " + any.name
+                        + " activeInHierarchy=" + any.gameObject.activeInHierarchy
+                        + " enabled=" + any.enabled);
+            }
+            else
+            {
+                var t = typeof(PirateCrew.Battle.BattleCameraController);
+                foreach (string name in new[] {
+                    "_manualCaptured", "_manualYaw", "_targetYaw",
+                    "_manualOrthoSize", "_targetOrthoSize", "_baseOrthoSize",
+                    "_baseDistance", "_dragPitchDegrees", "enableManualZoom", "orbitDegreesPerMouseUnit" })
+                {
+                    var fld = t.GetField(name, System.Reflection.BindingFlags.NonPublic
+                        | System.Reflection.BindingFlags.Instance);
+                    sb.AppendLine(name + " = " + (fld != null ? fld.GetValue(cam)?.ToString() ?? "null" : "<无字段>"));
+                }
+                sb.AppendLine("ObserveMode = " + cam.ObserveMode);
+                sb.AppendLine("BakedOrthoSize = " + cam.BakedOrthoSize);
+                sb.AppendLine("mousePos = " + Input.mousePosition
+                    + "  rightDown = " + Input.GetMouseButton(1));
+            }
+
+            var pauseType = typeof(PirateCrew.Battle.BattleCameraController).Assembly
+                .GetType("PirateCrew.Battle.BattlePause");
+            var pauseProp = pauseType != null ? pauseType.GetProperty("IsPaused") : null;
+            sb.AppendLine("BattlePause.IsPaused = "
+                + (pauseProp != null ? pauseProp.GetValue(null)?.ToString() : "<无>")
+                + "  Time.timeScale = " + Time.timeScale);
+
+            foreach (Camera c in Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                sb.AppendLine("Camera: " + c.name
+                    + " active=" + c.gameObject.activeInHierarchy + " enabled=" + c.enabled
+                    + " ortho=" + c.orthographic + "/" + c.orthographicSize.ToString("F1")
+                    + " depth=" + c.depth + " display=" + c.targetDisplay);
+
+            File.WriteAllText(Path.Combine(dir, "cam-dump.txt"), sb.ToString());
+            Debug.Log("[RemotePlayControl] camdiag 完成 → " + dir);
+        }
+
+        static void CaptureRT(RenderTexture rt, string path)
+        {            if (rt == null)
             {
                 File.WriteAllText(path + ".txt", "null");
                 return;

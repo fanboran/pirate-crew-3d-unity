@@ -54,7 +54,7 @@ namespace PirateCrew.Battle
     ///   随等距像素卡通切换退役】；Scope 瞄准/推近/旁观等"FOV 特效"以**当量比率**映射到
     ///   OrthoSize（<see cref="ApplyFov"/>：size = 当前手动档 × fov 当量 / 烘焙 FOV），手感量级连续。
     ///
-    /// 【M4 手感（docs/M4-大海域世界化.md §3.2，数值提案/待定）】
+    /// 【M4 手感（docs/大海域世界化.md §3.2，数值提案/待定）】
     ///   · Scope 模式：AimThrowController 里 Shift 切换，本类把等效 FOV 从基准 60 平滑收敛到 28（0.25s）
     ///     ——正交下表现为 OrthoSize 等比收小（画面放大）；
     ///   · 力度-镜头耦合：炮台蓄力比例越大相机越拉远（特写 → 全景线性映射），松手恢复蓄力前档位；
@@ -168,7 +168,7 @@ namespace PirateCrew.Battle
         // docs/技术/渲染管线-等距像素卡通.md §2；数值为【AI 提案·首轮试产校准】，
         // 美术指南待定项 #2/#4 落定后回写）。
         //
-        // 【为什么是 const 而不是 SerializeField】场景 Battle.unity 由 M2BattleSceneSetup 烘焙，
+        // 【为什么是 const 而不是 SerializeField】场景 Battle.unity 由 BattleSceneSetup 烘焙，
         //   序列化字段的旧值会盖掉新档位口径（×2 扫荡期的老教训）；档位一律走常量。
         // ------------------------------------------------------------------
 
@@ -211,7 +211,7 @@ namespace PirateCrew.Battle
             return Mathf.Clamp(Mathf.RoundToInt(spanUnits * 0.3f), FullFieldOrthoSize, MaxOrthoSize);
         }
 
-        // ---- M4 大海域档位（docs/M4-大海域世界化.md §1/§3.2；正交 size 化，取值为提案/待定）----
+        // ---- M4 大海域档位（docs/大海域世界化.md §1/§3.2；正交 size 化，取值为提案/待定）----
 
         /// <summary>默认地图可玩跨度（世界单位）= 现行竞技场 100u；未调 <see cref="SetWorldSpan"/> 时的缺省。</summary>
         public const float DefaultWorldSpan = 100f;
@@ -358,7 +358,7 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 【M4 新增】按地图可玩跨度设置全景档：OrthoSize = clamp(round(span × 0.3), 全场档, 60)
-        /// （docs/M4-大海域世界化.md §1/§3.2 的正交化转写）。由 Battle 场景接线方在世界地图建成后调用；
+        /// （docs/大海域世界化.md §1/§3.2 的正交化转写）。由 Battle 场景接线方在世界地图建成后调用；
         /// 不调用时默认 span=100（全景 30），既有特写档/手动缩放行为不变。
         /// </summary>
         public void SetWorldSpan(float spanUnits)
@@ -421,15 +421,17 @@ namespace PirateCrew.Battle
 
         void OnDisable()
         {
-            EventBus.Subscribe<TurnStartedPayload>(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Subscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
-            EventBus.Subscribe<Transform>(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
-            EventBus.Subscribe<ActionSelectedPayload>(BattleEvents.ActionSelected, OnActionSelected);
-            EventBus.Subscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
-            EventBus.Subscribe<CrewDamagedPayload>(BattleEvents.CrewDamaged, OnCrewDamaged);
-            EventBus.Subscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Subscribe<AiThinkingPayload>(BattleEvents.AiThinking, OnAiThinking);
-            EventBus.Subscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
+            // 【退订，不是再订阅】这里原来把 OnEnable 的 Subscribe 原样抄了一遍——每次
+            // OnDisable 都让订阅翻一倍（事件处理重复执行 + 跨场景泄漏）。
+            EventBus.Unsubscribe<TurnStartedPayload>(BattleEvents.TurnStarted, OnTurnStarted);
+            EventBus.Unsubscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Unsubscribe<Transform>(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Unsubscribe<ActionSelectedPayload>(BattleEvents.ActionSelected, OnActionSelected);
+            EventBus.Unsubscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Unsubscribe<CrewDamagedPayload>(BattleEvents.CrewDamaged, OnCrewDamaged);
+            EventBus.Unsubscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Unsubscribe<AiThinkingPayload>(BattleEvents.AiThinking, OnAiThinking);
+            EventBus.Unsubscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
 
             // 兜底：任何情况下都不能把 timeScale 留在压低状态（否则整个工程"卡死"）。
             _sceneUnloading = true;
@@ -1162,8 +1164,14 @@ namespace PirateCrew.Battle
 
         void UpdateManualCameraInput()
         {
+            // 【自愈】_manualCaptured 不是序列化字段：播放中改脚本触发域重载会把它清成 false
+            // 而 Awake 不会再跑——不补这一口，环绕/缩放在本次播放里就永久失灵。
             if (!_manualCaptured)
-                return;
+            {
+                CaptureManualCameraBase();
+                if (!_manualCaptured)
+                    return;
+            }
 
             // aimThrow 已由 Awake 一次性解析（见 ResolveAimThrowOnce）——本方法在 Update 路径上，
             // 任何"回退再扫一次"都是每帧全场查询，绝不允许。
