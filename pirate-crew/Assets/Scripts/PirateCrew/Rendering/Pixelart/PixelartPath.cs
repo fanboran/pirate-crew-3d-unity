@@ -44,6 +44,16 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>CoreBlit 的 Nearest pass（点采样放大——像素化的最后一步）。</summary>
         public const int CoreBlitNearestPass = 0;
 
+        /// <summary>
+        /// 主相机专用的「虚机保活层」（第 30 层，项目层表未占用）。像素化上屏器把主相机
+        /// cullingMask 收缩到只剩这一位——该层没有任何可渲染物，主相机照旧画不到世界物体；
+        /// 但 CinemachineBrain 按输出相机的掩码筛选候选虚机（TopCameraFromPriorityQueue 里
+        /// <c>mask &amp; (1 &lt;&lt; go.layer)</c>），掩码全 0 会让 Brain 永远选不到相机
+        /// （ActiveVirtualCamera = null ⇒ 旋转/缩放/镜头全部失效，画面钉死在烘焙机位）。
+        /// CameraRig 保留这一位；BattleCameraController 把虚机移到这一层。**两侧共用本常量**。
+        /// </summary>
+        public const int VirtualCameraKeepAliveLayer = 30;
+
         // ==================== pass 名（一律按名字解析，不写死序号）====================
 
         /// <summary>

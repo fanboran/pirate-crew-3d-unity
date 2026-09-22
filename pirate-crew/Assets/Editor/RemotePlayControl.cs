@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using System.Text;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -272,6 +273,48 @@ namespace PirateCrew.EditorTools
                 sb.AppendLine("BakedOrthoSize = " + cam.BakedOrthoSize);
                 sb.AppendLine("mousePos = " + Input.mousePosition
                     + "  rightDown = " + Input.GetMouseButton(1));
+
+                // ---- Cinemachine 链体检（反射，不依赖编辑器程序集引用 Cinemachine）----
+                var fldVcam = t.GetField("virtualCamera", System.Reflection.BindingFlags.NonPublic
+                    | System.Reflection.BindingFlags.Instance);
+                var vcam = fldVcam?.GetValue(cam) as Behaviour;
+                if (vcam == null)
+                {
+                    sb.AppendLine("virtualCamera = <null> —— 控制器写的全是空气");
+                }
+                else
+                {
+                    sb.AppendLine("virtualCamera = " + vcam.name
+                        + " activeInHierarchy=" + vcam.gameObject.activeInHierarchy
+                        + " enabled=" + vcam.enabled);
+                    sb.AppendLine("vcam 组件: " + string.Join(", ", vcam.GetComponents<Component>()
+                        .Select(c => c == null ? "<缺失脚本>" : c.GetType().Name)));
+                    var prio = vcam.GetType().GetProperty("Priority");
+                    sb.AppendLine("vcam Priority = " + (prio != null ? prio.GetValue(vcam, null) : "?"));
+                    var lensFld = vcam.GetType().GetField("m_Lens");
+                    var lens = lensFld?.GetValue(vcam);
+                    sb.AppendLine("vcam lens.OrthographicSize = " + lens?.GetType()
+                        .GetField("OrthographicSize")?.GetValue(lens));
+                }
+
+                var mainCam = Camera.main;
+                if (mainCam != null)
+                {
+                    var comps = mainCam.GetComponents<Component>();
+                    sb.AppendLine("Main Camera 组件: " + string.Join(", ", comps
+                        .Select(c => c == null ? "<缺失脚本>" : c.GetType().Name)));
+                    var brain = comps.FirstOrDefault(c => c != null && c.GetType().Name == "CinemachineBrain");
+                    if (brain == null)
+                        sb.AppendLine("CinemachineBrain = <无> —— 没人把虚机应用到主相机（旋转/缩放全部无效的充分原因）");
+                    else
+                    {
+                        sb.AppendLine("Brain enabled = " + ((Behaviour)brain).enabled);
+                        var liveProp = brain.GetType().GetProperty("ActiveVirtualCamera");
+                        var live = liveProp?.GetValue(brain, null);
+                        sb.AppendLine("Brain.ActiveVirtualCamera = "
+                            + (live != null ? live.ToString() : "<null>"));
+                    }
+                }
             }
 
             var pauseType = typeof(PirateCrew.Battle.BattleCameraController).Assembly

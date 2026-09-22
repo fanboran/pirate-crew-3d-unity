@@ -417,8 +417,11 @@ namespace PirateCrew.Rendering.Pixelart
 
             // 主相机退化成"纯变换持有者 + 上屏 blit"（v3 `SloanePixelartCamera.cs:113-119`）：
             // 不画任何东西、不清屏（清屏会盖掉将要贴上去的 ResultBuffer）。
+            // 【掩码不能清成 0】CinemachineBrain 按输出相机的掩码筛选候选虚机——全 0 = Brain
+            // 永远选不到相机 = 旋转/缩放/镜头全部失效（编辑器实跑实测）。只保留"虚机保活层"
+            // 这一位：该层没有任何可渲染物，上屏器照样什么世界物体都画不到。
             _screenCamera.clearFlags = CameraClearFlags.Nothing;
-            _screenCamera.cullingMask = 0;
+            _screenCamera.cullingMask = 1 << PixelartPath.VirtualCameraKeepAliveLayer;
         }
 
         /// <summary>

@@ -1258,6 +1258,11 @@ namespace PirateCrew.Battle
 
             if (virtualCamera.Follow == null && cameraTarget != null)
                 virtualCamera.Follow = cameraTarget;
+
+            // 虚机挪到「保活层」：像素化上屏器把主相机掩码收缩到只剩这一位（其余全收走），
+            // Brain 只能在掩码里看到本虚机——见 PixelartPath.VirtualCameraKeepAliveLayer。
+            virtualCamera.gameObject.layer =
+                PirateCrew.Rendering.Pixelart.PixelartPath.VirtualCameraKeepAliveLayer;
         }
 
         // ------------------------------------------------------------------
