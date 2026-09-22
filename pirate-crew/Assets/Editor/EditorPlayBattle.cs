@@ -2,6 +2,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using PirateCrew.Core;
 
 namespace PirateCrew.EditorTools
 {
@@ -16,8 +17,9 @@ namespace PirateCrew.EditorTools
     /// <list type="bullet">
     ///   <item>菜单：<c>PirateCrew/评审/进战斗（打开 Battle 并 Play）</c>；</item>
     ///   <item>命令行（编辑器会开着、不退出）：<c>-executeMethod PirateCrew.EditorTools.EditorPlayBattle.EnterBattle</c>。
-    ///         想直接进某一关就用启动参数 <c>-bootBattle &lt;关卡号|海图id&gt;</c> 一起给
-    ///         （那条参数是运行时读的，编辑器 Play 同样吃）。</item>
+    ///         想直接进某一关就再加 <c>-bootBattle &lt;关卡号|海图id&gt;</c>：此时改走
+    ///         <see cref="BootScenePath"/>，与播放器完全同一条路（Bootstrapper 直跳该关，
+    ///         <see cref="PirateCrew.Battle.WorldMaps.WorldMapRuntime"/> 读同一个开关），验收画面与 exe 一致。</item>
     /// </list>
     ///
     /// 【注意】进 Play 前会先保存当前场景（未保存的改动不该被 Play 吃掉）。
@@ -25,6 +27,7 @@ namespace PirateCrew.EditorTools
     public static class EditorPlayBattle
     {
         const string BattleScenePath = "Assets/Scenes/Battle.unity";
+        const string BootScenePath = "Assets/Scenes/Bootstrapper.unity";
 
         [MenuItem("PirateCrew/评审/进战斗（打开 Battle 并 Play）", priority = 0)]
         public static void EnterBattle()
@@ -36,9 +39,15 @@ namespace PirateCrew.EditorTools
                 return;
             }
 
-            if (!System.IO.File.Exists(BattleScenePath))
+            // 进程参数带 -bootBattle 时走 Bootstrapper：与播放器同一条启动链
+            // （Bootstrapper.StartScene() 直跳 Battle，WorldMapRuntime 再按开关进对应关），
+            // 不带开关时（菜单点进来）保持"打开 Battle 直接 Play"的捷径。
+            bool viaBoot = CommandLineOptions.Has(ToolFlags.BootBattle);
+            string scenePath = viaBoot ? BootScenePath : BattleScenePath;
+
+            if (!System.IO.File.Exists(scenePath))
             {
-                Debug.LogError("[EditorPlayBattle] 找不到场景：" + BattleScenePath);
+                Debug.LogError("[EditorPlayBattle] 找不到场景：" + scenePath);
                 return;
             }
 
@@ -46,11 +55,12 @@ namespace PirateCrew.EditorTools
             EditorSceneManager.SaveOpenScenes();
 
             Scene scene = SceneManager.GetActiveScene();
-            if (scene.path != BattleScenePath)
-                EditorSceneManager.OpenScene(BattleScenePath, OpenSceneMode.Single);
+            if (scene.path != scenePath)
+                EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
 
-            Debug.Log("[EditorPlayBattle] 进入 Play（场景 " + BattleScenePath + "）。"
-                + "相机：右键拖 = 方位随便转，俯角锁 30°；滚轮改档，右下提示条显示「镜头 N m」。");
+            Debug.Log("[EditorPlayBattle] 进入 Play（场景 " + scenePath
+                + (viaBoot ? "，-bootBattle " + (CommandLineOptions.GetValue(ToolFlags.BootBattle) ?? "") : "")
+                + "）。相机：右键拖 = 方位随便转，俯角锁 30°；滚轮改档，右下提示条显示「镜头 N m」。");
             EditorApplication.isPlaying = true;
         }
     }
