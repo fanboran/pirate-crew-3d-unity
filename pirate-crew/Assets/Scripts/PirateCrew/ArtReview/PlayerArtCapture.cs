@@ -440,7 +440,7 @@ namespace PirateCrew.ArtReview
             // 海图额外一张「整图总览」：可见高度 = 0.85×跨度，整张地图进画面。
             // 跨度 = 取景表里 Target.x × 2（海图行的 Target 恒为 (跨度/2, ·, 跨度/2)，见 PixelartLevelScene）。
             // 【为什么它不算 wide】整图取景下场地只占画面 8~12%、单位缩到 1~2 个艺术像素 ⇒ 看不出观感；
-            // 默认的 wide/mid/close 一律 32/16/7 m（人物为锚，与样板关同尺度，见取景表类头）。
+            // 默认的 wide/mid/close 一律 32/14/7 m（人物为锚，与样板关同尺度，见取景表类头）。
             if (view.LevelNumber >= 101)
             {
                 return new (string, float, float, int, float, int)[]

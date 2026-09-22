@@ -288,33 +288,31 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         // ------------------------------------------------------------------
-        // 战斗相机参数（等距像素卡通 · 正交口径，创始人裁决 2026-09-21：
-        // docs/技术/渲染管线-等距像素卡通.md §2——斜 45° 轴测 + 正交投影 + 整数 OrthoSize）。
-        // 俯角 45° / 距离 30 沿用 M2 空间契约（对齐 Godot orbit_camera.gd；正交下距离只定机位）；
+        // 战斗相机参数（等距像素卡通 · 正交口径，创始人裁决 2026-09-22：
+        // docs/技术/渲染管线-等距像素卡通.md §2——斜轴测 + 正交投影 + 整数 OrthoSize）。
+        // **俯角 30° 与出图口径同源**（`BattleCameraController.OrthoPitchDegrees` ←
+        // `PixelartPilotScene.PitchDegrees`）：游戏内看到的投影必须与宣传图/观感图是同一个，
+        // 否则"拿图比观感"这件事本身就错的。距离 30 沿用 M2 空间契约（正交下只定机位）；
         // 视野档由 OrthoSize 表达（此处烘全场档，运行时 BattleCameraController 切特写档）。
         // FOV 60 仍写进 Lens：Scope/推近等"FOV 当量特效"的换算分母，正交下不参与投影。
         // ------------------------------------------------------------------
 
         const float CameraDistance = 30f;
-        // 真等距俯角（渲染篇 §2.1 创始人裁决）：35.264° = arctan(1/√2)，菱形宽:高 1.732:1。
-        const float CameraPitchDegrees = 35.264f;
+        const float CameraPitchDegrees = BattleCameraController.OrthoPitchDegrees;
         const float CameraFieldOfView = 60f;
         const float CameraOrthoSize = BattleCameraController.FullFieldOrthoSize;
 
         /// <summary>
         /// 相机相对焦点的偏移（+Z/+Y 侧俯视竞技场）。这个朝向也是"屏幕拖拽 → 世界 XZ 方向"
         /// 映射的基准（见 <see cref="LevelGeometry.ScreenDragToArenaDirection"/>）。
+        ///
+        /// 【为什么调运行期那个函数拿方向】俯角/方位的公式曾在装配器与运行期各写一份
+        /// （装配器写「三分量相等」= 35.264°，出图脚本写 30°），烘出来的机位与运行时写的
+        /// 机位不是同一个角度，比对图全错。方向只由 <see cref="BattleCameraController.OffsetDirectionForPitch"/>
+        /// 给（θ=30°、方位 45° ⇒ (0.6124, 0.5, 0.6124)），距离由本类的 <c>CameraDistance</c> 定。
         /// </summary>
-        static Vector3 BattleCameraOffset
-        {
-            get
-            {
-                // 真等距：视线沿立方对角线，offset 三分量必相等（30/√3 ≈ 17.32）——方位 45°
-                // 由此自动满足（勿混用「水平 0.5 + 竖直 sinθ」那组值，会烘出 39.2° 俯角）。
-                float diagonal = CameraDistance * 0.57735027f;
-                return new Vector3(diagonal, diagonal, diagonal);
-            }
-        }
+        static Vector3 BattleCameraOffset =>
+            BattleCameraController.OffsetDirectionForPitch(CameraPitchDegrees) * CameraDistance;
 
         static Camera CreateCamera(bool useSkybox)
         {
@@ -344,15 +342,15 @@ namespace PirateCrew.EditorTools
             // BattleCameraController 只平滑移动该目标。
             var transposer = vcam.AddCinemachineComponent<CinemachineTransposer>();
             transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
-            // 45° 俯角、距离 30（对齐 Godot orbit_camera.gd 的 pitch/distance 默认值；格 1→2 单位后 ×2）。
+            // 俯角 30°、方位 45°、距离 30（距离对齐 Godot orbit_camera.gd；格 1→2 单位后 ×2）。
             transposer.m_FollowOffset = BattleCameraOffset;
             transposer.m_XDamping = 0f;
             transposer.m_YDamping = 0f;
             transposer.m_ZDamping = 0f;
 
-            // 正交投影 + 斜 45° 俯视 —— 等距像素卡通方向的口径（创始人裁决 2026-09-21，
-            // docs/技术/渲染管线-等距像素卡通.md §2）。旧"透视=真 3D"的口径随新方向废止：
-            // M2 空间契约（XZ 竞技场/45°/分路）不变，只有投影方式换正交。
+            // 正交投影 + 30° 斜俯视 —— 等距像素卡通方向的口径（创始人 2026-09-22 裁决：
+            // 游戏内俯角固定 30°、方位可自由旋转；数值与出图口径同源，见上方相机参数段）。
+            // 旧"透视=真 3D"的口径随新方向废止：M2 空间契约（XZ 竞技场/分路）不变，只有投影方式换正交。
             LensSettings lens = vcam.m_Lens;
             lens.Orthographic = true;
             lens.OrthographicSize = CameraOrthoSize;

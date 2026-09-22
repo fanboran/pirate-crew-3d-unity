@@ -255,6 +255,9 @@ namespace PirateCrew.UI
         // 生命周期
         // ------------------------------------------------------------------
 
+        /// <summary>提示条上"镜头 N m"上一次显示的值（-1 = 还没写过；滚轮改档才刷新）。</summary>
+        int _lastCameraMeters = -1;
+
         void Awake()
         {
             _motion = gameObject.AddComponent<UiMotion>();
@@ -416,6 +419,9 @@ namespace PirateCrew.UI
             if (aimController != null && BattlePause.IsPaused)
                 aimController.InputEnabled = false;
 
+            // 提示条上的镜头档读数：滚轮改档后跟一次（见 CameraReadout 的注释）。
+            RefreshCameraReadout();
+
             // 【观察模式】点击=准星点选角色；命中即选中并自动返回移动模式（r12 用户裁决）。
             if (_mode == BattleHudMode.Observe && Input.GetMouseButtonDown(0)
                 && aimController != null && aimController.HandleObserveClick())
@@ -491,7 +497,35 @@ namespace PirateCrew.UI
                 : _mode == BattleHudMode.Act
                     ? "AD 转向　WS 力度　回车开炮"
                     : "准星点人返回　WASD 移动　Esc 返回";
-            UiTextUtil.SetText(hintText, text);
+            UiTextUtil.SetText(hintText, text + CameraReadout());
+        }
+
+        /// <summary>
+        /// 镜头档读数（临时调参用，创始人 2026-09-22：「我在游戏内调整一个我看着最顺眼的距离
+        /// 当做基准」）。显示的是**出图取景表的同一个单位**——可见高度米数 = 2 × OrthoSize
+        /// （<see cref="BattleCameraController.RuntimeVisibleMeters"/>），所以滚轮挑完之后
+        /// 念出这个数就能直接改 `PixelartLevelScene` 的 mid/wide/close。
+        /// 基准定下后本读数可删（它只是提示条后缀，删掉不影响任何逻辑）。
+        /// </summary>
+        string CameraReadout()
+        {
+            if (cameraController == null)
+                return string.Empty;
+            return "　｜　镜头 " + Mathf.RoundToInt(cameraController.RuntimeVisibleMeters) + " m";
+        }
+
+        /// <summary>滚轮改变了正交档才刷新提示条（避免每帧写文本）。</summary>
+        void RefreshCameraReadout()
+        {
+            if (hintText == null)
+                return;
+            int meters = cameraController != null
+                ? Mathf.RoundToInt(cameraController.RuntimeVisibleMeters)
+                : 0;
+            if (meters == _lastCameraMeters)
+                return;
+            _lastCameraMeters = meters;
+            RefreshModeHint();
         }
 
         static Transform DeepFind(Transform root, string name)

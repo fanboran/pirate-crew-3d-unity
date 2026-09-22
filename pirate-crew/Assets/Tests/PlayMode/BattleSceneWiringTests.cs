@@ -84,15 +84,15 @@ namespace PirateCrew.Tests
             Assert.IsNotNull(offsetField, "CinemachineTransposer.m_FollowOffset 字段不存在");
             Vector3 offset = (Vector3)offsetField.GetValue(transposer);
 
-            // 偏移 = (0, d·sin(pitch), d·cos(pitch))，由此反推俯角与距离。
+            // 偏移方向 = (cosθ·0.7071, sinθ, cosθ·0.7071)·d（方位 45° 在 X/Z 等分），由此反推俯角与距离。
             float runtimeDistance = offset.magnitude;
             float runtimePitch = Mathf.Atan2(offset.y, new Vector2(offset.x, offset.z).magnitude) * Mathf.Rad2Deg;
 
-            // ---- 档一：烘焙值（场景资产里的 45°/距离 30；正交下距离恒定，视野档由 OrthoSize 表达）----
+            // ---- 档一：烘焙值（场景资产里的 30°/距离 30；正交下距离恒定，视野档由 OrthoSize 表达）----
             Assert.AreEqual(BattleCameraController.OrthoTransposerDistance, controller.BakedDistance, 0.1f,
-                "烘焙 FollowOffset 距离应等于正交机位常量（45°/30）");
+                "烘焙 FollowOffset 距离应等于正交机位常量（俯角 30°/距离 30）");
             Assert.AreEqual(BattleCameraController.OrthoPitchDegrees, controller.BakedPitchDegrees, 0.5f,
-                "烘焙俯角应等于等距俯角常量（45°）");
+                "烘焙俯角应等于等距俯角常量（30°）");
             Assert.AreEqual(BattleCameraController.FullFieldOrthoSize, controller.BakedOrthoSize, 0.1f,
                 "烘焙 OrthoSize 应等于全场档常量（17）");
 
@@ -102,9 +102,9 @@ namespace PirateCrew.Tests
             Assert.AreEqual(BattleCameraController.OrthoTransposerDistance, runtimeDistance, 0.1f,
                 "运行时 Transposer 距离应保持恒定（正交下缩放不再改写距离）");
             Assert.AreEqual(BattleCameraController.OrthoPitchDegrees, runtimePitch, 0.5f,
-                "运行时 Transposer 俯角应保持真等距俯角（35.264°，Awake 立即写入）");
+                "运行时 Transposer 俯角应保持等距俯角（30°，Awake 立即写入）");
             Assert.AreEqual(offset.z, offset.x, 1e-4f,
-                "真等距（渲染篇 §2.1）：相机偏移水平分量在 X/Z 等分（方位 45°；原 +Z/+Y 平面口径已废）");
+                "相机偏移水平分量在 X/Z 等分（方位 45°——只有它给出对称菱形构图）");
         }
 
         [UnityTest]

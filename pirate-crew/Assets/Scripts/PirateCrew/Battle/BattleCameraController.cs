@@ -4,6 +4,9 @@ using PirateCrew.Core;
 using PirateCrew.Combat;
 using PirateCrew.Data;
 using UnityEngine;
+// 类型别名：俯角常量与像素化出图口径同源（见 OrthoPitchDegrees 的注释），
+// 全限定写太长、直接 using 整个命名空间又怕与既有类型重名，故用同类别名。
+using PixelartPilotScene = PirateCrew.Rendering.Pixelart.PixelartPilotScene;
 
 namespace PirateCrew.Battle
 {
@@ -35,13 +38,13 @@ namespace PirateCrew.Battle
     ///   5. 顿帧（hitstop）：仅在武器引爆瞬间把 <c>Time.timeScale</c> 压到安全下限再弹回；
     ///      安全上限与"为什么不破坏回合推进"的论证见 <see cref="CameraFeelRules"/> 的顿帧小节。
     ///
-    /// 【默认机位 — 等距像素卡通（创始人裁决 2026-09-21，docs/技术/渲染管线-等距像素卡通.md §2）】
+    /// 【默认机位 — 等距像素卡通（创始人 2026-09-22 口述裁决：「游戏内应该俯仰角固定 30 度，
+    ///   但是左右可以随便旋转」）】
     ///   相机为**正交投影**：视野由 <see cref="CloseUpOrthoSize"/>/<see cref="FullFieldOrthoSize"/>
     ///   等整数档 OrthoSize 决定（像素网格在世界空间对齐的前提）；Transposer 距离固定
-    ///   <see cref="OrthoTransposerDistance"/>（只定机位，不再表达视野）；俯角统一
-    ///   <see cref="OrthoPitchDegrees"/> 35.264°（真等距，见渲染篇 §2.1；不再随档位插值）；
-    ///   **俯角锁定真等距 35.264° + 方位可旋转**（创始人 2026-09-21 裁决：俯角取真等距见渲染篇 §2.1，
-    ///   方位可右键环绕是本会话的修正指令）：右键拖拽环绕只改方位角，俯角不动；
+    ///   <see cref="OrthoTransposerDistance"/>（只定机位，不再表达视野）；
+    ///   **俯角锁 <see cref="OrthoPitchDegrees"/> 30° + 方位可自由旋转**：右键拖拽环绕只改方位角，
+    ///   俯角没有任何输入路径（观察模式的自由俯仰是主动调试出口）；
     ///   中键自由锚与观察模式（我的世界式自由视角）保留为调试出口。
     ///   开局与每次换行动单位进入**跟随特写档**（size <see cref="CloseUpOrthoSize"/>），
     ///   lookAt 抬高 = 单位视觉高 1.85 × <see cref="LookAtHeightRatio"/> 0.65 ≈ 1.20。
@@ -59,9 +62,9 @@ namespace PirateCrew.Battle
     ///     落点震屏逻辑不变。
     ///
     /// 【安全底线（勿破坏）】
-    ///   · **场景里烘焙的** Transposer FollowOffset = 45°/距离 30 + 正交 Lens（size
+    ///   · **场景里烘焙的** Transposer FollowOffset = 30°/距离 30 + 正交 Lens（size
     ///     <see cref="FullFieldOrthoSize"/>）：<c>BattleSceneWiringTests.AssertOrthographicTiltedCamera</c>
-    ///     断言该**烘焙值**（正交 + 45° + 距离 30 + offset.x=0，经 <see cref="BakedDistance"/> /
+    ///     断言该**烘焙值**（正交 + 俯角 30° + 距离 30 + offset.x=0，经 <see cref="BakedDistance"/> /
     ///     <see cref="BakedPitchDegrees"/>/<see cref="BakedOrthoSize"/> 读出）；运行时本脚本把它覆盖为
     ///     特写档，同测试另断言"运行时默认 = 特写档"（<see cref="RuntimeOrthoSize"/>）。
     ///   · 震屏只加在"相机目标位置"上，且**玩家按住左键（正在拖拽瞄准）时一律不施加**；
@@ -150,7 +153,7 @@ namespace PirateCrew.Battle
         [Tooltip("落水时相机焦点下压位移（世界单位）。")]
         [SerializeField] float drownDipWorldUnits = CameraFeelRules.DrownDipWorldUnits;
 
-        [Header("玩家相机微操（等距口径：俯角锁 45° + 右键方位环绕；滚轮整数档缩放 OrthoSize；观察模式/中键自由锚为调试出口）")]
+        [Header("玩家相机微操（等距口径：俯角锁 30° + 右键方位环绕；滚轮整数档缩放 OrthoSize；观察模式/中键自由锚为调试出口）")]
         [Tooltip("滚轮缩放（OrthoSize 整数档，夹在 [MinOrthoSize, MaxOrthoSize] 常量内）。默认开。")]
         [SerializeField] bool enableManualZoom = true;
 
@@ -173,14 +176,17 @@ namespace PirateCrew.Battle
         /// 机位高度与裁剪范围（far clip 200/400 足够覆盖世界图大跨度）。</summary>
         public const float OrthoTransposerDistance = 30f;
 
-        /// <summary>等距俯角（度）。统一 45°（不再随档位插值）——等距轴测观感的前提；
-        /// 观察模式（调试出口）仍可自由俯仰。</summary>
         /// <summary>
-        /// 等距俯角。【创始人裁决 2026-09-21】真等距 35.264°（arctan(1/√2)）：菱形宽:高 = 1.732:1、
-        /// 地面线与水平成 30°（渲染篇 §2.1 投影比表）；原 45° 提案已废。方位角 45° 由 Transposer
-        /// 烘焙 offset 落定（30×(1,1,1)/√3，三分量必相等）；方位可右键环绕（同裁决修正）。
+        /// 游戏内俯角（度）：**固定 30°**，方位角不进本常量（方位由 <c>_manualYaw</c> 承担、可自由旋转）。
+        ///
+        /// 【创始人 2026-09-22 口述裁决】「游戏内应该俯仰角固定 30 度，但是左右可以随便旋转」。
+        /// 取值直接引用像素化出图口径 <see cref="PixelartPilotScene.PitchDegrees"/>，
+        /// **不是各写一份的镜像**——出图与游戏内必须是同一个投影，"宣传图里的观感"才等于"玩的时候的观感"。
+        /// sin 30° = 0.5 ⇒ 地面轴在屏幕上是横移 2 像素 / 下降 1 像素的规则像素阶梯；
+        /// 真等距 35.264°（arctan(1/√2)，2026-09-21 的旧裁决）的 sin = 0.5773 与像素网格无整数比，
+        /// 阶梯长短不一，故已废。
         /// </summary>
-        public const float OrthoPitchDegrees = 35.264f;
+        public const float OrthoPitchDegrees = PixelartPilotScene.PitchDegrees;
 
         /// <summary>特写档 OrthoSize（正交半高，世界单位，整数）。开局/换行动单位的默认机位：
         /// RT 高 360px 下 1u ≈ 36px，单位 1.85u ≈ 67px（判据 A-2 的 ≥25px 富余充足）。</summary>
@@ -322,7 +328,7 @@ namespace PirateCrew.Battle
         /// <summary>场景里**烘焙的** Transposer 距离（Awake 从 FollowOffset 捕获；正交口径下恒 = <see cref="OrthoTransposerDistance"/> 30）。</summary>
         public float BakedDistance => _baseDistance;
 
-        /// <summary>场景里**烘焙的** Transposer 俯角（度，由 FollowOffset 反推；= <see cref="OrthoPitchDegrees"/> 45°）。</summary>
+        /// <summary>场景里**烘焙的** Transposer 俯角（度，由 FollowOffset 反推；= <see cref="OrthoPitchDegrees"/> 30°）。</summary>
         public float BakedPitchDegrees => PitchOf(_baseOffsetDirection);
 
         /// <summary>场景里**烘焙的** OrthoSize（= <see cref="FullFieldOrthoSize"/> 全场档）。</summary>
@@ -331,12 +337,21 @@ namespace PirateCrew.Battle
         /// <summary>运行时距离（正交口径下恒 <see cref="OrthoTransposerDistance"/>，不再表达视野；保留给接线测试断言）。</summary>
         public float RuntimeDistance => OrthoTransposerDistance;
 
-        /// <summary>运行时俯角（度；正交口径统一 <see cref="OrthoPitchDegrees"/> 45°，观察模式除外）。</summary>
+        /// <summary>运行时俯角（度；正交口径统一 <see cref="OrthoPitchDegrees"/> 30°，观察模式除外）。</summary>
         public float RuntimePitchDegrees =>
             ObserveMode ? _observePitchDegrees : _dragPitchDegrees;
 
         /// <summary>运行时 OrthoSize 档（四舍五入到整数；默认特写档 <see cref="CloseUpOrthoSize"/>，滚轮可改到 [3,60]）。</summary>
         public int RuntimeOrthoSize => Mathf.RoundToInt(_targetOrthoSize);
+
+        /// <summary>
+        /// 运行时取景的等效"可见高度"（米）= 2 × OrthoSize（正交半高 ×2）。
+        ///
+        /// 【为什么要这个读数】它是**出图取景表的同一个单位**（<c>PixelartLevelScene</c> 的 wide/mid/close
+        /// 就是按"可见多少米高"给的），所以创始人可以在游戏里滚轮挑一个最顺眼的距离、
+        /// 念出这个数，取景表照改即可（HUD 提示条把它显示出来）。1 个整数档 = 2 m。
+        /// </summary>
+        public float RuntimeVisibleMeters => _targetOrthoSize * 2f;
 
         /// <summary>当前全景档 OrthoSize（由 <see cref="SetWorldSpan"/> 决定；默认跨度 100u → 30）。</summary>
         public int PanoramaOrthoSize => Mathf.RoundToInt(_panoramaOrthoSize);
@@ -585,10 +600,12 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// 俯角（度）→ **真等距基准方向**（渲染篇 §2.1 裁决）：视线沿立方对角线，
-        /// 水平分量在 +X/+Z 上等分（方位 45°）、竖直分量 sinθ——θ=35.264° 时三分量等分
-        /// (0.577,0.577,0.577) = (1,1,1)/√3。`_manualYaw` 是相对该基准的方位偏移
-        ///（右键环绕），故 0 方位 = 等距基准朝向（菱形构图），不是"面向 +Z"。
+        /// 俯角（度）→ **相机相对焦点的单位方向**：水平分量在 +X/+Z 上等分
+        /// （即方位 45°——只有它给出对称菱形构图）、竖直分量 sinθ。θ=30° 时 = (0.6124, 0.5, 0.6124)，
+        /// 与出图口径 <see cref="PixelartPilotScene.CameraDirection"/> 逐分量相同（俯角与方位同一个定义，
+        /// 装配器/出图脚本/运行期三方不再各写一份）。
+        /// `_manualYaw` 是相对该基准的方位偏移（右键环绕），故 0 方位 = 烘焙机位朝向，
+        /// 不是"面向 +Z"。
         /// </summary>
         public static Vector3 OffsetDirectionForPitch(float pitchDegrees)
         {
@@ -599,7 +616,7 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 进入跟随特写档：OrthoSize 立刻切到 <see cref="CloseUpOrthoSize"/>，yaw 归零
-        /// （回到真等距基准方位 45°，与烘焙机位同朝向）、俯角切 <see cref="OrthoPitchDegrees"/>，
+        /// （回到烘焙机位朝向：方位 45° 对称构图）、俯角切 <see cref="OrthoPitchDegrees"/> 30°，
         /// 并立即写进 Transposer/Lens —— "开局 / 换行动单位即特写"，不平滑过渡。
         /// </summary>
         void EnterCloseUpView()
@@ -948,8 +965,8 @@ namespace PirateCrew.Battle
 
         // ---- 观察模式（我的世界同款；HUD 快捷键 3 进入、1/2/Esc 或任何聚焦退出）----
         public bool ObserveMode { get; private set; }
-        float _observePitchDegrees = 45f;
-        float _dragPitchDegrees = 45f;
+        float _observePitchDegrees = OrthoPitchDegrees;
+        float _dragPitchDegrees = OrthoPitchDegrees;
         const float ObserveFlySpeed = 12f;
 
         /// <summary>观察模式飞行：WASD 沿相机水平朝向平移、Space 升 / Shift 降（我的世界创造式）。</summary>
@@ -1151,11 +1168,12 @@ namespace PirateCrew.Battle
             // aimThrow 已由 Awake 一次性解析（见 ResolveAimThrowOnce）——本方法在 Update 路径上，
             // 任何"回退再扫一次"都是每帧全场查询，绝不允许。
 
-            // 【等距像素卡通 · 俯角锁定 + 方位可旋转（创始人 2026-09-21 口述裁决）】
-            // 右键拖拽环绕 = 只改方位角 yaw；俯角恒 45°（_dragPitchDegrees 无输入路径改它，
-            // 观察模式的自由俯仰是主动调试出口）。r12 的"左键空白处环绕"保持退役——
-            // 左键是瞄准拖拽，环绕让给右键。自由旋转下像素网格非轴向对齐的观感问题
-            // （旋转 30° 时地面像素线变斜线）留 M1 对照图裁决是否 45° snap（待定项）。
+            // 【等距像素卡通 · 俯角锁定 + 方位可旋转（创始人 2026-09-22 口述裁决）】
+            // 右键拖拽环绕 = 只改方位角 yaw；俯角恒 OrthoPitchDegrees 30°（_dragPitchDegrees 无输入
+            // 路径改它，观察模式的自由俯仰是主动调试出口）。r12 的"左键空白处环绕"保持退役——
+            // 左键是瞄准拖拽，环绕让给右键。注意方位角可自由转是**裁决明确的允许项**：
+            // 地面轴的屏幕斜率 = sinθ·tanφ / sinθ·cotφ，只有方位 45°（及其对称位）那两支斜率相等，
+            // 别的方位下两组地面线阶梯长短不同——这是已知取舍，不再 snap 回 45°。
             if (Input.GetMouseButton(1))
                 _targetYaw += Input.GetAxis("Mouse X") * orbitDegreesPerMouseUnit;
 

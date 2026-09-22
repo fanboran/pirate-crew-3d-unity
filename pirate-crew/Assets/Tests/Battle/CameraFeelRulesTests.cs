@@ -421,12 +421,14 @@ namespace PirateCrew.Battle.Tests
         }
 
         [Test]
-        public void OrthographicPreset_UsesFixed45DegreesAndBakingDistance()
+        public void OrthographicPreset_UsesFixed30DegreesAndBakingDistance()
         {
-            // 等距轴测：俯角统一 45°（不再随档位插值）；Transposer 距离恒 30（只定机位，不表达视野）；
+            // 等距轴测：俯角锁 30°（不再随档位插值，方位角另由右键环绕自由旋转）；
+            // Transposer 距离恒 30（只定机位，不表达视野）；
             // 全场档 size 17 = 旧透视全场档（距离 30 + FOV 60 → 等效半高 30×tan30° ≈ 17.3）取整。
-            // 真等距俯角（渲染篇 §2.1 创始人裁决 2026-09-21）：35.264° = arctan(1/√2)，原 45° 提案已废。
-            Assert.AreEqual(35.264f, BattleCameraController.OrthoPitchDegrees, 1e-3f);
+            // 【创始人 2026-09-22 裁决】游戏内俯角 = 出图俯角 30°（sin=0.5 → 规则像素阶梯）；
+            // 旧的"真等距 35.264°"（2026-09-21）已废。
+            Assert.AreEqual(30f, BattleCameraController.OrthoPitchDegrees, 1e-3f);
             Assert.AreEqual(30f, BattleCameraController.OrthoTransposerDistance, 1e-4f);
             Assert.AreEqual(17, BattleCameraController.FullFieldOrthoSize);
         }

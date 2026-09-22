@@ -37,7 +37,7 @@
 
 | 想找什么 | 单一来源 |
 | --- | --- |
-| 像素档位（一个艺术像素占几屏幕像素）、俯角/方位/机位距离、可见米数梯子 | `PixelartPilotScene`（`PixelScale` / `PitchDegrees` / `AzimuthDegrees` / `CameraDistance` / `Wide|Mid|CloseVisibleMeters`） |
+| 像素档位（一个艺术像素占几屏幕像素）、俯角/方位/机位距离、可见米数梯子 | `PixelartPilotScene`（`PixelScale` / `PitchDegrees` / `AzimuthDegrees` / `CameraDistance` / `Wide|Mid|CloseVisibleMeters`）。**俯角也是游戏内相机的来源**：`BattleCameraController.OrthoPitchDegrees` 直接引用 `PitchDegrees`（30°），出图与游戏内必须是同一个投影 |
 | **真实内容关卡的场景名/构图中心/可见米数** | `PixelartLevelScene`（`All` 表；一行一关，含 `ShotPrefix` 与 `CameraDistanceFor`）；样板关 1/3 + 海图 101–108 |
 | 双档缓冲尺寸、G-buffer/结果缓冲的分配与随机写位 | `PixelartCameraRig`（`NewBuffer` / `NewColor` 调用处） |
 | 全局纹理与常量名（`_Pixelart*`）、pass 名、asset 路径、特征顺序 | `PixelartPath`（**唯一登记处**，别在别处写字面量） |
@@ -98,5 +98,7 @@ python tools/pixel-review/judge_pixelart_pilot.py export/pixelart-l1-r9
   硬门禁是块边长/色数/墨线/**光照未旁路**（同机位比对最终图与 albedo 调试图）/场地在场，
   平坦占比与亮暗跨度在这档只打印读数（真实关卡结构密，见判据脚本的模块 docstring）。
 - 每轮实拍与读数归档在 `docs/images/pixelart-path/r<轮次>/README.md`；
-  最新一轮（r10）是**关卡 1/3 的全套效果图**（各 6 档）；r9 是三个关卡接入 + README 换图
-  （第 2 关随后被删除，其缺陷记录留档）；r8 含**角色台柱底径调整**与**云彩关（关卡 1）接入**。
+  最新一轮（r12）是**十关的中机位统一到 14 m**（创始人：比 16 m 略近；14 m = 游戏内正交档 7）；
+  r11 是八张海图的观感图（wide 32 m）+ 整图总览；r10 是关卡 1/3 的全套效果图（各 6 档）；
+  r9 是三个关卡接入 + README 换图（第 2 关随后被删除，其缺陷记录留档）；
+  r8 含**角色台柱底径调整**与**云彩关（关卡 1）接入**。

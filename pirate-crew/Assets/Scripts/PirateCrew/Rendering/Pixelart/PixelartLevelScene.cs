@@ -34,10 +34,13 @@ namespace PirateCrew.Rendering.Pixelart
     /// 【三档取景的规则（海图）】一个艺术像素的世界尺寸 = 可见高度 ÷ 参考画布高，
     /// 可见高度是"美术锚"、与分辨率解耦（口径同 `PixelartPilotScene`）：
     /// <list type="bullet">
-    ///   <item><b>wide / mid / close = 32 / 16 / 7 m（与样板关同一组数，不随跨度缩放）</b>：
+    ///   <item><b>wide / mid / close = 32 / 14 / 7 m（与样板关同一组数，不随跨度缩放）</b>：
     ///         **人物大小才是锚**——同一档在不同关卡里角色必须一样大，否则"横向比观感"这件事本身不成立
     ///         （实测踩过：把 mid 绑成 0.35×跨度时，280 m 的地图里角色只有 150 m 地图里的一半大）。
-    ///         32 m 是"一处台面群落 + 若干单位"的取景，与两张样板关的 README 成图同尺度、可直接对比。</item>
+    ///         32 m 是"一处台面群落 + 若干单位"的取景，与两张样板关的 README 成图同尺度、可直接对比；
+    ///         mid 取 **14 m**（创始人 2026-09-22：「比当前的 mid 略微近一点的距离最好」，原 16 m）——
+    ///         14 m 同时是游戏内正交档 7（可见高度 = 2 × OrthoSize，见 `BattleCameraController.RuntimeVisibleMeters`），
+    ///         也就是"游戏内能滚轮滚到的那个档"，图与游戏内因此对得上。</item>
     ///   <item><b>整图总览另开一档</b>（只在海图档里出现，见 `PlayerArtCapture.LevelShots` 的 `-overview`）：
     ///         可见高度 = 0.85 × span，整张地图进画面。**为什么不把它当默认的 wide**：整图取景下场地
     ///         只占画面 8~12%（实测），单位缩到 1~2 个艺术像素 ⇒ 看不出任何观感。
@@ -65,13 +68,13 @@ namespace PirateCrew.Rendering.Pixelart
             /// 海图 = (SpanX/2, ·, SpanZ/2)。Y 是"看多高"，与内容高度同档（见下表）。</summary>
             public readonly Vector3 Target;
 
-            /// <summary>宽机位可见高度（米）——整片场地进画面（海图 = 1.0 × span）。</summary>
+            /// <summary>宽机位可见高度（米）——"一处台面群落 + 若干单位"（十关统一 32，不随跨度缩放）。</summary>
             public readonly float WideVisibleMeters;
 
-            /// <summary>中机位可见高度（米）——主平台 + 单位群（海图 = 0.35 × span）。</summary>
+            /// <summary>中机位可见高度（米）——台面近距离（十关统一 14 = 游戏内正交档 7，见类头）。</summary>
             public readonly float MidVisibleMeters;
 
-            /// <summary>近机位可见高度（米）——单位与边缘细节（海图 = 固定 10）。</summary>
+            /// <summary>近机位可见高度（米）——单位与边缘细节（十关统一 7）。</summary>
             public readonly float CloseVisibleMeters;
 
             public View(int levelNumber, string sceneName, Vector3 target,
@@ -108,20 +111,20 @@ namespace PirateCrew.Rendering.Pixelart
         /// </summary>
         static readonly View[] _views =
         {
-            new View(1,   "PixelartCloud",     new Vector3(20f, 4.5f, 15f),  32f, 16f, 7f),
-            new View(3,   "PixelartSkyIsland", new Vector3(20f, 12.5f, 15f), 30f, 16f, 7f),
+            new View(1,   "PixelartCloud",     new Vector3(20f, 4.5f, 15f),  32f, 14f, 7f),
+            new View(3,   "PixelartSkyIsland", new Vector3(20f, 12.5f, 15f), 30f, 14f, 7f),
 
-            // 海图：Target = (span/2, 3, span/2)；wide = span、mid = 0.35 × span、close = 10。
+            // 海图：Target = (span/2, 3, span/2)；wide/mid/close = 32/14/7（**不随 span 缩放**，见类头）。
             // 【span 是横纵相同的正方形】（八张图 SpanX == SpanZ，`WorldMapCatalog` 契约里没有"必须相等"
             // 的约束——真出现长方形时本表要按对角线取大者，届时两个方向的取景一起改）。
-            new View(101, "PixelartMap101",   new Vector3(75f, 3f, 75f),  32f, 16f, 7f),
-            new View(102, "PixelartMap102",   new Vector3(95f, 3f, 95f),  32f, 16f, 7f),
-            new View(103, "PixelartMap103",   new Vector3(110f, 3f, 110f),  32f, 16f, 7f),
-            new View(104, "PixelartMap104",   new Vector3(120f, 3f, 120f),  32f, 16f, 7f),
-            new View(105, "PixelartMap105",   new Vector3(90f, 3f, 90f),  32f, 16f, 7f),
-            new View(106, "PixelartMap106",   new Vector3(130f, 3f, 130f),  32f, 16f, 7f),
-            new View(107, "PixelartMap107",   new Vector3(100f, 3f, 100f),  32f, 16f, 7f),
-            new View(108, "PixelartMap108",   new Vector3(140f, 3f, 140f),  32f, 16f, 7f),
+            new View(101, "PixelartMap101",   new Vector3(75f, 3f, 75f),  32f, 14f, 7f),
+            new View(102, "PixelartMap102",   new Vector3(95f, 3f, 95f),  32f, 14f, 7f),
+            new View(103, "PixelartMap103",   new Vector3(110f, 3f, 110f),  32f, 14f, 7f),
+            new View(104, "PixelartMap104",   new Vector3(120f, 3f, 120f),  32f, 14f, 7f),
+            new View(105, "PixelartMap105",   new Vector3(90f, 3f, 90f),  32f, 14f, 7f),
+            new View(106, "PixelartMap106",   new Vector3(130f, 3f, 130f),  32f, 14f, 7f),
+            new View(107, "PixelartMap107",   new Vector3(100f, 3f, 100f),  32f, 14f, 7f),
+            new View(108, "PixelartMap108",   new Vector3(140f, 3f, 140f),  32f, 14f, 7f),
         };
 
         /// <summary>全部试点场景的取景口径（装配器与 Build Settings 登记共用）。</summary>
