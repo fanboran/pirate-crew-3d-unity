@@ -350,7 +350,7 @@ namespace PirateCrew.Tests
         public void HasListeners_Semantics()
         {
             Assert.That(EventBus.HasListeners(EventName), Is.False, "无监听者时应为 false");
-            Assert.That(EventBus.HasListeners(null), Is.False);
+            Assert.That(EventBus.HasListeners((string)null), Is.False);
             Assert.That(EventBus.HasListeners(string.Empty), Is.False);
 
             Action<int> handler = _ => { };
@@ -377,9 +377,9 @@ namespace PirateCrew.Tests
         [Test]
         public void Subscribe_EmptyEventName_IsIgnored()
         {
-            EventBus.Subscribe<string>(null, _ => { });
+            EventBus.Subscribe<string>((string)null, _ => { });
             EventBus.Subscribe(string.Empty, () => { });
-            EventBus.Publish<string>(null, "x");
+            EventBus.Publish<string>((string)null, "x");
 
             Assert.That(EventBus.ChannelCount, Is.EqualTo(0));
         }

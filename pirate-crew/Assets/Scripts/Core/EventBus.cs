@@ -23,6 +23,13 @@ namespace PirateCrew.Core
     ///   编译期与运行期都不报错。泛型化后，订阅/发布的载荷不匹配直接是编译错误（CS1503），
     ///   剩下的漏网之鱼（字符串键拼错、键与载荷张冠李戴）由 <see cref="EventCatalog"/> 的运行期断言兜底。
     ///
+    /// 【类型化频道（建议A内核，出处：docs/技术/架构/调研-模块间通信.md §4）】事件键从裸 string
+    ///   升级为类型实例（<see cref="Event"/> / <see cref="Event{T}"/>，每个事件一个
+    ///   <c>static readonly</c> 频道字段，键即身份）：键拼错/键与载荷张冠李戴由运行期告警升级为
+    ///   **编译错误**，订阅/发布时不再需要任何运行期契约对拍。迁移期内字符串 API 与类型化 API
+    ///   并存、互不相通；全部调用点迁完后字符串 API 与 <see cref="EventCatalog"/> 运行期对拍退役
+    ///   （裁决 D-2：全量一次到位，不设长期共存）。
+    ///
     /// 【内部结构】事件名 → 频道（<see cref="Channel"/>）；频道内每条订阅记录
     ///   「载荷类型 + 委托」。<c>Publish&lt;T&gt;</c> 只投递给载荷类型匹配的条目，
     ///   因此**同一个键可以同时承载多种载荷类型**（当前仅 <c>change_scene</c> 的 <see cref="string"/> 一种）。
@@ -102,7 +109,12 @@ namespace PirateCrew.Core
             }
         }
 
-        static readonly Dictionary<string, Channel> _channels = new Dictionary<string, Channel>(64);
+        /// <summary>
+        /// 频道表：键 = 事件名 <c>string</c>（旧字符串 API）或类型化频道 <see cref="Event"/>（建议A内核）。
+        /// 两类键互不相通（string 与 Event 引用不可能相等），天然隔离；<see cref="Event"/> 未覆写
+        /// Equals，字典按引用相等取键——"每个 static readonly 字段一个频道"的语义由此成立。
+        /// </summary>
+        static readonly Dictionary<object, Channel> _channels = new Dictionary<object, Channel>(64);
 
         /// <summary>快照重建次数（诊断/测试用）——用来证明"订阅不变时 Publish 不重建快照"。</summary>
         static int _snapshotRebuilds;
@@ -172,12 +184,12 @@ namespace PirateCrew.Core
             Add(eventName, AnyPayloadType, handler);
         }
 
-        static void Add(string eventName, Type payloadType, Delegate callback)
+        static void Add(object key, Type payloadType, Delegate callback)
         {
-            if (!_channels.TryGetValue(eventName, out Channel channel))
+            if (!_channels.TryGetValue(key, out Channel channel))
             {
                 channel = new Channel();
-                _channels[eventName] = channel;
+                _channels[key] = channel;
             }
 
             List<Subscription> items = channel.Items;
@@ -223,9 +235,9 @@ namespace PirateCrew.Core
             Remove(eventName, AnyPayloadType, handler);
         }
 
-        static void Remove(string eventName, Type payloadType, Delegate callback)
+        static void Remove(object key, Type payloadType, Delegate callback)
         {
-            if (!_channels.TryGetValue(eventName, out Channel channel))
+            if (!_channels.TryGetValue(key, out Channel channel))
                 return;
 
             List<Subscription> items = channel.Items;
@@ -239,7 +251,7 @@ namespace PirateCrew.Core
                 channel.MarkDirty();
 
                 if (items.Count == 0)
-                    _channels.Remove(eventName);   // 无监听者即移除键（与旧版一致）
+                    _channels.Remove(key);   // 无监听者即移除键（与旧版一致）
                 return;
             }
         }
@@ -260,7 +272,27 @@ namespace PirateCrew.Core
             // （事件发了、没人收到、也没有任何告警），所以无监听者也照样检查。
             VerifyContract(eventName, typeof(T), subscriber: false);
 
-            if (!_channels.TryGetValue(eventName, out Channel channel))
+            Dispatch(eventName, payload);
+        }
+
+        /// <summary>发布无载荷事件（如 <c>go_back</c>）。动态订阅者收到 <c>null</c>。</summary>
+        public static void Publish(string eventName)
+        {
+            if (string.IsNullOrEmpty(eventName))
+                return;
+
+            VerifyContract(eventName, NoPayloadType, subscriber: false);
+
+            DispatchNoPayload(eventName);
+        }
+
+        /// <summary>
+        /// 投递共用体：按快照遍历，载荷类型匹配的条目强转调用，动态条目走 <c>Action&lt;object&gt;</c> 逃生口。
+        /// 快照/零分配机制在 <see cref="Channel"/> 内，这里只消费——订阅表不变时重复 Publish 零分配。
+        /// </summary>
+        static void Dispatch<T>(object key, T payload)
+        {
+            if (!_channels.TryGetValue(key, out Channel channel))
                 return;
 
             if (channel.Dirty)
@@ -278,15 +310,10 @@ namespace PirateCrew.Core
             }
         }
 
-        /// <summary>发布无载荷事件（如 <c>go_back</c>）。动态订阅者收到 <c>null</c>。</summary>
-        public static void Publish(string eventName)
+        /// <summary>无载荷投递共用体（动态订阅者收到 <c>null</c>）。</summary>
+        static void DispatchNoPayload(object key)
         {
-            if (string.IsNullOrEmpty(eventName))
-                return;
-
-            VerifyContract(eventName, NoPayloadType, subscriber: false);
-
-            if (!_channels.TryGetValue(eventName, out Channel channel))
+            if (!_channels.TryGetValue(key, out Channel channel))
                 return;
 
             if (channel.Dirty)
@@ -301,6 +328,148 @@ namespace PirateCrew.Core
                 else if (ReferenceEquals(entry.PayloadType, AnyPayloadType))
                     ((Action<object>)entry.Callback).Invoke(null);
             }
+        }
+
+        // ==================================================================
+        // 类型化频道 API（调研-模块间通信 建议A内核：键即类型实例）
+        // ==================================================================
+
+        /// <summary>订阅类型化载荷频道。T 由频道与处理器共同锁定——键与载荷张冠李戴是编译错误（CS1503）。</summary>
+        public static void Subscribe<T>(Event<T> channel, Action<T> handler)
+        {
+            if (channel == null || handler == null)
+                return;
+
+            if (ReferenceEquals(typeof(T), NoPayloadType))
+            {
+                // 无载荷频道请用非泛型 Event + Subscribe(channel, Action)：Event<NoPayload> 与
+                // 无载荷频道是两种东西，明确报错优于静默建立一条永远收不到投递的条目。
+                ReportContractViolation(DescribeChannel(channel), NoPayloadType, NoPayloadType,
+                    "无载荷事件请用 Event 频道 + Subscribe(channel, Action) 重载，不要 Event<NoPayload>");
+                return;
+            }
+
+            Add(channel, typeof(T), handler);
+        }
+
+        /// <summary>订阅无载荷类型化频道。</summary>
+        public static void Subscribe(Event channel, Action handler)
+        {
+            if (channel == null || handler == null)
+                return;
+
+            if (!ReferenceEquals(channel.PayloadType, NoPayloadType))
+            {
+                // 变量声明成基类 Event 但运行期是 Event<T> 时，无参 lambda 会落到本重载——
+                // 它收不到任何载荷投递，明确报错优于静默无效。
+                ReportContractViolation(DescribeChannel(channel), channel.PayloadType, NoPayloadType,
+                    "订阅方（载荷频道误用无载荷重载——请用 Subscribe(channel, Action<T>)）");
+                return;
+            }
+
+            Add(channel, NoPayloadType, handler);
+        }
+
+        /// <summary>
+        /// 类型化频道的动态订阅逃生口，语义与 <see cref="SubscribeDynamic(string, Action{object})"/> 相同：
+        /// 收到该频道的一切载荷（无载荷频道收到 <c>null</c>），不受类型系统保护。迁移期内供
+        /// 订阅表驱动型系统（如 AudioService）过桥；业务代码一律用泛型重载。
+        /// </summary>
+        public static void SubscribeDynamic(Event channel, Action<object> handler)
+        {
+            if (channel == null || handler == null)
+                return;
+
+            Add(channel, AnyPayloadType, handler);
+        }
+
+        /// <summary>取消订阅类型化载荷频道（按委托相等性匹配，与泛型 <see cref="Subscribe{T}(Event{T}, Action{T})"/> 成对使用）。</summary>
+        public static void Unsubscribe<T>(Event<T> channel, Action<T> handler)
+        {
+            if (channel == null || handler == null)
+                return;
+
+            Remove(channel, typeof(T), handler);
+        }
+
+        /// <summary>取消订阅无载荷类型化频道。</summary>
+        public static void Unsubscribe(Event channel, Action handler)
+        {
+            if (channel == null || handler == null)
+                return;
+
+            Remove(channel, NoPayloadType, handler);
+        }
+
+        /// <summary>取消类型化频道的动态订阅（与 <see cref="SubscribeDynamic(Event, Action{object})"/> 成对使用）。</summary>
+        public static void UnsubscribeDynamic(Event channel, Action<object> handler)
+        {
+            if (channel == null || handler == null)
+                return;
+
+            Remove(channel, AnyPayloadType, handler);
+        }
+
+        /// <summary>发布类型化载荷频道。载荷类型由频道锁定，写错即编译错误。</summary>
+        public static void Publish<T>(Event<T> channel, T payload)
+        {
+            if (channel == null)
+                return;
+
+            if (ReferenceEquals(typeof(T), NoPayloadType))
+            {
+                ReportContractViolation(DescribeChannel(channel), NoPayloadType, NoPayloadType,
+                    "无载荷事件请用 Event 频道 + Publish(channel) 重载，不要 Event<NoPayload>");
+                return;
+            }
+
+            Dispatch(channel, payload);
+        }
+
+        /// <summary>发布无载荷类型化频道。</summary>
+        public static void Publish(Event channel)
+        {
+            if (channel == null)
+                return;
+
+            if (!ReferenceEquals(channel.PayloadType, NoPayloadType))
+            {
+                ReportContractViolation(DescribeChannel(channel), channel.PayloadType, NoPayloadType,
+                    "发布方（载荷频道误用无载荷重载——请用 Publish(channel, payload)）");
+                return;
+            }
+
+            DispatchNoPayload(channel);
+        }
+
+        /// <summary>某个类型化频道是否有监听者。</summary>
+        public static bool HasListeners(Event channel)
+        {
+            return channel != null
+                   && _channels.TryGetValue(channel, out Channel typedChannel)
+                   && typedChannel.Items.Count > 0;
+        }
+
+        /// <summary>某类型化频道当前的监听者数量（诊断/测试用）。</summary>
+        public static int ListenerCount(Event channel)
+        {
+            return channel != null && _channels.TryGetValue(channel, out Channel typedChannel)
+                ? typedChannel.Items.Count
+                : 0;
+        }
+
+        /// <summary>清除某个类型化频道的所有监听者。</summary>
+        public static void ClearEvent(Event channel)
+        {
+            if (channel == null)
+                return;
+
+            _channels.Remove(channel);
+        }
+
+        static string DescribeChannel(Event channel)
+        {
+            return channel == null ? "<null频道>" : "频道 " + channel.GetType().FullName;
         }
 
         // ==================================================================
