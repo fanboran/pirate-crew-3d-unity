@@ -3,12 +3,18 @@ using UnityEngine;
 namespace PirateCrew.UI.Stick
 {
     /// <summary>
-    /// 手绘涂鸦面板 —— game-2 SketchPanel（sketch_panel.gd）的 UGUI 复刻。
+    /// 手绘涂鸦面板 —— game-2 SketchPanel（sketch_panel.gd）的 UGUI 复刻（**已换 Beveled Pixel 皮**）。
     ///
-    /// 【贴图皮肤】gd 走 SketchTextures 九宫格沸腾贴图（panel / panel_light 槽全局帧
-    /// 驱动轮换）→ 本侧 <see cref="Sketch9Slice"/> 九砖平铺（逐像素等价复刻
-    /// StyleBoxTexture 的 TILE 行为）+ <see cref="SketchBoil"/> 沸腾。
-    /// Dark = panel 槽（大弹窗主底）；Light = panel_light 槽（HUD 横条/内嵌区块）。
+    /// 【贴图皮肤（换装后）】底 = <see cref="PixelSkin.Plate"/>（色阶烘在贴图里的九宫格）+
+    /// 底垫投影 <see cref="PixelSkin.ShadowSprite"/>（按 <see cref="PixelSkin.ShadowOffset"/>
+    /// 右下错开 1u，独立剪影件、不拦截点击）——"面板 = 凸起块 + 投影"是像素皮的层级表达，
+    /// 替代旧手绘涂鸦皮的"贴图槽 + 逐帧沸腾"（槽位散落是上一版换皮难的根因）。
+    /// Dark = <see cref="PixelTone.Frame"/>（大弹窗主底）；Light = <see cref="PixelTone.Light"/>
+    /// （暖白内容片：HUD 横条 / 列表行 / 内嵌区块）。
+    ///
+    /// 【为什么根节点不再挂 Image】投影必须画在面板本体之下，而 UGUI 里子节点的绘制永远在父节点
+    /// 自身 Graphic 之后——故本体与投影都做成<b>同级子件</b>（Shadow 先建 → Plate 后建），
+    /// 根节点只留 RectTransform 与布局语义。调用方拿到的仍是根 RectTransform，公开 API 不变。
     ///
     /// 【内边距】gd PanelContainer content_margin：Dark 16/12（sketch_panel.gd
     /// PANEL_PAD_*，与 StickTokens.SketchPanelPadX/Y 令牌同值）；Light 16/9
@@ -16,23 +22,24 @@ namespace PirateCrew.UI.Stick
     /// 边距经 <see cref="ContentPadding"/> 暴露给装配方摆内容（样张/工厂同口径）。
     ///
     /// 【行为差异（有意）】gd 的 fill_override / outline_override / corner_radius 是
-    /// 自绘底（SketchDraw.draw_panel）时代的参数，贴图皮肤下不适用——本侧不提供；
-    /// 自绘异色底需求走 SketchWobbleGraphic（Fill + Outline 双层）另行组装。
+    /// 自绘底时代的参数，像素皮仍不适用——本侧不提供；需要异色底时换 tone 或另叠件。
     /// </summary>
     public sealed class SketchPanel : MonoBehaviour
     {
-        /// <summary>深浅底预设：DARK = 大弹窗主底；LIGHT = HUD 横条/内嵌区块（gd Tone 同名）。</summary>
+        /// <summary>深浅底预设：DARK = 大弹窗主底（Frame tone）；LIGHT = 暖白内容片（gd Tone 同名）。</summary>
         public enum Tone
         {
             Dark,
             Light,
         }
 
-        private Tone _tone = Tone.Dark;
-        private UnityEngine.UI.Image _image;
-        private SketchBoil _boil;
+        /// <summary>投影子件名（Apply 重建引用时按名查找，见 <see cref="FindPart"/>）。</summary>
+        const string PlatePartName = "Plate";
 
-        /// <summary>深浅底（运行时可切，gd tone setter → queue_redraw 同义换槽）。</summary>
+        private Tone _tone = Tone.Dark;
+        private UnityEngine.UI.Image _plate;
+
+        /// <summary>深浅底（运行时可切，gd tone setter → queue_redraw 同义换 tone）。</summary>
         public Tone PanelTone
         {
             get => _tone;
@@ -49,7 +56,7 @@ namespace PirateCrew.UI.Stick
                 ? new Vector2(16f, 9f)
                 : new Vector2(StickTokens.SketchPanelPadX, StickTokens.SketchPanelPadY);
 
-        /// <summary>建一块面板（根 + Sketch9Slice 九砖 + 本组件）。tone 缺省 Dark。</summary>
+        /// <summary>建一块面板（根 + Shadow/Plate 两个子件 + 本组件）。tone 缺省 Dark。</summary>
         public static SketchPanel Create(Transform parent, string name, Vector2 anchor, Vector2 pivot,
             Vector2 anchoredPosition, Vector2 size, Tone tone = Tone.Dark)
         {
@@ -62,18 +69,9 @@ namespace PirateCrew.UI.Stick
             rect.sizeDelta = size;
             rect.anchoredPosition = anchoredPosition;
 
-            // 单图 Tiled（spriteBorder=10 由导入器设置）：对齐 Godot StyleBoxTexture 的
-            // TILE 语义（边角 1:1、框内平铺）；九砖切图只随旧集烘焙管线产出（夜海蓝），
-            // 像素级复刻必须吃 StickWorld 新集整图帧，故弃 Sketch9Slice。
-            var image = go.AddComponent<UnityEngine.UI.Image>();
-            image.type = UnityEngine.UI.Image.Type.Tiled;
-            image.raycastTarget = false;
-            var boil = go.AddComponent<SketchBoil>();
-            boil.BindStates(null);      // 静态件：无四态槽，仅帧轮换
             var panel = go.AddComponent<SketchPanel>();
-            panel._image = image;
-            panel._boil = boil;
             panel.Compact = false;
+            BuildVisuals(rect, out panel._plate);
             panel._tone = tone;     // 直接写字段，Create 路径不重入 Apply 两次
             panel.Apply();
             return panel;
@@ -81,17 +79,57 @@ namespace PirateCrew.UI.Stick
 
         private void OnEnable() => Apply();
 
-        /// <summary>换槽（panel / panel_light）；九砖首帧由 Sketch9Slice 自建（f0 由
-        /// <see cref="SketchSkin.Frame"/> 取，edit 模式静态样张由 builder 反射直调 Build）。</summary>
+        /// <summary>
+        /// 建投影 + 本体两个子件（顺序即绘制序：先 Shadow 后 Plate，投影垫在本体下方）。
+        /// 两件都铺满根矩形（跟随装配方的摆放），本体不拦截点击（面板是装饰/容器层，
+        /// 命中留给行内动作钮——旧实现同口径）。
+        /// </summary>
+        private static void BuildVisuals(RectTransform root, out UnityEngine.UI.Image plate)
+        {
+            UnityEngine.UI.Image shadow = AddPart(root, "Shadow", PixelSkin.ShadowSprite);
+            RectTransform shadowRect = (RectTransform)shadow.transform;
+            // 铺满后按 ShadowOffset 整体右下错开 1u（偏移是位移不是尺寸，九宫格切片不错位）。
+            shadowRect.anchoredPosition = PixelSkin.ShadowOffset;
+
+            plate = AddPart(root, PlatePartName, null);
+        }
+
+        private static UnityEngine.UI.Image AddPart(RectTransform root, string partName, Sprite sprite)
+        {
+            var go = new GameObject(partName, typeof(RectTransform));
+            RectTransform rt = go.GetComponent<RectTransform>();
+            rt.SetParent(root, false);
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+
+            var image = go.AddComponent<UnityEngine.UI.Image>();
+            image.sprite = sprite;
+            image.type = UnityEngine.UI.Image.Type.Sliced;
+            image.color = Color.white;      // 像素件禁止乘色：tone 色阶烘在贴图里
+            image.raycastTarget = false;
+            return image;
+        }
+
+        /// <summary>按 tone 换 Plate 贴图（投影不随 tone 变——它是 INK 剪影）。</summary>
         private void Apply()
         {
-            string slot = _tone == Tone.Light ? "panel_light" : "panel";
-            if (_image == null)
-                _image = GetComponent<UnityEngine.UI.Image>();
-            if (_image != null)
-                _image.sprite = SketchSkin.Frame(slot, 0);
-            if (_boil != null)
-                _boil.Slot = slot;
+            if (_plate == null)
+                _plate = FindPart();
+            if (_plate != null)
+                _plate.sprite = PixelSkin.Plate(_tone == Tone.Light ? PixelTone.Light : PixelTone.Frame);
         }
+
+        /// <summary>场景重载后私有字段不序列化，按子件名重新取引用（同上一个九砖实现的兜底口径）。</summary>
+        private UnityEngine.UI.Image FindPart()
+        {
+            Transform part = transform.Find(PlatePartName);
+            return part != null ? part.GetComponent<UnityEngine.UI.Image>() : null;
+        }
+
+        /// <summary>tone（运行时可切）→ 像素 tone 的公开查询，装配方按同一口径摆内容底色。</summary>
+        public PixelTone PixelToneOfPanel => _tone == Tone.Light ? PixelTone.Light : PixelTone.Frame;
     }
 }

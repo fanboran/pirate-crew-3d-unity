@@ -131,9 +131,11 @@ namespace PirateCrew.UI
                         CrewManagementApi.Progression.GetXp(entry.Id))
                     : UiTextRules.CrewRowLocked(entry.DisplayName, entry.UnlockStars);
 
+                // 行底 = Plate(Light) 暖白片：字色取该 tone 上的可读档（墨字），锁定的行整体压 alpha。
+                Color rowTextColor = PixelSkin.TextColorOn(PixelTone.Light);
                 TextMeshProUGUI text = M3UiBuilder.CreateText("Label", row, label, UiTheme.FontBody,
                     TextAlignmentOptions.MidlineLeft,
-                    unlocked ? UiTheme.Ink : UiTheme.WithAlpha(UiTheme.Ink, UiTheme.DisabledAlpha),
+                    unlocked ? rowTextColor : UiTheme.WithAlpha(rowTextColor, UiTheme.DisabledAlpha),
                     bodyFont);
 
                 Button action = M3UiBuilder.CreateButton("Action", row, string.Empty, UiTheme.FontHint,
@@ -152,8 +154,8 @@ namespace PirateCrew.UI
                 {
                     if (actionLabel != null)
                         actionLabel.text = UiStrings.CrewLocked;
+                    // 禁用视觉由 SketchButton 自己承担（CanvasGroup alpha 0.55）——不再乘 targetGraphic.color。
                     action.interactable = false;
-                    action.targetGraphic.color = M3UiBuilder.DisabledButtonColor;
                 }
 
                 M3UiBuilder.LayoutRowContent(row, text, action, RowHeight);

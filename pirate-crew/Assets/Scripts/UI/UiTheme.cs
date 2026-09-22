@@ -8,61 +8,86 @@ namespace PirateCrew.UI
     /// 【出处】docs/UI-UX与中文本地化规范.md §1.3 配色 Token 表、§1.4 字号表、§1.7 形状/间距。
     /// 【为什么集中定义】规范要求「禁止散落魔法色值」——所有 UI 代码只许引用本类，
     /// 调色板一律以 docs/美术风格指南.md §2.3 UI 调色板为准（暖金棕：木板 / 羊皮纸 / 黄铜）。
+    /// 【换装（Beveled Pixel）】木/纸/铜族色值已改经 <see cref="PixelSkin"/> 的 tone 取档
+    /// （见「配色 Token」段落说明）；成员名与语义不变，调用点零改动。玩法语义色
+    /// （队色 / 成功）不迁移。
     /// 【可测性】本类只含 <see cref="Color"/> 常量与整数常量，不触碰 GameObject，可在无头验证台断言。
     /// </summary>
     public static class UiTheme
     {
         // ------------------------------------------------------------------
         // 配色 Token（§1.3；色值出处见规范表内「出处」列）
+        //
+        // 【换装（Beveled Pixel）】木/纸/铜旧皮的字面色值不再写死：一律经 <see cref="PixelSkin"/>
+        // 的同族 tone 取档（同一色调的亮/中/暗阶梯由调色板派生），**语义名与成员名保持不变**
+        // （`UiTheme.Parchment` 等调用点零改动）。像素图集缺失（未烘焙）时回落原字面值，
+        // 绝不出现洋红占位。
+        //
+        // 【为什么是属性而不是 static readonly 字段】PixelSkin 首次取用会走 Resources.Load，
+        // 不能在类型初始化（静态字段）阶段就跑——无头验证台 / 编辑器装配都可能先摸到本类。
+        // 属性按需求值，且像素图集一旦缺失只告警一次（PixelSkin 内部缓存）。
         // ------------------------------------------------------------------
 
-        /// <summary>正文底、名册行底（沙地亮阶）。</summary>
-        public static readonly Color Parchment = Rgb(0xE8D5A3);
+        /// <summary>正文底、名册行底（浅档 tone = Light 的中档）。</summary>
+        public static Color Parchment => PixelOr(PixelTone.Light, 1, Rgb(0xE8D5A3));
 
-        /// <summary>面板外框、深底（木材暗阶）。</summary>
-        public static readonly Color WoodDark = Rgb(0x6B4C28);
+        /// <summary>面板外框、深底（Frame tone 的暗档）。</summary>
+        public static Color WoodDark => PixelOr(PixelTone.Frame, 2, Rgb(0x6B4C28));
 
-        /// <summary>按钮正常态底（木材中阶）。</summary>
-        public static readonly Color WoodMid = Rgb(0xA67B42);
+        /// <summary>按钮正常态底（Dense tone 的中档）。</summary>
+        public static Color WoodMid => PixelOr(PixelTone.Dense, 1, Rgb(0xA67B42));
 
-        /// <summary>按钮 hover 底 / 亮木条（木材亮阶）。</summary>
-        public static readonly Color WoodLight = Rgb(0xD4A76A);
+        /// <summary>按钮 hover 底 / 亮木条（Dense tone 的亮档）。</summary>
+        public static Color WoodLight => PixelOr(PixelTone.Dense, 0, Rgb(0xD4A76A));
 
-        /// <summary>金描边、分隔线、星级。</summary>
-        public static readonly Color Brass = Rgb(0xC9A227);
+        /// <summary>金描边、分隔线、星级（Primary tone 的中档）。</summary>
+        public static Color Brass => PixelOr(PixelTone.Primary, 1, Rgb(0xC9A227));
 
-        /// <summary>当前回合 / 关键数值高亮。</summary>
-        public static readonly Color BrassLight = Rgb(0xF2D06B);
+        /// <summary>当前回合 / 关键数值高亮（Primary tone 的亮档）。</summary>
+        public static Color BrassLight => PixelOr(PixelTone.Primary, 0, Rgb(0xF2D06B));
 
-        /// <summary>羊皮纸上的正文（场景描边同源深灰）。</summary>
-        public static readonly Color Ink = Rgb(0x2A2A2A);
+        /// <summary>深/浅底上统一的正文墨色（像素皮单一墨色令牌）。</summary>
+        public static Color Ink => PixelSkin.Asset != null ? (Color)PixelSkin.Ink : Rgb(0x2A2A2A);
 
-        /// <summary>深底上的正文。</summary>
-        public static readonly Color TextLight = Rgb(0xF5E8C8);
+        /// <summary>深底上的正文（像素皮暖白）。</summary>
+        public static Color TextLight => PixelSkin.Asset != null ? (Color)PixelSkin.PaperWhite : Rgb(0xF5E8C8);
 
-        /// <summary>红队标识 / 血条（逆向 §8.1）。</summary>
+        /// <summary>红队标识 / 血条（逆向 §8.1；玩法语义色，不随换装迁移）。</summary>
         public static readonly Color TeamRed = Rgb(0xFF3A29);
 
-        /// <summary>蓝队标识 / 血条（逆向 §8.1）。</summary>
+        /// <summary>蓝队标识 / 血条（逆向 §8.1；玩法语义色，不随换装迁移）。</summary>
         public static readonly Color TeamBlue = Rgb(0x3366FF);
 
-        /// <summary>危险态（不可投掷 / 落水）。</summary>
-        public static readonly Color Danger = Rgb(0xCC2222);
+        /// <summary>危险态（不可投掷 / 落水；Danger tone 的中档）。</summary>
+        public static Color Danger => PixelOr(PixelTone.Danger, 1, Rgb(0xCC2222));
 
-        /// <summary>破坏性操作按钮底（退出游戏 / 放弃本局）。</summary>
-        public static readonly Color DangerDark = Rgb(0x8A1F1F);
+        /// <summary>破坏性操作按钮底（退出游戏 / 放弃本局；Danger tone 的暗档）。</summary>
+        public static Color DangerDark => PixelOr(PixelTone.Danger, 2, Rgb(0x8A1F1F));
 
-        /// <summary>选中描边（UI 与 3D 同源；同屏只出现一处，§6.3）。</summary>
-        public static readonly Color Select = Rgb(0x49D9D6);
+        /// <summary>选中描边（UI 与 3D 同源；同屏只出现一处，§6.3）。取 Sea tone 亮档（青系）。</summary>
+        public static Color Select => PixelOr(PixelTone.Sea, 0, Rgb(0x49D9D6));
 
-        /// <summary>成功 / 已通关。</summary>
+        /// <summary>成功 / 已通关（玩法语义色，不随换装迁移）。</summary>
         public static readonly Color Success = Rgb(0x4A8C4A);
 
-        /// <summary>装饰性海面 / 进度槽。</summary>
-        public static readonly Color Sea = Rgb(0x2B7AB8);
+        /// <summary>装饰性海面 / 进度槽（Sea tone 的中档）。</summary>
+        public static Color Sea => PixelOr(PixelTone.Sea, 1, Rgb(0x2B7AB8));
 
-        /// <summary>面板底（木板深棕，美术风指南 §2.3；不透明度 0.92）。</summary>
-        public static readonly Color PanelWood = new Color(0x3A / 255f, 0x2A / 255f, 0x1E / 255f, 0.92f);
+        /// <summary>面板底（Frame tone 的中档，保留 0.92 不透明度语义）。</summary>
+        public static Color PanelWood => WithAlpha(PixelOr(PixelTone.Frame, 1, Rgb(0x3A2A1E)), 0.92f);
+
+        /// <summary>像素图集可用 → 取 tone 的第 shade 档（0=亮 / 1=中 / 2=暗）；否则回落旧字面值。</summary>
+        static Color PixelOr(PixelTone tone, int shade, Color fallback)
+        {
+            if (PixelSkin.Asset == null)
+                return fallback;
+            switch (shade)
+            {
+                case 0: return PixelSkin.LightOf(tone);
+                case 2: return PixelSkin.DarkOf(tone);
+                default: return PixelSkin.MidOf(tone);
+            }
+        }
 
         /// <summary>禁用态整体透明度（§1.3）。</summary>
         public const float DisabledAlpha = 0.55f;

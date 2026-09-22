@@ -1,5 +1,4 @@
 using System.IO;
-using System.Reflection;
 using PirateCrew.UI;
 using PirateCrew.UI.Stick;
 using TMPro;
@@ -43,11 +42,12 @@ namespace PirateCrew.EditorTools
     /// SingleCameraRequest，本机 batchmode 无 GfxDevice 不可用）、Canvas 临时切
     /// ScreenSpaceCamera、两遍渲染取第二帧、全零帧探针拒写假图、材质走实例不碰共享。
     ///
-    /// 【edit 模式特例（对 P1 控件的静态帧口径）】Sketch9Slice 九砖靠协程延帧搭建、
-    /// SketchBoil/SketchWobbleGraphic 沸腾靠 Update——两者在非播放态都不跑。离屏前：
-    ///  · 反射直调 Sketch9Slice.Build()（首次构建无 Destroy 分支，edit 模式安全）；
-    ///  · 贴图件由工厂直接铺 f0 帧、自绘件用 SeedBase 初相——样张取静态首帧，
-    ///    与 Godot 基准图（同样单帧随机相位）同口径对照。
+    /// 【换装（Beveled Pixel）】面板 / 进度条 / 分隔线 / 按钮已换像素件
+    /// （<see cref="SketchPanel"/> / <see cref="SketchProgressBar"/> / <see cref="SketchSeparator"/> /
+    /// <see cref="SketchButton"/> 内部出 Plate/Track/Fill/Separator 贴图）——样张取的就是像素皮长相。
+    /// 像素贴图件是静态资产（无沸腾、无协程延帧），非播放态直接渲染即可；
+    /// 自绘档（SketchSlider/Toggle/Switch 的 wobble 与 Painter 条）仍走静态初相（不动它们在的本波范围）。
+    /// 【前置资产】Resources/UI/PixelSkin 图集须先由 BeveledPixelSpriteBuilder 烘焙（本文件不主动烘焙）。
     /// 【幂等】每次 NewScene 重建内存场景（不保存），PNG 覆盖写，RT/相机用后即毁。
     /// </summary>
     public static class ControlsSampleBuilder

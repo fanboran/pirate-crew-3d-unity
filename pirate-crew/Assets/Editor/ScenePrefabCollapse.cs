@@ -260,6 +260,7 @@ namespace PirateCrew.EditorTools
             }
 
             EnsureFolder(Path.GetDirectoryName(entry.PrefabPath).Replace('\\', '/'));
+            NormalizeTmpMaterials(container.transform);
             GameObject asset = PrefabUtility.SaveAsPrefabAsset(container, entry.PrefabPath, out bool ok);
             if (!ok || asset == null)
             {
@@ -298,6 +299,26 @@ namespace PirateCrew.EditorTools
                       + roots.Length + " 个根 → " + entry.PrefabPath
                       + "；场景只剩一个实例（" + entry.ScenePath + "）");
             return problems;
+        }
+
+        /// <summary>
+        /// 把所有 TMP 文本的 <c>m_sharedMaterial</c> 显式钉到其字体资产的材质上，再存 Prefab。
+        ///
+        /// 【为什么】TMP 在实例化/序列化时会**懒解析**字体材质：若源 Prefab 里存的是 null 或
+        /// 陈旧引用（换字体/重烘字体资产后常见），实例一落地就解析出正确材质 → 被引擎记成
+        /// "Prefab 覆盖" → 折叠态的纯实例契约（<c>HasPrefabInstanceAnyOverrides</c>）红，
+        /// 且场景文件里多出一串没人写过的 diff。存盘前显式归一，两边（Prefab 与实例）
+        /// 取同一个材质引用，覆盖自然消失；运行期 TMP 照样从字体资产解析，行为不变。
+        /// </summary>
+        static void NormalizeTmpMaterials(Transform root)
+        {
+            var texts = root.GetComponentsInChildren<TMPro.TMP_Text>(true);
+            for (int i = 0; i < texts.Length; i++)
+            {
+                var text = texts[i];
+                if (text.font != null)
+                    text.fontSharedMaterial = text.font.material;
+            }
         }
 
         /// <summary>

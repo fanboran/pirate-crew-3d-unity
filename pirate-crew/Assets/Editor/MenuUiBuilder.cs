@@ -18,27 +18,14 @@ namespace PirateCrew.EditorTools
     ///   1. 中文字体接入：按规范 §5.1 的三档选型加载 TMP 字体资产；
     ///      资产缺失时**先调用现有的 <see cref="FontAssetBuilder.BuildAll"/> 生成**（幂等，不改该文件），
     ///      仍缺失则回落到 ttf（Dynamic Font）并 <c>Debug.LogWarning</c>，绝不静默出方块字（§5.5）；
-    ///   2. 程序化九宫格 Skin：把 <see cref="UiSprites"/> / <see cref="GlassPanelSpriteBuilder"/>
-    ///      生成的像素落成 <c>Assets/Art/Sprites/UI/*.png</c> 持久资产（编辑器装配的场景引用必须可序列化，
-    ///      内存 Sprite 存不进场景），并按九宫格导入；
-    ///   3. 统一控件工厂：亚克力玻璃（半透明）+ TMP，四态配色走 <see cref="UiTheme"/> Token；
+    ///   2. 控件工厂：面板/按钮统一出像素件（<see cref="PixelSkin.Plate"/> + SpriteSwap 三态），
     ///      本类是**全局字号体系的唯一入口**（<see cref="FontScale"/>，见下）。
     ///
-    /// 【双栈现状】主菜单链路（<see cref="BuildSettingsPanel"/> / <see cref="BuildConfirmDialog"/> 与
-    /// SceneSetup.BuildMainMenuScene）已切 StickUI 复刻层：底板走 <see cref="SketchPanel"/>（Tiled 单图）、
-    /// 按钮走 <see cref="SketchButton"/>（六变体四态沸腾）、分隔线走 <see cref="SketchSeparator"/>，
-    /// 颜色/字号一律 <see cref="StickTokens"/> 令牌（stick-world ui_tokens.json 同源）。
-    /// 船员管理 / 选关 / 结算（M3SceneSetup）P2 起已切 StickUI 复刻层，本类玻璃族工厂仅余 MainMenu 设置面板内部豁免项在用
-    /// （<see cref="CreatePanel"/> / <see cref="CreateButton"/> / <see cref="CreateWoodBackdrop"/>），
-    /// 这些方法的视觉语义不得随主菜单换装漂移。
-    ///
-    /// 【设计语言：半透明亚克力（液态玻璃）】M3 链路的皮肤：木板 / 羊皮纸的"纯色海报感"
-    /// 全量替换为半透明亚克力 —— 场景从面板底下透出来，靠「半透明底 + 顶部高光带 + 双色 1px 描边
-    /// + 3px 更透的厚度带 + ±2% 噪点」做玻璃拟态（UGUI 无真模糊，取舍说明见
-    /// <see cref="GlassPanelSpriteBuilder"/> 的类注释）。风格参照隔壁 game-2（stick-world）的
-    /// 黑玻璃语言（WINDOW_BG 黑 88% / BORDER_PANEL 白 30% / RADIUS_PANEL 6 / 2~3% 纸感噪点），
-    /// 但**资产全部自产**（<see cref="GlassPanelSpriteBuilder"/> 逐像素程序化生成），不复制其 PNG。
-    /// 唯一强调色仍是黄铜金 <see cref="UiTheme.Brass"/>（对应 game-2 的琥珀）。
+    /// 【皮肤（换装后）】主菜单链路（<see cref="BuildSettingsPanel"/> / <see cref="BuildConfirmDialog"/>
+    /// 与 SceneSetup.BuildMainMenuScene）已切 Beveled Pixel：底板走 <see cref="SketchPanel"/>、
+    /// 按钮走 <see cref="SketchButton"/>、分隔线走 <see cref="SketchSeparator"/>；船员管理 / 选关 /
+    /// 结算（M3SceneSetup）同族。本类玻璃族工厂（<see cref="CreatePanel"/> / <see cref="CreateButton"/> /
+    /// <see cref="CreateWoodBackdrop"/>）已内部改判到像素 tone，签名与调用点不变。
     ///
     /// 【为什么本类是这个波次的主要改动点】主菜单 / 设置 / 员工管理 / HUD 的面板与按钮**全部**
     /// 经本类的 <see cref="CreatePanel"/> / <see cref="CreateButton"/> 装配（Unified 工厂），
@@ -287,20 +274,43 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // 亚克力玻璃 Skin（本波次；生成器见 GlassPanelSpriteBuilder）
+        // 像素皮（Beveled Pixel）—— 旧的"亚克力玻璃" Skin 段已整体换装
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 取亚克力玻璃九宫格 Sprite（<paramref name="chip"/> = true 取 44px 小件档，否则 64px 面板档）。
-        /// 生成/落盘/九宫格导入全部由 <see cref="GlassPanelSpriteBuilder"/> 负责（自产资产，非参照库 PNG）。
+        /// 取像素件 Sprite（旧"玻璃 tone"签名保留——域外 <c>HudMinimapSceneSetup</c> 仍传
+        /// <see cref="GlassPanelSpriteBuilder.Tone"/>，内部改判 <see cref="PixelTone"/>）。
+        /// 返回的是 Resources/UI/PixelSkin 图集里的持久 Sprite 子资产：Editor 装配的场景
+        /// 序列化的是资产引用，重开场景/进播放器都不丢。
         /// </summary>
         public static Sprite GetGlass(GlassPanelSpriteBuilder.Tone tone, bool chip = false)
         {
-            return GlassPanelSpriteBuilder.Get(
-                tone, chip ? GlassPanelSpriteBuilder.Geo.Chip : GlassPanelSpriteBuilder.Geo.Panel);
+            return PixelSkin.Plate(PixelOf(tone));
         }
 
-        /// <summary>旧 Skin 枚举 → 玻璃 tone（面板）。域外构建器仍传旧 Kind，这里统一改判到玻璃族。</summary>
+        /// <summary>旧玻璃 tone → 像素 tone（换装映射表；Frame/Backdrop 都落 Frame tone）。</summary>
+        static PixelTone PixelOf(GlassPanelSpriteBuilder.Tone tone)
+        {
+            switch (tone)
+            {
+                case GlassPanelSpriteBuilder.Tone.Light:
+                case GlassPanelSpriteBuilder.Tone.ButtonLight:
+                    return PixelTone.Light;
+                case GlassPanelSpriteBuilder.Tone.Dense:
+                case GlassPanelSpriteBuilder.Tone.Button:
+                    return PixelTone.Dense;
+                case GlassPanelSpriteBuilder.Tone.Sea:
+                    return PixelTone.Sea;
+                case GlassPanelSpriteBuilder.Tone.Primary:
+                    return PixelTone.Primary;
+                case GlassPanelSpriteBuilder.Tone.Danger:
+                    return PixelTone.Danger;
+                default:
+                    return PixelTone.Frame;   // Frame / Backdrop
+            }
+        }
+
+        /// <summary>旧 Skin 枚举 → 玻璃 tone（面板）。域外构建器仍传旧 Kind，这里统一改判后再落像素 tone。</summary>
         static GlassPanelSpriteBuilder.Tone PanelToneOf(UiSprites.Kind skin)
         {
             switch (skin)
@@ -322,7 +332,10 @@ namespace PirateCrew.EditorTools
             }
         }
 
-        /// <summary>建亚克力玻璃面板（显式指定 tone；新代码用这个）。</summary>
+        /// <summary>
+        /// 建像素面板：投影（Panel 档才有，先建——子件绘制按加入序）+ Plate 本体（后建）。
+        /// 根节点不带 Image（投影必须垫在本体之下），调用方拿到的是根 RectTransform。
+        /// </summary>
         public static RectTransform CreateGlassPanel(string name, Transform parent, Vector2 anchor, Vector2 pivot,
             Vector2 anchoredPosition, Vector2 size, GlassPanelSpriteBuilder.Tone tone,
             GlassPanelSpriteBuilder.Geo geo = GlassPanelSpriteBuilder.Geo.Panel)
@@ -334,87 +347,56 @@ namespace PirateCrew.EditorTools
             rect.anchoredPosition = anchoredPosition;
             rect.sizeDelta = size;
 
-            var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = GlassPanelSpriteBuilder.Get(tone, geo);
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;      // 【纪律】玻璃色已烘进贴图，禁止再用 color 调色（会把 alpha 乘坏）
-            image.raycastTarget = false;
+            if (geo == GlassPanelSpriteBuilder.Geo.Panel)
+                AddPixelShadow(rect);
+
+            AddPixelPlate(rect, "Plate", PixelOf(tone));
             return rect;
         }
 
+        /// <summary>底垫投影（INK 剪影；按 <see cref="PixelSkin.ShadowOffset"/> 右下错开 1u，不拦截点击）。</summary>
+        static void AddPixelShadow(RectTransform root)
+        {
+            RectTransform shadow = CreateRect("Shadow", root);
+            Stretch(shadow);
+            shadow.anchoredPosition = PixelSkin.ShadowOffset;
+            var image = shadow.gameObject.AddComponent<Image>();
+            image.sprite = PixelSkin.ShadowSprite;
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
+            image.raycastTarget = false;
+        }
+
+        /// <summary>铺满父矩形的像素 Plate 本体（不拦截点击：命中留给内容件/按钮）。</summary>
+        static Image AddPixelPlate(RectTransform root, string partName, PixelTone tone)
+        {
+            RectTransform part = CreateRect(partName, root);
+            Stretch(part);
+            var image = part.gameObject.AddComponent<Image>();
+            image.sprite = PixelSkin.Plate(tone);
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;      // 像素件禁止乘色：tone 色阶烘在贴图里
+            image.raycastTarget = false;
+            return image;
+        }
+
         /// <summary>
-        /// 给已有 Image 换/套玻璃皮（幂等；用于"先建节点、再贴皮"的复用路径，如小地图面板）。
-        /// 顺带把 <c>raycastTarget</c> 关掉：面板是装饰层，挡射线会让底下的 3D 拾取/单位点选失效
-        /// （可点的是按钮自己的 Image，不走本方法）。
+        /// 给已有 Image 换/套像素皮（幂等；用于"先建节点、再贴皮"的复用路径，如小地图面板）。
+        /// 顺带把 <c>raycastTarget</c> 关掉：面板是装饰层，挡射线会让底下的 3D 拾取/单位点选失效。
         /// </summary>
         public static void ApplyGlassSkin(Image image, GlassPanelSpriteBuilder.Tone tone, bool chip = false)
         {
             if (image == null)
                 return;
 
-            image.sprite = GetGlass(tone, chip);
+            image.sprite = PixelSkin.Plate(PixelOf(tone));
             image.type = Image.Type.Sliced;
             image.color = Color.white;
             image.raycastTarget = false;
         }
 
-        /// <summary>
-        /// 玻璃按钮的底色乘色（四态）——<b>乘在烘焙好的玻璃 Sprite 上</b>，不是最终色。
-        ///
-        /// 【为什么 hover 用"提亮 + 加 alpha"】玻璃的透度来自贴图 alpha，hover 要让面板"更实更亮"
-        /// （game-2 的 BTN_BG 7% → HOVER 15% 同思路）：亮 22% + alpha ×1.15
-        /// （0.80 → 0.92），最坏底（纯白）下浅字 #F5E8C8 仍有 <b>5.13:1</b>；
-        /// 若只提亮不加 alpha（维持 0.80），合成色被白底抬到 4.06:1 —— <b>不合格</b>，故 alpha 必须同升。
-        ///
-        /// 【disabled 态为何低于 4.5:1】禁用态压到 ×0.58 / alpha ×0.55（合成 2.16:1）是**有意**的：
-        /// 禁用控件的"读不出"本身就是状态信号，且 WCAG 2.1 §1.4.3 明确把 inactive 控件排除在
-        /// 对比度要求之外。真正要保证的是"禁用 ≠ 正常"可辨（V3：相邻态通道差 ≥12/255 ——
-        /// disabled 与 normal 的差远超阈值）。
-        /// </summary>
-        static ColorBlock GlassColors(GlassPanelSpriteBuilder.Tone tone)
-        {
-            Color normal, hover, pressed, disabled;
-            switch (tone)
-            {
-                case GlassPanelSpriteBuilder.Tone.Primary:
-                    // 金主按钮：底已很亮，hover 只轻微提亮（保持深墨字的对比）。
-                    normal = Color.white;
-                    hover = new Color(1.12f, 1.12f, 1.14f, 1.02f);
-                    pressed = new Color(0.82f, 0.82f, 0.84f, 1.06f);
-                    disabled = new Color(0.55f, 0.55f, 0.57f, 0.55f);
-                    break;
-                case GlassPanelSpriteBuilder.Tone.Danger:
-                    normal = Color.white;
-                    hover = new Color(1.18f, 1.12f, 1.12f, 1.00f);
-                    pressed = new Color(0.78f, 0.74f, 0.74f, 1.02f);
-                    disabled = new Color(0.6f, 0.55f, 0.55f, 0.55f);
-                    break;
-                case GlassPanelSpriteBuilder.Tone.ButtonLight:
-                    normal = Color.white;
-                    hover = new Color(1.06f, 1.06f, 1.06f, 1.06f);
-                    pressed = new Color(0.86f, 0.86f, 0.88f, 1.08f);
-                    disabled = new Color(0.62f, 0.62f, 0.64f, 0.55f);
-                    break;
-                default:
-                    normal = Color.white;
-                    hover = new Color(1.22f, 1.22f, 1.26f, 1.15f);   // 提亮 + 变实（见方法注释的对比度推导）
-                    pressed = new Color(0.72f, 0.72f, 0.74f, 1.12f);
-                    disabled = new Color(0.58f, 0.58f, 0.60f, 0.55f);
-                    break;
-            }
-
-            var block = new ColorBlock
-            {
-                normalColor = normal,
-                highlightedColor = hover,
-                pressedColor = pressed,
-                selectedColor = hover,
-                disabledColor = disabled,
-                colorMultiplier = 1f,
-                fadeDuration = 0.09f,
-            };
-            return block;
-        }
+        // （旧 GlassColors 乘色四态表已随换装删除：像素皮禁用 Image.color 乘色——状态改由
+        //   UGUI SpriteSwap 三态贴图承担，禁用态走 CanvasGroup alpha，见 CreateButton。）
 
         // ------------------------------------------------------------------
         // 控件工厂
@@ -561,17 +543,16 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 建面板底（**本波次起改为亚克力玻璃**）。
+        /// 建面板底（**已换 Beveled Pixel 皮**：Plate 九宫格 + 底垫投影）。
         ///
         /// 【兼容口径】签名保留旧的 <paramref name="skin"/>（域外构建器仍在传 <see cref="UiSprites.Kind"/>），
-        /// 但内部一律改判到玻璃族：<c>PanelWood</c> → <see cref="GlassPanelSpriteBuilder.Tone.Frame"/>（深色框架）、
-        /// <c>PanelParchment</c> → <see cref="GlassPanelSpriteBuilder.Tone.Light"/>（暖白）——
+        /// 但内部一律改判：<c>PanelWood</c> → <see cref="PixelTone.Frame"/>（深板岩主底）、
+        /// <c>PanelParchment</c> → <see cref="PixelTone.Light"/>（暖白）——
         /// 于是主菜单 / 设置 / 员工管理 / HUD 的全部面板一次性换皮，不必逐个改场景代码。
         ///
         /// 【brassOutline 参数为何保留但不再使用】旧实现靠 UGUI <see cref="Outline"/> 画 3px 黄铜框
-        /// （外扩会吃掉安全边距，实测可见边比标称小 2-3px）；玻璃描边是**贴着圆角烘进贴图**的
-        /// 双色 1px 线，外扩 0px —— 安全边距从此所见即所得。保留参数只为不动域外调用点。
-        /// 需要"当前态"额外描边时，调用方仍可显式调 <see cref="AddOutline"/>（如模式开关的激活段）。
+        /// （外扩会吃掉安全边距，实测可见边比标称小 2-3px）；像素皮的包边/斜面是**烘进九宫格贴图**的，
+        /// 外扩 0px —— 安全边距从此所见即所得。保留参数只为不动域外调用点。
         /// </summary>
         public static RectTransform CreatePanel(string name, Transform parent, Vector2 anchor, Vector2 pivot,
             Vector2 anchoredPosition, Vector2 size, UiSprites.Kind skin, bool brassOutline = true)
@@ -582,9 +563,8 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 给面板/色块加亚克力"内容片"（较实的玻璃条，承载文字/金标题）。
-        /// 用途：面板框架（0.70，较透）内需要稳定底衬的文字区 —— 玻璃拟态的两级结构
-        /// （game-2 的 window_panel + menu_hover 同构）。
+        /// 给面板加"内容片"（同色系下沉一档的暗片，承载文字/标题）。
+        /// 用途：面板框架内需要稳定底衬的文字区（两级结构：框架 tone + 内容片 tone）。
         /// </summary>
         public static RectTransform CreateDenseChip(string name, Transform parent, Vector2 anchor, Vector2 pivot,
             Vector2 anchoredPosition, Vector2 size)
@@ -605,13 +585,14 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 建按钮（**亚克力玻璃底 + 四态乘色 + TMP 居中文本**）。
+        /// 建按钮（**像素 Plate 底 + SpriteSwap 三态 + TMP 居中文本**）。
         ///
-        /// 【换皮口径】与 <see cref="CreatePanel"/> 同理：保留旧 <paramref name="skin"/> 签名，
-        /// 内部改判 <see cref="ButtonToneOf"/>（ButtonBrass→金主按钮 / ButtonWood→深色玻璃 /
-        /// ButtonParchment→暖白玻璃 / ButtonDanger→深酒红玻璃），域外调用点零改动即换皮。
-        /// 【四态】走 <see cref="GlassColors"/> 的乘色（hover = 提亮 22% + alpha 0.80→0.92 变实），
-        /// 玻璃透度由贴图烘焙，乘色只做状态差 —— 这是 UGUI 里"半透明按钮"唯一不脏的做法。
+        /// 【换皮口径】保留旧 <paramref name="skin"/> 签名，内部改判 <see cref="ButtonToneOf"/>
+        /// → <see cref="PixelOf"/>（ButtonBrass→Primary / ButtonWood→Dense / ButtonParchment→Light /
+        /// ButtonDanger→Danger），域外调用点零改动。
+        /// 【状态】UGUI <see cref="Selectable.Transition.SpriteSwap"/> 三态贴图（hovered/pressed/selected），
+        /// <b>不做 Image.color 乘色</b>。本出口的按钮没有禁用场景（需要禁用视觉的按钮请走
+        /// <see cref="SketchButton"/>，它的禁用态是 CanvasGroup alpha 0.55）。
         /// </summary>
         public static Button CreateButton(string name, Transform parent, string label, Vector2 anchor,
             Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font, UiSprites.Kind skin,
@@ -624,16 +605,21 @@ namespace PirateCrew.EditorTools
             rect.sizeDelta = size;
             rect.anchoredPosition = anchoredPosition;
 
-            GlassPanelSpriteBuilder.Tone tone = ButtonToneOf(skin);
+            PixelTone tone = PixelOf(ButtonToneOf(skin));
 
             var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = GetGlass(tone, chip: true);
+            image.sprite = PixelSkin.Plate(tone, PixelState.Normal);
             image.type = Image.Type.Sliced;
-            image.color = Color.white;      // 玻璃色已烘进贴图（见 ApplyGlassSkin 的纪律说明）
+            image.color = Color.white;      // 像素件禁止乘色：tone 色阶烘在贴图里
 
             var button = rect.gameObject.AddComponent<Button>();
             button.targetGraphic = image;
-            button.colors = GlassColors(tone);
+            button.transition = Selectable.Transition.SpriteSwap;
+            SpriteState states = button.spriteState;
+            states.highlightedSprite = PixelSkin.Plate(tone, PixelState.Hovered);
+            states.pressedSprite = PixelSkin.Plate(tone, PixelState.Pressed);
+            states.selectedSprite = states.highlightedSprite;
+            button.spriteState = states;
 
             // 【名字必须叫 "Text"】HUD 武器行建完按钮后会 <c>Find("Text")</c> 删掉居中标签、
             // 换成左对齐标签（BattleHudBuilder），改名会静默留下两个 TMP 叠加。
@@ -644,39 +630,34 @@ namespace PirateCrew.EditorTools
             return button;
         }
 
-        /// <summary>Skin → 正常态底色（Button.color 的乘色）。【本波次】玻璃底一律 white（色已烘焙）。</summary>
+        /// <summary>Skin → 正常态底色占位。【本波次】像素底一律 white（色阶烘在 Plate 贴图里）。</summary>
         public static Color BaseColorOf(UiSprites.Kind skin)
         {
             return Color.white;
         }
 
         /// <summary>
-        /// Skin → 标签色。玻璃族规则：亮玻璃（金主按钮 / 暖白次级）用深墨字，深玻璃用浅米字。
-        /// 对比度（最坏底 = 纯白场景，指数见 <see cref="GlassPanelSpriteBuilder"/> 类注释）：
-        /// 深墨 #2A2A2A 压金玻璃 ≥5.79:1、压暖白玻璃 ≥8.56:1；浅米 #F5E8C8 压深玻璃 ≥9.56:1。
+        /// Skin → 标签色。像素皮规则：字色按所落 tone 取可读档（<see cref="PixelSkin.TextColorOn"/>）——
+        /// 浅底（金主按钮 / 暖白次级）给墨字，深底给本 tone 亮档字。
         /// </summary>
         public static Color LabelColorOf(UiSprites.Kind skin)
         {
-            switch (skin)
-            {
-                case UiSprites.Kind.ButtonBrass:
-                case UiSprites.Kind.ButtonParchment:
-                    return UiTheme.Ink;
-                default:
-                    return UiTheme.TextLight;
-            }
+            return PixelSkin.TextColorOn(PixelOf(ButtonToneOf(skin)));
         }
 
-        /// <summary>全屏木板背景 → **全屏亚克力底**（主菜单 / 管理界面；通栏条允许贴边，§1.7）。</summary>
+        /// <summary>全屏底 → **像素皮最暗档平涂**（主菜单 / 管理界面；通栏条允许贴边，§1.7）。
+        /// <paramref name="tint"/> 仍是"第二层压暗 vignette"的乘色（平涂件不受像素件纪律约束）。</summary>
         public static RectTransform CreateWoodBackdrop(string name, Transform parent, Color tint)
         {
             RectTransform rect = CreateRect(name, parent);
             Stretch(rect);
 
             var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = GetGlass(GlassPanelSpriteBuilder.Tone.Backdrop);
-            image.type = Image.Type.Sliced;
-            image.color = tint;             // 这里颜色是**有意**的乘色（第二层压暗 vignette 靠它）
+            image.sprite = null;            // 全屏底走平涂（九宫格缩放会把包边拉到屏幕角）
+            Color baseColor = PixelSkin.Asset != null
+                ? (Color)PixelSkin.MidOf(PixelTone.Frame)
+                : new Color(0x3A / 255f, 0x2A / 255f, 0x1E / 255f, 1f);
+            image.color = baseColor * tint;
             image.raycastTarget = false;
             return rect;
         }
@@ -729,20 +710,20 @@ namespace PirateCrew.EditorTools
 
             CreateDimOverlay("DimOverlay", root);
 
-            // 底板：SketchPanel Dark（Tiled 单图 + 沸腾帧轮换；stick-world 大弹窗主底）。
+            // 底板：SketchPanel Dark → Plate(Frame tone) + 底垫投影（像素皮主弹窗底）。
             SketchPanel card = SketchPanel.Create(root.transform, "SettingsCard",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(1280f, 700f), SketchPanel.Tone.Dark);
+                new Vector2(1281f, 699f), SketchPanel.Tone.Dark);
             RectTransform panel = (RectTransform)card.transform;
 
-            // 标题：TEXT 亮字 + INK 墨描边（stick-world 标题档 FONT_TITLE=24），直接压面板底。
+            // 标题：像素皮 Frame tone 上的可读浅字 + INK 墨描边（TMP 归一化宽口径同 SketchButton）。
             TextMeshProUGUI titleText = CreateTextExact("Title", panel, UiStrings.SettingsTitle,
-                (int)FONT_TITLE, TextAlignmentOptions.Center, TEXT, hand);
+                (int)FONT_TITLE, TextAlignmentOptions.Center, PixelSkin.TextColorOn(PixelTone.Frame), hand);
             SetAnchored(titleText.rectTransform, new Vector2(0.5f, 1f), new Vector2(600f, 48f),
                 new Vector2(0f, -28f));
             ApplyStickTitleOutline(titleText);
 
-            // 标题下手绘波浪分隔线（SketchSeparator 自绘，BORDER@0.35）。
+            // 标题下蚀刻分隔线（像素皮 Separator 贴图，方向由 Dir 决定）。
             SketchSeparator.Create(panel, "TitleSeparator", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -96f), new Vector2(900f, 2f), SketchSeparator.Direction.Horizontal);
 
@@ -805,17 +786,20 @@ namespace PirateCrew.EditorTools
         {
             RectTransform row = CreateSettingsRowBackground(panel, index);
 
-            // 字段名：TEXT 亮字压 panel_light 暗底（stick-world Light 档同为暗色系，浅字才可读）。
+            // 字段名：像素皮字色按所落 tone 取可读档（行底 = SketchPanel Light → 暖白片 → 墨字）。
             TextMeshProUGUI label = CreateTextExact("Field", row, field, (int)FONT_BODY,
-                TextAlignmentOptions.MidlineLeft, TEXT, hand);
+                TextAlignmentOptions.MidlineLeft, PixelSkin.TextColorOn(PixelTone.Light), hand);
             SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(300f, 40f),
                 new Vector2(24f, 0f));
 
-            // 滑条（UGUI 标准三件套：底槽 / 填充 / 手柄；皮肤用玻璃小件）。
+            // 滑条（UGUI 标准三件套：底槽 / 填充 / 手柄；皮肤用像素件 Track / Fill / Plate）。
             RectTransform sliderRect = CreateRect("Slider", row);
-            SetAnchored(sliderRect, new Vector2(1f, 0.5f), new Vector2(560f, 32f), new Vector2(-24f, 0f));
-            sliderRect.gameObject.AddComponent<Image>().sprite = GetGlass(GlassPanelSpriteBuilder.Tone.Button, chip: true);
-            sliderRect.gameObject.GetComponent<Image>().type = Image.Type.Sliced;
+            SetAnchored(sliderRect, new Vector2(1f, 0.5f), new Vector2(561f, 33f), new Vector2(-24f, 0f));
+            var sliderBack = sliderRect.gameObject.AddComponent<Image>();
+            sliderBack.sprite = PixelSkin.Track(PixelTone.Frame);   // 滑条背 = 凹槽件
+            sliderBack.type = Image.Type.Sliced;
+            sliderBack.color = Color.white;                         // 像素件禁止乘色
+            sliderBack.raycastTarget = false;
 
             var slider = sliderRect.gameObject.AddComponent<Slider>();
             slider.direction = Slider.Direction.LeftToRight;
@@ -832,8 +816,9 @@ namespace PirateCrew.EditorTools
             RectTransform fill = CreateRect("Fill", fillArea);
             Stretch(fill);
             var fillImage = fill.gameObject.AddComponent<Image>();
-            fillImage.sprite = GetGlass(GlassPanelSpriteBuilder.Tone.Primary, chip: true);
+            fillImage.sprite = PixelSkin.Fill(PixelFillKind.Neutral);   // 音量条 = 中性进度填充
             fillImage.type = Image.Type.Sliced;
+            fillImage.color = Color.white;                          // 像素件禁止乘色
             fillImage.raycastTarget = false;
             slider.fillRect = fill;
 
@@ -844,12 +829,13 @@ namespace PirateCrew.EditorTools
             handleArea.offsetMax = new Vector2(-8f, 0f);
 
             RectTransform handle = CreateRect("Handle", handleArea);
-            handle.sizeDelta = new Vector2(16f, 0f);
+            handle.sizeDelta = new Vector2(18f, 0f);
             handle.anchorMin = new Vector2(0f, 0f);
             handle.anchorMax = new Vector2(0f, 1f);
             var handleImage = handle.gameObject.AddComponent<Image>();
-            handleImage.sprite = GetGlass(GlassPanelSpriteBuilder.Tone.ButtonLight, chip: true);
+            handleImage.sprite = PixelSkin.Plate(PixelTone.Light);  // 手柄 = 暖白滑块
             handleImage.type = Image.Type.Sliced;
+            handleImage.color = Color.white;                        // 像素件禁止乘色
             handleImage.raycastTarget = false;
 
             slider.handleRect = handle;
@@ -858,30 +844,29 @@ namespace PirateCrew.EditorTools
             return slider;
         }
 
-        /// <summary>建一行「字段名 + 二选一选项块」，返回两个选项按钮（选中态由控制器刷新）。
-        /// 【换装最小半径】选项块保持玻璃 <see cref="CreateButton"/>：控制器
-        /// <c>SetChipSelected</c> 靠 image.color 乘色表达选中态，与手绘四态贴图机制冲突，
-        /// 换手绘须先重定义选中态语义（本波次不动控制器）。</summary>
+        /// <summary>建一行「字段名 + 二选一选项块」，返回两个选项按钮。
+        /// 选中态由控制器 <c>SetChipSelected</c> 换 sprite（selected = Primary tone 悬停档 /
+        /// 未选 = Dense 常态）并同步重挂 SpriteState——像素皮禁乘色。</summary>
         static void BuildSettingsRow(Transform panel, int index, string field, TMP_FontAsset hand,
             out Button primaryOption, out Button secondaryOption, string primaryLabel, string secondaryLabel)
         {
             RectTransform row = CreateSettingsRowBackground(panel, index);
 
             TextMeshProUGUI label = CreateTextExact("Field", row, field, (int)FONT_BODY,
-                TextAlignmentOptions.MidlineLeft, TEXT, hand);
+                TextAlignmentOptions.MidlineLeft, PixelSkin.TextColorOn(PixelTone.Light), hand);
             SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(300f, 40f),
                 new Vector2(24f, 0f));
 
             primaryOption = CreateButton("Option0", row, primaryLabel, new Vector2(1f, 0.5f),
-                new Vector2(-448f, 0f), new Vector2(200f, 40f), hand, UiSprites.Kind.ButtonWood,
-                UiTheme.TextLight, UiTheme.FontHint);
+                new Vector2(-448f, 0f), new Vector2(201f, 39f), hand, UiSprites.Kind.ButtonWood,
+                PixelSkin.TextColorOn(PixelTone.Dense), UiTheme.FontHint);
             secondaryOption = CreateButton("Option1", row, secondaryLabel, new Vector2(1f, 0.5f),
-                new Vector2(-236f, 0f), new Vector2(200f, 40f), hand, UiSprites.Kind.ButtonWood,
-                UiTheme.TextLight, UiTheme.FontHint);
+                new Vector2(-236f, 0f), new Vector2(201f, 39f), hand, UiSprites.Kind.ButtonWood,
+                PixelSkin.TextColorOn(PixelTone.Dense), UiTheme.FontHint);
         }
 
-        /// <summary>设置行的底板 + 字段名（滑条行与选项行共用）：
-        /// SketchPanel Light（Tiled 单图，stick-world「HUD 横条/内嵌区块」档）。</summary>
+        /// <summary>设置行的底板 + 字段名（滑条行与选项行共用）：SketchPanel Light →
+        /// Plate(Light) 暖白片 + 底垫投影。</summary>
         static RectTransform CreateSettingsRowBackground(Transform panel, int index)
         {
             float y = SettingsRowTop - index * SettingsRowPitch;
@@ -911,15 +896,15 @@ namespace PirateCrew.EditorTools
 
             CreateDimOverlay("DimOverlay", root);
 
-            // 底板：SketchPanel Dark（stick-world 大弹窗主底）；消息直接压面板，不再垫内容片。
+            // 底板：SketchPanel Dark → Plate(Frame tone) + 底垫投影；消息直接压面板，不再垫内容片。
             SketchPanel card = SketchPanel.Create(root.transform, "ConfirmCard",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(640f, 280f), SketchPanel.Tone.Dark);
+                new Vector2(639f, 279f), SketchPanel.Tone.Dark);
             RectTransform panel = (RectTransform)card.transform;
 
-            // 正文：TEXT_DIM 暗字（StickConfirmDialog 消息档同色）、FONT_HUD=17 常读档。
+            // 正文：Frame tone 上的次级浅字（像素皮 TextColorOn 档）、FONT_HUD 常读档。
             TextMeshProUGUI message = CreateTextExact("Message", panel, defaultMessage,
-                (int)FONT_HUD, TextAlignmentOptions.Center, TEXT_DIM, TitleFont);
+                (int)FONT_HUD, TextAlignmentOptions.Center, PixelSkin.LightOf(PixelTone.Frame), TitleFont);
             SetAnchored(message.rectTransform, new Vector2(0.5f, 1f), new Vector2(520f, 80f),
                 new Vector2(0f, -96f));
 

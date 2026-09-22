@@ -9,21 +9,21 @@ namespace PirateCrew.UI
     /// <summary>
     /// M3 界面用的 UGUI 构建辅助（运行时建控件）。
     ///
-    /// 【视觉层（StickUI 复刻层）】
+    /// 【视觉层（Beveled Pixel 像素皮）】
     ///   · 文本统一 <see cref="TextMeshProUGUI"/>（中文字体由调用方注入，见 <see cref="CreateText"/> 的 font 参数）；
-    ///   · 行底 = <see cref="SketchPanel"/>（Light Tone，panel_light 槽——HUD 横条/内嵌区块档）；
-    ///   · 按钮 = <see cref="SketchButton"/>（Dark 变体；四态贴图槽 + 五态字色 + 伪粗全由
-    ///     <see cref="StickTokens.ButtonVariants"/> 变体表驱动）；
-    ///   · 配色一律取 <see cref="StickTokens"/> 令牌，禁止散落色值。
+    ///   · 行底 = <see cref="SketchPanel"/>（Light Tone → Plate(Light) 暖白片 + 底垫投影）；
+    ///   · 按钮 = <see cref="SketchButton"/>（Dark 变体 → Plate(Dense) 暗键帽；三态走 SpriteSwap，
+    ///     禁用走 CanvasGroup alpha，全由控件本体承担）；
+    ///   · 字色一律 <see cref="PixelSkin.TextColorOn"/>（按底 tone 取可读档）。
     ///
     /// 【列表行数随名册/海图变化】运行时生成比摆 Prefab 更省接线；行数少、非高频，
     ///   不构成性能顾虑。
     /// </summary>
     public static class M3UiBuilder
     {
-        /// <summary>按钮不可用态乘色。手绘语言乘色全白（<see cref="SketchButton"/> 的
-        /// WhiteStates 纪律：状态反馈靠贴图切换，不叠色）——禁用视觉由 btn_disabled
-        /// 贴图槽 + TEXT_DISABLED 字色承载。</summary>
+        /// <summary>按钮不可用态乘色。像素皮禁乘色（<see cref="SketchButton"/> 的三态 SpriteSwap +
+        /// CanvasGroup 禁用 alpha 纪律）——禁用视觉由控件本体承担，本常量恒白，
+        /// 仅为兼容既有调用点签名保留。</summary>
         public static Color DisabledButtonColor => Color.white;
 
         // ------------------------------------------------------------------
@@ -105,9 +105,9 @@ namespace PirateCrew.UI
         }
 
         /// <summary>
-        /// 建按钮（StickUI 复刻层：SketchButton Dark 变体 + 居中文本；四态贴图槽/五态字色/
-        /// 伪粗由控件本体的变体表驱动，调用方不再配色）。初值尺寸为占位，行内按钮随后
-        /// 由 <see cref="LayoutRowContent"/> 按行高重摆。
+        /// 建按钮（像素皮：<see cref="SketchButton"/> Dark 变体 + 居中文本；tone 九宫格 /
+        /// 三态 SpriteSwap / 禁用 alpha 由控件本体承担，调用方不再配色）。初值尺寸为占位，
+        /// 行内按钮随后由 <see cref="LayoutRowContent"/> 按行高重摆。
         /// </summary>
         public static Button CreateButton(string name, Transform parent, string label, int fontSize,
             TMP_FontAsset font)
@@ -164,7 +164,8 @@ namespace PirateCrew.UI
         }
 
         /// <summary>在列表容器里建一行（纵向堆叠，锚在容器顶部；底为 SketchPanel Light
-        /// 槽 panel_light——列表行/内嵌区块档的整图 Tiled，随 sketch 槽帧轮换沸腾）。</summary>
+        /// → Plate(Light) 暖白片 + 底垫投影；行内字色请取 <see cref="PixelSkin.TextColorOn"/>
+        /// 的 Light 档，勿再手写字色）。</summary>
         public static RectTransform CreateRow(Transform container, int index, float rowHeight,
             float spacing = 6f, float leftPadding = 8f)
         {

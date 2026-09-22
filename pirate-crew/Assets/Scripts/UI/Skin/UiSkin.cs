@@ -7,6 +7,11 @@ namespace PirateCrew.UI
     /// <summary>
     /// 多彩卡通 UI 的设计 Token 真值源（配色 / 形状 / 字号 / 语义色槽）。
     ///
+    /// 【换装（Beveled Pixel）】皮肤的真值源已交给 <see cref="PixelSkin"/>（tone 色阶 +
+    /// 九宫格件）；本类的底色十个成员因被 Tests/UI/UiSkinTests.cs 钉死而暂留 StickTokens
+    /// 值（详见「像素皮取色桥」段落）。像素皮新代码一律经 PixelPlate / PixelTextOn 或
+    /// <see cref="PixelSkin"/> 取色，别再新写魔法值。
+    ///
     /// 【风格定案（用户三轮裁决，2026-09-19）】
     ///   · 高饱和多彩：每个武器 / 职业 / 状态有自己的色相（哈迪斯式"深底 + 宝石彩图标 +
     ///     金强调"），不再收敛到单一暖木色板；
@@ -69,9 +74,10 @@ namespace PirateCrew.UI
         /// 非文字图形 ≥3:1）。</summary>
         public static readonly Color DeadGray = Rgb(0x6E, 0x6A, 0x60);
 
-        /// <summary>危险动作底（深酒红 #8A1F1F 保留——不随语义三色换血：隔壁 DANGER 亮红
-        /// 做按钮底时白字对比仅 3.2:1 不满足正文 AA；pirate 侧该色上压暖白文字 8.0:1）。</summary>
-        public static readonly Color Danger = Rgb(0x8A, 0x1F, 0x1F);
+        /// <summary>危险动作底（像素皮取 <see cref="PixelTone.Danger"/> 的暗档；图集缺失回落原深酒红）。</summary>
+        public static Color Danger => PixelSkin.Asset != null
+            ? (Color)PixelSkin.DarkOf(PixelTone.Danger)
+            : Rgb(0x8A, 0x1F, 0x1F);
 
         /// <summary>语义色·信息。UI 语义 = StickTokens.INFO（压 InkDeep 11.5:1；Toast/通知/链接）。</summary>
         public static readonly Color Info = StickTokens.INFO;
@@ -81,6 +87,26 @@ namespace PirateCrew.UI
 
         /// <summary>语义色·成功。UI 语义 = StickTokens.SUCCESS（压 InkDeep 10.4:1；完工/增益）。</summary>
         public static readonly Color Success = StickTokens.SUCCESS;
+
+        // ------------------------------------------------------------------
+        // 像素皮（Beveled Pixel）取色桥：像素件一律经 <see cref="PixelSkin"/> 取件/取色，
+        // 本段只是把 tone 语义映射成"UI 令牌名"口径，便于调用点不必同时 import 两个类。
+        //
+        // 【为什么上方底色系字段没有一并改写】InkDeep / InkSoft / TextOnInk / TextDim /
+        // Gold / InkOnGold / BarTrackInk / Info / Warn / Success 十个成员被
+        // Tests/UI/UiSkinTests.cs 的 PanelBaseColors_AreStickTokensPipelined 钉死在
+        // StickTokens 上——该测试文件不在本波文件域，故本次不动它们（值不变，测试仍绿）。
+        // 像素皮新代码请直接取本段的桥接取色，或直接用 <see cref="PixelSkin"/> 的 API。
+        // ------------------------------------------------------------------
+
+        /// <summary>像素皮某 tone 的 Plate 底色（= 该 tone 的中档）。</summary>
+        public static Color PixelPlate(PixelTone tone) => PixelSkin.MidOf(tone);
+
+        /// <summary>像素皮某 tone 底上的正文字色（浅底给墨字 / 深底给本 tone 亮档字）。</summary>
+        public static Color PixelTextOn(PixelTone tone) => PixelSkin.TextColorOn(tone);
+
+        /// <summary>像素皮暖白（深底上最亮的正文色）。</summary>
+        public static Color PixelPaperWhite => PixelSkin.PaperWhite;
 
         // ---- 队色 / 队名文字（pirate 玩法语义色，不随 P1 令牌接管换血；收编 BattleHud 的两份写死色） ----
 

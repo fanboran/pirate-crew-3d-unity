@@ -259,7 +259,7 @@ namespace PirateCrew.UI
                                + "　" + (stars > 0 ? UiStrings.WorldRowCleared : UiStrings.WorldRowAvailable);
 
                 TextMeshProUGUI text = M3UiBuilder.CreateText("Label", row, label, UiTheme.FontBody,
-                    TextAlignmentOptions.MidlineLeft, UiTheme.Ink, bodyFont);
+                    TextAlignmentOptions.MidlineLeft, PixelSkin.TextColorOn(PixelTone.Light), bodyFont);
 
                 // 星级图标（3 枚，点亮 = 黄铜，熄灭 = 暗）——已通关行才显示。
                 if (stars > 0)

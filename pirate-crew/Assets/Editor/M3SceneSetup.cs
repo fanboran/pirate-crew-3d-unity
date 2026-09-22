@@ -24,13 +24,13 @@ namespace PirateCrew.EditorTools
     ///   Assets/Scenes/CrewManagement.unity、Assets/Scenes/LevelSelect.unity；
     ///   Build Settings = Bootstrapper(0) / MainMenu(1) / Battle(2) / CrewManagement(3) / LevelSelect(4)。
     ///
-    /// 【视觉层（StickUI 复刻层，docs/UI-UX与中文本地化规范.md §3.3 / §3.4 / §3.6 线框不变）】
+    /// 【视觉层（Beveled Pixel 像素皮，docs/UI-UX与中文本地化规范.md §3.3 / §3.4 / §3.6 线框不变）】
     ///   · 背景 = WINDOW_BG 令牌（alpha 提到 1）全屏底板；相机背景不动，只换 UI 层；
-    ///   · 容器底 = <see cref="SketchPanel"/>（Dark 槽 panel）；列表行底由 M3UiBuilder 出
-    ///     Light 槽 panel_light；
-    ///   · 按钮 = <see cref="SketchButton"/>（Dark 为次级行动，Primary 为屏内主行动）；
-    ///   · 文字层级取 <see cref="StickTokens"/> 字号档 + TEXT / TEXT_DIM / TEXT_FAINT 色阶；
-    ///   · 分隔线 = <see cref="SketchSeparator"/> 波浪自绘；
+    ///   · 容器底 = <see cref="SketchPanel"/>（Dark tone → Plate(Frame) + 底垫投影）；
+    ///     列表行底由 M3UiBuilder 出 Light tone（Plate(Light) 暖白片）；
+    ///   · 按钮 = <see cref="SketchButton"/>（Dark 为次级行动，Primary 为屏内主行动；三态 SpriteSwap）；
+    ///   · 文字层级取 <see cref="StickTokens"/> 字号档 + <see cref="PixelSkin"/> 的 tone 字色；
+    ///   · 分隔线 = <see cref="SketchSeparator"/> 蚀刻线贴图（1u 厚）；
     ///   · 文本统一 TMP + 中文字体（字体入口仍在 <see cref="MenuUiBuilder"/>）；
     ///   · 选关页「上一局结算」为模态弹窗（§3.6），数据源 CampaignApi（沿用
     ///     LevelSelectController 原逻辑），接线契约不变。
@@ -94,9 +94,9 @@ namespace PirateCrew.EditorTools
             M3UiBuilder.SetAnchored(summary.rectTransform, TopCenterAnchor, new Vector2(1700f, 36f),
                 new Vector2(0f, -96f));
 
-            // 名册容器（SketchPanel Dark 槽 panel——大面板主底档；行由 CrewManagementController 运行时生成）。
+            // 名册容器（SketchPanel Dark → Plate(Frame) + 投影；行由 CrewManagementController 运行时生成）。
             RectTransform list = CreateStickPanel("CrewList", canvas.transform,
-                CenterAnchor, CenterAnchor, new Vector2(0f, 24f), new Vector2(1000f, 600f));
+                CenterAnchor, CenterAnchor, new Vector2(0f, 24f), new Vector2(999f, 600f));
 
             TextMeshProUGUI status = M3UiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
                 (int)StickTokens.FONT_HINT, TextAlignmentOptions.Center, StickTokens.TEXT_DIM, secondaryFont);
@@ -105,13 +105,13 @@ namespace PirateCrew.EditorTools
 
             // 屏内按钮：选关/返回 = Dark 次级档；保存 = Primary 主行动档。
             Button levelSelectButton = CreateSketchButton("LevelSelectButton", canvas.transform,
-                UiStrings.CrewLevelSelect, BottomCenterAnchor, new Vector2(-300f, 56f), new Vector2(260f, 52f),
+                UiStrings.CrewLevelSelect, BottomCenterAnchor, new Vector2(-300f, 56f), new Vector2(261f, 51f),
                 bodyFont, StickTokens.SketchButtonKind.Dark);
             Button saveButton = CreateSketchButton("SaveButton", canvas.transform,
-                UiStrings.CrewSave, BottomCenterAnchor, new Vector2(0f, 56f), new Vector2(260f, 52f),
+                UiStrings.CrewSave, BottomCenterAnchor, new Vector2(0f, 56f), new Vector2(261f, 51f),
                 bodyFont, StickTokens.SketchButtonKind.Primary);
             Button backButton = CreateSketchButton("BackButton", canvas.transform,
-                UiStrings.BackToMainMenu, BottomCenterAnchor, new Vector2(300f, 56f), new Vector2(260f, 52f),
+                UiStrings.BackToMainMenu, BottomCenterAnchor, new Vector2(300f, 56f), new Vector2(261f, 51f),
                 bodyFont, StickTokens.SketchButtonKind.Dark);
 
             var controllerGo = new GameObject("CrewManagementController", typeof(RectTransform));
@@ -171,9 +171,9 @@ namespace PirateCrew.EditorTools
             RectTransform chapters = M3UiBuilder.CreateRect("ChapterContainer", canvas.transform);
             M3UiBuilder.SetAnchored(chapters, TopCenterAnchor, new Vector2(520f, 44f), new Vector2(0f, -186f));
 
-            // 海图列表容器（SketchPanel Dark 槽 panel——大面板主底档；行由控制器运行时生成）。
+            // 海图列表容器（SketchPanel Dark → Plate(Frame) + 投影；行由控制器运行时生成）。
             RectTransform list = CreateStickPanel("LevelList", canvas.transform,
-                CenterAnchor, CenterAnchor, new Vector2(0f, 52f), new Vector2(1000f, 560f));
+                CenterAnchor, CenterAnchor, new Vector2(0f, 52f), new Vector2(999f, 561f));
 
             // 出战加载说明（文案与实际行为一致：选哪关加载哪关）+ 状态提示。
             TextMeshProUGUI hint = M3UiBuilder.CreateText("FixedArenaHint", canvas.transform,
@@ -188,10 +188,10 @@ namespace PirateCrew.EditorTools
                 new Vector2(0f, 128f));
 
             Button crewButton = CreateSketchButton("CrewButton", canvas.transform,
-                UiStrings.MainCrew, BottomCenterAnchor, new Vector2(-180f, 52f), new Vector2(260f, 52f),
+                UiStrings.MainCrew, BottomCenterAnchor, new Vector2(-180f, 52f), new Vector2(261f, 51f),
                 bodyFont, StickTokens.SketchButtonKind.Dark);
             Button backButton = CreateSketchButton("BackButton", canvas.transform,
-                UiStrings.Back, BottomCenterAnchor, new Vector2(180f, 52f), new Vector2(260f, 52f),
+                UiStrings.Back, BottomCenterAnchor, new Vector2(180f, 52f), new Vector2(261f, 51f),
                 bodyFont, StickTokens.SketchButtonKind.Dark);
 
             SettlementRefs settlement = BuildSettlementModal(canvas.transform, titleFont, bodyFont, secondaryFont);
@@ -264,9 +264,9 @@ namespace PirateCrew.EditorTools
 
             CreateDimOverlay(root);
 
-            // 结算卡片（SketchPanel Dark 槽 panel——模态主底档）。
+            // 结算卡片（SketchPanel Dark → Plate(Frame) + 投影；模态主底档）。
             RectTransform card = CreateStickPanel("SettlementCard", root,
-                CenterAnchor, CenterAnchor, Vector2.zero, new Vector2(900f, 620f));
+                CenterAnchor, CenterAnchor, Vector2.zero, new Vector2(900f, 621f));
 
             // 文字层级：胜负横幅 FONT_DISPLAY + TEXT；行值 FONT_BODY + TEXT；细则 FONT_HINT + TEXT_FAINT。
             TextMeshProUGUI title = M3UiBuilder.CreateText("Title", card, string.Empty,
@@ -297,9 +297,9 @@ namespace PirateCrew.EditorTools
                 new Vector2(0f, -160f));
             refs.StarsText = starsText;
 
-            // 波浪分隔线（SketchSeparator 自绘档；高度 8 容纳 1.3px 线宽 + 羽化带）。
+            // 蚀刻分隔线（SketchSeparator 像素皮档；线厚由控件内部钉到 1u=3px，高度参数不再当线宽用）。
             SketchSeparator.Create(card, "Divider", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -196f), new Vector2(760f, 8f));
+                new Vector2(0f, -196f), new Vector2(759f, 3f));
 
             refs.LevelText = BuildSettlementRow(card, "LevelRow", -232f, bodyFont);
             refs.ScoreText = BuildSettlementRow(card, "ScoreRow", -276f, bodyFont);
@@ -316,11 +316,11 @@ namespace PirateCrew.EditorTools
 
             // 弹窗按钮：再战 = Primary 主行动档；返回选图 = Dark 次级档。
             refs.ReplayButton = CreateSketchButton("ReplayButton", card, UiStrings.LevelReplay,
-                new Vector2(0.5f, 0f), new Vector2(-150f, 52f), new Vector2(260f, 52f),
+                new Vector2(0.5f, 0f), new Vector2(-150f, 52f), new Vector2(261f, 51f),
                 bodyFont, StickTokens.SketchButtonKind.Primary);
             refs.BackButton = CreateSketchButton("BackToSelectButton", card,
                 UiStrings.SettlementBackToSelect, new Vector2(0.5f, 0f), new Vector2(150f, 52f),
-                new Vector2(260f, 52f), bodyFont, StickTokens.SketchButtonKind.Dark);
+                new Vector2(261f, 51f), bodyFont, StickTokens.SketchButtonKind.Dark);
 
             root.gameObject.SetActive(false);
             return refs;
@@ -355,8 +355,8 @@ namespace PirateCrew.EditorTools
             image.raycastTarget = false;
         }
 
-        /// <summary>建 StickUI 面板底（SketchPanel：panel 槽整图 Tiled + 帧轮换沸腾；
-        /// 九宫格 border=10 由导入设置携带）。tone 固定 Dark = 大面板主底档。</summary>
+        /// <summary>建像素面板底（SketchPanel：Plate(Frame tone) 九宫格 + 底垫投影）；
+        /// tone 固定 Dark = 大面板主底档。</summary>
         static RectTransform CreateStickPanel(string name, Transform parent, Vector2 anchor,
             Vector2 pivot, Vector2 anchoredPosition, Vector2 size)
         {
@@ -365,7 +365,7 @@ namespace PirateCrew.EditorTools
             return (RectTransform)panel.transform;
         }
 
-        /// <summary>建 SketchButton（变体表驱动四态槽/五态字色/伪粗，调用方不另配色）。
+        /// <summary>建 SketchButton（像素 tone 九宫格 + 三态 SpriteSwap + 变体表字色档，调用方不另配色）。
         /// 字号取 FONT_BODY 正文档；pivot 沿用旧按钮装配口径 (0.5, 0.5)。</summary>
         static Button CreateSketchButton(string name, Transform parent, string label, Vector2 anchor,
             Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font,

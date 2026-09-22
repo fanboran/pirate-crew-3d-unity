@@ -16,7 +16,7 @@ namespace PirateCrew.UI
     /// 不等水体热身，独立跑更快。程序集方向上 Runtime 也不能反向引用本程序集
     /// （UI → Runtime 已是单向依赖）。
     ///
-    /// 【背景】页根压一张全屏 <see cref="UiSkin.InkDeep"/> 底——陈列页就是设计
+    /// 【背景】页根压一张全屏 <c>PixelSkin.DarkOf(PixelTone.Frame)</c>（Frame tone 暗档）底——陈列页就是设计
     /// 系统的"活文档"，控件在它们真实所属的深底上展示（见 docs/设计/UI设计语言.md §九）。
     /// </summary>
     public class UiGalleryCapture : MonoBehaviour
@@ -93,11 +93,11 @@ namespace PirateCrew.UI
             // 对齐 Godot canvas_items+expand 口径：Expand(1) 外扩参考分辨率（陈列画布与各构建器统一）。
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
-            // 全屏深底：陈列页控件在真实所属的 InkDeep 上展示。
+            // 全屏深底：像素皮最暗档（DarkOf(Frame)）——陈列页控件在它们真实所属的深底上展示。
             RectTransform backdrop = UiKit.CreateRect("Backdrop", go.transform);
             UiKit.Stretch(backdrop);
             var backdropImage = backdrop.gameObject.AddComponent<Image>();
-            backdropImage.color = UiSkin.InkDeep;
+            backdropImage.color = PixelSkin.DarkOf(PixelTone.Frame);
             backdropImage.raycastTarget = false;
 
             UiGalleryPage.Build(go.transform, iconsPage);

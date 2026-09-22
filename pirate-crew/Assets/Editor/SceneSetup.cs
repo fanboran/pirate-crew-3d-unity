@@ -24,11 +24,11 @@ namespace PirateCrew.EditorTools
     /// 【产物】Assets/Scenes/{Bootstrapper,MainMenu}.unity（Battle 归 M2BattleSceneSetup 重建）；
     ///   Build Settings 登记 5 场景（见 RegisterBuildSettings）。
     ///
-    /// 【主菜单视觉口径（StickUI 复刻层）】stick-world 设计语言：WINDOW_BG 窗户底
-    /// （88% 黑，相机暖色透底，不铺死黑）+ StickHand 标题（TEXT 字色 + INK 墨描边）+
-    /// <see cref="SketchButton"/> 菜单列（六变体四态沸腾，高 BTN_H=32）+
-    /// <see cref="SketchPanel"/> 底板的设置/退出确认弹窗 + <see cref="SketchSeparator"/> 分隔线；
-    /// 颜色/字号一律 <see cref="StickTokens"/> 令牌。控制器
+    /// 【主菜单视觉口径（Beveled Pixel 像素皮）】深暖色清屏（透底语义）+ StickHand 标题
+    /// （像素皮 Frame tone 浅字 + INK 墨描边）+ <see cref="SketchButton"/> 菜单列
+    /// （tone 九宫格 + 三态 SpriteSwap，高 BTN_H=32）+ <see cref="SketchPanel"/> 底板的
+    /// 设置/退出确认弹窗（Plate + 底垫投影）+ <see cref="SketchSeparator"/> 蚀刻分隔线；
+    /// 文字/字号仍取 <see cref="StickTokens"/> 令牌。控制器
     /// <see cref="MainMenuController"/> 的 [SerializeField] 引用契约不变（按字段名回写）。
     /// </summary>
     public static class SceneSetup
@@ -112,7 +112,7 @@ namespace PirateCrew.EditorTools
                 new Vector2(800f, 70f), new Vector2(0f, -170f));
             MenuUiBuilder.ApplyStickTitleOutline(title);
 
-            // 标题下手绘波浪分隔线。
+            // 标题下蚀刻分隔线（像素皮：SketchSeparator 内部出 Separator 贴图）。
             SketchSeparator.Create(canvas.transform, "TitleSeparator", new Vector2(0.5f, 1f),
                 new Vector2(0.5f, 1f), new Vector2(0f, -252f), new Vector2(420f, 2f),
                 SketchSeparator.Direction.Horizontal);

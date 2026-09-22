@@ -130,7 +130,7 @@ namespace PirateCrew.UI.Stick
         public static UnityButton Button(Transform parent, string text, Action callback = null,
             StickButtonKind kind = StickButtonKind.Normal, float height = StickTokens.BTN_H)
         {
-            RectTransform rect = NewButtonRect(parent, text, height, StickTokens.TEXT, null);
+            RectTransform rect = NewButtonRect(parent, text, height, StickTokens.TEXT);
             var button = rect.gameObject.AddComponent<UnityButton>();
             button.targetGraphic = rect.GetComponent<Image>();
             button.colors = FlatStates();
@@ -181,20 +181,13 @@ namespace PirateCrew.UI.Stick
         }
 
         static RectTransform NewButtonRect(Transform parent, string text, float height,
-            Color textColor, string sketchSlot)
+            Color textColor)
         {
             RectTransform rect = UiKit.CreateRect("Button", parent);
             var image = rect.gameObject.AddComponent<Image>();
-            if (sketchSlot != null)
-            {
-                image.sprite = SketchSkin.Frame(sketchSlot, 0);
-                image.type = Image.Type.Sliced;
-                image.color = Color.white;   // 手绘四态靠贴图切换，底色烘死，不叠乘色
-            }
-            else
-            {
-                image.color = StickTokens.BTN_BG;   // 主题兜底场景：平涂
-            }
+            // 主题兜底场景：平涂 BTN_BG（无贴图件——像素件纪律只管"有烘焙色阶的件"，
+            // 平涂底不在此列；真正带皮的按钮一律走 SketchButton）。
+            image.color = StickTokens.BTN_BG;
             image.raycastTarget = true;
 
             TextMeshProUGUI label = UiKit.CreateText("Text", rect, text, (int)StickTokens.FONT_BODY,
@@ -274,44 +267,60 @@ namespace PirateCrew.UI.Stick
             return row;
         }
 
-        /// <summary>竖直分隔线（横向 HUD 行内分节用）。</summary>
+        /// <summary>竖直分隔线（横向 HUD 行内分节用）：像素皮蚀刻线贴图（1u 厚 = 3px）。</summary>
         public static void VSeparator(Transform parent)
         {
             RectTransform rect = UiKit.CreateRect("VSeparator", parent);
             Image image = rect.gameObject.AddComponent<Image>();
-            image.sprite = SketchSkin.Frame("sep_v", 0);
-            image.type = Image.Type.Tiled;
-            image.color = Color.white;
+            image.sprite = PixelSkin.Separator(false);
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;      // 像素件禁止乘色：线色烘在贴图里
             image.raycastTarget = false;
             StickLayoutElement min = rect.gameObject.AddComponent<StickLayoutElement>();
-            min.MinSize = new Vector2(2f, 0f);
+            min.MinSize = new Vector2(PixelSkin.Unit, 0f);   // 线厚取 1u（3px）整数倍
         }
 
-        /// <summary>水平分隔线：手绘波浪线（gd SketchSeparator 自绘；P1 先用烘焙 sep_h
-        /// 槽逐砖平铺近似，沸腾随槽帧）。SketchSeparator 自绘组件移植后替换。</summary>
+        /// <summary>水平分隔线：像素皮蚀刻线贴图（旧版为手绘波浪线自绘；
+        /// 换装后线宽/羽化由烘焙器负责，装配侧只报方向）。</summary>
         public static void Separator(Transform parent)
         {
             RectTransform rect = UiKit.CreateRect("Separator", parent);
             Image image = rect.gameObject.AddComponent<Image>();
-            image.sprite = SketchSkin.Frame("sep_h", 0);
-            image.type = Image.Type.Tiled;
+            image.sprite = PixelSkin.Separator(true);
+            image.type = Image.Type.Sliced;
             image.color = Color.white;
             image.raycastTarget = false;
             StickLayoutElement min = rect.gameObject.AddComponent<StickLayoutElement>();
-            min.MinSize = new Vector2(0f, 8f);
+            min.MinSize = new Vector2(0f, PixelSkin.Unit);   // 线厚取 1u（3px）——旧 8px 是给波浪羽化留的余量
         }
 
         // ---------------- 皮肤路由 ----------------
 
-        /// <summary>面板：直出手绘九砖底（DARK/LIGHT 槽；gd SketchPanel 等价）。返回面板根，
-        /// 内容区请用 <see cref="PanelContent"/> 建（九砖与布局必须兄弟隔离，见 StickScreen 注释）。</summary>
+        /// <summary>面板：像素 Plate 底 + 底垫投影（DARK = Frame tone / LIGHT = Light tone；
+        /// gd SketchPanel 等价）。返回面板根，内容区请用 <see cref="PanelContent"/> 建
+        /// （底板/投影与布局必须兄弟隔离，见 StickScreen 注释）。</summary>
         public static RectTransform Panel(Transform parent, int tone = ToneDark)
         {
             RectTransform rect = UiKit.CreateRect("Panel", parent);
+            PixelTone pixelTone = tone == ToneLight ? PixelTone.Light : PixelTone.Frame;
+
+            // 投影先建（子件绘制按加入序，投影必须垫在本体之下），偏移右下 1u。
+            RectTransform shadow = UiKit.CreateRect("Shadow", rect);
+            StickUIKit.FullRect(shadow);
+            shadow.anchoredPosition = PixelSkin.ShadowOffset;
+            var shadowImage = shadow.gameObject.AddComponent<Image>();
+            shadowImage.sprite = PixelSkin.ShadowSprite;
+            shadowImage.type = Image.Type.Sliced;
+            shadowImage.color = Color.white;
+            shadowImage.raycastTarget = false;
+
             RectTransform backplate = UiKit.CreateRect("Backplate", rect);
             StickUIKit.FullRect(backplate);
-            backplate.gameObject.AddComponent<Sketch9Slice>().Slot =
-                tone == ToneLight ? "panel_light" : "panel";
+            var image = backplate.gameObject.AddComponent<Image>();
+            image.sprite = PixelSkin.Plate(pixelTone);
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;      // 像素件禁止乘色：tone 色阶烘在贴图里
+            image.raycastTarget = false;
             return rect;
         }
 
@@ -435,7 +444,7 @@ namespace PirateCrew.UI.Stick
         }
 
         /// <summary>在指定层弹一条 toast（自动淡出销毁）。底部居中（离底 80px）。
-        /// 56px 矮件走单图 Sliced（九砖中缝塞不下平铺砖，同 SketchWidgets.Toast 判据）。</summary>
+        /// 像素皮：Plate(Light) 暖白条 + 底垫投影（同 SketchWidgets.Toast 口径）。</summary>
         public static void Toast(Transform layer, string text, string kind = "info")
         {
             Transform host = SystemOverlayOf(layer);
@@ -445,14 +454,26 @@ namespace PirateCrew.UI.Stick
 
             RectTransform panel = UiKit.CreateRect("Toast", host);
             panel.anchorMin = panel.anchorMax = panel.pivot = new Vector2(0.5f, 0f);
-            panel.sizeDelta = new Vector2(420f, 56f);
+            panel.sizeDelta = new Vector2(420f, 57f);   // 高度取 Unit(3) 整数倍
             panel.anchoredPosition = new Vector2(0f, 80f);
-            var image = panel.gameObject.AddComponent<Image>();
-            image.sprite = SketchSkin.Frame("panel_light", 0);
+
+            // 投影先建（子件绘制按加入序），再建 Plate 本体——两件都铺满根矩形。
+            RectTransform shadow = UiKit.CreateRect("Shadow", panel);
+            StickUIKit.FullRect(shadow);
+            shadow.anchoredPosition = PixelSkin.ShadowOffset;
+            var shadowImage = shadow.gameObject.AddComponent<Image>();
+            shadowImage.sprite = PixelSkin.ShadowSprite;
+            shadowImage.type = Image.Type.Sliced;
+            shadowImage.color = Color.white;
+            shadowImage.raycastTarget = false;
+
+            RectTransform plate = UiKit.CreateRect("Plate", panel);
+            StickUIKit.FullRect(plate);
+            var image = plate.gameObject.AddComponent<Image>();
+            image.sprite = PixelSkin.Plate(PixelTone.Light);
             image.type = Image.Type.Sliced;
-            image.color = Color.white;
+            image.color = Color.white;      // 像素件禁止乘色
             image.raycastTarget = false;
-            panel.gameObject.AddComponent<SketchBoil>().Slot = "panel_light";
             UiKit.CreateText("Msg", panel, text, (int)StickTokens.FONT_BODY,
                 TextAlignmentOptions.Center, tint, HandFont());
             panel.gameObject.AddComponent<ToastFader>();

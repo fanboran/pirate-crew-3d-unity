@@ -276,7 +276,7 @@ namespace PirateCrew.UI.Stick
             if (FreezeBoil)
                 return;
             // 沸腾节拍：0.12s 重掷（gd WOBBLE_INTERVAL）。gd 侧 _process delta 受 time_scale
-            // 影响，这里按 unscaledTime 计——与本项目 SketchBoil.cs 口径一致，UI 沸腾不随
+            // 影响，这里按 unscaledTime 计——与手绘皮时代 SketchBoil 的口径一致，UI 沸腾不随
             // 游戏暂停停摆（有意差异，见 README）。
             if (Time.unscaledTime < _next)
                 return;

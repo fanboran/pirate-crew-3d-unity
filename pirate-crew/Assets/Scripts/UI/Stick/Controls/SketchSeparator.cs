@@ -1,22 +1,21 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace PirateCrew.UI.Stick
 {
     /// <summary>
-    /// 手绘涂鸦分隔线 —— game-2 SketchSeparator（sketch_separator.gd）的 UGUI 复刻。
+    /// 手绘涂鸦分隔线 —— game-2 SketchSeparator（sketch_separator.gd）的 UGUI 复刻（**已换 Beveled Pixel 皮**）。
     ///
-    /// 【口径选择】任务给的两条路线里取**源码口径**（gd SketchSeparator 是 wavy 自绘，
-    /// 非贴图件）：BORDER @ 0.35 波浪线、线宽 1.3、两端各让 2px，逐公式对照。
-    /// sep_h/sep_v 贴图槽在 gd 侧是原生 HSeparator/VSeparator 兜底的 stylebox
-    /// （SketchStyle.separator()），不是本控件源码的渲染路径，故不取。
+    /// 【皮肤口径（换装后）】像素皮不再自绘波浪线：分隔线 = 一张 <see cref="PixelSkin.Separator"/>
+    /// 蚀刻线贴图（水平 / 垂直两档，1u 厚的凹刻线，色阶由调色板烘焙），按控件矩形铺开。
+    /// 旧版是逐公式对照的自绘波形（BORDER@0.35）；像素皮改走贴图件后，"线宽/羽化"由烘焙器负责，
+    /// 本类只做方向 → 贴图的映射。
     ///
-    /// 【沸腾】gd _process 每 WOBBLE_INTERVAL(0.12s) 重掷 seed → 确定性重掷序列
-    /// （同 SketchWobbleGraphic 的哈希方案，禁 System.Random 工程纪律）。
-    /// edit 模式 Update 不跑，样张取 SeedBase 初相静态帧。
+    /// 【公开 API 不变】Dir / SeedBase / Create 四参签名保留——四个调用点（主菜单标题下、
+    /// 设置面板标题下、结算弹窗、样张页）零改动即换皮。SeedBase 在贴图件下不再驱动动画，
+    /// 仅为兼容保留（旧沸腾重掷序列的确定性 seed 概念随自绘层下线）。
     ///
-    /// 【自绘层在独立文件】波浪线画在 <see cref="WavyLineGraphic"/>（**顶级类**）上：
-    /// Unity 无法处理嵌套 MonoBehaviour（存 Prefab 直接失败、场景重载后组件还原不回来），
-    /// 故自绘件一律顶级类 + 独立文件。详见该文件头。
+    /// 【自绘层文件保留】旧的波浪自绘件（独立文件）仍在，归协调者统一处置——本类不再挂它。
     /// </summary>
     public sealed class SketchSeparator : MonoBehaviour
     {
@@ -30,7 +29,7 @@ namespace PirateCrew.UI.Stick
         /// <summary>方向（运行时可切）。</summary>
         public Direction Dir = Direction.Horizontal;
 
-        /// <summary>seed 基值（沸腾重掷序列由它决定，确定性）。</summary>
+        /// <summary>seed 基值（贴图件下不再驱动动画；保留字段以维持调用点签名兼容）。</summary>
         public int SeedBase;
 
         /// <summary>建一条分隔线（纯展示件，不拦截点击）。direction 缺省水平。</summary>
@@ -44,15 +43,32 @@ namespace PirateCrew.UI.Stick
             rect.anchorMin = anchor;
             rect.anchorMax = anchor;
             rect.pivot = pivot;
-            rect.sizeDelta = size;
+            // 线厚纪律：蚀刻线是 1u（3px）件——矩形过薄会把包边挤没、过厚会把线拉成一条带，
+            // 故厚度轴统一钉到 PixelSkin.Unit，长度轴按调用方给的值铺开（调用点尺寸字面量不用改）。
+            rect.sizeDelta = direction == Direction.Horizontal
+                ? new Vector2(size.x, PixelSkin.Unit)
+                : new Vector2(PixelSkin.Unit, size.y);
             rect.anchoredPosition = anchoredPosition;
 
             var separator = go.AddComponent<SketchSeparator>();
             separator.Dir = direction;
-            var g = go.AddComponent<WavyLineGraphic>();
-            g.Owner = separator;
+            separator.Apply();
             return separator;
         }
 
+        private void OnEnable() => Apply();
+
+        /// <summary>方向 → 蚀刻线贴图。Sliced：贴图若带切片边框则两端不拉花，
+        /// 无边框时退化为整图拉伸（对一条 1u 直线等价）。</summary>
+        private void Apply()
+        {
+            var image = GetComponent<Image>();
+            if (image == null)
+                image = gameObject.AddComponent<Image>();
+            image.sprite = PixelSkin.Separator(Dir == Direction.Horizontal);
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;      // 像素件禁止乘色：线色烘在贴图里
+            image.raycastTarget = false;
+        }
     }
 }

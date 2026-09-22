@@ -7,39 +7,43 @@ using static PirateCrew.UI.Stick.StickTokens;
 namespace PirateCrew.UI.Stick
 {
     /// <summary>
-    /// 手绘涂鸦按钮 —— game-2 SketchButton（sketch_button.gd）的 UGUI 复刻。
-    /// 视觉全由 <see cref="StickTokens.ButtonVariants"/> 变体表驱动（gd
-    /// SketchStyle.BUTTON_VARIANTS 同表同步生成）：四态贴图槽经
-    /// <see cref="SketchBoil.BindStates"/> 切换（语义 = gd SketchTextures 帧驱动 +
-    /// add_theme_stylebox 四态 override），五态字色 / 描边 / 伪粗 / 图标模式同表。
+    /// 手绘涂鸦按钮 —— game-2 SketchButton（sketch_button.gd）的 UGUI 复刻（**已换 Beveled Pixel 皮**）。
+    ///
+    /// 【皮肤口径（换装后）】底 = <see cref="PixelSkin.Plate"/> 的 tone 九宫格（色阶烘在贴图里，
+    /// 一条 tone 的明暗阶梯由调色板派生）；状态反馈 = UGUI **SpriteSwap 三态**
+    /// （<c>spriteState.highlightedSprite</c> / <c>pressedSprite</c> / <c>selectedSprite</c>），
+    /// <b>不再对 Image.color 乘色</b>——乘色会把烘焙色阶乘脏，这是像素皮的硬纪律。
+    /// 字色 = <see cref="PixelSkin.TextColorOn"/>（浅底给墨字 / 深底给本 tone 亮档字）。
+    /// 禁用态 = <see cref="CanvasGroup"/> alpha 0.55（贴图不烘禁用档）。
+    ///
+    /// 【与 gd 的继承关系】变体表 <see cref="StickTokens.ButtonVariants"/> 仍是 kind → tone /
+    /// 伪粗 / 描边档的查表源（gd SketchStyle.BUTTON_VARIANTS 同表）；换皮只换了"底的表达方式"
+    /// （槽位四态贴图沸腾 → 像素九宫格三态 SpriteSwap），变体→语义的映射不变。
     ///
     /// 【有意行为差异】
-    ///  · gd focus 态色 → UGUI Selected 态（UGUI 无独立键盘 focus 视觉态，Selected 即
-    ///    键盘/代码选中，语义最接近）；
     ///  · 伪粗：gd SketchFonts.bold 换粗体档 → TMP 合成加粗（fontStyle=Bold，shader
-    ///    _WeightBold 顶点外扩近似，粗度取 StickTokens.FontEmbolden）——非真粗体字形，
-    ///    注释说明与 gd 的差异；
+    ///    _WeightBold 顶点外扩近似，粗度取 StickTokens.FontEmbolden）——非真粗体字形；
     ///  · 描边：gd outline_size=3px 固定像素 → TMP _OutlineWidth 是归一化量纲，无直接
-    ///    换算式，初值 <see cref="TmpOutlineWidth"/> 待与 Godot 基准并排目测校准
-    ///    （同 TextSampleBuilder 口径）；材质一律走 fontMaterial 实例，绝不碰共享
-    ///    fontSharedMaterial；
-    ///  · IconSquare 自绘档：gd SketchGearButton._draw 方底 → 双层
-    ///    <see cref="SketchWobbleGraphic"/>（Fill + Outline 异色叠置，官方 idiom），
-    ///    四态底/边色按 gear 表（BTN_BG/BORDER 家族 token）在 DoStateTransition 换。
+    ///    换算式，初值 <see cref="TmpOutlineWidth"/> 待与 Godot 基准并排目测校准；
+    ///    材质一律走 fontMaterial 实例，绝不碰共享 fontSharedMaterial；
+    ///  · IconSquare 自绘档：旧版走 <c>SketchWobbleGraphic</c> 双层自绘，像素皮改为
+    ///    与 Dark 同族的 <see cref="PixelTone.Dense"/> 九宫格（"图标钮 = 暗键帽"），
+    ///    自绘层整体下线（文字/图标不受像素件纪律约束，仍可染色）。
     /// </summary>
     public sealed class SketchButton : Button
     {
         /// <summary>TMP 描边宽初值（归一化量纲；gd outline 3px 无直接换算式，待目测校准）。</summary>
         public const float TmpOutlineWidth = 0.2f;
 
+        /// <summary>禁用态整体透明度（像素件不烘禁用档，走 CanvasGroup）。</summary>
+        public const float DisabledAlpha = 0.55f;
+
         private SketchButtonKind _kind = SketchButtonKind.Dark;
         private bool _applied;
         private SketchButtonVariant _variant;
         private Image _bg;
-        private SketchBoil _boil;
         private TextMeshProUGUI _label;
-        private SketchWobbleGraphic _selfFill;
-        private SketchWobbleGraphic _selfOutline;
+        private CanvasGroup _group;
 
         /// <summary>变体档（默认 Dark —— gd Kind.NORMAL(0) → DARK 暗底默认档同义）。</summary>
         public SketchButtonKind Kind
@@ -48,12 +52,14 @@ namespace PirateCrew.UI.Stick
             set { _kind = value; ApplyVariant(); }
         }
 
-        /// <summary>底透明度实例覆盖（gd bg_alpha：&lt;0 = 跟随变体默认；0~1 覆盖）。</summary>
+        /// <summary>底透明度实例覆盖（gd bg_alpha：&lt;0 = 跟随变体默认；0~1 覆盖）。
+        /// 像素皮禁乘色，故它只作用于 <see cref="CanvasGroup"/> 的整体 alpha（连字一起），
+        /// 不改 Plate 贴图的颜色通道。</summary>
         public float BgAlpha = -1f;
 
         /// <summary>
-        /// 建一枚完整按钮（底 Image + SketchBoil 沸腾四态 + 本组件 + 居中文字 +
-        /// IconSquare 自绘双层底）。kind 缺省 Dark。
+        /// 建一枚完整按钮（像素 Plate 底 + SpriteSwap 三态 + 本组件 + 居中文字）。
+        /// kind 缺省 Dark。
         /// </summary>
         /// <param name="fontSize">文字字号；0 = 主题默认（gd 主题 Button 档 = FONT_HUD）。</param>
         public static SketchButton Create(Transform parent, string name, Vector2 anchor, Vector2 pivot,
@@ -64,21 +70,16 @@ namespace PirateCrew.UI.Stick
 
             var image = rect.gameObject.AddComponent<Image>();
             image.type = Image.Type.Sliced;
-            image.color = Color.white;      // 手绘四态靠贴图切换，乘色全白不染脏边框
+            image.color = Color.white;      // 像素件禁止乘色：色阶烘在贴图里，Image.color 恒白
             image.raycastTarget = true;     // 可点件：命中面 = 按钮本体
 
             var button = rect.gameObject.AddComponent<SketchButton>();
             button._bg = image;
             button.targetGraphic = image;
-            button.transition = Selectable.Transition.ColorTint;
+            button._group = rect.gameObject.AddComponent<CanvasGroup>();  // 禁用态整体调 alpha
+            // 状态走 SpriteSwap（贴图切换），ColorBlock 不参与染色（全白仅为占位）。
+            button.transition = Selectable.Transition.SpriteSwap;
             button.colors = WhiteStates();
-
-            button._boil = rect.gameObject.AddComponent<SketchBoil>();
-
-            // IconSquare 自绘底：Fill/Outline 两层异色叠置（SketchWobbleGraphic 官方 idiom），
-            // 默认隐藏，ApplyVariant 按变体开关
-            button._selfFill = AddSelfBg(rect, "SelfBgFill", SketchDrawMode.Fill, StickTokens.BTN_BG);
-            button._selfOutline = AddSelfBg(rect, "SelfBgOutline", SketchDrawMode.Outline, StickTokens.BORDER);
 
             button._label = AddLabel(rect, label, font, fontSize);
 
@@ -87,7 +88,7 @@ namespace PirateCrew.UI.Stick
         }
 
         /// <summary>
-        /// 变体查表应用（底/字色/描边/伪粗一次取齐，gd _apply_flats 同纪律）。
+        /// 变体查表应用（tone / 三态贴图 / 字色 / 描边 / 伪粗一次取齐，gd _apply_flats 同纪律）。
         /// kind 运行时可切（设置分类选中态），每次重挂。
         /// </summary>
         public void ApplyVariant()
@@ -96,112 +97,85 @@ namespace PirateCrew.UI.Stick
                 return;
             _applied = true;
 
-            bool selfDraw = string.IsNullOrEmpty(_variant.SlotBase); // gd 变体 self_draw 档
+            PixelTone tone = ToneOf(_kind);
+
             if (_bg != null)
             {
-                if (selfDraw)
-                {
-                    // 自绘档：贴图底与沸腾驱动下线（gd 置 StyleBoxEmpty），底走 wobble 双层
-                    _bg.sprite = null;
-                    if (_boil != null) _boil.enabled = false;
-                }
-                else
-                {
-                    string[] slots = _variant.SlotsNormalHoverPressedDisabled;
-                    _bg.sprite = SketchSkin.Frame(slots[0], 0);
-                    _bg.type = Image.Type.Sliced;
-                    float alpha = BgAlpha >= 0f ? BgAlpha : _variant.BgAlpha;
-                    Color c = Color.white;
-                    c.a = alpha;                    // gd bg_alpha &lt;1 时降低盒 modulate alpha 同义
-                    _bg.color = c;
-                    if (_boil != null)
-                    {
-                        _boil.enabled = true;
-                        _boil.Slot = slots[0];
-                        _boil.BindStates(slots);    // 四态槽（缺档回退在 SketchSkin.Frame 告警层）
-                    }
-                }
+                _bg.sprite = PixelSkin.Plate(tone, PixelState.Normal);
+                _bg.type = Image.Type.Sliced;
+                _bg.color = Color.white;    // 像素件禁止乘色
             }
-            if (_selfFill != null) _selfFill.gameObject.SetActive(selfDraw);
-            if (_selfOutline != null) _selfOutline.gameObject.SetActive(selfDraw);
+
+            // 三态 SpriteSwap：hover 上抬一档 / 按压高光阴影对调 / selected 同 hover
+            //（UGUI 无独立键盘 focus 视觉态，Selected 即键盘/代码选中，语义最接近 gd focus）。
+            SpriteState state = spriteState;
+            state.highlightedSprite = PixelSkin.Plate(tone, PixelState.Hovered);
+            state.pressedSprite = PixelSkin.Plate(tone, PixelState.Pressed);
+            state.selectedSprite = state.highlightedSprite;
+            state.disabledSprite = null;    // 禁用走 CanvasGroup alpha，不吃贴图
+            spriteState = state;
 
             if (_label != null)
             {
+                _label.color = PixelSkin.TextColorOn(tone);
+
                 // 伪粗随变体（主行动/强调笔画加重）：TMP 合成加粗近似 gd SketchFonts.bold
                 _label.fontStyle = _variant.FakeBold > 0.5f ? FontStyles.Bold : FontStyles.Normal;
                 Material mat = _label.fontMaterial; // 首次访问即实例化——绝不写共享材质
                 if (_variant.OutlinePx > 0f)
                 {
-                    // 暗底白字靠墨边时间戳式高对比（gd outline=3 档）
+                    // 暗底浅字靠墨边高对比（gd outline=3 档）
                     mat.EnableKeyword(ShaderUtilities.Keyword_Outline);
                     mat.SetColor(ShaderUtilities.ID_OutlineColor, _variant.OutlineColor);
                     mat.SetFloat(ShaderUtilities.ID_OutlineWidth, TmpOutlineWidth);
                 }
                 else
                 {
-                    // 亮底深墨字不加描边（笔画膨胀糊死，主菜单纸面按钮教训）
+                    // 亮底深墨字不加描边（笔画膨胀糊死）
                     mat.DisableKeyword(ShaderUtilities.Keyword_Outline);
                 }
                 if (_variant.FakeBold > 0.5f)
                     mat.SetFloat("_WeightBold", StickTokens.FontEmbolden); // 合成粗度对齐 gd 伪粗档
             }
-            // 立即按当前态刷一遍字色/自绘底色
+
+            // 立即按当前态刷一遍（贴图三态 / 禁用 alpha）
             DoStateTransition(currentSelectionState, true);
         }
 
         /// <summary>
-        /// 状态分发：五态字色（gd font/hover/pressed/focus/disabled 五色 →
-        /// Normal/Highlighted/Pressed/Selected/Disabled）+ IconSquare 自绘底四态色。
+        /// 状态分发：三态贴图由 <see cref="Selectable.Transition.SpriteSwap"/> 在 base 里切换；
+        /// 本覆盖只补"禁用态整体压 alpha"（像素件不烘禁用档）。
         /// </summary>
         protected override void DoStateTransition(SelectionState state, bool instant)
         {
             base.DoStateTransition(state, instant);
             if (!_applied)
                 return;
-            if (_label != null)
-                _label.color = TextColorOf(state);
-            if (_selfFill != null && _selfFill.isActiveAndEnabled)
+
+            if (_group != null)
             {
-                // gd SketchGearButton._draw 四态底/边色（token 与 gear 表硬编码同值）
-                switch (state)
-                {
-                    case SelectionState.Highlighted:
-                        _selfFill.color = StickTokens.BTN_BG_HOVER;     // (1,1,1,0.10)
-                        _selfOutline.color = StickTokens.BORDER_PANEL;  // (1,1,1,0.30)
-                        break;
-                    case SelectionState.Pressed:
-                        _selfFill.color = StickTokens.BTN_BG_PRESSED;   // (1,1,1,0.04)
-                        _selfOutline.color = Accent90;                  // ACCENT @ 0.9
-                        break;
-                    case SelectionState.Disabled:
-                        _selfFill.color = StickTokens.BTN_BG_DISABLED;  // (1,1,1,0.03)
-                        _selfOutline.color = Color.clear;               // 透明（不再描边）
-                        break;
-                    default:
-                        _selfFill.color = StickTokens.BTN_BG;           // (1,1,1,0.07)
-                        _selfOutline.color = StickTokens.BORDER;        // (1,1,1,0.16)
-                        break;
-                }
+                float baseAlpha = BgAlpha >= 0f ? Mathf.Clamp01(BgAlpha) : 1f;
+                _group.alpha = state == SelectionState.Disabled
+                    ? Mathf.Min(baseAlpha, DisabledAlpha)
+                    : baseAlpha;
             }
         }
 
-        private Color TextColorOf(SelectionState state)
+        /// <summary>变体档 → 像素 tone（槽位映射表：Dark/IconSquare→Dense、Accent→Warn、
+        /// Primary→Primary、Danger→Danger、Paper→Light）。</summary>
+        private static PixelTone ToneOf(SketchButtonKind kind)
         {
-            switch (state)
+            switch (kind)
             {
-                case SelectionState.Highlighted: return _variant.TextHover;
-                case SelectionState.Pressed: return _variant.TextPressed;
-                case SelectionState.Selected: return _variant.TextFocus;   // gd focus 态
-                case SelectionState.Disabled: return _variant.TextDisabled;
-                default: return _variant.TextNormal;
+                case SketchButtonKind.Primary: return PixelTone.Primary;
+                case SketchButtonKind.Accent: return PixelTone.Warn;
+                case SketchButtonKind.Danger: return PixelTone.Danger;
+                case SketchButtonKind.Paper: return PixelTone.Light;
+                default: return PixelTone.Dense;   // Dark / IconSquare：暗键帽
             }
         }
 
-        /// <summary>gd 压下态边 = ACCENT @ 0.9（SketchGearButton DRAW_PRESSED）。</summary>
-        private static Color Accent90 =>
-            new Color(StickTokens.ACCENT.r, StickTokens.ACCENT.g, StickTokens.ACCENT.b, 0.9f);
-
-        /// <summary>乘色全白：手绘语言的状态反馈靠贴图切换（SketchBoil 四态），不叠色。</summary>
+        /// <summary>乘色全白占位：像素皮的状态反馈靠贴图切换（SpriteSwap），不叠乘色。</summary>
         private static ColorBlock WhiteStates()
         {
             return new ColorBlock
@@ -214,24 +188,6 @@ namespace PirateCrew.UI.Stick
                 colorMultiplier = 1f,
                 fadeDuration = 0.1f,
             };
-        }
-
-        private static SketchWobbleGraphic AddSelfBg(RectTransform root, string partName,
-            SketchDrawMode mode, Color color)
-        {
-            var go = new GameObject(partName, typeof(RectTransform));
-            RectTransform rt = go.GetComponent<RectTransform>();
-            rt.SetParent(root, false);
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
-            var g = go.AddComponent<SketchWobbleGraphic>();
-            g.Mode = mode;
-            g.color = color;
-            g.raycastTarget = false;    // 纯视觉层，命中走根上的 Image
-            go.SetActive(false);
-            return g;
         }
 
         private static TextMeshProUGUI AddLabel(RectTransform root, string content,

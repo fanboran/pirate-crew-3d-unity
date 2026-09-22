@@ -297,21 +297,31 @@ namespace PirateCrew.UI
         }
 
         /// <summary>
-        /// 选项块选中态：选中 = 黄铜亮色底 + 深墨字，未选 = 原玻璃底 + 浅米字。
-        /// （玻璃纪律是"贴图别用 color 调皮肤"；这里是运行期的一次性状态高亮，乘色即可，
-        /// 且 chip 底色 white × 黄铜 = 状态色、深玻璃 × 黄铜仍可辨。）
+        /// 选项块选中态：像素皮不做乘色（乘色会把烘焙色阶乘脏）——选中/未选靠<b>换 sprite</b>：
+        /// 选中 = <see cref="PixelTone.Primary"/> 的悬停档 Plate、未选 = <see cref="PixelTone.Dense"/> 常态 Plate；
+        /// 字色同步取该 tone 上的可读档（<see cref="PixelSkin.TextColorOn"/>），
+        /// SpriteState 一起重挂，保证 hover/pressed 也落在同一 tone 上。
         /// </summary>
         static void SetChipSelected(Button chip, bool selected)
         {
             if (chip == null)
                 return;
 
+            PixelTone tone = selected ? PixelTone.Primary : PixelTone.Dense;
+
             if (chip.image != null)
-                chip.image.color = selected ? UiTheme.BrassLight : Color.white;
+                chip.image.sprite = PixelSkin.Plate(tone, selected ? PixelState.Hovered : PixelState.Normal);
+
+            // 悬停/按压贴图跟着选中 tone 重挂（否则 hover 会落回装配时的 Dense 档，与选中态撞皮）。
+            SpriteState states = chip.spriteState;
+            states.highlightedSprite = PixelSkin.Plate(tone, PixelState.Hovered);
+            states.pressedSprite = PixelSkin.Plate(tone, PixelState.Pressed);
+            states.selectedSprite = states.highlightedSprite;
+            chip.spriteState = states;
 
             TextMeshProUGUI label = chip.GetComponentInChildren<TextMeshProUGUI>(true);
             if (label != null)
-                label.color = selected ? UiTheme.Ink : UiTheme.TextLight;
+                label.color = PixelSkin.TextColorOn(tone);
         }
 
         // ------------------------------------------------------------------
