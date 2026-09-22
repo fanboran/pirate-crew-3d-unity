@@ -362,6 +362,8 @@ namespace PirateCrew.Battle
             }
             if (probe == null)
                 return;
+            if (_block == null)
+                _block = new MaterialPropertyBlock();   // 同 Apply：域重载后兜底
 
             probe.GetPropertyBlock(_block);
             if (Mathf.Approximately(_block.GetFloat(OutlineStateId), state))
@@ -394,6 +396,11 @@ namespace PirateCrew.Battle
 
         void Apply(int state)
         {
+            // 【域重载兜底】播放中改脚本触发重编译时，非序列化字段被清空且 Awake 不会再跑；
+            // _block 为 null 会让下面的 GetPropertyBlock 每帧抛 ArgumentNullException。
+            if (_block == null)
+                _block = new MaterialPropertyBlock();
+
             Color tint = _pirate.TeamIndex == 0 ? teamRedTint : teamBlueTint;
             bool flashActive = _appliedFlash > 0.001f;
 
@@ -474,7 +481,7 @@ namespace PirateCrew.Battle
             global::PirateCrew.Core.Log.Warn("[UnitOutlineBinder] " + name + " 有 " + badCount + "/"
                 + _outlineRenderers.Length + " 个部件的材质不含 _OutlineState 属性，"
                 + "描边状态不会被应用，首个：" + bad
-                + "。请把单位材质换成 PirateOutline shader（见 M2BattleSceneSetup.EnsureOutlineMaterial）。");
+                + "。请把单位材质换成 PirateOutline shader（见 BattleSceneSetup.EnsureOutlineMaterial）。");
         }
     }
 }

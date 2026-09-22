@@ -424,11 +424,11 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>
         /// 建**透明件叠加相机**（只有 <see cref="overlayRendererIndex"/> ≥ 0 时才建）。
         ///
-        /// 【为什么必须有这么一台】本路径的几何只有一份"不透明数据 + 全屏着色"，**没有混合**：
-        /// 半透明内容在它下面会整类消失（不报错，就是不画）。这台相机用**标准 URP 渲染器**
-        /// （队列过滤成"只画 Transparent"，见 `PixelartPathInstaller.EnsureOverlayRenderer`）、
-        /// 在像素化成图**之后**（`depth + 1`）把那些内容画上去，保住 FX / 危险虚线 / 接触阴影 /
-        /// 弹道预览这些"看不清就没法玩"的东西。
+    /// 【为什么必须有这么一台】本路径的几何只有一份"不透明数据 + 全屏着色"，**没有混合**：
+    /// 半透明内容在它下面会整类消失（不报错，就是不画）。这台相机用**标准 URP 渲染器**
+    /// 队列过滤成"只画 Transparent"，以**栈内 Overlay** 跟在主相机之后往同一目标上画
+    /// （见下方 renderType 注释：独立 Base 相机会整屏盖掉成图），保住 FX / 危险虚线 / 接触阴影 /
+    /// 弹道预览这些"看不清就没法玩"的东西。
         ///
         /// 【代价（已登记待办，别当成已解决）】它们的颗粒是全分辨率的（不参与像素化），
         /// 而且这台相机的深度缓冲是空的 ⇒ 遮挡关系不判定（崖后的爆炸会画在崖前）。
@@ -458,16 +458,28 @@ namespace PirateCrew.Rendering.Pixelart
             UniversalAdditionalCameraData data = _overlayCamera.GetUniversalAdditionalCameraData();
             if (data == null)
                 data = _overlayCamera.gameObject.AddComponent<UniversalAdditionalCameraData>();
-            data.renderType = CameraRenderType.Base;
+            // 【必须是栈内 Overlay，不能是第二台 Base】URP 里每台 Base 相机最后都会把自己的
+            // 中间目标**整屏 blit 到后备缓冲**——叠加相机一过，主相机刚 blit 上去的像素化成图
+            // 就被它盖掉，屏幕只剩"背景色 + 特效"（r13 编辑器首跑实测，result.png 是好的、
+            // Game 视图是纯色）。入栈后它往**同一目标**上接着画、不做最终 blit，成图才保得住。
+            data.renderType = CameraRenderType.Overlay;
             data.renderPostProcessing = false;
             data.renderShadows = false;                 // 阴影已由 Cast 相机那趟画过
             data.antialiasing = AntialiasingMode.None;
             data.volumeLayerMask = 0;
             data.requiresColorOption = CameraOverrideOption.Off;
             data.requiresDepthOption = CameraOverrideOption.Off;
+            // 队列过滤沿用渲染器 3 资产上的 m_OpaqueLayerMask=0 / m_TransparentLayerMask=~0
+            // （装配期 `PixelartPathInstaller.SetQueueFilter` 写入——URP 14 相机数据上没有这对掩码，
+            // 过滤只能落在渲染器上）。栈内与基相机跨渲染器在 URP 14 无强约束，实测为准。
             data.SetRenderer(overlayRendererIndex);
 
-            Debug.Log("[PixelartCameraRig] 透明件叠加相机已建（渲染器 " + overlayRendererIndex
+            // 入栈：跟在主相机（Base）之后往同一目标上画。
+            UniversalAdditionalCameraData mainData = _screenCamera.GetUniversalAdditionalCameraData();
+            if (mainData != null && !mainData.cameraStack.Contains(_overlayCamera))
+                mainData.cameraStack.Add(_overlayCamera);
+
+            Debug.Log("[PixelartCameraRig] 透明件叠加相机已建（栈内 Overlay，渲染器 " + overlayRendererIndex
                 + "，只画 Transparent 队列）—— FX / 危险虚线 / 接触阴影 / 弹道预览走这一档。");
         }
 
