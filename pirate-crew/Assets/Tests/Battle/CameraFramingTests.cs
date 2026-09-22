@@ -6,12 +6,13 @@ namespace PirateCrew.Battle.Tests
     /// <summary>
     /// <see cref="CameraFraming"/> 纯数学测试（无头验证台可跑，不实例化 MonoBehaviour）。
     ///
-    /// 【等价性基准】断言值来自 2026-09-23 的实机探针：旧 Cinemachine 链
-    /// （Transposer 阻尼 0 + Aim 档为空）在偏移旋转 60° 前后，
-    /// 相机位置/朝向的实测值与本项目纯函数逐位一致——这是"去 Cinemachine 化不改变实机行为"的数学锚点：
+    /// 【等价性基准】机位断言值来自 2026-09-23 的实机探针：旧 Cinemachine 链
+    /// （Transposer 阻尼 0 + Aim 档为空）的 FollowOffset 与本项目纯函数逐位一致——
     ///   · yaw 0 偏移 = (18.3712, 15, 18.3712)（= 实机 transposer.m_FollowOffset）；
-    ///   · 朝向 euler = (30, 225, 0)（= 实机主相机 rotation，且**不随偏移旋转变化**——环绕不重瞄）；
     ///   · yaw 60° 偏移 = (25.096, 15, -6.724)（= 实机探针 posB − target）。
+    /// 【朝向规格已改（2026-09-23 裁决）】旧实机行为「朝向恒烘焙机位（环绕不重瞄）」被创始人
+    /// 裁决推翻——环绕必须重瞄（画面绕焦点转动），朝向断言按新规格写（见 Rotation_LooksAtFocus）。
+    /// 教训留档：等价性锚点只能锚"已裁决为正确"的行为；本文件曾把错误行为断言成测试。
     /// </summary>
     [TestFixture]
     public class CameraFramingTests
@@ -51,30 +52,35 @@ namespace PirateCrew.Battle.Tests
         }
 
         // ------------------------------------------------------------------
-        // 朝向（实机等价关键：环绕不重瞄）
+        // 朝向（行为契约：环绕重瞄——右键环绕 = 画面绕焦点转动）
         // ------------------------------------------------------------------
 
         [Test]
-        public void Rotation_IsBakedView_AndIgnoresYaw()
+        public void Rotation_LooksAtFocus_AndFollowsYaw()
         {
-            // 【环绕不重瞄】实机探针：偏移旋转 60° 后朝向逐位不变（euler 30/225/0）。
-            // 断言走 Rotate（纯托管；eulerAngles/Quaternion.Equals 是 icall，无头环境跑不了）：
-            // 视线方向必须是"从机位指向焦点的方向"= -OffsetDirectionForPitch(30°)。
-            Quaternion noRoll = CameraFraming.ComputeRotation(0f);
-            Vector3 viewDir = CameraFraming.Rotate(noRoll, Vector3.forward);
-            Vector3 expectedView = -CameraFraming.OffsetDirectionForPitch(CameraFraming.BasePitchDegrees);
-            Assert.AreEqual(expectedView.x, viewDir.x, 1e-4f, "视线 X（俯角 30° + 方位 225°，实机实测值）");
-            Assert.AreEqual(expectedView.y, viewDir.y, 1e-4f, "视线 Y（俯角 30°，实机实测值）");
-            Assert.AreEqual(expectedView.z, viewDir.z, 1e-4f, "视线 Z（方位 45° 基准，实机实测值）");
-            Assert.AreEqual(1f, viewDir.magnitude, 1e-4f, "视线方向应为单位向量");
+            // 【行为契约 docs/技术/相机行为契约.md】右键环绕 = 画面绕焦点转动：
+            // 无论 yaw 多少，视线方向必须 = 从机位指向焦点的方向（重瞄）。
+            // 旧断言"朝向恒烘焙视线（不重瞄）"是错误规格的可执行形式——把平移拖拽固化成了测试，
+            // 连"防顺手修正"的反向断言都有；裁决后整段改写（教训见交接档 §七）。
+            for (int yaw = 0; yaw <= 60; yaw += 30)
+            {
+                Vector3 forwardToFocus = (-CameraFraming.ComputeFocusOffset(
+                    yaw, CameraFraming.BasePitchDegrees, CameraFraming.BaseDistance)).normalized;
+                Quaternion rotation = CameraFraming.ComputeRotationLooking(forwardToFocus, 0f);
+                Vector3 viewDir = CameraFraming.Rotate(rotation, Vector3.forward);
+                Assert.AreEqual(0f, Vector3.Angle(viewDir, forwardToFocus), 1e-3f,
+                    "yaw " + yaw + "°：视线必须正对焦点（环绕重瞄）");
+            }
 
-            // 若有人"顺手修正"成重瞄（朝向跟随偏移方向），会与实机行为分叉——这条守住等价性：
-            // yaw 60° 的"重瞄视线"与烘焙视线相差约 60°，而本函数的视线恒定不变。
-            Vector3 yawedOffset = CameraFraming.ComputeFocusOffset(60f, CameraFraming.BasePitchDegrees, CameraFraming.BaseDistance);
-            Vector3 reAimedView = -yawedOffset.normalized;
-            Assert.Greater(Vector3.Angle(viewDir, reAimedView), 30f,
-                "重瞄视线与烘焙视线应相差巨大（本函数保持不重瞄，实机等价）");
-            Assert.AreEqual(0f, Vector3.Angle(viewDir, expectedView), 1e-3f, "本函数视线 = 烘焙视线（不随 yaw 变化）");
+            // 防"退回旧语义"：yaw 0 → 60° 的视线必须大幅转动（旧实现的视线恒定不变）。
+            Vector3 viewAt0 = CameraFraming.Rotate(CameraFraming.ComputeRotationLooking(
+                (-CameraFraming.ComputeFocusOffset(0f, CameraFraming.BasePitchDegrees, CameraFraming.BaseDistance)).normalized, 0f),
+                Vector3.forward);
+            Vector3 viewAt60 = CameraFraming.Rotate(CameraFraming.ComputeRotationLooking(
+                (-CameraFraming.ComputeFocusOffset(60f, CameraFraming.BasePitchDegrees, CameraFraming.BaseDistance)).normalized, 0f),
+                Vector3.forward);
+            Assert.Greater(Vector3.Angle(viewAt0, viewAt60), 30f,
+                "yaw 0 → 60° 视线应大幅转动；夹角过小说明退回了「环绕不重瞄」旧语义");
         }
 
         [Test]
@@ -82,8 +88,10 @@ namespace PirateCrew.Battle.Tests
         {
             // 滚转 = 绕相机本地 forward（与原 LensSettings.Dutch 的应用方式一致）。
             // 断言用 Rotate + 向量夹角（纯托管）：滚转 10° 后，相机 up 绕视线轴恰好转 10°。
-            Quaternion noRoll = CameraFraming.ComputeRotation(0f);
-            Quaternion rolled = CameraFraming.ComputeRotation(10f);
+            Vector3 forwardToFocus = (-CameraFraming.ComputeFocusOffset(
+                0f, CameraFraming.BasePitchDegrees, CameraFraming.BaseDistance)).normalized;
+            Quaternion noRoll = CameraFraming.ComputeRotationLooking(forwardToFocus, 0f);
+            Quaternion rolled = CameraFraming.ComputeRotationLooking(forwardToFocus, 10f);
 
             Vector3 viewAxis = CameraFraming.Rotate(noRoll, Vector3.forward);
             Vector3 upBefore = CameraFraming.Rotate(noRoll, Vector3.up);
