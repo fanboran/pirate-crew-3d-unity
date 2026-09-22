@@ -69,6 +69,11 @@ namespace PirateCrew.UI
             viewport.offsetMin = new Vector2(0f, 0f);
             viewport.offsetMax = new Vector2(-PixelSkin.Unit * 5f, 0f);   // 右侧留出滚动条（含边距）
             viewport.gameObject.AddComponent<RectMask2D>();
+            // 视口要有一块**可命中**的图形，滚轮/拖拽事件才进得了 ScrollRect
+            //（第一版全页没有 raycastTarget，滚轮滚不动——创始人 2026-09-23 走查）。
+            var viewportHit = viewport.gameObject.AddComponent<Image>();
+            viewportHit.color = PixelSkin.DarkOf(PixelTone.Frame);
+            viewportHit.raycastTarget = true;
 
             RectTransform content = UiKit.CreateRect("Content", viewport);
             content.anchorMin = new Vector2(0f, 1f);
@@ -122,15 +127,16 @@ namespace PirateCrew.UI
             return scrollbar;
         }
 
-        /// <summary>返回总览（右上角小钮，对齐 game-2 组件展示的版式）。</summary>
+        /// <summary>返回主菜单（右上角小钮）：件 144×72 = 48×24 艺术像素（令牌按钮），
+        /// 字号 36 = 12 艺术像素。第一版把按钮画成了 156×36（一半高）字号却 36——
+        /// 文字顶满按钮还溢出（创始人 2026-09-23 走查"返回总览比窗口还大"）。</summary>
         void BuildBackButton(Transform canvas)
         {
-            // 尺寸取 3 的整数倍（对齐像素栅格）：156×36 = 52×12 艺术像素。
             SketchButton back = SketchButton.Create(canvas, "BackToMenu",
-                new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f),
-                new Vector2(156f, 36f),
+                new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-72f, -72f),
+                new Vector2(144f, 72f),
                 PixelShowcasePage.PixelFont(), SketchButtonKind.Dark,
-                "返回总览", 36);   // 36 = 12 艺术像素（像素字体只认 12 的整数倍）
+                "返回主菜单", 36);
             back.onClick.AddListener(GoBack);
         }
 
