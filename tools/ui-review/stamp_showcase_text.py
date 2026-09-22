@@ -6,7 +6,7 @@
 但带不了字体光栅化。文字要显示**游戏里真正会用的中文字体**（缝合像素 Fusion Pixel 12px，
 OFL-1.1），所以拆成两步：
   ① 烘焙：出件 + 文字清单 `export/ui-pixel-4a/showcase-labels.json`（文本/左上锚/字号/颜色语义）；
-  ② 本脚本：按清单用真字体盖章，**原地**写回 `showcase-1x.png`（1× = 实际屏幕像素）。
+  ② 本脚本：按清单用真字体盖章，**原地**写回 `showcase.png`（输出即实际屏幕像素，1 艺术像素 = 3 屏幕像素）。
 
 【字号口径】清单里的 size 是**艺术像素**；本脚本按 3× 渲染（`size * 3` 屏幕像素），
 与 3× 口径一致（一个艺术像素 = 3 屏幕像素）。像素字体取 12 的整数倍才不糊。
@@ -24,9 +24,9 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # 需要盖章的（图, 文字清单）对：烘焙产出什么就盖什么
 SHEETS = [
-    (os.path.join(ROOT, "export", "ui-pixel-4a", "showcase-1x.png"),
+    (os.path.join(ROOT, "export", "ui-pixel-4a", "showcase.png"),
      os.path.join(ROOT, "export", "ui-pixel-4a", "showcase-labels.json")),
-    (os.path.join(ROOT, "export", "ui-pixel-4a", "components-1x.png"),
+    (os.path.join(ROOT, "export", "ui-pixel-4a", "components.png"),
      os.path.join(ROOT, "export", "ui-pixel-4a", "components-labels.json")),
 ]
 PALETTE = os.path.join(ROOT, "pirate-crew", "Assets", "Data", "Palette", "pirate_palette.json")

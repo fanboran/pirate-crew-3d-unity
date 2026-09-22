@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -26,8 +26,8 @@ namespace PirateCrew.EditorTools
     /// [Beveled Pixel 九宫格规范](../../../docs/技术/资产管线/BeveledPixel九宫格规范.md) §一 的逐像素竖切表，
     /// 那两张表是对创始人指定的参照截图取竖切量出来的。
     /// **参照里有互不相同的两套语法，别互相推广**（本类第一版的教训）：
-    ///   · **条槽语法**（金框血条）：实测自 `ref-bars-life-mana.png` —— 外环/斜面/内暗线/槽底 四段，
-    ///     强对比的金色装饰框，**只用在条槽（Track）上**；
+    ///   · **条槽语法**（金框血条）：实测自 `ref-bars-life-mana.png` —— 描边/外环/斜面/内暗线/槽底 五段，
+    ///     强对比的装饰框，**只用在条槽（Track）上**；
     ///   · **面板/按钮语法**（工具对话框）：实测自 `ref-pixel-tool-dialog.png` ——
     ///     **近黑描边 + 受光侧一道唇边 + 平脸**，低对比、单描边。把金框语法推广到面板上
     ///     会读成"双层相框"（创始人一眼指出"和我给你的界面不一样"）。
@@ -37,11 +37,12 @@ namespace PirateCrew.EditorTools
     ///
     /// 【一、两套边带语法（单位 u = 3px，从外缘向内）】
     /// <code>
-    ///   条槽 Track（金框血条语法，参照 bars）
-    ///     ① 外环    S2（受光侧）/ S1（背光侧）   u
-    ///     ② 斜面    S4 / S3                      u
-    ///     ③ 内暗线  S2 / S1（与外环同色，规则 1）u
-    ///     ④ 槽底    Floor                        剩余（九宫格拉伸区）
+    ///   条槽 Track（条槽语法，参照 bars）
+    ///     ① 描边    INK（近黑，四周同色）        u
+    ///     ② 外环    S2（受光侧）/ S1（背光侧）   u
+    ///     ③ 斜面    S4 / S3                      u
+    ///     ④ 内暗线  S2 / S1（与外环同色，规则 1）u
+    ///     ⑤ 槽底    Floor                        剩余（九宫格拉伸区）
     ///
     ///   面板/按钮 Plate（工具对话框语法，参照 tool-dialog）
     ///     ① 描边    INK（近黑，四周同色）        u
@@ -49,6 +50,11 @@ namespace PirateCrew.EditorTools
     ///     ③ 脸      S3（平涂）                   剩余（九宫格拉伸区）
     /// </code>
     /// 由参照表直接读出的规则，别改：
+    ///   0. **全部件的**最外 1u 都是近黑描边（`INK`）——**这是"全家一张皮"的签名**。
+    ///      条槽最初没有这条（外环直接顶到最外缘），于是同一屏里条槽读成"另一种画风"：
+    ///      面板近黑收边、条槽彩色收边（创始人 2026-09-22 走查："凹槽怎么画风和别的不一样"）。
+    ///      参照条自己最外圈也是深近黑（`ref-bars-life-mana.png`），加这道反而是**贴回实测**。
+    ///      受光侧的"亮"因此由**填充条自带的上亮沿**承担（`CreateFillTexture`），不靠槽的斜面。
     ///   1. **条槽的"内暗线"与同侧外环同色**——实测"外环 <c>#54481E</c> / 内暗线 <c>#54481E</c>"。
     ///      这条只对 **Track** 成立；对话框的面板/按钮没有内暗线（加了就是双层相框）。
     ///   2. **光永远来自左上**：上=左、下=右，受光侧才亮。
@@ -60,8 +66,9 @@ namespace PirateCrew.EditorTools
     ///
     /// 【二、三种内部（Piece）】
     ///   · <see cref="Piece.Plate"/> **凸起块**：对话框语法，内部 = S3 平涂。面板/按钮/列表行/标题条。
-    ///   · <see cref="Piece.Track"/> **凹槽**：金框语法，内部 = <c>Floor</c>（比最暗档再压一档）——
-    ///     条状件（血条/施法条/进度条）的**空槽底**，填充件画在它上面。
+    ///   · <see cref="Piece.Track"/> **凹槽**：条槽语法，内部 = <c>Floor</c>（比最暗档再压一档）——
+    ///     条状件（血条/施法条/进度条）的**空槽底**，填充件画在它上面（边距 6 艺术像素，
+    ///     于是条的实际外观 = 近黑描边 + 外环 + 一段槽底 + 带亮沿的填充）。
     ///     [已知偏差] 实测槽底贴着一道 u 宽的次生亮带；本实现**有意压平成单色**（满格时被填充盖住），
     ///     登记为复核项。
     ///   · <see cref="Piece.Tab"/> **页签**：对话框语法 + 底边无带（border 下=0），与宿主面板贴合。
@@ -131,7 +138,7 @@ namespace PirateCrew.EditorTools
         /// <summary>Plate / Track 贴图边长（px）。只影响"最小可渲染尺寸"，不影响拉伸后的外观。</summary>
         public const int PlateSize = 36;
 
-        /// <summary>Plate / Track 的九宫格切片边框（px）= 3 层带（u×3）+ u 的内容余量。</summary>
+        /// <summary>Plate / Track 的九宫格切片边框（px）= 4 层带（u×4）——最外是描边，条槽的第 5 段（槽底）落在拉伸区。</summary>
         public const int PlateBorder = 4 * Unit;
 
         /// <summary>低于这个尺寸装配就不能用九宫格（角会切进内容区）。装配侧应断言。</summary>
@@ -217,10 +224,20 @@ namespace PirateCrew.EditorTools
         public static readonly Vector2 ShadowOffset = PirateCrew.UI.PixelSkin.ShadowOffset;
 
         /// <summary>
-        /// 美术稿（showcase）评审图路径：**全屏 640×360 艺术像素**（3× 口径 = 1920×1080 屏幕），
-        /// 1× 输出 = 实际屏幕像素的整屏外观。落 export/ 暂存目录，评审后按需入 docs/images。
+        /// 美术稿（showcase）评审图路径：**全屏 640×360 艺术像素**（×3 口径 = 1920×1080 屏幕），
+        /// 输出即实际屏幕像素的整屏外观（1 艺术像素 = 3 屏幕像素，不再另放大）。
+        /// 落 export/ 暂存目录，评审后按需入 docs/images。
+        /// 【命名】不带"1x/2x"后缀——那是旧口径（1× = 艺术像素 1:1）留下的歧义名，
+        /// 创始人 2026-09-22 核图时按名字读成"这图才 1 倍大"。尺度一律写在图上与文档里。
         /// </summary>
-        const string ShowcaseRelativePath = "export/ui-pixel-4a/showcase-1x.png";
+        const string ShowcaseRelativePath = "export/ui-pixel-4a/showcase.png";
+
+        /// <summary>美术稿的文字清单（python 后处理按它盖中文字；见 BuildShowcaseSheet）。</summary>
+        const string ShowcaseLabelsPath = "export/ui-pixel-4a/showcase-labels.json";
+
+        /// <summary>组件总表及其文字清单（同上，同尺度输出）。</summary>
+        const string ComponentsRelativePath = "export/ui-pixel-4a/components.png";
+        const string ComponentsLabelsPath = "export/ui-pixel-4a/components-labels.json";
 
         /// <summary>运行时图集资产路径（Resources 内；BuildAll 末尾生成，运行时 PixelSkin 经它取图）。</summary>
         public const string AtlasAssetPath = "Assets/Resources/UI/PixelSkin.asset";
@@ -623,13 +640,16 @@ namespace PirateCrew.EditorTools
                     Color32 c;
                     if (track)
                     {
-                        // 条槽语法（金框血条语法，实测自参照 bars）：外环 / 斜面 / 内暗线 / 槽底 四段。
-                        if (layer >= 3)
-                            c = body;
-                        else if (layer == 1)
+                        // 条槽语法（金框血条语法，实测自参照 bars）：描边 / 外环 / 斜面 / 内暗线 / 槽底 五段。
+                        // 最外 1u 与面板族同一条近黑描边（规则 0）——条槽因此在同一屏里跟面板是一张皮。
+                        if (layer == 0)
+                            c = Slot("INK");
+                        else if (layer == 1 || layer == 3)
+                            c = isLit ? top.Ring : bottom.Ring;   // 外环与内暗线同色（规则 1）
+                        else if (layer == 2)
                             c = isLit ? top.Bevel : bottom.Bevel;
                         else
-                            c = isLit ? top.Ring : bottom.Ring;   // 外环与内暗线同色（规则 1）
+                            c = body;
                     }
                     else
                     {
@@ -2179,11 +2199,15 @@ namespace PirateCrew.EditorTools
             UnityEngine.Object.DestroyImmediate(tex);
         }
 
-        /// <summary>填充画在凹槽的**内容区**里：3 层带 = 3u 的边距，宽度按比例。</summary>
+        /// <summary>
+        /// 填充画在凹槽里：边距 = **6 艺术像素**（= 令牌表里那条"框"——4 层带 + 2 艺术像素槽底余量），
+        /// 槽高 24 时正好 6 框 + 12 填 + 6 框（与参照血条同构，见 <see cref="BuildShowcaseSheet"/> 令牌表）。
+        /// 槽矮于 12 艺术像素时填充为负、<see cref="DrawFill"/> 直接跳过（不画反了的条）。
+        /// </summary>
         static void DrawTrackFill(Color32[] canvas, int canvasW, Tone tone, FillKind kind,
             int ox, int oy, int w, int h, float ratio)
         {
-            int inset = 3 * Unit;
+            int inset = 6 * Unit;
             int innerW = w - inset * 2;
             DrawFill(canvas, canvasW, kind, ox + inset, oy + inset,
                 Mathf.RoundToInt(innerW * Mathf.Clamp01(ratio)), h - inset * 2);
@@ -2388,7 +2412,7 @@ namespace PirateCrew.EditorTools
 
             // 1×：1080p 下 1:1 = 实际屏幕像素的整屏外观（验收主图）
             string sheet = WriteZoomedSheet(px, W, H, ShowcaseRelativePath, 1);
-            WriteLabels("export/ui-pixel-4a/showcase-labels.json", labels);
+            WriteLabels(ShowcaseLabelsPath, labels);
             return sheet;
         }
 
@@ -2413,111 +2437,178 @@ namespace PirateCrew.EditorTools
         // ==================================================================
 
         /// <summary>
-        /// **组件总表**：把整套皮的分区上齐——面板族 7 tone × 三态、凹槽 7 tone、
-        /// 填充 5 色、语义件 7 件、页签 7 tone、三态按钮组合。件按**令牌表尺寸**画
-        /// （见 <see cref="BuildShowcaseSheet"/> 注释里的比例系统），标注用真字体后处理盖。
-        /// 画布 640×760 艺术像素（1× 输出 = 1920×2280 屏幕像素）。同样只出构图 + 文字清单。
+        /// **组件总表**：把整套皮按"表"排上——面板族 7 tone × 三态、凹槽（按真实血条用法）、
+        /// 填充 5 色、语义件 5 件（环/焦点框/位点/分隔线/投影）、页签贴宿主、三态按钮组合。
+        /// 件按**令牌表尺寸**画（见 <see cref="BuildShowcaseSheet"/> 注释里的比例系统），标注用真字体后处理盖。
+        ///
+        /// 【排法】画布 640 艺术像素宽（= 1 屏宽 = 1920 屏幕像素 @3×）、**一件一行**：
+        /// 左列写名字、右边是件，名字与它那一行**垂直居中**。第一版把名字摆在行的上边缘、
+        /// 各段行距又是手算的，整张表读起来"元素到处飘"、末段还和页签叠在一起（创始人 2026-09-22 走查）。
+        /// 现在所有行高与间隙都从**同一张令牌表**推（行高 = 件高，行间隙 14/28），布局走一条
+        /// 自顶向下的游标，画布高度**按游标实算后裁**（<c>planHeight</c> 是上限，超了直接抛）。
+        /// 同样只出构图 + 文字清单，中文由 <c>tools/ui-review/stamp_showcase_text.py</c> 盖。
         /// </summary>
         public static string BuildComponentSheet()
         {
             int u = Unit;
-            int W = 640 * u, H = 1240 * u;      // 单列全表：高一点，宁可长不挤
-            var px = new Color32[W * H];
+            int W = 640 * u;
+            const int planHeight = 1400;        // 艺术像素上限；画完按游标裁掉下方空白
+            var px = new Color32[W * planHeight * u];
             Color32 backdrop = Mix(Slot("SEA_DEEP"), Slot("INK"), 0.45f);
             for (int i = 0; i < px.Length; i++)
                 px[i] = backdrop;
 
             var labels = new List<string>();
+            int cursor = 0;                     // 布局游标：**自上而下**的艺术像素
+
+            // 画布是自下而上的（九宫格 oy 从底算）——布局只写"距顶多少"，换算集中在这里
+            int Y(int top, int h) { return (planHeight - top - h) * u; }
+            void Lay(Tone tone, Piece piece, State state, int x, int top, int w, int h)
+            {
+                DrawOne(px, W, tone, piece, state, x * u, Y(top, h), w * u, h * u);
+            }
+            void LayFill(FillKind kind, int x, int top, int w, int h)
+            {
+                DrawFill(px, W, kind, x * u, Y(top, h), w * u, h * u);
+            }
+            void LaySized(string name, int x, int top, int w, int h)
+            {
+                DrawSized(px, W, name, x * u, Y(top, h), w * u, h * u);
+            }
+            // 行名：与行**垂直居中**（12 = 正文字号，也是行名的行高）
+            void RowName(string text, int top, int h)
+            {
+                labels.Add(Label(text, 24, top + (h - 12) / 2, 12, "white"));
+            }
+            // 段标题：标题行 + 一道分隔线，之后游标落到底下
+            void Section(string text)
+            {
+                labels.Add(Label(text, 24, cursor, 12, "white"));
+                LaySized("Pixel_Sep_H", 24, cursor + 18, 592, 2);
+                cursor += 26;
+            }
+
+            // ---- 标题带 ----
+            Lay(Tone.Dense, Piece.Plate, State.Normal, 24, 24, 592, 60);
+            labels.Add(Label("Beveled Pixel 组件总表", 40, 36, 24, "white"));
+            labels.Add(Label("画布 640 艺术像素宽 = 1920 屏幕像素；1 艺术像素 = 3 屏幕像素（与 3D 渲染同一颗粒度）",
+                40, 64, 12, "dim"));
+            cursor = 116;
+
             Tone[] tones = (Tone[])Enum.GetValues(typeof(Tone));
             string[] toneNames = { "面板", "内容", "羊皮纸", "海图", "黄铜", "危险", "警告" };
 
-            // ---- 标题带 ----
-            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 24 * u, (H / u - 60) * u, 592 * u, 44 * u);
-            labels.Add(Label("Beveled Pixel 组件总表", 36, 28, 24, "white"));
-            labels.Add(Label("正文 12 / 标题 24 / 条高 24 / 按钮高 36（艺术像素，×3 = 屏幕像素）",
-                36, 62, 12, "dim"));
-
-            // ---- ① 面板族：7 tone × 三态（常态 / 悬停 / 按压），件 132×30 ----
-            int rowTop = H / u - 100;
-            labels.Add(Label("面板 Plate（常态 / 悬停 / 按压）", 24, H / u - rowTop - 4, 12, "white"));
-            rowTop -= 40;
+            // ---- ① 面板族：7 tone × 三态（常态 / 悬停 / 按压）----
+            Section("面板 Plate —— 7 个 tone × 三态；件 160×30（令牌：条高 24 / 按钮高 36 / 内边距 12）");
+            string[] stateNames = { "常态", "悬停", "按压" };
+            const int colW = 160, colGap = 12;
+            for (int s = 0; s < 3; s++)
+                labels.Add(Label(stateNames[s], 112 + s * (colW + colGap) + colW / 2 - 12, cursor, 12, "dim"));
+            cursor += 20;
             for (int i = 0; i < tones.Length; i++)
             {
-                int cy = rowTop - i * 46;
-                labels.Add(Label(toneNames[i], 24, H / u - cy - 16, 12, "white"));
-                DrawOne(px, W, tones[i], Piece.Plate, State.Normal, 96 * u, (cy - 30) * u, 132 * u, 30 * u);
-                DrawOne(px, W, tones[i], Piece.Plate, State.Hovered, 236 * u, (cy - 30) * u, 132 * u, 30 * u);
-                DrawOne(px, W, tones[i], Piece.Plate, State.Pressed, 376 * u, (cy - 30) * u, 132 * u, 30 * u);
+                int top = cursor + i * 44;
+                RowName(toneNames[i], top, 30);
+                Lay(tones[i], Piece.Plate, State.Normal, 112, top, colW, 30);
+                Lay(tones[i], Piece.Plate, State.Hovered, 112 + colW + colGap, top, colW, 30);
+                Lay(tones[i], Piece.Plate, State.Pressed, 112 + 2 * (colW + colGap), top, colW, 30);
             }
-            rowTop -= 7 * 46 + 16;
+            cursor += 6 * 44 + 30 + 28;
 
-            // ---- ② 凹槽 Track：7 tone（各带 60% 填充）----
-            labels.Add(Label("凹槽 Track（槽底 + 60% 填充）", 24, H / u - rowTop - 4, 12, "white"));
-            rowTop -= 40;
-            for (int i = 0; i < tones.Length; i++)
+            // ---- ② 凹槽 Track：按**真实用法**排（槽 + 一段填充），不排 7 色 ----
+            // 凹槽的色是"槽框"的色，7 个 tone 各来一条既无用法也无对比（创始人走过这条）；
+            // 这里换成血条 / 施法条 / 敌条的真身：槽 312×24（令牌条高）+ 填充（边距 6）。
+            Section("凹槽 Track —— 槽 312×24（令牌条高）+ 填充（边距 6；没填满的一段露出槽底）");
+            var bars = new (string label, Tone tone, FillKind fill, float ratio)[]
             {
-                int cy = rowTop - i * 46;
-                labels.Add(Label(toneNames[i], 24, H / u - cy - 16, 12, "white"));
-                DrawOne(px, W, tones[i], Piece.Track, State.Normal, 96 * u, (cy - 30) * u, 132 * u, 30 * u);
-                DrawFill(px, W, FillOfTone(tones[i]), 102 * u, (cy - 24) * u, 120 * u, 18 * u);
+                ("生命", Tone.Frame, FillKind.Red, 0.62f),
+                ("魔法", Tone.Frame, FillKind.Blue, 0.35f),
+                ("敌船", Tone.Danger, FillKind.Red, 0.24f),
+            };
+            for (int i = 0; i < bars.Length; i++)
+            {
+                int top = cursor + i * 38;
+                RowName(bars[i].label, top, 24);
+                Lay(bars[i].tone, Piece.Track, State.Normal, 112, top, 312, 24);
+                LayFill(bars[i].fill, 118, top + 6, Mathf.RoundToInt(300 * bars[i].ratio), 12);
             }
-            rowTop -= 7 * 46 + 16;
+            cursor += 2 * 38 + 24 + 14;
+            // 大凹槽：槽高一大才看得见完整的四层带与槽底（空槽不填）
+            RowName("内嵌槽（海图）", cursor, 48);
+            Lay(Tone.Sea, Piece.Track, State.Normal, 112, cursor, 120, 48);
+            cursor += 48 + 28;
 
-            // ---- ③ 填充 5 色 ----
-            labels.Add(Label("填充 Fill", 24, H / u - rowTop - 4, 12, "white"));
-            rowTop -= 24;
+            // ---- ③ 填充 5 色：条高 12 = 令牌里"填"的那一段 ----
+            Section("填充 Fill —— 5 色；条高 12（令牌：条 24 = 6 框 + 12 填 + 6 框）");
             FillKind[] fills = (FillKind[])Enum.GetValues(typeof(FillKind));
-            string[] fillNames = { "红 生命", "蓝 魔法", "暖橙 冷却", "海蓝 航行", "中性 进度" };
+            string[] fillNames = { "红（生命）", "蓝（魔法）", "暖橙（冷却）", "海蓝（航行）", "中性（进度）" };
             for (int i = 0; i < fills.Length; i++)
             {
-                int cxx = 24 + i * 120;
-                labels.Add(Label(fillNames[i], cxx, H / u - rowTop - 6, 12, "white"));
-                DrawFill(px, W, fills[i], cxx * u, (rowTop - 34) * u, 108 * u, 24 * u);
+                int x = 112 + i * 104;
+                labels.Add(Label(fillNames[i], x, cursor, 12, "white"));
+                LayFill(fills[i], x, cursor + 18, 88, 12);
             }
-            rowTop -= 46 + 16;
+            cursor += 18 + 12 + 28;
 
-            // ---- ④ 语义件（原生尺寸）----
-            labels.Add(Label("语义件（选人圈 / 焦点框 / 位点 / 分隔线 / 投影）", 24, H / u - rowTop - 4, 12, "white"));
-            rowTop -= 24;
-            int sy = rowTop - 40;
-            DrawSized(px, W, "Pixel_Ring", 24 * u, (sy - 24) * u, 24 * u, 24 * u);
-            labels.Add(Label("选人圈", 56, H / u - sy + 40, 12, "dim"));
-            DrawSized(px, W, "Pixel_Focus", 116 * u, (sy - 24) * u, 24 * u, 24 * u);
-            labels.Add(Label("焦点框", 148, H / u - sy + 40, 12, "dim"));
-            DrawSized(px, W, "Pixel_Pip_On", 208 * u, (sy - 14) * u, 12 * u, 12 * u);
-            DrawSized(px, W, "Pixel_Pip_Off", 228 * u, (sy - 14) * u, 12 * u, 12 * u);
-            labels.Add(Label("位点 亮/暗", 248, H / u - sy + 40, 12, "dim"));
-            DrawSized(px, W, "Pixel_Sep_H", 336 * u, (sy - 8) * u, 96 * u, 4 * u);
-            labels.Add(Label("分隔线", 440, H / u - sy + 40, 12, "dim"));
-            DrawShadowAt(px, W, 500 * u, (sy - 30) * u, 96 * u, 30 * u);
-            DrawOne(px, W, Tone.Frame, Piece.Plate, State.Normal, 500 * u, (sy - 30) * u, 96 * u, 30 * u);
-            labels.Add(Label("投影", 500, H / u - sy + 40, 12, "dim"));
-            rowTop -= 40 + 16;
+            // ---- ④ 语义件：环 / 焦点框 / 位点 / 分隔线 / 投影（各按原生尺寸）----
+            Section("语义件 —— 选人圈 / 焦点框 / 位点 / 分隔线 / 投影（各按原生尺寸）");
+            int semTop = cursor;
+            LaySized("Pixel_Ring", 112, semTop + 8, 24, 24);        // 方环：环厚固定 2，框随件放大
+            LaySized("Pixel_Focus", 160, semTop + 4, 32, 32);       // 键盘焦点：海蓝方环
+            LaySized("Pixel_Pip_On", 208, semTop + 14, 12, 12);     // 位点：亮 / 暗各 12
+            LaySized("Pixel_Pip_Off", 228, semTop + 14, 12, 12);
+            LaySized("Pixel_Sep_H", 288, semTop + 18, 128, 4);      // 蚀刻分隔线
+            DrawShadowAt(px, W, 432 * u, Y(semTop + 9, 30), 96 * u, 30 * u);
+            Lay(Tone.Frame, Piece.Plate, State.Normal, 432, semTop + 9, 96, 30);
+            string[] semNames = { "选人圈", "焦点框", "位点 亮/暗", "分隔线", "投影" };
+            int[] semX = { 112, 160, 208, 288, 432 };
+            for (int i = 0; i < semNames.Length; i++)
+                labels.Add(Label(semNames[i], semX[i], semTop + 44, 12, "dim"));
+            cursor += 44 + 12 + 28;
 
-            // ---- ⑤ 页签 Tab（7 tone 贴宿主）----
-            labels.Add(Label("页签 Tab（贴宿主面板顶边）", 24, H / u - rowTop - 4, 12, "white"));
-            rowTop -= 24;
-            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 24 * u, (rowTop - 60) * u, 592 * u, 60 * u);
-            for (int i = 0; i < tones.Length; i++)
-                DrawOne(px, W, tones[i], Piece.Tab, State.Normal,
-                    (40 + i * 80) * u, (rowTop - 22) * u, 72 * u, 24 * u);
-            rowTop -= 60 + 16;
+            // ---- ⑤ 页签：贴宿主面板顶边（底边无带），选中用提亮 tone ----
+            Section("页签 Tab —— 底边无带、贴宿主面板顶边；未选中 = 内容片 tone，选中 = 提亮 tone");
+            string[] tabNames = { "甲板", "船员", "海图" };
+            Lay(Tone.Frame, Piece.Plate, State.Normal, 24, cursor + 26, 592, 60);
+            for (int i = 0; i < tabNames.Length; i++)
+            {
+                int x = 40 + i * 88;
+                Lay(i == 1 ? Tone.Light : Tone.Dense, Piece.Tab, State.Normal, x, cursor, 72, 28);
+                labels.Add(Label(tabNames[i], x + 24, cursor + 8, 12, i == 1 ? "ink" : "white"));
+            }
+            cursor += 26 + 60 + 28;
 
-            // ---- ⑥ 三态按钮组合 ----
-            labels.Add(Label("按钮（常态+焦点 / 悬停 / 按压）", 24, H / u - rowTop - 4, 12, "white"));
-            rowTop -= 24;
-            DrawOne(px, W, Tone.Primary, Piece.Plate, State.Normal, 24 * u, (rowTop - 36) * u, 120 * u, 36 * u);
-            DrawSized(px, W, "Pixel_Focus", 22 * u, (rowTop - 38) * u, 124 * u, 40 * u);
-            labels.Add(Label("确定", 68, H / u - rowTop + 6, 12, "ink"));
-            DrawOne(px, W, Tone.Light, Piece.Plate, State.Hovered, 168 * u, (rowTop - 36) * u, 120 * u, 36 * u);
-            labels.Add(Label("菜单", 212, H / u - rowTop + 6, 12, "ink"));
-            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Pressed, 312 * u, (rowTop - 36) * u, 120 * u, 36 * u);
-            labels.Add(Label("退出", 356, H / u - rowTop + 6, 12, "white"));
-            DrawOne(px, W, Tone.Warn, Piece.Plate, State.Normal, 456 * u, (rowTop - 36) * u, 120 * u, 36 * u);
-            labels.Add(Label("警告", 500, H / u - rowTop + 6, 12, "ink"));
+            // ---- ⑥ 三态按钮：常态（带焦点环）/ 悬停 / 按压 / 警告 ----
+            Section("按钮 —— 常态（带焦点环）/ 悬停 / 按压 / 警告；件 112×36（令牌：按钮高 36）");
+            string[] btnNames = { "确定", "菜单", "退出", "警告" };
+            cursor += 16;
+            for (int i = 0; i < 4; i++)
+            {
+                int x = 112 + i * 128;
+                Tone tone = i == 0 ? Tone.Primary : i == 1 ? Tone.Light : i == 2 ? Tone.Danger : Tone.Warn;
+                State state = i == 1 ? State.Hovered : i == 2 ? State.Pressed : State.Normal;
+                Lay(tone, Piece.Plate, state, x, cursor, 112, 36);
+                if (i == 0)
+                    LaySized("Pixel_Focus", x - 2, cursor - 2, 116, 40);   // 焦点环：件外扩 2
+                // 字色按脸色的亮暗走：暖白牌（提亮 tone）上用墨色，暗牌上用白
+                labels.Add(Label(btnNames[i], x + 44, cursor + 12, 12, i == 1 ? "ink" : "white"));
+            }
+            cursor += 36;
 
-            string sheet = WriteZoomedSheet(px, W, H, "export/ui-pixel-4a/components-1x.png", 1);
-            WriteLabels("export/ui-pixel-4a/components-labels.json", labels);
+            // ---- 按游标裁掉下方空白：图多高由内容定，不用手调常量 ----
+            // 布局按"距顶"写、画布按"距底"存，内容因此落在画布的**末尾** cursor 行——
+            // 裁的是尾部，不是头部（第一版从 0 起裁，等于把构图整段丢掉、只留了画布底部的空地）。
+            cursor += 24;
+            if (cursor > planHeight)
+            {
+                throw new InvalidOperationException(
+                    "组件总表布局高 " + cursor + " 艺术像素，超过画布上限 " + planHeight
+                    + "——加件时把 planHeight 抬上去。");
+            }
+            var cropped = new Color32[W * cursor * u];
+            System.Array.Copy(px, (planHeight - cursor) * u * W, cropped, 0, cropped.Length);
+            string sheet = WriteZoomedSheet(cropped, W, cursor * u, ComponentsRelativePath, 1);
+            WriteLabels(ComponentsLabelsPath, labels);
             return sheet;
         }
 

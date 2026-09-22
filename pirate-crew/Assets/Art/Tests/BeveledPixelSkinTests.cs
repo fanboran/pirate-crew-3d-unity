@@ -468,11 +468,27 @@ namespace PirateCrew.ArtPipeline.Tests
 
                 if (isTrack)
                 {
-                    // 条槽语法（金框血条）：外环受光侧比背光侧亮；内暗线 = 同侧外环（规则 1）。
-                    float topRing = Lum(px[(h - 1) * w + w / 2]);
-                    float bottomRing = Lum(px[0 * w + w / 2]);
-                    float leftRing = Lum(px[(h / 2) * w + 0]);
-                    float rightRing = Lum(px[(h / 2) * w + w - 1]);
+                    // 条槽语法：最外 1u 是**全家共有的近黑描边**（规则 0），再往里才是外环。
+                    // 这条判据是"全家一张皮"的护栏——条槽一旦把彩色顶到最外缘，同屏就成两种画风。
+                    int u = Unit;
+                    float trackOutlineTop = Lum(px[(h - 1) * w + w / 2]);
+                    float trackOutlineBottom = Lum(px[0 * w + w / 2]);
+                    float trackOutlineLeft = Lum(px[(h / 2) * w + 0]);
+                    float trackOutlineRight = Lum(px[(h / 2) * w + w - 1]);
+                    const float nearBlack = 0.25f * 255f;    // 近黑的宽容上限（墨色实测量级 ~18）
+                    if (trackOutlineTop > nearBlack || trackOutlineBottom > nearBlack
+                        || trackOutlineLeft > nearBlack || trackOutlineRight > nearBlack)
+                    {
+                        problems.Add(t.name + "：条槽最外 1u 不是近黑描边（上 " + trackOutlineTop.ToString("F1")
+                            + " / 下 " + trackOutlineBottom.ToString("F1") + " / 左 " + trackOutlineLeft.ToString("F1")
+                            + " / 右 " + trackOutlineRight.ToString("F1")
+                            + "）——面板族与条槽族共用同一条外轮廓，彩色只能从第二道起。");
+                    }
+                    // 索引：贴图自下而上，最外描边在 y=h-1，外环在 y=h-1-u，内暗线在 y=h-1-3u。
+                    float topRing = Lum(px[(h - 1 - u) * w + w / 2]);
+                    float bottomRing = Lum(px[(0 + u) * w + w / 2]);
+                    float leftRing = Lum(px[(h / 2) * w + u]);
+                    float rightRing = Lum(px[(h / 2) * w + w - 1 - u]);
                     if (!(topRing > bottomRing))
                     {
                         problems.Add(t.name + "：条槽外环不是上亮下暗（上 " + topRing.ToString("F1")
@@ -483,11 +499,11 @@ namespace PirateCrew.ArtPipeline.Tests
                         problems.Add(t.name + "：条槽外环不是左亮右暗（左 " + leftRing.ToString("F1")
                             + " / 右 " + rightRing.ToString("F1") + "）——光必须来自左方。");
                     }
-                    // 索引推导：从顶往下逐层是 外环 d∈[0,u) → 斜面 d∈[u,2u) → 内暗线 d∈[2u,3u)，
-                    // 所以"上内暗线"取 y = h-1-(2×Unit)（**不是 h-1-u**，那一层是斜面——
-                    // 本用例第一版就栽在这个差一层上，red 过一轮）。
-                    int topRingIndex = (h - 1) * w + w / 2;
-                    int topLineIndex = (h - 1 - 2 * Unit) * w + w / 2;
+                    // 索引推导：从顶往下逐层是 描边 d∈[0,u) → 外环 d∈[u,2u) → 斜面 d∈[2u,3u)
+                    // → 内暗线 d∈[3u,4u)，所以"上内暗线"取 y = h-1-3u（**不是 h-1-2u**，那一层是斜面——
+                    // 差一层就 red，本用例已栽过一回）。
+                    int topRingIndex = (h - 1 - u) * w + w / 2;
+                    int topLineIndex = (h - 1 - 3 * u) * w + w / 2;
                     if (!Same(px[topLineIndex], px[topRingIndex]))
                     {
                         problems.Add(t.name + "：上内暗线 " + Hex(px[topLineIndex])
