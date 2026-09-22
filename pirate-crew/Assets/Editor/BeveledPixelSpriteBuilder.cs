@@ -2327,10 +2327,16 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 美术稿：**按比例令牌表排**（全屏 640×360 艺术像素 = 1920×1080 屏幕 @3×）。
-        /// 令牌表（art px，基准 = 正文字号 12）：正文 12 / 标题 24 / 条高 24（= 6 框+12 填+6 框，
-        /// 与参照血条同构）/ 按钮高 36、内边距 12 / 面板内边距 12 / 小件：位点 12、环 24、
-        /// 头像格 48、小地图 144。**元素尺寸一律跟着字号走，不许各玩各的**（创始人判过
-        /// "血条这么粗干什么、按钮这么大文字就这么大点"）。
+        /// 令牌表（art px，基准 = 正文字号 12 = **B**）：
+        ///   · 正文 12 / 标题 24（= 2B）；
+        ///   · **容器高 = 件内文字高 + 12**：按钮（正文）12+12 = **24**、标题条（标题）24+12 = 36
+        ///     ——"按钮高 36"是上一版把它当成了标题条，正文按钮因此上下各空 12、比文字高出一倍
+        ///     （创始人 2026-09-22 复核："按钮大小也都太大了相比文字"）；
+        ///   · 按钮宽 = **标签宽 + 24**（不硬撑满行，撑满就把文字泡在一大片空里）；
+        ///   · 条高 24（几何定死：6 框 + 12 填 + 6 框，与参照血条同构，**不随字号走**）；
+        ///   · 面板内边距 12 / 分区间隙 ≥12；小件：位点 12、环 24、头像格 48、小地图 144。
+        /// **元素尺寸一律跟着字号走，不许各玩各的**（创始人判过"血条这么粗干什么、
+        /// 按钮这么大文字就这么大点"）。
         ///
         /// 【文字不在这里画】图上文字要显示**游戏实际用的中文字体**（像素字体），
         /// 而本生成器是纯 CPU 像素、不带字体光栅化——所以这里只出构图 + 文字清单
@@ -2377,14 +2383,15 @@ namespace PirateCrew.EditorTools
                 DrawSized(px, W, i < 3 ? "Pixel_Pip_On" : "Pixel_Pip_Off",
                     (36 + i * 24) * u, 96 * u, 12 * u, 12 * u);
 
-            // 三态按钮（高 36 = 3B，宽 96；常态+焦点环 / 悬停 / 按压）
-            DrawOne(px, W, Tone.Primary, Piece.Plate, State.Normal, 36 * u, 48 * u, 96 * u, 36 * u);
-            DrawSized(px, W, "Pixel_Focus", 34 * u, 46 * u, 100 * u, 40 * u);
-            labels.Add(Label("确定", 72, 288, 12, "ink"));
-            DrawOne(px, W, Tone.Light, Piece.Plate, State.Hovered, 144 * u, 48 * u, 96 * u, 36 * u);
-            labels.Add(Label("菜单", 180, 288, 12, "ink"));
-            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Pressed, 252 * u, 48 * u, 96 * u, 36 * u);
-            labels.Add(Label("退出", 288, 288, 12, "white"));
+            // 三态按钮（高 24 = 正文 12 + 上下各 6；宽 72 = 标签 24 + 左右各 24）
+            // 常态+焦点环 / 悬停 / 按压 —— 三个等宽按钮居中排在内容区（312）里
+            DrawOne(px, W, Tone.Primary, Piece.Plate, State.Normal, 72 * u, 48 * u, 72 * u, 24 * u);
+            DrawSized(px, W, "Pixel_Focus", 70 * u, 46 * u, 76 * u, 28 * u);
+            labels.Add(Label("确定", 96, 294, 12, "ink"));
+            DrawOne(px, W, Tone.Light, Piece.Plate, State.Hovered, 156 * u, 48 * u, 72 * u, 24 * u);
+            labels.Add(Label("菜单", 180, 294, 12, "ink"));
+            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Pressed, 240 * u, 48 * u, 72 * u, 24 * u);
+            labels.Add(Label("退出", 264, 294, 12, "white"));
 
             // ================= 右上：海图小地图（144 = 12B）=================
             DrawShadowAt(px, W, 456 * u, 192 * u, 144 * u, 144 * u);
@@ -2403,12 +2410,12 @@ namespace PirateCrew.EditorTools
             DrawOne(px, W, Tone.Danger, Piece.Track, State.Normal, 456 * u, 114 * u, 144 * u, 24 * u);
             DrawFill(px, W, FillKind.Red, 462 * u, 120 * u, 30 * u, 12 * u);
 
-            DrawOne(px, W, Tone.Warn, Piece.Plate, State.Normal, 456 * u, 54 * u, 108 * u, 36 * u);
-            labels.Add(Label("警告", 498, 282, 12, "ink"));
+            DrawOne(px, W, Tone.Warn, Piece.Plate, State.Normal, 456 * u, 54 * u, 72 * u, 24 * u);
+            labels.Add(Label("警告", 480, 288, 12, "ink"));
 
-            DrawShadowAt(px, W, 372 * u, 12 * u, 228 * u, 36 * u);
-            DrawOne(px, W, Tone.Light, Piece.Plate, State.Normal, 372 * u, 12 * u, 228 * u, 36 * u);
-            labels.Add(Label("船长已登船", 384, 324, 12, "ink"));
+            DrawShadowAt(px, W, 372 * u, 12 * u, 168 * u, 24 * u);
+            DrawOne(px, W, Tone.Light, Piece.Plate, State.Normal, 372 * u, 12 * u, 168 * u, 24 * u);
+            labels.Add(Label("船长已登船", 426, 330, 12, "ink"));
 
             // 1×：1080p 下 1:1 = 实际屏幕像素的整屏外观（验收主图）
             string sheet = WriteZoomedSheet(px, W, H, ShowcaseRelativePath, 1);
@@ -2499,7 +2506,7 @@ namespace PirateCrew.EditorTools
             string[] toneNames = { "面板", "内容", "羊皮纸", "海图", "黄铜", "危险", "警告" };
 
             // ---- ① 面板族：7 tone × 三态（常态 / 悬停 / 按压）----
-            Section("面板 Plate —— 7 个 tone × 三态；件 160×30（令牌：条高 24 / 按钮高 36 / 内边距 12）");
+            Section("面板 Plate —— 7 个 tone × 三态；件 160×24（令牌：条高 24 / 按钮高 = 正文 12 + 12 / 内边距 12）");
             string[] stateNames = { "常态", "悬停", "按压" };
             const int colW = 160, colGap = 12;
             for (int s = 0; s < 3; s++)
@@ -2507,13 +2514,13 @@ namespace PirateCrew.EditorTools
             cursor += 20;
             for (int i = 0; i < tones.Length; i++)
             {
-                int top = cursor + i * 44;
-                RowName(toneNames[i], top, 30);
-                Lay(tones[i], Piece.Plate, State.Normal, 112, top, colW, 30);
-                Lay(tones[i], Piece.Plate, State.Hovered, 112 + colW + colGap, top, colW, 30);
-                Lay(tones[i], Piece.Plate, State.Pressed, 112 + 2 * (colW + colGap), top, colW, 30);
+                int top = cursor + i * 38;
+                RowName(toneNames[i], top, 24);
+                Lay(tones[i], Piece.Plate, State.Normal, 112, top, colW, 24);
+                Lay(tones[i], Piece.Plate, State.Hovered, 112 + colW + colGap, top, colW, 24);
+                Lay(tones[i], Piece.Plate, State.Pressed, 112 + 2 * (colW + colGap), top, colW, 24);
             }
-            cursor += 6 * 44 + 30 + 28;
+            cursor += 6 * 38 + 24 + 28;
 
             // ---- ② 凹槽 Track：按**真实用法**排（槽 + 一段填充），不排 7 色 ----
             // 凹槽的色是"槽框"的色，7 个 tone 各来一条既无用法也无对比（创始人走过这条）；
@@ -2558,8 +2565,8 @@ namespace PirateCrew.EditorTools
             LaySized("Pixel_Pip_On", 208, semTop + 14, 12, 12);     // 位点：亮 / 暗各 12
             LaySized("Pixel_Pip_Off", 228, semTop + 14, 12, 12);
             LaySized("Pixel_Sep_H", 288, semTop + 18, 128, 4);      // 蚀刻分隔线
-            DrawShadowAt(px, W, 432 * u, Y(semTop + 9, 30), 96 * u, 30 * u);
-            Lay(Tone.Frame, Piece.Plate, State.Normal, 432, semTop + 9, 96, 30);
+            DrawShadowAt(px, W, 432 * u, Y(semTop + 8, 24), 96 * u, 24 * u);
+            Lay(Tone.Frame, Piece.Plate, State.Normal, 432, semTop + 8, 96, 24);
             string[] semNames = { "选人圈", "焦点框", "位点 亮/暗", "分隔线", "投影" };
             int[] semX = { 112, 160, 208, 288, 432 };
             for (int i = 0; i < semNames.Length; i++)
@@ -2572,28 +2579,28 @@ namespace PirateCrew.EditorTools
             Lay(Tone.Frame, Piece.Plate, State.Normal, 24, cursor + 26, 592, 60);
             for (int i = 0; i < tabNames.Length; i++)
             {
-                int x = 40 + i * 88;
-                Lay(i == 1 ? Tone.Light : Tone.Dense, Piece.Tab, State.Normal, x, cursor, 72, 28);
-                labels.Add(Label(tabNames[i], x + 24, cursor + 8, 12, i == 1 ? "ink" : "white"));
+                int x = 40 + i * 60;
+                Lay(i == 1 ? Tone.Light : Tone.Dense, Piece.Tab, State.Normal, x, cursor, 48, 24);
+                labels.Add(Label(tabNames[i], x + 12, cursor + 6, 12, i == 1 ? "ink" : "white"));
             }
-            cursor += 26 + 60 + 28;
+            cursor += 24 + 60 + 28;
 
             // ---- ⑥ 三态按钮：常态（带焦点环）/ 悬停 / 按压 / 警告 ----
-            Section("按钮 —— 常态（带焦点环）/ 悬停 / 按压 / 警告；件 112×36（令牌：按钮高 36）");
+            Section("按钮 —— 常态（带焦点环）/ 悬停 / 按压 / 警告；件 48×24 = 标签 24 + 上下各 6 / 左右各 12");
             string[] btnNames = { "确定", "菜单", "退出", "警告" };
-            cursor += 16;
+            cursor += 12;
             for (int i = 0; i < 4; i++)
             {
-                int x = 112 + i * 128;
+                int x = 112 + i * 60;                                   // 件 48 + 间隙 12
                 Tone tone = i == 0 ? Tone.Primary : i == 1 ? Tone.Light : i == 2 ? Tone.Danger : Tone.Warn;
                 State state = i == 1 ? State.Hovered : i == 2 ? State.Pressed : State.Normal;
-                Lay(tone, Piece.Plate, state, x, cursor, 112, 36);
+                Lay(tone, Piece.Plate, state, x, cursor, 48, 24);
                 if (i == 0)
-                    LaySized("Pixel_Focus", x - 2, cursor - 2, 116, 40);   // 焦点环：件外扩 2
+                    LaySized("Pixel_Focus", x - 2, cursor - 2, 52, 28);   // 焦点环：件外扩 2
                 // 字色按脸色的亮暗走：暖白牌（提亮 tone）上用墨色，暗牌上用白
-                labels.Add(Label(btnNames[i], x + 44, cursor + 12, 12, i == 1 ? "ink" : "white"));
+                labels.Add(Label(btnNames[i], x + 12, cursor + 6, 12, i == 1 ? "ink" : "white"));
             }
-            cursor += 36;
+            cursor += 24;
 
             // ---- 按游标裁掉下方空白：图多高由内容定，不用手调常量 ----
             // 布局按"距顶"写、画布按"距底"存，内容因此落在画布的**末尾** cursor 行——
