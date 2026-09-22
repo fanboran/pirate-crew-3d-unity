@@ -27,7 +27,6 @@ namespace PirateCrew.UI
         /// <summary>EventBus 场景切换事件名（payload 为 string 场景名，与 SceneLoader 约定一致）。</summary>
 
         [SerializeField] Button battleButton;
-        [SerializeField] Button campaignButton;
         [SerializeField] Button crewButton;
         [SerializeField] Button settingsButton;
         [SerializeField] Button quitButton;
@@ -62,8 +61,6 @@ namespace PirateCrew.UI
 
             if (battleButton != null)
                 battleButton.onClick.AddListener(OnBattleClicked);
-            if (campaignButton != null)
-                campaignButton.onClick.AddListener(OnCampaignClicked);
             if (crewButton != null)
                 crewButton.onClick.AddListener(OnCrewClicked);
             if (settingsButton != null)
@@ -84,25 +81,25 @@ namespace PirateCrew.UI
             if (qualityHighButton != null)
                 qualityHighButton.onClick.AddListener(() =>
                 {
-                    M3UiBuilder.ButtonFeedback(qualityHighButton, true, _motion);
+                    RuntimeUiBuilder.ButtonFeedback(qualityHighButton, true, _motion);
                     SetQuality(VideoSettingsStore.QualityHigh);
                 });
             if (qualitySmoothButton != null)
                 qualitySmoothButton.onClick.AddListener(() =>
                 {
-                    M3UiBuilder.ButtonFeedback(qualitySmoothButton, true, _motion);
+                    RuntimeUiBuilder.ButtonFeedback(qualitySmoothButton, true, _motion);
                     SetQuality(VideoSettingsStore.QualitySmooth);
                 });
             if (fullscreenOnButton != null)
                 fullscreenOnButton.onClick.AddListener(() =>
                 {
-                    M3UiBuilder.ButtonFeedback(fullscreenOnButton, true, _motion);
+                    RuntimeUiBuilder.ButtonFeedback(fullscreenOnButton, true, _motion);
                     SetFullscreen(true);
                 });
             if (fullscreenOffButton != null)
                 fullscreenOffButton.onClick.AddListener(() =>
                 {
-                    M3UiBuilder.ButtonFeedback(fullscreenOffButton, true, _motion);
+                    RuntimeUiBuilder.ButtonFeedback(fullscreenOffButton, true, _motion);
                     SetFullscreen(false);
                 });
 
@@ -129,8 +126,6 @@ namespace PirateCrew.UI
         {
             if (battleButton != null)
                 battleButton.onClick.RemoveListener(OnBattleClicked);
-            if (campaignButton != null)
-                campaignButton.onClick.RemoveListener(OnCampaignClicked);
             if (crewButton != null)
                 crewButton.onClick.RemoveListener(OnCrewClicked);
             if (settingsButton != null)
@@ -153,28 +148,18 @@ namespace PirateCrew.UI
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 进入战斗（一代退场后）：直接出海**第一张海图**（目录声明序）；
-        /// 想挑图走「战役」入口的选图页。目录为空（数据异常）时退回选图页兜底。
+        /// 进入战斗：**必经选关面板**（创始人 2026-09-23：主菜单只留一个进游戏入口，选关不可绕过；
+        /// 「直接出海第一张海图」的捷径与「单人战役」按钮一并退役）。
         /// </summary>
         void OnBattleClicked()
         {
-            M3UiBuilder.ButtonFeedback(battleButton, true, _motion);
-            IReadOnlyList<WorldMapDefinition> maps = WorldMapCatalog.All;
-            if (maps.Count > 0 && WorldMapRuntime.SetPending(maps[0].Id))
-                EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
-            else
-                EventBus.Publish(SceneEvents.ChangeScene, SceneNames.LevelSelect);
-        }
-
-        void OnCampaignClicked()
-        {
-            M3UiBuilder.ButtonFeedback(campaignButton, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(battleButton, true, _motion);
             EventBus.Publish(SceneEvents.ChangeScene, SceneNames.LevelSelect);
         }
 
         void OnCrewClicked()
         {
-            M3UiBuilder.ButtonFeedback(crewButton, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(crewButton, true, _motion);
             EventBus.Publish(SceneEvents.ChangeScene, SceneNames.CrewManagement);
         }
 
@@ -188,19 +173,19 @@ namespace PirateCrew.UI
                 return;
 
             RefreshSettingsControls();
-            M3UiBuilder.OpenPanel(settingsPanel, _motion);
+            RuntimeUiBuilder.OpenPanel(settingsPanel, _motion);
         }
 
         void CloseSettings()
         {
-            M3UiBuilder.ButtonFeedback(settingsBackButton, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(settingsBackButton, true, _motion);
 
             // 关面板统一落盘：拖动滑条的过程不写盘，避免一次拖动几十次 IO。
             AudioService.SaveVolumes();
             if (VideoSettingsService.Instance != null)
                 VideoSettingsService.Instance.SaveSettings();
 
-            M3UiBuilder.ClosePanel(settingsPanel, _motion);
+            RuntimeUiBuilder.ClosePanel(settingsPanel, _motion);
 
             if (statusText != null)
                 statusText.text = UiStrings.MainStatusSettingsSaved;
@@ -208,7 +193,7 @@ namespace PirateCrew.UI
 
         void RestoreDefaults()
         {
-            M3UiBuilder.ButtonFeedback(settingsRestoreButton, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(settingsRestoreButton, true, _motion);
             AudioService.SetVolume(AudioCategory.Master, AudioSettingsStore.DefaultMasterVolume);
             AudioService.SetVolume(AudioCategory.Sfx, AudioSettingsStore.DefaultSfxVolume);
             AudioService.SetVolume(AudioCategory.Music, AudioSettingsStore.DefaultMusicVolume);
@@ -333,8 +318,8 @@ namespace PirateCrew.UI
             if (quitConfirmPanel != null)
             {
                 if (settingsPanel != null)
-                    M3UiBuilder.ClosePanel(settingsPanel, _motion);
-                M3UiBuilder.OpenPanel(quitConfirmPanel, _motion);
+                    RuntimeUiBuilder.ClosePanel(settingsPanel, _motion);
+                RuntimeUiBuilder.OpenPanel(quitConfirmPanel, _motion);
                 return;
             }
 
@@ -345,14 +330,14 @@ namespace PirateCrew.UI
 
         void ConfirmQuit()
         {
-            M3UiBuilder.ButtonFeedback(quitConfirmOkButton, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(quitConfirmOkButton, true, _motion);
             Application.Quit();
         }
 
         void CancelQuit()
         {
-            M3UiBuilder.ButtonFeedback(quitConfirmCancelButton, true, _motion);
-            M3UiBuilder.ClosePanel(quitConfirmPanel, _motion);
+            RuntimeUiBuilder.ButtonFeedback(quitConfirmCancelButton, true, _motion);
+            RuntimeUiBuilder.ClosePanel(quitConfirmPanel, _motion);
         }
     }
 }

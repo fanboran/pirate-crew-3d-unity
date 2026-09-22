@@ -21,7 +21,7 @@ namespace PirateCrew.EditorTools
     ///   菜单: PirateCrew/Scenes/批量重建 M1 场景
     ///   无头: -batchmode -quit -executeMethod PirateCrew.EditorTools.SceneSetup.BuildAll
     ///
-    /// 【产物】Assets/Scenes/{Bootstrapper,MainMenu}.unity（Battle 归 M2BattleSceneSetup 重建）；
+    /// 【产物】Assets/Scenes/{Bootstrapper,MainMenu}.unity（Battle 归 BattleSceneSetup 重建）；
     ///   Build Settings 登记 5 场景（见 RegisterBuildSettings）。
     ///
     /// 【主菜单视觉口径（Beveled Pixel 像素皮）】深暖色清屏（透底语义）+ StickHand 标题
@@ -45,7 +45,7 @@ namespace PirateCrew.EditorTools
 
             BuildBootstrapperScene();
             BuildMainMenuScene();
-            // Battle.unity 自 M2 起归 M2BattleSceneSetup 全量重建（完整战斗场景），
+            // Battle.unity 自 M2 起归 BattleSceneSetup 全量重建（完整战斗场景），
             // 这里**不再生成 M1 占位场景**——否则会覆盖 M2 的产物（ArtGate 第⑦步的输出
             // 被第⑨步覆盖的事故由此而来）。占位场景仅存在于 M1 时代。
             RegisterBuildSettings();
@@ -97,61 +97,58 @@ namespace PirateCrew.EditorTools
             Canvas canvas = CreateCanvas("MainMenuCanvas");
             CreateEventSystem();
 
-            // StickUI 复刻层单字体纪律（UiKit.RuntimeFont 同口径）：全部 StickHand。
+            // 像素字体单字体纪律（UiKit.RuntimeFont 同口径）：全部 Fusion Pixel 位图档。
             TMP_FontAsset handFont = MenuUiBuilder.TitleFont;
 
             // z=0 背景：WINDOW_BG 原值（88% 黑）全屏一层——「窗户不是海报」，相机暖色透 12%，
             // 不铺死黑（stick-world window 底同口径；不再叠压暗 vignette 以免毁掉透底）。
             CreateStickBackdrop(canvas.transform);
 
-            // 标题：StickHand + FONT_BANNER=44（stick-world 横幅档；旧 48 就近取档）+
-            // TEXT 亮字 + INK 墨描边 3px 口径（TMP 0.2，同 ControlsSampleBuilder 样张）。
+            // 标题：游戏名 = Display 档（像素栅格 96 = 32 艺术像素）+ TEXT 亮字 + INK 墨描边
+            // 3px 口径（TMP 0.2，同 ControlsSampleBuilder 样张）。
             TextMeshProUGUI title = MenuUiBuilder.CreateTextExact("Title", canvas.transform,
-                UiStrings.MainTitle, (int)FONT_BANNER, TextAlignmentOptions.Center, TEXT, handFont);
+                UiStrings.MainTitle, UiSkin.Font.Display, TextAlignmentOptions.Center, TEXT, handFont);
             MenuUiBuilder.SetAnchored(title.rectTransform, new Vector2(0.5f, 1f),
-                new Vector2(800f, 70f), new Vector2(0f, -170f));
+                new Vector2(1200f, 120f), new Vector2(0f, -160f));
             MenuUiBuilder.ApplyStickTitleOutline(title);
 
             // 标题下蚀刻分隔线（像素皮：SketchSeparator 内部出 Separator 贴图）。
             SketchSeparator.Create(canvas.transform, "TitleSeparator", new Vector2(0.5f, 1f),
-                new Vector2(0.5f, 1f), new Vector2(0f, -252f), new Vector2(420f, 2f),
+                new Vector2(0.5f, 1f), new Vector2(0f, -292f), new Vector2(420f, 2f),
                 SketchSeparator.Direction.Horizontal);
 
-            // 菜单按钮列：SketchButton 六变体（Dark 为主，主行动「进入战斗」Primary，
-            // 「退出游戏」Danger），高 BTN_H=32、宽 480，中心距 48（32 高 + 16 间距）。
-            // 字号 0 = 控件默认档（gd 主题 Button = FONT_HUD）。
+            // 菜单按钮列：**只有一个进游戏入口**——主行动「进入战斗」Primary（必经选关面板；
+            // 创始人 2026-09-23：「单人战役」按钮与直跳海图的捷径已废）、「退出游戏」Danger。
+            // 令牌按钮：高 24 艺术像素、宽 = 标签宽 + 24 艺术像素，中心距 108（72 高 + 36 间距
+            // = 12 艺术像素位点）。字号 0 = 控件默认正文档。
             SketchButton battleButton = SketchButton.Create(canvas.transform, "BattleButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 110f), new Vector2(480f, BTN_H),
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 160f), MenuUiBuilder.ButtonSize(UiStrings.MainBattle),
                 handFont, SketchButtonKind.Primary, UiStrings.MainBattle, 0f);
 
-            SketchButton campaignButton = SketchButton.Create(canvas.transform, "CampaignButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 62f), new Vector2(480f, BTN_H),
-                handFont, SketchButtonKind.Dark, UiStrings.MainCampaign, 0f);
-
             SketchButton crewButton = SketchButton.Create(canvas.transform, "CrewButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 14f), new Vector2(480f, BTN_H),
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 52f), MenuUiBuilder.ButtonSize(UiStrings.MainCrew),
                 handFont, SketchButtonKind.Dark, UiStrings.MainCrew, 0f);
 
             SketchButton settingsButton = SketchButton.Create(canvas.transform, "SettingsButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -34f), new Vector2(480f, BTN_H),
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -56f), MenuUiBuilder.ButtonSize(UiStrings.MainSettings),
                 handFont, SketchButtonKind.Dark, UiStrings.MainSettings, 0f);
 
             SketchButton quitButton = SketchButton.Create(canvas.transform, "QuitButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -82f), new Vector2(480f, BTN_H),
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -164f), MenuUiBuilder.ButtonSize(UiStrings.MainQuit),
                 handFont, SketchButtonKind.Danger, UiStrings.MainQuit, 0f);
 
-            // 左下：版本号 + 存档状态（SCREEN_MARGIN=12 安全边距；角标/次级口径
-            // FONT_TINY=11 + TEXT_FAINT，状态反馈用 TEXT_DIM 略提一级）。
+            // 左下：版本号 + 存档状态（SCREEN_MARGIN=12 安全边距；角标 Tiny 24 + TEXT_FAINT，
+            // 状态反馈用 TEXT_DIM 略提一级）。
             TextMeshProUGUI versionText = MenuUiBuilder.CreateTextExact("VersionText", canvas.transform,
-                UiStrings.MainVersion, (int)FONT_TINY, TextAlignmentOptions.BottomLeft, TEXT_FAINT, handFont);
+                UiStrings.MainVersion, UiSkin.Font.Tiny, TextAlignmentOptions.BottomLeft, TEXT_FAINT, handFont);
             MenuUiBuilder.SetAnchored(versionText.rectTransform,
-                new Vector2(0f, 0f), new Vector2(400f, 20f), new Vector2(SCREEN_MARGIN, SCREEN_MARGIN));
+                new Vector2(0f, 0f), new Vector2(400f, 32f), new Vector2(SCREEN_MARGIN, SCREEN_MARGIN));
 
             TextMeshProUGUI statusText = MenuUiBuilder.CreateTextExact("StatusText", canvas.transform,
-                string.Empty, (int)FONT_TINY, TextAlignmentOptions.BottomLeft, TEXT_DIM, handFont);
+                string.Empty, UiSkin.Font.Tiny, TextAlignmentOptions.BottomLeft, TEXT_DIM, handFont);
             MenuUiBuilder.SetAnchored(statusText.rectTransform,
-                new Vector2(0f, 0f), new Vector2(500f, 20f),
-                new Vector2(SCREEN_MARGIN, SCREEN_MARGIN + 20f));
+                new Vector2(0f, 0f), new Vector2(500f, 32f),
+                new Vector2(SCREEN_MARGIN, SCREEN_MARGIN + 36f));
 
             // 设置界面（真接线：音量滑条 ×4 / 画质档 / 窗口模式；默认隐藏；SketchPanel Dark 底板）。
             MenuUiBuilder.SettingsPanelResult settings = MenuUiBuilder.BuildSettingsPanel(canvas.transform);
@@ -168,7 +165,6 @@ namespace PirateCrew.EditorTools
 
             var so = new SerializedObject(controller);
             so.FindProperty("battleButton").objectReferenceValue = battleButton;
-            so.FindProperty("campaignButton").objectReferenceValue = campaignButton;
             so.FindProperty("crewButton").objectReferenceValue = crewButton;
             so.FindProperty("settingsButton").objectReferenceValue = settingsButton;
             so.FindProperty("quitButton").objectReferenceValue = quitButton;
@@ -208,7 +204,7 @@ namespace PirateCrew.EditorTools
             image.raycastTarget = false;
         }
 
-        // Battle.unity 自 M2 起归 M2BattleSceneSetup 全量重建（完整战斗场景），
+        // Battle.unity 自 M2 起归 BattleSceneSetup 全量重建（完整战斗场景），
         // 本类不再生成 M1 占位场景（占位场景与 BattlePlaceholder 脚本均已删除）。
 
         // ------------------------------------------------------------------
@@ -267,7 +263,7 @@ namespace PirateCrew.EditorTools
 
         static void RegisterBuildSettings()
         {
-            // 与 M3SceneSetup.RegisterBuildSettings 同一份 5 场景列表（幂等；顺序即 index）：
+            // 与 ManagementSceneSetup.RegisterBuildSettings 同一份 5 场景列表（幂等；顺序即 index）：
             // Bootstrapper=0（入口）、MainMenu=1、Battle=2、CrewManagement=3、LevelSelect=4。
             // SceneLoader 与既有测试都按名字加载，顺序不影响。
             string[] names =
