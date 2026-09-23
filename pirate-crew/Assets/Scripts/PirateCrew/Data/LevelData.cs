@@ -15,7 +15,7 @@ namespace PirateCrew.Data
     /// </summary>
     public readonly struct LevelData
     {
-        /// <summary>本场战斗的序号（世界图 101–108 / 样板三关 1–3）。</summary>
+        /// <summary>本场战斗的序号（世界图 101–108 / 手作样板关 1、3——关卡 2 已删除，号段有意不连续）。</summary>
         public readonly int LevelNumber;
 
         /// <summary>战斗名（选关页/结算展示用）。</summary>

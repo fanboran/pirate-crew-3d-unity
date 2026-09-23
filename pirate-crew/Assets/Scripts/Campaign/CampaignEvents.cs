@@ -14,7 +14,12 @@ namespace PirateCrew.Campaign
     /// </summary>
     public static class CampaignEvents
     {
-        /// <summary>一场海图战结算完成（载荷 <see cref="CampaignMapCompletedPayload"/>）。</summary>
+        /// <summary>
+        /// 一场海图战的**对局结算完成**（载荷 <see cref="CampaignMapCompletedPayload"/>）。
+        /// <b>挑战失败（Cleared=false）也走此频道</b>：失败结算的 Stars=0、FirstClear=false，
+        /// 同样广播——消费方须按 <see cref="CampaignMapCompletedPayload.Cleared"/> 区分成败，
+        /// 不要拿"收到本频道"当通关信号。
+        /// </summary>
         public static readonly Event<CampaignMapCompletedPayload> MapCompleted = new();
     }
 

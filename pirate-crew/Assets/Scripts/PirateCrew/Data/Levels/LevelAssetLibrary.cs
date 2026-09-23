@@ -270,6 +270,15 @@ namespace PirateCrew.Data
         {
             if (payload == null || string.IsNullOrEmpty(payload.id))
                 return;
+
+            if (_mapById.ContainsKey(payload.id))
+            {
+                // 海图 id 是选关/战役结算/进度存档的键：重复 id 会让后到者顶掉 id 索引里的先到者，
+                // 而 _maps 列表里两者并存——按 id 取图与按列表遍历将看到不同的数据集，必须吵闹。
+                global::PirateCrew.Core.Log.Warn("[LevelAssetLibrary] 海图 id 重复: " + payload.id
+                    + "（levelNumber=" + payload.levelNumber + "），后到者将顶掉 id 索引里的先到者");
+            }
+
             _maps.Add(payload);
             _mapById[payload.id] = payload;
             _mapByLevel[payload.levelNumber] = payload;

@@ -21,7 +21,12 @@ namespace PirateCrew.Data
     [Flags]
     public enum WeaponTrigger
     {
-        /// <summary>无引爆触发器：纯物理 / 掩体 / 固定伤害类（woodenCrate、boulder、anchor、tidalWave 的持续伤害等由各自机制结算）。</summary>
+        /// <summary>
+        /// 无触发器（Flags 零值哨兵）。实表（WeaponCatalog 17 种武器）**无一使用本值**：
+        /// woodenCrate=OnPlace、boulder=OnContact（碾压）、anchor/tidalWave=OnClick、
+        /// seagull=OnClick——各武器档位见 WeaponCatalog 里逐行的 Trigger 列。
+        /// 保留它表达「未设置触发条件」的默认语义（字段缺省值），不代表任何现役武器。
+        /// </summary>
         None = 0,
 
         /// <summary>接触即爆：撞到瓦片 / 箱体 / 敌人时引爆。</summary>

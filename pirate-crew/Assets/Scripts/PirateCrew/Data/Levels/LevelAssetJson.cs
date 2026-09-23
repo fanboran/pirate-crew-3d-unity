@@ -21,11 +21,24 @@ namespace PirateCrew.Data
         // 数字
         // ------------------------------------------------------------------
 
-        /// <summary>浮点的规范文本：整数型不带小数点，其余最短往返形式（InvariantCulture）。</summary>
+        /// <summary>
+        /// 浮点的规范文本：整数型不带小数点，其余最短往返形式（InvariantCulture）。
+        ///
+        /// 【NaN/Infinity 兜底】JSON 规范没有这两个字面量，静默写 "0" 是唯一的合法出路，
+        /// 但必须吵闹：golden JSON 由本写入器生成、被门禁逐字节对拍——不告警的话，
+        /// 上游算出的坏值会被无声漂白成 0 并固化进 golden 文件，门禁从此守护一个错误基准。
+        /// 用 <see cref="PirateCrew.Core.Log.Error"/> 直通播放器日志（真错误必须留痕）；
+        /// 写侧只在编辑器/迁移器里跑，读侧（无头对拍）不经过本方法。
+        /// </summary>
         public static string Number(float value)
         {
             if (float.IsNaN(value) || float.IsInfinity(value))
+            {
+                global::PirateCrew.Core.Log.Error(
+                    "[LevelAssetJson] 浮点字段为 " + value + "，非法值将被写成 0——请先修上游数据源，"
+                    + "否则 golden JSON 会被固化进错误基准");
                 return "0";
+            }
             if (value == Math.Floor(value) && Math.Abs(value) < 1e7f)
                 return ((long)value).ToString(CultureInfo.InvariantCulture);
             return value.ToString("R", CultureInfo.InvariantCulture);

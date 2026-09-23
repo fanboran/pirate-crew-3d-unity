@@ -105,7 +105,7 @@ namespace PirateCrew.Data
     [Serializable]
     public class LevelAssetPayload
     {
-        /// <summary>关卡序号（选关/结算/得分口径用；样板关 1–3）。</summary>
+        /// <summary>关卡序号（选关/结算/得分口径用；手作样板关 1、3——关卡 2 已删除，号段有意不连续）。</summary>
         public int levelNumber;
 
         /// <summary>

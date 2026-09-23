@@ -122,6 +122,9 @@ namespace PirateCrew.Campaign
 
         static void OnCrewDied(CrewDiedPayload died)
         {
+            // 只计红队（1P）阵亡；2P 蓝队同为玩家，其阵亡是否计入星级惩罚——口径未裁决
+            //（提案/待定，评价表见 StarRules；现行为与 CampaignResult.PlayerDeaths
+            //「TeamIndex == 红队」的注释口径一致）。若裁决为计入，改这里即可。
             if (died.TeamIndex == CrewCatalog.RedTeamIndex)
                 _playerDeaths++;
         }
@@ -188,8 +191,9 @@ namespace PirateCrew.Campaign
             if (save == null)
                 return false;
 
-            // 先 SlotExists 再 LoadFromSlot：槽位不存在时 LoadFromSlot 会打一条 no-op 的告警日志。
-            SaveData data = save.SlotExists(ProgressSlot) ? save.LoadFromSlot(ProgressSlot) : null;
+            // 静默读档：这里的读只是"拿旧档做合并"的中间步骤，不是用户读档操作——
+            // 走 LoadFromSlot 会广播 LoadCompleted，监听方会误当成"读档完成"而重载界面状态。
+            SaveData data = save.SlotExists(ProgressSlot) ? save.TryLoadSlotQuiet(ProgressSlot) : null;
             if (data == null)
                 data = new SaveData();
 
