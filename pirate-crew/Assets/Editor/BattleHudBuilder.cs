@@ -78,24 +78,24 @@ namespace PirateCrew.EditorTools
         /// <summary>回合徽章（暖金方环 + 黄铜宝石 + 数字）：36 = 12u——顶带只是配重，不做视觉主角。</summary>
         const float BadgeSize = 36f;
 
-        /// <summary>模式文字钮尺寸（宽 = <see cref="UiSkin.Px.ButtonWidth"/>，高 24 = 8u）。</summary>
-        const float ModeButtonHeight = 30f;
+        /// <summary>模式文字钮尺寸（宽 = <see cref="UiSkin.Px.ButtonWidth"/>，高 48 = 16u，Aseprite 按钮原生高）。</summary>
+        const float ModeButtonHeight = 48f;
 
         // ---------------- 底部带 ----------------
 
-        /// <summary>武器面板：贴底居中（bottom = Safe）。792 = 264u、162 = 54u——
-        /// 紧凑档：6×3 武器文字格 + 底部名/说明行 + 右列（名/HP/两枚文字钮）。</summary>
+        /// <summary>武器面板：贴底居中（bottom = Safe）。792 = 264u、240 = 80u——
+        /// 6×3 武器文字格（48 高）+ 底部名/说明行 + 右列（名/HP/两枚文字钮）。</summary>
         const float WeaponPanelWidth = 792f;
-        const float WeaponPanelHeight = 180f;
+        const float WeaponPanelHeight = 240f;
 
         /// <summary>武器文字格尺寸 / 间距 / 列数（6×3 = 18 格，17 武器 + 1 空）。
-        /// 96 = 32u 放得下 5 字武器名（正文 16 × 5 = 80）；24 = 8u。</summary>
+        /// 96 = 32u 放得下 5 字武器名（正文 16 × 5 = 80）；48 = 16u（Aseprite 按钮原生高）。</summary>
         const float WeaponCell = 96f;
         const float WeaponCellGap = 6f;
         const int WeaponColumns = 6;
 
-        /// <summary>HUD 紧凑按钮高（24 = 8u：文字 16 + 上下各 1u 带）。</summary>
-        const float HudButtonHeight = 24f;
+        /// <summary>HUD 紧凑按钮高（48 = 16u：Aseprite 按钮原生高，模板 1:1 零拉伸）。</summary>
+        const float HudButtonHeight = 48f;
 
         /// <summary>小地图面板尺寸（高度含标题条）。192×132 = 64×44u。</summary>
         const float MinimapWidth = 192f;
@@ -519,14 +519,15 @@ namespace PirateCrew.EditorTools
                 fill = hpBar.Fill,
             };
 
-            // 紧凑文字按钮（宽 = 标签宽 + 8 艺术像素、高 24 = 8u——HUD 密度档）。
+            // 紧凑文字按钮（宽 = 标签宽 + 8 艺术像素、高 48 = 16u——Aseprite 原生档；
+            // 顶边留 12 内边距与格区对齐，两钮间缝 6）。
             result.throwSelfButton = UiKit.ActionButton("ThrowSelfButton", panel,
                 UiGlyphs.Glyph.ThrowArc, UiStrings.BattleThrowSelf, UiKit.ButtonKind.Primary,
-                new Vector2(rightColumnCenter, -12f),
+                new Vector2(rightColumnCenter, -36f),
                 new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattleThrowSelf), HudButtonHeight), body);
             result.endGoButton = UiKit.ActionButton("EndGoButton", panel,
                 UiGlyphs.Glyph.Flag, UiStrings.BattleEndGo, UiKit.ButtonKind.Dark,
-                new Vector2(rightColumnCenter, -42f),
+                new Vector2(rightColumnCenter, -90f),
                 new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattleEndGo), HudButtonHeight), body);
         }
 
@@ -638,13 +639,13 @@ namespace PirateCrew.EditorTools
             UiKit.SetAnchored(titleText.rectTransform, new Vector2(0.5f, 1f), new Vector2(300f, 48f),
                 new Vector2(0f, -18f));
 
-            // 三钮统一最宽标签档（返回主菜单 = 5 字），居中纵排、间距 24。
+            // 三钮统一最宽标签档（返回主菜单 = 5 字），居中纵排、间距 12（48 高钮 + 12 缝）。
             result.resumeButton = UiKit.ActionButton("ResumeButton", modal.Card,
                 UiGlyphs.Glyph.Play, UiStrings.BattleResume, UiKit.ButtonKind.Primary,
-                new Vector2(0f, 24f), new Vector2(104f, HudButtonHeight), body);
+                new Vector2(0f, 48f), new Vector2(104f, HudButtonHeight), body);
             result.pauseRestartButton = UiKit.ActionButton("PauseRestartButton", modal.Card,
                 UiGlyphs.Glyph.Retry, UiStrings.BattleRestart, UiKit.ButtonKind.Dark,
-                new Vector2(0f, -24f), new Vector2(104f, HudButtonHeight), body);
+                new Vector2(0f, -12f), new Vector2(104f, HudButtonHeight), body);
             result.pauseBackButton = UiKit.ActionButton("PauseBackButton", modal.Card,
                 UiGlyphs.Glyph.Helm, UiStrings.BackToMainMenu, UiKit.ButtonKind.Danger,
                 new Vector2(0f, -72f), new Vector2(104f, HudButtonHeight), body);

@@ -438,7 +438,7 @@ namespace PirateCrew.EditorTools
             handleArea.offsetMax = new Vector2(-8f, 0f);
 
             RectTransform handle = CreateRect("Handle", handleArea);
-            handle.sizeDelta = new Vector2(18f, 0f);
+            handle.sizeDelta = new Vector2(30f, 0f);   // ≥ Plate 切片和（左右 4u+4u）+ 1u 内容区
             handle.anchorMin = new Vector2(0f, 0f);
             handle.anchorMax = new Vector2(0f, 1f);
             var handleImage = handle.gameObject.AddComponent<Image>();

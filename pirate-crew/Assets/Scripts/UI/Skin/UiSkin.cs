@@ -228,8 +228,9 @@ namespace PirateCrew.UI
             /// <summary>标准条高（10 艺术像素：凹槽上下各 1 格描边 + 8 格槽底/填充）。</summary>
             public const int Bar = 10 * Unit;
 
-            /// <summary>标准按钮高（10 艺术像素：包边 2 格 + 内容 8 格）。</summary>
-            public const int Button = 10 * Unit;
+            /// <summary>标准按钮高（**16 艺术像素 = Aseprite button 原生高**：模板 14×16
+            /// 在本高度下 1:1 像素对齐、零拉伸；包边 4+6 格 + 内容 6 格）。</summary>
+            public const int Button = 16 * Unit;
 
             /// <summary>按钮左右内边距合计（8 艺术像素；按钮宽 = 标签宽 + 本值）。</summary>
             public const int ButtonPadX = 8 * Unit;

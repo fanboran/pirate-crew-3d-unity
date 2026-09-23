@@ -411,24 +411,27 @@ namespace PirateCrew.EditorTools
             switch (tone)
             {
                 case Tone.Dense:
-                    // 内容片 = 面板整体低一档：亮的用面板中档、中的用面板暗档、暗的再压一步。
-                    return new ToneSlots { hi = "UI_PANEL", mid = "UI_BEVEL_LO", deriveDarkFrom = "UI_BEVEL_LO" };
+                    // 内容片/按钮 = Aseprite dark 主题 button_normal 三档（2026-09-24 创始人
+                    // 裁决"整个游戏复用 Aseprite 这套 UI"）：唇亮 #41444A / 身 #292B30 / 唇暗 #202125。
+                    // 与 Frame 共用唇色、身体压暗一档——与原版按钮/窗口的关系一致。
+                    return new ToneSlots { hi = "UI_BEVEL_HI", mid = "UI_BTN_BODY", dark = "UI_BEVEL_LO" };
                 case Tone.Light:
-                    // 暖白牌取"羊皮纸"三档：亮档近白、中档沙色、暗档中灰。**中档不能用 SAIL_CANVAS**
-                    // ——它跟 WHITE_HOT 的亮度只差 7.6，斜面会读不出来（判据 RampStepRatio 抓过一次）。
-                    return new ToneSlots { hi = "WHITE_HOT", mid = "SAND_LIGHT", dark = "NEUTRAL_LIGHT" };
+                    // 亮牌 = Aseprite 悬停面族：#575B61 / #41444A / #2C2C30（slider_full / check_hot_face 同源）。
+                    return new ToneSlots { hi = "UI_HOVER_HI", mid = "UI_BEVEL_HI", dark = "UI_PANEL" };
                 case Tone.Sea:
                     return new ToneSlots { hi = "SEA_SHALLOW", mid = "SEA_MID", dark = "SEA_DEEP" };
                 case Tone.Primary:
-                    return new ToneSlots { hi = "SAND_LIGHT", mid = "BRASS", dark = "WOOD_DARK" };
+                    // 主行动 = Aseprite button_selected 蓝三档原值（#6E9ADB / #4069C2 / #2A4185）。
+                    return new ToneSlots { hi = "UI_ACCENT_HI", mid = "UI_ACCENT_MID", dark = "UI_ACCENT_DEEP" };
                 case Tone.Danger:
-                    // 暗档用 SHADOW_DEEP（冷紫）而不是 HERO_RED_DEEP：后者与 UI_DANGER 亮度比 0.93，
-                    // 两档几乎同亮、斜面读不出来。冷紫暗部正是板里 SHADOW 族存在的理由
-                    //（渲染篇 §4.2 替换式暗部：暗部不靠乘暗，靠换色相）。
-                    return new ToneSlots { hi = "HERO_RED", mid = "UI_DANGER", dark = "SHADOW_DEEP" };
+                    // 危险 = 蓝阶 R/B 换位（与 Aseprite 蓝阶同亮度结构，色相转红）——
+                    // 原 UI_DANGER(#CC2222) 保留给血条底/落水提示，不随 tone 走。
+                    return new ToneSlots { hi = "UI_DANGER_HI", mid = "UI_DANGER_MID", dark = "UI_DANGER_DEEP" };
                 case Tone.Warn:
                     return new ToneSlots { hi = "GLOW_WARM", mid = "UI_WARN", dark = "SHADOW_WARM" };
                 default:
+                    // Frame（面板）= Aseprite window_face 族：#41444A / #2C2C30 / #202125
+                    // （background / face / editor_face 三色原值）。
                     return new ToneSlots { hi = "UI_BEVEL_HI", mid = "UI_PANEL", dark = "UI_BEVEL_LO" };
             }
         }
@@ -716,36 +719,64 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>手绘 Plate 模板：K=黑环(INK) L=亮唇(S4) C=暗唇(S2) E=主体(S3) .=透明角。</summary>
+        /// <summary>
+        /// Plate 模板 = **Aseprite dark 主题 button_normal 部件逐像素转写**（14×16 艺术像素；
+        /// 权威源 external/aseprite-ref/data/extensions/aseprite-theme/dark/，sheet.png (48,0)
+        /// 14×16、九宫格 w1..3=4/6/4 h1..3=4/6/6，CC-BY-4.0）。字母义：K=黑环(INK)
+        /// C=受光唇(S4，顶行+两侧通高+底上亮条) E=主体(S3) D=背光暗唇(S2) H=落影 .=透明角；
+        /// 底部环外落影独立成 H（悬停态主体上浮时落影保持原深色，Aseprite hot 态同款）。
+        /// 受光唇沿四角 45° 流转：行1 在 col3..10 → 行2 收到 col2/11 → 行3 起贴环 col1/12——
+        /// 这就是「四角轮廓闭合」的圆角语法。1 格 = 1 艺术像素 = Unit 屏幕像素，×Unit 落盘。
+        /// </summary>
         static readonly string[] PlateTemplate =
         {
-            "..KKKKKKKK....",
-            ".KCDDDDDDDDCK.",
-            "KCDEEEEEEEEDCK",
-            "KDEEEEEEEEEEDK",
-            "KDEEEEEEEEEEDK",
-            "KDEEEEEEEEEEDK",
-            "KDEEEEEEEEEEDK",
-            "KDEEEEEEEEEEDK",
-            "KDEEEEEEEEEEDK",
-            "KDEEEEEEEEEEDK",
-            "KDDEEEEEEEEDDK",
-            "KCDDDDDDDDDDCK",
-            ".KCCCCCCCCCCK.",
-            "..KKKKKKKK....",
+            "..KKKKKKKKKK..",
+            ".KECCCCCCCCEK.",
+            "KECEEEEEEEECEK",
+            "KCEEEEEEEEEECK",
+            "KCEEEEEEEEEECK",
+            "KCEEEEEEEEEECK",
+            "KCEEEEEEEEEECK",
+            "KCEEEEEEEEEECK",
+            "KCEEEEEEEEEECK",
+            "KCEEEEEEEEEECK",
+            "KCEEEEEEEEEECK",
+            "KCCEEEEEEEECCK",
+            "KDCCCCCCCCCCDK",
+            "HKDDDDDDDDDDKH",
+            ".HKKKKKKKKKKH.",
+            "..HHHHHHHHHH..",
         };
 
         /// <summary>
-        /// 按手绘模板画 Plate：14×14 艺术像素 ×Unit 落盘（42×42）。
-        /// 切片边框 = 左 6 / 上 6 / 右 6 / 底 9（底边多一层暗唇）。悬停/按压由 ramp 升降承担。
+        /// 按模板画 Plate：14×16 艺术像素 ×Unit 落盘（42×48）。
+        /// 切片边框 = 左 4u / 下 6u / 右 4u / 上 4u（Aseprite button 九宫格 w/h1..3 原样）。
+        /// 状态 = 换**字母取色**不换几何（与 Aseprite 一致：normal/hot/selected 共用一张骨架）：
+        /// 常态 = 主体 S3 + 唇 S4 + 暗唇 S2；悬停 = 主体上浮到 S4（整面变亮，落影 H 不动）；
+        /// 按压 = 整体下沉一档（主体 S2、唇退 S3）。运行时再叠 <see cref="PixelSkin.PressOffset"/>。
         /// </summary>
         static Texture2D BuildPlateFromTemplate(Ramp r, State state, out Vector4 border)
         {
+            Color32 body, lip, darkLip, shadow;
+            switch (state)
+            {
+                case State.Hovered:
+                    body = r.S4; lip = r.S4; darkLip = r.S2; shadow = r.S3;
+                    break;
+                case State.Pressed:
+                    body = r.S2; lip = r.S3; darkLip = r.S2; shadow = r.S2;
+                    break;
+                default:
+                    body = r.S3; lip = r.S4; darkLip = r.S2; shadow = r.S3;
+                    break;
+            }
             var map = new Dictionary<char, Color32>
             {
                 { 'K', Slot("INK") },
-                { 'L', r.S4 },   // 受光亮唇
-                { 'C', r.S2 },   // 背光暗唇
-                { 'E', r.S3 },   // 主体
+                { 'C', lip },     // 受光唇
+                { 'E', body },    // 主体
+                { 'D', darkLip }, // 背光暗唇
+                { 'H', shadow },  // 环外落影
             };
             int rows = PlateTemplate.Length;
             int cols = PlateTemplate[0].Length;
@@ -760,7 +791,7 @@ namespace PirateCrew.EditorTools
                     px[y * w + x] = ch == '.' ? new Color32(0, 0, 0, 0) : map[ch];
                 }
             }
-            border = new Vector4(2 * u, 3 * u, 2 * u, 2 * u);   // 左/下/右/上
+            border = new Vector4(4 * u, 6 * u, 4 * u, 4 * u);   // 左/下/右/上
             return ToTexture(px, w, h);
         }
 
@@ -1207,6 +1238,8 @@ namespace PirateCrew.EditorTools
                 return "fill";
             if (name.StartsWith("Pixel_Tab_", StringComparison.Ordinal))
                 return "tab";
+            if (name.StartsWith("Pixel_Track_", StringComparison.Ordinal))
+                return "track";
             if (name == "Pixel_Ring" || name == "Pixel_Focus")
                 return "ring";
             if (name.StartsWith("Pixel_Pip_", StringComparison.Ordinal))
@@ -1246,13 +1279,20 @@ namespace PirateCrew.EditorTools
                     w = SepLength; h = 2 * Unit;      // 水平件；垂直件在 CreateByName 里互换
                     border = new Vector4(0f, Unit, 0f, Unit);
                     break;
+                case "track":
+                    w = PlateSize; h = PlateSize;
+                    border = new Vector4(TrackBorder, TrackBorder, TrackBorder, TrackBorder);
+                    break;
                 case "shadow":
                     w = PlateSize; h = PlateSize;
                     border = new Vector4(PlateBorder, PlateBorder, PlateBorder, PlateBorder);
                     break;
                 default:
-                    w = PlateSize; h = PlateSize;
-                    border = new Vector4(PlateBorder, PlateBorder, PlateBorder, PlateBorder);
+                    // plate：Aseprite button 模板 14×16（与 BuildPlateFromTemplate 同源），
+                    // 切片 = 左/右 4u、下 6u、上 4u（w/h1..3 原样）。
+                    w = PlateTemplate[0].Length * Unit;
+                    h = PlateTemplate.Length * Unit;
+                    border = new Vector4(4 * Unit, 6 * Unit, 4 * Unit, 4 * Unit);
                     break;
             }
             if (kind == "sep" && name == "Pixel_Sep_V")
@@ -1702,7 +1742,15 @@ namespace PirateCrew.EditorTools
                 case "pip": return PipSize * PipSize - PipOpaqueCount();
                 case "sep": return 0;
                 case "shadow": return ChamferPixelCount();
-                default: return ChamferPixelCount();
+                default:
+                {
+                    // plate：模板四角的透明阶梯格（'.' 数 × 每格像素）
+                    int cells = 0;
+                    foreach (string row in PlateTemplate)
+                        foreach (char ch in row)
+                            if (ch == '.') cells++;
+                    return cells * Unit * Unit;
+                }
             }
         }
 
@@ -1793,10 +1841,83 @@ namespace PirateCrew.EditorTools
                 problems.Add(label + "：透明像素 " + transparent + " 个，应为 " + expectedTransparent
                     + " 个（超出该族已知形状 = 画法被改坏了）。");
 
-            // 外环闭合：plate/tab/shadow 查；ring 族整张就是环，也查；fill/pip/sep 无环可查。
-            if (kind == "plate" || kind == "tab" || kind == "ring" || kind == "shadow")
+            // 外环闭合：plate 用**模板格级**判据（黑环 K 格 8 连通闭合）；tab/ring/shadow
+            // 仍是同心环画法，走像素级"边界 1u 内"判据。模板的 45° 圆角格像素离图边 ≥1u，
+            // 像素级口径会把环误切成四段（手绘模板落地起潜伏的红，2026-09-24 移植时收口）。
+            if (kind == "plate")
+                problems.AddRange(CheckPlateRingClosedFromTemplate(label));
+            else if (kind == "tab" || kind == "ring" || kind == "shadow")
                 problems.AddRange(CheckRingClosed(label, px, w, h, kind == "tab"));
 
+            return problems;
+        }
+
+        /// <summary>
+        /// Plate 模板的黑环闭合判据（**艺术格级**）：K 格集合须 8 连通为 1 个分量、
+        /// 且每格至少两个环邻（无端点）。与 <see cref="CheckRingClosed"/> 同一不变量、
+        /// 不同镜面——模板环沿四角 45° 流转，格级才是它的原生分辨率。
+        /// </summary>
+        static List<string> CheckPlateRingClosedFromTemplate(string label)
+        {
+            var problems = new List<string>();
+            int rows = PlateTemplate.Length, cols = PlateTemplate[0].Length;
+            var ring = new bool[rows, cols];
+            for (int y = 0; y < rows; y++)
+                for (int x = 0; x < cols; x++)
+                    ring[y, x] = PlateTemplate[y][x] == 'K';
+
+            var seen = new bool[rows, cols];
+            int components = 0;
+            for (int sy = 0; sy < rows; sy++)
+                for (int sx = 0; sx < cols; sx++)
+                {
+                    if (!ring[sy, sx] || seen[sy, sx])
+                        continue;
+                    components++;
+                    var stack = new Stack<(int x, int y)>();
+                    stack.Push((sx, sy));
+                    seen[sy, sx] = true;
+                    while (stack.Count > 0)
+                    {
+                        (int cx, int cy) = stack.Pop();
+                        for (int oy = -1; oy <= 1; oy++)
+                            for (int ox = -1; ox <= 1; ox++)
+                            {
+                                if (ox == 0 && oy == 0)
+                                    continue;
+                                int nx = cx + ox, ny = cy + oy;
+                                if (nx < 0 || ny < 0 || nx >= cols || ny >= rows)
+                                    continue;
+                                if (ring[ny, nx] && !seen[ny, nx])
+                                {
+                                    seen[ny, nx] = true;
+                                    stack.Push((nx, ny));
+                                }
+                            }
+                    }
+                }
+            if (components != 1)
+                problems.Add(label + "：模板黑环在艺术格层面有 " + components + " 段（应为 1 段闭合圈）。");
+
+            for (int y = 0; y < rows; y++)
+                for (int x = 0; x < cols; x++)
+                {
+                    if (!ring[y, x])
+                        continue;
+                    int nb = 0;
+                    for (int oy = -1; oy <= 1; oy++)
+                        for (int ox = -1; ox <= 1; ox++)
+                        {
+                            if (ox == 0 && oy == 0)
+                                continue;
+                            int nx = x + ox, ny = y + oy;
+                            if (nx >= 0 && ny >= 0 && nx < cols && ny < rows && ring[ny, nx])
+                                nb++;
+                        }
+                    if (nb < 2)
+                        problems.Add(label + "：模板黑环格 (" + x + "," + y + ") 只有 " + nb
+                            + " 个环邻——环不闭合或有毛刺。");
+                }
             return problems;
         }
 
@@ -1970,13 +2091,11 @@ namespace PirateCrew.EditorTools
                     break;
                 default:
                 {
-                    // plate / tab：本 tone 的色阶。悬停是抬升后的阶梯、按压是下沉后的阶梯——
-                    // 各自成一张锁板表（混出来的中间档不在常态表里，按状态取才锁得住）
+                    // plate / tab / track：本 tone 的**常态阶梯纯档**。状态件（悬停/按压）不再
+                    // 混中间档——Aseprite 口径的状态 = 换纯档取色（悬停取 S4、按压取 S2），
+                    // 白名单跟着取常态阶梯即可覆盖三态。
                     Tone tone = ToneOfName(name);
-                    State tail = ParseStateTail(name.Substring("Pixel_".Length));
-                    Ramp r = tail == State.Hovered ? RampOf(tone).Lifted(HoverLift)
-                        : tail == State.Pressed ? RampOf(tone).Sunk(PressSink)
-                        : RampOf(tone);
+                    Ramp r = RampOf(tone);
                     allowed.Add(r.S1);
                     allowed.Add(r.S2);
                     allowed.Add(r.S3);
@@ -2765,7 +2884,7 @@ namespace PirateCrew.EditorTools
             asset.shadow = LoadSprite("Pixel_Shadow");
             asset.toneColors = toneColors.ToArray();
             asset.ink = Slot("INK");
-            asset.paperWhite = Slot("WHITE_HOT");
+            asset.paperWhite = Slot("UI_TEXT");   // Aseprite 正文灰 #C0C0C0（text 色原值）
 
             EditorUtility.SetDirty(asset);
             AssetDatabase.SaveAssets();

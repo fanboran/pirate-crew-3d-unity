@@ -76,11 +76,16 @@ namespace PirateCrew.UI
         /// </summary>
         public const int Unit = 3;
 
-        /// <summary>Plate/Track 九宫格切片边框 = 3 层带 + 1u 内容余量。</summary>
-        public const int PlateBorder = 2 * Unit;   // 黑 1 格 + 唇边 1 格（2026-09-24 走查对齐 Terraria 参照）
+        /// <summary>
+        /// 36×36 家族（页签/投影）的九宫格切片边框 = 2u。**Plate 按钮件不走本值**——
+        /// 按钮按 Aseprite button 口径烘（14×16 模板，切片 左/右 4u、下 6u、上 4u，
+        /// 见 Editor 侧 <c>BeveledPixelSpriteBuilder</c> 目标表与贴图 meta）。
+        /// </summary>
+        public const int PlateBorder = 2 * Unit;
 
-        /// <summary>低于它装配就不能用九宫格（角会切进内容区），装配侧应断言。</summary>
-        public const int PlateMinRender = 2 * PlateBorder;
+        /// <summary>低于它装配就不能用九宫格（角会切进内容区），装配侧应断言。
+        /// = 新按钮模板的上下切片和（4u + 6u）。</summary>
+        public const int PlateMinRender = 10 * Unit;
 
         /// <summary>
         /// 按压态元素位移：右下 **1 艺术像素**（= Unit，与投影同距；贴图里不烘位移，
