@@ -282,11 +282,8 @@ namespace PirateCrew.Battle
         float _turretPower = 0.6f;
         bool _scopeActive;
 
-        /// <summary>炮台瞄准进行中（相机据此把滚轮让给力度）。</summary>
+        /// <summary>炮台瞄准进行中（相机据此把滚轮让给力度；缩放已锁死，瞄准态滚轮不触碰相机）。</summary>
         public bool IsTurretAiming => _turretAiming;
-
-        /// <summary>当前炮台蓄力比例（0..1；供相机的力度-镜头耦合，M4 §3.2）。</summary>
-        public float ChargeRatio => Mathf.Clamp01(_turretPower);
 
         /// <summary>
         /// Scope 瞄准模式（M4 §3.2，提案）：炮台瞄准中按 Shift 切换。生效时相机 FOV 收敛到

@@ -112,12 +112,6 @@ namespace PirateCrew.Battle
             return Mathf.Clamp(Mathf.RoundToInt(spanUnits * 0.3f), FullFieldOrthoSize, PanoramaMaxOrthoSize);
         }
 
-        /// <summary>蓄力比例 → 特写档与全景档之间的线性 OrthoSize（力度-镜头耦合的正交当量）。</summary>
-        public static float ChargeZoomOrthoSize(int closeUpSize, float panoramaSize, float chargeRatio)
-        {
-            return Mathf.Lerp(closeUpSize, panoramaSize, Mathf.Clamp01(chargeRatio));
-        }
-
         /// <summary>
         /// 俯角（度）→ **相机相对焦点的单位方向**：水平分量在 +X/+Z 上等分
         /// （即方位 45°——只有它给出对称菱形构图）、竖直分量 sinθ。θ=30° 时 = (0.6124, 0.5, 0.6124)，

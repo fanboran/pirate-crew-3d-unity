@@ -39,7 +39,41 @@ namespace PirateCrew.Rendering.Pixelart
 
         [Header("低分辨率域")]
         [Tooltip("像素化档位 = 一个艺术像素占几个**屏幕**像素（整数放大倍数，锁死）。3 = 1920×1080 下 640×360。")]
-        [Min(1)] public int pixelScale = 3;
+        [Min(1)] public int pixelScale = PixelScaleDefault;
+
+        /// <summary>像素比例档下限（1:2）——创始人 2026-09-24 裁决：滚轮只在 1:2–1:5 间步进。</summary>
+        public const int PixelScaleMin = 2;
+        /// <summary>像素比例档上限（1:5）。</summary>
+        public const int PixelScaleMax = 5;
+        /// <summary>默认档（1:3）。</summary>
+        public const int PixelScaleDefault = 3;
+
+        /// <summary>
+        /// 像素比例档步进（纯函数，无头可测）：当前档 ±1 步，钳在
+        /// [<see cref="PixelScaleMin"/>, <see cref="PixelScaleMax"/>]；已在端点再同向步进返回原值。
+        /// </summary>
+        public static int SteppedPixelScale(int current, int direction)
+        {
+            if (direction > 0)
+                return Mathf.Min(current + 1, PixelScaleMax);
+            if (direction < 0)
+                return Mathf.Max(current - 1, PixelScaleMin);
+            return current;
+        }
+
+        /// <summary>
+        /// 运行时换档入口（滚轮输入，创始人 2026-09-24 裁决）：档位变化返回 true。
+        /// 派生尺寸由 <see cref="ComputeTargetSize"/> 在下一帧 Update 自动重算——
+        /// worldPerPixel 口径不随档位变，**取景不动、只变颗粒粗细**（渲染域开关，不是相机缩放）。
+        /// </summary>
+        public bool TryStepPixelScale(int direction)
+        {
+            int next = SteppedPixelScale(pixelScale, direction);
+            if (next == pixelScale)
+                return false;
+            pixelScale = next;
+            return true;
+        }
 
         [Tooltip("一个艺术像素的世界尺寸（米）。它与艺术画布高一起决定可见世界范围 = 艺术像素数 × 本值。"
             + "0.07778 = 1080p 下可见 28m 高（= 广角机位），改 pixelScale 时它要按"
