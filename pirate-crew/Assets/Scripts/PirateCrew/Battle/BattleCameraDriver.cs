@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using PirateCrew.Core;
 using PirateCrew.Combat;
 using PirateCrew.Data;
+using PirateCrew.Rendering.Pixelart;
 using UnityEngine;
 
 namespace PirateCrew.Battle
@@ -54,7 +55,7 @@ namespace PirateCrew.Battle
         [SerializeField] BattleController battle;
 
         [Tooltip("瞄准/投掷控制器（同场景显式注入，由 EditorTools.BattleLookupWiring 接线）。"
-                 + "本类每帧采样它的 IsScopeActive / IsTurretAiming / ChargeRatio（Scope 视野混合、力度-镜头耦合），"
+                 + "本类每帧采样它的 IsScopeActive / IsTurretAiming（Scope 视野混合；力度-镜头耦合已废除——缩放按 2026-09-24 裁决锁死），"
                  + "是**热路径依赖**——所以必须显式注入，绝不做每帧回退扫描（清退报告 2026-09-21）。")]
         [SerializeField] AimThrowController aimThrow;
 
@@ -179,11 +180,9 @@ namespace PirateCrew.Battle
         bool _freeAnchorActive;
         Vector3 _cameraTargetDirtyPosition;   // 原链 cameraTarget.position 的等价物（干净焦点+下压+震屏）
 
-        // ---- M4：Scope / 力度-镜头耦合 / 全景档 ----
+        // ---- M4：Scope / 全景档 ----
         float _panoramaOrthoSize = CameraFraming.PanoramaOrthoSizeForSpan(CameraFraming.DefaultWorldSpan);
         float _scopeBlend;              // Scope 等效 FOV 混合系数 0..1（按 ScopeBlendSeconds 线性推进）
-        bool _chargeZoomActive;         // 炮台蓄力拉远生效中（结束时恢复蓄力前档位）
-        float _preChargeOrthoSize;
         float _baseOrthoSize = CameraFraming.FullFieldOrthoSize;
 
         /// <summary>本帧实际落到主相机上的取景（守卫测试用它逐帧比对相机实况）。</summary>
@@ -380,31 +379,13 @@ namespace PirateCrew.Battle
                 }
             }
 
-            // M4 §3.2 力度-镜头耦合：炮台蓄力越大相机越拉远（特写→全景线性映射），松手恢复。
-            UpdateChargeZoom();
-        }
-
-        /// <summary>
-        /// 力度-镜头耦合（M4 §3.2 的正交转写，提案）：炮台瞄准期间把缩放档覆写为
-        /// "特写档 → 全景档 × 蓄力比例"的线性映射；瞄准结束恢复蓄力前的档位。
-        /// </summary>
-        void UpdateChargeZoom()
-        {
-            bool charging = aimThrow != null && aimThrow.IsTurretAiming;
-            if (charging)
+            // 滚轮分域（创始人 2026-09-24 裁决）：瞄准态滚轮归投掷域（力度微调，见 AimThrowController）；
+            // 非瞄准态 = 像素比例档步进（渲染域，取景不动——取景档已锁死，见相机行为契约 #3）。
+            if (aimThrow == null || !aimThrow.IsTurretAiming)
             {
-                if (!_chargeZoomActive)
-                {
-                    _chargeZoomActive = true;
-                    _preChargeOrthoSize = _targetOrthoSize;
-                }
-                _targetOrthoSize = CameraFraming.ChargeZoomOrthoSize(
-                    CameraFraming.CloseUpOrthoSize, _panoramaOrthoSize, aimThrow.ChargeRatio);
-            }
-            else if (_chargeZoomActive)
-            {
-                _chargeZoomActive = false;
-                _targetOrthoSize = _preChargeOrthoSize;
+                float scroll = Input.mouseScrollDelta.y;
+                if (!Mathf.Approximately(scroll, 0f))
+                    PixelartPath.ActiveRig?.TryStepPixelScale(scroll > 0f ? 1 : -1);
             }
         }
 
@@ -573,8 +554,6 @@ namespace PirateCrew.Battle
             _targetYaw = 0f;
             _manualOrthoSize = CameraFraming.CloseUpOrthoSize;
             _targetOrthoSize = CameraFraming.CloseUpOrthoSize;
-            // 换行动单位即脱离炮台瞄准：力度-镜头耦合立即失效（否则恢复逻辑会盖掉这次聚焦）。
-            _chargeZoomActive = false;
         }
 
         // ------------------------------------------------------------------

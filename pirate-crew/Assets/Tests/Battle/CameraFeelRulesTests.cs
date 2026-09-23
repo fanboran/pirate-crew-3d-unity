@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using PirateCrew.Rendering.Pixelart;
 using UnityEngine;
 
 namespace PirateCrew.Battle.Tests
@@ -448,20 +449,8 @@ namespace PirateCrew.Battle.Tests
                 CameraFraming.DefaultWorldSpan), 30, "默认跨度 = 现行 100u 图");
         }
 
-        [Test]
-        public void ChargeZoomOrthoSize_LerpsCloseUpToPanoramaByChargeRatio()
-        {
-            // 力度-镜头耦合的正交当量：蓄力 0 = 特写档、蓄力满 = 全景档、线性之间。
-            Assert.AreEqual(5f, CameraFraming.ChargeZoomOrthoSize(5, 30f, 0f), 1e-4f);
-            Assert.AreEqual(30f, CameraFraming.ChargeZoomOrthoSize(5, 30f, 1f), 1e-4f);
-            Assert.AreEqual(17.5f, CameraFraming.ChargeZoomOrthoSize(5, 30f, 0.5f), 1e-4f);
-            // 越界钳制：蓄力比例只在 [0,1] 内取值。
-            Assert.AreEqual(5f, CameraFraming.ChargeZoomOrthoSize(5, 30f, -1f), 1e-4f);
-            Assert.AreEqual(30f, CameraFraming.ChargeZoomOrthoSize(5, 30f, 2f), 1e-4f);
-        }
-
         // ------------------------------------------------------------------
-        // M4 手感：Scope / 力度-镜头耦合（docs/大海域世界化.md §3.2，提案数值）
+        // M4 手感：Scope（docs/大海域世界化.md §3.2，提案数值）
         // ------------------------------------------------------------------
 
         [Test]
@@ -484,13 +473,14 @@ namespace PirateCrew.Battle.Tests
         }
 
         [Test]
-        public void ChargeZoomDistance_MapsPowerLinearlyBetweenAnchors()
+        public void SteppedPixelScale_ClampsToRuledRange()
         {
-            Assert.AreEqual(12f, CameraFeelRules.ChargeZoomDistance(12f, 60f, 0f), 1e-5f, "零力度 = 近档");
-            Assert.AreEqual(60f, CameraFeelRules.ChargeZoomDistance(12f, 60f, 1f), 1e-5f, "满力 = 全景档");
-            Assert.AreEqual(36f, CameraFeelRules.ChargeZoomDistance(12f, 60f, 0.5f), 1e-4f);
-            Assert.AreEqual(12f, CameraFeelRules.ChargeZoomDistance(12f, 60f, -1f), 1e-5f, "越界夹回近档");
-            Assert.AreEqual(60f, CameraFeelRules.ChargeZoomDistance(12f, 60f, 2f), 1e-5f, "越界夹回全景");
+            // 2026-09-24 滚轮分域裁决：像素比例档只在 1:2–1:5 间步进，默认 1:3。
+            Assert.AreEqual(4, PixelartCameraRig.SteppedPixelScale(3, 1));
+            Assert.AreEqual(2, PixelartCameraRig.SteppedPixelScale(3, -1));
+            Assert.AreEqual(5, PixelartCameraRig.SteppedPixelScale(5, 1), "上限 1:5 到顶不再步进");
+            Assert.AreEqual(2, PixelartCameraRig.SteppedPixelScale(2, -1), "下限 1:2 到底不再步进");
+            Assert.AreEqual(3, PixelartCameraRig.SteppedPixelScale(3, 0), "无输入不步进");
         }
 
         [Test]
