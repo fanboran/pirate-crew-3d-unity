@@ -78,14 +78,6 @@ namespace PirateCrew.Audio
             return _volumes[Index(AudioCategory.Master)] * volume;
         }
 
-        /// <summary>按索引取增益（AudioService 的播放热路径用，避免枚举装箱歧义）。</summary>
-        public float EffectiveGainByIndex(int categoryIndex)
-        {
-            if (categoryIndex < 0 || categoryIndex >= AudioCategories.Count)
-                return 0f;
-            return EffectiveGain((AudioCategory)categoryIndex);
-        }
-
         /// <summary>一次性写入四类音量（读档/设置面板初始化用）。</summary>
         public void SetAll(float master, float sfx, float ambient, float music)
         {

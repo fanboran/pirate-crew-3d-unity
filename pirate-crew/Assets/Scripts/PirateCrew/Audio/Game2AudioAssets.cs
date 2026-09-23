@@ -71,9 +71,27 @@ namespace PirateCrew.Audio
     /// </summary>
     public static class Game2AudioAssets
     {
-        /// <summary>Game-2 音频素材根目录（`.temp` 下的构建中间产物；本表只读它，不写）。</summary>
-        public const string SourceRoot =
+        /// <summary>SourceRoot 的环境变量覆盖名（换机/换盘符时设它，不改代码）。</summary>
+        public const string SourceRootEnvVariable = "PC3D_AUDIO_SOURCE_ROOT";
+
+        /// <summary>SourceRoot 默认值（作者本机路径）。</summary>
+        const string DefaultSourceRoot =
             "F:/VSCode/game-2/.temp/building-pipeline-v2/stick-world/assets/audio";
+
+        /// <summary>
+        /// Game-2 音频素材根目录（`.temp` 下的构建中间产物；本表只读它，不写）。
+        /// 只供**编辑器资产同步**（AudioAssetBuilder）与源存在性测试使用，不参与运行时播放；
+        /// 默认是作者本机的绝对路径，换机/换盘符时设环境变量
+        /// <see cref="SourceRootEnvVariable"/> 覆盖（空值视为未设置）。
+        /// </summary>
+        public static string SourceRoot
+        {
+            get
+            {
+                string overridden = Environment.GetEnvironmentVariable(SourceRootEnvVariable);
+                return string.IsNullOrEmpty(overridden) ? DefaultSourceRoot : overridden;
+            }
+        }
 
         /// <summary>目标资产平铺目录（与 <c>AudioAssetBuilder.AudioRoot</c> 一致）。</summary>
         public const string ResourcesFolder = "Assets/Resources/PirateCrewAudio";
@@ -130,7 +148,7 @@ namespace PirateCrew.Audio
             new Game2Port(SfxId.FleshHit,
                 new[] { "sfx/thump_a.wav", "sfx/thump_b.wav", "sfx/headbutt.wav" },
                 EvCrewDamaged,
-                "受击闷响；crew_damaged 载荷无坐标 → 2D 播放（待裁决项）"),
+                "受击闷响；crew_damaged 载荷无坐标 → 调用方强制 2D（AudioService.PlaySfx2D）"),
 
             new Game2Port(SfxId.CrewDown,
                 new[] { "sfx/bodyfall_a.wav", "sfx/bodyfall_b.wav", "sfx/bodyfall_c.wav" },

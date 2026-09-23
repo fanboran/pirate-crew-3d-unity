@@ -104,8 +104,10 @@ namespace PirateCrew.Fx
         }
 
         /// <summary>
-        /// 清空全部存活特效与对象池（结算/切场景/测试收尾用）。
-        /// 【注意】对象池容器是 <c>DontDestroyOnLoad</c>，本方法会把它一并销毁。
+        /// 清空对象池并隐藏回合光环（结算/切场景/测试收尾用）。
+        /// 【实际语义】只销毁**池内闲置**的粒子体/四边形特效体（<see cref="FxPool.Clear"/>，
+        /// 池超额特效体连同其每实例材质一起销毁）；正在播放的存活特效不受影响，
+        /// 播完后照常归还池。池容器 <c>[FxPool]</c>（DontDestroyOnLoad）**不会**被销毁，跨场景继续复用。
         /// </summary>
         public static void ClearAll()
         {

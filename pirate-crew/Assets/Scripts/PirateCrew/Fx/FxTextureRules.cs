@@ -296,7 +296,7 @@ namespace PirateCrew.Fx
                     }
 
                     float edge = 1f - Saturate(dy / halfThick);           // 0 边缘 → 1 中心
-                    float grain = Hash01(x / 2, y, seed) * 0.10f - 0.05f; // 木纹微扰
+                    float grain = FxRules.Hash01(x / 2, y, seed) * 0.10f - 0.05f; // 木纹微扰
                     float v = Mathf.Clamp01(0.52f + edge * 0.30f + grain);
 
                     // 木色 #A67B42（Art Bible §2.1 木材中间调）按明度缩放。
@@ -377,17 +377,8 @@ namespace PirateCrew.Fx
             return t * t * (3f - 2f * t);
         }
 
-        /// <summary>确定性哈希 → [0,1)。</summary>
-        static float Hash01(int x, int y, int seed)
-        {
-            unchecked
-            {
-                int h = x * 374761393 + y * 668265263 + seed * 2147483647;
-                h = (h ^ (h >> 13)) * 1274126177;
-                h = h ^ (h >> 16);
-                return (h & 0x7FFFFFFF) / 2147483648f;
-            }
-        }
+        // 哈希不在此处实现：确定性哈希（Hash/Hash01）统一以 <see cref="FxRules"/> 的公开实现为单源——
+        // 像素噪声与粒子分布共用同一随机底噪，两份实现必然漂移。
 
         /// <summary>双线性插值的值噪声。</summary>
         static float ValueNoise(float x, float y, int seed)
@@ -399,10 +390,10 @@ namespace PirateCrew.Fx
             float u = xf * xf * (3f - 2f * xf);
             float v = yf * yf * (3f - 2f * yf);
 
-            float a = Hash01(xi, yi, seed);
-            float b = Hash01(xi + 1, yi, seed);
-            float cc = Hash01(xi, yi + 1, seed);
-            float d = Hash01(xi + 1, yi + 1, seed);
+            float a = FxRules.Hash01(xi, yi, seed);
+            float b = FxRules.Hash01(xi + 1, yi, seed);
+            float cc = FxRules.Hash01(xi, yi + 1, seed);
+            float d = FxRules.Hash01(xi + 1, yi + 1, seed);
             return Mathf.Lerp(Mathf.Lerp(a, b, u), Mathf.Lerp(cc, d, u), v);
         }
 

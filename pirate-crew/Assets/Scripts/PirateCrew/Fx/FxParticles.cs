@@ -66,8 +66,8 @@ namespace PirateCrew.Fx
     ///
     /// 【为什么一个爆发体一个 ParticleSystem】逐特效（火球/火花/木屑/烟）各用一个系统是
     /// 最省的画法：不同材质必然分 DrawCall，拆开只是让同一材质的粒子能跟别处的粒子合批，
-    /// 且各系统的 shape/重力/寿命互不干扰。一次爆炸 7 个系统 + 1 个冲击波 Quad = 8 个 DrawCall
-    /// （见 `ExplosionFx` 头注释与交付报告的性能一节）。
+    /// 且各系统的 shape/重力/寿命互不干扰。一次爆炸 6 个系统 + 1 个冲击波 Quad = 7 个 DrawCall
+    /// （见 `ExplosionFx` 头注释的性能一节；星屑系统已从爆炸组合移除）。
     ///
     /// 【burst 而非持续发射】`emission.rateOverTime = 0` + `SetBursts`，一次发完即停，
     /// 系统在最后一颗粒子死亡后经 <c>stopAction = Callback</c> 回调归还对象池 —— 不会出现

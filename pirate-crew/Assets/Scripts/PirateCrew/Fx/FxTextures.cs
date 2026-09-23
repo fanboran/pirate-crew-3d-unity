@@ -19,10 +19,13 @@ namespace PirateCrew.Fx
     {
         static readonly Texture2D[] Cache = new Texture2D[FxTextureRules.All.Length];
 
-        /// <summary>伤害数字贴图缓存上限（超过则整体清空重建，避免数字变化多时无限增长）。</summary>
+        /// <summary>伤害数字贴图缓存上限（超过则按插入序驱逐最旧条目给新数字腾位）。</summary>
         const int DamageNumberCacheLimit = 64;
 
         static readonly Dictionary<string, Texture2D> DamageNumberCache = new Dictionary<string, Texture2D>();
+
+        /// <summary>伤害数字缓存键的插入序（从旧到新）：驱逐按它从最旧开始。</summary>
+        static readonly List<string> DamageNumberOrder = new List<string>();
 
         /// <summary>取（或创建）形状贴图。算法失败/尺寸非法时返回 1×1 白图兜底，绝不返回 null。</summary>
         public static Texture2D Get(FxTextureKind kind)
@@ -52,24 +55,49 @@ namespace PirateCrew.Fx
             string key = text + "|" + scale + "|" + fill.r + "," + fill.g + "," + fill.b
                        + "|" + outline.r + "," + outline.g + "," + outline.b;
 
-            if (DamageNumberCache.TryGetValue(key, out Texture2D cached) && cached != null)
-                return cached;
-
-            if (DamageNumberCache.Count >= DamageNumberCacheLimit)
+            if (DamageNumberCache.TryGetValue(key, out Texture2D cached))
             {
-                foreach (KeyValuePair<string, Texture2D> pair in DamageNumberCache)
-                {
-                    if (pair.Value != null)
-                        Object.Destroy(pair.Value);
-                }
-                DamageNumberCache.Clear();
+                if (cached != null)
+                    return cached;
+                // 条目已被外部销毁（Unity 假 null）：清掉旧键再重建，保持缓存与插入序一致
+                DamageNumberCache.Remove(key);
+                DamageNumberOrder.Remove(key);
             }
+
+            EvictOldestDamageNumber();
 
             Color32[] pixels = FxDigitFont.CreatePixels(
                 text, scale, 1, fill, outline, out int width, out int height);
             Texture2D texture = Upload("FxDmg_" + text, width, height, pixels, FilterMode.Point);
             DamageNumberCache[key] = texture;
+            DamageNumberOrder.Add(key);
             return texture;
+        }
+
+        /// <summary>
+        /// 缓存满 <see cref="DamageNumberCacheLimit"/> 张时按插入序逐条驱逐最旧条目，
+        /// 跳过最近创建的一条（屏上正在飘的数字多半引用它）。
+        /// 【为什么不能整体 Destroy + Clear】存活中的伤害数字材质仍引用着各自贴图，
+        /// 整体清空会让屏上所有数字瞬间丢贴图；逐条驱逐只牺牲最旧的，破坏面最小。
+        /// </summary>
+        static void EvictOldestDamageNumber()
+        {
+            if (DamageNumberCache.Count < DamageNumberCacheLimit)
+                return;
+
+            int newestIndex = DamageNumberOrder.Count - 1;
+            for (int i = 0; i < newestIndex && DamageNumberCache.Count >= DamageNumberCacheLimit; i++)
+            {
+                string key = DamageNumberOrder[i];
+                if (DamageNumberCache.TryGetValue(key, out Texture2D texture))
+                {
+                    if (texture != null)
+                        Object.Destroy(texture);
+                    DamageNumberCache.Remove(key);
+                }
+                DamageNumberOrder.RemoveAt(i);
+                i--;
+            }
         }
 
         /// <summary>1×1 白图兜底（任何算法异常时都把渲染降级成"单色方块"而不是崩）。</summary>

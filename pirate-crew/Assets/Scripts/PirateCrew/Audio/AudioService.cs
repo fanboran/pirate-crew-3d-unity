@@ -63,6 +63,18 @@ namespace PirateCrew.Audio
         /// 用于把 <c>BattleEvents.ShotReleased</c> 的拖拽距离映射到音高/音量（提案/待定）。</summary>
         public const float WhooshFullDragPixels = 130f;
 
+        // ---- 事件入口的调用侧音量缩放（乘在配方 DefaultVolume 之上，提案/待定）----
+        // 待并入 SfxRecipe 配平：配平后改配方 DefaultVolume 并删除本组常量——
+        // 不直接改配方表，避免影响同 id 其它触发路径的整体响度漂移。
+        /// <summary>crew_damaged 受击音（FleshHit）的调用侧缩放。</summary>
+        const float FleshHitVolumeScale = 0.85f;
+
+        /// <summary>crew_died 阵亡音（CrewDown）的调用侧缩放。</summary>
+        const float CrewDownVolumeScale = 0.90f;
+
+        /// <summary>ai_decided 武器切换音（WeaponSwitch）的调用侧缩放。</summary>
+        const float WeaponSwitchVolumeScale = 0.75f;
+
         /// <summary>环境底床按镜头距离重算衰减的节流间隔（秒）。</summary>
         public const float AmbientUpdateIntervalSeconds = 0.25f;
 
@@ -124,6 +136,10 @@ namespace PirateCrew.Audio
         /// <summary>按 id 缓存的剪辑组：搬运素材的多个变奏都放这里，播放时随机取一个。</summary>
         readonly Dictionary<SfxId, AudioClip[]> _clips = new Dictionary<SfxId, AudioClip[]>();
 
+        /// <summary>运行时合成的剪辑（<c>AudioClip.Create</c> 产物，非资产）：OnDestroy 时显式销毁；
+        /// Resources / ClipProvider 来的剪辑归 Unity 资产系统或提供方所有，不在此列。</summary>
+        readonly List<AudioClip> _synthClips = new List<AudioClip>();
+
         /// <summary>正在循环播放的源（环境底床 3 层 + 音乐之外的循环音）；值含层权重。</summary>
         readonly Dictionary<SfxId, LoopVoice> _loopSources = new Dictionary<SfxId, LoopVoice>();
 
@@ -138,6 +154,9 @@ namespace PirateCrew.Audio
         AudioSource _musicSource;
         int _voiceCursor;
 
+        /// <summary>循环源池耗尽的告警是否已发过（全忙拒绝起播只告警一次，不刷屏）。</summary>
+        bool _loopExhaustedWarned;
+
         bool _listenerCheckDone;
         bool _listenerPresent;
         bool _listenerWarned;
@@ -146,6 +165,9 @@ namespace PirateCrew.Audio
         double _nextListenerProbeTime;
 
         bool _bedActive;
+        /// <summary>底床各层是否尚未成功起播（监听器未就绪/总线静音/资产缺失时首播被拒）：
+        /// Update 的节流点会重试，成功后进 <see cref="_loopSources"/> 正常管理。</summary>
+        readonly bool[] _bedLayerPending = new bool[AmbientBedRules.LayerCount];
         Coroutine _birdRoutine;
         float _ambientDistanceGain = 1f;
         float _nextAmbientUpdateTime;
@@ -156,6 +178,8 @@ namespace PirateCrew.Audio
         /// <summary>变奏（音高/音量抖动）用的随机源；与鸟鸣分开，避免互相干扰随机序列。</summary>
         readonly System.Random _variationRng = new System.Random(20260914);
 
+        /// <summary>各队上一次 AI 决策的武器槽位（哨兵 <see cref="int.MinValue"/> = 尚未记录；
+        /// 开局由 OnBattleStarted 复位，避免上一局的槽位残留压制本局第一声武器切换音）。</summary>
         int[] _lastAiWeaponSlot = { int.MinValue, int.MinValue };
 
         /// <summary>循环源 + 其层权重（权重只对底床层有意义，其余为 1）。</summary>
@@ -205,14 +229,27 @@ namespace PirateCrew.Audio
             StopAllLoops();
             StopMusicInternal();
             StopVoicePool();
+            DestroySynthClips();
 
             if (_instance == this)
                 _instance = null;
         }
 
+        /// <summary>销毁运行时合成的剪辑（<c>AudioClip.Create</c> 产物不是资产，不销毁就是泄漏）。</summary>
+        void DestroySynthClips()
+        {
+            for (int i = 0; i < _synthClips.Count; i++)
+            {
+                if (_synthClips[i] != null)
+                    Destroy(_synthClips[i]);
+            }
+            _synthClips.Clear();
+        }
+
         /// <summary>
         /// 环境底床的镜头距离衰减按 <see cref="AmbientUpdateIntervalSeconds"/> 节流重算，
-        /// 不做逐帧计算（音量变化是慢变量，逐帧算纯属浪费）。
+        /// 不做逐帧计算（音量变化是慢变量，逐帧算纯属浪费）；
+        /// 首播失败的底床层也在此节流点重试起播（见 <see cref="RetryPendingBedLayers"/>）。
         /// </summary>
         void Update()
         {
@@ -223,6 +260,7 @@ namespace PirateCrew.Audio
                 return;
 
             _nextAmbientUpdateTime = Time.unscaledTime + AmbientUpdateIntervalSeconds;
+            RetryPendingBedLayers();
             RefreshAmbientDistance();
         }
 
@@ -339,8 +377,16 @@ namespace PirateCrew.Audio
         void OnBattleStarted(object payload)
         {
             _gate.Reset();
+            ResetAiWeaponSlotMemory();
             StopMusic();
             StartAmbientBedInternal();
+        }
+
+        /// <summary>把各队武器槽位记忆复位到哨兵值（见 <see cref="_lastAiWeaponSlot"/>）。</summary>
+        void ResetAiWeaponSlotMemory()
+        {
+            for (int i = 0; i < _lastAiWeaponSlot.Length; i++)
+                _lastAiWeaponSlot[i] = int.MinValue;
         }
 
         void OnTurnStarted(object payload)
@@ -381,14 +427,15 @@ namespace PirateCrew.Audio
 
         void OnCrewDamaged(object payload)
         {
-            // 载荷只有 PirateId/队伍/伤害，没有世界坐标 → 只能 2D 播放（待裁决项，见报告）。
-            PlaySfx2D(SfxId.FleshHit, 0.85f);
+            // 载荷只有 PirateId/队伍/伤害，没有世界坐标 → 走 PlaySfx2D 强制 2D
+            // （FleshHit 配方本身是 3D，靠 force2D 压掉空间化，声源不会被钉在世界原点）。
+            PlaySfx2D(SfxId.FleshHit, FleshHitVolumeScale);
         }
 
         void OnCrewDied(object payload)
         {
-            // 同上：无坐标 → 2D。
-            PlaySfx2D(SfxId.CrewDown, 0.90f);
+            // 同上：无坐标 → 2D（CrewDown 配方本身就是 TwoD）。
+            PlaySfx2D(SfxId.CrewDown, CrewDownVolumeScale);
         }
 
         void OnAiDecided(object payload)
@@ -403,7 +450,7 @@ namespace PirateCrew.Audio
             if (decided.WeaponSlotIndex >= 0 && decided.WeaponSlotIndex != _lastAiWeaponSlot[team])
             {
                 _lastAiWeaponSlot[team] = decided.WeaponSlotIndex;
-                PlaySfx2D(SfxId.WeaponSwitch, 0.75f);
+                PlaySfx2D(SfxId.WeaponSwitch, WeaponSwitchVolumeScale);
             }
         }
 
@@ -430,6 +477,11 @@ namespace PirateCrew.Audio
             StopAmbientBedInternal();
             StopMusic();
             _gate.Reset();
+
+            // 新场景的监听器配置可能变化（没带 AudioListener / 后补）：复位判定与告警，
+            // 让下一个探测窗重新扫场，不把上一场景的结论跨场景带过去。
+            _listenerPresent = false;
+            _listenerWarned = false;
         }
 
         // ==================================================================
@@ -443,11 +495,15 @@ namespace PirateCrew.Audio
             return service != null && service.PlayInternal(id, position, volumeScale, 1f);
         }
 
-        /// <summary>2D 非空间音播放（反馈/UI/结果）。</summary>
+        /// <summary>
+        /// 2D 非空间音播放（反馈/UI/结果）。**无条件强制 2D**：不设声源位置与 3D 衰减——
+        /// 即使配方是 3D（如 FleshHit）也压成 2D，不会把声源钉到世界原点。
+        /// 载荷没有世界坐标的战斗事件（受击/阵亡）走这里。
+        /// </summary>
         public static bool PlaySfx2D(SfxId id, float volumeScale = 1f, float pitch = 1f)
         {
             AudioService service = _instance;
-            return service != null && service.PlayInternal(id, Vector3.zero, volumeScale, pitch);
+            return service != null && service.PlayInternal(id, Vector3.zero, volumeScale, pitch, force2D: true);
         }
 
         /// <summary>UI 音便捷入口（UI 层接线用；语义上等价于 2D 播放）。</summary>
@@ -611,7 +667,11 @@ namespace PirateCrew.Audio
         /// <summary>去抖/并发占位用的单调时钟：不受 timeScale 影响，暂停时仍正确。</summary>
         double Now => Time.unscaledTimeAsDouble;
 
-        bool PlayInternal(SfxId id, Vector3 position, float volumeScale, float pitch)
+        /// <summary>
+        /// 播放的内部公共路径。<paramref name="force2D"/> 为 true 时忽略配方的空间化，
+        /// 强制按 2D 播（见 <see cref="ApplySpatial"/>）——2D 入口（PlaySfx2D/PlayUi）都用它。
+        /// </summary>
+        bool PlayInternal(SfxId id, Vector3 position, float volumeScale, float pitch, bool force2D = false)
         {
             if (!EnsureListener())
                 return false;
@@ -632,7 +692,7 @@ namespace PirateCrew.Audio
                 return false;
 
             AudioSource source = NextVoiceSource();
-            ApplySpatial(source, recipe, position);
+            ApplySpatial(source, recipe, position, force2D);
 
             // 变奏（第一优先级目标：消解重复感）：一次性音效每次播放抖 ±8% 音高 / ±10% 音量。
             // 循环音与音乐不抖（会在循环点跳变 / 让乐句走音），由 AudioVariation.AppliesTo 判定。
@@ -653,8 +713,19 @@ namespace PirateCrew.Audio
             return true;
         }
 
-        void ApplySpatial(AudioSource source, SfxRecipe recipe, Vector3 position)
+        /// <summary>
+        /// 按配方给声源上空间化；<paramref name="force2D"/>（2D 入口/载荷无世界坐标的事件）
+        /// 优先于配方：只置 spatialBlend = 0，不设 position 与 3D 衰减距离——
+        /// 否则 3D 配方从 2D 入口播放时会把声源钉在世界原点。
+        /// </summary>
+        void ApplySpatial(AudioSource source, SfxRecipe recipe, Vector3 position, bool force2D)
         {
+            if (force2D)
+            {
+                source.spatialBlend = 0f;
+                return;
+            }
+
             source.spatialBlend = SpatialAudioRules.SpatialBlend(recipe.Spatial);
             if (recipe.Spatial == SpatialMode.ThreeD)
             {
@@ -691,6 +762,9 @@ namespace PirateCrew.Audio
                 return false;
 
             AudioSource source = NextLoopSource();
+            if (source == null)
+                return false;
+
             source.spatialBlend = 0f;
             source.pitch = 1f;
             source.clip = clip;
@@ -790,25 +864,58 @@ namespace PirateCrew.Audio
 
         /// <summary>
         /// 起播底床三层循环，并按镜头距离刷新衰减；随后开始鸟鸣点缀例程。
-        /// 任一层因总线静音/资产缺失起不来时不影响其它层（返回是否有层成功起播）。
+        /// 任一层因监听器未就绪/总线静音/资产缺失起不来时不影响其它层（返回是否有层成功起播），
+        /// 未成功的层由 <see cref="Update"/> 的节流点重试起播（见 <see cref="RetryPendingBedLayers"/>）。
         /// </summary>
         bool StartAmbientBedInternal()
         {
             bool started = false;
             for (int i = 0; i < _bedMix.LayerCount; i++)
-                started |= StartLoop(_bedMix.LayerId(i), _bedMix.GetWeightAt(i));
+                started |= StartBedLayer(i);
 
+            // _bedActive 语义 = 「底床已启用」，与是否已有层真正出声无关（首播可能全部被拒，
+            // 等 Update 节流点补播成功）；鸟鸣例程只看它，与循环层的管理互不干扰。
             _bedActive = true;
             RefreshAmbientDistance();
             StartBirdRoutine();
             return started;
         }
 
+        /// <summary>起播第 i 层；失败记入待重试（<see cref="_bedLayerPending"/>），成功后由
+        /// <see cref="_loopSources"/> 正常管理（音量跟随总线/层权重/镜头距离）。</summary>
+        bool StartBedLayer(int index)
+        {
+            if (StartLoop(_bedMix.LayerId(index), _bedMix.GetWeightAt(index)))
+            {
+                _bedLayerPending[index] = false;
+                return true;
+            }
+
+            _bedLayerPending[index] = true;
+            return false;
+        }
+
+        /// <summary>
+        /// 首播被拒的底床层在 Update 节流点重试：成功即清掉待重试标记进常规管理；
+        /// 一直失败也只是每 0.25s 一次字典/增益查询（资产缺失的告警在剪辑解析处只发一次，不刷屏）。
+        /// </summary>
+        void RetryPendingBedLayers()
+        {
+            for (int i = 0; i < _bedMix.LayerCount; i++)
+            {
+                if (_bedLayerPending[i])
+                    StartBedLayer(i);
+            }
+        }
+
         void StopAmbientBedInternal()
         {
             _bedActive = false;
             for (int i = 0; i < _bedMix.LayerCount; i++)
+            {
+                _bedLayerPending[i] = false;
                 StopLoop(_bedMix.LayerId(i));
+            }
 
             _ambientDistanceGain = 1f;
         }
@@ -888,8 +995,15 @@ namespace PirateCrew.Audio
                     return _loopPool[i];
             }
 
-            // 全忙时复用第 0 路（环境音最多 2–3 路，正常不会走到这里）
-            return _loopPool[0];
+            // 全忙时拒绝本次起播（返回 null，调用方放弃），不偷第 0 路：
+            // 偷路会顶掉正在播的循环音，而 _loopSources 里仍登记着旧 id，状态从此错位。
+            if (!_loopExhaustedWarned)
+            {
+                _loopExhaustedWarned = true;
+                global::PirateCrew.Core.Log.Warn("[AudioService] 循环源池（" + LoopSourceCount
+                                 + " 路）全忙，本次循环音不起播（只告警一次）。");
+            }
+            return null;
         }
 
         /// <summary>
@@ -986,6 +1100,8 @@ namespace PirateCrew.Audio
                 AudioClip clip = AudioClip.Create(
                     SfxCatalog.AssetFileName(id), pcm.Length / channels, channels, sampleRate, false);
                 clip.SetData(pcm, 0);
+                // 非 AssetDatabase 资产，Unity 不会替我们卸载：登记下来，OnDestroy 统一销毁。
+                _synthClips.Add(clip);
                 return clip;
             }
             catch (Exception e)

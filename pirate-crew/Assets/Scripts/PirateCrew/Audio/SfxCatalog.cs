@@ -114,7 +114,7 @@ namespace PirateCrew.Audio
                 "木质腔体（三角 190 Hz + 分音 320/540 Hz，tau 0.10–0.18s）+ 4–6 段木片断裂噪声（带通 900–3500 Hz，5–18 ms 随机错位）"),
 
             new SfxRecipe(SfxId.FleshHit, AudioCategory.Sfx, 0.24d, false, SpatialMode.ThreeD, 0.70f, 4f, 70f,
-                "crew_damaged（载荷无世界坐标 → 目前退化为 2D，见交付报告待裁决项）",
+                "crew_damaged（载荷无世界坐标 → 调用方强制 2D，见 AudioService.PlaySfx2D / OnCrewDamaged）",
                 "低频闷响（正弦 150→65 Hz 指数滑落，tau≈0.05s）+ 拍打噪声（低通 1400 Hz，tau≈0.025s）"),
 
             new SfxRecipe(SfxId.WaterSplash, AudioCategory.Sfx, 0.70d, false, SpatialMode.ThreeD, 0.75f, 6f, 100f,
