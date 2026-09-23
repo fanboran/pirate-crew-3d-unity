@@ -172,15 +172,32 @@ namespace PirateCrew.Core
         /// </summary>
         public SaveData LoadFromSlot(int slot)
         {
-            SaveData data = Io.LoadSlot(slot);
+            SaveData data = LoadSlotCore(slot);
             if (data == null)
-            {
-                global::PirateCrew.Core.Log.Warn("[SaveManager] 读档失败或槽位不存在: " + slot);
                 return null;
-            }
 
             LoadCompleted?.Invoke(slot);
             EventBus.Publish(SaveEvents.LoadCompleted, slot);
+            return data;
+        }
+
+        /// <summary>
+        /// 静默读档：与 <see cref="LoadFromSlot"/> 同一套读取（含 .bak 回滚），但**不广播**
+        /// 本地 <see cref="LoadCompleted"/> 与 <c>SaveEvents.LoadCompleted</c>。
+        /// 给"读档只是拿数据的中间步骤"的调用方用（如保存前读回旧档做合并）——那种读档
+        /// 一旦广播出去，监听方会把它当成"用户执行了读档"，触发不该有的界面刷新/状态重载。
+        /// </summary>
+        public SaveData TryLoadSlotQuiet(int slot)
+        {
+            return LoadSlotCore(slot);
+        }
+
+        /// <summary>LoadFromSlot / TryLoadSlotQuiet 共用的读取体（不含任何事件通知）。</summary>
+        SaveData LoadSlotCore(int slot)
+        {
+            SaveData data = Io.LoadSlot(slot);
+            if (data == null)
+                global::PirateCrew.Core.Log.Warn("[SaveManager] 读档失败或槽位不存在: " + slot);
             return data;
         }
 

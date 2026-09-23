@@ -35,9 +35,15 @@ namespace PirateCrew.Core
         public static IReadOnlyCollection<Type> RegisteredTypes => _services.Keys;
 
         /// <summary>
-        /// 登记服务（键 = <typeparamref name="T"/>）。重复登记会覆盖：组合根是幂等的，
+        /// 登记服务（键 = <typeparamref name="T"/> 的**静态类型**——由调用点的泛型实参/实参类型决定，
+        /// 不看 service 的运行期类型）。重复登记会覆盖：组合根是幂等的，
         /// 同一进程里第二次装配（例如从任意场景直接按 Play 后又加载了 Bootstrapper 场景）
         /// 不该抛异常，但覆盖不同实例会打一条警告，便于发现"两个宿主"。
+        ///
+        /// 【键与消费方必须同型】<c>Register(sceneLoader)</c> 推断出的键是**具体类** SceneLoader，
+        /// 不是它实现的接口——消费方 <c>Get&lt;ISceneLoader&gt;()</c> 将查不到。
+        /// 要按接口消费就在注册处显式写 <c>Register&lt;IFoo&gt;(impl)</c>；
+        /// 拿不准时先确认消费方的类型参数与这里一致。
         /// </summary>
         public static void Register<T>(T service) where T : class
         {

@@ -90,24 +90,7 @@ namespace PirateCrew.Core
             return _discovered;
         }
 
-        /// <summary>
-        /// 按阶段顺序跑完所有阶段。返回成功调用的入口数。
-        /// 单个入口抛异常只记错误日志、不中断后续入口（一个模块接不起来不该让整个游戏起不来）。
-        /// </summary>
-        public static int RunAll()
-        {
-            Scan();
-
-            var phases = (GameBootstrapPhase[])Enum.GetValues(typeof(GameBootstrapPhase));
-            Array.Sort(phases);
-            int invoked = 0;
-            for (int i = 0; i < phases.Length; i++)
-                invoked += RunPhase(phases[i]);
-
-            return invoked;
-        }
-
-        /// <summary>只跑某个阶段（测试与诊断用；正常启动走 <see cref="RunAll"/>）。</summary>
+        /// <summary>只跑某个阶段（正常启动由 <see cref="GameEntryPoint"/> 按阶段逐个调用；测试与诊断也用它）。</summary>
         public static int RunPhase(GameBootstrapPhase phase)
         {
             Scan();

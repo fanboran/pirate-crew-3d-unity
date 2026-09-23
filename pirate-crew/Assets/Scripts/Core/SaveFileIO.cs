@@ -137,8 +137,22 @@ namespace PirateCrew.Core
             return WriteJsonAtomic(GetSlotPath(slot), data);
         }
 
-        /// <summary>读取 _meta.json；不存在或损坏返回 null（调用方按空处理）。</summary>
+        /// <summary>读取 _meta.json；不存在或彻底损坏（含 .bak 回滚失败）返回 null（调用方按空处理）。</summary>
         public SaveMetaData LoadMeta()
+        {
+            return LoadMeta(true);
+        }
+
+        /// <summary>
+        /// 读取 _meta.json，与 <see cref="LoadSlot(int,bool)"/> 同款健壮性：
+        /// <paramref name="allowRestoreFromBackup"/> 为 true 时解析失败先从 .bak 回滚一次，
+        /// 回滚后以 false 重读（.bak 同样损坏则不递归）。
+        ///
+        /// 【为什么元数据也要回滚】_meta.json 是**全部槽位**元数据的唯一载体（列表页/槽位名的
+        /// 数据源，见 SaveManager 的约定），一次损坏不该等于所有槽位元数据清零——
+        /// 能从上一版恢复就恢复，回滚也失败才按空处理。
+        /// </summary>
+        public SaveMetaData LoadMeta(bool allowRestoreFromBackup)
         {
             string path = GetMetaPath();
             if (!File.Exists(path))
@@ -146,11 +160,24 @@ namespace PirateCrew.Core
 
             try
             {
-                return Deserialize<SaveMetaData>(File.ReadAllText(path));
+                SaveMetaData meta = Deserialize<SaveMetaData>(File.ReadAllText(path));
+                if (meta == null)
+                    throw new InvalidDataException("元数据解析结果为空");
+
+                return meta;
             }
             catch (Exception e)
             {
-                global::PirateCrew.Core.Log.Warn("[SaveFileIO] 元数据读取失败，按空处理: " + path + "\n" + e);
+                if (!allowRestoreFromBackup)
+                {
+                    Debug.LogError("[SaveFileIO] 元数据损坏且无法从 .bak 恢复: " + path + "\n" + e);
+                    return null;
+                }
+
+                global::PirateCrew.Core.Log.Warn("[SaveFileIO] 元数据损坏，尝试从 .bak 回滚: " + path + "\n" + e);
+                if (AttemptRollback(path))
+                    return LoadMeta(false);
+
                 return null;
             }
         }

@@ -145,10 +145,29 @@ namespace PirateCrew.Core
                 return;
             }
 
+            if (!ReferenceEquals(channel.PayloadType, typeof(T)))
+            {
+                // 纵深防御：正常调用点 T 由频道与处理器共同推断，编译期即锁定（CS1503）；
+                // 这里兜住"频道实际承载的载荷类型 ≠ 调用方 T"的结构性分叉（如 Core 内 Event<T>
+                // 继承者覆写 PayloadType）——条目按 typeof(T) 记账、投递按类型匹配，不拦就是静默不投递。
+                ReportMisuse(DescribeChannel(channel), channel.PayloadType, typeof(T),
+                    "订阅方（频道载荷类型与调用方 T 不一致）");
+                return;
+            }
+
             Add(channel, typeof(T), handler);
         }
 
-        /// <summary>订阅无载荷频道。同一回调重复订阅只生效一次（Godot 版 <c>arr.has</c> 去重语义）。</summary>
+        /// <summary>
+        /// 订阅无载荷频道。同一**委托实例**重复订阅只生效一次（Godot 版 <c>arr.has</c> 去重语义，见 <see cref="Add"/>）。
+        ///
+        /// 【去重边界】去重按委托相等（target + 方法）匹配：
+        ///   · 方法组、无捕获 lambda（编译器把委托缓存为同一实例）→ 可去重、可退订；
+        ///   · **捕获局部变量的 lambda 每次求值都 new 一个闭包实例**——target 互不相同，
+        ///     去重认不出它们是"同一个回调"，重复订阅会累积多个监听者，且拿着其中任意一个
+        ///     去 <see cref="Unsubscribe"/> 都退不掉其余的。
+        ///   跨多次调用反复发生的订阅请用方法组或静态 lambda（存进 static/实例字段再订阅）。
+        /// </summary>
         public static void Subscribe(Event channel, Action handler)
         {
             if (channel == null || handler == null)
@@ -196,7 +215,8 @@ namespace PirateCrew.Core
             {
                 Subscription existing = items[i];
                 if (ReferenceEquals(existing.PayloadType, payloadType) && existing.Callback.Equals(callback))
-                    return;     // 去重：同一回调重复订阅只生效一次
+                    return;     // 去重：同一委托实例重复订阅只生效一次（捕获变量的闭包 lambda
+                                // 每次新 target，去重认不出——见 Subscribe 重载的【去重边界】）
             }
 
             items.Add(new Subscription { PayloadType = payloadType, Callback = callback });
@@ -272,6 +292,15 @@ namespace PirateCrew.Core
                 return;
             }
 
+            if (!ReferenceEquals(channel.PayloadType, typeof(T)))
+            {
+                // 与 Subscribe 侧同款纵深防御：频道承载的载荷类型与调用方 T 不一致时，
+                // 订阅条目（按订阅方 T 记账）永远匹配不上这次投递——明确报错优于静默无效果。
+                ReportMisuse(DescribeChannel(channel), channel.PayloadType, typeof(T),
+                    "发布方（频道载荷类型与调用方 T 不一致）");
+                return;
+            }
+
             Dispatch(channel, payload);
         }
 
@@ -308,10 +337,21 @@ namespace PirateCrew.Core
             for (int i = 0; i < snapshot.Length; i++)
             {
                 Subscription entry = snapshot[i];
-                if (ReferenceEquals(entry.PayloadType, publishedType))
-                    ((Action<T>)entry.Callback).Invoke(payload);
-                else if (ReferenceEquals(entry.PayloadType, AnyPayloadType))
-                    ((Action<object>)entry.Callback).Invoke(payload);   // 逃生口：装箱
+                try
+                {
+                    if (ReferenceEquals(entry.PayloadType, publishedType))
+                        ((Action<T>)entry.Callback).Invoke(payload);
+                    else if (ReferenceEquals(entry.PayloadType, AnyPayloadType))
+                        ((Action<object>)entry.Callback).Invoke(payload);   // 逃生口：装箱
+                }
+                catch (Exception e)
+                {
+                    // 按订阅者隔离：一个监听者抛异常不能吞掉本轮对后续监听者的投递
+                    //（全局总线是所有模块的传令兵，单点故障不得截断广播）。
+                    // Log.Error 直通播放器日志——真错误必须留痕（见 Log.cs 语义）。
+                    Log.Error("[EventBus] 频道 " + key.GetType().FullName
+                              + " 的监听者 " + DescribeCallback(entry.Callback) + " 抛异常：" + e);
+                }
             }
         }
 
@@ -328,10 +368,19 @@ namespace PirateCrew.Core
             for (int i = 0; i < snapshot.Length; i++)
             {
                 Subscription entry = snapshot[i];
-                if (ReferenceEquals(entry.PayloadType, NoPayloadType))
-                    ((Action)entry.Callback).Invoke();
-                else if (ReferenceEquals(entry.PayloadType, AnyPayloadType))
-                    ((Action<object>)entry.Callback).Invoke(null);
+                try
+                {
+                    if (ReferenceEquals(entry.PayloadType, NoPayloadType))
+                        ((Action)entry.Callback).Invoke();
+                    else if (ReferenceEquals(entry.PayloadType, AnyPayloadType))
+                        ((Action<object>)entry.Callback).Invoke(null);
+                }
+                catch (Exception e)
+                {
+                    // 与带载荷投递同款按订阅者隔离（见 Dispatch 内注释）。
+                    Log.Error("[EventBus] 频道 " + key.GetType().FullName
+                              + " 的监听者 " + DescribeCallback(entry.Callback) + " 抛异常：" + e);
+                }
             }
         }
 
@@ -416,6 +465,15 @@ namespace PirateCrew.Core
             if (ReferenceEquals(type, NoPayloadType))
                 return "无载荷（NoPayload）";
             return type.Name;
+        }
+
+        /// <summary>投递异常日志里对监听者的定位（所属类型.方法名；拿不到所属类型时退回方法名）。</summary>
+        static string DescribeCallback(Delegate callback)
+        {
+            if (callback == null)
+                return "<null回调>";
+            var declaringType = callback.Method?.DeclaringType;
+            return (declaringType != null ? declaringType.Name + "." : "") + callback.Method?.Name;
         }
 
         static string DescribeChannel(Event channel)

@@ -122,11 +122,16 @@ namespace PirateCrew.Core
         /// 当前/目标场景名为空（如编辑器未命名测试场景）无从记录，不压；
         /// 目标与当前同名 = 原地重载（「再来一局」），不压——原 <c>replaceTop</c> 补丁由此退役，
         /// 它「先弹再压」在首次重开时会误吃栈顶下方的正确历史。
+        /// 目标为 <see cref="SceneNames.Bootstrapper"/> 或当前正从 Bootstrapper 出发，也不压：
+        /// Bootstrapper 是会话重置点（只负责装配服务后跳走），不是可返回的页面——
+        /// 把它压栈，GoBack 会弹回启动场景又被自动跳走，栈永不收敛。
         /// 栈不变式：栈里只存「要返回去的场景」，当前场景不在栈上。
         /// </summary>
         public static bool ShouldRecordReturnPoint(string currentSceneName, string targetSceneName)
         {
             if (string.IsNullOrEmpty(currentSceneName) || string.IsNullOrEmpty(targetSceneName))
+                return false;
+            if (currentSceneName == SceneNames.Bootstrapper || targetSceneName == SceneNames.Bootstrapper)
                 return false;
             return currentSceneName != targetSceneName;
         }
@@ -152,6 +157,11 @@ namespace PirateCrew.Core
             }
 
             _isLoading = true;
+
+            // 进入 Bootstrapper = 重新走一遍启动装配（会话重启）：旧会话攒下的返回栈到此作废，
+            // 不清掉的话上一局的历史会跨重启残留，GoBack 会把用户带回早已失效的场景。
+            if (sceneName == SceneNames.Bootstrapper)
+                _sceneStack.Clear();
 
             var current = SceneManager.GetActiveScene();
             if (pushCurrent && ShouldRecordReturnPoint(current.name, sceneName))
