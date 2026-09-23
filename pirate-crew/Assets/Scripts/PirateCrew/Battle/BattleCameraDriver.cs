@@ -14,7 +14,8 @@ namespace PirateCrew.Battle
     /// 【三件套分工】<see cref="CameraFraming"/>（纯数学：基准机位/偏移/OrthoSize 合成，无头可测）→
     /// <see cref="CameraInputReader"/>（只读输入出增量）→ 本类（唯一写入者）。
     /// **除本类外任何系统不得写主相机的 transform / orthographicSize / near / far**
-    /// （PlayMode 守卫测试逐帧比对相机实况与 <see cref="LastFrame"/>）。
+    /// （PlayMode 守卫测试逐帧比对相机实况与 <see cref="LastFrame"/>；
+    /// far 的唯一例外口是 <see cref="SetFarClipForSpan"/>——仍经本类写入并保底 OrthoFarClip）。
     ///
     /// 【去 Cinemachine 化（2026-09-23，创始人认可方案）】正交竞技场相机 = 定长偏移 + 平滑跟随 +
     /// 抬高看点，全部数学在 <see cref="CameraFraming"/>；原 Brain 的掩码筛选与镜头应用链
@@ -132,6 +133,9 @@ namespace PirateCrew.Battle
         float _shakeRoll;
         float _shakeFrequency;
         float _shakePhase;
+        /// <summary>本帧已施加过震屏：刚启动的事件 <c>_shakeElapsed==0</c>，
+        /// strongest-wins 守卫靠它识别「正在播放」（同帧多事件只让更强者落位）。</summary>
+        bool _shakeJustStarted;
 
         // ---- 顿帧 ----
         bool _hitStopActive;
@@ -234,6 +238,19 @@ namespace PirateCrew.Battle
         public void SetWorldSpan(float spanUnits)
         {
             _panoramaOrthoSize = CameraFraming.PanoramaOrthoSizeForSpan(spanUnits);
+        }
+
+        /// <summary>
+        /// 按场景跨度抬高远裁剪面（唯一写入者契约的**显式例外**：本类之外不得直写
+        /// <c>farClipPlane</c>，统一经此入口——内部保底不低于 <see cref="CameraFraming.OrthoFarClip"/>）。
+        /// 供 <see cref="BattleController.SetupBattleEnvironment"/> 在大图幅海图上放开远裁剪
+        /// （OceanRig 海面圆盘半径可达数千米，200 的正交远裁剪会把海面切掉）。
+        /// </summary>
+        public void SetFarClipForSpan(float farClipPlane)
+        {
+            if (mainCamera == null)
+                return;
+            mainCamera.farClipPlane = Mathf.Max(CameraFraming.OrthoFarClip, farClipPlane);
         }
 
         void Awake()
@@ -434,6 +451,8 @@ namespace PirateCrew.Battle
                     _shakeElapsed, _shakeDuration, _shakeRoll, _shakeFrequency, _shakePhase);
             }
             _shakeElapsed += unscaledDt;
+            // 跨入下一帧后回到 elapsed 口径的守卫（同帧内多个事件才用 _shakeJustStarted）。
+            _shakeJustStarted = false;
 
             float dipOffset = _dipActive
                 ? CameraFeelRules.DrownDipOffset(_dipElapsed, _dipDuration, _dipAmount)
@@ -473,7 +492,8 @@ namespace PirateCrew.Battle
             ApplyFrame(frame);
         }
 
-        /// <summary>把一帧取景写到主相机。**全工程只有这里写主相机的 transform / orthographicSize**（near/far 在 Awake 写一次）。</summary>
+        /// <summary>把一帧取景写到主相机。**全工程只有这里写主相机的 transform / orthographicSize**
+        /// （near/far 在 Awake 写一次；far 另有 <see cref="SetFarClipForSpan"/> 例外口）。</summary>
         void ApplyFrame(in CameraFrame frame)
         {
             if (mainCamera == null)
@@ -604,8 +624,16 @@ namespace PirateCrew.Battle
                 return;
 
             // 不叠加：只有更强者才替换（避免 AoE 同时命中多单位时连抖）。
-            if (_shakeElapsed > 0f && _shakeElapsed < _shakeDuration
-                && !CameraFeelRules.ShouldReplaceShake(CurrentShakeAmplitude(), profile.Amplitude))
+            // 守卫不能只看「_shakeElapsed > 0」：刚启动的事件 elapsed==0，
+            // 旧守卫会让同帧后到的更弱事件把它顶掉（strongest-wins 失效）。
+            // 故用「本帧已设震屏」标志补充识别播放中；刚启动时取峰值振幅比较
+            // （CurrentShakeAmplitude 在 elapsed==0 时按定义返回 0，不是有效的"当前强度"）。
+            bool shakePlaying = _shakeJustStarted
+                                || (_shakeElapsed > 0f && _shakeElapsed < _shakeDuration);
+            float currentAmplitude = _shakeJustStarted
+                ? _shakeAmplitude
+                : CurrentShakeAmplitude();
+            if (shakePlaying && !CameraFeelRules.ShouldReplaceShake(currentAmplitude, profile.Amplitude))
                 return;
 
             _shakeElapsed = 0f;
@@ -614,6 +642,7 @@ namespace PirateCrew.Battle
             _shakeRoll = profile.RollDegrees;
             _shakeFrequency = profile.FrequencyHz;
             _shakePhase = Random.Range(0f, Mathf.PI * 2f);
+            _shakeJustStarted = true;
         }
 
         // ------------------------------------------------------------------

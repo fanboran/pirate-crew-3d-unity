@@ -87,7 +87,6 @@ namespace PirateCrew.Battle
         int _armedFrame;
         bool _contact;
         bool _clicked;
-        bool _blastHit;
 
         bool _fuseArmed;
         int _fuseRemaining;
@@ -105,6 +104,10 @@ namespace PirateCrew.Battle
         /// <summary>火焰已命中的角色（每道火对同一角色只结算一次 30 伤害）。</summary>
         readonly HashSet<int> _flameHitIds = new HashSet<int>();
         Renderer _renderer;
+        /// <summary>anchor 落地渐隐的颜色覆盖块（MaterialPropertyBlock，避免克隆材质实例）。</summary>
+        MaterialPropertyBlock _fadeBlock;
+        /// <summary>渐隐写入的着色器颜色属性（与 <c>renderer.material.color</c> 读写的是同一属性）。</summary>
+        static readonly int ShadeColorId = Shader.PropertyToID("_Color");
         /// <summary>special 计时（海鸥投弹 / 炮 AI 等）。</summary>
         int _specialFrames;
         /// <summary>加农炮 AI 发射倒计时；-1 = 不自动发射。</summary>
@@ -309,7 +312,6 @@ namespace PirateCrew.Battle
                 HandleSpecialBounds();
                 _contact = false;
                 _clicked = false;
-                _blastHit = false;
                 return;
             }
 
@@ -334,8 +336,10 @@ namespace PirateCrew.Battle
                 vy = 0f;
             }
 
+            // BlastHit 恒传 false：被爆炸命中的弹体走 DetonateFromBlast 直接引爆（同帧销毁），
+            // 不会再回到 Update 的判定路径——规则层的 BlastContact 判据只由那条直调路径消费。
             var context = new TriggerContext(
-                _contact, _clicked, _blastHit, vx, vy, _fuseArmed, _fuseRemaining);
+                _contact, _clicked, blastHit: false, vx, vy, _fuseArmed, _fuseRemaining);
 
             if (ProjectileTriggerRules.ShouldDetonateThisFrame(_stats.Trigger, context))
             {
@@ -476,9 +480,16 @@ namespace PirateCrew.Battle
 
             if (_renderer != null)
             {
-                Color c = _renderer.material.color;
+                // 渐隐走 MaterialPropertyBlock（UnitOutlineBinder 既有纪律）：renderer.material
+                // 会克隆材质实例且无人回收；MPB 只做逐渲染器属性覆盖，共享材质不被改脏。
+                // 基础色读 sharedMaterial（共享资产不受 previous MPB 污染的基准值）。
+                if (_fadeBlock == null)
+                    _fadeBlock = new MaterialPropertyBlock();
+                _renderer.GetPropertyBlock(_fadeBlock);
+                Color c = _renderer.sharedMaterial != null ? _renderer.sharedMaterial.color : Color.white;
                 c.a = AnchorRules.AlphaAfterLanding(_landedFrames);
-                _renderer.material.color = c;
+                _fadeBlock.SetColor(ShadeColorId, c);
+                _renderer.SetPropertyBlock(_fadeBlock);
             }
 
             if (AnchorRules.ShouldDestroy(_landedFrames))
@@ -626,8 +637,14 @@ namespace PirateCrew.Battle
 
             _landedFrames++;
 
+            // 锁定目标在时间线内死亡：镜头切换与速度转移都失去意义，继续早退会让弹体
+            // 以实心碰撞体的形态留在场上（它不在 SetupSpecial 的 isTrigger 名单里，
+            // 也不在飞行态，既挡路又永不再走 20 帧的 Vanish 出口）——按离场消失处置。
             if (_voodooTarget != null && !_voodooTarget.Alive)
+            {
+                Vanish();
                 return;
+            }
 
             if (VoodooDollRules.ShouldSwitchCamera(_landedFrames) && _voodooTarget != null)
             {
@@ -702,11 +719,12 @@ namespace PirateCrew.Battle
                 FireCannonToward(target.transform.position);
         }
 
-        /// <summary>
-        /// 朝世界坐标 <paramref name="targetWorld"/> 发射一颗 cannonball（§5.2「经 cannonball（100, 50）」）。
-        /// 蓄力恒取满值 30（<see cref="CannonRules.MaxFireStrength"/>）。
-        /// 方向：3D 下由 XZ 平面方向给出（弹弓换算会再加 <c>ThrowLift</c> 仰角）。
-        /// </summary>
+    /// <summary>
+    /// 朝世界坐标 <paramref name="targetWorld"/> 发射一颗 cannonball（§5.2「经 cannonball（100, 50）」）。
+    /// 蓄力恒取满值 30（<see cref="CannonRules.MaxFireStrength"/>）。
+    /// 方向：3D 下由 XZ 平面方向给出；cannonball weight=0（§5.2「无重力」），
+    /// 生成计划按 <see cref="LevelGeometry.ThrowVelocityForWeight"/> 分流为**水平直线弹道**（不抬仰角）。
+    /// </summary>
         public bool FireCannonToward(Vector3 targetWorld)
         {
             if (_detonated || _battle == null)
@@ -722,7 +740,8 @@ namespace PirateCrew.Battle
                 return false;
 
             flat.Normalize();
-            // FlashLaunchVelocityToWorld 把 Flash 平面 (vx, vy) 落到世界 (X, Z) 再抬仰角，
+            // FlashLaunchVelocityToWorld 把 Flash 平面 (vx, vy) 落到世界 (X, Z)；
+            // cannonball weight=0 → 按 Weight 分流不加仰角（无重力直线弹道，§5.1），
             // 故这里把 XZ 方向直接映射到 (vx, vy)，大小 = 蓄力。
             float vxFlash = flat.x * charge;
             float vyFlash = flat.z * charge;
@@ -966,7 +985,8 @@ namespace PirateCrew.Battle
         {
             if (_detonated || !TriggersOnBlast)
                 return;
-            _blastHit = true;
+            // 直接引爆而非置标志等 Update 判定：爆炸回调发生在别处的事件栈里，
+            // 本帧内弹体随即销毁，Update 不会再读到任何"被炸"标志。
             Detonate();
         }
 

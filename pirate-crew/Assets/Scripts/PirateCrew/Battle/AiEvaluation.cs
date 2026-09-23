@@ -539,10 +539,11 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 最终排序分（含伤害增强项）。权重由评估参数给出，故需显式传入——
-        /// 默认 0.5 与 <see cref="AiEvaluationOptions.DamageScoreWeight"/> 一致。
+        /// 默认值引用 <see cref="AiEvaluation.DefaultDamageScoreWeight"/>，与
+        /// <see cref="AiEvaluationOptions.DamageScoreWeight"/> 同源。
         /// 统一走 <see cref="AiEvaluation.TotalScore"/>，避免权重出现第二份默认值。
         /// </summary>
-        public float TotalScore(float damageScoreWeight = 0.5f)
+        public float TotalScore(float damageScoreWeight = AiEvaluation.DefaultDamageScoreWeight)
             => FlashSuccess + damageScoreWeight * ExpectedDamage;
 
         /// <summary>是否至少能命中一个敌人（预期伤害 &gt; 0）。</summary>
@@ -576,8 +577,9 @@ namespace PirateCrew.Battle
         /// 取 <c>0.5</c> 的理由：与 §6.2 里同量纲的「宝箱奖励 +0.5」对齐，量级不超过原始
         /// 位置分的常见幅度（~1），因此只在位置分接近时起决定作用，不推翻原版启发式。
         /// 设为 0 即恢复纯原版行为（测试中有覆盖）。
+        /// 默认值引用 <see cref="AiEvaluation.DefaultDamageScoreWeight"/>（权重默认值唯一出处）。
         /// </summary>
-        public float DamageScoreWeight = 0.5f;
+        public float DamageScoreWeight = AiEvaluation.DefaultDamageScoreWeight;
     }
 
     /// <summary>
@@ -649,7 +651,8 @@ namespace PirateCrew.Battle
     ///
     /// 【坐标域决策】打分公式仍在 <b>Flash 平面像素域</b>（x = 世界 X、y = 世界 Z 纵深；§6 的
     ///   200px/70px/40px 阈值、evilness 距离项逐行转写无换算），但<b>轨迹模拟改为纯 3D 世界域</b>：
-    ///   1) 初速 <see cref="LevelGeometry.FlashLaunchVelocityToWorld"/>（含 <c>ThrowLift</c> 抬升）、
+    ///   1) 初速 <see cref="LevelGeometry.FlashLaunchVelocityToWorld(float, float, float)"/>
+    ///      （按 weight 分流的抬升：weight&gt;0 抬仰角，weight=0 直线飞行——与实弹生成器同一函数）、
     ///      积分 <see cref="ThrowTrajectory.Predict"/>（与 PhysX 实弹相同的半隐式欧拉 / dt / 重力），
     ///      与实弹、预览同源，不再自写第二套积分；
     ///   2) 落点 = 轨迹最先与水平面 <c>y = <see cref="LevelGeometry.GroundTopY"/></c> 相交的那一步；
@@ -804,6 +807,14 @@ namespace PirateCrew.Battle
         /// <summary>anchor 垂直命中带（§5.2：anchorY − 64 &lt; y &lt; anchorY）。</summary>
         public const float AnchorVerticalBand = 64f;
 
+        /// <summary>
+        /// 伤害增强项权重的**默认值**（M2 增强项；取 0.5 的标定理由见
+        /// <see cref="AiEvaluationOptions.DamageScoreWeight"/> 的注释）。
+        /// <see cref="AiEvaluationOptions.DamageScoreWeight"/> 与各排序函数可选参数的默认值
+        /// 都引用本常量——权重只有这一份出处，避免第二份魔法数。
+        /// </summary>
+        public const float DefaultDamageScoreWeight = 0.5f;
+
         /// <summary>createsession 用最大步数的默认参数对象（无状态，可共享）。</summary>
         static readonly AiEvaluationOptions DefaultOptions = new AiEvaluationOptions();
 
@@ -812,7 +823,7 @@ namespace PirateCrew.Battle
         // ------------------------------------------------------------------
 
         /// <summary>候选最终排序分（供测试与调试直接调用；公式见 <see cref="AiEvaluationOptions.DamageScoreWeight"/>）。</summary>
-        public static float TotalScore(in AiMoveCandidate candidate, float damageScoreWeight = 0.5f)
+        public static float TotalScore(in AiMoveCandidate candidate, float damageScoreWeight = DefaultDamageScoreWeight)
         {
             return candidate.FlashSuccess + damageScoreWeight * candidate.ExpectedDamage;
         }
@@ -821,7 +832,7 @@ namespace PirateCrew.Battle
         /// §6.1 <c>argmax(all, m =&gt; m.success)</c>：取排序分最高的候选。
         /// 并列时保留<b>先出现</b>的候选（候选顺序由固定的角色/武器顺序决定 → 确定性）。
         /// </summary>
-        public static AiMoveCandidate? PickBest(IReadOnlyList<AiMoveCandidate> candidates, float damageScoreWeight = 0.5f)
+        public static AiMoveCandidate? PickBest(IReadOnlyList<AiMoveCandidate> candidates, float damageScoreWeight = DefaultDamageScoreWeight)
         {
             if (candidates == null || candidates.Count == 0)
                 return null;
@@ -850,11 +861,13 @@ namespace PirateCrew.Battle
         /// 生成一个随机投掷并模拟到落地/落水（§6.2 角色版 / §6.3 通用武器版）。
         /// 角度 <c>180 + int(rand*180)</c>（决定 XZ 平面内的方向）；力度 <c>5 + rand*(twangMax − 5)</c>；
         /// 重力由 <paramref name="weight"/> 决定（角色来自 <see cref="CrewCatalog"/>，武器来自
-        /// <see cref="WeaponCatalog"/>）。3D 仰角由 <see cref="LevelGeometry.ThrowLift"/> 统一施加。
+        /// <see cref="WeaponCatalog"/>）。仰角由 <see cref="LevelGeometry.ThrowVelocityForWeight"/>
+        /// 按 weight 分流统一施加（weight=0 的弹体直线飞行，与实弹同口径）。
         /// </summary>
         public static AiThrowSample RandomThrow(
             float startX, float startY, float twangMax, float weight,
-            AiTerrain terrain, IAiRandom random, int maxSteps = MaxSimulationSteps)
+            AiTerrain terrain, IAiRandom random, int maxSteps = MaxSimulationSteps,
+            Vector3[] trajectoryScratch = null)
         {
             int angle = ThrowAngleMin + random.NextInt(0, ThrowAngleRange);
             float forceRange = MathF.Max(0f, twangMax - ThrowForceMin);
@@ -864,12 +877,13 @@ namespace PirateCrew.Battle
             float vx = (float)Math.Cos(rad) * force;
             float vy = (float)Math.Sin(rad) * force;
 
-            return SimulateShot(startX, startY, vx, vy, weight, terrain, maxSteps);
+            return SimulateShot(startX, startY, vx, vy, weight, terrain, maxSteps, trajectoryScratch);
         }
 
         /// <summary>
         /// 以给定 Flash 平面初速模拟一发，直到落点或超步数（§6.2 <c>advanceMotion()</c>）。
-        /// <b>与 3D 实弹严格同源</b>：初速走 <see cref="LevelGeometry.FlashLaunchVelocityToWorld"/>（含抬升），
+        /// <b>与 3D 实弹严格同源</b>：初速走 <see cref="LevelGeometry.FlashLaunchVelocityToWorld(float, float, float)"/>
+        /// （按 weight 分流的抬升；weight=0 直线飞行，与实弹生成器同一分流函数），
         /// 积分走 <see cref="ThrowTrajectory.Predict"/>（与 PhysX 相同的半隐式欧拉、同一 dt 与重力）。
         /// 落点 = 轨迹<b>最先</b>与水平面 <c>y = <see cref="LevelGeometry.GroundTopY"/></c> 相交、
         /// 且平面落点在 <see cref="AiTerrain"/> 矩形内的那一步；掉出矩形则继续下落到
@@ -878,7 +892,8 @@ namespace PirateCrew.Battle
         /// </summary>
         public static AiThrowSample SimulateShot(
             float startX, float startY, float vx, float vy,
-            float weight, AiTerrain terrain, int maxSteps = MaxSimulationSteps)
+            float weight, AiTerrain terrain, int maxSteps = MaxSimulationSteps,
+            Vector3[] trajectoryScratch = null)
         {
             // 站立枢轴高度发射（脚底贴该格地表），与 PirateBase / 弹体的生成点一致：
             // 地形落地后发射点抬到该格抬升高度之上（无地形时即基础地面 y=0）。
@@ -887,7 +902,7 @@ namespace PirateCrew.Battle
                 ? terrain.SurfaceWorldYAtPixel(startX, startY)
                 : LevelGeometry.GroundTopY;
             origin.y = surfaceY + LevelGeometry.UnitPivotHeight;
-            return SimulateFromWorld(origin, vx, vy, weight, terrain, maxSteps);
+            return SimulateFromWorld(origin, vx, vy, weight, terrain, maxSteps, trajectoryScratch);
         }
 
         /// <summary>
@@ -895,7 +910,7 @@ namespace PirateCrew.Battle
         /// </summary>
         static AiThrowSample SimulateFromWorld(
             Vector3 origin, float vx, float vy, float weight,
-            AiTerrain terrain, int maxSteps)
+            AiTerrain terrain, int maxSteps, Vector3[] trajectoryScratch = null)
         {
             float launchVx = vx;
             float launchVy = vy;
@@ -903,10 +918,14 @@ namespace PirateCrew.Battle
             if (maxSteps < 0)
                 maxSteps = 0;
 
-            Vector3 initialVelocity = LevelGeometry.FlashLaunchVelocityToWorld(vx, vy);
+            Vector3 initialVelocity = LevelGeometry.FlashLaunchVelocityToWorld(vx, vy, weight);
             float gravityY = LevelGeometry.WorldGravityY(weight);
 
-            var points = new Vector3[maxSteps];
+            // 采样缓冲：会话传入共享的 grow-only scratch 复用（热路径零分配）；直接调用
+            // （测试 / 一次性评估）不传时退回局部分配，数值不受缓冲来源影响。
+            Vector3[] points = trajectoryScratch != null && trajectoryScratch.Length >= maxSteps
+                ? trajectoryScratch
+                : new Vector3[maxSteps];
             ThrowTrajectory.Predict(origin, initialVelocity, gravityY, points, maxSteps, LevelGeometry.FrameSeconds);
 
             Vector3 end = origin;
@@ -1177,7 +1196,8 @@ namespace PirateCrew.Battle
         /// </summary>
         public static bool TryPlanSeagull(
             AiBattlefield field, int actorUnitId, IAiRandom random,
-            out float success, out float height, out IReadOnlyList<float> shotXs)
+            out float success, out float height, out IReadOnlyList<float> shotXs,
+            Vector3[] trajectoryScratch = null)
         {
             success = 0f;
             height = 0f;
@@ -1220,10 +1240,15 @@ namespace PirateCrew.Battle
                 float x = field.Terrain.MinX + (float)random.NextDouble() * span;
 
                 // 坠弹：从海鸥高度垂直下落（零初速，仅受重力），落在地面平面上。
+                // 【proxy 性质声明】坠弹的重力取 CrewCatalog.Weight（=1）作 proxy：§6.3 未给
+                // 海鸥坠弹的 weight（§5.2 的 seagull 本身 weight=0，但其炸弹无独立弹表行）。
+                // 取角色口径是可定义的最简近似；改动此值会直接漂移 seagull 的评估结果
+                // （AiEvaluationTests 的确定性断言会跟着变），动之前先过测试。
                 Vector3 origin = LevelGeometry.PixelToArena(x, dropDepth);
                 origin.y = LevelGeometry.GroundTopY + LevelGeometry.PixelsToUnits(height);
                 AiThrowSample drop = SimulateFromWorld(
-                    origin, 0f, 0f, CrewCatalog.Weight, field.Terrain, MaxSimulationSteps);
+                    origin, 0f, 0f, CrewCatalog.Weight, field.Terrain, MaxSimulationSteps,
+                    trajectoryScratch);
                 if (drop.Drowned)
                     continue;
 
@@ -1342,7 +1367,8 @@ namespace PirateCrew.Battle
         /// </summary>
         public static void PlanVoodoo(
             AiBattlefield field, int actorUnitId, int weaponSlotIndex, IAiRandom random,
-            List<AiMoveCandidate> output, ref int evaluationCount)
+            List<AiMoveCandidate> output, ref int evaluationCount,
+            Vector3[] trajectoryScratch = null)
         {
             if (field == null || random == null || output == null)
                 return;
@@ -1362,7 +1388,8 @@ namespace PirateCrew.Battle
                     // 「对每个存活敌人调它的 randomThrows(2)」——即模拟敌人自己被抛出后的落点。
                     AiThrowSample sample = RandomThrow(
                         enemy.X, enemy.Y, CrewCatalog.TwangMaxForce,
-                        CrewCatalog.Weight, field.Terrain, random);
+                        CrewCatalog.Weight, field.Terrain, random,
+                        trajectoryScratch: trajectoryScratch);
 
                     evaluationCount++;
 
@@ -1398,7 +1425,8 @@ namespace PirateCrew.Battle
         /// </summary>
         public static void PlanCannon(
             AiBattlefield field, int actorUnitId, int weaponSlotIndex, IAiRandom random,
-            List<AiMoveCandidate> output, ref int evaluationCount)
+            List<AiMoveCandidate> output, ref int evaluationCount,
+            ExpectedDamageScratch damageScratch = null)
         {
             if (field == null || random == null || output == null || field.Terrain == null)
                 return;
@@ -1429,7 +1457,7 @@ namespace PirateCrew.Battle
 
                 var sample = new AiThrowSample(0f, 0f, px, py, false);
                 float flash = ScoreWeaponSample(WeaponId.Cannon, sample, field, actorUnitId);
-                float expected = ExpectedDamage(WeaponId.Cannonball, px, py, field, actorUnitId);
+                float expected = ExpectedDamage(WeaponId.Cannonball, px, py, field, actorUnitId, damageScratch);
 
                 output.Add(new AiMoveCandidate(
                     actorUnitId, weaponSlotIndex, WeaponId.Cannon,
@@ -1527,13 +1555,31 @@ namespace PirateCrew.Battle
         // ------------------------------------------------------------------
 
         /// <summary>
+        /// <see cref="AiEvaluation.ExpectedDamage"/> 的复用缓冲（纯 scratch，不参与结果）：
+        /// 每次调用把敌友目标分拣进 4 个 List，热路径（会话逐候选调用）逐次 new 造成分配。
+        /// <b>返回值语义允许复用</b>：ExpectedDamage 返回 float（拷贝），List 是内部 scratch
+        /// 且每次调用开头清空——调用方持有一份传入即可，无需长期持有任何 List。
+        /// </summary>
+        public sealed class ExpectedDamageScratch
+        {
+            internal readonly List<ExplosionTarget> EnemyTargets = new List<ExplosionTarget>();
+            internal readonly List<float> EnemyNorms = new List<float>();
+            internal readonly List<ExplosionTarget> AllyTargets = new List<ExplosionTarget>();
+            internal readonly List<float> AllyNorms = new List<float>();
+        }
+
+        /// <summary>
         /// 在落点 (x,y) 使用某武器时，对敌方的预期伤害（归一化为「血条份数」：
         /// Σ 实际伤害 / 目标最大生命；队友误伤记为负）。爆炸伤害复用
         /// <see cref="ExplosionResolver"/>（§5.3 同一公式），不另写一份。
         /// 非爆炸武器：anchor 按 §5.2 固定 60 伤害的命中带判定，其余（boulder 碾压等）返回 0
         /// 并留 TODO。
+        /// <paramref name="scratch"/>：可选复用缓冲（见 <see cref="ExpectedDamageScratch"/>）；
+        /// 不传时局部分配，行为不变。
         /// </summary>
-        public static float ExpectedDamage(WeaponId weaponId, float x, float y, AiBattlefield field, int actorUnitId)
+        public static float ExpectedDamage(
+            WeaponId weaponId, float x, float y, AiBattlefield field, int actorUnitId,
+            ExpectedDamageScratch scratch = null)
         {
             if (field == null || !field.TryGetUnit(actorUnitId, out AiUnit actor))
                 return 0f;
@@ -1544,10 +1590,14 @@ namespace PirateCrew.Battle
             if (!WeaponCatalog.TryGet(weaponId, out WeaponStats stats) || !stats.HasExplosion)
                 return 0f;   // 【TODO】boulder 的 |vx|×1.5 碾压伤害与速度相关，需执行时才知道，先不计入。
 
-            var enemyTargets = new List<ExplosionTarget>();
-            var enemyNorm = new List<float>();
-            var allyTargets = new List<ExplosionTarget>();
-            var allyNorm = new List<float>();
+            List<ExplosionTarget> enemyTargets = scratch != null ? scratch.EnemyTargets : new List<ExplosionTarget>();
+            List<float> enemyNorm = scratch != null ? scratch.EnemyNorms : new List<float>();
+            List<ExplosionTarget> allyTargets = scratch != null ? scratch.AllyTargets : new List<ExplosionTarget>();
+            List<float> allyNorm = scratch != null ? scratch.AllyNorms : new List<float>();
+            enemyTargets.Clear();
+            enemyNorm.Clear();
+            allyTargets.Clear();
+            allyNorm.Clear();
 
             for (int i = 0; i < field.Units.Count; i++)
             {
@@ -1645,7 +1695,7 @@ namespace PirateCrew.Battle
         /// </summary>
         public static AiDecision BuildDecisionFromBest(
             int actingUnitId, AiMoveCandidate? bestOpt, bool canBailOut, int evaluationCount,
-            float damageScoreWeight = 0.5f)
+            float damageScoreWeight = DefaultDamageScoreWeight)
         {
             if (bestOpt == null)
             {
@@ -1692,6 +1742,21 @@ namespace PirateCrew.Battle
         readonly List<AiMoveCandidate> _candidates = new List<AiMoveCandidate>();
 
         readonly List<(int slot, WeaponId id)> _distinctWeapons;
+
+        // ---- 热路径 scratch（评估每回合跑数百次模拟，逐次分配会成为 GC 压力）----
+        /// <summary>投掷模拟的采样点缓冲（grow-only）：SimulateShot 只在单次调用内写入并读完，
+        /// 复用不改变任何评估数值。</summary>
+        Vector3[] _trajectoryScratch = new Vector3[AiEvaluation.MaxSimulationSteps];
+        /// <summary>ExpectedDamage 的敌友分拣缓冲：每次调用开头清空，返回值为 float 拷贝语义。</summary>
+        readonly AiEvaluation.ExpectedDamageScratch _damageScratch = new AiEvaluation.ExpectedDamageScratch();
+
+        /// <summary>采样缓冲按需扩容（grow-only，稳态零分配）。</summary>
+        Vector3[] TrajectoryScratch(int minSteps)
+        {
+            if (_trajectoryScratch.Length < minSteps)
+                _trajectoryScratch = new Vector3[minSteps];
+            return _trajectoryScratch;
+        }
 
         int _phase = PhaseSelfThrow;
         int _selfIndex;
@@ -1819,7 +1884,8 @@ namespace PirateCrew.Battle
 
             AiThrowSample sample = AiEvaluation.RandomThrow(
                 actor.X, actor.Y, CrewCatalog.TwangMaxForce,
-                CrewCatalog.Weight, _field.Terrain, _random, _options.MaxSimulationSteps);
+                CrewCatalog.Weight, _field.Terrain, _random, _options.MaxSimulationSteps,
+                TrajectoryScratch(_options.MaxSimulationSteps));
             _evaluationCount++;
 
             float flash = AiEvaluation.ScoreSelfThrowSample(sample, _field, _field.ActingUnitId);
@@ -1832,7 +1898,8 @@ namespace PirateCrew.Battle
                 {
                     AiThrowSample m = AiEvaluation.RandomThrow(
                         actor.X, actor.Y, CrewCatalog.TwangMaxForce,
-                        CrewCatalog.Weight, _field.Terrain, _random, _options.MaxSimulationSteps);
+                        CrewCatalog.Weight, _field.Terrain, _random, _options.MaxSimulationSteps,
+                        TrajectoryScratch(_options.MaxSimulationSteps));
                     _evaluationCount++;
 
                     float g = CherryBombRecheckGain(m, actor);
@@ -1850,8 +1917,13 @@ namespace PirateCrew.Battle
                 }
             }
 
+            // 【proxy 性质声明】自抛候选的预期伤害恒用 CherryBomb 的爆炸参数作 proxy：
+            // §6.2 的落点复核本就是 cherryBomb（40 伤害），自抛本身没有「武器伤害」概念，
+            // 这里借它的爆炸口径给「抛到敌人头上」一个伤害期望。换成别的武器参数会整体
+            // 漂移自抛候选的 ExpectedDamage / TotalScore（确定性断言会跟着变），动前先过测试。
             float expected = AiEvaluation.ExpectedDamage(
-                WeaponId.CherryBomb, sample.Ex, sample.Ey, _field, _field.ActingUnitId);
+                WeaponId.CherryBomb, sample.Ex, sample.Ey, _field, _field.ActingUnitId,
+                _damageScratch);
 
             _candidates.Add(new AiMoveCandidate(
                 _field.ActingUnitId, -1, WeaponId.Cannonball,
@@ -1942,7 +2014,8 @@ namespace PirateCrew.Battle
 
                 case WeaponId.VoodooDoll:
                     AiEvaluation.PlanVoodoo(_field, _field.ActingUnitId, weapon.slot, _random,
-                        _candidates, ref _evaluationCount);
+                        _candidates, ref _evaluationCount,
+                        TrajectoryScratch(_options.MaxSimulationSteps));
                     break;
 
                 case WeaponId.Seagull:
@@ -1957,7 +2030,7 @@ namespace PirateCrew.Battle
                 case WeaponId.Cannon:
                     // §6.3 cannon：随机角度 + 随机拖拽距离决定炮位（运行时 aiFireTime=25 后自动发射）。
                     AiEvaluation.PlanCannon(_field, _field.ActingUnitId, weapon.slot, _random,
-                        _candidates, ref _evaluationCount);
+                        _candidates, ref _evaluationCount, _damageScratch);
                     break;
 
                 case WeaponId.Anchor:
@@ -1988,7 +2061,8 @@ namespace PirateCrew.Battle
             {
                 AiThrowSample t = AiEvaluation.RandomThrow(
                     actor.X, actor.Y, twangMax, weight,
-                    _field.Terrain, _random, _options.MaxSimulationSteps);
+                    _field.Terrain, _random, _options.MaxSimulationSteps,
+                    TrajectoryScratch(_options.MaxSimulationSteps));
                 _evaluationCount++;
                 AddWeaponSampleCandidate(actor, slot, id, t);
             }
@@ -2035,7 +2109,8 @@ namespace PirateCrew.Battle
         void StepSeagull(int slot)
         {
             if (!AiEvaluation.TryPlanSeagull(_field, _field.ActingUnitId, _random,
-                    out float success, out float height, out IReadOnlyList<float> shotXs))
+                    out float success, out float height, out IReadOnlyList<float> shotXs,
+                    TrajectoryScratch(AiEvaluation.MaxSimulationSteps)))
                 return;
 
             _evaluationCount += AiEvaluation.SeagullShotCount;
@@ -2060,7 +2135,7 @@ namespace PirateCrew.Battle
 
             float px = points[0].x;
             float py = points[0].y;
-            float expected = AiEvaluation.ExpectedDamage(id, px, py, _field, _field.ActingUnitId);
+            float expected = AiEvaluation.ExpectedDamage(id, px, py, _field, _field.ActingUnitId, _damageScratch);
 
             _candidates.Add(new AiMoveCandidate(
                 _field.ActingUnitId, slot, id,
@@ -2078,7 +2153,7 @@ namespace PirateCrew.Battle
         void AddWeaponSampleCandidate(in AiUnit actor, int slot, WeaponId id, in AiThrowSample t)
         {
             float flash = AiEvaluation.ScoreWeaponSample(id, t, _field, _field.ActingUnitId);
-            float expected = AiEvaluation.ExpectedDamage(id, t.Ex, t.Ey, _field, _field.ActingUnitId);
+            float expected = AiEvaluation.ExpectedDamage(id, t.Ex, t.Ey, _field, _field.ActingUnitId, _damageScratch);
 
             _candidates.Add(new AiMoveCandidate(
                 _field.ActingUnitId, slot, id, t.Vx, t.Vy, -1, t.Ex, t.Ey, flash, expected));

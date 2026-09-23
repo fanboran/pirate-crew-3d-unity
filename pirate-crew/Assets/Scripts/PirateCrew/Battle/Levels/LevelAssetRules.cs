@@ -254,6 +254,17 @@ namespace PirateCrew.Battle.Levels
                         problems.Add(tag + "单位 #" + i + " (" + unit.typeName + ") 落在场外格 ("
                             + cellX + "," + cellY + ")");
                     }
+                    else if (payload.terrain.widthTiles != payload.widthTiles
+                             || payload.terrain.depthTiles != payload.depthTiles)
+                    {
+                        // 栅格尺寸与场地尺寸不一致（上方已有独立告警）：blocks 按 terrain 的
+                        // 行主序存储，拿 payload.widthTiles 索引会读错格、产出不可信的
+                        // "站在空格"结论——跳过站位校验并告警，不给出假阳性/假阴性。
+                        PirateCrew.Core.Log.Warn("[LevelAssetRules] " + tag + "单位 #" + i + " ("
+                            + unit.typeName + ") 站位校验跳过：栅格尺寸 " + payload.terrain.widthTiles
+                            + "×" + payload.terrain.depthTiles + " 与场地尺寸 " + payload.widthTiles
+                            + "×" + payload.depthTiles + " 不一致（blocks 行宽 ≠ 场地宽，索引口径失效）");
+                    }
                     else if (payload.terrain.blocks[cellX + cellY * payload.widthTiles] <= 0)
                     {
                         problems.Add(tag + "单位 #" + i + " (" + unit.typeName + ") 站在空格 ("

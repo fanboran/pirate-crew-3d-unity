@@ -320,25 +320,6 @@ namespace PirateCrew.Battle
             return SurfaceWorldY(gx, gy);
         }
 
-        /// <summary>地面格数量（平台模式 = 有块的地面；列式旧地形 = 全格）。</summary>
-        public int GroundCellCount
-        {
-            get
-            {
-                int n = 0;
-                for (int i = 0; i < _blocks.Length; i++)
-                {
-                    bool ground = _platformMode ? _cluster[i] >= 0 && _blocks[i] > 0 : _ground[i];
-                    if (ground)
-                        n++;
-                }
-                return n;
-            }
-        }
-
-        /// <summary>水格数量。</summary>
-        public int WaterCellCount => _blocks.Length - GroundCellCount;
-
         /// <summary>实心（有抬升块）格数量（调试/测试用）。</summary>
         public int SolidCellCount
         {

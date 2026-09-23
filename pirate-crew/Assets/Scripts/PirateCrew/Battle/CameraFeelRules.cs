@@ -399,9 +399,10 @@ namespace PirateCrew.Battle
         // 顿帧（hitstop）安全上限
         //
         // 【为什么不破坏回合推进】（读 TurnManager / BattleFlowRules 后确认）：
-        //   · TurnManager.Update 每渲染帧执行一次 `_inactivityFrames++`，它**不读 timeScale**
-        //     （只受 Time.deltaTime 的"值"影响，而帧计数本身照常）；因此压低 timeScale 不会暂停/加快
-        //     回合阈值判定，`BattleFlowRules.DecideAdvance` 的 10 帧阈值语义不变。
+        //   · TurnManager 的 `_inactivityFrames++` 在 **FixedUpdate** 里计数（25Hz 物理步）：
+        //     压低 timeScale 时每秒物理步同步变少、计数随之放缓，但阈值数的是"物理帧"，
+        //     `BattleFlowRules.DecideAdvance` 的 10 帧口径本身不变（暂停同理——BattlePause 时
+        //     FixedUpdate 本就停跑，计数与推进一起停）。
         //   · 顿帧只在引爆瞬间发生，此时弹体仍在 IsAnythingActive() 为真，`_inactivityFrames` 本就被清零，
         //     不存在"顿帧期间把空闲帧攒够"的情况。
         //   · PhysX 每个固定步仍以 Time.fixedDeltaTime(=1/25s) 积分（timeScale 只改变每秒发生多少步，
@@ -415,7 +416,7 @@ namespace PirateCrew.Battle
         /// <summary>
         /// 顿帧允许的最低 timeScale（提案）。必须 <b>严格大于 0</b>：
         /// timeScale=0 会让 PhysX 完全停步，<c>BattleController.IsAnythingActive()</c> 因弹体"仍在飞"
-        /// 恒为 true、<c>TurnManager.Update</c> 的 inactivity 永远被清零，回合推进即死锁。
+        /// 恒为 true、<c>TurnManager.FixedUpdate</c> 的 inactivity 永远被清零，回合推进即死锁。
         /// 0.05 仍留出物理可推进余量，且 0.05 至少 ±1 个物理步不会改变"预览=实弹"的逐步等价。
         /// </summary>
         public const float MinHitStopTimeScale = 0.05f;

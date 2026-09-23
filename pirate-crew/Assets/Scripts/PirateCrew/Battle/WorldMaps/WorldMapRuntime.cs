@@ -84,6 +84,7 @@ namespace PirateCrew.Battle.WorldMaps
             ClearPending();
             ClearPendingShowcase();
             _commandLineScanned = false;
+            _warnedBlankArchetype = false;
             LevelAssetLibrary.Reset();
             WorldMapCatalog.ResetCache();
         }
@@ -167,30 +168,62 @@ namespace PirateCrew.Battle.WorldMaps
         // 战斗计划
         // ------------------------------------------------------------------
 
-        /// <summary>由世界地图构建出战计划（含出生格块高修正，见 <see cref="WorldMapRules.TryRasterize"/>）。</summary>
+        /// <summary>命令行扫描标志复位用；Archetype 缺失告警只报一次（防逐条刷屏）。</summary>
+        static bool _warnedBlankArchetype;
+
+        /// <summary>
+        /// 由世界地图构建出战计划（含出生格块高修正，见 <see cref="WorldMapRules.TryRasterize"/>）。
+        /// </summary>
         public static BattlePlan BuildBattlePlan(WorldMapDefinition map)
         {
             var entries = new List<SpawnPlanEntry>(map.Spawns.Count);
             // AllStandBoxes 每次调用都重建整张 box 表（返回新 List），只读用途——
             // 必须提到 spawn 循环外算一次复用，不能逐出生点重建。
             var boxes = WorldMapRules.AllStandBoxes(map);
+            // 格宽高在 spawn 循环前取一次（TryRasterize 的 out 值在无站面时也已赋值），
+            // 供下面的格坐标越界检查使用。
+            WorldMapRules.TryRasterize(map, out int widthTiles, out int depthTiles, out _);
             for (int i = 0; i < map.Spawns.Count; i++)
             {
                 WorldMapSpawn spawn = map.Spawns[i];
                 float surfaceY = WorldMapRules.HeightAtWorld(boxes, new Vector2(spawn.X, spawn.Z));
                 int gridX = Mathf.FloorToInt(spawn.X / WorldMapRules.RasterTileSize);
                 int gridY = Mathf.FloorToInt(spawn.Z / WorldMapRules.RasterTileSize);
+                // 与 <see cref="BuildTerrainGrid"/> 同款越界检查：贴边出生点 floor(Span/2)
+                // 可能踩到格数上限。出战条目不能像块表那样跳过（跳过 = 静默丢角色），
+                // 越界时钳进边界格并点名——数据侧病根（出生点超出地图 Span）靠日志暴露。
+                if (gridX < 0 || gridY < 0 || gridX >= widthTiles || gridY >= depthTiles)
+                {
+                    Debug.LogWarning(string.Format(
+                        "[WorldMapRuntime] [{0}] spawn#{1} ({2:F1},{3:F1}) 格 ({4},{5}) 越界"
+                        + "（块表 {6}x{7}），已钳入边界格。",
+                        map.Id, i, spawn.X, spawn.Z, gridX, gridY, widthTiles, depthTiles));
+                    gridX = Mathf.Clamp(gridX, 0, widthTiles - 1);
+                    gridY = Mathf.Clamp(gridY, 0, depthTiles - 1);
+                }
+
+                // Captain 判据带空引用防御：Archetype null/空视为普通船员（非 Captain），
+                // 只告警一次（外部构造的 definition 不因漏字段崩装配）。
+                bool isCaptain = !string.IsNullOrEmpty(spawn.Archetype)
+                    && spawn.Archetype.EndsWith("Captain");
+                if (string.IsNullOrEmpty(spawn.Archetype) && !_warnedBlankArchetype)
+                {
+                    _warnedBlankArchetype = true;
+                    Debug.LogWarning(string.Format(
+                        "[WorldMapRuntime] [{0}] spawn#{1} 的 Archetype 为空，视为普通船员（非 Captain）。",
+                        map.Id, i));
+                }
+
                 entries.Add(new SpawnPlanEntry(
                     spawn.TeamIndex, spawn.Archetype, spawn.Luck, gridX, gridY,
                     new Vector3(spawn.X, surfaceY + LevelGeometry.UnitPivotHeight, spawn.Z),
                     // 方案 D 分层军火：初配真值在目录（近程基线 / 船长含全图级旗舰）；
                     // 未配（null）时回落战役惯例，外部构造的 definition 不破。
-                    spawn.Archetype.EndsWith("Captain")
+                    isCaptain
                         ? map.CaptainWeapons ?? CaptainWeapons()
                         : map.CrewWeapons ?? CherryBombOnly()));
             }
 
-            WorldMapRules.TryRasterize(map, out int widthTiles, out int depthTiles, out _);
             return new BattlePlan(
                 map.LevelNumber, widthTiles, depthTiles, originalXmlPlayers: 1,
                 LevelGeometry.WaterSurfaceY, entries);
@@ -213,7 +246,9 @@ namespace PirateCrew.Battle.WorldMaps
 
         /// <summary>
         /// 世界地图 → 逻辑格（块表）。出生点所在格强制为其脚下站面顶高（防格心与出生点跨 box 的高度差）。
-        /// 返回 null 表示地图无站面（无效）。
+        /// 出生点落在无站面的水面时**不覆写**（Max(1, …) 会把水格伪造成可站块），保留
+        /// <see cref="WorldMapRules.TryRasterize"/> 的栅格化原值并按 <see cref="WorldMapRules.ValidateSpawns"/>
+        /// 同款格式点名——报告风格对齐，数据侧病根由日志暴露。返回 null 表示地图无站面（无效）。
         /// </summary>
         public static TileTerrainGrid BuildTerrainGrid(WorldMapDefinition map)
         {
@@ -230,7 +265,18 @@ namespace PirateCrew.Battle.WorldMaps
                 if (gridX < 0 || gridY < 0 || gridX >= widthTiles || gridY >= depthTiles)
                     continue;
                 float surfaceY = WorldMapRules.HeightAtWorld(boxes, p);
-                blocks[gridX + gridY * widthTiles] = Mathf.Max(1, Mathf.RoundToInt(surfaceY / 0.5f));
+                // 仅当脚下确有站面（顶高高于水面）才覆写；否则该格维持水，Warn 点名。
+                if (surfaceY > LevelGeometry.WaterSurfaceY)
+                {
+                    blocks[gridX + gridY * widthTiles] = Mathf.Max(1, Mathf.RoundToInt(surfaceY / 0.5f));
+                }
+                else
+                {
+                    Debug.LogWarning(string.Format(
+                        "[{0}] spawn#{1} ({2:F1},{3:F1}) 不在任何站面 box 上（水面），"
+                        + "块表保留栅格化原值——请把出生点挪回站面（校验见 WorldMapRules.ValidateSpawns）。",
+                        map.Id, i, p.x, p.y));
+                }
             }
 
             return new TileTerrainGrid(widthTiles, depthTiles, blocks, 0.5f);

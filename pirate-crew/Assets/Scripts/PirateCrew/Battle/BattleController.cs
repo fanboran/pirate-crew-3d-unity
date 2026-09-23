@@ -98,6 +98,16 @@ namespace PirateCrew.Battle
         readonly List<PirateBase> _allPirates = new List<PirateBase>();
         readonly List<WeaponProjectile> _projectiles = new List<WeaponProjectile>();
         readonly BattleTeam[] _teams = new BattleTeam[2];
+
+        // ---- 物理查询 scratch（grow-only，稳态零逐帧分配；纪律同 PirateBase 的接触点 scratch）----
+        /// <summary>CollectPiratesInRadius 的 OverlapSphere 缓冲：结果在同一次调用内
+        /// 全部搬进 results 后即不再读取，复用不影响调用方。</summary>
+        Collider[] _pirateOverlapScratch = new Collider[32];
+        /// <summary>爆炸路径（ResolveExplosion / TriggerChainReactions）的 OverlapSphere 缓冲：
+        /// ResolveExplosion 在调用 TriggerChainReactions 前已读完缓冲；链式引爆会重入本缓冲，
+        /// 因此 TriggerChainReactions 先把待引爆弹体快照进局部列表再逐个触发。</summary>
+        Collider[] _explosionOverlapScratch = new Collider[32];
+
         BattlePlan _plan;
         /// <summary>本局的关卡来源（计划/地形/水位/图幅/氛围档都在它里面；解析只发生在 Battle/Levels）。</summary>
         LevelSource _source;
@@ -339,9 +349,18 @@ namespace PirateCrew.Battle
                 parent: transform,
                 followCamera: battleCamera != null ? battleCamera.GetComponent<Camera>() : null);
 
-            Camera cam = battleCamera != null ? battleCamera.GetComponent<Camera>() : Camera.main;
-            if (cam != null)
-                cam.farClipPlane = Mathf.Max(cam.farClipPlane, 4500f);
+            // 远裁剪面经 BattleCameraDriver 的例外口抬高（唯一写入者契约，见 Driver 类头）；
+            // 无 Driver 的兜底场景才直写相机。OceanRig 海面圆盘半径大，200 的正交远裁剪会切掉海面。
+            if (battleCamera != null)
+            {
+                battleCamera.SetFarClipForSpan(4500f);
+            }
+            else
+            {
+                Camera cam = Camera.main;
+                if (cam != null)
+                    cam.farClipPlane = Mathf.Max(cam.farClipPlane, 4500f);
+            }
 
             // 大地图专属（图幅/氛围档由关卡数据给出）：全景档随图幅 + 氛围档按海图定义；
             // 关卡资产路径这两项都是"未提供"（CameraWorldSpan = 0 / AmbientTier = null），
@@ -559,13 +578,14 @@ namespace PirateCrew.Battle
             Vector3 worldCenter, float size, float maxDamage, PirateBase caster, WeaponProjectile source)
         {
             float radiusWorld = LevelGeometry.PixelsToUnits(ExplosionResolver.Radius(size));
-            Collider[] overlaps = Physics.OverlapSphere(
-                worldCenter, radiusWorld, pirateLayerMask, QueryTriggerInteraction.Ignore);
+            int overlapCount = OverlapSphereScratch(
+                ref _explosionOverlapScratch, worldCenter, radiusWorld, pirateLayerMask);
+            Collider[] overlaps = _explosionOverlapScratch;
 
-            var candidates = new List<PirateBase>(overlaps.Length);
-            var targets = new List<ExplosionTarget>(overlaps.Length);
+            var candidates = new List<PirateBase>(overlapCount);
+            var targets = new List<ExplosionTarget>(overlapCount);
 
-            for (int i = 0; i < overlaps.Length; i++)
+            for (int i = 0; i < overlapCount; i++)
             {
                 PirateBase pirate = overlaps[i] != null ? overlaps[i].GetComponentInParent<PirateBase>() : null;
                 if (pirate == null || candidates.Contains(pirate))
@@ -612,19 +632,46 @@ namespace PirateCrew.Battle
         /// <summary>扫描爆炸范围内可连锁引爆的弹体（§5.2 gunpowderBarrel），逐个触发。</summary>
         void TriggerChainReactions(Vector3 worldCenter, float radiusWorld, WeaponProjectile source)
         {
-            Collider[] overlaps = Physics.OverlapSphere(
-                worldCenter, radiusWorld, ~0, QueryTriggerInteraction.Ignore);
+            int overlapCount = OverlapSphereScratch(
+                ref _explosionOverlapScratch, worldCenter, radiusWorld, ~0);
+            Collider[] overlaps = _explosionOverlapScratch;
 
-            for (int i = 0; i < overlaps.Length; i++)
+            // 先快照再触发：连锁引爆会重入爆炸路径并复用同一块 OverlapSphere 缓冲，
+            // 边遍历缓冲边引爆会读到被内层调用覆盖的条目。
+            var triggers = new List<WeaponProjectile>(overlapCount);
+            for (int i = 0; i < overlapCount; i++)
             {
                 WeaponProjectile projectile = overlaps[i] != null
                     ? overlaps[i].GetComponentInParent<WeaponProjectile>()
                     : null;
                 if (projectile == null || projectile == source || !projectile.TriggersOnBlast)
                     continue;
-
-                projectile.DetonateFromBlast();
+                if (!triggers.Contains(projectile))
+                    triggers.Add(projectile);
             }
+
+            for (int i = 0; i < triggers.Count; i++)
+                triggers[i].DetonateFromBlast();
+        }
+
+        /// <summary>
+        /// OverlapSphereNonAlloc 写入 grow-only scratch，返回实际命中数（爆炸/范围判定共用范式）。
+        /// NonAlloc 装满即视为可能截断（不报错），此时翻倍重查一次；稳态零分配。
+        /// </summary>
+        static int OverlapSphereScratch(
+            ref Collider[] scratch, Vector3 center, float radius, int layerMask)
+        {
+            Collider[] buffer = scratch;
+            int count = Physics.OverlapSphereNonAlloc(
+                center, radius, buffer, layerMask, QueryTriggerInteraction.Ignore);
+            if (count < buffer.Length)
+                return count;
+
+            buffer = new Collider[buffer.Length * 2];
+            count = Physics.OverlapSphereNonAlloc(
+                center, radius, buffer, layerMask, QueryTriggerInteraction.Ignore);
+            scratch = buffer;
+            return count;
         }
 
         // ------------------------------------------------------------------
@@ -787,10 +834,11 @@ namespace PirateCrew.Battle
                 return;
 
             results.Clear();
-            Collider[] overlaps = Physics.OverlapSphere(
-                worldCenter, radiusWorld, pirateLayerMask, QueryTriggerInteraction.Ignore);
+            int overlapCount = OverlapSphereScratch(
+                ref _pirateOverlapScratch, worldCenter, radiusWorld, pirateLayerMask);
+            Collider[] overlaps = _pirateOverlapScratch;
 
-            for (int i = 0; i < overlaps.Length; i++)
+            for (int i = 0; i < overlapCount; i++)
             {
                 PirateBase pirate = overlaps[i] != null
                     ? overlaps[i].GetComponentInParent<PirateBase>()

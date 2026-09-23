@@ -174,6 +174,9 @@ namespace PirateCrew.Battle
         void OnDisable()
         {
             SetHoverTarget(null);
+            // 与 ESC 走同一条 CancelAim 清理路径（全部是幂等赋值 + trajectory.Hide 可重复调用）：
+            // 组件失活时不再持有瞄准/拖拽状态，防止重新激活后残留上一次的选中与武装。
+            CancelAim();
         }
 
         /// <summary>
@@ -343,7 +346,10 @@ namespace PirateCrew.Battle
             _turretPower = Mathf.Clamp01(_turretPower + pow * TurretPowerPerSecond * sensitivity * dt
                 + Input.mouseScrollDelta.y * TurretPowerPerScrollNotch * sensitivity);
 
-            float dragLength = Mathf.Max(minDragPixels + 4f, _turretPower * _twangMax / 0.25f);
+            // 满力拖拽距离 = twangMax / 力度系数（§5.1 的 0.25）——直接复用 Ballistics 的
+            // 同一换算（FullForceDragDistance），不手抄 0.25f，系数改动时两处不脱钩。
+            float dragLength = Mathf.Max(minDragPixels + 4f,
+                _turretPower * Ballistics.FullForceDragDistance(_twangMax));
             _dragScreen = new Vector2(Mathf.Sin(_turretYawRad), Mathf.Cos(_turretYawRad)) * dragLength;
 
             (Vector3 dir, float speed, float _, float _) = ResolveThrow();
@@ -387,6 +393,10 @@ namespace PirateCrew.Battle
             }
             else
             {
+                // 【提案/待定】MarkUseWeapon 失败（库存空/复用尽）仍发布 UseWeapon 动作，
+                // 与成功分支同构——回合语义需创始人裁决：失败分支应当发 EndGo 结束回合，
+                // 还是不发动作让玩家重选（现行为=回合推进器把失败当作"用过武器"）。
+                // 先保持现状不改行为。
                 EventBus_PublishAction(pirate, BattleActionKind.UseWeapon);
             }
 
@@ -448,10 +458,7 @@ namespace PirateCrew.Battle
         {
             _phase = Phase.Idle;
             _selected = null;
-            _useWeapon = false;
-            _directPlacement = false;
-            _twangMax = CrewCatalog.TwangMaxForce;
-            _weight = CrewCatalog.Weight;
+            ResetAimState();
             if (trajectory != null)
                 trajectory.Hide();
         }
@@ -550,6 +557,10 @@ namespace PirateCrew.Battle
                 }
                 else
                 {
+                    // 【提案/待定】MarkUseWeapon 失败（库存空/复用尽）仍发布 UseWeapon 动作，
+                    // 与成功分支同构——回合语义需创始人裁决：失败分支应当发 EndGo 结束回合，
+                    // 还是不发动作让玩家重选（现行为=回合推进器把失败当作"用过武器"）。
+                    // 先保持现状不改行为。
                     EventBus_PublishAction(pirate, BattleActionKind.UseWeapon);
                 }
             }
@@ -567,10 +578,7 @@ namespace PirateCrew.Battle
 
             _phase = Phase.Idle;
             _selected = null;
-            _useWeapon = false;
-            _directPlacement = false;
-            _twangMax = CrewCatalog.TwangMaxForce;
-            _weight = CrewCatalog.Weight;
+            ResetAimState();
         }
 
         /// <summary>
@@ -606,10 +614,7 @@ namespace PirateCrew.Battle
         {
             _selected = pirate;
             _phase = pirate != null ? Phase.CharacterSelected : Phase.Idle;
-            _useWeapon = false;
-            _directPlacement = false;
-            _twangMax = CrewCatalog.TwangMaxForce;
-            _weight = CrewCatalog.Weight;
+            ResetAimState();
             if (_selected != null)
                 _selected.Inventory.Unequip();
         }
@@ -647,10 +652,7 @@ namespace PirateCrew.Battle
         /// <summary>选择"抛自己"（§3.4 阶段 B 的 <c>button_throw</c>）。</summary>
         public void SelectThrowSelf()
         {
-            _useWeapon = false;
-            _directPlacement = false;
-            _twangMax = CrewCatalog.TwangMaxForce;
-            _weight = CrewCatalog.Weight;
+            ResetAimState();
             if (_selected != null)
                 _selected.Inventory.Unequip();
         }
@@ -671,15 +673,12 @@ namespace PirateCrew.Battle
             return true;
         }
 
-        /// <summary>取消瞄准。</summary>
+        /// <summary>取消瞄准（幂等，可重复调用；<see cref="OnDisable"/> 也走这里收尾）。</summary>
         public void CancelAim()
         {
             _phase = Phase.Idle;
             _selected = null;
-            _useWeapon = false;
-            _directPlacement = false;
-            _twangMax = CrewCatalog.TwangMaxForce;
-            _weight = CrewCatalog.Weight;
+            ResetAimState();
             if (trajectory != null)
                 trajectory.Hide();
         }
@@ -687,6 +686,19 @@ namespace PirateCrew.Battle
         // ------------------------------------------------------------------
         // 内部工具
         // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 状态重置的公共块（原先在 EndDirectPlacement / ReleaseDrag / ResetForSelection /
+        /// CancelAim 各抄一份）：清武装与放置标记，twangMax/weight 回落到角色口径。
+        /// 阶段与选中角色的置位属于各自语义，由调用方另写。
+        /// </summary>
+        void ResetAimState()
+        {
+            _useWeapon = false;
+            _directPlacement = false;
+            _twangMax = CrewCatalog.TwangMaxForce;
+            _weight = CrewCatalog.Weight;
+        }
 
         /// <summary>屏幕空间 30px 内最近的本队存活角色（§3.4 <c>minD2 = 900</c>）。</summary>
         PirateBase PickTeamCharacter(Vector2 screenPosition)

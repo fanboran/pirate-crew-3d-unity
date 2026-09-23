@@ -94,10 +94,18 @@ namespace PirateCrew.Battle.WorldMaps
                 if (map == null)
                     continue;
                 _all.Add(map);
+                // 重复键静默去重会让后到者从查表接口上「消失」且无人知晓——点名告警
+                // （All 列表仍保留两份；查表只认先到者）。
                 if (!_byId.ContainsKey(map.Id))
                     _byId.Add(map.Id, map);
+                else
+                    global::PirateCrew.Core.Log.Warn("[WorldMapCatalog] 海图 id 重复：" + map.Id
+                        + "，查表只认先到者（后到者仅存在于 All 列表）。");
                 if (!_byLevelNumber.ContainsKey(map.LevelNumber))
                     _byLevelNumber.Add(map.LevelNumber, map);
+                else
+                    global::PirateCrew.Core.Log.Warn("[WorldMapCatalog] 海图关卡号重复：" + map.LevelNumber
+                        + "（" + map.Id + "），查表只认先到者（后到者仅存在于 All 列表）。");
             }
         }
     }

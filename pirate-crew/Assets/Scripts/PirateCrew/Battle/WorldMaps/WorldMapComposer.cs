@@ -41,6 +41,9 @@ namespace PirateCrew.Battle.WorldMaps
         /// 只在 <see cref="PixelartPath.ObjectShaderName"/> 不在包里时出现，正常路径不应看到。</summary>
         const string FallbackLitShaderName = "Universal Render Pipeline/Lit";
 
+        /// <summary>回退链的末级兜底（Unity 内置 shader，随包必在）：URP/Lit 也缺时用它保住站面可渲染。</summary>
+        const string FallbackSpritesShaderName = "Sprites/Default";
+
         /// <summary>构建整图（碰撞 + 灰盒 + 已配置的 kit 视觉）。返回根 Transform。</summary>
         public static Transform Build(Transform parent, WorldMapDefinition map, WorldMapAssetSet assetSet)
         {
@@ -159,7 +162,12 @@ namespace PirateCrew.Battle.WorldMaps
 
             var collider = go.AddComponent<BoxCollider>();
             collider.size = Vector3.one;
-            collider.center = new Vector3(0f, visualDrop * 0.5f, 0f);
+            // 【本地/世界换算】BoxCollider.center 是本地空间量：本地 center × scale.y = 世界偏移
+            // （一行式：偏移被 transform 缩放放大）。要的世界偏移 = visualDrop*0.5（视觉顶面
+            // TopY−0.06 与玩法真值 TopY 的折中），故本地 center.y = visualDrop*0.5/height——
+            // 顶面恒 = TopY − visualDrop + 0.03 = TopY − 0.03，不随站面高度漂移
+            // （直接写世界值 0.03 会被 scale.y=height 再乘一遍，顶面漂到 TopY+0.075~0.24）。
+            collider.center = new Vector3(0f, visualDrop * 0.5f / height, 0f);
 
             var filter = go.AddComponent<MeshFilter>();
             filter.sharedMesh = CubeMesh();
@@ -217,11 +225,15 @@ namespace PirateCrew.Battle.WorldMaps
                 float lz = fz * (box.Size.y - 3f);
                 var go = Object.Instantiate(prefab, parent);
                 go.name = "Decor_" + asset;
-                // 世界位置：站面中心 + 按 box 总转角旋转的局部偏移；y = 站面顶（道具原点在落地面）。
+                // 世界位置 = 站面中心 + 正向旋转的局部偏移，与站面本体
+                // Quaternion.Euler(0, box.YawDeg, 0) 同向——Unity 正变换 R(+yaw)：
+                // x' = lx·cosθ + lz·sinθ, z' = −lx·sinθ + lz·cosθ（同式见
+                // WorldMapRules.ExpandPlacement）。勿写成 (lx·cos−lz·sin, lx·sin+lz·cos)：
+                // 那是 world→local 逆变换（WorldMapRules.Contains），照抄到正向会把散布转角转反。
                 go.transform.position = new Vector3(
-                    box.Center.x + lx * cos - lz * sin,
+                    box.Center.x + lx * cos + lz * sin,
                     box.TopY,
-                    box.Center.y + lx * sin + lz * cos);
+                    box.Center.y - lx * sin + lz * cos);
                 go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
                 go.isStatic = true;
             }
@@ -272,13 +284,16 @@ namespace PirateCrew.Battle.WorldMaps
 
         static Mesh CubeMesh()
         {
-            if (_cube == null)
-            {
-                var temp = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                Object.Destroy(temp.GetComponent<Collider>());
-                temp.hideFlags = HideFlags.HideAndDontSave;
-                _cube = temp.GetComponent<MeshFilter>().sharedMesh;
-            }
+            if (_cube != null)
+                return _cube;
+            // 临时体只为取内置 cube 网格：Mesh 是独立引擎对象（挂在 MeshFilter.sharedMesh 上），
+            // 不随 GameObject 销毁失效——取完立即销毁临时体。HideAndDontSave 的 GO 若只销
+            // Collider 留本体，会永久滞留（每张图装配漏一个）。销临时体用 DestroyImmediate：
+            // 编辑器批处理路径下 Destroy 延迟到帧末，等不到。_cube 静态强引用保 mesh
+            // 不被 GC / Resources.UnloadUnusedAssets 回收。
+            var temp = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            _cube = temp.GetComponent<MeshFilter>().sharedMesh;
+            Object.DestroyImmediate(temp);
             return _cube;
         }
 
@@ -377,6 +392,11 @@ namespace PirateCrew.Battle.WorldMaps
         /// shader 缺失时的回退材质：原灰盒 URP/Lit 纯色三档（明度纪律原样保留）。
         /// 只在物体 shader 不在包里时出现，正常路径不应看到这批纯色面。
         /// 颜色取自 <see cref="PixelartMaterialFactory"/> 的站面三档（同一份色，不在回退路径里再写一遍）。
+        ///
+        /// 【回退链】URP/Lit 缺失（<see cref="Shader.Find"/> 找不到）时降级 Unity 内置
+        /// Sprites/Default 并点名报错；两者都缺（理论上不可能，内置 shader 随包必在）返回 null，
+        /// 调用点 <see cref="BandMaterial"/> 把 null 缓存进档表、<see cref="BuildStandBox"/>
+        /// 赋 <c>sharedMaterial = null</c>（合法赋值）——该档站面无着色但**装配不中断**。
         /// </summary>
         static Material CreateFallbackLitMaterial(int band)
         {
@@ -385,7 +405,21 @@ namespace PirateCrew.Battle.WorldMaps
                 : band == 1
                     ? PixelartMaterialFactory.StandGrass
                     : PixelartMaterialFactory.StandRock;
-            var shader = Shader.Find(FallbackLitShaderName);
+            Shader shader = Shader.Find(FallbackLitShaderName);
+            if (shader == null)
+            {
+                shader = Shader.Find(FallbackSpritesShaderName);
+                if (shader == null)
+                {
+                    global::PirateCrew.Core.Log.Error("[WorldMapComposer] 站面 band" + band
+                        + " 回退材质无法创建：shader \"" + FallbackLitShaderName + "\" 与兜底 \""
+                        + FallbackSpritesShaderName + "\" 都不在包里，该档站面将无材质（装配继续）。");
+                    return null;
+                }
+                global::PirateCrew.Core.Log.Error("[WorldMapComposer] 回退 shader \""
+                    + FallbackLitShaderName + "\" 也不在包里，站面 band" + band
+                    + " 降级用 \"" + FallbackSpritesShaderName + "\"。");
+            }
             var mat = new Material(shader);
             if (mat.HasProperty("_BaseColor"))
                 mat.SetColor("_BaseColor", color);

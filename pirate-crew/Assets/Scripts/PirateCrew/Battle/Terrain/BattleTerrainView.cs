@@ -16,7 +16,8 @@ namespace PirateCrew.Battle
     /// 一代退场后战斗只有世界图与样板三关两条路，都不建格子渲染层）。
     ///
     /// 【接线】由 <c>BattleSceneSetup</c> 在场景里创建并接好 <c>blockRoot</c>；
-    /// 运行时由 <c>BattleController.BuildTerrain</c> 调 <see cref="RenderCollidersOnly"/>。
+    /// 运行时由 <see cref="BattleController.BuildLevelSource"/> 调 <see cref="RenderCollidersOnly"/>
+    /// （仅非海图路径；海图路径的碰撞与灰盒由 <c>WorldMapComposer</c> 摆）。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class BattleTerrainView : MonoBehaviour
