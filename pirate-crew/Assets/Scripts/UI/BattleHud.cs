@@ -285,14 +285,14 @@ namespace PirateCrew.UI
             // 离场兜底：暂停中直接回主菜单/选关，绝不能把 timeScale=0 带出战斗场景。
             BattlePause.ForceResume();
 
-            EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
-            EventBus.Subscribe(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Subscribe(BattleEvents.TurnEnded, OnTurnEnded);
-            EventBus.Subscribe(BattleEvents.ActionSelected, OnActionSelected);
-            EventBus.Subscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
-            EventBus.Subscribe(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Subscribe(BattleEvents.MatchFinished, OnMatchFinished);
-            EventBus.Subscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Unsubscribe(BattleEvents.BattleStarted, OnBattleStarted);
+            EventBus.Unsubscribe(BattleEvents.TurnStarted, OnTurnStarted);
+            EventBus.Unsubscribe(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Unsubscribe(BattleEvents.ActionSelected, OnActionSelected);
+            EventBus.Unsubscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
+            EventBus.Unsubscribe(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Unsubscribe(BattleEvents.MatchFinished, OnMatchFinished);
+            EventBus.Unsubscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
         }
 
         void WireWeaponButtons()
