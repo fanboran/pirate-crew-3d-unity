@@ -18,7 +18,7 @@ namespace PirateCrew.UI
     ///   · 名册变化订阅 <see cref="CrewManagementEvents"/> 频道刷新列表。
     ///
     /// 【本波次改造】文本 TMP 化 + 全中文（<see cref="UiStrings"/> / <see cref="UiTextRules"/>）；
-    /// 行/按钮换羊皮纸 + 木板九宫格；行字号走 <see cref="UiTheme.FontBody"/> 旧档入口
+    /// 行/按钮换羊皮纸 + 木板九宫格；行字号走 <see cref="UiSkin.Font"/>（正文档）
     ///（别名 = <see cref="UiSkin.Font.Body"/> 36：像素栅格并档后旧「双轨降档」退役，
     /// RuntimeUiBuilder 直传渲染，不经 MenuUiBuilder.ScaleLegacyFont，见 UiTheme 字号段说明）。
     /// 事件契约与订阅清单不变。
@@ -133,9 +133,10 @@ namespace PirateCrew.UI
 
                 // 行底 = Plate(Light) 暖白片：字色取该 tone 上的可读档（墨字），锁定的行整体压 alpha。
                 Color rowTextColor = PixelSkin.TextColorOn(PixelTone.Light);
-                TextMeshProUGUI text = RuntimeUiBuilder.CreateText("Label", row, label, UiTheme.FontBody,
+                TextMeshProUGUI text = RuntimeUiBuilder.CreateText("Label", row, label, UiSkin.Font.Body,
                     TextAlignmentOptions.MidlineLeft,
-                    unlocked ? rowTextColor : UiTheme.WithAlpha(rowTextColor, UiTheme.DisabledAlpha),
+                    unlocked ? rowTextColor
+                    : UiSkin.WithAlpha(rowTextColor, Stick.SketchButton.DisabledAlpha),
                     bodyFont);
 
                 Button action = RuntimeUiBuilder.CreateButton("Action", row, string.Empty, UiSkin.Font.Body,

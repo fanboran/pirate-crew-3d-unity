@@ -41,11 +41,11 @@ namespace PirateCrew.Tests.UI
         public void SdRoundRect_StraightEdgeDistanceMatchesRadius()
         {
             // 直边中点（远离圆角）：像素中心 y=half-0.5 贴边时 SDF ≈ 0，向内为负（形状内）。
-            float sdEdge = CartoonSpriteFactory.SdRoundRect(0f, 23.5f, 23.5f, 8f);
+            float sdEdge = UiGlyphs.SdRoundRect(0f, 23.5f, 23.5f, 8f);
             Assert.LessOrEqual(Mathf.Abs(sdEdge), 0.1f, "直边 SDF ≈ 0");
-            float sdInside = CartoonSpriteFactory.SdRoundRect(0f, 20f, 23.5f, 8f);
+            float sdInside = UiGlyphs.SdRoundRect(0f, 20f, 23.5f, 8f);
             Assert.Less(sdInside, -2f, "向内 3.5px 的 SDF < -2");
-            float sdOutside = CartoonSpriteFactory.SdRoundRect(0f, 26f, 23.5f, 8f);
+            float sdOutside = UiGlyphs.SdRoundRect(0f, 26f, 23.5f, 8f);
             Assert.Greater(sdOutside, 1f, "向外 2px 的 SDF > 1");
         }
 

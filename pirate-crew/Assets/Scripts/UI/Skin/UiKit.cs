@@ -19,7 +19,7 @@ namespace PirateCrew.UI
     ///     所以像素件禁止 <c>Image.color</c> 乘色（乘了就把烘焙好的三档色阶压平）；
     ///   · 按钮状态反馈一律 UGUI SpriteSwap（常态/悬停/按压三张 Plate），不用 ColorBlock 乘色；
     ///     禁用态不烘黑图，靠 <see cref="UiPressSink"/> 的 CanvasGroup alpha≈0.55；
-    ///   · 可点击件用 <see cref="IconButton"/> / <see cref="ActionButton"/>（自带三态换图 + 按压位移）。
+    ///   · 可点击件用 <see cref="ActionButton"/>（自带三态换图 + 按压位移）。
     ///
     /// 文字色：<see cref="PixelSkin.TextColorOn"/> / <see cref="PixelSkin.Ink"/> /
     /// <see cref="PixelSkin.PaperWhite"/>（icon 与文字不受"禁止乘色"约束，但仍从调色板取色）。
@@ -196,13 +196,6 @@ namespace PirateCrew.UI
             return image;
         }
 
-        /// <summary>（兼容重载）旧 tint 槽调用：**乘色机制退役**，改按 chip 色选 tone；
-        /// <paramref name="shape"/> 参数已无意义（贴图由 tone 决定），保留只为不打断旧调用点。</summary>
-        public static Image CreateTinted(string name, Transform parent, CartoonSpriteFactory.Shape shape, Color color)
-        {
-            return CreatePlate(name, parent, ToneOfChip(color));
-        }
-
         static Image FindImage(Transform parent, string name)
         {
             Transform child = parent.Find(name);
@@ -328,63 +321,6 @@ namespace PirateCrew.UI
                 button.gameObject.AddComponent<UiPressSink>();
         }
 
-        /// <summary>chip 底色 → 像素 tone（旧 Color 乘色槽退役：只保留"选哪一档贴图"的语义）。</summary>
-        public static PixelTone ToneOfChip(Color chipColor)
-        {
-            if (chipColor == UiSkin.Gold)
-                return PixelTone.Primary;
-            if (chipColor == UiSkin.Danger)
-                return PixelTone.Danger;
-            if (chipColor == UiSkin.Warn)
-                return PixelTone.Warn;
-            if (chipColor == UiSkin.TextOnInk)
-                return PixelTone.Light;
-            if (chipColor == UiSkin.InkDeep || chipColor == UiSkin.InkSoft)
-                return PixelTone.Dense;
-            return PixelTone.Light;   // btn_normal 族
-        }
-
-        /// <summary>
-        /// 建图标按钮（彩色 chip 底 + 符号图标 + 可选快捷键角标）。
-        /// 图标优先原则的落点：动作钮（暂停 / 返回 / 投掷 / 结束回合 / 模式切换）全走这里。
-        /// </summary>
-        public static Button IconButton(string name, Transform parent, UiGlyphs.Glyph glyph,
-            Vector2 anchoredPosition, Vector2 size, Color chipColor, Color glyphColor,
-            string hotkey = null, Color? hotkeyColor = null)
-        {
-            RectTransform rect = CreateRect(name, parent);
-            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = size;
-            rect.anchoredPosition = anchoredPosition;
-
-            PixelTone tone = ToneOfChip(chipColor);
-            var image = rect.gameObject.AddComponent<Image>();
-            var button = rect.gameObject.AddComponent<Button>();
-            ApplyPlateButton(button, image, tone);
-
-            Color foreground = PixelSkin.TextColorOn(tone);
-            Image icon = CreateGlyph("Icon", rect, glyph, foreground);
-            float inset = Mathf.Min(size.x, size.y) * 0.22f;
-            Stretch(icon.rectTransform, inset);
-
-            if (!string.IsNullOrEmpty(hotkey))
-            {
-                // 快捷键角标（右上角小字；默认取 chip 底上的正文字色，可显式覆盖）。
-                // 盒随 Tiny 档走（1.5× 字高）；字体必须显式给像素字体——传 null 会落到
-                // TMP 默认字体（LiberationSans），是"游戏内残留普通字体"的隐患之一。
-                TextMeshProUGUI key = CreateText("Hotkey", rect, hotkey, UiSkin.Font.Tiny,
-                    TextAlignmentOptions.Center, hotkeyColor ?? foreground, RuntimeFont(RuntimeFontKind.Body));
-                key.enableWordWrapping = false;
-                key.rectTransform.anchorMin = key.rectTransform.anchorMax = new Vector2(1f, 1f);
-                key.rectTransform.pivot = new Vector2(1f, 1f);
-                key.rectTransform.anchoredPosition = new Vector2(-3f, -1f);
-                key.rectTransform.sizeDelta = new Vector2(UiSkin.Font.Tiny * 1.5f, UiSkin.Font.Tiny * 1.25f);
-            }
-
-            return button;
-        }
-
         // ------------------------------------------------------------------
         // 按钮变体表（档位 → tone；底色/字色组合的唯一出处在这里，杜绝各处手配漂移）
         // ------------------------------------------------------------------
@@ -408,21 +344,6 @@ namespace PirateCrew.UI
 
             /// <summary>浅牌形态（亮背景上的"纸签"）：暖白底墨字。</summary>
             Paper,
-        }
-
-        /// <summary>档位 → (chip 底色→槽推断, 字/图标色)。保留给旧调用点读色，
-        /// 像素按钮实际走 <see cref="ToneOfKind"/> + <see cref="PixelSkin.TextColorOn"/>。</summary>
-        public static (Color chip, Color label) ButtonVariant(ButtonKind kind)
-        {
-            switch (kind)
-            {
-                case ButtonKind.Primary: return (UiSkin.Gold, UiSkin.InkOnGold);
-                case ButtonKind.Dark: return (UiSkin.InkSoft, UiSkin.TextOnInk);
-                case ButtonKind.Danger: return (UiSkin.Danger, UiSkin.TextOnInk);
-                case ButtonKind.Accent: return (UiSkin.Warn, UiSkin.InkOnGold);
-                case ButtonKind.Paper: return (UiSkin.TextOnInk, UiSkin.InkOnGold);
-                default: return (UiSkin.InkSoft, UiSkin.TextOnInk);
-            }
         }
 
         /// <summary>档位 → 像素 tone（Primary/Accent 都是强调，但 Accent 用暖橙 Warn 区分于黄铜主行动点）。</summary>
@@ -476,26 +397,6 @@ namespace PirateCrew.UI
 
         /// <summary>运行时字体档。<see cref="MenuUiBuilder"/> 是 Editor 类，运行时改从
         /// Resources/Fonts/ 取同一批 SDF 资产（由 FontAssetBuilder 复制入 Resources）。</summary>
-        public enum RuntimeFontKind
-        {
-            /// <summary>标题手写体。</summary>
-            Title,
-
-            /// <summary>正文。</summary>
-            Body,
-
-            /// <summary>次级说明。</summary>
-            Secondary,
-        }
-
-        /// <summary>取运行时可用的字体资产。三枚举档**当前恒返同一字体**（FusionPixel 12px
-        /// 正文档）：满精度阶梯下「一个字体一个显示尺寸」由 <see cref="ResolvePixelFont"/>
-        /// 在文本出口单点强制，kind 只剩语义占位；引入新原生档位时按 kind 分流。</summary>
-        public static TMP_FontAsset RuntimeFont(RuntimeFontKind kind)
-        {
-            return PixelFont12();
-        }
-
         /// <summary>确保动态图集的 Point 纠偏件活着（TMP 运行时重建图集会重置 Bilinear，
         /// 逐帧纠偏到字形稳定为止）。**每字体一件**（字典管理）——12px / 10px 两个原生档
         /// 各挂各的，先到先得不再吞掉后到字体；场景卸载销毁后自动补挂。</summary>
@@ -509,14 +410,6 @@ namespace PirateCrew.UI
             var fixer = new GameObject("PixelAtlasPointFilter_" + font.name).AddComponent<PixelAtlasPointFilter>();
             fixer.font = font;
             _atlasFilters[font] = fixer;
-        }
-
-        /// <summary>chip 的反相字色（亮底给深墨、深底给暖白——角标 / 覆盖文字的便捷取色）。</summary>
-        public static Color InverseOf(Color chipColor)
-        {
-            return UiSkin.ContrastRatio(chipColor, UiSkin.InkOnGold) >= UiSkin.ContrastRatio(chipColor, UiSkin.TextOnInk)
-                ? UiSkin.InkOnGold
-                : UiSkin.TextOnInk;
         }
 
         // ------------------------------------------------------------------

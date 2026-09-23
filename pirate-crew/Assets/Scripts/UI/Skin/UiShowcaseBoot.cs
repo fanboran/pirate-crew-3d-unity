@@ -3,7 +3,7 @@ using PirateCrew.UI.Stick;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-// SketchButtonKind 是 StickTokens 的嵌套类型（与 UiGalleryPage 同一别名手法）。
+// SketchButtonKind 是 StickTokens 的嵌套类型（using static 别名免逐处限定）。
 using SketchButtonKind = PirateCrew.UI.Stick.StickTokens.SketchButtonKind;
 
 namespace PirateCrew.UI

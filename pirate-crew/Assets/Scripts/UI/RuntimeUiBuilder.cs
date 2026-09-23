@@ -124,10 +124,8 @@ namespace PirateCrew.UI
             return button != null ? button.GetComponentInChildren<TextMeshProUGUI>(true) : null;
         }
 
-        /// <summary>星形图标贴图（程序化五角星形状件）。【UiSprites 残留点】形状件不属于
-        /// 木纸皮肤，统一清退时随图标层一并裁决；本属性是两屏（列表行星级 / 结算弹窗
-        /// 星级）唯一的 UiSprites 出口。</summary>
-        public static Sprite StarIcon => UiSprites.Get(UiSprites.Kind.Star);
+        /// <summary>星形图标（UiGlyphs 程序化五角星，白形可染色）。</summary>
+        public static Sprite StarIcon => UiGlyphs.Get(UiGlyphs.Glyph.Star);
 
         /// <summary>
         /// 在行内右侧（动作按钮左边）摆一排星级图标（规范 §3.4：星级改图标，不用「★」字符）。

@@ -178,7 +178,10 @@ namespace PirateCrew.EditorTools
             // 海图玻璃（深蓝绿亚克力，alpha 0.84）：与 BattleHudBuilder.ApplyMinimapSkin 同皮同参，
             // 兜底也不退回深棕木底。描边已烘进九宫格贴图（双色 1px，外扩 0），不再挂 UGUI Outline。
             var background = panel.gameObject.AddComponent<Image>();
-            MenuUiBuilder.ApplyGlassSkin(background, GlassPanelSpriteBuilder.Tone.Sea);
+            background.sprite = PixelSkin.Plate(PixelTone.Sea);
+            background.type = Image.Type.Sliced;
+            background.color = Color.white;
+            background.raycastTarget = false;   // 面板是装饰层：挡射线会吃掉底下的 3D 拾取/单位点选
 
             return panel;
         }

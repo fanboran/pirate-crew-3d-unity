@@ -191,7 +191,7 @@ namespace PirateCrew.UI
                     continue;
 
                 bool lit = i < stars;
-                settlementStars[i].color = lit ? UiTheme.Brass : UiTheme.WithAlpha(UiTheme.Ink, 0.35f);
+                settlementStars[i].color = lit ? PixelSkin.MidOf(PixelTone.Primary) : UiSkin.WithAlpha(PixelSkin.Ink, 0.35f);
             }
         }
 
@@ -266,7 +266,7 @@ namespace PirateCrew.UI
                 LevelListRow entry = rows[i];
                 RectTransform row = RuntimeUiBuilder.CreateRow(levelListContainer, i, RowHeight);
 
-                TextMeshProUGUI text = RuntimeUiBuilder.CreateText("Label", row, entry.Label, UiTheme.FontBody,
+                TextMeshProUGUI text = RuntimeUiBuilder.CreateText("Label", row, entry.Label, UiSkin.Font.Body,
                     TextAlignmentOptions.MidlineLeft, PixelSkin.TextColorOn(PixelTone.Light), bodyFont);
 
                 // 星级图标（3 枚，点亮 = 黄铜，熄灭 = 暗）——只有记星的海图行才画。

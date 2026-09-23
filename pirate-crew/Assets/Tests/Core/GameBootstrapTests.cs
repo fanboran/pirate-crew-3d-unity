@@ -52,7 +52,6 @@ namespace PirateCrew.Tests
                 "PirateCrew.Campaign.CampaignApi.Install",
                 "PirateCrew.ArtReview.PlayerArtCapture.Install",
                 "PirateCrew.SceneKitPilot.SceneKitPilotCapture.Install",
-                "PirateCrew.UI.UiGalleryCapture.Install",
             };
 
             var missing = new List<string>();

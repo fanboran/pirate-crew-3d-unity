@@ -50,16 +50,6 @@ namespace PirateCrew.Tests
         {
             { "PirateCrew.Visual.CrewTeamTintPart",
               "构建期临时标记 + 运行期兜底，**永不进 Prefab**：CrewVisualPrefabBuilder 建完部件就把它删掉、改用显式引用（CrewVisualPrefabBuilder.cs:932）" },
-            { "PirateCrew.UI.Stick.StickLayoutElement", "同文件第二个 MonoBehaviour（StickLayout.cs 里的布局件）" },
-            { "PirateCrew.UI.Stick.StickLayoutGroup", "同文件第二个 MonoBehaviour（同上）" },
-            { "PirateCrew.UI.Stick.StickContextAnchor", "同文件第二个 MonoBehaviour（StickUIRoot.cs）" },
-            { "PirateCrew.UI.Stick.WobbledDotGraphic", "同文件第二个 MonoBehaviour（StickWorldHealthBar.cs 的自绘件）" },
-            { "PirateCrew.UI.SketchWidgets+ToastFader", "嵌套类；与 StickKit+ToastFader **同名重复**，UI 换装批次（Beveled Pixel）裁决：两者都留（分属两套 toast 出口，运行期挂、永不进 Prefab）" },
-            { "PirateCrew.UI.Stick.StickKit+ToastFader", "嵌套类；同上（UI 换装批次裁决保留）" },
-            { "PirateCrew.UI.Stick.SketchSwitch+SketchSwitchGraphic", "嵌套自绘件（与已修掉的波浪线自绘件同类——Graphic 嵌在宿主类里）" },
-            { "PirateCrew.UI.Stick.SketchToggle+SketchToggleGraphic", "嵌套自绘件（同上）" },
-            { "PirateCrew.UI.Stick.StickKit+StickHoverScale", "嵌套组件（同上）" },
-            { "PirateCrew.UI.Stick.StickWindow+WindowDragHandle", "嵌套组件（同上）" },
         };
 
         static bool IsProjectAssembly(Assembly assembly)

@@ -6,9 +6,9 @@ namespace PirateCrew.UI
     /// <summary>
     /// 符号图标库（代码平涂绘制，tintable：白形 + 0.16 深灰细边，<c>Image.color</c> 染色）。
     ///
-    /// 【为什么代码画而不导入图片】① 与 <see cref="CartoonSpriteFactory"/> 同一套平涂语言，
-    /// 染色 / 改风格零资产成本；② 几何判定是纯函数（<see cref="InsideGlyph"/>），可无头断言；
-    /// ③ 项目纪律：禁止来源不明的图片素材（同 <see cref="UiSprites"/>）。
+    /// 【为什么代码画而不导入图片】① 与像素皮同一套平涂语言，染色 / 改风格零资产成本；
+    /// ② 几何判定是纯函数（<see cref="InsideGlyph"/>），可无头断言；
+    /// ③ 项目纪律：禁止来源不明的图片素材。
     ///
     /// 【图标优先原则（用户裁决）】能用图像表示的全用图像：模式开关 = 移动/准星/眼睛三图标、
     /// 动作按钮 = 投掷弧 / 旗、暂停 = 双竖条、确认 = 勾 / 叉……文字只留横幅与提示。
@@ -163,8 +163,8 @@ namespace PirateCrew.UI
                 }
 
                 case Glyph.Pause:
-                    return CartoonSpriteFactory.SdRoundRect(x - 5f, y, 2.6f, 1.5f) <= 0f
-                        || CartoonSpriteFactory.SdRoundRect(x + 5f, y, 2.6f, 1.5f) <= 0f;
+                    return SdRoundRect(x - 5f, y, 2.6f, 1.5f) <= 0f
+                        || SdRoundRect(x + 5f, y, 2.6f, 1.5f) <= 0f;
 
                 case Glyph.Play:
                     return x >= -7f && x <= 11f && Mathf.Abs(y) <= (x + 7f) / 18f * 12f + 0.5f;
@@ -276,6 +276,21 @@ namespace PirateCrew.UI
             float wave = Mathf.Abs(2f * t - 1f);
             float limit = Mathf.Lerp(innerRadius, outerRadius, wave);
             return r <= limit;
+        }
+
+        /// <summary>
+        /// 圆角矩形有符号距离场（负 = 形状内）。纯函数，可无头断言
+        /// （中心为负、远角为正、直边距离与参数一致）。
+        /// 【迁入】原 CartoonSpriteFactory.SdRoundRect——Cartoon 皮肤退役后，
+        /// 该几何纯函数的唯一消费者是本类的字形判定（Pause 双竖条），就近收编。
+        /// </summary>
+        public static float SdRoundRect(float px, float py, float halfExtent, float radius)
+        {
+            float qx = Mathf.Abs(px) - (halfExtent - radius);
+            float qy = Mathf.Abs(py) - (halfExtent - radius);
+            float outside = Mathf.Sqrt(Mathf.Max(qx, 0f) * Mathf.Max(qx, 0f)
+                + Mathf.Max(qy, 0f) * Mathf.Max(qy, 0f));
+            return outside + Mathf.Min(Mathf.Max(qx, qy), 0f) - radius;
         }
     }
 }

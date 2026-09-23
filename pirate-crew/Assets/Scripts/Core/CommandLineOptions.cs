@@ -191,8 +191,6 @@ namespace PirateCrew.Core
         /// <summary>场景资产样板出图目录：<c>-sceneKitOut &lt;绝对目录&gt;</c>。</summary>
         public const string SceneKitOut = "-sceneKitOut";
 
-        /// <summary>UI 陈列页出图目录：<c>-uiGalleryOut &lt;绝对目录&gt;</c>。</summary>
-        public const string UiGalleryOut = "-uiGalleryOut";
 
         /// <summary>水面 shader 调试档：<c>-oceanDebug &lt;0-13&gt;</c>（模块自有开关，见 OceanRig）。</summary>
         public const string OceanDebug = "-oceanDebug";

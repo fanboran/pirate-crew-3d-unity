@@ -69,10 +69,11 @@ namespace PirateCrew.Tests
         [Test]
         public void Parse_NonFlagTokens_AreIgnored()
         {
-            CommandLineOptions.Parse(new[] { "app.exe", "loose-token", "-uiGalleryOut", "D:/gallery" });
+            // 松散 token 忽略；旗标（含未登记进 ToolFlags 的）照常落表。
+            CommandLineOptions.Parse(new[] { "app.exe", "loose-token", "-someUnknownFlag", "D:/x" });
 
             Assert.That(CommandLineOptions.Count, Is.EqualTo(1));
-            Assert.That(CommandLineOptions.GetValue(ToolFlags.UiGalleryOut), Is.EqualTo("D:/gallery"));
+            Assert.That(CommandLineOptions.GetValue("-someUnknownFlag"), Is.EqualTo("D:/x"));
         }
 
         [Test]

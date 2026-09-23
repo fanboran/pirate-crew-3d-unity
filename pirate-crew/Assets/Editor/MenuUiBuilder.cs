@@ -18,72 +18,20 @@ namespace PirateCrew.EditorTools
     ///   1. 中文字体接入：按规范 §5.1 的三档选型加载 TMP 字体资产；
     ///      资产缺失时**先调用现有的 <see cref="FontAssetBuilder.BuildAll"/> 生成**（幂等，不改该文件），
     ///      仍缺失则回落到 ttf（Dynamic Font）并 <c>Debug.LogWarning</c>，绝不静默出方块字（§5.5）；
-    ///   2. 控件工厂：面板/按钮统一出像素件（<see cref="PixelSkin.Plate"/> + SpriteSwap 三态），
-    ///      本类是**全局字号体系的唯一入口**（<see cref="FontScale"/>，见下）。
+    ///   2. 控件装配：设置面板 / 确认弹窗（<see cref="BuildSettingsPanel"/> / <see cref="BuildConfirmDialog"/>），
+    ///      件全部走像素皮（<see cref="SketchPanel"/> / <see cref="SketchButton"/> / <see cref="SketchSeparator"/>）；
+    ///      字号真值 = <see cref="UiSkin.Font"/>（文本出口统一经 <see cref="UiKit.ResolvePixelFont"/> 解析字体档）。
     ///
-    /// 【皮肤（换装后）】主菜单链路（<see cref="BuildSettingsPanel"/> / <see cref="BuildConfirmDialog"/>
-    /// 与 SceneSetup.BuildMainMenuScene）已切 Beveled Pixel：底板走 <see cref="SketchPanel"/>、
-    /// 按钮走 <see cref="SketchButton"/>、分隔线走 <see cref="SketchSeparator"/>；船员管理 / 选关 /
-    /// 结算（ManagementSceneSetup）同族。本类玻璃族工厂（<see cref="CreatePanel"/> / <see cref="CreateButton"/> /
-    /// <see cref="CreateWoodBackdrop"/>）已内部改判到像素 tone，签名与调用点不变。
-    ///
-    /// 【为什么本类是这个波次的主要改动点】主菜单 / 设置 / 员工管理 / HUD 的面板与按钮**全部**
-    /// 经本类的 <see cref="CreatePanel"/> / <see cref="CreateButton"/> 装配（Unified 工厂），
-    /// 所以换肤只需改这里 + 各构建器的布局调用，不必逐个场景重摆。
+    /// 【历史包袱已清退】旧玻璃族工厂（CreatePanel/CreateButton/CreateGlassPanel/GetSprite/
+    /// ApplyGlassSkin 等 UiSprites + GlassPanelSpriteBuilder 兼容层）随 UiSprites / GlassPanelSpriteBuilder
+    /// 一并退役（2026-09-24 UI 清退批次）——主菜单 / 船员管理 / 选关的底板与按钮全走
+    /// <see cref="SketchPanel"/> / <see cref="SketchButton"/>。
     /// </summary>
     public static class MenuUiBuilder
     {
         // ------------------------------------------------------------------
         // 字号体系（【像素栅格并档】真值源 = UiSkin.Font，本表只是 Editor 侧别名）
         // ------------------------------------------------------------------
-
-        /// <summary>
-        /// 全局字号体系 —— 2026-09-23 像素字体全局切换起并入 <see cref="UiSkin.Font"/>
-        /// （Fusion Pixel 12px 位图档要求显示字号取 12 的整数倍；画布像素，正文 36 = 12 艺术像素）。
-        ///
-        /// 历史注释：本表曾是"比 UiTheme 旧档整体下调一档"的独立 Editor 侧基准
-        /// （48/36/26/20/18/15/14/13），运行期程序集与 Editor 程序集各持一份字号真值、
-        /// 靠 <see cref="CreateText"/> 里的旧→新映射兜住域外构建器；并档后两份真值合一，
-        /// 映射退役（见 <see cref="ScaleLegacyFont"/>），历史数字不再存在。
-        /// </summary>
-        public static class FontScale
-        {
-            /// <summary>主菜单游戏名（= UiSkin.Font.Display）。</summary>
-            public const int Display = UiSkin.Font.Display;
-
-            /// <summary>结算横幅（= UiSkin.Font.Banner）。</summary>
-            public const int Banner = UiSkin.Font.Banner;
-
-            /// <summary>界面标题（= UiSkin.Font.Title）。</summary>
-            public const int Title = UiSkin.Font.Title;
-
-            /// <summary>区块标题 / 面板标题条（= UiSkin.Font.Section）。</summary>
-            public const int Section = UiSkin.Font.Section;
-
-            /// <summary>HUD 常读 / 名册名 / 模式开关 / 回合计时（= UiSkin.Font.Hud）。</summary>
-            public const int Hud = UiSkin.Font.Hud;
-
-            /// <summary>按钮 / 列表行文本 / 说明（= UiSkin.Font.Body）。</summary>
-            public const int Body = UiSkin.Font.Body;
-
-            /// <summary>辅助提示 / 通栏提示条（= UiSkin.Font.Hint）。</summary>
-            public const int Hint = UiSkin.Font.Hint;
-
-            /// <summary>角标 / HP 数字（= UiSkin.Font.Tiny）。</summary>
-            public const int Tiny = UiSkin.Font.Tiny;
-        }
-
-        /// <summary>
-        /// 旧档字号 → 新档（【已退役为恒等】）。历史上本映射把 UiTheme 旧档数字
-        /// （64/48/36/24/20/18/16）降到 FontScale 新档；像素栅格并档后 UiTheme.Font* 与
-        /// FontScale 都是 <see cref="UiSkin.Font"/> 的别名，"旧档"不再存在——任何按旧数字
-        /// 白名单的映射都会把新档数字二次改写（新 Section 48 会被当成旧 Banner 48 降档）。
-        /// 方法保留签名防断链，一律原样透传。
-        /// </summary>
-        static int ScaleLegacyFont(int legacy)
-        {
-            return legacy;
-        }
 
         // ------------------------------------------------------------------
         // 字体（【像素字体全局切换】三档统一 Fusion Pixel 12px 位图档；2026-09-23）
@@ -120,255 +68,9 @@ namespace PirateCrew.EditorTools
         public static TMP_FontAsset SecondaryFont =>
             _secondary != null ? _secondary : (_secondary = LoadFont(SecondaryFontAssetPath, SecondaryFontTtfPath, "次级"));
 
-        /// <summary>确保字体资产存在（幂等；内部会触发一次 FontAssetBuilder）。</summary>
-        public static void EnsureFonts()
-        {
-            if (_fontEnsured)
-                return;
-
-            _fontEnsured = true;
-
-            if (AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(BodyFontAssetPath) == null
-                || AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(TitleFontAssetPath) == null)
-            {
-                Debug.LogWarning("[MenuUiBuilder] 未找到中文 TMP 字体资产，先调用 FontAssetBuilder.BuildAll 生成。");
-                FontAssetBuilder.BuildAll();
-            }
-
-            // 触发三档加载（各自缺失时告警并回落 ttf）。
-            _ = TitleFont;
-            _ = BodyFont;
-            _ = SecondaryFont;
-        }
-
-        static TMP_FontAsset LoadFont(string assetPath, string ttfPath, string role)
-        {
-            TMP_FontAsset asset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(assetPath);
-            if (asset != null)
-                return asset;
-
-            Font ttf = AssetDatabase.LoadAssetAtPath<Font>(ttfPath);
-            if (ttf != null)
-            {
-                Debug.LogWarning("[MenuUiBuilder] 缺 TMP 字体资产 " + assetPath
-                    + "（角色：" + role + "），回落 ttf：" + ttfPath
-                    + "。请跑菜单 PirateCrew/Fonts/生成 TMP 中文字体资产（幂等）后重建场景。");
-                return TMP_FontAsset.CreateFontAsset(ttf);
-            }
-
-            Debug.LogWarning("[MenuUiBuilder] 字体资产与 ttf 都缺失（角色：" + role
-                + "）。中文会显示为方块——请先导入 Assets/Art/Fonts/ 下的 ttf，"
-                + "再执行 Window/TextMeshPro/Import TMP Essential Resources，"
-                + "然后跑 PirateCrew/Fonts/生成 TMP 中文字体资产（幂等）。");
-            return null;
-        }
-
-        // ------------------------------------------------------------------
-        // 程序化 Skin 落盘（九宫格 PNG）
-        // ------------------------------------------------------------------
-
-        const string SpriteFolder = "Assets/Art/Sprites/UI";
-
-        static readonly Dictionary<UiSprites.Kind, Sprite> SpriteCache = new Dictionary<UiSprites.Kind, Sprite>();
-
-        /// <summary>
-        /// 取持久化九宫格 Sprite（不存在则从 <see cref="UiSprites"/> 生成 PNG 并导入）。
-        /// 编辑器装配的场景必须引用持久资产，否则重开场景后 Sprite 引用会丢失。
-        /// </summary>
-        public static Sprite GetSprite(UiSprites.Kind kind)
-        {
-            if (SpriteCache.TryGetValue(kind, out Sprite cached) && cached != null)
-                return cached;
-
-            string path = SpriteFolder + "/" + kind + ".png";
-            Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
-            if (sprite == null)
-            {
-                sprite = GenerateSpriteAsset(kind, path);
-            }
-
-            SpriteCache[kind] = sprite;
-            return sprite;
-        }
-
-        static Sprite GenerateSpriteAsset(UiSprites.Kind kind, string assetPath)
-        {
-            try
-            {
-                EnsureFolder("Assets/Art");
-                EnsureFolder("Assets/Art/Sprites");
-                EnsureFolder(SpriteFolder);
-
-                Texture2D texture = UiSprites.CreateTexture(kind, out Vector4 border);
-                byte[] png = texture.EncodeToPNG();
-                Object.DestroyImmediate(texture);
-
-                string absolutePath = Path.Combine(Application.dataPath,
-                    assetPath.Substring("Assets/".Length).Replace('/', Path.DirectorySeparatorChar));
-                File.WriteAllBytes(absolutePath, png);
-
-                AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
-
-                var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
-                if (importer != null)
-                {
-                    importer.textureType = TextureImporterType.Sprite;
-                    importer.spriteImportMode = SpriteImportMode.Single;
-                    importer.spritePixelsPerUnit = 100f;
-                    importer.spriteBorder = border;
-                    importer.mipmapEnabled = false;
-                    importer.alphaIsTransparency = true;
-                    importer.wrapMode = TextureWrapMode.Clamp;
-                    importer.filterMode = FilterMode.Bilinear;
-                    importer.textureCompression = TextureImporterCompression.Uncompressed;
-                    importer.SaveAndReimport();
-                }
-                else
-                {
-                    Debug.LogWarning("[MenuUiBuilder] 无法读取 TextureImporter：" + assetPath
-                        + "，九宫格边框可能未生效。");
-                }
-
-                Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
-                if (sprite != null)
-                    return sprite;
-
-                Debug.LogWarning("[MenuUiBuilder] 生成 Skin 失败：" + assetPath);
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogWarning("[MenuUiBuilder] 生成 Skin 资产异常（" + assetPath + "）：" + e.Message
-                    + "\n  退回内存 Sprite（外观一致，但不会随场景持久化）。");
-            }
-
-            // 兜底：用内存 Sprite，至少保证本次装配有材质感（不阻断 HUD/场景重建）。
-            return UiSprites.Get(kind);
-        }
-
         // ------------------------------------------------------------------
         // 像素皮（Beveled Pixel）—— 旧的"亚克力玻璃" Skin 段已整体换装
         // ------------------------------------------------------------------
-
-        /// <summary>
-        /// 取像素件 Sprite（旧"玻璃 tone"签名保留——域外 <c>HudMinimapSceneSetup</c> 仍传
-        /// <see cref="GlassPanelSpriteBuilder.Tone"/>，内部改判 <see cref="PixelTone"/>）。
-        /// 返回的是 Resources/UI/PixelSkin 图集里的持久 Sprite 子资产：Editor 装配的场景
-        /// 序列化的是资产引用，重开场景/进播放器都不丢。
-        /// </summary>
-        public static Sprite GetGlass(GlassPanelSpriteBuilder.Tone tone, bool chip = false)
-        {
-            return PixelSkin.Plate(PixelOf(tone));
-        }
-
-        /// <summary>旧玻璃 tone → 像素 tone（换装映射表；Frame/Backdrop 都落 Frame tone）。</summary>
-        static PixelTone PixelOf(GlassPanelSpriteBuilder.Tone tone)
-        {
-            switch (tone)
-            {
-                case GlassPanelSpriteBuilder.Tone.Light:
-                case GlassPanelSpriteBuilder.Tone.ButtonLight:
-                    return PixelTone.Light;
-                case GlassPanelSpriteBuilder.Tone.Dense:
-                case GlassPanelSpriteBuilder.Tone.Button:
-                    return PixelTone.Dense;
-                case GlassPanelSpriteBuilder.Tone.Sea:
-                    return PixelTone.Sea;
-                case GlassPanelSpriteBuilder.Tone.Primary:
-                    return PixelTone.Primary;
-                case GlassPanelSpriteBuilder.Tone.Danger:
-                    return PixelTone.Danger;
-                default:
-                    return PixelTone.Frame;   // Frame / Backdrop
-            }
-        }
-
-        /// <summary>旧 Skin 枚举 → 玻璃 tone（面板）。域外构建器仍传旧 Kind，这里统一改判后再落像素 tone。</summary>
-        static GlassPanelSpriteBuilder.Tone PanelToneOf(UiSprites.Kind skin)
-        {
-            switch (skin)
-            {
-                case UiSprites.Kind.PanelParchment: return GlassPanelSpriteBuilder.Tone.Light;
-                default: return GlassPanelSpriteBuilder.Tone.Frame;
-            }
-        }
-
-        /// <summary>旧 Skin 枚举 → 玻璃 tone（按钮）。</summary>
-        static GlassPanelSpriteBuilder.Tone ButtonToneOf(UiSprites.Kind skin)
-        {
-            switch (skin)
-            {
-                case UiSprites.Kind.ButtonBrass: return GlassPanelSpriteBuilder.Tone.Primary;
-                case UiSprites.Kind.ButtonParchment: return GlassPanelSpriteBuilder.Tone.ButtonLight;
-                case UiSprites.Kind.ButtonDanger: return GlassPanelSpriteBuilder.Tone.Danger;
-                default: return GlassPanelSpriteBuilder.Tone.Button;
-            }
-        }
-
-        /// <summary>
-        /// 建像素面板：投影（Panel 档才有，先建——子件绘制按加入序）+ Plate 本体（后建）。
-        /// 根节点不带 Image（投影必须垫在本体之下），调用方拿到的是根 RectTransform。
-        /// </summary>
-        public static RectTransform CreateGlassPanel(string name, Transform parent, Vector2 anchor, Vector2 pivot,
-            Vector2 anchoredPosition, Vector2 size, GlassPanelSpriteBuilder.Tone tone,
-            GlassPanelSpriteBuilder.Geo geo = GlassPanelSpriteBuilder.Geo.Panel)
-        {
-            RectTransform rect = CreateRect(name, parent);
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.pivot = pivot;
-            rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = size;
-
-            if (geo == GlassPanelSpriteBuilder.Geo.Panel)
-                AddPixelShadow(rect);
-
-            AddPixelPlate(rect, "Plate", PixelOf(tone));
-            return rect;
-        }
-
-        /// <summary>底垫投影（INK 剪影；按 <see cref="PixelSkin.ShadowOffset"/> 右下错开 1u，不拦截点击）。</summary>
-        static void AddPixelShadow(RectTransform root)
-        {
-            RectTransform shadow = CreateRect("Shadow", root);
-            Stretch(shadow);
-            shadow.anchoredPosition = PixelSkin.ShadowOffset;
-            var image = shadow.gameObject.AddComponent<Image>();
-            image.sprite = PixelSkin.ShadowSprite;
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;
-            image.raycastTarget = false;
-        }
-
-        /// <summary>铺满父矩形的像素 Plate 本体（不拦截点击：命中留给内容件/按钮）。</summary>
-        static Image AddPixelPlate(RectTransform root, string partName, PixelTone tone)
-        {
-            RectTransform part = CreateRect(partName, root);
-            Stretch(part);
-            var image = part.gameObject.AddComponent<Image>();
-            image.sprite = PixelSkin.Plate(tone);
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;      // 像素件禁止乘色：tone 色阶烘在贴图里
-            image.raycastTarget = false;
-            return image;
-        }
-
-        /// <summary>
-        /// 给已有 Image 换/套像素皮（幂等；用于"先建节点、再贴皮"的复用路径，如小地图面板）。
-        /// 顺带把 <c>raycastTarget</c> 关掉：面板是装饰层，挡射线会让底下的 3D 拾取/单位点选失效。
-        /// </summary>
-        public static void ApplyGlassSkin(Image image, GlassPanelSpriteBuilder.Tone tone, bool chip = false)
-        {
-            if (image == null)
-                return;
-
-            image.sprite = PixelSkin.Plate(PixelOf(tone));
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;
-            image.raycastTarget = false;
-        }
-
-        // （旧 GlassColors 乘色四态表已随换装删除：像素皮禁用 Image.color 乘色——状态改由
-        //   UGUI SpriteSwap 三态贴图承担，禁用态走 CanvasGroup alpha，见 CreateButton。）
 
         // ------------------------------------------------------------------
         // 控件工厂
@@ -403,19 +105,7 @@ namespace PirateCrew.EditorTools
             rect.offsetMax = new Vector2(-padding, -padding);
         }
 
-        /// <summary>
-        /// 建 TMP 文本（**旧档字号入口**）：传入 <see cref="UiTheme"/> 的旧档字号常量
-        /// （或任意旧档数字），内部按 <see cref="ScaleLegacyFont"/> 降到新档。
-        /// 域外构建器（SceneSetup / ManagementSceneSetup 等）继续传旧档即可自动跟进新字号体系。
-        /// 新代码请用 <see cref="CreateTextExact"/> 直传 <see cref="FontScale"/> 常量。
-        /// </summary>
-        public static TextMeshProUGUI CreateText(string name, Transform parent, string content, int fontSize,
-            TextAlignmentOptions alignment, Color color, TMP_FontAsset font, bool raycast = false)
-        {
-            return CreateTextExact(name, parent, content, ScaleLegacyFont(fontSize), alignment, color, font, raycast);
-        }
-
-        /// <summary>建 TMP 文本（**新档字号入口**）：<paramref name="fontSize"/> 原样使用；
+建 TMP 文本（**新档字号入口**）：<paramref name="fontSize"/> 原样使用；
         /// 字体由 <see cref="UiKit.ResolvePixelFont"/> 按字号单点解析（满精度阶梯，
         /// 调用方传什么字体都会被按字号纠偏）。</summary>
         public static TextMeshProUGUI CreateTextExact(string name, Transform parent, string content, int fontSize,
@@ -465,7 +155,7 @@ namespace PirateCrew.EditorTools
                 EnsureFolder("Assets/Art/Materials/UI");
 
                 material = new Material(font.material) { name = "TmpTitleOutline" };
-                material.SetColor("_OutlineColor", UiTheme.Ink);
+                material.SetColor("_OutlineColor", (Color)PixelSkin.Ink);
                 material.SetFloat("_OutlineWidth", 0.15f);
                 material.EnableKeyword("OUTLINE_ON");
                 AssetDatabase.CreateAsset(material, path);
@@ -517,165 +207,7 @@ namespace PirateCrew.EditorTools
                 text.fontSharedMaterial = material;
         }
 
-        /// <summary>
-        /// 建面板底（**已换 Beveled Pixel 皮**：Plate 九宫格 + 底垫投影）。
-        ///
-        /// 【兼容口径】签名保留旧的 <paramref name="skin"/>（域外构建器仍在传 <see cref="UiSprites.Kind"/>），
-        /// 但内部一律改判：<c>PanelWood</c> → <see cref="PixelTone.Frame"/>（深板岩主底）、
-        /// <c>PanelParchment</c> → <see cref="PixelTone.Light"/>（暖白）——
-        /// 于是主菜单 / 设置 / 员工管理 / HUD 的全部面板一次性换皮，不必逐个改场景代码。
-        ///
-        /// 【brassOutline 参数为何保留但不再使用】旧实现靠 UGUI <see cref="Outline"/> 画 3px 黄铜框
-        /// （外扩会吃掉安全边距，实测可见边比标称小 2-3px）；像素皮的包边/斜面是**烘进九宫格贴图**的，
-        /// 外扩 0px —— 安全边距从此所见即所得。保留参数只为不动域外调用点。
-        /// </summary>
-        public static RectTransform CreatePanel(string name, Transform parent, Vector2 anchor, Vector2 pivot,
-            Vector2 anchoredPosition, Vector2 size, UiSprites.Kind skin, bool brassOutline = true)
-        {
-            RectTransform rect = CreateGlassPanel(name, parent, anchor, pivot, anchoredPosition, size,
-                PanelToneOf(skin));
-            return rect;
-        }
-
-        /// <summary>
-        /// 给面板加"内容片"（同色系下沉一档的暗片，承载文字/标题）。
-        /// 用途：面板框架内需要稳定底衬的文字区（两级结构：框架 tone + 内容片 tone）。
-        /// </summary>
-        public static RectTransform CreateDenseChip(string name, Transform parent, Vector2 anchor, Vector2 pivot,
-            Vector2 anchoredPosition, Vector2 size)
-        {
-            return CreateGlassPanel(name, parent, anchor, pivot, anchoredPosition, size,
-                GlassPanelSpriteBuilder.Tone.Dense, GlassPanelSpriteBuilder.Geo.Chip);
-        }
-
-        /// <summary>加 UGUI <see cref="Outline"/> 描边（黄铜框，规范 §1.7）。</summary>
-        public static void AddOutline(GameObject target, Color color, float distance)
-        {
-            var outline = target.GetComponent<Outline>();
-            if (outline == null)
-                outline = target.AddComponent<Outline>();
-            outline.effectColor = color;
-            outline.effectDistance = new Vector2(distance, -distance);
-            outline.useGraphicAlpha = true;
-        }
-
-        /// <summary>
-        /// 建按钮（**像素 Plate 底 + SpriteSwap 三态 + TMP 居中文本**）。
-        ///
-        /// 【换皮口径】保留旧 <paramref name="skin"/> 签名，内部改判 <see cref="ButtonToneOf"/>
-        /// → <see cref="PixelOf"/>（ButtonBrass→Primary / ButtonWood→Dense / ButtonParchment→Light /
-        /// ButtonDanger→Danger），域外调用点零改动。
-        /// 【状态】UGUI <see cref="Selectable.Transition.SpriteSwap"/> 三态贴图（hovered/pressed/selected），
-        /// <b>不做 Image.color 乘色</b>。本出口的按钮没有禁用场景（需要禁用视觉的按钮请走
-        /// <see cref="SketchButton"/>，它的禁用态是 CanvasGroup alpha 0.55）。
-        /// </summary>
-        public static Button CreateButton(string name, Transform parent, string label, Vector2 anchor,
-            Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font, UiSprites.Kind skin,
-            Color? labelColor = null, int fontSize = UiTheme.FontBody)
-        {
-            RectTransform rect = CreateRect(name, parent);
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = size;
-            rect.anchoredPosition = anchoredPosition;
-
-            PixelTone tone = PixelOf(ButtonToneOf(skin));
-
-            var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = PixelSkin.Plate(tone, PixelState.Normal);
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;      // 像素件禁止乘色：tone 色阶烘在贴图里
-
-            var button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = image;
-            button.transition = Selectable.Transition.SpriteSwap;
-            SpriteState states = button.spriteState;
-            states.highlightedSprite = PixelSkin.Plate(tone, PixelState.Hovered);
-            states.pressedSprite = PixelSkin.Plate(tone, PixelState.Pressed);
-            states.selectedSprite = states.highlightedSprite;
-            button.spriteState = states;
-
-            // 【名字必须叫 "Text"】HUD 武器行建完按钮后会 <c>Find("Text")</c> 删掉居中标签、
-            // 换成左对齐标签（BattleHudBuilder），改名会静默留下两个 TMP 叠加。
-            TextMeshProUGUI text = CreateText("Text", rect, label, fontSize, TextAlignmentOptions.Center,
-                labelColor ?? LabelColorOf(skin), font);
-            Stretch(text.rectTransform);
-
-            return button;
-        }
-
-        /// <summary>Skin → 正常态底色占位。【本波次】像素底一律 white（色阶烘在 Plate 贴图里）。</summary>
-        public static Color BaseColorOf(UiSprites.Kind skin)
-        {
-            return Color.white;
-        }
-
-        /// <summary>
-        /// Skin → 标签色。像素皮规则：字色按所落 tone 取可读档（<see cref="PixelSkin.TextColorOn"/>）——
-        /// 浅底（金主按钮 / 暖白次级）给墨字，深底给本 tone 亮档字。
-        /// </summary>
-        public static Color LabelColorOf(UiSprites.Kind skin)
-        {
-            return PixelSkin.TextColorOn(PixelOf(ButtonToneOf(skin)));
-        }
-
-        /// <summary>全屏底 → **像素皮最暗档平涂**（主菜单 / 管理界面；通栏条允许贴边，§1.7）。
-        /// <paramref name="tint"/> 仍是"第二层压暗 vignette"的乘色（平涂件不受像素件纪律约束）。</summary>
-        public static RectTransform CreateWoodBackdrop(string name, Transform parent, Color tint)
-        {
-            RectTransform rect = CreateRect(name, parent);
-            Stretch(rect);
-
-            var image = rect.gameObject.AddComponent<Image>();
-            image.sprite = null;            // 全屏底走平涂（九宫格缩放会把包边拉到屏幕角）
-            Color baseColor = PixelSkin.Asset != null
-                ? (Color)PixelSkin.MidOf(PixelTone.Frame)
-                : new Color(0x3A / 255f, 0x2A / 255f, 0x1E / 255f, 1f);
-            image.color = baseColor * tint;
-            image.raycastTarget = false;
-            return rect;
-        }
-
-
-        /// <summary>全屏压暗遮罩（模态层 z=40，§1.7）。</summary>
-        public static RectTransform CreateDimOverlay(string name, Transform parent, float alpha = 0.6f)
-        {
-            RectTransform rect = CreateRect(name, parent);
-            Stretch(rect);
-
-            var image = rect.gameObject.AddComponent<Image>();
-            image.color = new Color(0f, 0f, 0f, alpha);
-            image.raycastTarget = true;   // 挡住底下的点击，符合模态语义。
-            return rect;
-        }
-
-        // ------------------------------------------------------------------
-        // 设置界面（§3.7；音量/画质/窗口模式真接线，控制器为 MainMenuController）
-        // ------------------------------------------------------------------
-
-        /// <summary>设置面板构建产物（控制器按字段名接线）。</summary>
-        public sealed class SettingsPanelResult
-        {
-            public GameObject Root;
-            public Button BackButton;
-            public Button RestoreButton;
-            public Slider MasterSlider;
-            public Slider SfxSlider;
-            public Slider MusicSlider;
-            public Slider AmbientSlider;
-            public Button QualityHighButton;
-            public Button QualitySmoothButton;
-            public Button FullscreenOnButton;
-            public Button FullscreenOffButton;
-        }
-
-        /// <summary>
-        /// 搭「设置」界面（默认隐藏）：四条音量滑条 + 画质档 + 窗口模式 + 恢复默认/返回。
-        /// 【接线纪律】本方法只建控件，不改任何真实设置；应用与持久化都在
-        /// <c>MainMenuController</c>（运行时）里做——构建器拿不到运行时服务。
-        /// </summary>
-        public static SettingsPanelResult BuildSettingsPanel(Transform canvas)
+public static SettingsPanelResult BuildSettingsPanel(Transform canvas)
         {
             // 像素字体单字体纪律（UiKit.RuntimeFont 同口径）：三档统一 Fusion Pixel 位图档。
             TMP_FontAsset hand = TitleFont;
@@ -841,12 +373,12 @@ namespace PirateCrew.EditorTools
                 new Vector2(24f, 0f));
 
             // 选项块：令牌按钮（144×72 起步）+ 正文字号（按钮文字 = 正文 12 艺术像素）。
-            primaryOption = CreateButton("Option0", row, primaryLabel, new Vector2(1f, 0.5f),
-                new Vector2(-448f, 0f), ButtonSize(primaryLabel), hand, UiSprites.Kind.ButtonWood,
-                PixelSkin.TextColorOn(PixelTone.Dense), UiSkin.Font.Body);
-            secondaryOption = CreateButton("Option1", row, secondaryLabel, new Vector2(1f, 0.5f),
-                new Vector2(-236f, 0f), ButtonSize(secondaryLabel), hand, UiSprites.Kind.ButtonWood,
-                PixelSkin.TextColorOn(PixelTone.Dense), UiSkin.Font.Body);
+            primaryOption = SketchButton.Create(row, "Option0", new Vector2(1f, 0.5f),
+                new Vector2(0.5f, 0.5f), new Vector2(-448f, 0f), ButtonSize(primaryLabel), hand,
+                SketchButtonKind.Dark, primaryLabel, UiSkin.Font.Body);
+            secondaryOption = SketchButton.Create(row, "Option1", new Vector2(1f, 0.5f),
+                new Vector2(0.5f, 0.5f), new Vector2(-236f, 0f), ButtonSize(secondaryLabel), hand,
+                SketchButtonKind.Dark, secondaryLabel, UiSkin.Font.Body);
         }
 
         /// <summary>设置行的底板 + 字段名（滑条行与选项行共用）：SketchPanel Light →
