@@ -68,7 +68,7 @@ namespace PirateCrew.Combat
         /// </summary>
         public static void Knockback(float random01, out float vx, out float vy)
         {
-            float r = Clamp01(random01);
+            float r = SeagullRules.Clamp01(random01);   // [0,1] 截断与海鸥共用单源（SeagullRules.Clamp01）
             vx = (r - 0.5f) * KnockbackHorizontalScale;
             vy = -(r * KnockbackVerticalRandomScale + KnockbackVerticalBase);
         }
@@ -79,15 +79,6 @@ namespace PirateCrew.Combat
             if (maxSpreadPx <= 0f)
                 return 1;
             return 1 + (int)Math.Floor(maxSpreadPx / SpreadStep);
-        }
-
-        static float Clamp01(float value)
-        {
-            if (value < 0f)
-                return 0f;
-            if (value > 1f)
-                return 1f;
-            return value;
         }
     }
 }

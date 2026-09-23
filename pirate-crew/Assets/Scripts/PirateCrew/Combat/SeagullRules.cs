@@ -112,7 +112,11 @@ namespace PirateCrew.Combat
             return shotCount >= AiMinimumShots;
         }
 
-        static float Clamp01(float value)
+        /// <summary>
+        /// [0,1] 截断（Combat 域的唯一单源，<see cref="SweepingFlameRules"/> 亦引用此份——
+        /// 逐字双份实现收敛一处，同程序集不新建文件）。
+        /// </summary>
+        internal static float Clamp01(float value)
         {
             if (value < 0f)
                 return 0f;

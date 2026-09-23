@@ -87,10 +87,16 @@ namespace PirateCrew.Combat
             return landedFrames < TotalFramesAfterLanding;
         }
 
-        /// <summary>是否已过 hold 阶段、进入淡出。</summary>
+        /// <summary>
+        /// 是否已过 hold 阶段、进入淡出。判据统一为 <c>landedFrames &gt; LandHoldFrames</c>：
+        /// §5.2「落地 hold 30 帧后淡出」= hold 满帧数才开始淡，第 30 帧仍是不透明满帧
+        /// （与 <see cref="AlphaAfterLanding"/> 的 <c>≤ LandHoldFrames → 1</c> 同界）——
+        /// 旧判据 <c>≥</c> 让 IsFading(30)==true 而 AlphaAfterLanding(30)==1，两函数边界自相矛盾，
+        /// 且淡出只走过 0.9~0.1、末帧 0 永不可见即被销毁。行为微变属修边界 bug。
+        /// </summary>
         public static bool IsFading(int landedFrames)
         {
-            return landedFrames >= LandHoldFrames && landedFrames < TotalFramesAfterLanding;
+            return landedFrames > LandHoldFrames && landedFrames < TotalFramesAfterLanding;
         }
 
         /// <summary>是否应销毁（hold + fade 走完）。</summary>

@@ -54,6 +54,9 @@ namespace PirateCrew.Combat
         /// <summary>平面纵深速度增量（Flash 平面 Y 分量，已含方向与 5k 系数）。</summary>
         public readonly float DeltaVy;
 
+        /// <summary>线性衰减系数（1 在爆心，0 在半径边缘）。</summary>
+        public readonly float Falloff;
+
         /// <summary>
         /// 竖直速度增量，方向为世界 <b>+Y（向上为正）</b>。
         /// = 3D 径向单位向量的竖直分量 × 5k + 固定 6k 抬升项（原版"总是额外上抛"）。
@@ -62,9 +65,9 @@ namespace PirateCrew.Combat
         /// </summary>
         public readonly float DeltaVUp;
 
-        /// <summary>线性衰减系数（1 在爆心，0 在半径边缘）。</summary>
-        public readonly float Falloff;
-
+        // 字段声明序与构造参数序逐一对齐（Index/Damage/DeltaVx/DeltaVy/Falloff/DeltaVUp），
+        // 防位置传参时把末两位对调（falloff ∈ [0,1]，deltaVUp 常为几~几十，对调后数值域完全不同，
+        // 编译器无法拦截）。
         public ExplosionHit(int index, float damage, float deltaVx, float deltaVy, float falloff, float deltaVUp)
         {
             Index = index;
@@ -101,6 +104,7 @@ namespace PirateCrew.Combat
     /// 对应逆向文档 §5.3（Explosion.as）与 <c>docs/3D空间模型对齐.md</c> §5：
     ///   radius = size/2 + 20
     ///   d = 目标到爆心的 <b>3D 距离</b>（Flash 平面 (x,y) + 世界高度 Height）；仅 d &lt;= radius 命中
+    ///   （d == radius 的 falloff = 0，产出一条 0 伤害/0 击退的空命中——忠实原版口径，调用方按 no-op 处理）
     ///   falloff = 1 - d/radius
     ///   damage = maxDamage * falloff（无最小伤害保底，边缘趋 0）
     ///   k = 0.06 * falloff * maxDamage
@@ -185,6 +189,8 @@ namespace PirateCrew.Combat
                 // 3D 距离：平面 (dx, dy) 之外再计入高度差 dh（height=0 时与原 2D 完全一致）。
                 float distance = Mathf.Sqrt(dx * dx + dy * dy + dh * dh);
 
+                // d == radius 的 falloff = 0：0 伤害/0 击退/0 evilness 的空命中——逆向 §5.3 原文
+                // 「d <= radius」，保持忠实；调用方（回写/AI 评分）对全零命中均为 no-op。
                 if (distance > radius)
                 {
                     continue;   // 未命中

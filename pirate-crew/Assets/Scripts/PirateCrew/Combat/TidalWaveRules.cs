@@ -15,7 +15,7 @@ namespace PirateCrew.Combat
     /// 【坐标口径与 3D 映射决策（提案/待定）】原文是 2D 侧视：x 横向、y 竖直、water.y 为水面。
     ///   映射到 3D（见 docs/3D空间模型对齐.md §1）：
     ///     · 横扫轴 x → 世界 **X**（浪沿 X 推进）；
-    ///     · 高度 y → 世界 **Y**，`waterY` → `LevelGeometry.WaterSurfaceY`（世界水位 -0.2）；
+    ///     · 高度 y → 世界 **Y**，`waterY` → `LevelGeometry.WaterSurfaceY`（世界水位 -0.4）；
     ///     · 世界 **Z（纵深）被折叠**——浪是横跨整个纵深的水墙，同一 X 上任意 Z 的玩家都被扫到
     ///       （§5.2「对所有角色一视同仁」与 §8.4「across the bottom of the stage… affect all players it hits」支持这一点）。
     ///   因此 `±150px` 在 3D 里实现为 **X 向距离 + Y 向距离** 的平方和判定，不含 Z。
@@ -51,8 +51,9 @@ namespace PirateCrew.Combat
         }
 
         /// <summary>
-        /// 是否落在浪的 ±150px 判定圈内。3D 口径：传入 dx = 浪与目标的 **X** 差、dy = **世界 Y** 差
-        /// （Z 折叠，见类头）。
+        /// 是否落在浪的 ±150px 判定圈内。传入 dx = 浪与目标的 **X** 差、dy = **Flash 平面 y 差**
+        /// （向下为正；调用方 <see cref="ShouldDamage"/> 传 targetFlashY − waveFlashY）。
+        /// Z 折叠，见类头。
         /// </summary>
         public static bool IsWithinBlast(float dx, float dy)
         {

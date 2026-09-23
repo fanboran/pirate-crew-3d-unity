@@ -76,7 +76,8 @@ namespace PirateCrew.Combat.Tests
             Assert.IsFalse(AnchorRules.IsAlive(40));
 
             Assert.IsFalse(AnchorRules.IsFading(29));
-            Assert.IsTrue(AnchorRules.IsFading(30));
+            Assert.IsFalse(AnchorRules.IsFading(30), "hold 第 30 帧未淡出（判据 landedFrames > 30）");
+            Assert.IsTrue(AnchorRules.IsFading(31));
             Assert.IsTrue(AnchorRules.IsFading(39));
             Assert.IsFalse(AnchorRules.IsFading(40));
 

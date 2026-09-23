@@ -5,7 +5,7 @@ namespace PirateCrew.Combat.Tests
 {
     /// <summary>
     /// <see cref="TidalWaveRules"/> 测试（§5.2 tidalWave 行）。
-    /// 距离判定用「dx = 浪与目标的 X 差、dy = 世界 Y 差」（Z 折叠，见规则类头）。
+    /// 距离判定用「dx = 浪与目标的 X 差、dy = Flash 平面 y 差（向下为正）」（Z 折叠，见规则类头）。
     /// </summary>
     [TestFixture]
     public class TidalWaveRulesTests
