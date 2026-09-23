@@ -814,12 +814,14 @@ namespace PirateCrew.EditorTools
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 
             var scaler = go.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            // 对齐 Godot canvas_items+expand 口径：Expand(1) 外扩参考分辨率，超宽屏不留黑边也不压扁布局
-            // （matchWidthOrHeight 仅 MatchWidthOrHeight 模式生效，随之废弃）。存量已建 .unity 场景仍是旧口径，
-            // 不改场景文件——重建走本构建器，待界面换装批次统一跑。
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
+            // 【3:1 铆定口径（创始人 2026-09-24 裁决，推翻旧 1920×1080+Expand 等比口径）】
+            // 1 UI 单位 = 1 屏幕像素，**永不随分辨率缩放**——UI 常量按 3 的倍数取值时，
+            // 其边缘在任意分辨率下都与 3D 艺术像素栅格（1 艺术像素 = PixelSkin.Unit 屏幕像素）对齐；
+            // 分辨率升高 = 画布单位变多（可见内容变多），而不是把 UI 放大。
+            // 与 3D 侧 PixelartPilotScene 的 pixelScale 同一铆定语义（待办 4e 的 GUI Scale 滑条
+            // 未来改本值为运行时档位）。1:1 下 UI 与世界同颗粒度，文字走 SDF 档任意字号清晰。
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = 1f;
             return canvas;
         }
 

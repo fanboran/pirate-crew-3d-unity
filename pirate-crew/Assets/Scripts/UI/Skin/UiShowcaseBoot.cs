@@ -43,9 +43,9 @@ namespace PirateCrew.UI
             canvas.sortingOrder = 300;   // 压过一切常规 UI
 
             var scaler = go.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(Width, Height);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;   // 与各构建器统一
+            // 【3:1 铆定口径】1 UI 单位 = 1 屏幕像素，永不随分辨率缩放（与各构建器统一）。
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = 1f;
 
             // 全屏深底：像素皮最暗档——组件在它们真实所属的深底上展示。
             RectTransform backdrop = UiKit.CreateRect("Backdrop", go.transform);

@@ -175,10 +175,9 @@ namespace PirateCrew.EditorTools
             // zone 防撞自检（对齐 game-2 hud_zone_layout 的越界警告合同）：顶层部件
             // 两两 AABB 相交即报警——曾因手写坐标出现"模式钮压蓝条 / 提示条压武器面板"
             // 两起真实碰撞（2026-09-19 复盘），此后布局事故在装配期就会被点名。
-            var scaler = canvas.GetComponent<CanvasScaler>();
-            Vector2 referenceSize = scaler != null
-                ? scaler.referenceResolution : new Vector2(1920f, 1080f);
-            AssertNoOverlaps(canvas.transform, hudRoot, referenceSize);
+            // 【3:1 铆定口径】画布 = 屏幕像素 1:1（ConstantPixelSize），自检基准取 1920×1080
+            // 最小画布：全部件按角/边/中心锚定，画布更大只会更分散，不会产生新碰撞。
+            AssertNoOverlaps(canvas.transform, hudRoot, new Vector2(1920f, 1080f));
 
             return result;
         }
@@ -535,9 +534,10 @@ namespace PirateCrew.EditorTools
         {
             // 底部带两段共享底边线 y=Safe：[暂停 返回]（面板左外侧，**文字钮**）→ [武器面板]。
             // 【右下提示条已删】（创始人 2026-09-23 走查"没有必要"）。
-            // 【坐标口径】UiKit.ActionButton 的锚点固定在画布中心（anchor/pivot 0.5,0.5）。
-            float panelLeft = -(WeaponPanelWidth * 0.5f);     // 面板左缘相对中心（-396，3 的倍数）
-            float textButtonY = -(540f - Safe - HudButtonHeight * 0.5f);   // -516
+            // 【坐标口径】水平 = 画布底**中心**锚（随武器面板走，画布变宽不漂移）；
+            // 垂直 = 底边锚（y = Safe + 半高，任何分辨率都贴底边线）。
+            float panelLeft = -(WeaponPanelWidth * 0.5f);     // 面板左缘相对底中心（-396，3 的倍数）
+            float textButtonY = Safe + HudButtonHeight * 0.5f;
             Vector2 pauseSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattlePause), HudButtonHeight);
             Vector2 backSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Back), HudButtonHeight);
             result.pauseButton = UiKit.ActionButton("PauseButton", hudRoot, UiGlyphs.Glyph.Pause,
@@ -548,6 +548,13 @@ namespace PirateCrew.EditorTools
                 UiStrings.Back, UiKit.ButtonKind.Dark,
                 new Vector2(panelLeft - 6f - pauseSize.x - 6f - backSize.x * 0.5f, textButtonY),
                 backSize, secondary, withIcon: false);
+            // 底中心锚：UiKit.ActionButton 默认锚在画布中心，这里改挂底边（y 轴）。
+            foreach (Button b in new[] { result.pauseButton, result.backButton })
+            {
+                RectTransform rect = (RectTransform)b.transform;
+                rect.anchorMin = new Vector2(0.5f, 0f);
+                rect.anchorMax = new Vector2(0.5f, 0f);
+            }
 
             // 右上：模式三**文字钮**成组贴右缘（0=移动 1=操作 2=观察；快捷键 1/2/3 角标保留）。
             // 选中态由运行时开环 + 换悬停档贴图（不再乘色）。
@@ -560,10 +567,16 @@ namespace PirateCrew.EditorTools
             for (int i = 0; i < 3; i++)
             {
                 Vector2 size = new Vector2(UiSkin.Px.ButtonWidth(modeLabels[i]), ModeButtonHeight);
-                float offsetFromRight = 960f - Safe - size.x * 0.5f - (2 - i) * (size.x + 6f);
-                Vector2 position = new Vector2(offsetFromRight, 1080f - TopBandFromTop - 540f);
+                // 右上**角锚**（1,1）：x/y 都相对屏角累退（Safe + 同排前钮宽 + 缝），任何分辨率贴角不漂移。
+                Vector2 position = new Vector2(
+                    -(Safe + (2 - i) * (size.x + 6f) + size.x * 0.5f),
+                    -(TopBandFromTop));
                 Button button = UiKit.ActionButton("ModeButton_" + (BattleHud.BattleHudMode)i, hudRoot,
                     UiGlyphs.Glyph.MovePad, modeLabels[i], UiKit.ButtonKind.Dark, position, size, secondary);
+                {
+                    RectTransform rect = (RectTransform)button.transform;
+                    rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
+                }
 
                 // 快捷键角标（右上角小字）——图标退役后快捷键提示的唯一载体。
                 TextMeshProUGUI hotkey = UiKit.CreateText("Hotkey", button.transform, (i + 1).ToString(),

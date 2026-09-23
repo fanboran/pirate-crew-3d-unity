@@ -17,8 +17,10 @@ namespace PirateCrew.EditorTools
     ///      <c>[SerializeField]</c> 引用重新指向新节点。
     ///
     /// 【契约】只改外观与节点归属，不改 Canvas 的 RenderMode / CanvasScaler
-    /// （1920×1080 + ScreenMatchMode.Expand，对齐 Godot canvas_items+expand 口径；
-    /// 存量已建 .unity 场景仍是旧 match 0.5 口径，待重建批次经构建器统一刷新），
+    /// （【3:1 铆定口径，2026-09-24 创始人裁决推翻旧 1920×1080+Expand 等比口径】
+    /// ConstantPixelSize 1:1——1 UI 单位 = 1 屏幕像素，永不随分辨率缩放；UI 常量按
+    /// 3 的倍数取值，边缘在任意分辨率与 3D 艺术像素栅格对齐；分辨率升高 = 画布单位
+    /// 变多而非 UI 放大。布局纪律：部件一律角/边/中心锚定，禁写 960/540 半屏偏移），
     /// 不新增/变更 EventBus 事件。可重复调用（每次场景重建都会调一次）。
     /// </summary>
     public static class BattleUiTheme

@@ -228,10 +228,10 @@ namespace PirateCrew.EditorTools
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 
             var scaler = go.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            // 对齐 Godot canvas_items+expand 口径：Expand(1) 外扩参考分辨率（存量场景待重建批次刷新）。
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
+            // 【3:1 铆定口径】1 UI 单位 = 1 屏幕像素，永不随分辨率缩放（2026-09-24 裁决，
+            // 详见 BattleSceneSetup.CreateCanvas 注释）。1:1 下与旧 1080p 视觉一致。
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = 1f;
 
             return canvas;
         }
