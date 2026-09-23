@@ -330,17 +330,23 @@ namespace PirateCrew.EditorTools
 
             var result = new SettingsPanelResult();
 
+            // 行容器：六行流式纵排（缝 3u）——行距/行位由布局器排，不再手算 pitch 坐标。
+            RectTransform rows = UiKit.CreateRect("Rows", panel);
+            rows.pivot = new Vector2(0.5f, 1f);
+            UiKit.SetAnchored(rows, new Vector2(0.5f, 1f), new Vector2(1150f, 570f), new Vector2(0f, -120f));
+            UiLayout.VBox(rows, 3, default(UiPadding));
+
             // 音量四行（滑条实时改 AudioService，关面板时统一落盘）。
-            result.MasterSlider = BuildVolumeRow(panel, 0, UiStrings.SettingsFieldVolumeMaster, hand);
-            result.SfxSlider = BuildVolumeRow(panel, 1, UiStrings.SettingsFieldVolumeSfx, hand);
-            result.MusicSlider = BuildVolumeRow(panel, 2, UiStrings.SettingsFieldVolumeMusic, hand);
-            result.AmbientSlider = BuildVolumeRow(panel, 3, UiStrings.SettingsFieldVolumeAmbient, hand);
+            result.MasterSlider = BuildVolumeRow(rows, 0, UiStrings.SettingsFieldVolumeMaster, hand);
+            result.SfxSlider = BuildVolumeRow(rows, 1, UiStrings.SettingsFieldVolumeSfx, hand);
+            result.MusicSlider = BuildVolumeRow(rows, 2, UiStrings.SettingsFieldVolumeMusic, hand);
+            result.AmbientSlider = BuildVolumeRow(rows, 3, UiStrings.SettingsFieldVolumeAmbient, hand);
 
             // 画质档（二选一选项块；选中态由控制器按 VideoSettingsService 刷新）。
-            BuildSettingsRow(panel, 4, UiStrings.SettingsFieldQuality, hand,
+            BuildSettingsRow(rows, 4, UiStrings.SettingsFieldQuality, hand,
                 out result.QualityHighButton, out result.QualitySmoothButton,
                 UiStrings.SettingsOptionQualityHigh, UiStrings.SettingsOptionQualitySmooth);
-            BuildSettingsRow(panel, 5, UiStrings.SettingsFieldWindowMode, hand,
+            BuildSettingsRow(rows, 5, UiStrings.SettingsFieldWindowMode, hand,
                 out result.FullscreenOnButton, out result.FullscreenOffButton,
                 UiStrings.SettingsOptionFullscreen, UiStrings.SettingsOptionWindowed);
 
@@ -383,17 +389,15 @@ namespace PirateCrew.EditorTools
                 anchoredPosition, size, TitleFont, kind, label, 0f);
         }
 
-        /// <summary>行高与行距（六行布局：四条滑条 + 两组选项块；行高 80 装得下 72 高选项钮）。</summary>
-        const float SettingsRowPitch = 96f;
-        const float SettingsRowTop = -152f;
+        /// <summary>行高（六行布局：四条滑条 + 两组选项块；行位由行容器 VBox 排，见 BuildSettingsPanel）。</summary>
         const float SettingsRowHeight = 80f;
 
         /// <summary>建一行「字段名 + 音量滑条」（滑条实时驱动，落盘由控制器统一做）。
         /// 【换装最小半径】滑条三件套保持 UGUI 标准件（控制器按 <see cref="Slider"/> 契约接线），
         /// 只换行底板与字段名文字。</summary>
-        static Slider BuildVolumeRow(Transform panel, int index, string field, TMP_FontAsset hand)
+        static Slider BuildVolumeRow(Transform rows, int index, string field, TMP_FontAsset hand)
         {
-            RectTransform row = CreateSettingsRowBackground(panel, index);
+            RectTransform row = CreateSettingsRowBackground(rows, index);
 
             // 字段名：像素皮字色按所落 tone 取可读档（行底 = SketchPanel Light → 暖白片 → 墨字）。
             TextMeshProUGUI label = CreateTextExact("Field", row, field, UiSkin.Font.Body,
@@ -456,10 +460,10 @@ namespace PirateCrew.EditorTools
         /// <summary>建一行「字段名 + 二选一选项块」，返回两个选项按钮。
         /// 选中态由控制器 <c>SetChipSelected</c> 换 sprite（selected = Primary tone 悬停档 /
         /// 未选 = Dense 常态）并同步重挂 SpriteState——像素皮禁乘色。</summary>
-        static void BuildSettingsRow(Transform panel, int index, string field, TMP_FontAsset hand,
+        static void BuildSettingsRow(Transform rows, int index, string field, TMP_FontAsset hand,
             out Button primaryOption, out Button secondaryOption, string primaryLabel, string secondaryLabel)
         {
-            RectTransform row = CreateSettingsRowBackground(panel, index);
+            RectTransform row = CreateSettingsRowBackground(rows, index);
 
             TextMeshProUGUI label = CreateTextExact("Field", row, field, UiSkin.Font.Body,
                 TextAlignmentOptions.MidlineLeft, PixelSkin.TextColorOn(PixelTone.Light), hand);
@@ -475,13 +479,12 @@ namespace PirateCrew.EditorTools
                 SketchButtonKind.Dark, secondaryLabel, UiSkin.Font.Body);
         }
 
-        /// <summary>设置行的底板 + 字段名（滑条行与选项行共用）：SketchPanel Light →
-        /// Plate(Light) 暖白片 + 底垫投影。</summary>
-        static RectTransform CreateSettingsRowBackground(Transform panel, int index)
+        /// <summary>设置行的底板（滑条行与选项行共用）：SketchPanel Light → Plate(Light) 片 + 底垫投影。
+        /// 位置交给行容器 VBox 排（index 只用作命名），不再手算 pitch 坐标。</summary>
+        static RectTransform CreateSettingsRowBackground(Transform rows, int index)
         {
-            float y = SettingsRowTop - index * SettingsRowPitch;
-            SketchPanel rowPanel = SketchPanel.Create(panel, "Row" + index,
-                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, y),
+            SketchPanel rowPanel = SketchPanel.Create(rows, "Row" + index,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
                 new Vector2(1150f, SettingsRowHeight), SketchPanel.Tone.Light);
             return (RectTransform)rowPanel.transform;
         }
@@ -512,23 +515,30 @@ namespace PirateCrew.EditorTools
                 new Vector2(720f, 396f), SketchPanel.Tone.Dark);
             RectTransform panel = (RectTransform)card.transform;
 
+            // 流式内容（UiLayout）：正文 + 按钮行——居中块，纵缝 3u，不再手摆 y 坐标。
+            RectTransform flow = CreateRect("Flow", panel);
+            Stretch(flow);
+            UiLayout.VBox(flow, 3, UiPadding.Uniform(2), alignment: TextAnchor.MiddleCenter);
+
             // 正文：Frame tone 上的正文浅字（像素皮 TextColorOn 档）、正文字号。
-            TextMeshProUGUI message = CreateTextExact("Message", panel, defaultMessage,
+            TextMeshProUGUI message = CreateTextExact("Message", flow, defaultMessage,
                 UiSkin.Font.Body, TextAlignmentOptions.Center, PixelSkin.LightOf(PixelTone.Frame), TitleFont);
-            SetAnchored(message.rectTransform, new Vector2(0.5f, 1f), new Vector2(560f, 96f),
-                new Vector2(0f, -84f));
+            UiLayout.Element(message.gameObject, 560f, 96f);
+
+            RectTransform actionRow = CreateRect("Actions", flow);
+            UiLayout.HStack(actionRow, 4, default(UiPadding), alignment: TextAnchor.MiddleCenter);
 
             var result = new ConfirmDialogResult
             {
                 Root = root.gameObject,
                 Message = message,
                 // 确认 = Accent 金强调（StickKit.Confirm 默认 kind 同语义）、取消 = Dark 常规；
-                // 令牌按钮（宽 = 标签宽 + 24 艺术像素、高 24 艺术像素）。
-                OkButton = CreateSketchButton("OkButton", panel, UiStrings.Confirm,
-                    new Vector2(0.5f, 0f), new Vector2(-168f, 72f), ButtonSize(UiStrings.Confirm),
+                // 令牌按钮（宽 = 标签宽 + 8 艺术像素、高 16u）。
+                OkButton = CreateSketchButton("OkButton", actionRow, UiStrings.Confirm,
+                    new Vector2(0.5f, 0.5f), Vector2.zero, ButtonSize(UiStrings.Confirm),
                     SketchButtonKind.Accent),
-                CancelButton = CreateSketchButton("CancelButton", panel, UiStrings.Cancel,
-                    new Vector2(0.5f, 0f), new Vector2(168f, 72f), ButtonSize(UiStrings.Cancel),
+                CancelButton = CreateSketchButton("CancelButton", actionRow, UiStrings.Cancel,
+                    new Vector2(0.5f, 0.5f), Vector2.zero, ButtonSize(UiStrings.Cancel),
                     SketchButtonKind.Dark),
             };
 
