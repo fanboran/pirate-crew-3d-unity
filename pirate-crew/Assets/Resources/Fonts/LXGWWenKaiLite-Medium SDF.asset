@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!21 &-4282970227122700923
+--- !u!21 &-8349190550117425925
 Material:
   serializedVersion: 8
   m_ObjectHideFlags: 0
@@ -24,7 +24,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _MainTex:
-        m_Texture: {fileID: -1231266508700627300}
+        m_Texture: {fileID: -13492784542714796}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
@@ -66,7 +66,7 @@ Material:
     - _OutlineColor: {r: 0, g: 0, b: 0, a: 1}
     - _UnderlayColor: {r: 0, g: 0, b: 0, a: 0.5}
   m_BuildTextureStacks: []
---- !u!28 &-1231266508700627300
+--- !u!28 &-13492784542714796
 Texture2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -127,7 +127,7 @@ MonoBehaviour:
   m_Name: LXGWWenKaiLite-Medium SDF
   m_EditorClassIdentifier: 
   hashCode: 0
-  material: {fileID: -4282970227122700923}
+  material: {fileID: -8349190550117425925}
   materialHashCode: -2006316128
   m_Version: 1.1.0
   m_SourceFontFileGUID: 1735997dd8ed7a749a0bfc1926a85242
@@ -159,7 +159,7 @@ MonoBehaviour:
   m_GlyphTable: []
   m_CharacterTable: []
   m_AtlasTextures:
-  - {fileID: -1231266508700627300}
+  - {fileID: -13492784542714796}
   m_AtlasTextureIndex: 0
   m_IsMultiAtlasTexturesEnabled: 1
   m_ClearDynamicDataOnBuild: 0
