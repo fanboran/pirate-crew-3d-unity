@@ -29,6 +29,10 @@ namespace PirateCrew.UI
 
         static TMP_FontAsset s_font;
 
+        /// <summary>已挂的图集纠偏件（同字体守卫）：PixelFont() 被 Build 与
+        /// UiShowcaseBoot.BuildBackButton 各调一次，无守卫会叠出多件。</summary>
+        static PixelAtlasPointFilter s_fixer;
+
         const int DialogTop = 104;      // 对话框顶（距页顶的艺术像素）
         const int TitleBandH = 68;      // 题头高：标题 24 + 副题 12 + 上下边距
         const int CursorStart = DialogTop + 12 + TitleBandH + 24;
@@ -197,6 +201,8 @@ namespace PirateCrew.UI
                 ("退出", SketchButtonKind.Danger),
                 ("警告", SketchButtonKind.Accent),
             };
+            // SketchButton 的 fontSize 参数是**画布像素**口径（UiShowcaseBoot.BuildBackButton 同款
+            // 传 36）——本页其他文字用"艺术像素"入参、在 Text() 里 ×A，两套口径别混。
             for (int i = 0; i < buttons.Length; i++)
             {
                 int x = 112 + i * 60;
@@ -207,7 +213,7 @@ namespace PirateCrew.UI
                     SketchButton.Create(content, "Demo_" + buttons[i].label,
                         new Vector2(0f, 1f), new Vector2(0f, 1f),
                         new Vector2(x * A, -cursor * A), new Vector2(48 * A, 24 * A),
-                        s_font, buttons[i].kind, buttons[i].label, 12);
+                        s_font, buttons[i].kind, buttons[i].label, 36);
                 }
             }
             cursor += 24 + 24;
@@ -298,11 +304,6 @@ namespace PirateCrew.UI
             return image;
         }
 
-        static void Plate(Transform parent, PixelTone tone, int x, int y, int w, int h)
-        {
-            SpriteImage(parent, PixelSkin.Plate(tone), x, y, w, h);
-        }
-
         static TextMeshProUGUI Text(Transform parent, string content, int x, int y, int sizeArtPx, Color color)
         {
             TextMeshProUGUI text = UiKit.CreateText("Label", parent, content, UiSkin.Font.Body,
@@ -324,15 +325,9 @@ namespace PirateCrew.UI
             return text;
         }
 
-        static void Section(Transform parent, System.Collections.Generic.List<LabelSpec> labels,
-            string title, ref int cursor)
-        {
-            labels.Add(new LabelSpec(title, 24, cursor, 12, "white"));
-            SpriteImage(parent, PixelSkin.Separator(true), 24, cursor + 18, 592, 2);
-            cursor += 26;
-        }
-
-        /// <summary>像素字体（位图档）；显示字号必须取 12 的整数倍（见类头）。</summary>
+        /// <summary>像素字体（位图档）；显示字号必须取 12 的整数倍（见类头）。
+        /// 【同字体守卫】纠偏件同字体只挂一件（对齐 UiKit.EnsureAtlasPointFilter 的口径）：
+        /// 展示页销毁后 s_fixer 失效（Unity null 语义），下次进入自动补挂。</summary>
         public static TMP_FontAsset PixelFont()
         {
             TMP_FontAsset font = Resources.Load<TMP_FontAsset>("Fonts/FusionPixel12-px");
@@ -347,8 +342,11 @@ namespace PirateCrew.UI
             // filterMode → 默认 Bilinear → padding 0 下相邻字形格互相渗色，每个字带出邻居的
             // 碎块、读成"重影"（第一张实机截图的病根）。挂一个强制 Point 的纠偏件：
             // 字形按需进图集的整个过程里都钉住最近邻（顶级类 PixelAtlasPointFilter）。
-            var fixer = new GameObject("PixelAtlasPointFilter").AddComponent<PixelAtlasPointFilter>();
-            fixer.font = font;
+            if (s_fixer == null || s_fixer.font != font)
+            {
+                s_fixer = new GameObject("PixelAtlasPointFilter").AddComponent<PixelAtlasPointFilter>();
+                s_fixer.font = font;
+            }
             return font;
         }
 

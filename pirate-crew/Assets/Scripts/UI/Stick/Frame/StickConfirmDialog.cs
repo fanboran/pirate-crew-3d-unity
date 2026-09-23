@@ -10,8 +10,10 @@ namespace PirateCrew.UI.Stick
     /// 确认框（模态）—— 确认框族的栈化实现。移植自 stick-world <c>stick_confirm_dialog.gd</c>。
     ///
     /// 入 <see cref="StickModalLayer.Confirm"/> 层（栈顶，经 <see cref="StickKit.Confirm"/> 创建），
-    /// ESC = 取消（05 篇：ESC 等效取消，不触发 on_confirm）。全屏遮罩 + 居中紧凑窗口；
-    /// **点遮罩不关闭**（确认框白名单，必须显式选择）。关闭即销毁（Destroy，对齐 gd queue_free）。
+    /// ESC = 取消（05 篇：ESC 等效取消，不触发 on_confirm；本类自监听并自退栈——宿主侧
+    /// <see cref="StickModalStack.HandleEscape"/> 尚未接线，两条路互不抢）。全屏遮罩 + 居中紧凑窗口；
+    /// **点遮罩不关闭**（确认框白名单，必须显式选择）。关闭即销毁（Destroy，对齐 gd queue_free），
+    /// 自关时经 <see cref="StickModalStack.NotifyClosed"/> 同步退栈（取消/确认后 _pauseHeld 才能释放）。
     ///
     /// gd 侧紧凑自适应靠 resized 信号把窗口按内容居中；Unity 无内容驱动尺寸事件，
     /// 改为 Setup 时用 TMP preferred 测量一次定窗口尺寸（宽度 = 消息单行宽收敛到
@@ -27,6 +29,9 @@ namespace PirateCrew.UI.Stick
         Action _onConfirm;
         RectTransform _window;
         bool _destroyed;
+        /// <summary>入栈时由 <see cref="StickKit.Confirm"/> 注入；自关时经它同步退栈
+        ///（无栈环境 = 主菜单自管理，null）。Pop 路径已先移除条目，NotifyClosed 幂等。</summary>
+        StickModalStack _stack;
 
         // ---------------- 构建骨架（gd setup 同签名语义） ----------------
 
@@ -112,6 +117,19 @@ namespace PirateCrew.UI.Stick
 
         // ---------------- 开关（关闭即销毁） ----------------
 
+        /// <summary>入栈环境注入栈引用（<see cref="StickKit.Confirm"/> 压栈前调用）。</summary>
+        internal void BindStack(StickModalStack stack)
+        {
+            _stack = stack;
+        }
+
+        /// <summary>ESC = 取消（轮询等价 gd _unhandled_input）：走 Close，不触发 onConfirm。</summary>
+        void Update()
+        {
+            if (!_destroyed && Input.GetKeyDown(KeyCode.Escape))
+                Close();
+        }
+
         public void Open()
         {
             if (_destroyed)
@@ -125,6 +143,9 @@ namespace PirateCrew.UI.Stick
             if (_destroyed)
                 return;
             _destroyed = true;
+            // 自关必须同步退栈：栈里的 Confirm 条目还在会按住 _pauseHeld（暂停永不恢复）。
+            // 栈先于销毁移除条目；若本关由 Pop 触发，条目已不在，NotifyClosed 幂等返回。
+            _stack?.NotifyClosed(this);
             Destroy(gameObject);
         }
 

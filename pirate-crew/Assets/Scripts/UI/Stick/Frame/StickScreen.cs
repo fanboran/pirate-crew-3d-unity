@@ -98,8 +98,8 @@ namespace PirateCrew.UI.Stick
             vbox.PaddingTop = StickTokens.SketchPanelPadY;
             vbox.PaddingBottom = StickTokens.SketchPanelPadY;
 
-            // 标题（居中，FONT_TITLE）
-            TitleLabel = UiKit.CreateText("Title", content, PanelTitle, (int)StickTokens.FONT_TITLE,
+            // 标题（居中；字号经 StickKit 映射层取满精度栅格档）
+            TitleLabel = UiKit.CreateText("Title", content, PanelTitle, StickKit.FontSize(StickKit.StickLabelKind.Title),
                 TextAlignmentOptions.Center, StickTokens.TEXT, UiKit.RuntimeFont(UiKit.RuntimeFontKind.Title));
             TitleLabel.enableWordWrapping = false;
 

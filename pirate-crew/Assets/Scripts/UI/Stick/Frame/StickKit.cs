@@ -85,39 +85,57 @@ namespace PirateCrew.UI.Stick
 
         // ---------------- 标签 ----------------
 
+        /// <summary>
+        /// 档位 → 画布像素字号（Stick 域字号令牌的映射层）。gd 字号令牌
+        /// （<c>StickTokens.FONT_*</c>，Godot 视口像素口径：TITLE 24 / SECTION 14 /
+        /// BODY 15 / HINT 12 / TINY 11）不在 3 画布像素的字号栅格上，直传
+        /// <see cref="UiKit.CreateText"/> 会触发「无满精度字体档」报错回落——
+        /// 故按语义对齐 <see cref="UiSkin.Font"/> 满精度档位表收编：
+        /// Title/Section/Body → 36（FusionPixel 12px 原生档）、Hint/Tiny → 30
+        /// （ArkPixel 10px 原生档），「标题 > 正文 > 提示 > 角标」的层级关系保留。
+        /// Stick 域所有 UiKit.CreateText 调用一律经本出口取字号。
+        /// </summary>
+        public static int FontSize(StickLabelKind kind)
+        {
+            switch (kind)
+            {
+                case StickLabelKind.Title:
+                    return UiSkin.Font.Title;
+                case StickLabelKind.Section:
+                    return UiSkin.Font.Section;
+                case StickLabelKind.Hint:
+                    return UiSkin.Font.Hint;
+                case StickLabelKind.Tiny:
+                    return UiSkin.Font.Tiny;
+                default:
+                    return UiSkin.Font.Body;
+            }
+        }
+
         /// <summary>建标签（gd StickKit.label：kind 定字号与默认色，显式 color 覆盖默认色）。</summary>
         public static TextMeshProUGUI Label(Transform parent, string text,
             StickLabelKind kind = StickLabelKind.Body, Color? color = null)
         {
-            float fontSize;
+            int fontSize = FontSize(kind);
+            // gd 档位默认色：Title/Body 正文色、Section 强调色、Hint/Tiny 暗色
             Color tint;
             switch (kind)
             {
-                case StickLabelKind.Title:
-                    fontSize = StickTokens.FONT_TITLE;
-                    tint = StickTokens.TEXT;
-                    break;
                 case StickLabelKind.Section:
-                    fontSize = StickTokens.FONT_SECTION;
                     tint = StickTokens.ACCENT;
                     break;
                 case StickLabelKind.Hint:
-                    fontSize = StickTokens.FONT_HINT;
-                    tint = StickTokens.TEXT_DIM;
-                    break;
                 case StickLabelKind.Tiny:
-                    fontSize = StickTokens.FONT_TINY;
                     tint = StickTokens.TEXT_DIM;
                     break;
                 default:
-                    fontSize = StickTokens.FONT_BODY;
                     tint = StickTokens.TEXT;
                     break;
             }
             // gd：显式色覆盖 kind 默认色（除本身带默认暗/强调色的档位）
             if (color.HasValue)
                 tint = color.Value;
-            return UiKit.CreateText("Label", parent, text, (int)fontSize,
+            return UiKit.CreateText("Label", parent, text, fontSize,
                 TextAlignmentOptions.MidlineLeft, tint, HandFont());
         }
 
@@ -190,7 +208,7 @@ namespace PirateCrew.UI.Stick
             image.color = StickTokens.BTN_BG;
             image.raycastTarget = true;
 
-            TextMeshProUGUI label = UiKit.CreateText("Text", rect, text, (int)StickTokens.FONT_BODY,
+            TextMeshProUGUI label = UiKit.CreateText("Text", rect, text, FontSize(StickLabelKind.Body),
                 TextAlignmentOptions.Center, textColor, HandFont());
             label.enableWordWrapping = false;
             UiKit.Stretch(label.rectTransform, 10f);
@@ -474,7 +492,7 @@ namespace PirateCrew.UI.Stick
             image.type = Image.Type.Sliced;
             image.color = Color.white;      // 像素件禁止乘色
             image.raycastTarget = false;
-            UiKit.CreateText("Msg", panel, text, (int)StickTokens.FONT_BODY,
+            UiKit.CreateText("Msg", panel, text, FontSize(StickLabelKind.Body),
                 TextAlignmentOptions.Center, tint, HandFont());
             panel.gameObject.AddComponent<ToastFader>();
         }
@@ -513,7 +531,12 @@ namespace PirateCrew.UI.Stick
             dialog.Setup(title, message, onConfirm, confirmText, kind);
             StickModalStack stack = StickUIRoot.Instance != null ? StickUIRoot.Instance.ModalStack : null;
             if (stack != null)
+            {
+                // 注入栈引用：确认框自关（取消/确定/ESC）时经 NotifyClosed 同步退栈，
+                // 否则栈按住 _pauseHeld、暂停永不恢复（自关与 Pop 退栈是两条独立路径）
+                dialog.BindStack(stack);
                 stack.Push(dialog, StickModalLayer.Confirm);
+            }
             else
                 dialog.Open();
         }
@@ -532,8 +555,14 @@ namespace PirateCrew.UI.Stick
 
             void Update()
             {
+                // 装配时宽度未定，持续居中；但只在偏离时写——每帧强写会让依赖 pivot 的
+                // 布局/动画每帧重算（Layout Group Rebuild）
                 if (transform is RectTransform rt && rt != null)
-                    rt.pivot = new Vector2(0.5f, 0.5f);   // 装配时宽度未定，持续居中
+                {
+                    Vector2 centered = new Vector2(0.5f, 0.5f);
+                    if (rt.pivot != centered)
+                        rt.pivot = centered;
+                }
             }
 
             void UnityEngine.EventSystems.IPointerEnterHandler.OnPointerEnter(

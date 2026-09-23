@@ -1,7 +1,6 @@
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
-using PirateCrew.Battle.WorldMaps;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -20,7 +19,8 @@ namespace PirateCrew.UI
     ///
     /// 【本波次改造】文本 TMP 化 + 全中文（<see cref="UiStrings"/> / <see cref="UiTextRules"/>）；
     /// 行/按钮换羊皮纸 + 木板九宫格；行字号走 <see cref="UiTheme.FontBody"/> 旧档入口
-    /// （渲染经 MenuUiBuilder.ScaleLegacyFont 落到裁决后的 FontScale.Body 15，见 UiTheme 字号段说明）。
+    ///（别名 = <see cref="UiSkin.Font.Body"/> 36：像素栅格并档后旧「双轨降档」退役，
+    /// RuntimeUiBuilder 直传渲染，不经 MenuUiBuilder.ScaleLegacyFont，见 UiTheme 字号段说明）。
     /// 事件契约与订阅清单不变。
     /// </summary>
     public sealed class CrewManagementController : MonoBehaviour
@@ -102,7 +102,7 @@ namespace PirateCrew.UI
             Roster roster = CrewManagementApi.Roster;
             string active = roster.Active.Count == 0
                 ? UiStrings.CrewSummaryEmpty
-                : string.Join("、", DisplayNames(roster.Active));
+                : string.Join("、", UiTextRules.CrewDisplayNames(roster.Active));
 
             summaryText.text = string.Format(UiStrings.CrewSummaryFormat,
                 roster.Active.Count, roster.MaxSize, active,
@@ -246,7 +246,7 @@ namespace PirateCrew.UI
 
         void OnMapCompleted(CampaignMapCompletedPayload completed)
         {
-            string levelName = MapDisplayName(completed.MapId);
+            string levelName = UiTextRules.MapDisplayName(completed.MapId);
             if (completed.Cleared)
                 SetStatus(string.Format(UiStrings.CrewStatusClearedFormat, levelName, completed.Stars));
             else
@@ -266,12 +266,7 @@ namespace PirateCrew.UI
             return UiTextRules.CrewNameById(crewId);
         }
 
-        /// <summary>海图 id → 中文海图名（目录查不到时回退原始 id）。</summary>
-        static string MapDisplayName(string mapId)
-        {
-            return WorldMapCatalog.TryGet(mapId, out WorldMapDefinition map)
-                ? map.DisplayName
-                : mapId;
-        }
+        // 船员显示名 / 海图名的本地拷贝已收编进 UiTextRules（CrewDisplayNames / MapDisplayName，
+        // 与结算 HUD、选关同源），本类只做调用。
     }
 }

@@ -11,9 +11,11 @@ namespace PirateCrew.UI
     /// 不进场景装配（避免给既有场景增加必填引用）。
     ///
     /// 【语义】
-    ///  · 同一目标开新动画会取消旧动画（后到优先），不会叠加抖动；
+    ///  · 同一目标开新动画会取消旧动画（后到优先），不会叠加抖动；面板动画按面板各自管理，
+    ///    一个面板的 Show/Hide 不影响其他面板在跑的协程；
     ///  · 全部动画用 <see cref="Time.unscaledDeltaTime"/>——hit-stop 顿帧时 UI 反馈照常；
-    ///  · <see cref="OnDisable"/> 收尾复位，防止场景切换时把缩放/透明度停在半路。
+    ///  · <see cref="OnDisable"/> 收尾复位：punch/pop 缩放归位、全部面板协程停掉、
+    ///    血条滚动落位，防止场景切换时把缩放/透明度停在半路。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class UiMotion : MonoBehaviour
@@ -44,6 +46,12 @@ namespace PirateCrew.UI
             float t = 0f;
             while (t < 1f)
             {
+                if (target == null)
+                {
+                    // 目标中途被销毁：无处可写，退出并清掉取消表条目（防异常终止刷日志）
+                    _punches.Remove(target);
+                    yield break;
+                }
                 t = Mathf.Min(1f, t + Time.unscaledDeltaTime / seconds);
                 float s = UiMotionRules.PunchCurve(t, from, overshoot);
                 tr.localScale = new Vector3(s, s, 1f);
@@ -75,6 +83,12 @@ namespace PirateCrew.UI
             float t = 0f;
             while (t < 1f)
             {
+                if (target == null)
+                {
+                    // 目标中途被销毁：无处可写，退出并清掉取消表条目（防异常终止刷日志）
+                    _punches.Remove(target);
+                    yield break;
+                }
                 t = Mathf.Min(1f, t + Time.unscaledDeltaTime / UiMotionRules.PopSeconds);
                 float s = UiMotionRules.PopScale(t);
                 tr.localScale = new Vector3(s, s, 1f);
@@ -89,7 +103,38 @@ namespace PirateCrew.UI
         // 面板 滑入/淡出（CanvasGroup 透明度 + 根节点纵向位移）
         // ------------------------------------------------------------------
 
-        Coroutine _panelRoutine;
+        /// <summary>一个面板的动画登记：当前协程 + 面板原位。按面板各一份，互不掐。</summary>
+        sealed class PanelAnim
+        {
+            public Coroutine Routine;
+            /// <summary>面板原位（首次 ShowPanel 入口捕获一次）：Show 的纵向位移从它
+            /// 绝对写回，动画中途被打断也不会把残偏移固化成新原位。</summary>
+            public Vector2 BasePosition;
+        }
+
+        /// <summary>面板 → 动画登记。Show/Hide 只停同一面板的协程。</summary>
+        readonly Dictionary<GameObject, PanelAnim> _panels = new Dictionary<GameObject, PanelAnim>();
+
+        /// <summary>取该面板的动画登记（没有则建档并捕获原位），停掉它正在跑的旧协程。</summary>
+        PanelAnim RegisterPanel(GameObject panel)
+        {
+            if (_panels.TryGetValue(panel, out PanelAnim anim))
+            {
+                if (anim.Routine != null)
+                {
+                    StopCoroutine(anim.Routine);
+                    anim.Routine = null;
+                }
+                return anim;
+            }
+
+            anim = new PanelAnim
+            {
+                BasePosition = panel.transform is RectTransform rect ? rect.anchoredPosition : Vector2.zero,
+            };
+            _panels[panel] = anim;
+            return anim;
+        }
 
         /// <summary>
         /// 面板出现：<c>go.SetActive(true)</c> → 透明度 ease-out 淡入、位置从下方
@@ -100,8 +145,7 @@ namespace PirateCrew.UI
             if (panel == null || seconds <= 0f)
                 return;
 
-            if (_panelRoutine != null)
-                StopCoroutine(_panelRoutine);
+            PanelAnim anim = RegisterPanel(panel);
 
             // 恢复 HidePanel 断掉的交互开关
             CanvasGroup restore = panel.GetComponent<CanvasGroup>();
@@ -112,14 +156,15 @@ namespace PirateCrew.UI
             }
 
             panel.SetActive(true);
-            _panelRoutine = StartCoroutine(ShowPanelRoutine(panel, seconds, slideOffsetPixels));
+            anim.Routine = StartCoroutine(
+                ShowPanelRoutine(panel, anim, seconds, slideOffsetPixels));
         }
 
-        IEnumerator ShowPanelRoutine(GameObject panel, float seconds, float slideOffsetPixels)
+        IEnumerator ShowPanelRoutine(GameObject panel, PanelAnim anim, float seconds, float slideOffsetPixels)
         {
             CanvasGroup group = panel.GetComponent<CanvasGroup>();
             RectTransform rect = panel.transform as RectTransform;
-            Vector2 basePosition = rect != null ? rect.anchoredPosition : Vector2.zero;
+            Vector2 basePosition = anim.BasePosition;
 
             float t = 0f;
             while (t < 1f)
@@ -137,7 +182,7 @@ namespace PirateCrew.UI
                 group.alpha = 1f;
             if (rect != null)
                 rect.anchoredPosition = basePosition;
-            _panelRoutine = null;
+            anim.Routine = null;
         }
 
         /// <summary>
@@ -149,13 +194,12 @@ namespace PirateCrew.UI
             if (panel == null)
                 return;
 
-            if (_panelRoutine != null)
-                StopCoroutine(_panelRoutine);
+            PanelAnim anim = RegisterPanel(panel);
 
             if (seconds <= 0f)
             {
                 panel.SetActive(false);
-                _panelRoutine = null;
+                anim.Routine = null;
                 return;
             }
 
@@ -165,10 +209,10 @@ namespace PirateCrew.UI
             group.interactable = false;
             group.blocksRaycasts = false;
 
-            _panelRoutine = StartCoroutine(HidePanelRoutine(panel, group, seconds));
+            anim.Routine = StartCoroutine(HidePanelRoutine(panel, anim, group, seconds));
         }
 
-        IEnumerator HidePanelRoutine(GameObject panel, CanvasGroup group, float seconds)
+        IEnumerator HidePanelRoutine(GameObject panel, PanelAnim anim, CanvasGroup group, float seconds)
         {
             float t = 0f;
             while (t < 1f)
@@ -182,7 +226,7 @@ namespace PirateCrew.UI
             panel.SetActive(false);
             if (group != null)
                 group.alpha = 1f;                       // 下次 ShowPanel 从头淡入
-            _panelRoutine = null;
+            anim.Routine = null;
         }
 
         // ------------------------------------------------------------------
@@ -356,11 +400,14 @@ namespace PirateCrew.UI
             }
             _punches.Clear();
 
-            if (_panelRoutine != null)
+            // 全部面板协程停掉并清登记（下次 OnEnable 从头建档、按当时原位捕获）
+            foreach (KeyValuePair<GameObject, PanelAnim> pair in _panels)
             {
-                StopCoroutine(_panelRoutine);
-                _panelRoutine = null;
+                if (pair.Value.Routine != null)
+                    StopCoroutine(pair.Value.Routine);
+                pair.Value.Routine = null;
             }
+            _panels.Clear();
 
             for (int i = 0; i < _fills.Count; i++)
             {

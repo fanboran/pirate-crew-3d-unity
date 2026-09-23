@@ -129,19 +129,13 @@ namespace PirateCrew.UI
 
         // ------------------------------------------------------------------
         // 间距 / 形状（§1.7；间距只取 4/8/12/16/24 五档）
+        // 【死常量已清】RowHeight / Safe / RadiusPanel 全仓零引用，随审计删除——
+        // 行高由各控制器本地令牌承担（如 CrewManagementController.RowHeight），
+        // 安全边距与圆角以 UiSkin.Safe / UiSkin.RadiusPanel 为准。
         // ------------------------------------------------------------------
-
-        /// <summary>外安全边距（角落 HUD 件离屏边至少此值）。</summary>
-        public const float Safe = 24f;
 
         /// <summary>面板内边距。</summary>
         public const float PanelPadding = 16f;
-
-        /// <summary>行高基准（沿用既有 <c>CrewManagementController.RowHeight</c>）。</summary>
-        public const float RowHeight = 44f;
-
-        /// <summary>面板圆角。</summary>
-        public const float RadiusPanel = 8f;
 
         /// <summary>按钮圆角。</summary>
         public const float RadiusButton = 4f;

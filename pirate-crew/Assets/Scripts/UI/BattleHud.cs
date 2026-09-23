@@ -28,8 +28,9 @@ namespace PirateCrew.UI
     ///     投掷 / 结束回合为图标主按钮——原版 Mutiny 的全图标交互语言；
     ///   · 模式开关 = 靴位 / 准星 / 眼睛三图标钮；暂停 / 返回 = 图标钮；文字只剩提示条与结算横幅。
     ///
-    /// 【架构约定（沿用）】全部引用走 <c>[SerializeField]</c>（<c>BattleUiTheme.WireHud</c> 回写，
-    /// 不做 GameObject.Find——旧 DeepFind 已随重写清退）；状态刷新全部 EventBus 事件驱动；
+    /// 【架构约定】引用一律 <c>[SerializeField]</c>（<c>BattleUiTheme.WireHud</c> 回写）；
+    /// 唯一例外是 Crosshair：装配契约缺兜底时的静态装饰节点查找（<see cref="DeepFind"/>，
+    /// Awake 一次，不参与逐帧逻辑）；状态刷新全部 EventBus 事件驱动；
     /// 皮肤 / 字号 / 颜色一律 <see cref="UiSkin"/> Token。
     /// </summary>
     [DisallowMultipleComponent]
@@ -170,8 +171,8 @@ namespace PirateCrew.UI
         /// <summary>首次状态直接落位（不打动效、不出声），之后的翻转才播动效。</summary>
         bool _panelResolved;
 
-        readonly List<OverheadHealthBar> _overheadBars = new List<OverheadHealthBar>();
-
+        /// <summary>职业头像缓存（按 <see cref="UiSkin.CrewKey"/> 短名）：量级有界
+        ///（职业数 × 队色短名，≤7 键），且进程级复用，**刻意不清理**。</summary>
         static readonly Dictionary<string, Sprite> PortraitCache = new Dictionary<string, Sprite>();
 
         // ------------------------------------------------------------------
@@ -493,10 +494,10 @@ namespace PirateCrew.UI
             if (hintText == null)
                 return;
             string text = _mode == BattleHudMode.Move
-                ? "左键选角色　拖动转视角　滚轮力度　空格跳"
+                ? UiStrings.BattleHintMove
                 : _mode == BattleHudMode.Act
-                    ? "AD 转向　WS 力度　回车开炮"
-                    : "准星点人返回　WASD 移动　Esc 返回";
+                    ? UiStrings.BattleHintAiming
+                    : UiStrings.BattleHintObserve;
             UiTextUtil.SetText(hintText, text + CameraReadout());
         }
 
@@ -506,6 +507,8 @@ namespace PirateCrew.UI
         /// （<see cref="BattleCameraDriver.RuntimeVisibleMeters"/>），所以滚轮挑完之后
         /// 念出这个数就能直接改 `PixelartLevelScene` 的 mid/wide/close。
         /// 基准定下后本读数可删（它只是提示条后缀，删掉不影响任何逻辑）。
+        /// 【临时】"镜头 N m" 格式串是动态读数，暂留本处拼接；基准定案删除本读数前，
+        /// 若要在别处复用再并入 <see cref="UiStrings"/>（字符串模板 + <see cref="UiTextRules"/>）。
         /// </summary>
         string CameraReadout()
         {
@@ -783,7 +786,7 @@ namespace PirateCrew.UI
                 case SettlementPanelRules.RowKind.Score:
                     return UiTextRules.SettlementScore(input.Score);
                 case SettlementPanelRules.RowKind.Level:
-                    return UiTextRules.SettlementLevel(MapDisplayName(settlement.MapId));
+                    return UiTextRules.SettlementLevel(UiTextRules.MapDisplayName(settlement.MapId));
                 case SettlementPanelRules.RowKind.Stars:
                     return UiTextRules.SettlementStars(settlement.Stars, StarRules.MaxStars);
                 case SettlementPanelRules.RowKind.Xp:
@@ -791,7 +794,7 @@ namespace PirateCrew.UI
                 case SettlementPanelRules.RowKind.Unlock:
                     // 规则只在 HasReward 时才会给出 Unlock 行；这里再守一道，避免数据源中途变了就 NRE。
                     return reward.HasValue
-                        ? UiTextRules.SettlementUnlock(string.Join("、", DisplayNamesOf(reward.Value.UnlockedCrewIds)))
+                        ? UiTextRules.SettlementUnlock(string.Join("、", UiTextRules.CrewDisplayNames(reward.Value.UnlockedCrewIds)))
                         : null;
                 case SettlementPanelRules.RowKind.FirstClear:
                     return UiStrings.SettlementRowFirstClear;
@@ -829,26 +832,8 @@ namespace PirateCrew.UI
                 _motion.Pop(star);
         }
 
-        static string[] DisplayNamesOf(string[] crewIds)
-        {
-            var names = new string[crewIds.Length];
-            for (int i = 0; i < crewIds.Length; i++)
-            {
-                names[i] = CrewRosterCatalog.TryGet(crewIds[i], out CrewRosterEntry entry)
-                    ? entry.DisplayName
-                    : crewIds[i];
-            }
-
-            return names;
-        }
-
-        /// <summary>海图 id → 中文海图名（目录查不到时回退原始 id）。</summary>
-        static string MapDisplayName(string mapId)
-        {
-            return WorldMapCatalog.TryGet(mapId, out WorldMapDefinition map)
-                ? map.DisplayName
-                : mapId;
-        }
+        // 海图名 / 船员显示名的本地拷贝已收编进 UiTextRules（MapDisplayName / CrewDisplayNames，
+        // 与选关、船员管理同源），本类只做调用。
 
         // ------------------------------------------------------------------
         // EventBus 回调
@@ -865,7 +850,6 @@ namespace PirateCrew.UI
 
             // 重开一局经场景重载进来：清掉可能残留的暂停态与旧模态。
             BattlePause.ForceResume();
-            // HidePausePanel();  // 临时注释：方法尚未落地（隔壁会话中间态），编译窗口用
             CloseModal(settlementPanelRoot);
             CloseModal(confirmDialogRoot);
 
@@ -980,6 +964,10 @@ namespace PirateCrew.UI
             if (team != null)
             {
                 var characters = team.Characters;
+                // 分段是装配期按 MaxSegmentsPerTeam 预建的：超编时多出的单位没有段，必须吵醒装配侧。
+                if (characters.Count > MaxSegmentsPerTeam)
+                    Log.Warn("[BattleHud] 队伍人数 " + characters.Count + " 超过血条段数上限 "
+                             + MaxSegmentsPerTeam + "，多出的单位不会出现在顶栏血条（检查关卡编队或扩段数）。");
                 for (int i = 0; i < characters.Count && count < MaxSegmentsPerTeam; i++)
                 {
                     PirateBase pirate = characters[i];
@@ -1186,17 +1174,12 @@ namespace PirateCrew.UI
 
         void AttachOverheadBars()
         {
-            _overheadBars.Clear();
             if (battle == null)
                 return;
 
             var pirates = battle.AllPirates;
             for (int i = 0; i < pirates.Count; i++)
-            {
-                OverheadHealthBar bar = OverheadHealthBar.Attach(pirates[i]);
-                if (bar != null)
-                    _overheadBars.Add(bar);
-            }
+                OverheadHealthBar.Attach(pirates[i]);
         }
 
         // ------------------------------------------------------------------

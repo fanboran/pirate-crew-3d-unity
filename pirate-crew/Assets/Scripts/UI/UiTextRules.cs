@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.Text;
+using PirateCrew.Battle.WorldMaps;
 using PirateCrew.CrewManagement;
 using PirateCrew.Combat;
 using PirateCrew.Data;
@@ -32,7 +35,9 @@ namespace PirateCrew.UI
                 case WeaponId.Dynamite: return "炸药";
                 case WeaponId.Boulder: return "巨石";
                 case WeaponId.Banana: return "香蕉";
-                case WeaponId.Mine: return "地雷";
+                // 「水雷」是裁决值（UiSkin.WeaponColor(Mine) 行内注：水雷玩法语义保留不换）；
+                // 曾与图鉴短名表各自漂成「地雷」，现以本类为武器中文名单一真源。
+                case WeaponId.Mine: return "水雷";
                 case WeaponId.ParachuteBomb: return "降落伞炸弹";
                 case WeaponId.RumBottle: return "朗姆酒瓶";
                 case WeaponId.PiecesOfEight: return "八枚金币";  // 【AI 提案】名
@@ -134,6 +139,37 @@ namespace PirateCrew.UI
                 case "skeleton": return UiStrings.CrewSkeletonDesc;
                 default: return string.Empty;
             }
+        }
+
+        // ------------------------------------------------------------------
+        // 海图名 / 船员显示名（单一真源：结算行 / 选关 / 船员管理此前各持一份拷贝）
+        // ------------------------------------------------------------------
+
+        /// <summary>海图 id → 中文海图名（<see cref="WorldMapCatalog"/> 目录查不到时回退原始 id）。
+        /// 结算「关卡」行 / 选关与船员管理的通关、失败状态行共用。</summary>
+        public static string MapDisplayName(string mapId)
+        {
+            return WorldMapCatalog.TryGet(mapId, out WorldMapDefinition map)
+                ? map.DisplayName
+                : mapId;
+        }
+
+        /// <summary>船员 id 数组 → 显示名数组（目录查不到回显 id；结算「新招募」行用）。</summary>
+        public static string[] CrewDisplayNames(string[] crewIds)
+        {
+            var names = new string[crewIds.Length];
+            for (int i = 0; i < crewIds.Length; i++)
+                names[i] = CrewNameById(crewIds[i]);
+            return names;
+        }
+
+        /// <summary>船员 id 列表 → 显示名数组（编成概况行的「已编成」串用）。</summary>
+        public static string[] CrewDisplayNames(IReadOnlyList<string> crewIds)
+        {
+            var names = new string[crewIds.Count];
+            for (int i = 0; i < crewIds.Count; i++)
+                names[i] = CrewNameById(crewIds[i]);
+            return names;
         }
 
         // ------------------------------------------------------------------

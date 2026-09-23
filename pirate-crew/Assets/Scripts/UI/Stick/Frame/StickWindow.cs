@@ -105,7 +105,7 @@ namespace PirateCrew.UI.Stick
             }
 
             TextMeshProUGUI title = UiKit.CreateText("Title", titleBar, WindowTitle,
-                (int)StickTokens.FONT_SECTION, TextAlignmentOptions.MidlineLeft,
+                StickKit.FontSize(StickKit.StickLabelKind.Section), TextAlignmentOptions.MidlineLeft,
                 StickTokens.TEXT, UiKit.RuntimeFont(UiKit.RuntimeFontKind.Title));
             title.enableWordWrapping = false;
             StickLayoutElement titleGrow = title.rectTransform.gameObject.AddComponent<StickLayoutElement>();
@@ -183,12 +183,8 @@ namespace PirateCrew.UI.Stick
 
         // ---------------- 拖动（FLOATING，把手在标题栏） ----------------
 
-        /// <summary>记抓取偏移（gd _drag_offset = mouse − panel.position）。
-        /// parentLocal 与 anchoredPosition 之差在拖动中保持不变，anchor 偏移自然消去。</summary>
-        internal void BeginDrag(Vector2 parentLocalPoint)
-        {
-            DragOffset = parentLocalPoint - Panel.anchoredPosition;
-        }
+        // 【死方法已清】BeginDrag(Vector2) 曾与 WindowDragHandle.OnBeginDrag 各持一份
+        // 抓取偏移计算，把手内联自算后本方法零调用——偏移公式唯一落在 OnBeginDrag 内。
 
         /// <summary>拖动跟随 + 夹回安全矩形。</summary>
         internal void DragTo(Vector2 parentLocalPoint)

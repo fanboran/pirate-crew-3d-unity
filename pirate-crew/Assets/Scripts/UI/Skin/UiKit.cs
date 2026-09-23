@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -18,7 +19,7 @@ namespace PirateCrew.UI
     ///     所以像素件禁止 <c>Image.color</c> 乘色（乘了就把烘焙好的三档色阶压平）；
     ///   · 按钮状态反馈一律 UGUI SpriteSwap（常态/悬停/按压三张 Plate），不用 ColorBlock 乘色；
     ///     禁用态不烘黑图，靠 <see cref="UiPressSink"/> 的 CanvasGroup alpha≈0.55；
-    ///   · 可点击件用 <see cref="ChipButton"/> / <see cref="IconButton"/>（自带三态换图 + 按压位移）。
+    ///   · 可点击件用 <see cref="IconButton"/> / <see cref="ActionButton"/>（自带三态换图 + 按压位移）。
     ///
     /// 文字色：<see cref="PixelSkin.TextColorOn"/> / <see cref="PixelSkin.Ink"/> /
     /// <see cref="PixelSkin.PaperWhite"/>（icon 与文字不受"禁止乘色"约束，但仍从调色板取色）。
@@ -97,7 +98,11 @@ namespace PirateCrew.UI
 
         static TMP_FontAsset _pixelFont;
         static TMP_FontAsset _pixelSmallFont;
-        static PixelAtlasPointFilter _atlasFilter;
+
+        /// <summary>字体 → 图集纠偏件（每字体一件，<see cref="PixelAtlasPointFilter"/> 的
+        /// <c>font</c> 字段只持单字体）。12px 与 10px 两档原生位图字体都要各自纠偏。</summary>
+        static readonly Dictionary<TMP_FontAsset, PixelAtlasPointFilter> _atlasFilters
+            = new Dictionary<TMP_FontAsset, PixelAtlasPointFilter>();
 
         /// <summary>
         /// 按显示字号解析**满精度**像素字体（创始人祈使裁决 2026-09-23：不同大小 = 不同精度的字体）。
@@ -353,28 +358,6 @@ namespace PirateCrew.UI
             return PixelTone.Light;   // btn_normal 族
         }
 
-        /// <summary>建文字按钮（彩色 chip 底 + 居中文字）。字色由 tone 派生，不再手挑。</summary>
-        public static Button ChipButton(string name, Transform parent, string label, Vector2 anchoredPosition,
-            Vector2 size, Color chipColor, Color labelColor, TMP_FontAsset font,
-            int fontSize = UiSkin.Font.Body, CartoonSpriteFactory.Shape shape = CartoonSpriteFactory.Shape.Chip)
-        {
-            RectTransform rect = CreateRect(name, parent);
-            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = size;
-            rect.anchoredPosition = anchoredPosition;
-
-            PixelTone tone = ToneOfChip(chipColor);
-            var image = rect.gameObject.AddComponent<Image>();
-            var button = rect.gameObject.AddComponent<Button>();
-            ApplyPlateButton(button, image, tone);
-
-            TextMeshProUGUI text = CreateText("Text", rect, label, fontSize,
-                TextAlignmentOptions.Center, PixelSkin.TextColorOn(tone), font, raycast: false);
-            Stretch(text.rectTransform);
-            return button;
-        }
-
         /// <summary>
         /// 建图标按钮（彩色 chip 底 + 符号图标 + 可选快捷键角标）。
         /// 图标优先原则的落点：动作钮（暂停 / 返回 / 投掷 / 结束回合 / 模式切换）全走这里。
@@ -519,22 +502,27 @@ namespace PirateCrew.UI
             Secondary,
         }
 
-        /// <summary>取运行时可用的字体资产（满精度阶梯的正文档；kind 语义保留、档位见
-        /// <see cref="ResolvePixelFont"/>——一个字体一个显示尺寸，由文本出口单点强制）。</summary>
+        /// <summary>取运行时可用的字体资产。三枚举档**当前恒返同一字体**（FusionPixel 12px
+        /// 正文档）：满精度阶梯下「一个字体一个显示尺寸」由 <see cref="ResolvePixelFont"/>
+        /// 在文本出口单点强制，kind 只剩语义占位；引入新原生档位时按 kind 分流。</summary>
         public static TMP_FontAsset RuntimeFont(RuntimeFontKind kind)
         {
             return PixelFont12();
         }
 
         /// <summary>确保动态图集的 Point 纠偏件活着（TMP 运行时重建图集会重置 Bilinear，
-        /// 逐帧纠偏到字形稳定为止；同字体只挂一件，场景卸载销毁后自动补挂）。</summary>
+        /// 逐帧纠偏到字形稳定为止）。**每字体一件**（字典管理）——12px / 10px 两个原生档
+        /// 各挂各的，先到先得不再吞掉后到字体；场景卸载销毁后自动补挂。</summary>
         static void EnsureAtlasPointFilter(TMP_FontAsset font)
         {
-            if (_atlasFilter != null)
+            if (font == null)
                 return;
-            var fixer = new GameObject("PixelAtlasPointFilter").AddComponent<PixelAtlasPointFilter>();
+            if (_atlasFilters.TryGetValue(font, out PixelAtlasPointFilter existing)
+                && existing != null)
+                return;
+            var fixer = new GameObject("PixelAtlasPointFilter_" + font.name).AddComponent<PixelAtlasPointFilter>();
             fixer.font = font;
-            _atlasFilter = fixer;
+            _atlasFilters[font] = fixer;
         }
 
         /// <summary>chip 的反相字色（亮底给深墨、深底给暖白——角标 / 覆盖文字的便捷取色）。</summary>

@@ -118,7 +118,7 @@ namespace PirateCrew.UI
                 settlementTitle.text = value.Cleared ? UiStrings.SettlementWin : UiStrings.SettlementFail;
 
             if (settlementLevelText != null)
-                settlementLevelText.text = UiTextRules.SettlementLevel(MapDisplayName(value.MapId));
+                settlementLevelText.text = UiTextRules.SettlementLevel(UiTextRules.MapDisplayName(value.MapId));
 
             if (settlementScoreText != null)
                 settlementScoreText.text = UiTextRules.SettlementScore(value.Score);
@@ -142,7 +142,7 @@ namespace PirateCrew.UI
                 string[] unlockedIds = reward != null ? reward.Value.UnlockedCrewIds : new string[0];
                 bool hasUnlock = unlockedIds.Length > 0;
                 settlementUnlockText.text = hasUnlock
-                    ? UiTextRules.SettlementUnlock(string.Join("、", DisplayNames(unlockedIds)))
+                    ? UiTextRules.SettlementUnlock(string.Join("、", UiTextRules.CrewDisplayNames(unlockedIds)))
                     : string.Empty;
                 settlementUnlockText.gameObject.SetActive(hasUnlock);
             }
@@ -211,8 +211,12 @@ namespace PirateCrew.UI
         {
             RuntimeUiBuilder.ButtonFeedback(settlementReplayButton, true, _motion);
             // 再战同一张海图：SetPending(同图) + 原地重载（SceneLoader 对同名目标自动不压栈）。
+            // SetPending 失败 = 已结算的海图 id 不在目录（数据异常，正常流程不可达），
+            // 与 OnWorldMapClicked 同口径兜底到状态栏，不静默吞掉。
             if (!string.IsNullOrEmpty(_settledMapId) && WorldMapRuntime.SetPending(_settledMapId))
                 EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
+            else if (statusText != null)
+                statusText.text = UiStrings.WorldStatusMapMissing;
         }
 
         // ------------------------------------------------------------------
@@ -358,26 +362,8 @@ namespace PirateCrew.UI
             }
         }
 
-        static string[] DisplayNames(string[] crewIds)
-        {
-            var names = new string[crewIds.Length];
-            for (int i = 0; i < crewIds.Length; i++)
-            {
-                names[i] = CrewRosterCatalog.TryGet(crewIds[i], out CrewRosterEntry entry)
-                    ? entry.DisplayName
-                    : crewIds[i];
-            }
-
-            return names;
-        }
-
-        /// <summary>海图 id → 中文海图名（目录查不到时回退原始 id）。</summary>
-        static string MapDisplayName(string mapId)
-        {
-            return WorldMapCatalog.TryGet(mapId, out WorldMapDefinition map)
-                ? map.DisplayName
-                : mapId;
-        }
+        // 海图名 / 船员显示名的本地拷贝已收编进 UiTextRules（MapDisplayName / CrewDisplayNames，
+        // 与结算 HUD、船员管理同源），本类只做调用。
 
         // ------------------------------------------------------------------
         // 按钮

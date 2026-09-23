@@ -340,11 +340,14 @@ namespace PirateCrew.UI
         /// <summary>操作提示：角色模式通用。</summary>
         public const string BattleHintGeneral = "空格 瞄准　E 聚焦　Esc 取消";
 
-        /// <summary>操作提示：瞄准态。</summary>
-        public const string BattleHintAiming = "AD 转向　WS 力度　滚轮微调　回车 开炮";
+        /// <summary>操作提示：操作模式（炮台开火，对号 <c>BattleHudMode.Act</c>）。</summary>
+        public const string BattleHintAiming = "AD 转向　WS 力度　回车开炮";
 
-        /// <summary>操作提示：移动模式。</summary>
-        public const string BattleHintMove = "左键拖空白环绕　滚轮缩放　中键解除跟随　左键选中　双击聚焦";
+        /// <summary>操作提示：移动模式（对号 <c>BattleHudMode.Move</c>）。</summary>
+        public const string BattleHintMove = "左键选角色　拖动转视角　滚轮力度　空格跳";
+
+        /// <summary>操作提示：观察模式（对号 <c>BattleHudMode.Observe</c>）。</summary>
+        public const string BattleHintObserve = "准星点人返回　WASD 移动　Esc 返回";
 
         /// <summary>操作提示：武器菜单。</summary>
         public const string BattleHintWeaponMenu = "滚轮选择　回车确认";

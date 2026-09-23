@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using PirateCrew.Data;
 using PirateCrew.UI.Stick;
 using TMPro;
@@ -707,24 +706,11 @@ namespace PirateCrew.UI
             icon.raycastTarget = false;
             UiKit.Stretch(icon.rectTransform, 8f);
 
-            Label(root, At(center.x, center.y - cell * 0.5f - 12f), WeaponShortName(id),
+            // 武器中文名走 UiTextRules.WeaponName 单源（全名档；曾与本页自持的短名表
+            // 漂移成「铁球/樱桃弹/水雷」两套，2026-09-23 文案审计裁决收敛，
+            // 「水雷」取 UiSkin.WeaponColor(Mine) 行内的裁决语义）。
+            Label(root, At(center.x, center.y - cell * 0.5f - 12f), UiTextRules.WeaponName(id),
                 UiSkin.Font.Tiny, PixelSkin.PaperWhite, secondary);
-        }
-
-        static string WeaponShortName(WeaponId id)
-        {
-            string name = id.ToString();
-            var map = new Dictionary<string, string>
-            {
-                { "Cannonball", "铁球" }, { "CherryBomb", "樱桃弹" }, { "Dynamite", "炸药" },
-                { "Boulder", "巨石" }, { "Banana", "香蕉" }, { "Mine", "水雷" },
-                { "ParachuteBomb", "伞弹" }, { "RumBottle", "朗姆瓶" },
-                { "PiecesOfEight", "金币" }, { "GunpowderBarrel", "火药桶" },
-                { "WoodenCrate", "木箱" }, { "Anchor", "铁锚" }, { "Seagull", "海鸥" },
-                { "TidalWave", "潮浪" }, { "VoodooDoll", "巫毒娃娃" }, { "Cannon", "大炮" },
-                { "SweepingFlame", "烈焰" },
-            };
-            return map.TryGetValue(name, out string zh) ? zh : name;
         }
 
         // ------------------------------------------------------------------

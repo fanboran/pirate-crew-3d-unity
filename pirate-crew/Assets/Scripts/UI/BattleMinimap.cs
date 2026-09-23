@@ -68,6 +68,17 @@ namespace PirateCrew.UI
         RectTransform _worldChartLayer;
         /// <summary>Refresh 上次校准点径时的点层像素宽（漂移 >0.5px 时重设全部点径）。</summary>
         float _dotLayerWidthForSize = -1f;
+        /// <summary>TryBuild 未收敛时的重试簿记：隔 <see cref="BuildRetryIntervalFrames"/> 帧试一次，
+        /// 连续 <see cref="BuildRetryMaxAttempts"/> 次仍建不出（如单位根没接线）就放弃 + 警告一次，
+        /// 不再每帧全树扫描。</summary>
+        int _buildRetryFrameCounter;
+        int _buildRetryAttempts;
+        bool _buildAbandoned;
+
+        /// <summary>建点失败的重试间隔（帧）。</summary>
+        const int BuildRetryIntervalFrames = 60;
+        /// <summary>建点失败的最大重试次数（1 次初始 + 若干次重试后放弃）。</summary>
+        const int BuildRetryMaxAttempts = 10;
 
         /// <summary>
         /// 有效每瓦像素 = 点层实际像素宽 / 场地跨度——点径随面板尺寸自动缩放
@@ -123,10 +134,14 @@ namespace PirateCrew.UI
         /// 本局是世界地图时，把换算范围改为实际图跨度、隐藏装配期烘好的 level_1 岛层、
         /// 改从站面 box 生成海图岛层——否则世界图单位点位会被压进左上 1/9、底下垫着不相关的岛形。
         /// <see cref="WorldMapRuntime.TryGetPending"/> 不清除待战状态，Start 时查询安全
-        /// （BattleController.Awake 消费 pending 也不清）。public 供测试与选关 UI 显式调用。
+        /// （BattleController.Awake 消费 pending 也不清）。public 供测试与选关 UI 显式调用；
+        /// **已进入海图模式后是幂等守卫直接返回**——重复调用会再叠一层岛层。
         /// </summary>
         public void ConfigureWorldChartFromRuntime()
         {
+            if (_worldChartMode)
+                return;
+
             if (!WorldMapRuntime.TryGetPending(out WorldMapDefinition map) || map == null)
                 return;
 
@@ -216,9 +231,26 @@ namespace PirateCrew.UI
         {
             if (!_built)
             {
-                // 万一时序变化（例如单位在延迟一帧后生成），下一帧继续尝试。
-                if (!TryBuild())
+                // 万一时序变化（例如单位在延迟一帧后生成），限频重试：60 帧一次，
+                // 连续多次仍建不出（多为单位根没接线）就放弃 + 警告一次，不再每帧全树扫描。
+                if (_buildAbandoned)
                     return;
+                _buildRetryFrameCounter++;
+                if (_buildRetryFrameCounter < BuildRetryIntervalFrames)
+                    return;
+                _buildRetryFrameCounter = 0;
+                _buildRetryAttempts++;
+                if (!TryBuild())
+                {
+                    if (_buildRetryAttempts >= BuildRetryMaxAttempts)
+                    {
+                        _buildAbandoned = true;
+                        Debug.LogWarning("[BattleMinimap] 连续 " + BuildRetryMaxAttempts
+                                         + " 次建点失败（找不到 PirateBase）：unitRoots 接线缺失或单位未生成，"
+                                         + "小地图停建。修复：HudMinimapSceneSetup 接线 / 检查单位生成时序。");
+                    }
+                    return;
+                }
             }
 
             Refresh();

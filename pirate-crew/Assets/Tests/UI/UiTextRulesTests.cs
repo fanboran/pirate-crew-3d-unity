@@ -44,6 +44,10 @@ namespace PirateCrew.Tests
         {
             Assert.AreEqual("炮弹", UiTextRules.WeaponName(WeaponId.Cannonball));
             Assert.AreEqual("樱桃炸弹", UiTextRules.WeaponName(WeaponId.CherryBomb));
+            // 「水雷」是裁决值（UiSkin.WeaponColor(WeaponId.Mine) 行内注：水雷玩法语义保留不换）。
+            // 武器中文名曾有两张独立表（UiTextRules「地雷」vs 图鉴短名表「水雷」），
+            // 文案审计收敛为 UiTextRules 单源后用本断言钉住裁决。
+            Assert.AreEqual("水雷", UiTextRules.WeaponName(WeaponId.Mine));
             Assert.AreEqual("降落伞炸弹", UiTextRules.WeaponName(WeaponId.ParachuteBomb));
             Assert.AreEqual("八枚金币", UiTextRules.WeaponName(WeaponId.PiecesOfEight));
             Assert.AreEqual("潮汐巨浪", UiTextRules.WeaponName(WeaponId.TidalWave));
