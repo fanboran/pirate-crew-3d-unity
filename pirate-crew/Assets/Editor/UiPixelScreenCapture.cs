@@ -16,6 +16,8 @@ namespace PirateCrew.EditorTools
         const string CaptureDir = "export/ui-pixel-4c";
 
         const string PendingKey = "UiPixelScreenCapture.Pending";
+        const string QueueKey = "UiPixelScreenCapture.Queue";
+        const string QueueIndexKey = "UiPixelScreenCapture.QueueIndex";
         const string StateKey = "UiPixelScreenCapture.State";
         const string WaitKey = "UiPixelScreenCapture.Wait";
         const string SceneKey = "UiPixelScreenCapture.Scene";
@@ -30,6 +32,16 @@ namespace PirateCrew.EditorTools
         public static void CaptureCrewManagement() => Start("CrewManagement");
         /// <summary>战斗 HUD。</summary>
         public static void CaptureBattle() => Start("Battle");
+
+        /// <summary>四屏连采（一次编辑器启动全部拿到；Battle 放最后——需要选中角色入画）。
+        /// 无头走查入口：<c>-executeMethod PirateCrew.EditorTools.UiPixelScreenCapture.CaptureAllFour</c>
+        /// （**非 batchmode**：ScreenCapture 需要图形设备，挂 GUI 编辑器启动参数即可）。</summary>
+        public static void CaptureAllFour()
+        {
+            SessionState.SetString(QueueKey, string.Join("|", new[] { "MainMenu", "LevelSelect", "CrewManagement", "Battle" }));
+            SessionState.SetInt(QueueIndexKey, 0);
+            Start("MainMenu");
+        }
 
         static void Start(string sceneName)
         {
@@ -113,10 +125,21 @@ namespace PirateCrew.EditorTools
                 case 4:
                     if (!EditorApplication.isPlaying && SessionState.GetInt(WaitKey, 0) > 5)
                     {
-                        SessionState.SetBool(PendingKey, false);
-                        EditorApplication.update -= CaptureStep;
                         Debug.Log("[UiPixelScreenCapture] 流程结束：" + path
                             + "（存在=" + File.Exists(path) + "）");
+                        // 【四屏连采】队列还有下一场景就接着采（Start 会重置状态并重挂 update）。
+                        string queue = SessionState.GetString(QueueKey, "");
+                        int index = SessionState.GetInt(QueueIndexKey, 0);
+                        var scenes = string.IsNullOrEmpty(queue) ? new string[0] : queue.Split('|');
+                        int next = index + 1;
+                        if (next < scenes.Length)
+                        {
+                            SessionState.SetInt(QueueIndexKey, next);
+                            Start(scenes[next]);
+                            return;
+                        }
+                        SessionState.SetBool(PendingKey, false);
+                        EditorApplication.update -= CaptureStep;
                     }
                     else if (!EditorApplication.isPlaying)
                     {
