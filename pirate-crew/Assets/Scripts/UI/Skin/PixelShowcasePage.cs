@@ -31,7 +31,6 @@ namespace PirateCrew.UI
 
         /// <summary>已挂的图集纠偏件（同字体守卫）：PixelFont() 被 Build 与
         /// UiShowcaseBoot.BuildBackButton 各调一次，无守卫会叠出多件。</summary>
-        static PixelAtlasPointFilter s_fixer;
 
         const int DialogTop = 104;      // 对话框顶（距页顶的艺术像素）
         const int TitleBandH = 68;      // 题头高：标题 24 + 副题 12 + 上下边距
@@ -325,27 +324,15 @@ namespace PirateCrew.UI
             return text;
         }
 
-        /// <summary>像素字体（位图档）；显示字号必须取 12 的整数倍（见类头）。
-        /// 【同字体守卫】纠偏件同字体只挂一件（对齐 UiKit.EnsureAtlasPointFilter 的口径）：
-        /// 展示页销毁后 s_fixer 失效（Unity null 语义），下次进入自动补挂。</summary>
+        /// <summary>像素字体（SDF 档，任意字号清晰）。</summary>
         public static TMP_FontAsset PixelFont()
         {
-            TMP_FontAsset font = Resources.Load<TMP_FontAsset>("Fonts/FusionPixel12-px");
+            TMP_FontAsset font = Resources.Load<TMP_FontAsset>("Fonts/FusionPixel12-sdf");
             if (font == null)
             {
-                Debug.LogWarning("[PixelShowcasePage] Resources/Fonts/FusionPixel12-px 缺失"
-                    + "（跑 PirateCrew/Fonts/生成 TMP 中文字体资产 后可用），回落默认字体");
+                Debug.LogWarning("[PixelShowcasePage] Resources/Fonts/FusionPixel12-sdf 缺失"
+                    + "（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产 后可用），回落默认字体");
                 return null;
-            }
-
-            // TMP 的动态图集会在运行时**重建**真实贴图（序列化的占位图是 0×0），重建时不设
-            // filterMode → 默认 Bilinear → padding 0 下相邻字形格互相渗色，每个字带出邻居的
-            // 碎块、读成"重影"（第一张实机截图的病根）。挂一个强制 Point 的纠偏件：
-            // 字形按需进图集的整个过程里都钉住最近邻（顶级类 PixelAtlasPointFilter）。
-            if (s_fixer == null || s_fixer.font != font)
-            {
-                s_fixer = new GameObject("PixelAtlasPointFilter").AddComponent<PixelAtlasPointFilter>();
-                s_fixer.font = font;
             }
             return font;
         }

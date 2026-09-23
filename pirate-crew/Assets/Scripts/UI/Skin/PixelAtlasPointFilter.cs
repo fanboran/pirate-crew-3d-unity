@@ -4,14 +4,13 @@ using UnityEngine;
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 像素字体动态图集的 Point 过滤纠偏件：TMP 运行时重建图集后 filterMode 会被重置成
-    /// Bilinear——本件每帧把像素字体图集钉回 Point，字形按需进图集的整个过程里不出半格渗色
-    /// （第一张实机截图"重影"的病根，见 PixelShowcasePage 类头）。
-    ///
-    /// 【为什么是顶级类】Unity 的 MonoScript 解析要求「类名 = 文件名、不嵌套」——嵌套类挂进
-    /// 场景/Prefab 会还原不回来（ScriptAssetSerializabilityTests 契约）。挂载入口：
-    /// <see cref="UiKit.EnsureAtlasPointFilter"/>（运行时 UI）与
-    /// <see cref="PixelShowcasePage.PixelFont"/>（展示页），同字体只挂一件。
+    /// 【已退役】像素字体位图图集的 Point 过滤纠偏件（历史：位图口径时代，TMP 运行时重建
+    /// 动态图集会把 filterMode 重置回 Bilinear，本件逐帧钉回 Point 防相邻字形渗色）。
+    /// 2026-09-24 文字解除像素栅格、像素字体改 SDF 口径（FusionPixel12-sdf / ArkPixel10-sdf，
+    /// Linear 过滤 + SDF shader）后不再有挂载入口（UiKit / PixelShowcasePage 均已移除）。
+    /// 类保留：BattleRig.prefab 与 MainMenuScreen.prefab 仍有序列化引用，删除会出
+    /// missing script；其 <c>font</c> 引用指向已删除的旧位图资产（null 空转），无害。
+    /// 下次 prefab 重建批次可一并摘除本类。
     /// </summary>
     public sealed class PixelAtlasPointFilter : MonoBehaviour
     {
