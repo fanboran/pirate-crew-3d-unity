@@ -22,8 +22,7 @@ namespace PirateCrew.UI
     /// 【信息架构】
     ///   · **顶栏双队合成血条**：左右屏缘各一条，每名存活单位 = 一段分格（受击只掉自己那段，
     ///     白色 damage ghost 残影延迟回落），条下一排小方格 pips（存活空格 / 阵亡「×」——
-    ///     职业头像图标已退役）；
-    ///   · **单位头顶血条**（<see cref="OverheadHealthBar"/>）：个人血条在 3D 世界；
+    ///     职业头像图标已退役）；**头顶血条已根除**（非像素世界空间件清退），这是唯一血量读数；
     ///   · **中央回合徽章**：暖金环 + 数字，回合切换弹跳；
     ///   · **武器面板**：17 武器各占一格**文字钮**（武器中文名），投掷 / 结束回合为文字按钮；
     ///   · 模式开关 = 移动 / 操作 / 观察三文字钮（快捷键 1/2/3 角标）；暂停 / 返回 = 文字钮。
@@ -663,7 +662,6 @@ namespace PirateCrew.UI
             CloseModal(confirmDialogRoot);
 
             BuildTeamBars();
-            AttachOverheadBars();
             RefreshTurnHint();
             RefreshWeaponPanel(hide: true);
         }

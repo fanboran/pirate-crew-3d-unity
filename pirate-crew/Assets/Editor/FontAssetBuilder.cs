@@ -101,29 +101,28 @@ namespace PirateCrew.EditorTools
             new FontSpec
             {
                 SourceTtfPath = FontsFolder + "/FusionPixel12-zh_hans.ttf",
-                AssetFileName = "FusionPixel12-px",
-                SamplingPointSize = 12,
-                // padding 4：位图字形之间留空档——padding 0 时相邻字形格在图集里贴死，
-                // 任何非 Point 采样都会把邻居的字带进本字的格子（实机乱码的根因，2026-09-23）。
-                AtlasPadding = 4,
+                AssetFileName = "FusionPixel12-sdf",
+                SamplingPointSize = 64,
+                AtlasPadding = 5,
                 AtlasWidth = 1024,
                 AtlasHeight = 1024,
-                RenderMode = GlyphRenderMode.RASTER_HINTED,
-                Purpose = "像素 UI 正文（缝合像素 12px 比例版简体；OFL 1.1）——位图口径，见类头",
+                RenderMode = GlyphRenderMode.SDFAA,
+                // 2026-09-24 创始人裁决「文字解除像素栅格」：字号按可读性自由取，
+                // 位图口径（12px 栅格 + Point 过滤）在非整数倍字号下必然拉宽发糊——
+                // 改 SDF 口径（同 TTF，矢量距离场按屏幕分辨率重采样），任意字号锐利，
+                // 字形轮廓仍是 12px 网格的像素风。PixelAtlasPointFilter 纠偏件随之退役。
+                Purpose = "像素 UI 正文（缝合像素 12px 比例版简体；OFL 1.1）——SDF 口径，任意字号清晰",
             },
             new FontSpec
             {
                 SourceTtfPath = FontsFolder + "/ArkPixel10-zh_cn.ttf",
-                AssetFileName = "ArkPixel10-px",
-                SamplingPointSize = 10,
-                // 满精度阶梯的第二档（创始人 2026-09-23"不同大小是不同精度的字体"）：
-                // 10px 原生设计 @ 显示字号 30（10 艺术像素 ×3）——小字（角标/提示）专用，
-                // 与 12px 正文各自只出各自的原生尺寸，绝不跨档缩放。
-                AtlasPadding = 4,
+                AssetFileName = "ArkPixel10-sdf",
+                SamplingPointSize = 64,
+                AtlasPadding = 5,
                 AtlasWidth = 1024,
                 AtlasHeight = 1024,
-                RenderMode = GlyphRenderMode.RASTER_HINTED,
-                Purpose = "像素 UI 小字（方舟像素 10px 比例版简体；OFL 1.1）——位图口径，见类头",
+                RenderMode = GlyphRenderMode.SDFAA,
+                Purpose = "像素 UI 小字（方舟像素 10px 比例版简体；OFL 1.1）——SDF 口径，小字号专用档",
             },
             new FontSpec
             {

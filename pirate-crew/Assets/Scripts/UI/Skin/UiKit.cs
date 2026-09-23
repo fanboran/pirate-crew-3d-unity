@@ -98,15 +98,11 @@ namespace PirateCrew.UI
         static TMP_FontAsset _pixelFont;
         static TMP_FontAsset _pixelSmallFont;
 
-        /// <summary>字体 → 图集纠偏件（每字体一件，<see cref="PixelAtlasPointFilter"/> 的
-        /// <c>font</c> 字段只持单字体）。12px 与 10px 两档原生位图字体都要各自纠偏。</summary>
-        static readonly Dictionary<TMP_FontAsset, PixelAtlasPointFilter> _atlasFilters
-            = new Dictionary<TMP_FontAsset, PixelAtlasPointFilter>();
 
         /// <summary>
         /// 按显示字号就近解析像素字体档（创始人 2026-09-24 裁决：**文字解除 3px 栅格**——
         /// 像素字体的字形轮廓自带颗粒感，字号按可读性自由取值，不再要求「字号 ÷ 3 = 原生档」；
-        /// 跨档缩放配 <see cref="PixelAtlasPointFilter"/> 的点采样即像素文字的正当形态）。
+        /// 像素字体的 SDF 资产（FusionPixel12-sdf / ArkPixel10-sdf）在任意字号按屏幕分辨率锐利重采样）。
         /// 规则：字号 ≥ 15 用 12px 档（FusionPixel），更小用 10px 档（ArkPixel）；
         /// 两档都缺失时回落调用方传入的兜底字体。
         /// </summary>
@@ -119,22 +115,18 @@ namespace PirateCrew.UI
         static TMP_FontAsset PixelFont12()
         {
             if (_pixelFont == null)
-                _pixelFont = Resources.Load<TMP_FontAsset>("Fonts/FusionPixel12-px");
+                _pixelFont = Resources.Load<TMP_FontAsset>("Fonts/FusionPixel12-sdf");
             if (_pixelFont == null)
-                Debug.LogWarning("[UiKit] Resources/Fonts/FusionPixel12-px 缺失（跑 PirateCrew/Fonts/生成 TMP 中文字体资产）");
-            else
-                EnsureAtlasPointFilter(_pixelFont);
+                Debug.LogWarning("[UiKit] Resources/Fonts/FusionPixel12-sdf 缺失（跑 PirateCrew/Fonts/生成 TMP 中文字体资产）");
             return _pixelFont;
         }
 
         static TMP_FontAsset PixelFont10()
         {
             if (_pixelSmallFont == null)
-                _pixelSmallFont = Resources.Load<TMP_FontAsset>("Fonts/ArkPixel10-px");
+                _pixelSmallFont = Resources.Load<TMP_FontAsset>("Fonts/ArkPixel10-sdf");
             if (_pixelSmallFont == null)
-                Debug.LogWarning("[UiKit] Resources/Fonts/ArkPixel10-px 缺失（跑 PirateCrew/Fonts/生成 TMP 中文字体资产）");
-            else
-                EnsureAtlasPointFilter(_pixelSmallFont);
+                Debug.LogWarning("[UiKit] Resources/Fonts/ArkPixel10-sdf 缺失（跑 PirateCrew/Fonts/生成 TMP 中文字体资产）");
             return _pixelSmallFont;
         }
 
@@ -397,20 +389,6 @@ namespace PirateCrew.UI
 
         /// <summary>运行时字体档。<see cref="MenuUiBuilder"/> 是 Editor 类，运行时改从
         /// Resources/Fonts/ 取同一批 SDF 资产（由 FontAssetBuilder 复制入 Resources）。</summary>
-        /// <summary>确保动态图集的 Point 纠偏件活着（TMP 运行时重建图集会重置 Bilinear，
-        /// 逐帧纠偏到字形稳定为止）。**每字体一件**（字典管理）——12px / 10px 两个原生档
-        /// 各挂各的，先到先得不再吞掉后到字体；场景卸载销毁后自动补挂。</summary>
-        static void EnsureAtlasPointFilter(TMP_FontAsset font)
-        {
-            if (font == null)
-                return;
-            if (_atlasFilters.TryGetValue(font, out PixelAtlasPointFilter existing)
-                && existing != null)
-                return;
-            var fixer = new GameObject("PixelAtlasPointFilter_" + font.name).AddComponent<PixelAtlasPointFilter>();
-            fixer.font = font;
-            _atlasFilters[font] = fixer;
-        }
 
         // ------------------------------------------------------------------
         // 血条（凹槽 + 白色 damage ghost + 主填充）

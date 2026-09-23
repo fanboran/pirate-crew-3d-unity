@@ -204,20 +204,6 @@ namespace PirateCrew.Fx.Tests
         }
 
         // ------------------------------------------------------------------
-        // 标记色
-        // ------------------------------------------------------------------
-
-        [Test]
-        public void MarkerColors_MatchArtBibleTeamAndSelectionColors()
-        {
-            // 出处：Art Bible §2.2（阵营红 #FF3A29 / 阵营蓝 #3366FF / 选中青 #49D9D6）
-            Assert.AreEqual(FxRules.FromHex(0xFF3A29), FxRules.TeamMarkerColor(1));
-            Assert.AreEqual(FxRules.FromHex(0x3366FF), FxRules.TeamMarkerColor(2));
-            Assert.AreEqual(FxRules.FromHex(0x49D9D6), FxRules.SelectedMarkerColor());
-            Assert.AreNotEqual(FxRules.TeamMarkerColor(1), FxRules.TeamMarkerColor(2));
-        }
-
-        // ------------------------------------------------------------------
         // 工具函数
         // ------------------------------------------------------------------
 

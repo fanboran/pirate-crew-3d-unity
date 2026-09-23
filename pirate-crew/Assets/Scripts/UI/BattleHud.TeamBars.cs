@@ -313,20 +313,7 @@ namespace PirateCrew.UI
         }
 
         // 文字占位版（2026-09-24）：职业头像加载（LoadPortrait / PortraitCache）随图标退役删除。
-
-        // ------------------------------------------------------------------
-        // 单位头顶血条
-        // ------------------------------------------------------------------
-
-        void AttachOverheadBars()
-        {
-            if (battle == null)
-                return;
-
-            var pirates = battle.AllPirates;
-            for (int i = 0; i < pirates.Count; i++)
-                OverheadHealthBar.Attach(pirates[i]);
-        }
+        // 单位头顶血条已根除（非像素世界空间件清退），血量读数只走顶栏合成血条。
 
         // ------------------------------------------------------------------
         // 血量比例（原版 §4.1 的 28 帧口径，保留）
