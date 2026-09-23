@@ -1,17 +1,27 @@
-# UI 像素化标准参照（Terraria 截图）
+# UI 像素化标准参照（Aseprite 主题 / Terraria 截图）
 
 > **这份目录解决什么问题**：UI 换装成「Beveled Pixel」需要一个**可量的**标准，
 > 而不是"看着像"。两张创始人指定的参照图存这里，下面把图里的结构**逐像素量成数字**——
 > 生成器与验收判据都照这些数字写。
 >
-> 【出处更正 2026-09-24，创始人辨认】`ref-pixel-tool-dialog.png` 实为 **Aseprite**
-> （像素画软件）的 New Sprite 对话框截图，并非 Terraria——其按钮语法
-> （黑环 1 格 + 受光唇 1 格 + 平脸、无内暗线）与条槽五段语法本就是两套。
-> 血条/心星两张仍为 Terraria。
+> 【权威源升级 2026-09-24】参照本体确认为 **Aseprite**（像素画软件）的 UI——创始人指认
+> 并裁决"整个游戏复用 Aseprite 这套 UI"。其**主题扩展是完整可量的权威源**：
+> aseprite 仓库 `data/extensions/aseprite-theme/`（theme.xml = 尺寸/颜色/九宫格定义，
+> `dark/sheet.png` = 全部控件部件，`dark` 变体即截图那套深色皮），
+> 本地参照库 `external/aseprite-ref/`（稀疏克隆，不入库）。
+> **授权 CC-BY-4.0**（作者 David Capello / Ilija Melentijevic / Nicolas Desilets）——
+> 允许复用与改编、**须署名**（本 README 即署名处）。本仓不复制其贴图/字体文件，
+> 只把量得的几何与色值用本仓生成器重新实现（Beveled Pixel）。
+> Plate 按钮 = `dark/sheet.png` (48,0) `button_normal` 14×16 的逐像素转写；
+> 灰阶/强调色 = theme.xml `face` `#2C2C30`、`background` `#41444A`、
+> button 主体 `#292B30`、`editor_face` `#202125`、`check_hot_face` `#575B61`、
+> `button_selected` 蓝族 `#6E9ADB/#4069C2/#2A4185`、正文 `text` `#C0C0C0`。
+> 血条/心星两张仍为 Terraria（条槽五段语法的来源）。
 >
-> **版权与用途（读之前先看这条）**：两张图是《Terraria》（Re-Logic）的 UI 截图片段，
+> **版权与用途（读之前先看这条）**：Terraria 两张图是《Terraria》（Re-Logic）的 UI 截图片段，
 > 仅作为**内部风格目标**保存，**不得进构建产物、不得再分发**。本工程不复制它的任何贴图资源，
-> 只量它的**几何与色彩关系**，再用本工程自己的调色板重新生成。
+> 只量它的**几何与色彩关系**，再用本工程自己的调色板重新生成。Aseprite 参照同在本地工作台，
+> 发布物只有按其授权重新实现并署名的图。
 
 ---
 
