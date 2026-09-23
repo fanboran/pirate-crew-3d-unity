@@ -37,6 +37,18 @@
 - 尽量不要靠模拟点击
 - 耗时的活先说一声、放后台：烘场景 / 出包 / 全套测试都是分钟级命令，跑之前跟用户说一句，并用后台执行，别让他对着卡住的终端等；能靠读代码或日志回答的问题就别跑命令。
 
+### Worktree 公约（并行分支工作台）
+
+- 独立任务一律开 worktree 干：`git worktree add temp/<目录名> -b <分支名>`。worktree 统一放仓库根
+  `temp/` 下（已被根 .gitignore 的 `[Tt]emp/` 规则整体忽略，不会污染主仓 git status）。
+- 一个任务 = 一个 worktree = 一个分支；多 subagent 并行时天然文件域隔离，比口头约定文件域更可靠。
+- 任务收官（已合并/已废弃）后 `git worktree remove temp/<目录名>` 清理，别让 temp/ 堆尸体。
+- worktree 是完整检出：Unity 首次打开会各自重新导入 Library（分钟级）；Library 锁按目录隔离，
+  不同 worktree 可各跑一个 Unity，但同一 worktree 内仍一次只能一个 Unity 进程。
+- 在 worktree 里跑无头验证台必须显式指工程根：`external/harness/run.sh` 加
+  `-p:ProjectRoot=<worktree绝对路径>/pirate-crew`（否则反查回主仓，验了个寂寞）。
+- 仓库外也有历史 worktree（如 `../pirate-crew-3d-unity-ui`）——新开的一律收进 `temp/`，旧的不强制迁移。
+
 ### 文档写作规范
 
 - 专门记录变更的文档（`docs/项目/待办事项.md` 的归档区）可以写变更过程与提交哈希，普通文档只写「是什么 / 怎么设计 / 为什么这么设计」，不写「什么时候改的 / 之前是什么」这类变更记录，比如“（2026-09-22变更）”。Git 本身就是文档的历史版本。
