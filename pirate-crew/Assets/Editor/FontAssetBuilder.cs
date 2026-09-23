@@ -198,50 +198,46 @@ namespace PirateCrew.EditorTools
             int created = 0;
             int skipped = 0;
 
-            try
+            // 【不用 StartAssetEditing 批处理块】块内 DeleteAsset 是延迟执行的：
+            // ForceRebuild 先删后建同名资产时，CreateAsset 撞上未落盘的删除 → 
+            // UnityException: Creating asset failed（batchmode 实测，2026-09-24）。
+            // 5 个资产逐个即时导入，慢不了多少。
+            for (int i = 0; i < Specs.Length; i++)
             {
-                AssetDatabase.StartAssetEditing();
-                for (int i = 0; i < Specs.Length; i++)
+                FontSpec spec = Specs[i];
+
+                Font sourceFont = AssetDatabase.LoadAssetAtPath<Font>(spec.SourceTtfPath);
+                if (sourceFont == null)
                 {
-                    FontSpec spec = Specs[i];
-
-                    Font sourceFont = AssetDatabase.LoadAssetAtPath<Font>(spec.SourceTtfPath);
-                    if (sourceFont == null)
-                    {
-                        Debug.LogError("[FontAssetBuilder] 找不到源字体 ttf: " + spec.SourceTtfPath
-                            + "\n  请把 OFL 授权允许再分发的 ttf 放到 " + FontsFolder + "/ 后重试；"
-                            + "授权文件应放在 " + FontsFolder + "/Licenses/。");
-                        continue;
-                    }
-
-                    TMP_FontAsset existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(spec.AssetPath);
-                    if (existing != null && !force)
-                    {
-                        skipped++;
-                        Debug.Log("[FontAssetBuilder] 已存在，跳过（幂等）: " + spec.AssetPath);
-                        continue;
-                    }
-
-                    if (existing != null && force)
-                    {
-                        // 强制重建：旧资产的贴图/材质是它的子资产，删除资产即可一并清除。
-                        AssetDatabase.DeleteAsset(spec.AssetPath);
-                    }
-
-                    TMP_FontAsset fontAsset = CreateOne(spec, sourceFont);
-                    if (fontAsset != null)
-                    {
-                        created++;
-                        Debug.Log("[FontAssetBuilder] 已生成 " + spec.AssetPath
-                            + "（" + spec.Purpose + "，Dynamic + 多图集，采样 "
-                            + spec.SamplingPointSize + "，padding " + spec.AtlasPadding
-                            + "，初始图集 " + spec.AtlasWidth + "×" + spec.AtlasHeight + "）");
-                    }
+                    Debug.LogError("[FontAssetBuilder] 找不到源字体 ttf: " + spec.SourceTtfPath
+                        + "\n  请把 OFL 授权允许再分发的 ttf 放到 " + FontsFolder + "/ 后重试；"
+                        + "授权文件应放在 " + FontsFolder + "/Licenses/。");
+                    continue;
                 }
-            }
-            finally
-            {
-                AssetDatabase.StopAssetEditing();
+
+                TMP_FontAsset existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(spec.AssetPath);
+                if (existing != null && !force)
+                {
+                    skipped++;
+                    Debug.Log("[FontAssetBuilder] 已存在，跳过（幂等）: " + spec.AssetPath);
+                    continue;
+                }
+
+                if (existing != null && force)
+                {
+                    // 强制重建：旧资产的贴图/材质是它的子资产，删除资产即可一并清除。
+                    AssetDatabase.DeleteAsset(spec.AssetPath);
+                }
+
+                TMP_FontAsset fontAsset = CreateOne(spec, sourceFont);
+                if (fontAsset != null)
+                {
+                    created++;
+                    Debug.Log("[FontAssetBuilder] 已生成 " + spec.AssetPath
+                        + "（" + spec.Purpose + "，Dynamic + 多图集，采样 "
+                        + spec.SamplingPointSize + "，padding " + spec.AtlasPadding
+                        + "，初始图集 " + spec.AtlasWidth + "×" + spec.AtlasHeight + "）");
+                }
             }
 
             LinkFallbacks();
