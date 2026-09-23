@@ -95,6 +95,8 @@ namespace PirateCrew.EditorTools
                     continue;
                 Mesh asset = EnsureMeshAssetFromRuntime(MeshFolder + "/" + runtimeMesh.name + ".asset", runtimeMesh);
                 filter.sharedMesh = asset;
+                // 运行时网格数据已拷入资产，本体无资产宿主，不销则每次烘焙滞留一个匿名 Mesh。
+                Object.DestroyImmediate(runtimeMesh);
             }
 
             // 材质 → 资产（Lowpoly 槽位材质原本只在运行时缓存，烘焙侧落盘同参数 .mat）。

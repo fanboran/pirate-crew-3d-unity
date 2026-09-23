@@ -715,12 +715,6 @@ namespace PirateCrew.SceneArt.Showcase
         // 5：遗迹
         // ==================================================================
 
-        /// <summary>
-        /// 东侧半塌遗迹：3 级台基 + 6 根石柱（2 断 + 1 倒）+ 断拱 + 台中主晶（悬浮 + 光环 + 环绕碎晶）
-        /// + 散落石块 + 苔草。
-        /// 【构图用意】浮空岛最怕"只有自然物"——一处人工废墟立刻给出"有人来过、然后离开了"的叙事，
-        /// 也让视线在岛面上有落点。断柱与倒塌的过梁是"时间"的读法，比完好的神庙更耐看。
-        /// </summary>
         /// <summary>台基（3 级石板）顶面高度：取覆盖半径 r 的那级石板顶（与 AddRuins 的三级 AddSlab 参数一致）。</summary>
         static float DaisTop(float radius, float y0)
         {
@@ -730,6 +724,12 @@ namespace PirateCrew.SceneArt.Showcase
             return y0;
         }
 
+        /// <summary>
+        /// 东侧半塌遗迹：3 级台基 + 6 根石柱（2 断 + 1 倒）+ 断拱 + 台中主晶（悬浮 + 光环 + 环绕碎晶）
+        /// + 散落石块 + 苔草。
+        /// 【构图用意】浮空岛最怕"只有自然物"——一处人工废墟立刻给出"有人来过、然后离开了"的叙事，
+        /// 也让视线在岛面上有落点。断柱与倒塌的过梁是"时间"的读法，比完好的神庙更耐看。
+        /// </summary>
         static void AddRuins(IslandBuffers buffers, FloatingIslandSpec spec, Vector3 center, int seed)
         {
             MeshBuffers stone = buffers.Stone;

@@ -226,6 +226,12 @@ namespace PirateCrew.SceneArt.Lowpoly
             var triangles = new List<int>(source.IndexCount);
             source.CopyTo(vertices, normals, triangles);
 
+            // 【本实例的宿主与销毁责任】这里 new 出来的 Mesh 是运行时原生对象，**没有资产宿主**：
+            //   · 运行时重建路径由 <see cref="FreshChild"/> → ReleaseStageMeshes 先回收旧网格；
+            //   · 编辑器烘焙路径（SceneArtBaker.BakeCloudField）会把 filter.sharedMesh 换成
+            //     .asset 资产引用——换完必须由烘焙器销毁本实例（持局部引用 DestroyImmediate，
+            //     且只能在换引用处销；换完再按 MeshFilter 收集会误销刚挂上的资产网格），
+            //     否则每次烘焙泄 2 个匿名 Mesh（DestroyImmediate(root) 只销 GameObject）。
             var mesh = new Mesh { name = objectName };
             mesh.indexFormat = IndexFormat.UInt32;
             mesh.SetVertices(vertices);

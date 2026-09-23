@@ -91,7 +91,7 @@ namespace PirateCrew.ArtReview
 
         /// <summary>
         /// battle-45/hud-fullscreen 瞄准点的高度（世界 Y）。地面顶面 y=0，单位身高约 1.5–2，
-        /// 瞄 0.8 约在胸口；必须与 `ArtReviewShots.cs` 的 LookAtOffset.y 一致。
+        /// 瞄 1.2 落在胸口高度；必须与 `ArtReviewShots.cs` 的 LookAtOffset.y 一致。
         /// </summary>
         const float TeamMidAimHeight = 1.2f;
 
@@ -154,14 +154,16 @@ namespace PirateCrew.ArtReview
             }
 
             // 多关卡出图验收：覆盖 BattleController 的关卡解析（见 ArtReviewCaptureOverride）。
+            // 【只在出图会话里生效】放在 outDir 检查之后：没装采集会话（无任何出图开关）就不写
+            // 覆盖——否则 `-artReviewLevel N` 会脱离会话单独劫持选关解析。
+            if (string.IsNullOrEmpty(outDir))
+                return; // 正常启动：零开销，什么都不装。
+
             if (CommandLineOptions.TryGetInt(ToolFlags.ArtReviewLevel, out int levelArg)
                 && levelArg >= 1 && levelArg <= SceneArt.ShowcaseLevels.LastLevel)
             {
                 ArtReviewCaptureOverride.LevelNumber = levelArg;
             }
-
-            if (string.IsNullOrEmpty(outDir))
-                return; // 正常启动：零开销，什么都不装。
 
             var go = new GameObject("[PlayerArtCapture]");
             go.AddComponent<PlayerArtCapture>()._outDir = outDir;
@@ -279,6 +281,21 @@ namespace PirateCrew.ArtReview
             global::PirateCrew.Core.Log.Info("[PlayerArtCapture] 采集完成，退出。目录：" + _outDir);
             yield return new WaitForSeconds(0.5f);
             Application.Quit(0);
+        }
+
+        /// <summary>
+        /// 出图会话收尾：把 <see cref="ArtReviewCaptureOverride.LevelNumber"/> 归零。
+        ///
+        /// 【为什么必须清】那是静态字段（协程类型不能被 Battle 反向引用才独立成类），
+        /// 消费点在选关解析 <c>Battle/Levels/LevelSourceResolver</c> 的 ① 级覆盖——
+        /// 编辑器会话内跑过一次 <c>-artReviewLevel N</c> 出图后若不清，残留值会劫持
+        /// 之后的每一次 Play 的选关解析。本组件只活在出图会话里（DontDestroyOnLoad，
+        /// 退出播放/退出播放器时销毁），OnDestroy 是所有收尾路径（采集完成 / 中途失败 /
+        /// 手动停止）的公共出口，不需要逐条协程路径补清理。
+        /// </summary>
+        void OnDestroy()
+        {
+            ArtReviewCaptureOverride.LevelNumber = 0;
         }
 
         // ================================================================
@@ -870,7 +887,11 @@ namespace PirateCrew.ArtReview
                 shots.Add(NewShot(WeaponPanelShotName, true,
                     c + new Vector3(0f, 11.5f, 10.61f), 60f, aim));
                 // 纯 HUD 武装演示（空白背景 + 武器面板开）。
-                shots.Add(NewShot(ShowcaseArmedShotName, true, c, 60f, c));
+                // 【瞄准点偏 +forward】这两个 showcase 机位 position==构图中心，若 lookTarget
+                // 也取同点，Quaternion.LookRotation 收到零向量会每帧打
+                // "Look rotation viewing vector is zero" 错误；cullingMask=0 下朝向不影响画面，
+                // 只取 +forward 让机位有确定的合法朝向。
+                shots.Add(NewShot(ShowcaseArmedShotName, true, c, 60f, c + Vector3.forward));
 
                 Vector3 u = _focusUnit.position;
                 shots.Add(NewShot(UnitCloseupShotName, false,
@@ -883,7 +904,8 @@ namespace PirateCrew.ArtReview
                 c + new Vector3(0f, 5f, -7f), 60f, c + new Vector3(0f, 0.5f, 0f)));
 
             // 纯 HUD 常态演示（空白背景）放最末：不依赖选中，3D/粒子全被裁掉。
-            shots.Add(NewShot(ShowcaseShotName, true, c, 60f, c));
+            // lookTarget 偏 +forward 的原因见上面 ShowcaseArmedShotName（避开零向量 LookRotation）。
+            shots.Add(NewShot(ShowcaseShotName, true, c, 60f, c + Vector3.forward));
 
             return shots.ToArray();
         }

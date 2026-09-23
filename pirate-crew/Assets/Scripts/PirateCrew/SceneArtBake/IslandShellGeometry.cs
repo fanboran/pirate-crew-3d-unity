@@ -577,12 +577,27 @@ namespace PirateCrew.SceneArt
             return total;
         }
 
+        /// <summary>gap < 0 的坏参数告警只打一次（同一次构建 4 条边会带同样的坏值进来）。</summary>
+        static bool _dashGapWarned;
+
         static int AddDashesAlong(MeshBuffers b, float from, float to, float lineAt, float outwardSign,
             bool alongX, float y, float dashLength, float gap, float half)
         {
             float length = Mathf.Abs(to - from);
             if (length <= 0f)
                 return 0;
+
+            // gap < 0 会让步距 <= 0、下面的 for 永不前进（死循环）——非法参数直接拒收本条虚线。
+            if (gap < 0f)
+            {
+                if (!_dashGapWarned)
+                {
+                    _dashGapWarned = true;
+                    global::PirateCrew.Core.Log.Warn(
+                        "[IslandShellGeometry] AddDashedBorder 收到 gap < 0（步距死循环）——本条虚线不铺。");
+                }
+                return 0;
+            }
 
             float step = dashLength + gap;
             int count = 0;
@@ -636,7 +651,10 @@ namespace PirateCrew.SceneArt
 
         /// <summary>
         /// 把所有平台簇底部按材质写入：<see cref="PlatformClusterKind.Ship"/> → 暗木（水线以下船板/龙骨），
-        /// 空岛 / 梯田岛 → 岩。编辑器 <c>SceneArtBuilder</c> 用这个，使底部与既有材质组（DrawCall）合并。
+        /// 空岛 / 梯田岛 → 岩，使底部与既有材质组（DrawCall）合并。
+        /// 【消费链现状】当前**没有生产调用方**（原编辑器构建器 <c>SceneArtBuilder</c> 已删除；
+        /// 现在进 prefab 的烘焙件只走 <c>AddDashedBorder</c> 危险虚线一条链）。
+        /// 【去留裁决留给创始人】重新接线复用前，先跑 Showcase 出图验证底部收形与水线暗带的观感。
         /// 同时沿每个簇包络在**水线**处补一圈窄暗部（并入暗木/岩）与一条细泡沫线（并入 Foam 组）：
         /// 修 r2 诊断「平台与水面交界是平直切边、无底面感、无接触暗部、无浪」。
         /// </summary>
@@ -776,8 +794,14 @@ namespace PirateCrew.SceneArt
                 float dx = cx + SceneArtHash.SignedHash(clusterIndex, i, 29) * halfX * 0.6f;
                 float dz = cz + SceneArtHash.SignedHash(clusterIndex, i, 31) * halfZ * 0.6f;
                 float dripLen = 0.36f + SceneArtHash.Hash01(clusterIndex, i, 37) * 0.84f;
-                b.AddFrustum(new Vector3(dx, tipY + 0.1f, dz), 0.06f, 0.14f, dripLen, 5,
-                    i * 47f, capTop: false, capBottom: true);
+                // AddFrustum 正 height 沿 +Y 生长，直接正着摆会把锥长进收形锥内部——
+                // 先在局部搭正立锥（粗端 y=0 / 细尖 y=+dripLen，两端封盖），再绕 X 翻转
+                // 180° 落位成垂向下的钟乳（同 <c>IslandPrimitives.AddStalactite</c> 的做法；
+                // 刚体翻转下封盖法线跟着转朝外；负高度方案会让两端盖面法线朝内）。
+                var drip = new MeshBuffers();
+                drip.AddFrustum(Vector3.zero, 0.14f, 0.06f, dripLen, 5, i * 47f, true, true);
+                b.AppendTransformed(drip, SceneArtRot.Trs(
+                    new Vector3(dx, tipY + 0.1f, dz), SceneArtRot.Euler(180f, 0f, 0f), Vector3.one));
             }
         }
 
@@ -822,6 +846,17 @@ namespace PirateCrew.SceneArt
                     (a1.z + b1.z) * 0.5f - cz);
                 b.AddQuad(a0, b0, b1, a1, outward.sqrMagnitude > 1e-9f ? outward.normalized : Vector3.up);
             }
+
+            // 末环封底：<see cref="IslandShellSettings.UndersideTipRatio"/> > 0 时末环不塌缩到点
+            // （上面"收到一点"的三角形收口不走），岛底会留一圈环形洞——对每条岛缘边的末环段
+            // 补一个法线朝下的扇面三角（扇心 = 锥尖轴心；相邻缘边共享缩放后的格角点，
+            // 逐边扇形拼成整圈封底，与 FloatingIslandComposer 收锥 AddFan(…, Vector3.down) 同口径）。
+            if (tipRatio > 1e-4f)
+            {
+                Vector3 tipA = new Vector3(cx + (ax - cx) * tipRatio, tipY, cz + (az - cz) * tipRatio);
+                Vector3 tipB = new Vector3(cx + (bx - cx) * tipRatio, tipY, cz + (bz - cz) * tipRatio);
+                AddOrientedTriangle(b, tipA, tipB, new Vector3(cx, tipY, cz), Vector3.down);
+            }
         }
 
         /// <summary>按外法线提示决定绕序的三角形（MeshBuffers 只有四边形版的自动翻面，这里补三角形版）。</summary>
@@ -839,7 +874,8 @@ namespace PirateCrew.SceneArt
 
         /// <summary>
         /// 格边是否属于**簇内部**（两侧的格都属于本簇）。
-        /// 边由两个格角坐标给出，用"边中点两侧各偏 0.1 格"的两个采样点判定。
+        /// 边由两个格角坐标给出，用"边中点沿法线两侧各偏 0.5 格角（半格，恰好跨进相邻格）"
+        /// 的两个采样点判定。
         /// </summary>
         static bool IsEdgeInterior(TileTerrainGrid grid, int clusterIndex, int ax, int az, int bx, int bz)
         {
@@ -1123,7 +1159,8 @@ namespace PirateCrew.SceneArt
             Vector3 k1 = stern + Vector3.down * 0.12f;
             b.AddBentTube(new[] { k0, k1 }, 0.16f, 0.16f, 5);
 
-            // 水线木带：沿两舷顶缘一圈薄条（暗木，强化侧板分层）。
+            // 水线木带：只铺 **+Z 一舷**顶缘的薄条（暗木，强化侧板分层）；
+            // -Z 舷没有对应件，别按"沿两舷一圈"理解。
             float bandY = topY - 0.32f;   // 距离类 ×2
             b.AddQuad(
                 new Vector3(x0 + inset, topY, z1 - inset), new Vector3(x1 - inset, topY, z1 - inset),

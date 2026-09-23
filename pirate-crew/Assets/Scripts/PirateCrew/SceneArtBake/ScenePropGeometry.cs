@@ -11,7 +11,14 @@ namespace PirateCrew.SceneArt
     /// （场景文档 §8「同类共材质 + GPU Instancing / 静态合批」，本实现取"构建期合并"这条
     /// 更彻底的路：DrawCall 与实例数无关）。
     ///
-    /// 【分组与材质的对应】见 <c>Assets/Editor/SceneArtBuilder.cs</c>：
+    /// 【消费链现状】道具/水线几何家族当前**没有生产调用方**（原编辑器构建器
+    /// <c>Assets/Editor/SceneArtBuilder.cs</c> 已删除）；全仓对 <see cref="ScenePropGeometry"/>
+    /// 的唯一在用入口是 <c>FloatingIslandComposer</c> 遗迹光环的 <c>AddRingLoop</c>
+    /// （写进 Glow 组）。烘焙进 prefab 的危险虚线走的是
+    /// <c>IslandShellGeometry.AddDashedBorder</c>（Danger 组），不经道具家族。
+    /// 【去留裁决留给创始人】重新接线复用前，先跑 Showcase 出图验证观感。
+    ///
+    /// 【分组与材质的对应】（原 SceneArtBuilder 时代的分配，重接时按此对照材质组）：
     ///   Wood/WoodDark/Rock/Metal/Foliage/Cloth/FlagRed/FlagBlue 用
     ///   <c>PirateCrew/PirateOutline</c>（本体 + #2A2A2A 描边，满足场景文档 M12）；
     ///   Foam/Danger/WaterDark 用 URP/Unlit 半透明（不参与光照、不投影，场景文档 §5.3）；
@@ -331,7 +338,11 @@ namespace PirateCrew.SceneArt
 
             var trunk = new MeshBuffers();
             trunk.AddBentTube(trunkPoints, 0.30f, 0.19f, 6);
-            b.Wood.AppendTransformed(trunk, SceneArtRot.Trs(basePos, SceneArtRot.Euler(0f, yawDegrees, 0f), Vector3.one));
+            // 树干与叶簇共用同一 yaw 矩阵（同一刚体）：叶簇原点取干顶 trunkPoints[3]（未旋转
+            // 的局部点、随 lean 弯出 xz 偏移），若叶簇不随 yaw 转，树干转向后叶簇仍落在
+            // 未旋转的干顶位置，与树梢脱节。
+            Matrix4x4 yawMatrix = SceneArtRot.Trs(basePos, SceneArtRot.Euler(0f, yawDegrees, 0f), Vector3.one);
+            b.Wood.AppendTransformed(trunk, yawMatrix);
 
             Vector3 top = trunkPoints[3];
             var leaves = new MeshBuffers();
@@ -350,7 +361,7 @@ namespace PirateCrew.SceneArt
                 leaves.AddLeaf(top, dir, length, width, droop, segments);
             }
 
-            b.Foliage.AppendTransformed(leaves, SceneArtRot.Trs(basePos, Quaternion.identity, Vector3.one));
+            b.Foliage.AppendTransformed(leaves, yawMatrix);
         }
 
         /// <summary>灌木：2-4 个 0.5-0.9 的圆丘成组（场景文档 §3.4）。走植被档。</summary>
@@ -556,10 +567,13 @@ namespace PirateCrew.SceneArt
             }
 
             // ---- 主桅（折断，残高 6.4，基径 0.45→0.28，向 -Z 倾斜 22°）----
+            // 桅杆落位矩阵被三处共用：桅杆本体、横桁挂点（下方 yardMatrix）、桅顶锚点
+            // （破帆顶缘 / 缆绳 / 桅顶铁环）——锚点必须走同一矩阵，才与倾斜后的桅尖严格对齐。
+            Matrix4x4 mastMatrix = SceneArtRot.Trs(
+                new Vector3(-halfLength * 0.42f, 0f, 0f), SceneArtRot.Euler(-22f, 0f, 0f), Vector3.one);
             var mast = new MeshBuffers();
             mast.AddFrustum(new Vector3(0f, -0.5f, 0f), 0.45f, 0.28f, 6.4f, 8);
-            wood.AppendTransformed(mast, SceneArtRot.Trs(
-                new Vector3(-halfLength * 0.42f, 0f, 0f), SceneArtRot.Euler(-22f, 0f, 0f), Vector3.one));
+            wood.AppendTransformed(mast, mastMatrix);
 
             // ---- 副桅（上截断裂的残桩，向 -Z 倒 12°）----
             var stump = new MeshBuffers();
@@ -574,12 +588,15 @@ namespace PirateCrew.SceneArt
             // 让"横桁"沿 Z 轴摆放：先建成沿 +Y 的锥，再绕 X 旋转 -90°。
             var yardRotated = new MeshBuffers();
             yardRotated.AppendTransformed(yard, SceneArtRot.Trs(Vector3.zero, SceneArtRot.Euler(-90f, 0f, 0f), Vector3.one));
-            var yardMatrix = SceneArtRot.Trs(new Vector3(-halfLength * 0.42f, 0f, 0f), SceneArtRot.Euler(-22f, 0f, 0f), Vector3.one)
+            var yardMatrix = mastMatrix
                 * SceneArtRot.Trs(new Vector3(0f, mastHeight * 0.6f, 0f), Quaternion.identity, Vector3.one);
             woodDark.AppendTransformed(yardRotated, yardMatrix);
 
             // ---- 破帆：2 片挂在横桁上（双面、带撕裂缺口）----
-            Vector3 sailTopWorldLocal = new Vector3(-halfLength * 0.42f, mastHeight * 0.6f, 0f);
+            // 顶缘挂点 = 横桁在桅杆局部的高度（mastHeight*0.6）经桅杆倾斜矩阵变换——横桁随桅
+            // 一起倾斜（-22° 绕 X），破帆顶缘必须跟到同一处；帆布下垂形状仍在船体局部展开，
+            // 只旋转挂点、不旋转下垂偏移。
+            Vector3 sailTopWorldLocal = mastMatrix.MultiplyPoint3x4(new Vector3(0f, mastHeight * 0.6f, 0f));
             for (int i = 0; i < 2; i++)
             {
                 float z = i == 0 ? -1.0f : 0.9f;
@@ -592,7 +609,10 @@ namespace PirateCrew.SceneArt
             }
 
             // ---- 缆绳：桅顶斜拉到船体两端（2 条）+ 桅顶到副桅（1 条）----
-            Vector3 mastTopLocal = new Vector3(-halfLength * 0.42f + 6.4f * Mathf.Sin(22f * Mathf.Deg2Rad), 6.4f * Mathf.Cos(22f * Mathf.Deg2Rad) - 0.5f, 0f);
+            // 桅顶锚点 = 桅杆局部顶点（基座 -0.5 + 残高 6.4 = 5.9）经桅杆倾斜矩阵变换：
+            // 倾斜 22° 后 y ≈ 5.9·cos22° ≈ 5.47、z ≈ -5.9·sin22° ≈ -2.21，与倾斜桅尖
+            // 严格一致（倾斜发生在桅杆局部原点，分量只落在 YZ 平面，不产生 X 向位移）。
+            Vector3 mastTopLocal = mastMatrix.MultiplyPoint3x4(new Vector3(0f, -0.5f + 6.4f, 0f));
             cloth.AddRod(mastTopLocal, new Vector3(-halfLength * 0.95f, 0.2f, beam * 0.4f), 0.05f, 4);
             cloth.AddRod(mastTopLocal, new Vector3(halfLength * 0.9f, -0.2f, -beam * 0.35f), 0.05f, 4);
             cloth.AddRod(mastTopLocal, new Vector3(halfLength * 0.45f, 1.4f, 0f), 0.045f, 4);
@@ -703,7 +723,8 @@ namespace PirateCrew.SceneArt
         ///
         /// 【提案·分层】<paramref name="tier"/> 0=近 / 1=中 / 2=远：远层用更少的峰与更平缓的脊线
         /// （远景在雾里只应剩剪影轮廓，细节多了反而像"贴图"），近层保留更多起伏。
-        /// 颜色不在这里定，由使用方按 tier 选"近档 / 中档 / 远档"材质（SceneArtBuilder）。
+        /// 颜色不在这里定，由使用方按 tier 选"近档 / 中档 / 远档"材质（原使用方 SceneArtBuilder
+        /// 已删除，重接时按此分层对照材质组）。
         /// </summary>
         public static void AddFarIsland(MeshBuffers target, Vector3 basePos, float width, float height, int seed, int tier = 0)
         {

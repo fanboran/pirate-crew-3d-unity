@@ -421,6 +421,9 @@ namespace PirateCrew.SceneArt
             {
                 int index = source._triangles[i];
                 Vector3 position = matrix.MultiplyPoint3x4(source._vertices[index]);
+                // 【法线前提：等比/无缩放】MultiplyVector 对法线做的是与顶点相同的线性变换，
+                // 只在矩阵无**非均匀缩放**时结果仍垂直于面（当前全部调用方都传 Vector3.one）。
+                // 带非均匀缩放调用前必须改用逆转置变换法线，否则面法线会歪（平面着色直接错光）。
                 Vector3 normal = matrix.MultiplyVector(source._normals[index]);
                 if (normal.sqrMagnitude < 1e-12f)
                     normal = Vector3.up;

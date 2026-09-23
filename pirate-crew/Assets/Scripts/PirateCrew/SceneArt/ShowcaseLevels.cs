@@ -9,7 +9,7 @@ namespace PirateCrew.SceneArt
     /// <summary>烘焙陈设件种类（= SceneArtBaker 的产物；一个种类一个 prefab 资产）。</summary>
     public enum ShowcasePieceId
     {
-        /// <summary>落水危险虚线（样板三关共用一圈）。</summary>
+        /// <summary>落水危险虚线（样板关共用一圈）。</summary>
         DangerBorder = 0,
 
         /// <summary>低模云场（第 1 关「云端漫步」主景）。</summary>
@@ -40,11 +40,10 @@ namespace PirateCrew.SceneArt
         }
     }
 
-    /// <summary>
-    /// 样板三关数据层的**读口**（数据本身在关卡资产里，不在代码里）：
+    /// <summary>样板关数据层的**读口**（数据本身在关卡资产里，不在代码里）：
     ///   L1 云端漫步（教学：投掷手感 / 回合流转 / 小心坠落）
-    ///   L2 碎岛雨（进阶：落水威胁 / 跨岛精度 / 阵地武器）
     ///   L3 天空之岛（考核：以少打多 4v5 / 越水控场武器）
+    ///   （关卡 2「碎岛雨」已删除，关卡号不重编——号段有意不连续，口径见 <see cref="BakedPlacements"/>。）
     /// 数值依据逐条引用在各设计文档（docs/设计/关卡/L0N-*.md，AI 提案，待用户终审）。
     ///
     /// 【本类现在是什么】纯读口：编成 / luck / 武器池 / 逻辑高度场 / 烘焙件摆位全部来自
@@ -55,8 +54,7 @@ namespace PirateCrew.SceneArt
     /// 【架构口径（未变）】格子是**不可见的逻辑高度场**，只承担两件玩家看不见的事：
     ///   1) 单位站位高度——<c>BattleController.SpawnTeams</c> 用 <c>TileTerrainGrid.SurfaceWorldY</c>；
     ///   2) AI 落点评估——<c>AiTerrain</c> 按格判实心/落水。
-    /// 渲染层由烘焙 prefab 按摆位表实例化（RuntimeSceneArt）；L2 的碎岛壳直接从逻辑高度场
-    /// 烘出（IslandShellGeometry.BuildSolidShell），逻辑-视觉按构造对齐。
+    /// 渲染层由烘焙 prefab 按摆位表实例化（RuntimeSceneArt），与逻辑层共用同一份高度场资产对齐。
     ///
     /// 【尺度】1 格 = 2 单位（LevelGeometry.TileWorldSize）；块高 0.5 单位
     /// （LevelGeometry.BlockWorldHeight = PixelsToUnits(8)）；水面 y=-0.4。场地统一 20×15 格。
@@ -69,7 +67,7 @@ namespace PirateCrew.SceneArt
         /// <summary>关卡号末位。</summary>
         public const int LastLevel = 3;
 
-        /// <summary>场地宽度（逻辑格）——样板三关统一尺寸，也是空岛展示件对齐用的场地口径。</summary>
+        /// <summary>场地宽度（逻辑格）——样板关统一尺寸，也是空岛展示件对齐用的场地口径。</summary>
         public const int WidthTiles = 20;
 
         /// <summary>场地纵深（逻辑格）。</summary>
