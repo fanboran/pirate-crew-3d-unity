@@ -262,7 +262,7 @@ namespace PirateCrew.UI
             return Mathf.Sqrt(cx * cx + cy * cy);
         }
 
-        /// <summary>标准五角星判定（角度法，与 UiSprites 同式；tintable 版供染色星级）。</summary>
+        /// <summary>标准五角星判定（角度法；tintable 白形供染色星级）。</summary>
         public static bool InsideStar(float x, float y, float outerRadius, float innerRadius)
         {
             float r = Mathf.Sqrt(x * x + y * y);

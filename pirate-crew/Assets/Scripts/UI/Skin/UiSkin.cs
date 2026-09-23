@@ -22,7 +22,7 @@ namespace PirateCrew.UI
     ///
     /// 【单一真值】全项目字号体系（原 <c>MenuUiBuilder.FontScale</c>，用户 2026-09-14 裁决
     /// "整体下调一档"）迁移到本类 <see cref="Font"/>；皮肤形状 / 语义色也只许引用本类，
-    /// 禁止散落魔法值（同 <see cref="UiTheme"/> 的纪律）。
+    /// 禁止散落魔法值（单一真值纪律，同本类其余令牌段）。
     ///
     /// 【可测性】只含常量 / 纯函数（<see cref="ContrastRatio"/> 是 WCAG 2.1 相对亮度比的
     /// 纯 C# 实现），不触碰 GameObject，可在无头验证台断言。

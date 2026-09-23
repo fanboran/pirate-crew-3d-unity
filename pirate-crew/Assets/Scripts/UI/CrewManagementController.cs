@@ -20,7 +20,7 @@ namespace PirateCrew.UI
     /// 【本波次改造】文本 TMP 化 + 全中文（<see cref="UiStrings"/> / <see cref="UiTextRules"/>）；
     /// 行/按钮换羊皮纸 + 木板九宫格；行字号走 <see cref="UiSkin.Font"/>（正文档）
     ///（别名 = <see cref="UiSkin.Font.Body"/> 36：像素栅格并档后旧「双轨降档」退役，
-    /// RuntimeUiBuilder 直传渲染，不经 MenuUiBuilder.ScaleLegacyFont，见 UiTheme 字号段说明）。
+    /// RuntimeUiBuilder 直传渲染，字号真值 = <see cref="UiSkin.Font"/>）。
     /// 事件契约与订阅清单不变。
     /// </summary>
     public sealed class CrewManagementController : MonoBehaviour
