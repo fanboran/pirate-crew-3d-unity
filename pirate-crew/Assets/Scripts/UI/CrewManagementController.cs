@@ -26,7 +26,7 @@ namespace PirateCrew.UI
     public sealed class CrewManagementController : MonoBehaviour
     {
 
-        const float RowHeight = 96f;   // 令牌按钮 72 + 上下各 12（位点）
+        const float RowHeight = 48f;   // 令牌按钮 24 + 上下各 12（2026-09-24 紧凑档；与选关行密度一致）
 
         [Header("引用（场景内直连）")]
         [SerializeField] TextMeshProUGUI summaryText;

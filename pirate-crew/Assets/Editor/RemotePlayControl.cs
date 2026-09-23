@@ -92,6 +92,19 @@ namespace PirateCrew.EditorTools
                 return;
             }
 
+            if (content.StartsWith("capture:"))
+            {
+                string target = content.Substring(8).Trim();
+                _busy = true;
+                Debug.Log("[RemotePlayControl] 收到 capture:" + target + "，走 UiPixelScreenCapture 状态机。");
+                if (target == "all")
+                    PirateCrew.EditorTools.UiPixelScreenCapture.CaptureAllFour();
+                else
+                    PirateCrew.EditorTools.UiPixelScreenCapture.CaptureScene(target);
+                EditorApplication.delayCall += () => _busy = false;
+                return;
+            }
+
             if (content.StartsWith("play:"))
             {
                 string target = content.Substring(5).Trim();

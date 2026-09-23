@@ -33,6 +33,9 @@ namespace PirateCrew.EditorTools
         /// <summary>战斗 HUD。</summary>
         public static void CaptureBattle() => Start("Battle");
 
+        /// <summary>按场景名单采（遥控桥 capture:&lt;场景名&gt; 用；需要编辑器 GUI）。</summary>
+        public static void CaptureScene(string sceneName) => Start(sceneName);
+
         /// <summary>四屏连采（一次编辑器启动全部拿到；Battle 放最后——需要选中角色入画）。
         /// 无头走查入口：<c>-executeMethod PirateCrew.EditorTools.UiPixelScreenCapture.CaptureAllFour</c>
         /// （**非 batchmode**：ScreenCapture 需要图形设备，挂 GUI 编辑器启动参数即可）。</summary>

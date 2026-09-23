@@ -102,31 +102,34 @@ namespace PirateCrew.UI
         /// <summary>
         /// 按显示字号就近解析像素字体档（创始人 2026-09-24 裁决：**文字解除 3px 栅格**——
         /// 像素字体的字形轮廓自带颗粒感，字号按可读性自由取值，不再要求「字号 ÷ 3 = 原生档」；
-        /// 像素字体的 SDF 资产（FusionPixel12-sdf / ArkPixel10-sdf）在任意字号按屏幕分辨率锐利重采样）。
+        /// 【2026-09-24 走查裁决】文字不再用 12px 网格像素字体——它的笔画天生 1 设计像素粗，
+/// 大字号下读成"三格粗"，用不满 1080p 的精度。改矢量楷体 SDF 档
+/// （LXGWWenKaiLite-Medium / Regular，任意字号笔画 1px 级、锐利）；像素风由
+/// UI 件（Plate/Track 九宫格）与 3D 渲染承担，文字只负责可读。
         /// 规则：字号 ≥ 15 用 12px 档（FusionPixel），更小用 10px 档（ArkPixel）；
         /// 两档都缺失时回落调用方传入的兜底字体。
         /// </summary>
         public static TMP_FontAsset ResolvePixelFont(int fontSize, TMP_FontAsset fallback = null)
         {
-            TMP_FontAsset resolved = fontSize >= 15 ? PixelFont12() : PixelFont10();
+            TMP_FontAsset resolved = fontSize >= 15 ? TextFontMain() : TextFontSmall();
             return resolved != null ? resolved : fallback;
         }
 
-        static TMP_FontAsset PixelFont12()
+        static TMP_FontAsset TextFontMain()
         {
             if (_pixelFont == null)
-                _pixelFont = Resources.Load<TMP_FontAsset>("Fonts/FusionPixel12-sdf");
+                _pixelFont = Resources.Load<TMP_FontAsset>("Fonts/LXGWWenKaiLite-Medium SDF");
             if (_pixelFont == null)
-                Debug.LogWarning("[UiKit] Resources/Fonts/FusionPixel12-sdf 缺失（跑 PirateCrew/Fonts/生成 TMP 中文字体资产）");
+                Debug.LogWarning("[UiKit] Resources/Fonts/LXGWWenKaiLite-Medium SDF 缺失（跑 PirateCrew/Fonts/生成 TMP 中文字体资产）");
             return _pixelFont;
         }
 
-        static TMP_FontAsset PixelFont10()
+        static TMP_FontAsset TextFontSmall()
         {
             if (_pixelSmallFont == null)
-                _pixelSmallFont = Resources.Load<TMP_FontAsset>("Fonts/ArkPixel10-sdf");
+                _pixelSmallFont = Resources.Load<TMP_FontAsset>("Fonts/LXGWWenKaiLite-Regular SDF");
             if (_pixelSmallFont == null)
-                Debug.LogWarning("[UiKit] Resources/Fonts/ArkPixel10-sdf 缺失（跑 PirateCrew/Fonts/生成 TMP 中文字体资产）");
+                Debug.LogWarning("[UiKit] Resources/Fonts/LXGWWenKaiLite-Regular SDF 缺失");
             return _pixelSmallFont;
         }
 

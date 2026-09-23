@@ -123,7 +123,7 @@ namespace PirateCrew.EditorTools
             var so = new SerializedObject(controller);
             so.FindProperty("summaryText").objectReferenceValue = summary;
             so.FindProperty("statusText").objectReferenceValue = status;
-            so.FindProperty("crewListContainer").objectReferenceValue = list;
+            so.FindProperty("crewListContainer").objectReferenceValue = AddListContent(list);
             so.FindProperty("levelSelectButton").objectReferenceValue = levelSelectButton;
             so.FindProperty("saveButton").objectReferenceValue = saveButton;
             so.FindProperty("backButton").objectReferenceValue = backButton;
@@ -206,7 +206,7 @@ namespace PirateCrew.EditorTools
             so.FindProperty("chapterNameText").objectReferenceValue = chapterName;
             so.FindProperty("statusText").objectReferenceValue = status;
             so.FindProperty("chapterContainer").objectReferenceValue = chapters;
-            so.FindProperty("levelListContainer").objectReferenceValue = list;
+            so.FindProperty("levelListContainer").objectReferenceValue = AddListContent(list);
             so.FindProperty("crewButton").objectReferenceValue = crewButton;
             so.FindProperty("backButton").objectReferenceValue = backButton;
             so.FindProperty("bodyFont").objectReferenceValue = bodyFont;
@@ -364,6 +364,28 @@ namespace PirateCrew.EditorTools
             SketchPanel panel = SketchPanel.Create(parent, name, anchor, pivot, anchoredPosition,
                 size, SketchPanel.Tone.Dark);
             return (RectTransform)panel.transform;
+        }
+
+
+        /// <summary>给列表面板加内层滚动内容区（VerticalLayoutGroup 排行，留 PanelPadding 内边距），
+        /// 返回控制器应接线的容器（行 CreateRow 进这里，由布局组排版）。</summary>
+        static RectTransform AddListContent(RectTransform listPanel)
+        {
+            RectTransform content = RuntimeUiBuilder.CreateRect("ListContent", listPanel);
+            content.anchorMin = Vector2.zero;
+            content.anchorMax = Vector2.one;
+            content.pivot = new Vector2(0.5f, 0.5f);
+            content.offsetMin = new Vector2(8f, 8f);
+            content.offsetMax = new Vector2(-8f, -8f);
+            var group = content.gameObject.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
+            group.childAlignment = TextAnchor.UpperCenter;
+            group.childControlWidth = true;
+            group.childControlHeight = true;
+            group.childForceExpandWidth = false;
+            group.childForceExpandHeight = false;
+            group.spacing = 6f;
+            group.padding = new RectOffset(0, 0, 6, 6);
+            return content;
         }
 
     /// <summary>建 SketchButton（像素 tone 九宫格 + 三态 SpriteSwap + 变体表字色档，调用方不另配色）。

@@ -473,6 +473,10 @@ namespace PirateCrew.EditorTools
                     UiTextRules.WeaponName((WeaponId)i), UiSkin.Font.Body,
                     TextAlignmentOptions.Center, PixelSkin.PaperWhite, secondary);
                 label.enableWordWrapping = false;
+                // AutoSize 兜底：5 字名在 96px 格内自动缩号，永不裁字。
+                label.enableAutoSizing = true;
+                label.fontSizeMin = 10f;
+                label.fontSizeMax = UiSkin.Font.Body;
                 UiKit.Stretch(label.rectTransform, 3f);
 
                 buttons[i] = button;
@@ -566,7 +570,7 @@ namespace PirateCrew.EditorTools
             result.modeFrames = new Image[3];
             for (int i = 0; i < 3; i++)
             {
-                Vector2 size = new Vector2(UiSkin.Px.ButtonWidth(modeLabels[i]), ModeButtonHeight);
+                Vector2 size = new Vector2(UiSkin.Px.ButtonWidth(modeLabels[i]) + 6f, ModeButtonHeight);   // +6：快捷键角标让位
                 // 右上**角锚**（1,1）：x/y 都相对屏角累退（Safe + 同排前钮宽 + 缝），任何分辨率贴角不漂移。
                 Vector2 position = new Vector2(
                     -(Safe + (2 - i) * (size.x + 6f) + size.x * 0.5f),

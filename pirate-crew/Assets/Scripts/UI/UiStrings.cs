@@ -335,7 +335,7 @@ namespace PirateCrew.UI
         public const string BattleWeaponListTitle = "选择武器";
 
         /// <summary>武器面板未装备时的提示（图标格已表意，这里只留一行兜底）。</summary>
-        public const string BattleWeaponPickHint = "点图标选择武器";
+        public const string BattleWeaponPickHint = "点格子选择武器";
 
         /// <summary>操作提示：角色模式通用。</summary>
         public const string BattleHintGeneral = "空格 瞄准　E 聚焦　Esc 取消";

@@ -169,11 +169,11 @@ namespace PirateCrew.UI
             float spacing = 6f, float leftPadding = 8f)
         {
             RectTransform row = CreateRect("Row" + index, container);
-            row.anchorMin = new Vector2(0f, 1f);
-            row.anchorMax = new Vector2(1f, 1f);
-            row.pivot = new Vector2(0.5f, 1f);
-            row.sizeDelta = new Vector2(-leftPadding * 2f, rowHeight);
-            row.anchoredPosition = new Vector2(0f, -index * (rowHeight + spacing));
+            // 【布局组件】容器挂 VerticalLayoutGroup 后由它排版（间距/宽度归组管），
+            // 行高经 LayoutElement 声明——不再手摆 anchoredPosition（溢出/叠压的根因）。
+            var layout = row.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+            layout.preferredHeight = rowHeight;
+            layout.minHeight = rowHeight;
 
             // 行底板：SketchPanel.Create 是点锚出口，建完再拉伸铺满行矩形；
             // 底板不拦截点击（SketchPanel 内 Image raycastTarget=false），命中留给动作钮。
