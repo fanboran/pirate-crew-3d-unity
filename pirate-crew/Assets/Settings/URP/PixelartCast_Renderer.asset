@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-9040879503545720098
+--- !u!114 &-8552307751807039128
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -9,13 +9,28 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bcf38cc083d97ee40b19e213437851c2, type: 3}
-  m_Name: PixelartRimLightFeature
+  m_Script: {fileID: 11500000, guid: 3db1252f83f9f364ba63da5a406bc204, type: 3}
+  m_Name: PixelartObjectFeature
   m_EditorClassIdentifier: 
   m_Active: 1
-  rimLightShader: {fileID: 4800000, guid: 70f6f99614ce0f14e8fb2ddda752e5b8, type: 3}
-  rimLightCorrectionShader: {fileID: 7200000, guid: 7467c27a105fe8a4290468cd39375490, type: 3}
---- !u!114 &-8940485195386347634
+  layerMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+--- !u!114 &-7303285086946958598
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b2323006f9ecc64988058fa8645bf11, type: 3}
+  m_Name: PixelartOutlineFeature
+  m_EditorClassIdentifier: 
+  m_Active: 1
+  outlineShader: {fileID: 4800000, guid: 7d1ed124fed79474594b77702fdc3140, type: 3}
+--- !u!114 &-6840916265629483656
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -29,7 +44,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Active: 1
   shadingShader: {fileID: 4800000, guid: 44761eec6d6935f49acdceea2c35fec3, type: 3}
---- !u!114 &-7340456080850114143
+--- !u!114 &-5828223676773191342
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -42,6 +57,21 @@ MonoBehaviour:
   m_Name: PixelartBeforeRenderFeature
   m_EditorClassIdentifier: 
   m_Active: 1
+--- !u!114 &-5225712823878337890
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a7e338a76ed32214daed263db403a25a, type: 3}
+  m_Name: PixelartColorCorrectionFeature
+  m_EditorClassIdentifier: 
+  m_Active: 1
+  colorCorrectionShader: {fileID: 4800000, guid: f61b6298167e1b1478f4a50d1df572ed, type: 3}
+  palette: {fileID: 0}
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -58,13 +88,13 @@ MonoBehaviour:
     debugReplacementPS: {fileID: 4800000, guid: cf852408f2e174538bcd9b7fda1c5ae7, type: 3}
     hdrDebugViewPS: {fileID: 4800000, guid: 573620ae32aec764abd4d728906d2587, type: 3}
   m_RendererFeatures:
-  - {fileID: -7340456080850114143}
-  - {fileID: 3218917541664089688}
-  - {fileID: 6459793645444361380}
-  - {fileID: 2486154689578514578}
-  - {fileID: -9040879503545720098}
-  - {fileID: -8940485195386347634}
-  - {fileID: 1635787699784464487}
+  - {fileID: -5828223676773191342}
+  - {fileID: -8552307751807039128}
+  - {fileID: 5093203905548323070}
+  - {fileID: -7303285086946958598}
+  - {fileID: 7377778455415148157}
+  - {fileID: -6840916265629483656}
+  - {fileID: -5225712823878337890}
   m_RendererFeatureMap: 
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
@@ -106,52 +136,7 @@ MonoBehaviour:
   m_CopyDepthMode: 1
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 1
---- !u!114 &1635787699784464487
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a7e338a76ed32214daed263db403a25a, type: 3}
-  m_Name: PixelartColorCorrectionFeature
-  m_EditorClassIdentifier: 
-  m_Active: 1
-  colorCorrectionShader: {fileID: 4800000, guid: f61b6298167e1b1478f4a50d1df572ed, type: 3}
-  palette: {fileID: 0}
---- !u!114 &2486154689578514578
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2b2323006f9ecc64988058fa8645bf11, type: 3}
-  m_Name: PixelartOutlineFeature
-  m_EditorClassIdentifier: 
-  m_Active: 1
-  outlineShader: {fileID: 4800000, guid: 7d1ed124fed79474594b77702fdc3140, type: 3}
---- !u!114 &3218917541664089688
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3db1252f83f9f364ba63da5a406bc204, type: 3}
-  m_Name: PixelartObjectFeature
-  m_EditorClassIdentifier: 
-  m_Active: 1
-  layerMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
---- !u!114 &6459793645444361380
+--- !u!114 &5093203905548323070
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -169,3 +154,18 @@ MonoBehaviour:
   checkShader: {fileID: 7200000, guid: e70f2d4a72785674caa5d10897b5fda7, type: 3}
   floodShader: {fileID: 7200000, guid: 1160d1a986758be4fa1d6500a81f5c9c, type: 3}
   resultShader: {fileID: 7200000, guid: 633e5419ce844134a85f8235ebc8bc2c, type: 3}
+--- !u!114 &7377778455415148157
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bcf38cc083d97ee40b19e213437851c2, type: 3}
+  m_Name: PixelartRimLightFeature
+  m_EditorClassIdentifier: 
+  m_Active: 1
+  rimLightShader: {fileID: 4800000, guid: 70f6f99614ce0f14e8fb2ddda752e5b8, type: 3}
+  rimLightCorrectionShader: {fileID: 7200000, guid: 7467c27a105fe8a4290468cd39375490, type: 3}

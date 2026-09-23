@@ -36,7 +36,7 @@ namespace PirateCrew.EditorTools
         /// <summary>小地图面板名（必须与 HudMinimapSceneSetup.MinimapPanelName 一致，且为 Canvas 直接子节点）。</summary>
         public const string MinimapPanelName = "MinimapPanel";
 
-        const float Safe = 16f;
+        const float Safe = 18f;   // 6u——HUD 全部几何边缘吸附 3px 艺术像素栅格（走查 2026-09-23）
 
         // ------------------------------------------------------------------
         // HUD zone 表（对齐 game-2 hud_zone_layout 的"定位归表"思路——对齐关系在这里
@@ -48,12 +48,12 @@ namespace PirateCrew.EditorTools
 
         /// <summary>顶部带垂直中心**距屏顶**的像素（UI y 轴向上、屏顶在 1080——
         /// 锚顶件直接用本值做偏移；锚中心件（IconButton）的偏移 = 1080 - 本值 - 540）。</summary>
-        const float TopBandFromTop = 40f;
+        const float TopBandFromTop = 39f;   // 13u
 
         /// <summary>队血条宽 / 高（红蓝镜像等长；段宽运行时按实际人数重排）。
         /// 576 = 192u、27 = 9u（尺寸纪律）。</summary>
         const float TeamBarWidth = 576f;
-        const float TeamBarHeight = 27f;
+        const float TeamBarHeight = 30f;   // 10u（27 奇数 u 会让条边缘落半格）
 
         /// <summary>段间距 / 段区左内边距（3u；与 BattleHud.SegmentGap 同源）。</summary>
         const float SegmentGap = 3f;
@@ -70,14 +70,14 @@ namespace PirateCrew.EditorTools
         const float BadgeSize = 72f;
 
         /// <summary>模式图标钮（右上角成组，右缘贴 Safe）。45 = 15u。</summary>
-        const float ModeButtonSize = 45f;
+        const float ModeButtonSize = 48f;   // 16u（45 奇数 u 的中心点会让左右边缘差半格）
 
         // ---------------- 底部带 ----------------
 
         /// <summary>武器面板：贴底居中（bottom = Safe，不再悬空）。1041 = 347u、246 = 82u——
         /// 紧凑档（378 高的"组件库尺度"被创始人走查否决：占小半屏、填充率低）。
         /// 图标格区顶置 + 底部名/说明条 + 右列（头像/名/血条/两枚 48 高文字按钮）。</summary>
-        const float WeaponPanelWidth = 1041f;
+        const float WeaponPanelWidth = 1044f;   // 348u（奇数 u 的面板中心锚会出半像素边）
         const float WeaponPanelHeight = 246f;
 
         /// <summary>图标格尺寸 / 间距 / 列数（9×2 = 18 格，17 武器 + 1 空）。60 = 20u、6 = 2u——
@@ -433,9 +433,9 @@ namespace PirateCrew.EditorTools
 
             // ---- 图标格区（9 列 × 2 行；左 padding 16，格 69/缝 9）----
             float cellsWidth = WeaponColumns * WeaponCell + (WeaponColumns - 1) * WeaponCellGap;
-            float rightColumnCenter = Mathf.RoundToInt(-WeaponPanelWidth * 0.5f + 16f + cellsWidth + 16f
-                + (WeaponPanelWidth - 32f - cellsWidth - 16f) * 0.5f);   // 右列区中心
-            float rightColumnWidth = WeaponPanelWidth - 32f - cellsWidth - 16f - 12f;
+            // 右列几何全部 3 的倍数：左 18 + 格区 588 + 缝 15，右缘再留 15；中心 = 297。
+            float rightColumnCenter = 297f;
+            float rightColumnWidth = WeaponPanelWidth - 36f - cellsWidth - 15f - 15f;
 
             var buttons = new Button[WeaponSlots];
             var frames = new Image[WeaponSlots];
@@ -452,8 +452,8 @@ namespace PirateCrew.EditorTools
                 // pivot(0.5,1) 的 pos.y 是格子上边相对面板顶的偏移：row0 顶 14、row1 顶 92、
                 // 格区底 162，底部 62px 让给说明行。
                 cell.anchoredPosition = new Vector2(
-                    Mathf.RoundToInt(16f + WeaponCell * 0.5f + column * (WeaponCell + WeaponCellGap)),
-                    Mathf.RoundToInt(-(14f + row * (WeaponCell + WeaponCellGap))));
+                    18f + WeaponCell * 0.5f + column * (WeaponCell + WeaponCellGap),
+                    -(15f + row * (WeaponCell + WeaponCellGap)));   // 全部 3 的倍数：格子边缘落在艺术像素栅格
 
                 // 格底 = Plate(Dense) 三态换图（SpriteSwap）；选中态 = 悬停档 + Focus 环（运行时开）。
                 Image frame = cell.gameObject.AddComponent<Image>();
@@ -466,7 +466,8 @@ namespace PirateCrew.EditorTools
                 icon.type = Image.Type.Simple;
                 icon.color = Color.white;
                 icon.raycastTarget = false;
-                UiKit.Stretch(icon.rectTransform, 8f);
+                // 48 = 16u：图标盒落在艺术像素栅格（96 源的整数倍的一半，均匀重采样）。
+                UiKit.Stretch(icon.rectTransform, 6f);
 
                 buttons[i] = button;
                 frames[i] = frame;
@@ -480,20 +481,20 @@ namespace PirateCrew.EditorTools
                 TextAlignmentOptions.MidlineLeft, PixelSkin.LightOf(PixelTone.Primary), secondary);
             result.weaponNameText.enableWordWrapping = false;
             UiKit.SetAnchored(result.weaponNameText.rectTransform, new Vector2(0f, 0f),
-                new Vector2(190f, 44f), new Vector2(16f, 8f));
+                new Vector2(192f, 45f), new Vector2(18f, 9f));
 
             result.weaponDescText = UiKit.CreateText("WeaponDesc", panel, string.Empty, UiSkin.Font.Body,
                 TextAlignmentOptions.MidlineLeft, PixelSkin.PaperWhite, secondary);
             result.weaponDescText.enableWordWrapping = false;
             result.weaponDescText.overflowMode = TextOverflowModes.Ellipsis;
             UiKit.SetAnchored(result.weaponDescText.rectTransform, new Vector2(0f, 0f),
-                new Vector2(386f, 44f), new Vector2(218f, 8f));
+                new Vector2(384f, 45f), new Vector2(222f, 9f));
 
             // ---- 右列：头像 / 名 / HP / 跳跃 / 结束回合（当前单位信息区；48 高紧凑按钮）----
             RectTransform portrait = UiKit.CreateRect("UnitPortrait", panel);
             portrait.anchorMin = portrait.anchorMax = portrait.pivot = new Vector2(0.5f, 0.5f);
             portrait.sizeDelta = new Vector2(48f, 48f);
-            portrait.anchoredPosition = new Vector2(rightColumnCenter, 94f);
+            portrait.anchoredPosition = new Vector2(rightColumnCenter, 93f);
             var portraitFrame = portrait.gameObject.AddComponent<Image>();
             portraitFrame.sprite = PixelSkin.Plate(PixelTone.Dense);
             portraitFrame.type = Image.Type.Sliced;
@@ -512,11 +513,11 @@ namespace PirateCrew.EditorTools
             result.unitNameText.enableWordWrapping = false;
             result.unitNameText.rectTransform.anchorMin = result.unitNameText.rectTransform.anchorMax =
                 result.unitNameText.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            result.unitNameText.rectTransform.sizeDelta = new Vector2(rightColumnWidth, 44f);
-            result.unitNameText.rectTransform.anchoredPosition = new Vector2(rightColumnCenter, 40f);
+            result.unitNameText.rectTransform.sizeDelta = new Vector2(rightColumnWidth, 48f);
+            result.unitNameText.rectTransform.anchoredPosition = new Vector2(rightColumnCenter, 39f);
 
             UiKit.BarView hpBar = UiKit.CreateBar("UnitHp", panel,
-                new Vector2(rightColumnCenter, 8f), new Vector2(Snap3(rightColumnWidth - 40f), 15f),
+                new Vector2(rightColumnCenter, 6f), new Vector2(Snap3(rightColumnWidth - 39f), 18f),   // 18 = 6u（15 奇数 u 半格）
                 UiSkin.TeamRed);
             result.unitHpBar = new BattleHud.HpBarView
             {
@@ -528,7 +529,7 @@ namespace PirateCrew.EditorTools
             // 紧凑文字按钮（宽 = 标签宽 + 24 艺术像素、高 48 = 16u——HUD 密度档）。
             result.throwSelfButton = UiKit.ActionButton("ThrowSelfButton", panel,
                 UiGlyphs.Glyph.ThrowArc, UiStrings.BattleThrowSelf, UiKit.ButtonKind.Primary,
-                new Vector2(rightColumnCenter, -46f),
+                new Vector2(rightColumnCenter, -45f),
                 new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattleThrowSelf), HudButtonHeight), body);
             result.endGoButton = UiKit.ActionButton("EndGoButton", panel,
                 UiGlyphs.Glyph.Flag, UiStrings.BattleEndGo, UiKit.ButtonKind.Dark,
@@ -545,17 +546,17 @@ namespace PirateCrew.EditorTools
             // 底部带两段共享底边线 y=Safe：[暂停 返回]（面板左外侧，**文字钮**）→ [武器面板]。
             // 【右下提示条已删】（创始人 2026-09-23 走查"没有必要"）；镜头读数随之退役。
             // 【坐标口径】UiKit.ActionButton 的锚点固定在画布中心（anchor/pivot 0.5,0.5）。
-            float panelLeft = -(WeaponPanelWidth * 0.5f);     // 面板左缘相对中心
-            float textButtonY = -(540f - Safe - HudButtonHeight * 0.5f);
+            float panelLeft = -(WeaponPanelWidth * 0.5f);     // 面板左缘相对中心（-522，3 的倍数）
+            float textButtonY = -(540f - Safe - HudButtonHeight * 0.5f);   // -498
             Vector2 pauseSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattlePause), HudButtonHeight);
             Vector2 backSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Back), HudButtonHeight);
             result.pauseButton = UiKit.ActionButton("PauseButton", hudRoot, UiGlyphs.Glyph.Pause,
                 UiStrings.BattlePause, UiKit.ButtonKind.Dark,
-                new Vector2(Mathf.RoundToInt(panelLeft - 8f - pauseSize.x * 0.5f), textButtonY),
+                new Vector2(panelLeft - 9f - pauseSize.x * 0.5f, textButtonY),   // 缝 9 = 3u
                 pauseSize, secondary, withIcon: false);
             result.backButton = UiKit.ActionButton("BackButton", hudRoot, UiGlyphs.Glyph.Helm,
                 UiStrings.Back, UiKit.ButtonKind.Dark,
-                new Vector2(Mathf.RoundToInt(panelLeft - 8f - pauseSize.x - 8f - backSize.x * 0.5f), textButtonY),
+                new Vector2(panelLeft - 9f - pauseSize.x - 9f - backSize.x * 0.5f, textButtonY),
                 backSize, secondary, withIcon: false);
 
             // 右上：模式三图标钮成组贴右缘（0=移动 1=操作 2=观察；快捷键 1/2/3；操作钮在最右）。
@@ -565,8 +566,8 @@ namespace PirateCrew.EditorTools
             UiGlyphs.Glyph[] glyphs = { UiGlyphs.Glyph.MovePad, UiGlyphs.Glyph.Crosshair, UiGlyphs.Glyph.Eye };
             for (int i = 0; i < 3; i++)
             {
-                float offsetFromRight = Mathf.RoundToInt(960f - Safe - ModeButtonSize * 0.5f
-                    - (2 - i) * (ModeButtonSize + 8f));
+                float offsetFromRight = 960f - Safe - ModeButtonSize * 0.5f
+                    - (2 - i) * (ModeButtonSize + 9f);   // 缝 9 = 3u，中心值使边缘落栅格
                 Vector2 position = new Vector2(offsetFromRight, 1080f - TopBandFromTop - 540f);
                 Button button = UiKit.IconButton("ModeButton_" + (BattleHud.BattleHudMode)i, hudRoot,
                     glyphs[i], position, new Vector2(ModeButtonSize, ModeButtonSize),

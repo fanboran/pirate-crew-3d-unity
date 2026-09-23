@@ -25,11 +25,11 @@ namespace PirateCrew.EditorTools.BuildSystem
         /// <c>PlayerSettings.bundleVersion</c>、产物文件名与构建报告。
         /// 格式：<c>major.minor.patch</c>（三段数字，见 <see cref="Validate"/>）。
         /// </summary>
-        public const string Current = "0.2.0";
+        public const string Current = "0.2.1";
 
         /// <summary>
         /// 产物基名（不含扩展名与平台后缀）。与 README「从 Releases 下载」一节声明的文件名一致：
-        /// <c>PirateCrew3D.exe</c> / <c>PirateCrew3D_v0.2.0_win64.zip</c>。
+        /// <c>PirateCrew3D.exe</c> / <c>PirateCrew3D_v0.2.1_win64.zip</c>。
         /// </summary>
         public const string ProductBaseName = "PirateCrew3D";
 
@@ -46,7 +46,7 @@ namespace PirateCrew.EditorTools.BuildSystem
         }
 
         /// <summary>
-        /// 四段数值版号（Windows 文件版本属性用）。三段 <c>0.2.0</c> → <c>0.2.0.0</c>。
+        /// 四段数值版号（Windows 文件版本属性用）。三段 <c>0.2.1</c> → <c>0.2.1.0</c>。
         /// </summary>
         public static string NumericVersion(string version)
         {

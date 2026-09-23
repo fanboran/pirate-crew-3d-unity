@@ -4,12 +4,12 @@
 
 > Unity 2022.3 写实 PBR 重制 · 向 Nitrome《Mutiny》（中译《海盗军团抢宝藏》）致敬的 3D 学习重制 · 求职作品集项目（非商业）
 >
-> **当前版本 v0.2.0** · [下载 Windows 版](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.2.0) · 1P vs AI / 2P 同屏热座
+> **当前版本 v0.2.1** · [下载 Windows 版](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.2.1) · 1P vs AI / 2P 同屏热座
 
 [![Unity](https://img.shields.io/badge/Unity-2022.3-black?logo=unity)](https://unity.com)
 [![URP](https://img.shields.io/badge/%E6%B8%B2%E6%9F%93-URP_14%E5%86%99%E5%AE%9EPBR-blue)](https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@14)
 [![Tests](https://img.shields.io/badge/%E6%B5%8B%E8%AF%95-1161%E6%9D%A1%E5%85%A8%E7%BB%BF-green)](#质量工程)
-[![Release](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-v0.2.0-orange)](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.2.0)
+[![Release](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-v0.2.1-orange)](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.2.1)
 
 ---
 
@@ -89,7 +89,7 @@
 
 ## 运行
 
-**玩（推荐）**：从 [Releases](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.2.0) 下载 `PirateCrew3D_v0.2.0_win64.zip`，解压双击 `PirateCrew3D.exe`。
+**玩（推荐）**：从 [Releases](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.2.1) 下载 `PirateCrew3D_v0.2.1_win64.zip`，解压双击 `PirateCrew3D.exe`。
 
 **从源码跑**：Unity Hub 打开 `pirate-crew/` 子目录（**不是仓库根**），Unity 2022.3.62f1c1，菜单 `PirateCrew → 管线 → 一键构建全部资产与场景`（可选），Play `Bootstrapper` 场景。
 
@@ -122,7 +122,8 @@ pirate-crew/Assets/
 
 ## 开发状态与路线图
 
-- ✅ **v0.2.0（当前）**：全 UI 切 Beveled Pixel 像素皮 + 满精度像素字体（FusionPixel 12px 正文 @36 / ArkPixel 10px 小字 @30）、组件展示实机窗口、游戏本体接像素化渲染管线（640×360 RT 整数放大、UI 与 3D 同颗粒度）、战斗 HUD 紧凑化、版本号单一真源贯通到主菜单显示；
+- ✅ **v0.2.1（当前）**：HUD 全几何吸附 3px 艺术像素栅格（Safe/面板宽/单元格/右列/队血条/徽章/模式钮，武器面板图标盒 16u）；
+- ✅ **v0.2.0**：全 UI 切 Beveled Pixel 像素皮 + 满精度像素字体（FusionPixel 12px 正文 @36 / ArkPixel 10px 小字 @30）、组件展示实机窗口、游戏本体接像素化渲染管线（640×360 RT 整数放大、UI 与 3D 同颗粒度）、战斗 HUD 紧凑化、版本号单一真源贯通到主菜单显示；
 - ✅ **v0.1.0**：大海域 8 张世界海图（kit 岛 + 径向大海面）为唯一战斗内容、三个自由几何样板关（美术宣传层）、三模式操作、17/17 武器、回合制对战闭环、AI 对手、2P 热座、海盗生涯循环（招募/编成/出海/星级结算）、写实 PBR、音效
 - 🔜 **v0.2.x**：手感 juice（hit-stop/屏震/运镜）、观察模式润色、海面视觉打磨
 - 🗺️ **远期**：Blender 岛体管线批量扩容大海域、本地化（英文）、手柄支持
