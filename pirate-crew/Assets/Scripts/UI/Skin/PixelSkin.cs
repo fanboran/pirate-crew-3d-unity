@@ -77,7 +77,7 @@ namespace PirateCrew.UI
         public const int Unit = 3;
 
         /// <summary>Plate/Track 九宫格切片边框 = 3 层带 + 1u 内容余量。</summary>
-        public const int PlateBorder = 4 * Unit;
+        public const int PlateBorder = 2 * Unit;   // 黑 1 格 + 唇边 1 格（2026-09-24 走查对齐 Terraria 参照）
 
         /// <summary>低于它装配就不能用九宫格（角会切进内容区），装配侧应断言。</summary>
         public const int PlateMinRender = 2 * PlateBorder;

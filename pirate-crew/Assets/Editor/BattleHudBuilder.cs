@@ -79,14 +79,14 @@ namespace PirateCrew.EditorTools
         const float BadgeSize = 36f;
 
         /// <summary>模式文字钮尺寸（宽 = <see cref="UiSkin.Px.ButtonWidth"/>，高 24 = 8u）。</summary>
-        const float ModeButtonHeight = 24f;
+        const float ModeButtonHeight = 30f;
 
         // ---------------- 底部带 ----------------
 
         /// <summary>武器面板：贴底居中（bottom = Safe）。792 = 264u、162 = 54u——
         /// 紧凑档：6×3 武器文字格 + 底部名/说明行 + 右列（名/HP/两枚文字钮）。</summary>
         const float WeaponPanelWidth = 792f;
-        const float WeaponPanelHeight = 162f;
+        const float WeaponPanelHeight = 180f;
 
         /// <summary>武器文字格尺寸 / 间距 / 列数（6×3 = 18 格，17 武器 + 1 空）。
         /// 96 = 32u 放得下 5 字武器名（正文 16 × 5 = 80）；24 = 8u。</summary>
@@ -541,7 +541,7 @@ namespace PirateCrew.EditorTools
             // 【坐标口径】水平 = 画布底**中心**锚（随武器面板走，画布变宽不漂移）；
             // 垂直 = 底边锚（y = Safe + 半高，任何分辨率都贴底边线）。
             float panelLeft = -(WeaponPanelWidth * 0.5f);     // 面板左缘相对底中心（-396，3 的倍数）
-            float textButtonY = Safe + HudButtonHeight * 0.5f;
+            float textButtonY = Safe + HudButtonHeight * 0.5f;   // 底边锚：Safe + 半高
             Vector2 pauseSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattlePause), HudButtonHeight);
             Vector2 backSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Back), HudButtonHeight);
             result.pauseButton = UiKit.ActionButton("PauseButton", hudRoot, UiGlyphs.Glyph.Pause,

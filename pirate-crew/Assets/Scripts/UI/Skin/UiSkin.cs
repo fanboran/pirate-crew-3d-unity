@@ -225,11 +225,11 @@ namespace PirateCrew.UI
             /// <summary>1 艺术像素 = 3 画布像素（与 3D 像素化渲染颗粒度 1:1）。</summary>
             public const int Unit = PixelSkin.Unit;
 
-            /// <summary>标准条高（8 艺术像素：凹槽上下各 1u 带 + 6u 填充）。</summary>
-            public const int Bar = 8 * Unit;
+            /// <summary>标准条高（10 艺术像素：凹槽上下各 1 格描边 + 8 格槽底/填充）。</summary>
+            public const int Bar = 10 * Unit;
 
-            /// <summary>标准按钮高（8 艺术像素）。</summary>
-            public const int Button = 8 * Unit;
+            /// <summary>标准按钮高（10 艺术像素：包边 2 格 + 内容 8 格）。</summary>
+            public const int Button = 10 * Unit;
 
             /// <summary>按钮左右内边距合计（8 艺术像素；按钮宽 = 标签宽 + 本值）。</summary>
             public const int ButtonPadX = 8 * Unit;

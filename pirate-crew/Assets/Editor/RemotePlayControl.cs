@@ -92,6 +92,15 @@ namespace PirateCrew.EditorTools
                 return;
             }
 
+            if (content == "rebake")
+            {
+                _busy = true;
+                try { PirateCrew.EditorTools.BeveledPixelSpriteBuilder.BuildAll(); }
+                catch (System.Exception e) { Debug.LogError("[RemotePlayControl] rebake 失败：" + e); }
+                EditorApplication.delayCall += () => _busy = false;
+                return;
+            }
+
             if (content.StartsWith("capture:"))
             {
                 string target = content.Substring(8).Trim();

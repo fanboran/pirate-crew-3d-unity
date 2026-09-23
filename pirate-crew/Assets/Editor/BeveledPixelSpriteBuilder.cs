@@ -139,7 +139,8 @@ namespace PirateCrew.EditorTools
         public const int PlateSize = 36;
 
         /// <summary>Plate / Track 的九宫格切片边框（px）= 4 层带（u×4）——最外是描边，条槽的第 5 段（槽底）落在拉伸区。</summary>
-        public const int PlateBorder = 4 * Unit;
+        public const int PlateBorder = 2 * Unit;   // 【2026-09-24 走查】黑 1 格 + 唇边 1 格（对齐 Terraria dialog 参照）；旧 4 层带在薄件上把内容吃光
+        public const int TrackBorder = 4 * Unit;   // 条槽五段带（INK/外环/斜面/内暗线/槽底）各自 1 格，不随面板收档
 
         /// <summary>低于这个尺寸装配就不能用九宫格（角会切进内容区）。装配侧应断言。</summary>
         public const int PlateMinRender = PlateBorder * 2;
@@ -154,7 +155,7 @@ namespace PirateCrew.EditorTools
         /// 面板角取前者。试过 2 格：整块（12u 见方）看起来开始"变圆"，与 chunky 的取向相抵。
         /// 【4b 复核项】嫌角小改 `2`（条状件端头那档），要方角改 `0`。改一处即全族生效。
         /// </summary>
-        public const int ChamferDepthUnits = 1;
+        public const int ChamferDepthUnits = 0;   // 【2026-09-24 走查】豁口观感否决——方角（本类文档原话：要方角改 0）
 
         /// <summary>
         /// 某点是否落在切角里（<c>true</c> = 透明）。
@@ -671,11 +672,11 @@ namespace PirateCrew.EditorTools
                     if (track)
                     {
                         // 条槽语法（金框血条语法，实测自参照 bars）：描边 / 外环 / 斜面 / 内暗线 / 槽底 五段。
-                        // 最外 1u 与面板族同一条近黑描边（规则 0）——条槽因此在同一屏里跟面板是一张皮。
+                        // 最外 1u 与面板族同一条近黑描边——条槽与面板同一张皮。
                         if (layer == 0)
                             c = Slot("INK");
                         else if (layer == 1 || layer == 3)
-                            c = isLit ? top.Ring : bottom.Ring;   // 外环与内暗线同色（规则 1）
+                            c = isLit ? top.Ring : bottom.Ring;
                         else if (layer == 2)
                             c = isLit ? top.Bevel : bottom.Bevel;
                         else
@@ -700,9 +701,10 @@ namespace PirateCrew.EditorTools
                 }
             }
 
+            int slice = track ? TrackBorder : PlateBorder;
             border = tab
-                ? new Vector4(PlateBorder, 0f, PlateBorder, PlateBorder)
-                : new Vector4(PlateBorder, PlateBorder, PlateBorder, PlateBorder);
+                ? new Vector4(slice, 0f, slice, slice)
+                : new Vector4(slice, slice, slice, slice);
             return ToTexture(px, n, n);
         }
 

@@ -1,0 +1,201 @@
+{
+  "main": {
+    "id": "77de93ae5dda22c7",
+    "type": "split",
+    "children": [
+      {
+        "id": "b80912271200195e",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "4cddb25babb3c14e",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "技术/渲染/渲染管线-等距像素卡通.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "渲染管线-等距像素卡通"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "26b5f262d88d849b",
+    "type": "split",
+    "children": [
+      {
+        "id": "096a1147970aefa4",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b8927461dd443449",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-folder-closed",
+              "title": "文件列表"
+            }
+          },
+          {
+            "id": "4b5407fedfac5ccf",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "参考图",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "搜索"
+            }
+          },
+          {
+            "id": "caa9408209004bc8",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-bookmark",
+              "title": "书签"
+            }
+          }
+        ],
+        "currentTab": 1
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "7d4637bb446b5a85",
+    "type": "split",
+    "children": [
+      {
+        "id": "44d0c8e57013305b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b848b74acb93021d",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "技术/渲染/渲染管线-等距像素卡通.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "反向链接"
+            }
+          },
+          {
+            "id": "ae73dcee184ad3e6",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "技术/渲染/渲染管线-等距像素卡通.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "出链"
+            }
+          },
+          {
+            "id": "602ba239e6b60f48",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "标签"
+            }
+          },
+          {
+            "id": "5d7dfb6ead9579e8",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "添加笔记属性"
+            }
+          },
+          {
+            "id": "018037d255b40244",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "技术/渲染/渲染管线-等距像素卡通.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "大纲"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:打开快速切换": false,
+      "graph:查看关系图谱": false,
+      "canvas:新建白板": false,
+      "daily-notes:打开/创建今天的日记": false,
+      "templates:插入模板": false,
+      "command-palette:打开命令面板": false,
+      "bases:新建数据库": false
+    }
+  },
+  "active": "4cddb25babb3c14e",
+  "lastOpenFiles": [
+    "设计/游戏设计文档.md",
+    "设计/UI-UX与中文本地化规范.md",
+    "设计/UI设计语言.md",
+    "README.md",
+    "images/ambient-skybox-debug/dusk/world-overhead.jpg",
+    "images/ambient-skybox-debug/dusk/world-horizon.jpg"
+  ]
+}
