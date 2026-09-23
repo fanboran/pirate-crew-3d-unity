@@ -411,8 +411,9 @@ namespace PirateCrew.Battle
         /// <summary>
         /// <b>投掷/发射的统一入口</b>：Flash 平面初速 (vx, vy)（px/帧）→ 3D 世界初速（含抬升）。
         /// 速度**大小**仍由 Flash 的 twang 结果（已含 twangMax 限速）决定，抬升只改仰角。
-        /// 弹体（<c>ProjectileSpawnPlanner</c>）与角色（<c>PirateBase</c>）都走这里，
-        /// 保证两者弹道口径与预览完全一致。
+        /// 角色自抛（<c>PirateBase.ApplyLaunchVelocity</c>，weight 恒 &gt; 0）走这里；
+        /// 弹体生成走按重量分流的 <see cref="FlashLaunchVelocityToWorld(float, float, float)"/>，
+        /// 保证「无重力直线弹道」与预览/AI 同口径。
         /// </summary>
         public static Vector3 FlashLaunchVelocityToWorld(float vxPixelsPerFrame, float vyPixelsPerFrame)
         {
@@ -422,6 +423,43 @@ namespace PirateCrew.Battle
                 return Vector3.zero;
 
             return ThrowVelocity(new Vector3(vxPixelsPerFrame, 0f, vyPixelsPerFrame), speed);
+        }
+
+        /// <summary>
+        /// 投掷初速的**按重量分流**出口（玩家投掷 / 加农炮发射 / AI 评估 / 轨迹预览的唯一入口）：
+        ///   · <paramref name="weight"/> &gt; 0：走 <see cref="ThrowVelocity"/>（固定仰角抬升，§3 决策 3）；
+        ///   · weight == 0（§5.2「无重力」的 cannonball 等）：**不加仰角**，沿水平方向直线飞行——
+        ///     忠于 Flash「无重力直线弹道」语义。此前无重力弹体也被 ThrowLift 强抬约 35° 仰角，
+        ///     直线爬升越过通用出界清理线（y &gt; OutOfMapMargin，保留作安全网）后被静默销毁
+        ///     （不爆炸、无事件），故按重量分流。
+        /// 同源约束：<see cref="ProjectileSpawnPlanner"/>（实弹生成）、
+        /// <see cref="ThrowTrajectory.PredictFromFlashSpeed"/>（预览）、<see cref="AiEvaluation"/>（AI 落点预测）
+        /// 都经本函数取初速，保证预览 = 实弹 = AI 预测。
+        /// </summary>
+        public static Vector3 ThrowVelocityForWeight(Vector3 horizontalDirection, float speedPixelsPerFrame, float weight)
+        {
+            if (weight > 0f)
+                return ThrowVelocity(horizontalDirection, speedPixelsPerFrame);
+
+            Vector3 flat = new Vector3(horizontalDirection.x, 0f, horizontalDirection.z);
+            if (flat.sqrMagnitude < 1e-12f)
+                return Vector3.zero;
+
+            return flat.normalized * (speedPixelsPerFrame * FlashSpeedScale);
+        }
+
+        /// <summary>
+        /// <see cref="FlashLaunchVelocityToWorld(float, float)"/> 的按重量分流版：
+        /// weight == 0（§5.2「无重力」）时不抬仰角、水平直线（见 <see cref="ThrowVelocityForWeight"/>）。
+        /// </summary>
+        public static Vector3 FlashLaunchVelocityToWorld(float vxPixelsPerFrame, float vyPixelsPerFrame, float weight)
+        {
+            float speed = Mathf.Sqrt(
+                vxPixelsPerFrame * vxPixelsPerFrame + vyPixelsPerFrame * vyPixelsPerFrame);
+            if (speed <= 1e-6f)
+                return Vector3.zero;
+
+            return ThrowVelocityForWeight(new Vector3(vxPixelsPerFrame, 0f, vyPixelsPerFrame), speed, weight);
         }
 
         /// <summary>

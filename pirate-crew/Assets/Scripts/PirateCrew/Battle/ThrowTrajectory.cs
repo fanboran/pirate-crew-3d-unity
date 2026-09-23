@@ -12,8 +12,8 @@ namespace PirateCrew.Battle
     ///   若继续拿它画线就会与实弹分叉——正是 Godot 版"预览 ≠ 实弹"的病根。
     ///
     /// 【与实弹严格同源】
-    ///   实弹走 PhysX：<c>v += g·dt; p += v·dt</c>（半隐式欧拉，dt = <see cref="LevelGeometry.FrameSeconds"/>）。
-    ///   本类用**同一套离散格式**、同一份初速（<see cref="LevelGeometry.ThrowVelocity"/>）
+///   实弹走 PhysX：<c>v += g·dt; p += v·dt</c>（半隐式欧拉，dt = <see cref="LevelGeometry.FrameSeconds"/>）。
+///   本类用**同一套离散格式**、同一份初速（<see cref="LevelGeometry.ThrowVelocityForWeight"/>，按 weight 分流）
     ///   与同一份重力（<see cref="LevelGeometry.WorldGravity"/>），故逐步严格一致：
     ///   预览线上第 i 个采样点 = 实弹第 i 个物理步的位置。
     ///
@@ -104,14 +104,16 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// 直接由"Flash 平面初速 + 抬升"采样 —— 参数与 <see cref="LevelGeometry.ThrowVelocity"/>
-        /// 的输入完全一致，供调用方少写一步换算。
+        /// 直接由"Flash 平面初速 + 按 weight 分流的抬升"采样 —— 参数与
+        /// <see cref="LevelGeometry.ThrowVelocityForWeight"/> 的输入完全一致，供调用方少写一步换算。
+        /// weight == 0（§5.2「无重力」）时不抬仰角、重力也为 0：预览为水平直线，
+        /// 与实弹（<see cref="ProjectileSpawnPlanner"/> 走同一分流函数）逐点一致。
         /// </summary>
         public static void PredictFromFlashSpeed(
             Vector3 origin, Vector3 horizontalDirection, float speedPixelsPerFrame, float weight,
             Vector3[] buffer, int steps, float stepSeconds = LevelGeometry.FrameSeconds)
         {
-            Vector3 v0 = LevelGeometry.ThrowVelocity(horizontalDirection, speedPixelsPerFrame);
+            Vector3 v0 = LevelGeometry.ThrowVelocityForWeight(horizontalDirection, speedPixelsPerFrame, weight);
             PredictForWeight(origin, v0, weight, buffer, steps, stepSeconds);
         }
     }

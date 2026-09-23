@@ -80,8 +80,10 @@ namespace PirateCrew.Battle
             if (!ProjectileProfile.CanBeSlingLaunched(stats))
                 return Empty;   // 双重保护：不该出现的组合
 
-            // 与角色投掷、轨迹预览共用同一个换算入口（含固定仰角抬升），避免弹体自成一套弹道口径。
-            Vector3 velocity = LevelGeometry.FlashLaunchVelocityToWorld(vxFlash, vyFlash);
+            // 与角色投掷、轨迹预览、AI 评估共用同一个换算入口（按 weight 分流的抬升，
+            // 见 LevelGeometry.ThrowVelocityForWeight）：weight=0 的无重力弹体（cannonball）
+            // 直线飞行不抬仰角，避免直线爬升越过出界清理线被静默销毁。
+            Vector3 velocity = LevelGeometry.FlashLaunchVelocityToWorld(vxFlash, vyFlash, stats.Weight);
             return new[] { new ProjectileSpawn(ownerWorldPosition, velocity, kinematic: false) };
         }
 
@@ -157,8 +159,8 @@ namespace PirateCrew.Battle
 
                 case ProjectileMechanic.VoodooDollTransfer:
                 {
-                    // 与弹弓武器同源（twangMax=20），保证"预览 = 实弹"。
-                    Vector3 velocity = LevelGeometry.FlashLaunchVelocityToWorld(vxFlash, vyFlash);
+                    // 与弹弓武器同源（twangMax=20，weight=1 有重力），保证"预览 = 实弹"。
+                    Vector3 velocity = LevelGeometry.FlashLaunchVelocityToWorld(vxFlash, vyFlash, stats.Weight);
                     return new[] { new ProjectileSpawn(ownerWorldPosition, velocity, kinematic: false) };
                 }
 
