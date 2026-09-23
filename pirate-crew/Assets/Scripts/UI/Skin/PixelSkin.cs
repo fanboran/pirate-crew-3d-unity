@@ -53,9 +53,12 @@ namespace PirateCrew.UI
     /// 自己 LoadAssetAtPath / Resources.Load 像素件（槽位散落是上一版换皮难的根因）。
     ///
     /// 【几何口径】u（基本单位）= 3 屏幕像素 = **1 个 3D 像素块**（640×360 RT 最近邻放大回
-    /// 1080p 的块大小）——UI 颗粒度与 3D 渲染 1:1 对齐（创始人 2026-09-22 要求）。改 RT 档
-    /// 必须同步改 <see cref="Unit"/>；Editor 侧 <c>BeveledPixelSpriteBuilder</c> 的判据
-    /// 会读 URP 渲染器资产里的 renderHeightPixels 反向锁这条。
+    /// 1080p 的块大小）——UI 颗粒度与 3D 渲染 1:1 对齐（创始人 2026-09-22 要求）。
+    /// 【现役值 3；方向修正 2026-09-23：将改为设置可调预设档】（Minecraft GUI Scale 式
+    /// 1×/2×/3×/自动——届时本常量转运行时值、字号档改"原生设计像素 × u"计算、判据双源随档
+    /// 联动；拆解见 docs/项目/待办事项.md 步骤 4e）。改 u 必须同步渲染器资产
+    /// renderHeightPixels（判据双源）与 Editor 侧 <c>BeveledPixelSpriteBuilder</c> 的判据——
+    /// 判据会读 URP 渲染器资产里的 renderHeightPixels 反向锁这条。
     /// 装配侧尺寸纪律：可见包边件的 width/height 取 <see cref="Unit"/> 的整数倍，
     /// anchoredPosition 至少取整——分数像素会让 3px 的带糊成 4px。
     /// </summary>

@@ -124,7 +124,8 @@
 - 生成器：`Assets/Editor/BeveledPixelSpriteBuilder.cs`（7 tone × {常态, 悬停, 按压, 凹槽} +
   页签 7 + 填充 5 + 语义件 7【选人圈/焦点框/位点×2/分隔线×2/投影】，共 47 张）；
   **基本单位 u = 3px = 1080p 下一个 3D 像素块**（640×360 RT 最近邻放大，UI 与 3D 颗粒度 1:1 对齐，
-  判据会读 URP 渲染器资产反向锁这条）；
+  判据会读 URP 渲染器资产反向锁这条；**方向修正 2026-09-23：u 将改为设置可调预设档**——
+  Minecraft GUI Scale 式，拆解见 [待办事项.md](../../项目/待办事项.md) 步骤 4e，落地前 3 为现役值）；
 - 运行时取用：`Assets/Scripts/UI/Skin/PixelSkin.cs` + 图集资产 `Resources/UI/PixelSkin.asset`
   （装配侧唯一入口，规范 §四.2 有槽位映射表）；
 - 判据：`Assets/Art/Tests/BeveledPixelSkinTests.cs`（直接读盘上 PNG 按画法族复算透明形状、
