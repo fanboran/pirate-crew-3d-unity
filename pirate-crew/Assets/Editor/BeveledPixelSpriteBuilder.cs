@@ -646,6 +646,13 @@ namespace PirateCrew.EditorTools
             bool tab = piece == Piece.Tab;
             bool track = piece == Piece.Track;
 
+            // 【2026-09-24 走查】Plate 改「手绘模板」复刻（创始人逐像素定稿 14×14）：
+            // 黑环 1 格包圈（四角 2 格阶梯）+ 亮唇 1 格 + 主体，底边加暗唇 1 格（亮→暗→黑）。
+            // 模板 1 格 = 1 艺术像素 = Unit 屏幕像素，×3 落盘；四角透明阶 = 像素游戏标准圆角。
+            // Track/Tab 仍走下方分层画法（条槽五段带是另一套语法）。
+            if (piece == Piece.Plate)
+                return BuildPlateFromTemplate(r, state, out border);
+
             int n = PlateSize;
             var px = new Color32[n * n];
 
@@ -706,6 +713,55 @@ namespace PirateCrew.EditorTools
                 ? new Vector4(slice, 0f, slice, slice)
                 : new Vector4(slice, slice, slice, slice);
             return ToTexture(px, n, n);
+        }
+
+        /// <summary>手绘 Plate 模板：K=黑环(INK) L=亮唇(S4) C=暗唇(S2) E=主体(S3) .=透明角。</summary>
+        static readonly string[] PlateTemplate =
+        {
+            "..KKKKKKKK....",
+            ".KCDDDDDDDDCK.",
+            "KCDEEEEEEEEDCK",
+            "KDEEEEEEEEEEDK",
+            "KDEEEEEEEEEEDK",
+            "KDEEEEEEEEEEDK",
+            "KDEEEEEEEEEEDK",
+            "KDEEEEEEEEEEDK",
+            "KDEEEEEEEEEEDK",
+            "KDEEEEEEEEEEDK",
+            "KDDEEEEEEEEDDK",
+            "KCDDDDDDDDDDCK",
+            ".KCCCCCCCCCCK.",
+            "..KKKKKKKK....",
+        };
+
+        /// <summary>
+        /// 按手绘模板画 Plate：14×14 艺术像素 ×Unit 落盘（42×42）。
+        /// 切片边框 = 左 6 / 上 6 / 右 6 / 底 9（底边多一层暗唇）。悬停/按压由 ramp 升降承担。
+        /// </summary>
+        static Texture2D BuildPlateFromTemplate(Ramp r, State state, out Vector4 border)
+        {
+            var map = new Dictionary<char, Color32>
+            {
+                { 'K', Slot("INK") },
+                { 'L', r.S4 },   // 受光亮唇
+                { 'C', r.S2 },   // 背光暗唇
+                { 'E', r.S3 },   // 主体
+            };
+            int rows = PlateTemplate.Length;
+            int cols = PlateTemplate[0].Length;
+            int u = Unit;
+            int w = cols * u, h = rows * u;
+            var px = new Color32[w * h];
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    char ch = PlateTemplate[y / u][x / u];
+                    px[y * w + x] = ch == '.' ? new Color32(0, 0, 0, 0) : map[ch];
+                }
+            }
+            border = new Vector4(2 * u, 3 * u, 2 * u, 2 * u);   // 左/下/右/上
+            return ToTexture(px, w, h);
         }
 
         /// <summary>页签的切角判据：只对上两角生效（dy 只算到上边界的距离）。</summary>
