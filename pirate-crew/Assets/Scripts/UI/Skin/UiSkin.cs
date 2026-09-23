@@ -173,53 +173,49 @@ namespace PirateCrew.UI
         public const float ButtonFadeSeconds = 0.09f;
 
         // ------------------------------------------------------------------
-        // 字号（全项目唯一真值。2026-09-23 起切**像素字体栅格**：FusionPixel 12px 位图档
-        // 的字形按 12 设计像素一格，显示字号必须是 12 的整数倍——非整数倍会把一格字形
-        // 拉宽出半格（口径见 PixelShowcasePage 类头与交接/像素UI实机验证-交接.md §二）。本表单位 =
-        // 1080p 画布像素；1 艺术像素 = PixelSkin.Unit(3) 画布像素，正文 36 = 12 艺术像素。
-        // 字号跟控件走的纪律不变：按钮高 = 正文 + 12（艺术像素），见 <see cref="Px"/>。
+        // 字号（全项目唯一真值）。【2026-09-24 创始人裁决：文字解除像素栅格】字号不再要求
+        // 「÷3 恰好落在位图字体原生档」（原满精度双档 36/30 口径废除）——像素字体的字形轮廓
+        // 自带颗粒感，字号按可读性自由取值；字体档由 <see cref="UiKit.ResolvePixelFont"/>
+        // 就近解析（≥15 → FusionPixel 12px 档，更小 → ArkPixel 10px 档）。
+        // 本表单位 = 1080p 画布像素。字号跟控件走的纪律不变：按钮高 8 艺术像素，见 <see cref="Px"/>。
         // ------------------------------------------------------------------
 
         /// <summary>字号档位（画布像素）。旧 UiTheme.Font* / MenuUiBuilder.FontScale
-        /// 已并入本表（别名或同值），勿再新增第三份字号表。
-        /// 【满精度阶梯（创始人祈使裁决 2026-09-23）】**不同大小 = 不同精度的字体**：
-        /// 每个显示字号必须由**原生设计尺寸恰好等于该字号 ÷ 3** 的位图字体渲染
-        /// （1 字形像素 = 1 艺术像素 = 3 屏幕像素），绝不跨档缩放同一字体——
-        /// 36 = FusionPixel 12px 原生档（正文/标题），30 = ArkPixel 10px 原生档（小字/角标）。
-        /// 字体与字号的绑定由 <see cref="UiKit.ResolvePixelFont"/> 在文本出口单点强制。</summary>
+        /// 已并入本表（别名或同值），勿再新增第三份字号表。</summary>
         public static class Font
         {
-            /// <summary>主菜单游戏名 / 界面标题 / 结算横幅（FusionPixel 12px 原生档；
-            /// 更大的标题档待 16px/24px 原生像素字体引入——16px 官方归档只有字形源，见待办）。</summary>
-            public const int Display = 36;
+            /// <summary>主菜单游戏名 / 界面大标题。</summary>
+            public const int Display = 40;
 
-            /// <summary>结算横幅（胜利 / 失败；= 原生 12px 档）。</summary>
+            /// <summary>结算横幅（胜利 / 失败）。</summary>
             public const int Banner = 36;
 
-            /// <summary>界面标题（= 原生 12px 档）。</summary>
-            public const int Title = 36;
+            /// <summary>界面标题。</summary>
+            public const int Title = 28;
 
-            /// <summary>区块标题 / 面板标题条（= 原生 12px 档）。</summary>
-            public const int Section = 36;
+            /// <summary>区块标题 / 面板标题条。</summary>
+            public const int Section = 24;
 
-            /// <summary>HUD 常读 / 名册名 / 模式开关 / 回合计时（= 原生 12px 档）。</summary>
-            public const int Hud = 36;
+            /// <summary>HUD 常读 / 名册名 / 模式开关 / 回合提示。</summary>
+            public const int Hud = 20;
 
-            /// <summary>按钮 / 列表行文本 / 说明（FusionPixel 12px 原生档，1 字形像素 = 1 艺术像素）。</summary>
-            public const int Body = 36;
+            /// <summary>按钮 / 列表行文本 / 武器格文字。</summary>
+            public const int Body = 16;
 
-            /// <summary>辅助提示 / 通栏提示条（ArkPixel 10px 原生档，30 = 10 艺术像素）。</summary>
-            public const int Hint = 30;
+            /// <summary>辅助提示 / 说明行。</summary>
+            public const int Hint = 14;
 
-            /// <summary>角标 / HP 数字 / 快捷键角标（ArkPixel 10px 原生档）。</summary>
-            public const int Tiny = 30;
+            /// <summary>角标 / 快捷键角标。</summary>
+            public const int Tiny = 12;
         }
 
         // ------------------------------------------------------------------
         // 像素令牌（Beveled Pixel 几何档，画布像素 = 艺术像素 × PixelSkin.Unit）。
-        // 令牌表出处：交接/像素UI实机验证-交接.md §二（创始人走查定档）——
-        // 正文 12 / 条高 24 / 按钮高 = 文字高 + 12 / 按钮宽 = 标签宽 + 24 / 内边距 12 /
-        // 位点 12 / 环 24 / 头像格 48 / 小地图 144（艺术像素）。
+        // 【2026-09-24 创始人走查「明明是 3:1 的像素，UI 元素怎么这么大」】旧令牌
+        // （条/按钮 24、头像 48、小地图 144 艺术像素）是按 1080p 全分辨率排布的"组件库尺度"，
+        // 摆在 640×360 艺术画布旁边颗粒粗了一档——整体收半以上，按艺术画布重新定档：
+        // 条/按钮 8、pips 6、环 12、头像 16、小地图 64（艺术像素）。
+        // 文字尺寸不在本表——文字已解除栅格，见 <see cref="Font"/>。
         // ------------------------------------------------------------------
 
         /// <summary>像素几何令牌。可见包边件的尺寸必须落在 <see cref="PixelSkin.Unit"/> 整数倍上，
@@ -229,33 +225,33 @@ namespace PirateCrew.UI
             /// <summary>1 艺术像素 = 3 画布像素（与 3D 像素化渲染颗粒度 1:1）。</summary>
             public const int Unit = PixelSkin.Unit;
 
-            /// <summary>标准条高（凹槽 24 艺术像素 = 6 框 + 12 填 + 6 框）。</summary>
-            public const int Bar = 24 * Unit;
+            /// <summary>标准条高（8 艺术像素：凹槽上下各 1u 带 + 6u 填充）。</summary>
+            public const int Bar = 8 * Unit;
 
-            /// <summary>标准按钮高（= 正文字高 12 + 上下各 6 艺术像素）。</summary>
-            public const int Button = 24 * Unit;
+            /// <summary>标准按钮高（8 艺术像素）。</summary>
+            public const int Button = 8 * Unit;
 
-            /// <summary>按钮左右内边距合计（= 24 艺术像素；按钮宽 = 标签宽 + 本值）。</summary>
-            public const int ButtonPadX = 24 * Unit;
+            /// <summary>按钮左右内边距合计（8 艺术像素；按钮宽 = 标签宽 + 本值）。</summary>
+            public const int ButtonPadX = 8 * Unit;
 
-            /// <summary>面板内边距（12 艺术像素）。</summary>
-            public const int PanelPadding = 12 * Unit;
+            /// <summary>面板内边距（4 艺术像素）。</summary>
+            public const int PanelPadding = 4 * Unit;
 
-            /// <summary>位点 / 分隔间距（12 艺术像素）。</summary>
-            public const int Pip = 12 * Unit;
+            /// <summary>位点 / pips 边长（6 艺术像素）。</summary>
+            public const int Pip = 6 * Unit;
 
-            /// <summary>选人圈 / 焦点框边长（24 艺术像素）。</summary>
-            public const int Ring = 24 * Unit;
+            /// <summary>选人圈 / 焦点框边长（12 艺术像素）。</summary>
+            public const int Ring = 12 * Unit;
 
-            /// <summary>头像格边长（48 艺术像素）。</summary>
-            public const int Avatar = 48 * Unit;
+            /// <summary>头像格边长（16 艺术像素）。</summary>
+            public const int Avatar = 16 * Unit;
 
-            /// <summary>小地图边长基准（144 艺术像素）。</summary>
-            public const int Minimap = 144 * Unit;
+            /// <summary>小地图边长基准（64 艺术像素）。</summary>
+            public const int Minimap = 64 * Unit;
 
             /// <summary>
-            /// 按钮宽 = 标签宽 + <see cref="ButtonPadX"/>（令牌"按钮宽 = 标签宽 + 24"）。
-            /// 中文标签按正文字宽逐字计（Fusion Pixel 12px 比例版的全宽 CJK 字形 = 正文字号）；
+            /// 按钮宽 = 标签宽 + <see cref="ButtonPadX"/>（"按钮宽 = 标签宽 + 8 艺术像素"）。
+            /// 中文标签按正文字宽逐字计（Fusion Pixel 比例版的全宽 CJK 字形 ≈ 正文字号）；
             /// 项目 UI 字符串全为中文，按字符数计与 TMP 排版一致且无头可测。下限 = 两字钮。
             /// </summary>
             public static int ButtonWidth(string label)

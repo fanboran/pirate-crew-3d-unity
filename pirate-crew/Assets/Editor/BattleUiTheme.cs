@@ -77,7 +77,6 @@ namespace PirateCrew.EditorTools
 
             // 武器面板。
             SetRef(so, "weaponPanelRoot", result.weaponPanelRoot);
-            SetRef(so, "unitPortrait", result.unitPortrait);
             SetRef(so, "unitNameText", result.unitNameText);
             SetHpBar(so.FindProperty("unitHpBar"), result.unitHpBar);
             SetRef(so, "weaponNameText", result.weaponNameText);
@@ -174,7 +173,7 @@ namespace PirateCrew.EditorTools
                 {
                     SerializedProperty element = pips.GetArrayElementAtIndex(i);
                     SetRelative(element, "root", view.pips[i].root);
-                    SetRelative(element, "icon", view.pips[i].icon);
+                    SetRelative(element, "label", view.pips[i].label);
                     SetRelative(element, "frame", view.pips[i].frame);
                 }
             }

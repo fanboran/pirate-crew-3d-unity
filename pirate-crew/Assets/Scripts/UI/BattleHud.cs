@@ -16,17 +16,17 @@ using UnityEngine.UI;
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 战斗 HUD（多彩卡通 · 图标优先版，2026-09-19 重设计）。
+    /// 战斗 HUD（文字占位版，2026-09-24 创始人三连裁决：图标全删换文字、HUD 按 3:1 艺术像素
+    /// 收敛、文字解除像素栅格）。
     ///
-    /// 【信息架构（本波次定案，用户三轮裁决）】
+    /// 【信息架构】
     ///   · **顶栏双队合成血条**：左右屏缘各一条，每名存活单位 = 一段分格（受击只掉自己那段，
-    ///     白色 damage ghost 残影延迟回落），条下一排职业色头像 pips（死亡换骷髅）——
-    ///     替代旧左下 12 行名册列表（名册整块退役，P3-2 名册文案随之消灭）；
-    ///   · **单位头顶血条**（<see cref="OverheadHealthBar"/>）：个人血条从列表挪进 3D 世界；
-    ///   · **中央回合徽章**：队色环 + 数字，回合切换弹跳；
-    ///   · **武器面板全图标化**：17 武器各占一格彩色图标（选中才显示名字与说明一行），
-    ///     投掷 / 结束回合为图标主按钮——原版 Mutiny 的全图标交互语言；
-    ///   · 模式开关 = 靴位 / 准星 / 眼睛三图标钮；暂停 / 返回 = 图标钮；文字只剩提示条与结算横幅。
+    ///     白色 damage ghost 残影延迟回落），条下一排小方格 pips（存活空格 / 阵亡「×」——
+    ///     职业头像图标已退役）；
+    ///   · **单位头顶血条**（<see cref="OverheadHealthBar"/>）：个人血条在 3D 世界；
+    ///   · **中央回合徽章**：暖金环 + 数字，回合切换弹跳；
+    ///   · **武器面板**：17 武器各占一格**文字钮**（武器中文名），投掷 / 结束回合为文字按钮；
+    ///   · 模式开关 = 移动 / 操作 / 观察三文字钮（快捷键 1/2/3 角标）；暂停 / 返回 = 文字钮。
     ///
     /// 【架构约定】引用一律 <c>[SerializeField]</c>（<c>BattleUiTheme.WireHud</c> 回写）；
     /// 唯一例外是 Crosshair：装配契约缺兜底时的静态装饰节点查找（<see cref="DeepFind"/>，
@@ -66,12 +66,12 @@ namespace PirateCrew.UI
             public Image ghost;
         }
 
-        /// <summary>一名单位的 pip（职业头像 + 彩色格底）。</summary>
+        /// <summary>一名单位的 pip（文字占位：存活空格 / 阵亡「×」+ 彩色格底）。</summary>
         [Serializable]
         public sealed class UnitPipView
         {
             public GameObject root;
-            public Image icon;
+            public TextMeshProUGUI label;
             public Image frame;
         }
 
@@ -107,7 +107,6 @@ namespace PirateCrew.UI
 
         [Header("武器面板（底部中央）")]
         [SerializeField] GameObject weaponPanelRoot;
-        [SerializeField] Image unitPortrait;
         [SerializeField] MaskableGraphic unitNameText;
         [SerializeField] HpBarView unitHpBar;
         [SerializeField] MaskableGraphic weaponNameText;
@@ -171,10 +170,6 @@ namespace PirateCrew.UI
         /// <summary>首次状态直接落位（不打动效、不出声），之后的翻转才播动效。</summary>
         bool _panelResolved;
 
-        /// <summary>职业头像缓存（按 <see cref="UiSkin.CrewKey"/> 短名）：量级有界
-        ///（职业数 × 队色短名，≤7 键），且进程级复用，**刻意不清理**。</summary>
-        static readonly Dictionary<string, Sprite> PortraitCache = new Dictionary<string, Sprite>();
-
         // ------------------------------------------------------------------
         // 装配自检（供 PlayMode 结构断言）
         // ------------------------------------------------------------------
@@ -228,7 +223,7 @@ namespace PirateCrew.UI
                 if (segment == null || segment.root == null || segment.fill == null || segment.ghost == null)
                     return false;
                 UnitPipView pip = bar.pips[i];
-                if (pip == null || pip.root == null || pip.icon == null || pip.frame == null)
+                if (pip == null || pip.root == null || pip.label == null || pip.frame == null)
                     return false;
             }
             return true;
@@ -997,13 +992,12 @@ namespace PirateCrew.UI
                         pip.root.SetActive(true);
                         bool alive = pirate.Alive;
                         SetPipDimmed(pip.root, !alive);
-                        if (pip.icon != null)
+                        if (pip.label != null)
                         {
-                            pip.icon.sprite = alive
-                                ? LoadPortrait(pirate.CrewType)
-                                : UiGlyphs.Get(UiGlyphs.Glyph.Skull);
-                            pip.icon.color = alive
-                                ? Color.white
+                            // 文字占位（图标退役）：存活 = 空格，阵亡 = 「×」压暗。
+                            pip.label.text = alive ? string.Empty : "×";
+                            pip.label.color = alive
+                                ? (Color)PixelSkin.PaperWhite
                                 : UiSkin.WithAlpha(UiSkin.DeadGray, 0.9f);
                         }
                     }
@@ -1024,10 +1018,11 @@ namespace PirateCrew.UI
             }
 
             // 段按实际人数满格重排（4v4 时每段 1/4 宽，不留空槽——装配期按 6 人预建只是骨架）。
+            // 公式与 BattleHudBuilder.BuildOneTeamBar 同式：两端各内缩 SegmentInset。
             if (count > 0 && bar.segments != null && bar.segmentRoot != null)
             {
                 float trackWidth = bar.segmentRoot.sizeDelta.x;
-                float segmentWidth = (trackWidth - SegmentInset - (count - 1) * SegmentGap) / count;
+                float segmentWidth = (trackWidth - 2f * SegmentInset - (count - 1) * SegmentGap) / count;
                 for (int i = 0; i < count && i < bar.segments.Length; i++)
                 {
                     var rect = bar.segments[i] != null
@@ -1042,9 +1037,10 @@ namespace PirateCrew.UI
             }
         }
 
-        /// <summary>段间距 / 段区左内边距（与 BattleHudBuilder 同源；3 = 1u，尺寸纪律）。</summary>
-        const float SegmentGap = 3f;
-        const float SegmentInset = 3f;
+    /// <summary>段间距 / 段区**两端**内边距（与 BattleHudBuilder 同源；3 = 1u——
+    /// 两端各缩 1u 让 Track 的 1u 外环左右两缘都露出，右缘描边不被末段盖掉）。</summary>
+    const float SegmentGap = 3f;
+    const float SegmentInset = 3f;
 
         /// <summary>阵亡 pip 压暗：CanvasGroup alpha（不烘黑图、不给像素件乘色）。</summary>
         static void SetPipDimmed(GameObject pipRoot, bool dimmed)
@@ -1135,15 +1131,15 @@ namespace PirateCrew.UI
                 if (pip == null)
                     return;
 
-                bool alreadyDead = pip.icon != null && pip.icon.sprite == UiGlyphs.Get(UiGlyphs.Glyph.Skull);
+                bool alreadyDead = pip.label != null && pip.label.text == "×";
                 if (alreadyDead)
                     return;
 
                 SetPipDimmed(pip.root, true);
-                if (pip.icon != null)
+                if (pip.label != null)
                 {
-                    pip.icon.sprite = UiGlyphs.Get(UiGlyphs.Glyph.Skull);
-                    pip.icon.color = UiSkin.WithAlpha(UiSkin.DeadGray, 0.9f);
+                    pip.label.text = "×";
+                    pip.label.color = UiSkin.WithAlpha(UiSkin.DeadGray, 0.9f);
                 }
                 if (_motion != null && pip.frame != null)
                     _motion.Punch(pip.frame, UiMotionRules.PunchSeconds);
@@ -1151,23 +1147,7 @@ namespace PirateCrew.UI
             }
         }
 
-        /// <summary>职业头像（烘焙 PNG，按短名缓存；缺失时回退符号图标）。</summary>
-        static Sprite LoadPortrait(string crewType)
-        {
-            string key = UiSkin.CrewKey(crewType);
-            if (PortraitCache.TryGetValue(key, out Sprite cached) && cached != null)
-                return cached;
-
-            Sprite sprite = Resources.Load<Sprite>("UIIcons/Crew_" + key);
-            if (sprite == null)
-            {
-                // 烘焙资产缺失（未跑 UiSkinAssetBaker）时退到舵轮符号，不留白格。
-                sprite = UiGlyphs.Get(UiGlyphs.Glyph.Helm);
-            }
-
-            PortraitCache[key] = sprite;
-            return sprite;
-        }
+        // 文字占位版（2026-09-24）：职业头像加载（LoadPortrait / PortraitCache）随图标退役删除。
 
         // ------------------------------------------------------------------
         // 单位头顶血条
@@ -1184,7 +1164,7 @@ namespace PirateCrew.UI
         }
 
         // ------------------------------------------------------------------
-        // 武器面板（底部中央，全图标格）
+        // 武器面板（底部中央，武器文字格）
         // ------------------------------------------------------------------
 
         /// <summary>显示条件：已选中角色 &amp;&amp; 角色存活 &amp;&amp; 当前队非 AI。</summary>
@@ -1204,10 +1184,7 @@ namespace PirateCrew.UI
             if (!visible)
                 return;
 
-            // 右列头条：头像 + 队色职业名 + HP 条。
-            if (unitPortrait != null)
-                unitPortrait.sprite = LoadPortrait(selected.CrewType);
-
+            // 右列头条：队色职业名 + HP 条（头像格随图标退役删除）。
             if (unitNameText != null)
             {
                 UiTextUtil.SetText(unitNameText,

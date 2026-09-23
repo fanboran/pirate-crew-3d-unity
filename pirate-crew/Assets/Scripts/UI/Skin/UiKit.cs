@@ -75,9 +75,8 @@ namespace PirateCrew.UI
         // ------------------------------------------------------------------
 
         /// <summary>建 TMP 文本（字号请传 <see cref="UiSkin.Font"/> 档位常量）。
-        /// 【满精度单点强制】字体一律按字号经 <see cref="ResolvePixelFont"/> 解析——
-        /// 调用方传入的 <paramref name="font"/> 仅作解析失败时的兜底；这保证
-        /// "不同大小 = 不同精度的字体"不可能在出口处被破坏。</summary>
+        /// 【字体档单点解析】字体一律按字号经 <see cref="ResolvePixelFont"/> 就近选档——
+        /// 调用方传入的 <paramref name="font"/> 仅作解析失败时的兜底。</summary>
         public static TextMeshProUGUI CreateText(string name, Transform parent, string content, int fontSize,
             TextAlignmentOptions alignment, Color color, TMP_FontAsset font, bool raycast = false)
         {
@@ -105,29 +104,16 @@ namespace PirateCrew.UI
             = new Dictionary<TMP_FontAsset, PixelAtlasPointFilter>();
 
         /// <summary>
-        /// 按显示字号解析**满精度**像素字体（创始人祈使裁决 2026-09-23：不同大小 = 不同精度的字体）。
-        /// 规则：字号 ÷ 3 = 位图字体的原生设计点数（faceInfo.pointSize）才允许渲染——
-        /// 36 → FusionPixel 12px、30 → ArkPixel 10px；无原生档匹配时报错并回落正文档
-        /// （宁可字号统一，不出半精度混排）。
+        /// 按显示字号就近解析像素字体档（创始人 2026-09-24 裁决：**文字解除 3px 栅格**——
+        /// 像素字体的字形轮廓自带颗粒感，字号按可读性自由取值，不再要求「字号 ÷ 3 = 原生档」；
+        /// 跨档缩放配 <see cref="PixelAtlasPointFilter"/> 的点采样即像素文字的正当形态）。
+        /// 规则：字号 ≥ 15 用 12px 档（FusionPixel），更小用 10px 档（ArkPixel）；
+        /// 两档都缺失时回落调用方传入的兜底字体。
         /// </summary>
         public static TMP_FontAsset ResolvePixelFont(int fontSize, TMP_FontAsset fallback = null)
         {
-            int requiredPointSize = fontSize / 3;
-            if (fontSize % 3 != 0 || requiredPointSize <= 0)
-            {
-                Debug.LogError("[UiKit] 字号 " + fontSize + " 不在 3 画布像素的整数倍栅格上（艺术像素栅格）");
-                return fallback ?? PixelFont12();
-            }
-
-            if (requiredPointSize == 12)
-                return PixelFont12();
-            if (requiredPointSize == 10)
-                return PixelFont10();
-
-            Debug.LogError("[UiKit] 字号 " + fontSize + "（需 " + requiredPointSize
-                + "px 原生设计位图字体）无满精度字体档——回落正文档。"
-                + "引入新档位请走 FontAssetBuilder 的位图 spec + 本方法登记。");
-            return PixelFont12();
+            TMP_FontAsset resolved = fontSize >= 15 ? PixelFont12() : PixelFont10();
+            return resolved != null ? resolved : fallback;
         }
 
         static TMP_FontAsset PixelFont12()
@@ -558,9 +544,18 @@ namespace PirateCrew.UI
             return PixelFillKind.Neutral;
         }
 
+        /// <summary>水平方向内缩（条填充件用）：Track 凹槽左右缘的 1u 外环不被填充盖掉——
+        /// 与顶栏队血条的段内缩同口径（此前填充满铺，凹槽右缘描边被整条盖掉，走查读感
+        /// 「血条右边界没有描边」）。</summary>
+        static void InsetHorizontal(RectTransform rect, float inset)
+        {
+            rect.offsetMin = new Vector2(inset, rect.offsetMin.y);
+            rect.offsetMax = new Vector2(-inset, rect.offsetMax.y);
+        }
+
         /// <summary>
         /// 建双层血条：Track(Frame) 凹槽底 → 暖白 ghost（受击残影，垫在下）→ 主填充（队色档，在上）。
-        /// 两个填充都从左侧 anchorMax.x 表达比例。
+        /// 两个填充都从左侧 anchorMax.x 表达比例；水平各内缩 1u 露出凹槽描边（见 <see cref="InsetHorizontal"/>）。
         /// </summary>
         public static BarView CreateBar(string name, Transform parent, Vector2 anchoredPosition,
             Vector2 size, Color fillColor)
@@ -579,9 +574,11 @@ namespace PirateCrew.UI
 
             Image ghost = CreateFill("Ghost", root, PixelFillKind.Neutral);
             Stretch(ghost.rectTransform);
+            InsetHorizontal(ghost.rectTransform, PixelSkin.Unit);
 
             Image fill = CreateFill("Fill", root, FillKindOfColor(fillColor));
             Stretch(fill.rectTransform);
+            InsetHorizontal(fill.rectTransform, PixelSkin.Unit);
 
             return new BarView { Root = root, Track = track, Ghost = ghost, Fill = fill };
         }
