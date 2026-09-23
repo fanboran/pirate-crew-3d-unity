@@ -9,9 +9,10 @@ using PirateCrew.Combat;
 namespace PirateCrew.Tests
 {
     /// <summary>
-    /// 星级评价、海图结算与 M3 闭环接线（<c>battle_started</c> / <c>crew_died</c> / <c>match_finished</c> → 进度 + 奖励）。
+    /// 星级评价、海图结算与 M3 闭环接线（<c>BattleEvents.BattleStarted</c> / <c>BattleEvents.CrewDied</c> /
+    /// <c>BattleEvents.MatchFinished</c> → 进度 + 奖励）。
     /// 一代退场后结算键 = 海图 id：待战海图由 <see cref="WorldMapRuntime.SetPending"/> 设置，
-    /// <c>CampaignApi</c> 在 battle_started 时收养它为待结算归属。
+    /// <c>CampaignApi</c> 在 <c>BattleEvents.BattleStarted</c> 时收养它为待结算归属。
     /// 纯 C#：发事件不触发 Unity API（无 SaveManager / 无 SceneLoader 时安全）。
     /// </summary>
     public class CampaignSettlementTests
@@ -30,7 +31,7 @@ namespace PirateCrew.Tests
             _lastCompleted = null;
             Assert.That(WorldMapCatalog.TryGet(MapA, out _), Is.True,
                 "测试依赖目录里存在海图 " + MapA);
-            EventBus.Subscribe<CampaignMapCompletedPayload>(CampaignEvents.MapCompleted, OnMapCompleted);
+            EventBus.Subscribe(CampaignEvents.MapCompleted, OnMapCompleted);
         }
 
         [TearDown]
@@ -225,7 +226,7 @@ namespace PirateCrew.Tests
             // 场景：海图战没打完就退 → 下一局没有任何待战海图（直接 Play）。
             WorldMapRuntime.SetPending(MapA);
 
-            // 第一局：battle_started 收养待战海图为待结算归属。
+            // 第一局：BattleEvents.BattleStarted 收养待战海图为待结算归属。
             EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(101, 2));
             Assert.That(CampaignApi.HasPendingMap, Is.True);
 

@@ -22,7 +22,7 @@ namespace PirateCrew.Core
     ///
     /// 【使用方式】
     ///   (a) 直接调用: SceneLoader.Instance.ChangeScene("GameScene")（或经 <see cref="Services"/> 取实例）
-    ///   (b) 通过 EventBus 解耦（载荷类型编译期受检，登记见 <see cref="SceneEvents.RegisterContracts"/>）:
+    ///   (b) 通过 EventBus 解耦（载荷类型编译期受检，频道声明见 <see cref="SceneEvents"/>）:
     ///       EventBus.Publish(SceneEvents.ChangeScene, "GameScene")
     ///       EventBus.Publish(SceneEvents.GoBack)
     /// </summary>
@@ -76,13 +76,13 @@ namespace PirateCrew.Core
             CreateOverlay();
 
             // 对应 Godot _ready 里订阅 EventBus 的 "change_scene" / "go_back"
-            EventBus.Subscribe<string>(SceneEvents.ChangeScene, OnChangeSceneRequest);
+            EventBus.Subscribe(SceneEvents.ChangeScene, OnChangeSceneRequest);
             EventBus.Subscribe(SceneEvents.GoBack, OnGoBackRequest);
         }
 
         void OnDestroy()
         {
-            EventBus.Unsubscribe<string>(SceneEvents.ChangeScene, OnChangeSceneRequest);
+            EventBus.Unsubscribe(SceneEvents.ChangeScene, OnChangeSceneRequest);
             EventBus.Unsubscribe(SceneEvents.GoBack, OnGoBackRequest);
 
             if (Instance == this)

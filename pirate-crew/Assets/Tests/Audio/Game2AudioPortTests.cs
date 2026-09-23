@@ -5,6 +5,7 @@ using System.Reflection;
 using NUnit.Framework;
 using PirateCrew.Audio;
 using PirateCrew.Battle;
+using PirateCrew.Core;
 
 namespace PirateCrew.Tests.Audio
 {
@@ -12,28 +13,28 @@ namespace PirateCrew.Tests.Audio
     /// 「隔壁 Game-2 自产 WAV → 本项目 SfxId / 事件」搬运映射表的一致性测试（纯 C#）。
     ///
     /// 搬运类故障全是**静默**的：文件忘了拷 → 运行时回落到程序化合成（听感不一致但没人报错）；
-    /// 事件名写错 → 声音永远不响；变奏少拷一个 → 只是「重复感又回来了」。
+    /// 频道接错 → 声音永远不响；变奏少拷一个 → 只是「重复感又回来了」。
     /// 所以这四条要对表逐项断言：
     ///   ① 每条映射至少有 1 个源文件，且变奏数与源文件数一致；
     ///   ② 源文件在 Game-2 目录里确实存在（源目录不在的机器上跳过——wav 已随工程提交）；
     ///     上游重构后迁移走的源改查 <see cref="ArchivedSourceRelocations"/> 登记位置，
     ///     并逐字节核对已搬运副本（见该表注释）。
-    ///   ③ 每条映射的目标事件**确实被 AudioService 订阅**（或在表里明确标注为手动 API）；
+    ///   ③ 每条映射的目标频道**确实被 AudioService 订阅**（或在表里明确标注为手动 API）；
     ///   ④ 每个变奏的目标资产都已落在 Resources/PirateCrewAudio。
     /// </summary>
     public class Game2AudioPortTests
     {
         /// <summary>
         /// 订阅表里**不是**搬运映射驱动的接线（沿用程序化合成素材，没有 Game-2 源）。
-        /// 列在测试里是刻意的：新增订阅事件必须同步更新本表或搬运映射，否则测试失败
-        /// （防止「订阅了一个没人播的事件」这种静默死接线）。
+        /// 列在测试里是刻意的：新增订阅频道必须同步更新本表或搬运映射，否则测试失败
+        /// （防止「订阅了一个没人播的频道」这种静默死接线）。
         /// </summary>
-        static readonly string[] NonPortedSubscriptions =
+        static readonly Event[] NonPortedSubscriptions =
         {
-            BattleEvents.TurnEnded,      // 回合结束 → SfxId.TurnEnd（合成，Game-2 无对应源）
-            BattleEvents.MineBeep,       // 地雷引信 → SfxId.MineBeep（合成，§5.2 beepTimes）
-            BattleEvents.AiDecided,      // AI 换武器 → SfxId.WeaponSwitch（合成）
-            "scene_load_started",        // 离开战斗场景 → 停底床/停音乐（清理，不出声）
+            BattleEvents.TurnEnded,             // 回合结束 → SfxId.TurnEnd（合成，Game-2 无对应源）
+            BattleEvents.MineBeep,              // 地雷引信 → SfxId.MineBeep（合成，§5.2 beepTimes）
+            BattleEvents.AiDecided,             // AI 换武器 → SfxId.WeaponSwitch（合成）
+            SceneEvents.SceneLoadStarted,       // 离开战斗场景 → 停底床/停音乐（清理，不出声）
         };
 
         // ------------------------------------------------------------------
@@ -127,7 +128,7 @@ namespace PirateCrew.Tests.Audio
         [Test]
         public void Port_EventWiredEntriesUseSubscribedEvents()
         {
-            var subscribed = new HashSet<string>(AudioService.SubscribedEvents(), StringComparer.Ordinal);
+            var subscribed = new HashSet<Event>(AudioService.SubscribedChannels());
             Assert.That(subscribed.Count, Is.GreaterThan(0), "AudioService 订阅表为空？");
 
             foreach (Game2Port port in Game2AudioAssets.All)
@@ -135,8 +136,8 @@ namespace PirateCrew.Tests.Audio
                 if (!port.WiredToEventBus)
                     continue;
 
-                Assert.That(subscribed.Contains(port.EventName), Is.True,
-                    port.Id + " 映射到事件 " + port.EventName + "，但 AudioService 没有订阅它（声音永远不会响）");
+                Assert.That(subscribed.Contains(port.Channel), Is.True,
+                    port.Id + " 映射的频道未被 AudioService 订阅（声音永远不会响）");
             }
         }
 
@@ -157,19 +158,19 @@ namespace PirateCrew.Tests.Audio
         [Test]
         public void Port_SubscribedEventsAreAllAccountedFor()
         {
-            // 反向检查：订阅的每个事件要么有搬运映射驱动，要么在 NonPortedSubscriptions 里登记
-            var wiredOrPorted = new HashSet<string>(StringComparer.Ordinal);
+            // 反向检查：订阅的每个频道要么有搬运映射驱动，要么在 NonPortedSubscriptions 里登记
+            var wiredOrPorted = new HashSet<Event>();
             foreach (Game2Port port in Game2AudioAssets.All)
             {
                 if (port.WiredToEventBus)
-                    wiredOrPorted.Add(port.EventName);
+                    wiredOrPorted.Add(port.Channel);
             }
 
-            var allow = new HashSet<string>(NonPortedSubscriptions, StringComparer.Ordinal);
-            foreach (string eventName in AudioService.SubscribedEvents())
+            var allow = new HashSet<Event>(NonPortedSubscriptions);
+            foreach (Event channel in AudioService.SubscribedChannels())
             {
-                Assert.That(wiredOrPorted.Contains(eventName) || allow.Contains(eventName), Is.True,
-                    "订阅了事件 " + eventName + "，但它既不在搬运映射里也没有登记为「沿用合成素材」");
+                Assert.That(wiredOrPorted.Contains(channel) || allow.Contains(channel), Is.True,
+                    "订阅了频道 " + channel.GetType().FullName + "，但它既不在搬运映射里也没有登记为「沿用合成素材」");
             }
         }
 

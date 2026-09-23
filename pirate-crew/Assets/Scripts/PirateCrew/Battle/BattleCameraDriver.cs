@@ -307,30 +307,30 @@ namespace PirateCrew.Battle
         void OnEnable()
         {
             _sceneUnloading = false;
-            EventBus.Subscribe<TurnStartedPayload>(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Subscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
-            EventBus.Subscribe<Transform>(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
-            EventBus.Subscribe<ActionSelectedPayload>(BattleEvents.ActionSelected, OnActionSelected);
-            EventBus.Subscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
-            EventBus.Subscribe<CrewDamagedPayload>(BattleEvents.CrewDamaged, OnCrewDamaged);
-            EventBus.Subscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Subscribe<AiThinkingPayload>(BattleEvents.AiThinking, OnAiThinking);
-            EventBus.Subscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
+            EventBus.Subscribe(BattleEvents.TurnStarted, OnTurnStarted);
+            EventBus.Subscribe(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Subscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Subscribe(BattleEvents.ActionSelected, OnActionSelected);
+            EventBus.Subscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Subscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
+            EventBus.Subscribe(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Subscribe(BattleEvents.AiThinking, OnAiThinking);
+            EventBus.Subscribe(BattleEvents.MatchFinished, OnMatchFinished);
         }
 
         void OnDisable()
         {
             // 【退订，不是再订阅】订阅/退订必须成对（历史上曾把 Subscribe 原样抄进 OnDisable，
             // 每次禁用都让订阅翻倍——r13 修复档案 11c1919）。
-            EventBus.Unsubscribe<TurnStartedPayload>(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Unsubscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
-            EventBus.Unsubscribe<Transform>(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
-            EventBus.Unsubscribe<ActionSelectedPayload>(BattleEvents.ActionSelected, OnActionSelected);
-            EventBus.Unsubscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
-            EventBus.Unsubscribe<CrewDamagedPayload>(BattleEvents.CrewDamaged, OnCrewDamaged);
-            EventBus.Unsubscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Unsubscribe<AiThinkingPayload>(BattleEvents.AiThinking, OnAiThinking);
-            EventBus.Unsubscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
+            EventBus.Unsubscribe(BattleEvents.TurnStarted, OnTurnStarted);
+            EventBus.Unsubscribe(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Unsubscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Unsubscribe(BattleEvents.ActionSelected, OnActionSelected);
+            EventBus.Unsubscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Unsubscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
+            EventBus.Unsubscribe(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Unsubscribe(BattleEvents.AiThinking, OnAiThinking);
+            EventBus.Unsubscribe(BattleEvents.MatchFinished, OnMatchFinished);
 
             // 兜底：任何情况下都不能把 timeScale 留在压低状态（否则整个工程"卡死"）。
             _sceneUnloading = true;

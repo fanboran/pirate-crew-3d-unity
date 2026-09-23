@@ -251,9 +251,9 @@ namespace PirateCrew.Ambient
                     verboseLog);
             }
 
-            // 现有事件契约里唯一带"世界坐标"的爆炸事件（未新增任何事件）。
-            EventBus.Subscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
-            EventBus.Subscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
+            // 现有频道表里唯一带"世界坐标"的爆炸频道（未新增任何频道）。
+            EventBus.Subscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
 
             // 命令行档位覆盖（-ambientTimeOfDay，见 AmbientTimeOfDayCatalog）：三档对比捕图 / 试玩
             // 验证用，优先级**高于**世界地图档（BattleController 稍后 SetTimeOfDay 会被 _cliTierOverride 拦下）。
@@ -294,8 +294,8 @@ namespace PirateCrew.Ambient
 
         void Teardown()
         {
-            EventBus.Unsubscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
-            EventBus.Unsubscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
+            EventBus.Unsubscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Unsubscribe(BattleEvents.BattleStarted, OnBattleStarted);
 
             // 运行时建的天空盒材质是 DontSave 的孤儿资产，必须显式销毁（本工程资源生命周期的口径，
             // 同 _runtimeMeshes 的处理）。

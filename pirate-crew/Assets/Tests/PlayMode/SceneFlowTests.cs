@@ -71,14 +71,14 @@ namespace PirateCrew.Tests
             Assert.IsNotNull(SceneLoader.Instance, "SceneLoader 应被 Bootstrapper 创建");
             Assert.IsNotNull(SaveManager.Instance, "SaveManager 应被 Bootstrapper 创建");
 
-            // 主菜单（或任意模块）通过 EventBus 请求进入战斗
-            EventBus.Publish("change_scene", SceneNames.Battle);
+            // 主菜单（或任意模块）通过 EventBus 频道请求进入战斗
+            EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
             yield return WaitForScene(SceneNames.Battle);
             yield return WaitForTransitionEnd();
             Assert.IsNotNull(SceneLoader.Instance, "切场景后 SceneLoader 应存活");
 
-            // Battle 占位场景的返回按钮走 go_back（事件名与 payload 与 BattlePlaceholder 一致）
-            EventBus.Publish("go_back");
+            // Battle 占位场景的返回按钮走 SceneEvents.GoBack（频道与 payload 与 BattlePlaceholder 一致）
+            EventBus.Publish(SceneEvents.GoBack);
             yield return WaitForScene(SceneNames.MainMenu);
             yield return WaitForTransitionEnd();
             Assert.IsNotNull(SceneLoader.Instance, "返回后 SceneLoader 应存活");

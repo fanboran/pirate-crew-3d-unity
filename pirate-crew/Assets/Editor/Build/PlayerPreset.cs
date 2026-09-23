@@ -65,8 +65,9 @@ namespace PirateCrew.EditorTools.BuildSystem
 
         /// <summary>
         /// 托管剥离等级。发行档 <c>Low</c>：剥掉未使用的引擎代码但不碰托管类型。
-        /// **故意不用 Medium/High**——本项目有反射依赖（<c>SceneNames</c> 常量反射校验、EventCatalog 反射测试），
-        /// 提高剥离等级需要先补 <c>link.xml</c> 保留清单，否则是「构建成功、运行期找不到类型」的静默故障。
+        /// **故意不用 Medium/High**——本项目有反射依赖（<c>SceneNames</c> 常量反射校验、
+        /// <see cref="GameBootstrap"/> 接线入口反射发现），提高剥离等级需要先补 <c>link.xml</c>
+        /// 保留清单，否则是「构建成功、运行期找不到类型」的静默故障。
         /// </summary>
         public const ManagedStrippingLevel ReleaseStripping = ManagedStrippingLevel.Low;
 

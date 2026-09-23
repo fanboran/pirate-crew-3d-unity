@@ -160,7 +160,7 @@ namespace PirateCrew.UI
         /// <summary>这一局是否战役局（结算面板按它决定显示哪些行）。</summary>
         bool _campaignBattle;
 
-        /// <summary>对局第 N 手（每次 turn_started 递增；原版 §3 无回合上限）。</summary>
+        /// <summary>对局第 N 手（每次 TurnStarted 频道触发递增；原版 §3 无回合上限）。</summary>
         int _turnNumber;
 
         UiMotion _motion;
@@ -270,14 +270,14 @@ namespace PirateCrew.UI
 
         void OnEnable()
         {
-            EventBus.Subscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
-            EventBus.Subscribe<TurnStartedPayload>(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Subscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
-            EventBus.Subscribe<ActionSelectedPayload>(BattleEvents.ActionSelected, OnActionSelected);
-            EventBus.Subscribe<CrewDamagedPayload>(BattleEvents.CrewDamaged, OnCrewDamaged);
-            EventBus.Subscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Subscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
-            EventBus.Subscribe<Transform>(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
+            EventBus.Subscribe(BattleEvents.TurnStarted, OnTurnStarted);
+            EventBus.Subscribe(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Subscribe(BattleEvents.ActionSelected, OnActionSelected);
+            EventBus.Subscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
+            EventBus.Subscribe(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Subscribe(BattleEvents.MatchFinished, OnMatchFinished);
+            EventBus.Subscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
         }
 
         void OnDisable()
@@ -285,14 +285,14 @@ namespace PirateCrew.UI
             // 离场兜底：暂停中直接回主菜单/选关，绝不能把 timeScale=0 带出战斗场景。
             BattlePause.ForceResume();
 
-            EventBus.Subscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
-            EventBus.Subscribe<TurnStartedPayload>(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Subscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
-            EventBus.Subscribe<ActionSelectedPayload>(BattleEvents.ActionSelected, OnActionSelected);
-            EventBus.Subscribe<CrewDamagedPayload>(BattleEvents.CrewDamaged, OnCrewDamaged);
-            EventBus.Subscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Subscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
-            EventBus.Subscribe<Transform>(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
+            EventBus.Subscribe(BattleEvents.TurnStarted, OnTurnStarted);
+            EventBus.Subscribe(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Subscribe(BattleEvents.ActionSelected, OnActionSelected);
+            EventBus.Subscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
+            EventBus.Subscribe(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Subscribe(BattleEvents.MatchFinished, OnMatchFinished);
+            EventBus.Subscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
         }
 
         void WireWeaponButtons()

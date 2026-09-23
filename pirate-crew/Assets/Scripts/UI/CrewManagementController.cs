@@ -15,8 +15,8 @@ namespace PirateCrew.UI
     ///
     /// 【接线约定】UI 不持有模块内部对象：
     ///   · 状态读写走 <see cref="CrewManagementApi"/>；
-    ///   · 场景切换走 EventBus <c>change_scene</c> / <c>go_back</c>；
-    ///   · 名册变化订阅 <see cref="CrewManagementEvents"/> 事件刷新列表。
+    ///   · 场景切换走 EventBus 切场景/返回频道（<see cref="SceneEvents.ChangeScene"/> / <see cref="SceneEvents.GoBack"/>）；
+    ///   · 名册变化订阅 <see cref="CrewManagementEvents"/> 频道刷新列表。
     ///
     /// 【本波次改造】文本 TMP 化 + 全中文（<see cref="UiStrings"/> / <see cref="UiTextRules"/>）；
     /// 行/按钮换羊皮纸 + 木板九宫格；行字号走 <see cref="UiTheme.FontBody"/> 旧档入口
@@ -54,9 +54,9 @@ namespace PirateCrew.UI
             if (backButton != null)
                 backButton.onClick.AddListener(OnBackClicked);
 
-            EventBus.Subscribe<RosterUpdatedPayload>(CrewManagementEvents.RosterUpdated, OnRosterChanged);
-            EventBus.Subscribe<CrewUnlockedPayload>(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
-            EventBus.Subscribe<CampaignMapCompletedPayload>(CampaignEvents.MapCompleted, OnMapCompleted);
+            EventBus.Subscribe(CrewManagementEvents.RosterUpdated, OnRosterChanged);
+            EventBus.Subscribe(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
+            EventBus.Subscribe(CampaignEvents.MapCompleted, OnMapCompleted);
         }
 
         void Start()
@@ -78,9 +78,9 @@ namespace PirateCrew.UI
             if (backButton != null)
                 backButton.onClick.RemoveListener(OnBackClicked);
 
-            EventBus.Unsubscribe<RosterUpdatedPayload>(CrewManagementEvents.RosterUpdated, OnRosterChanged);
-            EventBus.Unsubscribe<CrewUnlockedPayload>(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
-            EventBus.Unsubscribe<CampaignMapCompletedPayload>(CampaignEvents.MapCompleted, OnMapCompleted);
+            EventBus.Unsubscribe(CrewManagementEvents.RosterUpdated, OnRosterChanged);
+            EventBus.Unsubscribe(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
+            EventBus.Unsubscribe(CampaignEvents.MapCompleted, OnMapCompleted);
         }
 
         // ------------------------------------------------------------------
@@ -252,7 +252,7 @@ namespace PirateCrew.UI
             else
                 SetStatus(string.Format(UiStrings.CrewStatusFailedFormat, levelName));
 
-            // Refresh 已由 crew_roster_updated 驱动（关卡结算会广播经验变化）。
+            // Refresh 已由 CrewManagementEvents.RosterUpdated 频道驱动（关卡结算会广播经验变化）。
         }
 
         void SetStatus(string message)

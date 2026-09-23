@@ -14,8 +14,8 @@ namespace PirateCrew.UI
     /// 主菜单控制器（翻译自 Godot <c>modules/pirate_crew/scripts/ui/main_menu.gd</c>）。
     ///
     /// 【行为】
-    ///   - 进入战斗：发布 EventBus "change_scene"（载荷为场景名），由 SceneLoader 统一处理，
-    ///     以此示范事件驱动架构——UI 不直接持有 SceneLoader 引用。
+    ///   - 进入战斗：发布 EventBus 切场景频道（<see cref="SceneEvents.ChangeScene"/>，载荷为场景名），
+    ///     由 SceneLoader 统一处理，以此示范事件驱动架构——UI 不直接持有 SceneLoader 引用。
     ///   - 单人战役 → <see cref="SceneNames.LevelSelect"/>；船员管理 → <see cref="SceneNames.CrewManagement"/>。
     ///   - 设置（**真接线**）：音量四路实时改 <see cref="AudioService"/>、画质档与全屏立即切
     ///     <see cref="VideoSettingsService"/>；全部改动在关面板时统一落盘（设置槽 9）。
@@ -24,7 +24,7 @@ namespace PirateCrew.UI
     /// </summary>
     public sealed class MainMenuController : MonoBehaviour
     {
-        /// <summary>EventBus 场景切换事件名（payload 为 string 场景名，与 SceneLoader 约定一致）。</summary>
+        /// <summary>EventBus 切场景频道（<see cref="SceneEvents.ChangeScene"/>；payload 为 string 场景名，与 SceneLoader 约定一致）。</summary>
 
         [SerializeField] Button battleButton;
         [SerializeField] Button crewButton;

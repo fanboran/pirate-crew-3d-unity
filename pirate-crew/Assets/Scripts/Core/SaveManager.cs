@@ -19,7 +19,7 @@ namespace PirateCrew.Core
     ///   2. 槽位元数据：独立 _meta.json；GetSlotMeta / ListSlots 以元数据为唯一来源、不碰槽位文件
     ///      （Unity 版定案设计；Godot 原版这两个方法是扫描/读取槽位文件的）
     ///   3. 自动存档：EnableAutoSave 协程定时 + TriggerAutoSave 手动触发 + 退出兜底
-    ///   4. 事件通知：本地 event + 转发 EventBus（save_completed / load_completed / auto_save_triggered）
+    ///   4. 事件通知：本地 event + 转发 EventBus 频道（SaveEvents.SaveCompleted / LoadCompleted / AutoSaveTriggered）
     ///
     /// 【文件布局】&lt;SaveRootPath&gt;/slot_{n}.json、&lt;SaveRootPath&gt;/_meta.json（+ .bak / .tmp）
     ///   默认 SaveRootPath = Application.persistentDataPath/saves；测试或特殊平台可注入覆盖。

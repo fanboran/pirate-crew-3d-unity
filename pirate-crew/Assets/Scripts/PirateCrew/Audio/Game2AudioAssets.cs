@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using PirateCrew.Battle;
+using PirateCrew.Core;
 
 namespace PirateCrew.Audio
 {
@@ -21,19 +22,19 @@ namespace PirateCrew.Audio
         public readonly string[] Sources;
 
         /// <summary>
-        /// 该音效被哪个 EventBus 事件驱动（<c>BattleEvents</c> 常量）；
-        /// 空串表示没有对应事件、只能走公开 API 手动接线（见 <see cref="Note"/>）。
+        /// 该音效被哪个 EventBus 频道驱动（<c>XxxEvents</c> 的频道字段引用）；
+        /// null 表示没有对应频道、只能走公开 API 手动接线（见 <see cref="Note"/>）。
         /// </summary>
-        public readonly string EventName;
+        public readonly Event Channel;
 
         /// <summary>人可读的用途/接线说明。</summary>
         public readonly string Note;
 
-        public Game2Port(SfxId id, string[] sources, string eventName, string note)
+        public Game2Port(SfxId id, string[] sources, Event channel, string note)
         {
             Id = id;
             Sources = sources;
-            EventName = eventName;
+            Channel = channel;
             Note = note;
         }
 
@@ -41,7 +42,7 @@ namespace PirateCrew.Audio
         public int VariantCount => Sources == null ? 0 : Sources.Length;
 
         /// <summary>是否由事件总线自动接线（false = 需要手动调 AudioService 的公开 API）。</summary>
-        public bool WiredToEventBus => !string.IsNullOrEmpty(EventName);
+        public bool WiredToEventBus => Channel != null;
     }
 
     /// <summary>
@@ -83,14 +84,14 @@ namespace PirateCrew.Audio
         /// <summary>变奏文件名的数字后缀格式（第 0 个变奏无后缀）。</summary>
         public const string VariantSuffixFormat = "_{0}";
 
-        // 事件名常量：全部取自 BattleEvents，禁止在本文件写裸字符串。
-        const string EvBattleStarted = BattleEvents.BattleStarted;
-        const string EvTurnStarted = BattleEvents.TurnStarted;
-        const string EvShotReleased = BattleEvents.ShotReleased;
-        const string EvDetonated = BattleEvents.ProjectileDetonated;
-        const string EvCrewDamaged = BattleEvents.CrewDamaged;
-        const string EvCrewDied = BattleEvents.CrewDied;
-        const string EvMatchFinished = BattleEvents.MatchFinished;
+        // 频道引用：全部取自 XxxEvents 的频道字段，禁止在本文件内联 new Event。
+        static readonly Event EvBattleStarted = BattleEvents.BattleStarted;
+        static readonly Event EvTurnStarted = BattleEvents.TurnStarted;
+        static readonly Event EvShotReleased = BattleEvents.ShotReleased;
+        static readonly Event EvDetonated = BattleEvents.ProjectileDetonated;
+        static readonly Event EvCrewDamaged = BattleEvents.CrewDamaged;
+        static readonly Event EvCrewDied = BattleEvents.CrewDied;
+        static readonly Event EvMatchFinished = BattleEvents.MatchFinished;
 
         static readonly Game2Port[] Ports =
         {
@@ -161,13 +162,13 @@ namespace PirateCrew.Audio
             // ================= UI（无事件，需 UI 层手动接线） =================
             new Game2Port(SfxId.UiClick,
                 new[] { "sfx/ui_click.wav" },
-                "",
-                "按钮点击；当前无对应 EventBus 事件，UI 层未接线 → 调 AudioService.PlayUi(SfxId.UiClick)"),
+                null,
+                "按钮点击；当前无对应 EventBus 频道，UI 层未接线 → 调 AudioService.PlayUi(SfxId.UiClick)"),
 
             new Game2Port(SfxId.UiPanelOpen,
                 new[] { "sfx/ui_confirm.wav" },
-                "",
-                "面板展开/确认；当前无对应 EventBus 事件，UI 层未接线 → 调 AudioService.PlayUi(SfxId.UiPanelOpen)"),
+                null,
+                "面板展开/确认；当前无对应 EventBus 频道，UI 层未接线 → 调 AudioService.PlayUi(SfxId.UiPanelOpen)"),
         };
 
         static readonly Dictionary<SfxId, Game2Port> ById = BuildById();

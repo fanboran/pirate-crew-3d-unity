@@ -39,18 +39,15 @@ namespace PirateCrew.Core
     }
 
     /// <summary>
-    /// 接线阶段。三个阶段由 <see cref="GameEntryPoint"/> 在**同一次** <c>BeforeSceneLoad</c> 回调里
-    /// 按枚举顺序依次跑完（阶段名说的是"这类工作"，不是"三个引擎时机"）。
+    /// 接线阶段。各阶段由 <see cref="GameEntryPoint"/> 在**同一次** <c>BeforeSceneLoad</c> 回调里
+    /// 按枚举顺序依次跑完（阶段名说的是"这类工作"，不是"多个引擎时机"）。
     /// </summary>
     public enum GameBootstrapPhase
     {
         /// <summary>清空静态残留（关闭 Domain Reload 时静态字段跨播放存活）。最先跑。</summary>
         ResetStatics = 0,
 
-        /// <summary>登记事件契约（<see cref="EventCatalog.Add{T}"/>）。必须早于任何 Publish/Subscribe。</summary>
-        Contracts = 1,
-
-        /// <summary>创建服务、订阅事件、装配命令行工具模式。最后跑。</summary>
+        /// <summary>创建服务、订阅事件、装配命令行工具模式。</summary>
         Initialize = 2,
     }
 

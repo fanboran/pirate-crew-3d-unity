@@ -7,15 +7,14 @@ namespace PirateCrew.Tests
 {
     /// <summary>
     /// EventBus 类型化频道（<see cref="Event"/> / <see cref="Event{T}"/>）单元测试。
-    /// 与 <see cref="EventBusTests"/>（字符串键套件）锁定同一组不变量，外加类型化键特有的三条：
+    /// 锁定的不变量：
     ///
     /// 【类型化键特有】
     ///   1. 键即身份：同一载荷类型的两个频道实例互不相通（"static readonly 字段一个频道"语义）；
-    ///   2. 迁移共存：字符串键频道与类型化频道互不相通；
-    ///   3. 误用守卫：载荷频道被当成无载荷频道用（基类声明 + 无参 Action / 无载荷 Publish）时
-    ///      记契约违规并拒绝建立条目，不留"订阅了但永远收不到"的静默条目。
+    ///   2. 误用守卫：载荷频道被当成无载荷频道用（基类声明 + 无参 Action / 无载荷 Publish）时
+    ///      记误用记录并拒绝建立条目，不留"订阅了但永远收不到"的静默条目。
     ///
-    /// 【继承自字符串套件的不变量】快照遍历安全、去重、退订精确匹配、投递零分配、静态复位。
+    /// 【通用不变量】快照遍历安全、去重、退订精确匹配、投递零分配、静态复位。
     /// EventBus 是静态类，测试间必须 ClearAll 隔离静态状态（频道实例本身无状态，可跨用例复用）。
     /// </summary>
     public class EventBusTypedChannelTests
@@ -26,7 +25,6 @@ namespace PirateCrew.Tests
         static readonly Event<string> StringChannel = new();
         static readonly Event<GoldPayload> GoldChannel = new();
         static readonly Event NoPayloadChannel = new();
-        const string StringKeyChannel = "test_string_key_channel";
 
         [SetUp]
         public void SetUp()
@@ -135,28 +133,6 @@ namespace PirateCrew.Tests
             Assert.That(first, Is.EqualTo(1), "IntChannel 的订阅者必须收到投递");
             Assert.That(second, Is.EqualTo(0), "同载荷类型的另一个频道实例不该收到投递（身份即实例）");
         }
-
-        [Test]
-        public void TypedChannel_And_StringKeyChannel_AreIsolated()
-        {
-            // 迁移期内两套键并存：绝不允许字符串频道收到类型化频道的投递，反之亦然。
-            int typed = 0;
-            int byString = 0;
-            EventBus.Subscribe(IntChannel, (Action<int>)(payload => typed = payload));
-            EventBus.Subscribe(StringKeyChannel, (Action<int>)(payload => byString = payload));
-
-            EventBus.Publish(IntChannel, 1);
-            Assert.That(typed, Is.EqualTo(1));
-            Assert.That(byString, Is.EqualTo(0), "字符串键频道不该收到类型化频道的投递");
-
-            EventBus.Publish(StringKeyChannel, 2);
-            Assert.That(typed, Is.EqualTo(1), "类型化频道不该收到字符串键频道的投递");
-            Assert.That(byString, Is.EqualTo(2));
-        }
-
-        // ------------------------------------------------------------------
-        // 误用守卫（载荷频道被当无载荷频道用）
-        // ------------------------------------------------------------------
 
         [Test]
         public void Subscribe_PayloadChannelViaBaseDeclaration_WithParameterlessAction_IsRejected()
@@ -358,17 +334,15 @@ namespace PirateCrew.Tests
         }
 
         [Test]
-        public void ResetForNewSession_ClearsTypedAndStringChannels()
+        public void ResetForNewSession_ClearsAllChannels()
         {
             EventBus.Subscribe(IntChannel, (Action<int>)(_ => { }));
             EventBus.Subscribe(NoPayloadChannel, () => { });
-            EventBus.Subscribe(StringKeyChannel, () => { });
 
             EventBus.ResetForNewSession();
 
             Assert.That(EventBus.HasListeners(IntChannel), Is.False, "静态复位必须清掉类型化频道的订阅");
             Assert.That(EventBus.HasListeners(NoPayloadChannel), Is.False);
-            Assert.That(EventBus.HasListeners(StringKeyChannel), Is.False, "静态复位必须一并清掉字符串键频道");
             Assert.That(EventBus.ChannelCount, Is.EqualTo(0));
         }
 

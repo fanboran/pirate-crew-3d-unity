@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using PirateCrew.Core;
+using Event = PirateCrew.Core.Event;   // 消解与 UnityEngine.Event 的二义性（CS0104）
 using PirateCrew.Audio.Synth;
 using PirateCrew.Battle;
 using PirateCrew.Combat;
@@ -19,11 +20,11 @@ namespace PirateCrew.Audio
     /// （本类不再自挂引擎回调：启动期只有 GameEntryPoint 一处，见 Core/GameEntryPoint 的注释。）
     ///
     /// 【触发方式（两条并存）】
-    ///   ① **EventBus 订阅**（只订阅现有事件，不新增、不改他人文件；订阅表见
-    ///      <see cref="SubscribedEvents"/>，可被测试断言）：
-    ///      battle_started / turn_started / turn_ended / battle_shot_released /
-    ///      battle_projectile_detonated / battle_mine_beep / crew_damaged / crew_died /
-    ///      ai_decided / match_finished / scene_load_started。
+    ///   ① **EventBus 订阅**（只订阅现有频道，不新增、不改他人文件；订阅表见
+    ///      <see cref="SubscribedChannels"/>，可被测试断言）：
+    ///      BattleEvents.BattleStarted / TurnStarted / TurnEnded / ShotReleased /
+    ///      ProjectileDetonated / MineBeep / CrewDamaged / CrewDied /
+    ///      AiDecided / MatchFinished / SceneEvents.SceneLoadStarted。
     ///   ② **公开静态 API**（给没有事件的场合手动接线）：
     ///      <see cref="PlaySfx"/>（3D）、<see cref="PlaySfx2D"/>、<see cref="PlayUi"/>、
     ///      <see cref="PlayAmbient"/>、<see cref="StartAmbientBed"/>、<see cref="PlayMusic"/> 等。
@@ -59,7 +60,7 @@ namespace PirateCrew.Audio
 
         /// <summary>投掷 whoosh 的「满力拖拽」参考值（Flash px）。
         /// 出处：<c>CrewCatalog.cs:127 DragRange = 130</c>（拖拽面板行程）。
-        /// 用于把 <c>battle_shot_released</c> 的拖拽距离映射到音高/音量（提案/待定）。</summary>
+        /// 用于把 <c>BattleEvents.ShotReleased</c> 的拖拽距离映射到音高/音量（提案/待定）。</summary>
         public const float WhooshFullDragPixels = 130f;
 
         /// <summary>环境底床按镜头距离重算衰减的节流间隔（秒）。</summary>
@@ -73,20 +74,13 @@ namespace PirateCrew.Audio
         const double ListenerProbeRetrySeconds = 1.0d;
 
         /// <summary>
-        /// 场景开始加载事件名。Core 的 SceneLoader 直接发字符串字面量
-        /// （<c>Core/SceneLoader.cs:260</c>，无公开常量），已登记在
-        /// <c>docs/EventBus事件契约.md</c> §1.3；这里定一个本地常量避免魔法字符串散落。
-        /// </summary>
-        const string SceneLoadStartedEvent = "scene_load_started";
-
-        /// <summary>
-        /// 本服务订阅的**全部** EventBus 事件名（订阅/退订共用同一份，杜绝两处漂移）。
+        /// 本服务订阅的**全部** EventBus 频道（订阅/退订共用同一份，杜绝两处漂移）。
         ///
         /// 【为什么要能对外读】音频是「发了事件没人播」最难发现的静默故障：
-        /// 事件名拼错、订阅表漏项在运行时都不报错。把它暴露成可枚举的静态数据后，
-        /// <c>Tests/Audio/Game2AudioPortTests</c> 能直接断言「每条搬运映射的目标事件确实有人订阅」。
+        /// 频道接错、订阅表漏项在运行时都不报错。把它暴露成可枚举的静态数据后，
+        /// 测试能直接断言「每条搬运映射的目标频道确实有人订阅」。
         /// </summary>
-        static readonly string[] EventNames =
+        static readonly Event[] Channels =
         {
             BattleEvents.BattleStarted,
             BattleEvents.TurnStarted,
@@ -98,17 +92,17 @@ namespace PirateCrew.Audio
             BattleEvents.CrewDied,
             BattleEvents.AiDecided,
             BattleEvents.MatchFinished,
-            SceneLoadStartedEvent,
+            SceneEvents.SceneLoadStarted,
         };
 
         /// <summary>订阅表副本（诊断/测试用；避免外部改动内部数组）。</summary>
-        public static string[] SubscribedEvents()
+        public static Event[] SubscribedChannels()
         {
-            return (string[])EventNames.Clone();
+            return (Event[])Channels.Clone();
         }
 
-        /// <summary>订阅事件数量。</summary>
-        public static int SubscribedEventCount => EventNames.Length;
+        /// <summary>订阅频道数量。</summary>
+        public static int SubscribedChannelCount => Channels.Length;
 
         static AudioService _instance;
 
@@ -133,8 +127,9 @@ namespace PirateCrew.Audio
         /// <summary>正在循环播放的源（环境底床 3 层 + 音乐之外的循环音）；值含层权重。</summary>
         readonly Dictionary<SfxId, LoopVoice> _loopSources = new Dictionary<SfxId, LoopVoice>();
 
-        /// <summary>事件名 → 已缓存的委托实例（订阅与退订必须用同一个实例才能退干净）。</summary>
-        readonly Dictionary<string, Action<object>> _handlers = new Dictionary<string, Action<object>>();
+        /// <summary>频道 → 已缓存的委托实例（订阅与退订必须用同一个实例才能退干净）。
+        /// Event 未覆写 Equals，字典按引用相等取键——「每个频道字段一个委托」的语义由此成立。</summary>
+        readonly Dictionary<Event, Action<object>> _handlers = new Dictionary<Event, Action<object>>();
 
         readonly AmbientBedMix _bedMix = new AmbientBedMix();
 
@@ -259,85 +254,85 @@ namespace PirateCrew.Audio
         }
 
         // ==================================================================
-        // EventBus 订阅（只订阅现有事件，不新增、不改他人文件）
+        // EventBus 订阅（只订阅现有频道，不新增、不改他人文件）
         //
-        // 【为什么用动态订阅】这里的订阅是**按名字表循环注册**的：处理器从
-        // <see cref="EventNames"/> 取名字再查表拿到委托，编译期固定不了每个事件的具体载荷类型，
+        // 【为什么用动态订阅】这里的订阅是**按频道表循环注册**的：处理器从
+        // <see cref="Channels"/> 取频道再查表拿到委托，编译期固定不了每个频道的具体载荷类型，
         // 所以走 EventBus 的低层逃生口 SubscribeDynamic（语义与限制见该方法注释：
-        // 不受契约表保护、也不会收到类型不匹配告警）。这是全工程唯一允许用它的地方。
+        // 不受频道泛型参数的类型锁定保护、也不会收到类型不匹配告警）。这是全工程唯一允许用它的地方。
         // ==================================================================
 
         void SubscribeEvents()
         {
-            for (int i = 0; i < EventNames.Length; i++)
-                EventBus.SubscribeDynamic(EventNames[i], HandlerFor(EventNames[i]));
+            for (int i = 0; i < Channels.Length; i++)
+                EventBus.SubscribeDynamic(Channels[i], HandlerFor(Channels[i]));
         }
 
         void UnsubscribeEvents()
         {
-            for (int i = 0; i < EventNames.Length; i++)
-                EventBus.UnsubscribeDynamic(EventNames[i], HandlerFor(EventNames[i]));
+            for (int i = 0; i < Channels.Length; i++)
+                EventBus.UnsubscribeDynamic(Channels[i], HandlerFor(Channels[i]));
 
             _handlers.Clear();
         }
 
         /// <summary>
-        /// 取某事件名的委托实例；同一事件名永远返回同一个实例，
-        /// 这样 <see cref="EventBus.Unsubscribe"/> 能按引用把监听者摘干净
+        /// 取某频道的委托实例；同一频道永远返回同一个实例，
+        /// 这样 <see cref="EventBus.UnsubscribeDynamic"/> 能按引用把监听者摘干净
         /// （每次现场 new 一个 lambda 闭包是摘不掉的——闭包实例不相等）。
         /// </summary>
-        Action<object> HandlerFor(string eventName)
+        Action<object> HandlerFor(Event channel)
         {
-            if (_handlers.TryGetValue(eventName, out Action<object> cached))
+            if (_handlers.TryGetValue(channel, out Action<object> cached))
                 return cached;
 
             Action<object> handler;
-            switch (eventName)
+            switch (channel)
             {
-                case BattleEvents.BattleStarted:
+                case var c when ReferenceEquals(c, BattleEvents.BattleStarted):
                     handler = OnBattleStarted;
                     break;
-                case BattleEvents.TurnStarted:
+                case var c when ReferenceEquals(c, BattleEvents.TurnStarted):
                     handler = OnTurnStarted;
                     break;
-                case BattleEvents.TurnEnded:
+                case var c when ReferenceEquals(c, BattleEvents.TurnEnded):
                     handler = OnTurnEnded;
                     break;
-                case BattleEvents.ShotReleased:
+                case var c when ReferenceEquals(c, BattleEvents.ShotReleased):
                     handler = OnShotReleased;
                     break;
-                case BattleEvents.ProjectileDetonated:
+                case var c when ReferenceEquals(c, BattleEvents.ProjectileDetonated):
                     handler = OnProjectileDetonated;
                     break;
-                case BattleEvents.MineBeep:
+                case var c when ReferenceEquals(c, BattleEvents.MineBeep):
                     handler = OnMineBeep;
                     break;
-                case BattleEvents.CrewDamaged:
+                case var c when ReferenceEquals(c, BattleEvents.CrewDamaged):
                     handler = OnCrewDamaged;
                     break;
-                case BattleEvents.CrewDied:
+                case var c when ReferenceEquals(c, BattleEvents.CrewDied):
                     handler = OnCrewDied;
                     break;
-                case BattleEvents.AiDecided:
+                case var c when ReferenceEquals(c, BattleEvents.AiDecided):
                     handler = OnAiDecided;
                     break;
-                case BattleEvents.MatchFinished:
+                case var c when ReferenceEquals(c, BattleEvents.MatchFinished):
                     handler = OnMatchFinished;
                     break;
-                case SceneLoadStartedEvent:
+                case var c when ReferenceEquals(c, SceneEvents.SceneLoadStarted):
                     handler = OnSceneLoadStarted;
                     break;
                 default:
-                    Debug.LogError("[AudioService] 订阅表里有未接线的事件名: " + eventName);
+                    Debug.LogError("[AudioService] 订阅表里有未接线的频道: " + channel.GetType().FullName);
                     return null;
             }
 
-            _handlers[eventName] = handler;
+            _handlers[channel] = handler;
             return handler;
         }
 
         // 【下面是动态处理器（Action<object>）】它们的载荷是 object 而不是具体 Payload —— 不是漏改：
-        // 订阅表是 string[] EventNames，处理器按事件名查表取得，编译期无法为每条固定载荷类型，
+        // 订阅表是 Event[] Channels，处理器按频道查表取得，编译期无法为每条固定载荷类型，
         // 所以走 EventBus 的逃生口 SubscribeDynamic（见 SubscribeEvents 的说明）。
         // 处理器内部仍按真实类型收窄（payload is XxxPayload），语义与泛型订阅一致。
 
@@ -470,7 +465,7 @@ namespace PirateCrew.Audio
 
         /// <summary>
         /// 起播环境底床（海浪 + 海风 + 垫底三层循环 + 鸟鸣点缀）。
-        /// <c>battle_started</c> 会自动调用；菜单等无战斗场景可手动调。
+        /// <c>BattleEvents.BattleStarted</c> 发布时会自动调用；菜单等无战斗场景可手动调。
         /// </summary>
         public static bool StartAmbientBed()
         {

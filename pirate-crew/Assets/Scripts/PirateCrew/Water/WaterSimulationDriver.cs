@@ -495,7 +495,7 @@ namespace PirateCrew.Water
         {
             if (_subscribed)
                 return;
-            EventBus.Subscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Subscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
             _subscribed = true;
         }
 
@@ -503,7 +503,7 @@ namespace PirateCrew.Water
         {
             if (!_subscribed)
                 return;
-            EventBus.Unsubscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Unsubscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
             _subscribed = false;
         }
 
@@ -518,7 +518,7 @@ namespace PirateCrew.Water
 
         /// <summary>
         /// 在某世界坐标注入落水/爆炸涟漪（对外 API）。
-        /// 落水事件 <c>crew_died</c> 的载荷不含世界坐标（<see cref="CrewDiedPayload"/> 只有 id/队伍/种类），
+        /// 落水频道 <c>BattleEvents.CrewDied</c> 的载荷不含世界坐标（<see cref="CrewDiedPayload"/> 只有 id/队伍/种类），
         /// 故 <c>FxRoot.OnCrewDied</c> 里拿到 <c>pirate.transform.position</c> 后调用本方法即可
         /// （一行接线，见报告）。驱动不存在时本方法安全空转。
         /// </summary>

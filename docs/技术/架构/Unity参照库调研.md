@@ -22,7 +22,7 @@
 | (d) 战斗相机 | §8.1 `advanceScrolling` | 屏幕边缘 40px / 方向键平移（每帧 10px）；自动跟镜优先级：对白 > 弹窗 > AI 决策 > 下落宝箱 > 被抛角色 > 飞行武器 > panToCharacter；相机范围按 `levelWidth/Height*32` 夹取 |
 
 补充约束（本工程架构铁律，来自 AGENTS.md）：
-- 模块间只走 `PirateCrew.Core.EventBus` 静态字符串事件中心（`Publish/Subscribe(string, Action<object>)`）。
+- 模块间只走 `PirateCrew.Core.EventBus` 事件中心（类型化频道：事件声明为 `XxxEvents` 类的 `Event<T>` 频道字段，键与载荷编译期受检）。
 - 禁止 `GameObject.Find`、禁止跨模块 `GetComponent` 裸引用；引用一律 `[SerializeField]` 直连。
 - 命名空间：战斗 `PirateCrew.Combat`，界面 `PirateCrew.UI`。
 - 纯逻辑层已存在：`Assets/Scripts/PirateCrew/Combat/Ballistics.cs`（`TwangVelocity` / `FullForceDragDistance` / `PredictTrajectory`）、`TurnRules.cs`、`ExplosionResolver.cs`、`WeaponTriggerRules.cs`、`ScoreRules.cs`。**M2 要补的是表现层（输入/轨迹线/描边/相机），不要重写纯逻辑。**
@@ -258,7 +258,7 @@ PirateCrew.UI            新增：CombatHudController（只订阅事件显示文
 - 所有引用 `[SerializeField]` 直连，不 `GameObject.Find`。
 - 相机 / 描边 / 轨迹线都由场景装配根（Bootstrapper 场景或战斗场景内的组装节点）用 Inspector 连线。
 
-建议新增事件名（沿用现有 snake_case 约定：`go_back` / `change_scene` / `save_completed`）：
+建议新增事件（**历史提案**——M2 选型期产物，未全部落地；现行机制是 `XxxEvents` 频道字段，见 [EventBus事件契约.md](EventBus事件契约.md)）：
 
 | 事件名 | 发出方 | payload | 订阅方 |
 | --- | --- | --- | --- |

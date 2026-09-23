@@ -24,9 +24,9 @@ namespace PirateCrew.Tests
             _lastUnlockedId = null;
             _lastReward = null;
 
-            EventBus.Subscribe<RosterUpdatedPayload>(CrewManagementEvents.RosterUpdated, OnRosterUpdated);
-            EventBus.Subscribe<CrewUnlockedPayload>(CrewManagementEvents.CrewUnlocked, OnUnlocked);
-            EventBus.Subscribe<CrewRewardPayload>(CrewManagementEvents.RewardGranted, OnReward);
+            EventBus.Subscribe(CrewManagementEvents.RosterUpdated, OnRosterUpdated);
+            EventBus.Subscribe(CrewManagementEvents.CrewUnlocked, OnUnlocked);
+            EventBus.Subscribe(CrewManagementEvents.RewardGranted, OnReward);
         }
 
         [TearDown]

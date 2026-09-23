@@ -13,20 +13,20 @@ namespace PirateCrew.Fx
     /// 由唯一入口 <c>Core/GameEntryPoint</c> 在进入播放时装配，建一个 <c>DontDestroyOnLoad</c> 的
     /// <c>[FxRoot]</c>——因此**不需要改任何场景/Prefab**，从任意场景按 Play 特效层都在位。
     ///
-    /// 【订阅的事件（全部已登记在 docs/EventBus事件契约.md，未新增）】
-    ///   · <c>battle_started</c>            → 建「PirateId → PirateBase」注册表、复位标记与拖尾跟踪；
-    ///   · <c>battle_projectile_detonated</c>→ 爆心 y 在水面附近则水花，否则按武器是否有爆炸播爆炸/尘爆；
-    ///   · <c>crew_damaged</c>              → 命中火花 + 尘土 + 伤害数字（位置经注册表由 id 还原）；
-    ///   · <c>crew_died</c>                 → 落水（<c>PirateBase.Drowned</c>）播水花强反馈，否则播尘烟；
-    ///   · <c>turn_started</c>              → 地面光环跟到本回合默认角色，用队伍色；
-    ///   · <c>camera_focus_requested</c>    → 地面光环跟到被点选单位，用选中青；
-    ///   · <c>match_finished</c>            → 收起光环。
+    /// 【订阅的频道（全部已登记在 docs/EventBus事件契约.md，未新增）】
+    ///   · <c>BattleEvents.BattleStarted</c>        → 建「PirateId → PirateBase」注册表、复位标记与拖尾跟踪；
+    ///   · <c>BattleEvents.ProjectileDetonated</c>  → 爆心 y 在水面附近则水花，否则按武器是否有爆炸播爆炸/尘爆；
+    ///   · <c>BattleEvents.CrewDamaged</c>          → 命中火花 + 尘土 + 伤害数字（位置经注册表由 id 还原）；
+    ///   · <c>BattleEvents.CrewDied</c>             → 落水（<c>PirateBase.Drowned</c>）播水花强反馈，否则播尘烟；
+    ///   · <c>BattleEvents.TurnStarted</c>          → 地面光环跟到本回合默认角色，用队伍色；
+    ///   · <c>BattleEvents.CameraFocusRequested</c> → 地面光环跟到被点选单位，用选中青；
+    ///   · <c>BattleEvents.MatchFinished</c>        → 收起光环。
     ///
     /// 【两处"绕路"（已向协调者报备，见交付报告"缺触发信息"）】
-    ///   1. <c>crew_damaged</c> 载荷无世界坐标 → 用注册表由 PirateId 还原位置。注册表在
-    ///      battle_started 时建立，用的是一次 <c>FindObjectOfType&lt;BattleController&gt;</c>
+    ///   1. <c>CrewDamaged</c> 载荷无世界坐标 → 用注册表由 PirateId 还原位置。注册表在
+    ///      BattleStarted 时建立，用的是一次 <c>FindObjectOfType&lt;BattleController&gt;</c>
     ///      （每局一次，非每帧；唯一的白名单条目，理由见 <c>ResolveBattleOnce</c> 的注释）。
-    ///   2. 事件契约里没有"弹体生成" → 拖尾改为**低频轮询** `BattleController.AllProjectiles`
+    ///   2. 频道表里没有"弹体生成"频道 → 拖尾改为**低频轮询** `BattleController.AllProjectiles`
     ///      （0.25s 一次，只遍历弹体列表，不扫全场对象）。
     ///   两者都不改动 Battle/ 下任何文件；若协调者后续给这两个载荷补字段，本类直接受益。
     ///
@@ -35,7 +35,7 @@ namespace PirateCrew.Fx
     [DisallowMultipleComponent]
     public sealed class FxRoot : MonoBehaviour
     {
-        /// <summary>弹体轮询间隔（秒）。事件契约没有弹体生成事件，用低频轮询替代。</summary>
+        /// <summary>弹体轮询间隔（秒）。频道表没有弹体生成频道，用低频轮询替代。</summary>
         const float TrailPollInterval = 0.25f;
 
         /// <summary>判定"弹体落水"的水面抬高阈值（世界单位）：爆心 y 低于
@@ -89,24 +89,24 @@ namespace PirateCrew.Fx
             markerRing.transform.SetParent(transform, false);
             _marker.Bind(markerRing);
 
-            EventBus.Subscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
-            EventBus.Subscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
-            EventBus.Subscribe<CrewDamagedPayload>(BattleEvents.CrewDamaged, OnCrewDamaged);
-            EventBus.Subscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Subscribe<TurnStartedPayload>(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Subscribe<Transform>(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
-            EventBus.Subscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
+            EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
+            EventBus.Subscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Subscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
+            EventBus.Subscribe(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Subscribe(BattleEvents.TurnStarted, OnTurnStarted);
+            EventBus.Subscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Subscribe(BattleEvents.MatchFinished, OnMatchFinished);
         }
 
         void OnDestroy()
         {
-            EventBus.Unsubscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
-            EventBus.Unsubscribe<ProjectileDetonatedPayload>(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
-            EventBus.Unsubscribe<CrewDamagedPayload>(BattleEvents.CrewDamaged, OnCrewDamaged);
-            EventBus.Unsubscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Unsubscribe<TurnStartedPayload>(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Unsubscribe<Transform>(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
-            EventBus.Unsubscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
+            EventBus.Unsubscribe(BattleEvents.BattleStarted, OnBattleStarted);
+            EventBus.Unsubscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            EventBus.Unsubscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
+            EventBus.Unsubscribe(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Unsubscribe(BattleEvents.TurnStarted, OnTurnStarted);
+            EventBus.Unsubscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Unsubscribe(BattleEvents.MatchFinished, OnMatchFinished);
 
             if (_marker != null)
                 _marker.Dispose();
@@ -139,7 +139,7 @@ namespace PirateCrew.Fx
 
         void OnBattleStarted(BattleStartedPayload payload)
         {
-            // 本事件载荷（关卡/队伍数）此处不用，按 id 注册表重建需要的是场景里的 BattleController。
+            // 本频道载荷（关卡/队伍数）此处不用，按 id 注册表重建需要的是场景里的 BattleController。
             // 详情见 ResolveBattleOnce 的"为什么这里必须查一次"。
             ResolveBattleOnce();
 
@@ -156,7 +156,7 @@ namespace PirateCrew.Fx
         /// 【为什么这里保留类型查找（白名单条目）】<see cref="FxRoot"/> 由组合根在
         /// <c>BeforeSceneLoad</c> 创建并 <c>DontDestroyOnLoad</c>，是**进程级常驻**对象，
         /// 没有场景可以接线；它要的却是**场景作用域**的 <see cref="BattleController"/> 实例，
-        /// 而 <c>battle_started</c> 载荷不带该实例（加载荷字段是破坏性事件契约变更，
+        /// 而 <c>BattleStarted</c> 载荷不带该实例（加载荷字段是破坏性载荷契约变更，
         /// 归事件/数据轨道，不在本轨道文件域内）。故：显式类型获取 + 每局一次 + 失败吵闹，
         /// 并且**只在这里**——不在 Update、不在事件回调的重复路径上。
         /// 详细论证与复跑方式见 docs/审计/专项/运行期查找清退报告.md。
@@ -167,7 +167,7 @@ namespace PirateCrew.Fx
             _battle = FindObjectOfType<BattleController>();
             if (_battle == null)
             {
-                Log.Warn("[FxRoot] battle_started 已发布却找不到 BattleController——"
+                Log.Warn("[FxRoot] BattleStarted 已发布却找不到 BattleController——"
                          + "单位注册表与弹体拖尾本局缺席（特效层降级，不打断战斗）。");
             }
         }
@@ -303,7 +303,7 @@ namespace PirateCrew.Fx
 
             // 【没有回落扫描（2026-09-21 清退）】旧实现在 _battle == null 时
             // `FindObjectsOfType<PirateBase>()` 扫全场。那条分支是死代码：
-            // battle_started 由 BattleController 自己发布，发布者必然处于激活状态，
+            // BattleStarted 由 BattleController 自己发布，发布者必然处于激活状态，
             // 而 FindObjectOfType 只找激活对象 —— 拿不到 _battle 时场上也不会有单位能扫到，
             // 却把"每个未知 PirateId 都全场扫描一次"的开销留在了 ResolvePirate 的循环里。
             // 现在 _battle 为空就是"本局 FX 降级"，由 ResolveBattleOnce 的告警可见。

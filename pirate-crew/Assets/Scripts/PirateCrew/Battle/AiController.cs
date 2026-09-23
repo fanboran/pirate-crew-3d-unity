@@ -26,7 +26,7 @@ namespace PirateCrew.Battle
     ///   <b>实际效果</b>已由 <c>WeaponProjectile</c>（及其规则层）在弹体内部实现：本类用武器时
     ///   只做「选中角色 + 装备槽位 + 扣行动经济」，随后经 <see cref="BattleController.SpawnWeaponProjectiles"/>
     ///   生成弹体，落点/目标/速度随生成参数传入，不再依赖订阅 <see cref="BattleEvents.AiDecided"/> 二次分发
-    ///   （该事件保留给表现层/调试做观测）。
+    ///   （该频道保留给表现层/调试做观测）。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class AiController : MonoBehaviour

@@ -744,7 +744,7 @@ namespace PirateCrew.Battle
             if (pirate == null)
                 return;
 
-            // battle.NotifyActionSelected 内部会发 action_selected 并清零 inactivity；
+            // battle.NotifyActionSelected 内部会发布 ActionSelected 频道并清零 inactivity；
             // 未接线时退化为直接发布，避免事件丢失。
             if (battle != null)
                 battle.NotifyActionSelected(pirate, kind);

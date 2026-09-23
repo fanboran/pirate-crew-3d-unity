@@ -4,12 +4,10 @@ using PirateCrew.Core;
 namespace PirateCrew.CrewManagement
 {
     /// <summary>
-    /// 船员管理模块（CrewManagement）的 EventBus 事件契约集中登记。
+    /// 船员管理模块（CrewManagement）的 EventBus 事件频道集中声明。
     ///
-    /// 【约定】跨模块通信只走 <c>PirateCrew.Core.EventBus</c> 的字符串事件；
-    ///         事件名一律 snake_case，禁止在业务代码里散落魔法字符串。
-    ///         本类是船员管理事件的唯一登记处，发布/订阅双方都从这里取常量。
-    ///         事件名与载荷已登记在 <c>docs/EventBus事件契约.md</c>。
+    /// 【约定】跨模块通信只走 <c>PirateCrew.Core.EventBus</c> 的类型化频道；
+    ///         本类是船员管理事件的唯一声明处，人读登记表在 <c>docs/技术/架构/EventBus事件契约.md</c>。
     ///
     /// 【方向】本模块只<b>发布</b>事件（通知名册/招募/奖励变化）；
     ///         结算命令由 <c>CampaignApi</c> 直接调用 <see cref="CrewManagementApi"/> 的公开方法
@@ -18,22 +16,13 @@ namespace PirateCrew.CrewManagement
     public static class CrewManagementEvents
     {
         /// <summary>名册或编成发生变化（载荷 <see cref="RosterUpdatedPayload"/>）。</summary>
-        public const string RosterUpdated = "crew_roster_updated";
+        public static readonly Event<RosterUpdatedPayload> RosterUpdated = new();
 
         /// <summary>新船员被招募（载荷 <see cref="CrewUnlockedPayload"/>）。</summary>
-        public const string CrewUnlocked = "crew_unlocked";
+        public static readonly Event<CrewUnlockedPayload> CrewUnlocked = new();
 
         /// <summary>关卡结算给船员发经验/招募（载荷 <see cref="CrewRewardPayload"/>）。</summary>
-        public const string RewardGranted = "crew_reward_granted";
-
-        /// <summary>把本类事件与期望载荷类型登记进 <see cref="EventCatalog"/>（由唯一入口调用）。</summary>
-        [GameBootstrap(GameBootstrapPhase.Contracts, order: 31)]
-        public static void RegisterContracts()
-        {
-            EventCatalog.Add<RosterUpdatedPayload>(RosterUpdated);
-            EventCatalog.Add<CrewUnlockedPayload>(CrewUnlocked);
-            EventCatalog.Add<CrewRewardPayload>(RewardGranted);
-        }
+        public static readonly Event<CrewRewardPayload> RewardGranted = new();
     }
 
     /// <summary><see cref="CrewManagementEvents.RosterUpdated"/> 载荷。</summary>

@@ -13,16 +13,16 @@ namespace PirateCrew.Campaign
     ///
     /// 【M3 闭环接线（一代退场后）】战役不再拥有自己的关卡序列——出海目标就是
     /// 世界海域图（<see cref="WorldMapRuntime"/> 待战通道，选关页/播放器 -worldMap 设置）。
-    /// 本类把三个**已有**战斗事件接到结算流程上：
-    ///   <c>battle_started</c>（读取待战海图 → 记为待结算归属；清掉无主陈旧待结算）
-    ///   → <c>crew_died</c>（累计玩家方阵亡，用于 §9.3 星级）
-    ///   → <c>match_finished</c>（评价星级 → 按海图 id 写进度 → 给编成阵容发经验/招募 → 广播 → 落盘）。
+    /// 本类把三个**已有**战斗事件频道接到结算流程上：
+    ///   <c>BattleEvents.BattleStarted</c>（读取待战海图 → 记为待结算归属；清掉无主陈旧待结算）
+    ///   → <c>BattleEvents.CrewDied</c>（累计玩家方阵亡，用于 §9.3 星级）
+    ///   → <c>BattleEvents.MatchFinished</c>（评价星级 → 按海图 id 写进度 → 给编成阵容发经验/招募 → 广播 → 落盘）。
     ///
     /// 【结算键】星级存档的键 = 海图 id（<c>wreck_hymn</c> 等）。存档格式不变、值域变化
     /// （一代的 <c>level_01..15</c> 键读档时被静默丢弃——项目未发布，旧档不迁移）。
     ///
     /// 【为什么读 WorldMapRuntime 而不是 UI 转告】Campaign → PirateCrew.Battle 是高层依赖低层，
-    /// 方向合法；战斗开局（battle_started）时海图待战必然在位，无需 UI 在中间转发。
+    /// 方向合法；战斗开局（<c>BattleEvents.BattleStarted</c>）时海图待战必然在位，无需 UI 在中间转发。
     ///
     /// 【编成与战斗的关系】海图战用地图自带布阵（<c>WorldMapDefinition.Spawns</c>），
     /// 编成阵容不再注入/过滤出战名单（一代的 BattleLaunchContext 注入通道已随一代退场删除）；
@@ -58,7 +58,7 @@ namespace PirateCrew.Campaign
         /// <summary>海图星级与结算进度。</summary>
         public static CampaignProgress Progress => Manager.Progress;
 
-        /// <summary>是否有待结算的海图（<c>battle_started</c> 起算、<c>match_finished</c> 消费）。</summary>
+        /// <summary>是否有待结算的海图（<c>BattleEvents.BattleStarted</c> 起算、<c>BattleEvents.MatchFinished</c> 消费）。</summary>
         public static bool HasPendingMap => Manager.HasPendingMap;
 
         /// <summary>最近一次结算结果（供结算界面展示）；无则 null。</summary>
@@ -84,9 +84,9 @@ namespace PirateCrew.Campaign
                 return;
 
             _bootstrapped = true;
-            EventBus.Subscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
-            EventBus.Subscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Subscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
+            EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
+            EventBus.Subscribe(BattleEvents.CrewDied, OnCrewDied);
+            EventBus.Subscribe(BattleEvents.MatchFinished, OnMatchFinished);
         }
 
         // ------------------------------------------------------------------
@@ -221,14 +221,14 @@ namespace PirateCrew.Campaign
         /// <summary>清空全部静态状态（测试 / 重开档用）。</summary>
         public static void Reset()
         {
-            // 【先退订再置标志】EnsureBootstrapped 订阅的三个事件必须在这里对称退订：
-            // 方法组转换每次生成新委托实例，靠 EventBus 的 Contains 去重兜底属于实现细节；
+            // 【先退订再置标志】EnsureBootstrapped 订阅的三个频道必须在这里对称退订：
+            // 方法组转换每次生成新委托实例，靠 EventBus 的委托相等去重兜底属于实现细节；
             // Reset 不退订会让 EventBus 里残留监听者（架构违规：订阅方必须退订，见 EventBus 约定 3）。
             if (_bootstrapped)
             {
-                EventBus.Unsubscribe<BattleStartedPayload>(BattleEvents.BattleStarted, OnBattleStarted);
-                EventBus.Unsubscribe<CrewDiedPayload>(BattleEvents.CrewDied, OnCrewDied);
-                EventBus.Unsubscribe<MatchFinishedPayload>(BattleEvents.MatchFinished, OnMatchFinished);
+                EventBus.Unsubscribe(BattleEvents.BattleStarted, OnBattleStarted);
+                EventBus.Unsubscribe(BattleEvents.CrewDied, OnCrewDied);
+                EventBus.Unsubscribe(BattleEvents.MatchFinished, OnMatchFinished);
             }
 
             _manager = new CampaignManager();

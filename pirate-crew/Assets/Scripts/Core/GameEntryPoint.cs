@@ -7,12 +7,11 @@ namespace PirateCrew.Core
     ///
     /// 【它解决什么问题】重构前有 14 处隐式初始化分散在 5 个程序集里（静态重置、服务自建、
     /// 工具装配各自为政），初始化顺序"靠执行时机"而不是靠代码——出问题时既不好推理也不好测试。
-    /// 现在进程启动期的动作只有这一处，它按固定顺序做四件事：
-    ///   ① <b>清空静态状态</b>（事件总线订阅表 / 契约违规记录 / 事件登记表 / 服务注册表 /
+    ///   现在进程启动期的动作只有这一处，它按固定顺序做三件事：
+    ///   ① <b>清空静态状态</b>（事件总线订阅表 / 服务注册表 /
     ///      命令行快照，再跑一遍各模块的 <see cref="GameBootstrapPhase.ResetStatics"/>）
     ///   ② <b>解析命令行</b>（<see cref="CommandLineOptions.Parse"/>，全程只解析这一次）
-    ///   ③ <b>登记事件契约</b>（<see cref="GameBootstrapPhase.Contracts"/>）
-    ///   ④ <b>保证服务宿主存在</b>（<see cref="Bootstrapper.EnsureInstalled"/>，
+    ///   ③ <b>保证服务宿主存在</b>（<see cref="Bootstrapper.EnsureInstalled"/>，
     ///      于是从**任意场景**直接按 Play 也能跑）+ 跑各模块的
     ///      <see cref="GameBootstrapPhase.Initialize"/> 接线（服务创建、事件订阅、工具模式装配）
     ///
@@ -25,8 +24,8 @@ namespace PirateCrew.Core
     ///   · <c>BeforeSceneLoad</c> 恰好落在"程序集已全部加载（AfterAssembliesLoaded 之后、
     ///     首个场景 Awake 之前）"这段窗口里，两种情况都满足。
     ///
-    /// 【为什么三个阶段都在同一个回调里】三个 <see cref="GameBootstrapPhase"/> 是**工作分类**
-    /// （重置 / 登记 / 初始化），不是三个引擎时机——拆成多个 <c>[RuntimeInitializeOnLoadMethod]</c>
+    /// 【为什么各阶段都在同一个回调里】各 <see cref="GameBootstrapPhase"/> 是**工作分类**
+    /// （重置 / 初始化），不是多个引擎时机——拆成多个 <c>[RuntimeInitializeOnLoadMethod]</c>
     /// 就把刚收掉的"时机耦合"又请回来了。同一个回调里按枚举顺序跑完，顺序由枚举 + Order 决定。
     ///
     /// 【只跑一次】Unity 的 <c>BeforeSceneLoad</c> 回调在每次播放/启动只触发一次
@@ -35,7 +34,7 @@ namespace PirateCrew.Core
     ///
     /// 【测试】测试**不要**调用本类：它碰 Player 生命周期与真实 argv。
     /// 需要单测的部件各自独立可测（<see cref="EventBus"/> / <see cref="Services"/> /
-    /// <see cref="EventCatalog"/> / <see cref="CommandLineOptions"/> / <see cref="GameBootstrap"/>）。
+    /// <see cref="CommandLineOptions"/> / <see cref="GameBootstrap"/>）。
     /// </summary>
     public static class GameEntryPoint
     {
@@ -45,11 +44,10 @@ namespace PirateCrew.Core
         {
             ResetStatics();
             CommandLineOptions.Parse();
-            int contracts = GameBootstrap.RunPhase(GameBootstrapPhase.Contracts);
             bool hostCreated = Bootstrapper.EnsureInstalled();
             int initialized = GameBootstrap.RunPhase(GameBootstrapPhase.Initialize);
 
-            Log.Info("[GameEntryPoint] 启动装配完成：契约 " + contracts + " 项、接线 " + initialized
+            Log.Info("[GameEntryPoint] 启动装配完成：接线 " + initialized
                      + " 项" + (hostCreated ? "、新建服务宿主" : "、服务宿主已在位") + "。");
         }
 
@@ -60,7 +58,6 @@ namespace PirateCrew.Core
         static void ResetStatics()
         {
             EventBus.ResetForNewSession();
-            EventCatalog.Clear();
             Services.Clear();
             CommandLineOptions.Reset();
 

@@ -38,7 +38,7 @@ namespace PirateCrew.Tests
             foreach (GameBootstrap.Entry entry in GameBootstrap.DescribeAll())
                 descriptions.Add(entry.Description);
 
-            // 全仓接线入口清单（重构后 15 处；由 Core/GameEntryPoint 一处调度）。
+            // 全仓接线入口清单（重构后 10 处；由 Core/GameEntryPoint 一处调度）。
             string[] expected =
             {
                 // ResetStatics：进入播放前清静态残留
@@ -46,12 +46,6 @@ namespace PirateCrew.Tests
                 "PirateCrew.Campaign.CampaignApi.ResetStatics",
                 "PirateCrew.CrewManagement.CrewManagementApi.ResetStatics",
                 "PirateCrew.Battle.BattlePause.ResetStatics",
-                // Contracts：事件契约登记（必须早于任何 Publish/Subscribe）
-                "PirateCrew.Core.SceneEvents.RegisterContracts",
-                "PirateCrew.Core.SaveEvents.RegisterContracts",
-                "PirateCrew.Battle.BattleEvents.RegisterContracts",
-                "PirateCrew.Campaign.CampaignEvents.RegisterContracts",
-                "PirateCrew.CrewManagement.CrewManagementEvents.RegisterContracts",
                 // Initialize：服务创建 / 事件订阅 / 命令行工具装配
                 "PirateCrew.Audio.AudioService.Install",
                 "PirateCrew.Fx.FxBootstrap.Install",

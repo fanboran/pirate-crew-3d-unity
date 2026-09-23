@@ -74,7 +74,7 @@ namespace PirateCrew.UI
             if (settlementBackButton != null)
                 settlementBackButton.onClick.AddListener(OnSettlementBackClicked);
 
-            EventBus.Subscribe<CrewUnlockedPayload>(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
+            EventBus.Subscribe(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
         }
 
         void Start()
@@ -94,7 +94,7 @@ namespace PirateCrew.UI
             if (settlementBackButton != null)
                 settlementBackButton.onClick.RemoveListener(OnSettlementBackClicked);
 
-            EventBus.Unsubscribe<CrewUnlockedPayload>(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
+            EventBus.Unsubscribe(CrewManagementEvents.CrewUnlocked, OnCrewUnlocked);
         }
 
         // ------------------------------------------------------------------

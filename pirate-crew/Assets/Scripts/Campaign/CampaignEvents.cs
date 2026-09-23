@@ -3,27 +3,19 @@ using PirateCrew.Core;
 namespace PirateCrew.Campaign
 {
     /// <summary>
-    /// 战役模块（Campaign）的 EventBus 事件契约集中登记。
+    /// 战役模块（Campaign）的 EventBus 事件频道集中声明。
     ///
-    /// 【约定】跨模块通信只走 <c>PirateCrew.Core.EventBus</c> 的字符串事件；
-    ///         事件名一律 snake_case，禁止在业务代码里散落魔法字符串。
-    ///         本类是战役事件的唯一登记处，事件名与载荷已登记在 <c>docs/EventBus事件契约.md</c>。
+    /// 【约定】跨模块通信只走 <c>PirateCrew.Core.EventBus</c> 的类型化频道；
+    ///         本类是战役事件的唯一声明处，人读登记表在 <c>docs/技术/架构/EventBus事件契约.md</c>。
     ///
-    /// 【一代退场后的契约】<c>campaign_level_selected</c> 随一代选关链删除；
-    /// <c>campaign_level_completed</c> 更名 <see cref="MapCompleted"/>，载荷里的
-    /// 关卡序号/章节字段删除（海图没有序号与章节），id 值域变为海图 id。
+    /// 【一代退场后的契约】一代选关链事件随一代选关链删除；海图结算事件
+    /// <see cref="MapCompleted"/> 载荷里的关卡序号/章节字段已删除（海图没有序号与章节），
+    /// id 值域为海图 id。
     /// </summary>
     public static class CampaignEvents
     {
         /// <summary>一场海图战结算完成（载荷 <see cref="CampaignMapCompletedPayload"/>）。</summary>
-        public const string MapCompleted = "campaign_map_completed";
-
-        /// <summary>把本类事件与期望载荷类型登记进 <see cref="EventCatalog"/>（由唯一入口调用）。</summary>
-        [GameBootstrap(GameBootstrapPhase.Contracts, order: 30)]
-        public static void RegisterContracts()
-        {
-            EventCatalog.Add<CampaignMapCompletedPayload>(MapCompleted);
-        }
+        public static readonly Event<CampaignMapCompletedPayload> MapCompleted = new();
     }
 
     /// <summary><see cref="CampaignEvents.MapCompleted"/> 载荷。</summary>

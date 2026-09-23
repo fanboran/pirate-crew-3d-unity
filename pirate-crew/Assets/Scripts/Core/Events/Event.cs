@@ -14,9 +14,6 @@ namespace PirateCrew.Core
     ///   <c>public static readonly Event&lt;CrewDamagedPayload&gt; CrewDamaged = new();</c>（带载荷）。
     ///   **禁止**在调用点内联 <c>new Event()</c>——两个各自 new 出来的实例是两个不同频道，
     ///   发布与订阅对不上就是"事件发了没人收到"，比字符串键拼错更隐蔽。
-    ///
-    /// 【与字符串键的关系】迁移期内 EventBus 同时支持字符串键（旧 API）与类型化频道（本类）；
-    ///   两类键互不相通（字符串频道收不到类型化频道的投递，反之亦然）。
     /// </summary>
     public class Event
     {

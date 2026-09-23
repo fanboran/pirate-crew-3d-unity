@@ -187,12 +187,12 @@ namespace PirateCrew.Battle
         void OnEnable()
         {
             // §5.2 limitedToTurn=true 的弹体在回合结束时销毁；常驻类（mine/箱体）保留。
-            EventBus.Subscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Subscribe(BattleEvents.TurnEnded, OnTurnEnded);
         }
 
         void OnDisable()
         {
-            EventBus.Unsubscribe<int>(BattleEvents.TurnEnded, OnTurnEnded);
+            EventBus.Unsubscribe(BattleEvents.TurnEnded, OnTurnEnded);
         }
 
         void OnTurnEnded(int teamNumber)
@@ -515,7 +515,7 @@ namespace PirateCrew.Battle
             if (aimController != null)
                 aimController.ResetForSelection(pirate);
 
-            // action_selected 在真正执行动作（抛自己/用武器/end go）时由 AimThrowController 发布；
+            // ActionSelected 频道在真正执行动作（抛自己/用武器/end go）时由 AimThrowController 发布；
             // 这里只做镜头聚焦与清零 inactivity（选择本身也是"有活动"）。
             EventBus.Publish(BattleEvents.CameraFocusRequested, pirate.transform);
             if (turnManager != null)

@@ -5,84 +5,59 @@ using UnityEngine;
 namespace PirateCrew.Battle
 {
     /// <summary>
-    /// 战斗模块的 EventBus 事件契约集中登记（对应逆向文档 §3.1/§3.2/§3.3/§8.1）。
+    /// 战斗模块的 EventBus 事件频道集中声明（对应逆向文档 §3.1/§3.2/§3.3/§8.1）。
     ///
-    /// 【约定】跨模块通信只走 <c>PirateCrew.Core.EventBus</c> 的字符串事件；
-    ///         事件名一律 snake_case（与 Godot 版命名兼容），禁止在业务代码里散落魔法字符串。
-    ///         本类是战斗事件的唯一登记处，发布/订阅双方都从这里取常量。
+    /// 【约定】跨模块通信只走 <c>PirateCrew.Core.EventBus</c> 的类型化频道；
+    ///         本类是战斗事件的唯一声明处，发布/订阅双方都从这里取频道字段，
+    ///         禁止在调用点内联 new Event。
     ///
     /// 【载荷】统一用本文件里定义的只读结构体（值类型，跨模块可安全传递）；
     ///         只有 <c>TurnStarted</c> / <c>CameraFocusRequested</c> 带 <see cref="Transform"/>
     ///         （UnityEngine 类型，符合参照库调研「不跨模块传自定义业务类型」的约定）。
     ///
-    /// 对应交付约束 D：battle_started / turn_started / turn_ended / action_selected /
-    ///                 crew_damaged / crew_died / match_finished 为必需事件。
+    /// 对应交付约束 D：BattleStarted / TurnStarted / TurnEnded / ActionSelected /
+    ///                 CrewDamaged / CrewDied / MatchFinished 为必需事件。
     /// </summary>
     public static class BattleEvents
     {
         /// <summary>战斗开始（载荷 <see cref="BattleStartedPayload"/>）。</summary>
-        public const string BattleStarted = "battle_started";
+        public static readonly Event<BattleStartedPayload> BattleStarted = new();
 
         /// <summary>回合开始（载荷 <see cref="TurnStartedPayload"/>）。</summary>
-        public const string TurnStarted = "turn_started";
+        public static readonly Event<TurnStartedPayload> TurnStarted = new();
 
         /// <summary>回合结束（载荷 int：队伍编号 1/2）。</summary>
-        public const string TurnEnded = "turn_ended";
+        public static readonly Event<int> TurnEnded = new();
 
         /// <summary>玩家/AI 选定一次动作（载荷 <see cref="ActionSelectedPayload"/>）。</summary>
-        public const string ActionSelected = "action_selected";
+        public static readonly Event<ActionSelectedPayload> ActionSelected = new();
 
         /// <summary>角色受伤（载荷 <see cref="CrewDamagedPayload"/>）。</summary>
-        public const string CrewDamaged = "crew_damaged";
+        public static readonly Event<CrewDamagedPayload> CrewDamaged = new();
 
         /// <summary>角色死亡（载荷 <see cref="CrewDiedPayload"/>）。</summary>
-        public const string CrewDied = "crew_died";
+        public static readonly Event<CrewDiedPayload> CrewDied = new();
 
         /// <summary>对局结束（载荷 <see cref="MatchFinishedPayload"/>）。</summary>
-        public const string MatchFinished = "match_finished";
+        public static readonly Event<MatchFinishedPayload> MatchFinished = new();
 
         /// <summary>请求战斗相机聚焦某目标（载荷 <see cref="Transform"/>，§3.2 panToCharacter）。</summary>
-        public const string CameraFocusRequested = "camera_focus_requested";
+        public static readonly Event<Transform> CameraFocusRequested = new();
 
         /// <summary>投掷/发射释放（载荷 float：释放时的拖拽距离 px）。</summary>
-        public const string ShotReleased = "battle_shot_released";
+        public static readonly Event<float> ShotReleased = new();
 
         /// <summary>AI 队伍开始思考（载荷 <see cref="AiThinkingPayload"/>；§6.1，相机停止自动滚动）。</summary>
-        public const string AiThinking = "ai_thinking";
+        public static readonly Event<AiThinkingPayload> AiThinking = new();
 
         /// <summary>AI 选定动作（载荷 <see cref="AiDecidedPayload"/>；§6.1 <c>aiMoveDetails</c>）。</summary>
-        public const string AiDecided = "ai_decided";
+        public static readonly Event<AiDecidedPayload> AiDecided = new();
 
         /// <summary>武器弹体引爆（载荷 <see cref="ProjectileDetonatedPayload"/>；§5.2/§5.3，供表现层做爆炸特效）。</summary>
-        public const string ProjectileDetonated = "battle_projectile_detonated";
+        public static readonly Event<ProjectileDetonatedPayload> ProjectileDetonated = new();
 
         /// <summary>地雷引信蜂鸣（载荷 <see cref="MineBeepPayload"/>；§5.2 beepTimes，供音频层播放滴答）。</summary>
-        public const string MineBeep = "battle_mine_beep";
-
-        /// <summary>
-        /// 把本类全部事件与**期望载荷类型**登记进 <see cref="EventCatalog"/>——契约的代码侧真源。
-        ///
-        /// 【为什么要这一份】事件名是字符串键，编译期查不出"键配错载荷"；登记之后
-        /// <see cref="EventBus"/> 能在运行期对拍并告警，测试也能反射校验「常量都有登记 / 登记无僵尸」。
-        /// 新增事件时：这里加一行 + 文档表格加一行（见 <see cref="EventCatalog"/> 类注释的三步）。
-        /// </summary>
-        [GameBootstrap(GameBootstrapPhase.Contracts, order: 20)]
-        public static void RegisterContracts()
-        {
-            EventCatalog.Add<BattleStartedPayload>(BattleStarted);
-            EventCatalog.Add<TurnStartedPayload>(TurnStarted);
-            EventCatalog.Add<int>(TurnEnded);
-            EventCatalog.Add<ActionSelectedPayload>(ActionSelected);
-            EventCatalog.Add<CrewDamagedPayload>(CrewDamaged);
-            EventCatalog.Add<CrewDiedPayload>(CrewDied);
-            EventCatalog.Add<MatchFinishedPayload>(MatchFinished);
-            EventCatalog.Add<Transform>(CameraFocusRequested);
-            EventCatalog.Add<float>(ShotReleased);
-            EventCatalog.Add<AiThinkingPayload>(AiThinking);
-            EventCatalog.Add<AiDecidedPayload>(AiDecided);
-            EventCatalog.Add<ProjectileDetonatedPayload>(ProjectileDetonated);
-            EventCatalog.Add<MineBeepPayload>(MineBeep);
-        }
+        public static readonly Event<MineBeepPayload> MineBeep = new();
     }
 
     /// <summary>动作种类（<see cref="BattleEvents.ActionSelected"/> 载荷用，对应 §3.4 三路径）。</summary>

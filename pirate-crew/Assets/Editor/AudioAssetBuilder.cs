@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using PirateCrew.Audio;
 using PirateCrew.Audio.Synth;
+using PirateCrew.Core;
+using Event = PirateCrew.Core.Event;   // 消解与 UnityEngine.Event 的二义性（CS0104）
 using UnityEditor;
 using UnityEngine;
 
@@ -493,18 +496,23 @@ namespace PirateCrew.EditorTools
             sb.AppendLine("## 搬运素材清单（源：隔壁 Game-2 自产 WAV）");
             sb.AppendLine();
             sb.AppendLine("映射的唯一定义在 `Assets/Scripts/PirateCrew/Audio/Game2AudioAssets.cs`，本表由它生成；");
-            sb.AppendLine("「目标事件」为空表示没有对应 EventBus 事件、需要手动调 `AudioService` 的公开 API。");
+            sb.AppendLine("「目标频道」为空表示没有对应 EventBus 频道、需要手动调 `AudioService` 的公开 API。");
             sb.AppendLine();
-            sb.AppendLine("| 本项目音效 | 目标资产（第 1 个是主变奏） | 源文件（相对 Game-2 assets/audio） | 目标事件 | 说明 |");
+            sb.AppendLine("| 本项目音效 | 目标资产（第 1 个是主变奏） | 源文件（相对 Game-2 assets/audio） | 目标频道 | 说明 |");
             sb.AppendLine("| --- | --- | --- | --- | --- |");
 
+            Dictionary<Event, string> channelNames = BuildChannelDisplayNames();
             foreach (Game2Port port in Game2AudioAssets.All)
             {
                 string[] targets = Game2AudioAssets.TargetFileNames(port.Id);
+                string channelDisplay = port.WiredToEventBus
+                                        && channelNames.TryGetValue(port.Channel, out string channelPath)
+                    ? "`" + channelPath + "`"
+                    : "（无频道）";
                 sb.Append("| ").Append(port.Id)
                   .Append(" | ").Append(string.Join(", ", targets)).Append(".wav")
                   .Append(" | ").Append(string.Join(", ", port.Sources))
-                  .Append(" | ").Append(port.WiredToEventBus ? port.EventName : "（无事件）")
+                  .Append(" | ").Append(channelDisplay)
                   .Append(" | ").Append(port.Note)
                   .AppendLine(" |");
             }
@@ -529,6 +537,76 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
         // 工具
         // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 反查频道字段路径（如 <c>BattleEvents.CrewDamaged</c>）：扫描本工程程序集里声明的
+        /// static <see cref="Event"/> 字段，按引用建「频道 → 声明类型.字段名」映射。
+        /// 只给文档生成用——单一事实源仍是 <c>XxxEvents</c> 的频道字段本身，这里只做反查，
+        /// 频道改名后本表自动跟随，不会漂。
+        /// </summary>
+        static Dictionary<Event, string> BuildChannelDisplayNames()
+        {
+            var map = new Dictionary<Event, string>();
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (assembly == null || !IsProjectAssembly(assembly))
+                    continue;
+
+                Type[] types;
+                try
+                {
+                    types = assembly.GetTypes();
+                }
+                catch (ReflectionTypeLoadException)
+                {
+                    continue;
+                }
+
+                foreach (Type type in types)
+                {
+                    if (type == null)
+                        continue;
+
+                    FieldInfo[] fields;
+                    try
+                    {
+                        fields = type.GetFields(BindingFlags.Public | BindingFlags.Static
+                                                | BindingFlags.DeclaredOnly);
+                    }
+                    catch (Exception)
+                    {
+                        continue;
+                    }
+
+                    foreach (FieldInfo field in fields)
+                    {
+                        if (field.FieldType != typeof(Event) && !field.FieldType.IsSubclassOf(typeof(Event)))
+                            continue;
+
+                        try
+                        {
+                            var channel = (Event)field.GetValue(null);
+                            if (channel != null)
+                                map[channel] = type.Name + "." + field.Name;
+                        }
+                        catch (Exception)
+                        {
+                            continue;   // 类型初始化失败等异常情形：跳过该字段，不阻断文档生成
+                        }
+                    }
+                }
+            }
+
+            return map;
+        }
+
+        static bool IsProjectAssembly(Assembly assembly)
+        {
+            string name = assembly.GetName().Name;
+            return !string.IsNullOrEmpty(name)
+                   && (name.StartsWith("PirateCrew", System.StringComparison.Ordinal)
+                       || name.StartsWith("Assembly-CSharp", System.StringComparison.Ordinal));
+        }
 
         static string PathFor(SfxRecipe recipe)
         {

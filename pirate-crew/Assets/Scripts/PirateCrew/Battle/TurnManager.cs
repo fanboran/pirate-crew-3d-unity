@@ -221,7 +221,7 @@ namespace PirateCrew.Battle
             TurnEnded?.Invoke(endedNumber);
             EventBus.Publish(BattleEvents.TurnEnded, endedNumber);
 
-            // 对局已结束时不再开下一回合（BattleController 会广播 match_finished）。
+            // 对局已结束时不再开下一回合（BattleController 会广播 MatchFinished 频道）。
             if (battle != null && battle.IsMatchOver)
                 return;
 
