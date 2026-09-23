@@ -30,7 +30,7 @@ namespace PirateCrew.EditorTools
     ///
     /// 【产物】
     ///   Assets/Art/Textures/Fx/*.png        8 张（SoftCircle/Spark/Star4/Smoke/Droplet/WoodShard/Ring/FineSpark）
-    ///   Assets/Art/Materials/Fx/*.mat       16 个（见 FxMaterials 规格表）
+    ///   Assets/Art/Materials/Fx/*.mat       15 个（见 FxMaterials 规格表）
     ///   ProjectSettings/GraphicsSettings    把两个 FX shader 加进 Always Included Shaders（尽力而为）
     ///
     /// 【导入设置写死在哪里】见 <see cref="ConfigureImporter"/>：形状/噪声类 sRGB + alphaIsTransparency +

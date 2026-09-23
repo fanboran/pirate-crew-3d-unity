@@ -17,10 +17,7 @@ namespace PirateCrew.Fx
     ///   · <c>BattleEvents.BattleStarted</c>        → 建「PirateId → PirateBase」注册表、复位标记与拖尾跟踪；
     ///   · <c>BattleEvents.ProjectileDetonated</c>  → 爆心 y 在水面附近则水花，否则按武器是否有爆炸播爆炸/尘爆；
     ///   · <c>BattleEvents.CrewDamaged</c>          → 命中火花 + 尘土 + 伤害数字（位置经注册表由 id 还原）；
-    ///   · <c>BattleEvents.CrewDied</c>             → 落水（<c>PirateBase.Drowned</c>）播水花强反馈，否则播尘烟；
-    ///   · <c>BattleEvents.TurnStarted</c>          → 地面光环跟到本回合默认角色，用队伍色；
-    ///   · <c>BattleEvents.CameraFocusRequested</c> → 地面光环跟到被点选单位，用选中青；
-    ///   · <c>BattleEvents.MatchFinished</c>        → 收起光环。
+    ///   · <c>BattleEvents.CrewDied</c>             → 落水（<c>PirateBase.Drowned</c>）播水花强反馈，否则播尘烟。
     ///
     /// 【两处"绕路"（已向协调者报备，见交付报告"缺触发信息"）】
     ///   1. <c>CrewDamaged</c> 载荷无世界坐标 → 用注册表由 PirateId 还原位置。注册表在
@@ -30,7 +27,7 @@ namespace PirateCrew.Fx
     ///      （0.25s 一次，只遍历弹体列表，不扫全场对象）。
     ///   两者都不改动 Battle/ 下任何文件；若协调者后续给这两个载荷补字段，本类直接受益。
     ///
-    /// 【性能】Update 只做：计时器递减 + 光环脉动 + 每 0.25s 一次弹体列表遍历。
+    /// 【性能】Update 只做：计时器递减 + 每 0.25s 一次弹体列表遍历。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class FxRoot : MonoBehaviour
@@ -56,7 +53,6 @@ namespace PirateCrew.Fx
         readonly HashSet<int> _trailedProjectiles = new HashSet<int>();
 
         BattleController _battle;
-        TurnMarkerFx _marker;
         float _trailTimer;
 
         /// <summary>取现有实例；不存在则创建（幂等，可在任意时刻调用）。</summary>
@@ -82,20 +78,10 @@ namespace PirateCrew.Fx
 
             Instance = this;
 
-            _marker = new TurnMarkerFx();
-            // 必须挂在 [FxRoot] 之下：只有 [FxRoot] 是 DontDestroyOnLoad，标记若是独立根对象
-            // 会在第一次切场景时被销毁，而 FxRoot 还留着已销毁的引用 → 光环永久消失。
-            FxSpriteFx markerRing = FxSpriteFx.Create("FxTurnMarker", additive: true, billboard: false);
-            markerRing.transform.SetParent(transform, false);
-            _marker.Bind(markerRing);
-
             EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
             EventBus.Subscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
             EventBus.Subscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
             EventBus.Subscribe(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Subscribe(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Subscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
-            EventBus.Subscribe(BattleEvents.MatchFinished, OnMatchFinished);
         }
 
         void OnDestroy()
@@ -104,33 +90,9 @@ namespace PirateCrew.Fx
             EventBus.Unsubscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
             EventBus.Unsubscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
             EventBus.Unsubscribe(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Unsubscribe(BattleEvents.TurnStarted, OnTurnStarted);
-            EventBus.Unsubscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
-            EventBus.Unsubscribe(BattleEvents.MatchFinished, OnMatchFinished);
-
-            if (_marker != null)
-                _marker.Dispose();
 
             if (Instance == this)
                 Instance = null;
-        }
-
-        // ------------------------------------------------------------------
-        // 供 FxApi 调用的公开表面
-        // ------------------------------------------------------------------
-
-        /// <summary>让光环跟随目标并染成指定颜色。</summary>
-        public void ShowMarker(Transform target, Color color)
-        {
-            if (_marker != null)
-                _marker.Show(target, color);
-        }
-
-        /// <summary>收起光环。</summary>
-        public void HideMarker()
-        {
-            if (_marker != null)
-                _marker.Hide();
         }
 
         // ------------------------------------------------------------------
@@ -146,8 +108,6 @@ namespace PirateCrew.Fx
             RebuildPirateRegistry();
             _trailedProjectiles.Clear();
             _trailTimer = 0f;
-            if (_marker != null)
-                _marker.Hide();
         }
 
         /// <summary>
@@ -215,47 +175,15 @@ namespace PirateCrew.Fx
             }
             else
                 HitFx.PlayDeathPuff(pirate.transform.position);
-
-            if (_marker != null && _marker.Target == pirate.transform)
-                _marker.Hide();
-        }
-
-        void OnTurnStarted(TurnStartedPayload turn)
-        {
-            if (_marker == null)
-                return;
-
-            if (turn.PanTarget != null)
-                _marker.Show(turn.PanTarget, FxRules.TeamMarkerColor(turn.TeamNumber));
-            else
-                _marker.Hide();
-        }
-
-        void OnCameraFocusRequested(Transform target)
-        {
-            if (_marker == null || target == null)
-                return;
-
-            // 玩家点选 → 选中青（与描边选中色同源，Art Bible §2.2）。
-            _marker.Show(target, FxRules.SelectedMarkerColor());
-        }
-
-        void OnMatchFinished(MatchFinishedPayload payload)
-        {
-            if (_marker != null)
-                _marker.Hide();
         }
 
         // ------------------------------------------------------------------
-        // Update：光环脉动 + 弹体拖尾低频轮询
+        // Update：弹体拖尾低频轮询
         // ------------------------------------------------------------------
 
         void Update()
         {
             float dt = Time.deltaTime;
-
-            if (_marker != null)
-                _marker.Tick(dt);
 
             _trailTimer -= dt;
             if (_trailTimer > 0f)

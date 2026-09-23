@@ -125,18 +125,18 @@ EventBus 拒绝投递、记入 `EventBus.ContractViolations` 并告警——机�
 | 频道 | 载荷类型 | 发布方 | 订阅方 |
 | --- | --- | --- | --- |
 | `BattleEvents.BattleStarted` | `BattleStartedPayload` | `BattleController` | HUD（`BattleHud`）/ 环境层（`AmbientDirector`）/ `FxRoot` / `AudioService` / `CampaignApi`（**相机不订阅本事件**——它跟 `BattleEvents.TurnStarted`） |
-| `BattleEvents.TurnStarted` | `TurnStartedPayload` | `TurnManager` | HUD / 相机（pan 到行动角色）/ `FxRoot` |
+| `BattleEvents.TurnStarted` | `TurnStartedPayload` | `TurnManager` | HUD / 相机（pan 到行动角色） |
 | `BattleEvents.TurnEnded` | `int` 队伍编号 | `TurnManager` | HUD / 相机 / `BattleController` |
 | `BattleEvents.ActionSelected` | `ActionSelectedPayload` | `AimThrowController` / `BattleController` | HUD（武器面板收起）/ 相机（`BattleCameraDriver`） |
 | `BattleEvents.CrewDamaged` | `CrewDamagedPayload` | `PirateBase` | HUD（血条）/ 相机（震屏）/ `FxRoot` |
 | `BattleEvents.CrewDied` | `CrewDiedPayload` | `PirateBase` | HUD / 相机 / `AudioService` / `FxRoot` / `CampaignApi`（累计阵亡数供星级评价）。**胜负检查不走本事件**（`BattleController` 只订阅 `BattleEvents.TurnEnded`） |
-| `BattleEvents.MatchFinished` | `MatchFinishedPayload` | `BattleController` | HUD / 相机 / `FxRoot` / `AudioService` / `CampaignApi`（结算） |
+| `BattleEvents.MatchFinished` | `MatchFinishedPayload` | `BattleController` | HUD / 相机 / `AudioService` / `CampaignApi`（结算） |
 | `BattleEvents.AiThinking` | `AiThinkingPayload` | `AiController` | 相机（停止自动滚动，§6.1）——**HUD「电脑思考中」提示未兑现** |
 | `BattleEvents.AiDecided` | `AiDecidedPayload` | `AiController` | `AudioService`（§6.3 特殊武器的实际表现由后续武器脚本消费，当前无其它订阅方） |
 | `BattleEvents.ProjectileDetonated` | `ProjectileDetonatedPayload` | `WeaponProjectile` | 表现层（`FxRoot` 爆炸/水花、`WaterSimulationDriver` 涟漪、相机震屏、音频） |
 | `BattleEvents.MineBeep` | `MineBeepPayload` | `WeaponProjectile`（mine 引信） | 音频层（§5.2 beepTimes 滴答声） |
 | `BattleEvents.ShotReleased` | `float` 拖拽距离（px，`AimThrowController.cs:758`） | `AimThrowController` | 音频层（发射音） |
-| `BattleEvents.CameraFocusRequested` | `Transform` 目标 | `TurnManager` / `WeaponProjectile`（voodoo 切镜）/ `AiController` / `BattleController` | 相机（`BattleCameraDriver`）/ HUD / `FxRoot` |
+| `BattleEvents.CameraFocusRequested` | `Transform` 目标 | `TurnManager` / `WeaponProjectile`（voodoo 切镜）/ `AiController` / `BattleController` | 相机（`BattleCameraDriver`）/ HUD |
 
 > **武器运行时事件备注**：`BattleEvents.ProjectileDetonated` / `BattleEvents.MineBeep` 的频道与载荷定义在
 > `Battle/BattleEvents.cs`，由 `Battle/WeaponProjectile.cs` 发布（弹体引爆 / 地雷引信蜂鸣）。

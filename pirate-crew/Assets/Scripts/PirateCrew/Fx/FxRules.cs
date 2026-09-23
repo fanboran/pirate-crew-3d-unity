@@ -401,32 +401,6 @@ namespace PirateCrew.Fx
         }
 
         // ==================================================================
-        // 回合/选中标记（TurnMarkerFx）
-        // ==================================================================
-
-        /// <summary>地面光环直径（世界单位）。单位 AABB 总高 1.0（Art Bible §5.2），环略大于脚底，读作"站在这里"。
-        /// 直径类 ×2（格 1→2 单位）。</summary>
-        public const float TurnMarkerDiameter = 1.80f;
-
-        /// <summary>光环脉动频率（Hz）。</summary>
-        public const float TurnMarkerPulseHz = 1.6f;
-
-        /// <summary>光环基础不透明度。</summary>
-        public const float TurnMarkerAlpha = 0.55f;
-
-        /// <summary>队伍光环色（【依据】Art Bible §2.2 阵营色）。</summary>
-        public static Color32 TeamMarkerColor(int teamNumber)
-        {
-            return teamNumber == 1 ? FromHex(0xFF3A29) : FromHex(0x3366FF);
-        }
-
-        /// <summary>被聚焦/选中单位的光环色（【依据】Art Bible §2.2 选中描边青 #49D9D6，与描边链路同源）。</summary>
-        public static Color32 SelectedMarkerColor()
-        {
-            return FromHex(0x49D9D6);
-        }
-
-        // ==================================================================
         // 颜色常量（爆炸/水花；【依据】Art Bible 调色板 + 【AI 提案】明度微调）
         // ==================================================================
 

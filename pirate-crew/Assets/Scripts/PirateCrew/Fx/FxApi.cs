@@ -73,38 +73,8 @@ namespace PirateCrew.Fx
             ProjectileTrailFx.Attach(projectile, weapon);
         }
 
-        /// <summary>显示回合光环（队伍色）。teamNumber：1 = 红队，2 = 蓝队。</summary>
-        public static void ShowTurnMarker(Transform target, int teamNumber)
-        {
-            if (!Application.isPlaying || target == null)
-                return;
-            FxRoot root = FxRoot.Ensure();
-            if (root != null)
-                root.ShowMarker(target, FxRules.TeamMarkerColor(teamNumber));
-        }
-
-        /// <summary>显示选中光环（选中青，与描边选中色同源）。</summary>
-        public static void ShowSelectionMarker(Transform target)
-        {
-            if (!Application.isPlaying || target == null)
-                return;
-            FxRoot root = FxRoot.Ensure();
-            if (root != null)
-                root.ShowMarker(target, FxRules.SelectedMarkerColor());
-        }
-
-        /// <summary>隐藏回合光环。</summary>
-        public static void HideTurnMarker()
-        {
-            if (!Application.isPlaying)
-                return;
-            FxRoot root = FxRoot.Ensure();
-            if (root != null)
-                root.HideMarker();
-        }
-
         /// <summary>
-        /// 清空对象池并隐藏回合光环（结算/切场景/测试收尾用）。
+        /// 清空对象池（结算/切场景/测试收尾用）。
         /// 【实际语义】只销毁**池内闲置**的粒子体/四边形特效体（<see cref="FxPool.Clear"/>，
         /// 池超额特效体连同其每实例材质一起销毁）；正在播放的存活特效不受影响，
         /// 播完后照常归还池。池容器 <c>[FxPool]</c>（DontDestroyOnLoad）**不会**被销毁，跨场景继续复用。
@@ -114,8 +84,6 @@ namespace PirateCrew.Fx
             if (!Application.isPlaying)
                 return;
             FxPool.Clear();
-            if (FxRoot.Instance != null)
-                FxRoot.Instance.HideMarker();
         }
     }
 }

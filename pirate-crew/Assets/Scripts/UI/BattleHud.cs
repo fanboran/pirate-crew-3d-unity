@@ -22,7 +22,6 @@ namespace PirateCrew.UI
     ///   · **顶栏双队合成血条**：左右屏缘各一条，每名存活单位 = 一段分格（受击只掉自己那段，
     ///     白色 damage ghost 残影延迟回落），条下一排职业色头像 pips（死亡换骷髅）——
     ///     替代旧左下 12 行名册列表（名册整块退役，P3-2 名册文案随之消灭）；
-    ///   · **单位头顶血条**（<see cref="OverheadHealthBar"/>）：个人血条从列表挪进 3D 世界；
     ///   · **中央回合徽章**：队色环 + 数字，回合切换弹跳；
     ///   · **武器面板全图标化**：17 武器各占一格彩色图标（选中才显示名字与说明一行），
     ///     投掷 / 结束回合为图标主按钮——原版 Mutiny 的全图标交互语言；
@@ -854,7 +853,6 @@ namespace PirateCrew.UI
             CloseModal(confirmDialogRoot);
 
             BuildTeamBars();
-            AttachOverheadBars();
             RefreshTurnHint();
             RefreshWeaponPanel(hide: true);
         }
@@ -1166,20 +1164,6 @@ namespace PirateCrew.UI
 
             PortraitCache[key] = sprite;
             return sprite;
-        }
-
-        // ------------------------------------------------------------------
-        // 单位头顶血条
-        // ------------------------------------------------------------------
-
-        void AttachOverheadBars()
-        {
-            if (battle == null)
-                return;
-
-            var pirates = battle.AllPirates;
-            for (int i = 0; i < pirates.Count; i++)
-                OverheadHealthBar.Attach(pirates[i]);
         }
 
         // ------------------------------------------------------------------

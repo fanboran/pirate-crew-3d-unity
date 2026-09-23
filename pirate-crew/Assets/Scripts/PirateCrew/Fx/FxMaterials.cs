@@ -39,20 +39,17 @@ namespace PirateCrew.Fx
         /// <summary>冲击波环（暖白，加法）。</summary>
         Shockwave = 10,
 
-        /// <summary>地面回合光环（白，颜色由 MPB 逐单位染，加法）。</summary>
-        TurnMarker = 11,
-
         /// <summary>伤害数字（贴图由运行时逐串生成，透明）。</summary>
-        DamageNumber = 12,
+        DamageNumber = 11,
 
         /// <summary>爆炸类弹体拖尾（暖橙，加法）。</summary>
-        TrailExplosive = 13,
+        TrailExplosive = 12,
 
         /// <summary>普通弹体拖尾（选中青，加法）。</summary>
-        TrailDefault = 14,
+        TrailDefault = 13,
 
         /// <summary>四芒星闪（星屑，加法）。</summary>
-        Star4 = 15,
+        Star4 = 14,
     }
 
     /// <summary>材质档的静态规格（编辑器生成 .mat 与运行时创建材质共用同一张表，保证两边一致）。</summary>
@@ -129,9 +126,8 @@ namespace PirateCrew.Fx
             new FxMaterialSpec { Name = "Fx_WaterSplash",    Additive = true,  Texture = FxTextureKind.Droplet,    Tint = FxRules.SplashDropletColor(), Intensity = 1.30f },
             new FxMaterialSpec { Name = "Fx_WaterFoam",      Additive = false, Texture = FxTextureKind.SoftCircle, Tint = FxRules.SplashFoamColor(),    Intensity = 1.00f },
             new FxMaterialSpec { Name = "Fx_Ripple",         Additive = true,  Texture = FxTextureKind.Ring,       Tint = FxRules.RippleColor(),        Intensity = 1.00f },
-            // ---- 环 / 标记 ----
+            // ---- 环 ----
             new FxMaterialSpec { Name = "Fx_Shockwave",      Additive = true,  Texture = FxTextureKind.Ring,       Tint = FxRules.ShockwaveColor(),     Intensity = 1.20f },
-            new FxMaterialSpec { Name = "Fx_TurnMarker",     Additive = true,  Texture = FxTextureKind.Ring,       Tint = Color.white,                  Intensity = 1.00f },
             // ---- 数字 / 拖尾 ----
             new FxMaterialSpec { Name = "Fx_DamageNumber",   Additive = false, Texture = FxTextureKind.Spark,      Tint = Color.white,                  Intensity = 1.00f },
             new FxMaterialSpec { Name = "Fx_TrailExplosive", Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = FxRules.TrailColor(WeaponId.CherryBomb), Intensity = 1.40f },
