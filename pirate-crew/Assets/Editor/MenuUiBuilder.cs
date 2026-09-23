@@ -24,7 +24,7 @@ namespace PirateCrew.EditorTools
     /// 【皮肤（换装后）】主菜单链路（<see cref="BuildSettingsPanel"/> / <see cref="BuildConfirmDialog"/>
     /// 与 SceneSetup.BuildMainMenuScene）已切 Beveled Pixel：底板走 <see cref="SketchPanel"/>、
     /// 按钮走 <see cref="SketchButton"/>、分隔线走 <see cref="SketchSeparator"/>；船员管理 / 选关 /
-    /// 结算（M3SceneSetup）同族。本类玻璃族工厂（<see cref="CreatePanel"/> / <see cref="CreateButton"/> /
+    /// 结算（ManagementSceneSetup）同族。本类玻璃族工厂（<see cref="CreatePanel"/> / <see cref="CreateButton"/> /
     /// <see cref="CreateWoodBackdrop"/>）已内部改判到像素 tone，签名与调用点不变。
     ///
     /// 【为什么本类是这个波次的主要改动点】主菜单 / 设置 / 员工管理 / HUD 的面板与按钮**全部**
@@ -34,104 +34,76 @@ namespace PirateCrew.EditorTools
     public static class MenuUiBuilder
     {
         // ------------------------------------------------------------------
-        // 字号体系（【用户裁决 2026-09-14】整体下调一档）
+        // 字号体系（【像素栅格并档】真值源 = UiSkin.Font，本表只是 Editor 侧别名）
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 全局字号体系 —— 比 <see cref="UiTheme"/> 的旧档整体下调一档。
+        /// 全局字号体系 —— 2026-09-23 像素字体全局切换起并入 <see cref="UiSkin.Font"/>
+        /// （Fusion Pixel 12px 位图档要求显示字号取 12 的整数倍；画布像素，正文 36 = 12 艺术像素）。
         ///
-        /// 【为什么在这里而不是改 UiTheme】<see cref="UiTheme"/> 是**运行期**程序集（<c>Assets/Scripts/</c>），
-        /// 本波次文件域只到 <c>Assets/Editor/</c>；而 <see cref="UiTheme"/> 的常量又被
-        /// <c>SceneSetup</c>/<c>M3SceneSetup</c> 等不在域内的构建器直接引用（它们传的是旧档数字）。
-        /// 于是把「旧档 → 新档」的映射放在**所有文本的唯一出口** <see cref="CreateText"/> 里：
-        /// 任何构建器（含域外文件）传旧档字号，渲染出来都自动是新档，
-        /// 既不用改 UiTheme（不动运行期契约），也不会漏掉某个界面。
-        ///
-        /// 【旧→新对照（用户原话"字都太大了"）】
-        /// <code>
-        ///   用途                        旧   新   备注
-        ///   FONT_DISPLAY 游戏名         64 → 48
-        ///   FONT_BANNER  结算横幅       48 → 36
-        ///   FONT_TITLE   界面标题       36 → 26
-        ///   FONT_SECTION 区块标题/标题条 24 → 20   ← 任务"标题 24→20"
-        ///   FONT_HUD     HUD 常读/名册名 24 → 18   ← 任务"正文 24→18"
-        ///   FONT_BODY    按钮/行文本     20 → 15   ← 任务"辅助 20→15"
-        ///   FONT_HINT    辅助提示        18 → 14   ← 任务"提示 18→14"
-        ///   FONT_TINY    角标            16 → 13   （同比例降一档）
-        /// </code>
-        /// 【判据同步】docs/UI-UX与中文本地化规范.md 的 V2 判据（原「正文 ≥20px」）按同一裁决
-        /// 改为「正文 ≥16px、辅助 ≥14px、角标 ≥12px」——本表的 <see cref="Hud"/>=18、<see cref="Body"/>=15、
-        /// <see cref="Hint"/>=14、<see cref="Tiny"/>=13 逐档落在新下限之上。
+        /// 历史注释：本表曾是"比 UiTheme 旧档整体下调一档"的独立 Editor 侧基准
+        /// （48/36/26/20/18/15/14/13），运行期程序集与 Editor 程序集各持一份字号真值、
+        /// 靠 <see cref="CreateText"/> 里的旧→新映射兜住域外构建器；并档后两份真值合一，
+        /// 映射退役（见 <see cref="ScaleLegacyFont"/>），历史数字不再存在。
         /// </summary>
         public static class FontScale
         {
-            /// <summary>主菜单游戏名（旧 UiTheme.FontDisplay 64）。</summary>
-            public const int Display = 48;
+            /// <summary>主菜单游戏名（= UiSkin.Font.Display）。</summary>
+            public const int Display = UiSkin.Font.Display;
 
-            /// <summary>结算横幅（旧 UiTheme.FontBanner 48）。</summary>
-            public const int Banner = 36;
+            /// <summary>结算横幅（= UiSkin.Font.Banner）。</summary>
+            public const int Banner = UiSkin.Font.Banner;
 
-            /// <summary>界面标题（旧 UiTheme.FontTitle 36）。</summary>
-            public const int Title = 26;
+            /// <summary>界面标题（= UiSkin.Font.Title）。</summary>
+            public const int Title = UiSkin.Font.Title;
 
-            /// <summary>区块标题 / 面板标题条（旧 UiTheme.FontSection 24）。</summary>
-            public const int Section = 20;
+            /// <summary>区块标题 / 面板标题条（= UiSkin.Font.Section）。</summary>
+            public const int Section = UiSkin.Font.Section;
 
-            /// <summary>HUD 常读 / 名册名 / 模式开关 / 回合计时（旧 UiTheme.FontHud 24）。</summary>
-            public const int Hud = 18;
+            /// <summary>HUD 常读 / 名册名 / 模式开关 / 回合计时（= UiSkin.Font.Hud）。</summary>
+            public const int Hud = UiSkin.Font.Hud;
 
-            /// <summary>按钮 / 列表行文本 / 说明（旧 UiTheme.FontBody 20）。</summary>
-            public const int Body = 15;
+            /// <summary>按钮 / 列表行文本 / 说明（= UiSkin.Font.Body）。</summary>
+            public const int Body = UiSkin.Font.Body;
 
-            /// <summary>辅助提示 / 通栏提示条（旧 UiTheme.FontHint 18）。</summary>
-            public const int Hint = 14;
+            /// <summary>辅助提示 / 通栏提示条（= UiSkin.Font.Hint）。</summary>
+            public const int Hint = UiSkin.Font.Hint;
 
-            /// <summary>角标 / HP 数字（旧 UiTheme.FontTiny 16）。</summary>
-            public const int Tiny = 13;
+            /// <summary>角标 / HP 数字（= UiSkin.Font.Tiny）。</summary>
+            public const int Tiny = UiSkin.Font.Tiny;
         }
 
         /// <summary>
-        /// 旧档字号 → <see cref="FontScale"/> 新档。
-        /// 【为什么用"旧档白名单"而不是"新档白名单"】<see cref="UiTheme"/> 的旧档恰是
-        /// <c>{64,48,36,24,20,18,16}</c> 七个数；新档是 <c>{48,36,26,20,18,15,14,13}</c>，两集合**有交集**
-        /// （48/36/20/18 既是旧档也是新档），只按数字映射会互相污染（旧 20=正文 → 新 15；
-        /// 新 20=区块标题 → 又会被降成 15）。故：<b>本方法只服务"传旧档数字"的老调用点</b>；
-        /// 新代码一律走 <see cref="CreateTextExact"/> 直传 <see cref="FontScale"/> 常量，不经本映射。
-        /// 未登记的数值原样透传（恒等），避免把 UI 新档数字二次降档。
+        /// 旧档字号 → 新档（【已退役为恒等】）。历史上本映射把 UiTheme 旧档数字
+        /// （64/48/36/24/20/18/16）降到 FontScale 新档；像素栅格并档后 UiTheme.Font* 与
+        /// FontScale 都是 <see cref="UiSkin.Font"/> 的别名，"旧档"不再存在——任何按旧数字
+        /// 白名单的映射都会把新档数字二次改写（新 Section 48 会被当成旧 Banner 48 降档）。
+        /// 方法保留签名防断链，一律原样透传。
         /// </summary>
         static int ScaleLegacyFont(int legacy)
         {
-            switch (legacy)
-            {
-                case 64: return FontScale.Display;
-                case 48: return FontScale.Banner;
-                case 36: return FontScale.Title;
-                case 24: return FontScale.Section;   // 旧 FontSection/FontHud 同为 24，统一降到 Section(20)；
-                                                     // 需要 Hud(18) 的调用点请显式走 CreateTextExact。
-                case 20: return FontScale.Body;
-                case 18: return FontScale.Hint;
-                case 16: return FontScale.Tiny;
-                default: return legacy;
-            }
+            return legacy;
         }
 
         // ------------------------------------------------------------------
-        // 字体（规范 §5.1）
+        // 字体（【像素字体全局切换】三档统一 Fusion Pixel 12px 位图档；2026-09-23）
         // ------------------------------------------------------------------
 
-        /// <summary>中文字体资产路径（由 FontAssetBuilder 生成）。</summary>
-        public const string TitleFontAssetPath = "Assets/Art/Fonts/StickHand-Regular SDF.asset";
+        /// <summary>像素字体资产路径（Art 侧；位图口径档，缺字回落楷体链烘在资产内）。
+        /// 旧三档（StickHand 手写体 / 霞鹜文楷 Medium/Regular）随"文字统一 StickHand"裁决
+        /// 一并退役——手写体与像素带颗粒度不匹配。</summary>
+        public const string TitleFontAssetPath = "Assets/Art/Fonts/FusionPixel12-px.asset";
 
-        /// <summary>正文中文字体资产路径。</summary>
-        public const string BodyFontAssetPath = "Assets/Art/Fonts/LXGWWenKaiLite-Medium SDF.asset";
+        /// <summary>同 <see cref="TitleFontAssetPath"/>（三档同名资产：像素 UI 单字体纪律）。</summary>
+        public const string BodyFontAssetPath = "Assets/Art/Fonts/FusionPixel12-px.asset";
 
-        /// <summary>次级中文字体资产路径。</summary>
-        public const string SecondaryFontAssetPath = "Assets/Art/Fonts/LXGWWenKaiLite-Regular SDF.asset";
+        /// <summary>同 <see cref="TitleFontAssetPath"/>。</summary>
+        public const string SecondaryFontAssetPath = "Assets/Art/Fonts/FusionPixel12-px.asset";
 
         /// <summary>缺失 SDF 资产时的 ttf 回落路径（Unity 已导入为 Dynamic Font）。</summary>
-        const string TitleFontTtfPath = "Assets/Art/Fonts/StickHand-Regular.ttf";
-        const string BodyFontTtfPath = "Assets/Art/Fonts/LXGWWenKaiLite-Medium.ttf";
-        const string SecondaryFontTtfPath = "Assets/Art/Fonts/LXGWWenKaiLite-Regular.ttf";
+        const string TitleFontTtfPath = "Assets/Art/Fonts/FusionPixel12-zh_hans.ttf";
+        const string BodyFontTtfPath = "Assets/Art/Fonts/FusionPixel12-zh_hans.ttf";
+        const string SecondaryFontTtfPath = "Assets/Art/Fonts/FusionPixel12-zh_hans.ttf";
 
         static TMP_FontAsset _title;
         static TMP_FontAsset _body;
@@ -434,7 +406,7 @@ namespace PirateCrew.EditorTools
         /// <summary>
         /// 建 TMP 文本（**旧档字号入口**）：传入 <see cref="UiTheme"/> 的旧档字号常量
         /// （或任意旧档数字），内部按 <see cref="ScaleLegacyFont"/> 降到新档。
-        /// 域外构建器（SceneSetup / M3SceneSetup 等）继续传旧档即可自动跟进新字号体系。
+        /// 域外构建器（SceneSetup / ManagementSceneSetup 等）继续传旧档即可自动跟进新字号体系。
         /// 新代码请用 <see cref="CreateTextExact"/> 直传 <see cref="FontScale"/> 常量。
         /// </summary>
         public static TextMeshProUGUI CreateText(string name, Transform parent, string content, int fontSize,
@@ -443,15 +415,18 @@ namespace PirateCrew.EditorTools
             return CreateTextExact(name, parent, content, ScaleLegacyFont(fontSize), alignment, color, font, raycast);
         }
 
-        /// <summary>建 TMP 文本（**新档字号入口**）：<paramref name="fontSize"/> 原样使用，不做旧→新映射。</summary>
+        /// <summary>建 TMP 文本（**新档字号入口**）：<paramref name="fontSize"/> 原样使用；
+        /// 字体由 <see cref="UiKit.ResolvePixelFont"/> 按字号单点解析（满精度阶梯，
+        /// 调用方传什么字体都会被按字号纠偏）。</summary>
         public static TextMeshProUGUI CreateTextExact(string name, Transform parent, string content, int fontSize,
             TextAlignmentOptions alignment, Color color, TMP_FontAsset font, bool raycast = false)
         {
             RectTransform rect = CreateRect(name, parent);
             var text = rect.gameObject.AddComponent<TextMeshProUGUI>();
             text.text = content;
-            if (font != null)
-                text.font = font;
+            TMP_FontAsset resolved = UiKit.ResolvePixelFont(fontSize, font);
+            if (resolved != null)
+                text.font = resolved;
             text.fontSize = fontSize;
             text.alignment = alignment;
             text.color = color;
@@ -702,7 +677,7 @@ namespace PirateCrew.EditorTools
         /// </summary>
         public static SettingsPanelResult BuildSettingsPanel(Transform canvas)
         {
-            // StickUI 复刻层单字体纪律（UiKit.RuntimeFont 同口径）：全部 StickHand。
+            // 像素字体单字体纪律（UiKit.RuntimeFont 同口径）：三档统一 Fusion Pixel 位图档。
             TMP_FontAsset hand = TitleFont;
 
             RectTransform root = CreateRect("SettingsPanel", canvas);
@@ -713,19 +688,19 @@ namespace PirateCrew.EditorTools
             // 底板：SketchPanel Dark → Plate(Frame tone) + 底垫投影（像素皮主弹窗底）。
             SketchPanel card = SketchPanel.Create(root.transform, "SettingsCard",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(1281f, 699f), SketchPanel.Tone.Dark);
+                new Vector2(1281f, 900f), SketchPanel.Tone.Dark);
             RectTransform panel = (RectTransform)card.transform;
 
-            // 标题：像素皮 Frame tone 上的可读浅字 + INK 墨描边（TMP 归一化宽口径同 SketchButton）。
+            // 标题：像素皮 Frame tone 上的可读浅字 + INK 墨描边（满精度正文档 36，层级靠颜色）。
             TextMeshProUGUI titleText = CreateTextExact("Title", panel, UiStrings.SettingsTitle,
-                (int)FONT_TITLE, TextAlignmentOptions.Center, PixelSkin.TextColorOn(PixelTone.Frame), hand);
-            SetAnchored(titleText.rectTransform, new Vector2(0.5f, 1f), new Vector2(600f, 48f),
-                new Vector2(0f, -28f));
+                UiSkin.Font.Title, TextAlignmentOptions.Center, PixelSkin.TextColorOn(PixelTone.Frame), hand);
+            SetAnchored(titleText.rectTransform, new Vector2(0.5f, 1f), new Vector2(600f, 44f),
+                new Vector2(0f, -44f));
             ApplyStickTitleOutline(titleText);
 
             // 标题下蚀刻分隔线（像素皮 Separator 贴图，方向由 Dir 决定）。
             SketchSeparator.Create(panel, "TitleSeparator", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -96f), new Vector2(900f, 2f), SketchSeparator.Direction.Horizontal);
+                new Vector2(0f, -104f), new Vector2(900f, 2f), SketchSeparator.Direction.Horizontal);
 
             var result = new SettingsPanelResult();
 
@@ -743,18 +718,18 @@ namespace PirateCrew.EditorTools
                 out result.FullscreenOnButton, out result.FullscreenOffButton,
                 UiStrings.SettingsOptionFullscreen, UiStrings.SettingsOptionWindowed);
 
-            // 提示：角标档 FONT_TINY=11 + TEXT_FAINT（stick-world 次级文字口径），放底部通带。
+            // 提示：角标档（像素 Tiny 24）+ TEXT_FAINT（stick-world 次级文字口径），放底部通带。
             TextMeshProUGUI note = CreateTextExact("SaveHint", panel, UiStrings.SettingsSaveHint,
-                (int)FONT_TINY, TextAlignmentOptions.Center, TEXT_FAINT, hand);
-            SetAnchored(note.rectTransform, new Vector2(0.5f, 0f), new Vector2(1180f, 30f),
-                new Vector2(0f, 116f));
+                UiSkin.Font.Tiny, TextAlignmentOptions.Center, TEXT_FAINT, hand);
+            SetAnchored(note.rectTransform, new Vector2(0.5f, 0f), new Vector2(1180f, 36f),
+                new Vector2(0f, 120f));
 
-            // 恢复默认 / 返回：手绘按钮 Dark 变体（高 BTN_H=32；Accent 金强调留给确认类主行动）。
+            // 恢复默认 / 返回：手绘按钮 Dark 变体；宽 = 标签宽 + 24 艺术像素、高 24 艺术像素（令牌按钮）。
             result.RestoreButton = CreateSketchButton("RestoreButton", panel, UiStrings.SettingsRestore,
-                new Vector2(0.5f, 0f), new Vector2(-260f, 56f), new Vector2(240f, BTN_H),
+                new Vector2(0.5f, 0f), new Vector2(-300f, 76f), ButtonSize(UiStrings.SettingsRestore),
                 SketchButtonKind.Dark);
             result.BackButton = CreateSketchButton("SettingsBackButton", panel, UiStrings.Back,
-                new Vector2(0.5f, 0f), new Vector2(260f, 56f), new Vector2(240f, BTN_H),
+                new Vector2(0.5f, 0f), new Vector2(300f, 76f), ButtonSize(UiStrings.Back),
                 SketchButtonKind.Dark);
 
             root.gameObject.SetActive(false);
@@ -762,9 +737,17 @@ namespace PirateCrew.EditorTools
             return result;
         }
 
+        /// <summary>令牌按钮尺寸（宽 = 标签宽 + 24 艺术像素，高 24 艺术像素）。
+        /// 装配侧的便捷出口，与 <see cref="UiSkin.Px.ButtonWidth"/> 同式。</summary>
+        public static Vector2 ButtonSize(string label)
+        {
+            return new Vector2(UiSkin.Px.ButtonWidth(label), UiSkin.Px.Button);
+        }
+
         /// <summary>
-        /// 主菜单链路专用的手绘按钮装配出口：StickHand 单字体 + 字号 0 = 控件默认档
-        /// （gd 主题 Button = FONT_HUD），四态沸腾/五态字色全在 <see cref="SketchButton"/> 内。
+        /// 主菜单链路专用的手绘按钮装配出口：像素字体单档 + 字号 0 = 控件默认档
+        /// （像素皮下 = 正文 12 艺术像素，见 SketchButton.AddLabel），四态字色全在
+        /// <see cref="SketchButton"/> 内。
         /// 返回类型是 <see cref="Button"/> 子类，控制器 [SerializeField] Button 字段直赋兼容。
         /// </summary>
         static Button CreateSketchButton(string name, Transform parent, string label, Vector2 anchor,
@@ -774,10 +757,10 @@ namespace PirateCrew.EditorTools
                 anchoredPosition, size, TitleFont, kind, label, 0f);
         }
 
-        /// <summary>行高与行距（六行布局：四条滑条 + 两组选项块）。</summary>
-        const float SettingsRowPitch = 64f;
-        const float SettingsRowTop = -150f;
-        const float SettingsRowHeight = 52f;
+        /// <summary>行高与行距（六行布局：四条滑条 + 两组选项块；行高 80 装得下 72 高选项钮）。</summary>
+        const float SettingsRowPitch = 96f;
+        const float SettingsRowTop = -152f;
+        const float SettingsRowHeight = 80f;
 
         /// <summary>建一行「字段名 + 音量滑条」（滑条实时驱动，落盘由控制器统一做）。
         /// 【换装最小半径】滑条三件套保持 UGUI 标准件（控制器按 <see cref="Slider"/> 契约接线），
@@ -787,9 +770,9 @@ namespace PirateCrew.EditorTools
             RectTransform row = CreateSettingsRowBackground(panel, index);
 
             // 字段名：像素皮字色按所落 tone 取可读档（行底 = SketchPanel Light → 暖白片 → 墨字）。
-            TextMeshProUGUI label = CreateTextExact("Field", row, field, (int)FONT_BODY,
+            TextMeshProUGUI label = CreateTextExact("Field", row, field, UiSkin.Font.Body,
                 TextAlignmentOptions.MidlineLeft, PixelSkin.TextColorOn(PixelTone.Light), hand);
-            SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(300f, 40f),
+            SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(360f, 44f),
                 new Vector2(24f, 0f));
 
             // 滑条（UGUI 标准三件套：底槽 / 填充 / 手柄；皮肤用像素件 Track / Fill / Plate）。
@@ -852,17 +835,18 @@ namespace PirateCrew.EditorTools
         {
             RectTransform row = CreateSettingsRowBackground(panel, index);
 
-            TextMeshProUGUI label = CreateTextExact("Field", row, field, (int)FONT_BODY,
+            TextMeshProUGUI label = CreateTextExact("Field", row, field, UiSkin.Font.Body,
                 TextAlignmentOptions.MidlineLeft, PixelSkin.TextColorOn(PixelTone.Light), hand);
-            SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(300f, 40f),
+            SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(360f, 44f),
                 new Vector2(24f, 0f));
 
+            // 选项块：令牌按钮（144×72 起步）+ 正文字号（按钮文字 = 正文 12 艺术像素）。
             primaryOption = CreateButton("Option0", row, primaryLabel, new Vector2(1f, 0.5f),
-                new Vector2(-448f, 0f), new Vector2(201f, 39f), hand, UiSprites.Kind.ButtonWood,
-                PixelSkin.TextColorOn(PixelTone.Dense), UiTheme.FontHint);
+                new Vector2(-448f, 0f), ButtonSize(primaryLabel), hand, UiSprites.Kind.ButtonWood,
+                PixelSkin.TextColorOn(PixelTone.Dense), UiSkin.Font.Body);
             secondaryOption = CreateButton("Option1", row, secondaryLabel, new Vector2(1f, 0.5f),
-                new Vector2(-236f, 0f), new Vector2(201f, 39f), hand, UiSprites.Kind.ButtonWood,
-                PixelSkin.TextColorOn(PixelTone.Dense), UiTheme.FontHint);
+                new Vector2(-236f, 0f), ButtonSize(secondaryLabel), hand, UiSprites.Kind.ButtonWood,
+                PixelSkin.TextColorOn(PixelTone.Dense), UiSkin.Font.Body);
         }
 
         /// <summary>设置行的底板 + 字段名（滑条行与选项行共用）：SketchPanel Light →
@@ -899,26 +883,26 @@ namespace PirateCrew.EditorTools
             // 底板：SketchPanel Dark → Plate(Frame tone) + 底垫投影；消息直接压面板，不再垫内容片。
             SketchPanel card = SketchPanel.Create(root.transform, "ConfirmCard",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(639f, 279f), SketchPanel.Tone.Dark);
+                new Vector2(720f, 396f), SketchPanel.Tone.Dark);
             RectTransform panel = (RectTransform)card.transform;
 
-            // 正文：Frame tone 上的次级浅字（像素皮 TextColorOn 档）、FONT_HUD 常读档。
+            // 正文：Frame tone 上的正文浅字（像素皮 TextColorOn 档）、正文字号。
             TextMeshProUGUI message = CreateTextExact("Message", panel, defaultMessage,
-                (int)FONT_HUD, TextAlignmentOptions.Center, PixelSkin.LightOf(PixelTone.Frame), TitleFont);
-            SetAnchored(message.rectTransform, new Vector2(0.5f, 1f), new Vector2(520f, 80f),
-                new Vector2(0f, -96f));
+                UiSkin.Font.Body, TextAlignmentOptions.Center, PixelSkin.LightOf(PixelTone.Frame), TitleFont);
+            SetAnchored(message.rectTransform, new Vector2(0.5f, 1f), new Vector2(560f, 96f),
+                new Vector2(0f, -84f));
 
             var result = new ConfirmDialogResult
             {
                 Root = root.gameObject,
                 Message = message,
                 // 确认 = Accent 金强调（StickKit.Confirm 默认 kind 同语义）、取消 = Dark 常规；
-                // 高 BTN_H=32。
+                // 令牌按钮（宽 = 标签宽 + 24 艺术像素、高 24 艺术像素）。
                 OkButton = CreateSketchButton("OkButton", panel, UiStrings.Confirm,
-                    new Vector2(0.5f, 0f), new Vector2(-140f, 48f), new Vector2(220f, BTN_H),
+                    new Vector2(0.5f, 0f), new Vector2(-168f, 72f), ButtonSize(UiStrings.Confirm),
                     SketchButtonKind.Accent),
                 CancelButton = CreateSketchButton("CancelButton", panel, UiStrings.Cancel,
-                    new Vector2(0.5f, 0f), new Vector2(140f, 48f), new Vector2(220f, BTN_H),
+                    new Vector2(0.5f, 0f), new Vector2(168f, 72f), ButtonSize(UiStrings.Cancel),
                     SketchButtonKind.Dark),
             };
 

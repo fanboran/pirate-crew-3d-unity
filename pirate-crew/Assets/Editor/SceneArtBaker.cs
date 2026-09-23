@@ -308,7 +308,7 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 打开 Battle 场景，把烘焙 prefab 写进 <see cref="RuntimeSceneArt"/> 的序列化引用后存盘。
-        /// <c>M2BattleSceneSetup.WireRuntimeSceneArt</c> 也会按同路径装载（无烘焙资产时留 null），
+        /// <c>BattleSceneSetup.WireRuntimeSceneArt</c> 也会按同路径装载（无烘焙资产时留 null），
         /// 故本步与场景重建的先后次序无关紧要；这里是显式收口。
         /// </summary>
         static void WireBattleScene()
@@ -317,7 +317,7 @@ namespace PirateCrew.EditorTools
             RuntimeSceneArt sceneArt = Object.FindObjectOfType<RuntimeSceneArt>();
             if (sceneArt == null)
             {
-                Debug.LogError("[SceneArtBaker] Battle 场景里没有 RuntimeSceneArt（先跑 M2BattleSceneSetup.BuildAll）。");
+                Debug.LogError("[SceneArtBaker] Battle 场景里没有 RuntimeSceneArt（先跑 BattleSceneSetup.BuildAll）。");
                 return;
             }
 

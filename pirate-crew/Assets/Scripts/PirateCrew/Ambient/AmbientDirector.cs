@@ -23,7 +23,7 @@ namespace PirateCrew.Ambient
     /// 【接线纪律（任务书）】
     ///   · 本组件**不做任何全局搜索**（无 <c>GameObject.Find</c> / <c>FindObjectsOfType</c>）；
     ///     必需引用（SceneArt 根、地面、主光、双方单位根）全部由 <c>[SerializeField]</c> 注入；
-    ///   · 场景由协调者用 <c>M2BattleSceneSetup</c> 装配（本 agent 不改该文件）——接线清单见交付报告；
+    ///   · 场景由协调者用 <c>BattleSceneSetup</c> 装配（本 agent 不改该文件）——接线清单见交付报告；
     ///   · 若本组件挂在 <c>SceneArt</c> 根节点下，可不填 <c>sceneArtRoot</c>（自动取父节点）。
     ///
     /// 【可玩性红线】本模块创建的所有物体：

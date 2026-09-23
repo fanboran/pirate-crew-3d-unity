@@ -5,7 +5,7 @@ namespace PirateCrew.Battle.WorldMaps
 {
     /// <summary>
     /// 世界地图规则层（纯 C#，无头可测）：站面 box 的世界展开、栅格化、连通性与布阵校验。
-    /// 契约：docs/M4-大海域世界化.md §2.2（连通性硬约束）与 §4.2（站面平直机制）。
+    /// 契约：docs/大海域世界化.md §2.2（连通性硬约束）与 §4.2（站面平直机制）。
     ///
     /// 【连通性判据】节点 = 站面 box；无向边 = 两 box 的水平间隙 ≤ <see cref="MaxJumpGap"/>
     /// 且 |顶面高差| ≤ <see cref="MaxUpStep"/>（来回都能跳）。全图所有承载出生点的 box

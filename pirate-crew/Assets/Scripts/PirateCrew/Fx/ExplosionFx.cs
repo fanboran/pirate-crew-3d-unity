@@ -24,7 +24,7 @@ namespace PirateCrew.Fx
     /// 粒子总数 ≤ <see cref="FxRules.MaxExplosionParticles"/>（各系统数量由 FxRules 钳制）。
     ///
     /// 【3D 球形】爆心即事件给的世界坐标；粒子用 World 空间球形爆发
-    /// （`docs/M2-3D空间模型对齐.md` §5：爆炸是 3D 球）。
+    /// （`docs/3D空间模型对齐.md` §5：爆炸是 3D 球）。
     /// </summary>
     public static class ExplosionFx
     {

@@ -6,7 +6,7 @@ namespace PirateCrew.Water
     /// <summary>
     /// 大海域海面的分级网格规则（纯 C#，无头可测）。
     ///
-    /// 【域分层（docs/M4-大海域世界化.md §5.2）】替换"地图外扩 400u 的 Cube"：
+    /// 【域分层（docs/大海域世界化.md §5.2）】替换"地图外扩 400u 的 Cube"：
     ///   · 近场：均匀细网格（格距 <see cref="CellSize"/>）到半径 <see cref="UniformRadius"/>——
     ///     解析最短 chop 波长 4.8u（每波 ≥3 顶点），跟随相机、按 <see cref="SnapStep"/> 步进对齐防泳动；
     ///   · 中场：环宽按 <see cref="RingGrowth"/> 几何增长的环带（远处的波本来就被

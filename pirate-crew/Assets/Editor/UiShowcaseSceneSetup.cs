@@ -183,6 +183,9 @@ namespace PirateCrew.EditorTools
             return null;
         }
 
+        /// <summary>公开视口钉尺寸出口（同 <see cref="ForceGameViewSize"/>；四屏实机采集复用）。</summary>
+        public static void ForceGameViewSizePublic(int width, int height) => ForceGameViewSize(width, height);
+
         /// <summary>
         /// 把游戏视口钉到指定尺寸。`Screen.SetResolution` 在编辑器里管不住 Game 视图
         /// （采集到的是视口实际大小），得走编辑器 API：优先 <c>PlayModeWindow.SetViewSize</c>，

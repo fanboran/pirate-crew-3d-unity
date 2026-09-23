@@ -82,8 +82,10 @@ namespace PirateCrew.UI
         /// <summary>主菜单状态：无存档。</summary>
         public const string MainStatusNoSave = "暂无存档";
 
-        /// <summary>主菜单左下版本号（版本号数字保留半角）。</summary>
-        public const string MainVersion = "版本 1.0";
+        /// <summary>主菜单左下版本号**前缀**。数字一律运行时取 <c>Application.version</c>
+        /// （= bundleVersion，构建期派生自 Editor/Build/BuildVersion.Current 单一真源）——
+        /// 文案里不得再写死版本数字（"版本 1.0" 曾在真源统一到 0.1.0 后漂了一个发行周期）。</summary>
+        public const string MainVersionPrefix = "版本";
 
         /// <summary>主菜单：退出确认弹窗正文。</summary>
         public const string MainQuitConfirm = "确定要退出游戏吗？";
@@ -355,6 +357,9 @@ namespace PirateCrew.UI
 
         /// <summary>暂停按钮 / 暂停面板触发（含快捷键提示，按键字母按规范保留半角）。</summary>
         public const string BattlePauseButton = "暂停 (Esc)";
+
+        /// <summary>HUD 左下暂停钮的短文案（紧凑文字钮；快捷键提示交给工具提示与按键位记忆）。</summary>
+        public const string BattlePause = "暂停";
 
         /// <summary>暂停面板标题。</summary>
         public const string BattlePauseTitle = "已暂停";

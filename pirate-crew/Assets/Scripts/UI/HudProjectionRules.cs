@@ -7,17 +7,17 @@ namespace PirateCrew.UI
     /// <summary>
     /// HUD 在**透视相机**下的屏幕尺度换算（纯 C# 静态类，可在无头验证台断言）。
     ///
-    /// 【为什么需要它】HUD 本体是 UGUI <c>ScreenSpaceOverlay</c>（<c>M2BattleSceneSetup.CreateCanvas</c>），
+    /// 【为什么需要它】HUD 本体是 UGUI <c>ScreenSpaceOverlay</c>（<c>BattleSceneSetup.CreateCanvas</c>），
     /// 不随相机透视变形——这一条已满足，无需改动。但战斗里有一个**屏幕像素口径**的命中量：
     /// <see cref="PirateCrew.Battle.LevelGeometry.SelectionRadiusPixels"/> = 30px
     /// （Flash §3.4 <c>minD2 = 900</c>，用于选中/悬停/拖拽拾取）。
     /// 原版是恒定缩放的 2D，30px 对每个单位等价；换成透视 FOV 60 / 距离 18
-    /// （<c>docs/M2-3D空间模型对齐.md</c> §2）后，**同一个 30px 在不同距离上覆盖的单位屏幕尺寸不同**：
+    /// （<c>docs/3D空间模型对齐.md</c> §2）后，**同一个 30px 在不同距离上覆盖的单位屏幕尺寸不同**：
     /// 近处的单位屏幕上更大、同样 30px 更容易点中；远处的单位更小、更难选中、也更容易误选邻近单位。
     ///
     /// 【定位】本类只提供**可调参数化**的候选公式与默认值，**不改动**
     /// <see cref="PirateCrew.Battle.AimThrowController"/>（其拾取仍走 Flash 的固定 30px，
-    /// 见 <c>docs/M2-3D空间模型对齐.md</c> §3「选中拾取…不动」）。
+    /// 见 <c>docs/3D空间模型对齐.md</c> §3「选中拾取…不动」）。
     /// 是否切换到这个按屏幕尺寸缩放的口径属**提案/待定**，需人眼验收手感后再决定。
     ///
     /// 【公式】透视投影下，世界高度 h 距相机 d 时的屏幕像素高度：
@@ -29,7 +29,7 @@ namespace PirateCrew.UI
         /// <summary>Flash §3.4 的固定拾取半径（px），也是缩放公式的基准半径。</summary>
         public const float ReferenceRadiusPixels = 30f;
 
-        /// <summary>缩放基准距离 = 相机默认距离 18（`docs/M2-3D空间模型对齐.md` §2 的 Godot 基准）。</summary>
+        /// <summary>缩放基准距离 = 相机默认距离 18（`docs/3D空间模型对齐.md` §2 的 Godot 基准）。</summary>
         public const float ReferenceDistance = 18f;
 
         /// <summary>半径下限（px，**提案/待定**）：防止远处单位小到点不中。</summary>

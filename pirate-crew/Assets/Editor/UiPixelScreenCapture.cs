@@ -20,6 +20,7 @@ namespace PirateCrew.EditorTools
         const string WaitKey = "UiPixelScreenCapture.Wait";
         const string SceneKey = "UiPixelScreenCapture.Scene";
         const string PathKey = "UiPixelScreenCapture.Path";
+        const string SelectedKey = "UiPixelScreenCapture.Selected";
 
         /// <summary>主菜单。</summary>
         public static void CaptureMainMenu() => Start("MainMenu");
@@ -37,6 +38,7 @@ namespace PirateCrew.EditorTools
             SessionState.SetString(PathKey, Path.Combine(dir, sceneName + ".png"));
             SessionState.SetInt(StateKey, 0);
             SessionState.SetInt(WaitKey, 0);
+            SessionState.SetBool(SelectedKey, false);
             SessionState.SetBool(PendingKey, true);
             EditorApplication.update += CaptureStep;
             Debug.Log("[UiPixelScreenCapture] 开始采集 " + sceneName + " → " + CaptureDir);
@@ -69,6 +71,24 @@ namespace PirateCrew.EditorTools
                     break;
                 case 2:
                     UiShowcaseSceneSetup.ForceGameViewSizePublic(1920, 1080);
+                    if (EditorApplication.isPlaying && Time.frameCount == 60
+                        && sceneName == "Battle" && !SessionState.GetBool(SelectedKey, false))
+                    {
+                        // 选中一名红队角色，让底部武器面板（含文字按钮）入画——走查对象。
+                        SessionState.SetBool(SelectedKey, true);
+                        var controller = Object.FindObjectOfType<PirateCrew.Battle.BattleController>();
+                        PirateCrew.Battle.PirateBase unit = null;
+                        foreach (var candidate in Object.FindObjectsOfType<PirateCrew.Battle.PirateBase>(true))
+                        {
+                            if (candidate.TeamIndex == 0)
+                            {
+                                unit = candidate;
+                                break;
+                            }
+                        }
+                        if (controller != null && unit != null)
+                            controller.SelectCharacter(unit);
+                    }
                     if (EditorApplication.isPlaying && Time.frameCount > 95)
                     {
                         Directory.CreateDirectory(Path.GetDirectoryName(path));

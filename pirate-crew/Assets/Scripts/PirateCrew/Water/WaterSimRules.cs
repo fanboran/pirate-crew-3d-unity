@@ -7,7 +7,7 @@ namespace PirateCrew.Water
     ///
     /// 【定位】这是 <see cref="WaterWaveField2D"/>（二维波动方程高度场）里所有"单点可判定"的
     /// 数学规则：CFL 稳定域、海绵层阻尼、泡沫生成/衰减、域 UV 映射、格索引。
-    /// 把它们抽出来是为了在 <c>external/m2-harness</c> 里无 Unity 运行时也能断言——
+    /// 把它们抽出来是为了在 <c>external/harness</c> 里无 Unity 运行时也能断言——
     /// 模拟数值一旦不稳（爆 / 不衰减 / 传播速度不对）是"画面慢慢变糊"，肉眼很难归因。
     ///
     /// 【参照思路来源，代码自写】HPWater 的水体数学（波动方程 + 吸收边界 + 泡沫场）。

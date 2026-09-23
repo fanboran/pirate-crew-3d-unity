@@ -104,17 +104,17 @@ namespace PirateCrew.EditorTools
             // 不铺死黑（stick-world window 底同口径；不再叠压暗 vignette 以免毁掉透底）。
             CreateStickBackdrop(canvas.transform);
 
-            // 标题：游戏名 = Display 档（像素栅格 96 = 32 艺术像素）+ TEXT 亮字 + INK 墨描边
-            // 3px 口径（TMP 0.2，同 ControlsSampleBuilder 样张）。
+            // 标题：游戏名 = 满精度正文档 36（创始人祈使裁决：不同大小 = 不同精度的字体；
+            // 更大标题档待 16px 原生像素字体引入）+ TEXT 亮字 + INK 墨描边 3px 口径。
             TextMeshProUGUI title = MenuUiBuilder.CreateTextExact("Title", canvas.transform,
                 UiStrings.MainTitle, UiSkin.Font.Display, TextAlignmentOptions.Center, TEXT, handFont);
             MenuUiBuilder.SetAnchored(title.rectTransform, new Vector2(0.5f, 1f),
-                new Vector2(1200f, 120f), new Vector2(0f, -160f));
+                new Vector2(900f, 44f), new Vector2(0f, -88f));
             MenuUiBuilder.ApplyStickTitleOutline(title);
 
             // 标题下蚀刻分隔线（像素皮：SketchSeparator 内部出 Separator 贴图）。
             SketchSeparator.Create(canvas.transform, "TitleSeparator", new Vector2(0.5f, 1f),
-                new Vector2(0.5f, 1f), new Vector2(0f, -292f), new Vector2(420f, 2f),
+                new Vector2(0.5f, 1f), new Vector2(0f, -144f), new Vector2(420f, 2f),
                 SketchSeparator.Direction.Horizontal);
 
             // 菜单按钮列：**只有一个进游戏入口**——主行动「进入战斗」Primary（必经选关面板；
@@ -122,33 +122,35 @@ namespace PirateCrew.EditorTools
             // 令牌按钮：高 24 艺术像素、宽 = 标签宽 + 24 艺术像素，中心距 108（72 高 + 36 间距
             // = 12 艺术像素位点）。字号 0 = 控件默认正文档。
             SketchButton battleButton = SketchButton.Create(canvas.transform, "BattleButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 160f), MenuUiBuilder.ButtonSize(UiStrings.MainBattle),
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 56f), MenuUiBuilder.ButtonSize(UiStrings.MainBattle),
                 handFont, SketchButtonKind.Primary, UiStrings.MainBattle, 0f);
 
             SketchButton crewButton = SketchButton.Create(canvas.transform, "CrewButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 52f), MenuUiBuilder.ButtonSize(UiStrings.MainCrew),
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -52f), MenuUiBuilder.ButtonSize(UiStrings.MainCrew),
                 handFont, SketchButtonKind.Dark, UiStrings.MainCrew, 0f);
 
             SketchButton settingsButton = SketchButton.Create(canvas.transform, "SettingsButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -56f), MenuUiBuilder.ButtonSize(UiStrings.MainSettings),
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -160f), MenuUiBuilder.ButtonSize(UiStrings.MainSettings),
                 handFont, SketchButtonKind.Dark, UiStrings.MainSettings, 0f);
 
             SketchButton quitButton = SketchButton.Create(canvas.transform, "QuitButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -164f), MenuUiBuilder.ButtonSize(UiStrings.MainQuit),
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -268f), MenuUiBuilder.ButtonSize(UiStrings.MainQuit),
                 handFont, SketchButtonKind.Danger, UiStrings.MainQuit, 0f);
 
-            // 左下：版本号 + 存档状态（SCREEN_MARGIN=12 安全边距；角标 Tiny 24 + TEXT_FAINT，
-            // 状态反馈用 TEXT_DIM 略提一级）。
+            // 左下：版本号 + 存档状态（SCREEN_MARGIN=12 安全边距；角标 Tiny 30 = ArkPixel 10px
+            // 原生档 + TEXT_FAINT，状态反馈用 TEXT_DIM 略提一级）。版本数字运行时取
+            // Application.version（单一真源链 BuildVersion.Current → bundleVersion）。
             TextMeshProUGUI versionText = MenuUiBuilder.CreateTextExact("VersionText", canvas.transform,
-                UiStrings.MainVersion, UiSkin.Font.Tiny, TextAlignmentOptions.BottomLeft, TEXT_FAINT, handFont);
+                UiStrings.MainVersionPrefix + " " + Application.version, UiSkin.Font.Tiny,
+                TextAlignmentOptions.BottomLeft, TEXT_FAINT, handFont);
             MenuUiBuilder.SetAnchored(versionText.rectTransform,
-                new Vector2(0f, 0f), new Vector2(400f, 32f), new Vector2(SCREEN_MARGIN, SCREEN_MARGIN));
+                new Vector2(0f, 0f), new Vector2(400f, 36f), new Vector2(SCREEN_MARGIN, SCREEN_MARGIN));
 
             TextMeshProUGUI statusText = MenuUiBuilder.CreateTextExact("StatusText", canvas.transform,
                 string.Empty, UiSkin.Font.Tiny, TextAlignmentOptions.BottomLeft, TEXT_DIM, handFont);
             MenuUiBuilder.SetAnchored(statusText.rectTransform,
-                new Vector2(0f, 0f), new Vector2(500f, 32f),
-                new Vector2(SCREEN_MARGIN, SCREEN_MARGIN + 36f));
+                new Vector2(0f, 0f), new Vector2(500f, 36f),
+                new Vector2(SCREEN_MARGIN, SCREEN_MARGIN + 40f));
 
             // 设置界面（真接线：音量滑条 ×4 / 画质档 / 窗口模式；默认隐藏；SketchPanel Dark 底板）。
             MenuUiBuilder.SettingsPanelResult settings = MenuUiBuilder.BuildSettingsPanel(canvas.transform);

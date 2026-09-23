@@ -16,15 +16,16 @@ namespace PirateCrew.EditorTools
     ///   与项目美术语言同源（深海蓝 + 骨白羊皮 + 黄铜强调，见 docs/美术风格指南.md §2.3）。
     ///   同一张 PNG 同时赋给 Standalone 全部图标尺寸槽（Unity 构建时自行缩放）。
     ///
-    /// 【版本】bundleVersion 1.0.0（发布定版；UiStrings.MainVersion 的"版本 1.0"是给玩家看的文案）。
+    /// 【版本】真源 = <see cref="BuildSystem.BuildVersion.Current"/>（本类只是把它写进
+    /// bundleVersion 的一个出口；玩家看到的版本号 = 运行时 Application.version）。
     /// </summary>
     public static class ReleaseGate
     {
         /// <summary>图标 PNG 资产路径。</summary>
         public const string IconAssetPath = "Assets/Art/Textures/AppIcon.png";
 
-        /// <summary>发布版本号（与 UiStrings.MainVersion 同步改）。</summary>
-        public const string BundleVersion = "1.0.0";
+        /// <summary>发布版本号（派生自 <see cref="BuildSystem.BuildVersion.Current"/> 单一真源，勿写死数字）。</summary>
+        public const string BundleVersion = BuildSystem.BuildVersion.Current;
 
         const int IconSize = 1024;
 

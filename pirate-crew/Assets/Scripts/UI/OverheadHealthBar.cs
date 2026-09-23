@@ -12,7 +12,7 @@ namespace PirateCrew.UI
     ///
     /// 【生命周期】由 <see cref="BattleHud"/> 在 <c>battle_started</c> 时对每个单位
     /// <see cref="Attach"/>（UI 模块内自建，不侵入 Battle 的生成路径）；单位死亡淡出销毁。
-    /// 【朝向】LateUpdate 只做 yaw 对齐（俯仰不跟随——45° 相机下平贴即可读，
+    /// 【朝向】LateUpdate 只做 yaw 对齐（俯仰不跟随——正交 30° 俯角下平贴即可读，
     /// 且避免跟相机的 roll 抖动）；相机缓存 <c>Camera.main</c>，丢失时逐帧重试。
     /// 【滚动】自带指数趋近（<see cref="UiMotionRules.ApproachExponential"/>，
     /// scaled 时间——暂停时血条冻结是正确语义）。

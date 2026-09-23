@@ -79,7 +79,7 @@
 //
 // 【已知边界（提案/待定）】
 //   1. 本 Pass 只取**主方向光**（含阴影）+ SH 环境光 + 雾，不支持点光/聚光。
-//      理由：本工程场景只有一盏方向光（PirateOutline/M2BattleSceneSetup 同款），
+//      理由：本工程场景只有一盏方向光（PirateOutline/BattleSceneSetup 同款），
 //      加 additional lights 会为每个光源变体翻倍编译量而当前无收益。
 //      将来加火把/灯笼时，按 URP/Lit 的 `#pragma multi_compile _ _ADDITIONAL_LIGHTS` 段补即可。
 //   2. 细节法线是"世界 XZ 平面噪声梯度"，对水平面最准确、对竖直面是近似（风格化可接受）。

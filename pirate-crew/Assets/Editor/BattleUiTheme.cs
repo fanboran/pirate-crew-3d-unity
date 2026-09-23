@@ -7,7 +7,7 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// 战斗 HUD 换肤钩子（**本波次：多彩卡通 · 图标优先**）。
     ///
-    /// M2BattleSceneSetup.BuildHud 在搭完 BattleCanvas 的全部子节点与接线之后调用
+    /// BattleSceneSetup.BuildHud 在搭完 BattleCanvas 的全部子节点与接线之后调用
     /// <see cref="Apply"/>，把 Canvas 传进来：
     ///   1. 清掉 Canvas 下除 <c>BattleHud</c> 控制器与 <c>MinimapPanel</c>（小地图接线复用）
     ///      之外的旧 HUD 节点；
@@ -23,7 +23,7 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class BattleUiTheme
     {
-        /// <summary>HUD 控制器对象名（M2BattleSceneSetup 创建）。</summary>
+        /// <summary>HUD 控制器对象名（BattleSceneSetup 创建）。</summary>
         const string HudControllerName = "BattleHud";
 
         /// <summary>给 <paramref name="canvas"/>（BattleCanvas）换皮并重建 HUD。</summary>

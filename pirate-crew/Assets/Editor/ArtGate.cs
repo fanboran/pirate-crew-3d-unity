@@ -54,7 +54,7 @@ namespace PirateCrew.EditorTools
     ///                                    无顺序依赖（只读调色板真源、只写自己的图集目录），
     ///                                    放这里是因为它属"资产产出"而不是"场景装配"。
     ///   ⑨ SceneSetup.BuildAll            M1 菜单 / 引导场景批量重建
-    ///   ⑩ M3SceneSetup.BuildAll         M3 管理场景（它会重写 Build Settings 场景列表）
+    ///   ⑩ ManagementSceneSetup.BuildAll         M3 管理场景（它会重写 Build Settings 场景列表）
     ///   ⑪ ScenePrefabCollapse.CollapseAll **必须最后**：四个场景（Battle/MainMenu/LevelSelect/
     ///                                    CrewManagement）各自折叠成一个 Prefab 实例。
     ///                                    折叠之后任何往这四个场景写字段的动作都会变成"Prefab 实例覆盖"，
@@ -105,7 +105,7 @@ namespace PirateCrew.EditorTools
                 new Step("⑦.5 Beveled Pixel UI 九宫格（调色板派生，纯 CPU 像素）",
                     BeveledPixelSpriteBuilder.BuildAll),
                 new Step("⑨ M1 菜单 / 引导场景", SceneSetup.BuildAll),
-                new Step("⑩ M3 管理场景（重写 Build Settings 场景列表）", M3SceneSetup.BuildAll),
+                new Step("⑩ M3 管理场景（重写 Build Settings 场景列表）", ManagementSceneSetup.BuildAll),
                 new Step("⑪ 四个场景折叠为 Prefab 实例（**必须在所有场景装配之后**）",
                     ScenePrefabCollapse.CollapseAll),
             };

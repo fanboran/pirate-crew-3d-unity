@@ -27,7 +27,7 @@ namespace PirateCrew.UI
     /// </summary>
     public sealed class LevelSelectController : MonoBehaviour
     {
-        const float RowHeight = 44f;
+        const float RowHeight = 96f;   // 令牌按钮 72 + 上下各 12（位点）
 
         [Header("引用（场景内直连）")]
         [SerializeField] TextMeshProUGUI headerText;
@@ -53,7 +53,7 @@ namespace PirateCrew.UI
         [SerializeField] Button settlementReplayButton;
         [SerializeField] Button settlementBackButton;
 
-        [Header("字体（由 M3SceneSetup 注入中文字体资产）")]
+        [Header("字体（由 ManagementSceneSetup 注入中文字体资产）")]
         [SerializeField] TMP_FontAsset bodyFont;
 
         string _settledMapId;
@@ -172,7 +172,7 @@ namespace PirateCrew.UI
             }
 
             if (settlementModal != null)
-                M3UiBuilder.OpenPanel(settlementModal, _motion);
+                RuntimeUiBuilder.OpenPanel(settlementModal, _motion);
 
             CampaignApi.ClearLastResult();
 
@@ -198,18 +198,18 @@ namespace PirateCrew.UI
         /// <summary>结算弹窗「返回选图」：按钮反馈 + 关弹窗（Add/Remove 同一方法目标，退订可靠）。</summary>
         void OnSettlementBackClicked()
         {
-            M3UiBuilder.ButtonFeedback(settlementBackButton, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(settlementBackButton, true, _motion);
             CloseSettlement();
         }
 
         void CloseSettlement()
         {
-            M3UiBuilder.ClosePanel(settlementModal, _motion);
+            RuntimeUiBuilder.ClosePanel(settlementModal, _motion);
         }
 
         void OnReplayClicked()
         {
-            M3UiBuilder.ButtonFeedback(settlementReplayButton, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(settlementReplayButton, true, _motion);
             // 再战同一张海图：SetPending(同图) + 原地重载（SceneLoader 对同名目标自动不压栈）。
             if (!string.IsNullOrEmpty(_settledMapId) && WorldMapRuntime.SetPending(_settledMapId))
                 EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
@@ -254,24 +254,24 @@ namespace PirateCrew.UI
                 return;
 
             UiTextUtil.WarnIfMissing(bodyFont, "选关列表");
-            M3UiBuilder.ClearChildren(levelListContainer);
+            RuntimeUiBuilder.ClearChildren(levelListContainer);
 
             List<LevelListRow> rows = BuildLevelList();
             for (int i = 0; i < rows.Count; i++)
             {
                 LevelListRow entry = rows[i];
-                RectTransform row = M3UiBuilder.CreateRow(levelListContainer, i, RowHeight);
+                RectTransform row = RuntimeUiBuilder.CreateRow(levelListContainer, i, RowHeight);
 
-                TextMeshProUGUI text = M3UiBuilder.CreateText("Label", row, entry.Label, UiTheme.FontBody,
+                TextMeshProUGUI text = RuntimeUiBuilder.CreateText("Label", row, entry.Label, UiTheme.FontBody,
                     TextAlignmentOptions.MidlineLeft, PixelSkin.TextColorOn(PixelTone.Light), bodyFont);
 
                 // 星级图标（3 枚，点亮 = 黄铜，熄灭 = 暗）——只有记星的海图行才画。
                 if (entry.Stars > 0)
-                    M3UiBuilder.CreateStarRow(row, entry.Stars, StarRules.MaxStars, 24f);
+                    RuntimeUiBuilder.CreateStarRow(row, entry.Stars, StarRules.MaxStars, 36f);
 
-                Button action = M3UiBuilder.CreateButton("Action", row, string.Empty, UiTheme.FontHint,
+                Button action = RuntimeUiBuilder.CreateButton("Action", row, string.Empty, UiSkin.Font.Body,
                     bodyFont);
-                TextMeshProUGUI actionLabel = M3UiBuilder.GetButtonLabel(action);
+                TextMeshProUGUI actionLabel = RuntimeUiBuilder.GetButtonLabel(action);
                 if (actionLabel != null)
                     actionLabel.text = entry.ActionLabel;
 
@@ -286,7 +286,7 @@ namespace PirateCrew.UI
                     action.onClick.AddListener(() => OnShowcaseClicked(levelNumber, action));
                 }
 
-                M3UiBuilder.LayoutRowContent(row, text, action, RowHeight);
+                RuntimeUiBuilder.LayoutRowContent(row, text, action, RowHeight);
             }
         }
 
@@ -386,7 +386,7 @@ namespace PirateCrew.UI
         /// <summary>出海：<see cref="WorldMapRuntime.SetPending"/> 成功即切 Battle。</summary>
         void OnWorldMapClicked(string mapId, Button action)
         {
-            M3UiBuilder.ButtonFeedback(action, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(action, true, _motion);
             // 海图战用地图自带布阵（map.Spawns），不消耗编成阵容 → 不做空编成拦截。
             if (WorldMapRuntime.SetPending(mapId))
                 EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
@@ -401,7 +401,7 @@ namespace PirateCrew.UI
         /// </summary>
         void OnShowcaseClicked(int levelNumber, Button action)
         {
-            M3UiBuilder.ButtonFeedback(action, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(action, true, _motion);
             if (WorldMapRuntime.SetPendingShowcase(levelNumber))
                 EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
             else if (statusText != null)
@@ -410,13 +410,13 @@ namespace PirateCrew.UI
 
         void OnCrewClicked()
         {
-            M3UiBuilder.ButtonFeedback(crewButton, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(crewButton, true, _motion);
             EventBus.Publish(SceneEvents.ChangeScene, SceneNames.CrewManagement);
         }
 
         void OnBackClicked()
         {
-            M3UiBuilder.ButtonFeedback(backButton, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(backButton, true, _motion);
             EventBus.Publish(SceneEvents.GoBack);
         }
 

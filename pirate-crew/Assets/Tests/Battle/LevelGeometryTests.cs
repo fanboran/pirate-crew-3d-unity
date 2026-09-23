@@ -4,7 +4,7 @@ using UnityEngine;
 namespace PirateCrew.Battle.Tests
 {
     /// <summary>
-    /// <see cref="LevelGeometry"/> 测试（3D 重投影版，契约见 docs/M2-3D空间模型对齐.md）。
+    /// <see cref="LevelGeometry"/> 测试（3D 重投影版，契约见 docs/3D空间模型对齐.md）。
     /// 覆盖：px→单位换算、px/py→XZ 水平面、水位常量、速度/重力换算、投掷抬升、
     /// 相机基向量拖拽映射，以及"预览=实弹"的 3D 半隐式欧拉等价性（§3/§5.4 的 3D 化决策）。
     /// </summary>
@@ -122,7 +122,7 @@ namespace PirateCrew.Battle.Tests
         {
             // 击退/爆炸的速度增量同样落在平面：Flash (dvx, dvy) → 世界 (X, Z)，y = 0。
             // §5 的 3D 化：原先塞在 vy 里的 -6k 抬升项改由 ExplosionResolver 的三维泛化
-            // 作为独立的 +Y 输出（见 docs/M2-3D空间模型对齐.md §5），本函数只管平面两分量。
+            // 作为独立的 +Y 输出（见 docs/3D空间模型对齐.md §5），本函数只管平面两分量。
             // dvx=2 → 3.125；dvy=-6 → -9.375。
             Vector3 dv = LevelGeometry.FlashVelocityDeltaToArena(2f, -6f);
             Assert.AreEqual(3.125f, dv.x, 1e-5f);

@@ -140,7 +140,7 @@ namespace PirateCrew.EditorTools.Art
         /// 解析 <c>RRGGBB</c> / <c>#RRGGBB</c> / <c>RRGGBBAA</c>（大小写不限）。
         ///
         /// 【为什么不用 ColorUtility.TryParseHtmlString】它是原生 <c>ECall</c>，脱离 Unity
-        /// 运行时必抛 <c>SecurityException</c>（external/m2-harness/README.md）——用了它，
+        /// 运行时必抛 <c>SecurityException</c>（external/harness/README.md）——用了它，
         /// 板解析就无法在无头环境下断言。自实现纯 C# 解析与 SceneArtPalette.Hex 同口径。
         /// </summary>
         public static bool ParseHex(string hex, out Color color)

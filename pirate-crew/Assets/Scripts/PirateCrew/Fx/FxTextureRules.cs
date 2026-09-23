@@ -34,7 +34,7 @@ namespace PirateCrew.Fx
     /// 特效贴图的**纯像素算法**：输入尺寸，输出 <see cref="Color32"/> 数组。
     ///
     /// 【为什么是纯 C#】本类刻意不碰 <c>Texture2D</c>（ECall 边界，无头验证台会抛
-    /// <c>SecurityException</c>，见 `external/m2-harness/README.md`），只算像素。
+    /// <c>SecurityException</c>，见 `external/harness/README.md`），只算像素。
     /// 同一份算法供两端使用：
     ///   · 运行时：<c>FxTextures</c> 上传到 <c>Texture2D</c>（内存，不落盘）；
     ///   · 编辑器：`Assets/Editor/FxAssetBuilder.cs` 烘成 `Assets/Art/Textures/Fx/*.png` 持久资产。

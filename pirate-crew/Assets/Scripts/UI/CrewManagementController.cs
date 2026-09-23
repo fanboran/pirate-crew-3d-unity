@@ -26,7 +26,7 @@ namespace PirateCrew.UI
     public sealed class CrewManagementController : MonoBehaviour
     {
 
-        const float RowHeight = 44f;
+        const float RowHeight = 96f;   // 令牌按钮 72 + 上下各 12（位点）
 
         [Header("引用（场景内直连）")]
         [SerializeField] TextMeshProUGUI summaryText;
@@ -36,7 +36,7 @@ namespace PirateCrew.UI
         [SerializeField] Button saveButton;
         [SerializeField] Button backButton;
 
-        [Header("字体（由 M3SceneSetup 注入中文字体资产）")]
+        [Header("字体（由 ManagementSceneSetup 注入中文字体资产）")]
         [Tooltip("正文中文字体（霞鹜文楷 Medium SDF）；运行时建列表行用。")]
         [SerializeField] TMP_FontAsset bodyFont;
 
@@ -66,7 +66,7 @@ namespace PirateCrew.UI
 
             // 列表首现动效（只在进场播一次；之后的 roster 事件重建不重播，避免每次上阵都闪动）。
             if (crewListContainer != null)
-                M3UiBuilder.OpenPanel(crewListContainer.gameObject, _motion);
+                RuntimeUiBuilder.OpenPanel(crewListContainer.gameObject, _motion);
         }
 
         void OnDestroy()
@@ -116,14 +116,14 @@ namespace PirateCrew.UI
                 return;
 
             UiTextUtil.WarnIfMissing(bodyFont, "船员管理列表");
-            M3UiBuilder.ClearChildren(crewListContainer);
+            RuntimeUiBuilder.ClearChildren(crewListContainer);
 
             for (int i = 0; i < CrewManagementApi.AllCrews.Count; i++)
             {
                 CrewRosterEntry entry = CrewManagementApi.AllCrews[i];
                 bool unlocked = CrewManagementApi.IsUnlocked(entry.Id);
 
-                RectTransform row = M3UiBuilder.CreateRow(crewListContainer, i, RowHeight);
+                RectTransform row = RuntimeUiBuilder.CreateRow(crewListContainer, i, RowHeight);
 
                 string label = unlocked
                     ? UiTextRules.CrewRow(entry.DisplayName,
@@ -133,14 +133,14 @@ namespace PirateCrew.UI
 
                 // 行底 = Plate(Light) 暖白片：字色取该 tone 上的可读档（墨字），锁定的行整体压 alpha。
                 Color rowTextColor = PixelSkin.TextColorOn(PixelTone.Light);
-                TextMeshProUGUI text = M3UiBuilder.CreateText("Label", row, label, UiTheme.FontBody,
+                TextMeshProUGUI text = RuntimeUiBuilder.CreateText("Label", row, label, UiTheme.FontBody,
                     TextAlignmentOptions.MidlineLeft,
                     unlocked ? rowTextColor : UiTheme.WithAlpha(rowTextColor, UiTheme.DisabledAlpha),
                     bodyFont);
 
-                Button action = M3UiBuilder.CreateButton("Action", row, string.Empty, UiTheme.FontHint,
+                Button action = RuntimeUiBuilder.CreateButton("Action", row, string.Empty, UiSkin.Font.Body,
                     bodyFont);
-                TextMeshProUGUI actionLabel = M3UiBuilder.GetButtonLabel(action);
+                TextMeshProUGUI actionLabel = RuntimeUiBuilder.GetButtonLabel(action);
                 string crewId = entry.Id;   // 闭包捕获：每轮独立变量
 
                 if (unlocked)
@@ -158,7 +158,7 @@ namespace PirateCrew.UI
                     action.interactable = false;
                 }
 
-                M3UiBuilder.LayoutRowContent(row, text, action, RowHeight);
+                RuntimeUiBuilder.LayoutRowContent(row, text, action, RowHeight);
             }
         }
 
@@ -184,17 +184,17 @@ namespace PirateCrew.UI
             if (CrewManagementApi.IsActive(crewId))
             {
                 CrewManagementApi.RemoveFromActive(crewId);
-                M3UiBuilder.ButtonFeedback(action, true, _motion);
+                RuntimeUiBuilder.ButtonFeedback(action, true, _motion);
                 SetStatus(string.Format(UiStrings.CrewStatusRemovedFormat, DisplayName(crewId)));
             }
             else if (CrewManagementApi.AddToActive(crewId))
             {
-                M3UiBuilder.ButtonFeedback(action, true, _motion);
+                RuntimeUiBuilder.ButtonFeedback(action, true, _motion);
                 SetStatus(string.Format(UiStrings.CrewStatusEnlistedFormat, DisplayName(crewId)));
             }
             else
             {
-                M3UiBuilder.ButtonFeedback(action, false, _motion);
+                RuntimeUiBuilder.ButtonFeedback(action, false, _motion);
                 SetStatus(string.Format(UiStrings.CrewStatusFullFormat, CrewManagementApi.Roster.MaxSize));
             }
 
@@ -205,19 +205,19 @@ namespace PirateCrew.UI
         {
             if (CrewManagementApi.Roster.Active.Count == 0)
             {
-                M3UiBuilder.ButtonFeedback(levelSelectButton, false, _motion);
+                RuntimeUiBuilder.ButtonFeedback(levelSelectButton, false, _motion);
                 SetStatus(UiStrings.CrewStatusEmptyRoster);
                 return;
             }
 
-            M3UiBuilder.ButtonFeedback(levelSelectButton, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(levelSelectButton, true, _motion);
             EventBus.Publish(SceneEvents.ChangeScene, SceneNames.LevelSelect);
         }
 
         void OnSaveClicked()
         {
             bool saved = CampaignApi.SaveProgress();
-            M3UiBuilder.ButtonFeedback(saveButton, saved, _motion);
+            RuntimeUiBuilder.ButtonFeedback(saveButton, saved, _motion);
             SetStatus(saved
                 ? string.Format(UiStrings.CrewStatusSavedFormat, CampaignApi.ProgressSlot)
                 : UiStrings.CrewStatusSaveFailed);
@@ -225,7 +225,7 @@ namespace PirateCrew.UI
 
         void OnBackClicked()
         {
-            M3UiBuilder.ButtonFeedback(backButton, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(backButton, true, _motion);
             EventBus.Publish(SceneEvents.GoBack);
         }
 

@@ -114,7 +114,11 @@ namespace PirateCrew.UI
                 quitConfirmPanel.SetActive(false);
 
             if (versionText != null)
-                versionText.text = UiStrings.MainVersion;
+            {
+                // 版本号单一真源链：BuildVersion.Current →（构建期）bundleVersion →（运行时）
+                // Application.version。文案只出前缀，不写死数字。
+                versionText.text = UiStrings.MainVersionPrefix + " " + Application.version;
+            }
 
             // M3 管理循环接线（订阅结算事件 + 首次读进度）已上移到组合根：
             // Core/GameEntryPoint → CampaignApi.Install()。这里只做一次"进菜单时从存档刷新进度"，

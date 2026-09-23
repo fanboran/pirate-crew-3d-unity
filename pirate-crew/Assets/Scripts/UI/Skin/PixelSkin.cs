@@ -179,14 +179,17 @@ namespace PirateCrew.UI
         public static Color32 PaperWhite { get { return Asset != null ? Asset.paperWhite : Color.white; } }
 
         /// <summary>
-        /// 某 tone 底上的正文字色：中档亮度高于阈值 = 浅底 → 墨字；否则 → 本 tone 亮档字。
+        /// 某 tone 底上的正文字色（创始人 2026-09-23 裁决"背景深色就白色文字，否则才黑色"）：
+        /// 中档亮度高于阈值 = 浅底 → 墨字；否则 → <see cref="PaperWhite"/> 暖白。
+        /// 【旧口径已废】"本 tone 亮档字"会让 Danger 钮出红底红字、Dense 钮出灰底灰字——
+        /// 文字和背景同色相，对比度崩（走查实拍）。
         /// 与烘焙器的"光来自左上"同一套感知口径（简单 sRGB 亮度，够用且可复算）。
         /// </summary>
         public static Color32 TextColorOn(PixelTone tone)
         {
             Color32 mid = MidOf(tone);
             float lum = (0.2126f * mid.r + 0.7152f * mid.g + 0.0722f * mid.b);
-            return lum > 140f ? Ink : LightOf(tone);
+            return lum > 140f ? Ink : PaperWhite;
         }
 
         static Sprite SpriteAt(Sprite[] array, int index, string what)

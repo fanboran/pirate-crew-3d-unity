@@ -17,11 +17,11 @@ namespace PirateCrew.EditorTools
     ///   菜单: PirateCrew/HUD/接线 Battle 小地图
     ///   无头: -batchmode -nographics -quit -executeMethod PirateCrew.EditorTools.HudMinimapSceneSetup.WireMinimap
     ///
-    /// 【前置】先跑 <see cref="M2BattleSceneSetup.BuildAll"/> 生成 Battle.unity；
+    /// 【前置】先跑 <see cref="BattleSceneSetup.BuildAll"/> 生成 Battle.unity；
     ///         本脚本只做增量接线，若场景/装配根缺失会明确报错而不是静默造半个场景。
     ///
     /// 【为什么单独一个脚本】小地图是 M2 之后追加的功能，而「其它 Editor 脚本」由协调者/其它 agent
-    /// 管理，不能改 <c>M2BattleSceneSetup.cs</c>；本脚本复用它的代码模式
+    /// 管理，不能改 <c>BattleSceneSetup.cs</c>；本脚本复用它的代码模式
     /// （SerializedObject 写私有 <c>[SerializeField]</c>、不手写 .unity YAML）。
     ///
     /// 【幂等】面板按名复用；已存在的层级只补缺失子物体并重写引用，不重复创建。
@@ -70,7 +70,7 @@ namespace PirateCrew.EditorTools
             if (AssetDatabase.LoadAssetAtPath<SceneAsset>(BattleScenePath) == null)
             {
                 Debug.LogError("[HudMinimapSceneSetup] 找不到 " + BattleScenePath
-                    + "，请先运行 PirateCrew.EditorTools.M2BattleSceneSetup.BuildAll。");
+                    + "，请先运行 PirateCrew.EditorTools.BattleSceneSetup.BuildAll。");
                 return;
             }
 
@@ -85,7 +85,7 @@ namespace PirateCrew.EditorTools
             if (battle == null)
             {
                 Debug.LogError("[HudMinimapSceneSetup] Battle 场景里没有 BattleController；"
-                    + "请先运行 M2BattleSceneSetup.BuildAll 重建场景。");
+                    + "请先运行 BattleSceneSetup.BuildAll 重建场景。");
                 return;
             }
 
@@ -94,7 +94,7 @@ namespace PirateCrew.EditorTools
             if (team0 == null && team1 == null)
             {
                 Debug.LogError("[HudMinimapSceneSetup] 找不到单位根节点 " + Team0RootName + " / " + Team1RootName
-                    + "；请先运行 M2BattleSceneSetup.BuildAll。");
+                    + "；请先运行 BattleSceneSetup.BuildAll。");
                 return;
             }
 
@@ -102,7 +102,7 @@ namespace PirateCrew.EditorTools
             if (canvas == null)
             {
                 Debug.LogError("[HudMinimapSceneSetup] 找不到 HUD Canvas（" + CanvasName + "）；"
-                    + "请先运行 M2BattleSceneSetup.BuildAll。");
+                    + "请先运行 BattleSceneSetup.BuildAll。");
                 return;
             }
 

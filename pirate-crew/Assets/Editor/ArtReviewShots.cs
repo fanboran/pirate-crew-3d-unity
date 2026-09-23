@@ -68,7 +68,7 @@ namespace PirateCrew.EditorTools
     /// 【偏移量依据】竞技场由 <c>LevelData.WidthTiles × HeightTiles</c> 决定（level_1 = 50×17，
     /// 中心约 (25, 0, 8.5)）；下列偏移按该尺度取景，换更大的关卡时按需调大 Offset。
     /// 相机默认战斗视角对齐场景出厂值（distance 15、pitch 45°、yaw 0 →
-    /// offset ≈ (0, 10.61, 10.61)，见 <c>M2BattleSceneSetup.CameraDistance/CameraPitchDegrees</c>）。
+    /// offset ≈ (0, 10.61, 10.61)，见 <c>BattleSceneSetup.CameraDistance/CameraPitchDegrees</c>）。
     ///
     /// 【⚠ 改动必须同步】本清单是 Editor 程序集，运行时（独立播放器）采集器
     /// <c>Assets/Scripts/PirateCrew/ArtReview/PlayerArtCapture.cs</c> 引用不到它，

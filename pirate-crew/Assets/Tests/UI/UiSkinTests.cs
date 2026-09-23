@@ -128,18 +128,36 @@ namespace PirateCrew.Tests.UI
         }
 
         [Test]
-        public void FontScale_MatchesUserRuling_UpTwoSteps()
+        public void FontScale_MatchesPixelFontGrid()
         {
-            // 用户 2026-09-20 裁决"文字可读性很差"：八档整体上调（Tiny 不低于 15——
-            // 手写体小字可读性下限）。字号跟控件走的纪律见 UiSkin.Font 注释。
-            Assert.AreEqual(52, UiSkin.Font.Display);
-            Assert.AreEqual(42, UiSkin.Font.Banner);
-            Assert.AreEqual(30, UiSkin.Font.Title);
-            Assert.AreEqual(24, UiSkin.Font.Section);
-            Assert.AreEqual(22, UiSkin.Font.Hud);
-            Assert.AreEqual(18, UiSkin.Font.Body);
-            Assert.AreEqual(16, UiSkin.Font.Hint);
-            Assert.AreEqual(15, UiSkin.Font.Tiny);
+            // 【祈使裁决 2026-09-23】一个大小一个字体、全部满精度：FusionPixel 12px 位图档
+            // 全游戏只出 36 一档显示尺寸（1 字形像素 = 1 艺术像素 = 3 屏幕像素），
+            // 任何整数倍缩放（72/96…）都是降精度。层级靠颜色不靠字号。
+            Assert.AreEqual(36, UiSkin.Font.Display);
+            Assert.AreEqual(36, UiSkin.Font.Banner);
+            Assert.AreEqual(36, UiSkin.Font.Title);
+            Assert.AreEqual(36, UiSkin.Font.Section);
+            Assert.AreEqual(36, UiSkin.Font.Hud);
+            Assert.AreEqual(36, UiSkin.Font.Body);
+            // 小字档 = ArkPixel 10px 原生设计 @ 30 画布（10 艺术像素 ×3）。
+            Assert.AreEqual(30, UiSkin.Font.Hint);
+            Assert.AreEqual(30, UiSkin.Font.Tiny);
+        }
+
+        [Test]
+        public void Px_TokenGeometry_IsOnArtPixelGrid()
+        {
+            // 像素几何令牌（画布像素）必须落在艺术像素栅格（Unit=3 的整数倍）上。
+            Assert.AreEqual(72, UiSkin.Px.Button);
+            Assert.AreEqual(72, UiSkin.Px.Bar);
+            Assert.AreEqual(72, UiSkin.Px.ButtonPadX);
+            Assert.AreEqual(36, UiSkin.Px.PanelPadding);
+            Assert.AreEqual(144, UiSkin.Px.Avatar);
+            Assert.AreEqual(432, UiSkin.Px.Minimap);
+
+            // 按钮宽 = 标签宽（按 CJK 逐字 × 正文字号）+ 24 艺术像素，两字起步。
+            Assert.AreEqual(144, UiSkin.Px.ButtonWidth("确定"));
+            Assert.AreEqual(252, UiSkin.Px.ButtonWidth("返回主菜单"));
         }
     }
 }

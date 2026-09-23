@@ -64,11 +64,13 @@ namespace PirateCrew.UI
             return bottom * A;
         }
 
-        /// <summary>题头：标题 + 副题（上边距收窄、题副之间留足空档——2026-09-23 走查行距）。</summary>
+        /// <summary>题头：标题 + 副题（上边距收窄、题副之间留足空档——2026-09-23 走查行距）。
+        /// 【满精度】标题与副题同为 12 艺术像素（36 画布）——展示页不允许 24 艺术像素档
+        /// （没有 24px 原生设计位图字体，缩放即降精度），层级靠颜色。</summary>
         static void TitleBand(RectTransform content, System.Collections.Generic.List<LabelSpec> labels, int top)
         {
             Lay(content, PixelTone.Dense, top, 36, 568, TitleBandH);
-            labels.Add(new LabelSpec("组件展示（实机）", 48, top + 6, 24, "white"));
+            labels.Add(new LabelSpec("组件展示（实机）", 48, top + 10, 12, "white"));
             labels.Add(new LabelSpec("画布 640 艺术像素宽 = 1920 屏幕像素；1 艺术像素 = 3 屏幕像素（与 3D 渲染同一颗粒度）",
                 48, top + 40, 12, "dim"));
         }
@@ -305,7 +307,14 @@ namespace PirateCrew.UI
         {
             TextMeshProUGUI text = UiKit.CreateText("Label", parent, content, UiSkin.Font.Body,
                 TextAlignmentOptions.TopLeft, color, s_font);
-            text.fontSize = sizeArtPx * A;          // 12 的整数倍才不出不均匀像素（见类头）
+            // 满精度：只允许 12/10 艺术像素（36/30 画布）——其它档位没有原生位图字体，
+            // 一律并回 12 并报错（防再混出降精度的字号）。
+            if (sizeArtPx != 12 && sizeArtPx != 10)
+            {
+                Debug.LogError("[PixelShowcasePage] 字号 " + sizeArtPx + " 艺术像素无原生位图字体档，并回 12");
+                sizeArtPx = 12;
+            }
+            text.fontSize = sizeArtPx * A;
             text.enableWordWrapping = false;
             text.raycastTarget = false;
             text.rectTransform.anchorMin = text.rectTransform.anchorMax = text.rectTransform.pivot
@@ -337,39 +346,10 @@ namespace PirateCrew.UI
             // TMP 的动态图集会在运行时**重建**真实贴图（序列化的占位图是 0×0），重建时不设
             // filterMode → 默认 Bilinear → padding 0 下相邻字形格互相渗色，每个字带出邻居的
             // 碎块、读成"重影"（第一张实机截图的病根）。挂一个强制 Point 的纠偏件：
-            // 字形按需进图集的整个过程里都钉住最近邻。
+            // 字形按需进图集的整个过程里都钉住最近邻（顶级类 PixelAtlasPointFilter）。
             var fixer = new GameObject("PixelAtlasPointFilter").AddComponent<PixelAtlasPointFilter>();
             fixer.font = font;
             return font;
-        }
-
-        /// <summary>动态图集重建后 filterMode 会被 TMP 重置成 Bilinear——本件每帧把像素字体图集钉回 Point。</summary>
-        public sealed class PixelAtlasPointFilter : MonoBehaviour
-        {
-            const int FramesToWatch = 600;
-
-            public TMP_FontAsset font;
-            int _frames;
-
-            void LateUpdate()
-            {
-                if (font == null || font.atlasTextures == null)
-                    return;
-                bool allPoint = true;
-                foreach (Texture2D texture in font.atlasTextures)
-                {
-                    if (texture == null)
-                        continue;
-                    if (texture.filterMode != FilterMode.Point)
-                    {
-                        texture.filterMode = FilterMode.Point;
-                        allPoint = false;
-                    }
-                }
-                _frames++;
-                if (allPoint && _frames > FramesToWatch)
-                    enabled = false;   // 字形已稳定进图集，停止逐帧纠偏
-            }
         }
 
         static Color Dim()

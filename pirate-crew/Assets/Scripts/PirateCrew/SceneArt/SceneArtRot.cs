@@ -7,7 +7,7 @@ namespace PirateCrew.SceneArt
     ///
     /// 【为什么不能直接用 <c>Quaternion.Euler</c>】它是原生 <c>ECall</c>
     /// （内部走 <c>Quaternion.Internal_FromEulerRad</c>），脱离 Unity 运行时必抛
-    /// <c>SecurityException</c>（见 <c>external/m2-harness/README.md</c>）。
+    /// <c>SecurityException</c>（见 <c>external/harness/README.md</c>）。
     /// 道具几何大量按"偏航/侧倾"摆放（桅杆侧倾 22°、船体侧倾 14°…），
     /// 一旦用了它，整个道具三角面预算与形状就无法在无头验证台上断言。
     /// 这里用手算四元数（<c>Mathf.Sin/Cos</c> 与 <c>Quaternion</c> 乘法都是托管实现）替代。

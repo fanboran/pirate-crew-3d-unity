@@ -94,7 +94,7 @@ namespace PirateCrew.Visual
     /// <summary>
     /// 角色视觉装配根（挂在单位的 <c>Visual</c> 子节点上），持有动画层需要的部件引用。
     ///
-    /// 【层级与枢轴】（坐标口径见 docs/M2-3D空间模型对齐.md：脚底 y=0、枢轴 y=0.25）
+    /// 【层级与枢轴】（坐标口径见 docs/3D空间模型对齐.md：脚底 y=0、枢轴 y=0.25）
     /// <code>
     /// 单位根（BoxCollider 1×1×1，scale 0.375/0.5/0.375 → 世界 AABB 0.375×0.5×0.375）
     /// └ Visual（本组件；localPos (0,-0.5,0)、localScale (2.6667,2,2.6667)）

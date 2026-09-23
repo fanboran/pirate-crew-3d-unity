@@ -701,10 +701,12 @@ namespace PirateCrew.ArtPipeline.Tests
         }
 
         [Test]
-        public void PressOffset_IsOnePixelDownRight()
+        public void PressOffset_IsOneArtPixelDownRight()
         {
-            Assert.That(PixelSkin.PressOffset, Is.EqualTo(new Vector2(1f, -1f)),
-                "按压位移应当是右下 1px（UI 坐标 +x 右 / -y 下）。");
+            // 2026-09-22 走查"按压太不明显"后从 (1,-1) 改成整格：1 屏幕像素比一个艺术像素
+            // 还小，既看不出沉、又把件挪出了像素栅格。契约随创始人裁决更新。
+            Assert.That(PixelSkin.PressOffset, Is.EqualTo(new Vector2(PixelSkin.Unit, -PixelSkin.Unit)),
+                "按压位移应当是右下 1 艺术像素（= Unit；UI 坐标 +x 右 / -y 下）。");
         }
 
         // ------------------------------------------------------------------

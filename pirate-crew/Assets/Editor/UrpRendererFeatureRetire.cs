@@ -17,7 +17,7 @@ namespace PirateCrew.EditorTools
     ///   · 选中反馈也不再依赖它（审计 §2.3：它只是调试期遗留）。
     ///   · 附带收益：少一次全屏深度采样 pass，且 `_CameraDepthTexture` 少一个消费者。
     ///
-    /// 【为什么改的是"安装器"而不是删脚本】本类原为 `M2UrpRendererFeatureSetup`（挂载器）。
+    /// 【为什么改的是"安装器"而不是删脚本】本类原为 `UrpRendererFeatureRetire`（挂载器）。
     /// 挂载器留着 = 任何人重跑一次 `PirateCrew/Rendering/*` 就可能把退役项装回去（M0 的配置漂移
     /// 同族事故）。所以把它**改成退役器**：名字与入口换成 Retire，行为是先卸再清孤儿子资产、
     /// 且幂等（已摘除时报告"无变化"，不会重复写资产）。`OutlineRendererFeature.cs` 与
@@ -26,12 +26,12 @@ namespace PirateCrew.EditorTools
     ///
     /// 【入口】
     ///   菜单: PirateCrew/Rendering/摘除全屏 Sobel 描边 Feature
-    ///   无头: -batchmode -nographics -quit -executeMethod PirateCrew.EditorTools.M2UrpRendererFeatureSetup.RetireAll
+    ///   无头: -batchmode -nographics -quit -executeMethod PirateCrew.EditorTools.UrpRendererFeatureRetire.RetireAll
     ///
     /// 【验证】摘除后两档 Renderer 的 `m_RendererFeatures` 只应剩 Pixation 一项；
     /// 出图判据见 docs/技术/资产管线/像素海面技术方案.md 之外的渲染篇 §9 排障速查。
     /// </summary>
-    public static class M2UrpRendererFeatureSetup
+    public static class UrpRendererFeatureRetire
     {
         const string PerformantRendererPath = "Assets/Settings/URP/PC_Performant_Renderer.asset";
         const string BalancedRendererPath = "Assets/Settings/URP/PC_Balanced_Renderer.asset";
@@ -49,10 +49,10 @@ namespace PirateCrew.EditorTools
 
             if (removed == 0)
             {
-                Debug.Log("[M2UrpRendererFeatureSetup] 两档 Renderer 上都没有 OutlineRendererFeature（已摘除，幂等无变化）。");
+                Debug.Log("[UrpRendererFeatureRetire] 两档 Renderer 上都没有 OutlineRendererFeature（已摘除，幂等无变化）。");
                 return;
             }
-            Debug.Log("[M2UrpRendererFeatureSetup] 已摘除全屏 Sobel 描边 Feature " + removed + " 处：\n"
+            Debug.Log("[UrpRendererFeatureRetire] 已摘除全屏 Sobel 描边 Feature " + removed + " 处：\n"
                 + "  " + BalancedRendererPath + "\n  " + PerformantRendererPath + "\n"
                 + "  替代物 = PirateToon.shader 的反壳描边 pass（SRPDefaultUnlit，墨色 StickTokens.INK）。");
         }
@@ -63,7 +63,7 @@ namespace PirateCrew.EditorTools
             var rendererData = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(path);
             if (rendererData == null)
             {
-                Debug.LogWarning("[M2UrpRendererFeatureSetup] 未找到 Renderer 资产: " + path
+                Debug.LogWarning("[UrpRendererFeatureRetire] 未找到 Renderer 资产: " + path
                     + "（可先执行 PirateCrew.EditorTools.UrpSetup.Configure 创建）。");
                 return 0;
             }
@@ -82,7 +82,7 @@ namespace PirateCrew.EditorTools
                     AssetDatabase.RemoveObjectFromAsset(feature);
                     Object.DestroyImmediate(feature, true);
                     removed++;
-                    Debug.Log("[M2UrpRendererFeatureSetup] 已摘除 OutlineRendererFeature -> " + path);
+                    Debug.Log("[UrpRendererFeatureRetire] 已摘除 OutlineRendererFeature -> " + path);
                 }
             }
 
@@ -98,7 +98,7 @@ namespace PirateCrew.EditorTools
                 AssetDatabase.RemoveObjectFromAsset(asset);
                 Object.DestroyImmediate(asset, true);
                 removed++;
-                Debug.Log("[M2UrpRendererFeatureSetup] 已清除游离的 OutlineRendererFeature 子资产 -> " + path);
+                Debug.Log("[UrpRendererFeatureRetire] 已清除游离的 OutlineRendererFeature 子资产 -> " + path);
             }
 
             if (removed > 0)

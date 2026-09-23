@@ -12,7 +12,7 @@ namespace PirateCrew.ArtPipeline.Tests
     ///
     /// 【为什么这个文件在 Assets/Art/Tests/ 而不是 Assets/Tests/】
     /// 无头验证台的 <c>-p:HarnessScope=All</c> 域会编译 <c>Assets/Tests/**</c>，而该域**不引用
-    /// UnityEditor 程序集**（external/m2-harness/M2Harness.csproj 里 UnityEditor 只在 DataEditor 域
+    /// UnityEditor 程序集**（external/harness/Harness.csproj 里 UnityEditor 只在 DataEditor 域
     /// 条件引用）。本用例必须用 <see cref="AssetImporter.GetAtPath"/> 才谈得上"断言导入设置"，
     /// 一旦放进 Assets/Tests/ 就会把主控的 1130 条 All 域门禁打成编译错误。
     /// 放在 Assets/Art/Tests/（本轨道自己的域）后：Unity 侧的 Test Runner 照常发现并执行它，

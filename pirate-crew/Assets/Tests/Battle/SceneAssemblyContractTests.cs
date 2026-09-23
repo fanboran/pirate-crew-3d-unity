@@ -16,7 +16,7 @@ namespace PirateCrew.Tests
     ///
     /// 【它在防什么】
     ///   ① 审计报告 F-1：装配链是"重建 → 接线 → … → 折叠"，顺序是**真实依赖**，但原先只写在文档里。
-    ///      只跑 <c>M2BattleSceneSetup.BuildAll</c> 而没跑后面几步，结果是"场景能打开、能跑、
+    ///      只跑 <c>BattleSceneSetup.BuildAll</c> 而没跑后面几步，结果是"场景能打开、能跑、
     ///      但少了小地图接线/运行期查找接线，并且没折叠"——是静默的，不报错。
     ///      折叠态断言把这种"半跑的链"变成一条红测试。
     ///   ② 折叠态被破坏：有人往场景里手摆对象、或对实例做了覆盖（覆盖会把接线知识散回场景文件，
@@ -196,7 +196,7 @@ namespace PirateCrew.Tests
         /// </summary>
         static readonly string[] FrozenBattlePipelineSteps =
         {
-            "① 重建 Battle 场景骨架（M2BattleSceneSetup.BuildAll）",
+            "① 重建 Battle 场景骨架（BattleSceneSetup.BuildAll）",
             "② 空岛样板件摆入（FloatingIslandShowcaseMenu.PlaceIntoBattleCenter）",
             "③ 样板场景件烘焙 + 接线（SceneArtBaker.BuildAll）",
             "④ 场景资产总清单（SceneAssetManifestBuilder.BuildAll）",

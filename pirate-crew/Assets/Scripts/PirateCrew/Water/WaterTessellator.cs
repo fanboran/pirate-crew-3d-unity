@@ -9,7 +9,7 @@ namespace PirateCrew.Water
     /// 真的能画出波峰起伏。
     ///
     /// 【接线】必须挂在名为 <c>Water</c> 的物体上（编辑器里加一个组件即可；
-    /// 协调者在 <c>M2BattleSceneSetup.CreateWaterPlane</c> 里补一行 <c>AddComponent</c> 最省事）。
+    /// 协调者在 <c>BattleSceneSetup.CreateWaterPlane</c> 里补一行 <c>AddComponent</c> 最省事）。
     /// **不挂也能跑**：shader 的解析法线是逐像素算的，不依赖网格密度；只是浪的"几何起伏/轮廓"
     /// 会退化成一块平板。
     ///

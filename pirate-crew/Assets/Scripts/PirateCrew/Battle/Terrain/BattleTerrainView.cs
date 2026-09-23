@@ -15,7 +15,7 @@ namespace PirateCrew.Battle
     /// 本类的视觉路径随之退役（<c>Render</c>/<c>ApplyDestruction</c> 退役前已无调用方——
     /// 一代退场后战斗只有世界图与样板三关两条路，都不建格子渲染层）。
     ///
-    /// 【接线】由 <c>M2BattleSceneSetup</c> 在场景里创建并接好 <c>blockRoot</c>；
+    /// 【接线】由 <c>BattleSceneSetup</c> 在场景里创建并接好 <c>blockRoot</c>；
     /// 运行时由 <c>BattleController.BuildTerrain</c> 调 <see cref="RenderCollidersOnly"/>。
     /// </summary>
     [DisallowMultipleComponent]

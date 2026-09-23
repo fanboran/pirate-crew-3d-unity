@@ -10,7 +10,7 @@ namespace PirateCrew.Data
     /// 【三层数值架构】
     ///   真值来源 = 纯 C# 的 <see cref="WeaponCatalog"/>（可无头测试）；
     ///   本类只是它在 Unity 里的序列化投影，供策划调参与 <c>[SerializeField]</c> 引用；
-    ///   Editor 侧的 <c>M2DataAssetGenerator</c> 负责把 Catalog 写成 <c>.asset</c>。
+    ///   Editor 侧的 <c>DataAssetGenerator</c> 负责把 Catalog 写成 <c>.asset</c>。
     ///   因此<b>不要在本类里另写一份数值默认值</b>——默认值只在 Catalog 里维护，
     ///   生成器通过 <see cref="Apply"/> 把 Catalog 的值灌进来。
     /// </summary>

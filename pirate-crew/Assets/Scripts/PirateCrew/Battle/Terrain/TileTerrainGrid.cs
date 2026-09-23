@@ -25,7 +25,7 @@ namespace PirateCrew.Battle
     ///
     /// 二、<b>Godot 基准出什么</b>
     ///   · 竞技场是 <b>XZ 水平面</b>、重力沿 <b>-Y</b>、单位沿 Z 分路（见
-    ///     <c>docs/M2-3D空间模型对齐.md</c> §1/§2）。格 (gx, gz) 占世界 XZ 格，堆叠方向为 <b>+Y</b>。
+    ///     <c>docs/3D空间模型对齐.md</c> §1/§2）。格 (gx, gz) 占世界 XZ 格，堆叠方向为 <b>+Y</b>。
     ///   · （Godot 版本身没有地形实现——<c>island_generator.gd</c> 是 20 行空桩，
     ///     <c>battle.tscn</c> 只有一块 50×50 的平地。它只贡献「XZ + 向上为正」这套空间约定。）
     ///

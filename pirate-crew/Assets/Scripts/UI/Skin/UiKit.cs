@@ -8,7 +8,7 @@ namespace PirateCrew.UI
     /// 统一 UI 控件工厂（Beveled Pixel 皮肤的唯一构建入口）。
     ///
     /// 【为什么需要它】此前 Editor 玻璃构建器（MenuUiBuilder）与运行时构建器
-    /// （M3UiBuilder/UiSprites 木纸系）双栈并行，运行时程序集拿不到新皮肤与字号映射，
+    /// （RuntimeUiBuilder/UiSprites 木纸系）双栈并行，运行时程序集拿不到新皮肤与字号映射，
     /// 同屏两种风格——这是"简陋感"的主要技术根源。本类落在运行时程序集，
     /// Editor 装配与运行时动态件**走同一套工厂**，皮肤 / 字号 / 动效从此单轨。
     ///
@@ -73,15 +73,19 @@ namespace PirateCrew.UI
         // 文本（字号 = UiSkin.Font 单轨）
         // ------------------------------------------------------------------
 
-        /// <summary>建 TMP 文本（字号请传 <see cref="UiSkin.Font"/> 档位常量）。</summary>
+        /// <summary>建 TMP 文本（字号请传 <see cref="UiSkin.Font"/> 档位常量）。
+        /// 【满精度单点强制】字体一律按字号经 <see cref="ResolvePixelFont"/> 解析——
+        /// 调用方传入的 <paramref name="font"/> 仅作解析失败时的兜底；这保证
+        /// "不同大小 = 不同精度的字体"不可能在出口处被破坏。</summary>
         public static TextMeshProUGUI CreateText(string name, Transform parent, string content, int fontSize,
             TextAlignmentOptions alignment, Color color, TMP_FontAsset font, bool raycast = false)
         {
             RectTransform rect = CreateRect(name, parent);
             var text = rect.gameObject.AddComponent<TextMeshProUGUI>();
             text.text = content;
-            if (font != null)
-                text.font = font;
+            TMP_FontAsset resolved = ResolvePixelFont(fontSize, font);
+            if (resolved != null)
+                text.font = resolved;
             text.fontSize = fontSize;
             text.alignment = alignment;
             text.color = color;
@@ -89,6 +93,58 @@ namespace PirateCrew.UI
             text.overflowMode = TextOverflowModes.Overflow;
             text.raycastTarget = raycast;
             return text;
+        }
+
+        static TMP_FontAsset _pixelFont;
+        static TMP_FontAsset _pixelSmallFont;
+        static PixelAtlasPointFilter _atlasFilter;
+
+        /// <summary>
+        /// 按显示字号解析**满精度**像素字体（创始人祈使裁决 2026-09-23：不同大小 = 不同精度的字体）。
+        /// 规则：字号 ÷ 3 = 位图字体的原生设计点数（faceInfo.pointSize）才允许渲染——
+        /// 36 → FusionPixel 12px、30 → ArkPixel 10px；无原生档匹配时报错并回落正文档
+        /// （宁可字号统一，不出半精度混排）。
+        /// </summary>
+        public static TMP_FontAsset ResolvePixelFont(int fontSize, TMP_FontAsset fallback = null)
+        {
+            int requiredPointSize = fontSize / 3;
+            if (fontSize % 3 != 0 || requiredPointSize <= 0)
+            {
+                Debug.LogError("[UiKit] 字号 " + fontSize + " 不在 3 画布像素的整数倍栅格上（艺术像素栅格）");
+                return fallback ?? PixelFont12();
+            }
+
+            if (requiredPointSize == 12)
+                return PixelFont12();
+            if (requiredPointSize == 10)
+                return PixelFont10();
+
+            Debug.LogError("[UiKit] 字号 " + fontSize + "（需 " + requiredPointSize
+                + "px 原生设计位图字体）无满精度字体档——回落正文档。"
+                + "引入新档位请走 FontAssetBuilder 的位图 spec + 本方法登记。");
+            return PixelFont12();
+        }
+
+        static TMP_FontAsset PixelFont12()
+        {
+            if (_pixelFont == null)
+                _pixelFont = Resources.Load<TMP_FontAsset>("Fonts/FusionPixel12-px");
+            if (_pixelFont == null)
+                Debug.LogWarning("[UiKit] Resources/Fonts/FusionPixel12-px 缺失（跑 PirateCrew/Fonts/生成 TMP 中文字体资产）");
+            else
+                EnsureAtlasPointFilter(_pixelFont);
+            return _pixelFont;
+        }
+
+        static TMP_FontAsset PixelFont10()
+        {
+            if (_pixelSmallFont == null)
+                _pixelSmallFont = Resources.Load<TMP_FontAsset>("Fonts/ArkPixel10-px");
+            if (_pixelSmallFont == null)
+                Debug.LogWarning("[UiKit] Resources/Fonts/ArkPixel10-px 缺失（跑 PirateCrew/Fonts/生成 TMP 中文字体资产）");
+            else
+                EnsureAtlasPointFilter(_pixelSmallFont);
+            return _pixelSmallFont;
         }
 
         // ------------------------------------------------------------------
@@ -346,13 +402,15 @@ namespace PirateCrew.UI
             if (!string.IsNullOrEmpty(hotkey))
             {
                 // 快捷键角标（右上角小字；默认取 chip 底上的正文字色，可显式覆盖）。
+                // 盒随 Tiny 档走（1.5× 字高）；字体必须显式给像素字体——传 null 会落到
+                // TMP 默认字体（LiberationSans），是"游戏内残留普通字体"的隐患之一。
                 TextMeshProUGUI key = CreateText("Hotkey", rect, hotkey, UiSkin.Font.Tiny,
-                    TextAlignmentOptions.Center, hotkeyColor ?? foreground, null);
+                    TextAlignmentOptions.Center, hotkeyColor ?? foreground, RuntimeFont(RuntimeFontKind.Body));
                 key.enableWordWrapping = false;
                 key.rectTransform.anchorMin = key.rectTransform.anchorMax = new Vector2(1f, 1f);
                 key.rectTransform.pivot = new Vector2(1f, 1f);
                 key.rectTransform.anchoredPosition = new Vector2(-3f, -1f);
-                key.rectTransform.sizeDelta = new Vector2(16f, 14f);
+                key.rectTransform.sizeDelta = new Vector2(UiSkin.Font.Tiny * 1.5f, UiSkin.Font.Tiny * 1.25f);
             }
 
             return button;
@@ -412,8 +470,11 @@ namespace PirateCrew.UI
         }
 
         /// <summary>
-        /// 图文按钮（图标在左、文字跟右）——模式/动作钮的统一长相，档位色走 <see cref="ToneOfKind"/>；
+        /// 图文按钮（**纯文字**）——模式/动作钮的统一长相，档位色走 <see cref="ToneOfKind"/>；
         /// BattleHud 的投掷/结束回合与各模态按钮共用。
+        /// 【图标已退役】按钮左侧的 UiGlyphs 符号被创始人走查点名读成 emoji（2026-09-23）：
+        /// 按钮语义一律由文字承担。<paramref name="glyph"/> 与 <paramref name="withIcon"/>
+        /// 保留签名兼容但不再绘制任何图标。
         /// position 相对父容器中心（anchor/pivot 0.5,0.5）。
         /// </summary>
         public static Button ActionButton(string name, Transform parent, UiGlyphs.Glyph glyph,
@@ -432,29 +493,10 @@ namespace PirateCrew.UI
             var button = rect.gameObject.AddComponent<Button>();
             ApplyPlateButton(button, image, tone);
 
-            if (withIcon)
-            {
-                Image icon = CreateGlyph("Icon", rect, glyph, labelColor);
-                icon.rectTransform.anchorMin = icon.rectTransform.anchorMax = new Vector2(0f, 0.5f);
-                icon.rectTransform.pivot = new Vector2(0f, 0.5f);
-                icon.rectTransform.sizeDelta = new Vector2(24f, 24f);
-                icon.rectTransform.anchoredPosition = new Vector2(12f, 0f);
-
-                TextMeshProUGUI text = CreateText("Text", rect, label, UiSkin.Font.Body,
-                    TextAlignmentOptions.MidlineLeft, labelColor, font, raycast: false);
-                text.enableWordWrapping = false;
-                text.rectTransform.anchorMin = text.rectTransform.anchorMax = new Vector2(0f, 0.5f);
-                text.rectTransform.pivot = new Vector2(0f, 0.5f);
-                text.rectTransform.sizeDelta = new Vector2(size.x - 48f, size.y);
-                text.rectTransform.anchoredPosition = new Vector2(42f, 0f);
-            }
-            else
-            {
-                TextMeshProUGUI text = CreateText("Text", rect, label, UiSkin.Font.Body,
-                    TextAlignmentOptions.Center, labelColor, font, raycast: false);
-                text.enableWordWrapping = false;
-                Stretch(text.rectTransform, 10f);
-            }
+            TextMeshProUGUI text = CreateText("Text", rect, label, UiSkin.Font.Body,
+                TextAlignmentOptions.Center, labelColor, font, raycast: false);
+            text.enableWordWrapping = false;
+            Stretch(text.rectTransform, 10f);
 
             return button;
         }
@@ -477,17 +519,22 @@ namespace PirateCrew.UI
             Secondary,
         }
 
-        /// <summary>取运行时可用的字体资产；Resources 缺失（未跑 FontAssetBuilder）时返回
-        /// null 交 TMP 默认兜底并告警一次。</summary>
+        /// <summary>取运行时可用的字体资产（满精度阶梯的正文档；kind 语义保留、档位见
+        /// <see cref="ResolvePixelFont"/>——一个字体一个显示尺寸，由文本出口单点强制）。</summary>
         public static TMP_FontAsset RuntimeFont(RuntimeFontKind kind)
         {
-            // 隔壁纪律「文字统一 StickHand」：HUD / 按钮全部手写体（笔画等粗可读性高，
-            // 用户 2026-09-20 裁决可读性差后全面切换）；霞鹜文楷保留给未来长文场景。
-            string path = "Fonts/StickHand-Regular SDF";
-            TMP_FontAsset font = Resources.Load<TMP_FontAsset>(path);
-            if (font == null)
-                Debug.LogWarning("[UiKit] Resources/" + path + " 缺失（跑 PirateCrew/资产/烘焙字体 后可用），回落 TMP 默认字体");
-            return font;
+            return PixelFont12();
+        }
+
+        /// <summary>确保动态图集的 Point 纠偏件活着（TMP 运行时重建图集会重置 Bilinear，
+        /// 逐帧纠偏到字形稳定为止；同字体只挂一件，场景卸载销毁后自动补挂）。</summary>
+        static void EnsureAtlasPointFilter(TMP_FontAsset font)
+        {
+            if (_atlasFilter != null)
+                return;
+            var fixer = new GameObject("PixelAtlasPointFilter").AddComponent<PixelAtlasPointFilter>();
+            fixer.font = font;
+            _atlasFilter = fixer;
         }
 
         /// <summary>chip 的反相字色（亮底给深墨、深底给暖白——角标 / 覆盖文字的便捷取色）。</summary>

@@ -8,7 +8,7 @@ style_tokens —— 世界套件（WorldKit）统一风格参数，单一事实�
     import style_tokens as ST
 然后只用 ST 里的常量/工具，**禁止在脚本内散写色值、粗糙度、导出参数**。
 
-契约文档：docs/M4-大海域世界化.md §4（尺度契约见 §1，站面平直机制见 §4.2）。
+契约文档：docs/大海域世界化.md §4（尺度契约见 §1，站面平直机制见 §4.2）。
 调色板出处：docs/美术风格指南.md §2.1 / SceneArtPalette.cs（双侧同源纪律）。
 预览渲染与 FBX 参数出处：tools/blender/scene/build_scene_kit.py（样板）。
 """

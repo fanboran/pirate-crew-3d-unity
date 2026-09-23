@@ -14,7 +14,7 @@ namespace PirateCrew.Fx
     ///   · <c>faceUp</c>：绕 X 转 90° 躺在 XZ 地面（地面光环、涟漪、冲击波）。
     /// 内置 Quad 的正面法线是 -Z、UV 与之匹配，故 billboard 用 <c>cam.rotation</c>、
     /// faceUp 用 <c>Euler(90,0,0)</c> 时贴图都不会镜像（本工程相机在 +Z 高处朝 -Z——见
-    /// `docs/M2-3D空间模型对齐.md:48`）。
+    /// `docs/3D空间模型对齐.md:48`）。
     ///
     /// 【尺寸是二维的】环用等比（宽=高=直径），伤害数字用非等比（宽随位数增长），
     /// 故统一以 <see cref="Vector2"/>（宽, 高，世界单位）表达尺寸。

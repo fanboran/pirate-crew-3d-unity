@@ -9,7 +9,7 @@ namespace PirateCrew.SceneArt
     ///
     /// 【为什么拆成"缓冲区"而不是直接建 Mesh】<c>new Mesh()</c> 是 UnityEngine.Object 的实例化，
     /// 脱离 Unity 运行时走原生 ECall 会抛 <c>SecurityException</c>（见
-    /// <c>external/m2-harness/README.md</c>）。把几何算法写成纯 <c>List&lt;Vector3&gt;</c> 后，
+    /// <c>external/harness/README.md</c>）。把几何算法写成纯 <c>List&lt;Vector3&gt;</c> 后，
     /// 布局/倒角/裙边这些**最容易出边界错误**的部分就能在无头验证台上断言。
     ///
     /// 【顶点不复用】每面独立输出 3 个顶点、法线为该面法线（平面着色）。低多边形块面风格要的

@@ -20,10 +20,10 @@
 #
 # 【本机环境 vs CI 环境的差异（必须知道）】
 #   本机：Windows + Unity 2022.3.62f1c1（路径 F:/Unity/2022.3.62f1c1/Editor/Unity.exe）+ 只装了
-#         Mono 脚本后端（无 Windows IL2CPP 模块）+ 无头验证台 external/m2-harness（不入库）。
+#         Mono 脚本后端（无 Windows IL2CPP 模块）+ 无头验证台 external/harness（不入库）。
 #   CI ：Ubuntu runner + game-ci 的 unityci/editor 镜像 + license 从 secrets 注入。
 #   两个直接后果：
-#     · 无头验证台（external/m2-harness/*.csproj）**在 CI 里跑不了**——它用 HintPath 指向本机
+#     · 无头验证台（external/harness/*.csproj）**在 CI 里跑不了**——它用 HintPath 指向本机
 #       F:\Unity\... 的 UnityEngine/UnityEditor DLL。所以 CI 的静态 job 用纯文本门禁（repo-gates）
 #       替代，而不是假装能在云上编译 Unity 程序集。
 #     · 本机默认的 Mono 后端与 CI 镜像提供的模块不一定一致；出包 job 故意不指定

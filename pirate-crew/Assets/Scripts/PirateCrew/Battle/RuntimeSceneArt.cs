@@ -28,7 +28,7 @@ namespace PirateCrew.Battle
     public sealed class RuntimeSceneArt : MonoBehaviour
     {
         // ------------------------------------------------------------------
-        // 序列化接线（由 M2BattleSceneSetup / SceneArtBaker 写入）
+        // 序列化接线（由 BattleSceneSetup / SceneArtBaker 写入）
         // ------------------------------------------------------------------
 
         [Tooltip("生成物的父节点；为空时用本物体 transform（SceneArt 根）。")]

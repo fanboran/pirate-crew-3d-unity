@@ -4,7 +4,7 @@ namespace PirateCrew.Combat.Tests
 {
     /// <summary>
     /// ExplosionResolver 测试（3D 球泛化）。期望值全部可由逆向文档 §5.3 的公式手算复核，
-    /// 口径见 docs/M2-3D空间模型对齐.md §5：
+    /// 口径见 docs/3D空间模型对齐.md §5：
     /// radius = size/2 + 20；d = 3D 距离（平面 (x,y) + 高度 Height）；
     /// falloff = 1 - d/radius；damage = maxDamage*falloff；k = 0.06*falloff*maxDamage；
     /// deltaVx = nx*5k；deltaVy = ny*5k；deltaVUp = nUp*5k + 6k（世界 +Y）。

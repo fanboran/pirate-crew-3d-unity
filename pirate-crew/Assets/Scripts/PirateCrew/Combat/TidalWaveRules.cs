@@ -13,7 +13,7 @@ namespace PirateCrew.Combat
     ///   · §6.3 tidalWave 评分——`aiPerform` 直接 `startWave()`（浪从左侧自动扫）。
     ///
     /// 【坐标口径与 3D 映射决策（提案/待定）】原文是 2D 侧视：x 横向、y 竖直、water.y 为水面。
-    ///   映射到 3D（见 docs/M2-3D空间模型对齐.md §1）：
+    ///   映射到 3D（见 docs/3D空间模型对齐.md §1）：
     ///     · 横扫轴 x → 世界 **X**（浪沿 X 推进）；
     ///     · 高度 y → 世界 **Y**，`waterY` → `LevelGeometry.WaterSurfaceY`（世界水位 -0.2）；
     ///     · 世界 **Z（纵深）被折叠**——浪是横跨整个纵深的水墙，同一 X 上任意 Z 的玩家都被扫到

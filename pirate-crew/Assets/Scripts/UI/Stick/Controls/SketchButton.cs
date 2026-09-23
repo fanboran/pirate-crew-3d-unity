@@ -61,7 +61,8 @@ namespace PirateCrew.UI.Stick
         /// 建一枚完整按钮（像素 Plate 底 + SpriteSwap 三态 + 本组件 + 居中文字）。
         /// kind 缺省 Dark。
         /// </summary>
-        /// <param name="fontSize">文字字号；0 = 主题默认（gd 主题 Button 档 = FONT_HUD）。</param>
+        /// <param name="fontSize">文字字号；0 = 像素令牌正文档（<see cref="UiSkin.Font.Body"/>，
+        /// 令牌"按钮高 = 文字高 + 12 艺术像素"的文字半边）。</param>
         public static SketchButton Create(Transform parent, string name, Vector2 anchor, Vector2 pivot,
             Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font,
             SketchButtonKind kind = SketchButtonKind.Dark, string label = null, float fontSize = 0f)
@@ -206,7 +207,7 @@ namespace PirateCrew.UI.Stick
             label.text = content ?? string.Empty;
             if (font != null)
                 label.font = font;
-            label.fontSize = fontSize > 0f ? fontSize : StickTokens.FONT_HUD; // gd 主题 Button 默认档
+            label.fontSize = fontSize > 0f ? fontSize : UiSkin.Font.Body; // 像素皮下按钮文字 = 正文 12 艺术像素
             label.alignment = TextAlignmentOptions.Center;
             label.enableWordWrapping = false;
             label.raycastTarget = false;

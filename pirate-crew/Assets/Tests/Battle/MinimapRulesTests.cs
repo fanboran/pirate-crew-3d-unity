@@ -10,7 +10,7 @@ namespace PirateCrew.Tests
     ///
     /// 【对应依据】<c>docs/参考游戏逆向-海盗军团抢宝藏-静态.md</c> §8.1（<c>Map.as</c>：
     /// dotSize=3 / 红 0xFF3A29 / 蓝 0x3366FF / alpha=mapVisibility*100 / 死亡 -0.1 帧）
-    /// 与 §2.3（mapHolder 在 (20,20)）；以及 <c>docs/M2-3D空间模型对齐.md</c> §1 的 XZ 重投影。
+    /// 与 §2.3（mapHolder 在 (20,20)）；以及 <c>docs/3D空间模型对齐.md</c> §1 的 XZ 重投影。
     /// 原版未给出的映射（XZ → 归一化坐标、面板比例）标为**提案/待定**，本测试锁定其行为不再漂移。
     /// </summary>
     [TestFixture]

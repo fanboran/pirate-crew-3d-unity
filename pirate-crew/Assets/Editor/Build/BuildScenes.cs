@@ -28,7 +28,7 @@ namespace PirateCrew.EditorTools.BuildSystem
     /// 播放器出图入口依赖它在列表里），而发行包不该含它——两者诉求相反，所以不该共用一个列表。
     /// 想让 Build Settings 与这里一致时用菜单 <c>PirateCrew/Build/同步 Build Settings…</c>（显式动作，不是副作用）。
     ///
-    /// 【未收口项（登记给主控，本轨道不改）】<c>Assets/Editor/M3SceneSetup.cs:449 RegisterBuildSettings()</c>
+    /// 【未收口项（登记给主控，本轨道不改）】<c>Assets/Editor/ManagementSceneSetup.cs:449 RegisterBuildSettings()</c>
     /// 仍是幂等全量写入 6 场景（含 ToonPilot）、自带一份硬编码数组。它每次跑装配链都会覆盖 Build Settings。
     /// 那是「开发集」，与这里的 <see cref="DevelopmentSet"/> 语义相同但两处维护——建议后续把该方法的数组
     /// 换成 <c>BuildScenes.DevelopmentSet()</c>，冲突与处置见 docs/项目/构建与发布手册.md 的遗留节。

@@ -22,7 +22,7 @@ namespace PirateCrew.EditorTools
     /// 【定位：Prefab 仍是**生成产物**】装配脚本（<see cref="ArtGate.BuildAll"/> 链）才是真源，
     /// 本步骤是链尾的收口变换，每次重跑链都会重新生成 Prefab。
     /// 手改 Prefab 会被下一次重跑覆盖——这是"生成式资产"的固有代价，与场景折叠前一致
-    /// （折叠前手改场景同样会被 <c>M2BattleSceneSetup.BuildAll</c> 的 NewScene 洗掉）。
+    /// （折叠前手改场景同样会被 <c>BattleSceneSetup.BuildAll</c> 的 NewScene 洗掉）。
     /// 要持久化手工调整，改生成器，不改产物。
     ///
     /// 【幂等】已折叠的场景再次折叠 = 先完全解包回裸对象、再重新折叠；结果与一次折叠一致

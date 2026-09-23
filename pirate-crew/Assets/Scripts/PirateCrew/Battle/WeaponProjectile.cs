@@ -24,7 +24,7 @@ namespace PirateCrew.Battle
     /// 【程序化兜底】弹体可由 <c>BattleController.projectilePrefab</c> 提供；为空时由
     ///   <see cref="BattleController"/> 用图元 + 颜色程序化构建，因此<b>既有场景无需重新装配</b>。
     ///
-    /// 【3D 运动语义（见 docs/M2-3D空间模型对齐.md）】
+    /// 【3D 运动语义（见 docs/3D空间模型对齐.md）】
     ///   · 竞技场是 <b>XZ 水平面</b>、重力沿 <b>-Y</b>：弹体在 X/Z 上惯性飞行、在 Y 上受重力。
     ///   · 刚体<b>只锁旋转、不锁位置</b>。
     ///

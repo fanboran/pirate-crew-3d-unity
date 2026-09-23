@@ -1258,6 +1258,7 @@ namespace PirateCrew.UI
                     ? UiTextRules.WeaponName(equippedId)
                     : UiStrings.BattleWeaponPickHint);
                 // 文字色从像素皮调色板取（黄铜强调档 / 暖白压 alpha 的次级档）。
+                // 字号恒正文档（紧凑面板里 48 区块档会把说明行顶穿——创始人走查）。
                 UiTextUtil.SetColor(weaponNameText, equipped
                     ? PixelSkin.LightOf(PixelTone.Primary)
                     : UiSkin.WithAlpha(PixelSkin.PaperWhite, 0.72f));

@@ -13,8 +13,8 @@ namespace PirateCrew.EditorTools
     /// 手工删除即可；世界海图走 <c>WorldMapCatalog</c> 纯 C# 目录，无 SO 资产）。
     ///
     /// 【入口】
-    ///   菜单: PirateCrew/Data/生成 M2 数值资产
-    ///   无头: -batchmode -quit -executeMethod PirateCrew.EditorTools.M2DataAssetGenerator.GenerateAll
+    ///   菜单: PirateCrew/Data/生成数值资产
+    ///   无头: -batchmode -quit -executeMethod PirateCrew.EditorTools.DataAssetGenerator.GenerateAll
     ///
     /// 【产物】
     ///   Assets/Data/Weapons/*.asset          17 件武器
@@ -25,7 +25,7 @@ namespace PirateCrew.EditorTools
     /// 【单一来源】数值全部从 Catalog / BalanceConfig.Defaults 读取并调用各自的 Apply* 方法灌入，
     ///             本生成器内不出现第二份硬编码数值副本。
     /// </summary>
-    public static class M2DataAssetGenerator
+    public static class DataAssetGenerator
     {
         const string RootFolder = "Assets/Data";
         const string WeaponsFolder = RootFolder + "/Weapons";
@@ -33,7 +33,7 @@ namespace PirateCrew.EditorTools
         const string BalanceFolder = RootFolder + "/Balance";
 
         /// <summary>无头 -executeMethod 入口；也可从菜单调用。</summary>
-        [MenuItem("PirateCrew/Data/生成 M2 数值资产")]
+        [MenuItem("PirateCrew/Data/生成数值资产")]
         public static void GenerateAll()
         {
             EnsureFolder(RootFolder);
@@ -49,7 +49,7 @@ namespace PirateCrew.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("[M2DataAssetGenerator] M2 数值资产生成完成："
+            Debug.Log("[DataAssetGenerator] 数值资产生成完成："
                 + weaponCount + " 件武器 / " + crewCount + " 名船员 / 1 份平衡常数。\n"
                 + string.Join("\n", manifest));
         }

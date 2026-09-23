@@ -8,7 +8,7 @@ namespace PirateCrew.UI
     /// UI 文本/字体的兼容工具层。
     ///
     /// 【为什么需要它】战斗 HUD 的 <see cref="BattleHud"/> 序列化字段被
-    /// <c>Assets/Editor/M2BattleSceneSetup.cs</c> 直接赋值（该文件由并行波次占用、本波次禁改）。
+    /// <c>Assets/Editor/BattleSceneSetup.cs</c> 直接赋值（该文件由并行波次占用、本波次禁改）。
     /// 为了让「旧装配脚本（写 legacy <see cref="Text"/>）」与「本波次新装配（写
     /// <see cref="TextMeshProUGUI"/>）」都能编译且都能运行，字段统一用二者共同基类
     /// <see cref="MaskableGraphic"/>，取值时再由本类分派到 TMP 或 legacy 分支。

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """props_kit.py —— WorldKit 道具套件 18 件无头建模(Blender 5.2,纯 bpy/bmesh 程序化,零贴图,shade_flat)。
 
-分工出处:docs/M4-大海域世界化.md §4.3(道具域 = tools/blender/scene/props/)。
+分工出处:docs/大海域世界化.md §4.3(道具域 = tools/blender/scene/props/)。
 风格参数唯一来源:style_tokens.py(ST.SLOTS / POLY_BUDGETS / export_fbx / PREVIEW_*)——
 本脚本不散写任何色值/粗糙度/导出参数;金属度按 docs/美术风格指南.md §3.1 材质参数总表(铁 0.85 / 黄铜 1.0)。
 管线样板:tools/blender/scene/build_scene_kit.py(MeshAcc / join_to_object / 三灯预览 / Standard 视图变换)。

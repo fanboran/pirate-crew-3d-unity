@@ -14,7 +14,7 @@ namespace PirateCrew.Tests
     ///   · 有人把 Order 调乱（比如让工具出图早于服务创建）→ 失败。
     ///
     /// 【本文件不调用 Initialize / ResetStatics 阶段】那两个阶段会碰 <c>Time.timeScale</c>、
-    /// <c>new GameObject</c> 等原生调用，无头验证台跑不了（ECall 边界，见 external/m2-harness/README）。
+    /// <c>new GameObject</c> 等原生调用，无头验证台跑不了（ECall 边界，见 external/harness/README）。
     /// 它们由 Unity batchmode 侧的冒烟收口；这里只验证"发现与顺序"。
     /// </summary>
     public class GameBootstrapTests

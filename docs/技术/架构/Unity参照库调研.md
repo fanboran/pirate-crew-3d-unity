@@ -577,6 +577,7 @@ grep -n "cameraColorTargetHandle\|BlitCameraTexture\|ReAllocateIfNeeded" \
 | `core-reference/sceneloader-mygamedevtools` | scene-loader | <https://github.com/mygamedevtools/scene-loader>（M1 场景流转参照） |
 | `core-reference/scenetransition-lightgive` | TransitionManager | <https://github.com/LightGive/TransitionManager>（M1 场景切换参照） |
 | `m2-combat-reference/`（4 库） | 弹弓/轨迹/描边/RTS相机 | 上游与版本见本文 §1.1，用法见 §2 |
+| `comm-reference/`（预留） | 模块间通信调研参照：MessagePipe / R3 / VContainer / Zenject（+官方 SO 通道 PaddleGameSO） | **URL 研读、未落盘**（2026-09-23 git 代理离线、直连被重置）；对照结论与裁决点见 [调研-模块间通信.md](调研-模块间通信.md)。代理恢复后 `--depth 1` 补克隆 |
 | `fluid-ref/FLIP` | Unity_FLIP_Fluid_Simulation | <https://github.com/lamp-cap/Unity_FLIP_Fluid_Simulation>（水体参照） |
 | `fluid-ref/HPWater` | HPWater | <https://github.com/AshenOneArt/HPWater>（水体参照） |
 | `swf-decompile/` + `tools/` | game.swf、levels_all.json、ffdec 反编译器 | Flash 原版逆向材料与工具链，逆向文档的原始依据 |

@@ -95,7 +95,7 @@ namespace PirateCrew.SceneArt
         /// 解析失败返回品红（便于肉眼发现问题，与 <c>BattleSceneLighting.Hex</c> 同口径）。
         ///
         /// 【为什么不用 <c>ColorUtility.TryParseHtmlString</c>】它是原生 <c>ECall</c>，
-        /// 脱离 Unity 运行时必抛 <c>SecurityException</c>（见 external/m2-harness/README.md）——
+        /// 脱离 Unity 运行时必抛 <c>SecurityException</c>（见 external/harness/README.md）——
         /// 用了它整个调色板就无法在无头验证台上断言。这里自实现纯 C# 解析，
         /// 既保住"色值可无头测试"，也少一个 Unity 依赖。
         /// </summary>

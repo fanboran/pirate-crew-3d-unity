@@ -36,7 +36,7 @@ namespace PirateCrew.EditorTools
     /// 【为什么渲染时要临时把 Canvas 切 ScreenSpaceCamera】
     ///   ScreenSpaceOverlay Canvas 由引擎在帧末直绘 backbuffer，**不经过任何相机**，
     ///   离屏相机渲染拿不到它；ScreenSpaceCamera Canvas 才会作为相机的场景内容被渲染。
-    ///   所以内存场景里 Canvas 常态保持 Overlay（与工程惯例一致，见 M3SceneSetup.CreateCanvas），
+    ///   所以内存场景里 Canvas 常态保持 Overlay（与工程惯例一致，见 ManagementSceneSetup.CreateCanvas），
     ///   渲染期间临时切 S-S-C 挂临时正交相机，渲完恢复（场景不保存，无序列化残留）。
     ///   CanvasScaler = ScaleWithScreenSize 1920×1080，输出恰为参考分辨率 → 缩放系数 1，
     ///   两态像素摆位一致。
@@ -46,7 +46,7 @@ namespace PirateCrew.EditorTools
     ///   ——那是 StickHand 字体资产的默认材质，全工程 UI 共用，改了会污染整套 UI。
     ///
     /// 【幂等】每次运行 EditorSceneManager.NewScene 重建内存场景（会丢弃当前打开的
-    ///   未保存场景——与 M2/M3SceneSetup 同纪律），PNG 覆盖写，RT/相机用后即毁。
+    ///   未保存场景——与 M2/ManagementSceneSetup 同纪律），PNG 覆盖写，RT/相机用后即毁。
     /// </summary>
     public static class TextSampleBuilder
     {

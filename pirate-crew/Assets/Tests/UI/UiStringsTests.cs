@@ -187,7 +187,9 @@ namespace PirateCrew.Tests
             // 【发布收口】M1 时代的占位场景文案随 BattlePlaceholder 一并退役。
             Assert.AreEqual("暂停 (Esc)", UiStrings.BattlePauseButton);
             Assert.AreEqual("再来一局", UiStrings.BattleRestart);
-            Assert.AreEqual("版本 1.0", UiStrings.MainVersion);
+            // 【版本单一真源】菜单只出前缀，数字运行时取 Application.version
+            // （BuildVersion.Current → bundleVersion 链）——文案表不再保存版本数字。
+            Assert.AreEqual("版本", UiStrings.MainVersionPrefix);
         }
 
         [Test]

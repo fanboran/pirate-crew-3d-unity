@@ -96,41 +96,36 @@ namespace PirateCrew.UI
         public const float DisabledTextAlpha = 0.4f;
 
         // ------------------------------------------------------------------
-        // 字号 Token（§1.4，1080p 基准 px）
-        //
-        // 【双轨口径（UI 审计 P2-6 收口）】全项目字号有两套，裁决后的基准是
-        //   <c>MenuUiBuilder.FontScale</c>（用户裁决「整体下调一档」：Hud 18 / Body 15 / Tiny 13），
-        //   HUD 与全部新装配一律走它；本段旧档常量是 M3 菜单场景的既有取值，暂不迁移
-        //   （SceneSetup / M3SceneSetup 等构建器还在传这些数字）。两套并不冲突：
-        //   旧档数字经 <c>MenuUiBuilder.CreateText</c> 的 ScaleLegacyFont 映射后，
-        //   **渲染出来的同样是 FontScale 新档**——差异只在调用入口，不在最终字号。
-        //   规范 §1.4 旧的「正文 ≥20 硬约束」已按同一裁决改为「正文 ≥16、辅助 ≥14、角标 ≥12」；
-        //   新代码请直接引用 MenuUiBuilder.FontScale（Editor 侧）或按其档位取值，勿再新增本段引用。
+        // 字号 Token（【像素栅格并档】2026-09-23 起本段常量全部别名到 <see cref="UiSkin.Font"/>
+        // （12 的整数倍像素字体栅格，画布像素）——旧「双轨口径」（本表旧档经
+        // MenuUiBuilder.ScaleLegacyFont 降档）随像素字体全局切换一并退役：运行时直传
+        // （RuntimeUiBuilder 不经映射）与编辑器装配渲染出的从此是同一套字号。
+        // 新代码请直接引用 UiSkin.Font。
         // ------------------------------------------------------------------
 
-        /// <summary>主菜单游戏名（渲染落 FontScale.Display 48）。</summary>
-        public const int FontDisplay = 64;
+        /// <summary>主菜单游戏名（= UiSkin.Font.Display）。</summary>
+        public const int FontDisplay = UiSkin.Font.Display;
 
-        /// <summary>结算横幅「胜利 / 失败」（渲染落 FontScale.Banner 36）。</summary>
-        public const int FontBanner = 48;
+        /// <summary>结算横幅「胜利 / 失败」（= UiSkin.Font.Banner）。</summary>
+        public const int FontBanner = UiSkin.Font.Banner;
 
-        /// <summary>界面标题（渲染落 FontScale.Title 26）。</summary>
-        public const int FontTitle = 36;
+        /// <summary>界面标题（= UiSkin.Font.Title）。</summary>
+        public const int FontTitle = UiSkin.Font.Title;
 
-        /// <summary>区块小标题（渲染落 FontScale.Section 20）。</summary>
-        public const int FontSection = 24;
+        /// <summary>区块小标题（= UiSkin.Font.Section）。</summary>
+        public const int FontSection = UiSkin.Font.Section;
 
-        /// <summary>HUD 常读信息（回合、存活、武器名；渲染落 FontScale.Hud 18）。</summary>
-        public const int FontHud = 24;
+        /// <summary>HUD 常读信息（回合、存活、武器名；= UiSkin.Font.Hud）。</summary>
+        public const int FontHud = UiSkin.Font.Hud;
 
-        /// <summary>正文 / 按钮 / 行文本（渲染落 FontScale.Body 15）。</summary>
-        public const int FontBody = 20;
+        /// <summary>正文 / 按钮 / 行文本（= UiSkin.Font.Body）。</summary>
+        public const int FontBody = UiSkin.Font.Body;
 
-        /// <summary>辅助提示、错误说明（渲染落 FontScale.Hint 14）。</summary>
-        public const int FontHint = 18;
+        /// <summary>辅助提示、错误说明（= UiSkin.Font.Hint）。</summary>
+        public const int FontHint = UiSkin.Font.Hint;
 
-        /// <summary>角标、页码、占位符（渲染落 FontScale.Tiny 13）。</summary>
-        public const int FontTiny = 16;
+        /// <summary>角标、页码、占位符（= UiSkin.Font.Tiny）。</summary>
+        public const int FontTiny = UiSkin.Font.Tiny;
 
         // ------------------------------------------------------------------
         // 间距 / 形状（§1.7；间距只取 4/8/12/16/24 五档）

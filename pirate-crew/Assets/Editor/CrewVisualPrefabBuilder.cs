@@ -23,7 +23,7 @@ namespace PirateCrew.EditorTools
     ///   **尺度推导链（先证 Godot 的格子世界尺寸，再定目标比例）**——
     ///   <list type="number">
     ///   <item>Godot `battle.tscn` 地面 = <c>PlaneMesh(size = Vector2(50, 50))</c> → 50×50 Godot 世界单位；</item>
-    ///   <item>`docs/M2-3D空间模型对齐.md` §2 把该地面定义为「尺寸 = 关卡 widthTiles × heightTiles」，
+    ///   <item>`docs/3D空间模型对齐.md` §2 把该地面定义为「尺寸 = 关卡 widthTiles × heightTiles」，
     ///         而该演示场景对应的关卡宽 50 格（`LevelCatalog.level_1` widthTiles = 50）
     ///         → **50 格 ↔ 50 Godot 世界单位 → Godot 1 格 = 1 Godot 单位**（<see cref="GodotUnitsPerTile"/>）；</item>
     ///   <item>Godot `pirate.tscn` 角色总高 = Body 圆柱 h1.2（y −0.8..+0.4）与 Head 球 d0.7（y +0.35..+1.05）
@@ -69,7 +69,7 @@ namespace PirateCrew.EditorTools
     ///   BodyPivot / TorsoPivot / HeadPivot 三个动画枢轴是 <c>CrewVisualAnimator</c> 的唯一接口
     ///   （它只读写这三个枢轴并对臂/腿/手持物挂点做 null 判断），故两件式下动画链路零改动。
     ///
-    /// 【为什么不替换 PirateBase.prefab 的 Cube 外观】<c>M2BattleSceneSetup.BuildAll</c> 会重建
+    /// 【为什么不替换 PirateBase.prefab 的 Cube 外观】<c>BattleSceneSetup.BuildAll</c> 会重建
     ///   PirateBase.prefab 为 Cube；把职业外观塞进去会与该重建互相覆盖。这里改为**独立职业预制体**，
     ///   由 <c>BattleController.crewVisualPrefabs</c> 按 <c>CrewVisualCatalog</c> 映射选择，
     ///   未命中/未接线时回落 PirateBase.prefab（对方块外观做兜底，不破坏既有场景）。
@@ -135,7 +135,7 @@ namespace PirateCrew.EditorTools
         ///   与 Godot 角色的 1.85 格高差了 3.36 倍，用户一眼看出"角色比木筏子小这么多"。
         ///   碰撞足迹仍由根级 BoxCollider 决定（0.375×0.5×0.375，Flash 12×16px 契约，见
         ///   <see cref="UnitRootScale"/>），**与视觉高度无关**，故本次只放大视觉、不动碰撞体
-        ///   （PirateBase.prefab 的碰撞盒由禁改的 `M2BattleSceneSetup.BuildPiratePrefab` 生成）。
+        ///   （PirateBase.prefab 的碰撞盒由禁改的 `BattleSceneSetup.BuildPiratePrefab` 生成）。
         /// </summary>
         const float TargetUnitHeight = GodotReferenceHeight * UnityUnitsPerTile / GodotUnitsPerTile;
 
@@ -224,7 +224,7 @@ namespace PirateCrew.EditorTools
         ///   ON/OFF 只由屏幕 Y 决定，F=50 时 OFF 带 34px 与单位屏幕尺寸（广角 ~26px、特写 ~265px）
         ///   同量级，一圈轮廓只落 0~1 段，观感是"角落两三段短线"；F=150 时周期 23px ≪ 单位尺寸 →
         ///   轮廓上恒有 3~11 段虚线，读作完整的一圈点划描边（docs/描边Shader调试.md §三 已记录该现象）。
-        /// 【同步要求】<c>M2BattleSceneSetup.EnsureOutlineMaterial</c> 持同源参数镜像（含 _DashFrequency）。
+        /// 【同步要求】<c>BattleSceneSetup.EnsureOutlineMaterial</c> 持同源参数镜像（含 _DashFrequency）。
         ///   改这里必须同步那边，否则旧单立方体兜底材质仍是 68px 周期。
         /// </summary>
         const float DashFrequencySelected = 150f;
@@ -236,7 +236,7 @@ namespace PirateCrew.EditorTools
         ///   → ≈ `width · w^(−0.4)`；特写机位 w≈2 时 0.006 → ≈0.0045 NDC ≈ 2.4px，
         ///   扣掉被本体自遮挡的部分后可见只剩 ~1px，再被虚线的 ON/OFF（各 11px）截断，小部件可能读不到青色。
         ///   0.010 → ≈4px（可见 ~2px），与躯干同量级（docs/描边Shader调试.md §三 推荐区间 0.002~0.012）。
-        /// 【同步要求】<c>M2BattleSceneSetup.EnsureOutlineMaterial</c> 持同源镜像（含 _OutlineWidthSelected）；
+        /// 【同步要求】<c>BattleSceneSetup.EnsureOutlineMaterial</c> 持同源镜像（含 _OutlineWidthSelected）；
         ///   那个方法只服务旧单立方体兜底材质，未同步（不在本文件域内）。
         /// </summary>
         const float OutlineWidthSelected = 0.010f;
@@ -558,7 +558,7 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 配置"单位描边材质"参数：本体色 + 描边三档（state0 不可见 / hover 白细 / selected 青粗虚线）。
-        /// 参数值与 <c>M2BattleSceneSetup.EnsureOutlineMaterial</c> 保持同源（该方法是私有的，故此处镜像；
+        /// 参数值与 <c>BattleSceneSetup.EnsureOutlineMaterial</c> 保持同源（该方法是私有的，故此处镜像；
         /// 若那边调参，这里必须同步，口径见 docs/描边Shader调试.md）。
         /// </summary>
         static void ApplyOutlineUnitMaterial(Material material, Color baseColor)

@@ -2,6 +2,7 @@
     "name": "PirateCrew.Rendering",
     "rootNamespace": "PirateCrew.PirateCrew.Rendering",
     "references": [
+        "PirateCrew.Core",
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.Universal.Runtime"
     ],

@@ -23,7 +23,7 @@ namespace PirateCrew.Water
     /// 【与 HLSL 的关系】PirateOcean.shader 内嵌**同一组公式**（HLSL 无法无头验证）；
     /// 本类是参考实现，改一边必须同步改另一边——沿袭 <see cref="WaterRules"/> 与旧 PirateWater 的双源纪律。
     ///
-    /// 【M4 尺度契约】docs/M4-大海域世界化.md §1/§5：水面 y=-0.4（<see cref="LevelGeometry.WaterSurfaceY"/>），
+    /// 【M4 尺度契约】docs/大海域世界化.md §1/§5：水面 y=-0.4（<see cref="LevelGeometry.WaterSurfaceY"/>），
     /// 岛顶最低 +0.5、湿沙带 -0.5~-0.2；海面域近场细分 + 远场裙边 ≥ 4000u。
     ///
     /// 【波峰硬约束（用户裁决，2026-09-17）】竞技场附近波峰最高点必须 &lt; -0.10（不穿岛基湿沙带）。

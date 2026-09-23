@@ -11,7 +11,7 @@ namespace PirateCrew.Battle.Tests
     ///   · <c>DeltaVx</c> / <c>DeltaVy</c> = 3D 径向单位向量的**平面两分量** × 5k —— 它们落到世界的 (X, Z)；
     ///   · <c>DeltaVUp</c> = 径向竖直分量 × 5k + 原版"总是额外上抛"的 6k —— 它落到世界的 **+Y**。
     /// 2D 时代 <c>-6k</c> 是混在 <c>DeltaVy</c> 里的（配合 y 取负表达"向上"），3D 化后已拆出来，
-    /// 否则"把人掀起"会被塞进纵深方向（见 docs/M2-3D空间模型对齐.md §5）。
+    /// 否则"把人掀起"会被塞进纵深方向（见 docs/3D空间模型对齐.md §5）。
     ///
     /// 本测试同时断言 Flash 原始分量与合成后的 Unity 世界增量（<see cref="ToWorldDelta"/>，
     /// 与 <c>BattleController.ResolveExplosion</c> 的合成方式逐行一致）。

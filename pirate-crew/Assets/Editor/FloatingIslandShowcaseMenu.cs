@@ -31,7 +31,7 @@ namespace PirateCrew.EditorTools
     ///
     /// 【可静态复用】<see cref="PlaceDefault"/> / <see cref="Place"/> / <see cref="Remove"/>
     /// / <see cref="FindIslandRoot"/> 是公共静态 API，供 ArtGate 等烘焙流程直接调用
-    /// （接线说明：ArtGate 在第 ⑦ 步 M2BattleSceneSetup.BuildAll **之后**插一步
+    /// （接线说明：ArtGate 在第 ⑦ 步 BattleSceneSetup.BuildAll **之后**插一步
     /// 「FloatingIslandShowcaseMenu.PlaceDefault()」即可把空岛烘进 Battle.unity）。
     /// </summary>
     public static class FloatingIslandShowcaseMenu
@@ -93,7 +93,7 @@ namespace PirateCrew.EditorTools
         /// <c>-executeMethod PirateCrew.EditorTools.FloatingIslandShowcaseMenu.PlaceIntoBattleCenter</c>）。
         /// 草皮站位面 ≈ y14，与 ShowcaseLevels 关卡 3 的逻辑高度场（28 块 × 0.5）对齐；
         /// 运行时由 RuntimeSceneArt 按关卡号开关（只有第 3 关激活）。
-        /// 必须在 ArtGate ⑦（M2BattleSceneSetup 重建 Battle 场景）**之后**跑，否则会被洗掉。
+        /// 必须在 ArtGate ⑦（BattleSceneSetup 重建 Battle 场景）**之后**跑，否则会被洗掉。
         /// </summary>
         [MenuItem("PirateCrew/Showcase/摆进战斗场景居中（第3关地面）", false, 5)]
         public static void PlaceIntoBattleCenter()

@@ -113,6 +113,20 @@ namespace PirateCrew.EditorTools
             },
             new FontSpec
             {
+                SourceTtfPath = FontsFolder + "/ArkPixel10-zh_cn.ttf",
+                AssetFileName = "ArkPixel10-px",
+                SamplingPointSize = 10,
+                // 满精度阶梯的第二档（创始人 2026-09-23"不同大小是不同精度的字体"）：
+                // 10px 原生设计 @ 显示字号 30（10 艺术像素 ×3）——小字（角标/提示）专用，
+                // 与 12px 正文各自只出各自的原生尺寸，绝不跨档缩放。
+                AtlasPadding = 4,
+                AtlasWidth = 1024,
+                AtlasHeight = 1024,
+                RenderMode = GlyphRenderMode.RASTER_HINTED,
+                Purpose = "像素 UI 小字（方舟像素 10px 比例版简体；OFL 1.1）——位图口径，见类头",
+            },
+            new FontSpec
+            {
                 SourceTtfPath = FontsFolder + "/StickHand-Regular.ttf",
                 AssetFileName = "StickHand-Regular SDF",
                 SamplingPointSize = 72,

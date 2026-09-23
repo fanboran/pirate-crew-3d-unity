@@ -115,7 +115,7 @@ namespace PirateCrew.Data
     ///         特殊行为补充自同表「备注」列、§5.1（投掷/速度）、§5.3（爆炸公式）与 §8.4（官方文案）。
     ///
     /// 【架构】本类刻意不引用任何 UnityEngine 类型：它既能在 Unity 里被
-    ///         <c>M2DataAssetGenerator</c> 写进 ScriptableObject，也能在无头验证台直接断言。
+    ///         <c>DataAssetGenerator</c> 写进 ScriptableObject，也能在无头验证台直接断言。
     ///         任何数值修改都应先改这里，SO 只是它的序列化投影。
     /// </summary>
     public static class WeaponCatalog

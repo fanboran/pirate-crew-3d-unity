@@ -12,7 +12,7 @@ namespace PirateCrew.Battle.WorldMaps
     /// 装配由 <see cref="WorldMapComposer"/> 调 <c>Place</c> 后复用 kit 摆放路径完成。
     ///
     /// 【环带口径】以图心 (SpanX/2, SpanZ/2) 为圆心、半径 <see cref="InnerRadius"/>..<see cref="OuterRadius"/>
-    /// 的环带（docs/M4-设计理念与实现档案.md §1.2「地平线永远有内容」）。依据：相机全景档距图心
+    /// 的环带（docs/设计理念与实现档案.md §1.2「地平线永远有内容」）。依据：相机全景档距图心
     /// ≤160u、55° 俯角，可见海面斜距 ~350u → 200–280u 环带在画面内且脱离玩法区（最大图 280×280
     /// 的对角半径 ≈198u &lt; 内界，地形件永远进不了环带）；雾距已修 150→1200，环带处雾含量低，件真的可见。
     ///

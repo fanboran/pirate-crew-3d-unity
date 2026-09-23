@@ -33,7 +33,7 @@ namespace PirateCrew.EditorTools
     ///   1. 移除渲染器上已存在的同类 SSAO Feature（含游离在 m_RendererFeatures 列表外的
     ///      孤儿子资产），子资产从渲染器资产中卸下并销毁；
     ///   2. 重新 new 一个 SSAO Feature 并把 settings 钉成本脚本顶部的常量值，再挂载入列。
-    ///   与描边安装脚本（M2UrpRendererFeatureSetup）"已存在则跳过"不同，这里选择
+    ///   与描边安装脚本（UrpRendererFeatureRetire）"已存在则跳过"不同，这里选择
     ///   "先卸再装"：SSAO 是 URP 内置类型，settings 由本脚本统一钉值，
     ///   重跑永远收敛到同一份已知配置，避免手工在 Inspector 里改过之后悄悄漂移。
     ///
@@ -177,7 +177,7 @@ namespace PirateCrew.EditorTools
 
             feature.SetActive(true);
 
-            // 作为渲染器资产的子资产保存，引用才能随资产持久化（同 M2UrpRendererFeatureSetup）。
+            // 作为渲染器资产的子资产保存，引用才能随资产持久化（同 UrpRendererFeatureRetire）。
             AssetDatabase.AddObjectToAsset(feature, rendererData);
             rendererData.rendererFeatures.Add(feature);
         }

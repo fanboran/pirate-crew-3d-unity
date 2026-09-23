@@ -7,7 +7,7 @@ using UnityEngine.UI;
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// M3 界面用的 UGUI 构建辅助（运行时建控件）。
+    /// 菜单与管理界面的 UGUI 构建辅助（运行时建控件）。
     ///
     /// 【视觉层（Beveled Pixel 像素皮）】
     ///   · 文本统一 <see cref="TextMeshProUGUI"/>（中文字体由调用方注入，见 <see cref="CreateText"/> 的 font 参数）；
@@ -19,7 +19,7 @@ namespace PirateCrew.UI
     /// 【列表行数随名册/海图变化】运行时生成比摆 Prefab 更省接线；行数少、非高频，
     ///   不构成性能顾虑。
     /// </summary>
-    public static class M3UiBuilder
+    public static class RuntimeUiBuilder
     {
         /// <summary>按钮不可用态乘色。像素皮禁乘色（<see cref="SketchButton"/> 的三态 SpriteSwap +
         /// CanvasGroup 禁用 alpha 纪律）——禁用视觉由控件本体承担，本常量恒白，
@@ -32,7 +32,7 @@ namespace PirateCrew.UI
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// M3 界面按钮统一反馈（与战斗内 <c>BattleHud.ButtonFeedback</c> 同口径）：
+        /// 管理/菜单界面按钮统一反馈（与战斗内 <c>BattleHud.ButtonFeedback</c> 同口径）：
         /// 成功 = UiClick 音 + punch 缩放；失败 = UiError 音（不弹，靠状态提示条说话）。
         /// </summary>
         public static void ButtonFeedback(Button button, bool success, UiMotion motion)
@@ -114,7 +114,7 @@ namespace PirateCrew.UI
         {
             return SketchButton.Create(parent, name,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(150f, StickTokens.BTN_H),   // BTN_H=32 令牌占位；行内会被重摆
+                new Vector2(150f, UiSkin.Px.Button),   // 令牌按钮高占位；行内会被 <see cref="LayoutRowContent"/> 重摆
                 font, StickTokens.SketchButtonKind.Dark, label, fontSize);
         }
 
@@ -133,16 +133,16 @@ namespace PirateCrew.UI
         /// 在行内右侧（动作按钮左边）摆一排星级图标（规范 §3.4：星级改图标，不用「★」字符）。
         /// </summary>
         /// <returns>星级容器；可在需要时再隐藏。</returns>
-        public static RectTransform CreateStarRow(Transform row, int stars, int maxStars, float iconSize = 24f)
+        public static RectTransform CreateStarRow(Transform row, int stars, int maxStars, float iconSize = 36f)
         {
-            float step = iconSize + 2f;
+            float step = iconSize + 6f;
             RectTransform container = CreateRect("Stars", row);
             container.anchorMin = new Vector2(1f, 0.5f);
             container.anchorMax = new Vector2(1f, 0.5f);
             container.pivot = new Vector2(1f, 0.5f);
             container.sizeDelta = new Vector2(maxStars * step, iconSize);
-            // 动作按钮宽 150 + 右边距 16 + 与按钮的间隔 8。
-            container.anchoredPosition = new Vector2(-(150f + 16f + 8f), 0f);
+            // 动作按钮最宽 4 字（216）+ 右边距 16 + 间隔 8——星级让出按钮区，宁宽勿叠。
+            container.anchoredPosition = new Vector2(-(216f + 16f + 8f), 0f);
 
             for (int i = 0; i < maxStars; i++)
             {
@@ -163,9 +163,10 @@ namespace PirateCrew.UI
             return container;
         }
 
-        /// <summary>在列表容器里建一行（纵向堆叠，锚在容器顶部；底为 SketchPanel Light
+        /// <summary>在行容器里建一行（纵向堆叠，锚在容器顶部；底为 SketchPanel Light
         /// → Plate(Light) 暖白片 + 底垫投影；行内字色请取 <see cref="PixelSkin.TextColorOn"/>
-        /// 的 Light 档，勿再手写字色）。</summary>
+        /// 的 Light 档，勿再手写字色）。<paramref name="rowHeight"/> 建议取
+        /// <see cref="UiSkin.Px.Button"/> + 上下各 12（令牌位点）。</summary>
         public static RectTransform CreateRow(Transform container, int index, float rowHeight,
             float spacing = 6f, float leftPadding = 8f)
         {
@@ -221,11 +222,16 @@ namespace PirateCrew.UI
             rect.anchoredPosition = anchoredPosition;
         }
 
-        /// <summary>把行内文本放在左侧、按钮放在右侧的常用布局。</summary>
+        /// <summary>把行内文本放在左侧、按钮放在右侧的常用布局。
+        /// 按钮宽 = 标签宽 + 24 艺术像素（令牌"按钮宽 = 标签宽"式；中文按字数×正文号计），
+        /// 高 = 行高 - 上下各 6（令牌位点的一半）。</summary>
         public static void LayoutRowContent(RectTransform row, TextMeshProUGUI label, Button action, float rowHeight)
         {
-            float buttonWidth = 150f;
-            float buttonHeight = rowHeight - 8f;
+            string actionText = action != null && action.GetComponentInChildren<TextMeshProUGUI>(true) != null
+                ? action.GetComponentInChildren<TextMeshProUGUI>(true).text
+                : null;
+            float buttonWidth = UiSkin.Px.ButtonWidth(actionText);
+            float buttonHeight = UiSkin.Px.Button;   // 令牌按钮高 24 艺术像素（行高应预留上下各 12）
 
             if (label != null)
             {

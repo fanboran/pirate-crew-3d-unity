@@ -10,7 +10,7 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// 战斗 HUD 重建器（**本波次：Beveled Pixel 像素皮 · 图标优先重铺**）。
     ///
-    /// 【谁调用】<see cref="BattleUiTheme.Apply"/>（由 <c>M2BattleSceneSetup.BuildHud</c> 回调）；
+    /// 【谁调用】<see cref="BattleUiTheme.Apply"/>（由 <c>BattleSceneSetup.BuildHud</c> 回调）；
     /// 本构建器先清掉旧 HUD 子节点再重建，产出 <see cref="Result"/> 交 BattleUiTheme 回写。
     ///
     /// 【信息架构（与 BattleHud 类注释同源）】
@@ -66,22 +66,29 @@ namespace PirateCrew.EditorTools
         const float PipSize = 30f;
         const float PipGap = 6f;
 
-        /// <summary>回合徽章（暖金方环 + 黄铜宝石 + 数字）：63 = 21u——顶带只是配重，不做视觉主角。</summary>
-        const float BadgeSize = 63f;
+        /// <summary>回合徽章（暖金方环 + 黄铜宝石 + 数字）：72 = 24u（令牌环档 Ring）——顶带只是配重，不做视觉主角。</summary>
+        const float BadgeSize = 72f;
 
         /// <summary>模式图标钮（右上角成组，右缘贴 Safe）。45 = 15u。</summary>
         const float ModeButtonSize = 45f;
 
         // ---------------- 底部带 ----------------
 
-        /// <summary>武器面板：贴底居中（bottom = Safe，不再悬空）。1041 = 347u、225 = 75u。</summary>
+        /// <summary>武器面板：贴底居中（bottom = Safe，不再悬空）。1041 = 347u、246 = 82u——
+        /// 紧凑档（378 高的"组件库尺度"被创始人走查否决：占小半屏、填充率低）。
+        /// 图标格区顶置 + 底部名/说明条 + 右列（头像/名/血条/两枚 48 高文字按钮）。</summary>
         const float WeaponPanelWidth = 1041f;
-        const float WeaponPanelHeight = 225f;
+        const float WeaponPanelHeight = 246f;
 
-        /// <summary>图标格尺寸 / 间距 / 列数（9×2 = 18 格，17 武器 + 1 空）。69 = 23u、9 = 3u。</summary>
-        const float WeaponCell = 69f;
-        const float WeaponCellGap = 9f;
+        /// <summary>图标格尺寸 / 间距 / 列数（9×2 = 18 格，17 武器 + 1 空）。60 = 20u、6 = 2u——
+        /// 69 格的图标放大到马赛克（创始人走查"图标上马赛克、不用这么大"后收一档）。</summary>
+        const float WeaponCell = 60f;
+        const float WeaponCellGap = 6f;
         const int WeaponColumns = 9;
+
+        /// <summary>HUD 紧凑按钮高（48 = 16u；正文 36 像素字的最小可用容器；
+        /// 令牌按钮 72 高在 HUD 密度下过大——组件库令牌与 HUD 密度分层，见交接）。</summary>
+        const float HudButtonHeight = 48f;
 
         /// <summary>把尺寸吸附到 <see cref="PixelSkin.Unit"/> 的整数倍（可见包边件的尺寸纪律；
         /// 分数尺寸会让 3px 的像素带糊成 4px）。</summary>
@@ -398,9 +405,9 @@ namespace PirateCrew.EditorTools
             result.turnHintText.rectTransform.anchorMin = result.turnHintText.rectTransform.anchorMax =
                 new Vector2(0.5f, 1f);
             result.turnHintText.rectTransform.pivot = new Vector2(0.5f, 1f);
-            result.turnHintText.rectTransform.sizeDelta = new Vector2(260f, 20f);
+            result.turnHintText.rectTransform.sizeDelta = new Vector2(300f, 36f);
             result.turnHintText.rectTransform.anchoredPosition = new Vector2(0f,
-                -TopBandFromTop - BadgeSize * 0.5f - 6f);
+                -TopBandFromTop - BadgeSize * 0.5f - 9f);
             var hintOutline = result.turnHintText.gameObject.AddComponent<UnityEngine.UI.Outline>();
             hintOutline.effectColor = new Color(PixelSkin.Ink.r / 255f, PixelSkin.Ink.g / 255f,
                 PixelSkin.Ink.b / 255f, 0.78f);   // 调色板墨色收编（原近黑字面量）
@@ -468,24 +475,25 @@ namespace PirateCrew.EditorTools
             result.weaponButtons = buttons;
             result.weaponFrames = frames;
 
-            // ---- 底部说明行：武器名（黄铜强调）+ 说明（次级暖白） ----
-            result.weaponNameText = UiKit.CreateText("WeaponName", panel, string.Empty, UiSkin.Font.Section,
+            // ---- 底部说明行：武器名（黄铜强调）+ 说明（次级暖白，单行截断） ----
+            result.weaponNameText = UiKit.CreateText("WeaponName", panel, string.Empty, UiSkin.Font.Body,
                 TextAlignmentOptions.MidlineLeft, PixelSkin.LightOf(PixelTone.Primary), secondary);
             result.weaponNameText.enableWordWrapping = false;
             UiKit.SetAnchored(result.weaponNameText.rectTransform, new Vector2(0f, 0f),
-                new Vector2(250f, 28f), new Vector2(16f, 10f));
+                new Vector2(190f, 44f), new Vector2(16f, 8f));
 
-            result.weaponDescText = UiKit.CreateText("WeaponDesc", panel, string.Empty, UiSkin.Font.Hint,
-                TextAlignmentOptions.MidlineLeft, UiSkin.WithAlpha(PixelSkin.PaperWhite, 0.72f), secondary);
+            result.weaponDescText = UiKit.CreateText("WeaponDesc", panel, string.Empty, UiSkin.Font.Body,
+                TextAlignmentOptions.MidlineLeft, PixelSkin.PaperWhite, secondary);
             result.weaponDescText.enableWordWrapping = false;
+            result.weaponDescText.overflowMode = TextOverflowModes.Ellipsis;
             UiKit.SetAnchored(result.weaponDescText.rectTransform, new Vector2(0f, 0f),
-                new Vector2(420f, 28f), new Vector2(274f, 10f));
+                new Vector2(386f, 44f), new Vector2(218f, 8f));
 
-            // ---- 右列：头像 / 名 / HP / 投掷 / 结束回合（当前单位信息区）----
+            // ---- 右列：头像 / 名 / HP / 跳跃 / 结束回合（当前单位信息区；48 高紧凑按钮）----
             RectTransform portrait = UiKit.CreateRect("UnitPortrait", panel);
             portrait.anchorMin = portrait.anchorMax = portrait.pivot = new Vector2(0.5f, 0.5f);
-            portrait.sizeDelta = new Vector2(57f, 57f);
-            portrait.anchoredPosition = new Vector2(rightColumnCenter, 64f);
+            portrait.sizeDelta = new Vector2(48f, 48f);
+            portrait.anchoredPosition = new Vector2(rightColumnCenter, 94f);
             var portraitFrame = portrait.gameObject.AddComponent<Image>();
             portraitFrame.sprite = PixelSkin.Plate(PixelTone.Dense);
             portraitFrame.type = Image.Type.Sliced;
@@ -504,11 +512,11 @@ namespace PirateCrew.EditorTools
             result.unitNameText.enableWordWrapping = false;
             result.unitNameText.rectTransform.anchorMin = result.unitNameText.rectTransform.anchorMax =
                 result.unitNameText.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            result.unitNameText.rectTransform.sizeDelta = new Vector2(rightColumnWidth, 24f);
-            result.unitNameText.rectTransform.anchoredPosition = new Vector2(rightColumnCenter, 26f);
+            result.unitNameText.rectTransform.sizeDelta = new Vector2(rightColumnWidth, 44f);
+            result.unitNameText.rectTransform.anchoredPosition = new Vector2(rightColumnCenter, 40f);
 
             UiKit.BarView hpBar = UiKit.CreateBar("UnitHp", panel,
-                new Vector2(rightColumnCenter, 2f), new Vector2(Snap3(rightColumnWidth - 40f), 15f),
+                new Vector2(rightColumnCenter, 8f), new Vector2(Snap3(rightColumnWidth - 40f), 15f),
                 UiSkin.TeamRed);
             result.unitHpBar = new BattleHud.HpBarView
             {
@@ -517,12 +525,15 @@ namespace PirateCrew.EditorTools
                 fill = hpBar.Fill,
             };
 
+            // 紧凑文字按钮（宽 = 标签宽 + 24 艺术像素、高 48 = 16u——HUD 密度档）。
             result.throwSelfButton = UiKit.ActionButton("ThrowSelfButton", panel,
                 UiGlyphs.Glyph.ThrowArc, UiStrings.BattleThrowSelf, UiKit.ButtonKind.Primary,
-                new Vector2(rightColumnCenter, -32f), new Vector2(rightColumnWidth, 45f), body);
+                new Vector2(rightColumnCenter, -46f),
+                new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattleThrowSelf), HudButtonHeight), body);
             result.endGoButton = UiKit.ActionButton("EndGoButton", panel,
                 UiGlyphs.Glyph.Flag, UiStrings.BattleEndGo, UiKit.ButtonKind.Dark,
-                new Vector2(rightColumnCenter, -84f), new Vector2(rightColumnWidth, 45f), body);
+                new Vector2(rightColumnCenter, -102f),
+                new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattleEndGo), HudButtonHeight), body);
         }
 
         // ------------------------------------------------------------------
@@ -531,37 +542,21 @@ namespace PirateCrew.EditorTools
 
         static void BuildBottomBar(RectTransform hudRoot, TMP_FontAsset secondary, Result result)
         {
-            // 底部带三段共享底边线 y=Safe：
-            //   [暂停 返回]（面板左外侧）→ [武器面板 贴底居中] → [提示条]（面板右外侧）。
-            // 【坐标口径】UiKit.IconButton 的锚点固定在画布中心（anchor/pivot 0.5,0.5），
-            // position 是相对中心的偏移；钮垂直中心 = Safe + 23（与面板底边线对齐）。
-            float bottomButtonY = -(540f - Safe - 23f);
+            // 底部带两段共享底边线 y=Safe：[暂停 返回]（面板左外侧，**文字钮**）→ [武器面板]。
+            // 【右下提示条已删】（创始人 2026-09-23 走查"没有必要"）；镜头读数随之退役。
+            // 【坐标口径】UiKit.ActionButton 的锚点固定在画布中心（anchor/pivot 0.5,0.5）。
             float panelLeft = -(WeaponPanelWidth * 0.5f);     // 面板左缘相对中心
-            result.pauseButton = UiKit.IconButton("PauseButton", hudRoot, UiGlyphs.Glyph.Pause,
-                new Vector2(Mathf.RoundToInt(panelLeft - 23f - 8f - 23f), bottomButtonY),
-                new Vector2(ModeButtonSize, ModeButtonSize), UiSkin.InkSoft, Color.white);
-            result.backButton = UiKit.IconButton("BackButton", hudRoot, UiGlyphs.Glyph.Helm,
-                new Vector2(Mathf.RoundToInt(panelLeft - 23f - 8f - 8f - ModeButtonSize - 23f), bottomButtonY),
-                new Vector2(ModeButtonSize, ModeButtonSize), UiSkin.InkSoft, Color.white);
-
-            // 操作提示（像素提示条 = Plate(Dense)；旧 btn_normal 槽的对应件），面板右外侧、同底边线。
-            float panelRight = WeaponPanelWidth * 0.5f;
-            RectTransform hint = UiKit.CreateRect("HintBar", hudRoot);
-            hint.anchorMin = hint.anchorMax = new Vector2(1f, 0f);
-            hint.pivot = new Vector2(1f, 0f);
-            hint.sizeDelta = new Vector2(
-                Snap3(Mathf.Floor(1920f - Safe - (960f + panelRight + 20f))), 33f);
-            hint.anchoredPosition = new Vector2(-Safe, Safe);
-
-            var hintImage = hint.gameObject.AddComponent<Image>();
-            hintImage.sprite = PixelSkin.Plate(PixelTone.Dense);
-            hintImage.type = Image.Type.Sliced;
-            hintImage.color = Color.white;
-            hintImage.raycastTarget = false;
-
-            result.hintText = UiKit.CreateText("HintText", hint, UiStrings.BattleHintMove, UiSkin.Font.Hint,
-                TextAlignmentOptions.Center, PixelSkin.TextColorOn(PixelTone.Dense), secondary);
-            UiKit.Stretch(result.hintText.rectTransform, 8f);
+            float textButtonY = -(540f - Safe - HudButtonHeight * 0.5f);
+            Vector2 pauseSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattlePause), HudButtonHeight);
+            Vector2 backSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Back), HudButtonHeight);
+            result.pauseButton = UiKit.ActionButton("PauseButton", hudRoot, UiGlyphs.Glyph.Pause,
+                UiStrings.BattlePause, UiKit.ButtonKind.Dark,
+                new Vector2(Mathf.RoundToInt(panelLeft - 8f - pauseSize.x * 0.5f), textButtonY),
+                pauseSize, secondary, withIcon: false);
+            result.backButton = UiKit.ActionButton("BackButton", hudRoot, UiGlyphs.Glyph.Helm,
+                UiStrings.Back, UiKit.ButtonKind.Dark,
+                new Vector2(Mathf.RoundToInt(panelLeft - 8f - pauseSize.x - 8f - backSize.x * 0.5f), textButtonY),
+                backSize, secondary, withIcon: false);
 
             // 右上：模式三图标钮成组贴右缘（0=移动 1=操作 2=观察；快捷键 1/2/3；操作钮在最右）。
             // 每钮带一件 Focus 环，选中态由运行时开环 + 换悬停档贴图（不再乘色）。
@@ -610,42 +605,46 @@ namespace PirateCrew.EditorTools
         // 模态层
         // ------------------------------------------------------------------
 
-        /// <summary>暂停面板：Dim + 卡片 + 继续 / 再来一局 / 返回主菜单。</summary>
+        /// <summary>暂停面板：Dim + 卡片 + 继续 / 再来一局 / 返回主菜单。
+        /// 卡片加高容纳 72 高令牌按钮 ×3（顶部标题 + 三钮纵排，间隙 24、底边距 36）。</summary>
         static void BuildPausePanel(RectTransform hudRoot, TMP_FontAsset title, TMP_FontAsset body,
             Result result)
         {
-            UiKit.ModalView modal = UiKit.CreateModal("PausePanel", hudRoot, new Vector2(480f, 402f));
+            UiKit.ModalView modal = UiKit.CreateModal("PausePanel", hudRoot, new Vector2(480f, 456f));
             result.pausePanelRoot = modal.Root;
             result.pauseCard = modal.Card;
 
             TextMeshProUGUI titleText = UiKit.CreateText("PauseTitle", modal.Card, UiStrings.BattlePauseTitle,
                 UiSkin.Font.Banner, TextAlignmentOptions.Center, PixelSkin.LightOf(PixelTone.Primary), title);
-            UiKit.SetAnchored(titleText.rectTransform, new Vector2(0.5f, 1f), new Vector2(360f, 56f),
-                new Vector2(0f, -40f));
+            UiKit.SetAnchored(titleText.rectTransform, new Vector2(0.5f, 1f), new Vector2(420f, 96f),
+                new Vector2(0f, -36f));
 
+            // 三钮统一最宽标签档（返回主菜单 = 252），居中纵排、间距 24。
             result.resumeButton = UiKit.ActionButton("ResumeButton", modal.Card,
                 UiGlyphs.Glyph.Play, UiStrings.BattleResume, UiKit.ButtonKind.Primary,
-                new Vector2(0f, -148f), new Vector2(339f, 54f), body);
+                new Vector2(0f, 36f), new Vector2(252f, UiSkin.Px.Button), body);
             result.pauseRestartButton = UiKit.ActionButton("PauseRestartButton", modal.Card,
                 UiGlyphs.Glyph.Retry, UiStrings.BattleRestart, UiKit.ButtonKind.Dark,
-                new Vector2(0f, -216f), new Vector2(339f, 48f), body);
+                new Vector2(0f, -60f), new Vector2(252f, UiSkin.Px.Button), body);
             result.pauseBackButton = UiKit.ActionButton("PauseBackButton", modal.Card,
                 UiGlyphs.Glyph.Helm, UiStrings.BackToMainMenu, UiKit.ButtonKind.Danger,
-                new Vector2(0f, -276f), new Vector2(339f, 48f), body);
+                new Vector2(0f, -156f), new Vector2(252f, UiSkin.Px.Button), body);
         }
 
-        /// <summary>结算面板：横幅 + 三星 + 明细 + 再来一局 / 返回。</summary>
+        /// <summary>结算面板：横幅 + 三星 + 明细 + 再来一局 / 返回。
+        /// 卡片 840×648：标题 / 星级 / 明细行（正文档）依次纵排，按钮成对收进卡内（旧版
+        /// 按钮挂在卡外是历史布局事故，本波一并归位）。</summary>
         static void BuildSettlementPanel(RectTransform hudRoot, TMP_FontAsset title, TMP_FontAsset secondary,
             Result result)
         {
-            UiKit.ModalView modal = UiKit.CreateModal("SettlementPanel", hudRoot, new Vector2(681f, 561f));
+            UiKit.ModalView modal = UiKit.CreateModal("SettlementPanel", hudRoot, new Vector2(840f, 648f));
             result.settlementPanelRoot = modal.Root;
             result.settlementCard = modal.Card;
 
             result.settlementTitleText = UiKit.CreateText("SettlementTitle", modal.Card, string.Empty,
                 UiSkin.Font.Banner, TextAlignmentOptions.Center, PixelSkin.LightOf(PixelTone.Primary), title);
             UiKit.SetAnchored(result.settlementTitleText.rectTransform, new Vector2(0.5f, 1f),
-                new Vector2(600f, 64f), new Vector2(0f, -44f));
+                new Vector2(600f, 96f), new Vector2(0f, -36f));
 
             var stars = new Image[3];
             for (int i = 0; i < 3; i++)
@@ -655,43 +654,46 @@ namespace PirateCrew.EditorTools
                     UiSkin.WithAlpha(PixelSkin.PaperWhite, 0.28f));
                 star.rectTransform.anchorMin = star.rectTransform.anchorMax = new Vector2(0.5f, 1f);
                 star.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-                star.rectTransform.sizeDelta = new Vector2(56f, 56f);
-                star.rectTransform.anchoredPosition = new Vector2((i - 1) * 64f, -150f);
+                star.rectTransform.sizeDelta = new Vector2(72f, 72f);
+                star.rectTransform.anchoredPosition = new Vector2((i - 1) * 84f, -174f);
                 stars[i] = star;
             }
             result.settlementStars = stars;
 
             result.settlementLinesText = UiKit.CreateText("SettlementLines", modal.Card, string.Empty,
-                UiSkin.Font.Hud, TextAlignmentOptions.Center, PixelSkin.TextColorOn(PixelTone.Frame), secondary);
-            UiKit.SetAnchored(result.settlementLinesText.rectTransform, new Vector2(0.5f, 0.5f),
-                new Vector2(580f, 220f), new Vector2(0f, -20f));
+                UiSkin.Font.Body, TextAlignmentOptions.Center, PixelSkin.TextColorOn(PixelTone.Frame), secondary);
+            result.settlementLinesText.rectTransform.anchorMin = result.settlementLinesText.rectTransform.anchorMax
+                = new Vector2(0.5f, 1f);
+            result.settlementLinesText.rectTransform.pivot = new Vector2(0.5f, 1f);
+            result.settlementLinesText.rectTransform.sizeDelta = new Vector2(640f, 240f);
+            result.settlementLinesText.rectTransform.anchoredPosition = new Vector2(0f, -240f);
 
             result.settlementRestartButton = UiKit.ActionButton("SettlementRestartButton", modal.Card,
                 UiGlyphs.Glyph.Retry, UiStrings.BattleRestart, UiKit.ButtonKind.Primary,
-                new Vector2(-150f, -460f), new Vector2(261f, 54f), secondary);
+                new Vector2(-120f, -216f), new Vector2(216f, UiSkin.Px.Button), secondary);
             result.settlementBackButton = UiKit.ActionButton("SettlementBackButton", modal.Card,
                 UiGlyphs.Glyph.Helm, UiStrings.Back, UiKit.ButtonKind.Dark,
-                new Vector2(150f, -460f), new Vector2(261f, 54f), secondary);
+                new Vector2(84f, -216f), new Vector2(144f, UiSkin.Px.Button), secondary);
         }
 
         /// <summary>返回确认弹窗（挂在 Canvas 直下压过全部元素）。</summary>
         static void BuildBackConfirm(Transform canvas, TMP_FontAsset body, Result result)
         {
-            UiKit.ModalView modal = UiKit.CreateModal("BackConfirmDialog", canvas, new Vector2(561f, 300f));
+            UiKit.ModalView modal = UiKit.CreateModal("BackConfirmDialog", canvas, new Vector2(720f, 336f));
             result.confirmDialogRoot = modal.Root;
             result.confirmCard = modal.Card;
 
             result.confirmMessage = UiKit.CreateText("Message", modal.Card, UiStrings.BackConfirm,
                 UiSkin.Font.Section, TextAlignmentOptions.Center, PixelSkin.TextColorOn(PixelTone.Frame), body);
             UiKit.SetAnchored(result.confirmMessage.rectTransform, new Vector2(0.5f, 1f),
-                new Vector2(460f, 90f), new Vector2(0f, -120f));
+                new Vector2(560f, 144f), new Vector2(0f, -60f));
 
             result.confirmOkButton = UiKit.ActionButton("OkButton", modal.Card,
                 UiGlyphs.Glyph.Check, UiStrings.Confirm, UiKit.ButtonKind.Primary,
-                new Vector2(-130f, -210f), new Vector2(219f, 48f), body);
+                new Vector2(-96f, -96f), new Vector2(144f, UiSkin.Px.Button), body);
             result.confirmCancelButton = UiKit.ActionButton("CancelButton", modal.Card,
                 UiGlyphs.Glyph.Cross, UiStrings.Cancel, UiKit.ButtonKind.Dark,
-                new Vector2(130f, -210f), new Vector2(219f, 48f), body);
+                new Vector2(96f, -96f), new Vector2(144f, UiSkin.Px.Button), body);
         }
 
         // ------------------------------------------------------------------

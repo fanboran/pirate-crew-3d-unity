@@ -44,7 +44,7 @@ namespace PirateCrew.Battle
     ///     的常量推出，见 <see cref="PlanSpecial"/>。
     ///
     /// 【出处】静态逆向文档 §5.1（初速公式）、§5.2（17 武器总表：触发条件/位置/速度/放置数量/备注）、
-    ///         §3.4（抛自己/用武器二选一）、docs/M2-3D空间模型对齐.md §3（3D 投掷与抬升）。
+    ///         §3.4（抛自己/用武器二选一）、docs/3D空间模型对齐.md §3（3D 投掷与抬升）。
     ///
     /// 【单位】规则类里的常量都是 Flash px / px·帧⁻¹；本类用
     ///   <see cref="LevelGeometry.PixelsToUnits"/> 折位置、<see cref="LevelGeometry.FlashSpeedScale"/>

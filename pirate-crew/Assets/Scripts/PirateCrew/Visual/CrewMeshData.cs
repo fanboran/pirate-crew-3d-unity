@@ -6,7 +6,7 @@ namespace PirateCrew.Visual
     /// 程序化网格的**纯 C# 数据载体**（顶点 / 法线 / UV / 三角面索引）。
     ///
     /// 【为什么单独抽一层】Unity 的 <see cref="Mesh"/> 是原生对象（ECall），
-    /// 在无头验证台（external/m2-harness）里 <c>new Mesh()</c> 会抛 SecurityException；
+    /// 在无头验证台（external/harness）里 <c>new Mesh()</c> 会抛 SecurityException；
     /// 因此几何生成全部返回本结构，只有 <see cref="CrewMeshFactory.CreateMesh"/> 这一步
     /// 才依赖 Unity 运行时。这样"顶点数 / 包围盒 / 法线单位化 / 无退化三角"都能无头断言
     /// （见 <c>Assets/Tests/Visual/CrewMeshFactoryTests.cs</c>）。

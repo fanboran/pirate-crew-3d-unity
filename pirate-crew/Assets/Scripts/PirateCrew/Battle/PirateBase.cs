@@ -20,7 +20,7 @@ namespace PirateCrew.Battle
     ///     重力交给 PhysX（<c>useGravity</c> + <c>Physics.gravity</c>），不逐帧改 velocityY。
     ///   · 速度换算统一走 <see cref="LevelGeometry"/>（预览与实弹同源）。
     ///   · 竞技场是 XZ 水平面（地面顶面 y=0，重力沿 -Y），位置**不**约束、只锁旋转保持直立
-    ///     ——见 docs/M2-3D空间模型对齐.md。
+    ///     ——见 docs/3D空间模型对齐.md。
     ///   · 保底武器由 <see cref="ResetForTurnStart"/> 调用 <see cref="WeaponInventory.EnsureFallbackWeapon"/> 完成。
     ///   · 落地翻滚 / 落水死亡演出（M4 §3.1，忠实转写 Flash 逆向）：刚体旋转保持冻结，
     ///     翻滚与演出全部作用在运行时创建的视觉滚动 Pivot 上（<see cref="RollRules"/> 出换算，
@@ -152,7 +152,7 @@ namespace PirateCrew.Battle
             {
                 // 只锁旋转（保持直立），**不锁位置**：3D 化后竞技场是 XZ 水平面，角色要能沿 X 和 Z 两个
                 // 方向被抛飞/滑行。原先 FreezePositionZ 是"2D 侧视"时代的遗留，会把深度方向焊死
-                // （详见 docs/M2-3D空间模型对齐.md）。
+                // （详见 docs/3D空间模型对齐.md）。
                 body.constraints = RigidbodyConstraints.FreezeRotationX
                                    | RigidbodyConstraints.FreezeRotationY
                                    | RigidbodyConstraints.FreezeRotationZ;

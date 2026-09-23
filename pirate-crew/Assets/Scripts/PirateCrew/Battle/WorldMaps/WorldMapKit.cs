@@ -5,7 +5,7 @@ using UnityEngine;
 namespace PirateCrew.Battle.WorldMaps
 {
     /// <summary>
-    /// 大海域世界地图的数据载体（纯 C#，无头可测）。契约：docs/M4-大海域世界化.md §1/§2/§4.2。
+    /// 大海域世界地图的数据载体（纯 C#，无头可测）。契约：docs/大海域世界化.md §1/§2/§4.2。
     ///
     /// 【坐标系】Unity 世界系（Y-up，米）。地图占据 [0..SpanX]×[0..SpanZ]，
     /// 与 <see cref="LevelGeometry.GridToArena"/> 的「格 (gx,gy) → 世界 ((gx+0.5)×2, (gy+0.5)×2)」同源。

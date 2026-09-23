@@ -1,7 +1,7 @@
 // ============================================================================
 // PirateOcean.shader —— 海盗军团夺宝 3D / M4 大海域海面（茫茫大海的仿真化）
 //
-// 【定位】M4 §5（docs/M4-大海域世界化.md）：替换"外扩 400u Cube + 4 波 Gerstner"的旧水面
+// 【定位】M4 §5（docs/大海域世界化.md）：替换"外扩 400u Cube + 4 波 Gerstner"的旧水面
 //   （Assets/Art/Shaders/PirateWater.shader，保留作档案）。本 shader 沿用旧件的**已验证结构**
 //   （同一套 URP include 链 / CBUFFER 纪律 / 调试分档），在其上新增四层：
 //
@@ -27,7 +27,7 @@
 //      （≈306u）即被完整解析（每波 4.6 顶点 > 3 顶点达标线）。
 //   另加：波背背光透射 + 薄层散射——技法吸收自 HPWater BSDF 的 diffT 项
 //   （G_backlit × Beer-Lambert 透射 × Henyey 相位；厚度用绝对波高近似，近岸自动弱、外海强；
-//   详见 docs/M4-海面选型与实现.md 的 HPWater 吸收表）。
+//   详见 docs/海面选型与实现.md 的 HPWater 吸收表）。
 //
 // 【调色板】美术风格指南 §2.1 海水三档：浅 #4DA6D9 / 中 #2B7AB8 / 深 #1A4F7A；雾色 #B0D4F1。
 //   （旧 PirateWater 的 r6 回蓝亮档 #4FA8CC/#2E86B5/#1E5E88 保留在旧材质上，可 A/B 对比。）

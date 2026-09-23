@@ -42,7 +42,7 @@
 //
 // 【本场景为什么必须有海床(shelf)才能看到浅深水过渡（别当多余几何删掉）】
 //   竞技场是"浮在海上的沙岛"：地面顶面 y=0，水面 y=-0.2。
-//   M2BattleSceneSetup.CreateSeabedShelves() 在岛外生成 5 级**只写深度、不碰撞**的环形台阶
+//   BattleSceneSetup.CreateSeabedShelves() 在岛外生成 5 级**只写深度、不碰撞**的环形台阶
 //   （内缘-外缘 0→3→6→11→20→34，顶面从 waterWorldY-0.18 逐级降到 -2.9），
 //   于是 waterDepth 呈连续"浅 → 中 → 深"三级，正好对上三档海水色，也是假焦散的可见区。
 //

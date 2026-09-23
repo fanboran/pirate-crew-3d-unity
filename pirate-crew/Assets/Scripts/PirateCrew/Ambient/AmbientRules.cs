@@ -6,11 +6,11 @@ namespace PirateCrew.Ambient
     /// 环境与活物（Ambient）模块的**纯 C# 规则层**：竞技场边界、禁飞区、风相位、预算与确定性随机。
     ///
     /// 【为什么全写成纯 C# 静态类】<c>GameObject</c> / <c>MonoBehaviour</c> 的实例化走原生 ECall，
-    /// 脱离 Unity 运行时必抛 <c>SecurityException</c>（见 <c>external/m2-harness/README.md</c>）。
+    /// 脱离 Unity 运行时必抛 <c>SecurityException</c>（见 <c>external/harness/README.md</c>）。
     /// 把"路径是否越界 / 是否闯入禁飞区 / 风相位是否连续 / 档位参数是否单调"这些
     /// **最容易出边界错误**的规则抽到这里，就能在无头验证台上秒级断言（<c>Assets/Tests/Ambient/</c>）。
     ///
-    /// 【坐标口径】全部沿用 <c>docs/M2-3D空间模型对齐.md</c>：XZ 水平竞技场、重力 -Y、
+    /// 【坐标口径】全部沿用 <c>docs/3D空间模型对齐.md</c>：XZ 水平竞技场、重力 -Y、
     /// 地面顶面 y=0、水面 y=-0.2、1 单位 = 32px。本文件不新增任何坐标口径。
     ///
     /// 【标注】凡本模块自定的数值（数量上限、禁飞区尺寸、风力速度等）一律标【提案】，

@@ -9,9 +9,9 @@ namespace PirateCrew.EditorTools.BuildSystem
     /// <list type="bullet">
     ///   <item><c>ProjectSettings/ProjectSettings.asset</c> 的 <c>bundleVersion</c> = 1.1.0</item>
     ///   <item><c>Assets/Editor/ReleaseGate.cs</c> 常量 = "1.0.0"（重跑该菜单会把 bundleVersion 回写成旧值）</item>
-    ///   <item><c>README.md</c> 声明 v0.1.0（对应已发行的 GitHub release tag）</item>
+    ///   <item><c>README.md</c> 声明 v0.2.0（对应已发行的 GitHub release tag）</item>
     /// </list>
-    /// 用户裁决（2026-09-21）：以 <see cref="Current"/> = <c>0.1.0</c> 为准，与 README 及已发行 tag 对齐。
+    /// 用户裁决（2026-09-21 设立单一真源；2026-09-23 起为 0.2.0）：以 <see cref="Current"/> 为准，与 README 及已发行 tag 对齐。
     ///
     /// 【谁读它】构建脚本（写 PlayerSettings.bundleVersion、算产物名、写构建报告）、CI 的 release job、
     /// 文档中的版本号。**任何地方都不许再写字面版本号**——新增一处派生点就多一点漂移。
@@ -25,11 +25,11 @@ namespace PirateCrew.EditorTools.BuildSystem
         /// <c>PlayerSettings.bundleVersion</c>、产物文件名与构建报告。
         /// 格式：<c>major.minor.patch</c>（三段数字，见 <see cref="Validate"/>）。
         /// </summary>
-        public const string Current = "0.1.0";
+        public const string Current = "0.2.0";
 
         /// <summary>
         /// 产物基名（不含扩展名与平台后缀）。与 README「从 Releases 下载」一节声明的文件名一致：
-        /// <c>PirateCrew3D.exe</c> / <c>PirateCrew3D_v0.1.0_win64.zip</c>。
+        /// <c>PirateCrew3D.exe</c> / <c>PirateCrew3D_v0.2.0_win64.zip</c>。
         /// </summary>
         public const string ProductBaseName = "PirateCrew3D";
 
@@ -46,7 +46,7 @@ namespace PirateCrew.EditorTools.BuildSystem
         }
 
         /// <summary>
-        /// 四段数值版号（Windows 文件版本属性用）。三段 <c>0.1.0</c> → <c>0.1.0.0</c>。
+        /// 四段数值版号（Windows 文件版本属性用）。三段 <c>0.2.0</c> → <c>0.2.0.0</c>。
         /// </summary>
         public static string NumericVersion(string version)
         {

@@ -79,7 +79,7 @@ namespace PirateCrew.Battle.Tests
         // ------------------------------------------------------------------
         // 3D 静止判据口径：世界速度 → Flash (vx, vy)（WeaponProjectile.FlashRestComponents）
         //
-        // 口径（详见 WeaponProjectile.FlashRestComponents 与 docs/M2-3D空间模型对齐.md §1）：
+        // 口径（详见 WeaponProjectile.FlashRestComponents 与 docs/3D空间模型对齐.md §1）：
         //   vx = XZ 平面速度模长（Flash 的横向"是否在动"，3D 里两个水平轴任一有速度都算在动）
         //   vy = 世界 Y 速度 / FlashSpeedScale（Flash 的 vy 是重力轴分量，3D 重力沿 -Y）
         // ------------------------------------------------------------------

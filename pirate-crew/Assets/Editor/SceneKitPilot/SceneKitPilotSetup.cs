@@ -44,7 +44,7 @@ namespace PirateCrew.EditorTools
         public const string ShowcaseRootName = "[SceneKitPilotShowcase]";
 
         // ---- 世界口径 ----
-        const float WaterY = -0.4f;         // 水面（docs/M2-3D空间模型对齐.md，格 1→2 单位后）
+        const float WaterY = -0.4f;         // 水面（docs/3D空间模型对齐.md，格 1→2 单位后）
         const float DockRootY = 0.25f;      // = WaterY + 0.65（桥面高）
         const float DockDeckTop = 0.65f;    // 桥面在水面上方的高度（Blender 侧 DOCK 桥面 0.65）
         const float UrpLitSmoothWood = 0.28f;   // docs/美术风格指南.md §3.1 木

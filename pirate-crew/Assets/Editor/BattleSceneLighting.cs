@@ -7,9 +7,9 @@ using PirateCrew.Ambient;
 namespace PirateCrew.EditorTools
 {
     /// <summary>
-    /// 战斗场景「光照 / 氛围 / 材质」总控（从 <see cref="M2BattleSceneSetup"/> 拆出的渲染基础层）。
+    /// 战斗场景「光照 / 氛围 / 材质」总控（从 <see cref="BattleSceneSetup"/> 拆出的渲染基础层）。
     ///
-    /// 【为什么独立成文件】M2BattleSceneSetup 是场景编排（相机/单位/规则/HUD 接线），
+    /// 【为什么独立成文件】BattleSceneSetup 是场景编排（相机/单位/规则/HUD 接线），
     ///   渲染氛围（材质库、后处理、雾、URP 设置）是另一条关注点；拆开便于渲染与玩法两条线并行推进。
     ///
     /// 【两个层次，别混用】
@@ -17,7 +17,7 @@ namespace PirateCrew.EditorTools
     ///      生成环境材质库 → 生成后处理 VolumeProfile → 配置 URP Asset（软阴影 / 深度图 / MSAA）。
     ///      这些都是"改工程资产"，与场景无关，可独立重复执行（幂等）。
     ///   2. **场景层**（<see cref="ConfigureSkyAndAmbient"/> / <see cref="CreateDirectionalLight"/> /
-    ///      <see cref="ApplySceneAtmosphere"/>）：由 M2BattleSceneSetup 在重建 Battle 场景时调用，
+    ///      <see cref="ApplySceneAtmosphere"/>）：由 BattleSceneSetup 在重建 Battle 场景时调用，
     ///      写入场景的 RenderSettings / 全局 Volume / 相机后处理开关。
     ///
     /// 【风格契约】GDD §10.4「风格化写实（Stylized PBR）」：
@@ -60,7 +60,7 @@ namespace PirateCrew.EditorTools
         /// <summary>渲染资产目录（VolumeProfile 等）。</summary>
         public const string ArtRenderingFolder = "Assets/Art/Rendering";
 
-        /// <summary>程序化天空盒材质（沿用 M2BattleSceneSetup 原先的路径，位置不变）。</summary>
+        /// <summary>程序化天空盒材质（沿用 BattleSceneSetup 原先的路径，位置不变）。</summary>
         public const string SkyMaterialPath = ArtMaterialFolder + "/BattleSky.mat";
 
         /// <summary>全局后处理 VolumeProfile 资产路径。</summary>
@@ -78,7 +78,7 @@ namespace PirateCrew.EditorTools
         const string TerrainShaderName = "PirateCrew/PirateTerrain";
 
         // ------------------------------------------------------------------
-        // 环境材质文件名（不含扩展名）；M2BattleSceneSetup 用这些常量取材质
+        // 环境材质文件名（不含扩展名）；BattleSceneSetup 用这些常量取材质
         // ------------------------------------------------------------------
 
         public const string DrySandMaterial   = "Surface_DrySand";    // 干沙（也用作竞技场地面）
@@ -1056,7 +1056,7 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 场景氛围：线性雾 + 全局 Volume + 主相机后处理开关。
-        /// 由 M2BattleSceneSetup 在相机创建后调用（RenderSettings 与 Volume 都随场景保存）。
+        /// 由 BattleSceneSetup 在相机创建后调用（RenderSettings 与 Volume 都随场景保存）。
         /// </summary>
         public static void ApplySceneAtmosphere(Camera camera)
         {

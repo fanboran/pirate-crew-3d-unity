@@ -403,7 +403,7 @@ namespace PirateCrew.Ambient
     /// 鱼群 boids 参数与水体边界（纯 C#）。
     ///
     /// 【水体盒的来历】竞技场是浮在海上的沙岛，岛外先有一层"浅海床台阶"
-    /// （<c>M2BattleSceneSetup.CreateSeabedShelves</c>：浅台顶面 = 水面 − 0.4 = −0.6，
+    /// （<c>BattleSceneSetup.CreateSeabedShelves</c>：浅台顶面 = 水面 − 0.4 = −0.6，
     /// 外扩 6 单位；中台顶面 −1.6，外扩 16）。鱼必须待在**浅台之上、水面之下**，
     /// 否则会穿海床或跃出水面被人看见。默认盒因此取 y ∈ [−0.55, −0.28]。
     /// </summary>
@@ -466,7 +466,7 @@ namespace PirateCrew.Ambient
         public static BoidsSettings Default(AmbientArena arena)
         {
             float waterY = arena.WaterY;
-            // 浅海床顶面 = 水面 - 0.4（与 M2BattleSceneSetup.CreateSeabedShelves 一致）。
+            // 浅海床顶面 = 水面 - 0.4（与 BattleSceneSetup.CreateSeabedShelves 一致）。
             float seabedY = waterY - 0.4f;
             float midY = Mathf.Lerp(seabedY, waterY, 0.45f);
 

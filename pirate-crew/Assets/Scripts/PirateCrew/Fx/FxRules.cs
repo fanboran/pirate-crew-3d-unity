@@ -26,7 +26,7 @@ namespace PirateCrew.Fx
     ///
     /// 【为什么单独一层】<c>Assets/Scripts/PirateCrew/Fx/</c> 的 MonoBehaviour 胶水层要 <c>new GameObject</c> /
     /// 建 ParticleSystem，脱离 Unity 运行时必然抛 <c>SecurityException</c>（ECall 边界，见
-    /// <c>external/m2-harness/README.md</c>）。把"多少颗、飞多快、活多久、什么颜色"这类规则全部抽到这里，
+    /// <c>external/harness/README.md</c>）。把"多少颗、飞多快、活多久、什么颜色"这类规则全部抽到这里，
     /// 就能在无头验证台直接断言，胶水层只负责把返回值写进 ParticleSystem 模块。
     ///
     /// 【数值性质】本文件所有映射常量均为 **【AI 提案】**（美术风格指南 §1.1「不假」的可读性诉求，
@@ -372,7 +372,7 @@ namespace PirateCrew.Fx
 
         /// <summary>
         /// 实弹拖尾基础宽度（世界单位）。**与预览线区分**：预览线是
-        /// `M2BattleSceneSetup.cs:399-419` 的**单色不发光细线（线宽 0.06）**，本拖尾是
+        /// `BattleSceneSetup.cs:399-419` 的**单色不发光细线（线宽 0.06）**，本拖尾是
         /// 带宽度衰减 + 暖色 additive 的**发光尾迹**，语义是"已经飞出去的实体"，不是"将要飞去哪"。
         /// </summary>
         public const float TrailBaseWidth = 0.10f;
