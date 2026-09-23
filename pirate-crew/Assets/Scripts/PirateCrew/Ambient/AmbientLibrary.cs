@@ -334,7 +334,8 @@ namespace PirateCrew.Ambient
             return m;
         }
 
-        /// <summary>不透明 unlit（远景剪影）。</summary>
+        /// <summary>不透明 unlit（远景剪影）。两个 shader 都拿不到时返回 null
+        /// （调用方把该物体空着材质渲染，不在 <c>new Material(null)</c> 上炸掉整个材质库构造）。</summary>
         Material CreateUnlit(string name, string hex, float alpha)
         {
             Shader shader = FindShader(UnlitShaderName);
@@ -342,6 +343,15 @@ namespace PirateCrew.Ambient
             {
                 shader = FindShader("Standard");
                 HasMissingShaders = true;
+            }
+
+            if (shader == null)
+            {
+                // 回落链走空（URP/Unlit 与 Standard 都被剥离/编译失败）：
+                // 返回 null 让 Dispose/渲染路径各自容错，比抛异常保住"其余材质照常生成"。
+                global::PirateCrew.Core.Log.Warn("[Ambient] CreateUnlit(" + name + ") 回落链走空："
+                    + UnlitShaderName + " 与 Standard 都找不到，该材质不创建（对应物体不渲染）。");
+                return null;
             }
 
             var m = new Material(shader) { name = name };

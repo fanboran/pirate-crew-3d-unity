@@ -34,7 +34,6 @@ namespace PirateCrew.Rendering.Pixelart
             static readonly int kBlitScaleBiasId = Shader.PropertyToID("_BlitScaleBias");
 
             readonly ProfilingSampler m_Sampler = new ProfilingSampler("Pixelart Shading");
-            readonly RenderTargetIdentifier[] m_ResultTargets = new RenderTargetIdentifier[3];
             Material m_Material;
             int m_DiffusePass = -1;
             int m_SpecularPass = -1;
@@ -70,8 +69,12 @@ namespace PirateCrew.Rendering.Pixelart
                     // 连通域结论与墨线标记由前两趟写出；这里再发布一次做保险（全局纹理在同一帧内持久，
                     // 但显式发布让"哪一趟依赖哪张缓冲"在代码里可读）。
                     rig.PublishArtBuffers(cmd);
-                    cmd.SetGlobalFloat(PixelartPath.AdditionalLightCountId,
-                        renderingData.lightData.additionalLightsCount);
+
+                    // 附加光条数由 BeforeRender 那一趟下发（PixelartBeforeRenderFeature.Execute，
+                    // 已 Clamp(0, MaxAdditionalLights)）：两趟都在 Cast 渲染器上、都只对 Cast 相机执行，
+                    // 且 BeforeRendering < AfterRendering，走到这里全局量必然已就位。
+                    // 【这里不要再写一遍】拿未夹断的 additionalLightsCount 覆盖上来，
+                    // 附加光一多就回到"对每个像素套全部附加光"的帧率炸点（BeforeRender 注释警告的那条）。
 
                     // 三张结果缓冲先清成透明黑：背景像素会被 clip 掉、墨线像素提前返回，
                     // 不清的话读到的是上一帧的残留（这类"越用越脏"的故障很难反查）。

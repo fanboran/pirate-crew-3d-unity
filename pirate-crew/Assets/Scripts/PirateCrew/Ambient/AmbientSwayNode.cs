@@ -57,7 +57,10 @@ namespace PirateCrew.Ambient
             _billboard = billboard;
             _rippleInterval = rippleInterval;
             _rippleSpeed = rippleSpeed;
-            _time = phase;
+            // 初始相位由 _phase 承担（Tick 里 phase = _phase + _time * _angularSpeed）。
+            // 【_time 不能预存 phase】Tick 又会按 _phase 起算，预存会让初相位变成
+            // phase × (1 + angularSpeed)（双重计入），绑定时摆动/起伏全都不在预期相位上。
+            _time = 0f;
 
             _basePosition = transform.position;
             _baseRotation = transform.localRotation;

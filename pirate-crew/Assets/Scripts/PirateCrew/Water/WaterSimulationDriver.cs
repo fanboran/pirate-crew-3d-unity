@@ -316,6 +316,11 @@ namespace PirateCrew.Water
                 _field.Step(fixedStep);
             }
 
+            // 追帧达到步数上限后把剩余累积夹到一步以内：不清零也不夹的话，低帧率下 _accumulator
+            // 无界增长，模拟从此永远慢于真实时间（涟漪/涌浪的迟滞逐帧拉大）。夹紧 = 放弃追帧、
+            // 按每帧至多 4 步的上限"慢放"，剩余的落后量直接丢掉，防漂移。
+            _accumulator = Mathf.Min(_accumulator, fixedStep);
+
             if (steps > 0)
             {
                 UploadTexture();

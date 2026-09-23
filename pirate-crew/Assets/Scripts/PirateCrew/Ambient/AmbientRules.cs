@@ -80,6 +80,20 @@ namespace PirateCrew.Ambient
     }
 
     /// <summary>
+    /// 爆炸惊吓的作用半径（【提案】：与 <see cref="CrabBehaviorRules.AlarmRadius"/>
+    /// 同一族的"环境对爆炸的反应"参数；风格指南/场景文档未给数值，取值口径是
+    /// "竞技场内的爆炸能惊到大部分活物、又不至于全场同惊"）。
+    /// </summary>
+    public static class AmbientBlastRules
+    {
+        /// <summary>海鸥惊飞半径（世界单位）：爆心距离小于它才按线性衰减给惊飞强度【提案】。</summary>
+        public const float GullPanicRadius = 24f;
+
+        /// <summary>鱼群四散半径（世界单位）：爆心到鱼群质心的距离小于它才惊散【提案】。</summary>
+        public const float FishScatterRadius = 20f;
+    }
+
+    /// <summary>
     /// 竞技场边界（纯 C# 值类型）。尺寸来自 <c>Data/LevelCatalog</c> 的关卡 `widthTiles × heightTiles`，
     /// 高度口径来自 <c>Battle/LevelGeometry</c>（地面顶面 <c>GroundTopY</c>、水面 <c>WaterSurfaceY</c>）。
     /// 本类型**只读**这些量，绝不改写地形语义或出生位。

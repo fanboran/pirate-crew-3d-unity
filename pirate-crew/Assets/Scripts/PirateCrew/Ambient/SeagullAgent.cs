@@ -26,6 +26,14 @@ namespace PirateCrew.Ambient
         float _diveIntervalMin;
         float _diveIntervalMax;
 
+        /// <summary>
+        /// 俯冲间隔的抽签源（<see cref="AmbientRandom"/>，模块确定性口径：同 seed 同布局，
+        /// 行为时序也必须是种子与帧时序的纯函数——UnityEngine.Random 是全局非确定源，禁用）。
+        /// 每只海鸥**独占**一个生成器（按 seed + 序号派生）：若共用 director 的那一个，
+        /// 各 Tick 完成俯冲的帧序随帧率变化，抽签会互相穿插，结果不再可复现。
+        /// </summary>
+        AmbientRandom _diveRng;
+
         Transform _leftWing;
         Transform _rightWing;
 
@@ -47,10 +55,11 @@ namespace PirateCrew.Ambient
         /// <summary>当前是否处于惊飞（爆炸后）。</summary>
         public bool IsPanicking => _panic > 0f;
 
-        /// <summary>绑定轨道与子部件。由 <see cref="AmbientDirector"/> 在生成后立即调用。</summary>
+        /// <summary>绑定轨道与子部件。由 <see cref="AmbientDirector"/> 在生成后立即调用。
+        /// <paramref name="diveSeed"/> 是本只海鸥俯冲抽签的种子（调用方给"模块 seed + 序号"）。</summary>
         public void Configure(GullOrbit orbit, Vector3 diveTarget, AmbientNoFlyZone noFly,
             float phaseOffset, float diveIntervalMin, float diveIntervalMax,
-            Transform leftWing, Transform rightWing, bool canDive = true)
+            Transform leftWing, Transform rightWing, bool canDive = true, int diveSeed = 0)
         {
             _orbit = orbit;
             _diveTarget = diveTarget;
@@ -61,6 +70,7 @@ namespace PirateCrew.Ambient
             _leftWing = leftWing;
             _rightWing = rightWing;
             _canDive = canDive;
+            _diveRng = new AmbientRandom(diveSeed);
 
             // 首冲时间错开，避免所有海鸥同时俯冲。
             _diveCountdown = Mathf.Lerp(diveIntervalMin, diveIntervalMax, Mathf.Repeat(phaseOffset * 0.37f, 1f));
@@ -119,7 +129,8 @@ namespace PirateCrew.Ambient
                 if (_diveT >= 2f)
                 {
                     _state = GullState.Cruise;
-                    _diveCountdown = Random.Range(_diveIntervalMin, _diveIntervalMax);
+                    // 下一轮俯冲间隔走本只独占的确定性生成器（见 _diveRng）。
+                    _diveCountdown = _diveRng.Range(_diveIntervalMin, _diveIntervalMax);
                 }
             }
 

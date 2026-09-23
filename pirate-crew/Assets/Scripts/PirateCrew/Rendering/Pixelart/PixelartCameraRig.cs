@@ -110,6 +110,9 @@ namespace PirateCrew.Rendering.Pixelart
         float _savedFarClip;
         bool _savedPostProcessing;
 
+        /// <summary>主相机被钉到 Screen 渲染器**之前**的渲染器索引（-1 = 未改写，OnDisable 不还原）。</summary>
+        int _savedRendererIndex = -1;
+
         /// <summary>上屏相机（主相机；本组件的宿主）。</summary>
         public Camera ScreenCamera { get { return _screenCamera; } }
 
@@ -235,6 +238,12 @@ namespace PirateCrew.Rendering.Pixelart
             _savedFarClip = _screenCamera.farClipPlane;
 
             // 主相机先钉渲染器：它就是上屏器，不该跑物体/着色 pass。
+            // 原始索引先记下来（OnDisable 还原，对齐上面 saved 系列字段）：运行中禁用 rig 后
+            // 主相机必须回到场景原来的渲染器才能正常画世界——停在只有 CopyFeature 的
+            // Screen 渲染器上就是空屏。
+            _savedRendererIndex = screenRendererIndex >= 0
+                ? ReadRendererIndex(_screenCamera)
+                : -1;
             ApplyRendererIndex(_screenCamera, screenRendererIndex);
 
             // 关掉主相机的后处理：它跑在像素化**之后**的全屏域，作用对象是一张"什么都不画、不清屏"的
@@ -264,6 +273,36 @@ namespace PirateCrew.Rendering.Pixelart
             data.SetRenderer(index);
         }
 
+        /// <summary>
+        /// 读相机当前的渲染器索引。URP 14 的 <see cref="UniversalAdditionalCameraData"/> 只有
+        /// <c>SetRenderer(int)</c>，没有索引的公开读取口（<c>scriptableRenderer</c> 给的是渲染器对象，
+        /// 且索引无效时还会回落默认渲染器并刷警告），所以走序列化字段 <c>m_RendererIndex</c> 的反射。
+        /// 读不到返回 -1（与"未改写"同义，OnDisable 便不会执行还原）。
+        /// </summary>
+        static int ReadRendererIndex(Camera camera)
+        {
+            if (camera == null)
+                return -1;
+
+            UniversalAdditionalCameraData data = camera.GetUniversalAdditionalCameraData();
+            if (data == null)
+                return -1;
+
+            if (s_RendererIndexField == null)
+            {
+                s_RendererIndexField = typeof(UniversalAdditionalCameraData).GetField("m_RendererIndex",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            }
+
+            if (s_RendererIndexField == null)
+                return -1;
+
+            object value = s_RendererIndexField.GetValue(data);
+            return value is int index ? index : -1;
+        }
+
+        static System.Reflection.FieldInfo s_RendererIndexField;
+
         void OnDisable()
         {
             if (PixelartPath.ActiveRig == this)
@@ -281,8 +320,18 @@ namespace PirateCrew.Rendering.Pixelart
 
             if (_overlayCamera != null)
             {
+                // 出栈必须先于销毁：栈里留一台已销毁的相机是 URP 未定义行为路径，而且再 Enable 时
+                // EnsureOverlayCamera 对新实例做 Contains 判定为 false 会再 Add 一次——栈上就
+                // 同时挂着"已销毁的旧实例 + 新实例"两台。
+                if (_screenCamera != null)
+                {
+                    UniversalAdditionalCameraData mainData = _screenCamera.GetUniversalAdditionalCameraData();
+                    if (mainData != null && mainData.cameraStack.Contains(_overlayCamera))
+                        mainData.cameraStack.Remove(_overlayCamera);
+                }
+
                 if (_overlayCamera.gameObject != null)
-                    DestroyImmediate(_overlayCamera.gameObject);
+                    DestroyImmediateIfNotPlaying(_overlayCamera.gameObject);
                 _overlayCamera = null;
             }
 
@@ -293,6 +342,10 @@ namespace PirateCrew.Rendering.Pixelart
                 _screenCamera.clearFlags = _savedClearFlags;
                 _screenCamera.cullingMask = _savedCullingMask;
                 _screenCamera.farClipPlane = _savedFarClip;
+
+                // 渲染器索引一并还原（screenRendererIndex ≥ 0 才改写过，见 OnEnable）。
+                if (_savedRendererIndex >= 0)
+                    ApplyRendererIndex(_screenCamera, _savedRendererIndex);
 
                 UniversalAdditionalCameraData screenData = _screenCamera.GetUniversalAdditionalCameraData();
                 if (screenData != null)

@@ -40,6 +40,9 @@ namespace PirateCrew.Visual
         bool _dead;
         bool _drown;
         float _deadElapsed;
+
+        /// <summary>溺亡表现已到终点（收尾时长走完）：之后整段停写 Transform（见 ApplyPose/ApplyDrown）。</summary>
+        bool _drownSettled;
         float _time;
 
         // 部件基准（Awake 记录，动画在此之上叠加）
@@ -126,6 +129,7 @@ namespace PirateCrew.Visual
             _dead = true;
             _drown = drowned;
             _deadElapsed = 0f;
+            _drownSettled = false;
             _throwActive = false;
             _hitActive = false;
         }
@@ -198,6 +202,12 @@ namespace PirateCrew.Visual
 
         void ApplyPose(CrewVisualState state)
         {
+            // 溺亡收尾走完后表现已到终点（收拢缩放到底、Body 沉在水下）：整段停写。
+            // 【必须连 ResetPose 一起停】复位会把 Body 拉回基准姿势——只停 ApplyDrown 不停复位，
+            // 沉底的船员每帧都会弹回基准位再沉一次。
+            if (_drownSettled && state == CrewVisualState.Drown)
+                return;
+
             int professionIndex = (int)rig.Profession;
 
             // 复位到基准姿势，再按状态叠加（状态间不会残留）。
@@ -375,6 +385,12 @@ namespace PirateCrew.Visual
                 float fadeElapsed = Mathf.Max(0f, _deadElapsed - total * 0.5f);
                 float scale = CrewAnimationRules.FadeScale(fadeElapsed, total * 0.5f);
                 rig.Body.localScale = _bodyBaseScale * scale;
+
+                // 表现终点 = 收尾时长走完（前半下沉+摇摆，后半收拢缩放；收尾值 0.15 已缩到不可辨）。
+                // 置位后 ApplyPose 整段停写——_deadElapsed 会无限增长，旧实现此后仍每帧写
+                // Transform（且下沉位移无界，Body 一直往深处掉）。
+                if (_deadElapsed >= total)
+                    _drownSettled = true;
             }
         }
 

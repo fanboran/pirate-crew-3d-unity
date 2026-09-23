@@ -122,7 +122,6 @@ namespace PirateCrew.Ambient
         FishSchoolAgent _fishSchool;
         Camera _camera;
 
-        int _alarmFrames;
         bool _warnedMissingSun;
         bool _warnedMissingSkybox;
 
@@ -166,6 +165,20 @@ namespace PirateCrew.Ambient
             Teardown();
         }
 
+        void OnEnable()
+        {
+            // 组件被禁用期间事件已退订（见 OnDisable）；重新启用只补订阅——Build（Start）
+            // 只跑一次，活物不重建。_built 为 false 时（首启尚未 Build）由 Build 末尾订阅。
+            if (_built)
+                SubscribeBattleEvents();
+        }
+
+        void OnDisable()
+        {
+            // 组件禁用 / 物体失活后 Update 不再跑，事件回调也不该再驱动活物。
+            UnsubscribeBattleEvents();
+        }
+
         void Update()
         {
             if (!_built)
@@ -175,9 +188,6 @@ namespace PirateCrew.Ambient
             float dt = Mathf.Min(Time.deltaTime, 0.05f);
             if (dt <= 0f)
                 return;
-
-            if (_alarmFrames > 0)
-                _alarmFrames--;
 
             CollectUnitPositions();
 
@@ -252,8 +262,7 @@ namespace PirateCrew.Ambient
             }
 
             // 现有频道表里唯一带"世界坐标"的爆炸频道（未新增任何频道）。
-            EventBus.Subscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
-            EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
+            SubscribeBattleEvents();
 
             // 命令行档位覆盖（-ambientTimeOfDay，见 AmbientTimeOfDayCatalog）：三档对比捕图 / 试玩
             // 验证用，优先级**高于**世界地图档（BattleController 稍后 SetTimeOfDay 会被 _cliTierOverride 拦下）。
@@ -294,8 +303,7 @@ namespace PirateCrew.Ambient
 
         void Teardown()
         {
-            EventBus.Unsubscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
-            EventBus.Unsubscribe(BattleEvents.BattleStarted, OnBattleStarted);
+            UnsubscribeBattleEvents();
 
             // 运行时建的天空盒材质是 DontSave 的孤儿资产，必须显式销毁（本工程资源生命周期的口径，
             // 同 _runtimeMeshes 的处理）。
@@ -361,10 +369,23 @@ namespace PirateCrew.Ambient
         // 事件
         // ------------------------------------------------------------------
 
-        void OnBattleStarted(BattleStartedPayload payload)
+        /// <summary>爆炸事件是否在订（退订/订阅都走这对守卫，禁用期不重复订阅）。</summary>
+        bool _eventsSubscribed;
+
+        void SubscribeBattleEvents()
         {
-            // 载荷（关卡/队伍数）不进环境逻辑，只用“一局开始”这个时机复位惊吓计时。
-            _alarmFrames = 0;
+            if (_eventsSubscribed)
+                return;
+            EventBus.Subscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            _eventsSubscribed = true;
+        }
+
+        void UnsubscribeBattleEvents()
+        {
+            if (!_eventsSubscribed)
+                return;
+            EventBus.Unsubscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
+            _eventsSubscribed = false;
         }
 
         void OnProjectileDetonated(ProjectileDetonatedPayload detonated)
@@ -374,7 +395,7 @@ namespace PirateCrew.Ambient
             for (int i = 0; i < _gulls.Count; i++)
             {
                 float distance = Vector3.Distance(_gulls[i].transform.position, blast);
-                float strength = Mathf.Clamp01(1f - distance / 24f);
+                float strength = Mathf.Clamp01(1f - distance / AmbientBlastRules.GullPanicRadius);
                 if (strength > 0.05f)
                     _gulls[i].Panic(blast, strength);
             }
@@ -389,7 +410,7 @@ namespace PirateCrew.Ambient
             if (_fishSchool != null)
             {
                 float distance = Vector3.Distance(_fishSchool.Centroid, blast);
-                float strength = Mathf.Clamp01(1f - distance / 20f);
+                float strength = Mathf.Clamp01(1f - distance / AmbientBlastRules.FishScatterRadius);
                 if (strength > 0.05f)
                     _fishSchool.Scatter(blast, strength);
             }
@@ -629,7 +650,9 @@ namespace PirateCrew.Ambient
                 float phaseOffset = rng.Range(0f, 1f);
                 agent.Configure(orbit, diveTarget, _noFly, phaseOffset,
                     GullFlightRules.MinDiveInterval, GullFlightRules.MaxDiveInterval,
-                    leftWing, rightWing, plans[i].Dives);
+                    leftWing, rightWing, plans[i].Dives,
+                    // 每只海鸥独占一个俯冲抽签源：seed + 序号，纯种子派生、互不穿插（见 SeagullAgent._diveRng）。
+                    seed + i);
 
                 _gulls.Add(agent);
             }
@@ -724,9 +747,9 @@ namespace PirateCrew.Ambient
                 settings.Center, anchorRadius, 0.28f, rng, rng.Range(0f, 6.283f));
             _fishSchool = agent;
 
-            // 鱼群恒定数量：每条鱼 1 个渲染器（共享网格 + 材质 → 会被 SRP Batcher 合批）。
-            AmbientRendererCount += count;
-            AmbientTriangleCount += count * MeshTriangles(_meshes.Fish);
+            // 渲染器/三角面统计由 CreateRenderable 逐条累计（每条鱼 1 个渲染器，共享网格 + 材质
+            // → 会被 SRP Batcher 合批）；schoolGo 本体没有渲染器。这里不再整体 += 一遍——
+            // 那会把鱼的数量双计进报告（FishSchoolAgent 不产生额外渲染器）。
         }
 
         // ------------------------------------------------------------------
@@ -735,19 +758,21 @@ namespace PirateCrew.Ambient
 
         void SpawnLanterns(AmbientRandom rng)
         {
-            int count = Mathf.Clamp(AmbientBudget.MaxLanterns, 0, AmbientBudget.MaxLanterns);
-            if (count <= 0)
-                return;
-
             // 全部放在竞技场**外**的水里（满足场景文档 §7.3「>1.5 高物只允许 Z≤4 或竞技场外」）。
             // 刻意不放近侧带（+Z，屏幕下缘）：45° 相机下 1.8 高的柱子会向上遮住竞技场近排，
             // 故只放西 / 东 / 远侧三个方向（屏幕左 / 右 / 上缘），中间战场完全不被压。
+            // 【数组长度 = 灯笼数上限】AmbientBudget.MaxLanterns 若要调大，必须同步扩充本数组——
+            // 多出来的灯笼没有落点可放（下面按下标取位，Min 就是防这道耦合）。
             Vector3[] spots =
             {
                 new Vector3(-1.6f, _arena.WaterY - 0.35f, _arena.CenterZ),
                 new Vector3(_arena.Width + 1.6f, _arena.WaterY - 0.35f, _arena.CenterZ * 0.6f),
                 new Vector3(_arena.CenterX + 13f, _arena.WaterY - 0.35f, -1.6f),
             };
+
+            int count = Mathf.Min(AmbientBudget.MaxLanterns, spots.Length);
+            if (count <= 0)
+                return;
 
             for (int i = 0; i < count; i++)
             {

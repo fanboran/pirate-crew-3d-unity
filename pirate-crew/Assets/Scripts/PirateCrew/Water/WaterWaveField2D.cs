@@ -455,8 +455,14 @@ namespace PirateCrew.Water
             float hD = HeightAt(u, Mathf.Max(v - dv, 0f));
             float hU = HeightAt(u, Mathf.Min(v + dv, 1f));
 
+            // 世界格距是**两个轴向各一个量**：域是正方形（X 向跨度 = CellsX × Dx），
+            // Z 向每格的世界尺寸 = 跨度 / CellsZ = Dx × CellsX / CellsZ。生产配置 CellsX == CellsZ
+            // 时两者相等（不容易暴露），但 v 向的采样步长 du/dv 按 CellsZ 走（见上），分母也必须
+            // 用 Z 向格距——照抄 Dx 会在长方形网格下把 Z 向梯度算错一个 CellsX/CellsZ 的比例
+            // （对照 WaterSimulationDriver.UploadTexture 的逐格法线口径，那边 dz 由域边长/格数推出）。
+            float dz = _cfg.Dx * _cfg.CellsX / Mathf.Max(_cfg.CellsZ, 1);
             float dhdx = (hR - hL) / (2f * _cfg.Dx);
-            float dhdz = (hU - hD) / (2f * _cfg.Dx);
+            float dhdz = (hU - hD) / (2f * dz);
             return new Vector3(-dhdx, 1f, -dhdz).normalized;
         }
 

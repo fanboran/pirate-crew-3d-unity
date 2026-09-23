@@ -40,12 +40,33 @@ namespace PirateCrew.Water
         /// <summary>当前网格的格数（调试/报告用）。</summary>
         public int CellsZ { get; private set; }
 
-        void Awake()
+        void OnEnable()
         {
             Rebuild();
         }
 
-        /// <summary>按当前 lossyScale 重建网格。幂等（重复调用覆盖同一 Mesh）。</summary>
+        void OnDestroy()
+        {
+            // 【资源释放防线】_mesh 是运行时 new 的（非资产），销毁时显式释放
+            // （口径同 OceanRig.OnDestroy 的逐字段 Destroy；编辑器下用 DestroyImmediate，
+            // 同 AmbientMaterialSet.Dispose）。组件被禁用时 _mesh 尚未创建，自然空转。
+            if (_mesh == null)
+                return;
+
+            if (Application.isPlaying)
+                Destroy(_mesh);
+            else
+                DestroyImmediate(_mesh);
+            _mesh = null;
+        }
+
+        /// <summary>
+        /// 按当前 lossyScale 重建网格。幂等（重复调用覆盖同一 Mesh）。
+        /// 【为什么在 OnEnable 里调而不是 Awake】场景装配把本组件**禁用**存放
+        /// （Editor/BattleSceneSetup.CreateWaterPlane：只禁组件、不禁物体——同物体的
+        /// <see cref="WaterSimulationDriver"/> 需要物体 active），而 Awake 在组件禁用时照跑，
+        /// 每次进场景都会白建一遍数万顶点的网格；OnEnable 只在组件真启用时才建。
+        /// </summary>
         public void Rebuild()
         {
             Vector3 scale = transform.lossyScale;

@@ -80,6 +80,26 @@ namespace PirateCrew.Rendering.Pixelart
             Scan("首次");
         }
 
+        void OnDestroy()
+        {
+            // 【资源释放防线】_derived 里的派生材质全是运行时 new 的（HideAndDontSave 一族的孤儿资产，
+            // 不随场景卸载自动释放），销毁时显式逐个释放——口径同 rig / Feature 的 Dispose 与
+            // AmbientMaterialSet.Dispose：播放期 Destroy、编辑器 DestroyImmediate。
+            // 工厂取不到 shader 时返回 null，字典里可能存 null，跳过即可。
+            foreach (KeyValuePair<int, Material> pair in _derived)
+            {
+                if (pair.Value == null)
+                    continue;
+
+                if (Application.isPlaying)
+                    Destroy(pair.Value);
+                else
+                    DestroyImmediate(pair.Value);
+            }
+
+            _derived.Clear();
+        }
+
         void Update()
         {
             if (rescanIntervalSeconds <= 0f)
@@ -113,44 +133,81 @@ namespace PirateCrew.Rendering.Pixelart
             for (int i = 0; i < renderers.Length; i++)
             {
                 MeshRenderer renderer = renderers[i];
-                Material source = renderer.sharedMaterial;
-                if (source == null || source.shader == null)
+                Material[] slots = renderer.sharedMaterials;
+                if (slots == null || slots.Length == 0)
                     continue;
 
-                if (source.shader.name == PixelartPath.ObjectShaderName)
-                {
-                    already++;
-                    continue;
-                }
+                // 【逐槽判类、逐槽转换】多材质 renderer 是真实存在的（世界图的 kit FBX 由
+                // WorldMapAssetSetBuilder 按槽写入 Kit_* 材质，WorldMapComposer 运行期实例化它们）：
+                // 只看第 0 槽会把其余槽留在旧材质上——那些子网格就以"旧材质 + 全分辨率 + 无墨线
+                // 色带"糊在成图上，正是本类要消灭的失效。效果件判定同样逐槽做：同一台 renderer
+                // 上"效果件槽留叠加档、世界内容槽转换"互不牵连。
+                bool changed = false;
+                bool sawSlot = false;
+                bool allSlotsPixelart = true;
+                bool anyOverlay = false;
+                bool anyConvertedFromTransparent = false;
 
-                // 效果件：留给叠加档（它用旧材质在成图之上画，全分辨率、不参与像素化——已知取舍）。
-                bool isTransparent = source.renderQueue >= (int)RenderQueue.Transparent;
-                if (isTransparent && IsEffectMaterial(source))
+                for (int s = 0; s < slots.Length; s++)
                 {
-                    overlayKept++;
-                    AddUnique(OverlayMaterialNames, source.name);
-                    continue;
-                }
+                    Material source = slots[s];
+                    if (source == null || source.shader == null)
+                        continue;
 
-                // 其余一律算世界内容（含"alpha 混合的世界内容"）：转成不透明像素化材质。
-                Material derived = DeriveOrGet(source);
-                if (derived == null)
-                {
-                    AddUnique(NoColorMaterialNames, source.name);
-                    continue;
-                }
+                    sawSlot = true;
 
-                if (!ReferenceEquals(renderer.sharedMaterial, derived))
-                {
-                    renderer.sharedMaterial = derived;
-                    convertedThisScan++;
-                    ConvertedRendererCount++;
+                    if (source.shader.name == PixelartPath.ObjectShaderName)
+                        continue;   // 该槽已在本路径上
+
+                    allSlotsPixelart = false;
+
+                    // 效果件：留给叠加档（它用旧材质在成图之上画，全分辨率、不参与像素化——已知取舍）。
+                    bool isTransparent = source.renderQueue >= (int)RenderQueue.Transparent;
+                    if (isTransparent && IsEffectMaterial(source))
+                    {
+                        anyOverlay = true;
+                        AddUnique(OverlayMaterialNames, source.name);
+                        continue;
+                    }
+
+                    // 其余一律算世界内容（含"alpha 混合的世界内容"）：转成不透明像素化材质。
+                    Material derived = DeriveOrGet(source);
+                    if (derived == null)
+                    {
+                        AddUnique(NoColorMaterialNames, source.name);
+                        continue;
+                    }
+
+                    slots[s] = derived;
+                    changed = true;
                     if (isTransparent)
                     {
-                        fromTransparent++;
+                        anyConvertedFromTransparent = true;
                         AddUnique(ConvertedFromTransparentNames, source.name);
                     }
                 }
+
+                if (!sawSlot)
+                    continue;
+
+                if (allSlotsPixelart)
+                {
+                    // 所有非空槽都已在路径上：按 renderer 记账（与字段注释的口径一致）。
+                    already++;
+                }
+                else if (changed)
+                {
+                    renderer.sharedMaterials = slots;
+                    convertedThisScan++;
+                    ConvertedRendererCount++;
+                    if (anyConvertedFromTransparent)
+                        fromTransparent++;
+                }
+                else if (anyOverlay)
+                {
+                    overlayKept++;
+                }
+                // 其余情况（全部槽取不到色 / 无可转换内容）：只留名字清单，不动 renderer。
             }
 
             AlreadyPixelartCount = already;
