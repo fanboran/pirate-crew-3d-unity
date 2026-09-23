@@ -10,7 +10,7 @@ namespace PirateCrew.UI
     /// 【为什么需要它】HUD 本体是 UGUI <c>ScreenSpaceOverlay</c>（<c>BattleSceneSetup.CreateCanvas</c>），
     /// 不随相机透视变形——这一条已满足，无需改动。但战斗里有一个**屏幕像素口径**的命中量：
     /// <see cref="PirateCrew.Battle.LevelGeometry.SelectionRadiusPixels"/> = 30px
-    /// （Flash §3.4 <c>minD2 = 900</c>，用于选中/悬停/拖拽拾取）。
+    /// （Flash §3.4 <c>minD2 = 900</c>，用于选中/悬停拾取）。
     /// 原版是恒定缩放的 2D，30px 对每个单位等价；换成透视 FOV 60 / 距离 18
     /// （<c>docs/3D空间模型对齐.md</c> §2）后，**同一个 30px 在不同距离上覆盖的单位屏幕尺寸不同**：
     /// 近处的单位屏幕上更大、同样 30px 更容易点中；远处的单位更小、更难选中、也更容易误选邻近单位。

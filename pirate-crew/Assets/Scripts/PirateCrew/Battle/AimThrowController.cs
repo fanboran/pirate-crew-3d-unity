@@ -9,14 +9,18 @@ namespace PirateCrew.Battle
     /// <summary>
     /// 瞄准 / 投掷控制器（翻译自 Godot <c>scripts/aiming/aim_controller.gd</c> + <c>battle.gd</c> 的发射段，3D 重写）。
     ///
-    /// 【对应章节】§3.4（严格两阶段：点选己方角色 → 选动作/武器 → 拖拽）、
-    ///             §5.1（初速 = 0.25 × 拖拽距离、方向取反、twangMax 限速）。
+    /// 【对应章节】§3.4（严格两阶段：点选己方角色 → 选动作/武器 → 瞄准发射）、
+    ///             §5.1（初速 = 0.25 × 拖拽距离、twangMax 限速）。
+    ///
+    /// 【交互形态（创始人 2026-09-24 裁决：炮台为唯一瞄准交互）】
+    ///   鼠标弹弓拖拽路径已整体移除（r12 起即不可达的死路径），瞄准只有炮台一种：
+    ///   A/D 转向、W/S 力度、滚轮微调、空格/回车发射（见 <see cref="UpdateTurret"/>）。
+    ///   可感知行为规格见 docs/技术/投掷行为契约.md（单一事实源）。
     ///
     /// 【流程】
     ///   1. 点选：屏幕空间 30px 内最近的本队存活角色（对应 §3.4 <c>minD2 = 900</c>）。
-    ///   2. 拖拽：<see cref="Camera.ScreenPointToRay"/> + <see cref="Physics.Raycast"/> 取目标点
-    ///      （落空时回退到战斗平面 z = planeZ 的数学交点）。
-    ///   3. 释放：<see cref="Ballistics.TwangVelocity"/> 算初速，经 <see cref="LevelGeometry"/> 换算后
+    ///   2. 瞄准：炮台合成等效拖拽向量（转向 × 力度），喂给 <see cref="ResolveThrow"/>。
+    ///   3. 发射：<see cref="Ballistics.TwangVelocity"/> 算初速，经 <see cref="LevelGeometry"/> 换算后
     ///      以 <see cref="ForceMode.Impulse"/> 施加（Δv = impulse / mass）。
     ///
     /// 【与预览同源】预览与实弹使用同一份 (vx, vy)（同一 <see cref="Ballistics"/> 输出）
@@ -28,7 +32,6 @@ namespace PirateCrew.Battle
         {
             Idle = 0,
             CharacterSelected = 1,
-            Dragging = 2,
         }
 
         [Header("组装引用（场景内直连）")]
@@ -41,23 +44,20 @@ namespace PirateCrew.Battle
         [SerializeField] LayerMask aimPlaneMask = ~0;
 
         [Header("参数")]
-        [Tooltip("拖拽释放的最小距离（px）；低于此值视为误触，不发射（§3.4 松手阈值）。")]
-        [SerializeField] float minDragPixels = 1f;
         [SerializeField] float maxRayDistance = 500f;
 
         Phase _phase = Phase.Idle;
         PirateBase _selected;
         PirateBase _hovered;
         Vector3 _originWorld;
-        Vector2 _dragStartScreen;
         Vector2 _dragScreen;
         bool _useWeapon;
         bool _directPlacement;
         float _twangMax = CrewCatalog.TwangMaxForce;
         float _weight = CrewCatalog.Weight;
 
-        /// <summary>是否正在拖拽瞄准（供 TurnManager 的 inactivity 判定）。</summary>
-        public bool IsAiming => _phase == Phase.Dragging;
+        /// <summary>是否正在炮台瞄准（供 TurnManager 的 inactivity 判定：瞄准中回合不推进）。</summary>
+        public bool IsAiming => _turretAiming;
 
         /// <summary>当前选中角色。</summary>
         public PirateBase SelectedCharacter => _selected;
@@ -154,14 +154,6 @@ namespace PirateCrew.Battle
                 }
             }
 
-            if (_phase == Phase.Dragging)
-            {
-                if (Input.GetMouseButton(0))
-                    UpdateDrag();
-                if (Input.GetMouseButtonUp(0))
-                    ReleaseDrag();
-            }
-
             // 【炮台模式】操作模式 + 已武装武器 + 已选角色时，键盘瞄准（AD/WS/滚轮/空格）。
             UpdateTurret();
 
@@ -186,7 +178,7 @@ namespace PirateCrew.Battle
         void UpdateHover()
         {
             PirateBase target = null;
-            if (_phase != Phase.Dragging && !IsPointerOverUi())
+            if (!IsPointerOverUi())
                 target = PickTeamCharacter(Input.mousePosition);
 
             SetHoverTarget(target);
@@ -281,6 +273,8 @@ namespace PirateCrew.Battle
         const float TurretPowerPerSecond = 0.45f;
         /// <summary>滚轮力度微调（比例/格）。</summary>
         const float TurretPowerPerScrollNotch = 0.04f;
+        /// <summary>炮台虚拟拖拽的下限（px）：力度为 0 时仍保留一个最小初速，避免零向量发射。</summary>
+        const float TurretMinDragPixels = 5f;
 
         bool _preferWeapon;
         bool _turretAiming;
@@ -301,24 +295,23 @@ namespace PirateCrew.Battle
         /// </summary>
         public bool IsScopeActive => _scopeActive;
 
-        /// <summary>HUD 模式开关调用：操作模式=优先用武器（拖空白不再取消武装），移动模式=拖拽即跳跃。</summary>
+        /// <summary>HUD 模式开关调用：操作模式=优先用武器（拖空白不再取消武装），移动模式=键盘瞄准跳跃。</summary>
         public void SetWeaponPreference(bool preferWeapon)
         {
             _preferWeapon = preferWeapon;
-            if (!preferWeapon && _phase != Phase.Dragging)
+            if (!preferWeapon)
                 _useWeapon = false;
         }
 
         /// <summary>
         /// 大炮式键盘瞄准：A/D 转向、W/S 力度、滚轮微调、空格/回车发射；轨迹预览实时刷新。
-        /// 合成等效拖拽向量喂给 <see cref="ResolveThrow"/>——与拖拽路径共用同一套换算，口径不分叉。
+        /// 合成等效拖拽向量喂给 <see cref="ResolveThrow"/>——初速换算的唯一路径，口径不分叉。
         /// Scope（Shift 切换）下灵敏度整体 ×0.4，弹道预览步数随力度延长（M4 §3.2）。
         /// </summary>
         void UpdateTurret()
         {
             // 武器炮台：操作模式 + 已武装武器。
-            bool weaponTurret = _preferWeapon && _useWeapon && _selected != null && _selected.Alive
-                && _phase != Phase.Dragging;
+            bool weaponTurret = _preferWeapon && _useWeapon && _selected != null && _selected.Alive;
             // 跳跃炮台：移动模式 + 已选角色（r12 用户裁决：跳跃=环绕角色转视角瞄准，不再弹弓）。
             bool jumpTurret = !_preferWeapon && _phase == Phase.CharacterSelected
                 && _selected != null && _selected.Alive;
@@ -348,7 +341,7 @@ namespace PirateCrew.Battle
 
             // 满力拖拽距离 = twangMax / 力度系数（§5.1 的 0.25）——直接复用 Ballistics 的
             // 同一换算（FullForceDragDistance），不手抄 0.25f，系数改动时两处不脱钩。
-            float dragLength = Mathf.Max(minDragPixels + 4f,
+            float dragLength = Mathf.Max(TurretMinDragPixels,
                 _turretPower * Ballistics.FullForceDragDistance(_twangMax));
             _dragScreen = new Vector2(Mathf.Sin(_turretYawRad), Mathf.Cos(_turretYawRad)) * dragLength;
 
@@ -463,46 +456,8 @@ namespace PirateCrew.Battle
                 trajectory.Hide();
         }
 
-        void BeginDrag()
-        {
-            if (_selected == null || !_selected.Alive)
-            {
-                CancelAim();
-                return;
-            }
-
-            // 直接放置类武器不用拖拽（点击即放置）；防御性拦截，避免状态机异常时误入拖拽。
-            if (_useWeapon && _directPlacement)
-                return;
-
-            _originWorld = _selected.transform.position;
-            _dragStartScreen = Input.mousePosition;
-            _dragScreen = Vector2.zero;
-            _phase = Phase.Dragging;
-            UpdateDrag();
-        }
-
-        void UpdateDrag()
-        {
-            if (_selected == null || !_selected.Alive)
-            {
-                CancelAim();
-                return;
-            }
-
-            _dragScreen = (Vector2)Input.mousePosition - _dragStartScreen;
-            (Vector3 dir, float speed, float _, float _) = ResolveThrow();
-
-            if (trajectory != null)
-            {
-                // 弹道预览步数随力度延长（与炮台路径同口径，M4 §3.2）。
-                trajectory.Show(_originWorld, dir, speed, _weight,
-                    ThrowTrajectory.StepsForSpeed(speed, _twangMax));
-            }
-        }
-
         /// <summary>
-        /// 屏幕拖拽 → (XZ 世界水平方向, Flash 初速大小)。
+        /// （炮台合成的等效）拖拽向量 → (XZ 世界水平方向, Flash 初速大小)。
         /// <b>方向</b>按相机基向量投影（§M2-3D 规范 §3），yaw = 0 时等价于 Godot 的 (-dx, 0, -dy)，
         /// 相机绕转后仍正确；<b>大小</b>取 <see cref="Ballistics.TwangVelocity"/> 的模长，
         /// 保留 Flash 的 0.25 系数与 twangMax 限速语义。抬升由 LevelGeometry.ThrowVelocity 统一施加。
@@ -523,6 +478,9 @@ namespace PirateCrew.Battle
             return (dir, speed, dir.x * speed, dir.z * speed);
         }
 
+        /// <summary>
+        /// 发射（炮台开火键触发；无鼠标释放路径）。把初速给角色（抛自己）或武器弹体（§3.4 二选一）。
+        /// </summary>
         void ReleaseDrag()
         {
             if (_selected == null || !_selected.Alive)
@@ -532,14 +490,6 @@ namespace PirateCrew.Battle
             }
 
             float dragDistance = _dragScreen.magnitude;
-            if (dragDistance < minDragPixels)
-            {
-                // 误触：不发射，回到"已选角色"状态（对应 §3.4 松手阈值）。
-                _phase = Phase.CharacterSelected;
-                if (trajectory != null)
-                    trajectory.Hide();
-                return;
-            }
 
             (Vector3 _, float _, float vx, float vy) = ResolveThrow();
 
