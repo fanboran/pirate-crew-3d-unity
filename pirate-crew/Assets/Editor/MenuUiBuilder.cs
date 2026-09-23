@@ -33,6 +33,7 @@ namespace PirateCrew.EditorTools
         // 字号体系（【像素栅格并档】真值源 = UiSkin.Font，本表只是 Editor 侧别名）
         // ------------------------------------------------------------------
 
+
         // ------------------------------------------------------------------
         // 字体（【像素字体全局切换】三档统一 Fusion Pixel 12px 位图档；2026-09-23）
         // ------------------------------------------------------------------
@@ -68,9 +69,63 @@ namespace PirateCrew.EditorTools
         public static TMP_FontAsset SecondaryFont =>
             _secondary != null ? _secondary : (_secondary = LoadFont(SecondaryFontAssetPath, SecondaryFontTtfPath, "次级"));
 
+        /// <summary>确保字体资产存在（幂等；内部会触发一次 FontAssetBuilder）。</summary>
+        public static void EnsureFonts()
+        {
+            if (_fontEnsured)
+                return;
+
+            _fontEnsured = true;
+
+            if (AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(BodyFontAssetPath) == null
+                || AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(TitleFontAssetPath) == null)
+            {
+                Debug.LogWarning("[MenuUiBuilder] 未找到中文 TMP 字体资产，先调用 FontAssetBuilder.BuildAll 生成。");
+                FontAssetBuilder.BuildAll();
+            }
+
+            // 触发三档加载（各自缺失时告警并回落 ttf）。
+            _ = TitleFont;
+            _ = BodyFont;
+            _ = SecondaryFont;
+        }
+
+        static TMP_FontAsset LoadFont(string assetPath, string ttfPath, string role)
+        {
+            TMP_FontAsset asset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(assetPath);
+            if (asset != null)
+                return asset;
+
+            Font ttf = AssetDatabase.LoadAssetAtPath<Font>(ttfPath);
+            if (ttf != null)
+            {
+                Debug.LogWarning("[MenuUiBuilder] 缺 TMP 字体资产 " + assetPath
+                    + "（角色：" + role + "），回落 ttf：" + ttfPath
+                    + "。请跑菜单 PirateCrew/Fonts/生成 TMP 中文字体资产（幂等）后重建场景。");
+                return TMP_FontAsset.CreateFontAsset(ttf);
+            }
+
+            Debug.LogWarning("[MenuUiBuilder] 字体资产与 ttf 都缺失（角色：" + role
+                + "）。中文会显示为方块——请先导入 Assets/Art/Fonts/ 下的 ttf，"
+                + "再执行 Window/TextMeshPro/Import TMP Essential Resources，"
+                + "然后跑 PirateCrew/Fonts/生成 TMP 中文字体资产（幂等）。");
+            return null;
+        }
+
+        // ------------------------------------------------------------------
+        // 程序化 Skin 落盘（九宫格 PNG）
+        // ------------------------------------------------------------------
+
+        const string SpriteFolder = "Assets/Art/Sprites/UI";
+
+
         // ------------------------------------------------------------------
         // 像素皮（Beveled Pixel）—— 旧的"亚克力玻璃" Skin 段已整体换装
         // ------------------------------------------------------------------
+
+
+        // （旧 GlassColors 乘色四态表已随换装删除：像素皮禁用 Image.color 乘色——状态改由
+        //   UGUI SpriteSwap 三态贴图承担，禁用态走 CanvasGroup alpha，见 SketchButton。）
 
         // ------------------------------------------------------------------
         // 控件工厂
@@ -105,7 +160,8 @@ namespace PirateCrew.EditorTools
             rect.offsetMax = new Vector2(-padding, -padding);
         }
 
-建 TMP 文本（**新档字号入口**）：<paramref name="fontSize"/> 原样使用；
+
+        /// <summary>建 TMP 文本（**新档字号入口**）：<paramref name="fontSize"/> 原样使用；
         /// 字体由 <see cref="UiKit.ResolvePixelFont"/> 按字号单点解析（满精度阶梯，
         /// 调用方传什么字体都会被按字号纠偏）。</summary>
         public static TextMeshProUGUI CreateTextExact(string name, Transform parent, string content, int fontSize,
@@ -207,7 +263,45 @@ namespace PirateCrew.EditorTools
                 text.fontSharedMaterial = material;
         }
 
-public static SettingsPanelResult BuildSettingsPanel(Transform canvas)
+
+        /// <summary>全屏压暗遮罩（模态层 z=40，§1.7）。</summary>
+        public static RectTransform CreateDimOverlay(string name, Transform parent, float alpha = 0.6f)
+        {
+            RectTransform rect = CreateRect(name, parent);
+            Stretch(rect);
+
+            var image = rect.gameObject.AddComponent<Image>();
+            image.color = new Color(0f, 0f, 0f, alpha);
+            image.raycastTarget = true;   // 挡住底下的点击，符合模态语义。
+            return rect;
+        }
+
+        // ------------------------------------------------------------------
+        // 设置界面（§3.7；音量/画质/窗口模式真接线，控制器为 MainMenuController）
+        // ------------------------------------------------------------------
+
+        /// <summary>设置面板构建产物（控制器按字段名接线）。</summary>
+        public sealed class SettingsPanelResult
+        {
+            public GameObject Root;
+            public Button BackButton;
+            public Button RestoreButton;
+            public Slider MasterSlider;
+            public Slider SfxSlider;
+            public Slider MusicSlider;
+            public Slider AmbientSlider;
+            public Button QualityHighButton;
+            public Button QualitySmoothButton;
+            public Button FullscreenOnButton;
+            public Button FullscreenOffButton;
+        }
+
+        /// <summary>
+        /// 搭「设置」界面（默认隐藏）：四条音量滑条 + 画质档 + 窗口模式 + 恢复默认/返回。
+        /// 【接线纪律】本方法只建控件，不改任何真实设置；应用与持久化都在
+        /// <c>MainMenuController</c>（运行时）里做——构建器拿不到运行时服务。
+        /// </summary>
+        public static SettingsPanelResult BuildSettingsPanel(Transform canvas)
         {
             // 像素字体单字体纪律（UiKit.RuntimeFont 同口径）：三档统一 Fusion Pixel 位图档。
             TMP_FontAsset hand = TitleFont;
