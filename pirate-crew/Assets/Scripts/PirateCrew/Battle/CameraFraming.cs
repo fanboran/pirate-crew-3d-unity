@@ -102,6 +102,15 @@ namespace PirateCrew.Battle
         /// <summary>正交远裁剪（原虚机 Lens 的实机值 200；主相机烘焙的 400 运行期一直被 Lens 覆盖）。</summary>
         public const float OrthoFarClip = 200f;
 
+        /// <summary>
+        /// 海面圆盘所需的最小远裁剪（世界单位）：OceanRig 海面圆盘半径大，OrthoFarClip（200）会切掉海面，
+        /// 战斗装配时经 <c>BattleCameraDriver.SetFarClipForSpan(OceanFarClipMin)</c> 抬到本档
+        /// （无 Driver 的兜底场景由 BattleController 直写相机取 max）。
+        /// 【3D 侧口径，无逆向出处】原版 Flash 无远裁剪概念，本值按海面圆盘跨度标定；
+        /// 出图侧 <c>ArtReview.PlayerArtCapture</c> 的世界图机位同引用本常量。
+        /// </summary>
+        public const float OceanFarClipMin = 4500f;
+
         // ------------------------------------------------------------------
         // 档位 / 特效当量纯函数
         // ------------------------------------------------------------------

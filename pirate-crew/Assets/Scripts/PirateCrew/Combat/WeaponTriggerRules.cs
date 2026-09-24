@@ -75,6 +75,22 @@ namespace PirateCrew.Combat
         /// <summary>静止判定里垂直速度的阈值：|vy| &lt; 0.2（原版 dynamite）。</summary>
         public const float AtRestVyEpsilon = 0.2f;
 
+        /// <summary>
+        /// 3D 侧「静止 / 在动」判定的速度平方阈值（sqrMagnitude）：
+        /// <c>PirateBase.IsMoving</c> 的默认参数与 <c>WeaponProjectile.IsInFlight</c> 共用本常量。
+        /// 【无逆向出处】原版静止判定为 <c>vx == 0 且 |vy| &lt; 0.2</c>（§5.2 dynamite 行，
+        /// Flash 像素速度域，见 <see cref="AtRestVyEpsilon"/>）；0.01 是 3D 侧 sqrMagnitude
+        /// 阈值的近似档（标定取值，数值沿用初版），不是原版数值的换算。
+        /// </summary>
+        public const float AtRestSqrMagnitudeEpsilon = 0.01f;
+
+        /// <summary>
+        /// boulder 碾压伤害系数（§5.2 武器总表 boulder 行专用行为：<b>伤害 = |vx| × 1.5</b>，
+        /// vx 为 Flash 像素速度；碾压是接触直接伤害，不走引爆/爆炸路径）。
+        /// Combat 侧暂无 boulder 专用规则类，暂存本类（§5.2 规则在 Combat 侧的家）。
+        /// </summary>
+        public const float BoulderCrushDamageScale = 1.5f;
+
         /// <summary>地雷感应半径（px）。</summary>
         public const float ProximityRadius = 60f;
 

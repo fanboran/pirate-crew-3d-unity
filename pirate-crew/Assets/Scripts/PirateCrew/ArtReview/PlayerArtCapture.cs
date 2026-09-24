@@ -1100,9 +1100,10 @@ namespace PirateCrew.ArtReview
             _camera.transform.rotation = shot.Rotation;
             _camera.fieldOfView = shot.Fov;
             _camera.nearClipPlane = 0.05f;
-            // M4 世界地图：4200u 远场裙边与远景装饰要入画，far 放宽；经典图维持 300 防远景糊近景排序。
+            // M4 世界地图：4200u 远场裙边与远景装饰要入画，far 放宽到与战斗侧同一口径
+            // （Battle.CameraFraming.OceanFarClipMin，海面圆盘所需最小远裁剪）；经典图维持 300 防远景糊近景排序。
             _camera.farClipPlane = Battle.WorldMaps.WorldMapRuntime.TryGetPending(out _)
-                ? 4500f
+                ? Battle.CameraFraming.OceanFarClipMin
                 : 300f;
             _camera.enabled = true;
 

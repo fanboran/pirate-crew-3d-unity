@@ -706,6 +706,27 @@ namespace PirateCrew.Battle
         /// </summary>
         public const float SelfLandingDistanceWeight = 0.003f;
 
+        /// <summary>自抛：质心项除数（§6.2：<c>(|t.ex−avgX| − |this.x−avgX|) / 500</c>，x/y 两轴共用同一除数；代码里以负号写入，即整项取负）。</summary>
+        public const float SelfCentroidDivisor = 500f;
+
+        /// <summary>自抛：近敌项系数（§6.2：d² &lt; 200² 时 <c>k = 0.2 × (1 − d/200)</c>）。</summary>
+        public const float SelfNearEnemyWeight = 0.2f;
+
+        /// <summary>自抛：贴脸自伤惩罚幅度（§6.2：d² &lt; 100² 时再减 <c>(1 − d/100) × 3</c>）。</summary>
+        public const float SelfTooClosePenalty = 3f;
+
+        /// <summary>自抛：远敌项系数（§6.2：d² ≥ 200² 时 <c>k = 0.3 × 0.75^(d/200)</c>）。</summary>
+        public const float SelfFarEnemyWeight = 0.3f;
+
+        /// <summary>自抛：远敌项的几何衰减底数（§6.2：<c>0.75^(d/200)</c>）。</summary>
+        public const float SelfFarEnemyDecayBase = 0.75f;
+
+        /// <summary>自抛：落点距自己过近的惩罚幅度（§6.2：d² &lt; 80² 时 <c>−1 × (1 − d/80)</c>）。</summary>
+        public const float SelfSelfClosePenalty = 1f;
+
+        /// <summary>自抛：队友误伤惩罚幅度（§6.2：d² &lt; 40² 时 <c>−0.1 × (1 − d/40)</c>）。</summary>
+        public const float SelfAllyPenalty = 0.1f;
+
         /// <summary>通用武器基础分（§6.3：<c>s = -0.01</c>）。</summary>
         public const float WeaponBaseScore = -0.01f;
 
@@ -788,6 +809,13 @@ namespace PirateCrew.Battle
 
         /// <summary>自抛：队友误伤阈值 40px（d² &lt; 1600）。</summary>
         public const float SelfAllyRadius = 40f;
+
+        /// <summary>自抛：顺路宝箱拾取半径 40px（§6.2：d² &lt; 40²）。
+        /// 与 <see cref="SelfAllyRadius"/>（队友误伤，同为 40px / 1600px²）同值不同义，勿混用。</summary>
+        public const float SelfChestRadius = 40f;
+
+        /// <summary>自抛：落点距自己不应超出的距离 300px（§6.2 末段：d² &lt; 300² 内按距离给奖励，超出恒罚）。</summary>
+        public const float SelfKeepCloseRadius = 300f;
 
         /// <summary>通用武器：敌人命中阈值 70px（d² &lt; 4900）。</summary>
         public const float WeaponEnemyRadius = 70f;
@@ -995,8 +1023,8 @@ namespace PirateCrew.Battle
                 landingToTargetDx * landingToTargetDx + landingToTargetDy * landingToTargetDy);
             s -= landingToTargetDistance * SelfLandingDistanceWeight;
 
-            s += (MathF.Abs(t.Ex - enemyAvgX) - MathF.Abs(actor.X - enemyAvgX)) / -500f;
-            s += (MathF.Abs(t.Ey - enemyAvgY) - MathF.Abs(actor.Y - enemyAvgY)) / -500f;
+            s += (MathF.Abs(t.Ex - enemyAvgX) - MathF.Abs(actor.X - enemyAvgX)) / -SelfCentroidDivisor;
+            s += (MathF.Abs(t.Ey - enemyAvgY) - MathF.Abs(actor.Y - enemyAvgY)) / -SelfCentroidDivisor;
 
             // 落水 −2（§6.2）。3D 下「落水」由样本的 Drowned 事实承载（掉出地面矩形），
             // 不再用平面 y 与水位比较（水位是高度，与 XZ 平面正交）。
@@ -1017,16 +1045,16 @@ namespace PirateCrew.Battle
                 float k;
                 if (d2 < SelfNearEnemyRadius * SelfNearEnemyRadius)
                 {
-                    k = 0.2f * (1f - d / SelfNearEnemyRadius);
+                    k = SelfNearEnemyWeight * (1f - d / SelfNearEnemyRadius);
                     if (d2 < SelfTooCloseEnemyRadius * SelfTooCloseEnemyRadius)
                     {
                         k *= d / SelfTooCloseEnemyRadius;
-                        s -= (1f - d / SelfTooCloseEnemyRadius) * 3f;   // 太近会自伤/暴露
+                        s -= (1f - d / SelfTooCloseEnemyRadius) * SelfTooClosePenalty;   // 太近会自伤/暴露
                     }
                 }
                 else
                 {
-                    k = 0.3f * MathF.Pow(0.75f, d / SelfNearEnemyRadius);
+                    k = SelfFarEnemyWeight * MathF.Pow(SelfFarEnemyDecayBase, d / SelfNearEnemyRadius);
                 }
 
                 s += k;
@@ -1047,11 +1075,11 @@ namespace PirateCrew.Battle
                 if (ally.Id == actorUnitId)
                 {
                     if (d2 < SelfSelfCloseRadius * SelfSelfCloseRadius)
-                        s -= 1f * (1f - d / SelfSelfCloseRadius);
+                        s -= SelfSelfClosePenalty * (1f - d / SelfSelfCloseRadius);
                 }
                 else if (d2 < SelfAllyRadius * SelfAllyRadius)
                 {
-                    s -= 0.1f * (1f - d / SelfAllyRadius);
+                    s -= SelfAllyPenalty * (1f - d / SelfAllyRadius);
                 }
             }
 
@@ -1063,16 +1091,16 @@ namespace PirateCrew.Battle
                     continue;
                 float dx = t.Ex - chest.X;
                 float dy = t.Ey - chest.Y;
-                if (dx * dx + dy * dy < 1600f)
+                if (dx * dx + dy * dy < SelfChestRadius * SelfChestRadius)
                     s += 0.5f;
             }
 
-            // 落点别离自己太远（§6.2 末段；d² < 90000 → d < 300px）。
+            // 落点别离自己太远（§6.2 末段；d² < 300² → d < SelfKeepCloseRadius px）。
             float sdx = t.Ex - actor.X;
             float sdy = t.Ey - actor.Y;
             float sd2 = sdx * sdx + sdy * sdy;
             float sd = MathF.Sqrt(sd2);
-            s += sd2 < 90000f ? 0.3f * sd / 300f - 0.3f : -0.3f;
+            s += sd2 < SelfKeepCloseRadius * SelfKeepCloseRadius ? 0.3f * sd / SelfKeepCloseRadius - 0.3f : -0.3f;
 
             return s;
         }

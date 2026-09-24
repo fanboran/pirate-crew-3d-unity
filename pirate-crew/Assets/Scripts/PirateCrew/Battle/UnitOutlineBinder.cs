@@ -124,8 +124,8 @@ namespace PirateCrew.Battle
         [Tooltip("红队阵营色 #FF3A29（静态文档:721；原默认 (0.8,0.3,0.28) 为占位，本轮按规格校正）。")]
         [SerializeField] Color teamRedTint = new Color(1.000f, 0.228f, 0.161f, 1f);
 
-        [Tooltip("蓝队阵营色 #3366FF（静态文档:721；原默认 (0.3,0.45,0.8) 为占位，本轮按规格校正）。")]
-        [SerializeField] Color teamBlueTint = new Color(0.200f, 0.400f, 1.000f, 1f);
+        [Tooltip("蓝队阵营色 #3366FF（静态文档:721）；默认值与 CrewVisualCatalog.TeamBlue 同一出处。")]
+        [SerializeField] Color teamBlueTint = CrewVisualCatalog.TeamBlue;
 
         PirateBase _pirate;
         MaterialPropertyBlock _block;
