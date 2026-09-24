@@ -327,7 +327,7 @@ namespace PirateCrew.UI
         /// <summary>像素字体（SDF 档，任意字号清晰）。</summary>
         public static TMP_FontAsset PixelFont()
         {
-            TMP_FontAsset font = Resources.Load<TMP_FontAsset>("Fonts/LXGWWenKaiLite-Medium SDF");
+            TMP_FontAsset font = Resources.Load<TMP_FontAsset>(UiKit.SdfFontPath);
             if (font == null)
             {
                 Debug.LogWarning("[PixelShowcasePage] Resources/Fonts/FusionPixel12-px 缺失"
