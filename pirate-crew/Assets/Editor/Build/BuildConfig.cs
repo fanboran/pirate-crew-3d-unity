@@ -75,7 +75,7 @@ namespace PirateCrew.EditorTools.BuildSystem
             new BuildArg("-buildOutput", null, false, "<dir>", "<仓库根>/external/build/<版本>/win64",
                 "产物输出目录。相对路径按仓库根解析。"),
             new BuildArg("-buildScenes", null, false, "release|development|a,b,c", "release",
-                "场景集：release（5 场景，不含 ToonPilot）/ development（6 场景）/ 逗号分隔的场景名。"),
+                "场景集：release（5 场景）/ development（发行集 + 像素化试点，共 16 场景）/ 逗号分隔的场景名。"),
             new BuildArg("-buildScriptingBackend", null, false, "mono|il2cpp", "mono",
                 "脚本后端。本机 Unity 只装了 Mono 变体，il2cpp 会在预检阶段明确报错而不是构建到一半失败。"),
             new BuildArg("-buildCommit", null, false, "<sha>", "读 .git/HEAD",

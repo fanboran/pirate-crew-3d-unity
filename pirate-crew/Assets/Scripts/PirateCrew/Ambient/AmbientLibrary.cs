@@ -138,8 +138,8 @@ namespace PirateCrew.Ambient
     public sealed class AmbientMaterialSet
     {
         // ---- shader 名（集中一处，避免散落魔法字符串）----
-        // 【PirateOutline / PirateSurface 仍被场景侧迁移中的材质引用，常量保留到清扫波】
-        public const string SurfaceShaderName = "PirateCrew/PirateSurface";
+        // 【PirateOutline 的 shader 仍被船员描边链使用，常量保留；PirateSurface 常量已随
+        //   PBR 根除清扫波删除（shader 本体同步退役）】
         public const string OutlineShaderName = "PirateCrew/PirateOutline";
         public const string UnlitShaderName = "Universal Render Pipeline/Unlit";
 

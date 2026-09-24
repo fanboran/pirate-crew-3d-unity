@@ -6,7 +6,7 @@ namespace PirateCrew.EditorTools
 {
     /// <summary>
     /// 烘焙 **1-bit 密度抖动图案**（v3 口径）为工程资产：4×4/6×6/8×8/16×16 共 9 张，
-    /// 供 <c>PirateCrew/PirateToon</c> 的 <c>_DitherMode=1/2</c> 采样
+    /// 供像素化物体 shader（<c>PirateCrew/Pixelart/PixelartObject</c>）的 <c>_DitherMode=1/2</c> 采样
     /// （对照依据见 docs/技术/渲染/蓝图-新渲染管线-v3蓝本.md §6 P0-2）。
     ///
     /// 【为什么是"密度图案"而不是有序抖动矩阵】v3（`SL0ANE/SloanePixelartURP`，MIT）的抖动不是
@@ -26,7 +26,7 @@ namespace PirateCrew.EditorTools
     ///   <c>sampler_point_repeat</c> 双保险，导入设置被改坏也不至于糊成灰。
     ///
     /// 【入口】
-    ///   菜单: PirateCrew/ToonPilot/烘焙 1-bit 密度抖动图案（9 张）
+    ///   菜单: PirateCrew/Pixelart/烘焙 1-bit 密度抖动图案（9 张）
     ///   无头: -batchmode -nographics -quit -executeMethod PirateCrew.EditorTools.DitherPatternBaker.Bake
     /// </summary>
     public static class DitherPatternBaker
@@ -140,7 +140,7 @@ namespace PirateCrew.EditorTools
             },
         };
 
-        [MenuItem("PirateCrew/ToonPilot/烘焙 1-bit 密度抖动图案（9 张）")]
+        [MenuItem("PirateCrew/Pixelart/烘焙 1-bit 密度抖动图案（9 张）")]
         public static void Bake()
         {
             EnsureFolder("Assets/Art/Textures");
@@ -186,7 +186,7 @@ namespace PirateCrew.EditorTools
             tex.Apply();
 
             string path = OutputFolder + "/ToonDither_" + index + ".png";
-            // File IO 必须绝对路径（batchmode 下相对路径按进程 CWD 解析——ToonPilotSetup 同款教训）。
+            // File IO 必须绝对路径（batchmode 下相对路径按进程 CWD 解析——既有装配链踩过的同款教训）。
             string abs = Path.GetFullPath(Path.Combine(Application.dataPath, "..", path));
             File.WriteAllBytes(abs, tex.EncodeToPNG());
             Object.DestroyImmediate(tex);

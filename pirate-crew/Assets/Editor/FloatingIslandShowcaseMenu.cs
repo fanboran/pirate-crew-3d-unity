@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using PirateCrew.Battle;
+using PirateCrew.Rendering.Pixelart;
 using PirateCrew.SceneArt;
 using PirateCrew.SceneArt.Showcase;
 using UnityEditor;
@@ -22,8 +23,10 @@ namespace PirateCrew.EditorTools
     ///   · 本文件不含可测逻辑，也不碰 RenderSettings / 光照（那是 BattleSceneLighting 的域）。
     ///
     /// 【质量红线（工程血泪教训）】**每个 MeshRenderer 必须显式绑定材质**——
-    /// 材质为空的 renderer 在播放器构建里是洋红炸弹。本类的 EnsureMaterial 走三级回落链
-    /// （PirateSurface → URP/Lit → Standard），任何一档都保证返回非空材质；回落时记 Warning 不静默。
+    /// 材质为空的 renderer 在播放器构建里是洋红炸弹。实体槽（SurfaceSolid）走
+    /// <see cref="PixelartMaterialFactory"/>（像素物体 shader 的唯一配方，SceneArtBaker 同口径），
+    /// shader 缺失时报错返回 null、调用方跳过该槽——绝不静默拿别族 shader 顶上；
+    /// Unlit/FxAdditive 槽保留三级回落链（URP/Unlit → URP/Lit → Standard），回落时记 Warning。
     /// 另一条隐形红线：<c>PirateCrew/Fx/Additive</c> 的片元是 <c>tex × _Color × 顶点色</c>，
     /// 而合并网格默认没有 COLOR 通道（D3D11 上默认值不可依赖）——因此晶体/暖光两槽的网格
     /// **必须显式写入顶点色**（<see cref="IslandMaterialRecipe.VertexTint"/>），否则发光件整体变黑
@@ -37,10 +40,9 @@ namespace PirateCrew.EditorTools
     public static class FloatingIslandShowcaseMenu
     {
         // ------------------------------------------------------------------
-        // shader 名（与 SceneArtBuilder 同源；回落链见 EnsureMaterial）
+        // shader 名（Unlit/FxAdditive 共系件；实体槽走 PixelartMaterialFactory）
         // ------------------------------------------------------------------
 
-        const string SurfaceShaderName = "PirateCrew/PirateSurface";
         const string AdditiveShaderName = "PirateCrew/Fx/Additive";
         const string UnlitShaderName = "Universal Render Pipeline/Unlit";
         const string LitFallbackShaderName = "Universal Render Pipeline/Lit";
@@ -349,7 +351,7 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // 资产落盘：材质（配方 → Unity 材质；三级回落链保证非空）
+        // 资产落盘：材质（配方 → Unity 材质；实体槽走像素工厂，Unlit/FxAdditive 走回落链）
         // ------------------------------------------------------------------
 
         /// <summary>取/建槽位材质（幂等；按 <see cref="IslandShaderKind"/> 分四族配置）。</summary>
@@ -364,7 +366,18 @@ namespace PirateCrew.EditorTools
             }
 
             Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
+
+            if (recipe.Kind == IslandShaderKind.SurfaceSolid)
+                return EnsurePixelSurfaceMaterial(m, path, slot, recipe);
+
             Shader shader = ResolveShader(recipe.Kind, slot);
+            if (shader == null)
+            {
+                Debug.LogError("[FloatingIslandShowcase] 槽位 " + slot + " 的 shader 全链落空"
+                    + "（连 Standard 都找不到，正常编辑器会话不可能发生），跳过该槽。");
+                return null;
+            }
+
             if (m == null)
             {
                 m = new Material(shader) { name = IslandMaterialCatalog.AssetName(slot) };
@@ -377,9 +390,6 @@ namespace PirateCrew.EditorTools
 
             switch (recipe.Kind)
             {
-                case IslandShaderKind.SurfaceSolid:
-                    ConfigureSurface(m, recipe);
-                    break;
                 case IslandShaderKind.UnlitOpaque:
                     ConfigureUnlitOpaque(m, recipe);
                     break;
@@ -396,18 +406,47 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// shader 解析 + 三级回落链（PirateSurface/FxAdditive/URP-Unlit → URP/Lit → Standard）。
-        /// **保证返回非空**：回落只记 Warning 不抛——空岛缺主 shader 时宁可降级成纯色也不洋红。
+        /// SurfaceSolid 槽就地换血成像素物体材质：配方唯一来源 = <see cref="PixelartMaterialFactory"/>
+        /// （与 SceneArtBaker / WorldMapAssetSetBuilder 同口径）。albedo 取配方**暗档**（HexDark）——
+        /// 与 PixelartContentConverter 从旧 PirateSurface 材质派生 PixelartDerived_* 的取色口径一致
+        /// （TryGetAlbedo 对三档色材质取 _BaseColorA），重跑装配链与已迁移的场景引用颜色不漂移。
+        /// 物体 shader 缺失时报错返回 null（调用方跳过该槽），不静默拿别族 shader 顶上。
+        /// </summary>
+        static Material EnsurePixelSurfaceMaterial(Material m, string path, IslandMaterial slot,
+            IslandMaterialRecipe recipe)
+        {
+            Color albedo = SceneArtPalette.Hex(recipe.HexDark);
+
+            if (m == null)
+            {
+                Material created = PixelartMaterialFactory.Create(IslandMaterialCatalog.AssetName(slot), albedo);
+                if (created == null)
+                    return null;   // 工厂已报错（物体 shader 被剔除/编译失败）
+                AssetDatabase.CreateAsset(created, path);
+                return created;
+            }
+
+            Shader shader = Shader.Find(PixelartPath.ObjectShaderName);
+            if (shader == null)
+            {
+                global::PirateCrew.Core.Log.Error("[FloatingIslandShowcase] 找不到 shader \""
+                    + PixelartPath.ObjectShaderName + "\"（被剔除/编译失败？），材质 " + slot + " 未更新。");
+                return null;
+            }
+
+            m.shader = shader;
+            PixelartMaterialFactory.Configure(m, albedo);
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
+        /// <summary>
+        /// Unlit/FxAdditive 槽的 shader 解析 + 三级回落链（FxAdditive/URP-Unlit → URP/Lit → Standard）。
+        /// **保证返回非空或显式 null**：回落只记 Warning 不抛；全链落空返回 null，由调用方跳槽。
         /// </summary>
         static Shader ResolveShader(IslandShaderKind kind, IslandMaterial slot)
         {
-            string primary;
-            switch (kind)
-            {
-                case IslandShaderKind.SurfaceSolid: primary = SurfaceShaderName; break;
-                case IslandShaderKind.FxAdditive: primary = AdditiveShaderName; break;
-                default: primary = UnlitShaderName; break;
-            }
+            string primary = kind == IslandShaderKind.FxAdditive ? AdditiveShaderName : UnlitShaderName;
 
             Shader shader = Shader.Find(primary);
             if (shader != null)
@@ -422,128 +461,6 @@ namespace PirateCrew.EditorTools
 
             Debug.LogWarning("[FloatingIslandShowcase] URP/Lit 也找不到，槽位 " + slot + " 回落 Standard。");
             return Shader.Find("Standard");
-        }
-
-        /// <summary>
-        /// PBR 表面族（岩/草/泥/石工/木）：PirateSurface 的三档色阶 + 程序化噪声参数，
-        /// 并按族接上程序化细节贴图（albedo 色斑 + 法线，同 SceneArtBuilder 的贴图来源）。
-        /// 贴图缺失时把强度写 0（退回纯色本体 + 主体噪声），不中断、不随机变色。
-        /// </summary>
-        static void ConfigureSurface(Material m, IslandMaterialRecipe recipe)
-        {
-            SetColor(m, "_BaseColorA", SceneArtPalette.Hex(recipe.HexDark));
-            SetColor(m, "_BaseColorB", SceneArtPalette.Hex(recipe.HexMid));
-            SetColor(m, "_BaseColorC", SceneArtPalette.Hex(recipe.HexLight));
-            // 【AI 提案】色阶对比取配方值（岩层靠它读"层理"）；分布偏移保持 0.5 居中。
-            SetFloat(m, "_ColorRampContrast", recipe.RampContrast);
-            SetFloat(m, "_ColorRampBias", 0.5f);
-
-            // 主体噪声：尺度取全岛统一值（岛体半径 ~14.5，比竞技场道具大一个量级，
-            // 噪声从默认 3.5 放宽到 2.2 让色斑与岛体体量匹配）；强度/拉伸取配方值。
-            SetFloat(m, "_NoiseScale", 2.2f);
-            SetFloat(m, "_NoiseStrength", recipe.NoiseStrength);
-            SetVector(m, "_NoiseStretch",
-                new Vector4(recipe.NoiseStretch.x, recipe.NoiseStretch.y, 0f, 0f));
-
-            SetFloat(m, "_DebugMode", 0f);
-
-            // ---- 细节贴图（程序化资产，与 Scene_* 道具同源）：先关强度再按需打开（幂等纪律）----
-            SetFloat(m, "_DetailAlbedoStrength", 0f);
-            SetFloat(m, "_BumpScale", 0f);
-
-            NoiseFamily family = FamilyOf(m.name);
-
-            SetFloat(m, "_NoiseWorldScale", family.WorldScale);
-            Texture2D albedo = MaterialNoiseBuilder.Load(family.Albedo);
-            Texture2D normal = MaterialNoiseBuilder.Load(family.Normal);
-
-            bool albedoOk = albedo != null && m.HasProperty("_DetailNoiseMap");
-            bool normalOk = normal != null && m.HasProperty("_BumpMap");
-
-            if (albedoOk)
-            {
-                m.SetTexture("_DetailNoiseMap", albedo);
-                SetFloat(m, "_DetailAlbedoStrength", family.AlbedoStrength);
-            }
-
-            if (normalOk)
-            {
-                m.SetTexture("_BumpMap", normal);
-                SetFloat(m, "_BumpScale", family.NormalStrength);
-            }
-
-            if (!albedoOk || !normalOk)
-            {
-                Debug.LogWarning("[FloatingIslandShowcase] 材质 " + m.name + " 的细节贴图缺失："
-                    + (albedoOk ? "" : "albedo ") + (normalOk ? "" : "normal ")
-                    + "→ 对应强度已置 0（退回纯色本体 + 主体噪声）。"
-                    + "先跑 ArtGate 第 ⓪.5 步（程序化材质噪声贴图）。");
-            }
-        }
-
-        /// <summary>细节贴图配方族（映射抄 SceneArtBuilder 的 NoiseRecipe 分族口径）。</summary>
-        struct NoiseFamily
-        {
-            public MaterialNoiseBuilder.NoiseKind Albedo;
-            public MaterialNoiseBuilder.NoiseKind Normal;
-            public float WorldScale;
-            public float AlbedoStrength;
-            public float NormalStrength;
-        }
-
-        /// <summary>按材质名把槽位分进细节贴图配方族（岩/草/木/泥四族，石工并进岩的低强度档）。</summary>
-        static NoiseFamily FamilyOf(string materialName)
-        {
-            // 默认族 = 岩（匹配失败时最安全的回落：岩是空岛的视觉主体）。
-            var family = new NoiseFamily
-            {
-                Albedo = MaterialNoiseBuilder.NoiseKind.RockAlbedo,
-                Normal = MaterialNoiseBuilder.NoiseKind.RockNormal,
-                WorldScale = 0.45f,
-                AlbedoStrength = 0.35f,
-                NormalStrength = 0.60f,
-            };
-
-            if (string.IsNullOrEmpty(materialName))
-                return family;
-
-            if (materialName.Contains("Grass"))
-            {
-                family.Albedo = MaterialNoiseBuilder.NoiseKind.GrassAlbedo;
-                family.Normal = MaterialNoiseBuilder.NoiseKind.GrassNormal;
-                family.WorldScale = 0.70f;
-                family.AlbedoStrength = 0.35f;
-                family.NormalStrength = 0.50f;
-            }
-            else if (materialName.Contains("Wood"))
-            {
-                // 木：暖色斑（沙族 albedo）+ 岩族法线（节疤起伏）——与 Scene_Wood 同口径。
-                family.Albedo = MaterialNoiseBuilder.NoiseKind.SandAlbedo;
-                family.Normal = MaterialNoiseBuilder.NoiseKind.RockNormal;
-                family.WorldScale = 0.55f;
-                family.AlbedoStrength = 0.18f;
-                family.NormalStrength = 0.30f;
-            }
-            else if (materialName.Contains("Dirt"))
-            {
-                // 泥土：暖褐底上撒沙族色斑 + 岩族法线（土坷垃的碎感）。
-                family.Albedo = MaterialNoiseBuilder.NoiseKind.SandAlbedo;
-                family.Normal = MaterialNoiseBuilder.NoiseKind.RockNormal;
-                family.WorldScale = 0.50f;
-                family.AlbedoStrength = 0.30f;
-                family.NormalStrength = 0.40f;
-            }
-            else if (materialName.Contains("Stone"))
-            {
-                // 石工：比天然岩更规整（低强度），保留一点凿痕斑驳。
-                family.Albedo = MaterialNoiseBuilder.NoiseKind.RockAlbedo;
-                family.Normal = MaterialNoiseBuilder.NoiseKind.RockNormal;
-                family.WorldScale = 0.45f;
-                family.AlbedoStrength = 0.22f;
-                family.NormalStrength = 0.35f;
-            }
-
-            return family;
         }
 
         /// <summary>不透明 unlit（旗帜）。</summary>
