@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using PirateCrew.Ambient;
 using PirateCrew.Fx;
-using PirateCrew.Rendering;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -174,7 +173,6 @@ namespace PirateCrew.EditorTools
         ///     但这些 .mat 是**孤儿资产**（0 个场景/Prefab 引用），构包时随 shader 一起被剥离 →
         ///     Player.log 6 条「[Ambient] 找不到 shader」→ 回退链落空 → 洋红。**r2 洋红的根因**。
         ///   · Fx/Additive、Fx/Alpha —— 有 .mat 引用，且 FxAssetBuilder 早已登记进本列表（此处幂等跳过）。
-        ///   · PirateOutlinePost —— 无 .mat 引用，被 URP Renderer 资产字段引用，理论上可达；仍登记兜底。
         /// 不入榜的运行时 Find 名及理由：PirateOutline / PirateSurface / URP-Unlit / URP-Lit 都有 .mat 引用；
         /// Standard / Sprites/Default / Unlit/Transparent 是引擎内置 shader（Sprites/Default 由
         /// GraphicsSettings.m_SpritesDefaultMaterial 常驻），只为 URP 工程里的最后兜底，不属于本项目产线。
@@ -195,7 +193,6 @@ namespace PirateCrew.EditorTools
             AmbientMaterialSet.WindShaderName,
             FxMaterials.AdditiveShaderName,
             FxMaterials.AlphaShaderName,
-            OutlineRendererFeature.OutlinePostShaderName,
             SkyAssetBuilder.SkyShaderName,
         };
 
