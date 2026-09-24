@@ -228,12 +228,10 @@ namespace PirateCrew.EditorTools
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 
             var scaler = go.GetComponent<CanvasScaler>();
-            // 【低清画布栈】画布 = 固定艺术分辨率（1080p ÷ pixelScale，2:1 下 960×540），
-            // 整数倍缩放全屏；1 画布单位 = 1 艺术像素。详见 BattleSceneSetup.CreateCanvas。
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f / PixelSkin.Unit, 1080f / PixelSkin.Unit);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 1f;
+            // 【恒定像素密度（红警2 式）】1 画布单位 = Unit 屏幕像素，画布逻辑尺寸 = 屏幕÷Unit
+            // 随分辨率生长（1440p→1280×720）——整数倍、无分数缩放。详见 BattleSceneSetup.CreateCanvas。
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = PixelSkin.Unit;
 
             return canvas;
         }

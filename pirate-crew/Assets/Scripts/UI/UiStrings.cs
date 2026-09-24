@@ -32,6 +32,9 @@ namespace PirateCrew.UI
         /// <summary>通用：关闭。</summary>
         public const string Close = "关闭";
 
+        /// <summary>通用：确认弹窗标题（theme window 标题带用）。</summary>
+        public const string ConfirmTitle = "确认";
+
         /// <summary>通用：返回。</summary>
         public const string Back = "返回";
 

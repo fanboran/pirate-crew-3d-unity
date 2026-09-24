@@ -310,20 +310,20 @@ namespace PirateCrew.EditorTools
 
             CreateDimOverlay("DimOverlay", root);
 
-            // 底板：SketchPanel Dark → Plate(Frame tone) + 底垫投影（像素皮主弹窗底）。
+            // 底板：SketchPanel Dark → **带标题窗体**（theme window：顶 15u 标题带）。
             SketchPanel card = SketchPanel.Create(root.transform, "SettingsCard",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
                 new Vector2(427f, 300f), SketchPanel.Tone.Dark);
+            card.Titled = true;   // 换 Window 九宫格（标题带随切片落位）
             RectTransform panel = (RectTransform)card.transform;
 
-            // 标题：像素皮 Frame tone 上的可读浅字 + INK 墨描边（满精度正文档 36，层级靠颜色）。
+            // 标题：带内左上（theme window_title_label：边距 5、灰字 #c0c0c0——带面 = Frame 亮档可读）。
             TextMeshProUGUI titleText = CreateTextExact("Title", panel, UiStrings.SettingsTitle,
-                UiSkin.Font.Title, TextAlignmentOptions.Center, PixelSkin.TextColorOn(PixelTone.Frame), hand);
-            SetAnchored(titleText.rectTransform, new Vector2(0.5f, 1f), new Vector2(200f, 15f),
-                new Vector2(0f, -15f));
-            ApplyStickTitleOutline(titleText);
+                UiSkin.Font.Title, TextAlignmentOptions.MidlineLeft, PixelSkin.Theme.Text, hand);
+            SetAnchored(titleText.rectTransform, new Vector2(0f, 1f), new Vector2(383f, 30f),
+                new Vector2(5f, -3f));
 
-            // 标题下蚀刻分隔线（像素皮 Separator 贴图，方向由 Dir 决定）。
+            // 标题带下蚀刻分隔线（像素皮 Separator 贴图，方向由 Dir 决定）。
             SketchSeparator.Create(panel, "TitleSeparator", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -35f), new Vector2(300f, 1f), SketchSeparator.Direction.Horizontal);
 
@@ -350,10 +350,11 @@ namespace PirateCrew.EditorTools
                 UiStrings.SettingsOptionFullscreen, UiStrings.SettingsOptionWindowed);
 
             // 提示：角标档（像素 Tiny 24）+ TEXT_FAINT（stick-world 次级文字口径），放底部通带。
+            // y=54：行区底（距顶 230）与恢复默认钮（y=76）之间的空档——y=120 会插进画质行。
             TextMeshProUGUI note = CreateTextExact("SaveHint", panel, UiStrings.SettingsSaveHint,
                 UiSkin.Font.Tiny, TextAlignmentOptions.Center, TEXT_FAINT, hand);
             SetAnchored(note.rectTransform, new Vector2(0.5f, 0f), new Vector2(393f, 12f),
-                new Vector2(0f, 120f));
+                new Vector2(0f, 54f));
 
             // 恢复默认 / 返回：手绘按钮 Dark 变体；宽 = 标签宽 + 24 艺术像素、高 24 艺术像素（令牌按钮）。
             result.RestoreButton = CreateSketchButton("RestoreButton", panel, UiStrings.SettingsRestore,
@@ -408,7 +409,7 @@ namespace PirateCrew.EditorTools
             RectTransform sliderRect = CreateRect("Slider", row);
             SetAnchored(sliderRect, new Vector2(1f, 0.5f), new Vector2(187f, 11f), new Vector2(-8f, 0f));
             var sliderBack = sliderRect.gameObject.AddComponent<Image>();
-            sliderBack.sprite = PixelSkin.Track(PixelTone.Frame);   // 滑条背 = 凹槽件
+            sliderBack.sprite = PixelSkin.SliderEmpty(false);   // theme slider_empty（凹槽语法）
             sliderBack.type = Image.Type.Sliced;
             sliderBack.color = Color.white;                         // 像素件禁止乘色
             sliderBack.raycastTarget = false;
@@ -428,7 +429,7 @@ namespace PirateCrew.EditorTools
             RectTransform fill = CreateRect("Fill", fillArea);
             Stretch(fill);
             var fillImage = fill.gameObject.AddComponent<Image>();
-            fillImage.sprite = PixelSkin.Fill(PixelFillKind.Neutral);   // 音量条 = 中性进度填充
+            fillImage.sprite = PixelSkin.SliderFull(false);   // theme slider_full（金色充满段）
             fillImage.type = Image.Type.Sliced;
             fillImage.color = Color.white;                          // 像素件禁止乘色
             fillImage.raycastTarget = false;
@@ -441,12 +442,13 @@ namespace PirateCrew.EditorTools
             handleArea.offsetMax = new Vector2(-8f, 0f);
 
             RectTransform handle = CreateRect("Handle", handleArea);
-            handle.sizeDelta = new Vector2(10f, 0f);   // ≥ Plate 切片和（左右 4u+4u）+ 1u 内容区
+            handle.sizeDelta = new Vector2(10f, 0f);   // 宽 = 拇指件 5u；高铺满（preserveAspect 锁纵横）
             handle.anchorMin = new Vector2(0f, 0f);
             handle.anchorMax = new Vector2(0f, 1f);
             var handleImage = handle.gameObject.AddComponent<Image>();
-            handleImage.sprite = PixelSkin.Plate(PixelTone.Light);  // 手柄 = 暖白滑块
-            handleImage.type = Image.Type.Sliced;
+            handleImage.sprite = PixelSkin.SliderThumb;  // theme mini_slider_thumb（金色 5×4）
+            handleImage.type = Image.Type.Simple;
+            handleImage.preserveAspect = true;
             handleImage.color = Color.white;                        // 像素件禁止乘色
             handleImage.raycastTarget = false;
 
@@ -456,9 +458,8 @@ namespace PirateCrew.EditorTools
             return slider;
         }
 
-        /// <summary>建一行「字段名 + 二选一选项块」，返回两个选项按钮。
-        /// 选中态由控制器 <c>SetChipSelected</c> 换 sprite（selected = Primary tone 悬停档 /
-        /// 未选 = Dense 常态）并同步重挂 SpriteState——像素皮禁乘色。</summary>
+        /// <summary>建一行「字段名 + 二选一单选钮」，返回两个选项（SketchCheck = Button 子类，
+        /// 控制器 <c>SetChipSelected</c> 对它走 IsOn 换图标分支——theme radio：选中 = 中心点）。</summary>
         static void BuildSettingsRow(Transform rows, int index, string field, TMP_FontAsset hand,
             out Button primaryOption, out Button secondaryOption, string primaryLabel, string secondaryLabel)
         {
@@ -469,13 +470,14 @@ namespace PirateCrew.EditorTools
             SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 15f),
                 new Vector2(8f, 0f));
 
-            // 选项块：令牌按钮（144×72 起步）+ 正文字号（按钮文字 = 正文 12 艺术像素）。
-            primaryOption = SketchButton.Create(row, "Option0", new Vector2(1f, 0.5f),
-                new Vector2(0.5f, 0.5f), new Vector2(-448f, 0f), ButtonSize(primaryLabel), hand,
-                SketchButtonKind.Dark, primaryLabel, UiSkin.Font.Body);
-            secondaryOption = SketchButton.Create(row, "Option1", new Vector2(1f, 0.5f),
-                new Vector2(0.5f, 0.5f), new Vector2(-236f, 0f), ButtonSize(secondaryLabel), hand,
-                SketchButtonKind.Dark, secondaryLabel, UiSkin.Font.Body);
+            // 选项：theme radio（8×8 图标 + 文字；悬停铺 HotFace），行内右侧对齐一对。
+            float w1 = 14f * 2f + UiSkin.Font.Body * (secondaryLabel.Length + 1f);
+            secondaryOption = SketchCheck.Create(row, "Option1", secondaryLabel, radio: true, hand,
+                UiSkin.Font.Body, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(-6f, 0f), SettingsRowHeight - 6f);
+            primaryOption = SketchCheck.Create(row, "Option0", primaryLabel, radio: true, hand,
+                UiSkin.Font.Body, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(-6f - w1 - 8f, 0f), SettingsRowHeight - 6f);
         }
 
         /// <summary>设置行的底板（滑条行与选项行共用）：SketchPanel Light → Plate(Light) 片 + 底垫投影。

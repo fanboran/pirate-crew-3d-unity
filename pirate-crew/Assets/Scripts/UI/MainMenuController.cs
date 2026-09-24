@@ -286,7 +286,8 @@ namespace PirateCrew.UI
         }
 
         /// <summary>
-        /// 选项块选中态：像素皮不做乘色（乘色会把烘焙色阶乘脏）——选中/未选靠<b>换 sprite</b>：
+        /// 选项块选中态。**theme radio（SketchCheck）**：走 IsOn 换图标分支（选中 = 中心点）；
+        /// 旧选项按钮（Pixel Plate 皮）不做乘色——选中/未选靠<b>换 sprite</b>：
         /// 选中 = <see cref="PixelTone.Primary"/> 的悬停档 Plate、未选 = <see cref="PixelTone.Dense"/> 常态 Plate；
         /// 字色同步取该 tone 上的可读档（<see cref="PixelSkin.TextColorOn"/>），
         /// SpriteState 一起重挂，保证 hover/pressed 也落在同一 tone 上。
@@ -295,6 +296,12 @@ namespace PirateCrew.UI
         {
             if (chip == null)
                 return;
+
+            if (chip is Stick.SketchCheck check)
+            {
+                check.IsOn = selected;
+                return;
+            }
 
             PixelTone tone = selected ? PixelTone.Primary : PixelTone.Dense;
 

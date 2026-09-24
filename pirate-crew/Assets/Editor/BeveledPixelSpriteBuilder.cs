@@ -657,6 +657,8 @@ namespace PirateCrew.EditorTools
                 return BuildPlateFromTemplate(r, state, out border);
             if (piece == Piece.Panel)
                 return BuildPanelFromTemplate(r, out border);
+            if (piece == Piece.Window)
+                return BuildWindowFromTemplate(r, out border);
 
             int n = PlateSize;
             var px = new Color32[n * n];
@@ -835,6 +837,516 @@ namespace PirateCrew.EditorTools
                     px[y * w + x] = map[PanelTemplate[y / u][x / u]];
             border = new Vector4(2 * u, 2 * u, 2 * u, 2 * u);   // 左/下/右/上
             return ToTexture(px, w, h);
+        }
+
+        // ------------------------------------------------------------------
+        // 七b、Aseprite dark 全部件搬皮（theme.xml 逐件复刻，2026-09-25 创始人裁决"全学"）
+        // 几何/颜色全部取自 external/aseprite-ref dark 主题的 theme.xml 原值；
+        // 固定色语义件（复选/滑条/滚动条/tooltip…）不走 tone 阶梯，用 ThemeXxx 精确色。
+        // ------------------------------------------------------------------
+
+        /// <summary>theme.xml 精确色（搬皮件的唯一取色源，禁止近似调色）。</summary>
+        static Color32 THex(string hex)
+        {
+            return new Color32(
+                Convert.ToByte(hex.Substring(1, 2), 16),
+                Convert.ToByte(hex.Substring(3, 2), 16),
+                Convert.ToByte(hex.Substring(5, 2), 16), 255);
+        }
+
+        /// <summary>theme.xml 颜色表（部件侧引用的子集；完整表见 theme.xml colors 段）。</summary>
+        static class Ase
+        {
+            public static readonly Color32 Text = THex("#c0c0c0");          // text / button_normal_text
+            public static readonly Color32 TextSelected = THex("#ffffff");  // button_selected_text
+            public static readonly Color32 Face = THex("#2c2c30");          // face / window_face
+            public static readonly Color32 Background = THex("#41444a");    // background / titlebar / listitem face
+            public static readonly Color32 Disabled = THex("#202125");      // disabled / editor_face
+            public static readonly Color32 HotFace = THex("#575b61");       // check/radio_hot_face
+            public static readonly Color32 Selected = THex("#e1b85f");      // selected / listitem_selected
+            public static readonly Color32 SeparatorLabel = THex("#6e9adb");// separator_label / link
+            public static readonly Color32 TooltipFace = THex("#4069c2");   // tooltip_face
+            public static readonly Color32 TabNormalText = THex("#7d7d7d");
+            public static readonly Color32 StatusFace = THex("#333333");
+        }
+
+        /// <summary>窗控钮 9×11（theme window_button；三态换色不换几何）。</summary>
+        static readonly string[] WindowButtonTemplate =
+        {
+            ".KKKKKKK.",
+            "KCCCCCCC K".Replace(" ", ""),
+            "KEEEEEEEK",
+            "KEEEEEEEK",
+            "KEEEEEEEK",
+            "KEEEEEEEK",
+            "KEEEEEEEK",
+            "KEEEEEEEK",
+            "KEEEEEEEK",
+            "KDDDDDDDK",
+            ".KKKKKKK.",
+        };
+
+        /// <summary>窗控图标 5×6（X=图标色，运行时可 Image.color 乘色换染）。</summary>
+        static readonly string[] IconCloseTemplate =
+        {
+            "X...X",
+            ".X.X.",
+            "..X..",
+            ".X.X.",
+            "X...X",
+            ".....",
+        };
+        static readonly string[] IconHelpTemplate =
+        {
+            ".XXX.",
+            "X...X",
+            "...X.",
+            "..X..",
+            ".....",
+            "..X..",
+        };
+        static readonly string[] IconPlayTemplate =
+        {
+            "X....",
+            "XX...",
+            "XXX..",
+            "XXXX.",
+            "XXXXX",
+            ".....",
+        };
+        static readonly string[] IconStopTemplate =
+        {
+            "XXXXX",
+            "XXXXX",
+            "XXXXX",
+            "XXXXX",
+            "XXXXX",
+            ".....",
+        };
+        static readonly string[] IconCenterTemplate =
+        {
+            ".XXX.",
+            "X...X",
+            "X.X.X",
+            "X...X",
+            ".XXX.",
+            ".....",
+        };
+
+        /// <summary>复选框 8×8（theme check_normal/selected：凹槽语法 + ✓ 标记）。</summary>
+        static readonly string[] CheckNormalTemplate =
+        {
+            "KKKKKKKK",
+            "KDDDDDDK",
+            "KDEEEECK",
+            "KDEEEECK",
+            "KDEEEECK",
+            "KDEEEECK",
+            "KCCCCCC K".Replace(" ", ""),
+            "KKKKKKKK",
+        };
+        static readonly string[] CheckSelectedTemplate =
+        {
+            "KKKKKKKK",
+            "KDDDDDDK",
+            "KDEEEECK",
+            "KDX..XCK",
+            "KD.XX.CK",
+            "KDEEEECK",
+            "KCCCCCC K".Replace(" ", ""),
+            "KKKKKKKK",
+        };
+
+        /// <summary>单选钮 8×8（theme radio_normal/selected：凹槽语法 + 中心点）。</summary>
+        static readonly string[] RadioSelectedTemplate =
+        {
+            "KKKKKKKK",
+            "KDDDDDDK",
+            "KDEEEECK",
+            "KDEXXECK",
+            "KDEXXECK",
+            "KDEEEECK",
+            "KCCCCCC K".Replace(" ", ""),
+            "KKKKKKKK",
+        };
+
+        /// <summary>复选/单选的焦点九宫格 10×10（theme check_focus 2/6/2）。</summary>
+        static readonly string[] WidgetFocusTemplate =
+        {
+            "..........",
+            ".FFFFFFFF.",
+            ".F......F.",
+            ".F......F.",
+            ".F......F.",
+            ".F......F.",
+            ".F......F.",
+            ".F......F.",
+            ".FFFFFFFF.",
+            "..........",
+        };
+
+        /// <summary>凹槽 12×12（theme sunken 4/4/4；textedit/列表底）。</summary>
+        static readonly string[] SunkenTemplate =
+        {
+            "KKKKKKKKKKKK",
+            "KDDDDDDDDDDK",
+            "KDEEEEEEEECK",
+            "KDEEEEEEEECK",
+            "KDEEEEEEEECK",
+            "KDEEEEEEEECK",
+            "KDEEEEEEEECK",
+            "KDEEEEEEEECK",
+            "KDEEEEEEEECK",
+            "KDEEEEEEEECK",
+            "KCCCCCCCCCCK",
+            "KKKKKKKKKKKK",
+        };
+
+        /// <summary>滑条空槽 16×16（theme slider_empty 5/6/5 × 5/5/6）。</summary>
+        static readonly string[] SliderEmptyTemplate =
+        {
+            "KKKKKKKKKKKKKKKK",
+            "KDDDDDDDDDDDDDDK",
+            "KDEEEEEEEEEEEECK",
+            "KDEEEEEEEEEEEECK",
+            "KDEEEEEEEEEEEECK",
+            "KDEEEEEEEEEEEECK",
+            "KDEEEEEEEEEEEECK",
+            "KDEEEEEEEEEEEECK",
+            "KDEEEEEEEEEEEECK",
+            "KDEEEEEEEEEEEECK",
+            "KDEEEEEEEEEEEECK",
+            "KDEEEEEEEEEEEECK",
+            "KDEEEEEEEEEEEECK",
+            "KDEEEEEEEEEEEECK",
+            "KCCCCCCCCCCCCCCK",
+            "KKKKKKKKKKKKKKKK",
+        };
+
+        /// <summary>滑条充满段 16×16（theme slider_full；金色 selected 面）。</summary>
+        static readonly string[] SliderFullTemplate =
+        {
+            "KKKKKKKKKKKKKKKK",
+            "KCCCCCCCCCCCCCCK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KDDDDDDDDDDDDDDK",
+            "KKKKKKKKKKKKKKKK",
+        };
+
+        /// <summary>滑条拇指 5×4（theme mini_slider_thumb）。</summary>
+        static readonly string[] SliderThumbTemplate =
+        {
+            "KKKKK",
+            "KCECK",
+            "KCEDK",
+            "KKKKK",
+        };
+
+        /// <summary>滚动条底 16×16（theme scrollbar_bg 5/6/5）。</summary>
+        static readonly string[] ScrollBgTemplate = SliderEmptyTemplate;
+
+        /// <summary>滚动条滑块 16×16（theme scrollbar_thumb；凸起语法）。</summary>
+        static readonly string[] ScrollThumbTemplate =
+        {
+            "KKKKKKKKKKKKKKKK",
+            "KCCCCCCCCCCCCCCK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KDDDDDDDDDDDDDDK",
+            "KKKKKKKKKKKKKKKK",
+        };
+
+        /// <summary>气泡 16×16（theme tooltip 5/6/5 × 5/5/6；蓝底）。</summary>
+        static readonly string[] TooltipTemplate =
+        {
+            "KKKKKKKKKKKKKKKK",
+            "KCCCCCCCCCCCCCCK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KCEEEEEEEEEEEECK",
+            "KDDDDDDDDDDDDDDK",
+            "KKKKKKKKKKKKKKKK",
+        };
+
+        /// <summary>组合框下拉箭头 9×8（theme combobox_arrow_down）。</summary>
+        static readonly string[] ArrowDownTemplate =
+        {
+            ".........",
+            ".........",
+            "....X....",
+            "...XXX...",
+            "..XXXXX..",
+            ".XXXXXXX.",
+            ".........",
+            ".........",
+        };
+
+        /// <summary>带标题栏的窗体 13×24（theme window：3/7/3 × 15/4/5）。
+        /// B=标题带（tone 亮档），带底暗线 D，窗体 E；顶部切片 15 = 环+带+带底线。</summary>
+        static readonly string[] WindowTemplate =
+        {
+            "KKKKKKKKKKKKK",
+            "KCCCCCCCCCCCK",
+            "KBBBBBBBBBBBK",
+            "KBBBBBBBBBBBK",
+            "KBBBBBBBBBBBK",
+            "KBBBBBBBBBBBK",
+            "KBBBBBBBBBBBK",
+            "KBBBBBBBBBBBK",
+            "KBBBBBBBBBBBK",
+            "KBBBBBBBBBBBK",
+            "KBBBBBBBBBBBK",
+            "KBBBBBBBBBBBK",
+            "KBBBBBBBBBBBK",
+            "KBBBBBBBBBBBK",
+            "KDDDDDDDDDDDK",
+            "KEEEEEEEEEEEK",
+            "KEEEEEEEEEEEK",
+            "KEEEEEEEEEEEK",
+            "KEEEEEEEEEEEK",
+            "KEEEEEEEEEEEK",
+            "KEEEEEEEEEEEK",
+            "KEEEEEEEEEEEK",
+            "KEEEEEEEEEEEK",
+            "KKKKKKKKKKKKK",
+        };
+
+        /// <summary>通用字母模板构建：'.' = 透明，其余按 map 取色，×Unit 落盘。</summary>
+        static Texture2D BuildTemplateTexture(string[] template, Dictionary<char, Color32> map,
+            Vector4 border)
+        {
+            int rows = template.Length;
+            int cols = template[0].Length;
+            for (int i = 1; i < rows; i++)
+            {
+                if (template[i].Length != cols)
+                    throw new InvalidOperationException("[BeveledPixelSpriteBuilder] 模板第 " + i
+                        + " 行宽 " + template[i].Length + " ≠ 首行 " + cols + "——参差模板会越界。");
+            }
+            int u = Unit;
+            int w = cols * u, h = rows * u;
+            var px = new Color32[w * h];
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    char ch = template[y / u][x / u];
+                    px[y * w + x] = ch == '.' ? new Color32(0, 0, 0, 0) : map[ch];
+                }
+            }
+            return ToTexture(px, w, h);
+        }
+
+        /// <summary>凹槽族色表（sunken/check/radio/slider_empty/scroll_bg）。</summary>
+        static Dictionary<char, Color32> SunkenMap(bool focused)
+        {
+            return new Dictionary<char, Color32>
+            {
+                { 'K', focused ? Ase.SeparatorLabel : Slot("INK") },
+                { 'D', focused ? Ase.HotFace : Ase.Disabled },
+                { 'E', Ase.Disabled },
+                { 'C', focused ? Ase.SeparatorLabel : Ase.Background },
+                { 'X', Ase.Text },
+                { 'F', Ase.Background },
+            };
+        }
+
+        /// <summary>凸起族色表（窗控钮/滑条充满/滚动滑块常态）。</summary>
+        static Dictionary<char, Color32> RaisedMap()
+        {
+            return new Dictionary<char, Color32>
+            {
+                { 'K', Slot("INK") },
+                { 'C', Ase.Background },
+                { 'E', Ase.Face },
+                { 'D', Ase.Disabled },
+            };
+        }
+
+        /// <summary>theme 语义件路由（CreateByName 的后半段）。</summary>
+        static Texture2D CreateThemePart(string name, out Vector4 border)
+        {
+            string[] tpl;
+            Dictionary<char, Color32> map;
+            if (!ResolveThemePart(name, out tpl, out map, out border))
+                return null;
+            return BuildTemplateTexture(tpl, map, border);
+        }
+
+        /// <summary>theme 件名 →（模板, 色表, 切片）。构建与判据共用的单一真源。</summary>
+        static bool ResolveThemePart(string name, out string[] tpl, out Dictionary<char, Color32> map,
+            out Vector4 border)
+        {
+            int u = Unit;
+            tpl = null;
+            map = null;
+            border = Vector4.zero;
+            switch (name)
+            {
+                case "Pixel_WindowButton":
+                    tpl = WindowButtonTemplate; map = RaisedMap();
+                    return true;
+                case "Pixel_WindowButton_Hover":
+                    tpl = WindowButtonTemplate;
+                    map = new Dictionary<char, Color32>
+                    {
+                        { 'K', Slot("INK") }, { 'C', Ase.HotFace },
+                        { 'E', Ase.Background }, { 'D', Ase.Face },
+                    };
+                    return true;
+                case "Pixel_WindowButton_Pressed":
+                    tpl = WindowButtonTemplate;
+                    map = new Dictionary<char, Color32>
+                    {
+                        { 'K', Slot("INK") }, { 'C', Ase.Face },
+                        { 'E', Ase.Disabled }, { 'D', Slot("INK") },
+                    };
+                    return true;
+                case "Pixel_Icon_Close":
+                case "Pixel_Icon_Help":
+                case "Pixel_Icon_Play":
+                case "Pixel_Icon_Stop":
+                case "Pixel_Icon_Center":
+                    tpl = name == "Pixel_Icon_Close" ? IconCloseTemplate
+                        : name == "Pixel_Icon_Help" ? IconHelpTemplate
+                        : name == "Pixel_Icon_Play" ? IconPlayTemplate
+                        : name == "Pixel_Icon_Stop" ? IconStopTemplate
+                        : IconCenterTemplate;
+                    map = new Dictionary<char, Color32> { { 'X', Ase.Text } };
+                    return true;
+                case "Pixel_Check":
+                    tpl = CheckNormalTemplate; map = SunkenMap(false);
+                    return true;
+                case "Pixel_Check_Selected":
+                    tpl = CheckSelectedTemplate; map = SunkenMap(false);
+                    return true;
+                case "Pixel_Radio":
+                    tpl = CheckNormalTemplate; map = SunkenMap(false);
+                    return true;
+                case "Pixel_Radio_Selected":
+                    tpl = RadioSelectedTemplate; map = SunkenMap(false);
+                    return true;
+                case "Pixel_WidgetFocus":
+                    tpl = WidgetFocusTemplate; map = SunkenMap(false);
+                    border = new Vector4(2 * u, 2 * u, 2 * u, 2 * u);
+                    return true;
+                case "Pixel_Sunken":
+                    tpl = SunkenTemplate; map = SunkenMap(false);
+                    border = new Vector4(4 * u, 4 * u, 4 * u, 4 * u);
+                    return true;
+                case "Pixel_Sunken_Focused":
+                    tpl = SunkenTemplate; map = SunkenMap(true);
+                    border = new Vector4(4 * u, 4 * u, 4 * u, 4 * u);
+                    return true;
+                case "Pixel_Slider_Empty":
+                case "Pixel_Slider_Empty_Focused":
+                    tpl = SliderEmptyTemplate;
+                    map = SunkenMap(name.EndsWith("_Focused", StringComparison.Ordinal));
+                    border = new Vector4(5 * u, 5 * u, 5 * u, 6 * u);
+                    return true;
+                case "Pixel_Slider_Full":
+                case "Pixel_Slider_Full_Focused":
+                    tpl = SliderFullTemplate;
+                    map = SliderThumbMap();   // 充满段与拇指同一金色系色表
+                    if (name.EndsWith("_Focused", StringComparison.Ordinal))
+                        map['K'] = Ase.SeparatorLabel;   // 聚焦 = 蓝环
+                    border = new Vector4(5 * u, 5 * u, 5 * u, 6 * u);
+                    return true;
+                case "Pixel_SliderThumb":
+                    tpl = SliderThumbTemplate; map = SliderThumbMap();
+                    return true;
+                case "Pixel_ScrollBg":
+                    tpl = ScrollBgTemplate; map = SunkenMap(false);
+                    border = new Vector4(5 * u, 5 * u, 5 * u, 5 * u);
+                    return true;
+                case "Pixel_ScrollThumb":
+                    tpl = ScrollThumbTemplate; map = RaisedMap();
+                    border = new Vector4(5 * u, 5 * u, 5 * u, 5 * u);
+                    return true;
+                case "Pixel_Tooltip":
+                    tpl = TooltipTemplate;
+                    map = new Dictionary<char, Color32>
+                    {
+                        { 'K', Slot("INK") }, { 'C', Ase.SeparatorLabel },
+                        { 'E', Ase.TooltipFace }, { 'D', Slot("INK") },
+                    };
+                    border = new Vector4(5 * u, 6 * u, 5 * u, 6 * u);
+                    return true;
+                case "Pixel_ArrowDown":
+                case "Pixel_ArrowDown_Selected":
+                case "Pixel_ArrowDown_Disabled":
+                    tpl = ArrowDownTemplate;
+                    map = new Dictionary<char, Color32>
+                    {
+                        { 'X', name.EndsWith("_Selected", StringComparison.Ordinal)
+                            ? Ase.TextSelected
+                            : name.EndsWith("_Disabled", StringComparison.Ordinal)
+                                ? Ase.Disabled
+                                : Ase.Text },
+                    };
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        static Dictionary<char, Color32> SliderThumbMap()
+        {
+            return new Dictionary<char, Color32>
+            {
+                { 'K', Slot("INK") },
+                { 'C', Ase.Text },
+                { 'E', Ase.Selected },
+                { 'D', Ase.Background },
+            };
+        }
+
+        /// <summary>带标题栏的窗体（theme window：13×24，切片 左3/下5/右3/上15）。
+        /// 标题带 = tone 亮档（Dense/Frame 下即 theme 的 #41444a），带底暗线 = 暗档，
+        /// 窗体 = 中档——tone 阶梯在无色 tone 上正好落 theme 中性三档。</summary>
+        static Texture2D BuildWindowFromTemplate(Ramp r, out Vector4 border)
+        {
+            int u = Unit;
+            var map = new Dictionary<char, Color32>
+            {
+                { 'K', Slot("INK") },
+                { 'C', r.S4 },   // 带顶受光唇
+                { 'B', r.S4 },   // 标题带面
+                { 'D', r.S2 },   // 带底暗线
+                { 'E', r.S3 },   // 窗体面
+            };
+            border = new Vector4(3 * u, 5 * u, 3 * u, 15 * u);   // 左/下/右/上
+            return BuildTemplateTexture(WindowTemplate, map, border);
         }
 
         /// <summary>页签的切角判据：只对上两角生效（dy 只算到上边界的距离）。</summary>
@@ -1273,12 +1785,73 @@ namespace PirateCrew.EditorTools
             list.Add(NewTarget("Pixel_Sep_V"));
             list.Add(NewTarget("Pixel_Shadow"));
 
+            // Aseprite dark 全部件搬皮（2026-09-25）：tone 窗体 + theme 语义件
+            foreach (Tone tone in Enum.GetValues(typeof(Tone)))
+                list.Add(NewTarget(AssetNameOf(tone, Piece.Window, State.Normal)));
+            list.Add(NewTarget("Pixel_WindowButton"));
+            list.Add(NewTarget("Pixel_WindowButton_Hover"));
+            list.Add(NewTarget("Pixel_WindowButton_Pressed"));
+            list.Add(NewTarget("Pixel_Icon_Close"));
+            list.Add(NewTarget("Pixel_Icon_Help"));
+            list.Add(NewTarget("Pixel_Icon_Play"));
+            list.Add(NewTarget("Pixel_Icon_Stop"));
+            list.Add(NewTarget("Pixel_Icon_Center"));
+            list.Add(NewTarget("Pixel_Check"));
+            list.Add(NewTarget("Pixel_Check_Selected"));
+            list.Add(NewTarget("Pixel_Radio"));
+            list.Add(NewTarget("Pixel_Radio_Selected"));
+            list.Add(NewTarget("Pixel_WidgetFocus"));
+            list.Add(NewTarget("Pixel_Sunken"));
+            list.Add(NewTarget("Pixel_Sunken_Focused"));
+            list.Add(NewTarget("Pixel_Slider_Empty"));
+            list.Add(NewTarget("Pixel_Slider_Empty_Focused"));
+            list.Add(NewTarget("Pixel_Slider_Full"));
+            list.Add(NewTarget("Pixel_Slider_Full_Focused"));
+            list.Add(NewTarget("Pixel_SliderThumb"));
+            list.Add(NewTarget("Pixel_ScrollBg"));
+            list.Add(NewTarget("Pixel_ScrollThumb"));
+            list.Add(NewTarget("Pixel_Tooltip"));
+            list.Add(NewTarget("Pixel_ArrowDown"));
+            list.Add(NewTarget("Pixel_ArrowDown_Selected"));
+            list.Add(NewTarget("Pixel_ArrowDown_Disabled"));
+
             return list.ToArray();
         }
 
         /// <summary>资产名 → 画法族（判据分流用；与 <see cref="CreateByName"/> 的路由一一对应）。</summary>
         public static string KindOfName(string name)
         {
+            // theme 语义件先于 tone×piece 前缀判（Pixel_WindowButton 会撞 Pixel_Window_）
+            switch (name)
+            {
+                case "Pixel_WindowButton":
+                case "Pixel_WindowButton_Hover":
+                case "Pixel_WindowButton_Pressed":
+                case "Pixel_Icon_Close":
+                case "Pixel_Icon_Help":
+                case "Pixel_Icon_Play":
+                case "Pixel_Icon_Stop":
+                case "Pixel_Icon_Center":
+                case "Pixel_Check":
+                case "Pixel_Check_Selected":
+                case "Pixel_Radio":
+                case "Pixel_Radio_Selected":
+                case "Pixel_WidgetFocus":
+                case "Pixel_Sunken":
+                case "Pixel_Sunken_Focused":
+                case "Pixel_Slider_Empty":
+                case "Pixel_Slider_Empty_Focused":
+                case "Pixel_Slider_Full":
+                case "Pixel_Slider_Full_Focused":
+                case "Pixel_SliderThumb":
+                case "Pixel_ScrollBg":
+                case "Pixel_ScrollThumb":
+                case "Pixel_Tooltip":
+                case "Pixel_ArrowDown":
+                case "Pixel_ArrowDown_Selected":
+                case "Pixel_ArrowDown_Disabled":
+                    return "themepart";
+            }
             if (name.StartsWith("Pixel_Fill_", StringComparison.Ordinal))
                 return "fill";
             if (name.StartsWith("Pixel_Tab_", StringComparison.Ordinal))
@@ -1287,6 +1860,8 @@ namespace PirateCrew.EditorTools
                 return "track";
             if (name.StartsWith("Pixel_Panel_", StringComparison.Ordinal))
                 return "panel";
+            if (name.StartsWith("Pixel_Window_", StringComparison.Ordinal))
+                return "window";
             if (name == "Pixel_Ring" || name == "Pixel_Focus")
                 return "ring";
             if (name.StartsWith("Pixel_Pip_", StringComparison.Ordinal))
@@ -1335,6 +1910,22 @@ namespace PirateCrew.EditorTools
                     h = PanelTemplate.Length * Unit;
                     border = new Vector4(2 * Unit, 2 * Unit, 2 * Unit, 2 * Unit);
                     break;
+                case "window":
+                    w = WindowTemplate[0].Length * Unit;
+                    h = WindowTemplate.Length * Unit;
+                    border = new Vector4(3 * Unit, 5 * Unit, 3 * Unit, 15 * Unit);
+                    break;
+                case "themepart":
+                {
+                    // theme 语义件：尺寸/切片由 CreateThemePart 的同构 switch 给出
+                    Texture2D probe = CreateThemePart(name, out border);
+                    if (probe == null)
+                        throw new InvalidOperationException("[BeveledPixelSpriteBuilder] 未知 theme 件：" + name);
+                    w = probe.width;
+                    h = probe.height;
+                    UnityEngine.Object.DestroyImmediate(probe);
+                    break;
+                }
                 case "shadow":
                     w = PlateSize; h = PlateSize;
                     border = new Vector4(PlateBorder, PlateBorder, PlateBorder, PlateBorder);
@@ -1383,6 +1974,11 @@ namespace PirateCrew.EditorTools
                 return CreateSepTexture(name == "Pixel_Sep_H", out border);
             if (name == "Pixel_Shadow")
                 return CreateShadowTexture(out border);
+
+            // theme 语义件（Aseprite dark 全部件搬皮）
+            Texture2D theme = CreateThemePart(name, out border);
+            if (theme != null)
+                return theme;
 
             if (name.StartsWith("Pixel_Fill_", StringComparison.Ordinal))
             {
@@ -1752,7 +2348,7 @@ namespace PirateCrew.EditorTools
                     }
                 }
 
-                problems.AddRange(CheckBandsAndHoles(label, fresh, ExpectedTransparent(t.kind), t.kind));
+                problems.AddRange(CheckBandsAndHoles(label, fresh, ExpectedTransparent(t.kind, t.name), t.kind));
                 problems.AddRange(CheckPaletteLock(label, t, fresh));
                 if (t.kind == "tab")
                     problems.AddRange(CheckTabBottomFlat(label, fresh, t));
@@ -1779,7 +2375,7 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>按画法族给期望透明像素数（"除已知形状外不该有孔洞"的已知形状就在这）。</summary>
-        static int ExpectedTransparent(string kind)
+        static int ExpectedTransparent(string kind, string name)
         {
             switch (kind)
             {
@@ -1787,6 +2383,21 @@ namespace PirateCrew.EditorTools
                 case "tab": return ChamferPixelCount() / 2;    // 只切上两角
                 case "track": return ChamferPixelCount();      // 条槽族走分层画法（切角深度 0 = 方角 = 全不透明）
                 case "panel": return 0;                        // 直角面板（2026-09-24 裁决：圆角只属于按钮）
+                case "window": return 0;                       // 带标题窗体同为直角全不透明
+                case "themepart":
+                {
+                    // theme 模板件：'.' 格即已知透明形状（与生成器同源，非循环——判据锁的是模板本身）
+                    string[] tpl;
+                    Dictionary<char, Color32> map;
+                    Vector4 border;
+                    if (!ResolveThemePart(name, out tpl, out map, out border))
+                        return 0;
+                    int cells = 0;
+                    foreach (string row in tpl)
+                        foreach (char ch in row)
+                            if (ch == '.') cells++;
+                    return cells * Unit * Unit;
+                }
                 case "ring": return RingSize * RingSize - RingOpaqueCount();
                 case "pip": return PipSize * PipSize - PipOpaqueCount();
                 case "sep": return 0;
@@ -2107,6 +2718,16 @@ namespace PirateCrew.EditorTools
             string kind = t.kind ?? KindOfName(name);
             switch (kind)
             {
+                case "themepart":
+                {
+                    // theme 语义件：白名单 = ResolveThemePart 的同源色表（构建/判据单一真源）
+                    string[] tpl;
+                    Dictionary<char, Color32> map;
+                    Vector4 themeBorder;
+                    if (ResolveThemePart(name, out tpl, out map, out themeBorder))
+                        allowed.AddRange(map.Values);
+                    break;
+                }
                 case "fill":
                 {
                     var fillKind = (FillKind)Enum.Parse(typeof(FillKind), name.Substring("Pixel_Fill_".Length));
@@ -2910,6 +3531,7 @@ namespace PirateCrew.EditorTools
             }
 
             var panels = new List<Sprite>();
+            var windows = new List<Sprite>();
             var plates = new List<Sprite>();
             var tracks = new List<Sprite>();
             var tabs = new List<Sprite>();
@@ -2921,6 +3543,7 @@ namespace PirateCrew.EditorTools
                     plates.Add(LoadSprite(AssetNameOf(tone, Piece.Plate, state)));
                 tracks.Add(LoadSprite(AssetNameOf(tone, Piece.Track, State.Normal)));
                 panels.Add(LoadSprite(AssetNameOf(tone, Piece.Panel, State.Normal)));
+                windows.Add(LoadSprite(AssetNameOf(tone, Piece.Window, State.Normal)));
                 tabs.Add(LoadSprite(AssetNameOf(tone, Piece.Tab, State.Normal)));
                 Ramp r = RampOf(tone);
                 toneColors.Add(r.S4);
@@ -2933,6 +3556,7 @@ namespace PirateCrew.EditorTools
 
             asset.plates = plates.ToArray();
             asset.panels = panels.ToArray();
+            asset.windows = windows.ToArray();
             asset.tracks = tracks.ToArray();
             asset.tabs = tabs.ToArray();
             asset.fills = fills.ToArray();
@@ -2943,6 +3567,38 @@ namespace PirateCrew.EditorTools
             asset.separatorH = LoadSprite("Pixel_Sep_H");
             asset.separatorV = LoadSprite("Pixel_Sep_V");
             asset.shadow = LoadSprite("Pixel_Shadow");
+
+            // Aseprite dark 全部件搬皮（2026-09-25）
+            asset.windowButtons = new[]
+            {
+                LoadSprite("Pixel_WindowButton"),
+                LoadSprite("Pixel_WindowButton_Hover"),
+                LoadSprite("Pixel_WindowButton_Pressed"),
+            };
+            asset.windowIcons = new[]
+            {
+                LoadSprite("Pixel_Icon_Close"),
+                LoadSprite("Pixel_Icon_Help"),
+                LoadSprite("Pixel_Icon_Play"),
+                LoadSprite("Pixel_Icon_Stop"),
+                LoadSprite("Pixel_Icon_Center"),
+            };
+            asset.checks = new[] { LoadSprite("Pixel_Check"), LoadSprite("Pixel_Check_Selected") };
+            asset.radios = new[] { LoadSprite("Pixel_Radio"), LoadSprite("Pixel_Radio_Selected") };
+            asset.widgetFocus = LoadSprite("Pixel_WidgetFocus");
+            asset.sunken = new[] { LoadSprite("Pixel_Sunken"), LoadSprite("Pixel_Sunken_Focused") };
+            asset.sliderEmpty = new[] { LoadSprite("Pixel_Slider_Empty"), LoadSprite("Pixel_Slider_Empty_Focused") };
+            asset.sliderFull = new[] { LoadSprite("Pixel_Slider_Full"), LoadSprite("Pixel_Slider_Full_Focused") };
+            asset.sliderThumb = LoadSprite("Pixel_SliderThumb");
+            asset.scrollbars = new[] { LoadSprite("Pixel_ScrollBg"), LoadSprite("Pixel_ScrollThumb") };
+            asset.tooltip = LoadSprite("Pixel_Tooltip");
+            asset.arrowsDown = new[]
+            {
+                LoadSprite("Pixel_ArrowDown"),
+                LoadSprite("Pixel_ArrowDown_Selected"),
+                LoadSprite("Pixel_ArrowDown_Disabled"),
+            };
+
             asset.toneColors = toneColors.ToArray();
             asset.ink = Slot("INK");
             asset.paperWhite = Slot("UI_TEXT");   // Aseprite 正文灰 #C0C0C0（text 色原值）
@@ -2969,6 +3625,8 @@ namespace PirateCrew.EditorTools
                 problems.Add("图集 plates 长度 " + (asset.plates == null ? 0 : asset.plates.Length) + "，应为 21（7 tone×3 state）。");
             if (asset.panels == null || asset.panels.Length != 7)
                 problems.Add("图集 panels 长度 " + (asset.panels == null ? 0 : asset.panels.Length) + "，应为 7（7 tone）。");
+            if (asset.windows == null || asset.windows.Length != 7)
+                problems.Add("图集 windows 长度 " + (asset.windows == null ? 0 : asset.windows.Length) + "，应为 7（7 tone）。");
             if (asset.tracks == null || asset.tracks.Length != 7)
                 problems.Add("图集 tracks 长度 " + (asset.tracks == null ? 0 : asset.tracks.Length) + "，应为 7。");
             if (asset.tabs == null || asset.tabs.Length != 7)
@@ -2979,6 +3637,19 @@ namespace PirateCrew.EditorTools
                 problems.Add("图集 toneColors 长度 " + (asset.toneColors == null ? 0 : asset.toneColors.Length) + "，应为 21。");
             CheckNoNull(problems, asset.plates, "plates");
             CheckNoNull(problems, asset.panels, "panels");
+            CheckNoNull(problems, asset.windows, "windows");
+            CheckNoNull(problems, asset.windowButtons, "windowButtons");
+            CheckNoNull(problems, asset.windowIcons, "windowIcons");
+            CheckNoNull(problems, asset.checks, "checks");
+            CheckNoNull(problems, asset.radios, "radios");
+            CheckNoNull(problems, asset.sunken, "sunken");
+            CheckNoNull(problems, asset.sliderEmpty, "sliderEmpty");
+            CheckNoNull(problems, asset.sliderFull, "sliderFull");
+            CheckNoNull(problems, asset.scrollbars, "scrollbars");
+            CheckNoNull(problems, asset.arrowsDown, "arrowsDown");
+            if (asset.widgetFocus == null) problems.Add("图集 widgetFocus 空槽。");
+            if (asset.sliderThumb == null) problems.Add("图集 sliderThumb 空槽。");
+            if (asset.tooltip == null) problems.Add("图集 tooltip 空槽。");
             CheckNoNull(problems, asset.tracks, "tracks");
             CheckNoNull(problems, asset.tabs, "tabs");
             CheckNoNull(problems, asset.fills, "fills");

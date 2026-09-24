@@ -285,12 +285,111 @@ namespace PirateCrew.UI
                 plate = CreateRect("Plate", panel).gameObject.AddComponent<Image>();
             plate.sprite = PixelSkin.Panel(tone);   // 直角面板皮（圆角只属于按钮）
             plate.type = Image.Type.Sliced;
-            plate.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
+            plate.pixelsPerUnitMultiplier = 1f;   // ppem 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
             plate.color = Color.white;
             plate.raycastTarget = true;   // 面板本体挡点击（内容件画在其上，不受影响）
             Stretch(plate.rectTransform);
             plate.rectTransform.SetSiblingIndex(0);
             return plate;
+        }
+
+        /// <summary>
+        /// 带标题窗体（theme window 复刻）：Plate 孩子换 <see cref="PixelSkin.Window"/> 九宫格
+        /// （顶部 15u 标题带随切片自动落位），带内左上标题文字（theme window_title_label：
+        /// 边距 5、字色 <see cref="PixelSkin.Theme.Text"/>），右上窗控钮（? / ×）。
+        /// **内容区必须从带底往下排**——顶部内边距 ≥ <see cref="PixelSkin.WindowTitleBand"/>。
+        /// </summary>
+        public static Image EnsureWindow(RectTransform window, PixelTone tone, string title,
+            TMP_FontAsset font, float titleFontSize, bool helpButton = false, bool closeButton = true)
+        {
+            Image plate = EnsurePanel(window, tone);
+            plate.sprite = PixelSkin.Window(tone);
+
+            // 标题（带内左上，边距 5u；带面 = tone 亮档，灰字可读）
+            TextMeshProUGUI label = FindText(window, "TitleLabel");
+            if (label == null)
+            {
+                label = CreateRect("TitleLabel", window).gameObject.AddComponent<TextMeshProUGUI>();
+                label.font = font;
+                label.fontSize = titleFontSize;
+                label.fontStyle = FontStyles.Normal;   // 位图字禁伪粗
+                label.alignment = TextAlignmentOptions.MidlineLeft;
+                label.raycastTarget = false;
+                RectTransform lr = label.rectTransform;
+                lr.anchorMin = lr.anchorMax = new Vector2(0f, 1f);
+                lr.pivot = new Vector2(0f, 1f);
+            }
+            label.SetText(title);
+            label.color = PixelSkin.Theme.Text;
+            {
+                RectTransform lr = label.rectTransform;
+                lr.anchoredPosition = new Vector2(5f, -3f);
+                lr.sizeDelta = new Vector2(window.rect.width - 40f, PixelSkin.WindowTitleBand);
+            }
+
+            // 窗控钮：右上（× 最右、? 在其左；theme margin-top 3 / margin-right 3 与 1）
+            float right = 3f;
+            if (closeButton)
+            {
+                CreateWindowButton(window, "CloseButton", PixelSkin.WindowIconSprite(
+                    PixelSkin.WindowIcon.Close), right);
+                right += 9f * PixelSkin.Unit + 1f;
+            }
+            if (helpButton)
+                CreateWindowButton(window, "HelpButton",
+                    PixelSkin.WindowIconSprite(PixelSkin.WindowIcon.Help), right);
+
+            return plate;
+        }
+
+        /// <summary>窗控钮（theme window_button 9×11 + 图标；纯视觉件，onClick 由调用方接）。</summary>
+        public static Button CreateWindowButton(RectTransform window, string name, Sprite icon, float rightMargin)
+        {
+            Button button;
+            Transform existing = window.Find(name);
+            if (existing != null)
+                button = existing.GetComponent<Button>();
+            else
+            {
+                var go = CreateRect(name, window).gameObject;
+                button = go.AddComponent<Button>();
+                button.transition = Selectable.Transition.SpriteSwap;
+
+                var bg = go.AddComponent<Image>();
+                bg.type = Image.Type.Simple;   // 9×11 固定尺寸件，不切片
+                bg.raycastTarget = true;
+
+                var iconGo = CreateRect("Icon", go.transform);
+                Stretch(iconGo);
+                var iconImage = iconGo.gameObject.AddComponent<Image>();
+                iconImage.type = Image.Type.Simple;
+                iconImage.raycastTarget = false;
+
+                RectTransform br = go.GetComponent<RectTransform>();
+                br.anchorMin = br.anchorMax = new Vector2(1f, 1f);
+                br.pivot = new Vector2(1f, 1f);
+                br.anchoredPosition = new Vector2(-rightMargin, -3f);
+                br.sizeDelta = new Vector2(9f * PixelSkin.Unit, 11f * PixelSkin.Unit);
+            }
+
+            Image bgImage = button.image != null ? button.image : button.GetComponent<Image>();
+            bgImage.sprite = PixelSkin.WindowButton(PixelState.Normal);
+            SpriteState states = button.spriteState;
+            states.highlightedSprite = PixelSkin.WindowButton(PixelState.Hovered);
+            states.pressedSprite = PixelSkin.WindowButton(PixelState.Pressed);
+            states.selectedSprite = states.highlightedSprite;
+            button.spriteState = states;
+
+            Image iconImage2 = button.transform.Find("Icon").GetComponent<Image>();
+            iconImage2.sprite = icon;
+            iconImage2.color = Color.white;   // 图标烘焙即 theme 字灰，不乘色
+            return button;
+        }
+
+        static TextMeshProUGUI FindText(RectTransform parent, string name)
+        {
+            Transform child = parent.Find(name);
+            return child != null ? child.GetComponent<TextMeshProUGUI>() : null;
         }
 
         // ------------------------------------------------------------------
@@ -530,8 +629,13 @@ namespace PirateCrew.UI
             public RectTransform Card;
         }
 
-        /// <summary>建模态（全屏 Stretch 的根 + Dim 遮罩 + 居中卡片；默认隐藏）。</summary>
-        public static ModalView CreateModal(string name, Transform parent, Vector2 cardSize)
+        /// <summary>建模态（全屏 Stretch 的根 + Dim 遮罩 + 居中**带标题窗体**；默认隐藏）。
+        /// theme window 口径：顶 15u 标题带 + 右上 × 窗控钮（点击隐藏 Root——只对
+        /// 「隐藏即全部语义」的弹窗开，如确认框；暂停这类隐藏≠取消暂停的传 false）；
+        /// 内容 VBox 顶部自动避开标题带。</summary>
+        public static ModalView CreateModal(string name, Transform parent, Vector2 cardSize,
+            string title = null, TMP_FontAsset titleFont = null, float titleFontSize = 0f,
+            bool closeButton = true)
         {
             RectTransform root = CreateRect(name, parent);
             Stretch(root);
@@ -539,6 +643,14 @@ namespace PirateCrew.UI
 
             RectTransform card = CreatePanel("Card", root,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, cardSize);
+            bool titled = !string.IsNullOrEmpty(title);
+            if (titled)
+            {
+                EnsureWindow(card, PixelTone.Frame, title,
+                    titleFont != null ? titleFont : ResolvePixelFont(UiSkin.Font.Title),
+                    titleFontSize > 0f ? titleFontSize : UiSkin.Font.Title,
+                    helpButton: false, closeButton: closeButton);
+            }
 
             // 卡片纵向贴合内容（创始人裁决：对话框大小跟内容走）：VBox 管内容流，
             // ContentSizeFitter(Vertical=Preferred) 让卡片高 = 内容高 + 上下边距；
@@ -546,7 +658,8 @@ namespace PirateCrew.UI
             var box = card.gameObject.GetComponent<UnityEngine.UI.VerticalLayoutGroup>();
             if (box == null)
                 box = card.gameObject.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
-            box.padding = new RectOffset(6, 6, 6, 6);   // 艺术像素
+            box.padding = new RectOffset(6, 6,
+                titled ? 6 + PixelSkin.WindowTitleBand : 6, 6);   // 艺术像素；带标题时顶部避开 15u 带
             box.spacing = 2f;   // 艺术像素
             box.childControlWidth = true;
             box.childControlHeight = true;
@@ -558,6 +671,13 @@ namespace PirateCrew.UI
                 fitter = card.gameObject.AddComponent<UnityEngine.UI.ContentSizeFitter>();
             fitter.horizontalFit = UnityEngine.UI.ContentSizeFitter.FitMode.Unconstrained;
             fitter.verticalFit = UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize;
+
+            if (titled && closeButton)
+            {
+                Button close = CreateWindowButton(card, "CloseButton",
+                    PixelSkin.WindowIconSprite(PixelSkin.WindowIcon.Close), 3f);
+                close.onClick.AddListener(() => root.gameObject.SetActive(false));
+            }
 
             root.gameObject.SetActive(false);
             return new ModalView { Root = root.gameObject, Card = card };

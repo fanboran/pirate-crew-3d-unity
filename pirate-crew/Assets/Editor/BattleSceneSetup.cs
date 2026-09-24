@@ -812,15 +812,13 @@ namespace PirateCrew.EditorTools
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 
             var scaler = go.GetComponent<CanvasScaler>();
-            // 【低清画布栈（创始人 2026-09-24 裁决）】画布 = 固定艺术分辨率（1080p ÷ pixelScale，
-            // 2:1 下 = 960×540），整数倍缩放到全屏——画布空间 1 单位 = 1 艺术像素，
-            // 坐标/尺寸天生整数，分数落位类问题（角细节不齐/字重不均）体系性消失；
-            // 比例换档 = 改参考分辨率一个参数（设置界面的比例档就接这里）。
-            // 几何令牌与字号全部按艺术像素取值（见 UiSkin.Px / UiSkin.Font）。
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f / PixelSkin.Unit, 1080f / PixelSkin.Unit);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 1f;   // 按高匹配：1080p → 恰好 2× 整数
+            // 【恒定像素密度（创始人 2026-09-25 裁决，红警2 式）】1 画布单位 = Unit 屏幕像素；
+            // 画布逻辑尺寸 = 屏幕 ÷ Unit 随分辨率生长（1080p→960×540、1440p→1280×720）——
+            // UI 件保持像素大小不变、大屏多显示内容，任何分辨率下都是整数倍、无分数缩放。
+            // 比例换档 = 改 PixelSkin.Unit 一个真源（设置界面的比例档接这里）。
+            // 几何令牌与字号全部按画布像素取值（见 UiSkin.Px / UiSkin.Font）。
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = PixelSkin.Unit;
             return canvas;
         }
 

@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -23,6 +24,7 @@ namespace PirateCrew.EditorTools
         const string SceneKey = "UiPixelScreenCapture.Scene";
         const string PathKey = "UiPixelScreenCapture.Path";
         const string SelectedKey = "UiPixelScreenCapture.Selected";
+        const string OverlayKey = "UiPixelScreenCapture.Overlay";
 
         /// <summary>主菜单。</summary>
         public static void CaptureMainMenu() => Start("MainMenu");
@@ -33,7 +35,9 @@ namespace PirateCrew.EditorTools
         /// <summary>战斗 HUD。</summary>
         public static void CaptureBattle() => Start("Battle");
 
-        /// <summary>按场景名单采（遥控桥 capture:&lt;场景名&gt; 用；需要编辑器 GUI）。</summary>
+        /// <summary>按场景名单采（遥控桥 capture:&lt;场景名&gt; 用；需要编辑器 GUI）。
+        /// 场景名带 <c>+settings</c> / <c>+confirm</c> 后缀：进 Play 第 60 帧激活
+        /// SettingsPanel / BackConfirmDialog 再截——标题带窗体/单选钮/滑条/窗控钮的走查入口。</summary>
         public static void CaptureScene(string sceneName) => Start(sceneName);
 
         /// <summary>四屏连采（一次编辑器启动全部拿到；Battle 放最后——需要选中角色入画）。
@@ -48,15 +52,38 @@ namespace PirateCrew.EditorTools
 
         static void Start(string sceneName)
         {
+            // "MainMenu+settings" / "Battle+confirm"：后缀 = 进 Play 后激活对应隐藏弹窗
+            string overlay = null;
+            string baseScene = sceneName;
+            int cut = sceneName.IndexOf('+');
+            if (cut > 0)
+            {
+                overlay = sceneName.Substring(cut + 1);
+                baseScene = sceneName.Substring(0, cut);
+            }
             string dir = Path.GetFullPath(CaptureDir);
-            SessionState.SetString(SceneKey, sceneName);
-            SessionState.SetString(PathKey, Path.Combine(dir, sceneName + ".png"));
+            SessionState.SetString(SceneKey, baseScene);
+            SessionState.SetString(OverlayKey, overlay ?? "");
+            SessionState.SetString(PathKey, Path.Combine(dir,
+                (overlay != null ? OverlayName(overlay) : baseScene) + ".png"));
             SessionState.SetInt(StateKey, 0);
             SessionState.SetInt(WaitKey, 0);
             SessionState.SetBool(SelectedKey, false);
             SessionState.SetBool(PendingKey, true);
             EditorApplication.update += CaptureStep;
             Debug.Log("[UiPixelScreenCapture] 开始采集 " + sceneName + " → " + CaptureDir);
+        }
+
+        static string OverlayName(string overlay) => overlay;
+
+        static string OverlayTargetName(string overlay)
+        {
+            switch (overlay)
+            {
+                case "settings": return "SettingsPanel";
+                case "confirm": return "BackConfirmDialog";
+                default: return null;
+            }
         }
 
         [InitializeOnLoadMethod]
@@ -91,9 +118,9 @@ namespace PirateCrew.EditorTools
                     {
                         // 选中一名红队角色，让底部武器面板（含文字按钮）入画——走查对象。
                         SessionState.SetBool(SelectedKey, true);
-                        var controller = Object.FindObjectOfType<PirateCrew.Battle.BattleController>();
+                        var controller = UnityEngine.Object.FindObjectOfType<PirateCrew.Battle.BattleController>();
                         PirateCrew.Battle.PirateBase unit = null;
-                        foreach (var candidate in Object.FindObjectsOfType<PirateCrew.Battle.PirateBase>(true))
+                        foreach (var candidate in UnityEngine.Object.FindObjectsOfType<PirateCrew.Battle.PirateBase>(true))
                         {
                             if (candidate.TeamIndex == 0)
                             {
@@ -103,6 +130,24 @@ namespace PirateCrew.EditorTools
                         }
                         if (controller != null && unit != null)
                             controller.SelectCharacter(unit);
+                    }
+                    if (EditorApplication.isPlaying && Time.frameCount == 60)
+                    {
+                        // 隐藏弹窗走查：直接激活（视觉验证不依赖控制器接线）。
+                        // GameObject.Find 找不到未激活对象——含未激活全量搜名。
+                        string target = OverlayTargetName(SessionState.GetString(OverlayKey, ""));
+                        if (!string.IsNullOrEmpty(target))
+                        {
+                            foreach (var t in UnityEngine.Object.FindObjectsByType<Transform>(
+                                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+                            {
+                                if (t.name == target)
+                                {
+                                    t.gameObject.SetActive(true);
+                                    break;
+                                }
+                            }
+                        }
                     }
                     if (EditorApplication.isPlaying && Time.frameCount > 95)
                     {

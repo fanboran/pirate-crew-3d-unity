@@ -29,6 +29,9 @@ namespace PirateCrew.UI
         [Tooltip("面板 panels[tone]（直角对话框外层，Aseprite dark 语法）")]
         public Sprite[] panels = new Sprite[0];
 
+        [Tooltip("带标题栏窗体 windows[tone]（theme window：顶 15u 标题带 + 窗体面）")]
+        public Sprite[] windows = new Sprite[0];
+
         [Tooltip("页签 tabs[tone]（底边无带，与宿主面板顶边贴合）")]
         public Sprite[] tabs = new Sprite[0];
 
@@ -55,6 +58,42 @@ namespace PirateCrew.UI
 
         [Tooltip("面板投影（INK 剪影，垫面板下按 ShadowOffset 右下错开）")]
         public Sprite shadow;
+
+        [Tooltip("窗控钮三态 [常态/悬停/按压]（theme window_button 9×11）")]
+        public Sprite[] windowButtons = new Sprite[0];
+
+        [Tooltip("窗控图标 [关闭/帮助/播放/停止/居中]（5×6，可乘色换染）")]
+        public Sprite[] windowIcons = new Sprite[0];
+
+        [Tooltip("复选框 [常态/勾选]（theme check 8×8）")]
+        public Sprite[] checks = new Sprite[0];
+
+        [Tooltip("单选钮 [常态/选中]（theme radio 8×8）")]
+        public Sprite[] radios = new Sprite[0];
+
+        [Tooltip("复选/单选焦点框（theme check_focus 2/6/2）")]
+        public Sprite widgetFocus;
+
+        [Tooltip("凹槽 [常态/聚焦]（theme sunken 4/4/4，textedit/列表底）")]
+        public Sprite[] sunken = new Sprite[0];
+
+        [Tooltip("滑条空槽 [常态/聚焦]（theme slider_empty 5/6/5）")]
+        public Sprite[] sliderEmpty = new Sprite[0];
+
+        [Tooltip("滑条充满段 [常态/聚焦]（theme slider_full，金色）")]
+        public Sprite[] sliderFull = new Sprite[0];
+
+        [Tooltip("滑条拇指（theme mini_slider_thumb 5×4）")]
+        public Sprite sliderThumb;
+
+        [Tooltip("滚动条 [底/滑块]（theme scrollbar 5/6/5）")]
+        public Sprite[] scrollbars = new Sprite[0];
+
+        [Tooltip("气泡（theme tooltip，蓝底 #4069c2）")]
+        public Sprite tooltip;
+
+        [Tooltip("组合框下拉箭头 [常态/选中/禁用]（theme combobox_arrow_down）")]
+        public Sprite[] arrowsDown = new Sprite[0];
 
         [Tooltip("tone 文字/取色令牌 toneColors[tone×3] = 亮档/中档/暗档（S4/S3/S2）")]
         public Color32[] toneColors = new Color32[0];

@@ -31,6 +31,9 @@ namespace PirateCrew.UI
         /// <summary>面板（对话框外层，Asepite dark 语法）：**直角**（对照参考截图裁决——
         /// 圆角只属于按钮），黑环 1 格 + 上/左受光唇 + 下/右背光唇 + 平涂主体。</summary>
         Panel = 3,
+        /// <summary>带标题栏窗体（theme window 3/7/3 × 15/4/5）：顶部 15u 标题带
+        /// （tone 亮档）+ 带底暗线 + 窗体面；内容须避开标题带（15u）。</summary>
+        Window = 4,
     }
 
     /// <summary>状态：常态 / 悬停（整条色阶上抬一档）/ 按压（高光阴影对调）。</summary>
@@ -180,6 +183,131 @@ namespace PirateCrew.UI
         public static Sprite ShadowSprite
         {
             get { return Single("Shadow", Asset != null ? Asset.shadow : null); }
+        }
+
+        // ---------- Aseprite dark 全部件搬皮（2026-09-25；theme.xml 精确复刻） ----------
+
+        /// <summary>带标题栏窗体（theme window：顶 15u 标题带；内容须避开标题带）。</summary>
+        public static Sprite Window(PixelTone tone)
+        {
+            return SpriteAt(Asset != null ? Asset.windows : null, (int)tone, "Window/" + tone);
+        }
+
+        /// <summary>窗体标题带高（theme window h1=15 设计格）——内容区从带底往下排。</summary>
+        public const int WindowTitleBand = 15 * Unit;
+
+        /// <summary>窗控钮（theme window_button 9×11；常态/悬停/按压）。</summary>
+        public static Sprite WindowButton(PixelState state)
+        {
+            return SpriteAt(Asset != null ? Asset.windowButtons : null, (int)state,
+                "WindowButton/" + state);
+        }
+
+        /// <summary>窗控图标索引（与图集 windowIcons 同序）。</summary>
+        public enum WindowIcon { Close = 0, Help, Play, Stop, Center }
+
+        /// <summary>窗控图标（5×6，乘色换染；<see cref="Theme.Text"/> 是 theme 常态色）。</summary>
+        public static Sprite WindowIconSprite(WindowIcon icon)
+        {
+            return SpriteAt(Asset != null ? Asset.windowIcons : null, (int)icon, "WindowIcon/" + icon);
+        }
+
+        /// <summary>复选框（theme check 8×8；selected = ✓）。</summary>
+        public static Sprite Check(bool selected)
+        {
+            return SpriteAt(Asset != null ? Asset.checks : null, selected ? 1 : 0,
+                "Check/" + selected);
+        }
+
+        /// <summary>单选钮（theme radio 8×8；selected = 中心点）。</summary>
+        public static Sprite Radio(bool selected)
+        {
+            return SpriteAt(Asset != null ? Asset.radios : null, selected ? 1 : 0,
+                "Radio/" + selected);
+        }
+
+        /// <summary>复选/单选焦点框（theme check_focus 2/6/2）。</summary>
+        public static Sprite WidgetFocus
+        {
+            get { return Single("WidgetFocus", Asset != null ? Asset.widgetFocus : null); }
+        }
+
+        /// <summary>凹槽（theme sunken：textedit/列表底；focused = 蓝环）。</summary>
+        public static Sprite Sunken(bool focused)
+        {
+            return SpriteAt(Asset != null ? Asset.sunken : null, focused ? 1 : 0,
+                "Sunken/" + focused);
+        }
+
+        /// <summary>滑条空槽（theme slider_empty；focused = 蓝环）。</summary>
+        public static Sprite SliderEmpty(bool focused)
+        {
+            return SpriteAt(Asset != null ? Asset.sliderEmpty : null, focused ? 1 : 0,
+                "SliderEmpty/" + focused);
+        }
+
+        /// <summary>滑条充满段（theme slider_full 金色；focused = 蓝环）。</summary>
+        public static Sprite SliderFull(bool focused)
+        {
+            return SpriteAt(Asset != null ? Asset.sliderFull : null, focused ? 1 : 0,
+                "SliderFull/" + focused);
+        }
+
+        /// <summary>滑条拇指（theme mini_slider_thumb 5×4）。</summary>
+        public static Sprite SliderThumb
+        {
+            get { return Single("SliderThumb", Asset != null ? Asset.sliderThumb : null); }
+        }
+
+        /// <summary>滚动条（theme scrollbar：bg=底 / thumb=滑块，宽 16）。</summary>
+        public static Sprite Scrollbar(bool thumb)
+        {
+            return SpriteAt(Asset != null ? Asset.scrollbars : null, thumb ? 1 : 0,
+                "Scrollbar/" + thumb);
+        }
+
+        /// <summary>气泡底（theme tooltip 蓝底）。</summary>
+        public static Sprite Tooltip
+        {
+            get { return Single("Tooltip", Asset != null ? Asset.tooltip : null); }
+        }
+
+        /// <summary>组合框下拉箭头（常态/选中/禁用）。</summary>
+        public static Sprite ArrowDown(PixelState state)
+        {
+            return SpriteAt(Asset != null ? Asset.arrowsDown : null,
+                state == PixelState.Pressed ? 2 : (int)state, "ArrowDown/" + state);
+        }
+
+        /// <summary>theme.xml 精确色（Aseprite dark 权威配色；搬皮件的唯一取色源）。</summary>
+        public static class Theme
+        {
+            /// <summary>text / button_normal_text / textbox_text。</summary>
+            public static readonly Color32 Text = new Color32(0xC0, 0xC0, 0xC0, 0xFF);
+            /// <summary>button_selected_text / link_hover 基。</summary>
+            public static readonly Color32 TextSelected = new Color32(0xFF, 0xFF, 0xFF, 0xFF);
+            /// <summary>face / window_face。</summary>
+            public static readonly Color32 Face = new Color32(0x2C, 0x2C, 0x30, 0xFF);
+            /// <summary>background / window_titlebar_face / listitem_normal_face。</summary>
+            public static readonly Color32 Background = new Color32(0x41, 0x44, 0x4A, 0xFF);
+            /// <summary>disabled / editor_face。</summary>
+            public static readonly Color32 Disabled = new Color32(0x20, 0x21, 0x25, 0xFF);
+            /// <summary>check/radio_hot_face。</summary>
+            public static readonly Color32 HotFace = new Color32(0x57, 0x5B, 0x61, 0xFF);
+            /// <summary>selected / listitem_selected_face（选中金）。</summary>
+            public static readonly Color32 Selected = new Color32(0xE1, 0xB8, 0x5F, 0xFF);
+            /// <summary>selected_text（选中底上的字）。</summary>
+            public static readonly Color32 SelectedText = new Color32(0x41, 0x44, 0x4A, 0xFF);
+            /// <summary>separator_label / link_text（蓝分组字）。</summary>
+            public static readonly Color32 SeparatorLabel = new Color32(0x6E, 0x9A, 0xDB, 0xFF);
+            /// <summary>tooltip_face（气泡蓝底）。</summary>
+            public static readonly Color32 TooltipFace = new Color32(0x40, 0x69, 0xC2, 0xFF);
+            /// <summary>tab_normal_text（未选页签灰）。</summary>
+            public static readonly Color32 TabNormalText = new Color32(0x7D, 0x7D, 0x7D, 0xFF);
+            /// <summary>status_bar_face / workspace。</summary>
+            public static readonly Color32 StatusFace = new Color32(0x33, 0x33, 0x33, 0xFF);
+            /// <summary>status_bar_text。</summary>
+            public static readonly Color32 StatusText = new Color32(0x63, 0x6D, 0x79, 0xFF);
         }
 
         /// <summary>tone 亮档（S4）——深底上的文字/线条色，取同族色别自己调。</summary>

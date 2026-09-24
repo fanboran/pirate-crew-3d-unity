@@ -49,12 +49,16 @@ namespace PirateCrew.UI.Stick
         /// <summary>紧凑内边距（小对话框：内容有多少占多少，gd compact 同义）。</summary>
         public bool Compact;
 
-        /// <summary>内容内边距（gd content_margin 同源；装配方摆内容用）。</summary>
-        public Vector2 ContentPadding => Compact
-            ? new Vector2(12f, 7f)
-            : _tone == Tone.Light
-                ? new Vector2(16f, 9f)
-                : new Vector2(StickTokens.SketchPanelPadX, StickTokens.SketchPanelPadY);
+        /// <summary>带标题栏（theme window）：Plate 换 Window 九宫格，顶部 15u 标题带。
+        /// 内容须从带底往下排（<see cref="ContentPadding"/> 已自动加顶部让位）。</summary>
+        public bool Titled;
+
+        /// <summary>内容内边距（gd content_margin 同源；装配方摆内容用）。
+        /// 带标题窗时顶部额外让出标题带（15u）。</summary>
+        public Vector2 ContentPadding => new Vector2(
+            Compact ? 12f : (_tone == Tone.Light ? 16f : StickTokens.SketchPanelPadX),
+            (Compact ? 7f : (_tone == Tone.Light ? 9f : StickTokens.SketchPanelPadY))
+                + (Titled ? PixelSkin.WindowTitleBand : 0f));
 
         /// <summary>建一块面板（根 + Shadow/Plate 两个子件 + 本组件）。tone 缺省 Dark。</summary>
         public static SketchPanel Create(Transform parent, string name, Vector2 anchor, Vector2 pivot,
@@ -80,16 +84,14 @@ namespace PirateCrew.UI.Stick
         private void OnEnable() => Apply();
 
         /// <summary>
-        /// 建投影 + 本体两个子件（顺序即绘制序：先 Shadow 后 Plate，投影垫在本体下方）。
-        /// 两件都铺满根矩形（跟随装配方的摆放），本体不拦截点击（面板是装饰/容器层，
-        /// 命中留给行内动作钮——旧实现同口径）。
+        /// 建面板本体子件。【theme 裁决】Aseprite dark 无影子层——旧 Shadow 孩子就地销毁
+        /// （与 UiKit.EnsurePanel 同口径），本体 = Plate 一件铺满根矩形。
         /// </summary>
         private static void BuildVisuals(RectTransform root, out UnityEngine.UI.Image plate)
         {
-            UnityEngine.UI.Image shadow = AddPart(root, "Shadow", PixelSkin.ShadowSprite);
-            RectTransform shadowRect = (RectTransform)shadow.transform;
-            // 铺满后按 ShadowOffset 整体右下错开 1u（偏移是位移不是尺寸，九宫格切片不错位）。
-            shadowRect.anchoredPosition = PixelSkin.ShadowOffset;
+            Transform legacyShadow = root.Find("Shadow");
+            if (legacyShadow != null)
+                UnityEngine.Object.DestroyImmediate(legacyShadow.gameObject);
 
             plate = AddPart(root, PlatePartName, null);
         }
@@ -113,13 +115,16 @@ namespace PirateCrew.UI.Stick
             return image;
         }
 
-        /// <summary>按 tone 换 Plate 贴图（投影不随 tone 变——它是 INK 剪影）。</summary>
+        /// <summary>按 tone 换 Plate 贴图（Titled 时换带标题栏的 Window 九宫格）。</summary>
         private void Apply()
         {
             if (_plate == null)
                 _plate = FindPart();
             if (_plate != null)
-                _plate.sprite = PixelSkin.Panel(_tone == Tone.Light ? PixelTone.Light : PixelTone.Frame);   // 直角面板皮（圆角只属于按钮）
+            {
+                PixelTone tone = _tone == Tone.Light ? PixelTone.Light : PixelTone.Frame;
+                _plate.sprite = Titled ? PixelSkin.Window(tone) : PixelSkin.Panel(tone);
+            }
         }
 
         /// <summary>场景重载后私有字段不序列化，按子件名重新取引用（同上一个九砖实现的兜底口径）。</summary>

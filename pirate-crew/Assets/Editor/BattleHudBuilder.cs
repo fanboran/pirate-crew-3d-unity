@@ -637,19 +637,18 @@ namespace PirateCrew.EditorTools
         static void BuildPausePanel(RectTransform hudRoot, TMP_FontAsset title, TMP_FontAsset body,
             Result result)
         {
-            UiKit.ModalView modal = UiKit.CreateModal("PausePanel", hudRoot, new Vector2(120f, 84f));
+            UiKit.ModalView modal = UiKit.CreateModal("PausePanel", hudRoot, new Vector2(120f, 84f),
+                title: UiStrings.BattlePauseTitle, titleFont: title, titleFontSize: UiSkin.Font.Title,
+                closeButton: false);   // 隐藏 ≠ 取消暂停——恢复必须走「继续」按钮
             result.pausePanelRoot = modal.Root;
             result.pauseCard = modal.Card;
 
-            // 流式内容（UiLayout）：标题 + 三钮纵排——间距/内边距全 u 档，卡片内不再手摆 y 坐标。
+            // 流式内容（UiLayout）：三钮纵排（标题已上窗体标题带，不再单独建横幅）——
+            // 间距/内边距全 u 档，卡片内不再手摆 y 坐标。
             // Flow 是卡片 VBox 的弹性子件（宽吃满内容区）；卡片高由 ContentSizeFitter 贴内容。
             RectTransform flow = UiKit.CreateRect("Flow", modal.Card);
             UiLayout.Flexible(flow.gameObject);
             UiLayout.VBox(flow, 2, UiPadding.Uniform(2), alignment: TextAnchor.MiddleCenter, controlHeights: true);
-
-            TextMeshProUGUI titleText = UiKit.CreateText("PauseTitle", flow, UiStrings.BattlePauseTitle,
-                UiSkin.Font.Banner, TextAlignmentOptions.Center, PixelSkin.LightOf(PixelTone.Primary), title);
-            UiLayout.Element(titleText.gameObject, 104f, 16f);
 
             // 三钮 = 文字贴合（创始人裁决：按钮大小跟文字走，不再统一最宽档）；纵排顺序即声明顺序。
             result.resumeButton = UiKit.ActionButton("ResumeButton", flow,
@@ -717,7 +716,8 @@ namespace PirateCrew.EditorTools
         /// <summary>返回确认弹窗（挂在 Canvas 直下压过全部元素）。</summary>
         static void BuildBackConfirm(Transform canvas, TMP_FontAsset body, Result result)
         {
-            UiKit.ModalView modal = UiKit.CreateModal("BackConfirmDialog", canvas, new Vector2(160f, 68f));
+            UiKit.ModalView modal = UiKit.CreateModal("BackConfirmDialog", canvas, new Vector2(160f, 68f),
+                title: UiStrings.ConfirmTitle, titleFont: body, titleFontSize: UiSkin.Font.Title);
             result.confirmDialogRoot = modal.Root;
             result.confirmCard = modal.Card;
 
