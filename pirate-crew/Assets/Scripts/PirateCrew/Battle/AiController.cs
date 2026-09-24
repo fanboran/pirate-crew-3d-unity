@@ -34,6 +34,12 @@ namespace PirateCrew.Battle
         /// <summary>§6.1 每帧给 AI 的时间片预算（毫秒）。</summary>
         public const float DefaultSliceMilliseconds = 30f;
 
+        /// <summary>
+        /// 角色随机源 seed 的混合质数：<c>randomSeed + PirateId × SeedMixPrime</c>（§6.1 每角色一个独立随机源）。
+        /// 取质数把角色 id 乘开，相邻 id 派生出的 seed 不线性相关；数值沿用初版（实现细节，无逆向出处）。
+        /// </summary>
+        public const int SeedMixPrime = 7919;
+
         /// <summary>每个角色在世界里的一个评估会话。</summary>
         enum Phase
         {
@@ -163,7 +169,7 @@ namespace PirateCrew.Battle
                     continue;
 
                 // 每个角色一个独立随机源（seed 由角色 id 派生）→ 各角色评估互不干扰且可复现。
-                var random = new AiRandom(unchecked(randomSeed + actor.PirateId * 7919));
+                var random = new AiRandom(unchecked(randomSeed + actor.PirateId * SeedMixPrime));
                 _sessions.Add(new AiEvaluationSession(field, random, new AiEvaluationOptions()));
                 _actors[actor.PirateId] = actor;
             }

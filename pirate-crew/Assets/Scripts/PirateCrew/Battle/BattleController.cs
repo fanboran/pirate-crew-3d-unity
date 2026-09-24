@@ -350,16 +350,17 @@ namespace PirateCrew.Battle
                 followCamera: battleCamera != null ? battleCamera.GetComponent<Camera>() : null);
 
             // 远裁剪面经 BattleCameraDriver 的例外口抬高（唯一写入者契约，见 Driver 类头）；
-            // 无 Driver 的兜底场景才直写相机。OceanRig 海面圆盘半径大，200 的正交远裁剪会切掉海面。
+            // 无 Driver 的兜底场景才直写相机。OceanRig 海面圆盘半径大，OrthoFarClip（200）会切掉海面，
+            // 故抬到 CameraFraming.OceanFarClipMin（海面圆盘所需最小远裁剪，3D 侧口径无逆向出处）。
             if (battleCamera != null)
             {
-                battleCamera.SetFarClipForSpan(4500f);
+                battleCamera.SetFarClipForSpan(CameraFraming.OceanFarClipMin);
             }
             else
             {
                 Camera cam = Camera.main;
                 if (cam != null)
-                    cam.farClipPlane = Mathf.Max(cam.farClipPlane, 4500f);
+                    cam.farClipPlane = Mathf.Max(cam.farClipPlane, CameraFraming.OceanFarClipMin);
             }
 
             // 大地图专属（图幅/氛围档由关卡数据给出）：全景档随图幅 + 氛围档按海图定义；

@@ -122,14 +122,15 @@ namespace PirateCrew.Battle
         /// <summary>运行机制分类（§5.2）。</summary>
         public ProjectileMechanic Mechanic => _mechanic;
 
-        /// <summary>是否仍在本回合物理运动（用于 <see cref="BattleController.IsAnythingActive"/>）。</summary>
+        /// <summary>是否仍在本回合物理运动（用于 <see cref="BattleController.IsAnythingActive"/>）。
+        /// 阈值同 <see cref="WeaponTriggerRules.AtRestSqrMagnitudeEpsilon"/>（3D 侧静止判据，与 PirateBase.IsMoving 共用）。</summary>
         public bool IsInFlight
         {
             get
             {
                 if (_detonated || body == null || body.isKinematic)
                     return false;
-                return body.velocity.sqrMagnitude > 0.01f;
+                return body.velocity.sqrMagnitude > WeaponTriggerRules.AtRestSqrMagnitudeEpsilon;
             }
         }
 
@@ -962,7 +963,7 @@ namespace PirateCrew.Battle
             }
         }
 
-        /// <summary>boulder 碾压伤害（§5.2：伤害 = |vx| * 1.5）。
+        /// <summary>boulder 碾压伤害（§5.2：伤害 = |vx| × 1.5，系数见 <see cref="WeaponTriggerRules.BoulderCrushDamageScale"/>）。
         /// TODO：把敌人推到 x±32 并继承 vx。</summary>
         void Crush(Collider other)
         {
@@ -971,7 +972,7 @@ namespace PirateCrew.Battle
                 return;
 
             float flashVx = LevelGeometry.ArenaVelocityToFlash(body.velocity).magnitude;
-            float damage = flashVx * 1.5f;
+            float damage = flashVx * WeaponTriggerRules.BoulderCrushDamageScale;
             if (damage > 0f)
                 target.SubtractHealth(damage);
         }

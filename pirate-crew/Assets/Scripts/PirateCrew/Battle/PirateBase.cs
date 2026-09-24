@@ -413,8 +413,9 @@ namespace PirateCrew.Battle
             body.AddForce(worldDeltaVelocity * body.mass, ForceMode.Impulse);
         }
 
-        /// <summary>是否处于可见运动（供 TurnManager 的 inactivity 判定）。</summary>
-        public bool IsMoving(float thresholdSqr = 0.01f)
+        /// <summary>是否处于可见运动（供 TurnManager 的 inactivity 判定）。
+        /// 阈值默认取 <see cref="WeaponTriggerRules.AtRestSqrMagnitudeEpsilon"/>（3D 侧静止判据，无逆向出处）。</summary>
+        public bool IsMoving(float thresholdSqr = WeaponTriggerRules.AtRestSqrMagnitudeEpsilon)
         {
             if (body == null)
                 return false;
