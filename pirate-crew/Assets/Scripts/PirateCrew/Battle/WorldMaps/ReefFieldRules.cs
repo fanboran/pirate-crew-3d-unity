@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using static PirateCrew.Battle.WorldMaps.WorldMapKitParts;
 
 namespace PirateCrew.Battle.WorldMaps
 {
@@ -61,7 +62,7 @@ namespace PirateCrew.Battle.WorldMaps
                 return false;
             if (asset.StartsWith("Rock"))
                 return true;
-            if (asset == "Driftwood" || asset == "RuinColumnBroken" || asset == "RuinArch")
+            if (asset == Driftwood || asset == RuinColumnBroken || asset == RuinArch)
                 return true;
             // 浮件只认"浮标"这一族：<see cref="Water.FloatingPropView"/> 的判据里还有
             // "名字含 Boat/Ship 且不含 Beached"，那是回答「已经在贴水位置的东西该不该随浪起伏」
@@ -101,23 +102,23 @@ namespace PirateCrew.Battle.WorldMaps
             switch (map.Id)
             {
                 case "wreck_hymn":
-                    return new Profile(5.2f, new[] { "RockS", "RockS", "RockM", "RockFlat", "Driftwood" });
+                    return new Profile(5.2f, new[] { RockS, RockS, RockM, RockFlat, Driftwood });
                 case "atoll_ring":
-                    return new Profile(4.4f, new[] { "RockFlat", "RockFlat", "RockS", "RockM" });
+                    return new Profile(4.4f, new[] { RockFlat, RockFlat, RockS, RockM });
                 case "ghost_harbor":
-                    return new Profile(4.0f, new[] { "RockM", "RockFlat", "RuinColumnBroken", "RuinArch", "RockS" });
+                    return new Profile(4.0f, new[] { RockM, RockFlat, RuinColumnBroken, RuinArch, RockS });
                 case "turtle_back":
-                    return new Profile(4.2f, new[] { "RockS", "RockM", "RockM", "RockFlat" });
+                    return new Profile(4.2f, new[] { RockS, RockM, RockM, RockFlat });
                 case "mangrove_veil":
-                    return new Profile(5.0f, new[] { "RockS", "RockS", "RockS", "RockM", "Driftwood" });
+                    return new Profile(5.0f, new[] { RockS, RockS, RockS, RockM, Driftwood });
                 case "spiral_throne":
-                    return new Profile(3.4f, new[] { "RockL", "RockL", "RockM", "RockFlat" });
+                    return new Profile(3.4f, new[] { RockL, RockL, RockM, RockFlat });
                 case "storm_cape":
-                    return new Profile(3.8f, new[] { "RockL", "RockM", "RuinColumnBroken", "RockS" });
+                    return new Profile(3.8f, new[] { RockL, RockM, RuinColumnBroken, RockS });
                 case "sunken_gate":
-                    return new Profile(4.6f, new[] { "RockFlat", "RuinColumnBroken", "RuinArch", "RockM", "RockS" });
+                    return new Profile(4.6f, new[] { RockFlat, RuinColumnBroken, RuinArch, RockM, RockS });
                 default:
-                    return new Profile(4.0f, new[] { "RockS", "RockM", "RockFlat" });
+                    return new Profile(4.0f, new[] { RockS, RockM, RockFlat });
             }
         }
 
