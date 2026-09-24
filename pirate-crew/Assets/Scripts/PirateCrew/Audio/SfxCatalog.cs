@@ -95,6 +95,20 @@ namespace PirateCrew.Audio
         /// </summary>
         public const float PeakTarget = 0.89f;
 
+        /// <summary>
+        /// 音频资产所在 Resources 子目录名——音频域路径字符串的唯一来源：
+        /// 资产根目录 <see cref="AssetFolder"/> 与运行时加载前缀 <see cref="AssetLoadPrefix"/>
+        /// 都由它常量拼接派生（编译期展开，不产生运行时开销）。
+        /// </summary>
+        public const string AssetFolderName = "PirateCrewAudio";
+
+        /// <summary>资产平铺目录（相对工程根）＝ <c>Assets/Resources/</c> + <see cref="AssetFolderName"/>。
+        /// <c>Game2AudioAssets.ResourcesFolder</c> 与 <c>AudioAssetBuilder.AudioRoot</c> 同义。</summary>
+        public const string AssetFolder = "Assets/Resources/" + AssetFolderName;
+
+        /// <summary>运行时 <c>Resources.Load</c> 路径前缀＝ <see cref="AssetFolderName"/> + <c>/</c>。</summary>
+        public const string AssetLoadPrefix = AssetFolderName + "/";
+
         /// <summary>3D 默认最小距离（世界单位）；竞技场相机距离约 30（美术风格指南 §1.1）。
         /// 【格 1→2 单位 ×2】3 → 6（空间衰减距离类一律 ×2，保持"同一格数处响度相同"）。</summary>
         public const float DefaultMinDistance = 6f;
@@ -261,18 +275,11 @@ namespace PirateCrew.Audio
         /// 分类 → 相对 Assets 的资产根（仅作说明用途；wav 实际平铺在
         /// <c>Assets/Resources/PirateCrewAudio/</c>，运行时按 <see cref="AssetFileName"/> 经
         /// <c>Resources.Load</c> 加载，AudioAssetBuilder 也按平铺路径落盘）。
+        /// 三个分类共用同一平铺目录（唯一来源见 <see cref="AssetFolderName"/>），不再按分类分支。
         /// </summary>
         public static string CategoryFolder(AudioCategory category)
         {
-            switch (category)
-            {
-                case AudioCategory.Ambient:
-                    return "Assets/Resources/PirateCrewAudio";
-                case AudioCategory.Music:
-                    return "Assets/Resources/PirateCrewAudio";
-                default:
-                    return "Assets/Resources/PirateCrewAudio";
-            }
+            return AssetFolder;
         }
 
         static SfxRecipe[] BuildById()
