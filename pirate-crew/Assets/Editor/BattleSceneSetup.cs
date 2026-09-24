@@ -1061,7 +1061,16 @@ namespace PirateCrew.EditorTools
 
         static void RegisterBuildSettings()
         {
-            string[] names = { "Bootstrapper", "MainMenu", "Battle" };
+            // 与 SceneSetup/ManagementSceneSetup 同一张五场景表——三装配器先后各写一遍，
+            // 此前这里硬编码三场景把另外两处写的五场景表盖掉（build 场景表反复被砍的根因）。
+            string[] names =
+            {
+                "Bootstrapper",
+                "MainMenu",
+                "Battle",
+                "CrewManagement",
+                "LevelSelect",
+            };
             var scenes = new EditorBuildSettingsScene[names.Length];
             for (int i = 0; i < names.Length; i++)
                 scenes[i] = new EditorBuildSettingsScene(ScenesFolder + "/" + names[i] + ".unity", true);
