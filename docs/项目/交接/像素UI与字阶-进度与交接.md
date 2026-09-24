@@ -38,43 +38,49 @@
 ### 临时脚本（temp/，gitignored）
 `verify-cycle.py`（冷启动全链）、`hot-cycle.py` / `ratio21-cycle.py` / `rebake-cycle.py` / `final-cycle.py`（热链变体：fonts→rebake→assemble→capture，事件驱动等日志完成行）。陷阱：`error CS` 要用 `(\d+,\d+): error CS` 位置匹配（.dag 路径假阳性）；旧日志/旧截图必须先删（假阳性秒过）。
 
-## 三、当前状态（交接时刻）
+## 三、当前状态（2026-09-24 晚会话收口）
 
-**已完成（编译 0 错误，未提交）**：
-- 四档原生字体全链（FontAssetBuilder 4 spec+回退链、UiKit 阶梯解析 FontTiers、UiSkin.Font=16/12/10/8、MenuUiBuilder/TextSampleBuilder/UiSkinTests 同步、方舟16淘汰）
-- 47 张 UI 贴图 1:1 下采样（PIL 每 3×3 取块心，无损）+ meta spriteBorder ÷3 + 全部 filterMode=Point
-- Panel 直角件全链（PixelPiece.Panel、8×8 模板、烘制/图集/判据/SketchPanel+EnsurePanel 换皮、Shadow 层销毁）
-- 低清画布栈三工厂 + Px 表 `Unit=1`（艺术像素）+ UiLayout/UiPadding 换算归一 + UiKit 模态内边距/条槽内缩归一 + PressOffset 待查（PixelSkin (1,-1) 未改，仍是 Unit 基——见"未完成"）
-- 乱码双杀：伪粗禁用 + SketchButton.AddLabel 图集 Point 钉扎
-- 按钮动态：RuntimeUiBuilder.LayoutRowContent 原生件自贴合 + UiKit.FitToLabel（宽高全贴合）+ 模态卡 ContentSizeFitter 纵向贴内容
-- 字面量 ÷3 扫除：BattleHudBuilder（41 处）、MenuUiBuilder（12 处）、ManagementSceneSetup（10 处）、RuntimeUiBuilder、SceneSetup 主菜单（9 处）、两控制器 RowHeight 48→16、SettingsRowHeight 80→27
+**已提交（`51725ef6` + `7e8d29b3` + `cc62815d`，refactor/industrial-grade）**：
+- 前批四档字体 / 2:1 画布栈 / 直角 Panel 件 / 字面量 ÷3 已在 `d07503e1`/`df87dd1c` 入库（当时交接档写"未提交"，后已提交）。
+- **rebake 崩溃根除**（`51725ef6`）：`DrawOne` 按旧 36 源宽硬编码寻址模板件（28×32/16×16）越界；`MapAxis` 零中心除零守卫；接触表版面适配新 Plate 几何（colMin=10u/rowTone=12u）。
+- **陈旧判据清零**（同上）：状态件色表按 Lifted/Sunk 取档（14 条误报）、Track/Panel 透明像素口径（14 条）、u 对齐判据解耦 3D 块（2 条）。**rebake 全绿：54 张 + 接触表 + 美术稿 + 图集，判据 0 条。**
+- **SketchButton 删 `_GradientScale` 保序行**：fontMaterial 首访即实例化，该行只对 Bitmap 材质刷警告。
+- **build 场景表修复**（`7e8d29b3`）：`d07503e1` 把 6 场景砍到 3，`SceneLoader.LoadSceneAsync` 按名加载会挂——补回 CrewManagement/LevelSelect（ToonPilot 已删不补）。
+- **最终代码重装配 + 四屏重拍**（`cc62815d`）：12:47 版四屏跑的是 13:09 终版码**之前**的旧码；21:15 四屏才是终版产物。渲染器/Crew 材质/字体资产 = 装配链确定性输出同步。
 
-**未验证**：最后一发 `assemble` 旗标已写入但**未确认被消费**（编辑器后台停摆）。新会话第一步：点 Unity 窗口给焦点 → 等 ~1 分钟 → 验收四点：直角面板、乱码清零、2:1 比例、字重均匀。
+**四点验收（21:15 四屏，分析工具过目）**：直角面板 ✓（按钮圆角=口径）、乱码清零 ✓、2:1 比例 ✓、字重均匀 ✓。**待创始人肉眼复核的观察项**：①主菜单「开始游戏」选中态文字贴边（边距紧）②CrewManagement 面板下半空白偏多 ③主菜单标题版本号与左下版本号是否一致（低清小字 OCR 两次读数不同，不可靠）。
+
+**语义澄清（重要，别再绕弯）**：现行已提交语义 = **设计格 ×Unit(2) = 贴图像素 = 画布像素 1:1**（模板构建器、布局常量、实测屏三方自洽）。§一.3「画布 1 单位 = 1 艺术像素」的"艺术像素"实际指贴图像素；模板的"1 设计格"是 2 贴图像素。字体按原生档 1:1（16/12/10/8），与贴图体系独立（§一.1 口径）。**待创始人验收时定夺**：观感若 OK 就维持；若裁决"贴图回设计稿 1:1"，连锁改动 = 模板 ×Unit 落盘改 ×1（14×16/8×8、边框 4/2）+ PressOffset/ShadowOffset 改 (1,-1) + 接触表版面再适配——专项处理，别顺手改。
+
+**PressOffset/ShadowOffset 裁决（原遗留#1 结案）**：维持 `(Unit,-Unit)`。已提交语义下 1 个按钮下沉量 = 1 设计格 = Unit 画布px，与最小视觉特征（2px）一致；(1,-1)=半个设计格，只适用于资产回 1:1 的口径。
 
 **已知遗留（按优先序）**：
-1. `PixelSkin.PressOffset`/`ShadowOffset` 仍是 `(Unit,-Unit)`（=2 画布 px）——低清栈下应为 `(1,-1)`。PressOffset 的消费点要 grep 确认语义。
-2. 字面量扫尾：`UiShowcaseBoot` / `PixelShowcasePage`（A=PixelSkin.Unit 乘数，展示页非阻塞）/ `TextSampleBuilder` / `FontProbe` 未换算；SceneLoader overlay canvas 未切低清栈；`grep "Vector2([3-9][0-9]" ` 各装配器再扫一遍漏网。
-3. **完整搬皮批**（源码参数已提取，见下）：标题栏带（window part h1=15 整条）、窗控钮（?/×）、复选框/单选（8×8 + 焦点九宫格 2/6/2）、蓝分组字 #6E9ADB、slider 焦点变体。新件 → 允许一次 rebake。
-4. **装配器运行时化**（半天）：菜单/管理 UI 改场景加载时构建，assemble 退役；比例下拉（改 referenceResolution）接设置界面。
-5. 提交：工作树一大批未提交（见 git status；含字体资产删除/新增、Panel 件、画布栈、字面量扫除）——验收后分批提交。
-6. 迁移收尾：删 `F:\Unity\2022.3.62f1c1` 目录（创始人已确认）。
-7. 杂项：EditorBuildSettings 被截成 3 场景（装配链会幂等写回 6 场景，提交前核验）；僵尸 Unity 进程 35528（36K，杀不掉，无害，锁文件已不在）。
+1. **创始人验收四屏**（产物 `F:\VSCode\pirate-crew-3d-unity\pirate-crew\export\ui-pixel-4c\`，21:15 版）+ 上面三个观察项 + ×2 语义定夺。
+2. **完整搬皮批**（源码参数已提取）：标题栏带（window part h1=15 整条）、窗控钮（?/×）、复选框/单选（8×8 + 焦点九宫格 2/6/2）、蓝分组字 #6E9ADB、slider 焦点变体。新件 → 允许一次 rebake（判据已全绿，链路可用）。
+3. **装配器运行时化**（半天）：菜单/管理 UI 改场景加载时构建，assemble 退役；比例下拉（改 referenceResolution）接设置界面。
+4. SceneLoader overlay 画布切低清栈（pixelPerfect=true 残留）。
+5. `SketchSeparator` 厚度轴 = PixelSkin.Unit（2 画布px）而分隔线纹理厚 2u（4px）——理论上半压缩，四屏观感未见异常，核对后要么改 2u 要么改纹理。
+6. 删 `F:\Unity\2022.3.62f1c1` 目录（创始人已确认，未执行）。
 
 ## 四、踩坑与禁忌（血泪清单，违者返工）
 
 1. **禁伪粗**（重影乱码元凶之一）；图集 Point 必须钉（Bilinear 渗邻字=另一元凶）。
 2. **禁翻倍**（原生档纪律）；禁"硬凑字号"。
-3. **烘/排不是调节旋钮**：烘=新增件；排=装配改动。创始人已定性"最后一遍"纪律。
+3. **烘/排不是调节旋钮**：烘=新增件；排=装配改动。创始人已定性"最后一遍"纪律。（例外已用掉一次：`cc62815d` 那轮 rebake 是为补齐 12:43 崩溃批的收尾+验证判据修复，非调节。）
 4. 验证防假阳性：旧日志"遥控监听已装载"、旧四屏 PNG、`error CS` 裸匹配（.dag 假阳性）。
-5. **批量字符串替换脚本改源码已被创始人点名禁止**——用编辑工具逐处改；曾出过占位符残留、注释粘连事故。
-6. 双开保护：第二实例静默退出（日志 "Exiting without the bug reporter"）；僵尸进程 35528 taskkill 拒绝访问，无视即可（锁文件已删）。
+5. **批量字符串替换脚本改源码已被创始人点名禁止**——用编辑工具逐处改。
+6. 双开保护：第二实例静默退出（日志 "Exiting without the bug reporter"）；僵尸进程 35528 taskkill 拒绝访问，无视即可。
 7. batchmode 铁律照旧（-projectPath + -nographics，一次一个 Unity）。
 8. 遥控桥 fonts 后必须等域重编译（≥30s）再发后续命令，否则跑到旧代码。
-9. Harness 的 `external/harness/Harness.csproj` 路径已迁 `F:\Unity\2022.3.62f1`；CoreModule 的 MSB3245 是良性（见上）。
+9. Harness 的 MSB3245 是良性；`external/harness/Harness.csproj` 路径已迁 `F:\Unity\2022.3.62f1`。
+10. **【2026-09-24】Play 中途脚本重编译 = 幽灵 NRE**：可序列化字段（`_spawned`）跨域重载存活、非序列化引用（`_teams` 纯 C# 数组）清空 → 守卫失效每帧 NRE（BattleController/FxPool 同时中招）。**遥控工作流铁律：让编辑器吃新代码（refresh/编译）之前必须先 `stop`**。创始人手动按 Play 看效果时若后台有代码改动，同样会踩。
+11. **【2026-09-24】两座桥的路径别混**：CommandBridge = **仓库根** `export/unity-command.txt`（refresh/state/call）；RemotePlayControl = `external/editor-remote-play.flag`（stop/fonts/rebake/assemble/capture/play）。
+12. **【2026-09-24】焦点喂法**：编辑器后台时主循环停摆，每次焦点只换来 ~3 秒运行；忙任务（rebake/assemble/capture 全链）要用循环喂焦点。现成脚本 `temp/focus-unity.ps1`（gitignored，丢了照 §五 重建）。capture 四屏连拍期间帧也在走焦点——循环不能停。
 
-## 五、恢复指引
+## 五、恢复指引（新会话第一步做什么）
 
 1. 读本文档 + `docs/项目/交接/活跃任务登记.md` 对应行。
-2. `git status` 看未提交批次；`git log --oneline -5` 看最近提交。
-3. 点 Unity 窗口 → 确认 assemble 消费（日志尾部"三场景已重装配"）→ 验收四点（直角/乱码/比例/字重）。
-4. 按优先序推进遗留清单；每完成一项提交一次（`类型(模块): 描述` 中文格式）。
+2. `git log --oneline -6` 对齐提交；`git status` 应为净（不净=有并行会话，先对齐文件域）。
+3. 按遗留清单优先序推进；每完成一项提交一次（`类型(模块): 描述` 中文格式）。
+4. 驱动编辑器：改 C# 后 → 写 `refresh` 到仓库根 `export/unity-command.txt` → 跑 `powershell -File temp/focus-unity.ps1`（无则按 §四.12 重建：ShowWindow(SW_RESTORE)+SetForegroundWindow+驻留 2.4s）→ 等 ~40s 编译 → 遥控命令写 `external/editor-remote-play.flag` → 再喂焦点 → 查日志 `pc3d-intl2.log` 尾部确认消费。
+5. 日志路径：`C:\Users\fanbo\AppData\Local\Temp\pc3d-intl2.log`（编辑器以 -logFile 启动）。
