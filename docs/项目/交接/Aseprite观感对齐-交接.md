@@ -4,7 +4,69 @@
 > 本文只列**还没学的**；已学的见文末「已学清单」。权威参考库：`external/aseprite-ref/data/extensions/aseprite-theme/dark/theme.xml`（1177 行，**看源码别看截图猜**）。
 > 配套：部件级逐件对比表在 [UI审计与重构-进度与交接](UI审计与重构-进度与交接.md)（并行审计线，含 Balatro/RACCOIN 实地档案）。
 
-## 〇、2026-09-25 本会话增量（列表三件套 + 分组线接屏，纯「排」未「烘」）
+## 〇之一、全量对齐波(重构波)执行案——2026-09-25 深夜创始人裁决
+
+> **裁决原文语义**:「原封不动复刻参考库,把项目原来的 UI 设定全部覆盖掉」。
+> 四悬案就此全部关闭:×2 语义=改 ×1、投影=废、自创变体=废、彩面按钮=废。
+> **唯一规格书 = `external/aseprite-ref/data/extensions/aseprite-theme/dark/theme.xml`
+> (+ 同目录 sheet.png)**——每个数字/颜色/部件必须标 theme.xml 行号出处,
+> 禁止再自己量图、自己设计、自己推断。库没给的行为(如某些 state)以 theme 为准缺失即不实现。
+
+### 1. 量纲终局(悬案①裁定:×1)
+
+- **1 设计格 = 1 贴图像素 = 1 画布像素**(= 2 屏幕像素 @1080p,画布密度层不动)。
+- 贴图**×1 重烘**(现 ×2):模板格数=贴图像素,九宫格切片原样,渲染尺寸=格数 → 全链 1:1 零压缩。
+- `AseLayout.Px(cells)` 改恒等(cells,去 `*Unit`);`PixelSkin.Unit` 只保留画布密度语义(CanvasScaler scaleFactor),
+  从布局/贴图链路全部退场。
+- 现状证据(为什么必须 ×1):按钮源件 16 格(button_normal w/h=14×16,theme.xml:155)烘成 32 贴图像素,
+  渲染只给 16 画布 → 2:1 压缩,唇边全糊(实拍);窗体标题带又按 15 格×2=30 画布渲染(与贴图 1:1)——
+  同一套件两种量纲并存,这就是「哪里都不像」的技术根源。
+
+### 2. 部件全量烘焙(theme.xml `<parts>` 段逐条,现役 33 件 → 全量)
+
+- 以 `<parts>` 全表为准新会话逐行转写(本会话只核对到 155-226 行:button 系 4 件 /
+  window_button 3 件 / toolbutton 系 / tab 系 / tab_modified/close_icon 等)。
+- **已知必补**:button_focused(48,16 蓝描边变体)、button_selected(64,16)、tab 四件套、
+  tooltip_arrow、menu 系、colorbar 系。
+- **按压态不烘**:theme `<parts>` 无 button_pressed——Aseprite 按钮只有
+  normal/hot(mouse)/focused/selected 四态(theme.xml:608-616 `<style id="button">`)。
+  现役 `PixelState.Pressed` 三态体系与 `PressOffset` 位移 = 自创,随波退役
+  (按压反馈=pressed 皮的需求不成立,theme 按下行为由 hot→normal 切换承担,新会话核对 laf 行为后如缺再议)。
+
+### 3. 控件状态映射(theme.xml `<styles>` 段逐条)
+
+- **button(608-616)**:normal / hot(mouse) / focused / selected 四态换皮;
+  文字色 button_normal_text / button_hot_text / button_selected_text。
+  **kind 体系(Primary 黄铜/Accent/Danger 红/Paper)整体退役**——theme 无彩面按钮,
+  语义由文字与焦点蓝描边表达(参考图 OK/Cancel 同为灰面)。
+- **list_item(1031-1039)**:✅ 已按库复刻(常态/selected 金底/disabled)。
+- **horizontal_separator(718-723)**:✅ 已按库复刻(蓝字压线)。
+- **view(585-589)**:✅ 已接(sunken border 3/顶 4)。
+- **window / window_with_title**:标题带 + border 6/17 ✅ 已接;剩余菜单/弹层(menu border=3)待接。
+- 其余 styles(textbox/combobox/slider/scrollbar/tooltip…)逐条转写,禁自创。
+
+### 4. 布局(theme `<dimensions>` + styles border 相加)
+
+- **相邻控件间距 = 两者 border 相加**(theme 无 spacing 概念)——现役 VBox/HStack 的
+  spacing=3u 手摆缝全部废弃,改盒模型表达(与「装配器运行时化」同批,见主档遗留)。
+- 主菜单**窗体化**(创始人本轮裁决):window_with_title 容器装标题+按钮列,
+  标题进带内——废「黑底+文字+下划线」自由排版。
+
+### 5. 收口清单(执行顺序)
+
+1. BeveledPixelSpriteBuilder:×1 重烘全表 + 补缺件(判据同步重写,尺寸断言 ×1);
+2. PixelSkin/AseLayout:令牌 ×1 化(Px 恒等、PressOffset/PlateBorder/WindowTitleBand 重标定);
+3. SketchButton/UiKit:kind 退役、四态映射、FocusRing 接 focused 皮;
+4. 四屏装配重排(主菜单窗体化含内)+ 模态/确认框;
+5. 四屏 capture 与 sheet.png 并排对照验收(创始人过目)。
+
+### 6. 本会话登记的实拍证据(重构波对照用)
+
+- `export/ui-pixel-4c/MainMenu.png`(05:26):按钮蓝铺面+唇边压缩糊+无窗体容器;
+  CrewManagement/LevelSelect/settings:列表三件套与分组线已按库(这批保留有效)。
+- 量化对比:参考 OK 钮高 24 格唇边完整 vs 实拍 16 画布压缩(见 §1 量纲)。
+
+## 〇〇、2026-09-25 本会话增量(列表三件套 + 分组线接屏,纯「排」未「烘」)
 
 **已落地**（全部用已烘 87 张，零 rebake；`run.sh harness Runtime/DataEditor` 0 错）：
 
