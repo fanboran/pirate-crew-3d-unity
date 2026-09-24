@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using PirateCrew.Battle;
+using PirateCrew.Rendering.Pixelart;
 using PirateCrew.Visual;
 using UnityEditor;
 using UnityEngine;
@@ -42,7 +43,10 @@ namespace PirateCrew.EditorTools
     ///         `1.2/2 − 0.7/2 = 0.05` 一致；总高 = 1.50 + 0.35 = 1.85）。</item>
     ///   </list>
     ///   材质：Head = 木色 <c>#D4A76A</c>（CrewWood，与 Godot <c>cel_wood</c> 0.83/0.65/0.42 = #D4A66B 同值），
-    ///   Body = 阵营色（运行时由 UnitOutlineBinder 逐队写 <c>_BaseColor</c>）。
+    ///   Body = 阵营色（运行时由 UnitOutlineBinder 逐队写 <c>_BaseColor</c>）；
+    ///   全部 Crew 材质走**像素化路径**物体 shader（<see cref="PixelartPath.ObjectShaderName"/>，
+    ///   配方唯一来源 = <see cref="PixelartMaterialFactory"/>）——反壳描边（PirateOutline）已退役，
+    ///   选中/悬停反馈由像素路径的屏幕空间描边承担。
     ///   职业差异只在数据（攻/防/技能）与 HUD，**不体现在造型上**（见 docs/角色造型规范.md）。
     ///
     /// 【为什么删掉了腿/靴/臂/掌/三角帽/头巾/发/鼻/眼/手持武器】那些零件是此前多轮复验里
@@ -81,11 +85,8 @@ namespace PirateCrew.EditorTools
     ///
     /// 【幂等】
     ///   · 网格资产存在则**就地刷新**（<c>ApplyToMesh</c>，不换 GUID、不丢引用）；
-    ///   · 材质存在则就地更新参数（不新建重名副本）；
+    ///   · 材质存在则就地更新 shader 与配方参数（不新建重名副本）；
     ///   · 预制体按固定路径覆盖保存。
-    ///
-    /// 【保留的材质级参数】<see cref="DashFrequencySelected"/> / <see cref="OutlineWidthSelected"/>
-    ///   只写进 Crew 系列材质（选中虚线的周期与宽度），与几何无关，两件式下继续生效。
     /// </summary>
     public static class CrewVisualPrefabBuilder
     {
@@ -98,7 +99,6 @@ namespace PirateCrew.EditorTools
         const string CrewTextureFolder = "Assets/Art/Textures/Crew";
         const string CrewPrefabFolder = "Assets/Prefabs/PirateCrew/Crew";
 
-        const string OutlineShaderName = "PirateCrew/PirateOutline";
         const string UnlitShaderName = "Universal Render Pipeline/Unlit";
 
         /// <summary>单位根缩放：与 PirateBase.prefab 一致，使 BoxCollider(1,1,1) 的世界 AABB = 0.375×0.5×0.375。</summary>
@@ -212,37 +212,11 @@ namespace PirateCrew.EditorTools
         const string ContactShadowTextureFileName = "CrewContactShadow.png";
 
         // ------------------------------------------------------------------
-        // 描边材质参数（所有 Crew 材质共用；与几何无关）
+        // 选中反馈（像素路径）：Crew 材质不再携带描边壳参数
+        // 反壳描边（PirateOutline + _OutlineState/_DashFrequency/_OutlineWidth* 一族）
+        // 已随 PBR 根除退役，反馈由像素路径的屏幕空间描边承担；材质侧只保留
+        // 物体配方（PixelartMaterialFactory.Configure）与接触阴影（URP/Unlit 共系件）。
         // ------------------------------------------------------------------
-
-        /// <summary>
-        /// 选中虚线的屏幕空间频率（写入所有 Crew 材质的 <c>_DashFrequency</c>）。
-        ///
-        /// 【换算】phase = NDC.y·F + Time.y·_DashSpeed，NDC.y 跨 2 个单位对应 H 像素 →
-        ///   虚线周期 = π·H/F 像素、ON/OFF 各半（1080p：F=50 → 68px 周期 / 各 34px；F=150 → 23px / 各 11px）。
-        /// 【为什么取 150】判据要求"选中态下**全部部件**出现青虚线段"（两件式下 = Head + Body）。
-        ///   ON/OFF 只由屏幕 Y 决定，F=50 时 OFF 带 34px 与单位屏幕尺寸（广角 ~26px、特写 ~265px）
-        ///   同量级，一圈轮廓只落 0~1 段，观感是"角落两三段短线"；F=150 时周期 23px ≪ 单位尺寸 →
-        ///   轮廓上恒有 3~11 段虚线，读作完整的一圈点划描边（docs/描边Shader调试.md §三 已记录该现象）。
-        /// 【同步要求】<c>BattleSceneSetup.EnsureOutlineMaterial</c> 持同源参数镜像（含 _DashFrequency）。
-        ///   改这里必须同步那边，否则旧单立方体兜底材质仍是 68px 周期。
-        /// </summary>
-        const float DashFrequencySelected = 150f;
-
-        /// <summary>
-        /// 选中态描边宽度（写入所有 Crew 材质的 <c>_OutlineWidthSelected</c>；模式 0 = 屏幕空间恒定粗细）。
-        ///
-        /// 【为什么是 0.010】模式 0 下屏幕上单边宽 ≈ `width · (positionCS.w)^(1−_OutlineDistanceAttenuation) / w`
-        ///   → ≈ `width · w^(−0.4)`；特写机位 w≈2 时 0.006 → ≈0.0045 NDC ≈ 2.4px，
-        ///   扣掉被本体自遮挡的部分后可见只剩 ~1px，再被虚线的 ON/OFF（各 11px）截断，小部件可能读不到青色。
-        ///   0.010 → ≈4px（可见 ~2px），与躯干同量级（docs/描边Shader调试.md §三 推荐区间 0.002~0.012）。
-        /// 【同步要求】<c>BattleSceneSetup.EnsureOutlineMaterial</c> 持同源镜像（含 _OutlineWidthSelected）；
-        ///   那个方法只服务旧单立方体兜底材质，未同步（不在本文件域内）。
-        /// </summary>
-        const float OutlineWidthSelected = 0.010f;
-
-        /// <summary>悬停描边宽度：与选中等比（0.0025 → 0.0042），保持"悬停比选中细"的既有语义。</summary>
-        const float OutlineWidthHover = OutlineWidthSelected * 0.42f;
 
         /// <summary>接触阴影面片色：近黑 + 中心 α 0.45（边缘 α 由贴图径向渐变收到 0）。</summary>
         static readonly Color ContactShadowColor = new Color(0.015f, 0.015f, 0.020f,
@@ -399,18 +373,43 @@ namespace PirateCrew.EditorTools
             var roles = System.Enum.GetValues(typeof(CrewMaterialRole));
             var materials = new Material[roles.Length];
 
-            Shader outlineShader = ResolveOutlineShader();
-
             foreach (CrewMaterialRole role in roles)
             {
-                string path = CrewMaterialFolder + "/" + CrewVisualCatalog.MaterialFileName(role) + ".mat";
-                Material material = LoadOrCreateMaterial(path, CrewVisualCatalog.MaterialFileName(role), outlineShader);
-                ApplyOutlineUnitMaterial(material, CrewVisualCatalog.RoleColor(role));
+                string fileName = CrewVisualCatalog.MaterialFileName(role);
+                string path = CrewMaterialFolder + "/" + fileName + ".mat";
+
+                // 像素化路径：材质本体换到物体 shader、配方写工厂默认值（色带 3 档 / 描边 1 艺术像素）。
+                // 阵营色仍由 UnitOutlineBinder 运行时以 MPB 写 _BaseColor（像素 shader 同名属性，链路不变）。
+                Shader pixelShader = ResolvePixelShader();
+                Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (material == null)
+                {
+                    if (pixelShader == null)
+                        continue;   // 物体 shader 缺失：该角色材质不落资产（工厂已报错），装配侧按 null 兜底
+                    material = new Material(pixelShader) { name = fileName };
+                    AssetDatabase.CreateAsset(material, path);
+                }
+                else if (pixelShader != null)
+                {
+                    material.shader = pixelShader;   // 幂等重跑：把旧反壳描边材质换到本路径
+                }
+
+                PixelartMaterialFactory.Configure(material, CrewVisualCatalog.RoleColor(role));
                 EditorUtility.SetDirty(material);
                 materials[(int)role] = material;
             }
 
             return materials;
+        }
+
+        /// <summary>本路径物体 shader（缺失时报错返回 null，不静默拿别族 shader 顶上）。</summary>
+        static Shader ResolvePixelShader()
+        {
+            Shader shader = Shader.Find(PixelartPath.ObjectShaderName);
+            if (shader == null)
+                Debug.LogError("[CrewVisualPrefabBuilder] 未找到 shader " + PixelartPath.ObjectShaderName
+                    + "（被剔除/编译失败？），Crew 材质不换装。");
+            return shader;
         }
 
         static VisualAddOns BuildAddOns(Dictionary<string, Mesh> meshes)
@@ -529,18 +528,6 @@ namespace PirateCrew.EditorTools
             return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
         }
 
-        static Shader ResolveOutlineShader()
-        {
-            Shader outlineShader = Shader.Find(OutlineShaderName);
-            if (outlineShader == null)
-            {
-                Debug.LogWarning("[CrewVisualPrefabBuilder] 未找到 shader " + OutlineShaderName
-                    + "，退回 URP/Lit（角色将没有描边，描边验收会失败）。");
-                outlineShader = Shader.Find("Universal Render Pipeline/Lit");
-            }
-            return outlineShader;
-        }
-
         static Material LoadOrCreateMaterial(string path, string materialName, Shader shader)
         {
             var material = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -554,89 +541,6 @@ namespace PirateCrew.EditorTools
                 material.shader = shader;
             }
             return material;
-        }
-
-        /// <summary>
-        /// 配置"单位描边材质"参数：本体色 + 描边三档（state0 不可见 / hover 白细 / selected 青粗虚线）。
-        /// 参数值与 <c>BattleSceneSetup.EnsureOutlineMaterial</c> 保持同源（该方法是私有的，故此处镜像；
-        /// 若那边调参，这里必须同步，口径见 docs/描边Shader调试.md）。
-        /// </summary>
-        static void ApplyOutlineUnitMaterial(Material material, Color baseColor)
-        {
-            if (material.HasProperty("_BaseColor"))
-                material.SetColor("_BaseColor", baseColor);
-
-            // state=0 用兜底色，alpha=0 → 片元 discard，未选中的单位不顶青边。
-            if (material.HasProperty("_OutlineColor"))
-                material.SetColor("_OutlineColor", new Color(0.286f, 0.851f, 0.839f, 0f));
-            if (material.HasProperty("_OutlineColorHover"))
-                material.SetColor("_OutlineColorHover", new Color(1f, 1f, 1f, 0.22f));
-            if (material.HasProperty("_OutlineColorSelected"))
-                material.SetColor("_OutlineColorSelected", new Color(0.286f, 0.851f, 0.839f, 0.949f));
-
-            if (material.HasProperty("_OutlineWidth"))
-                material.SetFloat("_OutlineWidth", OutlineWidthSelected);
-            if (material.HasProperty("_OutlineWidthHover"))
-                material.SetFloat("_OutlineWidthHover", OutlineWidthHover);
-            if (material.HasProperty("_OutlineWidthSelected"))
-                material.SetFloat("_OutlineWidthSelected", OutlineWidthSelected);
-            if (material.HasProperty("_OutlineState"))
-                material.SetFloat("_OutlineState", 0f);
-            if (material.HasProperty("_OutlineAlpha"))
-                material.SetFloat("_OutlineAlpha", 1f);
-            if (material.HasProperty("_OutlineExpandMode"))
-                material.SetFloat("_OutlineExpandMode", 0f);
-            if (material.HasProperty("_OutlineDistanceAttenuation"))
-                material.SetFloat("_OutlineDistanceAttenuation", 0.4f);
-            if (material.HasProperty("_DashSpeed"))
-                material.SetFloat("_DashSpeed", 5f);
-            if (material.HasProperty("_DashFrequency"))
-                material.SetFloat("_DashFrequency", DashFrequencySelected);
-            if (material.HasProperty("_DebugMode"))
-                material.SetFloat("_DebugMode", 0f);
-        }
-
-        /// <summary>
-        /// 核对预制体里每个**角色部件**（排除贴地接触阴影面片）的材质是否带 <c>_OutlineState</c>。
-        ///
-        /// 【为什么要有这一步】MPB 写不存在的属性**不报错**：一旦哪个部件被换成
-        /// PirateSurface / URP-Lit 材质，描边会**静默**消失（外观上就是"这个部件选中不变青"）。
-        /// 故在这里做一次建预制体期的硬核对，命中缺属性的部件就 <see cref="Debug.LogError"/> 点名列出
-        /// （ArtGate/批处理会把它暴露出来），不让它溜到运行时。
-        /// 【两件式下的期望】Body（CrewTeamCloth）+ Head（CrewWood）都走 PirateOutline，
-        /// 唯一不带 <c>_OutlineState</c> 的是 ContactShadow（CrewContactShadow.mat，被本方法与 binder 一致地排除）。
-        /// </summary>
-        static void VerifyOutlineMaterials(GameObject root, string fileName)
-        {
-            int outlineStateId = Shader.PropertyToID("_OutlineState");
-            MeshRenderer[] renderers = root.GetComponentsInChildren<MeshRenderer>(true);
-
-            int missing = 0;
-            string firstOffender = null;
-
-            for (int i = 0; i < renderers.Length; i++)
-            {
-                MeshRenderer r = renderers[i];
-                // 贴地接触阴影面片刻意不描边（与 UnitOutlineBinder 的排除口径一致，见该类的注释）。
-                if (r == null || r.GetComponent<ContactShadowDecal>() != null)
-                    continue;
-
-                Material m = r.sharedMaterial;
-                if (m != null && m.HasProperty(outlineStateId))
-                    continue;
-
-                missing++;
-                if (firstOffender == null)
-                    firstOffender = r.name + "（" + (m != null ? m.name : "空材质") + "）";
-            }
-
-            if (missing == 0)
-                return;
-
-            Debug.LogError("[CrewVisualPrefabBuilder] " + fileName + " 有 " + missing + "/"
-                + renderers.Length + " 个角色部件的材质不含 _OutlineState，选中/悬停不会画出描边，首个："
-                + firstOffender + "。两件式下 Body 应用 CrewTeamCloth、Head 应用 CrewWood"
-                + "（ApplyOutlineUnitMaterial 生成的那批），否则会出现\"部分部件无青\"。");
         }
 
         static CrewVisualAssetSet BuildAssetSet(Dictionary<string, Mesh> meshes, Material[] materials)
@@ -741,8 +645,6 @@ namespace PirateCrew.EditorTools
                     + rendererCount + "（两件式口径下恒为 2 = Body + Head），请检查 "
                     + "ApplyGodotTwoPieceSilhouette 是否被改动。");
 
-            // 建完立刻核一遍"每个角色部件的材质是否都带 _OutlineState"（缺的报错点名）。
-            VerifyOutlineMaterials(root, fileName);
 
             // 接线（PirateBase.body / bodyCollider / 表现层引用）。
             var so = new SerializedObject(pirate);

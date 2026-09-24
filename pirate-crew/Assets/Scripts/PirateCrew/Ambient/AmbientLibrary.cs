@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PirateCrew.Rendering.Pixelart;
 using PirateCrew.SceneArt;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -126,20 +127,18 @@ namespace PirateCrew.Ambient
     /// <summary>
     /// 环境模块的材质库。全部材质**共享**（同类一个材质 → 利于 SRP Batcher / GPU Instancing）。
     ///
-    /// 【材质分工】
-    ///   · 海鸥/螃蟹/鱼/立柱/浮标 → <c>PirateCrew/PirateOutline</c>（本体 + #2A2A2A 描边，
-    ///     与场景道具、单位同一套描边语言，满足美术风格指南 M12）；
-    ///   · 灯笼金属件 → <c>PirateCrew/PirateSurface</c>（PBR 金属高光）；
-    ///   · 灯笼芯/辉光片 → <c>PirateCrew/Ambient/Glow</c>（自发光，不受光照/阴影影响）；
-    ///   · 远景海鸟剪影 → URP/Unlit 不透明深灰（无光照，纯剪影）。
-    /// 三档基色全部标【提案】：美术风格指南只规定"环境去饱和、角色高饱和"，
+    /// 【材质分工（像素化路径）】生物/道具/灯笼/风摆模板一律走**像素化物体 shader**
+    /// （配方唯一来源 = <see cref="PixelartMaterialFactory"/>，色带/描边发生在低分辨率域着色趟里，
+    /// 材质不再携带描边壳与 PBR 参数）；远景海鸟剪影 → URP/Unlit 不透明深灰（无光照，纯剪影）。
+    /// 旧的反壳描边（PirateOutline）、PBR 表面（PirateSurface）、顶点风摆（Ambient/Wind）与
+    /// 加法辉光（Ambient/Glow）建材质路径已随 PBR 根除退役——Wind/Glow 的 shader 本体由清扫波删除。
+    /// 生物三档基色全部标【提案】：美术风格指南只规定"环境去饱和、角色高饱和"，
     /// 未给海鸥/螃蟹/鱼的色值；这里取低饱和自然色，保证不与阵营红蓝抢注意。
     /// </summary>
     public sealed class AmbientMaterialSet
     {
         // ---- shader 名（集中一处，避免散落魔法字符串）----
-        public const string WindShaderName = "PirateCrew/Ambient/Wind";
-        public const string GlowShaderName = "PirateCrew/Ambient/Glow";
+        // 【PirateOutline / PirateSurface 仍被场景侧迁移中的材质引用，常量保留到清扫波】
         public const string SurfaceShaderName = "PirateCrew/PirateSurface";
         public const string OutlineShaderName = "PirateCrew/PirateOutline";
         public const string UnlitShaderName = "Universal Render Pipeline/Unlit";
@@ -158,7 +157,6 @@ namespace PirateCrew.Ambient
         const string LanternGlowHex = "#FFB347";
         const string PennantHex = "#D4A76A";
         const string FoliageLightHex = "#5FA83C";
-        const string FoliageDarkHex = "#33672A";
 
         public readonly Material GullBody;
         public readonly Material GullWing;
@@ -172,16 +170,16 @@ namespace PirateCrew.Ambient
         public readonly Material Post;
         public readonly Material CorkFloat;
 
-        /// <summary>顶点风摆材质模板：既有植被（棕榈叶/灌木/草）。</summary>
+        /// <summary>像素风摆模板：既有植被（棕榈叶/灌木/草）。</summary>
         public readonly Material WindFoliage;
 
-        /// <summary>顶点风摆材质模板：红队旗。</summary>
+        /// <summary>像素风摆模板：红队旗。</summary>
         public readonly Material WindFlagRed;
 
-        /// <summary>顶点风摆材质模板：蓝队旗。</summary>
+        /// <summary>像素风摆模板：蓝队旗。</summary>
         public readonly Material WindFlagBlue;
 
-        /// <summary>顶点风摆材质模板：帆布/垂片（本模块自建的燕尾旗）。</summary>
+        /// <summary>像素风摆模板：帆布/垂片（本模块自建的燕尾旗）。</summary>
         public readonly Material WindCloth;
 
         /// <summary>是否有 shader 缺失（缺 shader 时回落 URP/Unlit，画面对但少描边/风摆）。</summary>
@@ -189,43 +187,30 @@ namespace PirateCrew.Ambient
 
         public AmbientMaterialSet()
         {
-            // ---- 描边生物材质 ----
-            GullBody = CreateOutline("Ambient_GullBody", GullBodyHex, 0.0040f);
-            GullWing = CreateOutline("Ambient_GullWing", GullWingHex, 0.0035f);
-            CrabShell = CreateOutline("Ambient_CrabShell", CrabShellHex, 0.0040f);
-            CrabClaw = CreateOutline("Ambient_CrabClaw", CrabClawHex, 0.0035f);
-            Fish = CreateOutline("Ambient_Fish", FishHex, 0.0025f);
-            Post = CreateOutline("Ambient_Post", PostHex, 0.0035f);
-            CorkFloat = CreateOutline("Ambient_CorkFloat", CorkHex, 0.0030f);
+            // ---- 生物 / 道具（像素化路径：平色 + 工厂默认色带档数）----
+            GullBody = CreatePixel("Ambient_GullBody", GullBodyHex);
+            GullWing = CreatePixel("Ambient_GullWing", GullWingHex);
+            CrabShell = CreatePixel("Ambient_CrabShell", CrabShellHex);
+            CrabClaw = CreatePixel("Ambient_CrabClaw", CrabClawHex);
+            Fish = CreatePixel("Ambient_Fish", FishHex);
+            Post = CreatePixel("Ambient_Post", PostHex);
+            CorkFloat = CreatePixel("Ambient_CorkFloat", CorkHex);
 
-            // ---- 灯笼 ----
-            LanternMetal = CreateSurface("Ambient_LanternMetal", LanternMetalHex, 0.55f, 0.55f);
-            LanternCore = CreateGlow("Ambient_LanternCore", AmbientTimeOfDayCatalog.Hex(LanternCoreHex), 2.4f, 0.06f);
-            LanternGlow = CreateGlow("Ambient_LanternGlow", AmbientTimeOfDayCatalog.Hex(LanternGlowHex), 1.5f, 0.5f);
+            // ---- 灯笼（金属壳 + 发光芯同走本路径；加法辉光随旧 Glow shader 退役，
+            //      构包里的观感与此一致——旧链下 Glow shader 本就被剥离成 Unlit 回落）----
+            LanternMetal = CreatePixel("Ambient_LanternMetal", LanternMetalHex);
+            LanternCore = CreatePixel("Ambient_LanternCore", AmbientTimeOfDayCatalog.Hex(LanternCoreHex));
+            LanternGlow = CreatePixel("Ambient_LanternGlow", AmbientTimeOfDayCatalog.Hex(LanternGlowHex));
 
             // ---- 远景剪影 ----
             DistantBird = CreateUnlit("Ambient_DistantBird", DistantBirdHex, 1f);
 
-            // ---- 风摆模板 ----
-            WindFoliage = CreateWind("Ambient_WindFoliage",
-                SceneArtPalette.Hex(FoliageLightHex), SceneArtPalette.Hex(FoliageDarkHex),
-                weightDirection: 1f, anchorY: 0f, height: 1.6f, floor: WindRules.DefaultSwayFloor,
-                strength: 0.085f, speed: WindRules.BaseSpeed, density: 0.35f, flutter: 0.30f, emission: 0f);
-
-            WindFlagRed = CreateWind("Ambient_WindFlagRed",
-                SceneArtPalette.Hex(SceneArtPalette.TeamRed), SceneArtPalette.Hex("#8C1B12"),
-                weightDirection: -1f, anchorY: 3.2f, height: 1.0f, floor: 0.15f,
-                strength: 0.10f, speed: WindRules.BaseSpeed * 1.35f, density: 0.20f, flutter: 0.55f, emission: 0f);
-
-            WindFlagBlue = CreateWind("Ambient_WindFlagBlue",
-                SceneArtPalette.Hex(SceneArtPalette.TeamBlue), SceneArtPalette.Hex("#1B338C"),
-                weightDirection: -1f, anchorY: 3.2f, height: 1.0f, floor: 0.15f,
-                strength: 0.10f, speed: WindRules.BaseSpeed * 1.35f, density: 0.20f, flutter: 0.55f, emission: 0f);
-
-            WindCloth = CreateWind("Ambient_WindCloth",
-                SceneArtPalette.Hex(PennantHex), SceneArtPalette.Hex(SceneArtPalette.WoodMid),
-                weightDirection: -1f, anchorY: 1.55f, height: 0.35f, floor: 0.10f,
-                strength: 0.075f, speed: WindRules.BaseSpeed * 1.6f, density: 0.55f, flutter: 0.65f, emission: 0f);
+            // ---- 风摆模板（换装模板：顶点风摆 shader 退役后为像素平色；
+            //      AmbientWindBinder 的绑定照常执行，材质无风属性时摆动自然空转）----
+            WindFoliage = CreatePixel("Ambient_WindFoliage", FoliageLightHex);
+            WindFlagRed = CreatePixel("Ambient_WindFlagRed", SceneArtPalette.TeamRed);
+            WindFlagBlue = CreatePixel("Ambient_WindFlagBlue", SceneArtPalette.TeamBlue);
+            WindCloth = CreatePixel("Ambient_WindCloth", PennantHex);
         }
 
         /// <summary>销毁全部材质。</summary>
@@ -264,79 +249,33 @@ namespace PirateCrew.Ambient
         // 材质工厂
         // ------------------------------------------------------------------
 
-        /// <summary>描边材质（本体色 + #2A2A2A 描边），与 SceneArtBuilder 的道具材质同一写法。</summary>
-        Material CreateOutline(string name, string bodyHex, float outlineWidth)
+        /// <summary>像素化路径材质（hex 入口；配方唯一来源 = <see cref="PixelartMaterialFactory"/>，
+        /// 色带档数/描边走工厂默认值）。</summary>
+        Material CreatePixel(string name, string hex)
         {
-            Shader shader = FindShader(OutlineShaderName);
-            if (shader == null)
-            {
-                HasMissingShaders = true;
-                return CreateUnlit(name, bodyHex, 1f);
-            }
-
-            var m = new Material(shader) { name = name };
-            Color body = SceneArtPalette.Hex(bodyHex);
-            SetColor(m, "_BaseColor", body);
-
-            Color outline = SceneArtPalette.Hex(SceneArtPalette.Outline, 1f);
-            SetColor(m, "_OutlineColor", outline);
-            SetColor(m, "_OutlineColorHover", outline);
-            SetColor(m, "_OutlineColorSelected", outline);
-            SetFloat(m, "_OutlineWidth", outlineWidth);
-            SetFloat(m, "_OutlineWidthHover", outlineWidth);
-            SetFloat(m, "_OutlineWidthSelected", outlineWidth);
-            SetFloat(m, "_OutlineState", 0f);
-            SetFloat(m, "_OutlineAlpha", 1f);
-            SetFloat(m, "_OutlineExpandMode", 0f);
-            SetFloat(m, "_OutlineDistanceAttenuation", 0.4f);
-            SetFloat(m, "_DebugMode", 0f);
-            return m;
+            return CreatePixel(name, SceneArtPalette.Hex(hex));
         }
 
-        /// <summary>PBR 表面材质（PirateSurface 三档色阶；这里把同一色压成三档）。</summary>
-        Material CreateSurface(string name, string hex, float smoothness, float metallic)
+        /// <summary>像素化路径材质（Color 入口，供时段染色等已解析色调用）。
+        /// 物体 shader 缺失时回落 URP/Unlit 平色（不洋红），并置 <see cref="HasMissingShaders"/>。</summary>
+        Material CreatePixel(string name, Color color)
         {
-            Shader shader = FindShader(SurfaceShaderName);
-            if (shader == null)
-            {
-                HasMissingShaders = true;
-                return CreateUnlit(name, hex, 1f);
-            }
+            Material m = PixelartMaterialFactory.Create(name, color);
+            if (m != null)
+                return m;
 
-            var m = new Material(shader) { name = name };
-            Color c = SceneArtPalette.Hex(hex);
-            SetColor(m, "_BaseColorA", c * 0.72f);
-            SetColor(m, "_BaseColorB", c);
-            SetColor(m, "_BaseColorC", c * 1.12f);
-            SetFloat(m, "_Metallic", metallic);
-            SetFloat(m, "_Smoothness", smoothness);
-            SetFloat(m, "_AmbientStrength", 1f);
-            SetFloat(m, "_DebugMode", 0f);
-            return m;
-        }
-
-        /// <summary>自发光辉光材质（PirateCrew/Ambient/Glow）。</summary>
-        Material CreateGlow(string name, Color color, float intensity, float radius)
-        {
-            Shader shader = FindShader(GlowShaderName);
-            if (shader == null)
-            {
-                HasMissingShaders = true;
-                return CreateUnlit(name, "#FFB347", 1f);
-            }
-
-            var m = new Material(shader) { name = name };
-            SetColor(m, "_BaseColor", color);
-            SetFloat(m, "_Intensity", intensity);
-            SetFloat(m, "_Radius", radius);
-            SetFloat(m, "_FalloffPower", 2f);
-            m.renderQueue = (int)RenderQueue.Transparent;
-            return m;
+            HasMissingShaders = true;
+            return CreateUnlit(name, color);
         }
 
         /// <summary>不透明 unlit（远景剪影）。两个 shader 都拿不到时返回 null
         /// （调用方把该物体空着材质渲染，不在 <c>new Material(null)</c> 上炸掉整个材质库构造）。</summary>
         Material CreateUnlit(string name, string hex, float alpha)
+        {
+            return CreateUnlit(name, SceneArtPalette.Hex(hex, alpha));
+        }
+
+        Material CreateUnlit(string name, Color color)
         {
             Shader shader = FindShader(UnlitShaderName);
             if (shader == null)
@@ -355,47 +294,12 @@ namespace PirateCrew.Ambient
             }
 
             var m = new Material(shader) { name = name };
-            Color c = SceneArtPalette.Hex(hex, alpha);
-            SetColor(m, "_BaseColor", c);
-            SetColor(m, "_Color", c);
+            SetColor(m, "_BaseColor", color);
+            SetColor(m, "_Color", color);
             m.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
             SetFloat(m, "_Surface", 0f);
             SetFloat(m, "_ZWrite", 1f);
             m.renderQueue = (int)RenderQueue.Geometry;
-            return m;
-        }
-
-        /// <summary>顶点风摆材质（PirateCrew/Ambient/Wind）。返回的材质**默认不自带描边**，
-        /// 因为它是给整组合并网格当"表面"用的（换掉原材质会同时失去原描边，属已知取舍，见报告）。</summary>
-        Material CreateWind(string name, Color baseColor, Color darkColor,
-            float weightDirection, float anchorY, float height, float floor,
-            float strength, float speed, float density, float flutter, float emission)
-        {
-            Shader shader = FindShader(WindShaderName);
-            if (shader == null)
-            {
-                HasMissingShaders = true;
-                return CreateUnlit(name, "#5FA83C", 1f);
-            }
-
-            var m = new Material(shader) { name = name };
-            SetColor(m, "_BaseColor", baseColor);
-            SetColor(m, "_BaseColorDark", darkColor);
-            SetFloat(m, "_AmbientStrength", 1f);
-            SetFloat(m, "_Emission", emission);
-
-            // _WindDirection 是 Vector 属性，必须走 SetVector（SetFloat 只会写 x 分量）。
-            if (m.HasProperty("_WindDirection"))
-                m.SetVector("_WindDirection", new Vector4(0.92f, 0.39f, 0f, 0f));
-            SetFloat(m, "_WindStrength", strength);
-            SetFloat(m, "_WindSpeed", speed);
-            SetFloat(m, "_WindHeight", height);
-            SetFloat(m, "_WindAnchorY", anchorY);
-            SetFloat(m, "_WindWeightDirection", weightDirection);
-            SetFloat(m, "_WindDensity", density);
-            SetFloat(m, "_WindFlutter", flutter);
-            SetFloat(m, "_WindFloor", floor);
-            SetFloat(m, "_DebugMode", 0f);
             return m;
         }
 

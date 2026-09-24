@@ -100,10 +100,6 @@ namespace PirateCrew.SceneArt.Showcase
         /// <summary>亮档 sRGB 十六进制。</summary>
         public string HexLight;
 
-        /// <summary>PBR 金属度（0 = 非金属；空岛全是岩/草/木/石，恒 0）。</summary>
-        public float Metallic;
-        /// <summary>PBR 光滑度（岩 0.18 / 石工 0.30 / 木 0.25 …）。</summary>
-        public float Smoothness;
         /// <summary>片元程序化噪声的明暗强度（0 = 纯色，1 = 强斑驳）。</summary>
         public float NoiseStrength;
         /// <summary>三档色阶的对比（>1 = 分档更分明，岩层用它读"层理"）。</summary>
@@ -166,7 +162,7 @@ namespace PirateCrew.SceneArt.Showcase
         {
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#6E6154", HexMid = SceneArtPalette.RockMid, HexLight = SceneArtPalette.RockLight,
-            Metallic = 0f, Smoothness = 0.18f, NoiseStrength = 0.42f, RampContrast = 2.1f,
+            NoiseStrength = 0.42f, RampContrast = 2.1f,
             NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };
 
@@ -174,7 +170,7 @@ namespace PirateCrew.SceneArt.Showcase
         {
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#4A4038", HexMid = "#6E6154", HexLight = SceneArtPalette.RockMid,
-            Metallic = 0f, Smoothness = 0.16f, NoiseStrength = 0.46f, RampContrast = 2.2f,
+            NoiseStrength = 0.46f, RampContrast = 2.2f,
             NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };
 
@@ -182,7 +178,7 @@ namespace PirateCrew.SceneArt.Showcase
         {
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#2E2823", HexMid = "#403832", HexLight = SceneArtPalette.RockDark,
-            Metallic = 0f, Smoothness = 0.14f, NoiseStrength = 0.40f, RampContrast = 1.9f,
+            NoiseStrength = 0.40f, RampContrast = 1.9f,
             NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };
 
@@ -191,7 +187,7 @@ namespace PirateCrew.SceneArt.Showcase
         {
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = SceneArtPalette.GrassMid, HexMid = SceneArtPalette.GrassLight, HexLight = "#A9E39B",
-            Metallic = 0f, Smoothness = 0.10f, NoiseStrength = 0.52f, RampContrast = 1.6f,
+            NoiseStrength = 0.52f, RampContrast = 1.6f,
             NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };
 
@@ -199,7 +195,7 @@ namespace PirateCrew.SceneArt.Showcase
         {
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = SceneArtPalette.GrassDark, HexMid = SceneArtPalette.GrassMid, HexLight = "#6FB86A",
-            Metallic = 0f, Smoothness = 0.10f, NoiseStrength = 0.50f, RampContrast = 1.7f,
+            NoiseStrength = 0.50f, RampContrast = 1.7f,
             NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };
 
@@ -207,7 +203,7 @@ namespace PirateCrew.SceneArt.Showcase
         {
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#1C3A1C", HexMid = SceneArtPalette.GrassDark, HexLight = SceneArtPalette.GrassMid,
-            Metallic = 0f, Smoothness = 0.08f, NoiseStrength = 0.44f, RampContrast = 1.5f,
+            NoiseStrength = 0.44f, RampContrast = 1.5f,
             NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };
 
@@ -216,7 +212,7 @@ namespace PirateCrew.SceneArt.Showcase
         {
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#3D2C1D", HexMid = SceneArtPalette.WoodDark, HexLight = SceneArtPalette.SandDark,
-            Metallic = 0f, Smoothness = 0.12f, NoiseStrength = 0.50f, RampContrast = 1.6f,
+            NoiseStrength = 0.50f, RampContrast = 1.6f,
             NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };
 
@@ -225,7 +221,7 @@ namespace PirateCrew.SceneArt.Showcase
         {
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#6E6759", HexMid = "#9C9282", HexLight = "#CFC7B4",
-            Metallic = 0f, Smoothness = 0.30f, NoiseStrength = 0.32f, RampContrast = 1.8f,
+            NoiseStrength = 0.32f, RampContrast = 1.8f,
             NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };
 
@@ -234,7 +230,7 @@ namespace PirateCrew.SceneArt.Showcase
         {
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = SceneArtPalette.WoodDark, HexMid = SceneArtPalette.WoodMid, HexLight = SceneArtPalette.WoodLight,
-            Metallic = 0f, Smoothness = 0.24f, NoiseStrength = 0.40f, RampContrast = 1.7f,
+            NoiseStrength = 0.40f, RampContrast = 1.7f,
             NoiseStretch = new Vector3(0.22f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };
 

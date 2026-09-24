@@ -35,15 +35,8 @@ namespace PirateCrew.Battle.WorldMaps
         const float ColliderDepth = 4f;
 
         // ------------------------------------------------------------------
-        // 站面材质：回退目标
+        // 站面材质
         // ------------------------------------------------------------------
-
-        /// <summary>物体 shader 缺失时的回退目标（原灰盒路径用的 URP/Lit 纯色）。
-        /// 只在 <see cref="PixelartPath.ObjectShaderName"/> 不在包里时出现，正常路径不应看到。</summary>
-        const string FallbackLitShaderName = "Universal Render Pipeline/Lit";
-
-        /// <summary>回退链的末级兜底（Unity 内置 shader，随包必在）：URP/Lit 也缺时用它保住站面可渲染。</summary>
-        const string FallbackSpritesShaderName = "Sprites/Default";
 
         /// <summary>构建整图（碰撞 + 灰盒 + 已配置的 kit 视觉）。返回根 Transform。</summary>
         public static Transform Build(Transform parent, WorldMapDefinition map, WorldMapAssetSet assetSet)
@@ -319,7 +312,8 @@ namespace PirateCrew.Battle.WorldMaps
         /// <summary>
         /// 站面分带材质（三档共享缓存，不按 box 实例化——有限色板/材质预算纪律不变）。
         /// band 0（TopY≤1.5，沙）/ band 1（≤3.0，草）/ band 2（>3.0，岩）。
-        /// 物体 shader 缺失时回退 URP/Lit 纯色（原灰盒路径），不让站面变品红/不可见。
+        /// 物体 shader 缺失（构建被剔除）时该档无材质（装配不中断）——像素化路径是**唯一**材质路径，
+        /// 不再退回任何旧链 shader（旧链 shader 由清扫波删除，退回去等于给死件续命）。
         /// </summary>
         static Material BandMaterial(float topY)
         {
@@ -327,7 +321,7 @@ namespace PirateCrew.Battle.WorldMaps
             if (_bandMaterials.TryGetValue(band, out Material mat))
                 return mat;
 
-            mat = CreateTerrainMaterial(band) ?? CreateFallbackLitMaterial(band);
+            mat = CreateTerrainMaterial(band);
             _bandMaterials[band] = mat;
             return mat;
         }
@@ -357,7 +351,7 @@ namespace PirateCrew.Battle.WorldMaps
         /// 试点场景的站面换装就落空。本方法只在这里拼这一个名字，改名必须同时改那边。
         ///
         /// 【返回 null 的语义】物体 shader 不在包里（构建被剔除/编译失败）时工厂已报错，
-        /// 这里补一句定性并让调用方回退 <see cref="FallbackLitShaderName"/> 纯色——
+        /// 这里补一句定性并返回 null（该档站面无材质但装配不中断）——
         /// **这是打包问题，不是合成逻辑错**：站面几何/碰撞都正常，只是没有像素化着色。
         /// </summary>
         static Material CreateTerrainMaterial(int band)
@@ -374,7 +368,7 @@ namespace PirateCrew.Battle.WorldMaps
 
             global::PirateCrew.Core.Log.Error("[WorldMapComposer] 站面 band" + band
                 + " 的像素化材质未创建（物体 shader \"" + PixelartPath.ObjectShaderName
-                + "\" 不在包里），已回退 " + FallbackLitShaderName + " 纯色。"
+                + "\" 不在包里），该档站面无材质。"
                 + "这是**构建包丢 shader 资产**（未被任何已引资产带进包 / Graphics Settings 未加 Always Included），"
                 + "不是合成逻辑错误——把该 shader 加进 Always Included Shaders 即可。");
             return null;
@@ -387,48 +381,6 @@ namespace PirateCrew.Battle.WorldMaps
         static string BandMaterialNameOf(int band)
         {
             return "WorldMapStand_Band" + band + (band == 0 ? "_Sand" : band == 1 ? "_Grass" : "_Rock");
-        }
-
-        /// <summary>
-        /// shader 缺失时的回退材质：原灰盒 URP/Lit 纯色三档（明度纪律原样保留）。
-        /// 只在物体 shader 不在包里时出现，正常路径不应看到这批纯色面。
-        /// 颜色取自 <see cref="PixelartMaterialFactory"/> 的站面三档（同一份色，不在回退路径里再写一遍）。
-        ///
-        /// 【回退链】URP/Lit 缺失（<see cref="Shader.Find"/> 找不到）时降级 Unity 内置
-        /// Sprites/Default 并点名报错；两者都缺（理论上不可能，内置 shader 随包必在）返回 null，
-        /// 调用点 <see cref="BandMaterial"/> 把 null 缓存进档表、<see cref="BuildStandBox"/>
-        /// 赋 <c>sharedMaterial = null</c>（合法赋值）——该档站面无着色但**装配不中断**。
-        /// </summary>
-        static Material CreateFallbackLitMaterial(int band)
-        {
-            Color color = band == 0
-                ? PixelartMaterialFactory.StandSand
-                : band == 1
-                    ? PixelartMaterialFactory.StandGrass
-                    : PixelartMaterialFactory.StandRock;
-            Shader shader = Shader.Find(FallbackLitShaderName);
-            if (shader == null)
-            {
-                shader = Shader.Find(FallbackSpritesShaderName);
-                if (shader == null)
-                {
-                    global::PirateCrew.Core.Log.Error("[WorldMapComposer] 站面 band" + band
-                        + " 回退材质无法创建：shader \"" + FallbackLitShaderName + "\" 与兜底 \""
-                        + FallbackSpritesShaderName + "\" 都不在包里，该档站面将无材质（装配继续）。");
-                    return null;
-                }
-                global::PirateCrew.Core.Log.Error("[WorldMapComposer] 回退 shader \""
-                    + FallbackLitShaderName + "\" 也不在包里，站面 band" + band
-                    + " 降级用 \"" + FallbackSpritesShaderName + "\"。");
-            }
-            var mat = new Material(shader);
-            if (mat.HasProperty("_BaseColor"))
-                mat.SetColor("_BaseColor", color);
-            else
-                mat.color = color;
-            if (mat.HasProperty("_Smoothness"))
-                mat.SetFloat("_Smoothness", band == 0 ? 0.18f : 0.22f);
-            return mat;
         }
     }
 }

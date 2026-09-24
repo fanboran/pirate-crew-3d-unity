@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PirateCrew.Rendering.Pixelart;
 using PirateCrew.SceneArt;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -32,9 +33,9 @@ namespace PirateCrew.SceneArt.Lowpoly
     /// <see cref="CloudFieldGeometry"/> 写好的
     /// <see cref="LowpolyBuffers"/> 落成 MeshFilter + MeshRenderer + Collider。
     ///
-    /// 【渲染铁律】每个 MeshRenderer 创建后**显式绑定材质**：URP Lit 纯色程序化材质
-    /// （<see cref="GetOrCreateMaterial"/>，_Smoothness=0.06、_Metallic=0，按槽位缓存），
-    /// 绝不留空槽 —— 空材质在播放器构建里是粉色炸弹。
+    /// 【渲染铁律】每个 MeshRenderer 创建后**显式绑定材质**：像素化路径物体材质
+    /// （<see cref="GetOrCreateMaterial"/>，配方唯一来源 = <see cref="PixelartMaterialFactory"/>，
+    /// 按槽位缓存），绝不留空槽 —— 空材质在播放器构建里是粉色炸弹。
     ///
     /// 【碰撞策略（选稳的）】
     ///   · 云朵：每朵云 **双 BoxCollider**（台面平盒顶面 = TopY，角色必站平面；
@@ -66,8 +67,9 @@ namespace PirateCrew.SceneArt.Lowpoly
             new Dictionary<LowpolyMaterialSlot, Material>();
 
         /// <summary>
-        /// 取（或创建并缓存）槽位材质：URP Lit 纯色，_Smoothness 0.06（≤0.1）、_Metallic 0。
-        /// URP shader 找不到时兜底 Built-in Standard（不应发生：本工程是 URP）。
+        /// 取（或创建并缓存）槽位材质：本路径物体 shader + 槽位基色（配方唯一来源 =
+        /// <see cref="PixelartMaterialFactory"/>，色带档数/描边都走工厂默认值）。
+        /// shader 缺失时不缓存、返回 null（调用方按"空材质红警"纪律暴露，不静默换族）。
         /// </summary>
         public static Material GetOrCreateMaterial(LowpolyMaterialSlot slot)
         {
@@ -75,35 +77,9 @@ namespace PirateCrew.SceneArt.Lowpoly
             if (_materialCache.TryGetValue(slot, out cached) && cached != null)
                 return cached;
 
-            // 【播放器剥离教训（r11 实测）】URP/Lit 若没有任何材质资产引用，构建里整个缺席
-            // → Shader.Find 返回 null → 错误 shader 洋红。本工程被资产引用的活 shader 是
-            // 自研 PirateSurface（Scene_* 族在播放器里渲染正常），故它排第一；
-            // PirateSurface 是三档色阶 shader，把 A/B/C 三槽同色即得平色低模观感。
-            Shader shader = Shader.Find("PirateCrew/PirateSurface");
-            if (shader == null)
-                shader = Shader.Find("Universal Render Pipeline/Lit");
-            if (shader == null)
-                shader = Shader.Find("Standard");
-            if (shader == null)
+            Material material = PixelartMaterialFactory.Create("Lowpoly_" + slot, ColorOf(slot));
+            if (material == null)
                 return null;
-
-            var material = new Material(shader) { name = "Lowpoly_" + slot };
-            if (material.HasProperty("_BaseColorA"))
-            {
-                material.SetColor("_BaseColorA", ColorOf(slot));
-                material.SetColor("_BaseColorB", ColorOf(slot));
-                material.SetColor("_BaseColorC", ColorOf(slot));
-            }
-            if (material.HasProperty("_BaseColor"))
-                material.SetColor("_BaseColor", ColorOf(slot));
-            if (material.HasProperty("_Color"))
-                material.SetColor("_Color", ColorOf(slot));
-            if (material.HasProperty("_Smoothness"))
-                material.SetFloat("_Smoothness", 0.06f);
-            if (material.HasProperty("_Glossiness"))
-                material.SetFloat("_Glossiness", 0.06f);
-            if (material.HasProperty("_Metallic"))
-                material.SetFloat("_Metallic", 0f);
 
             _materialCache[slot] = material;
             return material;

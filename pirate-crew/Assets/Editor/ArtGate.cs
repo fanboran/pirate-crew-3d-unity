@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using PirateCrew.Ambient;
 using PirateCrew.Fx;
-using PirateCrew.Rendering;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -170,14 +169,12 @@ namespace PirateCrew.EditorTools
         ///
         /// 【入榜判据】运行时 Find 的 shader 里，**没有被"可达"材质资产引用**的那些（可达 = 该 .mat 被
         /// 场景/Prefab/Renderer 资产引用）。实测（r2 播放器出图）：
-        ///   · Ambient/Glow、Ambient/Wind —— <c>Assets/Art/Materials/Ambient/*.mat</c> 虽然引用了它们，
-        ///     但这些 .mat 是**孤儿资产**（0 个场景/Prefab 引用），构包时随 shader 一起被剥离 →
-        ///     Player.log 6 条「[Ambient] 找不到 shader」→ 回退链落空 → 洋红。**r2 洋红的根因**。
         ///   · Fx/Additive、Fx/Alpha —— 有 .mat 引用，且 FxAssetBuilder 早已登记进本列表（此处幂等跳过）。
-        ///   · PirateOutlinePost —— 无 .mat 引用，被 URP Renderer 资产字段引用，理论上可达；仍登记兜底。
         /// 不入榜的运行时 Find 名及理由：PirateOutline / PirateSurface / URP-Unlit / URP-Lit 都有 .mat 引用；
         /// Standard / Sprites/Default / Unlit/Transparent 是引擎内置 shader（Sprites/Default 由
         /// GraphicsSettings.m_SpritesDefaultMaterial 常驻），只为 URP 工程里的最后兜底，不属于本项目产线。
+        /// 【Ambient/Glow、Ambient/Wind 曾入榜后移除】：它们的孤儿材质（Ambient/*.mat）已随 PBR 根除
+        /// 换产像素物体材质，运行时建材质路径不再按名查找这两个 shader（shader 本体由清扫波删除）。
         /// 【URP/Particles-Unlit 曾入榜后移除（r3 轮实证）】：Always Included 会强制编译该 shader 的
         /// 全变体，在无头构建环境连爆 20 条 d3d11 编译 OOM（BSDF/Common.hlsl 解析内存）；
         /// 而它只是 FxMaterials 的回落档——主 FX shader 已在本列表保证入包，回落永不触发。
@@ -191,11 +188,8 @@ namespace PirateCrew.EditorTools
         /// </summary>
         static readonly string[] RuntimeFindShaderNames =
         {
-            AmbientMaterialSet.GlowShaderName,
-            AmbientMaterialSet.WindShaderName,
             FxMaterials.AdditiveShaderName,
             FxMaterials.AlphaShaderName,
-            OutlineRendererFeature.OutlinePostShaderName,
             SkyAssetBuilder.SkyShaderName,
         };
 

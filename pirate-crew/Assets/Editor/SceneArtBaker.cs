@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using PirateCrew.Battle;
+using PirateCrew.Rendering.Pixelart;
 using PirateCrew.SceneArt;
 using PirateCrew.SceneArt.Lowpoly;
 using PirateCrew.SceneArt.Showcase;
@@ -121,50 +122,45 @@ namespace PirateCrew.EditorTools
                 case "Lowpoly_CloudPaleGold": slot = LowpolyMaterialSlot.CloudPaleGold; break;
                 default:
                     Debug.LogWarning("[SceneArtBaker] 未登记的低模槽位材质 " + runtimeMaterialName
-                        + "——按 URP/Lit 白色落盘（检查 LowpolyStageBuilder.GetOrCreateMaterial 的槽位表）。");
-                    return EnsureMaterialAsset(
+                        + "——按本路径物体 shader 白色落盘（检查 LowpolyStageBuilder.GetOrCreateMaterial 的槽位表）。");
+                    return EnsurePixelMaterialAsset(
                         LowpolyMaterialFolder + "/" + runtimeMaterialName + ".mat", runtimeMaterialName,
-                        "Universal Render Pipeline/Lit", Color.white);
+                        Color.white);
             }
 
-            // 参数照抄 LowpolyStageBuilder.GetOrCreateMaterial：PirateSurface 平色（A/B/C 同色）、
-            // _Smoothness 0.06、_Metallic 0——播放器里被资产引用的活 shader 是 PirateSurface（r11 教训）。
-            Material material = EnsureMaterialAsset(
+            // 配方只有一份：运行期的 <see cref="PixelartMaterialFactory"/>（与
+            // LowpolyStageBuilder.GetOrCreateMaterial 同一来源，两边参数不可能漂移）。
+            return EnsurePixelMaterialAsset(
                 LowpolyMaterialFolder + "/" + runtimeMaterialName + ".mat", runtimeMaterialName,
-                "PirateCrew/PirateSurface", LowpolyStageBuilder.ColorOf(slot));
-            if (material.HasProperty("_BaseColorA"))
-            {
-                material.SetColor("_BaseColorA", LowpolyStageBuilder.ColorOf(slot));
-                material.SetColor("_BaseColorB", LowpolyStageBuilder.ColorOf(slot));
-                material.SetColor("_BaseColorC", LowpolyStageBuilder.ColorOf(slot));
-            }
-            if (material.HasProperty("_Smoothness"))
-                material.SetFloat("_Smoothness", 0.06f);
-            if (material.HasProperty("_Metallic"))
-                material.SetFloat("_Metallic", 0f);
-            EditorUtility.SetDirty(material);
-            return material;
+                LowpolyStageBuilder.ColorOf(slot));
         }
 
-        /// <summary>材质资产就地覆写（存在则改色/改 shader，不存在则 CreateAsset）。</summary>
-        static Material EnsureMaterialAsset(string path, string name, string shaderName, Color color)
+        /// <summary>
+        /// 本路径材质资产就地落盘（存在则按工厂配方覆写并换到物体 shader，不存在则 CreateAsset）。
+        /// 物体 shader 缺失时返回 null（调用方按"空材质红警"纪律暴露，不静默拿别族 shader 顶上）。
+        /// </summary>
+        static Material EnsurePixelMaterialAsset(string path, string name, Color color)
         {
-            Shader shader = Shader.Find(shaderName);
             Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
             if (material == null)
             {
-                material = new Material(shader != null ? shader : Shader.Find("Standard")) { name = name };
+                material = PixelartMaterialFactory.Create(name, color);
+                if (material == null)
+                    return null;
                 AssetDatabase.CreateAsset(material, path);
-            }
-            else if (shader != null && material.shader != shader)
-            {
-                material.shader = shader;
+                return material;
             }
 
-            if (material.HasProperty("_BaseColor"))
-                material.SetColor("_BaseColor", color);
-            if (material.HasProperty("_Color"))
-                material.SetColor("_Color", color);
+            Shader shader = Shader.Find(PixelartPath.ObjectShaderName);
+            if (shader == null)
+            {
+                global::PirateCrew.Core.Log.Error("[SceneArtBaker] 找不到 shader \""
+                    + PixelartPath.ObjectShaderName + "\"（被剔除/编译失败？），材质 " + name + " 未更新。");
+                return null;
+            }
+
+            material.shader = shader;
+            PixelartMaterialFactory.Configure(material, color);
             EditorUtility.SetDirty(material);
             return material;
         }

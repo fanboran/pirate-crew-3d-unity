@@ -47,7 +47,7 @@ namespace PirateCrew.EditorTools
                 + "  材质: " + materialCount + " 个（" + MaterialFolder + "）\n"
                 + "  缺失 shader: " + missingShaders + " 个"
                 + (missingShaders > 0
-                    ? " —— 请在有渲染路径的编辑器里 read_console 确认 PirateCrew/Ambient/Wind 与 /Glow 无编译错误。"
+                    ? " —— 请在有渲染路径的编辑器里 read_console 确认像素物体 shader（PirateCrew/Pixelart/PixelartObject）无编译错误。"
                     : string.Empty) + "\n"
                 + "  ⚠ 场景接线（把 AmbientDirector 挂到 SceneArt 根节点并填字段）由协调者执行，本脚本不改场景。");
         }
