@@ -70,12 +70,13 @@ namespace PirateCrew.EditorTools
         public const string UrpAssetPath = "Assets/Settings/URP/PC_Balanced_URPAsset.asset";
 
         // ------------------------------------------------------------------
-        // Shader 名（与 Assets/Art/Shaders/ 下的三个程序化材质 shader 对应）
+        // Shader 名（与 Assets/Art/Shaders/ 下的程序化材质 shader 对应）
+        // 【范围】本文件只产 Surface 族环境材质；PirateWater / PirateTerrain 建材质行已随
+        // PBR 根除拆除——海水由 OceanRig 运行时装配像素海面，瓦片地形站面走像素物体 shader
+        // （WorldMapComposer）。同名材质资产（Water_Ocean / Terrain_Island）由场景波次处置。
         // ------------------------------------------------------------------
 
         const string SurfaceShaderName = "PirateCrew/PirateSurface";
-        const string WaterShaderName   = "PirateCrew/PirateWater";
-        const string TerrainShaderName = "PirateCrew/PirateTerrain";
 
         // ------------------------------------------------------------------
         // 环境材质文件名（不含扩展名）；BattleSceneSetup 用这些常量取材质
@@ -106,7 +107,7 @@ namespace PirateCrew.EditorTools
             EnsureFolder(EnvironmentMaterialFolder);
             EnsureFolder(ArtRenderingFolder);
 
-            // ⓪ 程序化细节贴图**必须先生成**：下面 10 个材质要引用它们（幂等：已生成则按字节比对跳过）。
+            // ⓪ 程序化细节贴图**必须先生成**：下面 8 个 Surface 材质要引用它们（幂等：已生成则按字节比对跳过）。
             // 【为什么在这里也调一次】本方法自身是无头入口（-executeMethod BattleSceneLighting.BuildAll），
             //   不能假设调用方（ArtGate）已经跑过这一步——否则直接调本方法会得到"没有细节贴图的材质"。
             // 【为什么吞异常】细节贴图缺失只让沙/草/岩退回"纯色 + 噪声"（细节强度置 0），
@@ -146,7 +147,7 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // 环境材质库（10 个；基色为色值、细节为程序化噪声贴图 —— 0 外部贴图）
+        // 环境材质库（8 个 Surface 族；基色为色值、细节为程序化噪声贴图 —— 0 外部贴图）
         // ------------------------------------------------------------------
 
         /// <summary>生成/刷新全部环境材质，返回成功处理的数量。</summary>
@@ -162,8 +163,6 @@ namespace PirateCrew.EditorTools
             if (BuildWoodDarkMaterial())  count++;
             if (BuildBrassMaterial())     count++;
             if (BuildIronMaterial())      count++;
-            if (BuildWaterMaterial())     count++;
-            if (BuildTerrainMaterial())   count++;
 
             return count;
         }
@@ -455,119 +454,9 @@ namespace PirateCrew.EditorTools
             return Save(m);
         }
 
-        // 海水（GDD §10.4 海水三档：#4DA6D9 → #2B7AB8 → #1A4F7A）
-        // 参数理由：
-        //   _ShoreFadeDistance=8：岛外浅台(y=-1.1)/中台(y=-2.4) 与水面(y=-0.4) 的视深度差
-        //     约 0.7 / 2.0 → 8 的分母让浅台落在"浅→中"、中台落在"中→深"（对应三档色）。
-        //     【格 1→2 单位 ×2】4 → 8，与海床台阶深度同比例，保证同一处仍是同一档水色。
-        //   _FoamWidth=3.2：略大于浅台深度差，让泡沫从岛缘向外覆盖一小段而不是一条死线。
-        //   _ShorelineFoamGain=1.6：屏幕空间深度梯度在岛缘会突变 ~10+ 单位，乘以 1.6 直接饱和 → 贴轮廓白线。
-        //   _FresnelPower=5 / _FresnelStrength=1 / _ReflectionStrength=0.55：
-        //     cel-shader-guide §8 海水预设要求"强高光 + 强边缘光"，SH 反射强度给 0.55 避免远处水面发白糊掉。
-        //   _Smoothness=0.92：水面镜面高光很紧（太阳直射会形成一条亮带）。
-        static bool BuildWaterMaterial()
-        {
-            Material m = EnsureMaterial(WaterMaterial, WaterShaderName);
-            if (m == null) return false;
-
-            SetColor(m, "_ShallowColor", Hex("#4DA6D9"));
-            SetColor(m, "_MidColor", Hex("#2B7AB8"));
-            SetColor(m, "_DeepColor", Hex("#1A4F7A"));
-            SetFloat(m, "_ShoreFadeDistance", 8f);      // 距离类 ×2（格 1→2 单位）
-
-            SetColor(m, "_FoamColor", Hex("#F0F7FF"));
-            SetFloat(m, "_FoamWidth", 3.2f);            // 距离类 ×2（格 1→2 单位）
-            SetFloat(m, "_FoamNoiseScale", 5f);
-            SetFloat(m, "_FoamSpeed", 0.25f);
-            SetFloat(m, "_FoamStrength", 0.85f);
-            SetFloat(m, "_ShorelineFoamGain", 1.6f);
-
-            // A 层：大尺度慢波（约 3 世界单位一个起伏）→ 主形体；
-            // B 层：小尺度快波（约 1 世界单位）→ 细碎闪烁。
-            SetFloat(m, "_WaveScaleA", 0.32f);
-            SetFloat(m, "_WaveSpeedA", 0.45f);
-            SetFloat(m, "_WaveStrengthA", 0.55f);
-            SetVector(m, "_WaveDirectionA", new Vector4(1f, 0f, 0.35f, 0f));
-            SetFloat(m, "_WaveScaleB", 0.95f);
-            SetFloat(m, "_WaveSpeedB", 0.85f);
-            SetFloat(m, "_WaveStrengthB", 0.28f);
-            SetVector(m, "_WaveDirectionB", new Vector4(-0.4f, 0f, 1f, 0f));
-
-            SetFloat(m, "_FresnelPower", 5f);
-            SetFloat(m, "_FresnelStrength", 1f);
-            SetFloat(m, "_ReflectionStrength", 0.55f);
-            SetFloat(m, "_Smoothness", 0.92f);
-            SetFloat(m, "_SpecularIntensity", 2.2f);
-
-            SetFloat(m, "_Opacity", 0.82f);
-            // 水体升级后的新参数（Gerstner 四波/折射/焦散/高度场）不在此显式设置——
-            // shader Properties 的默认值即推荐值（见 PirateWater.shader 与 WaterRules.DefaultWaves，
-            // 两处必须同步）。旧 _VertexWave* 三参数已随 shader 移除，不再写入。
-            SetFloat(m, "_DebugMode", 0f);
-            return Save(m);
-        }
-
-        // 瓦片地形（GDD §10.4 各中档色：沙 #C4A76A / 草 #4A8C4A / 岩 #8C7B6A）
-        // 参数理由：
-        //   _HeightSandGrass=0.6 / _HeightGrassRock=3.0：本工程地块是低平台（1 瓦片 = 1 世界单位），
-        //     0.6 让"抬升半格以上"就转草、3.0 让"高于三层"转岩（提案：按 level_1/level_27 的
-        //     实际地形高度分布调，观感验收时可改）。
-        //   _SlopeRockStart=0.45（约 27° 起）：竖直面必为岩，缓坡仍为沙/草。
-        //   _BlockSize=1（1 瓦片）+ _BlockTintStrength=0.12：逐块明暗差是低多边形块面感的辨识特征。
-        //   _FacetStrength=0.6：保留几何棱面的同时不至于让光影完全"数字化"。
-        //   _EdgeColor/_EdgeStrength：**写实化后关闭**地形菲涅尔边缘压暗（原 0.35）。
-        //     它是"场景物 #2A2A2A 描边"的替代实现；写实方向明确"无描边"，
-        //     故置 0（旋钮与色值保留，随时可调回；对应 shader 的默认值也同步改为 0）。
-        //   【本次改动（r3 复验 N4 返工）】
-        //     1) _Smoothness 0.15 → **0.25**，并新增 _GrassSmoothness=0.40 / _RockSmoothness=0.55：
-        //        shader 现按沙/草/岩权重混合光滑度 → 相邻面差 ≥0.15（美术风格指南.md:199-204 §3.2 纪律 1）。
-        //     2) 三族细节贴图（沙/草/岩各一套 albedo+法线；r5 世界尺度放大到沙 0.05/草 0.04/岩 0.10）：
-        //        解决 P-9「同材质 200×200 窗 std > 6」与 P-10「高频能量」不达标。
-        //     3) _BlockTintStrength 0.12 → **0.06** + 新增 _BlockWarp=0.4：
-        //        逐块明暗的方格边界按世界 FBM 打散，顶面不再被读成"地砖/编织布"（写实方向也不要"数字化块面"）。
-        //   【本次改动（r5 复验 砖缝去蓝灰）】
-        //     4) _BlockTintStrength 0.06 → **0.042**（块缘亮度差 -30%）；
-        //     5) 新增 _SeamColor=#7C756A / _SeamStrength=0.18 / _SeamWidth=0.12：
-        //        格缝由"乘性压暗"（保留蓝灰天空光色相 → 读成饱和蓝灰勾缝）改为 lerp 到显式暖灰 →
-        //        "地砖勾缝"变"沙地裂纹"。色值口径见 PirateTerrain.shader 的 _SeamColor 注释。
-        static bool BuildTerrainMaterial()
-        {
-            Material m = EnsureMaterial(TerrainMaterial, TerrainShaderName);
-            if (m == null) return false;
-
-            SetColor(m, "_SandColor", Hex("#C4A76A"));
-            SetColor(m, "_GrassColor", Hex("#4A8C4A"));
-            SetColor(m, "_RockColor", Hex("#8C7B6A"));
-            SetFloat(m, "_HeightSandGrass", 0.6f);
-            SetFloat(m, "_HeightGrassRock", 3f);
-            SetFloat(m, "_SlopeRockStart", 0.45f);
-            SetFloat(m, "_SlopeRockEnd", 0.72f);
-            SetFloat(m, "_BlendSoftness", 0.5f);
-            SetFloat(m, "_NoiseScale", 2f);
-            SetFloat(m, "_NoiseStrength", 0.35f);
-            SetFloat(m, "_BlockSize", 1f);
-            // 低多边形辨识度靠"相邻块仍有亮度差"保留；0.042 = 原 0.06 的 70%（块缘亮度差降 30%，r5）。
-            SetFloat(m, "_BlockTintStrength", 0.042f);
-            SetFloat(m, "_FacetStrength", 0.6f);
-            SetFloat(m, "_BlockWarp", 0.4f);
-            // 格缝暖灰（r5）：色值 #7C756A（HSV 饱和度 14.5% <15%）、强度 0.18、宽 0.12 格。
-            SetColor(m, "_SeamColor", Hex("#7C756A"));
-            SetFloat(m, "_SeamStrength", 0.18f);
-            SetFloat(m, "_SeamWidth", 0.12f);
-            ApplyTerrainDetailTextures(m);
-            // 粗糙度分区：_Smoothness 是**沙族**基准（0.25），草/岩在 shader 里按权重混合。
-            SetFloat(m, "_Smoothness", 0.25f);
-            SetFloat(m, "_GrassSmoothness", 0.40f);
-            SetFloat(m, "_RockSmoothness", 0.55f);
-            SetFloat(m, "_Metallic", 0f);
-            SetFloat(m, "_AmbientStrength", 1f);
-            SetColor(m, "_EdgeColor", Hex("#2A2A2A"));
-            // 写实化：关闭地形"描边兼容"边缘压暗（旧值 0.35）。理由见 BuildTerrainMaterial 顶部注释。
-            SetFloat(m, "_EdgeStrength", 0f);
-            SetFloat(m, "_EdgePower", 3f);
-            SetFloat(m, "_DebugMode", 0f);
-            return Save(m);
-        }
+        // 【海水 / 瓦片地形材质已不在本文件生成】PirateWater / PirateTerrain 建材质行随
+        // PBR 根除拆除：海水由 OceanRig 运行时装配像素海面，瓦片地形站面走像素物体 shader
+        // （WorldMapComposer）。同名材质资产（Water_Ocean / Terrain_Island）由场景波次处置。
 
         // ------------------------------------------------------------------
         // 细节贴图接线（沙/草/岩三族；程序化资产的引用点）
