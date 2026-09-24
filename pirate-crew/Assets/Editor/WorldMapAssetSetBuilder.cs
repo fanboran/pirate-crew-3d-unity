@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using PirateCrew.Battle;
 using PirateCrew.Battle.WorldMaps;
+using PirateCrew.Rendering.Pixelart;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -11,7 +12,7 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// M4 世界套件（WorldKit）换装管线：扫描 <c>Assets/Art/Models/WorldKit/**</c> 的 FBX，
     /// 按踩坑参数导入（<c>SceneKitPilotSetup</em> 同款：useFileScale=false / bakeAxisConversion=true /
-    /// materialImportMode=None），按 <c>Kit_*</c> 槽名生成 URP 材质并写回 renderer，
+    /// materialImportMode=None），按 <c>Kit_*</c> 槽名生成像素材质并写回 renderer，
     /// 生成 <see cref="PirateCrew.Battle.WorldMaps.WorldMapAssetSet"/> 资产
     /// （资产名 → FBX 根对象引用），最后把它赋给 Battle.unity 的 BattleController 字段。
     ///
@@ -26,33 +27,33 @@ namespace PirateCrew.EditorTools
         const string AssetSetPath = WorldKitRoot + "/WorldMapAssetSet.asset";
         const string BattleScenePath = "Assets/Scenes/Battle.unity";
 
-        /// <summary>Kit_ 槽位表（hex / smoothness / metallic；与 style_tokens.SLOTS 同源）。</summary>
-        static readonly (string name, string hex, float smoothness, float metallic, bool doubleSided, bool emissive)[]
+        /// <summary>Kit_ 槽位表（hex / 双面；与 style_tokens.SLOTS 同源）。</summary>
+        static readonly (string name, string hex, bool doubleSided)[]
             Slots =
             {
-                ("Kit_WoodLight", "#D4A76A", 0.28f, 0f, false, false),
-                ("Kit_WoodMid", "#A67B42", 0.28f, 0f, false, false),
-                ("Kit_WoodDark", "#6B4C28", 0.26f, 0f, false, false),
-                ("Kit_SandLight", "#E8D5A3", 0.18f, 0f, false, false),
-                ("Kit_SandMid", "#C4A76A", 0.18f, 0f, false, false),
-                ("Kit_SandDark", "#8B7355", 0.18f, 0f, false, false),
-                ("Kit_WetSand", "#5C4A34", 0.40f, 0f, false, false),
-                ("Kit_GrassLight", "#7BC67E", 0.14f, 0f, true, false),
-                ("Kit_GrassMid", "#4A8C4A", 0.14f, 0f, true, false),
-                ("Kit_GrassDark", "#2D5A2D", 0.14f, 0f, true, false),
-                ("Kit_RockLight", "#B8A99A", 0.22f, 0f, false, false),
-                ("Kit_RockMid", "#8C7B6A", 0.22f, 0f, false, false),
-                ("Kit_RockDark", "#5C4F42", 0.22f, 0f, false, false),
-                ("Kit_Iron", "#6E6A63", 0.42f, 0.85f, false, false),
-                ("Kit_Brass", "#C9A227", 0.50f, 1f, false, false),
-                ("Kit_Sail", "#F5E8C8", 0.12f, 0f, true, false),
-                ("Kit_Rope", "#8A6F4D", 0.22f, 0f, true, false),
-                ("Kit_Ember", "#FFB347", 0.10f, 0f, false, true),
-                ("Kit_Coral", "#E8845A", 0.30f, 0f, false, false),
-                ("Kit_FarNear", "#7E93A8", 0.10f, 0f, false, false),
-                ("Kit_FarFar", "#AFC2D4", 0.10f, 0f, false, false),
-                ("Kit_Cloud", "#FFFFFF", 0.10f, 0f, false, false),
-                ("Kit_FarSail", "#E8E8E0", 0.10f, 0f, false, false),
+                ("Kit_WoodLight", "#D4A76A", false),
+                ("Kit_WoodMid", "#A67B42", false),
+                ("Kit_WoodDark", "#6B4C28", false),
+                ("Kit_SandLight", "#E8D5A3", false),
+                ("Kit_SandMid", "#C4A76A", false),
+                ("Kit_SandDark", "#8B7355", false),
+                ("Kit_WetSand", "#5C4A34", false),
+                ("Kit_GrassLight", "#7BC67E", true),
+                ("Kit_GrassMid", "#4A8C4A", true),
+                ("Kit_GrassDark", "#2D5A2D", true),
+                ("Kit_RockLight", "#B8A99A", false),
+                ("Kit_RockMid", "#8C7B6A", false),
+                ("Kit_RockDark", "#5C4F42", false),
+                ("Kit_Iron", "#6E6A63", false),
+                ("Kit_Brass", "#C9A227", false),
+                ("Kit_Sail", "#F5E8C8", true),
+                ("Kit_Rope", "#8A6F4D", true),
+                ("Kit_Ember", "#FFB347", false),
+                ("Kit_Coral", "#E8845A", false),
+                ("Kit_FarNear", "#7E93A8", false),
+                ("Kit_FarFar", "#AFC2D4", false),
+                ("Kit_Cloud", "#FFFFFF", false),
+                ("Kit_FarSail", "#E8E8E0", false),
             };
 
         [MenuItem("Tools/PirateCrew/WorldKit/Build Asset Set")]
@@ -174,40 +175,40 @@ namespace PirateCrew.EditorTools
             {
                 if (s.name != slotName)
                     continue;
-                var mat = MakeMaterial(s.hex, s.smoothness, s.metallic, s.doubleSided, s.emissive);
+                var mat = MakeMaterial(s.name, s.hex, s.doubleSided);
+                if (mat == null)
+                    return null;
                 AssetDatabase.CreateAsset(mat, path);
                 return mat;
             }
             return null;
         }
 
-        static Material MakeMaterial(string hex, float smoothness, float metallic, bool doubleSided, bool emissive)
+        /// <summary>
+        /// 用本路径的物体 shader 造一个槽位材质（配方唯一来源 = <see cref="PixelartMaterialFactory"/>）。
+        /// shader 缺失时报错返回 null（调用方跳过建资产，绝不静默拿别族 shader 顶上）。
+        /// </summary>
+        static Material MakeMaterial(string slotName, string hex, bool doubleSided)
         {
-            var mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
             Color color;
             if (!ColorUtility.TryParseHtmlString(hex, out color))
                 color = Color.magenta;
-            mat.SetColor("_BaseColor", color);
-            mat.SetFloat("_Smoothness", smoothness);
-            mat.SetFloat("_Metallic", metallic);
-            if (doubleSided)
-            {
-                mat.SetFloat("_Cull", 0f); // 双面（叶/草/帆/绳为单层面片）
-            }
-            if (emissive)
-            {
-                mat.EnableKeyword("_EMISSION");
-                mat.SetColor("_EmissionColor", color * 1.6f);
-                mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
-            }
+
+            var mat = PixelartMaterialFactory.Create(slotName, color);
+            if (mat == null)
+                return null;
+
+            // 单层面片（叶/草/帆/绳）关背面剔除；shader 无该属性时跳过。
+            if (doubleSided && mat.HasProperty("_Cull"))
+                mat.SetFloat("_Cull", 0f);
             return mat;
         }
 
         static Material MakeMagenta(string slot)
         {
-            var mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            mat.SetColor("_BaseColor", Color.magenta);
-            mat.name = slot;
+            var mat = PixelartMaterialFactory.Create(slot, Color.magenta);
+            if (mat != null)
+                mat.name = slot;
             return mat;
         }
 
