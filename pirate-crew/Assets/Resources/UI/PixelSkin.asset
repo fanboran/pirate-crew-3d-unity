@@ -50,6 +50,14 @@ MonoBehaviour:
   - {fileID: 21300000, guid: 8ff2b9adfdad0144da797a516e3acff7, type: 3}
   - {fileID: 21300000, guid: 69b5487de04bae349b05555431ef13d8, type: 3}
   - {fileID: 21300000, guid: 2de93f11bba1a9a41aaa035cf4844b50, type: 3}
+  windows:
+  - {fileID: 21300000, guid: 31015573796712548844603e3e4527cd, type: 3}
+  - {fileID: 21300000, guid: 8924bf7a6f205554f8c292b294f93d14, type: 3}
+  - {fileID: 21300000, guid: 2df812df575abe44480db0307f449ddd, type: 3}
+  - {fileID: 21300000, guid: 5aafefe8955e33e4d820594c3a39e8b0, type: 3}
+  - {fileID: 21300000, guid: 62d73162be63b5a499321b58f2d662ba, type: 3}
+  - {fileID: 21300000, guid: 0fddea7b3883d0c4db9d6f29e754a6fd, type: 3}
+  - {fileID: 21300000, guid: e86331c1e19d5ca45b89a256637d882c, type: 3}
   tabs:
   - {fileID: 21300000, guid: 88a13b43fb972f74d94036ecc8af4aa3, type: 3}
   - {fileID: 21300000, guid: c8444668220981e4b98a641b5640f51d, type: 3}
@@ -71,6 +79,41 @@ MonoBehaviour:
   separatorH: {fileID: 21300000, guid: 88fd13c15935da54eb1427e52c2407a4, type: 3}
   separatorV: {fileID: 21300000, guid: 3da9d14a895e5064e89de5d10590f152, type: 3}
   shadow: {fileID: 21300000, guid: 5438e89fafbbe5a4c8b969fd2d415100, type: 3}
+  windowButtons:
+  - {fileID: 21300000, guid: 6fb091d19d00d104cbb23d8941730a72, type: 3}
+  - {fileID: 21300000, guid: 16dcd9fc6ea316d41bf5319c425dea92, type: 3}
+  - {fileID: 21300000, guid: b02093e383ea8614d9d222cd1942dba8, type: 3}
+  windowIcons:
+  - {fileID: 21300000, guid: c3eb61946113c75429ac1707e901b539, type: 3}
+  - {fileID: 21300000, guid: 8e6098682ec478840af8f469a1ebc903, type: 3}
+  - {fileID: 21300000, guid: 794781f13abcb584990e0fe7ff154d02, type: 3}
+  - {fileID: 21300000, guid: 874f71b0fb93c8e49a911a5946a95f97, type: 3}
+  - {fileID: 21300000, guid: e0dca382d2226de4eaeb70666e6548f7, type: 3}
+  checks:
+  - {fileID: 21300000, guid: 8d147782e9057d44396d9476ceda7eb8, type: 3}
+  - {fileID: 21300000, guid: d6006f0e37834ab4ca009c393ea93a91, type: 3}
+  radios:
+  - {fileID: 21300000, guid: ab4e409dacbb535489cf27c02d5f51e0, type: 3}
+  - {fileID: 21300000, guid: 993e0408dedd08346933415ced39723b, type: 3}
+  widgetFocus: {fileID: 21300000, guid: 98d28429b145a294f8829329fb79f59b, type: 3}
+  sunken:
+  - {fileID: 21300000, guid: 99bc8293a04af4b4db11328b73654713, type: 3}
+  - {fileID: 21300000, guid: c66068777b1116145be8be2b6ce3b209, type: 3}
+  sliderEmpty:
+  - {fileID: 21300000, guid: b23d9da9d334de54ebe16f6f43679c52, type: 3}
+  - {fileID: 21300000, guid: f5fb7bf46a571d541a4e579d4e53a7cc, type: 3}
+  sliderFull:
+  - {fileID: 21300000, guid: f81d73582d9b582499f7014952271698, type: 3}
+  - {fileID: 21300000, guid: 247f7af1bc9ecf945a9275840ae1ac03, type: 3}
+  sliderThumb: {fileID: 21300000, guid: 7f016f9cbc2f8c4438587107234f82c5, type: 3}
+  scrollbars:
+  - {fileID: 21300000, guid: 40a23bdfe63189242a176febc582e1d4, type: 3}
+  - {fileID: 21300000, guid: 55bd12a0a84f50244bbf5096f0157753, type: 3}
+  tooltip: {fileID: 21300000, guid: d900f2473018d2b4e96d93534e11a555, type: 3}
+  arrowsDown:
+  - {fileID: 21300000, guid: 17c4f877750f5b842954a92a46005f40, type: 3}
+  - {fileID: 21300000, guid: 60357ff0c834d2841a69e2996e3787c9, type: 3}
+  - {fileID: 21300000, guid: 7c6202dfd63d6bd4d9caec6dab09c812, type: 3}
   toneColors:
   - serializedVersion: 2
     rgba: 4283057217
