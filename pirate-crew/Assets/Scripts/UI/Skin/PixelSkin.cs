@@ -28,6 +28,9 @@ namespace PirateCrew.UI
         Track = 1,
         /// <summary>页签：底边无带（border 下=0），底边贴宿主面板顶边连成一体。</summary>
         Tab = 2,
+        /// <summary>面板（对话框外层，Asepite dark 语法）：**直角**（对照参考截图裁决——
+        /// 圆角只属于按钮），黑环 1 格 + 上/左受光唇 + 下/右背光唇 + 平涂主体。</summary>
+        Panel = 3,
     }
 
     /// <summary>状态：常态 / 悬停（整条色阶上抬一档）/ 按压（高光阴影对调）。</summary>
@@ -74,7 +77,7 @@ namespace PirateCrew.UI
         /// 基本单位（UI 像素 = 屏幕像素）：外环/斜面/内暗线各 1u 厚。**= 3 = 1080p 下
         /// 一个 3D 像素块（1080 ÷ RT 高 360）**。
         /// </summary>
-        public const int Unit = 3;
+        public const int Unit = 2;   // 【2026-09-24 创始人裁决】资产 1:1 + 显示 ×2（1080p 下 960×540 等效观感）
 
         /// <summary>
         /// 36×36 家族（页签/投影）的九宫格切片边框 = 2u。**Plate 按钮件不走本值**——
@@ -130,6 +133,12 @@ namespace PirateCrew.UI
         public static Sprite Track(PixelTone tone)
         {
             return SpriteAt(Asset != null ? Asset.tracks : null, (int)tone, "Track/" + tone);
+        }
+
+        /// <summary>面板（直角，对话框外层/卡片底）。Aseprite 参照：圆角只属于按钮。</summary>
+        public static Sprite Panel(PixelTone tone)
+        {
+            return SpriteAt(Asset != null ? Asset.panels : null, (int)tone, "Panel/" + tone);
         }
 
         /// <summary>页签（底边无带，底边贴宿主面板顶边；未选中页签用 Dense，选中用内容 tone）。</summary>

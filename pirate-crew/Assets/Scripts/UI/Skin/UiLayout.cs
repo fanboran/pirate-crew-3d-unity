@@ -25,10 +25,10 @@ namespace PirateCrew.UI
         {
             return new RectOffset
             {
-                left = Left * PixelSkin.Unit,
-                top = Top * PixelSkin.Unit,
-                right = Right * PixelSkin.Unit,
-                bottom = Bottom * PixelSkin.Unit,
+                left = Left,
+                top = Top,
+                right = Right,
+                bottom = Bottom,
             };
         }
     }
@@ -38,7 +38,7 @@ namespace PirateCrew.UI
     /// 装配侧不再手摆 anchoredPosition 常量（"怎么全是常量"的收口）。
     ///
     /// 【语义】对齐 Aseprite 对话框的盒子/网格排版：控件按声明顺序排布，行/列间距
-    /// （child spacing）与内边距全落 <see cref="PixelSkin.Unit"/> 整数倍；子件尺寸用
+    /// （child spacing）与内边距全按艺术像素（画布单位）取值；子件尺寸用
     /// <see cref="Element"/> 声明首选值，让"件高 = 内容高 + 边带"这类规则落在声明处
     /// 而不是散落的坐标算式里。绝对定位仍然合法（HUD 徽章/血条这类屏锚件），
     /// 但流式内容一律走这里。
@@ -58,7 +58,7 @@ namespace PirateCrew.UI
             bool controlHeights = false, TextAnchor alignment = TextAnchor.UpperCenter)
         {
             var layout = Require<VerticalLayoutGroup>(container);
-            layout.spacing = spacingU * PixelSkin.Unit;
+            layout.spacing = spacingU;
             layout.padding = pad.ToOffset();
             layout.childAlignment = alignment;
             layout.childControlWidth = false;
@@ -74,7 +74,7 @@ namespace PirateCrew.UI
             bool controlWidths = false, TextAnchor alignment = TextAnchor.MiddleLeft)
         {
             var layout = Require<HorizontalLayoutGroup>(container);
-            layout.spacing = spacingU * PixelSkin.Unit;
+            layout.spacing = spacingU;
             layout.padding = pad.ToOffset();
             layout.childAlignment = alignment;
             layout.childControlWidth = controlWidths;
@@ -91,7 +91,7 @@ namespace PirateCrew.UI
             var grid = container.gameObject.GetComponent<GridLayoutGroup>()
                 ?? container.gameObject.AddComponent<GridLayoutGroup>();
             grid.cellSize = cellSizePx;
-            grid.spacing = new Vector2(spacingU * PixelSkin.Unit, spacingU * PixelSkin.Unit);
+            grid.spacing = new Vector2(spacingU, spacingU);
             grid.padding = new RectOffset();
             grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             grid.constraintCount = columns;

@@ -46,7 +46,7 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>像素比例档上限（1:5）。</summary>
         public const int PixelScaleMax = 5;
         /// <summary>默认档（1:3）。</summary>
-        public const int PixelScaleDefault = 3;
+        public const int PixelScaleDefault = 2;
 
         /// <summary>
         /// 像素比例档步进（纯函数，无头可测）：当前档 ±1 步，钳在

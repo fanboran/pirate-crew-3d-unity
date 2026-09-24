@@ -355,6 +355,7 @@ namespace PirateCrew.EditorTools
 
             var rig = camera.gameObject.AddComponent<PixelartCameraRig>();
             rig.pixelScale = PixelartPilotScene.PixelScale;
+            rig.worldPerPixel = 28f / PixelartPilotScene.ReferenceRenderHeight;   // 取景不动：28m 可见高换算到 1:2 档
             rig.deriveOrthographicSize = false;
             rig.castRendererIndex = castIndex;
             rig.screenRendererIndex = screenIndex;
@@ -814,14 +815,15 @@ namespace PirateCrew.EditorTools
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 
             var scaler = go.GetComponent<CanvasScaler>();
-            // 【3:1 铆定口径（创始人 2026-09-24 裁决，推翻旧 1920×1080+Expand 等比口径）】
-            // 1 UI 单位 = 1 屏幕像素，**永不随分辨率缩放**——UI 常量按 3 的倍数取值时，
-            // 其边缘在任意分辨率下都与 3D 艺术像素栅格（1 艺术像素 = PixelSkin.Unit 屏幕像素）对齐；
-            // 分辨率升高 = 画布单位变多（可见内容变多），而不是把 UI 放大。
-            // 与 3D 侧 PixelartPilotScene 的 pixelScale 同一铆定语义（待办 4e 的 GUI Scale 滑条
-            // 未来改本值为运行时档位）。1:1 下 UI 与世界同颗粒度，文字走 SDF 档任意字号清晰。
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
-            scaler.scaleFactor = 1f;
+            // 【低清画布栈（创始人 2026-09-24 裁决）】画布 = 固定艺术分辨率（1080p ÷ pixelScale，
+            // 2:1 下 = 960×540），整数倍缩放到全屏——画布空间 1 单位 = 1 艺术像素，
+            // 坐标/尺寸天生整数，分数落位类问题（角细节不齐/字重不均）体系性消失；
+            // 比例换档 = 改参考分辨率一个参数（设置界面的比例档就接这里）。
+            // 几何令牌与字号全部按艺术像素取值（见 UiSkin.Px / UiSkin.Font）。
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f / PixelSkin.Unit, 1080f / PixelSkin.Unit);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 1f;   // 按高匹配：1080p → 恰好 2× 整数
             return canvas;
         }
 

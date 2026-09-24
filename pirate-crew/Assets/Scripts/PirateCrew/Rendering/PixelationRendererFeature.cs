@@ -44,7 +44,7 @@ namespace PirateCrew.Rendering
             public RenderPassEvent renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing;
 
             [Tooltip("低分辨率 RT 的高度（像素）。360 = 1080p 的整数四分之一（16:9 下即 640×360，美术指南待定项 #2 起步档）；宽度按屏幕宽高比自适应。")]
-            [Min(64)] public int renderHeightPixels = 360;
+            [Min(64)] public int renderHeightPixels = 540;
         }
 
         public PixelationSettings settings = new PixelationSettings();

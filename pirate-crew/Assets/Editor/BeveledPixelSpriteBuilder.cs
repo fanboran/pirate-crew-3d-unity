@@ -139,7 +139,7 @@ namespace PirateCrew.EditorTools
         public const int PlateSize = 36;
 
         /// <summary>Plate / Track 的九宫格切片边框（px）= 4 层带（u×4）——最外是描边，条槽的第 5 段（槽底）落在拉伸区。</summary>
-        public const int PlateBorder = 2 * Unit;   // 【2026-09-24 走查】黑 1 格 + 唇边 1 格（对齐 Terraria dialog 参照）；旧 4 层带在薄件上把内容吃光
+        public const int PlateBorder = 2 * Unit;   // 【2026-09-24 走查】黑 1 格 + 唇边 1 格（对齐参照绘图软件的工具对话框）；旧 4 层带在薄件上把内容吃光
         public const int TrackBorder = 4 * Unit;   // 条槽五段带（INK/外环/斜面/内暗线/槽底）各自 1 格，不随面板收档
 
         /// <summary>低于这个尺寸装配就不能用九宫格（角会切进内容区）。装配侧应断言。</summary>
@@ -655,6 +655,8 @@ namespace PirateCrew.EditorTools
             // Track/Tab 仍走下方分层画法（条槽五段带是另一套语法）。
             if (piece == Piece.Plate)
                 return BuildPlateFromTemplate(r, state, out border);
+            if (piece == Piece.Panel)
+                return BuildPanelFromTemplate(r, out border);
 
             int n = PlateSize;
             var px = new Color32[n * n];
@@ -792,6 +794,46 @@ namespace PirateCrew.EditorTools
                 }
             }
             border = new Vector4(4 * u, 6 * u, 4 * u, 4 * u);   // 左/下/右/上
+            return ToTexture(px, w, h);
+        }
+
+        /// <summary>
+        /// 面板模板（8×8 艺术像素，**直角**——Aseprite dark 对话框外层语法，创始人
+        /// 2026-09-24 对照参考截图裁决：圆角只属于按钮）：黑环 1 格包圈 + 上/左受光唇 1 格
+        /// + 下/右背光唇 1 格 + 主体平涂。九宫格切片 = 四边各 2u。无环外落影（面板坐在
+        /// 变暗遮罩上，落影不可见）。
+        /// </summary>
+        static readonly string[] PanelTemplate =
+        {
+            "KKKKKKKK",
+            "KCCCCCDD",
+            "KCEEEEDK",
+            "KCEEEEDK",
+            "KCEEEEDK",
+            "KCEEEEDK",
+            "KCEEEEDK",
+            "KDDDDDDK",
+        };
+
+        /// <summary>按直角模板画 Panel（8×8 艺术像素 ×Unit 落盘，四边切片 2u）。</summary>
+        static Texture2D BuildPanelFromTemplate(Ramp r, out Vector4 border)
+        {
+            var map = new Dictionary<char, Color32>
+            {
+                { 'K', Slot("INK") },
+                { 'C', r.S4 },   // 受光唇（上/左）
+                { 'E', r.S3 },   // 主体
+                { 'D', r.S2 },   // 背光唇（下/右）
+            };
+            int rows = PanelTemplate.Length;
+            int cols = PanelTemplate[0].Length;
+            int u = Unit;
+            int w = cols * u, h = rows * u;
+            var px = new Color32[w * h];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                    px[y * w + x] = map[PanelTemplate[y / u][x / u]];
+            border = new Vector4(2 * u, 2 * u, 2 * u, 2 * u);   // 左/下/右/上
             return ToTexture(px, w, h);
         }
 
@@ -1212,6 +1254,7 @@ namespace PirateCrew.EditorTools
                 list.Add(NewTarget(AssetNameOf(tone, Piece.Plate, State.Hovered)));
                 list.Add(NewTarget(AssetNameOf(tone, Piece.Plate, State.Pressed)));
                 list.Add(NewTarget(AssetNameOf(tone, Piece.Track, State.Normal)));
+                list.Add(NewTarget(AssetNameOf(tone, Piece.Panel, State.Normal)));
             }
 
             foreach (FillKind kind in Enum.GetValues(typeof(FillKind)))
@@ -1240,6 +1283,8 @@ namespace PirateCrew.EditorTools
                 return "tab";
             if (name.StartsWith("Pixel_Track_", StringComparison.Ordinal))
                 return "track";
+            if (name.StartsWith("Pixel_Panel_", StringComparison.Ordinal))
+                return "panel";
             if (name == "Pixel_Ring" || name == "Pixel_Focus")
                 return "ring";
             if (name.StartsWith("Pixel_Pip_", StringComparison.Ordinal))
@@ -1282,6 +1327,11 @@ namespace PirateCrew.EditorTools
                 case "track":
                     w = PlateSize; h = PlateSize;
                     border = new Vector4(TrackBorder, TrackBorder, TrackBorder, TrackBorder);
+                    break;
+                case "panel":
+                    w = PanelTemplate[0].Length * Unit;
+                    h = PanelTemplate.Length * Unit;
+                    border = new Vector4(2 * Unit, 2 * Unit, 2 * Unit, 2 * Unit);
                     break;
                 case "shadow":
                     w = PlateSize; h = PlateSize;
@@ -2851,6 +2901,7 @@ namespace PirateCrew.EditorTools
                 AssetDatabase.CreateAsset(asset, AtlasAssetPath);
             }
 
+            var panels = new List<Sprite>();
             var plates = new List<Sprite>();
             var tracks = new List<Sprite>();
             var tabs = new List<Sprite>();
@@ -2861,6 +2912,7 @@ namespace PirateCrew.EditorTools
                 foreach (State state in Enum.GetValues(typeof(State)))
                     plates.Add(LoadSprite(AssetNameOf(tone, Piece.Plate, state)));
                 tracks.Add(LoadSprite(AssetNameOf(tone, Piece.Track, State.Normal)));
+                panels.Add(LoadSprite(AssetNameOf(tone, Piece.Panel, State.Normal)));
                 tabs.Add(LoadSprite(AssetNameOf(tone, Piece.Tab, State.Normal)));
                 Ramp r = RampOf(tone);
                 toneColors.Add(r.S4);
@@ -2872,6 +2924,7 @@ namespace PirateCrew.EditorTools
                 fills.Add(LoadSprite(AssetNameOf(kind)));
 
             asset.plates = plates.ToArray();
+            asset.panels = panels.ToArray();
             asset.tracks = tracks.ToArray();
             asset.tabs = tabs.ToArray();
             asset.fills = fills.ToArray();
@@ -2906,6 +2959,8 @@ namespace PirateCrew.EditorTools
             }
             if (asset.plates == null || asset.plates.Length != 7 * 3)
                 problems.Add("图集 plates 长度 " + (asset.plates == null ? 0 : asset.plates.Length) + "，应为 21（7 tone×3 state）。");
+            if (asset.panels == null || asset.panels.Length != 7)
+                problems.Add("图集 panels 长度 " + (asset.panels == null ? 0 : asset.panels.Length) + "，应为 7（7 tone）。");
             if (asset.tracks == null || asset.tracks.Length != 7)
                 problems.Add("图集 tracks 长度 " + (asset.tracks == null ? 0 : asset.tracks.Length) + "，应为 7。");
             if (asset.tabs == null || asset.tabs.Length != 7)
@@ -2915,6 +2970,7 @@ namespace PirateCrew.EditorTools
             if (asset.toneColors == null || asset.toneColors.Length != 7 * 3)
                 problems.Add("图集 toneColors 长度 " + (asset.toneColors == null ? 0 : asset.toneColors.Length) + "，应为 21。");
             CheckNoNull(problems, asset.plates, "plates");
+            CheckNoNull(problems, asset.panels, "panels");
             CheckNoNull(problems, asset.tracks, "tracks");
             CheckNoNull(problems, asset.tabs, "tabs");
             CheckNoNull(problems, asset.fills, "fills");

@@ -119,7 +119,7 @@ namespace PirateCrew.UI.Stick
             if (_plate == null)
                 _plate = FindPart();
             if (_plate != null)
-                _plate.sprite = PixelSkin.Plate(_tone == Tone.Light ? PixelTone.Light : PixelTone.Frame);
+                _plate.sprite = PixelSkin.Panel(_tone == Tone.Light ? PixelTone.Light : PixelTone.Frame);   // 直角面板皮（圆角只属于按钮）
         }
 
         /// <summary>场景重载后私有字段不序列化，按子件名重新取引用（同上一个九砖实现的兜底口径）。</summary>

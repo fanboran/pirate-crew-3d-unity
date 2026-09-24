@@ -71,6 +71,7 @@ namespace PirateCrew.UI.Stick
 
             var image = rect.gameObject.AddComponent<Image>();
             image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
             image.color = Color.white;      // 像素件禁止乘色：色阶烘在贴图里，Image.color 恒白
             image.raycastTarget = true;     // 可点件：命中面 = 按钮本体
 
@@ -104,6 +105,7 @@ namespace PirateCrew.UI.Stick
             {
                 _bg.sprite = PixelSkin.Plate(tone, PixelState.Normal);
                 _bg.type = Image.Type.Sliced;
+                _bg.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
                 _bg.color = Color.white;    // 像素件禁止乘色
             }
 
@@ -120,8 +122,9 @@ namespace PirateCrew.UI.Stick
             {
                 _label.color = PixelSkin.TextColorOn(tone);
 
-                // 伪粗随变体（主行动/强调笔画加重）：TMP 合成加粗近似 gd SketchFonts.bold
-                _label.fontStyle = _variant.FakeBold > 0.5f ? FontStyles.Bold : FontStyles.Normal;
+                // 【创始人裁决】位图字禁伪粗：TMP 合成加粗 = 多次偏移描画，12/16px
+                // 位图字形直接糊成重影乱码（2026-09-24 走查实测）。层级靠字色与描边表达。
+                _label.fontStyle = FontStyles.Normal;
                 Material mat = _label.fontMaterial; // 首次访问即实例化——绝不写共享材质
                 if (_variant.OutlinePx > 0f)
                 {
@@ -135,8 +138,7 @@ namespace PirateCrew.UI.Stick
                     // 亮底深墨字不加描边（笔画膨胀糊死）
                     mat.DisableKeyword(ShaderUtilities.Keyword_Outline);
                 }
-                if (_variant.FakeBold > 0.5f)
-                    mat.SetFloat("_WeightBold", StickTokens.FontEmbolden); // 合成粗度对齐 gd 伪粗档
+                mat.SetFloat(ShaderUtilities.ID_GradientScale, mat.GetFloat(ShaderUtilities.ID_GradientScale));   // 材质实例化保序（伪粗已废）
             }
 
             // 立即按当前态刷一遍（贴图三态 / 禁用 alpha）
@@ -212,6 +214,7 @@ namespace PirateCrew.UI.Stick
             label.enableWordWrapping = false;
             label.raycastTarget = false;
             label.margin = Vector4.zero;
+            PirateCrew.UI.PixelAtlasPointFilter.Ensure(label.font);   // 图集钉 Point：双线性会渗邻字（乱码病根）
             return label;
         }
 

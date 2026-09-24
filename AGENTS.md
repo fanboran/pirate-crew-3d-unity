@@ -14,7 +14,7 @@
 
 ### 调试规范
 
-- Unity 编辑器路径：`F:\Unity\2022.3.62f1c1\Editor\Unity.exe`。
+- Unity 编辑器路径：`F:\Unity\2022.3.62f1\Editor\Unity.exe`。
 - **无头验证首选分级运行器**（单飞锁 / 日志落 `$TEMP` / 失败自动摘 error / open 档 30 分钟结果缓存）：
   ```bash
   tools/headless/run.sh <open|test|build|harness> [参数]
@@ -27,9 +27,9 @@
 - 直接调 Unity 的等价命令（不经运行器手动跑时）：
   ```bash
   # 无头验证项目完整性，退出码 0 = 工程可打开
-  "F:/Unity/2022.3.62f1c1/Editor/Unity.exe" -batchmode -nographics -quit -projectPath "F:/VSCode/pirate-crew-3d-unity/pirate-crew" -logFile -
+  "F:/Unity/2022.3.62f1/Editor/Unity.exe" -batchmode -nographics -quit -projectPath "F:/VSCode/pirate-crew-3d-unity/pirate-crew" -logFile -
   # 无头跑测试（PlayMode 把 testPlatform 换掉；test-results 写系统临时目录，跑测产物不落 external/）
-  "F:/Unity/2022.3.62f1c1/Editor/Unity.exe" -batchmode -nographics -projectPath "F:/VSCode/pirate-crew-3d-unity/pirate-crew" -runTests -testPlatform EditMode -testResults "$TEMP/pc3d-test-results.xml" -logFile -
+  "F:/Unity/2022.3.62f1/Editor/Unity.exe" -batchmode -nographics -projectPath "F:/VSCode/pirate-crew-3d-unity/pirate-crew" -runTests -testPlatform EditMode -testResults "$TEMP/pc3d-test-results.xml" -logFile -
   ```
 - **batchmode 铁律**：必须显式带 `-projectPath` 且加 `-nographics`。缺 `-projectPath` 会打开 EditorPrefs 里的"最近工程"（可能污染/锁住别的项目——本项目曾因此产生杀不死的僵尸进程卡住 `Temp/UnityLockfile`，只能重启机器清理）；当前环境不带 `-nographics` 会卡在 GfxDevice 创建。一次只跑一个 Unity 进程。
 - 无头验证台（不入库）：`external/harness/` 用 `dotnet` 引用 Unity 已编译程序集 + NuGet NUnit，**不启动 Unity 就能编译工程源码并跑纯 C# 测试**，多 agent 并行时绕开 Library 独占锁。边界：`GameObject` / `MonoBehaviour` / `ScriptableObject` 的实例化走原生 `ECall`，脱离 Unity 运行时必抛 `SecurityException`；所以战斗数值/回合规则这类核心逻辑**刻意写成纯 C# 静态类**以便无头测试，MonoBehaviour 胶水层仍由 batchmode 收口。用法与手工副本配方（必须显式传 `-p:ProjectRoot`，否则副本反查不到工程根会"0 错误"空转）详见 `external/harness/README.md`。
@@ -92,6 +92,7 @@
 2. **安全第一**：`pirate-crew/Assets/Scripts/Core/`（引导器/事件总线/存档）经评审后修改须谨慎——它是所有模块的地基。
 3. **原子化提交 + 主动沟通**：每次提交一个独立最小功能；任务描述不清或与架构原则冲突时主动提问，不做危险假设。
 4. **重构验收 = 行为规格，等价 ≠ 正确**：玩家可感知的行为先立契约（输入 → 可观察结果，例：[docs/技术/相机行为契约.md](docs/技术/相机行为契约.md)），实现/测试/文档三处同源同改；「与旧实现逐位等价」只允许用于**已裁决为正确**的行为——等价性继承会把错误一起继承（案例：r13 相机「环绕不重瞄」被逐位复刻、被探针验证、被测试固化，三层全绿仍是错的）。
+5. **执行前预告**：每次动手（改文件 / 跑命令 / 写文档）前，先用自己的话复述用户要求并预告接下来的动作与落点（改哪个文件、跑哪条命令、预期结果），让用户能当场发现理解偏差；预告与意图对不上就先问，不闷头执行。多步任务按阶段分段预告。
 
 ***
 

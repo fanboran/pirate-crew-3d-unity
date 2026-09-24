@@ -33,13 +33,13 @@ namespace PirateCrew.Rendering.Pixelart
         /// UI 的基本单位（`PixelSkin.Unit` = 3 屏幕像素）就是按这个口径设计的，
         /// 3D 与 UI 必须同一个艺术像素网格。`BeveledPixelSpriteBuilder` 的 u 对齐判据会断言本值。
         /// </summary>
-        public const int PixelScale = 3;
+        public const int PixelScale = 2;
 
         /// <summary>
         /// 参考画布高（1080p ÷ 3 = 360 艺术像素）。**只用于把"看得见多少米"换算成
         /// "每艺术像素多少米"**——真实画布尺寸由屏幕和 <see cref="PixelScale"/> 反推。
         /// </summary>
-        public const int ReferenceRenderHeight = 360;
+        public const int ReferenceRenderHeight = 540;
 
         /// <summary>俯角（度）。30° = 规则像素阶梯（2 像素横移 / 1 像素下降）。</summary>
         public const float PitchDegrees = 30f;

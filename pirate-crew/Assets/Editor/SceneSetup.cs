@@ -109,12 +109,12 @@ namespace PirateCrew.EditorTools
             TextMeshProUGUI title = MenuUiBuilder.CreateTextExact("Title", canvas.transform,
                 UiStrings.MainTitle, UiSkin.Font.Display, TextAlignmentOptions.Center, TEXT, handFont);
             MenuUiBuilder.SetAnchored(title.rectTransform, new Vector2(0.5f, 1f),
-                new Vector2(900f, 44f), new Vector2(0f, -88f));
+                new Vector2(300f, 15f), new Vector2(0f, -29f));
             MenuUiBuilder.ApplyStickTitleOutline(title);
 
             // 标题下蚀刻分隔线（像素皮：SketchSeparator 内部出 Separator 贴图）。
             SketchSeparator.Create(canvas.transform, "TitleSeparator", new Vector2(0.5f, 1f),
-                new Vector2(0.5f, 1f), new Vector2(0f, -144f), new Vector2(420f, 2f),
+                new Vector2(0.5f, 1f), new Vector2(0f, -48f), new Vector2(140f, 1f),
                 SketchSeparator.Direction.Horizontal);
 
             // 菜单按钮列：**只有一个进游戏入口**——主行动「进入战斗」Primary（必经选关面板；
@@ -122,19 +122,19 @@ namespace PirateCrew.EditorTools
             // 令牌按钮：高 24 艺术像素、宽 = 标签宽 + 24 艺术像素，中心距 108（72 高 + 36 间距
             // = 12 艺术像素位点）。字号 0 = 控件默认正文档。
             SketchButton battleButton = SketchButton.Create(canvas.transform, "BattleButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 56f), MenuUiBuilder.ButtonSize(UiStrings.MainBattle),
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 19f), MenuUiBuilder.ButtonSize(UiStrings.MainBattle),
                 handFont, SketchButtonKind.Primary, UiStrings.MainBattle, 0f);
 
             SketchButton crewButton = SketchButton.Create(canvas.transform, "CrewButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -52f), MenuUiBuilder.ButtonSize(UiStrings.MainCrew),
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -17f), MenuUiBuilder.ButtonSize(UiStrings.MainCrew),
                 handFont, SketchButtonKind.Dark, UiStrings.MainCrew, 0f);
 
             SketchButton settingsButton = SketchButton.Create(canvas.transform, "SettingsButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -160f), MenuUiBuilder.ButtonSize(UiStrings.MainSettings),
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -53f), MenuUiBuilder.ButtonSize(UiStrings.MainSettings),
                 handFont, SketchButtonKind.Dark, UiStrings.MainSettings, 0f);
 
             SketchButton quitButton = SketchButton.Create(canvas.transform, "QuitButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -268f), MenuUiBuilder.ButtonSize(UiStrings.MainQuit),
+                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -89f), MenuUiBuilder.ButtonSize(UiStrings.MainQuit),
                 handFont, SketchButtonKind.Danger, UiStrings.MainQuit, 0f);
 
             // 左下：版本号 + 存档状态（SCREEN_MARGIN=12 安全边距；角标 Tiny 30 = ArkPixel 10px
@@ -144,13 +144,13 @@ namespace PirateCrew.EditorTools
                 UiStrings.MainVersionPrefix + " " + Application.version, UiSkin.Font.Tiny,
                 TextAlignmentOptions.BottomLeft, TEXT_FAINT, handFont);
             MenuUiBuilder.SetAnchored(versionText.rectTransform,
-                new Vector2(0f, 0f), new Vector2(400f, 36f), new Vector2(SCREEN_MARGIN, SCREEN_MARGIN));
+                new Vector2(0f, 0f), new Vector2(133f, 12f), new Vector2(SCREEN_MARGIN, SCREEN_MARGIN));
 
             TextMeshProUGUI statusText = MenuUiBuilder.CreateTextExact("StatusText", canvas.transform,
                 string.Empty, UiSkin.Font.Tiny, TextAlignmentOptions.BottomLeft, TEXT_DIM, handFont);
             MenuUiBuilder.SetAnchored(statusText.rectTransform,
-                new Vector2(0f, 0f), new Vector2(500f, 36f),
-                new Vector2(SCREEN_MARGIN, SCREEN_MARGIN + 40f));
+                new Vector2(0f, 0f), new Vector2(167f, 12f),
+                new Vector2(SCREEN_MARGIN, SCREEN_MARGIN + 13f));
 
             // 设置界面（真接线：音量滑条 ×4 / 画质档 / 窗口模式；默认隐藏；SketchPanel Dark 底板）。
             MenuUiBuilder.SettingsPanelResult settings = MenuUiBuilder.BuildSettingsPanel(canvas.transform);
@@ -228,10 +228,12 @@ namespace PirateCrew.EditorTools
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 
             var scaler = go.GetComponent<CanvasScaler>();
-            // 【3:1 铆定口径】1 UI 单位 = 1 屏幕像素，永不随分辨率缩放（2026-09-24 裁决，
-            // 详见 BattleSceneSetup.CreateCanvas 注释）。1:1 下与旧 1080p 视觉一致。
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
-            scaler.scaleFactor = 1f;
+            // 【低清画布栈】画布 = 固定艺术分辨率（1080p ÷ pixelScale，2:1 下 960×540），
+            // 整数倍缩放全屏；1 画布单位 = 1 艺术像素。详见 BattleSceneSetup.CreateCanvas。
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f / PixelSkin.Unit, 1080f / PixelSkin.Unit);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 1f;
 
             return canvas;
         }

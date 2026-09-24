@@ -26,6 +26,9 @@ namespace PirateCrew.UI
         [Tooltip("凹槽 tracks[tone]（条状件空槽底）")]
         public Sprite[] tracks = new Sprite[0];
 
+        [Tooltip("面板 panels[tone]（直角对话框外层，Aseprite dark 语法）")]
+        public Sprite[] panels = new Sprite[0];
+
         [Tooltip("页签 tabs[tone]（底边无带，与宿主面板顶边贴合）")]
         public Sprite[] tabs = new Sprite[0];
 

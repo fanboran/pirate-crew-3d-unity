@@ -120,7 +120,7 @@ namespace PirateCrew.UI
         {
             return SketchButton.Create(parent, name,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(150f, UiSkin.Px.Button),   // 令牌按钮高占位；行内会被 <see cref="LayoutRowContent"/> 重摆
+                new Vector2(50f, UiSkin.Px.Button),   // 令牌按钮高占位；行内会被 <see cref="LayoutRowContent"/> 重摆
                 font, StickTokens.SketchButtonKind.Dark, label, fontSize);
         }
 
@@ -175,17 +175,30 @@ namespace PirateCrew.UI
             float spacing = 6f, float leftPadding = 8f)
         {
             RectTransform row = CreateRect("Row" + index, container);
-            // 【布局组件】容器挂 VerticalLayoutGroup 后由它排版（间距/宽度归组管），
-            // 行高经 LayoutElement 声明——不再手摆 anchoredPosition（溢出/叠压的根因）。
+            // 【行宽 = 容器宽，铁律】父容器挂 VBox 列表时行宽必须交给布局组接管并铺满——
+            // 新建 RectTransform 默认宽 100，不接管则行内文本被压成一字宽竖列
+            // （船员管理/选关两屏实测事故：标签竖排叠印）。
+            if (container != null)
+            {
+                var parentLayout = container.GetComponent<UnityEngine.UI.VerticalLayoutGroup>();
+                if (parentLayout != null)
+                {
+                    parentLayout.childControlWidth = true;
+                    parentLayout.childForceExpandWidth = true;
+                }
+            }
+            // 行高经 LayoutElement 声明（父 VBox controlHeights 开时生效）。
             var layout = row.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
             layout.preferredHeight = rowHeight;
             layout.minHeight = rowHeight;
 
             // 行底板：SketchPanel.Create 是点锚出口，建完再拉伸铺满行矩形；
             // 底板不拦截点击（SketchPanel 内 Image raycastTarget=false），命中留给动作钮。
+            // 底板是装饰件，声明 ignoreLayout，不参与行内流式排版。
             SketchPanel backplate = SketchPanel.Create(row, "Backplate",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero,
                 SketchPanel.Tone.Light);
+            UiLayout.Ignore(backplate.gameObject);
             Stretch(backplate.GetComponent<RectTransform>());
 
             return row;
@@ -226,36 +239,41 @@ namespace PirateCrew.UI
             rect.anchoredPosition = anchoredPosition;
         }
 
-        /// <summary>把行内文本放在左侧、按钮放在右侧的常用布局。
-        /// 按钮宽 = 标签宽 + 24 艺术像素（令牌"按钮宽 = 标签宽"式；中文按字数×正文号计），
-        /// 高 = 行高 - 上下各 6（令牌位点的一半）。</summary>
+        /// <summary>行内排版（全 UGUI 原生布局件，零自定义驱动）：
+        /// 行挂 HorizontalLayoutGroup，标签声明 flexibleWidth 吃剩余宽；
+        /// 按钮挂 HorizontalLayoutGroup + ContentSizeFitter(Preferred)——UGUI 自带的自贴合，
+        /// 按钮宽 = 文字真实渲染宽 + 左右各半 <see cref="UiSkin.Px.ButtonPadX"/>，文本变即自动收放。</summary>
         public static void LayoutRowContent(RectTransform row, TextMeshProUGUI label, Button action, float rowHeight)
         {
-            string actionText = action != null && action.GetComponentInChildren<TextMeshProUGUI>(true) != null
-                ? action.GetComponentInChildren<TextMeshProUGUI>(true).text
-                : null;
-            float buttonWidth = UiSkin.Px.ButtonWidth(actionText);
-            float buttonHeight = UiSkin.Px.Button;   // 令牌按钮高 24 艺术像素（行高应预留上下各 12）
+            UiLayout.HStack(row, 8, UiPadding.Symmetric(5, 0), controlWidths: true,
+                alignment: TextAnchor.MiddleLeft);
 
             if (label != null)
             {
+                UiLayout.Flexible(label.gameObject);
                 RectTransform rect = label.rectTransform;
-                rect.anchorMin = new Vector2(0f, 0f);
-                rect.anchorMax = new Vector2(1f, 1f);
-                rect.pivot = new Vector2(0f, 0.5f);
-                rect.offsetMin = new Vector2(16f, 0f);
-                rect.offsetMax = new Vector2(-(buttonWidth + 20f), 0f);
+                rect.sizeDelta = new Vector2(rect.sizeDelta.x, rowHeight);
                 label.alignment = TextAlignmentOptions.MidlineLeft;
             }
 
             if (action != null)
             {
                 RectTransform rect = action.GetComponent<RectTransform>();
-                rect.anchorMin = new Vector2(1f, 0.5f);
-                rect.anchorMax = new Vector2(1f, 0.5f);
-                rect.pivot = new Vector2(1f, 0.5f);
-                rect.sizeDelta = new Vector2(buttonWidth, buttonHeight);
-                rect.anchoredPosition = new Vector2(-16f, 0f);
+                rect.sizeDelta = new Vector2(rect.sizeDelta.x, UiSkin.Px.Button);
+
+                // 按钮自贴合（原生，无双驱动）：按钮自身挂横排组（内层 childControlWidth），
+                // 其 preferred 宽 = 左右各半 ButtonPadX + 文字渲染宽——行 HStack(controlWidths)
+                // 直接按这个 preferred 收放按钮。不再挂 ContentSizeFitter（父组已在控制，双驱会打架）。
+                var fit = action.gameObject.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>();
+                if (fit == null)
+                    fit = action.gameObject.AddComponent<UnityEngine.UI.HorizontalLayoutGroup>();
+                fit.childControlWidth = true;
+                fit.childControlHeight = false;
+                fit.childForceExpandWidth = false;
+                fit.childForceExpandHeight = false;
+                fit.childAlignment = TextAnchor.MiddleCenter;
+                int pad = UiSkin.Px.ButtonPadX / 2;
+                fit.padding = new RectOffset(pad, pad, 0, 0);
             }
         }
 

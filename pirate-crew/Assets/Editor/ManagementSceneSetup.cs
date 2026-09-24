@@ -87,21 +87,21 @@ namespace PirateCrew.EditorTools
             // 层级靠颜色；提示 30 = ArkPixel 10px 原生档）。
             TextMeshProUGUI title = RuntimeUiBuilder.CreateText("Title", canvas.transform, UiStrings.CrewTitle,
                 UiSkin.Font.Title, TextAlignmentOptions.Center, StickTokens.TEXT, titleFont);
-            RuntimeUiBuilder.SetAnchored(title.rectTransform, TopCenterAnchor, new Vector2(900f, 44f),
+            RuntimeUiBuilder.SetAnchored(title.rectTransform, TopCenterAnchor, new Vector2(300f, 15f),
                 new Vector2(0f, -44f));
 
             TextMeshProUGUI summary = RuntimeUiBuilder.CreateText("SummaryText", canvas.transform, string.Empty,
                 UiSkin.Font.Body, TextAlignmentOptions.Center, StickTokens.TEXT, bodyFont);
-            RuntimeUiBuilder.SetAnchored(summary.rectTransform, TopCenterAnchor, new Vector2(1700f, 44f),
+            RuntimeUiBuilder.SetAnchored(summary.rectTransform, TopCenterAnchor, new Vector2(567f, 15f),
                 new Vector2(0f, -104f));
 
             // 名册容器（SketchPanel Dark → Plate(Frame) + 投影；行由 CrewManagementController 运行时生成）。
             RectTransform list = CreateStickPanel("CrewList", canvas.transform,
-                CenterAnchor, CenterAnchor, new Vector2(0f, 24f), new Vector2(999f, 600f));
+                CenterAnchor, CenterAnchor, new Vector2(0f, 8f), new Vector2(333f, 200f));
 
             TextMeshProUGUI status = RuntimeUiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
                 UiSkin.Font.Hint, TextAlignmentOptions.Center, StickTokens.TEXT_DIM, secondaryFont);
-            RuntimeUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(1700f, 36f),
+            RuntimeUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 152f));
 
             // 屏内按钮：选关/返回 = Dark 次级档；保存 = Primary 主行动档。
@@ -113,7 +113,7 @@ namespace PirateCrew.EditorTools
                 UiStrings.CrewSave, BottomCenterAnchor, new Vector2(-24f, 72f),
                 MenuUiBuilder.ButtonSize(UiStrings.CrewSave), bodyFont, StickTokens.SketchButtonKind.Primary);
             Button backButton = CreateSketchButton("BackButton", canvas.transform,
-                UiStrings.BackToMainMenu, BottomCenterAnchor, new Vector2(126f, 72f),
+                UiStrings.BackToMainMenu, BottomCenterAnchor, new Vector2(42f, 24f),
                 MenuUiBuilder.ButtonSize(UiStrings.BackToMainMenu), bodyFont, StickTokens.SketchButtonKind.Dark);
 
             var controllerGo = new GameObject("CrewManagementController", typeof(RectTransform));
@@ -154,45 +154,45 @@ namespace PirateCrew.EditorTools
             // 文字层级：标题 Title / 统计行 Hud / 章节字 Section / 说明与状态 Hint（满精度阶梯）。
             TextMeshProUGUI title = RuntimeUiBuilder.CreateText("Title", canvas.transform, UiStrings.LevelTitle,
                 UiSkin.Font.Title, TextAlignmentOptions.Center, StickTokens.TEXT, titleFont);
-            RuntimeUiBuilder.SetAnchored(title.rectTransform, TopCenterAnchor, new Vector2(900f, 44f),
+            RuntimeUiBuilder.SetAnchored(title.rectTransform, TopCenterAnchor, new Vector2(300f, 15f),
                 new Vector2(0f, -44f));
 
             TextMeshProUGUI header = RuntimeUiBuilder.CreateText("HeaderText", canvas.transform, string.Empty,
                 UiSkin.Font.Hud, TextAlignmentOptions.Center, StickTokens.TEXT, bodyFont);
-            RuntimeUiBuilder.SetAnchored(header.rectTransform, TopCenterAnchor, new Vector2(1700f, 44f),
+            RuntimeUiBuilder.SetAnchored(header.rectTransform, TopCenterAnchor, new Vector2(567f, 15f),
                 new Vector2(0f, -104f));
 
             TextMeshProUGUI chapterName = RuntimeUiBuilder.CreateText("ChapterNameText", canvas.transform,
                 string.Empty, UiSkin.Font.Section, TextAlignmentOptions.Center,
                 StickTokens.TEXT, secondaryFont);
-            RuntimeUiBuilder.SetAnchored(chapterName.rectTransform, TopCenterAnchor, new Vector2(1200f, 44f),
+            RuntimeUiBuilder.SetAnchored(chapterName.rectTransform, TopCenterAnchor, new Vector2(400f, 15f),
                 new Vector2(0f, -160f));
 
             // 章节页签行（容器保留契约；页签按钮已退役，当前只承载占位）。
             RectTransform chapters = RuntimeUiBuilder.CreateRect("ChapterContainer", canvas.transform);
-            RuntimeUiBuilder.SetAnchored(chapters, TopCenterAnchor, new Vector2(520f, 44f), new Vector2(0f, -216f));
+            RuntimeUiBuilder.SetAnchored(chapters, TopCenterAnchor, new Vector2(173f, 15f), new Vector2(0f, -72f));
 
             // 海图列表容器（SketchPanel Dark → Plate(Frame) + 投影；行由控制器运行时生成）。
             RectTransform list = CreateStickPanel("LevelList", canvas.transform,
-                CenterAnchor, CenterAnchor, new Vector2(0f, 52f), new Vector2(999f, 561f));
+                CenterAnchor, CenterAnchor, new Vector2(0f, 17f), new Vector2(333f, 187f));
 
             // 出战加载说明（文案与实际行为一致：选哪关加载哪关）+ 状态提示。
             TextMeshProUGUI hint = RuntimeUiBuilder.CreateText("FixedArenaHint", canvas.transform,
                 UiStrings.LevelStatusFixedArena, UiSkin.Font.Hint, TextAlignmentOptions.Center,
                 StickTokens.TEXT_DIM, secondaryFont);
-            RuntimeUiBuilder.SetAnchored(hint.rectTransform, BottomCenterAnchor, new Vector2(1700f, 36f),
+            RuntimeUiBuilder.SetAnchored(hint.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 148f));
 
             TextMeshProUGUI status = RuntimeUiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
                 UiSkin.Font.Hint, TextAlignmentOptions.Center, StickTokens.TEXT_DIM, secondaryFont);
-            RuntimeUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(1700f, 36f),
+            RuntimeUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 104f));
 
             Button crewButton = CreateSketchButton("CrewButton", canvas.transform,
                 UiStrings.MainCrew, BottomCenterAnchor, new Vector2(-84f, 64f),
                 MenuUiBuilder.ButtonSize(UiStrings.MainCrew), bodyFont, StickTokens.SketchButtonKind.Dark);
             Button backButton = CreateSketchButton("BackButton", canvas.transform,
-                UiStrings.Back, BottomCenterAnchor, new Vector2(120f, 64f),
+                UiStrings.Back, BottomCenterAnchor, new Vector2(40f, 21f),
                 MenuUiBuilder.ButtonSize(UiStrings.Back), bodyFont, StickTokens.SketchButtonKind.Dark);
 
             SettlementRefs settlement = BuildSettlementModal(canvas.transform, titleFont, bodyFont, secondaryFont);
@@ -267,7 +267,7 @@ namespace PirateCrew.EditorTools
 
             // 结算卡片（SketchPanel Dark → Plate(Frame) + 投影；模态主底档）。736 = 满精度标题档重排后高度。
             RectTransform card = CreateStickPanel("SettlementCard", root,
-                CenterAnchor, CenterAnchor, Vector2.zero, new Vector2(900f, 736f));
+                CenterAnchor, CenterAnchor, Vector2.zero, new Vector2(300f, 245f));
 
             // 文字层级：胜负横幅 Display / 行值 Body / 细则 Hint（满精度阶梯）。
             TextMeshProUGUI title = RuntimeUiBuilder.CreateText("Title", card, string.Empty,
@@ -421,10 +421,12 @@ namespace PirateCrew.EditorTools
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 
             var scaler = go.GetComponent<CanvasScaler>();
-            // 【3:1 铆定口径】1 UI 单位 = 1 屏幕像素，永不随分辨率缩放（2026-09-24 裁决，
-            // 详见 BattleSceneSetup.CreateCanvas 注释）。1:1 下与旧 1080p 视觉一致。
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
-            scaler.scaleFactor = 1f;
+            // 【低清画布栈】画布 = 固定艺术分辨率（1080p ÷ pixelScale，2:1 下 960×540），
+            // 整数倍缩放全屏；1 画布单位 = 1 艺术像素。详见 BattleSceneSetup.CreateCanvas。
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f / PixelSkin.Unit, 1080f / PixelSkin.Unit);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 1f;
 
             return canvas;
         }

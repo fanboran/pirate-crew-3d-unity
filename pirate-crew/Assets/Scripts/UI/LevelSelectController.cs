@@ -27,7 +27,7 @@ namespace PirateCrew.UI
     /// </summary>
     public sealed class LevelSelectController : MonoBehaviour
     {
-        const float RowHeight = 48f;   // 令牌按钮 24 + 上下各 12（2026-09-24 紧凑档；10 行 × 54 = 534 ≤ 列表面板 561）
+        const float RowHeight = 16f;   // 令牌按钮 24 + 上下各 12（2026-09-24 紧凑档；10 行 × 54 = 534 ≤ 列表面板 561）
 
         [Header("引用（场景内直连）")]
         [SerializeField] TextMeshProUGUI headerText;
