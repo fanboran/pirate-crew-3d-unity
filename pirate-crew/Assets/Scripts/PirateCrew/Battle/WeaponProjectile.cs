@@ -956,7 +956,9 @@ namespace PirateCrew.Battle
                 return;
 
             Ray ray = cam.ScreenPointToRay(Input.mousePosition);
-            if (Physics.Raycast(ray, out RaycastHit hit, 500f, ~0, QueryTriggerInteraction.Ignore)
+            // 判定距离绑相机远裁剪：原为写死 500，与相机远裁剪（海面档 4500，见 CameraFraming.OceanFarClipMin）
+            // 错位——远 zoom 时点击点落在 500 之外，点击引爆静默失效；绑远裁剪后判定距离随视距自适应。
+            if (Physics.Raycast(ray, out RaycastHit hit, cam.farClipPlane, ~0, QueryTriggerInteraction.Ignore)
                 && hit.collider == hitCollider)
             {
                 _clicked = true;
