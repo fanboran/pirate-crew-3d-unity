@@ -42,6 +42,14 @@ MonoBehaviour:
   - {fileID: 21300000, guid: ab7da2ad93bcb7e43a082c6946737312, type: 3}
   - {fileID: 21300000, guid: 4caaf9c0dad1b0a44b1bb97b1e66929e, type: 3}
   - {fileID: 21300000, guid: eb4a2195f7d8c4e479390889dad2ca62, type: 3}
+  panels:
+  - {fileID: 21300000, guid: b26eb59db335088428ba930ef6d2e9eb, type: 3}
+  - {fileID: 21300000, guid: b174b00333f73764cbb9d975a4641839, type: 3}
+  - {fileID: 21300000, guid: 540075324ededbb4a9c2330982982dd2, type: 3}
+  - {fileID: 21300000, guid: d74e52eaf77657b40a6da2bfce801b66, type: 3}
+  - {fileID: 21300000, guid: 8ff2b9adfdad0144da797a516e3acff7, type: 3}
+  - {fileID: 21300000, guid: 69b5487de04bae349b05555431ef13d8, type: 3}
+  - {fileID: 21300000, guid: 2de93f11bba1a9a41aaa035cf4844b50, type: 3}
   tabs:
   - {fileID: 21300000, guid: 88a13b43fb972f74d94036ecc8af4aa3, type: 3}
   - {fileID: 21300000, guid: c8444668220981e4b98a641b5640f51d, type: 3}
@@ -65,50 +73,50 @@ MonoBehaviour:
   shadow: {fileID: 21300000, guid: 5438e89fafbbe5a4c8b969fd2d415100, type: 3}
   toneColors:
   - serializedVersion: 2
-    rgba: 4282467402
+    rgba: 4283057217
   - serializedVersion: 2
-    rgba: 4281084976
+    rgba: 4281347116
   - serializedVersion: 2
-    rgba: 4280295717
+    rgba: 4280623392
   - serializedVersion: 2
-    rgba: 4282467402
+    rgba: 4283057217
   - serializedVersion: 2
-    rgba: 4280888112
+    rgba: 4281346857
   - serializedVersion: 2
-    rgba: 4280295717
+    rgba: 4280623392
   - serializedVersion: 2
-    rgba: 4283915105
+    rgba: 4284570455
   - serializedVersion: 2
-    rgba: 4282467402
+    rgba: 4283057217
   - serializedVersion: 2
-    rgba: 4281084976
+    rgba: 4281347116
   - serializedVersion: 2
-    rgba: 4283279065
+    rgba: 4292453965
   - serializedVersion: 2
-    rgba: 4281039544
+    rgba: 4290279979
   - serializedVersion: 2
-    rgba: 4279914362
+    rgba: 4286205722
   - serializedVersion: 2
-    rgba: 4285438683
+    rgba: 4292581998
   - serializedVersion: 2
-    rgba: 4282411458
+    rgba: 4290931008
   - serializedVersion: 2
-    rgba: 4280959365
+    rgba: 4286923050
   - serializedVersion: 2
-    rgba: 4292570734
+    rgba: 4285427419
   - serializedVersion: 2
-    rgba: 4290920512
+    rgba: 4282400962
   - serializedVersion: 2
-    rgba: 4286917162
+    rgba: 4280953477
   - serializedVersion: 2
-    rgba: 4294957450
+    rgba: 4287289855
   - serializedVersion: 2
-    rgba: 4293436221
+    rgba: 4282229736
   - serializedVersion: 2
-    rgba: 4286209076
+    rgba: 4281621626
   ink:
     serializedVersion: 2
     rgba: 4278716941
   paperWhite:
     serializedVersion: 2
-    rgba: 4293980400
+    rgba: 4290822336

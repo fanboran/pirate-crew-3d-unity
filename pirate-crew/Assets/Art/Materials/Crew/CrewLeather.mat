@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: CrewLeather
-  m_Shader: {fileID: 4800000, guid: af1e24d1697f7b24ea8e2591d49ddf22, type: 3}
+  m_Shader: {fileID: 4800000, guid: f3355f5903de4b7429ddf7124384477c, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -16,13 +16,17 @@ Material:
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
+  m_CustomRenderQueue: 2000
   stringTagMap: {}
   disabledShaderPasses: []
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
+    - _BumpMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _DetailBumpMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -31,26 +35,42 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _DitherPattern:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _AAScale: 1
+    - _BumpScale: 1
     - _DashFrequency: 150
     - _DashSpeed: 5
     - _DebugMode: 0
     - _DetailBumpScale: 0
     - _DetailNoiseScale: 0.1
     - _DetailNoiseStrength: 0
+    - _DitherMode: 0
+    - _DitherPatternSize: 4
+    - _DitherStrength: 0
+    - _MainLightLevel: 3
     - _Metallic: 0
+    - _NormalEdgeLevel: 0.5
+    - _NormalEdgeThreshold: 0.5
     - _OutlineAlpha: 1
     - _OutlineDistanceAttenuation: 0.4
     - _OutlineExpandMode: 0
+    - _OutlinePixels: 1
     - _OutlineState: 0
     - _OutlineWidth: 0.01
     - _OutlineWidthHover: 0.0042
     - _OutlineWidthSelected: 0.01
-    - _Smoothness: 0.35
+    - _Priority: 0
+    - _Smoothness: 0.25
+    - _SnapToPixelGrid: 1
     m_Colors:
     - _BaseColor: {r: 0.545, g: 0.369, b: 0.235, a: 1}
     - _OutlineColor: {r: 0.286, g: 0.851, b: 0.839, a: 0}
     - _OutlineColorHover: {r: 1, g: 1, b: 1, a: 0.22}
     - _OutlineColorSelected: {r: 0.286, g: 0.851, b: 0.839, a: 0.949}
+    - _RimLightColor: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []
