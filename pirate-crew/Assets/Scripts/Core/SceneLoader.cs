@@ -196,7 +196,6 @@ namespace PirateCrew.Core
             _overlayCanvas = canvasGo.GetComponent<Canvas>();
             _overlayCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
             _overlayCanvas.sortingOrder = OverlaySortingOrder;
-            _overlayCanvas.pixelPerfect = true;
 
             var imageGo = new GameObject("FadeImage", typeof(Image));
             imageGo.transform.SetParent(canvasGo.transform, false);

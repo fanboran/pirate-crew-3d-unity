@@ -10,9 +10,9 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// 组件展示**实机调试窗口**的场景构建（<see cref="ScenePath"/>）：
     /// 场景内容刻意最小——一台纯色清屏的相机 + 一个 <see cref="UiShowcaseBoot"/>，
-    /// 页面全部由运行时建（与采集链路同一份 <see cref="UiGalleryPage"/>），场景里没有
+    /// 页面全部由运行时建（与采集链路同一份 <see cref="PirateCrew.UI.Skin.PixelShowcasePage"/>），场景里没有
     /// 要手维护的 UI 层级。菜单：
-    ///   · 构建：生成/刷新场景 + 登记 Build Settings；
+    ///   · 构建：生成/刷新场景（不登记 Build Settings——演示场景不随构建发布）；
     ///   · 构建并播放：构建完直接进 Play（= 创始人要的"专门开一个实机调试窗口"）；
     ///   · 采集实机截图：命令行出口（带图形的编辑器进程，非 batchmode——UGUI 截图
     ///     需要真渲染），落 <c>export/ui-pixel-4a/showcase-live.png</c> 后退出进程。
@@ -42,7 +42,7 @@ namespace PirateCrew.EditorTools
 
             Directory.CreateDirectory("Assets/Scenes");
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), ScenePath);
-            RegisterInBuildSettings();
+            // 出包注册已删（清理波裁决：演示场景不随构建发布；本场景仅供编辑器内验收对拍）。
             Debug.Log("[UiShowcaseSceneSetup] 组件展示场景已构建：" + ScenePath);
         }
 
