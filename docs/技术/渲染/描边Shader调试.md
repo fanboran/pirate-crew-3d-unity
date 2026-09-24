@@ -371,15 +371,16 @@ dotnet build VerifyEditorOutline.csproj
 
 ### 6.2 全屏后处理描边（代码保留，**当前未启用**）
 
-`OutlineRendererFeature` 仍然挂在 `Assets/Settings/URP/PC_Balanced_Renderer.asset` 上且 `isActive=true`，
-但它的 `maskLayer.m_Bits` 已从调试期的 `4294967295`（Everything）**收窄为 `0`（Nothing）**。
+`OutlineRendererFeature` 当前**未挂到任何 URP Renderer 资产**（已裁决退役，出处：
+`docs/技术/美术翻新-等距像素卡通立项任务书.md` 的 PBR 处置表 M2b 行）。
 
-- 原因：mask Pass 会把 `maskLayer` 上的**全部不透明物体**画成白剪影再做 Sobel，`Everything` 会把地面也算进去，
+- mask Pass 会把 `maskLayer` 上的**全部不透明物体**画成白剪影再做 Sobel，`Everything` 会把地面也算进去，
   于是整屏边缘（含地平线）都被描成青色虚线，既污染观感也污染调试截图。`OutlineRendererFeature.cs` 的注释本来就写着
-  "默认 Everything 只是便于立刻看到效果（调试），正式使用请只勾选单位所在 Layer"——现在按该说明收窄。
+  "默认 Everything 只是便于立刻看到效果（调试），正式使用请只勾选单位所在 Layer"——重新启用前必须先按该说明收窄。
 - 本工程的**选中反馈已由 6.1 的 inverted hull 承担**（hover/selected 两态合并进同一材质，是刻意的翻译简化），
   所以后处理这条路径目前是冗余的；保留代码是为了将来若"选中"想要更粗的 Sobel 虚线轮廓时可以用。
-- 要启用：新建一个只放"可选中单位"的 Layer → 运行时把选中单位切到该 Layer → 把 `maskLayer` 指到它。
+- 要启用：在目标 URP Renderer 资产上"Add Renderer Feature"挂载本 Feature → 新建一个只放"可选中单位"的
+  Layer → 运行时把选中单位切到该 Layer → 把 `maskLayer` 指到它。
   启用前请先确认它与 6.1 不会同时画（否则会出现两套描边叠加）。
 
 ### 6.3 程序集说明
@@ -396,7 +397,7 @@ dotnet build VerifyEditorOutline.csproj
 
 1. ~~真实截图未产出~~ → **已产出并核验**（见文首与 `docs/images/outline-debug/`）。
 2. `PirateOutline.shader` **没有 ShadowCaster Pass**：单位材质换成它之后单位不投影，且本体光照是 shader 内的简单 Lambert + SH（不再是 URP/Lit）。若观感验收要求阴影/更丰富光照，补一个 `LightMode = "ShadowCaster"` 的极简 Pass（注意 `_LightDirection` / `ApplyShadowBias`），或改成"本体保持 URP/Lit + 描边走复制网格"（代价是共面 z-fighting 与网格复制管理）。
-3. ~~`OutlineRendererFeature` 需要手工加到 URP Renderer 资产~~ → **已挂上**（`PC_Balanced_Renderer.asset`，`isActive=true`）。但 `maskLayer` 已收窄为 `0`，等于当前不参与渲染，见 §6.2。
+3. ~~`OutlineRendererFeature` 需要手工加到 URP Renderer 资产~~ → **未挂载**（已裁决退役，代码保留作未来"Sobel 虚线轮廓"备选，见 §6.2 与立项任务书 PBR 处置表 M2b 行），当前不参与渲染。
 4. `outline.gdshader` 的 `outline_near_boost`（近处增粗）未移植。
 5. 后处理描边的 `_DashLength/_DashGap` 是**像素**单位，分辨率变化时观感会变；若要分辨率无关需改成 NDC 单位。
 6. **实体描边的虚线在小单位上偏碎**（见 §三 末尾的实测记录）——观感问题，留验收决定。

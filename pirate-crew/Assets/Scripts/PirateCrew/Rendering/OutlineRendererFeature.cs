@@ -19,6 +19,11 @@ namespace PirateCrew.Rendering
     ///   Godot：SubViewport + 独立 mask 相机 + selection_mask_viewport 手工接纹理。
     ///   URP ：RendererFeature 自己分配 mask RT 并直接用 overrideMaterial 画，少一个相机。
     ///
+    /// 【处置状态（已裁决）】本 Feature 已退役：当前未挂到任何 URP Renderer 资产
+    ///   （裁决出处：docs/技术/美术翻新-等距像素卡通立项任务书.md 的 PBR 处置表 M2b 行）。
+    ///   代码有意保留，作为未来「Sobel 虚线轮廓」的备选选项
+    ///   （出处：docs/技术/渲染/描边Shader调试.md §6.2）；下方【使用前提】仅在未来重新启用时适用。
+    ///
     /// 【使用前提（务必阅读 docs/描边Shader调试.md）】
     ///   - 在 URP Renderer 资产（Assets/Settings/URP/PC_*_Renderer.asset）Inspector 里
     ///     "Add Renderer Feature" 添加本 Feature，并指定 maskLayer / 描边色。
