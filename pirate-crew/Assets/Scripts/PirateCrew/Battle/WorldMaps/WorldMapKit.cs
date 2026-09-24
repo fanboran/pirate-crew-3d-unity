@@ -142,4 +142,44 @@ namespace PirateCrew.Battle.WorldMaps
             HorizonFeatures = horizonFeatures;
         }
     }
+
+    /// <summary>
+    /// kit 件名常量——散布/混比字符串的**唯一出处**。资产名是 <see cref="WorldMapAssetSet"/>
+    /// 的查表键，字面量散落在规则层（<see cref="ReefFieldRules"/> 的每图混比）与装配层
+    /// （<see cref="WorldMapComposer"/> 的站面装饰散布池）时，改名要全文搜多处、
+    /// 漏一处就静默缺件（装配层对查表落空的件是静默跳过）。消费方用
+    /// <c>using static</c> 引用，保持混比行的紧凑（同 SketchButton 对 StickTokens 的用法）。
+    /// </summary>
+    public static class WorldMapKitParts
+    {
+        /// <summary>小礁石（低带碎岩；红树海读成礁根/泥滩点礁）。</summary>
+        public const string RockS = "RockS";
+
+        /// <summary>中礁石（中带碎岩/草带点石）。</summary>
+        public const string RockM = "RockM";
+
+        /// <summary>大石（火山岩/海蚀柱，稀疏而块头大）。</summary>
+        public const string RockL = "RockL";
+
+        /// <summary>礁盘（平铺，环礁泻湖的浅滩感）。</summary>
+        public const string RockFlat = "RockFlat";
+
+        /// <summary>船板残片（沉船墓场/红树海的碎料）。</summary>
+        public const string Driftwood = "Driftwood";
+
+        /// <summary>遗迹断柱（沉港/沉都）。</summary>
+        public const string RuinColumnBroken = "RuinColumnBroken";
+
+        /// <summary>遗迹残拱（沉都之门）。</summary>
+        public const string RuinArch = "RuinArch";
+
+        /// <summary>草丛（沙/草带低矮植被）。</summary>
+        public const string GrassTuft = "GrassTuft";
+
+        /// <summary>蕨丛（沙/草带中层植被）。</summary>
+        public const string FernClump = "FernClump";
+
+        /// <summary>斜棕榈（草带乔木）。</summary>
+        public const string PalmLean = "PalmLean";
+    }
 }

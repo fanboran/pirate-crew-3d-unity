@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using PirateCrew.Rendering.Pixelart;
 using PirateCrew.Water;
 using UnityEngine;
+using static PirateCrew.Battle.WorldMaps.WorldMapKitParts;
 
 namespace PirateCrew.Battle.WorldMaps
 {
@@ -200,9 +201,9 @@ namespace PirateCrew.Battle.WorldMaps
             uint h = (uint)(seed * 2654435761u);
             // 密度 4-6 件/站面（交接 §20 既定方向：原 2-4 件在 150-280u 的大图上看不出层次）。
             int count = 4 + (int)((h >> 17) % 3u);
-            string[] lowPool = { "GrassTuft", "RockS", "FernClump" };
-            string[] midPool = { "FernClump", "PalmLean", "RockM", "GrassTuft" };
-            string[] highPool = { "RockM", "RockS" };
+            string[] lowPool = { GrassTuft, RockS, FernClump };
+            string[] midPool = { FernClump, PalmLean, RockM, GrassTuft };
+            string[] highPool = { RockM, RockS };
             var pool = box.TopY <= 1.5f ? lowPool : (box.TopY <= 3.0f ? midPool : highPool);
 
             float rad = box.YawDeg * Mathf.Deg2Rad;
