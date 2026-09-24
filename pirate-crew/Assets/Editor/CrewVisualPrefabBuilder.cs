@@ -62,7 +62,6 @@ namespace PirateCrew.EditorTools
     /// ├ BoxCollider size=(1,1,1)                  ← 世界 AABB 0.375×0.5×0.375（碰撞契约不变）
     /// ├ Rigidbody mass=1 drag=0 angularDrag=0.05 useGravity=on
     /// ├ PirateBase / UnitOutlineBinder / CrewVisualAnimator
-    /// ├ ContactShadow（接触阴影面片，脚底上方 0.02；见 §N7）
     /// └ Visual（CrewVisualRig）
     ///    └ BodyPivot（脚底枢轴：整身 bob / 倒地 / 落水下沉）
     ///       └ TorsoPivot（与 BodyPivot 同在脚底：呼吸缩放 + 前倾）
@@ -98,8 +97,6 @@ namespace PirateCrew.EditorTools
         const string CrewMaterialFolder = "Assets/Art/Materials/Crew";
         const string CrewTextureFolder = "Assets/Art/Textures/Crew";
         const string CrewPrefabFolder = "Assets/Prefabs/PirateCrew/Crew";
-
-        const string UnlitShaderName = "Universal Render Pipeline/Unlit";
 
         /// <summary>单位根缩放：与 PirateBase.prefab 一致，使 BoxCollider(1,1,1) 的世界 AABB = 0.375×0.5×0.375。</summary>
         static readonly Vector3 UnitRootScale = new Vector3(12f / 32f, 16f / 32f, 12f / 32f);
@@ -174,17 +171,6 @@ namespace PirateCrew.EditorTools
         /// </summary>
         static readonly float HeadSphereCenterY = 1.50f * GodotScale;
 
-        /// <summary>
-        /// 接触阴影面片直径（世界单位）= 目标视觉总高 × 1.1 ≈ **2.035**。
-        /// 旧口径 `ContactShadowDecal.DefaultDiameter = 0.6` ≈ 旧总高 0.55 × 1.1；本次随角色放大按**同一比例**
-        /// 同步（≈ 两件式圆台柱底径 0.92 的 2.21 倍），保持"脚下压暗一圈、不外溢邻格"的观感。
-        ///
-        /// 【为什么不改 `ContactShadowDecal.DefaultDiameter`】那是 Scripts 侧的常量（本轮不在改动域内），
-        ///   只作 `OnValidate` 提醒与参数留档；预制体真值由本常量写进 decal 的 `diameter` 序列化字段
-        ///   与 Transform.localScale（见 <see cref="AddContactShadow"/>）。
-        /// </summary>
-        static readonly float ContactShadowDiameter = TargetUnitHeight * 1.1f;
-
         /// <summary>圆台柱侧壁分段（任务给定 16；三角面 = 侧壁 32 + 上下盖 32 = 64）。</summary>
         const int GodotBodySides = 16;
 
@@ -205,34 +191,22 @@ namespace PirateCrew.EditorTools
         /// <summary>两件式 Head 圆球（r 0.35，16×12）。</summary>
         const string HeadSphereKey = "CrewHeadSphere";
 
-        /// <summary>接触阴影面片（1×1 XY 面，法线 +Z；装配时绕 X 转 −90° 平铺）。</summary>
-        const string ContactShadowQuadKey = "CrewContactShadowQuad";
-
-        const string ContactShadowMaterialFileName = "CrewContactShadow";
-        const string ContactShadowTextureFileName = "CrewContactShadow.png";
-
         // ------------------------------------------------------------------
         // 选中反馈（像素路径）：Crew 材质不再携带描边壳参数
         // 反壳描边（PirateOutline + _OutlineState/_DashFrequency/_OutlineWidth* 一族）
         // 已随 PBR 根除退役，反馈由像素路径的屏幕空间描边承担；材质侧只保留
-        // 物体配方（PixelartMaterialFactory.Configure）与接触阴影（URP/Unlit 共系件）。
+        // 物体配方（PixelartMaterialFactory.Configure）。
         // ------------------------------------------------------------------
-
-        /// <summary>接触阴影面片色：近黑 + 中心 α 0.45（边缘 α 由贴图径向渐变收到 0）。</summary>
-        static readonly Color ContactShadowColor = new Color(0.015f, 0.015f, 0.020f,
-            ContactShadowDecal.DefaultCenterAlpha);
 
         // ------------------------------------------------------------------
         // 追加资产打包
         // ------------------------------------------------------------------
 
-        /// <summary>本文件生成的两件式网格 + 接触阴影件（生成后注入 <see cref="BuildProfessionPrefab"/>）。</summary>
+        /// <summary>本文件生成的两件式网格件（生成后注入 <see cref="BuildProfessionPrefab"/>）。</summary>
         struct VisualAddOns
         {
             public Mesh BodyFrustum;
             public Mesh HeadSphere;
-            public Mesh ContactShadowQuad;
-            public Material ContactShadowMaterial;
         }
 
         // ------------------------------------------------------------------
@@ -302,14 +276,13 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // 追加网格（两件式造型 + 接触阴影）
+        // 追加网格（两件式造型）
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 往网格表里追加本文件需要的三件网格：
+        /// 往网格表里追加本文件需要的两件网格：
         /// · <see cref="BodyFrustumKey"/>：按世界尺寸（不是单位尺寸）生成，装配时缩放恒为 1 —— 尺寸即规格值；
-        /// · <see cref="HeadSphereKey"/>：同样按世界半径生成；
-        /// · <see cref="ContactShadowQuadKey"/>：1×1 的 XY 面（法线 +Z），预制体里绕 X 转 −90° 平铺后缩放。
+        /// · <see cref="HeadSphereKey"/>：同样按世界半径生成。
         /// </summary>
         static void InjectAddOnMeshes(Dictionary<string, MeshData> meshData)
         {
@@ -317,25 +290,6 @@ namespace PirateCrew.EditorTools
                 BodyTopRadius, BodyBottomRadius, BodyHeight, GodotBodySides);
             meshData[HeadSphereKey] = CrewMeshFactory.LowPolySphere(
                 HeadSphereRadius, GodotHeadSegments, GodotHeadRings);
-            meshData[ContactShadowQuadKey] = BuildQuadMeshData();
-        }
-
-        static MeshData BuildQuadMeshData()
-        {
-            var vertices = new[]
-            {
-                new Vector3(-0.5f, -0.5f, 0f),
-                new Vector3(0.5f, -0.5f, 0f),
-                new Vector3(0.5f, 0.5f, 0f),
-                new Vector3(-0.5f, 0.5f, 0f),
-            };
-            var normals = new[] { Vector3.forward, Vector3.forward, Vector3.forward, Vector3.forward };
-            var uvs = new[]
-            {
-                new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(0f, 1f),
-            };
-            var triangles = new[] { 0, 1, 2, 0, 2, 3 };   // 逆时针 → 正面朝 +Z
-            return new MeshData(vertices, normals, uvs, triangles);
         }
 
         // ------------------------------------------------------------------
@@ -418,129 +372,7 @@ namespace PirateCrew.EditorTools
             {
                 BodyFrustum = meshes[BodyFrustumKey],
                 HeadSphere = meshes[HeadSphereKey],
-                ContactShadowQuad = meshes[ContactShadowQuadKey],
-                ContactShadowMaterial = BuildContactShadowMaterial(),
             };
-        }
-
-        /// <summary>
-        /// 接触阴影材质（N7）：URP/Unlit 透明，贴图 = 程序化径向渐变，颜色 = 近黑（α 由贴图 × _BaseColor.a）。
-        /// 用 Unlit 而非 Lit，因为阴影面片不该再被主光照亮一次（否则逆光时会变成一块亮斑）。
-        /// </summary>
-        static Material BuildContactShadowMaterial()
-        {
-            EnsureFolder("Assets/Art/Textures");
-            EnsureFolder(CrewTextureFolder);
-            Texture2D radial = BuildContactShadowTexture();
-
-            Shader unlit = Shader.Find(UnlitShaderName);
-            if (unlit == null)
-            {
-                Debug.LogWarning("[CrewVisualPrefabBuilder] 未找到 shader " + UnlitShaderName
-                    + "，接触阴影退回 Unlit/Transparent（贴图/颜色仍生效）。");
-                unlit = Shader.Find("Unlit/Transparent");
-            }
-
-            string path = CrewMaterialFolder + "/" + ContactShadowMaterialFileName + ".mat";
-            Material material = LoadOrCreateMaterial(path, ContactShadowMaterialFileName, unlit);
-
-            if (material.HasProperty("_BaseMap"))
-                material.SetTexture("_BaseMap", radial);
-            if (material.HasProperty("_MainTex"))
-                material.SetTexture("_MainTex", radial);
-            if (material.HasProperty("_BaseColor"))
-                material.SetColor("_BaseColor", ContactShadowColor);
-
-            // URP/Unlit 的透明档（等价于 Inspector 里把 Surface Type 切成 Transparent、Blending 选 Alpha）。
-            material.SetOverrideTag("RenderType", "Transparent");
-            if (material.HasProperty("_Surface"))
-                material.SetFloat("_Surface", 1f);
-            if (material.HasProperty("_Blend"))
-                material.SetFloat("_Blend", 0f);
-            if (material.HasProperty("_SrcBlend"))
-                material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            if (material.HasProperty("_DstBlend"))
-                material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            if (material.HasProperty("_ZWrite"))
-                material.SetFloat("_ZWrite", 0f);
-            if (material.HasProperty("_Cull"))
-                material.SetFloat("_Cull", (float)UnityEngine.Rendering.CullMode.Back);
-            if (material.HasProperty("_AlphaClip"))
-                material.SetFloat("_AlphaClip", 0f);
-            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            material.DisableKeyword("_ALPHATEST_ON");
-            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            material.DisableKeyword("_ALPHAMODULATE_ON");
-            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
-
-            EditorUtility.SetDirty(material);
-            return material;
-        }
-
-        /// <summary>
-        /// 程序化生成 64² 径向渐变贴图（白 RGB + 中心 α=1 → 边缘 α=0 的 smoothstep），落成 PNG 资产。
-        ///
-        /// 【为什么用贴图而不是顶点色】免贴图方案要靠 shader 读顶点色，而 URP/Unlit 不读顶点色、
-        /// 自写 shader 又超出本文件允许改动的范围；64² 单通道遮罩成本可忽略，且贴图可手改替换。
-        /// </summary>
-        static Texture2D BuildContactShadowTexture()
-        {
-            const int size = 64;
-            var pixels = new Color32[size * size];
-            for (int y = 0; y < size; y++)
-            {
-                for (int x = 0; x < size; x++)
-                {
-                    float u = (x + 0.5f) / size - 0.5f;
-                    float v = (y + 0.5f) / size - 0.5f;
-                    float d = Mathf.Clamp01(new Vector2(u, v).magnitude / 0.5f);  // 0=中心, 1=外接圆
-                    float t = 1f - d;
-                    float alpha = t * t * (3f - 2f * t);                          // smoothstep 径向渐变
-                    pixels[y * size + x] = new Color32(255, 255, 255,
-                        (byte)Mathf.RoundToInt(Mathf.Clamp01(alpha) * 255f));
-                }
-            }
-
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "CrewContactShadow" };
-            texture.SetPixels32(pixels);
-            texture.Apply();
-
-            string path = CrewTextureFolder + "/" + ContactShadowTextureFileName;
-            File.WriteAllBytes(path, texture.EncodeToPNG());
-            Object.DestroyImmediate(texture);
-            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
-
-            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
-            if (importer != null)
-            {
-                importer.textureType = TextureImporterType.Default;
-                importer.alphaSource = TextureImporterAlphaSource.FromInput;
-                importer.alphaIsTransparency = true;
-                importer.mipmapEnabled = false;          // 贴地小面片，不需要 mip
-                importer.wrapMode = TextureWrapMode.Clamp;
-                importer.filterMode = FilterMode.Bilinear;
-                importer.sRGBTexture = false;            // 它是 α 遮罩：不做 sRGB→linear，否则渐变边缘会变硬
-                importer.maxTextureSize = size;
-                importer.textureCompression = TextureImporterCompression.Uncompressed;
-                importer.SaveAndReimport();
-            }
-
-            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-        }
-
-        static Material LoadOrCreateMaterial(string path, string materialName, Shader shader)
-        {
-            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
-            if (material == null)
-            {
-                material = new Material(shader) { name = materialName };
-                AssetDatabase.CreateAsset(material, path);
-            }
-            else if (shader != null && material.shader != shader)
-            {
-                material.shader = shader;
-            }
-            return material;
         }
 
         static CrewVisualAssetSet BuildAssetSet(Dictionary<string, Mesh> meshes, Material[] materials)
@@ -614,9 +446,6 @@ namespace PirateCrew.EditorTools
             // 只把"零件"部分整体换掉：删掉 legs/boots/arms/hands/hats/face/held 后重建 Body + Head。
             ApplyGodotTwoPieceSilhouette(rig, assetSet, addOns);
 
-            // N7：脚底接触阴影面片（地面贴片，非角色部件；单位根的子物体 → 跟随位移，零运行时代码）。
-            AddContactShadow(root.transform, addOns);
-
             // 阵营色部件：显式写进 binder，并拆掉必然变成 missing script 的运行时标记组件。
             Renderer[] tintRenderers = CollectAndStripTintMarkers(root);
             if (tintRenderers.Length != 1)
@@ -633,11 +462,11 @@ namespace PirateCrew.EditorTools
                     triangles += mesh.triangles.Length / 3;
             }
 
-            // 部件 renderer 数（排除贴地接触阴影面片）：两件式下恒为 2（Body + Head），供判据 R-1 核对。
+            // 部件 renderer 数：两件式下恒为 2（Body + Head），供判据 R-1 核对。
             var partRenderers = root.GetComponentsInChildren<MeshRenderer>(true);
             for (int i = 0; i < partRenderers.Length; i++)
             {
-                if (partRenderers[i] != null && partRenderers[i].GetComponent<ContactShadowDecal>() == null)
+                if (partRenderers[i] != null)
                     rendererCount++;
             }
             if (rendererCount != 2)
@@ -788,52 +617,6 @@ namespace PirateCrew.EditorTools
         static void ClearChildren(Transform parent)
         {
             StripChildrenExcept(parent, null);
-        }
-
-        // ------------------------------------------------------------------
-        // N7：脚底接触阴影面片
-        // ------------------------------------------------------------------
-
-        /// <summary>
-        /// 在单位根下挂"ContactShadow"面片（判据 A-6 / Art Bible §4.1 `:239`）。
-        ///
-        /// 【贴地口径】单位根的 local y = −0.5 就是脚底平面：脚底 world y = rootY + rootScale.y × Visual.localY
-        /// = rootY − 0.25，而 rootScale.y = 0.5 → 局部 −0.5。出生逻辑把单位摆在平台顶面，故这里固定
-        /// −0.5 + 0.02/0.5（抬高 0.02 世界单位防 z-fighting），不需要每帧查询地形高度。
-        ///
-        /// 【缩放口径】根是非均匀缩放（0.375/0.5/0.375）；面片绕 X 转 −90° 平铺后，面内 X/Z 都被 0.375 缩放，
-        /// 故 X/Y 用同一系数 → 仍是正圆，且不产生剪切（旋转只把局部 Y 轴映射到世界 Z 轴）。
-        /// </summary>
-        static MeshRenderer AddContactShadow(Transform root, VisualAddOns addOns)
-        {
-            var go = new GameObject("ContactShadow");
-            go.transform.SetParent(root, false);
-
-            float planarScale = ContactShadowDiameter / UnitRootScale.x;
-            go.transform.localPosition = new Vector3(0f,
-                -0.5f + ContactShadowDecal.DefaultGroundOffset / UnitRootScale.y, 0f);
-            go.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
-            go.transform.localScale = new Vector3(planarScale, planarScale, 1f);
-
-            var filter = go.AddComponent<MeshFilter>();
-            filter.sharedMesh = addOns.ContactShadowQuad;
-
-            var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = addOns.ContactShadowMaterial;
-            // 面片自身不投影、不接收阴影/探针：它只是一层"压暗"叠加，不参与光照链路。
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-            renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
-            renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
-
-            var decal = go.AddComponent<ContactShadowDecal>();
-            var decalSo = new SerializedObject(decal);
-            SetFloat(decalSo, "diameter", ContactShadowDiameter);
-            SetFloat(decalSo, "groundOffset", ContactShadowDecal.DefaultGroundOffset);
-            SetFloat(decalSo, "centerAlpha", ContactShadowColor.a);
-            decalSo.ApplyModifiedPropertiesWithoutUndo();
-
-            return renderer;
         }
 
         // ------------------------------------------------------------------

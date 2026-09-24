@@ -306,7 +306,6 @@ namespace PirateCrew.Rendering.Pixelart
 
             string name = source.name ?? string.Empty;
             return name.StartsWith("Fx_")
-                || name.IndexOf("ContactShadow", System.StringComparison.Ordinal) >= 0
                 || name.IndexOf("Trajectory", System.StringComparison.Ordinal) >= 0
                 || name.IndexOf("Glow", System.StringComparison.Ordinal) >= 0
                 || name.IndexOf("SelectionRing", System.StringComparison.Ordinal) >= 0;

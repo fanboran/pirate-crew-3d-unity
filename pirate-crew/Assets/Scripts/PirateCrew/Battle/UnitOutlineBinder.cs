@@ -49,9 +49,6 @@ namespace PirateCrew.Battle
     /// 受击 0.08s 内把 <c>_BaseColor</c> 乘 (1+flash)，复位时写回材质原色。
     /// 白闪仍在本类的 MPB 通道里完成，避免两个组件各写一份 MPB 互相覆盖。
     ///
-    /// 【接触阴影面片必须排除】<see cref="ContactShadowDecal"/> 是贴地半透明 quad，
-    /// 描边会让它变成一圈方形轮廓、染色会让它跟队伍变红/变蓝（详见该类的注释）。
-    ///
     /// 【r4 复验"选中描边变少"的归因结论（不要再往本类的收集口径上找）】
     ///   r4 实测 unit-closeup 的选中青色像素 265px（r3 同机位 823px），但**本类的口径没有问题**：
     ///   ① 部件材质全部走 <c>PirateOutline</c>（13 个 <c>Assets/Art/Materials/Crew/Crew*.mat</c>
@@ -70,13 +67,12 @@ namespace PirateCrew.Battle
     ///   两件式（Body 高 0.357、Head 直径 0.208）下这两个部件都远大于 OFF 带，该风险已消失。
     ///
     /// 【本类的职责边界（r5 起）】读状态 → 写属性 → 自检：
-    ///   · 收集（全量扫描、只排除接触阴影面片）；收集为空**显式报错**（不再静默）；
+    ///   · 收集（全量扫描）；收集为空**显式报错**（不再静默）；
     ///   · 逐 renderer 写 MPB 覆盖 <c>_OutlineState</c>（+ 阵营色部件写 <c>_BaseColor</c>）；
     ///   · 周期性抽检：MPB 被外部成分（对象池复用/别的组件整块覆盖）清掉时强制重写并告警。
     ///
     /// 【"部件选中不发青"的取证结论（不要再往"收集漏了 / 材质缺属性"上找）】
-    ///   逐部件 YAML 对照证明：除 <c>ContactShadow</c>（CrewContactShadow.mat，无 _OutlineState，
-    ///   且被本类显式排除）外，所有部件材质都命中带 <c>_OutlineState</c> 的 Crew 材质
+    ///   逐部件 YAML 对照证明：所有部件材质都命中带 <c>_OutlineState</c> 的 Crew 材质
     ///   （两件式下：<c>Body</c> = CrewTeamCloth、<c>Head</c> = CrewWood，两者都带描边 Pass）。
     ///   也排除了"部件 inactive"：预制体里所有部件 <c>m_IsActive=1</c>、MeshRenderer <c>m_Enabled=1</c>；
     ///   且 <c>GetComponentsInChildren&lt;Renderer&gt;(true)</c> 本就含 inactive 子物体，MPB 写到
@@ -217,9 +213,6 @@ namespace PirateCrew.Battle
             {
                 Renderer r = all[i];
                 if (r == null)
-                    continue;
-                // 贴地接触阴影面片不是角色部件：不描边、不染队伍色（见 ContactShadowDecal 注释）。
-                if (r.GetComponent<ContactShadowDecal>() != null)
                     continue;
                 list.Add(r);
             }
@@ -452,7 +445,7 @@ namespace PirateCrew.Battle
                 _warnedEmptyCollection = true;
                 Debug.LogError("[UnitOutlineBinder] " + name + " 一个描边 renderer 都没收集到"
                     + "（子层级里没有 Renderer，或全被排除了）。选中/悬停不会画出任何描边——"
-                    + "请检查预制体的 Visual 层级与 ContactShadowDecal 挂点。");
+                    + "请检查预制体的 Visual 层级。");
                 return;
             }
 
