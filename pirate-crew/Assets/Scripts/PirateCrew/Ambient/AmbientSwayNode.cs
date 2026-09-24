@@ -36,7 +36,6 @@ namespace PirateCrew.Ambient
         Quaternion _baseRotation;
 
         Transform _billboard;
-        Transform _cameraTransform;
 
         float _rippleInterval;
         float _rippleTimer;

@@ -163,19 +163,6 @@ namespace PirateCrew.UI
             }
         }
 
-        static string[] DisplayNames(System.Collections.Generic.IReadOnlyList<string> crewIds)
-        {
-            var names = new string[crewIds.Count];
-            for (int i = 0; i < crewIds.Count; i++)
-            {
-                names[i] = CrewRosterCatalog.TryGet(crewIds[i], out CrewRosterEntry entry)
-                    ? entry.DisplayName
-                    : crewIds[i];
-            }
-
-            return names;
-        }
-
         // ------------------------------------------------------------------
         // 按钮
         // ------------------------------------------------------------------
