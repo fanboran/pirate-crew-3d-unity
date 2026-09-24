@@ -122,8 +122,14 @@ namespace PirateCrew.UI
             {
                 CrewRosterEntry entry = CrewManagementApi.AllCrews[i];
                 bool unlocked = CrewManagementApi.IsUnlocked(entry.Id);
+                bool active = unlocked && CrewManagementApi.IsActive(entry.Id);
 
-                RectTransform row = RuntimeUiBuilder.CreateRow(crewListContainer, i, RowHeight);
+                // 行态 = theme list_item 三分支：锁定 = 禁用暗底；已上阵 = 选中金底（深字）；其余常态。
+                ListItemState rowState = !unlocked ? ListItemState.Disabled
+                    : active ? ListItemState.Selected
+                    : ListItemState.Normal;
+
+                RectTransform row = RuntimeUiBuilder.CreateRow(crewListContainer, i, RowHeight, rowState);
 
                 string label = unlocked
                     ? UiTextRules.CrewRow(entry.DisplayName,
@@ -131,13 +137,10 @@ namespace PirateCrew.UI
                         CrewManagementApi.Progression.GetXp(entry.Id))
                     : UiTextRules.CrewRowLocked(entry.DisplayName, entry.UnlockStars);
 
-                // 行底 = Plate(Light) 暖白片：字色取该 tone 上的可读档（墨字），锁定的行整体压 alpha。
-                Color rowTextColor = PixelSkin.TextColorOn(PixelTone.Light);
+                // 字色与行态同源（theme list_item：常态 text 灰 / 选中金底深字 / 禁用 disabled）。
                 TextMeshProUGUI text = RuntimeUiBuilder.CreateText("Label", row, label, UiSkin.Font.Body,
                     TextAlignmentOptions.MidlineLeft,
-                    unlocked ? rowTextColor
-                    : UiSkin.WithAlpha(rowTextColor, Stick.SketchButton.DisabledAlpha),
-                    bodyFont);
+                    RuntimeUiBuilder.ListItemTextColor(rowState), bodyFont);
 
                 Button action = RuntimeUiBuilder.CreateButton("Action", row, string.Empty, UiSkin.Font.Body,
                     bodyFont);
@@ -146,7 +149,6 @@ namespace PirateCrew.UI
 
                 if (unlocked)
                 {
-                    bool active = CrewManagementApi.IsActive(crewId);
                     if (actionLabel != null)
                         actionLabel.text = active ? UiStrings.CrewRemove : UiStrings.CrewEnlist;
                     action.onClick.AddListener(() => OnToggleActive(crewId, action));

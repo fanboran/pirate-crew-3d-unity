@@ -313,7 +313,7 @@ namespace PirateCrew.EditorTools
             // 底板：SketchPanel Dark → **带标题窗体**（theme window：顶 15u 标题带）。
             SketchPanel card = SketchPanel.Create(root.transform, "SettingsCard",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(427f, 300f), SketchPanel.Tone.Dark);
+                new Vector2(427f, 322f), SketchPanel.Tone.Dark);
             card.Titled = true;   // 换 Window 九宫格（标题带随切片落位）
             RectTransform panel = (RectTransform)card.transform;
 
@@ -329,19 +329,23 @@ namespace PirateCrew.EditorTools
 
             var result = new SettingsPanelResult();
 
-            // 行容器：六行流式纵排（缝 3u）——行距/行位由布局器排，不再手算 pitch 坐标。
+            // 行容器：八行流式纵排（缝 3u）——两条蓝字分组线 + 四条音量滑条 + 两组选项块。
+            // 行距/行位由布局器排，不再手算 pitch 坐标。高 212 = 2 线×12 + 6 行×27 + 7 缝×3 + 余 5。
             RectTransform rows = UiKit.CreateRect("Rows", panel);
             rows.pivot = new Vector2(0.5f, 1f);
-            UiKit.SetAnchored(rows, new Vector2(0.5f, 1f), new Vector2(383f, 190f), new Vector2(0f, -40f));
+            UiKit.SetAnchored(rows, new Vector2(0.5f, 1f), new Vector2(383f, 212f), new Vector2(0f, -40f));
             UiLayout.VBox(rows, 3, default(UiPadding));
 
-            // 音量四行（滑条实时改 AudioService，关面板时统一落盘）。
+            // 音频组（theme separator_label 蓝字分组线）+ 音量四行（滑条实时改 AudioService，
+            // 关面板时统一落盘）。
+            BuildSettingsGroupLabel(rows, "GroupAudio", UiStrings.SettingsGroupAudio, hand);
             result.MasterSlider = BuildVolumeRow(rows, 0, UiStrings.SettingsFieldVolumeMaster, hand);
             result.SfxSlider = BuildVolumeRow(rows, 1, UiStrings.SettingsFieldVolumeSfx, hand);
             result.MusicSlider = BuildVolumeRow(rows, 2, UiStrings.SettingsFieldVolumeMusic, hand);
             result.AmbientSlider = BuildVolumeRow(rows, 3, UiStrings.SettingsFieldVolumeAmbient, hand);
 
-            // 画质档（二选一选项块；选中态由控制器按 VideoSettingsService 刷新）。
+            // 视频组 + 画质档（二选一选项块；选中态由控制器按 VideoSettingsService 刷新）。
+            BuildSettingsGroupLabel(rows, "GroupVideo", UiStrings.SettingsGroupVideo, hand);
             BuildSettingsRow(rows, 4, UiStrings.SettingsFieldQuality, hand,
                 out result.QualityHighButton, out result.QualitySmoothButton,
                 UiStrings.SettingsOptionQualityHigh, UiStrings.SettingsOptionQualitySmooth);
@@ -357,8 +361,10 @@ namespace PirateCrew.EditorTools
                 new Vector2(0f, 54f));
 
             // 恢复默认 / 返回：手绘按钮 Dark 变体；宽 = 标签宽 + 24 艺术像素、高 24 艺术像素（令牌按钮）。
+            // 同排左右对称（x=±100、y=26）：旧恢复默认 x=-300 飞出面板半宽 213、后调 y=76 又压
+            // 「窗口模式」行——实拍两轮修正落位。
             result.RestoreButton = CreateSketchButton("RestoreButton", panel, UiStrings.SettingsRestore,
-                new Vector2(0.5f, 0f), new Vector2(-300f, 76f), ButtonSize(UiStrings.SettingsRestore),
+                new Vector2(0.5f, 0f), new Vector2(-100f, 26f), ButtonSize(UiStrings.SettingsRestore),
                 SketchButtonKind.Dark);
             result.BackButton = CreateSketchButton("SettingsBackButton", panel, UiStrings.Back,
                 new Vector2(0.5f, 0f), new Vector2(100f, 26f), ButtonSize(UiStrings.Back),
@@ -488,6 +494,23 @@ namespace PirateCrew.EditorTools
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
                 new Vector2(383f, SettingsRowHeight), SketchPanel.Tone.Light);
             return (RectTransform)rowPanel.transform;
+        }
+
+        /// <summary>建**蓝字分组线**行（theme horizontal_separator 复刻）：整宽蚀刻线垂直居中 +
+        /// 左侧蓝字（#6e9adb = separator_label，缩进 x=4 设计格）直接压线——线从字隙穿过，
+        /// 与 theme 渲染层级（background → 线 → 字）同构。作为 Rows 的 VBox 行参与流式，高 12。</summary>
+        static void BuildSettingsGroupLabel(Transform rows, string name, string label, TMP_FontAsset hand)
+        {
+            RectTransform row = UiKit.CreateRect(name, rows);
+            row.sizeDelta = new Vector2(383f, 12f);
+
+            SketchSeparator.Create(row, "Line", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(383f, 1f), SketchSeparator.Direction.Horizontal);
+
+            TextMeshProUGUI text = CreateTextExact("Label", row, label, UiSkin.Font.Body,
+                TextAlignmentOptions.MidlineLeft, PixelSkin.Theme.SeparatorLabel, hand);
+            SetAnchored(text.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 12f),
+                new Vector2(AseLayout.Px(AseLayout.SeparatorTextX), 0f));
         }
 
         /// <summary>确认弹窗构建产物。</summary>

@@ -103,6 +103,9 @@ namespace PirateCrew.UI
         /// <summary>船员管理标题。</summary>
         public const string CrewTitle = "船员管理";
 
+        /// <summary>船员管理：名册列表窗体的标题带文字。</summary>
+        public const string CrewRosterTitle = "船员名册";
+
         /// <summary>船员管理顶部概况模板。</summary>
         public const string CrewSummaryFormat = "编成 {0}/{1}：{2}　已拥有 {3}/{4}　总星数 {5}";
 
@@ -221,6 +224,9 @@ namespace PirateCrew.UI
 
         /// <summary>选关标题。</summary>
         public const string LevelTitle = "单人战役";
+
+        /// <summary>选关：关卡列表窗体的标题带文字。</summary>
+        public const string LevelListTitle = "关卡列表";
 
         /// <summary>选关顶部信息模板。</summary>
         public const string LevelHeaderFormat = "{0}　第 {1}/{2} 章　总星数 {3}/{4}";
@@ -462,6 +468,12 @@ namespace PirateCrew.UI
 
         /// <summary>设置项：窗口。</summary>
         public const string SettingsOptionWindowed = "窗口";
+
+        /// <summary>设置分组：音频（theme separator_label 蓝字分组线）。</summary>
+        public const string SettingsGroupAudio = "音频";
+
+        /// <summary>设置分组：视频（theme separator_label 蓝字分组线）。</summary>
+        public const string SettingsGroupVideo = "视频";
 
         /// <summary>设置动作：恢复默认。</summary>
         public const string SettingsRestore = "恢复默认";

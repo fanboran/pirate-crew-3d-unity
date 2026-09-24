@@ -26,8 +26,9 @@ namespace PirateCrew.EditorTools
     ///
     /// 【视觉层（Beveled Pixel 像素皮，docs/UI-UX与中文本地化规范.md §3.3 / §3.4 / §3.6 线框不变）】
     ///   · 背景 = WINDOW_BG 令牌（alpha 提到 1）全屏底板；相机背景不动，只换 UI 层；
-    ///   · 容器底 = <see cref="SketchPanel"/>（Dark tone → Plate(Frame) + 底垫投影）；
-    ///     列表行底由 RuntimeUiBuilder 出 Light tone（Plate(Light) 暖白片）；
+    ///   · 列表容器 = **带标题窗体**（theme window：SketchPanel.Tone.Dark + Titled 换窗体皮，
+    ///     顶 15u 标题带）+ **view 凹槽底**（theme view：sunken 九宫格，行区 padding 3/顶 4）；
+    ///     列表行 = theme list_item 纯色三态（RuntimeUiBuilder.CreateRow：常态灰 / 选中金 / 禁用暗）；
     ///   · 按钮 = <see cref="SketchButton"/>（Dark 为次级行动，Primary 为屏内主行动；三态 SpriteSwap）；
     ///   · 文字层级取 <see cref="StickTokens"/> 字号档 + <see cref="PixelSkin"/> 的 tone 字色；
     ///   · 分隔线 = <see cref="SketchSeparator"/> 蚀刻线贴图（1u 厚）；
@@ -95,9 +96,11 @@ namespace PirateCrew.EditorTools
             RuntimeUiBuilder.SetAnchored(summary.rectTransform, TopCenterAnchor, new Vector2(567f, 15f),
                 new Vector2(0f, -104f));
 
-            // 名册容器（SketchPanel Dark → Plate(Frame) + 投影；行由 CrewManagementController 运行时生成）。
-            RectTransform list = CreateStickPanel("CrewList", canvas.transform,
-                CenterAnchor, CenterAnchor, new Vector2(0f, 8f), new Vector2(333f, 200f));
+            // 名册容器：**带标题窗体**（theme window：顶 15u 标题带「船员名册」；行由
+            // CrewManagementController 运行时生成）。166 = 6 行×16 + 行缝 5×2 + view 内缩 14 + 窗体边 46。
+            RectTransform list = CreateTitledListPanel("CrewList", canvas.transform,
+                CenterAnchor, new Vector2(0f, 8f), new Vector2(333f, 166f),
+                UiStrings.CrewRosterTitle, titleFont);
 
             TextMeshProUGUI status = RuntimeUiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
                 UiSkin.Font.Hint, TextAlignmentOptions.Center, StickTokens.TEXT_DIM, secondaryFont);
@@ -172,21 +175,26 @@ namespace PirateCrew.EditorTools
             RectTransform chapters = RuntimeUiBuilder.CreateRect("ChapterContainer", canvas.transform);
             RuntimeUiBuilder.SetAnchored(chapters, TopCenterAnchor, new Vector2(173f, 15f), new Vector2(0f, -72f));
 
-            // 海图列表容器（SketchPanel Dark → Plate(Frame) + 投影；行由控制器运行时生成）。
-            RectTransform list = CreateStickPanel("LevelList", canvas.transform,
-                CenterAnchor, CenterAnchor, new Vector2(0f, 17f), new Vector2(333f, 187f));
+            // 海图列表容器：**带标题窗体**「关卡列表」；行由控制器运行时生成。
+            // 240 = 10 行×16 + 行缝 9×2 + view 内缩 14 + 窗体边 46 + 余 2；中心 y=-35：
+            // 顶缘离章节名 10、底缘离下方提示 13（窗体加高后曾与提示叠印，实测修正）。
+            RectTransform list = CreateTitledListPanel("LevelList", canvas.transform,
+                CenterAnchor, new Vector2(0f, -35f), new Vector2(333f, 240f),
+                UiStrings.LevelListTitle, titleFont);
 
             // 出战加载说明（文案与实际行为一致：选哪关加载哪关）+ 状态提示。
+            // y 让位加高后的列表窗体（窗体底缘 115，说明顶 102）：说明 90 / 状态 40（旧 148/104
+            // 与窗体叠印，且状态再下让避免压「船员管理」钮）。
             TextMeshProUGUI hint = RuntimeUiBuilder.CreateText("FixedArenaHint", canvas.transform,
                 UiStrings.LevelStatusFixedArena, UiSkin.Font.Hint, TextAlignmentOptions.Center,
                 StickTokens.TEXT_DIM, secondaryFont);
             RuntimeUiBuilder.SetAnchored(hint.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
-                new Vector2(0f, 148f));
+                new Vector2(0f, 90f));
 
             TextMeshProUGUI status = RuntimeUiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
                 UiSkin.Font.Hint, TextAlignmentOptions.Center, StickTokens.TEXT_DIM, secondaryFont);
             RuntimeUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
-                new Vector2(0f, 104f));
+                new Vector2(0f, 40f));
 
             Button crewButton = CreateSketchButton("CrewButton", canvas.transform,
                 UiStrings.MainCrew, BottomCenterAnchor, new Vector2(-84f, 64f),
@@ -367,24 +375,63 @@ namespace PirateCrew.EditorTools
         }
 
 
-        /// <summary>给列表面板加内层滚动内容区（VerticalLayoutGroup 排行，留 PanelPadding 内边距），
-        /// 返回控制器应接线的容器（行 CreateRow 进这里，由布局组排版）。</summary>
+        /// <summary>建**带标题带的列表窗体**（theme window 复刻）：SketchPanel Dark + Titled
+        /// 换窗体九宫格（顶 15u 标题带随切片落位），带内左上标题文字（theme window_title_label：
+        /// 边距 5/5 设计格、字色 <see cref="PixelSkin.Theme.Text"/>）。列表内容区走
+        /// <see cref="AddListContent"/>（view 凹槽语法）。pivot 沿用面板中心口径。</summary>
+        static RectTransform CreateTitledListPanel(string name, Transform parent, Vector2 anchor,
+            Vector2 anchoredPosition, Vector2 size, string title, TMP_FontAsset titleFont)
+        {
+            SketchPanel panel = SketchPanel.Create(parent, name, anchor, CenterAnchor,
+                anchoredPosition, size, SketchPanel.Tone.Dark);
+            panel.Titled = true;
+            RectTransform rect = (RectTransform)panel.transform;
+
+            // 标题带文字（左上，theme 边距 5/5；右侧让出窗控钮位——列表窗体无钮，纯保险）。
+            TextMeshProUGUI label = RuntimeUiBuilder.CreateText("ListTitle", rect, title, UiSkin.Font.Title,
+                TextAlignmentOptions.MidlineLeft, PixelSkin.Theme.Text, titleFont);
+            RuntimeUiBuilder.SetAnchored(label.rectTransform, new Vector2(0f, 1f),
+                new Vector2(size.x - 40f, PixelSkin.WindowTitleBand),
+                new Vector2(AseLayout.Px(AseLayout.TitleMarginLeft), -AseLayout.Px(AseLayout.TitleMarginTop)));
+
+            return rect;
+        }
+
+        /// <summary>给列表窗体加内层滚动内容区（**theme view 复刻**）：ListContent 铺窗体内容区
+        /// （window_with_title border=6 / border-top=17），本体挂 <see cref="PixelSkin.Sunken"/>
+        /// 凹槽九宫格作 view 皮；行 VerticalLayoutGroup 排，padding = view border（3 / 顶 4）、
+        /// 行缝 1 设计格（theme listitem 相接密度）。返回控制器应接线的容器。</summary>
         static RectTransform AddListContent(RectTransform listPanel)
         {
             RectTransform content = RuntimeUiBuilder.CreateRect("ListContent", listPanel);
             content.anchorMin = Vector2.zero;
             content.anchorMax = Vector2.one;
             content.pivot = new Vector2(0.5f, 0.5f);
-            content.offsetMin = new Vector2(8f, 8f);
-            content.offsetMax = new Vector2(-8f, -8f);
+            // 窗体内容区：theme window_with_title border=6（左/右/下）、border-top=17（标题带让位）。
+            content.offsetMin = new Vector2(
+                AseLayout.Px(AseLayout.WindowBorder), AseLayout.Px(AseLayout.WindowBorder));
+            content.offsetMax = new Vector2(
+                -AseLayout.Px(AseLayout.WindowBorder), -AseLayout.Px(AseLayout.WindowBorderTop));
+
+            // view 皮：sunken 凹槽（theme view 的 border part = sunken_normal；列表常态不聚焦）。
+            // 行画在其上（子件后画），凹槽边框自带 4u 立体感。
+            var view = content.gameObject.AddComponent<Image>();
+            view.sprite = PixelSkin.Sunken(false);
+            view.type = Image.Type.Sliced;
+            view.color = Color.white;   // 像素件禁止乘色
+            view.raycastTarget = false;
+
+            // 行区：布局组 padding = view border（theme view：内容离凹槽边 3 / 顶 4）。
             var group = content.gameObject.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
             group.childAlignment = TextAnchor.UpperCenter;
             group.childControlWidth = true;
             group.childControlHeight = true;
             group.childForceExpandWidth = false;
             group.childForceExpandHeight = false;
-            group.spacing = 6f;
-            group.padding = new RectOffset(0, 0, 6, 6);
+            group.spacing = AseLayout.Px(1);   // 行缝 1 设计格
+            group.padding = new RectOffset(
+                (int)AseLayout.Px(AseLayout.ViewBorder), (int)AseLayout.Px(AseLayout.ViewBorder),
+                (int)AseLayout.Px(AseLayout.ViewBorderTop), (int)AseLayout.Px(AseLayout.ViewBorder));
             return content;
         }
 

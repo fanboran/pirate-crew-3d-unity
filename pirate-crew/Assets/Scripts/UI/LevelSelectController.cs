@@ -267,7 +267,8 @@ namespace PirateCrew.UI
                 RectTransform row = RuntimeUiBuilder.CreateRow(levelListContainer, i, RowHeight);
 
                 TextMeshProUGUI text = RuntimeUiBuilder.CreateText("Label", row, entry.Label, UiSkin.Font.Body,
-                    TextAlignmentOptions.MidlineLeft, PixelSkin.TextColorOn(PixelTone.Light), bodyFont);
+                    TextAlignmentOptions.MidlineLeft,
+                    RuntimeUiBuilder.ListItemTextColor(ListItemState.Normal), bodyFont);
 
                 // 星级图标（3 枚，点亮 = 黄铜，熄灭 = 暗）——只有记星的海图行才画。
                 if (entry.Stars > 0)

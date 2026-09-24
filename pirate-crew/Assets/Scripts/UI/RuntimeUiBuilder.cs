@@ -7,17 +7,33 @@ using UnityEngine.UI;
 namespace PirateCrew.UI
 {
     /// <summary>
+    /// theme list_item 行状态（Aseprite dark 逐条复刻）：常态灰底灰字 / 选中金底深字 /
+    /// 禁用暗底暗字。行是纯色块（theme 里 listitem_*_face 就是纯色，无九宫格），
+    /// 选中反馈从此是"整行换底色 + 换字色"，不是给本体乘色。
+    /// </summary>
+    public enum ListItemState
+    {
+        /// <summary>常态：底 #41444a（background），字 #c0c0c0（text）。</summary>
+        Normal = 0,
+        /// <summary>选中：底 #e1b85f（listitem_selected_face 选中金），字 #41444a。</summary>
+        Selected = 1,
+        /// <summary>禁用：底 #2c2c30（face），字 #202125（disabled）。</summary>
+        Disabled = 2,
+    }
+
+    /// <summary>
     /// 菜单与管理界面的 UGUI 构建辅助（运行时建控件）。
     ///
     /// 【视觉层（Beveled Pixel 像素皮）】
     ///   · 文本统一 <see cref="TextMeshProUGUI"/>（中文字体由调用方注入，见 <see cref="CreateText"/> 的 font 参数）；
-    ///   · 行底 = <see cref="SketchPanel"/>（Light Tone → Plate(Light) 暖白片 + 底垫投影）；
+    ///   · 列表行 = theme list_item 纯色三态（<see cref="ListItemState"/>：常态/选中金/禁用），
+    ///     字色经 <see cref="ListItemTextColor"/> 与行态同源取；
     ///   · 按钮 = <see cref="SketchButton"/>（Dark 变体 → Plate(Dense) 暗键帽；三态走 SpriteSwap，
     ///     禁用走 CanvasGroup alpha，全由控件本体承担）；
-    ///   · 字色一律 <see cref="PixelSkin.TextColorOn"/>（按底 tone 取可读档）。
+    ///   · 列表容器/面板底、窗体标题带等结构性件由 Editor 装配方出（SketchPanel.Titled）。
     ///
     /// 【列表行数随名册/海图变化】运行时生成比摆 Prefab 更省接线；行数少、非高频，
-    ///   不构成性能顾虑。
+    ///  不构成性能顾虑。
     /// </summary>
     public static class RuntimeUiBuilder
     {
@@ -167,12 +183,33 @@ namespace PirateCrew.UI
             return container;
         }
 
-        /// <summary>在行容器里建一行（纵向堆叠，锚在容器顶部；底为 SketchPanel Light
-        /// → Plate(Light) 暖白片 + 底垫投影；行内字色请取 <see cref="PixelSkin.TextColorOn"/>
-        /// 的 Light 档，勿再手写字色）。<paramref name="rowHeight"/> 建议取
-        /// <see cref="UiSkin.Px.Button"/> + 上下各 12（令牌位点）。</summary>
+        /// <summary>theme list_item 行底/字色（与 <see cref="ListItemState"/> 同源；调用方别自己配色）。</summary>
+        public static Color ListItemFace(ListItemState state)
+        {
+            switch (state)
+            {
+                case ListItemState.Selected: return PixelSkin.Theme.Selected;
+                case ListItemState.Disabled: return PixelSkin.Theme.Face;
+                default: return PixelSkin.Theme.Background;
+            }
+        }
+
+        /// <summary>行态 → 行上正文字色（theme list_item 三分支；选中金底上必须换深字）。</summary>
+        public static Color ListItemTextColor(ListItemState state)
+        {
+            switch (state)
+            {
+                case ListItemState.Selected: return PixelSkin.Theme.SelectedText;
+                case ListItemState.Disabled: return PixelSkin.Theme.Disabled;
+                default: return PixelSkin.Theme.Text;
+            }
+        }
+
+        /// <summary>在行容器里建一行（纵向堆叠，锚在容器顶部；行底 = theme list_item 纯色三态，
+        /// 见 <see cref="ListItemState"/>；行上字色请取 <see cref="ListItemTextColor"/> 同源档）。
+        /// <paramref name="rowHeight"/> 建议取 <see cref="UiSkin.Px.Button"/> + 上下各 12（令牌位点）。</summary>
         public static RectTransform CreateRow(Transform container, int index, float rowHeight,
-            float spacing = 6f, float leftPadding = 8f)
+            ListItemState state = ListItemState.Normal, float spacing = 6f, float leftPadding = 8f)
         {
             RectTransform row = CreateRect("Row" + index, container);
             // 【行宽 = 容器宽，铁律】父容器挂 VBox 列表时行宽必须交给布局组接管并铺满——
@@ -192,14 +229,14 @@ namespace PirateCrew.UI
             layout.preferredHeight = rowHeight;
             layout.minHeight = rowHeight;
 
-            // 行底板：SketchPanel.Create 是点锚出口，建完再拉伸铺满行矩形；
-            // 底板不拦截点击（SketchPanel 内 Image raycastTarget=false），命中留给动作钮。
-            // 底板是装饰件，声明 ignoreLayout，不参与行内流式排版。
-            SketchPanel backplate = SketchPanel.Create(row, "Backplate",
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero,
-                SketchPanel.Tone.Light);
-            UiLayout.Ignore(backplate.gameObject);
-            Stretch(backplate.GetComponent<RectTransform>());
+            // 行底板：theme list_item 是纯色块（listitem_normal/selected/disabled_face 三态换色，
+            // 无九宫格、无烘焙色阶——这里乘 Image.color 是"纯色层"的本职，不违反像素件禁乘色纪律）。
+            // 底板 = 行根自身 Graphic（子件画其上）；**行根必须参与父布局**——曾在此对行根
+            // 误挂 ignoreLayout，布局组把行全部忽略、叠在容器中心叠成一坨（实测事故）。
+            var backplate = row.gameObject.AddComponent<UnityEngine.UI.Image>();
+            backplate.sprite = null;
+            backplate.color = ListItemFace(state);
+            backplate.raycastTarget = false;
 
             return row;
         }
@@ -245,7 +282,10 @@ namespace PirateCrew.UI
         /// 按钮宽 = 文字真实渲染宽 + 左右各半 <see cref="UiSkin.Px.ButtonPadX"/>，文本变即自动收放。</summary>
         public static void LayoutRowContent(RectTransform row, TextMeshProUGUI label, Button action, float rowHeight)
         {
-            UiLayout.HStack(row, 8, UiPadding.Symmetric(5, 0), controlWidths: true,
+            // 行内左右内缩 = theme list_item border（1 设计格）——字与钮离行缘的缝；
+            // 标签与动作钮之间的缝（8）保持不变。
+            UiLayout.HStack(row, 8, UiPadding.Symmetric((int)AseLayout.Px(AseLayout.ListItemBorder), 0),
+                controlWidths: true,
                 alignment: TextAnchor.MiddleLeft);
 
             if (label != null)
