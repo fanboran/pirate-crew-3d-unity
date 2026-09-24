@@ -138,7 +138,8 @@ namespace PirateCrew.UI.Stick
                     // 亮底深墨字不加描边（笔画膨胀糊死）
                     mat.DisableKeyword(ShaderUtilities.Keyword_Outline);
                 }
-                mat.SetFloat(ShaderUtilities.ID_GradientScale, mat.GetFloat(ShaderUtilities.ID_GradientScale));   // 材质实例化保序（伪粗已废）
+                // 实例化由上面 fontMaterial 的首次访问完成；Bitmap 材质没有 _GradientScale，
+                // 再读写的"保序"只会每钮刷一条材质警告，删。
             }
 
             // 立即按当前态刷一遍（贴图三态 / 禁用 alpha）

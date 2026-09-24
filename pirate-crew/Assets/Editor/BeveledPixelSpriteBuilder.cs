@@ -651,7 +651,7 @@ namespace PirateCrew.EditorTools
 
             // 【2026-09-24 走查】Plate 改「手绘模板」复刻（创始人逐像素定稿 14×14）：
             // 黑环 1 格包圈（四角 2 格阶梯）+ 亮唇 1 格 + 主体，底边加暗唇 1 格（亮→暗→黑）。
-            // 模板 1 格 = 1 艺术像素 = Unit 屏幕像素，×3 落盘；四角透明阶 = 像素游戏标准圆角。
+            // 模板 1 格 = 1 设计格，×Unit 落盘（贴图像素 = 画布像素 1:1）；四角透明阶 = 像素游戏标准圆角。
             // Track/Tab 仍走下方分层画法（条槽五段带是另一套语法）。
             if (piece == Piece.Plate)
                 return BuildPlateFromTemplate(r, state, out border);
@@ -1102,6 +1102,8 @@ namespace PirateCrew.EditorTools
                 return srcLen - bHi + (i - hiStart);
             int srcCenter = srcLen - bLo - bHi;
             int dstCenter = dstLen - bLo - bHi;
+            if (dstCenter <= 0 || srcCenter <= 0)
+                return bLo;   // 目标恰等于切片和（甚至更小）——中心区零宽，整段取切片起点，别除零
             return bLo + (int)((long)(i - bLo) * srcCenter / dstCenter);
         }
 
@@ -1610,15 +1612,13 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// **UI 颗粒度 ↔ 3D 像素比例对齐判据**（创始人 2026-09-22 裁决：全局锁 **3×**）。
-        /// 两个真源都要等于 <see cref="Unit"/>：
-        ///   ① **新管线**（PixelartCameraRig 蓝本）：反射读
-        ///      <c>PirateCrew.Rendering.Pixelart.PixelartPilotScene.PixelScale</c>
-        ///      ——"一个艺术像素占几个屏幕像素"，装配器把它写进场景里的 rig；
-        ///   ② **旧 Feature**（PixelationRendererFeature 遗留档）：读两档 URP 渲染器资产里的
-        ///      <c>renderHeightPixels</c>，换算 <c>1080 / 高度</c> = 块大小。
-        /// 改了任一侧而不同步 Unit（或反之），UI 的带就会和 3D 的块错半格——
-        /// 这条判据把"对齐"从口头约定变成可复算的数字。
+        /// **UI 颗粒度判据**。
+        /// ① UI 双源必须相等：<see cref="Unit"/> == <c>PixelartPilotScene.PixelScale</c>
+        ///    （"一个 UI 艺术像素占几个屏幕像素"两侧真源不同步 = 装配事故）。
+        /// ② 3D 侧（URP 渲染器 <c>renderHeightPixels</c>）只锁**整数倍放大**（1080 % RT 高 == 0）。
+        ///    【2026-09-24 解耦】UI 裁决 2:1（Unit=2）后，3D RT 仍 640×360（×3 块）——UI 与 3D
+        ///    颗粒度**有意不同网格**（创始人"资产 1:1 + 显示端整数 ×2"只针对 UI 栈）；若日后
+        ///    裁决 3D RT 也换档统一，把 block == Unit 的等式恢复回来即可。
         /// </summary>
         static void CheckUnitAlignment(List<string> problems)
         {
@@ -1634,9 +1634,9 @@ namespace PirateCrew.EditorTools
                     int scale = (int)scaleField.GetRawConstantValue();
                     if (scale != Unit)
                     {
-                        problems.Add("u 对齐判据：3D 像素比例 PixelartPilotScene.PixelScale=" + scale
+                        problems.Add("u 对齐判据：UI 像素比例 PixelartPilotScene.PixelScale=" + scale
                             + " ≠ UI 基本单位 Unit=" + Unit
-                            + "——两侧必须落在同一个艺术像素网格（创始人 3× 裁决）。");
+                            + "——两个 UI 真源必须同值（画布工厂与烘焙各读一个）。");
                     }
                 }
             }
@@ -1682,10 +1682,7 @@ namespace PirateCrew.EditorTools
                         + " 不能整除基准高度 " + canonicalHeight + "（3D 放大不再是整数倍，块会抖）。");
                     continue;
                 }
-                int block = canonicalHeight / heights[i];
-                if (block != Unit)
-                    problems.Add("u 对齐判据：UI 基本单位 Unit=" + Unit + " ≠ 3D 像素块 "
-                        + block + "px（1080/" + heights[i] + "）。改 RT 档必须同步改 PixelSkin.Unit 并重烘焙。");
+                // 2026-09-24 解耦：不再要求 3D 块大小 == Unit（UI 2:1、3D 仍 ×3，见方法头注释）。
             }
         }
 
@@ -1788,6 +1785,8 @@ namespace PirateCrew.EditorTools
             {
                 case "fill": return 0;
                 case "tab": return ChamferPixelCount() / 2;    // 只切上两角
+                case "track": return ChamferPixelCount();      // 条槽族走分层画法（切角深度 0 = 方角 = 全不透明）
+                case "panel": return 0;                        // 直角面板（2026-09-24 裁决：圆角只属于按钮）
                 case "ring": return RingSize * RingSize - RingOpaqueCount();
                 case "pip": return PipSize * PipSize - PipOpaqueCount();
                 case "sep": return 0;
@@ -2141,11 +2140,18 @@ namespace PirateCrew.EditorTools
                     break;
                 default:
                 {
-                    // plate / tab / track：本 tone 的**常态阶梯纯档**。状态件（悬停/按压）不再
-                    // 混中间档——Aseprite 口径的状态 = 换纯档取色（悬停取 S4、按压取 S2），
-                    // 白名单跟着取常态阶梯即可覆盖三态。
+                    // plate / tab / track：本 tone 的阶梯纯档。**按状态取表**——生成器在
+                    // CreateTexture 里对悬停/按压先做 Lifted/Sunk 整条变换再交给模板取色
+                    // （换字母取色不换几何），白名单必须用同一条变换后的阶梯，否则悬停/按压
+                    // 件的每个像素都会被判成板外色。
                     Tone tone = ToneOfName(name);
                     Ramp r = RampOf(tone);
+                    string rest = name.Substring("Pixel_".Length);
+                    State state = ParseStateTail(rest.Substring(rest.IndexOf('_') + 1));
+                    if (state == State.Hovered)
+                        r = r.Lifted(HoverLift);
+                    else if (state == State.Pressed)
+                        r = r.Sunk(PressSink);
                     allowed.Add(r.S1);
                     allowed.Add(r.S2);
                     allowed.Add(r.S3);
@@ -2248,9 +2254,9 @@ namespace PirateCrew.EditorTools
             int u = Unit;
             int pad = 4 * u;
             int gap = 4 * u;
-            int rowTone = 10 * u;
+            int rowTone = 12 * u;             // 须大于 Plate 纵向切片和（10u）——中心区零宽就演示不了拉伸语义
             int rowFill = 8 * u;
-            int colMin = 2 * PlateBorder;   // 最小可渲染尺寸（证明 border×2 时四角没被切进内容区）
+            int colMin = 10 * u;              // Plate 最小可渲染尺寸（下 6u + 上 4u 切片和；宽向 8u 更小，方格取高者）
             int colWide = 32 * u;
             int tabH = 7 * u;
             int hostH = 10 * u;
@@ -2359,8 +2365,8 @@ namespace PirateCrew.EditorTools
                 DrawSized(px, cols, "Pixel_Ring", x, cy + (12 * u - 16 * u) / 2, 16 * u, 16 * u);
                 x += 18 * u + gap;
 
-                // 焦点框套一个浅按钮（焦点框比按钮外扩 2px）
-                DrawOne(px, cols, Tone.Light, Piece.Plate, State.Normal, x + 2, cy + 5 * u / 3, 12 * u, 6 * u + 6);
+                // 焦点框套一个浅按钮（焦点框比按钮外扩 2px；按钮高取 Plate 最小渲染 10u）
+                DrawOne(px, cols, Tone.Light, Piece.Plate, State.Normal, x + 2, cy + 5 * u / 3, 12 * u, 10 * u);
                 DrawSized(px, cols, "Pixel_Focus", x, cy + 2 * u, 12 * u + 4, 6 * u + 10);
                 x += 14 * u + gap;
 
@@ -2454,7 +2460,9 @@ namespace PirateCrew.EditorTools
         {
             Texture2D tex = CreateTexture(tone, piece, state, out Vector4 border);
             Color32[] src = tex.GetPixels32();
-            DrawNineSliced(src, PlateSize, PlateSize, border, canvas, canvasW, ox, oy, w, h);
+            // 源宽高取贴图实况——Plate/Panel 已是模板件（14×16/8×8 ×Unit），
+            // 不再与 PlateSize(36) 同尺寸，硬编码会把短源数组按 36 宽寻址越界。
+            DrawNineSliced(src, tex.width, tex.height, border, canvas, canvasW, ox, oy, w, h);
             UnityEngine.Object.DestroyImmediate(tex);
         }
 
