@@ -41,7 +41,7 @@ namespace PirateCrew.EditorTools.Art
     ///
     /// 【唯一真源】<c>Assets/Data/Palette/pirate_palette.json</c>。本资产是它的一份
     /// **派生镜像**，由 <see cref="PaletteAssetBuilder"/> 生成，供 Unity 侧工具
-    /// （<see cref="ToonMaterialFactory"/>、UI 派生）在 Inspector 里直接读色值。
+    /// （UI 派生等编辑器侧调色消费方）在 Inspector 里直接读色值。
     /// 反向路径（Inspector 手改 → 回写 JSON）由 PaletteAssetBuilder.ExportToJson 提供，
     /// 两条命令互为镜像且收敛到同一字节，所以任何一方手改都能被另一方对账出来。
     ///
