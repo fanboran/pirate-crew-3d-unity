@@ -67,6 +67,7 @@
 - **画布恒定像素密度（红警2 式，`ffcdeb0e`）**：三画布工厂 + 展示页改 `ConstantPixelSize×Unit`——1 画布单位恒 = 2 屏幕像素，画布逻辑尺寸 = 屏幕÷2 随分辨率生长（1440p→1280×720），任何分辨率整数倍。旧 `ScaleWithScreenSize` 固定参考 960×540 在 1440p 下系数 2.67 非整数（糊+错格）。
 - **Aseprite dark 全部件搬皮第一批（同提交）**：theme.xml 逐件复刻 +33 件（7 tone 带标题窗体 13×24 切片 3/5/3/15、窗控钮 9×11 三态、×/?/▶/■/⊙ 图标 5×6、复选/单选 8×8、焦点框 2/6/2、sunken 4/4/4、滑条 5/6/5 四态、拇指 5×4、滚动条、tooltip 蓝底、组合框箭头）——**rebake 87 张全绿、判据 0 条**；`PixelSkin.Theme` 精确色表 + 全件取用器。接屏：设置面板 = 标题带窗体 + 金滑条 + SketchCheck 单选钮（提示文字 y=120→54 修掉插进画质行的 3:1 时代重叠）；暂停面板标题上带（隐藏≠取消暂停不挂 ×）；返回确认 = 标题带 + × 窗控钮。`Settings.png`/`confirm.png` 视觉过目全过。截屏机支持 `capture:<场景>+settings/+confirm` 后缀（第 60 帧激活隐藏弹窗；`GameObject.Find` 找不到未激活对象，走 FindObjectsByType Include）。
 - **build 场景表反复被砍的根因拔除（`d61a1daa`）**：`BattleSceneSetup.RegisterBuildSettings` 硬编码三场景且在装配链最后执行，覆盖前两个装配器写的五场景表——7e8d29b3 的手工恢复每次 assemble 后都被打回。三处统一五场景表，行号锚定验证落盘 5。
+- **布局系统补课（`363abdda`，创始人「布局系统你学全了吗」追问落地）**：**此前没学全**——部件几何学了，但 theme.xml `<styles>` 段的间距语法（每类控件的 border/padding/margin/文字偏移 x/y）与 `<dimensions>` 表没系统学，且 theme 数字是**设计格**（×Unit 进画布）被当画布像素直用（= theme 比例减半，观感挤的根源）。现落地 `AseLayout` 令牌层（`Assets/Scripts/UI/Skin/AseLayout.cs`）：dimensions 全表 + styles 段逐控件间距登记、`Px()` 单一换算出口；修偏五处：窗体标题/窗控钮边距（5/3→Px）、模态内边距（6/顶17 按表）、复选钮文字 x（7→14 设计格）、复选图标 8×8 整格不随行高拉伸、设置标题边距。Settings.png/confirm.png 重拍过目。**接屏时布局数字一律从 AseLayout 取，别再手写画布像素字面量**。
 
 ## 四、踩坑与禁忌（血泪清单，违者返工）
 
