@@ -55,12 +55,18 @@
 **PressOffset/ShadowOffset 裁决（原遗留#1 结案）**：维持 `(Unit,-Unit)`。已提交语义下 1 个按钮下沉量 = 1 设计格 = Unit 画布px，与最小视觉特征（2px）一致；(1,-1)=半个设计格，只适用于资产回 1:1 的口径。
 
 **已知遗留（按优先序）**：
-1. **创始人验收四屏**（产物 `F:\VSCode\pirate-crew-3d-unity\pirate-crew\export\ui-pixel-4c\`，21:15 版）+ 上面三个观察项 + ×2 语义定夺。
-2. **完整搬皮批**（源码参数已提取）：标题栏带（window part h1=15 整条）、窗控钮（?/×）、复选框/单选（8×8 + 焦点九宫格 2/6/2）、蓝分组字 #6E9ADB、slider 焦点变体。新件 → 允许一次 rebake（判据已全绿，链路可用）。
-3. **装配器运行时化**（半天）：菜单/管理 UI 改场景加载时构建，assemble 退役；比例下拉（改 referenceResolution）接设置界面。
-4. SceneLoader overlay 画布切低清栈（pixelPerfect=true 残留）。
+1. **创始人验收四屏 + Settings.png + confirm.png**（产物 `F:\VSCode\pirate-crew-3d-unity\pirate-crew\export\ui-pixel-4c\`，03:4x 版）+ 上面三个观察项 + ×2 语义定夺。
+2. **搬皮第二批（接屏）**：已烘焙未接屏的件——tooltip（蓝底）、滚动条 bg/thumb、sunken 凹槽（列表/输入底）、组合框箭头、toolbutton；蓝字分组线（#6e9adb 分隔线+标签，等有分组语义的屏）；CrewManagement 主面板 / 选关面板上标题带（现在只有设置/暂停/确认三处）。
+3. **装配器运行时化**（半天）：菜单/管理 UI 改场景加载时构建，assemble 退役；比例下拉（现在接 `PixelSkin.Unit` 一个真源，画布工厂 scaleFactor 直接跟随）接设置界面。
+4. SceneLoader overlay 画布补 CanvasScaler×Unit（现在是裸 1:1，过渡遮罩全屏拉伸无碍，顺手统一）。
 5. `SketchSeparator` 厚度轴 = PixelSkin.Unit（2 画布px）而分隔线纹理厚 2u（4px）——理论上半压缩，四屏观感未见异常，核对后要么改 2u 要么改纹理。
 6. 删 `F:\Unity\2022.3.62f1c1` 目录（创始人已确认，未执行）。
+7. Settings 截屏里滑条充盈接近 0 是截屏方法局限（直接 SetActive 不走控制器 RefreshSettingsControls）——不是 bug；真机打开设置会刷新到真实音量。
+
+**2026-09-25 凌晨追加（创始人两项裁决的落地）**：
+- **画布恒定像素密度（红警2 式，`ffcdeb0e`）**：三画布工厂 + 展示页改 `ConstantPixelSize×Unit`——1 画布单位恒 = 2 屏幕像素，画布逻辑尺寸 = 屏幕÷2 随分辨率生长（1440p→1280×720），任何分辨率整数倍。旧 `ScaleWithScreenSize` 固定参考 960×540 在 1440p 下系数 2.67 非整数（糊+错格）。
+- **Aseprite dark 全部件搬皮第一批（同提交）**：theme.xml 逐件复刻 +33 件（7 tone 带标题窗体 13×24 切片 3/5/3/15、窗控钮 9×11 三态、×/?/▶/■/⊙ 图标 5×6、复选/单选 8×8、焦点框 2/6/2、sunken 4/4/4、滑条 5/6/5 四态、拇指 5×4、滚动条、tooltip 蓝底、组合框箭头）——**rebake 87 张全绿、判据 0 条**；`PixelSkin.Theme` 精确色表 + 全件取用器。接屏：设置面板 = 标题带窗体 + 金滑条 + SketchCheck 单选钮（提示文字 y=120→54 修掉插进画质行的 3:1 时代重叠）；暂停面板标题上带（隐藏≠取消暂停不挂 ×）；返回确认 = 标题带 + × 窗控钮。`Settings.png`/`confirm.png` 视觉过目全过。截屏机支持 `capture:<场景>+settings/+confirm` 后缀（第 60 帧激活隐藏弹窗；`GameObject.Find` 找不到未激活对象，走 FindObjectsByType Include）。
+- **build 场景表反复被砍的根因拔除（`d61a1daa`）**：`BattleSceneSetup.RegisterBuildSettings` 硬编码三场景且在装配链最后执行，覆盖前两个装配器写的五场景表——7e8d29b3 的手工恢复每次 assemble 后都被打回。三处统一五场景表，行号锚定验证落盘 5。
 
 ## 四、踩坑与禁忌（血泪清单，违者返工）
 
