@@ -323,17 +323,18 @@ namespace PirateCrew.UI
             label.color = PixelSkin.Theme.Text;
             {
                 RectTransform lr = label.rectTransform;
-                lr.anchoredPosition = new Vector2(5f, -3f);
+                lr.anchoredPosition = new Vector2(
+                    AseLayout.Px(AseLayout.TitleMarginLeft), -AseLayout.Px(AseLayout.TitleMarginTop));
                 lr.sizeDelta = new Vector2(window.rect.width - 40f, PixelSkin.WindowTitleBand);
             }
 
             // 窗控钮：右上（× 最右、? 在其左；theme margin-top 3 / margin-right 3 与 1）
-            float right = 3f;
+            float right = AseLayout.Px(AseLayout.CloseButtonMarginRight);
             if (closeButton)
             {
                 CreateWindowButton(window, "CloseButton", PixelSkin.WindowIconSprite(
                     PixelSkin.WindowIcon.Close), right);
-                right += 9f * PixelSkin.Unit + 1f;
+                right += 9f * PixelSkin.Unit + AseLayout.Px(AseLayout.WindowButtonGap);
             }
             if (helpButton)
                 CreateWindowButton(window, "HelpButton",
@@ -368,7 +369,7 @@ namespace PirateCrew.UI
                 RectTransform br = go.GetComponent<RectTransform>();
                 br.anchorMin = br.anchorMax = new Vector2(1f, 1f);
                 br.pivot = new Vector2(1f, 1f);
-                br.anchoredPosition = new Vector2(-rightMargin, -3f);
+                br.anchoredPosition = new Vector2(-rightMargin, -AseLayout.Px(AseLayout.WindowButtonMarginTop));
                 br.sizeDelta = new Vector2(9f * PixelSkin.Unit, 11f * PixelSkin.Unit);
             }
 
@@ -658,9 +659,12 @@ namespace PirateCrew.UI
             var box = card.gameObject.GetComponent<UnityEngine.UI.VerticalLayoutGroup>();
             if (box == null)
                 box = card.gameObject.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
-            box.padding = new RectOffset(6, 6,
-                titled ? 6 + PixelSkin.WindowTitleBand : 6, 6);   // 艺术像素；带标题时顶部避开 15u 带
-            box.spacing = 2f;   // 艺术像素
+            // theme window_with_title：内容内缩 border=6（带标题时顶=17 = 带 15 + 带下 2 缝）
+            box.padding = new RectOffset(
+                (int)AseLayout.Px(AseLayout.WindowBorder), (int)AseLayout.Px(AseLayout.WindowBorder),
+                (int)AseLayout.Px(titled ? AseLayout.WindowBorderTop : AseLayout.WindowBorder),
+                (int)AseLayout.Px(AseLayout.WindowBorder));
+            box.spacing = AseLayout.Px(2);   // theme 无显式纵缝——邻件各自带 border，取 2 设计格过渡
             box.childControlWidth = true;
             box.childControlHeight = true;
             box.childForceExpandWidth = false;

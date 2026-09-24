@@ -34,8 +34,9 @@ namespace PirateCrew.UI.Stick
         private Image _icon;
 
         /// <summary>
-        /// 建一个复选/单选。图标 8×8 贴左（x=2u），文字从 x=7u 起（theme x=14 的紧凑版，
-        /// 低清画布上 14u 边距过宽）；行高由调用方给（设置行 27）。
+        /// 建一个复选/单选。图标 8×8 贴左（<see cref="AseLayout.CheckIconX"/> = 2 设计格）、
+        /// 文字从 <see cref="AseLayout.CheckTextX"/> = 14 设计格起（theme 原值，×Unit 进画布）；
+        /// 行高由调用方给（设置行 27）。
         /// </summary>
         public static SketchCheck Create(Transform parent, string name, string label, bool radio,
             TMP_FontAsset font, float fontSize, Vector2 anchor, Vector2 pivot,
@@ -58,7 +59,8 @@ namespace PirateCrew.UI.Stick
                 labelColor ?? PixelSkin.TextColorOn(PixelTone.Light));
 
             rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = new Vector2(14f * 2f + fontSize * (label.Length + 1f), height);
+            rect.sizeDelta = new Vector2(
+                AseLayout.Px(AseLayout.CheckTextX) + fontSize * (label.Length + 1f), height);
             check.IsOn = false;
             return check;
         }
@@ -88,8 +90,9 @@ namespace PirateCrew.UI.Stick
             iconRect.SetParent(root, false);
             iconRect.anchorMin = iconRect.anchorMax = new Vector2(0f, 0.5f);
             iconRect.pivot = new Vector2(0f, 0.5f);
-            iconRect.anchoredPosition = new Vector2(2f, 0f);
-            iconRect.sizeDelta = new Vector2(height - 8f, height - 8f);
+            iconRect.anchoredPosition = new Vector2(AseLayout.Px(AseLayout.CheckIconX), 0f);
+            // theme check/radio 8×8 整格（×Unit 落盘 16×16），不随行高拉伸
+            iconRect.sizeDelta = new Vector2(8f * PixelSkin.Unit, 8f * PixelSkin.Unit);
 
             _icon = iconGo.AddComponent<Image>();
             _icon.type = Image.Type.Simple;
@@ -105,7 +108,7 @@ namespace PirateCrew.UI.Stick
             labelRect.SetParent(root, false);
             labelRect.anchorMin = labelRect.anchorMax = new Vector2(0f, 0.5f);
             labelRect.pivot = new Vector2(0f, 0.5f);
-            labelRect.anchoredPosition = new Vector2(7f * 2f, 0f);
+            labelRect.anchoredPosition = new Vector2(AseLayout.Px(AseLayout.CheckTextX), 0f);
             labelRect.sizeDelta = new Vector2(fontSize * (label.Length + 1f), height);
 
             var tmp = labelGo.GetComponent<TextMeshProUGUI>();

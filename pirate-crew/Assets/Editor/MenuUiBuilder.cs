@@ -317,11 +317,11 @@ namespace PirateCrew.EditorTools
             card.Titled = true;   // 换 Window 九宫格（标题带随切片落位）
             RectTransform panel = (RectTransform)card.transform;
 
-            // 标题：带内左上（theme window_title_label：边距 5、灰字 #c0c0c0——带面 = Frame 亮档可读）。
+            // 标题：带内左上（theme window_title_label：margin 5/5 设计格，灰字 #c0c0c0）。
             TextMeshProUGUI titleText = CreateTextExact("Title", panel, UiStrings.SettingsTitle,
                 UiSkin.Font.Title, TextAlignmentOptions.MidlineLeft, PixelSkin.Theme.Text, hand);
             SetAnchored(titleText.rectTransform, new Vector2(0f, 1f), new Vector2(383f, 30f),
-                new Vector2(5f, -3f));
+                new Vector2(AseLayout.Px(AseLayout.TitleMarginLeft), -AseLayout.Px(AseLayout.TitleMarginTop)));
 
             // 标题带下蚀刻分隔线（像素皮 Separator 贴图，方向由 Dir 决定）。
             SketchSeparator.Create(panel, "TitleSeparator", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
