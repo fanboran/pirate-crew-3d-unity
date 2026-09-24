@@ -49,8 +49,9 @@ namespace PirateCrew.Audio
     [DisallowMultipleComponent]
     public sealed class AudioService : MonoBehaviour
     {
-        /// <summary>音效资产在 Resources 下的约定目录（若团队选择资产播放）。</summary>
-        public const string ResourcesPrefix = "PirateCrewAudio/";
+        /// <summary>音效资产在 Resources 下的约定目录（若团队选择资产播放）。
+        /// 字符串唯一来源见 <see cref="SfxCatalog.AssetLoadPrefix"/>，本名保留供既有调用方使用。</summary>
+        public const string ResourcesPrefix = SfxCatalog.AssetLoadPrefix;
 
         /// <summary>一次性播放的 AudioSource 池大小（提案/待定）。</summary>
         public const int VoicePoolSize = 24;

@@ -93,14 +93,19 @@ namespace PirateCrew.Audio
             }
         }
 
-        /// <summary>目标资产平铺目录（与 <c>AudioAssetBuilder.AudioRoot</c> 一致）。</summary>
-        public const string ResourcesFolder = "Assets/Resources/PirateCrewAudio";
+        /// <summary>目标资产平铺目录（与 <c>AudioAssetBuilder.AudioRoot</c> 一致）。
+        /// 字符串唯一来源见 <see cref="SfxCatalog.AssetFolder"/>，本名保留供既有调用方使用。</summary>
+        public const string ResourcesFolder = SfxCatalog.AssetFolder;
 
-        /// <summary>运行时 Resources 路径前缀（与 <c>AudioService.ResourcesPrefix</c> 一致）。</summary>
-        public const string ResourcesPrefix = "PirateCrewAudio/";
+        /// <summary>运行时 Resources 路径前缀（与 <c>AudioService.ResourcesPrefix</c> 一致）。
+        /// 字符串唯一来源见 <see cref="SfxCatalog.AssetLoadPrefix"/>。</summary>
+        public const string ResourcesPrefix = SfxCatalog.AssetLoadPrefix;
 
         /// <summary>变奏文件名的数字后缀格式（第 0 个变奏无后缀）。</summary>
         public const string VariantSuffixFormat = "_{0}";
+
+        /// <summary>音频资产文件扩展名（含点）。</summary>
+        public const string WavFileExtension = ".wav";
 
         // 频道引用：全部取自 XxxEvents 的频道字段，禁止在本文件内联 new Event。
         static readonly Event EvBattleStarted = BattleEvents.BattleStarted;
@@ -255,7 +260,7 @@ namespace PirateCrew.Audio
             string[] names = TargetFileNames(id);
             var paths = new string[names.Length];
             for (int i = 0; i < names.Length; i++)
-                paths[i] = ResourcesFolder + "/" + names[i] + ".wav";
+                paths[i] = ResourcesFolder + "/" + names[i] + WavFileExtension;
             return paths;
         }
 
@@ -275,7 +280,7 @@ namespace PirateCrew.Audio
             {
                 string[] names = TargetFileNames(Ports[i].Id);
                 for (int j = 0; j < names.Length; j++)
-                    set.Add(names[j] + ".wav");
+                    set.Add(names[j] + WavFileExtension);
             }
 
             return set;
