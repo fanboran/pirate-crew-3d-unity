@@ -240,6 +240,7 @@ namespace PirateCrew.UI
                 RectTransform tab = ArtRect(parent, "Tab_" + titles[i], x + i * 48, top, 48, 24);
                 Image image = tab.gameObject.AddComponent<Image>();
                 image.type = Image.Type.Sliced;
+                image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
                 image.raycastTarget = true;
                 tabs[i] = image;
 
@@ -298,6 +299,7 @@ namespace PirateCrew.UI
             Image image = rect.gameObject.AddComponent<Image>();
             image.sprite = sprite;
             image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
             image.color = Color.white;      // 像素件禁止乘色：tone 色阶烘在贴图里
             image.raycastTarget = false;
             return image;
@@ -327,7 +329,7 @@ namespace PirateCrew.UI
         /// <summary>像素字体（SDF 档，任意字号清晰）。</summary>
         public static TMP_FontAsset PixelFont()
         {
-            TMP_FontAsset font = Resources.Load<TMP_FontAsset>(UiKit.SdfFontPath);
+            TMP_FontAsset font = Resources.Load<TMP_FontAsset>(UiKit.BodyPixelFontPath);
             if (font == null)
             {
                 Debug.LogWarning("[PixelShowcasePage] Resources/Fonts/FusionPixel12-px 缺失"

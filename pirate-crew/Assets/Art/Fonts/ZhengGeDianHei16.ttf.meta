@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 1735997dd8ed7a749a0bfc1926a85242
+guid: 377e589adf805fe449fdc852b12e7c24
 TrueTypeFontImporter:
   externalObjects: {}
   serializedVersion: 4
@@ -9,7 +9,7 @@ TrueTypeFontImporter:
   characterPadding: 1
   includeFontData: 1
   fontNames:
-  - LXGW WenKai Lite
+  - ZhengGeDianHei 16
   fallbackFontReferences: []
   customCharacters: 
   fontRenderingMode: 0

@@ -38,21 +38,20 @@ namespace PirateCrew.EditorTools
         // 字体（【像素字体全局切换】三档统一 Fusion Pixel 12px 位图档；2026-09-23）
         // ------------------------------------------------------------------
 
-        /// <summary>像素字体资产路径（Art 侧；位图口径档，缺字回落楷体链烘在资产内）。
-        /// 旧三档（StickHand 手写体 / 霞鹜文楷 Medium/Regular）随"文字统一 StickHand"裁决
-        /// 一并退役——手写体与像素带颗粒度不匹配。</summary>
-        public const string TitleFontAssetPath = "Assets/Art/Fonts/FusionPixel12-px36.asset";
+        /// <summary>像素字体资产路径（Art 侧；原生档纪律——字号档 = 字体原生设计档，不放大）。
+        /// 标题族 16 = 正格点黑16（简体全过）；正文 12 / 次级 10 = 缝合像素。</summary>
+        public const string TitleFontAssetPath = "Assets/Art/Fonts/ZhengGeDianHei16.asset";
 
-        /// <summary>同 <see cref="TitleFontAssetPath"/>（三档同名资产：像素 UI 单字体纪律）。</summary>
-        public const string BodyFontAssetPath = "Assets/Art/Fonts/FusionPixel12-px30.asset";
+        /// <summary>正文/按钮（12 原生档，缝合像素）。</summary>
+        public const string BodyFontAssetPath = "Assets/Art/Fonts/FusionPixel12.asset";
 
-        /// <summary>同 <see cref="TitleFontAssetPath"/>。</summary>
-        public const string SecondaryFontAssetPath = "Assets/Art/Fonts/FusionPixel12-px30.asset";
+        /// <summary>次级说明（10 原生档，缝合像素）。</summary>
+        public const string SecondaryFontAssetPath = "Assets/Art/Fonts/FusionPixel10.asset";
 
-        /// <summary>缺失 SDF 资产时的 ttf 回落路径（Unity 已导入为 Dynamic Font）。</summary>
-        const string TitleFontTtfPath = "Assets/Art/Fonts/FusionPixel12-zh_hans.ttf";
+        /// <summary>缺失位图资产时的 ttf 回落路径（Unity 已导入为 Dynamic Font）。</summary>
+        const string TitleFontTtfPath = "Assets/Art/Fonts/ZhengGeDianHei16.ttf";
         const string BodyFontTtfPath = "Assets/Art/Fonts/FusionPixel12-zh_hans.ttf";
-        const string SecondaryFontTtfPath = "Assets/Art/Fonts/FusionPixel12-zh_hans.ttf";
+        const string SecondaryFontTtfPath = "Assets/Art/Fonts/FusionPixel10-zh_hans.ttf";
 
         static TMP_FontAsset _title;
         static TMP_FontAsset _body;
@@ -314,26 +313,26 @@ namespace PirateCrew.EditorTools
             // 底板：SketchPanel Dark → Plate(Frame tone) + 底垫投影（像素皮主弹窗底）。
             SketchPanel card = SketchPanel.Create(root.transform, "SettingsCard",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(1281f, 900f), SketchPanel.Tone.Dark);
+                new Vector2(427f, 300f), SketchPanel.Tone.Dark);
             RectTransform panel = (RectTransform)card.transform;
 
             // 标题：像素皮 Frame tone 上的可读浅字 + INK 墨描边（满精度正文档 36，层级靠颜色）。
             TextMeshProUGUI titleText = CreateTextExact("Title", panel, UiStrings.SettingsTitle,
                 UiSkin.Font.Title, TextAlignmentOptions.Center, PixelSkin.TextColorOn(PixelTone.Frame), hand);
-            SetAnchored(titleText.rectTransform, new Vector2(0.5f, 1f), new Vector2(600f, 44f),
-                new Vector2(0f, -44f));
+            SetAnchored(titleText.rectTransform, new Vector2(0.5f, 1f), new Vector2(200f, 15f),
+                new Vector2(0f, -15f));
             ApplyStickTitleOutline(titleText);
 
             // 标题下蚀刻分隔线（像素皮 Separator 贴图，方向由 Dir 决定）。
             SketchSeparator.Create(panel, "TitleSeparator", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -104f), new Vector2(900f, 2f), SketchSeparator.Direction.Horizontal);
+                new Vector2(0f, -35f), new Vector2(300f, 1f), SketchSeparator.Direction.Horizontal);
 
             var result = new SettingsPanelResult();
 
             // 行容器：六行流式纵排（缝 3u）——行距/行位由布局器排，不再手算 pitch 坐标。
             RectTransform rows = UiKit.CreateRect("Rows", panel);
             rows.pivot = new Vector2(0.5f, 1f);
-            UiKit.SetAnchored(rows, new Vector2(0.5f, 1f), new Vector2(1150f, 570f), new Vector2(0f, -120f));
+            UiKit.SetAnchored(rows, new Vector2(0.5f, 1f), new Vector2(383f, 190f), new Vector2(0f, -40f));
             UiLayout.VBox(rows, 3, default(UiPadding));
 
             // 音量四行（滑条实时改 AudioService，关面板时统一落盘）。
@@ -353,7 +352,7 @@ namespace PirateCrew.EditorTools
             // 提示：角标档（像素 Tiny 24）+ TEXT_FAINT（stick-world 次级文字口径），放底部通带。
             TextMeshProUGUI note = CreateTextExact("SaveHint", panel, UiStrings.SettingsSaveHint,
                 UiSkin.Font.Tiny, TextAlignmentOptions.Center, TEXT_FAINT, hand);
-            SetAnchored(note.rectTransform, new Vector2(0.5f, 0f), new Vector2(1180f, 36f),
+            SetAnchored(note.rectTransform, new Vector2(0.5f, 0f), new Vector2(393f, 12f),
                 new Vector2(0f, 120f));
 
             // 恢复默认 / 返回：手绘按钮 Dark 变体；宽 = 标签宽 + 24 艺术像素、高 24 艺术像素（令牌按钮）。
@@ -361,7 +360,7 @@ namespace PirateCrew.EditorTools
                 new Vector2(0.5f, 0f), new Vector2(-300f, 76f), ButtonSize(UiStrings.SettingsRestore),
                 SketchButtonKind.Dark);
             result.BackButton = CreateSketchButton("SettingsBackButton", panel, UiStrings.Back,
-                new Vector2(0.5f, 0f), new Vector2(300f, 76f), ButtonSize(UiStrings.Back),
+                new Vector2(0.5f, 0f), new Vector2(100f, 26f), ButtonSize(UiStrings.Back),
                 SketchButtonKind.Dark);
 
             root.gameObject.SetActive(false);
@@ -390,7 +389,7 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>行高（六行布局：四条滑条 + 两组选项块；行位由行容器 VBox 排，见 BuildSettingsPanel）。</summary>
-        const float SettingsRowHeight = 80f;
+        const float SettingsRowHeight = 27f;
 
         /// <summary>建一行「字段名 + 音量滑条」（滑条实时驱动，落盘由控制器统一做）。
         /// 【换装最小半径】滑条三件套保持 UGUI 标准件（控制器按 <see cref="Slider"/> 契约接线），
@@ -402,12 +401,12 @@ namespace PirateCrew.EditorTools
             // 字段名：像素皮字色按所落 tone 取可读档（行底 = SketchPanel Light → 暖白片 → 墨字）。
             TextMeshProUGUI label = CreateTextExact("Field", row, field, UiSkin.Font.Body,
                 TextAlignmentOptions.MidlineLeft, PixelSkin.TextColorOn(PixelTone.Light), hand);
-            SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(360f, 44f),
-                new Vector2(24f, 0f));
+            SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 15f),
+                new Vector2(8f, 0f));
 
             // 滑条（UGUI 标准三件套：底槽 / 填充 / 手柄；皮肤用像素件 Track / Fill / Plate）。
             RectTransform sliderRect = CreateRect("Slider", row);
-            SetAnchored(sliderRect, new Vector2(1f, 0.5f), new Vector2(561f, 33f), new Vector2(-24f, 0f));
+            SetAnchored(sliderRect, new Vector2(1f, 0.5f), new Vector2(187f, 11f), new Vector2(-8f, 0f));
             var sliderBack = sliderRect.gameObject.AddComponent<Image>();
             sliderBack.sprite = PixelSkin.Track(PixelTone.Frame);   // 滑条背 = 凹槽件
             sliderBack.type = Image.Type.Sliced;
@@ -442,7 +441,7 @@ namespace PirateCrew.EditorTools
             handleArea.offsetMax = new Vector2(-8f, 0f);
 
             RectTransform handle = CreateRect("Handle", handleArea);
-            handle.sizeDelta = new Vector2(30f, 0f);   // ≥ Plate 切片和（左右 4u+4u）+ 1u 内容区
+            handle.sizeDelta = new Vector2(10f, 0f);   // ≥ Plate 切片和（左右 4u+4u）+ 1u 内容区
             handle.anchorMin = new Vector2(0f, 0f);
             handle.anchorMax = new Vector2(0f, 1f);
             var handleImage = handle.gameObject.AddComponent<Image>();
@@ -467,8 +466,8 @@ namespace PirateCrew.EditorTools
 
             TextMeshProUGUI label = CreateTextExact("Field", row, field, UiSkin.Font.Body,
                 TextAlignmentOptions.MidlineLeft, PixelSkin.TextColorOn(PixelTone.Light), hand);
-            SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(360f, 44f),
-                new Vector2(24f, 0f));
+            SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 15f),
+                new Vector2(8f, 0f));
 
             // 选项块：令牌按钮（144×72 起步）+ 正文字号（按钮文字 = 正文 12 艺术像素）。
             primaryOption = SketchButton.Create(row, "Option0", new Vector2(1f, 0.5f),
@@ -485,7 +484,7 @@ namespace PirateCrew.EditorTools
         {
             SketchPanel rowPanel = SketchPanel.Create(rows, "Row" + index,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(1150f, SettingsRowHeight), SketchPanel.Tone.Light);
+                new Vector2(383f, SettingsRowHeight), SketchPanel.Tone.Light);
             return (RectTransform)rowPanel.transform;
         }
 
@@ -512,7 +511,7 @@ namespace PirateCrew.EditorTools
             // 底板：SketchPanel Dark → Plate(Frame tone) + 底垫投影；消息直接压面板，不再垫内容片。
             SketchPanel card = SketchPanel.Create(root.transform, "ConfirmCard",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(720f, 396f), SketchPanel.Tone.Dark);
+                new Vector2(240f, 132f), SketchPanel.Tone.Dark);
             RectTransform panel = (RectTransform)card.transform;
 
             // 流式内容（UiLayout）：正文 + 按钮行——居中块，纵缝 3u，不再手摆 y 坐标。

@@ -77,3 +77,7 @@ ShangHei"——这是商标声明，不影响 OFL 下的再分发（本工程未
 - 保留字体名：LXGW 系声明了 Reserved Font Name（本工程原样分发、未改名，合规）；
   ZCOOL KuaiLe / StickHand 未声明 Reserved Font Name。
 - 出处可复核：字体内部 name 表 NameID 0/13/14 + 上游 OFL.txt。
+- ZhengGeDianHei16.ttf：正格点黑16 v1.1.0（github.com/yzdnn/ZhengGeDianHei-16），
+  基于ドットゴシック16（DotGothic16, FONTWORKS, OFL 1.1）增补简繁体汉字，随上游 OFL 1.1。
+- FusionPixel8-zh_hans.ttf / FusionPixel10-zh_hans.ttf：缝合像素 fusion-pixel-font
+  2026.09.01（github.com/TakWolf/fusion-pixel-font），OFL 1.1，同 FusionPixel12-OFL.txt。

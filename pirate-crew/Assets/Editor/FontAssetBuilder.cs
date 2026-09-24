@@ -14,42 +14,38 @@ namespace PirateCrew.EditorTools
     ///   菜单: PirateCrew/Fonts/强制重建 TMP 中文字体资产
     ///   无头/批处理: -executeMethod PirateCrew.EditorTools.FontAssetBuilder.BuildAll
     ///
-    /// 【产物】（路径给 UI 波次直接引用；分工来自 docs/UI-UX与中文本地化规范.md 定稿）
-    ///   Assets/Art/Fonts/StickHand-Regular SDF.asset        ← 标题（手写体，fallback 到正文）
-    ///   Assets/Art/Fonts/LXGWWenKaiLite-Medium SDF.asset    ← 正文主字体
-    ///   Assets/Art/Fonts/LXGWWenKaiLite-Regular SDF.asset   ← 次级说明
+    /// 【产物】（原生档纪律：字号只取像素字体原生设计档，有什么字号做什么字号，不放大）
+    ///   Assets/Art/Fonts/ZhengGeDianHei16.asset ← 16 原生档（标题族——正格点黑16，简体全过）
+    ///   Assets/Art/Fonts/FusionPixel12.asset    ← 12 原生档（区块/HUD/正文——缝合像素 zh_hans）
+    ///   Assets/Art/Fonts/FusionPixel10.asset    ← 10 原生档（辅助提示——缝合像素 zh_hans）
+    ///   Assets/Art/Fonts/FusionPixel8.asset     ← 8 原生档（角标/快捷键——缝合像素 zh_hans）
+    ///   同名副本同步到 Assets/Resources/Fonts/（运行时 UiKit 经 Resources 加载）。
+    ///   覆盖实测（cmap 对工程全部 UI 字符）：16 缺 0；12 缺 1（毂←10 兜）；10 缺 2（胫舭←12 兜）；
+    ///   8 全过。回退链按「本档 → 更小档」逐级兜底，单字缺字不落方块。
+    ///   已淘汰：方舟 16px（缺 1413 字含巨火扫）、寒蝉 16px（简体约 40%）、
+    ///   旧 px30/px36 放大档（翻倍被否决）。24px+ 开源全简体原生档现不存在，不硬凑。
     ///
-    /// 【StickHand 的授权链】StickHand 是站酷快乐体（ZCOOL KuaiLe，OFL 1.1）的**修改版**，
-    /// 由本项目作者用 tools/fonts/gen_hand_font.py 扰动字形生成；OFL 允许修改与再分发，
-    /// 且站酷快乐体未声明 Reserved Font Name，故原样入库合规。原件与授权见
-    /// Assets/Art/Fonts/ZCOOLKuaiLe-Regular.ttf 与 Licenses/StickHand-LICENSE.txt。
+    /// 【位图口径】samplingPointSize = 字体原生设计尺寸（12/10/8，绝不放大采样）、
+    ///   GlyphRenderMode.RASTER_HINTED（位图栅格化，不走 SDFAA——SDF 会给像素字形糊灰边）、
+    ///   atlasPadding = 4、图集 filterMode = Point、material 换 TextMeshPro/Bitmap shader。
+    ///   1 字体像素 = 1 屏幕像素；显示字号必须等于原生档，错档渲染 = 非整数缩放 = 糊栅格。
     ///
     /// 【注意：legacy UnityEngine.UI.Text 用的是另一套资产】
-    ///   ttf 本身被 Unity 导入为 <see cref="Font"/>（Dynamic），legacy Text 直接引用
-    ///   <c>Assets/Art/Fonts/LXGWWenKaiLite-Regular.ttf</c> 即可显示中文（无需 TMP）。
-    ///   本脚本生成的 SDF 资产只对 TextMeshProUGUI / TextMeshPro 生效，两者不通用。
-    ///
-    /// 【像素字体档（FusionPixel12，创始人 2026-09-22 定选"上方的字体"）】
-    ///   缝合像素 12px 比例版（OFL 1.1）按**位图口径**进 TMP：
-    ///   samplingPointSize = 12（字体原生设计尺寸）、GlyphRenderMode.RASTER_HINTED
-    ///   （位图栅格化，**不走 SDFAA**——SDF 会给像素字形糊出灰边）、atlasPadding = 0、
-    ///   图集 filterMode = Point、material 换 TextMeshPro/Bitmap shader。
-    ///   显示字号必须是采样尺寸的**整数倍**（36 = 3×12 = 12 艺术像素 @3×，72 = 6×12），
-    ///   非整数倍会把 1 艺术像素拉成不均匀宽（创始人走查"说好了 3:1 像素风"）。
+    ///   ttf 本身被 Unity 导入为 <see cref="Font"/>（Dynamic），legacy Text 直接引用 ttf
+    ///   即可显示中文（无需 TMP）；本脚本产物只对 TextMeshProUGUI / TextMeshPro 生效。
     ///
     /// 【参数选择理由】
     ///   · AtlasPopulationMode = Dynamic（动态）：中文常用字形上万，静态烘焙要么字符集残缺
-    ///     要么图集巨大（多张 2048 仍不够）并导致导入极慢。动态模式按需把实际用到的字形
-    ///     写入图集，导入快、包体小；enableMultiAtlasSupport = true 让图集写满后自动开新图集。
-    ///   · samplingPointSize 正文 64 / 标题 72：SDF 清晰度与采样点数正相关。该值只决定
-    ///     生成字形时的清晰度上限，不决定实际显示字号；64 足以支撑 16~48px 的正文，
-    ///     标题更大留到 72。取值越大单字形占用的图集越大（动态模式按需付费）。
-    ///   · atlasPadding 5/6（≈ 采样点数的 8~10%）：SDF 边缘需要留白，padding 太小会出现
-    ///     相邻字形相互"渗色"（bleed）的亮边；TMP 官方实践取采样点数的约 10%。
+    ///     要么图集巨大并导致导入极慢。动态模式按需把实际用到的字形写入图集，导入快、
+    ///     包体小；enableMultiAtlasSupport = true 让图集写满后自动开新图集。
     ///   · Atlas 初始 1024×1024：动态模式下这只是初始容量，写满会按需扩容，1024 让首次
-    ///     导入保持轻量（2048 起会让首次生成/占位变重，收益有限）。
-    ///   · GlyphRenderMode = SDFAA：抗锯齿的 SDF，通用质量与性能最平衡；HINTED 变体在
-    ///     中文字形数量下收益不大。
+    ///     导入保持轻量。
+    ///   · RASTER_HINTED 而非 SDFAA：位图档要的是平涂字形，任何距离场解算都会毁像素边。
+    ///   · atlasPadding = 4（采样缓冲，位图档同样需要）：padding 0 时相邻字形格贴死，
+    ///     字形边缘 UV 的采样窗口没有余量，落位带小数时 Point 过滤照样读进隔壁字形——
+    ///     实机症状「文字上盖一层莫名其妙的像素点」。留白在字形位图外围，
+    ///     不参与字形本体采样，不会虚化字形边缘（padding 0 渗色在 SDF 档已复发过一次，
+    ///     同一根因在位图档二次实锤：渗色是采样窗口问题，不是 SDF 特有问题）。
     ///
     /// 【幂等性】
     ///   已存在目标资产时**直接跳过**，不重复创建、不产生 `... 1.asset` 之类的重复文件。
@@ -78,81 +74,55 @@ namespace PirateCrew.EditorTools
         {
             new FontSpec
             {
-                SourceTtfPath = FontsFolder + "/LXGWWenKaiLite-Medium.ttf",
-                AssetFileName = "LXGWWenKaiLite-Medium SDF",
-                SamplingPointSize = 64,
-                AtlasPadding = 5,
+                SourceTtfPath = FontsFolder + "/ZhengGeDianHei16.ttf",
+                AssetFileName = "ZhengGeDianHei16",
+                SamplingPointSize = 16,
+                AtlasPadding = 4,
                 AtlasWidth = 1024,
                 AtlasHeight = 1024,
-                RenderMode = GlyphRenderMode.SDFAA,
-                Purpose = "正文主字体（霞鹜文楷 Lite Medium，楷体；OFL 1.1）",
-            },
-            new FontSpec
-            {
-                SourceTtfPath = FontsFolder + "/LXGWWenKaiLite-Regular.ttf",
-                AssetFileName = "LXGWWenKaiLite-Regular SDF",
-                SamplingPointSize = 64,
-                AtlasPadding = 5,
-                AtlasWidth = 1024,
-                AtlasHeight = 1024,
-                RenderMode = GlyphRenderMode.SDFAA,
-                Purpose = "次级说明（霞鹜文楷 Lite Regular；OFL 1.1）",
+                RenderMode = GlyphRenderMode.RASTER_HINTED,
+                Purpose = "16 原生档（标题族）——正格点黑16，简体全过",
             },
             new FontSpec
             {
                 SourceTtfPath = FontsFolder + "/FusionPixel12-zh_hans.ttf",
-                AssetFileName = "FusionPixel12-px",
+                AssetFileName = "FusionPixel12",
                 SamplingPointSize = 12,
-                AtlasPadding = 0,
+                AtlasPadding = 4,
                 AtlasWidth = 1024,
                 AtlasHeight = 1024,
                 RenderMode = GlyphRenderMode.RASTER_HINTED,
-                // 2026-09-24 创始人裁决（推翻同日早先的"文字解除像素栅格"）：**位图口径回归**——
-                // 1 字体像素 = 1 艺术像素 = u 屏幕像素，字号只允许取原生档 × u（12 艺术像素档）；
-                // SDF/矢量在像素栅格上永远对不齐。图集 Point 过滤 + Bitmap shader（见 CreateOne
-                // 的 RASTER_HINTED 分支）；动态图集新字形会被 TMP 重置成 Bilinear，
-                // 由 PixelAtlasPointFilter 逐件纠偏（UiKit 等文字工厂负责挂载）。
-                Purpose = "像素 UI 标题档（缝合像素 12px 简体；OFL 1.1）——位图口径，12 艺术像素档",
+                Purpose = "12 原生档（区块/HUD/正文）",
             },
             new FontSpec
             {
-                SourceTtfPath = FontsFolder + "/FusionPixel12-zh_hans.ttf",
-                AssetFileName = "FusionPixel12-px30",
-                SamplingPointSize = 30,
-                AtlasPadding = 0,
+                SourceTtfPath = FontsFolder + "/FusionPixel10-zh_hans.ttf",
+                AssetFileName = "FusionPixel10",
+                SamplingPointSize = 10,
+                AtlasPadding = 4,
                 AtlasWidth = 1024,
                 AtlasHeight = 1024,
                 RenderMode = GlyphRenderMode.RASTER_HINTED,
-                // 2026-09-24 创始人裁决：一字号一资产——30 屏幕像素的正文就用 30px 原生栅格
-                // 烘的位图（1 字体像素 = 1 屏幕像素），绝不放大小格字体；源选全量简体覆盖的
-                // 缝合像素（方舟 10px 简体覆盖不全，巨/火/扫等字缺字错字，实测截图）。
-                Purpose = "像素 UI 正文档（缝合像素 30px 原生栅格；OFL 1.1）——仅 30 号使用",
+                Purpose = "10 原生档（辅助提示）",
             },
             new FontSpec
             {
-                SourceTtfPath = FontsFolder + "/StickHand-Regular.ttf",
-                AssetFileName = "StickHand-Regular SDF",
-                SamplingPointSize = 72,
-                AtlasPadding = 6,
-                AtlasWidth = 1024,
-                AtlasHeight = 1024,
-                RenderMode = GlyphRenderMode.SDFAA,
-                Purpose = "标题（StickHand 手写体，站酷快乐体修改版；OFL 1.1）",
-            },
-            new FontSpec
-            {
-                SourceTtfPath = FontsFolder + "/FusionPixel12-zh_hans.ttf",
-                AssetFileName = "FusionPixel12-px36",
-                SamplingPointSize = 36,
-                AtlasPadding = 0,
+                SourceTtfPath = FontsFolder + "/FusionPixel8-zh_hans.ttf",
+                AssetFileName = "FusionPixel8",
+                SamplingPointSize = 8,
+                AtlasPadding = 4,
                 AtlasWidth = 1024,
                 AtlasHeight = 1024,
                 RenderMode = GlyphRenderMode.RASTER_HINTED,
-                // 2026-09-24 创始人裁决：大标题 = 36 屏幕像素高 → 用 36px 原生栅格烘位图，
-                // 字形必须是像素字（楷体/宋体观感被走查否决）——12px 设计格 × 3 整数倍，
-                // 每设计像素 = 3 屏幕像素 = 1 艺术像素，干净方格零灰边。
-                Purpose = "界面大标题位图档（缝合像素 36px 原生栅格；OFL 1.1）——仅 36 号使用",
+                Purpose = "8 原生档（角标/快捷键）",
             },
+        };
+
+        /// <summary>已退役资产名（构建时清理 Art 与 Resources 两侧，防 GUID 悬空引用复活）。</summary>
+        static readonly string[] RetiredAssetNames =
+        {
+            "FusionPixel12-px30",   // 旧放大档（12px 采样 ×2.5）：翻倍被否决
+            "FusionPixel12-px36",   // 旧放大档（12px 采样 ×3）：翻倍被否决
         };
 
         /// <summary>幂等生成：已存在的资产跳过。批处理入口。</summary>
@@ -216,6 +186,14 @@ namespace PirateCrew.EditorTools
             int created = 0;
             int skipped = 0;
 
+            // 退役资产清理（Art 与 Resources 两侧）：旧放大档已被原生档纪律否决，
+            // 残留会以悬空 GUID 复活白块链，每次构建顺手清零。
+            foreach (string retired in RetiredAssetNames)
+            {
+                AssetDatabase.DeleteAsset(FontsFolder + "/" + retired + ".asset");
+                AssetDatabase.DeleteAsset("Assets/Resources/Fonts/" + retired + ".asset");
+            }
+
             // 【不用 StartAssetEditing 批处理块】块内 DeleteAsset 是延迟执行的：
             // ForceRebuild 先删后建同名资产时，CreateAsset 撞上未落盘的删除 → 
             // UnityException: Creating asset failed（batchmode 实测，2026-09-24）。
@@ -264,14 +242,13 @@ namespace PirateCrew.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("[FontAssetBuilder] 完成：新建/重建 " + created + " 个，跳过 " + skipped + " 个。\n"
-                + "  产物路径（供 UI/场景引用）:\n"
-                + "    像素  " + Specs[2].AssetPath + "（FusionPixel12 位图档，显示字号取 12 的整数倍）\n"
-                + "    标题  " + Specs[3].AssetPath + "（StickHand，fallback → 正文）\n"
-                + "    正文  " + Specs[0].AssetPath + "\n"
-                + "    次级  " + Specs[1].AssetPath + "\n"
-                + "  说明: 这些是 TMP 字体资产，只对 TextMeshProUGUI/TextMeshPro 生效；\n"
-                + "        legacy UnityEngine.UI.Text 请直接引用 .ttf（Unity 已导入为 Dynamic Font）。");
+            var lines = new System.Text.StringBuilder();
+            foreach (FontSpec spec in Specs)
+                lines.Append("\n    ").Append(spec.AssetPath).Append("（").Append(spec.Purpose).Append("）");
+            Debug.Log("[FontAssetBuilder] 完成：新建/重建 " + created + " 个，跳过 " + skipped + " 个。"
+                + "  产物路径（供 UI/场景引用）:" + lines + "\n"
+                + "  说明: TMP 位图字体资产（RASTER_HINTED + Point + Bitmap shader），"
+                + "只对 TextMeshProUGUI/TextMeshPro 生效；legacy Text 请直接引用 .ttf。");
         }
 
         /// <summary>
@@ -375,41 +352,7 @@ namespace PirateCrew.EditorTools
             }
         }
 
-        /// <summary>标题字体缺字时回退到正文，避免标题里出现缺字方块。</summary>
-        static void LinkFallbacks()
-        {
-            // 注意下标：Specs 顺序 = 0 正文楷体 / 1 次级楷体 / 2 像素字体 / 3 标题手写体。
-            TMP_FontAsset body = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(Specs[0].AssetPath);
-            TMP_FontAsset title = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(Specs[3].AssetPath);
-            if (body != null && title != null)
-            {
-                if (title.fallbackFontAssetTable == null)
-                    title.fallbackFontAssetTable = new List<TMP_FontAsset>();
-                if (!title.fallbackFontAssetTable.Contains(body))
-                {
-                    title.fallbackFontAssetTable.Add(body);
-                    EditorUtility.SetDirty(title);
-                    Debug.Log("[FontAssetBuilder] 已把标题字体 fallback 指向正文字体: "
-                        + Specs[3].AssetPath + " → " + Specs[0].AssetPath);
-                }
-            }
-
-            // 像素字体（位图档）缺字 → 楷体正文兜底（罕见字形不至于出方块）。
-            TMP_FontAsset pixel = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(Specs[2].AssetPath);
-            if (body != null && pixel != null)
-            {
-                if (pixel.fallbackFontAssetTable == null)
-                    pixel.fallbackFontAssetTable = new List<TMP_FontAsset>();
-                if (!pixel.fallbackFontAssetTable.Contains(body))
-                {
-                    pixel.fallbackFontAssetTable.Add(body);
-                    EditorUtility.SetDirty(pixel);
-                    Debug.Log("[FontAssetBuilder] 已把像素字体 fallback 指向正文楷体: "
-                        + Specs[1].AssetPath + " → " + Specs[0].AssetPath);
-                }
-            }
-        }
-
+        /// <summary>确保工程内文件夹存在（幂等；逐级创建）。</summary>
         static void EnsureFolder(string path)
         {
             if (AssetDatabase.IsValidFolder(path))
@@ -419,6 +362,27 @@ namespace PirateCrew.EditorTools
             string leaf = System.IO.Path.GetFileName(path);
             EnsureFolder(parent);
             AssetDatabase.CreateFolder(parent, leaf);
+        }
+
+        /// <summary>缺字回退链：本档缺字时按「更小档」逐级兜底（Specs 按字号降序排列，
+        /// 每档 fallback = 其后全部更小档）。覆盖实测：16 与 8 全过；12 缺 1（毂←10 兜）、
+        /// 10 缺 2（胫舭←8 兜）——链只是保险，不承担常规渲染。</summary>
+        static void LinkFallbacks()
+        {
+            TMP_FontAsset[] assets = new TMP_FontAsset[Specs.Length];
+            for (int i = 0; i < Specs.Length; i++)
+                assets[i] = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(Specs[i].AssetPath);
+
+            for (int i = 0; i < assets.Length - 1; i++)
+            {
+                if (assets[i] == null)
+                    continue;
+                assets[i].fallbackFontAssetTable = new List<TMP_FontAsset>();
+                for (int j = i + 1; j < assets.Length; j++)
+                    if (assets[j] != null)
+                        assets[i].fallbackFontAssetTable.Add(assets[j]);
+                EditorUtility.SetDirty(assets[i]);
+            }
         }
     }
 }

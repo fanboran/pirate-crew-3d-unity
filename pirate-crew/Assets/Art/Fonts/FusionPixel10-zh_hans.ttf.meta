@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: c13651a51e069d94e9021667f2824cf6
+guid: 59ab0ee5b3220a34bb468e936c61f818
 TrueTypeFontImporter:
   externalObjects: {}
   serializedVersion: 4
@@ -9,7 +9,7 @@ TrueTypeFontImporter:
   characterPadding: 1
   includeFontData: 1
   fontNames:
-  - ZCOOL KuaiLe
+  - Fusion Pixel 10px Prop zh_hans
   fallbackFontReferences: []
   customCharacters: 
   fontRenderingMode: 0

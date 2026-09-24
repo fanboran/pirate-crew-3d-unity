@@ -85,8 +85,8 @@ namespace PirateCrew.EditorTools
         /// </summary>
         const float OutlineWidthInitial = 0.2f;
 
-        const string FontResourcePath = "Fonts/StickHand-Regular SDF";
-        const string FontAssetPath = "Assets/Art/Fonts/StickHand-Regular SDF.asset";
+        const string FontResourcePath = "Fonts/FusionPixel12";
+        const string FontAssetPath = "Assets/Art/Fonts/FusionPixel12.asset";
 
         const string OutputRelativeDir = "export/text-sample";
         const string OutputFileName = "unity_1920x1080.png";

@@ -130,17 +130,18 @@ namespace PirateCrew.Tests.UI
         [Test]
         public void FontScale_FreeSized_ReadabilityTable()
         {
-            // 【裁决 2026-09-24】文字解除像素栅格：字号按可读性自由取值，不再要求
-            // 「÷3 = 位图字体原生档」（原满精度 36/30 双档口径废除）。像素字体的字形轮廓
-            // 自带颗粒感，字体档由 UiKit.ResolvePixelFont 就近解析。层级靠颜色不靠字号。
-            Assert.AreEqual(40, UiSkin.Font.Display);
-            Assert.AreEqual(36, UiSkin.Font.Banner);
-            Assert.AreEqual(28, UiSkin.Font.Title);
-            Assert.AreEqual(24, UiSkin.Font.Section);
-            Assert.AreEqual(20, UiSkin.Font.Hud);
-            Assert.AreEqual(16, UiSkin.Font.Body);
-            Assert.AreEqual(14, UiSkin.Font.Hint);
-            Assert.AreEqual(12, UiSkin.Font.Tiny);
+            // 【裁决 2026-09-24】原生档纪律：字号只取像素字体原生设计档——有什么字号
+            // 做什么字号，没有的档不硬凑、绝不放大（12px 烘 24/36 = 翻倍，被否决）。
+            // 现役四档：16 正格点黑16 / 12、10、8 缝合像素（cmap 实测全过，见 FontAssetBuilder）。
+            // 层级靠颜色与留白表达，不靠字号。
+            Assert.AreEqual(16, UiSkin.Font.Display);
+            Assert.AreEqual(16, UiSkin.Font.Banner);
+            Assert.AreEqual(16, UiSkin.Font.Title);
+            Assert.AreEqual(12, UiSkin.Font.Section);
+            Assert.AreEqual(12, UiSkin.Font.Hud);
+            Assert.AreEqual(12, UiSkin.Font.Body);
+            Assert.AreEqual(10, UiSkin.Font.Hint);
+            Assert.AreEqual(8, UiSkin.Font.Tiny);
         }
 
         [Test]

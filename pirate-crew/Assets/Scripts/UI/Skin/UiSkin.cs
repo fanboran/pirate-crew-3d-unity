@@ -184,33 +184,36 @@ namespace PirateCrew.UI
         /// 已并入本表（别名或同值），勿再新增第三份字号表。</summary>
         public static class Font
         {
-            /// <summary>**位图栅格纪律**：字号只允许取位图字体原生档 × u——1 字体像素 =
-            /// 1 艺术像素 = u 屏幕像素，非原生档的字号必然糊栅格（"大字配低精度"的病根）。
-            /// 两档：标题 12 艺术像素（FusionPixel12 原生格）、正文 10 艺术像素（ArkPixel10 原生格）。
-            /// 层级靠颜色与留白表达，不靠字号（Aseprite 同款做法）。要真正的更大标题
-            /// = 引入更大原生格的位图字体，不是放大 12px 格。</summary>
-            public const int Display = 12 * PixelSkin.Unit;
+            /// <summary>【原生档纪律（创始人裁决）】字号只取**像素字体的原生设计档**——
+            /// 有什么字号做什么字号，没有的档不硬凑、绝不放大（12px 字体烘 24/36 = 翻倍，被否决）。
+            /// 现役原生档四档（cmap 实测覆盖工程全部 UI 字符）：
+            ///   16 = 正格点黑16（简体全过）；12 = 缝合像素（缺 1 毂←10 兜）；
+            ///   10 = 缝合像素（缺 2 胫舭←12 兜）；8 = 缝合像素（全过）。
+            /// 淘汰记录：方舟 16px（缺 1413 字含巨火扫）、寒蝉 16px（简体约 40%）。
+            /// 字体像素不锚定艺术像素；层级靠颜色与留白表达，不靠字号（Aseprite 同款做法）。
+            /// 24px+ 开源全简体原生档现不存在——出现了才新增，不硬凑。</summary>
+            public const int Display = 16;
 
-            /// <summary>结算横幅 / 界面大标题（12 艺术像素档）。</summary>
-            public const int Banner = 12 * PixelSkin.Unit;
+            /// <summary>结算横幅 / 界面大标题（16 原生档——现存最大原生档）。</summary>
+            public const int Banner = 16;
 
-            /// <summary>界面标题 / 区块标题（12 艺术像素档）。</summary>
-            public const int Title = 12 * PixelSkin.Unit;
+            /// <summary>界面标题 / 区块大标题（16 原生档）。</summary>
+            public const int Title = 16;
 
-            /// <summary>正文以下全档：HUD / 按钮 / 列表行 / 提示 / 角标（10 艺术像素档）。</summary>
-            public const int Section = 10 * PixelSkin.Unit;
+            /// <summary>区块标题 / 面板标题条（12 原生档）。</summary>
+            public const int Section = 12;
 
-            /// <summary>同 <see cref="Section"/>（10 艺术像素档）。</summary>
-            public const int Hud = 10 * PixelSkin.Unit;
+            /// <summary>HUD 常读：回合数 / 武器名 / 说明行（12 原生档）。</summary>
+            public const int Hud = 12;
 
-            /// <summary>按钮 / 列表行文本 / 武器格文字（10 艺术像素档）。</summary>
-            public const int Body = 10 * PixelSkin.Unit;
+            /// <summary>按钮 / 列表行 / 武器格文字（12 原生档）。</summary>
+            public const int Body = 12;
 
-            /// <summary>辅助提示 / 说明行（10 艺术像素档）。</summary>
-            public const int Hint = 10 * PixelSkin.Unit;
+            /// <summary>辅助提示 / 说明行（10 原生档）。</summary>
+            public const int Hint = 10;
 
-            /// <summary>角标 / 快捷键角标（10 艺术像素档）。</summary>
-            public const int Tiny = 10 * PixelSkin.Unit;
+            /// <summary>角标 / 快捷键角标（8 原生档）。</summary>
+            public const int Tiny = 8;
         }
 
         // ------------------------------------------------------------------
@@ -227,7 +230,9 @@ namespace PirateCrew.UI
         public static class Px
         {
             /// <summary>1 艺术像素 = 3 画布像素（与 3D 像素化渲染颗粒度 1:1）。</summary>
-            public const int Unit = PixelSkin.Unit;
+            /// <summary>1 画布单位 = 1 艺术像素（低清画布栈：画布 = 固定艺术分辨率，
+            /// 整数倍缩放全屏——几何令牌全部按艺术像素取值，不再乘屏幕倍率）。</summary>
+            public const int Unit = 1;
 
             /// <summary>标准条高（10 艺术像素：凹槽上下各 1 格描边 + 8 格槽底/填充）。</summary>
             public const int Bar = 10 * Unit;

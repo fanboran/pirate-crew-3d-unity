@@ -100,51 +100,66 @@ namespace PirateCrew.UI
 
         public static TMP_FontAsset ResolvePixelFont(int fontSize, TMP_FontAsset fallback = null)
         {
-            // 位图栅格纪律（2026-09-24 创始人裁决）：**一字号一资产**——字号档决定字体档，
-            // 每档字体在其原生栅格烘制（1 字体像素 = 1 屏幕像素），只在本档渲染，绝不放大缩小：
-            // 36 = 楷体 36px 栅格（标题档）；30 = 缝合像素 30px 栅格（正文档，全量简体覆盖）。
-            TMP_FontAsset resolved = fontSize >= 36 ? TitlePixelFont() : BodyPixelFont();
-            return resolved != null ? resolved : fallback;
+            // 原生档纪律（创始人裁决）：字号档 = 字体原生设计档，只在本档渲染，绝不放大缩小
+            // （12px 字体烘 24/36 = 翻倍，被否决）。四档（降序）：16 正格点黑16 / 12、10、8 缝合像素。
+            // 就近取档；某档资产缺失时循环自然下探到更小档，最后才回落调用方兜底。
+            for (int i = 0; i < FontTiers.Length; i++)
+            {
+                if (fontSize >= FontTiers[i].size)
+                {
+                    TMP_FontAsset asset = TierFont(i);
+                    if (asset != null)
+                        return asset;
+                }
+            }
+            return fallback;
         }
 
         // ------------------------------------------------------------------
-        // 字体资产路径（Resources.Load 的单一真源；加载点 = TitlePixelFont /
-        // BodyPixelFont 与 PixelShowcasePage.PixelFont）
+        // 字阶表（与 FontAssetBuilder.Specs 同源，降序）：档位字号 → Resources 路径。
         // ------------------------------------------------------------------
 
-        /// <summary>标题档位图字体（缝合像素 36px 原生格）的 Resources 路径。</summary>
-        internal const string TitlePixelFontPath = "Fonts/FusionPixel12-px36";
-
-        /// <summary>正文档位图字体（缝合像素 30px 原生格）的 Resources 路径。</summary>
-        internal const string BodyPixelFontPath = "Fonts/FusionPixel12-px30";
-
-        /// <summary>展示页自用的 SDF 档字体 Resources 路径（任意字号清晰，见 PixelShowcasePage.PixelFont）。</summary>
-        internal const string SdfFontPath = "Fonts/LXGWWenKaiLite-Medium SDF";
-
-        static TMP_FontAsset _titlePixelFont;
-        static TMP_FontAsset _bodyPixelFont;
-
-        static TMP_FontAsset TitlePixelFont()
+        static readonly (int size, string path)[] FontTiers =
         {
-            if (_titlePixelFont == null)
-                _titlePixelFont = Resources.Load<TMP_FontAsset>(TitlePixelFontPath);
-            if (_titlePixelFont == null)
-                Debug.LogWarning("[UiKit] Resources/" + TitlePixelFontPath + " 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
-            return _titlePixelFont;
-        }
+            (16, "Fonts/ZhengGeDianHei16"),
+            (12, "Fonts/FusionPixel12"),
+            (10, "Fonts/FusionPixel10"),
+            (8, "Fonts/FusionPixel8"),
+        };
 
-        static TMP_FontAsset BodyPixelFont()
+        /// <summary>正文档（12 原生档）Resources 路径——PixelShowcasePage 等直取用。</summary>
+        internal const string BodyPixelFontPath = "Fonts/FusionPixel12";
+
+        static readonly Dictionary<string, TMP_FontAsset> _tierCache = new Dictionary<string, TMP_FontAsset>();
+
+        static TMP_FontAsset TierFont(int index)
         {
-            if (_bodyPixelFont == null)
-                _bodyPixelFont = Resources.Load<TMP_FontAsset>(BodyPixelFontPath);
-            if (_bodyPixelFont == null)
-                Debug.LogWarning("[UiKit] Resources/" + BodyPixelFontPath + " 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
-            return _bodyPixelFont;
+            string path = FontTiers[index].path;
+            if (!_tierCache.TryGetValue(path, out TMP_FontAsset asset) || asset == null)
+            {
+                asset = Resources.Load<TMP_FontAsset>(path);
+                _tierCache[path] = asset;
+                if (asset == null)
+                    Debug.LogWarning("[UiKit] Resources/" + path + " 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
+            }
+            return asset;
         }
 
         // ------------------------------------------------------------------
         // 像素件（全部走 PixelSkin 同源出口；禁止乘色）
         // ------------------------------------------------------------------
+
+        /// <summary>建面板/卡片底（**直角 Panel 皮**，Aseprite 参照：圆角只属于按钮）。</summary>
+        public static Image CreatePanel(string name, Transform parent, PixelTone tone)
+        {
+            Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
+            image.sprite = PixelSkin.Panel(tone);
+            image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素（×2 到屏幕由缩放器整数完成）
+            image.color = Color.white;
+            image.raycastTarget = false;
+            return image;
+        }
 
         /// <summary>建凸起块（Plate，九宫格）。像素件白贴图不乘色——色阶烘死在贴图里。</summary>
         public static Image CreatePlate(string name, Transform parent, PixelTone tone,
@@ -153,9 +168,47 @@ namespace PirateCrew.UI
             Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
             image.sprite = PixelSkin.Plate(tone, state);
             image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素（×2 到屏幕由缩放器整数完成）
             image.color = Color.white;
             image.raycastTarget = false;
             return image;
+        }
+
+        /// <summary>按钮贴合标签（创始人多轮裁决：**按钮大小 = 文字大小**）：
+        /// 宽 = 标签 TMP 真实渲染宽 + <see cref="UiSkin.Px.ButtonPadX"/>，高 = 调用方指定；
+        /// 同时改写 RectTransform 与既有 LayoutElement 的 preferred/min——装配期一次收口。
+        /// 文字运行期会变的按钮请另走 HStack(controlWidths) 流式（内层横排组随文字收放）。</summary>
+        public static void FitToLabel(Button button, float height)
+        {
+            TMPro.TextMeshProUGUI label = button != null
+                ? button.GetComponentInChildren<TMPro.TextMeshProUGUI>(true)
+                : null;
+            if (label == null)
+                return;
+            float width = Mathf.Max(2f * UiSkin.Font.Body,
+                Mathf.Ceil(label.preferredWidth) + UiSkin.Px.ButtonPadX);
+            RectTransform rect = (RectTransform)button.transform;
+            rect.sizeDelta = new Vector2(width, height);
+            var element = button.GetComponent<UnityEngine.UI.LayoutElement>();
+            if (element != null)
+            {
+                element.preferredWidth = width;
+                element.minWidth = width;
+                element.preferredHeight = height;
+            }
+        }
+
+        /// <summary>宽高全贴合：高 = 标签真实行高 + 上下各半 <see cref="UiSkin.Px.ButtonPadX"/>。</summary>
+        public static void FitToLabel(Button button)
+        {
+            TMPro.TextMeshProUGUI label = button != null
+                ? button.GetComponentInChildren<TMPro.TextMeshProUGUI>(true)
+                : null;
+            if (label == null)
+                return;
+            float height = Mathf.Max(UiSkin.Px.Button,
+                Mathf.Ceil(label.preferredHeight) + UiSkin.Px.ButtonPadX);
+            FitToLabel(button, height);
         }
 
         /// <summary>建凹槽（Track，九宫格）：条状件的空槽底。</summary>
@@ -164,6 +217,7 @@ namespace PirateCrew.UI
             Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
             image.sprite = PixelSkin.Track(tone);
             image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
             image.color = Color.white;
             image.raycastTarget = false;
             return image;
@@ -175,6 +229,7 @@ namespace PirateCrew.UI
             Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
             image.sprite = PixelSkin.Fill(kind);
             image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
             image.color = Color.white;
             image.raycastTarget = false;
             return image;
@@ -189,6 +244,7 @@ namespace PirateCrew.UI
             Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
             image.sprite = PixelSkin.Focus;
             image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
             image.color = Color.white;
             image.raycastTarget = false;
             RectTransform rect = image.rectTransform;
@@ -218,25 +274,22 @@ namespace PirateCrew.UI
         /// </summary>
         public static Image EnsurePanel(RectTransform panel, PixelTone tone)
         {
-            Image shadow = FindImage(panel, "Shadow");
-            if (shadow == null)
-                shadow = CreateRect("Shadow", panel).gameObject.AddComponent<Image>();
-            shadow.sprite = PixelSkin.ShadowSprite;
-            shadow.type = Image.Type.Sliced;
-            shadow.color = Color.white;
-            shadow.raycastTarget = false;
-            StretchOffset(shadow.rectTransform, PixelSkin.ShadowOffset);
-            shadow.rectTransform.SetSiblingIndex(0);
+            // 【源码裁决】Aseprite dark 主题 grep "shadow" 零命中——对话框没有影子层。
+            // 旧版自造的 Shadow 孩子在这里就地销毁（"面板盖两层"的观感即它）。
+            Transform legacyShadow = panel.Find("Shadow");
+            if (legacyShadow != null)
+                Object.DestroyImmediate(legacyShadow.gameObject);
 
             Image plate = FindImage(panel, "Plate");
             if (plate == null)
                 plate = CreateRect("Plate", panel).gameObject.AddComponent<Image>();
-            plate.sprite = PixelSkin.Plate(tone, PixelState.Normal);
+            plate.sprite = PixelSkin.Panel(tone);   // 直角面板皮（圆角只属于按钮）
             plate.type = Image.Type.Sliced;
+            plate.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
             plate.color = Color.white;
             plate.raycastTarget = true;   // 面板本体挡点击（内容件画在其上，不受影响）
             Stretch(plate.rectTransform);
-            plate.rectTransform.SetSiblingIndex(1);
+            plate.rectTransform.SetSiblingIndex(0);
             return plate;
         }
 
@@ -310,6 +363,7 @@ namespace PirateCrew.UI
         {
             image.sprite = PixelSkin.Plate(tone, PixelState.Normal);
             image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
             image.color = Color.white;
             image.raycastTarget = true;
 
@@ -452,16 +506,17 @@ namespace PirateCrew.UI
             var track = root.gameObject.AddComponent<Image>();
             track.sprite = PixelSkin.Track(PixelTone.Frame);
             track.type = Image.Type.Sliced;
+            track.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
             track.color = Color.white;
             track.raycastTarget = false;
 
             Image ghost = CreateFill("Ghost", root, PixelFillKind.Neutral);
             Stretch(ghost.rectTransform);
-            InsetHorizontal(ghost.rectTransform, PixelSkin.Unit);
+            InsetHorizontal(ghost.rectTransform, 1f);   // 1 艺术像素内缩;
 
             Image fill = CreateFill("Fill", root, FillKindOfColor(fillColor));
             Stretch(fill.rectTransform);
-            InsetHorizontal(fill.rectTransform, PixelSkin.Unit);
+            InsetHorizontal(fill.rectTransform, 1f);   // 1 艺术像素内缩;
 
             return new BarView { Root = root, Track = track, Ghost = ghost, Fill = fill };
         }
@@ -486,6 +541,25 @@ namespace PirateCrew.UI
 
             RectTransform card = CreatePanel("Card", root,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, cardSize);
+
+            // 卡片纵向贴合内容（创始人裁决：对话框大小跟内容走）：VBox 管内容流，
+            // ContentSizeFitter(Vertical=Preferred) 让卡片高 = 内容高 + 上下边距；
+            // 宽度仍由调用方的 cardSize.x 指定。
+            var box = card.gameObject.GetComponent<UnityEngine.UI.VerticalLayoutGroup>();
+            if (box == null)
+                box = card.gameObject.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
+            box.padding = new RectOffset(6, 6, 6, 6);   // 艺术像素
+            box.spacing = 2f;   // 艺术像素
+            box.childControlWidth = true;
+            box.childControlHeight = true;
+            box.childForceExpandWidth = false;
+            box.childForceExpandHeight = false;
+            box.childAlignment = TextAnchor.UpperCenter;
+            var fitter = card.gameObject.GetComponent<UnityEngine.UI.ContentSizeFitter>();
+            if (fitter == null)
+                fitter = card.gameObject.AddComponent<UnityEngine.UI.ContentSizeFitter>();
+            fitter.horizontalFit = UnityEngine.UI.ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize;
 
             root.gameObject.SetActive(false);
             return new ModalView { Root = root.gameObject, Card = card };

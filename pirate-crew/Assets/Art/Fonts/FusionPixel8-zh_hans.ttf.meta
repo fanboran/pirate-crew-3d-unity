@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: d2645bceb1fcad0408733678dff8b1e7
+guid: 20c729009ce4dbf41805210fa4b5b90c
 TrueTypeFontImporter:
   externalObjects: {}
   serializedVersion: 4
@@ -9,7 +9,7 @@ TrueTypeFontImporter:
   characterPadding: 1
   includeFontData: 1
   fontNames:
-  - LXGW WenKai Lite
+  - Fusion Pixel 8px Prop zh_hans
   fallbackFontReferences: []
   customCharacters: 
   fontRenderingMode: 0
