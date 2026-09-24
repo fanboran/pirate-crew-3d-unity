@@ -100,12 +100,9 @@ namespace PirateCrew.UI
 
         public static TMP_FontAsset ResolvePixelFont(int fontSize, TMP_FontAsset fallback = null)
         {
-            // 位图栅格纪律（2026-09-24 创始人裁决，推翻同日早先的 SDF/矢量口径）：字号档决定字体档——
-            // 36 = 12 艺术像素 → FusionPixel12-px 原生格；30 = 10 艺术像素 → ArkPixel10-px 原生格。
-            // 1 字体像素 = 1 艺术像素 = u 屏幕像素，字号永远落在原生档 × u；矢量字对不齐像素栅格。
-            // 字号每上一档换对应原生分辨率的字体：36 屏幕像素高的标题 = 36px 栅格位图
-            // （1 字体像素 = 1 屏幕像素，笔画 1px 级）；正文 = ArkPixel10 贴艺术栅格
-            // （1 字体像素 = 1 艺术像素）。两者都只在原生尺寸渲染，绝不放大小格字体。
+            // 位图栅格纪律（2026-09-24 创始人裁决）：**一字号一资产**——字号档决定字体档，
+            // 每档字体在其原生栅格烘制（1 字体像素 = 1 屏幕像素），只在本档渲染，绝不放大缩小：
+            // 36 = 楷体 36px 栅格（标题档）；30 = 缝合像素 30px 栅格（正文档，全量简体覆盖）。
             TMP_FontAsset resolved = fontSize >= 36 ? TitlePixelFont() : BodyPixelFont();
             return resolved != null ? resolved : fallback;
         }
@@ -116,18 +113,18 @@ namespace PirateCrew.UI
         static TMP_FontAsset TitlePixelFont()
         {
             if (_titlePixelFont == null)
-                _titlePixelFont = Resources.Load<TMP_FontAsset>("Fonts/LXGWWenKaiLite-Medium-px36");
+                _titlePixelFont = Resources.Load<TMP_FontAsset>("Fonts/FusionPixel12-px36");
             if (_titlePixelFont == null)
-                Debug.LogWarning("[UiKit] Resources/Fonts/LXGWWenKaiLite-Medium-px36 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
+                Debug.LogWarning("[UiKit] Resources/Fonts/FusionPixel12-px36 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
             return _titlePixelFont;
         }
 
         static TMP_FontAsset BodyPixelFont()
         {
             if (_bodyPixelFont == null)
-                _bodyPixelFont = Resources.Load<TMP_FontAsset>("Fonts/ArkPixel10-px");
+                _bodyPixelFont = Resources.Load<TMP_FontAsset>("Fonts/FusionPixel12-px30");
             if (_bodyPixelFont == null)
-                Debug.LogWarning("[UiKit] Resources/Fonts/ArkPixel10-px 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
+                Debug.LogWarning("[UiKit] Resources/Fonts/FusionPixel12-px30 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
             return _bodyPixelFont;
         }
 

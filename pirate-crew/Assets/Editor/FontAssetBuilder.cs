@@ -116,14 +116,17 @@ namespace PirateCrew.EditorTools
             },
             new FontSpec
             {
-                SourceTtfPath = FontsFolder + "/ArkPixel10-zh_cn.ttf",
-                AssetFileName = "ArkPixel10-px",
-                SamplingPointSize = 10,
+                SourceTtfPath = FontsFolder + "/FusionPixel12-zh_hans.ttf",
+                AssetFileName = "FusionPixel12-px30",
+                SamplingPointSize = 30,
                 AtlasPadding = 0,
                 AtlasWidth = 1024,
                 AtlasHeight = 1024,
                 RenderMode = GlyphRenderMode.RASTER_HINTED,
-                Purpose = "像素 UI 正文档（方舟像素 10px 简体；OFL 1.1）——位图口径，10 艺术像素档",
+                // 2026-09-24 创始人裁决：一字号一资产——30 屏幕像素的正文就用 30px 原生栅格
+                // 烘的位图（1 字体像素 = 1 屏幕像素），绝不放大小格字体；源选全量简体覆盖的
+                // 缝合像素（方舟 10px 简体覆盖不全，巨/火/扫等字缺字错字，实测截图）。
+                Purpose = "像素 UI 正文档（缝合像素 30px 原生栅格；OFL 1.1）——仅 30 号使用",
             },
             new FontSpec
             {
@@ -138,17 +141,17 @@ namespace PirateCrew.EditorTools
             },
             new FontSpec
             {
-                SourceTtfPath = FontsFolder + "/LXGWWenKaiLite-Medium.ttf",
-                AssetFileName = "LXGWWenKaiLite-Medium-px36",
+                SourceTtfPath = FontsFolder + "/FusionPixel12-zh_hans.ttf",
+                AssetFileName = "FusionPixel12-px36",
                 SamplingPointSize = 36,
                 AtlasPadding = 0,
                 AtlasWidth = 1024,
                 AtlasHeight = 1024,
                 RenderMode = GlyphRenderMode.RASTER_HINTED,
                 // 2026-09-24 创始人裁决：大标题 = 36 屏幕像素高 → 用 36px 原生栅格烘位图，
-                // 1 字体像素 = 1 屏幕像素（笔画 1px 级、零放大、零 SDF 灰边）。
-                // "字号每上一档换一套原生分辨率的字体"，绝不放大 12px 小格。
-                Purpose = "界面大标题位图档（霞鹜文楷 36px 原生栅格；OFL 1.1）——仅 36 号使用",
+                // 字形必须是像素字（楷体/宋体观感被走查否决）——12px 设计格 × 3 整数倍，
+                // 每设计像素 = 3 屏幕像素 = 1 艺术像素，干净方格零灰边。
+                Purpose = "界面大标题位图档（缝合像素 36px 原生栅格；OFL 1.1）——仅 36 号使用",
             },
         };
 
