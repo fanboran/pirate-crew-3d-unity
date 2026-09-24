@@ -32,7 +32,7 @@ namespace PirateCrew.EditorTools.BuildSystem
     /// <list type="number">
     ///   <item><b>不改写 Build Settings</b>：场景列表经 <c>BuildPlayerOptions.scenes</c> 显式传入，
     ///         所以出包既不受 <c>EditorBuildSettings</c> 当前内容影响、也不会把它改掉
-    ///         （本机 batchmode 下那个 API 写入不落盘，且 Build Settings 要留着 ToonPilot 供出图）。
+    ///         （本机 batchmode 下那个 API 写入不落盘）。
     ///         想让两者一致时用菜单里的「同步 Build Settings」。见 <see cref="BuildScenes"/> 的说明。</item>
     ///   <item><b>失败也写报告</b>：报告是排查的起点，只在成功时写等于在最需要它的时候没有它。</item>
     ///   <item><b>构建前读回校验 PlayerSettings</b>：「脚本写了」不等于「引擎接受了」，
@@ -185,18 +185,18 @@ namespace PirateCrew.EditorTools.BuildSystem
         }
 
         /// <summary>
-        /// 把 Build Settings 同步成**开发集**（= 现有 6 场景，含 ToonPilot）。
+        /// 把 Build Settings 同步成**开发集**（= 发行 5 场景 + 像素化试点 11 场景 = 16 场景）。
         /// 这是给「编辑器里按 Play / 播放器出图」用的列表，保持与装配脚本文档一致。
         /// </summary>
-        [MenuItem("PirateCrew/Build/同步 Build Settings（开发集 6 场景）", priority = 210)]
+        [MenuItem("PirateCrew/Build/同步 Build Settings（开发集 16 场景）", priority = 210)]
         public static void MenuSyncBuildSettingsDevelopment()
         {
             SyncBuildSettings(BuildScenes.DevelopmentSet(), "开发集");
         }
 
         /// <summary>
-        /// 把 Build Settings 同步成**发行集**（5 场景，去掉 ToonPilot）。
-        /// 提交发行前的准备动作；之后要跑 ToonPilot 出图请再同步回开发集。
+        /// 把 Build Settings 同步成**发行集**（5 场景，不含像素化试点场景）。
+        /// 提交发行前的准备动作；之后要跑像素试点出图请再同步回开发集。
         /// </summary>
         [MenuItem("PirateCrew/Build/同步 Build Settings（发行集 5 场景）", priority = 211)]
         public static void MenuSyncBuildSettingsRelease()

@@ -23,13 +23,14 @@ namespace PirateCrew.EditorTools.BuildSystem
     /// 【与 Build Settings 的关系】<b>构建时不再读写 <c>EditorBuildSettings</c></b>：场景列表经
     /// <c>BuildPlayerOptions.scenes</c> 显式传给 <c>BuildPipeline.BuildPlayer</c>。这样做的两个理由：
     /// ① 本机 batchmode 下 <c>EditorBuildSettings.scenes</c> 的 API 写入不落盘（已有事故记录，
-    /// 见 <c>Assets/Editor/ToonPilotSetup.cs</c> 的注释），显式传参天然绕开这个坑；
-    /// ② Build Settings 是「编辑器里按 Play 想看什么」的列表，必须留着 ToonPilot（等距像素卡通试点场景的
-    /// 播放器出图入口依赖它在列表里），而发行包不该含它——两者诉求相反，所以不该共用一个列表。
+    /// 见 <c>Assets/Editor/ToonPilotSetup.cs</c> 的注释——该装配器已随 ToonPilot 场景退役，
+    /// 但事故教训仍适用于所有 batchmode 写 Build Settings 的路径），显式传参天然绕开这个坑；
+    /// ② Build Settings 是「编辑器里按 Play 想看什么」的列表，而发行包范围由这里单独裁决——
+    /// 两者诉求可以不同，所以不该共用一个列表。
     /// 想让 Build Settings 与这里一致时用菜单 <c>PirateCrew/Build/同步 Build Settings…</c>（显式动作，不是副作用）。
     ///
     /// 【未收口项（登记给主控，本轨道不改）】<c>Assets/Editor/ManagementSceneSetup.cs:449 RegisterBuildSettings()</c>
-    /// 仍是幂等全量写入 6 场景（含 ToonPilot）、自带一份硬编码数组。它每次跑装配链都会覆盖 Build Settings。
+    /// 仍是幂等全量写入 5 场景、自带一份硬编码数组。它每次跑装配链都会覆盖 Build Settings。
     /// 那是「开发集」，与这里的 <see cref="DevelopmentSet"/> 语义相同但两处维护——建议后续把该方法的数组
     /// 换成 <c>BuildScenes.DevelopmentSet()</c>，冲突与处置见 docs/项目/构建与发布手册.md 的遗留节。
     /// </summary>
@@ -40,12 +41,6 @@ namespace PirateCrew.EditorTools.BuildSystem
 
         /// <summary>场景资产扩展名。</summary>
         public const string Extension = ".unity";
-
-        /// <summary>
-        /// 等距像素卡通试点场景：开发/测试专用，**不进发行包**。
-        /// 它是 <c>PirateCrew/ToonPilot</c> 出图入口的载体，玩家不应看到。
-        /// </summary>
-        public const string ToonPilot = "ToonPilot";
 
         /// <summary>
         /// 像素化着色路径（v3 蓝本重写线）试点场景：开发/测试专用，**不进发行包**。
@@ -87,13 +82,12 @@ namespace PirateCrew.EditorTools.BuildSystem
         /// <summary>仅开发/测试集：发行包不含，Build Settings 需要含（播放器出图入口依赖）。</summary>
         static readonly string[] _developmentOnlySceneNames = BuildDevelopmentOnlySet();
 
-        /// <summary>仅开发场景集 = 固定两项 + <see cref="PixelartLevelScenes"/>（表在别处，避免两处维护）。</summary>
+        /// <summary>仅开发场景集 = 试点场景 + <see cref="PixelartLevelScenes"/>（表在别处，避免两处维护）。</summary>
         static string[] BuildDevelopmentOnlySet()
         {
-            var set = new string[2 + PixelartLevelScenes.Length];
-            set[0] = ToonPilot;
-            set[1] = PixelartPilot;
-            PixelartLevelScenes.CopyTo(set, 2);
+            var set = new string[1 + PixelartLevelScenes.Length];
+            set[0] = PixelartPilot;
+            PixelartLevelScenes.CopyTo(set, 1);
             return set;
         }
 
@@ -186,7 +180,7 @@ namespace PirateCrew.EditorTools.BuildSystem
         ///   <item><c>[0]</c> 必须是 <see cref="SceneNames.Bootstrapper"/>——播放器启动场景</item>
         ///   <item>覆盖 <see cref="SceneNames"/> 声明的**全部**场景：运行时会 ChangeScene 到的场景若不在包里，
         ///         会在玩家手里 <c>LoadScene</c> 失败；这是本表最有价值的一条断言</item>
-        ///   <item><paramref name="requireReleaseSafe"/> 为 true 时，禁止出现仅开发场景（ToonPilot）</item>
+        ///   <item><paramref name="requireReleaseSafe"/> 为 true 时，禁止出现仅开发场景（试点/像素化试点场景）</item>
         /// </list>
         /// </summary>
         public static List<string> Validate(string[] scenes, bool requireReleaseSafe)

@@ -49,7 +49,7 @@ M2a 定案后再删。停用是幂等的、可一键还原的中间态。
 
 | 组件（`.asset` 里的 m_Name） | 停用理由 | 出处 |
 | --- | --- | --- |
-| `Bloom`（intensity 0.42 / threshold 1.05） | 邻域算子。光晕在 360p 网格里量化成块状辉光；**柔光机制已改由手绘径向贴片承担**（`ToonPilotSetup.EnsureRadialTexture`：4 档量化 + 4×4 Bayer 中点归一抖动烘进 PNG），不依赖 bloom 也不加附加光。裁决 D1 的另一候选（低分辨率域内 bloom）若在 M1 被选中，本组件在此一键开回 | 渲染篇 §6、§7「柔光与星芒」；`ToonPilotSetup.cs` 夜色档 |
+| `Bloom`（intensity 0.42 / threshold 1.05） | 邻域算子。光晕在 360p 网格里量化成块状辉光；**柔光机制已改由手绘径向贴片承担**（径向贴片烘链 `ToonPilotSetup.EnsureRadialTexture`：4 档量化 + 4×4 Bayer 中点归一抖动烘进 PNG——该装配器已随 ToonPilot 场景退役，机制结论仍有效），不依赖 bloom 也不加附加光。裁决 D1 的另一候选（低分辨率域内 bloom）若在 M1 被选中，本组件在此一键开回 | 渲染篇 §6、§7「柔光与星芒」；渲染篇夜色档 |
 | `Vignette`（intensity 0.22） | 邻域算子。暗角是覆盖全屏的明度渐变，降采后量化成 2~3 圈色带环 —— 一个**由后处理偷偷产生、不受调色板约束**的色阶，与"色带由着色器显式控制 + 锁板"直接冲突 | 渲染篇 §6「Vignette 慎用」 |
 | `Tonemapping`（Neutral） | 逐像素算子，几何上无害；但它是**非线性亮度重映射**，会把板内色推到板外（渲染篇 §7 帧级调色板演进项点名 tonemap 是漂移源之一），且 `m_SupportsHDR=0` 下 Neutral 只做轻微高光滚降，收益趋近于零 | 渲染篇 §6「Color Grading LUT 可轻用」；§7；任务书裁决点 #6（提案全拆） |
 | `ColorAdjustments`（contrast 12 / saturation 10） | 逐像素算子，但 **saturation +10 把贴图色直接推离板**（锁板纪律的头号敌人）；contrast +12 会把赛璐璐色带的阶跃二次压缩 —— 色带要硬切（渲染篇 §4.1），不要被后处理再拉一次 | 渲染篇 §4；任务书裁决点 #6 |

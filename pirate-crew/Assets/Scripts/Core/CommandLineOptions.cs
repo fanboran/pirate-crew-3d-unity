@@ -172,9 +172,6 @@ namespace PirateCrew.Core
         /// <summary>出图用样板关序号：<c>-artReviewLevel &lt;1..ShowcaseLevels.LastLevel&gt;</c>。</summary>
         public const string ArtReviewLevel = "-artReviewLevel";
 
-        /// <summary>等距像素卡通试点出图目录：<c>-toonPilotOut &lt;绝对目录&gt;</c>。</summary>
-        public const string ToonPilotOut = "-toonPilotOut";
-
         /// <summary>
         /// 像素化着色路径（v3 蓝本重写线）试点出图目录：<c>-pixelartOut &lt;绝对目录&gt;</c>。
         /// 进 <c>PixelartPilot</c> 场景，机位与抖动档见 <c>PlayerArtCapture.RunPixelartCapture</c>。
