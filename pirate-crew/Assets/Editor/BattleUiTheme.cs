@@ -17,10 +17,10 @@ namespace PirateCrew.EditorTools
     ///      <c>[SerializeField]</c> 引用重新指向新节点。
     ///
     /// 【契约】只改外观与节点归属，不改 Canvas 的 RenderMode / CanvasScaler
-    /// （【3:1 铆定口径，2026-09-24 创始人裁决推翻旧 1920×1080+Expand 等比口径】
-    /// ConstantPixelSize 1:1——1 UI 单位 = 1 屏幕像素，永不随分辨率缩放；UI 常量按
-    /// 3 的倍数取值，边缘在任意分辨率与 3D 艺术像素栅格对齐；分辨率升高 = 画布单位
-    /// 变多而非 UI 放大。布局纪律：部件一律角/边/中心锚定，禁写 960/540 半屏偏移），
+    /// （现行口径：**ScaleWithScreenSize，参考分辨率 960×540 = 1080p÷2，match=1**，
+    /// 由 <see cref="BattleSceneSetup.CreateCanvas"/> 统一建立——1080p 下整数 ×2 放大；
+    /// 2026-09-24 曾裁决过 ConstantPixelSize 1:1 的 3:1 铆定口径，同日晚间低清画布栈
+    /// 切换时已被推翻，以画布工厂实际代码为准），
     /// 不新增/变更 EventBus 事件。可重复调用（每次场景重建都会调一次）。
     /// </summary>
     public static class BattleUiTheme

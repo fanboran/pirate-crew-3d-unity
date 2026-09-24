@@ -43,9 +43,10 @@ namespace PirateCrew.UI
     /// 而不是散落的坐标算式里。绝对定位仍然合法（HUD 徽章/血条这类屏锚件），
     /// 但流式内容一律走这里。
     ///
-    /// 【纪律】spacing/padding 参数一律传 **u 数**（内部 ×Unit 落屏幕像素）；
-    /// Element 的首选尺寸传**屏幕像素**（与 <c>UiSkin.Px</c> 同量纲）。
-    /// 分数 u 的间距会把 3px 像素带糊掉——与装配尺寸纪律同一条。
+    /// 【纪律】spacing/padding 参数一律传 u 数。低清画布栈下 u 数即画布像素
+    /// （1u = 1 画布单位，无 ×Unit 换算——×3 时代的内部乘法已随低清切换退役）；
+    /// Element 的首选尺寸同量纲（与 <c>UiSkin.Px</c> 一致）。
+    /// 分数 u 的间距会把色带糊宽——与装配尺寸纪律同一条。
     /// </summary>
     public static class UiLayout
     {

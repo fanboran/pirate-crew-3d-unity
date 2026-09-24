@@ -1,7 +1,7 @@
 ﻿using PirateCrew.Core;
 using PirateCrew.UI.Stick;
 using TMPro;
-// SketchButtonKind 是 StickTokens 的嵌套类型（与 UiGalleryPage 同一别名手法）。
+// SketchButtonKind 是 StickTokens 的嵌套类型。
 using SketchButtonKind = PirateCrew.UI.Stick.StickTokens.SketchButtonKind;
 using UnityEngine;
 using UnityEngine.UI;
@@ -74,7 +74,7 @@ namespace PirateCrew.UI
         {
             Lay(content, PixelTone.Dense, top, 36, 568, TitleBandH);
             labels.Add(new LabelSpec("组件展示（实机）", 48, top + 10, 12, "white"));
-            labels.Add(new LabelSpec("画布 640 艺术像素宽 = 1920 屏幕像素；1 艺术像素 = 3 屏幕像素（与 3D 渲染同一颗粒度）",
+            labels.Add(new LabelSpec("（本页仍为旧画布口径的演示页，整体待重构波按低清栈重做，页内数字勿作口径依据）",
                 48, top + 40, 12, "dim"));
         }
 
@@ -240,7 +240,7 @@ namespace PirateCrew.UI
                 RectTransform tab = ArtRect(parent, "Tab_" + titles[i], x + i * 48, top, 48, 24);
                 Image image = tab.gameObject.AddComponent<Image>();
                 image.type = Image.Type.Sliced;
-                image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
+                image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
                 image.raycastTarget = true;
                 tabs[i] = image;
 
@@ -299,7 +299,7 @@ namespace PirateCrew.UI
             Image image = rect.gameObject.AddComponent<Image>();
             image.sprite = sprite;
             image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
+            image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
             image.color = Color.white;      // 像素件禁止乘色：tone 色阶烘在贴图里
             image.raycastTarget = false;
             return image;

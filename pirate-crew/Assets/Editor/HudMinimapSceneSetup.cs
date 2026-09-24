@@ -49,8 +49,9 @@ namespace PirateCrew.EditorTools
         const string Team0RootName = "Team0_Red";
         const string Team1RootName = "Team1_Blue";
 
-        /// <summary>小地图在屏幕左上角的外边距（本波次统一口径 16px，与 BattleHudBuilder.Safe 一致；
-        /// 原版 mapHolder 挂在 (20,20)，§2.3）。</summary>
+        /// <summary>小地图在屏幕左上角的外边距（16px，画布像素；×3 时代注释曾声称与
+        /// BattleHudBuilder.Safe 同源——Safe 现值为 4，二者已不同源）；
+        /// 原版 mapHolder 挂在 (20,20)，§2.3。</summary>
         static readonly Vector2 PanelOffset = new Vector2(16f, -16f);
 
         /// <summary>点阵层退到面板边内（与 <c>BattleHudBuilder.PanelPadding</c> 同口径 14px；本波次由 24 收紧，

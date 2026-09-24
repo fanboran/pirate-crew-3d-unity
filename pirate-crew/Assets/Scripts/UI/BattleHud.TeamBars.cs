@@ -206,8 +206,9 @@ namespace PirateCrew.UI
             }
         }
 
-    /// <summary>段间距 / 段区**两端**内边距（与 BattleHudBuilder 同源；3 = 1u——
-    /// 两端各缩 1u 让 Track 的 1u 外环左右两缘都露出，右缘描边不被末段盖掉）。</summary>
+    /// <summary>段间距 / 段区**两端**内边距（画布像素；与 BattleHudBuilder 的 1 不同值——
+    /// ×3 时代两处同源，÷3 取整后运行时侧=3 / 装配侧=1 漂移，复核挂重构波）。
+    /// 两端各缩进让 Track 外环左右两缘都露出，右缘描边不被末段盖掉。</summary>
     const float SegmentGap = 3f;
     const float SegmentInset = 3f;
 

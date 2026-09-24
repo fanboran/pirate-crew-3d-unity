@@ -55,15 +55,17 @@ namespace PirateCrew.UI
     /// Beveled Pixel 皮肤的运行时取用层：全部 UI 贴图/取色从这里走，别处不许
     /// 自己 LoadAssetAtPath / Resources.Load 像素件（槽位散落是上一版换皮难的根因）。
     ///
-    /// 【几何口径】u（基本单位）= 3 屏幕像素 = **1 个 3D 像素块**（640×360 RT 最近邻放大回
-    /// 1080p 的块大小）——UI 颗粒度与 3D 渲染 1:1 对齐（创始人 2026-09-22 要求）。
-    /// 【现役值 3；方向修正 2026-09-23：将改为设置可调预设档】（Minecraft GUI Scale 式
-    /// 1×/2×/3×/自动——届时本常量转运行时值、字号档改"原生设计像素 × u"计算、判据双源随档
-    /// 联动；拆解见 docs/项目/待办事项.md 步骤 4e）。改 u 必须同步渲染器资产
-    /// renderHeightPixels（判据双源）与 Editor 侧 <c>BeveledPixelSpriteBuilder</c> 的判据——
-    /// 判据会读 URP 渲染器资产里的 renderHeightPixels 反向锁这条。
-    /// 装配侧尺寸纪律：可见包边件的 width/height 取 <see cref="Unit"/> 的整数倍，
-    /// anchoredPosition 至少取整——分数像素会让 3px 的带糊成 4px。
+    /// 【几何口径】u（基本单位）= <see cref="Unit"/>，当前 = 2：贴图按设计格 ×Unit 落盘
+    /// （如按钮模板 14×16 格 → 28×32 纹素），画布为 960×540 低清栈（1080p ÷ 2，整数 ×2 显示）。
+    /// 【沿革】2026-09-22 起为 3（640×360 RT 口径）；2026-09-24 深夜低清画布栈切换改 2
+    /// 并同时是烘焙倍率与画布除数（详见交接档《像素UI与字阶》§三语义澄清——×2 语义
+    /// 定夺仍是创始人待验收悬案）。
+    /// 改 Unit 必须同步渲染器资产 renderHeightPixels（判据双源）与 Editor 侧
+    /// <c>BeveledPixelSpriteBuilder</c> 的判据——判据会读 URP 渲染器资产里的
+    /// renderHeightPixels 反向锁这条；<see cref="PirateCrew.Rendering.Pixelart.PixelartPilotScene.PixelScale"/>
+    /// 与本值断言相等。
+    /// 装配侧尺寸纪律：可见包边件的 width/height 不低于九宫格切片和（见 <see cref="PlateMinRender"/>），
+    /// anchoredPosition 至少取整——分数像素会让色带糊宽。
     /// </summary>
     public static class PixelSkin
     {
@@ -74,10 +76,10 @@ namespace PirateCrew.UI
         public const int FillCount = 5;
 
         /// <summary>
-        /// 基本单位（UI 像素 = 屏幕像素）：外环/斜面/内暗线各 1u 厚。**= 3 = 1080p 下
-        /// 一个 3D 像素块（1080 ÷ RT 高 360）**。
+        /// 基本单位（当前语义：设计格 → 贴图像素的烘焙倍率，兼作画布参考分辨率的除数）：
+        /// 外环/斜面/内暗线各 1u 厚。现值 2。
         /// </summary>
-        public const int Unit = 2;   // 【2026-09-24 创始人裁决】资产 1:1 + 显示 ×2（1080p 下 960×540 等效观感）
+        public const int Unit = 2;
 
         /// <summary>
         /// 36×36 家族（页签/投影）的九宫格切片边框 = 2u。**Plate 按钮件不走本值**——

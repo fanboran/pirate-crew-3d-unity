@@ -71,7 +71,7 @@ namespace PirateCrew.UI.Stick
 
             var image = rect.gameObject.AddComponent<Image>();
             image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
+            image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
             image.color = Color.white;      // 像素件禁止乘色：色阶烘在贴图里，Image.color 恒白
             image.raycastTarget = true;     // 可点件：命中面 = 按钮本体
 
@@ -105,7 +105,7 @@ namespace PirateCrew.UI.Stick
             {
                 _bg.sprite = PixelSkin.Plate(tone, PixelState.Normal);
                 _bg.type = Image.Type.Sliced;
-                _bg.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
+                _bg.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
                 _bg.color = Color.white;    // 像素件禁止乘色
             }
 
