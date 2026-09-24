@@ -87,7 +87,7 @@ namespace PirateCrew.Battle.WorldMaps
         }
 
         /// <summary>
-        /// 逐图档案。混比按语义给（注释即设计意图，改这里请同步 WorldMapCatalog 的图注）：
+        /// 逐图显式档案（唯一出处）。混比按语义给（注释即设计意图，改这里请同步 WorldMapCatalog 的图注）：
         ///   wreck_hymn   沉船墓场——碎礁 + 船板残片，密度高（"整片海都是碎料"）；
         ///   atoll_ring   环礁——礁盘（RockFlat）为主，泻湖内浅滩感；
         ///   ghost_harbor 鬼火港——港湾内留航道（密度中），断柱残拱混入（沉港遗迹）；
@@ -96,30 +96,65 @@ namespace PirateCrew.Battle.WorldMaps
         ///   spiral_throne 螺旋王座——火山岩，大石（RockL）为主，稀疏而块头大；
         ///   storm_cape   雷暴岬——海蚀柱，大石 + 断柱，密度中；
         ///   sunken_gate  沉都之门——沉没城区，礁盘 + 断柱残拱最多。
+        /// 新增海图必须在这里补 case：缺了**不会报错**，只会静默落 <see cref="DefaultProfile"/>
+        /// 兜底档（与图语义无关的通用礁石，加重审计 §二.6 的"俯视同质化"）——
+        /// 门禁测试 <c>WorldMapReefProfileGateTests</c> 经 <see cref="HasExplicitProfile"/>
+        /// 把「目录每图都有显式档案」钉死。
         /// </summary>
-        static Profile ProfileOf(WorldMapDefinition map)
+        static bool TryGetExplicitProfile(string mapId, out Profile profile)
         {
-            switch (map.Id)
+            switch (mapId)
             {
                 case "wreck_hymn":
-                    return new Profile(5.2f, new[] { RockS, RockS, RockM, RockFlat, Driftwood });
+                    profile = new Profile(5.2f, new[] { RockS, RockS, RockM, RockFlat, Driftwood });
+                    return true;
                 case "atoll_ring":
-                    return new Profile(4.4f, new[] { RockFlat, RockFlat, RockS, RockM });
+                    profile = new Profile(4.4f, new[] { RockFlat, RockFlat, RockS, RockM });
+                    return true;
                 case "ghost_harbor":
-                    return new Profile(4.0f, new[] { RockM, RockFlat, RuinColumnBroken, RuinArch, RockS });
+                    profile = new Profile(4.0f, new[] { RockM, RockFlat, RuinColumnBroken, RuinArch, RockS });
+                    return true;
                 case "turtle_back":
-                    return new Profile(4.2f, new[] { RockS, RockM, RockM, RockFlat });
+                    profile = new Profile(4.2f, new[] { RockS, RockM, RockM, RockFlat });
+                    return true;
                 case "mangrove_veil":
-                    return new Profile(5.0f, new[] { RockS, RockS, RockS, RockM, Driftwood });
+                    profile = new Profile(5.0f, new[] { RockS, RockS, RockS, RockM, Driftwood });
+                    return true;
                 case "spiral_throne":
-                    return new Profile(3.4f, new[] { RockL, RockL, RockM, RockFlat });
+                    profile = new Profile(3.4f, new[] { RockL, RockL, RockM, RockFlat });
+                    return true;
                 case "storm_cape":
-                    return new Profile(3.8f, new[] { RockL, RockM, RuinColumnBroken, RockS });
+                    profile = new Profile(3.8f, new[] { RockL, RockM, RuinColumnBroken, RockS });
+                    return true;
                 case "sunken_gate":
-                    return new Profile(4.6f, new[] { RockFlat, RuinColumnBroken, RuinArch, RockM, RockS });
+                    profile = new Profile(4.6f, new[] { RockFlat, RuinColumnBroken, RuinArch, RockM, RockS });
+                    return true;
                 default:
-                    return new Profile(4.0f, new[] { RockS, RockM, RockFlat });
+                    profile = default;
+                    return false;
             }
+        }
+
+        /// <summary>兜底档：只给未登记显式档案的海图（门禁测试在测试期拦下这种图，运行时按定义不可达）。</summary>
+        static Profile DefaultProfile()
+        {
+            return new Profile(4.0f, new[] { RockS, RockM, RockFlat });
+        }
+
+        static Profile ProfileOf(WorldMapDefinition map)
+        {
+            if (TryGetExplicitProfile(map.Id, out Profile profile))
+                return profile;
+            return DefaultProfile();
+        }
+
+        /// <summary>
+        /// 该图是否登记了显式礁石场档案（测试接缝，运行时不消费）：与 <c>ProfileOf</c>
+        /// 取档走同一个 switch——单一出处，不会两边漂移。false = 运行时会落 default 兜底档。
+        /// </summary>
+        public static bool HasExplicitProfile(string mapId)
+        {
+            return TryGetExplicitProfile(mapId, out Profile _);
         }
 
         /// <summary>
