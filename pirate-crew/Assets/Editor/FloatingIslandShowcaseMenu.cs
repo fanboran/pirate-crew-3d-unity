@@ -445,8 +445,6 @@ namespace PirateCrew.EditorTools
             SetVector(m, "_NoiseStretch",
                 new Vector4(recipe.NoiseStretch.x, recipe.NoiseStretch.y, 0f, 0f));
 
-            SetFloat(m, "_Metallic", recipe.Metallic);
-            SetFloat(m, "_Smoothness", recipe.Smoothness);
             SetFloat(m, "_DebugMode", 0f);
 
             // ---- 细节贴图（程序化资产，与 Scene_* 道具同源）：先关强度再按需打开（幂等纪律）----
