@@ -107,24 +107,38 @@ namespace PirateCrew.UI
             return resolved != null ? resolved : fallback;
         }
 
+        // ------------------------------------------------------------------
+        // 字体资产路径（Resources.Load 的单一真源；加载点 = TitlePixelFont /
+        // BodyPixelFont 与 PixelShowcasePage.PixelFont）
+        // ------------------------------------------------------------------
+
+        /// <summary>标题档位图字体（缝合像素 36px 原生格）的 Resources 路径。</summary>
+        internal const string TitlePixelFontPath = "Fonts/FusionPixel12-px36";
+
+        /// <summary>正文档位图字体（缝合像素 30px 原生格）的 Resources 路径。</summary>
+        internal const string BodyPixelFontPath = "Fonts/FusionPixel12-px30";
+
+        /// <summary>展示页自用的 SDF 档字体 Resources 路径（任意字号清晰，见 PixelShowcasePage.PixelFont）。</summary>
+        internal const string SdfFontPath = "Fonts/LXGWWenKaiLite-Medium SDF";
+
         static TMP_FontAsset _titlePixelFont;
         static TMP_FontAsset _bodyPixelFont;
 
         static TMP_FontAsset TitlePixelFont()
         {
             if (_titlePixelFont == null)
-                _titlePixelFont = Resources.Load<TMP_FontAsset>("Fonts/FusionPixel12-px36");
+                _titlePixelFont = Resources.Load<TMP_FontAsset>(TitlePixelFontPath);
             if (_titlePixelFont == null)
-                Debug.LogWarning("[UiKit] Resources/Fonts/FusionPixel12-px36 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
+                Debug.LogWarning("[UiKit] Resources/" + TitlePixelFontPath + " 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
             return _titlePixelFont;
         }
 
         static TMP_FontAsset BodyPixelFont()
         {
             if (_bodyPixelFont == null)
-                _bodyPixelFont = Resources.Load<TMP_FontAsset>("Fonts/FusionPixel12-px30");
+                _bodyPixelFont = Resources.Load<TMP_FontAsset>(BodyPixelFontPath);
             if (_bodyPixelFont == null)
-                Debug.LogWarning("[UiKit] Resources/Fonts/FusionPixel12-px30 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
+                Debug.LogWarning("[UiKit] Resources/" + BodyPixelFontPath + " 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
             return _bodyPixelFont;
         }
 

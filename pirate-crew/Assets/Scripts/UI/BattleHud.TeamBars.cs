@@ -60,6 +60,9 @@ namespace PirateCrew.UI
             public GameObject root;
             public TextMeshProUGUI label;
             public Image frame;
+
+            /// <summary>阵亡标记（写入阵亡文案时同步置位；幂等判断判位不比对文案）。</summary>
+            public bool isDead;
         }
 
 
@@ -160,10 +163,11 @@ namespace PirateCrew.UI
                         if (pip.label != null)
                         {
                             // 文字占位（图标退役）：存活 = 空格，阵亡 = 「×」压暗。
-                            pip.label.text = alive ? string.Empty : "×";
+                            pip.label.text = alive ? string.Empty : UiStrings.DeadMark;
                             pip.label.color = alive
                                 ? (Color)PixelSkin.PaperWhite
                                 : UiSkin.WithAlpha(UiSkin.DeadGray, 0.9f);
+                            pip.isDead = !alive;
                         }
                     }
 
@@ -296,15 +300,16 @@ namespace PirateCrew.UI
                 if (pip == null)
                     return;
 
-                bool alreadyDead = pip.label != null && pip.label.text == "×";
+                bool alreadyDead = pip.isDead;
                 if (alreadyDead)
                     return;
 
                 SetPipDimmed(pip.root, true);
                 if (pip.label != null)
                 {
-                    pip.label.text = "×";
+                    pip.label.text = UiStrings.DeadMark;
                     pip.label.color = UiSkin.WithAlpha(UiSkin.DeadGray, 0.9f);
+                    pip.isDead = true;
                 }
                 if (_motion != null && pip.frame != null)
                     _motion.Punch(pip.frame, UiMotionRules.PunchSeconds);
