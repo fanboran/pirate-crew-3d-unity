@@ -41,15 +41,14 @@ namespace PirateCrew.EditorTools
         /// <summary>小地图面板名（必须与 HudMinimapSceneSetup.MinimapPanelName 一致，且为 Canvas 直接子节点）。</summary>
         public const string MinimapPanelName = "MinimapPanel";
 
-        const float Safe = 4f;   // 4u——HUD 全部几何边缘吸附 3px 艺术像素栅格
+        const float Safe = 4f;   // HUD 几何边缘安全距（画布像素；×3 时代曾按 3px 栅格取值，现值为低清栈直取）
 
         // ------------------------------------------------------------------
         // HUD zone 表（对齐 game-2 hud_zone_layout 的"定位归表"思路——对齐关系在这里
         // 一次算清，部件不再各自手写坐标；越界/相撞由 Build 末尾的防撞自检兜底）。
         //
-        // 尺寸纪律：可见包边件的 width/height 一律 <see cref="PixelSkin.Unit"/>(=3) 的整数倍
-        // （像素带 3px 厚，分数尺寸会让带子糊成 4px）。anchoredPosition 至少取整。
-        // 文字尺寸不在纪律内（2026-09-24 文字解除栅格）。
+        // 尺寸纪律：可见包边件不低于九宫格切片和（Track/Plate 见 PixelSkin.PlateMinRender），
+        // anchoredPosition 至少取整。文字尺寸不在纪律内（原生档四档，见 UiSkin.Font）。
         // ------------------------------------------------------------------
 
         /// <summary>顶部带垂直中心**距屏顶**的像素（UI y 轴向上、屏顶在 1080——
@@ -57,8 +56,8 @@ namespace PirateCrew.EditorTools
         const float TopBandFromTop = 8f;   // 8u
 
         /// <summary>队血条宽 / 高（红蓝镜像等长；段宽运行时按实际人数重排）。
-        /// 297 = 99u：段宽 (297 − 两端 2×3 − 5×3 缝) / 6 = 46 整；24 = 8u = Track 九宫格
-        /// 最小渲染高（PlateMinRender），上下各露 1u 描边。</summary>
+        /// 沿革数字（×3 时代）：297px = 99u；24px = Track 最小渲染高。现行 99/8 为 ÷3 取整
+        /// 产物——99 非 Unit=2 整数倍、8 低于 Track 贴图切片和，几何复核挂重构波。</summary>
         const float TeamBarWidth = 99f;
         const float TeamBarHeight = 8f;
 
@@ -506,13 +505,13 @@ namespace PirateCrew.EditorTools
 
             // 紧凑文字按钮（宽 = 标签宽 + 8 艺术像素、高 48 = 16u——Aseprite 原生档）。
             result.throwSelfButton = UiKit.ActionButton("ThrowSelfButton", unitColumn,
-                UiGlyphs.Glyph.ThrowArc, UiStrings.BattleThrowSelf, UiKit.ButtonKind.Primary,
+                UiStrings.BattleThrowSelf, UiKit.ButtonKind.Primary,
                 Vector2.zero,
                 new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattleThrowSelf), HudButtonHeight), body);
             UiLayout.Element(result.throwSelfButton.gameObject,
                 UiSkin.Px.ButtonWidth(UiStrings.BattleThrowSelf), HudButtonHeight);
             result.endGoButton = UiKit.ActionButton("EndGoButton", unitColumn,
-                UiGlyphs.Glyph.Flag, UiStrings.BattleEndGo, UiKit.ButtonKind.Dark,
+                UiStrings.BattleEndGo, UiKit.ButtonKind.Dark,
                 Vector2.zero,
                 new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattleEndGo), HudButtonHeight), body);
             UiLayout.Element(result.endGoButton.gameObject,
@@ -552,14 +551,14 @@ namespace PirateCrew.EditorTools
             float textButtonY = Safe + HudButtonHeight * 0.5f;   // 底边锚：Safe + 半高
             Vector2 pauseSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattlePause), HudButtonHeight);
             Vector2 backSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Back), HudButtonHeight);
-            result.pauseButton = UiKit.ActionButton("PauseButton", hudRoot, UiGlyphs.Glyph.Pause,
+            result.pauseButton = UiKit.ActionButton("PauseButton", hudRoot,
                 UiStrings.BattlePause, UiKit.ButtonKind.Dark,
                 new Vector2(panelLeft - 6f - pauseSize.x * 0.5f, textButtonY),   // 缝 6 = 2u
-                pauseSize, secondary, withIcon: false);
-            result.backButton = UiKit.ActionButton("BackButton", hudRoot, UiGlyphs.Glyph.Helm,
+                pauseSize, secondary);
+            result.backButton = UiKit.ActionButton("BackButton", hudRoot,
                 UiStrings.Back, UiKit.ButtonKind.Dark,
                 new Vector2(panelLeft - 6f - pauseSize.x - 6f - backSize.x * 0.5f, textButtonY),
-                backSize, secondary, withIcon: false);
+                backSize, secondary);
             // 底中心锚：UiKit.ActionButton 默认锚在画布中心，这里改挂底边（y 轴）。
             foreach (Button b in new[] { result.pauseButton, result.backButton })
             {
@@ -584,7 +583,7 @@ namespace PirateCrew.EditorTools
                     -(Safe + (2 - i) * (size.x + 6f) + size.x * 0.5f),
                     -(TopBandFromTop));
                 Button button = UiKit.ActionButton("ModeButton_" + (BattleHud.BattleHudMode)i, hudRoot,
-                    UiGlyphs.Glyph.MovePad, modeLabels[i], UiKit.ButtonKind.Dark, position, size, secondary);
+                    modeLabels[i], UiKit.ButtonKind.Dark, position, size, secondary);
                 {
                     RectTransform rect = (RectTransform)button.transform;
                     rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
@@ -654,15 +653,15 @@ namespace PirateCrew.EditorTools
 
             // 三钮 = 文字贴合（创始人裁决：按钮大小跟文字走，不再统一最宽档）；纵排顺序即声明顺序。
             result.resumeButton = UiKit.ActionButton("ResumeButton", flow,
-                UiGlyphs.Glyph.Play, UiStrings.BattleResume, UiKit.ButtonKind.Primary,
+                UiStrings.BattleResume, UiKit.ButtonKind.Primary,
                 Vector2.zero, new Vector2(35f, HudButtonHeight), body);
             UiKit.FitToLabel(result.resumeButton);
             result.pauseRestartButton = UiKit.ActionButton("PauseRestartButton", flow,
-                UiGlyphs.Glyph.Retry, UiStrings.BattleRestart, UiKit.ButtonKind.Dark,
+                UiStrings.BattleRestart, UiKit.ButtonKind.Dark,
                 Vector2.zero, new Vector2(35f, HudButtonHeight), body);
             UiKit.FitToLabel(result.pauseRestartButton);
             result.pauseBackButton = UiKit.ActionButton("PauseBackButton", flow,
-                UiGlyphs.Glyph.Helm, UiStrings.BackToMainMenu, UiKit.ButtonKind.Danger,
+                UiStrings.BackToMainMenu, UiKit.ButtonKind.Danger,
                 Vector2.zero, new Vector2(35f, HudButtonHeight), body);
             UiKit.FitToLabel(result.pauseBackButton);
         }
@@ -706,11 +705,11 @@ namespace PirateCrew.EditorTools
             RectTransform actionRow = UiKit.CreateRect("Actions", flow);
             UiLayout.HStack(actionRow, 4, default(UiPadding), alignment: TextAnchor.MiddleCenter);
             result.settlementRestartButton = UiKit.ActionButton("SettlementRestartButton", actionRow,
-                UiGlyphs.Glyph.Retry, UiStrings.BattleRestart, UiKit.ButtonKind.Primary,
+                UiStrings.BattleRestart, UiKit.ButtonKind.Primary,
                 Vector2.zero, new Vector2(30f, HudButtonHeight), secondary);
             UiKit.FitToLabel(result.settlementRestartButton);
             result.settlementBackButton = UiKit.ActionButton("SettlementBackButton", actionRow,
-                UiGlyphs.Glyph.Helm, UiStrings.Back, UiKit.ButtonKind.Dark,
+                UiStrings.Back, UiKit.ButtonKind.Dark,
                 Vector2.zero, new Vector2(30f, HudButtonHeight), secondary);
             UiKit.FitToLabel(result.settlementBackButton);
         }
@@ -734,11 +733,11 @@ namespace PirateCrew.EditorTools
             RectTransform actionRow = UiKit.CreateRect("Actions", flow);
             UiLayout.HStack(actionRow, 4, default(UiPadding), alignment: TextAnchor.MiddleCenter);
             result.confirmOkButton = UiKit.ActionButton("OkButton", actionRow,
-                UiGlyphs.Glyph.Check, UiStrings.Confirm, UiKit.ButtonKind.Primary,
+                UiStrings.Confirm, UiKit.ButtonKind.Primary,
                 Vector2.zero, new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Confirm), HudButtonHeight), body);
             UiKit.FitToLabel(result.confirmOkButton);
             result.confirmCancelButton = UiKit.ActionButton("CancelButton", actionRow,
-                UiGlyphs.Glyph.Cross, UiStrings.Cancel, UiKit.ButtonKind.Dark,
+                UiStrings.Cancel, UiKit.ButtonKind.Dark,
                 Vector2.zero, new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Cancel), HudButtonHeight), body);
             UiKit.FitToLabel(result.confirmCancelButton);
         }

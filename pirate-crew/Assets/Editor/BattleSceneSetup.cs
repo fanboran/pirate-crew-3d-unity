@@ -50,7 +50,7 @@ namespace PirateCrew.EditorTools
     ///   本文件负责把烘焙 prefab 引用（SceneArtBaker 产物）写进场景里的该组件——
     ///   材质/几何已烘焙进 prefab，原 21 槽材质数组随运行时几何生成退役（糖豆人式资产架构）。
     ///
-    /// 【约定】本工程未装 TMP，UI 一律 legacy UnityEngine.UI（见 SceneSetup 类头）。
+    /// 【约定】UI 文本一律 TMP（TextMeshProUGUI），字体资产由 FontAssetBuilder 四档位图烘制。
     ///         不手写 .unity/.prefab YAML，全部走 UnityEditor API。
     /// </summary>
     public static class BattleSceneSetup
@@ -83,9 +83,6 @@ namespace PirateCrew.EditorTools
 
         /// <summary>场景美术陈设根节点名（样板三关的自由几何由 RuntimeSceneArt 运行时装配）。</summary>
         const string SceneArtRootName = "SceneArt";
-
-        /// <summary>名册行数，与 BattleHud.MaxRosterRows 对齐（level_4 最多 12 人）。</summary>
-        const int RosterRows = 12;
 
         static Font _uiFont;
 

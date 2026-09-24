@@ -155,7 +155,7 @@ namespace PirateCrew.UI
             Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
             image.sprite = PixelSkin.Panel(tone);
             image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素（×2 到屏幕由缩放器整数完成）
+            image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
             image.color = Color.white;
             image.raycastTarget = false;
             return image;
@@ -168,7 +168,7 @@ namespace PirateCrew.UI
             Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
             image.sprite = PixelSkin.Plate(tone, state);
             image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素（×2 到屏幕由缩放器整数完成）
+            image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
             image.color = Color.white;
             image.raycastTarget = false;
             return image;
@@ -217,7 +217,7 @@ namespace PirateCrew.UI
             Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
             image.sprite = PixelSkin.Track(tone);
             image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
+            image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
             image.color = Color.white;
             image.raycastTarget = false;
             return image;
@@ -229,7 +229,7 @@ namespace PirateCrew.UI
             Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
             image.sprite = PixelSkin.Fill(kind);
             image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
+            image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
             image.color = Color.white;
             image.raycastTarget = false;
             return image;
@@ -244,7 +244,7 @@ namespace PirateCrew.UI
             Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
             image.sprite = PixelSkin.Focus;
             image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
+            image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
             image.color = Color.white;
             image.raycastTarget = false;
             RectTransform rect = image.rectTransform;
@@ -285,7 +285,7 @@ namespace PirateCrew.UI
                 plate = CreateRect("Plate", panel).gameObject.AddComponent<Image>();
             plate.sprite = PixelSkin.Panel(tone);   // 直角面板皮（圆角只属于按钮）
             plate.type = Image.Type.Sliced;
-            plate.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
+            plate.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
             plate.color = Color.white;
             plate.raycastTarget = true;   // 面板本体挡点击（内容件画在其上，不受影响）
             Stretch(plate.rectTransform);
@@ -363,7 +363,7 @@ namespace PirateCrew.UI
         {
             image.sprite = PixelSkin.Plate(tone, PixelState.Normal);
             image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
+            image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
             image.color = Color.white;
             image.raycastTarget = true;
 
@@ -421,13 +421,11 @@ namespace PirateCrew.UI
         /// 图文按钮（**纯文字**）——模式/动作钮的统一长相，档位色走 <see cref="ToneOfKind"/>；
         /// BattleHud 的投掷/结束回合与各模态按钮共用。
         /// 【图标已退役】按钮左侧的 UiGlyphs 符号被创始人走查点名读成 emoji（2026-09-23）：
-        /// 按钮语义一律由文字承担。<paramref name="glyph"/> 与 <paramref name="withIcon"/>
-        /// 保留签名兼容但不再绘制任何图标。
+        /// 按钮语义一律由文字承担，glyph / withIcon 死参数已随清理波删除。
         /// position 相对父容器中心（anchor/pivot 0.5,0.5）。
         /// </summary>
-        public static Button ActionButton(string name, Transform parent, UiGlyphs.Glyph glyph,
-            string label, ButtonKind kind, Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font,
-            bool withIcon = true)
+        public static Button ActionButton(string name, Transform parent,
+            string label, ButtonKind kind, Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font)
         {
             PixelTone tone = ToneOfKind(kind);
             Color labelColor = PixelSkin.TextColorOn(tone);
@@ -506,7 +504,7 @@ namespace PirateCrew.UI
             var track = root.gameObject.AddComponent<Image>();
             track.sprite = PixelSkin.Track(PixelTone.Frame);
             track.type = Image.Type.Sliced;
-            track.pixelsPerUnitMultiplier = 1f;   // 低清画布：1 纹素 = 1 画布像素
+            track.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
             track.color = Color.white;
             track.raycastTarget = false;
 
