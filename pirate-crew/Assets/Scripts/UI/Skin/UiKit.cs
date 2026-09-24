@@ -85,7 +85,10 @@ namespace PirateCrew.UI
             text.text = content;
             TMP_FontAsset resolved = ResolvePixelFont(fontSize, font);
             if (resolved != null)
+            {
                 text.font = resolved;
+                PixelAtlasPointFilter.Ensure(resolved);
+            }
             text.fontSize = fontSize;
             text.alignment = alignment;
             text.color = color;
@@ -95,42 +98,37 @@ namespace PirateCrew.UI
             return text;
         }
 
-        static TMP_FontAsset _pixelFont;
-        static TMP_FontAsset _pixelSmallFont;
-
-
-        /// <summary>
-        /// 按显示字号就近解析像素字体档（创始人 2026-09-24 裁决：**文字解除 3px 栅格**——
-        /// 像素字体的字形轮廓自带颗粒感，字号按可读性自由取值，不再要求「字号 ÷ 3 = 原生档」；
-        /// 【2026-09-24 走查裁决】文字不再用 12px 网格像素字体——它的笔画天生 1 设计像素粗，
-/// 大字号下读成"三格粗"，用不满 1080p 的精度。改矢量楷体 SDF 档
-/// （LXGWWenKaiLite-Medium / Regular，任意字号笔画 1px 级、锐利）；像素风由
-/// UI 件（Plate/Track 九宫格）与 3D 渲染承担，文字只负责可读。
-        /// 规则：字号 ≥ 15 用 12px 档（FusionPixel），更小用 10px 档（ArkPixel）；
-        /// 两档都缺失时回落调用方传入的兜底字体。
-        /// </summary>
         public static TMP_FontAsset ResolvePixelFont(int fontSize, TMP_FontAsset fallback = null)
         {
-            TMP_FontAsset resolved = fontSize >= 15 ? TextFontMain() : TextFontSmall();
+            // 位图栅格纪律（2026-09-24 创始人裁决，推翻同日早先的 SDF/矢量口径）：字号档决定字体档——
+            // 36 = 12 艺术像素 → FusionPixel12-px 原生格；30 = 10 艺术像素 → ArkPixel10-px 原生格。
+            // 1 字体像素 = 1 艺术像素 = u 屏幕像素，字号永远落在原生档 × u；矢量字对不齐像素栅格。
+            // 字号每上一档换对应原生分辨率的字体：36 屏幕像素高的标题 = 36px 栅格位图
+            // （1 字体像素 = 1 屏幕像素，笔画 1px 级）；正文 = ArkPixel10 贴艺术栅格
+            // （1 字体像素 = 1 艺术像素）。两者都只在原生尺寸渲染，绝不放大小格字体。
+            TMP_FontAsset resolved = fontSize >= 36 ? TitlePixelFont() : BodyPixelFont();
             return resolved != null ? resolved : fallback;
         }
 
-        static TMP_FontAsset TextFontMain()
+        static TMP_FontAsset _titlePixelFont;
+        static TMP_FontAsset _bodyPixelFont;
+
+        static TMP_FontAsset TitlePixelFont()
         {
-            if (_pixelFont == null)
-                _pixelFont = Resources.Load<TMP_FontAsset>("Fonts/LXGWWenKaiLite-Medium SDF");
-            if (_pixelFont == null)
-                Debug.LogWarning("[UiKit] Resources/Fonts/LXGWWenKaiLite-Medium SDF 缺失（跑 PirateCrew/Fonts/生成 TMP 中文字体资产）");
-            return _pixelFont;
+            if (_titlePixelFont == null)
+                _titlePixelFont = Resources.Load<TMP_FontAsset>("Fonts/LXGWWenKaiLite-Medium-px36");
+            if (_titlePixelFont == null)
+                Debug.LogWarning("[UiKit] Resources/Fonts/LXGWWenKaiLite-Medium-px36 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
+            return _titlePixelFont;
         }
 
-        static TMP_FontAsset TextFontSmall()
+        static TMP_FontAsset BodyPixelFont()
         {
-            if (_pixelSmallFont == null)
-                _pixelSmallFont = Resources.Load<TMP_FontAsset>("Fonts/LXGWWenKaiLite-Regular SDF");
-            if (_pixelSmallFont == null)
-                Debug.LogWarning("[UiKit] Resources/Fonts/LXGWWenKaiLite-Regular SDF 缺失");
-            return _pixelSmallFont;
+            if (_bodyPixelFont == null)
+                _bodyPixelFont = Resources.Load<TMP_FontAsset>("Fonts/ArkPixel10-px");
+            if (_bodyPixelFont == null)
+                Debug.LogWarning("[UiKit] Resources/Fonts/ArkPixel10-px 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
+            return _bodyPixelFont;
         }
 
         // ------------------------------------------------------------------

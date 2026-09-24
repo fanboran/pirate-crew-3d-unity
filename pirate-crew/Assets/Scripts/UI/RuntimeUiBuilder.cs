@@ -95,6 +95,12 @@ namespace PirateCrew.UI
             text.text = content;
             if (font != null)
                 text.font = font;
+            TMP_FontAsset pixelResolved = UiKit.ResolvePixelFont(fontSize, font);
+            if (pixelResolved != null)
+            {
+                text.font = pixelResolved;
+                PixelAtlasPointFilter.Ensure(pixelResolved);
+            }
             text.fontSize = fontSize;
             text.alignment = alignment;
             text.color = color;

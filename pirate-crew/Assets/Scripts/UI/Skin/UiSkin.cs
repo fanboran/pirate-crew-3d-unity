@@ -184,29 +184,33 @@ namespace PirateCrew.UI
         /// 已并入本表（别名或同值），勿再新增第三份字号表。</summary>
         public static class Font
         {
-            /// <summary>主菜单游戏名 / 界面大标题。</summary>
-            public const int Display = 40;
+            /// <summary>**位图栅格纪律**：字号只允许取位图字体原生档 × u——1 字体像素 =
+            /// 1 艺术像素 = u 屏幕像素，非原生档的字号必然糊栅格（"大字配低精度"的病根）。
+            /// 两档：标题 12 艺术像素（FusionPixel12 原生格）、正文 10 艺术像素（ArkPixel10 原生格）。
+            /// 层级靠颜色与留白表达，不靠字号（Aseprite 同款做法）。要真正的更大标题
+            /// = 引入更大原生格的位图字体，不是放大 12px 格。</summary>
+            public const int Display = 12 * PixelSkin.Unit;
 
-            /// <summary>结算横幅（胜利 / 失败）。</summary>
-            public const int Banner = 36;
+            /// <summary>结算横幅 / 界面大标题（12 艺术像素档）。</summary>
+            public const int Banner = 12 * PixelSkin.Unit;
 
-            /// <summary>界面标题。</summary>
-            public const int Title = 28;
+            /// <summary>界面标题 / 区块标题（12 艺术像素档）。</summary>
+            public const int Title = 12 * PixelSkin.Unit;
 
-            /// <summary>区块标题 / 面板标题条。</summary>
-            public const int Section = 24;
+            /// <summary>正文以下全档：HUD / 按钮 / 列表行 / 提示 / 角标（10 艺术像素档）。</summary>
+            public const int Section = 10 * PixelSkin.Unit;
 
-            /// <summary>HUD 常读 / 名册名 / 模式开关 / 回合提示。</summary>
-            public const int Hud = 20;
+            /// <summary>同 <see cref="Section"/>（10 艺术像素档）。</summary>
+            public const int Hud = 10 * PixelSkin.Unit;
 
-            /// <summary>按钮 / 列表行文本 / 武器格文字。</summary>
-            public const int Body = 16;
+            /// <summary>按钮 / 列表行文本 / 武器格文字（10 艺术像素档）。</summary>
+            public const int Body = 10 * PixelSkin.Unit;
 
-            /// <summary>辅助提示 / 说明行。</summary>
-            public const int Hint = 14;
+            /// <summary>辅助提示 / 说明行（10 艺术像素档）。</summary>
+            public const int Hint = 10 * PixelSkin.Unit;
 
-            /// <summary>角标 / 快捷键角标。</summary>
-            public const int Tiny = 12;
+            /// <summary>角标 / 快捷键角标（10 艺术像素档）。</summary>
+            public const int Tiny = 10 * PixelSkin.Unit;
         }
 
         // ------------------------------------------------------------------

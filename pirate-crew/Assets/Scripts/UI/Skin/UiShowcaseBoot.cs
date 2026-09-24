@@ -16,7 +16,7 @@ namespace PirateCrew.UI
     ///
     /// 【怎么开】编辑器菜单 PirateCrew/UI/打开组件展示（构建并播放），或直接播放
     /// UIShowcase 场景。场景**自足**：像素图集走 Resources（<see cref="PixelSkin"/>）、
-    /// 像素字体走 Resources/Fonts/FusionPixel12-sdf，不依赖 Bootstrapper 的全局服务；
+    /// 像素字体走 Resources/Fonts/FusionPixel12-px，不依赖 Bootstrapper 的全局服务；
     /// "返回总览"在有服务时走 <see cref="SceneLoader"/>，直开本场景（没有服务）时回
     /// 引导场景重建（引导会自动落到主菜单）。
     /// </summary>

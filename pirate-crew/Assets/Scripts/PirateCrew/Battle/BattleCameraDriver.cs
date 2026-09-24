@@ -379,14 +379,9 @@ namespace PirateCrew.Battle
                 }
             }
 
-            // 滚轮分域（创始人 2026-09-24 裁决）：瞄准态滚轮归投掷域（力度微调，见 AimThrowController）；
-            // 非瞄准态 = 像素比例档步进（渲染域，取景不动——取景档已锁死，见相机行为契约 #3）。
-            if (aimThrow == null || !aimThrow.IsTurretAiming)
-            {
-                float scroll = Input.mouseScrollDelta.y;
-                if (!Mathf.Approximately(scroll, 0f))
-                    PixelartPath.ActiveRig?.TryStepPixelScale(scroll > 0f ? 1 : -1);
-            }
+            // 滚轮不承担任何缩放/比例职责（创始人裁决，多次重申：滚轮别缩放、也别步进像素档，
+            // 曾经的"滚轮步进像素档"与俯仰角冲突，已整体移除）。瞄准态滚轮归投掷域（力度微调，
+            // 见 AimThrowController）；像素比例档唯一入口 = 设置界面（待接线，见待办 4e）。
         }
 
         void LateUpdate()

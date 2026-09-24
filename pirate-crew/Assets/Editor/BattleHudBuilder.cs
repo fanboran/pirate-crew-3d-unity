@@ -83,14 +83,14 @@ namespace PirateCrew.EditorTools
 
         // ---------------- 底部带 ----------------
 
-        /// <summary>武器面板：贴底居中（bottom = Safe）。792 = 264u、240 = 80u——
-        /// 6×3 武器文字格（48 高）+ 底部名/说明行 + 右列（名/HP/两枚文字钮）。</summary>
-        const float WeaponPanelWidth = 792f;
+        /// <summary>武器面板：贴底居中（bottom = Safe）。990 = 330u、240 = 80u——
+        /// 6×3 武器文字格（格 156 = 装 5 字 × 10 艺术像素）+ 底部名/说明行 + 右列。</summary>
+        const float WeaponPanelWidth = 990f;
         const float WeaponPanelHeight = 240f;
 
         /// <summary>武器文字格尺寸 / 间距 / 列数（6×3 = 18 格，17 武器 + 1 空）。
-        /// 96 = 32u 放得下 5 字武器名（正文 16 × 5 = 80）；48 = 16u（Aseprite 按钮原生高）。</summary>
-        const float WeaponCell = 96f;
+        /// 156 = 52u = 5 字 × 10 艺术像素（位图字号档）+ 2u 余量；48 = 16u（Aseprite 按钮原生高）。</summary>
+        const float WeaponCell = 156f;
         const float WeaponCellGap = 6f;
         const int WeaponColumns = 6;
 
@@ -466,14 +466,12 @@ namespace PirateCrew.EditorTools
                 UiKit.CreateFocusRing("Focus", cell);
 
                 // 文字占位（2026-09-24 创始人裁决：物品图标全部退役）：格中 = 武器中文名。
+                // 位图字号禁 AutoSize（非原生档必然糊栅格）——格宽 156 本就装得下 5 字全名。
                 TextMeshProUGUI label = UiKit.CreateText("Name", cell,
                     UiTextRules.WeaponName((WeaponId)i), UiSkin.Font.Body,
                     TextAlignmentOptions.Center, PixelSkin.PaperWhite, secondary);
                 label.enableWordWrapping = false;
-                // AutoSize 兜底：5 字名在 96px 格内自动缩号，永不裁字。
-                label.enableAutoSizing = true;
-                label.fontSizeMin = 10f;
-                label.fontSizeMax = UiSkin.Font.Body;
+                label.enableAutoSizing = false;
                 UiKit.Stretch(label.rectTransform, 3f);
 
                 buttons[i] = button;
@@ -593,14 +591,15 @@ namespace PirateCrew.EditorTools
                 }
 
                 // 快捷键角标（右上角小字）——图标退役后快捷键提示的唯一载体。
+                // 角标盒 = 10 艺术像素见方（位图字号 Tiny 档），贴钮内缘。
                 TextMeshProUGUI hotkey = UiKit.CreateText("Hotkey", button.transform, (i + 1).ToString(),
                     UiSkin.Font.Tiny, TextAlignmentOptions.Center,
                     UiSkin.WithAlpha(PixelSkin.PaperWhite, 0.66f), secondary);
                 hotkey.enableWordWrapping = false;
                 hotkey.rectTransform.anchorMin = hotkey.rectTransform.anchorMax = new Vector2(1f, 1f);
                 hotkey.rectTransform.pivot = new Vector2(1f, 1f);
-                hotkey.rectTransform.sizeDelta = new Vector2(12f, 12f);
-                hotkey.rectTransform.anchoredPosition = new Vector2(-1f, -1f);
+                hotkey.rectTransform.sizeDelta = new Vector2(30f, 30f);
+                hotkey.rectTransform.anchoredPosition = new Vector2(-3f, -3f);
                 UiKit.CreateFocusRing("Focus", button.transform);
 
                 result.modeButtons[i] = button;

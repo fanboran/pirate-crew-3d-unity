@@ -1,42 +1,52 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 【已退役】像素字体位图图集的 Point 过滤纠偏件（历史：位图口径时代，TMP 运行时重建
-    /// 动态图集会把 filterMode 重置回 Bilinear，本件逐帧钉回 Point 防相邻字形渗色）。
-    /// 2026-09-24 文字解除像素栅格、像素字体改 SDF 口径（FusionPixel12-sdf / ArkPixel10-sdf，
-    /// Linear 过滤 + SDF shader）后不再有挂载入口（UiKit / PixelShowcasePage 均已移除）。
-    /// 类保留：BattleRig.prefab 与 MainMenuScreen.prefab 仍有序列化引用，删除会出
-    /// missing script；其 <c>font</c> 引用指向已删除的旧位图资产（null 空转），无害。
-    /// 下次 prefab 重建批次可一并摘除本类。
+    /// 位图字体动态图集的 Point 过滤纠偏件：TMP 动态图集新增字形页时会把新贴图重置成
+    /// Bilinear——位图口径（1 字体像素 = 1 艺术像素/屏幕像素，字号即原生档）下任何
+    /// 双线性都是栅格糊掉。本件每帧把字体图集钉回 Point。
+    /// 经 <see cref="Ensure"/> 挂载（每字体一个隐藏宿主，跨场景常驻，勿手工挂）。
     /// </summary>
     public sealed class PixelAtlasPointFilter : MonoBehaviour
     {
-        const int FramesToWatch = 600;
+        static readonly Dictionary<TMP_FontAsset, PixelAtlasPointFilter> s_active = new();
+
+        /// <summary>确保某字体有纠偏件在岗（幂等；宿主销毁后自动重建）。</summary>
+        public static void Ensure(TMP_FontAsset font)
+        {
+            if (font == null)
+                return;
+            if (s_active.TryGetValue(font, out PixelAtlasPointFilter existing)
+                && existing != null)
+                return;
+            if (s_active.ContainsKey(font))
+                s_active.Remove(font);
+
+            var host = new GameObject("PixelAtlasPointFilter(" + font.name + ")");
+            if (Application.isPlaying)
+                DontDestroyOnLoad(host);
+            host.hideFlags = HideFlags.HideAndDontSave;
+            var filter = host.AddComponent<PixelAtlasPointFilter>();
+            filter.font = font;
+            s_active[font] = filter;
+        }
 
         public TMP_FontAsset font;
-        int _frames;
 
         void LateUpdate()
         {
             if (font == null || font.atlasTextures == null)
                 return;
-            bool allPoint = true;
             foreach (Texture2D texture in font.atlasTextures)
             {
                 if (texture == null)
                     continue;
                 if (texture.filterMode != FilterMode.Point)
-                {
                     texture.filterMode = FilterMode.Point;
-                    allPoint = false;
-                }
             }
-            _frames++;
-            if (allPoint && _frames > FramesToWatch)
-                enabled = false;   // 字形已稳定进图集，停止逐帧纠偏
         }
     }
 }

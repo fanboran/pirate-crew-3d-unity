@@ -92,6 +92,28 @@ namespace PirateCrew.EditorTools
                 return;
             }
 
+            if (content == "fonts")
+            {
+                try
+                {
+                    FontAssetBuilder.ForceRebuildAll();
+                    Debug.Log("[RemotePlayControl] fonts：位图字体资产已强制重建。");
+                }
+                catch (System.Exception e) { Debug.LogError("[RemotePlayControl] fonts 失败：" + e); }
+                return;   // 由轮询循环清旗标
+            }
+            if (content == "assemble")
+            {
+                try
+                {
+                    SceneSetup.BuildAll();
+                    ManagementSceneSetup.BuildAll();
+                    BattleSceneSetup.BuildAll();
+                    Debug.Log("[RemotePlayControl] assemble：三场景已重装配（字体新档落位）。");
+                }
+                catch (System.Exception e) { Debug.LogError("[RemotePlayControl] assemble 失败：" + e); }
+                return;
+            }
             if (content == "rebake")
             {
                 _busy = true;

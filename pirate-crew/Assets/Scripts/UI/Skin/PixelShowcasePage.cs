@@ -330,7 +330,7 @@ namespace PirateCrew.UI
             TMP_FontAsset font = Resources.Load<TMP_FontAsset>("Fonts/LXGWWenKaiLite-Medium SDF");
             if (font == null)
             {
-                Debug.LogWarning("[PixelShowcasePage] Resources/Fonts/FusionPixel12-sdf 缺失"
+                Debug.LogWarning("[PixelShowcasePage] Resources/Fonts/FusionPixel12-px 缺失"
                     + "（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产 后可用），回落默认字体");
                 return null;
             }

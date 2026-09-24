@@ -101,28 +101,29 @@ namespace PirateCrew.EditorTools
             new FontSpec
             {
                 SourceTtfPath = FontsFolder + "/FusionPixel12-zh_hans.ttf",
-                AssetFileName = "FusionPixel12-sdf",
-                SamplingPointSize = 64,
-                AtlasPadding = 5,
+                AssetFileName = "FusionPixel12-px",
+                SamplingPointSize = 12,
+                AtlasPadding = 0,
                 AtlasWidth = 1024,
                 AtlasHeight = 1024,
-                RenderMode = GlyphRenderMode.SDFAA,
-                // 2026-09-24 创始人裁决「文字解除像素栅格」：字号按可读性自由取，
-                // 位图口径（12px 栅格 + Point 过滤）在非整数倍字号下必然拉宽发糊——
-                // 改 SDF 口径（同 TTF，矢量距离场按屏幕分辨率重采样），任意字号锐利，
-                // 字形轮廓仍是 12px 网格的像素风。PixelAtlasPointFilter 纠偏件随之退役。
-                Purpose = "像素 UI 正文（缝合像素 12px 比例版简体；OFL 1.1）——SDF 口径，任意字号清晰",
+                RenderMode = GlyphRenderMode.RASTER_HINTED,
+                // 2026-09-24 创始人裁决（推翻同日早先的"文字解除像素栅格"）：**位图口径回归**——
+                // 1 字体像素 = 1 艺术像素 = u 屏幕像素，字号只允许取原生档 × u（12 艺术像素档）；
+                // SDF/矢量在像素栅格上永远对不齐。图集 Point 过滤 + Bitmap shader（见 CreateOne
+                // 的 RASTER_HINTED 分支）；动态图集新字形会被 TMP 重置成 Bilinear，
+                // 由 PixelAtlasPointFilter 逐件纠偏（UiKit 等文字工厂负责挂载）。
+                Purpose = "像素 UI 标题档（缝合像素 12px 简体；OFL 1.1）——位图口径，12 艺术像素档",
             },
             new FontSpec
             {
                 SourceTtfPath = FontsFolder + "/ArkPixel10-zh_cn.ttf",
-                AssetFileName = "ArkPixel10-sdf",
-                SamplingPointSize = 64,
-                AtlasPadding = 5,
+                AssetFileName = "ArkPixel10-px",
+                SamplingPointSize = 10,
+                AtlasPadding = 0,
                 AtlasWidth = 1024,
                 AtlasHeight = 1024,
-                RenderMode = GlyphRenderMode.SDFAA,
-                Purpose = "像素 UI 小字（方舟像素 10px 比例版简体；OFL 1.1）——SDF 口径，小字号专用档",
+                RenderMode = GlyphRenderMode.RASTER_HINTED,
+                Purpose = "像素 UI 正文档（方舟像素 10px 简体；OFL 1.1）——位图口径，10 艺术像素档",
             },
             new FontSpec
             {
@@ -134,6 +135,20 @@ namespace PirateCrew.EditorTools
                 AtlasHeight = 1024,
                 RenderMode = GlyphRenderMode.SDFAA,
                 Purpose = "标题（StickHand 手写体，站酷快乐体修改版；OFL 1.1）",
+            },
+            new FontSpec
+            {
+                SourceTtfPath = FontsFolder + "/LXGWWenKaiLite-Medium.ttf",
+                AssetFileName = "LXGWWenKaiLite-Medium-px36",
+                SamplingPointSize = 36,
+                AtlasPadding = 0,
+                AtlasWidth = 1024,
+                AtlasHeight = 1024,
+                RenderMode = GlyphRenderMode.RASTER_HINTED,
+                // 2026-09-24 创始人裁决：大标题 = 36 屏幕像素高 → 用 36px 原生栅格烘位图，
+                // 1 字体像素 = 1 屏幕像素（笔画 1px 级、零放大、零 SDF 灰边）。
+                // "字号每上一档换一套原生分辨率的字体"，绝不放大 12px 小格。
+                Purpose = "界面大标题位图档（霞鹜文楷 36px 原生栅格；OFL 1.1）——仅 36 号使用",
             },
         };
 

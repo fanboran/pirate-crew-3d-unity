@@ -41,13 +41,13 @@ namespace PirateCrew.EditorTools
         /// <summary>像素字体资产路径（Art 侧；位图口径档，缺字回落楷体链烘在资产内）。
         /// 旧三档（StickHand 手写体 / 霞鹜文楷 Medium/Regular）随"文字统一 StickHand"裁决
         /// 一并退役——手写体与像素带颗粒度不匹配。</summary>
-        public const string TitleFontAssetPath = "Assets/Art/Fonts/FusionPixel12-sdf.asset";
+        public const string TitleFontAssetPath = "Assets/Art/Fonts/LXGWWenKaiLite-Medium-px36.asset";
 
         /// <summary>同 <see cref="TitleFontAssetPath"/>（三档同名资产：像素 UI 单字体纪律）。</summary>
-        public const string BodyFontAssetPath = "Assets/Art/Fonts/FusionPixel12-sdf.asset";
+        public const string BodyFontAssetPath = "Assets/Art/Fonts/ArkPixel10-px.asset";
 
         /// <summary>同 <see cref="TitleFontAssetPath"/>。</summary>
-        public const string SecondaryFontAssetPath = "Assets/Art/Fonts/FusionPixel12-sdf.asset";
+        public const string SecondaryFontAssetPath = "Assets/Art/Fonts/ArkPixel10-px.asset";
 
         /// <summary>缺失 SDF 资产时的 ttf 回落路径（Unity 已导入为 Dynamic Font）。</summary>
         const string TitleFontTtfPath = "Assets/Art/Fonts/FusionPixel12-zh_hans.ttf";
@@ -386,7 +386,7 @@ namespace PirateCrew.EditorTools
             Vector2 anchoredPosition, Vector2 size, SketchButtonKind kind)
         {
             return SketchButton.Create(parent, name, anchor, new Vector2(0.5f, 0.5f),
-                anchoredPosition, size, TitleFont, kind, label, 0f);
+                anchoredPosition, size, BodyFont, kind, label, 0f);
         }
 
         /// <summary>行高（六行布局：四条滑条 + 两组选项块；行位由行容器 VBox 排，见 BuildSettingsPanel）。</summary>
