@@ -293,6 +293,7 @@ namespace PirateCrew.EditorTools
         {
             public GameObject Root;
             public Button BackButton;
+            public Button CloseButton;
             public Button RestoreButton;
             public Slider MasterSlider;
             public Slider SfxSlider;
@@ -333,12 +334,21 @@ namespace PirateCrew.EditorTools
             // ——与主菜单窗体/模态标题同源，不再本处手摆。
             UiKit.EnsureTitleLabel(panel, UiStrings.SettingsTitle, hand);
 
+            // 右上窗控钮：theme window_button（9×11 件 + window_close_icon），
+            // 与模态（UiKit.CreateModal → EnsureWindow）同形——参考库里带标题窗的标题带右端
+            // 一定有 ?/× 两枚（New Sprite 对话框实拍），我们此前设置卡是"空着一条灰带"。
+            // 行为与「返回」同：onClick 由控制器接 CloseSettings。
+            Button settingsCloseButton = UiKit.CreateWindowButton(panel, "SettingsCloseButton",
+                PixelSkin.WindowIconSprite(PixelSkin.WindowIcon.Close),
+                AseLayout.Px(AseLayout.CloseButtonMarginRight));
+
             // 【已删：标题带下的自造蚀刻线】theme 的窗体（window_with_title = window_face 底
             // + window 边框件）没有"标题带下再加一条线"这一层——带底分隔已经烘在 window 件的
             // 第 14/21 行里。全区也只有设置卡挂过这条线，自家主菜单窗体/模态都没有 → 既是
             // 库里没有的件，也破了自家一致性。如要恢复，需要创始人明确开单。
 
             var result = new SettingsPanelResult();
+            result.CloseButton = settingsCloseButton;
 
             // 行容器：八行流式纵排（缝 3u）——两条蓝字分组线 + 四条音量滑条 + 两组选项块。
             // 行距/行位由布局器排，不再手算 pitch 坐标。
@@ -461,7 +471,7 @@ namespace PirateCrew.EditorTools
             RectTransform fill = CreateRect("Fill", sliderRect);
             Stretch(fill);
             var fillImage = fill.gameObject.AddComponent<Image>();
-            fillImage.sprite = PixelSkin.SliderFull(false);   // theme slider_full（金色充满段）
+            fillImage.sprite = PixelSkin.SliderFull(false);   // theme slider_full（内芯 #41444A，比空槽暗=充满）
             fillImage.type = Image.Type.Sliced;
             fillImage.pixelsPerUnitMultiplier = 1f;
             fillImage.color = Color.white;                          // 像素件禁止乘色

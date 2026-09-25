@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace PirateCrew.UI
 {
@@ -265,7 +265,8 @@ namespace PirateCrew.UI
             return Ase(focused ? "slider_empty_focused" : "slider_empty");
         }
 
-        /// <summary>滑条充满段（theme slider_full 金色；focused = 蓝环）。</summary>
+        /// <summary>滑条充满段（theme slider_full：内芯 **#41444A**，比空槽内芯 #575B61 更暗——
+        /// 库里"充满"是压暗语法，不是彩色；focused 变体同件换焦点态）。</summary>
         public static Sprite SliderFull(bool focused)
         {
             return Ase(focused ? "slider_full_focused" : "slider_full");

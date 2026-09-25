@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.Audio;
@@ -37,6 +37,7 @@ namespace PirateCrew.UI
         [Tooltip("设置面板根节点；默认隐藏，由「设置」按钮开关。")]
         [SerializeField] GameObject settingsPanel;
         [SerializeField] Button settingsBackButton;
+        [SerializeField] Button settingsCloseButton;
         [SerializeField] Button settingsRestoreButton;
         [SerializeField] Slider masterVolumeSlider;
         [SerializeField] Slider sfxVolumeSlider;
@@ -70,6 +71,8 @@ namespace PirateCrew.UI
 
             if (settingsBackButton != null)
                 settingsBackButton.onClick.AddListener(CloseSettings);
+            if (settingsCloseButton != null)
+                settingsCloseButton.onClick.AddListener(CloseSettings);   // 标题带右上 ×：同返回
             if (settingsRestoreButton != null)
                 settingsRestoreButton.onClick.AddListener(RestoreDefaults);
 
@@ -138,6 +141,8 @@ namespace PirateCrew.UI
                 quitButton.onClick.RemoveListener(OnQuitClicked);
             if (settingsBackButton != null)
                 settingsBackButton.onClick.RemoveListener(CloseSettings);
+            if (settingsCloseButton != null)
+                settingsCloseButton.onClick.RemoveListener(CloseSettings);
             if (settingsRestoreButton != null)
                 settingsRestoreButton.onClick.RemoveListener(RestoreDefaults);
             if (quitConfirmOkButton != null)
@@ -183,6 +188,7 @@ namespace PirateCrew.UI
         void CloseSettings()
         {
             RuntimeUiBuilder.ButtonFeedback(settingsBackButton, true, _motion);
+            RuntimeUiBuilder.ButtonFeedback(settingsCloseButton, true, _motion);
 
             // 关面板统一落盘：拖动滑条的过程不写盘，避免一次拖动几十次 IO。
             AudioService.SaveVolumes();

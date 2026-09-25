@@ -178,6 +178,7 @@ namespace PirateCrew.EditorTools
             so.FindProperty("versionText").objectReferenceValue = versionText;
             so.FindProperty("settingsPanel").objectReferenceValue = settings.Root;
             so.FindProperty("settingsBackButton").objectReferenceValue = settings.BackButton;
+            so.FindProperty("settingsCloseButton").objectReferenceValue = settings.CloseButton;
             so.FindProperty("settingsRestoreButton").objectReferenceValue = settings.RestoreButton;
             so.FindProperty("masterVolumeSlider").objectReferenceValue = settings.MasterSlider;
             so.FindProperty("sfxVolumeSlider").objectReferenceValue = settings.SfxSlider;

@@ -400,6 +400,54 @@ status_bar_text）。屏上其余颜色来自 **StickTokens**——那是隔壁 
 225（更错，已回退）。根治要么"平涂件改用 1×1 贴图给色"（sprite 路精确），要么工程切
 Gamma 空间（影响 3D 全链）。±1 肉眼不可见，等裁决。
 
+### 参考回归对照：选择框 / 拉动条 / 标题带（2026-09-26 凌晨·创始人追问「真的对齐参考项目了吗」）
+
+拿 `theme.xml` + `sheet.png`（权威源）与 `docs/images/ui-pixel-ref/ref-pixel-tool-dialog.png`
+（Aseprite 自己的 New Sprite 对话框实拍，注意它是缩放过的截屏、颜色有噪，只作结构对照）逐项核。
+
+**① 选择框（check_box / radio_button）——两处真缺陷**
+
+- 规格核对 ✓：图标件就是 8×8（`check_normal` 空框 / `check_selected` 蓝勾 / `radio_normal` 凹点 /
+  `radio_selected` 凸点），图标 x=2、文字 x=14（theme 原值），常态**无面**（只有 mouse/focus/disabled
+  三态有 `<background>`）。实机量：图标墨迹左偏 3 画布格 = 件内 1 格留白 + x=2 ✓。
+- **缺陷 A（遮蔽基类 OnEnable）**：`SketchCheck` 写的是 `private void OnEnable()`——Unity 按名派发
+  只认最派生类那一个，`Selectable.OnEnable` 里的**状态机初始化 / `s_Selectables` 登记 / 颜色态应用
+  全都没跑**：常态颜色 `normalColor`（alpha 0）从未生效，画布渲染器颜色停在装配时的白 →
+  **选项块在常态就顶着 `check_hot_face`(#575B61) 的面渲染**（实拍四块全带悬停面，参考库里
+  checkbox 常态是纯平的）。改为 `protected override void OnEnable() { base.OnEnable(); ApplyIcon(); }`。
+- **缺陷 B（字段不序列化）**：`_icon` 私有字段场景重载后丢失 → `IsOn = true` 设了也不换图
+  （**选中态永远不显示**，四块全是未选中图标）。加 `Icon` 属性按名兜底重取（同 `SketchButton.Label`
+  那次的坑）。实机验证（截图同拍临时点亮 Option0）：Option0 暗墨 8×8 满格 = `radio_selected`、
+  Option1 = `radio_normal` ✓。
+- 焦点面按 theme 改 `check_focus_face` = **#41444A**（原先映射到悬停白）；焦点**描边件** `check_focus`
+  （9 切片 2/6/2）仍已烘未接，见打磨清单第⑤项。
+- 待创始人一句话的 2 格问题：theme 的 `x="2"` / `x="14"` 是相对**客户区**（border=2 → 绝对 4/16）
+  还是相对控件（绝对 2/14）。现取绝对读数（与 `list_item` 的 `x="1"` 同一读法）；
+  参考截图分辨率不足以判定，不改。
+
+**② 拉动条（slider）——件与色都对上了**
+
+- theme `<style id="slider">` 只声明 `slider_empty` / `slider_empty_focused` 两个 background part
+  与一个文本层；`slider_full`（同样 16×16、w 5/6/5 h 5/5/6）由 Slider 控件代码叠画。
+- 件色实测（逐像素）：`slider_empty` 内芯 **#575B61（浅）**、`slider_full` 内芯 **#41444A（深）**
+  —— 库里"充满"是**压暗**语法，**不是金色**（旧代码注释"金色充满段"是错的，已改）。
+- 实机验证（截图同拍临时灌梯值 0.75 / 0.5 / 0.25 / 0）：fillAnchor `0..值` ✓ 左起 ✓ 比例实测
+  0.75 / 0.23 / 0.49 / 0.00 ✓、`handle=null`（库无拇指件，拖拽落点由 Slider 自身 rect 算）✓。
+- 库里 `slider` 还带数值文本层（`slider_empty_text` = #202125，居中）——我们的滑条不显示数值
+  （调用方未设文本），与库不冲突；要在槽内显示百分比时件与色都齐。
+
+**③ 标题带（灰带）——长度没问题，缺的是右端窗控钮**
+
+- 实测：灰带（`window_titlebar_face` #41444A）在各窗体都**满宽**（主菜单 128/130、设置卡 422/424、
+  列表窗体 330/332 画布格；少的 2 格是 `window` 件自身的角像素），带高 = `window` 件 h1 = 15 设计格，
+  标题左对齐 margin-left 5、字色 `window_titlebar_text` #C0C0C0 ✓ —— 与参考截图结构一致
+  （标题左对齐、带满宽、带下**没有**额外分割线：这也反证本波删掉自造标题分隔线是对的）。
+- **真缺口**：参考里带标题窗的标题带**右端必有窗控钮（? ×）**；我们只有模态有 ×
+  （`UiKit.CreateModal → EnsureWindow`），设置卡与主菜单窗是"空着一条灰带"。
+  → 设置卡补 `window_button` 9×11 + `window_close_icon`（`UiKit.CreateWindowButton`，
+  与「返回」同动作 `CloseSettings`；控制器 `settingsCloseButton` 字段 + `SceneSetup` 装配接线）。
+- 主菜单窗要不要也补 ×（语义 = 退出游戏，已另有「退出游戏」钮）留创始人定。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。

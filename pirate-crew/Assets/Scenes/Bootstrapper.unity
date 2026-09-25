@@ -122,7 +122,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &941622072
+--- !u!1 &1526427303
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -130,34 +130,36 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 941622074}
-  - component: {fileID: 941622073}
+  - component: {fileID: 1526427305}
+  - component: {fileID: 1526427304}
   m_Layer: 0
-  m_Name: Bootstrapper
+  m_Name: VideoSettings
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &941622073
+--- !u!114 &1526427304
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 941622072}
+  m_GameObject: {fileID: 1526427303}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c20536a3296f9c74081056a6dc64e5cb, type: 3}
+  m_Script: {fileID: 11500000, guid: 6f52a597c4580924fb0ad980ae87681b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!4 &941622074
+  performantPipeline: {fileID: 11400000, guid: 2299261764b3315449c665a70bbea37f, type: 2}
+  balancedPipeline: {fileID: 11400000, guid: 6c4a1580578bcd74991f3fa7a4b90280, type: 2}
+--- !u!4 &1526427305
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 941622072}
+  m_GameObject: {fileID: 1526427303}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -166,7 +168,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1041770611
+--- !u!1 &1658710462
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -174,36 +176,34 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1041770613}
-  - component: {fileID: 1041770612}
+  - component: {fileID: 1658710464}
+  - component: {fileID: 1658710463}
   m_Layer: 0
-  m_Name: VideoSettings
+  m_Name: Bootstrapper
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1041770612
+--- !u!114 &1658710463
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1041770611}
+  m_GameObject: {fileID: 1658710462}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6f52a597c4580924fb0ad980ae87681b, type: 3}
+  m_Script: {fileID: 11500000, guid: c20536a3296f9c74081056a6dc64e5cb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  performantPipeline: {fileID: 11400000, guid: 2299261764b3315449c665a70bbea37f, type: 2}
-  balancedPipeline: {fileID: 11400000, guid: 6c4a1580578bcd74991f3fa7a4b90280, type: 2}
---- !u!4 &1041770613
+--- !u!4 &1658710464
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1041770611}
+  m_GameObject: {fileID: 1658710462}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -216,5 +216,5 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 941622074}
-  - {fileID: 1041770613}
+  - {fileID: 1658710464}
+  - {fileID: 1526427305}

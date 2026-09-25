@@ -53,6 +53,36 @@ namespace PirateCrew.EditorTools
             }
             File.AppendAllLines(Path.GetFullPath("../export/unity-command-result.txt"), lines);
         }
+
+        /// <summary>
+        /// **实机联动件倒排**（命令桥/截图同拍用）：把场景里每个 Slider 的 direction / 值 /
+        /// 填充盒锚点 / 手柄有无 / 图像类型写回结果文件——"充满段长在哪一侧"这类问题肉眼
+        /// 看不出根因，落数字才判得了（UGUI 的 fill 位置由 anchorMin/anchorMax 驱动，
+        /// reverseValue 只跟 direction 有关）。
+        /// </summary>
+        public static void DumpSliders()
+        {
+            var lines = new System.Collections.Generic.List<string>();
+            foreach (var s in UnityEngine.Object.FindObjectsByType<UnityEngine.UI.Slider>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                string path = s.name;
+                var p = s.transform.parent;
+                while (p != null) { path = p.name + "/" + path; p = p.parent; }
+                var fill = s.fillRect as UnityEngine.RectTransform;
+                var fillImg = fill != null ? fill.GetComponent<UnityEngine.UI.Image>() : null;
+                lines.Add($"slider [{path}] dir={s.direction} value={s.value:F3}"
+                    + $" handle={(s.handleRect == null ? "null" : "有")}"
+                    + (fill != null
+                        ? $" fillAnchor=({fill.anchorMin.x:F2},{fill.anchorMin.y:F2})-({fill.anchorMax.x:F2},{fill.anchorMax.y:F2})"
+                          + $" fillSize=({fill.sizeDelta.x:F1},{fill.sizeDelta.y:F1})"
+                          + $" fillType={(fillImg != null ? fillImg.type.ToString() : "无Image")}"
+                          + $" fillAmount={(fillImg != null ? fillImg.fillAmount.ToString("F2") : "-")}"
+                          + $" fillSprite={(fillImg != null && fillImg.sprite != null ? fillImg.sprite.name : "无")}"
+                        : " fillRect=null"));
+            }
+            File.AppendAllLines(Path.GetFullPath("../export/unity-command-result.txt"), lines);
+        }
     }
 }
 

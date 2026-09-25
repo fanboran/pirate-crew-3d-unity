@@ -33,6 +33,22 @@ namespace PirateCrew.UI.Stick
         private bool _on;
         private Image _icon;
 
+        /// <summary>图标件（<c>Icon</c> 孩子）。**场景重载后私有字段不序列化**，按名兜底重取——
+        /// 不重取的话 <see cref="IsOn"/> 设了也不换图（实拍：设置页四个选项块全显示未选中图标，
+        /// 与 <see cref="SketchButton.Label"/> 同一坑：泛搜/字段都会在重载后落空）。</summary>
+        public Image Icon
+        {
+            get
+            {
+                if (_icon == null)
+                {
+                    Transform child = transform.Find("Icon");
+                    _icon = child != null ? child.GetComponent<Image>() : null;
+                }
+                return _icon;
+            }
+        }
+
         /// <summary>
         /// 建一个复选/单选。图标 8×8 贴左（<see cref="AseLayout.CheckIconX"/> = 2 设计格）、
         /// 文字从 <see cref="AseLayout.CheckTextX"/> = 14 设计格起（theme 原值，×Unit 进画布）；
@@ -74,8 +90,10 @@ namespace PirateCrew.UI.Stick
             bg.raycastTarget = true;
             var colorsBlock = colors;
             colorsBlock.normalColor = new Color(1f, 1f, 1f, 0f);
-            colorsBlock.highlightedColor = Color.white;
-            colorsBlock.selectedColor = Color.white;
+            colorsBlock.highlightedColor = Color.white;                 // mouse → check_hot_face(#575B61)
+            // theme：focus 面是 check_focus_face = **#41444a**（不是悬停面）；焦点描边件
+            // check_focus（9 切片 2/6/2）已烘未接，见交接档打磨清单第⑤项。
+            colorsBlock.selectedColor = PixelSkin.Theme.Background;
             colorsBlock.pressedColor = Color.white;
             colorsBlock.disabledColor = new Color(1f, 1f, 1f, 0f);
             colorsBlock.fadeDuration = 0f;
@@ -134,11 +152,24 @@ namespace PirateCrew.UI.Stick
 
         void ApplyIcon()
         {
-            if (_icon == null)
+            Image icon = Icon;   // 走属性：场景重载后按名兜底重取
+            if (icon == null)
                 return;
-            _icon.sprite = Radio ? PixelSkin.Radio(_on) : PixelSkin.Check(_on);
+            icon.sprite = Radio ? PixelSkin.Radio(_on) : PixelSkin.Check(_on);
         }
 
-        private void OnEnable() => ApplyIcon();
+        /// <summary>
+        /// 【必须 override base.OnEnable】UGUI 的状态机初始化、<c>s_Selectables</c> 登记与
+        /// 颜色态应用都在 <see cref="Selectable.OnEnable"/> 里。旧实现写的是 <c>private void OnEnable()</c>
+        /// ——Unity 的按名消息派发只认最派生类那一个，基类的 OnEnable **根本不会跑**：
+        /// 于是常态颜色（<c>normalColor</c> alpha 0）从未被应用，画布渲染器颜色停在装配时的白，
+        /// 选项块在常态就顶着 <c>check_hot_face</c> 的面渲染（实拍：四块选项块常态就是悬停面），
+        /// 键盘导航登记也一起丢。
+        /// </summary>
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+            ApplyIcon();
+        }
     }
 }
