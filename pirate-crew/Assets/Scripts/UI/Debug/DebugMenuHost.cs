@@ -159,17 +159,20 @@ namespace PirateCrew.UI.DebugUi
         static RectTransform BuildPartsGalleryWindow(Vector2 topLeft)
         {
             RectTransform window = DebugWindowKit.CreateWindow(_root, "PartsGalleryWindow",
-                "部件陈列廊（theme.xml 全 345 件）", topLeft, new Vector2(960f - 24f, 540f - 60f));
+                "部件陈列廊（theme.xml 全 345 件）", topLeft, new Vector2(960f - 20f, 540f - 60f));
+            Vector2 windowSize = window.sizeDelta;
 
+            // 滚动区：点锚 + 显式尺寸（拉伸锚的 inset 写法在点锚上会得负尺寸——首版即此病，全窗空白）
             RectTransform scroll = UiKit.CreateRect("Scroll", window);
-            scroll.anchorMin = scroll.anchorMax = new Vector2(0.5f, 0.5f);
-            scroll.pivot = new Vector2(0.5f, 0.5f);
-            scroll.offsetMin = new Vector2(DebugWindowKit.Pad, DebugWindowKit.Pad);
-            scroll.offsetMax = new Vector2(-DebugWindowKit.Pad - 20f, -PixelSkin.WindowTitleBand - 4f);
+            scroll.anchorMin = scroll.anchorMax = scroll.pivot = new Vector2(0f, 1f);
+            scroll.anchoredPosition = new Vector2(DebugWindowKit.Pad, -PixelSkin.WindowTitleBand - 4f);
+            scroll.sizeDelta = new Vector2(
+                windowSize.x - DebugWindowKit.Pad * 2f - 16f - 4f,
+                windowSize.y - PixelSkin.WindowTitleBand - 4f - DebugWindowKit.Pad);
 
             RectTransform viewport = UiKit.CreateRect("Viewport", scroll);
-            viewport.anchorMin = viewport.anchorMax = new Vector2(0.5f, 0.5f);
-            viewport.pivot = new Vector2(0.5f, 0.5f);
+            viewport.anchorMin = Vector2.zero;
+            viewport.anchorMax = Vector2.one;
             viewport.offsetMin = Vector2.zero;
             viewport.offsetMax = Vector2.zero;
             viewport.gameObject.AddComponent<RectMask2D>();
@@ -183,8 +186,8 @@ namespace PirateCrew.UI.DebugUi
             content.pivot = new Vector2(0.5f, 1f);
             content.anchoredPosition = Vector2.zero;
 
-            // 陈列廊列数自适应：可用宽 = 窗宽 − 双边距 − 滚动条（16）− 缝（4）
-            float galleryWidth = 960f - 20f - DebugWindowKit.Pad * 2f - 16f - 4f;
+            // 陈列廊列数自适应：可用宽 = 滚动区宽
+            float galleryWidth = scroll.sizeDelta.x;
             float height = PartsGalleryPage.Build(content, 0f, galleryWidth);
             content.sizeDelta = new Vector2(0f, height);
 
@@ -195,12 +198,12 @@ namespace PirateCrew.UI.DebugUi
             scrollRect.movementType = ScrollRect.MovementType.Clamped;
             scrollRect.scrollSensitivity = 30f;
 
+            // theme 滚动条（16 宽）贴滚动区右侧
             RectTransform bar = UiKit.CreateRect("VBar", window);
-            bar.anchorMin = new Vector2(1f, 0f);
-            bar.anchorMax = new Vector2(1f, 1f);
-            bar.pivot = new Vector2(1f, 0.5f);
-            bar.offsetMin = new Vector2(-DebugWindowKit.Pad - 16f, DebugWindowKit.Pad);
-            bar.offsetMax = new Vector2(-DebugWindowKit.Pad, -PixelSkin.WindowTitleBand - 4f);
+            bar.anchorMin = bar.anchorMax = bar.pivot = new Vector2(0f, 1f);
+            bar.anchoredPosition = new Vector2(
+                DebugWindowKit.Pad + scroll.sizeDelta.x + 4f, -PixelSkin.WindowTitleBand - 4f);
+            bar.sizeDelta = new Vector2(16f, scroll.sizeDelta.y);
             var barBg = bar.gameObject.AddComponent<Image>();
             barBg.sprite = PixelSkin.Ase("scrollbar_bg");   // theme scrollbar 直切件
             barBg.type = Image.Type.Sliced;
@@ -209,8 +212,10 @@ namespace PirateCrew.UI.DebugUi
             barBg.raycastTarget = false;
 
             RectTransform handle = UiKit.CreateRect("Handle", bar);
-            handle.anchorMin = handle.anchorMax = new Vector2(0.5f, 0.5f);
-            handle.pivot = new Vector2(0.5f, 0.5f);
+            handle.anchorMin = Vector2.zero;
+            handle.anchorMax = Vector2.one;
+            handle.offsetMin = Vector2.zero;
+            handle.offsetMax = Vector2.zero;
             var handleImage = handle.gameObject.AddComponent<Image>();
             handleImage.sprite = PixelSkin.Ase("scrollbar_thumb");
             handleImage.type = Image.Type.Sliced;
@@ -222,6 +227,7 @@ namespace PirateCrew.UI.DebugUi
             scrollbar.handleRect = handle;
             scrollbar.targetGraphic = handleImage;
             scrollbar.direction = Scrollbar.Direction.BottomToTop;
+            scrollbar.size = Mathf.Clamp01(scroll.sizeDelta.y / Mathf.Max(1f, height));   // 滑块大小 = 可视/内容比
             scrollRect.verticalScrollbar = scrollbar;
             return window;
         }

@@ -82,10 +82,10 @@ namespace PirateCrew.UI.DebugUi
             sunken.raycastTarget = true;
 
             RectTransform textArea = UiKit.CreateRect("Text", entry);
-            textArea.anchorMin = textArea.anchorMax = new Vector2(0.5f, 0.5f);
-            textArea.pivot = new Vector2(0.5f, 0.5f);
+            textArea.anchorMin = Vector2.zero;
+            textArea.anchorMax = Vector2.one;
             textArea.offsetMin = new Vector2(4f, 1f);
-            textArea.offsetMax = new Vector2(-14f, -1f);
+            textArea.offsetMax = new Vector2(-14f, -1f);   // 右侧留数字后缀位
             TextMeshProUGUI input = textArea.gameObject.AddComponent<TextMeshProUGUI>();
             TMP_FontAsset font = UiKit.ResolvePixelFont(UiSkin.Font.Tiny, DebugWindowKit.HandFont);
             if (font != null)

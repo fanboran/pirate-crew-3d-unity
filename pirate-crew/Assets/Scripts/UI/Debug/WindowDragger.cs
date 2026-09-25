@@ -44,10 +44,13 @@ namespace PirateCrew.UI.DebugUi
             var zone = new GameObject("DragZone", typeof(RectTransform));
             RectTransform rect = zone.GetComponent<RectTransform>();
             rect.SetParent(window, false);
-            // 覆盖标题带：锚 (0,1)-(0,1) 起，宽 = 窗宽 − 右让位，高 = 标题带
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-            rect.sizeDelta = new Vector2(-RightReserve, PixelSkin.WindowTitleBand);
-            rect.anchoredPosition = Vector2.zero;
+            // 覆盖标题带：横向**拉伸锚**（0,1)-(1,1）+ inset——右让位窗控钮，下探到带底。
+            // （第一版把拉伸锚的 inset 写法用在点锚上，宽度成了 −24：命中板不存在、
+            // 全部窗体都拖不动——实机走查抓出。）
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.offsetMin = new Vector2(0f, -PixelSkin.WindowTitleBand);
+            rect.offsetMax = new Vector2(-RightReserve, 0f);
             var hit = zone.AddComponent<Image>();
             hit.color = new Color(0f, 0f, 0f, 0f);   // 透明命中板：只吃指针不显形
             hit.raycastTarget = true;
