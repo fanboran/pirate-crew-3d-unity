@@ -1,7 +1,9 @@
-# Aseprite 观感对齐 — 交接（全量复刻波·代码全落地待实机重验收）
+# Aseprite 观感对齐 — 交接（全量复刻波·代码全落地，进入打磨波）
 
-> 状态：**执行案 §〇之一 五步已全部落地**（2026-09-25 本会话），无头验证链全绿，
-> 四屏实拍确认 ×1 直切观感生效；**剩余 = 重启编辑器后的实机重拍与创始人过目**。
+> 状态：**全量复刻波执行完毕**（2026-09-25，提交 `4d2dc0bf..9752f1fa`），
+> 渲染链五层取证全干净（图集/shader/faceInfo/顶点 snap/相位），实拍 ×2 下
+> **文字格半亮率 0%、横线相位全偶**；当前进入**打磨波**——
+> 余项五项见文末「打磨清单」，新会话恢复指引见 §六。
 > 权威参考库：`external/aseprite-ref/data/extensions/aseprite-theme/dark/theme.xml`（1177 行）+ 同目录 sheet.png。
 
 ## 〇、本会话做了什么（执行案 §〇之一 五步收口全记录）
@@ -150,3 +152,33 @@ BackConfirmDialog→ConfirmDialog 实锤修正）。**新纪律**：中心锚容
 - 布局数字一律 `AseLayout.Px`（×1 恒等后 theme 数字即画布像素）；取色一律 `PixelSkin.Theme.*`。
 - **直切件禁手改**：判据与 sheet.png 逐位比对，改盘上 PNG 或更新 sheet.png 后必须重跑烘焙。
 - 新增部件 = `AseBakeParts` 加 part id（必须能在 theme.xml `<parts>` 找到行）+ 重烘焙。
+
+## 六、新会话恢复指引（打磨波）
+
+**环境现状**（2026-09-25 深夜）：
+- 主仓编辑器**开着**（GUI 实例，最新代码 + 最新装配场景，PID 会变，用进程名找）；
+  遥控 flag：`external/editor-remote-play.flag`（`assemble` / `capture:<场景>[+settings|+confirm]` / `stop` / `rebake`）；
+- 工作区有字体/URP/场景 asset 的自动触碰噪声（编辑器常开产物，非本波改动，提交时别带上）；
+- worktree `temp/ase-x1`（分支 `feat/ase-x1-verify` 已 merge）保留作对照，物证：
+  `temp/ase-x1/pirate-crew/export/ui-pixel-4c/` 六屏首拍；主仓同目录是重拍版。
+
+**改代码后怎么让编辑器吃进去（本会话踩坑总结）**：
+1. 在主仓 `Assets/Editor/` **新建**一个 `Probe.cs`（内容一行注释）→ 喂焦点循环
+   （`temp/focus-main.ps1`，参数换当前 PID，每轮 ~3s）；
+2. **必须查 `%TEMP%\pc3d-main-gui.log` 确认 `CompileScripts: <毫秒数>` 出现且新段无
+   `error CS`**——"touch 已有文件"和"改完立刻删探针"都不触发编译（file watcher 只认
+   创建事件；旧实例有过 watcher 彻底失灵+Bee stale 快照，重启即愈）；
+3. 确认编译完成后再删 `Probe.cs`，然后发 `assemble` / `capture` flag。
+
+**无头链**（编辑器关闭时/批量验证）：`rebake` =
+`Unity.exe -batchmode -nographics -quit -projectPath <主仓>/pirate-crew -executeMethod
+PirateCrew.EditorTools.BeveledPixelSpriteBuilder.BuildFromCommandLine`；
+装配 `SceneSetup.BuildAll` / `ManagementSceneSetup.BuildAll`；
+**batchmode 与 GUI 实例不能同工程并行**（Library 锁）；batchmode 异常退出会残留
+`Temp/UnityLockfile`，确认进程已死可直接删。
+
+**打磨波执行序**（按优先级）：
+① 确认框改走 CreateModal；② 奇数尺寸/中心锚相位排查（判据：实拍横线屏幕 y 全偶，
+复核脚本见提交 `9752f1fa` 描述里的半亮率算法思路）；③ MC 式密度档（Unit 运行时化）；
+④ 16px 字连锁重排（与密度档联动裁决）；⑤ 已烘未接屏件按场景接入。
+每项做完走「Probe 编译 → assemble → capture → 像素级验证（相位/半亮率）」同一套。
