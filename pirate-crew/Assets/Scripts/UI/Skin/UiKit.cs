@@ -181,9 +181,7 @@ namespace PirateCrew.UI
         /// 文字运行期会变的按钮请另走 HStack(controlWidths) 流式（内层横排组随文字收放）。</summary>
         public static void FitToLabel(Button button, float height)
         {
-            TMPro.TextMeshProUGUI label = button != null
-                ? button.GetComponentInChildren<TMPro.TextMeshProUGUI>(true)
-                : null;
+            TMPro.TextMeshProUGUI label = Stick.SketchButton.LabelOf(button);
             if (label == null)
                 return;
             float width = Mathf.Max(2f * UiSkin.Font.Body,
@@ -202,9 +200,7 @@ namespace PirateCrew.UI
         /// <summary>宽高全贴合：高 = 标签真实行高 + 上下各半 <see cref="UiSkin.Px.ButtonPadX"/>。</summary>
         public static void FitToLabel(Button button)
         {
-            TMPro.TextMeshProUGUI label = button != null
-                ? button.GetComponentInChildren<TMPro.TextMeshProUGUI>(true)
-                : null;
+            TMPro.TextMeshProUGUI label = Stick.SketchButton.LabelOf(button);
             if (label == null)
                 return;
             float height = Mathf.Max(UiSkin.Px.Button,

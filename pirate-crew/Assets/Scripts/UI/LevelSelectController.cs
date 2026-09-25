@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
@@ -156,7 +156,7 @@ namespace PirateCrew.UI
             if (settlementReplayButton != null)
             {
                 settlementReplayButton.gameObject.SetActive(value.Cleared);
-                TextMeshProUGUI replayLabel = settlementReplayButton.GetComponentInChildren<TextMeshProUGUI>(true);
+                TextMeshProUGUI replayLabel = RuntimeUiBuilder.GetButtonLabel(settlementReplayButton);
                 if (replayLabel != null)
                     replayLabel.text = UiStrings.LevelReplay;
             }
@@ -166,7 +166,7 @@ namespace PirateCrew.UI
 
             if (settlementBackButton != null)
             {
-                TextMeshProUGUI backLabel = settlementBackButton.GetComponentInChildren<TextMeshProUGUI>(true);
+                TextMeshProUGUI backLabel = RuntimeUiBuilder.GetButtonLabel(settlementBackButton);
                 if (backLabel != null)
                     backLabel.text = UiStrings.SettlementBackToSelect;
             }

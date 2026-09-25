@@ -30,6 +30,38 @@ namespace PirateCrew.UI.Stick
         private TextMeshProUGUI _label;
         private TextMeshProUGUI _shadowLabel;   // 禁用态双层字：background 色 (x+1,y+1) 垫底
 
+        /// <summary>可见标签件（<c>Label</c> 孩子）。
+        /// **取文案请走这里，别用 <c>GetComponentInChildren&lt;TextMeshProUGUI&gt;</c>**——
+        /// 影子层按 theme 绘制序被插到兄弟序 0（压在标签下），泛搜会先取到那层**不可见**的
+        /// 影子：文字写进去不显示、可见标签留空还让按钮按空文案收窄
+        /// （实拍：选关列表整列出战按钮被挤成细条、船员列表已解锁行按钮无字）。
+        /// 场景重载后私有字段不序列化，按名兜底重取。</summary>
+        public TextMeshProUGUI Label
+        {
+            get
+            {
+                if (_label == null)
+                {
+                    Transform child = transform.Find("Label");
+                    _label = child != null ? child.GetComponent<TextMeshProUGUI>() : null;
+                }
+                return _label;
+            }
+        }
+
+        /// <summary>取任意按钮的**可见**标签：SketchButton 走本类的名字出口，
+        /// 其他按钮回落泛搜（它们没有影子层）。**勿直接用
+        /// <c>GetComponentInChildren&lt;TextMeshProUGUI&gt;</c>** —— 见 <see cref="Label"/>。</summary>
+        public static TextMeshProUGUI LabelOf(Button button)
+        {
+            if (button == null)
+                return null;
+            var sketch = button as SketchButton;
+            if (sketch != null)
+                return sketch.Label;
+            return button.GetComponentInChildren<TextMeshProUGUI>(true);
+        }
+
         /// <summary>
         /// 建一枚完整按钮（theme button 四态皮 + 本组件 + 居中文字）。
         /// </summary>

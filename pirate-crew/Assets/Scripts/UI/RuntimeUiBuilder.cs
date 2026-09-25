@@ -141,11 +141,10 @@ namespace PirateCrew.UI
                 font, label, fontSize);
         }
 
-        /// <summary>取按钮上的 TMP 文本（建行时写动作文案用）。</summary>
-        public static TextMeshProUGUI GetButtonLabel(Button button)
-        {
-            return button != null ? button.GetComponentInChildren<TextMeshProUGUI>(true) : null;
-        }
+        /// <summary>取按钮上的**可见** TMP 文本（建行时写动作文案用）。
+        /// 走 <see cref="SketchButton.LabelOf"/>——泛搜 <c>GetComponentInChildren</c> 会先取到
+        /// 兄弟序 0 的**影子层**（不可见），文案写进去就不显示（实拍：选关列表出战按钮整列无字）。</summary>
+        public static TextMeshProUGUI GetButtonLabel(Button button) => SketchButton.LabelOf(button);
 
         /// <summary>星形图标（UiGlyphs 程序化五角星，白形可染色）。</summary>
         public static Sprite StarIcon => UiGlyphs.Get(UiGlyphs.Glyph.Star);

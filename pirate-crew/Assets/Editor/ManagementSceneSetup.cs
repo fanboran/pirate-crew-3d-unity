@@ -326,13 +326,13 @@ namespace PirateCrew.EditorTools
                 new Vector2(0f, -596f));
             refs.StarRuleText = rule;
 
-            // 弹窗按钮：再战 = Primary 主行动档；返回选图 = Dark 次级档（令牌尺寸，成对居中）。
-            refs.ReplayButton = CreateSketchButton("ReplayButton", card, UiStrings.LevelReplay,
-                new Vector2(0.5f, 0f), new Vector2(-120f, 52f),
-                MenuUiBuilder.ButtonSize(UiStrings.LevelReplay), bodyFont);
-            refs.BackButton = CreateSketchButton("BackToSelectButton", card,
-                UiStrings.SettlementBackToSelect, new Vector2(0.5f, 0f), new Vector2(84f, 52f),
-                MenuUiBuilder.ButtonSize(UiStrings.SettlementBackToSelect), bodyFont);
+            // 弹窗按钮：再战 / 返回选图 = 一行居中（缝 8）。旧坐标 (-120, 52) / (+84, 52) 手写，
+            // 整对中心 -18 ≠ 卡心、缝 160 设计格——同"底部按钮错位"一族。
+            Button[] settlementButtons = CreateCenteredButtonRow(card, "SettlementActions", 52f, bodyFont,
+                (UiStrings.LevelReplay, MenuUiBuilder.ButtonSize(UiStrings.LevelReplay)),
+                (UiStrings.SettlementBackToSelect, MenuUiBuilder.ButtonSize(UiStrings.SettlementBackToSelect)));
+            refs.ReplayButton = settlementButtons[0];
+            refs.BackButton = settlementButtons[1];
 
             root.gameObject.SetActive(false);
             return refs;
