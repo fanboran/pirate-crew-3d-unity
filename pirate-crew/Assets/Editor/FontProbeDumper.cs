@@ -55,6 +55,40 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
+        /// **实机选项/状态件倒排**：把 SketchButtonSet.Active / SketchCheck.IsOn / 每枚滑条的值
+        /// 以及视频设置服务是否就绪写回结果文件。用于"选项块没高亮""滑条全是 0%"这类
+        /// 状态不落地的问题——是控件没换件，还是控制器压根没跑，看数字就知道。
+        /// </summary>
+        public static void DumpControlStates()
+        {
+            var lines = new System.Collections.Generic.List<string>();
+            var video = PirateCrew.Settings.VideoSettingsService.Instance;
+            lines.Add($"videoService={(video == null ? "<null>" : "就绪")}"
+                + $" defaultQuality={PirateCrew.Settings.VideoSettingsStore.DefaultQuality}"
+                + $" defaultFullscreen={PirateCrew.Settings.VideoSettingsStore.DefaultFullscreen}"
+                + $" audioAvailable={PirateCrew.Audio.AudioService.IsAvailable}");
+            foreach (var set in UnityEngine.Object.FindObjectsByType<PirateCrew.UI.Stick.SketchButtonSet>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+                lines.Add($"buttonset [{HierarchyPath(set.transform)}] active={set.Active}"
+                    + $" sprite={(set.targetGraphic is UnityEngine.UI.Image im && im.sprite != null ? im.sprite.name : "无")}"
+                    + $" interactable={set.interactable} enabled={set.enabled}"
+                    + $" activeInHierarchy={set.gameObject.activeInHierarchy}");
+            foreach (var check in UnityEngine.Object.FindObjectsByType<PirateCrew.UI.Stick.SketchCheck>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+                lines.Add($"check [{HierarchyPath(check.transform)}] isOn={check.IsOn}"
+                    + $" icon={(check.Icon != null && check.Icon.sprite != null ? check.Icon.sprite.name : "无")}");
+            File.AppendAllLines(Path.GetFullPath("../export/unity-command-result.txt"), lines);
+        }
+
+        static string HierarchyPath(Transform t)
+        {
+            string p = t.name;
+            for (Transform q = t.parent; q != null; q = q.parent)
+                p = q.name + "/" + p;
+            return p;
+        }
+
+        /// <summary>
         /// **实机联动件倒排**（命令桥/截图同拍用）：把场景里每个 Slider 的 direction / 值 /
         /// 填充盒锚点 / 手柄有无 / 图像类型写回结果文件——"充满段长在哪一侧"这类问题肉眼
         /// 看不出根因，落数字才判得了（UGUI 的 fill 位置由 anchorMin/anchorMax 驱动，

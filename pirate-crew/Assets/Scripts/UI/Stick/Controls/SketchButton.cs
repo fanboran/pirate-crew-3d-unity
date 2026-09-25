@@ -1,4 +1,4 @@
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -46,6 +46,33 @@ namespace PirateCrew.UI.Stick
                     _label = child != null ? child.GetComponent<TextMeshProUGUI>() : null;
                 }
                 return _label;
+            }
+        }
+
+        /// <summary>皮件。**私有字段场景重载后为空**——走 <see cref="Selectable.targetGraphic"/>
+        /// 兜底（那是序列化字段，重载后仍在）；不兜底的话 <see cref="Sticky"/> 等运行期换皮
+        /// 全部静默失效（本波 buttonset 就是这么被抓出来的）。</summary>
+        private Image Background
+        {
+            get
+            {
+                if (_bg == null)
+                    _bg = targetGraphic as Image;
+                return _bg;
+            }
+        }
+
+        /// <summary>禁用态影子层（兄弟序 0 的不可见层）。按名兜底重取，同 <see cref="Label"/>。</summary>
+        private TextMeshProUGUI ShadowLabel
+        {
+            get
+            {
+                if (_shadowLabel == null)
+                {
+                    Transform child = transform.Find("LabelShadow");
+                    _shadowLabel = child != null ? child.GetComponent<TextMeshProUGUI>() : null;
+                }
+                return _shadowLabel;
             }
         }
 
@@ -99,12 +126,13 @@ namespace PirateCrew.UI.Stick
         {
             _applied = true;
 
-            if (_bg != null)
+            Image bg = Background;
+            if (bg != null)
             {
-                _bg.sprite = PixelSkin.Ase(Sticky ? "button_selected" : "button_normal");
-                _bg.type = Image.Type.Sliced;
-                _bg.pixelsPerUnitMultiplier = 1f;
-                _bg.color = Color.white;    // 像素件禁止乘色
+                bg.sprite = PixelSkin.Ase(Sticky ? "button_selected" : "button_normal");
+                bg.type = Image.Type.Sliced;
+                bg.pixelsPerUnitMultiplier = 1f;
+                bg.color = Color.white;    // 像素件禁止乘色
             }
 
             SpriteState state = spriteState;
@@ -129,20 +157,22 @@ namespace PirateCrew.UI.Stick
                 return;
 
             bool disabled = state == SelectionState.Disabled;
-            if (_label != null)
+            TextMeshProUGUI label = Label;
+            if (label != null)
             {
                 // theme.xml:614-619——常态/悬停 #c0c0c0；selected 态白（button_selected_text）；
                 // Sticky 常显白；禁用 = disabled 色 #202125 盖面。
-                _label.color = disabled
+                label.color = disabled
                     ? PixelSkin.Theme.Disabled
                     : Sticky || state == SelectionState.Selected && IsStickySelected()
                         ? PixelSkin.Theme.TextSelected
                         : PixelSkin.Theme.Text;
             }
-            if (_shadowLabel != null)
+            TextMeshProUGUI shadow = ShadowLabel;
+            if (shadow != null)
             {
                 // 影子层只在禁用态显形（background 色 (x+1,y+1) 垫底，theme.xml:617）。
-                _shadowLabel.gameObject.SetActive(disabled);
+                shadow.gameObject.SetActive(disabled);
             }
         }
 

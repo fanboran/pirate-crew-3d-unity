@@ -1,4 +1,4 @@
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -51,6 +51,18 @@ namespace PirateCrew.UI.Stick
                     _label = child != null ? child.GetComponent<TextMeshProUGUI>() : null;
                 }
                 return _label;
+            }
+        }
+
+        /// <summary>皮件。**私有字段场景重载后为空**——走 <see cref="Selectable.targetGraphic"/>
+        /// 兜底（序列化字段，重载后仍在）。不兜底则 <see cref="Active"/> 运行期换件静默失效。</summary>
+        private Image Background
+        {
+            get
+            {
+                if (_bg == null)
+                    _bg = targetGraphic as Image;
+                return _bg;
             }
         }
 
@@ -123,12 +135,13 @@ namespace PirateCrew.UI.Stick
         /// <summary>按业务态挂皮（theme 四态走 SpriteSwap，业务"当前值"换 active 件）。</summary>
         public void ApplySkin()
         {
-            if (_bg != null)
+            Image bg = Background;
+            if (bg != null)
             {
-                _bg.sprite = PixelSkin.Ase(_active ? "buttonset_item_active" : "buttonset_item_normal");
-                _bg.type = Image.Type.Sliced;
-                _bg.pixelsPerUnitMultiplier = 1f;
-                _bg.color = Color.white;   // 像素件禁止乘色
+                bg.sprite = PixelSkin.Ase(_active ? "buttonset_item_active" : "buttonset_item_normal");
+                bg.type = Image.Type.Sliced;
+                bg.pixelsPerUnitMultiplier = 1f;
+                bg.color = Color.white;   // 像素件禁止乘色
             }
 
             SpriteState state = spriteState;

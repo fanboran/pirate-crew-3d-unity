@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -76,6 +76,40 @@ namespace PirateCrew.EditorTools
 
         static string OverlayName(string overlay) => overlay;
 
+        /// <summary>按名找**已激活**对象（走用户路径点按钮用）。</summary>
+        static Transform FindActive(string name)
+        {
+            foreach (var t in UnityEngine.Object.FindObjectsByType<Transform>(
+                         FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                if (t.name == name)
+                    return t;
+            return null;
+        }
+
+        /// <summary>按名找**未激活**对象（弹窗默认隐藏，走不到就兜底直接激活）。</summary>
+        static Transform FindInactive(string name)
+        {
+            foreach (var t in UnityEngine.Object.FindObjectsByType<Transform>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (t.name == name && !t.gameObject.activeInHierarchy)
+                    return t;
+            return null;
+        }
+
+        /// <summary>场景里是否已有该名字的激活对象。</summary>
+        static bool IsActiveNamed(string name) => FindActive(name) != null;
+
+        /// <summary>已置 active（业务当前值）的选项块数量——诊断"控制器状态有没有落地"。</summary>
+        static int CountActiveOptionSets()
+        {
+            int n = 0;
+            foreach (var s in UnityEngine.Object.FindObjectsByType<PirateCrew.UI.Stick.SketchButtonSet>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (s.Active)
+                    n++;
+            return n;
+        }
+
         static string OverlayTargetName(string overlay)
         {
             switch (overlay)
@@ -135,17 +169,34 @@ namespace PirateCrew.EditorTools
                     {
                         // 隐藏弹窗走查：直接激活（视觉验证不依赖控制器接线）。
                         // GameObject.Find 找不到未激活对象——含未激活全量搜名。
-                        string target = OverlayTargetName(SessionState.GetString(OverlayKey, ""));
+                        string overlayName = SessionState.GetString(OverlayKey, "");
+                        string target = OverlayTargetName(overlayName);
                         if (!string.IsNullOrEmpty(target))
                         {
-                            foreach (var t in UnityEngine.Object.FindObjectsByType<Transform>(
-                                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+                            // 设置面板走**用户真路径**：点「设置」钮（控制器 OpenSettings →
+                            // RefreshSettingsControls）——这样音量滑条显示真实百分比、选项块
+                            // 显示真实当前值；直接 SetActive 会让这两类控制在图里全是未选中/0%。
+                            Transform opener = overlayName == "settings" ? FindActive("SettingsButton") : null;
+                            if (opener != null)
                             {
-                                if (t.name == target)
-                                {
+                                var openerButton = opener.GetComponent<UnityEngine.UI.Button>();
+                                if (openerButton != null)
+                                    openerButton.onClick.Invoke();
+                                Debug.Log("[UiPixelScreenCapture] 设置覆盖层：opener=" + opener.name
+                                    + " button=" + (openerButton != null)
+                                    + " 面板已激活=" + IsActiveNamed(target)
+                                    + " 选项块 active 数=" + CountActiveOptionSets());
+                            }
+                            else
+                            {
+                                Debug.LogWarning("[UiPixelScreenCapture] 设置覆盖层：找不到 SettingsButton，"
+                                    + "只能直接激活面板（控制器状态不会应用）。");
+                            }
+                            if (!IsActiveNamed(target))
+                            {
+                                Transform t = FindInactive(target);
+                                if (t != null)
                                     t.gameObject.SetActive(true);
-                                    break;
-                                }
                             }
                         }
                     }
@@ -155,7 +206,7 @@ namespace PirateCrew.EditorTools
                         // 截图同拍一份**实机文本度量**到命令桥结果文件（字体档/画布相位/渲染 shader）：
                         // 屏上"文字笔画时粗时细"的客观判据是「显示字号 ÷ 字体原生档 = 1」+
                         // 「画布空间相位 = 0」，这两项靠肉眼看不出来，落成数字才可复核。
-                        try { FontProbeDumper.DumpSceneTexts(); FontProbeDumper.DumpSliders(); }
+                        try { FontProbeDumper.DumpSceneTexts(); FontProbeDumper.DumpSliders(); FontProbeDumper.DumpControlStates(); }
                         catch (Exception e) { Debug.LogError("[UiPixelScreenCapture] 文本度量转储失败：" + e.Message); }
                         ScreenCapture.CaptureScreenshot(path);
                         SessionState.SetInt(StateKey, 3);

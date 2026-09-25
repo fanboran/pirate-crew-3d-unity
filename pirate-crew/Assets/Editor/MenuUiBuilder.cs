@@ -348,6 +348,11 @@ namespace PirateCrew.EditorTools
             // 库里没有的件，也破了自家一致性。如要恢复，需要创始人明确开单。
 
             var result = new SettingsPanelResult();
+            result.Root = root.gameObject;   // 【必赋】装配侧把它写进 MainMenuController.settingsPanel；
+            // 漏赋 → 场景里该引用为 null → 控制器 OpenSettings 首行 `if (settingsPanel == null) return;`
+            // 直接早退：真机点「设置」**面板根本不开**（截图工具直接 SetActive 才看得见，所以
+            // 历次走查都没暴露）。同轮一并修好：面板开了才会跑 RefreshSettingsControls，
+            // 音量百分比与选项块当前值才会落地。
             result.CloseButton = settingsCloseButton;
 
             // 行容器：八行流式纵排（缝 3u）——两条蓝字分组线 + 四条音量滑条 + 两组选项块。
@@ -486,12 +491,15 @@ namespace PirateCrew.EditorTools
             TextMeshProUGUI valueText = CreateTextExact("Value", sliderRect, Percent(slider.value),
                 UiSkin.Font.Tiny, TextAlignmentOptions.Center, PixelSkin.Theme.Disabled, hand);
             Stretch(valueText.rectTransform);
-            var captured = valueText;
-            slider.onValueChanged.AddListener(v => captured.SetText(Percent(v)));
+            // 数值刷新走件（帧对齐），**不挂 onValueChanged**——控制器刷新走
+            // SetValueWithoutNotify，不触发事件，只挂事件会停在初值（见 SliderValueLabel 注释）。
+            var valueLabel = sliderRect.gameObject.AddComponent<SliderValueLabel>();
+            valueLabel.Label = valueText;
             return slider;
         }
 
-        /// <summary>滑条百分比文案（0..1 → "0%".."100%"）。</summary>
+        /// <summary>滑条百分比文案（0..1 → "0%".."100%"；装配时给初值，运行期由
+        /// <see cref="SliderValueLabel"/> 按帧对齐）。</summary>
         static string Percent(float value)
         {
             return Mathf.RoundToInt(Mathf.Clamp01(value) * 100f) + "%";

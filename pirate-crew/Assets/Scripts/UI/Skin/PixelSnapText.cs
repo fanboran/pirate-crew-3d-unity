@@ -22,6 +22,9 @@ namespace PirateCrew.UI
     [RequireComponent(typeof(TextMeshProUGUI))]
     public sealed class PixelSnapText : BaseMeshEffect
     {
+        private float _appliedPhaseX, _appliedPhaseY;
+        private bool _hasApplied;
+
         public override void ModifyMesh(VertexHelper vh)
         {
             if (!isActiveAndEnabled || vh.currentVertCount == 0)
@@ -30,16 +33,10 @@ namespace PirateCrew.UI
             // 本地原点在画布像素空间的相位（分数部分）：画布根 RectTransform 的局部单位
             // 就是画布像素（960×540 设计分辨率），故 worldToLocal 后的分数部分即相位偏移。
             float phaseX = 0f, phaseY = 0f;
-            Graphic owner = graphic;
-            Canvas canvas = owner != null ? owner.canvas : null;
-            if (canvas != null)
-            {
-                Matrix4x4 toCanvas = canvas.rootCanvas.transform.worldToLocalMatrix
-                    * owner.transform.localToWorldMatrix;
-                Vector3 origin = toCanvas.MultiplyPoint3x4(Vector3.zero);
-                phaseX = origin.x - Mathf.Round(origin.x);
-                phaseY = origin.y - Mathf.Round(origin.y);
-            }
+            TryGetPhase(out phaseX, out phaseY);
+            _appliedPhaseX = phaseX;
+            _appliedPhaseY = phaseY;
+            _hasApplied = true;
 
             // 【按 quad 一致取整，禁逐顶点独立 round】逐顶点 round 会把 2.2 格的 quad
             // 撑成 3 格（左缘 100.4→100、右缘 102.6→103）——"2 模成 3"的笔画粗细抖动
@@ -72,6 +69,46 @@ namespace PirateCrew.UI
                     vh.SetUIVertex(corners[k], i + k);
                 }
             }
+        }
+
+        /// <summary>
+        /// **相位变化即重算网格**。相位是在 <see cref="ModifyMesh"/> 里烘焙进顶点的，
+        /// 而 TMP 只在文本"变脏"时重建网格——面板开合动效把 rect 又挪了半格时，
+        /// 烘进去的仍是旧相位，字就停在半格上（实拍：设置面板滑条内的百分比文字
+        /// 在开启动效后整列落在奇数屏幕像素上，392 条半格边缘）。这里每帧比一次相位，
+        /// 变了就把顶点标脏，动画停稳后自动回到整格。
+        /// </summary>
+        private void LateUpdate()
+        {
+            float phaseX, phaseY;
+            if (!TryGetPhase(out phaseX, out phaseY))
+                return;
+            if (_hasApplied
+                && Mathf.Abs(phaseX - _appliedPhaseX) < 0.001f
+                && Mathf.Abs(phaseY - _appliedPhaseY) < 0.001f)
+                return;
+
+            Graphic owner = graphic;
+            if (owner != null)
+                owner.SetVerticesDirty();
+        }
+
+        /// <summary>本地原点在画布像素空间的相位（分数部分）；取不到画布时返回 (0,0)。</summary>
+        private bool TryGetPhase(out float phaseX, out float phaseY)
+        {
+            phaseX = 0f;
+            phaseY = 0f;
+            Graphic owner = graphic;
+            Canvas canvas = owner != null ? owner.canvas : null;
+            if (canvas == null)
+                return false;
+
+            Matrix4x4 toCanvas = canvas.rootCanvas.transform.worldToLocalMatrix
+                * owner.transform.localToWorldMatrix;
+            Vector3 origin = toCanvas.MultiplyPoint3x4(Vector3.zero);
+            phaseX = origin.x - Mathf.Round(origin.x);
+            phaseY = origin.y - Mathf.Round(origin.y);
+            return true;
         }
     }
 }

@@ -507,6 +507,46 @@ Gamma 空间（影响 3D 全链）。±1 肉眼不可见，等裁决。
 记录现状：带高 = `window` 件 h1 = **15 设计格**（不随标题字号推导），标题字 12px 行高约 15.6
 居中落在带内（`EnsureTitleLabel` 的 margin-top 5 与带底留白见上节）。
 
+### 第三轮：拽出并修掉一个 P0（设置面板真机打不开）+ 数值/选中态落地（2026-09-26 凌晨）
+
+**① P0：设置面板在真机里根本打不开（`settingsPanel` 引用为空）**
+- 起因：截图走查时发现"选项块不亮、滑条全 0%"，于是给截图流程加了**实机状态倒排**
+  （`FontProbeDumper.DumpControlStates`：控件态 + 视频服务就绪情况）。数据指向
+  控制器没跑 → 一路查到装配侧：**`SettingsPanelResult.Root` 从来没被赋值** →
+  `SceneSetup` 把 null 写进 `MainMenuController.settingsPanel` →
+  `OpenSettings()` 首行 `if (settingsPanel == null) return;` **直接早退**：
+  **真机点「设置」按钮面板不会出现**（只有截图工具直接 `SetActive` 才看得见，所以历次
+  走查都没暴露）。修：`result.Root = root.gameObject;`。
+- 验证：场景里 `settingsPanel: {fileID: 600865779}` ✓；截图诊断打印
+  「面板已激活=True 选项块 active 数=2」✓。
+- 【教训】"截图能看见"不等于"真机能用"。凡是隐藏面板，走查必须走**用户路径**（点按钮），
+  没有按钮就走 `onClick.Invoke()`，别再直接 SetActive。
+
+**② 选项块当前值 / 滑条数值真正落地**
+- 选项块：控制器 `RefreshVideoChips` → 新控件 `SketchButtonSet.Active` → 换
+  `buttonset_item_active`（蓝面）✓ 实拍当前选择高亮。
+- 滑条：theme `<style id="slider">` 的数值文本层补上（8px 百分比居中于槽内）。
+  **不能只挂 `onValueChanged`**：控制器刷新走 `SetValueWithoutNotify`（刻意不触发事件），
+  只挂事件会停在初值——新增 `SliderValueLabel`（帧对齐）解决 ✓ 实拍 80%/80%/70%/50%
+  与填充长度一一对应。
+- 截图流程改成走**用户路径**：`capture:MainMenu+settings` 现在会 `onClick.Invoke()`
+  点「设置」钮，拿到的就是真实状态；点不到才回落到直接 SetActive（并打警告）。
+
+**③ 残留一项（已知、已量化、未解）**：滑条槽内百分比文字整列压在半画布格上
+（settings 屏 392 条奇数屏像素；**面板内其余文本——按钮/字段/分组标签——全 0**，
+即按钮标签 160 偶 0 奇、字段名 144 偶 0 奇、分组标签 258 偶 0 奇、只有该文本 0 偶 104 奇）。
+已排除：字号档（`FusionPixel8` size=8 nativePoint=8 scale=1.000 ✓）、缺 `PixelSnapText`
+（已加兜底 Ensure，仍不变）、相位漂移（已加"相位变化即重算网格"仍不变）。
+未解原因指向该文本的**居中排版偏移是分数值**（同一行文字宽度随 "50%"/"80%" 变化，
+居中起点 = (186−文字宽)/2 落小数）而其余文本的 rect 宽/文字宽同为整数。
+字仍然清晰（无中间灰阶），影响仅"列落在奇数屏幕像素"。列为待处理项。
+
+**④ 编辑器编译通道的可靠性提醒**：`refresh` + `recompile` 有时**不重建运行时程序集**
+（本轮实测 `PirateCrew.UI.dll` mtime 迟迟不更新，导致连拍两轮都是旧构建——症状是
+"改了代码但屏上没变"）。**每次重拍前先核 `Library/ScriptAssemblies/PirateCrew.UI.dll`
+的 mtime 晚于源文件改动**，否则验证的是旧二进制（本项目之前也踩过同类坑：
+file watcher 只认创建事件）。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
