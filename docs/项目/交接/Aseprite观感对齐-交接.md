@@ -668,6 +668,35 @@ WidgetFocus 包装器零调用（死码或待接线）；陈列廊滚动条自�
 theme scrollbar 件；⑦styles 未复刻大块：tab 族/combobox 族/drop_down 族/textedit 族
 ——即「已烘未接」族，接线优先级待排。
 
+## 三之四、调试场景系统（2026-09-25，创始人令「实摆面板 + Aseprite 菜单复刻 + 可拖动调试菜单」）
+
+**流程（创始人规格）**：主菜单按钮 =「**调试场景**」→ 弹出**可拖动启动器窗**（调试菜单）→
+窗里一堆按钮各自打开具体调试面板；**主菜单窗口本身也可拖**（按住标题带）。
+全部**运行时构建**（`Assets/Scripts/UI/Debug/`，零场景手术；场景只需重装配刷按钮文案）：
+
+- `WindowDragger`：标题带透明命中板 + IDrag 平移（画布内夹取）——主菜单窗与所有调试窗共用。
+- `DebugWindowKit`：窗工厂（SketchPanel titled + 标题 + × + 拖动带）+ 文本/蓝字分组线排版件。
+- `AseMenuKit`：**Aseprite 菜单系统复刻**——菜单栏平铺项 + 下拉（theme `menu` 直切件边框 +
+  menuitem 行）；**悬停语义 = highlight 档**（亮面 #C0C0C0 + 深字 #2C2C30——menu.cpp:549
+  拾取即高亮，源码实锄；theme 表里"面不变字变灰"的 hot 档不是鼠标路径）；分隔线/右对齐
+  快捷键/勾选（check_selected @x=2）/子菜单（combobox_arrow_right）/全屏捕获板外点关闭。
+- `WidgetGalleryPanel`：**组件实摆面板**（学 game-2 ComponentGallery「活文档」）——每族一件
+  全交互：按钮四态（按下蓝面白字/禁用双层字）、buttonset 三连切换、check/radio（悬停亮面
+  #575B61 + 图标切换）、双色百分比滑条、sunken 输入框（TMP InputField + 8px 位图字）、
+  页签切换（tab 件 + #333 内容面）、列表（悬停变暗 #2C2C30 + 选择金底）、theme scrollbar
+  真滚动、组合框（弹 Ase 菜单）、悬停 0.5s 气泡（tooltip 件）。
+- `NewSpriteDialog`：**示例图对话框一模一样复刻**（New Sprite：Size 数字输入 + px + Link
+  勾选 / Color Mode RGB·Grayscale·Indexed 三连 / Background Transparent·White·Black
+  三连 / OK·Cancel，全部可交互）。
+- `DebugMenuHost`：启动器（四按钮：组件实摆 / 新建精灵对话框 / Aseprite 菜单栏 / 部件陈列廊）
+  ；陈列廊窗复用 `PartsGalleryPage`（新增 width 参数列数自适应）+ theme 滚动条。
+- 接线：`MainMenuController.Awake` 给 MenuWindow 挂拖动带；`OnShowcaseClicked` 改开
+  `DebugMenuHost.Toggle`（不再切场景；UIShowcase 场景保留作编辑器入口）。
+
+**验证**：harness All 1244/10/1 基线一致、Runtime 0 错；batchmode/遥控重装配后
+MainMenu 第五钮「调试场景」实拍落位（按钮列 6 文字簇 = 标题+五钮）。
+**待创始人实机走查**：Play MainMenu → 调试场景 → 四面板交互（拖动/下拉/输入/气泡）。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。

@@ -1,0 +1,229 @@
+using PirateCrew.UI.Stick;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace PirateCrew.UI.DebugUi
+{
+    /// <summary>
+    /// 调试菜单宿主：主菜单「调试场景」按钮点开的那枚**可拖动启动器窗**（创始人 2026-09-25
+    /// 流程：主菜单按钮 → 弹出可拖动菜单 → 菜单里一堆按钮 → 各自打开具体调试面板）。
+    ///
+    /// 面板四枚，全部可拖动、独立 × 关闭：①组件实摆（全交互）②New Sprite 对话框复刻
+    /// ③Aseprite 菜单栏复刻（File/Edit/Sprite 真下拉）④部件陈列廊（theme 345 件全量，
+    /// 数据驱动）。启动器本体 = 一列 SketchButton，再点「调试场景」收起。
+    /// </summary>
+    public static class DebugMenuHost
+    {
+        static RectTransform _root;
+        static RectTransform _launcher;
+        static RectTransform _widgetGallery;
+        static RectTransform _newSprite;
+        static RectTransform _menuBarDemo;
+        static RectTransform _partsGallery;
+
+        /// <summary>主菜单「调试场景」入口：开/收启动器（首次点开时整树构建）。</summary>
+        public static void Toggle(Transform canvas)
+        {
+            if (_root == null)
+                Build(canvas);
+            bool show = !_launcher.gameObject.activeSelf;
+            _root.SetAsLastSibling();
+            _launcher.gameObject.SetActive(show);
+        }
+
+        static void Build(Transform canvas)
+        {
+            var rootGo = new GameObject("DebugMenuHost", typeof(RectTransform));
+            _root = rootGo.GetComponent<RectTransform>();
+            _root.SetParent(canvas, false);
+            _root.anchorMin = Vector2.zero;
+            _root.anchorMax = Vector2.one;
+            _root.offsetMin = Vector2.zero;
+            _root.offsetMax = Vector2.zero;
+
+            _launcher = DebugWindowKit.CreateWindow(_root, "DebugLauncher", "调试菜单",
+                new Vector2(20f, 44f), new Vector2(150f, 118f), closeButton: false);
+
+            float y = DebugWindowKit.ContentTop;
+            y = MakeLauncherButton("组件实摆", y, () => ToggleWindow(ref _widgetGallery,
+                () => _widgetGallery = WidgetGalleryPanel.Build(_root, new Vector2(190f, 34f))));
+            y = MakeLauncherButton("新建精灵对话框", y, () => ToggleWindow(ref _newSprite,
+                () => _newSprite = NewSpriteDialog.Build(_root, new Vector2(230f, 90f))));
+            y = MakeLauncherButton("Aseprite 菜单栏", y, () => ToggleWindow(ref _menuBarDemo,
+                () => _menuBarDemo = BuildMenuBarDemo(new Vector2(190f, 110f))));
+            MakeLauncherButton("部件陈列廊", y, () => ToggleWindow(ref _partsGallery,
+                () => _partsGallery = BuildPartsGalleryWindow(new Vector2(120f, 70f))));
+        }
+
+        static float MakeLauncherButton(string label, float y, System.Action onClick)
+        {
+            SketchButton button = SketchButton.Create(_launcher, "Open_" + label,
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(DebugWindowKit.Pad, -y),
+                new Vector2(138f, 16f), DebugWindowKit.HandFont, label, UiSkin.Font.Tiny);
+            button.onClick.AddListener(() => onClick());
+            return y + 16f + 4f;
+        }
+
+        static void ToggleWindow(ref RectTransform window, System.Action build)
+        {
+            if (window == null)
+            {
+                build();
+                window.SetAsLastSibling();
+                return;
+            }
+            bool show = !window.gameObject.activeSelf;
+            window.gameObject.SetActive(show);
+            if (show)
+            {
+                window.SetAsLastSibling();
+                AseMenuKit.ClosePopup();
+            }
+        }
+
+        // ------------------------------------------------------------------
+
+        /// <summary>Aseprite 菜单栏复刻窗：File / Edit / Sprite 真下拉（分隔线/快捷键/
+        /// 勾选/子菜单），点选在内容区回显。</summary>
+        static RectTransform BuildMenuBarDemo(Vector2 topLeft)
+        {
+            RectTransform window = DebugWindowKit.CreateWindow(_root, "MenuBarDemo",
+                "Aseprite 菜单栏复刻", topLeft, new Vector2(300f, 120f));
+
+            TextMeshProUGUI feedback = DebugWindowKit.PlaceLabel(window, "（点菜单项在这里回显）",
+                UiSkin.Font.Tiny, PixelSkin.Theme.StatusText, DebugWindowKit.Pad,
+                DebugWindowKit.ContentTop + 20f, 260f);
+
+            System.Action<string> echo = path => feedback.text = path;
+
+            var menus = new (string, AseMenuKit.Item[])[]
+            {
+                ("File", new AseMenuKit.Item[]
+                {
+                    AseMenuKit.Item_("New…", "Ctrl+N", () => echo("File → New…")),
+                    AseMenuKit.Item_("Open…", "Ctrl+O", () => echo("File → Open…")),
+                    AseMenuKit.Item_("Open Recent", null, null, false, new AseMenuKit.Item[]
+                    {
+                        AseMenuKit.Item_("（最近文件空）", action: () => echo("File → Open Recent")),
+                    }),
+                    AseMenuKit.Sep(),
+                    AseMenuKit.Item_("Save", "Ctrl+S", () => echo("File → Save")),
+                    AseMenuKit.Item_("Save As…", "Ctrl+Shift+S", () => echo("File → Save As…")),
+                    AseMenuKit.Sep(),
+                    AseMenuKit.Item_("Close File", "Ctrl+W", () => echo("File → Close File")),
+                    AseMenuKit.Item_("Exit", "Alt+F4", () => echo("File → Exit")),
+                }),
+                ("Edit", new AseMenuKit.Item[]
+                {
+                    AseMenuKit.Item_("Undo", "Ctrl+Z", () => echo("Edit → Undo")),
+                    AseMenuKit.Item_("Redo", "Ctrl+Shift+Z", () => echo("Edit → Redo")),
+                    AseMenuKit.Sep(),
+                    AseMenuKit.Item_("Cut", "Ctrl+X", () => echo("Edit → Cut")),
+                    AseMenuKit.Item_("Copy", "Ctrl+C", () => echo("Edit → Copy")),
+                    AseMenuKit.Item_("Paste", "Ctrl+V", () => echo("Edit → Paste")),
+                    AseMenuKit.Item_("Clear", "Del", () => echo("Edit → Clear")),
+                    AseMenuKit.Sep(),
+                    AseMenuKit.Item_("Preferences…", "Ctrl+K", () => echo("Edit → Preferences…")),
+                }),
+                ("Sprite", new AseMenuKit.Item[]
+                {
+                    AseMenuKit.Item_("Sprite Properties…", action: () => echo("Sprite → Properties")),
+                    AseMenuKit.Sep(),
+                    AseMenuKit.Item_("Color Mode", null, null, false, new AseMenuKit.Item[]
+                    {
+                        AseMenuKit.Item_("RGB", check: true, action: () => echo("Color Mode → RGB")),
+                        AseMenuKit.Item_("Grayscale", action: () => echo("Color Mode → Grayscale")),
+                        AseMenuKit.Item_("Indexed", action: () => echo("Color Mode → Indexed")),
+                    }),
+                    AseMenuKit.Sep(),
+                    AseMenuKit.Item_("Duplicate…", "Ctrl+U", () => echo("Sprite → Duplicate")),
+                    AseMenuKit.Item_("Crop Sprite", action: () => echo("Sprite → Crop")),
+                    AseMenuKit.Item_("Trim", "Ctrl+T", () => echo("Sprite → Trim")),
+                }),
+                ("View", new AseMenuKit.Item[]
+                {
+                    AseMenuKit.Item_("Preview", "F5", () => echo("View → Preview")),
+                    AseMenuKit.Sep(),
+                    AseMenuKit.Item_("Show Grid", "Ctrl+’", () => echo("View → Show Grid"), check: true),
+                    AseMenuKit.Item_("Snap to Grid", "Shift+S", () => echo("View → Snap to Grid")),
+                }),
+            };
+
+            RectTransform bar = AseMenuKit.BuildMenuBar(window, "AseMenuBar", menus);
+            bar.anchoredPosition = new Vector2(DebugWindowKit.Pad, -DebugWindowKit.ContentTop);
+            return window;
+        }
+
+        /// <summary>部件陈列廊窗（theme 345 件全量，数据驱动）：竖向滚动 + theme 滚动条。</summary>
+        static RectTransform BuildPartsGalleryWindow(Vector2 topLeft)
+        {
+            RectTransform window = DebugWindowKit.CreateWindow(_root, "PartsGalleryWindow",
+                "部件陈列廊（theme.xml 全 345 件）", topLeft, new Vector2(960f - 24f, 540f - 60f));
+
+            RectTransform scroll = UiKit.CreateRect("Scroll", window);
+            scroll.anchorMin = scroll.anchorMax = new Vector2(0.5f, 0.5f);
+            scroll.pivot = new Vector2(0.5f, 0.5f);
+            scroll.offsetMin = new Vector2(DebugWindowKit.Pad, DebugWindowKit.Pad);
+            scroll.offsetMax = new Vector2(-DebugWindowKit.Pad - 20f, -PixelSkin.WindowTitleBand - 4f);
+
+            RectTransform viewport = UiKit.CreateRect("Viewport", scroll);
+            viewport.anchorMin = viewport.anchorMax = new Vector2(0.5f, 0.5f);
+            viewport.pivot = new Vector2(0.5f, 0.5f);
+            viewport.offsetMin = Vector2.zero;
+            viewport.offsetMax = Vector2.zero;
+            viewport.gameObject.AddComponent<RectMask2D>();
+            var viewportHit = viewport.gameObject.AddComponent<Image>();
+            viewportHit.color = new Color(0f, 0f, 0f, 0f);
+            viewportHit.raycastTarget = true;
+
+            RectTransform content = UiKit.CreateRect("Content", viewport);
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = new Vector2(1f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            content.anchoredPosition = Vector2.zero;
+
+            // 陈列廊列数自适应：可用宽 = 窗宽 − 双边距 − 滚动条（16）− 缝（4）
+            float galleryWidth = 960f - 20f - DebugWindowKit.Pad * 2f - 16f - 4f;
+            float height = PartsGalleryPage.Build(content, 0f, galleryWidth);
+            content.sizeDelta = new Vector2(0f, height);
+
+            var scrollRect = scroll.gameObject.AddComponent<ScrollRect>();
+            scrollRect.content = content;
+            scrollRect.viewport = viewport;
+            scrollRect.horizontal = false;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.scrollSensitivity = 30f;
+
+            RectTransform bar = UiKit.CreateRect("VBar", window);
+            bar.anchorMin = new Vector2(1f, 0f);
+            bar.anchorMax = new Vector2(1f, 1f);
+            bar.pivot = new Vector2(1f, 0.5f);
+            bar.offsetMin = new Vector2(-DebugWindowKit.Pad - 16f, DebugWindowKit.Pad);
+            bar.offsetMax = new Vector2(-DebugWindowKit.Pad, -PixelSkin.WindowTitleBand - 4f);
+            var barBg = bar.gameObject.AddComponent<Image>();
+            barBg.sprite = PixelSkin.Ase("scrollbar_bg");   // theme scrollbar 直切件
+            barBg.type = Image.Type.Sliced;
+            barBg.pixelsPerUnitMultiplier = 1f;
+            barBg.color = Color.white;
+            barBg.raycastTarget = false;
+
+            RectTransform handle = UiKit.CreateRect("Handle", bar);
+            handle.anchorMin = handle.anchorMax = new Vector2(0.5f, 0.5f);
+            handle.pivot = new Vector2(0.5f, 0.5f);
+            var handleImage = handle.gameObject.AddComponent<Image>();
+            handleImage.sprite = PixelSkin.Ase("scrollbar_thumb");
+            handleImage.type = Image.Type.Sliced;
+            handleImage.pixelsPerUnitMultiplier = 1f;
+            handleImage.color = Color.white;
+            handleImage.raycastTarget = true;
+
+            var scrollbar = bar.gameObject.AddComponent<Scrollbar>();
+            scrollbar.handleRect = handle;
+            scrollbar.targetGraphic = handleImage;
+            scrollbar.direction = Scrollbar.Direction.BottomToTop;
+            scrollRect.verticalScrollbar = scrollbar;
+            return window;
+        }
+    }
+}

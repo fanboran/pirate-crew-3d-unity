@@ -23,6 +23,7 @@ namespace PirateCrew.UI
     {
         /// <summary>格子流：8 列 × 114 宽 + 2 缝（960 画布扣右侧滚动条 10 与左右边距 12）。</summary>
         const float MarginX = 12f;
+        /// <summary>格子流基准列数（Build 按可用宽自适应，本值只作文档参照）。</summary>
         const int Columns = 8;
         const float CellW = 114f;
         const float CellH = 64f;
@@ -32,15 +33,16 @@ namespace PirateCrew.UI
         const float ImageZoneH = 36f;
         const float IdZoneH = 18f;
 
-        /// <summary>家族面板行宽 = 格子流总宽（926）。</summary>
-        static readonly float GalleryW = MarginX * 2f + Columns * CellW + (Columns - 1) * CellGap;
-
         /// <summary>
         /// 建陈列廊到 <paramref name="content"/> 下，从 <paramref name="topOffset"/>（画布单位，
         /// 自 content 顶向下）起排。返回新增内容高（画布单位）。
+        /// <paramref name="width"/> = 可用内容宽（列数自适应：展示场景全宽 926 / 调试窗窄幅皆可）。
         /// </summary>
-        public static float Build(RectTransform content, float topOffset)
+        public static float Build(RectTransform content, float topOffset, float width = 926f)
         {
+            int columns = Mathf.Max(4, Mathf.FloorToInt((width - MarginX * 2f + CellGap) / (CellW + CellGap)));
+            float galleryW = MarginX * 2f + columns * CellW + (columns - 1) * CellGap;
+
             PixelSkinAsset a = PixelSkin.Asset;
             if (a == null || a.aseParts == null || a.asePartNames == null || a.asePartFamilies == null
                 || a.aseParts.Length == 0
@@ -51,7 +53,7 @@ namespace PirateCrew.UI
                 return 0f;
             }
 
-            float y = PageHeader(content, topOffset, a.aseParts.Length);
+            float y = PageHeader(content, topOffset, a.aseParts.Length, galleryW);
 
             // 家族面板：数组序 = 家族序（烘焙器排好），连续同族一段
             int n = a.aseParts.Length;
@@ -60,47 +62,47 @@ namespace PirateCrew.UI
             {
                 if (i == n || a.asePartFamilies[i] != a.asePartFamilies[familyStart])
                 {
-                    y = FamilyPanel(content, y, a.asePartFamilies[familyStart], a, familyStart, i - familyStart);
+                    y = FamilyPanel(content, y, a.asePartFamilies[familyStart], a, familyStart, i - familyStart, columns, galleryW);
                     familyStart = i;
                 }
             }
             return y - topOffset;
         }
 
-        static float PageHeader(RectTransform content, float y, int total)
+        static float PageHeader(RectTransform content, float y, int total, float galleryW)
         {
             TextMeshProUGUI title = UiKit.CreateText("GalleryTitle", content,
                 "Aseprite dark 直切件陈列廊（全量 " + total + " 件）",
                 UiSkin.Font.Body, TextAlignmentOptions.TopLeft, PixelSkin.Theme.Text, null);
-            Place(title.rectTransform, MarginX, y, GalleryW, 14f);
+            Place(title.rectTransform, MarginX, y, galleryW, 14f);
             TextMeshProUGUI sub = UiKit.CreateText("GallerySub", content,
                 "theme.xml <parts> 全表 · 原生尺寸 ×1 · 按家族分组 · 九宫件标注切片",
                 UiSkin.Font.Tiny, TextAlignmentOptions.TopLeft, PixelSkin.Theme.StatusText, null);
-            Place(sub.rectTransform, MarginX, y + 14f, GalleryW, 10f);
+            Place(sub.rectTransform, MarginX, y + 14f, galleryW, 10f);
             return y + 30f;
         }
 
         static float FamilyPanel(RectTransform content, float y, string family,
-            PixelSkinAsset a, int start, int count)
+            PixelSkinAsset a, int start, int count, int columns, float galleryW)
         {
-            y = FamilyHeader(content, y, family, count);
+            y = FamilyHeader(content, y, family, count, galleryW);
             for (int i = 0; i < count; i++)
             {
-                int col = i % Columns;
-                int row = i / Columns;
+                int col = i % columns;
+                int row = i / columns;
                 float x = MarginX + col * (CellW + CellGap);
                 Cell(content, x, y + row * (CellH + CellGap), a.aseParts[start + i], a.asePartNames[start + i]);
             }
-            int rows = (count + Columns - 1) / Columns;
+            int rows = (count + columns - 1) / columns;
             return y + rows * CellH + (rows - 1) * CellGap + 12f;
         }
 
         /// <summary>蓝字分组线（theme horizontal_separator 语法：x=4 蓝字 + 标签右缘后起铺的点线）。</summary>
-        static float FamilyHeader(RectTransform content, float y, string family, int count)
+        static float FamilyHeader(RectTransform content, float y, string family, int count, float galleryW)
         {
             RectTransform row = UiKit.CreateRect("Family_" + family, content);
             TopLeft(row);
-            row.sizeDelta = new Vector2(GalleryW, 13f);
+            row.sizeDelta = new Vector2(galleryW, 13f);
             row.anchoredPosition = new Vector2(0f, -y);
 
             TextMeshProUGUI label = UiKit.CreateText("Label", row, family + " · " + count + " 件",
@@ -109,7 +111,7 @@ namespace PirateCrew.UI
 
             float lineX = 4f + Mathf.Ceil(label.preferredWidth) + 2f;
             SketchSeparator.Create(row, "Line", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(lineX, 0f), new Vector2(GalleryW - lineX, 1f),
+                new Vector2(lineX, 0f), new Vector2(galleryW - lineX, 1f),
                 SketchSeparator.Direction.Horizontal);
             return y + 13f + 4f;
         }

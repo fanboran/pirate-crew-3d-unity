@@ -61,6 +61,11 @@ namespace PirateCrew.UI
         {
             _motion = gameObject.AddComponent<UiMotion>();
 
+            // 主菜单窗体可拖动（创始人 2026-09-25：按住标题带拖——Aseprite 窗口感）。
+            Transform menuWindow = transform.parent != null ? transform.parent.Find("MenuWindow") : null;
+            if (menuWindow is RectTransform menuRect)
+                DebugUi.WindowDragger.Attach(menuRect);
+
             if (battleButton != null)
                 battleButton.onClick.AddListener(OnBattleClicked);
             if (crewButton != null)
@@ -177,12 +182,13 @@ namespace PirateCrew.UI
             EventBus.Publish(SceneEvents.ChangeScene, SceneNames.CrewManagement);
         }
 
-        /// 组件展示：主菜单直达部件陈列廊（创始人 2026-09-25「主页放一个测试场景按钮，
-        /// 点进去看一个个测试面板」）。展示窗内「返回主菜单」原路回。
+        /// 调试场景（创始人 2026-09-25）：弹出**可拖动调试菜单启动器**——里面的按钮再开
+        /// 具体调试面板（组件实摆 / New Sprite 对话框复刻 / Aseprite 菜单栏 / 部件陈列廊）。
         void OnShowcaseClicked()
         {
             RuntimeUiBuilder.ButtonFeedback(showcaseButton, true, _motion);
-            EventBus.Publish(SceneEvents.ChangeScene, SceneNames.UIShowcase);
+            if (transform.parent != null)
+                DebugUi.DebugMenuHost.Toggle(transform.parent);
         }
 
         // ------------------------------------------------------------------
