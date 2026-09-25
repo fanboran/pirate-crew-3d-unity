@@ -86,6 +86,33 @@
    - 观察项：confirm overlay 本轮未激活（与 settings 同 flag 通道，settings 成功——待重拍定位）
    - Battle 屏未细看（本波未重建 Battle 场景，HUD 不在文件域）
 
+## 三之一、主仓重拍结果（2026-09-25 晚，创始人关闭旧编辑器后）
+
+rebake/装配/六屏 capture 全部重跑成功（编辑器 PID 16908，许可离线告警不阻塞）：
+
+- **MainMenu**：残影消失、窗体 132 宽、按钮列居中——修复生效；**新 bug：标题带内文字整个
+  不显示**（12px「海盗军团夺宝 3D」应放得下 108 格区——待查，疑 Truncate/alignment 与
+  rect 定位交互）。
+- **settings / CrewManagement / LevelSelect**：与 worktree 首拍逐字节相同——**根因找到**：
+  标题有三套实现，`UiKit.EnsureWindow`（主菜单/模态，已修 12px）之外，
+  **MenuUiBuilder.BuildSettingsPanel 与 ManagementSceneSetup（SketchPanel.Titled）各自
+  独立装配标题**（不走 EnsureWindow），仍是 16px 压带旧实现——下一会话第一项：三套标题
+  收口到 EnsureWindow 单轨，顺带修 MainMenu 标题不显示。
+- confirm overlay 仍未激活（FindObjectsByType 对 inactive 对象的查找待查）。
+
+### 中文观感口径（创始人问「Aseprite 有适配过中文吗」——没有，需自定口径）
+
+theme.xml:8-11 字体只有 Aseprite/Aseprite Mini 内置拉丁位图字，**官方从未做 CJK 适配**。
+theme 全部排版参数（带 15、按钮 border 4/6、行高、textbox 内缩 4）按 **8px 拉丁字**设计；
+我们正文档 12px（1.5×）、标题 16px（2×）硬塞，就是「排版总差一口气」的根源。
+**三条路线（提案/待定，非裁决不施工）**：
+a) 容器等比 ×1.5（12px 字中文版主题：带 15→22、border 4/6→6/9，语法保留但数字全变，
+   不再能与库逐位对照）；
+b) 正文档降到 8px 中文（theme 数字原样全部成立，8px 简体中文可读性存疑——现有
+   FusionPixel8 档 cmap 全过但笔画密集）；
+c) 混合：列表/按钮用 8px，标题/横幅 12px 且容器单独加高。
+裁决前维持现状（12px + 带内居中）。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
