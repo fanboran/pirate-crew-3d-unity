@@ -79,7 +79,10 @@ namespace PirateCrew.UI
             content.pivot = new Vector2(0.5f, 1f);
             content.anchoredPosition = Vector2.zero;
 
-            float contentHeight = PixelShowcasePage.Build(content);
+            // 陈列廊在前（创始人 2026-09-25 令全量部件运行时展示——进展示窗第一屏就是它）；
+            // 旧演示页（PixelShowcasePage，旧画布口径、标注待重构）垫后。
+            float contentHeight = PartsGalleryPage.Build(content, 0f);
+            contentHeight += PixelShowcasePage.Build(content, contentHeight);
             content.sizeDelta = new Vector2(0f, contentHeight);
 
             var scroll = scrollRect.gameObject.AddComponent<ScrollRect>();

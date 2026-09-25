@@ -864,74 +864,53 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 本次烘焙的 part 白名单 = theme &lt;styles&gt; 段引用到的全部控件件
-        /// （执行案「部件全量烘焙」）——button 四态、窗体/弹层、窗控钮、复选/单选、
-        /// 凹槽族、滑条、滚动条、气泡、分隔线、组合框箭头、下拉按钮、页签系、
-        /// 工具钮/按钮组、色板/编辑器视图。
-        /// cursor / tool 图标 / timeline / canvas / pivot 等编辑器工作区件
-        /// 在游戏里没有对应控件场景，不烘。加件 = 在此加 id（必须能在 &lt;parts&gt; 找到行）。
+        /// 家族归类表（陈列廊面板序 = 本表序）：id 前缀 → 家族标签。
+        /// **先长后短**（buttonset 先于 button、toolbutton 先于 tool、transparent_scrollbar
+        /// 先于 scrollbar），同标签多条前缀自动并成一族面板；无命中落「其它」。
         /// </summary>
-        public static readonly string[] AseBakeParts =
+        static readonly (string prefix, string label)[] AseFamilyOrder =
         {
-            // button 四态（theme.xml:155-158）
-            "button_normal", "button_hot", "button_focused", "button_selected",
-            // 窗体与弹层边框（165-166）
-            "window", "menu",
-            // 窗控钮三态 + 五图标（167-174）
-            "window_button_normal", "window_button_hot", "window_button_selected",
-            "window_close_icon", "window_play_icon", "window_stop_icon",
-            "window_center_icon", "window_help_icon",
-            // 复选/单选 + 焦点框（147-154；disabled 与 normal 同 sheet 区域）
-            "check_normal", "check_selected", "check_disabled", "check_focus",
-            "radio_normal", "radio_selected", "radio_disabled", "radio_focus",
-            // 凹槽族（159-164）
-            "sunken_normal", "sunken_focused", "sunken2_normal", "sunken2_focused",
-            "sunken_mini_normal", "sunken_mini_focused",
-            // 滑条（175-184）
-            "slider_empty", "slider_empty_focused", "slider_full", "slider_full_focused",
-            "mini_slider_empty", "mini_slider_empty_focused",
-            "mini_slider_full", "mini_slider_full_focused",
-            "mini_slider_thumb", "mini_slider_thumb_focused",
-            // 滚动条（237-246）
-            "scrollbar_bg", "scrollbar_thumb",
-            "mini_scrollbar_bg", "mini_scrollbar_thumb",
-            "mini_scrollbar_bg_hot", "mini_scrollbar_thumb_hot",
-            "transparent_scrollbar_bg", "transparent_scrollbar_thumb",
-            "transparent_scrollbar_bg_hot", "transparent_scrollbar_thumb_hot",
-            // 气泡（247-248）
-            "tooltip", "tooltip_arrow",
-            // 分隔线（185-186）
-            "separator_horz", "separator_vert",
-            // 组合框四向箭头 ×3 态 + 文件钮图标（187-205）
-            "combobox_arrow_down", "combobox_arrow_down_selected", "combobox_arrow_down_disabled",
-            "combobox_arrow_up", "combobox_arrow_up_selected", "combobox_arrow_up_disabled",
-            "combobox_arrow_left", "combobox_arrow_left_selected", "combobox_arrow_left_disabled",
-            "combobox_arrow_right", "combobox_arrow_right_selected", "combobox_arrow_right_disabled",
-            "arrow_circle_cw", "arrow_circle_cw_selected",
-            "newfolder", "newfolder_selected",
-            "list_view", "small_icon_view", "big_icon_view",
-            // 下拉按钮左右件 ×4 态（271-278）
-            "drop_down_button_left_normal", "drop_down_button_left_hot",
-            "drop_down_button_left_focused", "drop_down_button_left_selected",
-            "drop_down_button_right_normal", "drop_down_button_right_hot",
-            "drop_down_button_right_focused", "drop_down_button_right_selected",
-            // 页签系（216-228）
-            "tab_normal", "tab_active", "tab_bottom_normal", "tab_bottom_active",
-            "tab_filler", "tab_modified_icon_normal", "tab_modified_icon_active",
-            "tab_close_icon_normal", "tab_close_icon_active",
-            "tab_icon_bg_hover", "tab_icon_bg_clicked",
-            // 工具钮四态 / 按钮组六态（206-215）
-            "toolbutton_normal", "toolbutton_hot", "toolbutton_last", "toolbutton_pushed",
-            "buttonset_item_normal", "buttonset_item_hot", "buttonset_item_hot_focused",
-            "buttonset_item_focused", "buttonset_item_pushed", "buttonset_item_active",
-            // 编辑器视图框 / 色板格 / 色块框（229-236, 427-428）
-            "editor_normal", "editor_selected",
-            "colorbar_0", "colorbar_1", "colorbar_2", "colorbar_3",
-            "colorbar_selection", "colorbar_selection_hot",
-            "simple_color_border", "simple_color_selected",
-            // 警告图标（warning_label/warning_box，338）
-            "warning_box",
+            ("window", "窗体"), ("buttonset", "按钮组"), ("button", "按钮"),
+            ("toolbutton", "工具钮"), ("drop_down", "下拉按钮"), ("drop_pixels", "拖放指示"),
+            ("check", "复选框"), ("radio", "单选钮"),
+            ("mini_slider", "滑条"), ("slider", "滑条"),
+            ("mini_scrollbar", "滚动条"), ("transparent_scrollbar", "滚动条"), ("scrollbar", "滚动条"),
+            ("combobox", "组合框"), ("spin", "组合框"),
+            ("tab", "页签"), ("separator", "分隔线"), ("sunken", "凹槽"), ("tooltip", "气泡"),
+            ("menu", "菜单与视图"), ("list_view", "菜单与视图"), ("small_icon", "菜单与视图"),
+            ("big_icon", "菜单与视图"), ("newfolder", "菜单与视图"), ("folder", "菜单与视图"),
+            ("arrow_circle", "菜单与视图"),
+            ("colorbar", "色板"), ("simple_color", "色板"),
+            ("editor", "编辑器视图"),
+            ("selection", "变换与选区"), ("outline", "变换与选区"), ("transformation", "变换与选区"),
+            ("pivot", "变换与选区"), ("canvas", "变换与选区"),
+            ("ink", "绘制与混合"), ("linear_gradient", "绘制与混合"), ("radial_gradient", "绘制与混合"),
+            ("dynamics", "绘制与混合"), ("tiles", "绘制与混合"),
+            ("no_symmetry", "对称"), ("horizontal_symmetry", "对称"), ("vertical_symmetry", "对称"),
+            ("right_diagonal", "对称"), ("left_diagonal", "对称"),
+            ("icon", "图标杂项"), ("corner_radius", "图标杂项"), ("warning", "图标杂项"),
+            ("pal_", "图标杂项"), ("aseprite", "图标杂项"), ("flag", "图标杂项"),
+            ("pinned", "图标杂项"), ("unpinned", "图标杂项"), ("one_win", "图标杂项"),
+            ("multi_win", "图标杂项"), ("color", "图标杂项"),
+            ("ani_", "动画与调试"), ("debug", "动画与调试"),
+            ("cursor", "光标"), ("tool", "工具图标"), ("timeline", "时间轴"),
         };
+
+        /// <summary>件 → 家族标签（陈列廊分组用；入表见 <see cref="AseFamilyOrder"/>）。</summary>
+        static string AseFamilyOf(string id)
+        {
+            foreach ((string prefix, string label) in AseFamilyOrder)
+                if (id.StartsWith(prefix)) return label;
+            return "其它";
+        }
+
+        /// <summary>件 → 家族序（GenerateAtlas 按它排陈列廊面板顺序）。</summary>
+        static int AseFamilyRank(string id)
+        {
+            for (int i = 0; i < AseFamilyOrder.Length; i++)
+                if (id.StartsWith(AseFamilyOrder[i].prefix)) return i;
+            return AseFamilyOrder.Length;
+        }
 
         static Dictionary<string, AsePart> s_aseParts;
         static Color32[] s_sheetPixels;
@@ -998,19 +977,16 @@ namespace PirateCrew.EditorTools
             }
         }
 
-        /// <summary>直切全表：白名单逐件从 sheet.png 切 PNG 落 Parts/，九宫格切片 = 声明值。</summary>
+        /// <summary>直切全表：theme &lt;parts&gt; **全量 345 件**逐件从 sheet.png 切 PNG 落 Parts/
+        /// （创始人 2026-09-25 裁决「全部移动过来，即便本端没必要有的」），九宫格切片 = 声明值。
+        /// 旧白名单已退役——加件 = 改 theme.xml 后重烘焙，无需在本文件登记。</summary>
         public static void BakeAsepriteParts()
         {
             Dictionary<string, AsePart> table = ParseAseParts();
             EnsureAseSheet();
             EnsureFolder(AsePartsFolder);
-            foreach (string id in AseBakeParts)
-            {
-                if (!table.TryGetValue(id, out AsePart part))
-                    throw new InvalidOperationException("[BeveledPixelSpriteBuilder] AseBakeParts 里的 \""
-                        + id + "\" 在 theme.xml <parts> 找不到——id 抄错了。");
+            foreach (AsePart part in table.Values)
                 BakeAsePart(part);
-            }
             AssetDatabase.Refresh();
         }
 
@@ -1057,18 +1033,16 @@ namespace PirateCrew.EditorTools
         {
             Dictionary<string, AsePart> table = ParseAseParts();
             Color32[] sheet = EnsureAseSheet();
-            foreach (string id in AseBakeParts)
+            List<string> ids = new List<string>(table.Keys);
+            ids.Sort(StringComparer.Ordinal);
+            foreach (string id in ids)
             {
-                if (!table.TryGetValue(id, out AsePart part))
-                {
-                    problems.Add("Aseprite 直切件 " + id + "：theme.xml 里没有这个 part id。");
-                    continue;
-                }
+                AsePart part = table[id];
                 string path = AsePartsFolder + "/" + id + ".png";
                 string abs = Path.Combine(UnityProjectRoot(), path);
                 if (!File.Exists(abs))
                 {
-                    problems.Add("Aseprite 直切件 " + id + "：盘上没有 " + path + "。");
+                    problems.Add("Aseprite 直切件 " + id + "：盘上没有 " + path + "（全量迁移，缺件即重烘）。");
                     continue;
                 }
                 var disk = new Texture2D(2, 2);
@@ -3302,20 +3276,32 @@ namespace PirateCrew.EditorTools
             asset.separatorV = LoadSprite("Pixel_Sep_V");
             asset.shadow = LoadSprite("Pixel_Shadow");
 
-            // Aseprite dark 控件件（×1 全量对齐波）：BakeAsepriteParts 的直切成品，
-            // 平行数组 aseParts/asePartNames 收全表白名单件——运行时 PixelSkin.Ase(id) 查它。
+            // Aseprite dark 控件件（×1 全量迁移）：BakeAsepriteParts 的直切成品，
+            // 平行数组 aseParts/asePartNames/asePartFamilies 收**全表 345 件**——
+            // 运行时 PixelSkin.Ase(id) 查它；陈列廊按 families 分组、数组序即面板序
+            // （家族序 = AseFamilyOrder，同族内按 id 字典序）。
+            var aseTable = ParseAseParts();
+            List<string> aseIds = new List<string>(aseTable.Keys);
+            aseIds.Sort((a, b) =>
+            {
+                int rank = AseFamilyRank(a).CompareTo(AseFamilyRank(b));
+                return rank != 0 ? rank : string.CompareOrdinal(a, b);
+            });
             var aseSprites = new List<Sprite>();
             var aseNames = new List<string>();
+            var aseFamilies = new List<string>();
             var aseById = new Dictionary<string, Sprite>();
-            foreach (string id in AseBakeParts)
+            foreach (string id in aseIds)
             {
                 Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(AsePartsFolder + "/" + id + ".png");
                 aseSprites.Add(sprite);
                 aseNames.Add(id);
+                aseFamilies.Add(AseFamilyOf(id));
                 aseById[id] = sprite;
             }
             asset.aseParts = aseSprites.ToArray();
             asset.asePartNames = aseNames.ToArray();
+            asset.asePartFamilies = aseFamilies.ToArray();
 
             // 语义取用器的固定族字段也落直切件（id 与 PixelSkin 取用器映射一一对应）
             asset.windowButtons = new[]
@@ -3396,13 +3382,16 @@ namespace PirateCrew.EditorTools
             CheckNoNull(problems, asset.tracks, "tracks");
             CheckNoNull(problems, asset.tabs, "tabs");
             CheckNoNull(problems, asset.fills, "fills");
-            // Aseprite 直切件：平行数组对齐 + 无空槽（空槽 = 直切漏件或 part id 对不上）。
-            if (asset.aseParts == null || asset.asePartNames == null
+            // Aseprite 直切件：三平行数组对齐 + 长度 = theme <parts> 全表 + 无空槽
+            // （空槽 = 直切漏件或 part id 对不上）。
+            int aseTableCount = ParseAseParts().Count;
+            if (asset.aseParts == null || asset.asePartNames == null || asset.asePartFamilies == null
                 || asset.aseParts.Length != asset.asePartNames.Length
-                || asset.aseParts.Length != AseBakeParts.Length)
+                || asset.aseParts.Length != asset.asePartFamilies.Length
+                || asset.aseParts.Length != aseTableCount)
             {
-                problems.Add("图集 aseParts/asePartNames 缺失或长度与 AseBakeParts（"
-                    + AseBakeParts.Length + "）不对齐——GenerateAtlas 应在直切后跑。");
+                problems.Add("图集 aseParts/asePartNames/asePartFamilies 缺失或长度与 theme.xml 全表（"
+                    + aseTableCount + " 件）不对齐——GenerateAtlas 应在直切后跑。");
             }
             CheckNoNull(problems, asset.aseParts, "aseParts");
             if (asset.toneColors != null)

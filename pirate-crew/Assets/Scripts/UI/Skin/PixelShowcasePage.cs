@@ -34,6 +34,9 @@ namespace PirateCrew.UI
         const int TitleBandH = 68;      // 题头高：标题 24 + 副题 12 + 上下边距
         const int CursorStart = DialogTop + 12 + TitleBandH + 24;
 
+        /// <summary>整页纵向偏移（画布像素）——陈列廊在前时旧演示页从它下方起排。</summary>
+        static float s_topOffset;
+
         /// <summary>画一块 Plate（对话框/页签宿主等大底板）。</summary>
         static void Lay(RectTransform parent, PixelTone tone, int top, int x, int w, int h)
         {
@@ -48,9 +51,14 @@ namespace PirateCrew.UI
         /// 必须**先画**（后画会盖住内容）。所以布局跑两遍：第一遍只量游标（不画），得到
         /// 对话框高度；第二遍先铺底板再画内容。
         /// </summary>
-        public static float Build(RectTransform content)
+        public static float Build(RectTransform content) => Build(content, 0f);
+
+        /// <inheritdoc cref="Build(RectTransform)"/>
+        /// <param name="topOffset">从 content 顶往下多少画布像素起排（陈列廊在前时旧演示页垫后）。</param>
+        public static float Build(RectTransform content, float topOffset)
         {
             s_font = PixelFont();
+            s_topOffset = topOffset;
 
             // 第一遍：只量布局
             int bottom = LayoutSections(content, null, CursorStart);
@@ -281,7 +289,7 @@ namespace PirateCrew.UI
             RectTransform rect = UiKit.CreateRect(name, parent);
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
             rect.sizeDelta = new Vector2(w * A, h * A);
-            rect.anchoredPosition = new Vector2(x * A, -y * A);
+            rect.anchoredPosition = new Vector2(x * A, -(y * A) - s_topOffset);
             return rect;
         }
 
@@ -314,7 +322,7 @@ namespace PirateCrew.UI
             text.rectTransform.anchorMin = text.rectTransform.anchorMax = text.rectTransform.pivot
                 = new Vector2(0f, 1f);
             text.rectTransform.sizeDelta = new Vector2(content.Length * sizeArtPx * A + 4 * A, sizeArtPx * A + A);
-            text.rectTransform.anchoredPosition = new Vector2(x * A, -y * A);
+            text.rectTransform.anchoredPosition = new Vector2(x * A, -(y * A) - s_topOffset);
             return text;
         }
 

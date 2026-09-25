@@ -193,7 +193,7 @@ namespace PirateCrew.UI
                 }
             }
             Debug.LogError("[PixelSkin] 图集缺 Aseprite 直切件 \"" + partId
-                + "\"——白名单见 Editor 侧 BeveledPixelSpriteBuilder.AseBakeParts，重烘焙补件。");
+                + "\"——全量迁移由烘焙器枚举 theme.xml <parts>（345 件），重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
             return null;
         }
 
@@ -206,7 +206,7 @@ namespace PirateCrew.UI
         /// <summary>窗体标题带高（theme window h1=15 设计格，×1 即 15 画布像素）——内容区从带底往下排。</summary>
         public const int WindowTitleBand = 15;
 
-        /// <summary>窗控钮（theme window_button 9×11；UGUI 态映射：Normal/Hovered→hot、Pressed→selected）。</summary>
+        /// <summary>窗控钮（theme window_button 9×11；UGUI 态映射：Normal→normal、Hovered→hot、Pressed→selected）。</summary>
         public static Sprite WindowButton(PixelState state)
         {
             string id;

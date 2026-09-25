@@ -9,10 +9,12 @@ namespace PirateCrew.UI.Stick
     /// 的 UGUI 复刻：底 = sheet.png 直切件 <c>button_normal/hot/focused/selected</c> 四态 SpriteSwap，
     /// 字色按态同步（theme.xml:614-619）。
     ///
-    /// 【四态映射（theme.xml:609-612）】Normal→button_normal、Highlighted(mouse)→button_hot、
-    /// Selected(键盘)→button_focused（蓝描边）、Sticky（业务选中，如设置分类）→button_selected。
-    /// theme 无按压皮（&lt;parts&gt; 无 button_pressed，执行案 §2：按压反馈=pressed 皮的需求不成立），
-    /// Pressed 沿用 button_hot；按压位移（PressOffset）随 ×1 终局整体退役。
+    /// 【四态映射（theme.xml:609-612 + 源码状态位实锄）】Normal→button_normal、
+    /// Highlighted(mouse)→button_hot、Selected(键盘)→button_focused（蓝描边）、
+    /// Sticky（业务选中，如设置分类）→button_selected；
+    /// **Pressed→button_selected（蓝面 + 白字）**——ButtonBase 按下 = selected+capture
+    /// 状态位（button.cpp:168-175），层匹配（theme.cpp:69-73）命中 state="selected"。
+    /// 按压位移（PressOffset）随 ×1 终局整体退役。
     ///
     /// 【禁用态（theme.xml:617-619）】双层字：background 色 (x+1,y+1) 垫底影子 + disabled 色
     /// (#202125) 盖面，底皮仍 button_normal——忠实复刻，不走 CanvasGroup 压 alpha。
@@ -150,7 +152,10 @@ namespace PirateCrew.UI.Stick
 
             SpriteState state = spriteState;
             state.highlightedSprite = PixelSkin.Ase(Sticky ? "button_selected" : "button_hot");
-            state.pressedSprite = PixelSkin.Ase("button_hot");      // theme 无按压皮：按下保持 hot
+            // 【按下=蓝面（源码实锄）】ButtonBase::onMouseDown setSelected+capture（button.cpp:168-175）
+            // → 层匹配取最大 flags 命中 state="selected"（theme.cpp:69-73）→ button_selected
+            // 蓝面 #4069C2 + 白字，不是"无按压皮保持 hot"。
+            state.pressedSprite = PixelSkin.Ase("button_selected");
             state.selectedSprite = PixelSkin.Ase("button_focused"); // 键盘焦点 = 蓝描边
             state.disabledSprite = PixelSkin.Ase("button_normal");  // 禁用 = 常态皮 + 双层字
             spriteState = state;
@@ -174,12 +179,12 @@ namespace PirateCrew.UI.Stick
             if (label != null)
             {
                 // theme.xml:614-619——常态/悬停 #c0c0c0；selected 态白（button_selected_text）；
-                // Sticky 常显白；禁用 = disabled 色 #202125 盖面。
+                // Sticky 常显白；**按下也白**（按下 = selected+capture 状态位，同吃 selected 文字色）；
+                // 禁用 = disabled 色 #202125 盖面。
+                bool white = Sticky || state == SelectionState.Selected || state == SelectionState.Pressed;
                 label.color = disabled
                     ? PixelSkin.Theme.Disabled
-                    : Sticky || state == SelectionState.Selected && IsStickySelected()
-                        ? PixelSkin.Theme.TextSelected
-                        : PixelSkin.Theme.Text;
+                    : white ? PixelSkin.Theme.TextSelected : PixelSkin.Theme.Text;
             }
             TextMeshProUGUI shadow = ShadowLabel;
             if (shadow != null)
@@ -188,12 +193,6 @@ namespace PirateCrew.UI.Stick
                 shadow.gameObject.SetActive(disabled);
             }
         }
-
-        /// <summary>
-        /// Selected 态字色判定：UGUI 的 Selected = 键盘焦点（皮 = button_focused，字仍正文灰），
-        /// 只有 Sticky 的业务选中（皮 = button_selected）才吃 button_selected_text 白字。
-        /// </summary>
-        bool IsStickySelected() => Sticky;
 
         /// <summary>乘色全白占位：像素皮的状态反馈靠贴图切换（SpriteSwap），不叠乘色。</summary>
         private static ColorBlock WhiteStates()

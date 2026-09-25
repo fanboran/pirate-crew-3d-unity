@@ -617,6 +617,53 @@ x=4/border=2、标题带 margin 5/5 全对，我们 `AseLayout` 常量逐值一�
 capture:MainMenu+settings+confirm` 补拍（双色判据：0% 行文字全 #202125、80% 行文字主体
 #C0C0C0，且无单色旧观感）。
 
+## 三之三、全量迁移 + 陈列廊 + 覆盖率终审（2026-09-25，创始人令「全部组件移过来做成运行时展示面板」）
+
+**覆盖率四张表（口径与分母全部可复算，theme@external/aseprite-ref a2d18ca）**：
+
+| 层 | 分母 | 已达成 | 率 |
+| --- | --- | --- | --- |
+| 部件素材迁移（theme parts） | 345 | 烘焙 345（判据=与 sheet.png 逐位一致） | **100%** |
+| 部件代码接线（正式 UI 取用） | 345 | 49 件 | 14% |
+| 部件运行时展示（陈列廊） | 345 | 345 件 | **100%** |
+| style 语义复刻 | 全量 175 / 游戏域 111（排除 timeline/workspace 等 64 条编辑器专属） | 25 条已复刻或等价 | 全量 14% / 游戏域 23% |
+
+实现侧（skin_theme.cpp 绘制语义，agent 穷举）：`SkinTheme` 8 个 paint override 中——
+已复刻/等价 3（paintSlider 核心、paintListBox 等价纯色底、paintViewViewport 等价）、
+无游戏场景 3（entry/comboboxEntry/textbox——游戏无文本输入）、素材+语义备妥未接 2
+（menu/menuItem）；基类 11 个实现走 Style 层驱动（对应我们的"theme 语义表→控件装配"通道，
+即上表 style 口径）；drawText/caret 系由 TMP 等价承担。现代 aseprite 大部分控件
+（button/check/tab/…）不 override paint，全靠 `<style>` 层声明——**style 表就是实现侧的
+主体**，部件层 + style 层两张表合起来才是完整覆盖口径。
+
+**全量迁移落地**：`BeveledPixelSpriteBuilder` 白名单退役，烘焙/判据/图集全部枚举
+theme.xml `<parts>` 全表；`PixelSkinAsset` 增 `asePartFamilies` 平行数组（家族归类表
+`AseFamilyOrder`，26 个家族面板序=表序）。**运行时陈列廊** `PartsGalleryPage` 挂进
+`UIShowcase` 场景滚动页（演示页下方）：按家族分面板、件原生尺寸 ×1、id/尺寸/九宫标注、
+数据驱动零硬编码（theme 加件重烘焙自动长出）。入口：编辑器菜单
+PirateCrew/UI/打开组件展示 或直接播放 UIShowcase 场景。
+
+**素材对错终审结论（源码+逐像素，agent 交叉）**：
+- 确认用错并已修：**普通按钮按下态**——Aseprite 按下 = selected+capture 状态位
+  （button.cpp:168-175），层匹配取最大 flags（theme.cpp:69-73）命中 `state="selected"`
+  → **button_selected 蓝面 #4069C2 + 白字**；旧实现按下用 button_hot（"theme 无按压皮"
+  是误读）。`SketchButton`/`UiKit.ApplyThemeButton` 两处已改，按下字色同步转白。
+- 判定正确（逐像素复核）：窗控钮图标（sheet 本体即 #C0C0C0，非白蒙版——**禁止**再乘
+  Theme.Text）；分隔线 2 实 1 虚周期 3 色 #202125；slider 空/满内芯 #575B61/#41444A；
+  buttonset 四态映射；列表行三态；sunken 用于 view 语义。
+- sheet 图标是"**换色**不是乘色"（color_selector.cpp:575-583 反证）——将来给白蒙版件
+  染色要走换贴图/预制变体，不走 Image.color 乘。
+
+**挂账（存疑项，待裁决/待接线）**：①列表行无 hover——可点击列表按 recent_file 语法
+悬停应变暗 #2C2C30（不是 check 系变亮）；②buttonset 业务 Active × 键盘焦点组合态应
+`buttonset_item_hot_focused`（游戏无键盘导航，暂不触发）；③窗控图标按下应转白 #FFFFFF
+（仅按压瞬间可见）；④SketchCheck 焦点底色 ColorTint 相乘算错（≈#16181C 非 #41444A）
+且 check_focus 蓝框未接——控件零调用，随退役裁决一并处置；⑤通用焦点环自造
+（Pixel_Focus）与 theme check_focus 两套并存；⑥Tooltip/Scrollbar/ArrowDown/SliderThumb/
+WidgetFocus 包装器零调用（死码或待接线）；陈列廊滚动条自身仍手搓 tone 件，可换
+theme scrollbar 件；⑦styles 未复刻大块：tab 族/combobox 族/drop_down 族/textedit 族
+——即「已烘未接」族，接线优先级待排。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。

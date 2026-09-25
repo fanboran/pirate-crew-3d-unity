@@ -103,6 +103,15 @@ namespace PirateCrew.UI.Stick
             float w = _slider.fillRect != null ? Mathf.Round(_slider.fillRect.rect.width) : 0f;
             _clipFull.sizeDelta = new Vector2(w, 0f);
             _clipRest.offsetMin = new Vector2(w, 0f);
+
+            // 填充右缘同步取整（Slider 给的是分数锚点，80%×186=148.8 会留 1 画布格的
+            // 半像素缝——奇数屏像素审计里 settings 屏的残源）。取整值与裁剪线同源。
+            if (_slider.fillRect != null && _clipFull.parent == _slider.fillRect.parent)
+            {
+                float trackW = (_clipFull.parent as RectTransform).rect.width;
+                if (trackW > 0f)
+                    _slider.fillRect.anchorMax = new Vector2(w / trackW, 1f);
+            }
         }
 
         private static void EnsureSnap(TextMeshProUGUI label)

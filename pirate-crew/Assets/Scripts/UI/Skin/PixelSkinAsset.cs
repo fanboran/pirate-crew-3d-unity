@@ -101,6 +101,9 @@ namespace PirateCrew.UI
         [Tooltip("直切件 id 表（与 aseParts 同序同长；PixelSkin.Ase(id) 按它查找）")]
         public string[] asePartNames = new string[0];
 
+        [Tooltip("直切件家族标签表（与 aseParts 同序同长；陈列廊按它分组，数组序即面板序）")]
+        public string[] asePartFamilies = new string[0];
+
         [Tooltip("tone 文字/取色令牌 toneColors[tone×3] = 亮档/中档/暗档（S4/S3/S2）")]
         public Color32[] toneColors = new Color32[0];
 

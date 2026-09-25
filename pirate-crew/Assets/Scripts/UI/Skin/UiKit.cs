@@ -522,11 +522,11 @@ namespace PirateCrew.UI
             button.spriteState = new SpriteState
             {
                 highlightedSprite = PixelSkin.Ase(sticky ? "button_selected" : "button_hot"),
-                pressedSprite = PixelSkin.Ase("button_hot"),
+                pressedSprite = PixelSkin.Ase("button_selected"),   // 按下 = selected+capture 状态位 → 蓝面（button.cpp:168-175 + theme.cpp:69-73）
                 selectedSprite = PixelSkin.Ase("button_focused"),
                 disabledSprite = PixelSkin.Ase("button_normal"),
             };
-            // 按压位移已退役（theme 无按压皮）；禁用双层字由 SketchButton.DoStateTransition 承担。
+            // 禁用双层字由 SketchButton.DoStateTransition 承担。
         }
 
         /// <summary>
