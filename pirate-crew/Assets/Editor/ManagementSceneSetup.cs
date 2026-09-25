@@ -541,7 +541,8 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 写 5 个场景。Battle 保持 index 2（SceneLoader 与既有测试都按名字加载，顺序不影响）。
+        /// 写 6 个场景。Battle 保持 index 2（SceneLoader 与既有测试都按名字加载，顺序不影响）。
+        /// 与 SceneSetup.RegisterBuildSettings 同一份清单（含 UIShowcase——主菜单「组件展示」钮）。
         /// </summary>
         static void RegisterBuildSettings()
         {
@@ -552,6 +553,7 @@ namespace PirateCrew.EditorTools
                 SceneNames.Battle,
                 SceneNames.CrewManagement,
                 SceneNames.LevelSelect,
+                SceneNames.UIShowcase,
             };
 
             var scenes = new EditorBuildSettingsScene[names.Length];

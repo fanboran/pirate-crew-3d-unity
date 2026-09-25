@@ -161,7 +161,9 @@ namespace PirateCrew.EditorTools
             }
         }
 
-        /// <summary>登记进 Build Settings（插在 Bootstrapper 之后；重跑幂等）。</summary>
+        /// <summary>登记进 Build Settings（插在 Bootstrapper 之后；重跑幂等）。
+        /// 标准装配链（SceneSetup/ManagementSceneSetup 的 RegisterBuildSettings）已把本场景
+        /// 列进固定清单——此方法仅服务本装配器单独跑时的兜底。</summary>
         static void RegisterInBuildSettings()
         {
             List<EditorBuildSettingsScene> list = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);

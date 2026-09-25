@@ -22,7 +22,7 @@ namespace PirateCrew.EditorTools
     ///   无头: -batchmode -quit -executeMethod PirateCrew.EditorTools.SceneSetup.BuildAll
     ///
     /// 【产物】Assets/Scenes/{Bootstrapper,MainMenu}.unity（Battle 归 BattleSceneSetup 重建）；
-    ///   Build Settings 登记 5 场景（见 RegisterBuildSettings）。
+    ///   Build Settings 登记 6 场景（见 RegisterBuildSettings）。
     ///
     /// 【主菜单视觉口径（Beveled Pixel 像素皮）】深暖色清屏（透底语义）+ StickHand 标题
     /// （像素皮 Frame tone 浅字 + INK 墨描边）+ <see cref="SketchButton"/> 菜单列
@@ -54,7 +54,7 @@ namespace PirateCrew.EditorTools
             AssetDatabase.Refresh();
 
             Debug.Log("[SceneSetup] 菜单场景重建完成：Assets/Scenes/{Bootstrapper,MainMenu}.unity（含视频设置服务与设置面板），"
-                + "Build Settings 登记 5 场景。");
+                + "Build Settings 登记 6 场景。");
         }
 
         // ------------------------------------------------------------------
@@ -110,8 +110,8 @@ namespace PirateCrew.EditorTools
             // 按钮高 24（参考库 OK 钮）；相邻钮间距 = 上钮下切片 6 + 下钮上切片 4 = 10
             // （theme 无 spacing 概念，缝 = 两者 border 相加）；下 border 6。
             RectTransform menuWindow = RuntimeUiBuilder.CreateRect("MenuWindow", canvas.transform);
-            Vector2 windowSize = new Vector2(132f, 17f + 24f * 4 + 10f * 3 + 6f);
-            // 奇高 149 + 中心锚 → 缘落半格（横线变浅的元凶）：y 补 -0.5 回整数格
+            Vector2 windowSize = new Vector2(132f, 17f + 24f * 5 + 10f * 4 + 6f);
+            // 奇高 193 + 中心锚 → 缘落半格（横线变浅的元凶）：y 补 -0.5 回整数格
             MenuUiBuilder.SetAnchored(menuWindow, CenterAnchor, windowSize, new Vector2(0f, -6.5f));
             UiKit.EnsureWindow(menuWindow, PixelTone.Frame, UiStrings.MainTitle,
                 handFont, UiSkin.Font.Body, helpButton: false, closeButton: false);
@@ -138,6 +138,9 @@ namespace PirateCrew.EditorTools
                 UiStrings.MainCrew, handFont);
             SketchButton settingsButton = CreateMenuButton(menuWindow.transform, "SettingsButton",
                 UiStrings.MainSettings, handFont);
+            // 组件展示：主菜单直达部件陈列廊（创始人 2026-09-25「主页放一个测试场景按钮」）。
+            SketchButton showcaseButton = CreateMenuButton(menuWindow.transform, "ShowcaseButton",
+                UiStrings.MainShowcase, handFont);
             SketchButton quitButton = CreateMenuButton(menuWindow.transform, "QuitButton",
                 UiStrings.MainQuit, handFont);
 
@@ -173,6 +176,7 @@ namespace PirateCrew.EditorTools
             so.FindProperty("battleButton").objectReferenceValue = battleButton;
             so.FindProperty("crewButton").objectReferenceValue = crewButton;
             so.FindProperty("settingsButton").objectReferenceValue = settingsButton;
+            so.FindProperty("showcaseButton").objectReferenceValue = showcaseButton;
             so.FindProperty("quitButton").objectReferenceValue = quitButton;
             so.FindProperty("statusText").objectReferenceValue = statusText;
             so.FindProperty("versionText").objectReferenceValue = versionText;
@@ -286,8 +290,9 @@ namespace PirateCrew.EditorTools
 
         static void RegisterBuildSettings()
         {
-            // 与 ManagementSceneSetup.RegisterBuildSettings 同一份 5 场景列表（幂等；顺序即 index）：
-            // Bootstrapper=0（入口）、MainMenu=1、Battle=2、CrewManagement=3、LevelSelect=4。
+            // 与 ManagementSceneSetup.RegisterBuildSettings 同一份 6 场景列表（幂等；顺序即 index）：
+            // Bootstrapper=0（入口）、MainMenu=1、Battle=2、CrewManagement=3、LevelSelect=4、
+            // UIShowcase=5（组件展示——主菜单「组件展示」钮运行时载入，创始人 2026-09-25）。
             // SceneLoader 与既有测试都按名字加载，顺序不影响。
             string[] names =
             {
@@ -296,6 +301,7 @@ namespace PirateCrew.EditorTools
                 SceneNames.Battle,
                 SceneNames.CrewManagement,
                 SceneNames.LevelSelect,
+                SceneNames.UIShowcase,
             };
             var scenes = new EditorBuildSettingsScene[names.Length];
             for (int i = 0; i < names.Length; i++)

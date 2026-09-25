@@ -640,8 +640,12 @@ capture:MainMenu+settings+confirm` 补拍（双色判据：0% 行文字全 #2021
 theme.xml `<parts>` 全表；`PixelSkinAsset` 增 `asePartFamilies` 平行数组（家族归类表
 `AseFamilyOrder`，26 个家族面板序=表序）。**运行时陈列廊** `PartsGalleryPage` 挂进
 `UIShowcase` 场景滚动页（演示页下方）：按家族分面板、件原生尺寸 ×1、id/尺寸/九宫标注、
-数据驱动零硬编码（theme 加件重烘焙自动长出）。入口：编辑器菜单
-PirateCrew/UI/打开组件展示 或直接播放 UIShowcase 场景。
+数据驱动零硬编码（theme 加件重烘焙自动长出来）。入口：编辑器菜单
+PirateCrew/UI/打开组件展示 或直接播放 UIShowcase 场景；**主菜单「组件展示」按钮**
+（创始人 2026-09-25 令：设置与退出之间第五钮，`OnShowcaseClicked` 走
+`EventBus ChangeScene → SceneNames.UIShowcase`；展示窗「返回主菜单」原路回；
+SceneSetup/ManagementSceneSetup 的构建表固定清单加第 6 场景——**登记 UIShowcase
+必须改这两份同源清单**，单点插入会被整表覆写）。
 
 **素材对错终审结论（源码+逐像素，agent 交叉）**：
 - 确认用错并已修：**普通按钮按下态**——Aseprite 按下 = selected+capture 状态位

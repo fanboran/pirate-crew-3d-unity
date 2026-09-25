@@ -24,5 +24,8 @@ namespace PirateCrew.Core
 
         /// <summary>关卡选择场景（index 4；选关 → 进 Battle，M3）。</summary>
         public const string LevelSelect = "LevelSelect";
+
+        /// <summary>组件展示场景（运行时部件陈列廊 + 旧演示页；主菜单「组件展示」钮进入）。</summary>
+        public const string UIShowcase = "UIShowcase";
     }
 }

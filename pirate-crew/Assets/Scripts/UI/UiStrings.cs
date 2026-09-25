@@ -76,6 +76,9 @@ namespace PirateCrew.UI
         /// <summary>主菜单：设置。</summary>
         public const string MainSettings = "设置";
 
+        /// <summary>主菜单：组件展示（进 UIShowcase 场景看部件陈列廊测试面板）。</summary>
+        public const string MainShowcase = "组件展示";
+
         /// <summary>主菜单：退出游戏（危险态）。</summary>
         public const string MainQuit = "退出游戏";
 

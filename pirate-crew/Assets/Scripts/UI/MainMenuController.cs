@@ -29,6 +29,7 @@ namespace PirateCrew.UI
         [SerializeField] Button battleButton;
         [SerializeField] Button crewButton;
         [SerializeField] Button settingsButton;
+        [SerializeField] Button showcaseButton;
         [SerializeField] Button quitButton;
         [SerializeField] TextMeshProUGUI statusText;
         [SerializeField] TextMeshProUGUI versionText;
@@ -66,6 +67,8 @@ namespace PirateCrew.UI
                 crewButton.onClick.AddListener(OnCrewClicked);
             if (settingsButton != null)
                 settingsButton.onClick.AddListener(OpenSettings);
+            if (showcaseButton != null)
+                showcaseButton.onClick.AddListener(OnShowcaseClicked);
             if (quitButton != null)
                 quitButton.onClick.AddListener(OnQuitClicked);
 
@@ -137,6 +140,8 @@ namespace PirateCrew.UI
                 crewButton.onClick.RemoveListener(OnCrewClicked);
             if (settingsButton != null)
                 settingsButton.onClick.RemoveListener(OpenSettings);
+            if (showcaseButton != null)
+                showcaseButton.onClick.RemoveListener(OnShowcaseClicked);
             if (quitButton != null)
                 quitButton.onClick.RemoveListener(OnQuitClicked);
             if (settingsBackButton != null)
@@ -170,6 +175,14 @@ namespace PirateCrew.UI
         {
             RuntimeUiBuilder.ButtonFeedback(crewButton, true, _motion);
             EventBus.Publish(SceneEvents.ChangeScene, SceneNames.CrewManagement);
+        }
+
+        /// 组件展示：主菜单直达部件陈列廊（创始人 2026-09-25「主页放一个测试场景按钮，
+        /// 点进去看一个个测试面板」）。展示窗内「返回主菜单」原路回。
+        void OnShowcaseClicked()
+        {
+            RuntimeUiBuilder.ButtonFeedback(showcaseButton, true, _motion);
+            EventBus.Publish(SceneEvents.ChangeScene, SceneNames.UIShowcase);
         }
 
         // ------------------------------------------------------------------

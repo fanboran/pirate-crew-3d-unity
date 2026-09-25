@@ -20,4 +20,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/LevelSelect.unity
     guid: 509a6020c75cd4b4a8ee2d9881771f28
+  - enabled: 1
+    path: Assets/Scenes/UIShowcase.unity
+    guid: eb4b0ba634782204ba01a12677d99a3d
   m_configObjects: {}
