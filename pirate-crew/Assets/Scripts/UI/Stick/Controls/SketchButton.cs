@@ -22,8 +22,21 @@ namespace PirateCrew.UI.Stick
     /// </summary>
     public sealed class SketchButton : Button
     {
-        /// <summary>业务选中态：常显 button_selected 皮 + 白字（设置分类选中、当前页签钮）。</summary>
-        public bool Sticky { get; set; }
+        /// <summary>业务选中态：常显 button_selected 皮 + 白字（设置分类选中、当前页签钮）。
+        /// 运行期可切——setter 即时重挂皮与字色（旧版是裸自动属性，切了不刷新）。</summary>
+        public bool Sticky
+        {
+            get => _sticky;
+            set
+            {
+                if (_sticky == value)
+                    return;
+                _sticky = value;
+                ApplySkin();
+            }
+        }
+
+        private bool _sticky;
 
         private bool _applied;
         private Image _bg;

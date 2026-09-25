@@ -574,6 +574,49 @@ file watcher 只认创建事件）。
 【教训】"参考图看着像彩色"和"库里有一张彩色件"都不够——**以 theme 自己的风格表 state→part
 映射为准**，再拿参考图证伪。这条已补进本档 §五纪律。
 
+## 三之二、审计波 + 修复波（2026-09-25，创始人问「覆盖率/误用/Gamma」三连）
+
+**审计结论（数字）**：theme.xml = 345 parts / 175 styles / 82 colors；烘焙白名单 111 件
+（styles 引用而未烘的仅 13 件，全是 timeline/aseprite_face 等 Aseprite 编辑器工作区件，
+排除有据）；代码真正接线 37 件；`PixelSkin.Theme` 13 常量与 theme 值逐一相符。
+175 条 style 全量解析成 state→part 语义表逐条对表——buttonset 八态、窗控钮、分隔线
+x=4/border=2、标题带 margin 5/5 全对，我们 `AseLayout` 常量逐值一致。
+
+**创始人裁决（2026-09-25）**：
+- **Linear 下纯顶点色平涂 ±1 偏色不修**（行板 #41444A→#404549，实测该屏 20.6 万 px）——
+  连 1×1 色块贴图都不必换，工程**维持 Linear**。此题归档，别再翻。
+- 仍待裁决：主菜单要不要 × 窗控钮（语义=退出）／设置分区 tab 还是左列表／`SketchCheck`
+  退役还是留给列表多选项／已烘未接 74 件的接线优先级。
+
+**src/ui 源码（"他们的代码"）**：aseprite **整库**已检出到 `external/aseprite-ref`
+（HEAD `a2d18ca`，与入库真源 md5 一致，勿追新以免与烘焙件串版本）。关键实锄：
+`paintSlider`（`src/app/ui/skin/skin_theme.cpp:1667-1794`）——①数值文本**画两遍**：
+充满段（暗面）`slider_full_text` #C0C0C0、空槽段 `slider_empty_text` #202125，
+分界线穿字形中间逐像素换色；②全尺寸滑条的 focused 件跟**键盘焦点**走，mini 滑条才跟
+鼠标走；③左键=落点绝对拖、右键=从按下值相对拖、滚轮步进。
+
+**修复波（8 文件，随本波提交）**：
+1. `SliderValueLabel` 重写 + `MenuUiBuilder.BuildVolumeRow`：Value 改**双色裁剪层**
+   （两枚同文案 TMP 各挂 RectMask2D，标签盒按整槽取位、锚裁剪框左/右缘 + 槽宽恒定盒，
+   框宽 = fillRect 实宽取整逐帧驱动）——单色版高音量时 1.6:1 暗上暗，实测文字像素
+   九成背景 = #41444A；
+2. 同处 `slider.transition = Transition.None`——theme slider 无任何 hover 态，UGUI 默认
+   ColorTint 会把 0.96/0.78 灰乘上调色板件（全工程唯一乘色残留，就此清除）；
+3. `PixelSkin.ArrowDown`：Pressed→`combobox_arrow_down_selected`（弹开），悬停不换图标
+   （旧版 Pressed→disabled / Hovered→selected 均自造，零调用雷）；
+4. `SketchButtonSet`：标签改按件**内容区**取盒（左右 3/底 5/顶 3，中心 +1 律，旧借
+   CheckBorder=2 差 1）；`Active` setter 补 `DoStateTransition`（悬停中切值不露旧皮）；
+5. `SketchButton.Sticky` setter 即时重挂皮（旧裸自动属性切了不刷新）；
+6. `MainMenuController.SetChipSelected` 删 `SketchCheck` 死分支 + 过时注释同步；
+7. `SketchPanel.Create` 加 `titled` 参数（Apply 前就位，编辑器预览不露 Plate 皮）；
+8. 确认框正文 133→134（内容区 148 居中整格；`MenuUiBuilder` + `BattleHudBuilder` 两处）。
+   `SliderValueLabel` 顺带把每帧 GetComponent 改缓存。
+
+**验证状态**：harness All 与整工程 `open` 编译见提交信息；**拍屏复核未做**——主仓编辑器
+当时未开（遥控通道休眠），双色滑条/相位待编辑器重开后按 §六通道 `recompile → assemble →
+capture:MainMenu+settings+confirm` 补拍（双色判据：0% 行文字全 #202125、80% 行文字主体
+#C0C0C0，且无单色旧观感）。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
@@ -599,10 +642,10 @@ file watcher 只认创建事件）。
 
 ## 六、新会话恢复指引（打磨波）
 
-**环境现状**（2026-09-26 凌晨）：
-- 主仓编辑器**开着**（GUI 实例，PID 会变，用进程名找；**launch 前先确认已有一个实例在跑**——
-  2026-09-26 凌晨多起了一个实例，撞"工程已被打开"弹错误框。用 `Get-Process Unity | Select Id,StartTime,MainWindowTitle`
-  看哪个是主实例，别 kill 错）；
+**环境现状**（2026-09-25 审计波收口时更新）：
+- 主仓编辑器**未开**（遥控通道 `export/unity-command.txt` 与 `external/editor-remote-play.flag`
+  都休眠）——拍屏/装配前需先开编辑器；**launch 前先确认没有实例在跑**（多起实例会撞
+  "工程已被打开"弹错误框），用 `Get-Process Unity | Select Id,StartTime,MainWindowTitle` 核对；
   遥控 flag：`external/editor-remote-play.flag`（`assemble` / `capture:<场景>[+settings|+confirm]` / `stop` / `rebake`）；
 - 每次 `capture:` 会同时把**实机文本度量**（字体/原生档/scale/画布相位）追加到
   `export/unity-command-result.txt`——查"文字没落整格"先看这里，比截图快；

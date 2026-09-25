@@ -728,7 +728,7 @@ namespace PirateCrew.EditorTools
 
             result.confirmMessage = UiKit.CreateText("Message", flow, UiStrings.BackConfirm,
                 UiSkin.Font.Section, TextAlignmentOptions.Center, PixelSkin.TextColorOn(PixelTone.Frame), body);
-            UiLayout.Element(result.confirmMessage.gameObject, 133f, 20f);
+            UiLayout.Element(result.confirmMessage.gameObject, 134f, 20f);   // 宽取偶：内容区 148 居中整格（133 落 x.5 半格）
 
             RectTransform actionRow = UiKit.CreateRect("Actions", flow);
             UiLayout.HStack(actionRow, 4, default(UiPadding), alignment: TextAnchor.MiddleCenter);

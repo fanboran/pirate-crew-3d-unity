@@ -60,9 +60,10 @@ namespace PirateCrew.UI.Stick
             (Compact ? 7f : (_tone == Tone.Light ? 9f : StickTokens.SketchPanelPadY))
                 + (Titled ? PixelSkin.WindowTitleBand : 0f));
 
-        /// <summary>建一块面板（根 + Shadow/Plate 两个子件 + 本组件）。tone 缺省 Dark。</summary>
+        /// <summary>建一块面板（根 + Plate 子件 + 本组件）。tone 缺省 Dark。
+        /// titled 在 Apply 前就位（后置赋值只靠 OnEnable 兜底，编辑器即时预览/重复构建会露 Plate 皮）。</summary>
         public static SketchPanel Create(Transform parent, string name, Vector2 anchor, Vector2 pivot,
-            Vector2 anchoredPosition, Vector2 size, Tone tone = Tone.Dark)
+            Vector2 anchoredPosition, Vector2 size, Tone tone = Tone.Dark, bool titled = false)
         {
             var go = new GameObject(name, typeof(RectTransform));
             RectTransform rect = go.GetComponent<RectTransform>();
@@ -75,6 +76,7 @@ namespace PirateCrew.UI.Stick
 
             var panel = go.AddComponent<SketchPanel>();
             panel.Compact = false;
+            panel.Titled = titled;
             BuildVisuals(rect, out panel._plate);
             panel._tone = tone;     // 直接写字段，Create 路径不重入 Apply 两次
             panel.Apply();

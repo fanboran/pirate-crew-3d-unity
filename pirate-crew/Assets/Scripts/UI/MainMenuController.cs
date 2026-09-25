@@ -292,7 +292,8 @@ namespace PirateCrew.UI
         }
 
         /// <summary>
-        /// 选项块选中态。**theme radio（SketchCheck）**：走 IsOn 换图标分支（选中 = 中心点）；
+        /// 选项块选中态。**theme buttonset_item**（SketchButtonSet）：当前值换 hot 件——
+        /// 更亮面 + 底边下沉的**无彩色**件（theme <c>state="selected"</c> 的映射，语义见控件类注释）；
         /// 旧选项按钮（Pixel Plate 皮）不做乘色——选中/未选靠<b>换 sprite</b>：
         /// 选中 = <see cref="PixelTone.Primary"/> 的悬停档 Plate、未选 = <see cref="PixelTone.Dense"/> 常态 Plate；
         /// 字色同步取该 tone 上的可读档（<see cref="PixelSkin.TextColorOn"/>），
@@ -305,13 +306,7 @@ namespace PirateCrew.UI
 
             if (chip is Stick.SketchButtonSet set)
             {
-                set.Active = selected;   // theme buttonset_item_active：当前值换 active 件
-                return;
-            }
-
-            if (chip is Stick.SketchCheck check)
-            {
-                check.IsOn = selected;
+                set.Active = selected;   // theme buttonset_item：当前值换 hot 件（无彩色）
                 return;
             }
 

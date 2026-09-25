@@ -290,14 +290,15 @@ namespace PirateCrew.UI
             get { return Ase("tooltip"); }
         }
 
-        /// <summary>组合框下拉箭头（theme combobox_arrow_down；映射沿用旧序：常态→normal、
-        /// 悬停→selected、按压→disabled）。</summary>
+        /// <summary>组合框下拉箭头（theme combobox_button 图标态）：常态 → normal、
+        /// 弹开（UGUI Pressed 近似）→ selected、禁用 → disabled（enum 无 Disabled 档，暂不表达）；
+        /// **悬停不换图标**——theme 只给按钮底换 hot 皮，图标在 mouse 态不动
+        /// （旧版把 Pressed 映到 disabled 件、Hovered 映到 selected 件，都是自造）。</summary>
         public static Sprite ArrowDown(PixelState state)
         {
             switch (state)
             {
-                case PixelState.Hovered: return Ase("combobox_arrow_down_selected");
-                case PixelState.Pressed: return Ase("combobox_arrow_down_disabled");
+                case PixelState.Pressed: return Ase("combobox_arrow_down_selected");
                 default: return Ase("combobox_arrow_down");
             }
         }

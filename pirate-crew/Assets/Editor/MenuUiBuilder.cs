@@ -326,8 +326,7 @@ namespace PirateCrew.EditorTools
             // 这样「卡缘 → 行板缘 → 行内字段」整条链都落在整数画布格上。
             SketchPanel card = SketchPanel.Create(root.transform, "SettingsCard",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(426f, 322f), SketchPanel.Tone.Dark);
-            card.Titled = true;   // 换 theme window 直切件（标题带随切片落位）
+                new Vector2(426f, 322f), SketchPanel.Tone.Dark, titled: true);   // theme window 直切件（标题带随切片落位）；Create 内 Apply 前就位，编辑器即时预览不露 Plate 皮
             RectTransform panel = (RectTransform)card.transform;
 
             // 标题走唯一入口（带内左上、边距 5、灰字 #c0c0c0、字号 12 正文档、顶点像素对齐）
@@ -437,6 +436,9 @@ namespace PirateCrew.EditorTools
         /// 低于件高就是九宫格压缩（旧实现 11 高把 16 高的槽竖压 → 槽内色带糊、件底边错位）。</summary>
         const float SliderHeight = 16f;
 
+        /// <summary>滑条槽宽（偶数纪律见 BuildVolumeRow；双色裁剪层与标签盒同源取此值）。</summary>
+        const float TrackWidth = 186f;
+
         /// <summary>建一行「字段名 + 音量滑条」（滑条实时驱动，落盘由控制器统一做）。
         /// 【件来源】theme <c>&lt;style id="slider"&gt;</c> 只声明两个 part：<c>slider_empty</c>（槽）
         /// 与 <c>slider_full</c>（充满段）——**没有拇指件**。旧实现取 <c>mini_slider_thumb</c>（时间轴
@@ -456,7 +458,7 @@ namespace PirateCrew.EditorTools
             // 槽：theme slider_empty 九宫格（16×16 件，宽向拉中段）。宽 186 取偶 → 填充边界
             // 在偶数分档（0/25/50/75/100%）正好落整格，不出现半像素接缝。
             RectTransform sliderRect = CreateRect("Slider", row);
-            SetAnchored(sliderRect, new Vector2(1f, 0.5f), new Vector2(186f, SliderHeight), new Vector2(-8f, 0f));
+            SetAnchored(sliderRect, new Vector2(1f, 0.5f), new Vector2(TrackWidth, SliderHeight), new Vector2(-8f, 0f));
             var sliderBack = sliderRect.gameObject.AddComponent<Image>();
             sliderBack.sprite = PixelSkin.SliderEmpty(false);   // theme slider_empty（凹槽九宫格）
             sliderBack.type = Image.Type.Sliced;
@@ -470,6 +472,10 @@ namespace PirateCrew.EditorTools
             slider.maxValue = 1f;
             slider.wholeNumbers = false;
             slider.targetGraphic = sliderBack;
+            // theme slider 无任何悬停态（<style id="slider"> 只声明常态与 focus 两档）；
+            // UGUI 默认 ColorTint 会在悬停/拖拽时把 0.96/0.78 的灰乘上 slider_empty 直切件，
+            // 破坏调色板——像素件的状态反馈只许换贴图，无态可换就关掉。
+            slider.transition = Selectable.Transition.None;
 
             // 充满段：theme 里 slider_full 与 slider_empty 是同一 16×16 盒的两态（焦点态另两张），
             // 直接铺满槽盒（无内缩——theme slider 件本身已含内框），锚点由 Slider 驱动。
@@ -485,16 +491,53 @@ namespace PirateCrew.EditorTools
 
             // 无 handleRect：theme slider 没有拇指件，拖拽落点由 Slider 自身 rect 推算。
 
-            // 数值文本：theme <style id="slider"> 的 <text color="slider_empty_text" align="center middle"/>——
-            // 槽内居中显示当前档（#202125 = theme slider_empty_text，与 disabled 同值）。
-            // 【为什么要有】Aseprite 的滑条靠槽内数值告诉你拉到多少（库里没有拇指件）。
-            TextMeshProUGUI valueText = CreateTextExact("Value", sliderRect, Percent(slider.value),
+            // 数值文本【双色口径，paintSlider 源码实锄 skin_theme.cpp:1756-1790】：同一句居中文案
+            // 画两遍——充满段（暗面）上 slider_full_text #C0C0C0、空槽段（亮面）上
+            // slider_empty_text #202125，分界线穿字形中间逐像素换色。单色版在高音量时是
+            // 1.6:1 的暗上暗（实测该屏文字像素九成背景 = 充满段 #41444A）。
+            // UGUI 复刻：两枚同文案标签各挂一块 RectMask2D 裁剪框；标签盒按**整条槽**取位
+            // （paintSlider 的 calcTextInfo 用全槽 bounds 居中，裁剪只发生在绘制层）——
+            // 锚裁剪框左/右缘 + 槽宽恒定盒，不随裁剪框伸缩；框宽由 SliderValueLabel 逐帧驱动。
+            RectTransform clipFull = CreateRect("ClipFull", sliderRect);
+            clipFull.anchorMin = new Vector2(0f, 0f);
+            clipFull.anchorMax = new Vector2(0f, 1f);
+            clipFull.pivot = new Vector2(0f, 0.5f);
+            clipFull.anchoredPosition = Vector2.zero;
+            clipFull.sizeDelta = Vector2.zero;
+            clipFull.gameObject.AddComponent<RectMask2D>();
+
+            RectTransform clipRest = CreateRect("ClipRest", sliderRect);
+            clipRest.anchorMin = new Vector2(0f, 0f);
+            clipRest.anchorMax = new Vector2(1f, 1f);
+            clipRest.offsetMin = Vector2.zero;
+            clipRest.offsetMax = Vector2.zero;
+            clipRest.gameObject.AddComponent<RectMask2D>();
+
+            TextMeshProUGUI valueLight = CreateTextExact("ValueLight", clipFull, Percent(slider.value),
+                UiSkin.Font.Tiny, TextAlignmentOptions.Center, PixelSkin.Theme.Text, hand);
+            valueLight.enableWordWrapping = false;
+            RectTransform lightRect = valueLight.rectTransform;
+            lightRect.anchorMin = new Vector2(0f, 0f);
+            lightRect.anchorMax = new Vector2(0f, 1f);
+            lightRect.pivot = new Vector2(0f, 0.5f);
+            lightRect.anchoredPosition = Vector2.zero;
+            lightRect.sizeDelta = new Vector2(TrackWidth, 0f);
+
+            TextMeshProUGUI valueDark = CreateTextExact("ValueDark", clipRest, Percent(slider.value),
                 UiSkin.Font.Tiny, TextAlignmentOptions.Center, PixelSkin.Theme.Disabled, hand);
-            Stretch(valueText.rectTransform);
+            valueDark.enableWordWrapping = false;
+            RectTransform darkRect = valueDark.rectTransform;
+            darkRect.anchorMin = new Vector2(1f, 0f);
+            darkRect.anchorMax = new Vector2(1f, 1f);
+            darkRect.pivot = new Vector2(1f, 0.5f);
+            darkRect.anchoredPosition = Vector2.zero;
+            darkRect.sizeDelta = new Vector2(TrackWidth, 0f);
+
             // 数值刷新走件（帧对齐），**不挂 onValueChanged**——控制器刷新走
             // SetValueWithoutNotify，不触发事件，只挂事件会停在初值（见 SliderValueLabel 注释）。
             var valueLabel = sliderRect.gameObject.AddComponent<SliderValueLabel>();
-            valueLabel.Label = valueText;
+            valueLabel.LabelLight = valueLight;
+            valueLabel.LabelDark = valueDark;
             return slider;
         }
 
@@ -505,8 +548,9 @@ namespace PirateCrew.EditorTools
             return Mathf.RoundToInt(Mathf.Clamp01(value) * 100f) + "%";
         }
 
-        /// <summary>建一行「字段名 + 二选一单选钮」，返回两个选项（SketchCheck = Button 子类，
-        /// 控制器 <c>SetChipSelected</c> 对它走 IsOn 换图标分支——theme radio：选中 = 中心点）。</summary>
+        /// <summary>建一行「字段名 + 二选一选项块」，返回两个选项（SketchButtonSet = theme
+        /// buttonset_item；控制器 <c>SetChipSelected</c> 对它写 <c>Active</c> 换当前值皮——
+        /// 件语义见控件类注释）。</summary>
         static void BuildSettingsRow(Transform rows, int index, string field, TMP_FontAsset hand,
             out Button primaryOption, out Button secondaryOption, string primaryLabel, string secondaryLabel)
         {
@@ -599,7 +643,8 @@ namespace PirateCrew.EditorTools
         /// 搭通用确认弹窗（默认隐藏）：**走 <see cref="UiKit.CreateModal"/> 标准模态路径**——
         /// Dim 遮罩 + theme window 直切窗体皮 + 标题带 + 右上 × 关闭钮 + 卡片高随内容
         /// （ContentSizeFitter 纵向贴合）。与战斗侧返回确认（<c>BattleHudBuilder.BuildBackConfirm</c>）
-        /// 同形同数（卡宽 160 / 正文 133×20 / 缝 3u）。
+        /// 同形同数（卡宽 160 / 正文 134×20 / 缝 3u——宽取偶：内容区 148 居中 (148−134)/2 = 7 整格，
+        /// 133 会落 x.5 半格）。
         /// 语义由调用方定义（退出游戏 / 放弃本局返回主菜单），本工厂不绑任何行为。
         ///
         /// 【旧装配已退役】SketchPanel Dark 手摆 240×132 + 无窗体皮 + 正文取
@@ -622,8 +667,8 @@ namespace PirateCrew.EditorTools
             TextMeshProUGUI message = UiKit.CreateText("Message", flow, defaultMessage,
                 UiSkin.Font.Body, TextAlignmentOptions.Center, PixelSkin.TextColorOn(PixelTone.Frame), BodyFont);
             message.enableWordWrapping = false;
-            message.rectTransform.sizeDelta = new Vector2(133f, 20f);
-            UiLayout.Element(message.gameObject, 133f, 20f);
+            message.rectTransform.sizeDelta = new Vector2(134f, 20f);
+            UiLayout.Element(message.gameObject, 134f, 20f);
 
             RectTransform actionRow = CreateRect("Actions", flow);
             UiLayout.HStack(actionRow, 4, default(UiPadding), alignment: TextAnchor.MiddleCenter);

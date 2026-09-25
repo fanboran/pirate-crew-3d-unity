@@ -30,7 +30,8 @@ namespace PirateCrew.UI.Stick
     public sealed class SketchButtonSet : Button
     {
         /// <summary>业务"当前值"态（换 <c>buttonset_item_hot</c> 件：更亮面 + 底边下沉，无彩色；
-        /// 与 hover/focus 正交）。</summary>
+        /// 与 hover/focus 正交）。切换后按当前交互态即时重挂皮——悬停/按压中切值时
+        /// 底皮不会停在旧常态（同 <see cref="SketchButton.ApplySkin"/> 末尾的即时刷新）。</summary>
         public bool Active
         {
             get => _active;
@@ -38,6 +39,7 @@ namespace PirateCrew.UI.Stick
             {
                 _active = value;
                 ApplySkin();
+                DoStateTransition(currentSelectionState, true);
             }
         }
 
@@ -103,15 +105,18 @@ namespace PirateCrew.UI.Stick
             colors.fadeDuration = 0f;
             item.colors = colors;
 
-            // 标签：铺满件盒（件自带左右 3 切片留白），垂直居中、顶点像素对齐。
+            // 标签：锚整件拉伸 + 内容区边距（见下方 offset 注释），居中、顶点像素对齐。
             var labelGo = new GameObject("Label", typeof(RectTransform));
             RectTransform labelRect = labelGo.GetComponent<RectTransform>();
             labelRect.SetParent(rect, false);
             labelRect.anchorMin = Vector2.zero;
             labelRect.anchorMax = Vector2.one;
             labelRect.pivot = new Vector2(0.5f, 0.5f);
-            labelRect.offsetMin = new Vector2(AseLayout.Px(AseLayout.CheckBorder), 0f);
-            labelRect.offsetMax = new Vector2(-AseLayout.Px(AseLayout.CheckBorder), 0f);
+            // 标签按件**内容区**取盒（切片 w 3/10/3、h 3/8/5）：左右各让 3、底让 5、顶让 3——
+            // 内容区中心比几何中心高 1 格（同 SketchButton 标签的 +1 律），字不压底边框。
+            // （旧版借用 CheckBorder=2 是 checkbox 的边距，与本件切片差 1。）
+            labelRect.offsetMin = new Vector2(3f, 5f);
+            labelRect.offsetMax = new Vector2(-3f, -3f);
             var tmp = labelGo.AddComponent<TextMeshProUGUI>();
             tmp.text = label ?? string.Empty;
             tmp.fontSize = fontSize;
