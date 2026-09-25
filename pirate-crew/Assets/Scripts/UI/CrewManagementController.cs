@@ -129,7 +129,11 @@ namespace PirateCrew.UI
                     : active ? ListItemState.Selected
                     : ListItemState.Normal;
 
+                // 【list_item 口径】行 = theme list_item：**整行即命中区**（面三态就是它的按钮皮），
+                // 行内不再挂文字按钮——list_item 只有「纯色面 + 一条左对齐文本（+可选图标）」，
+                // 行尾挂 44px 文字按钮是自创件（Aseprite 行内的交互件只有 timeline_box 那种小图标开关）。
                 RectTransform row = RuntimeUiBuilder.CreateRow(crewListContainer, i, RowHeight, rowState);
+                Button rowButton = RuntimeUiBuilder.RowButton(row);
 
                 string label = unlocked
                     ? UiTextRules.CrewRow(entry.DisplayName,
@@ -139,29 +143,22 @@ namespace PirateCrew.UI
 
                 // 字色与行态同源（theme list_item：常态 text 灰 / 选中金底深字 / 禁用 disabled）。
                 TextMeshProUGUI text = RuntimeUiBuilder.CreateText("Label", row, label, UiSkin.Font.Body,
-                    TextAlignmentOptions.MidlineLeft,
+                    TextAlignmentOptions.Left,
                     RuntimeUiBuilder.ListItemTextColor(rowState), bodyFont);
 
-                Button action = RuntimeUiBuilder.CreateButton("Action", row, string.Empty, UiSkin.Font.Body,
-                    bodyFont);
-                TextMeshProUGUI actionLabel = RuntimeUiBuilder.GetButtonLabel(action);
                 string crewId = entry.Id;   // 闭包捕获：每轮独立变量
-
                 if (unlocked)
                 {
-                    if (actionLabel != null)
-                        actionLabel.text = active ? UiStrings.CrewRemove : UiStrings.CrewEnlist;
-                    action.onClick.AddListener(() => OnToggleActive(crewId, action));
+                    // 单击行 = 上阵 / 撤下（行即命中区，无行内按钮）
+                    rowButton.onClick.AddListener(() => OnToggleActive(crewId, rowButton));
                 }
-                else
+                else if (rowButton != null)
                 {
-                    if (actionLabel != null)
-                        actionLabel.text = UiStrings.CrewLocked;
-                    // 禁用视觉由 SketchButton 自己承担（CanvasGroup alpha 0.55）——不再乘 targetGraphic.color。
-                    action.interactable = false;
+                    // 锁定行 = list_item 的 disabled 态：面已表态，点击不接（Aseprite 禁用行不可选）。
+                    rowButton.interactable = false;
                 }
 
-                RuntimeUiBuilder.LayoutRowContent(row, text, action, RowHeight);
+                RuntimeUiBuilder.LayoutRowContent(row, text, RowHeight);
             }
         }
 

@@ -264,34 +264,32 @@ namespace PirateCrew.UI
             for (int i = 0; i < rows.Count; i++)
             {
                 LevelListRow entry = rows[i];
+                // 【list_item 口径】行 = theme list_item：整行即命中区（面三态就是它的按钮皮），
+                // 行内不挂文字按钮（自创件）——单击行 = 进该关。
                 RectTransform row = RuntimeUiBuilder.CreateRow(levelListContainer, i, RowHeight);
+                Button rowButton = RuntimeUiBuilder.RowButton(row);
 
                 TextMeshProUGUI text = RuntimeUiBuilder.CreateText("Label", row, entry.Label, UiSkin.Font.Body,
-                    TextAlignmentOptions.MidlineLeft,
+                    TextAlignmentOptions.Left,
                     RuntimeUiBuilder.ListItemTextColor(ListItemState.Normal), bodyFont);
 
-                // 星级图标（3 枚，点亮 = 黄铜，熄灭 = 暗）——只有记星的海图行才画。
+                // 星级图标（右对齐图标组，theme 允许 align="right" 的行内图标；
+                // 3 枚，点亮 = 黄铜，熄灭 = 暗）——只有记星的海图行才画。
                 if (entry.Stars > 0)
                     RuntimeUiBuilder.CreateStarRow(row, entry.Stars, StarRules.MaxStars, 36f);
-
-                Button action = RuntimeUiBuilder.CreateButton("Action", row, string.Empty, UiSkin.Font.Body,
-                    bodyFont);
-                TextMeshProUGUI actionLabel = RuntimeUiBuilder.GetButtonLabel(action);
-                if (actionLabel != null)
-                    actionLabel.text = entry.ActionLabel;
 
                 if (entry.WorldMapId != null)
                 {
                     string mapId = entry.WorldMapId;
-                    action.onClick.AddListener(() => OnWorldMapClicked(mapId, action));
+                    rowButton.onClick.AddListener(() => OnWorldMapClicked(mapId, rowButton));
                 }
                 else
                 {
                     int levelNumber = entry.LevelNumber;
-                    action.onClick.AddListener(() => OnShowcaseClicked(levelNumber, action));
+                    rowButton.onClick.AddListener(() => OnShowcaseClicked(levelNumber, rowButton));
                 }
 
-                RuntimeUiBuilder.LayoutRowContent(row, text, action, RowHeight);
+                RuntimeUiBuilder.LayoutRowContent(row, text, RowHeight);
             }
         }
 
@@ -311,7 +309,6 @@ namespace PirateCrew.UI
                 rows.Add(new LevelListRow(
                     level.levelNumber,
                     level.displayName + "　" + UiStrings.LevelRowShowcaseTag,
-                    UiStrings.LevelFight,
                     stars: 0,
                     worldMapId: null));
             }
@@ -320,11 +317,13 @@ namespace PirateCrew.UI
             {
                 WorldMapDefinition map = maps[i];
                 int stars = CampaignApi.GetStars(map.Id);
+                // 行文本 = 名称 + 图幅（theme list_item 只有一条左对齐文本）。
+                // 「可出战/已通关」这类**状态**不进文本——行态由面与图标表达：本表行皆可点，
+                // 已通关由星级图标体现（stars > 0），不再复读成字。
                 string label = map.DisplayName + "　"
-                               + Mathf.RoundToInt(map.SpanX) + "×" + Mathf.RoundToInt(map.SpanZ)
-                               + "　" + (stars > 0 ? UiStrings.WorldRowCleared : UiStrings.WorldRowAvailable);
+                               + Mathf.RoundToInt(map.SpanX) + "×" + Mathf.RoundToInt(map.SpanZ);
                 rows.Add(new LevelListRow(
-                    map.LevelNumber, label, UiStrings.WorldSetSail, stars, map.Id));
+                    map.LevelNumber, label, stars, map.Id));
             }
 
             rows.Sort((a, b) => a.LevelNumber.CompareTo(b.LevelNumber));
@@ -341,11 +340,8 @@ namespace PirateCrew.UI
             /// <summary>关卡号（排序键；样板关 1–3 / 海图 101–108）。</summary>
             public readonly int LevelNumber;
 
-            /// <summary>行标签（名称 + 图幅/标识 + 状态）。</summary>
+            /// <summary>行标签（theme list_item 的唯一一条左对齐文本：名称 + 图幅/标识）。</summary>
             public readonly string Label;
-
-            /// <summary>动作按钮文案。</summary>
-            public readonly string ActionLabel;
 
             /// <summary>已得星数（样板关恒 0 = 不画星级）。</summary>
             public readonly int Stars;
@@ -353,11 +349,10 @@ namespace PirateCrew.UI
             /// <summary>海图 id；null = 样板关。</summary>
             public readonly string WorldMapId;
 
-            public LevelListRow(int levelNumber, string label, string actionLabel, int stars, string worldMapId)
+            public LevelListRow(int levelNumber, string label, int stars, string worldMapId)
             {
                 LevelNumber = levelNumber;
                 Label = label;
-                ActionLabel = actionLabel;
                 Stars = stars;
                 WorldMapId = worldMapId;
             }

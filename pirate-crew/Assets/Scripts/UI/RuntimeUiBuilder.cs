@@ -1,4 +1,4 @@
-using PirateCrew.Audio;
+﻿using PirateCrew.Audio;
 using PirateCrew.UI.Stick;
 using TMPro;
 using UnityEngine;
@@ -127,30 +127,18 @@ namespace PirateCrew.UI
             return text;
         }
 
-        /// <summary>
-        /// 建按钮（像素皮：<see cref="SketchButton"/> Dark 变体 + 居中文本；tone 九宫格 /
-        /// 三态 SpriteSwap / 禁用 alpha 由控件本体承担，调用方不再配色）。初值尺寸为占位，
-        /// 行内按钮随后由 <see cref="LayoutRowContent"/> 按行高重摆。
-        /// </summary>
-        public static Button CreateButton(string name, Transform parent, string label, int fontSize,
-            TMP_FontAsset font)
-        {
-            return SketchButton.Create(parent, name,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(50f, UiSkin.Px.Button),   // 令牌按钮高占位；行内会被 <see cref="LayoutRowContent"/> 重摆
-                font, label, fontSize);
-        }
-
-        /// <summary>取按钮上的**可见** TMP 文本（建行时写动作文案用）。
+        /// <summary>取按钮上的**可见** TMP 文本（结算弹窗等按状态改文案处用）。
         /// 走 <see cref="SketchButton.LabelOf"/>——泛搜 <c>GetComponentInChildren</c> 会先取到
-        /// 兄弟序 0 的**影子层**（不可见），文案写进去就不显示（实拍：选关列表出战按钮整列无字）。</summary>
+        /// 兄弟序 0 的**影子层**（不可见），文案写进去就不显示（实拍：曾让选关列表整列按钮无字）。</summary>
         public static TextMeshProUGUI GetButtonLabel(Button button) => SketchButton.LabelOf(button);
 
         /// <summary>星形图标（UiGlyphs 程序化五角星，白形可染色）。</summary>
         public static Sprite StarIcon => UiGlyphs.Get(UiGlyphs.Glyph.Star);
 
         /// <summary>
-        /// 在行内右侧（动作按钮左边）摆一排星级图标（规范 §3.4：星级改图标，不用「★」字符）。
+        /// 行内**右对齐图标组**：一排星级图标（规范 §3.4：星级改图标，不用「★」字符）。
+        /// theme 允许行内右对齐图标（`align="right"` 在 theme.xml 有实例；时间轴图层行也是
+        /// 右端一组小图标）——但**不是**按钮组，仅作行内容标记。
         /// </summary>
         /// <returns>星级容器；可在需要时再隐藏。</returns>
         public static RectTransform CreateStarRow(Transform row, int stars, int maxStars, float iconSize = 36f)
@@ -161,8 +149,10 @@ namespace PirateCrew.UI
             container.anchorMax = new Vector2(1f, 0.5f);
             container.pivot = new Vector2(1f, 0.5f);
             container.sizeDelta = new Vector2(maxStars * step, iconSize);
-            // 动作按钮最宽 4 字（×1：4×12 + pad 8 = 56）+ 右边距 16 + 间隔 8。
-            container.anchoredPosition = new Vector2(-(56f + 16f + 8f), 0f);
+            // 右边距 = theme list_item border（1 设计格），与行文本左内缩同源。
+            container.anchoredPosition = new Vector2(-AseLayout.Px(AseLayout.ListItemBorder), 0f);
+            // 行根的 HStack（LayoutRowContent）不接管装饰图标组：它自持右锚定位。
+            UiLayout.Ignore(container.gameObject);
 
             for (int i = 0; i < maxStars; i++)
             {
@@ -233,12 +223,50 @@ namespace PirateCrew.UI
             // 无九宫格、无烘焙色阶——这里乘 Image.color 是"纯色层"的本职，不违反像素件禁乘色纪律）。
             // 底板 = 行根自身 Graphic（子件画其上）；**行根必须参与父布局**——曾在此对行根
             // 误挂 ignoreLayout，布局组把行全部忽略、叠在容器中心叠成一坨（实测事故）。
+            //
+            // 【行即命中区（theme list_item 口径）】行本体就是列表项的按钮：面三态承担视觉反馈，
+            // 点击挂行根 Button。transition=None——像素皮禁乘色，态由 ListItemFace 换色表达；
+            // 行内不再挂文字按钮（list_item 只有「纯色面 + 一条左对齐文本 + 可选图标」）。
             var backplate = row.gameObject.AddComponent<UnityEngine.UI.Image>();
             backplate.sprite = null;
             backplate.color = ListItemFace(state);
-            backplate.raycastTarget = false;
+            backplate.raycastTarget = true;
+
+            var button = row.gameObject.AddComponent<UnityEngine.UI.Button>();
+            button.targetGraphic = backplate;
+            button.transition = Selectable.Transition.None;
 
             return row;
+        }
+
+        /// <summary>取行根上的按钮（<see cref="CreateRow"/> 已挂，行即 list_item 的命中区）。</summary>
+        public static Button RowButton(RectTransform row)
+        {
+            return row != null ? row.GetComponent<Button>() : null;
+        }
+
+        /// <summary>
+        /// 行内排版（全 UGUI 原生布局件，零自定义驱动）：行挂 HorizontalLayoutGroup，
+        /// 行标签声明 flexibleWidth 吃满整行（无行内按钮——list_item 口径）。
+        /// </summary>
+        public static void LayoutRowContent(RectTransform row, TextMeshProUGUI label, float rowHeight)
+        {
+            // 行内左右内缩 = theme list_item border（1 设计格）——字离行缘的缝（theme list_item
+            // 的 text x=1 就是这条）。controlWidths 必须开：行标签靠 flexibleWidth 吃满整行
+            // （关掉则标签保持默认 100 宽、长文案被折行）；装饰图标组已 UiLayout.Ignore，不受它管。
+            UiLayout.HStack(row, 8, UiPadding.Symmetric((int)AseLayout.Px(AseLayout.ListItemBorder), 0),
+                controlWidths: true,
+                alignment: TextAnchor.MiddleLeft);
+
+            if (label != null)
+            {
+                UiLayout.Flexible(label.gameObject);
+                RectTransform rect = label.rectTransform;
+                rect.sizeDelta = new Vector2(rect.sizeDelta.x, rowHeight);
+                // 垂直取 Middle（Left = Middle+Left）：Midline 按字体的**基线中线**对齐，
+                // 中文墨迹整体偏上 → 行内文字比行心高 1 画布格；Middle 与按钮字（Center）同口径。
+                label.alignment = TextAlignmentOptions.Left;
+            }
         }
 
         /// <summary>清空容器下的全部子对象（重建列表前调用）。</summary>
@@ -274,54 +302,6 @@ namespace PirateCrew.UI
             rect.pivot = anchor;
             rect.sizeDelta = size;
             rect.anchoredPosition = anchoredPosition;
-        }
-
-        /// <summary>行内排版（全 UGUI 原生布局件，零自定义驱动）：
-        /// 行挂 HorizontalLayoutGroup，标签声明 flexibleWidth 吃剩余宽；
-        /// 按钮挂 HorizontalLayoutGroup + ContentSizeFitter(Preferred)——UGUI 自带的自贴合，
-        /// 按钮宽 = 文字真实渲染宽 + 左右各半 <see cref="UiSkin.Px.ButtonPadX"/>，文本变即自动收放。</summary>
-        public static void LayoutRowContent(RectTransform row, TextMeshProUGUI label, Button action, float rowHeight)
-        {
-            // 行内左右内缩 = theme list_item border（1 设计格）——字与钮离行缘的缝；
-            // 标签与动作钮之间的缝（8）保持不变。
-            UiLayout.HStack(row, 8, UiPadding.Symmetric((int)AseLayout.Px(AseLayout.ListItemBorder), 0),
-                controlWidths: true,
-                alignment: TextAnchor.MiddleLeft);
-
-            if (label != null)
-            {
-                UiLayout.Flexible(label.gameObject);
-                RectTransform rect = label.rectTransform;
-                rect.sizeDelta = new Vector2(rect.sizeDelta.x, rowHeight);
-                // 垂直取 Middle（Left = Middle+Left）：Midline 按字体的**基线中线**对齐，
-                // 中文墨迹整体偏上 → 行内文字比行心高 1 画布格；Middle 与按钮字（Center）同口径。
-                label.alignment = TextAlignmentOptions.Left;
-            }
-
-            if (action != null)
-            {
-                RectTransform rect = action.GetComponent<RectTransform>();
-                // 【按钮高必须 ≤ 行距】行内按钮原按全局令牌高（Px.Button=24）摆，而行是 16 设计格
-                // → 每个按钮压住下一行 7 格（实拍：按钮左描边只露出 15 格、行距 17 格），
-                // 且按钮盒互相叠印。行高本身 = theme button 原生高（14×16 切片 4+6+6），
-                // 按行高摆即原生尺寸，无九宫格压缩、无重叠。
-                rect.sizeDelta = new Vector2(rect.sizeDelta.x,
-                    Mathf.Min(rowHeight, UiSkin.Px.Button));
-
-                // 按钮自贴合（原生，无双驱动）：按钮自身挂横排组（内层 childControlWidth），
-                // 其 preferred 宽 = 左右各半 ButtonPadX + 文字渲染宽——行 HStack(controlWidths)
-                // 直接按这个 preferred 收放按钮。不再挂 ContentSizeFitter（父组已在控制，双驱会打架）。
-                var fit = action.gameObject.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>();
-                if (fit == null)
-                    fit = action.gameObject.AddComponent<UnityEngine.UI.HorizontalLayoutGroup>();
-                fit.childControlWidth = true;
-                fit.childControlHeight = false;
-                fit.childForceExpandWidth = false;
-                fit.childForceExpandHeight = false;
-                fit.childAlignment = TextAnchor.MiddleCenter;
-                int pad = UiSkin.Px.ButtonPadX / 2;
-                fit.padding = new RectOffset(pad, pad, 0, 0);
-            }
         }
 
         /// <summary>把颜色整体乘上 alpha（保留原 RGB；令牌色降透明度的本地出口，
