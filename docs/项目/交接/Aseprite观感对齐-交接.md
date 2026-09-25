@@ -448,6 +448,65 @@ Gamma 空间（影响 3D 全链）。±1 肉眼不可见，等裁决。
   与「返回」同动作 `CloseSettings`；控制器 `settingsCloseButton` 字段 + `SceneSetup` 装配接线）。
 - 主菜单窗要不要也补 ×（语义 = 退出游戏，已另有「退出游戏」钮）留创始人定。
 
+### 第二轮：选项块改 buttonset + 滑条数值 + 全量覆盖清点（2026-09-26 凌晨）
+
+创始人二次走查：「位置不对齐、感觉是扁的、拉动条怎么看拉到百分之多少、原软件设置面板里
+真是这样的拉动条吗、窗控钮缺了我都没发现说明你在我不知道的地方缺得更多」。
+
+**① 选项块改 theme `buttonset_item`（radio → buttonset）**
+- 判据：参考库里对话框内的二选一/三选一（New Sprite 的 RGB / Grayscale / Indexed、
+  Transparent / White / Black）**走的就是 buttonset**——一排等宽九宫格按钮，当前值换
+  `buttonset_item_active` 件；而 radio/check（8×8 图标 + 文字、常态无面）是**列表里的多选项**
+  语法。设置页「画质」「窗口模式」两组是对话框内的二选一 → 该走 buttonset。
+- 新控件 `SketchButtonSet`（Button 子类，六件换皮：normal / hot(mouse) / hot_focused /
+  focused(键盘焦点) / pushed / active(当前值)，件 16×16 切片 3/10/3 × 3/8/5）✓ 六件都已在
+  `aseParts` 表内。
+- 布局改成**两块同宽、右对齐成一对**（宽按较长标签算）→ "位置不对齐"随之消失；
+  字号按 theme `<style font="mini">` 映射到本工程最小原生档 8（`UiSkin.Font.Tiny`），
+  不再出现"8px 图标配 12px 字"的悬殊比例（这也是"扁/小"的来源之一）。
+- 实机验证：点亮第一项 → 该件渲染为 `buttonset_item_active`（亮面）、另一项 `normal`（暗面）✓。
+- `SketchCheck`（theme radio/check 控件）保留但**设置页已无调用点**——theme 组件库留还是清退，待创始人定。
+
+**② 滑条槽内显示数值**
+- theme `<style id="slider">` 本就带 `<text color="slider_empty_text" align="center middle"/>`
+  ——Aseprite 的滑条靠**槽内数值**告诉你拉到多少（库里没有拇指件，光看槽色分不清）。
+- 补上：槽内居中 8px 百分比（色 = `slider_empty_text` #202125 = theme `disabled`），
+  `onValueChanged` 时刷新（0..1 → "0%".."100%"）。实拍：四条槽内各显示 "0%" ✓。
+
+**③ 全量覆盖清点（回答「还有多少是我不知道的缺口」）**
+
+`theme.xml` 现状：**345 个 `<part>`（件）+ 175 条 `<style>`（控件风格）**；我们**已烘 112 件**，
+代码直引 20 余件。逐族清点（件数 / 已烘 / 说明）：
+
+| 族 | theme | 已烘 | 说明 |
+| --- | --- | --- | --- |
+| timeline | 49 | 0 | Aseprite 时间轴专属（帧/洋葱皮/播放头），**我们无对应屏** |
+| cursor | 36 | 0 | 编辑器光标，无对应屏 |
+| icon / tool | 29+29 | 0 | 工具/图标栏（铅笔/橡皮/图层…），无对应屏 |
+| drop | 14 | 8 | 下拉箭头/分隔件；**已烘未接** |
+| tab | 13 | 11 | 页签（Aseprite 设置/面板顶栏）；**已烘未接** |
+| combobox | 12 | 12 | 组合框箭头族；已接 3（其余未接） |
+| mini | 10 | 10 | mini 滑条/滚动条；已接 1 |
+| window | 9 | 9 | 窗体/窗控钮/图标 ✓ 已接 6 |
+| buttonset | 6 | 6 | **本轮接入**（设置页选项块） |
+| colorbar | 6 | 6 | Aseprite 色板取色条，无对应屏（已烘未接） |
+| sunken / sunken2 | 6 | 6 | 凹槽件（HUD 槽底仍在用自造 tone 族，未换库件） |
+| slider | 4 | 4 | ✓ 已接（空/满 × 常态/焦点） |
+| radio / check | 4+4 | 8 | ✓ 已接（`SketchCheck`，设置页改 buttonset 后暂无调用点） |
+| scrollbar | 2 | 2 | 滚动条；已烘未接（列表内容暂未溢出） |
+| separator / arrow / tooltip | 2+2+2 | 6 | 分隔线 ✓ / 箭头未接 / tooltip 已接 |
+| 其余（pal/canvas/ani/debug/selection/outline/tiles/aseprite…） | ~110 | 0 | 全是 Aseprite 编辑器专属（调色板/画布边框/动画/调试/选区），**我们无对应屏** |
+
+**结论**：未烘的 234 件里 ~180 件是 Aseprite 编辑器专属（无对应屏，**不必补**）；
+真正"该有而没接"的是 **`drop`（下拉）、`tab`（页签）、`scrollbar`（滚动条）、
+`colorbar`、`sunken` 族** + 若干 combobox 箭头——即打磨清单第⑤项"已烘未接屏件"，
+按屏需要逐个接（其中 `tab` 与设置页的"音频/视频分组"是同一件事的两种画法：Aseprite
+1.2 设置页用页签、1.3 用左侧列表，**要哪种请创始人定**）。
+
+**④ 标题带高度**：创始人明确"长度指高度"，并裁决"没有设置文字高……就当是有意设计" →
+记录现状：带高 = `window` 件 h1 = **15 设计格**（不随标题字号推导），标题字 12px 行高约 15.6
+居中落在带内（`EnsureTitleLabel` 的 margin-top 5 与带底留白见上节）。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。

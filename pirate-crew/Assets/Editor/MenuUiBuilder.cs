@@ -479,7 +479,22 @@ namespace PirateCrew.EditorTools
             slider.fillRect = fill;
 
             // 无 handleRect：theme slider 没有拇指件，拖拽落点由 Slider 自身 rect 推算。
+
+            // 数值文本：theme <style id="slider"> 的 <text color="slider_empty_text" align="center middle"/>——
+            // 槽内居中显示当前档（#202125 = theme slider_empty_text，与 disabled 同值）。
+            // 【为什么要有】Aseprite 的滑条靠槽内数值告诉你拉到多少（库里没有拇指件）。
+            TextMeshProUGUI valueText = CreateTextExact("Value", sliderRect, Percent(slider.value),
+                UiSkin.Font.Tiny, TextAlignmentOptions.Center, PixelSkin.Theme.Disabled, hand);
+            Stretch(valueText.rectTransform);
+            var captured = valueText;
+            slider.onValueChanged.AddListener(v => captured.SetText(Percent(v)));
             return slider;
+        }
+
+        /// <summary>滑条百分比文案（0..1 → "0%".."100%"）。</summary>
+        static string Percent(float value)
+        {
+            return Mathf.RoundToInt(Mathf.Clamp01(value) * 100f) + "%";
         }
 
         /// <summary>建一行「字段名 + 二选一单选钮」，返回两个选项（SketchCheck = Button 子类，
@@ -494,15 +509,31 @@ namespace PirateCrew.EditorTools
             SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 15f),
                 new Vector2(8f, 0f));
 
-            // 选项：theme radio（8×8 图标 + 文字；悬停铺 HotFace），行内右侧对齐一对。
-            float w1 = 14f * 2f + UiSkin.Font.Body * (secondaryLabel.Length + 1f);
-            secondaryOption = SketchCheck.Create(row, "Option1", secondaryLabel, radio: true, hand,
-                UiSkin.Font.Body, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
-                new Vector2(-6f, 0f), SettingsRowHeight - 6f);
-            primaryOption = SketchCheck.Create(row, "Option0", primaryLabel, radio: true, hand,
-                UiSkin.Font.Body, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
-                new Vector2(-6f - w1 - 8f, 0f), SettingsRowHeight - 6f);
+            // 选项：theme **buttonset_item**（16×16 九宫格，等宽一对、右对齐；当前值换 active 件）。
+            // 【为什么不是 radio】参考库对话框内的二选一走 buttonset（New Sprite 的
+            // RGB/Grayscale/Indexed 就是）；radio/check 是"列表里的多选项"语法。
+            // 等宽 = 两块同宽（按较长标签定宽），右对齐成一对——对齐问题随之消失。
+            const float ItemHeight = ButtonSetHeight;                 // 件原生高 16（h 3+8+5）
+            float itemWidth = Mathf.Max(primaryLabel.Length, secondaryLabel.Length)
+                * ButtonSetFontSize + 2f * (AseLayout.Px(AseLayout.CheckBorder) + 3f);
+            secondaryOption = SketchButtonSet.Create(row, "Option1", secondaryLabel, hand,
+                ButtonSetFontSize, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(-6f, 0f), new Vector2(itemWidth, ItemHeight));
+            primaryOption = SketchButtonSet.Create(row, "Option0", primaryLabel, hand,
+                ButtonSetFontSize, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(-6f - itemWidth - ButtonSetGap, 0f), new Vector2(itemWidth, ItemHeight));
         }
+
+        /// <summary>选项块件高 = theme <c>buttonset_item</c> 原生高（切片 h1 3 + h2 8 + h3 5 = 16）。</summary>
+        const float ButtonSetHeight = 16f;
+
+        /// <summary>选项块字号：theme <c>&lt;style id="buttonset_item" font="mini"&gt;</c>——mini 是
+        /// Aseprite 最小字档；本工程最小原生档 = 8（<see cref="UiSkin.Font.Tiny"/>），映射过来。
+        /// 不放大：8px 位图字在 8 画布格里 1:1，笔画仍是整格。</summary>
+        const int ButtonSetFontSize = UiSkin.Font.Tiny;
+
+        /// <summary>一对选项块之间的缝（theme 未声明，取 4 格：两块同宽盒贴成一组，不粘连）。</summary>
+        const float ButtonSetGap = 4f;
 
         /// <summary>设置行的底板（滑条行与选项行共用）：**theme list_item 纯色面**（#41444A），
         /// 与船员/关卡列表行同色同形态——Aseprite 的列表行就是一块纯色（无九宫格、无斜面）。

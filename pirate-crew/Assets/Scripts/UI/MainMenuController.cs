@@ -303,6 +303,12 @@ namespace PirateCrew.UI
             if (chip == null)
                 return;
 
+            if (chip is Stick.SketchButtonSet set)
+            {
+                set.Active = selected;   // theme buttonset_item_active：当前值换 active 件
+                return;
+            }
+
             if (chip is Stick.SketchCheck check)
             {
                 check.IsOn = selected;
