@@ -162,7 +162,9 @@ namespace PirateCrew.EditorTools
 
         /// <summary>建 TMP 文本（**新档字号入口**）：<paramref name="fontSize"/> 原样使用；
         /// 字体由 <see cref="UiKit.ResolvePixelFont"/> 按字号单点解析（满精度阶梯，
-        /// 调用方传什么字体都会被按字号纠偏）。</summary>
+        /// 调用方传什么字体都会被按字号纠偏）。
+        /// 【像素对齐】与 <see cref="UiKit.CreateText"/> 同口径：字体图集钉 Point +
+        /// 挂 <see cref="PixelSnapText"/> 顶点取整（本方法此前漏挂，属半格糊字缺口）。</summary>
         public static TextMeshProUGUI CreateTextExact(string name, Transform parent, string content, int fontSize,
             TextAlignmentOptions alignment, Color color, TMP_FontAsset font, bool raycast = false)
         {
@@ -171,13 +173,17 @@ namespace PirateCrew.EditorTools
             text.text = content;
             TMP_FontAsset resolved = UiKit.ResolvePixelFont(fontSize, font);
             if (resolved != null)
+            {
                 text.font = resolved;
+                PixelAtlasPointFilter.Ensure(resolved);
+            }
             text.fontSize = fontSize;
             text.alignment = alignment;
             text.color = color;
             text.enableWordWrapping = true;
             text.overflowMode = TextOverflowModes.Overflow;
             text.raycastTarget = raycast;
+            text.gameObject.AddComponent<PixelSnapText>();   // 顶点像素对齐（治半格糊字）
             // 标题加深色描边提升可读性（规范 §5.3：描边只给标题）。
             return text;
         }
@@ -314,18 +320,18 @@ namespace PirateCrew.EditorTools
             CreateDimOverlay("DimOverlay", root);
 
             // 底板：SketchPanel Dark → **带标题窗体**（theme window：顶 15u 标题带）。
+            // 【尺寸偶数纪律】卡 426（原 427）+ 中心锚：奇数宽居中会让左右缘落 x.5 画布格
+            // （半格相位，与卡内偶数宽件错开半像素）；内层行的宽同样取偶（384/394），
+            // 这样「卡缘 → 行板缘 → 行内字段」整条链都落在整数画布格上。
             SketchPanel card = SketchPanel.Create(root.transform, "SettingsCard",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(427f, 322f), SketchPanel.Tone.Dark);
-            card.Titled = true;   // 换 Window 九宫格（标题带随切片落位）
+                new Vector2(426f, 322f), SketchPanel.Tone.Dark);
+            card.Titled = true;   // 换 theme window 直切件（标题带随切片落位）
             RectTransform panel = (RectTransform)card.transform;
 
-            // 标题：带内左上（theme window_title_label：margin 5/5 设计格，灰字 #c0c0c0）。
-            // 标题（12px 裁决：15 格带按 8px 拉丁字设计，中文 12px 顶格放带内全高）
-            TextMeshProUGUI titleText = CreateTextExact("Title", panel, UiStrings.SettingsTitle,
-                UiSkin.Font.Body, TextAlignmentOptions.MidlineLeft, PixelSkin.Theme.Text, hand);
-            SetAnchored(titleText.rectTransform, new Vector2(0f, 1f), new Vector2(383f, PixelSkin.WindowTitleBand),
-                new Vector2(AseLayout.Px(AseLayout.TitleMarginLeft), 0f));
+            // 标题走唯一入口（带内左上、边距 5、灰字 #c0c0c0、字号 12 正文档、顶点像素对齐）
+            // ——与主菜单窗体/模态标题同源，不再本处手摆。
+            UiKit.EnsureTitleLabel(panel, UiStrings.SettingsTitle, hand);
 
             // 标题带下蚀刻分隔线（像素皮 Separator 贴图，方向由 Dir 决定）。
             SketchSeparator.Create(panel, "TitleSeparator", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
@@ -335,9 +341,10 @@ namespace PirateCrew.EditorTools
 
             // 行容器：八行流式纵排（缝 3u）——两条蓝字分组线 + 四条音量滑条 + 两组选项块。
             // 行距/行位由布局器排，不再手算 pitch 坐标。高 212 = 2 线×12 + 6 行×27 + 7 缝×3 + 余 5。
+            // 宽 384（原 383）与卡 426 同为偶数——居中链整格对齐，见卡声明处注释。
             RectTransform rows = UiKit.CreateRect("Rows", panel);
             rows.pivot = new Vector2(0.5f, 1f);
-            UiKit.SetAnchored(rows, new Vector2(0.5f, 1f), new Vector2(383f, 212f), new Vector2(0f, -40f));
+            UiKit.SetAnchored(rows, new Vector2(0.5f, 1f), new Vector2(384f, 212f), new Vector2(0f, -40f));
             UiLayout.VBox(rows, 3, default(UiPadding));
 
             // 音频组（theme separator_label 蓝字分组线）+ 音量四行（滑条实时改 AudioService，
@@ -361,7 +368,7 @@ namespace PirateCrew.EditorTools
             // y=54：行区底（距顶 230）与恢复默认钮（y=76）之间的空档——y=120 会插进画质行。
             TextMeshProUGUI note = CreateTextExact("SaveHint", panel, UiStrings.SettingsSaveHint,
                 UiSkin.Font.Tiny, TextAlignmentOptions.Center, TEXT_FAINT, hand);
-            SetAnchored(note.rectTransform, new Vector2(0.5f, 0f), new Vector2(393f, 12f),
+            SetAnchored(note.rectTransform, new Vector2(0.5f, 0f), new Vector2(394f, 12f),
                 new Vector2(0f, 54f));
 
             // 恢复默认 / 返回：手绘按钮 Dark 变体；宽 = 标签宽 + 24 艺术像素、高 24 艺术像素（令牌按钮）。
@@ -489,12 +496,13 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>设置行的底板（滑条行与选项行共用）：SketchPanel Light → Plate(Light) 片 + 底垫投影。
-        /// 位置交给行容器 VBox 排（index 只用作命名），不再手算 pitch 坐标。</summary>
+        /// 位置交给行容器 VBox 排（index 只用作命名），不再手算 pitch 坐标。
+        /// 宽 384 = 行容器宽（偶数纪律，见卡声明处）。</summary>
         static RectTransform CreateSettingsRowBackground(Transform rows, int index)
         {
             SketchPanel rowPanel = SketchPanel.Create(rows, "Row" + index,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(383f, SettingsRowHeight), SketchPanel.Tone.Light);
+                new Vector2(384f, SettingsRowHeight), SketchPanel.Tone.Light);
             return (RectTransform)rowPanel.transform;
         }
 
@@ -504,10 +512,10 @@ namespace PirateCrew.EditorTools
         static void BuildSettingsGroupLabel(Transform rows, string name, string label, TMP_FontAsset hand)
         {
             RectTransform row = UiKit.CreateRect(name, rows);
-            row.sizeDelta = new Vector2(383f, 12f);
+            row.sizeDelta = new Vector2(384f, 12f);   // 偶数纪律（同行容器宽）
 
             SketchSeparator.Create(row, "Line", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(383f, 1f), SketchSeparator.Direction.Horizontal);
+                Vector2.zero, new Vector2(384f, 1f), SketchSeparator.Direction.Horizontal);
 
             TextMeshProUGUI text = CreateTextExact("Label", row, label, UiSkin.Font.Body,
                 TextAlignmentOptions.MidlineLeft, PixelSkin.Theme.SeparatorLabel, hand);
@@ -525,49 +533,48 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 搭通用确认弹窗（默认隐藏）：压暗遮罩 + 面板 + 正文 + 确定/取消。
+        /// 搭通用确认弹窗（默认隐藏）：**走 <see cref="UiKit.CreateModal"/> 标准模态路径**——
+        /// Dim 遮罩 + theme window 直切窗体皮 + 标题带 + 右上 × 关闭钮 + 卡片高随内容
+        /// （ContentSizeFitter 纵向贴合）。与战斗侧返回确认（<c>BattleHudBuilder.BuildBackConfirm</c>）
+        /// 同形同数（卡宽 160 / 正文 133×20 / 缝 3u）。
         /// 语义由调用方定义（退出游戏 / 放弃本局返回主菜单），本工厂不绑任何行为。
+        ///
+        /// 【旧装配已退役】SketchPanel Dark 手摆 240×132 + 无窗体皮 + 正文取
+        /// <c>LightOf(Frame)</c> 暗字——实拍「无窗体皮 / 无标题带 / 正文字色暗」的根源。
         /// </summary>
         public static ConfirmDialogResult BuildConfirmDialog(Transform canvas, string defaultMessage)
         {
-            RectTransform root = CreateRect("ConfirmDialog", canvas);
-            Stretch(root);
+            UiKit.ModalView modal = UiKit.CreateModal("ConfirmDialog", canvas, new Vector2(160f, 68f),
+                title: UiStrings.ConfirmTitle, titleFont: BodyFont, titleFontSize: UiSkin.Font.Body);
 
-            CreateDimOverlay("DimOverlay", root);
+            // 流式内容：正文 + 按钮行（VBox 居中块，缝 3u）。
+            RectTransform flow = CreateRect("Flow", modal.Card);
+            UiLayout.Flexible(flow.gameObject);
+            UiLayout.VBox(flow, 3, UiPadding.Uniform(2), alignment: TextAnchor.MiddleCenter, controlHeights: true);
 
-            // 底板：SketchPanel Dark → Plate(Frame tone) + 底垫投影；消息直接压面板，不再垫内容片。
-            SketchPanel card = SketchPanel.Create(root.transform, "ConfirmCard",
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(240f, 132f), SketchPanel.Tone.Dark);
-            RectTransform panel = (RectTransform)card.transform;
-
-            // 流式内容（UiLayout）：正文 + 按钮行——居中块，纵缝 3u，不再手摆 y 坐标。
-            RectTransform flow = CreateRect("Flow", panel);
-            Stretch(flow);
-            UiLayout.VBox(flow, 3, UiPadding.Uniform(2), alignment: TextAnchor.MiddleCenter);
-
-            // 正文：Frame tone 上的正文浅字（像素皮 TextColorOn 档）、正文字号。
-            TextMeshProUGUI message = CreateTextExact("Message", flow, defaultMessage,
-                UiSkin.Font.Body, TextAlignmentOptions.Center, PixelSkin.LightOf(PixelTone.Frame), TitleFont);
-            UiLayout.Element(message.gameObject, 560f, 96f);
+            // 正文：窗体面（Frame tone）上的正文档字——取 tone 可读档暖白，不再是暗字。
+            // 【宽度纪律】UiLayout.VBox 只接管高度（childControlWidth 恒 false），
+            // Element 声明的首选宽不参与排版——rect 宽必须自己给，否则回落默认 100 宽，
+            // 十个字的短文案被挤成两行（实拍）。短文案禁换行，居中由 VBox 承担。
+            TextMeshProUGUI message = UiKit.CreateText("Message", flow, defaultMessage,
+                UiSkin.Font.Body, TextAlignmentOptions.Center, PixelSkin.TextColorOn(PixelTone.Frame), BodyFont);
+            message.enableWordWrapping = false;
+            message.rectTransform.sizeDelta = new Vector2(133f, 20f);
+            UiLayout.Element(message.gameObject, 133f, 20f);
 
             RectTransform actionRow = CreateRect("Actions", flow);
             UiLayout.HStack(actionRow, 4, default(UiPadding), alignment: TextAnchor.MiddleCenter);
 
-            var result = new ConfirmDialogResult
+            return new ConfirmDialogResult
             {
-                Root = root.gameObject,
+                Root = modal.Root,
                 Message = message,
-                // 确认 = Accent 金强调（StickKit.Confirm 默认 kind 同语义）、取消 = Dark 常规；
-                // 令牌按钮（宽 = 标签宽 + 8 艺术像素、高 16u）。
+                // 确定 / 取消同为 theme 灰面皮（theme 无彩面按钮），语义由焦点蓝描边与文字表达。
                 OkButton = CreateSketchButton("OkButton", actionRow, UiStrings.Confirm,
                     new Vector2(0.5f, 0.5f), Vector2.zero, ButtonSize(UiStrings.Confirm)),
                 CancelButton = CreateSketchButton("CancelButton", actionRow, UiStrings.Cancel,
                     new Vector2(0.5f, 0.5f), Vector2.zero, ButtonSize(UiStrings.Cancel)),
             };
-
-            root.gameObject.SetActive(false);
-            return result;
         }
 
         /// <summary>确保工程内文件夹存在。</summary>

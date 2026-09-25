@@ -717,7 +717,7 @@ namespace PirateCrew.EditorTools
         static void BuildBackConfirm(Transform canvas, TMP_FontAsset body, Result result)
         {
             UiKit.ModalView modal = UiKit.CreateModal("BackConfirmDialog", canvas, new Vector2(160f, 68f),
-                title: UiStrings.ConfirmTitle, titleFont: body, titleFontSize: UiSkin.Font.Title);
+                title: UiStrings.ConfirmTitle, titleFont: body, titleFontSize: UiSkin.Font.Body);
             result.confirmDialogRoot = modal.Root;
             result.confirmCard = modal.Card;
 

@@ -115,16 +115,17 @@ namespace PirateCrew.UI.Stick
             return image;
         }
 
-        /// <summary>按 tone 换 Plate 贴图（Titled 时换带标题栏的 Window 九宫格）。</summary>
+        /// <summary>按 tone 换 Plate 贴图（Titled 时换带标题栏的窗体九宫格）。
+        /// 【窗皮单轨】Titled 一律走 sheet.png 直切件 <c>Ase("window")</c>（theme.xml:165）——
+        /// 旧手绘 tone 族 Window 模板（<see cref="PixelSkin.Window"/>）只是它的近似复刻，
+        /// 二者几何同为 13×24 / 切片 3·5·3·15，但手绘件与参考库不逐位一致；设置面板与
+        /// 列表窗体曾因此与主菜单/模态的窗体皮分叉，本波收口到直切件。</summary>
         private void Apply()
         {
             if (_plate == null)
                 _plate = FindPart();
             if (_plate != null)
-            {
-                PixelTone tone = _tone == Tone.Light ? PixelTone.Light : PixelTone.Frame;
-                _plate.sprite = Titled ? PixelSkin.Window(tone) : PixelSkin.Panel(tone);
-            }
+                _plate.sprite = Titled ? PixelSkin.Ase("window") : PixelSkin.Panel(_tone == Tone.Light ? PixelTone.Light : PixelTone.Frame);
         }
 
         /// <summary>场景重载后私有字段不序列化，按子件名重新取引用（同上一个九砖实现的兜底口径）。</summary>

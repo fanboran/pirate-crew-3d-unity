@@ -98,8 +98,9 @@ namespace PirateCrew.EditorTools
 
             // 名册容器：**带标题窗体**（theme window：顶 15u 标题带「船员名册」；行由
             // CrewManagementController 运行时生成）。166 = 6 行×16 + 行缝 5×2 + view 内缩 14 + 窗体边 46。
+            // 宽 334（原 333）：中心锚 + 奇数宽 → 左右缘落 x.5 画布格（半格相位），取偶归整。
             RectTransform list = CreateTitledListPanel("CrewList", canvas.transform,
-                CenterAnchor, new Vector2(0f, 8f), new Vector2(333f, 166f),
+                CenterAnchor, new Vector2(0f, 8f), new Vector2(334f, 166f),
                 UiStrings.CrewRosterTitle, titleFont);
 
             TextMeshProUGUI status = RuntimeUiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
@@ -178,8 +179,9 @@ namespace PirateCrew.EditorTools
             // 海图列表容器：**带标题窗体**「关卡列表」；行由控制器运行时生成。
             // 240 = 10 行×16 + 行缝 9×2 + view 内缩 14 + 窗体边 46 + 余 2；中心 y=-35：
             // 顶缘离章节名 10、底缘离下方提示 13（窗体加高后曾与提示叠印，实测修正）。
+            // 宽 334（原 333）：中心锚 + 奇数宽 → 半格相位，取偶归整（同船员名册窗体）。
             RectTransform list = CreateTitledListPanel("LevelList", canvas.transform,
-                CenterAnchor, new Vector2(0f, -35f), new Vector2(333f, 240f),
+                CenterAnchor, new Vector2(0f, -35f), new Vector2(334f, 240f),
                 UiStrings.LevelListTitle, titleFont);
 
             // 出战加载说明（文案与实际行为一致：选哪关加载哪关）+ 状态提示。
@@ -376,8 +378,8 @@ namespace PirateCrew.EditorTools
 
 
         /// <summary>建**带标题带的列表窗体**（theme window 复刻）：SketchPanel Dark + Titled
-        /// 换窗体九宫格（顶 15u 标题带随切片落位），带内左上标题文字（theme window_title_label：
-        /// 边距 5/5 设计格、字色 <see cref="PixelSkin.Theme.Text"/>）。列表内容区走
+        /// 换 theme window 直切件（顶 15u 标题带随切片落位），带内左上标题文字经
+        /// <see cref="UiKit.EnsureTitleLabel"/> 唯一入口。列表内容区走
         /// <see cref="AddListContent"/>（view 凹槽语法）。pivot 沿用面板中心口径。</summary>
         static RectTransform CreateTitledListPanel(string name, Transform parent, Vector2 anchor,
             Vector2 anchoredPosition, Vector2 size, string title, TMP_FontAsset titleFont)
@@ -387,13 +389,9 @@ namespace PirateCrew.EditorTools
             panel.Titled = true;
             RectTransform rect = (RectTransform)panel.transform;
 
-            // 标题带文字（左上，theme 边距 5/5；右侧让出窗控钮位——列表窗体无钮，纯保险）。
-            // 标题（12px 裁决：带内全高居中，margin-top 不再另加——16px 字实测压带）
-            TextMeshProUGUI label = RuntimeUiBuilder.CreateText("ListTitle", rect, title, UiSkin.Font.Body,
-                TextAlignmentOptions.MidlineLeft, PixelSkin.Theme.Text, titleFont);
-            RuntimeUiBuilder.SetAnchored(label.rectTransform, new Vector2(0f, 1f),
-                new Vector2(size.x - 40f, PixelSkin.WindowTitleBand),
-                new Vector2(AseLayout.Px(AseLayout.TitleMarginLeft), 0f));
+            // 标题走唯一入口（带内左上、边距 5 设计格、灰字 #c0c0c0、字号 12 正文档、
+            // 顶点像素对齐）——与主菜单窗体/模态/设置面板标题同源，不再本处手摆。
+            UiKit.EnsureTitleLabel(rect, title, titleFont);
 
             return rect;
         }

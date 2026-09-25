@@ -294,11 +294,61 @@ namespace PirateCrew.UI
             return plate;
         }
 
+        /// <summary>标题带内文字的孩子名（三处窗体共用，装配幂等按名复用）。</summary>
+        const string TitleLabelName = "TitleLabel";
+
+        /// <summary>
+        /// 摆**带标题窗体的标题**（theme window_title_label）：标题带内左上、带内全高垂直居中
+        /// （[0,15] 格区），字色 <see cref="PixelSkin.Theme.Text"/>，右侧让出
+        /// <paramref name="rightReserve"/> 宽的窗控钮位；横向锚定拉伸，不依赖装配期窗体宽度。
+        ///
+        /// 【为什么是唯一入口】此前主菜单/模态、设置面板、列表窗体三处各自手摆标题：
+        /// 字号 16/12 混杂、边距各写一套、两处漏挂顶点对齐件——实拍「标题压带 / 半格糊字」
+        /// 即由此来。收口后只此一处，字号缺省 = 正文档 12（theme 的 15 格带按 8px 拉丁字
+        /// 设计，16px 字实拍压带）。
+        /// </summary>
+        public static TextMeshProUGUI EnsureTitleLabel(RectTransform window, string title,
+            TMP_FontAsset font, float titleFontSize = 0f, float rightReserve = 18f)
+        {
+            TextMeshProUGUI label = FindText(window, TitleLabelName);
+            if (label == null)
+            {
+                label = CreateRect(TitleLabelName, window).gameObject.AddComponent<TextMeshProUGUI>();
+                label.fontStyle = FontStyles.Normal;   // 位图字禁伪粗
+                label.alignment = TextAlignmentOptions.MidlineLeft;
+                label.raycastTarget = false;
+                label.enableWordWrapping = false;   // 长标题换行会溢出标题带成残影
+                label.overflowMode = TextOverflowModes.Overflow;
+                label.gameObject.AddComponent<PixelSnapText>();   // 顶点像素对齐（治半格糊字）
+                RectTransform initial = label.rectTransform;
+                initial.anchorMin = new Vector2(0f, 1f);
+                initial.anchorMax = new Vector2(1f, 1f);
+                initial.pivot = new Vector2(0f, 1f);
+            }
+
+            float size = titleFontSize > 0f ? titleFontSize : UiSkin.Font.Body;
+            TMP_FontAsset resolved = ResolvePixelFont((int)size, font);
+            if (resolved != null)
+            {
+                label.font = resolved;
+                PixelAtlasPointFilter.Ensure(resolved);
+            }
+            label.fontSize = size;
+            label.SetText(title);
+            label.color = PixelSkin.Theme.Text;
+            UiLayout.Ignore(label.gameObject);   // 标题在带内自定位，不参与内容流
+
+            RectTransform rect = label.rectTransform;
+            rect.offsetMin = new Vector2(AseLayout.Px(AseLayout.TitleMarginLeft),
+                -PixelSkin.WindowTitleBand);
+            rect.offsetMax = new Vector2(-rightReserve, 0f);
+            return label;
+        }
+
         /// <summary>
         /// 带标题窗体（theme window 复刻，皮 = sheet.png 直切件 "window"）：Plate 孩子换
         /// 直切窗体九宫格（顶部 15 标题带随切片自动落位），带内左上标题文字
-        /// （theme window_title_label：边距 5、字色 <see cref="PixelSkin.Theme.Text"/>），
-        /// 右上窗控钮（? / ×）。
+        /// （经 <see cref="EnsureTitleLabel"/> 唯一入口），右上窗控钮（? / ×）。
         /// **内容区必须从带底往下排**——顶部内边距 ≥ <see cref="PixelSkin.WindowTitleBand"/>。
         /// </summary>
         public static Image EnsureWindow(RectTransform window, PixelTone tone, string title,
@@ -308,34 +358,8 @@ namespace PirateCrew.UI
             plate.sprite = PixelSkin.Ase("window");   // theme.xml:165 直切件（1x 设计格）
             UiLayout.Ignore(plate.gameObject);   // 装饰层不吃父布局流（VBox 只排内容件）
 
-            // 标题（带内左上，边距 5u；横向锚定拉伸——不依赖装配期窗体宽度）
-            TextMeshProUGUI label = FindText(window, "TitleLabel");
-            if (label == null)
-            {
-                label = CreateRect("TitleLabel", window).gameObject.AddComponent<TextMeshProUGUI>();
-                label.font = font;
-                label.fontSize = titleFontSize;
-                label.fontStyle = FontStyles.Normal;   // 位图字禁伪粗
-                label.alignment = TextAlignmentOptions.MidlineLeft;
-                label.raycastTarget = false;
-                label.enableWordWrapping = false;   // 长标题换行会溢出标题带成残影
-                label.overflowMode = TextOverflowModes.Overflow;
-                RectTransform lr = label.rectTransform;
-                lr.anchorMin = new Vector2(0f, 1f);
-                lr.anchorMax = new Vector2(1f, 1f);
-                lr.pivot = new Vector2(0f, 1f);
-            }
-            label.SetText(title);
-            label.color = PixelSkin.Theme.Text;
-            UiLayout.Ignore(label.gameObject);   // 标题在带内自定位，不参与内容流
-            {
-                // 标题区 = 标题带内全高 [0,15]（带内垂直居中）；字号用正文档 12
-                // ——theme 的 15 格带按 8px 字设计，16px 字装不下（实拍压带）。
-                RectTransform lr = label.rectTransform;
-                lr.offsetMin = new Vector2(AseLayout.Px(AseLayout.TitleMarginLeft),
-                    -PixelSkin.WindowTitleBand);
-                lr.offsetMax = new Vector2(-(18f + AseLayout.Px(AseLayout.WindowButtonGap)), 0f);
-            }
+            EnsureTitleLabel(window, title, font, titleFontSize,
+                18f + AseLayout.Px(AseLayout.WindowButtonGap));
 
             // 窗控钮：右上（× 最右、? 在其左；theme margin-top 3 / margin-right 3 与 1）
             float right = AseLayout.Px(AseLayout.CloseButtonMarginRight);
