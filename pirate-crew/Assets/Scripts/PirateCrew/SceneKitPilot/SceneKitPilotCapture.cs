@@ -102,7 +102,7 @@ namespace PirateCrew.SceneKitPilot
 
                 // CaptureScreenshot 异步落盘：绝对路径 + 轮询等文件出现，再切下一机位。
                 string path = Path.Combine(_outDir, shot.Name + ".png");
-                ScreenCapture.CaptureScreenshot(path);
+                PirateCrew.Core.GraphicsCaptureCompat.CaptureScreenshot(path);
                 float deadline = Time.unscaledTime + PerShotTimeoutSeconds;
                 while (!File.Exists(path) && Time.unscaledTime < deadline)
                     yield return null;

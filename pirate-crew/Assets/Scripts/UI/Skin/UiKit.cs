@@ -317,6 +317,8 @@ namespace PirateCrew.UI
                 label.fontStyle = FontStyles.Normal;   // 位图字禁伪粗
                 label.alignment = TextAlignmentOptions.MidlineLeft;
                 label.raycastTarget = false;
+                label.enableWordWrapping = false;   // 长标题换行会溢出标题带成残影，横向截断
+                label.overflowMode = TextOverflowModes.Truncate;
                 RectTransform lr = label.rectTransform;
                 lr.anchorMin = new Vector2(0f, 1f);
                 lr.anchorMax = new Vector2(1f, 1f);
@@ -326,11 +328,12 @@ namespace PirateCrew.UI
             label.color = PixelSkin.Theme.Text;
             UiLayout.Ignore(label.gameObject);   // 标题在带内自定位，不参与内容流
             {
+                // 标题区 = 标题带内全高 [0,15]（带内垂直居中）；字号用正文档 12
+                // ——theme 的 15 格带按 8px 字设计，16px 字装不下（实拍压带）。
                 RectTransform lr = label.rectTransform;
                 lr.offsetMin = new Vector2(AseLayout.Px(AseLayout.TitleMarginLeft),
-                    -AseLayout.Px(AseLayout.TitleMarginTop) - PixelSkin.WindowTitleBand);
-                lr.offsetMax = new Vector2(-(18f + AseLayout.Px(AseLayout.WindowButtonGap)),
-                    -AseLayout.Px(AseLayout.TitleMarginTop));
+                    -PixelSkin.WindowTitleBand);
+                lr.offsetMax = new Vector2(-(18f + AseLayout.Px(AseLayout.WindowButtonGap)), 0f);
             }
 
             // 窗控钮：右上（× 最右、? 在其左；theme margin-top 3 / margin-right 3 与 1）
@@ -614,7 +617,7 @@ namespace PirateCrew.UI
             {
                 EnsureWindow(card, PixelTone.Frame, title,
                     titleFont != null ? titleFont : ResolvePixelFont(UiSkin.Font.Title),
-                    titleFontSize > 0f ? titleFontSize : UiSkin.Font.Title,
+                    titleFontSize > 0f ? titleFontSize : UiSkin.Font.Body,   // 15 格带装 12px 字（16px 实拍压带）
                     helpButton: false, closeButton: closeButton);
             }
 

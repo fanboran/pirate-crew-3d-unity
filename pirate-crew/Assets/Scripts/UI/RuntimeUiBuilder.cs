@@ -161,8 +161,8 @@ namespace PirateCrew.UI
             container.anchorMax = new Vector2(1f, 0.5f);
             container.pivot = new Vector2(1f, 0.5f);
             container.sizeDelta = new Vector2(maxStars * step, iconSize);
-            // 动作按钮最宽 4 字（216）+ 右边距 16 + 间隔 8——星级让出按钮区，宁宽勿叠。
-            container.anchoredPosition = new Vector2(-(216f + 16f + 8f), 0f);
+            // 动作按钮最宽 4 字（×1：4×12 + pad 8 = 56）+ 右边距 16 + 间隔 8。
+            container.anchoredPosition = new Vector2(-(56f + 16f + 8f), 0f);
 
             for (int i = 0; i < maxStars; i++)
             {

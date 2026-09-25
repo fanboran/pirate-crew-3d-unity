@@ -248,7 +248,7 @@ namespace PirateCrew.ArtReview
                 yield return new WaitForEndOfFrame();
 
                 string path = Path.Combine(_outDir, shot.Name + ".png");
-                ScreenCapture.CaptureScreenshot(path);
+                PirateCrew.Core.GraphicsCaptureCompat.CaptureScreenshot(path);
                 // CaptureScreenshot 异步落盘：等文件出现再切下一机位。
                 float waitDeadline = Time.unscaledTime + 10f;
                 while (!File.Exists(path) && Time.unscaledTime < waitDeadline)
@@ -515,7 +515,7 @@ namespace PirateCrew.ArtReview
                 yield return new WaitForEndOfFrame();
 
                 string path = Path.Combine(_outDir, shot.name + ".png");
-                ScreenCapture.CaptureScreenshot(path);
+                PirateCrew.Core.GraphicsCaptureCompat.CaptureScreenshot(path);
                 float waitDeadline = Time.unscaledTime + 10f;
                 while (!File.Exists(path) && Time.unscaledTime < waitDeadline)
                     yield return null;
