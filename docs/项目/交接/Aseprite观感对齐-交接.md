@@ -336,6 +336,70 @@ status_bar_text）。屏上其余颜色来自 **StickTokens**——那是隔壁 
   `popup_window_border`、`select_box_*` 等）多数对应编辑器专属功能（时间轴/文件列表/选择框），
   我们暂无对应屏——用到哪个再搬哪个。
 
+### 像素对齐总账（2026-09-26 凌晨·创始人走查「文字还是有粗有细、复选框和滑条错位、分隔条穿模」）
+
+**这一轮把"像素对齐/二值化"从肉眼看改成可复算的判据，并抓出四个真根因。**
+
+**新探针 `tools/ui-review/pixel_fidelity.py`**（判据，可复跑）：
+- 平涂色板 = 出现次数 ≥ 图像 0.01% 的颜色；像素不等于任何平涂色 → 判"非平涂"；
+  再反解插值端点与系数 t，`0.15 < t < 0.85` 计为**中间灰阶**（真正的抗锯齿污点）。
+  判据 =「文字颜色深浅是否彻底二值化」：中间灰阶连通块应只剩件角的零星几像素。
+- 边缘相位审计（脚本外三行 python）：1 画布格 = 2 屏幕像素，故**所有可见边缘必须落在偶数屏幕坐标**；
+  改前/改后逐屏比值就是"是否真的落在显示像素上"。
+
+| 屏 | 改前半格边缘占比 | 改后 | 按钮字笔画宽度（屏幕像素） |
+| --- | --- | --- | --- |
+| MainMenu | 14.01%（722 条） | **0.00%** | 全偶：2/4/6/…/22，奇数 **0 条** |
+| settings | 3.57%（416） | **0.00%** | 全偶 |
+| confirm | 6.25%（381） | **0.00%** | 全偶 |
+| CrewManagement / LevelSelect | 0.00% | 0.00% | 全偶 |
+| 中间灰阶（二值化） | settings 168 px（滑条手柄糊） | settings 8 / confirm 16 px（只剩件角） | — |
+
+**根因一（元凶）：字体错档——显示字号 ≠ 字体原生档**。主菜单四钮与设置页四个选项块的字，
+传的是 **16 原生档**的 `ZhengGeDianHei16`、却按 **12** 号显示 → `scale = 12/16 = 0.750`，
+非整数缩放让同一笔画在 1/2/3 屏幕像素之间跳（实拍笔画宽度 1,2,3,4 混排）。
+证据＝实机度量转储（`FontProbeDumper.DumpSceneTexts`，现随每次截图同拍一份）：
+`font=ZhengGeDianHei16 size=12 nativePoint=16 scale=0.750` ×12 条。
+**修法（控件层，一次治一族）**：`SketchButton.AddLabel` / `SketchCheck.BuildLabel` 一律走
+`UiKit.ResolvePixelFont(字号, 传入字体)` 就近取原生档——与 `UiKit.CreateText` /
+`MenuUiBuilder.CreateTextExact` 同一口径，调用方再传错"族"也不会错档。
+
+**根因二：`PixelSnapText` 只 round 局部坐标**。局部整数挡不住"父布局把 rect 停在半格上"
+（设置页行内居中的 15 高字盒相位 = 0.5）。改为**按画布空间相位取整**：把本地原点换算到
+画布像素空间取小数部分，`round(局部 + 相位) − 相位`，与 rect 停在哪无关。
+
+**根因三：图标被拉伸**。窗控钮图标（theme `window_close_icon` 5×6）旧实现 `Stretch` 进
+9×11 钮盒（1.8/1.83 倍）→ 竖线落小数格（confirm 屏最后 22 个半格像素）。改为按件自然尺寸
+**整数居中**（同 Aseprite 的整数除法 `(9−5)/2=2`、`(11−6)/2=2`）。
+
+**根因四：`SketchCheck` 图标尺寸是 ×Unit 时代残留**（`8 * PixelSkin.Unit` = 16 宽），
+而 theme 图标件就是 8×8、文字起点 x=14 → 图标压掉首字（实拍四个选项块首字被深色图标盖住）。
+改回 8×8；标签对齐 `MidlineLeft → Left`（theme `align="left middle"`）。
+
+**设置面板其余按库收敛**：
+1. **滑条改 theme `slider` 族**：库只声明 `slider_empty`（槽）+ `slider_full`（充满段）两张
+   16×16 九宫格（w 5/6/5、h 5/6/6），**没有拇指件**。旧实现取时间轴 `mini_slider_thumb`（5×4）
+   当手柄＝跨族自造，且盒子 11 高 < 件高 16 → 九宫格竖压（实拍槽内色带糊、手柄顶到槽顶、
+   下缘穿出槽底）。现按件高 16 摆、整条槽即拖拽区（UGUI `Slider` 支持 `handleRect == null`，
+   拖动/点击落点按自身 rect 算）；宽取 186 偶（填充边界在偶数分档落整格）。
+2. **行高 27 → 28**（取偶）：行内滑条/单选图标是"行内垂直居中"的子件，行高奇数时居中偏移
+   (H−h)/2 落 .5 → 子件整体压半格。分组标签行取 **13**（奇数）是因为行内线盒高 5，同奇偶才取整。
+3. **分组线让开文字**：theme 的 `horizontal_separator` 是"window_face 底色 + 点线 + x=4 蓝字"
+   三层，照库字会压在线上（实拍「音频」「视频」被线穿过）。库里那张 `window_face`(#2c2c30)
+   与我们窗体面（window 直切件中段 **#2f3136**）不同色，用底色底衬会在卡面留偏色补丁 →
+   取"线从标签右缘之后起铺"（起点 = 字宽 + theme `border=2`）。
+4. **删掉标题带下的自造蚀刻线**（`SettingsPanel/TitleSeparator`）：theme 的窗体没有这一层
+   （带底分隔已烘在 `window` 件第 14/21 行），全区也只有设置卡挂过它 → 既非库件又破自家一致性。
+   要恢复请创始人开单。
+5. **标题字盒按 theme `window_title_label margin-top="5"`** 上留 5 格：旧实现铺满整条标题带，
+   12px 字行高约 15.6 > 带高 15，TMP 居中后墨迹顶到带上沿、贴住窗体边框（实拍「设置」顶被切）。
+
+**查实但本轮不动的一项（需裁决）**：画布**顶点色在 Linear 色彩空间被 8 位量化**，
+`Image.color` 指定的色与 theme 值差 ±1（实拍：行板指定 `#41444A` 渲成 `#404549`，
+而同色的贴图像素渲得准）。试过 `Canvas.vertexColorAlwaysGammaSpace = true`——字色被推成
+225（更错，已回退）。根治要么"平涂件改用 1×1 贴图给色"（sprite 路精确），要么工程切
+Gamma 空间（影响 3D 全链）。±1 肉眼不可见，等裁决。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
@@ -347,12 +411,25 @@ status_bar_text）。屏上其余颜色来自 **StickTokens**——那是隔壁 
 - 布局数字一律 `AseLayout.Px`（×1 恒等后 theme 数字即画布像素）；取色一律 `PixelSkin.Theme.*`。
 - **直切件禁手改**：判据与 sheet.png 逐位比对，改盘上 PNG 或更新 sheet.png 后必须重跑烘焙。
 - 新增部件 = `AseBakeParts` 加 part id（必须能在 theme.xml `<parts>` 找到行）+ 重烘焙。
+- **字号纪律（2026-09-26 加）**：显示字号**必须等于**字体原生档，且新建文字控件一律经
+  `UiKit.ResolvePixelFont(字号, 传入字体)` 取档——**禁止** `label.font = 调用方给的族`
+  再配一个别的字号（0.75 倍缩放就是"笔画时粗时细"）。件/图标一律按件自然尺寸画，
+  禁 `Stretch` 进非整倍盒子。
+- **像素对齐自检（改完 UI 必跑）**：① `python tools/ui-review/pixel_fidelity.py <png>`
+  中间灰阶块应只剩件角零星像素；② 边缘相位审计——**所有可见边缘必须落偶数屏幕坐标**
+  （1 画布格 = 2 屏幕像素），奇数条数应为 0；③ 按钮字笔画宽度直方图应全为偶数。
+  三项任一不达标就是"没落在显示像素上"，别用肉眼判。
 
 ## 六、新会话恢复指引（打磨波）
 
-**环境现状**（2026-09-25 深夜）：
-- 主仓编辑器**开着**（GUI 实例，最新代码 + 最新装配场景，PID 会变，用进程名找）；
+**环境现状**（2026-09-26 凌晨）：
+- 主仓编辑器**开着**（GUI 实例，PID 会变，用进程名找；**launch 前先确认已有一个实例在跑**——
+  2026-09-26 凌晨多起了一个实例，撞"工程已被打开"弹错误框。用 `Get-Process Unity | Select Id,StartTime,MainWindowTitle`
+  看哪个是主实例，别 kill 错）；
   遥控 flag：`external/editor-remote-play.flag`（`assemble` / `capture:<场景>[+settings|+confirm]` / `stop` / `rebake`）；
+- 每次 `capture:` 会同时把**实机文本度量**（字体/原生档/scale/画布相位）追加到
+  `export/unity-command-result.txt`——查"文字没落整格"先看这里，比截图快；
+- 改 UI 后照 §五 的三项自检跑一遍（`tools/ui-review/pixel_fidelity.py` + 边缘相位审计 + 笔画宽度直方图）；
 - 工作区有字体/URP/场景 asset 的自动触碰噪声（编辑器常开产物，非本波改动，提交时别带上）；
 - worktree `temp/ase-x1`（分支 `feat/ase-x1-verify` 已 merge）保留作对照，物证：
   `temp/ase-x1/pirate-crew/export/ui-pixel-4c/` 六屏首拍；主仓同目录是重拍版。

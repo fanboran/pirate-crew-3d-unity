@@ -333,18 +333,20 @@ namespace PirateCrew.EditorTools
             // ——与主菜单窗体/模态标题同源，不再本处手摆。
             UiKit.EnsureTitleLabel(panel, UiStrings.SettingsTitle, hand);
 
-            // 标题带下蚀刻分隔线（像素皮 Separator 贴图，方向由 Dir 决定）。
-            SketchSeparator.Create(panel, "TitleSeparator", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -35f), new Vector2(300f, 1f), SketchSeparator.Direction.Horizontal);
+            // 【已删：标题带下的自造蚀刻线】theme 的窗体（window_with_title = window_face 底
+            // + window 边框件）没有"标题带下再加一条线"这一层——带底分隔已经烘在 window 件的
+            // 第 14/21 行里。全区也只有设置卡挂过这条线，自家主菜单窗体/模态都没有 → 既是
+            // 库里没有的件，也破了自家一致性。如要恢复，需要创始人明确开单。
 
             var result = new SettingsPanelResult();
 
             // 行容器：八行流式纵排（缝 3u）——两条蓝字分组线 + 四条音量滑条 + 两组选项块。
-            // 行距/行位由布局器排，不再手算 pitch 坐标。高 212 = 2 线×12 + 6 行×27 + 7 缝×3 + 余 5。
+            // 行距/行位由布局器排，不再手算 pitch 坐标。
+            // 高 215 = 2 线×13 + 6 行×28 + 7 缝×3（行高取偶、线行取奇，见两个常量处的居中相位注释）。
             // 宽 384（原 383）与卡 426 同为偶数——居中链整格对齐，见卡声明处注释。
             RectTransform rows = UiKit.CreateRect("Rows", panel);
             rows.pivot = new Vector2(0.5f, 1f);
-            UiKit.SetAnchored(rows, new Vector2(0.5f, 1f), new Vector2(384f, 212f), new Vector2(0f, -40f));
+            UiKit.SetAnchored(rows, new Vector2(0.5f, 1f), new Vector2(384f, 215f), new Vector2(0f, -40f));
             UiLayout.VBox(rows, 3, default(UiPadding));
 
             // 音频组（theme separator_label 蓝字分组线）+ 音量四行（滑条实时改 AudioService，
@@ -405,12 +407,27 @@ namespace PirateCrew.EditorTools
                 anchoredPosition, size, BodyFont, label, 0f);
         }
 
-        /// <summary>行高（六行布局：四条滑条 + 两组选项块；行位由行容器 VBox 排，见 BuildSettingsPanel）。</summary>
-        const float SettingsRowHeight = 27f;
+        /// <summary>设置行高（六行布局：四条滑条 + 两组选项块；行位由行容器 VBox 排）。
+        /// **必须偶数**：行内滑条与单选图标都是「行内垂直居中」的子件，行高奇数时居中偏移
+        /// (H−h)/2 落 .5 → 子件整体压半画布格（实拍：手柄灰边、图标与文字对不上）。
+        /// 28 = theme slider 件高 16 + 上下各 6 格呼吸。</summary>
+        const float SettingsRowHeight = 28f;
+
+        /// <summary>分组标签行高（theme horizontal_separator）。**必须奇数**：行内分隔线盒子
+        /// 高 5（theme 件 separator_horz 共 5 行，点线在盒内第 2 行），居中偏移 (H−5)/2
+        /// 要与 5 同奇偶才取整 → 13。</summary>
+        const float SettingsGroupRowHeight = 13f;
+
+        /// <summary>滑条件高 = theme slider_empty 件高（w1..w3 = 5/6/5，h1..h3 = 5/5/6 → 16×16）。
+        /// 低于件高就是九宫格压缩（旧实现 11 高把 16 高的槽竖压 → 槽内色带糊、件底边错位）。</summary>
+        const float SliderHeight = 16f;
 
         /// <summary>建一行「字段名 + 音量滑条」（滑条实时驱动，落盘由控制器统一做）。
-        /// 【换装最小半径】滑条三件套保持 UGUI 标准件（控制器按 <see cref="Slider"/> 契约接线），
-        /// 只换行底板与字段名文字。</summary>
+        /// 【件来源】theme <c>&lt;style id="slider"&gt;</c> 只声明两个 part：<c>slider_empty</c>（槽）
+        /// 与 <c>slider_full</c>（充满段）——**没有拇指件**。旧实现取 <c>mini_slider_thumb</c>（时间轴
+        /// mini_slider 族的 5×4）当手柄，是跨族自造：5×4 放进 10×11 的盒里被拉成非整倍 → 灰边，
+        /// 且盒顶压到槽顶、盒底穿出槽底（实拍）。本版回到库里那两件，把整条槽作为拖拽区。
+        /// UGUI 的 <see cref="Slider"/> 支持 <c>handleRect == null</c>：拖动/点击落点按自身 rect 算。</summary>
         static Slider BuildVolumeRow(Transform rows, int index, string field, TMP_FontAsset hand)
         {
             RectTransform row = CreateSettingsRowBackground(rows, index);
@@ -421,56 +438,37 @@ namespace PirateCrew.EditorTools
             SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 15f),
                 new Vector2(8f, 0f));
 
-            // 滑条（UGUI 标准三件套：底槽 / 填充 / 手柄；皮肤用像素件 Track / Fill / Plate）。
+            // 槽：theme slider_empty 九宫格（16×16 件，宽向拉中段）。宽 186 取偶 → 填充边界
+            // 在偶数分档（0/25/50/75/100%）正好落整格，不出现半像素接缝。
             RectTransform sliderRect = CreateRect("Slider", row);
-            SetAnchored(sliderRect, new Vector2(1f, 0.5f), new Vector2(187f, 11f), new Vector2(-8f, 0f));
+            SetAnchored(sliderRect, new Vector2(1f, 0.5f), new Vector2(186f, SliderHeight), new Vector2(-8f, 0f));
             var sliderBack = sliderRect.gameObject.AddComponent<Image>();
-            sliderBack.sprite = PixelSkin.SliderEmpty(false);   // theme slider_empty（凹槽语法）
+            sliderBack.sprite = PixelSkin.SliderEmpty(false);   // theme slider_empty（凹槽九宫格）
             sliderBack.type = Image.Type.Sliced;
-            sliderBack.color = Color.white;                         // 像素件禁止乘色
-            sliderBack.raycastTarget = false;
+            sliderBack.pixelsPerUnitMultiplier = 1f;            // ×1 终局：贴图纹素 = 画布像素
+            sliderBack.color = Color.white;                     // 像素件禁止乘色
+            sliderBack.raycastTarget = true;                    // 无拇指：整条槽即拖拽/命中区
 
             var slider = sliderRect.gameObject.AddComponent<Slider>();
             slider.direction = Slider.Direction.LeftToRight;
             slider.minValue = 0f;
             slider.maxValue = 1f;
             slider.wholeNumbers = false;
+            slider.targetGraphic = sliderBack;
 
-            RectTransform fillArea = CreateRect("Fill Area", sliderRect);
-            fillArea.anchorMin = new Vector2(0f, 0f);
-            fillArea.anchorMax = new Vector2(1f, 1f);
-            fillArea.offsetMin = new Vector2(8f, 6f);
-            fillArea.offsetMax = new Vector2(-8f, -6f);
-
-            RectTransform fill = CreateRect("Fill", fillArea);
+            // 充满段：theme 里 slider_full 与 slider_empty 是同一 16×16 盒的两态（焦点态另两张），
+            // 直接铺满槽盒（无内缩——theme slider 件本身已含内框），锚点由 Slider 驱动。
+            RectTransform fill = CreateRect("Fill", sliderRect);
             Stretch(fill);
             var fillImage = fill.gameObject.AddComponent<Image>();
             fillImage.sprite = PixelSkin.SliderFull(false);   // theme slider_full（金色充满段）
             fillImage.type = Image.Type.Sliced;
+            fillImage.pixelsPerUnitMultiplier = 1f;
             fillImage.color = Color.white;                          // 像素件禁止乘色
             fillImage.raycastTarget = false;
             slider.fillRect = fill;
 
-            RectTransform handleArea = CreateRect("Handle Slide Area", sliderRect);
-            handleArea.anchorMin = Vector2.zero;
-            handleArea.anchorMax = Vector2.one;
-            handleArea.offsetMin = new Vector2(8f, 0f);
-            handleArea.offsetMax = new Vector2(-8f, 0f);
-
-            RectTransform handle = CreateRect("Handle", handleArea);
-            handle.sizeDelta = new Vector2(10f, 0f);   // 宽 = 拇指件 5u；高铺满（preserveAspect 锁纵横）
-            handle.anchorMin = new Vector2(0f, 0f);
-            handle.anchorMax = new Vector2(0f, 1f);
-            var handleImage = handle.gameObject.AddComponent<Image>();
-            handleImage.sprite = PixelSkin.SliderThumb;  // theme mini_slider_thumb（金色 5×4）
-            handleImage.type = Image.Type.Simple;
-            handleImage.preserveAspect = true;
-            handleImage.color = Color.white;                        // 像素件禁止乘色
-            handleImage.raycastTarget = false;
-
-            slider.handleRect = handle;
-            slider.targetGraphic = handleImage;
-
+            // 无 handleRect：theme slider 没有拇指件，拖拽落点由 Slider 自身 rect 推算。
             return slider;
         }
 
@@ -514,21 +512,29 @@ namespace PirateCrew.EditorTools
             return row;
         }
 
-        /// <summary>建**蓝字分组线**行（theme horizontal_separator 复刻）：整宽蚀刻线垂直居中 +
-        /// 左侧蓝字（#6e9adb = separator_label，缩进 x=4 设计格）直接压线——线从字隙穿过，
-        /// 与 theme 渲染层级（background → 线 → 字）同构。作为 Rows 的 VBox 行参与流式，高 12。</summary>
+        /// <summary>建**蓝字分组线**行（theme horizontal_separator 复刻）：左侧蓝字
+        /// （#6e9adb = separator_label，缩进 x=4 设计格）+ 右侧蚀刻点线，线**从标签右缘之后起铺**。
+        ///
+        /// 【为什么不是整宽压线】theme 的 horizontal_separator 是「window_face 底色 + 点线 +
+        /// x=4 蓝字」三层，按库的层级字会压在线上（实拍：线从「音频」「视频」字身穿过 = 穿模）。
+        /// 库里那张 window_face(#2c2c30) 与我们窗体面（window 直切件中段 #2f3136）不同色，
+        /// 用底色底衬会在卡面上留一块偏色补丁，所以取"线让开字"的画法：起点 = 字宽 + 2 格缝
+        /// （theme horizontal_separator border=2）。整行参与 Rows 的 VBox 流式。</summary>
         static void BuildSettingsGroupLabel(Transform rows, string name, string label, TMP_FontAsset hand)
         {
             RectTransform row = UiKit.CreateRect(name, rows);
-            row.sizeDelta = new Vector2(384f, 12f);   // 偶数纪律（同行容器宽）
-
-            SketchSeparator.Create(row, "Line", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(384f, 1f), SketchSeparator.Direction.Horizontal);
+            row.sizeDelta = new Vector2(384f, SettingsGroupRowHeight);   // 同行容器宽（见常量处奇偶注释）
 
             TextMeshProUGUI text = CreateTextExact("Label", row, label, UiSkin.Font.Body,
-                TextAlignmentOptions.MidlineLeft, PixelSkin.Theme.SeparatorLabel, hand);
-            SetAnchored(text.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 12f),
+                TextAlignmentOptions.Left, PixelSkin.Theme.SeparatorLabel, hand);
+            SetAnchored(text.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, SettingsGroupRowHeight),
                 new Vector2(AseLayout.Px(AseLayout.SeparatorTextX), 0f));
+
+            float lineX = AseLayout.Px(AseLayout.SeparatorTextX)
+                + Mathf.Ceil(text.preferredWidth) + AseLayout.Px(AseLayout.SeparatorBorder);
+            SketchSeparator.Create(row, "Line", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(lineX, 0f), new Vector2(384f - lineX, 1f),
+                SketchSeparator.Direction.Horizontal);
         }
 
         /// <summary>确认弹窗构建产物。</summary>

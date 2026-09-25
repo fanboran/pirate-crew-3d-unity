@@ -152,6 +152,11 @@ namespace PirateCrew.EditorTools
                     if (EditorApplication.isPlaying && Time.frameCount > 95)
                     {
                         Directory.CreateDirectory(Path.GetDirectoryName(path));
+                        // 截图同拍一份**实机文本度量**到命令桥结果文件（字体档/画布相位/渲染 shader）：
+                        // 屏上"文字笔画时粗时细"的客观判据是「显示字号 ÷ 字体原生档 = 1」+
+                        // 「画布空间相位 = 0」，这两项靠肉眼看不出来，落成数字才可复核。
+                        try { FontProbeDumper.DumpSceneTexts(); }
+                        catch (Exception e) { Debug.LogError("[UiPixelScreenCapture] 文本度量转储失败：" + e.Message); }
                         ScreenCapture.CaptureScreenshot(path);
                         SessionState.SetInt(StateKey, 3);
                         SessionState.SetInt(WaitKey, 0);

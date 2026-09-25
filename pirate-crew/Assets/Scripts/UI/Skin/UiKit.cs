@@ -338,9 +338,12 @@ namespace PirateCrew.UI
             UiLayout.Ignore(label.gameObject);   // 标题在带内自定位，不参与内容流
 
             RectTransform rect = label.rectTransform;
+            // theme <style id="window_title_label" margin-top="5" margin-left="5">：字盒上边也留 5 格。
+            // 旧实现上边取 0（铺满整条标题带）——12px 字的行高约 15.6 > 带高 15，TMP 居中后
+            // 墨迹顶到带的上沿、贴住窗体边框（实拍「设置」顶被切）。留 5 后墨迹落带内偏中。
             rect.offsetMin = new Vector2(AseLayout.Px(AseLayout.TitleMarginLeft),
                 -PixelSkin.WindowTitleBand);
-            rect.offsetMax = new Vector2(-rightReserve, 0f);
+            rect.offsetMax = new Vector2(-rightReserve, -AseLayout.Px(AseLayout.TitleMarginTop));
             return label;
         }
 
@@ -375,6 +378,11 @@ namespace PirateCrew.UI
             return plate;
         }
 
+        /// <summary>窗控钮图标自然尺寸 = theme <c>window_close_icon</c> / <c>window_help_icon</c>
+        /// 件尺寸 5×6（theme.xml &lt;parts&gt; x=16/36 y=11）。图标一律按自然尺寸画。</summary>
+        const float WindowButtonIconWidth = 5f;
+        const float WindowButtonIconHeight = 6f;
+
         /// <summary>窗控钮（theme window_button 9×11 + 图标；纯视觉件，onClick 由调用方接）。</summary>
         public static Button CreateWindowButton(RectTransform window, string name, Sprite icon, float rightMargin)
         {
@@ -394,9 +402,18 @@ namespace PirateCrew.UI
                 bg.raycastTarget = true;
 
                 var iconGo = CreateRect("Icon", go.transform);
-                Stretch(iconGo);
+                // 【图标按自然尺寸居中，禁 Stretch】theme window_close_button 是
+                // `<icon part="window_close_icon" color="button_normal_text"/>`——图标按件自然
+                // 尺寸 5×6 居中。旧实现 Stretch 进 9×11 的钮盒 → 1.8/1.83 倍非整数缩放，
+                // 图标竖线落到小数格（实拍：确认框 × 的 22 个奇数屏像素）。居中取整同
+                // Aseprite 的整数除法：(9−5)/2=2、(11−6)/2=2。
+                iconGo.anchorMin = iconGo.anchorMax = new Vector2(0f, 1f);
+                iconGo.pivot = new Vector2(0f, 1f);
+                iconGo.anchoredPosition = new Vector2(2f, -2f);
+                iconGo.sizeDelta = new Vector2(WindowButtonIconWidth, WindowButtonIconHeight);
                 var iconImage = iconGo.gameObject.AddComponent<Image>();
                 iconImage.type = Image.Type.Simple;
+                iconImage.pixelsPerUnitMultiplier = 1f;   // ×1 终局：贴图纹素 = 画布像素
                 iconImage.raycastTarget = false;
 
                 RectTransform br = go.GetComponent<RectTransform>();

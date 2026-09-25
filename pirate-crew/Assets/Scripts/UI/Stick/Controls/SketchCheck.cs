@@ -91,8 +91,11 @@ namespace PirateCrew.UI.Stick
             iconRect.anchorMin = iconRect.anchorMax = new Vector2(0f, 0.5f);
             iconRect.pivot = new Vector2(0f, 0.5f);
             iconRect.anchoredPosition = new Vector2(AseLayout.Px(AseLayout.CheckIconX), 0f);
-            // theme check/radio 8×8 整格（×Unit 落盘 16×16），不随行高拉伸
-            iconRect.sizeDelta = new Vector2(8f * PixelSkin.Unit, 8f * PixelSkin.Unit);
+            // theme check_normal / radio_normal 件就是 8×8（theme.xml <parts> x=48/64 y=64），
+            // ×1 口径下 1 贴图像素 = 1 画布像素 → 图标盒 8×8，不随行高拉伸。
+            // 【旧值 8×Unit=16 是 ×Unit 时代残留】图标盒 16 宽而 theme 文字起点 x=14 →
+            // 图标压掉首字（实拍：设置页四个选项块首字被深色图标盖住）。
+            iconRect.sizeDelta = new Vector2(8f, 8f);
 
             _icon = iconGo.AddComponent<Image>();
             _icon.type = Image.Type.Simple;
@@ -112,10 +115,18 @@ namespace PirateCrew.UI.Stick
             labelRect.sizeDelta = new Vector2(fontSize * (label.Length + 1f), height);
 
             var tmp = labelGo.GetComponent<TextMeshProUGUI>();
-            tmp.font = font;
+            // 【字号档单点解析】同 SketchButton：按字号就近取原生档，别让调用方给的族
+            // 与显示字号错档（16 原生档按 12 显示 = 0.75 倍 → 笔画时粗时细）。
+            TMP_FontAsset resolved = UiKit.ResolvePixelFont(Mathf.RoundToInt(fontSize), font);
+            if (resolved != null)
+                tmp.font = resolved;
+            else if (font != null)
+                tmp.font = font;
             tmp.fontSize = fontSize;
             tmp.fontStyle = FontStyles.Normal;   // 位图字禁伪粗
-            tmp.alignment = TextAlignmentOptions.MidlineLeft;
+            // theme: text align="left middle" → TMP 的 Left（= Middle + Left）。
+            // MidlineLeft 按字体基线中线对齐，中文墨迹整体偏上 1 画布格（同 SketchButton 口径）。
+            tmp.alignment = TextAlignmentOptions.Left;
             tmp.color = color;
             tmp.raycastTarget = false;
             tmp.SetText(label);

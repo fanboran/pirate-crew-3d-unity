@@ -185,9 +185,17 @@ namespace PirateCrew.UI.Stick
             rt.offsetMax = new Vector2(-(StickTokens.PAD_X + 2f), -1f);
             var label = go.AddComponent<TextMeshProUGUI>();
             label.text = content ?? string.Empty;
-            if (font != null)
-                label.font = font;
             label.fontSize = fontSize > 0f ? fontSize : UiSkin.Font.Body;
+            // 【字号档单点解析】调用方给的是"字体族"（很可能是 16 原生档的标题族），而显示字号
+            // 未必等于该族的原生档——位图字错档显示 = 非整数倍缩放 = 笔画在 1/2/3 屏像素之间跳
+            // （实拍：主菜单四钮传标题族按 12 号显示 = 0.750 倍；设置页选项块同病）。
+            // 一律按字号就近取原生档，与 UiKit.CreateText / CreateTextExact 同一口径。
+            TMP_FontAsset resolved = UiKit.ResolvePixelFont(
+                Mathf.RoundToInt(label.fontSize), font);
+            if (resolved != null)
+                label.font = resolved;
+            else if (font != null)
+                label.font = font;
             label.alignment = TextAlignmentOptions.Center;
             label.enableWordWrapping = false;
             label.raycastTarget = false;

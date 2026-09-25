@@ -27,12 +27,28 @@ namespace PirateCrew.EditorTools
                     var r = t.rectTransform;
                     int glyphCount = 0;
                     string filter = "n/a";
+                    int atlasPointSize = 0;
+                    if (t.font != null)
+                        atlasPointSize = t.font.faceInfo.pointSize;
                     if (t.font != null && t.font.atlasTextures != null && t.font.atlasTextures.Length > 0 && t.font.atlasTextures[0] != null)
                     {
                         filter = t.font.atlasTextures[0].filterMode.ToString();
                         glyphCount = t.font.glyphTable?.Count ?? 0;
                     }
-                    lines.Add($"  [{path}] font={t.font?.name} size={t.fontSize:F0} pos=({r.anchoredPosition.x:F0},{r.anchoredPosition.y:F0}) size=({r.sizeDelta.x:F0},{r.sizeDelta.y:F0}) text=\"{t.text.Substring(0, System.Math.Min(24, t.text.Length))}\" atlasFilter={filter} glyphs={glyphCount}");
+                    // 【画布空间相位】文字顶点必须落整画布格（1 格 = 1 贴图纹素 = 1 画布像素）。
+                    // 局部取整挡不住"rect 被父布局停在半格上"：这里给出 Canvas 局部空间的
+                    // 原点与相位（分数部分），非 0 即该文本压在半格上（屏上笔画就会时粗时细）。
+                    Vector3 canvasOrigin = canvas.rootCanvas.transform.worldToLocalMatrix
+                        .MultiplyPoint3x4(t.transform.localToWorldMatrix.MultiplyPoint3x4(Vector3.zero));
+                    Vector3 origin = t.transform.localToWorldMatrix.MultiplyPoint3x4(Vector3.zero);
+                    string shader = t.font != null && t.font.material != null ? t.font.material.shader.name : "n/a";
+                    lines.Add($"  [{path}] font={t.font?.name} size={t.fontSize:F0} nativePoint={atlasPointSize}"
+                        + $" scale={(t.font != null && t.font.faceInfo.pointSize > 0 ? t.fontSize / t.font.faceInfo.pointSize : 0f):F3}"
+                        + $" pos=({r.anchoredPosition.x:F1},{r.anchoredPosition.y:F1}) size=({r.sizeDelta.x:F1},{r.sizeDelta.y:F1})"
+                        + $" canvasOrigin=({canvasOrigin.x:F3},{canvasOrigin.y:F3}) phase=({canvasOrigin.x % 1f:F3},{canvasOrigin.y % 1f:F3})"
+                        + $" worldOrigin=({origin.x:F2},{origin.y:F2})"
+                        + $" text=\"{t.text.Substring(0, System.Math.Min(24, t.text.Length))}\""
+                        + $" atlasFilter={filter} glyphs={glyphCount} shader={shader}");
                 }
             }
             File.AppendAllLines(Path.GetFullPath("../export/unity-command-result.txt"), lines);
@@ -48,11 +64,17 @@ namespace PirateCrew.EditorTools
     {
         public static void Dump()
         {
-            var font = Resources.Load<TMP_FontAsset>("Fonts/FusionPixel12-px");
+            DumpOne("Fonts/FusionPixel12");
+            DumpOne("Fonts/ZhengGeDianHei16");
+        }
+
+        static void DumpOne(string resourcePath)
+        {
+            var font = Resources.Load<TMP_FontAsset>(resourcePath);
             if (font == null || font.atlasTextures == null || font.atlasTextures.Length == 0)
             {
                 File.AppendAllText(Path.GetFullPath("../export/unity-command-result.txt"),
-                    "atlas dump: font/atlas missing\n");
+                    "atlas dump: " + resourcePath + " font/atlas missing\n");
                 return;
             }
             for (int i = 0; i < font.atlasTextures.Length; i++)
@@ -73,10 +95,13 @@ namespace PirateCrew.EditorTools
                 readable.SetPixels32(px);
                 readable.Apply();
                 var png = readable.EncodeToPNG();
-                string path = Path.GetFullPath("../export/ui-pixel-4a/font-atlas-" + i + ".png");
+                string dir = Path.GetFullPath("../export/ui-pixel-4a");
+                Directory.CreateDirectory(dir);
+                string path = Path.Combine(dir, "atlas-" + font.name + "-" + i + ".png");
                 File.WriteAllBytes(path, png);
                 File.AppendAllText(Path.GetFullPath("../export/unity-command-result.txt"),
-                    $"atlas[{i}] {atlas.width}x{atlas.height} filter={atlas.filterMode} -> {path}\n");
+                    $"atlas {font.name}[{i}] {atlas.width}x{atlas.height} filter={atlas.filterMode}"
+                    + $" pointSize={font.faceInfo.pointSize} -> {path}\n");
                 UnityEngine.Object.DestroyImmediate(readable);
             }
         }
