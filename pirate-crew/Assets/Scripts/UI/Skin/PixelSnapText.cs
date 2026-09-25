@@ -19,15 +19,36 @@ namespace PirateCrew.UI
             if (!isActiveAndEnabled || vh.currentVertCount == 0)
                 return;
 
-            var uiVertex = new UIVertex();
-            for (int i = 0; i < vh.currentVertCount; i++)
+            // 【按 quad 一致取整，禁逐顶点独立 round】逐顶点 round 会把 2.2 格的 quad
+            // 撑成 3 格（左缘 100.4→100、右缘 102.6→103）——"2 模成 3"的笔画粗细抖动
+            // 正是这么来的。每 4 顶点一组（TMP 字符 quad）：min/max 各自 round，
+            // 尺寸 = round(max) - round(min)，四角按原象限归位（UV/顶点色不动）。
+            var v = new UIVertex();
+            int count = vh.currentVertCount;
+            for (int i = 0; i + 3 < count; i += 4)
             {
-                vh.PopulateUIVertex(ref uiVertex, i);
-                uiVertex.position = new Vector3(
-                    Mathf.Round(uiVertex.position.x),
-                    Mathf.Round(uiVertex.position.y),
-                    uiVertex.position.z);
-                vh.SetUIVertex(uiVertex, i);
+                float minX = float.MaxValue, minY = float.MaxValue;
+                float maxX = float.MinValue, maxY = float.MinValue;
+                var corners = new UIVertex[4];
+                for (int k = 0; k < 4; k++)
+                {
+                    vh.PopulateUIVertex(ref corners[k], i + k);
+                    Vector3 p = corners[k].position;
+                    minX = Mathf.Min(minX, p.x); maxX = Mathf.Max(maxX, p.x);
+                    minY = Mathf.Min(minY, p.y); maxY = Mathf.Max(maxY, p.y);
+                }
+                float nx = Mathf.Round(minX), ny = Mathf.Round(minY);
+                float sx = Mathf.Max(nx + 1f, Mathf.Round(maxX) - nx);   // 至少 1 格
+                float sy = Mathf.Max(ny + 1f, Mathf.Round(maxY) - ny);
+                float cx = (minX + maxX) * 0.5f, cy = (minY + maxY) * 0.5f;
+                for (int k = 0; k < 4; k++)
+                {
+                    Vector3 p = corners[k].position;
+                    p.x = p.x < cx ? nx : nx + sx;
+                    p.y = p.y < cy ? ny : ny + sy;
+                    corners[k].position = p;
+                    vh.SetUIVertex(corners[k], i + k);
+                }
             }
         }
     }
