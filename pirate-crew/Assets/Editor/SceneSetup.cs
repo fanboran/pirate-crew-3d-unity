@@ -111,7 +111,8 @@ namespace PirateCrew.EditorTools
             // （theme 无 spacing 概念，缝 = 两者 border 相加）；下 border 6。
             RectTransform menuWindow = RuntimeUiBuilder.CreateRect("MenuWindow", canvas.transform);
             Vector2 windowSize = new Vector2(132f, 17f + 24f * 4 + 10f * 3 + 6f);
-            MenuUiBuilder.SetAnchored(menuWindow, CenterAnchor, windowSize, new Vector2(0f, -6f));
+            // 奇高 149 + 中心锚 → 缘落半格（横线变浅的元凶）：y 补 -0.5 回整数格
+            MenuUiBuilder.SetAnchored(menuWindow, CenterAnchor, windowSize, new Vector2(0f, -6.5f));
             UiKit.EnsureWindow(menuWindow, PixelTone.Frame, UiStrings.MainTitle,
                 handFont, UiSkin.Font.Body, helpButton: false, closeButton: false);
 

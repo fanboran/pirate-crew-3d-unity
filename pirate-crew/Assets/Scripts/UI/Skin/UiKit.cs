@@ -95,6 +95,7 @@ namespace PirateCrew.UI
             text.enableWordWrapping = true;
             text.overflowMode = TextOverflowModes.Overflow;
             text.raycastTarget = raycast;
+            text.gameObject.AddComponent<PixelSnapText>();   // 顶点像素对齐（治半格糊字）
             return text;
         }
 
@@ -317,8 +318,8 @@ namespace PirateCrew.UI
                 label.fontStyle = FontStyles.Normal;   // 位图字禁伪粗
                 label.alignment = TextAlignmentOptions.MidlineLeft;
                 label.raycastTarget = false;
-                label.enableWordWrapping = false;   // 长标题换行会溢出标题带成残影，横向截断
-                label.overflowMode = TextOverflowModes.Truncate;
+                label.enableWordWrapping = false;   // 长标题换行会溢出标题带成残影
+                label.overflowMode = TextOverflowModes.Overflow;
                 RectTransform lr = label.rectTransform;
                 lr.anchorMin = new Vector2(0f, 1f);
                 lr.anchorMax = new Vector2(1f, 1f);

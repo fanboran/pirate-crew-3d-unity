@@ -123,6 +123,7 @@ namespace PirateCrew.UI
             text.enableWordWrapping = true;
             text.overflowMode = TextOverflowModes.Overflow;
             text.raycastTarget = false;
+            text.gameObject.AddComponent<PixelSnapText>();   // 顶点像素对齐（治半格糊字）
             return text;
         }
 

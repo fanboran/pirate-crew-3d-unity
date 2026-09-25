@@ -388,11 +388,12 @@ namespace PirateCrew.EditorTools
             RectTransform rect = (RectTransform)panel.transform;
 
             // 标题带文字（左上，theme 边距 5/5；右侧让出窗控钮位——列表窗体无钮，纯保险）。
-            TextMeshProUGUI label = RuntimeUiBuilder.CreateText("ListTitle", rect, title, UiSkin.Font.Title,
+            // 标题（12px 裁决：带内全高居中，margin-top 不再另加——16px 字实测压带）
+            TextMeshProUGUI label = RuntimeUiBuilder.CreateText("ListTitle", rect, title, UiSkin.Font.Body,
                 TextAlignmentOptions.MidlineLeft, PixelSkin.Theme.Text, titleFont);
             RuntimeUiBuilder.SetAnchored(label.rectTransform, new Vector2(0f, 1f),
                 new Vector2(size.x - 40f, PixelSkin.WindowTitleBand),
-                new Vector2(AseLayout.Px(AseLayout.TitleMarginLeft), -AseLayout.Px(AseLayout.TitleMarginTop)));
+                new Vector2(AseLayout.Px(AseLayout.TitleMarginLeft), 0f));
 
             return rect;
         }

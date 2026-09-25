@@ -81,7 +81,7 @@ namespace PirateCrew.EditorTools
             switch (overlay)
             {
                 case "settings": return "SettingsPanel";
-                case "confirm": return "BackConfirmDialog";
+                case "confirm": return "ConfirmDialog";   // MainMenu 确认框根名（旧值 BackConfirmDialog 不存在）
                 default: return null;
             }
         }

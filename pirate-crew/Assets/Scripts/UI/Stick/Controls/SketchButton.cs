@@ -156,6 +156,7 @@ namespace PirateCrew.UI.Stick
             label.enableWordWrapping = false;
             label.raycastTarget = false;
             label.margin = Vector4.zero;
+            label.gameObject.AddComponent<PirateCrew.UI.PixelSnapText>();   // 顶点像素对齐
             PirateCrew.UI.PixelAtlasPointFilter.Ensure(label.font);   // 图集钉 Point：双线性会渗邻字
             if (shadowMode)
             {
