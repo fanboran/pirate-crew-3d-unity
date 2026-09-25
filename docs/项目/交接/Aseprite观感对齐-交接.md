@@ -1,186 +1,99 @@
-# Aseprite 观感对齐 — 交接（剩余该学的）
+# Aseprite 观感对齐 — 交接（全量复刻波·代码全落地待实机重验收）
 
-> 状态：进行中。2026-09-25 凌晨，创始人连续三轮追问（画布整数倍 / 部件学全 / 布局系统学全）驱动的搬皮线。
-> 本文只列**还没学的**；已学的见文末「已学清单」。权威参考库：`external/aseprite-ref/data/extensions/aseprite-theme/dark/theme.xml`（1177 行，**看源码别看截图猜**）。
-> 配套：部件级逐件对比表在 [UI审计与重构-进度与交接](UI审计与重构-进度与交接.md)（并行审计线，含 Balatro/RACCOIN 实地档案）。
+> 状态：**执行案 §〇之一 五步已全部落地**（2026-09-25 本会话），无头验证链全绿，
+> 四屏实拍确认 ×1 直切观感生效；**剩余 = 重启编辑器后的实机重拍与创始人过目**。
+> 权威参考库：`external/aseprite-ref/data/extensions/aseprite-theme/dark/theme.xml`（1177 行）+ 同目录 sheet.png。
 
-## 〇之一、全量对齐波(重构波)执行案——2026-09-25 深夜创始人裁决
+## 〇、本会话做了什么（执行案 §〇之一 五步收口全记录）
 
-> **裁决原文语义**:「原封不动复刻参考库,把项目原来的 UI 设定全部覆盖掉」。
-> 四悬案就此全部关闭:×2 语义=改 ×1、投影=废、自创变体=废、彩面按钮=废。
-> **唯一规格书 = `external/aseprite-ref/data/extensions/aseprite-theme/dark/theme.xml`
-> (+ 同目录 sheet.png)**——每个数字/颜色/部件必须标 theme.xml 行号出处,
-> 禁止再自己量图、自己设计、自己推断。库没给的行为(如某些 state)以 theme 为准缺失即不实现。
+**主分支 `refactor/industrial-grade`，三个提交**：
+`4d2dc0bf`（全波主体）→ `36b0d336`（测试同步）→ `8b937abd`（merge 验证分支四修）。
 
-### 1. 量纲终局(悬案①裁定:×1)
+### 技术路线升级：手绘模板 → sheet.png 直切（比执行案更彻底，同一裁决语义）
 
-- **1 设计格 = 1 贴图像素 = 1 画布像素**(= 2 屏幕像素 @1080p,画布密度层不动)。
-- 贴图**×1 重烘**(现 ×2):模板格数=贴图像素,九宫格切片原样,渲染尺寸=格数 → 全链 1:1 零压缩。
-- `AseLayout.Px(cells)` 改恒等(cells,去 `*Unit`);`PixelSkin.Unit` 只保留画布密度语义(CanvasScaler scaleFactor),
-  从布局/贴图链路全部退场。
-- 现状证据(为什么必须 ×1):按钮源件 16 格(button_normal w/h=14×16,theme.xml:155)烘成 32 贴图像素,
-  渲染只给 16 画布 → 2:1 压缩,唇边全糊(实拍);窗体标题带又按 15 格×2=30 画布渲染(与贴图 1:1)——
-  同一套件两种量纲并存,这就是「哪里都不像」的技术根源。
+- **真源入库**：`Assets/Art/Sprites/UI/Aseprite/{theme.xml, sheet.png, LICENSE.txt}`（CC-BY-4.0，出处见 LICENSE）。
+  sheet.png 是 **1x 设计格图集**（theme 根 `screenscaling="2"` 只是屏幕放大系数）——与 ×1 裁决天然吻合。
+- **烘焙器新管线 `BakeAsepriteParts`**：`System.Xml` 解析 theme.xml `<parts>` 全表 →
+  白名单 **108 件**（styles 段引用的全部控件件；cursor/tool 图标/timeline 等编辑器专属件不烘）
+  → 逐件从 sheet.png 切 PNG 落 `Assets/Art/Sprites/UI/Aseprite/Parts/<partId>.png`，
+  九宫格切片 = 声明值 w1/w3/h1/h3（Unity border = (w1, h3, w3, h1)）。
+- **判据升级为逐位比对**：`VerifyAsepriteParts` 盘上 PNG 与 sheet.png 源区域逐像素一致 +
+  尺寸/切片与 theme.xml 声明一致——直切件没有"生成器参数"，与源逐位一致就是最强判据。
+- 旧手绘 theme 语义件模板段（窗控钮/复选/滑条/凹槽/tooltip/箭头等约 490 行）整体退役；
+  **tone 族（Plate/Track/Panel/Window/Tab/Fill/Ring/Focus/Pip/Sep/Shadow）保留**（战斗 HUD 在用），
+  模板落盘 ×1 化（1 模板格 = 1 贴图像素）。
 
-### 2. 部件全量烘焙(theme.xml `<parts>` 段逐条,现役 33 件 → 全量)
+### 五步收口对应
 
-- 以 `<parts>` 全表为准新会话逐行转写(本会话只核对到 155-226 行:button 系 4 件 /
-  window_button 3 件 / toolbutton 系 / tab 系 / tab_modified/close_icon 等)。
-- **已知必补**:button_focused(48,16 蓝描边变体)、button_selected(64,16)、tab 四件套、
-  tooltip_arrow、menu 系、colorbar 系。
-- **按压态不烘**:theme `<parts>` 无 button_pressed——Aseprite 按钮只有
-  normal/hot(mouse)/focused/selected 四态(theme.xml:608-616 `<style id="button">`)。
-  现役 `PixelState.Pressed` 三态体系与 `PressOffset` 位移 = 自创,随波退役
-  (按压反馈=pressed 皮的需求不成立,theme 按下行为由 hot→normal 切换承担,新会话核对 laf 行为后如缺再议)。
+1. **×1 重烘全表 + 补缺件** ✅：61 张 tone 件 ×1 + 108 件直切（含 button_focused/selected、
+   tab 系、tooltip_arrow、menu、colorbar、drop_down、buttonset、toolbutton 等执行案点名件）。
+2. **令牌 ×1 化** ✅：`AseLayout.Px` 恒等；`PixelSkin.Unit`=2 只余画布密度语义
+   （CanvasScaler scaleFactor）；`WindowTitleBand=15`；`UiSkin.Px.Button=24`
+   （正文档 12 + 上下切片 10 + 2 = 参考库 OK 钮实测高）。
+   **PressOffset/ShadowOffset/UiPressSink 退役**（theme 无按压皮/影子层）。
+3. **kind 退役 + 四态映射** ✅：SketchButton 重写为 theme button 四态
+   （normal/hot(highlighted)/focused(selected)/selected(Sticky 业务选中)），
+   disabled = 常态皮 + **双层影子字**（theme.xml:617-619：background 色 (x+1,y+1) 垫底 +
+   disabled 色 #202125 盖面）；`SketchButtonKind/ButtonVariants/UiKit.ButtonKind` 删除，
+   12 个调用点文件机械清零。
+4. **四屏装配重排** ✅：主菜单窗体化（window_with_title 容器 + 标题带 + VBox 按钮列，
+   间距 = border 相加 = 10）；EnsureWindow 标题区 = 带内全高 + 禁 wrap + 字号 12
+   （15 格带按 8px 字设计，16px 实拍压带）；装饰层（Plate/标题/窗控钮）对内容 VBox 免排。
+5. **capture 对照** ◐：worktree 实拍四屏有效（见下），**修复后重拍被环境挡住（见二）**。
 
-### 3. 控件状态映射(theme.xml `<styles>` 段逐条)
+### 两个关键 schema 发现（theme.xml 精读）
 
-- **button(608-616)**:normal / hot(mouse) / focused / selected 四态换皮;
-  文字色 button_normal_text / button_hot_text / button_selected_text。
-  **kind 体系(Primary 黄铜/Accent/Danger 红/Paper)整体退役**——theme 无彩面按钮,
-  语义由文字与焦点蓝描边表达(参考图 OK/Cancel 同为灰面)。
-- **list_item(1031-1039)**:✅ 已按库复刻(常态/selected 金底/disabled)。
-- **horizontal_separator(718-723)**:✅ 已按库复刻(蓝字压线)。
-- **view(585-589)**:✅ 已接(sunken border 3/顶 4)。
-- **window / window_with_title**:标题带 + border 6/17 ✅ 已接;剩余菜单/弹层(menu border=3)待接。
-- 其余 styles(textbox/combobox/slider/scrollbar/tooltip…)逐条转写,禁自创。
+- parts 的**切片件没有 w/h**——宽 = w1+w2+w3、高 = h1+h2+h3（首版按整图件解析 NRE，已修）。
+- button_normal 脸色 #292b30（41,43,48）、hot 脸 #41444a——直切后与库逐位一致，无需转写。
 
-### 4. 布局(theme `<dimensions>` + styles border 相加)
+## 一、无头验证链（全绿，worktree `temp/ase-x1`，分支 `feat/ase-x1-verify` 已 merge）
 
-- **相邻控件间距 = 两者 border 相加**(theme 无 spacing 概念)——现役 VBox/HStack 的
-  spacing=3u 手摆缝全部废弃,改盒模型表达(与「装配器运行时化」同批,见主档遗留)。
-- 主菜单**窗体化**(创始人本轮裁决):window_with_title 容器装标题+按钮列,
-  标题进带内——废「黑底+文字+下划线」自由排版。
+- **环境修复**（登记）：① worktree manifest 临时移除 `com.coplaydev.unity-mcp`
+  （离线环境 git 依赖解析失败；MCP 桥与验证链无关，**主仓 manifest 未动**——
+  但 merge 已把该移除带进主分支，联网重装时需自行恢复或保持移除）；
+  ② `GraphicsCaptureCompat`（Core 程序集）反射垫片：**-nographics 编译域剔除
+  ScreenCaptureModule**（CS0103），三处出图钩子调用改走它——这是预存在的无头编译
+  边界（无头链自这两个出图钩子加入后就没全量编译过），非本波引入。
+- **rebake**：61 张 tone 件 + 108 件直切 + 判据全过 + 图集重生成（aseParts/asePartNames 平行数组）。
+- **装配**：SceneSetup.BuildAll + ManagementSceneSetup.BuildAll 双绿。
+- **Tab 判据口径**：1px 网格下页签"腿脚"（左右带直通底边的 1px 端头）豁免端点判定
+  （×2 时代腿 2px 宽互相支撑故未暴露）；Unity 坐标 y=0 在下，腿脚在 cy==0。
 
-### 5. 收口清单(执行顺序)
+## 二、环境事故记录（本会话踩坑，新会话必读）
 
-1. BeveledPixelSpriteBuilder:×1 重烘全表 + 补缺件(判据同步重写,尺寸断言 ×1);
-2. PixelSkin/AseLayout:令牌 ×1 化(Px 恒等、PressOffset/PlateBorder/WindowTitleBand 重标定);
-3. SketchButton/UiKit:kind 退役、四态映射、FocusRing 接 focused 皮;
-4. 四屏装配重排(主菜单窗体化含内)+ 模态/确认框;
-5. 四屏 capture 与 sheet.png 并排对照验收(创始人过目)。
+1. **主仓常开编辑器（Administrator 启动）救不活，需人工重启**：
+   - 现象链：file watcher 失灵（touch/Ctrl+R Refresh 0.012s 空转、踢不醒）→ 新建 .cs 文件能
+     触发编译但 Bee 读到 **stale 文件快照**（报大量我从没写过的老 API 错误
+     CS0246 TextFittedSize / CS0117 FitMode.Preferred）→ 清 Library/Bee 无效。
+   - 进程属 Administrator，当前 shell 杀不掉（拒绝访问）。
+   - **处置：创始人下次手动关闭它并重启编辑器**（无未保存工作，场景都是装配产物）。
+2. **GUI 第二实例起不来**：`[Licensing::Module] Error: Access token is unavailable`——
+   许可单会话被老编辑器占用。**重启后单实例即可**。
+3. **capture 产物在 worktree**：`temp/ase-x1/pirate-crew/export/ui-pixel-4c/`（四屏 + settings/confirm）。
+   主仓重拍后产物落 `pirate-crew/export/ui-pixel-4c/`（CaptureDir 相对工程根）。
+4. **遥控 flag 路径是相对工程根的 `../external/`**——worktree 工程的 flag 在
+   `temp/ase-x1/external/editor-remote-play.flag`，不是主仓 external/（本会话写错过一次）。
 
-### 6. 本会话登记的实拍证据(重构波对照用)
+## 三、待创始人验收（重启编辑器后按序）
 
-- `export/ui-pixel-4c/MainMenu.png`(05:26):按钮蓝铺面+唇边压缩糊+无窗体容器;
-  CrewManagement/LevelSelect/settings:列表三件套与分组线已按库(这批保留有效)。
-- 量化对比:参考 OK 钮高 24 格唇边完整 vs 实拍 16 画布压缩(见 §1 量纲)。
+1. 主仓确认 worktree 四修已 merge（`8b937abd`），**重启编辑器**（关 Administrator 老实例）。
+2. 重跑：`rebake` → `assemble` → 六屏 capture
+   （`capture:MainMenu` / `:LevelSelect` / `:CrewManagement` / `:Battle` / `:MainMenu+settings` / `:MainMenu+confirm`）。
+3. 过目对照（worktree 首拍已确认的方向）：
+   - ✅ ×1 直切观感：按钮唇边清晰零压缩（对照旧实拍 `export/ui-pixel-4c/MainMenu.png` 的糊边）
+   - ✅ theme 灰面按钮四态（kind 彩面全废）、金底选中行、禁用行暗底、蓝字分组线、滑条/复选全按库
+   - 已修待确认：标题带内 12px 字居中（旧拍压带/残影）、主菜单窗体 132 宽、星级让位
+   - 观察项：confirm overlay 本轮未激活（与 settings 同 flag 通道，settings 成功——待重拍定位）
+   - Battle 屏未细看（本波未重建 Battle 场景，HUD 不在文件域）
 
-## 〇〇、2026-09-25 本会话增量(列表三件套 + 分组线接屏,纯「排」未「烘」)
+## 四、遗留（非本波文件域）
 
-**已落地**（全部用已烘 87 张，零 rebake；`run.sh harness Runtime/DataEditor` 0 错）：
+- `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
+- 主仓老编辑器的 Fonts/URP 噪声改动已随 merge 丢弃（feat 分支的装配版场景为准）。
+- 装配器运行时化 + 完整盒模型布局（执行案 §4 的"同批"项，本波手摆等价表达已按 border 相加修正）。
 
-- **列表三件套接屏**（管理屏 + 选关屏）：容器=带标题窗体（`SketchPanel.Titled`，
-  标题带「船员名册」/「关卡列表」，theme window 边距 5/5）+ 内容区 **view 凹槽**
-  （`PixelSkin.Sunken(false)` 九宫格，padding=ViewBorder 3/顶 4）+ 行=**theme list_item
-  纯色三态**（新枚举 `RuntimeUiBuilder.ListItemState`：常态 #41444a/#c0c0c0、
-  选中金底 #e1b85f/#41444a、禁用 #2c2c30/#202125；`CreateRow` 直接吃 state 参数，
-  行底=行根自身 Image 纯色——theme 的 listitem face 本就是纯色非九宫格）。
-  管理屏行态接线：已上阵=Selected 金底、锁定=Disabled；行缝 1 设计格、行内缩 ListItemBorder。
-  选关窗体 240 高中心 y=-35（旧 187 装不下 10 行，行曾画出面板底）。
-- **蓝字分组线接屏**（设置屏）：`BuildSettingsGroupLabel` = 整宽蚀刻线垂直居中 +
-  左侧蓝字（`Theme.SeparatorLabel` #6e9adb、缩进 `AseLayout.SeparatorTextX`=4 设计格）
-  压线，与 theme horizontal_separator 渲染层级（底→线→字）同构；「音频」「视频」
-  两条把六行分成两组，面板 300→322 补高。
-- **顺手修的三个实拍 bug**：①选关窗体加高后与底部提示叠印（提示/状态 y 148/104→90/40）；
-  ②设置「恢复默认」钮 x=-300 飞出面板半宽 213（→±100 与返回同排对称）；
-  ③见踩坑 §三.6（CreateRow 行根 ignoreLayout 叠行）。
-- **裁决跳过留档**：滚动条（两列表数据均不溢出窗体，无滚动场景）；页签三件套
-  （需烘 tab_normal/active/bottom/filler 新件 + 选关仅单章节「大海域」无切换语义，
-  等多章节实装再整套接）。
-- **验收产物**：`F:\VSCode\pirate-crew-3d-unity\pirate-crew\export\ui-pixel-4c\`
-  CrewManagement.png（金底选中行+禁用行+标题带窗体）/ LevelSelect.png（10 行全收进
-  窗体+提示不叠印）/ settings.png（两条蓝字分组线+恢复默认回位），已亲验。
-- **观察项（待创始人过目裁决）**：①管理屏锁定行文字 #202125 on #2c2c30 对比极低
-  （theme disabled 忠实复刻，但「累计 N 星后招募」是信息性文本——是否提亮待裁决）；
-  ②行底实拍 #404549 vs 令牌 #41444a（像素化管线量化偏移，非贴图错误，3 内不动）。
-- **遗留待查（非本批文件域）**：assemble 尾段 Battle 材质链 `BattleSceneLighting.EnsureMaterial`
-  报「找不到 shader」（Shader.Find 失败，材质未生成）——菜单/管理场景装配均成功不受影响，
-  Battle 场景材质待单独排查。
+## 五、纪律（不变）
 
-## 一、剩余该学的（按优先序）
-
-### ① 状态语言——「同一件皮换状态」的完整语法（接屏时逐条复刻）
-
-theme 的状态不是自创 tone 换皮，而是**换 part / 换色 / 叠层**三种手法的组合：
-
-| 语义 | theme 口径（styles 段） | 我们现状 |
-| --- | --- | --- |
-| 列表选中行 | `listitem_selected_face #e1b85f` 整行金底 + `selected_text #41444a` 深字 | **✅ 已接屏**（`ListItemState.Selected`，管理屏上阵行实拍金底） |
-| 按钮聚焦态（第 4 态） | `button_focused` part（带亮边框变体，与 hover 不同） | 只有三态（常态/悬停/按压） |
-| 禁用影子字 | button disabled = **双层文字**：`text color="background" x=1 y=1` 垫底 + `newlayer` + `text color="disabled"` 盖面 | 只做 CanvasGroup 压 alpha |
-| 菜单项热/高亮 | hot = `menuitem_hot_face #2c2c30` + `hot_text #7d7d7d`；highlight（选中）= **反白** `#c0c0c0` 底 + `#2c2c30` 字 | 无菜单件 |
-| 页签三件套 | `tab_normal/active` 九宫格 + `tab_bottom_active/normal` 底条 + `tab_filler` 2×12 填充；字 `tab_normal_text #7d7d7d` → `tab_active_text #c0c0c0`、`tab_active_face #333333`；高 17 宽 80（dimensions） | **裁决跳过留档**：需烘新件 + 单章节无切换语义，等多章节实装再整套接 |
-| 工具钮四态 | `toolbutton normal/hot/last/pushed`（3/10/3×3/9/4） | 已烘焙未接屏 |
-
-### ② 已烘焙未接屏的件（87 张里躺在图集里的）
-
-- **tooltip**（蓝底 #4069c2 + `tooltip_arrow` 带箭头变体未烘）→ 悬停提示
-- **滚动条**（bg+thumb 5/6/5，宽 = `AseLayout.ScrollbarSize` 12 设计格）→ **裁决跳过**：两列表数据均不溢出窗体，等有滚动场景再接
-- **~~sunken 凹槽~~** ✅ 已接屏（两列表 view 底；view 边框语法 border=3 border-top=4 已随 view 落地）
-- **组合框**（`sunken2` 5/6/5 + `drop_down_button` 左右拼 + 箭头三态）→ 未来下拉选择
-- **窗控图标 ▶/■/⊙**（Play/Stop/Center）→ 无对应场景，备着
-- **~~蓝字分组线~~** ✅ 已接屏（设置屏「音频/视频」两条；separator_label #6e9adb、缩进 4）
-
-### ③ 引擎级（与「装配器运行时化」同一批做，半天到一天）
-
-- **盒模型布局**：Aseprite 每控件自带 border/padding，**相邻控件间距 = 两者 border 相加**（没有独立的 spacing 概念）——我们现在是 AseLayout 令牌 + VBox/HStack 手摆的等价表达；完整盒模型化 = 装配器运行时化时一起做
-- **buttonset 负缝连排**：`gap-rows=-3 gap-columns=-1`——成组按钮**边框互搭**连成一排（工具栏语法），Ugui 布局器用负 spacing 实现
-- **mini 变体族语义**：mini_button / mini_scrollbar / mini_slider——「什么时候用紧凑档」的规则（上下文栏/内嵌区块用 mini，对话框用标准档）
-- **newlayer 分层渲染**：影子字/描边字都靠它（对应我们 TMP 的做法，语义登记即可）
-
-### ④ 观感级（需创始人先裁决，别先动手）
-
-- **×2 语义定夺**（悬案，审计线已列）：现行 = 设计格×2 进贴图（三方自洽）；若裁决回 1:1 是专项（模板 ×1 落盘 + PressOffset (1,-1) + 令牌 ×2 方向，连锁改）。审计证据：`Px.Button=16 < 贴图切片和 20px` 九宫格压缩变形——定夺时一并裁决
-- **双层深底层次**：`workspace #333333` vs `editor_face #202125` vs `face #2c2c30`——「底→容器→件」三层深浅阶梯，我们只用了一层深底
-- **状态栏语法**：`status_bar_face #333333` + `status_text #636d79`（主菜单底部的暗条）——接不接待裁决
-
-### ⑤ 「哪里用什么」速查（styles 段直译，接屏按表取）
-
-| 场景 | 用什么 |
-| --- | --- |
-| 对话框 | `window_with_title`（内容内缩 6/顶 17，标题带 15） |
-| 右键菜单/下拉弹层 | `popup_window` border=3 + `menu` part |
-| 文本输入 | `textedit`：`textbox_face #41444a` 底 + `textbox_text #c0c0c0`，内缩 4 |
-| 列表 | `view`（border 3/顶 4）包 `sunken` 底，行 = `list_item`（border 1、字 x 1） |
-| 上下文工具栏 | 高 18（`context_bar_height`），钮 = `buttonset_item` 负缝连排 |
-| 色板/图标钮 | 高 16（`color_bar_buttons_height`），`mini_button`（上 1/下 5 的不对称边） |
-
-## 二、新会话操作速查（编辑器常开工作流）
-
-1. **改 C# 后**：`echo "refresh" > export/unity-command.txt`（**仓库根** export/，不是 pirate-crew/export/）→ 喂焦点 → 等 ~50s 编译。
-2. **焦点脚本**：`temp/focus-unity.ps1`（gitignored，丢了重建——ShowWindow(9)+600ms+SetForegroundWindow+**驻留 2.4s**；编辑器后台时主循环停摆，每次焦点只换 ~3 秒运行，忙任务要循环喂）：
-   ```powershell
-   param([int]$ProcId = <主编辑器PID>)
-   Add-Type '...user32 ShowWindow/SetForegroundWindow...'
-   [FocusU]::ShowWindow($p.MainWindowHandle, 9); Start-Sleep -Milliseconds 600
-   [FocusU]::SetForegroundWindow($p.MainWindowHandle); Start-Sleep -Milliseconds 2400
-   ```
-3. **遥控命令**（`external/editor-remote-play.flag`，读后即删）：`stop / fonts / rebake / assemble / capture:<场景|场景+settings|场景+confirm> / play:<关> / diag / camdiag`。
-4. **等完成别用 tail 猜**：记下发令前行号 `wc -l`，只认**新增行**里的完成标记（旧日志假阳性踩过两次）；capture 四屏连拍期间帧也在走焦点，循环不能停。
-5. **日志**：`C:\Users\fanbo\AppData\Local\Temp\pc3d-intl2.log`。**铁律：让编辑器吃新代码前先 `stop`**（Play 中域重载 = 幽灵 NRE，见主交接档踩坑#10）。
-6. **验证链**：`tools/headless/run.sh harness DataEditor`（0 错）→ rebake（87 张判据 0 条）→ assemble（"三场景已重装配"）→ capture → 分析工具过目 PNG。
-
-## 三、纪律（违者返工）
-
-1. **布局数字一律从 `AseLayout` 取**（`Assets/Scripts/UI/Skin/AseLayout.cs`，设计格存值 + `Px()` 换算）——别再手写画布像素字面量，theme 数字≠画布像素（差一倍，挤的根源）。
-2. 取色一律 `PixelSkin.Theme.*`（theme.xml 精确色），禁近似调色。
-3. 新部件 → 模板 + `ResolveThemePart` 单一真源（构建/判据共用）+ ExpectedTransparent 走模板 '.' 计数。
-4. 烘 = 新增件；排 = 装配改动。别拿 rebake 当调节旋钮。
-5. 观感级四悬案（×2/投影/自创变体/选中金底）先裁决后动手——清单在 [UI审计与重构-进度与交接](UI审计与重构-进度与交接.md)。
-6. **行根必须参与父布局**：`CreateRow` 的行底现在是行根自身 Image（theme 纯色行），
-   **绝不能对行根挂 `UiLayout.Ignore`**——曾误挂导致布局组忽略全部行、6/10 行叠在
-   容器中心成一大块（VBox 对 ignoreLayout 子件完全不排，实拍 ASCII 色块图抓出）。
-   旧 SketchPanel 子件底板挂 Ignore 是对的（装饰件不吃行内流式），两者别混淆。
-
-## 四、已学清单（别重复学）
-
-- **部件几何**（87 张全绿）：Plate 14×16 / Panel 8×8 直角 / Window 13×24 带标题带（切片 3/5/3/15）/ 窗控钮 9×11 三态 / ×/? 图标 / 复选/单选 8×8 / 焦点框 2/6/2 / sunken / 滑条 5/6/5 四态 / 拇指 5×4 / 滚动条 / tooltip / 箭头（→ `PixelSkin` 取用器全通）。
-- **颜色表**：`PixelSkin.Theme`（#c0c0c0/#2c2c30/#41444a/#202125/#575b61/#e1b85f/#6e9adb/#4069c2/#7d7d7d/#333…）。
-- **布局令牌**：`AseLayout`（dimensions 全表 + styles 间距语法逐条，含 buttonset 负缝、mini 钮不对称边）。
-- **画布**：恒定像素密度 ConstantPixelSize×Unit（红警2 式，画布=屏幕÷2 随分辨率生长）。
-- **接屏**：设置面板（标题带+金滑条+单选钮+**蓝字分组线×2**）、暂停标题上带、返回确认 × 窗控钮、
-  **管理/选关列表三件套**（窗体容器 + view 凹槽 + listitem 纯色三态行：常态/金底选中/禁用；
-  管理屏已上阵=金底、锁定=禁用）。
-
-主档（进度/踩坑/提交史）：[像素UI与字阶-进度与交接](像素UI与字阶-进度与交接.md)。
+- 布局数字一律 `AseLayout.Px`（×1 恒等后 theme 数字即画布像素）；取色一律 `PixelSkin.Theme.*`。
+- **直切件禁手改**：判据与 sheet.png 逐位比对，改盘上 PNG 或更新 sheet.png 后必须重跑烘焙。
+- 新增部件 = `AseBakeParts` 加 part id（必须能在 theme.xml `<parts>` 找到行）+ 重烘焙。
