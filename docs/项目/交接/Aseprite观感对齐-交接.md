@@ -254,6 +254,42 @@ BackConfirmDialog→ConfirmDialog 实锤修正）。**新纪律**：中心锚容
 2. **按钮字盒底边比顶边多让 1 格**——theme button 切片 h1=4 / h3=6 不对称，几何居中必然偏低 1 格；
 3. **取按钮文案只走 `SketchButton.Label` / `LabelOf`**——泛搜必命中不可见的影子层。
 
+### 列表按 `list_item` 口径重做（2026-09-25 深夜·创始人走查「这真的是 Aseprite 的列表用法吗」）
+
+**结论：不是。** 我们此前的列表行 = 行文本（用全角空格凑「名称　尺寸　状态」）+ 行尾一枚 44px
+**文字按钮**（出战/出海/未解锁）——这套是自创的，Aseprite 的库里没有。theme.xml 的列表只有两条 style：
+
+```xml
+<style id="list_item" border="1">                     <!-- 行 = 纯色三态面 + 一条左对齐文本 + 可选图标 -->
+  <background color="listitem_normal_face"/>                     <!-- #41444a -->
+  <background color="listitem_selected_face" state="selected"/>  <!-- #e1b85f -->
+  <background color="face" state="disabled"/>
+  <text color="listitem_normal_text" align="left middle" x="1"/>
+</style>
+<style id="list_header_label" padding="2"><text color="text" align="left" x="2"/></style>
+```
+
+- 行本体**就是**命中区（面三态 = 它的按钮皮），`list_item` 没有「行内按钮」这个能力；
+- 行内允许的交互件只有 **`timeline_box` 那种小图标开关**（时间轴图层行的 eye / padlock /
+  continuous，theme.xml:859-888）——**不是** 44px 文字按钮；
+- 图标可右对齐（`align="right"` 在 theme.xml:556/577 有实例）；多列信息走
+  `list_header_label` 表头 + 列对齐（文件列表族配色 `filelist_even/odd_row_face`）；
+- 动作放在**独立的按钮行/工具栏**（对话框底部的 button 行）。
+
+**改法（本轮）**：
+1. 行尾文字按钮全部拆掉；行根挂 `Button`（`transition=None`，面三态承担视觉）= 行即命中区，
+   单击行 = 进该关 / 上阵·撤下；锁定行 = `interactable=false` + list_item 的 disabled 面。
+2. 行文本只留内容（名称 + 图幅 / 名称 + 等级经验 / 锁定行的解锁条件），**状态词不再复读**
+   （原「可出战/已通关/未解锁」= 行态与图标的本职）。
+3. 星标改**行内右对齐图标组**（`UiLayout.Ignore` 不吃行 HStack），右边距 = list_item border（1 设计格）。
+4. 代码：`RuntimeUiBuilder.CreateRow` 挂行按钮 + 新出口 `RowButton()`；`LayoutRowContent(row, label, h)`
+   删掉按钮通道（含"按钮高 ≤ 行距"那段）；`CreateButton()` 无调用者即删；`LevelListRow` 去掉 ActionLabel。
+
+**残留（下一轮）**：view 的滚动条未接（内容未溢出，暂不需要；已烘的 `mini_scrollbar` 件在打磨清单第⑤项里）；
+行内 `timeline_box` 小图标开关未做（若要把"上阵"做成行内开关而不是整行点击，照 theme.xml:859 那族烘件即可）；
+`UiStrings` 的 LevelFight / WorldSetSail / CrewEnlist / CrewRemove / CrewLocked / WorldRowAvailable /
+WorldRowCleared 七条暂无引用（前四条是动作动词，若恢复底部动作钮会用到，暂留）。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。

@@ -1,4 +1,4 @@
-### 注意事项
+﻿### 注意事项
 
 - 使用中文回答问题，用中文写提交信息和 Git 日志。
 - 可以调用Subagent组成Agent team。
@@ -79,7 +79,8 @@
 | **新会话恢复入口** | [docs/项目/交接与恢复指南.md](docs/项目/交接与恢复指南.md)（项目状态 / 关键决策 / 遗留 TODO / 恢复顺序） |
 | 当前待办 / 已完成归档 | [docs/项目/待办事项.md](docs/项目/待办事项.md) |
 | **架构怎么分层、代码该放哪** | [docs/技术/架构/架构总览.md](docs/技术/架构/架构总览.md)（程序集 / 目录 / 场景接线 / 改动落点导航） |
-| **查数值与玩法的权威依据（公式/武器表/回合规则/AI 伪代码）** | [docs/技术/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md](docs/技术/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md)（2D 原版 Flash 逆向） |
+| **改 UI（组件/排版/列表/对话框）前查口径** | `pirate-crew/Assets/Art/Sprites/UI/Aseprite/theme.xml` + `sheet.png`（**Aseprite 参考库 = UI 唯一权威**；量测与署名见 [docs/images/ui-pixel-ref/README.md](docs/images/ui-pixel-ref/README.md)） |
+| 查玩法数值的历史记录（公式/武器表/回合规则/AI 伪代码） | [docs/项目/归档/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md](docs/项目/归档/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md)（2D 原版 Flash 逆向，**已归档**：只作玩法数值与关卡灵感，不再是设计依据） |
 | 加跨模块事件 / 查事件契约 | [docs/技术/架构/EventBus事件契约.md](docs/技术/架构/EventBus事件契约.md)（事件名与载荷登记表） |
 | **改 Battle 场景 / 装配链前必读** | [pirate-crew/Assets/Scenes/README.md](pirate-crew/Assets/Scenes/README.md)（**折叠态契约** / **八步装配链** / 改前必跑转储比对） |
 | 查其他文档（设计/技术/审计/项目分类总目录） | [docs/README.md](docs/README.md) |
