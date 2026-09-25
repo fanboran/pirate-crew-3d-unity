@@ -2,8 +2,9 @@
 
 > 状态：**全量复刻波执行完毕**（2026-09-25，提交 `4d2dc0bf..9752f1fa`），
 > 渲染链五层取证全干净（图集/shader/faceInfo/顶点 snap/相位），实拍 ×2 下
-> **文字格半亮率 0%、横线相位全偶**；当前进入**打磨波**——
-> 余项五项见文末「打磨清单」，新会话恢复指引见 §六。
+> **文字格半亮率 0%、横线相位全偶**；**打磨波第①②项已落地**（2026-09-25 深夜：
+> 确认框收口标准模态 + 标题与窗皮三处单轨 + 全屏中心锚相位排查——见「打磨波①②执行记录」）——
+> 余项三项见「打磨清单」，新会话恢复指引见 §六。
 > 权威参考库：`external/aseprite-ref/data/extensions/aseprite-theme/dark/theme.xml`（1177 行）+ 同目录 sheet.png。
 
 ## 〇、本会话做了什么（执行案 §〇之一 五步收口全记录）
@@ -124,22 +125,71 @@ BackConfirmDialog→ConfirmDialog 实锤修正）。**新纪律**：中心锚容
 
 ### 打磨清单（下一轮）
 
-1. **确认框本体改走 CreateModal/EnsureWindow 标准路径**（实拍：无窗体皮/无 dim 遮罩/
-   正文字色暗——MenuUiBuilder.BuildConfirmDialog 旧装配）。
-2. 其余屏奇数尺寸/中心锚排查（同纪律推广：管理窗体宽、选关窗体位置等逐个相位检查）。
-3. 已烘未接屏件按场景渐进（页签/tooltip/滚动条/组合框/右键菜单 menu part——
-   场景依赖裁决见 §一 白名单注释）。
-4. **MC 式像素密度可调档**（创始人 2026-09-25 深夜方向：像 MC GUI Scale 一样的多档
+1. ~~确认框本体改走 CreateModal/EnsureWindow 标准路径~~ ✅ **已落地**（2026-09-25 深夜，见下「执行记录」①）。
+2. ~~其余屏奇数尺寸/中心锚排查~~ ✅ **已落地**（同批次，设置面板/确认框/管理选关列表窗体逐个相位检查并归整）。
+3. **MC 式像素密度可调档**（创始人 2026-09-25 深夜方向：像 MC GUI Scale 一样的多档
    下拉，默认 ×2）——设计要点：Unit 从 const 改运行时可变（编译期折叠要清：唯一
    运行时消费点 = CanvasScaler.scaleFactor；烘焙/布局已 ×1 无折叠）+ 设置面板加档位
    行 + 全屏/窗口尺寸非整倍时向下取整留黑边（MC 同款行为）。**注意**：编辑器 Game
    视图自由尺寸下任何固定倍率都糊（窗口 ÷ Unit 非整数），这是恒定像素密度栈的物理
    边界，档位化+黑边是标准解。
-5. **16px 字体重排专项**（创始人提议「换成 16px 字体」）：16px 字装不进 15 格标题带/
+4. **16px 字体重排专项**（创始人提议「换成 16px 字体」）：16px 字装不进 15 格标题带/
    24 高按钮——需要整套容器连锁重排（标题带 15→18~20、按钮 border 重标定），不是
    改一个字号常量；与密度档联动裁决（×3 密度 + 12px 字 = 36 屏字高，或 ×2 + 16px 字
-   = 32 屏——两路观感近似，前者保 theme 数字、后者保画布密度）。×3 对比实拍本轮
-   未拍成（常量改动的编译窗口没吃进，两图相同）——下次先改后等编译日志确认再装配。
+   = 32 屏——两路观感近似，前者保 theme 数字、后者保画布密度）。×3 对比实拍上一轮
+   未拍成（常量改动的编译窗口没吃进，两图相同）——先改后等编译日志确认再装配。
+5. **已烘未接屏件按场景渐进**（页签/tooltip/滚动条/组合框/右键菜单 menu part——
+   场景依赖裁决见 §一 白名单注释）。
+6. **待办（本轮新发现，未做）**：`PixelSkin.Window(tone)` 手绘 tone 族窗皮已无调用点
+   （`SketchPanel.Titled` 改走直切件后），与烘焙器 windows 数组（7 件）+ 校验器断言
+   一同构成残留；Battle 返回确认框正文 rect 仍宽 100（同「VBox 不控宽」陷阱，
+   长文案换行点偏窄）——两者都留给下一轮，改前先确认 Battle HUD 无别的消费者。
+
+### 打磨波①②执行记录（2026-09-25 深夜会话）
+
+分两轮「改码 → harness 编译 → 编辑器 recompile → assemble → 四屏 capture → 像素探针」推进。
+
+**① 确认框收口**（`MenuUiBuilder.BuildConfirmDialog` 整体重写）
+- 改走 `UiKit.CreateModal`：Dim 遮罩 + theme window 直切窗体皮 + 标题带「确认」+ 右上 × +
+  卡片高随内容（ContentSizeFitter）；与战斗侧 `BattleHudBuilder.BuildBackConfirm` 同形同数
+  （卡宽 160 / 正文 133×20 / 缝 3u）。
+- 旧装配（SketchPanel Dark 手摆 240×132 + 无窗体皮 + 正文 `LightOf(Frame)` 暗字）退役；
+  返回契约（Root/Message/OkButton/CancelButton）不变，`MainMenuController` 零改动。
+- **新发现的陷阱**：`UiLayout.VBox` 硬编码 `childControlWidth = false`，`Element()` 声明的
+  首选宽**不参与排版**——正文回落 rect 默认 100 宽，十个字被挤成两行（实拍实证）。
+  现改为「显式给 rect 宽 + 短文案禁换行」，并在调用处写明纪律。
+- 战斗侧同款标题字号 16→12（`CreateModal` 的 15 格带装不下 16px，与 12px 裁决对齐）。
+
+**标题与窗皮单轨**（§三之一点名的「三套标题收口」）
+- 新增 `UiKit.EnsureTitleLabel(window, title, font, size, rightReserve)`：带内左上、
+  **字号缺省 12**、字色 `PixelSkin.Theme.Text`、右让窗控钮位、幂等复用同名孩子、
+  **自带 `PixelSnapText`**。
+- 三处调用点改调它：`EnsureWindow`（主菜单/模态）、`MenuUiBuilder.BuildSettingsPanel`、
+  `ManagementSceneSetup.CreateTitledListPanel`（后者原来是 16px 压带的旧实现）。
+- `SketchPanel.Titled` 窗皮由手绘 tone 族 `PixelSkin.Window` 改为**直切件 `Ase("window")`**
+  ——设置面板与列表窗体此前穿的是手绘近似件，与主菜单/模态分叉；两者几何同为 13×24 /
+  切片 3·5·3·15，故换件不动布局。
+- 补两处漏挂的顶点对齐件：`UiKit.EnsureWindow` 的标题标签、`MenuUiBuilder.CreateTextExact`
+  （此前只有 `UiKit.CreateText` / `RuntimeUiBuilder.CreateText` / `SketchButton` 三处挂）。
+
+**② 中心锚奇数尺寸相位排查**（判据：画布 = 屏/2，整数画布格 ⇒ 屏幕坐标必偶）
+- 修复手法取「**尺寸偶数化**」而非「位置补 0.5」——因为面板内按钮是偶宽（12×字数+8），
+  补半格会把相位缺陷转移给按钮，偶数尺寸则整链归整。
+- 改动：设置面板卡 427→426、行容器/行板/分组行 383→384、提示行 393→394；
+  管理/选关列表窗体 333→334。
+- 实拍相位（屏坐标 = 边缘起点）：设置卡左 533→**536**、行板左缘 `[579,580]`→**`[578,579]`**、
+  行板右缘 `[1339,1340]`→**`[1340,1341]`**、列表窗体左 `[629,…]`→**`[628,629]`**；
+  确认框卡左 **802**、上 **468**，主菜单窗体顶 **406**、标题墨迹自画布 419 起（窗缘 414 + 5 设计格
+  内边距，看着"贴边"是窗皮最外 1 格本身为暗列）——**全部偶数起点**。
+- 边缘剖面均为 2 屏像素同值（如 `68 68`）= 1 画布像素线整格落位，无跨格半亮。
+- **两条纪律的分工（本轮实测支撑的机制推断，标注待确认）**：`PixelSnapText` round 的是
+  Graphic **局部**坐标，所以它治的是"rect 内笔画一致（2 格不撑成 3 格）"；画布网格对齐
+  由 **rect 相位**决定——rect 落半格时，局部取整也救不回来（世界相位仍带 .5）。
+  实测证据：设置面板字段名墨迹随行板 383→384 整体平移 2 屏像素（595→594）。
+  **待确认**：拿一个 rect 明确落在半画布格的文本，挂/不挂 `PixelSnapText` 各拍一张即可定论。
+- 复核工具已入库：`tools/ui-review/phase_check.py`（沿扫描线切等值游程，2 屏像素长的
+  游程 = 1 画布像素线，起点奇偶即判整格/半格；支持 `--pair` 对照改前图）。
+- 未覆盖：Battle HUD 全屏件（本轮不在文件域，未排查）。
 
 ## 四、遗留（非本波文件域）
 
@@ -162,13 +212,15 @@ BackConfirmDialog→ConfirmDialog 实锤修正）。**新纪律**：中心锚容
 - worktree `temp/ase-x1`（分支 `feat/ase-x1-verify` 已 merge）保留作对照，物证：
   `temp/ase-x1/pirate-crew/export/ui-pixel-4c/` 六屏首拍；主仓同目录是重拍版。
 
-**改代码后怎么让编辑器吃进去（本会话踩坑总结）**：
-1. 在主仓 `Assets/Editor/` **新建**一个 `Probe.cs`（内容一行注释）→ 喂焦点循环
-   （`temp/focus-main.ps1`，参数换当前 PID，每轮 ~3s）；
-2. **必须查 `%TEMP%\pc3d-main-gui.log` 确认 `CompileScripts: <毫秒数>` 出现且新段无
-   `error CS`**——"touch 已有文件"和"改完立刻删探针"都不触发编译（file watcher 只认
-   创建事件；旧实例有过 watcher 彻底失灵+Bee stale 快照，重启即愈）；
-3. 确认编译完成后再删 `Probe.cs`，然后发 `assemble` / `capture` flag。
+**改代码后怎么让编辑器吃进去（2026-09-25 深夜会话已验证的干净通道）**：
+1. 写 `export/unity-command.txt` 一行 `recompile`（`CommandBridge` 每 0.4s 轮询，
+   结果落 `export/unity-command-result.txt`）——比"新建 Probe.cs 喂焦点"干净，不再往
+   `Assets/Editor/` 里塞临时文件、也不用删；
+2. **必须查 `%TEMP%\pc3d-main-gui.log` 确认新段落出现 `Tundra build success` +
+   `Reloading assemblies` + `遥控监听已装载`，且 `error CS` 计数为 0**——
+   "touch 已有文件"不触发编译（file watcher 只认创建事件），光看 `CompileScripts: 4.4ms`
+   这种小数字会误判（真正编译在 Tundra 段，十几秒）；
+3. 确认重载完成后再发 `assemble` / `capture:<场景>[+settings|+confirm]` flag。
 
 **无头链**（编辑器关闭时/批量验证）：`rebake` =
 `Unity.exe -batchmode -nographics -quit -projectPath <主仓>/pirate-crew -executeMethod
@@ -176,9 +228,16 @@ PirateCrew.EditorTools.BeveledPixelSpriteBuilder.BuildFromCommandLine`；
 装配 `SceneSetup.BuildAll` / `ManagementSceneSetup.BuildAll`；
 **batchmode 与 GUI 实例不能同工程并行**（Library 锁）；batchmode 异常退出会残留
 `Temp/UnityLockfile`，确认进程已死可直接删。
+无头验证台的 `Runtime` / `DataEditor` 两个域**不开 Unity 就能抓这两类文件的编译错误**
+（秒级），改完先跑它；全量 `All` 域当前基线 = 通过 1244 / 失败 10 / 跳过 1（10 条都是
+世界海图材质带、战斗装配契约、脚本资产卫生三个非 UI 域的既有失败，与 UI 改动无关——
+本轮已用「git stash 掉 UI 改动再跑」逐条比对确认）。
 
 **打磨波执行序**（按优先级）：
-① 确认框改走 CreateModal；② 奇数尺寸/中心锚相位排查（判据：实拍横线屏幕 y 全偶，
-复核脚本见提交 `9752f1fa` 描述里的半亮率算法思路）；③ MC 式密度档（Unit 运行时化）；
-④ 16px 字连锁重排（与密度档联动裁决）；⑤ 已烘未接屏件按场景接入。
-每项做完走「Probe 编译 → assemble → capture → 像素级验证（相位/半亮率）」同一套。
+① ~~确认框改走 CreateModal~~ ✅；② ~~奇数尺寸/中心锚相位排查~~ ✅；
+③ **MC 式密度档**（Unit 运行时化 + 设置面板档位 + 非整倍窗口取整留黑边）——做时用
+`tools/ui-review/phase_check.py` 复查非倍率下的相位；④ **16px 字连锁重排**（与密度档
+联动裁决）；⑤ 已烘未接屏件按场景接入；⑥ 打磨清单第 6 条两项残留（手绘窗皮退役 +
+Battle 确认框正文宽度）。
+每项做完走「改码 → harness `Runtime`/`DataEditor` 编译 → `recompile` → `assemble` →
+`capture` → `phase_check.py` 相位复核」同一套。
