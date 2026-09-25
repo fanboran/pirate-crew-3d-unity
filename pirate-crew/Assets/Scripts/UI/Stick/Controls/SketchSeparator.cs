@@ -39,12 +39,12 @@ namespace PirateCrew.UI.Stick
             rect.anchorMin = anchor;
             rect.anchorMax = anchor;
             rect.pivot = pivot;
-            // 线厚纪律：矩形过薄会把包边挤没、过厚会把线拉成一条带，
-            // 故厚度轴统一钉到 PixelSkin.Unit（画布像素），长度轴按调用方给的值铺开
-            // （调用点尺寸字面量不用改）。分隔线纹理厚 2u 与此半压缩的核对挂重构波。
+            // 线厚 = theme 分隔线件的高（separator_horz/vert 是 9×5 / 5×9 的**点状蚀刻线**，
+            // 3 像素周期：2 实 1 虚，色 #202125 = theme disabled）——盒子厚 5 设计格即整件落位；
+            // 长度轴按调用方给的值铺开（调用点尺寸字面量不用改）。
             rect.sizeDelta = direction == Direction.Horizontal
-                ? new Vector2(size.x, PixelSkin.Unit)
-                : new Vector2(PixelSkin.Unit, size.y);
+                ? new Vector2(size.x, SeparatorThickness)
+                : new Vector2(SeparatorThickness, size.y);
             rect.anchoredPosition = anchoredPosition;
 
             var separator = go.AddComponent<SketchSeparator>();
@@ -53,17 +53,24 @@ namespace PirateCrew.UI.Stick
             return separator;
         }
 
+        /// <summary>分隔线盒子厚（设计格）= theme 件 separator_horz 的高（9×5）；垂直件宽同值。</summary>
+        const float SeparatorThickness = 5f;
+
         private void OnEnable() => Apply();
 
-        /// <summary>方向 → 蚀刻线贴图。Sliced：贴图若带切片边框则两端不拉花，
-        /// 无边框时退化为整图拉伸（对一条 1u 直线等价）。</summary>
+        /// <summary>
+        /// 方向 → theme 直切件 <c>separator_horz</c> / <c>separator_vert</c>（sheet.png 32,80 / 32,96）。
+        /// **必须 Tiled**：件是 3 像素周期的点状线，拉伸会把点拉成实线（旧实现走自绘/自烘的
+        /// 1u 实线件，与库不同——本波改回库里那件）。
+        /// </summary>
         private void Apply()
         {
             var image = GetComponent<Image>();
             if (image == null)
                 image = gameObject.AddComponent<Image>();
-            image.sprite = PixelSkin.Separator(Dir == Direction.Horizontal);
-            image.type = Image.Type.Sliced;
+            image.sprite = PixelSkin.Ase(Dir == Direction.Horizontal ? "separator_horz" : "separator_vert");
+            image.type = Image.Type.Tiled;
+            image.pixelsPerUnitMultiplier = 1f;   // ×1 终局：贴图纹素 = 画布像素
             image.color = Color.white;      // 像素件禁止乘色：线色烘在贴图里
             image.raycastTarget = false;
         }

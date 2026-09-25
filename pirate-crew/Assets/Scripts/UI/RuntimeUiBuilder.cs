@@ -166,8 +166,8 @@ namespace PirateCrew.UI
                 var image = icon.gameObject.AddComponent<Image>();
                 image.sprite = StarIcon;
                 image.raycastTarget = false;
-                // 点亮 = ACCENT（金阶，承接旧黄铜星语义）；熄灭 = INK @ 0.35（暗剪影）。
-                image.color = i < stars ? StickTokens.ACCENT : WithAlpha(StickTokens.INK, 0.35f);
+                // 点亮 = theme selected 金 #E1B85F；熄灭 = theme disabled #202125（theme 的「灭」色）。
+                image.color = i < stars ? PixelSkin.Theme.Selected : PixelSkin.Theme.Disabled;
             }
 
             return container;

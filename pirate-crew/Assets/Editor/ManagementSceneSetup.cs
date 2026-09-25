@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.UI;
@@ -44,7 +44,7 @@ namespace PirateCrew.EditorTools
         static readonly Vector2 TopCenterAnchor = new Vector2(0.5f, 1f);
         static readonly Vector2 BottomCenterAnchor = new Vector2(0.5f, 0f);
 
-        static readonly Color BackgroundColor = new Color(0.14f, 0.10f, 0.07f, 1f);
+        static readonly Color BackgroundColor = PixelSkin.Theme.Face;   // theme 桌面/窗体面 #2C2C30（Aseprite desktop = window_face）
 
         /// <summary>无头 -executeMethod 入口；也可从菜单调用。</summary>
         [MenuItem("PirateCrew/Scenes/重建管理场景")]
@@ -87,12 +87,12 @@ namespace PirateCrew.EditorTools
             // 文字层级：标题 Title / 概况 Body / 状态 Hint（满精度阶梯：标题与正文同 36、
             // 层级靠颜色；提示 30 = ArkPixel 10px 原生档）。
             TextMeshProUGUI title = RuntimeUiBuilder.CreateText("Title", canvas.transform, UiStrings.CrewTitle,
-                UiSkin.Font.Title, TextAlignmentOptions.Center, StickTokens.TEXT, titleFont);
+                UiSkin.Font.Title, TextAlignmentOptions.Center, PixelSkin.Theme.Text, titleFont);
             RuntimeUiBuilder.SetAnchored(title.rectTransform, TopCenterAnchor, new Vector2(300f, 15f),
                 new Vector2(0f, -44f));
 
             TextMeshProUGUI summary = RuntimeUiBuilder.CreateText("SummaryText", canvas.transform, string.Empty,
-                UiSkin.Font.Body, TextAlignmentOptions.Center, StickTokens.TEXT, bodyFont);
+                UiSkin.Font.Body, TextAlignmentOptions.Center, PixelSkin.Theme.Text, bodyFont);
             RuntimeUiBuilder.SetAnchored(summary.rectTransform, TopCenterAnchor, new Vector2(567f, 15f),
                 new Vector2(0f, -104f));
 
@@ -104,7 +104,7 @@ namespace PirateCrew.EditorTools
                 UiStrings.CrewRosterTitle, titleFont);
 
             TextMeshProUGUI status = RuntimeUiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
-                UiSkin.Font.Hint, TextAlignmentOptions.Center, StickTokens.TEXT_DIM, secondaryFont);
+                UiSkin.Font.Hint, TextAlignmentOptions.Center, PixelSkin.Theme.TabNormalText, secondaryFont);
             RuntimeUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 152f));
 
@@ -156,18 +156,18 @@ namespace PirateCrew.EditorTools
 
             // 文字层级：标题 Title / 统计行 Hud / 章节字 Section / 说明与状态 Hint（满精度阶梯）。
             TextMeshProUGUI title = RuntimeUiBuilder.CreateText("Title", canvas.transform, UiStrings.LevelTitle,
-                UiSkin.Font.Title, TextAlignmentOptions.Center, StickTokens.TEXT, titleFont);
+                UiSkin.Font.Title, TextAlignmentOptions.Center, PixelSkin.Theme.Text, titleFont);
             RuntimeUiBuilder.SetAnchored(title.rectTransform, TopCenterAnchor, new Vector2(300f, 15f),
                 new Vector2(0f, -44f));
 
             TextMeshProUGUI header = RuntimeUiBuilder.CreateText("HeaderText", canvas.transform, string.Empty,
-                UiSkin.Font.Hud, TextAlignmentOptions.Center, StickTokens.TEXT, bodyFont);
+                UiSkin.Font.Hud, TextAlignmentOptions.Center, PixelSkin.Theme.Text, bodyFont);
             RuntimeUiBuilder.SetAnchored(header.rectTransform, TopCenterAnchor, new Vector2(567f, 15f),
                 new Vector2(0f, -104f));
 
             TextMeshProUGUI chapterName = RuntimeUiBuilder.CreateText("ChapterNameText", canvas.transform,
                 string.Empty, UiSkin.Font.Section, TextAlignmentOptions.Center,
-                StickTokens.TEXT, secondaryFont);
+                PixelSkin.Theme.Text, secondaryFont);
             RuntimeUiBuilder.SetAnchored(chapterName.rectTransform, TopCenterAnchor, new Vector2(400f, 15f),
                 new Vector2(0f, -160f));
 
@@ -188,12 +188,12 @@ namespace PirateCrew.EditorTools
             // 与窗体叠印，且状态再下让避免压「船员管理」钮）。
             TextMeshProUGUI hint = RuntimeUiBuilder.CreateText("FixedArenaHint", canvas.transform,
                 UiStrings.LevelStatusFixedArena, UiSkin.Font.Hint, TextAlignmentOptions.Center,
-                StickTokens.TEXT_DIM, secondaryFont);
+                PixelSkin.Theme.TabNormalText, secondaryFont);
             RuntimeUiBuilder.SetAnchored(hint.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 90f));
 
             TextMeshProUGUI status = RuntimeUiBuilder.CreateText("StatusText", canvas.transform, string.Empty,
-                UiSkin.Font.Hint, TextAlignmentOptions.Center, StickTokens.TEXT_DIM, secondaryFont);
+                UiSkin.Font.Hint, TextAlignmentOptions.Center, PixelSkin.Theme.TabNormalText, secondaryFont);
             RuntimeUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 40f));
 
@@ -282,7 +282,7 @@ namespace PirateCrew.EditorTools
 
             // 文字层级：胜负横幅 Display / 行值 Body / 细则 Hint（满精度阶梯）。
             TextMeshProUGUI title = RuntimeUiBuilder.CreateText("Title", card, string.Empty,
-                UiSkin.Font.Display, TextAlignmentOptions.Center, StickTokens.TEXT, titleFont);
+                UiSkin.Font.Display, TextAlignmentOptions.Center, PixelSkin.Theme.Text, titleFont);
             RuntimeUiBuilder.SetAnchored(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(800f, 44f),
                 new Vector2(0f, -40f));
             refs.Title = title;
@@ -298,13 +298,13 @@ namespace PirateCrew.EditorTools
                 var image = icon.gameObject.AddComponent<Image>();
                 image.sprite = RuntimeUiBuilder.StarIcon;
                 image.raycastTarget = false;
-                image.color = StickTokens.ACCENT;
+                image.color = PixelSkin.Theme.Selected;   // theme selected 金 #E1B85F（原 StickTokens.ACCENT 自造金）
                 stars[i] = image;
             }
             refs.Stars = stars;
 
             TextMeshProUGUI starsText = RuntimeUiBuilder.CreateText("StarsText", card, string.Empty,
-                UiSkin.Font.Body, TextAlignmentOptions.Center, StickTokens.TEXT, bodyFont);
+                UiSkin.Font.Body, TextAlignmentOptions.Center, PixelSkin.Theme.Text, bodyFont);
             RuntimeUiBuilder.SetAnchored(starsText.rectTransform, new Vector2(0.5f, 1f), new Vector2(320f, 44f),
                 new Vector2(0f, -220f));
             refs.StarsText = starsText;
@@ -321,7 +321,7 @@ namespace PirateCrew.EditorTools
 
             TextMeshProUGUI rule = RuntimeUiBuilder.CreateText("StarRuleText", card,
                 UiStrings.SettlementStarRuleHint, UiSkin.Font.Hint, TextAlignmentOptions.Center,
-                StickTokens.TEXT_FAINT, secondaryFont);
+                PixelSkin.Theme.StatusText, secondaryFont);
             RuntimeUiBuilder.SetAnchored(rule.rectTransform, new Vector2(0.5f, 1f), new Vector2(840f, 36f),
                 new Vector2(0f, -596f));
             refs.StarRuleText = rule;
@@ -342,7 +342,7 @@ namespace PirateCrew.EditorTools
         static TextMeshProUGUI BuildSettlementRow(Transform card, string name, float y, TMP_FontAsset bodyFont)
         {
             TextMeshProUGUI text = RuntimeUiBuilder.CreateText(name, card, string.Empty, UiSkin.Font.Body,
-                TextAlignmentOptions.MidlineLeft, StickTokens.TEXT, bodyFont);
+                TextAlignmentOptions.Left, PixelSkin.Theme.Text, bodyFont);
             RuntimeUiBuilder.SetAnchored(text.rectTransform, new Vector2(0.5f, 1f), new Vector2(760f, 44f),
                 new Vector2(0f, y));
             return text;
@@ -361,7 +361,7 @@ namespace PirateCrew.EditorTools
             RuntimeUiBuilder.Stretch(rect);
 
             var image = rect.gameObject.AddComponent<Image>();
-            Color bg = StickTokens.WINDOW_BG;
+            Color bg = PixelSkin.Theme.Face;   // theme window_face（原 StickTokens 近黑半透自造底）
             bg.a = 1f;
             image.color = bg;
             image.raycastTarget = false;

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using PirateCrew.Core;
 using PirateCrew.UI;
 using PirateCrew.UI.Stick;
@@ -92,7 +92,7 @@ namespace PirateCrew.EditorTools
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             // 深棕暖色清屏色：StickUI「窗户」语义的透底——WINDOW_BG 88% 黑留 12% 让它透出，不动。
-            CreateCamera(new Color(0.14f, 0.10f, 0.07f, 1f));
+            CreateCamera(PixelSkin.Theme.Face);   // theme desktop = window_face #2C2C30
 
             Canvas canvas = CreateCanvas("MainMenuCanvas");
             CreateEventSystem();
@@ -210,8 +210,9 @@ namespace PirateCrew.EditorTools
             return button;
         }
 
-        /// <summary>全屏「窗户」底：WINDOW_BG 原值（0.88 黑）纯色 Image，raycast 关闭
-        /// （装饰层，不挡主菜单按钮命中）。</summary>
+        /// <summary>全屏底 = theme 桌面（`desktop` style：window_face #2C2C30）纯色 Image，
+        /// raycast 关闭（装饰层，不挡主菜单按钮命中）。原 StickTokens.WINDOW_BG（88% 黑半透）
+        /// 是隔壁 Godot 版「窗户」语义的自造底，本波按 Aseprite 桌面换掉。</summary>
         static void CreateStickBackdrop(Transform parent)
         {
             RectTransform rect = MenuUiBuilder.CreateRect("WindowBackdrop", parent);
@@ -221,7 +222,7 @@ namespace PirateCrew.EditorTools
             rect.offsetMax = Vector2.zero;
 
             var image = rect.gameObject.AddComponent<Image>();
-            image.color = WINDOW_BG;        // StickTokens.WINDOW_BG：不铺死黑，留 12% 透相机底色
+            image.color = PixelSkin.Theme.Face;   // theme desktop = window_face（不透明）
             image.raycastTarget = false;
         }
 

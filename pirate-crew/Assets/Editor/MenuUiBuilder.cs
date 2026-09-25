@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using PirateCrew.UI;
 using PirateCrew.UI.Stick;
@@ -364,10 +364,11 @@ namespace PirateCrew.EditorTools
                 out result.FullscreenOnButton, out result.FullscreenOffButton,
                 UiStrings.SettingsOptionFullscreen, UiStrings.SettingsOptionWindowed);
 
-            // 提示：角标档（像素 Tiny 24）+ TEXT_FAINT（stick-world 次级文字口径），放底部通带。
+            // 提示：角标档（像素 Tiny）+ theme status_bar_text 灰（最弱档，theme 里 status_bar_text
+            // #636D79 是给状态行的），放底部通带。
             // y=54：行区底（距顶 230）与恢复默认钮（y=76）之间的空档——y=120 会插进画质行。
             TextMeshProUGUI note = CreateTextExact("SaveHint", panel, UiStrings.SettingsSaveHint,
-                UiSkin.Font.Tiny, TextAlignmentOptions.Center, TEXT_FAINT, hand);
+                UiSkin.Font.Tiny, TextAlignmentOptions.Center, PixelSkin.Theme.StatusText, hand);
             SetAnchored(note.rectTransform, new Vector2(0.5f, 0f), new Vector2(394f, 12f),
                 new Vector2(0f, 54f));
 
@@ -416,7 +417,7 @@ namespace PirateCrew.EditorTools
 
             // 字段名：像素皮字色按所落 tone 取可读档（行底 = SketchPanel Light → 暖白片 → 墨字）。
             TextMeshProUGUI label = CreateTextExact("Field", row, field, UiSkin.Font.Body,
-                TextAlignmentOptions.MidlineLeft, PixelSkin.TextColorOn(PixelTone.Light), hand);
+                TextAlignmentOptions.Left, PixelSkin.Theme.Text, hand);
             SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 15f),
                 new Vector2(8f, 0f));
 
@@ -481,7 +482,7 @@ namespace PirateCrew.EditorTools
             RectTransform row = CreateSettingsRowBackground(rows, index);
 
             TextMeshProUGUI label = CreateTextExact("Field", row, field, UiSkin.Font.Body,
-                TextAlignmentOptions.MidlineLeft, PixelSkin.TextColorOn(PixelTone.Light), hand);
+                TextAlignmentOptions.Left, PixelSkin.Theme.Text, hand);
             SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 15f),
                 new Vector2(8f, 0f));
 
@@ -495,15 +496,22 @@ namespace PirateCrew.EditorTools
                 new Vector2(-6f - w1 - 8f, 0f), SettingsRowHeight - 6f);
         }
 
-        /// <summary>设置行的底板（滑条行与选项行共用）：SketchPanel Light → Plate(Light) 片 + 底垫投影。
+        /// <summary>设置行的底板（滑条行与选项行共用）：**theme list_item 纯色面**（#41444A），
+        /// 与船员/关卡列表行同色同形态——Aseprite 的列表行就是一块纯色（无九宫格、无斜面）。
+        /// 旧版用自造 tone 族 Light Plate（带斜面、灰阶还是另一档 #2C2C30），本波按库换回纯色。
         /// 位置交给行容器 VBox 排（index 只用作命名），不再手算 pitch 坐标。
         /// 宽 384 = 行容器宽（偶数纪律，见卡声明处）。</summary>
         static RectTransform CreateSettingsRowBackground(Transform rows, int index)
         {
-            SketchPanel rowPanel = SketchPanel.Create(rows, "Row" + index,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(384f, SettingsRowHeight), SketchPanel.Tone.Light);
-            return (RectTransform)rowPanel.transform;
+            RectTransform row = UiKit.CreateRect("Row" + index, rows);
+            row.anchorMin = row.anchorMax = new Vector2(0.5f, 0.5f);
+            row.pivot = new Vector2(0.5f, 0.5f);
+            row.sizeDelta = new Vector2(384f, SettingsRowHeight);
+
+            var image = row.gameObject.AddComponent<Image>();
+            image.color = PixelSkin.Theme.Background;   // theme listitem_normal_face 纯色
+            image.raycastTarget = false;
+            return row;
         }
 
         /// <summary>建**蓝字分组线**行（theme horizontal_separator 复刻）：整宽蚀刻线垂直居中 +
