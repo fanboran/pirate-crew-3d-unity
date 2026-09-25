@@ -290,6 +290,52 @@ BackConfirmDialog→ConfirmDialog 实锤修正）。**新纪律**：中心锚容
 `UiStrings` 的 LevelFight / WorldSetSail / CrewEnlist / CrewRemove / CrewLocked / WorldRowAvailable /
 WorldRowCleared 七条暂无引用（前四条是动作动词，若恢复底部动作钮会用到，暂留）。
 
+### 配色审计（2026-09-25 深夜·创始人追问「真的全学来了吗？比如配色」）
+
+**结论：没有全学来。** theme.xml 有 **82 条 `<color>`**，我们只搬了 **13 条**
+（`PixelSkin.Theme`：text / button_selected_text / face / background / disabled / check_hot_face /
+selected / selected_text / separator_label / tooltip_face / tab_normal_text / workspace /
+status_bar_text）。屏上其余颜色来自 **StickTokens**——那是隔壁 Godot 版
+（`Resources/UI/StickWorld/ui_tokens.json`）的调色板，不是 Aseprite 的：
+
+| 自造色（StickTokens） | 值 | 用在哪 | theme 里的对应 |
+| --- | --- | --- | --- |
+| `TEXT` | 近白 #EDEFF5 | 管理屏标题/概况/结算行 | `text` **#C0C0C0** |
+| `TEXT_DIM` / `TEXT_FAINT` | 白 55% / 32% 透明 | 状态行/提示/角标 | `tab_normal_text` #7D7D7D、`status_bar_text` #636D79（**平面灰**，非 alpha 白） |
+| `ACCENT` | #F2AD40 | 结算星级、强调 | `selected` **#E1B85F** |
+| `WINDOW_BG` | 近黑 88% 半透 | 全屏底、结算卡底 | `desktop` = `window_face` **#2C2C30** |
+| `INK` @0.35 | 近黑压透明 | 未点亮星 | `disabled` #202125 |
+| `MODAL_DIM` | 黑 60% | 模态压暗 | **库里没有**（Aseprite 无 dim；这是我们自己的设计文档规定的，见下"分工"） |
+| `INFO`/`WARN`/`SUCCESS` | 蓝/金/绿 | 语义提示（Toast 等） | 库里**没有绿**；只有金 `selected`、蓝 `link_text` #6E9ADB、红 `flag_active` #C75A68 |
+| `GROOVE_BG` + 相机清屏暖棕 #241A12 | — | HUD 条槽底 / 场景底色 | 凹槽走 `sunken_normal` 件；桌面 = `window_face` |
+
+**本轮改掉的（提交见下）**：
+1. 全屏底 + 相机清屏 → theme `desktop`（`window_face` #2C2C30，不透明）；
+2. 管理屏/选关屏标题、概况、结算行文字 → `PixelSkin.Theme.Text`（#C0C0C0）；
+3. 状态行/提示/角标 → `Theme.TabNormalText`（#7D7D7D）/ `Theme.StatusText`（#636D79），
+   不再用 alpha 白；
+4. 星级点亮/熄灭 → `Theme.Selected` / `Theme.Disabled`；
+5. 结算卡底 → `Theme.Face`；
+6. 设置面板行底 → **theme list_item 纯色面**（#41444A，与列表行同色同形态），
+   字段名文字 → `Theme.Text`；旧的自造 tone 族 Light Plate（带斜面、灰阶偏暗一档）退役；
+7. 分隔线 → theme 直切件 **`separator_horz` / `separator_vert`**（sheet.png 32,80 / 32,96，
+   9×5 / 5×9 的**点状蚀刻线**：3 像素周期 2 实 1 虚，色 #202125），`Image.Type.Tiled`
+   （拉伸会把点拉成实线）；旧的自烘 1u 实线件退役。
+
+**仍未对齐（下一轮候选，均需你点头再动）**：
+- **模态 dim 遮罩**：库里没有。我们自己的 [UI-UX 规范](../UI-UX与中文本地化规范.md) §模态层规定了
+  "全屏遮罩 黑 60%"——**建议口径：Aseprite 管组件/配色/排版，我们自己的设计文档管交互语义**，
+  dim 属后者，故保留；
+- **标题墨色描边**：Aseprite 不给文字描边（标题就是 `text` #C0C0C0 压在 `window_titlebar_face` 上）；
+  我们的 `ApplyStickTitleOutline` 是自加件（规范 §5.3 自己规定的），留待裁决；
+- **语义色**：INFO/WARN/SUCCESS 在库里无对应（无绿色），可收敛到 `link_text` 蓝 / `selected` 金 /
+  `flag_active` 红 三色；`UiSkin` 里那批别名被 `UiSkinTests` 钉在 StickTokens 上，要改需同改测试；
+- **tone 族（Plate/Track/Panel/Tab/Ring/Pip/Sep/Shadow）**：灰阶来自本工程调色板槽位（非 theme 值），
+  战斗 HUD 仍在用；收敛=逐个换成 theme 件的色或改用直切件，是一整批活。
+- 82 条色里其余未用到的（`detail_text`、`entry_suffix`、`menu*`、`timeline*`、`filelist*`、
+  `popup_window_border`、`select_box_*` 等）多数对应编辑器专属功能（时间轴/文件列表/选择框），
+  我们暂无对应屏——用到哪个再搬哪个。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
