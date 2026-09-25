@@ -235,9 +235,24 @@ BackConfirmDialog→ConfirmDialog 实锤修正）。**新纪律**：中心锚容
 （实拍：只剩文字不见盒）。底部按钮行因此改 `controlWidths: false`（组只按各钮自身尺寸排布 + 居中）；
 列表行内按钮恰好有 `LayoutRowContent` 加的内层 HLG 提供首选宽，故那处不受影响。
 
+**缺陷 4（同轮顺带查出的真缺陷）：按钮动作文案写到影子层 → 文字不显示、按钮被挤窄**
+- 症状：选关列表整列「出战/出海」按钮只剩细条（实测宽 6 设计格）、船员列表已解锁行按钮无字；
+  禁用（未解锁）行反而"看得见字"——因为禁用态会把影子层激活，那层恰好收到了文案。
+- 根因：`SketchButton` 按 theme 绘制序把影子层（`LabelShadow`）插到**兄弟序 0**（压在标签下，
+  绘制顺序正确），而 `RuntimeUiBuilder.GetButtonLabel` 用
+  `GetComponentInChildren&lt;TextMeshProUGUI&gt;(true)` 泛搜 → 先命中那层**不可见的**影子。
+  文案写进影子、可见标签留空；按钮的宽由内层 HLG 按"标签首选宽"算 → 空文案 ⇒ 收窄到切片和。
+- 修：`SketchButton` 增显式出口 `Label`（按名取 `Label` 孩子，场景重载后兜底重取）+
+  静态 `LabelOf(Button)`；`RuntimeUiBuilder.GetButtonLabel`、`UiKit.FitToLabel`（两处重载，
+  原先会按**影子层的旧文案**算宽）、`LevelSelectController` 结算按钮两处共 5 个调用点改走它。
+  实拍：选关行按钮 6 格 → **30 格**（含居中「出战/出海」文字）。
+- 同族顺带：结算弹窗那对按钮也是手写坐标（`(-120,52)/(84,52)`，整对中心 -18 ≠ 卡心、缝 160 格）
+  → 同 `CreateCenteredButtonRow` 收口。
+
 **两条可复用纪律**：
 1. **行内件高 ≤ 行距**——行高不是"内容能多大"，超过就会压邻行；
-2. **按钮字盒底边比顶边多让 1 格**——theme button 切片 h1=4 / h3=6 不对称，几何居中必然偏低 1 格。
+2. **按钮字盒底边比顶边多让 1 格**——theme button 切片 h1=4 / h3=6 不对称，几何居中必然偏低 1 格；
+3. **取按钮文案只走 `SketchButton.Label` / `LabelOf`**——泛搜必命中不可见的影子层。
 
 ## 四、遗留（非本波文件域）
 
