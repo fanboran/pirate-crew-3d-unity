@@ -315,7 +315,10 @@ namespace PirateCrew.UI
             {
                 label = CreateRect(TitleLabelName, window).gameObject.AddComponent<TextMeshProUGUI>();
                 label.fontStyle = FontStyles.Normal;   // 位图字禁伪粗
-                label.alignment = TextAlignmentOptions.MidlineLeft;
+                // 垂直取 Middle（Left = Middle+Left）而非 Midline：Midline 按字体基线中线对齐，
+                // 中文墨迹整体偏上（实拍标题墨迹比带心高 1 画布格）；Middle 与按钮字同口径，
+                // 墨迹中心 = 字盒中心。
+                label.alignment = TextAlignmentOptions.Left;
                 label.raycastTarget = false;
                 label.enableWordWrapping = false;   // 长标题换行会溢出标题带成残影
                 label.overflowMode = TextOverflowModes.Overflow;

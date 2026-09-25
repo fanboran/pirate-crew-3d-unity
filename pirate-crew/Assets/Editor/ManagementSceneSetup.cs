@@ -108,17 +108,16 @@ namespace PirateCrew.EditorTools
             RuntimeUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 152f));
 
-            // 屏内按钮：选关/返回 = Dark 次级档；保存 = Primary 主行动档。
-            // 令牌按钮：宽 = 标签宽 + 24 艺术像素、高 24 艺术像素；三钮总宽居中排布（间隙 24）。
-            Button levelSelectButton = CreateSketchButton("LevelSelectButton", canvas.transform,
-                UiStrings.CrewLevelSelect, BottomCenterAnchor, new Vector2(-264f, 72f),
-                MenuUiBuilder.ButtonSize(UiStrings.CrewLevelSelect), bodyFont);
-            Button saveButton = CreateSketchButton("SaveButton", canvas.transform,
-                UiStrings.CrewSave, BottomCenterAnchor, new Vector2(-24f, 72f),
-                MenuUiBuilder.ButtonSize(UiStrings.CrewSave), bodyFont);
-            Button backButton = CreateSketchButton("BackButton", canvas.transform,
-                UiStrings.BackToMainMenu, BottomCenterAnchor, new Vector2(42f, 24f),
-                MenuUiBuilder.ButtonSize(UiStrings.BackToMainMenu), bodyFont);
+            // 屏内按钮：选关 / 保存 / 返回主菜单 = **一行居中**（缝 = theme 按钮左右切片相加 8），
+            // 行位 BottomCenter y=72。旧版是逐枚手写坐标（-264 / -24 / +42，第三个还错位到下一行）
+            // ——×2 量纲时代残留，实拍"按钮互相没对齐"的根源。
+            Button[] crewButtons = CreateCenteredButtonRow(canvas.transform, "BottomActions", 72f, bodyFont,
+                (UiStrings.CrewLevelSelect, MenuUiBuilder.ButtonSize(UiStrings.CrewLevelSelect)),
+                (UiStrings.CrewSave, MenuUiBuilder.ButtonSize(UiStrings.CrewSave)),
+                (UiStrings.BackToMainMenu, MenuUiBuilder.ButtonSize(UiStrings.BackToMainMenu)));
+            Button levelSelectButton = crewButtons[0];
+            Button saveButton = crewButtons[1];
+            Button backButton = crewButtons[2];
 
             var controllerGo = new GameObject("CrewManagementController", typeof(RectTransform));
             controllerGo.transform.SetParent(canvas.transform, false);
@@ -198,12 +197,14 @@ namespace PirateCrew.EditorTools
             RuntimeUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 40f));
 
-            Button crewButton = CreateSketchButton("CrewButton", canvas.transform,
-                UiStrings.MainCrew, BottomCenterAnchor, new Vector2(-84f, 64f),
-                MenuUiBuilder.ButtonSize(UiStrings.MainCrew), bodyFont);
-            Button backButton = CreateSketchButton("BackButton", canvas.transform,
-                UiStrings.Back, BottomCenterAnchor, new Vector2(40f, 21f),
-                MenuUiBuilder.ButtonSize(UiStrings.Back), bodyFont);
+            // 船员管理 / 返回 = **一行居中**（缝 8）。旧坐标（-84 / +40）分两行且第二个压状态行
+            // （y=21 与状态 y=40 叠印），是 ×2 时代残留。y=56：行占 56..80，上方让出提示行
+            // （y=90）、下方让出状态行（y=40）——三者互不叠印。
+            Button[] levelButtons = CreateCenteredButtonRow(canvas.transform, "BottomActions", 56f, bodyFont,
+                (UiStrings.MainCrew, MenuUiBuilder.ButtonSize(UiStrings.MainCrew)),
+                (UiStrings.Back, MenuUiBuilder.ButtonSize(UiStrings.Back)));
+            Button crewButton = levelButtons[0];
+            Button backButton = levelButtons[1];
 
             SettlementRefs settlement = BuildSettlementModal(canvas.transform, titleFont, bodyFont, secondaryFont);
 
@@ -436,6 +437,44 @@ namespace PirateCrew.EditorTools
 
     /// <summary>建 SketchButton（theme button 四态皮 + 双层禁用字，调用方不另配色）。
     /// 字号取正文档（UiSkin.Font.Body）；pivot 沿用旧按钮装配口径 (0.5, 0.5)。</summary>
+    /// <summary>底部按钮行的按钮间隙：theme button 左右切片各 4 设计格相加 = 8
+    /// （与主菜单按钮列的纵向缝 10 = 上下切片 6+4 同一条"缝 = border 相加"口径）。</summary>
+    const float ButtonRowGap = 8f;
+
+    /// <summary>
+    /// 建一行**居中排布**的底部按钮（行宽 = 各钮宽之和 + 缝，锚 BottomCenter）。
+    /// 返回按钮数组，顺序同传入。
+    ///
+    /// 【为什么要有它】此前各屏按钮是逐枚手写 anchoredPosition（-264 / -24 / +42…），
+    /// 那是 ×2 量纲时代的残留坐标：两个钮相距 184 设计格、第三个错位到下一行，
+    /// 实拍就是"按钮相互没对齐"。行内排布交给 HStack(controlWidths) 后，
+    /// 缝与居中都是声明式的，不会再随按钮文案宽度漂移。
+    /// </summary>
+    static Button[] CreateCenteredButtonRow(Transform parent, string name, float bottomOffset,
+        TMP_FontAsset font, params (string label, Vector2 size)[] buttons)
+    {
+        float total = ButtonRowGap * (buttons.Length - 1);
+        foreach ((string _, Vector2 size) in buttons)
+            total += size.x;
+
+        RectTransform row = RuntimeUiBuilder.CreateRect(name, parent);
+        // pivot = anchor = (0.5, 0) → 行自 bottomOffset 起向上撑起，与旧逐钮摆放的基准同向。
+        RuntimeUiBuilder.SetAnchored(row, BottomCenterAnchor, new Vector2(total, UiSkin.Px.Button),
+            new Vector2(0f, bottomOffset));
+        // 【必须 controlWidths: false】按钮身上没有内层布局组，若让 HStack 接管宽，
+        // 布局系统会去问按钮自己的 Image（ILayoutElement）——九宫格切片件的首选宽 =
+        // 切片和（≈8 格），按钮会被挤成窄条（实拍：只见字不见盒）。各钮宽由
+        // MenuUiBuilder.ButtonSize 造出，组只负责按缝排布 + 整行居中。
+        UiLayout.HStack(row, (int)ButtonRowGap, default(UiPadding), controlWidths: false,
+            alignment: TextAnchor.MiddleCenter);
+
+        var result = new Button[buttons.Length];
+        for (int i = 0; i < buttons.Length; i++)
+            result[i] = CreateSketchButton(name + i, row, buttons[i].label,
+                CenterAnchor, Vector2.zero, buttons[i].size, font);
+        return result;
+    }
+
     static Button CreateSketchButton(string name, Transform parent, string label, Vector2 anchor,
         Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font)
     {

@@ -294,13 +294,20 @@ namespace PirateCrew.UI
                 UiLayout.Flexible(label.gameObject);
                 RectTransform rect = label.rectTransform;
                 rect.sizeDelta = new Vector2(rect.sizeDelta.x, rowHeight);
-                label.alignment = TextAlignmentOptions.MidlineLeft;
+                // 垂直取 Middle（Left = Middle+Left）：Midline 按字体的**基线中线**对齐，
+                // 中文墨迹整体偏上 → 行内文字比行心高 1 画布格；Middle 与按钮字（Center）同口径。
+                label.alignment = TextAlignmentOptions.Left;
             }
 
             if (action != null)
             {
                 RectTransform rect = action.GetComponent<RectTransform>();
-                rect.sizeDelta = new Vector2(rect.sizeDelta.x, UiSkin.Px.Button);
+                // 【按钮高必须 ≤ 行距】行内按钮原按全局令牌高（Px.Button=24）摆，而行是 16 设计格
+                // → 每个按钮压住下一行 7 格（实拍：按钮左描边只露出 15 格、行距 17 格），
+                // 且按钮盒互相叠印。行高本身 = theme button 原生高（14×16 切片 4+6+6），
+                // 按行高摆即原生尺寸，无九宫格压缩、无重叠。
+                rect.sizeDelta = new Vector2(rect.sizeDelta.x,
+                    Mathf.Min(rowHeight, UiSkin.Px.Button));
 
                 // 按钮自贴合（原生，无双驱动）：按钮自身挂横排组（内层 childControlWidth），
                 // 其 preferred 宽 = 左右各半 ButtonPadX + 文字渲染宽——行 HStack(controlWidths)
