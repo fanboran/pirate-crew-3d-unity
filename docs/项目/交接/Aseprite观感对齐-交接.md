@@ -547,6 +547,33 @@ Gamma 空间（影响 3D 全链）。±1 肉眼不可见，等裁决。
 的 mtime 晚于源文件改动**，否则验证的是旧二进制（本项目之前也踩过同类坑：
 file watcher 只认创建事件）。
 
+### 第四轮：选项块"当前值"用哪张件——创始人一问戳破的误判（2026-09-26 凌晨）
+
+创始人："原项目二选一你确定有颜色？？？？"
+
+**核件的结论：我上一轮用错了件。** 逐像素打了三张件：
+- `buttonset_item_normal`(96,16)：面 #292B30、底边凸起（常态）✓
+- `buttonset_item_hot`(112,0)：面 **#41444A**（更亮）、底边**下沉**（另一种"按下/选中"语法）
+- `buttonset_item_active`(112,32)：面 **#4069C2 + 底边 #2A4185**——**确实是蓝面件**
+
+但**theme 自己的风格表**写明当前值走谁：
+```
+<style id="buttonset_item" font="mini" border="3" border-bottom="5">
+  <background-border part="buttonset_item_normal"/>
+  <background-border part="buttonset_item_hot"  state="selected"/>   ← 当前选中
+  <background-border part="buttonset_item_hot"  state="mouse"/>      ← 鼠标悬停
+  <background-border part="buttonset_item_hot_focused" state="selected focus"/>
+```
+`buttonset_item_active` 是**另一条独立 `<style>`**（Aseprite 用它表达"正在执行/激活"那一类语义），
+不是"当前选中值"。参考图佐证：New Sprite 的 RGB / Grayscale / Indexed 三连按钮
+**三块同色、没有任何彩色**（实拍该处三块面同为 #292B30 系），选中只体现在"面更亮 + 底边下沉"。
+
+**改法**：`SketchButtonSet.Active` → 换 `buttonset_item_hot`（无彩色，只是更亮+下沉）。
+实拍复核：高画质 / 全屏（当前值）面变亮下沉，流畅 / 窗口保持常态凸起；屏上**蓝面像素 0**。
+
+【教训】"参考图看着像彩色"和"库里有一张彩色件"都不够——**以 theme 自己的风格表 state→part
+映射为准**，再拿参考图证伪。这条已补进本档 §五纪律。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
@@ -558,6 +585,9 @@ file watcher 只认创建事件）。
 - 布局数字一律 `AseLayout.Px`（×1 恒等后 theme 数字即画布像素）；取色一律 `PixelSkin.Theme.*`。
 - **直切件禁手改**：判据与 sheet.png 逐位比对，改盘上 PNG 或更新 sheet.png 后必须重跑烘焙。
 - 新增部件 = `AseBakeParts` 加 part id（必须能在 theme.xml `<parts>` 找到行）+ 重烘焙。
+- **件的"语义"以 theme 风格表的 state→part 映射为准**（2026-09-26 加）：库里存在某张件
+  ≠ 那个状态就该用它。例：`buttonset_item_active` 是蓝面件，但当前选中值按风格表走
+  `buttonset_item_hot`（无彩色）——参考图只作证伪，不作首因。
 - **字号纪律（2026-09-26 加）**：显示字号**必须等于**字体原生档，且新建文字控件一律经
   `UiKit.ResolvePixelFont(字号, 传入字体)` 取档——**禁止** `label.font = 调用方给的族`
   再配一个别的字号（0.75 倍缩放就是"笔画时粗时细"）。件/图标一律按件自然尺寸画，

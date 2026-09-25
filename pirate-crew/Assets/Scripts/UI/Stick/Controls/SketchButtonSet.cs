@@ -19,13 +19,18 @@ namespace PirateCrew.UI.Stick
     /// <item>鼠标悬停 → <c>buttonset_item_hot</c>（theme <c>state="mouse"</c>）</item>
     /// <item>按下 → <c>buttonset_item_pushed</c></item>
     /// <item>键盘焦点 → <c>buttonset_item_focused</c>（<c>state="focus"</c>）</item>
-    /// <item>业务"当前值" → <c>buttonset_item_active</c>（theme 单独一条 buttonset_item_active 风格）</item>
+    /// <item>业务"当前值" → <c>buttonset_item_hot</c>（theme.xml 的
+    ///       <c>&lt;style id="buttonset_item"&gt;</c> 把 <c>state="selected"</c> 映射到它：
+    ///       只是"面更亮 + 底边下沉"的**无彩色**件；<c>buttonset_item_active</c> 是另一条
+    ///       独立风格（蓝面件），Aseprite 用它表达"正在执行/激活"那种语义，不是当前选中值——
+    ///       参考图 New Sprite 的 RGB/Grayscale/Indexed 三连按钮三块同色、没有任何彩色）</item>
     /// </list>
     /// 字色 = <c>button_normal_text</c>（#C0C0C0，与 theme 各态一致）。
     /// </summary>
     public sealed class SketchButtonSet : Button
     {
-        /// <summary>业务"当前值"态（常显 <c>buttonset_item_active</c> 件；与 hover/focus 正交）。</summary>
+        /// <summary>业务"当前值"态（换 <c>buttonset_item_hot</c> 件：更亮面 + 底边下沉，无彩色；
+        /// 与 hover/focus 正交）。</summary>
         public bool Active
         {
             get => _active;
@@ -138,7 +143,7 @@ namespace PirateCrew.UI.Stick
             Image bg = Background;
             if (bg != null)
             {
-                bg.sprite = PixelSkin.Ase(_active ? "buttonset_item_active" : "buttonset_item_normal");
+                bg.sprite = PixelSkin.Ase(_active ? "buttonset_item_hot" : "buttonset_item_normal");
                 bg.type = Image.Type.Sliced;
                 bg.pixelsPerUnitMultiplier = 1f;
                 bg.color = Color.white;   // 像素件禁止乘色
