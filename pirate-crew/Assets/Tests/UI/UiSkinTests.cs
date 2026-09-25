@@ -147,22 +147,21 @@ namespace PirateCrew.Tests.UI
         [Test]
         public void Px_TokenGeometry_IsOnArtPixelGrid()
         {
-            // 像素几何令牌（画布像素）必须落在艺术像素栅格（Unit=3 的整数倍）上；
-            // 【裁决 2026-09-24】HUD 密度整体收敛：条/按钮 8 艺术像素、头像 16、小地图 64。
+            // 像素几何令牌（×1 终局：1 设计格 = 1 贴图像素 = 1 画布像素）。
+            // 条 10 = 凹槽描边 1+1 + 槽底 8；按钮渲染高 24 = 正文档 12 + theme button
+            // 上下切片 10 + 2（参考库 OK 钮实测）；头像 16、小地图 64（2026-09-24 收档）。
             Assert.AreEqual(24, UiSkin.Px.Button);
-            Assert.AreEqual(24, UiSkin.Px.Bar);
-            Assert.AreEqual(24, UiSkin.Px.ButtonPadX);
-            Assert.AreEqual(12, UiSkin.Px.PanelPadding);
-            Assert.AreEqual(18, UiSkin.Px.Pip);
-            Assert.AreEqual(48, UiSkin.Px.Avatar);
-            Assert.AreEqual(192, UiSkin.Px.Minimap);
-            Assert.AreEqual(0, UiSkin.Px.Button % UiSkin.Px.Unit);
-            Assert.AreEqual(0, UiSkin.Px.Bar % UiSkin.Px.Unit);
-            Assert.AreEqual(0, UiSkin.Px.Minimap % UiSkin.Px.Unit);
+            Assert.AreEqual(10, UiSkin.Px.Bar);
+            Assert.AreEqual(8, UiSkin.Px.ButtonPadX);
+            Assert.AreEqual(4, UiSkin.Px.PanelPadding);
+            Assert.AreEqual(6, UiSkin.Px.Pip);
+            Assert.AreEqual(12, UiSkin.Px.Ring);
+            Assert.AreEqual(16, UiSkin.Px.Avatar);
+            Assert.AreEqual(64, UiSkin.Px.Minimap);
 
-            // 按钮宽 = 标签宽（按 CJK 逐字 × 正文字号 16）+ 8 艺术像素，两字起步。
-            Assert.AreEqual(56, UiSkin.Px.ButtonWidth("确定"));
-            Assert.AreEqual(104, UiSkin.Px.ButtonWidth("返回主菜单"));
+            // 按钮宽 = 标签宽（按 CJK 逐字 × 正文档 12）+ 8，两字起步。
+            Assert.AreEqual(32, UiSkin.Px.ButtonWidth("确定"));
+            Assert.AreEqual(68, UiSkin.Px.ButtonWidth("返回主菜单"));
         }
     }
 }
