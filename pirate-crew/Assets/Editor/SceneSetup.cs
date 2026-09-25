@@ -110,10 +110,10 @@ namespace PirateCrew.EditorTools
             // 按钮高 24（参考库 OK 钮）；相邻钮间距 = 上钮下切片 6 + 下钮上切片 4 = 10
             // （theme 无 spacing 概念，缝 = 两者 border 相加）；下 border 6。
             RectTransform menuWindow = RuntimeUiBuilder.CreateRect("MenuWindow", canvas.transform);
-            Vector2 windowSize = new Vector2(96f, 17f + 24f * 4 + 10f * 3 + 6f);
+            Vector2 windowSize = new Vector2(132f, 17f + 24f * 4 + 10f * 3 + 6f);
             MenuUiBuilder.SetAnchored(menuWindow, CenterAnchor, windowSize, new Vector2(0f, -6f));
             UiKit.EnsureWindow(menuWindow, PixelTone.Frame, UiStrings.MainTitle,
-                handFont, UiSkin.Font.Title, helpButton: false, closeButton: false);
+                handFont, UiSkin.Font.Body, helpButton: false, closeButton: false);
 
             var menuColumn = menuWindow.gameObject.GetComponent<UnityEngine.UI.VerticalLayoutGroup>();
             if (menuColumn == null)

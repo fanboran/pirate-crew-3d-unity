@@ -953,10 +953,9 @@ namespace PirateCrew.EditorTools
                     id = node.Attributes["id"].Value,
                     x = int.Parse(node.Attributes["x"].Value),
                     y = int.Parse(node.Attributes["y"].Value),
-                    w = int.Parse(node.Attributes["w"].Value),
-                    h = int.Parse(node.Attributes["h"].Value),
                 };
-                // 切片声明：w1=左 / w3=右 / h1=上 / h3=下（Unity spriteBorder = 左/下/右/上）。
+                // parts 两种形态：整图件 = x/y/w/h；切片件 = x/y/w1..3/h1..3，
+                // **宽 = w1+w2+w3、高 = h1+h2+h3**（theme 不给切片件 w/h——首版在此 NRE）。
                 if (node.Attributes["w1"] != null)
                 {
                     part.sliced = true;
@@ -964,6 +963,13 @@ namespace PirateCrew.EditorTools
                     part.borderR = int.Parse(node.Attributes["w3"].Value);
                     part.borderT = int.Parse(node.Attributes["h1"].Value);
                     part.borderB = int.Parse(node.Attributes["h3"].Value);
+                    part.w = part.borderL + int.Parse(node.Attributes["w2"].Value) + part.borderR;
+                    part.h = part.borderT + int.Parse(node.Attributes["h2"].Value) + part.borderB;
+                }
+                else
+                {
+                    part.w = int.Parse(node.Attributes["w"].Value);
+                    part.h = int.Parse(node.Attributes["h"].Value);
                 }
                 s_aseParts[part.id] = part;
             }
@@ -2406,6 +2412,11 @@ namespace PirateCrew.EditorTools
                 if (!isRing[i])
                     continue;
                 int cx = i % w, cy = i / w;
+                // 【×1 口径】页签（bottomOpen）左右带直通底边 = 两条 1px"腿"，
+                // 腿脚像素在 1px 网格下必然只有 1 个环邻——那是 Tab 语义（底边无带）的
+                // 必然形状，不是断点（×2 时代腿有 2px 宽互相支撑，故旧判据未暴露）。
+                if (bottomOpen && cy == 0)
+                    continue;   // y=0 在下（Texture2D 坐标）——腿脚在底行
                 int neighbours = 0;
                 for (int ox = -1; ox <= 1; ox++)
                 {
