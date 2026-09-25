@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Xml;
 using PirateCrew.EditorTools.Art;
 using UnityEditor;
 using UnityEngine;
@@ -128,19 +129,20 @@ namespace PirateCrew.EditorTools
         // ==================================================================
 
         /// <summary>
-        /// 基本单位（像素）。**u = 3 = 1080p 下一个 3D 像素块**（PixelationRendererFeature 的
-        /// 640×360 RT 最近邻放大回 1920×1080，1080÷360=3）——UI 颗粒度与 3D 渲染 1:1 对齐
-        /// （创始人 2026-09-22 要求）。真源在运行时 <c>PixelSkin.Unit</c>，判据
-        /// <see cref="CheckUnitAlignment"/> 会读 URP 渲染器资产里的 renderHeightPixels 反向锁这条。
+        /// 基本单位（px）。【×1 终局（2026-09-25 裁决）】1 设计格 = 1 贴图像素 = 1 画布像素，
+        /// 模板/几何落盘不再乘任何倍率；本常量只余画布密度语义（CanvasScaler scaleFactor，
+        /// 画布 = 屏幕 ÷ <see cref="Unit"/>）与评审图放大倍率。Aseprite 直切件天然 1:1。
         /// </summary>
         public const int Unit = PirateCrew.UI.PixelSkin.Unit;
 
-        /// <summary>Plate / Track 贴图边长（px）。只影响"最小可渲染尺寸"，不影响拉伸后的外观。</summary>
-        public const int PlateSize = 36;
+        /// <summary>Track / Tab / 投影网格贴图边长（px，×1 后 = 设计格数）。只影响"最小可渲染尺寸"。</summary>
+        public const int PlateSize = 18;
 
-        /// <summary>Plate / Track 的九宫格切片边框（px）= 4 层带（u×4）——最外是描边，条槽的第 5 段（槽底）落在拉伸区。</summary>
-        public const int PlateBorder = 2 * Unit;   // 【2026-09-24 走查】黑 1 格 + 唇边 1 格（对齐参照绘图软件的工具对话框）；旧 4 层带在薄件上把内容吃光
-        public const int TrackBorder = 4 * Unit;   // 条槽五段带（INK/外环/斜面/内暗线/槽底）各自 1 格，不随面板收档
+        /// <summary>Track/投影的九宫格切片（px）= 黑环 1 格 + 唇边 1 格（×1 设计格）。</summary>
+        public const int PlateBorder = 2;
+
+        /// <summary>条槽五段带切片（INK/外环/斜面/内暗线/槽底各 1 格），不随面板收档。</summary>
+        public const int TrackBorder = 4;
 
         /// <summary>低于这个尺寸装配就不能用九宫格（角会切进内容区）。装配侧应断言。</summary>
         public const int PlateMinRender = PlateBorder * 2;
@@ -175,32 +177,34 @@ namespace PirateCrew.EditorTools
             int depth = ChamferDepthUnits;
             if (depth <= 0)
                 return false;
-            int dx = Math.Min(x, n - 1 - x) / Unit;
-            int dy = Math.Min(y, n - 1 - y) / Unit;
+            int dx = Math.Min(x, n - 1 - x);
+            int dy = Math.Min(y, n - 1 - y);
             return dx + dy < depth;
         }
 
-        /// <summary>切角像素总数（4 个角 × <c>深度×(深度+1)/2</c> 个格 × 每格 <c>Unit²</c> 像素）。</summary>
+        /// <summary>切角像素总数（4 个角 × <c>深度×(深度+1)/2</c> 个格；×1 后 1 格 = 1px）。</summary>
         public static int ChamferPixelCount()
         {
             int d = ChamferDepthUnits;
-            return d <= 0 ? 0 : 4 * (d * (d + 1) / 2) * Unit * Unit;
+            return d <= 0 ? 0 : 4 * (d * (d + 1) / 2);
         }
 
-        /// <summary>Fill 贴图边长（px）：上 u 亮 / 中 4u 主体 / 下 u 暗（与实测 <c>HP_Fill.png</c> 逐段同构）。</summary>
-        public const int FillSize = 6 * Unit;
+        /// <summary>Fill 贴图边长（px）：上 1 亮 / 中 4 主体 / 下 1 暗（×1 设计格）。</summary>
+        public const int FillSize = 6;
 
-        /// <summary>Fill 的上下切片边框 = u（亮/暗带各一层）；右端另有 u 宽的"前缘"列。</summary>
-        public const int FillBorder = Unit;
+        /// <summary>Fill 的上下切片边框 = 1（亮/暗带各一层）；右端另有 1 宽的"前缘"列。</summary>
+        public const int FillBorder = 1;
 
         /// <summary>Fill 的最低可渲染高度（上下两层带）。低于它带会被压没。</summary>
         public const int FillMinRender = FillBorder * 2;
 
         /// <summary>
-        /// 按压态的元素位移（UI 像素）：右下 1px。**装配侧用这个常量**（真源 = 运行时
-        /// <c>PixelSkin.PressOffset</c>），别再各写各的（贴图里不烘位移，烘了九宫格切片就错位）。
+        /// 按压态的元素位移。【已退役（×1 终局）】theme &lt;parts&gt; 无 button_pressed——
+        /// Aseprite 按钮只有 normal/hot/focused/selected 四态，按压位移是自创语言，
+        /// 随全量对齐波整体废除（按钮按压反馈 = hot 皮保持，见 <c>SketchButton</c>）。
         /// </summary>
-        public static readonly Vector2 PressOffset = PirateCrew.UI.PixelSkin.PressOffset;
+        [Obsolete("按压位移已随 ×1 终局退役（theme 无按压皮）", true)]
+        public static readonly Vector2 PressOffset = Vector2.zero;
 
         /// <summary>
         /// 悬停态的色阶上抬比例：每档向亮侧邻档混这个比例（S4 顶档除外，见类头 §三）。
@@ -215,24 +219,24 @@ namespace PirateCrew.EditorTools
         /// </summary>
         public const float PressSink = 0.5f;
 
-        /// <summary>选人圈 / 焦点框边长（px）= 8u。都是 2u 厚的方环，带与 Plate 同款的切角。</summary>
-        public const int RingSize = 8 * Unit;
+        /// <summary>选人圈 / 焦点框边长（px，×1 设计格）= 8。都是 2px 厚的方环。</summary>
+        public const int RingSize = 8;
 
-        /// <summary>选人圈 / 焦点框的九宫格切片边框 = 环厚（2u：外 u 亮沿 + 内 u 主体）。</summary>
-        public const int RingBorder = 2 * Unit;
+        /// <summary>选人圈 / 焦点框的九宫格切片边框 = 环厚（2px：外 1px 亮沿 + 内 1px 主体）。</summary>
+        public const int RingBorder = 2;
 
-        /// <summary>位点（页点 / 队伍槽指示）边长（px）= 6u。菱形——切角语言的 45° 对角线推到底。</summary>
-        public const int PipSize = 6 * Unit;
+        /// <summary>位点（页点 / 队伍槽指示）边长（px，×1 设计格）= 6。菱形。</summary>
+        public const int PipSize = 6;
 
-        /// <summary>分隔线长度轴尺寸（px）；粗细恒 2u（蚀刻槽线：暗 u 压亮 u）。</summary>
-        public const int SepLength = 4 * Unit;
+        /// <summary>分隔线长度轴尺寸（px）；粗细恒 2px（蚀刻槽线：暗 1 压亮 1）。</summary>
+        public const int SepLength = 4;
 
         /// <summary>
-        /// 面板投影相对面板本体的偏移（UI 像素）：右下 1u。装配侧把 <c>Pixel_Shadow</c>
-        /// 垫在面板下、按这个常量错位——硬边无渐变的错位剪影是像素 UI 表达层次的标准件。
-        /// （真源 = 运行时 <c>PixelSkin.ShadowOffset</c>。）
+        /// 面板投影偏移。【已退役（×1 终局）】Aseprite dark grep "shadow" 零命中——对话框没有
+        /// 影子层，投影是自创语言，随全量对齐波整体废除（EnsurePanel 已就地销毁 Shadow 孩子）。
         /// </summary>
-        public static readonly Vector2 ShadowOffset = PirateCrew.UI.PixelSkin.ShadowOffset;
+        [Obsolete("面板投影已随 ×1 终局退役（theme 无影子层）", true)]
+        public static readonly Vector2 ShadowOffset = Vector2.zero;
 
         /// <summary>
         /// 美术稿（showcase）评审图路径：**全屏 640×360 艺术像素**（×3 口径 = 1920×1080 屏幕），
@@ -678,7 +682,7 @@ namespace PirateCrew.EditorTools
 
                     int dx = Math.Min(x, n - 1 - x);
                     int dy = tab ? n - 1 - y : Math.Min(y, n - 1 - y);
-                    int layer = Math.Min(dx, dy) / Unit;
+                    int layer = Math.Min(dx, dy);   // ×1：1 层带 = 1px（层号即像素距离）
                     bool vertical = dx <= dy;                 // 平局 → 竖直边（角像素不断线）
                     bool isLit = vertical ? x * 2 < n : y * 2 >= n;   // 竖直：左亮；水平：上亮
 
@@ -753,11 +757,11 @@ namespace PirateCrew.EditorTools
         };
 
         /// <summary>
-        /// 按模板画 Plate：14×16 艺术像素 ×Unit 落盘（42×48）。
-        /// 切片边框 = 左 4u / 下 6u / 右 4u / 上 4u（Aseprite button 九宫格 w/h1..3 原样）。
+        /// 按模板画 Plate：14×16 艺术像素 ×1 落盘（【×1 终局】1 模板格 = 1 贴图像素 = 1 画布像素）。
+        /// 切片边框 = 左 4 / 下 6 / 右 4 / 上 4（Aseprite button 九宫格 w/h1..3 原样）。
         /// 状态 = 换**字母取色**不换几何（与 Aseprite 一致：normal/hot/selected 共用一张骨架）：
         /// 常态 = 主体 S3 + 唇 S4 + 暗唇 S2；悬停 = 主体上浮到 S4（整面变亮，落影 H 不动）；
-        /// 按压 = 整体下沉一档（主体 S2、唇退 S3）。运行时再叠 <see cref="PixelSkin.PressOffset"/>。
+        /// 按压 = 整体下沉一档（主体 S2、唇退 S3）。
         /// </summary>
         static Texture2D BuildPlateFromTemplate(Ramp r, State state, out Vector4 border)
         {
@@ -782,21 +786,8 @@ namespace PirateCrew.EditorTools
                 { 'D', darkLip }, // 背光暗唇
                 { 'H', shadow },  // 环外落影
             };
-            int rows = PlateTemplate.Length;
-            int cols = PlateTemplate[0].Length;
-            int u = Unit;
-            int w = cols * u, h = rows * u;
-            var px = new Color32[w * h];
-            for (int y = 0; y < h; y++)
-            {
-                for (int x = 0; x < w; x++)
-                {
-                    char ch = PlateTemplate[y / u][x / u];
-                    px[y * w + x] = ch == '.' ? new Color32(0, 0, 0, 0) : map[ch];
-                }
-            }
-            border = new Vector4(4 * u, 6 * u, 4 * u, 4 * u);   // 左/下/右/上
-            return ToTexture(px, w, h);
+            border = new Vector4(4, 6, 4, 4);   // 左/下/右/上
+            return BuildTemplateTexture(PlateTemplate, map, border);
         }
 
         /// <summary>
@@ -817,7 +808,7 @@ namespace PirateCrew.EditorTools
             "KDDDDDDK",
         };
 
-        /// <summary>按直角模板画 Panel（8×8 艺术像素 ×Unit 落盘，四边切片 2u）。</summary>
+        /// <summary>按直角模板画 Panel（8×8 艺术像素 ×1 落盘，四边切片 2）。</summary>
         static Texture2D BuildPanelFromTemplate(Ramp r, out Vector4 border)
         {
             var map = new Dictionary<char, Color32>
@@ -827,16 +818,8 @@ namespace PirateCrew.EditorTools
                 { 'E', r.S3 },   // 主体
                 { 'D', r.S2 },   // 背光唇（下/右）
             };
-            int rows = PanelTemplate.Length;
-            int cols = PanelTemplate[0].Length;
-            int u = Unit;
-            int w = cols * u, h = rows * u;
-            var px = new Color32[w * h];
-            for (int y = 0; y < h; y++)
-                for (int x = 0; x < w; x++)
-                    px[y * w + x] = map[PanelTemplate[y / u][x / u]];
-            border = new Vector4(2 * u, 2 * u, 2 * u, 2 * u);   // 左/下/右/上
-            return ToTexture(px, w, h);
+            border = new Vector4(2, 2, 2, 2);   // 左/下/右/上
+            return BuildTemplateTexture(PanelTemplate, map, border);
         }
 
         // ------------------------------------------------------------------
@@ -845,271 +828,298 @@ namespace PirateCrew.EditorTools
         // 固定色语义件（复选/滑条/滚动条/tooltip…）不走 tone 阶梯，用 ThemeXxx 精确色。
         // ------------------------------------------------------------------
 
-        /// <summary>theme.xml 精确色（搬皮件的唯一取色源，禁止近似调色）。</summary>
-        static Color32 THex(string hex)
+        // ------------------------------------------------------------------
+        // 七b、Aseprite dark 全部件直切（theme.xml <parts> 表 → sheet.png 逐件切片）
+        //
+        // 【量纲终局（悬案①裁定 ×1）】sheet.png 是 1x 设计格图集（theme 根属性
+        // screenscaling="2" 只是屏幕放大系数）：1 贴图像素 = 1 设计格 = 1 画布像素。
+        // 直切天然满足 ×1——贴图=模板格数、九宫格切片=声明值、渲染尺寸=格数，全链 1:1 零压缩。
+        //
+        // 【为什么直切而不是手绘模板】裁决「原封不动复刻参考库 + 禁止自己量图、自己设计、
+        // 自己推断」：字符画模板是近似转写（自己量图），直切是唯一零推断路线——
+        // 件外观与 Aseprite dark 逐位一致，切片直接取 theme.xml 声明的 w1/w2/w3 h1/h2/h3。
+        //
+        // 【真源】入库副本 Assets/Art/Sprites/UI/Aseprite/{theme.xml, sheet.png}
+        // （出处与许可见同目录 LICENSE.txt；工作台原件在 external/aseprite-ref/）。
+        // ------------------------------------------------------------------
+
+        /// <summary>直切真源目录（theme.xml + sheet.png + LICENSE.txt）。</summary>
+        public const string AsepriteFolder = "Assets/Art/Sprites/UI/Aseprite";
+
+        /// <summary>直切件落盘目录（一件一 PNG，命名 = theme part id 原名）。</summary>
+        public const string AsePartsFolder = AsepriteFolder + "/Parts";
+
+        const string AseThemeXmlPath = AsepriteFolder + "/theme.xml";
+        const string AseSheetPngPath = AsepriteFolder + "/sheet.png";
+
+        /// <summary>theme.xml &lt;parts&gt; 一行的解析结果（源矩形 + 九宫格切片声明）。</summary>
+        public sealed class AsePart
         {
-            return new Color32(
-                Convert.ToByte(hex.Substring(1, 2), 16),
-                Convert.ToByte(hex.Substring(3, 2), 16),
-                Convert.ToByte(hex.Substring(5, 2), 16), 255);
+            public string id;
+            public int x, y, w, h;
+            /// <summary>九宫格切片（Unity spriteBorder 序：左/下/右/上）；未声明件全 0。</summary>
+            public int borderL, borderB, borderR, borderT;
+            /// <summary>是否声明了 w1..3 / h1..3（有 = 九宫格件，无 = 固定尺寸件）。</summary>
+            public bool sliced;
         }
 
-        /// <summary>theme.xml 颜色表（部件侧引用的子集；完整表见 theme.xml colors 段）。</summary>
-        static class Ase
+        /// <summary>
+        /// 本次烘焙的 part 白名单 = theme &lt;styles&gt; 段引用到的全部控件件
+        /// （执行案「部件全量烘焙」）——button 四态、窗体/弹层、窗控钮、复选/单选、
+        /// 凹槽族、滑条、滚动条、气泡、分隔线、组合框箭头、下拉按钮、页签系、
+        /// 工具钮/按钮组、色板/编辑器视图。
+        /// cursor / tool 图标 / timeline / canvas / pivot 等编辑器工作区件
+        /// 在游戏里没有对应控件场景，不烘。加件 = 在此加 id（必须能在 &lt;parts&gt; 找到行）。
+        /// </summary>
+        public static readonly string[] AseBakeParts =
         {
-            public static readonly Color32 Text = THex("#c0c0c0");          // text / button_normal_text
-            public static readonly Color32 TextSelected = THex("#ffffff");  // button_selected_text
-            public static readonly Color32 Face = THex("#2c2c30");          // face / window_face
-            public static readonly Color32 Background = THex("#41444a");    // background / titlebar / listitem face
-            public static readonly Color32 Disabled = THex("#202125");      // disabled / editor_face
-            public static readonly Color32 HotFace = THex("#575b61");       // check/radio_hot_face
-            public static readonly Color32 Selected = THex("#e1b85f");      // selected / listitem_selected
-            public static readonly Color32 SeparatorLabel = THex("#6e9adb");// separator_label / link
-            public static readonly Color32 TooltipFace = THex("#4069c2");   // tooltip_face
-            public static readonly Color32 TabNormalText = THex("#7d7d7d");
-            public static readonly Color32 StatusFace = THex("#333333");
+            // button 四态（theme.xml:155-158）
+            "button_normal", "button_hot", "button_focused", "button_selected",
+            // 窗体与弹层边框（165-166）
+            "window", "menu",
+            // 窗控钮三态 + 五图标（167-174）
+            "window_button_normal", "window_button_hot", "window_button_selected",
+            "window_close_icon", "window_play_icon", "window_stop_icon",
+            "window_center_icon", "window_help_icon",
+            // 复选/单选 + 焦点框（147-154；disabled 与 normal 同 sheet 区域）
+            "check_normal", "check_selected", "check_disabled", "check_focus",
+            "radio_normal", "radio_selected", "radio_disabled", "radio_focus",
+            // 凹槽族（159-164）
+            "sunken_normal", "sunken_focused", "sunken2_normal", "sunken2_focused",
+            "sunken_mini_normal", "sunken_mini_focused",
+            // 滑条（175-184）
+            "slider_empty", "slider_empty_focused", "slider_full", "slider_full_focused",
+            "mini_slider_empty", "mini_slider_empty_focused",
+            "mini_slider_full", "mini_slider_full_focused",
+            "mini_slider_thumb", "mini_slider_thumb_focused",
+            // 滚动条（237-246）
+            "scrollbar_bg", "scrollbar_thumb",
+            "mini_scrollbar_bg", "mini_scrollbar_thumb",
+            "mini_scrollbar_bg_hot", "mini_scrollbar_thumb_hot",
+            "transparent_scrollbar_bg", "transparent_scrollbar_thumb",
+            "transparent_scrollbar_bg_hot", "transparent_scrollbar_thumb_hot",
+            // 气泡（247-248）
+            "tooltip", "tooltip_arrow",
+            // 分隔线（185-186）
+            "separator_horz", "separator_vert",
+            // 组合框四向箭头 ×3 态 + 文件钮图标（187-205）
+            "combobox_arrow_down", "combobox_arrow_down_selected", "combobox_arrow_down_disabled",
+            "combobox_arrow_up", "combobox_arrow_up_selected", "combobox_arrow_up_disabled",
+            "combobox_arrow_left", "combobox_arrow_left_selected", "combobox_arrow_left_disabled",
+            "combobox_arrow_right", "combobox_arrow_right_selected", "combobox_arrow_right_disabled",
+            "arrow_circle_cw", "arrow_circle_cw_selected",
+            "newfolder", "newfolder_selected",
+            "list_view", "small_icon_view", "big_icon_view",
+            // 下拉按钮左右件 ×4 态（271-278）
+            "drop_down_button_left_normal", "drop_down_button_left_hot",
+            "drop_down_button_left_focused", "drop_down_button_left_selected",
+            "drop_down_button_right_normal", "drop_down_button_right_hot",
+            "drop_down_button_right_focused", "drop_down_button_right_selected",
+            // 页签系（216-228）
+            "tab_normal", "tab_active", "tab_bottom_normal", "tab_bottom_active",
+            "tab_filler", "tab_modified_icon_normal", "tab_modified_icon_active",
+            "tab_close_icon_normal", "tab_close_icon_active",
+            "tab_icon_bg_hover", "tab_icon_bg_clicked",
+            // 工具钮四态 / 按钮组六态（206-215）
+            "toolbutton_normal", "toolbutton_hot", "toolbutton_last", "toolbutton_pushed",
+            "buttonset_item_normal", "buttonset_item_hot", "buttonset_item_hot_focused",
+            "buttonset_item_focused", "buttonset_item_pushed", "buttonset_item_active",
+            // 编辑器视图框 / 色板格 / 色块框（229-236, 427-428）
+            "editor_normal", "editor_selected",
+            "colorbar_0", "colorbar_1", "colorbar_2", "colorbar_3",
+            "colorbar_selection", "colorbar_selection_hot",
+            "simple_color_border", "simple_color_selected",
+            // 警告图标（warning_label/warning_box，338）
+            "warning_box",
+        };
+
+        static Dictionary<string, AsePart> s_aseParts;
+        static Color32[] s_sheetPixels;
+        static int s_sheetW, s_sheetH;
+
+        /// <summary>解析 theme.xml &lt;parts&gt; 全表（id → 源矩形 + 切片声明）。</summary>
+        public static Dictionary<string, AsePart> ParseAseParts()
+        {
+            if (s_aseParts != null)
+                return s_aseParts;
+            string abs = Path.Combine(UnityProjectRoot(), AseThemeXmlPath);
+            var doc = new XmlDocument();
+            doc.Load(abs);
+            s_aseParts = new Dictionary<string, AsePart>();
+            foreach (XmlNode node in doc.SelectNodes("/theme/parts/part"))
+            {
+                var part = new AsePart
+                {
+                    id = node.Attributes["id"].Value,
+                    x = int.Parse(node.Attributes["x"].Value),
+                    y = int.Parse(node.Attributes["y"].Value),
+                    w = int.Parse(node.Attributes["w"].Value),
+                    h = int.Parse(node.Attributes["h"].Value),
+                };
+                // 切片声明：w1=左 / w3=右 / h1=上 / h3=下（Unity spriteBorder = 左/下/右/上）。
+                if (node.Attributes["w1"] != null)
+                {
+                    part.sliced = true;
+                    part.borderL = int.Parse(node.Attributes["w1"].Value);
+                    part.borderR = int.Parse(node.Attributes["w3"].Value);
+                    part.borderT = int.Parse(node.Attributes["h1"].Value);
+                    part.borderB = int.Parse(node.Attributes["h3"].Value);
+                }
+                s_aseParts[part.id] = part;
+            }
+            return s_aseParts;
         }
 
-        /// <summary>窗控钮 9×11（theme window_button；三态换色不换几何）。</summary>
-        static readonly string[] WindowButtonTemplate =
+        /// <summary>sheet.png 原始像素缓存（File 直读 + LoadImage，不经导入设置）。</summary>
+        static Color32[] EnsureAseSheet()
         {
-            ".KKKKKKK.",
-            "KCCCCCCC K".Replace(" ", ""),
-            "KEEEEEEEK",
-            "KEEEEEEEK",
-            "KEEEEEEEK",
-            "KEEEEEEEK",
-            "KEEEEEEEK",
-            "KEEEEEEEK",
-            "KEEEEEEEK",
-            "KDDDDDDDK",
-            ".KKKKKKK.",
-        };
+            if (s_sheetPixels != null)
+                return s_sheetPixels;
+            string abs = Path.Combine(UnityProjectRoot(), AseSheetPngPath);
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            try
+            {
+                if (!texture.LoadImage(File.ReadAllBytes(abs)))
+                    throw new InvalidOperationException("[BeveledPixelSpriteBuilder] sheet.png 解不开：" + abs);
+                s_sheetW = texture.width;
+                s_sheetH = texture.height;
+                s_sheetPixels = texture.GetPixels32();
+                return s_sheetPixels;
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(texture);
+            }
+        }
 
-        /// <summary>窗控图标 5×6（X=图标色，运行时可 Image.color 乘色换染）。</summary>
-        static readonly string[] IconCloseTemplate =
+        /// <summary>直切全表：白名单逐件从 sheet.png 切 PNG 落 Parts/，九宫格切片 = 声明值。</summary>
+        public static void BakeAsepriteParts()
         {
-            "X...X",
-            ".X.X.",
-            "..X..",
-            ".X.X.",
-            "X...X",
-            ".....",
-        };
-        static readonly string[] IconHelpTemplate =
-        {
-            ".XXX.",
-            "X...X",
-            "...X.",
-            "..X..",
-            ".....",
-            "..X..",
-        };
-        static readonly string[] IconPlayTemplate =
-        {
-            "X....",
-            "XX...",
-            "XXX..",
-            "XXXX.",
-            "XXXXX",
-            ".....",
-        };
-        static readonly string[] IconStopTemplate =
-        {
-            "XXXXX",
-            "XXXXX",
-            "XXXXX",
-            "XXXXX",
-            "XXXXX",
-            ".....",
-        };
-        static readonly string[] IconCenterTemplate =
-        {
-            ".XXX.",
-            "X...X",
-            "X.X.X",
-            "X...X",
-            ".XXX.",
-            ".....",
-        };
+            Dictionary<string, AsePart> table = ParseAseParts();
+            EnsureAseSheet();
+            EnsureFolder(AsePartsFolder);
+            foreach (string id in AseBakeParts)
+            {
+                if (!table.TryGetValue(id, out AsePart part))
+                    throw new InvalidOperationException("[BeveledPixelSpriteBuilder] AseBakeParts 里的 \""
+                        + id + "\" 在 theme.xml <parts> 找不到——id 抄错了。");
+                BakeAsePart(part);
+            }
+            AssetDatabase.Refresh();
+        }
 
-        /// <summary>复选框 8×8（theme check_normal/selected：凹槽语法 + ✓ 标记）。</summary>
-        static readonly string[] CheckNormalTemplate =
+        static void BakeAsePart(AsePart part)
         {
-            "KKKKKKKK",
-            "KDDDDDDK",
-            "KDEEEECK",
-            "KDEEEECK",
-            "KDEEEECK",
-            "KDEEEECK",
-            "KCCCCCC K".Replace(" ", ""),
-            "KKKKKKKK",
-        };
-        static readonly string[] CheckSelectedTemplate =
-        {
-            "KKKKKKKK",
-            "KDDDDDDK",
-            "KDEEEECK",
-            "KDX..XCK",
-            "KD.XX.CK",
-            "KDEEEECK",
-            "KCCCCCC K".Replace(" ", ""),
-            "KKKKKKKK",
-        };
+            Color32[] sheet = EnsureAseSheet();
+            if (part.x + part.w > s_sheetW || part.y + part.h > s_sheetH)
+                throw new InvalidOperationException("[BeveledPixelSpriteBuilder] part "
+                    + part.id + " 的源矩形越界 sheet.png。");
+            var px = new Color32[part.w * part.h];
+            // theme 坐标 y=0 在 sheet 顶部；Texture2D/SetPixels32 的 (0,0) 在左下——行序翻转。
+            for (int row = 0; row < part.h; row++)
+            {
+                int srcRow = part.y + (part.h - 1 - row);
+                Array.Copy(sheet, (s_sheetH - 1 - srcRow) * s_sheetW + part.x, px, row * part.w, part.w);
+            }
+            var texture = new Texture2D(part.w, part.h, TextureFormat.RGBA32, false);
+            texture.SetPixels32(px);
+            texture.Apply();
+            try
+            {
+                string path = AsePartsFolder + "/" + part.id + ".png";
+                string abs = Path.Combine(UnityProjectRoot(), path);
+                Directory.CreateDirectory(Path.GetDirectoryName(abs));
+                File.WriteAllBytes(abs, texture.EncodeToPNG());
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
+                PixelArtTextureRules.ApplySprite(AssetImporter.GetAtPath(path) as TextureImporter,
+                    part.sliced
+                        ? new Vector4(part.borderL, part.borderB, part.borderR, part.borderT)
+                        : Vector4.zero);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(texture);
+            }
+        }
 
-        /// <summary>单选钮 8×8（theme radio_normal/selected：凹槽语法 + 中心点）。</summary>
-        static readonly string[] RadioSelectedTemplate =
+        /// <summary>
+        /// 直切件判据：盘上 PNG 与 sheet.png 源区域**逐位一致** + 尺寸与 theme.xml 声明一致
+        /// + 导入五值/切片与声明一致。直切件没有"生成器参数"，与源逐位比对就是最强判据
+        /// （手改盘上 PNG 或 sheet.png 更新后忘重烘都会被抓）。
+        /// </summary>
+        public static void VerifyAsepriteParts(List<string> problems)
         {
-            "KKKKKKKK",
-            "KDDDDDDK",
-            "KDEEEECK",
-            "KDEXXECK",
-            "KDEXXECK",
-            "KDEEEECK",
-            "KCCCCCC K".Replace(" ", ""),
-            "KKKKKKKK",
-        };
+            Dictionary<string, AsePart> table = ParseAseParts();
+            Color32[] sheet = EnsureAseSheet();
+            foreach (string id in AseBakeParts)
+            {
+                if (!table.TryGetValue(id, out AsePart part))
+                {
+                    problems.Add("Aseprite 直切件 " + id + "：theme.xml 里没有这个 part id。");
+                    continue;
+                }
+                string path = AsePartsFolder + "/" + id + ".png";
+                string abs = Path.Combine(UnityProjectRoot(), path);
+                if (!File.Exists(abs))
+                {
+                    problems.Add("Aseprite 直切件 " + id + "：盘上没有 " + path + "。");
+                    continue;
+                }
+                var disk = new Texture2D(2, 2);
+                try
+                {
+                    if (!disk.LoadImage(File.ReadAllBytes(abs)))
+                    {
+                        problems.Add("Aseprite 直切件 " + id + "：盘上 PNG 解不开。");
+                        continue;
+                    }
+                    if (disk.width != part.w || disk.height != part.h)
+                    {
+                        problems.Add("Aseprite 直切件 " + id + "：尺寸 " + disk.width + "×" + disk.height
+                            + "，theme.xml 声明 " + part.w + "×" + part.h + "。");
+                        continue;
+                    }
+                    Color32[] px = disk.GetPixels32();
+                    for (int row = 0; row < part.h; row++)
+                    {
+                        int srcRow = part.y + (part.h - 1 - row);
+                        int sheetRowStart = (s_sheetH - 1 - srcRow) * s_sheetW + part.x;
+                        for (int col = 0; col < part.w; col++)
+                        {
+                            Color32 a = px[row * part.w + col];
+                            Color32 b = sheet[sheetRowStart + col];
+                            if (!Same(a, b))
+                            {
+                                problems.Add("Aseprite 直切件 " + id + "：像素 (" + col + "," + row
+                                    + ") 与 sheet.png 源区域不一致（盘上 " + Hex(a) + " / 源 " + Hex(b)
+                                    + "）——直切件必须与参考库逐位一致，重跑烘焙。");
+                                row = part.h;
+                                break;
+                            }
+                        }
+                    }
+                }
+                finally
+                {
+                    UnityEngine.Object.DestroyImmediate(disk);
+                }
+                var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+                Vector4 border = part.sliced
+                    ? new Vector4(part.borderL, part.borderB, part.borderR, part.borderT)
+                    : Vector4.zero;
+                if (importer == null)
+                    problems.Add("Aseprite 直切件 " + id + "：读不到 TextureImporter。");
+                else
+                {
+                    List<string> importProblems = PixelArtTextureRules.CheckSprite(importer, border);
+                    for (int i = 0; i < importProblems.Count; i++)
+                        problems.Add("Aseprite 直切件 " + id + "：" + importProblems[i]);
+                }
+            }
+        }
 
-        /// <summary>复选/单选的焦点九宫格 10×10（theme check_focus 2/6/2）。</summary>
-        static readonly string[] WidgetFocusTemplate =
-        {
-            "..........",
-            ".FFFFFFFF.",
-            ".F......F.",
-            ".F......F.",
-            ".F......F.",
-            ".F......F.",
-            ".F......F.",
-            ".F......F.",
-            ".FFFFFFFF.",
-            "..........",
-        };
-
-        /// <summary>凹槽 12×12（theme sunken 4/4/4；textedit/列表底）。</summary>
-        static readonly string[] SunkenTemplate =
-        {
-            "KKKKKKKKKKKK",
-            "KDDDDDDDDDDK",
-            "KDEEEEEEEECK",
-            "KDEEEEEEEECK",
-            "KDEEEEEEEECK",
-            "KDEEEEEEEECK",
-            "KDEEEEEEEECK",
-            "KDEEEEEEEECK",
-            "KDEEEEEEEECK",
-            "KDEEEEEEEECK",
-            "KCCCCCCCCCCK",
-            "KKKKKKKKKKKK",
-        };
-
-        /// <summary>滑条空槽 16×16（theme slider_empty 5/6/5 × 5/5/6）。</summary>
-        static readonly string[] SliderEmptyTemplate =
-        {
-            "KKKKKKKKKKKKKKKK",
-            "KDDDDDDDDDDDDDDK",
-            "KDEEEEEEEEEEEECK",
-            "KDEEEEEEEEEEEECK",
-            "KDEEEEEEEEEEEECK",
-            "KDEEEEEEEEEEEECK",
-            "KDEEEEEEEEEEEECK",
-            "KDEEEEEEEEEEEECK",
-            "KDEEEEEEEEEEEECK",
-            "KDEEEEEEEEEEEECK",
-            "KDEEEEEEEEEEEECK",
-            "KDEEEEEEEEEEEECK",
-            "KDEEEEEEEEEEEECK",
-            "KDEEEEEEEEEEEECK",
-            "KCCCCCCCCCCCCCCK",
-            "KKKKKKKKKKKKKKKK",
-        };
-
-        /// <summary>滑条充满段 16×16（theme slider_full；金色 selected 面）。</summary>
-        static readonly string[] SliderFullTemplate =
-        {
-            "KKKKKKKKKKKKKKKK",
-            "KCCCCCCCCCCCCCCK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KDDDDDDDDDDDDDDK",
-            "KKKKKKKKKKKKKKKK",
-        };
-
-        /// <summary>滑条拇指 5×4（theme mini_slider_thumb）。</summary>
-        static readonly string[] SliderThumbTemplate =
-        {
-            "KKKKK",
-            "KCECK",
-            "KCEDK",
-            "KKKKK",
-        };
-
-        /// <summary>滚动条底 16×16（theme scrollbar_bg 5/6/5）。</summary>
-        static readonly string[] ScrollBgTemplate = SliderEmptyTemplate;
-
-        /// <summary>滚动条滑块 16×16（theme scrollbar_thumb；凸起语法）。</summary>
-        static readonly string[] ScrollThumbTemplate =
-        {
-            "KKKKKKKKKKKKKKKK",
-            "KCCCCCCCCCCCCCCK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KDDDDDDDDDDDDDDK",
-            "KKKKKKKKKKKKKKKK",
-        };
-
-        /// <summary>气泡 16×16（theme tooltip 5/6/5 × 5/5/6；蓝底）。</summary>
-        static readonly string[] TooltipTemplate =
-        {
-            "KKKKKKKKKKKKKKKK",
-            "KCCCCCCCCCCCCCCK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KCEEEEEEEEEEEECK",
-            "KDDDDDDDDDDDDDDK",
-            "KKKKKKKKKKKKKKKK",
-        };
-
-        /// <summary>组合框下拉箭头 9×8（theme combobox_arrow_down）。</summary>
-        static readonly string[] ArrowDownTemplate =
-        {
-            ".........",
-            ".........",
-            "....X....",
-            "...XXX...",
-            "..XXXXX..",
-            ".XXXXXXX.",
-            ".........",
-            ".........",
-        };
+        /// <summary>窗控钮 9×11（theme window_button；三态换色不换几何）。【已退役】窗控钮等
+        /// theme 语义件全部改为 sheet.png 直切（见 BakeAsepriteParts），手绘模板仅存 tone 族。</summary>
 
         /// <summary>带标题栏的窗体 13×24（theme window：3/7/3 × 15/4/5）。
         /// B=标题带（tone 亮档），带底暗线 D，窗体 E；顶部切片 15 = 环+带+带底线。</summary>
@@ -1141,7 +1151,7 @@ namespace PirateCrew.EditorTools
             "KKKKKKKKKKKKK",
         };
 
-        /// <summary>通用字母模板构建：'.' = 透明，其余按 map 取色，×Unit 落盘。</summary>
+        /// <summary>通用字母模板构建：'.' = 透明，其余按 map 取色，×1 落盘（1 格 = 1 贴图像素）。</summary>
         static Texture2D BuildTemplateTexture(string[] template, Dictionary<char, Color32> map,
             Vector4 border)
         {
@@ -1153,182 +1163,17 @@ namespace PirateCrew.EditorTools
                     throw new InvalidOperationException("[BeveledPixelSpriteBuilder] 模板第 " + i
                         + " 行宽 " + template[i].Length + " ≠ 首行 " + cols + "——参差模板会越界。");
             }
-            int u = Unit;
-            int w = cols * u, h = rows * u;
+            int w = cols, h = rows;
             var px = new Color32[w * h];
             for (int y = 0; y < h; y++)
             {
                 for (int x = 0; x < w; x++)
                 {
-                    char ch = template[y / u][x / u];
+                    char ch = template[y][x];
                     px[y * w + x] = ch == '.' ? new Color32(0, 0, 0, 0) : map[ch];
                 }
             }
             return ToTexture(px, w, h);
-        }
-
-        /// <summary>凹槽族色表（sunken/check/radio/slider_empty/scroll_bg）。</summary>
-        static Dictionary<char, Color32> SunkenMap(bool focused)
-        {
-            return new Dictionary<char, Color32>
-            {
-                { 'K', focused ? Ase.SeparatorLabel : Slot("INK") },
-                { 'D', focused ? Ase.HotFace : Ase.Disabled },
-                { 'E', Ase.Disabled },
-                { 'C', focused ? Ase.SeparatorLabel : Ase.Background },
-                { 'X', Ase.Text },
-                { 'F', Ase.Background },
-            };
-        }
-
-        /// <summary>凸起族色表（窗控钮/滑条充满/滚动滑块常态）。</summary>
-        static Dictionary<char, Color32> RaisedMap()
-        {
-            return new Dictionary<char, Color32>
-            {
-                { 'K', Slot("INK") },
-                { 'C', Ase.Background },
-                { 'E', Ase.Face },
-                { 'D', Ase.Disabled },
-            };
-        }
-
-        /// <summary>theme 语义件路由（CreateByName 的后半段）。</summary>
-        static Texture2D CreateThemePart(string name, out Vector4 border)
-        {
-            string[] tpl;
-            Dictionary<char, Color32> map;
-            if (!ResolveThemePart(name, out tpl, out map, out border))
-                return null;
-            return BuildTemplateTexture(tpl, map, border);
-        }
-
-        /// <summary>theme 件名 →（模板, 色表, 切片）。构建与判据共用的单一真源。</summary>
-        static bool ResolveThemePart(string name, out string[] tpl, out Dictionary<char, Color32> map,
-            out Vector4 border)
-        {
-            int u = Unit;
-            tpl = null;
-            map = null;
-            border = Vector4.zero;
-            switch (name)
-            {
-                case "Pixel_WindowButton":
-                    tpl = WindowButtonTemplate; map = RaisedMap();
-                    return true;
-                case "Pixel_WindowButton_Hover":
-                    tpl = WindowButtonTemplate;
-                    map = new Dictionary<char, Color32>
-                    {
-                        { 'K', Slot("INK") }, { 'C', Ase.HotFace },
-                        { 'E', Ase.Background }, { 'D', Ase.Face },
-                    };
-                    return true;
-                case "Pixel_WindowButton_Pressed":
-                    tpl = WindowButtonTemplate;
-                    map = new Dictionary<char, Color32>
-                    {
-                        { 'K', Slot("INK") }, { 'C', Ase.Face },
-                        { 'E', Ase.Disabled }, { 'D', Slot("INK") },
-                    };
-                    return true;
-                case "Pixel_Icon_Close":
-                case "Pixel_Icon_Help":
-                case "Pixel_Icon_Play":
-                case "Pixel_Icon_Stop":
-                case "Pixel_Icon_Center":
-                    tpl = name == "Pixel_Icon_Close" ? IconCloseTemplate
-                        : name == "Pixel_Icon_Help" ? IconHelpTemplate
-                        : name == "Pixel_Icon_Play" ? IconPlayTemplate
-                        : name == "Pixel_Icon_Stop" ? IconStopTemplate
-                        : IconCenterTemplate;
-                    map = new Dictionary<char, Color32> { { 'X', Ase.Text } };
-                    return true;
-                case "Pixel_Check":
-                    tpl = CheckNormalTemplate; map = SunkenMap(false);
-                    return true;
-                case "Pixel_Check_Selected":
-                    tpl = CheckSelectedTemplate; map = SunkenMap(false);
-                    return true;
-                case "Pixel_Radio":
-                    tpl = CheckNormalTemplate; map = SunkenMap(false);
-                    return true;
-                case "Pixel_Radio_Selected":
-                    tpl = RadioSelectedTemplate; map = SunkenMap(false);
-                    return true;
-                case "Pixel_WidgetFocus":
-                    tpl = WidgetFocusTemplate; map = SunkenMap(false);
-                    border = new Vector4(2 * u, 2 * u, 2 * u, 2 * u);
-                    return true;
-                case "Pixel_Sunken":
-                    tpl = SunkenTemplate; map = SunkenMap(false);
-                    border = new Vector4(4 * u, 4 * u, 4 * u, 4 * u);
-                    return true;
-                case "Pixel_Sunken_Focused":
-                    tpl = SunkenTemplate; map = SunkenMap(true);
-                    border = new Vector4(4 * u, 4 * u, 4 * u, 4 * u);
-                    return true;
-                case "Pixel_Slider_Empty":
-                case "Pixel_Slider_Empty_Focused":
-                    tpl = SliderEmptyTemplate;
-                    map = SunkenMap(name.EndsWith("_Focused", StringComparison.Ordinal));
-                    border = new Vector4(5 * u, 5 * u, 5 * u, 6 * u);
-                    return true;
-                case "Pixel_Slider_Full":
-                case "Pixel_Slider_Full_Focused":
-                    tpl = SliderFullTemplate;
-                    map = SliderThumbMap();   // 充满段与拇指同一金色系色表
-                    if (name.EndsWith("_Focused", StringComparison.Ordinal))
-                        map['K'] = Ase.SeparatorLabel;   // 聚焦 = 蓝环
-                    border = new Vector4(5 * u, 5 * u, 5 * u, 6 * u);
-                    return true;
-                case "Pixel_SliderThumb":
-                    tpl = SliderThumbTemplate; map = SliderThumbMap();
-                    return true;
-                case "Pixel_ScrollBg":
-                    tpl = ScrollBgTemplate; map = SunkenMap(false);
-                    border = new Vector4(5 * u, 5 * u, 5 * u, 5 * u);
-                    return true;
-                case "Pixel_ScrollThumb":
-                    tpl = ScrollThumbTemplate; map = RaisedMap();
-                    border = new Vector4(5 * u, 5 * u, 5 * u, 5 * u);
-                    return true;
-                case "Pixel_Tooltip":
-                    tpl = TooltipTemplate;
-                    map = new Dictionary<char, Color32>
-                    {
-                        { 'K', Slot("INK") }, { 'C', Ase.SeparatorLabel },
-                        { 'E', Ase.TooltipFace }, { 'D', Slot("INK") },
-                    };
-                    border = new Vector4(5 * u, 6 * u, 5 * u, 6 * u);
-                    return true;
-                case "Pixel_ArrowDown":
-                case "Pixel_ArrowDown_Selected":
-                case "Pixel_ArrowDown_Disabled":
-                    tpl = ArrowDownTemplate;
-                    map = new Dictionary<char, Color32>
-                    {
-                        { 'X', name.EndsWith("_Selected", StringComparison.Ordinal)
-                            ? Ase.TextSelected
-                            : name.EndsWith("_Disabled", StringComparison.Ordinal)
-                                ? Ase.Disabled
-                                : Ase.Text },
-                    };
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        static Dictionary<char, Color32> SliderThumbMap()
-        {
-            return new Dictionary<char, Color32>
-            {
-                { 'K', Slot("INK") },
-                { 'C', Ase.Text },
-                { 'E', Ase.Selected },
-                { 'D', Ase.Background },
-            };
         }
 
         /// <summary>带标题栏的窗体（theme window：13×24，切片 左3/下5/右3/上15）。
@@ -1336,7 +1181,6 @@ namespace PirateCrew.EditorTools
         /// 窗体 = 中档——tone 阶梯在无色 tone 上正好落 theme 中性三档。</summary>
         static Texture2D BuildWindowFromTemplate(Ramp r, out Vector4 border)
         {
-            int u = Unit;
             var map = new Dictionary<char, Color32>
             {
                 { 'K', Slot("INK") },
@@ -1345,7 +1189,7 @@ namespace PirateCrew.EditorTools
                 { 'D', r.S2 },   // 带底暗线
                 { 'E', r.S3 },   // 窗体面
             };
-            border = new Vector4(3 * u, 5 * u, 3 * u, 15 * u);   // 左/下/右/上
+            border = new Vector4(3, 5, 3, 15);   // 左/下/右/上（×1）
             return BuildTemplateTexture(WindowTemplate, map, border);
         }
 
@@ -1355,8 +1199,8 @@ namespace PirateCrew.EditorTools
             int depth = ChamferDepthUnits;      // 局部量防 CS0162（同 IsChamfer）
             if (depth <= 0)
                 return false;
-            int dx = Math.Min(x, n - 1 - x) / Unit;
-            int dy = (n - 1 - y) / Unit;
+            int dx = Math.Min(x, n - 1 - x);
+            int dy = (n - 1 - y);
             return dx + dy < depth;
         }
 
@@ -1374,7 +1218,7 @@ namespace PirateCrew.EditorTools
             for (int y = 0; y < n; y++)
             {
                 int fromTop = n - 1 - y;
-                Color32 band = fromTop < Unit ? f.Hi : (fromTop >= n - Unit ? f.Dark : f.Body);
+                Color32 band = fromTop < 1 ? f.Hi : (fromTop >= n - 1 ? f.Dark : f.Body);
                 for (int x = 0; x < n; x++)
                 {
                     // 右端 u 列的"前缘"：整列往亮沿提一档。亮沿自身混合后不变（Mix(hi,hi)=hi），
@@ -1435,12 +1279,12 @@ namespace PirateCrew.EditorTools
                         continue;
                     }
                     int d = Math.Min(Math.Min(x, n - 1 - x), Math.Min(y, n - 1 - y));
-                    if (d >= 2 * Unit)
+                    if (d >= 2)
                     {
                         px[y * n + x] = new Color32(0, 0, 0, 0);   // 环内是透的（垫在目标物外沿）
                         continue;
                     }
-                    px[y * n + x] = d < Unit ? outer : inner;
+                    px[y * n + x] = d < 1 ? outer : inner;
                 }
             }
             border = new Vector4(RingBorder, RingBorder, RingBorder, RingBorder);
@@ -1457,7 +1301,7 @@ namespace PirateCrew.EditorTools
         public static Texture2D CreatePipTexture(bool on, out Vector4 border)
         {
             int n = PipSize;
-            int cells = n / Unit;
+            int cells = n;
             Color32 hi = Slot("SAND_LIGHT");
             Color32 mid = Slot("BRASS");
             Color32 lo = Slot("WOOD_DARK");
@@ -1468,7 +1312,7 @@ namespace PirateCrew.EditorTools
             {
                 for (int x = 0; x < n; x++)
                 {
-                    int cx = x / Unit, cy = y / Unit;
+                    int cx = x, cy = y;
                     int a = Math.Abs(2 * cx - (cells - 1)) + Math.Abs(2 * cy - (cells - 1));
                     if (a > cells - 2)
                     {
@@ -1490,7 +1334,7 @@ namespace PirateCrew.EditorTools
             {
                 int topCellX = (cells - 1) / 2;        // 顶行（cy 最大）居中偏左的格（受光侧）
                 int topCellY = cells - 2;
-                px[(topCellY * Unit + Unit - 1) * n + topCellX * Unit] = Slot("WHITE_HOT");
+                px[topCellY * n + topCellX] = Slot("WHITE_HOT");
             }
             border = Vector4.zero;       // 固定尺寸件（原生渲染，不拉伸）
             return ToTexture(px, n, n);
@@ -1520,20 +1364,20 @@ namespace PirateCrew.EditorTools
         public static Texture2D CreateSepTexture(bool horizontal, out Vector4 border)
         {
             Color32[] c = SepColors();
-            int w = horizontal ? SepLength : 2 * Unit;
-            int h = horizontal ? 2 * Unit : SepLength;
+            int w = horizontal ? SepLength : 2;
+            int h = horizontal ? 2 : SepLength;
             var px = new Color32[w * h];
             for (int y = 0; y < h; y++)
             {
                 for (int x = 0; x < w; x++)
                 {
-                    bool dark = horizontal ? y >= Unit : x < Unit;
+                    bool dark = horizontal ? y >= 1 : x < 1;
                     px[y * w + x] = dark ? c[0] : c[1];
                 }
             }
             border = horizontal
-                ? new Vector4(0f, Unit, 0f, Unit)
-                : new Vector4(Unit, 0f, Unit, 0f);
+                ? new Vector4(0f, 1, 0f, 1)
+                : new Vector4(1, 0f, 1, 0f);
             return ToTexture(px, w, h);
         }
 
@@ -1785,35 +1629,10 @@ namespace PirateCrew.EditorTools
             list.Add(NewTarget("Pixel_Sep_V"));
             list.Add(NewTarget("Pixel_Shadow"));
 
-            // Aseprite dark 全部件搬皮（2026-09-25）：tone 窗体 + theme 语义件
+            // Aseprite dark 窗体（tone 族，×1）。theme 控件件不进本表——它们没有程序化
+            // 画法，走 BakeAsepriteParts 从 sheet.png 直切，判据是与源逐位比对。
             foreach (Tone tone in Enum.GetValues(typeof(Tone)))
                 list.Add(NewTarget(AssetNameOf(tone, Piece.Window, State.Normal)));
-            list.Add(NewTarget("Pixel_WindowButton"));
-            list.Add(NewTarget("Pixel_WindowButton_Hover"));
-            list.Add(NewTarget("Pixel_WindowButton_Pressed"));
-            list.Add(NewTarget("Pixel_Icon_Close"));
-            list.Add(NewTarget("Pixel_Icon_Help"));
-            list.Add(NewTarget("Pixel_Icon_Play"));
-            list.Add(NewTarget("Pixel_Icon_Stop"));
-            list.Add(NewTarget("Pixel_Icon_Center"));
-            list.Add(NewTarget("Pixel_Check"));
-            list.Add(NewTarget("Pixel_Check_Selected"));
-            list.Add(NewTarget("Pixel_Radio"));
-            list.Add(NewTarget("Pixel_Radio_Selected"));
-            list.Add(NewTarget("Pixel_WidgetFocus"));
-            list.Add(NewTarget("Pixel_Sunken"));
-            list.Add(NewTarget("Pixel_Sunken_Focused"));
-            list.Add(NewTarget("Pixel_Slider_Empty"));
-            list.Add(NewTarget("Pixel_Slider_Empty_Focused"));
-            list.Add(NewTarget("Pixel_Slider_Full"));
-            list.Add(NewTarget("Pixel_Slider_Full_Focused"));
-            list.Add(NewTarget("Pixel_SliderThumb"));
-            list.Add(NewTarget("Pixel_ScrollBg"));
-            list.Add(NewTarget("Pixel_ScrollThumb"));
-            list.Add(NewTarget("Pixel_Tooltip"));
-            list.Add(NewTarget("Pixel_ArrowDown"));
-            list.Add(NewTarget("Pixel_ArrowDown_Selected"));
-            list.Add(NewTarget("Pixel_ArrowDown_Disabled"));
 
             return list.ToArray();
         }
@@ -1821,37 +1640,6 @@ namespace PirateCrew.EditorTools
         /// <summary>资产名 → 画法族（判据分流用；与 <see cref="CreateByName"/> 的路由一一对应）。</summary>
         public static string KindOfName(string name)
         {
-            // theme 语义件先于 tone×piece 前缀判（Pixel_WindowButton 会撞 Pixel_Window_）
-            switch (name)
-            {
-                case "Pixel_WindowButton":
-                case "Pixel_WindowButton_Hover":
-                case "Pixel_WindowButton_Pressed":
-                case "Pixel_Icon_Close":
-                case "Pixel_Icon_Help":
-                case "Pixel_Icon_Play":
-                case "Pixel_Icon_Stop":
-                case "Pixel_Icon_Center":
-                case "Pixel_Check":
-                case "Pixel_Check_Selected":
-                case "Pixel_Radio":
-                case "Pixel_Radio_Selected":
-                case "Pixel_WidgetFocus":
-                case "Pixel_Sunken":
-                case "Pixel_Sunken_Focused":
-                case "Pixel_Slider_Empty":
-                case "Pixel_Slider_Empty_Focused":
-                case "Pixel_Slider_Full":
-                case "Pixel_Slider_Full_Focused":
-                case "Pixel_SliderThumb":
-                case "Pixel_ScrollBg":
-                case "Pixel_ScrollThumb":
-                case "Pixel_Tooltip":
-                case "Pixel_ArrowDown":
-                case "Pixel_ArrowDown_Selected":
-                case "Pixel_ArrowDown_Disabled":
-                    return "themepart";
-            }
             if (name.StartsWith("Pixel_Fill_", StringComparison.Ordinal))
                 return "fill";
             if (name.StartsWith("Pixel_Tab_", StringComparison.Ordinal))
@@ -1898,50 +1686,39 @@ namespace PirateCrew.EditorTools
                     border = Vector4.zero;
                     break;
                 case "sep":
-                    w = SepLength; h = 2 * Unit;      // 水平件；垂直件在 CreateByName 里互换
-                    border = new Vector4(0f, Unit, 0f, Unit);
+                    w = SepLength; h = 2;             // 水平件；垂直件在下面互换
+                    border = new Vector4(0f, 1, 0f, 1);
                     break;
                 case "track":
                     w = PlateSize; h = PlateSize;
                     border = new Vector4(TrackBorder, TrackBorder, TrackBorder, TrackBorder);
                     break;
                 case "panel":
-                    w = PanelTemplate[0].Length * Unit;
-                    h = PanelTemplate.Length * Unit;
-                    border = new Vector4(2 * Unit, 2 * Unit, 2 * Unit, 2 * Unit);
+                    w = PanelTemplate[0].Length;
+                    h = PanelTemplate.Length;
+                    border = new Vector4(2, 2, 2, 2);
                     break;
                 case "window":
-                    w = WindowTemplate[0].Length * Unit;
-                    h = WindowTemplate.Length * Unit;
-                    border = new Vector4(3 * Unit, 5 * Unit, 3 * Unit, 15 * Unit);
+                    w = WindowTemplate[0].Length;
+                    h = WindowTemplate.Length;
+                    border = new Vector4(3, 5, 3, 15);
                     break;
-                case "themepart":
-                {
-                    // theme 语义件：尺寸/切片由 CreateThemePart 的同构 switch 给出
-                    Texture2D probe = CreateThemePart(name, out border);
-                    if (probe == null)
-                        throw new InvalidOperationException("[BeveledPixelSpriteBuilder] 未知 theme 件：" + name);
-                    w = probe.width;
-                    h = probe.height;
-                    UnityEngine.Object.DestroyImmediate(probe);
-                    break;
-                }
                 case "shadow":
                     w = PlateSize; h = PlateSize;
                     border = new Vector4(PlateBorder, PlateBorder, PlateBorder, PlateBorder);
                     break;
                 default:
                     // plate：Aseprite button 模板 14×16（与 BuildPlateFromTemplate 同源），
-                    // 切片 = 左/右 4u、下 6u、上 4u（w/h1..3 原样）。
-                    w = PlateTemplate[0].Length * Unit;
-                    h = PlateTemplate.Length * Unit;
-                    border = new Vector4(4 * Unit, 6 * Unit, 4 * Unit, 4 * Unit);
+                    // 切片 = 左/右 4、下 6、上 4（w/h1..3 原样）。
+                    w = PlateTemplate[0].Length;
+                    h = PlateTemplate.Length;
+                    border = new Vector4(4, 6, 4, 4);
                     break;
             }
             if (kind == "sep" && name == "Pixel_Sep_V")
             {
-                w = 2 * Unit; h = SepLength;
-                border = new Vector4(Unit, 0f, Unit, 0f);
+                w = 2; h = SepLength;
+                border = new Vector4(1, 0f, 1, 0f);
             }
             return new BakeTarget
             {
@@ -1974,11 +1751,6 @@ namespace PirateCrew.EditorTools
                 return CreateSepTexture(name == "Pixel_Sep_H", out border);
             if (name == "Pixel_Shadow")
                 return CreateShadowTexture(out border);
-
-            // theme 语义件（Aseprite dark 全部件搬皮）
-            Texture2D theme = CreateThemePart(name, out border);
-            if (theme != null)
-                return theme;
 
             if (name.StartsWith("Pixel_Fill_", StringComparison.Ordinal))
             {
@@ -2055,6 +1827,9 @@ namespace PirateCrew.EditorTools
                 Texture2D texture = CreateByName(targets[i].name, out Vector4 border);
                 WriteSprite(targets[i].assetPath, texture, targets[i].border);
             }
+
+            // Aseprite dark 控件件：theme.xml <parts> 表 → sheet.png 直切（×1 全量对齐波主菜）
+            BakeAsepriteParts();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -2200,8 +1975,9 @@ namespace PirateCrew.EditorTools
             for (int i = 0; i < targets.Length; i++)
                 problems.AddRange(VerifyTarget(targets[i]));
 
-            CheckGeometryConstants(problems, PlateSize, PlateBorder, FillSize, FillBorder, Unit);
+            CheckGeometryConstants(problems, PlateSize, PlateBorder, FillSize, FillBorder, 1);
             CheckUnitAlignment(problems);
+            VerifyAsepriteParts(problems);
             VerifyAtlas(problems);
 
             return problems;
@@ -2218,26 +1994,11 @@ namespace PirateCrew.EditorTools
         /// </summary>
         static void CheckUnitAlignment(List<string> problems)
         {
-            // ① 新管线真源（3D 线源码里的常量；反射避免 Editor 预定义程序集直接依赖）
-            Type pilotScene = Type.GetType(
-                "PirateCrew.Rendering.Pixelart.PixelartPilotScene, PirateCrew.Rendering");
-            if (pilotScene != null)
-            {
-                FieldInfo scaleField = pilotScene.GetField("PixelScale",
-                    BindingFlags.Public | BindingFlags.Static);
-                if (scaleField != null)
-                {
-                    int scale = (int)scaleField.GetRawConstantValue();
-                    if (scale != Unit)
-                    {
-                        problems.Add("u 对齐判据：UI 像素比例 PixelartPilotScene.PixelScale=" + scale
-                            + " ≠ UI 基本单位 Unit=" + Unit
-                            + "——两个 UI 真源必须同值（画布工厂与烘焙各读一个）。");
-                    }
-                }
-            }
+            // 【×1 终局】旧判据①（PixelartPilotScene.PixelScale == Unit）已删：
+            // Unit 不再是"UI 艺术像素比例"（贴图/布局 1:1 后无倍率可言），只剩画布密度语义，
+            // 与 3D 侧 RT 比例彻底解耦（2026-09-24 解耦、2026-09-25 ×1 终局）。
 
-            // ② 旧 Feature 遗留档
+            // 3D 侧（URP 渲染器 renderHeightPixels）只锁整数倍放大。
             const int canonicalHeight = 1080;      // 基准出图分辨率（Canvas 参考分辨率同为 1920×1080）
             string[] rendererAssets =
             {
@@ -2384,37 +2145,23 @@ namespace PirateCrew.EditorTools
                 case "track": return ChamferPixelCount();      // 条槽族走分层画法（切角深度 0 = 方角 = 全不透明）
                 case "panel": return 0;                        // 直角面板（2026-09-24 裁决：圆角只属于按钮）
                 case "window": return 0;                       // 带标题窗体同为直角全不透明
-                case "themepart":
-                {
-                    // theme 模板件：'.' 格即已知透明形状（与生成器同源，非循环——判据锁的是模板本身）
-                    string[] tpl;
-                    Dictionary<char, Color32> map;
-                    Vector4 border;
-                    if (!ResolveThemePart(name, out tpl, out map, out border))
-                        return 0;
-                    int cells = 0;
-                    foreach (string row in tpl)
-                        foreach (char ch in row)
-                            if (ch == '.') cells++;
-                    return cells * Unit * Unit;
-                }
                 case "ring": return RingSize * RingSize - RingOpaqueCount();
                 case "pip": return PipSize * PipSize - PipOpaqueCount();
                 case "sep": return 0;
                 case "shadow": return ChamferPixelCount();
                 default:
                 {
-                    // plate：模板四角的透明阶梯格（'.' 数 × 每格像素）
+                    // plate：模板四角的透明阶梯格（'.' 数；×1 后 1 格 = 1px）
                     int cells = 0;
                     foreach (string row in PlateTemplate)
                         foreach (char ch in row)
                             if (ch == '.') cells++;
-                    return cells * Unit * Unit;
+                    return cells;
                 }
             }
         }
 
-        /// <summary>方环（选人圈/焦点框）的不透明像素数：镜像生成器画法（厚度 2u 且不在切角里）。</summary>
+        /// <summary>方环（选人圈/焦点框）的不透明像素数：镜像生成器画法（厚度 2px 且不在切角里）。</summary>
         static int RingOpaqueCount()
         {
             int n = RingSize, count = 0;
@@ -2423,7 +2170,7 @@ namespace PirateCrew.EditorTools
                 for (int x = 0; x < n; x++)
                 {
                     int d = Math.Min(Math.Min(x, n - 1 - x), Math.Min(y, n - 1 - y));
-                    if (d < 2 * Unit && !IsChamfer(x, y, n))
+                    if (d < 2 && !IsChamfer(x, y, n))
                         count++;
                 }
             }
@@ -2433,12 +2180,12 @@ namespace PirateCrew.EditorTools
         /// <summary>位点菱形的不透明像素数（含 on 态高光 1px——它替换的是已有格色，不改变计数）。</summary>
         static int PipOpaqueCount()
         {
-            int n = PipSize, cells = n / Unit, count = 0;
+            int n = PipSize, cells = n, count = 0;
             for (int y = 0; y < n; y++)
             {
                 for (int x = 0; x < n; x++)
                 {
-                    int cx = x / Unit, cy = y / Unit;
+                    int cx = x, cy = y;
                     int a = Math.Abs(2 * cx - (cells - 1)) + Math.Abs(2 * cy - (cells - 1));
                     if (a <= cells - 2)
                         count++;
@@ -2457,7 +2204,7 @@ namespace PirateCrew.EditorTools
             Color32[] px = tex.GetPixels32();
             int w = tex.width, h = tex.height;
             Ramp r = RampOf(ToneOfName(t.name));
-            for (int y = 0; y < 3 * Unit; y++)
+            for (int y = 0; y < 3; y++)
             {
                 Color32 c = px[y * w + w / 2];
                 if (!Same(c, r.S3))
@@ -2605,7 +2352,7 @@ namespace PirateCrew.EditorTools
                     int dx = Math.Min(x, w - 1 - x);
                     // 页签底边无带：判"外环像素"时到下边界的距离不参与（否则整条底边会被误记成环）
                     int dy = bottomOpen ? h - 1 - y : Math.Min(y, h - 1 - y);
-                    if (Math.Min(dx, dy) / Unit != 0)
+                    if (Math.Min(dx, dy) != 0)
                         continue;
                     isRing[i] = true;
                     count++;
@@ -2695,11 +2442,11 @@ namespace PirateCrew.EditorTools
                     continue;
 
                 int band = i - start;
-                if (band % Unit != 0)
+                if (band % 1 != 0)   // ×1 后 1px 网格上任何带宽都合法——判据退化为占位（保留结构防回跳）
                 {
                     problems.Add(label + "：" + axisName + " " + start + ".." + (i - 1)
-                        + " 带宽 " + band + "px 不是 " + Unit + " 的整数倍（该带色 " + Hex(axis[start])
-                        + "）——色带边界必须落在偶数行。");
+                        + " 带宽 " + band + "px 不是 1 的整数倍（该带色 " + Hex(axis[start])
+                        + "）——色带边界必须落在像素网格上。");
                 }
                 start = i;
             }
@@ -2718,16 +2465,6 @@ namespace PirateCrew.EditorTools
             string kind = t.kind ?? KindOfName(name);
             switch (kind)
             {
-                case "themepart":
-                {
-                    // theme 语义件：白名单 = ResolveThemePart 的同源色表（构建/判据单一真源）
-                    string[] tpl;
-                    Dictionary<char, Color32> map;
-                    Vector4 themeBorder;
-                    if (ResolveThemePart(name, out tpl, out map, out themeBorder))
-                        allowed.AddRange(map.Values);
-                    break;
-                }
                 case "fill":
                 {
                     var fillKind = (FillKind)Enum.Parse(typeof(FillKind), name.Substring("Pixel_Fill_".Length));
@@ -2979,7 +2716,6 @@ namespace PirateCrew.EditorTools
                 DrawText(px, cols, pad + 1, y + rowSingles / 2, "PARTS", labelInk, labelShadow);
 
                 // 投影演示：阴影在右下错 1u，本体盖在上面
-                DrawShadowAt(px, cols, x, cy, 24 * u, 12 * u);
                 DrawOne(px, cols, Tone.Frame, Piece.Plate, State.Normal, x, cy, 24 * u, 12 * u);
                 x += 26 * u + gap;
 
@@ -3037,14 +2773,6 @@ namespace PirateCrew.EditorTools
             Color32[] src = tex.GetPixels32();
             DrawNineSliced(src, tex.width, tex.height, border, canvas, canvasW, ox, oy, w, h);
             UnityEngine.Object.DestroyImmediate(tex);
-        }
-
-        /// <summary>画面板投影（九宫格；w/h 是**面板本体**的尺寸，投影同尺寸）。</summary>
-        static void DrawShadowAt(Color32[] canvas, int canvasW, int ox, int oy, int w, int h)
-        {
-            int dx = Mathf.RoundToInt(ShadowOffset.x);
-            int dy = Mathf.RoundToInt(ShadowOffset.y);
-            DrawSized(canvas, canvasW, "Pixel_Shadow", ox + dx, oy + dy, w, h);
         }
 
         /// <summary>tone → 接触表行名（全大写，字模只有大写）。用途一眼可辨是这张表的硬指标。</summary>
@@ -3247,7 +2975,6 @@ namespace PirateCrew.EditorTools
             var labels = new List<string>();
 
             // ================= 左：主船员卡（336 宽 × 300 高；内边距 12）=================
-            DrawShadowAt(px, W, 24 * u, 24 * u, 336 * u, 300 * u);
             DrawOne(px, W, Tone.Frame, Piece.Plate, State.Normal, 24 * u, 24 * u, 336 * u, 300 * u);
             DrawSized(px, W, "Pixel_Sep_H", 36 * u, 280 * u, 312 * u, 2 * u);
             labels.Add(Label("船员", 36, 48, 24, "white"));
@@ -3282,7 +3009,6 @@ namespace PirateCrew.EditorTools
             labels.Add(Label("退出", 264, 294, 12, "white"));
 
             // ================= 右上：海图小地图（144 = 12B）=================
-            DrawShadowAt(px, W, 456 * u, 192 * u, 144 * u, 144 * u);
             DrawOne(px, W, Tone.Sea, Piece.Plate, State.Normal, 456 * u, 192 * u, 144 * u, 144 * u);
             DrawOne(px, W, Tone.Sea, Piece.Track, State.Normal, 468 * u, 204 * u, 120 * u, 120 * u);
             DrawSized(px, W, "Pixel_Ring", 516 * u, 252 * u, 24 * u, 24 * u);
@@ -3291,7 +3017,6 @@ namespace PirateCrew.EditorTools
             labels.Add(Label("海图", 470, 38, 12, "white"));
 
             // ================= 右列：敌情卡 / 敌条 / 警告按钮 / Toast =================
-            DrawShadowAt(px, W, 456 * u, 150 * u, 144 * u, 30 * u);
             DrawOne(px, W, Tone.Danger, Piece.Plate, State.Normal, 456 * u, 150 * u, 144 * u, 30 * u);
             labels.Add(Label("敌船", 468, 180, 24, "white"));
 
@@ -3301,7 +3026,6 @@ namespace PirateCrew.EditorTools
             DrawOne(px, W, Tone.Warn, Piece.Plate, State.Normal, 456 * u, 54 * u, 72 * u, 24 * u);
             labels.Add(Label("警告", 480, 288, 12, "ink"));
 
-            DrawShadowAt(px, W, 372 * u, 12 * u, 168 * u, 24 * u);
             DrawOne(px, W, Tone.Light, Piece.Plate, State.Normal, 372 * u, 12 * u, 168 * u, 24 * u);
             labels.Add(Label("船长已登船", 426, 330, 12, "ink"));
 
@@ -3453,7 +3177,6 @@ namespace PirateCrew.EditorTools
             LaySized("Pixel_Pip_On", 208, semTop + 14, 12, 12);     // 位点：亮 / 暗各 12
             LaySized("Pixel_Pip_Off", 228, semTop + 14, 12, 12);
             LaySized("Pixel_Sep_H", 288, semTop + 18, 128, 4);      // 蚀刻分隔线
-            DrawShadowAt(px, W, 432 * u, Y(semTop + 8, 24), 96 * u, 24 * u);
             Lay(Tone.Frame, Piece.Plate, State.Normal, 432, semTop + 8, 96, 24);
             string[] semNames = { "选人圈", "焦点框", "位点 亮/暗", "分隔线", "投影" };
             int[] semX = { 112, 160, 208, 288, 432 };
@@ -3568,35 +3291,56 @@ namespace PirateCrew.EditorTools
             asset.separatorV = LoadSprite("Pixel_Sep_V");
             asset.shadow = LoadSprite("Pixel_Shadow");
 
-            // Aseprite dark 全部件搬皮（2026-09-25）
+            // Aseprite dark 控件件（×1 全量对齐波）：BakeAsepriteParts 的直切成品，
+            // 平行数组 aseParts/asePartNames 收全表白名单件——运行时 PixelSkin.Ase(id) 查它。
+            var aseSprites = new List<Sprite>();
+            var aseNames = new List<string>();
+            var aseById = new Dictionary<string, Sprite>();
+            foreach (string id in AseBakeParts)
+            {
+                Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(AsePartsFolder + "/" + id + ".png");
+                aseSprites.Add(sprite);
+                aseNames.Add(id);
+                aseById[id] = sprite;
+            }
+            asset.aseParts = aseSprites.ToArray();
+            asset.asePartNames = aseNames.ToArray();
+
+            // 语义取用器的固定族字段也落直切件（id 与 PixelSkin 取用器映射一一对应）
             asset.windowButtons = new[]
             {
-                LoadSprite("Pixel_WindowButton"),
-                LoadSprite("Pixel_WindowButton_Hover"),
-                LoadSprite("Pixel_WindowButton_Pressed"),
+                aseById["window_button_normal"],
+                aseById["window_button_hot"],
+                aseById["window_button_selected"],
             };
             asset.windowIcons = new[]
             {
-                LoadSprite("Pixel_Icon_Close"),
-                LoadSprite("Pixel_Icon_Help"),
-                LoadSprite("Pixel_Icon_Play"),
-                LoadSprite("Pixel_Icon_Stop"),
-                LoadSprite("Pixel_Icon_Center"),
+                aseById["window_close_icon"],
+                aseById["window_help_icon"],
+                aseById["window_play_icon"],
+                aseById["window_stop_icon"],
+                aseById["window_center_icon"],
             };
-            asset.checks = new[] { LoadSprite("Pixel_Check"), LoadSprite("Pixel_Check_Selected") };
-            asset.radios = new[] { LoadSprite("Pixel_Radio"), LoadSprite("Pixel_Radio_Selected") };
-            asset.widgetFocus = LoadSprite("Pixel_WidgetFocus");
-            asset.sunken = new[] { LoadSprite("Pixel_Sunken"), LoadSprite("Pixel_Sunken_Focused") };
-            asset.sliderEmpty = new[] { LoadSprite("Pixel_Slider_Empty"), LoadSprite("Pixel_Slider_Empty_Focused") };
-            asset.sliderFull = new[] { LoadSprite("Pixel_Slider_Full"), LoadSprite("Pixel_Slider_Full_Focused") };
-            asset.sliderThumb = LoadSprite("Pixel_SliderThumb");
-            asset.scrollbars = new[] { LoadSprite("Pixel_ScrollBg"), LoadSprite("Pixel_ScrollThumb") };
-            asset.tooltip = LoadSprite("Pixel_Tooltip");
+            asset.checks = new[] { aseById["check_normal"], aseById["check_selected"] };
+            asset.radios = new[] { aseById["radio_normal"], aseById["radio_selected"] };
+            asset.widgetFocus = aseById["check_focus"];
+            asset.sunken = new[] { aseById["sunken_normal"], aseById["sunken_focused"] };
+            asset.sliderEmpty = new[]
+            {
+                aseById["slider_empty"], aseById["slider_empty_focused"],
+            };
+            asset.sliderFull = new[]
+            {
+                aseById["slider_full"], aseById["slider_full_focused"],
+            };
+            asset.sliderThumb = aseById["mini_slider_thumb"];
+            asset.scrollbars = new[] { aseById["scrollbar_bg"], aseById["scrollbar_thumb"] };
+            asset.tooltip = aseById["tooltip"];
             asset.arrowsDown = new[]
             {
-                LoadSprite("Pixel_ArrowDown"),
-                LoadSprite("Pixel_ArrowDown_Selected"),
-                LoadSprite("Pixel_ArrowDown_Disabled"),
+                aseById["combobox_arrow_down"],
+                aseById["combobox_arrow_down_selected"],
+                aseById["combobox_arrow_down_disabled"],
             };
 
             asset.toneColors = toneColors.ToArray();
@@ -3638,21 +3382,18 @@ namespace PirateCrew.EditorTools
             CheckNoNull(problems, asset.plates, "plates");
             CheckNoNull(problems, asset.panels, "panels");
             CheckNoNull(problems, asset.windows, "windows");
-            CheckNoNull(problems, asset.windowButtons, "windowButtons");
-            CheckNoNull(problems, asset.windowIcons, "windowIcons");
-            CheckNoNull(problems, asset.checks, "checks");
-            CheckNoNull(problems, asset.radios, "radios");
-            CheckNoNull(problems, asset.sunken, "sunken");
-            CheckNoNull(problems, asset.sliderEmpty, "sliderEmpty");
-            CheckNoNull(problems, asset.sliderFull, "sliderFull");
-            CheckNoNull(problems, asset.scrollbars, "scrollbars");
-            CheckNoNull(problems, asset.arrowsDown, "arrowsDown");
-            if (asset.widgetFocus == null) problems.Add("图集 widgetFocus 空槽。");
-            if (asset.sliderThumb == null) problems.Add("图集 sliderThumb 空槽。");
-            if (asset.tooltip == null) problems.Add("图集 tooltip 空槽。");
             CheckNoNull(problems, asset.tracks, "tracks");
             CheckNoNull(problems, asset.tabs, "tabs");
             CheckNoNull(problems, asset.fills, "fills");
+            // Aseprite 直切件：平行数组对齐 + 无空槽（空槽 = 直切漏件或 part id 对不上）。
+            if (asset.aseParts == null || asset.asePartNames == null
+                || asset.aseParts.Length != asset.asePartNames.Length
+                || asset.aseParts.Length != AseBakeParts.Length)
+            {
+                problems.Add("图集 aseParts/asePartNames 缺失或长度与 AseBakeParts（"
+                    + AseBakeParts.Length + "）不对齐——GenerateAtlas 应在直切后跑。");
+            }
+            CheckNoNull(problems, asset.aseParts, "aseParts");
             if (asset.toneColors != null)
             {
                 for (int i = 0; i < asset.toneColors.Length; i++)

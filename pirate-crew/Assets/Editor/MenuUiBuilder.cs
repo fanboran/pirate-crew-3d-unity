@@ -226,10 +226,13 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 给标题类文本挂 StickUI 口径的「墨色描边」（INK 3px 档：色 <see cref="StickTokens.INK"/>、
-        /// TMP 归一化宽 <see cref="SketchButton.TmpOutlineWidth"/>=0.2，与 ControlsSampleBuilder
+        /// TMP 归一化宽 <c>TmpOutlineWidth</c>=0.2（本地常量；按钮描边已随 kind 退役，仅标题用），与 ControlsSampleBuilder
         /// 样张标题同口径）。材质落成 <c>Assets/Art/Materials/UI/TmpTitleOutlineInk.mat</c> 持久资产
         /// （场景重开不丢描边；与 M3 链路仍在用的 TmpTitleOutline.mat 分开，互不污染）。
         /// </summary>
+            /// <summary>TMP 归一化描边宽（归一化量纲；位图字禁伪粗，标题专用）。</summary>
+        const float TmpOutlineWidth = 0.2f;
+
         public static void ApplyStickTitleOutline(TextMeshProUGUI text)
         {
             if (text == null || text.font == null)
@@ -247,7 +250,7 @@ namespace PirateCrew.EditorTools
 
                     material = new Material(text.font.material) { name = "TmpTitleOutlineInk" };
                     material.SetColor("_OutlineColor", INK);
-                    material.SetFloat("_OutlineWidth", SketchButton.TmpOutlineWidth);
+                    material.SetFloat("_OutlineWidth", TmpOutlineWidth);
                     material.EnableKeyword("OUTLINE_ON");
                     AssetDatabase.CreateAsset(material, path);
                 }
@@ -364,11 +367,9 @@ namespace PirateCrew.EditorTools
             // 同排左右对称（x=±100、y=26）：旧恢复默认 x=-300 飞出面板半宽 213、后调 y=76 又压
             // 「窗口模式」行——实拍两轮修正落位。
             result.RestoreButton = CreateSketchButton("RestoreButton", panel, UiStrings.SettingsRestore,
-                new Vector2(0.5f, 0f), new Vector2(-100f, 26f), ButtonSize(UiStrings.SettingsRestore),
-                SketchButtonKind.Dark);
+                new Vector2(0.5f, 0f), new Vector2(-100f, 26f), ButtonSize(UiStrings.SettingsRestore));
             result.BackButton = CreateSketchButton("SettingsBackButton", panel, UiStrings.Back,
-                new Vector2(0.5f, 0f), new Vector2(100f, 26f), ButtonSize(UiStrings.Back),
-                SketchButtonKind.Dark);
+                new Vector2(0.5f, 0f), new Vector2(100f, 26f), ButtonSize(UiStrings.Back));
 
             root.gameObject.SetActive(false);
 
@@ -383,16 +384,16 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 主菜单链路专用的手绘按钮装配出口：像素字体单档 + 字号 0 = 控件默认档
-        /// （像素皮下 = 正文 12 艺术像素，见 SketchButton.AddLabel），四态字色全在
-        /// <see cref="SketchButton"/> 内。
+        /// 主菜单链路专用的 theme 按钮装配出口：像素字体单档 + 字号 0 = 控件默认档
+        /// （正文 12 原生档），四态皮/字色全在 <see cref="SketchButton"/> 内。
         /// 返回类型是 <see cref="Button"/> 子类，控制器 [SerializeField] Button 字段直赋兼容。
+        /// 【kind 参数已退役】theme 无彩面按钮，全按钮同一张 theme button 灰面皮。
         /// </summary>
         static Button CreateSketchButton(string name, Transform parent, string label, Vector2 anchor,
-            Vector2 anchoredPosition, Vector2 size, SketchButtonKind kind)
+            Vector2 anchoredPosition, Vector2 size)
         {
             return SketchButton.Create(parent, name, anchor, new Vector2(0.5f, 0.5f),
-                anchoredPosition, size, BodyFont, kind, label, 0f);
+                anchoredPosition, size, BodyFont, label, 0f);
         }
 
         /// <summary>行高（六行布局：四条滑条 + 两组选项块；行位由行容器 VBox 排，见 BuildSettingsPanel）。</summary>
@@ -559,11 +560,9 @@ namespace PirateCrew.EditorTools
                 // 确认 = Accent 金强调（StickKit.Confirm 默认 kind 同语义）、取消 = Dark 常规；
                 // 令牌按钮（宽 = 标签宽 + 8 艺术像素、高 16u）。
                 OkButton = CreateSketchButton("OkButton", actionRow, UiStrings.Confirm,
-                    new Vector2(0.5f, 0.5f), Vector2.zero, ButtonSize(UiStrings.Confirm),
-                    SketchButtonKind.Accent),
+                    new Vector2(0.5f, 0.5f), Vector2.zero, ButtonSize(UiStrings.Confirm)),
                 CancelButton = CreateSketchButton("CancelButton", actionRow, UiStrings.Cancel,
-                    new Vector2(0.5f, 0.5f), Vector2.zero, ButtonSize(UiStrings.Cancel),
-                    SketchButtonKind.Dark),
+                    new Vector2(0.5f, 0.5f), Vector2.zero, ButtonSize(UiStrings.Cancel)),
             };
 
             root.gameObject.SetActive(false);

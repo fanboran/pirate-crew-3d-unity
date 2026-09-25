@@ -111,13 +111,13 @@ namespace PirateCrew.EditorTools
             // 令牌按钮：宽 = 标签宽 + 24 艺术像素、高 24 艺术像素；三钮总宽居中排布（间隙 24）。
             Button levelSelectButton = CreateSketchButton("LevelSelectButton", canvas.transform,
                 UiStrings.CrewLevelSelect, BottomCenterAnchor, new Vector2(-264f, 72f),
-                MenuUiBuilder.ButtonSize(UiStrings.CrewLevelSelect), bodyFont, StickTokens.SketchButtonKind.Dark);
+                MenuUiBuilder.ButtonSize(UiStrings.CrewLevelSelect), bodyFont);
             Button saveButton = CreateSketchButton("SaveButton", canvas.transform,
                 UiStrings.CrewSave, BottomCenterAnchor, new Vector2(-24f, 72f),
-                MenuUiBuilder.ButtonSize(UiStrings.CrewSave), bodyFont, StickTokens.SketchButtonKind.Primary);
+                MenuUiBuilder.ButtonSize(UiStrings.CrewSave), bodyFont);
             Button backButton = CreateSketchButton("BackButton", canvas.transform,
                 UiStrings.BackToMainMenu, BottomCenterAnchor, new Vector2(42f, 24f),
-                MenuUiBuilder.ButtonSize(UiStrings.BackToMainMenu), bodyFont, StickTokens.SketchButtonKind.Dark);
+                MenuUiBuilder.ButtonSize(UiStrings.BackToMainMenu), bodyFont);
 
             var controllerGo = new GameObject("CrewManagementController", typeof(RectTransform));
             controllerGo.transform.SetParent(canvas.transform, false);
@@ -198,10 +198,10 @@ namespace PirateCrew.EditorTools
 
             Button crewButton = CreateSketchButton("CrewButton", canvas.transform,
                 UiStrings.MainCrew, BottomCenterAnchor, new Vector2(-84f, 64f),
-                MenuUiBuilder.ButtonSize(UiStrings.MainCrew), bodyFont, StickTokens.SketchButtonKind.Dark);
+                MenuUiBuilder.ButtonSize(UiStrings.MainCrew), bodyFont);
             Button backButton = CreateSketchButton("BackButton", canvas.transform,
                 UiStrings.Back, BottomCenterAnchor, new Vector2(40f, 21f),
-                MenuUiBuilder.ButtonSize(UiStrings.Back), bodyFont, StickTokens.SketchButtonKind.Dark);
+                MenuUiBuilder.ButtonSize(UiStrings.Back), bodyFont);
 
             SettlementRefs settlement = BuildSettlementModal(canvas.transform, titleFont, bodyFont, secondaryFont);
 
@@ -326,10 +326,10 @@ namespace PirateCrew.EditorTools
             // 弹窗按钮：再战 = Primary 主行动档；返回选图 = Dark 次级档（令牌尺寸，成对居中）。
             refs.ReplayButton = CreateSketchButton("ReplayButton", card, UiStrings.LevelReplay,
                 new Vector2(0.5f, 0f), new Vector2(-120f, 52f),
-                MenuUiBuilder.ButtonSize(UiStrings.LevelReplay), bodyFont, StickTokens.SketchButtonKind.Primary);
+                MenuUiBuilder.ButtonSize(UiStrings.LevelReplay), bodyFont);
             refs.BackButton = CreateSketchButton("BackToSelectButton", card,
                 UiStrings.SettlementBackToSelect, new Vector2(0.5f, 0f), new Vector2(84f, 52f),
-                MenuUiBuilder.ButtonSize(UiStrings.SettlementBackToSelect), bodyFont, StickTokens.SketchButtonKind.Dark);
+                MenuUiBuilder.ButtonSize(UiStrings.SettlementBackToSelect), bodyFont);
 
             root.gameObject.SetActive(false);
             return refs;
@@ -435,14 +435,13 @@ namespace PirateCrew.EditorTools
             return content;
         }
 
-    /// <summary>建 SketchButton（像素 tone 九宫格 + 三态 SpriteSwap + 变体表字色档，调用方不另配色）。
+    /// <summary>建 SketchButton（theme button 四态皮 + 双层禁用字，调用方不另配色）。
     /// 字号取正文档（UiSkin.Font.Body）；pivot 沿用旧按钮装配口径 (0.5, 0.5)。</summary>
     static Button CreateSketchButton(string name, Transform parent, string label, Vector2 anchor,
-        Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font,
-        StickTokens.SketchButtonKind kind)
+        Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font)
     {
         return SketchButton.Create(parent, name, anchor, new Vector2(0.5f, 0.5f),
-            anchoredPosition, size, font, kind, label, UiSkin.Font.Body);
+            anchoredPosition, size, font, label, UiSkin.Font.Body);
     }
 
         /// <summary>模态压暗遮罩：MODAL_DIM 令牌；拦截点击承载模态语义。</summary>

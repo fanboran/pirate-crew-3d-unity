@@ -1,0 +1,10 @@
+Aseprite dark 主题参考库（theme.xml / sheet.png）
+
+出处：Aseprite 官方仓库 data/extensions/aseprite-theme/dark/
+（本仓副本源：external/aseprite-ref/data/extensions/aseprite-theme/dark/）
+作者：David Capello / Ilija Melentijevic / Nicolas Desilets
+许可：CC-BY-4.0（Aseprite 仓库 data/ 目录许可）
+
+用途：UI 观感对齐的唯一规格书——BeveledPixelSpriteBuilder 按 theme.xml <parts>
+逐件直切 sheet.png 落盘 Sprite（九宫格切片取声明值 w1/w2/w3 h1/h2/h3），
+颜色令牌见 PixelSkin.Theme（theme.xml <colors> 原值）。

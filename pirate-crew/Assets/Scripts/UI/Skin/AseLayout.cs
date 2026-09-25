@@ -2,15 +2,16 @@ namespace PirateCrew.UI
 {
     /// <summary>
     /// Aseprite dark 主题的**布局令牌**（theme.xml <c>&lt;dimensions&gt;</c> + <c>&lt;styles&gt;</c> 段的
-    /// 间距语法逐条登记，2026-09-25 搬皮第二批）。参考库：
+    /// 间距语法逐条登记）。参考库：
     /// <c>external/aseprite-ref/data/extensions/aseprite-theme/dark/theme.xml</c>。
     ///
-    /// 【单位口径】本表一律存**设计格**（= theme.xml 原值；1 设计格 = <see cref="PixelSkin.Unit"/>
-    /// 画布像素），消费点用 <see cref="Px"/> 换算——**别把 theme 数字当画布像素直用**（差一倍，
-    /// 2026-09-25 前的窗体边距/复选偏移全犯了这个错，观感挤的根源之一）。
+    /// 【单位口径（×1 终局，2026-09-25 裁决）】1 设计格 = 1 贴图像素 = 1 画布像素——
+    /// 本表存值即画布像素，<see cref="Px"/> 恒等（保留作换算出口，历史调用点免改）。
+    /// 旧「×Unit 倍率」口径已废：贴图直切 sheet.png 就是 1x 设计格，全链零压缩。
     ///
     /// 【职责边界】只放"控件周围留多少空、文字图标偏多少"的数字；件本身的几何
-    /// （尺寸/九宫格切片）在 Editor 侧 BeveledPixelSpriteBuilder 的模板里，别在这里重复。
+    /// （尺寸/九宫格切片）以 theme.xml &lt;parts&gt; 声明为准（Editor 侧
+    /// BeveledPixelSpriteBuilder 直切落盘），别在这里重复。
     /// </summary>
     public static class AseLayout
     {
@@ -97,10 +98,10 @@ namespace PirateCrew.UI
         /// <summary>combobox_button padding=0。</summary>
         public const int ComboboxButtonPadding = 0;
 
-        /// <summary>设计格 → 画布像素（唯一换算出口）。</summary>
+        /// <summary>设计格 → 画布像素（×1 终局：恒等。保留作唯一换算出口，链路改档时只动这里）。</summary>
         public static float Px(int cells)
         {
-            return cells * PixelSkin.Unit;
+            return cells;
         }
     }
 }

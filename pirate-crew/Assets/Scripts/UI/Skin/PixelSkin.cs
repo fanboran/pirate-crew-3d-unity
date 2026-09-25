@@ -58,17 +58,14 @@ namespace PirateCrew.UI
     /// Beveled Pixel 皮肤的运行时取用层：全部 UI 贴图/取色从这里走，别处不许
     /// 自己 LoadAssetAtPath / Resources.Load 像素件（槽位散落是上一版换皮难的根因）。
     ///
-    /// 【几何口径】u（基本单位）= <see cref="Unit"/>，当前 = 2：贴图按设计格 ×Unit 落盘
-    /// （如按钮模板 14×16 格 → 28×32 纹素），画布为 960×540 低清栈（1080p ÷ 2，整数 ×2 显示）。
-    /// 【沿革】2026-09-22 起为 3（640×360 RT 口径）；2026-09-24 深夜低清画布栈切换改 2
-    /// 并同时是烘焙倍率与画布除数（详见交接档《像素UI与字阶》§三语义澄清——×2 语义
-    /// 定夺仍是创始人待验收悬案）。
-    /// 改 Unit 必须同步渲染器资产 renderHeightPixels（判据双源）与 Editor 侧
-    /// <c>BeveledPixelSpriteBuilder</c> 的判据——判据会读 URP 渲染器资产里的
-    /// renderHeightPixels 反向锁这条；<see cref="PirateCrew.Rendering.Pixelart.PixelartPilotScene.PixelScale"/>
-    /// 与本值断言相等。
-    /// 装配侧尺寸纪律：可见包边件的 width/height 不低于九宫格切片和（见 <see cref="PlateMinRender"/>），
-    /// anchoredPosition 至少取整——分数像素会让色带糊宽。
+    /// 【几何口径（×1 终局，2026-09-25 创始人裁决）】1 设计格 = 1 贴图像素 = 1 画布像素，
+    /// 贴图与布局零倍率、零压缩。theme 控件件由 Editor 侧 BeveledPixelSpriteBuilder
+    /// 从 sheet.png 直切（九宫格切片 = theme.xml 声明值），运行时经 <see cref="Ase"/> 取；
+    /// tone 族（战斗 HUD 血条等）为程序化模板件，同为 ×1 落盘。
+    /// <see cref="Unit"/> 只余画布密度语义（CanvasScaler scaleFactor，画布 = 屏幕 ÷ 2，
+    /// 恒定像素密度栈），不再参与贴图/布局换算。
+    /// 装配侧尺寸纪律：可见包边件的 width/height 不低于九宫格切片和，anchoredPosition
+    /// 至少取整——分数像素会让色带糊宽。
     /// </summary>
     public static class PixelSkin
     {
@@ -79,31 +76,17 @@ namespace PirateCrew.UI
         public const int FillCount = 5;
 
         /// <summary>
-        /// 基本单位（当前语义：设计格 → 贴图像素的烘焙倍率，兼作画布参考分辨率的除数）：
-        /// 外环/斜面/内暗线各 1u 厚。现值 2。
+        /// 画布密度（CanvasScaler scaleFactor）：画布 = 屏幕 ÷ Unit（1080p → 960×540，
+        /// 显示端整数 ×2）。【×1 终局】不再兼作烘焙倍率——贴图/布局链路禁用本值。
         /// </summary>
         public const int Unit = 2;
 
-        /// <summary>
-        /// 36×36 家族（页签/投影）的九宫格切片边框 = 2u。**Plate 按钮件不走本值**——
-        /// 按钮按 Aseprite button 口径烘（14×16 模板，切片 左/右 4u、下 6u、上 4u，
-        /// 见 Editor 侧 <c>BeveledPixelSpriteBuilder</c> 目标表与贴图 meta）。
-        /// </summary>
-        public const int PlateBorder = 2 * Unit;
+        /// <summary>Track 族九宫格切片 = 2（黑环 1 + 唇边 1，×1 设计格）。按钮不走本值。</summary>
+        public const int PlateBorder = 2;
 
         /// <summary>低于它装配就不能用九宫格（角会切进内容区），装配侧应断言。
-        /// = 新按钮模板的上下切片和（4u + 6u）。</summary>
-        public const int PlateMinRender = 10 * Unit;
-
-        /// <summary>
-        /// 按压态元素位移：右下 **1 艺术像素**（= Unit，与投影同距；贴图里不烘位移，
-        /// 烘了九宫格切片错位）。原值 (1,-1) 只有 1 屏幕像素——比一个艺术像素还小，
-        /// 既看不出"沉下去"、又把件挪出了像素栅格（创始人 2026-09-22 走查"按压太不明显"）。
-        /// </summary>
-        public static readonly Vector2 PressOffset = new Vector2(Unit, -Unit);
-
-        /// <summary>面板投影相对面板本体的偏移：右下 1u（投影是独立剪影件）。</summary>
-        public static readonly Vector2 ShadowOffset = new Vector2(Unit, -Unit);
+        /// = theme button 上下切片和（4 + 6）。</summary>
+        public const int PlateMinRender = 10;
 
         const string AssetPath = "UI/PixelSkin";
 
@@ -185,98 +168,137 @@ namespace PirateCrew.UI
             get { return Single("Shadow", Asset != null ? Asset.shadow : null); }
         }
 
-        // ---------- Aseprite dark 全部件搬皮（2026-09-25；theme.xml 精确复刻） ----------
+        // ---------- Aseprite dark 直切件（×1 全量对齐波；sheet.png 直切，theme.xml <parts> 表） ----------
 
-        /// <summary>带标题栏窗体（theme window：顶 15u 标题带；内容须避开标题带）。</summary>
+        /// <summary>
+        /// Aseprite dark 主题直切件通用出口（part id = theme.xml &lt;parts&gt; 原名，如
+        /// "button_focused" / "menu" / "tooltip_arrow"）。Editor 装配与运行时同源；
+        /// 缺件红灯（重烘焙补件），绝不静默白块。
+        /// </summary>
+        public static Sprite Ase(string partId)
+        {
+            PixelSkinAsset a = Asset;
+            if (a == null || a.asePartNames == null || a.aseParts == null)
+            {
+                Debug.LogError("[PixelSkin] 图集缺 aseParts 表——重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
+                return null;
+            }
+            for (int i = 0; i < a.asePartNames.Length; i++)
+            {
+                if (a.asePartNames[i] == partId)
+                {
+                    if (a.aseParts[i] != null)
+                        return a.aseParts[i];
+                    break;
+                }
+            }
+            Debug.LogError("[PixelSkin] 图集缺 Aseprite 直切件 \"" + partId
+                + "\"——白名单见 Editor 侧 BeveledPixelSpriteBuilder.AseBakeParts，重烘焙补件。");
+            return null;
+        }
+
+        /// <summary>带标题栏窗体（theme window：顶 15 标题带；内容须避开标题带）。</summary>
         public static Sprite Window(PixelTone tone)
         {
             return SpriteAt(Asset != null ? Asset.windows : null, (int)tone, "Window/" + tone);
         }
 
-        /// <summary>窗体标题带高（theme window h1=15 设计格）——内容区从带底往下排。</summary>
-        public const int WindowTitleBand = 15 * Unit;
+        /// <summary>窗体标题带高（theme window h1=15 设计格，×1 即 15 画布像素）——内容区从带底往下排。</summary>
+        public const int WindowTitleBand = 15;
 
-        /// <summary>窗控钮（theme window_button 9×11；常态/悬停/按压）。</summary>
+        /// <summary>窗控钮（theme window_button 9×11；UGUI 态映射：Normal/Hovered→hot、Pressed→selected）。</summary>
         public static Sprite WindowButton(PixelState state)
         {
-            return SpriteAt(Asset != null ? Asset.windowButtons : null, (int)state,
-                "WindowButton/" + state);
+            string id;
+            switch (state)
+            {
+                case PixelState.Hovered: id = "window_button_hot"; break;
+                case PixelState.Pressed: id = "window_button_selected"; break;
+                default: id = "window_button_normal"; break;
+            }
+            return Ase(id);
         }
 
-        /// <summary>窗控图标索引（与图集 windowIcons 同序）。</summary>
+        /// <summary>窗体图标索引（theme window_*_icon 直切件同序）。</summary>
         public enum WindowIcon { Close = 0, Help, Play, Stop, Center }
 
         /// <summary>窗控图标（5×6，乘色换染；<see cref="Theme.Text"/> 是 theme 常态色）。</summary>
         public static Sprite WindowIconSprite(WindowIcon icon)
         {
-            return SpriteAt(Asset != null ? Asset.windowIcons : null, (int)icon, "WindowIcon/" + icon);
+            switch (icon)
+            {
+                case WindowIcon.Help: return Ase("window_help_icon");
+                case WindowIcon.Play: return Ase("window_play_icon");
+                case WindowIcon.Stop: return Ase("window_stop_icon");
+                case WindowIcon.Center: return Ase("window_center_icon");
+                default: return Ase("window_close_icon");
+            }
         }
 
         /// <summary>复选框（theme check 8×8；selected = ✓）。</summary>
         public static Sprite Check(bool selected)
         {
-            return SpriteAt(Asset != null ? Asset.checks : null, selected ? 1 : 0,
-                "Check/" + selected);
+            return Ase(selected ? "check_selected" : "check_normal");
         }
 
         /// <summary>单选钮（theme radio 8×8；selected = 中心点）。</summary>
         public static Sprite Radio(bool selected)
         {
-            return SpriteAt(Asset != null ? Asset.radios : null, selected ? 1 : 0,
-                "Radio/" + selected);
+            return Ase(selected ? "radio_selected" : "radio_normal");
         }
 
         /// <summary>复选/单选焦点框（theme check_focus 2/6/2）。</summary>
         public static Sprite WidgetFocus
         {
-            get { return Single("WidgetFocus", Asset != null ? Asset.widgetFocus : null); }
+            get { return Ase("check_focus"); }
         }
 
         /// <summary>凹槽（theme sunken：textedit/列表底；focused = 蓝环）。</summary>
         public static Sprite Sunken(bool focused)
         {
-            return SpriteAt(Asset != null ? Asset.sunken : null, focused ? 1 : 0,
-                "Sunken/" + focused);
+            return Ase(focused ? "sunken_focused" : "sunken_normal");
         }
 
         /// <summary>滑条空槽（theme slider_empty；focused = 蓝环）。</summary>
         public static Sprite SliderEmpty(bool focused)
         {
-            return SpriteAt(Asset != null ? Asset.sliderEmpty : null, focused ? 1 : 0,
-                "SliderEmpty/" + focused);
+            return Ase(focused ? "slider_empty_focused" : "slider_empty");
         }
 
         /// <summary>滑条充满段（theme slider_full 金色；focused = 蓝环）。</summary>
         public static Sprite SliderFull(bool focused)
         {
-            return SpriteAt(Asset != null ? Asset.sliderFull : null, focused ? 1 : 0,
-                "SliderFull/" + focused);
+            return Ase(focused ? "slider_full_focused" : "slider_full");
         }
 
         /// <summary>滑条拇指（theme mini_slider_thumb 5×4）。</summary>
         public static Sprite SliderThumb
         {
-            get { return Single("SliderThumb", Asset != null ? Asset.sliderThumb : null); }
+            get { return Ase("mini_slider_thumb"); }
         }
 
-        /// <summary>滚动条（theme scrollbar：bg=底 / thumb=滑块，宽 16）。</summary>
+        /// <summary>滚动条（theme scrollbar：bg=底 / thumb=滑块）。</summary>
         public static Sprite Scrollbar(bool thumb)
         {
-            return SpriteAt(Asset != null ? Asset.scrollbars : null, thumb ? 1 : 0,
-                "Scrollbar/" + thumb);
+            return Ase(thumb ? "scrollbar_thumb" : "scrollbar_bg");
         }
 
-        /// <summary>气泡底（theme tooltip 蓝底）。</summary>
+        /// <summary>气泡底（theme tooltip 蓝底；带箭头变体见 Ase("tooltip_arrow")）。</summary>
         public static Sprite Tooltip
         {
-            get { return Single("Tooltip", Asset != null ? Asset.tooltip : null); }
+            get { return Ase("tooltip"); }
         }
 
-        /// <summary>组合框下拉箭头（常态/选中/禁用）。</summary>
+        /// <summary>组合框下拉箭头（theme combobox_arrow_down；映射沿用旧序：常态→normal、
+        /// 悬停→selected、按压→disabled）。</summary>
         public static Sprite ArrowDown(PixelState state)
         {
-            return SpriteAt(Asset != null ? Asset.arrowsDown : null,
-                state == PixelState.Pressed ? 2 : (int)state, "ArrowDown/" + state);
+            switch (state)
+            {
+                case PixelState.Hovered: return Ase("combobox_arrow_down_selected");
+                case PixelState.Pressed: return Ase("combobox_arrow_down_disabled");
+                default: return Ase("combobox_arrow_down");
+            }
         }
 
         /// <summary>theme.xml 精确色（Aseprite dark 权威配色；搬皮件的唯一取色源）。</summary>

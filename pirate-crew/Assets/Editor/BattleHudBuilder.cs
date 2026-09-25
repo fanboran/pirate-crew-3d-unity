@@ -28,7 +28,7 @@ namespace PirateCrew.EditorTools
     ///
     /// 【皮肤】全部走 <see cref="UiKit"/> / <see cref="PixelSkin"/>（像素件九宫格）。
     /// 像素件**禁止 Image.color 乘色**：明暗色阶烘死在贴图里，状态反馈靠换贴图
-    /// （<see cref="UiKit.ApplyPlateButton"/> 的 SpriteSwap 三态）。
+    /// （<see cref="UiKit.ApplyThemeButton"/> 的 SpriteSwap 四态）。
     /// </summary>
     public static class BattleHudBuilder
     {
@@ -461,7 +461,7 @@ namespace PirateCrew.EditorTools
                 // 格底 = Plate(Dense) 三态换图（SpriteSwap）；选中态 = 悬停档 + Focus 环（运行时开）。
                 Image frame = cell.gameObject.AddComponent<Image>();
                 var button = cell.gameObject.AddComponent<Button>();
-                UiKit.ApplyPlateButton(button, frame, PixelTone.Dense);
+                UiKit.ApplyThemeButton(button, frame);
                 UiKit.CreateFocusRing("Focus", cell);
 
                 // 文字占位（2026-09-24 创始人裁决：物品图标全部退役）：格中 = 武器中文名。
@@ -505,13 +505,13 @@ namespace PirateCrew.EditorTools
 
             // 紧凑文字按钮（宽 = 标签宽 + 8 艺术像素、高 48 = 16u——Aseprite 原生档）。
             result.throwSelfButton = UiKit.ActionButton("ThrowSelfButton", unitColumn,
-                UiStrings.BattleThrowSelf, UiKit.ButtonKind.Primary,
+    UiStrings.BattleThrowSelf,
                 Vector2.zero,
                 new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattleThrowSelf), HudButtonHeight), body);
             UiLayout.Element(result.throwSelfButton.gameObject,
                 UiSkin.Px.ButtonWidth(UiStrings.BattleThrowSelf), HudButtonHeight);
             result.endGoButton = UiKit.ActionButton("EndGoButton", unitColumn,
-                UiStrings.BattleEndGo, UiKit.ButtonKind.Dark,
+    UiStrings.BattleEndGo,
                 Vector2.zero,
                 new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattleEndGo), HudButtonHeight), body);
             UiLayout.Element(result.endGoButton.gameObject,
@@ -552,11 +552,11 @@ namespace PirateCrew.EditorTools
             Vector2 pauseSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattlePause), HudButtonHeight);
             Vector2 backSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Back), HudButtonHeight);
             result.pauseButton = UiKit.ActionButton("PauseButton", hudRoot,
-                UiStrings.BattlePause, UiKit.ButtonKind.Dark,
+                UiStrings.BattlePause,
                 new Vector2(panelLeft - 6f - pauseSize.x * 0.5f, textButtonY),   // 缝 6 = 2u
                 pauseSize, secondary);
             result.backButton = UiKit.ActionButton("BackButton", hudRoot,
-                UiStrings.Back, UiKit.ButtonKind.Dark,
+                UiStrings.Back,
                 new Vector2(panelLeft - 6f - pauseSize.x - 6f - backSize.x * 0.5f, textButtonY),
                 backSize, secondary);
             // 底中心锚：UiKit.ActionButton 默认锚在画布中心，这里改挂底边（y 轴）。
@@ -583,7 +583,7 @@ namespace PirateCrew.EditorTools
                     -(Safe + (2 - i) * (size.x + 6f) + size.x * 0.5f),
                     -(TopBandFromTop));
                 Button button = UiKit.ActionButton("ModeButton_" + (BattleHud.BattleHudMode)i, hudRoot,
-                    modeLabels[i], UiKit.ButtonKind.Dark, position, size, secondary);
+                    modeLabels[i], position, size, secondary);
                 {
                     RectTransform rect = (RectTransform)button.transform;
                     rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
@@ -652,15 +652,15 @@ namespace PirateCrew.EditorTools
 
             // 三钮 = 文字贴合（创始人裁决：按钮大小跟文字走，不再统一最宽档）；纵排顺序即声明顺序。
             result.resumeButton = UiKit.ActionButton("ResumeButton", flow,
-                UiStrings.BattleResume, UiKit.ButtonKind.Primary,
+    UiStrings.BattleResume,
                 Vector2.zero, new Vector2(35f, HudButtonHeight), body);
             UiKit.FitToLabel(result.resumeButton);
             result.pauseRestartButton = UiKit.ActionButton("PauseRestartButton", flow,
-                UiStrings.BattleRestart, UiKit.ButtonKind.Dark,
+    UiStrings.BattleRestart,
                 Vector2.zero, new Vector2(35f, HudButtonHeight), body);
             UiKit.FitToLabel(result.pauseRestartButton);
             result.pauseBackButton = UiKit.ActionButton("PauseBackButton", flow,
-                UiStrings.BackToMainMenu, UiKit.ButtonKind.Danger,
+    UiStrings.BackToMainMenu,
                 Vector2.zero, new Vector2(35f, HudButtonHeight), body);
             UiKit.FitToLabel(result.pauseBackButton);
         }
@@ -704,11 +704,11 @@ namespace PirateCrew.EditorTools
             RectTransform actionRow = UiKit.CreateRect("Actions", flow);
             UiLayout.HStack(actionRow, 4, default(UiPadding), alignment: TextAnchor.MiddleCenter);
             result.settlementRestartButton = UiKit.ActionButton("SettlementRestartButton", actionRow,
-                UiStrings.BattleRestart, UiKit.ButtonKind.Primary,
+    UiStrings.BattleRestart,
                 Vector2.zero, new Vector2(30f, HudButtonHeight), secondary);
             UiKit.FitToLabel(result.settlementRestartButton);
             result.settlementBackButton = UiKit.ActionButton("SettlementBackButton", actionRow,
-                UiStrings.Back, UiKit.ButtonKind.Dark,
+    UiStrings.SettlementBackToSelect,
                 Vector2.zero, new Vector2(30f, HudButtonHeight), secondary);
             UiKit.FitToLabel(result.settlementBackButton);
         }
@@ -733,11 +733,11 @@ namespace PirateCrew.EditorTools
             RectTransform actionRow = UiKit.CreateRect("Actions", flow);
             UiLayout.HStack(actionRow, 4, default(UiPadding), alignment: TextAnchor.MiddleCenter);
             result.confirmOkButton = UiKit.ActionButton("OkButton", actionRow,
-                UiStrings.Confirm, UiKit.ButtonKind.Primary,
+    UiStrings.Confirm,
                 Vector2.zero, new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Confirm), HudButtonHeight), body);
             UiKit.FitToLabel(result.confirmOkButton);
             result.confirmCancelButton = UiKit.ActionButton("CancelButton", actionRow,
-                UiStrings.Cancel, UiKit.ButtonKind.Dark,
+    UiStrings.Cancel,
                 Vector2.zero, new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Cancel), HudButtonHeight), body);
             UiKit.FitToLabel(result.confirmCancelButton);
         }

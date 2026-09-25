@@ -137,7 +137,7 @@ namespace PirateCrew.UI
             return SketchButton.Create(parent, name,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
                 new Vector2(50f, UiSkin.Px.Button),   // 令牌按钮高占位；行内会被 <see cref="LayoutRowContent"/> 重摆
-                font, StickTokens.SketchButtonKind.Dark, label, fontSize);
+                font, label, fontSize);
         }
 
         /// <summary>取按钮上的 TMP 文本（建行时写动作文案用）。</summary>

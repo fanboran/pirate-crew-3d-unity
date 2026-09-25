@@ -384,7 +384,7 @@ namespace PirateCrew.UI
 
         /// <summary>模式图标钮状态：选中 = 换悬停档贴图 + 开 Focus 环；未选中 = 常态贴图。
         /// 【为什么不乘色】像素件的明暗色阶烘死在贴图里，状态必须换贴图
-        /// （与 <see cref="UiKit.ApplyPlateButton"/> 的 SpriteSwap 同口径）。</summary>
+        /// （与 <see cref="UiKit.ApplyThemeButton"/> 的 SpriteSwap 同口径）。</summary>
         void RefreshModeSegments()
         {
             if (modeFrames == null)
@@ -822,7 +822,7 @@ namespace PirateCrew.UI
 
                 var id = (WeaponId)i;
                 bool owned = inventory != null && inventory.Contains(id);
-                // 未拥有 → 按钮禁用（UiPressSink 用 CanvasGroup 压暗，不烘黑图也不乘色）。
+                // 未拥有 → 按钮禁用（theme disabled 双层影子字压暗，不烘黑图也不乘色）。
                 weaponButtons[i].interactable = owned;
 
                 // 格底状态 = 换贴图 + Focus 环：已装备 = 悬停档 + 开环；其余 = 常态。

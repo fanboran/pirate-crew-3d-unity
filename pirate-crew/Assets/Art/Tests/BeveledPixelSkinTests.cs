@@ -44,10 +44,11 @@ namespace PirateCrew.ArtPipeline.Tests
             "PirateCrew.EditorTools.BeveledPixelSpriteBuilder, Assembly-CSharp-Editor";
 
         /// <summary>
-        /// 基本单位（px），真源 = 运行时 <see cref="PixelSkin.Unit"/>（u=3 与 3D 像素块 1:1 对齐）。
-        /// 测试与生成器同用这一个值，"色带边界落在 u 的整数倍上"才有共同语言。
+        /// 镜像画法的基本单位（px）。【×1 终局】1 设计格 = 1 贴图像素，镜像断言在 1px
+        /// 网格上与生成器画法同步（生成器模板/分层已全部 ×1，画布密度 PixelSkin.Unit=2
+        /// 是另一量纲，不再参与贴图断言）。
         /// </summary>
-        static readonly int Unit = PixelSkin.Unit;
+        const int Unit = 1;
 
         static Type BuilderType()
         {
@@ -700,14 +701,8 @@ namespace PirateCrew.ArtPipeline.Tests
                 "生成器判据报了 " + problems.Count + " 条：\n" + string.Join("\n", problems.ToArray()));
         }
 
-        [Test]
-        public void PressOffset_IsOneArtPixelDownRight()
-        {
-            // 2026-09-22 走查"按压太不明显"后从 (1,-1) 改成整格：1 屏幕像素比一个艺术像素
-            // 还小，既看不出沉、又把件挪出了像素栅格。契约随创始人裁决更新。
-            Assert.That(PixelSkin.PressOffset, Is.EqualTo(new Vector2(PixelSkin.Unit, -PixelSkin.Unit)),
-                "按压位移应当是右下 1 艺术像素（= Unit；UI 坐标 +x 右 / -y 下）。");
-        }
+        // 【×1 终局】PressOffset 断言已删：theme <parts> 无 button_pressed，按压位移随
+        // 2026-09-25 全量对齐波退役（按钮按压反馈 = hot 皮保持，见 SketchButton）。
 
         // ------------------------------------------------------------------
         // ④ 皮肤契约：图集满格、运行时取用不空（装配侧唯一的取图口）
@@ -730,6 +725,13 @@ namespace PirateCrew.ArtPipeline.Tests
                 Is.True, "语义件（ring/focus/pip×2/sep×2/shadow）有空槽。");
             for (int i = 0; i < asset.plates.Length; i++)
                 Assert.That(asset.plates[i], Is.Not.Null, "plates[" + i + "] 空槽。");
+            // Aseprite 直切件：白名单全表无空槽、平行数组对齐
+            Assert.That(asset.aseParts, Is.Not.Null.And.Length.EqualTo(asset.asePartNames.Length),
+                "aseParts/asePartNames 必须平行等长");
+            Assert.That(asset.aseParts.Length, Is.GreaterThan(0), "aseParts 不该是空表（重烘焙补）");
+            for (int i = 0; i < asset.aseParts.Length; i++)
+                Assert.That(asset.aseParts[i], Is.Not.Null,
+                    "aseParts[" + i + "]（" + asset.asePartNames[i] + "）空槽。");
 
             // 取用层全量走一遍：任何一个入口返回 null，装配侧就是白块
             foreach (PixelTone tone in Enum.GetValues(typeof(PixelTone)))
@@ -750,6 +752,12 @@ namespace PirateCrew.ArtPipeline.Tests
             Assert.That(PixelSkin.Separator(true), Is.Not.Null);
             Assert.That(PixelSkin.Separator(false), Is.Not.Null);
             Assert.That(PixelSkin.ShadowSprite, Is.Not.Null);
+            // theme 四态按钮皮（kind 退役后的唯一按钮语言）
+            Assert.That(PixelSkin.Ase("button_normal"), Is.Not.Null, "Ase button_normal");
+            Assert.That(PixelSkin.Ase("button_hot"), Is.Not.Null, "Ase button_hot");
+            Assert.That(PixelSkin.Ase("button_focused"), Is.Not.Null, "Ase button_focused");
+            Assert.That(PixelSkin.Ase("button_selected"), Is.Not.Null, "Ase button_selected");
+            Assert.That(PixelSkin.Ase("window"), Is.Not.Null, "Ase window");
         }
 
         // ------------------------------------------------------------------

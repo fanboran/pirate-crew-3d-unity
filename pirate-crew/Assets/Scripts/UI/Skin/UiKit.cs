@@ -17,8 +17,8 @@ namespace PirateCrew.UI
     ///   · 字号一律传 <see cref="UiSkin.Font"/> 档位；
     ///   · **皮肤一律走 <see cref="PixelSkin"/>**——像素件的明暗色阶烘死在贴图里，
     ///     所以像素件禁止 <c>Image.color</c> 乘色（乘了就把烘焙好的三档色阶压平）；
-    ///   · 按钮状态反馈一律 UGUI SpriteSwap（常态/悬停/按压三张 Plate），不用 ColorBlock 乘色；
-    ///     禁用态不烘黑图，靠 <see cref="UiPressSink"/> 的 CanvasGroup alpha≈0.55；
+    ///   · 按钮状态反馈一律 UGUI SpriteSwap（theme button 四态直切件），不用 ColorBlock 乘色；
+    ///     禁用态 = 常态皮 + 双层影子字（theme.xml:617-619，<see cref="SketchButton"/> 承担）。
     ///   · 可点击件用 <see cref="ActionButton"/>（自带三态换图 + 按压位移）。
     ///
     /// 文字色：<see cref="PixelSkin.TextColorOn"/> / <see cref="PixelSkin.Ink"/> /
@@ -60,7 +60,7 @@ namespace PirateCrew.UI
             rect.anchoredPosition = anchoredPosition;
         }
 
-        /// <summary>铺满父容器后整体错位（投影件用：stretch + <see cref="PixelSkin.ShadowOffset"/>）。</summary>
+        /// <summary>铺满父容器后整体错位（【投影已退役】theme 无影子层——占位保留给未来的居中偏移件）。</summary>
         static void StretchOffset(RectTransform rect, Vector2 offset)
         {
             rect.anchorMin = Vector2.zero;
@@ -294,18 +294,20 @@ namespace PirateCrew.UI
         }
 
         /// <summary>
-        /// 带标题窗体（theme window 复刻）：Plate 孩子换 <see cref="PixelSkin.Window"/> 九宫格
-        /// （顶部 15u 标题带随切片自动落位），带内左上标题文字（theme window_title_label：
-        /// 边距 5、字色 <see cref="PixelSkin.Theme.Text"/>），右上窗控钮（? / ×）。
+        /// 带标题窗体（theme window 复刻，皮 = sheet.png 直切件 "window"）：Plate 孩子换
+        /// 直切窗体九宫格（顶部 15 标题带随切片自动落位），带内左上标题文字
+        /// （theme window_title_label：边距 5、字色 <see cref="PixelSkin.Theme.Text"/>），
+        /// 右上窗控钮（? / ×）。
         /// **内容区必须从带底往下排**——顶部内边距 ≥ <see cref="PixelSkin.WindowTitleBand"/>。
         /// </summary>
         public static Image EnsureWindow(RectTransform window, PixelTone tone, string title,
             TMP_FontAsset font, float titleFontSize, bool helpButton = false, bool closeButton = true)
         {
             Image plate = EnsurePanel(window, tone);
-            plate.sprite = PixelSkin.Window(tone);
+            plate.sprite = PixelSkin.Ase("window");   // theme.xml:165 直切件（1x 设计格）
+            UiLayout.Ignore(plate.gameObject);   // 装饰层不吃父布局流（VBox 只排内容件）
 
-            // 标题（带内左上，边距 5u；带面 = tone 亮档，灰字可读）
+            // 标题（带内左上，边距 5u；横向锚定拉伸——不依赖装配期窗体宽度）
             TextMeshProUGUI label = FindText(window, "TitleLabel");
             if (label == null)
             {
@@ -316,16 +318,19 @@ namespace PirateCrew.UI
                 label.alignment = TextAlignmentOptions.MidlineLeft;
                 label.raycastTarget = false;
                 RectTransform lr = label.rectTransform;
-                lr.anchorMin = lr.anchorMax = new Vector2(0f, 1f);
+                lr.anchorMin = new Vector2(0f, 1f);
+                lr.anchorMax = new Vector2(1f, 1f);
                 lr.pivot = new Vector2(0f, 1f);
             }
             label.SetText(title);
             label.color = PixelSkin.Theme.Text;
+            UiLayout.Ignore(label.gameObject);   // 标题在带内自定位，不参与内容流
             {
                 RectTransform lr = label.rectTransform;
-                lr.anchoredPosition = new Vector2(
-                    AseLayout.Px(AseLayout.TitleMarginLeft), -AseLayout.Px(AseLayout.TitleMarginTop));
-                lr.sizeDelta = new Vector2(window.rect.width - 40f, PixelSkin.WindowTitleBand);
+                lr.offsetMin = new Vector2(AseLayout.Px(AseLayout.TitleMarginLeft),
+                    -AseLayout.Px(AseLayout.TitleMarginTop) - PixelSkin.WindowTitleBand);
+                lr.offsetMax = new Vector2(-(18f + AseLayout.Px(AseLayout.WindowButtonGap)),
+                    -AseLayout.Px(AseLayout.TitleMarginTop));
             }
 
             // 窗控钮：右上（× 最右、? 在其左；theme margin-top 3 / margin-right 3 与 1）
@@ -334,7 +339,7 @@ namespace PirateCrew.UI
             {
                 CreateWindowButton(window, "CloseButton", PixelSkin.WindowIconSprite(
                     PixelSkin.WindowIcon.Close), right);
-                right += 9f * PixelSkin.Unit + AseLayout.Px(AseLayout.WindowButtonGap);
+                right += 9f + AseLayout.Px(AseLayout.WindowButtonGap);
             }
             if (helpButton)
                 CreateWindowButton(window, "HelpButton",
@@ -353,6 +358,7 @@ namespace PirateCrew.UI
             else
             {
                 var go = CreateRect(name, window).gameObject;
+                UiLayout.Ignore(go);   // 窗控钮锚右上自定位，不参与内容流
                 button = go.AddComponent<Button>();
                 button.transition = Selectable.Transition.SpriteSwap;
 
@@ -370,7 +376,7 @@ namespace PirateCrew.UI
                 br.anchorMin = br.anchorMax = new Vector2(1f, 1f);
                 br.pivot = new Vector2(1f, 1f);
                 br.anchoredPosition = new Vector2(-rightMargin, -AseLayout.Px(AseLayout.WindowButtonMarginTop));
-                br.sizeDelta = new Vector2(9f * PixelSkin.Unit, 11f * PixelSkin.Unit);
+                br.sizeDelta = new Vector2(9f, 11f);   // theme window_button 9×11（×1）
             }
 
             Image bgImage = button.image != null ? button.image : button.GetComponent<Image>();
@@ -450,20 +456,20 @@ namespace PirateCrew.UI
         }
 
         // ------------------------------------------------------------------
-        // 按钮（三态换图 + 按压位移 + 禁用透明）
+        // 按钮（theme button 四态换图；禁用双层字）
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 把按钮接成像素件：常态/悬停/按压三张 Plate 走 UGUI SpriteSwap，禁用不烘黑图
-        /// （<see cref="UiPressSink"/> 用 CanvasGroup alpha≈0.55 表达）。
-        /// 【为什么用 SpriteSwap 而不是 ColorBlock】像素件的明暗色阶是烘死的，ColorBlock 的乘色
-        /// 会把整块压成单色；贴图切换才是这套语言的正确状态机制。
+        /// 把按钮接成 theme button 皮（theme.xml:608-620 四态 SpriteSwap）：
+        /// 常态/悬停/键盘焦点/业务选中（<paramref name="sticky"/>）四张直切件；
+        /// 禁用 = 常态皮 + 双层影子字（<see cref="SketchButton"/> 本体承担）。
+        /// 【为什么用 SpriteSwap 而不是 ColorBlock】像素件的色阶烘死在贴图里，乘色会压平。
         /// </summary>
-        public static void ApplyPlateButton(Button button, Image image, PixelTone tone)
+        public static void ApplyThemeButton(Button button, Image image, bool sticky = false)
         {
-            image.sprite = PixelSkin.Plate(tone, PixelState.Normal);
+            image.sprite = PixelSkin.Ase(sticky ? "button_selected" : "button_normal");
             image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
+            image.pixelsPerUnitMultiplier = 1f;   // ×1 终局：贴图纹素 = 画布像素
             image.color = Color.white;
             image.raycastTarget = true;
 
@@ -471,64 +477,23 @@ namespace PirateCrew.UI
             button.transition = Selectable.Transition.SpriteSwap;
             button.spriteState = new SpriteState
             {
-                highlightedSprite = PixelSkin.Plate(tone, PixelState.Hovered),
-                pressedSprite = PixelSkin.Plate(tone, PixelState.Pressed),
-                selectedSprite = PixelSkin.Plate(tone, PixelState.Hovered),
+                highlightedSprite = PixelSkin.Ase(sticky ? "button_selected" : "button_hot"),
+                pressedSprite = PixelSkin.Ase("button_hot"),
+                selectedSprite = PixelSkin.Ase("button_focused"),
+                disabledSprite = PixelSkin.Ase("button_normal"),
             };
-            if (button.GetComponent<UiPressSink>() == null)
-                button.gameObject.AddComponent<UiPressSink>();
-        }
-
-        // ------------------------------------------------------------------
-        // 按钮变体表（档位 → tone；底色/字色组合的唯一出处在这里，杜绝各处手配漂移）
-        // ------------------------------------------------------------------
-
-        /// <summary>按钮档位：
-        /// Primary=主行动点（黄铜）；Dark=深底常规件；Danger=破坏性动作；
-        /// Accent=强调（暖橙）；Paper=浅牌形态（亮背景上的"纸签"）。</summary>
-        public enum ButtonKind
-        {
-            /// <summary>主行动点（投掷 / 继续 / 再来一局 / 确认）：黄铜底深字。全屏同时只该有一枚高亮。</summary>
-            Primary,
-
-            /// <summary>常规件（结束回合 / 取消 / 次按钮）：深底亮字。</summary>
-            Dark,
-
-            /// <summary>破坏性动作（返回主菜单 / 放弃）：红底亮字。</summary>
-            Danger,
-
-            /// <summary>强调态（选中 / 激活）：暖橙底。</summary>
-            Accent,
-
-            /// <summary>浅牌形态（亮背景上的"纸签"）：暖白底墨字。</summary>
-            Paper,
-        }
-
-        /// <summary>档位 → 像素 tone（Primary/Accent 都是强调，但 Accent 用暖橙 Warn 区分于黄铜主行动点）。</summary>
-        public static PixelTone ToneOfKind(ButtonKind kind)
-        {
-            switch (kind)
-            {
-                case ButtonKind.Primary: return PixelTone.Primary;
-                case ButtonKind.Danger: return PixelTone.Danger;
-                case ButtonKind.Accent: return PixelTone.Warn;
-                case ButtonKind.Paper: return PixelTone.Light;
-                default: return PixelTone.Dense;
-            }
+            // 按压位移已退役（theme 无按压皮）；禁用双层字由 SketchButton.DoStateTransition 承担。
         }
 
         /// <summary>
-        /// 图文按钮（**纯文字**）——模式/动作钮的统一长相，档位色走 <see cref="ToneOfKind"/>；
-        /// BattleHud 的投掷/结束回合与各模态按钮共用。
-        /// 【图标已退役】按钮左侧的 UiGlyphs 符号被创始人走查点名读成 emoji（2026-09-23）：
-        /// 按钮语义一律由文字承担，glyph / withIcon 死参数已随清理波删除。
+        /// 图文按钮（**纯文字**）——动作钮的统一长相，theme button 灰面皮。
+        /// 【kind 体系已退役（×1 全量对齐波）】theme 无彩面按钮（参考图 OK/Cancel 同为灰面），
+        /// 语义由文字与焦点蓝描边表达；Sticky 业务选中态由调用方走 <see cref="ApplyThemeButton"/>。
         /// position 相对父容器中心（anchor/pivot 0.5,0.5）。
         /// </summary>
         public static Button ActionButton(string name, Transform parent,
-            string label, ButtonKind kind, Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font)
+            string label, Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font)
         {
-            PixelTone tone = ToneOfKind(kind);
-            Color labelColor = PixelSkin.TextColorOn(tone);
             RectTransform rect = CreateRect(name, parent);
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
@@ -537,10 +502,10 @@ namespace PirateCrew.UI
 
             var image = rect.gameObject.AddComponent<Image>();
             var button = rect.gameObject.AddComponent<Button>();
-            ApplyPlateButton(button, image, tone);
+            ApplyThemeButton(button, image);
 
             TextMeshProUGUI text = CreateText("Text", rect, label, UiSkin.Font.Body,
-                TextAlignmentOptions.Center, labelColor, font, raycast: false);
+                TextAlignmentOptions.Center, PixelSkin.Theme.Text, font, raycast: false);
             text.enableWordWrapping = false;
             Stretch(text.rectTransform, 10f);
 

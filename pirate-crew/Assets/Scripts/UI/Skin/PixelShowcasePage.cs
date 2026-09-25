@@ -1,8 +1,6 @@
 ﻿using PirateCrew.Core;
 using PirateCrew.UI.Stick;
 using TMPro;
-// SketchButtonKind 是 StickTokens 的嵌套类型。
-using SketchButtonKind = PirateCrew.UI.Stick.StickTokens.SketchButtonKind;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -193,13 +191,7 @@ namespace PirateCrew.UI
             // ---- ⑥ 按钮：三态真件（悬停/按压直接动手上验）----
             Header("按钮 —— 件 48×24 = 标签 24 + 上下各 6 / 左右各 12；悬停 / 按压请直接上手");
             cursor += 12;
-            var buttons = new (string label, SketchButtonKind kind)[]
-            {
-                ("确定", SketchButtonKind.Primary),
-                ("菜单", SketchButtonKind.Paper),
-                ("退出", SketchButtonKind.Danger),
-                ("警告", SketchButtonKind.Accent),
-            };
+            var buttons = new string[] { "确定", "菜单", "退出", "警告" };
             // SketchButton 的 fontSize 参数是**画布像素**口径（UiShowcaseBoot.BuildBackButton 同款
             // 传 36）——本页其他文字用"艺术像素"入参、在 Text() 里 ×A，两套口径别混。
             for (int i = 0; i < buttons.Length; i++)
@@ -209,10 +201,10 @@ namespace PirateCrew.UI
                 {
                     if (i == 0)
                         SpriteImage(content, PixelSkin.Focus, x - 2, cursor - 2, 52, 28);
-                    SketchButton.Create(content, "Demo_" + buttons[i].label,
+                    SketchButton.Create(content, "Demo_" + buttons[i],
                         new Vector2(0f, 1f), new Vector2(0f, 1f),
                         new Vector2(x * A, -cursor * A), new Vector2(48 * A, 24 * A),
-                        s_font, buttons[i].kind, buttons[i].label, 36);
+                        s_font, buttons[i], 36);
                 }
             }
             cursor += 24 + 24;

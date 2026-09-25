@@ -224,23 +224,21 @@ namespace PirateCrew.UI
         // 文字尺寸不在本表——文字已解除栅格，见 <see cref="Font"/>。
         // ------------------------------------------------------------------
 
-        /// <summary>像素几何令牌（低清画布栈：本表数值 = 画布像素 = 艺术像素，无 ×Unit 换算）。
-        ///
-        /// 【已知错位·悬案①待裁决】贴图按设计格 ×Unit(2) 落盘（Plate 28×32、上下切片合计 20px），
-        /// 而 <see cref="Button"/>=16 的渲染高低于切片和——九宫格边带会压缩重叠、贴图不再 1:1。
-        /// 修复方向随「×2 语义定夺」二选一：维持 ×2 → 本表令牌 ×2（Button=32）；
-        /// 资产回设计格 1:1 → 烘焙链改 ×1 落盘。裁决前勿按旧注释的"零拉伸"口径施工。</summary>
+        /// <summary>像素几何令牌（【×1 终局】1 设计格 = 1 贴图像素 = 1 画布像素，零倍率）。
+        /// 旧【已知错位】悬案（贴图 ×2 vs 令牌 ×1）已随 2026-09-25 全量对齐波关闭：
+        /// 贴图直切 sheet.png 就是 1x 设计格，九宫格切片 = 声明值，渲染尺寸 = 格数。
+        /// 文字尺寸不在本表——见 <see cref="Font"/>（原生档纪律）。</summary>
         public static class Px
         {
-            /// <summary>1u = 1 画布像素（低清画布栈；贴图侧另有 PixelSkin.Unit=2 的烘焙倍率，两者量纲不同）。</summary>
+            /// <summary>1u = 1 画布像素 = 1 贴图像素（×1 终局）。</summary>
             public const int Unit = 1;
 
-            /// <summary>标准条高（10 艺术像素：凹槽上下各 1 格描边 + 8 格槽底/填充）。</summary>
+            /// <summary>标准条高（10 设计格：凹槽上下各 1 格描边 + 8 格槽底/填充）。</summary>
             public const int Bar = 10 * Unit;
 
-            /// <summary>标准按钮高（16 艺术像素 = Aseprite button 模板原生高；包边 4+6 格 + 内容 6 格）。
-            /// 注意 ×Unit(2) 落盘下贴图高实为 32px——见类头【已知错位】。</summary>
-            public const int Button = 16 * Unit;
+            /// <summary>标准按钮**渲染**高 24 = 正文档 12 + theme button 上下切片 10 + 2
+            /// （参考库对话框 OK 钮实测高 24 设计格；贴图原生 16 是九宫格最小皮，中心区可拉伸）。</summary>
+            public const int Button = 24;
 
             /// <summary>按钮左右内边距合计（8 艺术像素；按钮宽 = 标签宽 + 本值）。</summary>
             public const int ButtonPadX = 8 * Unit;

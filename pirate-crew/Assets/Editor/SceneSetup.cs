@@ -104,38 +104,41 @@ namespace PirateCrew.EditorTools
             // 不铺死黑（stick-world window 底同口径；不再叠压暗 vignette 以免毁掉透底）。
             CreateStickBackdrop(canvas.transform);
 
-            // 标题：游戏名 = 满精度正文档 36（创始人祈使裁决：不同大小 = 不同精度的字体；
-            // 更大标题档待 16px 原生像素字体引入）+ TEXT 亮字 + INK 墨描边 3px 口径。
-            TextMeshProUGUI title = MenuUiBuilder.CreateTextExact("Title", canvas.transform,
-                UiStrings.MainTitle, UiSkin.Font.Display, TextAlignmentOptions.Center, TEXT, handFont);
-            MenuUiBuilder.SetAnchored(title.rectTransform, new Vector2(0.5f, 1f),
-                new Vector2(300f, 15f), new Vector2(0f, -29f));
-            MenuUiBuilder.ApplyStickTitleOutline(title);
+            // 主菜单**窗体化**（执行案 §4，创始人 2026-09-25 裁决）：window_with_title 容器
+            // 装标题带 + 按钮列，标题进带内——废「黑底 + 文字 + 下划线」自由排版。
+            // 几何（×1 设计格）：标题带 15 + 带下缝 2 = 顶 17（theme window_with_title border-top）；
+            // 按钮高 24（参考库 OK 钮）；相邻钮间距 = 上钮下切片 6 + 下钮上切片 4 = 10
+            // （theme 无 spacing 概念，缝 = 两者 border 相加）；下 border 6。
+            RectTransform menuWindow = RuntimeUiBuilder.CreateRect("MenuWindow", canvas.transform);
+            Vector2 windowSize = new Vector2(96f, 17f + 24f * 4 + 10f * 3 + 6f);
+            MenuUiBuilder.SetAnchored(menuWindow, CenterAnchor, windowSize, new Vector2(0f, -6f));
+            UiKit.EnsureWindow(menuWindow, PixelTone.Frame, UiStrings.MainTitle,
+                handFont, UiSkin.Font.Title, helpButton: false, closeButton: false);
 
-            // 标题下蚀刻分隔线（像素皮：SketchSeparator 内部出 Separator 贴图）。
-            SketchSeparator.Create(canvas.transform, "TitleSeparator", new Vector2(0.5f, 1f),
-                new Vector2(0.5f, 1f), new Vector2(0f, -48f), new Vector2(140f, 1f),
-                SketchSeparator.Direction.Horizontal);
+            var menuColumn = menuWindow.gameObject.GetComponent<UnityEngine.UI.VerticalLayoutGroup>();
+            if (menuColumn == null)
+                menuColumn = menuWindow.gameObject.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
+            menuColumn.padding = new RectOffset(
+                (int)AseLayout.Px(AseLayout.WindowBorder), (int)AseLayout.Px(AseLayout.WindowBorder),
+                (int)AseLayout.Px(AseLayout.WindowBorderTop), (int)AseLayout.Px(AseLayout.WindowBorder));
+            menuColumn.spacing = AseLayout.Px(10);   // 按钮下切片 6 + 按钮上切片 4
+            menuColumn.childControlWidth = false;
+            menuColumn.childControlHeight = false;
+            menuColumn.childForceExpandWidth = false;
+            menuColumn.childForceExpandHeight = false;
+            menuColumn.childAlignment = TextAnchor.UpperCenter;
 
-            // 菜单按钮列：**只有一个进游戏入口**——主行动「进入战斗」Primary（必经选关面板；
-            // 创始人 2026-09-23：「单人战役」按钮与直跳海图的捷径已废）、「退出游戏」Danger。
-            // 令牌按钮：高 24 艺术像素、宽 = 标签宽 + 24 艺术像素，中心距 108（72 高 + 36 间距
-            // = 12 艺术像素位点）。字号 0 = 控件默认正文档。
-            SketchButton battleButton = SketchButton.Create(canvas.transform, "BattleButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, 19f), MenuUiBuilder.ButtonSize(UiStrings.MainBattle),
-                handFont, SketchButtonKind.Primary, UiStrings.MainBattle, 0f);
-
-            SketchButton crewButton = SketchButton.Create(canvas.transform, "CrewButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -17f), MenuUiBuilder.ButtonSize(UiStrings.MainCrew),
-                handFont, SketchButtonKind.Dark, UiStrings.MainCrew, 0f);
-
-            SketchButton settingsButton = SketchButton.Create(canvas.transform, "SettingsButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -53f), MenuUiBuilder.ButtonSize(UiStrings.MainSettings),
-                handFont, SketchButtonKind.Dark, UiStrings.MainSettings, 0f);
-
-            SketchButton quitButton = SketchButton.Create(canvas.transform, "QuitButton",
-                CenterAnchor, new Vector2(0.5f, 0.5f), new Vector2(0f, -89f), MenuUiBuilder.ButtonSize(UiStrings.MainQuit),
-                handFont, SketchButtonKind.Danger, UiStrings.MainQuit, 0f);
+            // 菜单按钮列：**只有一个进游戏入口**——「进入战斗」（必经选关面板；
+            // 创始人 2026-09-23：「单人战役」按钮与直跳海图的捷径已废）。
+            // theme 无彩面按钮（kind 退役）：全按钮灰面，语义由文字与焦点蓝描边表达。
+            SketchButton battleButton = CreateMenuButton(menuWindow.transform, "BattleButton",
+                UiStrings.MainBattle, handFont);
+            SketchButton crewButton = CreateMenuButton(menuWindow.transform, "CrewButton",
+                UiStrings.MainCrew, handFont);
+            SketchButton settingsButton = CreateMenuButton(menuWindow.transform, "SettingsButton",
+                UiStrings.MainSettings, handFont);
+            SketchButton quitButton = CreateMenuButton(menuWindow.transform, "QuitButton",
+                UiStrings.MainQuit, handFont);
 
             // 左下：版本号 + 存档状态（SCREEN_MARGIN=12 安全边距；角标 Tiny 30 = ArkPixel 10px
             // 原生档 + TEXT_FAINT，状态反馈用 TEXT_DIM 略提一级）。版本数字运行时取
@@ -189,6 +192,21 @@ namespace PirateCrew.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
 
             SaveScene(scene, SceneNames.MainMenu);
+        }
+
+        /// <summary>
+        /// 主菜单窗体按钮列的按钮（theme button 皮）：LayoutElement 声明高 24（参考库 OK 钮），
+        /// 宽 = 标签宽 + 8（UiSkin.Px.ButtonWidth）；字号 0 = 控件默认正文档。
+        /// </summary>
+        static SketchButton CreateMenuButton(Transform parent, string name, string label, TMP_FontAsset font)
+        {
+            SketchButton button = SketchButton.Create(parent, name,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
+                MenuUiBuilder.ButtonSize(label), font, label, 0f);
+            var element = button.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+            element.preferredHeight = UiSkin.Px.Button;
+            element.minHeight = UiSkin.Px.Button;
+            return button;
         }
 
         /// <summary>全屏「窗户」底：WINDOW_BG 原值（0.88 黑）纯色 Image，raycast 关闭

@@ -3,8 +3,6 @@ using PirateCrew.UI.Stick;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-// SketchButtonKind 是 StickTokens 的嵌套类型（using static 别名免逐处限定）。
-using SketchButtonKind = PirateCrew.UI.Stick.StickTokens.SketchButtonKind;
 
 namespace PirateCrew.UI
 {
@@ -135,7 +133,7 @@ namespace PirateCrew.UI
             SketchButton back = SketchButton.Create(canvas, "BackToMenu",
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-72f, -72f),
                 new Vector2(144f, 72f),
-                PixelShowcasePage.PixelFont(), SketchButtonKind.Dark,
+                PixelShowcasePage.PixelFont(),
                 "返回主菜单", 36);
             back.onClick.AddListener(GoBack);
         }
