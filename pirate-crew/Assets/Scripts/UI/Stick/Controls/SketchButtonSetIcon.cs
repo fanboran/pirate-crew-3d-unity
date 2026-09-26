@@ -34,13 +34,14 @@ namespace PirateCrew.UI.Stick
             var item = go.AddComponent<SketchButtonSetIcon>();
             item.InitAseSkin(image);      // targetGraphic + SpriteSwap + 全白 ColorBlock
 
-            // 文字 top（style padding-top 2），字色 button_normal_text #C0C0C0
+            // 文字 top：边框内再收内距——border-top 3 + padding-top 2 = 5（theme.xml:1067/:1114），
+            // 字色 button_normal_text #C0C0C0
             var labelGo = new GameObject("Label", typeof(RectTransform));
             RectTransform labelRect = labelGo.GetComponent<RectTransform>();
             labelRect.SetParent(rect, false);
             labelRect.anchorMin = labelRect.anchorMax = new Vector2(0.5f, 1f);
             labelRect.pivot = new Vector2(0.5f, 1f);
-            labelRect.anchoredPosition = new Vector2(0f, -2f);
+            labelRect.anchoredPosition = new Vector2(0f, -5f);
             labelRect.sizeDelta = new Vector2(size.x - 6f, 10f);
             var tmp = labelGo.AddComponent<TextMeshProUGUI>();
             tmp.text = label;
@@ -58,13 +59,14 @@ namespace PirateCrew.UI.Stick
             tmp.raycastTarget = false;
             tmp.gameObject.AddComponent<PixelSnapText>();
 
-            // 图标 bottom（16×16 直切件，sheet 原色，style padding-bottom 1）
+            // 图标 bottom：border-bottom 5 + padding-bottom 1 = 6（theme.xml:1067/:1114），
+            // 16×16 直切件 sheet 原色
             var iconGo = new GameObject("Icon", typeof(RectTransform));
             RectTransform iconRect = iconGo.GetComponent<RectTransform>();
             iconRect.SetParent(rect, false);
             iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.5f, 0f);
             iconRect.pivot = new Vector2(0.5f, 0f);
-            iconRect.anchoredPosition = new Vector2(0f, 1f);
+            iconRect.anchoredPosition = new Vector2(0f, 6f);
             iconRect.sizeDelta = new Vector2(16f, 16f);
             var icon = iconGo.AddComponent<Image>();
             icon.sprite = PixelSkin.Ase(iconPart);
