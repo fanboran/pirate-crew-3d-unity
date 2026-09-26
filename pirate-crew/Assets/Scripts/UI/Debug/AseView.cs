@@ -89,7 +89,7 @@ namespace PirateCrew.UI.DebugUi
             _client.offsetMin = new Vector2(_borderL, _borderB);
             _client.offsetMax = new Vector2(-_borderR, -_borderT);
 
-            // Viewport（skin_theme.cpp:1242-1244 kViewViewportWidget：BORDER(0) + childSpacing 0）
+            // Viewport（skin_theme.cpp:1249-1252 kViewViewportWidget：BORDER(0) + childSpacing 0）
             _viewport = UiKit.CreateRect("Viewport", _client);
             UiKit.SetAnchored(_viewport, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
             // 源在绘制层把视口当裁剪区（Viewport::onPaint → paintViewViewport，视口自身透明）；
@@ -233,7 +233,7 @@ namespace PirateCrew.UI.DebugUi
         /// 乘数 = 被滚件 <c>textHeight()*3</c>（源里缺省值），本移植被滚件是 ListBox（无文本，
         /// 走字体度量的行高）=<see cref="UiSkin.Font"/>.Tiny(8) × 3 = 24。
         ///
-        /// 【符号口径】源的 wheelDelta 是 os 层原值、跨平台不一致：<c>state_with_wheel_behavior.cpp:281-286</c>
+        /// 【符号口径】源的 wheelDelta 是 os 层原值、跨平台不一致：<c>state_with_wheel_behavior.cpp:285-290</c>
         /// 明说 "on macOS the mouse wheel is correct, up increase …, But on Windows and Linux it's inverted"，
         /// 即 Windows 上滚轮 → wheelDelta.y = -1。UGUI 的 scrollDelta.y 已归一（上滚 = +1），
         /// 故取负号对齐 Windows 版实感（上滚 = 看上面）。
@@ -634,7 +634,7 @@ namespace PirateCrew.UI.DebugUi
             {
                 // 源：在拇指里 → 只 captureMouse()，不翻页
             }
-            else if (_whereClick < pos)                             // scroll_bar.cpp:98-105 / 114-117
+            else if (_whereClick < pos)                             // scroll_bar.cpp:98-102 / 114-117
             {
                 if (_horizontal)
                     scroll.x -= _delegate.VisibleSize.x / 2;

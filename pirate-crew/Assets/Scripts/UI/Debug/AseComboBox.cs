@@ -340,7 +340,7 @@ namespace PirateCrew.UI.DebugUi
             view.AttachToView((RectTransform)list.transform);
 
             // 内容 sizeHint（Viewport::calculateNeededSize，viewport.cpp:59-71）：
-            // ListBox::onSizeHint（listbox.cpp:341-365）= 逐轴 max 行 sizeHint / Σ 行高；
+            // ListBox::onSizeHint（listbox.cpp:358-378）= 逐轴 max 行 sizeHint / Σ 行高；
             // 行 sizeHint.w = 文字宽 + list_item border 2（listitem.cpp:57-86）——
             // 横条是否出现就看它是否超过视口宽（源 IfNeeded 条件），不是看弹层宽。
             int hintW = Mathf.CeilToInt(RowHintWidth(list)) + AseListBox.ItemBorder * 2;
