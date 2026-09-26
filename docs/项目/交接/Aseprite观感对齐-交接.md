@@ -1041,6 +1041,44 @@ AseButtonBase.Active setter 冗余一次 DST（幂等，按现行行为保留）
 改动要吃进去必须「新建一个 dummy .cs → refresh」（改名/新建皆可）——§六 的 recompile
 通道对「改文件」场景不完整，此为补全口径。
 
+## 三之十二、图标内缩源口径 + 滚动组合收口 AseView（2026-09-27，创始人问「图标还是有点偏」+「滚动条和旁边的内容展示框是这么用的吗」）
+
+**两问两判据（源）**：
+1. **图文块内缩**：`buttonset_item` border=3/底5（theme.xml:1067），icon-bottom 变体
+   padding-top 2 / padding-bottom 1（:1114）→ 文字顶缩进 = 3+2 = **5**、图标底缩进 =
+   5+1 = **6**。此前实现在 −2/+1，边框与内距都没扣——图标被抬高 5px 贴着文字，即创始人
+   的「还是有点偏」。修在 `SketchButtonSetIcon.Create`（label −5 / icon +6）。像素验收：
+   红圈底缘距按钮底框恰 6 坎。
+2. **滚动组合**：源里**不存在「框外独立条」**——`View` 自带 `view` 样式（border 3/顶4 +
+   window_face 底 + sunken_normal 边框件，theme.xml:581-585），`setup_scrollbars`
+   （scroll_helper.cpp:75-81）把条放在**框内右缘**（viewportArea.x2()）、宽
+   `scrollbar_size`=12（theme.xml:12-13；件原生 16 宽九宫压缩），视口被条挤窄。
+   三处手搓组合（16 宽条在框外留 4px 缝 / 自制 Track-Plate 件）全部是误用。
+
+**修法（收口到已有移植件，不新造轮子）**：`AseView`/`AseScrollBar`（view.cpp +
+scroll_bar.cpp 逐函数移植，组合框弹层一直在用）就是公共件——
+- `AseWidgetKit.ScrollView(...)`（点锚整装）/ `PaintViewSkin(...)`（只贴两层皮）新工厂，
+  组合框弹层的内联皮同步去重（dbg-probe 弹层区红差异 = 0，逐位等价）；
+- 三处滚动点全改走它：画廊面板 ScrollDemo（`WidgetGalleryPanel.BuildScrollComboTip`）、
+  部件陈列廊窗（`DebugMenuHost.BuildPartsGalleryWindow`，滚动区恢复整宽、条在框内吃 12）、
+  全屏陈列页（`UiShowcaseBoot.BuildScroll`，workspace_view 同款组合）；
+- 滚轮转发 `AseViewWheel` 从 content 移挂 **viewport 层**：空白接光面命中时冒泡链不经过
+  content，挂本体漏空白区滚轮。
+
+**验收**：七拍 diff——MainMenu/menubar 零差；dup 42802（既有有意修复，逐位复现）；
+newsprite 93408（前值 +181 = 图标内缩）；widget 7252（ScrollDemo 新组合，轨道扫描证实
+条 24px=12 坎贴框右内缘、框内 window_face 底）；parts 39%（陈列廊窗整面换组合，目检
+通过）；probe = 前值 + ~5200 且红差异全部落在画廊面板带（弹层零差 → 去重等价）。
+
+**流水线新坑（本会话实锤，比 §三之十一的口径更狠）**：watcher 会**中途死掉**——连
+「新建文件」都不再触发导入，且 `CompileScripts: 3ms` 这种小数字会伪装成「编译过了」。
+**真正的地面真相是 `Library/ScriptAssemblies/PirateCrew.UI.dll` 的 mtime**：本会话曾
+出现 dll 停在 05:28、05:29 后的改动全部没进程序集（newsprite +181 变了而滚动零差的
+矛盾就是这么来的）。可靠通道 = 命令桥 `refresh`（AssetDatabase.Refresh 强制扫，
+日志可见 `Asset File Changes: changed=N` 与 60s+ 的真实编译段）。另：验证编辑器曾在
+大 refresh 后自然退出（原因未取证），重开 GUI 实例即可（CWD=worktree 保证桥/旗标
+路径隔离；`-logFile` 换新文件防追加混淆）。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
