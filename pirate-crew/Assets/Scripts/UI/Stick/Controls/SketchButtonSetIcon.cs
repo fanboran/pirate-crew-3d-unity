@@ -1,4 +1,4 @@
-﻿using TMPro;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,23 +9,13 @@ namespace PirateCrew.UI.Stick
     /// Color Mode / Background 三连）：与 <see cref="SketchButtonSet"/>（居中文字款）平行的
     /// 选项块——**文字上置 + 16×16 图标下置**（theme.xml:1118-1128：padding-top 2 /
     /// padding-bottom 1，图标取 parts 表直切件如 icon_rgb / icon_transparent，sheet 原色）。
-    /// 四态 SpriteSwap + 业务"当前值"换 hot 件（selected→hot，无彩色），同 buttonset 语义。
+    /// 四态 SpriteSwap + 业务"当前值"换 hot 件（selected→hot，无彩色），同 buttonset 语义；
+    /// 状态位映射与件解析由 <see cref="AseButtonBase"/> 按 <see cref="StyleId"/> 统一实现。
     /// </summary>
-    public sealed class SketchButtonSetIcon : Button
+    public sealed class SketchButtonSetIcon : AseButtonBase
     {
-        private bool _active;
-
-        /// <summary>业务"当前值"态（换 buttonset_item_hot 件；与 hover/按压正交）。</summary>
-        public bool Active
-        {
-            get => _active;
-            set
-            {
-                _active = value;
-                ApplySkin();
-                DoStateTransition(currentSelectionState, true);
-            }
-        }
+        /// <summary>theme 样式 id——变体继承 buttonset_item 同一件表，底皮无差异。</summary>
+        protected override string StyleId => "buttonset_item";
 
         /// <summary>建一枚图文选项块。图标按件原生 16×16 贴底居中，文字贴顶居中。</summary>
         public static SketchButtonSetIcon Create(Transform parent, string name, string label,
@@ -39,22 +29,10 @@ namespace PirateCrew.UI.Stick
             rect.anchoredPosition = anchoredPosition;
 
             var image = go.AddComponent<Image>();
-            image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;
-            image.color = Color.white;          // 像素件禁止乘色
             image.raycastTarget = true;
 
             var item = go.AddComponent<SketchButtonSetIcon>();
-            item.targetGraphic = image;
-            item.transition = Selectable.Transition.SpriteSwap;
-            ColorBlock colors = item.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = Color.white;
-            colors.pressedColor = Color.white;
-            colors.selectedColor = Color.white;
-            colors.disabledColor = new Color(1f, 1f, 1f, 0.5f);
-            colors.fadeDuration = 0f;
-            item.colors = colors;
+            item.InitAseSkin(image);      // targetGraphic + SpriteSwap + 全白 ColorBlock
 
             // 文字 top（style padding-top 2），字色 button_normal_text #C0C0C0
             var labelGo = new GameObject("Label", typeof(RectTransform));
@@ -96,64 +74,6 @@ namespace PirateCrew.UI.Stick
 
             item.ApplySkin();
             return item;
-        }
-
-        /// <summary>按业务态挂皮（同 <see cref="SketchButtonSet.ApplySkin"/> 口径）。
-        /// 【状态层引擎】件 id 经 <see cref="AseThemeLayers"/> 从 theme.xml
-        /// <c>&lt;style id="buttonset_item"&gt;</c> 解析（<c>buttonset_item_text_top_icon_bottom</c>
-        /// 继承同一件表，底皮无差异）。</summary>
-        public void ApplySkin()
-        {
-            var bg = targetGraphic as Image;
-            if (bg != null)
-            {
-                string part = PartOf(SelectionState.Normal);
-                if (part != null)
-                    bg.sprite = PixelSkin.Ase(part);
-                bg.type = Image.Type.Sliced;
-                bg.pixelsPerUnitMultiplier = 1f;
-                bg.color = Color.white;
-            }
-
-            SpriteState state = spriteState;
-            state.highlightedSprite = SpriteOf(SelectionState.Highlighted);
-            state.pressedSprite = SpriteOf(SelectionState.Pressed);
-            state.selectedSprite = SpriteOf(SelectionState.Selected);
-            state.disabledSprite = SpriteOf(SelectionState.Disabled);
-            spriteState = state;
-        }
-
-        /// <summary>UGUI 选择态 → Aseprite 状态位（同 <see cref="SketchButtonSet"/> 口径）。</summary>
-        static AseStates FlagsFor(SelectionState state, bool active)
-        {
-            switch (state)
-            {
-                case SelectionState.Disabled:
-                    return AseStates.Disabled;
-                case SelectionState.Pressed:
-                    return AseStates.Selected | AseStates.Capture;
-                case SelectionState.Selected:
-                    // 源里当前项 = selected+focus → buttonset_item_hot_focused（theme.xml:1071，
-                    // 白面 + 琥珀虚线环 #786050）；focus-only（未选中却被键盘聚焦）才是
-                    // buttonset_item_focused 描边件（:1075）。漏带 Selected 位会让当前项
-                    // 丢 hot 面只剩描边件。
-                    return AseStates.Focus | (active ? AseStates.Selected : AseStates.None);
-                case SelectionState.Highlighted:
-                    return AseStates.Mouse | (active ? AseStates.Selected : AseStates.None);
-                default:
-                    return active ? AseStates.Selected : AseStates.None;
-            }
-        }
-
-        string PartOf(SelectionState state)
-        {
-            return AseThemeLayers.ResolveBackgroundPart("buttonset_item", FlagsFor(state, _active));
-        }
-
-        Sprite SpriteOf(SelectionState state)
-        {
-            string part = PartOf(state);
-            return part != null ? PixelSkin.Ase(part) : null;
         }
     }
 }
