@@ -17,6 +17,10 @@ namespace PirateCrew.EditorTools
     {
         const string SourceDir = "../external/aseprite-ref/data/widgets";
         const string StringsSource = "../external/aseprite-ref/data/strings/en.ini";
+        // theme.xml：状态层匹配引擎（AseThemeLayers）的权威数据。源取工程自己的
+        // Assets/Art/Sprites/UI/Aseprite/theme.xml（与参考库 dark 主题逐字节一致，
+        // git 4d2dc0bf 引入），落成 theme.xml.txt（.xml 不是 TextAsset 扩展名）。
+        const string ThemeSource = "Assets/Art/Sprites/UI/Aseprite/theme.xml";
         const string TargetDir = "Assets/Resources/AseWidgets";
 
         [MenuItem("PirateCrew/同步 Aseprite widgets 资产")]
@@ -37,9 +41,13 @@ namespace PirateCrew.EditorTools
             File.Copy(Path.GetFullPath(StringsSource), stringsDest, overwrite: true);
             EnsureMeta(stringsDest);
 
+            string themeDest = Path.Combine(TargetDir, "theme.xml.txt");
+            File.Copy(Path.GetFullPath(ThemeSource), themeDest, overwrite: true);
+            EnsureMeta(themeDest);
+
             EnsureFolderMeta(TargetDir);
             AssetDatabase.Refresh();
-            Debug.Log("[AseWidgetAssetSync] 同步完成：" + copied + " 个 widgets xml + en.ini.txt → "
+            Debug.Log("[AseWidgetAssetSync] 同步完成：" + copied + " 个 widgets xml + en.ini.txt + theme.xml.txt → "
                 + TargetDir);
         }
 
