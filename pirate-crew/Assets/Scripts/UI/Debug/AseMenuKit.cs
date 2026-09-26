@@ -225,6 +225,12 @@ namespace PirateCrew.UI.DebugUi
                 + shortcutW;
         }
 
+        /// <summary>行有子菜单（ui::MenuItem::hasSubmenu 同义：submenu 非空且孩子非空）。</summary>
+        internal static bool HasChildren(Item item)
+        {
+            return item != null && item.Children != null && item.Children.Length > 0;
+        }
+
         // ------------------------------------------------------------------
         // 运行时对象（ui::Menu / MenuBoxWindow / MenuItem 的对应物）
         // ------------------------------------------------------------------
@@ -764,7 +770,9 @@ namespace PirateCrew.UI.DebugUi
                     row.Face.raycastTarget = false;
                     row.Label = DebugWindowKit.Label(row.Rect, data.Label, UiSkin.Font.Tiny,
                         TextNormal, TextAlignmentOptions.Left);
-                    if (!string.IsNullOrEmpty(data.Shortcut))
+                    // 快捷键只在**没有子菜单**的行上画（paintMenuItem 的 if/else if：带子菜单画箭头、
+                    // 否则才画快捷键，skin_theme.cpp:1626-1667）
+                    if (!string.IsNullOrEmpty(data.Shortcut) && !HasChildren(data))
                     {
                         row.ShortcutLabel = DebugWindowKit.Label(row.Rect, data.Shortcut, UiSkin.Font.Tiny,
                             TextNormal, TextAlignmentOptions.Right);
