@@ -788,6 +788,55 @@ MainMenu 第五钮「调试场景」实拍落位（按钮列 6 文字簇 = 标�
 （dbg-newsprite/dbg-widget）+ 运行时树转储逐行核过（Spacer 63 + OK/Cancel 60+60 右对齐、
 advanced 塌缩后按钮 -167）。提交 `aa60088e`。
 
+## 三之六、四包并行移植波：覆盖率 24.2% → 76.4%（2026-09-26，创始人令「组成 Agent Team 拉覆盖率」）
+
+**编排**：4 个 worktree（`temp/ui-menu|hover|layout|slider`）× 4 分支 × 4 代理，文件域互斥，
+全部「以库为源」逐函数移植；协调者串行合并 + 真编译门 + 抽查对账 + 本节文档。
+
+**覆盖率台账**（`temp/coverage2.py`，76 条语义块 / 4328 源行，函数级行数加权；代理报告 +
+协调者四处逐行对账：`choose_side`/`ValueFromPointer`/`DistributeStripSize`/`openListBox`）：
+
+| 状态 | 占比 | 说明 |
+| --- | --- | --- |
+| port 逐行移植 | **76.4%** | 上轮 24.2% |
+| approx 近似 | 1.8% | View 滚动条（ScrollRect 替身，仅竖向） |
+| subst 替代 | 2.7% | UGUI 捕获板/指针事件/BuildPopup 窗体 |
+| miss 未做 | 19.0% | 见下偏差清单 |
+
+**四包要点与创始人可感知的行为变化**：
+- **菜单包**（AseMenuKit 重写，合并 `a7eb9690`）：下拉一层=栏项正下左对齐钳进画布、二层=
+  行左上 3px + choose_side 取交叠少侧（menu.cpp:115-146 / fit_bounds.cpp:110-157）；**冷态悬停
+  不高亮**（要有菜单展开后才悬停切换——was_clicked 门）；按下开合、**松开执行**；行内悬停
+  250ms 展子菜单；点弹层边框=收全部、点栏空白=收全部、点分隔线=不动。行几何纠偏：文字 x=11、
+  勾选 x=2、快捷键右让 6、子菜单箭头改源码三段竖线（弃 9×8 combobox_arrow_right 件）。
+- **悬浮/列表/下拉包**（合并 `fffd9102`，新增 AseListbox.cs/AseComboBox.cs）：**列表行不再
+  悬停变暗**（theme 的 list_item 无 mouse 层——旧版是自发明）；复选行悬停面只覆盖件本身；
+  组合框=金底选中列表贴正下方、**再点可收**、点外收且这一击穿透到下层控件、越画布底翻上方、
+  Esc/回车/空格收；词条面换 combobox 件 sunken2、开弹层时显焦点框。
+- **布局包**（AseDialogLoader 重写核心，合并 `d58bafdf`）：grid 全 span/cell_align 路径、
+  buttonset 改 Grid 装配、box childSpacing 0→4、check/entry/separator 高度公式化——**视觉比
+  旧版更松/更高，属预期**（公式来自源，旧版是错紧）。
+- **滑条包**（新增 SketchSlider.cs，合并 `b06f7103`）：整数取值、点击即跳变跟手、整槽件+
+  裁剪分区（修假圆端盖）、双色值文本整数居中（修奇数屏像素）、键盘/滚轮/键缓冲；画廊已接
+  （`WidgetGalleryPanel.BuildSlider` 撤 77 行补丁链）。**设置面板第二条滑条使用点未迁移**（见待办）。
+
+**登记偏差（miss/approx 清单，拉下轮覆盖率的靶子）**：菜单/列表键盘导航、entry 编辑路径
+（光标/选区/键入）、listbox 多选、kSetCursor、theme for_each_layer 通用层引擎（现逐件写死）、
+View 滚动条横向、combobox onSizeHint 反推宽度（仍调用方给定）、style 级 min/max 未解析、
+gfx `x2()` 闭区间与 Unity `xMax` 的 1px 口径差、字体度量替身（行盒常量 LineH=8/文本估宽）。
+
+**harness 假绿灯事故（新会话必读）**：worktree 编译门命令
+`run.sh Runtime -p:ProjectRoot=<worktree>` 的 `-p:` 参数被 run.sh 当第二位置参数（FILTER）
+**静默丢弃**，实际编译主仓 →「0 错误」空转（本波两个代理被坑、协调者的可行性实测也是空转，
+`#error` 探针证伪才暴露）。**已修 `external/harness/run.sh`**（external/ 不入库，重装需重打）：
+`-p:` 直通 MSBuild + worktree 无 Library 时 ScriptAssemblies 自动回退主仓。A3/A4 两包当初
+验的是假门，合并后真门各暴露 1/5 处编译伤已修（`8d59a3f2` RawMeasure 访问级、SketchSlider
+去 sealed/补 `_rect`/`RectInt.width`）。
+
+**合并链**：`d58bafdf`(layout) → `fffd9102`(hover) → `a7eb9690`(menu) → `b06f7103`(slider)，
+跨包集成修正 `b3fc5cf7`（AseComboBox 关旧弹层改走 CloseAll）+ 画廊滑条胶水。全量体检
+1244/10/1 与既有基线逐位一致（10 条为非 UI 域既有失败）。四个 temp/ worktree 已清理。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
