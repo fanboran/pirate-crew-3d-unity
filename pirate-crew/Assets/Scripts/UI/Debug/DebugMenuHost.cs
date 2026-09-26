@@ -50,23 +50,22 @@ namespace PirateCrew.UI.DebugUi
             float y = DebugWindowKit.ContentTop;
             // 四窗默认位错开排布（画布 960×540）：陈列廊右大块 / 对话框与菜单栏右列上下，
             // 启动器左列——默认位互不压盖，全幅陈列廊例外（打开即覆盖、× 即还原）。
-            y = MakeLauncherButton("组件实摆", y, () => ToggleWindow(ref _widgetGallery,
-                () => _widgetGallery = WidgetGalleryPanel.Build(_root, new Vector2(170f, 26f))));
-            y = MakeLauncherButton("新建精灵（xml 装载）", y, () => ToggleWindow(ref _newSprite,
-                () => _newSprite = LoadNewSprite(new Vector2(510f, 26f))));
-            y = MakeLauncherButton("Aseprite 菜单栏", y, () => ToggleWindow(ref _menuBarDemo,
-                () => _menuBarDemo = BuildMenuBarDemo(new Vector2(510f, 250f))));
+            // 首开一律延一帧（DebugBuildQueue）：按压反馈先落地，重构建不吞点击帧。
+            y = MakeLauncherButton("组件实摆", y, () => ToggleWindow(_widgetGallery,
+                () => { _widgetGallery = WidgetGalleryPanel.Build(_root, new Vector2(170f, 26f)); _widgetGallery.SetAsLastSibling(); }));
+            y = MakeLauncherButton("新建精灵（xml 装载）", y, () => ToggleWindow(_newSprite,
+                () => { _newSprite = LoadNewSprite(new Vector2(510f, 26f)); _newSprite.SetAsLastSibling(); }));
+            y = MakeLauncherButton("Aseprite 菜单栏", y, () => ToggleWindow(_menuBarDemo,
+                () => { _menuBarDemo = BuildMenuBarDemo(new Vector2(510f, 250f)); _menuBarDemo.SetAsLastSibling(); }));
             y = MakeLauncherButton("库对话框 Duplicate/Goto", y, () =>
             {
-                ToggleWindow(ref _dupDialog,
-                    () => _dupDialog = AseDialogLoader.Load("duplicate_sprite",
-                        _root, new Vector2(510f, 330f)).Window);
-                ToggleWindow(ref _gotoDialog,
-                    () => _gotoDialog = AseDialogLoader.Load("goto_frame",
-                        _root, new Vector2(510f, 460f)).Window);
+                ToggleWindow(_dupDialog,
+                    () => { _dupDialog = LoadDialog("duplicate_sprite", new Vector2(510f, 330f)); _dupDialog.SetAsLastSibling(); });
+                ToggleWindow(_gotoDialog,
+                    () => { _gotoDialog = LoadDialog("goto_frame", new Vector2(510f, 430f)); _gotoDialog.SetAsLastSibling(); });
             });
-            MakeLauncherButton("部件陈列廊", y, () => ToggleWindow(ref _partsGallery,
-                () => _partsGallery = BuildPartsGalleryWindow(new Vector2(170f, 26f))));
+            MakeLauncherButton("部件陈列廊", y, () => ToggleWindow(_partsGallery,
+                () => { _partsGallery = BuildPartsGalleryWindow(new Vector2(170f, 26f)); _partsGallery.SetAsLastSibling(); }));
         }
 
         static float MakeLauncherButton(string label, float y, System.Action onClick)
@@ -78,12 +77,12 @@ namespace PirateCrew.UI.DebugUi
             return y + 16f + 4f;
         }
 
-        static void ToggleWindow(ref RectTransform window, System.Action build)
+        /// <summary>开/合一枚面板窗（首开延一帧构建——闭包自赋值自置顶；再点切换显隐）。</summary>
+        static void ToggleWindow(RectTransform window, System.Action build)
         {
             if (window == null)
             {
-                build();
-                window.SetAsLastSibling();
+                DebugBuildQueue.Ensure(_root).RunNextFrame(build);
                 return;
             }
             bool show = !window.gameObject.activeSelf;
@@ -93,6 +92,13 @@ namespace PirateCrew.UI.DebugUi
                 window.SetAsLastSibling();
                 AseMenuKit.ClosePopup();
             }
+        }
+
+        /// <summary>装载一个库对话框（返回窗根；装载器细节见 AseDialogLoader）。</summary>
+        static RectTransform LoadDialog(string widget, Vector2 topLeft)
+        {
+            AseDialogLoader.Result r = AseDialogLoader.Load(widget, _root, topLeft);
+            return r != null ? r.Window : null;
         }
 
         /// <summary>装载 data/widgets/new_sprite.xml（cmd 层接线：advanced 勾选 → advanced 盒显隐，
@@ -136,8 +142,8 @@ namespace PirateCrew.UI.DebugUi
                     AseMenuKit.Item_("New…", "Ctrl+N", () =>
                     {
                         echo("File → New…");
-                        ToggleWindow(ref _newSprite,
-                            () => _newSprite = LoadNewSprite(new Vector2(510f, 26f)));
+                        ToggleWindow(_newSprite,
+                            () => { _newSprite = LoadNewSprite(new Vector2(510f, 26f)); _newSprite.SetAsLastSibling(); });
                     }),
                     AseMenuKit.Item_("Open…", "Ctrl+O", () => echo("File → Open…")),
                     AseMenuKit.Item_("Open Recent", null, null, false, new AseMenuKit.Item[]
@@ -225,9 +231,10 @@ namespace PirateCrew.UI.DebugUi
             content.pivot = new Vector2(0.5f, 1f);
             content.anchoredPosition = Vector2.zero;
 
-            // 陈列廊列数自适应：可用宽 = 滚动区宽
+            // 陈列廊列数自适应：可用宽 = 滚动区宽；**分帧构建**（345 格不分帧会整秒吞帧，
+            // 实机走查「点下去一会才有反应」的元凶之一）——content 高度随建随长。
             float galleryWidth = scroll.sizeDelta.x;
-            float height = PartsGalleryPage.Build(content, 0f, galleryWidth);
+            float height = 1f;
             content.sizeDelta = new Vector2(0f, height);
 
             var scrollRect = scroll.gameObject.AddComponent<ScrollRect>();
@@ -266,8 +273,16 @@ namespace PirateCrew.UI.DebugUi
             scrollbar.handleRect = handle;
             scrollbar.targetGraphic = handleImage;
             scrollbar.direction = Scrollbar.Direction.BottomToTop;
-            scrollbar.size = Mathf.Clamp01(scroll.sizeDelta.y / Mathf.Max(1f, height));   // 滑块大小 = 可视/内容比
+            scrollbar.size = 1f;
             scrollRect.verticalScrollbar = scrollbar;
+
+            // 分帧铺 345 格：每步回告累计高，content 与滑块比例随建随长
+            DebugBuildQueue.Ensure(window.parent).RunSteps(
+                PartsGalleryPage.BuildSteps(content, 0f, galleryWidth, total =>
+                {
+                    content.sizeDelta = new Vector2(0f, total);
+                    scrollbar.size = Mathf.Clamp01(scroll.sizeDelta.y / Mathf.Max(1f, total));
+                }));
             return window;
         }
     }

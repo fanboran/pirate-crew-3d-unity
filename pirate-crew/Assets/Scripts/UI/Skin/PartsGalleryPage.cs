@@ -40,6 +40,18 @@ namespace PirateCrew.UI
         /// </summary>
         public static float Build(RectTransform content, float topOffset, float width = 926f)
         {
+            float y = topOffset;
+            foreach (object _ in BuildSteps(content, topOffset, width, v => y = v))
+            {
+            }
+            return y - topOffset;
+        }
+
+        /// <summary>步进构建源（一个家族面板 = 一步；调试窗分帧用，见 DebugBuildQueue）。
+        /// <paramref name="onProgress"/> 每步回告累计 y（content 高度可随建随长）。</summary>
+        public static System.Collections.Generic.IEnumerable<object> BuildSteps(
+            RectTransform content, float topOffset, float width, System.Action<float> onProgress)
+        {
             int columns = Mathf.Max(4, Mathf.FloorToInt((width - MarginX * 2f + CellGap) / (CellW + CellGap)));
             float galleryW = MarginX * 2f + columns * CellW + (columns - 1) * CellGap;
 
@@ -50,10 +62,11 @@ namespace PirateCrew.UI
                 || a.aseParts.Length != a.asePartFamilies.Length)
             {
                 Debug.LogError("[PartsGalleryPage] 图集直切件表缺失或不对齐——先重烘焙（PirateCrew/UI/重烘焙 Beveled Pixel 九宫格）。");
-                return 0f;
+                yield break;
             }
 
             float y = PageHeader(content, topOffset, a.aseParts.Length, galleryW);
+            onProgress?.Invoke(y);
 
             // 家族面板：数组序 = 家族序（烘焙器排好），连续同族一段
             int n = a.aseParts.Length;
@@ -63,10 +76,11 @@ namespace PirateCrew.UI
                 if (i == n || a.asePartFamilies[i] != a.asePartFamilies[familyStart])
                 {
                     y = FamilyPanel(content, y, a.asePartFamilies[familyStart], a, familyStart, i - familyStart, columns, galleryW);
+                    onProgress?.Invoke(y);
+                    yield return null;   // 一步 = 一个家族面板
                     familyStart = i;
                 }
             }
-            return y - topOffset;
         }
 
         static float PageHeader(RectTransform content, float y, int total, float galleryW)

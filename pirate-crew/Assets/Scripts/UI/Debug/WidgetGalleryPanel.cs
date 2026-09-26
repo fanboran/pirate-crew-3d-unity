@@ -326,6 +326,8 @@ namespace PirateCrew.UI.DebugUi
                         bool on = j == selected;
                         rows[j].color = on ? PixelSkin.Theme.Selected : PixelSkin.Theme.Background;
                         texts[j].color = on ? PixelSkin.Theme.SelectedText : PixelSkin.Theme.Text;
+                        // 选中行的金底交给选择态，悬停换色让位（否则移开鼠标就覆写回常态）
+                        rows[j].GetComponent<HoverFace>().Locked = on;
                     }
                 });
             }

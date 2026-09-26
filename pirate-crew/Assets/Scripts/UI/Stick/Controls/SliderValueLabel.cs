@@ -20,6 +20,7 @@ namespace PirateCrew.UI.Stick
     /// 两条路径都成立，代价只是一次整数比较。
     /// </summary>
     [RequireComponent(typeof(Slider))]
+    [DefaultExecutionOrder(1000)]   // 晚于 Slider 的 LateUpdate——取整写回是本帧最后一步，不与 Slider 的分数锚点来回拉锯
     public sealed class SliderValueLabel : MonoBehaviour
     {
         /// <summary>充满段上的浅字（slider_full_text）。装配时赋值；场景重载后按名兜底重取。</summary>

@@ -55,8 +55,14 @@ namespace PirateCrew.UI.DebugUi
             field.selectionColor = new Color32(0x40, 0x69, 0xC2, 0x60);   // 蓝选区 60% 透明
 
             if (!string.IsNullOrEmpty(suffix))
-                DebugWindowKit.PlaceLabel(entry, suffix, UiSkin.Font.Tiny,
-                    PixelSkin.Theme.StatusText, w - 13f, 2f, 10f);
+            {
+                // 后缀锚右缘（entry 拉伸时贴着右边框——expr 的 suffix 语义）
+                TextMeshProUGUI suffixLabel = DebugWindowKit.PlaceLabel(entry, suffix,
+                    UiSkin.Font.Tiny, PixelSkin.Theme.StatusText, w - 13f, 2f, 10f);
+                RectTransform suffixRect = suffixLabel.rectTransform;
+                suffixRect.anchorMin = suffixRect.anchorMax = suffixRect.pivot = new Vector2(1f, 1f);
+                suffixRect.anchoredPosition = new Vector2(-3f, -2f);
+            }
             return field;
         }
 
@@ -115,9 +121,12 @@ namespace PirateCrew.UI.DebugUi
         // ------------------------------------------------------------------
 
         /// <summary>两件套组合框（theme combobox：sunken 词条 + 右缘 16×16 mini_button 箭头钮，
-        /// 点击弹 <see cref="AseMenuKit"/> 下拉）。词条宽 w，选项文字即显示文字。</summary>
+        /// 点击弹 <see cref="AseMenuKit"/> 下拉）。词条宽 w，选项文字即显示文字。
+        /// <paramref name="popupOverlay"/> = 弹层宿主（必须是调试根 overlay——弹层要盖过
+        /// **所有**窗；缺省取 parent.parent，仅当组合框直接挂在窗根下时成立）。</summary>
         public static TextMeshProUGUI ComboBox(RectTransform parent, string name, float x, float y,
-            float w, string[] options, int initial, System.Action<int> onPick = null)
+            float w, string[] options, int initial, System.Action<int> onPick = null,
+            Transform popupOverlay = null)
         {
             RectTransform entry = UiKit.CreateRect(name, parent);
             entry.anchorMin = entry.anchorMax = entry.pivot = new Vector2(0f, 1f);
@@ -175,13 +184,14 @@ namespace PirateCrew.UI.DebugUi
                 });
             }
             button.onClick.AddListener(() => AseMenuKit.OpenPopup(
-                parent.parent, entry, items));
+                popupOverlay != null ? popupOverlay : parent.parent, entry, items));
             return value;
         }
     }
 
     /// <summary>悬停换底色/字色（check 系亮面 #575B61 / 列表变暗 #2C2C30+字灰——两向都支持）。
-    /// 公共件：画廊列表、复选行共用。</summary>
+    /// 公共件：画廊列表、复选行共用。<see cref="Locked"/> 置位时悬停换色让位
+    /// （列表选中行的金底不能被「悬停离开恢复常态」覆写掉）。</summary>
     public sealed class HoverFace : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     {
         Image _face;
@@ -192,6 +202,9 @@ namespace PirateCrew.UI.DebugUi
         Color32 _normalText;
         bool _hasFacePair;
         bool _hasTextPair;
+
+        /// <summary>锁定常态（选中行：悬停不再改色，退出也不再恢复）。</summary>
+        public bool Locked;
 
         /// <summary>常态透明面 → 悬停换色（check 系语义）。</summary>
         public void Bind(Image face, Color32 hover)
@@ -221,6 +234,8 @@ namespace PirateCrew.UI.DebugUi
 
         public void OnPointerEnter(PointerEventData eventData)
         {
+            if (Locked)
+                return;
             if (_face != null)
                 _face.color = _hoverFace;
             if (_text != null && _hasTextPair)
@@ -229,6 +244,8 @@ namespace PirateCrew.UI.DebugUi
 
         public void OnPointerExit(PointerEventData eventData)
         {
+            if (Locked)
+                return;
             if (_face != null && _hasFacePair)
                 _face.color = _normalFace;
             else if (_face != null)
