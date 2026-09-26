@@ -5,6 +5,17 @@ using UnityEngine.UI;
 namespace PirateCrew.UI.Stick
 {
     /// <summary>
+    /// <b>【已退役（滑条控件级重做波）】</b>本件是「UGUI <c>Slider</c> + 按帧几何补丁」时代的产物，
+    /// 已被 <see cref="SketchSlider"/>（Aseprite <c>ui/slider.cpp</c> 逐函数移植）整体取代：
+    /// 新控件把取值、分界线、双色文本裁剪收到**同一个整数 value** 上，不再需要
+    /// 「读 fillRect 实宽取整 → 反推裁剪框」「每帧比 percent」这类补丁链。
+    /// 留存的唯一原因：装配侧调用点（<c>Assets/Editor/MenuUiBuilder.BuildVolumeRow</c>、
+    /// <c>Assets/Scripts/UI/Debug/WidgetGalleryPanel.BuildSlider</c>）不在本波文件域内，
+    /// 未迁移前它继续给旧结构供值。**新装配一律走 <see cref="SketchSlider.Create"/>**，
+    /// 本件不再接新调用点、不再修。
+    ///
+    /// ——以下为原实现说明（历史口径）——
+    ///
     /// 滑条槽内数值标签（theme <c>&lt;style id="slider"&gt;</c> 的 <c>&lt;text&gt;</c> 层）。
     ///
     /// 【双色口径（paintSlider 源码实锄，skin_theme.cpp:1756-1790）】同一句居中文案画两遍：
