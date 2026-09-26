@@ -82,7 +82,8 @@ namespace PirateCrew.UI.DebugUi
                 Root.Layout(Mathf.RoundToInt(DebugWindowKit.Pad),
                     Mathf.RoundToInt(DebugWindowKit.ContentTop),
                     Mathf.RoundToInt(InnerW), Mathf.RoundToInt(contentH));
-                Window.sizeDelta = new Vector2(InnerW + DebugWindowKit.Pad * 2f, contentH + DebugWindowKit.Pad);
+                Window.sizeDelta = new Vector2(InnerW + DebugWindowKit.Pad * 2f,
+                    DebugWindowKit.ContentTop + contentH + DebugWindowKit.Pad);   // 窗高须含顶部 inset（内容自 ContentTop 起排）
             }
         }
 
@@ -132,7 +133,7 @@ namespace PirateCrew.UI.DebugUi
                 Mathf.RoundToInt(DebugWindowKit.ContentTop),
                 Mathf.RoundToInt(innerW), Mathf.RoundToInt(contentH));
             window.sizeDelta = new Vector2(innerW + DebugWindowKit.Pad * 2f,
-                contentH + DebugWindowKit.Pad);
+                DebugWindowKit.ContentTop + contentH + DebugWindowKit.Pad);   // 窗高须含顶部 inset
             ctx.Result.Window = window;
             ctx.Result.Root = root;      // cmd 层 SetHidden/Reflow 用
             ctx.Result.InnerW = innerW;
