@@ -23,8 +23,23 @@ namespace PirateCrew.UI.DebugUi
         // 输入
         // ------------------------------------------------------------------
 
-        /// <summary>凹槽数值/文本输入（theme textedit：sunken 件 + TMP 输入 + 可选框内右缘后缀）。
-        /// 返回 InputField（text 由调用方读写）。锚定父件左上 (x, -y)，尺寸 w×12。</summary>
+        /// <summary>凹槽数值/文本输入（theme textedit：sunken 件自绘 + 自建编辑语义 + 可选框内右缘后缀）。
+        /// 锚定父件左上 (x, -y)，尺寸 w×12。
+        ///
+        /// 【实现已换轨】编辑语义走 <see cref="AseEntry"/>（entry.cpp 编辑路径逐函数移植），
+        /// **不再**用 TMP_InputField 自带编辑。但公共契约不变：仍返回一枚 <c>TMP_InputField</c>
+        /// （调用方 AseDialogLoader 用它注册 id / 取 transform 当布局 rect，DebugMenuHost 读写
+        /// <c>.text</c>）。该 TMP_InputField 在根上以**禁用态**纯作外向文本模型：程序写
+        /// <c>.text</c> 经 onValueChanged/轮询被 AseEntry 收养，AseEntry 的编辑回写 <c>.text</c>。
+        ///
+        /// 【参数映射】
+        ///   · <paramref name="contentType"/> == <c>IntegerNumber</c> → 挂 <see cref="AseIntEntry"/>
+        ///     （源 IntEntry：只收数字、失焦夹取；值域取 int.Min/Max 即无界），maxsize 1024
+        ///     （对齐 <c>&lt;expr&gt;</c> 的 ExprEntry 默认）；其余类型 → 挂 <see cref="AseEntry"/>
+        ///     （不过滤），maxsize 6（源 <c>&lt;entry&gt;</c> 默认）。
+        ///   · 其余 ContentType（Decimal/Alphanumeric/Name…）一律当 Standard，登记为忽略。
+        ///   · <paramref name="text"/> = 初始文本；<paramref name="suffix"/> = 右锚后缀标签
+        ///     （色取 theme.xml:48 entry_suffix #c6c6c6）。</summary>
         public static TMP_InputField SunkenEntry(RectTransform parent, string name, float x, float y,
             float w, string text, TMP_InputField.ContentType contentType
                 = TMP_InputField.ContentType.IntegerNumber, string suffix = null)
@@ -36,38 +51,24 @@ namespace PirateCrew.UI.DebugUi
             var sunken = entry.gameObject.AddComponent<Image>();
             sunken.sprite = PixelSkin.Sunken(false);
             sunken.type = Image.Type.Sliced;
-            sunken.color = Color.white;
+            sunken.pixelsPerUnitMultiplier = 1f;   // ×1 终局：贴图纹素 = 画布像素
+            sunken.color = Color.white;            // 像素件禁止乘色
             sunken.raycastTarget = true;
 
-            RectTransform textArea = UiKit.CreateRect("Text", entry);
-            textArea.anchorMin = Vector2.zero;
-            textArea.anchorMax = Vector2.one;
-            textArea.offsetMin = new Vector2(4f, 1f);
-            textArea.offsetMax = new Vector2(string.IsNullOrEmpty(suffix) ? -4f : -16f, -1f);
-            TextMeshProUGUI input = textArea.gameObject.AddComponent<TextMeshProUGUI>();
-            TMP_FontAsset font = UiKit.ResolvePixelFont(UiSkin.Font.Tiny, DebugWindowKit.HandFont);
-            if (font != null)
-                input.font = font;
-            input.fontSize = UiSkin.Font.Tiny;
-            input.color = PixelSkin.Theme.Text;
-
+            // 外向文本模型：禁用态 TMP_InputField（不参与编辑，只作 .text 存根与 id 注册件）。
+            // 必须在 AseEntry 之前挂：AseEntry.Build 绑定它并订阅 onValueChanged。
             var field = entry.gameObject.AddComponent<TMP_InputField>();
-            field.textComponent = input;
-            field.textViewport = textArea;
-            field.text = text;
-            field.contentType = contentType;
-            field.caretColor = PixelSkin.Theme.Text;
-            field.selectionColor = new Color32(0x40, 0x69, 0xC2, 0x60);   // 蓝选区 60% 透明
+            field.enabled = false;
+            field.interactable = false;
 
-            if (!string.IsNullOrEmpty(suffix))
-            {
-                // 后缀锚右缘（entry 拉伸时贴着右边框——expr 的 suffix 语义）
-                TextMeshProUGUI suffixLabel = DebugWindowKit.PlaceLabel(entry, suffix,
-                    UiSkin.Font.Tiny, PixelSkin.Theme.StatusText, w - 13f, 2f, 10f);
-                RectTransform suffixRect = suffixLabel.rectTransform;
-                suffixRect.anchorMin = suffixRect.anchorMax = suffixRect.pivot = new Vector2(1f, 1f);
-                suffixRect.anchoredPosition = new Vector2(-3f, -2f);
-            }
+            bool integer = contentType == TMP_InputField.ContentType.IntegerNumber;
+            AseEntry control = integer
+                ? (AseEntry)entry.gameObject.AddComponent<AseIntEntry>()
+                : entry.gameObject.AddComponent<AseEntry>();
+            if (integer)
+                ((AseIntEntry)control).Init(int.MinValue, int.MaxValue);   // 无界（ExprEntry 语义）
+            control.Build(field, text, suffix, integer ? 1024 : 6);
+
             return field;
         }
 
