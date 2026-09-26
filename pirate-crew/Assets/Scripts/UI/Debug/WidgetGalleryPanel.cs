@@ -14,9 +14,9 @@ namespace PirateCrew.UI.DebugUi
     ///
     /// 每族一件、theme 语义逐条对表：按钮四态（含按下蓝面白字/禁用双层字）、buttonset
     /// 三连切换、check/radio（悬停亮面 #575B61 + 图标切换）、滑条（双色百分比）、
-    /// 输入框（sunken 凹槽）、页签（tab 件切换 + #333 内容面）、列表（选择金底 +
-    /// 悬停变暗 #2C2C30——recent_file 语法）、滚动条（theme scrollbar 件）、
-    /// 组合框（弹 Ase 菜单）、悬停气泡（tooltip 件）。
+    /// 输入框（sunken 凹槽）、页签（tab 件切换 + #333 内容面）、列表（**只有选中金底**——
+    /// theme list_item 无 state="mouse"，行不随悬停变色）、滚动条（theme scrollbar 件）、
+    /// 组合框（listbox 语义下拉：金底选中/点外收/越底翻上）、悬停气泡（tooltip 件）。
     /// </summary>
     public static class WidgetGalleryPanel
     {
@@ -58,7 +58,7 @@ namespace PirateCrew.UI.DebugUi
             y = BuildTabs(window, y);
 
             // ---- 列表 LIST ----
-            DebugWindowKit.Section(window, "列表 LIST —— 悬停变暗 / 选择金底", ContentW, ref y);
+            DebugWindowKit.Section(window, "列表 LIST —— 唯一态选中金底（list_item 无悬停层）", ContentW, ref y);
             y = BuildList(window, y);
 
             // ---- 滚动 SCROLLBAR + 组合框 COMBOBOX + 气泡 TOOLTIP ----
@@ -288,50 +288,12 @@ namespace PirateCrew.UI.DebugUi
 
         static float BuildList(RectTransform window, float y)
         {
+            // 列表（theme list_item）：行按下即选、按住拖动扫选；选中 = 唯一态金底 #E1B85F + 深字 #41444A；
+            // 常态 #41444A + 字 #C0C0C0。**行没有悬停态**——list_item 样式无 state="mouse"
+            // （旧版悬停变暗 #2C2C30 + 字灰借的是 recent_file/menuitem_hot 的语法）。
             string[] rowsText = { "快帆船 · 出战", "卡拉维尔 · 修整", "盖伦 · 锁定" };
-            var rows = new Image[rowsText.Length];
-            var texts = new TextMeshProUGUI[rowsText.Length];
-            int selected = -1;
-            for (int i = 0; i < rowsText.Length; i++)
-            {
-                var rowGo = new GameObject("Row" + i, typeof(RectTransform));
-                RectTransform rect = rowGo.GetComponent<RectTransform>();
-                rect.SetParent(window, false);
-                rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-                rect.sizeDelta = new Vector2(ContentW, 14f);
-                rect.anchoredPosition = new Vector2(DebugWindowKit.Pad, -(y + i * 14f));
-
-                var face = rowGo.AddComponent<Image>();
-                face.color = PixelSkin.Theme.Background;   // listitem_normal_face #41444A
-                face.raycastTarget = true;
-                rows[i] = face;
-
-                TextMeshProUGUI text = DebugWindowKit.PlaceLabel(rect, rowsText[i], UiSkin.Font.Tiny,
-                    PixelSkin.Theme.Text, 2f, 0f, ContentW - 4f);
-                text.rectTransform.pivot = new Vector2(0f, 0.5f);
-                text.rectTransform.anchoredPosition = new Vector2(2f, -7f);
-                texts[i] = text;
-
-                var hover = rowGo.AddComponent<HoverFace>();
-                // recent_file 语法：悬停 = 变暗面 #2C2C30 + **字变灰 #7d7d7d**（menuitem_hot 对）
-                hover.Bind(face, new Color32(0x2C, 0x2C, 0x30, 0xFF), PixelSkin.Theme.Background,
-                    text, new Color32(0x7D, 0x7D, 0x7D, 0xFF), PixelSkin.Theme.Text);
-
-                int captured = i;
-                rowGo.AddComponent<MenuTileLite>().Bind(() =>
-                {
-                    selected = captured;
-                    for (int j = 0; j < rows.Length; j++)
-                    {
-                        bool on = j == selected;
-                        rows[j].color = on ? PixelSkin.Theme.Selected : PixelSkin.Theme.Background;
-                        texts[j].color = on ? PixelSkin.Theme.SelectedText : PixelSkin.Theme.Text;
-                        // 选中行的金底交给选择态，悬停换色让位（否则移开鼠标就覆写回常态）
-                        rows[j].GetComponent<HoverFace>().Locked = on;
-                    }
-                });
-            }
-            return y + 3 * 14f + 4f;
+            AseListBox.Create(window, "ShipList", DebugWindowKit.Pad, y, ContentW, rowsText, -1);
+            return y + rowsText.Length * AseListBox.RowHeight + 4f;
         }
 
         static float BuildScrollComboTip(RectTransform window, float y)
@@ -392,7 +354,8 @@ namespace PirateCrew.UI.DebugUi
             scrollbar.size = Mathf.Clamp01(46f / (8 * 11f + 4f));   // 滑块大小 = 可视/内容比
             scroll.verticalScrollbar = scrollbar;
 
-            // 组合框（两件套：sunken 词条 + mini_button 箭头钮 + Ase 菜单弹层）——公共件工厂
+            // 组合框（两件套：sunken2 词条 + mini_button 箭头钮；弹层 = View(sunken) 里的 ListBox，
+            // 金底选中/点外收/越底翻上——combobox.cpp 语义，实现见 AseComboBox）
             AseWidgetKit.ComboBox(window, "ResolutionCombo", DebugWindowKit.Pad + 180f, y + 2f,
                 84f, new[] { "1920 × 1080", "1280 × 720", "960 × 540" }, 0);
 

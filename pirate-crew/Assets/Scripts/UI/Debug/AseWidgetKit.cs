@@ -8,9 +8,14 @@ namespace PirateCrew.UI.DebugUi
 {
     /// <summary>
     /// 调试面板公共小件工厂（theme 语义件的一次调用版本）——「一个小界面几百行」的
-    /// 架构病收口：凹槽输入框 / 复选行 / 两件套组合框 / 悬停换面，全在此一处实现，
+    /// 架构病收口：凹槽输入框 / 复选行 / 两件套组合框，全在此一处实现，
     /// 各面板（实摆画廊、New Sprite 对话框…）只声明布局与行为。
     /// 件与色的出处同各调用点注释：theme.xml 对应 style/parts 条目。
+    ///
+    /// 刻意不再提供的：通用「悬停换面」件。Aseprite 的悬停态是**逐件按 styles 表**给的
+    /// （check_box/button 有 mouse 层，list_item/tab **没有**），一个通用 HoverFace 会把
+    /// 有悬停的件和没悬停的件一起点亮——列表行的「悬停变暗」正是这么错的。
+    /// 复选行的鼠标态见 <see cref="AseCheckBoxFace"/>，列表行见 <see cref="AseListBox"/>。
     /// </summary>
     public static class AseWidgetKit
     {
@@ -70,8 +75,11 @@ namespace PirateCrew.UI.DebugUi
         // 复选
         // ------------------------------------------------------------------
 
-        /// <summary>复选行（theme check_box：常态透明面 / 悬停亮面 #575B61 / 图标 8×8 @x2 /
-        /// 文字 @x14）。返回行根（可再查 Icon 换图标）。图标名前缀 "check"/"radio" 皆可。</summary>
+        /// <summary>复选/单选行（theme check_box / radio_button：**常态无底色层**，
+        /// <c>state="mouse"</c> 才铺 <c>check_hot_face</c>/<c>radio_hot_face</c> #575B61；
+        /// 图标 8×8 @x2 或 @x14 文字）。行宽按件表尺寸提示实收
+        /// （8 图标 + 2 左缩 + 4 缝 + 文字 + 2 右边框）——悬停面的**范围**必须等于件本身，
+        /// 旧版固定 160 宽会把文字右侧的空白也点亮。返回行根（可再查 Icon 换图标）。</summary>
         public static Button CheckRow(RectTransform parent, string label, float x, float y,
             bool initial, System.Action<bool> onChanged, string kind = "check")
         {
@@ -79,13 +87,12 @@ namespace PirateCrew.UI.DebugUi
             RectTransform rect = rowGo.GetComponent<RectTransform>();
             rect.SetParent(parent, false);
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-            rect.sizeDelta = new Vector2(160f, 16f);
             rect.anchoredPosition = new Vector2(x, -y);
 
             var face = rowGo.AddComponent<Image>();
             face.color = new Color(0f, 0f, 0f, 0f);
             face.raycastTarget = true;
-            rowGo.AddComponent<HoverFace>().Bind(face, new Color32(0x57, 0x5B, 0x61, 0xFF));
+            rowGo.AddComponent<AseCheckBoxFace>().Bind(face, kind == "radio");
 
             var icon = UiKit.CreateRect("Icon", rect);
             icon.anchorMin = icon.anchorMax = icon.pivot = new Vector2(0f, 1f);
@@ -94,7 +101,11 @@ namespace PirateCrew.UI.DebugUi
             var iconImage = icon.gameObject.AddComponent<Image>();
             iconImage.raycastTarget = false;
 
-            DebugWindowKit.PlaceLabel(rect, label, UiSkin.Font.Tiny, PixelSkin.Theme.Text, 14f, 0f, 140f);
+            TextMeshProUGUI labelText = DebugWindowKit.PlaceLabel(rect, label, UiSkin.Font.Tiny,
+                PixelSkin.Theme.Text, 14f, 0f, 140f);
+
+            // 尺寸提示（件表）：文字 @x14 + 正文宽 + 右边框 2（图标侧 2+8+4 = 14 已含在 x14 里）
+            rect.sizeDelta = new Vector2(14f + Mathf.Ceil(labelText.preferredWidth) + 2f, 16f);
 
             var button = rowGo.AddComponent<Button>();
             button.transition = Selectable.Transition.None;
@@ -120,140 +131,58 @@ namespace PirateCrew.UI.DebugUi
         // 组合框
         // ------------------------------------------------------------------
 
-        /// <summary>两件套组合框（theme combobox：sunken 词条 + 右缘 16×16 mini_button 箭头钮，
-        /// 点击弹 <see cref="AseMenuKit"/> 下拉）。词条宽 w，选项文字即显示文字。
+        /// <summary>两件套组合框（theme combobox：sunken2 词条 + 右缘 15 宽 mini_button 箭头钮）。
+        /// 行为逐条按 combobox.cpp：点词条/点钮开合切换、弹层 = View(sunken) 里的 ListBox、
+        /// 点弹层外收、选中项回填词条文本。实现见 <see cref="AseComboBox"/>。
         /// <paramref name="popupOverlay"/> = 弹层宿主（必须是调试根 overlay——弹层要盖过
-        /// **所有**窗；缺省取 parent.parent，仅当组合框直接挂在窗根下时成立）。</summary>
+        /// **所有**窗；缺省取 parent.parent，仅当组合框直接挂在窗根下时成立）。
+        /// 宽度由调用方给定（组合框自身的 sizeHint 反推宽度未移植，见交接报告）。</summary>
         public static TextMeshProUGUI ComboBox(RectTransform parent, string name, float x, float y,
             float w, string[] options, int initial, System.Action<int> onPick = null,
             Transform popupOverlay = null)
         {
-            RectTransform entry = UiKit.CreateRect(name, parent);
-            entry.anchorMin = entry.anchorMax = entry.pivot = new Vector2(0f, 1f);
-            entry.anchoredPosition = new Vector2(x, -y);
-            entry.sizeDelta = new Vector2(w, 12f);
-            var sunken = entry.gameObject.AddComponent<Image>();
-            sunken.sprite = PixelSkin.Sunken(false);
-            sunken.type = Image.Type.Sliced;
-            sunken.color = Color.white;
-            sunken.raycastTarget = true;
+            RectTransform root = UiKit.CreateRect(name, parent);
+            root.anchorMin = root.anchorMax = root.pivot = new Vector2(0f, 1f);
+            root.anchoredPosition = new Vector2(x, -y);
+            root.sizeDelta = new Vector2(w, 12f);
 
-            TextMeshProUGUI value = UiKit.CreateText("Value", entry, options[initial],
-                UiSkin.Font.Tiny, TextAlignmentOptions.Left, PixelSkin.Theme.Text, DebugWindowKit.HandFont);
-            value.enableWordWrapping = false;
-            value.raycastTarget = false;
-            RectTransform valueRect = value.rectTransform;
-            // 拉伸锚 + inset（词条 4..w-16）——点锚配 offset 会得负宽（树转储实锄 -20x0）
-            valueRect.anchorMin = Vector2.zero;
-            valueRect.anchorMax = Vector2.one;
-            valueRect.pivot = new Vector2(0.5f, 0.5f);
-            valueRect.offsetMin = new Vector2(4f, 0f);
-            valueRect.offsetMax = new Vector2(-16f, 0f);
-
-            RectTransform buttonRect = UiKit.CreateRect("ComboButton", entry);
-            buttonRect.anchorMin = buttonRect.anchorMax = buttonRect.pivot = new Vector2(1f, 1f);
-            buttonRect.anchoredPosition = Vector2.zero;
-            buttonRect.sizeDelta = new Vector2(16f, 16f);
-            var buttonFace = buttonRect.gameObject.AddComponent<Image>();
-            buttonFace.sprite = PixelSkin.Ase("buttonset_item_normal");
-            buttonFace.type = Image.Type.Sliced;
-            buttonFace.pixelsPerUnitMultiplier = 1f;
-            buttonFace.color = Color.white;
-            var button = buttonRect.gameObject.AddComponent<Button>();
-            button.transition = Selectable.Transition.SpriteSwap;
-            button.spriteState = new SpriteState
-            {
-                highlightedSprite = PixelSkin.Ase("buttonset_item_hot"),
-                pressedSprite = PixelSkin.Ase("buttonset_item_pushed"),
-                disabledSprite = PixelSkin.Ase("buttonset_item_normal"),
-            };
-
-            RectTransform arrow = UiKit.CreateRect("Arrow", buttonRect);
-            arrow.anchorMin = arrow.anchorMax = arrow.pivot = new Vector2(0.5f, 0.5f);
-            arrow.sizeDelta = new Vector2(9f, 8f);
-            var arrowImage = arrow.gameObject.AddComponent<Image>();
-            arrowImage.sprite = PixelSkin.Ase("combobox_arrow_down");
-            arrowImage.raycastTarget = false;
-
-            var items = new AseMenuKit.Item[options.Length];
-            for (int i = 0; i < options.Length; i++)
-            {
-                int captured = i;
-                items[i] = AseMenuKit.Item_(options[i], check: i == initial, action: () =>
-                {
-                    value.text = options[captured];
-                    onPick?.Invoke(captured);
-                });
-            }
-            button.onClick.AddListener(() => AseMenuKit.OpenPopup(
-                popupOverlay != null ? popupOverlay : parent.parent, entry, items));
-            return value;
+            // 弹层宿主缺省 = parent.parent（窗的父级 overlay）——**不是** parent（窗）本身：
+            // 弹层挂在窗里会被窗裁/随窗移动。
+            Transform host = popupOverlay != null
+                ? popupOverlay
+                : (parent != null ? parent.parent : null);
+            var combo = root.gameObject.AddComponent<AseComboBox>();
+            return combo.Build(root, options, initial, onPick, host);
         }
     }
 
-    /// <summary>悬停换底色/字色（check 系亮面 #575B61 / 列表变暗 #2C2C30+字灰——两向都支持）。
-    /// 公共件：画廊列表、复选行共用。<see cref="Locked"/> 置位时悬停换色让位
-    /// （列表选中行的金底不能被「悬停离开恢复常态」覆写掉）。</summary>
-    public sealed class HoverFace : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    /// <summary>复选/单选行的鼠标态（唯一的一层额外底色）：theme <c>check_box</c> /
+    /// <c>radio_button</c> 样式 <c>&lt;background color="check_hot_face" state="mouse"/&gt;</c>
+    /// （#575B61，radio 同名色）。常态**没有**底色层（非 disabled/focus/mouse 时不铺任何 background），
+    /// 所以退出即回到全透明。禁用态 #2C2C30、焦点态 #41444A + check_focus 环、以及
+    /// <c>state="mouse disabled"</c> 的回落都未移植（调试面板没有禁用/键盘焦点两种态）。</summary>
+    public sealed class AseCheckBoxFace : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     {
         Image _face;
-        TextMeshProUGUI _text;
-        Color32 _hoverFace;
-        Color32 _normalFace;
-        Color32 _hoverText;
-        Color32 _normalText;
-        bool _hasFacePair;
-        bool _hasTextPair;
+        Color32 _hot;
 
-        /// <summary>锁定常态（选中行：悬停不再改色，退出也不再恢复）。</summary>
-        public bool Locked;
-
-        /// <summary>常态透明面 → 悬停换色（check 系语义）。</summary>
-        public void Bind(Image face, Color32 hover)
+        public void Bind(Image face, bool radio)
         {
             _face = face;
-            _hoverFace = hover;
-        }
-
-        /// <summary>常态有面 → 悬停/常态成对面色（列表语义）。</summary>
-        public void Bind(Image face, Color32 hover, Color32 normal)
-        {
-            Bind(face, hover);
-            _normalFace = normal;
-            _hasFacePair = true;
-        }
-
-        /// <summary>面色 + 字色成对换（列表悬停变暗 + 字灰 #7d7d7d——menuitem_hot 对）。</summary>
-        public void Bind(Image face, Color32 hover, Color32 normal,
-            TextMeshProUGUI text, Color32 hoverText, Color32 normalText)
-        {
-            Bind(face, hover, normal);
-            _text = text;
-            _hoverText = hoverText;
-            _normalText = normalText;
-            _hasTextPair = true;
+            // theme.xml <color id="check_hot_face"> = <color id="radio_hot_face"> = #575B61
+            _hot = PixelSkin.Theme.HotFace;
         }
 
         public void OnPointerEnter(PointerEventData eventData)
         {
-            if (Locked)
-                return;
             if (_face != null)
-                _face.color = _hoverFace;
-            if (_text != null && _hasTextPair)
-                _text.color = _hoverText;
+                _face.color = _hot;
         }
 
         public void OnPointerExit(PointerEventData eventData)
         {
-            if (Locked)
-                return;
-            if (_face != null && _hasFacePair)
-                _face.color = _normalFace;
-            else if (_face != null)
+            if (_face != null)
                 _face.color = new Color(0f, 0f, 0f, 0f);
-            if (_text != null && _hasTextPair)
-                _text.color = _normalText;
         }
     }
 }
