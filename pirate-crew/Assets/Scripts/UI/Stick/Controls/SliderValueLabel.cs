@@ -84,13 +84,13 @@ namespace PirateCrew.UI.Stick
             }
 
             int percent = Mathf.RoundToInt(Mathf.Clamp01(_slider.value) * 100f);
-            if (percent == _lastPercent)
-                return;
-
-            _lastPercent = percent;
-            string text = percent + "%";
-            light.SetText(text);
-            dark.SetText(text);
+            if (percent != _lastPercent)
+            {
+                _lastPercent = percent;
+                string text = percent + "%";
+                light.SetText(text);
+                dark.SetText(text);
+            }
 
             if (_clipFull == null)
                 _clipFull = light.transform.parent as RectTransform;
@@ -100,6 +100,11 @@ namespace PirateCrew.UI.Stick
                 return;
 
             // 裁剪框宽 = 填充实宽取整：换色线与填充边同源同取整，缝 <1 画布格不可见。
+            // 【每帧执行，不随 percent 早退】Slider 把 value 的锚点效果推迟到自己的
+            // LateUpdate 才落到 fillRect——本组件 OnEnable 时 fillRect.rect.width 常还是
+            // 旧值/0（组件实摆面板的滑条初值 0.7：OnEnable 读到 0，percent 已缓存 70，
+            // 此后值不变→早退→浅字层被裁成 0 宽永不显示）。几何重排是 3 次矩形赋值，
+            // 按帧做的代价可忽略，换来与 Slider 视觉延迟解耦。
             float w = _slider.fillRect != null ? Mathf.Round(_slider.fillRect.rect.width) : 0f;
             _clipFull.sizeDelta = new Vector2(w, 0f);
             _clipRest.offsetMin = new Vector2(w, 0f);

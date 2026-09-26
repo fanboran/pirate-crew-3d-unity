@@ -24,11 +24,12 @@ namespace PirateCrew.UI.DebugUi
         public static TMP_FontAsset HandFont => PixelShowcasePage.PixelFont();
 
         /// <summary>
-        /// 建一枚可拖动调试窗（默认带 × 关闭）。<paramref name="topLeft"/> = 距画布左上角的
-        /// 画布坐标；窗体锚/枢轴固定 (0,1)，拖动带与夹取按此约定。
+        /// 建一枚可拖动调试窗（默认带 × 关闭；可选 ? 帮助钮在其左——New Sprite 等参考图
+        /// 实拍窗是两钮）。<paramref name="topLeft"/> = 距画布左上角的画布坐标；窗体锚/枢轴
+        /// 固定 (0,1)，拖动带与夹取按此约定。
         /// </summary>
         public static RectTransform CreateWindow(Transform canvas, string name, string title,
-            Vector2 topLeft, Vector2 size, bool closeButton = true)
+            Vector2 topLeft, Vector2 size, bool closeButton = true, bool helpButton = false)
         {
             SketchPanel panel = SketchPanel.Create(canvas, name,
                 new Vector2(0f, 1f), new Vector2(0f, 1f),
@@ -37,6 +38,14 @@ namespace PirateCrew.UI.DebugUi
             RectTransform root = (RectTransform)panel.transform;
             root.SetAsLastSibling();
             UiKit.EnsureTitleLabel(root, title, HandFont, UiSkin.Font.Body);
+            if (helpButton)
+            {
+                Button help = UiKit.CreateWindowButton(root, "HelpButton",
+                    PixelSkin.WindowIconSprite(PixelSkin.WindowIcon.Help),
+                    AseLayout.Px(AseLayout.CloseButtonMarginRight) + 9f
+                        + AseLayout.Px(AseLayout.WindowButtonGap));
+                help.onClick.AddListener(() => { });
+            }
             if (closeButton)
             {
                 Button close = UiKit.CreateWindowButton(root, "CloseButton",

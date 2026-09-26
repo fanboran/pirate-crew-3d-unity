@@ -117,8 +117,9 @@ namespace PirateCrew.UI.DebugUi
         /// <summary>当前打开的弹层（同屏一份：开新关旧）。</summary>
         static GameObject s_open;
 
-        /// <summary>在 <paramref name="anchor"/>（栏项）下方弹出一层菜单。</summary>
-        public static void OpenPopup(Transform overlay, RectTransform anchor, Item[] items)
+        /// <summary>在 <paramref name="anchor"/>（栏项）下方弹出一层菜单；
+        /// <paramref name="side"/>=true 时改为锚行**右侧**弹（子菜单语义）。</summary>
+        public static void OpenPopup(Transform overlay, RectTransform anchor, Item[] items, bool side = false)
         {
             ClosePopup();
             float rowW = MeasureRows(items);
@@ -151,12 +152,19 @@ namespace PirateCrew.UI.DebugUi
             float h = y + 4f;
             popupRect.sizeDelta = new Vector2(rowW + 6f, h);
 
-            // 定位：锚项正下方（画布顶左系），不出右界
+            // 定位（画布顶左系）：栏项正下方，或子菜单锚行右侧；不出宿主右界
+            // （夹取按宿主宽而非画布宽——宿主窗偏右时画布宽夹不住，弹层会越窗越屏）。
             Vector3[] corners = new Vector3[4];
             anchor.GetWorldCorners(corners);
-            Vector2 local = (Vector2)overlay.InverseTransformPoint(corners[0]);
-            float px = Mathf.Min(local.x, overlay.GetComponentInParent<Canvas>().GetComponent<RectTransform>().rect.width - rowW - 6f - 4f);
-            popupRect.anchoredPosition = new Vector2(Mathf.Max(0f, px), local.y - 1f);
+            RectTransform overlayRect = overlay as RectTransform;
+            float overlayW = overlayRect != null ? overlayRect.rect.width : 960f;
+            // GetWorldCorners 序：0 左下 / 1 左上 / 2 右上 / 3 右下
+            Vector2 local = (Vector2)overlay.InverseTransformPoint(side ? corners[2] : corners[0]);
+            float px = side
+                ? Mathf.Min(local.x, overlayW - rowW - 10f)
+                : Mathf.Min(local.x, overlayW - rowW - 6f - 4f);
+            float py = side ? local.y : local.y - 1f;
+            popupRect.anchoredPosition = new Vector2(Mathf.Max(0f, px), py);
 
             // 全屏捕获板：点外关闭（垫在弹层之下、其它 UI 之上）
             var catcher = new GameObject("MenuCatcher", typeof(RectTransform));
@@ -213,14 +221,16 @@ namespace PirateCrew.UI.DebugUi
 
         static float GetStringWidth(string text)
         {
-            // 估算：CJK 全宽 = 字号，ASCII 半宽——8px 档够用（跑真 preferredWidth 要等布局两帧）
+            // 估算：CJK 全宽 = 字号，ASCII 按位图字实宽 5px（大写/符号在 8px 档普遍 5 格，
+            // 按 4 估会让 Ctrl+Shift+S 这类快捷键文字与左标签相压）——跑真 preferredWidth
+            // 要等布局两帧，弹层是一次性构建，宁可宽 2 格不可截字。
             int wide = 0, narrow = 0;
             foreach (char c in text)
             {
                 if (c > 0x2E80) wide++;
                 else narrow++;
             }
-            return wide * UiSkin.Font.Tiny + narrow * UiSkin.Font.Tiny * 0.5f;
+            return wide * UiSkin.Font.Tiny + narrow * 5f;
         }
 
         static float BuildRow(Transform popup, RectTransform popupRect, RectTransform faceRect,
@@ -300,8 +310,8 @@ namespace PirateCrew.UI.DebugUi
 
         static void OpenSubmenu(Transform overlay, RectTransform anchorRow, Item[] items)
         {
-            // 子菜单 = 同一套弹层，锚到行右侧（OpenPopup 自带关旧开新）
-            OpenPopup(overlay, anchorRow, items);
+            // 子菜单 = 同一套弹层，锚到行右上角侧向弹（OpenPopup 自带关旧开新）
+            OpenPopup(overlay, anchorRow, items, side: true);
         }
 
         static void PlaceAt(RectTransform parent, RectTransform rect, float x, float y, float w, float h,

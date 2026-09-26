@@ -119,61 +119,11 @@ namespace PirateCrew.UI.DebugUi
 
         static float BuildChecks(RectTransform window, float y)
         {
-            var check = MakeCheckRow(window, "启用音效", "check", y, DebugWindowKit.Pad, true);
-            MakeCheckRow(window, "自动存档", "check", y, DebugWindowKit.Pad + 110f, false);
-            var radio = MakeCheckRow(window, "窗口", "radio", y + 20f, DebugWindowKit.Pad, false);
-            MakeCheckRow(window, "全屏", "radio", y + 20f, DebugWindowKit.Pad + 110f, true);
+            AseWidgetKit.CheckRow(window, "启用音效", DebugWindowKit.Pad, y, true, null);
+            AseWidgetKit.CheckRow(window, "自动存档", DebugWindowKit.Pad + 110f, y, false, null);
+            AseWidgetKit.CheckRow(window, "窗口", DebugWindowKit.Pad, y + 20f, false, null, kind: "radio");
+            AseWidgetKit.CheckRow(window, "全屏", DebugWindowKit.Pad + 110f, y + 20f, true, null, kind: "radio");
             return y + 40f + 6f;
-        }
-
-        /// <summary>theme check_box/radio_button 行：常态透明底，悬停亮面 #575B61，
-        /// 图标 8×8 @x=2，文字 @x=14；点击换图标（radio 组由调用方约定初值）。</summary>
-        static Button MakeCheckRow(RectTransform parent, string label, string kind,
-            float y, float x, bool isOn)
-        {
-            var rowGo = new GameObject(kind + "_" + label, typeof(RectTransform));
-            RectTransform rect = rowGo.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-            rect.sizeDelta = new Vector2(120f, 16f);
-            rect.anchoredPosition = new Vector2(x, -y);
-
-            var face = rowGo.AddComponent<Image>();
-            face.color = new Color(0f, 0f, 0f, 0f);   // 常态无面（theme check_box）
-            face.raycastTarget = true;
-
-            var icon = UiKit.CreateRect("Icon", rect);
-            icon.anchorMin = icon.anchorMax = icon.pivot = new Vector2(0f, 1f);
-            icon.sizeDelta = new Vector2(8f, 8f);
-            icon.anchoredPosition = new Vector2(2f, -4f);   // theme x=2 垂直居中
-            var iconImage = icon.gameObject.AddComponent<Image>();
-            iconImage.raycastTarget = false;
-
-            TextMeshProUGUI text = DebugWindowKit.PlaceLabel(rect, label, UiSkin.Font.Tiny,
-                PixelSkin.Theme.Text, 14f, 0f, 104f, TextAlignmentOptions.Left);
-            ((RectTransform)text.transform).pivot = new Vector2(0f, 0.5f);
-            ((RectTransform)text.transform).anchoredPosition = new Vector2(14f, -8f);
-
-            var button = rowGo.AddComponent<Button>();
-            button.transition = Selectable.Transition.None;
-            var hover = rowGo.AddComponent<HoverFace>();
-            hover.Bind(face, new Color32(0x57, 0x5B, 0x61, 0xFF));   // check_hot_face
-
-            bool on = isOn;
-            ApplyIcon(iconImage, kind, on);
-            button.onClick.AddListener(() =>
-            {
-                on = !on;
-                ApplyIcon(iconImage, kind, on);
-            });
-            return button;
-        }
-
-        static void ApplyIcon(Image icon, string kind, bool on)
-        {
-            icon.sprite = PixelSkin.Ase(kind == "radio"
-                ? (on ? "radio_selected" : "radio_normal")
-                : (on ? "check_selected" : "check_normal"));
         }
 
         static float BuildSlider(RectTransform window, float y)
@@ -256,41 +206,13 @@ namespace PirateCrew.UI.DebugUi
 
         static float BuildEntry(RectTransform window, float y)
         {
-            TextMeshProUGUI field = DebugWindowKit.PlaceLabel(window, "名字", UiSkin.Font.Tiny,
+            DebugWindowKit.PlaceLabel(window, "名字", UiSkin.Font.Tiny,
                 PixelSkin.Theme.Text, DebugWindowKit.Pad, y + 2f, 60f);
 
-            RectTransform entry = UiKit.CreateRect("Entry", window);
-            entry.anchorMin = entry.anchorMax = entry.pivot = new Vector2(1f, 1f);
-            entry.sizeDelta = new Vector2(180f, 12f);
-            entry.anchoredPosition = new Vector2(-DebugWindowKit.Pad, -y);
-
-            var sunken = entry.gameObject.AddComponent<Image>();
-            sunken.sprite = PixelSkin.Sunken(false);      // theme view/textedit 凹槽
-            sunken.type = Image.Type.Sliced;
-            sunken.pixelsPerUnitMultiplier = 1f;
-            sunken.color = Color.white;
-            sunken.raycastTarget = true;
-
-            RectTransform textArea = UiKit.CreateRect("Text", entry);
-            // 拉伸锚 + inset（文字区铺满凹槽内容区——点锚配 inset 会得负宽，实机走查抓出）
-            textArea.anchorMin = Vector2.zero;
-            textArea.anchorMax = Vector2.one;
-            textArea.offsetMin = new Vector2(4f, 1f);
-            textArea.offsetMax = new Vector2(-4f, -1f);
-            TextMeshProUGUI input = textArea.gameObject.AddComponent<TextMeshProUGUI>();
-            TMP_FontAsset font = UiKit.ResolvePixelFont(UiSkin.Font.Tiny, DebugWindowKit.HandFont);
-            if (font != null)
-                input.font = font;
-            input.fontSize = UiSkin.Font.Tiny;
-            input.color = PixelSkin.Theme.Text;
-            input.raycastTarget = false;
-
-            var inputField = entry.gameObject.AddComponent<TMP_InputField>();
-            inputField.textComponent = input;
-            inputField.textViewport = textArea;
-            inputField.text = "海盗";
-            inputField.caretColor = PixelSkin.Theme.Text;
-            inputField.selectionColor = new Color32(0x40, 0x69, 0xC2, 0x60);
+            // 公共件工厂：sunken 凹槽 + TMP 输入（theme textedit 语义；名字字段＝标准文本）
+            float x = ContentW + DebugWindowKit.Pad - 180f;
+            AseWidgetKit.SunkenEntry(window, "NameEntry", x, y, 180f, "海盗",
+                TMPro.TMP_InputField.ContentType.Standard);
             return y + 18f;
         }
 
@@ -377,7 +299,7 @@ namespace PirateCrew.UI.DebugUi
                 rect.SetParent(window, false);
                 rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
                 rect.sizeDelta = new Vector2(ContentW, 14f);
-                rect.anchoredPosition = new Vector2(DebugWindowKit.Pad, -(y + i * 15f));
+                rect.anchoredPosition = new Vector2(DebugWindowKit.Pad, -(y + i * 14f));
 
                 var face = rowGo.AddComponent<Image>();
                 face.color = PixelSkin.Theme.Background;   // listitem_normal_face #41444A
@@ -407,7 +329,7 @@ namespace PirateCrew.UI.DebugUi
                     }
                 });
             }
-            return y + 3 * 15f + 4f;
+            return y + 3 * 14f + 4f;
         }
 
         static float BuildScrollComboTip(RectTransform window, float y)
@@ -468,70 +390,12 @@ namespace PirateCrew.UI.DebugUi
             scrollbar.size = Mathf.Clamp01(46f / (8 * 11f + 4f));   // 滑块大小 = 可视/内容比
             scroll.verticalScrollbar = scrollbar;
 
-            // 组合框（theme 形状 = 两件套）：sunken 凹槽词条 + 右侧 mini_button 箭头钮
-            // （theme.xml combobox = sunken2 边框；combobox_button = mini_button + arrow 图标）
-            float comboY = y;
-            float comboX = DebugWindowKit.Pad + 180f;
-            RectTransform comboEntry = UiKit.CreateRect("ComboEntry", window);
-            comboEntry.anchorMin = comboEntry.anchorMax = comboEntry.pivot = new Vector2(0f, 1f);
-            comboEntry.anchoredPosition = new Vector2(comboX, -(comboY + 2f));
-            comboEntry.sizeDelta = new Vector2(84f, 12f);
-            var entryFace = comboEntry.gameObject.AddComponent<Image>();
-            entryFace.sprite = PixelSkin.Sunken(false);
-            entryFace.type = Image.Type.Sliced;
-            entryFace.pixelsPerUnitMultiplier = 1f;
-            entryFace.color = Color.white;
-            entryFace.raycastTarget = true;
-            TextMeshProUGUI comboLabel = UiKit.CreateText("Value", comboEntry, "1920 × 1080",
-                UiSkin.Font.Tiny, TextAlignmentOptions.Left, PixelSkin.Theme.Text, DebugWindowKit.HandFont);
-            comboLabel.enableWordWrapping = false;
-            comboLabel.raycastTarget = false;
-            RectTransform labelRect = comboLabel.rectTransform;
-            labelRect.anchorMin = labelRect.anchorMax = new Vector2(0.5f, 0.5f);
-            labelRect.pivot = new Vector2(0.5f, 0.5f);
-            labelRect.offsetMin = new Vector2(4f, 0f);
-            labelRect.offsetMax = new Vector2(-4f, 0f);
-
-            var comboGo = new GameObject("ComboBoxButton", typeof(RectTransform));
-            RectTransform combo = comboGo.GetComponent<RectTransform>();
-            combo.SetParent(window, false);
-            combo.anchorMin = combo.anchorMax = combo.pivot = new Vector2(0f, 1f);
-            combo.anchoredPosition = new Vector2(comboX + 84f, -comboY);
-            combo.sizeDelta = new Vector2(16f, BtnH);
-            var comboFace = comboGo.AddComponent<Image>();
-            comboFace.sprite = PixelSkin.Ase("buttonset_item_normal");   // mini_button = buttonset 件
-            comboFace.type = Image.Type.Sliced;
-            comboFace.pixelsPerUnitMultiplier = 1f;
-            comboFace.color = Color.white;
-            var comboButton = comboGo.AddComponent<Button>();
-            comboButton.transition = Selectable.Transition.SpriteSwap;
-            comboButton.spriteState = new SpriteState
-            {
-                highlightedSprite = PixelSkin.Ase("buttonset_item_hot"),
-                pressedSprite = PixelSkin.Ase("buttonset_item_pushed"),
-                disabledSprite = PixelSkin.Ase("buttonset_item_normal"),
-            };
-            RectTransform arrow = UiKit.CreateRect("Arrow", combo);
-            arrow.anchorMin = arrow.anchorMax = arrow.pivot = new Vector2(0.5f, 0.5f);
-            arrow.anchoredPosition = new Vector2(0f, 0.5f);
-            arrow.sizeDelta = new Vector2(9f, 8f);   // combobox_arrow_down 原生 9×8，居中
-            var arrowImage = arrow.gameObject.AddComponent<Image>();
-            arrowImage.sprite = PixelSkin.Ase("combobox_arrow_down");
-            arrowImage.raycastTarget = false;
-
-            string[] resolutions = { "1920 × 1080", "1280 × 720", "960 × 540" };
-            AseMenuKit.Item[] menuItems = new AseMenuKit.Item[resolutions.Length];
-            for (int i = 0; i < resolutions.Length; i++)
-            {
-                int captured = i;
-                menuItems[i] = AseMenuKit.Item_(resolutions[i], action: () =>
-                    comboLabel.text = resolutions[captured], check: i == 0);
-            }
-            comboButton.onClick.AddListener(() => AseMenuKit.OpenPopup(
-                window.parent, combo, menuItems));
+            // 组合框（两件套：sunken 词条 + mini_button 箭头钮 + Ase 菜单弹层）——公共件工厂
+            AseWidgetKit.ComboBox(window, "ResolutionCombo", DebugWindowKit.Pad + 180f, y + 2f,
+                84f, new[] { "1920 × 1080", "1280 × 720", "960 × 540" }, 0);
 
             // 气泡：悬停 0.5s 弹 theme tooltip
-            MakeButton(window, "悬停看气泡 →", DebugWindowKit.Pad + 180f, comboY + 24f,
+            MakeButton(window, "悬停看气泡 →", DebugWindowKit.Pad + 180f, y + 24f,
                 clicked: () => { });
             Transform hoverTarget = window.Find("Btn_悬停看气泡 →");
             if (hoverTarget != null)
@@ -543,60 +407,6 @@ namespace PirateCrew.UI.DebugUi
         // ------------------------------------------------------------------
         // 小交互件
         // ------------------------------------------------------------------
-
-        /// <summary>悬停换底色/字色（check 系亮面 / 列表变暗+字灰——两向都支持）。</summary>
-        sealed class HoverFace : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
-        {
-            Image _face;
-            TextMeshProUGUI _text;
-            Color32 _hoverFace;
-            Color32 _normalFace;
-            Color32 _hoverText;
-            Color32 _normalText;
-            bool _hasFacePair;
-            bool _hasTextPair;
-
-            public void Bind(Image face, Color32 hover)
-            {
-                _face = face;
-                _hoverFace = hover;
-            }
-
-            public void Bind(Image face, Color32 hover, Color32 normal)
-            {
-                Bind(face, hover);
-                _normalFace = normal;
-                _hasFacePair = true;
-            }
-
-            public void Bind(Image face, Color32 hover, Color32 normal,
-                TextMeshProUGUI text, Color32 hoverText, Color32 normalText)
-            {
-                Bind(face, hover, normal);
-                _text = text;
-                _hoverText = hoverText;
-                _normalText = normalText;
-                _hasTextPair = true;
-            }
-
-            public void OnPointerEnter(PointerEventData eventData)
-            {
-                if (_face != null)
-                    _face.color = _hoverFace;
-                if (_text != null && _hasTextPair)
-                    _text.color = _hoverText;
-            }
-
-            public void OnPointerExit(PointerEventData eventData)
-            {
-                if (_face != null && _hasFacePair)
-                    _face.color = _normalFace;
-                else if (_face != null)
-                    _face.color = new Color(0f, 0f, 0f, 0f);
-                if (_text != null && _hasTextPair)
-                    _text.color = _normalText;
-            }
-        }
 
         /// <summary>轻量点击件（页签/列表行用——Image+文字的组合，无 Selectable 状态机）。</summary>
         sealed class MenuTileLite : MonoBehaviour, IPointerClickHandler
@@ -622,7 +432,13 @@ namespace PirateCrew.UI.DebugUi
                 _pending = StartCoroutine(ShowLater());
             }
 
-            public void OnPointerExit(PointerEventData eventData)
+            public void OnPointerExit(PointerEventData eventData) => Hide();
+
+            // 悬停中宿主窗被 × 关掉（SetActive(false)）不会派发 PointerExit——
+            // 不在失活时收气泡，蓝底 tooltip 会孤儿一样常驻画布顶层。
+            void OnDisable() => Hide();
+
+            void Hide()
             {
                 if (_pending != null)
                 {

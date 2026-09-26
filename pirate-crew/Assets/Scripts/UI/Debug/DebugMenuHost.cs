@@ -46,14 +46,16 @@ namespace PirateCrew.UI.DebugUi
                 new Vector2(20f, 44f), new Vector2(150f, 118f), closeButton: false);
 
             float y = DebugWindowKit.ContentTop;
+            // 四窗默认位错开排布（画布 960×540）：陈列廊右大块 / 对话框与菜单栏右列上下，
+            // 启动器左列——默认位互不压盖，全幅陈列廊例外（打开即覆盖、× 即还原）。
             y = MakeLauncherButton("组件实摆", y, () => ToggleWindow(ref _widgetGallery,
-                () => _widgetGallery = WidgetGalleryPanel.Build(_root, new Vector2(190f, 34f))));
+                () => _widgetGallery = WidgetGalleryPanel.Build(_root, new Vector2(170f, 26f))));
             y = MakeLauncherButton("新建精灵对话框", y, () => ToggleWindow(ref _newSprite,
-                () => _newSprite = NewSpriteDialog.Build(_root, new Vector2(230f, 90f))));
+                () => _newSprite = NewSpriteDialog.Build(_root, new Vector2(510f, 90f))));
             y = MakeLauncherButton("Aseprite 菜单栏", y, () => ToggleWindow(ref _menuBarDemo,
-                () => _menuBarDemo = BuildMenuBarDemo(new Vector2(190f, 110f))));
+                () => _menuBarDemo = BuildMenuBarDemo(new Vector2(510f, 300f))));
             MakeLauncherButton("部件陈列廊", y, () => ToggleWindow(ref _partsGallery,
-                () => _partsGallery = BuildPartsGalleryWindow(new Vector2(120f, 70f))));
+                () => _partsGallery = BuildPartsGalleryWindow(new Vector2(170f, 26f))));
         }
 
         static float MakeLauncherButton(string label, float y, System.Action onClick)
@@ -101,7 +103,13 @@ namespace PirateCrew.UI.DebugUi
             {
                 ("File", new AseMenuKit.Item[]
                 {
-                    AseMenuKit.Item_("New…", "Ctrl+N", () => echo("File → New…")),
+                    // New… 走真弹窗（同一调试树复用启动器第 2 钮的开合件）——菜单语义不是只回显
+                    AseMenuKit.Item_("New…", "Ctrl+N", () =>
+                    {
+                        echo("File → New…");
+                        ToggleWindow(ref _newSprite,
+                            () => _newSprite = NewSpriteDialog.Build(_root, new Vector2(510f, 90f)));
+                    }),
                     AseMenuKit.Item_("Open…", "Ctrl+O", () => echo("File → Open…")),
                     AseMenuKit.Item_("Open Recent", null, null, false, new AseMenuKit.Item[]
                     {
@@ -155,11 +163,13 @@ namespace PirateCrew.UI.DebugUi
             return window;
         }
 
-        /// <summary>部件陈列廊窗（theme 345 件全量，数据驱动）：竖向滚动 + theme 滚动条。</summary>
+        /// <summary>部件陈列廊窗（theme 345 件全量，数据驱动）：竖向滚动 + theme 滚动条。
+        /// 窗宽 784 起于启动器右侧（x=170）——全幅 940 会从 x=120 越出 960 画布右缘且整片
+        /// 盖住启动器；列数由滚动区宽自适应（PartsGalleryPage.Build）。</summary>
         static RectTransform BuildPartsGalleryWindow(Vector2 topLeft)
         {
             RectTransform window = DebugWindowKit.CreateWindow(_root, "PartsGalleryWindow",
-                "部件陈列廊（theme.xml 全 345 件）", topLeft, new Vector2(960f - 20f, 540f - 60f));
+                "部件陈列廊（theme.xml 全 345 件）", topLeft, new Vector2(784f, 540f - 60f));
             Vector2 windowSize = window.sizeDelta;
 
             // 滚动区：点锚 + 显式尺寸（拉伸锚的 inset 写法在点锚上会得负尺寸——首版即此病，全窗空白）

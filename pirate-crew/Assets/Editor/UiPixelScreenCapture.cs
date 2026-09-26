@@ -25,6 +25,7 @@ namespace PirateCrew.EditorTools
         const string PathKey = "UiPixelScreenCapture.Path";
         const string SelectedKey = "UiPixelScreenCapture.Selected";
         const string OverlayKey = "UiPixelScreenCapture.Overlay";
+        const string AutoQuitKey = "UiPixelScreenCapture.AutoQuit";
 
         /// <summary>主菜单。</summary>
         public static void CaptureMainMenu() => Start("MainMenu");
@@ -48,6 +49,18 @@ namespace PirateCrew.EditorTools
             SessionState.SetString(QueueKey, string.Join("|", new[] { "MainMenu", "LevelSelect", "CrewManagement", "Battle" }));
             SessionState.SetInt(QueueIndexKey, 0);
             Start("MainMenu");
+        }
+
+        /// <summary>调试面板四连采（遥控通道独立跑不动时挂 GUI 编辑器启动参数用）：
+        /// 走主菜单「调试场景」→ 启动器按钮的真用户路径，逐面板进 Play 截图。
+        /// 采完自动退出编辑器（<c>-executeMethod</c> 场景没有别的收尾机会）。</summary>
+        public static void CaptureDebugPanels()
+        {
+            SessionState.SetString(QueueKey, string.Join("|", new[]
+                { "MainMenu+dbg-widget", "MainMenu+dbg-newsprite", "MainMenu+dbg-menubar", "MainMenu+dbg-parts" }));
+            SessionState.SetInt(QueueIndexKey, 0);
+            SessionState.SetBool(AutoQuitKey, true);
+            Start("MainMenu+dbg-widget");
         }
 
         static void Start(string sceneName)
@@ -116,6 +129,19 @@ namespace PirateCrew.EditorTools
             {
                 case "settings": return "SettingsPanel";
                 case "confirm": return "ConfirmDialog";   // MainMenu 确认框根名（旧值 BackConfirmDialog 不存在）
+                default: return null;
+            }
+        }
+
+        /// <summary>dbg-* 调试面板 overlay → 启动器按钮名（DebugMenuHost.MakeLauncherButton 命名）。</summary>
+        static string DebugOpenButton(string key)
+        {
+            switch (key)
+            {
+                case "widget": return "Open_组件实摆";
+                case "newsprite": return "Open_新建精灵对话框";
+                case "menubar": return "Open_Aseprite 菜单栏";
+                case "parts": return "Open_部件陈列廊";
                 default: return null;
             }
         }
@@ -200,6 +226,33 @@ namespace PirateCrew.EditorTools
                             }
                         }
                     }
+                    if (EditorApplication.isPlaying && Time.frameCount == 60
+                        && SessionState.GetString(OverlayKey, "").StartsWith("dbg-"))
+                    {
+                        string overlayName = SessionState.GetString(OverlayKey, "");
+                        // 调试面板走查（真用户路径）：点主菜单「调试场景」开启动器，
+                        // 再点对应启动钮——面板全为运行时构建，这是唯一不用模拟指针的入口。
+                        Transform showcase = FindActive("ShowcaseButton");
+                        Transform launcher = null;
+                        if (showcase != null)
+                        {
+                            var showButton = showcase.GetComponent<UnityEngine.UI.Button>();
+                            if (showButton != null)
+                                showButton.onClick.Invoke();
+                            string open = DebugOpenButton(overlayName.Substring(4));
+                            if (open != null)
+                                launcher = FindActive(open);
+                            if (launcher != null)
+                            {
+                                var openButton = launcher.GetComponent<UnityEngine.UI.Button>();
+                                if (openButton != null)
+                                    openButton.onClick.Invoke();
+                            }
+                        }
+                        Debug.Log("[UiPixelScreenCapture] 调试面板覆盖层：" + overlayName
+                            + " showcase=" + (showcase != null)
+                            + " launcher=" + (launcher != null ? launcher.name : "<null>"));
+                    }
                     if (EditorApplication.isPlaying && Time.frameCount > 95)
                     {
                         Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -244,6 +297,12 @@ namespace PirateCrew.EditorTools
                         }
                         SessionState.SetBool(PendingKey, false);
                         EditorApplication.update -= CaptureStep;
+                        // 自动退出（CaptureDebugPanels 的 -executeMethod 场景没有人工关窗机会）
+                        if (SessionState.GetBool(AutoQuitKey, false))
+                        {
+                            SessionState.SetBool(AutoQuitKey, false);
+                            EditorApplication.Exit(0);
+                        }
                     }
                     else if (!EditorApplication.isPlaying)
                     {

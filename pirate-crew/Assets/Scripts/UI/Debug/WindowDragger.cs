@@ -51,6 +51,9 @@ namespace PirateCrew.UI.DebugUi
             rect.anchorMax = new Vector2(1f, 1f);
             rect.offsetMin = new Vector2(0f, -PixelSkin.WindowTitleBand);
             rect.offsetMax = new Vector2(-RightReserve, 0f);
+            // 主菜单 MenuWindow 挂着 VerticalLayoutGroup——命中板若参与内容流会被排到
+            // 按钮列末尾（窗外），主菜单拖动整条失效；必须豁免布局（同标题字/窗控钮口径）。
+            UiLayout.Ignore(zone);
             var hit = zone.AddComponent<Image>();
             hit.color = new Color(0f, 0f, 0f, 0f);   // 透明命中板：只吃指针不显形
             hit.raycastTarget = true;
