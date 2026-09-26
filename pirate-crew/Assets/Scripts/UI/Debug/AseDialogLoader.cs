@@ -8,25 +8,36 @@ using UnityEngine.UI;
 namespace PirateCrew.UI.DebugUi
 {
     /// <summary>
-    /// **Aseprite widgets.xml 通用装载器**（创始人裁决「以库为源·原封复刻」；2026-09-26 走查后
-    /// 升级为**逐行移植版**）：布局算法不再自造近似——Box::onSizeHint/onResize
-    /// （src/ui/box.cpp:33-165）与 Grid 的条带/扩展/对齐算法（src/ui/grid.cpp:160-420）
-    /// 按源码结构移植到 <see cref="AwNode"/> 树，控件边框取 theme 背景件九宫切片
-    /// （本地图集 Sprite.border 即切片）。
+    /// **Aseprite widgets.xml 通用装载器**（创始人裁决「以库为源·原封复刻」；本版走查后
+    /// 把残差项升级为**逐行移植**——数值/分支结构对应源码，见各段行号引用）。
     ///
     /// 【与源码的对应】
-    /// - AwNode = ui::Widget 布局域（min/max/border/childSpacing/hint）；
-    /// - Measure = Box::onSizeHint 宏（homogeneous 取最大×n + 间距；纵轴取最大）；
-    /// - Layout = Box::onResize 的 LAYOUT_CHILDREN 宏（homogeneous 等分末件吃余数；
-    ///   expansive 摊余宽；**跨轴子件拉伸到盒宽并夹 [min,max]**——box.cpp:129-131）；
-    /// - Grid = 条带取列/行最大 hint、cell_align=horizontal 记扩展列分余宽、
-    ///   cell_align=right 在格内右对齐（grid.cpp:176-214）。
-    /// 【已实现的控件 hint】Widget 默认（text+border）· Button（默认+minwidth）· Entry/Expr
-    /// （entry.cpp:479-491：字符宽×min(maxsize,6)+后缀+边框，行高+边框）· Separator
-    /// （separator.cpp:35-60：文字时左右 style 边加倍）· Buttonset 件（图文变体 = 边框+
-    /// 字+2+16 图标+1）· Check（图标 8+4+文字——**近似**：源未单独覆写 onSizeHint）。
-    /// 【已知偏差】字用 FusionPixel 位图档非 Aseprite Mini；窗框高度含本端标题带 15。
-    /// 未实现语义遇 LogWarning 跳过，覆盖表在交接档 §三之五。
+    /// - AwNode = ui::Widget 布局域（min/max/hidden/childspacing/spans/align）；
+    /// - BoxNode = ui::Box（box.cpp:33-170）：
+    ///   · RawMeasure = Box::onSizeHint（ADD_CHILD_SIZE / FINAL_ADJUSTMENT 宏逐行，
+    ///     含 fitIn 递减；border 计入 hint）；
+    ///   · Layout = Box::onResize LAYOUT_CHILDREN（box.cpp:95-140）——**注意**：源码宏
+    ///     形参 (x,y,w,h) 在宏体里未使用（宏体写死 .w/.x），纵盒分支 LAYOUT_CHILDREN(y,x,h,w)
+    ///     因此无效果；本移植按 onSizeHint 同类宏的可参数化语义恢复主轴/跨轴参数化
+    ///     （否则 vbox 会横排，与观测行为矛盾），此为对源码宏形参失效的处理，见交接档偏差表；
+    /// - GridNode = ui::Grid（grid.cpp 全文）：Cell 占位（putWidgetInCell hspan/vspan）、
+    ///   calculateStripSize、expandStrip、incColSize/incRowSize、distributeStripSize
+    ///   （余数给**最后一根**可扩展条）、onResize 的 align 落格——数值逐行；
+    /// - ButtonSet = app::ButtonSet : ui::Grid（button_set.cpp:243-257）——条目 align
+    ///   HORIZONTAL|VERTICAL，gap = buttonset 样式 gap-rows=-3 / gap-columns=-1
+    ///   （theme.xml:1070），childSpacing 0（noBorderNoChildSpacing）；
+    /// - 控件 hint 统一走 theme.cpp calcWidgetMetrics 口径（border + padding + text/icon
+    ///   对齐合并，theme.cpp:782-829）：Button/Check/Buttonset 条目/Separator/Label；
+    /// - Entry hint = entry.cpp:479-493（w 受 kMaxWidthHintForEntry=400 夹）；
+    /// - XML 属性语义 = app::WidgetLoader（widget_loader.cpp:551-685）：expansive /
+    ///   homogeneous / visible / width·minwidth·maxwidth·height… / border / childspacing /
+    ///   box horizontal·vertical（缺省=既非横也非纵→走 else 的纵轴）/ boxfiller / grid columns /
+    ///   cell_hspan·cell_vspan·cell_align（convert_align_value_to_flags 全 token，base.h 位值）。
+    ///
+    /// 【已知偏差（登记）】字体用 FusionPixel 位图档非 Aseprite Mini，故文本宽用本地估宽、
+    /// 行盒用 <see cref="LineH"/> 常量为 Mini lineHeight 的替身；style 自带的 min/max 尺寸
+    /// （如 dir_item width/height）未解析（只解析元素级 width/height/minwidth…）；
+    /// combobox hint 仍近似（源 ComboBox 复合件未逐行）；窗框高度含本端标题带 15。
     /// </summary>
     public static class AseDialogLoader
     {
@@ -50,8 +61,8 @@ namespace PirateCrew.UI.DebugUi
                 return NodeById.TryGetValue(id, out AwNode node) && node.Hidden;
             }
 
-            /// <summary>隐藏/显示一个盒并**重排收窗高**（隐藏的盒不占高度——
-            /// 旧版只 SetActive 留空洞，new_sprite 的 advanced 即受害者）。</summary>
+            /// <summary>隐藏/显示一个盒并**重排收窗高**（隐藏的盒不占高度——旧版只 SetActive
+            /// 留空洞，new_sprite 的 advanced 即受害者）。</summary>
             public void SetHidden(string id, bool hidden)
             {
                 if (!NodeById.TryGetValue(id, out AwNode node))
@@ -67,10 +78,11 @@ namespace PirateCrew.UI.DebugUi
             {
                 if (Window == null || Root == null)
                     return;
-                float contentH = Root.Layout(new Rect(DebugWindowKit.Pad, DebugWindowKit.ContentTop,
-                    InnerW, Root.Measure().y));
-                Window.sizeDelta = new Vector2(InnerW + DebugWindowKit.Pad * 2f,
-                    contentH + DebugWindowKit.Pad);
+                float contentH = Root.Measure().y;
+                Root.Layout(Mathf.RoundToInt(DebugWindowKit.Pad),
+                    Mathf.RoundToInt(DebugWindowKit.ContentTop),
+                    Mathf.RoundToInt(InnerW), Mathf.RoundToInt(contentH));
+                Window.sizeDelta = new Vector2(InnerW + DebugWindowKit.Pad * 2f, contentH + DebugWindowKit.Pad);
             }
         }
 
@@ -109,12 +121,16 @@ namespace PirateCrew.UI.DebugUi
             // 内容 = window 下第一个盒；无盒则直接排 window 子件
             XElement content = FirstLayoutChild(win) ?? win;
             AwNode root = BuildNode(content, window, ctx);
+            if (root == null)
+                root = new BoxNode { Horizontal = false, Host = window };   // 无盒可排（内容为空）
 
             // 两遍：Measure（自然尺寸）→ Layout（按窗内宽落位）——同 aseprite 先 sizeHint 后 setBounds
             Vector2 hint = root.Measure();
             float innerW = Mathf.Max(MinInnerW, hint.x);
-            float contentH = root.Layout(new Rect(DebugWindowKit.Pad, DebugWindowKit.ContentTop,
-                innerW, hint.y));
+            float contentH = hint.y;
+            root.Layout(Mathf.RoundToInt(DebugWindowKit.Pad),
+                Mathf.RoundToInt(DebugWindowKit.ContentTop),
+                Mathf.RoundToInt(innerW), Mathf.RoundToInt(contentH));
             window.sizeDelta = new Vector2(innerW + DebugWindowKit.Pad * 2f,
                 contentH + DebugWindowKit.Pad);
             ctx.Result.Window = window;
@@ -124,15 +140,61 @@ namespace PirateCrew.UI.DebugUi
         }
 
         const float MinInnerW = 150f;
-        const float EntryCharsW = 6f;       // entry.cpp: min(maxsize, 6) 个 "w" 字符宽
-        const float CheckIconGap = 4f;      // 近似：图标 8 + 4 缝 + 文字
+
+        // ------------------------------------------------------------------
+        // 本地字体度量替身（Aseprite Mini 位图字 → 本地 FusionPixel 位图档；
+        // 字体偏差已在交接档登记，这里只把"行盒/字符宽"落成常量以便布局逐行对应）
+        // ------------------------------------------------------------------
+
+        /// <summary>本地 Tiny 位图字行盒（Aseprite Mini lineHeight 的替身）。</summary>
+        const float LineH = 8f;
+        /// <summary>本地 "w" 字符估宽（Aseprite mini font->textLength("w") 的替身）。</summary>
+        const float WChar = 5f;
+        /// <summary>2 × getCaretSize().w（skin_theme.cpp:1312：2*guiscale()）。</summary>
+        const float Caret2 = 4f;
+        /// <summary>entry.cpp:41 kMaxWidthHintForEntry。</summary>
+        const float MaxEntryHintW = 400f;
+        /// <summary>ui::Box/Grid 默认 childSpacing（skin_theme.cpp:1154/1174：4*guiscale）。</summary>
+        const int DefaultChildSpacing = 4;
+
+        // ------------------------------------------------------------------
+        // ui::align 位标志（src/ui/base.h:41-49）——不是自造的 0x1/0x2/0x4
+        // ------------------------------------------------------------------
+
+        const int HORIZONTAL = 0x00010000;
+        const int VERTICAL = 0x00020000;
+        const int LEFT = 0x00040000;
+        const int CENTER = 0x00080000;
+        const int RIGHT = 0x00100000;
+        const int TOP = 0x00200000;
+        const int MIDDLE = 0x00400000;
+        const int BOTTOM = 0x00800000;
+
+        static int AlignH(int a) => a & (LEFT | CENTER | RIGHT);
+        static int AlignV(int a) => a & (TOP | MIDDLE | BOTTOM);
+
+        /// <summary>C++ 整型除法（截断向零）——guiscaled_div/除法同口径。</summary>
+        static float IDiv(float a, float b)
+        {
+            if (Mathf.Approximately(b, 0f))
+                return 0f;
+            return (int)(a / b);
+        }
+
+        /// <summary>guiscaled_center(p, s1, s2)，guiscale=1（scale.h）。</summary>
+        static float Center(float p, float s1, float s2)
+        {
+            return p + ((int)s1 / 2) - ((int)s2 / 2);
+        }
+
+        static float Sign(float v) => v < 0f ? -1f : 1f;
 
         static XElement FirstLayoutChild(XElement el)
         {
             foreach (XElement child in el.Elements())
             {
                 string n = child.Name.LocalName;
-                if (n == "box" || n == "vbox" || n == "hbox" || n == "grid")
+                if (n == "box" || n == "vbox" || n == "hbox" || n == "boxfiller" || n == "grid")
                     return child;
             }
             return null;
@@ -146,26 +208,31 @@ namespace PirateCrew.UI.DebugUi
         /// sizeHint/onResize；叶子带 UGUI 件与 hint 委托。</summary>
         internal abstract class AwNode
         {
-            public Vector2 Min = Vector2.zero;
-            public Vector2 Max = new Vector2(9999f, 9999f);
+            /// <summary>minSize（widget_loader.cpp:653-668：width→min=max，minwidth…）。</summary>
+            public float MinW, MinH;
+            /// <summary>maxSize（同上；缺省 INT_MAX）。</summary>
+            public float MaxW = int.MaxValue, MaxH = int.MaxValue;
             public bool Hidden;
+            /// <summary>widget isExpansive()（widget_loader.cpp:627-628 / BoxFiller）。</summary>
+            public bool Expansive;
             /// <summary>盒/格宿主件（叶子=控件本体；置 Hidden 时宿主随动失活）。</summary>
             public RectTransform Host;
 
-            /// <summary>尺寸提示（叶子=控件 hint；盒=Box/Grid::onSizeHint 移植）。</summary>
-            public abstract Vector2 Measure();
+            /// <summary>未夹 min/max 的 sizeHint（盒=Box/Grid::onSizeHint 移植；叶子=控件 hint）。</summary>
+            internal abstract Vector2 RawMeasure(int fitW, int fitH);
 
-            /// <summary>在 rect 内落位（盒=onResize 移植；叶子=拉伸到 rect 并夹 min/max），
-            /// 返回实际占用高（叶子）。</summary>
-            public abstract float Layout(Rect rect);
-
-            /// <summary>跨轴夹取（box.cpp:129-131：子件跨轴取盒尺寸并 clamp [min,max]）。</summary>
-            protected static float ClampCross(float size, AwNode n, bool horizontalAxis)
+            /// <summary>sizeHint(fitIn)（widget.cpp:1480-1493：结果夹 [min,max]）。</summary>
+            public Vector2 Measure(int fitW, int fitH)
             {
-                float min = horizontalAxis ? n.Min.y : n.Min.x;
-                float max = horizontalAxis ? n.Max.y : n.Max.x;
-                return Mathf.Clamp(size, min, max);
+                Vector2 r = RawMeasure(fitW, fitH);
+                return new Vector2(Mathf.Clamp(r.x, MinW, MaxW), Mathf.Clamp(r.y, MinH, MaxH));
             }
+
+            /// <summary>sizeHint()（fitIn = (0,0)）。</summary>
+            public Vector2 Measure() => Measure(0, 0);
+
+            /// <summary>setBounds(x,y,w,h)（绝对坐标，相对窗内容原点）。</summary>
+            public abstract void Layout(int x, int y, int w, int h);
         }
 
         internal sealed class LeafNode : AwNode
@@ -175,221 +242,651 @@ namespace PirateCrew.UI.DebugUi
             /// <summary>布局后的内件跟随回调（分隔线铺到格宽）。</summary>
             public System.Action<float> Resize;
 
-            public override Vector2 Measure() => Hint();
+            internal override Vector2 RawMeasure(int fitW, int fitH) => Hint();
 
-            public override float Layout(Rect rect)
+            public override void Layout(int x, int y, int w, int h)
             {
                 Rect.anchorMin = Rect.anchorMax = Rect.pivot = new Vector2(0f, 1f);
-                Rect.anchoredPosition = new Vector2(Mathf.Round(rect.x), -Mathf.Round(rect.y));
-                Rect.sizeDelta = new Vector2(Mathf.Round(rect.width), Mathf.Round(rect.height));
-                Resize?.Invoke(rect.width);
-                return rect.height;
+                Rect.anchoredPosition = new Vector2(x, -y);
+                Rect.sizeDelta = new Vector2(w, h);
+                Resize?.Invoke(w);
             }
         }
 
         /// <summary>盒（box.cpp 移植）。Horizontal=横向排布；Homogeneous=等分；
-        /// expansive 是**子件级**标志（Expansive 列表与 Kids 平行）。</summary>
+        /// Expansive 是**子件级**标志（与 Kids 平行）。</summary>
         internal sealed class BoxNode : AwNode
         {
+            /// <summary>ui::Box align 的 HORIZONTAL 位；false 走 else 分支（纵轴）。</summary>
             public bool Horizontal;
             public bool Homogeneous;
-            public float ChildSpacing;
+            /// <summary>skin_theme.cpp:1154：Box childSpacing = 4*guiscale。</summary>
+            public int ChildSpacing = DefaultChildSpacing;
+            /// <summary>xml border 属性（widget_loader.cpp:643-646）。</summary>
+            public int Border;
             public readonly List<AwNode> Kids = new List<AwNode>();
-            public readonly List<bool> Expansive = new List<bool>();
+            public readonly List<bool> Expansive2 = new List<bool>();
 
-            IEnumerable<AwNode> Visible
+            // Box::onSizeHint（box.cpp:33-91）：ADD_CHILD_SIZE / FINAL_ADJUSTMENT 宏逐行。
+            internal override Vector2 RawMeasure(int fitW, int fitH)
             {
-                get
-                {
-                    for (int i = 0; i < Kids.Count; i++)
-                        if (!Kids[i].Hidden)
-                            yield return Kids[i];
-                }
-            }
+                int visibleChildren = 0;
+                for (int i = 0; i < Kids.Count; i++)
+                    if (!Kids[i].Hidden)
+                        visibleChildren++;
 
-            // Box::onSizeHint（box.cpp:33-83）：
-            // 横向：homogeneous 取最大（×n）否则累加；间距×(n-1)；纵向取最大。纵向盒轴互换。
-            public override Vector2 Measure()
-            {
-                float main = 0f, cross = 0f, max = 0f;
-                int n = 0;
-                foreach (AwNode kid in Visible)
+                float prefW = 0f, prefH = 0f;
+                float fitInW = Horizontal ? fitW : 0f;
+                float fitInH = Horizontal ? 0f : fitH;
+
+                for (int i = 0; i < Kids.Count; i++)
                 {
-                    Vector2 h = kid.Measure();
+                    if (Kids[i].Hidden)
+                        continue;
+                    Vector2 childSize = Kids[i].Measure(Mathf.RoundToInt(fitInW), Mathf.RoundToInt(fitInH));
                     if (Horizontal)
                     {
-                        if (Homogeneous) max = Mathf.Max(max, h.x);
-                        else main += h.x;
-                        cross = Mathf.Max(cross, h.y);
+                        if (Homogeneous) prefW = Mathf.Max(prefW, childSize.x);
+                        else prefW += childSize.x;
+                        prefH = Mathf.Max(prefH, childSize.y);
+                        fitInW = Mathf.Max(0f, fitInW - prefW);   // ADD_CHILD_SIZE
                     }
                     else
                     {
-                        if (Homogeneous) max = Mathf.Max(max, h.y);
-                        else main += h.y;
-                        cross = Mathf.Max(cross, h.x);
+                        if (Homogeneous) prefH = Mathf.Max(prefH, childSize.y);
+                        else prefH += childSize.y;
+                        prefW = Mathf.Max(prefW, childSize.x);
+                        fitInH = Mathf.Max(0f, fitInH - prefH);   // ADD_CHILD_SIZE(h,w)
                     }
-                    n++;
                 }
-                if (Homogeneous)
-                    main = max * n;
-                main += ChildSpacing * Mathf.Max(0, n - 1);
-                return Horizontal ? new Vector2(main, cross) : new Vector2(cross, main);
+
+                if (visibleChildren > 0)
+                {
+                    if (Horizontal)
+                    {
+                        if (Homogeneous) prefW *= visibleChildren;  // FINAL_ADJUSTMENT
+                        prefW += ChildSpacing * (visibleChildren - 1);
+                    }
+                    else
+                    {
+                        if (Homogeneous) prefH *= visibleChildren;
+                        prefH += ChildSpacing * (visibleChildren - 1);
+                    }
+                }
+                prefW += 2 * Border;   // box.cpp:87-88 border
+                prefH += 2 * Border;
+                return new Vector2(prefW, prefH);
             }
 
-            // Box::onResize LAYOUT_CHILDREN（box.cpp:102-145，轴参数化移植）：
-            // 余宽 = avail − hint；homogeneous 等分（末件吃余数）；expansive 摊余宽；
-            // 跨轴 = 盒宽 clamp[min,max]；主轴步进 size+spacing。
-            public override float Layout(Rect rect)
+            // Box::onResize LAYOUT_CHILDREN（box.cpp:95-140，主轴/跨轴参数化）。
+            public override void Layout(int x, int y, int w, int h)
             {
-                List<AwNode> kids = new List<AwNode>();
-                List<bool> expansive = new List<bool>();
+                int visibleChildren = 0, expansiveChildren = 0;
                 for (int i = 0; i < Kids.Count; i++)
                     if (!Kids[i].Hidden)
                     {
-                        kids.Add(Kids[i]);
-                        expansive.Add(Expansive[i]);
+                        visibleChildren++;
+                        if (Expansive2[i]) expansiveChildren++;
                     }
-                int n = kids.Count;
-                if (n == 0)
-                    return 0f;
+                if (visibleChildren == 0)
+                    return;
 
-                float availMain = Horizontal ? rect.width : rect.height;
-                float hintMain = Measure()[
-                    Horizontal ? 0 : 1];
-                float extra = availMain - hintMain;
-                float avail = availMain - ChildSpacing * (n - 1);
-                float homogeneousEach = 0f;
+                float innerW = w - 2 * Border;
+                float innerH = h - 2 * Border;
+                float availMain = Horizontal ? innerW : innerH;
+                float crossSize = Horizontal ? innerH : innerW;
+                // box.cpp:154-161：availSize = childrenBounds().size(); prefSize = sizeHint(availSize) - border
+                Vector2 pref = Measure(Mathf.RoundToInt(innerW), Mathf.RoundToInt(innerH));
+                float prefMain = (Horizontal ? pref.x : pref.y) - 2 * Border;
+                float availExtraSize = availMain - prefMain;
+                availMain -= ChildSpacing * (visibleChildren - 1);
+
+                float homogeneousSize = 0f;
                 if (Homogeneous)
-                    homogeneousEach = Mathf.Floor(avail / n);
+                    homogeneousSize = IDiv(availMain, visibleChildren);   // box.cpp:99-100
 
-                float mainPos = Horizontal ? rect.x : rect.y;
-                int expansiveCount = 0;
-                for (int i = 0; i < n; i++)
-                    if (expansive[i]) expansiveCount++;
+                float mainPos = (Horizontal ? x : y) + Border;    // defChildPos
+                float crossStart = (Horizontal ? y : x) + Border;
 
-                for (int i = 0; i < n; i++)
+                int i2 = 0, j = 0;
+                for (int k = 0; k < Kids.Count; k++)
                 {
+                    AwNode kid = Kids[k];
+                    if (kid.Hidden)
+                        continue;
+
                     float size;
                     if (Homogeneous)
-                        size = i < n - 1 ? homogeneousEach : avail;   // 末件吃余数（box.cpp:117-121）
+                    {
+                        size = i2 < visibleChildren - 1 ? homogeneousSize : availMain;   // 末件吃余
+                    }
                     else
                     {
-                        size = kids[i].Measure()[Horizontal ? 0 : 1];
-                        if (expansive[i])
+                        // size = child->sizeHint(availSize).<main>
+                        Vector2 m = Horizontal
+                            ? kid.Measure(Mathf.RoundToInt(availMain), Mathf.RoundToInt(crossSize))
+                            : kid.Measure(Mathf.RoundToInt(crossSize), Mathf.RoundToInt(availMain));
+                        size = Horizontal ? m.x : m.y;
+
+                        if (Expansive2[k])
                         {
-                            // 摊余宽：整除分摊，末个 expansive 吃剩余（box.cpp:126-133）
-                            int seen = 0;
-                            for (int j = 0; j < i; j++)
-                                if (expansive[j]) seen++;
-                            float share = Mathf.Floor(extra / Mathf.Max(1, expansiveCount - seen));
-                            size += share;
-                            extra -= share;
-                            if (seen + 1 == expansiveCount)
-                                size += extra;
+                            float extraSize = IDiv(availExtraSize, expansiveChildren - j);
+                            size += extraSize;
+                            availExtraSize -= extraSize;
+                            if (++j == expansiveChildren)
+                                size += availExtraSize;
+                        }
+                        else
+                        {
+                            float natural = Horizontal ? kid.Measure().x : kid.Measure().y;
+                            availExtraSize -= size - natural;
                         }
                     }
 
-                    Rect cell = Horizontal
-                        ? new Rect(mainPos, rect.y, size, ClampCross(rect.height, kids[i], true))
-                        : new Rect(rect.x, mainPos, ClampCross(rect.width, kids[i], false), size);
-                    kids[i].Layout(cell);
-                    mainPos += size + ChildSpacing;
-                    avail -= size;
+                    size = Mathf.Clamp(size, Horizontal ? kid.MinW : kid.MinH, Horizontal ? kid.MaxW : kid.MaxH);
+                    float cross = Mathf.Clamp(crossSize, Horizontal ? kid.MinH : kid.MinW,
+                        Horizontal ? kid.MaxH : kid.MaxW);
+                    if (Horizontal)
+                        kid.Layout(Mathf.RoundToInt(mainPos), Mathf.RoundToInt(crossStart),
+                            Mathf.RoundToInt(size), Mathf.RoundToInt(cross));
+                    else
+                        kid.Layout(Mathf.RoundToInt(crossStart), Mathf.RoundToInt(mainPos),
+                            Mathf.RoundToInt(cross), Mathf.RoundToInt(size));
+
+                    mainPos += size + ChildSpacing;   // defChildPos.<main> += size + childSpacing
+                    availMain -= size;
+                    i2++;
                 }
-                return rect.height;
             }
         }
 
-        /// <summary>网格（grid.cpp:160-420 移植，单 span 子集）：条带取列/行最大 hint；
-        /// cell_align=horizontal 记扩展列分余宽；cell_align=right/left 在格内右/左对齐；
-        /// 无对齐位的子件**整格拉伸**（grid.cpp:186-214 默认分支）。</summary>
+        /// <summary>网格（grid.cpp 全文移植：Cell 占位 + 条带 + 扩展 + 分配 + 落格）。
+        /// 单 span/多 span、cell_align 位标志、distributeStripSize 余数给最后一根可扩展条。</summary>
         internal sealed class GridNode : AwNode
         {
             public int Columns = 2;
-            public float ChildSpacing;
+            public bool SameWidthColumns;
+            public int ChildSpacing = DefaultChildSpacing;
+            public int Border;
+            /// <summary>m_colgap（Style::gap().w）。</summary>
+            public int ColGap;
+            /// <summary>m_rowgap（Style::gap().h）。</summary>
+            public int RowGap;
+
             public readonly List<AwNode> Cells = new List<AwNode>();
-            public readonly List<int> CellAlign = new List<int>();   // 位 0x1 RIGHT / 0x2 左待扩 / 0x4 HORIZONTAL(expand)
-            List<float> _colW = new List<float>(), _rowH = new List<float>();
-            List<int> _colExpand = new List<int>();
+            public readonly List<int> SpanH = new List<int>();
+            public readonly List<int> SpanV = new List<int>();
+            public readonly List<int> Align2 = new List<int>();
 
-            const int AlignRight = 0x1, AlignLeft = 0x2, AlignHorizontal = 0x4;
-
-            public static int EncodeAlign(string attr)
+            struct GCell
             {
-                int a = 0;
-                if (string.IsNullOrEmpty(attr)) return a;
-                if (attr.Contains("right")) a |= AlignRight;
-                if (attr.Contains("left")) a |= AlignLeft;
-                if (attr.Contains("horizontal")) a |= AlignHorizontal;
-                return a;
+                public int Child;          // kid index or -1
+                public int PRow, PCol;     // parent cell anchor (-1 = 本格/空格)
+                public int Hspan, Vspan, Align;
+                public float W, H;         // Cell::w/h（calculateStripSize/expandStrip 工作变量）
             }
 
-            // Grid::calculateSize + expandStrip（span=1 子集）：条带 = 该列/行最大 hint；
-            // 扩展计数来自 cell_align&HORIZONTAL。
-            void CalculateStrips()
+            List<GCell[]> _rows = new List<GCell[]>();
+            int _rowCount;
+            float[] _colSize = new float[0];
+            int[] _colExpand = new int[0];
+            float[] _rowSize = new float[0];
+            int[] _rowExpand = new int[0];
+
+            public void AddCell(AwNode node, int hspan, int vspan, int align)
             {
-                _colW = new List<float>(new float[Columns]);
-                _colExpand = new List<int>(new int[Columns]);
-                int rows = (Cells.Count + Columns - 1) / Columns;
-                _rowH = new List<float>(new float[rows]);
-                for (int i = 0; i < Cells.Count; i++)
+                Cells.Add(node);
+                SpanH.Add(Mathf.Max(1, hspan));
+                SpanV.Add(Mathf.Max(1, vspan));
+                Align2.Add(align);
+            }
+
+            // --- putWidgetInCell / expandRows（grid.cpp:497-575） ---
+
+            void GrowRows(int rows)
+            {
+                while (_rowCount < rows)
                 {
-                    if (Cells[i].Hidden) continue;
-                    Vector2 h = Cells[i].Measure();
-                    int c = i % Columns, r = i / Columns;
-                    _colW[c] = Mathf.Max(_colW[c], h.x);
-                    _rowH[r] = Mathf.Max(_rowH[r], h.y);
-                    if ((CellAlign[i] & AlignHorizontal) != 0)
-                        _colExpand[c]++;
+                    var row = new GCell[Columns];
+                    for (int c = 0; c < Columns; c++)
+                        row[c].Child = -1;
+                    _rows.Add(row);
+                    _rowCount++;
                 }
             }
 
-            public override Vector2 Measure()
+            void PlaceAll()
             {
-                CalculateStrips();
-                float w = 0f, h = 0f;
-                foreach (float cw in _colW) w += cw;
-                foreach (float rh in _rowH) h += rh;
-                w += ChildSpacing * Mathf.Max(0, _colW.Count - 1);
-                h += ChildSpacing * Mathf.Max(0, _rowH.Count - 1);
+                _rows = new List<GCell[]>();
+                _rowCount = 0;
+                for (int i = 0; i < Cells.Count; i++)
+                {
+                    int hs = SpanH[i], vs = SpanV[i], al = Align2[i];
+                    if (!TryPlace(i, hs, vs, al))
+                    {
+                        GrowRows(_rowCount + 1);
+                        TryPlace(i, hs, vs, al);
+                    }
+                }
+            }
+
+            bool TryPlace(int i, int hspan, int vspan, int align)
+            {
+                for (int r = 0; r < _rowCount; r++)
+                {
+                    for (int c = 0; c < Columns; c++)
+                    {
+                        if (_rows[r][c].Child != -1)
+                            continue;
+
+                        GCell anchor = _rows[r][c];
+                        anchor.Child = i;
+                        anchor.PRow = -1;
+                        anchor.PCol = -1;
+                        anchor.Hspan = hspan;
+                        anchor.Vspan = vspan;
+                        anchor.Align = align;
+                        _rows[r][c] = anchor;
+
+                        int colbeg = c;
+                        int colend = Mathf.Min(c + hspan, Columns);
+                        int rowend = r + vspan;
+                        GrowRows(rowend);
+
+                        for (int cc = c + 1; cc < colend; cc++)
+                        {
+                            GCell cell = _rows[r][cc];
+                            cell.Child = i;
+                            cell.PRow = r;
+                            cell.PCol = c;
+                            cell.Hspan = colend - cc;
+                            cell.Vspan = rowend - r;
+                            _rows[r][cc] = cell;
+                        }
+                        for (int rr = r + 1; rr < rowend; rr++)
+                            for (int cc = colbeg; cc < colend; cc++)
+                            {
+                                GCell cell = _rows[rr][cc];
+                                cell.Child = i;
+                                cell.PRow = r;
+                                cell.PCol = c;
+                                cell.Hspan = colend - cc;
+                                cell.Vspan = rowend - rr;
+                                _rows[rr][cc] = cell;
+                            }
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            // --- calculateSize / calculateStripSize / expandStrip（grid.cpp:279-424） ---
+
+            void CalculateSize()
+            {
+                PlaceAll();
+                _colSize = new float[Columns];
+                _colExpand = new int[Columns];
+                _rowSize = new float[_rowCount];
+                _rowExpand = new int[_rowCount];
+                if (_rowCount == 0)
+                    return;
+                CalcStrip(true);
+                CalcStrip(false);
+                ExpandStrip(true);
+                ExpandStrip(false);
+
+                if (SameWidthColumns)
+                {
+                    float maxW = 0f;
+                    for (int c = 0; c < Columns; c++)
+                        maxW = Mathf.Max(maxW, _colSize[c]);
+                    for (int c = 0; c < Columns; c++)
+                        _colSize[c] = maxW;
+                }
+            }
+
+            void CalcStrip(bool forCols)
+            {
+                int outer = forCols ? Columns : _rowCount;   // colstrip.size
+                int inner = forCols ? _rowCount : Columns;   // rowstrip.size
+                int alignFlag = forCols ? HORIZONTAL : VERTICAL;
+
+                for (int a = 0; a < outer; a++)
+                {
+                    int expand = 0;
+                    int b = 0;
+                    while (b < inner)
+                    {
+                        GCell cell = forCols ? _rows[b][a] : _rows[a][b];
+                        if (cell.Child != -1)
+                        {
+                            if (cell.PRow < 0)
+                            {
+                                if (!Cells[cell.Child].Hidden)
+                                {
+                                    Vector2 req = Cells[cell.Child].Measure();   // sizeHint()
+                                    cell.W = req.x - (cell.Hspan - 1) * (ChildSpacing + ColGap);
+                                    cell.H = req.y - (cell.Vspan - 1) * (ChildSpacing + RowGap);
+                                    if ((cell.Align & alignFlag) == alignFlag)
+                                        expand++;
+                                }
+                                else
+                                    cell.W = cell.H = 0f;
+                            }
+                            else
+                            {
+                                if (!Cells[cell.Child].Hidden)
+                                {
+                                    int pa = _rows[cell.PRow][cell.PCol].Align;
+                                    if ((pa & alignFlag) == alignFlag)
+                                        expand++;
+                                }
+                            }
+                            if (forCols) _rows[b][a] = cell;
+                            else _rows[a][b] = cell;
+                            b += forCols ? cell.Vspan : cell.Hspan;   // row += span-1; ++row
+                        }
+                        else
+                            b++;
+                    }
+                    if (forCols)
+                    {
+                        _colSize[a] = 0f;
+                        _colExpand[a] = expand;
+                    }
+                    else
+                    {
+                        _rowSize[a] = 0f;
+                        _rowExpand[a] = expand;
+                    }
+                }
+            }
+
+            void ExpandStrip(bool forCols)
+            {
+                bool moreSpan;
+                int currentSpan = 1;
+                do
+                {
+                    moreSpan = false;
+                    int outer = forCols ? Columns : _rowCount;
+                    int inner = forCols ? _rowCount : Columns;
+                    for (int a = 0; a < outer; a++)
+                    {
+                        for (int b = 0; b < inner; b++)
+                        {
+                            GCell cell;
+                            float cellSize;
+                            int cellSpan;
+                            if (forCols)
+                            {
+                                cell = _rows[b][a];
+                                cellSize = cell.W;
+                                cellSpan = cell.Hspan;
+                            }
+                            else
+                            {
+                                cell = _rows[a][b];
+                                cellSize = cell.H;
+                                cellSpan = cell.Vspan;
+                            }
+
+                            if (cell.Child == -1 || cell.PRow >= 0 || cellSize <= 0f)
+                                continue;
+
+                            if (cellSpan == currentSpan)
+                            {
+                                int limit = Mathf.Min(a + cellSpan, outer);
+                                int maxExpand = 0;
+                                for (int i = a; i < limit; i++)
+                                    maxExpand = Mathf.Max(maxExpand, forCols ? _colExpand[i] : _rowExpand[i]);
+
+                                int expand = 0, lastExpand = 0;
+                                for (int i = a; i < limit; i++)
+                                {
+                                    int ec = forCols ? _colExpand[i] : _rowExpand[i];
+                                    if (ec == maxExpand)
+                                    {
+                                        expand++;
+                                        lastExpand = i;
+                                    }
+                                }
+
+                                float size = IDiv(cellSize, expand);   // guiscaled_div
+                                for (int i = a; i < limit; i++)
+                                {
+                                    int ec = forCols ? _colExpand[i] : _rowExpand[i];
+                                    if (ec != maxExpand)
+                                        continue;
+                                    if (lastExpand == i)
+                                        size = forCols ? cell.W : cell.H;   // 最后一根吃本格全宽
+                                    if (forCols) IncColSize(i, size);
+                                    else IncRowSize(i, size);
+                                }
+                            }
+                            else if (cellSpan > currentSpan)
+                                moreSpan = true;
+                        }
+                    }
+                    currentSpan++;
+                } while (moreSpan);
+            }
+
+            void IncColSize(int col, float size)
+            {
+                _colSize[col] += size;
+                int r = 0;
+                while (r < _rowCount)
+                {
+                    GCell cell = _rows[r][col];
+                    if (cell.Child != -1)
+                    {
+                        if (cell.PRow >= 0)
+                        {
+                            GCell parent = _rows[cell.PRow][cell.PCol];
+                            parent.W -= size;
+                            _rows[cell.PRow][cell.PCol] = parent;
+                        }
+                        else
+                        {
+                            cell.W -= size;
+                            _rows[r][col] = cell;
+                        }
+                        r += cell.Vspan;
+                    }
+                    else
+                        r++;
+                }
+            }
+
+            void IncRowSize(int row, float size)
+            {
+                _rowSize[row] += size;
+                int c = 0;
+                while (c < Columns)
+                {
+                    GCell cell = _rows[row][c];
+                    if (cell.Child != -1)
+                    {
+                        if (cell.PRow >= 0)
+                        {
+                            GCell parent = _rows[cell.PRow][cell.PCol];
+                            parent.H -= size;
+                            _rows[cell.PRow][cell.PCol] = parent;
+                        }
+                        else
+                        {
+                            cell.H -= size;
+                            _rows[row][c] = cell;
+                        }
+                        c += cell.Hspan;
+                    }
+                    else
+                        c++;
+                }
+            }
+
+            // --- sumStripSize / calculateCellSize / distributeStripSize（grid.cpp:247-495） ---
+
+            float SumStrip(bool forCols)
+            {
+                float gap = forCols ? ColGap : RowGap;
+                int n = forCols ? Columns : _rowCount;
+                float size = 0f;
+                int j = 0;
+                for (int i = 0; i < n; i++)
+                {
+                    float s = forCols ? _colSize[i] : _rowSize[i];
+                    if (s > 0f)
+                    {
+                        size += s;
+                        if (++j > 1)
+                            size += ChildSpacing + gap;
+                    }
+                }
+                return size;
+            }
+
+            float CalcCellSize(int start, int span, bool forCols)
+            {
+                float gap = forCols ? ColGap : RowGap;
+                int n = forCols ? Columns : _rowCount;
+                int limit = Mathf.Min(start + span, n);
+                float size = 0f;
+                int j = 0;
+                for (int i = start; i < limit; i++)
+                {
+                    float s = forCols ? _colSize[i] : _rowSize[i];
+                    if (s > 0f)
+                    {
+                        size += s;
+                        if (++j > 1)
+                            size += ChildSpacing + gap;
+                    }
+                }
+                return size;
+            }
+
+            void DistributeSize(int rectW, int rectH)
+            {
+                if (_rowCount == 0)
+                    return;
+                DistributeStripSize(true, rectW, 2 * Border, SameWidthColumns);
+                DistributeStripSize(false, rectH, 2 * Border, false);
+            }
+
+            void DistributeStripSize(bool forCols, float rectSize, float borderSize, bool sameWidth)
+            {
+                float gap = forCols ? ColGap : RowGap;
+                int n = forCols ? Columns : _rowCount;
+                float[] size = forCols ? _colSize : _rowSize;
+                int[] expand = forCols ? _colExpand : _rowExpand;
+
+                int maxExpandCount = 0;
+                for (int i = 0; i < n; i++)
+                    maxExpandCount = Mathf.Max(maxExpandCount, expand[i]);
+
+                float totalReq = 0f;
+                int wantmore = 0;
+                int j = 0;
+                for (int i = 0; i < n; i++)
+                {
+                    if (size[i] > 0f)
+                    {
+                        totalReq += size[i];
+                        if (++j > 1)
+                            totalReq += ChildSpacing + gap;
+                    }
+                    if (expand[i] == maxExpandCount || sameWidth)
+                        wantmore++;
+                }
+                totalReq += borderSize;
+                float extraTotal = rectSize - totalReq;
+
+                if (wantmore > 0 &&
+                    ((extraTotal > 0f && (maxExpandCount > 0 || sameWidth)) || extraTotal < 0f))
+                {
+                    for (int i = 0; i < n; i++)
+                        if (size[i] == 0f && (expand[i] == maxExpandCount || sameWidth))
+                            extraTotal -= Sign(extraTotal) * (ChildSpacing + gap);
+
+                    float extraEach = IDiv(extraTotal, wantmore);
+                    for (int i = 0; i < n; i++)
+                    {
+                        if (expand[i] == maxExpandCount || sameWidth)
+                        {
+                            size[i] += extraEach;
+                            extraTotal -= extraEach;
+                            if (--wantmore == 0)
+                            {
+                                size[i] += extraTotal;   // 余数给最后一根（grid.cpp:485-488）
+                                extraTotal = 0f;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- onSizeHint / onResize（grid.cpp:157-245） ---
+
+            internal override Vector2 RawMeasure(int fitW, int fitH)
+            {
+                CalculateSize();
+                float w = SumStrip(true) + 2 * Border;
+                float h = SumStrip(false) + 2 * Border;
                 return new Vector2(w, h);
             }
 
-            // Grid::distributeSize（扩展列分余宽）+ onResize 落格（右/左对齐按 hint 收窄）。
-            public override float Layout(Rect rect)
+            public override void Layout(int x, int y, int w, int h)
             {
-                Vector2 hint = Measure();
-                float extraW = rect.width - hint.x;
-                int expandCols = 0;
-                foreach (int e in _colExpand) if (e > 0) expandCols++;
-                if (expandCols > 0 && extraW > 0f)
-                    for (int c = 0; c < _colW.Count; c++)
-                        if (_colExpand[c] > 0)
-                            _colW[c] += Mathf.Floor(extraW / expandCols);
+                CalculateSize();
+                DistributeSize(w, h);
+                if (_rowCount == 0)
+                    return;
 
-                float y = rect.y;
-                int rows = _rowH.Count;
-                for (int r = 0; r < rows; r++)
+                float posY = y + Border;
+                for (int r = 0; r < _rowCount; r++)
                 {
-                    float x = rect.x;
+                    float posX = x + Border;
                     for (int c = 0; c < Columns; c++)
                     {
-                        int i = r * Columns + c;
-                        if (i < Cells.Count && !Cells[i].Hidden)
+                        GCell cell = _rows[r][c];
+                        if (cell.Child != -1 && cell.PRow < 0 && !Cells[cell.Child].Hidden)
                         {
-                            float w = _colW[c], h = _rowH[r];
-                            float cx = x, cy = y;
-                            Vector2 req = Cells[i].Measure();
-                            int align = i < CellAlign.Count ? CellAlign[i] : 0;
-                            if ((align & AlignRight) != 0) { cx += w - req.x; w = req.x; }
-                            else if ((align & AlignLeft) != 0) { w = req.x; }
-                            Cells[i].Layout(new Rect(cx, cy, w, h));
+                            float cx = posX, cy = posY;
+                            float cw = CalcCellSize(c, cell.Hspan, true);
+                            float ch = CalcCellSize(r, cell.Vspan, false);
+                            Vector2 req = Cells[cell.Child].Measure(Mathf.RoundToInt(cw), Mathf.RoundToInt(ch));
+
+                            if ((cell.Align & LEFT) != 0) cw = req.x;
+                            else if ((cell.Align & CENTER) != 0) { cx = Center(cx, cw, req.x); cw = req.x; }
+                            else if ((cell.Align & RIGHT) != 0) { cx += cw - req.x; cw = req.x; }
+
+                            if ((cell.Align & TOP) != 0) ch = req.y;
+                            else if ((cell.Align & MIDDLE) != 0) { cy = Center(cy, ch, req.y); ch = req.y; }
+                            else if ((cell.Align & BOTTOM) != 0) { cy += ch - req.y; ch = req.y; }
+
+                            if (cx + cw > x + w - Border)
+                                cw = x + w - Border - cx;
+                            if (cy + ch > y + h - Border)
+                                ch = y + h - Border - cy;
+
+                            if (ColGap < 0 && c + cell.Hspan - 1 < Columns - 1)
+                                cw += ColGap;
+                            if (RowGap < 0 && r + cell.Vspan - 1 < _rowCount - 1)
+                                ch += RowGap;
+
+                            Cells[cell.Child].Layout(Mathf.RoundToInt(cx), Mathf.RoundToInt(cy),
+                                Mathf.RoundToInt(cw), Mathf.RoundToInt(ch));
                         }
-                        x += _colW[c] + ChildSpacing;
+
+                        if (_colSize[c] > 0f)
+                            posX += _colSize[c] + ChildSpacing + ColGap;
                     }
-                    y += _rowH[r] + ChildSpacing;
+                    if (_rowSize[r] > 0f)
+                        posY += _rowSize[r] + ChildSpacing + RowGap;
                 }
-                return y - ChildSpacing;
             }
         }
 
@@ -434,74 +931,129 @@ namespace PirateCrew.UI.DebugUi
 
         static AwNode BuildNode(XElement el, RectTransform parent, BuildContext ctx)
         {
+            AwNode node;
             switch (el.Name.LocalName)
             {
                 case "box":
                 case "vbox":
                 case "hbox":
-                    return BuildBox(el, parent, ctx);
+                case "boxfiller":
+                    node = BuildBox(el, parent, ctx);
+                    break;
                 case "grid":
-                    return BuildGrid(el, parent, ctx);
+                    node = BuildGrid(el, parent, ctx);
+                    break;
                 case "separator":
-                    return BuildSeparator(el, parent, ctx);
+                    node = BuildSeparator(el, parent, ctx);
+                    break;
                 case "label":
-                    return BuildLabel(el, parent, ctx);
+                    node = BuildLabel(el, parent, ctx);
+                    break;
                 case "entry":
                 case "expr":
-                    return BuildEntry(el, parent, ctx);
+                    node = BuildEntry(el, parent, ctx);
+                    break;
                 case "check":
-                    return BuildCheck(el, parent, ctx);
+                    node = BuildCheck(el, parent, ctx);
+                    break;
                 case "buttonset":
-                    return BuildButtonset(el, parent, ctx);
+                    node = BuildButtonset(el, parent, ctx);
+                    break;
                 case "combobox":
-                    return BuildCombobox(el, parent, ctx);
+                    node = BuildCombobox(el, parent, ctx);
+                    break;
                 case "button":
-                    return BuildButton(el, parent, ctx);
+                    node = BuildButton(el, parent, ctx);
+                    break;
                 default:
                     Debug.LogWarning("[AseDialogLoader] 未实现语义 <" + el.Name.LocalName
                         + ">（" + ctx.WidgetName + "）跳过——覆盖表登记");
                     return null;
             }
+            if (node == null)
+                return null;
+            ApplyXmlFlags(node, el);
+            ApplySizeAttrs(node, el);
+            return node;
+        }
+
+        /// <summary>widget_loader.cpp:551-651 的通用属性：visible/expansive（+boxfiller）。</summary>
+        static void ApplyXmlFlags(AwNode node, XElement el)
+        {
+            if (Attr(el, "visible") == "false")
+            {
+                node.Hidden = true;
+                if (node.Host != null)
+                    node.Host.gameObject.SetActive(false);
+            }
+            if (el.Name.LocalName == "boxfiller" || Attr(el, "expansive") == "true")
+                node.Expansive = true;
+        }
+
+        /// <summary>widget_loader.cpp:653-668：width→min=max=width；min/max 缺侧回自然 hint/INT_MAX。</summary>
+        static void ApplySizeAttrs(AwNode node, XElement el)
+        {
+            string width = Attr(el, "width"), height = Attr(el, "height");
+            string minw = Attr(el, "minwidth"), minh = Attr(el, "minheight");
+            string maxw = Attr(el, "maxwidth"), maxh = Attr(el, "maxheight");
+            if (width != null) { if (minw == null) minw = width; if (maxw == null) maxw = width; }
+            if (height != null) { if (minh == null) minh = height; if (maxh == null) maxh = height; }
+            if (minw == null && minh == null && maxw == null && maxh == null)
+                return;
+
+            Vector2 raw = node.RawMeasure(0, 0);
+            node.MinW = SizeAttr(minw, raw.x);
+            node.MinH = SizeAttr(minh, raw.y);
+            node.MaxW = Mathf.Max(node.MinW, SizeAttr(maxw, int.MaxValue));
+            node.MaxH = Mathf.Max(node.MinH, SizeAttr(maxh, int.MaxValue));
+        }
+
+        static float SizeAttr(string s, float fallback)
+        {
+            return s != null && int.TryParse(s, out int v) && v > 0 ? v : fallback;
         }
 
         static AwNode BuildBox(XElement el, RectTransform parent, BuildContext ctx)
         {
             string n = el.Name.LocalName;
-            bool vertical = n == "vbox" || (n == "box" && Attr(el, "vertical") == "true");
+            bool horizontal;
+            if (n == "hbox" || n == "boxfiller")
+                horizontal = true;
+            else if (n == "vbox")
+                horizontal = false;
+            else
+                // widget_loader.cpp:122-131：<box> 只认 horizontal/vertical；两者皆无 → align 无横位
+                // → Box::onResize 走 else 分支（纵轴）。
+                horizontal = Attr(el, "horizontal") == "true";
+
             RectTransform host = UiKit.CreateRect(
-                el.Attribute("id")?.Value ?? (vertical ? "VBox" : "HBox"), parent);
+                el.Attribute("id")?.Value ?? (horizontal ? "HBox" : "VBox"), parent);
             ctx.RegisterId(el.Attribute("id")?.Value, host);
             UiLayout.Ignore(host.gameObject);
 
             var box = new BoxNode
             {
-                Horizontal = !vertical,
+                Horizontal = horizontal,
                 Homogeneous = Attr(el, "homogeneous") == "true",
-                ChildSpacing = 0f,     // ui::Box 默认 childspacing=0（widget.cpp）
+                ChildSpacing = DefaultChildSpacing,   // skin_theme.cpp:1154
+                Border = IntAttr(el, "border", 0),
                 Host = host,
             };
+            // noborders（widget_loader.cpp:639-641）先归零；childspacing 属性后置覆盖。
+            if (Attr(el, "noborders") == "true")
+                box.ChildSpacing = 0;
+            if (Attr(el, "childspacing") != null)
+                box.ChildSpacing = IntAttr(el, "childspacing", box.ChildSpacing);
+            box.Expansive = n == "boxfiller";
             ctx.RegisterNode(el.Attribute("id")?.Value, box);
 
             foreach (XElement child in el.Elements())
             {
-                // 空的 expansive 盒 = 弹性空位：按源码是**可见的零尺寸件**（参与摊宽、
-                // 自身不渲染）——隐藏会被布局跳过，右沉语义就丢了。
-                bool isSpacer = Attr(child, "expansive") == "true" && !HasLayoutChildren(child);
-                AwNode node;
-                if (isSpacer)
-                {
-                    RectTransform spacerHost = UiKit.CreateRect("Spacer", host);
-                    UiLayout.Ignore(spacerHost.gameObject);
-                    node = new LeafNode { Rect = spacerHost, Hint = () => Vector2.zero };
-                }
-                else
-                {
-                    node = BuildNode(child, host, ctx);
-                    if (node == null)
-                        node = new LeafNode { Rect = CreateDummy(host), Hint = () => Vector2.zero };
-                }
+                AwNode node = BuildNode(child, host, ctx);
+                if (node == null)
+                    node = new LeafNode { Rect = CreateDummy(host), Hint = () => Vector2.zero, Hidden = true };
                 box.Kids.Add(node);
-                box.Expansive.Add(isSpacer || Attr(child, "expansive") == "true");
+                box.Expansive2.Add(node.Expansive);
             }
             return box;
         }
@@ -514,74 +1066,123 @@ namespace PirateCrew.UI.DebugUi
             return dummy;
         }
 
-        static bool HasLayoutChildren(XElement el)
-        {
-            foreach (XElement child in el.Elements())
-            {
-                string n = child.Name.LocalName;
-                if (n != "tooltip")
-                    return true;
-            }
-            return false;
-        }
-
         static AwNode BuildGrid(XElement el, RectTransform parent, BuildContext ctx)
         {
+            int columns = IntAttr(el, "columns", 0);
+            if (columns <= 0)
+            {
+                // widget_loader.cpp:250-257：无 columns 不建 Grid（元素被丢弃）。
+                Debug.LogWarning("[AseDialogLoader] <grid> 缺 columns（" + ctx.WidgetName + "）跳过");
+                return null;
+            }
+
+            RectTransform host = UiKit.CreateRect(el.Attribute("id")?.Value ?? "Grid", parent);
+            ctx.RegisterId(el.Attribute("id")?.Value, host);
+            UiLayout.Ignore(host.gameObject);
+
             var grid = new GridNode
             {
-                Columns = int.TryParse(Attr(el, "columns"), out int cols) ? Mathf.Max(1, cols) : 2,
+                Columns = columns,
+                SameWidthColumns = Attr(el, "same_width_columns") == "true",
+                ChildSpacing = DefaultChildSpacing,   // skin_theme.cpp:1174
+                Border = IntAttr(el, "border", 0),
+                Host = host,
             };
+            if (Attr(el, "noborders") == "true")
+                grid.ChildSpacing = 0;
+            if (Attr(el, "childspacing") != null)
+                grid.ChildSpacing = IntAttr(el, "childspacing", grid.ChildSpacing);
+            ctx.RegisterNode(el.Attribute("id")?.Value, grid);
+
             foreach (XElement child in el.Elements())
             {
-                AwNode node = BuildNode(child, parent, ctx);
+                AwNode node = BuildNode(child, host, ctx);
                 if (node == null)
                 {
-                    grid.Cells.Add(new LeafNode { Hidden = true });
-                    grid.CellAlign.Add(0);
+                    grid.AddCell(new LeafNode { Rect = CreateDummy(host), Hint = () => Vector2.zero, Hidden = true },
+                        1, 1, 0);
                     continue;
                 }
-                grid.Cells.Add(node);
-                grid.CellAlign.Add(GridNode.EncodeAlign(Attr(child, "cell_align")));
+                int hspan = IntAttr(child, "cell_hspan", 1);
+                int vspan = IntAttr(child, "cell_vspan", 1);
+                int align = EncodeAlign(Attr(child, "cell_align"));   // convert_align_value_to_flags
+                grid.AddCell(node, hspan, vspan, align);
             }
             return grid;
+        }
+
+        /// <summary>convert_align_value_to_flags（widget_loader.cpp:740-777）全 token；
+        /// 位值与 ui::align 一致（base.h:41-49）。</summary>
+        static int EncodeAlign(string attr)
+        {
+            int flags = 0;
+            if (string.IsNullOrEmpty(attr))
+                return flags;
+            foreach (string tok in attr.Split(' '))
+            {
+                switch (tok)
+                {
+                    case "horizontal": flags |= HORIZONTAL; break;
+                    case "vertical": flags |= VERTICAL; break;
+                    case "left": flags |= LEFT; break;
+                    case "center": flags |= CENTER; break;
+                    case "right": flags |= RIGHT; break;
+                    case "top": flags |= TOP; break;
+                    case "middle": flags |= MIDDLE; break;
+                    case "bottom": flags |= BOTTOM; break;
+                    case "homogeneous": flags |= 0x01000000; break;
+                }
+            }
+            return flags;
         }
 
         static AwNode BuildSeparator(XElement el, RectTransform parent, BuildContext ctx)
         {
             string text = ctx.Text(el.Attribute("text")?.Value);
-            if (!string.IsNullOrEmpty(text))
+            bool hasText = !string.IsNullOrEmpty(text);
+            // theme horizontal_separator：border=2；文字层 x=4 align left middle；
+            // background-border part separator_horz（9×5 无切片 → calcWidgetMetrics 记入 iconHint）。
+            float textW = hasText ? TextWidth(text) : 0f;
+            float textH = hasText ? LineH : 0f;
+            Vector2 hint = CalcHint(
+                2, 2, 2, 2,   // borderHint = style border 2（applyOnlyDefinedBorders）
+                0, 0, 0, 0,   // padding 0
+                textW + 4f, textH, LEFT | MIDDLE,
+                9f, 5f, CENTER | MIDDLE);
+
+            if (hasText)
             {
                 RectTransform host = UiKit.CreateRect("Sep", parent);
                 UiLayout.Ignore(host.gameObject);
-                float titleW = Mathf.Ceil(TextWidth(text));
+                float titleW = Mathf.Ceil(textW);
                 var label = DebugWindowKit.Label(host, text, UiSkin.Font.Tiny,
                     PixelSkin.Theme.SeparatorLabel, TMPro.TextAlignmentOptions.Left);
-                label.rectTransform.anchorMin = label.rectTransform.anchorMax =
-                    label.rectTransform.pivot = new Vector2(0f, 1f);
-                label.rectTransform.anchoredPosition = new Vector2(2f, 0f);
-                label.rectTransform.sizeDelta = new Vector2(titleW + 4f, 12f);
+                RectTransform lr = label.rectTransform;
+                lr.anchorMin = lr.anchorMax = lr.pivot = new Vector2(0f, 0.5f);
+                lr.anchoredPosition = new Vector2(4f, 0f);   // style text x=4
+                lr.sizeDelta = new Vector2(titleW + 2f, LineH);
+                float lineX = 4f + titleW + 2f;
                 RectTransform line = (RectTransform)SketchSeparator.Create(host, "Line",
-                    new Vector2(0f, 1f), new Vector2(0f, 1f),
-                    new Vector2(2f + titleW + 2f, -6f), new Vector2(100f, 1f),
+                    new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+                    new Vector2(lineX, 0f), new Vector2(100f, 1f),
                     SketchSeparator.Direction.Horizontal).transform;
-                // separator.cpp:35-60：文字时宽 = textWidth（左右 style 边加倍≈+4）
                 return new LeafNode
                 {
                     Rect = host,
-                    Hint = () => new Vector2(titleW + 8f, 12f),
-                    Resize = w => line.sizeDelta = new Vector2(Mathf.Max(4f, w - titleW - 6f), 1f),
+                    Hint = () => hint,
+                    Resize = w => line.sizeDelta = new Vector2(Mathf.Max(1f, w - lineX), 1f),
                 };
             }
 
             RectTransform lineHost = UiKit.CreateRect("SepLine", parent);
             UiLayout.Ignore(lineHost.gameObject);
             RectTransform plain = (RectTransform)SketchSeparator.Create(lineHost, "Line",
-                new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero, new Vector2(100f, 1f),
+                new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(100f, 1f),
                 SketchSeparator.Direction.Horizontal).transform;
             return new LeafNode
             {
                 Rect = lineHost,
-                Hint = () => new Vector2(0f, 1f),     // 无文字分隔线：横贯（宽由格/盒给）
+                Hint = () => hint,
                 Resize = w => plain.sizeDelta = new Vector2(w, 1f),
             };
         }
@@ -593,11 +1194,16 @@ namespace PirateCrew.UI.DebugUi
                 PixelSkin.Theme.Text, TMPro.TextAlignmentOptions.Left);
             label.gameObject.name = "Label_" + (el.Attribute("id")?.Value ?? text);
             ctx.RegisterId(el.Attribute("id")?.Value, label);
-            // Widget 默认 hint = 文字尺寸 + style padding(label=1)×2
+            // theme label：padding=1，text align left；Widget::onSizeHint → calcWidgetMetrics。
+            Vector2 hint = CalcHint(
+                0, 0, 0, 0,
+                1, 1, 1, 1,
+                TextWidth(text), LineH, LEFT,
+                0f, 0f, CENTER | MIDDLE);
             return new LeafNode
             {
                 Rect = label.rectTransform,
-                Hint = () => new Vector2(TextWidth(text) + 2f, 12f),
+                Hint = () => hint,
             };
         }
 
@@ -605,11 +1211,16 @@ namespace PirateCrew.UI.DebugUi
         {
             bool numeric = el.Name.LocalName == "expr";
             string suffix = Attr(el, "suffix");
-            // entry.cpp:486：w = "w"字符宽 × min(maxsize,6) + max(后缀宽, 2×光标宽) + 边框
-            float borderW = PartBorderWidth("sunken");
+            // entry.cpp:479-493：trailing = max(textLength(suffix), 2*caret.w)；
+            // w = textLength("w") * min(maxsize,6) + trailing + border.width()，夹 400。
+            int maxsize = numeric ? 1024 : IntAttr(el, "maxsize", 6);   // ExprEntry 默认 1024
+            int chars = Mathf.Min(maxsize, 6);
+            float borderW = PartBorder("sunken_normal").x + PartBorder("sunken_normal").z;
+            float borderH = PartBorder("sunken_normal").y + PartBorder("sunken_normal").w;
             float suffixW = string.IsNullOrEmpty(suffix) ? 0f : TextWidth(suffix);
-            float w = 5f * EntryCharsW + Mathf.Max(suffixW, 4f) + borderW;
-            float h = 12f + PartBorderHeight("sunken");
+            float w = WChar * chars + Mathf.Max(suffixW, Caret2) + borderW;
+            w = Mathf.Min(w, MaxEntryHintW);
+            float h = LineH + borderH;
 
             TMP_InputField.ContentType type = numeric
                 ? TMP_InputField.ContentType.IntegerNumber
@@ -629,50 +1240,100 @@ namespace PirateCrew.UI.DebugUi
             string text = ctx.Text(el.Attribute("text")?.Value);
             Button check = AseWidgetKit.CheckRow(parent, text, 0f, 0f, false, null);
             ctx.RegisterId(el.Attribute("id")?.Value, check);
-            // 近似（覆盖表登记）：图标 8 + 缝 4 + 文字 + padding 1×2
+            // theme check_box：border=2；text align left middle x=14；icon check_normal 8×8 x=2。
+            // calcWidgetMetrics：text/icon 横对齐相同 → w += max(textW+14, 8+2)；纵相同 → h += max(textH,8)。
+            Vector2 hint = CalcHint(
+                2, 2, 2, 2,
+                0, 0, 0, 0,
+                TextWidth(text) + 14f, LineH, LEFT | MIDDLE,
+                10f, 8f, LEFT | MIDDLE);
             return new LeafNode
             {
                 Rect = (RectTransform)check.transform,
-                Hint = () => new Vector2(8f + CheckIconGap + TextWidth(text) + 2f, 16f),
+                Hint = () => hint,
             };
         }
 
         static AwNode BuildButtonset(XElement el, RectTransform parent, BuildContext ctx)
         {
-            var box = new BoxNode { Horizontal = true, Homogeneous = true, ChildSpacing = 0f };
+            int columns = IntAttr(el, "columns", 0);
+            if (columns <= 0)
+            {
+                Debug.LogWarning("[AseDialogLoader] <buttonset> 缺 columns（" + ctx.WidgetName + "）跳过");
+                return null;
+            }
+
+            RectTransform host = UiKit.CreateRect(el.Attribute("id")?.Value ?? "ButtonSet", parent);
+            ctx.RegisterId(el.Attribute("id")?.Value, host);
+            UiLayout.Ignore(host.gameObject);
+
+            // ButtonSet : Grid（button_set.cpp:194-208）：noBorderNoChildSpacing + buttonset 样式
+            // gap-rows=-3 / gap-columns=-1（theme.xml:1070）。
+            var grid = new GridNode
+            {
+                Columns = columns,
+                SameWidthColumns = false,
+                ChildSpacing = 0,      // noBorderNoChildSpacing
+                Border = 0,
+                ColGap = -1,
+                RowGap = -3,
+                Host = host,
+            };
+            ctx.RegisterNode(el.Attribute("id")?.Value, grid);
+
             var controls = new List<Button>();
             foreach (XElement itemEl in el.Elements("item"))
             {
                 string text = ctx.Text(itemEl.Attribute("text")?.Value);
                 string icon = itemEl.Attribute("icon")?.Value;
+                int hspan = IntAttr(itemEl, "hspan", 1);
+                int vspan = IntAttr(itemEl, "vspan", 1);
+                bool hasIcon = !string.IsNullOrEmpty(icon) && PixelSkin.Ase(icon) != null;
+                bool hasText = !string.IsNullOrEmpty(text);
+
+                float textW = TextWidth(text);
+                Vector2 iconSize = hasIcon ? PixelSkin.Ase(icon).rect.size : Vector2.zero;
+
                 Button item;
-                float hintW, hintH;
-                if (!string.IsNullOrEmpty(icon))
+                Vector2 hint;
+                if (hasIcon)
                 {
-                    var iconItem = SketchButtonSetIcon.Create(parent,
-                        "Item_" + text, text, icon, Vector2.zero, new Vector2(60f, 36f));
+                    var iconItem = SketchButtonSetIcon.Create(host, "Item_" + text, text, icon,
+                        Vector2.zero, new Vector2(60f, 36f));
                     item = iconItem;
-                    // 图文变体（theme buttonset_item_text_top_icon_bottom）：边框 3/5 + 字 + 2 + 16 图标 + 1
-                    hintW = Mathf.Max(TextWidth(text), 16f) + 6f;
-                    hintH = 8f + 2f + 16f + 1f + 8f;
+                    if (hasText)
+                    {
+                        // buttonset_item_text_top_icon_bottom：border 3/5 + padding-top2/bottom1，
+                        // text align top / icon align bottom（theme.xml:1108-1122）。
+                        hint = CalcHint(3, 3, 3, 5, 0, 2, 0, 1,
+                            textW, LineH, TOP, iconSize.x, iconSize.y, BOTTOM);
+                    }
+                    else
+                    {
+                        // buttonset_item_icon：仅 icon（theme.xml:1081-1085）。
+                        hint = CalcHint(3, 3, 3, 5, 0, 0, 0, 0,
+                            0f, 0f, CENTER | MIDDLE, iconSize.x, iconSize.y, CENTER | MIDDLE);
+                    }
                 }
                 else
                 {
-                    var textItem = SketchButtonSet.Create(parent, "Item_" + text, text,
+                    var textItem = SketchButtonSet.Create(host, "Item_" + text, text,
                         DebugWindowKit.HandFont, UiSkin.Font.Tiny,
                         Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(60f, 16f));
                     item = textItem;
-                    hintW = TextWidth(text) + 6f;
-                    hintH = 16f;
+                    // buttonset_item_text：border 3/5 + padding=1（theme.xml:1098-1107）。
+                    hint = CalcHint(3, 3, 3, 5, 1, 1, 1, 1,
+                        textW, LineH, CENTER | MIDDLE, 0f, 0f, CENTER | MIDDLE);
                 }
+
                 controls.Add(item);
-                box.Kids.Add(new LeafNode
+                grid.AddCell(new LeafNode
                 {
                     Rect = (RectTransform)item.transform,
-                    Hint = () => new Vector2(hintW, hintH),
-                });
-                box.Expansive.Add(false);
+                    Hint = () => hint,
+                }, hspan, vspan, HORIZONTAL | VERTICAL);   // button_set.cpp:257
             }
+
             // 互斥单选（buttonset 语义）
             for (int i = 0; i < controls.Count; i++)
             {
@@ -686,7 +1347,7 @@ namespace PirateCrew.UI.DebugUi
             if (controls.Count > 0)
                 SetActive(controls[0], true);
             ctx.RegisterId(el.Attribute("id")?.Value, controls.Count > 0 ? controls[0] : null);
-            return box;
+            return grid;
         }
 
         static void SetActive(Button item, bool on)
@@ -704,7 +1365,7 @@ namespace PirateCrew.UI.DebugUi
                 options.Add(ctx.Text(li.Attribute("text")?.Value));
             if (options.Count == 0)
                 options.Add(string.Empty);
-            float w = 150f;   // combobox = entry hint + 箭头钮 16（近似定宽，覆盖表登记）
+            float w = 150f;   // 近似：源 ComboBox 复合件（entry + mini_button 箭头）未逐行，覆盖表登记
             TextMeshProUGUI value = AseWidgetKit.ComboBox(parent,
                 el.Attribute("id")?.Value ?? "Combo", 0f, 0f, w, options.ToArray(), 0,
                 popupOverlay: ctx.Window.parent);
@@ -712,19 +1373,19 @@ namespace PirateCrew.UI.DebugUi
             return new LeafNode
             {
                 Rect = (RectTransform)value.transform.parent,
-                Hint = () => new Vector2(w, 16f),
+                Hint = () => new Vector2(w, LineH + 8f),
             };
         }
 
         static AwNode BuildButton(XElement el, RectTransform parent, BuildContext ctx)
         {
             string text = ctx.Text(el.Attribute("text")?.Value);
-            float minW = float.TryParse(Attr(el, "minwidth"), out float mw) ? mw : 0f;
-            Vector4 border = PartBorder("button_normal");
-            float hintW = Mathf.Max(minW, TextWidth(text) + border.x + border.z);
-            float hintH = 16f;
+            // theme button：border = button_normal 切片 4/4/4/6；text align center middle。
+            Vector4 b = PartBorder("button_normal");
+            Vector2 hint = CalcHint(b.x, b.w, b.z, b.y, 0, 0, 0, 0,
+                TextWidth(text), LineH, CENTER | MIDDLE, 0f, 0f, CENTER | MIDDLE);
             var button = SketchButton.Create(parent, "Btn_" + text,
-                Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(hintW, hintH),
+                Vector2.zero, Vector2.zero, Vector2.zero, hint,
                 DebugWindowKit.HandFont, text, UiSkin.Font.Tiny);
             ctx.RegisterId(el.Attribute("id")?.Value, button);
             if (Attr(el, "closewindow") == "true")
@@ -735,7 +1396,7 @@ namespace PirateCrew.UI.DebugUi
             return new LeafNode
             {
                 Rect = (RectTransform)button.transform,
-                Hint = () => new Vector2(hintW, hintH),
+                Hint = () => hint,
             };
         }
 
@@ -744,6 +1405,33 @@ namespace PirateCrew.UI.DebugUi
         // ------------------------------------------------------------------
 
         static string Attr(XElement el, string name) => el?.Attribute(name)?.Value;
+
+        static int IntAttr(XElement el, string name, int fallback)
+        {
+            string v = Attr(el, name);
+            return v != null && int.TryParse(v, out int n) ? n : fallback;
+        }
+
+        /// <summary>theme.cpp calcWidgetMetrics（:782-829）的合并口径：
+        /// sizeHint = border + padding + text/icon（对齐轴相同则取 max，不同则相加）。</summary>
+        static Vector2 CalcHint(
+            float bl, float bt, float br, float bb,
+            float pl, float pt, float pr, float pb,
+            float textW, float textH, int textAlign,
+            float iconW, float iconH, int iconAlign)
+        {
+            float w = bl + br + pl + pr;
+            float h = bt + bb + pt + pb;
+            if (AlignH(textAlign) == AlignH(iconAlign))
+                w += Mathf.Max(textW, iconW);
+            else
+                w += textW + iconW;
+            if (AlignV(textAlign) == AlignV(iconAlign))
+                h += Mathf.Max(textH, iconH);
+            else
+                h += textH + iconH;
+            return new Vector2(w, h);
+        }
 
         /// <summary>TMP 位图字估宽（CJK 全宽 8 / ASCII 5——同 AseMenuKit 口径）。</summary>
         static float TextWidth(string text)
@@ -763,18 +1451,6 @@ namespace PirateCrew.UI.DebugUi
         {
             Sprite s = PixelSkin.Ase(partId);
             return s != null ? s.border : Vector4.zero;   // x=左 y=下 z=右 w=上
-        }
-
-        static float PartBorderWidth(string partId)
-        {
-            Vector4 b = PartBorder(partId);
-            return b.x + b.z;
-        }
-
-        static float PartBorderHeight(string partId)
-        {
-            Vector4 b = PartBorder(partId);
-            return b.y + b.w;
         }
     }
 
