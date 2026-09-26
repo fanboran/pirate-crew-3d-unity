@@ -8,9 +8,14 @@ namespace PirateCrew.UI.DebugUi
 {
     /// <summary>
     /// 调试面板公共小件工厂（theme 语义件的一次调用版本）——「一个小界面几百行」的
-    /// 架构病收口：凹槽输入框 / 复选行 / 两件套组合框 / 悬停换面，全在此一处实现，
+    /// 架构病收口：凹槽输入框 / 复选行 / 两件套组合框，全在此一处实现，
     /// 各面板（实摆画廊、New Sprite 对话框…）只声明布局与行为。
     /// 件与色的出处同各调用点注释：theme.xml 对应 style/parts 条目。
+    ///
+    /// 刻意不再提供的：通用「悬停换面」件。Aseprite 的悬停态是**逐件按 styles 表**给的
+    /// （check_box/button 有 mouse 层，list_item/tab **没有**），一个通用 HoverFace 会把
+    /// 有悬停的件和没悬停的件一起点亮——列表行的「悬停变暗」正是这么错的。
+    /// 复选行的鼠标态见 <see cref="AseCheckBoxFace"/>，列表行见 <see cref="AseListBox"/>。
     /// </summary>
     public static class AseWidgetKit
     {
@@ -70,8 +75,11 @@ namespace PirateCrew.UI.DebugUi
         // 复选
         // ------------------------------------------------------------------
 
-        /// <summary>复选行（theme check_box：常态透明面 / 悬停亮面 #575B61 / 图标 8×8 @x2 /
-        /// 文字 @x14）。返回行根（可再查 Icon 换图标）。图标名前缀 "check"/"radio" 皆可。</summary>
+        /// <summary>复选/单选行（theme check_box / radio_button：**常态无底色层**，
+        /// <c>state="mouse"</c> 才铺 <c>check_hot_face</c>/<c>radio_hot_face</c> #575B61；
+        /// 图标 8×8 @x2 或 @x14 文字）。行宽按件表尺寸提示实收
+        /// （8 图标 + 2 左缩 + 4 缝 + 文字 + 2 右边框）——悬停面的**范围**必须等于件本身，
+        /// 旧版固定 160 宽会把文字右侧的空白也点亮。返回行根（可再查 Icon 换图标）。</summary>
         public static Button CheckRow(RectTransform parent, string label, float x, float y,
             bool initial, System.Action<bool> onChanged, string kind = "check")
         {
@@ -79,13 +87,12 @@ namespace PirateCrew.UI.DebugUi
             RectTransform rect = rowGo.GetComponent<RectTransform>();
             rect.SetParent(parent, false);
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-            rect.sizeDelta = new Vector2(160f, 16f);
             rect.anchoredPosition = new Vector2(x, -y);
 
             var face = rowGo.AddComponent<Image>();
             face.color = new Color(0f, 0f, 0f, 0f);
             face.raycastTarget = true;
-            rowGo.AddComponent<HoverFace>().Bind(face, new Color32(0x57, 0x5B, 0x61, 0xFF));
+            rowGo.AddComponent<AseCheckBoxFace>().Bind(face, kind == "radio");
 
             var icon = UiKit.CreateRect("Icon", rect);
             icon.anchorMin = icon.anchorMax = icon.pivot = new Vector2(0f, 1f);
@@ -94,7 +101,11 @@ namespace PirateCrew.UI.DebugUi
             var iconImage = icon.gameObject.AddComponent<Image>();
             iconImage.raycastTarget = false;
 
-            DebugWindowKit.PlaceLabel(rect, label, UiSkin.Font.Tiny, PixelSkin.Theme.Text, 14f, 0f, 140f);
+            TextMeshProUGUI labelText = DebugWindowKit.PlaceLabel(rect, label, UiSkin.Font.Tiny,
+                PixelSkin.Theme.Text, 14f, 0f, 140f);
+
+            // 尺寸提示（件表）：文字 @x14 + 正文宽 + 右边框 2（图标侧 2+8+4 = 14 已含在 x14 里）
+            rect.sizeDelta = new Vector2(14f + Mathf.Ceil(labelText.preferredWidth) + 2f, 16f);
 
             var button = rowGo.AddComponent<Button>();
             button.transition = Selectable.Transition.None;
@@ -191,69 +202,33 @@ namespace PirateCrew.UI.DebugUi
         }
     }
 
-    /// <summary>悬停换底色/字色（check 系亮面 #575B61 / 列表变暗 #2C2C30+字灰——两向都支持）。
-    /// 公共件：画廊列表、复选行共用。<see cref="Locked"/> 置位时悬停换色让位
-    /// （列表选中行的金底不能被「悬停离开恢复常态」覆写掉）。</summary>
-    public sealed class HoverFace : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    /// <summary>复选/单选行的鼠标态（唯一的一层额外底色）：theme <c>check_box</c> /
+    /// <c>radio_button</c> 样式 <c>&lt;background color="check_hot_face" state="mouse"/&gt;</c>
+    /// （#575B61，radio 同名色）。常态**没有**底色层（非 disabled/focus/mouse 时不铺任何 background），
+    /// 所以退出即回到全透明。禁用态 #2C2C30、焦点态 #41444A + check_focus 环、以及
+    /// <c>state="mouse disabled"</c> 的回落都未移植（调试面板没有禁用/键盘焦点两种态）。</summary>
+    public sealed class AseCheckBoxFace : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     {
         Image _face;
-        TextMeshProUGUI _text;
-        Color32 _hoverFace;
-        Color32 _normalFace;
-        Color32 _hoverText;
-        Color32 _normalText;
-        bool _hasFacePair;
-        bool _hasTextPair;
+        Color32 _hot;
 
-        /// <summary>锁定常态（选中行：悬停不再改色，退出也不再恢复）。</summary>
-        public bool Locked;
-
-        /// <summary>常态透明面 → 悬停换色（check 系语义）。</summary>
-        public void Bind(Image face, Color32 hover)
+        public void Bind(Image face, bool radio)
         {
             _face = face;
-            _hoverFace = hover;
-        }
-
-        /// <summary>常态有面 → 悬停/常态成对面色（列表语义）。</summary>
-        public void Bind(Image face, Color32 hover, Color32 normal)
-        {
-            Bind(face, hover);
-            _normalFace = normal;
-            _hasFacePair = true;
-        }
-
-        /// <summary>面色 + 字色成对换（列表悬停变暗 + 字灰 #7d7d7d——menuitem_hot 对）。</summary>
-        public void Bind(Image face, Color32 hover, Color32 normal,
-            TextMeshProUGUI text, Color32 hoverText, Color32 normalText)
-        {
-            Bind(face, hover, normal);
-            _text = text;
-            _hoverText = hoverText;
-            _normalText = normalText;
-            _hasTextPair = true;
+            // theme.xml <color id="check_hot_face"> = <color id="radio_hot_face"> = #575B61
+            _hot = PixelSkin.Theme.HotFace;
         }
 
         public void OnPointerEnter(PointerEventData eventData)
         {
-            if (Locked)
-                return;
             if (_face != null)
-                _face.color = _hoverFace;
-            if (_text != null && _hasTextPair)
-                _text.color = _hoverText;
+                _face.color = _hot;
         }
 
         public void OnPointerExit(PointerEventData eventData)
         {
-            if (Locked)
-                return;
-            if (_face != null && _hasFacePair)
-                _face.color = _normalFace;
-            else if (_face != null)
+            if (_face != null)
                 _face.color = new Color(0f, 0f, 0f, 0f);
-            if (_text != null && _hasTextPair)
-                _text.color = _normalText;
         }
     }
 }
