@@ -980,6 +980,40 @@ Check/Radio/Scrollbar 包装器迁移后零引用待清（域外）。
 陈列格件图居中、新建对话框切换后当前项白面+琥珀虚线环（原版同款）。
 探针（commit `7b41ef5e`）已含气泡悬停样本 + dbg-probe 延时拍帧，修复后取证用。
 
+## 三之十、紧致化重构波：四单点内核 + AseButtonBase + 五波收敛（2026-09-27，创始人令「按 Unity 最佳实践翻译/紧致化/彻底提取公共操作/agent 迭代」）
+
+**架构落地**（对应 §三之九 的四不变量对策）：
+- `AseUi`（UI/Debug/AseUi.cs）四单点：`OverlayOf`（弹层宿主=画布根）、`EdgesOf`/`PlaceByEdges`
+  （世界→宿主边距唯一换算；双重锚点/锚漏算两案的病根收敛为一处实现）、`SetPart`/`SetRawPart`
+  （件挂皮；后者带 Tiled 参数给点状蚀刻线）、`ClipViewport`（视口裁剪必经门）。
+- `AseButtonBase : Button`（Stick/Controls/）——`Active`/`StyleId`/`FlagsOf`/`InitAseSkin`/
+  `ApplySkin` 公共化；三按钮类删 313 行。**UGUI SelectionState 是 protected，状态映射只能
+  住 Selectable 子类**——外部静态类放不了（CS0122 实证）。
+- 五波 agent（文件域互斥、各自 worktree、harness 真门）：W1 View族 -11 / W2 AseMenuKit -47
+  （FindOverlay 退役）/ W3 装载器族 -31（popupOverlay 退役）/ W4 Stick族 -138 /
+  W5 面板族 -70——**合计净 -297 行**。
+- 协调者收口两笔：tooltip 半宽修正（见下）+ 组合框弹层宿主统一 OverlayOf
+  （W3 登记：嵌套在 vbox/grid 里的装载器组合框，旧 `parent.parent` 会把弹层挂进窗内）。
+
+**验证闭环（本轮核心基建，后续每波照用）**：`temp/ase-refactor` 集成 worktree + 独立验证
+编辑器（CWD=工程目录，桥/flag 路径按 worktree 隔离）——基线七拍（MainMenu+六个 dbg overlay）
+→ 合波 → refresh+recompile → 同机位重拍 → `external/ui-refactor-diff.py` 逐像素 diff。
+**结果：六张逐位全同（0/2073600）；dbg-probe 唯一差异带 = 气泡水平半宽修正**——树转储
+铁证（基线气泡文本 x=487.5 相位 0.5px，修后 x=391 相位 0），系 §三之九 五修里我自己埋的
+半宽偏移（转左上锚时忘减半宽），W5 忠实保留、收口时真居中。基线存 `external/refactor-baseline/`。
+
+**流水线教训（三条，均已在本轮踩实）**：
+1. **新文件必须先 `refresh` 再 `recompile`**——RequestScriptCompilation 只重编已导入源，
+   新增 AseButtonBase.cs 不导入就编译=新旧混合 CS0246（harness 直编源码测不出这类）；
+2. Bash 工作目录在调用间持久——worktree 曾因此建进 `pirate-crew/Temp/`（Unity 自清目录）
+   而失踪；**一律绝对路径**；
+3. 桥按内容去重：连续两发 recompile 第二发会被 `_lastCommand` 吞掉，中间插一发 refresh 换键。
+
+**登记遗留（下轮候选）**：WindowDragger 拖动钳制 24/-6 vs 源 border=6/0（window.cpp:782-810）；
+`_overlayW/_overlayH` workarea 快照过期隐患（W2 登记）；`EdgesOf` 仅左上角出口（右下角
+两波仍手写同式）；带可见底色的视口须先挂 Image 再 ClipViewport（W5 口径）；
+AseButtonBase.Active setter 冗余一次 DST（幂等，按现行行为保留）。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
