@@ -59,7 +59,10 @@ namespace PirateCrew.UI.Stick
         private void OnEnable() => Apply();
 
         /// <summary>
-        /// 方向 → theme 直切件 <c>separator_horz</c> / <c>separator_vert</c>（sheet.png 32,80 / 32,96）。
+        /// 方向 → theme 直切件。件 id 由 <see cref="AseThemeLayers"/> 从 theme.xml
+        /// <c>&lt;style id="horizontal_separator"&gt;</c> / <c>&lt;style id="vertical_separator"&gt;</c>
+        /// 的 background-border 层解析（<c>separator_horz</c> 32,80 / <c>separator_vert</c> 32,96，
+        /// 无状态层）。
         /// **必须 Tiled**：件是 3 像素周期的点状线，拉伸会把点拉成实线（旧实现走自绘/自烘的
         /// 1u 实线件，与库不同——本波改回库里那件）。
         /// </summary>
@@ -68,7 +71,10 @@ namespace PirateCrew.UI.Stick
             var image = GetComponent<Image>();
             if (image == null)
                 image = gameObject.AddComponent<Image>();
-            image.sprite = PixelSkin.Ase(Dir == Direction.Horizontal ? "separator_horz" : "separator_vert");
+            string styleId = Dir == Direction.Horizontal ? "horizontal_separator" : "vertical_separator";
+            string part = AseThemeLayers.ResolveBackgroundPart(styleId, AseStates.None);
+            if (part != null)
+                image.sprite = PixelSkin.Ase(part);
             image.type = Image.Type.Tiled;
             image.pixelsPerUnitMultiplier = 1f;   // ×1 终局：贴图纹素 = 画布像素
             image.color = Color.white;      // 像素件禁止乘色：线色烘在贴图里

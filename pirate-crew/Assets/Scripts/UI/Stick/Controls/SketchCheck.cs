@@ -81,24 +81,52 @@ namespace PirateCrew.UI.Stick
             return check;
         }
 
-        /// <summary>悬停底：常态全透明，mouse/selected 铺 HotFace（ColorTint 只作用于本 Graphic）。</summary>
+        /// <summary>
+        /// 悬停/焦点底：底色层由 <see cref="AseThemeLayers"/> 从 theme.xml
+        /// <c>&lt;style id="check_box"/&gt;/&lt;style id="radio_button"/&gt;</c> 的 background 层解析
+        /// （常态无 background 层 → 全透明；mouse → check_hot_face #575B61；focus → check_focus_face
+        /// #41444A；disabled → face #2C2C30）。ColorTint 只作用于本 Graphic，底色件应白底不预乘，
+        /// 否则 tint 再乘一层（旧版 bg.color=HotFace + selectedColor=Background 相乘 ≈ #16181C 的算错已修）。
+        /// </summary>
         Graphic BuildBackground(RectTransform root)
         {
             var bg = root.gameObject.AddComponent<Image>();
             bg.sprite = null;
-            bg.color = PixelSkin.Theme.HotFace;
+            bg.color = Color.white;   // 像素件禁止乘色：色由 ColorBlock tint 精确给出
             bg.raycastTarget = true;
+            string styleId = StyleId;
             var colorsBlock = colors;
-            colorsBlock.normalColor = new Color(1f, 1f, 1f, 0f);
-            colorsBlock.highlightedColor = Color.white;                 // mouse → check_hot_face(#575B61)
-            // theme：focus 面是 check_focus_face = **#41444a**（不是悬停面）；焦点描边件
-            // check_focus（9 切片 2/6/2）已烘未接，见交接档打磨清单第⑤项。
-            colorsBlock.selectedColor = PixelSkin.Theme.Background;
-            colorsBlock.pressedColor = Color.white;
-            colorsBlock.disabledColor = new Color(1f, 1f, 1f, 0f);
+            colorsBlock.normalColor = TintFor(styleId, SelectionState.Normal);
+            colorsBlock.highlightedColor = TintFor(styleId, SelectionState.Highlighted);
+            colorsBlock.pressedColor = TintFor(styleId, SelectionState.Pressed);
+            colorsBlock.selectedColor = TintFor(styleId, SelectionState.Selected);
+            colorsBlock.disabledColor = TintFor(styleId, SelectionState.Disabled);
             colorsBlock.fadeDuration = 0f;
             colors = colorsBlock;
             return bg;
+        }
+
+        /// <summary>本控件对应的 theme 样式 id（施工期 Radio 已定，运行期不变）。</summary>
+        string StyleId => Radio ? "radio_button" : "check_box";
+
+        /// <summary>UGUI 选择态 → Aseprite 状态位（按下 = 悬停 + 捕获）。</summary>
+        static AseStates FlagsFor(SelectionState state)
+        {
+            switch (state)
+            {
+                case SelectionState.Disabled: return AseStates.Disabled;
+                case SelectionState.Pressed: return AseStates.Mouse | AseStates.Capture;
+                case SelectionState.Selected: return AseStates.Focus;
+                case SelectionState.Highlighted: return AseStates.Mouse;
+                default: return AseStates.None;
+            }
+        }
+
+        /// <summary>某 UGUI 态的底色 tint；引擎无命中层 → 全透明（如 check 常态）。</summary>
+        static Color TintFor(string styleId, SelectionState state)
+        {
+            Color32? c = AseThemeLayers.ResolveBackgroundColor(styleId, FlagsFor(state));
+            return c.HasValue ? (Color)c.Value : new Color(1f, 1f, 1f, 0f);
         }
 
         void BuildIcon(RectTransform root, float height)
@@ -155,7 +183,12 @@ namespace PirateCrew.UI.Stick
             Image icon = Icon;   // 走属性：场景重载后按名兜底重取
             if (icon == null)
                 return;
-            icon.sprite = Radio ? PixelSkin.Radio(_on) : PixelSkin.Check(_on);
+            // 选中图标由引擎按 state="selected" 层给出（check_selected / radio_selected）；
+            // 未选中 = state 缺省的常态件（check_normal / radio_normal）——换 sprite 不乘色。
+            string part = AseThemeLayers.ResolveIconPart(
+                StyleId, _on ? AseStates.Selected : AseStates.None);
+            if (part != null)
+                icon.sprite = PixelSkin.Ase(part);
         }
 
         /// <summary>

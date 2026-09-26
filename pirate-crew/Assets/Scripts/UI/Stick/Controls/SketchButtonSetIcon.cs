@@ -98,24 +98,58 @@ namespace PirateCrew.UI.Stick
             return item;
         }
 
-        /// <summary>按业务态挂皮（同 <see cref="SketchButtonSet.ApplySkin"/> 口径）。</summary>
+        /// <summary>按业务态挂皮（同 <see cref="SketchButtonSet.ApplySkin"/> 口径）。
+        /// 【状态层引擎】件 id 经 <see cref="AseThemeLayers"/> 从 theme.xml
+        /// <c>&lt;style id="buttonset_item"&gt;</c> 解析（<c>buttonset_item_text_top_icon_bottom</c>
+        /// 继承同一件表，底皮无差异）。</summary>
         public void ApplySkin()
         {
             var bg = targetGraphic as Image;
             if (bg != null)
             {
-                bg.sprite = PixelSkin.Ase(_active ? "buttonset_item_hot" : "buttonset_item_normal");
+                string part = PartOf(SelectionState.Normal);
+                if (part != null)
+                    bg.sprite = PixelSkin.Ase(part);
                 bg.type = Image.Type.Sliced;
                 bg.pixelsPerUnitMultiplier = 1f;
                 bg.color = Color.white;
             }
 
             SpriteState state = spriteState;
-            state.highlightedSprite = PixelSkin.Ase("buttonset_item_hot");
-            state.pressedSprite = PixelSkin.Ase("buttonset_item_pushed");
-            state.selectedSprite = PixelSkin.Ase("buttonset_item_focused");
-            state.disabledSprite = PixelSkin.Ase("buttonset_item_normal");
+            state.highlightedSprite = SpriteOf(SelectionState.Highlighted);
+            state.pressedSprite = SpriteOf(SelectionState.Pressed);
+            state.selectedSprite = SpriteOf(SelectionState.Selected);
+            state.disabledSprite = SpriteOf(SelectionState.Disabled);
             spriteState = state;
+        }
+
+        /// <summary>UGUI 选择态 → Aseprite 状态位（同 <see cref="SketchButtonSet"/> 口径）。</summary>
+        static AseStates FlagsFor(SelectionState state, bool active)
+        {
+            switch (state)
+            {
+                case SelectionState.Disabled:
+                    return AseStates.Disabled;
+                case SelectionState.Pressed:
+                    return AseStates.Selected | AseStates.Capture;
+                case SelectionState.Selected:
+                    return AseStates.Focus;
+                case SelectionState.Highlighted:
+                    return AseStates.Mouse | (active ? AseStates.Selected : AseStates.None);
+                default:
+                    return active ? AseStates.Selected : AseStates.None;
+            }
+        }
+
+        string PartOf(SelectionState state)
+        {
+            return AseThemeLayers.ResolveBackgroundPart("buttonset_item", FlagsFor(state, _active));
+        }
+
+        Sprite SpriteOf(SelectionState state)
+        {
+            string part = PartOf(state);
+            return part != null ? PixelSkin.Ase(part) : null;
         }
     }
 }

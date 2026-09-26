@@ -118,16 +118,30 @@ namespace PirateCrew.UI.Stick
         }
 
         /// <summary>按 tone 换 Plate 贴图（Titled 时换带标题栏的窗体九宫格）。
-        /// 【窗皮单轨】Titled 一律走 sheet.png 直切件 <c>Ase("window")</c>（theme.xml:165）——
+        /// 【窗皮单轨】Titled 一律走 <c>window_with_title</c> 样式的 border 层
+        /// （<see cref="AseThemeLayers"/> 解析 → 直切件 <c>window</c>，theme.xml:165/472-475）——
         /// 旧手绘 tone 族 Window 模板（<see cref="PixelSkin.Window"/>）只是它的近似复刻，
         /// 二者几何同为 13×24 / 切片 3·5·3·15，但手绘件与参考库不逐位一致；设置面板与
-        /// 列表窗体曾因此与主菜单/模态的窗体皮分叉，本波收口到直切件。</summary>
+        /// 列表窗体曾因此与主菜单/模态的窗体皮分叉，本波收口到直切件。
+        /// 【非主题路径】无标题面板的 <see cref="PixelSkin.Panel"/> 是 Beveled Pixel 程序化 tone 件
+        /// （theme.xml 无对应样式，注册为主题外自造件，不在本引擎管辖）。</summary>
         private void Apply()
         {
             if (_plate == null)
                 _plate = FindPart();
-            if (_plate != null)
-                _plate.sprite = Titled ? PixelSkin.Ase("window") : PixelSkin.Panel(_tone == Tone.Light ? PixelTone.Light : PixelTone.Frame);
+            if (_plate == null)
+                return;
+
+            if (Titled)
+            {
+                string part = AseThemeLayers.ResolveBackgroundPart("window_with_title", AseStates.None);
+                if (part != null)
+                    _plate.sprite = PixelSkin.Ase(part);
+            }
+            else
+            {
+                _plate.sprite = PixelSkin.Panel(_tone == Tone.Light ? PixelTone.Light : PixelTone.Frame);
+            }
         }
 
         /// <summary>场景重载后私有字段不序列化，按子件名重新取引用（同上一个九砖实现的兜底口径）。</summary>
