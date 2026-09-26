@@ -9,11 +9,17 @@ namespace PirateCrew.UI.DebugUi
     /// 窗体提到最上**——最后点击的窗永远浮顶，桌面窗口管理器语义）。
     ///
     /// 挂法走 <see cref="Attach"/>：在窗体顶部铺一块透明命中板（标题带高 =
-    /// <see cref="PixelSkin.WindowTitleBand"/> = 15，右侧避开窗控钮区），板上收
-    /// OnDrag → 平移窗体 anchoredPosition。拖动**只保标题带可抓**（窗口可推到只剩一条带
+    /// <see cref="DebugWindowKit.TitleBand"/> = 件 "window" 顶切片 h1 = 15，右侧避开窗控钮区），
+    /// 板上收 OnDrag → 平移窗体 anchoredPosition。拖动**只保标题带可抓**（窗口可推到只剩一条带
     /// 在屏内，其余随你摆——不做「至少留 3/4 在屏内」这种自造限制）。
     /// 命中板不与窗控钮/标题文字抢事件：文字件 raycastTarget 本就为 false，
     /// 窗控钮在命中板右界之外。PointerDown 沿命中链冒泡——窗内任何子件被按下都会置顶。
+    ///
+    /// 【以库为源】可抓下限 = 源的 <c>limitPosition</c>（window.cpp:782-810）：
+    /// <c>titlebarH = childrenBounds().y - bounds().y</c>（= border-top = 17），
+    /// 底界 <c>parent.y2() - titlebarH</c>。<b>未对齐项（登记）</b>：源左/右界为
+    /// <c>border().right()</c>（= 6）与 <c>rect.y >= 0</c>，本类现为手摆 24 / −6——
+    /// 属拖动带几何，本轮按协调者口径只对齐标题带高一处，未改。
     /// </summary>
     public sealed class WindowDragger : MonoBehaviour,
         IBeginDragHandler, IDragHandler, IPointerDownHandler
@@ -21,8 +27,11 @@ namespace PirateCrew.UI.DebugUi
         /// <summary>窗控钮让位区宽（? 钮 9 + × 钮 9 + 右边距 3 + 缝）。</summary>
         const float RightReserve = 26f;
 
-        /// <summary>标题带至少留在屏内的可抓高度（拖出界下限的唯一约束）。</summary>
-        const float GrabStrip = 16f;
+        /// <summary>标题带至少留在屏内的可抓高度 = 源的 <c>titlebarH</c>
+        /// （window.cpp:793 <c>childrenBounds().y - bounds().y</c>）= window_with_title
+        /// border-top（theme.xml:472）= <see cref="DebugWindowKit.ContentTop"/> = 17
+        /// （带 15 整条 + 带下 2 格缝）。</summary>
+        const float GrabStrip = DebugWindowKit.ContentTop;
 
         RectTransform _window;
         RectTransform _canvas;
@@ -72,7 +81,7 @@ namespace PirateCrew.UI.DebugUi
             // 全部窗体都拖不动——实机走查抓出。）
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = new Vector2(1f, 1f);
-            rect.offsetMin = new Vector2(0f, -PixelSkin.WindowTitleBand);
+            rect.offsetMin = new Vector2(0f, -DebugWindowKit.TitleBand);
             rect.offsetMax = new Vector2(-RightReserve, 0f);
             // 主菜单 MenuWindow 挂着 VerticalLayoutGroup——命中板若参与内容流会被排到
             // 按钮列末尾（窗外），主菜单拖动整条失效；必须豁免布局（同标题字/窗控钮口径）。
@@ -108,7 +117,8 @@ namespace PirateCrew.UI.DebugUi
             float h = _window.rect.height;
             float cw = _canvas.rect.width;
             float ch = _canvas.rect.height;
-            // 只保标题带可抓：左右各留 24 条、顶允许微出、底保 16px 带
+            // 只保标题带可抓（源 limitPosition，window.cpp:782-810）：底界 = 画布底 −
+            // 标题带高（GrabStrip = border-top = 17）；左右/顶界仍为手摆值（见类头登记）。
             topLeft.x = Mathf.Clamp(topLeft.x, 24f - w, cw - 24f);
             topLeft.y = Mathf.Clamp(topLeft.y, -6f, ch - GrabStrip);
             _window.anchoredPosition = TopLeftToAnchored(topLeft, w, h);
