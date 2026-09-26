@@ -94,7 +94,7 @@ namespace PirateCrew.UI.DebugUi
             if (show)
             {
                 WindowDragger.RaiseToCanvasTop(window);
-                AseMenuKit.ClosePopup();
+                AseMenuKit.CloseAll();
             }
         }
 
