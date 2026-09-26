@@ -893,6 +893,50 @@ subst（3.8%）= UGUI 捕获板/BuildPopup/setMouse/onSetViewScroll 局部重绘
 **合并链**：`7cab08d5`(kbd) → `dcd4b4c4`(entry 在前) 顺序实为 kbd→entry→scroll→四修正；
 全量 1244/10/1 与基线逐位一致。三个 worktree 已清理。
 
+## 三之八、覆盖率第三轮：层引擎/菜单滚动/窗体扩围（2026-09-27，创始人令「继续提高覆盖率」）
+
+**编排**：3 代理 × worktree（`temp/ui-layer|menuscroll|window`）+ 协调者合并与两项修正。
+**覆盖率 port 93.5% → 95.8%**（台账 v4 `temp/coverage4.py`，99 条 / 6047 源行）；
+miss 157 → **34 行**（只剩 slider kSetCursor，裁决为**永久登记偏差**：OS 级水平缩放光标，
+theme 无对应件、Unity 无内建，造素材=自发明——不造假货）；subst 3.7% 全为合理替代。
+
+**x2 口径风波（重要教训，新会话必读）**：第二轮我凭记忆断定 gfx `x2()=x+w-1`（闭区间），
+把 menu/combobox 七处钳制收紧了 1px；本轮菜单滚动代理从滚动条贴边行为提出反证。协调者
+用检出源码的**像素级用法**裁决：`window.cpp:241/265` 命中测试 `x < cpos.x2()` 与
+`x <= pos.x2()-1` 只有开区间才能让右边框命中区恰好含最外列像素，`theme.cpp:431` 平铺循环
+同证——**`x2()=x+w` 开区间，与 Unity xMax 同口径**，七处已回退（`dcd…`→修正提交）。
+教训入纪律：**判据必须来自检出源码的像素级用法（命中测试/画线循环），不能凭记忆的库约定**。
+
+**三包交付**：
+- **theme 层引擎包**（新增 AseThemeLayers.cs，`81a4d942`/`20fcbdbc`）：
+  compare_layer_flags/for_each_layer 逐行移植 + theme.xml 入 Resources（AseWidgetAssetSync
+  同步清单加条）；**消费者迁单一真源**（SketchButton 族/Check/Separator/Panel/AseWidgetKit/
+  AseComboBox/AseView），迁移对账表逐位校验（真实 .cs 对真实 theme.xml 跑出）。三个状态
+  差异登记：[F] button 键盘焦点字色 白→#C0C0C0（源 button 无 focus 文字层；工程无键盘导航
+  故不可见，创始人可裁决回退）；[D] check_box 禁用面 透明→#2C2C30（SketchCheck 零实例化）；
+  [B] combobox 箭头钮 Selected 态旧为 null（图形消失）→ 修为 buttonset_item_hot。
+- **菜单滚动+列表多选包**（`d91c738b`/`88205ce9`）：scroll_window.cpp add_scrollbars +
+  菜单滚轮（超高菜单出滚动条）；inBar 下拉**不再因超高上移**（menu.cpp:909 无上界钳，
+  放不下交滚动）；listbox multiselect——**源只有 Ctrl/Cmd 无 Shift**（listbox.cpp:87），
+  区间取反/快照重拍逐行。
+- **窗体包（扩围入账）**（`95c1c6fb`）：window.cpp 适用子集逐行——变体/标题带几何/标题字
+  origin 与右裁（右让 18→12、双钮 22）/关闭钮三态/onSizeHint/limitSize（新增窗最小 12×23）/
+  limitPosition 的 titlebarH（拖动带 16→17）。native window/多显示器/resize 命中区等登记
+  范围外。**手摆值纠错**：内容顶 21→**17**（旧值把标题带 15 与 inset 6 叠加错了）——全部
+  调试面板内容整体上移 4px，属修对。
+
+**协调者两项修正**：①x2 七处回退（见上）；②装载器窗高补顶部 inset（ContentTop+contentH+Pad，
+治内容越窗底压下边框的既有缺陷，xml 对话框会高 17px、按钮不再骑边框）。
+
+**登记偏差/遗留**：`UiKit.ApplyThemeButton`（域外，Skin/UiKit.cs:512-530）仍写死 button 四态，
+下轮迁引擎；SketchSlider focus 态 y 偏移下轮迁；拖动钳制左右界 24/顶界 -6 与源 border=6/0
+不同（登记保留）；标题 TMP Overflow 不真裁（源 limitTitleLabelBounds 是裁）；window.cpp
+native/多显示器/resize 面 9 项范围外登记（DebugWindowKit.cs:49-59）；PixelSkin.ArrowDown/
+Check/Radio/Scrollbar 包装器迁移后零引用待清（域外）。
+
+**待创始人复测新增**：对话框窗高变高 17px（按钮不再压下边框）、全部调试窗内容上移 4px、
+超高菜单出现滚动条+滚轮、列表 Ctrl 点选区间、标题带拖动区 17px。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
