@@ -575,7 +575,13 @@ namespace PirateCrew.UI.DebugUi
             else if (_size > 0)                     // scroll_bar.cpp:231-237
             {
                 len = barSize * viewportSize / _size;
-                len = Mathf.Clamp(len, Mathf.Min(AseLayout.ScrollbarSize * 2, barSize), barSize);
+                // 源下限 min(getScrollbarSize()*2 - border_width, bar_size)：border 来自轨道件
+                // 九宫切片（scrollbar_bg 5/6/5 → 竖条左右 5+5=10），非 0——漏减会把拇指下限抬高。
+                Sprite trackSprite = PixelSkin.Ase("scrollbar_bg");
+                int borderWidth = _horizontal
+                    ? Mathf.RoundToInt(trackSprite.border.y + trackSprite.border.w)   // 横条：上+下
+                    : Mathf.RoundToInt(trackSprite.border.x + trackSprite.border.z); // 竖条：左+右
+                len = Mathf.Clamp(len, Mathf.Min(AseLayout.ScrollbarSize * 2 - borderWidth, barSize), barSize);
                 pos = (barSize - len) * _pos / (_size - viewportSize);
                 pos = Mathf.Clamp(pos, 0, barSize - len);
             }
