@@ -436,7 +436,8 @@ namespace PirateCrew.UI.DebugUi
     /// 不是本移植的取舍。
     /// </summary>
     public sealed class AseScrollBar : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
-        IPointerEnterHandler, IPointerExitHandler
+        IPointerEnterHandler, IPointerExitHandler,
+        IBeginDragHandler, IDragHandler, IEndDragHandler
     {
         bool _horizontal;
         IAseScrollView _delegate;
@@ -706,6 +707,14 @@ namespace PirateCrew.UI.DebugUi
         {
             Release();
         }
+
+        /// <summary>拖动三件套 = **阻断冒泡壳**：UGUI 选拖动目标时沿父链找最近的
+        /// IDragHandler，滚动条若不实现，目标是窗根的 WindowDragger——「拖滚动条变成
+        /// 拖整个窗」。实际拖动仍在 <see cref="Update"/> 轮询里（源 capture 后逐消息的
+        /// 对应，且点轨道=翻页不抓取的区分也靠按下语义，不走 UGUI 拖动）。</summary>
+        public void OnBeginDrag(PointerEventData eventData) { }
+        public void OnDrag(PointerEventData eventData) { }
+        public void OnEndDrag(PointerEventData eventData) { }
 
         void Release()
         {

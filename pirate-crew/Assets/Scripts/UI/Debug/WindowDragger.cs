@@ -35,8 +35,10 @@ namespace PirateCrew.UI.DebugUi
 
         RectTransform _window;
         RectTransform _canvas;
+        RectTransform _zone;        // 标题带命中板（本次按下是否在带内的裁决依据）
         Vector2 _dragStart;
         Vector2 _startTopLeft;
+        bool _armed;                // 按下起点在标题带内才拖（源：move 只认 titlebar 命中）
 
         /// <summary>给窗体挂拖动带（幂等：已挂只补引用）。</summary>
         public static WindowDragger Attach(RectTransform window)
@@ -64,11 +66,47 @@ namespace PirateCrew.UI.DebugUi
             t.SetAsLastSibling();
         }
 
-        /// <summary>按下即置顶（含窗内任意子件被点——事件沿命中链冒泡到窗根）。</summary>
         public void OnPointerDown(PointerEventData eventData)
         {
             if (_window != null)
                 RaiseToCanvasTop(_window);
+            // 拖动资格（源 window.cpp：mouse down 命中在 titlebar 才进入 move）——UGUI 的
+            // drag 事件沿父链找到的是窗根（本类），窗内任意接光子件按下+移动都会到这，
+            // 不裁决的话「按住窗体空白移动 = 拖走整窗」。用标题带命中板含住按下点判定。
+            _armed = _zone != null && RectTransformUtility.RectangleContainsScreenPoint(
+                _zone, eventData.pressPosition, eventData.pressEventCamera);
+        }
+
+        public void OnBeginDrag(PointerEventData eventData)
+        {
+            if (_window == null || _canvas == null || !_armed)
+                return;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                _canvas, eventData.position, eventData.pressEventCamera, out _dragStart);
+            _startTopLeft = TopLeftInCanvas();
+        }
+
+        public void OnDrag(PointerEventData eventData)
+        {
+            if (_window == null || _canvas == null || !_armed)
+                return;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                _canvas, eventData.position, eventData.pressEventCamera, out Vector2 now))
+                return;
+
+            // 拖动按「窗左上角在画布上的位置」算，再换算回窗体自己的锚/枢轴系——
+            // 主菜单是中心锚窗（0.5,0.5），调试窗是左上锚窗，锚系各自不同。
+            Vector2 delta = now - _dragStart;                          // 画布中心系，y 向上
+            Vector2 topLeft = _startTopLeft + new Vector2(delta.x, -delta.y);   // 转左上原点 y 向下
+            float w = _window.rect.width;
+            float h = _window.rect.height;
+            float cw = _canvas.rect.width;
+            float ch = _canvas.rect.height;
+            // 只保标题带可抓（源 limitPosition，window.cpp:782-810）：底界 = 画布底 −
+            // 标题带高（GrabStrip = border-top = 17）；左右/顶界仍为手摆值（见类头登记）。
+            topLeft.x = Mathf.Clamp(topLeft.x, 24f - w, cw - 24f);
+            topLeft.y = Mathf.Clamp(topLeft.y, -6f, ch - GrabStrip);
+            _window.anchoredPosition = TopLeftToAnchored(topLeft, w, h);
         }
 
         void BuildZone(RectTransform window)
@@ -86,38 +124,7 @@ namespace PirateCrew.UI.DebugUi
             var hit = rect.gameObject.AddComponent<Image>();
             hit.color = new Color(0f, 0f, 0f, 0f);   // 透明命中板：只吃指针不显形
             hit.raycastTarget = true;
-        }
-
-        public void OnBeginDrag(PointerEventData eventData)
-        {
-            if (_window == null || _canvas == null)
-                return;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                _canvas, eventData.position, eventData.pressEventCamera, out _dragStart);
-            _startTopLeft = TopLeftInCanvas();
-        }
-
-        public void OnDrag(PointerEventData eventData)
-        {
-            if (_window == null || _canvas == null)
-                return;
-            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                    _canvas, eventData.position, eventData.pressEventCamera, out Vector2 now))
-                return;
-
-            // 拖动按「窗左上角在画布上的位置」算，再换算回窗体自己的锚/枢轴系——
-            // 主菜单是中心锚窗（0.5,0.5），调试窗是左上锚窗，锚系各自不同。
-            Vector2 delta = now - _dragStart;                          // 画布中心系，y 向上
-            Vector2 topLeft = _startTopLeft + new Vector2(delta.x, -delta.y);   // 转左上原点 y 向下
-            float w = _window.rect.width;
-            float h = _window.rect.height;
-            float cw = _canvas.rect.width;
-            float ch = _canvas.rect.height;
-            // 只保标题带可抓（源 limitPosition，window.cpp:782-810）：底界 = 画布底 −
-            // 标题带高（GrabStrip = border-top = 17）；左右/顶界仍为手摆值（见类头登记）。
-            topLeft.x = Mathf.Clamp(topLeft.x, 24f - w, cw - 24f);
-            topLeft.y = Mathf.Clamp(topLeft.y, -6f, ch - GrabStrip);
-            _window.anchoredPosition = TopLeftToAnchored(topLeft, w, h);
+            _zone = rect;    // 拖动资格裁决依据（OnPointerDown）
         }
 
         /// <summary>窗左上角在画布局部的位置（左上原点、y 向下）——走 <see cref="AseUi.EdgesOf"/> 单点。</summary>
