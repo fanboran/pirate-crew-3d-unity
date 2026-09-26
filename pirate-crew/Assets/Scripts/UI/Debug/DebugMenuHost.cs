@@ -21,6 +21,8 @@ namespace PirateCrew.UI.DebugUi
         static RectTransform _newSprite;
         static RectTransform _menuBarDemo;
         static RectTransform _partsGallery;
+        static RectTransform _dupDialog;
+        static RectTransform _gotoDialog;
 
         /// <summary>主菜单「调试场景」入口：开/收启动器（首次点开时整树构建）。</summary>
         public static void Toggle(Transform canvas)
@@ -43,17 +45,26 @@ namespace PirateCrew.UI.DebugUi
             _root.offsetMax = Vector2.zero;
 
             _launcher = DebugWindowKit.CreateWindow(_root, "DebugLauncher", "调试菜单",
-                new Vector2(20f, 44f), new Vector2(150f, 118f), closeButton: false);
+                new Vector2(20f, 44f), new Vector2(150f, 124f), closeButton: false);
 
             float y = DebugWindowKit.ContentTop;
             // 四窗默认位错开排布（画布 960×540）：陈列廊右大块 / 对话框与菜单栏右列上下，
             // 启动器左列——默认位互不压盖，全幅陈列廊例外（打开即覆盖、× 即还原）。
             y = MakeLauncherButton("组件实摆", y, () => ToggleWindow(ref _widgetGallery,
                 () => _widgetGallery = WidgetGalleryPanel.Build(_root, new Vector2(170f, 26f))));
-            y = MakeLauncherButton("新建精灵对话框", y, () => ToggleWindow(ref _newSprite,
-                () => _newSprite = NewSpriteDialog.Build(_root, new Vector2(510f, 90f))));
+            y = MakeLauncherButton("新建精灵（xml 装载）", y, () => ToggleWindow(ref _newSprite,
+                () => _newSprite = LoadNewSprite(new Vector2(510f, 26f))));
             y = MakeLauncherButton("Aseprite 菜单栏", y, () => ToggleWindow(ref _menuBarDemo,
-                () => _menuBarDemo = BuildMenuBarDemo(new Vector2(510f, 300f))));
+                () => _menuBarDemo = BuildMenuBarDemo(new Vector2(510f, 250f))));
+            y = MakeLauncherButton("库对话框 Duplicate/Goto", y, () =>
+            {
+                ToggleWindow(ref _dupDialog,
+                    () => _dupDialog = AseDialogLoader.Load("duplicate_sprite",
+                        _root, new Vector2(510f, 330f)).Window);
+                ToggleWindow(ref _gotoDialog,
+                    () => _gotoDialog = AseDialogLoader.Load("goto_frame",
+                        _root, new Vector2(510f, 460f)).Window);
+            });
             MakeLauncherButton("部件陈列廊", y, () => ToggleWindow(ref _partsGallery,
                 () => _partsGallery = BuildPartsGalleryWindow(new Vector2(170f, 26f))));
         }
@@ -84,6 +95,24 @@ namespace PirateCrew.UI.DebugUi
             }
         }
 
+        /// <summary>装载 data/widgets/new_sprite.xml（cmd 层接线：advanced 勾选 → advanced 盒显隐，
+        /// 同 aseprite cmd_new_file.cpp 的对话框级逻辑——装载器本身不写死任何对话框行为）。</summary>
+        static RectTransform LoadNewSprite(Vector2 topLeft)
+        {
+            AseDialogLoader.Result result = AseDialogLoader.Load("new_sprite", _root, topLeft);
+            if (result == null)
+                return null;
+            Button advancedCheck = result.Get<Button>("advanced_check");
+            RectTransform advancedBox = result.Get<RectTransform>("advanced");
+            if (advancedCheck != null && advancedBox != null)
+            {
+                advancedBox.gameObject.SetActive(false);   // aseprite 默认未勾选 → 盒隐藏
+                advancedCheck.onClick.AddListener(() =>
+                    advancedBox.gameObject.SetActive(!advancedBox.gameObject.activeSelf));
+            }
+            return result.Window;
+        }
+
         // ------------------------------------------------------------------
 
         /// <summary>Aseprite 菜单栏复刻窗：File / Edit / Sprite 真下拉（分隔线/快捷键/
@@ -103,12 +132,12 @@ namespace PirateCrew.UI.DebugUi
             {
                 ("File", new AseMenuKit.Item[]
                 {
-                    // New… 走真弹窗（同一调试树复用启动器第 2 钮的开合件）——菜单语义不是只回显
+                    // New… 走真弹窗（xml 装载器 + cmd 层接线，与启动器第 2 钮同一开合件）
                     AseMenuKit.Item_("New…", "Ctrl+N", () =>
                     {
                         echo("File → New…");
                         ToggleWindow(ref _newSprite,
-                            () => _newSprite = NewSpriteDialog.Build(_root, new Vector2(510f, 90f)));
+                            () => _newSprite = LoadNewSprite(new Vector2(510f, 26f)));
                     }),
                     AseMenuKit.Item_("Open…", "Ctrl+O", () => echo("File → Open…")),
                     AseMenuKit.Item_("Open Recent", null, null, false, new AseMenuKit.Item[]
