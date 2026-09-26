@@ -9,8 +9,9 @@ namespace PirateCrew.UI.DebugUi
 {
     /// <summary>
     /// Aseprite <c>ListBox</c> + <c>ListItem</c> 语义移植（<c>src/ui/listbox.cpp</c>、
-    /// <c>src/ui/listitem.cpp</c> + theme.xml 的 <c>list_item</c> 样式）。只做调试面板需要的
-    /// **单选**子集（视口溢出时由承载的 ScrollRect 竖向滚动）：
+    /// <c>src/ui/listitem.cpp</c> + theme.xml 的 <c>list_item</c> 样式）。**单选默认、多选可选**
+    /// （<see cref="Multiselect"/> = listbox.cpp:33/41-44 <c>m_multiselect</c>；视口溢出时由承载的
+    /// ScrollRect 竖向滚动）：
     ///
     /// - 行高 = 文本高 + border(1)×2 —— listitem.cpp:57-86 <c>onSizeHint = textSize + border</c>；
     /// - 行宽 = 视口宽 —— listbox.cpp:341-356 <c>onResize</c> 把每个子件铺到 <c>childrenBounds()</c>；
@@ -26,6 +27,12 @@ namespace PirateCrew.UI.DebugUi
     ///   这里用「行按下置 pressed + 鼠标键仍按住时行 enter 即选」复刻；捕获的释放用
     ///   <c>Input.GetMouseButton</c> 兜底（鼠标在面板外松开也能复位，同源里 capture 丢失的处理）。
     /// - <c>onChange</c> 只在选中态真的变化时发 —— listbox.cpp:115-127 <c>didChange</c>。
+    /// - **多选** —— listbox.cpp:76-121 <c>m_multiselect</c> 分支：<c>m_states</c> 快照（MouseDown、
+    ///   首帧 MouseMove（first&lt;0）、KeyDown、无消息这四种时机重拍）+ 区间
+    ///   <c>[min(item,first), max(item,first)]</c> 逐项取反。快照时若**无** Ctrl/Cmd 则把每行
+    ///   状态压成未选（等效「先清空再点选」，普通点击=单选），有 Ctrl/Cmd 则保留原选择
+    ///   （单点增减 / 拖拽区间增减）。**修饰键只有 Ctrl/Cmd，源码没有 Shift 分支**
+    ///   （listbox.cpp:87 <c>!msg-&gt;ctrlPressed() &amp;&amp; !msg-&gt;cmdPressed()</c>）。
     /// - **键盘导航** —— listbox.cpp:263-328 <c>kKeyDownMessage</c>（上下/Home/End/PageUp/PageDown
     ///   选行、左右横向滚动）+ listbox.cpp:397-438 <c>advanceIndexThroughVisibleItems</c>/
     ///   <c>findParentListItem</c>；选行后滚动到可见 = listbox.cpp:145-160 <c>makeChildVisible</c>
@@ -34,7 +41,7 @@ namespace PirateCrew.UI.DebugUi
     ///   <c>onAcceptKeyInput()</c>=<c>hasFocus()</c>，本工程无焦点系统，等价落成
     ///   「列表挂在开着的组合框弹层里」（见 <see cref="AcceptKeyInput"/>）。
     ///
-    /// 未移植（登记在交接报告）：多选 multiselect 分支（76-110）、<c>findParentListItem</c>
+    /// 未移植（登记在交接报告）：<c>findParentListItem</c>
     /// （440-450，本移植只允许直接子件命中）、HIDDEN 行与 Separator 行的导航跳过
     /// （本移植的行表里没有这两类，故源码里那两条过滤恒真）、左右键横向滚动
     /// （内容宽恒等于视口宽，无横向溢出可滚，见 <see cref="HandleKeyboard"/> 的 Left/Right）。
@@ -52,12 +59,39 @@ namespace PirateCrew.UI.DebugUi
         bool _pressed;
         Action<int> _onChange;
 
+        /// <summary>selectChild 的消息档（listbox.cpp:78-80 的 <c>msg</c> 判定）：
+        /// 决定多选是否重拍 <see cref="_states"/> 快照。<see cref="None"/> = 源码的 <c>msg == nullptr</c>。</summary>
+        internal enum SelectMessage { None, MouseDown, MouseMove, KeyDown }
+
+        bool _multiselect;                       // listbox.cpp:33 m_multiselect
+        int _firstSelectedIndex = -1;            // listbox.cpp:34 m_firstSelectedIndex
+        int _lastSelectedIndex = -1;             // listbox.cpp:35 m_lastSelectedIndex
+        bool[] _states = new bool[0];            // listbox.cpp:82 m_states
+
+        /// <summary>多选开关（listbox.cpp:41-44 <c>setMultiselect</c>）。默认 <c>false</c> =
+        /// 单选，既有调用方（组合框）行为不变。</summary>
+        public bool Multiselect
+        {
+            get { return _multiselect; }
+            set { _multiselect = value; }
+        }
+
         /// <summary>待居中计数：>=0 = kOpenMessage 的 centerScroll 还没跑成（弹层那帧 ScrollRect
         /// 尚未挂上/还没布局），再试几帧后放弃（listbox.cpp:197）。</summary>
         int _centerTries = -1;
 
-        /// <summary>当前选中行下标（无选中 = -1）——listbox.cpp:55-67 getSelectedIndex。</summary>
-        public int SelectedIndex { get { return _selected; } }
+        /// <summary>当前选中行下标（无选中 = -1）——listbox.cpp:55-67 getSelectedIndex
+        /// （多选取**第一个**选中行；单选即 <see cref="_selected"/>）。</summary>
+        public int SelectedIndex { get { return _multiselect ? FirstSelectedIndex() : _selected; } }
+
+        /// <summary>第一个选中行下标（listbox.cpp:55-67 的语义：遍历子件返回首个 isSelected）。</summary>
+        int FirstSelectedIndex()
+        {
+            for (int i = 0; i < _rows.Count; i++)
+                if (_rows[i].IsSelected)
+                    return i;
+            return -1;
+        }
 
         public int ItemsCount { get { return _rows.Count; } }
 
@@ -83,6 +117,8 @@ namespace PirateCrew.UI.DebugUi
             for (int i = 0; i < labels.Length; i++)
                 _rows.Add(AseListItem.Create(this, rect, i, labels[i], width, i * RowHeight));
 
+            _states = new bool[_rows.Count];   // listbox.cpp:82 m_states.resize(children().size())
+
             // 开弹层时把当前项置为选中（combobox.cpp:646 m_listbox->selectIndex(m_selected)）——
             // 首建不算「变更」，不发 onChange（源里 selectIndex → didChange 也会被
             // ComboBoxListBox::onChange 的 m_selected != index 挡掉，净效果相同）。
@@ -97,53 +133,112 @@ namespace PirateCrew.UI.DebugUi
         internal void NotifyRowDown(AseListItem item)
         {
             _pressed = true;
-            SelectChild(item);
+            SelectChild(item, SelectMessage.MouseDown, CtrlOrCmdHeld());   // listbox.cpp:201 kMouseDown
         }
 
         internal void NotifyRowEnter(AseListItem item)
         {
             if (_pressed)
-                SelectChild(item);
+                SelectChild(item, SelectMessage.MouseMove, CtrlOrCmdHeld());   // listbox.cpp:203 kMouseMove
         }
 
-        /// <summary>单选语义（listbox.cpp:69-128）：newState = (child == item)，
+        /// <summary>单选语义（listbox.cpp:111-121 <c>newState = (child == item)</c>），
         /// 有变化才 onChange；空 item 会清空全部选中。滚到可见与 onChange 都按源码次序
-        /// （makeChildVisible 无条件、onChange 只在 didChange，listbox.cpp:136-138）。</summary>
+        /// （makeChildVisible 无条件、onChange 只在 didChange，listbox.cpp:123-127）。
+        /// 旧签名 = 源码 <c>msg == nullptr</c>（不涉及修饰键）。</summary>
         public void SelectChild(AseListItem item)
         {
-            int index = item != null ? item.Index : -1;
-            bool didChange = index != _selected;
-
-            if (didChange)
-            {
-                if (_selected >= 0 && _selected < _rows.Count)
-                    _rows[_selected].SetSelected(false);
-                _selected = index;
-                if (index >= 0 && index < _rows.Count)
-                    _rows[index].SetSelected(true);
-            }
-
-            // listbox.cpp:136-137：选中后把该行滚进视口（View 不存在则不动）
-            if (item != null)
-                MakeChildVisible(index);
-
-            if (didChange)
-                _onChange?.Invoke(_selected);
+            SelectChild(item, SelectMessage.None, false);
         }
 
-        /// <summary>选中第 index 项（listbox.cpp:130-138：越界静默返回）。</summary>
+        /// <summary>
+        /// listbox.cpp:69-128 <c>selectChild(item, msg)</c> 全文。
+        ///
+        /// 多选：先按消息档决定是否重拍 <see cref="_states"/> 快照
+        /// （76-96：<c>msg==nullptr || MouseDown || (MouseMove &amp;&amp; first&lt;0) || KeyDown</c>；
+        /// 快照时无 Ctrl/Cmd 则把状态压成未选），再逐行
+        /// <c>newState = m_states[i]；i∈[min(item,first),max(item,first)] 则取反</c>（98-121）。
+        /// 单选：<c>newState = (i == itemIndex)</c>。
+        /// </summary>
+        internal void SelectChild(AseListItem item, SelectMessage msg, bool ctrl)
+        {
+            int itemIndex = item != null ? item.Index : -1;
+            _lastSelectedIndex = itemIndex;                            // listbox.cpp:74
+            bool didChange = false;
+
+            if (_multiselect)                                          // listbox.cpp:76-96
+            {
+                if (msg == SelectMessage.None || msg == SelectMessage.MouseDown
+                    || (msg == SelectMessage.MouseMove && _firstSelectedIndex < 0)
+                    || msg == SelectMessage.KeyDown)
+                {
+                    _firstSelectedIndex = itemIndex;
+                    if (_states.Length != _rows.Count)
+                        _states = new bool[_rows.Count];
+
+                    for (int i = 0; i < _rows.Count; i++)
+                    {
+                        bool state = _rows[i].IsSelected;
+                        if (msg != SelectMessage.None && !ctrl)
+                            state = false;
+                        if (_states[i] != state)
+                        {
+                            didChange = true;
+                            _states[i] = state;
+                        }
+                    }
+                }
+            }
+
+            int lo = Mathf.Min(itemIndex, _firstSelectedIndex);        // listbox.cpp:106-107
+            int hi = Mathf.Max(itemIndex, _firstSelectedIndex);
+            for (int i = 0; i < _rows.Count; i++)                      // listbox.cpp:98-121
+            {
+                bool newState = _multiselect
+                    ? (i < _states.Length ? _states[i] : false)
+                    : (i == itemIndex);
+
+                if (_multiselect && i >= lo && i <= hi)
+                    newState = !newState;
+
+                if (_rows[i].IsSelected != newState)
+                {
+                    didChange = true;
+                    _rows[i].SetSelected(newState);
+                }
+            }
+
+            if (!_multiselect)
+                _selected = itemIndex;
+
+            if (item != null)
+                MakeChildVisible(itemIndex);                           // listbox.cpp:123-124
+
+            if (didChange)
+                _onChange?.Invoke(SelectedIndex);                      // listbox.cpp:126-127
+        }
+
+        /// <summary>选中第 index 项（listbox.cpp:130-138：越界静默返回）。多选时按键盘消息档
+        /// （源码键盘路径传 kKeyDownMessage）。</summary>
         public void SelectIndex(int index)
         {
             if (index < 0 || index >= _rows.Count)
                 return;
-            SelectChild(_rows[index]);
+            if (_multiselect)
+                SelectChild(_rows[index], SelectMessage.KeyDown, CtrlOrCmdHeld());
+            else
+                SelectChild(_rows[index]);
         }
 
         // listbox.cpp:250-256 kMouseUpMessage → releaseMouse（捕获释放；面板外松开也复位）
         void Update()
         {
             if (_pressed && !Input.GetMouseButton(0))
+            {
                 _pressed = false;
+                _firstSelectedIndex = -1;    // listbox.cpp:251-254 releaseMouse 后清 first/last
+                _lastSelectedIndex = -1;
+            }
 
             // kOpenMessage → centerScroll（listbox.cpp:197）：弹层那帧 ScrollRect 还没挂上，
             // 故延后到拿到 View 的那一帧做；试几次拿不到（本列表不滚动）就放弃。
@@ -188,7 +283,7 @@ namespace PirateCrew.UI.DebugUi
                 return;                                  // listbox.cpp:264 onAcceptKeyInput()
 
             int bottom = Mathf.Max(0, _rows.Count - 1);   // listbox.cpp:266
-            int select = _selected;                       // listbox.cpp:265 getSelectedIndex()
+            int select = SelectedIndex;                   // listbox.cpp:265 getSelectedIndex()
 
             KeyCode scancode;
             if (Input.GetKeyDown(KeyCode.UpArrow)) scancode = KeyCode.UpArrow;
@@ -331,7 +426,8 @@ namespace PirateCrew.UI.DebugUi
         /// <summary>listbox.cpp:163-176 centerScroll：开弹层时把选中行摆到视口正中。</summary>
         public void CenterScroll()
         {
-            if (_selected < 0 || _selected >= _rows.Count)
+            int sel = SelectedIndex;                 // listbox.cpp:166 getSelectedChild()
+            if (sel < 0 || sel >= _rows.Count)
                 return;
 
             RectTransform content;
@@ -339,7 +435,7 @@ namespace PirateCrew.UI.DebugUi
             if (!TryView(out content, out viewportH))
                 return;
 
-            float scrollY = _selected * RowHeight
+            float scrollY = sel * RowHeight
                 - Mathf.FloorToInt(viewportH * 0.5f)      // vp.h / 2（整数除）
                 + Mathf.FloorToInt(RowHeight * 0.5f);     // item->bounds().h / 2
             SetScrollY(content, viewportH, scrollY);
@@ -405,6 +501,9 @@ namespace PirateCrew.UI.DebugUi
 
         public int Index { get; private set; }
 
+        /// <summary>选中态（= 源 <c>Widget::isSelected()</c>；多选时每行各自持态）。</summary>
+        public bool IsSelected { get; private set; }
+
         public string Text { get { return _label != null ? _label.text : string.Empty; } }
 
         internal static AseListItem Create(AseListBox owner, RectTransform parent, int index, string text,
@@ -440,6 +539,7 @@ namespace PirateCrew.UI.DebugUi
 
         internal void SetSelected(bool on)
         {
+            IsSelected = on;
             _face.color = on ? PixelSkin.Theme.Selected : PixelSkin.Theme.Background;
             _label.color = on ? PixelSkin.Theme.SelectedText : PixelSkin.Theme.Text;
         }
