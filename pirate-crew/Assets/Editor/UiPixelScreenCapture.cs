@@ -140,12 +140,32 @@ namespace PirateCrew.EditorTools
             switch (key)
             {
                 case "widget": return "Open_组件实摆";
+                case "probe": return "Open_组件实摆";   // 探针载体=实摆画廊（悬停/滑条/弹层样本都在）
                 case "newsprite": return "Open_新建精灵（xml 装载）";
                 case "menubar": return "Open_Aseprite 菜单栏";
                 case "parts": return "Open_部件陈列廊";
                 case "dup": return "Open_库对话框 Duplicate/Goto";
                 default: return null;
             }
+        }
+
+        /// <summary>dbg-probe 探针小件：引擎事件注入（悬停/点击），非 OS 级模拟。</summary>
+        static void TryHover(Transform t)
+        {
+            if (t == null) return;
+            var ped = new UnityEngine.EventSystems.PointerEventData(
+                UnityEngine.EventSystems.EventSystem.current);
+            UnityEngine.EventSystems.ExecuteEvents.Execute(
+                t.gameObject, ped, UnityEngine.EventSystems.ExecuteEvents.pointerEnterHandler);
+        }
+
+        static void ClickTransform(Transform t)
+        {
+            if (t == null) return;
+            var ped = new UnityEngine.EventSystems.PointerEventData(
+                UnityEngine.EventSystems.EventSystem.current);
+            UnityEngine.EventSystems.ExecuteEvents.Execute(
+                t.gameObject, ped, UnityEngine.EventSystems.ExecuteEvents.pointerClickHandler);
         }
 
         /// <summary>递归转储调试树（名/激活/画布几何）到 export/unity-command-result.txt 尾部。</summary>
@@ -276,7 +296,31 @@ namespace PirateCrew.EditorTools
                             + " showcase=" + (showcase != null)
                             + " launcher=" + (launcher != null ? launcher.name : "<null>"));
                     }
-                    if (EditorApplication.isPlaying && Time.frameCount > 95)
+                    if (EditorApplication.isPlaying && Time.frameCount == 70
+                        && SessionState.GetString(OverlayKey, "") == "dbg-probe")
+                    {
+                        // 交互态探针（引擎事件注入）：悬停高亮 + 气泡（0.5s 协程）+ 滑条程序设值 + 菜单栏窗
+                        TryHover(FindActive("check_启用音效"));   // 正样本：check_hot_face 应亮
+                        TryHover(FindActive("Item0"));             // 负样本：list_item 无 mouse 层，不应亮
+                        TryHover(FindActive("Btn_悬停看气泡 →"));  // 气泡样本：0.5s 后蓝底 tooltip 应弹出
+                        Transform sliderT = FindActive("Slider");
+                        var slider = sliderT != null ? sliderT.GetComponent<global::PirateCrew.UI.Stick.SketchSlider>() : null;
+                        if (slider != null)
+                            slider.Value = 35;                     // SketchSlider 整数取值（旧 UGUI Slider 已退役）
+                        Transform menuLaunch = FindActive("Open_Aseprite 菜单栏");
+                        var menuBtn = menuLaunch != null ? menuLaunch.GetComponent<UnityEngine.UI.Button>() : null;
+                        if (menuBtn != null)
+                            menuBtn.onClick.Invoke();
+                    }
+                    if (EditorApplication.isPlaying && Time.frameCount == 80
+                        && SessionState.GetString(OverlayKey, "") == "dbg-probe")
+                    {
+                        ClickTransform(FindActive("Menu_File"));       // 拍 File 下拉弹层
+                        ClickTransform(FindActive("ComboButton"));     // 拍组合框弹层
+                    }
+                    // dbg-probe 推迟到 >125 帧：悬停气泡是 0.5s 协程（~30 帧），95 帧截会漏拍
+                    int captureFrame = SessionState.GetString(OverlayKey, "") == "dbg-probe" ? 125 : 95;
+                    if (EditorApplication.isPlaying && Time.frameCount > captureFrame)
                     {
                         Directory.CreateDirectory(Path.GetDirectoryName(path));
                         // 调试面板树转储（dbg-* 时面板已建好——分帧构建是点击后下一帧才落）
