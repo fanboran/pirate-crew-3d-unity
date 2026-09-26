@@ -1365,7 +1365,13 @@ namespace PirateCrew.UI.DebugUi
                 options.Add(ctx.Text(li.Attribute("text")?.Value));
             if (options.Count == 0)
                 options.Add(string.Empty);
-            float w = 150f;   // 近似：源 ComboBox 复合件（entry + mini_button 箭头）未逐行，覆盖表登记
+            // combobox.cpp:438-452 onSizeHint × entry.cpp:455-467 sizeHintWithText：
+            // w = max(选项文字宽) + 2×光标宽(2px×2) + 词条边框宽 + 箭头钮宽，夹 kMaxWidthHintForEntry(400)。
+            Vector4 cb = PartBorder("sunken2_normal");
+            float maxTextW = 0f;
+            foreach (string opt in options)
+                maxTextW = Mathf.Max(maxTextW, TextWidth(opt));
+            float w = Mathf.Min(maxTextW + 4f + cb.x + cb.z + AseComboBox.ButtonWidth, 400f);
             TextMeshProUGUI value = AseWidgetKit.ComboBox(parent,
                 el.Attribute("id")?.Value ?? "Combo", 0f, 0f, w, options.ToArray(), 0,
                 popupOverlay: ctx.Window.parent);
@@ -1373,7 +1379,7 @@ namespace PirateCrew.UI.DebugUi
             return new LeafNode
             {
                 Rect = (RectTransform)value.transform.parent,
-                Hint = () => new Vector2(w, LineH + 8f),
+                Hint = () => new Vector2(w, LineH + cb.y + cb.w),   // 源：lineHeight + entry border().height()
             };
         }
 
