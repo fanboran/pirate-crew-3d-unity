@@ -29,6 +29,16 @@ namespace PirateCrew.UI
             Screen.SetResolution(Width, Height, false);
 
             GameObject canvas = BuildCanvas();
+            // CanvasScaler 的 scaleFactor 在自己的 Update 里才应用到 Canvas（Start 同帧
+            // 读 stretch rect 拿到的是应用前的屏幕像素口径——实测 1920 而非 960），
+            // 用它算列宽会把 16 列铺进 942 宽视口（后一半裁掉、横条误出）。延一帧，
+            // 等 canvas 稳定到艺术像素口径再建滚动区。
+            StartCoroutine(BuildAfterScalerSettles(canvas));
+        }
+
+        System.Collections.IEnumerator BuildAfterScalerSettles(GameObject canvas)
+        {
+            yield return null;
             BuildScroll(canvas.transform);
             BuildBackButton(canvas.transform);
         }
