@@ -226,48 +226,21 @@ namespace PirateCrew.UI.DebugUi
 
         static float BuildScrollComboTip(RectTransform window, float y)
         {
-            // 滚动条：theme scrollbar 件（16 宽）+ sunken 视口内 8 行假内容
-            RectTransform viewport = UiKit.CreateRect("ScrollDemo", window);
-            UiKit.SetAnchored(viewport, new Vector2(0f, 1f), new Vector2(150f, 46f),
-                new Vector2(DebugWindowKit.Pad, -y));
-            var viewBorder = viewport.gameObject.AddComponent<Image>();
-            AseUi.SetRawPart(viewBorder, "sunken_normal");
-            viewBorder.raycastTarget = true;
-            // 裁剪：滚出视口的内容被裁掉（源 drawable region 逐祖先求交）
-            AseUi.ClipViewport(viewport);
+            // 滚动视图 = theme view 样式（window_face 底 + sunken 边框 3/顶4），条按需出在
+            // 框内右缘、视口被条挤窄（scroll_helper.cpp:75-81）——源里没有「框外独立条」的组合
+            AseView scroll = AseWidgetKit.ScrollView(window, "ScrollDemo",
+                DebugWindowKit.Pad, y, 150f, 46f);
 
-            RectTransform content = UiKit.CreateRect("Content", viewport);
-            UiKit.SetAnchored(content, new Vector2(0.5f, 1f), new Vector2(150f, 8 * 11f + 4f), Vector2.zero);
+            RectTransform content = UiKit.CreateRect("Content", scroll.Viewport);
+            UiKit.SetAnchored(content, new Vector2(0f, 1f), new Vector2(130f, 8 * 11f + 4f),
+                Vector2.zero);
             for (int i = 0; i < 8; i++)
                 DebugWindowKit.PlaceLabel(content, "第 " + (i + 1) + " 行", UiSkin.Font.Tiny,
                     PixelSkin.Theme.Text, 5f, i * 11f, 130f);
 
-            var scroll = viewport.gameObject.AddComponent<ScrollRect>();
-            scroll.viewport = viewport;
-            scroll.content = content;
-            scroll.horizontal = false;
-            scroll.movementType = ScrollRect.MovementType.Clamped;
-            scroll.scrollSensitivity = 20f;
-
-            RectTransform bar = UiKit.CreateRect("VBar", window);
-            UiKit.SetAnchored(bar, new Vector2(0f, 1f), new Vector2(16f, 46f),
-                new Vector2(DebugWindowKit.Pad + 154f, -y));
-            var barBg = bar.gameObject.AddComponent<Image>();
-            AseUi.SetRawPart(barBg, "scrollbar_bg");   // theme scrollbar 直切件
-            barBg.raycastTarget = false;
-
-            RectTransform handle = UiKit.CreateRect("Handle", bar);
-            UiKit.Stretch(handle);   // 拉伸锚（Scrollbar 按值沿轴驱动 anchor）
-            var handleImage = handle.gameObject.AddComponent<Image>();
-            AseUi.SetRawPart(handleImage, "scrollbar_thumb");
-            handleImage.raycastTarget = true;
-
-            var scrollbar = bar.gameObject.AddComponent<Scrollbar>();
-            scrollbar.handleRect = handle;
-            scrollbar.targetGraphic = handleImage;
-            scrollbar.direction = Scrollbar.Direction.BottomToTop;
-            scrollbar.size = Mathf.Clamp01(46f / (8 * 11f + 4f));   // 滑块大小 = 可视/内容比
-            scroll.verticalScrollbar = scrollbar;
+            scroll.AttachToView(content);
+            scroll.SetContentHint(130, 8 * 11 + 4);   // Viewport::calculateNeededSize 由挂载方供给
+            scroll.UpdateView();
 
             // 组合框（两件套：sunken2 词条 + mini_button 箭头钮；弹层 = View(sunken) 里的 ListBox，
             // 金底选中/点外收/越底翻上——combobox.cpp 语义，实现见 AseComboBox）

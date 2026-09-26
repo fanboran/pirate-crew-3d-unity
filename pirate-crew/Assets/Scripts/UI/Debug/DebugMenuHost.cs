@@ -214,63 +214,32 @@ namespace PirateCrew.UI.DebugUi
                 "部件陈列廊（theme.xml 全 345 件）", topLeft, new Vector2(784f, 540f - 60f));
             Vector2 windowSize = window.sizeDelta;
 
-            // 滚动区：点锚 + 显式尺寸（拉伸锚的 inset 写法在点锚上会得负尺寸）
-            RectTransform scroll = UiKit.CreateRect("Scroll", window);
-            UiKit.SetAnchored(scroll, new Vector2(0f, 1f), new Vector2(
-                windowSize.x - DebugWindowKit.Pad * 2f - 16f - 4f,
-                windowSize.y - DebugWindowKit.ContentTop - DebugWindowKit.Pad),
-                new Vector2(DebugWindowKit.Pad, -DebugWindowKit.ContentTop));
+            // 滚动视图 = theme view 整装：window_face 底 + sunken 边框，12 宽条**按需**出在
+            // 框内右缘并挤窄视口（scroll_helper.cpp:75-81）——源里没有「框外独立条」的组合
+            AseView scroll = AseWidgetKit.ScrollView(window, "Scroll",
+                DebugWindowKit.Pad, DebugWindowKit.ContentTop,
+                windowSize.x - DebugWindowKit.Pad * 2f,
+                windowSize.y - DebugWindowKit.ContentTop - DebugWindowKit.Pad);
 
-            RectTransform viewport = UiKit.CreateRect("Viewport", scroll);
-            UiKit.Stretch(viewport);
-            AseUi.ClipViewport(viewport);
+            RectTransform content = UiKit.CreateRect("Content", scroll.Viewport);
+            UiKit.SetAnchored(content, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
 
-            RectTransform content = UiKit.CreateRect("Content", viewport);
-            content.anchorMin = new Vector2(0f, 1f);
-            content.anchorMax = new Vector2(1f, 1f);
-            content.pivot = new Vector2(0.5f, 1f);
-            content.anchoredPosition = Vector2.zero;
+            // 陈列廊列数自适应：可用宽 = 视口宽（框 3+3 与条 12 都在框内）。
+            // **分帧构建**（345 格不分帧会整秒吞帧，实机走查「点下去一会才有反应」的
+            // 元凶之一）——content 高度随建随长。
+            float galleryWidth = windowSize.x - DebugWindowKit.Pad * 2f
+                - AseWidgetKit.ViewBorderLeft - AseWidgetKit.ViewBorderRight
+                - AseLayout.ScrollbarSize;
 
-            // 陈列廊列数自适应：可用宽 = 滚动区宽；**分帧构建**（345 格不分帧会整秒吞帧，
-            // 实机走查「点下去一会才有反应」的元凶之一）——content 高度随建随长。
-            float galleryWidth = scroll.sizeDelta.x;
-            float height = 1f;
-            content.sizeDelta = new Vector2(0f, height);
+            scroll.AttachToView(content);
 
-            var scrollRect = scroll.gameObject.AddComponent<ScrollRect>();
-            scrollRect.content = content;
-            scrollRect.viewport = viewport;
-            scrollRect.horizontal = false;
-            scrollRect.movementType = ScrollRect.MovementType.Clamped;
-            scrollRect.scrollSensitivity = 30f;
-
-            // theme 滚动条（16 宽）贴滚动区右侧
-            RectTransform bar = UiKit.CreateRect("VBar", window);
-            UiKit.SetAnchored(bar, new Vector2(0f, 1f), new Vector2(16f, scroll.sizeDelta.y),
-                new Vector2(DebugWindowKit.Pad + scroll.sizeDelta.x + 4f, -DebugWindowKit.ContentTop));
-            var barBg = bar.gameObject.AddComponent<Image>();
-            AseUi.SetRawPart(barBg, "scrollbar_bg");   // theme scrollbar 直切件
-            barBg.raycastTarget = false;
-
-            RectTransform handle = UiKit.CreateRect("Handle", bar);
-            UiKit.Stretch(handle);
-            var handleImage = handle.gameObject.AddComponent<Image>();
-            AseUi.SetRawPart(handleImage, "scrollbar_thumb");
-            handleImage.raycastTarget = true;
-
-            var scrollbar = bar.gameObject.AddComponent<Scrollbar>();
-            scrollbar.handleRect = handle;
-            scrollbar.targetGraphic = handleImage;
-            scrollbar.direction = Scrollbar.Direction.BottomToTop;
-            scrollbar.size = 1f;
-            scrollRect.verticalScrollbar = scrollbar;
-
-            // 分帧铺 345 格：每步回告累计高，content 与滑块比例随建随长
+            // 分帧铺 345 格：每步回告累计高，sizeHint 与滚动几何随建随长（源在
+            // Viewport 尺寸变化时 updateView，此处按步喂）
             DebugBuildQueue.Ensure(window.parent).RunSteps(
                 PartsGalleryPage.BuildSteps(content, 0f, galleryWidth, total =>
                 {
-                    content.sizeDelta = new Vector2(0f, total);
-                    scrollbar.size = Mathf.Clamp01(scroll.sizeDelta.y / Mathf.Max(1f, total));
+                    scroll.SetContentHint((int)galleryWidth, (int)total);
+                    scroll.UpdateView();
                 }));
             return window;
         }

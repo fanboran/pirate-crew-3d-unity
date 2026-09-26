@@ -125,6 +125,60 @@ namespace PirateCrew.UI.DebugUi
         }
 
         // ------------------------------------------------------------------
+        // 滚动视图
+        // ------------------------------------------------------------------
+
+        /// <summary>theme <c>view</c>：border="3" border-top="4"（theme.xml:581）。</summary>
+        public const float ViewBorderLeft = 3f;
+        /// <summary>theme <c>view</c>：border="3" border-top="4"（theme.xml:581）。</summary>
+        public const float ViewBorderTop = 4f;
+        /// <summary>theme <c>view</c>：border="3" border-top="4"（theme.xml:581）。</summary>
+        public const float ViewBorderRight = 3f;
+        /// <summary>theme <c>view</c>：border="3" border-top="4"（theme.xml:581）。</summary>
+        public const float ViewBorderBottom = 3f;
+
+        /// <summary>theme <c>view</c> 样式滚动视图整装（点锚版）：window_face 色层 +
+        /// sunken_normal 九宫边框 + <see cref="AseView"/> 内核。几何全按源——
+        /// 12 宽滚动条**按需**出现在框内右缘、视口被条挤窄（scroll_helper.cpp:75-81，
+        /// 源里没有「框外独立条」的组合）；条是否出现由内容 sizeHint 对视口的 IfNeeded
+        /// 判定，不是恒挂。用法：内容挂 <see cref="AseView.AttachToView"/> →
+        /// <see cref="AseView.SetContentHint"/> → <see cref="AseView.UpdateView"/>。
+        /// 拉伸锚的整页滚动区用 <see cref="PaintViewSkin"/> + <see cref="AseView.Attach"/>。</summary>
+        public static AseView ScrollView(RectTransform parent, string name, float x, float y,
+            float w, float h)
+        {
+            RectTransform view = UiKit.CreateRect(name, parent);
+            UiKit.SetAnchored(view, new Vector2(0f, 1f), new Vector2(w, h), new Vector2(x, -y));
+            PaintViewSkin(view);
+            return AseView.Attach(view,
+                (int)ViewBorderLeft, (int)ViewBorderTop, (int)ViewBorderRight, (int)ViewBorderBottom);
+        }
+
+        /// <summary>只贴 view 两层皮（色层 + 边框件层），几何内核另接
+        /// <see cref="AseView.Attach"/>；点锚整装版见 <see cref="ScrollView"/>。</summary>
+        public static void PaintViewSkin(RectTransform view)
+        {
+            // theme view 样式逐层（经 AseThemeLayers 解析：background color=window_face、
+            // border part=sunken_normal；state="focus" 换 sunken_focused——滚动区无键盘
+            // 焦点态，不接）。像素件禁止乘色。
+            var bg = view.gameObject.AddComponent<Image>();
+            Color32? face = AseThemeLayers.ResolveBackgroundColor("view", AseStates.None);
+            bg.color = face.HasValue ? (Color)face.Value : (Color)PixelSkin.Theme.Face;
+            bg.raycastTarget = false;
+
+            RectTransform border = UiKit.CreateRect("ViewBorder", view);
+            UiKit.Stretch(border);
+            var borderImage = border.gameObject.AddComponent<Image>();
+            string part = AseThemeLayers.ResolveBackgroundPart("view", AseStates.None);
+            if (part != null)
+                borderImage.sprite = PixelSkin.Ase(part);
+            borderImage.type = Image.Type.Sliced;
+            borderImage.pixelsPerUnitMultiplier = 1f;
+            borderImage.color = Color.white;
+            borderImage.raycastTarget = true;   // 边框区接事件（弹层收合语义靠它；滚动区无害）
+        }
+
+        // ------------------------------------------------------------------
         // 组合框
         // ------------------------------------------------------------------
 
