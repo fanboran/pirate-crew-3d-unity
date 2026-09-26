@@ -45,14 +45,9 @@ namespace PirateCrew.UI.DebugUi
                 = TMP_InputField.ContentType.IntegerNumber, string suffix = null)
         {
             RectTransform entry = UiKit.CreateRect(name, parent);
-            entry.anchorMin = entry.anchorMax = entry.pivot = new Vector2(0f, 1f);
-            entry.anchoredPosition = new Vector2(x, -y);
-            entry.sizeDelta = new Vector2(w, 12f);
+            UiKit.SetAnchored(entry, new Vector2(0f, 1f), new Vector2(w, 12f), new Vector2(x, -y));
             var sunken = entry.gameObject.AddComponent<Image>();
-            sunken.sprite = PixelSkin.Sunken(false);
-            sunken.type = Image.Type.Sliced;
-            sunken.pixelsPerUnitMultiplier = 1f;   // ×1 终局：贴图纹素 = 画布像素
-            sunken.color = Color.white;            // 像素件禁止乘色
+            AseUi.SetRawPart(sunken, "sunken_normal");   // theme sunken 常态件（Sliced + ppum×1 + 白见 AseUi）
             sunken.raycastTarget = true;
 
             // 外向文本模型：禁用态 TMP_InputField（不参与编辑，只作 .text 存根与 id 注册件）。
@@ -84,21 +79,18 @@ namespace PirateCrew.UI.DebugUi
         public static Button CheckRow(RectTransform parent, string label, float x, float y,
             bool initial, System.Action<bool> onChanged, string kind = "check")
         {
-            var rowGo = new GameObject(kind + "_" + label, typeof(RectTransform));
-            RectTransform rect = rowGo.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-            rect.anchoredPosition = new Vector2(x, -y);
+            RectTransform rect = UiKit.CreateRect(kind + "_" + label, parent);
+            UiKit.SetAnchored(rect, new Vector2(0f, 1f), Vector2.zero, new Vector2(x, -y));
+            GameObject rowGo = rect.gameObject;
 
             var face = rowGo.AddComponent<Image>();
             face.color = new Color(0f, 0f, 0f, 0f);
             face.raycastTarget = true;
             rowGo.AddComponent<AseCheckBoxFace>().Bind(face, kind == "radio");
 
-            var icon = UiKit.CreateRect("Icon", rect);
-            icon.anchorMin = icon.anchorMax = icon.pivot = new Vector2(0f, 1f);
-            icon.sizeDelta = new Vector2(8f, 8f);
-            icon.anchoredPosition = new Vector2(2f, -4f);
+            // 图标 8×8 @ (2,4)：theme.xml:150 check_normal 件尺寸 + 样式 icon x=2。
+            RectTransform icon = UiKit.CreateRect("Icon", rect);
+            UiKit.SetAnchored(icon, new Vector2(0f, 1f), new Vector2(8f, 8f), new Vector2(2f, -4f));
             var iconImage = icon.gameObject.AddComponent<Image>();
             iconImage.raycastTarget = false;
 
@@ -129,7 +121,7 @@ namespace PirateCrew.UI.DebugUi
             string part = AseThemeLayers.ResolveIconPart(
                 styleId, on ? AseStates.Selected : AseStates.None);
             if (part != null)
-                icon.sprite = PixelSkin.Ase(part);
+                AseUi.SetRawPart(icon, part);
         }
 
         // ------------------------------------------------------------------
@@ -139,23 +131,16 @@ namespace PirateCrew.UI.DebugUi
         /// <summary>两件套组合框（theme combobox：sunken2 词条 + 右缘 15 宽 mini_button 箭头钮）。
         /// 行为逐条按 combobox.cpp：点词条/点钮开合切换、弹层 = View(sunken) 里的 ListBox、
         /// 点弹层外收、选中项回填词条文本。实现见 <see cref="AseComboBox"/>。
-        /// <paramref name="popupOverlay"/> = 弹层宿主（必须是调试根 overlay——弹层要盖过
-        /// **所有**窗；缺省取 parent.parent，仅当组合框直接挂在窗根下时成立）。
+        /// 弹层宿主取 parent.parent（窗的父级 overlay）——**不是** parent（窗）本身：
+        /// 弹层挂在窗里会被窗裁/随窗移动。
         /// 宽度由调用方给定（组合框自身的 sizeHint 反推宽度未移植，见交接报告）。</summary>
         public static TextMeshProUGUI ComboBox(RectTransform parent, string name, float x, float y,
-            float w, string[] options, int initial, System.Action<int> onPick = null,
-            Transform popupOverlay = null)
+            float w, string[] options, int initial, System.Action<int> onPick = null)
         {
             RectTransform root = UiKit.CreateRect(name, parent);
-            root.anchorMin = root.anchorMax = root.pivot = new Vector2(0f, 1f);
-            root.anchoredPosition = new Vector2(x, -y);
-            root.sizeDelta = new Vector2(w, 12f);
+            UiKit.SetAnchored(root, new Vector2(0f, 1f), new Vector2(w, 12f), new Vector2(x, -y));
 
-            // 弹层宿主缺省 = parent.parent（窗的父级 overlay）——**不是** parent（窗）本身：
-            // 弹层挂在窗里会被窗裁/随窗移动。
-            Transform host = popupOverlay != null
-                ? popupOverlay
-                : (parent != null ? parent.parent : null);
+            Transform host = parent != null ? parent.parent : null;
             var combo = root.gameObject.AddComponent<AseComboBox>();
             return combo.Build(root, options, initial, onPick, host);
         }

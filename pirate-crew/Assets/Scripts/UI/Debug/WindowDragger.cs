@@ -73,20 +73,17 @@ namespace PirateCrew.UI.DebugUi
 
         void BuildZone(RectTransform window)
         {
-            var zone = new GameObject("DragZone", typeof(RectTransform));
-            RectTransform rect = zone.GetComponent<RectTransform>();
-            rect.SetParent(window, false);
-            // 覆盖标题带：横向**拉伸锚**（0,1)-(1,1）+ inset——右让位窗控钮，下探到带底。
-            // （第一版把拉伸锚的 inset 写法用在点锚上，宽度成了 −24：命中板不存在、
-            // 全部窗体都拖不动——实机走查抓出。）
+            RectTransform rect = UiKit.CreateRect("DragZone", window);
+            // 覆盖标题带：横向拉伸锚 (0,1)-(1,1) + inset——右让位窗控钮，下探到带底。
+            // （拉伸锚只此一处：点锚件不得写 inset 式 offset，否则宽度成 −24、命中板不存在。）
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = new Vector2(1f, 1f);
             rect.offsetMin = new Vector2(0f, -DebugWindowKit.TitleBand);
             rect.offsetMax = new Vector2(-RightReserve, 0f);
             // 主菜单 MenuWindow 挂着 VerticalLayoutGroup——命中板若参与内容流会被排到
             // 按钮列末尾（窗外），主菜单拖动整条失效；必须豁免布局（同标题字/窗控钮口径）。
-            UiLayout.Ignore(zone);
-            var hit = zone.AddComponent<Image>();
+            UiLayout.Ignore(rect.gameObject);
+            var hit = rect.gameObject.AddComponent<Image>();
             hit.color = new Color(0f, 0f, 0f, 0f);   // 透明命中板：只吃指针不显形
             hit.raycastTarget = true;
         }
@@ -109,8 +106,7 @@ namespace PirateCrew.UI.DebugUi
                 return;
 
             // 拖动按「窗左上角在画布上的位置」算，再换算回窗体自己的锚/枢轴系——
-            // 主菜单是中心锚窗（0.5,0.5），调试窗是左上锚窗，锚系各自不同（实机走查
-            // 「拖到画布中线就卡住」即按左上锚语义夹取中心锚窗的坐标所致）。
+            // 主菜单是中心锚窗（0.5,0.5），调试窗是左上锚窗，锚系各自不同。
             Vector2 delta = now - _dragStart;                          // 画布中心系，y 向上
             Vector2 topLeft = _startTopLeft + new Vector2(delta.x, -delta.y);   // 转左上原点 y 向下
             float w = _window.rect.width;
@@ -124,14 +120,10 @@ namespace PirateCrew.UI.DebugUi
             _window.anchoredPosition = TopLeftToAnchored(topLeft, w, h);
         }
 
-        /// <summary>窗左上角在画布局部的位置（左上原点、y 向下）。</summary>
+        /// <summary>窗左上角在画布局部的位置（左上原点、y 向下）——走 <see cref="AseUi.EdgesOf"/> 单点。</summary>
         Vector2 TopLeftInCanvas()
         {
-            Vector3[] corners = new Vector3[4];
-            _window.GetWorldCorners(corners);   // 0 左下 1 左上 2 右上 3 右下
-            Vector2 local = _canvas.InverseTransformPoint(corners[1]);
-            return new Vector2(local.x + _canvas.rect.width * 0.5f,
-                _canvas.rect.height * 0.5f - local.y);
+            return AseUi.EdgesOf(_window, _canvas);
         }
 
         /// <summary>左上角目标位 → 本窗锚/枢轴系的 anchoredPosition（任意点锚通用）。</summary>

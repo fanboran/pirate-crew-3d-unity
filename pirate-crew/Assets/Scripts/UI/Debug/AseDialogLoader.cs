@@ -61,8 +61,7 @@ namespace PirateCrew.UI.DebugUi
                 return NodeById.TryGetValue(id, out AwNode node) && node.Hidden;
             }
 
-            /// <summary>隐藏/显示一个盒并**重排收窗高**（隐藏的盒不占高度——旧版只 SetActive
-            /// 留空洞，new_sprite 的 advanced 即受害者）。</summary>
+            /// <summary>隐藏/显示一个盒并**重排收窗高**（隐藏的盒不占高度）。</summary>
             public void SetHidden(string id, bool hidden)
             {
                 if (!NodeById.TryGetValue(id, out AwNode node))
@@ -78,12 +77,7 @@ namespace PirateCrew.UI.DebugUi
             {
                 if (Window == null || Root == null)
                     return;
-                float contentH = Root.Measure().y;
-                Root.Layout(Mathf.RoundToInt(DebugWindowKit.Pad),
-                    Mathf.RoundToInt(DebugWindowKit.ContentTop),
-                    Mathf.RoundToInt(InnerW), Mathf.RoundToInt(contentH));
-                Window.sizeDelta = new Vector2(InnerW + DebugWindowKit.Pad * 2f,
-                    DebugWindowKit.ContentTop + contentH + DebugWindowKit.Pad);   // 窗高须含顶部 inset（内容自 ContentTop 起排）
+                ApplyLayout(Root, Window, InnerW, Root.Measure().y);
             }
         }
 
@@ -128,16 +122,21 @@ namespace PirateCrew.UI.DebugUi
             // 两遍：Measure（自然尺寸）→ Layout（按窗内宽落位）——同 aseprite 先 sizeHint 后 setBounds
             Vector2 hint = root.Measure();
             float innerW = Mathf.Max(MinInnerW, hint.x);
-            float contentH = hint.y;
-            root.Layout(Mathf.RoundToInt(DebugWindowKit.Pad),
-                Mathf.RoundToInt(DebugWindowKit.ContentTop),
-                Mathf.RoundToInt(innerW), Mathf.RoundToInt(contentH));
-            window.sizeDelta = new Vector2(innerW + DebugWindowKit.Pad * 2f,
-                DebugWindowKit.ContentTop + contentH + DebugWindowKit.Pad);   // 窗高须含顶部 inset
+            ApplyLayout(root, window, innerW, hint.y);
             ctx.Result.Window = window;
             ctx.Result.Root = root;      // cmd 层 SetHidden/Reflow 用
             ctx.Result.InnerW = innerW;
             return ctx.Result;
+        }
+
+        /// <summary>按内容高落位根盒并同步窗高。窗高须含顶部 inset（内容自 ContentTop 起排）。</summary>
+        static void ApplyLayout(AwNode root, RectTransform window, float innerW, float contentH)
+        {
+            root.Layout(Mathf.RoundToInt(DebugWindowKit.Pad),
+                Mathf.RoundToInt(DebugWindowKit.ContentTop),
+                Mathf.RoundToInt(innerW), Mathf.RoundToInt(contentH));
+            window.sizeDelta = new Vector2(innerW + DebugWindowKit.Pad * 2f,
+                DebugWindowKit.ContentTop + contentH + DebugWindowKit.Pad);
         }
 
         const float MinInnerW = 150f;
@@ -247,9 +246,7 @@ namespace PirateCrew.UI.DebugUi
 
             public override void Layout(int x, int y, int w, int h)
             {
-                Rect.anchorMin = Rect.anchorMax = Rect.pivot = new Vector2(0f, 1f);
-                Rect.anchoredPosition = new Vector2(x, -y);
-                Rect.sizeDelta = new Vector2(w, h);
+                UiKit.SetAnchored(Rect, new Vector2(0f, 1f), new Vector2(w, h), new Vector2(x, -y));
                 Resize?.Invoke(w);
             }
         }
@@ -1159,9 +1156,9 @@ namespace PirateCrew.UI.DebugUi
                 var label = DebugWindowKit.Label(host, text, UiSkin.Font.Tiny,
                     PixelSkin.Theme.SeparatorLabel, TMPro.TextAlignmentOptions.Left);
                 RectTransform lr = label.rectTransform;
-                lr.anchorMin = lr.anchorMax = lr.pivot = new Vector2(0f, 0.5f);
-                lr.anchoredPosition = new Vector2(4f, 0f);   // style text x=4
-                lr.sizeDelta = new Vector2(titleW + 2f, LineH);
+                // style text x=4（theme.xml horizontal_separator），纵横中线对齐
+                UiKit.SetAnchored(lr, new Vector2(0f, 0.5f), new Vector2(titleW + 2f, LineH),
+                    new Vector2(4f, 0f));
                 float lineX = 4f + titleW + 2f;
                 RectTransform line = (RectTransform)SketchSeparator.Create(host, "Line",
                     new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),

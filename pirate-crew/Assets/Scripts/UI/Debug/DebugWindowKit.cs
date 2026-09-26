@@ -97,12 +97,19 @@ namespace PirateCrew.UI.DebugUi
         /// <summary>调试窗标题字体（与展示页同源：FusionPixel SDF，按字号解析档）。</summary>
         public static TMP_FontAsset HandFont => PixelShowcasePage.PixelFont();
 
+        /// <summary>边框件 id（theme.xml:165 "window" / :166 "menu"——源 <c>&lt;border part="…"/&gt;</c>，
+        /// theme.xml:470 / 474）。</summary>
+        public static string BorderPartId(WindowVariant variant = WindowVariant.WithTitleBar)
+        {
+            return variant == WindowVariant.WithTitleBar ? "window" : "menu";
+        }
+
         /// <summary>窗体边框件（theme.xml:165 "window" 3/7/3 × 15/4/5 → 切片 左3 下5 右3 上15；
         /// 无标题变体用 theme.xml:166 "menu" 3/10/3 × 3/9/4 → 切片 左3 下4 右3 上3）。
         /// 源里这是 style 的 <c>&lt;border part="…"/&gt;</c>（theme.xml:470 / 474）。</summary>
         public static Sprite BorderPart(WindowVariant variant = WindowVariant.WithTitleBar)
         {
-            return PixelSkin.Ase(variant == WindowVariant.WithTitleBar ? "window" : "menu");
+            return PixelSkin.Ase(BorderPartId(variant));
         }
 
         /// <summary>border()（源里 <c>border().width()/height()</c> 的唯一出口，window.cpp:673/778-779）：
@@ -201,12 +208,7 @@ namespace PirateCrew.UI.DebugUi
             // 无标题变体的边框件与带标题不同（theme.xml:470 "menu" vs :474 "window"）。
             Image plate = FindPart(root, "Plate");
             if (plate != null)
-            {
-                plate.sprite = BorderPart(WindowVariant.WithoutTitleBar);
-                plate.type = Image.Type.Sliced;
-                plate.pixelsPerUnitMultiplier = 1f;
-                plate.color = Color.white;
-            }
+                AseUi.SetRawPart(plate, BorderPartId(WindowVariant.WithoutTitleBar));
 
             WindowDragger.Attach(root);
             return root;
@@ -269,9 +271,7 @@ namespace PirateCrew.UI.DebugUi
         {
             TextMeshProUGUI text = Label(parent, content, fontSize, color, align);
             RectTransform rect = text.rectTransform;
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-            rect.sizeDelta = new Vector2(w, fontSize + 4f);
-            rect.anchoredPosition = new Vector2(x, -y);
+            UiKit.SetAnchored(rect, new Vector2(0f, 1f), new Vector2(w, fontSize + 4f), new Vector2(x, -y));
             return text;
         }
 
@@ -279,19 +279,14 @@ namespace PirateCrew.UI.DebugUi
         /// 推进游标 <paramref name="y"/>。</summary>
         public static void Section(RectTransform parent, string title, float width, ref float y)
         {
-            var row = new GameObject("Section_" + title, typeof(RectTransform));
-            RectTransform rect = row.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-            rect.sizeDelta = new Vector2(width, 13f);
-            rect.anchoredPosition = new Vector2(0f, -y);
+            RectTransform rect = UiKit.CreateRect("Section_" + title, parent);
+            UiKit.SetAnchored(rect, new Vector2(0f, 1f), new Vector2(width, 13f), new Vector2(0f, -y));
 
             TextMeshProUGUI label = Label(rect, title, UiSkin.Font.Tiny,
                 PixelSkin.Theme.SeparatorLabel, TextAlignmentOptions.Left);
             RectTransform labelRect = label.rectTransform;
-            labelRect.anchorMin = labelRect.anchorMax = labelRect.pivot = new Vector2(0f, 0.5f);
-            labelRect.sizeDelta = new Vector2(200f, 13f);
-            labelRect.anchoredPosition = new Vector2(AseLayout.Px(AseLayout.SeparatorTextX), 0f);
+            UiKit.SetAnchored(labelRect, new Vector2(0f, 0.5f), new Vector2(200f, 13f),
+                new Vector2(AseLayout.Px(AseLayout.SeparatorTextX), 0f));
 
             float lineX = AseLayout.Px(AseLayout.SeparatorTextX) + Mathf.Ceil(label.preferredWidth)
                 + AseLayout.Px(AseLayout.SeparatorBorder);
