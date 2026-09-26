@@ -353,11 +353,14 @@ namespace PirateCrew.UI.DebugUi
                     Vector2.zero);
                 tip.sizeDelta = new Vector2(textW + 12f, 22f);
 
-                // 气泡贴目标钮左上：(0,1) 点锚 = 一行换算（EdgesOf）+ 一行落位（PlaceByEdges），
-                // 锚参考点只算一次。
+                // 气泡水平居中于目标钮、底边高于钮顶 2px：(0,1) 点锚 = 一行换算（EdgesOf）
+                // + 一行落位（PlaceByEdges）。tip 已量宽——左缘 = 钮中心 − 半宽（等价旧
+                // 底边中心锚语义，漏减半宽会整体右偏半气泡）。
                 RectTransform target = (RectTransform)transform;
                 Vector2 edges = AseUi.EdgesOf(target, canvas);
-                AseUi.PlaceByEdges(tip, edges.x + target.rect.width * 0.5f, edges.y - 2f);
+                AseUi.PlaceByEdges(tip,
+                    edges.x + target.rect.width * 0.5f - tip.sizeDelta.x * 0.5f,
+                    edges.y - 2f);
                 tip.SetAsLastSibling();
                 _tip = tip.gameObject;
             }

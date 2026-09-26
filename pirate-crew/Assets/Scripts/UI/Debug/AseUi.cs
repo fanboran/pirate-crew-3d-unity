@@ -94,11 +94,12 @@ namespace PirateCrew.UI.DebugUi
             return true;
         }
 
-        /// <summary>直切件挂皮（theme parts 表件 id 直取，sheet 原色）。</summary>
-        public static void SetRawPart(Image image, string partId)
+        /// <summary>直切件挂皮（theme parts 表件 id 直取，sheet 原色）。
+        /// 点状蚀刻线等 3px 周期件必须传 <paramref name="type"/>=Tiled（Sliced 拉伸会变实线）。</summary>
+        public static void SetRawPart(Image image, string partId, Image.Type type = Image.Type.Sliced)
         {
             image.sprite = PixelSkin.Ase(partId);
-            image.type = Image.Type.Sliced;
+            image.type = type;
             image.pixelsPerUnitMultiplier = 1f;
             image.color = Color.white;
         }
