@@ -113,7 +113,9 @@ namespace PirateCrew.UI.Stick
             var image = go.AddComponent<UnityEngine.UI.Image>();
             image.type = UnityEngine.UI.Image.Type.Sliced;
             image.color = Color.white;      // 像素件禁止乘色：tone 色阶烘在贴图里
-            image.raycastTarget = false;
+            // 命中区 = 整个窗体 bounds（源 widget.cpp hitTest 语义）：底面必须接光，
+            // 否则点击前窗空白会穿到视觉上被盖住的后窗控件（「透过前面的面板点到后面」）
+            image.raycastTarget = true;
             return image;
         }
 

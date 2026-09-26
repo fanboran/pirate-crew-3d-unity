@@ -164,7 +164,8 @@ namespace PirateCrew.UI.DebugUi
             var bg = view.gameObject.AddComponent<Image>();
             Color32? face = AseThemeLayers.ResolveBackgroundColor("view", AseStates.None);
             bg.color = face.HasValue ? (Color)face.Value : (Color)PixelSkin.Theme.Face;
-            bg.raycastTarget = false;
+            bg.raycastTarget = true;    // 命中区 = 整个 View bounds（widget.cpp hitTest）——
+                                        // 底面不接光会点穿到被盖住的下层窗
 
             RectTransform border = UiKit.CreateRect("ViewBorder", view);
             UiKit.Stretch(border);
