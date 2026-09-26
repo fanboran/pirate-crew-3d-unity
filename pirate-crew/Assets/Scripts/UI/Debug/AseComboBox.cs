@@ -61,8 +61,8 @@ namespace PirateCrew.UI.DebugUi
             _onPick = onPick;
             // 弹层宿主 = 画布层（源里 openListBox 建的是 Window(WithoutTitleBar) 独立顶层窗，
             // combobox.cpp:615+652 openWindow → Manager 托管——不是组合框/对话框的子件，
-            // 不吃窗内裁剪、坐标也是显示器绝对系）。与 AseMenuKit 弹层同一架构（FindOverlay）。
-            _popupHost = popupHost != null ? popupHost : (Transform)AseMenuKit.FindOverlay(root);
+            // 不吃窗内裁剪、坐标也是显示器绝对系）。宿主单点：AseUi.OverlayOf。
+            _popupHost = popupHost != null ? popupHost : (Transform)AseUi.OverlayOf(root);
 
             // 词条面：combobox 样式（sunken2_normal / state="focus" 换 sunken2_focused）；
             // ComboBox::onResize(423-436)：钮占右缘 ButtonWidth，词条占其余 —— 面与钮各画各的
@@ -73,11 +73,8 @@ namespace PirateCrew.UI.DebugUi
             entry.offsetMin = Vector2.zero;
             entry.offsetMax = new Vector2(-ButtonWidth, 0f);
             var face = entry.gameObject.AddComponent<Image>();
-            face.sprite = EntryPart(AseStates.None);   // theme combobox 常态 = sunken2_normal
-            face.type = Image.Type.Sliced;
-            face.pixelsPerUnitMultiplier = 1f;
-            face.color = Color.white;
             face.raycastTarget = true;
+            AseUi.SetPart(face, "combobox", AseStates.None);   // theme combobox 常态 = sunken2_normal
             _entryFace = face;
 
             // 词条文字（Entry::drawEntryText 按 clientBounds；combobox 样式 border = sunken2 切片 5）
@@ -160,7 +157,7 @@ namespace PirateCrew.UI.DebugUi
             RectTransform comboRect = (RectTransform)transform;
             RectTransform host = _popupHost as RectTransform;
             if (host == null)
-                host = AseMenuKit.FindOverlay(transform);
+                host = AseUi.OverlayOf(transform);
             if (host == null)
                 return;
 
@@ -168,15 +165,10 @@ namespace PirateCrew.UI.DebugUi
             float h = Mathf.Round(comboRect.rect.height);
             Rect hostRect = host.rect;
 
-            // 组合框左上角在宿主局部空间（Aseprite 里 bounds() 是全树同坐标系的绝对坐标，
-            // 这里用 InverseTransformPoint 换到宿主锚参考系，等价）
-            var corners = new Vector3[4];
-            comboRect.GetWorldCorners(corners);   // 0 左下 / 1 左上 / 2 右上 / 3 右下
-            Vector2 localTopLeft = host.InverseTransformPoint(corners[1]);
-            float anchorX = -hostRect.width * host.pivot.x;
-            float anchorY = hostRect.height * (1f - host.pivot.y);
-            float comboLeft = localTopLeft.x - anchorX;   // 距宿主左缘
-            float comboTop = anchorY - localTopLeft.y;    // 距宿主上缘（向下为正）
+            // 组合框左上角距宿主左/上缘（源 bounds() 是绝对坐标——UGUI 侧经 AseUi 单点换算）
+            Vector2 comboEdges = AseUi.EdgesOf(comboRect, host);
+            float comboLeft = comboEdges.x;
+            float comboTop = comboEdges.y;
             float entryBottom = comboTop + h;             // == entryBounds.y2()
 
             // 弹层高度（combobox.cpp:629-640）：**先钳视口高**（size.h = Σ 项高，钳进
@@ -201,12 +193,8 @@ namespace PirateCrew.UI.DebugUi
             top = Mathf.Round(Mathf.Clamp(top, 0f, Mathf.Max(0f, hostRect.height - popupH)));
 
             _popup = AseComboBoxPopup.Open(this, host, w, popupH, itemsW, _options, _selected);
-            RectTransform popupRect = _popup.Rect;
-            // anchors/pivot=(0,1) 下 anchoredPosition 本身就是「距宿主左缘 / 距顶缘」
-            // （left/top 已是换算后的边距）——不得再叠加锚参考点 anchorX/anchorY，
-            // 否则锚点算两遍，弹层平移 2×锚点出画布（960×540 画布上整体飞出左上外）。
-            popupRect.anchoredPosition = new Vector2(left, -top);
-            popupRect.SetAsLastSibling();
+            AseUi.PlaceByEdges(_popup.Rect, left, top);
+            _popup.Rect.SetAsLastSibling();
 
             // 焦点态（combobox 样式 state="focus"）：源里开弹层时焦点落在词条/列表上，
             // 组合框作为焦点祖先带 HAS_FOCUS —— 本移植没有焦点系统，以「弹层开着」表达
@@ -229,18 +217,7 @@ namespace PirateCrew.UI.DebugUi
         /// <summary>词条面焦点态切换（引擎解析 theme <c>combobox</c>：focus → sunken2_focused）。</summary>
         void SetEntryFocus(bool focused)
         {
-            if (_entryFace == null)
-                return;
-            Sprite sprite = EntryPart(focused ? AseStates.Focus : AseStates.None);
-            if (sprite != null)
-                _entryFace.sprite = sprite;
-        }
-
-        /// <summary>词条底皮（theme &lt;style id="combobox"&gt; 的 background-border 层）。</summary>
-        static Sprite EntryPart(AseStates states)
-        {
-            string part = AseThemeLayers.ResolveBackgroundPart("combobox", states);
-            return part != null ? PixelSkin.Ase(part) : null;
+            AseUi.SetPart(_entryFace, "combobox", focused ? AseStates.Focus : AseStates.None);
         }
 
         /// <summary>箭头钮底皮（theme &lt;style id="combobox_button"&gt;）。</summary>
