@@ -219,7 +219,7 @@ namespace PirateCrew.UI.DebugUi
             public RectTransform Host;
 
             /// <summary>未夹 min/max 的 sizeHint（盒=Box/Grid::onSizeHint 移植；叶子=控件 hint）。</summary>
-            protected abstract Vector2 RawMeasure(int fitW, int fitH);
+            internal abstract Vector2 RawMeasure(int fitW, int fitH);
 
             /// <summary>sizeHint(fitIn)（widget.cpp:1480-1493：结果夹 [min,max]）。</summary>
             public Vector2 Measure(int fitW, int fitH)
@@ -242,7 +242,7 @@ namespace PirateCrew.UI.DebugUi
             /// <summary>布局后的内件跟随回调（分隔线铺到格宽）。</summary>
             public System.Action<float> Resize;
 
-            protected override Vector2 RawMeasure(int fitW, int fitH) => Hint();
+            internal override Vector2 RawMeasure(int fitW, int fitH) => Hint();
 
             public override void Layout(int x, int y, int w, int h)
             {
@@ -268,7 +268,7 @@ namespace PirateCrew.UI.DebugUi
             public readonly List<bool> Expansive2 = new List<bool>();
 
             // Box::onSizeHint（box.cpp:33-91）：ADD_CHILD_SIZE / FINAL_ADJUSTMENT 宏逐行。
-            protected override Vector2 RawMeasure(int fitW, int fitH)
+            internal override Vector2 RawMeasure(int fitW, int fitH)
             {
                 int visibleChildren = 0;
                 for (int i = 0; i < Kids.Count; i++)
@@ -830,7 +830,7 @@ namespace PirateCrew.UI.DebugUi
 
             // --- onSizeHint / onResize（grid.cpp:157-245） ---
 
-            protected override Vector2 RawMeasure(int fitW, int fitH)
+            internal override Vector2 RawMeasure(int fitW, int fitH)
             {
                 CalculateSize();
                 float w = SumStrip(true) + 2 * Border;
