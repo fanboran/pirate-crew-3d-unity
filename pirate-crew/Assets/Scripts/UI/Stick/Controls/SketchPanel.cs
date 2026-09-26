@@ -1,4 +1,5 @@
 using UnityEngine;
+using PirateCrew.UI.DebugUi;
 
 namespace PirateCrew.UI.Stick
 {
@@ -95,10 +96,10 @@ namespace PirateCrew.UI.Stick
             if (legacyShadow != null)
                 UnityEngine.Object.DestroyImmediate(legacyShadow.gameObject);
 
-            plate = AddPart(root, PlatePartName, null);
+            plate = AddPart(root, PlatePartName);
         }
 
-        private static UnityEngine.UI.Image AddPart(RectTransform root, string partName, Sprite sprite)
+        private static UnityEngine.UI.Image AddPart(RectTransform root, string partName)
         {
             var go = new GameObject(partName, typeof(RectTransform));
             RectTransform rt = go.GetComponent<RectTransform>();
@@ -110,7 +111,6 @@ namespace PirateCrew.UI.Stick
             rt.offsetMax = Vector2.zero;
 
             var image = go.AddComponent<UnityEngine.UI.Image>();
-            image.sprite = sprite;
             image.type = UnityEngine.UI.Image.Type.Sliced;
             image.color = Color.white;      // 像素件禁止乘色：tone 色阶烘在贴图里
             image.raycastTarget = false;
@@ -134,9 +134,8 @@ namespace PirateCrew.UI.Stick
 
             if (Titled)
             {
-                string part = AseThemeLayers.ResolveBackgroundPart("window_with_title", AseStates.None);
-                if (part != null)
-                    _plate.sprite = PixelSkin.Ase(part);
+                // 件解析 + 挂皮（Sliced / ppum×1 / 白色禁乘色）走 AseUi 单点。
+                AseUi.SetPart(_plate, "window_with_title", AseStates.None);
             }
             else
             {

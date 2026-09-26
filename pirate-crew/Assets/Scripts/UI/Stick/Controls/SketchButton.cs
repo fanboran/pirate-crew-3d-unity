@@ -24,31 +24,28 @@ namespace PirateCrew.UI.Stick
     /// 层级只靠字色与皮态表达。
     ///
     /// 【状态层引擎（单一真源）】上述"几态换哪件/哪色"已不再逐态写死在本类，而是把
-    /// UGUI 选择态 + Sticky 折算成 Aseprite 状态位（<see cref="FlagsFor"/>），
+    /// UGUI 选择态 + Sticky 折算成 Aseprite 状态位（<see cref="AseButtonBase.FlagsOf"/>），
     /// 交 <see cref="AseThemeLayers"/>（theme.cpp:53-130 for_each_layer 移植）从
     /// theme.xml &lt;style id="button"&gt; 解析件与字色。唯一与原手写版的差异登记在交付报告：
     /// 键盘焦点态（UGUI Selected）字色由 #FFFFFF 回归源的 #C0C0C0（button 样式无 focus 文字层）。
     /// </summary>
-    public sealed class SketchButton : Button
+    public sealed class SketchButton : AseButtonBase
     {
-        /// <summary>业务选中态：常显 button_selected 皮 + 白字（设置分类选中、当前页签钮）。
-        /// 运行期可切——setter 即时重挂皮与字色（旧版是裸自动属性，切了不刷新）。</summary>
+        /// <summary>业务选中态（本类对 <see cref="AseButtonBase.Active"/> 的别名）：常显
+        /// button_selected 皮 + 白字（设置分类选中、当前页签钮）。运行期可切——setter 即时重挂皮与字色。</summary>
         public bool Sticky
         {
-            get => _sticky;
+            get => _active;
             set
             {
-                if (_sticky == value)
+                if (_active == value)
                     return;
-                _sticky = value;
+                _active = value;
                 ApplySkin();
             }
         }
 
-        private bool _sticky;
-
         private bool _applied;
-        private Image _bg;
         private TextMeshProUGUI _label;
         private TextMeshProUGUI _shadowLabel;   // 禁用态双层字：background 色 (x+1,y+1) 垫底
 
@@ -68,19 +65,6 @@ namespace PirateCrew.UI.Stick
                     _label = child != null ? child.GetComponent<TextMeshProUGUI>() : null;
                 }
                 return _label;
-            }
-        }
-
-        /// <summary>皮件。**私有字段场景重载后为空**——走 <see cref="Selectable.targetGraphic"/>
-        /// 兜底（那是序列化字段，重载后仍在）；不兜底的话 <see cref="Sticky"/> 等运行期换皮
-        /// 全部静默失效（本波 buttonset 就是这么被抓出来的）。</summary>
-        private Image Background
-        {
-            get
-            {
-                if (_bg == null)
-                    _bg = targetGraphic as Image;
-                return _bg;
             }
         }
 
@@ -121,17 +105,10 @@ namespace PirateCrew.UI.Stick
             RectTransform rect = NewRect(name, parent, anchor, pivot, anchoredPosition, size);
 
             var image = rect.gameObject.AddComponent<Image>();
-            image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // ×1 终局：贴图纹素 = 画布像素，ppum 恒 1
-            image.color = Color.white;      // 像素件禁止乘色：色阶烘在贴图里，Image.color 恒白
             image.raycastTarget = true;     // 可点件：命中面 = 按钮本体
 
             var button = rect.gameObject.AddComponent<SketchButton>();
-            button._bg = image;
-            button.targetGraphic = image;
-            // 状态走 SpriteSwap（贴图切换），ColorBlock 不参与染色（全白仅为占位）。
-            button.transition = Selectable.Transition.SpriteSwap;
-            button.colors = WhiteStates();
+            button.InitAseSkin(image);      // targetGraphic + SpriteSwap + 全白 ColorBlock
 
             button._label = AddLabel(rect, label, font, fontSize, shadowMode: false);
             button._shadowLabel = AddLabel(rect, label, font, fontSize, shadowMode: true);
@@ -141,81 +118,29 @@ namespace PirateCrew.UI.Stick
             return button;
         }
 
+        /// <summary>theme 样式 id（theme.xml:608-620）——件/字色全部由 <see cref="AseThemeLayers"/> 按本 id 解析。</summary>
+        protected override string StyleId => "button";
+
         /// <summary>
         /// 挂四态皮（theme.xml:608-620）。Sticky 运行时可切（设置分类选中态），每次重挂。
         /// 【状态层引擎】件 id / 字色不再逐态写死——全部经 <see cref="AseThemeLayers"/>
         /// 从 theme.xml <c>&lt;style id="button"&gt;</c> 按状态位解析（for_each_layer 移植）。
         /// </summary>
-        public void ApplySkin()
+        public override void ApplySkin()
         {
             _applied = true;
-
-            Image bg = Background;
-            if (bg != null)
-            {
-                string part = PartOf(SelectionState.Normal);
-                if (part != null)
-                    bg.sprite = PixelSkin.Ase(part);
-                bg.type = Image.Type.Sliced;
-                bg.pixelsPerUnitMultiplier = 1f;
-                bg.color = Color.white;    // 像素件禁止乘色
-            }
-
-            SpriteState state = spriteState;
-            state.highlightedSprite = SpriteOf(SelectionState.Highlighted);
-            state.pressedSprite = SpriteOf(SelectionState.Pressed);
-            state.selectedSprite = SpriteOf(SelectionState.Selected);
-            state.disabledSprite = SpriteOf(SelectionState.Disabled);
-            spriteState = state;
-
-            // 立即按当前态刷一遍（贴图四态 / 字色 / 影子层）
-            DoStateTransition(currentSelectionState, true);
-        }
-
-        /// <summary>
-        /// UGUI 选择态 → Aseprite 状态位（Style::Layer flags）。映射依据：
-        /// <list type="bullet">
-        /// <item>Pressed = Selected|Capture——ButtonBase::onMouseDown <c>setSelected(true)+captureMouse()</c>
-        ///   （button.cpp:168-175），层匹配命中 <c>state="selected"</c>。</item>
-        /// <item>UGUI Selected = Focus 位；Sticky（业务当前值）再叠加 Selected 位——
-        ///   for_each_layer 取最大命中层（theme.cpp:69-73），button 样式无 selected focus 层，
-        ///   粘滞+焦点自然解析到 button_selected，非粘滞焦点解析到 button_focused（theme.xml:607-608）。</item>
-        /// <item>Sticky（业务当前值）= Selected 位；**禁用不让位**——禁用由 Disabled
-        ///   独占（否则 Sticky+禁用会命中 button_selected 而非常态皮）。</item>
-        /// </list>
-        /// </summary>
-        static AseStates FlagsFor(SelectionState state, bool sticky)
-        {
-            switch (state)
-            {
-                case SelectionState.Disabled:
-                    return AseStates.Disabled;
-                case SelectionState.Pressed:
-                    return AseStates.Selected | AseStates.Capture;
-                case SelectionState.Selected:
-                    return AseStates.Focus | (sticky ? AseStates.Selected : AseStates.None);
-                case SelectionState.Highlighted:
-                    return AseStates.Mouse | (sticky ? AseStates.Selected : AseStates.None);
-                default:
-                    return sticky ? AseStates.Selected : AseStates.None;
-            }
-        }
-
-        string PartOf(SelectionState state)
-        {
-            return AseThemeLayers.ResolveBackgroundPart("button", FlagsFor(state, Sticky));
-        }
-
-        Sprite SpriteOf(SelectionState state)
-        {
-            string part = PartOf(state);
-            return part != null ? PixelSkin.Ase(part) : null;
+            base.ApplySkin();
         }
 
         /// <summary>
         /// 状态分发：底皮四态由 <see cref="Selectable.Transition.SpriteSwap"/> 在 base 里切换；
         /// 本覆盖按引擎解析的字色层刷字（theme.xml:614-619），禁用态双层字（影子背景色
         /// (x+1,y+1) + disabled 盖面）由引擎返回的**两条 text 层**驱动——同源里 newlayer 切段后的绘制序。
+        /// 映射依据：Pressed = Selected|Capture——ButtonBase::onMouseDown
+        /// <c>setSelected(true)+captureMouse()</c>（button.cpp:168-175）；UGUI Selected = Focus 位 +
+        /// Sticky 再叠 Selected——for_each_layer 取最大命中层（theme.cpp:69-73），button 样式无
+        /// selected focus 层，粘滞+焦点自然解析到 button_selected、非粘滞焦点到 button_focused
+        /// （theme.xml:607-608）；Disabled 独占不让位（否则 Sticky+禁用会命中 button_selected 而非常态皮）。
         /// </summary>
         protected override void DoStateTransition(SelectionState state, bool instant)
         {
@@ -223,7 +148,7 @@ namespace PirateCrew.UI.Stick
             if (!_applied)
                 return;
 
-            List<AseThemeLayer> layers = AseThemeLayers.ResolveTextLayers("button", FlagsFor(state, Sticky));
+            List<AseThemeLayer> layers = AseThemeLayers.ResolveTextLayers("button", FlagsOf(state));
 
             TextMeshProUGUI label = Label;
             if (label != null)
@@ -246,21 +171,6 @@ namespace PirateCrew.UI.Stick
                         new Vector2(layers[0].Offset.x, -layers[0].Offset.y);
                 }
             }
-        }
-
-        /// <summary>乘色全白占位：像素皮的状态反馈靠贴图切换（SpriteSwap），不叠乘色。</summary>
-        private static ColorBlock WhiteStates()
-        {
-            return new ColorBlock
-            {
-                normalColor = Color.white,
-                highlightedColor = Color.white,
-                pressedColor = Color.white,
-                selectedColor = Color.white,
-                disabledColor = Color.white,
-                colorMultiplier = 1f,
-                fadeDuration = 0.1f,
-            };
         }
 
         private static TextMeshProUGUI AddLabel(RectTransform root, string content,
