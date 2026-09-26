@@ -354,7 +354,8 @@ namespace PirateCrew.UI.DebugUi
             scrollbar.size = Mathf.Clamp01(46f / (8 * 11f + 4f));   // 滑块大小 = 可视/内容比
             scroll.verticalScrollbar = scrollbar;
 
-            // 组合框（两件套：sunken 词条 + mini_button 箭头钮 + Ase 菜单弹层）——公共件工厂
+            // 组合框（两件套：sunken2 词条 + mini_button 箭头钮；弹层 = View(sunken) 里的 ListBox，
+            // 金底选中/点外收/越底翻上——combobox.cpp 语义，实现见 AseComboBox）
             AseWidgetKit.ComboBox(window, "ResolutionCombo", DebugWindowKit.Pad + 180f, y + 2f,
                 84f, new[] { "1920 × 1080", "1280 × 720", "960 × 540" }, 0);
 

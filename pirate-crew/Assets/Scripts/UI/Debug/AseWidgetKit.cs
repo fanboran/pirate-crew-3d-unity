@@ -131,74 +131,28 @@ namespace PirateCrew.UI.DebugUi
         // 组合框
         // ------------------------------------------------------------------
 
-        /// <summary>两件套组合框（theme combobox：sunken 词条 + 右缘 16×16 mini_button 箭头钮，
-        /// 点击弹 <see cref="AseMenuKit"/> 下拉）。词条宽 w，选项文字即显示文字。
+        /// <summary>两件套组合框（theme combobox：sunken2 词条 + 右缘 15 宽 mini_button 箭头钮）。
+        /// 行为逐条按 combobox.cpp：点词条/点钮开合切换、弹层 = View(sunken) 里的 ListBox、
+        /// 点弹层外收、选中项回填词条文本。实现见 <see cref="AseComboBox"/>。
         /// <paramref name="popupOverlay"/> = 弹层宿主（必须是调试根 overlay——弹层要盖过
-        /// **所有**窗；缺省取 parent.parent，仅当组合框直接挂在窗根下时成立）。</summary>
+        /// **所有**窗；缺省取 parent.parent，仅当组合框直接挂在窗根下时成立）。
+        /// 宽度由调用方给定（组合框自身的 sizeHint 反推宽度未移植，见交接报告）。</summary>
         public static TextMeshProUGUI ComboBox(RectTransform parent, string name, float x, float y,
             float w, string[] options, int initial, System.Action<int> onPick = null,
             Transform popupOverlay = null)
         {
-            RectTransform entry = UiKit.CreateRect(name, parent);
-            entry.anchorMin = entry.anchorMax = entry.pivot = new Vector2(0f, 1f);
-            entry.anchoredPosition = new Vector2(x, -y);
-            entry.sizeDelta = new Vector2(w, 12f);
-            var sunken = entry.gameObject.AddComponent<Image>();
-            sunken.sprite = PixelSkin.Sunken(false);
-            sunken.type = Image.Type.Sliced;
-            sunken.color = Color.white;
-            sunken.raycastTarget = true;
+            RectTransform root = UiKit.CreateRect(name, parent);
+            root.anchorMin = root.anchorMax = root.pivot = new Vector2(0f, 1f);
+            root.anchoredPosition = new Vector2(x, -y);
+            root.sizeDelta = new Vector2(w, 12f);
 
-            TextMeshProUGUI value = UiKit.CreateText("Value", entry, options[initial],
-                UiSkin.Font.Tiny, TextAlignmentOptions.Left, PixelSkin.Theme.Text, DebugWindowKit.HandFont);
-            value.enableWordWrapping = false;
-            value.raycastTarget = false;
-            RectTransform valueRect = value.rectTransform;
-            // 拉伸锚 + inset（词条 4..w-16）——点锚配 offset 会得负宽（树转储实锄 -20x0）
-            valueRect.anchorMin = Vector2.zero;
-            valueRect.anchorMax = Vector2.one;
-            valueRect.pivot = new Vector2(0.5f, 0.5f);
-            valueRect.offsetMin = new Vector2(4f, 0f);
-            valueRect.offsetMax = new Vector2(-16f, 0f);
-
-            RectTransform buttonRect = UiKit.CreateRect("ComboButton", entry);
-            buttonRect.anchorMin = buttonRect.anchorMax = buttonRect.pivot = new Vector2(1f, 1f);
-            buttonRect.anchoredPosition = Vector2.zero;
-            buttonRect.sizeDelta = new Vector2(16f, 16f);
-            var buttonFace = buttonRect.gameObject.AddComponent<Image>();
-            buttonFace.sprite = PixelSkin.Ase("buttonset_item_normal");
-            buttonFace.type = Image.Type.Sliced;
-            buttonFace.pixelsPerUnitMultiplier = 1f;
-            buttonFace.color = Color.white;
-            var button = buttonRect.gameObject.AddComponent<Button>();
-            button.transition = Selectable.Transition.SpriteSwap;
-            button.spriteState = new SpriteState
-            {
-                highlightedSprite = PixelSkin.Ase("buttonset_item_hot"),
-                pressedSprite = PixelSkin.Ase("buttonset_item_pushed"),
-                disabledSprite = PixelSkin.Ase("buttonset_item_normal"),
-            };
-
-            RectTransform arrow = UiKit.CreateRect("Arrow", buttonRect);
-            arrow.anchorMin = arrow.anchorMax = arrow.pivot = new Vector2(0.5f, 0.5f);
-            arrow.sizeDelta = new Vector2(9f, 8f);
-            var arrowImage = arrow.gameObject.AddComponent<Image>();
-            arrowImage.sprite = PixelSkin.Ase("combobox_arrow_down");
-            arrowImage.raycastTarget = false;
-
-            var items = new AseMenuKit.Item[options.Length];
-            for (int i = 0; i < options.Length; i++)
-            {
-                int captured = i;
-                items[i] = AseMenuKit.Item_(options[i], check: i == initial, action: () =>
-                {
-                    value.text = options[captured];
-                    onPick?.Invoke(captured);
-                });
-            }
-            button.onClick.AddListener(() => AseMenuKit.OpenPopup(
-                popupOverlay != null ? popupOverlay : parent.parent, entry, items));
-            return value;
+            // 弹层宿主缺省 = parent.parent（窗的父级 overlay）——**不是** parent（窗）本身：
+            // 弹层挂在窗里会被窗裁/随窗移动。
+            Transform host = popupOverlay != null
+                ? popupOverlay
+                : (parent != null ? parent.parent : null);
+            var combo = root.gameObject.AddComponent<AseComboBox>();
+            return combo.Build(root, options, initial, onPick, host);
         }
     }
 
