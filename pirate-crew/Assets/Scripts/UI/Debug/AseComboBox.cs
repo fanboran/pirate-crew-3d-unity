@@ -172,14 +172,16 @@ namespace PirateCrew.UI.DebugUi
             float comboTop = anchorY - localTopLeft.y;    // 距宿主上缘（向下为正）
             float entryBottom = comboTop + h;             // == entryBounds.y2()
 
-            // 弹层高度（combobox.cpp:629-640）
+            // 弹层高度（combobox.cpp:629-640）：**先钳视口高**（size.h = Σ 项高，钳进
+            // [textHeight, maxVal]），再加 View 边框得到窗口高——源里窗口尺寸由
+            // viewport 的 sizeHint 反推（remapWindow），边框是后加的。
             float itemsH = _options.Length * AseListBox.RowHeight;
             float viewBorderW = AseComboBoxPopup.ViewBorderLeft + AseComboBoxPopup.ViewBorderRight;
             float viewBorderH = AseComboBoxPopup.ViewBorderTop + AseComboBoxPopup.ViewBorderBottom;
-            float popupH = itemsH + viewBorderH;
             float maxVal = Mathf.Max(comboTop, hostRect.height - entryBottom) - 8f;
             float minVal = UiSkin.Font.Tiny;   // textHeight()
-            popupH = Mathf.Round(Mathf.Clamp(popupH, minVal, Mathf.Max(minVal, maxVal)));
+            float viewH = Mathf.Round(Mathf.Clamp(itemsH, minVal, Mathf.Max(minVal, maxVal)));
+            float popupH = viewH + viewBorderH;
 
             float itemsW = w - viewBorderW;    // combobox.cpp:628 size.w = button.x2 - entry.x - view border
 
@@ -269,8 +271,9 @@ namespace PirateCrew.UI.DebugUi
     /// 组合框下拉弹层 = Aseprite <c>Window(WithoutTitleBar)</c> + <c>View</c> + <c>ComboBoxListBox</c>
     /// （combobox.cpp:615-649）。视觉两层：View 的 <c>background=window_face</c> #2C2C30 色层 +
     /// <c>border part=sunken_normal</c> 九宫（theme <c>view</c>：border 3、border-top 4）。
-    /// 内容 = <see cref="AseListBox"/> 的行，视口溢出时按 <c>View::onResize</c> 的
-    /// <c>setup_scrollbars</c> 补 theme 滚动条（16 宽）并收窄视口。
+    /// 内容 = <see cref="AseListBox"/> 的行，视口溢出时按 <see cref="AseView"/>
+    /// （<c>View::updateView</c> → <c>setup_scrollbars</c>）挂 theme 滚动条（12 宽，
+    /// theme <c>scrollbar_size</c>）并收窄视口——横竖两根都按源的 IfNeeded 条件判定。
     ///
     /// 弹层的关闭语义（combobox.cpp）：
     /// - 列表里鼠标抬起 → 收（ComboBoxListBox::kMouseUpMessage，568）；
@@ -285,9 +288,6 @@ namespace PirateCrew.UI.DebugUi
         public const float ViewBorderRight = 3f;
         public const float ViewBorderTop = 4f;
         public const float ViewBorderBottom = 3f;
-
-        /// <summary>theme <c>scrollbar_bg</c> 原生宽（切片 5+6+5）。</summary>
-        const float ScrollbarWidth = 16f;
 
         static readonly List<RaycastResult> s_hits = new List<RaycastResult>();
 
@@ -316,9 +316,6 @@ namespace PirateCrew.UI.DebugUi
 
         void Build(float itemsWidth, string[] options, int selected)
         {
-            float w = _rect.sizeDelta.x;
-            float h = _rect.sizeDelta.y;
-
             // View 面（色层）+ 边框（件层）——与 theme view 样式逐层对应
             var bg = _rect.gameObject.AddComponent<Image>();
             bg.color = PixelSkin.Theme.Face;   // window_face #2C2C30
@@ -333,68 +330,54 @@ namespace PirateCrew.UI.DebugUi
             borderImage.color = Color.white;
             borderImage.raycastTarget = true;   // 边框区也算弹层内（抬起冒泡到弹层根即收）
 
-            float viewportH = h - ViewBorderTop - ViewBorderBottom;
-            float viewportW = itemsWidth;   // == 组合框宽 - View 左右边框
-            bool needBar = options.Length * AseListBox.RowHeight > viewportH;
-            if (needBar)
-                viewportW -= ScrollbarWidth;
+            // View 内核（view.cpp / scroll_helper.cpp 移植）：视口 + 按需滚动条（横竖两根）
+            AseView view = AseView.Attach(_rect,
+                (int)ViewBorderLeft, (int)ViewBorderTop, (int)ViewBorderRight, (int)ViewBorderBottom);
 
-            RectTransform viewport = UiKit.CreateRect("Viewport", _rect);
-            viewport.anchorMin = Vector2.zero;
-            viewport.anchorMax = Vector2.one;
-            viewport.pivot = new Vector2(0.5f, 0.5f);
-            viewport.offsetMin = new Vector2(ViewBorderLeft, ViewBorderBottom);
-            viewport.offsetMax = new Vector2(-(ViewBorderRight + (needBar ? ScrollbarWidth : 0f)), -ViewBorderTop);
-            viewport.gameObject.AddComponent<RectMask2D>();
-            var viewportHit = viewport.gameObject.AddComponent<Image>();
-            viewportHit.color = new Color(0f, 0f, 0f, 0f);
-            viewportHit.raycastTarget = true;   // 空白区也接事件（源里 Viewport 是 View 的收件面）
+            // combobox.cpp:628 size.w = button.x2 - entry.x - view.border().width()
+            AseListBox list = AseListBox.Create(view.Viewport, "ListBox", 0f, 0f, itemsWidth,
+                options, selected, _combo.OnItemChanged);
+            view.AttachToView((RectTransform)list.transform);
 
-            AseListBox list = AseListBox.Create(viewport, "ListBox", 0f, 0f, viewportW, options, selected,
-                _combo.OnItemChanged);
+            // 内容 sizeHint（Viewport::calculateNeededSize，viewport.cpp:59-71）：
+            // ListBox::onSizeHint（listbox.cpp:341-365）= 逐轴 max 行 sizeHint / Σ 行高；
+            // 行 sizeHint.w = 文字宽 + list_item border 2（listitem.cpp:57-86）——
+            // 横条是否出现就看它是否超过视口宽（源 IfNeeded 条件），不是看弹层宽。
+            int hintW = Mathf.CeilToInt(RowHintWidth(list)) + AseListBox.ItemBorder * 2;
+            int hintH = Mathf.RoundToInt(options.Length * AseListBox.RowHeight);
+            view.SetContentHint(hintW, hintH);
+            view.UpdateView();   // View::updateView（view.cpp:143-190）
+
+            StretchRows(list);
+        }
+
+        /// <summary>
+        /// <c>ListBox::onResize</c>（listbox.cpp:341-356）的等价：把每行铺到 ListBox 的内容宽
+        /// （源里 <c>child-&gt;setBounds(childrenBounds())</c>）。行宽跟随是 ListBox 的职责、
+        /// 但 <c>AseListbox.cs</c> 不在本包文件域内，故落在组合框这一侧；
+        /// 只有内容被撑到初始宽之外（横向可滚 / 竖条占位）时才会真的改到行宽。
+        /// </summary>
+        static void StretchRows(AseListBox list)
+        {
             RectTransform content = (RectTransform)list.transform;
-
-            if (needBar)
+            float w = content.sizeDelta.x;
+            for (int i = 0; i < content.childCount; i++)
             {
-                // View::onResize → setup_scrollbars（scroll_helper.cpp:16）：视口右移出 16 宽滚动条
-                var scroll = viewport.gameObject.AddComponent<ScrollRect>();
-                scroll.content = content;
-                scroll.horizontal = false;
-                scroll.vertical = true;
-                scroll.movementType = ScrollRect.MovementType.Clamped;
-                scroll.scrollSensitivity = 20f;
-                // viewport 不显式给：ScrollRect 自身在同一 rect 上，内部回落到自己的 rect
-
-                RectTransform bar = UiKit.CreateRect("VBar", _rect);
-                bar.anchorMin = bar.anchorMax = bar.pivot = new Vector2(1f, 1f);
-                bar.sizeDelta = new Vector2(ScrollbarWidth, viewportH);
-                bar.anchoredPosition = new Vector2(-ViewBorderRight, -ViewBorderTop);
-                var barBg = bar.gameObject.AddComponent<Image>();
-                barBg.sprite = PixelSkin.Ase("scrollbar_bg");
-                barBg.type = Image.Type.Sliced;
-                barBg.pixelsPerUnitMultiplier = 1f;
-                barBg.color = Color.white;
-                barBg.raycastTarget = false;
-
-                RectTransform handle = UiKit.CreateRect("Handle", bar);
-                handle.anchorMin = Vector2.zero;
-                handle.anchorMax = Vector2.one;
-                handle.offsetMin = Vector2.zero;
-                handle.offsetMax = Vector2.zero;
-                var handleImage = handle.gameObject.AddComponent<Image>();
-                handleImage.sprite = PixelSkin.Ase("scrollbar_thumb");
-                handleImage.type = Image.Type.Sliced;
-                handleImage.pixelsPerUnitMultiplier = 1f;
-                handleImage.color = Color.white;
-                handleImage.raycastTarget = true;
-
-                var scrollbar = bar.gameObject.AddComponent<Scrollbar>();
-                scrollbar.handleRect = handle;
-                scrollbar.targetGraphic = handleImage;
-                scrollbar.direction = Scrollbar.Direction.BottomToTop;
-                scrollbar.size = Mathf.Clamp01(viewportH / Mathf.Max(1f, options.Length * AseListBox.RowHeight));
-                scroll.verticalScrollbar = scrollbar;
+                RectTransform row = content.GetChild(i) as RectTransform;
+                if (row != null && !Mathf.Approximately(row.sizeDelta.x, w))
+                    row.sizeDelta = new Vector2(w, row.sizeDelta.y);
             }
+        }
+
+        /// <summary>max 行文字自然宽（UGUI 侧量 TMP 的 <c>preferredWidth</c>，
+        /// 等价源里 <c>Widget::textSize()</c> 给 ListItem::onSizeHint 的量）。</summary>
+        static float RowHintWidth(AseListBox list)
+        {
+            float max = 0f;
+            TextMeshProUGUI[] labels = list.GetComponentsInChildren<TextMeshProUGUI>();
+            for (int i = 0; i < labels.Length; i++)
+                max = Mathf.Max(max, labels[i].preferredWidth);
+            return max;
         }
 
         // combobox.cpp:565-568 ComboBoxListBox::kMouseUpMessage → closeListBox
