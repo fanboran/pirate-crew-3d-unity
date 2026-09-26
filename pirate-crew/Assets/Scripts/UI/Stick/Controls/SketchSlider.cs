@@ -38,7 +38,7 @@ namespace PirateCrew.UI.Stick
     /// 本工程调用方给的矩形**就是槽件自然盒**（16 高 = 件切片 5+5+6，交接档「按件高 16 摆」），
     /// 槽件 1:1 铺满——再按源内缩，16 高盒里的槽只剩 7 高：九宫格竖向压缩、双色裁剪框（高 = rc.h）
     /// 会把 8px 位图字切顶切底。故本移植令 <c>rc = 控件矩形</c>，等价于把
-    /// <see cref="SourceBorderLeft"/> 全取 0 代进源公式（rc.x=0、rc.w=w）——除这一处常量外，
+    /// <see cref="SourceBorderLeft"/> 全取 0 代进源公式（rc.x=0、rc.width=w）——除这一处常量外，
     /// 源的每条公式都逐字照搬。要切回源口径：把常量换成源值、并在调用点把控件盒加高到
     /// <see cref="SourceSizeHintHeight"/>。
     ///
@@ -46,7 +46,7 @@ namespace PirateCrew.UI.Stick
     /// 不序列化，按名兜底重取——同 <see cref="SketchButton"/> 的坑）。
     /// </summary>
     [RequireComponent(typeof(RectTransform))]
-    public sealed class SketchSlider : Selectable, IDragHandler, IScrollHandler
+    public class SketchSlider : Selectable, IDragHandler, IScrollHandler
     {
         // ================== theme 派生常量（源的数值，备查 / 备切换） ==================
 
@@ -225,6 +225,8 @@ namespace PirateCrew.UI.Stick
 
         // ================== 几何：单一源（输入映射与分区绘制共用） ==================
 
+        RectTransform _rect;
+
         RectTransform Rect
         {
             get
@@ -250,7 +252,7 @@ namespace PirateCrew.UI.Stick
         /// 【源 paintSlider:1674-1677 的分界线，纯函数面】整数运算（C++ int 除法截断；C# 同）——
         /// **不是**比例浮点，保证分界线永远落在整格上。
         /// <code>
-        /// if (min != max) x = rc.x + rc.w * (value - min) / (max - min);
+        /// if (min != max) x = rc.x + rc.width * (value - min) / (max - min);
         /// else            x = rc.x;
         /// </code>
         /// </summary>
@@ -267,7 +269,7 @@ namespace PirateCrew.UI.Stick
         /// <paramref name="leftMode"/> = true 走左键绝对映射（slider.cpp:147-151），
         /// false 走右键相对映射 + 精细步进（slider.cpp:153-159）。
         /// <code>
-        /// range = max - min + 1;  w = rc.w;
+        /// range = max - min + 1;  w = rc.width;
         /// 左键: if (w == 0) w = 1;            value = min + range * (mouseX - rc.x) / w;
         /// 右键: if (w == 0 || range > w) { w = 1; range = 1; }
         ///                                     value = pressValue + (mouseX - pressX) * range / w;
@@ -301,7 +303,7 @@ namespace PirateCrew.UI.Stick
         protected int SplitX()
         {
             RectInt rc = TrackRect();
-            return SplitXFor(_value, _min, _max, rc.x, rc.w);
+            return SplitXFor(_value, _min, _max, rc.x, rc.width);
         }
 
         // ================== 鼠标：源 onProcessMessage 的 kMouseDown / kMouseMove / kMouseUp ==================
@@ -362,7 +364,7 @@ namespace PirateCrew.UI.Stick
         void ApplyPointer(PointerEventData eventData)
         {
             RectInt rc = TrackRect();
-            int value = ValueFromPointer(PointerX(eventData), rc.x, rc.w,
+            int value = ValueFromPointer(PointerX(eventData), rc.x, rc.width,
                 _min, _max, _pressLeft, _pressX, _pressValue);
             if (_value != value)
             {
@@ -544,7 +546,7 @@ namespace PirateCrew.UI.Stick
         // ================== 绘制（skin_theme.cpp:1667-1794 paintSlider） ==================
 
         RectTransform _clipFull;        // 左段裁剪框：源 IntersectClip(rc.x, x-rc.x+1)
-        RectTransform _clipRest;        // 右段裁剪框：源 IntersectClip(x+1, rc.w-(x-rc.x+1))
+        RectTransform _clipRest;        // 右段裁剪框：源 IntersectClip(x+1, rc.width-(x-rc.x+1))
         Image _hitBox;                  // 命中盒（控件矩形全域可点 = 源 Widget::bounds）
         Image _emptyImage;              // 槽底件 slider_empty / slider_empty_focused
         Image _fillImage;               // 充满段件 slider_full / slider_full_focused（按整槽画、被裁剪）
@@ -620,7 +622,7 @@ namespace PirateCrew.UI.Stick
             int x = SplitX();
             int clipFullW = x - rc.x + 1;                          // 源：x - rc.x + 1
             int clipRestX = x + 1;                                 // 源：x + 1
-            int clipRestW = rc.w - clipFullW;                      // 源：rc.w - (x - rc.x + 1)
+            int clipRestW = rc.width - clipFullW;                      // 源：rc.width - (x - rc.x + 1)
 
             // ---- 件：焦点换件（源 paintSlider:1716-1723；全尺寸滑条跟 hasFocus，不跟 mouse）----
             bool focused = HasFocus;
@@ -642,23 +644,23 @@ namespace PirateCrew.UI.Stick
 
             // ---- 左段：Rect(rc.x, rc.y, clipFullW, rc.h)，件按整槽画 ----
             _clipFull.gameObject.SetActive(clipFullW > 0);
-            SetStretchBox(_clipFull, rc.x, rc.x + clipFullW - rc.w);
-            SetStretchBox(_fillImage.rectTransform, 0, rc.w - clipFullW);
+            SetStretchBox(_clipFull, rc.x, rc.x + clipFullW - rc.width);
+            SetStretchBox(_fillImage.rectTransform, 0, rc.width - clipFullW);
 
             // ---- 右段：Rect(x+1, rc.y, clipRestW, rc.h)；宽 <= 0 时源 IntersectClip 直接跳过
             //      （值 = max 时 clipRestW = -1） ----
             _clipRest.gameObject.SetActive(clipRestW > 0);
-            SetStretchBox(_clipRest, clipRestX, clipRestW - rc.w + clipRestX);   // 宽 = rc.w - clipRestX + 右内缩
+            SetStretchBox(_clipRest, clipRestX, clipRestW - rc.width + clipRestX);   // 宽 = rc.width - clipRestX + 右内缩
 
             // ---- 文本：源 SkinTheme::drawText:1863-1866 的**整数**居中 ----
             int textW = Mathf.RoundToInt(_lightLabel.preferredWidth);
-            int textX = rc.x + rc.w / 2 - textW / 2;               // 源：rc.center().x - textW/2
+            int textX = rc.x + rc.width / 2 - textW / 2;               // 源：rc.center().x - textW/2
             int focusDy = focused ? -1 : 0;                        // theme.xml:1057 focus 文本层 y="1"
             SetLabelBox(_lightLabel.rectTransform, textW, textX - rc.x, focusDy);
             SetLabelBox(_darkLabel.rectTransform, textW, textX - clipRestX, focusDy);
         }
 
-        /// <summary>矩形 children 的横向 stretch 盒（左内缩 + 右内缩，父 rect 宽为 rc.w）。</summary>
+        /// <summary>矩形 children 的横向 stretch 盒（左内缩 + 右内缩，父 rect 宽为 rc.width）。</summary>
         static void SetStretchBox(RectTransform rect, int leftInset, int rightInset)
         {
             rect.anchorMin = Vector2.zero;
