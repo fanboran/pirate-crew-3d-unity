@@ -1079,6 +1079,41 @@ newsprite 93408（前值 +181 = 图标内缩）；widget 7252（ScrollDemo 新�
 大 refresh 后自然退出（原因未取证），重开 GUI 实例即可（CWD=worktree 保证桥/旗标
 路径隔离；`-logFile` 换新文件防追加混淆）。
 
+## 三之十三、四诉四修：点穿/拖条拖窗/展示页错档/拍摄机跳帧（2026-09-27，创始人四连诉）
+
+**① 透过前面的面板点到后面的面板**：根因 = `SketchPanel` 窗皮九宫格
+`raycastTarget = false`（SketchPanel.cs:116）——窗体整个底面不接光，点前窗空白直穿
+到被盖住的后窗控件；且穿过去的 pointerDown 冒泡到后窗根触发它 `RaiseToCanvasTop`，
+「后面的面板置顶了」的错乱观感即此。**修**：窗皮接光（命中区 = 整个 bounds，
+widget.cpp hitTest 语义），`AseWidgetKit.PaintViewSkin` 的 view 底面同修。
+
+**② 拖滚动条 = 拖整个窗**：UGUI 拖动目标 = 按下命中对象沿父链**最近的 IDragHandler**
+——`AseScrollBar` 只实现了指针接口没实现拖动接口，最近实现者是窗根 `WindowDragger`。
+**修 a**：`AseScrollBar` 补 IBegin/IDrag/IEndDrag 空壳（阻断冒泡；实际拖动仍走源式
+按下轮询，保留「点轨道=翻页不抓取」语义）。**修 b（① 引出的第四真 bug）**：窗皮接光
+后按住窗体任意空白移动都会冒泡成整窗拖动——`WindowDragger` 加**拖动资格裁决**：
+OnPointerDown 记录按下点是否落在标题带命中板（`RectangleContainsScreenPoint`），
+不在带内则本次拖动系列全忽略（源 window.cpp：move 只认 titlebar 命中）。
+
+**③ 展示页「图标偏移」+ 列宽错档**：`UiShowcaseBoot` 在 Start 同帧读 stretch rect——
+`CanvasScaler` 的 scaleFactor 到自己的 Update 才应用（实测 Start 帧 rect=1920 屏幕像素
+口径，稳定后 960 艺术像素口径），用它算 viewportW=1902 → 16 列铺进 942 宽视口
+（后一半裁掉、横条误出）。**修**：建页延一帧（协程 yield null）等 scaler 稳定。
+插桩验证：view.rect 960×540、viewport 942、content 贴顶零偏移、7 列无横条。
+
+**④ 拍摄机 UIShowcase 停摆**：`UiPixelScreenCapture` 帧判定用 `Time.frameCount == 60`
+精确等——首帧重载（345 格同步构建）会跳帧，状态机永等。**修**：`==` 全改 `>=`。
+
+**「上边空白一节、往下拉一段才是正文」未能复现**：陈列廊窗顶部 +4 坎 = view 框顶厚
+（源组合必然）；展示页当前实拍页头贴顶。已修的 ②/③ 都可能造成该观感（拖窗把窗拖高、
+列宽错档把正文挤到视口外），若仍现需创始人指认具体面板与操作序列。
+
+**验收（七拍 diff 全归因）**：MainMenu/menubar 零差；dup 42802、newsprite 93408 与
+前轮逐位复现；parts 39% = 滚动组合；probe 29% = **「最后点击的窗浮顶」源语义生效**
+（点击画廊窗组合框→窗浮顶，遮挡关系变化；实拍目检窗完整在位、弹层开着）；
+widget 0.38% = ScrollDemo 组合 + 小量叠序。提交 `84aef7a3`/`05fbf19c`/`62755ba9`，
+merge `5b3e1d44`。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
