@@ -148,7 +148,7 @@ namespace PirateCrew.UI.DebugUi
             if (!isActiveAndEnabled || _popup != null)   // combobox.cpp:610
                 return;
 
-            AseMenuKit.ClosePopup();   // 同屏只留一层弹层（源里 m_window 唯一、开新即关旧）
+            AseMenuKit.CloseAll();     // 同屏只留一层弹层（源里 m_window 唯一、开新即关旧；菜单包重写后旧 ClosePopup 并入 CloseAll）
 
             RectTransform comboRect = (RectTransform)transform;
             RectTransform host = _popupHost as RectTransform;
