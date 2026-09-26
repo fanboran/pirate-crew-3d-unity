@@ -1014,6 +1014,33 @@ Check/Radio/Scrollbar 包装器迁移后零引用待清（域外）。
 两波仍手写同式）；带可见底色的视口须先挂 Image 再 ClipViewport（W5 口径）；
 AseButtonBase.Active setter 冗余一次 DST（幂等，按现行行为保留）。
 
+## 三之十一、新建精灵歪根治：幽灵宿主 + 坐标空间混用（2026-09-27，创始人问「为什么这些问题一个没修复」）
+
+**认账**：§三之十 的 diff 证明的是「重构没改变行为」，不是「行为正确」——基线与重拍都带着
+同一个布局缺陷，逐位全同恰说明缺陷被冻结。创始人点名的「新建精灵歪」从始至终没进过任何
+修复名单。本轮用验证闭环（图析 + 装载器插桩 + 字体转储坐标 + 像素扫描）四层证据链根治。
+
+**根因（两层，都在 AseDialogLoader）**：
+1. **盒/格宿主从未落位**：BoxNode/GridNode 的 Layout 只摆子件、不摆宿主——宿主是
+   `UiKit.CreateRect` 的 Unity 裸默认（拉伸锚 + sizeDelta(100,100) + 垂直居中），等于一个
+   比窗口矮 100px 的幽灵矩形；子件锚在幽灵顶上，首行被压低 (窗口高−100)/2+17 = 67px
+   （new_sprite 窗高 223 时算得 67，与图析/像素扫描分毫吻合）。**修**：Layout 开头
+   `SetAnchored(Host, (0,1), (w,h), (x,-y))`（源：widget setBounds——盒的 bounds 就是
+   它的真实矩形）。
+2. **坐标空间混用**：只修 1 会暴露第二层——Layout(x,y) 全树传窗口绝对坐标，宿主却层层
+   嵌套相对，嵌套盒（buttonset 格/OK 行 HBox）层层叠加宿主偏移（实测 OK 行跌出画布到
+   y-up −216、advanced 隐盒内容可见）。**修**：逐层相对制——子件坐标从 Border 起算盒内
+   相对（`mainPos = Border`），宿主落绝对位。
+   验收（像素扫描 + 字体转储）：标题带→Size 首行 67px→**6px**（源期望 ~4±2）；三段行距
+   与布局账本逐位吻合；OK/Cancel 回窗内贴底；advanced 隐藏生效。
+
+**方法论沉淀（这轮新增的取证手段，后续照用）**：①图像分析走 CDN URL
+（Read PNG → 拿 URL → `mcp__4_5v_mcp__analyze_image`），估计值只用于定位、结论必须落
+像素扫描/树转储硬数；②装载器插桩（dlgdbg/boxdbg 一行 Debug.Log 打 mainPos/size/hint）
+——布局类问题十分钟出逐子件账本，用完即拆；③**该编辑器 file watcher 只认文件创建事件**，
+改动要吃进去必须「新建一个 dummy .cs → refresh」（改名/新建皆可）——§六 的 recompile
+通道对「改文件」场景不完整，此为补全口径。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
