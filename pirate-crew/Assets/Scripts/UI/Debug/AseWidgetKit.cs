@@ -140,9 +140,12 @@ namespace PirateCrew.UI.DebugUi
             RectTransform root = UiKit.CreateRect(name, parent);
             UiKit.SetAnchored(root, new Vector2(0f, 1f), new Vector2(w, 12f), new Vector2(x, -y));
 
-            Transform host = parent != null ? parent.parent : null;
+            // 弹层宿主一律 null → AseComboBox.Build 缺省走 AseUi.OverlayOf（画布根）。
+            // 旧 parent.parent 只在组合框直挂窗根时碰巧等于 overlay；嵌套在盒/格里时
+            // 弹层会挂进窗内（随窗移动、被窗压层），与源语义（Manager 顶层 popup，
+            // combobox.cpp:615+652）不符——W3 登记项收口。
             var combo = root.gameObject.AddComponent<AseComboBox>();
-            return combo.Build(root, options, initial, onPick, host);
+            return combo.Build(root, options, initial, onPick, null);
         }
     }
 
