@@ -837,6 +837,62 @@ gfx `x2()` 闭区间与 Unity `xMax` 的 1px 口径差、字体度量替身（�
 跨包集成修正 `b3fc5cf7`（AseComboBox 关旧弹层改走 CloseAll）+ 画廊滑条胶水。全量体检
 1244/10/1 与既有基线逐位一致（10 条为非 UI 域既有失败）。四个 temp/ worktree 已清理。
 
+## 三之七、覆盖率第二轮：键盘导航/entry 编辑/View 滚动条三包（2026-09-27，创始人令「继续提高覆盖率」）
+
+**编排**：3 代理 × worktree（`temp/ui-kbd|entry|scroll`）文件域互斥 + 协调者合并与四笔修正。
+**覆盖率 port 76.4% → 93.5%**（台账 v3 `temp/coverage3.py`，92 条语义块 / 5821 源行；
+subst 3.8%、miss 2.7%、approx 清零）。协调者对账七处逐行核过（choose_side / ValueFromPointer /
+DistributeStripSize / openListBox / find_nextitem / GetCaretFromMouse / getScrollBarInfo）。
+
+**三包交付**：
+- **键盘导航包**（AseMenuKit/AseListbox，合并 `7cab08d5` 前序）：menu.cpp:611-795+1379-1477
+  （Esc/箭头父子切换/Enter/Alt 助记符/cancelMenuLoop/find_next·previtem）与 listbox.cpp:263-328+
+  397-438（Home/End/PageUp/advanceIndex/makeChildVisible/centerScroll）逐行移植；键盘泵走
+  Update+GetKeyDown（SketchSlider 先例）。顺带修真缺陷：closeSubmenu 不清父层高亮
+  （menu.cpp:1254-1290，上轮多清导致 Esc 后键盘接不回）。焦点模型替身：弹层链开着=最深弹层
+  接管、挂在开着的组合框弹层下=列表接管（源 hasFocus 无对应物）。
+- **entry 编辑包**（新增 AseEntry/AseIntEntry，AseWidgetKit.SunkenEntry 改走，签名不变）：
+  entry.cpp 编辑路径全文（光标/选区/17 个编辑命令/词移动/双击选词/getCaretFromMouse 滚动分支/
+  闪烁计时器）+ textcmd.cpp 键位表 + int_entry.cpp 全分支 + skin paintEntry/drawEntryCaret
+  （光标宽按源 2px）。自建控件不用 TMP_InputField（其自带编辑语义会打架），显示层 TMP 只读
+  标签+自绘选区/光标 quad。
+- **View 滚动条包**（新增 AseView/AseScrollBar，组合框弹层撤 ScrollRect 近似）：
+  view.cpp/viewport.cpp/scroll_helper.cpp/scroll_bar.cpp 滚动主体逐行移植；条宽 12
+  （`<dim scrollbar_size>`，正好接上闲置令牌 AseLayout.ScrollbarSize）；横向条按 IfNeeded 补上；
+  弹层高度钳位顺序修正（先钳视口再加边框——被钳时比旧版高 7px，滚动判定才对）。
+
+**协调者四笔修正**（`181a7f37`/`aaa2ba07`/`c7090860`/`51307780`）：
+1. 滑条滚轮符号：aseprite Windows 滚轮 `wheelDelta.y=-1` 与 UGUI `scrollDelta.y=+1` **反号**
+   （state_with_wheel_behavior.cpp:285-290），滑条包直接代入错了号——修正为「上滚=增值」，
+   与 View 同口径。
+2. 装载器组合框宽度撤 150 硬编码，按 combobox.cpp:438-452 × entry.cpp:455-467 反推
+   （max 选项宽 + 2×光标宽 + 词条边框 + 钮宽，夹 400）。
+3. gfx `x2()=x+w-1` 闭区间口径补齐 7 处（menu 5 + combobox 2——钳制比 xMax 紧 1px）。
+4. 滚动条拇指下限补减轨道件九宫边框（源 `scrollbar_size*2-border_width`，scrollbar_bg 切片
+   5+5=10，漏减会把下限从 14 抬到 24）。
+
+**跨包裁决记录**：
+- pointerUp 收弹层疑虑 = **误报**：UGUI `ExecuteEvents.Execute` 沿父链冒泡找处理器，行自身
+  不实现 IPointerUpHandler，抬起从行冒到弹层根正常收（且按行抬在外面也收=源 capture 语义）。
+- style 级 min/max 解析 = **零影响收口**：theme 全表仅 16 个带 width/height 的样式
+  （dir_item/pivot_dir/debugger_button 等编辑器专用件），装载的三件对话框一个用不到，不写死代码。
+
+**登记偏差（新）**：焦点系统替身（见上）；助记符机制在位但栏上总闸=源 main_menu_bar 的 kNo
+且现役标签无 `&` → 自然空转；IME/dead-key/右键编辑菜单无源对应；`was_clicked=false` 用
+Input.anyKeyDown 近似（手柄键会误触）；preciseWheel 以非整档 delta 近似；entry 字符盒几何用
+TMP `xAdvance` 累加近似源的 shaper charBounds；scrollbar static 抓取状态改实例字段。
+
+**harness 并发竞态**（本轮新坑，已修 run.sh，external 不入库）：多代理并行跑同域时固定目录
+`.run-<域>` 被对方 EXIT trap 互删（MSB1009 间歇报错，两代理被迫自建副本）。修法：锁目录
+`mkdir .run-<域>.lock` 抢到用固定目录（保 --keep 增量），抢不到退 PID 目录。
+
+**剩余 miss（2.7%）**：菜单滚轮滚动（797-800）、listbox 多选（76-110）、theme for_each_layer
+层引擎（53-130）、scrollbar enter/leave invalidate（183-188）、slider kSetCursor（264-296）。
+subst（3.8%）= UGUI 捕获板/BuildPopup/setMouse/onSetViewScroll 局部重绘→全量刷新，皆合理替代。
+
+**合并链**：`7cab08d5`(kbd) → `dcd4b4c4`(entry 在前) 顺序实为 kbd→entry→scroll→四修正；
+全量 1244/10/1 与基线逐位一致。三个 worktree 已清理。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
