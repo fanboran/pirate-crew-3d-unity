@@ -391,7 +391,10 @@ namespace PirateCrew.UI.Stick
         // ================== 滚轮（slider.cpp:249-262） ==================
 
         /// <summary>源 <c>kMouseWheelMessage</c>：<c>value += wheelDelta.x - wheelDelta.y</c>（整数档位），
-        /// 钳制后变了才 <c>setValue + onChange</c>（注意源此处走 setValue 而非 updateValue）。</summary>
+        /// 钳制后变了才 <c>setValue + onChange</c>（注意源此处走 setValue 而非 updateValue）。
+        /// 符号：aseprite 在 Windows 上滚轮向上 <c>wheelDelta.y = -1</c>
+        /// （state_with_wheel_behavior.cpp:285-290，与 macOS 反号），UGUI <c>scrollDelta.y</c>
+        /// 向上为 <c>+1</c> ——代入源公式前先取负，即「滚轮向上 = 增值」（与 View 滚动同口径）。</summary>
         public void OnScroll(PointerEventData eventData)
         {
             if (!IsInteractable() || _readOnly)                  // 源：isEnabled() && !isReadOnly()
@@ -399,7 +402,7 @@ namespace PirateCrew.UI.Stick
 
             int dx = Mathf.RoundToInt(eventData.scrollDelta.x);
             int dy = Mathf.RoundToInt(eventData.scrollDelta.y);
-            int value = Mathf.Clamp(_value + dx - dy, _min, _max);
+            int value = Mathf.Clamp(_value + dx + dy, _min, _max);   // = 源 x - (-dy)
             if (_value != value)
             {
                 SetValue(value);                                 // 源 slider.cpp:257
