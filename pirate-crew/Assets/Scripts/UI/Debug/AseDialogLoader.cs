@@ -319,6 +319,13 @@ namespace PirateCrew.UI.DebugUi
             // Box::onResize LAYOUT_CHILDREN（box.cpp:95-140，主轴/跨轴参数化）。
             public override void Layout(int x, int y, int w, int h)
             {
+                // setBounds 先落宿主（widget.cpp setBounds：盒的 bounds 就是它的真实矩形，
+                // 子件坐标相对它）。宿主不摆 = CreateRect 裸默认（拉伸锚 + sizeDelta(100,100) +
+                // 垂直居中），子件锚在幽灵矩形顶上，整体平移 (parentH-100)/2——new_sprite
+                // 首行 67px 死区即此（窗口高 223：(223-100)/2 + 17 = 67）。
+                if (Host != null)
+                    UiKit.SetAnchored(Host, new Vector2(0f, 1f), new Vector2(w, h), new Vector2(x, -y));
+
                 int visibleChildren = 0, expansiveChildren = 0;
                 for (int i = 0; i < Kids.Count; i++)
                     if (!Kids[i].Hidden)
@@ -838,6 +845,9 @@ namespace PirateCrew.UI.DebugUi
 
             public override void Layout(int x, int y, int w, int h)
             {
+                // setBounds 落宿主（同 BoxNode——Grid 的 bounds 同样是其真实矩形）
+                if (Host != null)
+                    UiKit.SetAnchored(Host, new Vector2(0f, 1f), new Vector2(w, h), new Vector2(x, -y));
                 CalculateSize();
                 DistributeSize(w, h);
                 if (_rowCount == 0)
