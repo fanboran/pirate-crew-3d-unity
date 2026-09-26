@@ -339,6 +339,8 @@ namespace PirateCrew.UI.DebugUi
                 float x = 0f;
                 foreach ((string title, Item[] items) in menus)
                 {
+                    // 助记符 '&' 不进显示文本（Widget::processMnemonicFromText，widget.cpp:1587-1612）
+                    string barText = DisplayText(title);
                     var row = new MenuRow
                     {
                         Data = new Item { Label = title, Children = items },
@@ -348,7 +350,7 @@ namespace PirateCrew.UI.DebugUi
                     row.Face = row.Rect.gameObject.AddComponent<Image>();
                     row.Face.color = FaceNormal;
                     row.Face.raycastTarget = false;
-                    row.Label = DebugWindowKit.Label(row.Rect, title, UiSkin.Font.Tiny,
+                    row.Label = DebugWindowKit.Label(row.Rect, barText, UiSkin.Font.Tiny,
                         TextNormal, TextAlignmentOptions.Center);
                     UiKit.Stretch(row.Label.rectTransform);
 
@@ -393,6 +395,9 @@ namespace PirateCrew.UI.DebugUi
 
             void Update()
             {
+                // 键盘泵（Input.GetKeyDown；本工程既有姿势见 SketchSlider.HandleKeyboard）
+                HandleKeyboard();
+
                 if (_popups.Count == 0)
                     return;
 
@@ -635,8 +640,10 @@ namespace PirateCrew.UI.DebugUi
                 }
 
                 DestroyPopup(popup);                           // window->closeWindow()（menu.cpp:969）
-                row.Highlighted = false;
-                Repaint(row);
+
+                // 不清本行的 m_highlighted —— 源码 MenuItem::closeSubmenu 只销子菜单窗并**把焦点还回
+                // 父 menubox**（menu.cpp:969-975），行的高亮位保持不动：Esc 收掉一层弹层后，父层那一行
+                // 仍是高亮的（栏上就是「栏项仍高亮 = 菜单栏重新持焦」的键盘入口）。
                 if (lastOfCloseChain)
                     _isProcessing = false;
             }
@@ -679,6 +686,397 @@ namespace PirateCrew.UI.DebugUi
                     _hostGo = null;
                     DestroySafe(host);
                 }
+            }
+
+            // ------------------------------------------------------------------
+            // 键盘导航（MenuBox::onProcessMessage kKeyDownMessage，menu.cpp:611-795）
+            //   + cancelMenuLoop（menu.cpp:1379-1398）
+            //   + check_for_letter / find_nextitem / find_previtem（menu.cpp:1414-1477）
+            //   + Widget::isMnemonicPressed / processMnemonicFromText（widget.cpp:1587-1621）
+            //
+            // 【焦点等价判定】源码里键盘消息只发给**持焦控件**（菜单栏，或某个 MenuBox 弹窗）：
+            //   · 弹窗一开，MenuBoxWindow 的 menubox 是 focus magnet，管理器的 _openWindow 直接夺焦
+            //     （menu.cpp:1487 + manager.cpp:2394-2400 findMagneticWidget/setFocus）→ 最深弹层持焦；
+            //   · 收掉一层弹层时 closeSubmenu 把焦点还回父 menubox（menu.cpp:969-975），且行的高亮位
+            //     不清 → 收完最后一层后**菜单栏重新持焦**（栏项仍高亮）；
+            //   · 全程收干净后 cancelMenuLoop 调 freeFocus（menu.cpp:1398）→ 键盘彻底交还。
+            // 本工程无焦点系统，按上表落成：**弹层链开着 → 最深弹层接管；弹层全关而栏项还高亮 →
+            // 菜单栏接管；两者都不成立 → 谁也不接管**。
+            //
+            // 【键位映射】aseprite scancode → Unity KeyCode：
+            //   kKeyEsc→Escape / kKeyUp→UpArrow / kKeyDown→DownArrow / kKeyLeft→LeftArrow /
+            //   kKeyRight→RightArrow / kKeyEnter,kKeyEnterPad→Return,KeypadEnter /
+            //   修饰键 kKeyAlt→LeftAlt|RightAlt、kKeyCtrl|kKeyCmd→LeftControl|RightControl|
+            //   LeftCommand|RightCommand、kKeyShift→LeftShift|RightShift。键位按下用 Input.GetKeyDown 泵。
+            // 登记偏差：kKeyEnterPad 在源里与 kKeyEnter 同分支，本移植把 KeypadEnter 并入即可；IME
+            // 组合中/中文键入走 Input.inputString（助记符 unicodeChar 通道），无 IME 预编辑态处理。
+            // ------------------------------------------------------------------
+
+            /// <summary>菜单栏的助记符总闸（MenuBar::processTopLevelShortcuts，menu.h:96-100）。
+            /// 参考程序的主菜单栏按 kNo 构造（<c>src/app/ui/main_menu_bar.cpp:25</c>），故**栏上
+            /// Alt+字母不触发助记符**——本移植保持同档；要开只改这一个常量。</summary>
+            const bool ProcessTopLevelShortcuts = false;
+
+            /// <summary>本帧的键盘宿主层（见上方焦点判定）：最深弹层 / 高亮中的菜单栏 / 无。</summary>
+            MenuScope FocusScope()
+            {
+                if (_popups.Count > 0)
+                    return _popups[_popups.Count - 1];   // 子层总是晚于父层建，列表尾 = 最深
+                return _bar != null && _bar.Highlighted != null ? _bar : null;
+            }
+
+            void HandleKeyboard()
+            {
+                if (_closing || _isProcessing)             // menu.cpp:620-622 base->is_processing
+                    return;
+
+                MenuScope focus = FocusScope();
+                if (focus == null)                         // 源码：没有持焦控件就收不到 kKeyDown
+                    return;
+
+                if (!AnyKeyDown())
+                    return;
+
+                // base->was_clicked = false（menu.cpp:625）——键盘一介入，「悬停切换」立即停。
+                // 源码对**任意** kKeyDownMessage 都置位；Input.anyKeyDown 含鼠标键，故排掉三个
+                // 鼠标键近似「键盘/手柄键」（approx：手柄键仍会误触本行）。
+                _wasClicked = false;
+
+                bool alt = AltHeld();
+                bool ctrl = CtrlOrCmdHeld();
+                bool shift = ShiftHeld();
+
+                // --- ALT+助记符（menu.cpp:627-641）---
+                // 弹层（kMenuBoxWidget）：修饰键为「无」或「仅 Alt」都行；菜单栏（kMenuBarWidget）：
+                // 必须「仅 Alt」且 processTopLevelShortcuts()。
+                bool mnemonicAllowed = focus.InBar
+                    ? (alt && !ctrl && !shift && ProcessTopLevelShortcuts)
+                    : (!ctrl && !shift);
+                if (mnemonicAllowed)
+                {
+                    MenuRow hit = CheckForLetter(focus);
+                    if (hit != null)
+                    {
+                        HighlightItem(focus, hit, true, true, true);   // menu.cpp:636
+                        return;
+                    }
+                }
+
+                // --- 高亮移动（menu.cpp:640-787，外层 this->hasFocus() 恒真）---
+                if (HandleMovementKey(focus))
+                    return;
+
+                // --- 只按 Alt：关全部（menu.cpp:789-792 cancelMenuLoop）---
+                if (Input.GetKeyDown(KeyCode.LeftAlt) || Input.GetKeyDown(KeyCode.RightAlt))
+                    CancelMenuLoop();
+            }
+
+            /// <summary>menu.cpp:640-783 的 <c>switch (scancode)</c>。返回是否消费了按键。</summary>
+            bool HandleMovementKey(MenuScope scope)
+            {
+                // Search a child with highlight or the submenu opened（menu.cpp:646-656）
+                MenuRow highlight = scope.Highlighted;
+                MenuRow childWithSubmenuOpened = ChildWithSubmenuOpened(scope);
+                if (highlight == null && childWithSubmenuOpened != null)
+                    highlight = childWithSubmenuOpened;
+
+                if (Input.GetKeyDown(KeyCode.Escape))
+                {
+                    KeyEscape(scope, childWithSubmenuOpened);
+                    return true;
+                }
+
+                if (Input.GetKeyDown(KeyCode.UpArrow))
+                {
+                    if (scope.InBar)
+                    {
+                        // 菜单栏：收掉展开的那层子菜单（menu.cpp:684-687）
+                        if (childWithSubmenuOpened != null)
+                            CloseSubmenu(childWithSubmenuOpened, true);
+                    }
+                    else
+                    {
+                        // 弹层：上一个（menu.cpp:690-693）
+                        HighlightItem(scope, FindPrevItem(scope, highlight), false, false, false);
+                    }
+                    return true;
+                }
+
+                if (Input.GetKeyDown(KeyCode.DownArrow))
+                {
+                    if (scope.InBar)
+                    {
+                        // 菜单栏：选中当前高亮项（带 click → 无子菜单的栏项直接执行，menu.cpp:699-702）
+                        HighlightItem(scope, highlight, true, true, true);
+                    }
+                    else
+                    {
+                        // 弹层：下一个（menu.cpp:704-708）
+                        HighlightItem(scope, FindNextItem(scope, highlight), false, false, false);
+                    }
+                    return true;
+                }
+
+                if (Input.GetKeyDown(KeyCode.LeftArrow))
+                {
+                    if (scope.InBar)
+                    {
+                        // 菜单栏：上一项，**不展开**（menu.cpp:714-718）
+                        HighlightItem(scope, FindPrevItem(scope, highlight), false, false, false);
+                    }
+                    else if (scope.Owner != null)
+                    {
+                        // menu.cpp:722-740：看父层是不是菜单栏
+                        MenuScope parent = scope.Owner.Scope;
+                        if (parent != null && parent.InBar)
+                        {
+                            // 退到菜单栏，移到上一项并展开（menu.cpp:728-733）
+                            HighlightItem(parent, FindPrevItem(parent, parent.Highlighted), false, true, true);
+                        }
+                        else
+                        {
+                            // 只退回一层父菜单（menu.cpp:736-739）
+                            CloseSubmenu(scope.Owner, true);
+                        }
+                    }
+                    return true;
+                }
+
+                if (Input.GetKeyDown(KeyCode.RightArrow))
+                {
+                    if (scope.InBar)
+                    {
+                        // 菜单栏：下一项，**不展开**（menu.cpp:747-751）
+                        HighlightItem(scope, FindNextItem(scope, highlight), false, false, false);
+                    }
+                    else if (highlight != null && highlight.HasSubmenu)
+                    {
+                        // 进子菜单（menu.cpp:755-757）
+                        HighlightItem(scope, highlight, true, true, true);
+                    }
+                    else if (scope.Owner != null)
+                    {
+                        // 回到根菜单，移到下一项并展开（menu.cpp:759-772）
+                        MenuScope root = RootScope(scope);
+                        HighlightItem(root, FindNextItem(root, root != null ? root.Highlighted : null),
+                            false, true, true);
+                    }
+                    return true;
+                }
+
+                if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+                {
+                    // kKeyEnter / kKeyEnterPad（menu.cpp:777-781）
+                    if (highlight != null)
+                        HighlightItem(scope, highlight, true, true, true);
+                    return true;
+                }
+
+                return false;
+            }
+
+            /// <summary>kKeyEsc 分支（menu.cpp:660-681）。</summary>
+            void KeyEscape(MenuScope scope, MenuRow childWithSubmenuOpened)
+            {
+                if (scope.InBar)
+                {
+                    // 菜单栏：有高亮才关全部（menu.cpp:661-666）
+                    if (scope.Highlighted != null)
+                        CancelMenuLoop();
+                    return;
+                }
+
+                if (childWithSubmenuOpened != null)
+                {
+                    // 先收掉本层展开的子菜单（menu.cpp:669-672）
+                    CloseSubmenu(childWithSubmenuOpened, true);
+                }
+                else if (scope.Owner != null)
+                {
+                    // 退回一层父菜单（menu.cpp:674-678）
+                    CloseSubmenu(scope.Owner, true);
+                }
+                else
+                {
+                    // 顶层独立弹层（showPopup）：源码走前台模态循环被 kCloseDisplayMessage 收掉
+                    // （menu.cpp:461-467 menu->closeAll），等价地在这里直接收。
+                    CancelMenuLoop();
+                }
+            }
+
+            /// <summary>MenuBox::cancelMenuLoop（menu.cpp:1379-1398）：closeAll + 弃键盘焦点。
+            /// <c>Manager::freeFocus()</c> 无对应物（无焦点系统）；收干净后栏项高亮被清（Menu::closeAll
+            /// 的 menu->unhighlightItem()，menu.cpp:1330），FocusScope 自然回到 null。</summary>
+            void CancelMenuLoop()
+            {
+                CloseMenus();
+            }
+
+            /// <summary>menu.cpp:1414-1427 check_for_letter：只扫**本层**子件（不递归）。
+            /// 注意源码此处**不查 enabled**——禁用项带助记符照样被选中。</summary>
+            static MenuRow CheckForLetter(MenuScope scope)
+            {
+                for (int i = 0; i < scope.Rows.Count; i++)
+                {
+                    MenuRow row = scope.Rows[i];
+                    if (row.Data.Separator)
+                        continue;
+                    if (MnemonicPressed(MnemonicOf(row.Data.Label)))
+                        return row;
+                }
+                return null;
+            }
+
+            /// <summary>menu.cpp:1429-1451 find_nextitem：从 menuitem 之后找第一个启用项；
+            /// 到尾则绕回开头（<paramref name="from"/> == null 时从首项起，找不到即 null）。</summary>
+            static MenuRow FindNextItem(MenuScope scope, MenuRow from)
+            {
+                int start = 0;
+                if (from != null)
+                {
+                    int i = scope.Rows.IndexOf(from);
+                    start = i >= 0 ? i + 1 : 0;      // std::find 落空 → it==end → 递归从头找
+                }
+                for (int i = start; i < scope.Rows.Count; i++)
+                    if (IsNavigable(scope.Rows[i]))
+                        return scope.Rows[i];
+                return from != null ? FindNextItem(scope, null) : null;
+            }
+
+            /// <summary>menu.cpp:1454-1477 find_previtem：反向找，语义同 <see cref="FindNextItem"/>。</summary>
+            static MenuRow FindPrevItem(MenuScope scope, MenuRow from)
+            {
+                int start = scope.Rows.Count - 1;
+                if (from != null)
+                {
+                    int i = scope.Rows.IndexOf(from);
+                    start = i >= 0 ? i - 1 : scope.Rows.Count - 1;
+                }
+                for (int i = start; i >= 0; i--)
+                    if (IsNavigable(scope.Rows[i]))
+                        return scope.Rows[i];
+                return from != null ? FindPrevItem(scope, null) : null;
+            }
+
+            /// <summary>源码的过滤条件：<c>type == kMenuItemWidget &amp;&amp; isEnabled()</c>——分隔线
+            /// 不是 MenuItem 故天然跳过，禁用项跳过（menu.cpp:1444-1445、1467-1468）。</summary>
+            static bool IsNavigable(MenuRow row)
+            {
+                return row != null && !row.Data.Separator && row.Enabled;
+            }
+
+            /// <summary>本层带子菜单展开的那个子件（menu.cpp:648-655；源码后写覆盖前值，无 break——
+            /// 同层同时只可能开一个，这里照抄语义）。</summary>
+            static MenuRow ChildWithSubmenuOpened(MenuScope scope)
+            {
+                MenuRow found = null;
+                for (int i = 0; i < scope.Rows.Count; i++)
+                    if (scope.Rows[i].Submenu != null)
+                        found = scope.Rows[i];
+                return found;
+            }
+
+            /// <summary>根层菜单（get_base_menubox 取到的根 Menu，menu.cpp:1058-1098）：沿 m_menuitem
+            /// 链上溯（Menu::m_menuitem = 展开本层的那一行）。</summary>
+            static MenuScope RootScope(MenuScope scope)
+            {
+                while (scope != null && scope.Owner != null)
+                    scope = scope.Owner.Scope;
+                return scope;
+            }
+
+            /// <summary>Widget::processMnemonicFromText（widget.cpp:1587-1612）：<c>'&amp;'</c> 后的字符是
+            /// 助记符且 <c>'&amp;'</c> 本身**不显示**；<c>"&amp;&amp;"</c> 是字面 <c>'&amp;'</c>（不设助记符）；
+            /// <c>'&amp;'</c> 后是空白不设助记符（<c>'&amp;'</c> 原样留着）；串以 <c>'&amp;'</c> 结尾则截断。</summary>
+            internal static string StripMnemonic(string label, out char mnemonic)
+            {
+                mnemonic = '\0';
+                if (string.IsNullOrEmpty(label))
+                    return label;
+
+                var sb = new System.Text.StringBuilder(label.Length);
+                for (int i = 0; i < label.Length; i++)
+                {
+                    char c = label[i];
+                    if (c != '&')
+                    {
+                        sb.Append(c);
+                        continue;
+                    }
+                    if (i + 1 >= label.Length)
+                        break;                            // 畸形串（以 escape 结尾）：源码 break
+
+                    char next = label[++i];
+                    if (char.IsWhiteSpace(next))
+                        sb.Append('&').Append(next);      // 空格不做助记符
+                    else if (next != '&')
+                        mnemonic = next;                  // 吃到 '&'，下一字符作助记符
+                    else
+                        sb.Append('&');                   // "&&" → 字面 '&'
+                }
+                return sb.ToString();
+            }
+
+            internal static char MnemonicOf(string label)
+            {
+                char mnemonic;
+                StripMnemonic(label, out mnemonic);
+                return mnemonic;
+            }
+
+            /// <summary>显示用文本（吃掉助记符转义，见 <see cref="StripMnemonic"/>）。</summary>
+            internal static string DisplayText(string label)
+            {
+                char ignored;
+                return StripMnemonic(label, out ignored);
+            }
+
+            /// <summary>Widget::isMnemonicPressed（widget.cpp:1615-1621）：不区分大小写地比 mnemonic
+            /// （unicodeChar 相等，或 scancode 落在 a-z / 0-9 区间）。本移植：a-z / 0-9 走 KeyCode 区间，
+            /// 其余（含中文助记符）走 Input.inputString 的 unicode 通道。</summary>
+            static bool MnemonicPressed(char mnemonic)
+            {
+                if (mnemonic == '\0')
+                    return false;
+
+                char lower = char.ToLowerInvariant(mnemonic);
+                if (lower >= 'a' && lower <= 'z')
+                    return Input.GetKeyDown((KeyCode)((int)KeyCode.A + (lower - 'a')));
+                if (lower >= '0' && lower <= '9')
+                    return Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha0 + (lower - '0')));
+
+                string typed = Input.inputString;
+                for (int i = 0; i < typed.Length; i++)
+                    if (char.ToLowerInvariant(typed[i]) == lower)
+                        return true;
+                return false;
+            }
+
+            static bool AltHeld()
+            {
+                return Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
+            }
+
+            static bool ShiftHeld()
+            {
+                return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            }
+
+            /// <summary>kKeyCtrl / kKeyCmd 在 Unity 里落在 Control 与 Command 两族（approx：源码按平台
+            /// 二选一，这里两族都收）。</summary>
+            static bool CtrlOrCmdHeld()
+            {
+                return Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)
+                    || Input.GetKey(KeyCode.LeftCommand) || Input.GetKey(KeyCode.RightCommand);
+            }
+
+            /// <summary>本帧是否有「键盘键」按下：Input.anyKeyDown 含鼠标键，排掉三个鼠标键（approx）。</summary>
+            static bool AnyKeyDown()
+            {
+                return Input.anyKeyDown
+                    && !Input.GetMouseButtonDown(0)
+                    && !Input.GetMouseButtonDown(1)
+                    && !Input.GetMouseButtonDown(2);
             }
 
             // ------------------------------------------------------------------
@@ -768,8 +1166,8 @@ namespace PirateCrew.UI.DebugUi
                     row.Face = row.Rect.gameObject.AddComponent<Image>();
                     row.Face.color = FaceNormal;
                     row.Face.raycastTarget = false;
-                    row.Label = DebugWindowKit.Label(row.Rect, data.Label, UiSkin.Font.Tiny,
-                        TextNormal, TextAlignmentOptions.Left);
+                    row.Label = DebugWindowKit.Label(row.Rect, DisplayText(data.Label),
+                        UiSkin.Font.Tiny, TextNormal, TextAlignmentOptions.Left);
                     // 快捷键只在**没有子菜单**的行上画（paintMenuItem 的 if/else if：带子菜单画箭头、
                     // 否则才画快捷键，skin_theme.cpp:1626-1667）
                     if (!string.IsNullOrEmpty(data.Shortcut) && !HasChildren(data))
