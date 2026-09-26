@@ -134,12 +134,9 @@ namespace PirateCrew.UI.DebugUi
         public static RectTransform BuildMenuBar(Transform parent, string name,
             (string title, Item[] items)[] menus)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            RectTransform barRect = (RectTransform)go.transform;
-            barRect.SetParent(parent, false);
-            barRect.anchorMin = barRect.anchorMax = barRect.pivot = new Vector2(0f, 1f);
+            RectTransform barRect = MakeRect(name, parent);
 
-            var session = go.AddComponent<AseMenuSession>();
+            var session = barRect.gameObject.AddComponent<AseMenuSession>();
             session.Build(barRect, menus);
             s_session = session;
             return barRect;
@@ -158,20 +155,17 @@ namespace PirateCrew.UI.DebugUi
 
             CloseAll();
 
-            RectTransform host = FindOverlay(anchor);
+            RectTransform host = AseUi.OverlayOf(anchor);
             if (host == null)
                 host = overlay as RectTransform;
             if (host == null)
                 return;
 
-            var go = new GameObject("AseMenuPopupSession", typeof(RectTransform));
-            var rect = (RectTransform)go.transform;
-            rect.SetParent(host, false);
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-            rect.sizeDelta = Vector2.zero;
+            RectTransform rect = UiKit.CreateRect("AseMenuPopupSession", host);
+            UiKit.SetAnchored(rect, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
 
-            var session = go.AddComponent<AseMenuSession>();
-            session.BuildStandalone(host, go, anchor, items, side);
+            var session = rect.gameObject.AddComponent<AseMenuSession>();
+            session.BuildStandalone(host, rect.gameObject, anchor, items, side);
             s_popupSession = session;
         }
 
@@ -182,20 +176,6 @@ namespace PirateCrew.UI.DebugUi
                 s_session.CloseMenus();
             if (s_popupSession != null)
                 s_popupSession.CloseMenus();
-        }
-
-        /// <summary>件所在画布（popup 挂画布层：源码 popup 是显示器上的独立 window）。</summary>
-        internal static RectTransform FindOverlay(Transform t)
-        {
-            if (t == null)
-                return null;
-            Canvas canvas = t.GetComponentInParent<Canvas>();
-            if (canvas != null)
-                return (RectTransform)canvas.transform;
-            RectTransform root = t as RectTransform;
-            while (root != null && root.parent is RectTransform parent)
-                root = parent;
-            return root;
         }
 
         // ------------------------------------------------------------------
@@ -235,6 +215,14 @@ namespace PirateCrew.UI.DebugUi
         internal static bool HasChildren(Item item)
         {
             return item != null && item.Children != null && item.Children.Length > 0;
+        }
+
+        /// <summary>建一个顶左锚（0,1）点锚件——栏/行/弹窗/视图/捕获板的统一出生形态。</summary>
+        static RectTransform MakeRect(string name, Transform parent)
+        {
+            RectTransform rect = UiKit.CreateRect(name, parent);
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
+            return rect;
         }
 
         // ------------------------------------------------------------------
@@ -337,7 +325,7 @@ namespace PirateCrew.UI.DebugUi
 
             public void Build(RectTransform barRect, (string title, Item[] items)[] menus)
             {
-                _overlay = FindOverlay(barRect);
+                _overlay = AseUi.OverlayOf(barRect);
                 _overlayW = _overlay.rect.width;
                 _overlayH = _overlay.rect.height;
 
@@ -372,8 +360,7 @@ namespace PirateCrew.UI.DebugUi
 
                     // MenuItem::onSizeHint 栏内档：文字 + childSpacing/4 + border（menu.cpp:1049）
                     float w = Mathf.Ceil(row.Label.preferredWidth) + ItemChildSpacing / 4 + ItemBorder * 2;
-                    row.Rect.sizeDelta = new Vector2(w, barH);
-                    row.Rect.anchoredPosition = new Vector2(x, 0f);
+                    UiKit.SetAnchored(row.Rect, new Vector2(0f, 1f), new Vector2(w, barH), new Vector2(x, 0f));
                     row.X = x;
                     row.Y = 0f;
                     row.W = w;
@@ -1114,10 +1101,7 @@ namespace PirateCrew.UI.DebugUi
                 var scope = new MenuScope { InBar = false, Owner = owner };
                 scope.Rect = MakeRect("AseMenuPopup", _overlay);
                 var frame = scope.Rect.gameObject.AddComponent<Image>();
-                frame.sprite = PixelSkin.Ase("menu");      // theme.xml:166 直切件
-                frame.type = Image.Type.Sliced;
-                frame.pixelsPerUnitMultiplier = 1f;
-                frame.color = Color.white;
+                AseUi.SetRawPart(frame, "menu");                // theme.xml:166 直切件
                 frame.raycastTarget = true;                    // 本层命中板
 
                 var input = scope.Rect.gameObject.AddComponent<MenuScopeInput>();
@@ -1125,7 +1109,7 @@ namespace PirateCrew.UI.DebugUi
                 input.Scope = scope;
 
                 var faceRect = UiKit.CreateRect("Face", scope.Rect);
-                faceRect.anchorMin = Vector2.zero;      // 拉伸锚 + inset（旧中心锚配拉伸 offset = 负尺寸倒像）
+                faceRect.anchorMin = Vector2.zero;
                 faceRect.anchorMax = Vector2.one;
                 faceRect.offsetMin = new Vector2(MenuSliceL, MenuSliceB);
                 faceRect.offsetMax = new Vector2(-MenuSliceR, -MenuSliceT);
@@ -1157,7 +1141,7 @@ namespace PirateCrew.UI.DebugUi
                 scope.Width = winW;
                 scope.Height = winH;
                 scope.Rect.sizeDelta = new Vector2(winW, winH);
-                scope.Rect.anchoredPosition = new Vector2(winX, -winY);
+                AseUi.PlaceByEdges(scope.Rect, winX, winY);
 
                 if (scrollable)
                     BuildScrollableView(scope, menuW, contentH, winW, winH);
@@ -1224,35 +1208,32 @@ namespace PirateCrew.UI.DebugUi
             void LayoutRow(MenuRow row, float menuW, float x, float yBase)
             {
                 row.W = menuW;
-                row.Rect.sizeDelta = new Vector2(menuW, row.H);
-                row.Rect.anchoredPosition = new Vector2(x, -(row.Y - yBase));
+                UiKit.SetAnchored(row.Rect, new Vector2(0f, 1f), new Vector2(menuW, row.H),
+                    new Vector2(x, -(row.Y - yBase)));
 
                 if (row.Data.Separator)
                 {
                     // menu_separator：行高 4（border 2+2），线件 separator_horz 9×5 顶对齐画出——
                     // 件第 2 行是点线（第 0/1/3/4 行透明），故线自然落在行内第 2 行且不越色
                     var lineRect = UiKit.CreateRect("Line", row.Rect);
-                    lineRect.anchorMin = lineRect.anchorMax = lineRect.pivot = new Vector2(0f, 1f);
-                    lineRect.sizeDelta = new Vector2(menuW, 5f);
-                    lineRect.anchoredPosition = Vector2.zero;
+                    UiKit.SetAnchored(lineRect, new Vector2(0f, 1f), new Vector2(menuW, 5f), Vector2.zero);
                     var line = lineRect.gameObject.AddComponent<Image>();
-                    line.sprite = PixelSkin.Ase("separator_horz");
-                    line.type = Image.Type.Tiled;              // 3px 周期点线，拉伸会变实线
-                    line.pixelsPerUnitMultiplier = 1f;
-                    line.color = Color.white;
+                    AseUi.SetRawPart(line, "separator_horz");
+                    line.type = Image.Type.Tiled;              // 3px 周期点线，拉伸会变实线（覆盖单点的 Sliced）
                     line.raycastTarget = false;
                     return;
                 }
 
                 float left = ItemBorder + ItemChildSpacing / 2f;   // pos.offset(childSpacing()/2, 0)
-                PlaceLeft(row.Label.rectTransform, left, 0f,
-                    menuW - left - ItemBorder, row.H);
+                UiKit.SetAnchored(row.Label.rectTransform, new Vector2(0f, 1f),
+                    new Vector2(menuW - left - ItemBorder, row.H), new Vector2(left, 0f));
 
                 if (row.ShortcutLabel != null)
                 {
                     // pos.w -= childSpacing()/4 → 右缘 = 行右 - border - 4
                     float rightInset = ItemBorder + ItemChildSpacing / 4f;
-                    PlaceRight(row.ShortcutLabel.rectTransform, rightInset, menuW, row.H);
+                    UiKit.SetAnchored(row.ShortcutLabel.rectTransform, new Vector2(1f, 1f),
+                        new Vector2(menuW, row.H), new Vector2(-rightInset, 0f));
                 }
 
                 if (row.Check != null)
@@ -1260,11 +1241,9 @@ namespace PirateCrew.UI.DebugUi
                     float iconTop = ItemBorder
                         + Mathf.FloorToInt((row.H - ItemBorder * 2f) * 0.5f)
                         - CheckSize * 0.5f;
-                    var rect = row.Check.rectTransform;
-                    rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-                    rect.sizeDelta = new Vector2(CheckSize, CheckSize);
-                    rect.anchoredPosition = new Vector2(
-                        ItemBorder + CheckCenterOffset - CheckSize * 0.5f, -iconTop);
+                    UiKit.SetAnchored(row.Check.rectTransform, new Vector2(0f, 1f),
+                        new Vector2(CheckSize, CheckSize),
+                        new Vector2(ItemBorder + CheckCenterOffset - CheckSize * 0.5f, -iconTop));
                 }
 
                 if (row.HasSubmenu)
@@ -1276,9 +1255,8 @@ namespace PirateCrew.UI.DebugUi
                         float ax = menuW - (ItemBorder + ArrowWidth) - c;
                         float ah = 2 * c + 1;
                         var barRect = UiKit.CreateRect("Arrow" + c, row.Rect);
-                        barRect.anchorMin = barRect.anchorMax = barRect.pivot = new Vector2(0f, 1f);
-                        barRect.sizeDelta = new Vector2(1f, ah);
-                        barRect.anchoredPosition = new Vector2(ax, -(cy - c));
+                        UiKit.SetAnchored(barRect, new Vector2(0f, 1f), new Vector2(1f, ah),
+                            new Vector2(ax, -(cy - c)));
                         var bar = barRect.gameObject.AddComponent<Image>();
                         bar.color = TextNormal;
                         bar.raycastTarget = false;
@@ -1436,10 +1414,10 @@ namespace PirateCrew.UI.DebugUi
             void BuildScrollableView(MenuScope scope, float menuW, float contentH, float winW, float winH)
             {
                 RectTransform viewRect = MakeRect("View", scope.Rect);
-                viewRect.sizeDelta = new Vector2(
+                UiKit.SetAnchored(viewRect, new Vector2(0f, 1f), new Vector2(
                     Mathf.Max(0f, winW - MenuSliceL - MenuSliceR),
-                    Mathf.Max(0f, winH - MenuSliceT - MenuSliceB));
-                viewRect.anchoredPosition = new Vector2(MenuSliceL, -MenuSliceT);
+                    Mathf.Max(0f, winH - MenuSliceT - MenuSliceB)),
+                    new Vector2(MenuSliceL, -MenuSliceT));
 
                 AseView view = AseView.Attach(viewRect, 0, 0, 0, 0);
 
@@ -1496,8 +1474,7 @@ namespace PirateCrew.UI.DebugUi
                 if (w <= 0f || h <= 0f)
                     return;
                 RectTransform rect = MakeRect("MenuCatcher", _overlay);
-                rect.sizeDelta = new Vector2(w, h);
-                rect.anchoredPosition = new Vector2(x, -y);
+                UiKit.SetAnchored(rect, new Vector2(0f, 1f), new Vector2(w, h), new Vector2(x, -y));
                 var image = rect.gameObject.AddComponent<Image>();
                 image.color = new Color(0f, 0f, 0f, 0f);
                 image.raycastTarget = true;
@@ -1666,7 +1643,7 @@ namespace PirateCrew.UI.DebugUi
                 if (row.Check == null)
                     return;
                 // 禁用勾选换 check_disabled 件（skin_theme.cpp:1604-1605）
-                row.Check.sprite = PixelSkin.Ase(row.Enabled ? "check_selected" : "check_disabled");
+                AseUi.SetRawPart(row.Check, row.Enabled ? "check_selected" : "check_disabled");
             }
 
             // ------------------------------------------------------------------
@@ -1690,43 +1667,19 @@ namespace PirateCrew.UI.DebugUi
                 scope.Rect = null;
             }
 
-            /// <summary>件在画布左上原点、y 向下坐标系的矩形（workarea/父窗都按它算）。</summary>
+            /// <summary>件在 overlay 左上原点、y 向下坐标系的矩形（workarea/父窗都按它算）。
+            /// 左上角走 <see cref="AseUi.EdgesOf"/> 单点（世界 → 宿主左/上缘）；右下角同式换角
+            /// ——EdgesOf 只导出左上角，而 fit_bounds 的 choose_side/钳取要两个角点。
+            /// _overlayW/_overlayH 是本会话内部的 workarea 坐标系，保持不动。</summary>
             Rect BoundsInOverlay(RectTransform rect)
             {
+                Vector2 tl = AseUi.EdgesOf(rect, _overlay);
                 var corners = new Vector3[4];
                 rect.GetWorldCorners(corners);                 // 0 左下 / 1 左上 / 2 右上 / 3 右下
-                Vector2 tl = ToOverlay(corners[1]);
-                Vector2 br = ToOverlay(corners[3]);
+                Vector2 local = _overlay.InverseTransformPoint(corners[3]);
+                Rect hr = _overlay.rect;
+                Vector2 br = new Vector2(local.x - hr.xMin, hr.yMax - local.y);
                 return new Rect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
-            }
-
-            Vector2 ToOverlay(Vector3 world)
-            {
-                Vector2 local = _overlay.InverseTransformPoint(world);
-                return new Vector2(local.x + _overlayW * 0.5f, _overlayH * 0.5f - local.y);
-            }
-
-            static RectTransform MakeRect(string name, Transform parent)
-            {
-                var go = new GameObject(name, typeof(RectTransform));
-                RectTransform rect = (RectTransform)go.transform;
-                rect.SetParent(parent, false);
-                rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-                return rect;
-            }
-
-            static void PlaceLeft(RectTransform rect, float x, float y, float w, float h)
-            {
-                rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-                rect.sizeDelta = new Vector2(w, h);
-                rect.anchoredPosition = new Vector2(x, -y);
-            }
-
-            static void PlaceRight(RectTransform rect, float rightInset, float w, float h)
-            {
-                rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(1f, 1f);
-                rect.sizeDelta = new Vector2(w, h);
-                rect.anchoredPosition = new Vector2(-rightInset, 0f);
             }
 
             static void DestroySafe(GameObject go)
