@@ -697,6 +697,62 @@ theme scrollbar 件；⑦styles 未复刻大块：tab 族/combobox 族/drop_down
 MainMenu 第五钮「调试场景」实拍落位（按钮列 6 文字簇 = 标题+五钮）。
 **待创始人实机走查**：Play MainMenu → 调试场景 → 四面板交互（拖动/下拉/输入/气泡）。
 
+## 三之五、自查修复波 + 复刻承载体系重构：xml 通用装载器（2026-09-26，创始人令「以库为源·原封复刻」）
+
+**起因**：创始人走查四面板报「一堆各种各样的Bug」并质问「为啥照参考图做而不是把库里
+的场景找出来复刻（图片也用原图）」「小界面几百行、没公共代码？架构这么烂？」
+「架构级修改不策划直接上？」。回应：静态审计 + 规划审批后落了三件事。
+
+**裁决与口径（后续复刻工作的依据）**：
+- **以库为源**：界面复刻自 `external/aseprite-ref` 的声明（`data/widgets/*.xml` +
+  `data/strings/en.ini` + theme.xml 件/样式），不照截图目测。
+- **图标就是件**：theme `<parts>` 表里 icon_* 与窗框/按钮同表（如 icon_rgb=x0 y256
+  16×16），随 345 件迁移已入库，复刻直取图集原图不乘色。
+- **承载 = 通用 xml 装载器**（创始人三选一裁决）：布局数字直接来自声明文件。
+- **控件层 = Stick 控件库**（代码控件类 + 工厂，生产/调试同源）：Unity 2022 LTS 行业
+  主流是 UGUI + 可复用件 + 轻量工厂（prefab 承载像素约束存不住——顶点对齐/字体档/
+  禁乘色必须代码强制）；UI Toolkit 运行时 2023 才趋稳，不采。
+
+**交付（四个原子提交）**：
+1. `5b0020f5` fix(ui) 自查修复波：拖动带被 VerticalLayoutGroup 吞（主菜单拖不动，豁免
+   布局）｜滑条浅字首帧零宽卡死（几何重排移出 percent 早退）｜部件陈列廊窗越界 100px
+   且盖启动器｜三面板默认位互叠｜tooltip 孤儿（窗口关闭不清）｜子菜单弹向行下方（改
+   右侧弹）｜弹层夹取按宿主窗宽｜列表行 1px 缝｜菜单估宽截字｜File→New… 真弹窗；
+   新增公共件工厂 `AseWidgetKit`（SunkenEntry/CheckRow/ComboBox/HoverFace）与控件库
+   `SketchButtonSetIcon`（buttonset_item_text_top_icon_bottom 变体）。
+2. feat(ui) 资产：61 个 widgets xml + en.ini → `Assets/Resources/AseWidgets/`
+   （原封拷贝，en.ini 落 en.ini.txt）；幂等同步工具
+   `Assets/Editor/AseWidgetAssetSync.cs`（菜单 PirateCrew/同步 Aseprite widgets 资产，
+   meta 只在缺失时生成、GUID 稳定）。
+3. feat(ui) `Assets/Scripts/UI/Debug/AseDialogLoader.cs`：System.Xml 解析 + 两遍布局
+   （自然尺寸→定宽落位），`@.key`/`@general.x` 文案引用、`&` 助记符剥除；手写
+   NewSpriteDialog.cs 退役删除；DebugMenuHost 增「库对话框 Duplicate/Goto」验证钮。
+4. 本 docs 提交。
+
+**装载器覆盖表（未实现语义遇则 LogWarning 跳过，逐条补）**：
+- 已实现：window(text/help→?钮)｜box/vbox/hbox(vertical/expansive 空位/homogeneous/
+  cell_align=right)｜grid(columns=2，首列=最宽标签)｜separator(text=蓝字点线/无线)｜
+  label｜entry/expr(suffix=框内后缀/IntegerNumber)｜buttonset(columns，互斥单选，
+  icon 项走 SketchButtonSetIcon)｜item(text/icon)｜check｜combobox+listitem｜
+  button(text/minwidth/closewindow)。
+- 未实现（登记待补）：magnet 焦点序｜maxsize｜cell_align=horizontal（字段拉伸）｜
+  style 属性细粒度映射（现按「有无 icon」二分，icon_rgb 等走图文变体）｜窗高动态
+  （advanced 盒显隐不改窗高，留占位）｜link/tooltip/其他控件型。
+
+**已知偏差（待创始人裁决）**：字用本端 FusionPixel 位图档而非 Aseprite Mini 原字体
+（单字体纪律；若要原味需引入 aseprite 自带字体位图并进烘焙管线——提案/待定）。
+
+**验证**：harness Runtime 0 错 / Data 33/33；实机走查待创始人（编辑器 Play MainMenu →
+调试场景 →「新建精灵（xml 装载）」「库对话框 Duplicate/Goto」）。取证通道：
+`capture:MainMenu+dbg-widget|dbg-newsprite|dbg-menubar|dbg-parts`（遥控旗标）或编辑器
+关闭时 `-executeMethod PirateCrew.EditorTools.UiPixelScreenCapture.CaptureDebugPanels`
+（GUI 编辑器自动四连采 + 自退；编辑器开着时该方法进不去——Library 锁）。
+
+**教训（写进流程）**：①横盒/点锚上误用拉伸锚 inset 的 Bug 家族（上波）之后，本波又
+抓「布局组吞拖动带」——给调试件挂子物体前先问父件有没有 LayoutGroup，有则
+`UiLayout.Ignore`。②遥控 stop 会打断创始人的现场 Play——遥控通道只在创始人不在场时
+用；在场就直说「请你看」。③架构级改动先进规划模式过审批，不再边写边定。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
