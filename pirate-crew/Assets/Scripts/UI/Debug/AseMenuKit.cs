@@ -1125,8 +1125,8 @@ namespace PirateCrew.UI.DebugUi
                 input.Scope = scope;
 
                 var faceRect = UiKit.CreateRect("Face", scope.Rect);
-                faceRect.anchorMin = faceRect.anchorMax = new Vector2(0.5f, 0.5f);
-                faceRect.pivot = new Vector2(0.5f, 0.5f);
+                faceRect.anchorMin = Vector2.zero;      // 拉伸锚 + inset（旧中心锚配拉伸 offset = 负尺寸倒像）
+                faceRect.anchorMax = Vector2.one;
                 faceRect.offsetMin = new Vector2(MenuSliceL, MenuSliceB);
                 faceRect.offsetMax = new Vector2(-MenuSliceR, -MenuSliceT);
                 var face = faceRect.gameObject.AddComponent<Image>();

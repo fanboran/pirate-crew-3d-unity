@@ -217,10 +217,10 @@ namespace PirateCrew.UI.DebugUi
             // 滚动区：点锚 + 显式尺寸（拉伸锚的 inset 写法在点锚上会得负尺寸——首版即此病，全窗空白）
             RectTransform scroll = UiKit.CreateRect("Scroll", window);
             scroll.anchorMin = scroll.anchorMax = scroll.pivot = new Vector2(0f, 1f);
-            scroll.anchoredPosition = new Vector2(DebugWindowKit.Pad, -PixelSkin.WindowTitleBand - 4f);
+            scroll.anchoredPosition = new Vector2(DebugWindowKit.Pad, -DebugWindowKit.ContentTop);
             scroll.sizeDelta = new Vector2(
                 windowSize.x - DebugWindowKit.Pad * 2f - 16f - 4f,
-                windowSize.y - PixelSkin.WindowTitleBand - 4f - DebugWindowKit.Pad);
+                windowSize.y - DebugWindowKit.ContentTop - DebugWindowKit.Pad);
 
             RectTransform viewport = UiKit.CreateRect("Viewport", scroll);
             viewport.anchorMin = Vector2.zero;
@@ -255,7 +255,7 @@ namespace PirateCrew.UI.DebugUi
             RectTransform bar = UiKit.CreateRect("VBar", window);
             bar.anchorMin = bar.anchorMax = bar.pivot = new Vector2(0f, 1f);
             bar.anchoredPosition = new Vector2(
-                DebugWindowKit.Pad + scroll.sizeDelta.x + 4f, -PixelSkin.WindowTitleBand - 4f);
+                DebugWindowKit.Pad + scroll.sizeDelta.x + 4f, -DebugWindowKit.ContentTop);
             bar.sizeDelta = new Vector2(16f, scroll.sizeDelta.y);
             var barBg = bar.gameObject.AddComponent<Image>();
             barBg.sprite = PixelSkin.Ase("scrollbar_bg");   // theme scrollbar 直切件
