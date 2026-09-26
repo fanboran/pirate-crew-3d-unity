@@ -187,11 +187,11 @@ namespace PirateCrew.UI.DebugUi
 
             // 位置：候选矩形 = 词条左下到钮右下（combobox.cpp:692-707 updateListBoxPos），
             // fit_bounds 的 fitLogic 先把越底界者翻到词条上方，再夹进 workarea
-            float left = Mathf.Round(Mathf.Clamp(comboLeft, 0f, Mathf.Max(0f, hostRect.width - w)));
+            float left = Mathf.Round(Mathf.Clamp(comboLeft, 0f, Mathf.Max(0f, hostRect.width - 1f - w)));
             float top = entryBottom;
             if (top + popupH > hostRect.height)
                 top -= popupH + h;
-            top = Mathf.Round(Mathf.Clamp(top, 0f, Mathf.Max(0f, hostRect.height - popupH)));
+            top = Mathf.Round(Mathf.Clamp(top, 0f, Mathf.Max(0f, hostRect.height - 1f - popupH)));
 
             _popup = AseComboBoxPopup.Open(this, host, w, popupH, itemsW, _options, _selected);
             RectTransform popupRect = _popup.Rect;

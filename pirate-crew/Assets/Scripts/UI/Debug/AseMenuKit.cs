@@ -1282,7 +1282,7 @@ namespace PirateCrew.UI.DebugUi
                     // 二层子菜单（menu.cpp:912-918）：行左上 3px + choose_side（父窗 = 本层窗）
                     Rect itemBounds = BoundsInOverlay(owner.Rect);
                     float sy = Mathf.Clamp(itemBounds.yMin - SubmenuAnchorUp, 0f,
-                        Mathf.Max(0f, _overlayH - popupH));
+                        Mathf.Max(0f, _overlayH - 1f - popupH));
                     Rect parentBounds = BoundsInOverlay(owner.Scope.Rect);
                     return new Vector2(ChooseSideX(parentBounds, popupW, popupH, sy), sy);
                 }
@@ -1290,10 +1290,10 @@ namespace PirateCrew.UI.DebugUi
                 // 一层下拉 / 独立弹出：锚件正下、左缘钳进 workarea（menu.cpp:906-909）
                 Rect a = BoundsInOverlay(anchor);
                 float x = side
-                    ? Mathf.Clamp(a.xMax, 0f, Mathf.Max(0f, _overlayW - popupW))   // 侧向：锚件右侧
-                    : Mathf.Clamp(a.xMin, 0f, Mathf.Max(0f, _overlayW - popupW));
+                    ? Mathf.Clamp(a.xMax, 0f, Mathf.Max(0f, _overlayW - 1f - popupW))   // 侧向：锚件右侧
+                    : Mathf.Clamp(a.xMin, 0f, Mathf.Max(0f, _overlayW - 1f - popupW));
                 float y = side ? a.yMin : a.yMax;
-                y = Mathf.Clamp(y, 0f, Mathf.Max(0f, _overlayH - popupH));
+                y = Mathf.Clamp(y, 0f, Mathf.Max(0f, _overlayH - 1f - popupH));
                 return new Vector2(x, y);
             }
 
@@ -1301,8 +1301,8 @@ namespace PirateCrew.UI.DebugUi
             float ChooseSideX(Rect parentBounds, float w, float h, float y)
             {
                 float xLeft = parentBounds.xMin - w + SideOverlap;
-                float xRight = parentBounds.xMax - SideOverlap;
-                float maxX = Mathf.Max(0f, _overlayW - w);
+                float xRight = parentBounds.xMax - 1f - SideOverlap;   // 源 x2()=x+w-1（闭区间），比 xMax 紧 1px
+                float maxX = Mathf.Max(0f, _overlayW - 1f - w);
                 xLeft = Mathf.Clamp(xLeft, 0f, maxX);
                 xRight = Mathf.Clamp(xRight, 0f, maxX);
 
