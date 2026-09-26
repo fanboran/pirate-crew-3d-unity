@@ -123,9 +123,13 @@ namespace PirateCrew.UI.DebugUi
 
         static void ApplyCheckIcon(Image icon, string kind, bool on)
         {
-            icon.sprite = PixelSkin.Ase(kind == "radio"
-                ? (on ? "radio_selected" : "radio_normal")
-                : (on ? "check_selected" : "check_normal"));
+            // 选中图标由引擎按 state 层给出（check_box/radio_button 的 icon 层：
+            // check_normal / check_selected / radio_normal / radio_selected）。
+            string styleId = kind == "radio" ? "radio_button" : "check_box";
+            string part = AseThemeLayers.ResolveIconPart(
+                styleId, on ? AseStates.Selected : AseStates.None);
+            if (part != null)
+                icon.sprite = PixelSkin.Ase(part);
         }
 
         // ------------------------------------------------------------------
@@ -159,31 +163,37 @@ namespace PirateCrew.UI.DebugUi
 
     /// <summary>复选/单选行的鼠标态（唯一的一层额外底色）：theme <c>check_box</c> /
     /// <c>radio_button</c> 样式 <c>&lt;background color="check_hot_face" state="mouse"/&gt;</c>
-    /// （#575B61，radio 同名色）。常态**没有**底色层（非 disabled/focus/mouse 时不铺任何 background），
-    /// 所以退出即回到全透明。禁用态 #2C2C30、焦点态 #41444A + check_focus 环、以及
-    /// <c>state="mouse disabled"</c> 的回落都未移植（调试面板没有禁用/键盘焦点两种态）。</summary>
+    /// （#575B61，radio 同名色）。底色经 <see cref="AseThemeLayers"/> 解析——常态
+    /// <b>没有</b> background 层命中（→ 全透明），悬停命中 hot 层。禁用 #2C2C30 / 焦点
+    /// #41444A + check_focus 环虽已可解析，但调试面板没有禁用/键盘焦点两种态，未接线。</summary>
     public sealed class AseCheckBoxFace : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     {
         Image _face;
-        Color32 _hot;
+        string _styleId;
 
         public void Bind(Image face, bool radio)
         {
             _face = face;
-            // theme.xml <color id="check_hot_face"> = <color id="radio_hot_face"> = #575B61
-            _hot = PixelSkin.Theme.HotFace;
+            _styleId = radio ? "radio_button" : "check_box";
+            Apply(AseStates.None);
         }
 
         public void OnPointerEnter(PointerEventData eventData)
         {
-            if (_face != null)
-                _face.color = _hot;
+            Apply(AseStates.Mouse);
         }
 
         public void OnPointerExit(PointerEventData eventData)
         {
-            if (_face != null)
-                _face.color = new Color(0f, 0f, 0f, 0f);
+            Apply(AseStates.None);
+        }
+
+        void Apply(AseStates states)
+        {
+            if (_face == null)
+                return;
+            Color32? c = AseThemeLayers.ResolveBackgroundColor(_styleId, states);
+            _face.color = c.HasValue ? (Color)c.Value : new Color(0f, 0f, 0f, 0f);
         }
     }
 }

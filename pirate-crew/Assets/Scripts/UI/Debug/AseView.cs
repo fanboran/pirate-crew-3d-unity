@@ -436,12 +436,15 @@ namespace PirateCrew.UI.DebugUi
     /// 拇指的 9 宫格在 12 宽容器里按比例压缩——这是源自身的行为（16 原生件画进 12 宽件），
     /// 不是本移植的取舍。
     /// </summary>
-    public sealed class AseScrollBar : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
+    public sealed class AseScrollBar : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
+        IPointerEnterHandler, IPointerExitHandler
     {
         bool _horizontal;
         IAseScrollView _delegate;
         RectTransform _rect;
         RectTransform _thumbRect;
+        Image _track;
+        Image _thumb;
 
         int _barWidth = AseLayout.ScrollbarSize;
         int _pos;       // m_pos：滚动偏移
@@ -485,22 +488,61 @@ namespace PirateCrew.UI.DebugUi
             _cam = FindCamera(rect);
 
             // 轨道：theme.xml <style id="scrollbar"><background part="scrollbar_bg"/>
-            var track = rect.gameObject.AddComponent<Image>();
-            track.sprite = PixelSkin.Ase("scrollbar_bg");
-            track.type = Image.Type.Sliced;
-            track.pixelsPerUnitMultiplier = 1f;
-            track.color = Color.white;
-            track.raycastTarget = true;   // 命中测试在 ScrollBar 自己身上（scroll_bar.cpp:66-135）
+            _track = rect.gameObject.AddComponent<Image>();
+            _track.sprite = ScrollPart("scrollbar");   // 引擎解析（scrollbar 样式无 mouse 层）
+            _track.type = Image.Type.Sliced;
+            _track.pixelsPerUnitMultiplier = 1f;
+            _track.color = Color.white;
+            _track.raycastTarget = true;   // 命中测试在 ScrollBar 自己身上（scroll_bar.cpp:66-135）
 
             // 拇指：theme.xml <style id="scrollbar_thumb"><background part="scrollbar_thumb"/>
             _thumbRect = UiKit.CreateRect("Thumb", rect);
             UiKit.SetAnchored(_thumbRect, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
-            var thumb = _thumbRect.gameObject.AddComponent<Image>();
-            thumb.sprite = PixelSkin.Ase("scrollbar_thumb");
-            thumb.type = Image.Type.Sliced;
-            thumb.pixelsPerUnitMultiplier = 1f;
-            thumb.color = Color.white;
-            thumb.raycastTarget = false;
+            _thumb = _thumbRect.gameObject.AddComponent<Image>();
+            _thumb.sprite = ScrollPart("scrollbar_thumb");
+            _thumb.type = Image.Type.Sliced;
+            _thumb.pixelsPerUnitMultiplier = 1f;
+            _thumb.color = Color.white;
+            _thumb.raycastTarget = false;
+        }
+
+        /// <summary>theme 滚动条件（<see cref="AseThemeLayers"/> 解析；scrollbar / scrollbar_thumb
+        /// 样式只有常态 background 层，无状态件）。</summary>
+        static Sprite ScrollPart(string styleId)
+        {
+            string part = AseThemeLayers.ResolveBackgroundPart(styleId, AseStates.None);
+            return part != null ? PixelSkin.Ase(part) : null;
+        }
+
+        /// <summary>
+        /// <c>kMouseEnterMessage</c>/<c>kMouseLeaveMessage → invalidate()</c>（scroll_bar.cpp:183-188）的对应：
+        /// 源里只是标脏重绘。本端无脏标记，改为重解一次件——**对 <c>scrollbar</c> 样式无视觉差**
+        /// （它没有 mouse 层；换件只属于 mini/transparent scrollbar，theme.xml:773-787）。
+        /// </summary>
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            RefreshTheme();
+        }
+
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            RefreshTheme();
+        }
+
+        void RefreshTheme()
+        {
+            if (_track != null)
+            {
+                Sprite track = ScrollPart("scrollbar");
+                if (track != null)
+                    _track.sprite = track;
+            }
+            if (_thumb != null)
+            {
+                Sprite thumb = ScrollPart("scrollbar_thumb");
+                if (thumb != null)
+                    _thumb.sprite = thumb;
+            }
         }
 
         /// <summary><c>setPos</c>（scroll_bar.cpp:40-46）。</summary>
@@ -577,10 +619,10 @@ namespace PirateCrew.UI.DebugUi
                 len = barSize * viewportSize / _size;
                 // 源下限 min(getScrollbarSize()*2 - border_width, bar_size)：border 来自轨道件
                 // 九宫切片（scrollbar_bg 5/6/5 → 竖条左右 5+5=10），非 0——漏减会把拇指下限抬高。
-                Sprite trackSprite = PixelSkin.Ase("scrollbar_bg");
-                int borderWidth = _horizontal
+                Sprite trackSprite = _track != null ? _track.sprite : ScrollPart("scrollbar");
+                int borderWidth = trackSprite == null ? 0 : (_horizontal
                     ? Mathf.RoundToInt(trackSprite.border.y + trackSprite.border.w)   // 横条：上+下
-                    : Mathf.RoundToInt(trackSprite.border.x + trackSprite.border.z); // 竖条：左+右
+                    : Mathf.RoundToInt(trackSprite.border.x + trackSprite.border.z)); // 竖条：左+右
                 len = Mathf.Clamp(len, Mathf.Min(AseLayout.ScrollbarSize * 2 - borderWidth, barSize), barSize);
                 pos = (barSize - len) * _pos / (_size - viewportSize);
                 pos = Mathf.Clamp(pos, 0, barSize - len);

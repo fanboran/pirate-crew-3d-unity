@@ -1,4 +1,5 @@
 ﻿using TMPro;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -21,6 +22,12 @@ namespace PirateCrew.UI.Stick
     ///
     /// 【位图字纪律】禁伪粗/禁描边（创始人 2026-09-24 走查：TMP 合成加粗糊死位图字形），
     /// 层级只靠字色与皮态表达。
+    ///
+    /// 【状态层引擎（单一真源）】上述"几态换哪件/哪色"已不再逐态写死在本类，而是把
+    /// UGUI 选择态 + Sticky 折算成 Aseprite 状态位（<see cref="FlagsFor"/>），
+    /// 交 <see cref="AseThemeLayers"/>（theme.cpp:53-130 for_each_layer 移植）从
+    /// theme.xml &lt;style id="button"&gt; 解析件与字色。唯一与原手写版的差异登记在交付报告：
+    /// 键盘焦点态（UGUI Selected）字色由 #FFFFFF 回归源的 #C0C0C0（button 样式无 focus 文字层）。
     /// </summary>
     public sealed class SketchButton : Button
     {
@@ -135,7 +142,9 @@ namespace PirateCrew.UI.Stick
         }
 
         /// <summary>
-        /// 挂四态皮（theme.xml:609-616）。Sticky 运行时可切（设置分类选中态），每次重挂。
+        /// 挂四态皮（theme.xml:608-620）。Sticky 运行时可切（设置分类选中态），每次重挂。
+        /// 【状态层引擎】件 id / 字色不再逐态写死——全部经 <see cref="AseThemeLayers"/>
+        /// 从 theme.xml <c>&lt;style id="button"&gt;</c> 按状态位解析（for_each_layer 移植）。
         /// </summary>
         public void ApplySkin()
         {
@@ -144,20 +153,19 @@ namespace PirateCrew.UI.Stick
             Image bg = Background;
             if (bg != null)
             {
-                bg.sprite = PixelSkin.Ase(Sticky ? "button_selected" : "button_normal");
+                string part = PartOf(SelectionState.Normal);
+                if (part != null)
+                    bg.sprite = PixelSkin.Ase(part);
                 bg.type = Image.Type.Sliced;
                 bg.pixelsPerUnitMultiplier = 1f;
                 bg.color = Color.white;    // 像素件禁止乘色
             }
 
             SpriteState state = spriteState;
-            state.highlightedSprite = PixelSkin.Ase(Sticky ? "button_selected" : "button_hot");
-            // 【按下=蓝面（源码实锄）】ButtonBase::onMouseDown setSelected+capture（button.cpp:168-175）
-            // → 层匹配取最大 flags 命中 state="selected"（theme.cpp:69-73）→ button_selected
-            // 蓝面 #4069C2 + 白字，不是"无按压皮保持 hot"。
-            state.pressedSprite = PixelSkin.Ase("button_selected");
-            state.selectedSprite = PixelSkin.Ase("button_focused"); // 键盘焦点 = 蓝描边
-            state.disabledSprite = PixelSkin.Ase("button_normal");  // 禁用 = 常态皮 + 双层字
+            state.highlightedSprite = SpriteOf(SelectionState.Highlighted);
+            state.pressedSprite = SpriteOf(SelectionState.Pressed);
+            state.selectedSprite = SpriteOf(SelectionState.Selected);
+            state.disabledSprite = SpriteOf(SelectionState.Disabled);
             spriteState = state;
 
             // 立即按当前态刷一遍（贴图四态 / 字色 / 影子层）
@@ -165,8 +173,48 @@ namespace PirateCrew.UI.Stick
         }
 
         /// <summary>
+        /// UGUI 选择态 → Aseprite 状态位（Style::Layer flags）。映射依据：
+        /// <list type="bullet">
+        /// <item>Pressed = Selected|Capture——ButtonBase::onMouseDown <c>setSelected(true)+captureMouse()</c>
+        ///   （button.cpp:168-175），层匹配命中 <c>state="selected"</c>。</item>
+        /// <item>UGUI Selected = Focus（键盘焦点，控件注释里的"蓝描边"语义）。</item>
+        /// <item>Sticky（业务当前值）= Selected 位；**禁用/键盘焦点时不让位**——禁用由 Disabled
+        ///   独占（否则 Sticky+禁用会命中 button_selected 而非常态皮），焦点由 Focus 独占
+        ///   （保持旧手写版 <c>selectedSprite=button_focused</c> 的选择）。</item>
+        /// </list>
+        /// </summary>
+        static AseStates FlagsFor(SelectionState state, bool sticky)
+        {
+            switch (state)
+            {
+                case SelectionState.Disabled:
+                    return AseStates.Disabled;
+                case SelectionState.Pressed:
+                    return AseStates.Selected | AseStates.Capture;
+                case SelectionState.Selected:
+                    return AseStates.Focus;
+                case SelectionState.Highlighted:
+                    return AseStates.Mouse | (sticky ? AseStates.Selected : AseStates.None);
+                default:
+                    return sticky ? AseStates.Selected : AseStates.None;
+            }
+        }
+
+        string PartOf(SelectionState state)
+        {
+            return AseThemeLayers.ResolveBackgroundPart("button", FlagsFor(state, Sticky));
+        }
+
+        Sprite SpriteOf(SelectionState state)
+        {
+            string part = PartOf(state);
+            return part != null ? PixelSkin.Ase(part) : null;
+        }
+
+        /// <summary>
         /// 状态分发：底皮四态由 <see cref="Selectable.Transition.SpriteSwap"/> 在 base 里切换；
-        /// 本覆盖补字色（theme.xml:614-619）与禁用双层影子字。
+        /// 本覆盖按引擎解析的字色层刷字（theme.xml:614-619），禁用态双层字（影子背景色
+        /// (x+1,y+1) + disabled 盖面）由引擎返回的**两条 text 层**驱动——同源里 newlayer 切段后的绘制序。
         /// </summary>
         protected override void DoStateTransition(SelectionState state, bool instant)
         {
@@ -174,23 +222,28 @@ namespace PirateCrew.UI.Stick
             if (!_applied)
                 return;
 
-            bool disabled = state == SelectionState.Disabled;
+            List<AseThemeLayer> layers = AseThemeLayers.ResolveTextLayers("button", FlagsFor(state, Sticky));
+
             TextMeshProUGUI label = Label;
             if (label != null)
             {
-                // theme.xml:614-619——常态/悬停 #c0c0c0；selected 态白（button_selected_text）；
-                // Sticky 常显白；**按下也白**（按下 = selected+capture 状态位，同吃 selected 文字色）；
-                // 禁用 = disabled 色 #202125 盖面。
-                bool white = Sticky || state == SelectionState.Selected || state == SelectionState.Pressed;
-                label.color = disabled
-                    ? PixelSkin.Theme.Disabled
-                    : white ? PixelSkin.Theme.TextSelected : PixelSkin.Theme.Text;
+                // 最上层 text 层 = 盖面字色（常态/悬停 #c0c0c0、选中/按下白、禁用 #202125）。
+                Color32 color = layers.Count > 0 ? layers[layers.Count - 1].Color : PixelSkin.Theme.Text;
+                label.color = color;
             }
+
             TextMeshProUGUI shadow = ShadowLabel;
             if (shadow != null)
             {
-                // 影子层只在禁用态显形（background 色 (x+1,y+1) 垫底，theme.xml:617）。
-                shadow.gameObject.SetActive(disabled);
+                // 禁用态引擎返回两条 text 层（段一 = 垫底影子），常态/悬停/选中只有一条。
+                bool show = layers.Count >= 2;
+                shadow.gameObject.SetActive(show);
+                if (show)
+                {
+                    shadow.color = layers[0].Color;
+                    shadow.rectTransform.anchoredPosition =
+                        new Vector2(layers[0].Offset.x, -layers[0].Offset.y);
+                }
             }
         }
 

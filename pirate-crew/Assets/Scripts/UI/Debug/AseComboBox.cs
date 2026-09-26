@@ -70,7 +70,7 @@ namespace PirateCrew.UI.DebugUi
             entry.offsetMin = Vector2.zero;
             entry.offsetMax = new Vector2(-ButtonWidth, 0f);
             var face = entry.gameObject.AddComponent<Image>();
-            face.sprite = PixelSkin.Ase("sunken2_normal");
+            face.sprite = EntryPart(AseStates.None);   // theme combobox 常态 = sunken2_normal
             face.type = Image.Type.Sliced;
             face.pixelsPerUnitMultiplier = 1f;
             face.color = Color.white;
@@ -97,17 +97,21 @@ namespace PirateCrew.UI.DebugUi
             buttonRect.sizeDelta = new Vector2(ButtonWidth, 0f);
             buttonRect.anchoredPosition = Vector2.zero;
             var buttonFace = buttonRect.gameObject.AddComponent<Image>();
-            buttonFace.sprite = PixelSkin.Ase("buttonset_item_normal");
+            buttonFace.sprite = ComboButtonPart(AseStates.None);   // combobox_button 常态
             buttonFace.type = Image.Type.Sliced;
             buttonFace.pixelsPerUnitMultiplier = 1f;
             buttonFace.color = Color.white;
             _button = buttonRect.gameObject.AddComponent<Button>();
             _button.transition = Selectable.Transition.SpriteSwap;
+            // 件 id 全部由 AseThemeLayers 从 theme.xml <style id="combobox_button"> 解析
+            // （extends mini_button → 命中 buttonset_item_normal/hot/pushed；mouse disabled
+            //  回落常态件由层表给出，不写死）。
             _button.spriteState = new SpriteState
             {
-                highlightedSprite = PixelSkin.Ase("buttonset_item_hot"),    // mini_button state="mouse"
-                pressedSprite = PixelSkin.Ase("buttonset_item_pushed"),     // state="selected"=capture
-                disabledSprite = PixelSkin.Ase("buttonset_item_normal"),    // "mouse disabled" 回落常态件
+                highlightedSprite = ComboButtonPart(AseStates.Mouse),
+                pressedSprite = ComboButtonPart(AseStates.Selected | AseStates.Capture),
+                selectedSprite = ComboButtonPart(AseStates.Focus),
+                disabledSprite = ComboButtonPart(AseStates.Disabled),
             };
             // Button::Click 信号（combobox.cpp:98）→ switchListBox
             _button.onClick.AddListener(Toggle);
@@ -118,7 +122,7 @@ namespace PirateCrew.UI.DebugUi
             arrow.sizeDelta = new Vector2(9f, 8f);
             arrow.anchoredPosition = new Vector2(0f, 1f);
             var arrowImage = arrow.gameObject.AddComponent<Image>();
-            arrowImage.sprite = PixelSkin.Ase("combobox_arrow_down");
+            arrowImage.sprite = ArrowPart(AseStates.None);   // theme combobox_button 常态箭头
             arrowImage.raycastTarget = false;
             // 图标按压变体（theme combobox_button：icon state="selected" → arrow_down_selected）
             buttonRect.gameObject.AddComponent<AseComboBoxArrow>().Bind(arrowImage);
@@ -200,8 +204,7 @@ namespace PirateCrew.UI.DebugUi
 
             // 焦点态（combobox 样式 state="focus"）：源里开弹层时焦点落在词条/列表上，
             // 组合框作为焦点祖先带 HAS_FOCUS —— 本移植没有焦点系统，以「弹层开着」表达
-            if (_entryFace != null)
-                _entryFace.sprite = PixelSkin.Ase("sunken2_focused");
+            SetEntryFocus(true);
 
             // combobox.cpp:648-659 开完 initTheme + remap；列表选中当前项由 ListBox 构造带入
         }
@@ -214,8 +217,49 @@ namespace PirateCrew.UI.DebugUi
             AseComboBoxPopup popup = _popup;
             _popup = null;
             popup.Hide();
-            if (_entryFace != null)
-                _entryFace.sprite = PixelSkin.Ase("sunken2_normal");
+            SetEntryFocus(false);
+        }
+
+        /// <summary>词条面焦点态切换（引擎解析 theme <c>combobox</c>：focus → sunken2_focused）。</summary>
+        void SetEntryFocus(bool focused)
+        {
+            if (_entryFace == null)
+                return;
+            Sprite sprite = EntryPart(focused ? AseStates.Focus : AseStates.None);
+            if (sprite != null)
+                _entryFace.sprite = sprite;
+        }
+
+        /// <summary>词条底皮（theme &lt;style id="combobox"&gt; 的 background-border 层）。</summary>
+        static Sprite EntryPart(AseStates states)
+        {
+            string part = AseThemeLayers.ResolveBackgroundPart("combobox", states);
+            return part != null ? PixelSkin.Ase(part) : null;
+        }
+
+        /// <summary>箭头钮底皮（theme &lt;style id="combobox_button"&gt;）。</summary>
+        static Sprite ComboButtonPart(AseStates states)
+        {
+            string part = AseThemeLayers.ResolveBackgroundPart("combobox_button", states);
+            return part != null ? PixelSkin.Ase(part) : null;
+        }
+
+        /// <summary>箭头图标件（theme &lt;style id="combobox_button"&gt; 的 icon 层）。</summary>
+        internal static Sprite ArrowPart(AseStates states)
+        {
+            string part = AseThemeLayers.ResolveIconPart("combobox_button", states);
+            return part != null ? PixelSkin.Ase(part) : null;
+        }
+
+        /// <summary>箭头图标的 PixelState → Aseprite 状态位（按下 = 选中 + 捕获）。</summary>
+        internal static AseStates ArrowFlags(PixelState state)
+        {
+            switch (state)
+            {
+                case PixelState.Pressed: return AseStates.Selected | AseStates.Capture;
+                case PixelState.Hovered: return AseStates.Mouse;
+                default: return AseStates.None;
+            }
         }
 
         /// <summary>列表单选变更回调（combobox.cpp:593-600 → 290-303 setSelectedItemIndex）：
@@ -262,8 +306,11 @@ namespace PirateCrew.UI.DebugUi
 
         void Set(PixelState state)
         {
-            if (_arrow != null)
-                _arrow.sprite = PixelSkin.ArrowDown(state);
+            if (_arrow == null)
+                return;
+            Sprite sprite = AseComboBox.ArrowPart(AseComboBox.ArrowFlags(state));
+            if (sprite != null)
+                _arrow.sprite = sprite;
         }
     }
 
@@ -316,15 +363,19 @@ namespace PirateCrew.UI.DebugUi
 
         void Build(float itemsWidth, string[] options, int selected)
         {
-            // View 面（色层）+ 边框（件层）——与 theme view 样式逐层对应
+            // View 面（色层）+ 边框（件层）——与 theme view 样式逐层对应（经 AseThemeLayers 解析：
+            // background color=window_face、border part=sunken_normal / state="focus" sunken_focused）。
             var bg = _rect.gameObject.AddComponent<Image>();
-            bg.color = PixelSkin.Theme.Face;   // window_face #2C2C30
+            Color32? viewBg = AseThemeLayers.ResolveBackgroundColor("view", AseStates.None);
+            bg.color = viewBg.HasValue ? (Color)viewBg.Value : (Color)PixelSkin.Theme.Face;
             bg.raycastTarget = false;
 
             RectTransform border = UiKit.CreateRect("ViewBorder", _rect);
             UiKit.Stretch(border);
             var borderImage = border.gameObject.AddComponent<Image>();
-            borderImage.sprite = PixelSkin.Ase("sunken_normal");
+            string viewBorder = AseThemeLayers.ResolveBackgroundPart("view", AseStates.None);
+            if (viewBorder != null)
+                borderImage.sprite = PixelSkin.Ase(viewBorder);
             borderImage.type = Image.Type.Sliced;
             borderImage.pixelsPerUnitMultiplier = 1f;
             borderImage.color = Color.white;
