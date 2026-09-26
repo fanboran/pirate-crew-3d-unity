@@ -33,6 +33,12 @@ namespace PirateCrew.UI.DebugUi
     /// 【像素纪律】菜单项在库里就是**平涂色块 + 文字色 + 3 段竖线三角箭头 + check 件**（skin_theme.cpp:1566-1674），
     /// 不是像素件贴图，故面色/字色用 theme.xml 色值直填；箭头按源码逐条 drawVLine 画 3 条 1px 竖条；
     /// 勾选/边框/分隔线用 <see cref="PixelSkin.Ase"/> 直切件（check_selected / menu / separator_horz），不乘色。
+    ///
+    /// 【溢出滚动】弹层超高时按 <c>add_scrollbars(..., AddScrollBarsOption::IfNeeded)</c>
+    /// （menu.cpp:343 独立弹出 / menu.cpp:921 子菜单 → scroll_window.cpp:23-91）：窗口矩形钳进
+    /// workarea（= 画布）、竖轴钳取时给窗口加宽 <c>2×滚动条宽</c>，行列表包进 <see cref="AseView"/>
+    /// （<c>view_base</c> 无边框样式）；滚轮 = menu.cpp:797-800
+    /// <c>kMouseWheelMessage → View::scrollByMessage</c>，滚出视口的行按源码裁剪语义拾取不到。
     /// </summary>
     public static class AseMenuKit
     {
@@ -244,6 +250,16 @@ namespace PirateCrew.UI.DebugUi
             public readonly List<MenuRow> Rows = new List<MenuRow>();
             public MenuRow Highlighted;           // menu->getHighlightedItem()
             public float Width, Height;           // 弹层窗尺寸（栏层 = 栏根尺寸）
+            public AseView View;                  // add_scrollbars 加的 View（未溢出 = null）
+            public RectTransform Content;         // View 视口里的行容器（未溢出 = null）
+
+            /// <summary>没有 View 时行为弹窗根直系子件（坐标含弹窗边框）；有 View 时行为
+            /// <see cref="Content"/> 的子件、纵坐标须减 <see cref="MenuSliceT"/>（见
+            /// <see cref="RowTopInContent"/>）。</summary>
+            public float RowTopInContent(MenuRow row)
+            {
+                return View != null ? row.Y - MenuSliceT : row.Y;
+            }
         }
 
         /// <summary>一个菜单项（ui::MenuItem）。</summary>
@@ -1128,17 +1144,26 @@ namespace PirateCrew.UI.DebugUi
                     y += row.H;                                // Menu::onSizeHint 纵缝 childSpacing=0
                 }
 
+                float contentH = y - MenuSliceT;               // 行列表总高（Menu::onSizeHint）
                 float popupW = menuW + MenuSliceL + MenuSliceR;
                 float popupH = y + MenuSliceB;
-                scope.Width = popupW;
-                scope.Height = popupH;
-                scope.Rect.sizeDelta = new Vector2(popupW, popupH);
 
-                for (int i = 0; i < scope.Rows.Count; i++)
-                    LayoutRow(scope.Rows[i], menuW);
-
+                // 定位（fit_bounds 单显示器分支的 fitLogic）：先按锚件算原始落点，
+                // 再由 add_scrollbars 钳进 workarea——钳取会**同时**收缩窗口并（竖轴）加滚动条。
                 Vector2 pos = FitBounds(owner, anchor, side, popupW, popupH);
-                scope.Rect.anchoredPosition = new Vector2(pos.x, -pos.y);
+                float winX = pos.x, winY = pos.y, winW = popupW, winH = popupH;
+                bool scrollable = AddScrollbarsIfNeeded(ref winX, ref winY, ref winW, ref winH);
+
+                scope.Width = winW;
+                scope.Height = winH;
+                scope.Rect.sizeDelta = new Vector2(winW, winH);
+                scope.Rect.anchoredPosition = new Vector2(winX, -winY);
+
+                if (scrollable)
+                    BuildScrollableView(scope, menuW, contentH, winW, winH);
+                else
+                    for (int i = 0; i < scope.Rows.Count; i++)
+                        LayoutRow(scope.Rows[i], menuW, MenuSliceL, 0f);
 
                 if (owner != null)
                     owner.Submenu = scope;
@@ -1192,13 +1217,15 @@ namespace PirateCrew.UI.DebugUi
                 return row;
             }
 
-            /// <summary>行内落点：paintMenuItem 逐条换算（skin_theme.cpp:1600-1674）。</summary>
-            void LayoutRow(MenuRow row, float menuW)
+            /// <summary>行内落点：paintMenuItem 逐条换算（skin_theme.cpp:1600-1674）。
+            /// <paramref name="x"/>/<paramref name="yBase"/> 是所在容器的行坐标原点：
+            /// 未溢出 = 弹窗根（<c>MenuSliceL</c>, 0，行落在弹窗内容区、左/上各让边框 3）；
+            /// 溢出 = View 里的 <c>Menu</c> 容器（0, <c>MenuSliceT</c>，行坐标相对内容区原点）。</summary>
+            void LayoutRow(MenuRow row, float menuW, float x, float yBase)
             {
                 row.W = menuW;
                 row.Rect.sizeDelta = new Vector2(menuW, row.H);
-                // 行落在弹窗 **内容区**（左/上各让边框 3）：源码 Menu 是 menubox 的客户区孩子
-                row.Rect.anchoredPosition = new Vector2(MenuSliceL, -row.Y);
+                row.Rect.anchoredPosition = new Vector2(x, -(row.Y - yBase));
 
                 if (row.Data.Separator)
                 {
@@ -1287,11 +1314,21 @@ namespace PirateCrew.UI.DebugUi
                     return new Vector2(ChooseSideX(parentBounds, popupW, popupH, sy), sy);
                 }
 
-                // 一层下拉 / 独立弹出：锚件正下、左缘钳进 workarea（menu.cpp:906-909）
+                // 一层下拉 / 独立弹出：锚件正下、左缘钳进 workarea（menu.cpp:905-910）
                 Rect a = BoundsInOverlay(anchor);
                 float x = side
                     ? Mathf.Clamp(a.xMax, 0f, Mathf.Max(0f, _overlayW - 1f - popupW))   // 侧向：锚件右侧
                     : Mathf.Clamp(a.xMin, 0f, Mathf.Max(0f, _overlayW - 1f - popupW));
+
+                if (owner != null && owner.InBar)
+                {
+                    // 栏项下拉（menu.cpp:909）：y = max(workarea.y, itemBounds.y2())，**不因超高上移**——
+                    // 放不下交给 add_scrollbars 收高度加滚动条。源码次序是先 add_scrollbars 再钳位置，
+                    // 而末尾钳位置用的已是收缩后的高度，对 y 恒为恒等，故这里不重复钳。
+                    return new Vector2(x, Mathf.Max(0f, a.yMax));
+                }
+
+                // 独立弹出（showPopup menu.cpp:336-344）：choose_side 已把 y 用自然高度钳进 workarea
                 float y = side ? a.yMin : a.yMax;
                 y = Mathf.Clamp(y, 0f, Mathf.Max(0f, _overlayH - 1f - popupH));
                 return new Vector2(x, y);
@@ -1325,6 +1362,109 @@ namespace PirateCrew.UI.DebugUi
                 if (x1 <= x0 || y1 <= y0)
                     return 0f;
                 return (x1 - x0) * (y1 - y0);
+            }
+
+            // ------------------------------------------------------------------
+            // add_scrollbars（scroll_window.cpp:23-91）+ 菜单滚轮（menu.cpp:797-800）
+            // ------------------------------------------------------------------
+
+            /// <summary>
+            /// scroll_window.cpp:23-91 <c>add_scrollbars(window, workarea, bounds, IfNeeded)</c>：
+            /// 窗口矩形先横向、再纵向钳进 workarea（<c>x2()</c>/<c>y2()</c> 是开区间 = x+w / y+h）；
+            /// 只有真的发生钳取（<c>rc != bounds</c>）才需要 View。竖轴钳取还会给窗口加宽
+            /// <c>2 * 滚动条宽</c>（源 <c>barWidth = theme getScrollbarSize()</c> = theme.xml
+            /// <c>scrollbar_size</c> = 12），让被滚内容不被滚动条吃掉宽度。返回 true = 溢出。
+            /// </summary>
+            bool AddScrollbarsIfNeeded(ref float x, ref float y, ref float w, ref float h)
+            {
+                float rx = x, ry = y, rw = w, rh = h;
+                float workX2 = _overlayW;                // workarea.x2()（开区间）
+                float workY2 = _overlayH;
+
+                if (rx < 0f)                             // scroll_window.cpp:30-33
+                {
+                    rw -= (0f - rx);
+                    rx = 0f;
+                }
+                if (rx + rw > workX2)                    // scroll_window.cpp:34-36
+                    rw = workX2 - rx;
+
+                bool vScrollbarsAdded = false;           // scroll_window.cpp:38-47
+                if (ry < 0f)
+                {
+                    rh -= (0f - ry);
+                    ry = 0f;
+                    vScrollbarsAdded = true;
+                }
+                if (ry + rh > workY2)
+                {
+                    rh = workY2 - ry;
+                    vScrollbarsAdded = true;
+                }
+
+                if (rx == x && ry == y && rw == w && rh == h)
+                    return false;                        // scroll_window.cpp:49-50（IfNeeded 未钳取 → 不加 View）
+
+                if (vScrollbarsAdded)                    // scroll_window.cpp:59-72
+                {
+                    float barWidth = AseLayout.ScrollbarSize;
+                    rw += 2f * barWidth;
+                    if (rx + rw > workX2)
+                    {
+                        rx = workX2 - rw;
+                        if (rx < 0f)
+                        {
+                            rx = 0f;
+                            rw = _overlayW;
+                        }
+                    }
+                }
+
+                x = rx;
+                y = ry;
+                w = rw;
+                h = rh;
+                return true;
+            }
+
+            /// <summary>
+            /// add_scrollbars 的 UGUI 落地（源里 <c>window</c> = MenuBoxWindow、被滚件 = MenuBox/Menu）：
+            /// View 用 <c>view_base</c> 样式（theme.xml:582 只有 window_face 底色、**无边框**），
+            /// 填满弹窗客户区；行列表挂进 Viewport 当被滚件。视口溢出时由 <see cref="AseView"/>
+            /// 按 setup_scrollbars 的 IfNeeded 判定挂 THEME 滚动条（不重造滚动条）。
+            /// </summary>
+            void BuildScrollableView(MenuScope scope, float menuW, float contentH, float winW, float winH)
+            {
+                RectTransform viewRect = MakeRect("View", scope.Rect);
+                viewRect.sizeDelta = new Vector2(
+                    Mathf.Max(0f, winW - MenuSliceL - MenuSliceR),
+                    Mathf.Max(0f, winH - MenuSliceT - MenuSliceB));
+                viewRect.anchoredPosition = new Vector2(MenuSliceL, -MenuSliceT);
+
+                AseView view = AseView.Attach(viewRect, 0, 0, 0, 0);
+
+                RectTransform content = MakeRect("Menu", scope.Rect);
+                view.AttachToView(content);
+                view.SetContentHint(Mathf.Max(1, Mathf.RoundToInt(menuW)),
+                    Mathf.Max(1, Mathf.RoundToInt(contentH)));
+                view.UpdateView();                       // view.cpp:143-190
+
+                scope.View = view;
+                scope.Content = content;
+
+                // 源里 MenuBox 被 View 撑到视口大小（view.cpp:389-402 Viewport::onResize），Menu 再铺满
+                // MenuBox（Menu::onResize menu.cpp:390-419）→ 行宽 = 视口宽（不是 menuW）。
+                // 行从弹窗根改挂到 Menu 容器（源 attachToView 把 Menu 塞进 viewport）。
+                float rowW = content.sizeDelta.x;
+                for (int i = 0; i < scope.Rows.Count; i++)
+                {
+                    scope.Rows[i].Rect.SetParent(content, false);
+                    LayoutRow(scope.Rows[i], rowW, 0f, MenuSliceT);
+                }
+
+                // menu.cpp:797-800 MenuBox::kMouseWheelMessage → View::scrollByMessage：
+                // 滚轮在整个弹窗客户区都能滚（源里收件件是撑满视口的 MenuBox）。
+                viewRect.gameObject.AddComponent<AseViewWheel>().Bind(view);
             }
 
             // ------------------------------------------------------------------
@@ -1398,6 +1538,30 @@ namespace PirateCrew.UI.DebugUi
                 }
                 else
                 {
+                    if (scope.View != null)
+                    {
+                        // 行在 View 的视口里：先把指针换到**视口局部**（顺带做裁剪判定——滚出视口的行
+                        // 在源里 pick 不到），再加滚动偏移对到内容坐标。
+                        RectTransform vp = scope.View.Viewport;
+                        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                                vp, e.position, cam, out Vector2 vpLocal))
+                            return null;
+                        float vx = vpLocal.x;
+                        float vy = -vpLocal.y;                 // pivot (0,1)：y 向下为正
+                        if (vx < 0f || vy < 0f || vx > vp.rect.width || vy > vp.rect.height)
+                            return null;
+
+                        float contentY = vy + scope.View.ViewScroll.y;
+                        for (int i = 0; i < scope.Rows.Count; i++)
+                        {
+                            MenuRow row = scope.Rows[i];
+                            float top = scope.RowTopInContent(row);
+                            if (contentY >= top && contentY < top + row.H)
+                                return row;
+                        }
+                        return null;
+                    }
+
                     float yDown = -local.y;                    // pivot (0,1)：y 向下为正
                     for (int i = 0; i < scope.Rows.Count; i++)
                     {
