@@ -93,11 +93,8 @@ namespace PirateCrew.UI.DebugUi
             _viewport = UiKit.CreateRect("Viewport", _client);
             UiKit.SetAnchored(_viewport, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
             // 源在绘制层把视口当裁剪区（Viewport::onPaint → paintViewViewport，视口自身透明）；
-            // UGUI 用 RectMask2D 裁掉滚出视口的内容。
-            _viewport.gameObject.AddComponent<RectMask2D>();
-            var hit = _viewport.gameObject.AddComponent<Image>();
-            hit.color = new Color(0f, 0f, 0f, 0f);
-            hit.raycastTarget = true;   // 空白区也接事件（源里 Viewport 是 View 的收件面）
+            // UGUI 侧经 AseUi.ClipViewport 单点挂 RectMask2D + 透明接光面。
+            AseUi.ClipViewport(_viewport);
 
             _hbar = AseScrollBar.Create(this, _client, true);
             _vbar = AseScrollBar.Create(this, _client, false);
@@ -489,20 +486,14 @@ namespace PirateCrew.UI.DebugUi
 
             // 轨道：theme.xml <style id="scrollbar"><background part="scrollbar_bg"/>
             _track = rect.gameObject.AddComponent<Image>();
-            _track.sprite = ScrollPart("scrollbar");   // 引擎解析（scrollbar 样式无 mouse 层）
-            _track.type = Image.Type.Sliced;
-            _track.pixelsPerUnitMultiplier = 1f;
-            _track.color = Color.white;
+            AseUi.SetPart(_track, "scrollbar", AseStates.None);   // 引擎解析（scrollbar 样式无 mouse 层）
             _track.raycastTarget = true;   // 命中测试在 ScrollBar 自己身上（scroll_bar.cpp:66-135）
 
             // 拇指：theme.xml <style id="scrollbar_thumb"><background part="scrollbar_thumb"/>
             _thumbRect = UiKit.CreateRect("Thumb", rect);
             UiKit.SetAnchored(_thumbRect, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
             _thumb = _thumbRect.gameObject.AddComponent<Image>();
-            _thumb.sprite = ScrollPart("scrollbar_thumb");
-            _thumb.type = Image.Type.Sliced;
-            _thumb.pixelsPerUnitMultiplier = 1f;
-            _thumb.color = Color.white;
+            AseUi.SetPart(_thumb, "scrollbar_thumb", AseStates.None);
             _thumb.raycastTarget = false;
         }
 

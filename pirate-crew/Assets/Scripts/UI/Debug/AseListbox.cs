@@ -102,9 +102,8 @@ namespace PirateCrew.UI.DebugUi
         {
             width = Mathf.Round(width);
             RectTransform rect = UiKit.CreateRect(name, parent);
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-            rect.anchoredPosition = new Vector2(x, -y);
-            rect.sizeDelta = new Vector2(width, labels.Length * RowHeight);
+            UiKit.SetAnchored(rect, new Vector2(0f, 1f),
+                new Vector2(width, labels.Length * RowHeight), new Vector2(x, -y));
 
             var box = rect.gameObject.AddComponent<AseListBox>();
             box.Build(rect, width, labels, selected, onChange);
@@ -510,9 +509,8 @@ namespace PirateCrew.UI.DebugUi
             float width, float y)
         {
             RectTransform rect = UiKit.CreateRect("Item" + index, parent);
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-            rect.sizeDelta = new Vector2(width, AseListBox.RowHeight);
-            rect.anchoredPosition = new Vector2(0f, -y);
+            UiKit.SetAnchored(rect, new Vector2(0f, 1f),
+                new Vector2(width, AseListBox.RowHeight), new Vector2(0f, -y));
 
             var item = rect.gameObject.AddComponent<AseListItem>();
             item._owner = owner;
@@ -529,9 +527,9 @@ namespace PirateCrew.UI.DebugUi
             label.enableWordWrapping = false;
             label.raycastTarget = false;
             RectTransform labelRect = label.rectTransform;
-            labelRect.anchorMin = labelRect.anchorMax = labelRect.pivot = new Vector2(0f, 0.5f);
-            labelRect.sizeDelta = new Vector2(width - AseListBox.ItemBorder * 2f, AseListBox.RowHeight);
-            labelRect.anchoredPosition = new Vector2(AseListBox.ItemBorder, 0f);
+            UiKit.SetAnchored(labelRect, new Vector2(0f, 0.5f),
+                new Vector2(width - AseListBox.ItemBorder * 2f, AseListBox.RowHeight),
+                new Vector2(AseListBox.ItemBorder, 0f));
             item._label = label;
 
             return item;
