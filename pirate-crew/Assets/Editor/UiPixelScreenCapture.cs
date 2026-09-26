@@ -216,7 +216,7 @@ namespace PirateCrew.EditorTools
                     break;
                 case 2:
                     UiShowcaseSceneSetup.ForceGameViewSizePublic(1920, 1080);
-                    if (EditorApplication.isPlaying && Time.frameCount == 60
+                    if (EditorApplication.isPlaying && Time.frameCount >= 60
                         && sceneName == "Battle" && !SessionState.GetBool(SelectedKey, false))
                     {
                         // 选中一名红队角色，让底部武器面板（含文字按钮）入画——走查对象。
@@ -234,7 +234,7 @@ namespace PirateCrew.EditorTools
                         if (controller != null && unit != null)
                             controller.SelectCharacter(unit);
                     }
-                    if (EditorApplication.isPlaying && Time.frameCount == 60)
+                    if (EditorApplication.isPlaying && Time.frameCount >= 60)
                     {
                         // 隐藏弹窗走查：直接激活（视觉验证不依赖控制器接线）。
                         // GameObject.Find 找不到未激活对象——含未激活全量搜名。
@@ -269,7 +269,7 @@ namespace PirateCrew.EditorTools
                             }
                         }
                     }
-                    if (EditorApplication.isPlaying && Time.frameCount == 60
+                    if (EditorApplication.isPlaying && Time.frameCount >= 60
                         && SessionState.GetString(OverlayKey, "").StartsWith("dbg-"))
                     {
                         string overlayName = SessionState.GetString(OverlayKey, "");
@@ -296,7 +296,7 @@ namespace PirateCrew.EditorTools
                             + " showcase=" + (showcase != null)
                             + " launcher=" + (launcher != null ? launcher.name : "<null>"));
                     }
-                    if (EditorApplication.isPlaying && Time.frameCount == 70
+                    if (EditorApplication.isPlaying && Time.frameCount >= 70
                         && SessionState.GetString(OverlayKey, "") == "dbg-probe")
                     {
                         // 交互态探针（引擎事件注入）：悬停高亮 + 气泡（0.5s 协程）+ 滑条程序设值 + 菜单栏窗
@@ -312,7 +312,7 @@ namespace PirateCrew.EditorTools
                         if (menuBtn != null)
                             menuBtn.onClick.Invoke();
                     }
-                    if (EditorApplication.isPlaying && Time.frameCount == 80
+                    if (EditorApplication.isPlaying && Time.frameCount >= 80
                         && SessionState.GetString(OverlayKey, "") == "dbg-probe")
                     {
                         ClickTransform(FindActive("Menu_File"));       // 拍 File 下拉弹层
