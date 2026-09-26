@@ -27,7 +27,7 @@ namespace PirateCrew.UI.DebugUi
         RectTransform _window;
         RectTransform _canvas;
         Vector2 _dragStart;
-        Vector2 _windowStart;
+        Vector2 _startTopLeft;
 
         /// <summary>给窗体挂拖动带（幂等：已挂只补引用）。</summary>
         public static WindowDragger Attach(RectTransform window)
@@ -45,11 +45,21 @@ namespace PirateCrew.UI.DebugUi
             return dragger;
         }
 
+        /// <summary>把窗体提到画布层最上（沿父链走到画布直属根——面板提的是调试树根，
+        /// 主菜单提的是它自己：桌面语义=点击/新开的窗永远在所有窗之上）。</summary>
+        public static void RaiseToCanvasTop(RectTransform window)
+        {
+            Transform t = window;
+            while (t.parent != null && t.parent.GetComponent<Canvas>() == null)
+                t = t.parent;
+            t.SetAsLastSibling();
+        }
+
         /// <summary>按下即置顶（含窗内任意子件被点——事件沿命中链冒泡到窗根）。</summary>
         public void OnPointerDown(PointerEventData eventData)
         {
             if (_window != null)
-                _window.SetAsLastSibling();
+                RaiseToCanvasTop(_window);
         }
 
         void BuildZone(RectTransform window)
@@ -78,7 +88,7 @@ namespace PirateCrew.UI.DebugUi
                 return;
             RectTransformUtility.ScreenPointToLocalPointInRectangle(
                 _canvas, eventData.position, eventData.pressEventCamera, out _dragStart);
-            _windowStart = _window.anchoredPosition;
+            _startTopLeft = TopLeftInCanvas();
         }
 
         public void OnDrag(PointerEventData eventData)
@@ -89,16 +99,45 @@ namespace PirateCrew.UI.DebugUi
                     _canvas, eventData.position, eventData.pressEventCamera, out Vector2 now))
                 return;
 
-            // 窗体锚/枢轴均为 (0,1)（左上角），anchoredPosition = (x, -y)。
-            // 夹取只保「标题带还在屏内可抓」（Aseprite 桌面语义：窗口可推到大半出屏）：
-            // x ∈ [24−w, canvasW−24]（左右各留一条可抓带），y ∈ [−4, canvasH−带高]。
-            Vector2 pos = _windowStart + now - _dragStart;
+            // 拖动按「窗左上角在画布上的位置」算，再换算回窗体自己的锚/枢轴系——
+            // 主菜单是中心锚窗（0.5,0.5），调试窗是左上锚窗，锚系各自不同（实机走查
+            // 「拖到画布中线就卡住」即按左上锚语义夹取中心锚窗的坐标所致）。
+            Vector2 delta = now - _dragStart;                          // 画布中心系，y 向上
+            Vector2 topLeft = _startTopLeft + new Vector2(delta.x, -delta.y);   // 转左上原点 y 向下
             float w = _window.rect.width;
             float h = _window.rect.height;
-            Vector2 canvasSize = _canvas.rect.size;
-            float x = Mathf.Clamp(pos.x, 24f - w, canvasSize.x - 24f);
-            float y = Mathf.Clamp(-pos.y, -4f, canvasSize.y - Mathf.Min(h, GrabStrip));
-            _window.anchoredPosition = new Vector2(x, -y);
+            float cw = _canvas.rect.width;
+            float ch = _canvas.rect.height;
+            // 只保标题带可抓：左右各留 24 条、顶允许微出、底保 16px 带
+            topLeft.x = Mathf.Clamp(topLeft.x, 24f - w, cw - 24f);
+            topLeft.y = Mathf.Clamp(topLeft.y, -6f, ch - GrabStrip);
+            _window.anchoredPosition = TopLeftToAnchored(topLeft, w, h);
+        }
+
+        /// <summary>窗左上角在画布局部的位置（左上原点、y 向下）。</summary>
+        Vector2 TopLeftInCanvas()
+        {
+            Vector3[] corners = new Vector3[4];
+            _window.GetWorldCorners(corners);   // 0 左下 1 左上 2 右上 3 右下
+            Vector2 local = _canvas.InverseTransformPoint(corners[1]);
+            return new Vector2(local.x + _canvas.rect.width * 0.5f,
+                _canvas.rect.height * 0.5f - local.y);
+        }
+
+        /// <summary>左上角目标位 → 本窗锚/枢轴系的 anchoredPosition（任意点锚通用）。</summary>
+        Vector2 TopLeftToAnchored(Vector2 topLeft, float w, float h)
+        {
+            Vector2 pivotOffset = new Vector2(_window.pivot.x * w, (1f - _window.pivot.y) * h);
+            Vector2 pivotTopLeft = topLeft + pivotOffset;              // 枢轴的左上系位置
+            float cw = _canvas.rect.width;
+            float ch = _canvas.rect.height;
+            // 左上系(y下) → 中心系(y上)
+            Vector2 pivotCenter = new Vector2(pivotTopLeft.x - cw * 0.5f, ch * 0.5f - pivotTopLeft.y);
+            Vector2 anchor = _window.anchorMin;                        // 点锚（min==max）
+            Vector2 anchorLocal = new Vector2(
+                Mathf.Lerp(-cw * 0.5f, cw * 0.5f, anchor.x),
+                Mathf.Lerp(-ch * 0.5f, ch * 0.5f, anchor.y));
+            return pivotCenter - anchorLocal;
         }
     }
 }

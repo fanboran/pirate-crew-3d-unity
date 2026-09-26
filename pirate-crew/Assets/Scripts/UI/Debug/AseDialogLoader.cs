@@ -35,10 +35,42 @@ namespace PirateCrew.UI.DebugUi
         {
             public RectTransform Window;
             public readonly Dictionary<string, Component> ById = new Dictionary<string, Component>();
+            internal readonly Dictionary<string, AwNode> NodeById = new Dictionary<string, AwNode>();
+            internal AwNode Root;
+            internal float InnerW;
 
             public T Get<T>(string id) where T : class
             {
                 return ById.TryGetValue(id, out Component c) ? c as T : null;
+            }
+
+            /// <summary>盒当前是否隐藏（cmd 层切换用）。</summary>
+            public bool IsHidden(string id)
+            {
+                return NodeById.TryGetValue(id, out AwNode node) && node.Hidden;
+            }
+
+            /// <summary>隐藏/显示一个盒并**重排收窗高**（隐藏的盒不占高度——
+            /// 旧版只 SetActive 留空洞，new_sprite 的 advanced 即受害者）。</summary>
+            public void SetHidden(string id, bool hidden)
+            {
+                if (!NodeById.TryGetValue(id, out AwNode node))
+                    return;
+                node.Hidden = hidden;
+                if (node.Host != null)
+                    node.Host.gameObject.SetActive(!hidden);
+                Reflow();
+            }
+
+            /// <summary>按当前可见子件重跑布局与窗高（cmd 层动态改显隐后调用）。</summary>
+            public void Reflow()
+            {
+                if (Window == null || Root == null)
+                    return;
+                float contentH = Root.Layout(new Rect(DebugWindowKit.Pad, DebugWindowKit.ContentTop,
+                    InnerW, Root.Measure().y));
+                Window.sizeDelta = new Vector2(InnerW + DebugWindowKit.Pad * 2f,
+                    contentH + DebugWindowKit.Pad);
             }
         }
 
@@ -86,6 +118,8 @@ namespace PirateCrew.UI.DebugUi
             window.sizeDelta = new Vector2(innerW + DebugWindowKit.Pad * 2f,
                 contentH + DebugWindowKit.Pad);
             ctx.Result.Window = window;
+            ctx.Result.Root = root;      // cmd 层 SetHidden/Reflow 用
+            ctx.Result.InnerW = innerW;
             return ctx.Result;
         }
 
@@ -110,11 +144,13 @@ namespace PirateCrew.UI.DebugUi
 
         /// <summary>布局节点：盒（box/grid）或叶子控件。Measure/Layout 分别移植
         /// sizeHint/onResize；叶子带 UGUI 件与 hint 委托。</summary>
-        abstract class AwNode
+        internal abstract class AwNode
         {
             public Vector2 Min = Vector2.zero;
             public Vector2 Max = new Vector2(9999f, 9999f);
             public bool Hidden;
+            /// <summary>盒/格宿主件（叶子=控件本体；置 Hidden 时宿主随动失活）。</summary>
+            public RectTransform Host;
 
             /// <summary>尺寸提示（叶子=控件 hint；盒=Box/Grid::onSizeHint 移植）。</summary>
             public abstract Vector2 Measure();
@@ -132,7 +168,7 @@ namespace PirateCrew.UI.DebugUi
             }
         }
 
-        sealed class LeafNode : AwNode
+        internal sealed class LeafNode : AwNode
         {
             public RectTransform Rect;
             public System.Func<Vector2> Hint;
@@ -153,7 +189,7 @@ namespace PirateCrew.UI.DebugUi
 
         /// <summary>盒（box.cpp 移植）。Horizontal=横向排布；Homogeneous=等分；
         /// expansive 是**子件级**标志（Expansive 列表与 Kids 平行）。</summary>
-        sealed class BoxNode : AwNode
+        internal sealed class BoxNode : AwNode
         {
             public bool Horizontal;
             public bool Homogeneous;
@@ -267,7 +303,7 @@ namespace PirateCrew.UI.DebugUi
         /// <summary>网格（grid.cpp:160-420 移植，单 span 子集）：条带取列/行最大 hint；
         /// cell_align=horizontal 记扩展列分余宽；cell_align=right/left 在格内右/左对齐；
         /// 无对齐位的子件**整格拉伸**（grid.cpp:186-214 默认分支）。</summary>
-        sealed class GridNode : AwNode
+        internal sealed class GridNode : AwNode
         {
             public int Columns = 2;
             public float ChildSpacing;
@@ -388,6 +424,12 @@ namespace PirateCrew.UI.DebugUi
                 if (!string.IsNullOrEmpty(id) && c != null)
                     Result.ById[id] = c;
             }
+
+            public void RegisterNode(string id, AwNode node)
+            {
+                if (!string.IsNullOrEmpty(id) && node != null)
+                    Result.NodeById[id] = node;
+            }
         }
 
         static AwNode BuildNode(XElement el, RectTransform parent, BuildContext ctx)
@@ -435,8 +477,10 @@ namespace PirateCrew.UI.DebugUi
             {
                 Horizontal = !vertical,
                 Homogeneous = Attr(el, "homogeneous") == "true",
-                ChildSpacing = 0f,     // ui::Box 默认 childSpacing=0（widget.cpp）
+                ChildSpacing = 0f,     // ui::Box 默认 childspacing=0（widget.cpp）
+                Host = host,
             };
+            ctx.RegisterNode(el.Attribute("id")?.Value, box);
 
             foreach (XElement child in el.Elements())
             {
@@ -755,7 +799,8 @@ namespace PirateCrew.UI.DebugUi
             if (_parsed)
                 return;
             _parsed = true;
-            _map = Parse(Resources.Load<TextAsset>("AseWidgets/en.ini.txt")?.text);
+            // Resources 路径去掉最后扩展名：盘上 en.ini.txt → 资源名 en.ini
+            _map = Parse(Resources.Load<TextAsset>("AseWidgets/en.ini")?.text);
         }
 
         static Dictionary<string, Dictionary<string, string>> Parse(string ini)

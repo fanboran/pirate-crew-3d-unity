@@ -57,7 +57,7 @@ namespace PirateCrew.EditorTools
         public static void CaptureDebugPanels()
         {
             SessionState.SetString(QueueKey, string.Join("|", new[]
-                { "MainMenu+dbg-widget", "MainMenu+dbg-newsprite", "MainMenu+dbg-menubar", "MainMenu+dbg-parts" }));
+                { "MainMenu+dbg-widget", "MainMenu+dbg-newsprite", "MainMenu+dbg-menubar", "MainMenu+dbg-parts", "MainMenu+dbg-dup" }));
             SessionState.SetInt(QueueIndexKey, 0);
             SessionState.SetBool(AutoQuitKey, true);
             Start("MainMenu+dbg-widget");
@@ -133,17 +133,40 @@ namespace PirateCrew.EditorTools
             }
         }
 
-        /// <summary>dbg-* 调试面板 overlay → 启动器按钮名（DebugMenuHost.MakeLauncherButton 命名）。</summary>
+        /// <summary>dbg-* 调试面板 overlay → 启动器按钮名（DebugMenuHost.MakeLauncherButton 命名；
+        /// 改启动器标签时这里必须同步——名不同步则取证静默扑空，实锄过一次）。</summary>
         static string DebugOpenButton(string key)
         {
             switch (key)
             {
                 case "widget": return "Open_组件实摆";
-                case "newsprite": return "Open_新建精灵对话框";
+                case "newsprite": return "Open_新建精灵（xml 装载）";
                 case "menubar": return "Open_Aseprite 菜单栏";
                 case "parts": return "Open_部件陈列廊";
+                case "dup": return "Open_库对话框 Duplicate/Goto";
                 default: return null;
             }
+        }
+
+        /// <summary>递归转储调试树（名/激活/画布几何）到 export/unity-command-result.txt 尾部。</summary>
+        static void DumpTree(Transform node, int depth)
+        {
+            if (node == null || depth > 8)
+                return;
+            var rect = node as RectTransform;
+            string geo = rect != null
+                ? string.Format(" pos=({0:F0},{1:F0}) size=({2:F0}x{3:F0})",
+                    rect.anchoredPosition.x, rect.anchoredPosition.y,
+                    rect.rect.width, rect.rect.height)
+                : "";
+            System.IO.File.AppendAllText(
+                Path.GetFullPath("export/unity-command-result.txt"),
+                new string(' ', depth * 2) + node.name
+                + (node.gameObject.activeSelf ? "" : " [inactive]")
+                + geo + "\n",
+                System.Text.Encoding.UTF8);
+            for (int i = 0; i < node.childCount; i++)
+                DumpTree(node.GetChild(i), depth + 1);
         }
 
         [InitializeOnLoadMethod]
@@ -242,12 +265,12 @@ namespace PirateCrew.EditorTools
                             string open = DebugOpenButton(overlayName.Substring(4));
                             if (open != null)
                                 launcher = FindActive(open);
-                            if (launcher != null)
-                            {
-                                var openButton = launcher.GetComponent<UnityEngine.UI.Button>();
-                                if (openButton != null)
-                                    openButton.onClick.Invoke();
-                            }
+                        if (launcher != null)
+                        {
+                            var openButton = launcher.GetComponent<UnityEngine.UI.Button>();
+                            if (openButton != null)
+                                openButton.onClick.Invoke();
+                        }
                         }
                         Debug.Log("[UiPixelScreenCapture] 调试面板覆盖层：" + overlayName
                             + " showcase=" + (showcase != null)
@@ -256,6 +279,12 @@ namespace PirateCrew.EditorTools
                     if (EditorApplication.isPlaying && Time.frameCount > 95)
                     {
                         Directory.CreateDirectory(Path.GetDirectoryName(path));
+                        // 调试面板树转储（dbg-* 时面板已建好——分帧构建是点击后下一帧才落）
+                        if (SessionState.GetString(OverlayKey, "").StartsWith("dbg-"))
+                        {
+                            try { DumpTree(FindActive("AseDlg_new_sprite"), 0); }
+                            catch (System.Exception e) { Debug.LogWarning("[UiPixelScreenCapture] 树转储失败：" + e.Message); }
+                        }
                         // 截图同拍一份**实机文本度量**到命令桥结果文件（字体档/画布相位/渲染 shader）：
                         // 屏上"文字笔画时粗时细"的客观判据是「显示字号 ÷ 字体原生档 = 1」+
                         // 「画布空间相位 = 0」，这两项靠肉眼看不出来，落成数字才可复核。

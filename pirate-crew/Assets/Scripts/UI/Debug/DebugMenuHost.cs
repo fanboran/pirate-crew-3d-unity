@@ -60,12 +60,16 @@ namespace PirateCrew.UI.DebugUi
             y = MakeLauncherButton("库对话框 Duplicate/Goto", y, () =>
             {
                 ToggleWindow(_dupDialog,
-                    () => { _dupDialog = LoadDialog("duplicate_sprite", new Vector2(510f, 330f)); _dupDialog.SetAsLastSibling(); });
+                    () => { _dupDialog = LoadDialog("duplicate_sprite", new Vector2(510f, 330f)); WindowDragger.RaiseToCanvasTop(_dupDialog); });
                 ToggleWindow(_gotoDialog,
-                    () => { _gotoDialog = LoadDialog("goto_frame", new Vector2(510f, 430f)); _gotoDialog.SetAsLastSibling(); });
+                    () => { _gotoDialog = LoadDialog("goto_frame", new Vector2(510f, 430f)); WindowDragger.RaiseToCanvasTop(_gotoDialog); });
             });
             MakeLauncherButton("部件陈列廊", y, () => ToggleWindow(_partsGallery,
-                () => { _partsGallery = BuildPartsGalleryWindow(new Vector2(170f, 26f)); _partsGallery.SetAsLastSibling(); }));
+                () => { _partsGallery = BuildPartsGalleryWindow(new Vector2(170f, 26f)); WindowDragger.RaiseToCanvasTop(_partsGallery); }));
+
+            // Build 完先收起：首开走 Toggle 的 show 分支（旧版建好即激活，第一次点
+            // 调试场景反而把它藏了——「要点击两下才能点开」的根因）。
+            _launcher.gameObject.SetActive(false);
         }
 
         static float MakeLauncherButton(string label, float y, System.Action onClick)
@@ -89,7 +93,7 @@ namespace PirateCrew.UI.DebugUi
             window.gameObject.SetActive(show);
             if (show)
             {
-                window.SetAsLastSibling();
+                WindowDragger.RaiseToCanvasTop(window);
                 AseMenuKit.ClosePopup();
             }
         }
@@ -101,20 +105,23 @@ namespace PirateCrew.UI.DebugUi
             return r != null ? r.Window : null;
         }
 
-        /// <summary>装载 data/widgets/new_sprite.xml（cmd 层接线：advanced 勾选 → advanced 盒显隐，
-        /// 同 aseprite cmd_new_file.cpp 的对话框级逻辑——装载器本身不写死任何对话框行为）。</summary>
+        /// <summary>装载 data/widgets/new_sprite.xml（cmd 层接线，同 cmd_new_file.cpp 分工：
+        /// 默认值 32×32；advanced 勾选 → advanced 盒显隐 + 重排收窗高）。</summary>
         static RectTransform LoadNewSprite(Vector2 topLeft)
         {
             AseDialogLoader.Result result = AseDialogLoader.Load("new_sprite", _root, topLeft);
             if (result == null)
                 return null;
+            TMPro.TMP_InputField width = result.Get<TMPro.TMP_InputField>("width");
+            TMPro.TMP_InputField height = result.Get<TMPro.TMP_InputField>("height");
+            if (width != null) width.text = "32";
+            if (height != null) height.text = "32";
             Button advancedCheck = result.Get<Button>("advanced_check");
-            RectTransform advancedBox = result.Get<RectTransform>("advanced");
-            if (advancedCheck != null && advancedBox != null)
+            if (advancedCheck != null)
             {
-                advancedBox.gameObject.SetActive(false);   // aseprite 默认未勾选 → 盒隐藏
+                result.SetHidden("advanced", true);   // aseprite 默认未勾选 → 盒隐藏且不占高
                 advancedCheck.onClick.AddListener(() =>
-                    advancedBox.gameObject.SetActive(!advancedBox.gameObject.activeSelf));
+                    result.SetHidden("advanced", !result.IsHidden("advanced")));
             }
             return result.Window;
         }

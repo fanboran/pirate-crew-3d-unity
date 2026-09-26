@@ -143,7 +143,9 @@ namespace PirateCrew.UI.DebugUi
             value.enableWordWrapping = false;
             value.raycastTarget = false;
             RectTransform valueRect = value.rectTransform;
-            valueRect.anchorMin = valueRect.anchorMax = new Vector2(0.5f, 0.5f);
+            // 拉伸锚 + inset（词条 4..w-16）——点锚配 offset 会得负宽（树转储实锄 -20x0）
+            valueRect.anchorMin = Vector2.zero;
+            valueRect.anchorMax = Vector2.one;
             valueRect.pivot = new Vector2(0.5f, 0.5f);
             valueRect.offsetMin = new Vector2(4f, 0f);
             valueRect.offsetMax = new Vector2(-16f, 0f);
