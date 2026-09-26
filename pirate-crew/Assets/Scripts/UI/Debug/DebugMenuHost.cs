@@ -214,23 +214,16 @@ namespace PirateCrew.UI.DebugUi
                 "部件陈列廊（theme.xml 全 345 件）", topLeft, new Vector2(784f, 540f - 60f));
             Vector2 windowSize = window.sizeDelta;
 
-            // 滚动区：点锚 + 显式尺寸（拉伸锚的 inset 写法在点锚上会得负尺寸——首版即此病，全窗空白）
+            // 滚动区：点锚 + 显式尺寸（拉伸锚的 inset 写法在点锚上会得负尺寸）
             RectTransform scroll = UiKit.CreateRect("Scroll", window);
-            scroll.anchorMin = scroll.anchorMax = scroll.pivot = new Vector2(0f, 1f);
-            scroll.anchoredPosition = new Vector2(DebugWindowKit.Pad, -DebugWindowKit.ContentTop);
-            scroll.sizeDelta = new Vector2(
+            UiKit.SetAnchored(scroll, new Vector2(0f, 1f), new Vector2(
                 windowSize.x - DebugWindowKit.Pad * 2f - 16f - 4f,
-                windowSize.y - DebugWindowKit.ContentTop - DebugWindowKit.Pad);
+                windowSize.y - DebugWindowKit.ContentTop - DebugWindowKit.Pad),
+                new Vector2(DebugWindowKit.Pad, -DebugWindowKit.ContentTop));
 
             RectTransform viewport = UiKit.CreateRect("Viewport", scroll);
-            viewport.anchorMin = Vector2.zero;
-            viewport.anchorMax = Vector2.one;
-            viewport.offsetMin = Vector2.zero;
-            viewport.offsetMax = Vector2.zero;
-            viewport.gameObject.AddComponent<RectMask2D>();
-            var viewportHit = viewport.gameObject.AddComponent<Image>();
-            viewportHit.color = new Color(0f, 0f, 0f, 0f);
-            viewportHit.raycastTarget = true;
+            UiKit.Stretch(viewport);
+            AseUi.ClipViewport(viewport);
 
             RectTransform content = UiKit.CreateRect("Content", viewport);
             content.anchorMin = new Vector2(0f, 1f);
@@ -253,27 +246,16 @@ namespace PirateCrew.UI.DebugUi
 
             // theme 滚动条（16 宽）贴滚动区右侧
             RectTransform bar = UiKit.CreateRect("VBar", window);
-            bar.anchorMin = bar.anchorMax = bar.pivot = new Vector2(0f, 1f);
-            bar.anchoredPosition = new Vector2(
-                DebugWindowKit.Pad + scroll.sizeDelta.x + 4f, -DebugWindowKit.ContentTop);
-            bar.sizeDelta = new Vector2(16f, scroll.sizeDelta.y);
+            UiKit.SetAnchored(bar, new Vector2(0f, 1f), new Vector2(16f, scroll.sizeDelta.y),
+                new Vector2(DebugWindowKit.Pad + scroll.sizeDelta.x + 4f, -DebugWindowKit.ContentTop));
             var barBg = bar.gameObject.AddComponent<Image>();
-            barBg.sprite = PixelSkin.Ase("scrollbar_bg");   // theme scrollbar 直切件
-            barBg.type = Image.Type.Sliced;
-            barBg.pixelsPerUnitMultiplier = 1f;
-            barBg.color = Color.white;
+            AseUi.SetRawPart(barBg, "scrollbar_bg");   // theme scrollbar 直切件
             barBg.raycastTarget = false;
 
             RectTransform handle = UiKit.CreateRect("Handle", bar);
-            handle.anchorMin = Vector2.zero;
-            handle.anchorMax = Vector2.one;
-            handle.offsetMin = Vector2.zero;
-            handle.offsetMax = Vector2.zero;
+            UiKit.Stretch(handle);
             var handleImage = handle.gameObject.AddComponent<Image>();
-            handleImage.sprite = PixelSkin.Ase("scrollbar_thumb");
-            handleImage.type = Image.Type.Sliced;
-            handleImage.pixelsPerUnitMultiplier = 1f;
-            handleImage.color = Color.white;
+            AseUi.SetRawPart(handleImage, "scrollbar_thumb");
             handleImage.raycastTarget = true;
 
             var scrollbar = bar.gameObject.AddComponent<Scrollbar>();

@@ -161,37 +161,28 @@ namespace PirateCrew.UI.DebugUi
             float x = DebugWindowKit.Pad;
             for (int i = 0; i < titles.Length; i++)
             {
-                var tabGo = new GameObject("Tab" + i, typeof(RectTransform));
-                RectTransform rect = tabGo.GetComponent<RectTransform>();
-                rect.SetParent(window, false);
-                rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-                rect.anchoredPosition = new Vector2(x, -y);
-                var image = tabGo.AddComponent<Image>();
-                image.type = Image.Type.Sliced;
-                image.pixelsPerUnitMultiplier = 1f;
+                RectTransform rect = UiKit.CreateRect("Tab" + i, window);
+                var image = rect.gameObject.AddComponent<Image>();
+                AseUi.SetRawPart(image, "tab_normal");
                 image.raycastTarget = true;
                 tabs[i] = image;
 
                 TextMeshProUGUI label = DebugWindowKit.Label(rect, titles[i], UiSkin.Font.Tiny,
                     PixelSkin.Theme.Text);
-                RectTransform labelRect = label.rectTransform;
-                labelRect.anchorMin = labelRect.anchorMax = new Vector2(0.5f, 1f);
-                labelRect.pivot = new Vector2(0.5f, 1f);
-                labelRect.anchoredPosition = new Vector2(0f, -3f);
-                labelRect.sizeDelta = new Vector2(60f, 8f);
+                UiKit.SetAnchored(label.rectTransform, new Vector2(0.5f, 1f), new Vector2(60f, 8f),
+                    new Vector2(0f, -3f));
                 label.alignment = TextAlignmentOptions.Center;
                 labels[i] = label;
 
                 float w = Mathf.Ceil(label.preferredWidth) + 10f;
-                rect.sizeDelta = new Vector2(w, 12f);   // tab 件原生高 12
+                UiKit.SetAnchored(rect, new Vector2(0f, 1f), new Vector2(w, 12f), new Vector2(x, -y));   // tab 件原生高 12
                 x += w;
             }
 
             // 内容面：tab_active_face #333333（theme tab_bottom focus 面）
             RectTransform content = UiKit.CreateRect("TabContent", window);
-            content.anchorMin = content.anchorMax = content.pivot = new Vector2(0f, 1f);
-            content.anchoredPosition = new Vector2(DebugWindowKit.Pad, -(y + 12f));
-            content.sizeDelta = new Vector2(ContentW, 30f);
+            UiKit.SetAnchored(content, new Vector2(0f, 1f), new Vector2(ContentW, 30f),
+                new Vector2(DebugWindowKit.Pad, -(y + 12f)));
             var contentFace = content.gameObject.AddComponent<Image>();
             contentFace.color = new Color32(0x33, 0x33, 0x33, 0xFF);
             contentFace.raycastTarget = false;
@@ -209,7 +200,7 @@ namespace PirateCrew.UI.DebugUi
                 for (int j = 0; j < tabs.Length; j++)
                 {
                     bool on = j == selected;
-                    tabs[j].sprite = PixelSkin.Ase(on ? "tab_active" : "tab_normal");
+                    AseUi.SetRawPart(tabs[j], on ? "tab_active" : "tab_normal");
                     labels[j].color = on ? PixelSkin.Theme.Text : new Color32(0x7D, 0x7D, 0x7D, 0xFF);
                     pages[j].gameObject.SetActive(on);
                 }
@@ -237,22 +228,16 @@ namespace PirateCrew.UI.DebugUi
         {
             // 滚动条：theme scrollbar 件（16 宽）+ sunken 视口内 8 行假内容
             RectTransform viewport = UiKit.CreateRect("ScrollDemo", window);
-            viewport.anchorMin = viewport.anchorMax = viewport.pivot = new Vector2(0f, 1f);
-            viewport.anchoredPosition = new Vector2(DebugWindowKit.Pad, -y);
-            viewport.sizeDelta = new Vector2(150f, 46f);
+            UiKit.SetAnchored(viewport, new Vector2(0f, 1f), new Vector2(150f, 46f),
+                new Vector2(DebugWindowKit.Pad, -y));
             var viewBorder = viewport.gameObject.AddComponent<Image>();
-            viewBorder.sprite = PixelSkin.Sunken(false);
-            viewBorder.type = Image.Type.Sliced;
-            viewBorder.color = Color.white;
+            AseUi.SetRawPart(viewBorder, "sunken_normal");
             viewBorder.raycastTarget = true;
-            // 裁剪：源里滚出视口的内容被 drawable region 裁掉（widget.cpp:926-932 逐祖先
-            // childrenBounds 求交 + view.cpp:197-200 viewportBounds）——不挂则溢出窗界仍绘制
-            viewport.gameObject.AddComponent<RectMask2D>();
+            // 裁剪：滚出视口的内容被裁掉（源 drawable region 逐祖先求交）
+            AseUi.ClipViewport(viewport);
 
             RectTransform content = UiKit.CreateRect("Content", viewport);
-            content.anchorMin = content.anchorMax = content.pivot = new Vector2(0.5f, 1f);
-            content.anchoredPosition = Vector2.zero;
-            content.sizeDelta = new Vector2(150f, 8 * 11f + 4f);
+            UiKit.SetAnchored(content, new Vector2(0.5f, 1f), new Vector2(150f, 8 * 11f + 4f), Vector2.zero);
             for (int i = 0; i < 8; i++)
                 DebugWindowKit.PlaceLabel(content, "第 " + (i + 1) + " 行", UiSkin.Font.Tiny,
                     PixelSkin.Theme.Text, 5f, i * 11f, 130f);
@@ -265,27 +250,16 @@ namespace PirateCrew.UI.DebugUi
             scroll.scrollSensitivity = 20f;
 
             RectTransform bar = UiKit.CreateRect("VBar", window);
-            bar.anchorMin = bar.anchorMax = bar.pivot = new Vector2(0f, 1f);
-            bar.anchoredPosition = new Vector2(DebugWindowKit.Pad + 154f, -y);
-            bar.sizeDelta = new Vector2(16f, 46f);
+            UiKit.SetAnchored(bar, new Vector2(0f, 1f), new Vector2(16f, 46f),
+                new Vector2(DebugWindowKit.Pad + 154f, -y));
             var barBg = bar.gameObject.AddComponent<Image>();
-            barBg.sprite = PixelSkin.Ase("scrollbar_bg");   // theme scrollbar 直切件
-            barBg.type = Image.Type.Sliced;
-            barBg.pixelsPerUnitMultiplier = 1f;
-            barBg.color = Color.white;
+            AseUi.SetRawPart(barBg, "scrollbar_bg");   // theme scrollbar 直切件
             barBg.raycastTarget = false;
 
             RectTransform handle = UiKit.CreateRect("Handle", bar);
-            // 标准滚动条滑块：拉伸锚（Scrollbar 按值沿轴驱动 anchor）
-            handle.anchorMin = Vector2.zero;
-            handle.anchorMax = Vector2.one;
-            handle.offsetMin = Vector2.zero;
-            handle.offsetMax = Vector2.zero;
+            UiKit.Stretch(handle);   // 拉伸锚（Scrollbar 按值沿轴驱动 anchor）
             var handleImage = handle.gameObject.AddComponent<Image>();
-            handleImage.sprite = PixelSkin.Ase("scrollbar_thumb");
-            handleImage.type = Image.Type.Sliced;
-            handleImage.pixelsPerUnitMultiplier = 1f;
-            handleImage.color = Color.white;
+            AseUi.SetRawPart(handleImage, "scrollbar_thumb");
             handleImage.raycastTarget = true;
 
             var scrollbar = bar.gameObject.AddComponent<Scrollbar>();
@@ -362,16 +336,11 @@ namespace PirateCrew.UI.DebugUi
             {
                 yield return new WaitForSeconds(0.3f);   // tooltips.cpp:29 kDefaultTooltipDelayMsecs=300
 
-                RectTransform canvas = GetComponentInParent<Canvas>().transform as RectTransform;
-                var tipGo = new GameObject("AseTooltip", typeof(RectTransform));
-                RectTransform tip = tipGo.GetComponent<RectTransform>();
-                tip.SetParent(canvas, false);
+                RectTransform canvas = AseUi.OverlayOf(transform);
+                RectTransform tip = UiKit.CreateRect("AseTooltip", canvas);
                 tip.anchorMin = tip.anchorMax = tip.pivot = new Vector2(0f, 1f);
-                var bg = tipGo.AddComponent<Image>();
-                bg.sprite = PixelSkin.Ase("tooltip");   // theme tooltip（九宫 5/6/5×5/5/6）
-                bg.type = Image.Type.Sliced;
-                bg.pixelsPerUnitMultiplier = 1f;
-                bg.color = Color.white;
+                var bg = tip.gameObject.AddComponent<Image>();
+                AseUi.SetRawPart(bg, "tooltip");   // theme tooltip（九宫 5/6/5×5/5/6）
                 bg.raycastTarget = false;
 
                 TextMeshProUGUI text = UiKit.CreateText("Text", tip, _text, UiSkin.Font.Tiny,
@@ -380,25 +349,17 @@ namespace PirateCrew.UI.DebugUi
                 text.raycastTarget = false;
                 // 件是九宫（5/6/5 × 5/5/6）——文字按内容区 inset 摆，不压边框
                 float textW = Mathf.Ceil(text.preferredWidth);
-                RectTransform textRect = text.rectTransform;
-                textRect.anchorMin = textRect.anchorMax = new Vector2(0.5f, 0.5f);
-                textRect.pivot = new Vector2(0.5f, 0.5f);
-                textRect.sizeDelta = new Vector2(textW, 12f);
+                UiKit.SetAnchored(text.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(textW, 12f),
+                    Vector2.zero);
                 tip.sizeDelta = new Vector2(textW + 12f, 22f);
 
+                // 气泡贴目标钮左上：(0,1) 点锚 = 一行换算（EdgesOf）+ 一行落位（PlaceByEdges），
+                // 锚参考点只算一次。
                 RectTransform target = (RectTransform)transform;
-                Vector3[] corners = new Vector3[4];
-                target.GetWorldCorners(corners);
-                Vector2 local = (Vector2)canvas.InverseTransformPoint(corners[1]);   // 左上角（画布局部系）
-                // local 是画布 pivot 局部坐标；anchoredPosition 相对锚点（(0,1)=画布左上角）——
-                // 必须先换成「距左缘/距顶缘」的边距。旧代码直接塞 local，把锚参考点漏算进位置，
-                // 气泡垂直错半个画布（按钮在画布下半区时整个出屏，观感即「悬停啥也没有」）。
-                Rect canvasRect = canvas.rect;
-                float left = local.x - canvasRect.xMin;
-                float top = canvasRect.yMax - local.y;
-                tip.anchoredPosition = new Vector2(left + target.rect.width * 0.5f, -(top - 2f));
+                Vector2 edges = AseUi.EdgesOf(target, canvas);
+                AseUi.PlaceByEdges(tip, edges.x + target.rect.width * 0.5f, edges.y - 2f);
                 tip.SetAsLastSibling();
-                _tip = tipGo;
+                _tip = tip.gameObject;
             }
         }
     }

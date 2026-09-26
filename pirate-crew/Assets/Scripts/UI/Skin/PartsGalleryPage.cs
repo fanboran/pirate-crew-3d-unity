@@ -115,9 +115,7 @@ namespace PirateCrew.UI
         static float FamilyHeader(RectTransform content, float y, string family, int count, float galleryW)
         {
             RectTransform row = UiKit.CreateRect("Family_" + family, content);
-            TopLeft(row);
-            row.sizeDelta = new Vector2(galleryW, 13f);
-            row.anchoredPosition = new Vector2(0f, -y);
+            UiKit.SetAnchored(row, new Vector2(0f, 1f), new Vector2(galleryW, 13f), new Vector2(0f, -y));
 
             TextMeshProUGUI label = UiKit.CreateText("Label", row, family + " · " + count + " 件",
                 UiSkin.Font.Tiny, TextAlignmentOptions.Left, PixelSkin.Theme.SeparatorLabel, null);
@@ -133,9 +131,7 @@ namespace PirateCrew.UI
         static void Cell(RectTransform content, float x, float y, Sprite sprite, string id)
         {
             RectTransform cell = UiKit.CreateRect("Part_" + id, content);
-            TopLeft(cell);
-            cell.sizeDelta = new Vector2(CellW, CellH);
-            cell.anchoredPosition = new Vector2(x, -y);
+            UiKit.SetAnchored(cell, new Vector2(0f, 1f), new Vector2(CellW, CellH), new Vector2(x, -y));
 
             var bg = cell.gameObject.AddComponent<Image>();
             bg.color = PixelSkin.Theme.Background;   // theme listitem_normal_face 纯色卡底
@@ -150,12 +146,9 @@ namespace PirateCrew.UI
                 sliced = sprite.border.sqrMagnitude > 0f;
 
                 RectTransform art = UiKit.CreateRect("Art", cell);
-                TopLeft(art);
-                // 原生尺寸在图区（36 高）内垂直居中（件最大 32×32 < 图区）；九宫件按原尺寸
-                // Sliced = 原件本身。旧版贴顶 2px——16 高件下 18px 沉底，观感「没摆正/偏上」。
-                art.sizeDelta = new Vector2(w, h);
-                art.anchoredPosition = new Vector2(Mathf.Round((CellW - w) * 0.5f),
-                    Mathf.Round((ImageZoneH - h) * 0.5f));
+                // 原生尺寸在图区（36 高）内垂直居中（件最大 32×32 < 图区）；九宫件按原尺寸 Sliced = 原件本身
+                UiKit.SetAnchored(art, new Vector2(0f, 1f), new Vector2(w, h),
+                    new Vector2(Mathf.Round((CellW - w) * 0.5f), Mathf.Round((ImageZoneH - h) * 0.5f)));
                 var image = art.gameObject.AddComponent<Image>();
                 image.sprite = sprite;
                 image.type = sliced ? Image.Type.Sliced : Image.Type.Simple;
@@ -177,16 +170,9 @@ namespace PirateCrew.UI
             sizeLabel.enableWordWrapping = false;
         }
 
-        static void TopLeft(RectTransform rect)
-        {
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-        }
-
         static void Place(RectTransform rect, float x, float y, float w, float h)
         {
-            TopLeft(rect);
-            rect.sizeDelta = new Vector2(w, h);
-            rect.anchoredPosition = new Vector2(x, -y);
+            UiKit.SetAnchored(rect, new Vector2(0f, 1f), new Vector2(w, h), new Vector2(x, -y));
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using PirateCrew.Core;
+using PirateCrew.UI.DebugUi;
 using PirateCrew.UI.Stick;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -64,14 +65,14 @@ namespace PirateCrew.UI
 
             RectTransform viewport = UiKit.CreateRect("Viewport", scrollRect);
             UiKit.Stretch(viewport);
-            viewport.offsetMin = new Vector2(0f, 0f);
             viewport.offsetMax = new Vector2(-PixelSkin.Unit * 5f, 0f);   // 右侧留出滚动条（含边距）
-            viewport.gameObject.AddComponent<RectMask2D>();
-            // 视口要有一块**可命中**的图形，滚轮/拖拽事件才进得了 ScrollRect
-            //（第一版全页没有 raycastTarget，滚轮滚不动——创始人 2026-09-23 走查）。
+            // 视口要有一块**可命中**的图形，滚轮/拖拽事件才进得了 ScrollRect（第一版全页没有
+            // raycastTarget，滚轮滚不动）。本视口面带可见底色（与 Backdrop 同帧色）——已有接光面
+            // 时 ClipViewport 只补裁剪、不覆盖颜色。
             var viewportHit = viewport.gameObject.AddComponent<Image>();
             viewportHit.color = PixelSkin.DarkOf(PixelTone.Frame);
             viewportHit.raycastTarget = true;
+            AseUi.ClipViewport(viewport);
 
             RectTransform content = UiKit.CreateRect("Content", viewport);
             content.anchorMin = new Vector2(0f, 1f);
