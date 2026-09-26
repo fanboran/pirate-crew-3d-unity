@@ -376,6 +376,8 @@ namespace PirateCrew.UI.DebugUi
         /// <c>View::updateAttachedWidgetBounds</c>（view.cpp:389-402）＝ <c>Viewport::onResize</c>
         /// （viewport.cpp:30-53）：被滚件左上角 = 视口左上 − 滚动偏移，
         /// 尺寸逐轴取 max(自身 sizeHint, 视口可视尺寸)。视口 border = 0，故不另减。
+        /// 【符号】源 y 向下系里「−scroll」= 内容上移；UGUI 顶锚系 y 向上正，
+        /// 上移 300 写 **+300**——横轴不变（左移 = −x）。
         /// </summary>
         void LayoutAttachedWidget(Vector2Int scrollPos)
         {
@@ -384,7 +386,7 @@ namespace PirateCrew.UI.DebugUi
 
             int w = Mathf.Max(_contentHint.x, _viewportArea.width);
             int h = Mathf.Max(_contentHint.y, _viewportArea.height);
-            _content.anchoredPosition = new Vector2(-scrollPos.x, -scrollPos.y);
+            _content.anchoredPosition = new Vector2(-scrollPos.x, scrollPos.y);
             _content.sizeDelta = new Vector2(w, h);
         }
 
