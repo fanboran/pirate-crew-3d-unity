@@ -350,8 +350,8 @@ namespace PirateCrew.UI.DebugUi
                 if (Homogeneous)
                     homogeneousSize = IDiv(availMain, visibleChildren);   // box.cpp:99-100
 
-                float mainPos = (Horizontal ? x : y) + Border;    // defChildPos
-                float crossStart = (Horizontal ? y : x) + Border;
+                float mainPos = Border;    // 子件用盒内相对坐标（宿主已落位到 (x,y)）——
+                float crossStart = Border; // 若传窗口绝对坐标，嵌套盒会层层叠加宿主偏移
 
                 int i2 = 0, j = 0;
                 for (int k = 0; k < Kids.Count; k++)
@@ -853,10 +853,10 @@ namespace PirateCrew.UI.DebugUi
                 if (_rowCount == 0)
                     return;
 
-                float posY = y + Border;
+                float posY = Border;   // 格内用盒内相对坐标（宿主已落位，同 BoxNode）
                 for (int r = 0; r < _rowCount; r++)
                 {
-                    float posX = x + Border;
+                    float posX = Border;
                     for (int c = 0; c < Columns; c++)
                     {
                         GCell cell = _rows[r][c];
