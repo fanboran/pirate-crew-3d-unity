@@ -313,11 +313,11 @@ namespace PirateCrew.UI.DebugUi
     /// </summary>
     internal sealed class AseComboBoxPopup : MonoBehaviour, IPointerUpHandler
     {
-        /// <summary>theme <c>view</c>：border="3" border-top="4"。</summary>
-        public const float ViewBorderLeft = 3f;
-        public const float ViewBorderRight = 3f;
-        public const float ViewBorderTop = 4f;
-        public const float ViewBorderBottom = 3f;
+        /// <summary>theme <c>view</c>：border="3" border-top="4"（公共口径见 <see cref="AseWidgetKit"/>）。</summary>
+        public const float ViewBorderLeft = AseWidgetKit.ViewBorderLeft;
+        public const float ViewBorderRight = AseWidgetKit.ViewBorderRight;
+        public const float ViewBorderTop = AseWidgetKit.ViewBorderTop;
+        public const float ViewBorderBottom = AseWidgetKit.ViewBorderBottom;
 
         static readonly List<RaycastResult> s_hits = new List<RaycastResult>();
 
@@ -346,23 +346,9 @@ namespace PirateCrew.UI.DebugUi
 
         void Build(float itemsWidth, string[] options, int selected)
         {
-            // View 面（色层）+ 边框（件层）——与 theme view 样式逐层对应（经 AseThemeLayers 解析：
-            // background color=window_face、border part=sunken_normal / state="focus" sunken_focused）。
-            var bg = _rect.gameObject.AddComponent<Image>();
-            Color32? viewBg = AseThemeLayers.ResolveBackgroundColor("view", AseStates.None);
-            bg.color = viewBg.HasValue ? (Color)viewBg.Value : (Color)PixelSkin.Theme.Face;
-            bg.raycastTarget = false;
-
-            RectTransform border = UiKit.CreateRect("ViewBorder", _rect);
-            UiKit.Stretch(border);
-            var borderImage = border.gameObject.AddComponent<Image>();
-            string viewBorder = AseThemeLayers.ResolveBackgroundPart("view", AseStates.None);
-            if (viewBorder != null)
-                borderImage.sprite = PixelSkin.Ase(viewBorder);
-            borderImage.type = Image.Type.Sliced;
-            borderImage.pixelsPerUnitMultiplier = 1f;
-            borderImage.color = Color.white;
-            borderImage.raycastTarget = true;   // 边框区也算弹层内（抬起冒泡到弹层根即收）
+            // View 面（色层）+ 边框（件层）——公共实现与口径注释见 AseWidgetKit.PaintViewSkin
+            // （边框区接光：抬起冒泡到弹层根即收）
+            AseWidgetKit.PaintViewSkin(_rect);
 
             // View 内核（view.cpp / scroll_helper.cpp 移植）：视口 + 按需滚动条（横竖两根）
             AseView view = AseView.Attach(_rect,

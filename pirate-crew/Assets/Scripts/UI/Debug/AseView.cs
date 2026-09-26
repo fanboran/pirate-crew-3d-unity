@@ -109,9 +109,11 @@ namespace PirateCrew.UI.DebugUi
         {
             _content = content;
             content.SetParent(_viewport, false);
-            // listbox.cpp:258-259 kMouseWheelMessage → View::scrollByMessage：
-            // 滚轮事件挂在被滚件上（源的收件件就是它），事件沿父链上浮到这一层。
-            content.gameObject.AddComponent<AseViewWheel>().Bind(this);
+            // listbox.cpp:258-259 kMouseWheelMessage → View::scrollByMessage：滚轮事件挂在
+            // 被滚件上（源的收件件就是它），事件沿父链上浮到 View。UGUI 侧挂在 **viewport**
+            // 这一层：指针落在被滚件的图形上、或落在视口空白接光面（<see cref="AseUi.ClipViewport"/>
+            // 的透明 raycast 面）上，命中级联都恰好经过这里——挂 content 本体会漏掉空白区。
+            _viewport.gameObject.AddComponent<AseViewWheel>().Bind(this);
         }
 
         /// <summary>

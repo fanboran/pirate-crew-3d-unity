@@ -56,77 +56,35 @@ namespace PirateCrew.UI
         }
 
         /// <summary>
-        /// 纵向 ScrollRect：页面比一屏高（≈1140 艺术像素），滚轮 / 拖动 / 右侧像素滚动条。
+        /// 整页纵向滚动区 = theme <c>view</c> 组合（源 workspace_view extends view）：
+        /// window_face 底 + sunken 边框（3/顶4），12 宽滚动条**按需**出在框内右缘、
+        /// 视口被条挤窄（scroll_helper.cpp:75-81）——源里没有「框外独立条 + 缩窄视口」的组合。
+        /// 滚轮 / 拖拇指 / 点轨道翻页（<see cref="AseView"/>）。
         /// </summary>
         static void BuildScroll(Transform canvas)
         {
-            RectTransform scrollRect = UiKit.CreateRect("Scroll", canvas);
-            UiKit.Stretch(scrollRect);
+            RectTransform view = UiKit.CreateRect("Scroll", canvas);
+            UiKit.Stretch(view);
+            AseWidgetKit.PaintViewSkin(view);
+            AseView scroll = AseView.Attach(view,
+                (int)AseWidgetKit.ViewBorderLeft, (int)AseWidgetKit.ViewBorderTop,
+                (int)AseWidgetKit.ViewBorderRight, (int)AseWidgetKit.ViewBorderBottom);
 
-            RectTransform viewport = UiKit.CreateRect("Viewport", scrollRect);
-            UiKit.Stretch(viewport);
-            viewport.offsetMax = new Vector2(-PixelSkin.Unit * 5f, 0f);   // 右侧留出滚动条（含边距）
-            // 视口要有一块**可命中**的图形，滚轮/拖拽事件才进得了 ScrollRect（第一版全页没有
-            // raycastTarget，滚轮滚不动）。本视口面带可见底色（与 Backdrop 同帧色）——已有接光面
-            // 时 ClipViewport 只补裁剪、不覆盖颜色。
-            var viewportHit = viewport.gameObject.AddComponent<Image>();
-            viewportHit.color = PixelSkin.DarkOf(PixelTone.Frame);
-            viewportHit.raycastTarget = true;
-            AseUi.ClipViewport(viewport);
-
-            RectTransform content = UiKit.CreateRect("Content", viewport);
-            content.anchorMin = new Vector2(0f, 1f);
-            content.anchorMax = new Vector2(1f, 1f);
-            content.pivot = new Vector2(0.5f, 1f);
-            content.anchoredPosition = Vector2.zero;
+            RectTransform content = UiKit.CreateRect("Content", scroll.Viewport);
+            UiKit.SetAnchored(content, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
 
             // 陈列廊在前（创始人 2026-09-25 令全量部件运行时展示——进展示窗第一屏就是它）；
             // 旧演示页（PixelShowcasePage，旧画布口径、标注待重构）垫后。
-            float contentHeight = PartsGalleryPage.Build(content, 0f);
+            // 列宽按**出条后**的视口宽算（内容必高过一屏，竖条必出）。
+            float viewportW = view.rect.width
+                - AseWidgetKit.ViewBorderLeft - AseWidgetKit.ViewBorderRight
+                - AseLayout.ScrollbarSize;
+            float contentHeight = PartsGalleryPage.Build(content, 0f, viewportW);
             contentHeight += PixelShowcasePage.Build(content, contentHeight);
-            content.sizeDelta = new Vector2(0f, contentHeight);
 
-            var scroll = scrollRect.gameObject.AddComponent<ScrollRect>();
-            scroll.content = content;
-            scroll.viewport = viewport;
-            scroll.horizontal = false;
-            scroll.movementType = ScrollRect.MovementType.Clamped;
-            scroll.scrollSensitivity = 60f;
-            scroll.verticalScrollbar = BuildScrollbar(scrollRect, viewport);
-        }
-
-        /// <summary>像素滚动条：Track(Frame) 槽 + Plate(Light) 滑块，宽 12 艺术像素。</summary>
-        static Scrollbar BuildScrollbar(RectTransform scrollRect, RectTransform viewport)
-        {
-            RectTransform bar = UiKit.CreateRect("VBar", scrollRect);
-            bar.anchorMin = new Vector2(1f, 0f);
-            bar.anchorMax = new Vector2(1f, 1f);
-            bar.pivot = new Vector2(1f, 0.5f);
-            bar.sizeDelta = new Vector2(PixelSkin.Unit * 4f, -PixelSkin.Unit * 2f);   // 上下各缩进 1u
-            bar.anchoredPosition = new Vector2(-PixelSkin.Unit * 0.5f, 0f);
-
-            RectTransform slidingArea = UiKit.CreateRect("SlidingArea", bar);
-            UiKit.Stretch(slidingArea);
-            slidingArea.offsetMin = Vector2.zero;
-            slidingArea.offsetMax = Vector2.zero;
-            var track = slidingArea.gameObject.AddComponent<Image>();
-            track.sprite = PixelSkin.Track(PixelTone.Frame);
-            track.type = Image.Type.Sliced;
-            track.color = Color.white;
-            track.raycastTarget = false;
-
-            RectTransform handle = UiKit.CreateRect("Handle", slidingArea);
-            UiKit.Stretch(handle);
-            var handleImage = handle.gameObject.AddComponent<Image>();
-            handleImage.sprite = PixelSkin.Plate(PixelTone.Light);
-            handleImage.type = Image.Type.Sliced;
-            handleImage.color = Color.white;
-
-            var scrollbar = bar.gameObject.AddComponent<Scrollbar>();
-            scrollbar.targetGraphic = handleImage;
-            scrollbar.handleRect = handleImage.rectTransform;
-            scrollbar.direction = Scrollbar.Direction.BottomToTop;
-            return scrollbar;
+            scroll.AttachToView(content);
+            scroll.SetContentHint(Mathf.RoundToInt(viewportW), Mathf.RoundToInt(contentHeight));
+            scroll.UpdateView();
         }
 
         /// <summary>返回主菜单（右上角小钮）：件 144×72 = 48×24 艺术像素（令牌按钮），
