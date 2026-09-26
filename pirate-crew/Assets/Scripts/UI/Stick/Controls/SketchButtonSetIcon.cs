@@ -133,7 +133,11 @@ namespace PirateCrew.UI.Stick
                 case SelectionState.Pressed:
                     return AseStates.Selected | AseStates.Capture;
                 case SelectionState.Selected:
-                    return AseStates.Focus;
+                    // 源里当前项 = selected+focus → buttonset_item_hot_focused（theme.xml:1071，
+                    // 白面 + 琥珀虚线环 #786050）；focus-only（未选中却被键盘聚焦）才是
+                    // buttonset_item_focused 描边件（:1075）。漏带 Selected 位会让当前项
+                    // 丢 hot 面只剩描边件。
+                    return AseStates.Focus | (active ? AseStates.Selected : AseStates.None);
                 case SelectionState.Highlighted:
                     return AseStates.Mouse | (active ? AseStates.Selected : AseStates.None);
                 default:

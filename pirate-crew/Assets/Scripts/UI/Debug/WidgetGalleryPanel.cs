@@ -245,6 +245,9 @@ namespace PirateCrew.UI.DebugUi
             viewBorder.type = Image.Type.Sliced;
             viewBorder.color = Color.white;
             viewBorder.raycastTarget = true;
+            // 裁剪：源里滚出视口的内容被 drawable region 裁掉（widget.cpp:926-932 逐祖先
+            // childrenBounds 求交 + view.cpp:197-200 viewportBounds）——不挂则溢出窗界仍绘制
+            viewport.gameObject.AddComponent<RectMask2D>();
 
             RectTransform content = UiKit.CreateRect("Content", viewport);
             content.anchorMin = content.anchorMax = content.pivot = new Vector2(0.5f, 1f);
@@ -255,6 +258,7 @@ namespace PirateCrew.UI.DebugUi
                     PixelSkin.Theme.Text, 5f, i * 11f, 130f);
 
             var scroll = viewport.gameObject.AddComponent<ScrollRect>();
+            scroll.viewport = viewport;
             scroll.content = content;
             scroll.horizontal = false;
             scroll.movementType = ScrollRect.MovementType.Clamped;
@@ -296,7 +300,7 @@ namespace PirateCrew.UI.DebugUi
             AseWidgetKit.ComboBox(window, "ResolutionCombo", DebugWindowKit.Pad + 180f, y + 2f,
                 84f, new[] { "1920 × 1080", "1280 × 720", "960 × 540" }, 0);
 
-            // 气泡：悬停 0.5s 弹 theme tooltip
+            // 气泡：悬停 0.3s 弹 theme tooltip
             MakeButton(window, "悬停看气泡 →", DebugWindowKit.Pad + 180f, y + 24f,
                 clicked: () => { });
             Transform hoverTarget = window.Find("Btn_悬停看气泡 →");
@@ -320,7 +324,7 @@ namespace PirateCrew.UI.DebugUi
             public void OnPointerClick(PointerEventData eventData) => _click?.Invoke();
         }
 
-        /// <summary>悬停 0.5s 弹 theme tooltip（蓝底 #4069C2 + #C0C0C0 字），移开即收。</summary>
+        /// <summary>悬停 0.3s 弹 theme tooltip（蓝底 #4069C2 + #C0C0C0 字），移开即收。</summary>
         sealed class HoverTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
         {
             string _text;
@@ -356,13 +360,13 @@ namespace PirateCrew.UI.DebugUi
 
             IEnumerator ShowLater()
             {
-                yield return new WaitForSeconds(0.5f);
+                yield return new WaitForSeconds(0.3f);   // tooltips.cpp:29 kDefaultTooltipDelayMsecs=300
 
                 RectTransform canvas = GetComponentInParent<Canvas>().transform as RectTransform;
                 var tipGo = new GameObject("AseTooltip", typeof(RectTransform));
                 RectTransform tip = tipGo.GetComponent<RectTransform>();
                 tip.SetParent(canvas, false);
-                tip.anchorMin = tip.anchorMax = tip.pivot = new Vector2(0.5f, 0f);
+                tip.anchorMin = tip.anchorMax = tip.pivot = new Vector2(0f, 1f);
                 var bg = tipGo.AddComponent<Image>();
                 bg.sprite = PixelSkin.Ase("tooltip");   // theme tooltip（九宫 5/6/5×5/5/6）
                 bg.type = Image.Type.Sliced;
@@ -385,8 +389,14 @@ namespace PirateCrew.UI.DebugUi
                 RectTransform target = (RectTransform)transform;
                 Vector3[] corners = new Vector3[4];
                 target.GetWorldCorners(corners);
-                Vector2 local = (Vector2)canvas.InverseTransformPoint(corners[1]);   // 左上角
-                tip.anchoredPosition = new Vector2(local.x + target.rect.width * 0.5f, local.y + 2f);
+                Vector2 local = (Vector2)canvas.InverseTransformPoint(corners[1]);   // 左上角（画布局部系）
+                // local 是画布 pivot 局部坐标；anchoredPosition 相对锚点（(0,1)=画布左上角）——
+                // 必须先换成「距左缘/距顶缘」的边距。旧代码直接塞 local，把锚参考点漏算进位置，
+                // 气泡垂直错半个画布（按钮在画布下半区时整个出屏，观感即「悬停啥也没有」）。
+                Rect canvasRect = canvas.rect;
+                float left = local.x - canvasRect.xMin;
+                float top = canvasRect.yMax - local.y;
+                tip.anchoredPosition = new Vector2(left + target.rect.width * 0.5f, -(top - 2f));
                 tip.SetAsLastSibling();
                 _tip = tipGo;
             }

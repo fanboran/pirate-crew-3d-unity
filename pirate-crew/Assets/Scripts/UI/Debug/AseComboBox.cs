@@ -59,7 +59,10 @@ namespace PirateCrew.UI.DebugUi
             _options = options;
             _selected = Mathf.Clamp(initial, 0, options.Length - 1);
             _onPick = onPick;
-            _popupHost = popupHost != null ? popupHost : root.parent;
+            // 弹层宿主 = 画布层（源里 openListBox 建的是 Window(WithoutTitleBar) 独立顶层窗，
+            // combobox.cpp:615+652 openWindow → Manager 托管——不是组合框/对话框的子件，
+            // 不吃窗内裁剪、坐标也是显示器绝对系）。与 AseMenuKit 弹层同一架构（FindOverlay）。
+            _popupHost = popupHost != null ? popupHost : (Transform)AseMenuKit.FindOverlay(root);
 
             // 词条面：combobox 样式（sunken2_normal / state="focus" 换 sunken2_focused）；
             // ComboBox::onResize(423-436)：钮占右缘 ButtonWidth，词条占其余 —— 面与钮各画各的
@@ -157,7 +160,7 @@ namespace PirateCrew.UI.DebugUi
             RectTransform comboRect = (RectTransform)transform;
             RectTransform host = _popupHost as RectTransform;
             if (host == null)
-                host = comboRect.parent as RectTransform;
+                host = AseMenuKit.FindOverlay(transform);
             if (host == null)
                 return;
 
@@ -199,7 +202,10 @@ namespace PirateCrew.UI.DebugUi
 
             _popup = AseComboBoxPopup.Open(this, host, w, popupH, itemsW, _options, _selected);
             RectTransform popupRect = _popup.Rect;
-            popupRect.anchoredPosition = new Vector2(anchorX + left, anchorY - top);
+            // anchors/pivot=(0,1) 下 anchoredPosition 本身就是「距宿主左缘 / 距顶缘」
+            // （left/top 已是换算后的边距）——不得再叠加锚参考点 anchorX/anchorY，
+            // 否则锚点算两遍，弹层平移 2×锚点出画布（960×540 画布上整体飞出左上外）。
+            popupRect.anchoredPosition = new Vector2(left, -top);
             popupRect.SetAsLastSibling();
 
             // 焦点态（combobox 样式 state="focus"）：源里开弹层时焦点落在词条/列表上，

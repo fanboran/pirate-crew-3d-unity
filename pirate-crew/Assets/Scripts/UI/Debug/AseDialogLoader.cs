@@ -1374,8 +1374,7 @@ namespace PirateCrew.UI.DebugUi
                 maxTextW = Mathf.Max(maxTextW, TextWidth(opt));
             float w = Mathf.Min(maxTextW + 4f + cb.x + cb.z + AseComboBox.ButtonWidth, 400f);
             TextMeshProUGUI value = AseWidgetKit.ComboBox(parent,
-                el.Attribute("id")?.Value ?? "Combo", 0f, 0f, w, options.ToArray(), 0,
-                popupOverlay: ctx.Window.parent);
+                el.Attribute("id")?.Value ?? "Combo", 0f, 0f, w, options.ToArray(), 0);
             ctx.RegisterId(el.Attribute("id")?.Value, value);
             return new LeafNode
             {

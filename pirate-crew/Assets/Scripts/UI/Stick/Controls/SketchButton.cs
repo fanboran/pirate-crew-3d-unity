@@ -177,10 +177,11 @@ namespace PirateCrew.UI.Stick
         /// <list type="bullet">
         /// <item>Pressed = Selected|Capture——ButtonBase::onMouseDown <c>setSelected(true)+captureMouse()</c>
         ///   （button.cpp:168-175），层匹配命中 <c>state="selected"</c>。</item>
-        /// <item>UGUI Selected = Focus（键盘焦点，控件注释里的"蓝描边"语义）。</item>
-        /// <item>Sticky（业务当前值）= Selected 位；**禁用/键盘焦点时不让位**——禁用由 Disabled
-        ///   独占（否则 Sticky+禁用会命中 button_selected 而非常态皮），焦点由 Focus 独占
-        ///   （保持旧手写版 <c>selectedSprite=button_focused</c> 的选择）。</item>
+        /// <item>UGUI Selected = Focus 位；Sticky（业务当前值）再叠加 Selected 位——
+        ///   for_each_layer 取最大命中层（theme.cpp:69-73），button 样式无 selected focus 层，
+        ///   粘滞+焦点自然解析到 button_selected，非粘滞焦点解析到 button_focused（theme.xml:607-608）。</item>
+        /// <item>Sticky（业务当前值）= Selected 位；**禁用不让位**——禁用由 Disabled
+        ///   独占（否则 Sticky+禁用会命中 button_selected 而非常态皮）。</item>
         /// </list>
         /// </summary>
         static AseStates FlagsFor(SelectionState state, bool sticky)
@@ -192,7 +193,7 @@ namespace PirateCrew.UI.Stick
                 case SelectionState.Pressed:
                     return AseStates.Selected | AseStates.Capture;
                 case SelectionState.Selected:
-                    return AseStates.Focus;
+                    return AseStates.Focus | (sticky ? AseStates.Selected : AseStates.None);
                 case SelectionState.Highlighted:
                     return AseStates.Mouse | (sticky ? AseStates.Selected : AseStates.None);
                 default:
