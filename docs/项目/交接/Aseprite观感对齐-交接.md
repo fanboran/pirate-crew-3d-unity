@@ -753,6 +753,27 @@ MainMenu 第五钮「调试场景」实拍落位（按钮列 6 文字簇 = 标�
 `UiLayout.Ignore`。②遥控 stop 会打断创始人的现场 Play——遥控通道只在创始人不在场时
 用；在场就直说「请你看」。③架构级改动先进规划模式过审批，不再边写边定。
 
+**走查二波（2026-09-26，创始人报「悬浮/滑动/下拉/按钮延迟/拖动受限/窗口不置顶/组件全飞」
+并质问是否逐行级复刻）**——承认：装载器首版是语义近似非移植。本轮：
+- **交互六修**：①窗体按下即置顶（WindowDragger 增 IPointerDownHandler——最后点击的窗
+  永远浮顶）；②拖动自由（只保标题带 16px 可抓，可推到大半出屏——废「留 3/4 在屏」
+  自造限制）；③组合框弹层宿主改调试根 overlay（原 parent.parent 会把弹层夹进窗内/被
+  别窗盖住——new_sprite 的比例下拉即受害者）；④列表选中行锁定悬停换色（HoverFace.Locked
+  ——选中金底不再被「移开恢复常态」覆写）；⑤SliderValueLabel 加 DefaultExecutionOrder(1000)
+  （与 Slider 的分数锚点不再来回拉锯）；⑥**首开卡顿**=一次性同步构建（陈列廊 345 格≈
+  1400 物件同帧生成）——DebugBuildQueue：闭包延一帧 + 陈列廊按家族面板分帧（每帧 24 步，
+  content 高度随建随长）。
+- **装载器布局引擎重写为逐行移植**（回应「逐行级复刻排版和显示的代码逻辑」）：
+  AwNode 树移植 ui::Widget 布局域——Box::onSizeHint/onResize（box.cpp:33-165：homogeneous
+  取最大×n/等分末件吃余数、expansive 摊余宽、**跨轴子件拉伸到盒宽夹 [min,max]**——
+  首版缺这层就是「组件全飞」的根）、Grid 条带/扩展/对齐（grid.cpp:160-420：
+  cell_align=horizontal 记扩展列分余宽、right 格内右对齐、无对齐位整格拉伸）、
+  Entry::onSizeHint（entry.cpp:479-491 字符宽公式）、Separator（separator.cpp:35-60）、
+  控件边框取 theme 背景件九宫切片（本地图集 Sprite.border）。goto_frame 的
+  cell_align=right 在盒内按源码语义忽略（只有 grid 消费该标志），覆盖表登记。
+- 遗留近似（覆盖表）：check 行 hint（源未覆写 onSizeHint，按图标 8+4+文字）；combobox
+  定宽 150；窗框含本端标题带。提交：`fix(ui): 走查二波六修+装载器布局引擎重写`。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
