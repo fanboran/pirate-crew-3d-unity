@@ -128,80 +128,17 @@ namespace PirateCrew.UI.DebugUi
 
         static float BuildSlider(RectTransform window, float y)
         {
-            // 与设置面板同款：empty 槽 + full 填充 + 双色裁剪层文本（skin_theme.cpp 双色口径）
-            TextMeshProUGUI field = DebugWindowKit.PlaceLabel(window, "音量", UiSkin.Font.Tiny,
+            DebugWindowKit.PlaceLabel(window, "音量", UiSkin.Font.Tiny,
                 PixelSkin.Theme.Text, DebugWindowKit.Pad, y + 2f, 60f);
 
-            RectTransform track = UiKit.CreateRect("Slider", window);
-            track.anchorMin = track.anchorMax = track.pivot = new Vector2(1f, 1f);
-            track.sizeDelta = new Vector2(180f, 16f);
-            track.anchoredPosition = new Vector2(-DebugWindowKit.Pad, -y);
-
-            var back = track.gameObject.AddComponent<Image>();
-            back.sprite = PixelSkin.SliderEmpty(false);
-            back.type = Image.Type.Sliced;
-            back.pixelsPerUnitMultiplier = 1f;
-            back.color = Color.white;
-            back.raycastTarget = true;
-
-            var slider = track.gameObject.AddComponent<Slider>();
-            slider.direction = Slider.Direction.LeftToRight;
-            slider.minValue = 0f;
-            slider.maxValue = 1f;
-            slider.value = 0.7f;
-            slider.targetGraphic = back;
-            slider.transition = Selectable.Transition.None;
-
-            RectTransform fill = UiKit.CreateRect("Fill", track);
-            fill.anchorMin = fill.anchorMax = new Vector2(0f, 1f);
-            fill.pivot = new Vector2(0f, 1f);
-            fill.sizeDelta = new Vector2(0f, 0f);
-            var fillImage = fill.gameObject.AddComponent<Image>();
-            fillImage.sprite = PixelSkin.SliderFull(false);
-            fillImage.type = Image.Type.Sliced;
-            fillImage.pixelsPerUnitMultiplier = 1f;
-            fillImage.color = Color.white;
-            fillImage.raycastTarget = false;
-            slider.fillRect = fill;
-
-            RectTransform clipFull = UiKit.CreateRect("ClipFull", track);
-            clipFull.anchorMin = new Vector2(0f, 0f);
-            clipFull.anchorMax = new Vector2(0f, 1f);
-            clipFull.pivot = new Vector2(0f, 0.5f);
-            clipFull.anchoredPosition = Vector2.zero;
-            clipFull.sizeDelta = Vector2.zero;
-            clipFull.gameObject.AddComponent<RectMask2D>();
-
-            RectTransform clipRest = UiKit.CreateRect("ClipRest", track);
-            clipRest.anchorMin = new Vector2(0f, 0f);
-            clipRest.anchorMax = new Vector2(1f, 1f);
-            clipRest.offsetMin = Vector2.zero;
-            clipRest.offsetMax = Vector2.zero;
-            clipRest.gameObject.AddComponent<RectMask2D>();
-
-            TextMeshProUGUI light = DualLabel(clipFull, true);
-            TextMeshProUGUI dark = DualLabel(clipRest, false);
-
-            var valueLabel = track.gameObject.AddComponent<SliderValueLabel>();
-            valueLabel.LabelLight = light;
-            valueLabel.LabelDark = dark;
+            // SketchSlider = slider.cpp 逐函数移植（整数取值/绝对跟手/双色分区文本内置），
+            // 旧 fillRect/裁剪框/SliderValueLabel 补丁链不再需要。源缺省文案 "%d" 不带 %，
+            // 画廊保留 "70%" 观感 → 接 valueToText。
+            SketchSlider.Create(window, "Slider",
+                new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-DebugWindowKit.Pad, -y),
+                new Vector2(180f, 16f), 0, 100, 70, DebugWindowKit.HandFont, UiSkin.Font.Tiny,
+                v => v + "%");
             return y + 22f;
-        }
-
-        static TextMeshProUGUI DualLabel(RectTransform clip, bool anchorLeft)
-        {
-            TextMeshProUGUI text = UiKit.CreateText(anchorLeft ? "ValueLight" : "ValueDark", clip,
-                "70%", UiSkin.Font.Tiny, TextAlignmentOptions.Center,
-                anchorLeft ? (Color)PixelSkin.Theme.Text : PixelSkin.Theme.Disabled, DebugWindowKit.HandFont);
-            text.enableWordWrapping = false;
-            text.raycastTarget = false;
-            RectTransform rect = text.rectTransform;
-            rect.anchorMin = new Vector2(anchorLeft ? 0f : 1f, 0f);
-            rect.anchorMax = new Vector2(anchorLeft ? 0f : 1f, 1f);
-            rect.pivot = new Vector2(anchorLeft ? 0f : 1f, 0.5f);
-            rect.anchoredPosition = Vector2.zero;
-            rect.sizeDelta = new Vector2(180f, 0f);
-            return text;
         }
 
         static float BuildEntry(RectTransform window, float y)
