@@ -937,6 +937,49 @@ Check/Radio/Scrollbar 包装器迁移后零引用待清（域外）。
 **待创始人复测新增**：对话框窗高变高 17px（按钮不再压下边框）、全部调试窗内容上移 4px、
 超高菜单出现滚动条+滚轮、列表 Ctrl 点选区间、标题带拖动区 17px。
 
+## 三之九、创始人六诉静态取证 + 五修（2026-09-27，「你逗我呢」与「真的对齐了？」两连）
+
+创始人复测六诉：悬停气泡不弹 / 组合框弹层消失（先「很远」后「没有」）/ 滚动内容溢出窗界 /
+陈列廊内容偏上 / 新建选项切换出蓝描边 / 质疑覆盖率口径。静态穷尽取证结论与修复
+（commit `dac0ae95`，harness Runtime 0 错 + Data 33/33）：
+
+1. **组合框弹层消失 = 双重锚点**（AseComboBox.OpenListBox 旧 :202）：
+   `anchoredPosition = (anchorX + left, anchorY - top)` 把锚参考点叠加了两遍——
+   anchors/pivot=(0,1) 下 anchoredPosition 本就是「距宿主左缘/距顶缘」，再叠 anchorX/anchorY
+   后实际落点 = 2×锚点 + 偏移，960×540 画布上整体飞出左上。**修**：`(left, -top)`；弹层宿主
+   并轨 `AseMenuKit.FindOverlay`（源：combobox.cpp:615+652 openWindow 挂 Manager 顶层，
+   本来就不是窗的子件）——菜单/组合框弹层从此同一架构，装载器也去掉显式 popupOverlay 传参。
+2. **悬停气泡不弹 = 同类锚漏算**（WidgetGalleryPanel.HoverTooltip 旧 :389）：
+   `InverseTransformPoint` 得到画布 pivot 局部坐标直接塞给锚点 (0.5,0) 的 anchoredPosition，
+   垂直错 270px，按钮在画布下半区时整个出屏。**修**：换算成「距左缘/距顶缘」边距 +
+   锚改 (0,1)；延迟 0.5s→0.3s 对齐源（tooltips.cpp:29 kDefaultTooltipDelayMsecs=300）。
+3. **滚动溢出 = 滚动演示区 viewport 没挂 RectMask2D 也没告诉 ScrollRect viewport**
+   （WidgetGalleryPanel.BuildScrollComboTip）：8 行×11 内容在 46px 视口外裸画。**修**：
+   补 RectMask2D + scroll.viewport（源等价物 = drawable region 逐祖先求交，
+   widget.cpp:926-932 + view.cpp:197-200）。部件陈列廊本身 mask 一直在（DebugMenuHost :230）。
+4. **陈列格「没摆正/偏上」= 件图贴顶 2px**（PartsGalleryPage.Cell）：图区 36 高、16 高件
+   18px 沉底。**修**：图区内垂直居中（取整）。
+5. **buttonset「蓝描边」裁决 + 修**：PIL 逐像素实测主题件——焦点虚线环是**琥珀 #786050**
+   （hot_focused/focused 两件同环，非蓝非灰）；全 buttonset 件表唯一蓝件是 pushed 面蓝
+   #7C919D（theme.xml:1073 按住期间，源语义如此）；`buttonset_item_active` 是灰紫 #655961
+   且全库无引用。源语义（theme.cpp:47-78 层引擎 + button_set.cpp:321-341 requestFocus）：
+   切换后当前项 = selected+focus → **hot_focused（白面+琥珀虚线环，原版就有环）**；
+   其余项 normal 无任何记号。我们的三处 FlagsFor 把 UGUI Selected 映射成**纯 Focus** 且丢
+   业务位——当前项永远出不了 hot_focused。**修**：SketchButtonSet/SetIcon/Button 三处
+   Selected → `Focus | (业务位 ? Selected : None)`。
+
+**覆盖率口径答复**（创始人问「怎么算的」）：函数级台账（temp/coverage4.py，99 项按源码行数
+加权，状态 port/approx/subst/miss，port 95.8%）——分母只有 aseprite C++ 行，**不含 Unity
+胶水**（坐标换算/UGUI 事件映射/裁剪/装配），本轮 5 个 bug 有 4 个恰在胶水层：覆盖率量搬运
+量、不量画面正确性。教训进长期库：**坐标系换算（pivot 局部 ↔ 锚参考系）是 Unity 侧胶水，
+不在覆盖率分母里，必须靠拍屏取证收口**。
+
+**蓝描边遗留一口**：若创始人仍见**常驻**蓝（非按住瞬间），静态穷尽已证明代码无此路径
+（唯一蓝件 pushed 仅 Pressed 态触发，层表两库逐行一致）——需一张截图定位。
+**待复测**：气泡 0.3s 弹出、组合框点开选项列表在正下方、滚动演示区内容裁进 sunken 边框内、
+陈列格件图居中、新建对话框切换后当前项白面+琥珀虚线环（原版同款）。
+探针（commit `7b41ef5e`）已含气泡悬停样本 + dbg-probe 延时拍帧，修复后取证用。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
