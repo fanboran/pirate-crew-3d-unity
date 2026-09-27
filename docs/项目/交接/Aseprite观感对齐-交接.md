@@ -1300,3 +1300,65 @@ merge `a406d8d3` + 场景重装配 `a50be2ac`）：
   拉开明确距离（内容顶 23），带视觉原生、窗缘整格。
 - 【教训】「改单点 ≠ 接通」——挂了单点还要盘点**消费侧的常量腿**（装配方 padding/
   窗高公式），且 Editor 装配的场景是**序列化产物**：改装配方必须重装配场景再验。
+
+## 三之十六、战斗 HUD 换装 Aseprite 观感（2026-09-28，创始人令「游戏内 UI 也改造成这套设计语言；海图内部内容先空着；窗口布局可彻底重构」）
+
+**换装面**（`BattleHudBuilder` 全量重写 + `BattleHud` 运行侧小改；接线契约 WireHud
+字段零变动）：
+- **海图窗**：`EnsureWindow` 直切窗体 + 标题带「海图」；`DotLayer` 整棵销毁（点位/
+  瓦片点阵/岛层/旧标题字全退场）——**空窗暂态契约**（见下）；
+- **武器面板**：窗体化（标题带「选择武器」，UiStrings.BattleWeaponListTitle 复用）
+  406×114 = 边 6 + 格区 394×52 + 行动行 16 + 信息行 12；格宽 52→64（五字名
+  「降落伞炸弹」60px 此前溢格）；旧右列改底行动行（单位名/HP 条/跳跃/结束回合）+
+  单行名（金）/说明（灰）；HP 条 = `sunken_normal` 槽 + 平涂 ghost/填充（内缩 3）；
+- **顶栏**：血条 beveled Track/Fill → theme `Disabled`(#202125) 平涂槽 + 队色平涂段
+  + 白 ghost（段宽装配/运行两侧统一 **floor 取整**——分数宽在平涂色块边缘糊出
+  抗锯齿带，TeamBars 常量 3→1 与装配侧同源）；pips = 队色平涂方格；徽章 =
+  `button_selected` 金面钮 + Tiny(8) 数字（两位回合号不溢 12 格）；
+- **选中态**：模式钮/武器格运行时改 `UiKit.ApplyThemeButton(sticky)`——四态全钉
+  金面（悬停/按压不回落灰面），Focus 环退役（金面即选中，与菜单同源）；模式钮
+  整组下移 16 与蓝条 y 错层避撞（x 区段仍重叠）；
+- **结算卡**补标题带「战斗结算」（新 UiStrings.SettlementPanelTitle；此前无标题 →
+  CreateModal 走老 Panel 皮）。
+
+**空窗暂态契约（恢复内容三处同改）**：①`BattleHudBuilder.BuildMinimap` 重建
+DotLayer 子树；②`HudMinimapSceneSetup` 恢复层接线（现显式写 null + 不建层）；
+③`BattleMinimap` 撤 Start 的 dotLayer==null 休眠守卫。PlayMode 断言同步
+（BattleSceneWiringTests 现断言 `DotLayer==null`，恢复时改回 HasMinimapWiring）。
+
+**两个真 bug 顺手排掉**：
+1. **AseWindowTitleBand 嵌套类地雷**（三之十五引入）：MonoBehaviour 嵌套在 UiKit
+   静态类里——场景文件靠 `m_ClassName` 兜底能加载，**Prefab 一律静默丢件**；Battle
+   折叠 SaveAsPrefabAsset 实锤报错才现形（「Please change the script to derive from
+   MonoBehaviour」）。迁出独立文件（`78db1a52`），四场景全部重折叠后 UI Prefab
+   首次真正持久化该组件（MainMenu×3 / LevelSelect×1 / CrewManagement×1 / BattleRig×5）。
+   架构总览 §11.5 的「类名=文件名」红线又一实锤。
+2. **武器格区行数整数除法**：`17/6=2` → 格区容器高声明 34（实际 3 行占 52），下游
+   行动行按错误高度定位 → **整行压在格区第三行上**（首拍实拍，视觉模型目检报
+   「血条遮格」「扫射火跳跃」皆此一根因）。改 `CeilToInt`（`462ade89`）。老布局
+   同式携带此雷，右列错位掩盖了它——紧凑重排后引爆。
+
+**装配链产物代际**：本次烘焙产出新一代材质入库——`Art/Materials/Lowpoly/
+Lowpoly_Cloud*`（CloudField.prefab 换代引用；旧 `Pixelart/Materials/PixelartLevel_Cloud*`
+仍在库不冲突）与 `Scene/FloatingIsland_{Dirt,Grass×3,Rock×3,Stone,Wood}` 九分材质
+（BattleRig 引用）。按「生成产物入库」口径随装配提交（`274967a7`）。
+
+**验收**：harness Runtime+DataEditor 双域 0 错（DataEditor 收录 Assets/Editor）；
+桥重装配（`BattleScenePipeline.Build` + 三个 UI 场景 BuildAll + `CollapseAll`）+
+折叠契约 `VerifyAll` 绿；`capture:Battle` 两轮目检——第二轮格区/行动行/信息行
+全归位、18 格均匀无溢字、快捷键角标在、模式钮不压蓝条；像素级复核信息行 =
+未装备灰提示态（视觉模型的「金名与说明间隔窄」系脑补，当时行内只有一条灰提示）。
+主仓 batchmode EditMode **1309/1314**（4 红均为**存量**、非本波引入——取证：`Pixel_Plate_*.png`
+烘于 `0952961c`（×1 对齐波）而判据 `BeveledPixelSkinTests` 止于 `4d2dc0bf`（同波开端，其后
+再未跑过全量 EditMode，本次首暴露 3 红）；DebugUi 组合框 12 条嵌套类违规始于 `61461929`
+（组合框波）、未入 KnownOffenders 棘轮（1 红）。本波高风险面 SceneAssemblyContract /
+MinimapWorldChart / UiStrings 回归**全绿**；两组存量红已登记待办）。EditorBuildSettings
+第三次被摘 UIShowcase（本次装配链中招）——已还原，待办回归断言项升三次。
+
+**提交链**：`78db1a52`（fix 嵌套类迁出）→ `462ade89`（feat 换装）→ `274967a7`
+（chore 四场景重装配+折叠+烘焙产物）→ `df4cd0d0`（chore 字体图集运行期增量落盘，
+上轮验收态未提交会丢字）→ 主仓 refactor/industrial-grade 快进合入。
+
+**PlayMode 注意**：BattleSceneWiringTests 海图断言已改空窗口径——下轮 GUI 侧
+PlayMode 全量覆盖之；`tools/headless/run.sh` 的 Unity 路径 bug（2022.3.62f1c1 不存在）
+见待办，本次主仓测试用 AGENTS 裸命令直跑。
