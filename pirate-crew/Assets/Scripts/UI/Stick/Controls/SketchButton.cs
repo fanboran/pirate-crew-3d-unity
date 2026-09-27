@@ -46,27 +46,9 @@ namespace PirateCrew.UI.Stick
         }
 
         private bool _applied;
-        private TextMeshProUGUI _label;
         private TextMeshProUGUI _shadowLabel;   // 禁用态双层字：background 色 (x+1,y+1) 垫底
 
-        /// <summary>可见标签件（<c>Label</c> 孩子）。
-        /// **取文案请走这里，别用 <c>GetComponentInChildren&lt;TextMeshProUGUI&gt;</c>**——
-        /// 影子层按 theme 绘制序被插到兄弟序 0（压在标签下），泛搜会先取到那层**不可见**的
-        /// 影子：文字写进去不显示、可见标签留空还让按钮按空文案收窄
-        /// （实拍：选关列表整列出战按钮被挤成细条、船员列表已解锁行按钮无字）。
-        /// 场景重载后私有字段不序列化，按名兜底重取。</summary>
-        public TextMeshProUGUI Label
-        {
-            get
-            {
-                if (_label == null)
-                {
-                    Transform child = transform.Find("Label");
-                    _label = child != null ? child.GetComponent<TextMeshProUGUI>() : null;
-                }
-                return _label;
-            }
-        }
+        // 可见标签 Label 已上移 AseButtonBase 基类（含影子层案的完整警示注释）。
 
         /// <summary>禁用态影子层（兄弟序 0 的不可见层）。按名兜底重取，同 <see cref="Label"/>。</summary>
         private TextMeshProUGUI ShadowLabel
@@ -221,9 +203,7 @@ namespace PirateCrew.UI.Stick
         private static RectTransform NewRect(string name, Transform parent, Vector2 anchor,
             Vector2 pivot, Vector2 anchoredPosition, Vector2 size)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            RectTransform rect = go.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
+            RectTransform rect = UiKit.CreateRect(name, parent);
             rect.anchorMin = anchor;
             rect.anchorMax = anchor;
             rect.pivot = pivot;

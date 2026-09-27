@@ -747,16 +747,14 @@ namespace PirateCrew.UI.Stick
             int min, int max, int value, TMP_FontAsset font, float fontSize,
             Func<int, string> valueToText = null)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            RectTransform rect = go.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
+            RectTransform rect = UiKit.CreateRect(name, parent);
             rect.anchorMin = anchor;
             rect.anchorMax = anchor;
             rect.pivot = pivot;
             rect.sizeDelta = size;
             rect.anchoredPosition = anchoredPosition;
 
-            var slider = go.AddComponent<SketchSlider>();
+            var slider = rect.gameObject.AddComponent<SketchSlider>();
             slider._rect = rect;
             slider.ValueToText = valueToText;
             // theme slider 无悬停档、无按压档（<style id="slider"> 只有常态与 focus），
@@ -815,13 +813,11 @@ namespace PirateCrew.UI.Stick
         static TextMeshProUGUI CreateValueLabel(Transform parent, string name, Color color,
             TMP_FontAsset font, float fontSize)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            RectTransform rect = go.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
+            RectTransform rect = UiKit.CreateRect(name, parent);
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
 
-            var label = go.AddComponent<TextMeshProUGUI>();
+            var label = rect.gameObject.AddComponent<TextMeshProUGUI>();
             TMP_FontAsset resolved = UiKit.ResolvePixelFont(Mathf.RoundToInt(fontSize), font);
             if (resolved != null)
                 label.font = resolved;

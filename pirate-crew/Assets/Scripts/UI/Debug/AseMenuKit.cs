@@ -745,9 +745,9 @@ namespace PirateCrew.UI.DebugUi
                 // 鼠标键近似「键盘/手柄键」（approx：手柄键仍会误触本行）。
                 _wasClicked = false;
 
-                bool alt = AltHeld();
-                bool ctrl = CtrlOrCmdHeld();
-                bool shift = ShiftHeld();
+                bool alt = AseKeyMods.Alt;
+                bool ctrl = AseKeyMods.CtrlOrCmd;
+                bool shift = AseKeyMods.Shift;
 
                 // --- ALT+助记符（menu.cpp:627-641）---
                 // 弹层（kMenuBoxWidget）：修饰键为「无」或「仅 Alt」都行；菜单栏（kMenuBarWidget）：
@@ -1055,23 +1055,8 @@ namespace PirateCrew.UI.DebugUi
                 return false;
             }
 
-            static bool AltHeld()
-            {
-                return Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
-            }
 
-            static bool ShiftHeld()
-            {
-                return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-            }
 
-            /// <summary>kKeyCtrl / kKeyCmd 在 Unity 里落在 Control 与 Command 两族（approx：源码按平台
-            /// 二选一，这里两族都收）。</summary>
-            static bool CtrlOrCmdHeld()
-            {
-                return Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)
-                    || Input.GetKey(KeyCode.LeftCommand) || Input.GetKey(KeyCode.RightCommand);
-            }
 
             /// <summary>本帧是否有「键盘键」按下：Input.anyKeyDown 含鼠标键，排掉三个鼠标键（approx）。</summary>
             static bool AnyKeyDown()

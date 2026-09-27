@@ -25,21 +25,7 @@ namespace PirateCrew.UI.Stick
     /// </summary>
     public sealed class SketchButtonSet : AseButtonBase
     {
-        private TextMeshProUGUI _label;
-
-        /// <summary>可见标签（场景重载后按名兜底重取，同 <see cref="SketchButton.Label"/> 的口径）。</summary>
-        public TextMeshProUGUI Label
-        {
-            get
-            {
-                if (_label == null)
-                {
-                    Transform child = transform.Find("Label");
-                    _label = child != null ? child.GetComponent<TextMeshProUGUI>() : null;
-                }
-                return _label;
-            }
-        }
+        // 可见标签 Label 已上移 AseButtonBase 基类。
 
         /// <summary>theme 样式 id（件表见类注释）。</summary>
         protected override string StyleId => "buttonset_item";
@@ -49,18 +35,16 @@ namespace PirateCrew.UI.Stick
             TMP_FontAsset font, float fontSize, Vector2 anchor, Vector2 pivot,
             Vector2 anchoredPosition, Vector2 size)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            RectTransform rect = go.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
+            RectTransform rect = UiKit.CreateRect(name, parent);
             rect.anchorMin = rect.anchorMax = anchor;
             rect.pivot = pivot;
             rect.sizeDelta = size;
             rect.anchoredPosition = anchoredPosition;
 
-            var image = go.AddComponent<Image>();
+            var image = rect.gameObject.AddComponent<Image>();
             image.raycastTarget = true;
 
-            var item = go.AddComponent<SketchButtonSet>();
+            var item = rect.gameObject.AddComponent<SketchButtonSet>();
             item.InitAseSkin(image);      // targetGraphic + SpriteSwap + 全白 ColorBlock
 
             // 标签：锚整件拉伸 + 内容区边距（见下方 offset 注释），居中、顶点像素对齐。
