@@ -40,21 +40,22 @@
     键盘 1/2/3 功能保留）；四场景重装配（BattleRig 实测 31×SketchButton GUID）
   - 验收：菜单/战斗按钮放大比对同源（灰面/近黑 1px 边/直角/浅灰字/居中对称/贴合宽）；
     装配链跑完 EditorBuildSettings **首次零被动**（W1C 根因修复实战验证）
-- [ ] **W3 beveled tone 族退役**：余下消费者（DebugWindowKit/PixelShowcasePage/
-      MainMenuController 残件/SketchPanel）迁 Ase 件或平涂；PixelSkin tone API 与
-      烘焙分支删除；BeveledPixelSkinTests 随族退场（三红销案）；展示页按 Ase 件重写
-      或退役；四屏实拍回归
-  - **W3 侦察结论（2026-09-28 实测）**：tone 族在 UiKit/PixelSkin 之外的消费者仅三处——
-    ① `MainMenuController.cs:335-340` 设置 chips（Plate 三态）→ 迁 SketchButtonSet/theme 件；
-    ② `Skin/PixelShowcasePage.cs` 整页就是 tone 族陈列（Plate/Track/Fill/Tab/Ring/Pip/
-    Separator/ShadowSprite/Focus 全用）→ 展示场景已另有 Ase 件陈列廊（PartsGalleryPage），
-    本页退役或改陈 Ase 件；③ `Stick/Controls/SketchPanel.cs`（Panel+ShadowSprite）→
-    EnsurePanel/EnsureWindow 已能替代，迁调用后删除。UiKit 内部随族退役：CreatePanel(tone)/
-    CreatePlate/CreateTrack/CreateFill/FillKindOfColor；`CreateFocusRing` 迁
-    `PixelSkin.WidgetFocus`（= Ase "check_focus"）。战斗侧已全平涂+Ase 件，无残留。
-- [ ] **W4 收官**：全场景重装配 + 四屏 + 弹窗实拍全家福；主仓 EditMode 全量
-      （目标：全绿）；PlayMode 交创始人实机；字体图集 GUID/增量政策
-      （FontAssetBuilder 重跑换 GUID 的存量登记项一并裁决）
+- [x] **W3（tone 族退役，2026-09-28 完结，6a50654a，merge 8fe3cbe5）**
+  - 展示页旧 tone 演示退役（PartsGalleryPage 独占展示场景，PixelFont 出口迁移）；
+  - 设置面板：四个选项块本就已是 SketchButtonSet（侦察误报），SetChipSelected 的
+    Plate 死分支删除；设置卡 SketchPanel→UiKit.EnsureWindow（Ase 窗体皮，实拍四项过）
+  - SketchPanel 三用户（ManagementSceneSetup 结算卡/列表窗、MenuUiBuilder 设置卡、
+    DebugWindowKit 双窗）迁 UiKit；**无标题面板皮裁决 = Ase "menu" 件**（border 3，
+    与调试窗旧口径同源）；SketchPanel 删除
+  - 族亡：106 张 tone PNG + PixelSkin 九出口 + UiKit tone 工厂 + 烘焙分支（-1568 行）
+    + BeveledPixelSkinTests（三红闭案）删除；FocusRing 迁 check_focus；tone **取色 API
+    保留**（调色板令牌与贴图无关）；皮肤资产重烘焙（8 张 = Focus+7 窗体件）
+  - 回归：harness 双域 0 错；**主菜单逐像素 0.00% 差异**（迁移零回归铁证）；
+    设置/展示/战斗四图目检全过；四场景重折叠 186 行、SketchPanel GUID 全 Prefab 清零
+- [ ] **W4 收官**：主仓 EditMode 终验（预期全绿）+ 字体图集 GUID/增量政策
+      （FontAssetBuilder 改 load-or-create，重跑不再换 GUID）+ 近死件清扫
+      （PixelSkin.Window/Focus 出口、PixelPiece 枚举残员、烘焙器 tone 几何常量）
+      + PlayMode 交创始人实机 + 总纲档收官归档
 
 ## 铁律（每波通用）
 
