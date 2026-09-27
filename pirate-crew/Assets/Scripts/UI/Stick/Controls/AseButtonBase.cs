@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using PirateCrew.UI.DebugUi;
@@ -25,6 +26,28 @@ namespace PirateCrew.UI.Stick
     /// </summary>
     public abstract class AseButtonBase : Button
     {
+        /// <summary>标签缓存（Create 工厂建好后直写，避免首个 getter 再 Find）。</summary>
+        protected TextMeshProUGUI _label;
+
+        /// <summary>可见标签件（<c>Label</c> 孩子）。
+        /// **取文案请走这里，别用 <c>GetComponentInChildren&lt;TextMeshProUGUI&gt;</c>**——
+        /// 影子层按 theme 绘制序被插到兄弟序 0（压在标签下），泛搜会先取到那层**不可见**的
+        /// 影子：文字写进去不显示、可见标签留空还让按钮按空文案收窄
+        /// （实拍：选关列表整列出战按钮被挤成细条、船员列表已解锁行按钮无字）。
+        /// 场景重载后私有字段不序列化，按名兜底重取。按钮族同款，收在基类。</summary>
+        public TextMeshProUGUI Label
+        {
+            get
+            {
+                if (_label == null)
+                {
+                    Transform child = transform.Find("Label");
+                    _label = child != null ? child.GetComponent<TextMeshProUGUI>() : null;
+                }
+                return _label;
+            }
+        }
+
         /// <summary>业务"当前值"态。按钮族共用（<see cref="SketchButton"/> 走 <c>Sticky</c> 别名）。</summary>
         protected bool _active;
 

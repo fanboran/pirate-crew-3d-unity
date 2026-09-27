@@ -58,14 +58,12 @@ namespace PirateCrew.UI.Stick
             TMP_FontAsset font, float fontSize, Vector2 anchor, Vector2 pivot,
             Vector2 anchoredPosition, float height, Color? labelColor = null)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            RectTransform rect = go.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
+            RectTransform rect = UiKit.CreateRect(name, parent);
             rect.anchorMin = anchor;
             rect.anchorMax = anchor;
             rect.pivot = pivot;
 
-            var check = go.AddComponent<SketchCheck>();
+            var check = rect.gameObject.AddComponent<SketchCheck>();
             check.Radio = radio;
             check.transition = Transition.ColorTint;
             check.targetGraphic = check.BuildBackground(rect);

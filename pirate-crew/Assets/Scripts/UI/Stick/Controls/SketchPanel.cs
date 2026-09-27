@@ -66,16 +66,14 @@ namespace PirateCrew.UI.Stick
         public static SketchPanel Create(Transform parent, string name, Vector2 anchor, Vector2 pivot,
             Vector2 anchoredPosition, Vector2 size, Tone tone = Tone.Dark, bool titled = false)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            RectTransform rect = go.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
+            RectTransform rect = UiKit.CreateRect(name, parent);
             rect.anchorMin = anchor;
             rect.anchorMax = anchor;
             rect.pivot = pivot;
             rect.sizeDelta = size;
             rect.anchoredPosition = anchoredPosition;
 
-            var panel = go.AddComponent<SketchPanel>();
+            var panel = rect.gameObject.AddComponent<SketchPanel>();
             panel.Compact = false;
             panel.Titled = titled;
             BuildVisuals(rect, out panel._plate);
@@ -101,16 +99,14 @@ namespace PirateCrew.UI.Stick
 
         private static UnityEngine.UI.Image AddPart(RectTransform root, string partName)
         {
-            var go = new GameObject(partName, typeof(RectTransform));
-            RectTransform rt = go.GetComponent<RectTransform>();
-            rt.SetParent(root, false);
+            RectTransform rt = UiKit.CreateRect(partName, root);
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = Vector2.one;
             rt.pivot = new Vector2(0.5f, 0.5f);
             rt.offsetMin = Vector2.zero;
             rt.offsetMax = Vector2.zero;
 
-            var image = go.AddComponent<UnityEngine.UI.Image>();
+            var image = rt.gameObject.AddComponent<UnityEngine.UI.Image>();
             image.type = UnityEngine.UI.Image.Type.Sliced;
             image.color = Color.white;      // 像素件禁止乘色：tone 色阶烘在贴图里
             // 命中区 = 整个窗体 bounds（源 widget.cpp hitTest 语义）：底面必须接光，

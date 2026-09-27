@@ -21,17 +21,15 @@ namespace PirateCrew.UI.Stick
         public static SketchButtonSetIcon Create(Transform parent, string name, string label,
             string iconPart, Vector2 anchoredPosition, Vector2 size)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            RectTransform rect = go.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
+            RectTransform rect = UiKit.CreateRect(name, parent);
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
             rect.sizeDelta = size;
             rect.anchoredPosition = anchoredPosition;
 
-            var image = go.AddComponent<Image>();
+            var image = rect.gameObject.AddComponent<Image>();
             image.raycastTarget = true;
 
-            var item = go.AddComponent<SketchButtonSetIcon>();
+            var item = rect.gameObject.AddComponent<SketchButtonSetIcon>();
             item.InitAseSkin(image);      // targetGraphic + SpriteSwap + 全白 ColorBlock
 
             // 文字 top：边框内再收内距——border-top 3 + padding-top 2 = 5（theme.xml:1067/:1114），

@@ -4,6 +4,26 @@ using UnityEngine.UI;
 namespace PirateCrew.UI.DebugUi
 {
     /// <summary>
+    /// 修饰键单点（源 message.h:52-58 的 shift/alt/cmd 键语义）。键盘导航、剪贴板、
+    /// 翻页扩展等键盘命令原先在 <c>AseListbox</c>/<c>AseMenuKit</c>/<c>AseEntry</c>
+    /// 各写一套 <c>Input.GetKey(Left|Right)</c>——收口为唯一实现。
+    /// </summary>
+    public static class AseKeyMods
+    {
+        public static bool Alt =>
+            Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
+
+        public static bool Shift =>
+            Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+
+        /// <summary>kKeyCtrl / kKeyCmd 在 Unity 里落在 Control 与 Command 两族
+        /// （approx：源码按平台二选一，这里两族都收——Windows 上 Command 不存在，无碍）。</summary>
+        public static bool CtrlOrCmd =>
+            Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)
+            || Input.GetKey(KeyCode.LeftCommand) || Input.GetKey(KeyCode.RightCommand);
+    }
+
+    /// <summary>
     /// aseprite 语义的**单点工具**：坐标换算 / 状态映射 / 件挂皮 / 视口裁剪 / 弹层宿主。
     ///
     /// 【为什么存在】参考库的四条架构不变量（单一绝对坐标系 widget.cpp:1223-1226；

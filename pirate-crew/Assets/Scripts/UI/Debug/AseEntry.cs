@@ -636,9 +636,7 @@ namespace PirateCrew.UI.DebugUi
             DeleteToEndOfLine, Cut, Copy, Paste, SelectAll,
         }
 
-        static bool CtrlHeld => Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-        static bool AltHeld => Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
-        static bool ShiftHeld => Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+        // 修饰键语义统一走 AseKeyMods 单点（原 AseKeyMods.CtrlOrCmd/AseKeyMods.Alt/AseKeyMods.Shift 三行本地实现删除）
 
         /// <summary>
         /// 源 <c>cmdFromKeyMessage()</c>（textcmd.cpp:21-99）逐条移植。
@@ -648,7 +646,7 @@ namespace PirateCrew.UI.DebugUi
         /// </summary>
         Cmd CmdFromKeyMessage()
         {
-            bool ctrl = CtrlHeld, alt = AltHeld, shift = ShiftHeld;
+            bool ctrl = AseKeyMods.CtrlOrCmd, alt = AseKeyMods.Alt, shift = AseKeyMods.Shift;
 
             if (Input.GetKeyDown(KeyCode.LeftArrow))
                 return (ctrl || alt) ? Cmd.PrevWord : Cmd.PrevChar;
@@ -701,7 +699,7 @@ namespace PirateCrew.UI.DebugUi
 
             if (cmd != Cmd.NoOp)
             {
-                ExecuteCmd(cmd, 0, ShiftHeld);   // 源：msg->shiftPressed()
+                ExecuteCmd(cmd, 0, AseKeyMods.Shift);   // 源：msg->shiftPressed()
                 return;
             }
 
@@ -714,7 +712,7 @@ namespace PirateCrew.UI.DebugUi
             string typed = Input.inputString;
             if (string.IsNullOrEmpty(typed))
                 return;
-            bool ctrl = CtrlHeld;
+            bool ctrl = AseKeyMods.CtrlOrCmd;
             for (int i = 0; i < typed.Length; i++)
             {
                 char c = typed[i];
@@ -1227,12 +1225,12 @@ namespace PirateCrew.UI.DebugUi
                 int x1 = Mathf.RoundToInt(_boxes[to].x) - scrollPx;
                 int sw = x1 - x0;
 
-                SetTopLeft(_selection.rectTransform, x0, textTop, sw, th);
+                UiKit.PlaceTopLeft(_selection.rectTransform, x0, textTop, new Vector2(sw, th));
                 _selection.enabled = sw > 0;
 
                 if (_darkClip != null)
                 {
-                    SetTopLeft(_darkClip, x0, textTop, sw, th);
+                    UiKit.PlaceTopLeft(_darkClip, x0, textTop, new Vector2(sw, th));
                     _darkClip.gameObject.SetActive(sw > 0);
                     // 暗色层与常态层同源排版：暗色层局部左缘 = -scroll - x0，
                     // 使其字形与常态层在文本区同一 x 上重合，仅被裁到选区窗口。
@@ -1284,18 +1282,11 @@ namespace PirateCrew.UI.DebugUi
                 // 组合态光标停在预编辑串末尾（系统惯例）——box.x + 组合串实宽
                 int cx = Mathf.RoundToInt((_boxes[idx].x + compW) * Scale.x) - scrollPx;
                 int cy = textTop + th / 2 - CaretHeight / 2;
-                SetTopLeft(_caretQuad.rectTransform, cx, cy, CaretWidthPx, CaretHeight);
+                UiKit.PlaceTopLeft(_caretQuad.rectTransform, cx, cy, new Vector2(CaretWidthPx, CaretHeight));
             }
         }
 
         /// <summary>左顶锚摆放（整数像素坐标）。</summary>
-        static void SetTopLeft(RectTransform rect, int x, int yTop, int w, int h)
-        {
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-            rect.sizeDelta = new Vector2(w, h);
-            rect.anchoredPosition = new Vector2(x, -yTop);
-        }
-
         // ==================================================================
         // 外向文本模型（禁用态 TMP_InputField）
         // ==================================================================

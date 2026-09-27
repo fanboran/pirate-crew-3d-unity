@@ -33,9 +33,7 @@ namespace PirateCrew.UI.Stick
             Vector2 pivot, Vector2 anchoredPosition, Vector2 size,
             Direction direction = Direction.Horizontal)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            RectTransform rect = go.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
+            RectTransform rect = UiKit.CreateRect(name, parent);
             rect.anchorMin = anchor;
             rect.anchorMax = anchor;
             rect.pivot = pivot;
@@ -47,7 +45,7 @@ namespace PirateCrew.UI.Stick
                 : new Vector2(SeparatorThickness, size.y);
             rect.anchoredPosition = anchoredPosition;
 
-            var separator = go.AddComponent<SketchSeparator>();
+            var separator = rect.gameObject.AddComponent<SketchSeparator>();
             separator.Dir = direction;
             separator.Apply();
             return separator;

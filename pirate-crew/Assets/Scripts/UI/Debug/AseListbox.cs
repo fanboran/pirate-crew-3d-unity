@@ -131,13 +131,13 @@ namespace PirateCrew.UI.DebugUi
         internal void NotifyRowDown(AseListItem item)
         {
             _pressed = true;
-            SelectChild(item, SelectMessage.MouseDown, CtrlOrCmdHeld());   // listbox.cpp:201 kMouseDown
+            SelectChild(item, SelectMessage.MouseDown, AseKeyMods.CtrlOrCmd);   // listbox.cpp:201 kMouseDown
         }
 
         internal void NotifyRowEnter(AseListItem item)
         {
             if (_pressed)
-                SelectChild(item, SelectMessage.MouseMove, CtrlOrCmdHeld());   // listbox.cpp:203 kMouseMove
+                SelectChild(item, SelectMessage.MouseMove, AseKeyMods.CtrlOrCmd);   // listbox.cpp:203 kMouseMove
         }
 
         /// <summary>单选语义（listbox.cpp:111-121 <c>newState = (child == item)</c>），
@@ -223,7 +223,7 @@ namespace PirateCrew.UI.DebugUi
             if (index < 0 || index >= _rows.Count)
                 return;
             if (_multiselect)
-                SelectChild(_rows[index], SelectMessage.KeyDown, CtrlOrCmdHeld());
+                SelectChild(_rows[index], SelectMessage.KeyDown, AseKeyMods.CtrlOrCmd);
             else
                 SelectChild(_rows[index]);
         }
@@ -296,7 +296,7 @@ namespace PirateCrew.UI.DebugUi
 
             // keymsg->onlyCmdPressed()（listbox.cpp:271-276）：只按 Cmd/Ctrl 时 上/下 = Home/End。
             // 本工程把 Ctrl/Command 当 Cmd（approx：源码按平台二选一），"only" 落成无 Shift 无 Alt。
-            if (CtrlOrCmdHeld() && !ShiftHeld() && !AltHeld())
+            if (AseKeyMods.CtrlOrCmd && !AseKeyMods.Shift && !AseKeyMods.Alt)
             {
                 if (scancode == KeyCode.UpArrow) scancode = KeyCode.Home;
                 else if (scancode == KeyCode.DownArrow) scancode = KeyCode.End;
@@ -471,21 +471,8 @@ namespace PirateCrew.UI.DebugUi
             content.anchoredPosition = new Vector2(content.anchoredPosition.x, -y);
         }
 
-        static bool AltHeld()
-        {
-            return Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
-        }
 
-        static bool ShiftHeld()
-        {
-            return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-        }
 
-        static bool CtrlOrCmdHeld()
-        {
-            return Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)
-                || Input.GetKey(KeyCode.LeftCommand) || Input.GetKey(KeyCode.RightCommand);
-        }
     }
 
     /// <summary>列表行（listitem.cpp：<c>ListItem</c>，kListItemWidget）。行面与字色直接写
