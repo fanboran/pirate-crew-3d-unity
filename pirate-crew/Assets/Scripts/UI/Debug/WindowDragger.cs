@@ -56,15 +56,19 @@ namespace PirateCrew.UI.DebugUi
             return dragger;
         }
 
-        /// <summary>把窗体提到**自己父层**的最上（桌面语义=点击/新开的窗永远在同层窗之上）。
-        /// 【为什么要走父层而不是画布根】调试窗全挂 <c>DebugMenuHost._root</c> 容器——
-        /// 若沿父链提到画布直属根，提的是整个 _root，**窗与窗之间的顺序从未改变**
-        /// （「置顶只对部分窗口生效」的元凶）。_root 与画布内其他顶层（主菜单窗）的
-        /// 跨组顺序由打开调试器时的 _root.SetAsLastSibling 把关。</summary>
+        /// <summary>把窗体提到**整个画布所有窗之上**（Windows 普通窗口语义：点击的窗
+        /// 浮顶，其他窗相对顺序不变；只有排它模态例外）。容器树挡不住——本层提顶后
+        /// 沿祖先链逐层提顶（窗在 _root 内最后、_root 在画布内最后），被点窗永远画在
+        /// 全体之上；组内其他窗随容器一起抬到被跨过的顶层之上（调试树整体浮顶，
+        /// 调试器打开时的合理形态）。</summary>
         public static void RaiseToCanvasTop(RectTransform window)
         {
-            if (window != null)
-                window.SetAsLastSibling();
+            Transform t = window;
+            while (t != null && t.parent is RectTransform)
+            {
+                t.SetAsLastSibling();
+                t = t.parent;
+            }
         }
 
         public void OnPointerDown(PointerEventData eventData)
