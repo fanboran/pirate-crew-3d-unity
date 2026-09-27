@@ -9,6 +9,7 @@ using PirateCrew.Battle;
 using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Combat;
 using PirateCrew.Data;
+using PirateCrew.UI.Stick;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -396,7 +397,13 @@ namespace PirateCrew.UI
                 if (modeButtons[i] == null || modeFrames[i] == null)
                     continue;
 
-                UiKit.ApplyThemeButton(modeButtons[i], modeFrames[i], sticky: i == (int)_mode);
+                // 【产线合一 W2】按钮实际都出 SketchButton（ActionButton 薄壳化），业务选中
+                // 直接走 Sticky（状态层引擎单一真源）；else 分支只是非 SketchButton 的兜底。
+                bool selected = i == (int)_mode;
+                if (modeButtons[i] is SketchButton sketch)
+                    sketch.Sticky = selected;
+                else
+                    UiKit.ApplyThemeButton(modeButtons[i], modeFrames[i], sticky: selected);
             }
         }
 
@@ -817,7 +824,12 @@ namespace PirateCrew.UI
                 if (weaponFrames != null && i < weaponFrames.Length && weaponFrames[i] != null)
                 {
                     bool chosen = equipped && i == (int)equippedId;
-                    UiKit.ApplyThemeButton(weaponButtons[i], weaponFrames[i], sticky: chosen);
+                    // 【产线合一 W2】武器格已出 SketchButton（BattleHudBuilder 改产线），
+                    // 已装备 = Sticky 金面；未拥有 = disabled 双层影子字由引擎承担。
+                    if (weaponButtons[i] is SketchButton sketch)
+                        sketch.Sticky = chosen;
+                    else
+                        UiKit.ApplyThemeButton(weaponButtons[i], weaponFrames[i], sticky: chosen);
                 }
             }
         }
