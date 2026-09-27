@@ -191,7 +191,10 @@ namespace PirateCrew.UI
             if (count > 0 && bar.segments != null && bar.segmentRoot != null)
             {
                 float trackWidth = bar.segmentRoot.sizeDelta.x;
-                float segmentWidth = (trackWidth - 2f * SegmentInset - (count - 1) * SegmentGap) / count;
+                // 段宽向下取整：平涂段（2026-09-28 换装波）边缘必须落整格——
+                // 分数宽会在色块边缘糊出抗锯齿带。装配侧（BattleHudBuilder）同式。
+                float segmentWidth = Mathf.Floor(
+                    (trackWidth - 2f * SegmentInset - (count - 1) * SegmentGap) / count);
                 for (int i = 0; i < count && i < bar.segments.Length; i++)
                 {
                     var rect = bar.segments[i] != null
@@ -206,11 +209,10 @@ namespace PirateCrew.UI
             }
         }
 
-    /// <summary>段间距 / 段区**两端**内边距（画布像素；与 BattleHudBuilder 的 1 不同值——
-    /// ×3 时代两处同源，÷3 取整后运行时侧=3 / 装配侧=1 漂移，复核挂重构波）。
-    /// 两端各缩进让 Track 外环左右两缘都露出，右缘描边不被末段盖掉。</summary>
-    const float SegmentGap = 3f;
-    const float SegmentInset = 3f;
+    /// <summary>段间距 / 段区**两端**内边距（画布像素；与 BattleHudBuilder 同源=1——
+    /// 2026-09-28 换装波统一两侧：平涂槽 1 格缝即分段读感，两端各缩 1 露暗槽）。</summary>
+    const float SegmentGap = 1f;
+    const float SegmentInset = 1f;
 
         /// <summary>阵亡 pip 压暗：CanvasGroup alpha（不烘黑图、不给像素件乘色）。</summary>
         static void SetPipDimmed(GameObject pipRoot, bool dimmed)

@@ -232,11 +232,12 @@ namespace PirateCrew.Tests
             Assert.IsTrue(hud.HasTeamBarWiring, "HUD 双队血条（段+pips）未全部接线");
             Assert.IsTrue(hud.HasModeWiring, "HUD 模式图标钮未全部接线");
 
-            // ---- 小地图（c78fdea 复盘：BuildAll 单独重存曾把 BattleMinimap 组件整颗洗掉，
-            //      海图空白静默三轮——组件在 + 接线在必须成为门禁）----
+            // ---- 小地图（c78fdea 复盘：组件在必须成为门禁；2026-09-28 创始人裁决：
+            //      外框换 Aseprite 窗体、**内容清空暂态**——dotLayer 不接线即休眠）----
             var minimap = Object.FindObjectOfType<BattleMinimap>();
             Assert.IsNotNull(minimap, "Battle 场景应有 BattleMinimap 组件（WireMinimap 未跑？）");
-            Assert.IsTrue(minimap.HasMinimapWiring, "小地图接线不完整（dotLayer/unitRoots）");
+            Assert.IsNull(minimap.DotLayer,
+                "海图应为空窗暂态（dotLayer 不接线）；恢复内容时同步改回 HasMinimapWiring 断言");
 
             // ---- 回合开始与推进 ----
             Assert.IsTrue(turnManager.Started, "TurnManager 应已开始第一回合");

@@ -407,6 +407,9 @@ namespace PirateCrew.UI
         /// <summary>挑战失败。</summary>
         public const string SettlementFail = "挑战失败";
 
+        /// <summary>结算窗体的标题带文字（窗框名，区别于窗内胜负大字）。</summary>
+        public const string SettlementPanelTitle = "战斗结算";
+
         /// <summary>结算行：关卡。</summary>
         public const string SettlementRowLevelFormat = "关卡　{0}";
 

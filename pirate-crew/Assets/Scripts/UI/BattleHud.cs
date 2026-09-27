@@ -23,7 +23,7 @@ namespace PirateCrew.UI
     ///   · **顶栏双队合成血条**：左右屏缘各一条，每名存活单位 = 一段分格（受击只掉自己那段，
     ///     白色 damage ghost 残影延迟回落），条下一排小方格 pips（存活空格 / 阵亡「×」——
     ///     职业头像图标已退役）；**头顶血条已根除**（非像素世界空间件清退），这是唯一血量读数；
-    ///   · **中央回合徽章**：暖金环 + 数字，回合切换弹跳；
+    ///   · **中央回合徽章**：theme 金面钮（button_selected）+ 数字，回合切换弹跳；
     ///   · **武器面板**：17 武器各占一格**文字钮**（武器中文名），投掷 / 结束回合为文字按钮；
     ///   · 模式开关 = 移动 / 操作 / 观察三文字钮（快捷键 1/2/3 角标）；暂停 / 返回 = 文字钮。
     ///
@@ -382,35 +382,22 @@ namespace PirateCrew.UI
                 _crosshair.gameObject.SetActive(visible);
         }
 
-        /// <summary>模式图标钮状态：选中 = 换悬停档贴图 + 开 Focus 环；未选中 = 常态贴图。
-        /// 【为什么不乘色】像素件的明暗色阶烘死在贴图里，状态必须换贴图
-        /// （与 <see cref="UiKit.ApplyThemeButton"/> 的 SpriteSwap 同口径）。</summary>
+        /// <summary>模式钮状态：选中 = 金面（<see cref="UiKit.ApplyThemeButton"/> sticky 档，
+        /// 四态全钉 button_selected——悬停/按压不再回落灰面）；未选中 = 常态灰面。
+        /// 与菜单系统选中语义同源（2026-09-28 Aseprite 换装波，Focus 环退役）。
+        /// 【为什么不乘色】像素件的明暗色阶烘死在贴图里，状态必须换贴图。</summary>
         void RefreshModeSegments()
         {
-            if (modeFrames == null)
+            if (modeButtons == null || modeFrames == null)
                 return;
 
-            for (int i = 0; i < modeFrames.Length && i < 3; i++)
+            for (int i = 0; i < modeButtons.Length && i < 3 && i < modeFrames.Length; i++)
             {
-                if (modeFrames[i] == null)
+                if (modeButtons[i] == null || modeFrames[i] == null)
                     continue;
 
-                bool selected = i == (int)_mode;
-                modeFrames[i].sprite = PixelSkin.Plate(PixelTone.Dense,
-                    selected ? PixelState.Hovered : PixelState.Normal);
-                SetFocusRing(modeFrames[i].transform, selected);
+                UiKit.ApplyThemeButton(modeButtons[i], modeFrames[i], sticky: i == (int)_mode);
             }
-        }
-
-        /// <summary>开/关控件上的 Focus 环子件（选中态的唯一表达，替代旧乘色高亮）。</summary>
-        static void SetFocusRing(Transform control, bool visible)
-        {
-            if (control == null)
-                return;
-
-            Transform focus = control.Find("Focus");
-            if (focus != null && focus.gameObject.activeSelf != visible)
-                focus.gameObject.SetActive(visible);
         }
 
         void RefreshModeHint()
@@ -825,13 +812,11 @@ namespace PirateCrew.UI
                 // 未拥有 → 按钮禁用（theme disabled 双层影子字压暗，不烘黑图也不乘色）。
                 weaponButtons[i].interactable = owned;
 
-                // 格底状态 = 换贴图 + Focus 环：已装备 = 悬停档 + 开环；其余 = 常态。
+                // 格底状态：已装备 = 金面 sticky（四态全钉 button_selected）；其余 = 常态灰面。
                 if (weaponFrames != null && i < weaponFrames.Length && weaponFrames[i] != null)
                 {
                     bool chosen = equipped && i == (int)equippedId;
-                    weaponFrames[i].sprite = PixelSkin.Plate(PixelTone.Dense,
-                        chosen ? PixelState.Hovered : PixelState.Normal);
-                    SetFocusRing(weaponFrames[i].transform, chosen);
+                    UiKit.ApplyThemeButton(weaponButtons[i], weaponFrames[i], sticky: chosen);
                 }
             }
         }

@@ -125,6 +125,15 @@ namespace PirateCrew.UI
         // Start 在所有 Awake 之后执行，此时单位已生成（见 BattleController.Awake → SpawnTeams）。
         void Start()
         {
+            // 【空窗暂态（创始人 2026-09-28 裁决）】海图只留 Aseprite 窗体外框、内容清空——
+            // dotLayer 未接线时整组件休眠（不建点、不进重试循环、不告警）。
+            // 恢复内容：HudMinimapSceneSetup 重建 DotLayer 接线即自动恢复本路径。
+            if (dotLayer == null)
+            {
+                _buildAbandoned = true;
+                return;
+            }
+
             ConfigureWorldChartFromRuntime();
             TryBuild();
         }
