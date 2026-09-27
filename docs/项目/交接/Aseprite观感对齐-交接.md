@@ -1124,10 +1124,11 @@ UGUI **顶锚系 y 向上正**，上移应为 **+scroll**：符号反了，往�
 **① 点击置顶只对部分窗口生效**：根因 = `RaiseToCanvasTop` 沿父链**走到画布直属根**
 再 SetAsLastSibling——调试窗全挂 `DebugMenuHost._root` 容器，提的是**整个 _root**，
 窗与窗之间的顺序从未改变；只有「主菜单窗 vs 调试树」这种跨容器比较碰巧生效，即
-「部分窗口」的观感。**修**：置顶 = 目标**自身在其父层**内提顶（源语义：Manager 直属
-的每个顶层窗互调，对应 _root 里的调试窗互调）；_root 与画布内其他顶层的跨组顺序由
-打开调试器时的 `_root.SetAsLastSibling` 把关（已有）。组合框弹层补 IPointerDown
-置顶（弹层也是顶层窗，combobox.cpp 开窗即入 Manager 栈顶）。
+「部分窗口」的观感。**修（创始人裁决口径）**：置顶 = **链式提层**——本层提顶后沿
+祖先链逐层提顶，被点窗浮到**整个画布所有窗之上**（Windows 普通窗口语义：点谁谁顶，
+只有排它模态例外；组内其他窗随容器一起抬高 = 调试树整体浮顶）。组合框弹层补
+IPointerDown 置顶（弹层也是顶层窗，combobox.cpp 开窗即入 Manager 栈顶）。
+中途曾试过「自身父层内提顶」——不够（跨容器比较仍失效），创始人明示要全局提层。
 
 **② 中文打不出**：自制编辑器没走 UGUI 焦点协议，`imeCompositionMode=Auto` 下 Game
 视图不申领 IME。**修**：OnSelect 开 `IMECompositionMode.On` / OnDeselect 还 Auto
