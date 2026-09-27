@@ -305,16 +305,9 @@ namespace PirateCrew.UI
         /// <summary>标题带内文字的孩子名（三处窗体共用，装配幂等按名复用）。</summary>
         const string TitleLabelName = "TitleLabel";
 
-        /// <summary>窗体实际内容顶的载体（挂在窗根上；无此组件 = 原生 17 口径）。
-        /// 标题字大时带装不下（创始人裁决：**溢出可以接受**），但内容起点必须随字高
-        /// 下移拉开距离（防标题与下方元素穿模）——窗内排版都问它。</summary>
-        public sealed class AseWindowTitleBand : MonoBehaviour
-        {
-            /// <summary>实际内容顶 = 窗顶到内容区起点的距离（原生 = 17：带 15 + 缝 2）。</summary>
-            public float ContentTop = 17f;
-        }
-
-        /// <summary>窗体实际内容顶（标题字大时 &gt; 17）。窗根无带组件时回落原生口径。</summary>
+        /// <summary>窗体实际内容顶（标题字大时 &gt; 17）。窗根无带组件时回落原生口径。
+        /// 带组件本体见 <see cref="AseWindowTitleBand"/>（独立文件——MonoBehaviour
+        /// 不许嵌套，嵌套件存不进 Prefab，2026-09-28 Battle 折叠实锤后迁出）。</summary>
         public static float WindowContentTopOf(RectTransform window)
         {
             var band = window != null ? window.GetComponent<AseWindowTitleBand>() : null;
