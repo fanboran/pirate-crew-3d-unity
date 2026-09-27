@@ -1119,6 +1119,32 @@ UGUI **顶锚系 y 向上正**，上移应为 **+scroll**：符号反了，往�
 遮挡关系变化；实拍目检窗完整在位、弹层开着）；widget 0.37% = ScrollDemo 组合 + 小量
 叠序。提交 `84aef7a3`/`05fbf19c`/`62755ba9`，merge `5b3e1d44`。
 
+## 三之十四、三诉三修：置顶半生效 / IME 中文 / 光标偏右（2026-09-27，创始人三连诉）
+
+**① 点击置顶只对部分窗口生效**：根因 = `RaiseToCanvasTop` 沿父链**走到画布直属根**
+再 SetAsLastSibling——调试窗全挂 `DebugMenuHost._root` 容器，提的是**整个 _root**，
+窗与窗之间的顺序从未改变；只有「主菜单窗 vs 调试树」这种跨容器比较碰巧生效，即
+「部分窗口」的观感。**修**：置顶 = 目标**自身在其父层**内提顶（源语义：Manager 直属
+的每个顶层窗互调，对应 _root 里的调试窗互调）；_root 与画布内其他顶层的跨组顺序由
+打开调试器时的 `_root.SetAsLastSibling` 把关（已有）。组合框弹层补 IPointerDown
+置顶（弹层也是顶层窗，combobox.cpp 开窗即入 Manager 栈顶）。
+
+**② 中文打不出**：自制编辑器没走 UGUI 焦点协议，`imeCompositionMode=Auto` 下 Game
+视图不申领 IME。**修**：OnSelect 开 `IMECompositionMode.On` / OnDeselect 还 Auto
+（源 entry.cpp:283-292 setTextInput）；组合串（`Input.compositionString`）作为预编辑
+显示在光标插入点处，定稿字符经 `Input.inputString` 走既有 `InsertTypedChars` 上屏。
+
+**③ 光标前进比文字长（偏右）**：字符盒几何源用了 `characterInfo.xAdvance` 累加——
+**xAdvance 不含 characterSpacing**，位图字档下每字比实际渲染宽，光标逐字偏右。
+**修**：换 **TMP 实渲染顶点制**（bottomLeft/bottomRight）——盒左缘/宽 = 字的实际
+顶点（含一切字距），选区/鼠标命中同源受益。
+
+**验证口径**：IME 与键盘交互无法遥控取证，代码语义对齐源口径后留创始人实机复测；
+七拍 diff 归因——widget +小量 = 输入框 caret 顶点制的有意变化 + TMP 图集字形微差族
+（骨架零位移口径见 §三之十三）。提交 `a4cc37a9`/`dc76b855`，merge `74e730bd`。
+另：refresh 与 capture 旗标有**竞态**（域重载第二段会打断刚起跑的采集）——发 flag 前
+先 `stop` 清场、等编辑器空闲，脚本 recap4.sh 已按此重跑。
+
 ## 四、遗留（非本波文件域）
 
 - `BattleSceneLighting.EnsureMaterial` Shader.Find 报错（上一会话遗留，Battle 材质链）。
