@@ -26,7 +26,7 @@ esac
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PROJ="${PC3D_PROJ:-$ROOT/pirate-crew}"
-UNITY="${PC3D_UNITY:-F:/Unity/2022.3.62f1c1/Editor/Unity.exe}"
+UNITY="${PC3D_UNITY:-F:/Unity/2022.3.62f1/Editor/Unity.exe}"
 TS="$(date +%Y%m%d-%H%M%S)"
 LOG="$TEMP/pc3d-headless-$MODE-$TS.log"
 mkdir -p "$TEMP"

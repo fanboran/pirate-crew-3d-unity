@@ -46,7 +46,7 @@ PirateCrew/UI/打开组件展示（构建并播放）。
 | ⑧ | `ScenePrefabCollapse.CollapseBattle` | **折叠**：全部根收进载体根 → 存 `BattleRig.prefab` → 场景只留实例 |
 
 ```bash
-U="F:/Unity/2022.3.62f1c1/Editor/Unity.exe"
+U="F:/Unity/2022.3.62f1/Editor/Unity.exe"
 P="F:/VSCode/pirate-crew-3d-unity/pirate-crew"
 
 # 只重跑 Battle 子链（改战斗场景时的常用入口，一条命令顶原先的六步）

@@ -39,77 +39,8 @@ namespace PirateCrew.EditorTools
         /// <summary>小地图面板名（必须与 HudMinimapSceneSetup.MinimapPanelName 一致，且为 Canvas 直接子节点）。</summary>
         public const string MinimapPanelName = "MinimapPanel";
 
-        const float Safe = 4f;   // HUD 几何边缘安全距（画布像素）
-
-        // ------------------------------------------------------------------
-        // HUD zone 表（对齐 game-2 hud_zone_layout 的"定位归表"思路——对齐关系在这里
-        // 一次算清，部件不再各自手写坐标；越界/相撞由 Build 末尾的防撞自检兜底）。
-        //
-        // 尺寸纪律：可见包边件不低于九宫格切片和（theme button 上下切片和 = 10、
-        // window 边框 3、sunken 边框 3），anchoredPosition 至少取整。
-        // 文字尺寸不在纪律内（原生档四档，见 UiSkin.Font）。
-        // ------------------------------------------------------------------
-
-        /// <summary>顶部带垂直中心**距屏顶**的像素（血条/徽章的锚顶偏移）。</summary>
-        const float TopBandFromTop = 8f;
-
-        // ---------------- 顶栏：双队血条 + pips（theme 平涂） ----------------
-
-        /// <summary>队血条宽 / 高（红蓝镜像等长；段宽运行时按实际人数重排）。
-        /// 平涂槽时代高度 8 = 槽底 8 格、段上下各让 1 格露槽 → 填充带 6 格。</summary>
-        const float TeamBarWidth = 99f;
-        const float TeamBarHeight = 8f;
-
-        /// <summary>段间距 / 段区两端内边距（与 BattleHud.SegmentGap/SegmentInset 同源=1：
-        /// 平涂槽 1 格缝即分段读感。段宽向下取整保平涂段边缘落整格）。</summary>
-        const float SegmentGap = 1f;
-        const float SegmentInset = 1f;
-
-        /// <summary>红条左端 = 小地图右缘 + 缝；蓝条右端镜像同值。
-        /// 海图加大到 144 宽（2026-09-28 创始人「面积为什么这么小」）→ 4 + 144 + 8。</summary>
-        const float TeamBarInsetX = 156f;
-
-        /// <summary>pip 尺寸 / 间距（血条正下方一排队色方格，阵亡「×」+ 压暗）。</summary>
-        const float PipSize = 6f;
-        const float PipGap = 2f;
-
-        /// <summary>回合徽章 = theme button_selected 金面钮（12×12，button 切片和 10 的最小安全档）；
-        /// 数字用 Tiny 档（两位数回合号在 12 格内不溢）。</summary>
-        const float BadgeSize = 12f;
-
-        /// <summary>模式钮行：血条带下方独立一行（与蓝条 x 区段重叠，靠 y 错层避撞）。</summary>
-        const float ModeButtonDrop = 16f;
-
-        /// <summary>模式文字钮尺寸（宽 = <see cref="UiSkin.Px.ButtonWidth"/>）。
-        /// 高 20（2026-09-28 创始人「垂直方向按钮太小」：12 号字上下各留 4 格，
-        /// 不再贴 theme 原生 16 的紧凑档）。</summary>
-        const float ModeButtonHeight = 20f;
-
-        // ---------------- 底部带：武器面板（theme 窗体） ----------------
-
-        /// <summary>武器面板：贴底居中（bottom = Safe）。窗体几何：边框 6 / 内容顶随标题
-        /// 字高（12 号 → 23）。宽 406 = 6 + 格区 394 + 6；高 124 = 内容顶 23 + 格区 58 +
-        /// 缝 2 + 行动行 20 + 缝 2 + 信息行 12 + 底边 6 + 1 余。</summary>
-        const float WeaponPanelWidth = 406f;
-        const float WeaponPanelHeight = 124f;
-
-        /// <summary>武器文字格尺寸 / 间距 / 列数（6×3 = 18 格，17 武器 + 1 空）。
-        /// 格宽 64 = 最长武器名「降落伞炸弹」5 字 × 10 原生档 = 50 + 余量；格高 18 =
-        /// 10 号字上下各留 4 格（文字降一号建层级，2026-09-28 创始人令——全 12 号
-        /// 「整个面板文字都一样大」）。</summary>
-        const float WeaponCell = 64f;
-        const float WeaponCellHeight = 18f;
-        const float WeaponCellGap = 2f;
-        const int WeaponColumns = 6;
-
-        /// <summary>HUD 按钮高（20：12 号字上下各留 4 格——2026-09-28 创始人
-        /// 「垂直方向按钮大小太小」，theme 原生 16 装 12 号字只剩 2 格余量太挤）。</summary>
-        const float HudButtonHeight = 20f;
-
-        /// <summary>小地图窗尺寸（2026-09-28 创始人「面积为什么这么小」：64×44 太小，
-        /// 提到 144×96 占角面积；内容仍为清空暂态）。</summary>
-        const float MinimapWidth = 144f;
-        const float MinimapHeight = 96f;
+        // 全部 HUD 几何 / 摆位常量已收敛到 BattleHudZones 单一真源（改数字只改那里），
+        // 本构建器只消费；下方引用点一律写 BattleHudZones.Xxx。
 
         /// <summary>构建产物：全部需要回写给 BattleHud 的引用。</summary>
         public sealed class Result
@@ -287,19 +218,19 @@ namespace PirateCrew.EditorTools
         {
             var view = new BattleHud.TeamBarView();
 
-            float barTop = TopBandFromTop - TeamBarHeight * 0.5f;
+            float barTop = BattleHudZones.TopBandFromTop - BattleHudZones.TeamBarHeight * 0.5f;
             RectTransform barRoot = UiKit.CreateRect("TeamBar_" + teamName, hudRoot);
             if (mirror)
             {
                 barRoot.anchorMin = barRoot.anchorMax = barRoot.pivot = new Vector2(1f, 1f);
-                barRoot.anchoredPosition = new Vector2(-TeamBarInsetX, -barTop);
+                barRoot.anchoredPosition = new Vector2(-BattleHudZones.TeamBarInsetX, -barTop);
             }
             else
             {
                 barRoot.anchorMin = barRoot.anchorMax = barRoot.pivot = new Vector2(0f, 1f);
-                barRoot.anchoredPosition = new Vector2(TeamBarInsetX, -barTop);
+                barRoot.anchoredPosition = new Vector2(BattleHudZones.TeamBarInsetX, -barTop);
             }
-            barRoot.sizeDelta = new Vector2(TeamBarWidth, TeamBarHeight);
+            barRoot.sizeDelta = new Vector2(BattleHudZones.TeamBarWidth, BattleHudZones.TeamBarHeight);
 
             // 槽底 = theme disabled 面平涂（暗于 window_face，队色段在其上最跳）。
             var trough = barRoot.gameObject.AddComponent<Image>();
@@ -311,16 +242,16 @@ namespace PirateCrew.EditorTools
 
             // 段：每单位一格（段内白 ghost 垫底 + 队色 fill 在上；段间缝隙露出暗槽 = 分格读感）。
             // 段宽向下取整：平涂段边缘落整格（分数宽会在色块边缘糊出抗锯齿带）。
-            float innerWidth = TeamBarWidth - 2f * SegmentInset;
-            float segmentWidth = Mathf.Floor((innerWidth - (SegmentsPerTeam - 1) * SegmentGap) / SegmentsPerTeam);
+            float innerWidth = BattleHudZones.TeamBarWidth - 2f * BattleHudZones.SegmentInset;
+            float segmentWidth = Mathf.Floor((innerWidth - (SegmentsPerTeam - 1) * BattleHudZones.SegmentGap) / SegmentsPerTeam);
             view.segments = new BattleHud.UnitSegmentView[SegmentsPerTeam];
             for (int i = 0; i < SegmentsPerTeam; i++)
             {
-                float x = SegmentInset + i * (segmentWidth + SegmentGap);
+                float x = BattleHudZones.SegmentInset + i * (segmentWidth + BattleHudZones.SegmentGap);
                 RectTransform segment = UiKit.CreateRect("Segment_" + i, barRoot);
                 segment.anchorMin = segment.anchorMax = new Vector2(0f, 0.5f);
                 segment.pivot = new Vector2(0f, 0.5f);
-                segment.sizeDelta = new Vector2(segmentWidth, TeamBarHeight - 2f);   // 上下各让 1 露槽
+                segment.sizeDelta = new Vector2(segmentWidth, BattleHudZones.TeamBarHeight - 2f);   // 上下各让 1 露槽
                 segment.anchoredPosition = new Vector2(x, 0f);
 
                 Image ghost = FlatFill("Ghost", segment, UiSkin.DamageGhost);
@@ -336,21 +267,21 @@ namespace PirateCrew.EditorTools
 
             // pips：条下一排队色方格（存活 = 队色 / 阵亡 = 「×」+ CanvasGroup 压暗，
             // 运行时写入），与血条同侧对齐。
-            float pipTop = barTop + TeamBarHeight + 6f;
+            float pipTop = barTop + BattleHudZones.TeamBarHeight + 6f;
             RectTransform pipRoot = UiKit.CreateRect("Pips_" + teamName, hudRoot);
             if (mirror)
             {
                 pipRoot.anchorMin = pipRoot.anchorMax = new Vector2(1f, 1f);
                 pipRoot.pivot = new Vector2(1f, 1f);
-                pipRoot.anchoredPosition = new Vector2(-TeamBarInsetX, -pipTop);
+                pipRoot.anchoredPosition = new Vector2(-BattleHudZones.TeamBarInsetX, -pipTop);
             }
             else
             {
                 pipRoot.anchorMin = pipRoot.anchorMax = new Vector2(0f, 1f);
                 pipRoot.pivot = new Vector2(0f, 1f);
-                pipRoot.anchoredPosition = new Vector2(TeamBarInsetX, -pipTop);
+                pipRoot.anchoredPosition = new Vector2(BattleHudZones.TeamBarInsetX, -pipTop);
             }
-            pipRoot.sizeDelta = new Vector2(SegmentsPerTeam * (PipSize + PipGap) - PipGap, PipSize);
+            pipRoot.sizeDelta = new Vector2(SegmentsPerTeam * (BattleHudZones.PipSize + BattleHudZones.PipGap) - BattleHudZones.PipGap, BattleHudZones.PipSize);
             view.pipRoot = pipRoot;
 
             view.pips = new BattleHud.UnitPipView[SegmentsPerTeam];
@@ -359,8 +290,8 @@ namespace PirateCrew.EditorTools
                 RectTransform pip = UiKit.CreateRect("Pip_" + i, pipRoot);
                 pip.anchorMin = pip.anchorMax = new Vector2(0f, 0.5f);
                 pip.pivot = new Vector2(0f, 0.5f);
-                pip.sizeDelta = new Vector2(PipSize, PipSize);
-                pip.anchoredPosition = new Vector2(i * (PipSize + PipGap), 0f);
+                pip.sizeDelta = new Vector2(BattleHudZones.PipSize, BattleHudZones.PipSize);
+                pip.anchoredPosition = new Vector2(i * (BattleHudZones.PipSize + BattleHudZones.PipGap), 0f);
 
                 // 格底 = 队色平涂方格。死亡压暗走 CanvasGroup（平涂块无烘焙色阶，无乘色禁令顾虑）。
                 Image frame = pip.gameObject.AddComponent<Image>();
@@ -394,8 +325,8 @@ namespace PirateCrew.EditorTools
             RectTransform badge = UiKit.CreateRect("TurnBadge", hudRoot);
             badge.anchorMin = badge.anchorMax = new Vector2(0.5f, 1f);
             badge.pivot = new Vector2(0.5f, 0.5f);
-            badge.sizeDelta = new Vector2(BadgeSize, BadgeSize);
-            badge.anchoredPosition = new Vector2(0f, -TopBandFromTop);
+            badge.sizeDelta = new Vector2(BattleHudZones.BadgeSize, BattleHudZones.BadgeSize);
+            badge.anchoredPosition = new Vector2(0f, -BattleHudZones.TopBandFromTop);
 
             // 徽章 = theme button_selected 金面钮（当前回合 = 选中语义，与菜单系统同源；
             // 暖金方环 + 黄铜宝石的 beveled 件随换装波退役）。
@@ -420,7 +351,7 @@ namespace PirateCrew.EditorTools
             result.turnHintText.rectTransform.pivot = new Vector2(0.5f, 1f);
             result.turnHintText.rectTransform.sizeDelta = new Vector2(100f, 8f);
             result.turnHintText.rectTransform.anchoredPosition = new Vector2(0f,
-                -TopBandFromTop - BadgeSize * 0.5f - 6f);
+                -BattleHudZones.TopBandFromTop - BattleHudZones.BadgeSize * 0.5f - 6f);
             var hintOutline = result.turnHintText.gameObject.AddComponent<UnityEngine.UI.Outline>();
             hintOutline.effectColor = new Color(PixelSkin.Ink.r / 255f, PixelSkin.Ink.g / 255f,
                 PixelSkin.Ink.b / 255f, 0.78f);   // 调色板墨色收编
@@ -442,7 +373,7 @@ namespace PirateCrew.EditorTools
             // 与左下系统钮共享底边线。
             RectTransform panel = UiKit.CreatePanel("WeaponPanel", hudRoot,
                 new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, Safe), new Vector2(WeaponPanelWidth, WeaponPanelHeight));
+                new Vector2(0f, BattleHudZones.Safe), new Vector2(BattleHudZones.WeaponPanelWidth, BattleHudZones.WeaponPanelHeight));
             result.weaponPanelRoot = panel.gameObject;
             UiKit.EnsureWindow(panel, PixelTone.Frame, UiStrings.BattleWeaponListTitle,
                 body, UiSkin.Font.Body, helpButton: false, closeButton: false);
@@ -453,15 +384,15 @@ namespace PirateCrew.EditorTools
             //      容器只声明自己的位置与格尺寸，不再逐格手摆坐标。----
             // 行数必须 Ceiling：17/6 整除=2 会把容器高声明成 34（实际 3 行占 52），
             // 下游行动行按错误高度定位 → 整行压在格区第三行上（实拍实锤）。
-            int gridRows = Mathf.CeilToInt((float)WeaponSlots / WeaponColumns);
-            float gridWidth = WeaponColumns * WeaponCell + (WeaponColumns - 1) * WeaponCellGap;
-            float gridHeight = gridRows * WeaponCellHeight + (gridRows - 1) * WeaponCellGap;
+            int gridRows = Mathf.CeilToInt((float)WeaponSlots / BattleHudZones.WeaponColumns);
+            float gridWidth = BattleHudZones.WeaponColumns * BattleHudZones.WeaponCell + (BattleHudZones.WeaponColumns - 1) * BattleHudZones.WeaponCellGap;
+            float gridHeight = gridRows * BattleHudZones.WeaponCellHeight + (gridRows - 1) * BattleHudZones.WeaponCellGap;
             RectTransform weaponGrid = UiKit.CreateRect("WeaponGrid", panel);
             weaponGrid.pivot = new Vector2(0f, 1f);
             UiKit.SetAnchored(weaponGrid, new Vector2(0f, 1f), new Vector2(gridWidth, gridHeight),
                 new Vector2(border, -contentTop));
-            UiLayout.Grid(weaponGrid, new Vector2(WeaponCell, WeaponCellHeight), WeaponColumns,
-                (int)WeaponCellGap);
+            UiLayout.Grid(weaponGrid, new Vector2(BattleHudZones.WeaponCell, BattleHudZones.WeaponCellHeight), BattleHudZones.WeaponColumns,
+                (int)BattleHudZones.WeaponCellGap);
 
             var buttons = new Button[WeaponSlots];
             var frames = new Image[WeaponSlots];
@@ -495,7 +426,7 @@ namespace PirateCrew.EditorTools
 
             // ---- 行动行（格区正下方，高 16）：单位名 + HP 条（左）… 跳跃 / 结束回合（右）。----
             float rowTop = contentTop + gridHeight + 2f;
-            float rightEdge = WeaponPanelWidth - border;
+            float rightEdge = BattleHudZones.WeaponPanelWidth - border;
 
             result.unitNameText = UiKit.CreateText("UnitName", panel, string.Empty, UiSkin.Font.Hud,
                 TextAlignmentOptions.MidlineLeft, PixelSkin.PaperWhite, body);
@@ -508,13 +439,13 @@ namespace PirateCrew.EditorTools
             float endGoWidth = UiSkin.Px.ButtonWidth(UiStrings.BattleEndGo);
             float throwWidth = UiSkin.Px.ButtonWidth(UiStrings.BattleThrowSelf);
             result.endGoButton = TopLeftButton("EndGoButton", panel, UiStrings.BattleEndGo,
-                rightEdge - endGoWidth, rowTop, new Vector2(endGoWidth, HudButtonHeight), body);
+                rightEdge - endGoWidth, rowTop, new Vector2(endGoWidth, BattleHudZones.HudButtonHeight), body);
             result.throwSelfButton = TopLeftButton("ThrowSelfButton", panel, UiStrings.BattleThrowSelf,
                 rightEdge - endGoWidth - 2f - throwWidth, rowTop,
-                new Vector2(throwWidth, HudButtonHeight), body);
+                new Vector2(throwWidth, BattleHudZones.HudButtonHeight), body);
 
             // ---- 信息行（行动行正下方，高 12）：武器名（金强调）+ 说明（次级暖白，单行截断）。----
-            float infoTop = rowTop + HudButtonHeight + 2f;
+            float infoTop = rowTop + BattleHudZones.HudButtonHeight + 2f;
             result.weaponNameText = UiKit.CreateText("WeaponName", panel, string.Empty, UiSkin.Font.Hud,
                 TextAlignmentOptions.MidlineLeft, PixelSkin.LightOf(PixelTone.Primary), secondary);
             result.weaponNameText.enableWordWrapping = false;
@@ -526,7 +457,7 @@ namespace PirateCrew.EditorTools
             result.weaponDescText.enableWordWrapping = false;
             result.weaponDescText.overflowMode = TextOverflowModes.Ellipsis;
             UiKit.PlaceTopLeft(result.weaponDescText.rectTransform, border + 70f, infoTop,
-                new Vector2(WeaponPanelWidth - border - (border + 70f), 12f));
+                new Vector2(BattleHudZones.WeaponPanelWidth - border - (border + 70f), 12f));
         }
 
         /// <summary>当前单位 HP 条：sunken 凹槽（theme textedit 同款）+ 白 ghost + 队色平涂填充。
@@ -594,10 +525,10 @@ namespace PirateCrew.EditorTools
             // 底部带两段共享底边线 y=Safe：[暂停 返回]（面板左外侧，**文字钮**）→ [武器面板]。
             // 【坐标口径】水平 = 画布底**中心**锚（随武器面板走，画布变宽不漂移）；
             // 垂直 = 底边锚（y = Safe + 半高，任何分辨率都贴底边线）。
-            float panelLeft = -(WeaponPanelWidth * 0.5f);
-            float textButtonY = Safe + HudButtonHeight * 0.5f;   // 底边锚：Safe + 半高
-            Vector2 pauseSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattlePause), HudButtonHeight);
-            Vector2 backSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Back), HudButtonHeight);
+            float panelLeft = -(BattleHudZones.WeaponPanelWidth * 0.5f);
+            float textButtonY = BattleHudZones.Safe + BattleHudZones.HudButtonHeight * 0.5f;   // 底边锚：Safe + 半高
+            Vector2 pauseSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattlePause), BattleHudZones.HudButtonHeight);
+            Vector2 backSize = new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Back), BattleHudZones.HudButtonHeight);
             result.pauseButton = UiKit.ActionButton("PauseButton", hudRoot,
                 UiStrings.BattlePause,
                 new Vector2(panelLeft - 6f - pauseSize.x * 0.5f, textButtonY),   // 缝 6 = 2u
@@ -625,11 +556,11 @@ namespace PirateCrew.EditorTools
             result.modeFrames = new Image[3];
             for (int i = 0; i < 3; i++)
             {
-                Vector2 size = new Vector2(UiSkin.Px.ButtonWidth(modeLabels[i]) + 6f, ModeButtonHeight);   // +6：快捷键角标让位
+                Vector2 size = new Vector2(UiSkin.Px.ButtonWidth(modeLabels[i]) + 6f, BattleHudZones.ModeButtonHeight);   // +6：快捷键角标让位
                 // 右上**角锚**（1,1）：x/y 都相对屏角累退（Safe + 同排前钮宽 + 缝），任何分辨率贴角不漂移。
                 Vector2 position = new Vector2(
-                    -(Safe + (2 - i) * (size.x + 6f) + size.x * 0.5f),
-                    -(TopBandFromTop + ModeButtonDrop));
+                    -(BattleHudZones.Safe + (2 - i) * (size.x + 6f) + size.x * 0.5f),
+                    -(BattleHudZones.TopBandFromTop + BattleHudZones.ModeButtonDrop));
                 Button button = UiKit.ActionButton("ModeButton_" + (BattleHud.BattleHudMode)i, hudRoot,
                     modeLabels[i], position, size, secondary);
                 {
@@ -699,15 +630,15 @@ namespace PirateCrew.EditorTools
             // 三钮 = 文字贴合（创始人裁决：按钮大小跟文字走，不再统一最宽档）；纵排顺序即声明顺序。
             result.resumeButton = UiKit.ActionButton("ResumeButton", flow,
                 UiStrings.BattleResume,
-                Vector2.zero, new Vector2(35f, HudButtonHeight), body);
+                Vector2.zero, new Vector2(35f, BattleHudZones.HudButtonHeight), body);
             FitToLabelPadded(result.resumeButton, 4f);
             result.pauseRestartButton = UiKit.ActionButton("PauseRestartButton", flow,
                 UiStrings.BattleRestart,
-                Vector2.zero, new Vector2(35f, HudButtonHeight), body);
+                Vector2.zero, new Vector2(35f, BattleHudZones.HudButtonHeight), body);
             FitToLabelPadded(result.pauseRestartButton, 4f);
             result.pauseBackButton = UiKit.ActionButton("PauseBackButton", flow,
                 UiStrings.BackToMainMenu,
-                Vector2.zero, new Vector2(35f, HudButtonHeight), body);
+                Vector2.zero, new Vector2(35f, BattleHudZones.HudButtonHeight), body);
             FitToLabelPadded(result.pauseBackButton, 4f);
         }
 
@@ -751,11 +682,11 @@ namespace PirateCrew.EditorTools
             UiLayout.HStack(actionRow, 4, default(UiPadding), alignment: TextAnchor.MiddleCenter);
             result.settlementRestartButton = UiKit.ActionButton("SettlementRestartButton", actionRow,
                 UiStrings.BattleRestart,
-                Vector2.zero, new Vector2(30f, HudButtonHeight), secondary);
+                Vector2.zero, new Vector2(30f, BattleHudZones.HudButtonHeight), secondary);
             FitToLabelPadded(result.settlementRestartButton, 4f);
             result.settlementBackButton = UiKit.ActionButton("SettlementBackButton", actionRow,
                 UiStrings.SettlementBackToSelect,
-                Vector2.zero, new Vector2(30f, HudButtonHeight), secondary);
+                Vector2.zero, new Vector2(30f, BattleHudZones.HudButtonHeight), secondary);
             FitToLabelPadded(result.settlementBackButton, 4f);
         }
 
@@ -780,11 +711,11 @@ namespace PirateCrew.EditorTools
             UiLayout.HStack(actionRow, 4, default(UiPadding), alignment: TextAnchor.MiddleCenter);
             result.confirmOkButton = UiKit.ActionButton("OkButton", actionRow,
                 UiStrings.Confirm,
-                Vector2.zero, new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Confirm), HudButtonHeight), body);
+                Vector2.zero, new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Confirm), BattleHudZones.HudButtonHeight), body);
             FitToLabelPadded(result.confirmOkButton, 4f);
             result.confirmCancelButton = UiKit.ActionButton("CancelButton", actionRow,
                 UiStrings.Cancel,
-                Vector2.zero, new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Cancel), HudButtonHeight), body);
+                Vector2.zero, new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Cancel), BattleHudZones.HudButtonHeight), body);
             FitToLabelPadded(result.confirmCancelButton, 4f);
         }
 
@@ -799,8 +730,8 @@ namespace PirateCrew.EditorTools
             if (panel == null)
                 panel = UiKit.CreateRect(MinimapPanelName, canvas);
 
-            UiKit.SetAnchored(panel, new Vector2(0f, 1f), new Vector2(MinimapWidth, MinimapHeight),
-                new Vector2(Safe, -Safe));
+            UiKit.SetAnchored(panel, new Vector2(0f, 1f), new Vector2(BattleHudZones.MinimapWidth, BattleHudZones.MinimapHeight),
+                new Vector2(BattleHudZones.Safe, -BattleHudZones.Safe));
 
             // 复用旧面板时清掉历史根 Image 与描边（外观件统一由 EnsurePanel 兜底——
             // 场景重存会洗组件，这是历史教训）。
