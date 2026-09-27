@@ -133,10 +133,10 @@ namespace PirateCrew.UI.DebugUi
         static void ApplyLayout(AwNode root, RectTransform window, float innerW, float contentH)
         {
             root.Layout(Mathf.RoundToInt(DebugWindowKit.Pad),
-                Mathf.RoundToInt(DebugWindowKit.ContentTop),
+                Mathf.RoundToInt(DebugWindowKit.ContentTopOf(window)),
                 Mathf.RoundToInt(innerW), Mathf.RoundToInt(contentH));
             window.sizeDelta = new Vector2(innerW + DebugWindowKit.Pad * 2f,
-                DebugWindowKit.ContentTop + contentH + DebugWindowKit.Pad);
+                DebugWindowKit.ContentTopOf(window) + contentH + DebugWindowKit.Pad);
         }
 
         const float MinInnerW = 150f;

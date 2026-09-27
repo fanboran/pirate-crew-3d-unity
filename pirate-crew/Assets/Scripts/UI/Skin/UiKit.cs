@@ -305,6 +305,76 @@ namespace PirateCrew.UI
         /// <summary>标题带内文字的孩子名（三处窗体共用，装配幂等按名复用）。</summary>
         const string TitleLabelName = "TitleLabel";
 
+        /// <summary>窗体实际标题带几何的载体（挂在窗根上；无此组件 = 原生带口径）。
+        /// 带高自适应后窗内多处排版（内容顶/拖动带可抓下限/标题字盒）都要问它。</summary>
+        public sealed class AseWindowTitleBand : MonoBehaviour
+        {
+            /// <summary>实际内容顶 = 窗顶到内容区起点的距离（原生 = 17：带 15 + 缝 2）。</summary>
+            public float ContentTop = 17f;
+            /// <summary>实际标题带高（原生 = <see cref="PixelSkin.WindowTitleBand"/> = 15）。</summary>
+            public float BandHeight = PixelSkin.WindowTitleBand;
+        }
+
+        /// <summary>窗体实际内容顶（带高自适应后 ≠ 常量 17）。窗根无带组件时回落原生口径。</summary>
+        public static float WindowContentTopOf(RectTransform window)
+        {
+            var band = window != null ? window.GetComponent<AseWindowTitleBand>() : null;
+            return band != null ? band.ContentTop : 17f;
+        }
+
+        /// <summary>窗体实际标题带高。窗根无带组件时回落原生 15。</summary>
+        public static float WindowBandHeightOf(RectTransform window)
+        {
+            var band = window != null ? window.GetComponent<AseWindowTitleBand>() : null;
+            return band != null ? band.BandHeight : PixelSkin.WindowTitleBand;
+        }
+
+        /// <summary>
+        /// 标题带加高件：复制窗体件纹理，在带的**纯色区**插 <paramref name="addRows"/> 行同色，
+        /// 生成 border-top += addRows 的新 sprite——黑线/高光/带底亮线**原样保留、零插值**
+        /// （像素纪律：特征线不许拉伸；Sliced 直接拉 15→N 会把 1px 线拉糊，故走插行）。
+        /// window 件带结构（sheet 从顶数）：黑线 1 + 高光 1 + 纯色 12 + 亮线 2（theme.xml:161）。
+        /// </summary>
+        public static Sprite StretchTitleBandSprite(Sprite src, int addRows)
+        {
+            if (src == null || addRows <= 0)
+                return src;
+
+            Texture2D tex = src.texture;
+            Rect r = src.textureRect;
+            int w = Mathf.RoundToInt(r.width);
+            int h = Mathf.RoundToInt(r.height);
+            if (w <= 0 || h <= 0)
+                return src;
+
+            var pixels = tex.GetPixels((int)r.x, (int)r.y, w, h);
+            var grown = new Color[w * (h + addRows)];
+            // GetPixels 从底行起（idx 0 = 件底）。带在件顶：从顶数行 k = pixels[h-1-k]。
+            // 插入点 = 高光行（从顶数 1，即 idx h-2）之后；取样 = 纯色首行（从顶数 2，idx h-3）。
+            Color fill = pixels[h - 3];
+            int gi = 0;
+            for (int i = 0; i < h; i++)
+            {
+                grown[gi++] = pixels[i];
+                if (i == h - 2)   // 高光行写完 → 补插 addRows 行纯色
+                {
+                    for (int k = 0; k < addRows; k++)
+                        grown[gi++] = fill;
+                }
+            }
+
+            var newTex = new Texture2D(w, h + addRows, TextureFormat.RGBA32, false);
+            newTex.filterMode = tex.filterMode;   // 点采样随源
+            newTex.wrapMode = TextureWrapMode.Clamp;
+            newTex.SetPixels(grown);
+            newTex.Apply(false, true);
+
+            Vector4 b = src.border;
+            return Sprite.Create(newTex, new Rect(0f, 0f, w, h + addRows),
+                new Vector2(0.5f, 0.5f), src.pixelsPerUnit, 0,
+                SpriteMeshType.FullRect, new Vector4(b.x, b.y + addRows, b.z, b.w));
+        }
+
         /// <summary>
         /// 摆**带标题窗体的标题**（theme window_title_label）：标题带内左上、带内全高垂直居中
         /// （[0,15] 格区），字色 <see cref="PixelSkin.Theme.Text"/>，右侧让出
@@ -351,10 +421,9 @@ namespace PirateCrew.UI
 
             RectTransform rect = label.rectTransform;
             // theme <style id="window_title_label" margin-top="5" margin-left="5">：字盒上边也留 5 格。
-            // 旧实现上边取 0（铺满整条标题带）——12px 字的行高约 15.6 > 带高 15，TMP 居中后
-            // 墨迹顶到带的上沿、贴住窗体边框（实拍「设置」顶被切）。留 5 后墨迹落带内偏中。
+            // 字盒底 = 实际带底（带高自适应后 ≠ 常量 15，问窗上的 AseWindowTitleBand）。
             rect.offsetMin = new Vector2(AseLayout.Px(AseLayout.TitleMarginLeft),
-                -PixelSkin.WindowTitleBand);
+                -WindowBandHeightOf(window));
             rect.offsetMax = new Vector2(-rightReserve, -AseLayout.Px(AseLayout.TitleMarginTop));
             return label;
         }
@@ -371,6 +440,29 @@ namespace PirateCrew.UI
             Image plate = EnsurePanel(window, tone);
             plate.sprite = PixelSkin.Ase("window");   // theme.xml:165 直切件（1x 设计格）
             UiLayout.Ignore(plate.gameObject);   // 装饰层不吃父布局流（VBox 只排内容件）
+
+            // 【标题带高自适应（创始人令）】原生带 15 是 theme mini(8 号)字口径；本端标题
+            // 12 号行高 ~15.6 > 15，实拍墨迹贴带上沿。按字号实量行高取带高
+            // = ceil(行高) + margin-top 5 + 带内下余 2，超出部分经插行件加高（特征线原样）；
+            // 窗体同步加高，内容顶/拖动带/标题字盒一律经 <see cref="AseWindowTitleBand"/> 问实际值。
+            float size = titleFontSize > 0f ? titleFontSize : UiSkin.Font.Body;
+            TMP_FontAsset resolved = ResolvePixelFont((int)size, font);
+            float pointSize = resolved != null ? Mathf.Max(1f, resolved.faceInfo.pointSize) : size;
+            float lineH = resolved != null
+                ? resolved.faceInfo.lineHeight * (size / pointSize)
+                : size * 1.3f;
+            int needBand = Mathf.CeilToInt(lineH) + 7;
+            int addRows = Mathf.Max(0, needBand - PixelSkin.WindowTitleBand);
+            var bandInfo = window.GetComponent<AseWindowTitleBand>();
+            if (bandInfo == null)
+                bandInfo = window.gameObject.AddComponent<AseWindowTitleBand>();
+            bandInfo.BandHeight = PixelSkin.WindowTitleBand + addRows;
+            bandInfo.ContentTop = 17f + addRows;   // 带底 2 格缝随带加高同步下移
+            if (addRows > 0)
+            {
+                plate.sprite = StretchTitleBandSprite(plate.sprite, addRows);
+                window.sizeDelta += new Vector2(0f, addRows);   // 带加高计入窗高
+            }
 
             EnsureTitleLabel(window, title, font, titleFontSize,
                 18f + AseLayout.Px(AseLayout.WindowButtonGap));

@@ -83,8 +83,12 @@ namespace PirateCrew.UI.DebugUi
         public const float TitleBand = PixelSkin.WindowTitleBand;
 
         /// <summary>带标题窗内容顶 = window_with_title border-top=17（theme.xml:472；
-        /// = 标题带 15 整条 + 带下 2 格缝；也是源 <c>childrenBounds().y - bounds().y</c>）。</summary>
+        /// = 标题带 15 整条 + 带下 2 格缝；也是源 <c>childrenBounds().y - bounds().y</c>）。
+        /// 带高自适应后实际值因窗而异——排版请走 <see cref="ContentTopOf"/>。</summary>
         public const float ContentTop = AseLayout.WindowBorderTop;
+
+        /// <summary>窗体实际内容顶（标题带自适应加高后 &gt; 17）。窗根无带组件时回落常量。</summary>
+        public static float ContentTopOf(RectTransform window) => UiKit.WindowContentTopOf(window);
 
         /// <summary>无标题变体内容边距 = window_without_title border=3（theme.xml:468）。</summary>
         public const float BarePad = AseLayout.PopupBorder;

@@ -28,10 +28,9 @@ namespace PirateCrew.UI.DebugUi
         const float RightReserve = 26f;
 
         /// <summary>标题带至少留在屏内的可抓高度 = 源的 <c>titlebarH</c>
-        /// （window.cpp:793 <c>childrenBounds().y - bounds().y</c>）= window_with_title
-        /// border-top（theme.xml:472）= <see cref="DebugWindowKit.ContentTop"/> = 17
-        /// （带 15 整条 + 带下 2 格缝）。</summary>
-        const float GrabStrip = DebugWindowKit.ContentTop;
+        /// （window.cpp:793 <c>childrenBounds().y - bounds().y</c>）= 窗体实际内容顶
+        /// （标题带自适应加高后 > 17，逐窗问 <see cref="DebugWindowKit.ContentTopOf"/>）。</summary>
+        float GrabStrip => DebugWindowKit.ContentTopOf(_window);
 
         RectTransform _window;
         RectTransform _canvas;
