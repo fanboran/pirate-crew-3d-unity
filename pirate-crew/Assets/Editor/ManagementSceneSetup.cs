@@ -407,11 +407,13 @@ namespace PirateCrew.EditorTools
             content.anchorMin = Vector2.zero;
             content.anchorMax = Vector2.one;
             content.pivot = new Vector2(0.5f, 0.5f);
-            // 窗体内容区：theme window_with_title border=6（左/右/下）、border-top=17（标题带让位）。
+            // 窗体内容区：theme window_with_title border=6（左/右/下）；顶 = 实际内容顶
+            // （标题字大时 > 17——EnsureTitleLabel 已按字号挂带组件，防标题与列表穿模）。
             content.offsetMin = new Vector2(
                 AseLayout.Px(AseLayout.WindowBorder), AseLayout.Px(AseLayout.WindowBorder));
             content.offsetMax = new Vector2(
-                -AseLayout.Px(AseLayout.WindowBorder), -AseLayout.Px(AseLayout.WindowBorderTop));
+                -AseLayout.Px(AseLayout.WindowBorder),
+                -AseLayout.Px(UiKit.WindowContentTopOf(listPanel)));
 
             // view 皮：sunken 凹槽（theme view 的 border part = sunken_normal；列表常态不聚焦）。
             // 行画在其上（子件后画），凹槽边框自带 4u 立体感。

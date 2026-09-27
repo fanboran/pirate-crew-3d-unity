@@ -106,22 +106,25 @@ namespace PirateCrew.EditorTools
 
             // 主菜单**窗体化**（执行案 §4，创始人 2026-09-25 裁决）：window_with_title 容器
             // 装标题带 + 按钮列，标题进带内——废「黑底 + 文字 + 下划线」自由排版。
-            // 几何（×1 设计格）：标题带 15 + 带下缝 2 = 顶 17（theme window_with_title border-top）；
+            // 几何（×1 设计格）：标题带 15 原生，**带下内容顶随标题字高动态**
+            // （EnsureWindow 量行高：12 号 → 23，字溢出带是创始人裁决的接受态）；
             // 按钮高 24（参考库 OK 钮）；相邻钮间距 = 上钮下切片 6 + 下钮上切片 4 = 10
             // （theme 无 spacing 概念，缝 = 两者 border 相加）；下 border 6。
             RectTransform menuWindow = RuntimeUiBuilder.CreateRect("MenuWindow", canvas.transform);
-            Vector2 windowSize = new Vector2(132f, 17f + 24f * 5 + 10f * 4 + 6f);
-            // 奇高 193 + 中心锚 → 缘落半格（横线变浅的元凶）：y 补 -0.5 回整数格
-            MenuUiBuilder.SetAnchored(menuWindow, CenterAnchor, windowSize, new Vector2(0f, -6.5f));
             UiKit.EnsureWindow(menuWindow, PixelTone.Frame, UiStrings.MainTitle,
                 handFont, UiSkin.Font.Body, helpButton: false, closeButton: false);
+            float contentTop = UiKit.WindowContentTopOf(menuWindow);
+            Vector2 windowSize = new Vector2(132f, contentTop + 24f * 5 + 10f * 4 + 6f);
+            // 奇高 + 中心锚 → 缘落半格（横线变浅的元凶）：y 补 -0.5 回整数格
+            float yNudge = Mathf.Abs(windowSize.y % 2f) > 0.01f ? -0.5f : 0f;
+            MenuUiBuilder.SetAnchored(menuWindow, CenterAnchor, windowSize, new Vector2(0f, -6.5f + yNudge));
 
             var menuColumn = menuWindow.gameObject.GetComponent<UnityEngine.UI.VerticalLayoutGroup>();
             if (menuColumn == null)
                 menuColumn = menuWindow.gameObject.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
             menuColumn.padding = new RectOffset(
                 (int)AseLayout.Px(AseLayout.WindowBorder), (int)AseLayout.Px(AseLayout.WindowBorder),
-                (int)AseLayout.Px(AseLayout.WindowBorderTop), (int)AseLayout.Px(AseLayout.WindowBorder));
+                (int)AseLayout.Px(contentTop), (int)AseLayout.Px(AseLayout.WindowBorder));
             menuColumn.spacing = AseLayout.Px(10);   // 按钮下切片 6 + 按钮上切片 4
             menuColumn.childControlWidth = false;
             menuColumn.childControlHeight = false;
