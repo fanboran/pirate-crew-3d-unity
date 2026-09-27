@@ -146,9 +146,10 @@ namespace PirateCrew.UI
                 sliced = sprite.border.sqrMagnitude > 0f;
 
                 RectTransform art = UiKit.CreateRect("Art", cell);
-                // 原生尺寸在图区（36 高）内垂直居中（件最大 32×32 < 图区）；九宫件按原尺寸 Sliced = 原件本身
+                // 原生尺寸在图区（36 高）内垂直居中（件最大 32×32 < 图区）；九宫件按原尺寸 Sliced = 原件本身。
+                // 顶锚系 y 向上为正——向下居中必须取负（正值会把每个件向上顶出图区）
                 UiKit.SetAnchored(art, new Vector2(0f, 1f), new Vector2(w, h),
-                    new Vector2(Mathf.Round((CellW - w) * 0.5f), Mathf.Round((ImageZoneH - h) * 0.5f)));
+                    new Vector2(Mathf.Round((CellW - w) * 0.5f), -Mathf.Round((ImageZoneH - h) * 0.5f)));
                 var image = art.gameObject.AddComponent<Image>();
                 image.sprite = sprite;
                 image.type = sliced ? Image.Type.Sliced : Image.Type.Simple;
