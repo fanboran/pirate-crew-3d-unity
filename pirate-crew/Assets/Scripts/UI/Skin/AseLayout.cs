@@ -103,5 +103,11 @@ namespace PirateCrew.UI
         {
             return cells;
         }
+
+        /// <summary>float 重载：动态值（如窗体实际内容顶）同样恒等。</summary>
+        public static float Px(float cells)
+        {
+            return cells;
+        }
     }
 }
