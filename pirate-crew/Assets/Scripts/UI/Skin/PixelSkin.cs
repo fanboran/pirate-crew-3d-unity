@@ -100,7 +100,8 @@ namespace PirateCrew.UI
             }
         }
 
-        /// <summary>键盘焦点框（蓝白方环；选中态包在控件外沿，别再用乘色）。</summary>
+        /// <summary>【存件·零调用方（UI 重构 W4 登记）】旧焦点框——现役键盘焦点一律
+        /// <see cref="WidgetFocus"/>（= Ase check_focus）。保留仅为烘焙器存件，新代码禁用。</summary>
         public static Sprite Focus { get { return Single("Focus", Asset != null ? Asset.focus : null); } }
 
         // ---------- Aseprite dark 直切件（×1 全量对齐波；sheet.png 直切，theme.xml <parts> 表） ----------
@@ -132,7 +133,9 @@ namespace PirateCrew.UI
             return null;
         }
 
-        /// <summary>带标题栏窗体（theme window：顶 15 标题带；内容须避开标题带）。</summary>
+        /// <summary>【存件·零调用方（UI 重构 W4 登记）】tone 族窗体皮——现役窗体一律
+        /// <see cref="Ase("window")"/> 直切件（EnsureWindow）。保留仅为烘焙器存件，
+        /// 新代码禁用；连同烘焙器程序化残段一并清退时再删。</summary>
         public static Sprite Window(PixelTone tone)
         {
             return SpriteAt(Asset != null ? Asset.windows : null, (int)tone, "Window/" + tone);
