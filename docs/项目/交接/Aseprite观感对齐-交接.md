@@ -1362,3 +1362,37 @@ MinimapWorldChart / UiStrings 回归**全绿**；两组存量红已登记待办�
 **PlayMode 注意**：BattleSceneWiringTests 海图断言已改空窗口径——下轮 GUI 侧
 PlayMode 全量覆盖之；`tools/headless/run.sh` 的 Unity 路径 bug（2022.3.62f1c1 不存在）
 见待办，本次主仓测试用 AGENTS 裸命令直跑。
+
+## 三之十六·补：创始人四诉走查修正（2026-09-28 同日晚，`004a9b08`/`3e2f82e1`，merge `3d1d341f`）
+
+创始人走查四诉 + 逐项落法：
+- **「垂直方向按钮大小太小 / 文字调小一号，不然整个面板文字都一样大」**——双管：
+  HUD 按钮高 16→**20**（`HudButtonHeight`/`ModeButtonHeight`：12 号字上下各留 4 格；
+  16 是 theme 原生紧凑档，装 12 号中文只剩 2 格余量）；武器格文字 12→**10 号**
+  （`Font.Hint`）+ 格高独立常量 `WeaponCellHeight=18`——格名是密集次级信息，降档
+  与行动行/信息行的 12 号拉开层级。面板高 114→124。
+- **「点格子选择武器的字样可以去掉了」**——未装备态信息行置空（常量保留）。
+- **「海图面积为什么这么小」**——64×44→**144×96** 占角面积；队血条内缩 71→156
+  （海图右缘 + 8 缝），蓝条随之左移后与模式钮 x 区段也不再有交叠。
+- **「文字贴边」**（放大取证暂停卡：FitToLabel 的 ButtonPadX=8 两侧各 4 格偏紧）——
+  模态按钮 `FitToLabelPadded(+4)`（7 处），左右各 6 格。
+
+**暂停菜单取证**：给 `UiPixelScreenCapture` 补 `+pause` overlay 档（直接激活
+PausePanel 拍照，不走 OpenPause——视觉走查不需要 timeScale）。4× 放大像素 +
+视觉模型双验：标题带「已暂停」、无窗控钮、三枚按钮（继续游戏/再来一局/返回主菜单）
+齐全、边距宽裕、灰系配色正确——**结构在换装波已随 CreateModal 换新**。创始人所见
+「离谱」版本疑为其编辑器未刷新的旧导入（主仓合并后需让编辑器重新导入）；
+若刷新后仍异样，按截图逐像素对。
+
+**两个过程雷（登记）**：
+1. **旧 GUI 编辑器 NRE 洪水**（`BattleController.CheckMatchOver` 每帧炸）：发生在
+   长会话编辑器的第二次直连 Battle Play（间隔一次 refresh 域重载）；杀进程重启
+   编辑器后干净域**零复现**——归因为残留域状态（疑似 Enter Play Mode Options /
+   静态 pending 交叉），非代码 bug。若再次出现：先重启编辑器再取证。
+2. **EditorBuildSettings 第四次被摘 UIShowcase**（每次装配链跑完都可能中招），
+   已还原——回归断言待办升四次，根因仍未定位（嫌疑在编辑器侧某工具重写构建场景表）。
+
+**验收**：harness 双域 0 错；桥重装 + `capture:Battle` / `capture:Battle+pause` 双拍；
+视觉模型逐项确认（海图加大/血条移位/格字降号/按钮加高/提示字消失/无新错位）；
+像素实测格字上下墨迹边距 5/4.5 格、暂停按钮边距宽裕。FusionPixel10 运行期加字
+随波提交（`3e2f82e1`）。
