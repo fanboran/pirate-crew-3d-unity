@@ -588,7 +588,16 @@ namespace PirateCrew.UI
             TextMeshProUGUI text = CreateText("Text", rect, label, UiSkin.Font.Body,
                 TextAlignmentOptions.Center, PixelSkin.Theme.Text, font, raycast: false);
             text.enableWordWrapping = false;
-            Stretch(text.rectTransform, 10f);
+            // 【字盒口径 = 菜单按钮（SketchButton）实拍校准同源】底边让 3 / 顶边让 1：
+            // 字盒中心 = 钮心 +1 格（TMP 中文墨迹在 theme 字区整体偏下 1 格，靠不对称
+            // 边距抬回）。旧 Stretch(10) 上下各吃 10——20 高的钮字盒被压成 0 高，
+            // 墨迹沉到下沿（创始人实拍「文字和下边沿重叠」，2026-09-28）。菜单按钮
+            // 一直没这问题就是因为它带这套补偿；此处收口后两条按钮产线同口径。
+            RectTransform textBox = text.rectTransform;
+            textBox.anchorMin = Vector2.zero;
+            textBox.anchorMax = Vector2.one;
+            textBox.offsetMin = new Vector2(2f, 3f);
+            textBox.offsetMax = new Vector2(-2f, -1f);
 
             return button;
         }
