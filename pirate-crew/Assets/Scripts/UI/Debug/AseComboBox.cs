@@ -311,7 +311,7 @@ namespace PirateCrew.UI.DebugUi
     ///   （364-393），且**这一击照常传给下层控件**（过滤器返回 false 后仍发给原收件控件）；
     /// - kClose/kWinMove → 收（344-349）；kKeyEsc → 收（351-362）；列表 kKey space/enter → 收（570-580）。
     /// </summary>
-    internal sealed class AseComboBoxPopup : MonoBehaviour, IPointerUpHandler
+    internal sealed class AseComboBoxPopup : MonoBehaviour, IPointerUpHandler, IPointerDownHandler
     {
         /// <summary>theme <c>view</c>：border="3" border-top="4"（公共口径见 <see cref="AseWidgetKit"/>）。</summary>
         public const float ViewBorderLeft = AseWidgetKit.ViewBorderLeft;
@@ -327,6 +327,13 @@ namespace PirateCrew.UI.DebugUi
         int _openFrame;
 
         public RectTransform Rect { get { return _rect; } }
+
+        /// <summary>弹层也是顶层窗（源 Manager 直属）：按下即浮顶（combobox.cpp 开窗即
+        /// openWindow 入 Manager 栈顶；同帧后开的窗可能压过它，点击要能夺回）。</summary>
+        public void OnPointerDown(PointerEventData eventData)
+        {
+            WindowDragger.RaiseToCanvasTop(_rect);
+        }
 
         internal static AseComboBoxPopup Open(AseComboBox combo, Transform host, float width, float height,
             float itemsWidth, string[] options, int selected)

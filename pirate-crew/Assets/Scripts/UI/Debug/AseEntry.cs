@@ -374,17 +374,21 @@ namespace PirateCrew.UI.DebugUi
                 {
                     for (int i = 0; i < n; i++)
                     {
-                        float adv = info.characterInfo[i].xAdvance;
-                        if (adv <= 0f) adv = _fontSize;      // 不可见/零宽字符兜底
+                        // 【顶点制】字的左右 = TMP 实渲染顶点（含字距/字偶调整）。
+                        // 不用 xAdvance 累加——它不含 characterSpacing，位图字档下每字
+                        // 比实际渲染宽，光标越走越偏右（「前进距离比文字长」的元凶）。
+                        float l = info.characterInfo[i].bottomLeft.x;
+                        float r = info.characterInfo[i].bottomRight.x;
+                        if (r <= l) r = l + _fontSize;   // 不可见/零宽字符兜底
                         _boxes.Add(new CharBox
                         {
                             codepoint = text[i],
                             from = i,
                             to = i + 1,
-                            x = x,
-                            width = adv,
+                            x = l,
+                            width = r - l,
                         });
-                        x += adv;
+                        x = r;
                     }
                 }
                 else if (!string.IsNullOrEmpty(text))
@@ -1159,6 +1163,10 @@ namespace PirateCrew.UI.DebugUi
             _state = true;
             Refresh();
 
+            // setTextInput(true, ...)（entry.cpp:283-287）：开 IME 组合输入（中文等）——
+            // Unity 默认 Auto 模式下自制编辑器不申领 IME，组合键盘打不出中文
+            Input.imeCompositionMode = IMECompositionMode.On;
+
             if (_lockSelection)
             {
                 _lockSelection = false;
@@ -1169,11 +1177,12 @@ namespace PirateCrew.UI.DebugUi
                     SelectAllText();
                 _recentFocused = true;
             }
-            // setTextInput(true, caretPosOnScreen):IME/dead-key 未移植（登记偏差）
         }
 
         public virtual void OnDeselect(BaseEventData eventData)
         {
+            // setTextInput(false)（entry.cpp:288-292）：交还 IME 模式
+            Input.imeCompositionMode = IMECompositionMode.Auto;
             Refresh();
             StopTimer();
 
@@ -1241,6 +1250,19 @@ namespace PirateCrew.UI.DebugUi
             // ---- 正文（源 colors.text()；placeholder 走 entrySuffix 色）----
             bool showPlaceholder = _text.Length == 0 && !_readonly && !string.IsNullOrEmpty(_placeholder);
             string display = showPlaceholder ? _placeholder : _text;
+
+            // IME 组合串（预编辑）：源由 OS 原生画在 caret 处；本端自绘同位显示——
+            // 定稿字符经 Input.inputString 进 InsertTypedChars 上屏（Unity 行为）
+            string comp = focus && !showPlaceholder ? Input.compositionString : null;
+            float compW = 0f;
+            if (!string.IsNullOrEmpty(comp))
+            {
+                int insertAt = Mathf.Clamp(
+                    _boxes[Mathf.Clamp(_caret, 0, _boxes.Count - 1)].from, 0, _text.Length);
+                display = display.Insert(insertAt, comp);
+                compW = _lightLabel.GetPreferredValues(comp, 4096f, 64f).x;
+            }
+
             if (_lightLabel.text != display)
                 _lightLabel.text = display;
             _lightLabel.color = showPlaceholder ? (Color)ColSuffix : (Color)ColText;
@@ -1259,7 +1281,8 @@ namespace PirateCrew.UI.DebugUi
             if (caretOn)
             {
                 int idx = Mathf.Clamp(_caret, 0, _boxes.Count - 1);
-                int cx = Mathf.RoundToInt(_boxes[idx].x * Scale.x) - scrollPx;
+                // 组合态光标停在预编辑串末尾（系统惯例）——box.x + 组合串实宽
+                int cx = Mathf.RoundToInt((_boxes[idx].x + compW) * Scale.x) - scrollPx;
                 int cy = textTop + th / 2 - CaretHeight / 2;
                 SetTopLeft(_caretQuad.rectTransform, cx, cy, CaretWidthPx, CaretHeight);
             }
