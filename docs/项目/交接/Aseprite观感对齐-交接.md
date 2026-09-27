@@ -1259,3 +1259,27 @@ PirateCrew.EditorTools.BeveledPixelSpriteBuilder.BuildFromCommandLine`；
 Battle 确认框正文宽度）。
 每项做完走「改码 → harness `Runtime`/`DataEditor` 编译 → `recompile` → `assemble` →
 `capture` → `phase_check.py` 相位复核」同一套。
+
+## 三之十五、窗标题带高自适应（2026-09-27，创始人令「标题栏根据文字的高度加长」）
+
+**口径差**：theme window 件的 15 格标题带按 mini(8 号)字设计；本端标题用 12 号（中文
+可读性，早前裁决），行高 ~15.6 > 15——实拍墨迹贴带上沿（EnsureTitleLabel 注释早有
+自认，当时用 margin-5 压制而非正视）。裁决 = 带按字高自适应加长（正视问题）。
+
+**像素纪律安全的加高法**：带结构 = 黑线 1 + 高光 1 + **纯色 12** + 亮线 2
+（sheet.png y0-15 采样实锄）。Sliced 直接拉 15→N 会把 1px 特征线拉糊——改用
+`UiKit.StretchTitleBandSprite(src, addRows)`：复制件纹理（仅 16×24 小区域），
+**在纯色区插行**、border-top += addRows——特征线原样零插值。
+
+**自适应链**：`EnsureWindow` 按标题字号实量 `faceInfo.lineHeight × (size/pointSize)`，
+带高 = ceil(行高) + margin-top 5 + 带内下余 2（12 号 → 23，Δ=8）；窗体同步加高；
+实际带高/内容顶挂 `AseWindowTitleBand` 组件在窗根，`WindowBandHeightOf/
+WindowContentTopOf` 查询（无组件回落原生口径）。**ContentTop 常量 → 逐窗查询**：
+8 处调用点（WidgetGalleryPanel/AseDialogLoader×2/DebugMenuHost×5）+ WindowDragger
+的 GrabStrip（拖动可抓下限随带加高）全部迁移 `DebugWindowKit.ContentTopOf(window)`。
+
+**验收**：harness 0 错；重拍目检——带 15→23、标题墨迹完整落带内上下有余量、特征线
+（黑线/高光/分隔线）原样、窗控钮贴顶不变；diff 归因——menubar +386（零差窗的新
+带差）、widget/probe/newsprite 微增，**parts 恒 824154 = 窗区 diff 饱和效应**
+（39.7% 区域早已全红，带加高落在已差异区内不增计数）。提交 `104ea3e1`，
+merge `21b80ea3`。
