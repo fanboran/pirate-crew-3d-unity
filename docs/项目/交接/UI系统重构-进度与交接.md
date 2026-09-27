@@ -19,34 +19,27 @@
 
 ## 波次与状态
 
-- [ ] **W1（并行三线）**
-  - [ ] W1A：Debug 域嵌套 MonoBehaviour 清退成顶级同名文件（含 AseListbox.cs→
-        AseListBox.cs 文件名大小写对齐，.meta 随迁保 GUID）→ 棘轮测试只剩存量白名单
-  - [ ] W1B：`Assets/Editor/BattleHudZones.cs` 单一表 + BattleHudBuilder 只消费
-        （**纯搬移，数字零变化**）
-  - [ ] W1C：tools/headless/run.sh Unity 路径 `2022.3.62f1c1`→`62f1`（Scenes README/
-        架构总览示例同修）+ EditorBuildSettings 回归断言（EditMode 测试绑
-        BuildScenes 场景集）+ BuildScenes.cs 过期注释
-  - [ ] 门：harness 双域 → 桥重装 → Battle/MainMenu 快拍 → 原子提交×3 → 合并主仓
-- [ ] **W2（串行枢纽）控件产线合一**：UiKit 吸收 SketchButton（四态+字盒校准+禁用
-      双层影子字）、SketchButtonSet（选项 chip）、SketchSlider（滑条）；SceneSetup
-      菜单列/MainMenuController 设置面板迁线；RuntimeUiBuilder 并入或退役；
-      Stick/Controls 死件删除；四场景重装配 + `+settings` 实拍回归
-  - **W2 设计细化（2026-09-28 预研后修正方向）**：SketchButton 系不是落后件——它带
-    `AseThemeLayers` 状态层引擎（theme.xml `<style id="button">` 逐态解析件与字色，
-    theme.cpp for_each_layer 移植）+ Sticky + 禁用双层字，**比 UiKit.ApplyThemeButton
-    手写四态更权威**。合并方向反转：**整族上移**而非重写——
-    ① `Stick/Controls/{AseButtonBase, SketchButton, SketchButtonSet, SketchButtonSetIcon,
-    SketchSlider}.cs` + `AseThemeLayers.cs` 迁入 `Skin/`（**git mv 连 .meta 保 GUID**，
-    Prefab 序列化引用不断；namespace `PirateCrew.UI.Stick`→`PirateCrew.UI`，全仓 using 同步）；
-    ② `UiKit.ActionButton` 改为薄壳调 `SketchButton.Create`（现调用点白得状态引擎 +
-    Sticky + 禁用双层字；字盒校准两线本就同口径底3/顶1）；
-    ③ 战斗运行侧 `ApplyThemeButton(button, img, sticky)` 调用点（RefreshModeSegments/
-    RefreshWeaponPanel/武器格装配）改 `SketchButton.Sticky`，`ApplyThemeButton` 退役或降级；
-    ④ `UiKit.FitToLabel` 弃 `SketchButton.LabelOf` 依赖（Label 已在基类公开）；
-    ⑤ RuntimeUiBuilder：只保留场景控制器还用的件（CreateRect/SetAnchored 等），
-    文案/按钮建件并 UiKit；`StickTokens.PAD_X` 引用改 AseLayout 令牌（W3 一并）。
-    顺序：①②③ 是一条依赖链，④⑤ 随后；每步后 harness 双域。
+- [x] **W1（并行三线，2026-09-28 完结，ac1e8774/14559476/c911b52f，merge 1aac3e43）**
+  - [x] W1A：Debug 域 12 个嵌套/异名 MonoBehaviour 清退（五嵌套 + 六异名 +
+        AseListbox→AseListBox 改名保 GUID；逐字节校验搬移；棘轮红转绿）
+  - [x] W1B：`BattleHudZones` 单一表（21 常量纯搬移零数值变化，67 处引用全名化；
+        遗留观察：WeaponPanelHeight 手加总含三处表外依赖——派生量表达式化待后续裁决）
+  - [x] W1C：**场景表四连砍根因破案**——`BattleSceneSetup.RegisterBuildSettings` 残留
+        5 场景硬编码（战斗装配链每跑必摘 UIShowcase）；三装配器统一走
+        `BuildScenes.EditorRegistrationScenes()` 单一真源 + `BuildScenesContractTests`
+        回归钉死；run.sh/Scenes README/架构总览 Unity 路径 62f1c1→62f1
+  - 门：harness 双域 0 错；主仓 EditMode **1311/1315**（仅剩 BeveledPixel 三红 = W3 靶）
+- [x] **W2（控件产线合一，2026-09-28 完结，a25daea6，merge ff263d5d）**
+  - SketchButton 状态引擎整族（AseButtonBase/SketchButton/Set/SetIcon/Slider 五件，
+    git mv 保 GUID）上移 `Skin/`，**命名空间不动**（消灭分家靠目录+工厂单点，
+    不做命名空间化妆）；Stick/Controls 余件加退役注记
+  - `UiKit.ActionButton` 薄壳化 = `SketchButton.Create`——游戏内 **31 枚按钮全部变成
+    主菜单同款元素**（theme 四态/逐态字色/禁用双层字/同款字盒），创始人
+    「游戏内没完全用主菜单 UI 元素、别生造新结构」批评的直接回应
+  - 战斗运行侧选中态迁 `SketchButton.Sticky`；**模式钮 1/2/3 角标删除**（创始人令，
+    键盘 1/2/3 功能保留）；四场景重装配（BattleRig 实测 31×SketchButton GUID）
+  - 验收：菜单/战斗按钮放大比对同源（灰面/近黑 1px 边/直角/浅灰字/居中对称/贴合宽）；
+    装配链跑完 EditorBuildSettings **首次零被动**（W1C 根因修复实战验证）
 - [ ] **W3 beveled tone 族退役**：余下消费者（DebugWindowKit/PixelShowcasePage/
       MainMenuController 残件/SketchPanel）迁 Ase 件或平涂；PixelSkin tone API 与
       烘焙分支删除；BeveledPixelSkinTests 随族退场（三红销案）；展示页按 Ase 件重写
@@ -60,7 +53,7 @@
     CreatePlate/CreateTrack/CreateFill/FillKindOfColor；`CreateFocusRing` 迁
     `PixelSkin.WidgetFocus`（= Ase "check_focus"）。战斗侧已全平涂+Ase 件，无残留。
 - [ ] **W4 收官**：全场景重装配 + 四屏 + 弹窗实拍全家福；主仓 EditMode 全量
-      （目标：仅剩登记存量）；PlayMode 交创始人实机；字体图集 GUID/增量政策
+      （目标：全绿）；PlayMode 交创始人实机；字体图集 GUID/增量政策
       （FontAssetBuilder 重跑换 GUID 的存量登记项一并裁决）
 
 ## 铁律（每波通用）
