@@ -52,10 +52,34 @@
     保留**（调色板令牌与贴图无关）；皮肤资产重烘焙（8 张 = Focus+7 窗体件）
   - 回归：harness 双域 0 错；**主菜单逐像素 0.00% 差异**（迁移零回归铁证）；
     设置/展示/战斗四图目检全过；四场景重折叠 186 行、SketchPanel GUID 全 Prefab 清零
-- [ ] **W4 收官**：主仓 EditMode 终验（预期全绿）+ 字体图集 GUID/增量政策
-      （FontAssetBuilder 改 load-or-create，重跑不再换 GUID）+ 近死件清扫
-      （PixelSkin.Window/Focus 出口、PixelPiece 枚举残员、烘焙器 tone 几何常量）
-      + PlayMode 交创始人实机 + 总纲档收官归档
+- [x] **W4（收官，2026-09-28）**：主仓 EditMode 终验**全绿**（1305/1306，0 失败，
+      唯一跳过为登记在案的历史跳过）——重构前三红的 BeveledPixel 判据随族闭案；
+      **近死件裁决**：PixelSkin.Window/Focus（零调用）降级为登记存件（出口加防误用
+      注释，烘焙器程序化残段不动——联动三处，收益/风险比不划算）；**字体 GUID 政策
+      落档**：消费契约 = 按 Resources 路径加载，任何资产/场景不许持字体 GUID 引用，
+      ForceRebuildAll 换 GUID 是有意行为（builder 注释 + 本档双登记）。
+      PlayMode/实机走查交创始人（清单见下）。
+
+## 重构收官快照（2026-09-28）
+
+- 提交链：W1 `ac1e8774/14559476/c911b52f`（merge `1aac3e43`）→ W2 `a25daea6`
+  （merge `ff263d5d`）→ W3 `6a50654a`（merge `8fe3cbe5`）→ W4 注释与文档。
+- 单一真源达成：控件产线 = Skin\SketchButton 家族（游戏内 31 按钮 = 主菜单同款）；
+  皮肤 = PixelSkin 的 Ase 直切件 + Theme 色 + 平涂色块；战斗布局 = BattleHudZones；
+  字盒口径 = 控件工厂单点；场景表 = BuildScenes.EditorRegistrationScenes；
+  嵌套/异名 MonoBehaviour = 0（棘轮全绿）。
+- 遗留（登记不阻塞）：①烘焙器程序化残段（Pixel_Window_*/Focus 存件 + Edge/
+  PixelPiece 几何常量）——下次动烘焙器时一并清退；②RuntimeUiBuilder 仍保留场景
+  控制器在用的 CreateRect/SetAnchored 等基础件（其按钮/文案建件已无调用方）；
+  ③StickTokens.generated 的两个 SketchPanel 死常量；④WeaponPanelHeight 派生量
+  表达式化（W1B 观察 2）。
+
+## 创始人实机走查清单（Play/PlayMode）
+
+进战斗走一轮：①所有按钮（武器格/跳跃/结束回合/模式钮/模态）悬停与按下应有
+逐态字色变化（悬停字变亮、按下金字白面——与主菜单一致）；②未拥有的武器格 =
+禁用双层字（灰字带影子）；③模式钮无 1/2/3 角标但键盘 1/2/3 仍可切；④设置面板
+卡片为新 Ase 窗体皮（带「设置」标题带）；⑤暂停/结算/返回确认三模态观感。
 
 ## 铁律（每波通用）
 
