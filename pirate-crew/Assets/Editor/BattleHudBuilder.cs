@@ -65,8 +65,9 @@ namespace PirateCrew.EditorTools
         const float SegmentGap = 1f;
         const float SegmentInset = 1f;
 
-        /// <summary>红条左端 = 小地图右缘 + 缝；蓝条右端镜像同值。</summary>
-        const float TeamBarInsetX = 71f;
+        /// <summary>红条左端 = 小地图右缘 + 缝；蓝条右端镜像同值。
+        /// 海图加大到 144 宽（2026-09-28 创始人「面积为什么这么小」）→ 4 + 144 + 8。</summary>
+        const float TeamBarInsetX = 156f;
 
         /// <summary>pip 尺寸 / 间距（血条正下方一排队色方格，阵亡「×」+ 压暗）。</summary>
         const float PipSize = 6f;
@@ -79,29 +80,36 @@ namespace PirateCrew.EditorTools
         /// <summary>模式钮行：血条带下方独立一行（与蓝条 x 区段重叠，靠 y 错层避撞）。</summary>
         const float ModeButtonDrop = 16f;
 
-        /// <summary>模式文字钮尺寸（宽 = <see cref="UiSkin.Px.ButtonWidth"/>，高 = Aseprite 按钮原生 16）。</summary>
-        const float ModeButtonHeight = 16f;
+        /// <summary>模式文字钮尺寸（宽 = <see cref="UiSkin.Px.ButtonWidth"/>）。
+        /// 高 20（2026-09-28 创始人「垂直方向按钮太小」：12 号字上下各留 4 格，
+        /// 不再贴 theme 原生 16 的紧凑档）。</summary>
+        const float ModeButtonHeight = 20f;
 
         // ---------------- 底部带：武器面板（theme 窗体） ----------------
 
         /// <summary>武器面板：贴底居中（bottom = Safe）。窗体几何：边框 6 / 内容顶随标题
-        /// 字高（12 号 → 23）。宽 406 = 6 + 格区 394 + 6；高 114 = 内容顶 23 + 格区 52 +
-        /// 缝 2 + 行动行 16 + 缝 2 + 信息行 12 + 底边 6 + 1 余。</summary>
+        /// 字高（12 号 → 23）。宽 406 = 6 + 格区 394 + 6；高 124 = 内容顶 23 + 格区 58 +
+        /// 缝 2 + 行动行 20 + 缝 2 + 信息行 12 + 底边 6 + 1 余。</summary>
         const float WeaponPanelWidth = 406f;
-        const float WeaponPanelHeight = 114f;
+        const float WeaponPanelHeight = 124f;
 
         /// <summary>武器文字格尺寸 / 间距 / 列数（6×3 = 18 格，17 武器 + 1 空）。
-        /// 64 = 最长武器名「降落伞炸弹」5 字 × 12 原生档 = 60 + 2×2 缝（52 时代 5 字溢格）。</summary>
+        /// 格宽 64 = 最长武器名「降落伞炸弹」5 字 × 10 原生档 = 50 + 余量；格高 18 =
+        /// 10 号字上下各留 4 格（文字降一号建层级，2026-09-28 创始人令——全 12 号
+        /// 「整个面板文字都一样大」）。</summary>
         const float WeaponCell = 64f;
+        const float WeaponCellHeight = 18f;
         const float WeaponCellGap = 2f;
         const int WeaponColumns = 6;
 
-        /// <summary>HUD 紧凑按钮高（16 = Aseprite 按钮原生高，模板 1:1 零拉伸）。</summary>
-        const float HudButtonHeight = 16f;
+        /// <summary>HUD 按钮高（20：12 号字上下各留 4 格——2026-09-28 创始人
+        /// 「垂直方向按钮大小太小」，theme 原生 16 装 12 号字只剩 2 格余量太挤）。</summary>
+        const float HudButtonHeight = 20f;
 
-        /// <summary>小地图窗尺寸（沿用旧足迹 64×44：内容清空暂态，窗高只含标题带 + 空内容区）。</summary>
-        const float MinimapWidth = 64f;
-        const float MinimapHeight = 44f;
+        /// <summary>小地图窗尺寸（2026-09-28 创始人「面积为什么这么小」：64×44 太小，
+        /// 提到 144×96 占角面积；内容仍为清空暂态）。</summary>
+        const float MinimapWidth = 144f;
+        const float MinimapHeight = 96f;
 
         /// <summary>构建产物：全部需要回写给 BattleHud 的引用。</summary>
         public sealed class Result
@@ -447,12 +455,12 @@ namespace PirateCrew.EditorTools
             // 下游行动行按错误高度定位 → 整行压在格区第三行上（实拍实锤）。
             int gridRows = Mathf.CeilToInt((float)WeaponSlots / WeaponColumns);
             float gridWidth = WeaponColumns * WeaponCell + (WeaponColumns - 1) * WeaponCellGap;
-            float gridHeight = gridRows * HudButtonHeight + (gridRows - 1) * WeaponCellGap;
+            float gridHeight = gridRows * WeaponCellHeight + (gridRows - 1) * WeaponCellGap;
             RectTransform weaponGrid = UiKit.CreateRect("WeaponGrid", panel);
             weaponGrid.pivot = new Vector2(0f, 1f);
             UiKit.SetAnchored(weaponGrid, new Vector2(0f, 1f), new Vector2(gridWidth, gridHeight),
                 new Vector2(border, -contentTop));
-            UiLayout.Grid(weaponGrid, new Vector2(WeaponCell, HudButtonHeight), WeaponColumns,
+            UiLayout.Grid(weaponGrid, new Vector2(WeaponCell, WeaponCellHeight), WeaponColumns,
                 (int)WeaponCellGap);
 
             var buttons = new Button[WeaponSlots];
@@ -468,10 +476,11 @@ namespace PirateCrew.EditorTools
                 var button = cell.gameObject.AddComponent<Button>();
                 UiKit.ApplyThemeButton(button, frame);
 
-                // 文字占位（2026-09-24 创始人裁决：物品图标全部退役）：格中 = 武器中文名。
-                // 位图字号禁 AutoSize（非原生档必然糊栅格）——格宽 64 装得下 5 字全名。
+                // 文字占位（创始人裁决：物品图标退役）+ **文字降一号 10**（创始人 2026-09-28：
+                // 全 12 号「整个面板文字都一样大」——格名是密集次级信息，降档建层级；
+                // 位图字号禁 AutoSize（非原生档必然糊栅格）。
                 TextMeshProUGUI label = UiKit.CreateText("Name", cell,
-                    UiTextRules.WeaponName((WeaponId)i), UiSkin.Font.Body,
+                    UiTextRules.WeaponName((WeaponId)i), UiSkin.Font.Hint,
                     TextAlignmentOptions.Center, PixelSkin.PaperWhite, secondary);
                 label.enableWordWrapping = false;
                 label.enableAutoSizing = false;
@@ -491,10 +500,10 @@ namespace PirateCrew.EditorTools
             result.unitNameText = UiKit.CreateText("UnitName", panel, string.Empty, UiSkin.Font.Hud,
                 TextAlignmentOptions.MidlineLeft, PixelSkin.PaperWhite, body);
             result.unitNameText.enableWordWrapping = false;
-            UiKit.PlaceTopLeft(result.unitNameText.rectTransform, border, rowTop + 2f,
+            UiKit.PlaceTopLeft(result.unitNameText.rectTransform, border, rowTop + 4f,
                 new Vector2(64f, 12f));
 
-            result.unitHpBar = BuildUnitHpBar(panel, border + 70f, rowTop + 2f);
+            result.unitHpBar = BuildUnitHpBar(panel, border + 70f, rowTop + 4f);
 
             float endGoWidth = UiSkin.Px.ButtonWidth(UiStrings.BattleEndGo);
             float throwWidth = UiSkin.Px.ButtonWidth(UiStrings.BattleThrowSelf);
@@ -559,6 +568,21 @@ namespace PirateCrew.EditorTools
             Button button = UiKit.ActionButton(name, parent, label, Vector2.zero, size, font);
             UiKit.PlaceTopLeft((RectTransform)button.transform, x, y, size);
             return button;
+        }
+
+        /// <summary>模态按钮贴合标签后再加宽（创始人 2026-09-28 走查「文字贴边」：
+        /// FitToLabel 的 ButtonPadX=8 两侧各 4 格在放大观感下贴边，模态按钮补到每侧 6 格）。</summary>
+        static void FitToLabelPadded(Button button, float extraWidth)
+        {
+            UiKit.FitToLabel(button);
+            RectTransform rect = (RectTransform)button.transform;
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x + extraWidth, rect.sizeDelta.y);
+            var element = button.GetComponent<UnityEngine.UI.LayoutElement>();
+            if (element != null)
+            {
+                element.preferredWidth += extraWidth;
+                element.minWidth += extraWidth;
+            }
         }
 
         // ------------------------------------------------------------------
@@ -676,15 +700,15 @@ namespace PirateCrew.EditorTools
             result.resumeButton = UiKit.ActionButton("ResumeButton", flow,
                 UiStrings.BattleResume,
                 Vector2.zero, new Vector2(35f, HudButtonHeight), body);
-            UiKit.FitToLabel(result.resumeButton);
+            FitToLabelPadded(result.resumeButton, 4f);
             result.pauseRestartButton = UiKit.ActionButton("PauseRestartButton", flow,
                 UiStrings.BattleRestart,
                 Vector2.zero, new Vector2(35f, HudButtonHeight), body);
-            UiKit.FitToLabel(result.pauseRestartButton);
+            FitToLabelPadded(result.pauseRestartButton, 4f);
             result.pauseBackButton = UiKit.ActionButton("PauseBackButton", flow,
                 UiStrings.BackToMainMenu,
                 Vector2.zero, new Vector2(35f, HudButtonHeight), body);
-            UiKit.FitToLabel(result.pauseBackButton);
+            FitToLabelPadded(result.pauseBackButton, 4f);
         }
 
         /// <summary>结算面板（窗体标题带「战斗结算」）：窗内胜负大字 + 三星 + 明细 + 再来一局 / 返回。</summary>
@@ -728,11 +752,11 @@ namespace PirateCrew.EditorTools
             result.settlementRestartButton = UiKit.ActionButton("SettlementRestartButton", actionRow,
                 UiStrings.BattleRestart,
                 Vector2.zero, new Vector2(30f, HudButtonHeight), secondary);
-            UiKit.FitToLabel(result.settlementRestartButton);
+            FitToLabelPadded(result.settlementRestartButton, 4f);
             result.settlementBackButton = UiKit.ActionButton("SettlementBackButton", actionRow,
                 UiStrings.SettlementBackToSelect,
                 Vector2.zero, new Vector2(30f, HudButtonHeight), secondary);
-            UiKit.FitToLabel(result.settlementBackButton);
+            FitToLabelPadded(result.settlementBackButton, 4f);
         }
 
         /// <summary>返回确认弹窗（挂在 Canvas 直下压过全部元素）。</summary>
@@ -757,11 +781,11 @@ namespace PirateCrew.EditorTools
             result.confirmOkButton = UiKit.ActionButton("OkButton", actionRow,
                 UiStrings.Confirm,
                 Vector2.zero, new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Confirm), HudButtonHeight), body);
-            UiKit.FitToLabel(result.confirmOkButton);
+            FitToLabelPadded(result.confirmOkButton, 4f);
             result.confirmCancelButton = UiKit.ActionButton("CancelButton", actionRow,
                 UiStrings.Cancel,
                 Vector2.zero, new Vector2(UiSkin.Px.ButtonWidth(UiStrings.Cancel), HudButtonHeight), body);
-            UiKit.FitToLabel(result.confirmCancelButton);
+            FitToLabelPadded(result.confirmCancelButton, 4f);
         }
 
         // ------------------------------------------------------------------

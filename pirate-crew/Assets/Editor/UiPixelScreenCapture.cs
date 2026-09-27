@@ -129,6 +129,7 @@ namespace PirateCrew.EditorTools
             {
                 case "settings": return "SettingsPanel";
                 case "confirm": return "ConfirmDialog";   // MainMenu 确认框根名（旧值 BackConfirmDialog 不存在）
+                case "pause": return "PausePanel";   // 战斗暂停菜单（直接激活——视觉走查不需要 timeScale/暂停态）
                 default: return null;
             }
         }
