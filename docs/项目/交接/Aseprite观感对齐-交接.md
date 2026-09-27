@@ -1283,3 +1283,20 @@ WindowContentTopOf` 查询（无组件回落原生口径）。**ContentTop 常�
 带差）、widget/probe/newsprite 微增，**parts 恒 824154 = 窗区 diff 饱和效应**
 （39.7% 区域早已全红，带加高落在已差异区内不增计数）。提交 `104ea3e1`，
 merge `21b80ea3`。
+
+**三之十五·补：裁决改道（创始人复验「哪里高了？主页标题还是溢出」）**——上一版
+（带插行加高）挂在 EnsureWindow 上，但**主菜单窗的两条腿没接**：按钮列由
+VerticalLayoutGroup 排（padding.top 用常量 17）+ 窗高公式在装配方先算死——自适应
+对主菜单零作用，且其编辑器尚未吃到该提交。创始人裁决改道：**带保持原生 15、字溢出
+带可以接受，但标题栏与下方元素的距离必须随字高动态**。落地（`8d604376`，
+merge `a406d8d3` + 场景重装配 `a50be2ac`）：
+- **挂带组件下沉 EnsureTitleLabel**（标题唯一入口）——只摆标题不走 EnsureWindow 的
+  路径（CrewManagement 列表窗等）也被兜住；内容顶 = max(17, ceil(字行高) + 5 + 2)
+  （12 号 → 23）；撤插行加高件与窗高偷改（窗高由装配方按实际内容顶自算）；
+- 装配方三条腿全接实际值：SceneSetup 窗高公式/padding、ManagementSceneSetup 列表窗
+  offsetMax、CreateModal 卡片 padding；奇高中心锚补偿改动态判定；
+- Editor 装配改动过 **DataEditor 域**门（Runtime 域不含 Editor 源）；场景产物经
+  桥 `call SceneSetup.BuildAll` 重装配后入库。验收：主菜单标题与「进入战斗」列之间
+  拉开明确距离（内容顶 23），带视觉原生、窗缘整格。
+- 【教训】「改单点 ≠ 接通」——挂了单点还要盘点**消费侧的常量腿**（装配方 padding/
+  窗高公式），且 Editor 装配的场景是**序列化产物**：改装配方必须重装配场景再验。
