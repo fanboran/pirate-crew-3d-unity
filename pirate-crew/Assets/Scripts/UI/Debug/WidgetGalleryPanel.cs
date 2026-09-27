@@ -27,7 +27,7 @@ namespace PirateCrew.UI.DebugUi
         {
             RectTransform window = DebugWindowKit.CreateWindow(overlay, "WidgetGallery",
                 "组件实摆（theme 语义 · 全交互）", topLeft, new Vector2(ContentW + DebugWindowKit.Pad * 2f, 470f));
-            float y = DebugWindowKit.ContentTop;
+            float y = DebugWindowKit.ContentTopOf(window);
 
             // ---- 按钮 BUTTON ----
             DebugWindowKit.Section(window, "按钮 BUTTON —— 四态：悬停亮面 / 按下蓝面白字 / 禁用双层字", ContentW, ref y);

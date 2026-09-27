@@ -47,7 +47,7 @@ namespace PirateCrew.UI.DebugUi
             _launcher = DebugWindowKit.CreateWindow(_root, "DebugLauncher", "调试菜单",
                 new Vector2(20f, 44f), new Vector2(150f, 124f), closeButton: false);
 
-            float y = DebugWindowKit.ContentTop;
+            float y = DebugWindowKit.ContentTopOf(_launcher);
             // 四窗默认位错开排布（画布 960×540）：陈列廊右大块 / 对话框与菜单栏右列上下，
             // 启动器左列——默认位互不压盖，全幅陈列廊例外（打开即覆盖、× 即还原）。
             // 首开一律延一帧（DebugBuildQueue）：按压反馈先落地，重构建不吞点击帧。
@@ -137,7 +137,7 @@ namespace PirateCrew.UI.DebugUi
 
             TextMeshProUGUI feedback = DebugWindowKit.PlaceLabel(window, "（点菜单项在这里回显）",
                 UiSkin.Font.Tiny, PixelSkin.Theme.StatusText, DebugWindowKit.Pad,
-                DebugWindowKit.ContentTop + 20f, 260f);
+                DebugWindowKit.ContentTopOf(window) + 20f, 260f);
 
             System.Action<string> echo = path => feedback.text = path;
 
@@ -201,7 +201,7 @@ namespace PirateCrew.UI.DebugUi
             };
 
             RectTransform bar = AseMenuKit.BuildMenuBar(window, "AseMenuBar", menus);
-            bar.anchoredPosition = new Vector2(DebugWindowKit.Pad, -DebugWindowKit.ContentTop);
+            bar.anchoredPosition = new Vector2(DebugWindowKit.Pad, -DebugWindowKit.ContentTopOf(window));
             return window;
         }
 
@@ -217,9 +217,9 @@ namespace PirateCrew.UI.DebugUi
             // 滚动视图 = theme view 整装：window_face 底 + sunken 边框，12 宽条**按需**出在
             // 框内右缘并挤窄视口（scroll_helper.cpp:75-81）——源里没有「框外独立条」的组合
             AseView scroll = AseWidgetKit.ScrollView(window, "Scroll",
-                DebugWindowKit.Pad, DebugWindowKit.ContentTop,
+                DebugWindowKit.Pad, DebugWindowKit.ContentTopOf(window),
                 windowSize.x - DebugWindowKit.Pad * 2f,
-                windowSize.y - DebugWindowKit.ContentTop - DebugWindowKit.Pad);
+                windowSize.y - DebugWindowKit.ContentTopOf(window) - DebugWindowKit.Pad);
 
             RectTransform content = UiKit.CreateRect("Content", scroll.Viewport);
             UiKit.SetAnchored(content, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
