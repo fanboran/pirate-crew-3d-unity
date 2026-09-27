@@ -1208,8 +1208,7 @@ namespace PirateCrew.UI.DebugUi
             void LayoutRow(MenuRow row, float menuW, float x, float yBase)
             {
                 row.W = menuW;
-                UiKit.SetAnchored(row.Rect, new Vector2(0f, 1f), new Vector2(menuW, row.H),
-                    new Vector2(x, -(row.Y - yBase)));
+                UiKit.PlaceTopLeft(row.Rect, x, (row.Y - yBase), new Vector2(menuW, row.H));
 
                 if (row.Data.Separator)
                 {
@@ -1241,9 +1240,7 @@ namespace PirateCrew.UI.DebugUi
                     float iconTop = ItemBorder
                         + Mathf.FloorToInt((row.H - ItemBorder * 2f) * 0.5f)
                         - CheckSize * 0.5f;
-                    UiKit.SetAnchored(row.Check.rectTransform, new Vector2(0f, 1f),
-                        new Vector2(CheckSize, CheckSize),
-                        new Vector2(ItemBorder + CheckCenterOffset - CheckSize * 0.5f, -iconTop));
+                    UiKit.PlaceTopLeft(row.Check.rectTransform, ItemBorder + CheckCenterOffset - CheckSize * 0.5f, iconTop, new Vector2(CheckSize, CheckSize));
                 }
 
                 if (row.HasSubmenu)
@@ -1255,8 +1252,7 @@ namespace PirateCrew.UI.DebugUi
                         float ax = menuW - (ItemBorder + ArrowWidth) - c;
                         float ah = 2 * c + 1;
                         var barRect = UiKit.CreateRect("Arrow" + c, row.Rect);
-                        UiKit.SetAnchored(barRect, new Vector2(0f, 1f), new Vector2(1f, ah),
-                            new Vector2(ax, -(cy - c)));
+                        UiKit.PlaceTopLeft(barRect, ax, (cy - c), new Vector2(1f, ah));
                         var bar = barRect.gameObject.AddComponent<Image>();
                         bar.color = TextNormal;
                         bar.raycastTarget = false;
@@ -1414,10 +1410,9 @@ namespace PirateCrew.UI.DebugUi
             void BuildScrollableView(MenuScope scope, float menuW, float contentH, float winW, float winH)
             {
                 RectTransform viewRect = MakeRect("View", scope.Rect);
-                UiKit.SetAnchored(viewRect, new Vector2(0f, 1f), new Vector2(
+                UiKit.PlaceTopLeft(viewRect, MenuSliceL, MenuSliceT, new Vector2(
                     Mathf.Max(0f, winW - MenuSliceL - MenuSliceR),
-                    Mathf.Max(0f, winH - MenuSliceT - MenuSliceB)),
-                    new Vector2(MenuSliceL, -MenuSliceT));
+                    Mathf.Max(0f, winH - MenuSliceT - MenuSliceB)));
 
                 AseView view = AseView.Attach(viewRect, 0, 0, 0, 0);
 
@@ -1474,7 +1469,7 @@ namespace PirateCrew.UI.DebugUi
                 if (w <= 0f || h <= 0f)
                     return;
                 RectTransform rect = MakeRect("MenuCatcher", _overlay);
-                UiKit.SetAnchored(rect, new Vector2(0f, 1f), new Vector2(w, h), new Vector2(x, -y));
+                UiKit.PlaceTopLeft(rect, x, y, new Vector2(w, h));
                 var image = rect.gameObject.AddComponent<Image>();
                 image.color = new Color(0f, 0f, 0f, 0f);
                 image.raycastTarget = true;

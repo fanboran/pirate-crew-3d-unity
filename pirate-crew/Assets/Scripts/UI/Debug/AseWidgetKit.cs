@@ -45,7 +45,7 @@ namespace PirateCrew.UI.DebugUi
                 = TMP_InputField.ContentType.IntegerNumber, string suffix = null)
         {
             RectTransform entry = UiKit.CreateRect(name, parent);
-            UiKit.SetAnchored(entry, new Vector2(0f, 1f), new Vector2(w, 12f), new Vector2(x, -y));
+            UiKit.PlaceTopLeft(entry, x, y, new Vector2(w, 12f));
             var sunken = entry.gameObject.AddComponent<Image>();
             AseUi.SetRawPart(sunken, "sunken_normal");   // theme sunken 常态件（Sliced + ppum×1 + 白见 AseUi）
             sunken.raycastTarget = true;
@@ -80,7 +80,7 @@ namespace PirateCrew.UI.DebugUi
             bool initial, System.Action<bool> onChanged, string kind = "check")
         {
             RectTransform rect = UiKit.CreateRect(kind + "_" + label, parent);
-            UiKit.SetAnchored(rect, new Vector2(0f, 1f), Vector2.zero, new Vector2(x, -y));
+            UiKit.PlaceTopLeft(rect, x, y, Vector2.zero);
             GameObject rowGo = rect.gameObject;
 
             var face = rowGo.AddComponent<Image>();
@@ -90,7 +90,7 @@ namespace PirateCrew.UI.DebugUi
 
             // 图标 8×8 @ (2,4)：theme.xml:150 check_normal 件尺寸 + 样式 icon x=2。
             RectTransform icon = UiKit.CreateRect("Icon", rect);
-            UiKit.SetAnchored(icon, new Vector2(0f, 1f), new Vector2(8f, 8f), new Vector2(2f, -4f));
+            UiKit.PlaceTopLeft(icon, 2f, 4f, new Vector2(8f, 8f));
             var iconImage = icon.gameObject.AddComponent<Image>();
             iconImage.raycastTarget = false;
 
@@ -148,7 +148,7 @@ namespace PirateCrew.UI.DebugUi
             float w, float h)
         {
             RectTransform view = UiKit.CreateRect(name, parent);
-            UiKit.SetAnchored(view, new Vector2(0f, 1f), new Vector2(w, h), new Vector2(x, -y));
+            UiKit.PlaceTopLeft(view, x, y, new Vector2(w, h));
             PaintViewSkin(view);
             return AseView.Attach(view,
                 (int)ViewBorderLeft, (int)ViewBorderTop, (int)ViewBorderRight, (int)ViewBorderBottom);
@@ -193,7 +193,7 @@ namespace PirateCrew.UI.DebugUi
             float w, string[] options, int initial, System.Action<int> onPick = null)
         {
             RectTransform root = UiKit.CreateRect(name, parent);
-            UiKit.SetAnchored(root, new Vector2(0f, 1f), new Vector2(w, 12f), new Vector2(x, -y));
+            UiKit.PlaceTopLeft(root, x, y, new Vector2(w, 12f));
 
             // 弹层宿主一律 null → AseComboBox.Build 缺省走 AseUi.OverlayOf（画布根）。
             // 旧 parent.parent 只在组合框直挂窗根时碰巧等于 overlay；嵌套在盒/格里时

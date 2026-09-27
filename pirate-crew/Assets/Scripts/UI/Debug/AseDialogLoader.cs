@@ -246,7 +246,7 @@ namespace PirateCrew.UI.DebugUi
 
             public override void Layout(int x, int y, int w, int h)
             {
-                UiKit.SetAnchored(Rect, new Vector2(0f, 1f), new Vector2(w, h), new Vector2(x, -y));
+                UiKit.PlaceTopLeft(Rect, x, y, new Vector2(w, h));
                 Resize?.Invoke(w);
             }
         }
@@ -324,7 +324,7 @@ namespace PirateCrew.UI.DebugUi
                 // 垂直居中），子件锚在幽灵矩形顶上，整体平移 (parentH-100)/2——new_sprite
                 // 首行 67px 死区即此（窗口高 223：(223-100)/2 + 17 = 67）。
                 if (Host != null)
-                    UiKit.SetAnchored(Host, new Vector2(0f, 1f), new Vector2(w, h), new Vector2(x, -y));
+                    UiKit.PlaceTopLeft(Host, x, y, new Vector2(w, h));
 
                 int visibleChildren = 0, expansiveChildren = 0;
                 for (int i = 0; i < Kids.Count; i++)
@@ -847,7 +847,7 @@ namespace PirateCrew.UI.DebugUi
             {
                 // setBounds 落宿主（同 BoxNode——Grid 的 bounds 同样是其真实矩形）
                 if (Host != null)
-                    UiKit.SetAnchored(Host, new Vector2(0f, 1f), new Vector2(w, h), new Vector2(x, -y));
+                    UiKit.PlaceTopLeft(Host, x, y, new Vector2(w, h));
                 CalculateSize();
                 DistributeSize(w, h);
                 if (_rowCount == 0)
