@@ -47,37 +47,20 @@ namespace PirateCrew.UI.Stick
             var item = rect.gameObject.AddComponent<SketchButtonSet>();
             item.InitAseSkin(image);      // targetGraphic + SpriteSwap + 全白 ColorBlock
 
-            // 标签：锚整件拉伸 + 内容区边距（见下方 offset 注释），居中、顶点像素对齐。
-            var labelGo = new GameObject("Label", typeof(RectTransform));
-            RectTransform labelRect = labelGo.GetComponent<RectTransform>();
-            labelRect.SetParent(rect, false);
-            labelRect.anchorMin = Vector2.zero;
-            labelRect.anchorMax = Vector2.one;
-            labelRect.pivot = new Vector2(0.5f, 0.5f);
+            // 标签：像素纪律四件套走 UiKit.CreateText 单点；锚整件拉伸 + 内容区边距特化如下。
             // 标签按件**内容区**取盒（切片 w 3/10/3、h 3/8/5）：左右各让 3、底让 5、顶让 3——
             // 内容区中心比几何中心高 1 格（同 SketchButton 标签的 +1 律），字不压底边框。
             // （旧版借用 CheckBorder=2 是 checkbox 的边距，与本件切片差 1。）
+            var tmp = UiKit.CreateText("Label", rect, label ?? string.Empty,
+                Mathf.RoundToInt(fontSize), TextAlignmentOptions.Center,
+                PixelSkin.Theme.Text, font, wrap: false);
+            tmp.fontSize = fontSize;      // 保留 float 字号
+            RectTransform labelRect = tmp.rectTransform;
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.pivot = new Vector2(0.5f, 0.5f);
             labelRect.offsetMin = new Vector2(3f, 5f);
             labelRect.offsetMax = new Vector2(-3f, -3f);
-            var tmp = labelGo.AddComponent<TextMeshProUGUI>();
-            tmp.text = label ?? string.Empty;
-            tmp.fontSize = fontSize;
-            TMP_FontAsset resolved = UiKit.ResolvePixelFont(Mathf.RoundToInt(fontSize), font);
-            if (resolved != null)
-            {
-                tmp.font = resolved;
-                PixelAtlasPointFilter.Ensure(resolved);
-            }
-            else if (font != null)
-            {
-                tmp.font = font;
-            }
-            tmp.fontStyle = FontStyles.Normal;   // 位图字禁伪粗
-            tmp.alignment = TextAlignmentOptions.Center;
-            tmp.enableWordWrapping = false;
-            tmp.color = PixelSkin.Theme.Text;    // button_normal_text #C0C0C0
-            tmp.raycastTarget = false;
-            tmp.gameObject.AddComponent<PirateCrew.UI.PixelSnapText>();
             item._label = tmp;
 
             item.ApplySkin();

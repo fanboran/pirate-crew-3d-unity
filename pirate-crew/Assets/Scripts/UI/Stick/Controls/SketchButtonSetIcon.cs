@@ -33,29 +33,14 @@ namespace PirateCrew.UI.Stick
             item.InitAseSkin(image);      // targetGraphic + SpriteSwap + 全白 ColorBlock
 
             // 文字 top：边框内再收内距——border-top 3 + padding-top 2 = 5（theme.xml:1067/:1114），
-            // 字色 button_normal_text #C0C0C0
-            var labelGo = new GameObject("Label", typeof(RectTransform));
-            RectTransform labelRect = labelGo.GetComponent<RectTransform>();
-            labelRect.SetParent(rect, false);
+            // 字色 button_normal_text #C0C0C0；像素纪律四件套走 CreateText 单点
+            var tmp = UiKit.CreateText("Label", rect, label, UiSkin.Font.Tiny,
+                TextAlignmentOptions.Center, PixelSkin.Theme.Text, null, wrap: false);
+            RectTransform labelRect = tmp.rectTransform;
             labelRect.anchorMin = labelRect.anchorMax = new Vector2(0.5f, 1f);
             labelRect.pivot = new Vector2(0.5f, 1f);
             labelRect.anchoredPosition = new Vector2(0f, -5f);
             labelRect.sizeDelta = new Vector2(size.x - 6f, 10f);
-            var tmp = labelGo.AddComponent<TextMeshProUGUI>();
-            tmp.text = label;
-            tmp.fontSize = UiSkin.Font.Tiny;
-            TMP_FontAsset resolved = UiKit.ResolvePixelFont(UiSkin.Font.Tiny, null);
-            if (resolved != null)
-            {
-                tmp.font = resolved;
-                PixelAtlasPointFilter.Ensure(resolved);
-            }
-            tmp.fontStyle = FontStyles.Normal;   // 位图字禁伪粗
-            tmp.alignment = TextAlignmentOptions.Center;
-            tmp.enableWordWrapping = false;
-            tmp.color = PixelSkin.Theme.Text;
-            tmp.raycastTarget = false;
-            tmp.gameObject.AddComponent<PixelSnapText>();
 
             // 图标 bottom：border-bottom 5 + padding-bottom 1 = 6（theme.xml:1067/:1114），
             // 16×16 直切件 sheet 原色

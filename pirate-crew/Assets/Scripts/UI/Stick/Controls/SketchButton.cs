@@ -158,9 +158,14 @@ namespace PirateCrew.UI.Stick
         private static TextMeshProUGUI AddLabel(RectTransform root, string content,
             TMP_FontAsset font, float fontSize, bool shadowMode)
         {
-            var go = new GameObject(shadowMode ? "LabelShadow" : "Label", typeof(RectTransform));
-            RectTransform rt = go.GetComponent<RectTransform>();
-            rt.SetParent(root, false);
+            // 像素纪律四件套（档解析就近选档 / 图集钉 Point / PixelSnap / 禁接光）走
+            // UiKit.CreateText 单点——此处只留按钮字区的特化（字盒边距 + 影子层）。
+            float size = fontSize > 0f ? fontSize : UiSkin.Font.Body;
+            var label = UiKit.CreateText(shadowMode ? "LabelShadow" : "Label", root,
+                content ?? string.Empty, Mathf.RoundToInt(size),
+                TextAlignmentOptions.Center, Color.white, font, wrap: false);
+            label.fontSize = size;   // 保留 float 字号（不取整档位的中间号）
+            RectTransform rt = label.rectTransform;
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = Vector2.one;
             rt.pivot = new Vector2(0.5f, 0.5f);
@@ -171,25 +176,6 @@ namespace PirateCrew.UI.Stick
             // 故底边多让 1 格：字盒 = [3, h-1]，中心 = 几何中心 + 1 格 ✓ 与 sprite 字区对齐。
             rt.offsetMin = new Vector2(StickTokens.PAD_X + 2f, 3f);
             rt.offsetMax = new Vector2(-(StickTokens.PAD_X + 2f), -1f);
-            var label = go.AddComponent<TextMeshProUGUI>();
-            label.text = content ?? string.Empty;
-            label.fontSize = fontSize > 0f ? fontSize : UiSkin.Font.Body;
-            // 【字号档单点解析】调用方给的是"字体族"（很可能是 16 原生档的标题族），而显示字号
-            // 未必等于该族的原生档——位图字错档显示 = 非整数倍缩放 = 笔画在 1/2/3 屏像素之间跳
-            // （实拍：主菜单四钮传标题族按 12 号显示 = 0.750 倍；设置页选项块同病）。
-            // 一律按字号就近取原生档，与 UiKit.CreateText / CreateTextExact 同一口径。
-            TMP_FontAsset resolved = UiKit.ResolvePixelFont(
-                Mathf.RoundToInt(label.fontSize), font);
-            if (resolved != null)
-                label.font = resolved;
-            else if (font != null)
-                label.font = font;
-            label.alignment = TextAlignmentOptions.Center;
-            label.enableWordWrapping = false;
-            label.raycastTarget = false;
-            label.margin = Vector4.zero;
-            label.gameObject.AddComponent<PirateCrew.UI.PixelSnapText>();   // 顶点像素对齐
-            PirateCrew.UI.PixelAtlasPointFilter.Ensure(label.font);   // 图集钉 Point：双线性会渗邻字
             if (shadowMode)
             {
                 // theme.xml:617：影子色 = theme background（#41444a），偏移 (1,1) 设计格

@@ -83,11 +83,14 @@ namespace PirateCrew.UI
         // 文本（字号 = UiSkin.Font 单轨）
         // ------------------------------------------------------------------
 
-        /// <summary>建 TMP 文本（字号请传 <see cref="UiSkin.Font"/> 档位常量）。
-        /// 【字体档单点解析】字体一律按字号经 <see cref="ResolvePixelFont"/> 就近选档——
-        /// 调用方传入的 <paramref name="font"/> 仅作解析失败时的兜底。</summary>
+        /// <summary>建 TMP 文本（字号请传 <see cref="UiSkin.Font"/> 档位常量）——**像素纪律
+        /// 单点**：字体档解析 + 图集点采样 + <see cref="PixelSnapText"/> 顶点对齐 + 禁接光，
+        /// 四件套在此一处保证，散装手写每一处都是漏挂事故（按钮标签漏 Snap 案）。
+        /// 字体一律按字号经 <see cref="ResolvePixelFont"/> 就近选档——调用方传入的
+        /// <paramref name="font"/> 仅作解析失败时的兜底。锚/摆位留给调用方。</summary>
         public static TextMeshProUGUI CreateText(string name, Transform parent, string content, int fontSize,
-            TextAlignmentOptions alignment, Color color, TMP_FontAsset font, bool raycast = false)
+            TextAlignmentOptions alignment, Color color, TMP_FontAsset font, bool raycast = false,
+            bool wrap = true)
         {
             RectTransform rect = CreateRect(name, parent);
             var text = rect.gameObject.AddComponent<TextMeshProUGUI>();
@@ -101,7 +104,7 @@ namespace PirateCrew.UI
             text.fontSize = fontSize;
             text.alignment = alignment;
             text.color = color;
-            text.enableWordWrapping = true;
+            text.enableWordWrapping = wrap;
             text.overflowMode = TextOverflowModes.Overflow;
             text.raycastTarget = raycast;
             text.gameObject.AddComponent<PixelSnapText>();   // 顶点像素对齐（治半格糊字）
