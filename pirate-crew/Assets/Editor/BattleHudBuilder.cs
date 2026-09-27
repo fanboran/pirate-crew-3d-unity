@@ -1,5 +1,6 @@
 using PirateCrew.Data;
 using PirateCrew.UI;
+using PirateCrew.UI.Stick;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -399,26 +400,19 @@ namespace PirateCrew.EditorTools
 
             for (int i = 0; i < WeaponSlots; i++)
             {
-                RectTransform cell = UiKit.CreateRect("WeaponCell_" + (WeaponId)i, weaponGrid);
-
-                // 格底 = theme button 四态（SpriteSwap）；选中态 = 金面 sticky
-                // （运行时 RefreshWeaponPanel 经 ApplyThemeButton 切换）。
-                Image frame = cell.gameObject.AddComponent<Image>();
-                var button = cell.gameObject.AddComponent<Button>();
-                UiKit.ApplyThemeButton(button, frame);
-
-                // 文字占位（创始人裁决：物品图标退役）+ **文字降一号 10**（创始人 2026-09-28：
-                // 全 12 号「整个面板文字都一样大」——格名是密集次级信息，降档建层级；
-                // 位图字号禁 AutoSize（非原生档必然糊栅格）。
-                TextMeshProUGUI label = UiKit.CreateText("Name", cell,
-                    UiTextRules.WeaponName((WeaponId)i), UiSkin.Font.Hint,
-                    TextAlignmentOptions.Center, PixelSkin.PaperWhite, secondary);
-                label.enableWordWrapping = false;
-                label.enableAutoSizing = false;
-                UiKit.Stretch(label.rectTransform, 2f);
+                // 【产线合一 W2】武器格改出 SketchButton（theme 状态层引擎单一真源）——
+                // 原手写 Image + Button + ApplyThemeButton + CreateText 四件套退役；
+                // GridLayoutGroup 接管格位与尺寸（anchor/pivot 传 0.5 仅为建件默认，会被布局覆写）。
+                // **文字降一号 10**（创始人 2026-09-28：全 12 号「整个面板文字都一样大」——
+                // 格名是密集次级信息，降档建层级）；Hint 即原生档，位图字号禁 AutoSize。
+                // 格底四态 + 已装备 sticky 金面由 SketchButton.Sticky 承担（RefreshWeaponPanel）。
+                SketchButton button = SketchButton.Create(weaponGrid, "WeaponCell_" + (WeaponId)i,
+                    new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
+                    new Vector2(BattleHudZones.WeaponCell, BattleHudZones.WeaponCellHeight),
+                    secondary, UiTextRules.WeaponName((WeaponId)i), UiSkin.Font.Hint);
 
                 buttons[i] = button;
-                frames[i] = frame;
+                frames[i] = button.image;
             }
 
             result.weaponButtons = buttons;
@@ -556,8 +550,9 @@ namespace PirateCrew.EditorTools
             result.modeFrames = new Image[3];
             for (int i = 0; i < 3; i++)
             {
-                Vector2 size = new Vector2(UiSkin.Px.ButtonWidth(modeLabels[i]) + 6f, BattleHudZones.ModeButtonHeight);   // +6：快捷键角标让位
-                // 右上**角锚**（1,1）：x/y 都相对屏角累退（Safe + 同排前钮宽 + 缝），任何分辨率贴角不漂移。
+                // 【2026-09-28 创始人裁决】快捷键角标已撤——钮宽不再为 1/2/3 让位。
+                Vector2 size = new Vector2(UiSkin.Px.ButtonWidth(modeLabels[i]), BattleHudZones.ModeButtonHeight);
+                // 右上**角锚**（1,1）：x/y 都相对屏角累退（Safe + 同排前钮宽 + 缝 6），任何分辨率贴角不漂移。
                 Vector2 position = new Vector2(
                     -(BattleHudZones.Safe + (2 - i) * (size.x + 6f) + size.x * 0.5f),
                     -(BattleHudZones.TopBandFromTop + BattleHudZones.ModeButtonDrop));
@@ -568,16 +563,7 @@ namespace PirateCrew.EditorTools
                     rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
                 }
 
-                // 快捷键角标（右上角小字）——图标退役后快捷键提示的唯一载体。
-                TextMeshProUGUI hotkey = UiKit.CreateText("Hotkey", button.transform, (i + 1).ToString(),
-                    UiSkin.Font.Tiny, TextAlignmentOptions.Center,
-                    UiSkin.WithAlpha(PixelSkin.PaperWhite, 0.66f), secondary);
-                hotkey.enableWordWrapping = false;
-                hotkey.rectTransform.anchorMin = hotkey.rectTransform.anchorMax = new Vector2(1f, 1f);
-                hotkey.rectTransform.pivot = new Vector2(1f, 1f);
-                hotkey.rectTransform.sizeDelta = new Vector2(10f, 10f);
-                hotkey.rectTransform.anchoredPosition = new Vector2(-3f, -3f);
-
+                // 快捷键 1/2/3 切模式的**功能**保留（BattleHud.Update 读键），此处只撤视觉角标。
                 result.modeButtons[i] = button;
                 result.modeFrames[i] = button.image;
             }

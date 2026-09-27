@@ -1,3 +1,5 @@
+// 【产线合一 W2】按钮族（AseButtonBase / SketchButton / SketchButtonSet / SketchButtonSetIcon / SketchSlider）
+// 已迁 Assets/Scripts/UI/Skin/，本目录为待退役旧件。
 using UnityEngine;
 using PirateCrew.UI.DebugUi;
 

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using PirateCrew.UI.Stick;
 
 namespace PirateCrew.UI
 {
@@ -571,35 +572,18 @@ namespace PirateCrew.UI
         /// 【kind 体系已退役（×1 全量对齐波）】theme 无彩面按钮（参考图 OK/Cancel 同为灰面），
         /// 语义由文字与焦点蓝描边表达；Sticky 业务选中态由调用方走 <see cref="ApplyThemeButton"/>。
         /// position 相对父容器中心（anchor/pivot 0.5,0.5）。
+        ///
+        /// 【产线合一 W2】本方法是 <see cref="SketchButton.Create"/> 的**薄壳**——不再自建
+        /// Image/Button/文本，全部按钮一律出 <see cref="SketchButton"/>：白得 theme 四态皮 +
+        /// Sticky 业务选中 + 禁用双层影子字（状态层引擎单一真源）。字盒口径随之一并归
+        /// <c>SketchButton.AddLabel</c>（[PAD_X+2, 3] / [-(PAD_X+2), -1]）。同签名同语义：
+        /// 中心锚 pivot 0.5、返回 Button（SketchButton 是 Button 子类）。
         /// </summary>
         public static Button ActionButton(string name, Transform parent,
             string label, Vector2 anchoredPosition, Vector2 size, TMP_FontAsset font)
         {
-            RectTransform rect = CreateRect(name, parent);
-            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = size;
-            rect.anchoredPosition = anchoredPosition;
-
-            var image = rect.gameObject.AddComponent<Image>();
-            var button = rect.gameObject.AddComponent<Button>();
-            ApplyThemeButton(button, image);
-
-            TextMeshProUGUI text = CreateText("Text", rect, label, UiSkin.Font.Body,
-                TextAlignmentOptions.Center, PixelSkin.Theme.Text, font, raycast: false);
-            text.enableWordWrapping = false;
-            // 【字盒口径 = 菜单按钮（SketchButton）实拍校准同源】底边让 3 / 顶边让 1：
-            // 字盒中心 = 钮心 +1 格（TMP 中文墨迹在 theme 字区整体偏下 1 格，靠不对称
-            // 边距抬回）。旧 Stretch(10) 上下各吃 10——20 高的钮字盒被压成 0 高，
-            // 墨迹沉到下沿（创始人实拍「文字和下边沿重叠」，2026-09-28）。菜单按钮
-            // 一直没这问题就是因为它带这套补偿；此处收口后两条按钮产线同口径。
-            RectTransform textBox = text.rectTransform;
-            textBox.anchorMin = Vector2.zero;
-            textBox.anchorMax = Vector2.one;
-            textBox.offsetMin = new Vector2(2f, 3f);
-            textBox.offsetMax = new Vector2(-2f, -1f);
-
-            return button;
+            return SketchButton.Create(parent, name, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                anchoredPosition, size, font, label);
         }
 
         // ------------------------------------------------------------------
