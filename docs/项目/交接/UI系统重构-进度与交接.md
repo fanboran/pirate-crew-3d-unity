@@ -32,10 +32,33 @@
       双层影子字）、SketchButtonSet（选项 chip）、SketchSlider（滑条）；SceneSetup
       菜单列/MainMenuController 设置面板迁线；RuntimeUiBuilder 并入或退役；
       Stick/Controls 死件删除；四场景重装配 + `+settings` 实拍回归
+  - **W2 设计细化（2026-09-28 预研后修正方向）**：SketchButton 系不是落后件——它带
+    `AseThemeLayers` 状态层引擎（theme.xml `<style id="button">` 逐态解析件与字色，
+    theme.cpp for_each_layer 移植）+ Sticky + 禁用双层字，**比 UiKit.ApplyThemeButton
+    手写四态更权威**。合并方向反转：**整族上移**而非重写——
+    ① `Stick/Controls/{AseButtonBase, SketchButton, SketchButtonSet, SketchButtonSetIcon,
+    SketchSlider}.cs` + `AseThemeLayers.cs` 迁入 `Skin/`（**git mv 连 .meta 保 GUID**，
+    Prefab 序列化引用不断；namespace `PirateCrew.UI.Stick`→`PirateCrew.UI`，全仓 using 同步）；
+    ② `UiKit.ActionButton` 改为薄壳调 `SketchButton.Create`（现调用点白得状态引擎 +
+    Sticky + 禁用双层字；字盒校准两线本就同口径底3/顶1）；
+    ③ 战斗运行侧 `ApplyThemeButton(button, img, sticky)` 调用点（RefreshModeSegments/
+    RefreshWeaponPanel/武器格装配）改 `SketchButton.Sticky`，`ApplyThemeButton` 退役或降级；
+    ④ `UiKit.FitToLabel` 弃 `SketchButton.LabelOf` 依赖（Label 已在基类公开）；
+    ⑤ RuntimeUiBuilder：只保留场景控制器还用的件（CreateRect/SetAnchored 等），
+    文案/按钮建件并 UiKit；`StickTokens.PAD_X` 引用改 AseLayout 令牌（W3 一并）。
+    顺序：①②③ 是一条依赖链，④⑤ 随后；每步后 harness 双域。
 - [ ] **W3 beveled tone 族退役**：余下消费者（DebugWindowKit/PixelShowcasePage/
       MainMenuController 残件/SketchPanel）迁 Ase 件或平涂；PixelSkin tone API 与
       烘焙分支删除；BeveledPixelSkinTests 随族退场（三红销案）；展示页按 Ase 件重写
       或退役；四屏实拍回归
+  - **W3 侦察结论（2026-09-28 实测）**：tone 族在 UiKit/PixelSkin 之外的消费者仅三处——
+    ① `MainMenuController.cs:335-340` 设置 chips（Plate 三态）→ 迁 SketchButtonSet/theme 件；
+    ② `Skin/PixelShowcasePage.cs` 整页就是 tone 族陈列（Plate/Track/Fill/Tab/Ring/Pip/
+    Separator/ShadowSprite/Focus 全用）→ 展示场景已另有 Ase 件陈列廊（PartsGalleryPage），
+    本页退役或改陈 Ase 件；③ `Stick/Controls/SketchPanel.cs`（Panel+ShadowSprite）→
+    EnsurePanel/EnsureWindow 已能替代，迁调用后删除。UiKit 内部随族退役：CreatePanel(tone)/
+    CreatePlate/CreateTrack/CreateFill/FillKindOfColor；`CreateFocusRing` 迁
+    `PixelSkin.WidgetFocus`（= Ase "check_focus"）。战斗侧已全平涂+Ase 件，无残留。
 - [ ] **W4 收官**：全场景重装配 + 四屏 + 弹窗实拍全家福；主仓 EditMode 全量
       （目标：仅剩登记存量）；PlayMode 交创始人实机；字体图集 GUID/增量政策
       （FontAssetBuilder 重跑换 GUID 的存量登记项一并裁决）
