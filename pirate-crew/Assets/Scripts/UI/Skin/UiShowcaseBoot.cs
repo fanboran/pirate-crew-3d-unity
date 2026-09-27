@@ -9,7 +9,7 @@ namespace PirateCrew.UI
 {
     /// <summary>
     /// 组件展示**实机调试窗口**的场景引导（<c>Assets/Scenes/UIShowcase.unity</c> 唯一职责）：
-    /// 建 overlay Canvas + 纵向滚动的 <see cref="PixelShowcasePage"/>（组件总表的**运行时真件版**）
+    /// 建 overlay Canvas + 纵向滚动的 <see cref="PartsGalleryPage"/>（Aseprite 直切件全量陈列廊）
     /// + "返回总览"小钮。悬停/按压/页签切换全部真交互（创始人 2026-09-22："做成游戏内展示，
     /// 专门开一个实机调试窗口"；后续走查加码："字体用像素字体、件按 3:1 栅格"）。
     ///
@@ -83,14 +83,12 @@ namespace PirateCrew.UI
             RectTransform content = UiKit.CreateRect("Content", scroll.Viewport);
             UiKit.SetAnchored(content, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
 
-            // 陈列廊在前（创始人 2026-09-25 令全量部件运行时展示——进展示窗第一屏就是它）；
-            // 旧演示页（PixelShowcasePage，旧画布口径、标注待重构）垫后。
+            // Aseprite 直切件陈列廊是唯一内容页（旧 tone 族演示页随件族退役删除）。
             // 列宽按**出条后**的视口宽算（内容必高过一屏，竖条必出）。
             float viewportW = view.rect.width
                 - AseWidgetKit.ViewBorderLeft - AseWidgetKit.ViewBorderRight
                 - AseLayout.ScrollbarSize;
             float contentHeight = PartsGalleryPage.Build(content, 0f, viewportW);
-            contentHeight += PixelShowcasePage.Build(content, contentHeight);
 
             scroll.AttachToView(content);
             scroll.SetContentHint(Mathf.RoundToInt(viewportW), Mathf.RoundToInt(contentHeight));
@@ -105,7 +103,7 @@ namespace PirateCrew.UI
             SketchButton back = SketchButton.Create(canvas, "BackToMenu",
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-72f, -72f),
                 new Vector2(144f, 72f),
-                PixelShowcasePage.PixelFont(),
+                PartsGalleryPage.PixelFont(),
                 "返回主菜单", 36);
             back.onClick.AddListener(GoBack);
         }

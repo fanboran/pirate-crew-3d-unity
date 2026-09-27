@@ -19,13 +19,13 @@ namespace PirateCrew.EditorTools
     ///      资产缺失时**先调用现有的 <see cref="FontAssetBuilder.BuildAll"/> 生成**（幂等，不改该文件），
     ///      仍缺失则回落到 ttf（Dynamic Font）并 <c>Debug.LogWarning</c>，绝不静默出方块字（§5.5）；
     ///   2. 控件装配：设置面板 / 确认弹窗（<see cref="BuildSettingsPanel"/> / <see cref="BuildConfirmDialog"/>），
-    ///      件全部走像素皮（<see cref="SketchPanel"/> / <see cref="SketchButton"/> / <see cref="SketchSeparator"/>）；
+    ///      件全部走像素皮（<see cref="UiKit.EnsureWindow"/> / <see cref="SketchButton"/> / <see cref="SketchSeparator"/>）；
     ///      字号真值 = <see cref="UiSkin.Font"/>（文本出口统一经 <see cref="UiKit.ResolvePixelFont"/> 解析字体档）。
     ///
     /// 【历史包袱已清退】旧玻璃族工厂（CreatePanel/CreateButton/CreateGlassPanel/GetSprite/
     /// ApplyGlassSkin 等 UiSprites + GlassPanelSpriteBuilder 兼容层）随 UiSprites / GlassPanelSpriteBuilder
     /// 一并退役（2026-09-24 UI 清退批次）——主菜单 / 船员管理 / 选关的底板与按钮全走
-    /// <see cref="SketchPanel"/> / <see cref="SketchButton"/>。
+    /// <see cref="UiKit.EnsureWindow"/> / <see cref="UiKit.EnsurePanel"/> 直切件皮 / <see cref="SketchButton"/>。
     /// </summary>
     public static class MenuUiBuilder
     {
@@ -320,18 +320,20 @@ namespace PirateCrew.EditorTools
 
             CreateDimOverlay("DimOverlay", root);
 
-            // 底板：SketchPanel Dark → **带标题窗体**（theme window：顶 15u 标题带）。
+            // 底板：**带标题窗体**（theme window 直切件：顶 15u 标题带随切片落位）。
             // 【尺寸偶数纪律】卡 426（原 427）+ 中心锚：奇数宽居中会让左右缘落 x.5 画布格
             // （半格相位，与卡内偶数宽件错开半像素）；内层行的宽同样取偶（384/394），
             // 这样「卡缘 → 行板缘 → 行内字段」整条链都落在整数画布格上。
-            SketchPanel card = SketchPanel.Create(root.transform, "SettingsCard",
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(426f, 322f), SketchPanel.Tone.Dark, titled: true);   // theme window 直切件（标题带随切片落位）；Create 内 Apply 前就位，编辑器即时预览不露 Plate 皮
-            RectTransform panel = (RectTransform)card.transform;
-
-            // 标题走唯一入口（带内左上、边距 5、灰字 #c0c0c0、字号 12 正文档、顶点像素对齐）
-            // ——与主菜单窗体/模态标题同源，不再本处手摆。
-            UiKit.EnsureTitleLabel(panel, UiStrings.SettingsTitle, hand);
+            RectTransform panel = CreateRect("SettingsCard", root.transform);
+            panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 0.5f);
+            panel.pivot = new Vector2(0.5f, 0.5f);
+            panel.anchoredPosition = Vector2.zero;
+            panel.sizeDelta = new Vector2(426f, 322f);
+            // 皮 = theme window 直切件；标题走唯一入口（带内左上、边距 5、灰字 #c0c0c0、
+            // 字号 12 正文档、顶点像素对齐）——与主菜单窗体/模态标题同源，不再本处手摆。
+            // 关闭钮由下方 CreateWindowButton 单独接控制器行为（EnsureWindow 不自动建）。
+            UiKit.EnsureWindow(panel, PixelTone.Frame, UiStrings.SettingsTitle, hand, UiSkin.Font.Body,
+                helpButton: false, closeButton: false);
 
             // 右上窗控钮：theme window_button（9×11 件 + window_close_icon），
             // 与模态（UiKit.CreateModal → EnsureWindow）同形——参考库里带标题窗的标题带右端
@@ -449,7 +451,7 @@ namespace PirateCrew.EditorTools
         {
             RectTransform row = CreateSettingsRowBackground(rows, index);
 
-            // 字段名：像素皮字色按所落 tone 取可读档（行底 = SketchPanel Light → 暖白片 → 墨字）。
+            // 字段名：theme text 灰（行底 = theme list_item 纯色面）。
             TextMeshProUGUI label = CreateTextExact("Field", row, field, UiSkin.Font.Body,
                 TextAlignmentOptions.Left, PixelSkin.Theme.Text, hand);
             SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 15f),
@@ -647,7 +649,7 @@ namespace PirateCrew.EditorTools
         /// 133 会落 x.5 半格）。
         /// 语义由调用方定义（退出游戏 / 放弃本局返回主菜单），本工厂不绑任何行为。
         ///
-        /// 【旧装配已退役】SketchPanel Dark 手摆 240×132 + 无窗体皮 + 正文取
+        /// 【旧装配已退役】旧 tone 族面板皮手摆 240×132 + 无窗体皮 + 正文取
         /// <c>LightOf(Frame)</c> 暗字——实拍「无窗体皮 / 无标题带 / 正文字色暗」的根源。
         /// </summary>
         public static ConfirmDialogResult BuildConfirmDialog(Transform canvas, string defaultMessage)

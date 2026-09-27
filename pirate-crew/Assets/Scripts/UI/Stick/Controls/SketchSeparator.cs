@@ -8,10 +8,11 @@ namespace PirateCrew.UI.Stick
     /// <summary>
     /// 手绘涂鸦分隔线 —— game-2 SketchSeparator（sketch_separator.gd）的 UGUI 复刻（**已换 Beveled Pixel 皮**）。
     ///
-    /// 【皮肤口径（换装后）】像素皮不再自绘波浪线：分隔线 = 一张 <see cref="PixelSkin.Separator"/>
-    /// 蚀刻线贴图（水平 / 垂直两档，1u 厚的凹刻线，色阶由调色板烘焙），按控件矩形铺开。
-    /// 旧版是逐公式对照的自绘波形（BORDER@0.35）；像素皮改走贴图件后，"线宽/羽化"由烘焙器负责，
-    /// 本类只做方向 → 贴图的映射。
+    /// 【皮肤口径（换装后）】像素皮不再自绘波浪线：分隔线 = theme 蚀刻点线直切件
+    /// （<c>horizontal_separator</c> / <c>vertical_separator</c> 解析出的 <c>separator_horz</c> / <c>separator_vert</c>，
+    /// 1u 厚的凹刻点线，色阶由库件自带），按控件矩形铺开。
+    /// 旧版是逐公式对照的自绘波形（BORDER@0.35）；像素皮改走贴图件后，"线宽/羽化"由库件负责，
+    /// 本类只做方向 → 件 id 的映射。
     ///
     /// 【公开 API】Dir / Create 签名——四个调用点（主菜单标题下、
     /// 设置面板标题下、结算弹窗、样张页）零改动即换皮。

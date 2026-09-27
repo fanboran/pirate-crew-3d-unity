@@ -16,8 +16,8 @@ namespace PirateCrew.UI
     /// 【版式（行业组件画廊/storybook 惯例）】按家族分面板（窗体/按钮/时间轴/光标…），
     /// 面板 = 蓝字分组线（theme horizontal_separator 语法）+ 等宽格子流；每格 =
     /// 件按**原生尺寸 ×1** 展示（Sliced 件九宫格原尺寸渲染 = 原件）+ id 标签（两行截断）
-    /// + 尺寸/九宫标注。挂接在 <see cref="UiShowcaseBoot"/> 的滚动 content 里、
-    /// 旧演示页（<see cref="PixelShowcasePage"/>）下方。
+    /// + 尺寸/九宫标注。挂接在 <see cref="UiShowcaseBoot"/> 的滚动 content 里（唯一内容页；
+    /// 旧 tone 族演示页已随件族退役删除）。
     /// </summary>
     public static class PartsGalleryPage
     {
@@ -173,6 +173,20 @@ namespace PirateCrew.UI
         static void Place(RectTransform rect, float x, float y, float w, float h)
         {
             UiKit.PlaceTopLeft(rect, x, y, new Vector2(w, h));
+        }
+
+        /// <summary>正文档像素字体（SDF；与 UiKit 字阶同源）。旧演示页退役后，展示链路与
+        /// 调试窗（DebugWindowKit.HandFont）的字体出口收口到这里。</summary>
+        public static TMP_FontAsset PixelFont()
+        {
+            TMP_FontAsset font = Resources.Load<TMP_FontAsset>(UiKit.BodyPixelFontPath);
+            if (font == null)
+            {
+                Debug.LogWarning("[PartsGalleryPage] Resources/" + UiKit.BodyPixelFontPath + " 缺失"
+                    + "（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产 后可用），回落默认字体");
+                return null;
+            }
+            return font;
         }
     }
 }

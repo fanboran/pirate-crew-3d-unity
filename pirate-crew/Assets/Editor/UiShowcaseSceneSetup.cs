@@ -10,7 +10,7 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// 组件展示**实机调试窗口**的场景构建（<see cref="ScenePath"/>）：
     /// 场景内容刻意最小——一台纯色清屏的相机 + 一个 <see cref="UiShowcaseBoot"/>，
-    /// 页面全部由运行时建（与采集链路同一份 <see cref="PirateCrew.UI.Skin.PixelShowcasePage"/>），场景里没有
+    /// 页面全部由运行时建（与采集链路同一份 <see cref="PirateCrew.UI.PartsGalleryPage"/>），场景里没有
     /// 要手维护的 UI 层级。菜单：
     ///   · 构建：生成/刷新场景（不登记 Build Settings——演示场景不随构建发布）；
     ///   · 构建并播放：构建完直接进 Play（= 创始人要的"专门开一个实机调试窗口"）；

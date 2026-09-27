@@ -44,24 +44,17 @@ namespace PirateCrew.UI
         Pressed = 2,
     }
 
-    /// <summary>填充条色身份（画在 Track 内容区上的那一层）。</summary>
-    public enum PixelFillKind
-    {
-        Red = 0,
-        Blue = 1,
-        Warn = 2,
-        Sea = 3,
-        Neutral = 4,
-    }
-
     /// <summary>
     /// Beveled Pixel 皮肤的运行时取用层：全部 UI 贴图/取色从这里走，别处不许
     /// 自己 LoadAssetAtPath / Resources.Load 像素件（槽位散落是上一版换皮难的根因）。
     ///
     /// 【几何口径（×1 终局，2026-09-25 创始人裁决）】1 设计格 = 1 贴图像素 = 1 画布像素，
     /// 贴图与布局零倍率、零压缩。theme 控件件由 Editor 侧 BeveledPixelSpriteBuilder
-    /// 从 sheet.png 直切（九宫格切片 = theme.xml 声明值），运行时经 <see cref="Ase"/> 取；
-    /// tone 族（战斗 HUD 血条等）为程序化模板件，同为 ×1 落盘。
+    /// 从 sheet.png 直切（九宫格切片 = theme.xml 声明值），运行时经 <see cref="Ase"/> 取。
+    /// 【tone 贴图件族已退役（W3）】Plate/Track/Fill/Panel/Tab/Ring/Pip/Separator/Shadow
+    /// 九族程序化贴图不再烘焙；面板/窗体皮一律走 Ase 直切件（<c>"menu"</c> / <c>"window"</c>）。
+    /// tone 只余**取色令牌**（<see cref="LightOf"/> / <see cref="MidOf"/> / <see cref="TextColorOn"/>
+    /// 与调色板 <c>toneColors</c>），供结算星/金色武器名等平涂取色。
     /// <see cref="Unit"/> 只余画布密度语义（CanvasScaler scaleFactor，画布 = 屏幕 ÷ 2，
     /// 恒定像素密度栈），不再参与贴图/布局换算。
     /// 装配侧尺寸纪律：可见包边件的 width/height 不低于九宫格切片和，anchoredPosition
@@ -71,9 +64,6 @@ namespace PirateCrew.UI
     {
         /// <summary>tone 数（与调色板侧 tone 表同长，改一处必须同步烘焙器）。</summary>
         public const int ToneCount = 7;
-
-        /// <summary>填充色数。</summary>
-        public const int FillCount = 5;
 
         /// <summary>
         /// 画布密度（CanvasScaler scaleFactor）：画布 = 屏幕 ÷ Unit（1080p → 960×540，
@@ -110,63 +100,8 @@ namespace PirateCrew.UI
             }
         }
 
-        /// <summary>凸起块（面板/按钮/列表行）。九宫格，尺寸 ≥ <see cref="PlateMinRender"/>。</summary>
-        public static Sprite Plate(PixelTone tone, PixelState state = PixelState.Normal)
-        {
-            return SpriteAt(Asset != null ? Asset.plates : null, ((int)tone) * 3 + (int)state,
-                "Plate/" + tone + "/" + state);
-        }
-
-        /// <summary>凹槽（条状件空槽底）。</summary>
-        public static Sprite Track(PixelTone tone)
-        {
-            return SpriteAt(Asset != null ? Asset.tracks : null, (int)tone, "Track/" + tone);
-        }
-
-        /// <summary>面板（直角，对话框外层/卡片底）。Aseprite 参照：圆角只属于按钮。</summary>
-        public static Sprite Panel(PixelTone tone)
-        {
-            return SpriteAt(Asset != null ? Asset.panels : null, (int)tone, "Panel/" + tone);
-        }
-
-        /// <summary>页签（底边无带，底边贴宿主面板顶边；未选中页签用 Dense，选中用内容 tone）。</summary>
-        public static Sprite Tab(PixelTone tone)
-        {
-            return SpriteAt(Asset != null ? Asset.tabs : null, (int)tone, "Tab/" + tone);
-        }
-
-        /// <summary>填充条（红=血量 / 蓝=魔法 / 暖橙=冷却 / 海蓝=航行 / 暖白=中性进度）。</summary>
-        public static Sprite Fill(PixelFillKind kind)
-        {
-            return SpriteAt(Asset != null ? Asset.fills : null, (int)kind, "Fill/" + kind);
-        }
-
-        /// <summary>选人圈（暖金方环；徽章外环/战场标记）。</summary>
-        public static Sprite Ring { get { return Single("Ring", Asset != null ? Asset.ring : null); } }
-
         /// <summary>键盘焦点框（蓝白方环；选中态包在控件外沿，别再用乘色）。</summary>
         public static Sprite Focus { get { return Single("Focus", Asset != null ? Asset.focus : null); } }
-
-        /// <summary>位点（页点/队伍槽指示）：on=黄铜宝石 / off=中性暗。</summary>
-        public static Sprite Pip(bool on)
-        {
-            PixelSkinAsset a = Asset;
-            return Single("Pip(" + on + ")", a == null ? null : on ? a.pipOn : a.pipOff);
-        }
-
-        /// <summary>蚀刻分隔线。</summary>
-        public static Sprite Separator(bool horizontal)
-        {
-            PixelSkinAsset a = Asset;
-            return Single("Separator(" + horizontal + ")",
-                a == null ? null : horizontal ? a.separatorH : a.separatorV);
-        }
-
-        /// <summary>面板投影（INK 剪影；垫在面板下按 <see cref="ShadowOffset"/> 错开）。</summary>
-        public static Sprite ShadowSprite
-        {
-            get { return Single("Shadow", Asset != null ? Asset.shadow : null); }
-        }
 
         // ---------- Aseprite dark 直切件（×1 全量对齐波；sheet.png 直切，theme.xml <parts> 表） ----------
 
