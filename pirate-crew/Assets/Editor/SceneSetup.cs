@@ -26,8 +26,8 @@ namespace PirateCrew.EditorTools
     ///
     /// 【主菜单视觉口径（Beveled Pixel 像素皮）】深暖色清屏（透底语义）+ StickHand 标题
     /// （像素皮 Frame tone 浅字 + INK 墨描边）+ <see cref="SketchButton"/> 菜单列
-    /// （tone 九宫格 + 三态 SpriteSwap，高 BTN_H=32）+ <see cref="SketchPanel"/> 底板的
-    /// 设置/退出确认弹窗（Plate + 底垫投影）+ <see cref="SketchSeparator"/> 蚀刻分隔线；
+    /// （tone 九宫格 + 三态 SpriteSwap，高 BTN_H=32）+ <see cref="UiKit.EnsureWindow"/> /
+    /// <see cref="UiKit.EnsurePanel"/>（Ase 直切件皮）的设置/退出确认弹窗 + <see cref="SketchSeparator"/> 蚀刻分隔线；
     /// 文字/字号仍取 <see cref="StickTokens"/> 令牌。控制器
     /// <see cref="MainMenuController"/> 的 [SerializeField] 引用契约不变（按字段名回写）。
     /// </summary>
@@ -162,15 +162,15 @@ namespace PirateCrew.EditorTools
                 new Vector2(0f, 0f), new Vector2(167f, 12f),
                 new Vector2(SCREEN_MARGIN, SCREEN_MARGIN + 13f));
 
-            // 设置界面（真接线：音量滑条 ×4 / 画质档 / 窗口模式；默认隐藏；SketchPanel Dark 底板）。
+            // 设置界面（真接线：音量滑条 ×4 / 画质档 / 窗口模式；默认隐藏；theme window 直切件底板）。
             MenuUiBuilder.SettingsPanelResult settings = MenuUiBuilder.BuildSettingsPanel(canvas.transform);
 
-            // 退出确认框（默认隐藏；正文为退出确认文案；SketchPanel Dark 底板）。
+            // 退出确认框（默认隐藏；正文为退出确认文案；theme window 直切件底板）。
             MenuUiBuilder.ConfirmDialogResult quitConfirm =
                 MenuUiBuilder.BuildConfirmDialog(canvas.transform, UiStrings.MainQuitConfirm);
 
             // 控制器对象 + 序列化引用绑定（字段名契约零改动：SketchButton 是 Button 子类、
-            // SketchPanel 根 GameObject 照常赋 [SerializeField] GameObject）。
+            // 窗体根 GameObject 照常赋 [SerializeField] GameObject）。
             var controllerGo = new GameObject("MainMenuController", typeof(RectTransform));
             controllerGo.transform.SetParent(canvas.transform, false);
             var controller = controllerGo.AddComponent<MainMenuController>();

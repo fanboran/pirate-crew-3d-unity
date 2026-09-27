@@ -26,7 +26,7 @@ namespace PirateCrew.EditorTools
     ///
     /// 【视觉层（Beveled Pixel 像素皮，docs/UI-UX与中文本地化规范.md §3.3 / §3.4 / §3.6 线框不变）】
     ///   · 背景 = WINDOW_BG 令牌（alpha 提到 1）全屏底板；相机背景不动，只换 UI 层；
-    ///   · 列表容器 = **带标题窗体**（theme window：SketchPanel.Tone.Dark + Titled 换窗体皮，
+    ///   · 列表容器 = **带标题窗体**（theme window 直切件，经 <see cref="UiKit.EnsureWindow"/>，
     ///     顶 15u 标题带）+ **view 凹槽底**（theme view：sunken 九宫格，行区 padding 3/顶 4）；
     ///     列表行 = theme list_item 纯色三态（RuntimeUiBuilder.CreateRow：常态灰 / 选中金 / 禁用暗）；
     ///   · 按钮 = <see cref="SketchButton"/>（Dark 为次级行动，Primary 为屏内主行动；三态 SpriteSwap）；
@@ -276,7 +276,7 @@ namespace PirateCrew.EditorTools
 
             CreateDimOverlay(root);
 
-            // 结算卡片（SketchPanel Dark → Plate(Frame) + 投影；模态主底档）。736 = 满精度标题档重排后高度。
+            // 结算卡片（theme window_without_title 直切件 "menu"；模态主底档）。736 = 满精度标题档重排后高度。
             RectTransform card = CreateStickPanel("SettlementCard", root,
                 CenterAnchor, CenterAnchor, Vector2.zero, new Vector2(300f, 245f));
 
@@ -367,32 +367,39 @@ namespace PirateCrew.EditorTools
             image.raycastTarget = false;
         }
 
-        /// <summary>建像素面板底（SketchPanel：Plate(Frame tone) 九宫格 + 底垫投影）；
-        /// tone 固定 Dark = 大面板主底档。</summary>
+        /// <summary>建像素面板底（theme <c>window_without_title</c> 直切件 <c>"menu"</c>：
+        /// 无标题面板，内容沿 <see cref="AseLayout.PopupBorder"/>=3 内缩）。</summary>
         static RectTransform CreateStickPanel(string name, Transform parent, Vector2 anchor,
             Vector2 pivot, Vector2 anchoredPosition, Vector2 size)
         {
-            SketchPanel panel = SketchPanel.Create(parent, name, anchor, pivot, anchoredPosition,
-                size, SketchPanel.Tone.Dark);
-            return (RectTransform)panel.transform;
+            RectTransform rect = UiKit.CreateRect(name, parent);
+            rect.anchorMin = anchor;
+            rect.anchorMax = anchor;
+            rect.pivot = pivot;
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = size;
+            UiKit.EnsurePanel(rect, PixelTone.Frame);   // 皮 = Ase 直切件 "menu"（无标题面板底）
+            return rect;
         }
 
 
-        /// <summary>建**带标题带的列表窗体**（theme window 复刻）：SketchPanel Dark + Titled
-        /// 换 theme window 直切件（顶 15u 标题带随切片落位），带内左上标题文字经
-        /// <see cref="UiKit.EnsureTitleLabel"/> 唯一入口。列表内容区走
+        /// <summary>建**带标题带的列表窗体**（theme window 直切件：顶 15u 标题带随切片落位），
+        /// 带内左上标题文字经 <see cref="UiKit.EnsureTitleLabel"/> 唯一入口。列表内容区走
         /// <see cref="AddListContent"/>（view 凹槽语法）。pivot 沿用面板中心口径。</summary>
         static RectTransform CreateTitledListPanel(string name, Transform parent, Vector2 anchor,
             Vector2 anchoredPosition, Vector2 size, string title, TMP_FontAsset titleFont)
         {
-            SketchPanel panel = SketchPanel.Create(parent, name, anchor, CenterAnchor,
-                anchoredPosition, size, SketchPanel.Tone.Dark);
-            panel.Titled = true;
-            RectTransform rect = (RectTransform)panel.transform;
+            RectTransform rect = UiKit.CreateRect(name, parent);
+            rect.anchorMin = anchor;
+            rect.anchorMax = anchor;
+            rect.pivot = CenterAnchor;
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = size;
 
-            // 标题走唯一入口（带内左上、边距 5 设计格、灰字 #c0c0c0、字号 12 正文档、
-            // 顶点像素对齐）——与主菜单窗体/模态/设置面板标题同源，不再本处手摆。
-            UiKit.EnsureTitleLabel(rect, title, titleFont);
+            // 皮 = theme window 直切件；标题走唯一入口（带内左上、边距 5 设计格、灰字 #c0c0c0、
+            // 字号 12 正文档、顶点像素对齐）——与主菜单窗体/模态/设置面板标题同源，不再本处手摆。
+            UiKit.EnsureWindow(rect, PixelTone.Frame, title, titleFont, UiSkin.Font.Body,
+                helpButton: false, closeButton: false);
 
             return rect;
         }

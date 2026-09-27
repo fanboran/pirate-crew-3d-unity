@@ -9,12 +9,18 @@ using UnityEngine;
 using Tone = PirateCrew.UI.PixelTone;
 using Piece = PirateCrew.UI.PixelPiece;
 using State = PirateCrew.UI.PixelState;
-using FillKind = PirateCrew.UI.PixelFillKind;
 
 namespace PirateCrew.EditorTools
 {
     /// <summary>
     /// **Beveled Pixel UI**（像素斜面浮雕）九宫格 Sprite 的程序化生成器。
+    ///
+    /// 【W3：tone 贴图件族已退役】本类现役只有两条路：① <see cref="BakeAsepriteParts"/>
+    /// 从 Aseprite dark theme.xml &lt;parts&gt; 全表逐件直切（面板/按钮/窗体等全部控件件）；
+    /// ② <see cref="Targets"/> 里仅存的程序化件——焦点框（Pixel_Focus）与存件 tone 族窗体
+    /// （Pixel_Window_*，供 <c>PixelSkin.Window</c>）。下面【一/二/三】描述的条槽/面板
+    /// 两套 tone 语法（Plate/Track/Tab 与 Fill/Pip/Sep/Shadow/Ring）**已整族退役**，
+    /// 仅作历史口径保留；判据与烘焙目标表都已同步收缩。
     ///
     /// 【它替掉谁】换皮前的 <see cref="GlassPanelSpriteBuilder"/>（半透明亚克力/玻璃拟态）是
     /// 上一版 UI 语言的底座；创始人裁决 UI 改走「Beveled Pixel + Chunky Pixel」后，
@@ -55,7 +61,7 @@ namespace PirateCrew.EditorTools
     ///      条槽最初没有这条（外环直接顶到最外缘），于是同一屏里条槽读成"另一种画风"：
     ///      面板近黑收边、条槽彩色收边（创始人 2026-09-22 走查："凹槽怎么画风和别的不一样"）。
     ///      参照条自己最外圈也是深近黑（`ref-bars-life-mana.png`），加这道反而是**贴回实测**。
-    ///      受光侧的"亮"因此由**填充条自带的上亮沿**承担（`CreateFillTexture`），不靠槽的斜面。
+    ///      受光侧的"亮"因此由**填充条自带的上亮沿**承担（Fill 族已退役），不靠槽的斜面。
     ///   1. **条槽的"内暗线"与同侧外环同色**——实测"外环 <c>#54481E</c> / 内暗线 <c>#54481E</c>"。
     ///      这条只对 **Track** 成立；对话框的面板/按钮没有内暗线（加了就是双层相框）。
     ///   2. **光永远来自左上**：上=左、下=右，受光侧才亮。
@@ -238,33 +244,11 @@ namespace PirateCrew.EditorTools
         [Obsolete("面板投影已随 ×1 终局退役（theme 无影子层）", true)]
         public static readonly Vector2 ShadowOffset = Vector2.zero;
 
-        /// <summary>
-        /// 美术稿（showcase）评审图路径：**全屏 640×360 艺术像素**（×3 口径 = 1920×1080 屏幕），
-        /// 输出即实际屏幕像素的整屏外观（1 艺术像素 = 3 屏幕像素，不再另放大）。
-        /// 落 export/ 暂存目录，评审后按需入 docs/images。
-        /// 【命名】不带"1x/2x"后缀——那是旧口径（1× = 艺术像素 1:1）留下的歧义名，
-        /// 创始人 2026-09-22 核图时按名字读成"这图才 1 倍大"。尺度一律写在图上与文档里。
-        /// </summary>
-        const string ShowcaseRelativePath = "export/ui-pixel-4a/showcase.png";
-
-        /// <summary>美术稿的文字清单（python 后处理按它盖中文字；见 BuildShowcaseSheet）。</summary>
-        const string ShowcaseLabelsPath = "export/ui-pixel-4a/showcase-labels.json";
-
-        /// <summary>组件总表及其文字清单（同上，同尺度输出）。</summary>
-        const string ComponentsRelativePath = "export/ui-pixel-4a/components.png";
-        const string ComponentsLabelsPath = "export/ui-pixel-4a/components-labels.json";
-
         /// <summary>运行时图集资产路径（Resources 内；BuildAll 末尾生成，运行时 PixelSkin 经它取图）。</summary>
         public const string AtlasAssetPath = "Assets/Resources/UI/PixelSkin.asset";
 
         /// <summary>产物目录（与玻璃族分开，4b 试点后玻璃族逐步退役）。</summary>
         const string SpriteFolder = PixelArtTextureRules.UiSpriteFolder;
-
-        /// <summary>接触表（评审用，落 <c>export/</c> 暂存目录，不入库）。</summary>
-        const string SheetRelativePath = "export/ui-pixel-4a/contact-sheet-2x.png";
-
-        /// <summary>接触表的整数放大倍率（2px 带在 1:1 下太小，评审需要放大看；整数倍才不糊）。</summary>
-        const int SheetZoom = 2;
 
         // ==================================================================
         // 二、枚举与烘焙目标
@@ -451,79 +435,17 @@ namespace PirateCrew.EditorTools
             return Ramp.Of(Slot(s.hi), Slot(s.mid), dark);
         }
 
-        /// <summary>填充色的三档（主体 / 暗沿 / 亮沿）+ 前缘色。</summary>
-        struct Fill
-        {
-            public Color32 Body, Dark, Hi, Tip;
-            /// <summary>前缘提亮规则：<c>mix(带色, Hi, 0.28)</c>——见 <see cref="CreateFillTexture"/>。</summary>
-            public const float TipMix = 0.28f;
-        }
-
-        static string FillBodySlot(FillKind kind)
-        {
-            switch (kind)
-            {
-                case FillKind.Blue: return "HERO_BLUE";
-                case FillKind.Warn: return "UI_WARN";
-                case FillKind.Sea: return "SEA_MID";
-                // 中性填充分"沙/羊皮纸"档（SAND_MID）：不能用 SAIL_CANVAS——它跟 WHITE_HOT 的亮沿
-                // 只差 3%，亮沿会读不出来（判据 RampStepRatio 抓过一次）。
-                case FillKind.Neutral: return "SAND_MID";
-                default: return "HERO_RED";
-            }
-        }
-
-        static string FillDarkSlot(FillKind kind)
-        {
-            switch (kind)
-            {
-                case FillKind.Blue: return "HERO_BLUE_DEEP";
-                case FillKind.Warn: return "SHADOW_WARM";
-                case FillKind.Sea: return "SEA_DEEP";
-                case FillKind.Neutral: return "SAND_DARK";
-                default: return "HERO_RED_DEEP";
-            }
-        }
-
-        /// <summary>亮沿槽位；<c>null</c> = 派生平移到 <c>WHITE_HOT</c> 的 55%（除中性档以外的全部）。</summary>
-        static string FillHiSlot(FillKind kind)
-        {
-            return kind == FillKind.Neutral ? "WHITE_HOT" : null;
-        }
-
-        /// <summary>
-        /// 填充色表。主体与暗沿**取槽位**；亮沿**派生**（<c>mix(主体, WHITE_HOT, 0.55)</c>）——
-        /// 依据是实测：<c>HP_Fill.png</c> 的上沿 <c>#FFA68B</c> 是主体 <c>#F53C40</c> 往白里提的暖调，
-        /// 板里没有这一档，硬加槽位是拿"条状件专用色"去占全局板位。
-        /// 【4b 复核项】实测上沿的青通道抬得比蓝通道多（<c>#FFA68B</c>：g166/b139），
-        /// 本规则给的 <c>#FAA7A9</c> 偏中性；差异只在"提亮是否偏黄"这一档，试点出图再看要不要补色相偏移。
-        /// </summary>
-        static Fill FillOf(FillKind kind)
-        {
-            Color32 body = Slot(FillBodySlot(kind));
-            string hiSlot = FillHiSlot(kind);
-            Color32 hi = hiSlot != null ? Slot(hiSlot) : Mix(body, Slot("WHITE_HOT"), 0.55f);
-            return new Fill
-            {
-                Body = body,
-                Dark = Slot(FillDarkSlot(kind)),
-                Hi = hi,
-                // 前缘（右端 u 列）= 带色往亮沿提一档。实测 <c>HP_Fill</c> 右端 2px 列整列提亮（<c>#F66451</c>）：
-                // 那是"条在生长"唯一的视觉锚点——没有它，半格的条两端一样暗，读不出方向。
-                Tip = Mix(body, hi, Fill.TipMix),
-            };
-        }
-
         // ==================================================================
         // 五、调色板（真源 = JSON，不读 .asset 镜像）
         // ==================================================================
 
         static Dictionary<string, Color32> s_slots;
 
-        /// <summary>本生成器引用到的全部槽位 id（判据用：缺槽必须在写盘前红灯，不能烘出品红贴图）。</summary>
+        /// <summary>本生成器引用到的全部槽位 id（判据用：缺槽必须在写盘前红灯，不能烘出品红贴图）。
+        /// 【tone 族退役后】只余 tone 阶梯槽位 + 焦点框两色（HERO_BLUE / WHITE_HOT）+ 描边 INK。</summary>
         public static string[] UsedSlotIds()
         {
-            var ids = new List<string> { "INK", "WHITE_HOT" };
+            var ids = new List<string> { "INK", "WHITE_HOT", "HERO_BLUE" };
             foreach (Tone tone in Enum.GetValues(typeof(Tone)))
             {
                 ToneSlots s = SlotsOf(tone);
@@ -533,14 +455,6 @@ namespace PirateCrew.EditorTools
                     ids.Add(s.dark);
                 if (!string.IsNullOrEmpty(s.deriveDarkFrom))
                     ids.Add(s.deriveDarkFrom);
-            }
-            foreach (FillKind kind in Enum.GetValues(typeof(FillKind)))
-            {
-                ids.Add(FillBodySlot(kind));
-                ids.Add(FillDarkSlot(kind));
-                string hi = FillHiSlot(kind);
-                if (!string.IsNullOrEmpty(hi))
-                    ids.Add(hi);
             }
             return ids.ToArray();
         }
@@ -609,218 +523,6 @@ namespace PirateCrew.EditorTools
         // ==================================================================
         // 六、画图（纯像素，无 GPU 依赖）
         // ==================================================================
-
-        /// <summary>
-        /// 画 Plate / Track 的九宫格贴图。<paramref name="border"/> 通过
-        /// <c>TextureImporter.spriteBorder</c> 落成切片；四个角与四条边不拉伸、中心 1px 拉长。
-        ///
-        /// 【三层带是**同心环**，不是"上下横贯 + 左右补边"】判据按**离最近边界的距离**分层：
-        /// <code>
-        ///   layer = min(dx, dy) / u      // dx = min(x, n-1-x)，dy = min(y, n-1-y)
-        ///   layer 0 = 外环 · 1 = 斜面 · 2 = 内暗线 · ≥3 = 内容
-        ///   受光/背光：按"离哪条边更近"定——竖直边（左/右）或水平边（上/下）；
-        ///              到两边等距的那个**角像素**归竖直边（让外环在角上不断线）。
-        /// </code>
-        /// 于是外环是一条**闭合的**环（切角沿 45° 斜线走），斜面与内暗线是它里面两条更小的闭合环。
-        ///
-        /// 【为什么不是"上下带整幅横贯"】那是本类第一版的写法（依据是实测的**平铺中段件**
-        /// <c>HP_Panel_Middle.png</c>——它的顶部 6 行确实整幅宽度都是顶边带，但**它根本没有左右带**，
-        /// 所以那段测量无法决定角上谁赢）。按"上下横贯"画出来后，水平带的**斜面**会一直顶到块的左右外缘：
-        /// 左/右两条边的外环在那 2px 上被一道亮带截断，**四角的轮廓线不闭合**——
-        /// 创始人看图一眼指出"4 角不是连着的"，走查后改成同心环。参照的面板件
-        /// （<c>Achievement_InnerPanelTop</c>，6×22）也正是这个结构：竖列 x=0 的外环通到顶行，
-        /// 顶行的亮带只铺在 x=1..4（内宽），**不外扩到竖列里去**。
-        /// </summary>
-        public static Texture2D CreateTexture(Tone tone, Piece piece, State state, out Vector4 border)
-        {
-            // 悬停 = 整条色阶上抬一档（S4 不动）；按压 = 高光/阴影对调 + 整条下沉一档
-            // （"按下去 = 沉下去"，只对调时 1px 唇边换边实机几乎不可读）。两条互斥、
-            // 都不改变分层几何——先定阶梯、再画同心环，环的画法对状态无感知。
-            Ramp r = RampOf(tone);
-            if (state == State.Hovered)
-                r = r.Lifted(HoverLift);
-            else if (state == State.Pressed)
-                r = r.Sunk(PressSink);
-
-            Edge lit = Edge.Lit(r);
-            Edge shade = Edge.Shade(r);
-            Edge top = state == State.Pressed ? shade : lit;
-            Edge bottom = state == State.Pressed ? lit : shade;
-            Color32 body = piece == Piece.Track ? r.Floor : r.S3;
-
-            // 页签（Tab）：底边无带——到下边界的距离不参与分层（dy 只算上边界），
-            // 于是左右带一路通到底、底边是平底（border 下=0），与宿主面板顶边贴合。
-            bool tab = piece == Piece.Tab;
-            bool track = piece == Piece.Track;
-
-            // 【2026-09-24 走查】Plate 改「手绘模板」复刻（创始人逐像素定稿 14×14）：
-            // 黑环 1 格包圈（四角 2 格阶梯）+ 亮唇 1 格 + 主体，底边加暗唇 1 格（亮→暗→黑）。
-            // 模板 1 格 = 1 设计格，×Unit 落盘（贴图像素 = 画布像素 1:1）；四角透明阶 = 像素游戏标准圆角。
-            // Track/Tab 仍走下方分层画法（条槽五段带是另一套语法）。
-            if (piece == Piece.Plate)
-                return BuildPlateFromTemplate(r, state, out border);
-            if (piece == Piece.Panel)
-                return BuildPanelFromTemplate(r, out border);
-            if (piece == Piece.Window)
-                return BuildWindowFromTemplate(r, out border);
-
-            int n = PlateSize;
-            var px = new Color32[n * n];
-
-            for (int y = 0; y < n; y++)
-            {
-                for (int x = 0; x < n; x++)
-                {
-                    // 页签只切上两角（下两角是方角，贴面板的那条边要直）。
-                    if (tab ? IsChamferTop(x, y, n) : IsChamfer(x, y, n))
-                    {
-                        // 切角：显式写全零（不是"没画"）——alphaIsTransparency 关掉后
-                        // Unity 不会把 RGB 膨胀进这里，切角边缘因此不会带出板外色。
-                        px[y * n + x] = new Color32(0, 0, 0, 0);
-                        continue;
-                    }
-
-                    int dx = Math.Min(x, n - 1 - x);
-                    int dy = tab ? n - 1 - y : Math.Min(y, n - 1 - y);
-                    int layer = Math.Min(dx, dy);   // ×1：1 层带 = 1px（层号即像素距离）
-                    bool vertical = dx <= dy;                 // 平局 → 竖直边（角像素不断线）
-                    bool isLit = vertical ? x * 2 < n : y * 2 >= n;   // 竖直：左亮；水平：上亮
-
-                    Color32 c;
-                    if (track)
-                    {
-                        // 条槽语法（金框血条语法，实测自参照 bars）：描边 / 外环 / 斜面 / 内暗线 / 槽底 五段。
-                        // 最外 1u 与面板族同一条近黑描边——条槽与面板同一张皮。
-                        if (layer == 0)
-                            c = Slot("INK");
-                        else if (layer == 1 || layer == 3)
-                            c = isLit ? top.Ring : bottom.Ring;
-                        else if (layer == 2)
-                            c = isLit ? top.Bevel : bottom.Bevel;
-                        else
-                            c = body;
-                    }
-                    else
-                    {
-                        // 面板/按钮语法（实测自参照 tool-dialog 面板与按钮）：**近黑描边 + 受光唇边 + 平脸**。
-                        // 与条槽语法是两套：dialog 的面板/按钮没有"内暗线"，多那道会读成双层相框；
-                        // 背光侧也没有唇边（实测按钮底缘就是一条更深的描边）。金框只活在条槽上。
-                        // 唇边跟着**状态的受光侧**走（按压态高光移到右下，唇边也要跟着换边）。
-                        bool litByState = state == State.Pressed ? !isLit : isLit;
-                        if (layer == 0)
-                            c = Slot("INK");
-                        else if (layer == 1 && litByState)
-                            c = isLit ? top.Bevel : bottom.Bevel; // 唇边：只在本状态的受光侧
-                        else
-                            c = body;
-                    }
-
-                    px[y * n + x] = c;
-                }
-            }
-
-            int slice = track ? TrackBorder : PlateBorder;
-            border = tab
-                ? new Vector4(slice, 0f, slice, slice)
-                : new Vector4(slice, slice, slice, slice);
-            return ToTexture(px, n, n);
-        }
-
-        /// <summary>手绘 Plate 模板：K=黑环(INK) L=亮唇(S4) C=暗唇(S2) E=主体(S3) .=透明角。</summary>
-        /// <summary>
-        /// Plate 模板 = **Aseprite dark 主题 button_normal 部件逐像素转写**（14×16 艺术像素；
-        /// 权威源 external/aseprite-ref/data/extensions/aseprite-theme/dark/，sheet.png (48,0)
-        /// 14×16、九宫格 w1..3=4/6/4 h1..3=4/6/6，CC-BY-4.0）。字母义：K=黑环(INK)
-        /// C=受光唇(S4，顶行+两侧通高+底上亮条) E=主体(S3) D=背光暗唇(S2) H=落影 .=透明角；
-        /// 底部环外落影独立成 H（悬停态主体上浮时落影保持原深色，Aseprite hot 态同款）。
-        /// 受光唇沿四角 45° 流转：行1 在 col3..10 → 行2 收到 col2/11 → 行3 起贴环 col1/12——
-        /// 这就是「四角轮廓闭合」的圆角语法。1 格 = 1 艺术像素 = Unit 屏幕像素，×Unit 落盘。
-        /// </summary>
-        static readonly string[] PlateTemplate =
-        {
-            "..KKKKKKKKKK..",
-            ".KECCCCCCCCEK.",
-            "KECEEEEEEEECEK",
-            "KCEEEEEEEEEECK",
-            "KCEEEEEEEEEECK",
-            "KCEEEEEEEEEECK",
-            "KCEEEEEEEEEECK",
-            "KCEEEEEEEEEECK",
-            "KCEEEEEEEEEECK",
-            "KCEEEEEEEEEECK",
-            "KCEEEEEEEEEECK",
-            "KCCEEEEEEEECCK",
-            "KDCCCCCCCCCCDK",
-            "HKDDDDDDDDDDKH",
-            ".HKKKKKKKKKKH.",
-            "..HHHHHHHHHH..",
-        };
-
-        /// <summary>
-        /// 按模板画 Plate：14×16 艺术像素 ×1 落盘（【×1 终局】1 模板格 = 1 贴图像素 = 1 画布像素）。
-        /// 切片边框 = 左 4 / 下 6 / 右 4 / 上 4（Aseprite button 九宫格 w/h1..3 原样）。
-        /// 状态 = 换**字母取色**不换几何（与 Aseprite 一致：normal/hot/selected 共用一张骨架）：
-        /// 常态 = 主体 S3 + 唇 S4 + 暗唇 S2；悬停 = 主体上浮到 S4（整面变亮，落影 H 不动）；
-        /// 按压 = 整体下沉一档（主体 S2、唇退 S3）。
-        /// </summary>
-        static Texture2D BuildPlateFromTemplate(Ramp r, State state, out Vector4 border)
-        {
-            Color32 body, lip, darkLip, shadow;
-            switch (state)
-            {
-                case State.Hovered:
-                    body = r.S4; lip = r.S4; darkLip = r.S2; shadow = r.S3;
-                    break;
-                case State.Pressed:
-                    body = r.S2; lip = r.S3; darkLip = r.S2; shadow = r.S2;
-                    break;
-                default:
-                    body = r.S3; lip = r.S4; darkLip = r.S2; shadow = r.S3;
-                    break;
-            }
-            var map = new Dictionary<char, Color32>
-            {
-                { 'K', Slot("INK") },
-                { 'C', lip },     // 受光唇
-                { 'E', body },    // 主体
-                { 'D', darkLip }, // 背光暗唇
-                { 'H', shadow },  // 环外落影
-            };
-            border = new Vector4(4, 6, 4, 4);   // 左/下/右/上
-            return BuildTemplateTexture(PlateTemplate, map, border);
-        }
-
-        /// <summary>
-        /// 面板模板（8×8 艺术像素，**直角**——Aseprite dark 对话框外层语法，创始人
-        /// 2026-09-24 对照参考截图裁决：圆角只属于按钮）：黑环 1 格包圈 + 上/左受光唇 1 格
-        /// + 下/右背光唇 1 格 + 主体平涂。九宫格切片 = 四边各 2u。无环外落影（面板坐在
-        /// 变暗遮罩上，落影不可见）。
-        /// </summary>
-        static readonly string[] PanelTemplate =
-        {
-            "KKKKKKKK",
-            "KCCCCCDD",
-            "KCEEEEDK",
-            "KCEEEEDK",
-            "KCEEEEDK",
-            "KCEEEEDK",
-            "KCEEEEDK",
-            "KDDDDDDK",
-        };
-
-        /// <summary>按直角模板画 Panel（8×8 艺术像素 ×1 落盘，四边切片 2）。</summary>
-        static Texture2D BuildPanelFromTemplate(Ramp r, out Vector4 border)
-        {
-            var map = new Dictionary<char, Color32>
-            {
-                { 'K', Slot("INK") },
-                { 'C', r.S4 },   // 受光唇（上/左）
-                { 'E', r.S3 },   // 主体
-                { 'D', r.S2 },   // 背光唇（下/右）
-            };
-            border = new Vector4(2, 2, 2, 2);   // 左/下/右/上
-            return BuildTemplateTexture(PanelTemplate, map, border);
-        }
 
         // ------------------------------------------------------------------
         // 七b、Aseprite dark 全部件搬皮（theme.xml 逐件复刻，2026-09-25 创始人裁决"全学"）
@@ -1173,44 +875,6 @@ namespace PirateCrew.EditorTools
             return BuildTemplateTexture(WindowTemplate, map, border);
         }
 
-        /// <summary>页签的切角判据：只对上两角生效（dy 只算到上边界的距离）。</summary>
-        static bool IsChamferTop(int x, int y, int n)
-        {
-            int depth = ChamferDepthUnits;      // 局部量防 CS0162（同 IsChamfer）
-            if (depth <= 0)
-                return false;
-            int dx = Math.Min(x, n - 1 - x);
-            int dy = (n - 1 - y);
-            return dx + dy < depth;
-        }
-
-        /// <summary>
-        /// 画填充条的九宫格贴图：上 u 亮沿 / 中 2u 主体 / 下 u 暗沿，右端 u 列是"前缘"（提亮）。
-        /// 切片边框 <c>(0, u, u, u)</c>：**左端不切片**（条的尾端要硬边，跟槽的起点贴合），
-        /// 右端切片（前缘列不被拉长），上下切片（亮/暗沿保持 u 厚）。
-        /// </summary>
-        public static Texture2D CreateFillTexture(FillKind kind, out Vector4 border)
-        {
-            Fill f = FillOf(kind);
-            int n = FillSize;
-            var px = new Color32[n * n];
-
-            for (int y = 0; y < n; y++)
-            {
-                int fromTop = n - 1 - y;
-                Color32 band = fromTop < 1 ? f.Hi : (fromTop >= n - 1 ? f.Dark : f.Body);
-                for (int x = 0; x < n; x++)
-                {
-                    // 右端 u 列的"前缘"：整列往亮沿提一档。亮沿自身混合后不变（Mix(hi,hi)=hi），
-                    // 于是这条规则对三层带只有一处行为差异——不需要按带分支。
-                    px[y * n + x] = x >= n - FillBorder ? Mix(band, f.Hi, Fill.TipMix) : band;
-                }
-            }
-
-            border = new Vector4(0f, FillBorder, FillBorder, FillBorder);
-            return ToTexture(px, n, n);
-        }
-
         static Texture2D ToTexture(Color32[] px, int w, int h)
         {
             var texture = new Texture2D(w, h, TextureFormat.RGBA32, false);
@@ -1225,14 +889,7 @@ namespace PirateCrew.EditorTools
         // 六b、语义件（Singles）：色表与画法成对，锁板判据直接复用色表
         // ==================================================================
 
-        /// <summary>选人圈两色（外 1px / 内 1u-1px）：暖金往外提白一档——能量从边缘发出来的读法。</summary>
-        public static Color32[] RingColors()
-        {
-            Color32 glow = Slot("GLOW_WARM");
-            return new[] { Mix(glow, Slot("WHITE_HOT"), 0.30f), glow };
-        }
-
-        /// <summary>焦点框两色：海蓝外缘、内缘提白——键盘焦点的"电气"读法，与选人圈的暖金区分。</summary>
+        /// <summary>焦点框两色：海蓝外缘、内缘提白——键盘焦点的"电气"读法。</summary>
         public static Color32[] FocusColors()
         {
             Color32 blue = Slot("HERO_BLUE");
@@ -1271,178 +928,6 @@ namespace PirateCrew.EditorTools
             return ToTexture(px, n, n);
         }
 
-        /// <summary>
-        /// 位点：PipSize 里的 u 格菱形（<c>|2cx-(格数-1)| + |2cy-(格数-1)| ≤ 格数-2</c> 的格）。
-        /// on 态按"光来自左上"分三档（<c>cx-cy</c>：左上边缘亮 / 对角线中 / 其余暗），
-        /// 顶端再点 1px 白高光——一颗朝左上发光的小宝石；
-        /// off 态是**中心对称**的空插座（均色暗菱 + 中心 2×2 格压深）——满/空一眼可辨。
-        /// 菱形不是外星形状：切角语言的 45° 对角线推到底就是它。
-        /// </summary>
-        public static Texture2D CreatePipTexture(bool on, out Vector4 border)
-        {
-            int n = PipSize;
-            int cells = n;
-            Color32 hi = Slot("SAND_LIGHT");
-            Color32 mid = Slot("BRASS");
-            Color32 lo = Slot("WOOD_DARK");
-            Color32 offBase = Slot("UI_BEVEL_LO");
-            Color32 offSocket = PipSocketColor();
-            var px = new Color32[n * n];
-            for (int y = 0; y < n; y++)
-            {
-                for (int x = 0; x < n; x++)
-                {
-                    int cx = x, cy = y;
-                    int a = Math.Abs(2 * cx - (cells - 1)) + Math.Abs(2 * cy - (cells - 1));
-                    if (a > cells - 2)
-                    {
-                        px[y * n + x] = new Color32(0, 0, 0, 0);
-                        continue;
-                    }
-                    if (!on)
-                    {
-                        bool core = (cx == cells / 2 - 1 || cx == cells / 2) && (cy == cells / 2 - 1 || cy == cells / 2);
-                        px[y * n + x] = core ? offSocket : offBase;
-                        continue;
-                    }
-                    int diag = cx - cy;      // y 向上：小 = 左上侧
-                    px[y * n + x] = diag <= -2 ? hi : diag == -1 ? mid : lo;
-                }
-            }
-            // on 态：顶格（菱形最高点）左上角点 1px 白——整颗位点的"眼神光"
-            if (on)
-            {
-                int topCellX = (cells - 1) / 2;        // 顶行（cy 最大）居中偏左的格（受光侧）
-                int topCellY = cells - 2;
-                px[topCellY * n + topCellX] = Slot("WHITE_HOT");
-            }
-            border = Vector4.zero;       // 固定尺寸件（原生渲染，不拉伸）
-            return ToTexture(px, n, n);
-        }
-
-        /// <summary>off 位点的插座底色（暗档往墨压一步）——与画法成对，锁板判据复用。</summary>
-        public static Color32 PipSocketColor()
-        {
-            return Mix(Slot("UI_BEVEL_LO"), Slot("INK"), 0.35f);
-        }
-
-        /// <summary>蚀刻分隔线两色：暗（上/左）压亮（下/右）——凹槽读法，与面板的凸浮雕相反。</summary>
-        public static Color32[] SepColors()
-        {
-            return new[]
-            {
-                Mix(Slot("UI_BEVEL_LO"), Slot("INK"), 0.35f),
-                Mix(Slot("UI_PANEL"), Slot("WHITE_HOT"), 0.22f),
-            };
-        }
-
-        /// <summary>
-        /// 蚀刻分隔线：暗 u + 亮 u（暗贴上/左、亮贴下/右）。长度轴拉伸（border=0）、粗细轴不拉伸（border=u）。
-        /// 为什么是"凹"而不是"凸"：分隔线活在凸面板内部，要读成"刻进去的线"——
-        /// 与面板的受光方向正好互补，这是同一套光模型的一体两面。
-        /// </summary>
-        public static Texture2D CreateSepTexture(bool horizontal, out Vector4 border)
-        {
-            Color32[] c = SepColors();
-            int w = horizontal ? SepLength : 2;
-            int h = horizontal ? 2 : SepLength;
-            var px = new Color32[w * h];
-            for (int y = 0; y < h; y++)
-            {
-                for (int x = 0; x < w; x++)
-                {
-                    bool dark = horizontal ? y >= 1 : x < 1;
-                    px[y * w + x] = dark ? c[0] : c[1];
-                }
-            }
-            border = horizontal
-                ? new Vector4(0f, 1, 0f, 1)
-                : new Vector4(1, 0f, 1, 0f);
-            return ToTexture(px, w, h);
-        }
-
-        /// <summary>
-        /// 面板投影：Plate 同款轮廓（含切角）的纯 INK 剪影。装配侧垫在面板下、按
-        /// <see cref="ShadowOffset"/> 右下错 1u——硬边无渐变的错位剪影是像素 UI 表达层次的标准件。
-        /// 只有 INK 一色（锁板判据据此只放行 INK）。
-        /// </summary>
-        public static Texture2D CreateShadowTexture(out Vector4 border)
-        {
-            int n = PlateSize;
-            var px = new Color32[n * n];
-            for (int y = 0; y < n; y++)
-            {
-                for (int x = 0; x < n; x++)
-                {
-                    px[y * n + x] = IsChamfer(x, y, n)
-                        ? new Color32(0, 0, 0, 0)
-                        : Slot("INK");
-                }
-            }
-            border = new Vector4(PlateBorder, PlateBorder, PlateBorder, PlateBorder);
-            return ToTexture(px, n, n);
-        }
-
-        /// <summary>
-        /// 按九宫格语义把一张贴图画进画布矩形（源宽高分开给——分隔线是 4u×2u 的长条，
-        /// 不是正方形；纵向按源宽去取行会越界）。
-        /// 接触表用它**自证切片语义成立**——"读 PNG 色带"只证明画对了，
-        /// "拉长后角与边不变形"才证明九宫格可用，而那个只有真画一遍才知道。
-        /// 坐标一律 <c>y=0 在下</c>（与 <c>Texture2D.SetPixels32</c> 同口径）。
-        /// </summary>
-        public static void DrawNineSliced(Color32[] src, int srcW, int srcH, Vector4 border,
-            Color32[] dst, int dstW, int ox, int oy, int w, int h)
-        {
-            int bL = Mathf.RoundToInt(border.x), bB = Mathf.RoundToInt(border.y);
-            int bR = Mathf.RoundToInt(border.z), bT = Mathf.RoundToInt(border.w);
-
-            // 越界要说人话：接触表的版面算错时，报出"哪块矩形、画布多大"，
-            // 别抛一句 Index was outside the bounds of the array 让人反查布局。
-            if (ox < 0 || oy < 0 || ox + w > dstW || (oy + h) * dstW > dst.Length)
-            {
-                throw new ArgumentOutOfRangeException("DrawNineSliced",
-                    "矩形 (" + ox + "," + oy + ") " + w + "×" + h + " 超出画布 "
-                    + dstW + "×" + (dst == null ? 0 : dst.Length / dstW) + "。");
-            }
-
-            for (int j = 0; j < h; j++)
-            {
-                int sy = MapAxis(j, h, srcH, bB, bT);
-                for (int i = 0; i < w; i++)
-                {
-                    int sx = MapAxis(i, w, srcW, bL, bR);
-                    Color32 c = src[sy * srcW + sx];
-                    // 透明像素**跳过**（叠加语义，与 UGUI 一致）：环/焦点环/投影这类
-                    // 中间带空的件盖在别的件上时，不能把底下的像素擦成空洞。
-                    if (c.a == 0)
-                        continue;
-                    dst[(oy + j) * dstW + ox + i] = c;
-                }
-            }
-        }
-
-        /// <summary>
-        /// 一维九宫格映射：低端不伸缩（逐像素取源）→ 中心区**均匀最近邻拉伸**（与 UGUI 同口径）
-        /// → 高端不伸缩。边框为 0 的一侧自然退化成"中心区占满整段"。
-        ///
-        /// 【为什么中心是均匀拉伸而不是坍缩到切片起点那一像素】border 全 0 的件（位点）
-        /// 在坍缩写法下会把整张图压成第一列——位点画到 2× 尺寸时就是一根竖条。UGUI 的
-        /// 九宫格语义本来就是"源中心区整体缩放到目标中心区"，这里对齐引擎行为。
-        /// </summary>
-        static int MapAxis(int i, int dstLen, int srcLen, int bLo, int bHi)
-        {
-            if (i < bLo)
-                return i;
-            int hiStart = dstLen - bHi;
-            if (i >= hiStart)
-                return srcLen - bHi + (i - hiStart);
-            int srcCenter = srcLen - bLo - bHi;
-            int dstCenter = dstLen - bLo - bHi;
-            if (dstCenter <= 0 || srcCenter <= 0)
-                return bLo;   // 目标恰等于切片和（甚至更小）——中心区零宽，整段取切片起点，别除零
-            return bLo + (int)((long)(i - bLo) * srcCenter / dstCenter);
-        }
-
         // ==================================================================
         // 七、公开取用（装配侧走这里，别自己去 LoadAssetAtPath）
         // ==================================================================
@@ -1472,51 +957,6 @@ namespace PirateCrew.EditorTools
             }
         }
 
-        /// <summary>填充件资产名（<c>Pixel_Fill_&lt;Kind&gt;.png</c>）。</summary>
-        public static string AssetNameOf(FillKind kind)
-        {
-            return "Pixel_Fill_" + kind;
-        }
-
-        /// <summary>取（必要时生成）tone × 结构 × 状态的九宫格 Sprite。</summary>
-        public static Sprite Get(Tone tone, Piece piece = Piece.Plate, State state = State.Normal)
-        {
-            string name = AssetNameOf(tone, piece, state);
-            return GetOrBake(name, path =>
-            {
-                Texture2D texture = CreateTexture(tone, piece, state, out Vector4 border);
-                return Generate(path, texture, border);
-            });
-        }
-
-        /// <summary>取（必要时生成）填充条 Sprite。</summary>
-        public static Sprite GetFill(FillKind kind)
-        {
-            string name = AssetNameOf(kind);
-            return GetOrBake(name, path =>
-            {
-                Texture2D texture = CreateFillTexture(kind, out Vector4 border);
-                return Generate(path, texture, border);
-            });
-        }
-
-        /// <summary>页签 Sprite（底边无带；未选中用 Dense、选中用宿主内容 tone）。</summary>
-        public static Sprite GetTab(Tone tone)
-        {
-            return Get(tone, Piece.Tab, State.Normal);
-        }
-
-        /// <summary>选人圈 Sprite（暖金方环）。</summary>
-        public static Sprite GetRing()
-        {
-            return GetOrBake("Pixel_Ring", path =>
-            {
-                Color32[] c = RingColors();
-                Texture2D texture = CreateRingTexture(c[0], c[1], out Vector4 border);
-                return Generate(path, texture, border);
-            });
-        }
-
         /// <summary>键盘焦点框 Sprite（蓝白方环）。</summary>
         public static Sprite GetFocus()
         {
@@ -1524,36 +964,6 @@ namespace PirateCrew.EditorTools
             {
                 Color32[] c = FocusColors();
                 Texture2D texture = CreateRingTexture(c[0], c[1], out Vector4 border);
-                return Generate(path, texture, border);
-            });
-        }
-
-        /// <summary>位点 Sprite（on=黄铜宝石 / off=中性暗）。</summary>
-        public static Sprite GetPip(bool on)
-        {
-            return GetOrBake(on ? "Pixel_Pip_On" : "Pixel_Pip_Off", path =>
-            {
-                Texture2D texture = CreatePipTexture(on, out Vector4 border);
-                return Generate(path, texture, border);
-            });
-        }
-
-        /// <summary>蚀刻分隔线 Sprite。</summary>
-        public static Sprite GetSeparator(bool horizontal)
-        {
-            return GetOrBake(horizontal ? "Pixel_Sep_H" : "Pixel_Sep_V", path =>
-            {
-                Texture2D texture = CreateSepTexture(horizontal, out Vector4 border);
-                return Generate(path, texture, border);
-            });
-        }
-
-        /// <summary>面板投影 Sprite（INK 剪影）。</summary>
-        public static Sprite GetShadow()
-        {
-            return GetOrBake("Pixel_Shadow", path =>
-            {
-                Texture2D texture = CreateShadowTexture(out Vector4 border);
                 return Generate(path, texture, border);
             });
         }
@@ -1577,128 +987,51 @@ namespace PirateCrew.EditorTools
         // ==================================================================
 
         /// <summary>
-        /// 全部要烘焙的资产（声明顺序 = 接触表的行序）。
-        /// **有意不是"全枚举直积"**：凹槽没有按压/悬停态（槽不会更凹、也点不亮）、
-        /// 页签没有状态（"选中"是换 tone 不是换状态）、填充没有状态（状态属于容器不属于内容）。
-        /// 悬停全 7 tone 都烘：图集是 tone×state 整网格，缺一格运行时下标就对不上。
+        /// 全部要烘焙的资产（**只余 Ase 直切件族之外的两件程序化件**）。
+        /// 【tone 贴图件族已退役（W3）】Plate/Track/Fill/Panel/Tab/Ring/Pip/Separator/Shadow
+        /// 九族不再程序化烘焙；theme 控件件一律走 <see cref="BakeAsepriteParts"/> 从
+        /// sheet.png 直切（现役管线）。本表只留：焦点框（Pixel_Focus）+ 存件的 tone 族
+        /// 窗体皮（Pixel_Window_*；仍供 PixelSkin.Window 出口）。
         /// </summary>
         public static BakeTarget[] Targets()
         {
             var list = new List<BakeTarget>();
 
-            foreach (Tone tone in Enum.GetValues(typeof(Tone)))
-            {
-                list.Add(NewTarget(AssetNameOf(tone, Piece.Plate, State.Normal)));
-                list.Add(NewTarget(AssetNameOf(tone, Piece.Plate, State.Hovered)));
-                list.Add(NewTarget(AssetNameOf(tone, Piece.Plate, State.Pressed)));
-                list.Add(NewTarget(AssetNameOf(tone, Piece.Track, State.Normal)));
-                list.Add(NewTarget(AssetNameOf(tone, Piece.Panel, State.Normal)));
-            }
-
-            foreach (FillKind kind in Enum.GetValues(typeof(FillKind)))
-                list.Add(NewTarget(AssetNameOf(kind)));
-
-            foreach (Tone tone in Enum.GetValues(typeof(Tone)))
-                list.Add(NewTarget(AssetNameOf(tone, Piece.Tab, State.Normal)));
-
-            list.Add(NewTarget("Pixel_Ring"));
             list.Add(NewTarget("Pixel_Focus"));
-            list.Add(NewTarget("Pixel_Pip_On"));
-            list.Add(NewTarget("Pixel_Pip_Off"));
-            list.Add(NewTarget("Pixel_Sep_H"));
-            list.Add(NewTarget("Pixel_Sep_V"));
-            list.Add(NewTarget("Pixel_Shadow"));
 
-            // Aseprite dark 窗体（tone 族，×1）。theme 控件件不进本表——它们没有程序化
-            // 画法，走 BakeAsepriteParts 从 sheet.png 直切，判据是与源逐位比对。
+            // 存件 tone 族窗体（×1）。其余 theme 控件件无程序化画法，走 BakeAsepriteParts。
             foreach (Tone tone in Enum.GetValues(typeof(Tone)))
                 list.Add(NewTarget(AssetNameOf(tone, Piece.Window, State.Normal)));
 
             return list.ToArray();
         }
 
-        /// <summary>资产名 → 画法族（判据分流用；与 <see cref="CreateByName"/> 的路由一一对应）。</summary>
+        /// <summary>资产名 → 画法族（判据分流用；与 <see cref="CreateByName"/> 的路由一一对应）。
+        /// 只余 ring（Pixel_Focus 方环）与 window（tone 族窗体）两族。</summary>
         public static string KindOfName(string name)
         {
-            if (name.StartsWith("Pixel_Fill_", StringComparison.Ordinal))
-                return "fill";
-            if (name.StartsWith("Pixel_Tab_", StringComparison.Ordinal))
-                return "tab";
-            if (name.StartsWith("Pixel_Track_", StringComparison.Ordinal))
-                return "track";
-            if (name.StartsWith("Pixel_Panel_", StringComparison.Ordinal))
-                return "panel";
-            if (name.StartsWith("Pixel_Window_", StringComparison.Ordinal))
-                return "window";
-            if (name == "Pixel_Ring" || name == "Pixel_Focus")
+            if (name == "Pixel_Focus")
                 return "ring";
-            if (name.StartsWith("Pixel_Pip_", StringComparison.Ordinal))
-                return "pip";
-            if (name.StartsWith("Pixel_Sep_", StringComparison.Ordinal))
-                return "sep";
-            if (name == "Pixel_Shadow")
-                return "shadow";
-            return "plate";
+            return "window";
         }
 
         static BakeTarget NewTarget(string name)
         {
             string kind = KindOfName(name);
-            bool isFill = kind == "fill";
             int w, h;
             Vector4 border;
             switch (kind)
             {
-                case "fill":
-                    w = FillSize; h = FillSize;
-                    border = new Vector4(0f, FillBorder, FillBorder, FillBorder);
-                    break;
-                case "tab":
-                    w = PlateSize; h = PlateSize;
-                    border = new Vector4(PlateBorder, 0f, PlateBorder, PlateBorder);
-                    break;
                 case "ring":
                     w = RingSize; h = RingSize;
                     border = new Vector4(RingBorder, RingBorder, RingBorder, RingBorder);
                     break;
-                case "pip":
-                    w = PipSize; h = PipSize;
-                    border = Vector4.zero;
-                    break;
-                case "sep":
-                    w = SepLength; h = 2;             // 水平件；垂直件在下面互换
-                    border = new Vector4(0f, 1, 0f, 1);
-                    break;
-                case "track":
-                    w = PlateSize; h = PlateSize;
-                    border = new Vector4(TrackBorder, TrackBorder, TrackBorder, TrackBorder);
-                    break;
-                case "panel":
-                    w = PanelTemplate[0].Length;
-                    h = PanelTemplate.Length;
-                    border = new Vector4(2, 2, 2, 2);
-                    break;
-                case "window":
+                default:
+                    // window：13×24，切片 左3/下5/右3/上15
                     w = WindowTemplate[0].Length;
                     h = WindowTemplate.Length;
                     border = new Vector4(3, 5, 3, 15);
                     break;
-                case "shadow":
-                    w = PlateSize; h = PlateSize;
-                    border = new Vector4(PlateBorder, PlateBorder, PlateBorder, PlateBorder);
-                    break;
-                default:
-                    // plate：Aseprite button 模板 14×16（与 BuildPlateFromTemplate 同源），
-                    // 切片 = 左/右 4、下 6、上 4（w/h1..3 原样）。
-                    w = PlateTemplate[0].Length;
-                    h = PlateTemplate.Length;
-                    border = new Vector4(4, 6, 4, 4);
-                    break;
-            }
-            if (kind == "sep" && name == "Pixel_Sep_V")
-            {
-                w = 2; h = SepLength;
-                border = new Vector4(1, 0f, 1, 0f);
             }
             return new BakeTarget
             {
@@ -1707,7 +1040,7 @@ namespace PirateCrew.EditorTools
                 width = w,
                 height = h,
                 border = border,
-                isFill = isFill,
+                isFill = false,
                 kind = kind,
             };
         }
@@ -1715,34 +1048,13 @@ namespace PirateCrew.EditorTools
         /// <summary>把目标名字解析回画法（<see cref="Targets"/> 的逆）。</summary>
         static Texture2D CreateByName(string name, out Vector4 border)
         {
-            if (name == "Pixel_Ring")
-            {
-                Color32[] c = RingColors();
-                return CreateRingTexture(c[0], c[1], out border);
-            }
             if (name == "Pixel_Focus")
             {
                 Color32[] c = FocusColors();
                 return CreateRingTexture(c[0], c[1], out border);
             }
-            if (name == "Pixel_Pip_On" || name == "Pixel_Pip_Off")
-                return CreatePipTexture(name == "Pixel_Pip_On", out border);
-            if (name == "Pixel_Sep_H" || name == "Pixel_Sep_V")
-                return CreateSepTexture(name == "Pixel_Sep_H", out border);
-            if (name == "Pixel_Shadow")
-                return CreateShadowTexture(out border);
-
-            if (name.StartsWith("Pixel_Fill_", StringComparison.Ordinal))
-            {
-                var kind = (FillKind)Enum.Parse(typeof(FillKind), name.Substring("Pixel_Fill_".Length));
-                return CreateFillTexture(kind, out border);
-            }
-
-            string rest = name.Substring("Pixel_".Length);
-            int cut = rest.IndexOf('_');
-            var piece = (Piece)Enum.Parse(typeof(Piece), rest.Substring(0, cut));
-            State state = ParseStateTail(rest.Substring(cut + 1));
-            return CreateTexture(ToneOfName(name), piece, state, out border);
+            // Pixel_Window_<Tone>
+            return BuildWindowFromTemplate(RampOf(ToneOfName(name)), out border);
         }
 
         /// <summary>从资产名解析 tone（<c>Pixel_Plate_Frame[_Hover|_Pressed]</c> → <c>Tone.Frame</c>）。</summary>
@@ -1751,16 +1063,6 @@ namespace PirateCrew.EditorTools
             string rest = name.Substring("Pixel_".Length);
             int cut = rest.IndexOf('_');
             return (Tone)Enum.Parse(typeof(Tone), ParseToneTail(rest.Substring(cut + 1)));
-        }
-
-        /// <summary>从目标名字解析状态后缀。</summary>
-        static State ParseStateTail(string tail)
-        {
-            if (tail.EndsWith("_Pressed", StringComparison.Ordinal))
-                return State.Pressed;
-            if (tail.EndsWith("_Hover", StringComparison.Ordinal))
-                return State.Hovered;
-            return State.Normal;
         }
 
         static string ParseToneTail(string tail)
@@ -1816,13 +1118,9 @@ namespace PirateCrew.EditorTools
             GenerateAtlas();                        // 图集资产要在贴图导入之后生成
 
             List<string> problems = Verify();
-            string sheet = BuildContactSheet();
-            string showcase = BuildShowcaseSheet();
-            BuildComponentSheet();
 
             Debug.Log("[BeveledPixelSpriteBuilder] Beveled Pixel 重烘焙完成，共 " + targets.Length
-                + " 张：" + SpriteFolder + "（接触表 " + sheet + "；美术稿 " + showcase
-                + "；图集 " + AtlasAssetPath + "）");
+                + " 张：" + SpriteFolder + "（图集 " + AtlasAssetPath + "）");
             LogRampReport();
 
             if (problems.Count > 0)
@@ -1874,13 +1172,6 @@ namespace PirateCrew.EditorTools
                     .Append(" / ").Append(Hex(r.S1)).Append("  · 槽底 ").Append(Hex(r.Floor))
                     .Append('\n');
             }
-            foreach (FillKind kind in Enum.GetValues(typeof(FillKind)))
-            {
-                Fill f = FillOf(kind);
-                sb.Append("  Fill:").Append(kind.ToString().PadRight(8))
-                    .Append(Hex(f.Hi)).Append(" / ").Append(Hex(f.Body)).Append(" / ").Append(Hex(f.Dark))
-                    .Append("  · 前缘 ").Append(Hex(f.Tip)).Append('\n');
-            }
             Debug.Log(sb.ToString());
         }
 
@@ -1929,13 +1220,6 @@ namespace PirateCrew.EditorTools
                             + " vs S1 " + Hex(r.S1) + "，亮度比 "
                             + (Lum(r.Floor) / Lum(r.S1)).ToString("F2") + "）：槽内那道底内暗线会等于没画。");
                     }
-                }
-                foreach (FillKind kind in Enum.GetValues(typeof(FillKind)))
-                {
-                    Fill f = FillOf(kind);
-                    problems.AddRange(CheckSteps("填充 " + kind,
-                        new[] { f.Hi, f.Body, f.Dark },
-                        new[] { "亮沿", "主体", "暗沿" }));
                 }
                 foreach (Tone tone in Enum.GetValues(typeof(Tone)))
                 {
@@ -2091,8 +1375,6 @@ namespace PirateCrew.EditorTools
 
                 problems.AddRange(CheckBandsAndHoles(label, fresh, ExpectedTransparent(t.kind, t.name), t.kind));
                 problems.AddRange(CheckPaletteLock(label, t, fresh));
-                if (t.kind == "tab")
-                    problems.AddRange(CheckTabBottomFlat(label, fresh, t));
             }
             finally
             {
@@ -2115,33 +1397,18 @@ namespace PirateCrew.EditorTools
             return problems;
         }
 
-        /// <summary>按画法族给期望透明像素数（"除已知形状外不该有孔洞"的已知形状就在这）。</summary>
+        /// <summary>按画法族给期望透明像素数（"除已知形状外不该有孔洞"的已知形状就在这）。
+        /// 【tone 族退役后】只余 ring（Pixel_Focus 方环）与 window（直角全不透明）。</summary>
         static int ExpectedTransparent(string kind, string name)
         {
             switch (kind)
             {
-                case "fill": return 0;
-                case "tab": return ChamferPixelCount() / 2;    // 只切上两角
-                case "track": return ChamferPixelCount();      // 条槽族走分层画法（切角深度 0 = 方角 = 全不透明）
-                case "panel": return 0;                        // 直角面板（2026-09-24 裁决：圆角只属于按钮）
-                case "window": return 0;                       // 带标题窗体同为直角全不透明
                 case "ring": return RingSize * RingSize - RingOpaqueCount();
-                case "pip": return PipSize * PipSize - PipOpaqueCount();
-                case "sep": return 0;
-                case "shadow": return ChamferPixelCount();
-                default:
-                {
-                    // plate：模板四角的透明阶梯格（'.' 数；×1 后 1 格 = 1px）
-                    int cells = 0;
-                    foreach (string row in PlateTemplate)
-                        foreach (char ch in row)
-                            if (ch == '.') cells++;
-                    return cells;
-                }
+                default: return 0;   // window：直角带标题窗体，全不透明
             }
         }
 
-        /// <summary>方环（选人圈/焦点框）的不透明像素数：镜像生成器画法（厚度 2px 且不在切角里）。</summary>
+        /// <summary>方环（焦点框）的不透明像素数：镜像生成器画法（厚度 2px 且不在切角里）。</summary>
         static int RingOpaqueCount()
         {
             int n = RingSize, count = 0;
@@ -2157,50 +1424,9 @@ namespace PirateCrew.EditorTools
             return count;
         }
 
-        /// <summary>位点菱形的不透明像素数（含 on 态高光 1px——它替换的是已有格色，不改变计数）。</summary>
-        static int PipOpaqueCount()
-        {
-            int n = PipSize, cells = n, count = 0;
-            for (int y = 0; y < n; y++)
-            {
-                for (int x = 0; x < n; x++)
-                {
-                    int cx = x, cy = y;
-                    int a = Math.Abs(2 * cx - (cells - 1)) + Math.Abs(2 * cy - (cells - 1));
-                    if (a <= cells - 2)
-                        count++;
-                }
-            }
-            return count;
-        }
-
         /// <summary>
-        /// 页签专属判据：**底边必须是平底**——中轴竖切的最下 3 层带厚度（3u）里全是底色，
-        /// 不许出现环/斜面/内暗线色。页签的意义就是底边与宿主面板贴合，带了就是普通 Plate。
-        /// </summary>
-        static List<string> CheckTabBottomFlat(string label, Texture2D tex, BakeTarget t)
-        {
-            var problems = new List<string>();
-            Color32[] px = tex.GetPixels32();
-            int w = tex.width, h = tex.height;
-            Ramp r = RampOf(ToneOfName(t.name));
-            for (int y = 0; y < 3; y++)
-            {
-                Color32 c = px[y * w + w / 2];
-                if (!Same(c, r.S3))
-                {
-                    problems.Add(label + "：底边第 " + y + " 行的中列是 " + Hex(c)
-                        + "，应为底色 " + Hex(r.S3) + "——页签底边必须无带（带它的是 Plate 不是 Tab）。");
-                    break;
-                }
-            }
-            return problems;
-        }
-
-        /// <summary>
-        /// 几何判据：中轴色带边界必须落在 <see cref="Unit"/> 的整数倍上。
-        /// 这就是参照 README §六 的"色带边界必须落在网格上"——**奇数宽的带 = 参数写错**。
-        /// 另加"孔洞计数"：除该族已知形状（切角/环内/菱形外）外不应有任何透明像素。
+        /// 几何判据：中轴色带边界必须落在 <see cref="Unit"/> 的整数倍上；
+        /// 另加"孔洞计数"：除该族已知形状（切角/环内）外不应有任何透明像素。
         /// </summary>
         static List<string> CheckBandsAndHoles(string label, Texture2D tex, int expectedTransparent, string kind)
         {
@@ -2228,83 +1454,10 @@ namespace PirateCrew.EditorTools
                 problems.Add(label + "：透明像素 " + transparent + " 个，应为 " + expectedTransparent
                     + " 个（超出该族已知形状 = 画法被改坏了）。");
 
-            // 外环闭合：plate 用**模板格级**判据（黑环 K 格 8 连通闭合）；tab/ring/shadow
-            // 仍是同心环画法，走像素级"边界 1u 内"判据。模板的 45° 圆角格像素离图边 ≥1u，
-            // 像素级口径会把环误切成四段（手绘模板落地起潜伏的红，2026-09-24 移植时收口）。
-            if (kind == "plate")
-                problems.AddRange(CheckPlateRingClosedFromTemplate(label));
-            else if (kind == "tab" || kind == "ring" || kind == "shadow")
-                problems.AddRange(CheckRingClosed(label, px, w, h, kind == "tab"));
+            // 外环闭合：ring（焦点框）是同心方环，走像素级"边界 1u 内"判据。
+            if (kind == "ring")
+                problems.AddRange(CheckRingClosed(label, px, w, h, false));
 
-            return problems;
-        }
-
-        /// <summary>
-        /// Plate 模板的黑环闭合判据（**艺术格级**）：K 格集合须 8 连通为 1 个分量、
-        /// 且每格至少两个环邻（无端点）。与 <see cref="CheckRingClosed"/> 同一不变量、
-        /// 不同镜面——模板环沿四角 45° 流转，格级才是它的原生分辨率。
-        /// </summary>
-        static List<string> CheckPlateRingClosedFromTemplate(string label)
-        {
-            var problems = new List<string>();
-            int rows = PlateTemplate.Length, cols = PlateTemplate[0].Length;
-            var ring = new bool[rows, cols];
-            for (int y = 0; y < rows; y++)
-                for (int x = 0; x < cols; x++)
-                    ring[y, x] = PlateTemplate[y][x] == 'K';
-
-            var seen = new bool[rows, cols];
-            int components = 0;
-            for (int sy = 0; sy < rows; sy++)
-                for (int sx = 0; sx < cols; sx++)
-                {
-                    if (!ring[sy, sx] || seen[sy, sx])
-                        continue;
-                    components++;
-                    var stack = new Stack<(int x, int y)>();
-                    stack.Push((sx, sy));
-                    seen[sy, sx] = true;
-                    while (stack.Count > 0)
-                    {
-                        (int cx, int cy) = stack.Pop();
-                        for (int oy = -1; oy <= 1; oy++)
-                            for (int ox = -1; ox <= 1; ox++)
-                            {
-                                if (ox == 0 && oy == 0)
-                                    continue;
-                                int nx = cx + ox, ny = cy + oy;
-                                if (nx < 0 || ny < 0 || nx >= cols || ny >= rows)
-                                    continue;
-                                if (ring[ny, nx] && !seen[ny, nx])
-                                {
-                                    seen[ny, nx] = true;
-                                    stack.Push((nx, ny));
-                                }
-                            }
-                    }
-                }
-            if (components != 1)
-                problems.Add(label + "：模板黑环在艺术格层面有 " + components + " 段（应为 1 段闭合圈）。");
-
-            for (int y = 0; y < rows; y++)
-                for (int x = 0; x < cols; x++)
-                {
-                    if (!ring[y, x])
-                        continue;
-                    int nb = 0;
-                    for (int oy = -1; oy <= 1; oy++)
-                        for (int ox = -1; ox <= 1; ox++)
-                        {
-                            if (ox == 0 && oy == 0)
-                                continue;
-                            int nx = x + ox, ny = y + oy;
-                            if (nx >= 0 && ny >= 0 && nx < cols && ny < rows && ring[ny, nx])
-                                nb++;
-                        }
-                    if (nb < 2)
-                        problems.Add(label + "：模板黑环格 (" + x + "," + y + ") 只有 " + nb
-                            + " 个环邻——环不闭合或有毛刺。");
-                }
             return problems;
         }
 
@@ -2450,57 +1603,20 @@ namespace PirateCrew.EditorTools
             string kind = t.kind ?? KindOfName(name);
             switch (kind)
             {
-                case "fill":
-                {
-                    var fillKind = (FillKind)Enum.Parse(typeof(FillKind), name.Substring("Pixel_Fill_".Length));
-                    Fill f = FillOf(fillKind);
-                    allowed.Add(f.Body);
-                    allowed.Add(f.Dark);
-                    allowed.Add(f.Hi);
-                    // 前缘列对三层带各算一次：亮沿→亮沿、主体→Tip、暗沿→mix(暗沿, 亮沿)
-                    allowed.Add(f.Tip);
-                    allowed.Add(Mix(f.Dark, f.Hi, Fill.TipMix));
-                    break;
-                }
                 case "ring":
-                    // Pixel_Focus 与 Pixel_Ring 共用方环画法，各查各的色表
-                    allowed.AddRange(name == "Pixel_Focus" ? FocusColors() : RingColors());
-                    break;
-                case "pip":
-                    allowed.Add(Slot("SAND_LIGHT"));
-                    allowed.Add(Slot("BRASS"));
-                    allowed.Add(Slot("WOOD_DARK"));
-                    allowed.Add(Slot("UI_BEVEL_LO"));
-                    allowed.Add(PipSocketColor());
-                    if (name == "Pixel_Pip_On")
-                        allowed.Add(Slot("WHITE_HOT"));     // 顶端 1px 高光
-                    break;
-                case "sep":
-                    allowed.AddRange(SepColors());
-                    break;
-                case "shadow":
-                    allowed.Add(Slot("INK"));               // 投影 = 纯墨剪影
+                    // Pixel_Focus 方环（海蓝外缘 + 内缘提白）
+                    allowed.AddRange(FocusColors());
                     break;
                 default:
                 {
-                    // plate / tab / track：本 tone 的阶梯纯档。**按状态取表**——生成器在
-                    // CreateTexture 里对悬停/按压先做 Lifted/Sunk 整条变换再交给模板取色
-                    // （换字母取色不换几何），白名单必须用同一条变换后的阶梯，否则悬停/按压
-                    // 件的每个像素都会被判成板外色。
+                    // window：本 tone 的阶梯纯档 + 近黑描边 INK（与 BuildWindowFromTemplate 同源）。
                     Tone tone = ToneOfName(name);
                     Ramp r = RampOf(tone);
-                    string rest = name.Substring("Pixel_".Length);
-                    State state = ParseStateTail(rest.Substring(rest.IndexOf('_') + 1));
-                    if (state == State.Hovered)
-                        r = r.Lifted(HoverLift);
-                    else if (state == State.Pressed)
-                        r = r.Sunk(PressSink);
                     allowed.Add(r.S1);
                     allowed.Add(r.S2);
                     allowed.Add(r.S3);
                     allowed.Add(r.S4);
                     allowed.Add(r.Floor);
-                    // 面板/按钮语法的近黑描边（描边色 = 本仓统一墨色）
                     allowed.Add(Slot("INK"));
                     break;
                 }
@@ -2580,645 +1696,6 @@ namespace PirateCrew.EditorTools
         }
 
         // ==================================================================
-        // 十一、接触表（评审出图；落 export/ 暂存目录）
-        // ==================================================================
-
-        /// <summary>
-        /// 出接触表：每个 tone 一行（最小尺寸块 / 常态 / 悬停 / 按压 / 凹槽 / 槽内 60% 填充），
-        /// 另加页签区（7 tone 的 Tab 贴在宿主面板顶边上）、语义件区（投影/选人圈/焦点框/位点/分隔线）
-        /// 与 5 种填充条。**这张图是换装的评审靶子**，也是九宫格语义的自证：
-        /// 块被拉到 96px 宽时四角与四条边必须与 36px 时完全一样（只有中心被拉长）。
-        /// 底纹是 6px 棋盘（不是为了好看——透明切角/环内只在有底纹的图上读得出来）。
-        /// **行/列/分区全用内置 3×5 字模标注**——"这块是干嘛的"必须一眼看得出来，
-        /// 7 行无色标的色阶表此前被创始人判过"意义不明"。
-        /// </summary>
-        public static string BuildContactSheet()
-        {
-            int u = Unit;
-            int pad = 4 * u;
-            int gap = 4 * u;
-            int rowTone = 12 * u;             // 须大于 Plate 纵向切片和（10u）——中心区零宽就演示不了拉伸语义
-            int rowFill = 8 * u;
-            int colMin = 10 * u;              // Plate 最小可渲染尺寸（下 6u + 上 4u 切片和；宽向 8u 更小，方格取高者）
-            int colWide = 32 * u;
-            int tabH = 7 * u;
-            int hostH = 10 * u;
-            int rowSingles = 20 * u;
-            int labelW = 12 * u;            // 行名标签栏（"PRIMARY" = 7 字 × 4px = 28px < 36）
-            int headerH = 3 * u;            // 列名表头带
-            int contentX = pad + labelW;
-
-            int cols = contentX + colMin + gap + (colWide + gap) * 5;
-            int rows = pad + headerH
-                + (rowTone + gap) * 7
-                + (tabH + hostH + gap)
-                + (rowSingles + gap)
-                + (rowFill + gap) * 5
-                + pad;
-
-            var px = new Color32[cols * rows];
-            for (int y = 0; y < rows; y++)
-            {
-                for (int x = 0; x < cols; x++)
-                {
-                    bool odd = ((x / (2 * u)) + (y / (2 * u))) % 2 == 1;
-                    px[y * cols + x] = odd
-                        ? new Color32(0xA8, 0xA8, 0xA8, 255)
-                        : new Color32(0x80, 0x80, 0x80, 255);
-                }
-            }
-
-            Color32 labelInk = Slot("WHITE_HOT");
-            Color32 labelShadow = Slot("INK");
-
-            // 版面用"从顶往下的游标"排（画布 y=0 在下，故每排一行游标就减）——
-            // 用 y0 - r*step 那种反推在块数不一致时必然越界。
-            int cursorTop = rows - pad - headerH;
-
-            // 列名表头：与下面的六列逐一对应（最小尺寸 / 常态 / 悬停 / 按压 / 凹槽 / 槽内填充）
-            {
-                string[] headers = { "MIN", "NORMAL", "HOVER", "PRESS", "TRACK", "FILL" };
-                int hx = contentX;
-                int hy = rows - pad - 5;
-                DrawText(px, cols, hx + (colMin - 3 * 4 + 1) / 2 + 1, hy, headers[0], labelInk, labelShadow);
-                hx += colMin + gap;
-                for (int c = 1; c < headers.Length; c++)
-                {
-                    DrawText(px, cols, hx + (colWide - (headers[c].Length * 4 - 1)) / 2, hy,
-                        headers[c], labelInk, labelShadow);
-                    hx += colWide + gap;
-                }
-            }
-
-            Tone[] tones = (Tone[])Enum.GetValues(typeof(Tone));
-            for (int r = 0; r < tones.Length; r++)
-            {
-                Tone tone = tones[r];
-                int y = cursorTop - rowTone;
-                cursorTop = y - gap;
-                int x = contentX;
-
-                // 行名（tone 用途）——7 行各有其名，别再靠猜
-                DrawText(px, cols, pad + 1, y + (rowTone - 5) / 2, ToneLabel(tone), labelInk, labelShadow);
-
-                // ① 最小可渲染尺寸 → ② 常态 → ③ 悬停 → ④ 按压 → ⑤ 凹槽 → ⑥ 槽内 60% 填充
-                DrawOne(px, cols, tone, Piece.Plate, State.Normal, x, y + (rowTone - colMin) / 2, colMin, colMin);
-                x += colMin + gap;
-                DrawOne(px, cols, tone, Piece.Plate, State.Normal, x, y, colWide, rowTone);
-                x += colWide + gap;
-                DrawOne(px, cols, tone, Piece.Plate, State.Hovered, x, y, colWide, rowTone);
-                x += colWide + gap;
-                DrawOne(px, cols, tone, Piece.Plate, State.Pressed, x, y, colWide, rowTone);
-                x += colWide + gap;
-                DrawOne(px, cols, tone, Piece.Track, State.Normal, x, y, colWide, rowTone);
-                x += colWide + gap;
-                DrawOne(px, cols, tone, Piece.Track, State.Normal, x, y, colWide, rowTone);
-                DrawTrackFill(px, cols, tone, FillOfTone(tone), x, y, colWide, rowTone, 0.6f);
-            }
-
-            // 页签区：宿主面板（Dense）+ 7 个 tone 的页签贴在顶边上——
-            // 页签的评审要点是"底边无带、与面板贴合后连成一体"。
-            {
-                int hostW = 60 * u;
-                int hostY = cursorTop - tabH - hostH;
-                cursorTop = hostY - gap;
-                DrawText(px, cols, pad + 1, hostY + hostH / 2, "TABS", labelInk, labelShadow);
-                DrawOne(px, cols, Tone.Dense, Piece.Plate, State.Normal, contentX, hostY, hostW, hostH);
-                int tx = contentX + 2 * u;
-                for (int r = 0; r < tones.Length; r++)
-                {
-                    DrawOne(px, cols, tones[r], Piece.Tab, State.Normal, tx, hostY + hostH, 16 * u, tabH);
-                    tx += 18 * u;
-                }
-            }
-
-            // 语义件区：投影 / 选人圈 / 焦点框（套在浅按钮外）/ 位点 / 分隔线 / 危险条
-            {
-                int y = cursorTop - rowSingles;
-                int cy = y + (rowSingles - 12 * u) / 2;      // 行内垂直居中基线
-                cursorTop = y - gap;
-                int x = contentX;
-                DrawText(px, cols, pad + 1, y + rowSingles / 2, "PARTS", labelInk, labelShadow);
-
-                // 投影演示：阴影在右下错 1u，本体盖在上面
-                DrawOne(px, cols, Tone.Frame, Piece.Plate, State.Normal, x, cy, 24 * u, 12 * u);
-                x += 26 * u + gap;
-
-                DrawSized(px, cols, "Pixel_Ring", x, cy + (12 * u - 16 * u) / 2, 16 * u, 16 * u);
-                x += 18 * u + gap;
-
-                // 焦点框套一个浅按钮（焦点框比按钮外扩 2px；按钮高取 Plate 最小渲染 10u）
-                DrawOne(px, cols, Tone.Light, Piece.Plate, State.Normal, x + 2, cy + 5 * u / 3, 12 * u, 10 * u);
-                DrawSized(px, cols, "Pixel_Focus", x, cy + 2 * u, 12 * u + 4, 6 * u + 10);
-                x += 14 * u + gap;
-
-                DrawSized(px, cols, "Pixel_Pip_On", x, cy + 5 * u, PipSize, PipSize);
-                DrawSized(px, cols, "Pixel_Pip_Off", x + PipSize + u, cy + 5 * u, PipSize, PipSize);
-                DrawSized(px, cols, "Pixel_Pip_On", x, cy + 9 * u, PipSize * 2, PipSize * 2);
-                x += PipSize * 3 + u * 2 + gap;
-
-                DrawSized(px, cols, "Pixel_Sep_H", x, cy + 5 * u, 32 * u, 2 * u);
-                DrawSized(px, cols, "Pixel_Sep_V", x + 34 * u, cy, 2 * u, 16 * u);
-                x += 36 * u + gap;
-
-                DrawOne(px, cols, Tone.Danger, Piece.Track, State.Normal, x, cy + 3 * u, 32 * u, 8 * u);
-                DrawFill(px, cols, FillKind.Red, x + 3 * u, cy + 5 * u, 26 * u, 4 * u);
-            }
-
-            // 填充区：5 种填充各自满格画在 Frame 凹槽里（两列宽，读得出前缘在右端）
-            FillKind[] fills = (FillKind[])Enum.GetValues(typeof(FillKind));
-            for (int r = 0; r < fills.Length; r++)
-            {
-                int y = cursorTop - rowFill;
-                cursorTop = y - gap;
-                int x = contentX + colMin + gap;
-                int w = colWide + gap + colWide;
-                if (r == 0)
-                    DrawText(px, cols, pad + 1, y + rowFill / 2, "FILLS", labelInk, labelShadow);
-                DrawOne(px, cols, Tone.Frame, Piece.Track, State.Normal, x, y, w, rowFill);
-                int inset = 3 * Unit;
-                DrawFill(px, cols, fills[r], x + inset, y + inset, w - inset * 2, rowFill - inset * 2);
-            }
-
-            if (cursorTop < pad)
-            {
-                throw new InvalidOperationException("[BeveledPixelSpriteBuilder] 接触表版面溢出："
-                    + "画完后剩余高度 " + cursorTop + " < pad " + pad + "——rows 的算式与行数不匹配。");
-            }
-
-            return WriteZoomedSheet(px, cols, rows, SheetRelativePath, SheetZoom);
-        }
-
-        /// <summary>按名字把语义件按九宫格画到画布（接触表/美术稿共用）。</summary>
-        static void DrawSized(Color32[] canvas, int canvasW, string name, int ox, int oy, int w, int h)
-        {
-            if (w <= 0 || h <= 0)
-                return;
-            Texture2D tex = CreateByName(name, out Vector4 border);
-            Color32[] src = tex.GetPixels32();
-            DrawNineSliced(src, tex.width, tex.height, border, canvas, canvasW, ox, oy, w, h);
-            UnityEngine.Object.DestroyImmediate(tex);
-        }
-
-        /// <summary>tone → 接触表行名（全大写，字模只有大写）。用途一眼可辨是这张表的硬指标。</summary>
-        static string ToneLabel(Tone tone)
-        {
-            switch (tone)
-            {
-                case Tone.Frame: return "FRAME";
-                case Tone.Dense: return "DENSE";
-                case Tone.Light: return "LIGHT";
-                case Tone.Sea: return "SEA";
-                case Tone.Primary: return "PRIMARY";
-                case Tone.Danger: return "DANGER";
-                default: return "WARN";
-            }
-        }
-
-        /// <summary>tone → 该 tone 的槽内填充色（海图配海蓝、危险配红、其余配暖橙/中性/蓝）。</summary>
-        static FillKind FillOfTone(Tone tone)
-        {
-            switch (tone)
-            {
-                case Tone.Sea: return FillKind.Sea;
-                case Tone.Danger: return FillKind.Red;
-                case Tone.Primary:
-                case Tone.Warn: return FillKind.Warn;
-                case Tone.Light: return FillKind.Neutral;
-                default: return FillKind.Blue;
-            }
-        }
-
-        static void DrawOne(Color32[] canvas, int canvasW, Tone tone, Piece piece, State state,
-            int ox, int oy, int w, int h)
-        {
-            Texture2D tex = CreateTexture(tone, piece, state, out Vector4 border);
-            Color32[] src = tex.GetPixels32();
-            // 源宽高取贴图实况——Plate/Panel 已是模板件（14×16/8×8 ×Unit），
-            // 不再与 PlateSize(36) 同尺寸，硬编码会把短源数组按 36 宽寻址越界。
-            DrawNineSliced(src, tex.width, tex.height, border, canvas, canvasW, ox, oy, w, h);
-            UnityEngine.Object.DestroyImmediate(tex);
-        }
-
-        /// <summary>
-        /// 填充画在凹槽里：边距 = **6 艺术像素**（= 令牌表里那条"框"——4 层带 + 2 艺术像素槽底余量），
-        /// 槽高 24 时正好 6 框 + 12 填 + 6 框（与参照血条同构，见 <see cref="BuildShowcaseSheet"/> 令牌表）。
-        /// 槽矮于 12 艺术像素时填充为负、<see cref="DrawFill"/> 直接跳过（不画反了的条）。
-        /// </summary>
-        static void DrawTrackFill(Color32[] canvas, int canvasW, Tone tone, FillKind kind,
-            int ox, int oy, int w, int h, float ratio)
-        {
-            int inset = 6 * Unit;
-            int innerW = w - inset * 2;
-            DrawFill(canvas, canvasW, kind, ox + inset, oy + inset,
-                Mathf.RoundToInt(innerW * Mathf.Clamp01(ratio)), h - inset * 2);
-        }
-
-        static void DrawFill(Color32[] canvas, int canvasW, FillKind kind, int ox, int oy, int w, int h)
-        {
-            if (w <= 0 || h <= 0)
-                return;
-            Texture2D tex = CreateFillTexture(kind, out Vector4 border);
-            Color32[] src = tex.GetPixels32();
-            DrawNineSliced(src, FillSize, FillSize, border, canvas, canvasW, ox, oy, w, h);
-            UnityEngine.Object.DestroyImmediate(tex);
-        }
-
-        /// <summary>整数倍放大后落盘（最近邻；像素件放大用插值会糊，也会带出板外色）。</summary>
-        static string WriteZoomedSheet(Color32[] px, int cols, int rows, string relativePath, int zoom)
-        {
-            int zw = cols * zoom;
-            var zoomed = new Color32[zw * rows * zoom];
-            for (int y = 0; y < rows * zoom; y++)
-            {
-                for (int x = 0; x < zw; x++)
-                    zoomed[y * zw + x] = px[(y / zoom) * cols + (x / zoom)];
-            }
-            Texture2D sheet = ToTexture(zoomed, zw, rows * zoom);
-            string abs = Path.Combine(RepoRoot(), relativePath);
-            Directory.CreateDirectory(Path.GetDirectoryName(abs));
-            File.WriteAllBytes(abs, sheet.EncodeToPNG());
-            UnityEngine.Object.DestroyImmediate(sheet);
-            return relativePath;
-        }
-
-        // ==================================================================
-        // 十一b、美术稿（showcase）：全件合成的战斗 HUD 风格构图——换装的"靶子图"
-        // ==================================================================
-
-        /// <summary>
-        /// 3×5 像素字模（每字形 5 行、每行 3 位，msb=左）。只为美术稿标注用——
-        /// 游戏内文字走 TMP 字体资产，不在这里造第二套字体系统。
-        /// </summary>
-        static readonly Dictionary<char, int[]> MiniFont = new Dictionary<char, int[]>
-        {
-            { ' ', new[] { 0, 0, 0, 0, 0 } },
-            { 'A', new[] { 2, 5, 7, 5, 5 } },
-            { 'B', new[] { 6, 5, 6, 5, 6 } },
-            { 'C', new[] { 7, 4, 4, 4, 7 } },
-            { 'D', new[] { 6, 5, 5, 5, 6 } },
-            { 'E', new[] { 7, 4, 6, 4, 7 } },
-            { 'F', new[] { 7, 4, 6, 4, 4 } },
-            { 'G', new[] { 3, 4, 5, 5, 3 } },
-            { 'H', new[] { 5, 5, 7, 5, 5 } },
-            { 'I', new[] { 7, 2, 2, 2, 7 } },
-            { 'K', new[] { 5, 5, 6, 5, 5 } },
-            { 'L', new[] { 4, 4, 4, 4, 7 } },
-            { 'M', new[] { 5, 7, 7, 5, 5 } },
-            { 'N', new[] { 4, 6, 5, 3, 1 } },
-            { 'O', new[] { 2, 5, 5, 5, 2 } },
-            { 'P', new[] { 6, 5, 6, 4, 4 } },
-            { 'Q', new[] { 2, 5, 5, 6, 1 } },
-            { 'R', new[] { 6, 5, 6, 5, 5 } },
-            { 'S', new[] { 3, 4, 2, 1, 6 } },
-            { 'T', new[] { 7, 2, 2, 2, 2 } },
-            { 'U', new[] { 5, 5, 5, 5, 7 } },
-            { 'V', new[] { 5, 5, 5, 5, 2 } },
-            { 'W', new[] { 5, 5, 7, 7, 5 } },
-            { 'Y', new[] { 5, 5, 2, 2, 2 } },
-            { '1', new[] { 2, 6, 2, 2, 7 } },
-            { '2', new[] { 6, 1, 2, 4, 7 } },
-            { '3', new[] { 7, 1, 3, 1, 7 } },
-            { '7', new[] { 7, 1, 2, 2, 2 } },
-        };
-
-        /// <summary>
-        /// 画一行像素字（字宽 3+1 格、高 5 格，<paramref name="scale"/> 格 = 几个画布像素；
-        /// y = 文字底部）。先落阴影再落本体。**画布是艺术像素域**——3× 口径下
-        /// 全屏 = 640×360 艺术像素，字模 1 格 = 1 艺术像素 = 3 屏幕像素（1× 一档用于小字，
-        /// 标题用 2×＝10 艺术像素高，接近游戏内 TMP 正文口径）。
-        /// </summary>
-        static void DrawText(Color32[] canvas, int canvasW, int x, int y, string text,
-            Color32 main, Color32 shadow, int scale = 1)
-        {
-            for (int c = 0; c < text.Length; c++)
-            {
-                int[] glyph;
-                if (!MiniFont.TryGetValue(text[c], out glyph))
-                    continue;
-                for (int r = 0; r < 5; r++)
-                {
-                    for (int b = 0; b < 3; b++)
-                    {
-                        if ((glyph[r] & (1 << (2 - b))) == 0)
-                            continue;
-                        int gx = x + c * 4 * scale + b * scale;
-                        int gy = y + (4 - r) * scale;
-                        for (int sy = 0; sy < scale; sy++)
-                        {
-                            for (int sx = 0; sx < scale; sx++)
-                            {
-                                if (shadow.a != 0)
-                                    canvas[(gy - scale + sy) * canvasW + gx + scale + sx] = shadow;
-                                canvas[(gy + sy) * canvasW + gx + sx] = main;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        /// <summary>在 <c>(cx,cy)</c> 矩形中心画一行像素字（按钮标签用）。</summary>
-        static void DrawTextCentered(Color32[] canvas, int canvasW, int cx, int cy,
-            string text, Color32 main, Color32 shadow, int scale = 1)
-        {
-            DrawText(canvas, canvasW,
-                cx - (text.Length * 4 - 1) * scale / 2, cy - 2 * scale, text, main, shadow, scale);
-        }
-
-        /// <summary>
-        /// 美术稿：**按比例令牌表排**（全屏 640×360 艺术像素 = 1920×1080 屏幕 @3×）。
-        /// 令牌表（art px，基准 = 正文字号 12 = **B**）：
-        ///   · 正文 12 / 标题 24（= 2B）；
-        ///   · **容器高 = 件内文字高 + 12**：按钮（正文）12+12 = **24**、标题条（标题）24+12 = 36
-        ///     ——"按钮高 36"是上一版把它当成了标题条，正文按钮因此上下各空 12、比文字高出一倍
-        ///     （创始人 2026-09-22 复核："按钮大小也都太大了相比文字"）；
-        ///   · 按钮宽 = **标签宽 + 24**（不硬撑满行，撑满就把文字泡在一大片空里）；
-        ///   · 条高 24（几何定死：6 框 + 12 填 + 6 框，与参照血条同构，**不随字号走**）；
-        ///   · 面板内边距 12 / 分区间隙 ≥12；小件：位点 12、环 24、头像格 48、小地图 144。
-        /// **元素尺寸一律跟着字号走，不许各玩各的**（创始人判过"血条这么粗干什么、
-        /// 按钮这么大文字就这么大点"）。
-        ///
-        /// 【文字不在这里画】图上文字要显示**游戏实际用的中文字体**（像素字体），
-        /// 而本生成器是纯 CPU 像素、不带字体光栅化——所以这里只出构图 + 文字清单
-        /// （<c>export/ui-pixel-4a/showcase-labels.json</c>：文本/位置/字号/颜色），
-        /// 由 <c>tools/ui-review/stamp_showcase_text.py</c> 用真字体盖字（后处理步骤，
-        /// 见 docs/images/ui-font/README.md）。**1× 输出 = 实际屏幕像素**。
-        /// </summary>
-        public static string BuildShowcaseSheet()
-        {
-            int u = Unit;                 // u = 1 艺术像素 = 3 屏幕像素
-            int W = 640 * u, H = 360 * u; // 全屏：1920×1080 @3×
-            var px = new Color32[W * H];
-
-            // 背景：压暗的海渊色（比 Sea tone 再压一档，让板岩面板与金框条浮起来）
-            Color32 backdrop = Mix(Slot("SEA_DEEP"), Slot("INK"), 0.45f);
-            for (int i = 0; i < px.Length; i++)
-                px[i] = backdrop;
-
-            // 文字清单（画布坐标以**左上**为锚，单位=艺术像素；字体在 python 侧光栅化）
-            var labels = new List<string>();
-
-            // ================= 左：主船员卡（336 宽 × 300 高；内边距 12）=================
-            DrawOne(px, W, Tone.Frame, Piece.Plate, State.Normal, 24 * u, 24 * u, 336 * u, 300 * u);
-            DrawSized(px, W, "Pixel_Sep_H", 36 * u, 280 * u, 312 * u, 2 * u);
-            labels.Add(Label("船员", 36, 48, 24, "white"));
-
-            // 头像格（48 = 4B）+ 选人圈（24 = 2B）+ 名牌
-            DrawOne(px, W, Tone.Dense, Piece.Plate, State.Normal, 36 * u, 220 * u, 48 * u, 48 * u);
-            DrawSized(px, W, "Pixel_Ring", 48 * u, 232 * u, 24 * u, 24 * u);
-            labels.Add(Label("船长", 96, 96, 24, "white"));
-            labels.Add(Label("等级 7　攻 12　速 7", 96, 128, 12, "dim"));
-
-            // 血条 / 魔法条（条高 24 = 2B：6 框 + 12 填 + 6 框，与参照血条同构）
-            labels.Add(Label("生命", 36, 148, 12, "white"));
-            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 36 * u, 172 * u, 312 * u, 24 * u);
-            DrawFill(px, W, FillKind.Red, 42 * u, 178 * u, 240 * u, 12 * u);
-            labels.Add(Label("魔法", 36, 196, 12, "white"));
-            DrawOne(px, W, Tone.Frame, Piece.Track, State.Normal, 36 * u, 124 * u, 312 * u, 24 * u);
-            DrawFill(px, W, FillKind.Blue, 42 * u, 130 * u, 135 * u, 12 * u);
-
-            // 状态位点（12 = 1B，与字号同格）
-            for (int i = 0; i < 5; i++)
-                DrawSized(px, W, i < 3 ? "Pixel_Pip_On" : "Pixel_Pip_Off",
-                    (36 + i * 24) * u, 96 * u, 12 * u, 12 * u);
-
-            // 三态按钮（高 24 = 正文 12 + 上下各 6；宽 72 = 标签 24 + 左右各 24）
-            // 常态+焦点环 / 悬停 / 按压 —— 三个等宽按钮居中排在内容区（312）里
-            DrawOne(px, W, Tone.Primary, Piece.Plate, State.Normal, 72 * u, 48 * u, 72 * u, 24 * u);
-            DrawSized(px, W, "Pixel_Focus", 70 * u, 46 * u, 76 * u, 28 * u);
-            labels.Add(Label("确定", 96, 294, 12, "ink"));
-            DrawOne(px, W, Tone.Light, Piece.Plate, State.Hovered, 156 * u, 48 * u, 72 * u, 24 * u);
-            labels.Add(Label("菜单", 180, 294, 12, "ink"));
-            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Pressed, 240 * u, 48 * u, 72 * u, 24 * u);
-            labels.Add(Label("退出", 264, 294, 12, "white"));
-
-            // ================= 右上：海图小地图（144 = 12B）=================
-            DrawOne(px, W, Tone.Sea, Piece.Plate, State.Normal, 456 * u, 192 * u, 144 * u, 144 * u);
-            DrawOne(px, W, Tone.Sea, Piece.Track, State.Normal, 468 * u, 204 * u, 120 * u, 120 * u);
-            DrawSized(px, W, "Pixel_Ring", 516 * u, 252 * u, 24 * u, 24 * u);
-            DrawSized(px, W, "Pixel_Pip_Off", 472 * u, 310 * u, 12 * u, 12 * u);
-            DrawSized(px, W, "Pixel_Fill_Red", 564 * u, 216 * u, 12 * u, 12 * u);
-            labels.Add(Label("海图", 470, 38, 12, "white"));
-
-            // ================= 右列：敌情卡 / 敌条 / 警告按钮 / Toast =================
-            DrawOne(px, W, Tone.Danger, Piece.Plate, State.Normal, 456 * u, 150 * u, 144 * u, 30 * u);
-            labels.Add(Label("敌船", 468, 180, 24, "white"));
-
-            DrawOne(px, W, Tone.Danger, Piece.Track, State.Normal, 456 * u, 114 * u, 144 * u, 24 * u);
-            DrawFill(px, W, FillKind.Red, 462 * u, 120 * u, 30 * u, 12 * u);
-
-            DrawOne(px, W, Tone.Warn, Piece.Plate, State.Normal, 456 * u, 54 * u, 72 * u, 24 * u);
-            labels.Add(Label("警告", 480, 288, 12, "ink"));
-
-            DrawOne(px, W, Tone.Light, Piece.Plate, State.Normal, 372 * u, 12 * u, 168 * u, 24 * u);
-            labels.Add(Label("船长已登船", 426, 330, 12, "ink"));
-
-            // 1×：1080p 下 1:1 = 实际屏幕像素的整屏外观（验收主图）
-            string sheet = WriteZoomedSheet(px, W, H, ShowcaseRelativePath, 1);
-            WriteLabels(ShowcaseLabelsPath, labels);
-            return sheet;
-        }
-
-        /// <summary>文字清单条目（JSON 一行）：文本 / 左上锚（艺术像素）/ 字号 / 颜色槽位语义。</summary>
-        static string Label(string text, int x, int y, int size, string color)
-        {
-            return "{\"text\": \"" + text + "\", \"x\": " + x + ", \"y\": " + y
-                + ", \"size\": " + size + ", \"color\": \"" + color + "\"}";
-        }
-
-        /// <summary>写文字清单（python 后处理用它盖中文/拉丁字；见 BuildShowcaseSheet 注释）。</summary>
-        static void WriteLabels(string relativePath, List<string> labels)
-        {
-            string abs = Path.Combine(RepoRoot(), relativePath);
-            Directory.CreateDirectory(Path.GetDirectoryName(abs));
-            File.WriteAllText(abs,
-                "{\n  \"labels\": [\n    " + string.Join(",\n    ", labels.ToArray()) + "\n  ]\n}\n");
-        }
-
-        // ==================================================================
-        // 十一b2、组件总表（超级完全体）：全部件 × 全状态 × 中文标注的设计系统图
-        // ==================================================================
-
-        /// <summary>
-        /// **组件总表**：把整套皮按"表"排上——面板族 7 tone × 三态、凹槽（按真实血条用法）、
-        /// 填充 5 色、语义件 5 件（环/焦点框/位点/分隔线/投影）、页签贴宿主、三态按钮组合。
-        /// 件按**令牌表尺寸**画（见 <see cref="BuildShowcaseSheet"/> 注释里的比例系统），标注用真字体后处理盖。
-        ///
-        /// 【排法】画布 640 艺术像素宽（= 1 屏宽 = 1920 屏幕像素 @3×）、**一件一行**：
-        /// 左列写名字、右边是件，名字与它那一行**垂直居中**。第一版把名字摆在行的上边缘、
-        /// 各段行距又是手算的，整张表读起来"元素到处飘"、末段还和页签叠在一起（创始人 2026-09-22 走查）。
-        /// 现在所有行高与间隙都从**同一张令牌表**推（行高 = 件高，行间隙 14/28），布局走一条
-        /// 自顶向下的游标，画布高度**按游标实算后裁**（<c>planHeight</c> 是上限，超了直接抛）。
-        /// 同样只出构图 + 文字清单，中文由 <c>tools/ui-review/stamp_showcase_text.py</c> 盖。
-        /// </summary>
-        public static string BuildComponentSheet()
-        {
-            int u = Unit;
-            int W = 640 * u;
-            const int planHeight = 1400;        // 艺术像素上限；画完按游标裁掉下方空白
-            var px = new Color32[W * planHeight * u];
-            Color32 backdrop = Mix(Slot("SEA_DEEP"), Slot("INK"), 0.45f);
-            for (int i = 0; i < px.Length; i++)
-                px[i] = backdrop;
-
-            var labels = new List<string>();
-            int cursor = 0;                     // 布局游标：**自上而下**的艺术像素
-
-            // 画布是自下而上的（九宫格 oy 从底算）——布局只写"距顶多少"，换算集中在这里
-            int Y(int top, int h) { return (planHeight - top - h) * u; }
-            void Lay(Tone tone, Piece piece, State state, int x, int top, int w, int h)
-            {
-                DrawOne(px, W, tone, piece, state, x * u, Y(top, h), w * u, h * u);
-            }
-            void LayFill(FillKind kind, int x, int top, int w, int h)
-            {
-                DrawFill(px, W, kind, x * u, Y(top, h), w * u, h * u);
-            }
-            void LaySized(string name, int x, int top, int w, int h)
-            {
-                DrawSized(px, W, name, x * u, Y(top, h), w * u, h * u);
-            }
-            // 行名：与行**垂直居中**（12 = 正文字号，也是行名的行高）
-            void RowName(string text, int top, int h)
-            {
-                labels.Add(Label(text, 24, top + (h - 12) / 2, 12, "white"));
-            }
-            // 段标题：标题行 + 一道分隔线，之后游标落到底下
-            void Section(string text)
-            {
-                labels.Add(Label(text, 24, cursor, 12, "white"));
-                LaySized("Pixel_Sep_H", 24, cursor + 18, 592, 2);
-                cursor += 26;
-            }
-
-            // ---- 标题带 ----
-            Lay(Tone.Dense, Piece.Plate, State.Normal, 24, 24, 592, 60);
-            labels.Add(Label("Beveled Pixel 组件总表", 40, 36, 24, "white"));
-            labels.Add(Label("画布 640 艺术像素宽 = 1920 屏幕像素；1 艺术像素 = 3 屏幕像素（与 3D 渲染同一颗粒度）",
-                40, 64, 12, "dim"));
-            cursor = 116;
-
-            Tone[] tones = (Tone[])Enum.GetValues(typeof(Tone));
-            string[] toneNames = { "面板", "内容", "羊皮纸", "海图", "黄铜", "危险", "警告" };
-
-            // ---- ① 面板族：7 tone × 三态（常态 / 悬停 / 按压）----
-            Section("面板 Plate —— 7 个 tone × 三态；件 160×24（令牌：条高 24 / 按钮高 = 正文 12 + 12 / 内边距 12）");
-            string[] stateNames = { "常态", "悬停", "按压" };
-            const int colW = 160, colGap = 12;
-            for (int s = 0; s < 3; s++)
-                labels.Add(Label(stateNames[s], 112 + s * (colW + colGap) + colW / 2 - 12, cursor, 12, "dim"));
-            cursor += 20;
-            for (int i = 0; i < tones.Length; i++)
-            {
-                int top = cursor + i * 38;
-                RowName(toneNames[i], top, 24);
-                Lay(tones[i], Piece.Plate, State.Normal, 112, top, colW, 24);
-                Lay(tones[i], Piece.Plate, State.Hovered, 112 + colW + colGap, top, colW, 24);
-                Lay(tones[i], Piece.Plate, State.Pressed, 112 + 2 * (colW + colGap), top, colW, 24);
-            }
-            cursor += 6 * 38 + 24 + 28;
-
-            // ---- ② 凹槽 Track：按**真实用法**排（槽 + 一段填充），不排 7 色 ----
-            // 凹槽的色是"槽框"的色，7 个 tone 各来一条既无用法也无对比（创始人走过这条）；
-            // 这里换成血条 / 施法条 / 敌条的真身：槽 312×24（令牌条高）+ 填充（边距 6）。
-            Section("凹槽 Track —— 槽 312×24（令牌条高）+ 填充（边距 6；没填满的一段露出槽底）");
-            var bars = new (string label, Tone tone, FillKind fill, float ratio)[]
-            {
-                ("生命", Tone.Frame, FillKind.Red, 0.62f),
-                ("魔法", Tone.Frame, FillKind.Blue, 0.35f),
-                ("敌船", Tone.Danger, FillKind.Red, 0.24f),
-            };
-            for (int i = 0; i < bars.Length; i++)
-            {
-                int top = cursor + i * 38;
-                RowName(bars[i].label, top, 24);
-                Lay(bars[i].tone, Piece.Track, State.Normal, 112, top, 312, 24);
-                LayFill(bars[i].fill, 118, top + 6, Mathf.RoundToInt(300 * bars[i].ratio), 12);
-            }
-            cursor += 2 * 38 + 24 + 14;
-            // 大凹槽：槽高一大才看得见完整的四层带与槽底（空槽不填）
-            RowName("内嵌槽（海图）", cursor, 48);
-            Lay(Tone.Sea, Piece.Track, State.Normal, 112, cursor, 120, 48);
-            cursor += 48 + 28;
-
-            // ---- ③ 填充 5 色：条高 12 = 令牌里"填"的那一段 ----
-            Section("填充 Fill —— 5 色；条高 12（令牌：条 24 = 6 框 + 12 填 + 6 框）");
-            FillKind[] fills = (FillKind[])Enum.GetValues(typeof(FillKind));
-            string[] fillNames = { "红（生命）", "蓝（魔法）", "暖橙（冷却）", "海蓝（航行）", "中性（进度）" };
-            for (int i = 0; i < fills.Length; i++)
-            {
-                int x = 112 + i * 104;
-                labels.Add(Label(fillNames[i], x, cursor, 12, "white"));
-                LayFill(fills[i], x, cursor + 18, 88, 12);
-            }
-            cursor += 18 + 12 + 28;
-
-            // ---- ④ 语义件：环 / 焦点框 / 位点 / 分隔线 / 投影（各按原生尺寸）----
-            Section("语义件 —— 选人圈 / 焦点框 / 位点 / 分隔线 / 投影（各按原生尺寸）");
-            int semTop = cursor;
-            LaySized("Pixel_Ring", 112, semTop + 8, 24, 24);        // 方环：环厚固定 2，框随件放大
-            LaySized("Pixel_Focus", 160, semTop + 4, 32, 32);       // 键盘焦点：海蓝方环
-            LaySized("Pixel_Pip_On", 208, semTop + 14, 12, 12);     // 位点：亮 / 暗各 12
-            LaySized("Pixel_Pip_Off", 228, semTop + 14, 12, 12);
-            LaySized("Pixel_Sep_H", 288, semTop + 18, 128, 4);      // 蚀刻分隔线
-            Lay(Tone.Frame, Piece.Plate, State.Normal, 432, semTop + 8, 96, 24);
-            string[] semNames = { "选人圈", "焦点框", "位点 亮/暗", "分隔线", "投影" };
-            int[] semX = { 112, 160, 208, 288, 432 };
-            for (int i = 0; i < semNames.Length; i++)
-                labels.Add(Label(semNames[i], semX[i], semTop + 44, 12, "dim"));
-            cursor += 44 + 12 + 28;
-
-            // ---- ⑤ 页签：贴宿主面板顶边（底边无带），选中用提亮 tone ----
-            // 页签是**一条带**：等宽相邻零间隙（相邻两道描边贴在一起正好是分隔线），
-            // 且整体压进宿主描边 2 艺术像素——留缝或悬在描边外，页签就和宿主"分家"了
-            //（创始人 2026-09-22 走查"页签 Tab 有缝隙"）。
-            Section("页签 Tab —— 等宽相邻零间隙、压住宿主描边；未选中 = 内容片 tone，选中 = 提亮 tone");
-            string[] tabNames = { "甲板", "船员", "海图" };
-            Lay(Tone.Frame, Piece.Plate, State.Normal, 24, cursor + 24, 592, 60);
-            for (int i = 0; i < tabNames.Length; i++)
-            {
-                int x = 40 + i * 48;
-                Lay(i == 1 ? Tone.Light : Tone.Dense, Piece.Tab, State.Normal, x, cursor + 2, 48, 24);
-                labels.Add(Label(tabNames[i], x + 12, cursor + 8, 12, i == 1 ? "ink" : "white"));
-            }
-            cursor += 24 + 60 + 28;
-
-            // ---- ⑥ 三态按钮：常态（带焦点环）/ 悬停 / 按压 / 警告 ----
-            Section("按钮 —— 常态（带焦点环）/ 悬停 / 按压 / 警告；件 48×24 = 标签 24 + 上下各 6 / 左右各 12");
-            string[] btnNames = { "确定", "菜单", "退出", "警告" };
-            cursor += 12;
-            for (int i = 0; i < 4; i++)
-            {
-                int x = 112 + i * 60;                                   // 件 48 + 间隙 12
-                Tone tone = i == 0 ? Tone.Primary : i == 1 ? Tone.Light : i == 2 ? Tone.Danger : Tone.Warn;
-                State state = i == 1 ? State.Hovered : i == 2 ? State.Pressed : State.Normal;
-                Lay(tone, Piece.Plate, state, x, cursor, 48, 24);
-                if (i == 0)
-                    LaySized("Pixel_Focus", x - 2, cursor - 2, 52, 28);   // 焦点环：件外扩 2
-                // 字色按脸色的亮暗走：暖白牌（提亮 tone）上用墨色，暗牌上用白
-                labels.Add(Label(btnNames[i], x + 12, cursor + 6, 12, i == 1 ? "ink" : "white"));
-            }
-            cursor += 24;
-
-            // ---- 按游标裁掉下方空白：图多高由内容定，不用手调常量 ----
-            // 布局按"距顶"写、画布按"距底"存，内容因此落在画布的**末尾** cursor 行——
-            // 裁的是尾部，不是头部（第一版从 0 起裁，等于把构图整段丢掉、只留了画布底部的空地）。
-            cursor += 24;
-            if (cursor > planHeight)
-            {
-                throw new InvalidOperationException(
-                    "组件总表布局高 " + cursor + " 艺术像素，超过画布上限 " + planHeight
-                    + "——加件时把 planHeight 抬上去。");
-            }
-            var cropped = new Color32[W * cursor * u];
-            System.Array.Copy(px, (planHeight - cursor) * u * W, cropped, 0, cropped.Length);
-            string sheet = WriteZoomedSheet(cropped, W, cursor * u, ComponentsRelativePath, 1);
-            WriteLabels(ComponentsLabelsPath, labels);
-            return sheet;
-        }
-
-        // ==================================================================
         // 十一c、运行时图集资产（PixelSkinAsset）：装配侧唯一的取图入口
         // ==================================================================
 
@@ -3238,43 +1715,20 @@ namespace PirateCrew.EditorTools
                 AssetDatabase.CreateAsset(asset, AtlasAssetPath);
             }
 
-            var panels = new List<Sprite>();
             var windows = new List<Sprite>();
-            var plates = new List<Sprite>();
-            var tracks = new List<Sprite>();
-            var tabs = new List<Sprite>();
             var toneColors = new List<Color32>();
             foreach (Tone tone in Enum.GetValues(typeof(Tone)))
             {
-                // 图集网格 = tone×state 全直积（运行时下标算式固定为 tone*3+state）
-                foreach (State state in Enum.GetValues(typeof(State)))
-                    plates.Add(LoadSprite(AssetNameOf(tone, Piece.Plate, state)));
-                tracks.Add(LoadSprite(AssetNameOf(tone, Piece.Track, State.Normal)));
-                panels.Add(LoadSprite(AssetNameOf(tone, Piece.Panel, State.Normal)));
+                // 存件 tone 族窗体皮（其余 tone 族贴图件已退役）；toneColors = 取色令牌 tone×3。
                 windows.Add(LoadSprite(AssetNameOf(tone, Piece.Window, State.Normal)));
-                tabs.Add(LoadSprite(AssetNameOf(tone, Piece.Tab, State.Normal)));
                 Ramp r = RampOf(tone);
                 toneColors.Add(r.S4);
                 toneColors.Add(r.S3);
                 toneColors.Add(r.S2);
             }
-            var fills = new List<Sprite>();
-            foreach (FillKind kind in Enum.GetValues(typeof(FillKind)))
-                fills.Add(LoadSprite(AssetNameOf(kind)));
 
-            asset.plates = plates.ToArray();
-            asset.panels = panels.ToArray();
             asset.windows = windows.ToArray();
-            asset.tracks = tracks.ToArray();
-            asset.tabs = tabs.ToArray();
-            asset.fills = fills.ToArray();
-            asset.ring = LoadSprite("Pixel_Ring");
             asset.focus = LoadSprite("Pixel_Focus");
-            asset.pipOn = LoadSprite("Pixel_Pip_On");
-            asset.pipOff = LoadSprite("Pixel_Pip_Off");
-            asset.separatorH = LoadSprite("Pixel_Sep_H");
-            asset.separatorV = LoadSprite("Pixel_Sep_V");
-            asset.shadow = LoadSprite("Pixel_Shadow");
 
             // Aseprite dark 控件件（×1 全量迁移）：BakeAsepriteParts 的直切成品，
             // 平行数组 aseParts/asePartNames/asePartFamilies 收**全表 345 件**——
@@ -3362,26 +1816,11 @@ namespace PirateCrew.EditorTools
                 problems.Add("图集资产缺失：" + AtlasAssetPath + "（GenerateAtlas 应在烘焙后跑）。");
                 return;
             }
-            if (asset.plates == null || asset.plates.Length != 7 * 3)
-                problems.Add("图集 plates 长度 " + (asset.plates == null ? 0 : asset.plates.Length) + "，应为 21（7 tone×3 state）。");
-            if (asset.panels == null || asset.panels.Length != 7)
-                problems.Add("图集 panels 长度 " + (asset.panels == null ? 0 : asset.panels.Length) + "，应为 7（7 tone）。");
             if (asset.windows == null || asset.windows.Length != 7)
                 problems.Add("图集 windows 长度 " + (asset.windows == null ? 0 : asset.windows.Length) + "，应为 7（7 tone）。");
-            if (asset.tracks == null || asset.tracks.Length != 7)
-                problems.Add("图集 tracks 长度 " + (asset.tracks == null ? 0 : asset.tracks.Length) + "，应为 7。");
-            if (asset.tabs == null || asset.tabs.Length != 7)
-                problems.Add("图集 tabs 长度 " + (asset.tabs == null ? 0 : asset.tabs.Length) + "，应为 7。");
-            if (asset.fills == null || asset.fills.Length != 5)
-                problems.Add("图集 fills 长度 " + (asset.fills == null ? 0 : asset.fills.Length) + "，应为 5。");
             if (asset.toneColors == null || asset.toneColors.Length != 7 * 3)
                 problems.Add("图集 toneColors 长度 " + (asset.toneColors == null ? 0 : asset.toneColors.Length) + "，应为 21。");
-            CheckNoNull(problems, asset.plates, "plates");
-            CheckNoNull(problems, asset.panels, "panels");
             CheckNoNull(problems, asset.windows, "windows");
-            CheckNoNull(problems, asset.tracks, "tracks");
-            CheckNoNull(problems, asset.tabs, "tabs");
-            CheckNoNull(problems, asset.fills, "fills");
             // Aseprite 直切件：三平行数组对齐 + 长度 = theme <parts> 全表 + 无空槽
             // （空槽 = 直切漏件或 part id 对不上）。
             int aseTableCount = ParseAseParts().Count;
@@ -3405,13 +1844,7 @@ namespace PirateCrew.EditorTools
                     }
                 }
             }
-            if (asset.ring == null) problems.Add("图集缺 ring。");
             if (asset.focus == null) problems.Add("图集缺 focus。");
-            if (asset.pipOn == null) problems.Add("图集缺 pipOn。");
-            if (asset.pipOff == null) problems.Add("图集缺 pipOff。");
-            if (asset.separatorH == null) problems.Add("图集缺 separatorH。");
-            if (asset.separatorV == null) problems.Add("图集缺 separatorV。");
-            if (asset.shadow == null) problems.Add("图集缺 shadow。");
         }
 
         static void CheckNoNull(List<string> problems, Sprite[] sprites, string what)

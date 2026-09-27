@@ -311,12 +311,10 @@ namespace PirateCrew.UI
         }
 
         /// <summary>
-        /// 选项块选中态。**theme buttonset_item**（SketchButtonSet）：当前值换 hot 件——
-        /// 更亮面 + 底边下沉的**无彩色**件（theme <c>state="selected"</c> 的映射，语义见控件类注释）；
-        /// 旧选项按钮（Pixel Plate 皮）不做乘色——选中/未选靠<b>换 sprite</b>：
-        /// 选中 = <see cref="PixelTone.Primary"/> 的悬停档 Plate、未选 = <see cref="PixelTone.Dense"/> 常态 Plate；
-        /// 字色同步取该 tone 上的可读档（<see cref="PixelSkin.TextColorOn"/>），
-        /// SpriteState 一起重挂，保证 hover/pressed 也落在同一 tone 上。
+        /// 选项块选中态。**theme buttonset_item**（<see cref="Stick.SketchButtonSet"/>）：当前值换 hot 件——
+        /// 更亮面 + 底边下沉的**无彩色**件（theme <c>state="selected"</c> 的映射，语义见控件类注释）。
+        /// 【旧 Plate 皮分支已随 tone 族退役】画质/窗口模式两组选项一律出 SketchButtonSet
+        /// （MenuUiBuilder.BuildSettingsRow），不存在走 tone Plate 的选项钮。
         /// </summary>
         static void SetChipSelected(Button chip, bool selected)
         {
@@ -324,26 +322,7 @@ namespace PirateCrew.UI
                 return;
 
             if (chip is Stick.SketchButtonSet set)
-            {
                 set.Active = selected;   // theme buttonset_item：当前值换 hot 件（无彩色）
-                return;
-            }
-
-            PixelTone tone = selected ? PixelTone.Primary : PixelTone.Dense;
-
-            if (chip.image != null)
-                chip.image.sprite = PixelSkin.Plate(tone, selected ? PixelState.Hovered : PixelState.Normal);
-
-            // 悬停/按压贴图跟着选中 tone 重挂（否则 hover 会落回装配时的 Dense 档，与选中态撞皮）。
-            SpriteState states = chip.spriteState;
-            states.highlightedSprite = PixelSkin.Plate(tone, PixelState.Hovered);
-            states.pressedSprite = PixelSkin.Plate(tone, PixelState.Pressed);
-            states.selectedSprite = states.highlightedSprite;
-            chip.spriteState = states;
-
-            TextMeshProUGUI label = chip.GetComponentInChildren<TextMeshProUGUI>(true);
-            if (label != null)
-                label.color = PixelSkin.TextColorOn(tone);
         }
 
         // ------------------------------------------------------------------

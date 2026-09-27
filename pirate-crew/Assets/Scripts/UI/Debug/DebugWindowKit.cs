@@ -36,7 +36,7 @@ namespace PirateCrew.UI.DebugUi
     ///     BeveledPixelSpriteBuilder 直切落 Sprite.border）。
     ///   · 尺寸下限——<c>limitSize</c>（window.cpp:776-780）：≥ border().width() × border().height()。
     ///
-    /// 窗 = <see cref="SketchPanel"/> titled（Plate 孩子换件 "window"）+
+    /// 窗 = <see cref="UiKit.EnsureWindow"/>（theme window 直切件皮）+
     /// <see cref="WindowDragger"/> 拖动带（= 源 <c>m_isMoveable</c> 的画布内落地）；
     /// 内容排版用「顶左锚 + 纵向游标」手工摆（源<b>不</b>排版内容——非装饰孩子在
     /// windowSetPosition 里被整块塞进 childrenBounds，window.cpp:750-774；本工程改为
@@ -99,7 +99,7 @@ namespace PirateCrew.UI.DebugUi
         public const float TitleRightReserve = AseLayout.CloseButtonMarginRight + CloseButtonWidth;
 
         /// <summary>调试窗标题字体（与展示页同源：FusionPixel SDF，按字号解析档）。</summary>
-        public static TMP_FontAsset HandFont => PixelShowcasePage.PixelFont();
+        public static TMP_FontAsset HandFont => PartsGalleryPage.PixelFont();
 
         /// <summary>边框件 id（theme.xml:165 "window" / :166 "menu"——源 <c>&lt;border part="…"/&gt;</c>，
         /// theme.xml:470 / 474）。</summary>
@@ -169,15 +169,22 @@ namespace PirateCrew.UI.DebugUi
         public static RectTransform CreateWindow(Transform canvas, string name, string title,
             Vector2 topLeft, Vector2 size, bool closeButton = true, bool helpButton = false)
         {
-            SketchPanel panel = SketchPanel.Create(canvas, name,
-                new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(topLeft.x, -topLeft.y), ClampSize(size, WindowVariant.WithTitleBar),
-                SketchPanel.Tone.Dark, titled: true);
-            RectTransform root = (RectTransform)panel.transform;
+            RectTransform root = UiKit.CreateRect(name, canvas);
+            root.anchorMin = root.anchorMax = new Vector2(0f, 1f);
+            root.pivot = new Vector2(0f, 1f);
+            root.sizeDelta = ClampSize(size, WindowVariant.WithTitleBar);
+            root.anchoredPosition = new Vector2(topLeft.x, -topLeft.y);
             root.SetAsLastSibling();
 
-            // 标题标签：origin = (margin-left 5, margin-top 5)，右缘裁到最左装饰钮左缘
+            // 皮 = theme window 直切件（顶 15 带随切片落位，内容顶走 WindowContentTopOf）。
+            // 窗控钮按本方法的 close/help 参数另建，故 EnsureWindow 不自动出钮。
+            UiKit.EnsureWindow(root, PixelTone.Frame, title, HandFont, UiSkin.Font.Body,
+                helpButton: false, closeButton: false);
+
+            // 标题标签 origin = (margin-left 5, margin-top 5)，右缘裁到最左装饰钮左缘
             // （window.cpp:729-748；onBuildTitleLabel 在文本空时不建标签，window.cpp:710-716）。
+            // EnsureWindow 缺省的右让位只按一个关闭钮算；有 ? 钮时本处按 TitleReserve 重挂一次
+            // （EnsureTitleLabel 幂等，只刷新右让位）。
             if (!string.IsNullOrEmpty(title))
                 UiKit.EnsureTitleLabel(root, title, HandFont, UiSkin.Font.Body,
                     TitleReserve(closeButton, helpButton));
@@ -202,17 +209,15 @@ namespace PirateCrew.UI.DebugUi
         public static RectTransform CreateBareWindow(Transform canvas, string name,
             Vector2 topLeft, Vector2 size)
         {
-            SketchPanel panel = SketchPanel.Create(canvas, name,
-                new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(topLeft.x, -topLeft.y), ClampSize(size, WindowVariant.WithoutTitleBar),
-                SketchPanel.Tone.Dark, titled: false);
-            RectTransform root = (RectTransform)panel.transform;
+            RectTransform root = UiKit.CreateRect(name, canvas);
+            root.anchorMin = root.anchorMax = new Vector2(0f, 1f);
+            root.pivot = new Vector2(0f, 1f);
+            root.sizeDelta = ClampSize(size, WindowVariant.WithoutTitleBar);
+            root.anchoredPosition = new Vector2(topLeft.x, -topLeft.y);
             root.SetAsLastSibling();
 
-            // 无标题变体的边框件与带标题不同（theme.xml:470 "menu" vs :474 "window"）。
-            Image plate = FindPart(root, "Plate");
-            if (plate != null)
-                AseUi.SetRawPart(plate, BorderPartId(WindowVariant.WithoutTitleBar));
+            // 无标题变体的边框件 = theme "menu"（UiKit.EnsurePanel 的缺省皮）。
+            UiKit.EnsurePanel(root, PixelTone.Frame);
 
             WindowDragger.Attach(root);
             return root;
@@ -305,13 +310,6 @@ namespace PirateCrew.UI.DebugUi
         {
             Vector2 min = MinSize(variant);
             return new Vector2(Mathf.Max(size.x, min.x), Mathf.Max(size.y, min.y));
-        }
-
-        /// <summary>按子件名取 Image（SketchPanel 的 Plate 孩子）。</summary>
-        static Image FindPart(RectTransform root, string partName)
-        {
-            Transform part = root.Find(partName);
-            return part != null ? part.GetComponent<Image>() : null;
         }
     }
 }

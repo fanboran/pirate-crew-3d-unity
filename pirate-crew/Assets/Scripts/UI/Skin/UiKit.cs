@@ -141,7 +141,7 @@ namespace PirateCrew.UI
             (8, "Fonts/FusionPixel8"),
         };
 
-        /// <summary>正文档（12 原生档）Resources 路径——PixelShowcasePage 等直取用。</summary>
+        /// <summary>正文档（12 原生档）Resources 路径——展示廊/调试窗等直取用。</summary>
         internal const string BodyPixelFontPath = "Fonts/FusionPixel12";
 
         static readonly Dictionary<string, TMP_FontAsset> _tierCache = new Dictionary<string, TMP_FontAsset>();
@@ -162,31 +162,6 @@ namespace PirateCrew.UI
         // ------------------------------------------------------------------
         // 像素件（全部走 PixelSkin 同源出口；禁止乘色）
         // ------------------------------------------------------------------
-
-        /// <summary>建面板/卡片底（**直角 Panel 皮**，Aseprite 参照：圆角只属于按钮）。</summary>
-        public static Image CreatePanel(string name, Transform parent, PixelTone tone)
-        {
-            Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
-            image.sprite = PixelSkin.Panel(tone);
-            image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
-            image.color = Color.white;
-            image.raycastTarget = false;
-            return image;
-        }
-
-        /// <summary>建凸起块（Plate，九宫格）。像素件白贴图不乘色——色阶烘死在贴图里。</summary>
-        public static Image CreatePlate(string name, Transform parent, PixelTone tone,
-            PixelState state = PixelState.Normal)
-        {
-            Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
-            image.sprite = PixelSkin.Plate(tone, state);
-            image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
-            image.color = Color.white;
-            image.raycastTarget = false;
-            return image;
-        }
 
         /// <summary>按钮贴合标签（创始人多轮裁决：**按钮大小 = 文字大小**）：
         /// 宽 = 标签 TMP 真实渲染宽 + <see cref="UiSkin.Px.ButtonPadX"/>，高 = 调用方指定；
@@ -221,38 +196,15 @@ namespace PirateCrew.UI
             FitToLabel(button, height);
         }
 
-        /// <summary>建凹槽（Track，九宫格）：条状件的空槽底。</summary>
-        public static Image CreateTrack(string name, Transform parent, PixelTone tone)
-        {
-            Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
-            image.sprite = PixelSkin.Track(tone);
-            image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
-            image.color = Color.white;
-            image.raycastTarget = false;
-            return image;
-        }
-
-        /// <summary>建填充条（Fill，九宫格）：画在 Track 内容区上的那一层。</summary>
-        public static Image CreateFill(string name, Transform parent, PixelFillKind kind)
-        {
-            Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
-            image.sprite = PixelSkin.Fill(kind);
-            image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
-            image.color = Color.white;
-            image.raycastTarget = false;
-            return image;
-        }
-
         /// <summary>
         /// 建键盘焦点环：选中态包在控件**外沿**（比本体大 2px 外扩），默认隐藏由运行时开关。
         /// 选中反馈从此是"多一件 Focus 环"，不再是给本体乘色。
+        /// 皮 = theme <c>check_focus</c> 直切件（<see cref="PixelSkin.WidgetFocus"/>）。
         /// </summary>
         public static Image CreateFocusRing(string name, Transform parent)
         {
             Image image = CreateRect(name, parent).gameObject.AddComponent<Image>();
-            image.sprite = PixelSkin.Focus;
+            image.sprite = PixelSkin.WidgetFocus;
             image.type = Image.Type.Sliced;
             image.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
             image.color = Color.white;
@@ -273,13 +225,15 @@ namespace PirateCrew.UI
         }
 
         /// <summary>
-        /// 面板皮肤：确保 panel 下有 <c>Shadow</c>（兄弟序 0）+ <c>Plate</c>（兄弟序 1）两件，
-        /// 返回 Plate 的 Image。**根节点自身不带 Graphic**（沿用旧九砖面板的层级口径：
+        /// 面板皮肤：确保 panel 下有 <c>Plate</c> 一件（兄弟序 0），返回该 Image。
+        /// **根节点自身不带 Graphic**（沿用旧九砖面板的层级口径：
         /// 外观全在孩子上，调用方往根上挂的内容天然画在面板之上）。
         ///
-        /// 【为什么投影是孩子】投影必须跟着面板做位移/缩放动画，只能是孩子；又因
-        /// 「父 Graphic 先于子 Graphic 绘制」，投影若与面板同体（都在根上）会盖住面板本体——
-        /// 故面板本体也下放成 Plate 孩子，兄弟序保证投影在下、本体在上。
+        /// 【皮】无标题面板 = theme <c>window_without_title</c> 的边框直切件 <c>"menu"</c>
+        /// （内容沿 <see cref="AseLayout.PopupBorder"/>=3 内缩）；带标题窗体由
+        /// <see cref="EnsureWindow"/> 在其上换 <c>"window"</c> 直切件。tone 参数只余调用侧
+        /// 兼容（tone 族 Plate/Panel 贴图已整族退役）。
+        ///
         /// 幂等：重跑装配复用同名孩子，只刷新贴图与切片。
         /// </summary>
         public static Image EnsurePanel(RectTransform panel, PixelTone tone)
@@ -293,7 +247,7 @@ namespace PirateCrew.UI
             Image plate = FindImage(panel, "Plate");
             if (plate == null)
                 plate = CreateRect("Plate", panel).gameObject.AddComponent<Image>();
-            plate.sprite = PixelSkin.Panel(tone);   // 直角面板皮（圆角只属于按钮）
+            plate.sprite = PixelSkin.Ase("menu");   // theme.xml window_without_title 边框件（3/10/3×3/9/4）
             plate.type = Image.Type.Sliced;
             plate.pixelsPerUnitMultiplier = 1f;   // ppem 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
             plate.color = Color.white;
@@ -510,8 +464,8 @@ namespace PirateCrew.UI
             return image;
         }
 
-        /// <summary>建深底像素面板（Plate(Frame) 九宫格 + 投影错位剪影；承载暖白 / 金 / 彩色件）。
-        /// 根上没有 Image——面板本体是 <c>Plate</c> 孩子，投影是 <c>Shadow</c> 孩子。</summary>
+        /// <summary>建深底像素面板（无标题 <c>"menu"</c> 直切件皮；承载暖白 / 金 / 彩色件）。
+        /// 根上没有 Image——面板本体是 <c>Plate</c> 孩子。</summary>
         public static RectTransform CreatePanel(string name, Transform parent, Vector2 anchor, Vector2 pivot,
             Vector2 anchoredPosition, Vector2 size)
         {
@@ -592,71 +546,6 @@ namespace PirateCrew.UI
 
         /// <summary>运行时字体档。<see cref="MenuUiBuilder"/> 是 Editor 类，运行时改从
         /// Resources/Fonts/ 取同一批 SDF 资产（由 FontAssetBuilder 复制入 Resources）。</summary>
-
-        // ------------------------------------------------------------------
-        // 血条（凹槽 + 白色 damage ghost + 主填充）
-        // ------------------------------------------------------------------
-
-        /// <summary>血条视图（驱动走 <see cref="UiMotion.SetFillPairTarget"/>）。</summary>
-        public sealed class BarView
-        {
-            public RectTransform Root;
-            public Image Track;
-            public Image Ghost;
-            public Image Fill;
-        }
-
-        /// <summary>旧 bar 语义色（Color）→ 像素填充档。乘色退役后只用来"选哪张 Fill 贴图"。</summary>
-        public static PixelFillKind FillKindOfColor(Color fillColor)
-        {
-            if (fillColor == UiSkin.TeamRed || fillColor == UiSkin.Danger)
-                return PixelFillKind.Red;
-            if (fillColor == UiSkin.TeamBlue)
-                return PixelFillKind.Blue;
-            if (fillColor == UiSkin.Warn || fillColor == UiSkin.Gold)
-                return PixelFillKind.Warn;
-            return PixelFillKind.Neutral;
-        }
-
-        /// <summary>水平方向内缩（条填充件用）：Track 凹槽左右缘的 1u 外环不被填充盖掉——
-        /// 与顶栏队血条的段内缩同口径（此前填充满铺，凹槽右缘描边被整条盖掉，走查读感
-        /// 「血条右边界没有描边」）。</summary>
-        static void InsetHorizontal(RectTransform rect, float inset)
-        {
-            rect.offsetMin = new Vector2(inset, rect.offsetMin.y);
-            rect.offsetMax = new Vector2(-inset, rect.offsetMax.y);
-        }
-
-        /// <summary>
-        /// 建双层血条：Track(Frame) 凹槽底 → 暖白 ghost（受击残影，垫在下）→ 主填充（队色档，在上）。
-        /// 两个填充都从左侧 anchorMax.x 表达比例；水平各内缩 1u 露出凹槽描边（见 <see cref="InsetHorizontal"/>）。
-        /// </summary>
-        public static BarView CreateBar(string name, Transform parent, Vector2 anchoredPosition,
-            Vector2 size, Color fillColor)
-        {
-            RectTransform root = CreateRect(name, parent);
-            root.anchorMin = root.anchorMax = new Vector2(0.5f, 0.5f);
-            root.pivot = new Vector2(0.5f, 0.5f);
-            root.sizeDelta = size;
-            root.anchoredPosition = anchoredPosition;
-
-            var track = root.gameObject.AddComponent<Image>();
-            track.sprite = PixelSkin.Track(PixelTone.Frame);
-            track.type = Image.Type.Sliced;
-            track.pixelsPerUnitMultiplier = 1f;   // ppum 固定 1：九宫格纹素补偿已退役；贴图 ×Unit2 落盘与渲染令牌的错位悬案见 UiSkin.Px 类头
-            track.color = Color.white;
-            track.raycastTarget = false;
-
-            Image ghost = CreateFill("Ghost", root, PixelFillKind.Neutral);
-            Stretch(ghost.rectTransform);
-            InsetHorizontal(ghost.rectTransform, 1f);   // 1 艺术像素内缩;
-
-            Image fill = CreateFill("Fill", root, FillKindOfColor(fillColor));
-            Stretch(fill.rectTransform);
-            InsetHorizontal(fill.rectTransform, 1f);   // 1 艺术像素内缩;
-
-            return new BarView { Root = root, Track = track, Ghost = ghost, Fill = fill };
-        }
 
         // ------------------------------------------------------------------
         // 模态（Dim + 深底卡片；入场 pop / 出场淡出由 UiMotion 驱动）

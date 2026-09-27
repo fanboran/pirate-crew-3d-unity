@@ -28,9 +28,9 @@ namespace PirateCrew.UI
     ///   · 文本统一 <see cref="TextMeshProUGUI"/>（中文字体由调用方注入，见 <see cref="CreateText"/> 的 font 参数）；
     ///   · 列表行 = theme list_item 纯色三态（<see cref="ListItemState"/>：常态/选中金/禁用），
     ///     字色经 <see cref="ListItemTextColor"/> 与行态同源取；
-    ///   · 按钮 = <see cref="SketchButton"/>（Dark 变体 → Plate(Dense) 暗键帽；三态走 SpriteSwap，
+    ///   · 按钮 = <see cref="SketchButton"/>（theme button 直切件皮；三态走 SpriteSwap，
     ///     禁用走 CanvasGroup alpha，全由控件本体承担）；
-    ///   · 列表容器/面板底、窗体标题带等结构性件由 Editor 装配方出（SketchPanel.Titled）。
+    ///   · 列表容器/面板底、窗体标题带等结构性件由 Editor 装配方出（<see cref="UiKit.EnsurePanel"/> / <see cref="UiKit.EnsureWindow"/>）。
     ///
     /// 【列表行数随名册/海图变化】运行时生成比摆 Prefab 更省接线；行数少、非高频，
     ///  不构成性能顾虑。
