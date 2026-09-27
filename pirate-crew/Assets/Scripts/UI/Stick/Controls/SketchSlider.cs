@@ -809,33 +809,20 @@ namespace PirateCrew.UI.Stick
         }
 
         /// <summary>槽内值文本（theme slider 的 text 层：居中、8px 位图字）。
-        /// 两枚同文案标签只有字色不同——源 paintSlider 把同一句画两遍、逐像素换色。</summary>
+        /// 两枚同文案标签只有字色不同——源 paintSlider 把同一句画两遍、逐像素换色。
+        /// 像素纪律四件套走 UiKit.CreateText 单点。</summary>
         static TextMeshProUGUI CreateValueLabel(Transform parent, string name, Color color,
             TMP_FontAsset font, float fontSize)
         {
-            RectTransform rect = UiKit.CreateRect(name, parent);
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-
-            var label = rect.gameObject.AddComponent<TextMeshProUGUI>();
-            TMP_FontAsset resolved = UiKit.ResolvePixelFont(Mathf.RoundToInt(fontSize), font);
-            if (resolved != null)
-                label.font = resolved;
-            else if (font != null)
-                label.font = font;
-            label.fontSize = fontSize;
-            label.fontStyle = FontStyles.Normal;         // 位图字禁伪粗
-            label.enableWordWrapping = false;            // 源 drawText 单行
-            label.overflowMode = TextOverflowModes.Overflow;
             // theme align="center middle"。水平居中**不用** TMP 的 Center（浮点居中会让整列字形
             // 压在半格上——交接档量化过的 392 条奇数屏像素就出在这里），而是照源
             // SkinTheme::drawText 的整数除法算左缘（Refresh 里 SetLabelBox），故这里取 Left。
-            label.alignment = TextAlignmentOptions.Left;
-            label.margin = Vector4.zero;
-            label.color = color;
-            label.raycastTarget = false;
-            label.gameObject.AddComponent<PixelSnapText>();
-            PixelAtlasPointFilter.Ensure(label.font);
+            var label = UiKit.CreateText(name, parent, string.Empty,
+                Mathf.RoundToInt(fontSize), TextAlignmentOptions.Left, color, font, wrap: false);
+            label.fontSize = fontSize;    // 保留 float 字号
+            RectTransform rect = label.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
             return label;
         }
     }
