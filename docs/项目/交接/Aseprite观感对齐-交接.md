@@ -1169,6 +1169,21 @@ IPointerDown 置顶（弹层也是顶层窗，combobox.cpp 开窗即入 Manager 
    RuntimeUiBuilder 与 UiKit 的 CreateText 双实现（旧画布口径，合并需单独裁决）；
    BattleHud.TeamBars slot 循环 ×3（非本任务文件域）。
 
+**公因式第三轮（创始人问「按行业最佳实践就这些吗」）——结构性重复**：上一轮扫描器
+只抓字面重复块；标签/图片类**形状相同参数不同**的样板靠人工识别。盘点：TMP 标签的
+「创建 + 字号档解析 + 图集钉 Point + PixelSnapText + 禁接光」纪律四件套在
+`UiKit.CreateText` **早已是单点**，但 Stick 控件族 4 处（SketchButton 双层标签 /
+SketchButtonSet / SketchButtonSetIcon / SketchSlider 值标签）绕过单点各手写 12-20 行。
+**修**：CreateText 加 `wrap` 参数（默认 true 不动既有调用方），四处全迁（float 字号、
+字区边距特化留在调用方）。验收：**MainMenu 零差**（按钮标签全走单点仍逐位复现）+
+parts 逐位复现。提交 `867f537e`，merge `7dd16b96`（5 文件净 −56 行）。
+【豁免登记】AseEntry 标签（运行时动态字号 + GetPreferredValues 几何依赖，迁移收益
+负）；RuntimeUiBuilder.CreateText（旧画布口径，合并需单独裁决）。Image 六行样板
+（56 处）多为件挂皮族已走 AseUi.SetPart/SetRawPart 的参数端，剩余是纯色底/图标类
+一次性图形，单点化收益低于改动面，暂不动。
+【方法论】统计正则会漏全限定名（`PirateCrew.UI.PixelSnapText` 计成 0 → 误判
+「漏挂纪律」）——跨文件盘点先统一命名空间口径再数数。
+
 **验证口径**：IME 与键盘交互无法遥控取证，代码语义对齐源口径后留创始人实机复测；
 七拍 diff 归因——widget +小量 = 输入框 caret 顶点制的有意变化 + TMP 图集字形微差族
 （骨架零位移口径见 §三之十三）。提交 `a4cc37a9`/`dc76b855`，merge `74e730bd`。
