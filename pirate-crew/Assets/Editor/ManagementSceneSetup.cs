@@ -542,27 +542,11 @@ namespace PirateCrew.EditorTools
                 Debug.LogError("[ManagementSceneSetup] 保存场景失败: " + path);
         }
 
-        /// <summary>
-        /// 写 6 个场景。Battle 保持 index 2（SceneLoader 与既有测试都按名字加载，顺序不影响）。
-        /// 与 SceneSetup.RegisterBuildSettings 同一份清单（含 UIShowcase——主菜单「组件展示」钮）。
-        /// </summary>
+        /// <summary>写编辑器 Build Settings——清单单一真源在
+        /// <see cref="BuildScenes.EditorRegistrationScenes"/>（发行集 + UIShowcase）。</summary>
         static void RegisterBuildSettings()
         {
-            string[] names =
-            {
-                SceneNames.Bootstrapper,
-                SceneNames.MainMenu,
-                SceneNames.Battle,
-                SceneNames.CrewManagement,
-                SceneNames.LevelSelect,
-                SceneNames.UIShowcase,
-            };
-
-            var scenes = new EditorBuildSettingsScene[names.Length];
-            for (int i = 0; i < names.Length; i++)
-                scenes[i] = new EditorBuildSettingsScene(ScenesFolder + "/" + names[i] + ".unity", true);
-
-            EditorBuildSettings.scenes = scenes;
+            EditorBuildSettings.scenes = BuildSystem.BuildScenes.EditorRegistrationScenes();
         }
 
         static void EnsureFolder(string path)

@@ -293,24 +293,9 @@ namespace PirateCrew.EditorTools
 
         static void RegisterBuildSettings()
         {
-            // 与 ManagementSceneSetup.RegisterBuildSettings 同一份 6 场景列表（幂等；顺序即 index）：
-            // Bootstrapper=0（入口）、MainMenu=1、Battle=2、CrewManagement=3、LevelSelect=4、
-            // UIShowcase=5（组件展示——主菜单「组件展示」钮运行时载入，创始人 2026-09-25）。
-            // SceneLoader 与既有测试都按名字加载，顺序不影响。
-            string[] names =
-            {
-                SceneNames.Bootstrapper,
-                SceneNames.MainMenu,
-                SceneNames.Battle,
-                SceneNames.CrewManagement,
-                SceneNames.LevelSelect,
-                SceneNames.UIShowcase,
-            };
-            var scenes = new EditorBuildSettingsScene[names.Length];
-            for (int i = 0; i < names.Length; i++)
-                scenes[i] = new EditorBuildSettingsScene(ScenesFolder + "/" + names[i] + ".unity", true);
-
-            EditorBuildSettings.scenes = scenes;
+            // 【单一真源（2026-09-28 W1C 收口）】清单只在 BuildScenes.EditorRegistrationSet 维护
+            // （发行集 + UIShowcase）——三个装配器曾各持硬编码表互相覆盖（UIShowcase 被砍四次）。
+            EditorBuildSettings.scenes = BuildSystem.BuildScenes.EditorRegistrationScenes();
         }
 
         static void EnsureFolder(string path)

@@ -29,10 +29,11 @@ namespace PirateCrew.EditorTools.BuildSystem
     /// 两者诉求可以不同，所以不该共用一个列表。
     /// 想让 Build Settings 与这里一致时用菜单 <c>PirateCrew/Build/同步 Build Settings…</c>（显式动作，不是副作用）。
     ///
-    /// 【未收口项（登记给主控，本轨道不改）】<c>Assets/Editor/ManagementSceneSetup.cs:449 RegisterBuildSettings()</c>
-    /// 仍是幂等全量写入 5 场景、自带一份硬编码数组。它每次跑装配链都会覆盖 Build Settings。
-    /// 那是「开发集」，与这里的 <see cref="DevelopmentSet"/> 语义相同但两处维护——建议后续把该方法的数组
-    /// 换成 <c>BuildScenes.DevelopmentSet()</c>，冲突与处置见 docs/项目/构建与发布手册.md 的遗留节。
+    /// 【编辑器登记集单一真源（2026-09-28 UI 重构 W1C 收口）】三个场景装配器
+    /// （SceneSetup / ManagementSceneSetup / BattleSceneSetup）历史上各持硬编码清单互写
+    /// Build Settings——UIShowcase 被砍四次的根因（BattleSceneSetup 残留 5 场景表最凶）。
+    /// 现统一走 <see cref="EditorRegistrationScenes"/>，并由
+    /// <c>Assets/Tests/Battle/BuildScenesContractTests</c> 钉住。
     /// </summary>
     public static class BuildScenes
     {
@@ -116,6 +117,31 @@ namespace PirateCrew.EditorTools.BuildSystem
             _releaseSceneNames.CopyTo(all, 0);
             _developmentOnlySceneNames.CopyTo(all, _releaseSceneNames.Length);
             return all;
+        }
+
+        /// <summary>
+        /// 编辑器 Build Settings 登记集（发行集 + UIShowcase——主菜单「组件展示」钮运行时按名载入）。
+        /// **场景装配器的唯一写表出口**：SceneSetup / ManagementSceneSetup / BattleSceneSetup
+        /// 的 RegisterBuildSettings 一律调 <see cref="EditorRegistrationScenes"/>，不许自带清单
+        /// （三处硬编码互相覆盖砍掉 UIShowcase 四次的教训，2026-09-28 收口）。
+        /// </summary>
+        public static string[] EditorRegistrationSet()
+        {
+            var names = new string[_releaseSceneNames.Length + 1];
+            _releaseSceneNames.CopyTo(names, 0);
+            names[_releaseSceneNames.Length] = SceneNames.UIShowcase;
+            return names;
+        }
+
+        /// <summary><see cref="EditorRegistrationSet"/> 的 EditorBuildSettingsScene 形态（全部 enabled）。</summary>
+        public static UnityEditor.EditorBuildSettingsScene[] EditorRegistrationScenes()
+        {
+            string[] names = EditorRegistrationSet();
+            var scenes = new UnityEditor.EditorBuildSettingsScene[names.Length];
+            for (int i = 0; i < names.Length; i++)
+                scenes[i] = new UnityEditor.EditorBuildSettingsScene(
+                    Folder + "/" + names[i] + Extension, true);
+            return scenes;
         }
 
         /// <summary>场景名 → 场景资产路径（<c>Battle</c> → <c>Assets/Scenes/Battle.unity</c>）。</summary>
