@@ -1149,6 +1149,26 @@ IPointerDown 置顶（弹层也是顶层窗，combobox.cpp 开窗即入 Manager 
 别的锚系不归它管（`SetAnchored` 原语保留）。验收：parts/widget 逐位复现
 （824154/8266 分毫不差），纯重构零行为。提交 `1cef13f1`，merge `e4e02b0c`。
 
+**公因式排查第二轮（创始人令「还有什么可以提取的公因式」）**：重复块扫描器
+（4 行窗口跨文件聚类）盘点后四段收口，提交 `6cf78cdf`、merge `b9137661`
+（12 文件，78+/122−，零行为、parts 逐位复现）：
+1. **`new GameObject + GetComponent<RectTransform> + SetParent` 三连样板 ×9**
+   （Stick 控件库各写一遍）→ 全走 `UiKit.CreateRect`；
+2. **修饰键三件套**（Alt/Shift/CtrlOrCmd 的 `Input.GetKey(Left|Right)` 组合在
+   AseListbox/AseMenuKit/AseEntry 三处各写一套）→ `AseKeyMods` 单点（AseUi.cs），
+   含「kKeyCtrl/kKeyCmd 落 Control/Command 两族」的源口径注释；
+3. **Label 惰性查找**（SketchButton/SketchButtonSet 同款按名兜底属性，含影子层
+   挤条案的完整警示）→ 上移 `AseButtonBase` 基类，`_label` 升 protected 供
+   Create 工厂直写；
+4. **AseEntry 私有 `SetTopLeft`（4 处调用）** → 并入 `UiKit.PlaceTopLeft` 删除。
+   【方法论】批量文本迁移脚本两次咬坏文件（替换后长度变化叠加旧偏移的 offset
+   混乱 / tail 改写越界破坏邻区模式）——最终口径：**模式固定三连且零后续引用才
+   允许脚本；有引用的一律 Edit 工具逐处手工**，harness 编译门兜底。
+   【登记未提取（收益/风险比不足）】Scene 回调对（ButtonFeedback+EventBus ×4，
+   各一行闭包）；整数解析手写两套（AseIntEntry/SketchSlider，源语义绑定 textcmd）；
+   RuntimeUiBuilder 与 UiKit 的 CreateText 双实现（旧画布口径，合并需单独裁决）；
+   BattleHud.TeamBars slot 循环 ×3（非本任务文件域）。
+
 **验证口径**：IME 与键盘交互无法遥控取证，代码语义对齐源口径后留创始人实机复测；
 七拍 diff 归因——widget +小量 = 输入框 caret 顶点制的有意变化 + TMP 图集字形微差族
 （骨架零位移口径见 §三之十三）。提交 `a4cc37a9`/`dc76b855`，merge `74e730bd`。
