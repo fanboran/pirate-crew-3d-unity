@@ -115,7 +115,7 @@ namespace PirateCrew.UI
         static float FamilyHeader(RectTransform content, float y, string family, int count, float galleryW)
         {
             RectTransform row = UiKit.CreateRect("Family_" + family, content);
-            UiKit.SetAnchored(row, new Vector2(0f, 1f), new Vector2(galleryW, 13f), new Vector2(0f, -y));
+            UiKit.PlaceTopLeft(row, 0f, y, new Vector2(galleryW, 13f));
 
             TextMeshProUGUI label = UiKit.CreateText("Label", row, family + " · " + count + " 件",
                 UiSkin.Font.Tiny, TextAlignmentOptions.Left, PixelSkin.Theme.SeparatorLabel, null);
@@ -131,7 +131,7 @@ namespace PirateCrew.UI
         static void Cell(RectTransform content, float x, float y, Sprite sprite, string id)
         {
             RectTransform cell = UiKit.CreateRect("Part_" + id, content);
-            UiKit.SetAnchored(cell, new Vector2(0f, 1f), new Vector2(CellW, CellH), new Vector2(x, -y));
+            UiKit.PlaceTopLeft(cell, x, y, new Vector2(CellW, CellH));
 
             var bg = cell.gameObject.AddComponent<Image>();
             bg.color = PixelSkin.Theme.Background;   // theme listitem_normal_face 纯色卡底
@@ -148,8 +148,7 @@ namespace PirateCrew.UI
                 RectTransform art = UiKit.CreateRect("Art", cell);
                 // 原生尺寸在图区（36 高）内垂直居中（件最大 32×32 < 图区）；九宫件按原尺寸 Sliced = 原件本身。
                 // 顶锚系 y 向上为正——向下居中必须取负（正值会把每个件向上顶出图区）
-                UiKit.SetAnchored(art, new Vector2(0f, 1f), new Vector2(w, h),
-                    new Vector2(Mathf.Round((CellW - w) * 0.5f), -Mathf.Round((ImageZoneH - h) * 0.5f)));
+                UiKit.PlaceTopLeft(art, Mathf.Round((CellW - w) * 0.5f), Mathf.Round((ImageZoneH - h) * 0.5f), new Vector2(w, h));
                 var image = art.gameObject.AddComponent<Image>();
                 image.sprite = sprite;
                 image.type = sliced ? Image.Type.Sliced : Image.Type.Simple;
@@ -173,7 +172,7 @@ namespace PirateCrew.UI
 
         static void Place(RectTransform rect, float x, float y, float w, float h)
         {
-            UiKit.SetAnchored(rect, new Vector2(0f, 1f), new Vector2(w, h), new Vector2(x, -y));
+            UiKit.PlaceTopLeft(rect, x, y, new Vector2(w, h));
         }
     }
 }

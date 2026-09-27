@@ -175,14 +175,13 @@ namespace PirateCrew.UI.DebugUi
                 labels[i] = label;
 
                 float w = Mathf.Ceil(label.preferredWidth) + 10f;
-                UiKit.SetAnchored(rect, new Vector2(0f, 1f), new Vector2(w, 12f), new Vector2(x, -y));   // tab 件原生高 12
+                UiKit.PlaceTopLeft(rect, x, y, new Vector2(w, 12f));   // tab 件原生高 12
                 x += w;
             }
 
             // 内容面：tab_active_face #333333（theme tab_bottom focus 面）
             RectTransform content = UiKit.CreateRect("TabContent", window);
-            UiKit.SetAnchored(content, new Vector2(0f, 1f), new Vector2(ContentW, 30f),
-                new Vector2(DebugWindowKit.Pad, -(y + 12f)));
+            UiKit.PlaceTopLeft(content, DebugWindowKit.Pad, (y + 12f), new Vector2(ContentW, 30f));
             var contentFace = content.gameObject.AddComponent<Image>();
             contentFace.color = new Color32(0x33, 0x33, 0x33, 0xFF);
             contentFace.raycastTarget = false;

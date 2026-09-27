@@ -60,6 +60,15 @@ namespace PirateCrew.UI
             rect.anchoredPosition = anchoredPosition;
         }
 
+        /// <summary>顶锚摆位单点：x/y 都是「向右 / 向下为正」的布局值，y 的取负只在此处
+        /// 发生。UGUI 顶锚系 anchoredPosition.y 向上为正，散写各处的 `(x, -y)` 惯例
+        /// 每一处都是「计算型 y 忘取负把件顶出上缘」的机会（陈列廊件上偏案即此）。
+        /// 新代码顶锚摆位一律走本函数；底锚/中心锚等别的锚系不归它管。</summary>
+        public static void PlaceTopLeft(RectTransform rect, float x, float y, Vector2 size)
+        {
+            SetAnchored(rect, new Vector2(0f, 1f), size, new Vector2(x, -y));
+        }
+
         /// <summary>铺满父容器后整体错位（【投影已退役】theme 无影子层——占位保留给未来的居中偏移件）。</summary>
         static void StretchOffset(RectTransform rect, Vector2 offset)
         {

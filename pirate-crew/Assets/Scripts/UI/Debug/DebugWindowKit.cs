@@ -271,7 +271,7 @@ namespace PirateCrew.UI.DebugUi
         {
             TextMeshProUGUI text = Label(parent, content, fontSize, color, align);
             RectTransform rect = text.rectTransform;
-            UiKit.SetAnchored(rect, new Vector2(0f, 1f), new Vector2(w, fontSize + 4f), new Vector2(x, -y));
+            UiKit.PlaceTopLeft(rect, x, y, new Vector2(w, fontSize + 4f));
             return text;
         }
 
@@ -280,7 +280,7 @@ namespace PirateCrew.UI.DebugUi
         public static void Section(RectTransform parent, string title, float width, ref float y)
         {
             RectTransform rect = UiKit.CreateRect("Section_" + title, parent);
-            UiKit.SetAnchored(rect, new Vector2(0f, 1f), new Vector2(width, 13f), new Vector2(0f, -y));
+            UiKit.PlaceTopLeft(rect, 0f, y, new Vector2(width, 13f));
 
             TextMeshProUGUI label = Label(rect, title, UiSkin.Font.Tiny,
                 PixelSkin.Theme.SeparatorLabel, TextAlignmentOptions.Left);

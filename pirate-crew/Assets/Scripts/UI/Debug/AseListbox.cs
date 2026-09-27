@@ -102,8 +102,7 @@ namespace PirateCrew.UI.DebugUi
         {
             width = Mathf.Round(width);
             RectTransform rect = UiKit.CreateRect(name, parent);
-            UiKit.SetAnchored(rect, new Vector2(0f, 1f),
-                new Vector2(width, labels.Length * RowHeight), new Vector2(x, -y));
+            UiKit.PlaceTopLeft(rect, x, y, new Vector2(width, labels.Length * RowHeight));
 
             var box = rect.gameObject.AddComponent<AseListBox>();
             box.Build(rect, width, labels, selected, onChange);
@@ -509,8 +508,7 @@ namespace PirateCrew.UI.DebugUi
             float width, float y)
         {
             RectTransform rect = UiKit.CreateRect("Item" + index, parent);
-            UiKit.SetAnchored(rect, new Vector2(0f, 1f),
-                new Vector2(width, AseListBox.RowHeight), new Vector2(0f, -y));
+            UiKit.PlaceTopLeft(rect, 0f, y, new Vector2(width, AseListBox.RowHeight));
 
             var item = rect.gameObject.AddComponent<AseListItem>();
             item._owner = owner;
