@@ -222,6 +222,10 @@ namespace PirateCrew.EditorTools
                 if (existing != null && force)
                 {
                     // 强制重建：旧资产的贴图/材质是它的子资产，删除资产即可一并清除。
+                    // 【GUID 政策（UI 重构 W4 裁决）】删除+重建会换 GUID——这是**有意行为**：
+                    // 字体资产的消费契约是**按 Resources 路径加载**（UiKit.FontTiers /
+                    // MenuUiBuilder 三属性），任何资产/场景**不许持字体 GUID 引用**；
+                    // 需要换字体观感就走 ForceRebuildAll（全链 GUID 一起换，消费方按路径无感）。
                     AssetDatabase.DeleteAsset(spec.AssetPath);
                 }
 
