@@ -168,7 +168,9 @@ namespace PirateCrew.EditorTools
             }
 
             // 光 / 相机（俯角 30° = 规则像素阶梯，口径见 PixelartLevelScene）
-            Light sun = PixelartStageKit.CreateSunAndAmbient(root.transform);
+            // 【castShadows = true】化工厂这种大件场地**必须开实时投影**，否则整场没有光影
+            // （并行线 r16 定的口径与根因：投影默认关是"完全没有光影"的来源；见 d5e7aec3）。
+            Light sun = PixelartStageKit.CreateSunAndAmbient(root.transform, castShadows: true);
 
             var camGo = new GameObject("PixelartLevelCamera");
             camGo.tag = "MainCamera";
