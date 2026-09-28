@@ -385,6 +385,25 @@ namespace PirateCrew.ArtReview
                 };
             }
 
+            // 【第 4 关（废弃化工厂）多一张整场总览】本关场地 68×48 m，是样板关竞技场（40×30）的 2.7 倍，
+            // wide 的 32 m 可见高只盖住约三分之一——判"整场观感"不够用。它同时又**没有玩法数据**
+            // （不是可玩关卡，内容是一件手作总装件），不受"人物为锚、横向比观感"那条口径的约束，
+            // 故单开一张：可见高 58 m ≈ 0.85 × 场地长边（68 m），整场地进画面。
+            // 场地尺度出处：tools/blender/scene/chemplant/README.md 的 STAT 实测表。
+            if (view.LevelNumber == 4)
+            {
+                return new (string, float, float, int, float, int)[]
+                {
+                    (p + "-wide",        view.WideVisibleMeters,  1.0f, -1, 0f, 0),
+                    (p + "-mid",         view.MidVisibleMeters,   0.6f, -1, 0f, 0),
+                    (p + "-close",       view.CloseVisibleMeters, 0.6f, -1, 0f, 0),
+                    (p + "-overview",    58f,                     1.0f, -1, 0f, 0),
+                    (p + "-mid-density", view.MidVisibleMeters,   0.6f,  1, 1.0f, 0),
+                    (p + "-dbg-albedo",  view.MidVisibleMeters,   0.6f, -1, 0f, 1),
+                    (p + "-dbg-outline", view.MidVisibleMeters,   0.6f, -1, 0f, 4),
+                };
+            }
+
             return new (string, float, float, int, float, int)[]
             {
                 (p + "-wide",        view.WideVisibleMeters,  1.0f, -1, 0f, 0),

@@ -15,7 +15,7 @@ namespace PirateCrew.EditorTools
     ///   <item><b>Cast 渲染器</b>（数组顺序 = 同一 RenderPassEvent 内的执行顺序，即契约 §3）：
     ///         BeforeRender（相机 snap + 尺寸下发）→ Object（几何 → 屏幕档 7 张 G-buffer）→
     ///         Connectivity（连通域三阶段）→ Outline（屏幕空间描边）→ RimLight（边缘光）→
-    ///         Shading（四趟着色 + 合成）→ ColorCorrection（帧级调色板）。</item>
+    ///         Shading（四趟着色 + 合成）。帧级调色板那一趟已于 2026-09-29 按创始人裁决删除。</item>
     ///   <item><b>Screen 渲染器</b>：只有 ScreenCopy（ResultBuffer 点采样放大上屏）。</item>
     /// </list>
     /// 两台相机若共用同一个渲染器，主相机会把刚画好的 G-buffer 清掉再着色，画面变纯背景色——
@@ -44,7 +44,9 @@ namespace PirateCrew.EditorTools
             "Assets/Settings/URP/PC_Performant_URPAsset.asset",
         };
 
-        /// <summary>Cast 渲染器的特征顺序（= 执行顺序，契约 §3）。改这里就是改管线次序。</summary>
+        /// <summary>Cast 渲染器的特征顺序（= 执行顺序，契约 §3）。改这里就是改管线次序。
+        /// 【2026-09-29 契约修订】原第 7 位 `PixelartColorCorrectionFeature`（帧级调色板 = 把整幅图
+        /// 逐像素吸附到一张有限色板）**已删除**——创始人裁决「彻底去掉配色限制」。
         static readonly System.Type[] CastFeatureOrder =
         {
             typeof(PixelartBeforeRenderFeature),
@@ -53,7 +55,6 @@ namespace PirateCrew.EditorTools
             typeof(PixelartOutlineFeature),
             typeof(PixelartRimLightFeature),
             typeof(PixelartShadingFeature),
-            typeof(PixelartColorCorrectionFeature),
         };
 
         /// <summary>本装配器上次成功装配的渲染器索引（同一次会话内供装配场景使用）。</summary>
@@ -342,32 +343,8 @@ namespace PirateCrew.EditorTools
                 EditorUtility.SetDirty(shading);
             }
 
-            PixelartColorCorrectionFeature colorCorrection = Find<PixelartColorCorrectionFeature>(features);
-            if (colorCorrection != null)
-            {
-                colorCorrection.colorCorrectionShader = LoadShader(PixelartPath.ShaderFolder + "/PixelartColorCorrection.shader");
-                colorCorrection.palette = EnableFramePalette ? EnsurePaletteAsset() : null;
-                if (!EnableFramePalette)
-                {
-                    Debug.LogWarning("[PixelartPathInstaller] 帧级调色板**本轮关闭**（palette 字段置空 ⇒ 那一趟整趟跳过）。"
-                        + "原因：首轮出图实测 LUT 索引口径有问题——背景蓝灰被映射成暗紫，整屏发怪，"
-                        + "而且它把判据脚本的颜色假设一起带偏了（连墨线检测器都认不出墨色）。"
-                        + "调色板资产本身仍然生成（" + PixelartPath.PaletteAssetPath + "），"
-                        + "把 EnableFramePalette 改回 true 并重跑本装配器 + 出包即可打开。");
-                }
-                EditorUtility.SetDirty(colorCorrection);
-            }
-
             EditorUtility.SetDirty(rendererData);
         }
-
-        /// <summary>
-        /// **帧级调色板开关**（P5）。默认关，理由见 <see cref="AssignFeatureAssets"/> 里的告警：
-        /// 首轮出图证明 LUT 的索引口径还没对（背景蓝灰被映射成暗紫），开着它会让整屏发怪、
-        /// 也让判据脚本的颜色假设失效。关掉时那一趟整趟跳过，画面回到"色带 + 光照"的 v3 口径。
-        /// **LUT 口径修好后把这里改回 true**（然后重跑装配器 + 出包）。
-        /// </summary>
-        const bool EnableFramePalette = false;
 
         static T Find<T>(List<ScriptableRendererFeature> features) where T : ScriptableRendererFeature
         {
@@ -399,50 +376,6 @@ namespace PirateCrew.EditorTools
                 Debug.LogError("[PixelartPathInstaller] 找不到 compute：" + path
                     + "（编译失败或被改名？）——播放器里这个 kernel 会被剥离。");
             return shader;
-        }
-
-        /// <summary>
-        /// 生成/刷新帧级调色板资产：**种子色取自本路径的材质色**（创始人 2026-09-22 裁决：
-        /// 首版从场景材质色自动生成，观感变化最小），另加墨色与环境暗部色各一档。
-        /// </summary>
-        static PixelartPalette EnsurePaletteAsset()
-        {
-            var colors = new List<Color>();
-            var seen = new HashSet<string>();
-
-            string[] guids = AssetDatabase.FindAssets("t:Material", new[] { PixelartStageKit.MaterialFolder });
-            for (int i = 0; i < guids.Length; i++)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
-                var material = AssetDatabase.LoadAssetAtPath<Material>(path);
-                if (material == null || !material.HasProperty("_BaseColor"))
-                    continue;
-
-                Color c = material.GetColor("_BaseColor");
-                string key = ((int)(c.r * 255f)) + "_" + ((int)(c.g * 255f)) + "_" + ((int)(c.b * 255f));
-                if (seen.Add(key))
-                    colors.Add(c);
-            }
-
-            if (colors.Count == 0)
-            {
-                Debug.LogWarning("[PixelartPathInstaller] 没扫到任何本路径材质（"
-                    + PixelartStageKit.MaterialFolder + "）——调色板会是空的，调色板那一趟自动跳过。"
-                    + "先跑 PixelartPilotSetup.BuildAll 造材质再重跑本装配器。");
-                return null;
-            }
-
-            // 墨色与环境暗部色必须进板：墨线像素会被映射到最近的板色，板里没有近黑就会把线染成别的暗色。
-            colors.Add(new Color(0.070588f, 0.047059f, 0.078431f, 1f));
-            colors.Add(RenderSettings.ambientMode == AmbientMode.Flat
-                ? RenderSettings.ambientLight
-                : RenderSettings.ambientSkyColor);
-
-            EnsureFolder(System.IO.Path.GetDirectoryName(PixelartPath.PaletteAssetPath).Replace('\\', '/'));
-            var palette = PixelartPalette.CreateFromColors(PixelartPath.PaletteAssetPath, colors);
-            Debug.Log("[PixelartPathInstaller] 调色板资产已刷新：" + PixelartPath.PaletteAssetPath
-                + "（" + colors.Count + " 色，种子来自本路径材质色 + 墨色 + 环境暗部色）。");
-            return palette;
         }
 
         /// <summary>

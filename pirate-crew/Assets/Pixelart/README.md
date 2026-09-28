@@ -9,11 +9,10 @@
 
 | 子目录 | 装什么 | 谁产出 |
 | --- | --- | --- |
-| `Shaders/` | `PixelartObject`（几何 pass，写 7 张 MRT）、`PixelartOutline`（屏幕空间 4 邻域膨胀）、`PixelartRimLight`、`PixelartShading`（四趟：GI/漫反射/高光/合成）、`PixelartColorCorrection`（帧级调色板） + `Shaders/Includes/RimLight.hlsl` | 手写 |
-| `Compute/` | `Connectivity/`（连通域三阶段：Check / Flood / Result + 共用 `Connectivity.hlsl`）、`RimLightCorrection.compute`、`Palette/PaletteGenerationCIEDE.compute` | 手写 |
+| `Shaders/` | `PixelartObject`（几何 pass，写 7 张 MRT）、`PixelartOutline`（屏幕空间 4 邻域膨胀）、`PixelartRimLight`、`PixelartShading`（四趟：GI/漫反射/高光/合成） + `Shaders/Includes/RimLight.hlsl` | 手写 |
+| `Compute/` | `Connectivity/`（连通域三阶段：Check / Flood / Result + 共用 `Connectivity.hlsl`）、`RimLightCorrection.compute` | 手写 |
 | `Materials/` | 本路径专用的物体材质（`PixelartPilot_*` 试点件、`PixelartCrew_*` 角色三色、`PixelartCloud_*` 云场件）。**全部只吃 `PixelartObject`**，`_MainLightLevel` = 色带档数 | `Editor/PixelartStageKit.EnsureMaterial` |
 | `Textures/Dither/` | 九张 v3 口径的 1-bit 密度图案（`_DitherMode = 1` 时用） | `Assets/Editor/DitherPatternBaker.cs` |
-| `Palette/Palette.asset` | 帧级调色板 LUT（**当前默认不启用**，见 §4） | `Editor/PixelartPathInstaller.EnsurePaletteAsset` |
 | `Editor/` | 装配器（`PixelartPathInstaller`）、三个试点场景装配（`PixelartPilotSetup` / `PixelartLevelPilotSetup` / `PixelartWorldMapPilotSetup`）、各场景共用件（`PixelartStageKit`） | — |
 
 **渲染器资产不在这里**：`Cast` / `Screen` 两个 URP 渲染器资产在 `Assets/Settings/URP/`
@@ -89,8 +88,9 @@ python tools/pixel-review/judge_pixelart_pilot.py export/pixelart-l1-r9
 
 1. **实时阴影**：机制接通（Cast 相机 `renderShadows`、着色里的阴影关键字族、URP 资产开关），
    但 160m 大平面在阴影贴图里自遮挡 ⇒ 先关；开关在 `PixelartStageKit.CreateSunAndAmbient`。
-2. **帧级调色板**：LUT 索引口径未对（会把背景蓝灰映射成暗紫）⇒ 装配器里 `EnableFramePalette = false`；
-   修好后改回 `true` 并重跑装配器 + 出包。
+2. **帧级调色板：已删除**（2026-09-29，创始人裁决「彻底去掉配色限制」）——原来它是"整幅图只许出现
+   板上的颜色"这条约束的落点，因 LUT 索引口径有问题一直默认关闭；本轮把那一趟连同调色板资产、
+   生成 compute、装配器开关一并删除（不是留着开关关着）。契约 §3 的特征顺序随之改为六趟。
 
 ## 5. 判据与档案
 

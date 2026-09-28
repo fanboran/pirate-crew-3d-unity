@@ -111,7 +111,6 @@ FBX 的 −Z → Unity 经 `bakeAxisConversion=true` 折算后朝 **Unity +Z**�
 2. **并入 WorldKit 资产表**：把 FBX 挪到 `Assets/Art/Models/WorldKit/<分类>/` 后跑
    `WorldMapAssetSetBuilder.BuildAll` —— 它的 `Slots` 表**已经登记了本 kit 用到的 9 个工业槽**
    （见 `WorldMapAssetSetBuilder.cs` 的「工业/废弃【提】」段），材质会自动重建。
-
 **未知 `Kit_` 槽一律品红暴露**（零容忍纪律）：新增槽必须同时改
 `style_tokens.py:SLOTS` 与上面两张 C# 表的其中一张，双侧同源。
 
