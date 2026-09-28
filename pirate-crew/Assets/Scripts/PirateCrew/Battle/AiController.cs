@@ -14,7 +14,7 @@ namespace PirateCrew.Battle
     /// 序列化槽位在所有场景/Prefab 均未接线，运行期恒走 TurnManager 的 autoResolve 兜底；
     /// 全仓也无 AddComponent 装配点。保留原因：这是敌方 AI 的完整实现（§6.1 时间片驱动），
     /// 接线即活——启用路径 = 装配链（BattleLookupWiring）把 TurnManager.aiController 接上本组件。
-    /// 删除或接线二选一，裁决前别往里加新功能。
+    /// 删除或接线二选一（待定），定案前别往里加新功能。
     ///
     /// 【对应章节】§6.1（<c>Team.advance</c> 的 30ms 时间片、逐角色推进 <c>aiThink</c>、
     ///             汇总 <c>aiMoveList</c> 取 max、先给镜头再执行、<c>aiCanBailOut</c> 跳过回合）、

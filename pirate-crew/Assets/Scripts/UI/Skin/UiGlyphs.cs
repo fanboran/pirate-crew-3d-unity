@@ -13,11 +13,10 @@ namespace PirateCrew.UI
     /// 【图标优先原则（用户裁决）】能用图像表示的全用图像：模式开关 = 移动/准星/眼睛三图标、
     /// 动作按钮 = 投掷弧 / 旗、暂停 = 双竖条、确认 = 勾 / 叉……文字只留横幅与提示。
     ///
-    /// 【现役口径】战斗 HUD 随后续裁决改为文字钮（见 BattleHud.cs 头注），图标面收窄：
+    /// 【现役口径】战斗 HUD 已改为文字钮（见 BattleHud.cs 头注），图标面收窄：
     /// 上产线的只有 Star（星级）；Eye/MovePad/Skull/Helm 为登记保留件
-    /// （【存件·仅测试消费】，启用前先对齐裁决）。准星图标随"准星点选退役、
-    /// 改鼠标直接点选"裁决清退；早退役的动作/确认族成员
-    /// （Pause/Play/Check/Cross/Retry/Flag/ThrowArc）已清退，Git 历史即存档。
+    /// （【存件·仅测试消费】，启用前先确认口径）。准星图标已随准星点选退役清退；
+    /// 早退役的动作/确认族成员（Pause/Play/Check/Cross/Retry/Flag/ThrowArc）已清退，Git 历史即存档。
     ///
     /// 坐标约定：<paramref name="fx"/>/<paramref name="fy"/> 以图标中心为原点（y 向上），
     /// <paramref name="half"/> 为半边长；贴图内实际按 2×half 边长逐像素判定。
