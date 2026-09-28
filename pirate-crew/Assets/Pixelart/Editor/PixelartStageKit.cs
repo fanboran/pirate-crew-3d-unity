@@ -293,11 +293,17 @@ namespace PirateCrew.EditorTools
         /// "GI 用扁平环境光"（v3 的暗面来自 SH）。**不能给太小**：旧链取 #1A1E28 是有配套的
         /// （它的暗部是材质上的**替换式暗部色** `_ShadowColor`），本路径暗面 = albedo × 环境色，
         /// 压到 #1A1E28 时暗面与墨线几乎同值、轮廓线和暗面糊成一片。**也不能给太大**：
-        /// 加法环境光会抬平明暗跨度。#37486B 让暗面落在 sRGB 0.2 上下——明显暗于亮面、又明显亮于墨线；
+        /// 加法环境光会抬平明暗跨度。#313D57（2026-09-29 由 #37486B 压暗去蓝，见契约注释）让暗面落在 sRGB 0.16 上下——明显暗于亮面、又明显亮于墨线；
         /// 相比早期的中性 #3A4760 只做了**同明度的蓝移**（亮度权重差 &lt;1%）：暗面带一点天光冷调，
         /// 与暖主光拉开"亮暖暗冷"，是美术旋钮（改这里即整体调暗部色相/亮度），不是机制。
         /// </summary>
-        public static Light CreateSunAndAmbient(Transform parent)
+        /// <param name="castShadows">
+        /// 是否打开实时投影。**默认关**（既有各关行为不变——当年关它的原因是"160 m 大平面在阴影贴图里
+        /// 自遮挡"）：像素化路径的着色里 `light.shadowAttenuation` 早就接上了（DiffuseShading 乘它），
+        /// 所以打开只是"改一处开关 + 给承接面留偏置"。**没有投影时画面只有三档明暗、没有任何落地影**，
+        /// 观感上就是"没光影"（创始人 2026-09-29 对化工厂那关的判断）。
+        /// </param>
+        public static Light CreateSunAndAmbient(Transform parent, bool castShadows = false)
         {
             var sunGo = new GameObject("PixelartSun");
             sunGo.transform.SetParent(parent);
@@ -308,8 +314,11 @@ namespace PirateCrew.EditorTools
             sun.type = LightType.Directional;
             sun.color = PixelartSceneContract.SunColor;
             sun.intensity = 1.1f;
-            sun.shadows = LightShadows.None;
+            // 大平面自遮挡用偏置压：normalBias 抬一点最有效（沿法线推采样点，平铺面不再自吃）。
+            sun.shadows = castShadows ? LightShadows.Hard : LightShadows.None;
             sun.shadowStrength = 0.65f;
+            sun.shadowBias = 0.06f;
+            sun.shadowNormalBias = 0.65f;
             RenderSettings.sun = sun;
 
             RenderSettings.ambientMode = AmbientMode.Flat;

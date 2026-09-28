@@ -36,7 +36,6 @@ namespace PirateCrew.Rendering.Pixelart
         public const string RimLightShaderName = "PirateCrew/Pixelart/PixelartRimLight";
 
         /// <summary>帧级调色板映射 shader。</summary>
-        public const string ColorCorrectionShaderName = "PirateCrew/Pixelart/PixelartColorCorrection";
 
         /// <summary>上屏 blit 用 URP 自带 shader（播放器构建必然保活）。</summary>
         public const string CoreBlitShaderName = "Hidden/Universal/CoreBlit";
@@ -85,7 +84,6 @@ namespace PirateCrew.Rendering.Pixelart
         public const string RimLightPassName = "PixelartRimLight";
 
         /// <summary>帧级调色板映射 pass 名。</summary>
-        public const string ColorCorrectionPassName = "PixelartColorCorrection";
 
         // ==================== 资产路径（装配器用；资产名也必须集中）====================
 
@@ -97,9 +95,6 @@ namespace PirateCrew.Rendering.Pixelart
 
         /// <summary>其余 compute 资产目录。</summary>
         public const string ComputeFolder = "Assets/Pixelart/Compute";
-
-        /// <summary>调色板资产路径（装配器按场景材质色生成并写在这里）。</summary>
-        public const string PaletteAssetPath = "Assets/Pixelart/Palette/Palette.asset";
 
         /// <summary>渲染器资产所在目录（装配器创建，本路径专用）。</summary>
         public const string RendererFolder = "Assets/Settings/URP";
@@ -172,7 +167,6 @@ namespace PirateCrew.Rendering.Pixelart
         public static readonly int RimLightBufferId = Shader.PropertyToID("_PixelartRimLightBuffer");
 
         /// <summary>帧级调色板 LUT（2D RGB 条带）。</summary>
-        public static readonly int PaletteLutId = Shader.PropertyToID("_PixelartPaletteLut");
 
         // ==================== 标量 / 向量全局 ====================
 

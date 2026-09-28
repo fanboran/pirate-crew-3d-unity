@@ -8,6 +8,10 @@
 > `ChemPlant_Level.fbx` 直接摆进 `PixelartLevelScene` 的取景口径里，不是可玩关卡。
 > 建模口径 / STAT 实测表 / 摆位表见 [tools/blender/scene/chemplant/README.md](../../../../tools/blender/scene/chemplant/README.md)。
 
+> **⚠ 本轮图带已修复的缺陷**：塔身/罐体/球罐上的"暗斑"是**剔背面洞**（recalc 对开口面翻向
+> + 实机物体 pass 剔背面），r16 已根修并工具化（kit 预览默认按实机口径单面渲染）——
+> 判读观感请以 [r16](../r16/README.md) 为准，本轮留档仅作前后对照。
+
 ## 复现（三条命令，一次只跑一个 Unity 进程）
 
 ```bash

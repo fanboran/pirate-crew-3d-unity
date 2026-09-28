@@ -143,6 +143,13 @@ namespace PirateCrew.EditorTools
             {
                 GameObject seaMesh = PixelartStageKit.NewPrimitive(
                     PrimitiveType.Plane, "Sea", root.transform, sea);
+                // 海面是大平面：**只承接、不投影**（当年关掉投影就是这个自遮挡的老问题）。
+                var seaRenderer = seaMesh.GetComponent<MeshRenderer>();
+                if (seaRenderer != null)
+                {
+                    seaRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    seaRenderer.receiveShadows = true;
+                }
                 seaMesh.transform.localPosition = new Vector3(
                     view.Target.x, PirateCrew.Battle.LevelGeometry.WaterSurfaceY, view.Target.z);
                 seaMesh.transform.localScale = new Vector3(SeaPlaneScale, 1f, SeaPlaneScale);
@@ -163,7 +170,8 @@ namespace PirateCrew.EditorTools
             }
 
             // ---------------- 光 / 相机（俯角 30° = 规则像素阶梯，口径见 PixelartLevelScene）----------------
-            Light sun = PixelartStageKit.CreateSunAndAmbient(root.transform);
+            // 打开实时投影（2026-09-29）：没有投影 = 只有三档明暗、没有任何落地影，观感上就是"没光影"。
+            Light sun = PixelartStageKit.CreateSunAndAmbient(root.transform, castShadows: true);
 
             var camGo = new GameObject("PixelartLevelCamera");
             camGo.tag = "MainCamera";

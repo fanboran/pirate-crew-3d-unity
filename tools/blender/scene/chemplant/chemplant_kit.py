@@ -49,6 +49,10 @@ RENDER = True                # False = 只建模导出 FBX，不出预览图
 KIT_W, KIT_H = 1024, 576     # 分件预览 16:9
 LEVEL_W, LEVEL_H = 1920, 1080  # 场地成品图（块边长 2 → 艺术画布 960×540 = 1080p 实机同口径）
 PIXEL_BLOCK = 2              # 像素块边长（屏幕像素；与 PixelartCameraRig.PixelScaleDefault 同值）
+CULL_BACKFACES = True        # 预览是否按实机口径剔背面（像素路径物体 pass 单面渲染）
+                             # 【为什么默认开】Cycles 默认双面渲染：任何**朝向朝内/开壳**的面在预览里
+                             # 照常可见，进实机却因背面剔除变成"透视洞"（冷却塔 2026-09-29 实测：
+                             # 预览是实心塔、实机是镂空壳）。开这一档，预览才会提前暴露这类缺陷。
 PIXEL_STEPS = 0              # 全图色阶量化档数（0 = 只像素化不做量化；>1 才挂 Posterize 节点）
                              # 【为什么默认关】游戏里的色带作用在**光照**上、逐物体量化；
                              # 对成图整幅逐通道量化会把 #8C4A28 这类低饱和锈色推成饱和红、
@@ -78,7 +82,7 @@ def log(msg):
 
 
 def parse_args():
-    global ONLY, SAMPLES, RENDER
+    global ONLY, SAMPLES, RENDER, CULL_BACKFACES
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     i = 0
     while i < len(argv):
@@ -89,6 +93,8 @@ def parse_args():
             SAMPLES = int(argv[i + 1]); i += 2
         elif a == '--no-render':
             RENDER = False; i += 1
+        elif a == '--double-sided':
+            CULL_BACKFACES = False; i += 1
         else:
             i += 1
 
@@ -146,7 +152,12 @@ def join_to_object(acc, obj_name, mats):
             bf.smooth = sm
         except ValueError:
             pass
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    # 【不跑 recalc_face_normals，2026-09-29 实机实测】它对本 kit 大量存在的**开口面**（壳体/盘/条）
+    # 是启发式的：会把整片翻成朝内 ⇒ 实机（像素路径物体 pass，剔背面）直接变成"透视洞"，
+    # 而 Blender 双面渲染与 recalc 前的作者朝向都看不出来（塔壳/罐体/球罐/烟囱/地面水池全中过）。
+    # 改为**按构造保证外法线**：loft / fan / annulus / cyl / sphere_shell / patch_poly / wall_seg
+    # 的绕序已逐条核对；sbox 的面表已按右手定则改写。新增图元请照此自查（预览用
+    # `--double-sided` 关掉剔除可看双面效果，默认按实机口径剔背面）。
     bm.to_mesh(me)
     bm.free()
     for name in used:
@@ -185,6 +196,16 @@ def make_materials():
             if key in bsdf.inputs:
                 bsdf.inputs[key].default_value = 0.0
                 break
+        if CULL_BACKFACES:
+            nt = mat.node_tree
+            out_node = nt.nodes['Material Output']
+            transp = nt.nodes.new('ShaderNodeBsdfTransparent')
+            mix = nt.nodes.new('ShaderNodeMixShader')
+            geo = nt.nodes.new('ShaderNodeNewGeometry')
+            nt.links.new(geo.outputs['Backfacing'], mix.inputs[0])
+            nt.links.new(bsdf.outputs['BSDF'], mix.inputs[1])
+            nt.links.new(transp.outputs['BSDF'], mix.inputs[2])
+            nt.links.new(mix.outputs['Shader'], out_node.inputs['Surface'])
         out[name] = mat
     return out
 
@@ -203,10 +224,11 @@ def sbox(acc, c, s, mat, rot=None):
             for dz in (-hz, hz):
                 v = m @ Vector((dx, dy, dz))
                 pts.append((c[0] + v.x, c[1] + v.y, c[2] + v.z))
-    acc.add(pts, [(0, 2, 3, 1), (4, 5, 7, 6), (0, 1, 5, 4), (2, 6, 7, 3), (0, 4, 6, 2), (1, 3, 7, 5)], mat)
+    # 面表按**右手定则**写对（外法线）：本 kit 不再靠 recalc_face_normals 兜朝向，见 join_to_object 注释
+    acc.add(pts, [(1, 3, 2, 0), (6, 7, 5, 4), (4, 5, 1, 0), (3, 7, 6, 2), (2, 6, 4, 0), (5, 7, 3, 1)], mat)
 
 
-def cyl(acc, p0, p1, r0, r1, sides, mat, cap0=True, cap1=True):
+def cyl(acc, p0, p1, r0, r1, sides, mat, cap0=True, cap1=True, smooth=False):
     """圆台/圆柱杆（低分段 = 棱面杆）。"""
     d = Vector(p1) - Vector(p0)
     if d.length < 1e-6:
@@ -235,7 +257,7 @@ def cyl(acc, p0, p1, r0, r1, sides, mat, cap0=True, cap1=True):
         faces.append(tuple(range(sides - 1, -1, -1)))
     if cap1:
         faces.append(tuple(range(sides, 2 * sides)))
-    acc.add(pts, faces, mat)
+    acc.add(pts, faces, mat, smooth=smooth)
 
 
 def ring_pts(cx, cy, r, z, sides, phase=0.0, roff=None):
@@ -248,14 +270,17 @@ def ring_pts(cx, cy, r, z, sides, phase=0.0, roff=None):
     return out
 
 
-def loft(acc, rings, matf, cap_bot=None, cap_top=None):
-    """环放样：rings 自下而上、俯视逆时针；matf(band, sector) → 槽名。"""
+def loft(acc, rings, matf, cap_bot=None, cap_top=None, smooth=False):
+    """环放样：rings 自下而上、俯视逆时针；matf(band, sector) → 槽名。
+    smooth=True = 平滑着色（弧面用）：实机三档色带下，平滑法线让色带沿曲面**连续弯**，
+    逐面 flat 则每面各落一档（竖直曲面上就是逐面跳档）。创始人 2026-09-29：
+    「圆柱形建筑要不在弧形面上精准使用一下细分曲面」。"""
     n = len(rings[0])
     for k in range(len(rings) - 1):
         a, b = rings[k], rings[k + 1]
         for i in range(n):
             i2 = (i + 1) % n
-            acc.add([a[i], a[i2], b[i2], b[i]], [(0, 1, 2, 3)], matf(k, i))
+            acc.add([a[i], a[i2], b[i2], b[i]], [(0, 1, 2, 3)], matf(k, i), smooth=smooth)
     if cap_bot:
         acc.add(list(reversed(rings[0])), [tuple(range(n))], cap_bot)
     if cap_top:
@@ -295,13 +320,13 @@ def arc_tube(acc, cx, cy, z, r, a0, a1, sides, tube_r, mat, t_sides=4):
             (cx + math.cos(t1) * r, cy + math.sin(t1) * r, z), tube_r, tube_r, t_sides, mat)
 
 
-def sphere_shell(acc, cx, cy, cz, r, sides, nrings, matf):
+def sphere_shell(acc, cx, cy, cz, r, sides, nrings, matf, smooth=False):
     """球壳（自下而上环放样 + 两极扇面）。"""
     rings = []
     for k in range(1, nrings):
         phi = math.pi * (1.0 - k / float(nrings))          # 底 → 顶
         rings.append(ring_pts(cx, cy, r * math.sin(phi), cz + r * math.cos(phi), sides))
-    loft(acc, rings, matf)
+    loft(acc, rings, matf, smooth=smooth)
     bot = (cx, cy, cz - r)
     top = (cx, cy, cz + r)
     for i in range(sides):
@@ -716,7 +741,7 @@ def build_hall(acc, dress=True):
 
 def build_column(acc, tall=True, dress=True):
     """精馏塔：锥台塔身 + 三层环形平台 + 爬梯护笼 + 接管/人孔 + 顶部折弯放空。"""
-    S = 12
+    S = 20
     if tall:
         zs = [0.60, 1.40, 2.40, 4.20, 6.20, 8.40, 10.60, 12.80, 15.00, 16.60, 17.40, 18.10]
         rs = [2.45, 2.25, 2.18, 2.14, 2.10, 2.06, 2.02, 1.97, 1.90, 1.82, 1.72, 1.40]
@@ -737,12 +762,12 @@ def build_column(acc, tall=True, dress=True):
     sbox(acc, (0, 0, 0.30), (5.6, 5.6, 0.60), 'Kit_ConcreteMid')
     sbox(acc, (0, 0, 0.72), (4.9, 4.9, 0.36), 'Kit_ConcreteMid')
     rings = [ring_pts(0, 0, r, z, S) for r, z in zip(rs, zs)]
-    loft(acc, rings, matf, cap_bot='Kit_SteelBlue')
+    loft(acc, rings, matf, cap_bot='Kit_SteelBlue', smooth=True)
     if tall:
         dr = [1.40, 1.28, 1.00, 0.55]
         dz = [top, top + 0.26, top + 0.50, top + 0.68]
         dro = [ring_pts(0, 0, r, z, S) for r, z in zip(dr, dz)]
-        loft(acc, [rings[-1]] + dro, lambda b, s: 'Kit_SteelPale')
+        loft(acc, [rings[-1]] + dro, lambda b, s: 'Kit_SteelPale', smooth=True)
         fan(acc, (0, 0, top + 0.76), dro[-1], 'Kit_SteelPale')
         cyl(acc, (0.10, 0.0, top + 0.70), (0.95, 0.25, top + 1.35), 0.20, 0.20, 8, 'Kit_Rust')
         annulus(acc, 0.95, 0.25, 0.20, 0.32, top + 1.35, 8, 'Kit_Iron', thick=0.09)
@@ -839,13 +864,13 @@ def build_pipe_rack(acc, dress=True):
             cyl(acc, (2.0, oy, pz), (x1, oy, pz), r, r, 8, m)
             sbox(acc, (0.0, oy, pz - 0.70), (0.3, 0.3, 0.55), 'Kit_Rust')
             continue
-        cyl(acc, (x0, oy, tier[0] + r + 0.16), (x1 + 0.6, oy, tier[0] + r + 0.16), r, r, 8, m)
+        cyl(acc, (x0, oy, tier[0] + r + 0.16), (x1 + 0.6, oy, tier[0] + r + 0.16), r, r, 10, m, smooth=True)
     # ---- 二层管道（含垂吊断管）
     row2 = [(-0.80, 0.28, 'Kit_SteelPale'), (-0.30, 0.22, 'Kit_Rust'),
             (0.25, 0.18, 'Kit_SteelPale'), (0.80, 0.09, 'Kit_Brass')]
     for oy, r, m in row2:
         pz = tier[1] + r + 0.16
-        cyl(acc, (x0, oy, pz), (x1 + 0.6, oy, pz), r, r, 8, m)
+        cyl(acc, (x0, oy, pz), (x1 + 0.6, oy, pz), r, r, 10, m, smooth=True)
     pz = tier[1] + 0.44
     cyl(acc, (2.0, -0.30, pz), (2.0, -0.30, pz - 0.9), 0.22, 0.22, 8, 'Kit_Rust')
     cyl(acc, (2.0, -0.30, pz - 0.9), (2.6, -0.10, pz - 2.4), 0.22, 0.21, 8, 'Kit_Rust')
@@ -871,7 +896,7 @@ def build_pipe_rack(acc, dress=True):
 
 def build_sphere_tank(acc, dress=True):
     """球罐：r=4.0 支于 6 腿，赤道环形走道 + 爬梯 + 底部阀组接管。"""
-    S = 16
+    S = 28
     R = 4.0
     cz = 8.30
     legs = 6
@@ -892,7 +917,7 @@ def build_sphere_tank(acc, dress=True):
         cyl(acc, (math.cos(a) * 3.1, math.sin(a) * 3.1, 4.45),
             (math.cos(a) * 3.35, math.sin(a) * 3.35, 5.10), 0.09, 0.09, 5, 'Kit_Iron')
     sphere_shell(acc, 0.0, 0.0, cz, R, S, 9,
-                 streak_matf('Kit_SteelPale', 51, S, cover=0.32, alt_every=9))
+                 streak_matf('Kit_SteelPale', 51, S, cover=0.32, alt_every=9), smooth=True)
     annulus(acc, 0, 0, 3.7, 3.98, cz - 3.6, S, 'Kit_SteelPale', thick=0.5)
     # 赤道走道 + 护栏
     annulus(acc, 0, 0, R - 0.15, R + 1.15, cz + 0.05, S, 'Kit_Iron', thick=0.12,
@@ -926,7 +951,7 @@ def build_sphere_tank(acc, dress=True):
 
 def _v_tank(acc, cx, cy, r, h, seed, dent=False, band='Kit_PaintYellow'):
     """立式储罐：基础环 + 罐身（锈痕/接缝带/可选凹瘪）+ 锥顶 + 爬梯 + 顶部护栏。"""
-    S = 14
+    S = 20
     sbox(acc, (cx, cy, 0.22), (r * 2.3, r * 2.3, 0.44), 'Kit_ConcreteMid')
     zs = [0.44, h * 0.22, h * 0.46, h * 0.70, h * 0.94, h]
     rs = [r, r * 0.995, r * 0.99, r * 0.985, r * 0.98, r * 0.975]
@@ -939,7 +964,7 @@ def _v_tank(acc, cx, cy, r, h, seed, dent=False, band='Kit_PaintYellow'):
         ro = [roff[i] if k >= 2 else 1.0 for i in range(S)]
         rings.append(ring_pts(cx, cy, rr, z, S, roff=ro))
     loft(acc, rings, streak_matf('Kit_SteelPale', seed, S, cover=0.30, alt_every=8),
-         cap_bot='Kit_SteelPale')
+         cap_bot='Kit_SteelPale', smooth=True)
     for z in (h * 0.33, h * 0.66):                               # 接缝箍带
         loft(acc, [ring_pts(cx, cy, r * 1.012, z - 0.10, S), ring_pts(cx, cy, r * 1.012, z + 0.10, S)],
              lambda b, s: band if (s * 3 + seed) % 5 == 0 else 'Kit_Rust')
@@ -1002,7 +1027,7 @@ def build_tank_farm(acc, dress=True):
 
 def build_stack(acc, dress=True):
     """砖砼烟囱：锥台筒身 + 铁箍 + 褪色漆带 + 顶口残缺 + 护笼爬梯 + 底部烟道。"""
-    S = 12
+    S = 24
     zs = [0.70, 4.00, 8.00, 12.00, 16.00, 20.00, 23.00, 25.20, 26.00]
     rs = [2.30, 2.16, 2.05, 1.94, 1.84, 1.74, 1.66, 1.60, 1.54]
     sbox(acc, (0, 0, 0.35), (5.0, 5.0, 0.70), 'Kit_ConcreteDark')
@@ -1019,11 +1044,11 @@ def build_stack(acc, dress=True):
     rings = [ring_pts(0, 0, r, z, S) for r, z in zip(rs, zs)]
     # 顶口残缺：最后一环两个扇区掉高
     top = list(rings[-1])
-    for i in (4, 5):
+    for i in (7, 8):
         a = 2.0 * math.pi * i / S
         top[i] = (math.cos(a) * rs[-1], math.sin(a) * rs[-1], 24.55)
     rings[-1] = top
-    loft(acc, rings, matf, cap_bot='Kit_ConcreteMid')
+    loft(acc, rings, matf, cap_bot='Kit_ConcreteMid', smooth=True)
     fan(acc, (0, 0, 24.30), ring_pts(0, 0, rs[-1] * 0.86, 24.30, S), 'Kit_ConcreteDark', invert=True)
     for z in (4.0, 8.0, 12.0, 16.0, 20.0):                       # 铁箍
         rr = rs[min(range(len(zs)), key=lambda k: abs(zs[k] - z))]
@@ -1051,7 +1076,7 @@ def build_stack(acc, dress=True):
 
 def build_cooling_tower(acc, dress=True):
     """冷却塔：双曲面壳（棱槽）h=22、r 底 8.0→喉 4.8→顶 5.6；底部 12 腿架空、壳内暗色。"""
-    S = 24
+    S = 40                                   # 弧面细分（创始人 2026-09-29：弧面要圆）
     h, r0, rt, rtop = 22.0, 8.0, 4.8, 5.60
     zs = [2.60, 4.0, 6.0, 9.0, 12.0, 15.0, 18.0, 20.5, h]
 
@@ -1078,13 +1103,19 @@ def build_cooling_tower(acc, dress=True):
         return patch_matf('Kit_ConcreteLight', 111, 'Kit_ConcreteMid', rate=6,
                           light='Kit_ConcreteLight')(band, sector)
 
+    # 【闭合实体，2026-09-29 实测】壳体必须**双壁 + 顶口环盖 + 底环盖**闭合成实体：
+    # 单面开壳（只有外壁）在 `recalc_face_normals` 下判不准朝向——实机剔背面后塔身成"镂空壳"
+    # （Blender 双面渲染完全看不出来）。闭合体的法线收口是确定的，这才是可判的。
     rings = [ring_pts(0, 0, r, z, S, roff=roff) for r, z in zip(rs, zs)]
-    loft(acc, rings, matf, cap_bot='Kit_ConcreteDark')
+    rings_in = [ring_pts(0, 0, max(r - 0.30, 0.5), z, S, roff=roff) for r, z in zip(rs, zs)]
+    loft(acc, list(reversed(rings_in)), lambda b, s: 'Kit_ConcreteDark', smooth=True)   # 内壁（朝轴）
+    loft(acc, rings, matf, smooth=True)                                                # 外壁
     for zb in (7.5, 12.5, 18.0):                                 # 施工缝箍带（打断大白面）
         rb = _rr(zb) * 1.02
         loft(acc, [ring_pts(0, 0, rb, zb - 0.22, S, roff=roff),
                    ring_pts(0, 0, rb, zb + 0.22, S, roff=roff)],
-             lambda b, s: 'Kit_ConcreteMid' if (s * 3 + int(zb)) % 4 else 'Kit_Rust')
+             lambda b, s: 'Kit_ConcreteMid' if (s * 3 + int(zb)) % 4 else 'Kit_Rust',
+             cap_bot='Kit_ConcreteMid', cap_top='Kit_ConcreteMid')
     # 外凸竖肋 ×16（沿半径剖面折线，5 棱细管；代替会被色带翻档的周向棱槽）
     for k in range(16):
         a = 2.0 * math.pi * (k + 0.5) / 16.0
@@ -1095,7 +1126,7 @@ def build_cooling_tower(acc, dress=True):
             rr = _rr(zz) + 0.085
             pt = (ca * rr, sa2 * rr, zz)
             if prev is not None:
-                cyl(acc, prev, pt, 0.075, 0.075, 5, 'Kit_ConcreteLight')
+                cyl(acc, prev, pt, 0.075, 0.075, 8, 'Kit_ConcreteLight', smooth=True)
             prev = pt
             zz += 3.0
     # 顶口残缺两扇区
@@ -1104,7 +1135,10 @@ def build_cooling_tower(acc, dress=True):
         a = 2.0 * math.pi * i / S
         top[i] = (math.cos(a) * rs[-1], math.sin(a) * rs[-1], h - 0.85)
     rings[-1] = top
-    fan(acc, (0, 0, 2.40), ring_pts(0, 0, r0 * 0.9, 2.40, S, roff=roff), 'Kit_ConcreteDark')
+    rin_top = max(rings_in[-1][0][0] ** 2 + rings_in[-1][0][1] ** 2, 0.25) ** 0.5
+    annulus(acc, 0, 0, rin_top, rs[-1], h - 0.9, S, 'Kit_ConcreteLight', thick=0.22)   # 顶口环盖
+    annulus(acc, 0, 0, rs[0] - 0.30, rs[0], zs[0], S, 'Kit_ConcreteDark', thick=0.24)  # 底环盖
+    annulus(acc, 0, 0, 0.05, rs[0] - 0.30, 2.40, S, 'Kit_ConcreteDark', thick=0.30)     # 壳内地面
     # 底部 12 条斜腿（架空感）+ 地面环形水池
     S_LEG = 12
     for k in range(S_LEG):
