@@ -503,6 +503,8 @@ namespace PirateCrew.EditorTools
             SetPrefabRefIfExists(so, "dangerBorderPrefab", "Assets/Art/Models/SceneKit/ShowcaseDangerBorder.prefab");
             // 第 4 关「废弃化工厂」整场件（Blender 手作 FBX 本体直接当预制引用）
             SetPrefabRefIfExists(so, "chemPlantYardPrefab", "Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx");
+            // 第 5 关「废弃化工厂·六件并行版」整场件（六件并行 kit 的总装 FBX 本体）
+            SetPrefabRefIfExists(so, "chemPlantTeamYardPrefab", "Assets/Art/Models/SceneKit/ChemPlant.fbx");
 
             so.ApplyModifiedPropertiesWithoutUndo();
         }

@@ -18,6 +18,10 @@ namespace PirateCrew.SceneArt
         /// <summary>废弃化工厂整场（第 4 关主景；Blender 手作总装件，见 tools/blender/scene/chemplant/）。
         /// 预制引用 = FBX 本体（`Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx`）。</summary>
         ChemPlantYard = 2,
+
+        /// <summary>废弃化工厂整场·六件并行版（第 5 关主景；`Assets/Art/Models/SceneKit/ChemPlant.fbx`，
+        /// 六名建模 Agent 分件 + 总装，见 tools/blender/scene/chemplant/README.md）。</summary>
+        ChemPlantTeamYard = 3,
     }
 
     /// <summary>一件烘焙陈设的摆位（纯数据）。prefab 原点 = 几何烘焙原点（云场=构图中心，碎岛=竞技场原点）。</summary>
@@ -68,7 +72,7 @@ namespace PirateCrew.SceneArt
         public const int FirstLevel = 1;
 
         /// <summary>关卡号末位。</summary>
-        public const int LastLevel = 4;
+        public const int LastLevel = 5;
 
         /// <summary>场地宽度（逻辑格）——样板关统一尺寸，也是空岛展示件对齐用的场地口径。</summary>
         public const int WidthTiles = 20;

@@ -15,7 +15,8 @@ MonoBehaviour:
   levels:
     - {fileID: 11400000, guid: 812a920da0a19bd2f271f16e90218a5f, type: 2}
     - {fileID: 11400000, guid: 5a4400309cb0e2d9aaab9a56012f069e, type: 2}
-    - {fileID: 11400000, guid: c9e4d7bf209deee415fd458af404eeb9, type: 2}
+    - {fileID: 11400000, guid: c2a7bb20a0da96472cdb1c387154fe62, type: 2}
+    - {fileID: 11400000, guid: a73cbff7f4ebc6ba2d4f09e5ec638763, type: 2}
   worldMaps:
     - {fileID: 11400000, guid: cf041cce65e1c21b3b5f78200041e3fb, type: 2}
     - {fileID: 11400000, guid: 1d85fe5d76ced12f8575d9da3a634503, type: 2}

@@ -37,6 +37,32 @@ MonoBehaviour:
     prefab: {fileID: 919132149155446097, guid: 266b88d1b6d49e846a5a947b12ff2a7c, type: 3}
   - assetName: VolcanoRimA
     prefab: {fileID: 919132149155446097, guid: fd448ce1a12a79d4fa111c94bfbc0afa, type: 3}
+  - assetName: ChemPlant_ColumnShort
+    prefab: {fileID: 919132149155446097, guid: 99e860d4c92e67e40a9cb1adee7f0ad9, type: 3}
+  - assetName: ChemPlant_ColumnTall
+    prefab: {fileID: 919132149155446097, guid: 7e44665a2bc0feb43a548e7301898c6c, type: 3}
+  - assetName: ChemPlant_CoolingTower
+    prefab: {fileID: 919132149155446097, guid: b52b5783425c9d244a6fb0c5edef1cbb, type: 3}
+  - assetName: ChemPlant_Debris
+    prefab: {fileID: 919132149155446097, guid: 34ef16a3509ab8943b416972d9f65400, type: 3}
+  - assetName: ChemPlant_Fence
+    prefab: {fileID: 919132149155446097, guid: 2ee12183f0bbee143ba8ccab91b40563, type: 3}
+  - assetName: ChemPlant_Hall
+    prefab: {fileID: 919132149155446097, guid: c490b123e318e2a40922468e491ddadb, type: 3}
+  - assetName: ChemPlant_Level
+    prefab: {fileID: 919132149155446097, guid: 6e9710e00d6261f4b9b3294fdf805337, type: 3}
+  - assetName: ChemPlant_Office
+    prefab: {fileID: 919132149155446097, guid: 230b65ab83cc1fb4485f8f783926a750, type: 3}
+  - assetName: ChemPlant_PipeRack
+    prefab: {fileID: 919132149155446097, guid: 742ece83ab9fccc4cb3352504bc6716e, type: 3}
+  - assetName: ChemPlant_PumpSkid
+    prefab: {fileID: 919132149155446097, guid: dda9181df8613e4448ac2809d569126f, type: 3}
+  - assetName: ChemPlant_SphereTank
+    prefab: {fileID: 919132149155446097, guid: 4c0a1dd5c99d49247b8ebb4db3374942, type: 3}
+  - assetName: ChemPlant_Stack
+    prefab: {fileID: 919132149155446097, guid: 68a23ec425011af41a9d10b3702cf6a4, type: 3}
+  - assetName: ChemPlant_TankFarm
+    prefab: {fileID: 919132149155446097, guid: 22936030c97032b4291f729c8d6fff51, type: 3}
   - assetName: CloudBankL
     prefab: {fileID: 919132149155446097, guid: a024137f377ee2d408471c90e2c35ceb, type: 3}
   - assetName: DistantIsleL

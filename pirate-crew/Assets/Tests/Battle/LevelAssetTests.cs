@@ -218,6 +218,10 @@ namespace PirateCrew.Battle.Tests
             // L4 废弃化工厂（2026-09-29 入库，提案/待定）：32x22 大场地，平地可走 + 建筑足印抬高成掩体
             // （solid704 = 32×22 − 建筑格）；整场件 pieceId 2 = ChemPlantYard（Blender 手作 FBX）。
             "4|chem_plant|废弃化工厂|32x22|14|3|3||units=redPirate/0/5/8/5;redPirate/0/8/9/5;redPirate/0/7/11/5;redPirateCaptain/0/9/10/5;cabinBoy/1/16/4/5;cabinBoy/1/19/5/5;cabinBoy/1/17/6/5;cabinBoy/1/24/3/5;cabinBoyCaptain/1/28/4/5|air=Dynamite:10|raster=solid704/total5500/digest1783200|pieces=2/ChemPlantYard",
+            // L5 废弃化工厂·六件并行版（2026-09-29 入库，提案/待定）：28x20 = 本 kit 场地 56×40 m 1:1；
+            // 平地 2 块（单位踩在地坪顶 y=1.0，总装件摆 y=1.0）+ 四个设备区抬高 14 块（+7 m 掩体）；
+            // 整场件 pieceId 3 = ChemPlantTeamYard（SceneKit/ChemPlant.fbx，六件并行 kit）。
+            "5|chem_plant_team|废弃化工厂·六件版|28x20|14|3|3||units=redPirate/0/3/12/5;redPirate/0/6/12/5;redPirate/0/5/13/5;redPirateCaptain/0/4/13/5;cabinBoy/1/19/12/5;cabinBoy/1/22/12/5;cabinBoy/1/20/13/5;cabinBoy/1/24/13/5;cabinBoyCaptain/1/22/11/5|air=Dynamite:10|raster=solid560/total5464/digest1306248|pieces=3/ChemPlantTeamYard",
         };
 
         [Test]
@@ -305,7 +309,7 @@ namespace PirateCrew.Battle.Tests
             "mangrove_veil", "spiral_throne", "storm_cape", "sunken_gate",
         };
 
-        static readonly string[] LevelAssetNames = { "cloud_walk", "sky_island", "chem_plant" };
+        static readonly string[] LevelAssetNames = { "cloud_walk", "sky_island", "chem_plant", "chem_plant_team" };
 
         static IEnumerable<WorldMapAssetPayload> WorldMapPayloads()
         {

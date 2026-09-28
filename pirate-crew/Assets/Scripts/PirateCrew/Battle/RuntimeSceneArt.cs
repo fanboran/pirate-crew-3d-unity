@@ -44,6 +44,10 @@ namespace PirateCrew.Battle
         /// <c>PirateCrew.EditorTools.ChemPlantBattleWiring</b> 写进场景）。</summary>
         [SerializeField] GameObject chemPlantYardPrefab;
 
+        /// <summary>第 5 关「废弃化工厂·六件并行版」的整场件（FBX 本体；六件并行 kit 的总装件，
+        /// 装配器 <c>PirateCrew.EditorTools.PixelartChemPlantTeamSetup</c> 同源的另一条关卡线）。</summary>
+        [SerializeField] GameObject chemPlantTeamYardPrefab;
+
         [Tooltip("超美空岛根（场景内静态物，由 FloatingIslandShowcaseMenu.PlaceIntoBattleCenter 烘进场景）。"
             + "只有样板第 3 关激活，其余关卡隐藏。")]
         [SerializeField] GameObject skyIslandRoot;
@@ -135,6 +139,7 @@ namespace PirateCrew.Battle
                 case ShowcasePieceId.CloudField: return cloudFieldPrefab;
                 case ShowcasePieceId.DangerBorder: return dangerBorderPrefab;
                 case ShowcasePieceId.ChemPlantYard: return chemPlantYardPrefab;
+                case ShowcasePieceId.ChemPlantTeamYard: return chemPlantTeamYardPrefab;
                 default: return null;
             }
         }

@@ -40,7 +40,7 @@ namespace PirateCrew.Battle.Tests
                 + "清单必须落在 Assets/Data/Levels/Resources/ 下才会进构建包");
 
             Assert.That(catalog.WorldMaps.Count, Is.EqualTo(8), "清单里的海图数不对");
-            Assert.That(catalog.Levels.Count, Is.EqualTo(3), "清单里的关卡数不对（关卡 2 已删除；现存 1、3、4）");
+            Assert.That(catalog.Levels.Count, Is.EqualTo(4), "清单里的关卡数不对（关卡 2 已删除；现存 1、3、4、5）");
 
             for (int i = 0; i < catalog.WorldMaps.Count; i++)
                 Assert.That(catalog.WorldMaps[i], Is.Not.Null, "清单 worldMaps[" + i + "] 是空引用");
