@@ -69,24 +69,34 @@ namespace PirateCrew.CharCamDebug
         }
 
         // ------------------------------------------------------------------
-        // 默认参数（= CrewVisualPrefabBuilder 现役两件式值 + 关卡现役机位）
+        // 默认参数（创始人 2026-09-29 在调试场定的默认档；正式角色常量仍以
+        // CrewVisualPrefabBuilder 为准——这里是调试场的起始状态，不是造型裁决）
         // ------------------------------------------------------------------
 
-        /// <summary>默认身体顶半径（= Builder <c>BodyTopRadius</c> 0.35）。</summary>
-        public const float DefaultTopRadius = 0.35f;
-        /// <summary>默认身体底半径（= Builder <c>BodyBottomRadius</c> 0.4667）。</summary>
-        public const float DefaultBottomRadius = 0.4667f;
-        /// <summary>默认身体高度（= Builder <c>BodyHeight</c> 1.20）。</summary>
-        public const float DefaultBodyHeight = 1.20f;
-        /// <summary>默认头部半径（= Builder <c>HeadSphereRadius</c> 0.35）。</summary>
-        public const float DefaultHeadRadius = 0.35f;
+        /// <summary>默认身体顶半径。</summary>
+        public const float DefaultTopRadius = 0.3f;
+        /// <summary>默认身体底半径。</summary>
+        public const float DefaultBottomRadius = 0.3f;
+        /// <summary>默认身体高度。</summary>
+        public const float DefaultBodyHeight = 1.3215f;
+        /// <summary>默认头部半径。</summary>
+        public const float DefaultHeadRadius = 0.3f;
+        /// <summary>默认头颈间距（正 = 头上拉，0 = Godot 重叠口径）。</summary>
+        public const float DefaultHeadLift = 0.1606f;
         /// <summary>默认可见米数：游戏内特写档 14m（`PixelartLevelScene` 现役三档 32/14/7 的中档，
         /// 与游戏内正交档 7 的可见高度一致）。</summary>
         public const float DefaultVisibleMeters = 14f;
+        /// <summary>调试场默认像素档 3×。**只管本场景的起始档**，与出图契约
+        /// `PixelartPilotScene.PixelScale`（2×）是两回事——调试场按创始人习惯档起步。</summary>
+        public const int DefaultPixelScale = 3;
         /// <summary>默认俯角（30° = 规则像素阶梯，`PixelartPilotScene.PitchDegrees` 同源）。</summary>
         public const float DefaultPitchDegrees = 30f;
-        /// <summary>默认方位角（45° = 对称菱形，`PixelartPilotScene.AzimuthDegrees` 同源）。</summary>
-        public const float DefaultAzimuthDegrees = 45f;
+        /// <summary>默认方位角。</summary>
+        public const float DefaultAzimuthDegrees = 6.6f;
+        /// <summary>默认内线降档系数（阈值 = 本值 ÷ 2）。</summary>
+        public const float DefaultAaScaler = 0.69f;
+        /// <summary>默认抖动档（1 = Bayer 渐变态）。</summary>
+        public const int DefaultDitherMode = 1;
 
         // ------------------------------------------------------------------
         // 场景引用（装配器接线）
@@ -125,7 +135,7 @@ namespace PirateCrew.CharCamDebug
         [Min(1f)] public float visibleMeters = DefaultVisibleMeters;
         [Tooltip("像素档位（一个艺术像素占几个屏幕像素，2–5）。")]
         [Range(PixelartCameraRig.PixelScaleMin, PixelartCameraRig.PixelScaleMax)]
-        public int pixelScale = PixelartPilotScene.PixelScale;
+        public int pixelScale = DefaultPixelScale;
         [Tooltip("俯角（度）。30° = 地面轴屏幕斜率 0.5（规则像素阶梯）。")]
         [Range(10f, 70f)] public float pitchDegrees = DefaultPitchDegrees;
         [Tooltip("方位角（度）。45° = 对称菱形。")]
@@ -135,18 +145,18 @@ namespace PirateCrew.CharCamDebug
         [Tooltip("渲染路径：0 = 像素化着色路径（现役）；1 = URP 原生平滑渲染（对照档：rig 停用 + 材质换 URP/Lit）。")]
         [Range(0, 1)] public int renderPath;
         [Tooltip("抖动：0 = 关；1 = Bayer 4×4（渐变态）；2 = 1-bit 密度图案（v3 两态撕边）。")]
-        [Range(0, 2)] public int ditherMode;
+        [Range(0, 2)] public int ditherMode = DefaultDitherMode;
         [Tooltip("色带档数（主光 quantization 档）。")]
         [Range(2, 4)] public int bandCount = 3;
         [Tooltip("描边总开关（地面恒不描边——铺满画面的大平面加轮廓线只会全屏糊边，见实现口径 §4.1）。")]
         public bool outlineOn = true;
         [Tooltip("边缘光：拨亮逐物体 _RimLightColor（白）。")]
         public bool rimOn;
-        [Tooltip("连通域降档阈值系数（rig.aaScaler）：0 = 内线降档永不成立（降档 A/B 的 B 图口径）。")]
-        [Range(0f, 2f)] public float aaScaler = 1.5f;
+        [Tooltip("连通域降档阈值系数（rig.aaScaler）：0 = 内线降档永不成立（降档 A/B 的 B 图口径）。看内线请先关抖动——抖动会把色带差异打碎。")]
+        [Range(0f, 2f)] public float aaScaler = DefaultAaScaler;
         [Tooltip("主光强度乘数（rig.lightIntensity，色带亮度整体旋钮）。")]
         [Range(0f, 2f)] public float lightIntensity = 1f;
-        [Tooltip("太阳实时投影（硬阴影）。默认关：大平面自遮挡的调参尾巴未收，开着暗面判读会混进阴影偏差。")]
+        [Tooltip("太阳实时投影（硬阴影）。默认关：开着会改暗面判读；打开时自动切小物件口径的 bias（装配默认 0.65 法线偏置是 160m 大平面的口径，会把 2m 角色的影子推没）。")]
         public bool sunShadowsOn;
         [Tooltip("太阳（留空用 RenderSettings.sun 兜底，与 rig.PushLightGlobals 同口径）。")]
         public Light sun;
@@ -301,7 +311,22 @@ namespace PirateCrew.CharCamDebug
 
             Light sunLight = sun != null ? sun : RenderSettings.sun;
             if (sunLight != null)
-                sunLight.shadows = sunShadowsOn ? LightShadows.Hard : LightShadows.None;
+            {
+                // 开投影同步切**小物件口径**的 bias：装配默认 0.06/0.65 是 160m 大平面压自遮挡的
+                // 口径（PixelartStageKit），对 2m 角色会把投影沿法线推淡到不可辨——这正是
+                // "投影开关像没用"的根因。小件口径 0.02/0.05 影子才落得住；本场的太阳是
+                // 场景私有实例，直接改无外溢。
+                if (sunShadowsOn)
+                {
+                    sunLight.shadows = LightShadows.Hard;
+                    sunLight.shadowBias = 0.02f;
+                    sunLight.shadowNormalBias = 0.05f;
+                }
+                else
+                {
+                    sunLight.shadows = LightShadows.None;
+                }
+            }
 
             if (_urpModeActive)
                 return;   // 对照档下材质是 URP 代理，像素化旋钮暂不生效（面板上已禁用）
@@ -399,13 +424,21 @@ namespace PirateCrew.CharCamDebug
             bottomRadius = DefaultBottomRadius;
             bodyHeight = DefaultBodyHeight;
             headRadius = DefaultHeadRadius;
-            headLift = 0f;
+            headLift = DefaultHeadLift;
             visibleMeters = DefaultVisibleMeters;
-            pixelScale = PixelartPilotScene.PixelScale;
+            pixelScale = DefaultPixelScale;
             pitchDegrees = DefaultPitchDegrees;
             azimuthDegrees = DefaultAzimuthDegrees;
+            ditherMode = DefaultDitherMode;
+            bandCount = 3;
+            outlineOn = true;
+            rimOn = false;
+            aaScaler = DefaultAaScaler;
+            lightIntensity = 1f;
+            sunShadowsOn = false;
             _meshDirty = true;
             _cameraDirty = true;
+            _styleDirty = true;
         }
 
         /// <summary>当前参数导成文本（可整段贴进 CrewVisualPrefabBuilder / 装配器常量对照）。</summary>
@@ -515,23 +548,21 @@ namespace PirateCrew.CharCamDebug
 
             GUILayout.BeginHorizontal();
             GUILayout.Label("渲染路径", GUILayout.Width(88f));
-            bool wantPixel = GUILayout.Toggle(renderPath == 0, "像素化");
-            bool wantUrp = GUILayout.Toggle(renderPath == 1, "URP 原生");
+            int newPath = renderPath;
+            newPath = MutuallyExclusive(renderPath, 0, GUILayout.Toggle(renderPath == 0, "像素化")) ? 0 : newPath;
+            newPath = MutuallyExclusive(renderPath, 1, GUILayout.Toggle(renderPath == 1, "URP 原生")) ? 1 : newPath;
             GUILayout.EndHorizontal();
-            if (wantPixel != (renderPath == 0) || wantUrp != (renderPath == 1))
-            {
-                renderPath = wantUrp ? 1 : 0;
-                _pathDirty = true;
-            }
+            if (newPath != renderPath) { renderPath = newPath; _pathDirty = true; }
 
             // 像素化路径内的旋钮：URP 对照档下无意义，整组禁用。
             GUI.enabled = renderPath == 0;
 
             GUILayout.BeginHorizontal();
             GUILayout.Label("抖动", GUILayout.Width(88f));
-            int newDither = GUILayout.Toggle(ditherMode == 0, "关") ? 0 : ditherMode;
-            newDither = GUILayout.Toggle(ditherMode == 1, "Bayer") ? 1 : newDither;
-            newDither = GUILayout.Toggle(ditherMode == 2, "密度") ? 2 : newDither;
+            int newDither = ditherMode;
+            newDither = MutuallyExclusive(ditherMode, 0, GUILayout.Toggle(ditherMode == 0, "关")) ? 0 : newDither;
+            newDither = MutuallyExclusive(ditherMode, 1, GUILayout.Toggle(ditherMode == 1, "Bayer")) ? 1 : newDither;
+            newDither = MutuallyExclusive(ditherMode, 2, GUILayout.Toggle(ditherMode == 2, "密度")) ? 2 : newDither;
             GUILayout.EndHorizontal();
             if (newDither != ditherMode) { ditherMode = newDither; _styleDirty = true; }
 
@@ -539,7 +570,7 @@ namespace PirateCrew.CharCamDebug
             GUILayout.Label("色带档数", GUILayout.Width(88f));
             int newBand = bandCount;
             for (int level = 2; level <= 4; level++)
-                newBand = GUILayout.Toggle(bandCount == level, level + " 档") ? level : newBand;
+                newBand = MutuallyExclusive(bandCount, level, GUILayout.Toggle(bandCount == level, level + " 档")) ? level : newBand;
             GUILayout.EndHorizontal();
             if (newBand != bandCount) { bandCount = newBand; _styleDirty = true; }
 
@@ -563,6 +594,12 @@ namespace PirateCrew.CharCamDebug
             bool newShadow = GUILayout.Toggle(sunShadowsOn, sunShadowsOn ? "硬阴影" : "关");
             GUILayout.EndHorizontal();
             if (newShadow != sunShadowsOn) { sunShadowsOn = newShadow; _styleDirty = true; }
+
+            // 链路反馈：旋钮有没有真的落到 rig / 光上，一行可判（不用对着画面猜）。
+            Light sunNow = sun != null ? sun : RenderSettings.sun;
+            GUILayout.Label($"  内线阈值 {rig.AAThreshold:0.###}｜光强乘数 {rig.lightIntensity:0.##}｜太阳投影 "
+                + (sunNow != null && sunNow.shadows != LightShadows.None
+                    ? $"开（bias {sunNow.shadowBias:0.###}/normal {sunNow.shadowNormalBias:0.###}）" : "关"));
 
             GUILayout.Space(6f);
             GUILayout.Label("—— 读数 ——");
@@ -597,6 +634,20 @@ namespace PirateCrew.CharCamDebug
                 GoBackToMainMenu();
 
             GUI.DragWindow();
+        }
+
+        /// <summary>
+        /// 互斥选中项的点击判定（纯函数）：<paramref name="clicked"/> 是 Toggle 的**返回值**，
+        /// 只有当它不等于该项当前的选中态时才代表用户**真的点了它**。
+        ///
+        /// 【为什么需要它】未被点击的 Toggle 返回它的 value 参数——旧写法
+        /// <c>new = Toggle(current == level) ? level : new</c> 里，**当前选中项**的 Toggle
+        /// 每帧都返回 true、把同帧刚点下的新值覆盖回去：3 档时点「2 档」永远落回 3、
+        /// 抖动「密度」时点「关」永远回不来——"调不了 2 / 调不回去"就是它。
+        /// </summary>
+        static bool MutuallyExclusive(int current, int candidate, bool clicked)
+        {
+            return clicked != (current == candidate);
         }
 
         /// <summary>标签 + 数值 + 滑杆一行；变化时置脏并返回新值。</summary>

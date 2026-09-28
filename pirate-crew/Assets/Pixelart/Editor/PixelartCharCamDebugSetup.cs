@@ -73,6 +73,10 @@ namespace PirateCrew.EditorTools
                 root.transform, ground);
             groundMesh.transform.localPosition = Vector3.zero;
             groundMesh.transform.localScale = new Vector3(4f, 1f, 4f);   // Plane 图元 10×10
+            // 大平面只做接收者不投影：40m 地面进阴影贴图必自遮挡（CreateSunAndAmbient 注释的教训），
+            // 且场内没有比它高的东西——它的"投影"只有噪声。
+            groundMesh.GetComponent<MeshRenderer>().shadowCastingMode
+                = UnityEngine.Rendering.ShadowCastingMode.Off;
 
             // ---------------- 参照件（实物标尺：读"角色占多少艺术像素"时的 1m/2m 基准）----------------
             PixelartStageKit.AddBox(root.transform, "ReferenceCube1m",
