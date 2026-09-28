@@ -550,7 +550,7 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>写编辑器 Build Settings——清单单一真源在
-        /// <see cref="BuildScenes.EditorRegistrationScenes"/>（发行集 + UIShowcase）。</summary>
+        /// <see cref="BuildScenes.EditorRegistrationScenes"/>（发行集，已含 UIShowcase）。</summary>
         static void RegisterBuildSettings()
         {
             EditorBuildSettings.scenes = BuildSystem.BuildScenes.EditorRegistrationScenes();

@@ -78,6 +78,7 @@ namespace PirateCrew.EditorTools.BuildSystem
             SceneNames.Battle,
             SceneNames.CrewManagement,
             SceneNames.LevelSelect,
+            SceneNames.UIShowcase,     // 主菜单「组件展示」钮运行时按名载入 ⇒ 发行集必须含它
         };
 
         /// <summary>仅开发/测试集：发行包不含，Build Settings 需要含（播放器出图入口依赖）。</summary>
@@ -120,17 +121,15 @@ namespace PirateCrew.EditorTools.BuildSystem
         }
 
         /// <summary>
-        /// 编辑器 Build Settings 登记集（发行集 + UIShowcase——主菜单「组件展示」钮运行时按名载入）。
+        /// 编辑器 Build Settings 登记集（= 发行集，已含 UIShowcase——主菜单「组件展示」钮
+        /// 运行时按名载入，故它在 <see cref="_releaseSceneNames"/> 里）。
         /// **场景装配器的唯一写表出口**：SceneSetup / ManagementSceneSetup / BattleSceneSetup
         /// 的 RegisterBuildSettings 一律调 <see cref="EditorRegistrationScenes"/>，不许自带清单
         /// （三处硬编码互相覆盖砍掉 UIShowcase 四次的教训，2026-09-28 收口）。
         /// </summary>
         public static string[] EditorRegistrationSet()
         {
-            var names = new string[_releaseSceneNames.Length + 1];
-            _releaseSceneNames.CopyTo(names, 0);
-            names[_releaseSceneNames.Length] = SceneNames.UIShowcase;
-            return names;
+            return ReleaseSet();
         }
 
         /// <summary><see cref="EditorRegistrationSet"/> 的 EditorBuildSettingsScene 形态（全部 enabled）。</summary>
