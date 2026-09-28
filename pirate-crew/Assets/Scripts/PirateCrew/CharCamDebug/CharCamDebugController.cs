@@ -1,4 +1,5 @@
 using UnityEngine;
+using PirateCrew.Core;
 using PirateCrew.Rendering.Pixelart;
 using PirateCrew.Visual;
 
@@ -269,6 +270,28 @@ namespace PirateCrew.CharCamDebug
         {
             if (Input.GetKeyDown(KeyCode.F1))
                 showPanel = !showPanel;
+            if (Input.GetKeyDown(KeyCode.Escape))
+                GoBackToMainMenu();
+        }
+
+        /// <summary>
+        /// 返回来源场景：从主菜单「调试菜单 → 角色镜头调试场」跳进来时，SceneLoader 的返回栈里
+        /// 就是主菜单（GoBack 弹栈回去）；编辑器直接 Play 本场景则栈空，退而直接跳主菜单
+        /// （按 <see cref="SceneLoader.StackDepth"/> 分流，不发空 GoBack——栈空它只告警不动作）。
+        /// </summary>
+        void GoBackToMainMenu()
+        {
+            SceneLoader loader = SceneLoader.Instance;
+            if (loader == null)
+            {
+                Debug.LogWarning("[CharCamDebugController] SceneLoader 服务不在（脱离 Bootstrapper 运行？），无法跳转。");
+                return;
+            }
+
+            if (loader.StackDepth > 0)
+                loader.GoBack();
+            else
+                loader.ChangeScene(SceneNames.MainMenu);
         }
 
         void DrawPanel(int windowId)
@@ -329,6 +352,10 @@ namespace PirateCrew.CharCamDebug
             if (GUILayout.Button("隐藏 (F1)"))
                 showPanel = false;
             GUILayout.EndHorizontal();
+
+            GUILayout.Space(4f);
+            if (GUILayout.Button("返回主菜单 (Esc)"))
+                GoBackToMainMenu();
 
             GUI.DragWindow();
         }
