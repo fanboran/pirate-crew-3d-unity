@@ -1,5 +1,13 @@
 # tools/blender/scene/chemplant —— 第三样板关「废弃化工厂」无头建模管线
 
+> **本目录有两套并行的化工厂 kit**（同一次委托下的两条路线，都已入库）：
+> ① **六件并行分件式（本文件所述，主线）**：`kit_common.py` + `mod_{site,towers,tanks,pipes,building,props}.py`
+>    + `assemble_chemplant.py`（56 × 40 m 一整场 / 223,240 三角面 / 18 槽）；
+> ② **单文件式**：`chemplant_kit.py`（13 件构件 + 场地总装 / 71 × 48 m / 59,986 三角面 / 16 槽），
+>    原 README 移存 [`chemplant_kit-README.md`](chemplant_kit-README.md)（口径不丢）。
+> 两套都用同一批 `Kit_*` 工业槽、都零贴图；Unity 侧像素试点场景名同为 `PixelartChemPlant`
+> （装配器分别是 `PixelartChemPlantSetup` 与本目录的六件版装配器，**后烘者覆盖场景资产**）。
+>
 > **这份目录解决什么问题**：做**一个整场景样板关**——废弃化工厂 + 旁边的办公楼，56 × 40 m 的完整厂区
 > （主装置区 / 罐区 / 管廊 / 旁楼 / 场地 / 杂物六件），由 6 名建模队员（Agent）**并行分件建模**、
 > 协调者总装导出 FBX 并出成品图。管线仍是 `tools/blender/scene/` 那套：Blender 无头 + 纯程序化 +
@@ -148,5 +156,4 @@ FBX 的 −Z → Unity 经 `bakeAxisConversion=true` 折算后朝 **Unity +Z**�
    但没有强类型保护——用之前先读签名。
 6. **能力缺口（非缺陷，用之前知道就行）**：`revolve` 只绕 Z 轴（卧式封头要自己 `m.add` 拼）、
    `flange` 只朝 +Z（侧向法兰用 `cyl(ry=π/2)`）——本轮塔王/破烂王各自在本地文件里补了这两手。
-
 
