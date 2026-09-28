@@ -4,12 +4,12 @@
 
 > Unity 2022.3 写实 PBR 重制 · 向 Nitrome《Mutiny》（中译《海盗军团抢宝藏》）致敬的 3D 学习重制 · 求职作品集项目（非商业）
 >
-> **当前版本 v0.2.2** · [下载 Windows 版](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.2.2) · 1P vs AI / 2P 同屏热座
+> **当前版本 v0.3.0** · [下载 Windows 版](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.3.0) · 1P vs AI / 2P 同屏热座
 
 [![Unity](https://img.shields.io/badge/Unity-2022.3-black?logo=unity)](https://unity.com)
 [![URP](https://img.shields.io/badge/%E6%B8%B2%E6%9F%93-URP_14%E5%86%99%E5%AE%9EPBR-blue)](https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@14)
 [![Tests](https://img.shields.io/badge/%E6%B5%8B%E8%AF%95-1161%E6%9D%A1%E5%85%A8%E7%BB%BF-green)](#质量工程)
-[![Release](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-v0.2.2-orange)](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.2.2)
+[![Release](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-v0.3.0-orange)](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.3.0)
 
 ---
 
@@ -89,7 +89,7 @@
 
 ## 运行
 
-**玩（推荐）**：从 [Releases](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.2.2) 下载 `PirateCrew3D_v0.2.2_win64.zip`，解压双击 `PirateCrew3D.exe`。
+**玩（推荐）**：从 [Releases](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.3.0) 下载 `PirateCrew3D_v0.3.0_win64.zip`，解压双击 `PirateCrew3D.exe`。
 
 **从源码跑**：Unity Hub 打开 `pirate-crew/` 子目录（**不是仓库根**），Unity 2022.3.62f1c1，菜单 `PirateCrew → 管线 → 一键构建全部资产与场景`（可选），Play `Bootstrapper` 场景。
 
@@ -122,7 +122,8 @@ pirate-crew/Assets/
 
 ## 开发状态与路线图
 
-- ✅ **v0.2.2（当前）**：武器/职业 UI 图标真像素化（96 源 → 16 艺术像素 BOX 降采样 → 最近邻 1:1 回放）+
+- ✅ **v0.3.0（当前）**：UI 系统重构（Aseprite 参考库复刻三层：部件/状态映射/对话框装载，菜单滚动/键盘导航/组合框/entry 编辑路径全量移植）、相机重构（去 Cinemachine，正交档位 + 观察模式鼠标转视角）、r13 2:1 档位回归修正（描边内缝/高光带归零/角色微调/像素场景档位 3→2 契约钉）、全仓死码清理（准星点选整套退役，选中交互改鼠标直接点选方向）、PBR 根除全 C# 换血；
+- ✅ **v0.2.2**：武器/职业 UI 图标真像素化（96 源 → 16 艺术像素 BOX 降采样 → 最近邻 1:1 回放）+
   HUD 全几何吸附 3px 艺术像素栅格（Safe/面板宽/单元格/右列/队血条/徽章/模式钮）；
 - ✅ **v0.2.1**：
 - ✅ **v0.2.0**：全 UI 切 Beveled Pixel 像素皮 + 满精度像素字体（FusionPixel 12px 正文 @36 / ArkPixel 10px 小字 @30）、组件展示实机窗口、游戏本体接像素化渲染管线（640×360 RT 整数放大、UI 与 3D 同颗粒度）、战斗 HUD 紧凑化、版本号单一真源贯通到主菜单显示；
