@@ -36,8 +36,9 @@ namespace PirateCrew.EditorTools
     ///   于是等比缩放系数 k = <see cref="TargetUnitHeight"/> / 1.85 = 1，两件式尺寸即 Godot 原值：
     ///   <list type="bullet">
     ///   <item>Body 圆台柱 = 顶 r <see cref="BodyTopRadius"/> 0.35（Godot <c>top_radius 0.35</c>）
-    ///         / 底 r <see cref="BodyBottomRadius"/> **0.46**（Godot 是 0.40——这一项按创始人 2026-09-22
-    ///         裁决有意放大，理由见该常量的注释）/ 高 <see cref="BodyHeight"/> 1.20，底面贴脚底 y=0；</item>
+    ///         / 底 r <see cref="BodyBottomRadius"/> **0.4667**（Godot 是 0.40——这一项按创始人
+    ///         2026-09-22 裁决放大出台柱感、2026-09-28 微调对齐艺术像素网格，理由见该常量的注释）/
+    ///         高 <see cref="BodyHeight"/> 1.20，底面贴脚底 y=0；</item>
     ///   <item>Head 圆球 = Godot <c>SphereMesh(radius 0.35, height 0.7)</c> × k → r <see cref="HeadSphereRadius"/> 0.35，
     ///         球心 y <see cref="HeadSphereCenterY"/> 1.50（球底 1.15 与柱顶 1.20 微叠 0.05，与 Godot 的
     ///         `1.2/2 − 0.7/2 = 0.05` 一致；总高 = 1.50 + 0.35 = 1.85）。</item>
@@ -143,20 +144,20 @@ namespace PirateCrew.EditorTools
         static readonly float BodyTopRadius = 0.35f * GodotScale;
 
         /// <summary>
-        /// Body 圆台柱底半径 = **0.46**（顶 r 0.35 / 高 1.20）→ 上窄下宽。
+        /// Body 圆台柱底半径 = **0.4667**（直径 0.9333；顶 r 0.35 / 高 1.20）→ 上窄下宽。
         ///
-        /// 【与 Godot 基准的**有意偏离**（创始人裁决 2026-09-22）】Godot <c>pirate.tscn</c> 是
-        /// <c>bottom_radius 0.4</c>（锥度 0.35/0.40 = 0.875），像素化路径下**读不出台柱形**：
-        /// 中机位（可见 18m）里角色只有 15 个艺术像素高、9 个宽，上下口径差 2 个艺术像素不变；
-        /// 实测结论见 <c>docs/images/pixelart-path/r6/README.md</c> §2（"角色没台柱感"= 取景/锥度问题）。
-        /// 创始人原话「台柱下直径稍微改大一圈」⇒ 只放大底径、顶径与总高不动：
-        /// **底径 0.80 → 0.92（+15%）、锥度 0.35/0.46 = 0.761**（上下口径差 3.7 个艺术像素）。
+        /// 【与 Godot 基准的**有意偏离**（创始人裁决 2026-09-22 定台柱感，本次 2026-09-28 微调对齐
+        /// 艺术像素网格）】Godot <c>pirate.tscn</c> 是 <c>bottom_radius 0.4</c>（锥度 0.35/0.40 = 0.875），
+        /// 像素化路径下**读不出台柱形**（r6 实测，见该轮 README §2）。0.92 直径在中机位落在半像素上
+        /// （35.5 px@1:2 / 23.7 px@1:3），剪影宽度随亚像素相位抖；0.9333 直径在特写档（可见 14m）
+        /// 恰为 **36.0 px@1:2、24.0 px@1:3——两种像素档全整数**，锥度 0.35/0.4667 = **0.750 整比**，
+        /// 观感与 0.92 不可分（差 0.0133 ≈ 0.5 细像素）。台柱感裁决不变：只放大底径、顶径与总高不动。
         ///
         /// 【为什么只动底径】角色造型的其余部分（球头 r 0.35、总高 1.85、脚底贴地）是
-        /// 2026-09-14 的裁决项；本次是创始人**就"台柱感"这一条**给出的定向修正，不是重开造型。
-        /// 碰撞足迹仍由根级 BoxCollider 决定（0.375×0.5×0.375），**与视觉宽度无关**。
+        /// 2026-09-14 的裁决项。碰撞足迹仍由根级 BoxCollider 决定（0.375×0.5×0.375），
+        /// **与视觉宽度无关**。
         /// </summary>
-        static readonly float BodyBottomRadius = 0.46f * GodotScale;
+        static readonly float BodyBottomRadius = 0.4667f * GodotScale;
 
         /// <summary>Body 圆台柱高 = 1.20 × k = **1.20**，底面贴脚底（局部 y 0..1.20）。</summary>
         static readonly float BodyHeight = 1.20f * GodotScale;
@@ -171,24 +172,31 @@ namespace PirateCrew.EditorTools
         /// </summary>
         static readonly float HeadSphereCenterY = 1.50f * GodotScale;
 
-        /// <summary>圆台柱侧壁分段（任务给定 16；三角面 = 侧壁 32 + 上下盖 32 = 64）。</summary>
+        /// <summary>圆台柱侧壁分段（16；三角面 = 侧壁 32 + 上下盖 32 = 64）。底缘弦长 6.9 px@1:2 特写，
+        /// 12 段以下剪影棱边在特写档可辨（&gt;0.6 px 偏差），保持 16。</summary>
         const int GodotBodySides = 16;
 
-        /// <summary>球经向分段（任务给定 16）。</summary>
-        const int GodotHeadSegments = 16;
+        /// <summary>
+        /// 球经向分段 = **12**（原 16）。像素感口径（创始人 2026-09-28 令"建模微调产生像素感"）：
+        /// 16×12 的面片在 1:2 特写档只有 3.5×5.3 px、在 1:3 与全场档跌破 1 px——面片小于艺术像素
+        /// 等于白费三角面，还让色带/内线沿 11 条纬棱碎成细噪。12×8 的面片 3.5×5.3 px@1:2 特写、
+        /// ≥1.45 px@全场档，剪影偏差 ≤0.26 px（27 px 圆头上不可辨，圆头轮廓裁决不变），
+        /// 三角面 352 → 168（−52%），色带 3 档对 8 环 = 每档约 2.7 行，阶梯变整。
+        /// </summary>
+        const int GodotHeadSegments = 12;
 
-        /// <summary>球纬向分段（任务给定 12；三角面 = 2×16×(12−1) = 352）。</summary>
-        const int GodotHeadRings = 12;
+        /// <summary>球纬向分段 = **8**（原 12；三角面 = 2×12×(8−1) = 168）。依据见 <see cref="GodotHeadSegments"/>。</summary>
+        const int GodotHeadRings = 8;
 
         // ------------------------------------------------------------------
         // 本文件追加的资产键（**不登记进 CrewMeshLibrary**，
         // 以免动到预算镜像表 CrewMeshLibrary.CountPartInstances 的既有断言）
         // ------------------------------------------------------------------
 
-        /// <summary>两件式 Body 圆台柱（顶 r 0.35 / 底 r 0.46 / h 1.20，16 段；底径见常量注释）。</summary>
+        /// <summary>两件式 Body 圆台柱（顶 r 0.35 / 底 r 0.4667 / h 1.20，16 段；底径见常量注释）。</summary>
         const string BodyFrustumKey = "CrewBodyFrustum";
 
-        /// <summary>两件式 Head 圆球（r 0.35，16×12）。</summary>
+        /// <summary>两件式 Head 圆球（r 0.35，12×8）。</summary>
         const string HeadSphereKey = "CrewHeadSphere";
 
         // ------------------------------------------------------------------
