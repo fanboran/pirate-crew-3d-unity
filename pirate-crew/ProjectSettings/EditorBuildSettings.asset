@@ -23,4 +23,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/UIShowcase.unity
     guid: eb4b0ba634782204ba01a12677d99a3d
+  - enabled: 1
+    path: Assets/Scenes/PixelartChemPlant.unity
+    guid: 8f048d726bff797429c3d297eb339259
   m_configObjects: {}
