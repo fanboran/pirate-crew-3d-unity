@@ -44,7 +44,7 @@ Material:
     - _NormalEdgeThreshold: 0.5
     - _OutlinePixels: 1
     - _Priority: 0
-    - _Smoothness: 0.25
+    - _Smoothness: 0
     - _SnapToPixelGrid: 1
     m_Colors:
     - _BaseColor: {r: 0.65882355, g: 0.4392157, b: 0.24705882, a: 1}
