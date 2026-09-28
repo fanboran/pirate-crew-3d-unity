@@ -91,7 +91,10 @@ namespace PirateCrew.Rendering.Pixelart
         ///   <item>`_NormalEdgeLevel/Threshold` = 0.5：连通域判出"单元内法线差超阈值"时给该像素加半档
         ///         （内部转折提亮，靠的是连通域那份数据）；</item>
         ///   <item>`_AAScale` = 1：连通域降档门控不缩放（v3 的 `_AAScale` 同义）；</item>
-        ///   <item>`_Smoothness` 0.25 / `_Metallic` 0：高光那趟的输入，取值保守（高光一重就压过色带）；</item>
+        ///   <item>`_Smoothness` = **0**：本路径的高光趟（`PixelartSpecular`）对 `pow(NdotH, exp)`
+        ///         做两档量化后**乘 `_Smoothness`**——地面/海面这类大平面上，相机方位一转 NdotH 就
+        ///         扫过量化的 floor 边界，高光带整档跳变（创始人报的"地面反太阳光、旋转时颜色骤变"）。
+        ///         置 0 高光项代数上恒为 0，纯色带卡通的物体一律无镜面；`_Metallic` 0（无金属反射色）。</item>
         ///   <item>`_RimLightColor` = 黑：本物体不出边缘光（改画面要有理由，验证通路才拨亮）；</item>
         ///   <item>`_SnapToPixelGrid` = 1：物体级像素吸附（v3 CommonPass 的第二层）。</item>
         /// </list>
@@ -109,7 +112,7 @@ namespace PirateCrew.Rendering.Pixelart
             material.SetFloat("_NormalEdgeLevel", 0.5f);
             material.SetFloat("_NormalEdgeThreshold", 0.5f);
             material.SetFloat("_AAScale", 1f);
-            material.SetFloat("_Smoothness", 0.25f);
+            material.SetFloat("_Smoothness", 0f);
             material.SetFloat("_Metallic", 0f);
             material.SetColor("_RimLightColor", Color.black);
             material.SetFloat("_OutlinePixels", outlinePixels);

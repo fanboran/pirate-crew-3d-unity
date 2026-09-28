@@ -293,24 +293,27 @@ namespace PirateCrew.EditorTools
         /// "GI 用扁平环境光"（v3 的暗面来自 SH）。**不能给太小**：旧链取 #1A1E28 是有配套的
         /// （它的暗部是材质上的**替换式暗部色** `_ShadowColor`），本路径暗面 = albedo × 环境色，
         /// 压到 #1A1E28 时暗面与墨线几乎同值、轮廓线和暗面糊成一片。**也不能给太大**：
-        /// 加法环境光会抬平明暗跨度。#3A4760 让暗面落在 sRGB 0.2 上下——明显暗于亮面、又明显亮于墨线。
-        /// 这一条是**美术旋钮**（改这里即整体调暗部亮度），不是机制。
+        /// 加法环境光会抬平明暗跨度。#37486B 让暗面落在 sRGB 0.2 上下——明显暗于亮面、又明显亮于墨线；
+        /// 相比早期的中性 #3A4760 只做了**同明度的蓝移**（亮度权重差 &lt;1%）：暗面带一点天光冷调，
+        /// 与暖主光拉开"亮暖暗冷"，是美术旋钮（改这里即整体调暗部色相/亮度），不是机制。
         /// </summary>
         public static Light CreateSunAndAmbient(Transform parent)
         {
             var sunGo = new GameObject("PixelartSun");
             sunGo.transform.SetParent(parent);
-            sunGo.transform.rotation = Quaternion.Euler(58f, 140f, 0f);
+            // 光照取值是**装配契约常量**（运行时侧 PixelartSceneContract 单一真源）：
+            // 契约测试按它比对场景序列化值，别在这里另写一份字面量。
+            sunGo.transform.rotation = Quaternion.Euler(PixelartSceneContract.SunEulerDegrees);
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = Hex("FFF5E0");
+            sun.color = PixelartSceneContract.SunColor;
             sun.intensity = 1.1f;
             sun.shadows = LightShadows.None;
             sun.shadowStrength = 0.65f;
             RenderSettings.sun = sun;
 
             RenderSettings.ambientMode = AmbientMode.Flat;
-            RenderSettings.ambientLight = Hex("3A4760");
+            RenderSettings.ambientLight = PixelartSceneContract.AmbientColor;
             return sun;
         }
 

@@ -151,6 +151,11 @@ namespace PirateCrew.ArtReview
             if (string.IsNullOrEmpty(outDir))
                 return; // 正常启动：零开销，什么都不装。
 
+            // 【相对路径双基准陷阱】`Directory.CreateDirectory` 按**进程 CWD** 解析相对路径，
+            // 而 Unity 的 `ScreenCapture` 按**播放器自身的 Data 目录**解析——传相对路径会
+            // "目录建在 A 处、截图写往 B 处"，全部静默丢失（2026-09-28 实测）。入口处统一转绝对。
+            outDir = Path.GetFullPath(outDir);
+
             if (CommandLineOptions.TryGetInt(ToolFlags.ArtReviewLevel, out int levelArg)
                 && levelArg >= 1 && levelArg <= SceneArt.ShowcaseLevels.LastLevel)
             {
