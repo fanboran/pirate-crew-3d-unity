@@ -121,6 +121,12 @@ namespace PirateCrew.Rendering.Pixelart
             // 竖直 6 的来路：场地地坪 0、最高件（烟囱 26.5 / 冷却塔 22.5）拉高剪影，
             // 质量重心在 0–15 m 之间，取 6 = "场地中低部 + 略高于人眼"，与样板关取眼位同一个读法。
             new View(4,   "PixelartChemPlant", new Vector3(0f, 6f, 0f),     32f, 14f, 7f),
+            // 第 5 关「废弃化工厂 · 六件并行版」（**提案/待定**）：内容来自 Blender 六件并行分件式 kit
+            // （`tools/blender/scene/chemplant/`）的总装件 `Assets/Art/Models/SceneKit/ChemPlant.fbx`
+            // （装配器 `PixelartChemPlantTeamSetup`）——**尚未接玩法数据**，这一行只服务
+            // 「这套观感用在这座 56×40 m 场地上的实机成图」。总装件原点 = 场地中心 ⇒ 场心 = 世界原点；
+            // 竖直 6 的读法与第 4 关相同（地坪 0、最高件（烟囱）26 m，取 6 = 场地中低部 + 略高于人眼）。
+            new View(5,   "PixelartChemPlantTeam", new Vector3(0f, 6f, 0f), 32f, 14f, 7f),
 
             // 海图：Target = (span/2, 3, span/2)；wide/mid/close = 32/14/7（**不随 span 缩放**，见类头）。
             // 【span 是横纵相同的正方形】（八张图 SpanX == SpanZ，`WorldMapCatalog` 契约里没有"必须相等"
