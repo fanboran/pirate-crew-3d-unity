@@ -82,6 +82,17 @@ SLOTS = {
     # 特殊【提】
     "Kit_Ember":      {"hex": "#FFB347", "roughness": 0.90},   # 篝火余烬亮色
     "Kit_Coral":      {"hex": "#E8845A", "roughness": 0.70},   # 珊瑚/贝彩点缀
+    # 工业/废弃【提】——第三样板关「废弃化工厂」用（kit: tools/blender/scene/chemplant/）
+    # Unity 侧同源表：pirate-crew/Assets/Editor/WorldMapAssetSetBuilder.cs（Slots）
+    "Kit_ConcreteLight": {"hex": "#C6C1B4", "roughness": 0.84},
+    "Kit_ConcreteMid":   {"hex": "#9E988A", "roughness": 0.84},
+    "Kit_ConcreteDark":  {"hex": "#6B665C", "roughness": 0.84},
+    "Kit_Rust":          {"hex": "#8C4A28", "roughness": 0.86},
+    "Kit_RustDark":      {"hex": "#5A2F1A", "roughness": 0.88},
+    "Kit_SteelBlue":     {"hex": "#4E6270", "roughness": 0.62},
+    "Kit_SteelPale":     {"hex": "#98A2A6", "roughness": 0.60},
+    "Kit_GlassDark":     {"hex": "#2E3A3E", "roughness": 0.35},
+    "Kit_PaintYellow":   {"hex": "#C9A63C", "roughness": 0.66},
     # 远景剪影（SceneArtPalette.cs:85-91；近→远两级 + 云/远帆）
     "Kit_FarNear":    {"hex": "#7E93A8", "roughness": 1.00},
     "Kit_FarFar":     {"hex": "#AFC2D4", "roughness": 1.00},
@@ -228,7 +239,12 @@ def setup_preview_world(scene):
 # 5. STAT 报告（每件资产导出后必须打印；入 kit README）
 # ---------------------------------------------------------------------------
 
-def print_stats(asset_name, objects, extra=None):
+def print_stats(asset_name, objects, extra=None, slot_limit=None):
+    """打印 STAT 行并返回统计。slot_limit 缺省 = SLOT_LIMIT_PER_ASSET（套件件纪律）。
+
+    整场总装件（一件 = 一整关，非 Unity 换装单元）可显式放宽：见 chemplant/README.md
+    「总装件槽上限」——总装 FBX 的槽数 = 各分件槽并集，天生超过 8。
+    """
     tri = 0
     for obj in objects:
         if obj.type != "MESH":
@@ -237,8 +253,9 @@ def print_stats(asset_name, objects, extra=None):
             tri += len(poly.vertices) - 2
     slots = sorted({ms.material.name for obj in objects if obj.type == "MESH"
                     for ms in obj.material_slots if ms.material is not None})
-    if len(slots) > SLOT_LIMIT_PER_ASSET:
-        raise ValueError("[%s] 材质槽 %d 个超上限 %d：%s" % (asset_name, len(slots), SLOT_LIMIT_PER_ASSET, slots))
+    limit = SLOT_LIMIT_PER_ASSET if slot_limit is None else slot_limit
+    if len(slots) > limit:
+        raise ValueError("[%s] 材质槽 %d 个超上限 %d：%s" % (asset_name, len(slots), limit, slots))
     bbox_lo, bbox_hi = None, None
     for obj in objects:
         if obj.type != "MESH":

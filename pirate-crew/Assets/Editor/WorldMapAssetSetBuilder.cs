@@ -54,6 +54,16 @@ namespace PirateCrew.EditorTools
                 ("Kit_FarFar", "#AFC2D4", false),
                 ("Kit_Cloud", "#FFFFFF", false),
                 ("Kit_FarSail", "#E8E8E0", false),
+                // 工业/废弃【提】——第三样板关「废弃化工厂」（tools/blender/scene/chemplant/）
+                ("Kit_ConcreteLight", "#C6C1B4", false),
+                ("Kit_ConcreteMid", "#9E988A", false),
+                ("Kit_ConcreteDark", "#6B665C", false),
+                ("Kit_Rust", "#8C4A28", false),
+                ("Kit_RustDark", "#5A2F1A", false),
+                ("Kit_SteelBlue", "#4E6270", false),
+                ("Kit_SteelPale", "#98A2A6", false),
+                ("Kit_GlassDark", "#2E3A3E", false),
+                ("Kit_PaintYellow", "#C9A63C", false),
             };
 
         [MenuItem("Tools/PirateCrew/WorldKit/Build Asset Set")]
