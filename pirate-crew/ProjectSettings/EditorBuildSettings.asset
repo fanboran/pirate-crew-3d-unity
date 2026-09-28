@@ -59,4 +59,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/PixelartMap108.unity
     guid: 3a9268bb90aac2e4aa6b0be6cb7f600c
+  - enabled: 1
+    path: Assets/Scenes/PixelartCharCamDebug.unity
+    guid: 5014c260dc389ac47a625142f94a608e
   m_configObjects: {}
