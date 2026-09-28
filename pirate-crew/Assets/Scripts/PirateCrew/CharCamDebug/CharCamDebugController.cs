@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using PirateCrew.Core;
 using PirateCrew.Rendering.Pixelart;
@@ -116,6 +117,8 @@ namespace PirateCrew.CharCamDebug
         [Min(0.02f)] public float bottomRadius = DefaultBottomRadius;
         [Min(0.1f)] public float bodyHeight = DefaultBodyHeight;
         [Min(0.02f)] public float headRadius = DefaultHeadRadius;
+        [Tooltip("头颈间距（米）：0 = Godot 基准（球底与柱顶重叠 0.05）；正 = 头上拉出间隙，负 = 头往身子里压。")]
+        [Range(-0.3f, 0.5f)] public float headLift;
 
         [Header("镜头取景")]
         [Tooltip("可见米数（美术锚）：1080p 屏上画面高度看到的米数；屏幕分辨率越高实际可见越多。")]
@@ -128,6 +131,26 @@ namespace PirateCrew.CharCamDebug
         [Tooltip("方位角（度）。45° = 对称菱形。")]
         [Range(0f, 90f)] public float azimuthDegrees = DefaultAzimuthDegrees;
 
+        [Header("渲染风格（默认值 = 场景装配口径）")]
+        [Tooltip("渲染路径：0 = 像素化着色路径（现役）；1 = URP 原生平滑渲染（对照档：rig 停用 + 材质换 URP/Lit）。")]
+        [Range(0, 1)] public int renderPath;
+        [Tooltip("抖动：0 = 关；1 = Bayer 4×4（渐变态）；2 = 1-bit 密度图案（v3 两态撕边）。")]
+        [Range(0, 2)] public int ditherMode;
+        [Tooltip("色带档数（主光 quantization 档）。")]
+        [Range(2, 4)] public int bandCount = 3;
+        [Tooltip("描边总开关（地面恒不描边——铺满画面的大平面加轮廓线只会全屏糊边，见实现口径 §4.1）。")]
+        public bool outlineOn = true;
+        [Tooltip("边缘光：拨亮逐物体 _RimLightColor（白）。")]
+        public bool rimOn;
+        [Tooltip("连通域降档阈值系数（rig.aaScaler）：0 = 内线降档永不成立（降档 A/B 的 B 图口径）。")]
+        [Range(0f, 2f)] public float aaScaler = 1.5f;
+        [Tooltip("主光强度乘数（rig.lightIntensity，色带亮度整体旋钮）。")]
+        [Range(0f, 2f)] public float lightIntensity = 1f;
+        [Tooltip("太阳实时投影（硬阴影）。默认关：大平面自遮挡的调参尾巴未收，开着暗面判读会混进阴影偏差。")]
+        public bool sunShadowsOn;
+        [Tooltip("太阳（留空用 RenderSettings.sun 兜底，与 rig.PushLightGlobals 同口径）。")]
+        public Light sun;
+
         [Header("面板")]
         public bool showPanel = true;
         public Rect panelRect = new Rect(12f, 12f, 380f, 40f);
@@ -138,10 +161,19 @@ namespace PirateCrew.CharCamDebug
         // 滑杆 → 应用 的脏标记（网格重建与相机重摆都只在变化时做）。
         bool _meshDirty = true;
         bool _cameraDirty = true;
+        bool _styleDirty = true;
+        bool _pathDirty = true;
         int _appliedPixelScale = -1;
 
-        /// <summary>头心高度（自动联动：球底与柱顶保持 <see cref="HeadBodyOverlap"/> 重叠）。</summary>
-        public float HeadCenterY => bodyHeight - HeadBodyOverlap + headRadius;
+        // URP 原生对照档：场景 renderer 与其原材质的对位表（退出对照档时原样还原）。
+        MeshRenderer[] _sceneRenderers;
+        readonly List<MeshRenderer> _urpSwapped = new List<MeshRenderer>();
+        readonly List<Material> _urpOriginals = new List<Material>();
+        readonly List<Material> _urpProxies = new List<Material>();
+        bool _urpModeActive;
+
+        /// <summary>头心高度 = 身高 − 头身重叠 + 头半径 + <see cref="headLift"/>（头颈间距可调）。</summary>
+        public float HeadCenterY => bodyHeight - HeadBodyOverlap + headRadius + headLift;
 
         /// <summary>角色总高（脚底到头顶，米）。</summary>
         public float TotalHeight => HeadCenterY + headRadius;
@@ -164,6 +196,147 @@ namespace PirateCrew.CharCamDebug
                 RebuildMeshes();
             if (_cameraDirty || (rig != null && rig.pixelScale != pixelScale))
                 ApplyCamera();
+            if (_pathDirty)
+                ApplyRenderPath();
+            if (_styleDirty)
+                ApplyStyle();
+        }
+
+        // ------------------------------------------------------------------
+        // 渲染风格（像素化路径内的旋钮 + URP 原生对照档）
+        // ------------------------------------------------------------------
+
+        void Start()
+        {
+            _sceneRenderers = FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None);
+        }
+
+        /// <summary>
+        /// 渲染路径切换。**URP 原生对照档**：停用 rig（它的 OnDisable 会把主相机的
+        /// clearFlags / 层掩码 / 渲染器索引 / 后处理原样还原——saved 系列字段），关掉 Cast 相机
+        /// （其渲染器六个 Feature 对空缓冲全跳过，留着只是多一次清屏），再把场景材质换成
+        /// **URP/Lit 代理材质**（_BaseColor 取自像素化材质的同名属性）——像素化物体 shader
+        /// 只写了 PixelartOpaque 那一个 pass，标准 URP 渲染器下它根本不画（物体整类消失，
+        /// 实现口径 §6 的静默失效家族），所以材质必须一起换。切回时逐 renderer 还原原材质。
+        /// </summary>
+        void ApplyRenderPath()
+        {
+            _pathDirty = false;
+            if (rig == null || _sceneRenderers == null)
+                return;
+
+            bool wantUrp = renderPath == 1;
+            if (wantUrp == _urpModeActive)
+                return;
+
+            if (wantUrp)
+            {
+                rig.enabled = false;
+                if (rig.castCamera != null)
+                    rig.castCamera.gameObject.SetActive(false);
+
+                Shader lit = Shader.Find("Universal Render Pipeline/Lit");
+                if (lit == null)
+                {
+                    Debug.LogError("[CharCamDebugController] 找不到 URP/Lit，对照档不可用，回退像素化。");
+                    renderPath = 0;
+                    return;
+                }
+
+                for (int i = 0; i < _sceneRenderers.Length; i++)
+                {
+                    Material original = _sceneRenderers[i].sharedMaterial;
+                    if (original == null || original.shader == null
+                        || original.shader.name != PixelartPath.ObjectShaderName)
+                        continue;
+
+                    var proxy = new Material(lit) { name = original.name + "_URPProxy" };
+                    proxy.SetColor("_BaseColor", original.HasProperty("_BaseColor")
+                        ? original.GetColor("_BaseColor") : Color.white);
+                    if (proxy.HasProperty("_Smoothness"))
+                        proxy.SetFloat("_Smoothness", 0f);
+
+                    _urpSwapped.Add(_sceneRenderers[i]);
+                    _urpOriginals.Add(original);
+                    _urpProxies.Add(proxy);
+                    _sceneRenderers[i].sharedMaterial = proxy;
+                }
+
+                _urpModeActive = true;
+            }
+            else
+            {
+                for (int i = 0; i < _urpSwapped.Count; i++)
+                {
+                    if (_urpSwapped[i] != null)
+                        _urpSwapped[i].sharedMaterial = _urpOriginals[i];
+                }
+
+                _urpSwapped.Clear();
+                _urpOriginals.Clear();
+                _urpProxies.Clear();
+                _urpModeActive = false;
+
+                if (rig.castCamera != null)
+                    rig.castCamera.gameObject.SetActive(true);
+                rig.enabled = true;
+                _styleDirty = true;   // 回像素化：按面板状态重放材质旋钮
+            }
+        }
+
+        /// <summary>
+        /// 像素化材质旋钮全量重放（幂等）：色带档数/描边走 <see cref="PixelartMaterialFactory.Configure"/>
+        ///（它会把抖动与边缘光洗回默认关），随后按面板状态重写抖动与边缘光——顺序不能反。
+        /// 改的是 <c>renderer.material</c>（实例化副本）：Play 模式下直接写 sharedMaterial 会
+        /// **持久化进材质资产**（编辑器知名坑），实例副本退出 Play 自动还原。
+        /// </summary>
+        void ApplyStyle()
+        {
+            _styleDirty = false;
+            if (rig == null || _sceneRenderers == null)
+                return;
+
+            rig.aaScaler = aaScaler;
+            rig.lightIntensity = lightIntensity;
+
+            Light sunLight = sun != null ? sun : RenderSettings.sun;
+            if (sunLight != null)
+                sunLight.shadows = sunShadowsOn ? LightShadows.Hard : LightShadows.None;
+
+            if (_urpModeActive)
+                return;   // 对照档下材质是 URP 代理，像素化旋钮暂不生效（面板上已禁用）
+
+            for (int i = 0; i < _sceneRenderers.Length; i++)
+            {
+                MeshRenderer sceneRenderer = _sceneRenderers[i];
+                if (sceneRenderer == null || sceneRenderer.sharedMaterial == null
+                    || sceneRenderer.sharedMaterial.shader == null
+                    || sceneRenderer.sharedMaterial.shader.name != PixelartPath.ObjectShaderName)
+                    continue;
+
+                Material material = sceneRenderer.material;   // 实例化副本，见方法注释
+                Color albedo = material.GetColor("_BaseColor");
+                // 地面恒不描边：大平面描边 = 画面四边糊一圈墨（实现口径 §4.1 的既有裁决）。
+                float outline = sceneRenderer.name == "Ground" ? 0f : (outlineOn ? 1f : 0f);
+                PixelartMaterialFactory.Configure(material, albedo, bandCount, outline);
+
+                switch (ditherMode)
+                {
+                    case 1:   // Bayer 4×4 渐变态（出图档 pa-mid-bayer 同幅度）
+                        material.SetFloat("_DitherMode", 0f);
+                        material.SetFloat("_DitherStrength", 0.5f);
+                        break;
+                    case 2:   // 1-bit 密度图案，v3 两态撕边（pa-mid-density 同幅度）
+                        material.SetFloat("_DitherMode", 1f);
+                        material.SetFloat("_DitherStrength", 1f);
+                        break;
+                    default:
+                        material.SetFloat("_DitherStrength", 0f);
+                        break;
+                }
+
+                material.SetColor("_RimLightColor", rimOn ? Color.white : Color.black);
+            }
         }
 
         // ------------------------------------------------------------------
@@ -226,6 +399,7 @@ namespace PirateCrew.CharCamDebug
             bottomRadius = DefaultBottomRadius;
             bodyHeight = DefaultBodyHeight;
             headRadius = DefaultHeadRadius;
+            headLift = 0f;
             visibleMeters = DefaultVisibleMeters;
             pixelScale = PixelartPilotScene.PixelScale;
             pitchDegrees = DefaultPitchDegrees;
@@ -242,12 +416,22 @@ namespace PirateCrew.CharCamDebug
                 + $"BodyBottomRadius  = {bottomRadius.ToString("0.####")}\n"
                 + $"BodyHeight        = {bodyHeight.ToString("0.####")}\n"
                 + $"HeadSphereRadius  = {headRadius.ToString("0.####")}\n"
-                + $"HeadSphereCenterY = {HeadCenterY.ToString("0.####")}（自动：身高−0.05+头半径）\n"
+                + $"HeadLift          = {headLift.ToString("0.####")}（头颈间距，0 = Godot 基准）\n"
+                + $"HeadSphereCenterY = {HeadCenterY.ToString("0.####")}（身高−0.05+头半径+间距）\n"
                 + $"TotalHeight       = {TotalHeight.ToString("0.####")}\n"
                 + $"可见米数          = {visibleMeters.ToString("0.#")}（worldPerPixel {WorldPerPixel(visibleMeters, pixelScale).ToString("0.####")}）\n"
                 + $"PixelScale        = {pixelScale}\n"
                 + $"PitchDegrees      = {pitchDegrees.ToString("0.#")}\n"
-                + $"AzimuthDegrees    = {azimuthDegrees.ToString("0.#")}";
+                + $"AzimuthDegrees    = {azimuthDegrees.ToString("0.#")}\n"
+                + "—— 渲染风格 ——\n"
+                + $"渲染路径          = {(renderPath == 0 ? "像素化" : "URP 原生")}\n"
+                + $"抖动              = {ditherMode}（0 关 / 1 Bayer / 2 密度）\n"
+                + $"色带档数          = {bandCount}\n"
+                + $"描边              = {outlineOn}（地面恒不描边）\n"
+                + $"边缘光            = {rimOn}\n"
+                + $"内线降档 aaScaler = {aaScaler.ToString("0.##")}\n"
+                + $"主光强度          = {lightIntensity.ToString("0.##")}\n"
+                + $"太阳投影          = {sunShadowsOn}";
         }
 
         // ------------------------------------------------------------------
@@ -301,7 +485,8 @@ namespace PirateCrew.CharCamDebug
             bottomRadius = LabeledSlider("身体底半径", bottomRadius, 0.05f, 1.0f, ref _meshDirty);
             bodyHeight = LabeledSlider("身体高度", bodyHeight, 0.3f, 2.5f, ref _meshDirty);
             headRadius = LabeledSlider("头部半径", headRadius, 0.05f, 0.8f, ref _meshDirty);
-            GUILayout.Label($"  头心 y = {HeadCenterY.ToString("0.###")}，总高 = {TotalHeight.ToString("0.###")}（自动联动，头身重叠 {HeadBodyOverlap}）");
+            headLift = LabeledSlider("头颈间距", headLift, -0.3f, 0.5f, ref _meshDirty);
+            GUILayout.Label($"  头心 y = {HeadCenterY.ToString("0.###")}，总高 = {TotalHeight.ToString("0.###")}（间距 0 = Godot 基准，重叠 {HeadBodyOverlap}）");
 
             GUILayout.Space(6f);
             GUILayout.Label("—— 镜头取景 ——");
@@ -324,6 +509,60 @@ namespace PirateCrew.CharCamDebug
 
             pitchDegrees = LabeledSlider("俯角", pitchDegrees, 10f, 70f, ref _cameraDirty, "0.#");
             azimuthDegrees = LabeledSlider("方位角", azimuthDegrees, 0f, 90f, ref _cameraDirty, "0.#");
+
+            GUILayout.Space(6f);
+            GUILayout.Label("—— 渲染风格 ——");
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("渲染路径", GUILayout.Width(88f));
+            bool wantPixel = GUILayout.Toggle(renderPath == 0, "像素化");
+            bool wantUrp = GUILayout.Toggle(renderPath == 1, "URP 原生");
+            GUILayout.EndHorizontal();
+            if (wantPixel != (renderPath == 0) || wantUrp != (renderPath == 1))
+            {
+                renderPath = wantUrp ? 1 : 0;
+                _pathDirty = true;
+            }
+
+            // 像素化路径内的旋钮：URP 对照档下无意义，整组禁用。
+            GUI.enabled = renderPath == 0;
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("抖动", GUILayout.Width(88f));
+            int newDither = GUILayout.Toggle(ditherMode == 0, "关") ? 0 : ditherMode;
+            newDither = GUILayout.Toggle(ditherMode == 1, "Bayer") ? 1 : newDither;
+            newDither = GUILayout.Toggle(ditherMode == 2, "密度") ? 2 : newDither;
+            GUILayout.EndHorizontal();
+            if (newDither != ditherMode) { ditherMode = newDither; _styleDirty = true; }
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("色带档数", GUILayout.Width(88f));
+            int newBand = bandCount;
+            for (int level = 2; level <= 4; level++)
+                newBand = GUILayout.Toggle(bandCount == level, level + " 档") ? level : newBand;
+            GUILayout.EndHorizontal();
+            if (newBand != bandCount) { bandCount = newBand; _styleDirty = true; }
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("描边", GUILayout.Width(88f));
+            bool newOutline = GUILayout.Toggle(outlineOn, outlineOn ? "开" : "关");
+            GUILayout.Space(16f);
+            GUILayout.Label("边缘光", GUILayout.Width(52f));
+            bool newRim = GUILayout.Toggle(rimOn, rimOn ? "开" : "关");
+            GUILayout.EndHorizontal();
+            if (newOutline != outlineOn) { outlineOn = newOutline; _styleDirty = true; }
+            if (newRim != rimOn) { rimOn = newRim; _styleDirty = true; }
+
+            aaScaler = LabeledSlider("内线降档", aaScaler, 0f, 2f, ref _styleDirty, "0.##");
+            lightIntensity = LabeledSlider("主光强度", lightIntensity, 0f, 2f, ref _styleDirty, "0.##");
+
+            GUI.enabled = true;
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("太阳投影", GUILayout.Width(88f));
+            bool newShadow = GUILayout.Toggle(sunShadowsOn, sunShadowsOn ? "硬阴影" : "关");
+            GUILayout.EndHorizontal();
+            if (newShadow != sunShadowsOn) { sunShadowsOn = newShadow; _styleDirty = true; }
 
             GUILayout.Space(6f);
             GUILayout.Label("—— 读数 ——");
