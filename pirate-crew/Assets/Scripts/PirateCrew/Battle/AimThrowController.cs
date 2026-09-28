@@ -105,24 +105,8 @@ namespace PirateCrew.Battle
                 battleCamera = Camera.main;
         }
 
-        /// <summary>观察模式下关闭常规游戏输入（拖拽/取消/炮台/悬停）；准星点选走 <see cref="HandleObserveClick"/>。</summary>
+        /// <summary>观察模式下关闭常规游戏输入（拖拽/取消/炮台/悬停）。</summary>
         public bool InputEnabled { get; set; } = true;
-
-        /// <summary>
-        /// 【观察模式】屏幕中心准星点选：命中本队存活角色则选中并返回 true（HUD 据此自动退出观察），
-        /// 未命中返回 false（留在观察）。左键点击本身不做任何其他事。
-        /// </summary>
-        public bool HandleObserveClick()
-        {
-            if (battle == null)
-                return false;
-            Vector2 center = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
-            PirateBase picked = PickTeamCharacter(center);
-            if (picked == null)
-                return false;
-            battle.SelectCharacter(picked);
-            return true;
-        }
 
         void Update()
         {

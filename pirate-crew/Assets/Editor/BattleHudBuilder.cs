@@ -106,7 +106,6 @@ namespace PirateCrew.EditorTools
             BuildBadge(hudRoot, result);
             BuildWeaponPanel(hudRoot, body, secondary, result);
             BuildBottomBar(hudRoot, secondary, result);
-            BuildCrosshair(hudRoot);
 
             // 模态层最后建（同级后建者画在上层）。
             BuildPausePanel(hudRoot, title, body, result);
@@ -567,29 +566,6 @@ namespace PirateCrew.EditorTools
                 result.modeButtons[i] = button;
                 result.modeFrames[i] = button.image;
             }
-        }
-
-        /// <summary>屏幕中心准星（观察模式；FPS 式细十字）。</summary>
-        static void BuildCrosshair(Transform hudRoot)
-        {
-            RectTransform crosshair = UiKit.CreateRect("Crosshair", hudRoot);
-            UiKit.SetAnchored(crosshair, new Vector2(0.5f, 0.5f), new Vector2(6f, 6f), Vector2.zero);
-
-            void Bar(string name, float w, float h)
-            {
-                var rect = UiKit.CreateRect(name, crosshair);
-                rect.sizeDelta = new Vector2(w, h);
-                rect.anchoredPosition = Vector2.zero;
-                var img = rect.gameObject.AddComponent<Image>();
-                img.color = Color.white;
-                img.raycastTarget = false;
-                var outline = img.gameObject.AddComponent<UnityEngine.UI.Outline>();
-                outline.effectColor = new Color(PixelSkin.Ink.r / 255f, PixelSkin.Ink.g / 255f,
-                    PixelSkin.Ink.b / 255f, 0.55f);   // 调色板墨色收编
-                outline.effectDistance = new Vector2(1f, -1f);
-            }
-            Bar("CrossH", 18f, 2f);
-            Bar("CrossV", 2f, 18f);
         }
 
         // ------------------------------------------------------------------

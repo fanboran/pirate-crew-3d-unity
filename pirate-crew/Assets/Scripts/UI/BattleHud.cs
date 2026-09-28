@@ -29,8 +29,7 @@ namespace PirateCrew.UI
     ///   · 模式开关 = 移动 / 操作 / 观察三文字钮（快捷键 1/2/3 角标）；暂停 / 返回 = 文字钮。
     ///
     /// 【架构约定】引用一律 <c>[SerializeField]</c>（<c>BattleUiTheme.WireHud</c> 回写）；
-    /// 唯一例外是 Crosshair：装配契约缺兜底时的静态装饰节点查找（<see cref="DeepFind"/>，
-    /// Awake 一次，不参与逐帧逻辑）；状态刷新全部 EventBus 事件驱动；
+    /// 状态刷新全部 EventBus 事件驱动；
     /// 皮肤 / 字号 / 颜色一律 <see cref="UiSkin"/> Token。
     /// </summary>
     [DisallowMultipleComponent]
@@ -266,14 +265,13 @@ namespace PirateCrew.UI
         //
         // 【移动】左键=选角色；选角色后 A/D 转向、W/S 力度、空格=跳跃发射；拖空白=转视角。
         // 【操作】炮台模式：AD 转向、WS 力度、回车=开火（防走火）。
-        // 【观察】我的世界同款：鼠标移动=转视角（准星只在此时显示）。
+        // 【观察】我的世界同款：鼠标移动=转视角（准星点选已随"鼠标直接点选"裁决退役）。
         // 可感知行为规格见 docs/技术/投掷行为契约.md。
         // ------------------------------------------------------------------
 
         public enum BattleHudMode { Move, Act, Observe }
 
         BattleHudMode _mode = BattleHudMode.Move;
-        Transform _crosshair;
 
         /// <summary>
         /// 战斗相机解析：**只在 Awake 跑一次**（旧写法在 <see cref="SetHudMode"/> 里
@@ -314,11 +312,6 @@ namespace PirateCrew.UI
                 }
             }
 
-            // 准星与旧版同构：canvas 全树找一次（静态装饰节点，装配契约兜底）。
-            Canvas parentCanvas = GetComponentInParent<Canvas>();
-            Transform searchRoot = parentCanvas != null ? parentCanvas.transform : transform;
-            _crosshair = DeepFind(searchRoot, "Crosshair");
-
             SetHudMode(BattleHudMode.Move);
         }
 
@@ -347,11 +340,6 @@ namespace PirateCrew.UI
 
             // 提示条上的镜头档读数：滚轮改档后跟一次（见 CameraReadout 的注释）。
             RefreshCameraReadout();
-
-            // 【观察模式】点击=准星点选角色；命中即选中并自动返回移动模式（r12 用户裁决）。
-            if (_mode == BattleHudMode.Observe && Input.GetMouseButtonDown(0)
-                && aimController != null && aimController.HandleObserveClick())
-                SetHudMode(BattleHudMode.Move);
         }
 
         void SetHudMode(BattleHudMode mode)
@@ -369,18 +357,6 @@ namespace PirateCrew.UI
 
             RefreshModeSegments();
             RefreshModeHint();
-            RefreshCrosshair();
-        }
-
-        /// <summary>准星只属于观察模式；只在模式切换时刷一次。</summary>
-        void RefreshCrosshair()
-        {
-            if (_crosshair == null)
-                return;
-
-            bool visible = _mode == BattleHudMode.Observe;
-            if (_crosshair.gameObject.activeSelf != visible)
-                _crosshair.gameObject.SetActive(visible);
         }
 
         /// <summary>模式钮状态：选中 = 金面（<see cref="UiKit.ApplyThemeButton"/> sticky 档，
@@ -447,19 +423,6 @@ namespace PirateCrew.UI
                 return;
             _lastCameraMeters = meters;
             RefreshModeHint();
-        }
-
-        static Transform DeepFind(Transform root, string name)
-        {
-            if (root.name == name)
-                return root;
-            for (int i = 0; i < root.childCount; i++)
-            {
-                Transform found = DeepFind(root.GetChild(i), name);
-                if (found != null)
-                    return found;
-            }
-            return null;
         }
 
         // ------------------------------------------------------------------
