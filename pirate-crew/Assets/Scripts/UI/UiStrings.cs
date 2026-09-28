@@ -23,9 +23,6 @@ namespace PirateCrew.UI
         /// <summary>通用：取消。</summary>
         public const string Cancel = "取消";
 
-        /// <summary>通用：是。</summary>
-        public const string Yes = "是";
-
         /// <summary>通用：否。</summary>
         public const string No = "否";
 
@@ -40,9 +37,6 @@ namespace PirateCrew.UI
 
         /// <summary>通用：返回主菜单。</summary>
         public const string BackToMainMenu = "返回主菜单";
-
-        /// <summary>通用：载入中……。</summary>
-        public const string Loading = "载入中……";
 
         /// <summary>通用：返回确认弹窗正文。</summary>
         public const string BackConfirm = "确定要返回主菜单吗？本局进度不会保留。";
@@ -67,9 +61,6 @@ namespace PirateCrew.UI
         /// <summary>主菜单：进入战斗（非战役快捷入口）。</summary>
         public const string MainBattle = "进入战斗";
 
-        /// <summary>主菜单：单人战役。</summary>
-        public const string MainCampaign = "单人战役";
-
         /// <summary>主菜单：船员管理。</summary>
         public const string MainCrew = "船员管理";
 
@@ -81,12 +72,6 @@ namespace PirateCrew.UI
 
         /// <summary>主菜单：退出游戏（危险态）。</summary>
         public const string MainQuit = "退出游戏";
-
-        /// <summary>主菜单状态：已读取存档。</summary>
-        public const string MainStatusLoaded = "已读取存档";
-
-        /// <summary>主菜单状态：无存档。</summary>
-        public const string MainStatusNoSave = "暂无存档";
 
         /// <summary>主菜单左下版本号**前缀**。数字一律运行时取 <c>Application.version</c>
         /// （= bundleVersion，构建期派生自 Editor/Build/BuildVersion.Current 单一真源）——
@@ -120,15 +105,6 @@ namespace PirateCrew.UI
 
         /// <summary>船员管理行文本模板（未解锁）。</summary>
         public const string CrewRowLockedFormat = "{0}　（累计 {1} 星后招募）";
-
-        /// <summary>船员管理动作：上阵。</summary>
-        public const string CrewEnlist = "上阵";
-
-        /// <summary>船员管理动作：取消上阵。</summary>
-        public const string CrewRemove = "取消上阵";
-
-        /// <summary>船员管理动作：未解锁。</summary>
-        public const string CrewLocked = "未解锁";
 
         /// <summary>船员管理按钮：选择关卡。</summary>
         public const string CrewLevelSelect = "选择关卡";
@@ -164,26 +140,8 @@ namespace PirateCrew.UI
         public const string CrewStatusFailedFormat = "{0} 挑战失败，编成保留，可再战。";
 
         // ==================================================================
-        // 六职业名 / 描述 / 短标语（§4.3；描述取自 GDD §5.2）
+        // 六职业描述（§4.3；描述取自 GDD §5.2）
         // ==================================================================
-
-        /// <summary>职业名：水手。</summary>
-        public const string CrewSailor = "水手";
-
-        /// <summary>职业名：炮手。</summary>
-        public const string CrewGunner = "炮手";
-
-        /// <summary>职业名：狙击手。</summary>
-        public const string CrewSniper = "狙击手";
-
-        /// <summary>职业名：钩子手。</summary>
-        public const string CrewHooker = "钩子手";
-
-        /// <summary>职业名：纵火狂。</summary>
-        public const string CrewArsonist = "纵火狂";
-
-        /// <summary>职业名：骷髅海盗。</summary>
-        public const string CrewSkeleton = "骷髅海盗";
 
         /// <summary>职业描述：水手。</summary>
         public const string CrewSailorDesc = "均衡基准，没有特技，什么都能干。";
@@ -203,24 +161,6 @@ namespace PirateCrew.UI
         /// <summary>职业描述：骷髅海盗。</summary>
         public const string CrewSkeletonDesc = "不死之身：被击杀后 1 回合原地复活一次（50% 生命）。";
 
-        /// <summary>职业短标语：水手【AI 提案】。</summary>
-        public const string CrewSailorTag = "稳";
-
-        /// <summary>职业短标语：炮手【AI 提案】。</summary>
-        public const string CrewGunnerTag = "双响";
-
-        /// <summary>职业短标语：狙击手【AI 提案】。</summary>
-        public const string CrewSniperTag = "直线";
-
-        /// <summary>职业短标语：钩子手【AI 提案】。</summary>
-        public const string CrewHookerTag = "飞索";
-
-        /// <summary>职业短标语：纵火狂【AI 提案】。</summary>
-        public const string CrewArsonistTag = "火路";
-
-        /// <summary>职业短标语：骷髅海盗【AI 提案】。</summary>
-        public const string CrewSkeletonTag = "复生";
-
         // ==================================================================
         // 选关（§4.4）
         // ==================================================================
@@ -234,38 +174,11 @@ namespace PirateCrew.UI
         /// <summary>选关顶部信息模板。</summary>
         public const string LevelHeaderFormat = "{0}　第 {1}/{2} 章　总星数 {3}/{4}";
 
-        /// <summary>选关顶部：建议下一关模板。</summary>
-        public const string LevelHeaderNextFormat = "　建议下一关：{0}";
-
-        /// <summary>选关顶部：全部通关。</summary>
-        public const string LevelHeaderAllClear = "　全部关卡已通关";
-
         /// <summary>选关章节页签模板。</summary>
         public const string LevelChapterFormat = "第 {0} 章";
 
-        /// <summary>选关行状态：已通关（星级改图标后不再拼文本）。</summary>
-        public const string LevelRowCleared = "已通关";
-
-        /// <summary>选关行状态：可挑战。</summary>
-        public const string LevelRowAvailable = "可挑战";
-
-        /// <summary>选关行状态：未解锁。</summary>
-        public const string LevelRowLocked = "未解锁";
-
-        /// <summary>选关行：占位竞技场。</summary>
-        public const string LevelRowPlaceholder = "　（占位竞技场）";
-
         /// <summary>选关动作：再战。</summary>
         public const string LevelReplay = "再战";
-
-        /// <summary>选关动作：出战。</summary>
-        public const string LevelFight = "出战";
-
-        /// <summary>选关状态：空编成。</summary>
-        public const string LevelStatusEmptyRoster = "编成阵容为空：先去船员管理编入至少 1 名船员。";
-
-        /// <summary>选关状态：未解锁。</summary>
-        public const string LevelStatusLocked = "该关卡尚未解锁。";
 
         /// <summary>选关状态：新船员加入。</summary>
         public const string LevelStatusNewCrewFormat = "新船员已加入名册：{0}";
@@ -281,15 +194,6 @@ namespace PirateCrew.UI
         /// <summary>选关页页头（列表按关卡号升序，样板关在前；{0} = 总关数，{1} = 手作样板关数，
         /// {2} = 海图张数，{3}/{4} = 累计/满分星数。星级只记在海图上，故满分 = 海图数 × 3）【AI 提案/待定】。</summary>
         public const string LevelSelectHeaderFormat = "共 {0} 关　手作样板 {1}　海域图 {2}　累计 {3}/{4} 星";
-
-        /// <summary>海图行状态后缀（未通关）。</summary>
-        public const string WorldRowAvailable = "可出战";
-
-        /// <summary>海图行状态后缀（已通关，行内另附星级图标）。</summary>
-        public const string WorldRowCleared = "已通关";
-
-        /// <summary>海图行出战按钮。</summary>
-        public const string WorldSetSail = "出海";
 
         /// <summary>选关页样板关行的标识后缀（样板关不是"海域图"，行里必须一眼看得出来）。</summary>
         public const string LevelRowShowcaseTag = "手作样板关";
@@ -346,12 +250,6 @@ namespace PirateCrew.UI
         /// <summary>武器列表标题。</summary>
         public const string BattleWeaponListTitle = "选择武器";
 
-        /// <summary>武器面板未装备时的提示（图标格已表意，这里只留一行兜底）。</summary>
-        public const string BattleWeaponPickHint = "点格子选择武器";
-
-        /// <summary>操作提示：角色模式通用。</summary>
-        public const string BattleHintGeneral = "空格 瞄准　E 聚焦　Esc 取消";
-
         /// <summary>操作提示：操作模式（炮台开火，对号 <c>BattleHudMode.Act</c>）。</summary>
         public const string BattleHintAiming = "AD 转向　WS 力度　回车开炮";
 
@@ -359,19 +257,10 @@ namespace PirateCrew.UI
         public const string BattleHintMove = "左键选角色　拖动转视角　滚轮力度　空格跳";
 
         /// <summary>操作提示：观察模式（对号 <c>BattleHudMode.Observe</c>）。</summary>
-        public const string BattleHintObserve = "准星点人返回　WASD 移动　Esc 返回";
-
-        /// <summary>操作提示：武器菜单。</summary>
-        public const string BattleHintWeaponMenu = "滚轮选择　回车确认";
-
-        /// <summary>操作提示：聚焦态。</summary>
-        public const string BattleHintFocus = "拖动环视　滚轮调距　E 退出";
+        public const string BattleHintObserve = "WASD 移动　Esc 返回";
 
         /// <summary>小地图面板标题。</summary>
         public const string BattleMinimapTitle = "海图";
-
-        /// <summary>暂停按钮 / 暂停面板触发（含快捷键提示，按键字母按规范保留半角）。</summary>
-        public const string BattlePauseButton = "暂停 (Esc)";
 
         /// <summary>HUD 左下暂停钮的短文案（紧凑文字钮；快捷键提示交给工具提示与按键位记忆）。</summary>
         public const string BattlePause = "暂停";
@@ -428,9 +317,6 @@ namespace PirateCrew.UI
         /// <summary>结算行：首次通关。</summary>
         public const string SettlementRowFirstClear = "首次通关　是";
 
-        /// <summary>结算行：失败提示。</summary>
-        public const string SettlementFailTipFormat = "{0} 挑战失败：编成与武器保留，回管理界面可再战。";
-
         /// <summary>结算动作：返回选关。</summary>
         public const string SettlementBackToSelect = "返回选关";
 
@@ -486,21 +372,5 @@ namespace PirateCrew.UI
 
         /// <summary>设置提示：音量改动在关闭面板时保存（避免拖动滑条写盘）。</summary>
         public const string SettingsSaveHint = "改动将在关闭设置时自动保存。";
-
-        // ==================================================================
-        // 错误与边界（§4.9）
-        // ==================================================================
-
-        /// <summary>无法投掷。</summary>
-        public const string ErrorNoThrow = "该船员本回合不能再跳跃了。";
-
-        /// <summary>落水警告。</summary>
-        public const string ErrorWater = "危险：这里落水会直接出局！";
-
-        /// <summary>无武器可用。</summary>
-        public const string ErrorNoWeapon = "这件武器已经用完了。";
-
-        /// <summary>未选中角色。</summary>
-        public const string ErrorNoSelection = "先选一名船员。";
     }
 }

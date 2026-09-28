@@ -530,58 +530,16 @@ namespace PirateCrew.Audio
             return service != null && service.StartAmbientBedInternal();
         }
 
-        /// <summary>停止环境底床（含鸟鸣点缀）。</summary>
-        public static void StopAmbientBed()
-        {
-            AudioService service = _instance;
-            if (service == null)
-                return;
-            service.StopBirdRoutine();
-            service.StopAmbientBedInternal();
-        }
-
         /// <summary>
         /// 底床混音参数（每层音量 + 鸟鸣间隔）；服务未启动时为 null。
         /// 直接改它即可调参，下一次 <c>Update</c> 节流点会生效。
         /// </summary>
         public static AmbientBedMix AmbientMix => _instance?._bedMix;
 
-        /// <summary>设置底床某一层的音量权重（不是底床层则忽略）。</summary>
-        public static void SetAmbientLayerVolume(SfxId id, float weight)
-        {
-            AudioService service = _instance;
-            if (service == null)
-                return;
-            service._bedMix.SetWeight(id, weight);
-            service.ApplyLoopVolumes();
-        }
-
         /// <summary>设置鸟鸣点缀的触发间隔（秒）。</summary>
         public static void SetBirdInterval(double minSeconds, double maxSeconds)
         {
             _instance?._bedMix.SetBirdInterval(minSeconds, maxSeconds);
-        }
-
-        /// <summary>设置场景中心（世界坐标，用于镜头距离衰减；默认原点）。</summary>
-        public static void SetAmbientCenter(Vector3 center)
-        {
-            AudioService service = _instance;
-            if (service == null)
-                return;
-            service._ambientCenter = center;
-            service.RefreshAmbientDistance();
-        }
-
-        /// <summary>停止某个循环环境音。</summary>
-        public static void StopAmbient(SfxId id)
-        {
-            _instance?.StopLoop(id);
-        }
-
-        /// <summary>停止全部循环环境音。</summary>
-        public static void StopAllAmbient()
-        {
-            _instance?.StopAllLoops();
         }
 
         /// <summary>播放结果/背景音乐（单路，新音乐替换旧音乐）。</summary>
@@ -612,12 +570,6 @@ namespace PirateCrew.Audio
             return _instance != null ? _instance._mixer.GetVolume(category) : AudioSettingsStore.DefaultVolume;
         }
 
-        /// <summary>读取某分类的最终增益（含 Master 缩放与静音）。</summary>
-        public static float GetEffectiveGain(AudioCategory category)
-        {
-            return _instance != null ? _instance._mixer.EffectiveGain(category) : 0f;
-        }
-
         /// <summary>设置/取消某分类静音。</summary>
         public static void SetMuted(AudioCategory category, bool muted)
         {
@@ -631,22 +583,6 @@ namespace PirateCrew.Audio
         public static bool SaveVolumes()
         {
             return _instance != null && AudioSettingsStore.TrySaveFrom(_instance._mixer);
-        }
-
-        /// <summary>从存档重新读取音量。</summary>
-        public static bool LoadVolumes()
-        {
-            return _instance != null && AudioSettingsStore.TryLoadInto(_instance._mixer);
-        }
-
-        /// <summary>停止全部声音（场景切换/暂停用）。</summary>
-        public static void StopAll()
-        {
-            if (_instance == null)
-                return;
-            _instance.StopAllLoops();
-            _instance.StopMusicInternal();
-            _instance.StopVoicePool();
         }
 
         /// <summary>停止一次性播放池（Awake 未完成时为 no-op）。</summary>

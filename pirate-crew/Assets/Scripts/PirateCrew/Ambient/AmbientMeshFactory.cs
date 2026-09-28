@@ -335,14 +335,6 @@ namespace PirateCrew.Ambient
             return post;
         }
 
-        /// <summary>缆绳（两点之间的细杆），三角面约 10。</summary>
-        public static MeshBuffers BuildRope(Vector3 from, Vector3 to, float radius = 0.012f, int segments = 4)
-        {
-            var rope = new MeshBuffers();
-            rope.AddRod(from, to, radius, segments);
-            return rope;
-        }
-
         /// <summary>浮标（软木浮子 + 小杆），三角面约 20。用于近岸随波起伏的小道具。</summary>
         public static MeshBuffers BuildCorkFloat()
         {

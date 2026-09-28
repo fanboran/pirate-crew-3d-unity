@@ -59,12 +59,6 @@ namespace PirateCrew.Battle
             return Has(trigger, DataTrigger.OnExplosionHit);
         }
 
-        /// <summary>是否具备接触触发（撞瓦片/箱/敌人即判定）。</summary>
-        public static bool HasContactTrigger(DataTrigger trigger)
-        {
-            return Has(trigger, DataTrigger.OnContact);
-        }
-
         /// <summary>是否具备点击触发（banana 的玩家点击引爆）。</summary>
         public static bool HasClickTrigger(DataTrigger trigger)
         {

@@ -87,25 +87,6 @@ namespace PirateCrew.Data
             }
         }
 
-        /// <summary>按 id 取海图载荷。</summary>
-        public static bool TryGetWorldMap(string id, out WorldMapAssetPayload payload)
-        {
-            EnsureLoaded();
-            if (string.IsNullOrEmpty(id))
-            {
-                payload = null;
-                return false;
-            }
-            return _mapById.TryGetValue(id, out payload);
-        }
-
-        /// <summary>按关卡号取海图载荷。</summary>
-        public static bool TryGetWorldMapByLevel(int levelNumber, out WorldMapAssetPayload payload)
-        {
-            EnsureLoaded();
-            return _mapByLevel.TryGetValue(levelNumber, out payload);
-        }
-
         /// <summary>按关卡号取非海图关卡载荷。</summary>
         public static bool TryGetLevel(int levelNumber, out LevelAssetPayload payload)
         {

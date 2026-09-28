@@ -697,7 +697,7 @@ namespace PirateCrew.Ambient
     }
 
     /// <summary>
-    /// 岸边几何口径（纯 C#）：潮间带湿沙坡与"螃蟹/浮标该待在哪条水线上"。
+    /// 岸边几何口径（纯 C#）：潮间带湿沙坡与"螃蟹该待在哪条水线上"。
     ///
     /// 【出处】湿沙坡由 <c>Assets/Editor/SceneArtBuilder.cs</c> 生成：竞技场矩形边界外
     /// 0 → 2.5 单位宽，高度从 <c>GroundTopY</c>(0) 线性降到 **-0.6**
@@ -735,12 +735,6 @@ namespace PirateCrew.Ambient
             float surface = TideSlopeY(CrabShoreOffset, groundY);
             // 甲壳中心略高于地表（腿撑起来），且保证不低于水面 0.05（半身入水）。
             return Mathf.Max(surface + 0.055f, waterY + 0.05f);
-        }
-
-        /// <summary>浮标随波起伏的高度（水面附近 ±amplitude）。</summary>
-        public static float CorkFloatY(float waterY, float phase, float amplitude)
-        {
-            return waterY + 0.02f + Mathf.Sin(phase) * amplitude;
         }
     }
 }

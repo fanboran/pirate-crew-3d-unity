@@ -432,13 +432,6 @@ namespace PirateCrew.Ambient
             ApplyPreset();
         }
 
-        /// <summary>切到下一档（循环），返回新档位。</summary>
-        public AmbientTimeOfDay CycleTimeOfDay()
-        {
-            SetTimeOfDay(AmbientTimeOfDayCatalog.Next(timeOfDay));
-            return timeOfDay;
-        }
-
         void ApplyPreset()
         {
             AmbientLightingPreset preset = AmbientTimeOfDayCatalog.For(timeOfDay);

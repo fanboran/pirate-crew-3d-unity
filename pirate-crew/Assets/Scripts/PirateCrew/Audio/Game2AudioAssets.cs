@@ -254,16 +254,6 @@ namespace PirateCrew.Audio
             return names;
         }
 
-        /// <summary>该 id 全部变奏的目标资产路径（相对工程根，如 <c>Assets/Resources/PirateCrewAudio/SfxExplosion.wav</c>）。</summary>
-        public static string[] TargetAssetPaths(SfxId id)
-        {
-            string[] names = TargetFileNames(id);
-            var paths = new string[names.Length];
-            for (int i = 0; i < names.Length; i++)
-                paths[i] = ResourcesFolder + "/" + names[i] + WavFileExtension;
-            return paths;
-        }
-
         /// <summary>某条搬运记录第 <paramref name="variantIndex"/> 个变奏的源文件绝对路径。</summary>
         public static string SourcePath(Game2Port port, int variantIndex)
         {

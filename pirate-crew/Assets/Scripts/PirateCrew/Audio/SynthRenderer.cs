@@ -83,26 +83,6 @@ namespace PirateCrew.Audio
             return buffer.Samples;
         }
 
-        /// <summary>
-        /// 渲染全表（编辑器批量落盘用；按 <see cref="SfxCatalog.All"/> 顺序）。
-        /// 只含「可合成」的条目：外部搬运素材由 <c>AudioAssetBuilder.SyncPortedAssets</c>
-        /// 负责落盘，不在这里重复。
-        /// </summary>
-        public static List<KeyValuePair<SfxRecipe, AudioBuffer>> RenderAll()
-        {
-            SfxRecipe[] all = SfxCatalog.All;
-            var result = new List<KeyValuePair<SfxRecipe, AudioBuffer>>(all.Length);
-            for (int i = 0; i < all.Length; i++)
-            {
-                SfxRecipe recipe = all[i];
-                if (!CanRender(recipe.Id))
-                    continue;
-                result.Add(new KeyValuePair<SfxRecipe, AudioBuffer>(recipe, Render(recipe.Id)));
-            }
-
-            return result;
-        }
-
         static AudioBuffer Generate(SfxId id, int sampleRate)
         {
             switch (id)

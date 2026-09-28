@@ -110,13 +110,6 @@ namespace PirateCrew.Fx
                 Mathf.Max(0.001f, size.x), Mathf.Max(0.001f, size.y), 1f);
         }
 
-        /// <summary>设置等比直径（环类用）。</summary>
-        public void SetDiameter(float diameter)
-        {
-            float d = Mathf.Max(0.001f, diameter);
-            SetSize(new Vector2(d, d));
-        }
-
         /// <summary>摆放位置。</summary>
         public void SetPosition(Vector3 position)
         {

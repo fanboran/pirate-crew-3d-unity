@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace PirateCrew.Battle
@@ -50,16 +49,12 @@ namespace PirateCrew.Battle
         ///     但游戏性查询 <see cref="SurfaceWorldYAtWorld(float,float)"/> 对水格返回
         ///     <see cref="WaterVoidY"/>（水面以下的虚空哨兵），AI 投掷模拟据此判定「落水」。
         ///
-        /// 四、<b>破坏</b>：爆炸命中范围内每个实心格被整格摧毁（<see cref="DestroyInRadius"/>）；
-        ///   另提供逐块递减的 <see cref="DestroyBlock"/> 供细粒度/测试使用。地形格被摧毁后回到
-        ///   基础地面高度（0 块），小地图点阵随之由实心档降到空档（§8.1 两档 alpha）。
         /// ==================================================================
         /// </summary>
         public sealed class TileTerrainGrid
         {
             readonly int[] _blocks;   // 行主序 [gx + gy * WidthTiles]；0 = 基础地面（无抬升块）
             readonly bool[] _ground;  // 该格是否有地面（false = 水）
-            readonly byte[] _surface; // PlatformSurface 档
             readonly int[] _cluster;  // 平台簇索引；-1 = 水 / 列式旧地形
             readonly int[] _baseBlocks; // 该格所属簇的基准块数（整簇抬高的"地板"）；0 = 无基准
             readonly bool _platformMode;   // true = 平台簇模式（水格无地面；块清零即水）
@@ -113,7 +108,6 @@ namespace PirateCrew.Battle
             int expected = WidthTiles * DepthTiles;
             _blocks = new int[expected];
             _ground = new bool[expected];
-            _surface = new byte[expected];
             _cluster = new int[expected];
             _baseBlocks = new int[expected];
 
@@ -134,7 +128,6 @@ namespace PirateCrew.Battle
                     {
                         // 水格：没有地面，块高强制 0。
                         _ground[i] = false;
-                        _surface[i] = (byte)PlatformSurface.Water;
                         _blocks[i] = 0;
                         continue;
                     }
@@ -149,27 +142,12 @@ namespace PirateCrew.Battle
                     _baseBlocks[i] = baseBlocks;
                     int local = platforms.CellBlocks[i] > 0 ? platforms.CellBlocks[i] : 0;
                     _blocks[i] = local + baseBlocks;
-
-                    PlatformClusterKind kind = platforms.Clusters[cluster].Kind;
-                    _surface[i] = (byte)KindToSurface(kind);
                     continue;
                 }
 
                 // 列式旧地形：全图有基础地面，blocks = 抬升块数。
                 _ground[i] = true;
-                _surface[i] = (byte)PlatformSurface.LegacyGround;
                 _blocks[i] = blocks != null && i < blocks.Length && blocks[i] > 0 ? blocks[i] : 0;
-            }
-        }
-
-        static PlatformSurface KindToSurface(PlatformClusterKind kind)
-        {
-            switch (kind)
-            {
-                case PlatformClusterKind.Ship: return PlatformSurface.Ship;
-                case PlatformClusterKind.SkyIsland: return PlatformSurface.SkyIsland;
-                case PlatformClusterKind.TerraceIsland: return PlatformSurface.TerraceIsland;
-                default: return PlatformSurface.LegacyGround;
             }
         }
 
@@ -201,20 +179,6 @@ namespace PirateCrew.Battle
             if (index < 0)
                 return false;
             return _platformMode ? _cluster[index] >= 0 && _blocks[index] > 0 : _ground[index];
-        }
-
-        /// <summary>该格是否是水（无地面）；越界视为水。</summary>
-        public bool IsWaterAt(int gridX, int gridY) => !IsGroundAt(gridX, gridY);
-
-        /// <summary>该格的平台表面语义档（水格 = <see cref="PlatformSurface.Water"/>）。</summary>
-        public PlatformSurface SurfaceKindAt(int gridX, int gridY)
-        {
-            int index = IndexOf(gridX, gridY);
-            if (index < 0)
-                return PlatformSurface.Water;
-            if (_platformMode && !IsGroundAt(gridX, gridY))
-                return PlatformSurface.Water;
-            return (PlatformSurface)_surface[index];
         }
 
         /// <summary>该格所属平台簇索引；水格 / 列式旧地形返回 -1。</summary>
@@ -250,28 +214,10 @@ namespace PirateCrew.Battle
             return index < 0 ? 0 : _baseBlocks[index];
         }
 
-        /// <summary>该格的**局部**块高（不含簇基准）；水 / 越界 = 0。簇内台阶差用这个。</summary>
-        public int LocalBlocksAt(int gridX, int gridY)
-        {
-            int index = IndexOf(gridX, gridY);
-            if (index < 0)
-                return 0;
-            return _blocks[index] - _baseBlocks[index];
-        }
-
         /// <summary>该格所属簇的基准高度（世界单位）；水格 / 列式旧地形 = 0。</summary>
         public float BaseWorldYAt(int gridX, int gridY)
         {
             return BaseBlocksAt(gridX, gridY) * BlockWorldHeight;
-        }
-
-        /// <summary>该簇的**最高**地表世界 Y（含基准高度）；越界返回 <see cref="LevelGeometry.GroundTopY"/>。</summary>
-        public float ClusterSurfaceMaxWorldY(int clusterIndex)
-        {
-            PlatformClusterInfo info = ClusterAt(clusterIndex);
-            if (string.IsNullOrEmpty(info.Name))
-                return LevelGeometry.GroundTopY;
-            return LevelGeometry.GroundTopY + info.MaxTotalBlocks * BlockWorldHeight;
         }
 
         /// <summary>该簇的**最低**地表世界 Y（含基准高度）——岛底收形从这里往下走。</summary>
@@ -345,76 +291,6 @@ namespace PirateCrew.Battle
                     n += _blocks[i];
                 return n;
             }
-        }
-
-        /// <summary>
-        /// 逐块摧毁：该格减 1 块（到 0 为止）。
-        /// </summary>
-        /// <returns>本格本次确实减了 1 块返回 true；已是 0 或越界返回 false。</returns>
-        public bool DestroyBlock(int gridX, int gridY)
-        {
-            int index = IndexOf(gridX, gridY);
-            if (index < 0 || _blocks[index] <= 0)
-                return false;
-
-            _blocks[index]--;
-            return true;
-        }
-
-        /// <summary>
-        /// 爆炸破坏：整格摧毁半径内所有实心格（堆叠块清零），并把被摧毁格的索引写入
-        /// <paramref name="destroyedCells"/>（供视图/小地图刷新）。
-        ///
-        /// 【判据】格心到爆心的 3D 距离 &lt;= <paramref name="radiusWorld"/>（与
-        /// <see cref="Combat.ExplosionResolver"/> 的 3D 球口径一致）。
-        ///
-        /// 【格心高度为什么用**局部**堆高】平台簇模式下 <see cref="BlocksAt"/> 含整簇基准块数
-        /// （可能 12-36 块），若按"总块高的一半"取格心，爆心（落在**岛顶**）会离格心很远而炸不中。
-        /// 故格心取「簇基准 + 局部堆高的一半」，即真正的可爆实体块团中心。
-        /// </summary>
-        /// <returns>被整格摧毁的数量。</returns>
-        public int DestroyInRadius(Vector3 centerWorld, float radiusWorld, List<int> destroyedCells)
-        {
-            if (radiusWorld <= 0f)
-                return 0;
-
-            int minX = Mathf.Max(0, LevelGeometry.WorldToTileIndex(centerWorld.x - radiusWorld));
-            int maxX = Mathf.Min(WidthTiles - 1, LevelGeometry.WorldToTileIndex(centerWorld.x + radiusWorld));
-            int minY = Mathf.Max(0, LevelGeometry.WorldToTileIndex(centerWorld.z - radiusWorld));
-            int maxY = Mathf.Min(DepthTiles - 1, LevelGeometry.WorldToTileIndex(centerWorld.z + radiusWorld));
-
-            float radiusSqr = radiusWorld * radiusWorld;
-            int destroyed = 0;
-
-            for (int gy = minY; gy <= maxY; gy++)
-            {
-                for (int gx = minX; gx <= maxX; gx++)
-                {
-                    int index = gx + gy * WidthTiles;
-                    if (_blocks[index] <= 0)
-                        continue;
-
-                    int localBlocks = _blocks[index] - _baseBlocks[index];
-                    if (localBlocks <= 0)
-                        localBlocks = _blocks[index];   // 防御：异常数据下退回总块高
-
-                    Vector2 cellCenterXZ = LevelGeometry.TileCenterWorld(gx, gy);
-                    var cellCenter = new Vector3(
-                        cellCenterXZ.x,
-                        LevelGeometry.GroundTopY + _baseBlocks[index] * BlockWorldHeight
-                            + localBlocks * BlockWorldHeight * 0.5f,
-                        cellCenterXZ.y);
-
-                    if ((cellCenter - centerWorld).sqrMagnitude > radiusSqr)
-                        continue;
-
-                    _blocks[index] = 0;
-                    destroyedCells?.Add(index);
-                    destroyed++;
-                }
-            }
-
-            return destroyed;
         }
     }
 }

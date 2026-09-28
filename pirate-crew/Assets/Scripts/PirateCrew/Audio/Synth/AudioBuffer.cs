@@ -65,34 +65,12 @@ namespace PirateCrew.Audio.Synth
             return (int)Math.Round(seconds * sampleRate, MidpointRounding.AwayFromZero);
         }
 
-        /// <summary>创建一段静音缓冲。</summary>
-        public static AudioBuffer Silence(double seconds, int sampleRate = DefaultSampleRate, int channels = Mono)
-        {
-            return new AudioBuffer(FramesForSeconds(seconds, sampleRate), sampleRate, channels);
-        }
-
-        /// <summary>取第 frame 帧第 channel 声道的样本（越界返回 0）。</summary>
-        public float GetSample(int frame, int channel = 0)
-        {
-            if (frame < 0 || frame >= FrameCount || channel < 0 || channel >= Channels)
-                return 0f;
-            return Samples[frame * Channels + channel];
-        }
-
         /// <summary>写第 frame 帧第 channel 声道的样本（越界忽略）。</summary>
         public void SetSample(int frame, float value, int channel = 0)
         {
             if (frame < 0 || frame >= FrameCount || channel < 0 || channel >= Channels)
                 return;
             Samples[frame * Channels + channel] = value;
-        }
-
-        /// <summary>叠加样本（越界忽略）。</summary>
-        public void AddSample(int frame, float value, int channel = 0)
-        {
-            if (frame < 0 || frame >= FrameCount || channel < 0 || channel >= Channels)
-                return;
-            Samples[frame * Channels + channel] += value;
         }
 
         /// <summary>峰值绝对值（空缓冲返回 0）。</summary>

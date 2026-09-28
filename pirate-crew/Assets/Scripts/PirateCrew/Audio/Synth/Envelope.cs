@@ -40,18 +40,6 @@ namespace PirateCrew.Audio.Synth
             Release = release < 0d ? 0d : release;
         }
 
-        /// <summary>打击乐式：极短起音 + 短衰减 + 零延音（爆炸/撞击的包络骨架）。</summary>
-        public static Adsr Percussive(double attack = 0.002d, double decay = 0.15d)
-        {
-            return new Adsr(attack, decay, 0d, 0.02d);
-        }
-
-        /// <summary>拨弦/木质感：短起音、中衰减、低延音。</summary>
-        public static Adsr Pluck(double attack = 0.003d, double decay = 0.09d, double sustain = 0.18d, double release = 0.08d)
-        {
-            return new Adsr(attack, decay, sustain, release);
-        }
-
         /// <summary>包络在第 <paramref name="t"/> 秒、gate 时长 <paramref name="gate"/> 秒时的电平。</summary>
         public double LevelAt(double t, double gate)
         {

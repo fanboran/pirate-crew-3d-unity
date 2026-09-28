@@ -15,7 +15,6 @@ namespace PirateCrew.Tests.UI
         public void Glyphs_CenterInside_FarOutside()
         {
             // 中心语义：这些符号中心是实心的。
-            Assert.IsTrue(UiGlyphs.InsideGlyph(UiGlyphs.Glyph.Crosshair, 0f, 0f, Half), "准星中心有轴点");
             Assert.IsTrue(UiGlyphs.InsideGlyph(UiGlyphs.Glyph.MovePad, 0f, 0f, Half), "移动盘中心有圆");
             Assert.IsTrue(UiGlyphs.InsideGlyph(UiGlyphs.Glyph.Skull, 0f, -4f, Half), "骷髅额头是实的");
             Assert.IsTrue(UiGlyphs.InsideGlyph(UiGlyphs.Glyph.Helm, 0f, 0f, Half), "舵轮中心有毂");
@@ -35,18 +34,6 @@ namespace PirateCrew.Tests.UI
         {
             Assert.IsFalse(UiGlyphs.InsideGlyph(UiGlyphs.Glyph.Skull, -3.9f, 0.5f, Half), "左眼洞");
             Assert.IsFalse(UiGlyphs.InsideGlyph(UiGlyphs.Glyph.Skull, 3.9f, 0.5f, Half), "右眼洞");
-        }
-
-        [Test]
-        public void SdRoundRect_StraightEdgeDistanceMatchesRadius()
-        {
-            // 直边中点（远离圆角）：像素中心 y=half-0.5 贴边时 SDF ≈ 0，向内为负（形状内）。
-            float sdEdge = UiGlyphs.SdRoundRect(0f, 23.5f, 23.5f, 8f);
-            Assert.LessOrEqual(Mathf.Abs(sdEdge), 0.1f, "直边 SDF ≈ 0");
-            float sdInside = UiGlyphs.SdRoundRect(0f, 20f, 23.5f, 8f);
-            Assert.Less(sdInside, -2f, "向内 3.5px 的 SDF < -2");
-            float sdOutside = UiGlyphs.SdRoundRect(0f, 26f, 23.5f, 8f);
-            Assert.Greater(sdOutside, 1f, "向外 2px 的 SDF > 1");
         }
 
         // ------------------------------------------------------------------

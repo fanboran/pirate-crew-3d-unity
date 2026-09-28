@@ -119,16 +119,5 @@ namespace PirateCrew.Audio.Synth
                 return 0d;
             return Math.Exp(-t / tauSeconds);
         }
-
-        /// <summary>把 x 从 [inMin,inMax] 线性映射到 [outMin,outMax]（带钳制）。</summary>
-        public static double MapClamped(double x, double inMin, double inMax, double outMin, double outMax)
-        {
-            if (inMax <= inMin)
-                return outMin;
-            double k = (x - inMin) / (inMax - inMin);
-            if (k < 0d) k = 0d;
-            if (k > 1d) k = 1d;
-            return outMin + (outMax - outMin) * k;
-        }
     }
 }

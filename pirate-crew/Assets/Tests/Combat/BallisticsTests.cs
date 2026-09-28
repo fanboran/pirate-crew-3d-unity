@@ -179,7 +179,7 @@ namespace PirateCrew.Combat.Tests
         }
 
         // ------------------------------------------------------------------
-        // IntegrateWallContact（§5.4）
+        // IntegrateWallContact（§5.4；S2 待接线存件，见 Ballistics.IntegrateWallContact 登记）
         // ------------------------------------------------------------------
 
         [Test]

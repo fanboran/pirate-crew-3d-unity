@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -44,15 +43,6 @@ namespace PirateCrew.Core
 
         /// <summary>全局访问入口。由 Bootstrapper 创建本组件后可用。</summary>
         public static SceneLoader Instance { get; private set; }
-
-        /// <summary>开始加载某场景时触发（本地事件，等价 Godot signal scene_load_started）。</summary>
-        public event Action<string> SceneLoadStarted;
-
-        /// <summary>场景加载完成（已切换）时触发（等价 Godot signal scene_load_completed）。</summary>
-        public event Action<string> SceneLoadCompleted;
-
-        /// <summary>整段过渡（含淡入）结束时触发（等价 Godot signal scene_transition_finished）。</summary>
-        public event Action<string> SceneTransitionFinished;
 
         /// <summary>场景栈深度（对应 Godot get_stack_depth）。</summary>
         public int StackDepth => _sceneStack.Count;
@@ -286,19 +276,16 @@ namespace PirateCrew.Core
 
         void RaiseSceneLoadStarted(string sceneName)
         {
-            SceneLoadStarted?.Invoke(sceneName);
             EventBus.Publish(SceneEvents.SceneLoadStarted, sceneName);
         }
 
         void RaiseSceneLoadCompleted(string sceneName)
         {
-            SceneLoadCompleted?.Invoke(sceneName);
             EventBus.Publish(SceneEvents.SceneLoadCompleted, sceneName);
         }
 
         void RaiseSceneTransitionFinished(string sceneName)
         {
-            SceneTransitionFinished?.Invoke(sceneName);
             EventBus.Publish(SceneEvents.SceneTransitionFinished, sceneName);
         }
 

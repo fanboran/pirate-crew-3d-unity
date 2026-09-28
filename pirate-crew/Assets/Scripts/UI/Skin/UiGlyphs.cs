@@ -13,6 +13,12 @@ namespace PirateCrew.UI
     /// 【图标优先原则（用户裁决）】能用图像表示的全用图像：模式开关 = 移动/准星/眼睛三图标、
     /// 动作按钮 = 投掷弧 / 旗、暂停 = 双竖条、确认 = 勾 / 叉……文字只留横幅与提示。
     ///
+    /// 【现役口径】战斗 HUD 随后续裁决改为文字钮（见 BattleHud.cs 头注），图标面收窄：
+    /// 上产线的只有 Star（星级）；Eye/MovePad/Skull/Helm 为登记保留件
+    /// （【存件·仅测试消费】，启用前先对齐裁决）。准星图标随"准星点选退役、
+    /// 改鼠标直接点选"裁决清退；早退役的动作/确认族成员
+    /// （Pause/Play/Check/Cross/Retry/Flag/ThrowArc）已清退，Git 历史即存档。
+    ///
     /// 坐标约定：<paramref name="fx"/>/<paramref name="fy"/> 以图标中心为原点（y 向上），
     /// <paramref name="half"/> 为半边长；贴图内实际按 2×half 边长逐像素判定。
     /// </summary>
@@ -21,32 +27,16 @@ namespace PirateCrew.UI
         /// <summary>符号种类。</summary>
         public enum Glyph
         {
-            /// <summary>十字准星（操作模式）。</summary>
-            Crosshair,
-            /// <summary>眼睛（观察模式）。</summary>
+            /// <summary>眼睛（观察模式；存件·仅测试消费）。</summary>
             Eye,
-            /// <summary>四向箭头（移动模式）。</summary>
+            /// <summary>四向箭头（移动模式；存件·仅测试消费）。</summary>
             MovePad,
-            /// <summary>双竖条（暂停）。</summary>
-            Pause,
-            /// <summary>实心三角（继续 / 播放）。</summary>
-            Play,
-            /// <summary>对勾（确认）。</summary>
-            Check,
-            /// <summary>叉（取消）。</summary>
-            Cross,
-            /// <summary>骷髅（阵亡 pip / 失败）。</summary>
+            /// <summary>骷髅（阵亡 pip / 失败；存件·仅测试消费）。</summary>
             Skull,
-            /// <summary>五角星（星级 / 胜利）。</summary>
+            /// <summary>五角星（星级 / 胜利；现役：RuntimeUiBuilder 星级图标）。</summary>
             Star,
-            /// <summary>循环箭头（再来一局）。</summary>
-            Retry,
-            /// <summary>舵轮（返回主菜单 = 回船）。</summary>
+            /// <summary>舵轮（返回主菜单 = 回船；存件·仅测试消费）。</summary>
             Helm,
-            /// <summary>旗帜（结束回合 / 回合徽章）。</summary>
-            Flag,
-            /// <summary>抛物弧 + 弹体（投掷）。</summary>
-            ThrowArc,
         }
 
         /// <summary>绘制边长（像素；符号按此分辨率的系数画，切片边框 0）。</summary>
@@ -132,16 +122,6 @@ namespace PirateCrew.UI
 
             switch (glyph)
             {
-                case Glyph.Crosshair:
-                {
-                    float r = Mathf.Sqrt(x * x + y * y);
-                    bool ring = r <= 10f && r >= 6.5f;
-                    bool spokes = (Mathf.Abs(x) <= 1.8f && Mathf.Abs(y) <= 15f)
-                                  || (Mathf.Abs(y) <= 1.8f && Mathf.Abs(x) <= 15f);
-                    bool hub = r <= 2.5f;
-                    return ring || spokes || hub;
-                }
-
                 case Glyph.Eye:
                 {
                     float ellipse = Mathf.Sqrt(x * x / (196f) + y * y / (81f)); // a=14, b=9
@@ -162,21 +142,6 @@ namespace PirateCrew.UI
                     return Mathf.Min(ax, ay) <= 4.5f * (15f - r) / 9f + 1.2f;
                 }
 
-                case Glyph.Pause:
-                    return SdRoundRect(x - 5f, y, 2.6f, 1.5f) <= 0f
-                        || SdRoundRect(x + 5f, y, 2.6f, 1.5f) <= 0f;
-
-                case Glyph.Play:
-                    return x >= -7f && x <= 11f && Mathf.Abs(y) <= (x + 7f) / 18f * 12f + 0.5f;
-
-                case Glyph.Check:
-                    return DistToSegment(x, y, -11f, 0f, -3f, 8f) <= 2.6f
-                        || DistToSegment(x, y, -3f, 8f, 12f, -9f) <= 2.6f;
-
-                case Glyph.Cross:
-                    return DistToSegment(x, y, -9f, -9f, 9f, 9f) <= 2.8f
-                        || DistToSegment(x, y, -9f, 9f, 9f, -9f) <= 2.8f;
-
                 case Glyph.Skull:
                 {
                     // 头圆 + 下颚，眼洞 / 鼻洞挖空。
@@ -192,19 +157,6 @@ namespace PirateCrew.UI
                 case Glyph.Star:
                     return InsideStar(x, y, 11f, 4.9f);
 
-                case Glyph.Retry:
-                {
-                    float r = Mathf.Sqrt(x * x + y * y);
-                    bool ring = r <= 10f && r >= 6.5f;
-                    // 顶部开口（约 -55°..55° 以竖直向上为 0 时挖空）。
-                    float angle = Mathf.Atan2(y, x) * Mathf.Rad2Deg;             // 90 = 上
-                    bool gap = Mathf.Abs(Mathf.DeltaAngle(angle, 90f)) < 42f;
-                    // 箭头：开口右端的小三角（指向顺时针 / 向右下）。
-                    bool arrow = x >= 2f && x <= 11.5f && y >= 4f
-                                 && Mathf.Abs(y - (10f - (x - 2f) * 0.62f)) <= 2.6f;
-                    return (ring && !gap) || arrow;
-                }
-
                 case Glyph.Helm:
                 {
                     float r = Mathf.Sqrt(x * x + y * y);
@@ -218,48 +170,9 @@ namespace PirateCrew.UI
                     return ring || hub || spoke;
                 }
 
-                case Glyph.Flag:
-                {
-                    bool pole = Mathf.Abs(x + 8f) <= 1.8f && y >= -12f && y <= 13f;
-                    // 三角旗：旗杆顶向右展开，随 x 收窄。
-                    bool flag = x >= -6.2f && x <= 11f && y <= 12f && y >= 0f
-                                && (y - 6f) <= 5.5f * (1f - (x + 6.2f) / 17.2f) + 0.6f
-                                && (6f - y) <= 5.5f * (1f - (x + 6.2f) / 17.2f) + 0.6f;
-                    return pole || flag;
-                }
-
-                case Glyph.ThrowArc:
-                {
-                    // 抛物弧 y = 9 - x²/14（x ∈ [-11, 11]），线宽 2.4；弹体圆在左端。
-                    if (x >= -11f && x <= 11f)
-                    {
-                        float curve = 9f - x * x / 14f;
-                        if (Mathf.Abs(y - curve) <= 2.4f)
-                            return true;
-                    }
-                    bool ball = (x + 11f) * (x + 11f) + (y - 8f) * (y - 8f) <= 12.25f;  // r=3.5
-                    // 落点星尘：右端三粒小点。
-                    bool sparks = (x - 12f) * (x - 12f) + (y + 5f) * (y + 5f) <= 2.2f
-                                  || (x - 9.5f) * (x - 9.5f) + (y + 9f) * (y + 9f) <= 1.6f
-                                  || (x - 14f) * (x - 14f) + (y - 0.5f) * (y - 0.5f) <= 1.6f;
-                    return ball || sparks;
-                }
-
                 default:
                     return false;
             }
-        }
-
-        /// <summary>点到线段距离。</summary>
-        public static float DistToSegment(float px, float py, float ax, float ay, float bx, float by)
-        {
-            float abx = bx - ax, aby = by - ay;
-            float apx = px - ax, apy = py - ay;
-            float lengthSq = abx * abx + aby * aby;
-            float t = lengthSq <= 0f ? 0f : Mathf.Clamp01((apx * abx + apy * aby) / lengthSq);
-            float cx = ax + abx * t - px;
-            float cy = ay + aby * t - py;
-            return Mathf.Sqrt(cx * cx + cy * cy);
         }
 
         /// <summary>标准五角星判定（角度法；tintable 白形供染色星级）。</summary>
@@ -276,21 +189,6 @@ namespace PirateCrew.UI
             float wave = Mathf.Abs(2f * t - 1f);
             float limit = Mathf.Lerp(innerRadius, outerRadius, wave);
             return r <= limit;
-        }
-
-        /// <summary>
-        /// 圆角矩形有符号距离场（负 = 形状内）。纯函数，可无头断言
-        /// （中心为负、远角为正、直边距离与参数一致）。
-        /// 【迁入】原 CartoonSpriteFactory.SdRoundRect——Cartoon 皮肤退役后，
-        /// 该几何纯函数的唯一消费者是本类的字形判定（Pause 双竖条），就近收编。
-        /// </summary>
-        public static float SdRoundRect(float px, float py, float halfExtent, float radius)
-        {
-            float qx = Mathf.Abs(px) - (halfExtent - radius);
-            float qy = Mathf.Abs(py) - (halfExtent - radius);
-            float outside = Mathf.Sqrt(Mathf.Max(qx, 0f) * Mathf.Max(qx, 0f)
-                + Mathf.Max(qy, 0f) * Mathf.Max(qy, 0f));
-            return outside + Mathf.Min(Mathf.Max(qx, qy), 0f) - radius;
         }
     }
 }

@@ -4,11 +4,11 @@ namespace PirateCrew.Combat
 {
     /// <summary>
     /// 投掷弹道纯逻辑（Flash 2D 平面口径）。
-    /// 对应逆向文档 §5.1（弹弓 twang 公式、满力拖拽距离）与 §5.4（撞地/撞墙的速度积分）。
+    /// 对应逆向文档 §5.1（弹弓 twang 公式、满力拖拽距离）与 §5.4（撞地的速度积分）。
     /// 全部为静态纯函数，不依赖 MonoBehaviour / GameObject，可在无头验证台运行。
     /// 坐标约定与 Flash 原版一致（y 轴向下，重力每帧 +weight）。
     ///
-    /// 【与 <c>Battle.ThrowTrajectory</c> 的分工】本类只负责「弹弓初速」与「撞地/撞墙后的速度积分」，
+    /// 【与 <c>Battle.ThrowTrajectory</c> 的分工】本类只负责「弹弓初速」与「撞地后的速度积分」，
     /// 这些是与维度无关的 Flash 标量公式（拖拽距离、反弹/摩擦系数）。
     /// <b>3D 抛物线采样不在这里</b>：XZ 竞技场下的逐步积分由 <c>Battle.ThrowTrajectory.Predict</c> 承担
     /// （预览、实弹、AI 共用同一份半隐式欧拉）。原平面预测方法 <c>PredictTrajectory</c> 随 2D 模型废弃后
@@ -17,11 +17,11 @@ namespace PirateCrew.Combat
     /// </summary>
     public static class Ballistics
     {
-        /// <summary>原版弹弓的固定力度系数：初速 = 0.25 × 拖拽距离。</summary>
-        public const float DefaultForceScale = 0.25f;
+    /// <summary>原版弹弓的固定力度系数：初速 = 0.25 × 拖拽距离。</summary>
+    public const float DefaultForceScale = 0.25f;
 
-        /// <summary>撞墙时的水平速度反弹系数（§5.4）：vx *= -0.4。</summary>
-        public const float WallBounceScale = -0.4f;
+    /// <summary>撞墙时的水平速度反弹系数（§5.4）：vx *= -0.4。</summary>
+    public const float WallBounceScale = -0.4f;
 
         /// <summary>
         /// 弹弓松开瞬间的初速（§5.1）。
@@ -85,6 +85,9 @@ namespace PirateCrew.Combat
 
         /// <summary>
         /// 撞墙后的速度积分（§5.4）：vx *= -0.4，垂直速度不变。
+        /// 【存件·S2 待接线（代码审计登记）】产线暂无调用方；是在册计划项的预留实现——
+        /// docs/项目/待办事项.md「投掷批次 S2（P0）」：弹体弹跳/摩擦 Flash 口径接线，
+        /// Integrate* 接进 WeaponProjectile、bounce/friction 入 ProjectileProfile。接走前勿删。
         /// </summary>
         public static (float vx, float vy) IntegrateWallContact(float vx, float vy)
         {

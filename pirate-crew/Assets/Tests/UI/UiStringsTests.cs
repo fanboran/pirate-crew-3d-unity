@@ -42,13 +42,13 @@ namespace PirateCrew.Tests
         public void UiStrings_HasExpectedVolume()
         {
             int count = EnumerateStrings().Count;
-            Assert.GreaterOrEqual(count, 130,
-                "文案条目应达到规范 §4.2–§4.9 的量级（约 150 条，含变体），当前 " + count);
+            Assert.GreaterOrEqual(count, 100,
+                "文案条目应达到现役文案量级（约 106 条），当前 " + count);
         }
 
         /// <summary>
         /// 测试侧追加的**按键名白名单**（r12/r13 模式系统裁决：操作提示词有意包含按键标签，
-        /// 见 <c>UiStrings.BattleHintAiming/BattleHintGeneral/BattleHintFocus</c> 与
+        /// 见 <c>UiStrings.BattleHintAiming/BattleHintObserve</c> 与
         /// <c>BattleHud.RefreshModeHint</c>）。按键名是合法 UX 惯例，不是漏译——
         /// 源码侧 <c>UiTextRules.AllowedTokens</c> 只登记了 3d/esc/e/w/s/wasd，
         /// 这里在审计逻辑里**补充**过滤，命中全部为白名单 token 的文案不再记违规。
@@ -175,7 +175,6 @@ namespace PirateCrew.Tests
         {
             Assert.AreEqual("海盗军团夺宝 3D", UiStrings.MainTitle);
             Assert.AreEqual("进入战斗", UiStrings.MainBattle);
-            Assert.AreEqual("单人战役", UiStrings.MainCampaign);
             Assert.AreEqual("船员管理", UiStrings.MainCrew);
             Assert.AreEqual("退出游戏", UiStrings.MainQuit);
             // 【2026-09-14 对齐源码现值】"抛自己"（把自己抛出去的攻击动作）随 r12/r13 模式系统
@@ -184,8 +183,6 @@ namespace PirateCrew.Tests
             Assert.AreEqual("结束回合", UiStrings.BattleEndGo);
             // 【UI 审计 P1-5】"瞄准中 / 聚焦中"两个标签随永久隐藏的死节点一并退役，不再断言。
             Assert.AreEqual("选择武器", UiStrings.BattleWeaponListTitle);
-            // 【发布收口】M1 时代的占位场景文案随 BattlePlaceholder 一并退役。
-            Assert.AreEqual("暂停 (Esc)", UiStrings.BattlePauseButton);
             Assert.AreEqual("再来一局", UiStrings.BattleRestart);
             // 【版本单一真源】菜单只出前缀，数字运行时取 Application.version
             // （BuildVersion.Current → bundleVersion 链）——文案表不再保存版本数字。

@@ -32,9 +32,6 @@ namespace PirateCrew.Core
             _rootPath = rootPath ?? string.Empty;
         }
 
-        /// <summary>存档根目录。</summary>
-        public string RootPath => _rootPath;
-
         /// <summary>槽位文件路径：slot_{n}.json。</summary>
         public string GetSlotPath(int slot)
         {

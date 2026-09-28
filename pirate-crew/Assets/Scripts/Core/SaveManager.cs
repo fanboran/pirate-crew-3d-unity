@@ -53,6 +53,12 @@ namespace PirateCrew.Core
         /// <summary>全局访问入口（由 Bootstrapper 创建本组件后可用）。</summary>
         public static SaveManager Instance { get; private set; }
 
+        // 【存件·自动存档链（代码审计登记）】EnableAutoSave → AutoSaveRoutine → TriggerAutoSave
+        // → AutoSaveTriggered 整条链当前**零调用方**：没有任何代码调 EnableAutoSave，故
+        // _autoSaveEnabled 恒为 false，OnApplicationQuit 的 TriggerAutoSave 每次都在开关处短路；
+        // AutoSaveDataProvider 也从未被赋值。保留原因：自动存档是完整实现的标准功能，启用路径 =
+        // Bootstrapper 调 EnableAutoSave 并注入 AutoSaveDataProvider。删除或接线二选一，别让链上成员各自零散演化。
+
         /// <summary>存档成功（等价 Godot signal save_completed）。</summary>
         public event Action<int> SaveCompleted;
 

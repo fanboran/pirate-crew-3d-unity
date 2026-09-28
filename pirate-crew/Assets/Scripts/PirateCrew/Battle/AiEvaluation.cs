@@ -299,26 +299,6 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// 该平面像素所在格是否是"高墙"（地面格且块高 ≥ <see cref="RaisedWallBlocks"/>）。
-        /// 与 <see cref="IsBlocked"/> 的区别：平台地面的高楼顶（如 5 块桅盘）仍是**可放置面**，
-        /// 但相对周边是一堵高墙——供需要判断遮挡 / 落点高差的调用方使用。
-        /// 水格与越界返回 false（水不是墙）。
-        /// </summary>
-        public bool IsRaisedWallAt(float pixelX, float pixelY)
-        {
-            if (Grid == null)
-                return false;
-
-            // 像素 → **格号**（px/32，与格世界尺寸无关；不要用 PixelsToUnits——那是 px→世界单位，格 1→2 单位后已翻倍）。
-            int gx = Mathf.FloorToInt(LevelGeometry.PixelsToTiles(pixelX));
-            int gy = Mathf.FloorToInt(LevelGeometry.PixelsToTiles(pixelY));
-            if (!Grid.IsGroundAt(gx, gy))
-                return false;
-
-            return Grid.BlocksAt(gx, gy) >= RaisedWallBlocks;
-        }
-
-        /// <summary>
         /// 放置类武器（woodenCrate / gunpowderBarrel，§6.3 BoxWeapon.canPlace 的近似）能否放在此处。
         /// 判定：AABB 的平面足迹完全落在竞技场矩形内（Flash 的 2D AABB 重投影为 XZ 足迹），
         /// 且足迹中心没有被瓦片地形块占用（地形落地后补上的查询）。

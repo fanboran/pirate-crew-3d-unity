@@ -67,12 +67,5 @@ namespace PirateCrew.Campaign
         {
             PendingMapId = null;
         }
-
-        /// <summary>清空全部战役状态（重开档 / 测试用）。</summary>
-        public void Reset()
-        {
-            Progress.Reset();
-            PendingMapId = null;
-        }
     }
 }

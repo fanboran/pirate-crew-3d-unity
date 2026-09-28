@@ -37,31 +37,9 @@ namespace PirateCrew.Core
             UnityEngine.Debug.LogWarning(message);
         }
 
-        /// <summary>带上下文的重载（双击日志可定位到场景对象；清扫前的 Debug.LogWarning(msg, this) 落这里）。</summary>
-        [Conditional(EditorTag)]
-        [Conditional(DevBuildTag)]
-        public static void Warn(object message, Object context)
-        {
-            UnityEngine.Debug.LogWarning(message, context);
-        }
-
-        /// <summary>带上下文的信息日志。</summary>
-        [Conditional(EditorTag)]
-        [Conditional(DevBuildTag)]
-        public static void Info(object message, Object context)
-        {
-            UnityEngine.Debug.Log(message, context);
-        }
-
         public static void Error(object message)
         {
             UnityEngine.Debug.LogError(message);
-        }
-
-        /// <summary>带上下文的错误日志（直通，发布版保留）。</summary>
-        public static void Error(object message, Object context)
-        {
-            UnityEngine.Debug.LogError(message, context);
         }
     }
 }

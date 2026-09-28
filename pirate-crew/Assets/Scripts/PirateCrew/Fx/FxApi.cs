@@ -1,4 +1,3 @@
-using PirateCrew.Data;
 using UnityEngine;
 
 namespace PirateCrew.Fx
@@ -39,38 +38,6 @@ namespace PirateCrew.Fx
             if (!Application.isPlaying)
                 return;
             WaterSplashFx.Play(position, fallSpeed);
-        }
-
-        /// <summary>落水即死的强反馈（水花 + 大涟漪）。</summary>
-        public static void PlayDrownSplash(Vector3 position)
-        {
-            if (!Application.isPlaying)
-                return;
-            WaterSplashFx.PlayDrown(position);
-        }
-
-        /// <summary>命中反馈（火花 + 尘土 + 伤害数字）。</summary>
-        public static void PlayHit(Vector3 worldPosition, float damage, int maxHealth)
-        {
-            if (!Application.isPlaying)
-                return;
-            HitFx.Play(worldPosition, damage, maxHealth);
-        }
-
-        /// <summary>只弹一个伤害数字。</summary>
-        public static void ShowDamageNumber(Vector3 worldPosition, float damage, int maxHealth)
-        {
-            if (!Application.isPlaying)
-                return;
-            DamageNumberFx.Play(worldPosition, damage, maxHealth);
-        }
-
-        /// <summary>给弹体挂拖尾（幂等）。</summary>
-        public static void AttachProjectileTrail(GameObject projectile, WeaponId weapon)
-        {
-            if (!Application.isPlaying)
-                return;
-            ProjectileTrailFx.Attach(projectile, weapon);
         }
 
         /// <summary>

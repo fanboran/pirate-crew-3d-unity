@@ -349,11 +349,5 @@ namespace PirateCrew.Battle
                 ? ProjectileShape.Box
                 : ProjectileShape.Sphere;
         }
-
-        /// <summary>是否为箱体类（AABB 非正圆，垂直半径小于水平）。</summary>
-        public static bool IsBoxWeapon(WeaponId id)
-        {
-            return id == WeaponId.GunpowderBarrel || id == WeaponId.WoodenCrate;
-        }
     }
 }

@@ -110,12 +110,6 @@ namespace PirateCrew.Audio
             }
         }
 
-        /// <summary>该武器引爆是否需要 3D 空间化（爆炸/碎裂是；入水/UI 等视配方而定）。</summary>
-        public static SpatialMode SpatialForDetonation(WeaponId weapon)
-        {
-            return SfxCatalog.Get(SfxForDetonation(weapon)).Spatial;
-        }
-
         /// <summary>
         /// 把爆炸距离映射为「是否需要播放」的快速判定（超出最大距离直接跳过，
         /// 省掉一次剪辑查找与 AudioSource 占用）。

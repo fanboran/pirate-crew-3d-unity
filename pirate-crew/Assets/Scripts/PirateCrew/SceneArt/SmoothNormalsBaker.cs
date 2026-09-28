@@ -17,7 +17,12 @@ namespace PirateCrew.SceneArt
     ///
     /// 【位置容差的边界】量化桶按 <c>round(pos / quantize)</c> 归并。程序化几何的重合顶点
     /// 来自相同计算的 bit 级相同坐标，跨桶不发生；外部导入网格若存在「近而不等」的裂缝顶点，
-    /// 需要更大的 quantize 或先 weld——本烘焙器的调用方目前只有程序化烘焙链，不处理该情况。
+    /// 需要更大的 quantize 或先 weld——本烘焙器只处理程序化几何，不处理该情况。
+    ///
+    /// 【存件登记（代码审计）】当前生产烘焙链（Editor/SceneArtBaker）**不调用**本类；
+    /// 唯一消费者是 Tests/SceneArt/SmoothNormalsBakerTests，其顶点色编码的 shader 消费端
+    /// 已随 PirateToon.shader 清退。作为「反向壳描边」算法存件保留（调研-反向壳描边.md §3、
+    /// 美术翻新审计 M5 在案）；重启用前需先恢复 shader 侧解码，别当现役链路引用。
     ///
     /// 【纯 C# 纪律】不触碰 Mesh/Texture 等 Unity 对象实例化（ECall 限制），可在无头验证台跑；
     /// Unity 侧薄壳（Mesh.SetColors）由 Editor 装配脚本承担。

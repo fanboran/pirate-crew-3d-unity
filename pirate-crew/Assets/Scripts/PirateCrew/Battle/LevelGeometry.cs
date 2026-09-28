@@ -135,7 +135,7 @@ namespace PirateCrew.Battle
     ///   · 距离类（选中半径、爆炸半径、投掷射程、水距）→ <see cref="PixelsToUnits"/> / <see cref="TileToWorld"/>；
     ///   · 速度/重力类 → <see cref="FlashSpeedScale"/> / <see cref="WorldGravityY"/>（随 PixelsPerUnit 缩放）；
     ///   · **格号 → 世界坐标** → <see cref="GridToArena"/> / <see cref="TileToWorld"/> / <see cref="TileCenterWorld"/>；
-    ///   · 反向（世界 → 格号）→ <see cref="WorldToTiles"/> / <see cref="PixelsToTiles"/>（**不是** PixelsToUnits）。
+        ///   · 反向（世界 → 格号）→ <see cref="PixelsToTiles"/> / <see cref="WorldToTileIndex"/>（**不是** PixelsToUnits）。
     ///   格语义（射程多少格、水距多少格）在本次扫荡里逐项不变——只有"一格有几个世界单位"变了。
     ///
     /// 【3D 化决策 2：重力与力度换算】Flash 每帧 vy += weight（25fps，1px/帧²）。
@@ -254,22 +254,10 @@ namespace PirateCrew.Battle
             return px / TilePixels;
         }
 
-        /// <summary>格号（含小数）→ 像素；<see cref="PixelsToTiles"/> 的逆。</summary>
-        public static float TilesToPixels(float tiles)
-        {
-            return tiles * TilePixels;
-        }
-
         /// <summary>格号（含小数）→ 世界单位（× <see cref="TileWorldSize"/>）。</summary>
         public static float TileToWorld(float tiles)
         {
             return tiles * TileWorldSize;
-        }
-
-        /// <summary>世界单位 → 格号（含小数）；<see cref="TileToWorld"/> 的逆。</summary>
-        public static float WorldToTiles(float units)
-        {
-            return units / TileWorldSize;
         }
 
         /// <summary>

@@ -429,14 +429,5 @@ namespace PirateCrew.Ambient
         {
             return min + (max - min) * Next01();
         }
-
-        /// <summary>[min,max) 整数。</summary>
-        public int RangeInt(int minInclusive, int maxExclusive)
-        {
-            if (maxExclusive <= minInclusive)
-                return minInclusive;
-
-            return minInclusive + (int)(NextUInt() % (uint)(maxExclusive - minInclusive));
-        }
     }
 }

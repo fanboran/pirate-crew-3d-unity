@@ -124,9 +124,12 @@ namespace PirateCrew.Battle
     /// 【为什么不用「每列一个高度」】列式只能表达"一整块连续地面 + 中脊"，无法表达
     /// "一堆高高低低、彼此隔水的悬空平台"。本结构是**逐格**（行主序）的
     /// <see cref="CellBlocks"/> + <see cref="CellCluster"/>，水格 <c>CellCluster = -1</c>、
-    /// <c>CellBlocks = 0</c>。一代瓦片竞技场退场后，世界海域图的站面栅格
-    ///（<c>WorldMapRuntime.BuildTerrainGrid</c>）与样板三关的逻辑高度场仍以块高语义进
-    /// <see cref="TileTerrainGrid"/>；本结构保留供 kit 配方与视图层消费。
+    /// <c>CellBlocks = 0</c>。
+    ///
+    /// 【近死登记（代码审计）】当前全仓**没有任何生产者**：唯一引用是
+    /// <see cref="TileTerrainGrid"/> 的平台簇构造形态（字段与构造参数），而该构造形态本身
+    /// 零调用（一代悬空平台内容已退场，见 TileTerrainGrid 头注的保留契约）。本结构随那份
+    /// 保留契约一并存续；裁掉形态②时应连同本文件整体清退，不要再为新内容单独启用。
     /// </summary>
     public sealed class PlatformMap
     {

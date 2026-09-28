@@ -32,16 +32,6 @@ namespace PirateCrew.Battle.Levels
                 blocks, payload.terrain.blockWorldHeight);
         }
 
-        /// <summary>栅格是否可用（校验器与测试共用同一判据，避免两处各写一套）。</summary>
-        public static bool IsUsable(LevelAssetPayload payload)
-        {
-            return payload != null
-                && payload.terrain.IsWellFormed
-                && payload.terrain.widthTiles == payload.widthTiles
-                && payload.terrain.depthTiles == payload.depthTiles
-                && payload.terrain.blockWorldHeight > 0f;
-        }
-
         /// <summary>栅格里的实心格数（校验器用）。</summary>
         public static int SolidCellCount(LevelAssetPayload payload)
         {
