@@ -91,6 +91,10 @@ cd F:/VSCode/pirate-crew-3d-unity            # worktree 里则 cd <worktree>
 `ChemPlant_Towers` / `ChemPlant_Tanks` / `ChemPlant_Pipes` / `ChemPlant_Building` / `ChemPlant_Props`，
 根原点 = 场地中心、地面 y=0 —— 与 Unity 的 1 单位 = 1 米直接对齐）。
 
+**朝向**（沿用 `SceneKitPilotSetup` 的口径）：Blender 的 −Y（大门与旁楼主立面那一侧）→
+FBX 的 −Z → Unity 经 `bakeAxisConversion=true` 折算后朝 **Unity +Z**；Unity 里把根节点摆在
+场地中心、`y=0` 即落地（厂区在 XZ 平面上展开 56 × 40 m）。
+
 **接线是下一步的活，不在本 kit 内**，两条现成通道任选：
 
 1. **照 `SceneKitPilotSetup`**（`Assets/Editor/SceneKitPilot/SceneKitPilotSetup.cs`）扩一件：
@@ -127,13 +131,22 @@ cd F:/VSCode/pirate-crew-3d-unity            # worktree 里则 cd <worktree>
 - **成品图**：8 机位 1440×900 各约 13~17 s（OPTIX），图集与口径见
   [docs/images/chemplant-scene/README.md](../../../../docs/images/chemplant-scene/README.md)。
 
-### 建模踩坑（本轮修掉的两个库缺陷，别回退）
+### 建模踩坑（本轮修掉的库缺陷，别回退）
 
 1. **`Mesher.to_object` 的材质对齐**：材质/平滑是**按面下标**的平行数组，而 `me.validate()` 会删退化面；
    删面后按下标 `zip` 会让其后所有面的材质整体错位（真事故：草叶重复面把草绿穿到隔离墩上）。
    现在先自己剔退化面（三列同删）、再在 validate 后**断言面数不变**——不允许静默错位。
-2. **`stairs(rail=False)` 的 `lng` 未定义**（`NameError`）：斜长已提到分支外计算。
-3. **越界校验自身的坑**：设完 `obj.location` 后 `matrix_world` 仍是旧值（Blender 惰性求值），
-   不 `view_layer.update()` 就量，量到的是本地坐标 —— 会得到"满天飞"的假越界。
+2. **`platform` / `grating` / `stairs` 的中心语义**：这三个图元把 `box` 的 `at`（**底面中心**）
+   当成了角点用，甲板/筋条/踏步各偏移半格——表现是「栏杆挂在甲板外半格」「筋条半幅悬在板外」
+   「踏步悬空半格」。现已全部改成以 `at` 为中心（`box` 的语义），**栏杆仍按四角点画**，
+   两套口径在同一函数里必须对齐。
+3. **`stairs(rail=False)` 的 `lng` 未定义**（`NameError`）：斜长已提到分支外计算。
+4. **越界校验自身的坑**：设完 `obj.location` 后 `matrix_world` 仍是旧值（Blender 惰性求值），
+   不 `view_layer.update()` 就量，量到的是本地坐标 —— 会得到"满天飞"的假越界
+   （本轮真出现过"塔区越界 17 m"的假警，差点据此返工）。
+5. **`railing`/`platform` 的点是相对 `at` 的**（两名队员各绊一次）：契约写在 docstring 里，
+   但没有强类型保护——用之前先读签名。
+6. **能力缺口（非缺陷，用之前知道就行）**：`revolve` 只绕 Z 轴（卧式封头要自己 `m.add` 拼）、
+   `flange` 只朝 +Z（侧向法兰用 `cyl(ry=π/2)`）——本轮塔王/破烂王各自在本地文件里补了这两手。
 
 

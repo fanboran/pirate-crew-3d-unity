@@ -470,13 +470,16 @@ class Mesher(object):
                  rail_h=1.1, rail_sides="nesw", rail_mat=None, toeboard=True):
         """操作平台：格栅板 + 四面（可选）栏杆 + 踢脚板。at = 平台中心的地面投影。"""
         w, d = size
-        self.box((w, d, thick), (at[0] - w / 2, at[1] - d / 2, z - thick), mat=mat)
+        # 口径：`box` 的 at 是**底面中心**（不是角点）—— 甲板/踢脚板一律以 at 为中心，
+        # 栏杆按四角点画（两套语义在这里必须对齐，否则栏杆会挂在甲板外半格）。
+        self.box((w, d, thick), (at[0], at[1], z - thick), mat=mat)
         rail_mat = rail_mat or mat
         if toeboard:
-            self.box((w, 0.06, 0.12), (at[0] - w / 2, at[1] - d / 2, z), mat=rail_mat)
-            self.box((w, 0.06, 0.12), (at[0] - w / 2, at[1] + d / 2 - 0.06, z), mat=rail_mat)
-            self.box((0.06, d, 0.12), (at[0] - w / 2, at[1] - d / 2, z), mat=rail_mat)
-            self.box((0.06, d, 0.12), (at[0] + w / 2 - 0.06, at[1] - d / 2, z), mat=rail_mat)
+            t = 0.06
+            self.box((w, t, 0.12), (at[0], at[1] + d / 2 - t / 2, z), mat=rail_mat)
+            self.box((w, t, 0.12), (at[0], at[1] - d / 2 + t / 2, z), mat=rail_mat)
+            self.box((t, d, 0.12), (at[0] - w / 2 + t / 2, at[1], z), mat=rail_mat)
+            self.box((t, d, 0.12), (at[0] + w / 2 - t / 2, at[1], z), mat=rail_mat)
         ox, oy = at[0] - w / 2, at[1] - d / 2
         if "n" in rail_sides:
             self.railing([(ox, oy + d), (ox + w, oy + d)], h=rail_h, at=(0, 0, z), mat=rail_mat)
@@ -512,8 +515,7 @@ class Mesher(object):
             z = i * rise
             y = i * tread
             p = mtx @ Vector((0.0, y + tread / 2, z))
-            self.box((w, tread, rise + 0.02), (at[0] + p.x - w / 2, at[1] + p.y - tread / 2,
-                                               z), mat=mat, rz=rz)
+            self.box((w, tread, rise + 0.02), (at[0] + p.x, at[1] + p.y, z), mat=mat, rz=rz)
         ang = math.atan2(h, run)
         for side in (-1, 1):
             a = mtx @ Vector((side * w / 2, 0.0, 0.0))
@@ -536,18 +538,21 @@ class Mesher(object):
 
     def grating(self, size, at=(0, 0, 0), thick=0.05, bar=0.05, mat="Kit_Rust",
                 direction="x"):
-        """格栅平台板：面板 + 单向密铺筋条（视觉近似，便宜且读得出"格栅"）。"""
+        """格栅平台板：面板 + 单向密铺筋条（视觉近似，便宜且读得出"格栅"）。
+
+        口径同 `box`：at = **板中心**（面板与筋条都以此为中心，筋条落在面板内）。
+        """
         w, d = size
-        self.box((w, d, thick), (at[0] - w / 2, at[1] - d / 2, at[2]), mat=mat)
+        self.box((w, d, thick), (at[0], at[1], at[2]), mat=mat)
         if direction == "x":
             n = max(2, int(d / 0.25))
             for i in range(1, n):
-                self.box((w, bar, bar), (at[0] - w / 2, at[1] - d / 2 + d * i / n, at[2] + thick),
+                self.box((w, bar, bar), (at[0], at[1] - d / 2 + d * i / n, at[2] + thick),
                          mat=mat)
         else:
             n = max(2, int(w / 0.25))
             for i in range(1, n):
-                self.box((bar, d, bar), (at[0] - w / 2 + w * i / n, at[1] - d / 2, at[2] + thick),
+                self.box((bar, d, bar), (at[0] - w / 2 + w * i / n, at[1], at[2] + thick),
                          mat=mat)
 
     def tank_shell(self, r, h, at=(0, 0, 0), seg=32, mat="Kit_SteelPale", rings=4,

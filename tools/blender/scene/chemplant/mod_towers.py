@@ -700,8 +700,9 @@ def _frame(m):
     cols = [(x0, y0), (x1, y0), (x0, y1), (x1, y1),
             (fx, y0), (fx, y1), (x0, fy), (x1, fy)]
     for i, (cxx, cyy) in enumerate(cols):
-        m.box((0.85, 0.85, 0.5), at=(cxx, cyy, 0.0), mat="Kit_ConcreteDark")
-        m.box((0.42, 0.42, 0.05), at=(cxx, cyy, 0.5), mat="Kit_Iron")
+        m.box((0.85, 0.85, 0.5), at=(cxx, min(cyy, y1 - 0.06), 0.0),
+              mat="Kit_ConcreteDark")
+        m.box((0.42, 0.42, 0.05), at=(cxx, min(cyy, y1 - 0.06), 0.5), mat="Kit_Iron")
         mat = "Kit_Rust" if i in (2, 5) else "Kit_SteelBlue"   # 两根后换的锈柱
         m.ibeam((cxx, cyy, 0.55), (cxx, cyy, zr), h=0.34, w=0.2, tf=0.045,
                 tw=0.03, mat=mat)
