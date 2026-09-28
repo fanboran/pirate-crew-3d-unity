@@ -49,11 +49,20 @@ void Main(uint3 id : SV_DispatchThreadID)
         return;
 
     int scale = (int)max(_PixelartSamplingScale, 1.0);
-    int halfScale = scale / 2;
 
-    // 本画布像素对应的细粒度**块中心**（v3 `:23-24` 原样）：
-    // 它同时是"画布像素中心的放大像"，所以这里的结论正好代表这个块。
-    int2 center = int2(id.xy) * scale + halfScale;
+    // 本画布像素对应的细粒度块：原点 = id × k，聚合窗口 = **精确的 k×k 块**。
+    // 【为什么不能拿"中心 ± k/2"当窗口】那是按奇数 k 写的（v3 是 k=5，本仓早期 k=3，窗口恰好
+    // 等于块）；pixelScale 换到偶数档（现役 k=2）后，"中心 ± k/2"是 3×3=9 个细像素，而块只有
+    // 4 个——窗口跨进左/上邻块各半格、分母却还是 k²，算出的占比能超 1 且被邻块内容污染，
+    // 着色趟的"内线降档"门控（`connect < _PixelartAAThreshold`）随之在剪影内侧错误触发，
+    // 观感即"描边和内部色之间有一圈暗缝"。按块原点遍历 [0,k)² 对奇偶 k 都恰好覆盖本块
+    // （奇数 k 时与旧窗口逐像素相同，既有出图口径不变）。
+    int2 blockOrigin = int2(id.xy) * scale;
+
+    // 代表像素（Check 段打 isCenter 位、Flood/着色/描边采样用的那一个细像素）：
+    // 原点 + k/2。奇数 k = 块正中心；偶数 k = 块内偏 (1,1) 的那个像素——与 Check 的
+    // `coord % k == k/2` 和着色各趟"块中心 uv 点采样"（floor((id+0.5)×k)）落到同一个细像素。
+    int2 center = blockOrigin + scale / 2;
 
     float cellCount = float(scale * scale);
     float centerDepth = PixelartConnectivityEyeDepth(_PixelartDepthBuffer[center].r);
@@ -62,12 +71,12 @@ void Main(uint3 id : SV_DispatchThreadID)
     float totalConnectedOrCloserCount = 0.0;
     float normalDiff = 0.0;
 
-    for (int i = -halfScale; i <= halfScale; i++)
+    for (int i = 0; i < scale; i++)
     {
-        for (int j = -halfScale; j <= halfScale; j++)
+        for (int j = 0; j < scale; j++)
         {
-            // ④（本仓加的）窗口 clamp：k 为偶数或将来改档位时不让它读出缓冲外。
-            int2 coord = clamp(center + int2(i, j), int2(0, 0), fineSize - 1);
+            // 窗口 clamp：细档尺寸恒为画布 × k，理论上不出界；留着这层保护免得将来改尺寸口径时静默读越界。
+            int2 coord = clamp(blockOrigin + int2(i, j), int2(0, 0), fineSize - 1);
 
             float4 rawData = _PixelartConnectivityDetailBuffer[coord];
             float currentDepth = PixelartConnectivityEyeDepth(_PixelartDepthBuffer[coord].r);
