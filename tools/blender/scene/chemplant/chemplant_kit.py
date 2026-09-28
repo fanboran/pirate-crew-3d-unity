@@ -1063,7 +1063,12 @@ def build_cooling_tower(acc, dress=True):
         return rt + (rtop - rt) * (u ** 1.6)
 
     rs = [_rr(z) for z in zs]
-    roff = [1.055 if i % 2 == 0 else 0.945 for i in range(S)]
+    # 【实机口径修正 2026-09-29，两轮实测】壳体**不做周向棱槽**：在近似竖直的曲面上，
+    # 任何幅度的交替半径都会让相邻扇区的法线差几度，而像素路径的漫反射只有三档 ⇒
+    # 相邻扇区互相翻档，读成"棋盘格"（±5.5%）乃至"镂空壳"（±1.5%）；Blender 的连续渲染看不出这个。
+    # 改法照厂房压型墙的成功做法：壳体光滑，装饰改成**外凸细肋条**（见下方 ribs），
+    # 肋条自身是单一面朝向、只落一档色，不参与翻档。
+    roff = None
 
     def matf(band, sector):
         if zs[band] < 6.0:
@@ -1080,11 +1085,24 @@ def build_cooling_tower(acc, dress=True):
         loft(acc, [ring_pts(0, 0, rb, zb - 0.22, S, roff=roff),
                    ring_pts(0, 0, rb, zb + 0.22, S, roff=roff)],
              lambda b, s: 'Kit_ConcreteMid' if (s * 3 + int(zb)) % 4 else 'Kit_Rust')
+    # 外凸竖肋 ×16（沿半径剖面折线，5 棱细管；代替会被色带翻档的周向棱槽）
+    for k in range(16):
+        a = 2.0 * math.pi * (k + 0.5) / 16.0
+        ca, sa2 = math.cos(a), math.sin(a)
+        zz = 2.70
+        prev = None
+        while zz <= h - 0.30:
+            rr = _rr(zz) + 0.085
+            pt = (ca * rr, sa2 * rr, zz)
+            if prev is not None:
+                cyl(acc, prev, pt, 0.075, 0.075, 5, 'Kit_ConcreteLight')
+            prev = pt
+            zz += 3.0
     # 顶口残缺两扇区
     top = list(rings[-1])
     for i in (9, 10):
         a = 2.0 * math.pi * i / S
-        top[i] = (math.cos(a) * rs[-1], math.sin(a) * rs[-1], h - 1.5)
+        top[i] = (math.cos(a) * rs[-1], math.sin(a) * rs[-1], h - 0.85)
     rings[-1] = top
     fan(acc, (0, 0, 2.40), ring_pts(0, 0, r0 * 0.9, 2.40, S, roff=roff), 'Kit_ConcreteDark')
     # 底部 12 条斜腿（架空感）+ 地面环形水池
@@ -1286,12 +1304,15 @@ def build_fence(acc, toppled=False):
         sbox(acc, (px, 0.0, 0.20), (0.5, 0.5, 0.40), 'Kit_ConcreteMid')
         lean = -0.10 if k == 2 else 0.0
         sbox(acc, (px, 0.0, 1.30), (0.10, 0.10, 2.20), 'Kit_Rust', rot=(lean, 0.0, 0.0))
+    # 【实机口径修正 2026-09-29】横杆/竖条由 Rust 压到 RustDark：实机里长杆上的亮锈橙太抢眼
+    # （连成排的围栏把整片场地染成橙色），暗锈更贴"多年失修"。
     for z in (0.55, 2.20):
-        sbox(acc, (0.0, 0.0, z), (L, 0.07, 0.07), 'Kit_Rust')
+        sbox(acc, (0.0, 0.0, z), (L, 0.07, 0.07), 'Kit_RustDark')
     for k in range(n):
         px = -L * .5 + L * (k + 0.5) / n
         sag = 0.12 if 1.6 < px < 2.2 else 0.0
-        sbox(acc, (px, 0.0, 1.38 - sag), (0.05, 0.05, 1.7), 'Kit_Rust', rot=(0.0, 0.06 if sag else 0.0, 0.0))
+        sbox(acc, (px, 0.0, 1.38 - sag), (0.05, 0.05, 1.7), 'Kit_RustDark',
+             rot=(0.0, 0.06 if sag else 0.0, 0.0))
     weeds(acc, -2.0, 0.4, 2, 172, spread=1.0)
     weeds(acc, 2.2, -0.4, 2, 173, spread=1.0)
 
