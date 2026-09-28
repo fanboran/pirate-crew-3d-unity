@@ -39,3 +39,22 @@
   曝光 **−0.35 EV**（`Standard` 无高光滚降，不收曝光浅色混凝土会冲成白片；该值是拿 9 槽并排的
   材质标定卡 + 正交相机读回像素量出来的，见 kit README §五）；场外另加一块**只进渲染、
   不进 FBX** 的荒地平面，避免厂区看起来像悬空沙盘。
+
+## 四、实机图（游戏本体跑出来的，不是 Blender 渲染）
+
+| 图 | 机位 / 说明 |
+| --- | --- |
+| [ingame/pl5-wide.png](ingame/pl5-wide.png) | 宽机位（可见高度 32 m；正交 30°、放大 2×） |
+| [ingame/pl5-mid.png](ingame/pl5-mid.png) | 中机位（14 m ＝ 游戏内正交档 7，与玩家能看到的那一档同源） |
+| [ingame/pl5-close.png](ingame/pl5-close.png) | 近机位（7 m） |
+| [ingame/pl5-mid-density.png](ingame/pl5-mid-density.png) | 中机位 + 抖动图案 A/B（**游戏内默认不开**，本张只为验证"抖动通路真的走通"） |
+| [ingame/pl5-dbg-albedo.png](ingame/pl5-dbg-albedo.png) · [ingame/pl5-dbg-outline.png](ingame/pl5-dbg-outline.png) | 调试缓冲（albedo / 描边），证明物体 pass 与描边趟真的写了 |
+
+**出图链**（可复现）：场景 `Assets/Scenes/PixelartChemPlantTeam.unity`（装配器
+`Assets/Pixelart/Editor/PixelartChemPlantTeamSetup.cs`，取景表关卡号 **5**）
+→ 开发包（`BuildScript` 加 `-buildFlavors development -buildScenes development`）
+→ 播放器 `PirateCrew3D.exe -pixelartOut <目录> -pixelartLevel 5`。
+
+**与游戏内实拍的差别**：这批图经了低分辨率艺术画布 + 逐物体 3 档色带 + 屏幕空间描边，
+**没有**经帧级调色板（P5 默认整趟跳过，见 [像素化着色路径/实现口径.md](../../技术/渲染/像素化着色路径/实现口径.md) §4.3）。
+场外那块土色平面是**出图替身**（本关是内陆厂区，没有海面可借），真上玩法时会被关卡地形取代。
