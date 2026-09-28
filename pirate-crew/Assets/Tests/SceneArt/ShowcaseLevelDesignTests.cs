@@ -20,7 +20,7 @@ namespace PirateCrew.SceneArt.Tests
         /// 区间会在 2 上取到空数据（抛异常），而"遍历数据源里现存的关"会让数据源整片缺失时
         /// 循环体一次都不跑、门禁变成空跑绿灯。显式清单两者都避开：缺哪关就红在哪关。
         /// </summary>
-        static readonly int[] ExistingLevels = { 1, 3 };
+        static readonly int[] ExistingLevels = { 1, 3, 4 };
 
         // ------------------------------------------------------------------
         // 硬门禁：站位 / 难度旋钮（全关普查）
@@ -75,6 +75,7 @@ namespace PirateCrew.SceneArt.Tests
                 case 1: return 1;
                 case 2: return 2;   // 关卡 2 已删除：此档只作难度曲线的完整刻度记录，不再被遍历到
                 case 3: return 5;
+                case 4: return 5;   // L4 废弃化工厂（4v5，同 L3 档；难度靠大场地 + 掩体做区分）
                 default: return 5;  // 新增关卡需同时登记 curve 档位
             }
         }

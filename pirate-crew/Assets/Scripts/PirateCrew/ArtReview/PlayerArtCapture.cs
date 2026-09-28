@@ -143,6 +143,31 @@ namespace PirateCrew.ArtReview
                         }
                     }
                 }
+
+                // 【出图对照的覆盖档】一次构建、多组参数出图：给同一条采集流程临时换参数，
+                // **不改默认值、不改资产**——"哪个参数决定了观感差异"的裁决由创始人看着对照图拍板。
+                // 【为什么必须走 MPB 覆盖】这些值已经**烘焙进 .mat 资产**，改配方不改资产是不生效的；
+                // 而 MPB 是逐 renderer 的运行时覆盖，能盖过资产里的序列化值（见 SetPixelartMaterialFloats）。
+                if (CommandLineOptions.TryGetInt(ToolFlags.PixelartPixelScale, out int scaleArg))
+                {
+                    PixelartPixelScaleOverride = Mathf.Clamp(scaleArg,
+                        global::PirateCrew.Rendering.Pixelart.PixelartCameraRig.PixelScaleMin,
+                        global::PirateCrew.Rendering.Pixelart.PixelartCameraRig.PixelScaleMax);
+                }
+
+                if (CommandLineOptions.TryGetFloat(ToolFlags.PixelartSmoothness, out float smoothnessArg))
+                    PixelartSmoothnessOverride = Mathf.Clamp01(smoothnessArg);
+
+                // 法线边两条不钳：`_NormalEdgeLevel` 的合法区间含负值（参考库口径 -1 = 压暗），
+                // 而阈值 >1 是有意义的（1.0 = 要 60° 以上转折才触发，参考库默认）。
+                if (CommandLineOptions.TryGetFloat(ToolFlags.PixelartNormalEdgeLevel, out float edgeLevelArg))
+                    PixelartNormalEdgeLevelOverride = edgeLevelArg;
+
+                if (CommandLineOptions.TryGetFloat(ToolFlags.PixelartNormalEdgeThreshold, out float edgeThresholdArg))
+                    PixelartNormalEdgeThresholdOverride = edgeThresholdArg;
+
+                if (CommandLineOptions.TryGetFloat(ToolFlags.PixelartMainLightLevel, out float bandArg))
+                    PixelartMainLightLevelOverride = bandArg;
             }
 
             // 多关卡出图验收：覆盖 BattleController 的关卡解析（见 ArtReviewCaptureOverride）。
@@ -175,6 +200,24 @@ namespace PirateCrew.ArtReview
 
         /// <summary>`-pixelartLevel` 解析出的取景口径（场景名/构图中心/可见米数）。</summary>
         static PixelartLevelView PixelartLevelViewCache { get; set; }
+
+        /// <summary>`-pixelartPixelScale` 覆盖的像素档位（0 = 不覆盖，用场景里 rig 的默认档）。</summary>
+        static int PixelartPixelScaleOverride { get; set; }
+
+        /// <summary>"本项不覆盖"的哨兵（用 NaN：0 与 -1 都是这些参数的合法取值，不能当哨兵）。</summary>
+        const float NoOverride = float.NaN;
+
+        /// <summary>`-pixelartSmoothness` 覆盖的逐物体光滑度。</summary>
+        static float PixelartSmoothnessOverride { get; set; } = NoOverride;
+
+        /// <summary>`-pixelartNormalEdgeLevel` 覆盖的法线边加成档（负 = 压暗内墨线）。</summary>
+        static float PixelartNormalEdgeLevelOverride { get; set; } = NoOverride;
+
+        /// <summary>`-pixelartNormalEdgeThreshold` 覆盖的法线边阈值。</summary>
+        static float PixelartNormalEdgeThresholdOverride { get; set; } = NoOverride;
+
+        /// <summary>`-pixelartMainLightLevel` 覆盖的色带档数。</summary>
+        static float PixelartMainLightLevelOverride { get; set; } = NoOverride;
 
         IEnumerator Start()
         {
@@ -450,6 +493,12 @@ namespace PirateCrew.ArtReview
                 yield break;
             }
 
+            // 【出图对照：像素档位覆盖】一次构建、多档出图。改 rig 档位后，下一帧 Update 会因目标
+            // 尺寸变化而重建两档缓冲（`PixelartCameraRig.ComputeTargetSize` / `EnsureBuffers`）；
+            // 取景**不跟着变**——下方 shot 循环按生效档位重算"每艺术像素多少米"。
+            if (PixelartPixelScaleOverride > 0)
+                rig.pixelScale = PixelartPixelScaleOverride;
+
             // 机位口径取自共享常量（场景装配用的是同一份）——**不是本脚本自己摆的**。
             Vector3 target = levelMode
                 ? PixelartLevelViewCache.Target
@@ -510,7 +559,13 @@ namespace PirateCrew.ArtReview
                 // 这与"观感图要能横向比"是同一件事：wide/mid/close 三档到处都对着**场地上的东西**。
                 Vector3 shotTarget = shot.name.EndsWith("-overview") ? target : detailTarget;
 
-                rig.worldPerPixel = PixelartPilotScene.WorldPerPixel(shot.visibleMeters);
+                // 取景口径 = 可见米数 ÷ 艺术画布高（画布高 = 屏幕高 ÷ 生效档位）。默认档下与
+                // `PixelartPilotScene.WorldPerPixel` 同值（1080 ÷ 2 = 540 参考高）；覆盖档位时按同一式
+                // 重算——**可见米数是美术锚、不随档位变**，否则两张对照图的构成本身就不一样。
+                float worldPerPixel = PixelartPilotScene.WorldPerPixel(shot.visibleMeters);
+                if (PixelartPixelScaleOverride > 0)
+                    worldPerPixel *= PixelartPixelScaleOverride / (float)PixelartPilotScene.PixelScale;
+                rig.worldPerPixel = worldPerPixel;
                 cam.transform.position = shotTarget + orbitDir * (cameraDistance * shot.zoom);
                 cam.transform.LookAt(shotTarget);
 
@@ -525,6 +580,10 @@ namespace PirateCrew.ArtReview
                 // 画面只是少一点边缘提亮而不报错）。
                 // 【次序】必须放在 SetPixelartDither 之后：清 MPB 会把这里的覆盖一起清掉。
                 SetPixelartRim(shot.name == "pa-rim");
+
+                // 逐物体浮点覆盖（出图对照）。**必须放在 SetPixelartDither / SetPixelartRim 之后**
+                // ——前者的"清 MPB"会把这里的覆盖一起清掉。
+                SetPixelartMaterialFloats();
 
                 // 连通域降档的门控：只有 A/B 对照档关掉它（`aaScaler = 0` ⇒ 阈值 0 ⇒ 降档永不成立），
                 // 其余档回 rig 默认值（1.5 ⇒ 阈值 0.75，与 v3 同口径）。
@@ -651,6 +710,49 @@ namespace PirateCrew.ArtReview
                 renderer.GetPropertyBlock(block);
                 block.SetColor("_RimLightColor", rim);
                 renderer.SetPropertyBlock(block);
+            }
+        }
+
+        /// <summary>
+        /// 把出图对照用的**逐物体浮点覆盖**套到场景里所有本路径材质的 renderer 上（MPB，不动材质资产）。
+        ///
+        /// 【为什么用 MPB 而不是改配方】"该长什么样"的唯一事实源是
+        /// <c>PixelartMaterialFactory.Configure</c>；而且这些值已经**烘焙进 .mat 资产**，
+        /// 改配方对既有资产不生效。MPB 是逐 renderer 的运行时覆盖，能盖过资产里的序列化值，
+        /// 于是"一次构建、多组参数出图"成立。
+        /// 【次序】调用方必须放在 <see cref="SetPixelartDither"/> / <see cref="SetPixelartRim"/> 之后。
+        /// </summary>
+        static void SetPixelartMaterialFloats()
+        {
+            (string name, float value)[] overrides =
+            {
+                ("_Smoothness", PixelartSmoothnessOverride),
+                ("_NormalEdgeLevel", PixelartNormalEdgeLevelOverride),
+                ("_NormalEdgeThreshold", PixelartNormalEdgeThresholdOverride),
+                ("_MainLightLevel", PixelartMainLightLevelOverride),
+            };
+
+            foreach (MeshRenderer renderer in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+            {
+                Material mat = renderer.sharedMaterial;
+                if (mat == null || mat.shader == null
+                    || mat.shader.name != global::PirateCrew.Rendering.Pixelart.PixelartPath.ObjectShaderName)
+                    continue;
+
+                var block = new MaterialPropertyBlock();
+                renderer.GetPropertyBlock(block);
+
+                bool any = false;
+                for (int i = 0; i < overrides.Length; i++)
+                {
+                    if (float.IsNaN(overrides[i].value))
+                        continue;
+                    block.SetFloat(overrides[i].name, overrides[i].value);
+                    any = true;
+                }
+
+                if (any)
+                    renderer.SetPropertyBlock(block);
             }
         }
 

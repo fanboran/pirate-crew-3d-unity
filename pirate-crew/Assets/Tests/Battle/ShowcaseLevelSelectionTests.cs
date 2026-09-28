@@ -194,7 +194,7 @@ namespace PirateCrew.Battle.Tests
         /// 属于设计裁决，必须同时改这里。
         /// </summary>
         [Test]
-        public void SelectionPage_ShowsAllTenLevelsInLevelNumberOrder()
+        public void SelectionPage_ShowsAllElevenLevelsInLevelNumberOrder()
         {
             var numbers = new List<int>();
 
@@ -208,8 +208,8 @@ namespace PirateCrew.Battle.Tests
 
             numbers.Sort();
 
-            Assert.That(numbers, Is.EqualTo(new[] { 1, 3, 101, 102, 103, 104, 105, 106, 107, 108 }),
-                "选关页应列出 2 张手作样板关 + 8 张海图，按关卡号升序");
+            Assert.That(numbers, Is.EqualTo(new[] { 1, 3, 4, 101, 102, 103, 104, 105, 106, 107, 108 }),
+                "选关页应列出 3 张手作样板关 + 8 张海图，按关卡号升序");
         }
     }
 }

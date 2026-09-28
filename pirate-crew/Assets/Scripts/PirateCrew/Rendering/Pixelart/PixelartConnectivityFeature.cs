@@ -15,7 +15,7 @@ namespace PirateCrew.Rendering.Pixelart
     ///         打包成 bit7 连通 / bit6 更近 / bit5 单元中心，写进 ConnectivityDetail。</item>
     ///   <item><b>Flood</b>（屏幕档，ping-pong）：把逐方向的连通性在**一个艺术像素的 k×k 单元内**
     ///         传播；跑 <c>max(1, RoundToInt(pixelScale × iterationScale))</c> 次
-    ///         （v3：RoundToInt(5 × 1.5) = 8；本仓 pixelScale = 3 ⇒ 4）。每次派发前先把当前的
+    ///         （v3：RoundToInt(5 × 1.5) = 8；本仓 pixelScale = 2 ⇒ 3）。每次派发前先把当前的
     ///         Detail 整张拷成 Prev（v3 `...RendererFeature.cs:82-91` 的 `GetTemporaryRT` + `Blit`，
     ///         本仓换成两张常驻 RT——不拷贝的话邻居之间会读到半新半旧的数据）。</item>
     ///   <item><b>Result</b>（艺术画布）：遍历每个画布像素对应的 k×k 细度单元，出四个量

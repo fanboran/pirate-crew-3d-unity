@@ -501,6 +501,8 @@ namespace PirateCrew.EditorTools
 
             SetPrefabRefIfExists(so, "cloudFieldPrefab", "Assets/Art/Models/SceneKit/CloudField.prefab");
             SetPrefabRefIfExists(so, "dangerBorderPrefab", "Assets/Art/Models/SceneKit/ShowcaseDangerBorder.prefab");
+            // 第 4 关「废弃化工厂」整场件（Blender 手作 FBX 本体直接当预制引用）
+            SetPrefabRefIfExists(so, "chemPlantYardPrefab", "Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx");
 
             so.ApplyModifiedPropertiesWithoutUndo();
         }

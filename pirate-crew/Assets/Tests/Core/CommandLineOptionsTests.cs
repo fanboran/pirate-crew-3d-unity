@@ -59,6 +59,32 @@ namespace PirateCrew.Tests
         }
 
         [Test]
+        public void Parse_NegativeNumericValue_IsAcceptedAsValue()
+        {
+            // 负数是合法取值（如法线边加成档 -1 = 面转折处压暗），不能被那条"以 - 开头即新开关"
+            // 的规则吞掉——否则调用方只看到"参数没生效"，没有任何报错。
+            CommandLineOptions.Parse(new[]
+            {
+                "app", ToolFlags.PixelartNormalEdgeLevel, "-1", ToolFlags.PixelartMainLightLevel, "4",
+            });
+
+            Assert.That(CommandLineOptions.TryGetFloat(ToolFlags.PixelartNormalEdgeLevel, out float level), Is.True);
+            Assert.That(level, Is.EqualTo(-1f).Within(0.0001f));
+            Assert.That(CommandLineOptions.TryGetFloat(ToolFlags.PixelartMainLightLevel, out float bands), Is.True);
+            Assert.That(bands, Is.EqualTo(4f).Within(0.0001f), "负数值不能吞掉它后面的开关");
+        }
+
+        [Test]
+        public void Parse_LoneDash_IsStillAMissingValue()
+        {
+            // 放宽负号规则后，单个 `-`（Unity 的 `-logFile -` = 写 stdout）必须仍是"无值"。
+            CommandLineOptions.Parse(new[] { "app", "-logFile", "-" });
+
+            Assert.That(CommandLineOptions.Has("-logFile"), Is.True);
+            Assert.That(CommandLineOptions.GetValue("-logFile"), Is.Null);
+        }
+
+        [Test]
         public void Parse_RepeatedFlag_LastWins()
         {
             CommandLineOptions.Parse(new[] { "app", "-worldMap", "a_map", "-worldMap", "sunken_gate" });

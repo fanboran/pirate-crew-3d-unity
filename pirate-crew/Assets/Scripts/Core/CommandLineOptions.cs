@@ -123,13 +123,30 @@ namespace PirateCrew.Core
 
                 bool hasValue = i + 1 < args.Length
                                 && !string.IsNullOrEmpty(args[i + 1])
-                                && args[i + 1][0] != '-';
+                                && (args[i + 1][0] != '-' || IsNumericLiteral(args[i + 1]));
                 if (!hasValue)
                     continue;
 
                 _values[token] = args[i + 1];
                 i++;    // 值不参与下一轮开关识别
             }
+        }
+
+        /// <summary>
+        /// 该 token 是不是"以减号开头的数"（`-1` / `-0.5` / `-1e3`）。
+        ///
+        /// 【为什么需要它】"下一个 token 以 `-` 开头就当成新开关"这条规则会把**负数值**误判成开关名，
+        /// 于是 `-pixelartNormalEdgeLevel -1` 解析成"开关在、没带值"——静默拿到 null，
+        /// 调用方只看到"参数没生效"。而本项目有一批参数**合法区间含负数**
+        /// （如法线边加成档 -1 = 面转折处压暗，参考库口径），必须能传进来。
+        /// 【为什么这条判据安全】开关名是词（`-worldMap`），去掉前导减号后不是合法数字 ⇒ 不会被吞；
+        /// 单个 `-`（Unity 的 `-logFile -` 那种）也不是数字 ⇒ 仍按"无值"处理。
+        /// </summary>
+        static bool IsNumericLiteral(string token)
+        {
+            return token.Length > 1
+                   && double.TryParse(token, System.Globalization.NumberStyles.Float,
+                       System.Globalization.CultureInfo.InvariantCulture, out _);
         }
 
         /// <summary>清空解析结果（进入播放前由 <see cref="GameEntryPoint"/> 调用）。</summary>
@@ -184,6 +201,42 @@ namespace PirateCrew.Core
         /// 不带它时拍 <c>PixelartPilot</c>（图元几何，验机制）。两个档共用同一条采集流程与判据脚本。
         /// </summary>
         public const string PixelartLevel = "-pixelartLevel";
+
+        /// <summary>
+        /// `-pixelartOut` 的像素档位覆盖：<c>-pixelartPixelScale &lt;2..5&gt;</c>。
+        /// **出图对照用**（一次构建、多组参数出图）：临时改 rig 的像素化档位，
+        /// 不改场景与默认值——用于回答"颗粒更粗是不是更接近参考库观感"。
+        /// 取景口径不变（可见米数是美术锚），只是颗粒粗细变。
+        /// </summary>
+        public const string PixelartPixelScale = "-pixelartPixelScale";
+
+        /// <summary>
+        /// `-pixelartOut` 的逐物体光滑度覆盖：<c>-pixelartSmoothness &lt;0..1&gt;</c>。
+        /// **出图对照用**：临时给所有本路径材质的 renderer 覆盖 `_Smoothness`（材质默认 0 = 高光关），
+        /// 不动材质资产——用于对照"把参考库的高光/金属度开回来，观感差多少"。
+        /// </summary>
+        public const string PixelartSmoothness = "-pixelartSmoothness";
+
+        /// <summary>
+        /// `-pixelartOut` 的法线边加成档覆盖：<c>-pixelartNormalEdgeLevel &lt;-1..1&gt;</c>。
+        /// **出图对照用**：负值 = 面转折处**压暗**成内墨线（参考库 `_EdgeLevel` 的默认与演示值都是 -1），
+        /// 正值 = 提亮（本仓现役是 +0.5）。本仓 shader 的属性声明是 `Range(0,1)` 表达不了负值，
+        /// 故只能经 MPB 覆盖——这正是本档存在的理由。
+        /// </summary>
+        public const string PixelartNormalEdgeLevel = "-pixelartNormalEdgeLevel";
+
+        /// <summary>
+        /// `-pixelartOut` 的法线边阈值覆盖：<c>-pixelartNormalEdgeThreshold &lt;0..2&gt;</c>。
+        /// **出图对照用**：参考库默认与演示非金属件均为 1.0（≈要 60° 以上转折才触发），
+        /// 本仓现役 0.5（≈29° 就触发，触发面大得多）。
+        /// </summary>
+        public const string PixelartNormalEdgeThreshold = "-pixelartNormalEdgeThreshold";
+
+        /// <summary>
+        /// `-pixelartOut` 的色带档数覆盖：<c>-pixelartMainLightLevel &lt;1..8&gt;</c>。
+        /// **出图对照用**：参考库演示材质主流是 4，本仓现役 3。
+        /// </summary>
+        public const string PixelartMainLightLevel = "-pixelartMainLightLevel";
 
         /// <summary>场景资产样板出图目录：<c>-sceneKitOut &lt;绝对目录&gt;</c>。</summary>
         public const string SceneKitOut = "-sceneKitOut";

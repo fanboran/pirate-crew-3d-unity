@@ -40,6 +40,10 @@ namespace PirateCrew.Battle
         [Tooltip("烘焙件：落水危险虚线（现存样板关共用一圈）。由 SceneArtBaker 烘焙并接线。")]
         [SerializeField] GameObject dangerBorderPrefab;
 
+        /// <summary>第 4 关「废弃化工厂」的整场件（FBX 本体；装配器
+        /// <c>PirateCrew.EditorTools.ChemPlantBattleWiring</b> 写进场景）。</summary>
+        [SerializeField] GameObject chemPlantYardPrefab;
+
         [Tooltip("超美空岛根（场景内静态物，由 FloatingIslandShowcaseMenu.PlaceIntoBattleCenter 烘进场景）。"
             + "只有样板第 3 关激活，其余关卡隐藏。")]
         [SerializeField] GameObject skyIslandRoot;
@@ -130,6 +134,7 @@ namespace PirateCrew.Battle
             {
                 case ShowcasePieceId.CloudField: return cloudFieldPrefab;
                 case ShowcasePieceId.DangerBorder: return dangerBorderPrefab;
+                case ShowcasePieceId.ChemPlantYard: return chemPlantYardPrefab;
                 default: return null;
             }
         }
