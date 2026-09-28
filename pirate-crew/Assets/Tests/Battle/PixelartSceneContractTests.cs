@@ -35,19 +35,23 @@ namespace PirateCrew.Tests
         [Test]
         public void PixelartScenes_MatchAssemblingContract()
         {
-            string scenesDir;
             try
             {
-                // 无头 harness 里 Application.dataPath 走原生 ECall 必抛 SecurityException
-                // （AGENTS 调试规范的已知边界）——本测试只在 Unity EditMode 下有意义。
-                scenesDir = Path.Combine(Application.dataPath, "Scenes");
+                RunContractCheck();
             }
             catch (System.Security.SecurityException)
             {
-                Assert.Ignore("无头 harness 环境调不到 Application.dataPath——跳过（Unity EditMode 下照常执行）。");
-                return;
+                // 无头 harness 环境走不到 Unity 原生 API（Application.dataPath 等原生 ECall
+                // 必抛 SecurityException，AGENTS 调试规范的已知边界）——本测试只在 Unity
+                // EditMode 下有意义。守卫必须包住**整个**检查体：除 dataPath 外，Unity 类型
+                // （Color/Mathf 等）在脱离 Unity 运行时的程序集里同样可能触发原生绑定。
+                Assert.Ignore("无头 harness 环境调不到 Unity 原生 API——跳过（Unity EditMode 下照常执行）。");
             }
+        }
 
+        static void RunContractCheck()
+        {
+            string scenesDir = Path.Combine(Application.dataPath, "Scenes");
             if (!Directory.Exists(scenesDir))
             {
                 Assert.Ignore("场景目录不存在——跳过场景契约检查。");
