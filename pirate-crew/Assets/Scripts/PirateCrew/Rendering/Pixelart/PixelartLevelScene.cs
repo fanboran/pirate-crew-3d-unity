@@ -3,8 +3,9 @@ using UnityEngine;
 namespace PirateCrew.Rendering.Pixelart
 {
     /// <summary>
-    /// **像素化路径"真实内容"试点场景**的取景口径（唯一来源）：两个样板关（1 云场 / 3 空岛）
-    /// + 八张大海域海图（关卡号 101–108）。
+    /// **像素化路径"真实内容"试点场景**的取景口径（唯一来源）：四个样板关（1 云场 / 3 空岛 /
+    /// 4·5 废弃化工厂）当前在册。八张大海域海图（关卡号 101–108）已删除待重做——它们的取景行
+    /// 随数据资产一并移除，重做后按下面的规则补回（规则本身不变）。
     ///
     /// 【这一族场景在回答什么】<see cref="PixelartPilotScene"/>（图元几何）证明的是"机制对不对"；
     /// 这一族换成**真实关卡内容**，回答的是"这套观感用在真关卡上是什么样"，
@@ -16,7 +17,7 @@ namespace PirateCrew.Rendering.Pixelart
     ///         与主战斗场景 `RuntimeSceneArt` 同一张表）、出生表与逻辑高度场
     ///         （`units` + `TileTerrainGrid.SurfaceWorldY`）；第 3 关的空岛按 `FloatingIslandShowcaseMenu.Place`
     ///         同一入口合成，摆位沿用 <c>PlaceIntoBattleCenter</c> 的 (20, 13.3, 15)。</item>
-    ///   <item>海图 101–108（`PixelartWorldMapPilotSetup`）：`WorldMapCatalog` 的地图定义，
+    ///   <item>海图 101–108（`PixelartWorldMapPilotSetup`，当前 0 张）：`WorldMapCatalog` 的地图定义，
     ///         内容由 `WorldMapComposer.Build` 合成（站面/装饰/kit/道具/礁石），出生点按
     ///         `WorldMapRules.HeightAtWorld` 落在站面顶高上。</item>
     /// </list>
@@ -102,17 +103,18 @@ namespace PirateCrew.Rendering.Pixelart
         }
 
         /// <summary>
-        /// 全部"真实内容"试点场景的取景表（样板关 1/3 在前，海图 101–108 按关卡号升序在后）。
+        /// 全部"真实内容"试点场景的取景表（样板关 1/3 在前，随后是废弃化工厂 4·5；
+        /// 海图 101–108 已删除待重做，取景行随之移除，重做后按类头与表内注释的口径补回）。
         ///
         /// 【样板关竖直取值的来路】云顶中位高 4.5（`CloudFieldSpec.HeroTopY`）/ 空岛草皮面 ≈ 13.3
         /// （`PlaceIntoBattleCenter` 的根高，与关卡 3 高度场 28 块 × 0.5 = 14.0 同档）。
         /// 取"略高于台面的眼位"而不是台面本身，免得构图上把场地压在画面下缘。
         ///
-        /// 【海图竖直取值 3.0 的来路】站面顶高是 0.5 m 档的离散平台，八张图的最高站面 2.5–7.5 m
+        /// 【海图竖直取值 3.0 的来路（备查）】站面顶高是 0.5 m 档的离散平台，旧八图的最高站面 2.5–7.5 m
         /// （多数在 0.5–4.5），图形重心落在站面顶到站面底（视觉盒下沉 4 m，见
         /// `WorldMapComposer.BuildStandBox`）之间，约 y ≈ 0–2。取 3.0 而不是 0：
         /// 视线俯角 30°，构图中心就是画面中心——对着 0 会把站面顶压到画面下缘，
-        /// 而抬到最高档 7.5 又会让低矮图（最高 2.5）的战场沉在画面下半。3.0 对八张图都是
+        /// 而抬到最高档 7.5 又会让低矮图（最高 2.5）的战场沉在画面下半。3.0 对旧八图都是
         /// "台面附近、略高"，与样板关取眼位同一个读法。
         ///
         /// 【宽/中/近的推导见类头；表里的数就是规则的唯一落点，装配器与出图脚本都不自己算取景。】
@@ -143,17 +145,11 @@ namespace PirateCrew.Rendering.Pixelart
             // 竖直 0.3 的来路：草簇高 0.26-0.5 m，取"草尖之半"的眼位，与样板关取眼位同一个读法。
             new View(6,   "PixelartGrassField", new Vector3(20f, 0.3f, 15f), 32f, 14f, 7f),
 
-            // 海图：Target = (span/2, 3, span/2)；wide/mid/close = 32/14/7（**不随 span 缩放**，见类头）。
-            // 【span 是横纵相同的正方形】（八张图 SpanX == SpanZ，`WorldMapCatalog` 契约里没有"必须相等"
-            // 的约束——真出现长方形时本表要按对角线取大者，届时两个方向的取景一起改）。
-            new View(101, "PixelartMap101",   new Vector3(75f, 3f, 75f),  32f, 14f, 7f),
-            new View(102, "PixelartMap102",   new Vector3(95f, 3f, 95f),  32f, 14f, 7f),
-            new View(103, "PixelartMap103",   new Vector3(110f, 3f, 110f),  32f, 14f, 7f),
-            new View(104, "PixelartMap104",   new Vector3(120f, 3f, 120f),  32f, 14f, 7f),
-            new View(105, "PixelartMap105",   new Vector3(90f, 3f, 90f),  32f, 14f, 7f),
-            new View(106, "PixelartMap106",   new Vector3(130f, 3f, 130f),  32f, 14f, 7f),
-            new View(107, "PixelartMap107",   new Vector3(100f, 3f, 100f),  32f, 14f, 7f),
-            new View(108, "PixelartMap108",   new Vector3(140f, 3f, 140f),  32f, 14f, 7f),
+            // 【海图取景行：当前 0 张】八张海图（101–108）已删除待重做，取景行随数据资产一并移除。
+            // 重做时的口径（列在这里备查，规则与上面一致）：
+            //   Target = (span/2, 3, span/2)；wide/mid/close = 32/14/7（**不随 span 缩放**，见类头）。
+            //   span 是横纵相同的正方形（旧八图 SpanX == SpanZ；真出现长方形时按对角线取大者，
+            //   两个方向的取景一起改）。竖直 3.0 的来路见本表上方的说明。
         };
 
         /// <summary>全部试点场景的取景口径（装配器与 Build Settings 登记共用）。</summary>

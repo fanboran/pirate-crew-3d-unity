@@ -17,11 +17,26 @@ namespace PirateCrew.Battle.Tests
     /// </summary>
     public class WorldMapHorizonFeatureTests
     {
+        /// <summary>
+        /// 目录里全部海图。**零海图（八张已删除待重做）时产出一个 null 哨兵**：NUnit 对**空**
+        /// <c>[ValueSource]</c> 的处理两套 runner 不一致（无头验证台静默零用例，Unity EditMode
+        /// 记成失败），给一个占位用例、由用例开头的 <c>Assume</c> 跳成 Skipped；
+        /// 海图放回来后逐图用例自动恢复。
+        /// </summary>
         static IEnumerable<WorldMapDefinition> AllMaps()
         {
+            if (WorldMapCatalog.Count == 0)
+            {
+                yield return null;
+                yield break;
+            }
+
             foreach (WorldMapDefinition map in WorldMapCatalog.All)
                 yield return map;
         }
+
+        /// <summary>零海图下用例统一以这条前置跳成 Skipped（断言体一律不动）。</summary>
+        const string EmptyCatalogSkipReason = "当前工程零海图（八张世界海图已删除待重做），门禁待重做后自动生效";
 
         static void AssertSameLayout(List<HorizonFeatureRules.HorizonFeaturePlacement> a,
             List<HorizonFeatureRules.HorizonFeaturePlacement> b, string mapId)
@@ -40,6 +55,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void AllMaps_PlaceIsDeterministicForSameSeed([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             var first = HorizonFeatureRules.Place(map);
             var second = HorizonFeatureRules.Place(map);
             AssertSameLayout(first, second, map.Id);
@@ -48,6 +65,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void AllMaps_PlacementsStayInsideRingBand([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             var placements = HorizonFeatureRules.Place(map);
             float cx = map.SpanX * 0.5f, cz = map.SpanZ * 0.5f;
             for (int i = 0; i < placements.Count; i++)
@@ -64,6 +83,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void AllMaps_FeatureNamesAreRegisteredSpecs([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             for (int i = 0; i < map.HorizonFeatures.Count; i++)
             {
                 Assert.IsTrue(HorizonFeatureRules.IsKnownFeature(map.HorizonFeatures[i]),
@@ -76,6 +97,8 @@ namespace PirateCrew.Battle.Tests
         public void AllMaps_EveryFeatureClassHasAtLeastOneInstance(
             [ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             var placements = HorizonFeatureRules.Place(map);
             var counts = new Dictionary<string, int>();
             for (int i = 0; i < placements.Count; i++)
@@ -94,6 +117,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void AllMaps_TotalInstanceCountIsCapped([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             var placements = HorizonFeatureRules.Place(map);
             Assert.LessOrEqual(placements.Count, HorizonFeatureRules.MaxTotalInstances,
                 map.Id + " 远景件总量超上限（喧宾夺主）");
@@ -102,6 +127,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void AllMaps_PlacementsKeepFootprintSpacing([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             var placements = HorizonFeatureRules.Place(map);
             for (int i = 0; i < placements.Count; i++)
             {

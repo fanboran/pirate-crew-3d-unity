@@ -11,6 +11,10 @@ namespace PirateCrew.Battle.WorldMaps.Tests
     /// （加重地图设计审计 §二.6 反对的"俯视同质化"），且无人察觉。
     /// 接缝是 <see cref="ReefFieldRules.HasExplicitProfile"/>：与取档逻辑同一个
     /// switch，单一出处、两边不会漂移。
+    ///
+    /// 【零海图口径】八张世界海图（101–108）已删除待重做、目录当前为空 ⇒ 门禁真空通过
+    /// （不再断言 <c>Count &gt; 0</c>：零图是当前的数据现状，不是通道故障）。
+    /// 海图重做后本门禁自动恢复，目录里每张图仍必须显式登记档案。
     /// </summary>
     [TestFixture]
     public class WorldMapReefProfileGateTests
@@ -18,11 +22,6 @@ namespace PirateCrew.Battle.WorldMaps.Tests
         [Test]
         public void AllMaps_HaveExplicitReefProfile()
         {
-            // 目录空 = 数据通道双缺（资产清单读不到且 golden JSON 不可读），
-            // foreach 会空转成假绿——先把通道故障钉出来再谈门禁。
-            Assert.Greater(WorldMapCatalog.Count, 0,
-                "一张海图都没加载到，门禁空转（诊断：" + LevelAssetLibrary.Diagnostic + "）");
-
             foreach (WorldMapDefinition map in WorldMapCatalog.All)
             {
                 Assert.IsTrue(ReefFieldRules.HasExplicitProfile(map.Id),

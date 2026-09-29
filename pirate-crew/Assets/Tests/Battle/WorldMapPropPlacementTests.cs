@@ -18,11 +18,26 @@ namespace PirateCrew.Battle.Tests
     /// </summary>
     public class WorldMapPropPlacementTests
     {
+        /// <summary>
+        /// 目录里全部海图。**零海图（八张已删除待重做）时产出一个 null 哨兵**：NUnit 对**空**
+        /// <c>[ValueSource]</c> 的处理两套 runner 不一致（无头验证台静默零用例，Unity EditMode
+        /// 记成失败），给一个占位用例、由用例开头的 <c>Assume</c> 跳成 Skipped；
+        /// 海图放回来后逐图用例自动恢复。
+        /// </summary>
         static IEnumerable<WorldMapDefinition> AllMaps()
         {
+            if (WorldMapCatalog.Count == 0)
+            {
+                yield return null;
+                yield break;
+            }
+
             foreach (WorldMapDefinition map in WorldMapCatalog.All)
                 yield return map;
         }
+
+        /// <summary>零海图下用例统一以这条前置跳成 Skipped（断言体一律不动）。</summary>
+        const string EmptyCatalogSkipReason = "当前工程零海图（八张世界海图已删除待重做），门禁待重做后自动生效";
 
         // ------------------------------------------------------------------
         // 1. 陆地道具不许落水
@@ -31,6 +46,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void AllMaps_NoLandPropLandsInOpenWater([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             List<WorldMapRules.WorldBox> boxes = WorldMapRules.AllStandBoxes(map);
             var problems = new List<string>();
             foreach (WorldPropPlacement prop in map.Props)
@@ -83,6 +100,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void ReefField_IsDeterministic([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             List<WorldPropPlacement> a = ReefFieldRules.Place(map);
             List<WorldPropPlacement> b = ReefFieldRules.Place(map);
             Assert.AreEqual(a.Count, b.Count, map.Id + " 礁石场两次生成数量不一致");
@@ -97,6 +116,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void ReefField_HasContentOnEveryMap([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             // 每图至少铺满三位数级别的礁石：太少就还是"空海"（死水 86-96% 的图面必须有东西可看）。
             int count = ReefFieldRules.Place(map).Count;
             Assert.GreaterOrEqual(count, 60,
@@ -107,6 +128,8 @@ namespace PirateCrew.Battle.Tests
         public void ReefField_KeepsOffStandsSpawnsAndSightCorridor(
             [ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             List<WorldMapRules.WorldBox> boxes = WorldMapRules.AllStandBoxes(map);
             List<WorldPropPlacement> reef = ReefFieldRules.Place(map);
 
@@ -198,6 +221,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void AllMaps_StandCoverageMeetsFloor([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             List<WorldMapRules.WorldBox> boxes = WorldMapRules.AllStandBoxes(map);
             float open = ReefFieldRules.OpenWaterArea(map, boxes);
             float coverage = 1f - open / (map.SpanX * map.SpanZ);
@@ -209,6 +234,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void AllMaps_ContentSpansMostOfTheMap([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             List<WorldMapRules.WorldBox> boxes = WorldMapRules.AllStandBoxes(map);
             Assert.Greater(boxes.Count, 0, map.Id);
 
@@ -232,6 +259,8 @@ namespace PirateCrew.Battle.Tests
         public void AllMaps_SpawnCentroidsWithinContactDistance(
             [ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             Vector2[] centroids = { Vector2.zero, Vector2.zero };
             int[] counts = { 0, 0 };
             foreach (WorldMapSpawn spawn in map.Spawns)

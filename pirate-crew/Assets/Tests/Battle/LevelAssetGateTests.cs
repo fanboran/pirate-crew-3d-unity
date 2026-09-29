@@ -19,8 +19,9 @@ namespace PirateCrew.Battle.Tests
     /// 【它多验了什么（无头侧验不到的）】
     ///   ① 手写/generated 的 `.asset` YAML 真能被 Unity 反序列化成 <see cref="LevelDefinition"/> /
     ///      <see cref="WorldMapDefinitionAsset"/>（<c>m_Script</c> guid 对得上、字段名与类型吻合）；
-    ///   ② <c>Resources.Load("LevelCatalog")</c> 能取到清单，且清单把 10 张资产全带进来
-    ///      （8 张海图 + 2 张关卡；关卡 2「碎岛雨」已删除 2026-09-22，号段有意不连续）；
+    ///   ② <c>Resources.Load("LevelCatalog")</c> 能取到清单，且清单把 4 张关卡资产全带进来
+    ///      （**海图 0 张**：八张世界海图 101–108 已删除待重做；关卡 2「碎岛雨」也已删除
+    ///      2026-09-22，号段有意不连续）；
     ///   ③ 校验器（<see cref="PirateCrew.EditorTools.LevelAssetValidator"/>）在同一批资产上零错误。
     ///
     /// 跑法：Test Runner → EditMode；无头见 docs/项目/工业级重构总纲.md §5。
@@ -39,7 +40,7 @@ namespace PirateCrew.Battle.Tests
                 "Resources.Load(\"" + LevelAssetSchema.CatalogResourcePath + "\") 取不到清单——"
                 + "清单必须落在 Assets/Data/Levels/Resources/ 下才会进构建包");
 
-            Assert.That(catalog.WorldMaps.Count, Is.EqualTo(8), "清单里的海图数不对");
+            Assert.That(catalog.WorldMaps.Count, Is.EqualTo(0), "清单里的海图数不对（海图已删除待重做，应为 0）");
             Assert.That(catalog.Levels.Count, Is.EqualTo(4), "清单里的关卡数不对（关卡 2 已删除；现存 1、3、4、5）");
 
             for (int i = 0; i < catalog.WorldMaps.Count; i++)
@@ -89,9 +90,9 @@ namespace PirateCrew.Battle.Tests
                 checkedAssets++;
             }
 
-            // 计数 = 上面两轮循环各自找到的资产数：8 张海图 + 2 张关卡 = 10
-            //（关卡 2 已删除，不参与计数；关卡号不连续不影响这里——它只数文件）。
-            Assert.That(checkedAssets, Is.EqualTo(10), "应有 8 张海图 + 2 张关卡资产");
+            // 计数 = 上面两轮循环各自找到的资产数：0 张海图 + 4 张关卡 = 4
+            //（海图 101–108 已删除待重做；关卡 2 已删除，不参与计数；关卡号不连续不影响这里——它只数文件）。
+            Assert.That(checkedAssets, Is.EqualTo(4), "应有 0 张海图 + 4 张关卡资产");
         }
 
         [Test]
@@ -149,9 +150,8 @@ namespace PirateCrew.Battle.Tests
         public void WorldMapCatalog_ReadsFromAssets_NotFromCode()
         {
             // 海图目录现在只是"资产 → 运行时定义"的查表口；条数对不上说明加载链断了。
-            Assert.That(WorldMapCatalog.Count, Is.EqualTo(8));
-            Assert.That(WorldMapCatalog.TryGet("wreck_hymn", out WorldMapDefinition wreck), Is.True);
-            Assert.That(wreck.SpanX, Is.EqualTo(150f));
+            // 八张海图已删除待重做 ⇒ 目录为空，但查表口本身仍须可用（本用例同时证明"零图不炸"）。
+            Assert.That(WorldMapCatalog.Count, Is.EqualTo(0), "海图已删除待重做，目录应为空");
             Assert.That(WorldMapCatalog.TryGet("no_such_map", out _), Is.False);
         }
     }

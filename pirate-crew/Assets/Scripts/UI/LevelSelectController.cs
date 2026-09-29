@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
@@ -11,11 +11,13 @@ using UnityEngine.UI;
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 出海选关界面（M4）：**单列表**列出全部可玩内容——2 张手作样板关（云端漫步 / 天空之岛）
-    /// 与 8 张世界海域图，**按关卡号升序**排（样板 1、3 在前，海图 101–108 在后），点任意一行即出战。
+    /// 出海选关界面（M4）：**单列表**列出全部可玩内容——现役 4 张手作样板关
+    /// （云端漫步 / 天空之岛 / 废弃化工厂 · 四件与六件版），**按关卡号升序**排，点任意一行即出战。
     /// 一代战役的页签/章节/解锁链随一代退场删除——全部内容都可直接打；
-    /// 已通关的海图行显示星级（结算进度记在海图 id 上，见 <see cref="CampaignApi"/>），
+    /// 已通关的**海图**行显示星级（结算进度记在海图 id 上，见 <see cref="CampaignApi"/>），
     /// 样板关不记星（进度表里没有它的键），故样板行不带星级。
+    /// 八张世界海图（101–108）已删除待重做，海图目录当前为空 ⇒ 列表只有样板关这几行
+    /// （列表与页头都是数据驱动，海图回归后自动变长）。
     ///
     /// 【加载行为】海图行 → <c>WorldMapRuntime.SetPending</c>；样板行 → <c>SetPendingShowcase</c>，
     /// 两者互斥。Battle 侧由 <c>LevelSourceResolver</c> 一处分叉：海图走 kit 岛 + 俯视海图 + 大海域海面，
@@ -240,9 +242,13 @@ namespace PirateCrew.UI
             // 页头报的关数必须与列表行数一致（列表 = 样板关 + 海图）。
             // 星级满分只算海图（8 × 3 = 24）：星级进度的键是海图 id，样板关不记星，
             // 把它算进满分会让"累计星数"永远差一截。
-            headerText.text = string.Format(UiStrings.LevelSelectHeaderFormat,
-                showcases + maps, showcases, maps,
-                CampaignApi.Progress.TotalStars, maps * StarRules.MaxStars);
+            // 【零海图版式】海图目录为空时"海域图 0 / 累计 0/0 星"两段恒为 0、只是噪声，
+            // 改用不带海图与星数的版式（海图重做回来时自动切回完整版式）。
+            headerText.text = maps > 0
+                ? string.Format(UiStrings.LevelSelectHeaderFormat,
+                    showcases + maps, showcases, maps,
+                    CampaignApi.Progress.TotalStars, maps * StarRules.MaxStars)
+                : string.Format(UiStrings.LevelSelectHeaderNoWorldMapsFormat, showcases);
 
             if (chapterNameText != null)
                 chapterNameText.text = UiStrings.LevelTabWorldSeas;

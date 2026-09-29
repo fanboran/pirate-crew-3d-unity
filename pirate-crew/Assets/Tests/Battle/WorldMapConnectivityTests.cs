@@ -7,24 +7,42 @@ namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// M4 大海域世界地图的硬约束校验（docs/大海域世界化.md §2.2/§4.2）：
-    /// 对目录里全部 8 张图断言——连通性（承载出生点的站面 box 同连通分量）、
+    /// 对目录里全部海图断言——连通性（承载出生点的站面 box 同连通分量）、
     /// 出生点落位（在站面上、离边有余量、脚下无更高覆盖）、栅格化有效。
     /// 这是「地图各地方必须能来回跳过去」这一用户裁决的测试化。
+    ///
+    /// 【零海图口径】八张世界海图（101–108）已删除待重做、目录当前为空，
+    /// 逐图用例（<c>[ValueSource]</c>）与下面的循环自动零用例/真空通过；
+    /// 目录约束用例（关卡号唯一且在 101 段）保留结构，重做后自动恢复强度。
     /// </summary>
     public class WorldMapConnectivityTests
     {
+        /// <summary>
+        /// 目录里全部海图。**零海图（八张已删除待重做）时产出一个 null 哨兵**：NUnit 对**空**
+        /// <c>[ValueSource]</c> 的处理两套 runner 不一致（无头验证台静默零用例，Unity EditMode
+        /// 记成失败），给一个占位用例、由用例开头的 <c>Assume</c> 跳成 Skipped；
+        /// 海图放回来后逐图用例自动恢复。遍历用 <c>WorldMapCatalog.All</c>（不走本方法，免踩哨兵）。
+        /// </summary>
         static IEnumerable<WorldMapDefinition> AllMaps()
         {
+            if (WorldMapCatalog.Count == 0)
+            {
+                yield return null;
+                yield break;
+            }
+
             foreach (WorldMapDefinition map in WorldMapCatalog.All)
                 yield return map;
         }
 
+        /// <summary>零海图下用例统一以这条前置跳成 Skipped（断言体一律不动）。</summary>
+        const string EmptyCatalogSkipReason = "当前工程零海图（八张世界海图已删除待重做），门禁待重做后自动生效";
+
         [Test]
-        public void Catalog_HasEightMaps_WithUniqueLevelNumbers()
+        public void Catalog_LevelNumbersAreUniqueAndInWorldMapSegment()
         {
-            Assert.AreEqual(8, WorldMapCatalog.Count);
             var seen = new HashSet<int>();
-            foreach (WorldMapDefinition map in AllMaps())
+            foreach (WorldMapDefinition map in WorldMapCatalog.All)
             {
                 Assert.IsTrue(seen.Add(map.LevelNumber), "关卡号重复 " + map.LevelNumber);
                 Assert.GreaterOrEqual(map.LevelNumber, WorldMapCatalog.FirstLevelNumber);
@@ -36,6 +54,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void AllMaps_SpawnBoxesAreFullyConnected([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             List<WorldMapRules.WorldBox> boxes = WorldMapRules.AllStandBoxes(map);
             Assert.Greater(boxes.Count, 0, map.Id + " 没有任何站面");
 
@@ -47,6 +67,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void AllMaps_SpawnsLandOnStandables([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             List<WorldMapRules.WorldBox> boxes = WorldMapRules.AllStandBoxes(map);
             List<string> problems = WorldMapRules.ValidateSpawns(map, boxes);
             Assert.IsEmpty(problems, map.Id + " 出生点落位问题: " + string.Join("; ", problems));
@@ -55,6 +77,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void AllMaps_SpawnCellsAreGroundedInRaster([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             Assert.IsTrue(WorldMapRules.TryRasterize(map, out int widthTiles, out int depthTiles, out int[] blocks),
                 map.Id + " 栅格化失败");
 
@@ -84,6 +108,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void AllMaps_TeamSpawnCountsMatch([ValueSource(nameof(AllMaps))] WorldMapDefinition map)
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), EmptyCatalogSkipReason);
+
             int team0 = 0, team1 = 0;
             foreach (WorldMapSpawn spawn in map.Spawns)
             {
@@ -138,7 +164,7 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void Standables_TopHeightsAreOnHalfMeterGrid()
         {
-            foreach (WorldMapDefinition map in AllMaps())
+            foreach (WorldMapDefinition map in WorldMapCatalog.All)
             {
                 foreach (WorldMapRules.WorldBox box in WorldMapRules.AllStandBoxes(map))
                 {

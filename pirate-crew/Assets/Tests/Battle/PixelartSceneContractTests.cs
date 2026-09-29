@@ -9,7 +9,7 @@ using UnityEngine;
 namespace PirateCrew.Tests
 {
     /// <summary>
-    /// 像素化场景**序列化契约**：11 个像素场景（试点/样板关/海图）里烘焙的
+    /// 像素化场景**序列化契约**：现役像素场景（试点 + 样板关）里烘焙的
     /// <c>rig.pixelScale</c> 与环境光，必须等于 <see cref="PixelartSceneContract"/> 的常量。
     ///
     /// 【为什么要有它】常量改档（3→2，创始人 2026-09-24 裁决）后场景里的序列化副本
@@ -17,7 +17,10 @@ namespace PirateCrew.Tests
     /// 而且不报错。本测试把"场景序列化值 vs 契约常量"的漂移变成当场红；
     /// 修法一律是**重跑该场景的装配器**（或按常量手改场景后由装配器幂等确认），不是改测试。
     ///
-    /// 【实现口径】只读场景 YAML 文本、正则提取（11 个场景全用 EditorSceneManager 打开太慢）；
+    /// 【海图试点场景：当前 0 张】八张海图（101–108）已删除待重做，其场景名从下表移除；
+    /// 海图重做后随装配器 `PixelartWorldMapPilotSetup` 一起补回。
+    ///
+    /// 【实现口径】只读场景 YAML 文本、正则提取（场景全用 EditorSceneManager 打开太慢）；
     /// 契约常量住在运行时程序集（<see cref="PixelartSceneContract"/>），本测试因此不需要引用
     /// 编辑器程序集类型。非 Unity 环境（无头 harness）下场景目录不存在，跳过。
     /// </summary>
@@ -28,8 +31,7 @@ namespace PirateCrew.Tests
             "PixelartPilot",
             "PixelartCloud",
             "PixelartSkyIsland",
-            "PixelartMap101", "PixelartMap102", "PixelartMap103", "PixelartMap104",
-            "PixelartMap105", "PixelartMap106", "PixelartMap107", "PixelartMap108",
+            // 海图试点场景（PixelartMap101…108）随海图删除，重做后补回。
         };
 
         [Test]

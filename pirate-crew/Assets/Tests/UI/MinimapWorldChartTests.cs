@@ -8,8 +8,13 @@ namespace PirateCrew.UI.Tests
     /// <summary>
     /// 俯视海图（M4 世界地图模式）的装配行为测试——<see cref="BattleMinimap.ConfigureWorldChartFromRuntime"/>
     /// 的双模式切换（UI 审计 P0-2 / 地图审计 §二.10）。
-    /// 纯函数口径（WorldBoxToChartRect / 八图越界不变量）见 <see cref="MinimapChartRectTests"/>（无头可跑）；
+    /// 纯函数口径（WorldBoxToChartRect / 越界不变量）见 <see cref="MinimapChartRectTests"/>（无头可跑）；
     /// 本文件实例化 MonoBehaviour，只能跑 Unity EditMode。
+    ///
+    /// 【零海图口径】八张世界海图已删除待重做、目录为空 ⇒ <c>WorldMapRuntime.SetPending</c> 恒失败，
+    /// 海图模式的**待战入口不再可达**（<c>ConfigureWorldChartFromRuntime</c> 只认待战通道，
+    /// 没有注入缝）——故用例改为钉住"入口被拒 ⇒ 保持烘焙模式"，海图重做后恢复
+    /// "待战海图 → 图幅重定 + 岛层重建"的原始断言。
     /// </summary>
     [TestFixture]
     public class MinimapWorldChartTests
@@ -39,22 +44,18 @@ namespace PirateCrew.UI.Tests
         }
 
         [Test]
-        public void WorldMapPending_RetargetsArenaSpanAndBuildsChart()
+        public void SetPendingWithoutWorldMapCatalog_IsRejected_StaysBakedMode()
         {
-            Assert.IsTrue(WorldMapRuntime.SetPending("wreck_hymn"));
-            WorldMapRuntime.TryGetPending(out WorldMapDefinition map);
+            Assert.IsFalse(WorldMapRuntime.SetPending("wreck_hymn"),
+                "零海图（目录为空）下 SetPending 必须被拒——海图模式不可达");
 
             BattleMinimap minimap = CreateMinimap();
             try
             {
                 minimap.ConfigureWorldChartFromRuntime();
 
-                Assert.IsTrue(minimap.IsWorldChartMode);
-                Assert.AreEqual(map.SpanX, minimap.ArenaWidth, 1e-3f);
-                Assert.AreEqual(map.SpanZ, minimap.ArenaDepth, 1e-3f);
-                Assert.IsNotNull(minimap.WorldChartLayer);
-                // 岛层数 = 站面 box 数（>=1；wreck_hymn 有多件）。
-                Assert.GreaterOrEqual(minimap.WorldChartLayer.childCount, 1);
+                Assert.IsFalse(minimap.IsWorldChartMode);
+                Assert.IsNull(minimap.WorldChartLayer);
             }
             finally
             {
