@@ -349,17 +349,25 @@ namespace PirateCrew.Battle
                 followCamera: battleCamera != null ? battleCamera.GetComponent<Camera>() : null);
 
             // 远裁剪面经 BattleCameraDriver 的例外口抬高（唯一写入者契约，见 Driver 类头）；
-            // 无 Driver 的兜底场景才直写相机。OceanRig 海面圆盘半径大，OrthoFarClip（200）会切掉海面，
-            // 故抬到 CameraFraming.OceanFarClipMin（海面圆盘所需最小远裁剪，3D 侧口径无逆向出处）。
+            // 无 Driver 的兜底场景才直写相机。
+            // 【按需求推导，不写死大数】需求量 = 本关可达的最松取景档下"可见地面范围"的视线深度上界
+            // （见 CameraFraming.MinFarClipForOrthoSize：基准档 ≈42、全景上限 ≈134），
+            // SetFarClipForSpan 内部再保底 OrthoFarClip（200）。
+            // 档位基准与 Driver 同源：有图幅用图幅，没有则 Driver 沿用 DefaultWorldSpan（全景档 30）。
+            // 活海面是"跟随相机、半径 4200"的圆盘，其可见部分恒落在该范围内——按整盘口径
+            // （OceanFarClipMin = 4500）抬高会把远裁剪放大 20 余倍，那是出图整盘入画的口径，不用于此处。
+            float reachableOrtho = CameraFraming.PanoramaOrthoSizeForSpan(
+                _source.CameraWorldSpan > 0f ? _source.CameraWorldSpan : CameraFraming.DefaultWorldSpan);
+            float requiredFar = CameraFraming.MinFarClipForOrthoSize(reachableOrtho);
             if (battleCamera != null)
             {
-                battleCamera.SetFarClipForSpan(CameraFraming.OceanFarClipMin);
+                battleCamera.SetFarClipForSpan(requiredFar);
             }
             else
             {
                 Camera cam = Camera.main;
                 if (cam != null)
-                    cam.farClipPlane = Mathf.Max(cam.farClipPlane, CameraFraming.OceanFarClipMin);
+                    cam.farClipPlane = Mathf.Max(cam.farClipPlane, requiredFar);
             }
 
             // 大地图专属（图幅/氛围档由关卡数据给出）：全景档随图幅 + 氛围档按海图定义；

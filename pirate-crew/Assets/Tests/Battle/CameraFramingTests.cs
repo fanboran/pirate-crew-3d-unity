@@ -189,5 +189,33 @@ namespace PirateCrew.Battle.Tests
             Assert.AreEqual(200f, CameraFraming.OrthoFarClip, 1e-4f, "远裁剪 = 原虚机 Lens 实机值（非主相机烘焙的 400）");
             Assert.AreEqual(1.85f, CameraFraming.UnitVisualHeight, 1e-4f, "单位视觉总高与 CrewVisualPrefabBuilder 同源");
         }
+
+        // ------------------------------------------------------------------
+        // 远裁剪需求（契约：由 orthoSize 推导，不是写死的大数）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void MinFarClipForOrthoSize_CoversVisibleGroundRange()
+        {
+            // θ=30°、BaseDistance=30 ⇒ 屏顶地面片元的视线深度 = 30 + orthoSize·cot30° = 30 + orthoSize·√3。
+            Assert.AreEqual(30f + 7f * Mathf.Sqrt(3f), CameraFraming.MinFarClipForOrthoSize(7f), 1e-3f,
+                "基准档（orthoSize 7）≈ 42");
+            Assert.AreEqual(30f + 60f * Mathf.Sqrt(3f), CameraFraming.MinFarClipForOrthoSize(60f), 1e-3f,
+                "全景上限（orthoSize 60）≈ 134");
+        }
+
+        [Test]
+        public void MinFarClipForOrthoSize_WithinOrthoBaseline_AndMonotonic()
+        {
+            // 正交基线 200 覆盖现役最松档位（60）——即战斗侧无需按整盘口径（OceanFarClipMin）抬高远裁剪。
+            // 若本条不再成立，说明取景档被放宽了，须重评远裁剪策略（而不是顺手把断言改成新数）。
+            Assert.Less(CameraFraming.MinFarClipForOrthoSize(CameraFraming.PanoramaMaxOrthoSize),
+                CameraFraming.OrthoFarClip,
+                "最松档位的需求量必须落在正交基线内");
+
+            // 单调不减：防把本函数退化成与 orthoSize 无关的常数。
+            Assert.Greater(CameraFraming.MinFarClipForOrthoSize(60f),
+                CameraFraming.MinFarClipForOrthoSize(7f), "档位越松，需求量越大");
+        }
     }
 }

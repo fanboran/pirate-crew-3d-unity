@@ -61,12 +61,18 @@ namespace PirateCrew.Tests
             Assert.IsNull(GameObject.Find("BattleVCam"), "场景不应再有 BattleVCam（虚机已退役）");
             Assert.IsNull(GameObject.Find("CameraTarget"), "场景不应再有 CameraTarget（Cinemachine 中转件已退役）");
 
-            // ---- 正交口径 + 裁剪面（原链 Brain 每帧推送 0.1/200 → 现 Driver Awake 写一次同值）----
+            // ---- 正交口径 + 裁剪面（原链 Brain 每帧推送 0.1/200；far 另有 SetFarClipForSpan 例外口）----
             Assert.IsTrue(mainCamera.orthographic, "相机应为正交（等距像素卡通口径）");
             Assert.AreEqual(CameraFraming.OrthoNearClip, mainCamera.nearClipPlane, 1e-3f,
                 "近裁剪面应等于 CameraFraming.OrthoNearClip（原虚机 Lens 的实机值）");
-            Assert.AreEqual(CameraFraming.OrthoFarClip, mainCamera.farClipPlane, 0.5f,
-                "远裁剪面应等于 CameraFraming.OrthoFarClip（主相机烘焙的 400 运行期被覆盖成 200）");
+            // far 断言**只断言契约、不写数**：需求量是 orthoSize 的纯函数（MinFarClipForOrthoSize），
+            // 写死常量会与实现的推导脱钩——2026-09-30 前此处断言 == OrthoFarClip(200)，
+            // 而实现按需求推导再保底，两者不同步即假红（当时实现值 4500 由已删除的世界海图引入）。
+            float farNeeded = CameraFraming.MinFarClipForOrthoSize(CameraFraming.CloseUpOrthoSize);
+            Assert.GreaterOrEqual(mainCamera.farClipPlane, CameraFraming.OrthoFarClip - 0.5f,
+                "远裁剪面不得低于正交基线 CameraFraming.OrthoFarClip（SetFarClipForSpan 内部保底）");
+            Assert.GreaterOrEqual(mainCamera.farClipPlane, farNeeded - 0.5f,
+                "远裁剪面须覆盖基准取景档可见的地面范围（CameraFraming.MinFarClipForOrthoSize）");
 
             // ---- 运行时默认 = 基准机位（唯一取景档：size 7 = 可见 14 m，创始人 2026-09-23 裁决）----
             Assert.AreEqual(CameraFraming.CloseUpOrthoSize, driver.RuntimeOrthoSize,

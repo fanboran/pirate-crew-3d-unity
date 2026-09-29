@@ -106,13 +106,36 @@ namespace PirateCrew.Battle
         public const float OrthoFarClip = 200f;
 
         /// <summary>
-        /// 海面圆盘所需的最小远裁剪（世界单位）：OceanRig 海面圆盘半径大，OrthoFarClip（200）会切掉海面，
-        /// 战斗装配时经 <c>BattleCameraDriver.SetFarClipForSpan(OceanFarClipMin)</c> 抬到本档
-        /// （无 Driver 的兜底场景由 BattleController 直写相机取 max）。
-        /// 【3D 侧口径，无逆向出处】原版 Flash 无远裁剪概念，本值按海面圆盘跨度标定；
-        /// 出图侧 <c>ArtReview.PlayerArtCapture</c> 的世界图机位同引用本常量。
+        /// **整张海面圆盘入画**所需的远裁剪（世界单位）：只适用于把 OceanRig 圆盘整盘框进画面的机位——
+        /// 现行唯一消费方是出图路径 <c>ArtReview.PlayerArtCapture</c>（4200u 远场裙边与远景装饰要入画）。
+        /// 圆盘半径 = <c>OceanGridRules.HorizonRadius</c>（4200），按 30° 俯角折算视线深度 ≈ 0.866×4200，本值留余量。
+        ///
+        /// 【不用于战斗相机】战斗侧海面跟随相机，其**可见部分**恒落在可见地面范围内（基准档 ≈42、
+        /// 全景上限 ≈134），需求量由 <see cref="MinFarClipForOrthoSize"/> 推导；按整盘口径抬高会把
+        /// 远裁剪放大 20 余倍（2026-09-30 前 <c>BattleController</c> 即如此，为已删除的世界海图引入）。
+        /// 【3D 侧口径，无逆向出处】原版 Flash 无远裁剪概念。
         /// </summary>
         public const float OceanFarClipMin = 4500f;
+
+        /// <summary>
+        /// 战斗相机远裁剪面的**下界**：覆盖正交相机在给定取景档下**可见的地面范围**。
+        ///
+        /// 【推导】正交相机每个像素共享同一视线方向（俯角 <see cref="BasePitchDegrees"/>），
+        /// 故屏幕上任意一点对应的地面片元，其视线深度只随**屏幕纵向偏移** b 变化：
+        /// <c>depth(b) = BaseDistance + b·cot(俯角)</c>
+        /// （相机在焦点斜上方、焦点地面深度 = BaseDistance，沿视线轴的投影关系即此式）。
+        /// 取屏顶 b = orthoSize（OrthoSize 即正交半高）即得本函数。
+        /// θ = 30° ⇒ cot θ = √3：基准档（7）≈ 42、全景上限（60）≈ 134。
+        ///
+        /// 【为什么需要它】远裁剪该多大是 orthoSize 的函数，不是可以随手写死的大数；
+        /// 战斗侧海面是"跟随相机、半径 4200"的圆盘，其可见部分恒落在本范围内，
+        /// 无需按整盘口径（<see cref="OceanFarClipMin"/>）抬高。
+        /// </summary>
+        public static float MinFarClipForOrthoSize(float orthoSize)
+        {
+            float tanPitch = Mathf.Tan(BasePitchDegrees * Mathf.Deg2Rad);
+            return BaseDistance + orthoSize / tanPitch;
+        }
 
         // ------------------------------------------------------------------
         // 档位 / 特效当量纯函数

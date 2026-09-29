@@ -243,8 +243,9 @@ namespace PirateCrew.Battle
         /// <summary>
         /// 按场景跨度抬高远裁剪面（唯一写入者契约的**显式例外**：本类之外不得直写
         /// <c>farClipPlane</c>，统一经此入口——内部保底不低于 <see cref="CameraFraming.OrthoFarClip"/>）。
-        /// 供 <see cref="BattleController.SetupBattleEnvironment"/> 在大图幅海图上放开远裁剪
-        /// （OceanRig 海面圆盘半径可达数千米，200 的正交远裁剪会把海面切掉）。
+        /// 供 <see cref="BattleController.SetupBattleEnvironment"/> 按本关可达的最松取景档设置远裁剪
+        /// （需求量由 <see cref="CameraFraming.MinFarClipForOrthoSize"/> 推导；正交基线 OrthoFarClip
+        /// 已覆盖现役全部档位，本入口主要用于大图幅与将来放宽取景时保持"够用且不过大"）。
         /// </summary>
         public void SetFarClipForSpan(float farClipPlane)
         {
