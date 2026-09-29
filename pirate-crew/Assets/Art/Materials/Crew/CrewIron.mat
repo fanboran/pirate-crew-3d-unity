@@ -23,6 +23,10 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
+    - _BaseMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _BumpMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -43,6 +47,7 @@ Material:
     m_Floats:
     - _AAScale: 1
     - _BumpScale: 1
+    - _Cutoff: 0.5
     - _DashFrequency: 150
     - _DashSpeed: 5
     - _DebugMode: 0
@@ -51,11 +56,11 @@ Material:
     - _DetailNoiseStrength: 0
     - _DitherMode: 0
     - _DitherPatternSize: 4
-    - _DitherStrength: 0
-    - _MainLightLevel: 3
+    - _DitherStrength: 0.5
+    - _MainLightLevel: 4
     - _Metallic: 0
-    - _NormalEdgeLevel: 0.5
-    - _NormalEdgeThreshold: 0.5
+    - _NormalEdgeLevel: -1
+    - _NormalEdgeThreshold: 1
     - _OutlineAlpha: 1
     - _OutlineDistanceAttenuation: 0.4
     - _OutlineExpandMode: 0

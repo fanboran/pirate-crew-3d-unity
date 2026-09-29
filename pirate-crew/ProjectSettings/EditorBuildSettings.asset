@@ -23,4 +23,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/UIShowcase.unity
     guid: eb4b0ba634782204ba01a12677d99a3d
+  - enabled: 1
+    path: Assets/Scenes/PixelartGrassField.unity
+    guid: 0897585b44bbdc5438d462160e2a43ec
   m_configObjects: {}
