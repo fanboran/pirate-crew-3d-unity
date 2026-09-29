@@ -103,12 +103,14 @@ namespace PirateCrew.EditorTools
         static readonly Vector3 UnitRootScale = new Vector3(12f / 32f, 16f / 32f, 12f / 32f);
 
         // ------------------------------------------------------------------
-        // 造型尺寸（用户裁决 2026-09-14：与 Godot pirate.tscn 逐值一致）
+        // 造型尺寸（2026-09-29 创始人在角色镜头调试场定档；起点是 2026-09-14
+        // 的 Godot pirate.tscn 逐值复刻，之后底径/体格/头颈距几经裁决演进）
         // ------------------------------------------------------------------
 
         /// <summary>
         /// Godot 基准总高 = 1.85：pirate.tscn 的 Body 圆柱 h1.2（y −0.8..+0.4）与 Head 球 d0.7（y +0.35..+1.05）
         /// 在轴上重叠 0.05（0.4−0.35）→ 总高 1.2 + 0.7 − 0.05 = 1.85。
+        /// 只作 GodotScale 的归一基准；**现役总高以两件式常量推导为准（≈2.03，见 <see cref="HeadSphereCenterY"/>）**。
         /// </summary>
         const float GodotReferenceHeight = 1.85f;
 
@@ -124,53 +126,50 @@ namespace PirateCrew.EditorTools
         const float UnityUnitsPerTile = 1f;
 
         /// <summary>
-        /// **目标视觉总高（世界单位）= 1.85**。由 Godot 角色总高按"格"归一：
-        ///   <c>1.85 Godot 单位 × (1 格 / <see cref="GodotUnitsPerTile"/> Godot 单位)
-        ///   × (<see cref="UnityUnitsPerTile"/> 世界单位 / 1 格)</c>
-        ///   = <c>1.85 × UnityUnitsPerTile / GodotUnitsPerTile</c> = **1.85**。
+        /// 目标视觉总高的归一系数来源（Godot 1.85 × UnityUnitsPerTile / GodotUnitsPerTile）。
+        /// GodotScale 恒 1，两件式常量直接写世界值——**总高不再锚 1.85**，由 Body/Head 常量推出。
         ///
         /// 【为什么不再用旧的 0.55】旧口径把整身压到 0.55 世界单位（≈0.55 格高），
         ///   与 Godot 角色的 1.85 格高差了 3.36 倍，用户一眼看出"角色比木筏子小这么多"。
         ///   碰撞足迹仍由根级 BoxCollider 决定（0.375×0.5×0.375，Flash 12×16px 契约，见
-        ///   <see cref="UnitRootScale"/>），**与视觉高度无关**，故本次只放大视觉、不动碰撞体
-        ///   （PirateBase.prefab 的碰撞盒由禁改的 `BattleSceneSetup.BuildPiratePrefab` 生成）。
+        ///   <see cref="UnitRootScale"/>），**与视觉高度无关**，改造型不动碰撞体。
         /// </summary>
         const float TargetUnitHeight = GodotReferenceHeight * UnityUnitsPerTile / GodotUnitsPerTile;
 
         /// <summary>等比缩放系数 k = 1.85 / 1.85 = **1**（Godot 单位 → 本工程世界单位；两件式即 Godot 原值）。</summary>
         static readonly float GodotScale = TargetUnitHeight / GodotReferenceHeight;
 
-        /// <summary>Body 圆台柱顶半径 = 0.35 × k = **0.35**（Godot <c>CylinderMesh.top_radius 0.35</c>）。</summary>
-        static readonly float BodyTopRadius = 0.35f * GodotScale;
+        /// <summary>
+        /// Body 圆台柱顶半径 = **0.30**（创始人 2026-09-29 在角色镜头调试场定档，即
+        /// CharCamDebugController.DefaultTopRadius；前值 0.35 = Godot top_radius）。
+        /// </summary>
+        static readonly float BodyTopRadius = 0.3f * GodotScale;
 
         /// <summary>
-        /// Body 圆台柱底半径 = **0.4667**（直径 0.9333；顶 r 0.35 / 高 1.20）→ 上窄下宽。
-        ///
-        /// 【与 Godot 基准的**有意偏离**（创始人裁决 2026-09-22 定台柱感，本次 2026-09-28 微调对齐
-        /// 艺术像素网格）】Godot <c>pirate.tscn</c> 是 <c>bottom_radius 0.4</c>（锥度 0.35/0.40 = 0.875），
-        /// 像素化路径下**读不出台柱形**（r6 实测，见该轮 README §2）。0.92 直径在中机位落在半像素上
-        /// （35.5 px@1:2 / 23.7 px@1:3），剪影宽度随亚像素相位抖；0.9333 直径在特写档（可见 14m）
-        /// 恰为 **36.0 px@1:2、24.0 px@1:3——两种像素档全整数**，锥度 0.35/0.4667 = **0.750 整比**，
-        /// 观感与 0.92 不可分（差 0.0133 ≈ 0.5 细像素）。台柱感裁决不变：只放大底径、顶径与总高不动。
-        ///
-        /// 【为什么只动底径】角色造型的其余部分（球头 r 0.35、总高 1.85、脚底贴地）是
-        /// 2026-09-14 的裁决项。碰撞足迹仍由根级 BoxCollider 决定（0.375×0.5×0.375），
-        /// **与视觉宽度无关**。
+        /// Body 圆台柱底半径 = **0.30**（2026-09-29 调试档——与顶径等宽的圆柱身；
+        /// 演进：Godot 0.4 → 0.4667（2026-09-22 台柱感 + 2026-09-28 整像素）→ 0.3）。
+        /// 锥度 0.30/0.30 = 1，直筒；特写档直径 0.6 m 在可见 14 m@540 画布 = 23.1 px（1:2）。
         /// </summary>
-        static readonly float BodyBottomRadius = 0.4667f * GodotScale;
+        static readonly float BodyBottomRadius = 0.3f * GodotScale;
 
-        /// <summary>Body 圆台柱高 = 1.20 × k = **1.20**，底面贴脚底（局部 y 0..1.20）。</summary>
-        static readonly float BodyHeight = 1.20f * GodotScale;
+        /// <summary>Body 圆台柱高 = **1.3215**（2026-09-29 调试档；前值 1.20），底面贴脚底（局部 y 0..1.3215）。</summary>
+        static readonly float BodyHeight = 1.3215f * GodotScale;
 
-        /// <summary>Head 球半径 = 0.35 × k = **0.35**（Godot <c>SphereMesh.radius 0.35</c>，与柱顶半径同值）。</summary>
-        static readonly float HeadSphereRadius = 0.35f * GodotScale;
+        /// <summary>Head 球半径 = **0.30**（2026-09-29 调试档；前值 0.35 = Godot SphereMesh.radius）。</summary>
+        static readonly float HeadSphereRadius = 0.3f * GodotScale;
 
         /// <summary>
-        /// Head 球心高度 = (0.7 + 0.8) × k = 1.50 × k = **1.50**：
-        /// Godot 里头心在根空间 +0.7、身体底面在 −0.8，平移到地面后为 (0.7 + 0.8) 再乘 k。
-        /// 校验：球底 1.50 − 0.35 = 1.15 &lt; 柱顶 1.20（重叠 0.05），总高 1.85。
+        /// 头颈间距 = **0.1606**（2026-09-29 调试档）：头心上抬量，正 = 拉出脖颈间隙、0 = 球底与柱顶
+        /// 重叠 0.05 的 Godot 口径。
         /// </summary>
-        static readonly float HeadSphereCenterY = 1.50f * GodotScale;
+        static readonly float HeadLift = 0.1606f;
+
+        /// <summary>
+        /// Head 球心高度 = 身高 − 头身重叠(0.05) + 头半径 + 头颈间距 = **1.7321**。
+        /// 校验：球底 1.7321 − 0.30 = 1.4321 &lt; 柱顶 1.3215（反超 0.11——头颈间距 0.1606 把头
+        /// 拉离柱顶，间隙 0.11 m），总高 = 1.7321 + 0.30 = **2.0321**。
+        /// </summary>
+        static readonly float HeadSphereCenterY = BodyHeight - 0.05f + HeadSphereRadius + HeadLift;
 
         /// <summary>圆台柱侧壁分段（16；三角面 = 侧壁 32 + 上下盖 32 = 64）。底缘弦长 6.9 px@1:2 特写，
         /// 12 段以下剪影棱边在特写档可辨（&gt;0.6 px 偏差），保持 16。</summary>
@@ -193,7 +192,7 @@ namespace PirateCrew.EditorTools
         // 以免动到预算镜像表 CrewMeshLibrary.CountPartInstances 的既有断言）
         // ------------------------------------------------------------------
 
-        /// <summary>两件式 Body 圆台柱（顶 r 0.35 / 底 r 0.4667 / h 1.20，16 段；底径见常量注释）。</summary>
+        /// <summary>两件式 Body 圆台柱（顶 r 0.30 / 底 r 0.30 / h 1.3215，16 段；演进史见常量注释）。</summary>
         const string BodyFrustumKey = "CrewBodyFrustum";
 
         /// <summary>两件式 Head 圆球（r 0.35，12×8）。</summary>

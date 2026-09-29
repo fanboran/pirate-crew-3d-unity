@@ -50,8 +50,17 @@ namespace PirateCrew.Rendering.Pixelart
         // 配方
         // ------------------------------------------------------------------
 
-        /// <summary>色带档数默认值（3 档：亮/中/暗——渲染篇 §4 的起步档，试点场景全部用它）。</summary>
-        public const float DefaultBandCount = 3f;
+        /// <summary>
+        /// 色带档数默认值 = **4**（创始人 2026-09-29 裁决，由调试场定档带入正式装配；前值 3）。
+        /// 大平面的刻意降档（地面 2 档 / 海面 2 档）由装配器显式传参覆盖，不受本默认影响。
+        /// </summary>
+        public const float DefaultBandCount = 4f;
+
+        /// <summary>
+        /// 抖动默认档：**Bayer 4×4、幅度 0.5**（创始人 2026-09-29 由调试场定档带入正式装配；
+        /// 前值 = 关。出图判据的跳变率/平坦占比基线随此默认变化，跨轮比对注意）。
+        /// </summary>
+        public const float DefaultDitherStrength = 0.5f;
 
         /// <summary>
         /// 描边线宽默认值（**艺术像素**，1 = 1 个艺术像素 = 屏幕上的 `pixelScale` 像素）。
@@ -86,8 +95,9 @@ namespace PirateCrew.Rendering.Pixelart
         /// 【逐项为什么是这个值】
         /// <list type="bullet">
         ///   <item>`_MainLightLevel` = 色带档数（越高越细腻、越低越"平涂"）；</item>
-        ///   <item>`_DitherMode` / `_DitherStrength` = 0：抖动是**出图对照**用的开关，默认关，
-        ///         出图脚本用 MaterialPropertyBlock 临时拨开；</item>
+        ///   <item>`_DitherMode` = 0（Bayer 4×4）/ `_DitherStrength` = <see cref="DefaultDitherStrength"/>：
+        ///         抖动默认**开**（2026-09-29 创始人裁决，渐变态半幅）；出图脚本用
+        ///         MaterialPropertyBlock 临时拨档对照；</item>
         ///   <item>`_NormalEdgeLevel/Threshold` = 0.5：连通域判出"单元内法线差超阈值"时给该像素加半档
         ///         （内部转折提亮，靠的是连通域那份数据）；</item>
         ///   <item>`_AAScale` = 1：连通域降档门控不缩放（v3 的 `_AAScale` 同义）；</item>
@@ -108,7 +118,7 @@ namespace PirateCrew.Rendering.Pixelart
             material.SetColor("_BaseColor", albedo);
             material.SetFloat("_MainLightLevel", bandCount);
             material.SetFloat("_DitherMode", 0f);
-            material.SetFloat("_DitherStrength", 0f);
+            material.SetFloat("_DitherStrength", DefaultDitherStrength);
             material.SetFloat("_NormalEdgeLevel", 0.5f);
             material.SetFloat("_NormalEdgeThreshold", 0.5f);
             material.SetFloat("_AAScale", 1f);

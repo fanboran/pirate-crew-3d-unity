@@ -84,8 +84,9 @@ namespace PirateCrew.Rendering.Pixelart
             + "关掉 = 相机自己管取景（本路径只保证像素网格整数倍，不保证范围随分辨率变大）。")]
         public bool deriveOrthographicSize = true;
 
-        [Tooltip("连通域降档阈值 = 本值 ÷ 2（v3 的 AAScaler 同口径，默认 0.75）。")]
-        [Range(0f, 2f)] public float aaScaler = 1.5f;
+        [Tooltip("连通域降档阈值 = 本值 ÷ 2（v3 的 AAScaler 同口径）。0.69 = 创始人 2026-09-29 "
+            + "由调试场定档带入正式装配（阈值 0.345，内线收得更紧）；前值 1.5。")]
+        [Range(0f, 2f)] public float aaScaler = 0.69f;
 
         [Header("墨线")]
         [Tooltip("墨线颜色。**中性近黑**：UI 面板令牌 INK 是 #120C14（带一点紫，在面板底色上稳），"
