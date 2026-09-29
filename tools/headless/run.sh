@@ -25,15 +25,22 @@ usage() {
                      纯 C# 域测试优先 harness 档（秒级、不占 Library 锁）。
   build <类名.方法名> [透传参数…]
                       无头构建/烘培（如 BuildScript.BuildFromCommandLineArgs）。分钟级，建议后台发起。
+  chain <类名.方法名>[;<类名.方法名>…] [透传参数…]
+                      单入口编排：一次 Unity 启动按序串跑多件 Editor 装配
+                      （如 字体重建;Battle 管线;菜单场景），省掉每件一次的 ≈2.5 分钟冷启动。
+                      **不带缓存**——装配方法会改场景/资产，结果不可回放，每次都真跑。
   harness <All|Data|Combat|DataEditor|Battle|Runtime> [过滤器…]
                       代理 external/harness/run.sh：不开 Unity，绕开 Library 独占锁。
+  unlock              清 Temp/UnityLockfile 僵尸锁兜底：无锁 → 退出 0；有锁且无 Unity.exe 进程
+                      → 只删锁文件（Temp 下其余内容不动）并退出 0；有锁且 Unity.exe 在跑
+                      → 拒绝并退出 3（与 guard_unity 同口径）。
 环境变量: PC3D_UNITY 覆盖 Unity 路径；PC3D_PROJ 覆盖工程目录（自测用）；
           PC3D_NO_CACHE=1 跳过缓存回放（强制真跑一次）。
 EOF
 }
 
 case "${1:-}" in
-  open|test|build|harness) MODE="$1"; shift ;;
+  open|test|build|chain|harness|unlock) MODE="$1"; shift ;;
   *) usage; exit 2 ;;
 esac
 
@@ -142,10 +149,49 @@ case "$MODE" in
     RC=$?
     summarize "$RC"; exit $RC
     ;;
+  chain)
+    if [ $# -lt 1 ]; then
+      echo "chain 档需要步骤列表 <类名.方法名>[;<类名.方法名>…]，例: FontAssetBuilder.BuildAll;BattleScenePipeline.Build" >&2
+      exit 2
+    fi
+    STEPS="$1"; shift
+    # 空列表兜底（空串 / 只有分号）→ 不让 Unity 白启一次
+    if [ -z "$(printf '%s' "$STEPS" | tr -d '; ')" ]; then
+      echo "chain 档步骤列表为空: \"$STEPS\"" >&2; exit 2
+    fi
+    # 不带缓存：装配方法会改场景/资产，结果不可回放（口径见 docs/技术/无头验证与启动成本优化.md §5）。
+    # 不要 -quit：HeadlessChain.Run 自己调 EditorApplication.Exit 带退出码收口。
+    guard_unity
+    echo "（chain 串跑: $STEPS）"
+    "$UNITY" -batchmode -nographics -projectPath "$PROJ" \
+      -executeMethod PirateCrew.EditorTools.HeadlessChain.Run \
+      -chainSteps "$STEPS" "$@" -logFile "$LOG"
+    RC=$?
+    summarize "$RC"; exit $RC
+    ;;
   harness)
     if [ $# -lt 1 ]; then
       echo "harness 档需要域参数: All|Data|Combat|DataEditor|Battle|Runtime" >&2; exit 2
     fi
     exec bash "$ROOT/external/harness/run.sh" "$@"
+    ;;
+  unlock)
+    LOCK="$PROJ/Temp/UnityLockfile"
+    if [ ! -f "$LOCK" ]; then
+      echo "✅ 本来就干净：Temp/UnityLockfile 不存在，无需清理。"
+      exit 0
+    fi
+    if tasklist 2>/dev/null | grep -qi "Unity.exe"; then
+      echo "❌ 拒绝清理：检测到 Unity.exe 正在运行，Temp/UnityLockfile 被占用。" >&2
+      echo "   先等编辑器/无头实例退出再跑；若是杀不死的僵尸锁，处置见 AGENTS.md batchmode 铁律。" >&2
+      exit 3
+    fi
+    # 只删锁文件本身，Temp 下别的任何东西不碰
+    rm -f "$LOCK"
+    if [ -f "$LOCK" ]; then
+      echo "❌ 删除失败（文件可能仍被占用）: $LOCK" >&2
+      exit 1
+    fi
+    echo "🗑️ 已删除僵尸锁: $LOCK（无 Unity.exe 进程，属陈旧锁）。"
     ;;
 esac
