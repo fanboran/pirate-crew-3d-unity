@@ -137,6 +137,12 @@ namespace PirateCrew.Rendering.Pixelart
             // 竖直 6 的读法与第 4 关相同（地坪 0、最高件（烟囱）26 m，取 6 = 场地中低部 + 略高于人眼）。
             new View(5,   "PixelartChemPlantTeam", new Vector3(0f, 6f, 0f), 32f, 14f, 7f),
 
+            // 关卡 6「纯草坪验收场」（**提案/待定**）：专门验收 t3ssel8r 口径草丛的**无地形平地**
+            // （装配器 `PixelartGrassFieldSetup`：暗绿底板 + 满铺草簇，不接玩法数据）——
+            // 草丛三档斑块是世界坐标噪声，只有在"除了草没别的"的场地上才能单独读出形状/尺度/连贯性。
+            // 竖直 0.3 的来路：草簇高 0.26-0.5 m，取"草尖之半"的眼位，与样板关取眼位同一个读法。
+            new View(6,   "PixelartGrassField", new Vector3(20f, 0.3f, 15f), 32f, 14f, 7f),
+
             // 海图：Target = (span/2, 3, span/2)；wide/mid/close = 32/14/7（**不随 span 缩放**，见类头）。
             // 【span 是横纵相同的正方形】（八张图 SpanX == SpanZ，`WorldMapCatalog` 契约里没有"必须相等"
             // 的约束——真出现长方形时本表要按对角线取大者，届时两个方向的取景一起改）。
