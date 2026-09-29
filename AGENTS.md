@@ -23,14 +23,18 @@
 ### 调试规范
 
 - Unity 编辑器路径：`F:\Unity\2022.3.62f1\Editor\Unity.exe`。
-- **无头验证首选分级运行器**（单飞锁 / 日志落 `$TEMP` / 失败自动摘 error / open 档 30 分钟结果缓存）：
+- **无头验证首选分级运行器**（单飞锁 / 日志落 `$TEMP` / 失败自动摘 error / `open`+`test` 两档 30 分钟结果缓存）：
   ```bash
   tools/headless/run.sh <open|test|build|harness> [参数]
   ```
   - `open` — 整工程可打开验证（分钟级）。**只在改了 manifest / Packages / ProjectSettings / 程序集定义 / .meta 结构后跑**；仅改 C# 或资产内容用 `harness` 档。
-  - `test [EditMode|PlayMode]` — Unity Test Framework，默认 EditMode；纯 C# 域测试优先 `harness` 档（秒级）。
+  - `test [EditMode|PlayMode] [过滤器]` — Unity Test Framework，默认 EditMode。过滤器是**测试名子串**（如 `BattleSceneWiringTests`），可只跑一块；纯 C# 域测试优先 `harness` 档（秒级）。
   - `build <类名.方法名> [透传参数…]` — 无头构建/烘培（如 `BuildScript.BuildFromCommandLineArgs`），建议后台发起。
   - `harness <All|Data|Combat|DataEditor|Battle|Runtime>` — 代理 `external/harness/run.sh`，不开 Unity、绕开 Library 独占锁。
+- **启动次数是成本，用例数量不是**：单次 Unity 冷启动 ≈2.5 分钟，而 EditMode 1300 条用例本体只要 ≈16 秒——
+  提速要**少启动**（选最小档 / 吃缓存 / 只跑过滤器），**不要靠少写测试**。同 HEAD + 同工作区重跑命令即命中缓存
+  （强制真跑加 `PC3D_NO_CACHE=1`）。一次验收**不默认 open/EditMode/PlayMode 三档全跑**；
+  按改动面选档的口径见 [docs/技术/无头验证与启动成本优化.md](docs/技术/无头验证与启动成本优化.md) §6。
 - 等无头任务用**后台完成通知**，禁止 `sleep` 轮询。
 - 直接调 Unity 的等价命令（不经运行器手动跑时）：
   ```bash
