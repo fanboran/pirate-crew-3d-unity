@@ -99,42 +99,56 @@ namespace PirateCrew.EditorTools
             // ---------------- 遮罩图集（程序化点阵，确定性）----------------
             Texture2D atlas = EnsureTuftAtlas();
 
-            // ---------------- 材质（遮罩只管形状，颜色 = 草皮三档）----------------
-            // 【对齐参考】v5 成品帧（external/pixel-render-ref/frames/v5/035.jpg）的草坪是
-            // **偏黄亮绿底 + ±1 色阶的柔和斑驳**，没有高对比亮/暗块。三档全部取既有调色板值、
-            // 相邻只差半档：主档 #6FB86A（空岛草皮配方衍生档）/ 亮斑 #7BC67E（GrassLight）/
-            // 暗斑 #4A8C4A（GrassMid 降半档当暗斑，替代 r20 的 #2D5A2D 阴影洞）。
-            // 【提案】底色比空岛草皮亮，进岛前要过创始人配色裁决。
+            // ---------------- 材质（遮罩只管形状，颜色 = 草皮三档 × 逐簇微 tint）----------------
+            // 【对齐参考 r23】创始人判 r22「太显眼」：簇与地、簇与簇的色差全部压进 ±8% 邻近域——
+            // 参考的观感是"融进地面的细腻色纹"，不是"簇形拼贴"。多样性由**逐簇随机微 tint**
+            // （t3ssel8r 原话 "a randomized color"：×0.92 / ×1.0 / ×1.08，哈希逐簇随机）
+            // 叠加空间斑块（GrassPatchRules）共同承担。3 档 × 3 tint = 9 材质 / 9 DrawCall。
+            // 【提案】色值系 #6FB86A 邻近域派生，进岛前过创始人配色裁决。
             Material ground = PixelartStageKit.EnsureMaterial("PixelartGrassField_Ground",
-                PixelartStageKit.Hex("4A8C4A"), 3f, outlinePixels: 0f);
-            Material mid = EnsureSpriteMaterial("PixelartGrassField_Mid",
-                PixelartStageKit.Hex("6FB86A"), atlas);
-            Material light = EnsureSpriteMaterial("PixelartGrassField_Light",
-                PixelartStageKit.Hex(SceneArtPalette.GrassLight), atlas);
-            Material dark = EnsureSpriteMaterial("PixelartGrassField_Dark",
-                PixelartStageKit.Hex(SceneArtPalette.GrassMid), atlas);
-            if (ground == null || mid == null || light == null || dark == null)
+                PixelartStageKit.Hex("5C9556"), 3f, outlinePixels: 0f);
+
+            var bandBases = new[]
+            {
+                (IslandMaterial.GrassMid, PixelartStageKit.Hex("6FB86A")),
+                (IslandMaterial.GrassLight, PixelartStageKit.Hex("77BB70")),
+                (IslandMaterial.GrassDark, PixelartStageKit.Hex("639E5F")),
+            };
+            var materials = new Dictionary<(IslandMaterial, int), Material>();
+            bool missing = ground == null;
+            foreach (var (band, baseColor) in bandBases)
+            {
+                for (int tint = 0; tint < TintLevels.Length; tint++)
+                {
+                    var m = EnsureSpriteMaterial(
+                        "PixelartGrassField_" + band + "_T" + tint,
+                        Tint(baseColor, TintLevels[tint]), atlas);
+                    materials[(band, tint)] = m;
+                    missing |= m == null;
+                }
+            }
+            if (missing)
             {
                 Debug.LogError(LogTag + " 草皮材质没造出来（shader 缺失？）——出图上会是品红。");
                 return;
             }
 
-            // ---------------- 底板：暗绿大平面（草的"土"，只承接不投影）----------------
+            // ---------------- 底板：草色邻近域的大平面（草的"土"，只承接不投影）----------------
             GameObject groundMesh = PixelartStageKit.NewPrimitive(
                 PrimitiveType.Plane, "Ground", root.transform, ground);
             groundMesh.transform.localPosition = new Vector3(view.Target.x, 0f, view.Target.z);
             groundMesh.transform.localScale = new Vector3(8f, 1f, 8f);   // Plane 10 m × 8 = 80×80
 
-            // ---------------- 草簇满铺（sprite 四边形，三档缓冲 → 各 1 网格 1 材质）----------------
+            // ---------------- 草簇满铺（sprite 四边形，档×tint 各 1 网格 1 材质）----------------
             Vector3 camForward = -PixelartPilotScene.CameraDirection(
                 PixelartPilotScene.PitchDegrees, PixelartLevelScene.AzimuthFor(view)).normalized;
             Vector3 camRight = Vector3.Cross(Vector3.up, camForward).normalized;
             Vector3 camUp = Vector3.Cross(camForward, camRight).normalized;
 
-            Dictionary<IslandMaterial, SpriteQuadBatch> batches = FillGrass(view.Target, camRight, camUp);
-            EmitBand(root.transform, "Grass_Mid", batches[IslandMaterial.GrassMid], mid);
-            EmitBand(root.transform, "Grass_Light", batches[IslandMaterial.GrassLight], light);
-            EmitBand(root.transform, "Grass_Dark", batches[IslandMaterial.GrassDark], dark);
+            var batches = FillGrass(view.Target, camRight, camUp);
+            foreach (var kvp in batches)
+                EmitBand(root.transform,
+                    "Grass_" + kvp.Key.Item1 + "_T" + kvp.Key.Item2, kvp.Value, materials[kvp.Key]);
 
             // ---------------- 尺度参照：3 个船员 ----------------
             Material crewRed = PixelartStageKit.CrewRed();
@@ -267,6 +281,17 @@ namespace PirateCrew.EditorTools
             }
         }
 
+        /// <summary>逐簇微 tint 档（×0.92 / ×1.0 / ×1.08）——t3ssel8r "a randomized color"
+        /// 的落点：多样性主要来自逐簇随机色，不是 sprite 数量。</summary>
+        static readonly float[] TintLevels = { 0.92f, 1f, 1.08f };
+
+        /// <summary>邻域 tint：RGB 同乘（γ 空间近似，±8% 内的邻近派生色）。</summary>
+        static Color Tint(Color c, float k)
+        {
+            return new Color(Mathf.Clamp01(c.r * k), Mathf.Clamp01(c.g * k),
+                Mathf.Clamp01(c.b * k), c.a);
+        }
+
         /// <summary>一簇 = 若干叶（局部格内 16×16 点阵）：(baseX, height, lean, width) 列表。</summary>
         static void DrawTuft(Color32[] px, int ox, int oy, (int baseX, int height, int lean, int width)[] blades)
         {
@@ -321,16 +346,11 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>满铺：每簇一个相机朝向四边形（烘焙期定向——本仓相机固定等距，无需运行时 billboard）。
-        /// 返回 档位 → 批次。accent 簇用图集上半窗（uv.y 0.5-1）。</summary>
-        static Dictionary<IslandMaterial, SpriteQuadBatch> FillGrass(Vector3 center,
+        /// 返回 (档位, tint 档) → 批次。accent 簇用图集上行（uv.y 0.5-1）。</summary>
+        static Dictionary<(IslandMaterial, int), SpriteQuadBatch> FillGrass(Vector3 center,
             Vector3 camRight, Vector3 camUp)
         {
-            var batches = new Dictionary<IslandMaterial, SpriteQuadBatch>
-            {
-                [IslandMaterial.GrassMid] = new SpriteQuadBatch(),
-                [IslandMaterial.GrassLight] = new SpriteQuadBatch(),
-                [IslandMaterial.GrassDark] = new SpriteQuadBatch(),
-            };
+            var batches = new Dictionary<(IslandMaterial, int), SpriteQuadBatch>();
 
             int i = 0;
             for (float x = center.x - FieldHalfX; x <= center.x + FieldHalfX; x += Spacing)
@@ -345,6 +365,8 @@ namespace PirateCrew.EditorTools
                     int variants = accent ? AccentVariants : Variants;
                     int variant = Mathf.Min((int)(SceneArtHash.Hash01(Seed, i, 101) * variants), variants - 1);
                     bool mirror = SceneArtHash.Hash01(Seed, i, 103) < 0.5f;
+                    int tint = Mathf.Min((int)(SceneArtHash.Hash01(Seed, i, 107) * TintLevels.Length),
+                        TintLevels.Length - 1);
                     float cell = 16f / AtlasW;            // 一格宽（uv.x，图集横排每格 16 纹素）
                     float uvX0 = variant * cell;
                     float uvX1 = uvX0 + cell;
@@ -352,8 +374,11 @@ namespace PirateCrew.EditorTools
                     float uvY1 = accent ? 1f : 0.5f;
                     float size = QuadSize * (accent ? 2f : 1f);
 
-                    AddQuad(batches[IslandBuffersBand(p)], p, size,
-                        uvX0, uvX1, uvY0, uvY1, mirror, camRight, camUp);
+                    var key = (IslandBuffersBand(p), tint);
+                    if (!batches.TryGetValue(key, out var batch))
+                        batches[key] = batch = new SpriteQuadBatch();
+
+                    AddQuad(batch, p, size, uvX0, uvX1, uvY0, uvY1, mirror, camRight, camUp);
                     i++;
                 }
             }
