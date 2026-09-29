@@ -56,7 +56,7 @@ Material:
     - _DetailNoiseStrength: 0
     - _DitherMode: 0
     - _DitherPatternSize: 4
-    - _DitherStrength: 0.5
+    - _DitherStrength: 0
     - _MainLightLevel: 4
     - _Metallic: 0
     - _NormalEdgeLevel: -1
@@ -73,7 +73,7 @@ Material:
     - _Smoothness: 0
     - _SnapToPixelGrid: 1
     m_Colors:
-    - _BaseColor: {r: 1, g: 0.478, b: 0.102, a: 1}
+    - _BaseColor: {r: 1, g: 0.47799987, b: 0.101999976, a: 1}
     - _OutlineColor: {r: 0.286, g: 0.851, b: 0.839, a: 0}
     - _OutlineColorHover: {r: 1, g: 1, b: 1, a: 0.22}
     - _OutlineColorSelected: {r: 0.286, g: 0.851, b: 0.839, a: 0.949}

@@ -42,7 +42,7 @@ Material:
     - _Cutoff: 0.5
     - _DitherMode: 0
     - _DitherPatternSize: 4
-    - _DitherStrength: 0.5
+    - _DitherStrength: 0
     - _MainLightLevel: 2
     - _Metallic: 0
     - _NormalEdgeLevel: -1
