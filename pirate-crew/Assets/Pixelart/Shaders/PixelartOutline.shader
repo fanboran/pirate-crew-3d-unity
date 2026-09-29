@@ -27,6 +27,14 @@
 //     加了它整圈外轮廓会全部消失。这也正是 v3 那趟不做 `clip(albedo.a)` 的原因。
 //   ⚠ 更近那一侧的像素自己的门控不通过（`closer`=1），所以上面两圈**不会叠成 2 像素**。
 //
+//   【第三条分支：接触边兜底】门控的两位都源自"深度不连续"，而物体与**更近**的大平面
+//     **深度相切**时（角色落地的那一圈接触弧），切平面预测残差 ≈ 0 ⇒ 物体像素侧
+//     `connected = 1`、平面像素侧 `closer = 1` ⇒ 四方向无一合法出线像素，接触弧整条没有
+//     墨线（r19 实拍：角色左下弧段的墨线到剪影切点戛然而止，dbg-outline 直读档证实该段
+//     `Outline.r = 0`）。补法：`本像素开着描边 && 该方向邻域更近（closer = 0）&& 邻域不开
+//     描边` ⇒ 也算命中，墨线落在物体自己的边界行。按门控 `else` 挂载 ⇒ 与上面两条互斥，
+//     线宽仍恒为 1 艺术像素。
+//
 // 【每物体独立描边怎么保证】判据只看两件逐像素的数据：邻域的 `Palette.a`（逐物体写）与
 //   连通域的不连续位（逐像素算）。与"全场景一圈外轮廓"无关，也与绘制次序无关——
 //   物体把材质 `_OutlinePixels` 置 0 ⇒ 它的 `Palette.a` = 0 ⇒ 它自己不描边（契约 §7 的可回退）。
@@ -164,6 +172,9 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 //   · 远侧边（外面是背景/更远的面）→ 由**外侧**像素出线，与原来的观感一致；
                 //   · 近侧边（外面是更近的面）→ 由**物体自己的边界像素**出线。
                 // 两种情形互斥（同一方向只有一个更远侧）⇒ 线宽仍是 **1 艺术像素**，不会叠成两像素。
+                //
+                // 还有一个这两条都治不了的缺口：**接触弧**（物体贴着更近且不开描边的平面、
+                // 深度相切）会把门控从 connected 一侧关死——见下面各方向的「接触边兜底」分支。
                 bool centerAppliesOutline = AppliesOutlineAt(uvCenter);
 
                 int connectedToRight = (connectCode & 128u) > 0u ? 1 : 0;   // bit7
@@ -178,36 +189,65 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 float marker  = 0.0;    // r = 墨线标记（契约 §1.2）
                 float gateHit = 0.0;    // 调试档 5：门控命中的方向数
 
+                // 【接触边兜底】四个方向共用的第三条分支，挂在门控的 **else** 侧：
+                //   本像素开着描边、该方向邻域**更近**（closer = 0）且**不开描边** ⇒ 墨线落在
+                //   自己边界行。能到这里门控必然是因 `connected ≥ 1` 关死的（closer ≥ 1 的情形
+                //   进不了条件）——即"深度相切的接触弧"：物体表面与更近的大平面在剪影切点以外
+                //   深度连续，切平面预测残差 ≈ 0，两位门控四位全堵（物体像素 connected=1、
+                //   平面像素 closer=1），r19 实拍角色左下弧段整段无墨就是它。邻域开着描边的
+                //   情形不触发（两个描边物体相切不互描）；调试档 8 只统计门控命中、不含本分支
+                //   （它依赖 applyOutline，混进去会污染"连通域在不在命中"的诊断语义）。
+
                 // ---- 右（v3 `OutlinePass.hlsl:35-44`）----
+                float2 uvRight = uvCenter + float2(texel.x, 0.0);
                 if (connectedToRight < 1 && closerThanRight < 1)
                 {
                     gateHit += 1.0;
-                    if (centerAppliesOutline || AppliesOutlineAt(uvCenter + float2(texel.x, 0.0)))
+                    if (centerAppliesOutline || AppliesOutlineAt(uvRight))
                         marker = 1.0;
+                }
+                else if (centerAppliesOutline && closerThanRight < 1 && !AppliesOutlineAt(uvRight))
+                {
+                    marker = 1.0;
                 }
 
                 // ---- 左（v3 `:46-55`）----
+                float2 uvLeft = uvCenter - float2(texel.x, 0.0);
                 if (connectedToLeft < 1 && closerThanLeft < 1)
                 {
                     gateHit += 1.0;
-                    if (centerAppliesOutline || AppliesOutlineAt(uvCenter - float2(texel.x, 0.0)))
+                    if (centerAppliesOutline || AppliesOutlineAt(uvLeft))
                         marker = 1.0;
+                }
+                else if (centerAppliesOutline && closerThanLeft < 1 && !AppliesOutlineAt(uvLeft))
+                {
+                    marker = 1.0;
                 }
 
                 // ---- 上（v3 `:57-66`）----
+                float2 uvUp = uvCenter + float2(0.0, texel.y);
                 if (connectedToUp < 1 && closerThanUp < 1)
                 {
                     gateHit += 1.0;
-                    if (centerAppliesOutline || AppliesOutlineAt(uvCenter + float2(0.0, texel.y)))
+                    if (centerAppliesOutline || AppliesOutlineAt(uvUp))
                         marker = 1.0;
+                }
+                else if (centerAppliesOutline && closerThanUp < 1 && !AppliesOutlineAt(uvUp))
+                {
+                    marker = 1.0;
                 }
 
                 // ---- 下（v3 `:68-77`）----
+                float2 uvDown = uvCenter - float2(0.0, texel.y);
                 if (connectedToDown < 1 && closerThanDown < 1)
                 {
                     gateHit += 1.0;
-                    if (centerAppliesOutline || AppliesOutlineAt(uvCenter - float2(0.0, texel.y)))
+                    if (centerAppliesOutline || AppliesOutlineAt(uvDown))
                         marker = 1.0;
+                }
+                else if (centerAppliesOutline && closerThanDown < 1 && !AppliesOutlineAt(uvDown))
+                {
+                    marker = 1.0;
                 }
 
                 // 调试档（0 = 契约语义，别的值都是本 pass 的诊断档；见文件头的取值表）
