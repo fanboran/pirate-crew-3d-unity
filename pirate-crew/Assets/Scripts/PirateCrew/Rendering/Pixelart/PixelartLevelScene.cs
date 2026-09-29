@@ -77,8 +77,16 @@ namespace PirateCrew.Rendering.Pixelart
             /// <summary>近机位可见高度（米）——单位与边缘细节（十关统一 7）。</summary>
             public readonly float CloseVisibleMeters;
 
+            /// <summary>
+            /// 本关方位角（度）。**0 = 未覆盖，兜底用全局默认 45°**（<see cref="PixelartPilotScene.AzimuthDegrees"/>，
+            /// 对称菱形）——现役取景表全部不传此参数，行为逐字节不变；要偏转某一关的构图
+            /// （比如把角色转到侧面剪影看描边），在这一行加第五个参数即可，装配器与出图脚本
+            /// 同一份数据（<see cref="PixelartLevelScene.AzimuthFor"/>），不会两边各写一份。
+            /// </summary>
+            public readonly float AzimuthDegrees;
+
             public View(int levelNumber, string sceneName, Vector3 target,
-                float wide, float mid, float close)
+                float wide, float mid, float close, float azimuthDegrees = 0f)
             {
                 LevelNumber = levelNumber;
                 SceneName = sceneName;
@@ -86,6 +94,7 @@ namespace PirateCrew.Rendering.Pixelart
                 WideVisibleMeters = wide;
                 MidVisibleMeters = mid;
                 CloseVisibleMeters = close;
+                AzimuthDegrees = azimuthDegrees;
             }
 
             /// <summary>出图档位前缀（`pl1-wide` / `pl101-mid`…；判据脚本按它认关卡）。</summary>
@@ -158,6 +167,15 @@ namespace PirateCrew.Rendering.Pixelart
 
             view = default;
             return false;
+        }
+
+        /// <summary>
+        /// 本关机位方位角：关卡行覆盖了就用关卡值，没覆盖兜底全局默认（45° 对称菱形）。
+        /// **装配器与出图脚本都走这里**，方位角才不会两边各写一份（那坑本仓踩过）。
+        /// </summary>
+        public static float AzimuthFor(View view)
+        {
+            return view.AzimuthDegrees > 0f ? view.AzimuthDegrees : PixelartPilotScene.AzimuthDegrees;
         }
 
         /// <summary>把"可见多少米高"换算成一个艺术像素的世界尺寸（米）。口径与试点场景同源。</summary>

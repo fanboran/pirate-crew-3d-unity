@@ -50,9 +50,6 @@ namespace PirateCrew.CharCamDebug
         /// <summary>机位到构图中心的距离（正交相机下只影响裁剪，不影响观感大小）。</summary>
         public const float CameraDistance = 60f;
 
-        /// <summary>构图中心：固定在角色腰高附近，不随体格参数漂（构图稳定才好横向对比）。</summary>
-        public static readonly Vector3 FramingTarget = new Vector3(0f, 1.0f, 0f);
-
         /// <summary>Body 圆台侧壁分段——镜像 `CrewVisualPrefabBuilder.GodotBodySides`（16，private 不可引用）。</summary>
         public const int BodySides = 16;
 
@@ -91,26 +88,66 @@ namespace PirateCrew.CharCamDebug
         public const int DefaultPixelScale = 3;
         /// <summary>默认俯角（30° = 规则像素阶梯，`PixelartPilotScene.PitchDegrees` 同源）。</summary>
         public const float DefaultPitchDegrees = 30f;
-        /// <summary>默认方位角。</summary>
-        public const float DefaultAzimuthDegrees = 6.6f;
+        /// <summary>默认方位角（45° = 对称菱形；正式关卡里它是**每关可调**的取景参数，
+        /// 见 <c>PixelartLevelScene.View.AzimuthDegrees</c>）。</summary>
+        public const float DefaultAzimuthDegrees = 45f;
         /// <summary>默认内线降档系数（阈值 = 本值 ÷ 2）。</summary>
         public const float DefaultAaScaler = 0.69f;
         /// <summary>默认抖动档（1 = Bayer 渐变态）。</summary>
         public const int DefaultDitherMode = 1;
 
         // ------------------------------------------------------------------
-        // 场景引用（装配器接线）
+        // 角色槽（场上多角色：画面左上/右上角各有对应方块，点击跳转编辑目标）
         // ------------------------------------------------------------------
 
-        [Header("角色骨架（装配器接线）")]
-        [Tooltip("Body 圆台的枢轴（脚底贴地：localPosition.y 由本组件按身高写）。")]
-        public Transform bodyPivot;
-        [Tooltip("Head 圆球的枢轴（localPosition.y = 球心高度，本组件写）。")]
-        public Transform headPivot;
-        [Tooltip("Body 的网格过滤器（网格由本组件运行时生成）。")]
-        public MeshFilter bodyFilter;
-        [Tooltip("Head 的网格过滤器（网格由本组件运行时生成）。")]
-        public MeshFilter headFilter;
+        /// <summary>
+        /// 一个可调角色（骨架引用 + 体格参数 + 运行时网格）。场上摆两具（左/右站位），
+        /// 点击屏幕左上/右上角的方块把**编辑目标与相机焦点**跳到对应角色——体格滑杆只动
+        /// 当前选中的那具，方便并排对比"不同体格在同一镜头口径下"的观感。
+        /// </summary>
+        [System.Serializable]
+        public class SubjectSlot
+        {
+            [Min(0.02f)] public float topRadius = DefaultTopRadius;
+            [Min(0.02f)] public float bottomRadius = DefaultBottomRadius;
+            [Min(0.1f)] public float bodyHeight = DefaultBodyHeight;
+            [Min(0.02f)] public float headRadius = DefaultHeadRadius;
+            [Tooltip("头颈间距：0 = Godot 基准（球底与柱顶重叠 0.05）；正 = 头上拉，负 = 压进身体。")]
+            [Range(-0.3f, 0.5f)] public float headLift = DefaultHeadLift;
+
+            [Header("骨架（装配器接线）")]
+            public Transform bodyPivot;
+            public Transform headPivot;
+            public MeshFilter bodyFilter;
+            public MeshFilter headFilter;
+
+            /// <summary>头心高度 = 身高 − 头身重叠 + 头半径 + 头颈间距。</summary>
+            public float HeadCenterY => bodyHeight - HeadBodyOverlap + headRadius + headLift;
+            /// <summary>角色总高（脚底到头顶，米）。</summary>
+            public float TotalHeight => HeadCenterY + headRadius;
+
+            // 运行时生成的两块网格（重建时销毁旧的，避免泄漏；编辑态生成后随场景嵌存）。
+            public Mesh bodyMesh;
+            public Mesh headMesh;
+            /// <summary>网格是否已生成（编辑态 ApplyAll 建全部槽；运行时切到未建槽先建）。</summary>
+            public bool built;
+        }
+
+        /// <summary>站位 X：槽 0 站画面左（-1.2m）、槽 1 站右（+1.2m）。焦点跳转按它摆相机。</summary>
+        public static float StationX(int index) => index == 0 ? -1.2f : 1.2f;
+
+        public static string SlotLabel(int index) => index == 0 ? "角色A" : "角色B";
+
+        [Header("角色槽（装配器摆双角色并接线）")]
+        public SubjectSlot[] slots = { new SubjectSlot(), new SubjectSlot() };
+
+        /// <summary>当前编辑目标（画面方块与面板滑杆都指向它）。</summary>
+        public int activeSlot;
+
+        /// <summary>当前选中的槽（越界钳回，装配漏接时返回 null 让面板显式提示）。</summary>
+        public SubjectSlot Active => slots == null || slots.Length == 0
+            ? null
+            : slots[Mathf.Clamp(activeSlot, 0, slots.Length - 1)];
 
         [Header("镜头（装配器接线）")]
         [Tooltip("像素化相机 rig：worldPerPixel / pixelScale 写它，取景由它重算。")]
@@ -119,16 +156,8 @@ namespace PirateCrew.CharCamDebug
         public Transform cameraTransform;
 
         // ------------------------------------------------------------------
-        // 可调参数（面板滑杆直接改这些）
+        // 可调参数（面板滑杆直接改这些；体格在 SubjectSlot 上，镜头/风格全局共享）
         // ------------------------------------------------------------------
-
-        [Header("角色体格（米）")]
-        [Min(0.02f)] public float topRadius = DefaultTopRadius;
-        [Min(0.02f)] public float bottomRadius = DefaultBottomRadius;
-        [Min(0.1f)] public float bodyHeight = DefaultBodyHeight;
-        [Min(0.02f)] public float headRadius = DefaultHeadRadius;
-        [Tooltip("头颈间距（米）：0 = Godot 基准（球底与柱顶重叠 0.05）；正 = 头上拉出间隙，负 = 头往身子里压。")]
-        [Range(-0.3f, 0.5f)] public float headLift;
 
         [Header("镜头取景")]
         [Tooltip("可见米数（美术锚）：1080p 屏上画面高度看到的米数；屏幕分辨率越高实际可见越多。")]
@@ -165,9 +194,6 @@ namespace PirateCrew.CharCamDebug
         public bool showPanel = true;
         public Rect panelRect = new Rect(12f, 12f, 380f, 40f);
 
-        // 运行时生成的两块网格（重建时销毁旧的，避免泄漏）。
-        Mesh _bodyMesh;
-        Mesh _headMesh;
         // 滑杆 → 应用 的脏标记（网格重建与相机重摆都只在变化时做）。
         bool _meshDirty = true;
         bool _cameraDirty = true;
@@ -182,34 +208,49 @@ namespace PirateCrew.CharCamDebug
         readonly List<Material> _urpProxies = new List<Material>();
         bool _urpModeActive;
 
-        /// <summary>头心高度 = 身高 − 头身重叠 + 头半径 + <see cref="headLift"/>（头颈间距可调）。</summary>
-        public float HeadCenterY => bodyHeight - HeadBodyOverlap + headRadius + headLift;
-
-        /// <summary>角色总高（脚底到头顶，米）。</summary>
-        public float TotalHeight => HeadCenterY + headRadius;
+        /// <summary>相机焦点 = 当前角色的腰高眼位（跳槽即跳焦点）。</summary>
+        public Vector3 FocusTarget()
+        {
+            int index = Active != null ? Mathf.Clamp(activeSlot, 0, slots.Length - 1) : 0;
+            return new Vector3(StationX(index), 1.0f, 0f);
+        }
 
         void LateUpdate()
         {
             ApplyIfDirty();
         }
 
-        /// <summary>全部应用一遍（装配器在编辑态调用；运行时由脏标记驱动）。</summary>
+        /// <summary>全部应用一遍（装配器在编辑态调用：建全部槽网格 + 摆相机；运行时由脏标记驱动）。</summary>
         public void ApplyAll()
         {
-            RebuildMeshes();
+            if (slots != null)
+                for (int i = 0; i < slots.Length; i++)
+                    RebuildSlot(slots[i]);
             ApplyCamera();
         }
 
         void ApplyIfDirty()
         {
-            if (_meshDirty)
-                RebuildMeshes();
+            if (_meshDirty && Active != null)
+                RebuildSlot(Active);
             if (_cameraDirty || (rig != null && rig.pixelScale != pixelScale))
                 ApplyCamera();
             if (_pathDirty)
                 ApplyRenderPath();
             if (_styleDirty)
                 ApplyStyle();
+        }
+
+        /// <summary>点击方块/面板槽位按钮：编辑目标与相机焦点跳到对应角色。</summary>
+        public void SwitchSlot(int index)
+        {
+            if (slots == null || index < 0 || index >= slots.Length || index == activeSlot)
+                return;
+            activeSlot = index;
+            _cameraDirty = true;   // 焦点跳到新站位
+            SubjectSlot slot = Active;
+            if (slot != null && !slot.built)
+                RebuildSlot(slot);
         }
 
         // ------------------------------------------------------------------
@@ -368,20 +409,26 @@ namespace PirateCrew.CharCamDebug
         // 角色网格（CrewMeshFactory 同链重建）
         // ------------------------------------------------------------------
 
-        void RebuildMeshes()
+        void RebuildSlot(SubjectSlot slot)
         {
-            _meshDirty = false;
-            if (bodyFilter == null || headFilter == null || bodyPivot == null || headPivot == null)
+            if (slot == null || slot.bodyFilter == null || slot.headFilter == null
+                || slot.bodyPivot == null || slot.headPivot == null)
                 return;
 
-            _bodyMesh = ReplaceMesh(_bodyMesh, CrewMeshFactory.CreateMesh("CharCamDebug_BodyFrustum",
-                CrewMeshFactory.Frustum(topRadius, bottomRadius, bodyHeight, BodySides)), bodyFilter);
-            _headMesh = ReplaceMesh(_headMesh, CrewMeshFactory.CreateMesh("CharCamDebug_HeadSphere",
-                CrewMeshFactory.LowPolySphere(headRadius, HeadSegments, HeadRings)), headFilter);
+            slot.bodyMesh = ReplaceMesh(slot.bodyMesh, CrewMeshFactory.CreateMesh(
+                "CharCamDebug_BodyFrustum",
+                CrewMeshFactory.Frustum(slot.topRadius, slot.bottomRadius, slot.bodyHeight, BodySides)),
+                slot.bodyFilter);
+            slot.headMesh = ReplaceMesh(slot.headMesh, CrewMeshFactory.CreateMesh(
+                "CharCamDebug_HeadSphere",
+                CrewMeshFactory.LowPolySphere(slot.headRadius, HeadSegments, HeadRings)),
+                slot.headFilter);
 
             // Frustum 沿 Y 居中 → 枢轴抬到半高，脚底贴 y=0；Head 球心在原点 → 枢轴抬到球心高。
-            bodyPivot.localPosition = new Vector3(0f, bodyHeight * 0.5f, 0f);
-            headPivot.localPosition = new Vector3(0f, HeadCenterY, 0f);
+            slot.bodyPivot.localPosition = new Vector3(0f, slot.bodyHeight * 0.5f, 0f);
+            slot.headPivot.localPosition = new Vector3(0f, slot.HeadCenterY, 0f);
+            slot.built = true;
+            _meshDirty = false;   // 滑杆只重建当前槽；不清脏会每帧重建
         }
 
         static Mesh ReplaceMesh(Mesh oldMesh, Mesh newMesh, MeshFilter filter)
@@ -414,17 +461,22 @@ namespace PirateCrew.CharCamDebug
             _appliedPixelScale = rig.pixelScale;
 
             Vector3 dir = PixelartPilotScene.CameraDirection(pitchDegrees, azimuthDegrees);
-            cameraTransform.position = FramingTarget + dir * CameraDistance;
-            cameraTransform.LookAt(FramingTarget);
+            Vector3 focus = FocusTarget();
+            cameraTransform.position = focus + dir * CameraDistance;
+            cameraTransform.LookAt(focus);
         }
 
         void ResetDefaults()
         {
-            topRadius = DefaultTopRadius;
-            bottomRadius = DefaultBottomRadius;
-            bodyHeight = DefaultBodyHeight;
-            headRadius = DefaultHeadRadius;
-            headLift = DefaultHeadLift;
+            SubjectSlot active = Active;
+            if (active != null)
+            {
+                active.topRadius = DefaultTopRadius;
+                active.bottomRadius = DefaultBottomRadius;
+                active.bodyHeight = DefaultBodyHeight;
+                active.headRadius = DefaultHeadRadius;
+                active.headLift = DefaultHeadLift;
+            }
             visibleMeters = DefaultVisibleMeters;
             pixelScale = DefaultPixelScale;
             pitchDegrees = DefaultPitchDegrees;
@@ -441,17 +493,30 @@ namespace PirateCrew.CharCamDebug
             _styleDirty = true;
         }
 
-        /// <summary>当前参数导成文本（可整段贴进 CrewVisualPrefabBuilder / 装配器常量对照）。</summary>
+        /// <summary>当前角色的参数导成文本（可整段贴进 CrewVisualPrefabBuilder / 装配器常量对照）。</summary>
         public string ExportParameters()
         {
+            SubjectSlot active = Active;
+            string slotLine = active != null
+                ? $"（编辑目标：{SlotLabel(activeSlot)}，站位 x {StationX(activeSlot).ToString("0.#")}）\n"
+                : string.Empty;
+            float top = active != null ? active.topRadius : 0f;
+            float bottom = active != null ? active.bottomRadius : 0f;
+            float bodyH = active != null ? active.bodyHeight : 0f;
+            float headR = active != null ? active.headRadius : 0f;
+            float lift = active != null ? active.headLift : 0f;
+            float centerY = active != null ? active.HeadCenterY : 0f;
+            float total = active != null ? active.TotalHeight : 0f;
+
             return "CharCamDebug 参数（米 / 度；可直接对照 CrewVisualPrefabBuilder 常量）\n"
-                + $"BodyTopRadius     = {topRadius.ToString("0.####")}\n"
-                + $"BodyBottomRadius  = {bottomRadius.ToString("0.####")}\n"
-                + $"BodyHeight        = {bodyHeight.ToString("0.####")}\n"
-                + $"HeadSphereRadius  = {headRadius.ToString("0.####")}\n"
-                + $"HeadLift          = {headLift.ToString("0.####")}（头颈间距，0 = Godot 基准）\n"
-                + $"HeadSphereCenterY = {HeadCenterY.ToString("0.####")}（身高−0.05+头半径+间距）\n"
-                + $"TotalHeight       = {TotalHeight.ToString("0.####")}\n"
+                + slotLine
+                + $"BodyTopRadius     = {top.ToString("0.####")}\n"
+                + $"BodyBottomRadius  = {bottom.ToString("0.####")}\n"
+                + $"BodyHeight        = {bodyH.ToString("0.####")}\n"
+                + $"HeadSphereRadius  = {headR.ToString("0.####")}\n"
+                + $"HeadLift          = {lift.ToString("0.####")}（头颈间距，0 = Godot 基准）\n"
+                + $"HeadSphereCenterY = {centerY.ToString("0.####")}（身高−0.05+头半径+间距）\n"
+                + $"TotalHeight       = {total.ToString("0.####")}\n"
                 + $"可见米数          = {visibleMeters.ToString("0.#")}（worldPerPixel {WorldPerPixel(visibleMeters, pixelScale).ToString("0.####")}）\n"
                 + $"PixelScale        = {pixelScale}\n"
                 + $"PitchDegrees      = {pitchDegrees.ToString("0.#")}\n"
@@ -473,14 +538,42 @@ namespace PirateCrew.CharCamDebug
 
         void OnGUI()
         {
+            // 角色跳转方块**常驻**（面板收起也能点）：槽 0 在左上、槽 1 在右上，
+            // 点击把编辑目标与相机焦点跳到对应角色（SwitchSlot）。
+            DrawSlotButtons();
+
             if (!showPanel)
             {
-                if (GUILayout.Button("显示参数面板 (F1)", GUILayout.Width(140f)))
+                if (GUI.Button(new Rect(8f, 40f, 140f, 22f), "显示参数面板 (F1)"))
                     showPanel = true;
                 return;
             }
 
             panelRect = GUILayout.Window(GetInstanceID(), panelRect, DrawPanel, "角色 / 镜头参数调试");
+        }
+
+        /// <summary>
+        /// 角色方块（左上/右上）：选中态染绿 + ▶ 前缀。放在面板窗之外，是"跳转到对应角色"
+        /// 的常驻入口——调参数时面板开着，看另一具角色时随手点一下就切过去。
+        /// </summary>
+        void DrawSlotButtons()
+        {
+            if (slots == null)
+                return;
+
+            for (int i = 0; i < slots.Length && i < 2; i++)
+            {
+                Rect rect = i == 0
+                    ? new Rect(8f, 8f, 96f, 26f)
+                    : new Rect(Screen.width - 104f, 8f, 96f, 26f);
+
+                Color previous = GUI.backgroundColor;
+                if (i == activeSlot)
+                    GUI.backgroundColor = new Color(0.45f, 0.85f, 0.5f);
+                if (GUI.Button(rect, (i == activeSlot ? "▶ " : "") + SlotLabel(i)))
+                    SwitchSlot(i);
+                GUI.backgroundColor = previous;
+            }
         }
 
         void Update()
@@ -513,13 +606,29 @@ namespace PirateCrew.CharCamDebug
 
         void DrawPanel(int windowId)
         {
-            GUILayout.Label("—— 角色体格（改后自动重建网格）——");
-            topRadius = LabeledSlider("身体顶半径", topRadius, 0.05f, 1.0f, ref _meshDirty);
-            bottomRadius = LabeledSlider("身体底半径", bottomRadius, 0.05f, 1.0f, ref _meshDirty);
-            bodyHeight = LabeledSlider("身体高度", bodyHeight, 0.3f, 2.5f, ref _meshDirty);
-            headRadius = LabeledSlider("头部半径", headRadius, 0.05f, 0.8f, ref _meshDirty);
-            headLift = LabeledSlider("头颈间距", headLift, -0.3f, 0.5f, ref _meshDirty);
-            GUILayout.Label($"  头心 y = {HeadCenterY.ToString("0.###")}，总高 = {TotalHeight.ToString("0.###")}（间距 0 = Godot 基准，重叠 {HeadBodyOverlap}）");
+            SubjectSlot active = Active;
+            if (active == null)
+            {
+                GUILayout.Label("角色槽未接线——重跑装配器（PirateCrew/Pixelart/烘焙角色镜头调试场景）。");
+                GUI.DragWindow();
+                return;
+            }
+
+            // 槽内切换（与屏幕左上/右上角的方块同效，面板里再给一行显式入口）。
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("编辑目标", GUILayout.Width(88f));
+            for (int i = 0; i < slots.Length && i < 2; i++)
+                if (GUILayout.Button((activeSlot == i ? "▶ " : "") + SlotLabel(i)))
+                    SwitchSlot(i);
+            GUILayout.EndHorizontal();
+
+            GUILayout.Label("—— 角色体格（只动当前角色，改后自动重建网格）——");
+            active.topRadius = LabeledSlider("身体顶半径", active.topRadius, 0.05f, 1.0f, ref _meshDirty);
+            active.bottomRadius = LabeledSlider("身体底半径", active.bottomRadius, 0.05f, 1.0f, ref _meshDirty);
+            active.bodyHeight = LabeledSlider("身体高度", active.bodyHeight, 0.3f, 2.5f, ref _meshDirty);
+            active.headRadius = LabeledSlider("头部半径", active.headRadius, 0.05f, 0.8f, ref _meshDirty);
+            active.headLift = LabeledSlider("头颈间距", active.headLift, -0.3f, 0.5f, ref _meshDirty);
+            GUILayout.Label($"  头心 y = {active.HeadCenterY.ToString("0.###")}，总高 = {active.TotalHeight.ToString("0.###")}（间距 0 = Godot 基准，重叠 {HeadBodyOverlap}）");
 
             GUILayout.Space(6f);
             GUILayout.Label("—— 镜头取景 ——");
@@ -603,15 +712,15 @@ namespace PirateCrew.CharCamDebug
 
             GUILayout.Space(6f);
             GUILayout.Label("—— 读数 ——");
-            if (rig != null && rig.IsReady && rig.UnitSize > 0f)
+            if (rig != null && rig.IsReady && rig.UnitSize > 0f && active != null)
             {
                 float unit = rig.UnitSize;
-                float totalPx = TotalHeight / unit;
-                float bottomPx = bottomRadius * 2f / unit;
-                float headPx = headRadius * 2f / unit;
+                float totalPx = active.TotalHeight / unit;
+                float bottomPx = active.bottomRadius * 2f / unit;
+                float headPx = active.headRadius * 2f / unit;
                 float canvasH = Mathf.Max(1, rig.RenderHeight);
                 GUILayout.Label($"每艺术像素 {unit.ToString("0.####")} m｜可见 {(rig.RenderHeight * rig.worldPerPixel).ToString("0.#")} m（实际画布 {rig.RenderWidth}×{canvasH}）");
-                GUILayout.Label($"角色总高 {totalPx.ToString("0.#")} px = 画面高 {100f * totalPx / canvasH:0.#}%");
+                GUILayout.Label($"{SlotLabel(activeSlot)} 总高 {totalPx.ToString("0.#")} px = 画面高 {100f * totalPx / canvasH:0.#}%");
                 GUILayout.Label($"底径宽 {bottomPx.ToString("0.#")} px｜头径宽 {headPx.ToString("0.#")} px");
             }
             else

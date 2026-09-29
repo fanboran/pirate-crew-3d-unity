@@ -505,7 +505,8 @@ namespace PirateCrew.ArtReview
                 : PixelartPilotScene.Target;
             Vector3 orbitDir = global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.CameraDirection(
                 global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.PitchDegrees,
-                global::PirateCrew.Rendering.Pixelart.PixelartPilotScene.AzimuthDegrees);
+                // 方位角按关卡行走（未覆盖兜底 45°）——与装配器同一份数据，不两边各写一份。
+                global::PirateCrew.Rendering.Pixelart.PixelartLevelScene.AzimuthFor(PixelartLevelViewCache));
             // 【机位距离也取自取景表，不再写死 60】海图的跨度 150–280 m，60 m 的基准只罩得住
             // 40×30 的样板关：近侧半张图会落到正交相机背后被近平面裁掉（画面"少了半张地图"、无报错）。
             // 样板关算出来仍是 60 ⇒ 老场景出图逐字节不变（推导见 PixelartLevelScene.CameraDistanceFor）。

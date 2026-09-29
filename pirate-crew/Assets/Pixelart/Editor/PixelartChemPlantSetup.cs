@@ -178,7 +178,7 @@ namespace PirateCrew.EditorTools
             camGo.transform.SetParent(root.transform);
             Vector3 target = view.Target;
             Vector3 dir = PixelartPilotScene.CameraDirection(
-                PixelartPilotScene.PitchDegrees, PixelartPilotScene.AzimuthDegrees);
+                PixelartPilotScene.PitchDegrees, PixelartLevelScene.AzimuthFor(view));
             camGo.transform.position = target + dir * PixelartLevelScene.CameraDistanceFor(view);
             camGo.transform.LookAt(target);
 

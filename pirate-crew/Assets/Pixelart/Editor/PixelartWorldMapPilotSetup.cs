@@ -351,7 +351,7 @@ namespace PirateCrew.EditorTools
             camGo.transform.SetParent(root.transform);
             Vector3 target = view.Target;
             Vector3 dir = PixelartPilotScene.CameraDirection(
-                PixelartPilotScene.PitchDegrees, PixelartPilotScene.AzimuthDegrees);
+                PixelartPilotScene.PitchDegrees, PixelartLevelScene.AzimuthFor(view));
             // 机位距离随跨度放大：60 m 的基准只罩得住 40×30 的样板关，海图的近角会落到相机背后被裁掉
             // （函数里的推导）。与出图脚本共用 PixelartLevelScene.CameraDistanceFor，不两边各写一份。
             camGo.transform.position = target + dir * PixelartLevelScene.CameraDistanceFor(view);
