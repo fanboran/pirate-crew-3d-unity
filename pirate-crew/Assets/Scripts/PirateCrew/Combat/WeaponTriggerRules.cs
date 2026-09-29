@@ -3,7 +3,7 @@ using System;
 namespace PirateCrew.Combat
 {
     /// <summary>
-    /// 武器触发/引爆方式（§5.2 触发条件列）。
+    /// 武器触发/引爆方式。
     /// </summary>
     public enum WeaponTrigger
     {
@@ -66,13 +66,13 @@ namespace PirateCrew.Combat
 
     /// <summary>
     /// 武器触发判定与地雷引信。
-    /// 对应逆向文档 §5.2 的「触发/引爆条件」列，以及 mine 的
-    /// 「有角色在 60px 内且在移动 → 引信 60 帧」「beepTimes [0,15,30,38,45,49,53,55,57,59]」。
+    /// 引信长度 60 帧与蜂鸣帧序 <see cref="MineBeepTimes"/> 为本工程设计值
+    /// （<b>【提案/待定】</b>：当前无已裁决文档为其取值背书）。
     /// 全部为静态纯函数，不依赖 MonoBehaviour / GameObject。
     /// </summary>
     public static class WeaponTriggerRules
     {
-        /// <summary>静止判定里垂直速度的阈值：|vy| &lt; 0.2（原版 dynamite）。</summary>
+        /// <summary>静止判定里垂直速度的阈值：|vy| &lt; 0.2。</summary>
         public const float AtRestVyEpsilon = 0.2f;
 
         /// <summary>
@@ -85,9 +85,9 @@ namespace PirateCrew.Combat
         public const float AtRestSqrMagnitudeEpsilon = 0.01f;
 
         /// <summary>
-        /// boulder 碾压伤害系数（§5.2 武器总表 boulder 行专用行为：<b>伤害 = |vx| × 1.5</b>，
-        /// vx 为 Flash 像素速度；碾压是接触直接伤害，不走引爆/爆炸路径）。
-        /// Combat 侧暂无 boulder 专用规则类，暂存本类（§5.2 规则在 Combat 侧的家）。
+        /// boulder 碾压伤害系数（<b>伤害 = |vx| × 1.5</b>，vx 为移动速度；碾压是接触直接伤害，
+        /// 不走引爆/爆炸路径）。<b>【提案/待定】</b>：本工程设计值，尚无已裁决文档为其取值背书。
+        /// Combat 侧暂无 boulder 专用规则类，暂存本类。
         /// </summary>
         public const float BoulderCrushDamageScale = 1.5f;
 
@@ -98,13 +98,13 @@ namespace PirateCrew.Combat
         public const int MineFuseFrames = 60;
 
         /// <summary>
-        /// 地雷引信期间的蜂鸣帧序号（相对点燃时刻的经过帧数），原版 Mine.beepTimes。
+        /// 地雷引信期间的蜂鸣帧序号（相对点燃时刻的经过帧数）。
         /// 最后一响 59，第 60 帧爆炸。
         /// </summary>
         public static readonly int[] MineBeepTimes = { 0, 15, 30, 38, 45, 49, 53, 55, 57, 59 };
 
         /// <summary>
-        /// 是否处于静止（原版 dynamite：<c>vx == 0 &amp;&amp; |vy| &lt; 0.2</c>）。
+        /// 是否处于静止（<c>vx == 0 &amp;&amp; |vy| &lt; 0.2</c>）。
         /// 水平要求严格为 0；垂直用阈值。
         /// </summary>
         public static bool IsAtRest(float vx, float vy, float restVyEpsilon = AtRestVyEpsilon)
@@ -113,7 +113,7 @@ namespace PirateCrew.Combat
         }
 
         /// <summary>
-        /// 本帧是否应引爆。各触发方式对应 §5.2：
+        /// 本帧是否应引爆。各触发方式：
         ///   Contact      → 接触即爆
         ///   AtRest       → 静止即爆
         ///   Click        → 点击引爆

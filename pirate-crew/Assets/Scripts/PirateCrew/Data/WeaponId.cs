@@ -1,16 +1,15 @@
 namespace PirateCrew.Data
 {
     /// <summary>
-    /// 原版《海盗军团抢宝藏》(Mutiny) 的 17 种武器 id。
+    /// 本工程 17 种武器 id。
     ///
-    /// 【出处】静态逆向文档 §5.2「武器总表」与 §9.2「武器数量 = 17 种」。
-    ///         成员名直接采用文档表格里的英文 id（= 原版 ActionScript 类名的小驼峰形式），
-    ///         以便与关卡 XML 的属性键（<c>cherryBomb="10"</c> 等）一一对应。
+    /// 【口径】枚举本体为本工程设计值；成员名沿用关卡 XML 的属性键
+    ///         （<c>cherryBomb="10"</c> 等的小驼峰形式），以便代码索引与关卡数据一一对应。
     ///
-    /// 【枚举顺序】与 §5.2 表格行序一致：cannonball … cannon 共 16 种，
+    /// 【枚举顺序】cannonball … cannon 共 16 种，
     ///             第 17 个 SweepingFlame 是 rumBottle 落地后生成的蔓延火焰。
     ///
-    /// 【注意】cannonball 是每回合的保底武器（§3.2「保底武器」），
+    /// 【注意】cannonball 是每回合的保底武器，
     ///         不属于"面板可投放"的常规武器，但仍在总表内。
     /// </summary>
     public enum WeaponId

@@ -18,12 +18,12 @@ namespace PirateCrew.UI
     /// <summary>
     /// 战斗 HUD 的**顶栏双队血条**分区（<see cref="BattleHud"/> 的 partial 之一）：
     /// 视图子结构（TeamBarView/UnitSegmentView/UnitPipView）、装配自检、运行时段/pip 刷新、
-    /// 单位头顶血条挂接与 28 帧血量比例口径（原版 §4.1）。
+    /// 单位头顶血条挂接与 28 帧血量比例口径。
     /// 拆分出处：docs/项目/待办事项.md「BattleHud 按分区拆三块」。
     /// </summary>
     public sealed partial class BattleHud
     {
-        /// <summary>§4.1 血条总帧数（28 帧，长度 = 1 + ceil(27·hp/max)）。</summary>
+        /// <summary>血条总帧数（28 帧，长度 = 1 + ceil(27·hp/max)；<b>【提案/待定】</b>）。</summary>
         const int HealthBarFrames = 28;
 
         /// <summary>每队最多段数（当前关卡上限 6v6；装配侧按此建段）。</summary>
@@ -364,7 +364,7 @@ namespace PirateCrew.UI
         // 单位头顶血条已根除（非像素世界空间件清退），血量读数只走顶栏合成血条。
 
         // ------------------------------------------------------------------
-        // 血量比例（原版 §4.1 的 28 帧口径，保留）
+        // 血量比例（28 帧口径，【提案/待定】）
         // ------------------------------------------------------------------
 
         /// <summary>长度 = 1 + ceil(27·hp/max)，折算 0-1。</summary>

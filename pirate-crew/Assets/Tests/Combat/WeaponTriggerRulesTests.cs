@@ -3,8 +3,8 @@ using NUnit.Framework;
 namespace PirateCrew.Combat.Tests
 {
     /// <summary>
-    /// WeaponTriggerRules 测试（加分项）。规则出自逆向文档 §5.2 触发/引爆条件列，
-    /// 以及 mine 的 60 帧引信与 beepTimes [0,15,30,38,45,49,53,55,57,59]。
+    /// WeaponTriggerRules 测试。覆盖各类触发/引爆条件，
+    /// 以及 mine 的 60 帧引信与 beepTimes [0,15,30,38,45,49,53,55,57,59]（本工程设计值，【提案/待定】）。
     /// </summary>
     [TestFixture]
     public class WeaponTriggerRulesTests

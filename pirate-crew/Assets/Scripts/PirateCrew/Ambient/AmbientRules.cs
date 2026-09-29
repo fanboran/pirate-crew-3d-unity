@@ -211,7 +211,7 @@ namespace PirateCrew.Ambient
         /// 中央约 1/3 屏宽 ≈ 12 单位，取半宽 6 更保守（宁可鸟飞偏一点，不许进瞄准带）。</summary>
         public const float DefaultCorridorHalfWidth = 6f;
 
-        /// <summary>禁飞天花板【提案】：投掷抛物线顶点通常 < 6 单位（Flash 满力抛射高度量级），
+        /// <summary>禁飞天花板【提案】：投掷抛物线顶点通常 < 6 单位，
         /// 取 9 留出余量，鸟要么在 9 以上、要么在中央走廊之外。</summary>
         public const float DefaultCeilingY = 9f;
 

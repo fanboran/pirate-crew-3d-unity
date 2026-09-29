@@ -5,37 +5,33 @@ namespace PirateCrew.Combat
     /// <summary>
     /// 潮汐巨浪（tidalWave）专用规则（纯 C#，不引用 MonoBehaviour / GameObject）。
     ///
-    /// 【出处】静态逆向文档（docs/参考游戏逆向-海盗军团抢宝藏-静态.md）：
-    ///   · §5.2「武器总表」tidalWave 行（表格第 14 行）——
-    ///     「点击引爆：x=-550, y=water.y, vx=20 横扫到最右」；「每帧 5 点（±150px 内、且 y &gt;= waterY-300）」；
-    ///     「无重力、hitsTiles=false；对所有角色一视同仁」。
-    ///   · §3「重要结论」——TidalWave 伤害对满血/残血一视同仁（无属性差异）。
-    ///   · §6.3 tidalWave 评分——`aiPerform` 直接 `startWave()`（浪从左侧自动扫）。
+    /// 【口径】起扫点、横扫速度、每帧伤害、±150px 判定圈、垂直有效范围均为本工程设计值
+    ///   （<b>【提案/待定】</b>：当前无已裁决文档为其取值背书）。
     ///
     /// 【坐标口径与 3D 映射决策（提案/待定）】原文是 2D 侧视：x 横向、y 竖直、water.y 为水面。
     ///   映射到 3D（见 docs/3D空间模型对齐.md §1）：
     ///     · 横扫轴 x → 世界 **X**（浪沿 X 推进）；
     ///     · 高度 y → 世界 **Y**，`waterY` → `LevelGeometry.WaterSurfaceY`（世界水位 -0.4）；
     ///     · 世界 **Z（纵深）被折叠**——浪是横跨整个纵深的水墙，同一 X 上任意 Z 的玩家都被扫到
-    ///       （§5.2「对所有角色一视同仁」与 §8.4「across the bottom of the stage… affect all players it hits」支持这一点）。
+    ///       （"对所有角色一视同仁"口径）。
     ///   因此 `±150px` 在 3D 里实现为 **X 向距离 + Y 向距离** 的平方和判定，不含 Z。
     ///   若评审要求把 Z 也计入（球形判定），改 <see cref="ShouldDamage"/> 一处即可。
     /// </summary>
     public static class TidalWaveRules
     {
-        /// <summary>起扫 x（Flash px，地图左侧外）。§5.2 tidalWave 行。</summary>
+        /// <summary>起扫 x（Flash px，地图左侧外）。</summary>
         public const float SpawnFlashX = -550f;
 
-        /// <summary>横扫速度（Flash px/帧）。§5.2「vx=20 横扫到最右」。</summary>
+        /// <summary>横扫速度（Flash px/帧）。</summary>
         public const float SweepSpeed = 20f;
 
-        /// <summary>每帧伤害（非爆炸、无衰减）。§5.2「每帧 5 点」。</summary>
+        /// <summary>每帧伤害（非爆炸、无衰减）。</summary>
         public const float DamagePerFrame = 5f;
 
-        /// <summary>伤害判定的距离阈值（Flash px）。§5.2「±150px 内」。</summary>
+        /// <summary>伤害判定的距离阈值（Flash px）。</summary>
         public const float HitRadius = 150f;
 
-        /// <summary>垂直有效范围（Flash px）：目标 y 须 ≥ waterY-300。§5.2。</summary>
+        /// <summary>垂直有效范围（Flash px）：目标 y 须 ≥ waterY-300。</summary>
         public const float VerticalReach = 300f;
 
         /// <summary>横扫一帧后的 x。</summary>
@@ -67,7 +63,7 @@ namespace PirateCrew.Combat
         }
 
         /// <summary>
-        /// 本帧是否应伤害目标：同时满足「±150px 内」与「y ≥ waterY-300」（§5.2 两个条件）。
+        /// 本帧是否应伤害目标：同时满足「±150px 内」与「y ≥ waterY-300」。
         /// </summary>
         public static bool ShouldDamage(
             float waveFlashX, float waveFlashY,
@@ -79,8 +75,8 @@ namespace PirateCrew.Combat
         }
 
         /// <summary>
-        /// 是否已扫出右边界。§5.2 只给「横扫到最右」，未给数值余量——
-        /// 取地图右边界 <c>levelWidthTiles*32</c> 为界（**提案/待定**，若需余量改此一处）。
+        /// 是否已扫出右边界。取地图右边界 <c>levelWidthTiles*32</c> 为界
+        /// （<b>【提案/待定】</b>，若需余量改此一处）。
         /// </summary>
         public static bool IsPastRightEdge(float flashX, float levelWidthTiles)
         {

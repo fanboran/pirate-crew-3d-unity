@@ -5,12 +5,10 @@ namespace PirateCrew.SceneArt
     /// <summary>
     /// 天空三档预设（纯 C#，无头可测）。
     ///
-    /// 【出处与标注】三档的**档位分配**是【依据】——原版水面/天空按 <c>skyColour=1/2/3</c> 切贴图，
-    /// 1 = 关卡 1-5 / 16-21、2 = 6-10 / 22-27、3 = 11-15 / 28-33
-    /// （`docs/参考游戏逆向-海盗军团抢宝藏-静态.md:676`、`Controller.as:311`）。
-    /// **具体 RGB 全部是【AI 提案】**：原版只存了索引、未导出色值
-    /// （`docs/场景设计-战斗竞技场.md` §6.1 明写「具体 RGB 全部是【AI 提案】」，
-    /// 其 O5 列为待定：需原版截图取色后回填）。
+    /// 【口径】三档的**档位分配**（1 = 关卡 1-5 / 16-21、2 = 6-10 / 22-27、3 = 11-15 / 28-33）
+    /// 与**具体 RGB** 均为本项目设计值（<b>【提案/待定】</b>：尚无已裁决文档为其取值背书）。
+    /// 具体 RGB 为占位提案，待正式取色后回填
+    /// （见 `docs/设计/场景设计-战斗竞技场.md` §6.1 的 O5）。
     ///
     /// 【本类做什么/不做什么】只提供**数据**与关卡→档位的映射，不写 <c>RenderSettings</c>。
     /// 场景的天空盒 / 环境光 / 雾由渲染波次（`Assets/Editor/BattleSceneLighting.cs`）负责，
@@ -23,7 +21,7 @@ namespace PirateCrew.SceneArt
         /// <summary>一档天空的完整观感参数（含雾色，供渲染波次联动使用）。</summary>
         public readonly struct SkyTier
         {
-            /// <summary>档号（对应原版 <c>skyColour</c> 1/2/3）。</summary>
+            /// <summary>档号（1/2/3）。</summary>
             public readonly int Index;
 
             /// <summary>天顶色。</summary>
@@ -38,7 +36,7 @@ namespace PirateCrew.SceneArt
             /// <summary>地面回照色（环境光 Ground Color）。</summary>
             public readonly string GroundBounceHex;
 
-            /// <summary>适用关卡（原版分配，见类头出处）。</summary>
+            /// <summary>适用关卡分组（见类头）。</summary>
             public readonly string LevelGroups;
 
             public SkyTier(int index, string zenith, string horizon, string sun, string groundBounce, string levelGroups)
@@ -68,8 +66,7 @@ namespace PirateCrew.SceneArt
         public static readonly SkyTier[] All = { Noon, Dusk, Storm };
 
         /// <summary>
-        /// 按原版关卡分组规则取档号（1/2/3）。超出 1-33 或未覆盖的关卡回落到档 1。
-        /// 规则出处：`参考游戏逆向…静态.md:676`。
+        /// 按关卡分组规则取档号（1/2/3）。超出 1-33 或未覆盖的关卡回落到档 1。
         /// </summary>
         public static int TierIndexForLevel(int levelNumber)
         {

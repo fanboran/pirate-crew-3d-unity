@@ -42,7 +42,7 @@ namespace PirateCrew.Battle
         FocusRequested = 4,
     }
 
-    /// <summary>跟随状态机的时间参数（秒）。全部为 <b>提案/待定</b>（原版无镜头跟随机制，见类头）。</summary>
+    /// <summary>跟随状态机的时间参数（秒）。全部为 <b>提案/待定</b>（本项目新增的镜头跟随机制，见类头）。</summary>
     public readonly struct CameraFeelTimings
     {
         /// <summary>弹体跟随的最长时长（兜底，防止弹体卡住时相机不回来）。</summary>
@@ -96,14 +96,14 @@ namespace PirateCrew.Battle
     ///         可在无头验证台（<c>external/harness-*</c>）直接断言；胶水层是
     ///         <see cref="BattleCameraDriver"/>（订阅 EventBus、读写 Transform/Lens/Time）。
     ///
-    /// 【对应章节】§5.3（爆炸 falloff 形状，震屏强度借它的线性衰减）、
-    ///             §8.1（相机优先级：AI 决策中停止滚动 → 本类的"旁观"态）、
-    ///             §3.1（回合节奏 inactivity &gt; 10 帧 ≈ 0.4s → 聚焦时长的依据）。
+    /// 【对应章节】震屏强度借用 <c>docs/设计/3D空间模型对齐.md</c> §5 爆炸 falloff 的线性衰减形状；
+    ///             相机优先级见 §8.1（AI 决策中停止滚动 → 本类的"旁观"态）；
+    ///             回合节奏按 inactivity &gt; 10 帧 ≈ 0.4s 取聚焦时长量级。
     ///
-    /// 【数值出处】原版 Flash **没有任何镜头震动/跟随/顿帧机制**（只有 §8.1 的滚动与 panToCharacter），
-    ///   因此本类全部强度/时长参数都是<b>提案/待定</b>，依据是"对齐原版回合节奏"：
-    ///   · 原版回合推进阈值 = 10 帧 @25fps = 0.4s（§3.1），所以任何聚焦动画应在 ≲0.4s 内完成；
-    ///   · 原版 AI 决策后先给镜头再执行（§6.1），Unity 侧 <c>AiController.executeDelayFrames = 12</c>
+    /// 【数值出处】本项目在此之上新增了镜头震动/跟随/顿帧机制，
+    ///   因此本类全部强度/时长参数都是<b>提案/待定</b>，量级参照"回合节奏"：
+    ///   · 回合推进阈值 = 10 帧 @25fps = 0.4s，所以任何聚焦动画应在 ≲0.4s 内完成；
+    ///   · AI 决策后先给镜头再执行，Unity 侧 <c>AiController.executeDelayFrames = 12</c>
     ///     ≈ 0.2s @60fps，故跟随回焦也要短；
     ///   · 震屏幅度取"不遮挡 30px 选中判定"的量级：峰值 ≈ 0.7 世界单位 ≈ 11px
 ///     （px 口径不变；格 1→2 单位后世界值 ×2，见 <see cref="DefaultMaxShakeAmplitude"/>）。
@@ -214,7 +214,7 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 由"期望时长"反推指数平滑速率 k（1/s）：<c>k = −ln(1 − 0.9) / duration</c>。
-        /// 依据：原版回合推进阈值 10 帧 @25fps = 0.4s（§3.1），故默认取 duration=0.4s → k≈5.76。
+        /// 量级参照回合推进阈值 10 帧 @25fps = 0.4s，故默认取 duration=0.4s → k≈5.76。
         /// 现有场景参数 <c>focusLerpPerSecond = 6</c> 对应 0.384s，与该节奏基本一致。
         /// </summary>
         public static float FocusLerpPerSecond(float durationSeconds)
@@ -409,7 +409,7 @@ namespace PirateCrew.Battle
         public const float MinHitStopTimeScale = 0.05f;
 
         /// <summary>
-        /// 顿帧最长时长（秒，提案）= 2 帧 @25fps。原版回合节奏以 10 帧（0.4s）为推进单位（§3.1），
+        /// 顿帧最长时长（秒，提案）= 2 帧 @25fps。回合节奏以 10 帧（0.4s）为推进单位，
         /// 2 帧的顿帧不改变任何阈值判定；再长就会让玩家误以为"卡了"或与 AI 的 30ms 时间片观感冲突。
         /// </summary>
         public const float MaxHitStopSeconds = 2f * LevelGeometry.FrameSeconds;

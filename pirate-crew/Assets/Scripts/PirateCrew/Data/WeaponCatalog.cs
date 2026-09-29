@@ -5,9 +5,9 @@ namespace PirateCrew.Data
     /// <summary>
     /// 单件武器的静态数值（纯 C# 数据结构，可在无头验证台断言）。
     ///
-    /// 【出处】静态逆向文档 §5.2「武器总表」逐行逐值。
-    /// 【缺省约定】文档表格里写作「—」的格子统一落成 <c>0</c>，
-    ///             并在 <see cref="Remark"/> 里注明该格在原表中为「—」，避免被误读成"数值 0"。
+    /// 【口径】全表数值为本工程设计值（<b>【提案/待定】</b>：尚无已裁决文档为逐值背书）。
+    /// 【缺省约定】表格里写作「—」的格子统一落成 <c>0</c>，
+    ///             并在 <see cref="Remark"/> 里注明该格为「—」，避免被误读成"数值 0"。
     /// 【语义】
     ///   <see cref="LimitedToTurn"/>：true = 仅限本回合（发射/使用后销毁）；
     ///                                false = 跨回合常驻（mine / gunpowderBarrel / woodenCrate）。
@@ -18,7 +18,7 @@ namespace PirateCrew.Data
         /// <summary>武器 id。</summary>
         public readonly WeaponId Id;
 
-        /// <summary>显示名（沿用原版英文类名 / XML 属性键）。</summary>
+        /// <summary>显示名（沿用英文 id / 关卡 XML 属性键）。</summary>
         public readonly string DisplayName;
 
         /// <summary>水平 AABB 半径（px）。</summary>
@@ -63,7 +63,7 @@ namespace PirateCrew.Data
         /// <summary>非爆炸的固定/持续伤害（0 = 无）。</summary>
         public readonly float DirectDamage;
 
-        /// <summary>备注：特殊行为与出处。</summary>
+        /// <summary>备注：特殊行为说明。</summary>
         public readonly string Remark;
 
         public WeaponStats(
@@ -111,8 +111,8 @@ namespace PirateCrew.Data
     /// <summary>
     /// 17 种武器的纯 C# 静态目录表（真值来源）。
     ///
-    /// 【出处】静态逆向文档 §5.2「武器总表」17 行逐行参考；
-    ///         特殊行为补充自同表「备注」列、§5.1（投掷/速度）、§5.3（爆炸公式）与 §8.4（官方文案）。
+    /// 【口径】本表为本工程设计值（<b>【提案/待定】</b>：尚无已裁决文档为逐值背书）；
+    ///         备注列描述各武器的特殊行为。
     ///
     /// 【架构】本类刻意不引用任何 UnityEngine 类型：它既能在 Unity 里被
     ///         <c>DataAssetGenerator</c> 写进 ScriptableObject，也能在无头验证台直接断言。
@@ -120,8 +120,8 @@ namespace PirateCrew.Data
     /// </summary>
     public static class WeaponCatalog
     {
-        // 参考时反复用到的说明文字（保持每条备注完整、可追溯）。
-        const string Src = "静态逆向 §5.2";
+        // 备注前缀（每条备注均以本串起头）。
+        const string Src = "本工程设计值";
 
         static readonly List<WeaponStats> _all = new List<WeaponStats>
         {

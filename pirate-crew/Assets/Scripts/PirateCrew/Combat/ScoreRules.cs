@@ -4,19 +4,19 @@ namespace PirateCrew.Combat
 {
     /// <summary>
     /// 关卡得分规则。
-    /// 对应逆向文档 §3.3 / §7.3：<c>get1PLevelScore = floor(team0.getAverageHealth()*20 - team0.totalTurnsTaken*25)</c>，
-    /// 下限为 <c>selected_level * 10</c>。
+    /// 公式 <c>floor(avgHealth*20 - totalTurnsTaken*25)</c>（下限 <c>levelIndex*10</c>）为本工程设计值，
+    /// <b>【提案/待定】</b>：当前无已裁决文档为这些系数的取值背书。
     /// 纯静态逻辑，不依赖 MonoBehaviour / GameObject。
     /// </summary>
     public static class ScoreRules
     {
-        /// <summary>每点平均生命值折算的分数（原版 20）。</summary>
+        /// <summary>每点平均生命值折算的分数（【提案/待定】）。</summary>
         public const float HealthScorePerPoint = 20f;
 
-        /// <summary>每消耗一个回合扣除的分数（原版 25）。</summary>
+        /// <summary>每消耗一个回合扣除的分数（【提案/待定】）。</summary>
         public const int TurnScorePenalty = 25;
 
-        /// <summary>每关索引对应的分数下限系数（原版下限 = selected_level * 10）。</summary>
+        /// <summary>每关索引对应的分数下限系数（【提案/待定】）。</summary>
         public const int LevelFloorPerIndex = 10;
 
         /// <summary>

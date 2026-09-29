@@ -468,7 +468,7 @@ namespace PirateCrew.Battle
     /// <summary>
     /// 一个候选动作（§6.1 <c>aiMoveList</c> 的元素）。
     ///
-    /// <see cref="FlashSuccess"/> = 逆向文档 §6.2/§6.3 的原始 <c>success</c>（逐行参考）。
+    /// <see cref="FlashSuccess"/> = 位置启发式原始打分（不含伤害增强项）。
     /// <see cref="TotalScore"/> = <see cref="FlashSuccess"/> + 伤害增强项（见
     /// <see cref="AiEvaluationOptions.DamageScoreWeight"/> 的说明），是最终排序依据。
     /// </summary>
@@ -494,7 +494,7 @@ namespace PirateCrew.Battle
         public readonly float AimX;
         public readonly float AimY;
 
-        /// <summary>§6 原始打分。</summary>
+        /// <summary>位置启发式原始打分。</summary>
         public readonly float FlashSuccess;
 
         /// <summary>命中敌方的预期伤害（归一化为「血条份数」；M2 增强项，见 <see cref="AiEvaluationOptions"/>）。</summary>
@@ -624,13 +624,15 @@ namespace PirateCrew.Battle
     /// <summary>
     /// 敌方 AI 评估器（纯 C#，不继承 MonoBehaviour、不 new GameObject，可在无头验证台运行）。
     ///
-    /// 【对应章节】§6.1（30ms 时间片 + 汇总取 max + bailout）、§6.2（50 次随机自抛打分）、
-    ///             §6.3（luck 次武器随机投掷 + 通用打分 + 7 种特殊武器专门评分）、
-    ///             §6.4（随机数使用点）、§4.1（luck / evilness）、§5.2 表末注（特殊武器清单）、
-    ///             §3.2/§3.4（canThrow/canShoot 决定评估范围）。
+    /// 【口径】AI 位置启发式全套打分常量与规则为本工程设计值
+    ///         （<b>【提案/待定】</b>：尚无已裁决文档为其取值背书；其中落点质量项的 3D 口径
+    ///          见 <c>docs/设计/3D空间模型对齐.md</c> §8）。
+    ///         覆盖：30ms 时间片 + 汇总取 max + bailout、50 次随机自抛打分、
+    ///         luck 次武器随机投掷 + 通用打分 + 特殊武器专门评分、随机数使用点、
+    ///         luck / evilness、特殊武器清单、canThrow/canShoot 决定评估范围。
     ///
-    /// 【坐标域决策】打分公式仍在 <b>Flash 平面像素域</b>（x = 世界 X、y = 世界 Z 纵深；§6 的
-    ///   200px/70px/40px 阈值、evilness 距离项逐行参考无换算），但<b>轨迹模拟改为纯 3D 世界域</b>：
+    /// 【坐标域决策】打分公式在 <b>平面像素域</b>（x = 世界 X、y = 世界 Z 纵深；阈值与
+    ///   evilness 距离项口径不变），但<b>轨迹模拟为纯 3D 世界域</b>：
     ///   1) 初速 <see cref="LevelGeometry.FlashLaunchVelocityToWorld(float, float, float)"/>
     ///      （按 weight 分流的抬升：weight&gt;0 抬仰角，weight=0 直线飞行——与实弹生成器同一函数）、
     ///      积分 <see cref="ThrowTrajectory.Predict"/>（与 PhysX 实弹相同的半隐式欧拉 / dt / 重力），
@@ -641,7 +643,7 @@ namespace PirateCrew.Battle
     ///      输入快照由 <c>AiController</c> 用 <see cref="LevelGeometry.ArenaToPixel"/> 组装。
     /// </summary>
     ///
-    /// 【时间片】<see cref="AiEvaluationSession"/> 把 §6.1 的 <c>do { aiThink() } while(...)</c>
+    /// 【时间片】<see cref="AiEvaluationSession"/> 把 <c>do { aiThink() } while(...)</c> 思考循环
     /// 拆成可单步的「工作单元」（一次投掷采样 / 一件武器），由 <c>AiController</c> 在 30ms 预算内
     /// 循环调用，避免一帧内跑完 50+500+… 次物理模拟造成掉帧。
     ///
@@ -651,7 +653,7 @@ namespace PirateCrew.Battle
     public static class AiEvaluation
     {
         // ------------------------------------------------------------------
-        // 原版常量（§6）
+        // 打分常量（本工程设计值，【提案/待定】）
         // ------------------------------------------------------------------
 
         /// <summary>自抛采样数（§6.2 <c>randomThrows(50)</c>）。</summary>
@@ -679,10 +681,9 @@ namespace PirateCrew.Battle
         public const float DrownPenalty = 2f;
 
         /// <summary>
-        /// 落点质量项的每像素权重（<b>3D 化标定值，非 Flash 原式常数</b>）。
-        /// 原 §6.2 是 <c>(t.ey − this.y) × −0.003</c>（2D 高度轴语义）；3D 改为
-        /// 「落点与目标的 XZ 水平面像素距离」的线性罚项，斜率沿用原式的 0.003/px。
-        /// 标定依据见 <see cref="ScoreSelfThrowSample"/> 内注释：保持量级与其它项同阶。
+        /// 落点质量项的每像素权重：落点与目标的 XZ 水平面像素距离的线性罚项斜率。
+        /// 3D 口径见 <c>docs/设计/3D空间模型对齐.md</c> §8；取 0.003/px 以保持量级与其它项同阶
+        /// （标定依据见 <see cref="ScoreSelfThrowSample"/> 内注释）。
         /// </summary>
         public const float SelfLandingDistanceWeight = 0.003f;
 
@@ -968,16 +969,14 @@ namespace PirateCrew.Battle
         }
 
         // ------------------------------------------------------------------
-        // §6.2 角色自身投掷打分
+        // 角色自身投掷打分
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// §6.2 自抛打分。<b>除首项「落点质量」外逐行参考</b>：首项原为 2D 高度轴的
-        /// <c>(t.ey − this.y) × −0.003</c>，3D 化后改为「落点与目标的 XZ 水平面像素距离」的线性罚项
-        /// （语义与标定见方法内注释与 <see cref="SelfLandingDistanceWeight"/>）；其余各项保持原式。
-        /// 注意原版把 <c>s *= (1 + e.evilness)</c> 写在敌人循环内，
-        /// 会对<b>已累计的整份分数</b>连乘——这是原版事实行为，此处忠实保留（并因此让 evilness
-        /// 的影响被放大）。落水额外 −2；顺路宝箱 +0.5。
+        /// 自抛打分。<b>首项「落点质量」的 3D 口径见 <see cref="SelfLandingDistanceWeight"/>；
+        /// 其余各项为本工程设计值（【提案/待定】）</b>。落点质量项 = 落点与目标的 XZ 水平面像素距离线性罚项。
+        /// 注意 <c>s *= (1 + e.evilness)</c> 写在敌人循环内，
+        /// 会对<b>已累计的整份分数</b>连乘（evilness 的影响因此被放大）。落水额外 −2；顺路宝箱 +0.5。
         /// </summary>
         public static float ScoreSelfThrowSample(in AiThrowSample t, AiBattlefield field, int actorUnitId)
         {
@@ -990,12 +989,9 @@ namespace PirateCrew.Battle
 
             field.EnemyCentroid(actor.TeamIndex, out float enemyAvgX, out float enemyAvgY);
 
-            // 【3D 落点质量项】原 Flash §6.2 是 `s += (t.ey - this.y) * -0.003`：2D 里 ey/this.y 是
-            // **高度**轴，「落点越高越好」。重投影到 XZ 竞技场后平面 y 变成**纵深**轴，高度差语义已不存在。
-            // 3D 下「落点更好」= 预测落点与目标（敌方存活质心；无存活敌人时 AiBattlefield.EnemyCentroid
-            // 回落到 actor 自身位置）的 XZ 水平面像素距离越近越好，故改为一维水平距离的线性罚项。
-            // 系数标定：沿用原式的 0.003/px 斜率。原式对 ey 差值的斜率是 0.003/px，换成同量纲（Flash 平面像素）
-            // 的欧氏距离后量级不变——典型 200px 落点偏差 ≈ −0.6，与紧随其后的质心项 `pixelDiff / 500`
+            // 【3D 落点质量项】落点与目标的 XZ 水平面像素距离越近越好，故为一维水平距离的线性罚项
+            //（3D 口径见 docs/设计/3D空间模型对齐.md §8）。
+            // 系数标定：取 0.003/px——典型 200px 落点偏差 ≈ −0.6，与紧随其后的质心项 `pixelDiff / 500`
             // 及近敌项 `k ≤ 0.2` 同数量级，不会压过敌人/队友项，符合「线性小权重项」的定位。
             float landingToTargetDx = t.Ex - enemyAvgX;
             float landingToTargetDy = t.Ey - enemyAvgY;

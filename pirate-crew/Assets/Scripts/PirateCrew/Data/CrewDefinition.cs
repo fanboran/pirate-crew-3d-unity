@@ -7,8 +7,7 @@ namespace PirateCrew.Data
     /// <summary>
     /// 武器栈条目：一件武器 + 数量。
     ///
-    /// 【出处】静态逆向文档 §5.5 <c>Character.setWeapons(attrs)</c>。
-    /// 【count 约定】<c>count == 10</c> 表示<b>无限</b>（原版 <c>if n == 10 → infiniteWeapons.push(key)</c>）；
+    /// 【count 约定】<c>count == 10</c> 表示<b>无限</b>；
     ///               其余正整数为有限件数；生成器 / 关卡解析按此规则展开。
     /// </summary>
     [Serializable]
@@ -26,20 +25,20 @@ namespace PirateCrew.Data
             this.count = count;
         }
 
-        /// <summary>是否为无限弹药（§5.5：count == 10）。</summary>
+        /// <summary>是否为无限弹药（count == 10）。</summary>
         public bool IsInfinite => count == CrewCatalog.InfiniteWeaponCount;
     }
 
     /// <summary>
     /// 海盗种类的 ScriptableObject 定义。
     ///
-    /// 【出处】静态逆向文档 §4.1（共享属性）、§4.2（导出符号种类）、§4.3（队伍归属）。
+    /// 【口径】属性为本工程设计值（<b>【提案/待定】</b>：尚无已裁决文档为其取值背书）。
     ///
-    /// 【关键结论】原版所有海盗无属性差异——只有美术、luck（来自关卡 XML）和初始武器不同。
-    /// 因此本资产的属性字段对每个 crewId 都是同一份 §4.1 数值；差异化信息在关卡侧
+    /// 【关键结论】所有海盗无属性差异——只有美术、luck（来自关卡 XML）和初始武器不同。
+    /// 因此本资产的属性字段对每个 crewId 都是同一份共享数值；差异化信息在关卡侧
     /// （<see cref="LevelUnit"/> 覆盖 luck 与初始武器）。
     ///
-    /// 【TeamIndexOf 语义】§4.3 硬编码：
+    /// 【TeamIndexOf 语义】硬编码：
     /// <c>teamIndex = (type == "redPirate" || type == "redPirateCaptain") ? 0 : 1</c>。
     /// 即白名单命中为红队（0），<b>其余全部（含 bluePirate/bluePirateCaptain/bossGuy/skeletonPirate
     /// 以及任何未知名字）一律为蓝队（1）</b>。运行时请用 <see cref="CrewCatalog.TeamIndexOf"/> 求值，
@@ -49,33 +48,33 @@ namespace PirateCrew.Data
     public class CrewDefinition : ScriptableObject
     {
         [Header("标识")]
-        [SerializeField, Tooltip("船员种类 id（§4.2 导出符号名，如 redPirate / cabinBoyCaptain / bossGuy）。")]
+        [SerializeField, Tooltip("船员种类 id（导出符号名，如 redPirate / cabinBoyCaptain / bossGuy）。")]
         string crewId;
 
-        [SerializeField, Tooltip("显示名。原版无中文名，暂用导出符号名。")]
+        [SerializeField, Tooltip("显示名。暂无中文名，暂用导出符号名。")]
         string displayName;
 
-        [Header("属性（§4.1，所有海盗共享同一份）")]
-        [SerializeField, Tooltip("初始/最大生命。§4.1：100。")]
+        [Header("属性（所有海盗共享同一份）")]
+        [SerializeField, Tooltip("初始/最大生命。")]
         int maxHealth;
 
-        [SerializeField, Tooltip("重量。§4.1：1（继承 Solid；击退不乘体重）。")]
+        [SerializeField, Tooltip("重量（击退不乘体重）。")]
         float weight;
 
-        [SerializeField, Tooltip("摩擦力。§4.1：2。")]
+        [SerializeField, Tooltip("摩擦力。")]
         float friction;
 
-        [SerializeField, Tooltip("弹跳系数。§4.1：0.2。")]
+        [SerializeField, Tooltip("弹跳系数。")]
         float bounce;
 
-        [SerializeField, Tooltip("AI 评估的武器随机投掷次数基数。§4.1：默认 5，可被关卡 XML 覆盖。")]
+        [SerializeField, Tooltip("AI 评估的武器随机投掷次数基数（可被关卡 XML 覆盖）。")]
         int luck;
 
-        [Header("队伍（§4.3）")]
+        [Header("队伍")]
         [SerializeField, Tooltip("队伍索引快照：0=红队(team1)，1=蓝队(team2)。用 CrewCatalog.TeamIndexOf 求值。")]
         int teamIndex;
 
-        [Header("初始武器（§5.5）")]
+        [Header("初始武器")]
         [SerializeField, Tooltip("初始武器栈；count=10 表示无限。关卡内每单位的实际配置见 LevelUnit.initialWeapons。")]
         List<WeaponStack> initialWeapons = new List<WeaponStack>();
 

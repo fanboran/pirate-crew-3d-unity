@@ -5,49 +5,38 @@ namespace PirateCrew.Combat
     /// <summary>
     /// 加农炮（cannon）专用规则（纯 C#，不引用 MonoBehaviour / GameObject）。
     ///
-    /// 【出处】静态逆向文档（docs/参考游戏逆向-海盗军团抢宝藏-静态.md）：
-    ///   · §5.2「武器总表」cannon 行（表格第 16 行）——
-    ///     「放置 + 拖尾部 pin 调角度/蓄力，松手发射」；经 cannonball（100, 50）；
-    ///     「placeableWeapon；fireStrength 达 30 才发射（≤4 不发射）；AI 走 aiFireTime = 25 延时后发射」；
-    ///     limitedToTurn=false（摆位常驻）。
-    ///   · §5.1 速度上限汇总——「cannon 发射速度 = fireStrength（≤30）」。
-    ///   · §6.3 cannon 评分——`Cannon.randomThrows`：随机角度 0–360 + 随机拖拽距离决定炮位，
-    ///     再模拟炮弹以**速度 30** 沿随机角度飞出；`aiPerform` 摆位、设角度、`aiFireTime = 25` 后发射。
-    ///   · §8.4 官方文案——"Drag the cannon into position within the circle… drag the pin at the back to turn
-    ///     the cannon. release it to fire"。
+    /// 【口径】最大蓄力/发射速度、发射阈值、AI 发射延时、炮弹爆炸 size/伤害、蓄力系数
+    ///   均为本工程设计值（<b>【提案/待定】</b>：当前无已裁决文档为其取值背书）。
     ///
-    /// 【数值映射决策】
-    ///   · **蓄力 = 0.25 × 拖拽距离，上限 30**：与 §5.1 弹弓公式同系数（0.25），只是原表未给 cannon 的
-    ///     twangMax，故上限取 §5.1「cannon 发射速度 = fireStrength（≤30）」的 30。满蓄力拖拽 = 30/0.25 = 120px。
-    ///     （**提案/待定**：文档只说"拖尾部 pin 蓄力"，未给蓄力公式；此处复用弹弓系数。）
-    ///   · **发射阈值**：文档「fireStrength 达 30 才发射（≤4 不发射）」存在 5–29 的空档，语义不完整。
-    ///     本类取可证伪的最简口径：<see cref="ShouldFire"/> = 蓄力 ≥ 30 才发射；
-    ///     <see cref="IsBelowNoFireThreshold"/> = 蓄力 ≤ 4 时明确不发射（覆盖文档后半句）。
+    /// 【数值映射决策（提案/待定）】
+    ///   · **蓄力 = 0.25 × 拖拽距离，上限 30**：蓄力系数复用弹弓的 0.25，上限取 30。
+    ///     满蓄力拖拽 = 30/0.25 = 120px。
+    ///   · **发射阈值**：取可证伪的最简口径：<see cref="ShouldFire"/> = 蓄力 ≥ 30 才发射；
+    ///     <see cref="IsBelowNoFireThreshold"/> = 蓄力 ≤ 4 时明确不发射。
     ///     5–29 视为"可蓄力但不发射"，**提案/待定**，若评审另有口径改这两个纯函数即可。
-    ///   · **角度**：文档未给拖拽→角度的映射。取与 §5.1 弹弓一致的"后拉 → 反向发射"：
-    ///     发射方向 = <c>atan2(-dy, -dx)</c>（**提案/待定**）。
+    ///   · **角度**：取"后拉 → 反向发射"：发射方向 = <c>atan2(-dy, -dx)</c>（**提案/待定**）。
     /// </summary>
     public static class CannonRules
     {
-        /// <summary>最大蓄力 / 最大发射速度（Flash px/帧）。§5.1「fireStrength（≤30）」。</summary>
+        /// <summary>最大蓄力 / 最大发射速度（Flash px/帧）。</summary>
         public const float MaxFireStrength = 30f;
 
-        /// <summary>明确不发射的蓄力上限（含）。§5.2「≤4 不发射」。</summary>
+        /// <summary>明确不发射的蓄力上限（含）。</summary>
         public const float NoFireThreshold = 4f;
 
-        /// <summary>发射所需的最低蓄力。§5.2「fireStrength 达 30 才发射」。</summary>
+        /// <summary>发射所需的最低蓄力。</summary>
         public const float FireThreshold = MaxFireStrength;
 
-        /// <summary>AI 摆位后的发射延时（帧）。§5.2 / §6.3「aiFireTime = 25」。</summary>
+        /// <summary>AI 摆位后的发射延时（帧）。</summary>
         public const int AiFireDelayFrames = 25;
 
-        /// <summary>炮弹爆炸 size（§5.2 cannon 行「经 cannonball（100, 50）」）。</summary>
+        /// <summary>炮弹爆炸 size。</summary>
         public const float CannonballExplosionSize = 100f;
 
-        /// <summary>炮弹爆炸最大伤害（§5.2）。</summary>
+        /// <summary>炮弹爆炸最大伤害。</summary>
         public const float CannonballExplosionMaxDamage = 50f;
 
-        /// <summary>蓄力系数：0.25 × 拖拽距离（复用 §5.1 弹弓系数）。</summary>
+        /// <summary>蓄力系数：0.25 × 拖拽距离（复用弹弓力度系数）。</summary>
         public const float ChargePerDragPx = 0.25f;
 
         /// <summary>满蓄力所需拖拽距离（Flash px）：30 / 0.25 = 120。</summary>
@@ -68,14 +57,14 @@ namespace PirateCrew.Combat
             return fireStrength >= FireThreshold;
         }
 
-        /// <summary>是否落在文档明确的"不发射"区间（≤ 4）。</summary>
+        /// <summary>是否落在明确的"不发射"区间（≤ 4）。</summary>
         public static bool IsBelowNoFireThreshold(float fireStrength)
         {
             return fireStrength <= NoFireThreshold;
         }
 
         /// <summary>
-        /// 拖拽向量 → 发射角度（弧度）。方向取反，与 §5.1 弹弓"后拉 = 向前射"一致（**提案/待定**）。
+        /// 拖拽向量 → 发射角度（弧度）。方向取反（后拉 = 向前射）（**提案/待定**）。
         /// </summary>
         public static float AimAngleRadians(float dragDxPx, float dragDyPx)
         {
@@ -86,7 +75,7 @@ namespace PirateCrew.Combat
 
         /// <summary>
         /// 发射初速（Flash px/帧）：沿 <paramref name="angleRadians"/> 以 fireStrength 为大小。
-        /// 返回 (vx, vy)。§5.1「cannon 发射速度 = fireStrength」。
+        /// 返回 (vx, vy)。
         /// </summary>
         public static void LaunchVelocity(float fireStrength, float angleRadians, out float vx, out float vy)
         {
@@ -100,7 +89,7 @@ namespace PirateCrew.Combat
             vy = (float)Math.Sin(angleRadians) * strength;
         }
 
-        /// <summary>AI 摆位后是否已到发射时刻（≥ 25 帧）。§6.3。</summary>
+        /// <summary>AI 摆位后是否已到发射时刻（≥ 25 帧）。</summary>
         public static bool ShouldAiFire(int elapsedFrames)
         {
             return elapsedFrames >= AiFireDelayFrames;

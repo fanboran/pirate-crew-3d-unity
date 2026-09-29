@@ -6,46 +6,45 @@ namespace PirateCrew.UI
     /// <summary>
     /// 战斗小地图的换算与表现规则（纯 C# 静态类，不引用 MonoBehaviour，可在无头验证台断言）。
     ///
-    /// 【原版依据】`docs/参考游戏逆向-海盗军团抢宝藏-静态.md`
-    ///   · §2.4 / §8.1：<c>Map.as</c>（117 行）＝ 小地图，<c>dotSize=3</c> 的点阵；
-    ///       实心瓦片 alpha 50 / 空瓦片 alpha 20；宝箱黄色 <c>0xFFFF00</c>；
+    /// 【口径】本类常量为本工程设计值（<b>【提案/待定】</b>：尚无已裁决文档为其取值背书）：
+    ///   · 点阵 <c>dotSize=3</c>；实心瓦片 alpha 50 / 空瓦片 alpha 20；宝箱黄 <c>0xFFFF00</c>；
     ///       红队 <c>0xFF3A29</c>、蓝队 <c>0x3366FF</c>，<c>alpha = mapVisibility*100</c>；
     ///       角色死亡后 <c>mapVisibility -= 0.1/帧</c> 淡出。
-    ///   · §2.3：小地图容器 <c>mapHolder</c> 挂在 (20,20)（= 屏幕左上角，视口 550×400）。
-    ///   · §3.1 主循环：每帧调 <c>map.drawActive()</c> 刷新「活动点」（= 活着的单位位置）。
+    ///   · 小地图容器 <c>mapHolder</c> 挂在 (20,20)（屏幕左上角，视口 550×400）。
+    ///   · 每帧刷新「活动点」（= 活着的单位位置）。
     ///
     /// 【本工程自定的部分（**提案/待定**）】
-    ///   · 参考游戏是 2D 侧视、小地图复用关卡像素布局；本工程把瓦片栅格的
+    ///   · 2D 侧视时代小地图复用关卡像素布局；本工程把瓦片栅格的
     ///     (gridX, gridY) 重投影成 XZ 平面（见 <c>docs/3D空间模型对齐.md</c> §1），
     ///     所以「竞技场世界坐标 → 小地图归一化坐标」的映射是本工程自定的：
     ///       u = x / width（右为 +u）；v = 1 - z / depth（+Z 朝相机，落在小地图下方）。
     ///     这样小地图方向与屏幕上方 = 远处（-Z）一致。
-    ///   · 参考点阵按瓦片有无绘制（实心/空 alpha 两档）。本工程已落地瓦片地形
-    ///     （<c>Battle/Terrain/</c>：瓦片行 → XZ 抬升块），故按 §8.1 补回两档 alpha 点阵；
+    ///   · 点阵按瓦片有无绘制（实心/空 alpha 两档）。本工程已落地瓦片地形
+    ///     （<c>Battle/Terrain/</c>：瓦片行 → XZ 抬升块），故补回两档 alpha 点阵；
     ///     无地形数据的关卡退化为全空点阵（铺基础地面色）。
     /// </summary>
     public static class MinimapRules
     {
         // ------------------------------------------------------------------
-        // 原版常量（出处见类头；不要臆改）
+        // 常量（取值见类头）
         // ------------------------------------------------------------------
 
-        /// <summary>原版小地图点尺寸 `dotSize=3`（§8.1）。</summary>
+        /// <summary>小地图点尺寸 `dotSize=3`。</summary>
         public const float FlashDotSizePixels = 3f;
 
-        /// <summary>原版实心瓦片 alpha（0–100 刻度，§8.1）。</summary>
+        /// <summary>实心瓦片 alpha（0–100 刻度）。</summary>
         public const float FlashSolidTileAlpha = 50f;
 
-        /// <summary>原版空瓦片 alpha（0–100 刻度，§8.1）。</summary>
+        /// <summary>空瓦片 alpha（0–100 刻度）。</summary>
         public const float FlashEmptyTileAlpha = 20f;
 
         // ------------------------------------------------------------------
-        // 瓦片点阵（§8.1 两档 alpha；地形落地后补上）
+        // 瓦片点阵（两档 alpha；地形落地后补上）
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 瓦片点 alpha（0–1）：实心 <c>50/100 = 0.5</c>、空 <c>20/100 = 0.2</c>（§8.1，
-        /// 原版 alpha 是 AS2 的 0–100 刻度，故除以 100）。
+        /// 瓦片点 alpha（0–1）：实心 <c>50/100 = 0.5</c>、空 <c>20/100 = 0.2</c>
+        /// （alpha 原为 0–100 刻度，故除以 100）。
         /// </summary>
         public static float TileAlpha(bool solid)
         {
@@ -75,13 +74,13 @@ namespace PirateCrew.UI
             return Mathf.Max(1f, pixelsPerTile);
         }
 
-        /// <summary>原版红队色 `0xFF3A29`（§8.1）。</summary>
+        /// <summary>红队色 `0xFF3A29`。</summary>
         public static readonly Color RedTeamColor = new Color(1f, 58f / 255f, 41f / 255f, 1f);
 
-        /// <summary>原版蓝队色 `0x3366FF`（§8.1）。</summary>
+        /// <summary>蓝队色 `0x3366FF`。</summary>
         public static readonly Color BlueTeamColor = new Color(51f / 255f, 102f / 255f, 1f, 1f);
 
-        /// <summary>死亡淡出速度：`mapVisibility -= 0.1/帧`（§8.1）。</summary>
+        /// <summary>死亡淡出速度：`mapVisibility -= 0.1/帧`。</summary>
         public const float DeadFadePerFrame = 0.1f;
 
         /// <summary>折算到秒：0.1 × 25fps = 2.5/s（即约 0.4s 淡完）。帧率取自 <see cref="LevelGeometry.FrameRate"/>。</summary>
@@ -130,7 +129,7 @@ namespace PirateCrew.UI
 
         /// <summary>
         /// 死亡淡出推进一帧：<c>visibility -= 2.5 × dt</c>，夹在 [0,1]。
-        /// 对应 §8.1 的 <c>mapVisibility -= 0.1/帧</c>（25fps）。
+        /// 对应 <c>mapVisibility -= 0.1/帧</c>（25fps）。
         /// </summary>
         public static float AdvanceVisibility(float visibility, float deltaSeconds)
         {
@@ -140,8 +139,8 @@ namespace PirateCrew.UI
         }
 
         /// <summary>
-        /// 单位点颜色：按队取原版色（§8.1），alpha = <paramref name="visibility"/>
-        /// （对应原版 <c>alpha = mapVisibility*100</c>）。
+        /// 单位点颜色：按队取色，alpha = <paramref name="visibility"/>
+        /// （对应 <c>alpha = mapVisibility*100</c>）。
         /// </summary>
         public static Color DotColor(int teamIndex, float visibility)
         {

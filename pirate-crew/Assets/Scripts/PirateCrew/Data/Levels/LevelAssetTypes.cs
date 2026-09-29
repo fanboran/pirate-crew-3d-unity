@@ -124,16 +124,16 @@ namespace PirateCrew.Data
         /// <summary>场地纵深（逻辑格）。</summary>
         public int depthTiles;
 
-        /// <summary>原版 XML players 属性（1/2；仅存档备查，现行恒 1）。</summary>
+        /// <summary>XML players 属性（1/2；仅存档备查，现行恒 1）。</summary>
         public int originalXmlPlayers;
 
-        /// <summary>逻辑水面行。</summary>
+        /// <summary>逻辑水面行（仅存档备查，不参与运行时映射）。</summary>
         public float waterTileY;
 
         /// <summary>宝箱同时存在上限（宝箱未实装，占位口径）。</summary>
         public int maxChests;
 
-        /// <summary>原版 XML 的 maxChests 属性原值（仅存档备查）。</summary>
+        /// <summary>源 XML 的 maxChests 属性原值（仅存档备查）。</summary>
         public int sourceXmlMaxChests;
 
         /// <summary>空投武器池。</summary>

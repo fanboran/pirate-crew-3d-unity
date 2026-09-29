@@ -9,9 +9,9 @@
 5 worktree 并行、harness All 零回归：失败名单与基线 12 条逐条一致、0 编译错；`AiEvaluation` 拆分等提案见⑦。
 
 - ① **战斗域**（`0532722`）：远裁剪 4500×3 → `CameraFraming.OceanFarClipMin`；静止判据 0.01×2 →
-  `WeaponTriggerRules.AtRestSqrMagnitudeEpsilon`（逆向无 0.01 出处，原版静止 = vx==0 且 |vy|<0.2 见
-  逆向 §5.2 dynamite 行，3D 侧 sqrMagnitude 近似，注释已写明）；boulder 碾压 1.5 →
-  `WeaponTriggerRules.BoulderCrushDamageScale`（§5.2 伤害 = |vx|×1.5；暂存缘由见 const 注释）；
+  `WeaponTriggerRules.AtRestSqrMagnitudeEpsilon`（无 0.01 出处；静止 = vx==0 且 |vy|<0.2，
+  3D 侧 sqrMagnitude 近似，注释已写明）；boulder 碾压 1.5 →
+  `WeaponTriggerRules.BoulderCrushDamageScale`（伤害 = |vx|×1.5；暂存缘由见 const 注释）；
   `AiEvaluation` §6.2 打分系数 9 个补名进 const 区（宝箱 40px 与队友 40px 命名分开防混）；
   `AiController.SeedMixPrime`；`UnitOutlineBinder` 默认蓝 → `CrewVisualCatalog.TeamBlue`。
 - ② **点击引爆 bug fix**（`983048b`）：`UpdateClickTrigger` 射线 500f → `cam.farClipPlane`——
@@ -26,7 +26,7 @@
 - ⑥ **WorldMaps**（`57a2b10`+`bdc2183`）：kit 件名收敛 `WorldMapKitParts`；新增
   `WorldMapReefProfileGateTests`——目录每图必须有显式 profile，堵静默落兜底档（.meta 手写 GUID，
   Unity 首开确认导入）。**⚠ 随海图 101–108 全删一并作废**（见 [world-海图101-108删除.md](world-海图101-108删除.md)）。
-- ⑦ **提案/待定（本批未动代码）**：点击引爆语义契约（原版 = 点击任意处引爆，逆向 §5.2/§8.4；
+- ⑦ **提案/待定（本批未动代码）**：点击引爆语义契约（旧口径 = 点击任意处引爆；
   3D 版 = 点中弹体。多弹体归属与 UI 点击排除待裁决，裁决后按行为契约流程改，参考核心行为指令#4）；
   `AiEvaluation.cs` 拆分（边界已画：AiRandom/AiBattlefield 快照/弹道评分/四武器规划器/目标选择+期望
   伤害/Session——两份审计明确缓办，关卡内容稳定后解锁）；CrewProfession 13 色 +

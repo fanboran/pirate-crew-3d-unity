@@ -101,16 +101,18 @@ namespace PirateCrew.Battle.WorldMaps
         public readonly IReadOnlyList<WorldKitPlacement> Horizon;
         public readonly IReadOnlyList<WorldPropPlacement> Props;
         public readonly IReadOnlyList<WorldMapSpawn> Spawns;
-        /// <summary>空投武器池（count=10 为无限，沿袭 §5.5 惯例）。</summary>
+        /// <summary>空投武器池（count=10 为无限）。</summary>
         public readonly IReadOnlyList<WeaponStack> AirdropPool;
         /// <summary>
-        /// 普通船员初配（方案 D 分层军火，2026-09-17 裁决）：全近程档（twangMax 20，
-        /// 逆向 §5.1/§5.2）；null 时 <see cref="WorldMapRuntime"/> 回落「樱桃×∞」战役惯例。
+        /// 普通船员初配（分层军火方案）：全近程档（twangMax 20）；null 时
+        /// <see cref="WorldMapRuntime"/> 回落「樱桃×∞」战役惯例。
+        /// <b>【提案/待定】</b>：分层方案尚无已裁决文档背书。
         /// </summary>
         public readonly IReadOnlyList<WeaponStack> CrewWeapons;
         /// <summary>
         /// 船长初配：含 ≥1 件全图级旗舰武器（cannon/seagull/tidalWave/anchor/voodooDoll，
-        /// 逆向 §5.2——这五件射程 = 地图本身）；null 时回落「樱桃×∞+炸药×5」惯例。
+        /// 射程 = 地图本身）；null 时回落「樱桃×∞+炸药×5」惯例。
+        /// <b>【提案/待定】</b>。
         /// </summary>
         public readonly IReadOnlyList<WeaponStack> CaptainWeapons;
         /// <summary>远景环随机种子（确定性）。</summary>

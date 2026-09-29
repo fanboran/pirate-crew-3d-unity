@@ -15,7 +15,7 @@ namespace PirateCrew.Ambient
         /// <summary>档位。</summary>
         public readonly AmbientTimeOfDay TimeOfDay;
 
-        /// <summary>对应 <see cref="SkyTierCatalog"/> 的档号（1/2/3，原版 <c>skyColour</c> 口径）。</summary>
+        /// <summary>对应 <see cref="SkyTierCatalog"/> 的档号（1/2/3）。</summary>
         public readonly int SkyTierIndex;
 
         /// <summary>天顶色（上半球，<c>dir.y</c> 趋 +1）。</summary>
@@ -230,8 +230,8 @@ namespace PirateCrew.Ambient
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 档位对应的原版天空档号（<see cref="SkyTierCatalog.All"/> 的索引 = 档号 - 1）。
-        /// 映射理由：<see cref="AmbientTimeOfDay"/> 的三档本就是照原版 <c>skyColour</c> 1/2/3 分的
+        /// 档位对应的天空档号（<see cref="SkyTierCatalog.All"/> 的索引 = 档号 - 1）。
+        /// 映射理由：<see cref="AmbientTimeOfDay"/> 的三档与天空三档一一对应
         /// （正午 = 1-5 关、黄昏 = 6-10 关、阴云 = 11-15 关）。
         /// </summary>
         public static int SkyTierIndex(AmbientTimeOfDay timeOfDay)

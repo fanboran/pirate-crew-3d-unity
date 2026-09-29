@@ -3,8 +3,8 @@ using NUnit.Framework;
 namespace PirateCrew.Combat.Tests
 {
     /// <summary>
-    /// TurnRules 测试。规则出自逆向文档 §3.1（inactivity &gt; 10）、§3.2（isTurnComplete）、
-    /// §3.3（回合交替与胜负）、§3.4（行动经济）。
+    /// TurnRules 测试。覆盖 inactivity &gt; 10 推进、isTurnComplete、
+    /// 回合交替与胜负、行动经济（本工程设计值，【提案/待定】）。
     /// </summary>
     [TestFixture]
     public class TurnRulesTests

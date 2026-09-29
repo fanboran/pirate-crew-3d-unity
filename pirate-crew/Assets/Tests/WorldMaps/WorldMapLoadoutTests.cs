@@ -6,9 +6,9 @@ using PirateCrew.Data;
 namespace PirateCrew.Battle.WorldMaps.Tests
 {
     /// <summary>
-    /// 方案 D 分层军火（2026-09-17 用户裁决）的数据层测试（无头可跑）：
+    /// 分层军火（2026-09-17 用户裁决）的数据层测试（无头可跑）：
     /// 每图船员初配全为近程档、船长含全图级旗舰、空投池含中程档，八图配置互不相同。
-    /// 分层依据：逆向 §5.1/§5.2——twangMax 20 近程 / twangMax 30 中程 / 五件全图级。
+    /// 分层口径：twangMax 20 近程 / twangMax 30 中程 / 五件全图级（【提案/待定】）。
     /// </summary>
     [TestFixture]
     public class WorldMapLoadoutTests
@@ -20,7 +20,7 @@ namespace PirateCrew.Battle.WorldMaps.Tests
             WeaponId.Boulder, WeaponId.PiecesOfEight,
         };
 
-        /// <summary>全图级集合（射程 = 地图本身，§5.2）。</summary>
+        /// <summary>全图级集合（射程 = 地图本身）。</summary>
         static readonly HashSet<WeaponId> MapWideTier = new HashSet<WeaponId>
         {
             WeaponId.Cannon, WeaponId.Seagull, WeaponId.TidalWave,

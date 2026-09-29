@@ -5,8 +5,10 @@ namespace PirateCrew.Data
     /// <summary>
     /// 全局平衡常数的 ScriptableObject 汇总。
     ///
-    /// 【出处】静态逆向文档：§5.1（投掷）、§5.3（爆炸伤害/击退）、§5.2（摩擦/弹跳默认）、
-    ///         §3.1（10 帧无活动推进）、§1（25 fps）、§7.3（分数公式）、§4.1（角色 AABB 半宽高）。
+    /// 【口径】默认值为本工程设计值：投掷系数、爆炸常数与帧率有已裁决文档背书
+    ///         （投掷见 <c>docs/技术/投掷行为契约.md</c>、爆炸见 <c>docs/设计/3D空间模型对齐.md</c> §5、
+    ///          帧率见同文 §3）；摩擦/弹跳默认、inactivity 阈值、得分系数、角色 AABB
+    ///         为 <b>【提案/待定】</b>——尚无已裁决文档为其取值背书。
     ///
     /// 【单一来源】默认值只写在嵌套的 <see cref="Defaults"/> 里；
     /// SO 字段的初值引用它，生成器调用 <see cref="ApplyDefaults"/> 做幂等覆盖，
@@ -39,31 +41,31 @@ namespace PirateCrew.Data
             /// <summary>§5.3：击退垂直分量倍率（<c>dir * 5k - 6k</c>，总是额外上抛）。</summary>
             public const float KnockbackVertical = 6f;
 
-            /// <summary>§4.1 / §5.2：默认摩擦 2。</summary>
+            /// <summary>默认摩擦（【提案/待定】）。</summary>
             public const float DefaultFriction = 2f;
 
-            /// <summary>§4.1 / §5.2：默认弹跳 0.2。</summary>
+            /// <summary>默认弹跳（【提案/待定】）。</summary>
             public const float DefaultBounce = 0.2f;
 
-            /// <summary>§3.1：全局 inactivity 超过 10 帧（≈0.4s 无活动）推进回合。</summary>
+            /// <summary>全局 inactivity 超过 10 帧（≈0.4s 无活动）推进回合（【提案/待定】）。</summary>
             public const int InactivityFramesToAdvance = 10;
 
             /// <summary>§1：原版帧率 25 fps（所有"每帧"量纲都基于它）。</summary>
             public const int OriginalFps = 25;
 
-            /// <summary>§7.3：关卡得分 <c>floor(平均血量*20 - 回合数*25)</c> 的血量权重。</summary>
+            /// <summary>关卡得分 <c>floor(平均血量*20 - 回合数*25)</c> 的血量权重（【提案/待定】）。</summary>
             public const float ScoreHealthWeight = 20f;
 
-            /// <summary>§7.3：回合数惩罚系数（每回合 -25）。</summary>
+            /// <summary>回合数惩罚系数（每回合 -25）（【提案/待定】）。</summary>
             public const float ScoreTurnPenalty = 25f;
 
-            /// <summary>§7.3：得分下限系数（下限 = 关卡序号 × 10）。</summary>
+            /// <summary>得分下限系数（下限 = 关卡序号 × 10）（【提案/待定】）。</summary>
             public const float ScoreFloorPerLevel = 10f;
 
-            /// <summary>§4.1：角色 AABB 半宽 6。</summary>
+            /// <summary>角色 AABB 半宽（【提案/待定】）。</summary>
             public const float CharHalfWidth = 6f;
 
-            /// <summary>§4.1：角色 AABB 半高 8。</summary>
+            /// <summary>角色 AABB 半高（【提案/待定】）。</summary>
             public const float CharHalfHeight = 8f;
         }
 
@@ -90,35 +92,35 @@ namespace PirateCrew.Data
         [SerializeField, Tooltip("击退垂直分量倍率（dir × 5k - 6k，总是额外上抛）。§5.3：6。")]
         float knockbackVertical = Defaults.KnockbackVertical;
 
-        [Header("物理默认（§4.1 / §5.2）")]
-        [SerializeField, Tooltip("默认摩擦。§4.1 / §5.2：2。")]
+        [Header("物理默认")]
+        [SerializeField, Tooltip("默认摩擦（【提案/待定】）：2。")]
         float defaultFriction = Defaults.DefaultFriction;
 
-        [SerializeField, Tooltip("默认弹跳。§4.1 / §5.2：0.2。")]
+        [SerializeField, Tooltip("默认弹跳（【提案/待定】）：0.2。")]
         float defaultBounce = Defaults.DefaultBounce;
 
         [Header("回合与帧率（§3.1 / §1）")]
-        [SerializeField, Tooltip("全局 inactivity 达 N 帧（≈0.4s 无活动）后推进回合。§3.1：10。")]
+        [SerializeField, Tooltip("全局 inactivity 达 N 帧（≈0.4s 无活动）后推进回合（【提案/待定】）：10。")]
         int inactivityFramesToAdvance = Defaults.InactivityFramesToAdvance;
 
         [SerializeField, Tooltip("原版帧率。§1：25 fps。")]
         int originalFps = Defaults.OriginalFps;
 
-        [Header("分数（§7.3）")]
-        [SerializeField, Tooltip("关卡得分血量权重：floor(平均血量 × 本值 - 回合数 × 惩罚)。§7.3：20。")]
+        [Header("分数")]
+        [SerializeField, Tooltip("关卡得分血量权重：floor(平均血量 × 本值 - 回合数 × 惩罚)（【提案/待定】）：20。")]
         float scoreHealthWeight = Defaults.ScoreHealthWeight;
 
-        [SerializeField, Tooltip("关卡得分回合惩罚系数（每回合 -25）。§7.3：25。")]
+        [SerializeField, Tooltip("关卡得分回合惩罚系数（每回合 -25）（【提案/待定】）。")]
         float scoreTurnPenalty = Defaults.ScoreTurnPenalty;
 
-        [SerializeField, Tooltip("得分下限系数（下限 = 关卡序号 × 本值）。§7.3：10。")]
+        [SerializeField, Tooltip("得分下限系数（下限 = 关卡序号 × 本值）（【提案/待定】）。")]
         float scoreFloorPerLevel = Defaults.ScoreFloorPerLevel;
 
-        [Header("角色 AABB（§4.1）")]
-        [SerializeField, Tooltip("角色 AABB 半宽。§4.1：6。")]
+        [Header("角色 AABB")]
+        [SerializeField, Tooltip("角色 AABB 半宽（【提案/待定】）。")]
         float charHalfWidth = Defaults.CharHalfWidth;
 
-        [SerializeField, Tooltip("角色 AABB 半高。§4.1：8。")]
+        [SerializeField, Tooltip("角色 AABB 半高（【提案/待定】）。")]
         float charHalfHeight = Defaults.CharHalfHeight;
 
         // 只读访问器

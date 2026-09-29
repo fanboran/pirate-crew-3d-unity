@@ -10,9 +10,9 @@ namespace PirateCrew.SceneArt
     ///
     /// 【标注纪律】每项注明出处；GDD §10.4 调色板为【依据】，其余为【AI 提案】。
     ///   · 沙地/草地/岩石/海水/木材三档 = GDD §10.4（`gdd.md:815-820`），经美术风格指南 §2.1 转写；
-    ///   · 阵营红/蓝 = 逆向文档小地图配色（`参考游戏逆向…静态.md:721`）；
+    ///   · 阵营红/蓝 = 项目队色（与 <c>UI/MinimapRules</c> 的队色同源，【AI 提案】）；
     ///   · 危险色 #CC2222 / 描边 #2A2A2A = GDD §10.4（`gdd.md:831,833`）；
-    ///   · 湿沙三档、天空三档、远景剪影 = 【AI 提案】（原版未导出该档色值）。
+    ///   · 湿沙三档、天空三档、远景剪影 = 【AI 提案】。
     ///
     /// 【色空间】本工程 ProjectSettings <c>m_ActiveColorSpace = 0</c>（Gamma），
     /// 故 sRGB 十六进制直接归一化即与色板一致（与 <c>BattleSceneLighting.Hex</c> 同口径，
@@ -69,9 +69,9 @@ namespace PirateCrew.SceneArt
         public const string WaterDeep = "#1A4F7A";
 
         // ---- 阵营 / 语义色 ----
-        /// <summary>红队 `#FF3A29`（逆向文档小地图配色 `静态:721`）。</summary>
+        /// <summary>红队 `#FF3A29`（项目队色，与 UI/MinimapRules 同源，【AI 提案】）。</summary>
         public const string TeamRed = "#FF3A29";
-        /// <summary>蓝队 `#3366FF`（同上）。</summary>
+        /// <summary>蓝队 `#3366FF`（项目队色，与 UI/MinimapRules 同源，【AI 提案】）。</summary>
         public const string TeamBlue = "#3366FF";
         /// <summary>落水危险色 `#CC2222`（GDD §10.4 `gdd.md:833`）。</summary>
         public const string Danger = "#CC2222";

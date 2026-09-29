@@ -1,21 +1,21 @@
 namespace PirateCrew.Combat
 {
     /// <summary>
-    /// 单回合两阶段操作的纯状态（§3.4）。
+    /// 单回合两阶段操作的纯状态。
     /// 一个角色每回合可做「抛自己一次」+「用一件武器一次」；用武器即结束回合。
     /// </summary>
     public readonly struct ActionState
     {
-        /// <summary>本回合是否已抛出自己（原版 Character.thrown）。</summary>
+        /// <summary>本回合是否已抛出自己。</summary>
         public readonly bool Thrown;
 
-        /// <summary>本回合是否已使用武器（原版 Weapon.fired）。</summary>
+        /// <summary>本回合是否已使用武器。</summary>
         public readonly bool Fired;
 
-        /// <summary>是否还允许抛出自己（原版 Character.canThrow）。</summary>
+        /// <summary>是否还允许抛出自己。</summary>
         public readonly bool CanThrow;
 
-        /// <summary>是否还允许使用武器（原版 Character.canShoot）。</summary>
+        /// <summary>是否还允许使用武器。</summary>
         public readonly bool CanShoot;
 
         public ActionState(bool thrown, bool fired, bool canThrow, bool canShoot)
@@ -39,7 +39,7 @@ namespace PirateCrew.Combat
     }
 
     /// <summary>
-    /// 对局结果（§3.3）。
+    /// 对局结果。
     /// </summary>
     public enum MatchOutcome
     {
@@ -58,17 +58,17 @@ namespace PirateCrew.Combat
 
     /// <summary>
     /// 回合流转与胜负规则。
-    /// 对应逆向文档 §3.1（inactivity &gt; 10 推进回合）、§3.2（isTurnComplete / 回合状态机）、
-    /// §3.3（回合交替与胜负判定）、§3.4（单回合两阶段操作与行动经济）。
+    /// 空闲帧阈值推进回合、<c>isTurnComplete</c> 回合状态机、回合交替与胜负判定、
+    /// 单回合两阶段行动经济，均为本工程设计值（<b>【提案/待定】</b>——尚无已裁决文档为这些规则取值背书）。
     /// 全部为静态纯函数/纯状态迁移，不依赖 MonoBehaviour / GameObject。
     /// </summary>
     public static class TurnRules
     {
-        /// <summary>原版空闲帧阈值：inactivity &gt; 10（严格大于）才推进回合（§3.1）。</summary>
+        /// <summary>空闲帧阈值：inactivity &gt; 10（严格大于）才推进回合（【提案/待定】）。</summary>
         public const int DefaultInactivityThreshold = 10;
 
         /// <summary>
-        /// 回合是否已结束（§3.2 Team.isTurnComplete）：
+        /// 回合是否已结束：
         /// 选中的角色死亡，或它既不能抛也不能用武器。
         /// </summary>
         public static bool IsTurnComplete(bool selectedAlive, bool canThrow, bool canShoot)
@@ -83,7 +83,7 @@ namespace PirateCrew.Combat
         }
 
         /// <summary>
-        /// 空闲帧数是否已超过阈值（§3.1 原版条件本体）：inactivityFrames &gt; threshold。
+        /// 空闲帧数是否已超过阈值：inactivityFrames &gt; threshold。
         /// 注意是严格大于：正好 10 帧不算，11 帧才算。
         /// </summary>
         public static bool InactivityExceeded(int inactivityFrames, int threshold = DefaultInactivityThreshold)
@@ -93,8 +93,8 @@ namespace PirateCrew.Combat
 
         /// <summary>
         /// 是否应推进到下一队。
-        /// 原版 enterFrame：inactivity &gt; 10 时清零计数，再按 isTurnComplete() 分两路
-        /// （complete → nextTurn()，否则 continueTurn()）。
+        /// 空闲超时（inactivity &gt; 10）时清零计数，再按 isTurnComplete() 分两路
+        /// （complete → 推进回合，否则 → 继续本回合）。
         /// "推进回合"只对应 complete 的那一路，故本方法 = 超时 且 回合已完成。
         /// 未完成时的另一路请用 <see cref="ShouldContinueTurn"/>。
         /// </summary>
@@ -105,7 +105,7 @@ namespace PirateCrew.Combat
         }
 
         /// <summary>
-        /// 超时但本回合尚未完成时，是否应让同一角色继续第 2 个动作（原版 continueTurn）。
+        /// 超时但本回合尚未完成时，是否应让同一角色继续第 2 个动作。
         /// </summary>
         public static bool ShouldContinueTurn(
             int inactivityFrames, bool turnComplete, int threshold = DefaultInactivityThreshold)
@@ -114,7 +114,7 @@ namespace PirateCrew.Combat
         }
 
         // ------------------------------------------------------------------
-        // 行动经济（§3.4）
+        // 行动经济
         // ------------------------------------------------------------------
 
         /// <summary>
@@ -135,7 +135,7 @@ namespace PirateCrew.Combat
 
         /// <summary>
         /// 点 end go：canThrow=false、canShoot=false → 立即结束回合。
-        /// （原版还会置 thrown/throwFinished 等表现层标记与 unequip，那些不参与行动经济，故不在此建模。）
+        /// （表现层的 thrown/throwFinished 标记与 unequip 不参与行动经济，故不在此建模。）
         /// </summary>
         public static ActionState ApplyEndGo(ActionState state)
         {
@@ -143,7 +143,7 @@ namespace PirateCrew.Combat
         }
 
         // ------------------------------------------------------------------
-        // 回合交替与胜负（§3.3）
+        // 回合交替与胜负
         // ------------------------------------------------------------------
 
         /// <summary>下一队编号：1 ↔ 2 交替。</summary>
@@ -159,11 +159,11 @@ namespace PirateCrew.Combat
         }
 
         /// <summary>
-        /// 计算对局结果（§3.3 Controller.nextTurn / enterFrame 结算分支）。
+        /// 计算对局结果。
         /// 前提：调用方已确认 <see cref="IsMatchOver"/> 为 true。
         ///   · team1IsAI=true（1P 模式）：玩家存活且 AI 全灭 → Team0Win；
-        ///     玩家全灭 → LevelFailed（含 AI 也全灭的罕见全灭，原版弹 level_failed_1p）。
-        ///   · team1IsAI=false（2P 热座）：一方全灭 → 该方败；双方全灭 → Draw（vs_draw）。
+        ///     玩家全灭 → LevelFailed（含 AI 也全灭的罕见全灭）。
+        ///   · team1IsAI=false（2P 热座）：一方全灭 → 该方败；双方全灭 → Draw。
         /// 若双方都存活（未满足前提），返回 Draw 表示无胜负。
         /// </summary>
         public static MatchOutcome ComputeOutcome(bool team0AnyAlive, bool team1AnyAlive, bool team1IsAI)

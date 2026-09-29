@@ -5,7 +5,8 @@ namespace PirateCrew.Data
     /// <summary>
     /// 单件武器的 ScriptableObject 定义（Unity 侧可调参载体）。
     ///
-    /// 【出处】静态逆向文档 §5.2「武器总表」。
+    /// 【口径】数值为本工程设计值；真值来源见 <see cref="WeaponCatalog"/>。
+    ///         （<b>【提案/待定】</b>：尚无已裁决文档为逐值背书。）
     ///
     /// 【三层数值架构】
     ///   真值来源 = 纯 C# 的 <see cref="WeaponCatalog"/>（可无头测试）；
@@ -19,11 +20,11 @@ namespace PirateCrew.Data
     {
         [Header("标识")]
         [SerializeField]
-        [Tooltip("武器 id（§5.2 表里的英文 id）。用于代码索引，应与 WeaponCatalog 的键一致。")]
+        [Tooltip("武器 id（英文小驼峰）。用于代码索引，应与 WeaponCatalog 的键一致。")]
         WeaponId id;
 
         [SerializeField]
-        [Tooltip("显示名；沿用原版英文类名 / 关卡 XML 属性键（如 cherryBomb）。")]
+        [Tooltip("显示名；沿用英文 id / 关卡 XML 属性键（如 cherryBomb）。")]
         string displayName;
 
         [Header("物理（§5.2 / §4.1）")]

@@ -31,8 +31,9 @@ namespace PirateCrew.Battle
     ///     本类在 FollowProjectile 态直接用弹体位置做焦点（不平滑），其余态用平滑焦点；
     ///   · 原链把震屏/下压写在"相机目标"上再由 Transposer 叠加——本类在帧组装时叠加，和相同。
     ///
-    /// 【对应章节】§3.2（panToCharacter）、§4.5（选中反馈）、§8.1（AI 决策中停止滚动）、
-    ///             §5.3（爆炸 falloff 借形）、M4 §3.2（Scope/力度-镜头耦合/弹体追焦）。
+    /// 【对应章节】相机表现口径见 <c>docs/设计/3D空间模型对齐.md</c>：
+    ///             panToCharacter/选中反馈/相机优先级见 §8.1，爆炸 falloff 借形见 §5；
+    ///             Scope/弹体追焦为本项目新增（<b>提案/待定</b>）。
     ///
     /// 【安全底线（勿破坏）】
     ///   · 震屏只加在最终位置上，且**玩家按住左键（拖拽瞄准）时不施加**；
@@ -60,10 +61,10 @@ namespace PirateCrew.Battle
         [SerializeField] AimThrowController aimThrow;
 
         [Header("参数")]
-        [Tooltip("聚焦平滑速度（1/s）。默认 6 → 90% 到位约 0.384s，贴合原版 10 帧 @25fps 的回合节奏（§3.1）。")]
+        [Tooltip("聚焦平滑速度（1/s）。默认 6 → 90% 到位约 0.384s，贴合回合节奏（10 帧 @25fps ≈ 0.4s）。")]
         [SerializeField] float focusLerpPerSecond = 6f;
 
-        [Header("震屏（提案/待定，原版无此机制）")]
+        [Header("震屏（提案/待定）")]
         [Tooltip("总开关：关闭后命中/爆炸/死亡都不震屏。")]
         [SerializeField] bool enableShake = true;
 
@@ -82,7 +83,7 @@ namespace PirateCrew.Battle
         [Tooltip("震屏振荡频率（Hz）；默认 18。")]
         [SerializeField] float shakeFrequencyHz = CameraFeelRules.DefaultShakeFrequencyHz;
 
-        [Header("顿帧（hitstop；提案/待定，原版无此机制）")]
+        [Header("顿帧（hitstop；提案/待定）")]
         [Tooltip("总开关。安全上限硬编码在 CameraFeelRules（≤2 帧 @25fps、timeScale ≥ 0.05）。")]
         [SerializeField] bool enableHitStop = true;
 

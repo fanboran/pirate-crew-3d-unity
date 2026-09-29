@@ -26,8 +26,8 @@ namespace PirateCrew.EditorTools
     ///         → **1 格 = 1 世界单位**（<see cref="UnitsPerTile"/>）；</item>
     ///   <item>单位总高 = Body 圆柱 h1.2 与 Head 球 d0.7 在轴上重叠 0.05
     ///         → **1.85 世界单位**（<see cref="ReferenceHeight"/>）；</item>
-    ///   <item>本工程 1 格 = 1 世界单位（`LevelGeometry.PixelsPerUnit = 32`、`WorldWidth = widthTiles`，
-    ///         见 <see cref="UnityUnitsPerTile"/>）→ 换算系数 = 1；</item>
+    ///   <item>归一换算取 1 格 = 1 世界单位（<see cref="UnitsPerTile"/>；仅归一用，非现行
+    ///         <c>LevelGeometry.TileWorldSize</c>）→ 换算系数 = 1（<see cref="UnityUnitsPerTile"/>）；</item>
     ///   <item>→ **目标视觉总高 = 1.85 世界单位**（<see cref="TargetUnitHeight"/>）。</item>
     ///   </list>
     ///   于是等比缩放系数 k = <see cref="TargetUnitHeight"/> / 1.85 = 1，两件式尺寸即归一基准原值：
@@ -107,13 +107,15 @@ namespace PirateCrew.EditorTools
         /// <summary>
         /// 归一基准总高 = 1.85：Body 圆柱 h1.2 与 Head 球 d0.7
         /// 在轴上重叠 0.05（0.4−0.35）→ 总高 1.2 + 0.7 − 0.05 = 1.85。
-        /// 只作 <see cref="ReferenceToWorldScale"/> 的归一基准；**现役总高以两件式常量推导为准（≈2.03，见 <see cref="HeadSphereCenterY"/>）**。
+        /// 只作 <see cref="ReferenceToWorldScale"/> 的归一基准（该比值恒 1，实际不缩放）；
+        /// **现役总高以两件式常量推导为准（≈2.03，见 <see cref="HeadSphereCenterY"/>）**。
+        /// <b>【提案/待定】</b>：归一基准值尚无已裁决文档背书。
         /// </summary>
         const float ReferenceHeight = 1.85f;
 
         /// <summary>
-        /// 1 格 = 1 世界单位。推导见类头「尺度推导链」：
-        /// 兜底关地面 50 格 ↔ 50 世界单位。
+        /// 归一换算的"格"分母（与 <see cref="UnityUnitsPerTile"/> 同为 1，故比值恒 1）。
+        /// <b>【提案/待定】</b>：仅作归一系数来源，不代表现行 <c>LevelGeometry.TileWorldSize</c>。
         /// </summary>
         const float UnitsPerTile = 1f;
 
@@ -124,11 +126,11 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 目标视觉总高的归一系数来源（1.85 × UnityUnitsPerTile / UnitsPerTile）。
-        /// <see cref="ReferenceToWorldScale"/> 恒 1，两件式常量直接写世界值——**总高不再锚 1.85**，由 Body/Head 常量推出。
+        /// <see cref="ReferenceToWorldScale"/> 恒 1，两件式常量直接写世界值——**总高不锚 1.85**，由 Body/Head 常量推出。
         ///
-        /// 【为什么不再用旧的 0.55】旧口径把整身压到 0.55 世界单位（≈0.55 格高），
+        /// 【为什么不用旧的 0.55】旧口径把整身压到 0.55 世界单位（≈0.55 格高），
         ///   与 1.85 格高的角色差了 3.36 倍，用户一眼看出"角色比木筏子小这么多"。
-        ///   碰撞足迹仍由根级 BoxCollider 决定（0.375×0.5×0.375，Flash 12×16px 契约，见
+        ///   碰撞足迹仍由根级 BoxCollider 决定（0.375×0.5×0.375，12×16px 契约，见
         ///   <see cref="UnitRootScale"/>），**与视觉高度无关**，改造型不动碰撞体。
         /// </summary>
         const float TargetUnitHeight = ReferenceHeight * UnityUnitsPerTile / UnitsPerTile;

@@ -9,10 +9,9 @@ namespace PirateCrew.UI
     /// <summary>
     /// 战斗小地图（UGUI）：竞技场 XZ **俯视示意** + 双方单位点位。
     ///
-    /// 【原版依据】<c>Map.as</c>（§2.4/§8.1）：<c>dotSize=3</c> 点阵，红 <c>0xFF3A29</c>、
-    /// 蓝 <c>0x3366FF</c>，alpha = <c>mapVisibility*100</c>，死亡角色 <c>mapVisibility -= 0.1/帧</c> 淡出；
-    /// 容器 <c>mapHolder</c> 在 (20,20)（§2.3，屏幕左上角）；每帧 <c>map.drawActive()</c>（§3.1）。
-    /// 具体换算/映射见 <see cref="MinimapRules"/>（原版未给出的部分已标**提案/待定**）。
+    /// 【口径】战斗小地图 = 竞技场 XZ **俯视示意** + 双方单位点位。
+    /// 点阵尺寸、红/蓝队色、透明度淡出、容器位置等常量见 <see cref="MinimapRules"/>
+    /// （本工程设计值，<b>【提案/待定】</b>：尚无已裁决文档为其取值背书）。
     ///
     /// 【架构约定】
     ///   · 数据来源全部是同场景 <c>[SerializeField]</c> 引用（单位根节点 + 点阵层），
@@ -35,7 +34,7 @@ namespace PirateCrew.UI
         [Tooltip("点阵层（ugui RectTransform）；单位点按其归一化锚点落位。")]
         [SerializeField] RectTransform dotLayer;
 
-        [Header("瓦片地形点阵（§8.1 两档 alpha；可为空 = 不画瓦片）")]
+        [Header("瓦片地形点阵（两档 alpha；可为空 = 不画瓦片）")]
         [Tooltip("地形视图（同场景 [SerializeField] 注入，禁 GameObject.Find）；由 HudMinimapSceneSetup 接线。")]
         [SerializeField] BattleTerrainView terrain;
         [Tooltip("瓦片点层（ugui RectTransform）；一格一颗点，实心 0.5 / 空 0.2 alpha。为空时自建在点阵层下。")]

@@ -3,8 +3,8 @@ using NUnit.Framework;
 namespace PirateCrew.Combat.Tests
 {
     /// <summary>
-    /// ScoreRules 测试。公式出自逆向文档 §3.3 / §7.3：
-    /// floor(avgHealth*20 - totalTurnsTaken*25)，下限 levelIndex*10。
+    /// ScoreRules 测试。覆盖公式 floor(avgHealth*20 - totalTurnsTaken*25)，下限 levelIndex*10
+    ///（本工程设计值，【提案/待定】）。
     /// </summary>
     [TestFixture]
     public class ScoreRulesTests

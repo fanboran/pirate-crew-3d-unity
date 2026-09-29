@@ -1,4 +1,4 @@
-﻿# M2 战斗模块 Unity 参照库调研
+# M2 战斗模块 Unity 参照库调研
 
 > 任务：为 M2「补最小可玩闭环」战斗模块储备 Unity 实现参照（遵守 AGENTS.md「参照库强制」规则）。
 > 参照库 clone 到 `external/m2-combat-reference/`（`external/` 已 gitignore，不入库）。
@@ -10,11 +10,11 @@
 
 ---
 
-## 0. 需求提炼（先读逆向文档再定选型）
+## 0. 需求提炼（先读既有实现再定选型）
 
-已读 `docs/项目/归档/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md` 的 §5.1 / §5.2 / §5.3 / §5.4 / §6 / §8.1，确认 M2 需要四类能力：
+已读 `docs/项目/归档/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md`（已归档，**仅早期来源、非设计基准**）的 §5.1 / §5.2 / §5.3 / §5.4 / §6 / §8.1，确认 M2 需要四类能力：
 
-| 能力 | 逆向文档依据 | 关键规则（简） |
+| 能力 | 来源记载 | 关键规则（简） |
 | --- | --- | --- |
 | (a) 回合制弹道投掷 | §5.1 / §5.4 / §6.1 | 拖拽蓄力 → 抛物线 → 命中结算；初速 = 0.25 × 拖拽距离且限速 twangMax；每帧 `vy += weight`；撞地 `vy *= -bounce`、`|vx| -= friction`；一套操作两阶段（投自己 / 用武器） |
 | (b) 瞄准轨迹预测线 | §5.1 `drawTwangLine` | 15 段虚线，逐段加重力、alpha 衰减 |
@@ -276,7 +276,7 @@ PirateCrew.UI            新增：CombatHudController（只订阅事件显示文
 
 **(1) `CombatPlane`（静态工具，`PirateCrew.Combat`）**
 职责：统一「逆向文档的 2D 逻辑坐标（y 向下、单位 px）」与「Unity 3D 世界坐标（y 向上）」的映射，避免各脚本各写一套符号。
-- 逆向文档坐标为 Flash 像素；建议 1 世界单位 = 1 格（32px），保留 `const float PixelsPerUnit = 32f`。
+- 逻辑坐标为像素（y 向下）；建议 1 世界单位 = 1 格（32px），保留 `const float PixelsPerUnit = 32f`。
 - 提供 `Vector3 LogicToWorld(float x, float yLogic, float planeZ = 0f)`、`(float x, float yLogic) WorldToLogic(Vector3 world)`。
 - 提供 `float GravityYLogic`（逻辑重力，取世界 `Physics.gravity.y` 的负向转换）供 `Ballistics.PredictTrajectory(weight:)` 使用。
 

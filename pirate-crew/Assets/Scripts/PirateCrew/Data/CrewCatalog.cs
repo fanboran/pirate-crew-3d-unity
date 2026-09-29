@@ -4,13 +4,14 @@ using System.Collections.Generic;
 namespace PirateCrew.Data
 {
     /// <summary>
-    /// 海盗共享属性快照（纯 C# 结构）。出处：静态逆向文档 §4.1。
+    /// 海盗共享属性快照（纯 C# 结构）。
     ///
-    /// <b>关键结论：原版所有海盗没有任何属性差异</b>——没有 HP / 体重 / 速度 / 技能的区别，
+    /// <b>设计口径：所有海盗没有属性差异</b>——没有 HP / 体重 / 速度 / 技能的区别，
     /// 全部共用同一个 <c>Character</c> 类；不同海盗（cabinBoy / squid / oldPirate / skeletonPirate / bossGuy…）
     /// <b>只有美术、luck 值（来自关卡 XML）和初始武器不同</b>。
     /// 等级差由「角色数 + 初始武器 + luck」三者共同体现，而不是靠属性差。
     /// 因此本结构对所有海盗返回同一份数值；CrewDefinition 的存在只为承接美术与关卡配置。
+    /// （<b>【提案/待定】</b>：尚无已裁决文档为具体取值背书。）
     /// </summary>
     public readonly struct CrewStats
     {
@@ -138,16 +139,16 @@ namespace PirateCrew.Data
             Weight, Friction, Bounce, TwangMaxForce, DragRange, DragOffset, DefaultLuck);
 
         // ------------------------------------------------------------------
-        // §4.3 队伍归属
+        // 队伍归属
         // ------------------------------------------------------------------
 
         /// <summary>红队（team1，玩家侧）的队伍索引。</summary>
         public const int RedTeamIndex = 0;
 
-        /// <summary>蓝队（team2）的队伍索引；原版规则里「非 redPirate 一律为 1」。</summary>
+        /// <summary>蓝队（team2）的队伍索引；规则「非 redPirate 一律为 1」。</summary>
         public const int BlueTeamIndex = 1;
 
-        /// <summary>红队两个导出符号（§4.3 硬编码白名单）。</summary>
+        /// <summary>红队两个导出符号（硬编码白名单）。</summary>
         public static readonly IReadOnlyList<string> RedTeamSymbols = new[]
         {
             "redPirate",
@@ -155,13 +156,13 @@ namespace PirateCrew.Data
         };
 
         /// <summary>
-        /// 按 §4.3 硬编码规则返回队伍索引：
+        /// 按硬编码规则返回队伍索引：
         /// <c>teamIndex = (type == "redPirate" || type == "redPirateCaptain") ? 0 : 1</c>。
         ///
         /// 【语义】条件是「白名单命中红队，否则一律蓝队」——因此<b>未知/拼写错误的名字也返回 1（蓝队）</b>，
-        /// 且 null / 空串同样返回 1。这是对原版"else 分支兜底为 team2"的忠实还原，
+        /// 且 null / 空串同样返回 1。这是「else 分支兜底为 team2」的口径，
         /// 不在数据层做报错，避免关卡 XML 里出现未收录符号时直接导致解析中断。
-        /// 比较使用 <see cref="StringComparison.Ordinal"/>（原版字符串 == 为精确匹配）。
+        /// 比较使用 <see cref="StringComparison.Ordinal"/>（精确匹配）。
         /// </summary>
         public static int TeamIndexOf(string typeName)
         {
@@ -175,18 +176,16 @@ namespace PirateCrew.Data
         }
 
         // ------------------------------------------------------------------
-        // §4.2 海盗种类（导出符号）
+        // 海盗种类（导出符号）
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// §4.2 列出的全部海盗导出符号（Captain 变体展开后共 27 个）。
+        /// 全部海盗导出符号（Captain 变体展开后共 27 个）。
         ///
-        /// 【与任务书的差异】任务书写作「21 个」，但 §4.2 原文把
-        /// cabinBoy(Captain) / soldier(Captain) / blindPirate(Captain) / femalePirate(Captain) /
+        /// 【27 的来历】原表把 cabinBoy(Captain) / soldier(Captain) / blindPirate(Captain) / femalePirate(Captain) /
         /// oldPirate(Captain) / rainbowBeard(Captain) / skeletonPirate(Captain) 这 7 组简写各代表 2 个符号，
         /// 展开后为 4 + 7×2 + 9 = <b>27</b> 个（关卡 XML 里 cabinBoyCaptain / soldierCaptain /
-        /// skeletonPirateCaptain 等也确实作为独立导出符号出现）。本表以文档为准取 27；
-        /// 这一数字与任务书的不一致已在交付报告中显式说明。
+        /// skeletonPirateCaptain 等也确实作为独立导出符号出现）。本表取 27。
         /// </summary>
         public static readonly IReadOnlyList<string> ExportSymbols = new[]
         {
@@ -227,19 +226,19 @@ namespace PirateCrew.Data
         public static int ExportSymbolCount => ExportSymbols.Count;
 
         // ------------------------------------------------------------------
-        // §3.2 保底武器
+        // 保底武器
         // ------------------------------------------------------------------
 
-        /// <summary>保底武器（§3.2：每回合开始若 <c>hasWeapons.length &lt; 1</c> 则 push cannonball）。</summary>
+        /// <summary>保底武器（每回合开始若 <c>hasWeapons.length &lt; 1</c> 则补 cannonball）。</summary>
         public static readonly WeaponId FallbackWeapon = WeaponId.Cannonball;
 
         /// <summary>
-        /// 原版武器栈里值 10 表示"无限"（§5.5：<c>if n == 10 → infiniteWeapons</c>）。
+        /// 武器栈里值 10 表示"无限"（<c>count == 10 → 无限</c>）。
         /// </summary>
         public const int InfiniteWeaponCount = 10;
 
         /// <summary>
-        /// 应用保底武器规则（§3.2 <c>startTurn</c>）：
+        /// 应用保底武器规则：
         /// 若 <paramref name="hasWeapons"/> 为空则补一件 <see cref="FallbackWeapon"/>。
         /// 返回 true 表示本次确实补发了保底武器。
         /// </summary>
