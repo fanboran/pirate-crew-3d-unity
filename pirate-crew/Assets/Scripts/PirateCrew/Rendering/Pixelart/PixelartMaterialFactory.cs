@@ -57,13 +57,12 @@ namespace PirateCrew.Rendering.Pixelart
         public const float DefaultBandCount = 4f;
 
         /// <summary>
-        /// 抖动默认 = **关**（2026-09-30 回退：0.5 默认开曾由调试场定档带入正式装配，实测大面积
-        /// 立面关卡上色带边界带整体落在 Bayer 4×4 点阵撕边上——PixelartObject.shader 的
-        /// DitherValue 按艺术像素 4×4 展开，翻档位置由"几何朝向 × 光向"决定，大面积上读感是
-        /// "色块与描边之间隔一层花纹"；调试场小角色上看不出）。抖动保留为**出图对照与调试
-        /// 面板开关**，不做全仓默认。
+        /// 抖动默认 = **Bayer 4×4、幅度 0.5**（创始人 2026-09-30 拍板保留撕边质感；
+        /// 2026-09-29 曾随调试场定档带入，2026-09-30 早间因「描边/色块分离」报告回退过一次，
+        /// 同日创始人看后拍板要抖动，重新开回。分离观感若再现，逐关/逐材质走面板与装配器参数微调，
+        /// 不再动全仓默认）。
         /// </summary>
-        public const float DefaultDitherStrength = 0f;
+        public const float DefaultDitherStrength = 0.5f;
 
         /// <summary>
         /// 法线边加成档（**负 = 压暗**）。口径照参考库的 `_EdgeLevel` 默认值与演示非金属件 = -1：
