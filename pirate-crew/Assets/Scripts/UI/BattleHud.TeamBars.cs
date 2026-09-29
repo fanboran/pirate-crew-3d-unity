@@ -61,6 +61,12 @@ namespace PirateCrew.UI
             public TextMeshProUGUI label;
             public Image frame;
 
+            /// <summary>
+            /// 点击跳转（装配器建 Button 写进场景；运行时 <see cref="BuildOneTeamBar"/> 绑回调）。
+            /// 点击 = 相机对焦该单位（创始人 2026-09-29：点血条下的方块跳到对应角色）。
+            /// </summary>
+            public Button button;
+
             /// <summary>阵亡标记（写入阵亡文案时同步置位；幂等判断判位不比对文案）。</summary>
             public bool isDead;
         }
@@ -93,7 +99,8 @@ namespace PirateCrew.UI
                 if (segment == null || segment.root == null || segment.fill == null || segment.ghost == null)
                     return false;
                 UnitPipView pip = bar.pips[i];
-                if (pip == null || pip.root == null || pip.label == null || pip.frame == null)
+                if (pip == null || pip.root == null || pip.label == null || pip.frame == null
+                    || pip.button == null)
                     return false;
             }
             return true;
@@ -171,6 +178,15 @@ namespace PirateCrew.UI
                         }
                     }
 
+                    // 点击跳转：BuildTeamBars 可能随战斗重启多次进入，先清后绑保幂等
+                    //（lambda 序列化不进场景，监听只能运行时挂——装配器只负责建 Button 组件）。
+                    if (pip != null && pip.button != null)
+                    {
+                        int capturedSlot = slot;
+                        pip.button.onClick.RemoveAllListeners();
+                        pip.button.onClick.AddListener(() => OnPipClicked(teamIndex, capturedSlot));
+                    }
+
                     count++;
                 }
             }
@@ -226,6 +242,30 @@ namespace PirateCrew.UI
         }
 
         static int SegmentKey(int teamIndex, int slot) => teamIndex * 100 + slot;
+
+        /// <summary>
+        /// 点击血条下的角色方块：**相机跳到对应单位**（发既有 <c>BattleEvents.CameraFocusRequested</c>
+        /// 频道，<c>BattleCameraDriver</c> 接管切特写）。
+        ///
+        /// 【为什么只对焦、不调 <c>battle.SelectCharacter</c>】选中是瞄准链的状态（本队存活 +
+        /// 行动阶段才有意义）；点敌方或阵亡单位的方块只是"看一眼"，走选中会把对方单位写进
+        /// 本队选中状态、污染投掷流程。对焦是无状态的观察动作，两条语义不混。
+        /// </summary>
+        void OnPipClicked(int teamIndex, int slot)
+        {
+            if (!_pirateBySegment.TryGetValue(SegmentKey(teamIndex, slot), out PirateBase pirate)
+                || pirate == null)
+                return;
+
+            EventBus.Publish(BattleEvents.CameraFocusRequested, pirate.transform);
+
+            TeamBarView bar = teamIndex == 0 ? teamBarRed : teamBarBlue;
+            UnitPipView pip = bar != null && bar.pips != null && slot < bar.pips.Length
+                ? bar.pips[slot]
+                : null;
+            if (_motion != null && pip != null && pip.frame != null)
+                _motion.Punch(pip.frame, UiMotionRules.PunchSeconds);   // 点击反馈（像素件不做变色过渡）
+        }
 
         /// <summary>全量刷两队（回合切换时）。</summary>
         void RefreshTeamBars()

@@ -294,10 +294,14 @@ namespace PirateCrew.EditorTools
                 pip.anchoredPosition = new Vector2(i * (BattleHudZones.PipSize + BattleHudZones.PipGap), 0f);
 
                 // 格底 = 队色平涂方格。死亡压暗走 CanvasGroup（平涂块无烘焙色阶，无乘色禁令顾虑）。
+                // raycastTarget 开 = 本格可点（Button 的射线靶）：点击 → 相机跳到对应单位
+                // （回调由运行时 BattleHud.BuildOneTeamBar 绑定；transition None，反馈走 Punch）。
                 Image frame = pip.gameObject.AddComponent<Image>();
                 frame.sprite = null;
                 frame.color = UiSkin.TeamFill(teamIndex);
-                frame.raycastTarget = false;
+                frame.raycastTarget = true;
+                var pipButton = pip.gameObject.AddComponent<Button>();
+                pipButton.transition = Selectable.Transition.None;
                 pip.gameObject.AddComponent<CanvasGroup>();
 
                 TextMeshProUGUI label = UiKit.CreateText("Label", pip, string.Empty,
@@ -310,6 +314,7 @@ namespace PirateCrew.EditorTools
                     root = pip.gameObject,
                     label = label,
                     frame = frame,
+                    button = pipButton,
                 };
             }
 

@@ -16,13 +16,8 @@ namespace PirateCrew.EditorTools
     /// 角色几何（<see cref="CrewMeshFactory"/>，分段与正式两件式同源）、材质配方（<see cref="PixelartStageKit"/>）。
     /// 本装配器只负责"把场摆出来"，参数的运行时调整与读数在 <see cref="CharCamDebugController"/>。
     ///
-    /// 【双角色与跳转】场上摆**两具**角色（A 左 x −1.2 / B 右 x +1.2），画面左上/右上角各有一枚
-    /// 常驻方块，点击把编辑目标与相机焦点跳到对应角色——体格滑杆只动当前角色，方便并排对比
-    /// "不同体格在同一镜头口径下"的观感。A 起新默认档，B 走 Godot 基准档（0.35/0.4667/1.20/0.35），
-    /// 两者天然有形差，跳转一眼可辨。
-    ///
     /// 【内容刻意最小】地面（40×40）+ 1m 参照立方 + 2m 参照柱（给"每艺术像素多少米"一个实物标尺）
-    /// + 两具可调角色。不放台阶/陈设——这里是量参数的台子，不是看观感的样板关（那三关已有）。
+    /// + 中央一具可调角色。不放台阶/陈设——这里是量参数的台子，不是看观感的样板关（那三关已有）。
     ///
     /// 【为什么不开太阳投影】投影还在"大平面自遮挡"的调参尾巴上（见 PixelartStageKit.CreateSunAndAmbient
     /// 注释），开着会让暗面判读混进阴影偏差——量镜头参数要的是干净的色带。
@@ -69,7 +64,6 @@ namespace PirateCrew.EditorTools
             Material prop = PixelartStageKit.EnsureMaterial("PixelartCharCamDebug_Prop",
                 PixelartStageKit.Hex("D8BE8A"), 3f);
             Material crewRed = PixelartStageKit.CrewRed();
-            Material crewBlue = PixelartStageKit.CrewBlue();
             Material crewHead = PixelartStageKit.CrewHead();
 
             var root = new GameObject(CharCamDebugController.SceneName);
@@ -90,25 +84,22 @@ namespace PirateCrew.EditorTools
             PixelartStageKit.AddBox(root.transform, "ReferencePillar2m",
                 new Vector3(-2.4f, 1.0f, 1.2f), new Vector3(0.6f, 2f, 0.6f), prop);
 
-            // ---------------- 双角色骨架（A 左 / B 右；网格由控制器生成，两件式同正式角色口径）----------------
-            // A 起新默认档（SubjectSlot 字段默认值），B 走 Godot 基准档——两者有形差，跳转/对比一眼可辨。
-            var subjectA = BuildSubjectSkeleton("DebugSubjectA", CharCamDebugController.StationX(0), crewRed);
-            var subjectB = BuildSubjectSkeleton("DebugSubjectB", CharCamDebugController.StationX(1), crewBlue);
+            // ---------------- 中央角色骨架（网格由控制器生成；两件式同正式角色口径）----------------
+            var subject = BuildSubjectSkeleton(crewRed);
 
             // ---------------- 光（投影关：见类头）----------------
             Light sun = PixelartStageKit.CreateSunAndAmbient(root.transform);
 
-            // ---------------- 相机（正交；位姿初值 = 槽 0 焦点 + 默认俯仰/方位，运行时由控制器接管）----------------
-            var initialFocus = new Vector3(CharCamDebugController.StationX(0), 1f, 0f);
+            // ---------------- 相机（正交；位姿初值取控制器的默认口径，运行时由控制器接管）----------------
             var camGo = new GameObject("PixelartCharCamDebugCamera");
             camGo.tag = "MainCamera";
             camGo.transform.SetParent(root.transform);
-            camGo.transform.position = initialFocus
+            camGo.transform.position = CharCamDebugController.FramingTarget
                 + PixelartPilotScene.CameraDirection(
                     CharCamDebugController.DefaultPitchDegrees,
                     CharCamDebugController.DefaultAzimuthDegrees)
                     * CharCamDebugController.CameraDistance;
-            camGo.transform.LookAt(initialFocus);
+            camGo.transform.LookAt(CharCamDebugController.FramingTarget);
 
             var camera = camGo.AddComponent<Camera>();
             camera.orthographic = true;
@@ -135,19 +126,14 @@ namespace PirateCrew.EditorTools
             rig.castRendererIndex = castIndex;
             rig.screenRendererIndex = screenIndex;
 
-            // ---------------- 控制器（滑杆/读数/网格重建；双角色槽在此一次接全）----------------
-            // B 槽走 Godot 基准档（0.35 / 0.4667 / 1.20 / 0.35 / 间距 0）——与 A 的默认档形差明显，
-            // 跳转/并排对比一眼可辨；正式角色常量的真源仍是 CrewVisualPrefabBuilder。
-            var slotA = BuildSlot(subjectA);
-            var slotB = BuildSlot(subjectB);
-            slotB.topRadius = 0.35f;
-            slotB.bottomRadius = 0.4667f;
-            slotB.bodyHeight = 1.20f;
-            slotB.headRadius = 0.35f;
-            slotB.headLift = 0f;
-
-            var controller = subjectA.AddComponent<CharCamDebugController>();
-            controller.slots = new[] { slotA, slotB };
+            // ---------------- 控制器（滑杆/读数/网格重建；引用在此一次接全）----------------
+            var controller = subject.AddComponent<CharCamDebugController>();
+            controller.bodyPivot = subject.transform.Find("BodyPivot");
+            controller.headPivot = subject.transform.Find("HeadPivot");
+            controller.bodyFilter = controller.bodyPivot != null
+                ? controller.bodyPivot.GetComponent<MeshFilter>() : null;
+            controller.headFilter = controller.headPivot != null
+                ? controller.headPivot.GetComponent<MeshFilter>() : null;
             controller.rig = rig;
             controller.cameraTransform = camGo.transform;
 
@@ -166,34 +152,18 @@ namespace PirateCrew.EditorTools
                 + "；默认可见 " + CharCamDebugController.DefaultVisibleMeters + "m、像素档 "
                 + CharCamDebugController.DefaultPixelScale + "×、俯角 "
                 + CharCamDebugController.DefaultPitchDegrees + "°、方位角 "
-                + CharCamDebugController.DefaultAzimuthDegrees + "°）。"
-                + "双角色 A 左/B 右，屏幕左上/右上角方块点击跳转；F1 收起/唤出面板。");
-        }
-
-        /// <summary>摆一具角色骨架（站位 x，身体材质由槽位决定），返回填好骨架引用的槽。</summary>
-        static CharCamDebugController.SubjectSlot BuildSlot(GameObject subject)
-        {
-            Transform bodyPivot = subject.transform.Find("BodyPivot");
-            Transform headPivot = subject.transform.Find("HeadPivot");
-            var slot = new CharCamDebugController.SubjectSlot
-            {
-                bodyPivot = bodyPivot,
-                headPivot = headPivot,
-                bodyFilter = bodyPivot != null ? bodyPivot.GetComponent<MeshFilter>() : null,
-                headFilter = headPivot != null ? headPivot.GetComponent<MeshFilter>() : null,
-            };
-            return slot;
+                + CharCamDebugController.DefaultAzimuthDegrees + "°）。进场景按 F1 收起/唤出面板。");
         }
 
         /// <summary>
-        /// 建一具两件式角色骨架（BodyPivot + HeadPivot，网格与摆位由控制器 <c>RebuildSlot</c> 写），
-        /// 站在地面 <paramref name="stationX"/> 处。
+        /// 建一具两件式角色骨架（BodyPivot + HeadPivot，网格与摆位由控制器 <c>RebuildMeshes</c> 写），
+        /// 站在画面中心。头顶球用共用木色，身体材质由装配器给定。
         /// </summary>
-        static GameObject BuildSubjectSkeleton(string name, float stationX, Material bodyMaterial)
+        static GameObject BuildSubjectSkeleton(Material bodyMaterial)
         {
-            var subject = new GameObject(name);
+            var subject = new GameObject("DebugSubject");
             subject.transform.SetParent(root.transform);
-            subject.transform.localPosition = new Vector3(stationX, 0f, 0f);
+            subject.transform.localPosition = Vector3.zero;
 
             var bodyPivot = new GameObject("BodyPivot");
             bodyPivot.transform.SetParent(subject.transform, false);
@@ -209,47 +179,32 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 接线断言：控制器与 rig 的引用字段一个都不能空，双角色槽的骨架引用与编辑态网格逐槽核对。
-        /// 这条路失效的方式是**静默**的（面板在、滑杆动、角色没反应），装配期点名比运行时排查省事
-        /// （BattleLookupWiring 同一条纪律）。
+        /// 接线断言：控制器与 rig 的引用字段一个都不能空。这条路失效的方式是**静默**的
+        /// （面板在、滑杆动、角色没反应），装配期点名比运行时排查省事（BattleLookupWiring 同一条纪律）。
         /// </summary>
         static void AssertWiring(CharCamDebugController controller, PixelartCameraRig rig)
         {
             int missing = 0;
-            if (controller.slots == null || controller.slots.Length != 2)
+            if (controller.bodyPivot == null || controller.headPivot == null
+                || controller.bodyFilter == null || controller.headFilter == null)
             {
-                Debug.LogError(LogTag + " 角色槽数不对（应为 2：A 左 / B 右）。");
+                Debug.LogError(LogTag + " 控制器的角色骨架引用有空（bodyPivot/headPivot/bodyFilter/headFilter）。");
                 missing++;
-            }
-            else
-            {
-                for (int i = 0; i < controller.slots.Length; i++)
-                {
-                    CharCamDebugController.SubjectSlot slot = controller.slots[i];
-                    if (slot == null || slot.bodyPivot == null || slot.headPivot == null
-                        || slot.bodyFilter == null || slot.headFilter == null)
-                    {
-                        Debug.LogError(LogTag + " 角色 " + CharCamDebugController.SlotLabel(i)
-                            + " 的骨架引用有空（bodyPivot/headPivot/bodyFilter/headFilter）。");
-                        missing++;
-                        continue;
-                    }
-                    if (slot.bodyFilter.sharedMesh == null || slot.headFilter.sharedMesh == null)
-                    {
-                        Debug.LogError(LogTag + " 角色 " + CharCamDebugController.SlotLabel(i)
-                            + " 的编辑态网格没生成（ApplyAll 未生效或 CrewMeshFactory 抛了异常）。");
-                        missing++;
-                    }
-                }
             }
             if (controller.rig == null || controller.cameraTransform == null || rig == null)
             {
                 Debug.LogError(LogTag + " 控制器的镜头引用有空（rig/cameraTransform）。");
                 missing++;
             }
+            if (controller.bodyFilter != null && controller.bodyFilter.sharedMesh == null
+                || controller.headFilter != null && controller.headFilter.sharedMesh == null)
+            {
+                Debug.LogError(LogTag + " 编辑态网格没生成（ApplyAll 未生效或 CrewMeshFactory 抛了异常）。");
+                missing++;
+            }
 
             if (missing == 0)
-                Debug.Log(LogTag + " 接线断言通过：双角色槽骨架/镜头引用齐全，编辑态网格已生成。");
+                Debug.Log(LogTag + " 接线断言通过：骨架/镜头引用齐全，编辑态网格已生成。");
         }
     }
 }
