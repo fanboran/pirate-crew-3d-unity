@@ -3,7 +3,13 @@
 > 创始人 2026-09-30 裁决：**所有地图统一叫「地图」、统一成同一个资产接口；坐标与数值口径全米；
 > 「格」彻底退场**——不是只换单位、不是保留格判定，而是格从**资产、文档、玩法表述**里全部消失。
 > 现状：**消费侧已统一**（`LevelSource`），分裂只在**资产层**（`LevelAssetPayload` vs `WorldMapAssetPayload`）。
-> **未动手**；本档记裁决、现状实测与影响面。
+> **进度**：**资产层已落**（提交 `refactor(level): 地图资产全米`）——`sizeX/sizeZ`（米）、
+> `TerrainRaster.heights`（米）替代块数、`LevelUnit.x/z`（米）、`waterTileY → waterWorldY`；
+> 4 张地图的 golden 与 `.asset` 已由 `tools/level-design/migrate_levels_to_meters.py` 迁移，
+> 原「solid/total/digest」摘要**逐字未变**（= 行为等价证据）。
+> **遗留**：运行时的**采样粒度**仍叫「格」（`LevelGeometry.TileWorldSize`、`BattlePlan.WidthTiles`、
+> `TileTerrainGrid`、`SpawnPlanEntry.GridX/GridY`）——消费它们的 `BattleController` /
+> `BattleSceneSetup` / `BattleSceneWiringTests` 是**创始人在建文件**，待其提交后收口。
 
 ## 一、要改成什么
 
