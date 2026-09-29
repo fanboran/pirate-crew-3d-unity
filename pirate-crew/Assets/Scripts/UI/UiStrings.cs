@@ -195,6 +195,10 @@ namespace PirateCrew.UI
         /// {2} = 海图张数，{3}/{4} = 累计/满分星数。星级只记在海图上，故满分 = 海图数 × 3）【AI 提案/待定】。</summary>
         public const string LevelSelectHeaderFormat = "共 {0} 关　手作样板 {1}　海域图 {2}　累计 {3}/{4} 星";
 
+        /// <summary>选关页页头（**海图目录为空**时的版式：海域图数与星数两段恒为 0、只是噪声，故省去；
+        /// {0} = 关数 = 手作样板关数）【AI 提案/待定】。</summary>
+        public const string LevelSelectHeaderNoWorldMapsFormat = "共 {0} 关（手作样板关）";
+
         /// <summary>选关页样板关行的标识后缀（样板关不是"海域图"，行里必须一眼看得出来）。</summary>
         public const string LevelRowShowcaseTag = "手作样板关";
 

@@ -110,10 +110,11 @@ namespace PirateCrew.Battle.Tests
         /// 这两条通道由 <c>LevelAssetLibrary</c> 自己选（<c>Resources.Load</c> 是原生 ECall，
         /// 脱离 Unity 运行时必抛 <c>SecurityException</c>），所以期望值随环境而变，用
         /// <c>UNITY_EDITOR</c> 区分——EditMode 测试定义它，无头验证台不定义。
-        /// 断言强度不变：两条通道都必须给出 8 张海图 / 2 张关卡（关卡 2 已删除 2026-09-22）。
+        /// 断言强度不变：两条通道都必须给出**与目录表一致**的海图/关卡数
+        /// （八张世界海图已删除待重做 ⇒ 当前海图 0 张；关卡 2 已删除 2026-09-22 ⇒ 现存 1、3、4、5）。
         /// </summary>
         [Test]
-        public void Library_LoadedFrom_MatchesEnvironment_WithAllEightMapsAndThreeLevels()
+        public void Library_LoadedFrom_MatchesEnvironment_WithCatalogCounts()
         {
             // 先触达数据（惰性加载在首次取用时发生），再断言来源——LoadedFrom 在加载前恒为 None。
             int maps = LevelAssetLibrary.WorldMaps.Count;
@@ -133,7 +134,7 @@ namespace PirateCrew.Battle.Tests
 
         /// <summary>
         /// golden JSON 兜底通道**单独**钉一遍，两条环境都跑：强制跳过 Unity 资产清单后，
-        /// 数据必须仍能凑齐 8 张海图 / 2 张关卡，且与清单里的语义一致（条数对不上即红）。
+        /// 数据必须仍能凑齐与目录表一致的海图/关卡数，且与清单里的语义一致（条数对不上即红）。
         /// 没有这条，兜底通道就只在无头环境被间接覆盖，Unity 侧坏了没人知道。
         /// </summary>
         [Test]
@@ -173,6 +174,9 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void AllWorldMaps_PassContentGate([ValueSource(nameof(WorldMapPayloads))] WorldMapAssetPayload payload)
         {
+            Assume.That(LevelAssetLibrary.WorldMaps.Count, Is.GreaterThan(0),
+                "当前工程零海图（八张世界海图已删除待重做），内容门禁待重做后自动生效");
+
             WorldMapDefinition runtime = WorldMapFromAsset.ToRuntime(payload);
             Assert.That(runtime, Is.Not.Null, payload.id + " 无法转成运行时定义");
             AssertProblems(string.Empty, payload.id, LevelAssetRules.Problems(runtime));
@@ -192,18 +196,11 @@ namespace PirateCrew.Battle.Tests
         /// 海图骨架：id|关卡号|图幅|氛围档|远景种子|terrain|horizon|props|spawns|出生点逐条
         /// （team/符号/x/z/luck）‖ 军火（id:count）‖ 远景特征件。
         /// 数值出处：迁移前 `WorldMapCatalog.cs`（git 历史；各图的逐条注释即设计意图）。
+        ///
+        /// **当前为空**：八张海图已删除待重做 → <c>WorldMaps_MatchFrozenLegacySignature</c> 零用例；
+        /// 海图重做时按上面的格式补回（新增海图必须同时补这里与 golden JSON）。
         /// </summary>
-        static readonly string[] FrozenWorldMapSignatures =
-        {
-            "wreck_hymn|101|150x150|Noon|101|14|4|23|6|0/redPirate/50/72/5;0/redPirate/56.6/76.2/5;0/redPirateCaptain/54/79/5;1/bluePirate/92/74/2;1/bluePirate/98/76/2;1/bluePirateCaptain/104/78/2||crew=CherryBomb:10|Dynamite:2|cap=CherryBomb:10|Dynamite:5|Dynamite:5|Anchor:1|air=CherryBomb:10|Dynamite:10|Banana:10|RumBottle:10|Seagull:10|feats=WhaleSurfacing",
-            "atoll_ring|102|190x190|Noon|102|29|4|14|8|0/redPirate/57/93/5;0/redPirate/62/97/5;0/redPirate/59.5/98/5;0/redPirateCaptain/62/92/5;1/bluePirate/127/93/2;1/bluePirate/132/97/2;1/bluePirate/129.5/98/2;1/bluePirateCaptain/132/92/2||crew=CherryBomb:10|Mine:1|cap=CherryBomb:10|Dynamite:5|Mine:4|TidalWave:1|air=CherryBomb:10|ParachuteBomb:10|Anchor:1|Seagull:1|feats=LeviathanTentacle,WhaleSurfacing",
-            "ghost_harbor|103|220x220|Dusk|103|34|5|31|8|0/redPirate/95/66/5;0/redPirate/97/71/5;0/redPirate/101/52/5;0/redPirateCaptain/108/66/5;1/bluePirate/144/94/2;1/bluePirate/148/103/2;1/bluePirate/158/93/2;1/bluePirateCaptain/173.5/90/2||crew=CherryBomb:10|Dynamite:2|cap=CherryBomb:10|Dynamite:5|Dynamite:5|VoodooDoll:1|air=CherryBomb:10|RumBottle:10|VoodooDoll:1|ParachuteBomb:2|feats=GiantRibs,WhaleSurfacing",
-            "turtle_back|104|240x240|Noon|104|25|6|30|10|0/redPirate/85/117/5;0/redPirate/91/123/5;0/redPirate/85/121.5/5;0/redPirate/91/117/5;0/redPirateCaptain/88/120/5;1/bluePirate/153/117/2;1/bluePirate/159/123/2;1/bluePirate/153/121.5/2;1/bluePirate/159/117/2;1/bluePirateCaptain/156/120/2||crew=CherryBomb:10|Mine:1|cap=CherryBomb:10|Dynamite:5|Mine:4|Cannon:1|air=CherryBomb:10|Banana:10|Dynamite:10|Boulder:2|Seagull:2|TidalWave:1|feats=WhaleSurfacing,LeviathanTentacle",
-            "mangrove_veil|105|180x180|Dusk|105|26|6|22|8|0/redPirate/33/82/5;0/redPirate/39/87/5;0/redPirate/33/85.5/5;0/redPirateCaptain/39/81/5;1/bluePirate/141/82/2;1/bluePirate/147/87/2;1/bluePirate/141/85.5/2;1/bluePirateCaptain/147/81/2||crew=CherryBomb:10|Mine:2|cap=CherryBomb:10|Dynamite:5|Mine:5|Seagull:1|air=CherryBomb:10|Banana:10|Mine:2|RumBottle:2|feats=LeviathanTentacle",
-            "spiral_throne|106|260x260|Noon|106|23|5|27|10|0/redPirate/159/160/5;0/redPirate/167/168/5;0/redPirate/159/168/5;0/redPirate/167/160/5;0/redPirateCaptain/163/170/5;1/bluePirate/181/122/2;1/bluePirate/189/128/2;1/bluePirate/181/127/2;1/bluePirate/189/122/2;1/bluePirateCaptain/185/130/2||crew=CherryBomb:10|Dynamite:1|cap=CherryBomb:10|Dynamite:5|Dynamite:4|TidalWave:1|air=CherryBomb:10|Dynamite:10|Cannon:3|Anchor:2|ParachuteBomb:2|TidalWave:1|feats=GiantRibs,LeviathanTentacle",
-            "storm_cape|107|200x200|Storm|107|28|5|28|8|0/redPirate/50/96/5;0/redPirate/55/103/5;0/redPirate/60/96/5;0/redPirateCaptain/58/104/5;1/bluePirate/153/96/2;1/bluePirate/158/103/2;1/bluePirate/163/96/2;1/bluePirateCaptain/161/104/2||crew=CherryBomb:10|Dynamite:2|cap=CherryBomb:10|Dynamite:5|Dynamite:5|Cannon:1|air=CherryBomb:10|TidalWave:2|Anchor:2|Seagull:2|Dynamite:2|ParachuteBomb:10|feats=LeviathanTentacle,GiantRibs",
-            "sunken_gate|108|280x280|Dusk|108|46|7|40|12|0/redPirate/96/134/5;0/redPirate/103/142/5;0/redPirate/96/144/5;0/redPirate/104/133/5;0/redPirate/97/148.5/5;0/redPirateCaptain/104/148/5;1/bluePirate/201/171/2;1/bluePirate/209/179/2;1/bluePirate/217/171/2;1/bluePirate/203/187/2;1/bluePirate/213/188/2;1/bluePirateCaptain/221/180/2||crew=CherryBomb:10|Dynamite:2|cap=CherryBomb:10|Dynamite:5|Dynamite:5|VoodooDoll:1|Anchor:1|air=CherryBomb:10|Dynamite:1|Boulder:1|Banana:1|Mine:1|ParachuteBomb:1|RumBottle:1|PiecesOfEight:1|GunpowderBarrel:1|WoodenCrate:1|Anchor:1|Seagull:1|TidalWave:1|VoodooDoll:1|Cannon:1|feats=GiantRibs,LeviathanTentacle,WhaleSurfacing",
-        };
+        static readonly string[] FrozenWorldMapSignatures = { };
 
         /// <summary>
         /// 关卡（现存样板关）骨架：关卡号|资产名|显示名|格子|waterTileY|maxChests|sourceXmlMaxChests
@@ -228,6 +225,9 @@ namespace PirateCrew.Battle.Tests
         public void WorldMaps_MatchFrozenLegacySignature(
             [ValueSource(nameof(WorldMapPayloads))] WorldMapAssetPayload payload)
         {
+            Assume.That(LevelAssetLibrary.WorldMaps.Count, Is.GreaterThan(0),
+                "当前工程零海图（八张世界海图已删除待重做），冻结期望值表待重做后自动生效");
+
             string actual = WorldMapSignature(payload);
             string expected = FindSignature(FrozenWorldMapSignatures, payload.id + "|");
             Assert.That(expected, Is.Not.Null, payload.id + " 不在冻结期望值表里（新增海图要同时补表与 golden JSON）");
@@ -254,24 +254,30 @@ namespace PirateCrew.Battle.Tests
         /// 解析优先级：① 出图覆盖 → ② 选关页点选的样板关 → ③ 待战海图 → ④ 兜底关 1。
         /// 本用例钉 ①③④（调用点显式传 <c>pendingShowcaseLevel: 0</c> 表明"无样板关待战"）；
         /// 第 ② 级与两个待战槽位的互斥/复位在 <c>ShowcaseLevelSelectionTests</c>。
+        ///
+        /// 【零海图口径】待战海图通道在数据上恒不可用（八张海图已删除、目录为空），
+        /// 故第 ③ 级用**合成海图**注入（<see cref="SyntheticMap"/>）——本用例验的是解析器的分叉规则，
+        /// 与"目录里有没有图"无关。
         /// </summary>
         [Test]
         public void LevelSourceResolver_PriorityIsUnchanged()
         {
+            WorldMapDefinition synthetic = SyntheticMap();
+
             // ① -artReviewLevel 覆盖命中关卡资产 → 走关卡资产（哪怕同时有待战海图）
             //    用关卡 3 而非关卡 1：只有非兜底关号才能证明"覆盖优先于兜底"。
             //    （关卡 2 已删除（2026-09-22），号段有意不连续——覆盖到不存在的关号会落到
             //    兜底关 1 并留告警，不再能承担这条断言。）
-            LevelSource overridden = LevelSourceResolver.Resolve(3, WorldMapCatalog.All[0], 0);
+            LevelSource overridden = LevelSourceResolver.Resolve(3, synthetic, 0);
             Assert.That(overridden, Is.Not.Null);
             Assert.That(overridden.Kind, Is.EqualTo(LevelSourceKind.Showcase));
             Assert.That(overridden.LevelNumber, Is.EqualTo(3));
             Assert.That(overridden.Notice, Is.Null, "覆盖命中时不该有回落告警");
 
             // ② 无覆盖 + 有待战海图 → 走海图
-            LevelSource worldMap = LevelSourceResolver.Resolve(0, WorldMapCatalog.All[0], 0);
+            LevelSource worldMap = LevelSourceResolver.Resolve(0, synthetic, 0);
             Assert.That(worldMap.Kind, Is.EqualTo(LevelSourceKind.WorldMap));
-            Assert.That(worldMap.WorldMap.Id, Is.EqualTo(WorldMapCatalog.All[0].Id));
+            Assert.That(worldMap.WorldMap.Id, Is.EqualTo(synthetic.Id));
             Assert.That(worldMap.CameraWorldSpan, Is.GreaterThan(0f), "海图必须给出相机全景档的图幅");
             Assert.That(worldMap.AmbientTier, Is.Not.Null, "海图必须有氛围档");
 
@@ -287,7 +293,7 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void LevelSourceResolver_TerrainAndWaterComeFromSource()
         {
-            LevelSource worldMap = LevelSourceResolver.Resolve(0, WorldMapCatalog.All[0], 0);
+            LevelSource worldMap = LevelSourceResolver.Resolve(0, SyntheticMap(), 0);
             Assert.That(worldMap.Terrain, Is.Not.Null);
             Assert.That(worldMap.Terrain.WidthTiles, Is.EqualTo(worldMap.Plan.WidthTiles));
             Assert.That(worldMap.WaterWorldY, Is.EqualTo(LevelGeometry.WaterSurfaceY));
@@ -299,20 +305,49 @@ namespace PirateCrew.Battle.Tests
             Assert.That(level.Terrain.DepthTiles, Is.EqualTo(ShowcaseLevels.DepthTiles));
         }
 
+        /// <summary>
+        /// 构造一张最小合成海图，供上面两条用例走"待战海图"分支（零海图下目录里没有真图）。
+        /// 内容全空、只给 span 与氛围档——<c>LevelSourceResolver</c> 的纯函数重载只读这几项。
+        /// </summary>
+        static WorldMapDefinition SyntheticMap()
+        {
+            return new WorldMapDefinition(
+                id: "synthetic_map", displayName: "合成图", levelNumber: WorldMapCatalog.FirstLevelNumber,
+                spanX: 100f, spanZ: 100f, ambientTier: "Noon",
+                crewWeapons: null, captainWeapons: null,
+                terrain: new List<WorldKitPlacement>(),
+                horizon: new List<WorldKitPlacement>(),
+                props: new List<WorldPropPlacement>(),
+                spawns: new List<WorldMapSpawn>(),
+                airdropPool: new List<WeaponStack>(),
+                horizonSeed: 0,
+                horizonFeatures: new List<string>());
+        }
+
         // ------------------------------------------------------------------
         // 签名与辅助
         // ------------------------------------------------------------------
 
-        static readonly string[] WorldMapIds =
-        {
-            "wreck_hymn", "atoll_ring", "ghost_harbor", "turtle_back",
-            "mangrove_veil", "spiral_throne", "storm_cape", "sunken_gate",
-        };
+        /// <summary>
+        /// 现役海图 id 表。**当前为空**：八张世界海图（101–108）已删除待重做，
+        /// 其 `.asset` / `_golden/*.json` / 场景一并从仓库移除；海图重做后把 id 与冻结签名一并补回
+        /// （表为空时上面与海图相关的循环与 <c>[ValueSource]</c> 用例自动零用例/真空通过）。
+        /// </summary>
+        static readonly string[] WorldMapIds = { };
 
         static readonly string[] LevelAssetNames = { "cloud_walk", "sky_island", "chem_plant", "chem_plant_team" };
 
         static IEnumerable<WorldMapAssetPayload> WorldMapPayloads()
         {
+            // 零海图（八张海图已删除待重做）时产出一个 null 哨兵：NUnit 对**空** [ValueSource] 的
+            // 处理两套 runner 不一致（无头验证台静默零用例，Unity EditMode 记成失败），
+            // 给一个占位用例、由用例开头的 Assume 跳成 Skipped，海图放回来后逐图用例自动恢复。
+            if (LevelAssetLibrary.WorldMaps.Count == 0)
+            {
+                yield return null;
+                yield break;
+            }
+
             foreach (WorldMapAssetPayload payload in LevelAssetLibrary.WorldMaps)
                 yield return payload;
         }

@@ -13,10 +13,23 @@ namespace PirateCrew.Tests
     /// 方法组转换每次生成新委托实例，Reset 不退订会让 EventBus 里残留监听者，
     /// Reset → EnsureBootstrapped 往返后结算路径就站在双份订阅的悬崖边（架构违规：
     /// 订阅方必须退订，见 <c>Core/EventBus</c> 约定 3）。
+    ///
+    /// 【零海图口径】八张世界海图已删除待重做，待战海图通道（<c>WorldMapRuntime.SetPending</c>）
+    /// 在数据上恒不可用，故「结算归属」这一前置改由 <c>CampaignApi.Manager.SelectMap</c> 直接注入；
+    /// 结算链路与订阅纪律本身不变（见 <c>CampaignSettlementTests</c> 类头同一口径）。
+    /// 又：进度写入按海图目录校验 id，零海图下"星数写进了进度表"这一断言没有可写对象 ⇒
+    /// 该用例以 <c>Assume</c> 前置跳成 Skipped；只依赖 <c>LastSettlement</c> 的两条（双订阅症状
+    /// 体现在星级读数上，与进度写入无关）照常跑。
     /// 纯 C#：只碰 EventBus / CampaignApi / CrewManagementApi 静态态，无 Unity 对象，无头可跑。
     /// </summary>
     public class CampaignApiResetTests
     {
+        /// <summary>结算归属键（= 目录里的合法海图 id；零海图下不存在）。</summary>
+        const string SettlementKey = "wreck_hymn";
+
+        /// <summary>零海图时"要写入进度"的用例统一以这条前置跳成 Skipped。</summary>
+        const string NoMapSkipReason = "当前工程零海图（八张世界海图已删除待重做），用例待重做后自动生效";
+
         [SetUp]
         public void SetUp()
         {
@@ -59,12 +72,14 @@ namespace PirateCrew.Tests
         [Test]
         public void ResetThenEnsureBootstrapped_PublishOnce_TriggersOnce()
         {
+            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
+
             CampaignApi.EnsureBootstrapped();
             CampaignApi.Reset();
             CampaignApi.EnsureBootstrapped();
 
-            WorldMapRuntime.SetPending("wreck_hymn");
-            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(101, 2));
+            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(1, 2));
+            CampaignApi.Manager.SelectMap(SettlementKey);
             EventBus.Publish(BattleEvents.CrewDied, new CrewDiedPayload(0, 0, "redPirate"));
             EventBus.Publish(BattleEvents.MatchFinished, new MatchFinishedPayload(
                 CampaignManager.PlayerWinOutcome, 1200, true));
@@ -72,7 +87,7 @@ namespace PirateCrew.Tests
             Assert.That(CampaignApi.LastSettlement, Is.Not.Null, "一局恰好结算一次");
             Assert.That(CampaignApi.LastSettlement?.Stars, Is.EqualTo(2),
                 "发布一次 crew_died 只允许计一次阵亡（双订阅会把 1 死计成 2 → 1★）");
-            Assert.That(CampaignApi.Progress.GetStars("wreck_hymn"), Is.EqualTo(2));
+            Assert.That(CampaignApi.Progress.GetStars(SettlementKey), Is.EqualTo(2));
         }
 
         /// <summary>重复 EnsureBootstrapped 不叠加订阅（EventBus 去重 + 幂等标志的既有保证，回归保护）。</summary>
@@ -83,8 +98,8 @@ namespace PirateCrew.Tests
             CampaignApi.EnsureBootstrapped();
             CampaignApi.EnsureBootstrapped();
 
-            WorldMapRuntime.SetPending("wreck_hymn");
-            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(101, 2));
+            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(1, 2));
+            CampaignApi.Manager.SelectMap(SettlementKey);
             EventBus.Publish(BattleEvents.CrewDied, new CrewDiedPayload(0, 0, "redPirate"));
             EventBus.Publish(BattleEvents.MatchFinished, new MatchFinishedPayload(
                 CampaignManager.PlayerWinOutcome, 1200, true));
@@ -105,8 +120,8 @@ namespace PirateCrew.Tests
             Assert.That(EventBus.HasListeners(BattleEvents.MatchFinished), Is.True,
                 "Reset 后再 EnsureBootstrapped 应恢复订阅");
 
-            WorldMapRuntime.SetPending("wreck_hymn");
-            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(101, 2));
+            EventBus.Publish(BattleEvents.BattleStarted, new BattleStartedPayload(1, 2));
+            CampaignApi.Manager.SelectMap(SettlementKey);
             EventBus.Publish(BattleEvents.MatchFinished, new MatchFinishedPayload(
                 CampaignManager.PlayerWinOutcome, 900, true));
 

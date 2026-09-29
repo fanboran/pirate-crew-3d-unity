@@ -26,7 +26,7 @@
 | 场景常量（取景/像素档位） | `Assets/Scripts/PirateCrew/Rendering/Pixelart/PixelartPilotScene.cs`、`PixelartLevelScene.cs` | 同上；**取景口径的唯一来源**，装配器与出图脚本都读它 |
 | 出图脚本（播放器侧） | `Assets/Scripts/PirateCrew/ArtReview/PlayerArtCapture.cs` | 与既有出图链同文件（`-artReviewOut` / `-toonPilotOut` / `-pixelartOut` 共用一个入口） |
 | 判据脚本 | `tools/pixel-review/judge_pixelart_pilot.py`（另 `ink_gap_probe.py`） | 仓库工具目录（Python） |
-| 场景（试点 + 样板关 + 八张海图） | `Assets/Scenes/PixelartPilot.unity`、`PixelartCloud.unity`（关卡 1）、`PixelartSkyIsland.unity`（关卡 3）、`PixelartMap101.unity`…`PixelartMap108.unity`（海图 101–108）；**关卡 2 已删除**（2026-09-22），关卡号有意不连续 | Unity 场景必须在 `Assets/Scenes/`（Build Settings 与出图链按名切换） |
+| 场景（试点 + 样板关） | `Assets/Scenes/PixelartPilot.unity`、`PixelartCloud.unity`（关卡 1）、`PixelartSkyIsland.unity`（关卡 3）、`PixelartChemPlant.unity` / `PixelartChemPlantTeam.unity`（关卡 4·5，提案/待定）；**关卡 2 已删除**（2026-09-22）、**八张世界海图（101–108）已删除待重做**，关卡号有意不连续 | Unity 场景必须在 `Assets/Scenes/`（Build Settings 与出图链按名切换） |
 | 档案（每轮出图 + 判据读数） | `docs/images/pixelart-path/r*/README.md` | 文档区 |
 | 实现口径 / 接口契约 | `docs/技术/渲染/像素化着色路径.md`、`像素化着色路径-P4P5接口契约.md` | 文档区 |
 
@@ -37,12 +37,12 @@
 | 想找什么 | 单一来源 |
 | --- | --- |
 | 像素档位（一个艺术像素占几屏幕像素）、俯角/方位/机位距离、可见米数梯子 | `PixelartPilotScene`（`PixelScale` / `PitchDegrees` / `AzimuthDegrees` / `CameraDistance` / `Wide|Mid|CloseVisibleMeters`）。**俯角也是游戏内相机的来源**：`BattleCameraController.OrthoPitchDegrees` 直接引用 `PitchDegrees`（30°），出图与游戏内必须是同一个投影 |
-| **真实内容关卡的场景名/构图中心/可见米数** | `PixelartLevelScene`（`All` 表；一行一关，含 `ShotPrefix` 与 `CameraDistanceFor`）；样板关 1/3 + 海图 101–108 |
+| **真实内容关卡的场景名/构图中心/可见米数** | `PixelartLevelScene`（`All` 表；一行一关，含 `ShotPrefix` 与 `CameraDistanceFor`）；样板关 1/3/4/5（海图 101–108 已删除待重做，取景行随之移除） |
 | 双档缓冲尺寸、G-buffer/结果缓冲的分配与随机写位 | `PixelartCameraRig`（`NewBuffer` / `NewColor` 调用处） |
 | 全局纹理与常量名（`_Pixelart*`）、pass 名、asset 路径、特征顺序 | `PixelartPath`（**唯一登记处**，别在别处写字面量） |
 | 装配顺序（7 个 Feature 的执行次序） | `PixelartPathInstaller.CastFeatureOrder` |
 | 关卡试点场景装配（含空岛合成、派生材质） | `PixelartLevelPilotSetup`（编辑器侧）；共用件 `PixelartStageKit` |
-| 海图试点场景装配（`WorldMapComposer.Build` 合成 + 远景环排除 + 站面三档显式材质） | `PixelartWorldMapPilotSetup`（编辑器侧） |
+| 海图试点场景装配（`WorldMapComposer.Build` 合成 + 远景环排除 + 站面三档显式材质） | `PixelartWorldMapPilotSetup`（编辑器侧）；**当前海图目录为空，跑它只会报"没有可烘的内容"** |
 | 逐物体材质参数的配方（色带档/描边开关/吸附/抖动图案） | `PixelartStageKit.EnsureMaterial` |
 | 太阳高度/方位、环境暗部色的取值理由 | `PixelartStageKit.CreateSunAndAmbient`（为什么 58° 写在那里） |
 | 出图档位（机位/抖动/调试档） | `PlayerArtCapture.PilotShots` / `LevelShots` |
@@ -59,15 +59,13 @@ P="F:/VSCode/pirate-crew-3d-unity/pirate-crew"
 "$U" -batchmode -nographics -quit -projectPath "$P" \
   -executeMethod PirateCrew.EditorTools.PixelartPathInstaller.Install -logFile -
 
-# ② 烘试点场景（图元几何，验机制）、样板关试点场景（L01 云场 / L03 空岛，真实内容）、
-#    八张海图试点场景（关卡 101–108，真实内容；一次烘一批）
+# ② 烘试点场景（图元几何，验机制）、样板关试点场景（L01 云场 / L03 空岛 / L04·L05 化工厂，真实内容）
 "$U" -batchmode -nographics -quit -projectPath "$P" \
   -executeMethod PirateCrew.EditorTools.PixelartPilotSetup.BuildAll -logFile -
 "$U" -batchmode -nographics -quit -projectPath "$P" \
   -executeMethod PirateCrew.EditorTools.PixelartLevelPilotSetup.BuildAll -logFile -
-"$U" -batchmode -nographics -quit -projectPath "$P" \
-  -executeMethod PirateCrew.EditorTools.PixelartWorldMapPilotSetup.BuildAll -logFile -
-#    只烘一张海图（调试）：把 BuildAll 换成 BuildLevel101…BuildLevel108
+#    海图试点场景（八张，关卡 101–108）已随海图删除待重做：装配器
+#    PixelartWorldMapPilotSetup.BuildAll 仍在，但作用域为空、跑它会报"没有可烘的内容"。
 
 # ③ 出包（开发版；全部试点场景都在开发场景集里，不进发行包）
 "$U" -batchmode -nographics -quit -projectPath "$P" \
@@ -78,8 +76,8 @@ P="F:/VSCode/pirate-crew-3d-unity/pirate-crew"
 "$OUT/PirateCrew3D.exe" -pixelartOut "$OUT/export/pixelart-r8"                  # 试点场景（档位名 pa-*）
 "$OUT/PirateCrew3D.exe" -pixelartOut "$OUT/export/pixelart-l1-r9" -pixelartLevel 1   # 关卡 1（pl1-*）
 "$OUT/PirateCrew3D.exe" -pixelartOut "$OUT/export/pixelart-l3-r9" -pixelartLevel 3   # 关卡 3（pl3-*）
-"$OUT/PirateCrew3D.exe" -pixelartOut "$OUT/export/pixelart-map101" -pixelartLevel 101 # 海图（pl101-*）
-"$OUT/PirateCrew3D.exe" -pixelartOut "$OUT/export/pixelart-map108" -pixelartLevel 108 # 海图（pl108-*）
+#    海图出图（-pixelartLevel 101…108）随海图删除待重做：海图回来后在 PixelartLevelScene
+#    补回取景行、并在 BuildScenes.PixelartLevelScenes 登记场景即可恢复。
 python tools/pixel-review/judge_pixelart_pilot.py export/pixelart-r8
 python tools/pixel-review/judge_pixelart_pilot.py export/pixelart-l1-r9
 ```
