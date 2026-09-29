@@ -179,3 +179,19 @@
 3. **`3D空间模型对齐.md` §7「Flash 数值不变」是否算背书**：本清单**不认**它（只声明不改、无正面理由）；若创始人认为「不变」即为有效口径，则 §A/§B 多数条目会翻转成「留」。
 4. **依赖面**：B1/B2（武器表/枚举）、B5/B10（BalanceConfig）被武器 SO、战斗规则、AI、关卡 XML 键与大批测试直接消费；D6 被预制体生成与调试场消费——**改依据可低风险，删则牵一发动全身**。E1/E2 已被裁决整批删除，属低风险。
 5. **覆盖粒度**：本清单以「一个可独立裁决的数值/标识符」为一行；`WeaponCatalog` 17 种武器、`AiEvaluation` 数十个 §6 常量按「同一依据的成组项」合并为一行，未拆到单个字面量级。
+
+## 执行结果（协调者按创始人裁决落地）
+
+- **「改依据」68 项已全部执行**（50 文件，纯注释/md，数值与逻辑未动）。
+- **「删」9 项的实际处置**——协调者逐条查引用面后**只删 3 项**：
+  - **已删**：一代遗留化石字段 `originalXmlPlayers` / `sourceXmlMaxChests` / `maxChests`
+    （自注「仅存档备查」「宝箱未实装占位」），连根拔了 资产载荷 / `LevelData` / `BattlePlan` /
+    资产 IO / golden JSON / `.asset` / 冻结签名测试共 17 文件（提交 `0e87ea6f`）。
+  - **未删（保留，理由如下）**：
+    - `ReferenceHeight` / `UnitsPerTile` / `TargetUnitHeight` / `ReferenceToWorldScale`——
+      它们是**角色视觉尺度的定义**（1.85 单位高、每格单位数），现役 `CameraFraming` 等在消费；
+      删掉等于删角色尺度，撞 AGENTS「角色模型不许改」。上一轮已改成中性名，依据问题已消。
+    - `waterTileY` ——归属**「地图资产统一（全米）」**那条任务（要连格容器一起清），此处单独删会留半截状态。
+    - 世界图分层军火（`crewWeapons` / `captainWeapons`）——海图虽已删，但**管线刻意保留待重做**，
+      `WorldMapLoadoutTests` 仍在消费；先删与那个决定打架。
+- **仍待处理**：`docs/项目/交接与恢复指南.md` 与 `Assets/Editor/TextSampleBuilder.cs`（创始人在建，未动）。
