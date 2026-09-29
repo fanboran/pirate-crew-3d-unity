@@ -85,7 +85,7 @@ namespace PirateCrew.EditorTools
                 new Vector3(-2.4f, 1.0f, 1.2f), new Vector3(0.6f, 2f, 0.6f), prop);
 
             // ---------------- 中央角色骨架（网格由控制器生成；两件式同正式角色口径）----------------
-            var subject = BuildSubjectSkeleton(root, crewRed);
+            var subject = BuildSubjectSkeleton(root.transform, crewRed);
 
             // ---------------- 光（投影关：见类头）----------------
             Light sun = PixelartStageKit.CreateSunAndAmbient(root.transform);
