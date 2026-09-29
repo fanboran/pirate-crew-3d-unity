@@ -504,6 +504,8 @@ namespace PirateCrew.SceneArt.Showcase
         /// 草簇：<paramref name="blades"/> 片叶（双面薄片）从一点向外斜出。
         /// 用 <see cref="MeshBuffers.AddLeaf"/>（沿方向"中间隆起、末端下垂"的折面条），
         /// 段数取 1 即单片 4 面 —— 72 簇也只 1200 面。
+        /// 【法线强制朝上】t3ssel8r「草按地形法线着色」口径的几何版：整簇与地面落进同一
+        /// 光照档，读作地上的一块色斑而不是一撮立着的面片（出处见 GrassPatchRules 头注）。
         /// </summary>
         public static void AddGrassTuft(MeshBuffers b, Vector3 basePos, float scale, int seed, int blades = 5)
         {
@@ -517,7 +519,7 @@ namespace PirateCrew.SceneArt.Showcase
                 float tilt = 0.28f + 0.55f * SceneArtHash.Hash01(seed, i, 7);
                 float len = scale * (0.72f + 0.55f * SceneArtHash.Hash01(seed, i, 11));
                 Vector3 dir = new Vector3(Mathf.Cos(ang) * tilt, 1f, Mathf.Sin(ang) * tilt);
-                b.AddLeaf(basePos, dir, len, scale * 0.30f, scale * 0.16f, 1);
+                b.AddLeaf(basePos, dir, len, scale * 0.30f, scale * 0.16f, 1, Vector3.up);
             }
         }
 

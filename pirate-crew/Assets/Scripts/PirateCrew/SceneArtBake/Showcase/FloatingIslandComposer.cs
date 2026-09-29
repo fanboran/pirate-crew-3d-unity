@@ -837,16 +837,16 @@ namespace PirateCrew.SceneArt.Showcase
                     SceneArtHash.Hash01(seed, i, 733) * 360f);
             }
 
-            // 苔草：柱底与台基边
-            for (int i = 0; i < 7; i++)
-            {
-                float ang = spec.RuinAngle + Mathf.PI * 2f * i / 7f + SceneArtHash.Hash01(seed, i, 739) * 0.7f;
-                float r = 2.2f + 1.9f * SceneArtHash.Hash01(seed, i, 743);
-                Vector3 p = new Vector3(center.x + Mathf.Cos(ang) * r, 0f, center.z + Mathf.Sin(ang) * r);
-                p.y = PlateauY(spec, p.x, p.z) + 0.02f;
-                IslandPrimitives.AddGrassTuft(buffers.GrassMid, p,
-                    0.34f + 0.32f * SceneArtHash.Hash01(seed, i, 751), seed + i * 31, 5);
-            }
+                // 苔草：柱底与台基边（档位随世界噪声斑块，与主草坪同场连贯）
+                for (int i = 0; i < 7; i++)
+                {
+                    float ang = spec.RuinAngle + Mathf.PI * 2f * i / 7f + SceneArtHash.Hash01(seed, i, 739) * 0.7f;
+                    float r = 2.2f + 1.9f * SceneArtHash.Hash01(seed, i, 743);
+                    Vector3 p = new Vector3(center.x + Mathf.Cos(ang) * r, 0f, center.z + Mathf.Sin(ang) * r);
+                    p.y = PlateauY(spec, p.x, p.z) + 0.02f;
+                    IslandPrimitives.AddGrassTuft(GrassPatchRules.SelectBuffer(buffers, p), p,
+                        0.34f + 0.32f * SceneArtHash.Hash01(seed, i, 751), seed + i * 31, 5);
+                }
         }
 
         // ==================================================================
@@ -1071,14 +1071,18 @@ namespace PirateCrew.SceneArt.Showcase
             }
 
             // 草簇（不占预留区，但允许靠近，故不写入 zones —— 否则会把顶面塞满排斥圈）
+            // 【档位】t3ssel8r 口径：世界噪声双阈值选三档，相邻簇连成大斑块（替换逐簇掷硬币）。
             for (int i = 0; i < spec.GrassTuftCount; i++)
             {
                 if (!TryFindSpot(seed + 47, i, spec, keepOut, 0.08f, 0.97f, out Vector3 p))
                     continue;
 
-                MeshBuffers target = SceneArtHash.Hash01(seed, i, 991) > 0.72f
-                    ? buffers.GrassLight : buffers.GrassMid;
-                IslandPrimitives.AddGrassTuft(target, p, 0.28f + 0.34f * SceneArtHash.Hash01(seed, i, 997),
+                float tuftScale = 0.28f + 0.34f * SceneArtHash.Hash01(seed, i, 997);
+                // 稀有高株 accent（原版 _AccentFrequency/_AccentHeight 口径：低频、高出一截）【AI 提案】
+                if (SceneArtHash.Hash01(seed, i, 1021) < 0.06f)
+                    tuftScale *= 1.45f;
+
+                IslandPrimitives.AddGrassTuft(GrassPatchRules.SelectBuffer(buffers, p), p, tuftScale,
                     seed + i * 13, 4 + (int)(SceneArtHash.Hash01(seed, i, 1009) * 3f));
             }
 

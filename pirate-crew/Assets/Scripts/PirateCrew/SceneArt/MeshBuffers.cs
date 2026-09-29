@@ -297,6 +297,23 @@ namespace PirateCrew.SceneArt
         /// </summary>
         public void AddLeaf(Vector3 basePos, Vector3 direction, float length, float width, float droop, int segments = 3)
         {
+            AddLeafCore(basePos, direction, length, width, droop, segments, null);
+        }
+
+        /// <summary>
+        /// 指定法线版草叶：几何与上完全同构，但每顶点法线**强制写 <paramref name="normalOverride"/>**，
+        /// 不吃绕序推出的面法线。用途：草叶按地形法线着色（t3ssel8r 口径，见 GrassPatchRules）——
+        /// 整簇草与地面落进同一光照档，读作"地上的一块色斑"而不是一撮立着的面片。
+        /// </summary>
+        public void AddLeaf(Vector3 basePos, Vector3 direction, float length, float width, float droop,
+            int segments, Vector3 normalOverride)
+        {
+            AddLeafCore(basePos, direction, length, width, droop, segments, normalOverride);
+        }
+
+        void AddLeafCore(Vector3 basePos, Vector3 direction, float length, float width, float droop,
+            int segments, Vector3? normalOverride)
+        {
             segments = Mathf.Max(1, segments);
             Vector3 dir = direction.normalized;
             Vector3 side = Vector3.Cross(dir, Vector3.up);
@@ -317,8 +334,15 @@ namespace PirateCrew.SceneArt
                 Vector3 c = next + side * w * 0.5f;
                 Vector3 d = next - side * w * 0.5f;
 
-                Vector3 n = Vector3.Cross(b - a, c - a).normalized;
-                AddTrianglesDoubleSided(a, b, c, d, n);
+                if (normalOverride.HasValue)
+                {
+                    AddTrianglesDoubleSidedWithNormal(a, b, c, d, normalOverride.Value, normalOverride.Value);
+                }
+                else
+                {
+                    Vector3 n = Vector3.Cross(b - a, c - a).normalized;
+                    AddTrianglesDoubleSided(a, b, c, d, n);
+                }
 
                 prev = next;
                 prevW = w * 0.5f;
@@ -361,6 +385,55 @@ namespace PirateCrew.SceneArt
                 AddTriangle(a, b, c);
                 AddTriangle(a, c, d);
             }
+        }
+
+        /// <summary>
+        /// 指定法线版双面薄片：绕序/朝向判定与 <see cref="AddTrianglesDoubleSided"/> 完全同构，
+        /// 但每个顶点的法线**强制写 <paramref name="forcedNormal"/>**，不吃绕序推出的面法线。
+        /// 平面着色下这决定"这一片被照成哪一档"——草叶强制朝上即与地面同档（t3ssel8r 口径）。
+        /// </summary>
+        public void AddTrianglesDoubleSidedWithNormal(Vector3 a, Vector3 b, Vector3 c, Vector3 d,
+            Vector3 normalHint, Vector3 forcedNormal)
+        {
+            Vector3 n = Vector3.Cross(b - a, d - a);
+            if (n.sqrMagnitude < 1e-16f)
+                return;
+
+            n.Normalize();
+            bool frontIsPositive = Vector3.Dot(n, normalHint) >= 0f;
+            Vector3 f = forcedNormal.normalized;
+
+            // 正面（绕序同构，法线强制）
+            if (frontIsPositive)
+            {
+                AddTriangleWithNormal(a, b, c, f);
+                AddTriangleWithNormal(a, c, d, f);
+            }
+            else
+            {
+                AddTriangleWithNormal(a, d, c, f);
+                AddTriangleWithNormal(a, c, b, f);
+            }
+
+            // 反面（绕序相反）
+            if (frontIsPositive)
+            {
+                AddTriangleWithNormal(a, c, b, f);
+                AddTriangleWithNormal(a, d, c, f);
+            }
+            else
+            {
+                AddTriangleWithNormal(a, b, c, f);
+                AddTriangleWithNormal(a, c, d, f);
+            }
+        }
+
+        /// <summary>强制法线版单三角：顶点/绕序照写，法线不经绕序推导、直接落库。</summary>
+        void AddTriangleWithNormal(Vector3 a, Vector3 b, Vector3 c, Vector3 normal)
+        {
+            Append(a, normal);
+            Append(b, normal);
+            Append(c, normal);
         }
 
         /// <summary>水平圆盘（贝壳/泡沫贴片/水膜）：<paramref name="up"/> 为盘面法线。</summary>
