@@ -48,9 +48,9 @@ namespace PirateCrew.Data
             data.Add("levelNumber", payload.levelNumber);
             data.Add("assetName", payload.assetName);
             data.Add("displayName", payload.displayName);
-            data.Add("widthTiles", payload.widthTiles);
-            data.Add("depthTiles", payload.depthTiles);
-            data.Add("waterTileY", payload.waterTileY);
+            data.Add("sizeX", payload.sizeX);
+            data.Add("sizeZ", payload.sizeZ);
+            data.Add("waterWorldY", payload.waterWorldY);
             data.Add("airdropPool", WeaponStackNodes(payload.airdropPool));
 
             var units = new Node(NodeKind.Seq);
@@ -60,8 +60,8 @@ namespace PirateCrew.Data
                 var item = new Node(NodeKind.Map);
                 item.Add("typeName", u.typeName);
                 item.Add("teamIndex", u.teamIndex);
-                item.Add("gridX", u.gridX);
-                item.Add("gridY", u.gridY);
+                item.Add("x", u.x);
+                item.Add("z", u.z);
                 item.Add("luck", u.luck);
                 item.Add("initialWeapons", WeaponStackNodes(u.initialWeapons));
                 units.Add(item);
@@ -69,16 +69,16 @@ namespace PirateCrew.Data
             data.Add("units", units);
 
             var terrain = new Node(NodeKind.Map);
-            terrain.Add("widthTiles", payload.terrain.widthTiles);
-            terrain.Add("depthTiles", payload.terrain.depthTiles);
+            terrain.Add("sizeX", payload.terrain.sizeX);
+            terrain.Add("sizeZ", payload.terrain.sizeZ);
             terrain.Add("blockWorldHeight", payload.terrain.blockWorldHeight);
-            var blocks = new Node(NodeKind.Seq);
-            if (payload.terrain.blocks != null)
+            var heights = new Node(NodeKind.Seq);
+            if (payload.terrain.heights != null)
             {
-                for (int i = 0; i < payload.terrain.blocks.Count; i++)
-                    blocks.Add(payload.terrain.blocks[i]);
+                for (int i = 0; i < payload.terrain.heights.Count; i++)
+                    heights.Add(payload.terrain.heights[i]);
             }
-            terrain.Add("blocks", blocks);
+            terrain.Add("heights", heights);
             data.Add("terrain", terrain);
 
             var pieces = new Node(NodeKind.Seq);
@@ -428,6 +428,12 @@ namespace PirateCrew.Data
             public void Add(int value)
             {
                 Children.Add(new Node(NodeKind.Scalar) { Scalar = value.ToString(CultureInfo.InvariantCulture) });
+            }
+
+            /// <summary>序列项（标量，米高度等浮点；整数型不带小数点，同 <see cref="LevelAssetJson.Number"/>）。</summary>
+            public void Add(float value)
+            {
+                Children.Add(new Node(NodeKind.Scalar) { Scalar = LevelAssetJson.Number(value) });
             }
 
             /// <summary>序列项（标量字符串）。</summary>

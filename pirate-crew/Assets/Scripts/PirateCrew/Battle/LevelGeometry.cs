@@ -20,10 +20,10 @@ namespace PirateCrew.Battle
         /// <summary>该单位的 luck（§4.1，AI 随机投掷次数基数）。</summary>
         public readonly int Luck;
 
-        /// <summary>原版 XML 瓦片格 x（§4.3）→ 竞技场横向。</summary>
+        /// <summary>地形采样格 X（由 <see cref="WorldPosition"/> 的 X 反推；只供 <c>TileTerrainGrid</c> 查询）。</summary>
         public readonly int GridX;
 
-        /// <summary>原版 XML 瓦片格 y（§4.3）→ 竞技场**纵深**（3D 重投影，见 LevelGeometry 类头）。</summary>
+        /// <summary>地形采样格 Z（由 <see cref="WorldPosition"/> 的 Z 反推；只供 <c>TileTerrainGrid</c> 查询）。</summary>
         public readonly int GridY;
 
         /// <summary>
@@ -478,19 +478,25 @@ namespace PirateCrew.Battle
 
         static readonly IReadOnlyList<WeaponStack> EmptyWeapons = new WeaponStack[0];
 
-        /// <summary>由纯 C# 关卡数据 <see cref="LevelData"/> 生成出战计划（无头可测路径）。</summary>
-        public static BattlePlan BuildBattlePlan(LevelData data)
+        /// <summary>
+        /// 米尺寸 → 运行时地形采样格数（四舍五入）。
+        /// 采样格只是运行时地形数据的粒度（<see cref="TileWorldSize"/> 米/格），不是对外概念；
+        /// 资产与玩法数值一律用米。
+        /// </summary>
+        public static int CellCount(float meters)
         {
-            return BuildPlan(
-                data.LevelNumber, data.WidthTiles, data.HeightTiles,
-                data.Units);
+            return Mathf.RoundToInt(meters / TileWorldSize);
         }
 
-        static BattlePlan BuildPlan(
-            int levelNumber, int widthTiles, int depthTiles,
-            IReadOnlyList<LevelUnit> units)
+        /// <summary>
+        /// 由纯 C# 关卡数据 <see cref="LevelData"/> 生成出战计划（无头可测路径）。
+        /// 数据已是全米口径：出生点直接用 <c>x/z</c>（世界 X / Z），不再做格→米换算；
+        /// 采样格号（<see cref="SpawnPlanEntry.GridX"/>/<see cref="SpawnPlanEntry.GridY"/>）由米反推，
+        /// 仅供运行时地形查询（<c>TileTerrainGrid.SurfaceWorldY</c>）使用。
+        /// </summary>
+        public static BattlePlan BuildBattlePlan(LevelData data)
         {
-            units = units ?? new List<LevelUnit>();
+            IReadOnlyList<LevelUnit> units = data.Units ?? new List<LevelUnit>();
             var entries = new List<SpawnPlanEntry>(units.Count);
 
             for (int i = 0; i < units.Count; i++)
@@ -500,15 +506,15 @@ namespace PirateCrew.Battle
                     unit.teamIndex,
                     unit.typeName,
                     unit.luck,
-                    unit.gridX,
-                    unit.gridY,
-                    GridToArena(unit.gridX, unit.gridY),
+                    WorldToTileIndex(unit.x),
+                    WorldToTileIndex(unit.z),
+                    new Vector3(unit.x, GroundTopY + UnitPivotHeight, unit.z),
                     unit.initialWeapons));
             }
 
             return new BattlePlan(
-                levelNumber, widthTiles, depthTiles,
-                WaterSurfaceY, entries);
+                data.LevelNumber, CellCount(data.SizeX), CellCount(data.SizeZ),
+                data.WaterWorldY, entries);
         }
 
         /// <summary>空武器列表（供 WeaponInventory / BattlePlan 复用，避免分配）。</summary>

@@ -4,34 +4,30 @@ using System.Collections.Generic;
 namespace PirateCrew.Data
 {
     /// <summary>
-    /// 单场战斗的数据快照（纯 C#）。世界海域图与样板三关共用这一载体：
+    /// 单场战斗的数据快照（纯 C#）。世界海域图与样板关共用这一载体：
     /// 出战计划（<c>LevelGeometry.BuildBattlePlan</c>）只认它，不关心数据来自
-    /// <c>WorldMapCatalog</c> 的手写海图还是 <c>ShowcaseLevels</c> 的手写样板。
+    /// 海图资产还是关卡资产。
     ///
-    /// 【坐标字段说明】<see cref="Units"/> 里的 <c>gridX/gridY</c> 是**逻辑格坐标**
-    ///（1 格 = <c>LevelGeometry.TileWorldSize</c> 世界单位），运行时世界坐标由
-    /// <c>LevelGeometry.WorldPosition</c> 换算。<see cref="WaterTileY"/> 是逻辑水面行，
-    /// <see cref="WaterY"/> 是换算后的运行时像素值（<c>WaterTileY * 32</c>）。
+    /// 【坐标口径】一切数值**全米**：<see cref="SizeX"/> / <see cref="SizeZ"/> 是场地尺幅（米），
+    /// <see cref="WaterWorldY"/> 是水面世界 Y（米，低于即落水），<see cref="Units"/> 里的
+    /// <c>x/z</c> 是单位出生点的世界 X / 世界 Z（米，格心口径）。
     /// </summary>
     public readonly struct LevelData
     {
-        /// <summary>本场战斗的序号（世界图 101–108 / 手作样板关 1、3——关卡 2 已删除，号段有意不连续）。</summary>
+        /// <summary>本场战斗的序号（海图 101–108 / 手作样板关 1、3、4、5——关卡 2 已删除，号段有意不连续）。</summary>
         public readonly int LevelNumber;
 
         /// <summary>战斗名（选关页/结算展示用）。</summary>
         public readonly string Name;
 
-        /// <summary>场地宽度（逻辑格）。</summary>
-        public readonly int WidthTiles;
+        /// <summary>场地 X 尺幅（米）。</summary>
+        public readonly float SizeX;
 
-        /// <summary>场地高度（逻辑格）。</summary>
-        public readonly int HeightTiles;
+        /// <summary>场地 Z 尺幅（米）。</summary>
+        public readonly float SizeZ;
 
-        /// <summary>逻辑水面行。</summary>
-        public readonly float WaterTileY;
-
-        /// <summary>运行时水面 Y（px）= WaterTileY * 32。</summary>
-        public readonly float WaterY;
+        /// <summary>水面世界 Y（米；低于即落水，§4.4）。</summary>
+        public readonly float WaterWorldY;
 
         /// <summary>空投武器池。</summary>
         public readonly IReadOnlyList<WeaponStack> PotentialWeapons;
@@ -42,18 +38,17 @@ namespace PirateCrew.Data
         public LevelData(
             int levelNumber,
             string name,
-            int widthTiles,
-            int heightTiles,
-            float waterTileY,
+            float sizeX,
+            float sizeZ,
+            float waterWorldY,
             IReadOnlyList<WeaponStack> potentialWeapons,
             IReadOnlyList<LevelUnit> units)
         {
             LevelNumber = levelNumber;
             Name = name;
-            WidthTiles = widthTiles;
-            HeightTiles = heightTiles;
-            WaterTileY = waterTileY;
-            WaterY = waterTileY * 32f;               // Controller.water.y = y * 32
+            SizeX = sizeX;
+            SizeZ = sizeZ;
+            WaterWorldY = waterWorldY;
             PotentialWeapons = potentialWeapons;
             Units = units;
         }
@@ -73,11 +68,11 @@ namespace PirateCrew.Data
         /// <summary>队伍索引：0=红队(team1)，1=蓝队(team2)。</summary>
         public int teamIndex;
 
-        /// <summary>逻辑格 x（运行时 px = (gridX+0.5)*32）。</summary>
-        public int gridX;
+        /// <summary>出生点世界 X（米，格心口径）。</summary>
+        public float x;
 
-        /// <summary>逻辑格 y（运行时 py = (gridY+0.5)*32 + 16 - bottomExtent）。</summary>
-        public int gridY;
+        /// <summary>出生点世界 Z（米，格心口径）。</summary>
+        public float z;
 
         /// <summary>该单位的 luck（覆盖默认 5，AI 随机投掷次数基数）。</summary>
         public int luck;
@@ -85,12 +80,12 @@ namespace PirateCrew.Data
         /// <summary>该单位的初始武器栈（count=10 表示无限）。</summary>
         public List<WeaponStack> initialWeapons;
 
-        public LevelUnit(string typeName, int teamIndex, int gridX, int gridY, int luck, List<WeaponStack> initialWeapons)
+        public LevelUnit(string typeName, int teamIndex, float x, float z, int luck, List<WeaponStack> initialWeapons)
         {
             this.typeName = typeName;
             this.teamIndex = teamIndex;
-            this.gridX = gridX;
-            this.gridY = gridY;
+            this.x = x;
+            this.z = z;
             this.luck = luck;
             this.initialWeapons = initialWeapons ?? new List<WeaponStack>();
         }

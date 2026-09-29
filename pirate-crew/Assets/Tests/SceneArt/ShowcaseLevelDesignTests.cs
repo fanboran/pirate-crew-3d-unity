@@ -40,8 +40,11 @@ namespace PirateCrew.SceneArt.Tests
                 for (int i = 0; i < data.Units.Count; i++)
                 {
                     LevelUnit unit = data.Units[i];
-                    Assert.Greater(grid.BlocksAt(unit.gridX, unit.gridY), 0,
-                        "关 " + level + " 单位 " + unit.typeName + "(" + unit.gridX + "," + unit.gridY + ") 应站在实心格上");
+                    int cellX = LevelGeometry.WorldToTileIndex(unit.x);
+                    int cellZ = LevelGeometry.WorldToTileIndex(unit.z);
+                    Assert.Greater(grid.BlocksAt(cellX, cellZ), 0,
+                        "关 " + level + " 单位 " + unit.typeName + "(" + unit.x + "m," + unit.z + "m)"
+                        + " 应站在实心地面上");
                 }
             }
         }

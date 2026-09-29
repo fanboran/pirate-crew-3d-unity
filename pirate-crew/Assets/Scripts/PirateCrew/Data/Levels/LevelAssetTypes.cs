@@ -13,13 +13,26 @@ namespace PirateCrew.Data
     /// 这条判据必须在无头环境也能算；把字段放在纯 C# 载荷上，SO 只是它的宿主，
     /// 于是 YAML/JSON 读写器、校验器、对拍测试全部不需要 Unity 运行时。
     ///
-    /// 【坐标口径】单位格坐标（gridX/gridY）与旧 <see cref="LevelUnit"/> 一致，未做任何换算；
-    /// 世界坐标类字段（海图摆位）单位 = Unity 米，与 <c>LevelGeometry</c> 的尺度口径同源。
+    /// 【坐标口径】**一切数值全米**（Unity 世界单位）：尺幅、出生点、水位、高度场都是米，
+    /// 与 <c>LevelGeometry</c> 的尺度口径同源，不再有"格"这一对外概念。
     /// </summary>
     public static class LevelAssetSchema
     {
         /// <summary>资产 schema 版本；字段语义变化时递增，迁移器按它判断要不要重写。</summary>
-        public const int Version = 1;
+        public const int Version = 2;
+
+        /// <summary>
+        /// 逻辑高度场的**采样间隔**（米/采样格，= <c>LevelGeometry.TileWorldSize</c>）。
+        /// 它只是运行时地形的数据采样粒度（不对玩家与资产暴露）；资产里的栅格尺幅用米写，
+        /// 采样格数由本常量推出，故读写两侧不可能各自漂移。
+        /// </summary>
+        public const float RasterCellSize = 2f;
+
+        /// <summary>米尺寸 → 采样格数（四舍五入）。</summary>
+        public static int RasterCells(float meters)
+        {
+            return (int)Math.Round(meters / RasterCellSize, MidpointRounding.AwayFromZero);
+        }
 
         /// <summary>golden JSON 的 kind 标记（玩家关卡快照）。</summary>
         public const string KindLevel = "level";
@@ -41,34 +54,40 @@ namespace PirateCrew.Data
     }
 
     /// <summary>
-    /// 逻辑高度场——**唯一**的栅格语义（行主序 <c>blocks[x + y * widthTiles]</c>）。
+    /// 逻辑高度场——**唯一**的栅格语义（行主序 <c>heights[x + z * cellCountX]</c>，米）。
     ///
-    /// 【为什么是唯一一份】地面/水面的唯一判据就是"该格块数是否 &gt; 0"：
+    /// 【为什么是唯一一份】地面/水面的唯一判据就是"该处地面高度是否 &gt; 0"：
     /// 海图栅格从站面 box 派生、样板关栅格是手摆真值，但落到运行时都进
     /// <c>TileTerrainGrid</c> 的同一个列式分支；资产里也只存这一种形态。
     ///
-    /// 【块高】<see cref="blockWorldHeight"/> = 单块世界高度（现行 0.5 = <c>LevelGeometry.BlockWorldHeight</c>）。
-    /// 存进资产是为了让资产自解释——尺度常量改了，这里能看出旧资产还没跟上。
+    /// 【全米】采样格尺寸由 <c>LevelAssetSchema.RasterCellSize</c>（米）推出，
+    /// <see cref="heights"/> 存的是**该处地面的世界高度（米）**，不再存"堆了几块"。
+    /// 采样格数 = <see cref="sizeX"/> / <see cref="RasterCellSize"/>（行主序）。
+    ///
+    /// 【块高】<see cref="blockWorldHeight"/> = 运行时地形的单块世界高度（现行 0.5 =
+    /// <c>LevelGeometry.BlockWorldHeight</c>）；它只用于把米高度折回运行时的整数块表示，
+    /// 存进资产是为了让资产自解释。
     /// </summary>
     [Serializable]
     public struct TerrainRaster
     {
-        /// <summary>横向格数。</summary>
-        public int widthTiles;
+        /// <summary>栅格 X 尺幅（米）。</summary>
+        public float sizeX;
 
-        /// <summary>纵深格数。</summary>
-        public int depthTiles;
+        /// <summary>栅格 Z 尺幅（米）。</summary>
+        public float sizeZ;
 
         /// <summary>单块世界高度（米）。</summary>
         public float blockWorldHeight;
 
-        /// <summary>每格堆叠块数，行主序 <c>[x + y * widthTiles]</c>；0 = 该格无块（水面高度基准）。</summary>
-        public List<int> blocks;
+        /// <summary>逐采样格的地面世界高度（米），行主序；0 = 该处无地面（水面高度基准）。</summary>
+        public List<float> heights;
 
-        /// <summary>块数是否与格子尺寸自洽（读入校验用）。</summary>
+        /// <summary>高度数量是否与尺幅自洽（读入校验用）。</summary>
         public bool IsWellFormed =>
-            widthTiles > 0 && depthTiles > 0
-            && blocks != null && blocks.Count == widthTiles * depthTiles;
+            sizeX > 0f && sizeZ > 0f
+            && heights != null
+            && heights.Count == LevelAssetSchema.RasterCells(sizeX) * LevelAssetSchema.RasterCells(sizeZ);
     }
 
     /// <summary>
@@ -118,14 +137,14 @@ namespace PirateCrew.Data
         /// <summary>显示名（结算与选关页展示，如「云端漫步」）。</summary>
         public string displayName;
 
-        /// <summary>场地宽度（逻辑格）。</summary>
-        public int widthTiles;
+        /// <summary>场地 X 尺幅（米）。</summary>
+        public float sizeX;
 
-        /// <summary>场地纵深（逻辑格）。</summary>
-        public int depthTiles;
+        /// <summary>场地 Z 尺幅（米）。</summary>
+        public float sizeZ;
 
-        /// <summary>逻辑水面行（仅存档备查，不参与运行时映射）。</summary>
-        public float waterTileY;
+        /// <summary>水面世界 Y（米；低于即落水，§4.4）。</summary>
+        public float waterWorldY;
 
         /// <summary>空投武器池。</summary>
         public List<WeaponStack> airdropPool = new List<WeaponStack>();
@@ -139,12 +158,12 @@ namespace PirateCrew.Data
         /// <summary>烘焙陈设摆位表（几何在 prefab 里，本表只记"件 id + 摆位"）。</summary>
         public List<BakedPieceEntry> bakedPieces = new List<BakedPieceEntry>();
 
-        /// <summary>转运行时快照（与旧 <c>ShowcaseLevels.BuildLevelData</c> 的返回值逐字段同值）。</summary>
+        /// <summary>转运行时快照（逐字段直搬，不做任何"顺手修一下"）。</summary>
         public LevelData ToLevelData()
         {
             return new LevelData(
-                levelNumber, displayName, widthTiles, depthTiles,
-                waterTileY, airdropPool, units);
+                levelNumber, displayName, sizeX, sizeZ,
+                waterWorldY, airdropPool, units);
         }
     }
 

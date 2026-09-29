@@ -124,7 +124,7 @@ namespace PirateCrew.EditorTools
             TileTerrainGrid grid = LevelRasterFromAsset.Build(payload);
             List<ShowcasePiecePlacement> placements = ShowcaseLevels.BakedPlacements(level);
             Debug.Log(LogTag + " 关卡 " + level + "「" + payload.displayName + "」："
-                + payload.widthTiles + "×" + payload.depthTiles + " 格、块高 " + grid.BlockWorldHeight
+                + payload.sizeX + "m × " + payload.sizeZ + "m、块高 " + grid.BlockWorldHeight
                 + "、出生 " + payload.units.Count + " 人、烘焙件 " + placements.Count + " 件；"
                 + "构图中心 " + view.Target.ToString("0.##") + "（" + view.SceneName + "）。");
 
@@ -228,17 +228,18 @@ namespace PirateCrew.EditorTools
             for (int i = 0; i < payload.units.Count; i++)
             {
                 LevelUnit unit = payload.units[i];
-                int blocks = grid.BlocksAt(unit.gridX, unit.gridY);
+                int cellX = LevelGeometry.WorldToTileIndex(unit.x);
+                int cellZ = LevelGeometry.WorldToTileIndex(unit.z);
+                int blocks = grid.BlocksAt(cellX, cellZ);
                 if (blocks <= 0)
                 {
-                    Debug.LogError(LogTag + " 出生点 (" + unit.gridX + "," + unit.gridY + ") 是空格"
+                    Debug.LogError(LogTag + " 出生点 (" + unit.x + "m," + unit.z + "m) 是空格"
                         + "（" + unit.typeName + "）——高度场里没有可站的面，角色会悬在空中。");
                     continue;
                 }
 
-                Vector2 xz = LevelGeometry.TileCenterWorld(unit.gridX, unit.gridY);
-                float feetY = grid.SurfaceWorldY(unit.gridX, unit.gridY);
-                var feet = new Vector3(xz.x, feetY, xz.y);
+                float feetY = grid.SurfaceWorldY(cellX, cellZ);
+                var feet = new Vector3(unit.x, feetY, unit.z);
 
                 // 朝向场地心（"对峙"读法；两件式造型本身回转对称，这一项只影响姿态语义）。
                 Vector3 toCenter = view.Target - feet;
@@ -332,8 +333,8 @@ namespace PirateCrew.EditorTools
         static void AssertFraming(PixelartLevelScene.View view, LevelAssetPayload payload,
             GameObject content, Transform sceneRoot)
         {
-            float centerX = LevelGeometry.TileToWorld(payload.widthTiles * 0.5f);
-            float centerZ = LevelGeometry.TileToWorld(payload.depthTiles * 0.5f);
+            float centerX = payload.sizeX * 0.5f;
+            float centerZ = payload.sizeZ * 0.5f;
             Vector3 target = view.Target;
 
             if (Mathf.Abs(target.x - centerX) > 0.01f || Mathf.Abs(target.z - centerZ) > 0.01f)
@@ -424,9 +425,10 @@ namespace PirateCrew.EditorTools
             for (int i = 0; i < payload.units.Count; i++)
             {
                 LevelUnit unit = payload.units[i];
-                Vector2 xz = LevelGeometry.TileCenterWorld(unit.gridX, unit.gridY);
-                float feetY = grid.SurfaceWorldY(unit.gridX, unit.gridY);
-                var origin = new Vector3(xz.x, feetY + 0.5f, xz.y);
+                int cellX = LevelGeometry.WorldToTileIndex(unit.x);
+                int cellZ = LevelGeometry.WorldToTileIndex(unit.z);
+                float feetY = grid.SurfaceWorldY(cellX, cellZ);
+                var origin = new Vector3(unit.x, feetY + 0.5f, unit.z);
 
                 RaycastHit hit;
                 if (Physics.Raycast(origin, Vector3.down, out hit, 2f))
@@ -437,7 +439,7 @@ namespace PirateCrew.EditorTools
                     if (Mathf.Abs(delta) > 0.35f)
                     {
                         Debug.LogWarning(LogTag + " 关卡 " + view.LevelNumber + " 出生点 ("
-                            + unit.gridX + "," + unit.gridY + ") 的场地表面在 y="
+                            + unit.x + "m," + unit.z + "m) 的场地表面在 y="
                             + hit.point.y.ToString("0.###") + "，而逻辑高度场给的是 y="
                             + feetY.ToString("0.###") + "（差 " + delta.ToString("0.###") + "m）——"
                             + "角色会悬空或陷进去；这是**关卡数据与几何的偏差**，不是渲染问题。");
@@ -446,8 +448,8 @@ namespace PirateCrew.EditorTools
                 else
                 {
                     unsupported++;
-                    Debug.LogWarning(LogTag + " 关卡 " + view.LevelNumber + " 出生点 (" + unit.gridX
-                        + "," + unit.gridY + ")（" + unit.typeName + "）在场地上打不到支撑面。");
+                    Debug.LogWarning(LogTag + " 关卡 " + view.LevelNumber + " 出生点 (" + unit.x
+                        + "m," + unit.z + "m)（" + unit.typeName + "）在场地上打不到支撑面。");
                 }
             }
 

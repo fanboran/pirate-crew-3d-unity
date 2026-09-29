@@ -20,7 +20,7 @@ namespace PirateCrew.Battle.Levels
         /// <summary>海图接敌距离上限（双方出生质心间距，米）。超限只告警——是【提案/待定】的平衡口径。</summary>
         public const float RecommendedEngagementDistance = 120f;
 
-        /// <summary>逻辑高度场的最高允许顶面（米）。超过视为数据错误（块数填错一位就会命中）。</summary>
+        /// <summary>逻辑高度场的最高允许顶面（米）。超过视为数据错误（高度填错一位就会命中）。</summary>
         public const float MaxTerrainTopWorldY = 40f;
 
         // ------------------------------------------------------------------
@@ -177,22 +177,45 @@ namespace PirateCrew.Battle.Levels
                 problems.Add(tag + "缺 assetName（资产文件名/JSON 文件名都靠它）");
             if (string.IsNullOrEmpty(payload.displayName))
                 problems.Add(tag + "缺 displayName");
-            if (payload.widthTiles <= 0 || payload.depthTiles <= 0)
-                problems.Add(tag + "格子尺寸非法 " + payload.widthTiles + "×" + payload.depthTiles);
+            if (payload.sizeX <= 0f || payload.sizeZ <= 0f)
+                problems.Add(tag + "场地尺幅非法 " + payload.sizeX + "m × " + payload.sizeZ + "m");
 
-            // 单一栅格语义：尺寸自洽 + 块高与工程常量一致。
-            if (!payload.terrain.IsWellFormed)
+            // 水位是全局常量（落水即死，§4.4）：资产里那一栏必须与工程常量同值，免得两边各记一份。
+            if (System.Math.Abs(payload.waterWorldY - LevelGeometry.WaterSurfaceY) > 1e-4f)
             {
-                problems.Add(tag + "逻辑高度场不自洽（块数 " + BlockCount(payload)
-                    + " ≠ " + payload.widthTiles + "×" + payload.depthTiles + "）");
+                problems.Add(tag + "水面 Y " + payload.waterWorldY
+                    + "m 与全局 LevelGeometry.WaterSurfaceY=" + LevelGeometry.WaterSurfaceY + "m 不一致");
+            }
+
+            // 采样格尺寸必须与运行时地形粒度一致（两个常量分处 Data / Battle 程序集，靠这条盯住）。
+            if (System.Math.Abs(LevelAssetSchema.RasterCellSize - LevelGeometry.TileWorldSize) > 1e-4f)
+            {
+                problems.Add(tag + "采样格尺寸 " + LevelAssetSchema.RasterCellSize
+                    + "m 与运行时 LevelGeometry.TileWorldSize=" + LevelGeometry.TileWorldSize + "m 不一致");
             }
             else
             {
-                if (payload.terrain.widthTiles != payload.widthTiles
-                    || payload.terrain.depthTiles != payload.depthTiles)
+                foreach (float span in new[] { payload.sizeX, payload.sizeZ })
                 {
-                    problems.Add(tag + "栅格尺寸 " + payload.terrain.widthTiles + "×" + payload.terrain.depthTiles
-                        + " 与场地尺寸 " + payload.widthTiles + "×" + payload.depthTiles + " 不一致");
+                    if (System.Math.Abs(LevelAssetSchema.RasterCells(span) * LevelAssetSchema.RasterCellSize - span) > 1e-4f)
+                        problems.Add(tag + "场地尺幅 " + span + "m 不是采样格尺寸 "
+                            + LevelAssetSchema.RasterCellSize + "m 的整数倍（会静默四舍五入）");
+                }
+            }
+
+            // 单一栅格语义：尺幅自洽 + 块高与工程常量一致。
+            if (!payload.terrain.IsWellFormed)
+            {
+                problems.Add(tag + "逻辑高度场不自洽（高度数 " + HeightCount(payload)
+                    + " ≠ " + LevelAssetSchema.RasterCells(payload.sizeX) + "×"
+                    + LevelAssetSchema.RasterCells(payload.sizeZ) + " 采样格）");
+            }
+            else
+            {
+                if (payload.terrain.sizeX != payload.sizeX || payload.terrain.sizeZ != payload.sizeZ)
+                {
+                    problems.Add(tag + "栅格尺幅 " + payload.terrain.sizeX + "m × " + payload.terrain.sizeZ + "m"
+                        + " 与场地尺幅 " + payload.sizeX + "m × " + payload.sizeZ + "m 不一致");
                 }
 
                 float expectedBlock = LevelGeometry.BlockWorldHeight;
@@ -202,24 +225,24 @@ namespace PirateCrew.Battle.Levels
                         + " 与 LevelGeometry.BlockWorldHeight=" + expectedBlock + " 不一致");
                 }
 
-                int solid = 0, maxBlocks = 0;
-                List<int> blocks = payload.terrain.blocks;
-                for (int i = 0; i < blocks.Count; i++)
+                int solid = 0;
+                float maxHeight = 0f;
+                List<float> heights = payload.terrain.heights;
+                for (int i = 0; i < heights.Count; i++)
                 {
-                    if (blocks[i] > 0)
+                    if (heights[i] > 0f)
                         solid++;
-                    if (blocks[i] > maxBlocks)
-                        maxBlocks = blocks[i];
-                    if (blocks[i] < 0)
-                        problems.Add(tag + "栅格存在负块数（第 " + i + " 格）");
+                    if (heights[i] > maxHeight)
+                        maxHeight = heights[i];
+                    if (heights[i] < 0f)
+                        problems.Add(tag + "栅格存在负高度（第 " + i + " 格）");
                 }
 
                 if (solid == 0)
                     problems.Add(tag + "逻辑高度场全是空格（没有可站地面）");
 
-                float top = maxBlocks * payload.terrain.blockWorldHeight;
-                if (top > MaxTerrainTopWorldY)
-                    problems.Add(tag + "最高顶 " + top + "u 超过上限 " + MaxTerrainTopWorldY + "u");
+                if (maxHeight > MaxTerrainTopWorldY)
+                    problems.Add(tag + "最高顶 " + maxHeight + "m 超过上限 " + MaxTerrainTopWorldY + "m");
             }
 
             if (payload.units.Count == 0)
@@ -245,30 +268,33 @@ namespace PirateCrew.Battle.Levels
                 if (unit.luck <= 0)
                     problems.Add(tag + "单位 #" + i + " (" + unit.typeName + ") luck=" + unit.luck + " 非法");
 
-                // 站位必须在实心格上（R2 引申：开局悬空/落水等于开局就是靶子）。
-                int cellX = unit.gridX, cellY = unit.gridY;
+                // 站位必须在实心地面上（R2 引申：开局悬空/落水等于开局就是靶子）。
                 if (payload.terrain.IsWellFormed)
                 {
-                    if (cellX < 0 || cellY < 0 || cellX >= payload.widthTiles || cellY >= payload.depthTiles)
+                    if (unit.x < 0f || unit.z < 0f || unit.x >= payload.sizeX || unit.z >= payload.sizeZ)
                     {
-                        problems.Add(tag + "单位 #" + i + " (" + unit.typeName + ") 落在场外格 ("
-                            + cellX + "," + cellY + ")");
+                        problems.Add(tag + "单位 #" + i + " (" + unit.typeName + ") 落在场外 ("
+                            + unit.x + ", " + unit.z + " 米)");
                     }
-                    else if (payload.terrain.widthTiles != payload.widthTiles
-                             || payload.terrain.depthTiles != payload.depthTiles)
+                    else if (payload.terrain.sizeX != payload.sizeX || payload.terrain.sizeZ != payload.sizeZ)
                     {
-                        // 栅格尺寸与场地尺寸不一致（上方已有独立告警）：blocks 按 terrain 的
-                        // 行主序存储，拿 payload.widthTiles 索引会读错格、产出不可信的
+                        // 栅格尺幅与场地尺幅不一致（上方已有独立告警）：heights 按 terrain 的
+                        // 行主序存储，拿场地尺幅索引会读错格、产出不可信的
                         // "站在空格"结论——跳过站位校验并告警，不给出假阳性/假阴性。
                         PirateCrew.Core.Log.Warn("[LevelAssetRules] " + tag + "单位 #" + i + " ("
-                            + unit.typeName + ") 站位校验跳过：栅格尺寸 " + payload.terrain.widthTiles
-                            + "×" + payload.terrain.depthTiles + " 与场地尺寸 " + payload.widthTiles
-                            + "×" + payload.depthTiles + " 不一致（blocks 行宽 ≠ 场地宽，索引口径失效）");
+                            + unit.typeName + ") 站位校验跳过：栅格尺幅 " + payload.terrain.sizeX
+                            + "m × " + payload.terrain.sizeZ + "m 与场地尺幅 " + payload.sizeX
+                            + "m × " + payload.sizeZ + "m 不一致（heights 行宽 ≠ 场地宽，索引口径失效）");
                     }
-                    else if (payload.terrain.blocks[cellX + cellY * payload.widthTiles] <= 0)
+                    else
                     {
-                        problems.Add(tag + "单位 #" + i + " (" + unit.typeName + ") 站在空格 ("
-                            + cellX + "," + cellY + ") 上（会开局坠落）");
+                        int cellX = LevelGeometry.WorldToTileIndex(unit.x);
+                        int cellZ = LevelGeometry.WorldToTileIndex(unit.z);
+                        if (payload.terrain.heights[cellX + cellZ * LevelGeometry.CellCount(payload.sizeX)] <= 0f)
+                        {
+                            problems.Add(tag + "单位 #" + i + " (" + unit.typeName + ") 站在空格 ("
+                                + cellX + "," + cellZ + ") 上（会开局坠落）");
+                        }
                     }
                 }
 
@@ -294,9 +320,9 @@ namespace PirateCrew.Battle.Levels
             return problems;
         }
 
-        static int BlockCount(LevelAssetPayload payload)
+        static int HeightCount(LevelAssetPayload payload)
         {
-            return payload.terrain.blocks == null ? 0 : payload.terrain.blocks.Count;
+            return payload.terrain.heights == null ? 0 : payload.terrain.heights.Count;
         }
     }
 }

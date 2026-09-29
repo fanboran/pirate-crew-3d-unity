@@ -16,74 +16,74 @@ MonoBehaviour:
     levelNumber: 1
     assetName: cloud_walk
     displayName: 云端漫步
-    widthTiles: 20
-    depthTiles: 15
-    waterTileY: 14
+    sizeX: 40
+    sizeZ: 30
+    waterWorldY: -0.4
     airdropPool:
     - id: 2
       count: 10
     units:
     - typeName: redPirate
       teamIndex: 0
-      gridX: 8
-      gridY: 6
+      x: 17
+      z: 13
       luck: 5
       initialWeapons:
       - id: 1
         count: 10
     - typeName: redPirate
       teamIndex: 0
-      gridX: 12
-      gridY: 9
+      x: 25
+      z: 19
       luck: 5
       initialWeapons:
       - id: 1
         count: 10
     - typeName: redPirate
       teamIndex: 0
-      gridX: 10
-      gridY: 4
+      x: 21
+      z: 9
       luck: 5
       initialWeapons:
       - id: 1
         count: 10
     - typeName: redPirateCaptain
       teamIndex: 0
-      gridX: 10
-      gridY: 11
+      x: 21
+      z: 23
       luck: 5
       initialWeapons:
       - id: 1
         count: 10
     - typeName: cabinBoy
       teamIndex: 1
-      gridX: 12
-      gridY: 6
+      x: 25
+      z: 13
       luck: 1
       initialWeapons:
       - id: 1
         count: 10
     - typeName: cabinBoy
       teamIndex: 1
-      gridX: 8
-      gridY: 9
+      x: 17
+      z: 19
       luck: 1
       initialWeapons:
       - id: 1
         count: 10
     - typeName: cabinBoyCaptain
       teamIndex: 1
-      gridX: 13
-      gridY: 7
+      x: 27
+      z: 15
       luck: 1
       initialWeapons:
       - id: 1
         count: 10
     terrain:
-      widthTiles: 20
-      depthTiles: 15
+      sizeX: 40
+      sizeZ: 30
       blockWorldHeight: 0.5
-      blocks:
+      heights:
       - 0
       - 0
       - 0
@@ -173,9 +173,9 @@ MonoBehaviour:
       - 0
       - 0
       - 0
-      - 13
-      - 13
-      - 13
+      - 6.5
+      - 6.5
+      - 6.5
       - 0
       - 0
       - 0
@@ -191,12 +191,12 @@ MonoBehaviour:
       - 0
       - 0
       - 0
-      - 9
-      - 9
-      - 9
-      - 9
-      - 9
-      - 9
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
       - 0
       - 0
       - 0
@@ -211,12 +211,12 @@ MonoBehaviour:
       - 0
       - 0
       - 0
-      - 9
-      - 9
-      - 9
-      - 9
-      - 9
-      - 9
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
       - 0
       - 0
       - 0
@@ -230,15 +230,15 @@ MonoBehaviour:
       - 0
       - 0
       - 0
-      - 5
-      - 5
-      - 5
-      - 9
-      - 9
-      - 9
-      - 9
-      - 5
-      - 5
+      - 2.5
+      - 2.5
+      - 2.5
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
+      - 2.5
+      - 2.5
       - 0
       - 0
       - 0
@@ -250,15 +250,15 @@ MonoBehaviour:
       - 0
       - 0
       - 0
-      - 5
-      - 5
-      - 5
-      - 9
-      - 9
-      - 9
-      - 9
-      - 5
-      - 5
+      - 2.5
+      - 2.5
+      - 2.5
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
+      - 2.5
+      - 2.5
       - 0
       - 0
       - 0
@@ -271,12 +271,12 @@ MonoBehaviour:
       - 0
       - 0
       - 0
-      - 9
-      - 9
-      - 9
-      - 9
-      - 9
-      - 9
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
       - 0
       - 0
       - 0
@@ -291,12 +291,12 @@ MonoBehaviour:
       - 0
       - 0
       - 0
-      - 9
-      - 9
-      - 9
-      - 9
-      - 9
-      - 9
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
+      - 4.5
       - 0
       - 0
       - 0
@@ -313,9 +313,9 @@ MonoBehaviour:
       - 0
       - 0
       - 0
-      - 15
-      - 15
-      - 15
+      - 7.5
+      - 7.5
+      - 7.5
       - 0
       - 0
       - 0

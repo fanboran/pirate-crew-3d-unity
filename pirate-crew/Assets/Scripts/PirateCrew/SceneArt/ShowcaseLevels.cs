@@ -54,13 +54,16 @@ namespace PirateCrew.SceneArt
     /// 重构前这里是一份手写 C# 表——改一个数值要改代码重编译、且没有工具能校验它。
     /// 改数据请改 golden JSON 再跑迁移器，见 <c>docs/技术/架构/关卡数据资产.md</c>。
     ///
-    /// 【架构口径（未变）】格子是**不可见的逻辑高度场**，只承担两件玩家看不见的事：
+    /// 【架构口径（未变）】高度场是**不可见的逻辑地形**，只承担两件玩家看不见的事：
     ///   1) 单位站位高度——<c>BattleController.SpawnTeams</c> 用 <c>TileTerrainGrid.SurfaceWorldY</c>；
-    ///   2) AI 落点评估——<c>AiTerrain</c> 按格判实心/落水。
+    ///   2) AI 落点评估——<c>AiTerrain</c> 按采样格判实心/落水。
     /// 渲染层由烘焙 prefab 按摆位表实例化（RuntimeSceneArt），与逻辑层共用同一份高度场资产对齐。
     ///
-    /// 【尺度】1 格 = 2 单位（LevelGeometry.TileWorldSize）；块高 0.5 单位
-    /// （LevelGeometry.BlockWorldHeight = PixelsToUnits(8)）；水面 y=-0.4。场地统一 20×15 格。
+    /// 【尺度】数值全米：块高 0.5 m、水面 y = −0.4 m；运行时地形按 2 m 采样
+    /// （<see cref="LevelGeometry.TileWorldSize"/>，只是数据粒度）。L1/L3 场地 40×30 m。
+    ///
+    /// 【WidthTiles / DepthTiles 为何还在】它们是 2 m 采样口径下的格数（20×15），
+    /// 仍是场景装配 / 水面资产构建等编辑器工具的对齐口径；资产与玩法数值一律用米。
     /// </summary>
     public static class ShowcaseLevels
     {
@@ -70,10 +73,10 @@ namespace PirateCrew.SceneArt
         /// <summary>关卡号末位。</summary>
         public const int LastLevel = 5;
 
-        /// <summary>场地宽度（逻辑格）——样板关统一尺寸，也是空岛展示件对齐用的场地口径。</summary>
+        /// <summary>场地宽度（采样格数，= 40 m / 2 m）——样板关统一尺寸，也是空岛展示件对齐用的场地口径。</summary>
         public const int WidthTiles = 20;
 
-        /// <summary>场地纵深（逻辑格）。</summary>
+        /// <summary>场地纵深（采样格数，= 30 m / 2 m）。</summary>
         public const int DepthTiles = 15;
 
         /// <summary>该关卡号是否有对应关卡资产。</summary>

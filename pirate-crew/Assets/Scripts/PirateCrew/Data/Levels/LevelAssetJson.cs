@@ -61,9 +61,9 @@ namespace PirateCrew.Data
             w.Field("levelNumber", payload.levelNumber);
             w.Field("assetName", payload.assetName);
             w.Field("displayName", payload.displayName);
-            w.Field("widthTiles", payload.widthTiles);
-            w.Field("depthTiles", payload.depthTiles);
-            w.Field("waterTileY", payload.waterTileY);
+            w.Field("sizeX", payload.sizeX);
+            w.Field("sizeZ", payload.sizeZ);
+            w.Field("waterWorldY", payload.waterWorldY);
 
             w.FieldName("airdropPool");
             WriteWeaponStacks(w, payload.airdropPool);
@@ -77,8 +77,8 @@ namespace PirateCrew.Data
                 w.BeginObject();
                 w.Field("typeName", u.typeName);
                 w.Field("teamIndex", u.teamIndex);
-                w.Field("gridX", u.gridX);
-                w.Field("gridY", u.gridY);
+                w.Field("x", u.x);
+                w.Field("z", u.z);
                 w.Field("luck", u.luck);
                 w.FieldName("initialWeapons");
                 WriteWeaponStacks(w, u.initialWeapons);
@@ -89,11 +89,11 @@ namespace PirateCrew.Data
             w.FieldName("terrain");
             w.BeginObject();
             TerrainRaster raster = payload.terrain;
-            w.Field("widthTiles", raster.widthTiles);
-            w.Field("depthTiles", raster.depthTiles);
+            w.Field("sizeX", raster.sizeX);
+            w.Field("sizeZ", raster.sizeZ);
             w.Field("blockWorldHeight", raster.blockWorldHeight);
-            w.FieldName("blocks");
-            WriteIntGrid(w, raster.blocks, raster.widthTiles);
+            w.FieldName("heights");
+            WriteFloatGrid(w, raster.heights, LevelAssetSchema.RasterCells(raster.sizeX));
             w.EndObject();
 
             w.FieldName("bakedPieces");
@@ -227,15 +227,15 @@ namespace PirateCrew.Data
         }
 
         /// <summary>
-        /// 栅格整数阵列：**每行 = 栅格一行**（宽度 <paramref name="widthTiles"/> 个整数）。
-        /// 这样改动一个格子 = diff 里改一行里的一个数，而不是在 300 行单列里数位置。
+        /// 高度阵列（米）：**每行 = 栅格一行**（宽度 <paramref name="cellCountX"/> 个采样格）。
+        /// 这样改动一处地形 = diff 里改一行里的一个数，而不是在 300 行单列里数位置。
         /// </summary>
-        static void WriteIntGrid(JsonWriter w, List<int> values, int widthTiles)
+        static void WriteFloatGrid(JsonWriter w, List<float> values, int cellCountX)
         {
             w.BeginArray();
             if (values != null && values.Count > 0)
             {
-                int width = widthTiles > 0 ? widthTiles : values.Count;
+                int width = cellCountX > 0 ? cellCountX : values.Count;
                 for (int start = 0; start < values.Count; start += width)
                 {
                     int end = Math.Min(start + width, values.Count);
@@ -244,7 +244,7 @@ namespace PirateCrew.Data
                     {
                         if (i > start)
                             sb.Append(", ");
-                        sb.Append(values[i].ToString(CultureInfo.InvariantCulture));
+                        sb.Append(Number(values[i]));
                     }
                     w.RawItem("[" + sb + "]");
                 }
@@ -270,9 +270,9 @@ namespace PirateCrew.Data
                 levelNumber = root.Int("levelNumber"),
                 assetName = root.String("assetName"),
                 displayName = root.String("displayName"),
-                widthTiles = root.Int("widthTiles"),
-                depthTiles = root.Int("depthTiles"),
-                waterTileY = root.Float("waterTileY"),
+                sizeX = root.Float("sizeX"),
+                sizeZ = root.Float("sizeZ"),
+                waterWorldY = root.Float("waterWorldY"),
                 airdropPool = ReadWeaponStacks(root["airdropPool"]),
                 units = new List<LevelUnit>(),
                 terrain = ReadRaster(root["terrain"]),
@@ -282,7 +282,7 @@ namespace PirateCrew.Data
             foreach (JsonValue u in root.ArrayItems("units"))
             {
                 payload.units.Add(new LevelUnit(
-                    u.String("typeName"), u.Int("teamIndex"), u.Int("gridX"), u.Int("gridY"),
+                    u.String("typeName"), u.Int("teamIndex"), u.Float("x"), u.Float("z"),
                     u.Int("luck"), ReadWeaponStacks(u["initialWeapons"])));
             }
 
@@ -382,26 +382,26 @@ namespace PirateCrew.Data
         {
             var raster = new TerrainRaster
             {
-                blocks = new List<int>(),
+                heights = new List<float>(),
             };
             if (node == null)
                 return raster;
 
-            raster.widthTiles = node.Int("widthTiles");
-            raster.depthTiles = node.Int("depthTiles");
+            raster.sizeX = node.Float("sizeX");
+            raster.sizeZ = node.Float("sizeZ");
             raster.blockWorldHeight = node.Float("blockWorldHeight");
-            // 栅格写作「每行一个数组」；同时容忍老的扁平写法（一个整数一行），
+            // 高度写作「每行一个数组」；同时容忍扁平写法（一个数一行），
             // 免得手改过的 JSON 读出静默的半截数据。
-            foreach (JsonValue row in node.ArrayItems("blocks"))
+            foreach (JsonValue row in node.ArrayItems("heights"))
             {
                 if (row.Kind == JsonKind.Array)
                 {
                     foreach (JsonValue b in row.Items())
-                        raster.blocks.Add(b.AsInt());
+                        raster.heights.Add(b.AsFloat());
                 }
                 else
                 {
-                    raster.blocks.Add(row.AsInt());
+                    raster.heights.Add(row.AsFloat());
                 }
             }
             return raster;
@@ -603,7 +603,7 @@ namespace PirateCrew.Data
                 return node == null ? null : node._text;
             }
 
-            public int AsInt() => _text == null ? 0 : (int)ParseNumber(_text);
+            public float AsFloat() => _text == null ? 0f : (float)ParseNumber(_text);
 
             public int Int(string name)
             {
