@@ -12,7 +12,7 @@ namespace PirateCrew.Battle
     /// ==================================================================
     /// 【糖豆人式资产架构（管线合并任务书）】
     /// ==================================================================
-    /// 几何生成退出运行时：云场合成 / 碎岛岛壳 / 材质合并 / 网格落盘全部发生在编辑器烘焙期
+    /// 几何生成退出运行时：云场合成 / 岛壳合成 / 材质合并 / 网格落盘全部发生在编辑器烘焙期
     /// （Assets/Editor/SceneArtBaker.cs），同输入重跑逐顶点一致（确定性测试钉住）。
     /// 多样性来自"更多预制变体"而非运行时随机，运行时零成本换装。
     ///
@@ -76,7 +76,7 @@ namespace PirateCrew.Battle
 
             if (!SceneArt.ShowcaseLevels.IsShowcase(levelNumber))
             {
-                // 一代瓦片竞技场退场后，本装配器只服务样板三关；世界图陈设走 WorldMapComposer。
+                // 本装配器只服务样板关；世界图陈设走 WorldMapComposer。
                 global::PirateCrew.Core.Log.Warn("[RuntimeSceneArt] 非样板关 " + levelNumber
                     + "，静态陈设留空（世界图陈设由 WorldMapComposer 装配）。");
                 LastLevelNumber = levelNumber;

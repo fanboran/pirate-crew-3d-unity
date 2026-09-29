@@ -11,7 +11,7 @@ namespace PirateCrew.Campaign
     /// <summary>
     /// 战役模块的跨模块公共出口 + M3 管理循环的接线点（纯静态外观）。
     ///
-    /// 【M3 闭环接线（一代退场后）】战役不再拥有自己的关卡序列——出海目标就是
+    /// 【M3 闭环接线】战役不拥有自己的关卡序列——出海目标就是
     /// 世界海域图（<see cref="WorldMapRuntime"/> 待战通道，选关页/播放器 -worldMap 设置）。
     /// 本类把三个**已有**战斗事件频道接到结算流程上：
     ///   <c>BattleEvents.BattleStarted</c>（读取待战海图 → 记为待结算归属；清掉无主陈旧待结算）
@@ -19,13 +19,13 @@ namespace PirateCrew.Campaign
     ///   → <c>BattleEvents.MatchFinished</c>（评价星级 → 按海图 id 写进度 → 给编成阵容发经验/招募 → 广播 → 落盘）。
     ///
     /// 【结算键】星级存档的键 = 海图 id（<c>wreck_hymn</c> 等）。存档格式不变、值域变化
-    /// （一代的 <c>level_01..15</c> 键读档时被静默丢弃——项目未发布，旧档不迁移）。
+    /// （旧存档里的历史序号键读档时被静默丢弃——项目未发布，旧档不迁移）。
     ///
     /// 【为什么读 WorldMapRuntime 而不是 UI 转告】Campaign → PirateCrew.Battle 是高层依赖低层，
     /// 方向合法；战斗开局（<c>BattleEvents.BattleStarted</c>）时海图待战必然在位，无需 UI 在中间转发。
     ///
     /// 【编成与战斗的关系】海图战用地图自带布阵（<c>WorldMapDefinition.Spawns</c>），
-    /// 编成阵容不再注入/过滤出战名单（一代的 BattleLaunchContext 注入通道已随一代退场删除）；
+    /// 编成阵容不再注入/过滤出战名单（海图战用地图自带布阵）；
     /// 名册语义保留在「结算发经验给谁 / 招募进度」上。
     ///
     /// 【存档】本类是管理循环存档的所有者：槽位 <see cref="ProgressSlot"/>（1），
@@ -147,8 +147,8 @@ namespace PirateCrew.Campaign
                 return;
 
             // 船员奖励：给编成阵容发经验，并按「累计星数」过招募门槛。
-            // 门槛口径（一代退场执行决策）：原「已通关的最大关卡序号（1–15）」改为
-            // 「累计星数（0–24）」，CrewRosterCatalog 的门槛数值 0/3/5/7/10/13 直接沿用。
+            // 门槛口径：招募门槛 =「累计星数（0–24）」，
+            // CrewRosterCatalog 的门槛数值 0/3/5/7/10/13 直接沿用。
             CrewRewardPayload reward = CrewManagementApi.GrantMapReward(
                 settlement.MapId, settlement.Stars, Progress.TotalStars);
 

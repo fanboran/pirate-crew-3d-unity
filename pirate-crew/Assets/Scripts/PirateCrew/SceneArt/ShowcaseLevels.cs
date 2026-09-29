@@ -21,7 +21,7 @@ namespace PirateCrew.SceneArt
         ChemPlantTeamYard = 3,
     }
 
-    /// <summary>一件烘焙陈设的摆位（纯数据）。prefab 原点 = 几何烘焙原点（云场=构图中心，碎岛=竞技场原点）。</summary>
+    /// <summary>一件烘焙陈设的摆位（纯数据）。prefab 原点 = 几何烘焙原点（云场=构图中心，其余=竞技场原点）。</summary>
     public readonly struct ShowcasePiecePlacement
     {
         public readonly ShowcasePieceId Piece;
@@ -47,7 +47,6 @@ namespace PirateCrew.SceneArt
     /// <summary>样板关数据层的**读口**（数据本身在关卡资产里，不在代码里）：
     ///   L1 云端漫步（教学：投掷手感 / 回合流转 / 小心坠落）
     ///   L3 天空之岛（考核：以少打多 4v5 / 越水控场武器）
-    ///   （关卡 2「碎岛雨」已删除，关卡号不重编——号段有意不连续，口径见 <see cref="BakedPlacements"/>。）
     /// 数值依据逐条引用在各设计文档（docs/设计/关卡/L0N-*.md，AI 提案，待用户终审）。
     ///
     /// 【本类现在是什么】纯读口：编成 / luck / 武器池 / 逻辑高度场 / 烘焙件摆位全部来自
@@ -103,9 +102,8 @@ namespace PirateCrew.SceneArt
         /// 某样板关的烘焙件摆位表（<see cref="RuntimeSceneArt"/> 实例化消费）。
         /// 换这里的数 = 换摆位，不需要重新烘焙。
         ///
-        /// 【号段有意不连续】现存样板关是 1（云端漫步）与 3（天空之岛）；第 2 关「碎岛雨」
-        /// 已删除（创始人 2026-09-22，连关卡资产一起删），关卡号不做重编号——重编号会牵动
-        /// 存档/选关/测试的既有语义，而空号在数据层是允许的（校验器不要求号段连续）。
+        /// 【号段有意不连续】样板关号不做重编号——重编号会牵动存档/选关/测试的
+        /// 既有语义，而空号在数据层是允许的（校验器不要求号段连续）。
         /// </summary>
         public static List<ShowcasePiecePlacement> BakedPlacements(int levelNumber)
         {

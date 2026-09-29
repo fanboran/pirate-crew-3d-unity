@@ -1,7 +1,7 @@
 namespace PirateCrew.Campaign
 {
     /// <summary>
-    /// 战役推进器（纯 C#）。一代退场后不再持有自己的关卡目录——
+    /// 战役推进器（纯 C#）。本类不持有自己的关卡目录——
     /// 「选哪张图」由 <c>WorldMapRuntime</c> 待战通道决定，本类只负责
     /// 「记下本局要结算哪张海图」与「把一次战斗结果折算成 <see cref="CampaignSettlement"/>」。
     /// 不含 UI 与事件（那是 <see cref="CampaignApi"/> 的事）。

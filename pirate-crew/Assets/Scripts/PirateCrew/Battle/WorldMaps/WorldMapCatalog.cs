@@ -17,7 +17,7 @@ namespace PirateCrew.Battle.WorldMaps
     ///
     /// 【坐标/连通性契约（未变）】地图占据 [0..SpanX]×[0..SpanZ]，世界系（Y-up，米）；
     /// 承载出生点的站面 box 必须同连通分量（<see cref="WorldMapRules"/> BFS，
-    /// 由 WorldMapConnectivityTests 断言）；关卡号占用 101–108，与原版转写 1–33 不冲突。
+    /// 由 WorldMapConnectivityTests 断言）；关卡号占用 101–108，与样板关号段不冲突。
     /// </summary>
     public static class WorldMapCatalog
     {

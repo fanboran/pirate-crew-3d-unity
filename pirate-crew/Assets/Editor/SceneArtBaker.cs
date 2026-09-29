@@ -212,7 +212,7 @@ namespace PirateCrew.EditorTools
             EmitGroupMesh(root, objectName, source, material, castShadows);
         }
 
-        /// <summary>显式材质版：材质由调用方装载/兜底（碎岛用空岛岩石材质族）。</summary>
+        /// <summary>显式材质版：材质由调用方装载/兜底（岛壳用空岛岩石材质族）。</summary>
         static void EmitGroupMesh(GameObject root, string objectName, MeshBuffers source,
             Material material, bool castShadows)
         {

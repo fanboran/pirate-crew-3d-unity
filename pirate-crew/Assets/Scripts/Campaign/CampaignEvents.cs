@@ -8,9 +8,8 @@ namespace PirateCrew.Campaign
     /// 【约定】跨模块通信只走 <c>PirateCrew.Core.EventBus</c> 的类型化频道；
     ///         本类是战役事件的唯一声明处，人读登记表在 <c>docs/技术/架构/EventBus事件契约.md</c>。
     ///
-    /// 【一代退场后的契约】一代选关链事件随一代选关链删除；海图结算事件
-    /// <see cref="MapCompleted"/> 载荷里的关卡序号/章节字段已删除（海图没有序号与章节），
-    /// id 值域为海图 id。
+    /// 【契约】海图结算事件 <see cref="MapCompleted"/> 的载荷只有海图 id
+    /// （海图没有序号与章节），id 值域为海图 id。
     /// </summary>
     public static class CampaignEvents
     {

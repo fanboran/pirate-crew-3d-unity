@@ -75,7 +75,7 @@ namespace PirateCrew.Data
     }
 
     /// <summary>
-    /// 场地内的单个出战单位（对应原版关卡 XML 的一个 <c>&lt;obj type="redPirate" ...&gt;</c>）。
+    /// 场地内的单个出战单位（对应关卡资产里的一个出战单位条目）。
     ///
     /// 【出处】静态逆向文档 §4.3（坐标换算）与 §5.5（初始武器解析）。
     /// </summary>

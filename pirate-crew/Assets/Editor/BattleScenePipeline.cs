@@ -57,7 +57,7 @@ namespace PirateCrew.EditorTools
             new Step("② 空岛样板件摆入（FloatingIslandShowcaseMenu.PlaceIntoBattleCenter）",
                 FloatingIslandShowcaseMenu.PlaceIntoBattleCenter),
 
-            // ③ 样板场景件烘焙（云场 / 碎岛 / 危险线 → prefab + 接线）。同样依赖 ① 的场景。
+            // ③ 样板场景件烘焙（云场 / 岛壳 / 危险线 → prefab + 接线）。同样依赖 ① 的场景。
             new Step("③ 样板场景件烘焙 + 接线（SceneArtBaker.BuildAll）",
                 SceneArtBaker.BuildAll),
 

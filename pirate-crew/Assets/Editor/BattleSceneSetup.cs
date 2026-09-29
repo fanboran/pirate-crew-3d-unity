@@ -26,7 +26,7 @@ namespace PirateCrew.EditorTools
     /// 【对应章节】
     ///   §3.2（CameraBrain/panToCharacter 的目标点）、§3.3（胜负）、§3.4（两阶段操作 + end go）、
     ///   §4.3（按关卡数据生成出战单位）、§4.4（落水即死 → 可站面必须高于水面；平台关由逐格平台提供，
-    ///   不铺整块 y=0 地面（一代退场后海床台阶/远海床兜底装配段已删；重烘后的场景不再含一代残留，
+    ///   不铺整块 y=0 地面（海床台阶/远海床兜底装配段已删除；重烘后的场景不再含旧残留，
     ///   BattleController 的旧退役器已随之删除——渲染退役在烘焙期落实，见 CreateWaterPlane）。
     ///
     /// 【幂等】
@@ -45,7 +45,7 @@ namespace PirateCrew.EditorTools
     ///
     /// 【场景美术 = 关卡无关（烘焙退位）】<see cref="SceneArtBuilder.Apply"/> 仍跑，但只保留两个职责：
     ///   生成/更新材质资产、把湿沙材质接给 <see cref="BattleTerrainView"/>。它烘出的**关卡专属静态陈设**
-    ///   （level_1 的平台簇 / 道具合并网格）立即被删掉，改由运行时 <see cref="RuntimeSceneArt"/> 按
+    ///   （关卡专属平台簇 / 道具合并网格）立即被删掉，改由运行时 <see cref="RuntimeSceneArt"/> 按
     ///   **实际关卡号**重建（<c>BattleController.RebuildSceneArt</c> → <c>RuntimeSceneArt.RebuildFor</c>）。
     ///   本文件负责把烘焙 prefab 引用（SceneArtBaker 产物）写进场景里的该组件——
     ///   材质/几何已烘焙进 prefab，原 21 槽材质数组随运行时几何生成退役（糖豆人式资产架构）。
@@ -197,7 +197,7 @@ namespace PirateCrew.EditorTools
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            // 场地尺寸 = 样板第 1 关（云端漫步，20×15 格；一代退场后这是兜底场）。
+            // 场地尺寸 = 样板第 1 关（云端漫步，20×15 格；这是兜底场）。
             // 3D 化后 widthTiles → 世界 X，heightTiles → 世界 Z（纵深）；水面高度为全局常量。
             float waterWorldY = LevelGeometry.WaterSurfaceY;
             // 格 1→2 单位（用户裁决 2026-09-14）：竞技场世界尺寸 = 格数 × TileWorldSize。
@@ -240,7 +240,7 @@ namespace PirateCrew.EditorTools
             // 这里只创建承载视图的根节点与材质。
             BattleTerrainView terrainView = CreateTerrainView();
 
-            // 场景美术陈设根节点：一代烘焙工具（SceneArtBuilder）已随一代退场删除，
+            // 场景美术陈设根节点：旧烘焙工具（SceneArtBuilder）已删除，
             // 材质资产（Assets/Art/Materials/Scene/）保留，由 RuntimeSceneArt 消费。
             var sceneArt = new GameObject(SceneArtRootName);
 
@@ -563,7 +563,7 @@ namespace PirateCrew.EditorTools
             var hud = controllerGo.AddComponent<BattleHud>();
 
             // 战场三引用在此接线；HUD 的全部节点与序列化字段由 BattleUiTheme.Apply 重建并回写。
-            // （旧一代"先搭旧结构再被 Apply 清掉"的装配段已随名册退役删除——Apply 会清掉
+            // （"先搭旧结构再被 Apply 清掉"的旧装配段已删除——Apply 会清掉
             // Canvas 下除 BattleHud/MinimapPanel 之外的全部子节点，旧装配是纯死路径。）
             var so = new SerializedObject(hud);
             so.FindProperty("battle").objectReferenceValue = battle;
@@ -677,7 +677,7 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 活物总导演（波次 ambient）：在 SceneArt 下建子节点 <c>Ambient</c> 并接线。
-        /// 瓦片数取自当前关卡（level_1 = 50×17），与 <see cref="AmbientDirector"/> 默认值一致；
+        /// 瓦片数取自当前关卡（兜底 50×17），与 <see cref="AmbientDirector"/> 默认值一致；
         /// groundPlane 已接线时它按地面 localScale 推尺寸，瓦片数只是兜底。
         /// </summary>
         static void BuildAmbientDirector(Transform sceneArtRoot, Transform groundPlane, Light sunLight,

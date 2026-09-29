@@ -468,7 +468,7 @@ namespace PirateCrew.Battle
     /// <summary>
     /// 一个候选动作（§6.1 <c>aiMoveList</c> 的元素）。
     ///
-    /// <see cref="FlashSuccess"/> = 逆向文档 §6.2/§6.3 的原始 <c>success</c>（逐行转写）。
+    /// <see cref="FlashSuccess"/> = 逆向文档 §6.2/§6.3 的原始 <c>success</c>（逐行参考）。
     /// <see cref="TotalScore"/> = <see cref="FlashSuccess"/> + 伤害增强项（见
     /// <see cref="AiEvaluationOptions.DamageScoreWeight"/> 的说明），是最终排序依据。
     /// </summary>
@@ -630,7 +630,7 @@ namespace PirateCrew.Battle
     ///             §3.2/§3.4（canThrow/canShoot 决定评估范围）。
     ///
     /// 【坐标域决策】打分公式仍在 <b>Flash 平面像素域</b>（x = 世界 X、y = 世界 Z 纵深；§6 的
-    ///   200px/70px/40px 阈值、evilness 距离项逐行转写无换算），但<b>轨迹模拟改为纯 3D 世界域</b>：
+    ///   200px/70px/40px 阈值、evilness 距离项逐行参考无换算），但<b>轨迹模拟改为纯 3D 世界域</b>：
     ///   1) 初速 <see cref="LevelGeometry.FlashLaunchVelocityToWorld(float, float, float)"/>
     ///      （按 weight 分流的抬升：weight&gt;0 抬仰角，weight=0 直线飞行——与实弹生成器同一函数）、
     ///      积分 <see cref="ThrowTrajectory.Predict"/>（与 PhysX 实弹相同的半隐式欧拉 / dt / 重力），
@@ -972,7 +972,7 @@ namespace PirateCrew.Battle
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// §6.2 自抛打分。<b>除首项「落点质量」外逐行转写</b>：首项原为 2D 高度轴的
+        /// §6.2 自抛打分。<b>除首项「落点质量」外逐行参考</b>：首项原为 2D 高度轴的
         /// <c>(t.ey − this.y) × −0.003</c>，3D 化后改为「落点与目标的 XZ 水平面像素距离」的线性罚项
         /// （语义与标定见方法内注释与 <see cref="SelfLandingDistanceWeight"/>）；其余各项保持原式。
         /// 注意原版把 <c>s *= (1 + e.evilness)</c> 写在敌人循环内，
@@ -1090,7 +1090,7 @@ namespace PirateCrew.Battle
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// §6.3 通用武器单次投掷打分（逐行转写）：
+        /// §6.3 通用武器单次投掷打分（逐行参考）：
         /// <c>s = −0.01</c>；敌人 70px 内 <c>+= 1.5 − d/70</c> 并 <c>s *= (1+evilness)</c>；
         /// 队友 40px 内 <c>−= 1.5 − d/40</c>；最后套用武器专属修正
         /// （anchor ×0.5 / piecesOfEight <c>(s−0.5)×1.2</c>）。

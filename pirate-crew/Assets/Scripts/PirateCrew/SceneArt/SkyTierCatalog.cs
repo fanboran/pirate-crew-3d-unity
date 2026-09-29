@@ -52,7 +52,7 @@ namespace PirateCrew.SceneArt
             }
         }
 
-        /// <summary>档 1「正午碧海」：关卡 1-5 / 16-21（level_1 用此档）。</summary>
+        /// <summary>档 1「正午碧海」：关卡 1-5 / 16-21。</summary>
         public static readonly SkyTier Noon = new SkyTier(
             1, "#4DA6D9", "#C8DDF0", "#FFF4E0", "#E8D5A3", "1-5 / 16-21");
 
@@ -82,7 +82,7 @@ namespace PirateCrew.SceneArt
             return 1;
         }
 
-        /// <summary>取某关的天空档（level_1 → 档 1）。</summary>
+        /// <summary>取某关的天空档（关卡 1 → 档 1）。</summary>
         public static SkyTier ForLevel(int levelNumber)
         {
             return All[TierIndexForLevel(levelNumber) - 1];

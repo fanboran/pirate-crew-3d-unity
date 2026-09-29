@@ -20,7 +20,7 @@ namespace PirateCrew.Battle.WorldMaps
     /// 【与 BattleController 的契约】进图优先级由 <c>LevelSourceResolver</c> **一处**决定：
     /// 出图覆盖（-artReviewLevel，美术出图）&gt; 选关页点选的样板关 &gt; 世界地图 &gt;
     /// 样板第 1 关兜底（直接 Play）；世界地图激活时 BuildTerrain 走栅格化块表、
-    /// 陈设由 <see cref="WorldMapComposer"/> 负责表现层。一代退场后这是**唯一的玩法进图通道**，
+    /// 陈设由 <see cref="WorldMapComposer"/> 负责表现层。这是**唯一的玩法进图通道**，
     /// 战役结算归属也由它决定（<c>CampaignApi</c> 在 battle_started 时读取；样板关不记星，
     /// 见 <see cref="SetPendingShowcase"/>）。
     /// </summary>

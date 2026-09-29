@@ -104,8 +104,8 @@ namespace PirateCrew.CrewManagement
         /// 海图战结算：给编成阵容发经验 + 按「累计星数」过招募门槛招募新船员，并广播事件。
         ///
         /// 【调用方】<c>CampaignApi</c>（跨模块命令走本方法；通知走事件）。
-        /// 【门槛口径】一代退场后无关卡序号可依，招募门槛改为累计星数
-        ///（<c>CrewRosterCatalog</c> 的 <c>UnlockStars</c>，数值沿用一代的 0/3/5/7/10/13）。
+        /// 【门槛口径】招募门槛 = 累计星数
+        ///（<c>CrewRosterCatalog</c> 的 <c>UnlockStars</c>，数值 0/3/5/7/10/13）。
         /// </summary>
         /// <param name="mapId">海图 id（<c>WorldMapCatalog</c> 收录，如 <c>wreck_hymn</c>）。</param>
         /// <param name="stars">本局星级（0 = 未通关）。</param>

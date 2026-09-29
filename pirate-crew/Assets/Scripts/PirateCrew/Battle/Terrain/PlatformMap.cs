@@ -128,7 +128,7 @@ namespace PirateCrew.Battle
     ///
     /// 【近死登记（代码审计）】当前全仓**没有任何生产者**：唯一引用是
     /// <see cref="TileTerrainGrid"/> 的平台簇构造形态（字段与构造参数），而该构造形态本身
-    /// 零调用（一代悬空平台内容已退场，见 TileTerrainGrid 头注的保留契约）。本结构随那份
+    /// 零调用（悬空平台模式已无生产者，见 TileTerrainGrid 头注的保留契约）。本结构随那份
     /// 保留契约一并存续；裁掉形态②时应连同本文件整体清退，不要再为新内容单独启用。
     /// </summary>
     public sealed class PlatformMap

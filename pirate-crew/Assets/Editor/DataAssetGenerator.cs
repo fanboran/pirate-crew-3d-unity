@@ -9,7 +9,7 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// 把纯 C# 目录表（WeaponCatalog / CrewCatalog / BalanceConfig.Defaults）
     /// 写进 ScriptableObject <c>.asset</c>，供 Unity 侧引用与策划调参。
-    /// 一代退场后不再生成关卡资产（<c>Assets/Data/Levels/</c> 遗留资产已失去消费方，
+    /// 不再生成关卡资产（<c>Assets/Data/Levels/</c> 遗留资产已失去消费方，
     /// 手工删除即可；世界海图走 <c>WorldMapCatalog</c> 纯 C# 目录，无 SO 资产）。
     ///
     /// 【入口】

@@ -109,7 +109,7 @@ P="F:/VSCode/pirate-crew-3d-unity/pirate-crew"
 
 ### (b) 按关卡参数定尺寸的几何（1 个根）
 
-`Water` 的平面尺寸由 `LevelCatalog` 推出（装配时烘 `level_1` 的尺寸）；
+`Water` 的平面尺寸由 `LevelCatalog` 推出（装配时烘兜底关的尺寸）；
 相机与 `CameraTarget` 的位置同源。运行期 `BattleController` 还会按实际关卡再校正一次
 （水面高度、世界地图的相机 span 与海洋 rig）。
 

@@ -22,7 +22,7 @@ namespace PirateCrew.Battle
     ///   · 竞技场是 XZ 水平面（地面顶面 y=0，重力沿 -Y），位置**不**约束、只锁旋转保持直立
     ///     ——见 docs/3D空间模型对齐.md。
     ///   · 保底武器由 <see cref="ResetForTurnStart"/> 调用 <see cref="WeaponInventory.EnsureFallbackWeapon"/> 完成。
-    ///   · 落地翻滚 / 落水死亡演出（M4 §3.1，忠实转写 Flash 逆向）：刚体旋转保持冻结，
+    ///   · 落地翻滚 / 落水死亡演出（M4 §3.1，参考原版玩法数值）：刚体旋转保持冻结，
     ///     翻滚与演出全部作用在运行时创建的视觉滚动 Pivot 上（<see cref="RollRules"/> 出换算，
     ///     本类只做接地检测与 Rigidbody 线速度 / 视觉 Transform 的胶水）。
     /// </summary>
@@ -292,7 +292,7 @@ namespace PirateCrew.Battle
             if (LevelGeometry.IsBelowWater(transform.position.y, waterWorldY))
             {
                 Drowned = true;   // 表现层据此播"下沉"而不是"倒地"（docs/角色造型规范.md §4）
-                BeginDrownPerformance();   // M4 §3.1：落水死亡旋转下沉演出（Character.as:164-180 转写）
+                BeginDrownPerformance();   // M4 §3.1：落水死亡旋转下沉演出（参考 Character.as:164-180）
                 Kill();
                 return true;
             }
@@ -432,7 +432,7 @@ namespace PirateCrew.Battle
         /// 翻滚推进（每个物理步）：
         ///   1. 恒转——空中与地面同源，转速 = 48°/s × 水平速度（Flash <c>rotation += vx*3</c>）；
         ///   2. 接地阻尼——接地期间每 0.04s 滚动角 ×0.5、&lt;1° 归零（Character.as:685-697）；
-        ///   3. 地面线性摩擦——直接衰减刚体水平速度，78.125 u/s²（Solid.as:269 转写）。
+        ///   3. 地面线性摩擦——直接衰减刚体水平速度，78.125 u/s²（参考 Solid.as:269）。
         /// 刚体旋转保持冻结，全部旋转只写视觉滚动 Pivot。
         /// </summary>
         void FixedUpdate()
@@ -514,7 +514,7 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 接触结算：任一接触点法线朝上即视为"接地"（供阻尼/摩擦），并在<b>开始接触</b>时施加
-        /// 落地反弹 <c>vy → -0.2·vy</c>（Solid.as:263-276 转写；用步前速度近似碰撞前 vy，
+        /// 落地反弹 <c>vy → -0.2·vy</c>（参考 Solid.as:263-276；用步前速度近似碰撞前 vy，
         /// 因为 OnCollision 回调时 PhysX 已把法向速度清零）。持续接触不重复反弹（提案取舍：原版
         /// 逐接触帧翻转的微震荡在 Unity 里表现为贴地稳定，观感一致且不会阻碍刚体入睡）。
         /// </summary>
@@ -545,7 +545,7 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// 落水死亡旋转下沉演出（Character.as:164-180 转写）：转速 = 64°/s × 合速度（落水瞬间定格），
+        /// 落水死亡旋转下沉演出（参考 Character.as:164-180）：转速 = 64°/s × 合速度（落水瞬间定格），
         /// 全速度每 0.04s ×0.8，且竖直速度钳到至少 2.34375 u/s（=1.5 px/帧）持续下沉。
         /// </summary>
         void BeginDrownPerformance()

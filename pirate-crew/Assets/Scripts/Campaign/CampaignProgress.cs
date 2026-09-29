@@ -5,14 +5,14 @@ using PirateCrew.Battle.WorldMaps;
 namespace PirateCrew.Campaign
 {
     /// <summary>
-    /// 大海域的结算进度（海图 id → 星级）。一代的「顺序解锁链」随一代退场：
-    /// 8 张海图全部可出战（见选关页），进度只剩「星级记录」一个职责。
+    /// 大海域的结算进度（海图 id → 星级）。没有顺序解锁链：
+    /// 海图全部可出战（见选关页），进度只剩「星级记录」一个职责。
     ///
     /// 【出处】语义源自 Godot <c>modules/crew_management/scripts/progression.gd</c>
     ///   （<c>_completed_levels</c> → <see cref="_stars"/>、<c>complete_level</c> → <see cref="CompleteLevel"/>）。
     ///
     /// 【键值域】键 = 海图 id（<c>WorldMapCatalog</c> 收录的 <c>wreck_hymn</c> 等）；
-    /// 旧存档里的 <c>level_01</c> 形式键会被 <see cref="SetStars"/> 静默丢弃（旧档不迁移，弃档）。
+    /// 旧存档里的历史序号键会被 <see cref="SetStars"/> 静默丢弃（旧档不迁移，弃档）。
     ///
     /// 【纯 C#】不引用任何 UnityEngine 类型，可在无头验证台直接断言。
     /// </summary>

@@ -72,7 +72,7 @@ namespace PirateCrew.Data
     }
 
     /// <summary>
-    /// 一件烘焙陈设的摆位（样板关：云场 / 碎岛壳 / 落水危险虚线）。
+    /// 一件烘焙陈设的摆位（样板关：云场 / 岛壳 / 落水危险虚线）。
     /// <see cref="pieceId"/> 是 <c>SceneArt.ShowcasePieceId</c> 的整数值——Data 层不认识 SceneArt 枚举，
     /// 由 SceneArt 侧做一次显式转换（避免 Data → SceneArt 的反向依赖）。
     /// </summary>
@@ -233,7 +233,7 @@ namespace PirateCrew.Data
         /// <summary>显示名（中文名，选关页与结算展示）。</summary>
         public string displayName;
 
-        /// <summary>关卡号（海图占 101–108 段，与原版转写 1–33 不冲突）。</summary>
+        /// <summary>关卡号（海图占 101–108 段，与样板关号段不冲突）。</summary>
         public int levelNumber;
 
         /// <summary>图幅 X（米）。</summary>

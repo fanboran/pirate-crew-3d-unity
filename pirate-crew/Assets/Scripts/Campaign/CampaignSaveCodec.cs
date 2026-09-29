@@ -9,7 +9,7 @@ namespace PirateCrew.Campaign
     /// 战役进度的存档编解码（纯 C#，走 <see cref="SaveData"/> 现有的字符串键值 API）。
     ///
     /// 【格式】<c>campaign_level_stars = "wreck_hymn:3|atoll_ring:2"</c>（海图 id : 星级）。
-///   一代旧档的 level_01 形式键会被 SetStars 静默丢弃（值域已变为海图 id 集合）。
+///   旧存档里的历史序号键会被 SetStars 静默丢弃（值域已变为海图 id 集合）。
     ///   与 <c>CrewManagementSaveCodec</c> 同一思路：数据量小、JsonUtility 不支持 Dictionary，
     ///   用分隔符文本表达，纯 C# 可无头断言，且不需要改 Core。
     ///   解码对空段/非法段一律跳过（坏档不影响启动）。

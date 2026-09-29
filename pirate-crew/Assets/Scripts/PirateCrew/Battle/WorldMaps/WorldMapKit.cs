@@ -91,7 +91,7 @@ namespace PirateCrew.Battle.WorldMaps
     {
         public readonly string Id;
         public readonly string DisplayName;
-        /// <summary>关卡号（世界地图占用 101–108 段，与原版转写 1–33 不冲突）。</summary>
+        /// <summary>关卡号（世界地图占用 101–108 段，与样板关号段不冲突）。</summary>
         public readonly int LevelNumber;
         public readonly float SpanX;
         public readonly float SpanZ;

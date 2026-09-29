@@ -15,7 +15,7 @@ namespace PirateCrew.Data
     ///   Unity 的 managed stripping 会把播放器里没人调的方法剥掉，故不构成运行时负担。
     ///
     /// 【格式来源】逐条对齐 Unity 2022.3 自己的序列化风格（对照仓库既有资产
-    /// `Assets/Data/Balance/BalanceConfig.asset` 与已退役的 `Assets/Data/Levels/level_1.asset`）：
+    /// `Assets/Data/Balance/BalanceConfig.asset`）：
     ///   · 头 11 行固定（<c>m_Script</c> 用本资产类型的脚本 guid）；
     ///   · 序列值的破折号与键**同缩进**，序列项映射的其余字段缩进 +2；
     ///   · 嵌套 [Serializable] 类型写成一个子映射（本工程的 <c>data</c> 字段）；

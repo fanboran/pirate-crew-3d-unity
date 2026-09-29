@@ -9,11 +9,11 @@ namespace PirateCrew.Battle
     /// 物理地面。视觉层不在本类：样板三关外观由烘焙 prefab（<c>RuntimeSceneArt</c>）承担，
     /// 世界图外观由 <c>WorldMapComposer</c> 的 kit 件与站面承担。
     ///
-    /// 【一代视觉壳为何删除（2026-09-19，管线合并阶段 D）】旧"台地壳/潮沟/平台底部"路径由
+    /// 【旧视觉壳为何删除（2026-09-19，管线合并阶段 D）】旧"台地壳/潮沟/平台底部"路径由
     /// <c>IslandShellGeometry</c> 在运行时逐格生成合并网格——该几何生成器已随糖豆人式资产架构
     /// 改岗为编辑器烘焙器（<c>Assets/Editor/SceneArtBaker.cs</c>），运行时程序集不再含几何生成代码，
     /// 本类的视觉路径随之退役（<c>Render</c>/<c>ApplyDestruction</c> 退役前已无调用方——
-    /// 一代退场后战斗只有世界图与样板三关两条路，都不建格子渲染层）。
+    /// 战斗只有世界图与样板关两条路，都不建格子渲染层）。
     ///
     /// 【接线】由 <c>BattleSceneSetup</c> 在场景里创建并接好 <c>blockRoot</c>；
     /// 运行时由 <see cref="BattleController.BuildLevelSource"/> 调 <see cref="RenderCollidersOnly"/>

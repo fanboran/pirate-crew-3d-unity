@@ -300,7 +300,7 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// 关卡 XML 瓦片格坐标 → 单位站位世界坐标（§4.3）。
+        /// 关卡栅格格坐标 → 单位站位世界坐标（§4.3）。
         /// 横向 X = (gridX + 0.5) × <see cref="TileWorldSize"/>；纵深 Z 同理；
         /// 高度 Y = 地面 + <see cref="UnitPivotHeight"/>（脚底贴地）。
         /// </summary>

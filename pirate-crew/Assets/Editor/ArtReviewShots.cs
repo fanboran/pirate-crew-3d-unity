@@ -65,7 +65,7 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// 美术评审机位清单——**改这里就能增删/调整机位**，不改采集器逻辑。
     ///
-    /// 【偏移量依据】竞技场由 <c>LevelData.WidthTiles × HeightTiles</c> 决定（level_1 = 50×17，
+    /// 【偏移量依据】竞技场由 <c>LevelData.WidthTiles × HeightTiles</c> 决定（兜底场 50×17，
     /// 中心约 (25, 0, 8.5)）；下列偏移按该尺度取景，换更大的关卡时按需调大 Offset。
     /// 相机默认战斗视角对齐场景出厂值（distance 15、pitch 45°、yaw 0 →
     /// offset ≈ (0, 10.61, 10.61)，见 <c>BattleSceneSetup.CameraDistance/CameraPitchDegrees</c>）。
@@ -99,7 +99,7 @@ namespace PirateCrew.EditorTools
                 Pivot = ArtReviewPivot.ArenaCenter,
                 Offset = new Vector3(0f, 11.5f, 10.61f),
                 // 瞄准点从竞技场中心移到"两队出生区中点"（不是 LookAtPivot 的 pivot 本身）：
-                // level_1 红队出生中心 ≈(20.3,10.1)、蓝队 ≈(46.17,8.5)，两队中点 ≈(33.23,9.3)，
+                // 红队出生中心 ≈(20.3,10.1)、蓝队 ≈(46.17,8.5)，两队中点 ≈(33.23,9.3)，
                 // 相对竞技场中心 (25,8.5) 的偏移 =(8.23, 0.8, 0.8)。运行时 PlayerArtCapture
                 // 由实际单位动态算同一点（TeamSpawnMidpoint），此处为静态清单写死等价偏移。
                 LookAtOffset = new Vector3(8.23f, 1.2f, 0.8f),

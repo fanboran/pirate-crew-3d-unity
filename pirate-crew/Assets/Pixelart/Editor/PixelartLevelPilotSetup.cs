@@ -14,14 +14,14 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// **三个关卡各自一个像素化试点场景**的装配（一次跑完；也是 README 宣传图的成图入口）。
     ///
-    /// 【为什么一族三场景而不是一个】每个场景的**内容与构图都不一样**（云场在天上、碎岛贴海面、
+    /// 【为什么一族多场景而不是一个】每个场景的**内容与构图都不一样**（云场在天上、
     /// 空岛是一座 13 米高的岛），把它们塞进一个场景就得靠开关切换——那是"折叠态契约"最忌讳的状态
     /// （场景里出现按关卡参数变化的可见性）。改成"一关一场景"，每个场景都是一份**静态、可单独打开、
     /// 可单独出图**的内容，装配脚本是唯一的作者。
     ///
     /// 【内容逐条来自哪（一条都不自己编）】
     /// <list type="bullet">
-    ///   <item>烘焙陈设（云场 / 碎岛壳 / 落水危险虚线）：摆位读关卡资产的摆位表
+    ///   <item>烘焙陈设（云场 / 岛壳 / 落水危险虚线）：摆位读关卡资产的摆位表
     ///         （<see cref="ShowcaseLevels.BakedPlacements"/>），与主战斗场景 <c>RuntimeSceneArt</c>
     ///         读的是同一张表；</item>
     ///   <item>第 3 关的空岛**没有烘焙件**（它由 `FloatingIslandShowcaseMenu.Place` 程序化合成进场景），
@@ -35,7 +35,7 @@ namespace PirateCrew.EditorTools
     /// 材质口径里；三个场景都用一块**同高度（<c>LevelGeometry.WaterSurfaceY</c> = −0.4）的平色海面**占位。
     /// 它只影响观感的丰富度，不影响"场地 / 单位 / 构图"这三件要判的事。
     ///
-    /// 【材质】第 1 关手写映射（云的两档色取自关卡槽位色）；第 2/3 关的岛体有十几个材质槽，
+    /// 【材质】第 1 关手写映射（云的两档色取自关卡槽位色）；有岛体的关卡其岛体有十几个材质槽，
     /// 走**派生档**（`PixelartStageKit.EnsureDerivedMaterial`：从关卡自己的材质取色），
     /// 每个材质一行日志说清派生关系，收尾由 `AssertObjectShaderOnly` 兜底。
     ///
@@ -159,7 +159,7 @@ namespace PirateCrew.EditorTools
 
             var root = new GameObject("PixelartLevel" + level);
 
-            // 本关的**主内容件**（云场 / 碎岛壳 / 空岛），供构图断言核对"镜头确实对着内容"。
+            // 本关的**主内容件**（云场 / 岛壳 / 空岛），供构图断言核对"镜头确实对着内容"。
             GameObject content = null;
 
             // ---------------- 海面（同高度替身，见类头）----------------
@@ -405,7 +405,7 @@ namespace PirateCrew.EditorTools
             TileTerrainGrid grid, Transform sceneRoot)
         {
             // 【先看这一关的内容有没有碰撞体】云场件每朵云带双 BoxCollider（可查），
-            // 碎岛的合并壳网格**没有任何碰撞体**（纯渲染壳，碰撞由逻辑高度场/隐形方块负责）。
+            // 合并出的岛壳网格**没有任何碰撞体**（纯渲染壳，碰撞由逻辑高度场/隐形方块负责）。
             // 没有碰撞体时射线必然全 miss——那是"本件查不了"，不是"内容有问题"，
             // 混在一起报会把一次查询能力的限制伪装成内容缺陷（上一轮就这么误报过一关）。
             int colliders = sceneRoot.GetComponentsInChildren<Collider>(true).Length;

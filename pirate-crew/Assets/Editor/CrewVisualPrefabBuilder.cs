@@ -25,7 +25,7 @@ namespace PirateCrew.EditorTools
     ///   <list type="number">
     ///   <item>Godot `battle.tscn` 地面 = <c>PlaneMesh(size = Vector2(50, 50))</c> → 50×50 Godot 世界单位；</item>
     ///   <item>`docs/3D空间模型对齐.md` §2 把该地面定义为「尺寸 = 关卡 widthTiles × heightTiles」，
-    ///         而该演示场景对应的关卡宽 50 格（`LevelCatalog.level_1` widthTiles = 50）
+    ///         而该演示场景对应的关卡宽 50 格（`LevelCatalog` 兜底关 widthTiles = 50）
     ///         → **50 格 ↔ 50 Godot 世界单位 → Godot 1 格 = 1 Godot 单位**（<see cref="GodotUnitsPerTile"/>）；</item>
     ///   <item>Godot `pirate.tscn` 角色总高 = Body 圆柱 h1.2（y −0.8..+0.4）与 Head 球 d0.7（y +0.35..+1.05）
     ///         在轴上重叠 0.05 → **1.85 Godot 单位**（<see cref="GodotReferenceHeight"/>）；</item>

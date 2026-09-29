@@ -46,7 +46,6 @@ namespace PirateCrew.Battle
     /// （<c>WorldMapCatalog</c> 的 8 张）与关卡快照（<c>SceneArt.ShowcaseLevels</c> 读的 1–3）。
     /// 本类**不再判定内容来源**——优先级（-artReviewLevel 覆盖 &gt; -worldMap 待战 &gt; 兜底关 1）
     /// 只写在 <see cref="LevelSourceResolver"/> 一处，结果经 <see cref="LevelSource"/> 注入。
-    /// 原「场景 level 资产 / 战役注入关卡序号 / LevelCatalog 33 关」三条一代链路已随一代退场删除。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class BattleController : MonoBehaviour
@@ -282,7 +281,7 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 按内容来源重建静态陈设。世界图：kit 件 + 灰盒站面由 <see cref="WorldMapComposer"/> 摆放；
-        /// 关卡资产（样板关等）：<see cref="RuntimeSceneArt"/> 走烘焙 prefab 装配（云朵/碎岛/危险虚线）。
+        /// 关卡资产（样板关等）：<see cref="RuntimeSceneArt"/> 走烘焙 prefab 装配（云朵/岛壳/危险虚线）。
         /// 只做表现：不触碰地形协议。
         /// </summary>
         void RebuildSceneArt()
@@ -307,7 +306,7 @@ namespace PirateCrew.Battle
         /// 大海域海面（<see cref="Water.OceanRig"/> 圆盘，世界图按图幅、样板关按竞技场外扩）、
         /// 水模拟域重配（障碍掩码按本局地形实时烘）。落水死亡仍是纯 Y 阈值判定，不依赖水面碰撞。
         ///
-        /// 【退役器为何删除（2026-09-19，管线合并前置）】旧场景靠运行时退役器藏一代残留
+        /// 【退役器为何删除（2026-09-19，管线合并前置）】旧场景靠运行时退役器藏旧残留
         /// （Seabed_* 海床 / 烘焙小地图瓦层 / 旧水面渲染）。场景重烘后：装配器已不产 Seabed_* 与
         /// 烘焙瓦层，旧水面的 Renderer/WaterTessellator 在 <c>BattleSceneSetup.CreateWaterPlane</c>
         /// 烘焙期就置为禁用——渲染退役在场景层落实，运行时不再需要任何"定向隐藏"逻辑。

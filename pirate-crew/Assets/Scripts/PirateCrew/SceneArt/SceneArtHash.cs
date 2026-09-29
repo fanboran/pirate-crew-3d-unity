@@ -2,7 +2,7 @@ namespace PirateCrew.SceneArt
 {
     /// <summary>
     /// 由整数坐标派生的确定性哈希（给网格顶点抖动用，不依赖遍历顺序）。
-    /// 原在 <c>SceneLayoutRules.cs</c> 内；一代布局器退场时提为独立文件——
+    /// 原在 <c>SceneLayoutRules.cs</c> 内；旧布局器退场时提为独立文件——
     /// 留在运行时程序集的 <see cref="MeshBuffers"/> 顶点抖动与烘焙器几何层共用本实现。
     /// </summary>
     public static class SceneArtHash

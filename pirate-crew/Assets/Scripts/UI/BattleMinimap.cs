@@ -63,7 +63,7 @@ namespace PirateCrew.UI
         Image[] _tiles = new Image[0];
         int _tileVersion = -1;
         bool _built;
-        /// <summary>世界地图海图模式：按实际图跨度映射、旧 level_1 烘焙岛层隐藏、改用站面 box 岛层。</summary>
+        /// <summary>世界地图海图模式：按实际图跨度映射、装配期烘好的兜底岛层隐藏、改用站面 box 岛层。</summary>
         bool _worldChartMode;
         RectTransform _worldChartLayer;
         /// <summary>Refresh 上次校准点径时的点层像素宽（漂移 >0.5px 时重设全部点径）。</summary>
@@ -140,7 +140,7 @@ namespace PirateCrew.UI
 
         /// <summary>
         /// 世界地图海图模式自探测（UI 审计 P0-2 / 地图审计 §二.10 的修复）：
-        /// 本局是世界地图时，把换算范围改为实际图跨度、隐藏装配期烘好的 level_1 岛层、
+        /// 本局是世界地图时，把换算范围改为实际图跨度、隐藏装配期烘好的兜底岛层、
         /// 改从站面 box 生成海图岛层——否则世界图单位点位会被压进左上 1/9、底下垫着不相关的岛形。
         /// <see cref="WorldMapRuntime.TryGetPending"/> 不清除待战状态，Start 时查询安全
         /// （BattleController.Awake 消费 pending 也不清）。public 供测试与选关 UI 显式调用；
@@ -158,7 +158,7 @@ namespace PirateCrew.UI
             arenaWidth = Mathf.Max(1f, map.SpanX);
             arenaDepth = Mathf.Max(1f, map.SpanZ);
 
-            // 旧 33 关的烘焙岛层退位（先退订地形刷新再断开，防 BuildTiles 复用它）。
+            // 装配期烘好的兜底岛层退位（先退订地形刷新再断开，防 BuildTiles 复用它）。
             if (terrain != null)
             {
                 terrain.Changed -= OnTerrainChanged;
@@ -349,7 +349,7 @@ namespace PirateCrew.UI
             return rect;
         }
 
-        /// <summary>按地形网格铺满瓦片点（一格一颗）。地形未转写/未接线时不做任何事。</summary>
+        /// <summary>按地形网格铺满瓦片点（一格一颗）。无地形数据/未接线时不做任何事。</summary>
         void BuildTiles()
         {
             if (terrain == null || terrain.Grid == null || _tiles.Length > 0)

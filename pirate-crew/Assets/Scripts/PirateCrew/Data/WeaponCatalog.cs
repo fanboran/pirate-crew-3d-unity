@@ -111,7 +111,7 @@ namespace PirateCrew.Data
     /// <summary>
     /// 17 种武器的纯 C# 静态目录表（真值来源）。
     ///
-    /// 【出处】静态逆向文档 §5.2「武器总表」17 行逐行转写；
+    /// 【出处】静态逆向文档 §5.2「武器总表」17 行逐行参考；
     ///         特殊行为补充自同表「备注」列、§5.1（投掷/速度）、§5.3（爆炸公式）与 §8.4（官方文案）。
     ///
     /// 【架构】本类刻意不引用任何 UnityEngine 类型：它既能在 Unity 里被
@@ -120,7 +120,7 @@ namespace PirateCrew.Data
     /// </summary>
     public static class WeaponCatalog
     {
-        // 转写时反复用到的说明文字（保持每条备注完整、可追溯）。
+        // 参考时反复用到的说明文字（保持每条备注完整、可追溯）。
         const string Src = "静态逆向 §5.2";
 
         static readonly List<WeaponStats> _all = new List<WeaponStats>
