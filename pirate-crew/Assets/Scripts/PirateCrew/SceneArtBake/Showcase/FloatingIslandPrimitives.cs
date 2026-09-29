@@ -515,11 +515,14 @@ namespace PirateCrew.SceneArt.Showcase
             blades = Mathf.Clamp(blades, 2, 8);
             for (int i = 0; i < blades; i++)
             {
+                // 叶形照 t3ssel8r 草坪 sprite 的读法（external/ref/unity-isometric-pixel-pipeline
+                // grassleaf.png）：**直立细长叶、轻微外撇**——不是外撇的 V 字芽。窄叶（0.18）+
+                // 小倾角（0.12-0.42）+ 高杆（0.9-1.5），在 30° 俯角下读成一束立着的细笔触。
                 float ang = Mathf.PI * 2f * i / blades + SceneArtHash.Hash01(seed, i, 3) * 1.15f;
-                float tilt = 0.28f + 0.55f * SceneArtHash.Hash01(seed, i, 7);
-                float len = scale * (0.72f + 0.55f * SceneArtHash.Hash01(seed, i, 11));
+                float tilt = 0.12f + 0.30f * SceneArtHash.Hash01(seed, i, 7);
+                float len = scale * (0.90f + 0.60f * SceneArtHash.Hash01(seed, i, 11));
                 Vector3 dir = new Vector3(Mathf.Cos(ang) * tilt, 1f, Mathf.Sin(ang) * tilt);
-                b.AddLeaf(basePos, dir, len, scale * 0.30f, scale * 0.16f, 1, Vector3.up);
+                b.AddLeaf(basePos, dir, len, scale * 0.18f, scale * 0.08f, 1, Vector3.up);
             }
         }
 

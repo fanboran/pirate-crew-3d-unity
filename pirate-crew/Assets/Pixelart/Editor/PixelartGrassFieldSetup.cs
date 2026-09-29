@@ -41,8 +41,9 @@ namespace PirateCrew.EditorTools
         const float FieldHalfX = 20f;
         const float FieldHalfZ = 14f;
 
-        /// <summary>草簇间距（米）：0.85 ≈ 簇径的 1.6 倍——满铺但不互相盖死（约 1500 簇 / 6 万三角面）。</summary>
-        const float Spacing = 0.85f;
+        /// <summary>草簇间距（米）：0.55——r17 实拍 0.85 太稀（地面全露），加密到近满铺
+        /// （约 3700 簇 / 18 万三角面，桌面量级无压力）。</summary>
+        const float Spacing = 0.55f;
 
         /// <summary>草簇种子（确定性：同参数重跑逐顶点一致）。</summary>
         const int Seed = 20260930;
@@ -78,12 +79,14 @@ namespace PirateCrew.EditorTools
             // ---------------- 材质（像素路径唯一配方；色值 = 草皮三档调色板）----------------
             Material ground = PixelartStageKit.EnsureMaterial("PixelartGrassField_Ground",
                 PixelartStageKit.Hex(SceneArtPalette.GrassDark), 3f, outlinePixels: 0f);
+            // 草皮材质**关逐叶描边**（r17 实拍教训：0.3 m 的簇只有 2-3 艺术像素高，
+            // 1 像素描边吃掉近半——近读成贴纸、远读成黑斑点噪声；t3ssel8r 原版草没有逐叶描边）。
             Material mid = PixelartStageKit.EnsureMaterial("PixelartGrassField_Mid",
-                PixelartStageKit.Hex(SceneArtPalette.GrassMid), 3f);
+                PixelartStageKit.Hex(SceneArtPalette.GrassMid), 3f, outlinePixels: 0f);
             Material light = PixelartStageKit.EnsureMaterial("PixelartGrassField_Light",
-                PixelartStageKit.Hex(SceneArtPalette.GrassLight), 3f);
+                PixelartStageKit.Hex(SceneArtPalette.GrassLight), 3f, outlinePixels: 0f);
             Material dark = PixelartStageKit.EnsureMaterial("PixelartGrassField_Dark",
-                PixelartStageKit.Hex(SceneArtPalette.GrassDark), 3f);
+                PixelartStageKit.Hex(SceneArtPalette.GrassDark), 3f, outlinePixels: 0f);
             if (ground == null || mid == null || light == null || dark == null)
             {
                 Debug.LogError(LogTag + " 草皮材质没造出来（shader 缺失？）——出图上会是品红。");
