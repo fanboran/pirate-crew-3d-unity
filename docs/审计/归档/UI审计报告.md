@@ -1,5 +1,10 @@
 # UI 审计——2026-09-17
 
+> ⛔ **【已过期·2026-09-30 移入归档，仅作沿革档案】** 所审的运行时 UI 层已整体重做（Aseprite 参考库
+> 全量复刻 + UI 重构波），且 P0 三项（八图 UI 入口／小地图 level_1 专用／战役卷宗脱节）全围绕
+> **已整批删除的海图 101–108**。现行 UI 口径以 Aseprite 参考库
+> （`pirate-crew/Assets/Art/Sprites/UI/Aseprite/theme.xml`）与 `Resources/AseWidgets/` 为准。
+
 > **审计方式**：静态代码走查（运行时 UI 脚本 `Assets/Scripts/UI/` 全量 + Editor 装配脚本
 > `BattleHudBuilder` / `ManagementSceneSetup` / `HudMinimapSceneSetup` / `BattleSceneSetup` + 数据目录层），
 > 未启动编辑器实测。凡由代码推断、未经实机截图验证的结论，正文已标注。
