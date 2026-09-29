@@ -499,11 +499,11 @@ namespace PirateCrew.Battle.Tests
         }
 
         [Test]
-        public void LookAtHeight_FollowsGodotUnitHeightAndRatio()
+        public void LookAtHeight_FollowsUnitHeightAndRatio()
         {
             // lookAt 抬高 = 单位视觉高 × 比例；视觉高与 CrewVisualPrefabBuilder.TargetUnitHeight 同源（1.85）。
             Assert.That(CameraFraming.UnitVisualHeight, Is.EqualTo(1.85f).Within(1e-4f),
-                "单位视觉总高应 = Godot 1.85（1 格 = 1 Godot 单位 = 1 本工程单位）");
+                "单位视觉总高应 = 1.85（1 格 = 1 单位 = 1 本工程单位）");
             Assert.That(CameraFraming.LookAtHeightRatio, Is.InRange(0.6f, 0.7f),
                 "lookAt 抬高比例应在 0.6–0.7");
             Assert.That(CameraFraming.LookAtHeight,

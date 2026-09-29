@@ -16,7 +16,7 @@ namespace PirateCrew.CharCamDebug
     ///     <see cref="PixelartCameraRig"/> 的公开字段（worldPerPixel / pixelScale）与相机 Transform。
     /// 面板同时给**读数**：角色总高占多少**艺术像素**、占画面高度百分比、每艺术像素多少米——
     /// 像素化路径下"角色清不清楚"就是这几个数决定的（面片小于艺术像素等于白费，见
-    /// `CrewVisualPrefabBuilder.GodotHeadSegments` 的推导），调参时照着读数定，不靠目测。
+    /// `CrewVisualPrefabBuilder.HeadSegments` 的推导），调参时照着读数定，不靠目测。
     ///
     /// 【为什么不直接实例化游戏角色预制体】预制体的两件式网格是**烘死的资产**（尺寸即规格值，
     /// 缩放恒 1），改不了参数；本场景要的恰恰是"参数可跑"。几何走同一个
@@ -56,13 +56,13 @@ namespace PirateCrew.CharCamDebug
         /// <summary>默认色带档数（创始人 2026-09-29：「过渡色改成四」——四档色带为调试场默认）。</summary>
         public const int DefaultBandCount = 4;
 
-        /// <summary>Body 圆台侧壁分段——镜像 `CrewVisualPrefabBuilder.GodotBodySides`（16，private 不可引用）。</summary>
+        /// <summary>Body 圆台侧壁分段——镜像 `CrewVisualPrefabBuilder.BodySides`（16，private 不可引用）。</summary>
         public const int BodySides = 16;
 
-        /// <summary>Head 球经向分段——镜像 `GodotHeadSegments`（12）。</summary>
+        /// <summary>Head 球经向分段——镜像 `HeadSegments`（12）。</summary>
         public const int HeadSegments = 12;
 
-        /// <summary>Head 球纬向分段——镜像 `GodotHeadRings`（8）。</summary>
+        /// <summary>Head 球纬向分段——镜像 `HeadRings`（8）。</summary>
         public const int HeadRings = 8;
 
         /// <summary>把「可见多少米高」换算成一个艺术像素的世界尺寸（米）。</summary>
@@ -131,7 +131,7 @@ namespace PirateCrew.CharCamDebug
         [Min(0.02f)] public float bottomRadius = DefaultBottomRadius;
         [Min(0.1f)] public float bodyHeight = DefaultBodyHeight;
         [Min(0.02f)] public float headRadius = DefaultHeadRadius;
-        [Tooltip("头颈间距：0 = Godot 基准（球底与柱顶重叠 0.05）；正 = 头上拉，负 = 压进身体。")]
+        [Tooltip("头颈间距：0 = 基准（球底与柱顶重叠 0.05）；正 = 头上拉，负 = 压进身体。")]
         [Range(-0.3f, 0.5f)] public float headLift = DefaultHeadLift;
 
         [Header("镜头取景")]
@@ -454,7 +454,7 @@ namespace PirateCrew.CharCamDebug
                 + $"BodyBottomRadius  = {bottomRadius.ToString("0.####")}\n"
                 + $"BodyHeight        = {bodyHeight.ToString("0.####")}\n"
                 + $"HeadSphereRadius  = {headRadius.ToString("0.####")}\n"
-                + $"HeadLift          = {headLift.ToString("0.####")}（头颈间距，0 = Godot 基准）\n"
+                + $"HeadLift          = {headLift.ToString("0.####")}（头颈间距，0 = 基准）\n"
                 + $"HeadSphereCenterY = {HeadCenterY.ToString("0.####")}（身高−0.05+头半径+间距）\n"
                 + $"TotalHeight       = {TotalHeight.ToString("0.####")}\n"
                 + $"可见米数          = {visibleMeters.ToString("0.#")}（worldPerPixel {WorldPerPixel(visibleMeters, pixelScale).ToString("0.####")}）\n"
@@ -524,7 +524,7 @@ namespace PirateCrew.CharCamDebug
             bodyHeight = LabeledSlider("身体高度", bodyHeight, 0.3f, 2.5f, ref _meshDirty);
             headRadius = LabeledSlider("头部半径", headRadius, 0.05f, 0.8f, ref _meshDirty);
             headLift = LabeledSlider("头颈间距", headLift, -0.3f, 0.5f, ref _meshDirty);
-            GUILayout.Label($"  头心 y = {HeadCenterY.ToString("0.###")}，总高 = {TotalHeight.ToString("0.###")}（间距 0 = Godot 基准，重叠 {HeadBodyOverlap}）");
+            GUILayout.Label($"  头心 y = {HeadCenterY.ToString("0.###")}，总高 = {TotalHeight.ToString("0.###")}（间距 0 = 基准，重叠 {HeadBodyOverlap}）");
 
             GUILayout.Space(6f);
             GUILayout.Label("—— 镜头取景 ——");

@@ -23,9 +23,9 @@ namespace PirateCrew.EditorTools
     ///   <list type="number">
     ///   <item>关卡地面尺寸 = 关卡 widthTiles × heightTiles（`docs/3D空间模型对齐.md` §2），
     ///         兜底关宽 50 格（`LevelCatalog` 兜底关 widthTiles = 50）
-    ///         → **1 格 = 1 世界单位**（<see cref="GodotUnitsPerTile"/>）；</item>
+    ///         → **1 格 = 1 世界单位**（<see cref="UnitsPerTile"/>）；</item>
     ///   <item>单位总高 = Body 圆柱 h1.2 与 Head 球 d0.7 在轴上重叠 0.05
-    ///         → **1.85 世界单位**（<see cref="GodotReferenceHeight"/>）；</item>
+    ///         → **1.85 世界单位**（<see cref="ReferenceHeight"/>）；</item>
     ///   <item>本工程 1 格 = 1 世界单位（`LevelGeometry.PixelsPerUnit = 32`、`WorldWidth = widthTiles`，
     ///         见 <see cref="UnityUnitsPerTile"/>）→ 换算系数 = 1；</item>
     ///   <item>→ **目标视觉总高 = 1.85 世界单位**（<see cref="TargetUnitHeight"/>）。</item>
@@ -50,7 +50,7 @@ namespace PirateCrew.EditorTools
     /// 【为什么删掉了腿/靴/臂/掌/三角帽/头巾/发/鼻/眼/手持武器】那些零件是此前多轮复验里
     ///   **AI 自主加件**的产物（"评委"式跑偏），用户从未要求；用户原话是"一个球加一个梯形"，
     ///   并明确"我要圆球+圆台柱那种"。故装配代码整段移除
-    ///   （见 <see cref="ApplyGodotTwoPieceSilhouette"/>）；网格资产与 <c>CrewMeshLibrary</c> 的键
+    ///   （见 <see cref="ApplyTwoPieceSilhouette"/>）；网格资产与 <c>CrewMeshLibrary</c> 的键
     ///   **不删库**（生成链路与三角面预算镜像表仍在），只是预制体里不再装配它们。
     ///
     /// 【预制体结构】
@@ -107,15 +107,15 @@ namespace PirateCrew.EditorTools
         /// <summary>
         /// 归一基准总高 = 1.85：Body 圆柱 h1.2 与 Head 球 d0.7
         /// 在轴上重叠 0.05（0.4−0.35）→ 总高 1.2 + 0.7 − 0.05 = 1.85。
-        /// 只作 <see cref="GodotScale"/> 的归一基准；**现役总高以两件式常量推导为准（≈2.03，见 <see cref="HeadSphereCenterY"/>）**。
+        /// 只作 <see cref="ReferenceToWorldScale"/> 的归一基准；**现役总高以两件式常量推导为准（≈2.03，见 <see cref="HeadSphereCenterY"/>）**。
         /// </summary>
-        const float GodotReferenceHeight = 1.85f;
+        const float ReferenceHeight = 1.85f;
 
         /// <summary>
         /// 1 格 = 1 世界单位。推导见类头「尺度推导链」：
         /// 兜底关地面 50 格 ↔ 50 世界单位。
         /// </summary>
-        const float GodotUnitsPerTile = 1f;
+        const float UnitsPerTile = 1f;
 
         /// <summary>
         /// 本工程 1 格 = 1 世界单位（`LevelGeometry.PixelsPerUnit = 32`，`WorldWidth = widthTiles`）。
@@ -123,37 +123,37 @@ namespace PirateCrew.EditorTools
         const float UnityUnitsPerTile = 1f;
 
         /// <summary>
-        /// 目标视觉总高的归一系数来源（1.85 × UnityUnitsPerTile / GodotUnitsPerTile）。
-        /// <see cref="GodotScale"/> 恒 1，两件式常量直接写世界值——**总高不再锚 1.85**，由 Body/Head 常量推出。
+        /// 目标视觉总高的归一系数来源（1.85 × UnityUnitsPerTile / UnitsPerTile）。
+        /// <see cref="ReferenceToWorldScale"/> 恒 1，两件式常量直接写世界值——**总高不再锚 1.85**，由 Body/Head 常量推出。
         ///
         /// 【为什么不再用旧的 0.55】旧口径把整身压到 0.55 世界单位（≈0.55 格高），
         ///   与 1.85 格高的角色差了 3.36 倍，用户一眼看出"角色比木筏子小这么多"。
         ///   碰撞足迹仍由根级 BoxCollider 决定（0.375×0.5×0.375，Flash 12×16px 契约，见
         ///   <see cref="UnitRootScale"/>），**与视觉高度无关**，改造型不动碰撞体。
         /// </summary>
-        const float TargetUnitHeight = GodotReferenceHeight * UnityUnitsPerTile / GodotUnitsPerTile;
+        const float TargetUnitHeight = ReferenceHeight * UnityUnitsPerTile / UnitsPerTile;
 
         /// <summary>等比缩放系数 k = 1.85 / 1.85 = **1**（归一单位 → 本工程世界单位；两件式即归一基准原值）。</summary>
-        static readonly float GodotScale = TargetUnitHeight / GodotReferenceHeight;
+        static readonly float ReferenceToWorldScale = TargetUnitHeight / ReferenceHeight;
 
         /// <summary>
         /// Body 圆台柱顶半径 = **0.30**（创始人 2026-09-29 在角色镜头调试场定档，即
         /// CharCamDebugController.DefaultTopRadius；前值 0.35）。
         /// </summary>
-        static readonly float BodyTopRadius = 0.3f * GodotScale;
+        static readonly float BodyTopRadius = 0.3f * ReferenceToWorldScale;
 
         /// <summary>
         /// Body 圆台柱底半径 = **0.30**（2026-09-29 调试档——与顶径等宽的圆柱身；
         /// 演进：0.4 → 0.4667（2026-09-22 台柱感 + 2026-09-28 整像素）→ 0.3）。
         /// 锥度 0.30/0.30 = 1，直筒；特写档直径 0.6 m 在可见 14 m@540 画布 = 23.1 px（1:2）。
         /// </summary>
-        static readonly float BodyBottomRadius = 0.3f * GodotScale;
+        static readonly float BodyBottomRadius = 0.3f * ReferenceToWorldScale;
 
         /// <summary>Body 圆台柱高 = **1.3215**（2026-09-29 调试档；前值 1.20），底面贴脚底（局部 y 0..1.3215）。</summary>
-        static readonly float BodyHeight = 1.3215f * GodotScale;
+        static readonly float BodyHeight = 1.3215f * ReferenceToWorldScale;
 
         /// <summary>Head 球半径 = **0.30**（2026-09-29 调试档；前值 0.35）。</summary>
-        static readonly float HeadSphereRadius = 0.3f * GodotScale;
+        static readonly float HeadSphereRadius = 0.3f * ReferenceToWorldScale;
 
         /// <summary>
         /// 头颈间距 = **0.1606**（2026-09-29 调试档）：头心上抬量，正 = 拉出脖颈间隙、0 = 球底与柱顶
@@ -170,7 +170,7 @@ namespace PirateCrew.EditorTools
 
         /// <summary>圆台柱侧壁分段（16；三角面 = 侧壁 32 + 上下盖 32 = 64）。底缘弦长 6.9 px@1:2 特写，
         /// 12 段以下剪影棱边在特写档可辨（&gt;0.6 px 偏差），保持 16。</summary>
-        const int GodotBodySides = 16;
+        const int BodySides = 16;
 
         /// <summary>
         /// 球经向分段 = **12**（原 16）。像素感口径（创始人 2026-09-28 令"建模微调产生像素感"）：
@@ -179,10 +179,10 @@ namespace PirateCrew.EditorTools
         /// ≥1.45 px@全场档，剪影偏差 ≤0.26 px（27 px 圆头上不可辨，圆头轮廓裁决不变），
         /// 三角面 352 → 168（−52%），色带 3 档对 8 环 = 每档约 2.7 行，阶梯变整。
         /// </summary>
-        const int GodotHeadSegments = 12;
+        const int HeadSegments = 12;
 
-        /// <summary>球纬向分段 = **8**（原 12；三角面 = 2×12×(8−1) = 168）。依据见 <see cref="GodotHeadSegments"/>。</summary>
-        const int GodotHeadRings = 8;
+        /// <summary>球纬向分段 = **8**（原 12；三角面 = 2×12×(8−1) = 168）。依据见 <see cref="HeadSegments"/>。</summary>
+        const int HeadRings = 8;
 
         // ------------------------------------------------------------------
         // 本文件追加的资产键（**不登记进 CrewMeshLibrary**，
@@ -240,15 +240,15 @@ namespace PirateCrew.EditorTools
             CrewVisualAssetSet assetSet = BuildAssetSet(meshes, materials);
 
             var report = new System.Text.StringBuilder();
-            report.AppendLine("[CrewVisualPrefabBuilder] 职业视觉预制体生成完成（用户裁决：Godot 两件式 = 圆球 + 圆台柱）：");
+            report.AppendLine("[CrewVisualPrefabBuilder] 职业视觉预制体生成完成（用户裁决：两件式 = 圆球 + 圆台柱）：");
             report.AppendLine("  网格资产: " + MeshFolder + "（" + meshes.Count + " 个）");
             report.AppendLine("  材质资产: " + CrewMaterialFolder + "（" + materials.Length + " 个 + 接触阴影 1 个）");
             report.AppendLine("  Body 圆台柱: 顶 r " + BodyTopRadius.ToString("0.00000")
                 + " / 底 r " + BodyBottomRadius.ToString("0.00000")
-                + " / h " + BodyHeight.ToString("0.00000") + "（" + GodotBodySides + " 段）");
+                + " / h " + BodyHeight.ToString("0.00000") + "（" + BodySides + " 段）");
             report.AppendLine("  Head 圆球: r " + HeadSphereRadius.ToString("0.00000")
                 + " / 球心 y " + HeadSphereCenterY.ToString("0.00000")
-                + "（" + GodotHeadSegments + "×" + GodotHeadRings + "）");
+                + "（" + HeadSegments + "×" + HeadRings + "）");
 
             int failures = 0;
             for (int i = 0; i < CrewVisualCatalog.AllProfessions.Length; i++)
@@ -291,9 +291,9 @@ namespace PirateCrew.EditorTools
         static void InjectAddOnMeshes(Dictionary<string, MeshData> meshData)
         {
             meshData[BodyFrustumKey] = CrewMeshFactory.Frustum(
-                BodyTopRadius, BodyBottomRadius, BodyHeight, GodotBodySides);
+                BodyTopRadius, BodyBottomRadius, BodyHeight, BodySides);
             meshData[HeadSphereKey] = CrewMeshFactory.LowPolySphere(
-                HeadSphereRadius, GodotHeadSegments, GodotHeadRings);
+                HeadSphereRadius, HeadSegments, HeadRings);
         }
 
         // ------------------------------------------------------------------
@@ -448,14 +448,14 @@ namespace PirateCrew.EditorTools
             // ---- 用户裁决 2026-09-14：塌缩成两件式（圆球 + 圆台柱）----
             // 保留 rig.Build 的枢轴接线（Body/TorsoPivot/HeadPivot 与动画器共用），
             // 只把"零件"部分整体换掉：删掉 legs/boots/arms/hands/hats/face/held 后重建 Body + Head。
-            ApplyGodotTwoPieceSilhouette(rig, assetSet, addOns);
+            ApplyTwoPieceSilhouette(rig, assetSet, addOns);
 
             // 阵营色部件：显式写进 binder，并拆掉必然变成 missing script 的运行时标记组件。
             Renderer[] tintRenderers = CollectAndStripTintMarkers(root);
             if (tintRenderers.Length != 1)
                 Debug.LogError("[CrewVisualPrefabBuilder] " + fileName + " 的阵营色部件数 = "
                     + tintRenderers.Length + "（两件式口径下恒为 1 = Body），请检查 "
-                    + "ApplyGodotTwoPieceSilhouette 是否被改动。");
+                    + "ApplyTwoPieceSilhouette 是否被改动。");
 
             // 统计实测三角面（用网格资产数据算，不靠估算）。
             var filters = root.GetComponentsInChildren<MeshFilter>(true);
@@ -476,7 +476,7 @@ namespace PirateCrew.EditorTools
             if (rendererCount != 2)
                 Debug.LogError("[CrewVisualPrefabBuilder] " + fileName + " 的角色部件 renderer 数 = "
                     + rendererCount + "（两件式口径下恒为 2 = Body + Head），请检查 "
-                    + "ApplyGodotTwoPieceSilhouette 是否被改动。");
+                    + "ApplyTwoPieceSilhouette 是否被改动。");
 
 
             // 接线（PirateBase.body / bodyCollider / 表现层引用）。
@@ -531,7 +531,7 @@ namespace PirateCrew.EditorTools
         ///   引用为 null → 该组件已有 null 判断，行为退化为"无摆臂/无迈腿"，整身 bob / 前倾 / 倒地 /
         ///   落水下沉 / 呼吸全部照常（它们只依赖 Body/TorsoPivot/HeadPivot）。
         /// </summary>
-        static void ApplyGodotTwoPieceSilhouette(CrewVisualRig rig, CrewVisualAssetSet assets, VisualAddOns addOns)
+        static void ApplyTwoPieceSilhouette(CrewVisualRig rig, CrewVisualAssetSet assets, VisualAddOns addOns)
         {
             Transform visual = rig.transform;
             Transform bodyPivot = rig.Body;

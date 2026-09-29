@@ -14,8 +14,8 @@ namespace PirateCrew.Tests
         {
             var roster = new Roster();
 
-            Assert.That(roster.MaxSize, Is.EqualTo(4), "roster.gd:10 max_roster_size = 4");
-            Assert.That(roster.IsUnlocked(CrewRosterCatalog.InitialCrewId), Is.True, "roster.gd:12 默认解锁水手");
+            Assert.That(roster.MaxSize, Is.EqualTo(4), "编成上限 = 4");
+            Assert.That(roster.IsUnlocked(CrewRosterCatalog.InitialCrewId), Is.True, "默认解锁水手");
             Assert.That(roster.UnlockedCount, Is.EqualTo(CrewRosterCatalog.InitialCrewIds.Count));
             Assert.That(roster.Active, Is.EquivalentTo(CrewRosterCatalog.InitialCrewIds));
         }
@@ -37,7 +37,7 @@ namespace PirateCrew.Tests
             var roster = new Roster();
 
             Assert.That(roster.Recruit("gunner"), Is.True);
-            Assert.That(roster.Recruit("gunner"), Is.False, "重复招募应无效（Godot unlock_crew 的 has 去重）");
+            Assert.That(roster.Recruit("gunner"), Is.False, "重复招募应无效（按 id 去重）");
             Assert.That(roster.UnlockedCount, Is.EqualTo(2));
             Assert.That(roster.IsActive("gunner"), Is.False, "新招募不应挤占已有编成");
         }
@@ -60,7 +60,7 @@ namespace PirateCrew.Tests
             roster.Recruit("gunner");
 
             Assert.That(roster.SetActive(new[] { "sailor", "gunner", "sniper" }), Is.False,
-                "超过编成上限必须拒绝（roster.gd:26）");
+                "超过编成上限必须拒绝");
             Assert.That(roster.Active, Is.EqualTo(new[] { "sailor" }), "被拒绝时不得改动原阵容");
         }
 
@@ -69,7 +69,7 @@ namespace PirateCrew.Tests
         {
             var roster = new Roster();
 
-            Assert.That(roster.SetActive(new[] { "sailor", "sniper" }), Is.False, "未拥有 → 拒绝（roster.gd:29）");
+            Assert.That(roster.SetActive(new[] { "sailor", "sniper" }), Is.False, "未拥有 → 拒绝");
         }
 
         [Test]
@@ -88,7 +88,7 @@ namespace PirateCrew.Tests
         {
             var roster = new Roster();
 
-            Assert.That(roster.SetActive(new string[0]), Is.True, "Godot 版允许空阵容（minimum 是 UI 的规则）");
+            Assert.That(roster.SetActive(new string[0]), Is.True, "允许空阵容（minimum 是 UI 的规则）");
             Assert.That(roster.Active, Is.Empty);
         }
 
