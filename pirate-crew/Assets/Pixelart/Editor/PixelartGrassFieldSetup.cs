@@ -41,24 +41,33 @@ namespace PirateCrew.EditorTools
         const float FieldHalfZ = 14f;
 
         /// <summary>草簇间距（米）：0.75——quad 加大到 0.9 后放疏（约 2000 簇，近满铺不互相盖死）。</summary>
-        const float Spacing = 0.75f;
+        /// <summary>草簇间距（米）：0.32——**草皮尺度**：参考帧 035 里草簇只有石块的 1/4 高
+        /// （≈0.15-0.3 m 的矮草，密到融成一张面），r20/r21 的 0.9 m 是 3-6 倍失真（麦田）。
+        /// 约 1.1 万簇 × 8 三角面 ≈ 9 万面，桌面量级。</summary>
+        const float Spacing = 0.32f;
 
         /// <summary>草簇种子（确定性：同参数重跑逐顶点一致）。</summary>
         const int Seed = 20260930;
 
-        /// <summary>sprite 四边形边长（米）：0.9——**纹素密度判据**「1 纹素 ≈ 1 艺术像素」：
-        /// 16 纹素 × 5.6cm ≈ 宽机位 11 艺术像素高（r19 教训：0.45m 时 1 艺术像素盖 3 纹素，
-        /// 点采样把细叶尖全跳掉，sprite 被降采样成 V 字碎片）。</summary>
-        const float QuadSize = 0.9f;
+        /// <summary>sprite 四边形边长（米）：0.3——矮草皮（16 纹素 × 1.9cm）。
+        /// 【判据修订】「1 纹素 ≈ 1 艺术像素」只在**单一机位**成立；多机位下矮草在宽机位
+        /// 本来就该读成斑驳表面（参考帧 035 正是如此——单簇不可辨、只剩色调纹理），
+        /// r17 的"V 字碎片"病根是**高对比描边**不是密度。</summary>
+        const float QuadSize = 0.3f;
 
-        /// <summary>稀有高株 accent 概率（原版 _AccentFrequency 口径）。</summary>
-        const float AccentFrequency = 0.06f;
+        /// <summary>稀有高株 accent 概率：参考里路径边零星的高草（3%）。</summary>
+        const float AccentFrequency = 0.03f;
 
         const string MeshFolder = "Assets/Art/Models/Scene/GrassField";
         const string SpriteFolder = "Assets/Pixelart/Textures/GrassTuft";
 
-        /// <summary>遮罩图集：16 宽 × 32 高。下半（uv.y 0-0.5）= 常规簇；上半（0.5-1）= 高株 accent。</summary>
-        const int AtlasW = 16;
+        /// <summary>常规簇变体数 / 高株 accent 变体数（图集横排，每格 16×16）。</summary>
+        const int Variants = 4;
+        const int AccentVariants = 3;
+
+        /// <summary>遮罩图集：64 宽 × 32 高。下行（uv.y 0-0.5）= 4 种常规簇；
+        /// 上行（0.5-1）= 3 种高株 accent。逐簇随机选格 + 随机水平镜像。</summary>
+        const int AtlasW = 64;
         const int AtlasH = 32;
 
         [MenuItem("PirateCrew/Pixelart/烘焙纯草坪验收场景")]
@@ -201,18 +210,17 @@ namespace PirateCrew.EditorTools
             for (int i = 0; i < px.Length; i++)
                 px[i] = new Color32(0, 0, 0, 0);
 
-            // 常规簇（下半，原点 y=0）：中央高叶 + 两侧外撇 + 两根补空，5 叶束。
-            // 叶基 3 纹素（≈2 艺术像素宽的笔触，quad 0.9m 口径下点采样不丢列）。
-            DrawBlade(px, 0, 0, baseX: 7, height: 13, lean: 0, width: 3);
-            DrawBlade(px, 0, 0, baseX: 4, height: 9, lean: -3, width: 3);
-            DrawBlade(px, 0, 0, baseX: 10, height: 10, lean: 3, width: 3);
-            DrawBlade(px, 0, 0, baseX: 6, height: 7, lean: -1, width: 2);
-            DrawBlade(px, 0, 0, baseX: 9, height: 8, lean: 1, width: 2);
+            // 常规簇 4 变体（下行，每格 16×16）：叶数/高矮/撇向各异——逐簇随机选格，
+            // 叠加随机水平镜像 ⇒ 4 变体 × 2 镜像 × 3 档色 = 24 种组合，治"个个一模一样"。
+            DrawTuft(px, 0, 0, new[] { (7, 13, 0, 3), (4, 9, -3, 2), (10, 10, 3, 2), (6, 7, -1, 1), (9, 8, 1, 1) });
+            DrawTuft(px, 16, 0, new[] { (8, 11, 0, 2), (5, 8, -2, 2), (11, 9, 2, 2) });
+            DrawTuft(px, 32, 0, new[] { (6, 12, -1, 2), (9, 12, 1, 2), (3, 7, -3, 2), (12, 8, 3, 2), (8, 6, 0, 1) });
+            DrawTuft(px, 48, 0, new[] { (8, 14, 0, 2), (5, 10, -2, 1), (11, 11, 2, 1), (8, 7, 0, 1) });
 
-            // 高株 accent（上半，原点 y=16）：更高更瘦的三叶。
-            DrawBlade(px, 0, 16, baseX: 8, height: 15, lean: 0, width: 3);
-            DrawBlade(px, 0, 16, baseX: 5, height: 12, lean: -3, width: 2);
-            DrawBlade(px, 0, 16, baseX: 10, height: 12, lean: 3, width: 2);
+            // 高株 accent 3 变体（上行 y=16，更高更瘦，占前 3 格）。
+            DrawTuft(px, 0, 16, new[] { (8, 15, 0, 2), (5, 12, -3, 1), (10, 12, 3, 1) });
+            DrawTuft(px, 16, 16, new[] { (7, 15, -1, 2), (10, 13, 2, 1) });
+            DrawTuft(px, 32, 16, new[] { (8, 15, 0, 1), (6, 13, -2, 1), (11, 13, 2, 1), (8, 10, 0, 1) });
 
             var texture = new Texture2D(AtlasW, AtlasH, TextureFormat.RGBA32, false)
             {
@@ -257,6 +265,13 @@ namespace PirateCrew.EditorTools
                 for (int dx = 0; dx < w; dx++)
                     SetPx(px, ox + x + dx, oy + i);
             }
+        }
+
+        /// <summary>一簇 = 若干叶（局部格内 16×16 点阵）：(baseX, height, lean, width) 列表。</summary>
+        static void DrawTuft(Color32[] px, int ox, int oy, (int baseX, int height, int lean, int width)[] blades)
+        {
+            foreach (var b in blades)
+                DrawBlade(px, ox, oy, b.baseX, b.height, b.lean, b.width);
         }
 
         static void SetPx(Color32[] px, int x, int y)
@@ -327,11 +342,18 @@ namespace PirateCrew.EditorTools
                     var p = new Vector3(x + jx, 0f, z + jz);
 
                     bool accent = SceneArtHash.Hash01(Seed, i, 1021) < AccentFrequency;
+                    int variants = accent ? AccentVariants : Variants;
+                    int variant = Mathf.Min((int)(SceneArtHash.Hash01(Seed, i, 101) * variants), variants - 1);
+                    bool mirror = SceneArtHash.Hash01(Seed, i, 103) < 0.5f;
+                    float cell = 16f / AtlasW;            // 一格宽（uv.x，图集横排每格 16 纹素）
+                    float uvX0 = variant * cell;
+                    float uvX1 = uvX0 + cell;
                     float uvY0 = accent ? 0.5f : 0f;
                     float uvY1 = accent ? 1f : 0.5f;
-                    float size = QuadSize * (accent ? 1.15f : 1f);
+                    float size = QuadSize * (accent ? 2f : 1f);
 
-                    AddQuad(batches[IslandBuffersBand(p)], p, size, uvY0, uvY1, camRight, camUp);
+                    AddQuad(batches[IslandBuffersBand(p)], p, size,
+                        uvX0, uvX1, uvY0, uvY1, mirror, camRight, camUp);
                     i++;
                 }
             }
@@ -349,9 +371,12 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>一个四边形：底边中点 = <paramref name="basePos"/>，沿相机右/上轴展开；
+        /// UV 取图集一格（<paramref name="uvX0"/>-<paramref name="uvX1"/> ×
+        /// <paramref name="uvY0"/>-<paramref name="uvY1"/>），<paramref name="mirror"/> = 水平镜像；
         /// 双面（正反绕序各一遍——剪影叶不该被背面剔除吃掉）。</summary>
         static void AddQuad(SpriteQuadBatch batch, Vector3 basePos, float size,
-            float uvY0, float uvY1, Vector3 camRight, Vector3 camUp)
+            float uvX0, float uvX1, float uvY0, float uvY1, bool mirror,
+            Vector3 camRight, Vector3 camUp)
         {
             float half = size * 0.5f;
             Vector3 bl = basePos - camRight * half;
@@ -359,16 +384,18 @@ namespace PirateCrew.EditorTools
             Vector3 tl = bl + camUp * size;
             Vector3 tr = br + camUp * size;
             var up = Vector3.up;
+            float uL = mirror ? uvX1 : uvX0;
+            float uR = mirror ? uvX0 : uvX1;
 
             int v = batch.Vertices.Count;
             batch.Vertices.Add(bl);
             batch.Vertices.Add(br);
             batch.Vertices.Add(tl);
             batch.Vertices.Add(tr);
-            batch.UVs.Add(new Vector2(0f, uvY0));
-            batch.UVs.Add(new Vector2(1f, uvY0));
-            batch.UVs.Add(new Vector2(0f, uvY1));
-            batch.UVs.Add(new Vector2(1f, uvY1));
+            batch.UVs.Add(new Vector2(uL, uvY0));
+            batch.UVs.Add(new Vector2(uR, uvY0));
+            batch.UVs.Add(new Vector2(uL, uvY1));
+            batch.UVs.Add(new Vector2(uR, uvY1));
             for (int k = 0; k < 4; k++)
                 batch.Normals.Add(up);
 

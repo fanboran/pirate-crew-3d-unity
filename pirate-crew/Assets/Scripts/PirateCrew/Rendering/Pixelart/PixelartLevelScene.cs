@@ -143,7 +143,8 @@ namespace PirateCrew.Rendering.Pixelart
             // （装配器 `PixelartGrassFieldSetup`：暗绿底板 + 满铺草簇，不接玩法数据）——
             // 草丛三档斑块是世界坐标噪声，只有在"除了草没别的"的场地上才能单独读出形状/尺度/连贯性。
             // 竖直 0.3 的来路：草簇高 0.26-0.5 m，取"草尖之半"的眼位，与样板关取眼位同一个读法。
-            new View(6,   "PixelartGrassField", new Vector3(20f, 0.3f, 15f), 32f, 14f, 7f),
+            // 近机位 10（r22，创始人判 7 太贴地）：草皮尺度下 7 m 只剩斑驳，10 m 能读到簇形。
+            new View(6,   "PixelartGrassField", new Vector3(20f, 0.3f, 15f), 32f, 14f, 10f),
 
             // 【海图取景行：当前 0 张】八张海图（101–108）已删除待重做，取景行随数据资产一并移除。
             // 重做时的口径（列在这里备查，规则与上面一致）：
