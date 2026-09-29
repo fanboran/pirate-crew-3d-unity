@@ -35,7 +35,7 @@ namespace PirateCrew.Visual.Tests
         public void Amplitudes_MatchSpec()
         {
             Assert.AreEqual(0.015f, CrewAnimationRules.BreathTorsoScale, "呼吸躯干 ±1.5%");
-            // 2026-09-14 角色总高 0.55→1.85（Godot 真比例）：幅度等比放大 3.36×。
+            // 2026-09-14 角色总高 0.55→1.85：幅度等比放大 3.36×。
             Assert.AreEqual(0.0134f, CrewAnimationRules.BreathHeadOffset, 1e-5f, "呼吸头 ±0.0134");
             Assert.AreEqual(0.040f, CrewAnimationRules.MoveBobOffset, 1e-5f, "移动 bob ±0.040");
             Assert.AreEqual(8f, CrewAnimationRules.MoveLeanDegrees, "移动前倾 8°（规格 6-10° 取中值）");

@@ -41,7 +41,7 @@ namespace PirateCrew.CrewManagement
         }
     }
 
-    /// <summary><see cref="CrewManagementEvents.CrewUnlocked"/> 载荷（对应 Godot signal <c>crew_unlocked(crew_id)</c>）。</summary>
+    /// <summary><see cref="CrewManagementEvents.CrewUnlocked"/> 载荷。</summary>
     public readonly struct CrewUnlockedPayload
     {
         /// <summary>新招募的船员 id。</summary>

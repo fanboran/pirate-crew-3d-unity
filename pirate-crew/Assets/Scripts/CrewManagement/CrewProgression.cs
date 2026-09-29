@@ -9,7 +9,6 @@ namespace PirateCrew.CrewManagement
     /// 【出处】⚠ <b>Flash 逆向文档里没有任何船员经验/等级规则</b>——
     ///   原版所有海盗属性完全相同、没有成长系统，进度只有「关卡得分 + 关卡解锁」
     ///   （<c>docs/参考游戏逆向-海盗军团抢宝藏-静态.md</c> §4.1 / §7.3）。
-    ///   Godot 版的 <c>progression.gd</c> 也只记「关卡星级」，不含经验。
     ///   因此本曲线整体为 <b>提案/待定</b>：数值只求「跑得通、可测、可调」，不代表最终手感。
     ///
     /// 【曲线形状（提案/待定）】升级所需经验逐级 +100（L1→L2 需 100，L2→L3 需 200……L9→L10 需 900），
@@ -93,8 +92,8 @@ namespace PirateCrew.CrewManagement
     /// <summary>
     /// 船员经验账本（每个船员 id → 累计经验）。纯 C#，可在无头验证台直接断言。
     ///
-    /// 【与 Godot 的关系】Godot 版没有对应物（<c>progression.gd</c> 记的是关卡星级，
-    /// 关卡进度在 <c>PirateCrew.Campaign.CampaignProgress</c> 里）；本类是 M3 新增，规则见
+    /// 【职责边界】关卡进度在 <c>PirateCrew.Campaign.CampaignProgress</c> 里；
+    ///   本类只记船员经验账本，规则见
     /// <see cref="CrewProgressionRules"/>（提案/待定）。
     /// </summary>
     public sealed class CrewProgression

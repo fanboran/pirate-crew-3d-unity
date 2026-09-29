@@ -44,7 +44,7 @@ namespace PirateCrew.CharCamDebug
         /// <summary>参考屏幕高（worldPerPixel 换算的分母；1080p 口径）。</summary>
         public const int ReferenceScreenHeight = 1080;
 
-        /// <summary>头球与柱顶的轴向重叠（米）——Godot 基准 0.05（`CrewVisualPrefabBuilder` 同值）。</summary>
+        /// <summary>头球与柱顶的轴向重叠（米）——基准 0.05（`CrewVisualPrefabBuilder` 同值）。</summary>
         public const float HeadBodyOverlap = 0.05f;
 
         /// <summary>机位到构图中心的距离（正交相机下只影响裁剪，不影响观感大小）。</summary>
@@ -84,7 +84,7 @@ namespace PirateCrew.CharCamDebug
         public const float DefaultBodyHeight = 1.3215f;
         /// <summary>默认头部半径。</summary>
         public const float DefaultHeadRadius = 0.3f;
-        /// <summary>默认头颈间距（正 = 头上拉，0 = Godot 重叠口径）。</summary>
+        /// <summary>默认头颈间距（正 = 头上拉，0 = 球底与柱顶重叠口径）。</summary>
         public const float DefaultHeadLift = 0.1606f;
         /// <summary>默认可见米数：游戏内特写档 14m（`PixelartLevelScene` 现役三档 32/14/7 的中档，
         /// 与游戏内正交档 7 的可见高度一致）。</summary>

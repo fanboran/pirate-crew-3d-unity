@@ -6,7 +6,7 @@ using UnityEngine.UI;
 namespace PirateCrew.UI.Stick
 {
     /// <summary>
-    /// 手绘涂鸦分隔线 —— game-2 SketchSeparator（sketch_separator.gd）的 UGUI 复刻（**已换 Beveled Pixel 皮**）。
+    /// 手绘涂鸦分隔线（**已换 Beveled Pixel 皮**）。
     ///
     /// 【皮肤口径（换装后）】像素皮不再自绘波浪线：分隔线 = theme 蚀刻点线直切件
     /// （<c>horizontal_separator</c> / <c>vertical_separator</c> 解析出的 <c>separator_horz</c> / <c>separator_vert</c>，

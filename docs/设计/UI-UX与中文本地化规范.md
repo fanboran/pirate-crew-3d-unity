@@ -1,4 +1,4 @@
-﻿# UI/UX 与中文本地化规范
+# UI/UX 与中文本地化规范
 
 > ⛔ **【整篇过期·仅作沿革档案，勿按本文施工】**——本文是木板/羊皮纸 + 玻璃代际的施工图，
 > 已被 **Aseprite dark 主题像素皮**取代（创始人裁决，权威源 = `external/aseprite-ref/.../dark/theme.xml`）。
@@ -189,7 +189,7 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
     └── 退出游戏                            ← 【新建】当前无
 战斗 Battle（场景）
 ├── HUD 常驻层                             ← 现有 BattleSceneSetup.cs:426-512（大改）
-├── 瞄准层                                 ← 【新建】Godot 有，Unity 无
+├── 瞄准层                                 ← 【新建】
 ├── 返回确认弹窗                           ← 【新建】
 └── 结算弹窗                               ← 【新建】当前结算只在选关横幅显示
 ```
@@ -347,7 +347,7 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
   - `RosterTitle` anchor(0,0) offset(16,420)（`:478-481`）→ **改造**：中文「船员名册 · 第 N 关」。
   - `BackButton` 160×40 anchor(0,1) offset(96,-20)（`:491-492`）→ **改造**：移到左下 `(24,24)`，避免与准星/顶栏争位置。
   - `MinimapPanel` anchor(0,1) offset(16,-48)，`pixelsPerTile=5`（`HudMinimapSceneSetup.cs:40-43,250`）→ **改造**：锚点改 `(0,1)` 偏移 `(24,-24)`，加木框。
-  - 模式开关 / 准星 / 力度数字 / 瞄准聚焦标签 → **新建**（对齐 Godot 任务清单 §1-§7）。
+  - 模式开关 / 准星 / 力度数字 / 瞄准聚焦标签 → **新建**。
 - 【AI 提案】武器面板在未选中角色时隐藏（现有行为一致，`BattleHud.cs:479-494`）；瞄准态整条底部面板换为「力度条 + 抛物线提示」，只留「瞄准中」标签。
 
 ### 3.6 结算弹窗
@@ -480,9 +480,9 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 | 选关 | 章节名 2 | 第二章 · 海盗黄金航线 | 【依据】GDD `gdd.md:604` |
 | 选关 | 章节名 3 | 第三章 · 传奇宝藏 | 【依据】GDD `gdd.md:605` |
 | 选关 | 关卡名（1–15） | 第 {0} 关 | 【依据】`CampaignCatalog.cs:155`（现为唯一名称；花名见下注） |
-| 选关 | 关卡花名（示例 4 关） | 沙滩新兵 / 炮台废墟 / 沉船湾 / 火山岛 | 【依据】Godot `config/level_config.json`（tutorial_island/cannon_ruins/shipwreck_cove/volcano_island）；其余 11 关花名【AI 提案】待定 |
+| 选关 | 关卡花名（示例 4 关） | 沙滩新兵 / 炮台废墟 / 沉船湾 / 火山岛 | 【AI 提案】关卡 id = tutorial_island / cannon_ruins / shipwreck_cove / volcano_island；其余 11 关花名【AI 提案】待定 |
 
-【待定】15 关完整花名表：现有 `level_config.json` 只给 4 个名字，且 Godot 是 4 关结构，Unity 是 15 关结构，**不可套用**；本规范暂用「第 N 关」，花名由用户确认后再补（见 §9）。
+【待定】15 关完整花名表：现有脚手架只给 4 个名字，且 Unity 是 15 关结构，**不可套用**；本规范暂用「第 N 关」，花名由用户确认后再补（见 §9）。
 
 ### 4.5 战斗 HUD 文案
 
@@ -646,7 +646,7 @@ z=40   模态层（结算弹窗/设置/确认框）+ 全屏压暗遮罩
 | 站酷快乐体 | `ZCOOLKuaiLe-Regular.ttf` | 1.5 MB | GB2312 级 | 马克笔手绘、等粗、活泼 | OFL 1.1（Google Fonts 收录），可商用 |
 | StickHand | `StickHand-Regular.ttf` | 1.5 MB | 同站酷快乐体 | 站酷快乐体经**程序化扰动**的手写体 | 站酷快乐体的 OFL 1.1 衍生，可商用 |
 
-- 【依据】StickHand 的来源有据可查：`game-2/stick-world/tools/fonts/gen_hand_font.py`（文件头注释与 `SRC` 常量明确写「以站酷快乐体为骨架」；同工程 `modules/ui_global/scripts/sketch/sketch_fonts.gd:1-4` 亦说明）。**派生字体已改名**，不占用上游保留字体名。
+- 【依据】StickHand 的来源有据可查：`game-2/stick-world/tools/fonts/gen_hand_font.py`（文件头注释与 `SRC` 常量明确写「以站酷快乐体为骨架」）。**派生字体已改名**，不占用上游保留字体名。
 - 【依据·授权结论】三份字体的授权链已核实到上游：LXGW WenKai Lite = `Copyright 2021-2026 LXGW`，**OFL 1.1**，且声明保留字体名「霞鹜/霞鶩/落霞孤鹜/落霞孤鶩/LXGW」——**若将来做子集化/改格式之外的修改，必须改名**（同目录 LICENSE 已载明）；ZCOOL KuaiLe = `Copyright 2018 The ZCOOL KuaiLe Project Authors`，**OFL 1.1**；StickHand = 站酷快乐体的 OFL 1.1 衍生（改名即合规）。三者**均可商用**，但均须随分发保留 OFL 文本。
 - 【待定】StickHand 尚未导入 `Assets/Art/Fonts/`，且其派生来源的授权文本未单列（ZCOOL 的 OFL 已覆盖，但建议在 `Licenses/` 补一行 `StickHand-PROVENANCE.txt` 说明「由 `gen_hand_font.py` 生成，许可继承 ZCOOLKuaiLe 的 OFL 1.1」）。此为确保合规的收尾动作。
 
@@ -842,7 +842,7 @@ StickHand-Regular  →  LXGWWenKaiLite-Medium  →  LXGWWenKaiLite-Regular
 1. 【待定】引入 `com.unity.textmeshpro` 改 `manifest.json` 是否批准（§5.3）——不批准则走 legacy Text + 自备 TTF 过渡路径，字体效果打折。
 2. 【待定，已部分解决】字体授权：LXGW WenKai Lite 与 ZCOOL KuaiLe 的 OFL 1.1 全文已随字体入库（`Assets/Art/Fonts/Licenses/`）；**StickHand 尚未导入**，需补导入 + 来源说明（§5.1）。
 3. 【待定】标题字最终二选一：StickHand（手写扰动，更有个性）vs ZCOOLKuaiLe（规整，更硬朗）（§5.1）。
-4. 【待定】15 关完整「关卡花名」表：现有 Godot 配置只给 4 个名字且与 Unity 15 关结构不匹配（§4.4）。
+4. 【待定】15 关完整「关卡花名」表：现有脚手架只给 4 个名字且与 Unity 15 关结构不匹配（§4.4）。
 5. 【待定】设置界面是否真接线（分辨率/音量/键位）还是仅做界面占位（§3.7）。
 6. 【待定】GDD §10.3 的「武器库 / 本地对战 / 皮肤装备」是否纳入本规范验收范围（§2.1）。
 

@@ -12,7 +12,7 @@
 > - `pirate-crew/Assets/Art/Shaders/PirateOutlinePost.shader` —— 全屏后处理描边（mask Sobel + 虚线，含 5 档 `_DebugMode`）
 > - `pirate-crew/Assets/Scripts/PirateCrew/Rendering/OutlineRendererFeature.cs` —— 后处理 C# 侧（URP RendererFeature）
 > - `pirate-crew/Assets/Editor/OutlineDebugCapture.cs` —— 逐档截图采集脚本
-> - 设计参照：Godot 版 `outline_hover.gdshader` / `outline_selected.gdshader` / `outline_post.gdshader` 及 `pirate_base.gd` 接线
+> - 设计路径：inverted hull（悬停/基础）与 mask Sobel 后处理（选中）两条并行路线，见 §一
 
 ---
 
@@ -53,40 +53,40 @@
 
 ---
 
-## 一、Godot 版描边实现路径摘要（先读懂再移植）
+## 一、描边实现路径摘要
 
-Godot 版有**三条并行**的描边路径，按状态选用（接线见 `modules/pirate_crew/scripts/characters/pirate_base.gd`）：
+有**三条并行**的描边路径，按状态选用：
 
-| shader | 行数 | 实现路径 | 用在哪 |
+| 路径 | 行数 | 实现路径 | 用在哪 |
 | --- | --- | --- | --- |
-| `assets/shaders/outline.gdshader` | 27 | **inverted hull**：`cull_front, unshaded, depth_draw_never`；顶点把法线投到裁剪空间后按 `1/VIEWPORT_SIZE * w` 偏移 | 通用基础描边 |
-| `outline_hover.gdshader` | 26 | **inverted hull**：`cull_front, unshaded`；法线 → 裁剪空间 xy → `normalize * outline_width * pow(clip.w, 1-attenuation)` | **悬停** |
-| `outline_selected.gdshader` | 39 | 同上 + **屏幕空间流动虚线**（`sin(screen_pos.y * freq + TIME * speed)`） | **选中**（备用） |
-| `outline_post.gdshader` | 126 | **全屏后处理**：采样 SubViewport mask → 二值化 → 3×3 Sobel → 阈值 → 沿边缘切线切虚线 | **选中（实际启用）** |
+| 基础描边 | 27 | **inverted hull**：`cull_front, unshaded, depth_draw_never`；顶点把法线投到裁剪空间后按 `1/VIEWPORT_SIZE * w` 偏移 | 通用基础描边 |
+| 悬停描边 | 26 | **inverted hull**：`cull_front, unshaded`；法线 → 裁剪空间 xy → `normalize * outline_width * pow(clip.w, 1-attenuation)` | **悬停** |
+| 选中描边（inverted hull 版） | 39 | 同上 + **屏幕空间流动虚线**（`sin(screen_pos.y * freq + TIME * speed)`） | **选中**（备用） |
+| 全屏后处理 | 126 | **全屏后处理**：采样 mask → 二值化 → 3×3 Sobel → 阈值 → 沿边缘切线切虚线 | **选中（实际启用）** |
 
-**关键区别：本项目实际接线是「hover 用 inverted hull，selected 用全屏后处理」。**
-`pirate_base.gd` 的 `_update_outline_visual()` 只把 `outline_hover.gdshader` 挂到复制网格上；
-`battle.gd` 把 `selection_mask_viewport.get_texture()` 喂给 `outline_post` 的 `mask_texture`。
-即 Godot 版里 `outline_selected.gdshader`（inverted hull 版选中）其实**没被启用**，选中走的是后处理。
+**关键区别：实际接线是「hover 用 inverted hull，selected 用全屏后处理」。**
+悬停只把 inverted hull shader 挂到复制网格上；
+选中把 mask 纹理喂给全屏后处理。
+即 inverted hull 版选中其实**没被启用**，选中走的是后处理。
 
 ### hover 与 selected 差在哪
 
 | 维度 | hover | selected |
 | --- | --- | --- |
-| **实现载体** | inverted hull（复制一圈网格 + `material_override`） | 全屏后处理（mask SubViewport + Sobel） |
+| **实现载体** | inverted hull（复制一圈网格 + 换材质） | 全屏后处理（mask + Sobel） |
 | 颜色 | 淡白 `vec4(1,1,1,0.22)` | 青色 `#49d9d6` `vec4(0.286,0.851,0.839,0.949)` |
-| 粗细 | 细（`outline_width = 0.0025`） | 粗（`outline_width = 0.006`；后处理另由 `outline_thickness` 控制，但该参数在 fragment 里**未被使用**） |
+| 粗细 | 细（`_OutlineWidthHover = 0.0025`） | 粗（`_OutlineWidthSelected = 0.006`；后处理另由 thickness 控制，但该参数在 fragment 里**未被使用**） |
 | 线型 | 实线 | 屏幕空间**流动虚线** |
 | 距离处理 | `pow(clip.w, 1 - 0.4)` → 远处变细 | 同上 |
 | 语义 | "可选中"提示 | "已选中" |
 
 **共同点（都要保留的调参内核）**：两条路径都做「距离衰减」`pow(clip.w, 1 - distance_attenuation)`，让远处线条变细，避免远处单位糊成一片。
 
-### Unity 侧的取舍（翻译决策，记录在此避免以后反复）
+### Unity 侧的取舍（记录在此避免以后反复）
 
-1. **inverted hull 合并两态**：Godot 为 hover/selected 各准备一个材质 + 一圈复制网格。Unity 侧 `PirateOutline.shader` 用 `_OutlineState`（0/1/2）在**同一个材质内**切换颜色/宽度/虚线，省掉复制网格与管理成本（Unity 的 SkinnedMeshRenderer 复制网格比 Godot 麻烦）。
-2. **后处理沿用 Godot 的「mask + Sobel」路线**，而不是 URP 常见的「深度 + 法线边缘检测」路线。原因见第五节（本工程 `m_RequireDepthTexture: 0`，深度法线不可用）。
-3. `outline.gdshader` 的 `outline_near_boost`（近处增粗）是基础描边专用；Unity 版未移植该分支（hover/selected 都不需要），如需可仿 `_OutlineDistanceAttenuation` 加一个负向 boost。
+1. **inverted hull 合并两态**：设计上 hover/selected 各用一个材质 + 一圈复制网格。Unity 侧 `PirateOutline.shader` 用 `_OutlineState`（0/1/2）在**同一个材质内**切换颜色/宽度/虚线，省掉复制网格与管理成本（Unity 的 SkinnedMeshRenderer 复制网格较麻烦）。
+2. **后处理走「mask + Sobel」路线**，而不是 URP 常见的「深度 + 法线边缘检测」路线。原因见第五节（本工程 `m_RequireDepthTexture: 0`，深度法线不可用）。
+3. 基础描边的「近处增粗」（`outline_near_boost`）分支本项目未实现（hover/selected 都不需要），如需可仿 `_OutlineDistanceAttenuation` 加一个负向 boost。
 
 ---
 
@@ -146,24 +146,24 @@ Godot 版有**三条并行**的描边路径，按状态选用（接线见 `modul
 
 ## 三、关键参数调参指南（`PirateOutline.shader`）
 
-材质面板参数与 Godot 的对应关系：
+材质面板参数：
 
-| Unity 属性 | 对应 Godot | 单位 | 合理区间 | 说明 |
+| Unity 属性 | 参考参数 | 单位 | 合理区间 | 说明 |
 | --- | --- | --- | --- | --- |
 | `_OutlineWidth` | `outline_width`（兜底/未用） | 模式 0：**NDC 归一化单位**（≈半屏高度的比例）；模式 1：**米** | 模式 0：**0.002 ~ 0.012**；模式 1：**0.01 ~ 0.05 m** | 模式 0 下 0.006 ≈ 1000px 高画面里约 3px 单边宽 |
 | `_OutlineWidthHover` | hover `outline_width` | 同上 | **0.002 ~ 0.004** | 悬停要"细而淡" |
 | `_OutlineWidthSelected` | selected `outline_width` | 同上 | **0.005 ~ 0.010** | 选中要"粗而亮" |
 | `_OutlineColorHover` | hover `outline_color` | RGBA | 建议 `(1,1,1,0.18~0.30)` | 淡白、低 alpha 才不喧宾夺主 |
 | `_OutlineColorSelected` | selected `outline_color` | RGBA | 建议 `#49d9d6`，alpha `0.85~1.0` | 与 hover 拉开色相（青 vs 白）比只靠亮度差更清晰 |
-| `_OutlineState` | 由 `pirate_base.gd` 切材质 | 0/1/2 | — | 0 无 / 1 悬停 / 2 选中；由选中系统每帧写 |
+| `_OutlineState` | 由切材质逻辑写 | 0/1/2 | — | 0 无 / 1 悬停 / 2 选中；由选中系统每帧写 |
 | `_OutlineAlpha` | — | 0~1 | 1.0 | 整体乘算，做淡入淡出动画用 |
-| `_OutlineExpandMode` | — | 0/1 | 0 | 0=屏幕空间恒定（推荐，Godot 等价做法）；1=世界空间经典 inverted hull |
-| `_OutlineDistanceAttenuation` | `distance_attenuation` | 0~1 | **0.3 ~ 0.5**（Godot 默认 0.4） | 0=远近一样粗（远处会糊）；1=远处迅速变细（远处看不见） |
+| `_OutlineExpandMode` | — | 0/1 | 0 | 0=屏幕空间恒定（推荐）；1=世界空间经典 inverted hull |
+| `_OutlineDistanceAttenuation` | `distance_attenuation` | 0~1 | **0.3 ~ 0.5**（默认 0.4） | 0=远近一样粗（远处会糊）；1=远处迅速变细（远处看不见） |
 | `_DashSpeed` | `dash_speed` | 越大越快 | **3 ~ 8** | 只对 `_OutlineState = 2` 生效 |
-| `_DashFrequency` | `dash_frequency` | 屏幕空间频率 | **30 ~ 70**（Godot 默认 50） | 越大虚线越密；太小会变成"长条" |
+| `_DashFrequency` | `dash_frequency` | 屏幕空间频率 | **30 ~ 70**（默认 50） | 越大虚线越密；太小会变成"长条" |
 
 **宽度单位直观校准**（模式 0）：`_OutlineWidth = w` 时，单边描边在屏幕上约 `w * 半屏高度(px)` 像素宽。
-例：Game View 1080p（半高 540px），`w = 0.006` → 约 **3.2 px**；`w = 0.0025` → 约 **1.35 px**（Godot hover 的观感）。
+例：Game View 1080p（半高 540px），`w = 0.006` → 约 **3.2 px**；`w = 0.0025` → 约 **1.35 px**（悬停档观感）。
 
 **hover / selected 配色建议**：
 - 用**色相**区分而不是只调 alpha —— 淡白（hover）vs 青（selected）在深色场景里辨识度高得多，也照顾色弱玩家。
@@ -188,9 +188,9 @@ Godot 版有**三条并行**的描边路径，按状态选用（接线见 `modul
 
 ## 四、`PirateOutlinePost.shader` 逐档「应看到什么」+ 常见异常
 
-参数与 Godot `outline_post.gdshader` 一一对应（档位语义逐字继承）：
+参数与档位语义：
 
-| 档 | Godot `debug_mode` | 画面 |
+| 档 | debug_mode | 画面 |
 | --- | --- | --- |
 | 0 | 0 | 正常流动虚线描边（最终效果） |
 | 1 | 1 | 原始 mask（未二值化；白=选中单位，其余黑） |
@@ -209,7 +209,7 @@ Godot 版有**三条并行**的描边路径，按状态选用（接线见 `modul
 
 ### 后处理参数调参指南
 
-| 参数 | 对应 Godot | 区间 | 说明 |
+| 参数 | 参考参数 | 区间 | 说明 |
 | --- | --- | --- | --- |
 | `_OutlineColor` | `outline_color` | `#49d9d6` | 选中描边色 |
 | `_EdgeThreshold` | `edge_threshold` | **0.1 ~ 0.3**（默认 0.2） | **核心参数**：越大→边缘越少越细；越小→描边越粗越多甚至糊成一片 |
@@ -218,7 +218,7 @@ Godot 版有**三条并行**的描边路径，按状态选用（接线见 `modul
 
 **关于「深度阈值 / 法线阈值」**（任务要求说明）：
 
-本实现走的是 **mask Sobel** 路线（与 Godot 一致），**没有** `_DepthThreshold` / `_NormalThreshold` 这两个参数 —— 因为边缘来源不是场景深度/法线，而是"选中单位 mask"。所以**不需要**调深度/法线阈值。
+本实现走的是 **mask Sobel** 路线，**没有** `_DepthThreshold` / `_NormalThreshold` 这两个参数 —— 因为边缘来源不是场景深度/法线，而是"选中单位 mask"。所以**不需要**调深度/法线阈值。
 
 若将来要改用 URP 常见的「深度 + 法线边缘检测」路线（本地参照实现：`external/m2-combat-reference/urp-outlines/Outlines/Scripts/RendererFeatures/ScreenSpaceOutlines.cs`，用 Roberts Cross + 法线阈值），**前置条件是先开启深度/法线纹理**：
 
@@ -377,7 +377,7 @@ dotnet build VerifyEditorOutline.csproj
 - mask Pass 会把 `maskLayer` 上的**全部不透明物体**画成白剪影再做 Sobel，`Everything` 会把地面也算进去，
   于是整屏边缘（含地平线）都被描成青色虚线，既污染观感也污染调试截图。`OutlineRendererFeature.cs` 的注释本来就写着
   "默认 Everything 只是便于立刻看到效果（调试），正式使用请只勾选单位所在 Layer"——重新启用前必须先按该说明收窄。
-- 本工程的**选中反馈已由 6.1 的 inverted hull 承担**（hover/selected 两态合并进同一材质，是刻意的翻译简化），
+- 本工程的**选中反馈已由 6.1 的 inverted hull 承担**（hover/selected 两态合并进同一材质，是刻意的简化），
   所以后处理这条路径目前是冗余的；保留代码是为了将来若"选中"想要更粗的 Sobel 虚线轮廓时可以用。
 - 要启用：在目标 URP Renderer 资产上"Add Renderer Feature"挂载本 Feature → 新建一个只放"可选中单位"的
   Layer → 运行时把选中单位切到该 Layer → 把 `maskLayer` 指到它。
@@ -398,7 +398,7 @@ dotnet build VerifyEditorOutline.csproj
 1. ~~真实截图未产出~~ → **已产出并核验**（见文首与 `docs/images/outline-debug/`）。
 2. `PirateOutline.shader` **没有 ShadowCaster Pass**：单位材质换成它之后单位不投影，且本体光照是 shader 内的简单 Lambert + SH（不再是 URP/Lit）。若观感验收要求阴影/更丰富光照，补一个 `LightMode = "ShadowCaster"` 的极简 Pass（注意 `_LightDirection` / `ApplyShadowBias`），或改成"本体保持 URP/Lit + 描边走复制网格"（代价是共面 z-fighting 与网格复制管理）。
 3. ~~`OutlineRendererFeature` 需要手工加到 URP Renderer 资产~~ → **未挂载**（已裁决退役，代码保留作未来"Sobel 虚线轮廓"备选，见 §6.2 与立项任务书 PBR 处置表 M2b 行），当前不参与渲染。
-4. `outline.gdshader` 的 `outline_near_boost`（近处增粗）未移植。
+4. 基础描边的「近处增粗」（`outline_near_boost`）未实现。
 5. 后处理描边的 `_DashLength/_DashGap` 是**像素**单位，分辨率变化时观感会变；若要分辨率无关需改成 NDC 单位。
 6. **实体描边的虚线在小单位上偏碎**（见 §三 末尾的实测记录）——观感问题，留验收决定。
 

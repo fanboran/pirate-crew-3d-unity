@@ -11,8 +11,7 @@ namespace PirateCrew.Battle
     ///             §3.2（startTurn / continueTurn / finishTurn / panToCharacter）、
     ///             §3.3（回合交替）。
     ///
-    /// 【对 Godot 版的修正】Godot <c>turn_manager.gd</c> 的 <c>end_turn()</c> 全工程无调用方、
-    /// 回合永不推进（已 grep 证实）。本实现把推进链真正接上：
+    /// 【推进链】把推进链真正接上：
     /// <c>FixedUpdate</c> 累计 inactivity → 超阈值按 isTurnComplete 分路 → <c>EndTeamTurn</c> → 下一队 <c>BeginTeamTurn</c>。
     ///
     /// 【inactivity 语义】原版任何"有事发生"都会清零计数（角色在动 / 武器在飞 / 当前队未选角色等）。

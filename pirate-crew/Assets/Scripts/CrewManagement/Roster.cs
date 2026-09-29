@@ -4,18 +4,13 @@ using System.Collections.Generic;
 namespace PirateCrew.CrewManagement
 {
     /// <summary>
-    /// 船员名册与编成（翻译自 Godot <c>modules/crew_management/scripts/roster.gd</c>，纯 C# 可无头测试）。
+    /// 船员名册与编成（纯 C# 可无头测试）。
     ///
-    /// 【对应关系】<c>_unlocked_crews</c> → <see cref="Unlocked"/>、<c>_active_roster</c> → <see cref="Active"/>、
-    ///   <c>max_roster_size</c> → <see cref="MaxSize"/>、
-    ///   <c>unlock_crew</c> → <see cref="Recruit"/>、<c>set_active_roster</c> → <see cref="SetActive"/>。
-    ///
-    /// 【对 Godot 版的补强（已在此显式标注，便于走查）】
-    ///   1. <see cref="SetActive"/> 额外拒绝**重复 id**（Godot 未校验；重复会让结算重复发经验）。
-    ///   2. <see cref="SetActive"/> 额外拒绝 null / 空串 id（Godot 会把它塞进列表）。
-    ///   3. <see cref="Recruit"/> 额外校验 id 必须存在于 <see cref="CrewRosterCatalog"/>
-    ///      （Godot 的 <c>unlock_crew</c> 接受任意字符串）。
-    ///   其余语义（上限校验、必须已解锁、允许空阵容）与 Godot 版一致。
+    /// 【校验口径】（显式标注，便于走查）
+    ///   1. <see cref="SetActive"/> 额外拒绝**重复 id**（重复会让结算重复发经验）。
+    ///   2. <see cref="SetActive"/> 额外拒绝 null / 空串 id。
+    ///   3. <see cref="Recruit"/> 额外校验 id 必须存在于 <see cref="CrewRosterCatalog"/>。
+    ///   上限校验、必须已解锁、允许空阵容为其语义。
     /// </summary>
     public sealed class Roster
     {
@@ -59,7 +54,7 @@ namespace PirateCrew.CrewManagement
         }
 
         /// <summary>
-        /// 招募（解锁）一名船员。对应 Godot <c>unlock_crew</c>，但要求 id 在
+        /// 招募（解锁）一名船员。要求 id 在
         /// <see cref="CrewRosterCatalog"/> 名录内。
         /// </summary>
         /// <returns>本次确实新增了船员返回 true；id 未知或已拥有返回 false。</returns>
@@ -70,7 +65,7 @@ namespace PirateCrew.CrewManagement
 
             _unlocked.Add(crewId);
 
-            // 对应 Godot 的默认体验：初始船员自动上阵，招募到的船员不自动挤占阵容。
+            // 初始船员自动上阵，招募到的船员不自动挤占阵容。
             if (_active.Count == 0)
                 _active.Add(crewId);
 
@@ -78,9 +73,9 @@ namespace PirateCrew.CrewManagement
         }
 
         /// <summary>
-        /// 设置编成阵容（对应 Godot <c>set_active_roster</c>）。
+        /// 设置编成阵容。
         /// 校验：非 null、数量 ≤ <see cref="MaxSize"/>、全部已拥有、无重复、无空 id。
-        /// 允许空阵容（与 Godot 一致）；「至少要 1 人才能出战」是 UI 层的规则。
+        /// 允许空阵容；「至少要 1 人才能出战」是 UI 层的规则。
         /// </summary>
         /// <returns>校验通过并写入返回 true。</returns>
         public bool SetActive(IReadOnlyList<string> crewIds)

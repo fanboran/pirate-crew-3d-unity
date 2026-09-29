@@ -115,7 +115,7 @@ namespace PirateCrew.Combat
     /// 【与 2D 旧值的关系】高度差（含爆心高度）为 0 时：d 退化为原平面距离，
     /// falloff / damage / deltaVx 与原实现逐值相同；原 <c>deltaVy = ny*5k - 6k</c> 里的 -6k
     /// 被拆到 <see cref="ExplosionHit.DeltaVUp"/>（改为世界 +Y 的 +6k），故 <c>deltaVy</c> 净增 +6k。
-    /// 公式与常数全部沿用 Flash，**不**采纳 Godot 版的 blast_radius/DamageCalculator 占位值。
+    /// 公式与常数全部取自 Flash，**不**采纳任何占位值。
     /// 纯静态逻辑，不依赖 MonoBehaviour / GameObject。
     /// </summary>
     public static class ExplosionResolver

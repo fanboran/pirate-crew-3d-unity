@@ -5,8 +5,7 @@ namespace PirateCrew.Tests
 {
     /// <summary>
     /// 船员名册/编成的纯 C# 断言。
-    /// 【基准】Godot <c>modules/crew_management/scripts/roster.gd</c>：
-    ///   初始 <c>["sailor"]</c>、<c>max_roster_size = 4</c>、<c>set_active_roster</c> 校验「数量 ≤ 上限 + 必须已解锁」。
+    /// 【口径】初始 <c>["sailor"]</c>、编成上限 <c>4</c>、校验「数量 ≤ 上限 + 必须已解锁」。
     /// </summary>
     public class RosterTests
     {

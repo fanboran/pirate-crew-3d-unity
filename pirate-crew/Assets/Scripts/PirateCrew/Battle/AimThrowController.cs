@@ -7,7 +7,7 @@ using UnityEngine.EventSystems;
 namespace PirateCrew.Battle
 {
     /// <summary>
-    /// 瞄准 / 投掷控制器（翻译自 Godot <c>scripts/aiming/aim_controller.gd</c> + <c>battle.gd</c> 的发射段，3D 重写）。
+    /// 瞄准 / 投掷控制器。
     ///
     /// 【对应章节】§3.4（严格两阶段：点选己方角色 → 选动作/武器 → 瞄准发射）、
     ///             §5.1（初速 = 0.25 × 拖拽距离、twangMax 限速）。
@@ -439,7 +439,7 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// （炮台合成的等效）拖拽向量 → (XZ 世界水平方向, Flash 初速大小)。
-        /// <b>方向</b>按相机基向量投影（§M2-3D 规范 §3），yaw = 0 时等价于 Godot 的 (-dx, 0, -dy)，
+        /// <b>方向</b>按相机基向量投影（§M2-3D 规范 §3），
         /// 相机绕转后仍正确；<b>大小</b>取 <see cref="Ballistics.TwangVelocity"/> 的模长，
         /// 保留 Flash 的 0.25 系数与 twangMax 限速语义。抬升由 LevelGeometry.ThrowVelocity 统一施加。
         /// </summary>

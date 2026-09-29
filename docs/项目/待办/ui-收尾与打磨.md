@@ -28,7 +28,7 @@ Midline→Middle；船员管理/选关底部按钮手写坐标错位（整行中
 **新查出真缺陷**：按钮动作文案被写进不可见的影子层（`GetButtonLabel` 泛搜命中兄弟序 0
 的影子）→ 选关列表「出战」按钮被挤成 6 格细条、船员已解锁行按钮无字 → 增
 `SketchButton.Label/LabelOf` 显式出口，5 个调用点（含 `UiKit.FitToLabel` 两处）改走它。
-**配色收敛**：theme.xml 82 条色原只搬 13 条，其余用隔壁 Godot 版 StickTokens 调色板；
+**配色收敛**：theme.xml 82 条色原只搬 13 条，其余用隔壁 stick-world 的 StickTokens 调色板；
 已换 全屏/相机底→theme desktop、文字→#C0C0C0 与两级平面灰、星级→selected/disabled 金与灭色、
 设置行底→list_item 纯色 #41444A、分隔线→theme `separator_horz` 点状蚀刻件；
 余 dim 遮罩（自家规范规定，口径=Aseprite 管组件配色排版、自家文档管交互语义）、

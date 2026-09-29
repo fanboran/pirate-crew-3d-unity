@@ -5,7 +5,7 @@ using UnityEngine;
 namespace PirateCrew.CrewManagement
 {
     /// <summary>
-    /// 船员管理模块的跨模块公共出口（纯静态外观，对应 Godot <c>modules/crew_management/api.gd</c>）。
+    /// 船员管理模块的跨模块公共出口（纯静态外观）。
     ///
     /// 【架构定位】
     ///   模块状态（名册 + 经验）是**纯 C# 静态持有**的，不需要 MonoBehaviour、不需要摆进场景：

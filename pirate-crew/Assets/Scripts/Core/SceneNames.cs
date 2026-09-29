@@ -1,7 +1,7 @@
 namespace PirateCrew.Core
 {
     /// <summary>
-    /// 场景名常量（对应 Godot 版各 tscn 路径的集中登记）。
+    /// 场景名常量（场景路径的集中登记）。
     ///
     /// 【约定】
     ///   字符串必须与 Build Settings 中注册的场景资产名一致（不含路径与扩展名），

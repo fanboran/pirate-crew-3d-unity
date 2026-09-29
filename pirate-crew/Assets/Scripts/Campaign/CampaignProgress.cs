@@ -8,9 +8,6 @@ namespace PirateCrew.Campaign
     /// 大海域的结算进度（海图 id → 星级）。没有顺序解锁链：
     /// 海图全部可出战（见选关页），进度只剩「星级记录」一个职责。
     ///
-    /// 【出处】语义源自 Godot <c>modules/crew_management/scripts/progression.gd</c>
-    ///   （<c>_completed_levels</c> → <see cref="_stars"/>、<c>complete_level</c> → <see cref="CompleteLevel"/>）。
-    ///
     /// 【键值域】键 = 海图 id（<c>WorldMapCatalog</c> 收录的 <c>wreck_hymn</c> 等）；
     /// 旧存档里的历史序号键会被 <see cref="SetStars"/> 静默丢弃（旧档不迁移，弃档）。
     ///

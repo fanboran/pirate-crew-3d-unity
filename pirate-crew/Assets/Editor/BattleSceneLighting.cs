@@ -740,7 +740,7 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 天空盒 + 环境光（对齐 Godot 基准 WorldEnvironment：procedural sky + Sky 环境光）。
+        /// 天空盒 + 环境光（procedural sky + Sky 环境光）。
         /// 返回 false 表示找不到天空盒 shader，此时退回纯色背景（不影响可玩性）。
         /// </summary>
         public static bool ConfigureSkyAndAmbient()
@@ -929,7 +929,7 @@ namespace PirateCrew.EditorTools
             // 1.35→1.55：与 ambientIntensity 0.85 配对拉开直射:天光到 ≈4:1（阳光感七要素之
             //   "阴影做深+天光收敛"，docs/阳光感打光调研.md §4 调法 2）。
             light.intensity = 1.55f;
-            // 投影是"看起来像 3D"的主要深度线索之一（对齐 Godot 基准的 shadow_enabled）。
+            // 投影是"看起来像 3D"的主要深度线索之一。
             // LightShadows.Soft 需要 URP Asset 打开 m_SoftShadowsSupported（ConfigureUrpAsset 已打开）。
             light.shadows = LightShadows.Soft;
             // 0.7→0.86：阴影做深拉清"直射 vs 天光"分界（调研 §4 调法 1）。本工程

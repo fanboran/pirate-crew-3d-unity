@@ -31,11 +31,11 @@ namespace PirateCrew.UI
     {
         // ------------------------------------------------------------------
         // 底色系（【P1 令牌接管】色值整体换血为 StickTokens——stick-world ui_tokens.json
-        // 的同源编译层，数值与 Godot 侧一致；UI 语义名全部保留，调用方零改动。
+        // 的同源编译层；UI 语义名全部保留，调用方零改动。
         // 映射：InkDeep=WINDOW_BG / InkSoft=WINDOW_BG_LIGHT / TextOnInk=TEXT /
         // TextDim=TEXT_DIM / Gold=ACCENT / InkOnGold=INK / BarTrackInk=GROOVE_BG /
         // Info·Warn·Success=INFO·WARN·SUCCESS。窗底半透明是隔壁「窗户不是海报」
-        // 设计语言；WCAG 标注值按 tokens RGB 直算（与 Godot 侧同口径）。
+        // 设计语言；WCAG 标注值按 tokens RGB 直算。
         // ------------------------------------------------------------------
 
         /// <summary>HUD / 卡片面板底。UI 语义 = StickTokens.WINDOW_BG（纯黑高不透明

@@ -26,7 +26,7 @@ namespace PirateCrew.Battle
     }
 
     /// <summary>
-    /// 战斗组装与结算根（翻译自 Godot <c>scripts/battle.gd</c> 的运行时职责）。
+    /// 战斗组装与结算根。
     ///
     /// 【对应章节】§4.3（按布阵坐标/队伍实例化出战单位）、§5.5（水位 = waterTileY*32）、
     ///             §5.3（Physics.OverlapSphere 取候选 → <see cref="ExplosionResolver"/> 纯逻辑算分 →

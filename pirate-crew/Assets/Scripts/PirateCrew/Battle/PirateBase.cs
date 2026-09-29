@@ -9,15 +9,15 @@ using UnityEngine;
 namespace PirateCrew.Battle
 {
     /// <summary>
-    /// 战斗中的海盗角色运行时（翻译自 Godot <c>scripts/characters/pirate_base.gd</c>，3D 语义重写）。
+    /// 战斗中的海盗角色运行时（3D 语义）。
     ///
     /// 【对应章节】§4.1（maxHealth 100 / weight 1 / evilness / canThrow / canShoot）、
     ///             §4.4（SubtractHealth 四舍五入、死亡、<b>落水即死全局规则</b>）、
     ///             §3.4（单回合两阶段行动经济）、§3.2（回合开始 evilness/action 复位、保底武器）。
     ///
-    /// 【与 Godot 版的差异（3D 重写）】
-    ///   · <c>CharacterBody3D</c> + 手搓 <c>_THROWN_GRAVITY</c> → Unity <see cref="Rigidbody"/>，
-    ///     重力交给 PhysX（<c>useGravity</c> + <c>Physics.gravity</c>），不逐帧改 velocityY。
+    /// 【3D 物理口径】
+    ///   · 用 <see cref="Rigidbody"/>，重力交给 PhysX（<c>useGravity</c> + <c>Physics.gravity</c>），
+    ///     不逐帧改 velocityY。
     ///   · 速度换算统一走 <see cref="LevelGeometry"/>（预览与实弹同源）。
     ///   · 竞技场是 XZ 水平面（地面顶面 y=0，重力沿 -Y），位置**不**约束、只锁旋转保持直立
     ///     ——见 docs/3D空间模型对齐.md。

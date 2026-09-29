@@ -7,7 +7,7 @@ using UnityEngine.UI;
 namespace PirateCrew.Core
 {
     /// <summary>
-    /// 场景加载与过渡管理器（翻译自 Godot <c>core/autoload/scene_manager.gd</c>）。
+    /// 场景加载与过渡管理器。
     ///
     /// 【架构定位】
     ///   统一管理场景切换：异步加载 + 黑屏淡入淡出过渡 + 场景栈（前进/后退导航）。
@@ -31,7 +31,7 @@ namespace PirateCrew.Core
         /// <summary>过渡遮罩的最小步进（秒）：单帧最长只推进 1/30 秒，防止一次卡顿吃完整段淡入淡出。</summary>
         const float MaxFrameStep = 1f / 30f;
 
-        /// <summary>过渡遮罩 Canvas 的 sortingOrder（对应 Godot CanvasLayer.layer = 128）。</summary>
+        /// <summary>过渡遮罩 Canvas 的 sortingOrder（128，需高于普通 Canvas 层）。</summary>
         const int OverlaySortingOrder = 128;
 
         [SerializeField] float transitionDuration = 0.4f;
@@ -44,7 +44,7 @@ namespace PirateCrew.Core
         /// <summary>全局访问入口。由 Bootstrapper 创建本组件后可用。</summary>
         public static SceneLoader Instance { get; private set; }
 
-        /// <summary>场景栈深度（对应 Godot get_stack_depth）。</summary>
+        /// <summary>场景栈深度。</summary>
         public int StackDepth => _sceneStack.Count;
 
         /// <summary>当前过渡时长（秒）。</summary>
@@ -65,7 +65,7 @@ namespace PirateCrew.Core
             Instance = this;
             CreateOverlay();
 
-            // 对应 Godot _ready 里订阅 EventBus 的 "change_scene" / "go_back"
+            // 订阅 EventBus 的 change_scene / go_back 请求
             EventBus.Subscribe(SceneEvents.ChangeScene, OnChangeSceneRequest);
             EventBus.Subscribe(SceneEvents.GoBack, OnGoBackRequest);
         }
@@ -91,7 +91,7 @@ namespace PirateCrew.Core
         }
 
         /// <summary>
-        /// 返回上一个场景（对应 Godot go_back）：弹栈加载，**不**把当前场景压回栈——
+        /// 返回上一个场景：弹栈加载，**不**把当前场景压回栈——
         /// 否则每次「进二级页 → 返回」都会把已离开的场景残留在栈里，栈永不收敛
         /// （审计 代码审计报告 §一.1）。栈空时仅告警。
         /// </summary>
@@ -161,13 +161,13 @@ namespace PirateCrew.Core
             StartCoroutine(LoadRoutine(sceneName, transition));
         }
 
-        /// <summary>清空场景栈（对应 Godot clear_stack）。</summary>
+        /// <summary>清空场景栈。</summary>
         public void ClearStack()
         {
             _sceneStack.Clear();
         }
 
-        /// <summary>设置过渡动画时长（秒），负值夹到 0（对应 Godot set_transition_duration）。</summary>
+        /// <summary>设置过渡动画时长（秒），负值夹到 0。</summary>
         public void SetTransitionDuration(float duration)
         {
             transitionDuration = Mathf.Max(duration, 0f);
@@ -290,7 +290,7 @@ namespace PirateCrew.Core
         }
 
         // ------------------------------------------------------------------
-        // EventBus 请求处理（对应 Godot _on_change_scene_request / _on_go_back_request）
+        // EventBus 请求处理
         // ------------------------------------------------------------------
 
         /// <summary>

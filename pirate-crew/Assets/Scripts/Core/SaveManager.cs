@@ -7,8 +7,7 @@ using UnityEngine;
 namespace PirateCrew.Core
 {
     /// <summary>
-    /// 存档/读档服务（翻译自 Godot <c>core/autoload/save_manager.gd</c>，
-    /// 并合并 <c>data_manager.gd</c> 的键值持久化职责——Godot 版两者职责重叠）。
+    /// 存档/读档服务（含键值持久化职责）。
     ///
     /// 【架构定位】
     ///   全局服务，由 Bootstrapper 创建并随 Services 对象 DontDestroyOnLoad（同 SceneLoader）。
@@ -17,26 +16,26 @@ namespace PirateCrew.Core
     /// 【核心职责】
     ///   1. 多槽位存档：SaveToSlot / LoadFromSlot / DeleteSlot / ListSlots / SlotExists
     ///   2. 槽位元数据：独立 _meta.json；GetSlotMeta / ListSlots 以元数据为唯一来源、不碰槽位文件
-    ///      （Unity 版定案设计；Godot 原版这两个方法是扫描/读取槽位文件的）
+    ///      （本工程定案：以元数据为唯一来源，不扫描/读取槽位文件）
     ///   3. 自动存档：EnableAutoSave 协程定时 + TriggerAutoSave 手动触发 + 退出兜底
     ///   4. 事件通知：本地 event + 转发 EventBus 频道（SaveEvents.SaveCompleted / LoadCompleted / AutoSaveTriggered）
     ///
     /// 【文件布局】&lt;SaveRootPath&gt;/slot_{n}.json、&lt;SaveRootPath&gt;/_meta.json（+ .bak / .tmp）
     ///   默认 SaveRootPath = Application.persistentDataPath/saves；测试或特殊平台可注入覆盖。
     ///
-    /// 【与 data_manager 的关系】Godot 的 data_get/data_set/save_data/load_data 被合并为
-    ///   <see cref="SaveData.GetData"/> / <see cref="SaveData.SetData"/>：键值随档写入，不再单开全局文件。
+    /// 【键值持久化】键值随档写入（<see cref="SaveData.GetData"/> / <see cref="SaveData.SetData"/>），
+    ///   不再单开全局文件。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class SaveManager : MonoBehaviour
     {
         /// <summary>
-        /// 自动存档占用的槽位号（对应 Godot 的 AUTOSAVE_SLOT = "autosave"）。
+        /// 自动存档占用的槽位号。
         /// 手动存档请从 1 起，避免覆盖自动存档。
         /// </summary>
         public const int AutoSaveSlot = 0;
 
-        /// <summary>自动存档默认间隔（秒），对应 Godot _auto_save_interval 默认 60。</summary>
+        /// <summary>自动存档默认间隔（秒）。</summary>
         public const float DefaultAutoSaveInterval = 60f;
 
         /// <summary>自动存档最短间隔，防止传入 0/负值时协程每帧空转。</summary>
@@ -59,13 +58,13 @@ namespace PirateCrew.Core
         // AutoSaveDataProvider 也从未被赋值。保留原因：自动存档是完整实现的标准功能，启用路径 =
         // Bootstrapper 调 EnableAutoSave 并注入 AutoSaveDataProvider。删除或接线二选一，别让链上成员各自零散演化。
 
-        /// <summary>存档成功（等价 Godot signal save_completed）。</summary>
+        /// <summary>存档成功。</summary>
         public event Action<int> SaveCompleted;
 
-        /// <summary>读档成功（等价 Godot signal load_completed）。</summary>
+        /// <summary>读档成功。</summary>
         public event Action<int> LoadCompleted;
 
-        /// <summary>自动存档触发（等价 Godot signal auto_save_triggered）。</summary>
+        /// <summary>自动存档触发。</summary>
         public event Action<int> AutoSaveTriggered;
 
         /// <summary>
@@ -140,7 +139,7 @@ namespace PirateCrew.Core
         }
 
         // ------------------------------------------------------------------
-        // 槽位 API（对应 Godot save_manager.gd 的公开方法）
+        // 槽位 API
         // ------------------------------------------------------------------
 
         /// <summary>
@@ -174,7 +173,7 @@ namespace PirateCrew.Core
 
         /// <summary>
         /// 从指定槽位读取（对应 <c>load_from_slot</c>）。
-        /// 失败或不存在返回 null（Godot 版返回空字典，C# 侧用 null 表达同一语义）。
+        /// 失败或不存在返回 null。
         /// </summary>
         public SaveData LoadFromSlot(int slot)
         {
@@ -232,7 +231,7 @@ namespace PirateCrew.Core
 
         /// <summary>
         /// 删除槽位（对应 <c>delete_slot</c>）：文件存在才删除并清元数据，
-        /// 返回是否真的删掉了文件（对应 Godot 的 bool 返回值）。
+        /// 返回是否真的删掉了文件。
         /// </summary>
         public bool DeleteSlot(int slot)
         {
@@ -250,7 +249,7 @@ namespace PirateCrew.Core
         }
 
         // ------------------------------------------------------------------
-        // 自动存档（对应 Godot 的 Timer 定时器）
+        // 自动存档
         // ------------------------------------------------------------------
 
         /// <summary>启用自动存档（对应 <c>enable_auto_save</c>）；重复调用会按新间隔重置计时。</summary>
@@ -310,7 +309,7 @@ namespace PirateCrew.Core
                 return false;
             }
 
-            // 对应 Godot：先发信号，再写盘
+            // 先发事件，再写盘
             AutoSaveTriggered?.Invoke(AutoSaveSlot);
             EventBus.Publish(SaveEvents.AutoSaveTriggered, AutoSaveSlot);
 
@@ -327,7 +326,7 @@ namespace PirateCrew.Core
                 if (!_autoSaveEnabled)
                     yield break;
 
-                // 单次失败不能弄死协程（对应 Godot 版没做、这里补上的健壮性）
+                // 单次失败不能弄死协程（健壮性保障）
                 try
                 {
                     TriggerAutoSave();

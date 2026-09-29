@@ -57,7 +57,7 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 机位距离（世界单位）：正交下**不表达视野**（视野由 OrthoSize 决定），只决定机位高度与
-        /// 裁剪范围。沿用 3D 空间契约的距离 30（对齐 Godot orbit_camera.gd；格 1→2 单位后 ×2）。
+        /// 裁剪范围。沿用 3D 空间契约的距离 30（格 1→2 单位后 ×2）。
         /// </summary>
         public const float BaseDistance = 30f;
 

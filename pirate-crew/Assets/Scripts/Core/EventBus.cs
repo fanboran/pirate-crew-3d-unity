@@ -5,11 +5,11 @@ using UnityEngine;
 namespace PirateCrew.Core
 {
     /// <summary>
-    /// 全局事件总线（类型化频道版；语义翻译自 Godot <c>core/autoload/event_bus.gd</c>）。
+    /// 全局事件总线（类型化频道版）。
     ///
     /// 【架构定位】
     ///   模块化架构的解耦核心。模块间通信一律走 EventBus，发布者不需要知道谁在监听，
-    ///   监听者也不需要知道谁在发布。对应 Godot 版的 EventBus autoload。
+    ///   监听者也不需要知道谁在发布。
     ///
     /// 【使用方式（事件键 = 类型化频道，出处：docs/技术/架构/调研-模块间通信.md §4 建议A）】
     ///   每个事件在所属模块的 <c>XxxEvents</c> 类里声明一个 <c>static readonly</c> 频道字段：
@@ -37,7 +37,7 @@ namespace PirateCrew.Core
     /// 【空载荷哨兵】无载荷事件用非泛型 <see cref="Event"/> 频道 + 无参 <c>Action</c> 订阅；
     ///   <see cref="NoPayload"/> 哨兵类型仅用于内部统一表示"无载荷"。
     ///
-    /// 【遍历中订阅/退订】回调里改订阅表不会破坏本轮遍历（快照语义，Godot 版 duplicate() 的等价物）。
+    /// 【遍历中订阅/退订】回调里改订阅表不会破坏本轮遍历（快照语义）。
     ///
     /// 【静态残留】Unity 关闭 Domain Reload 后静态字段不会自动清空；清空动作由唯一入口
     ///   <see cref="GameEntryPoint"/> 调用 <see cref="ResetForNewSession"/> 完成（见该类注释）。
@@ -159,7 +159,7 @@ namespace PirateCrew.Core
         }
 
         /// <summary>
-        /// 订阅无载荷频道。同一**委托实例**重复订阅只生效一次（Godot 版 <c>arr.has</c> 去重语义，见 <see cref="Add"/>）。
+        /// 订阅无载荷频道。同一**委托实例**重复订阅只生效一次（去重语义，见 <see cref="Add"/>）。
         ///
         /// 【去重边界】去重按委托相等（target + 方法）匹配：
         ///   · 方法组、无捕获 lambda（编译器把委托缓存为同一实例）→ 可去重、可退订；

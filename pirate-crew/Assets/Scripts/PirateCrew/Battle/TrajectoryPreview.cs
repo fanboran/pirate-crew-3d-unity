@@ -9,11 +9,10 @@ namespace PirateCrew.Battle
     ///             M4 §3.2：步数随射程延长 + 预测落点标记。
     ///
     /// 【3D 重写要点】
-    ///   · Godot 版 30 个预实例化球体 + 自成一套 <c>speed_scale=18 / gravity=-18</c>（预览 ≠ 实弹，
-    ///     实弹是 <c>velocity = dir * power</c>、<c>gravity = -9.8</c>）→ 本实现用
+    ///   · 本实现用
     ///     <see cref="LineRenderer"/>，且<b>与实弹共用</b> <see cref="LevelGeometry.ThrowVelocity"/> 的初速、
     ///     <see cref="LevelGeometry.WorldGravity"/> 的重力、<see cref="ThrowTrajectory"/> 的半隐式欧拉，
-    ///     从根上消除"预览≠实弹"。
+    ///     从根上保证"预览 = 实弹"（不另立一套预演参数）。
     ///   · 重力沿 -Y，水平面（XZ）内**匀速**——3D 化后重力与水平面正交（见 ThrowTrajectory 类头）。
     ///   · API 遵守风险清单 R3：用 <c>positionCount</c> + <c>SetPositions()</c>，不用已过时的 <c>SetVertexCount</c>。
     ///

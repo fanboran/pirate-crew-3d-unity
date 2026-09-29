@@ -16,7 +16,7 @@ namespace PirateCrew.Core
     /// </summary>
     public sealed class SaveFileIO
     {
-        /// <summary>元数据文件名（对应 Godot META_FILE）。</summary>
+        /// <summary>元数据文件名。</summary>
         public const string MetaFileName = "_meta.json";
 
         /// <summary>备份文件后缀。</summary>
@@ -53,7 +53,7 @@ namespace PirateCrew.Core
             Directory.CreateDirectory(_rootPath);
         }
 
-        /// <summary>槽位文件是否存在（对应 Godot slot_exists）。</summary>
+        /// <summary>槽位文件是否存在。</summary>
         public bool SlotExists(int slot)
         {
             return File.Exists(GetSlotPath(slot));

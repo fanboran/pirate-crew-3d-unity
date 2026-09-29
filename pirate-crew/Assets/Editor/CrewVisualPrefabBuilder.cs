@@ -17,33 +17,30 @@ namespace PirateCrew.EditorTools
     ///   无头: -batchmode -nographics -quit -executeMethod PirateCrew.EditorTools.CrewVisualPrefabBuilder.BuildAll
     ///
     /// 【造型口径 — 用户裁决 2026-09-14；尺度口径 2026-09-14 修正（用户裁决②"角色为什么比木筏子小这么多"）】
-    ///   7 个职业的视觉装配**完全相同**：一个圆台柱 Body + 一个圆球 Head，逐值对齐 Godot 基准
-    ///   `../game-3/pirate-crew-3d/modules/pirate_crew/scenes/pirate.tscn`
-    ///   （该场景全文只有 Body / Head 两个 MeshInstance3D）。
+    ///   7 个职业的视觉装配**完全相同**：一个圆台柱 Body + 一个圆球 Head。
     ///
-    ///   **尺度推导链（先证 Godot 的格子世界尺寸，再定目标比例）**——
+    ///   **尺度推导链（先定格子的世界尺寸，再定目标比例）**——
     ///   <list type="number">
-    ///   <item>Godot `battle.tscn` 地面 = <c>PlaneMesh(size = Vector2(50, 50))</c> → 50×50 Godot 世界单位；</item>
-    ///   <item>`docs/3D空间模型对齐.md` §2 把该地面定义为「尺寸 = 关卡 widthTiles × heightTiles」，
-    ///         而该演示场景对应的关卡宽 50 格（`LevelCatalog` 兜底关 widthTiles = 50）
-    ///         → **50 格 ↔ 50 Godot 世界单位 → Godot 1 格 = 1 Godot 单位**（<see cref="GodotUnitsPerTile"/>）；</item>
-    ///   <item>Godot `pirate.tscn` 角色总高 = Body 圆柱 h1.2（y −0.8..+0.4）与 Head 球 d0.7（y +0.35..+1.05）
-    ///         在轴上重叠 0.05 → **1.85 Godot 单位**（<see cref="GodotReferenceHeight"/>）；</item>
+    ///   <item>关卡地面尺寸 = 关卡 widthTiles × heightTiles（`docs/3D空间模型对齐.md` §2），
+    ///         兜底关宽 50 格（`LevelCatalog` 兜底关 widthTiles = 50）
+    ///         → **1 格 = 1 世界单位**（<see cref="GodotUnitsPerTile"/>）；</item>
+    ///   <item>单位总高 = Body 圆柱 h1.2 与 Head 球 d0.7 在轴上重叠 0.05
+    ///         → **1.85 世界单位**（<see cref="GodotReferenceHeight"/>）；</item>
     ///   <item>本工程 1 格 = 1 世界单位（`LevelGeometry.PixelsPerUnit = 32`、`WorldWidth = widthTiles`，
-    ///         见 <see cref="UnityUnitsPerTile"/>）→ 换算系数 = 1 本工程单位 / 1 Godot 单位 = 1；</item>
+    ///         见 <see cref="UnityUnitsPerTile"/>）→ 换算系数 = 1；</item>
     ///   <item>→ **目标视觉总高 = 1.85 世界单位**（<see cref="TargetUnitHeight"/>）。</item>
     ///   </list>
-    ///   于是等比缩放系数 k = <see cref="TargetUnitHeight"/> / 1.85 = 1，两件式尺寸即 Godot 原值：
+    ///   于是等比缩放系数 k = <see cref="TargetUnitHeight"/> / 1.85 = 1，两件式尺寸即归一基准原值：
     ///   <list type="bullet">
-    ///   <item>Body 圆台柱 = 顶 r <see cref="BodyTopRadius"/> 0.35（Godot <c>top_radius 0.35</c>）
-    ///         / 底 r <see cref="BodyBottomRadius"/> **0.4667**（Godot 是 0.40——这一项按创始人
+    ///   <item>Body 圆台柱 = 顶 r <see cref="BodyTopRadius"/> 0.35
+    ///         / 底 r <see cref="BodyBottomRadius"/> **0.4667**（这一项按创始人
     ///         2026-09-22 裁决放大出台柱感、2026-09-28 微调对齐艺术像素网格，理由见该常量的注释）/
     ///         高 <see cref="BodyHeight"/> 1.20，底面贴脚底 y=0；</item>
-    ///   <item>Head 圆球 = Godot <c>SphereMesh(radius 0.35, height 0.7)</c> × k → r <see cref="HeadSphereRadius"/> 0.35，
-    ///         球心 y <see cref="HeadSphereCenterY"/> 1.50（球底 1.15 与柱顶 1.20 微叠 0.05，与 Godot 的
-    ///         `1.2/2 − 0.7/2 = 0.05` 一致；总高 = 1.50 + 0.35 = 1.85）。</item>
+    ///   <item>Head 圆球 = r <see cref="HeadSphereRadius"/> 0.35、球直径 0.7，
+    ///         球心 y <see cref="HeadSphereCenterY"/> 1.50（球底 1.15 与柱顶 1.20 微叠 0.05，即
+    ///         `1.2/2 − 0.7/2 = 0.05`；总高 = 1.50 + 0.35 = 1.85）。</item>
     ///   </list>
-    ///   材质：Head = 木色 <c>#D4A76A</c>（CrewWood，与 Godot <c>cel_wood</c> 0.83/0.65/0.42 = #D4A66B 同值），
+    ///   材质：Head = 木色 <c>#D4A76A</c>（CrewWood），
     ///   Body = 阵营色（运行时由 UnitOutlineBinder 逐队写 <c>_BaseColor</c>）；
     ///   全部 Crew 材质走**像素化路径**物体 shader（<see cref="PixelartPath.ObjectShaderName"/>，
     ///   配方唯一来源 = <see cref="PixelartMaterialFactory"/>）——反壳描边（PirateOutline）已退役，
@@ -52,7 +49,7 @@ namespace PirateCrew.EditorTools
     ///
     /// 【为什么删掉了腿/靴/臂/掌/三角帽/头巾/发/鼻/眼/手持武器】那些零件是此前多轮复验里
     ///   **AI 自主加件**的产物（"评委"式跑偏），用户从未要求；用户原话是"一个球加一个梯形"，
-    ///   与 Godot 版比对后明确"我要和 Godot 里面一模一样那种圆球+圆台柱"。故装配代码整段移除
+    ///   并明确"我要圆球+圆台柱那种"。故装配代码整段移除
     ///   （见 <see cref="ApplyGodotTwoPieceSilhouette"/>）；网格资产与 <c>CrewMeshLibrary</c> 的键
     ///   **不删库**（生成链路与三角面预算镜像表仍在），只是预制体里不再装配它们。
     ///
@@ -104,19 +101,19 @@ namespace PirateCrew.EditorTools
 
         // ------------------------------------------------------------------
         // 造型尺寸（2026-09-29 创始人在角色镜头调试场定档；起点是 2026-09-14
-        // 的 Godot pirate.tscn 逐值复刻，之后底径/体格/头颈距几经裁决演进）
+        // 的两件式归一尺寸，之后底径/体格/头颈距几经裁决演进）
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// Godot 基准总高 = 1.85：pirate.tscn 的 Body 圆柱 h1.2（y −0.8..+0.4）与 Head 球 d0.7（y +0.35..+1.05）
+        /// 归一基准总高 = 1.85：Body 圆柱 h1.2 与 Head 球 d0.7
         /// 在轴上重叠 0.05（0.4−0.35）→ 总高 1.2 + 0.7 − 0.05 = 1.85。
-        /// 只作 GodotScale 的归一基准；**现役总高以两件式常量推导为准（≈2.03，见 <see cref="HeadSphereCenterY"/>）**。
+        /// 只作 <see cref="GodotScale"/> 的归一基准；**现役总高以两件式常量推导为准（≈2.03，见 <see cref="HeadSphereCenterY"/>）**。
         /// </summary>
         const float GodotReferenceHeight = 1.85f;
 
         /// <summary>
-        /// Godot 1 格 = 1 Godot 世界单位。推导见类头「尺度推导链」：
-        /// Godot `battle.tscn` 地面 <c>PlaneMesh(50, 50)</c>（50 Godot 单位）↔ 关卡宽 50 格。
+        /// 1 格 = 1 世界单位。推导见类头「尺度推导链」：
+        /// 兜底关地面 50 格 ↔ 50 世界单位。
         /// </summary>
         const float GodotUnitsPerTile = 1f;
 
@@ -126,28 +123,28 @@ namespace PirateCrew.EditorTools
         const float UnityUnitsPerTile = 1f;
 
         /// <summary>
-        /// 目标视觉总高的归一系数来源（Godot 1.85 × UnityUnitsPerTile / GodotUnitsPerTile）。
-        /// GodotScale 恒 1，两件式常量直接写世界值——**总高不再锚 1.85**，由 Body/Head 常量推出。
+        /// 目标视觉总高的归一系数来源（1.85 × UnityUnitsPerTile / GodotUnitsPerTile）。
+        /// <see cref="GodotScale"/> 恒 1，两件式常量直接写世界值——**总高不再锚 1.85**，由 Body/Head 常量推出。
         ///
         /// 【为什么不再用旧的 0.55】旧口径把整身压到 0.55 世界单位（≈0.55 格高），
-        ///   与 Godot 角色的 1.85 格高差了 3.36 倍，用户一眼看出"角色比木筏子小这么多"。
+        ///   与 1.85 格高的角色差了 3.36 倍，用户一眼看出"角色比木筏子小这么多"。
         ///   碰撞足迹仍由根级 BoxCollider 决定（0.375×0.5×0.375，Flash 12×16px 契约，见
         ///   <see cref="UnitRootScale"/>），**与视觉高度无关**，改造型不动碰撞体。
         /// </summary>
         const float TargetUnitHeight = GodotReferenceHeight * UnityUnitsPerTile / GodotUnitsPerTile;
 
-        /// <summary>等比缩放系数 k = 1.85 / 1.85 = **1**（Godot 单位 → 本工程世界单位；两件式即 Godot 原值）。</summary>
+        /// <summary>等比缩放系数 k = 1.85 / 1.85 = **1**（归一单位 → 本工程世界单位；两件式即归一基准原值）。</summary>
         static readonly float GodotScale = TargetUnitHeight / GodotReferenceHeight;
 
         /// <summary>
         /// Body 圆台柱顶半径 = **0.30**（创始人 2026-09-29 在角色镜头调试场定档，即
-        /// CharCamDebugController.DefaultTopRadius；前值 0.35 = Godot top_radius）。
+        /// CharCamDebugController.DefaultTopRadius；前值 0.35）。
         /// </summary>
         static readonly float BodyTopRadius = 0.3f * GodotScale;
 
         /// <summary>
         /// Body 圆台柱底半径 = **0.30**（2026-09-29 调试档——与顶径等宽的圆柱身；
-        /// 演进：Godot 0.4 → 0.4667（2026-09-22 台柱感 + 2026-09-28 整像素）→ 0.3）。
+        /// 演进：0.4 → 0.4667（2026-09-22 台柱感 + 2026-09-28 整像素）→ 0.3）。
         /// 锥度 0.30/0.30 = 1，直筒；特写档直径 0.6 m 在可见 14 m@540 画布 = 23.1 px（1:2）。
         /// </summary>
         static readonly float BodyBottomRadius = 0.3f * GodotScale;
@@ -155,12 +152,12 @@ namespace PirateCrew.EditorTools
         /// <summary>Body 圆台柱高 = **1.3215**（2026-09-29 调试档；前值 1.20），底面贴脚底（局部 y 0..1.3215）。</summary>
         static readonly float BodyHeight = 1.3215f * GodotScale;
 
-        /// <summary>Head 球半径 = **0.30**（2026-09-29 调试档；前值 0.35 = Godot SphereMesh.radius）。</summary>
+        /// <summary>Head 球半径 = **0.30**（2026-09-29 调试档；前值 0.35）。</summary>
         static readonly float HeadSphereRadius = 0.3f * GodotScale;
 
         /// <summary>
         /// 头颈间距 = **0.1606**（2026-09-29 调试档）：头心上抬量，正 = 拉出脖颈间隙、0 = 球底与柱顶
-        /// 重叠 0.05 的 Godot 口径。
+        /// 重叠 0.05 的口径。
         /// </summary>
         static readonly float HeadLift = 0.1606f;
 
@@ -448,7 +445,7 @@ namespace PirateCrew.EditorTools
                 return null;
             }
 
-            // ---- 用户裁决 2026-09-14：塌缩成 Godot 两件式（圆球 + 圆台柱）----
+            // ---- 用户裁决 2026-09-14：塌缩成两件式（圆球 + 圆台柱）----
             // 保留 rig.Build 的枢轴接线（Body/TorsoPivot/HeadPivot 与动画器共用），
             // 只把"零件"部分整体换掉：删掉 legs/boots/arms/hands/hats/face/held 后重建 Body + Head。
             ApplyGodotTwoPieceSilhouette(rig, assetSet, addOns);
@@ -515,18 +512,18 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 把 <see cref="CrewVisualRig.Build"/> 装配出的整套零件**塌缩成 Godot 两件式**：
+        /// 把 <see cref="CrewVisualRig.Build"/> 装配出的整套零件**塌缩成两件式**：
         /// 一个圆台柱（Body，阵营色）+ 一个圆球（Head，木色），其余零件与臂/腿枢轴全部删除。
         ///
         /// 【为什么保留 rig.Build 再删】三个动画枢轴（BodyPivot / TorsoPivot / HeadPivot）的层级与序列化
         ///   接线由 rig 提供且被 <c>CrewVisualAnimator</c> 使用，重建一套层级反而容易漏接线；
         ///   这里沿用"rig 装配 + 后处理"的既有做法，只把零件层整体替换。
         ///
-        /// 【尺寸与位置（逐值对照 pirate.tscn）】
+        /// 【尺寸与位置】
         ///   · Body：<see cref="BodyFrustumKey"/> 网格按世界尺寸建模（顶 r 0.35 / 底 r 0.46 /
         ///     h 1.20），缩放恒为 1，中心放在柱高的中点 → 底面恰在脚底 y=0（Visual 局部 y=0）。
         ///   · Head：<see cref="HeadSphereKey"/> 网格半径 0.35，挂在 HeadPivot 下的原点 →
-        ///     球心 y 1.50，球底 1.15 与柱顶 1.20 微叠 0.05（与 Godot 的 0.85−0.7/2−1.2/2 = 0.05 一致）。
+        ///     球心 y 1.50，球底 1.15 与柱顶 1.20 微叠 0.05（重叠量 = 1.2/2 − 0.7/2 = 0.05）。
         ///   · 枢轴归位：TorsoPivot 移到脚底（呼吸缩放/前倾都绕脚底，语义与原来一致），
         ///     HeadPivot 移到球心高度；BodyPivot 保持脚底（与 rig 建的一致）。
         ///
@@ -575,7 +572,7 @@ namespace PirateCrew.EditorTools
                 assets.For(CrewMaterialRole.TeamCloth),
                 new Vector3(0f, BodyHeight * 0.5f, 0f), Vector3.one, teamTint: true);
 
-            // ---- 4) Head 圆球（Godot cel_wood = 木色 #D4A76A）----
+            // ---- 4) Head 圆球（木色 #D4A76A）----
             AddSimplePart(headPivot, "Head", addOns.HeadSphere,
                 assets.For(CrewMaterialRole.Wood),
                 Vector3.zero, Vector3.one);

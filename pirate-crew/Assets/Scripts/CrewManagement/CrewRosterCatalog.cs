@@ -8,7 +8,7 @@ namespace PirateCrew.CrewManagement
     /// </summary>
     public readonly struct CrewRosterEntry
     {
-        /// <summary>船员 id（= Godot <c>roster.gd</c> 里 <c>_unlocked_crews</c> 使用的字符串 id，如 <c>sailor</c>）。</summary>
+        /// <summary>船员 id（字符串，如 <c>sailor</c>）。</summary>
         public readonly string Id;
 
         /// <summary>中文显示名（UI 用）。</summary>
@@ -17,7 +17,7 @@ namespace PirateCrew.CrewManagement
         /// <summary>
         /// 累计星数达到该值时招募开放；<c>0</c> 表示初始船员。
         /// 【口径】招募门槛 =「累计星数（8 图满分 24）」，
-        /// 数值沿用 Godot 设计文档 <c>../game-3/docs/gdd.md</c> §5.2 的「解锁」列——量级恰好匹配
+        /// 数值取「解锁」口径——量级恰好匹配
         ///（3/5/7/10/13 星 ≈ 打通 1/2/3/4/5 张海图）。<b>提案/待定</b>：非逆向文档结论——
         /// <b>原版 Flash 没有船员招募系统</b>
         ///（见 <c>docs/参考游戏逆向-海盗军团抢宝藏-静态.md</c> §7.3 末「无金币/商店系统，只有关卡得分 + 解锁进度」），
@@ -48,9 +48,7 @@ namespace PirateCrew.CrewManagement
     /// 可招募船员名录（真值来源，纯 C# 静态类，无头验证台可断言）。
     ///
     /// 【出处与性质】
-    ///   · 结构取自 Godot <c>modules/crew_management/scripts/roster.gd:12</c>
-    ///     （初始 <c>["sailor"]</c>、<c>max_roster_size = 4</c>）。
-    ///   · 船员种类与解锁关卡取自 Godot 设计文档 <c>../game-3/docs/gdd.md</c> §5.2 的「3D 重制船员职业设计」表。
+    ///   · 初始 <c>["sailor"]</c>、编成上限 <c>4</c>。
     ///   · ⚠ <b>原版 Flash 没有船员系统</b>（所有海盗属性相同，只有美术/初始武器差异，
     ///     见 <c>docs/参考游戏逆向-海盗军团抢宝藏-静态.md</c> §4.1/§4.2），
     ///     因此本表全部为<b>提案/待定</b>，实现按「最小可玩闭环」取，不当作已确认设定。
@@ -58,12 +56,12 @@ namespace PirateCrew.CrewManagement
     public static class CrewRosterCatalog
     {
         /// <summary>
-        /// 初始船员 id（Godot <c>roster.gd:12</c> <c>_unlocked_crews = ["sailor"]</c>）。
+        /// 初始船员 id。
         /// </summary>
         public const string InitialCrewId = "sailor";
 
         /// <summary>
-        /// 编成上限（Godot <c>roster.gd:10</c> <c>@export max_roster_size = 4</c>）。
+        /// 编成上限。
         /// </summary>
         public const int MaxRosterSize = 4;
 
