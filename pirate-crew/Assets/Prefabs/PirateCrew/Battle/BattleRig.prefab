@@ -24510,7 +24510,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneryRoot: {fileID: 2767732307081523997}
   cloudFieldPrefab: {fileID: 2782845269019241609, guid: 3c21a67daefea5e43aac3ccbbbedb046, type: 3}
-  dangerBorderPrefab: {fileID: 7729139605862933881, guid: bc57cf7423ee4f74194389e403a17f27, type: 3}
   chemPlantYardPrefab: {fileID: 919132149155446097, guid: 6e9710e00d6261f4b9b3294fdf805337, type: 3}
   chemPlantTeamYardPrefab: {fileID: 919132149155446097, guid: fbbf817f92267cd4ba07ddb99ca194c1, type: 3}
   skyIslandRoot: {fileID: 847888229315606697}

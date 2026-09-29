@@ -542,95 +542,6 @@ namespace PirateCrew.SceneArt
             }
         }
 
-        /// <summary>
-        /// 边界**虚线**（落水危险提示，场景文档 §5.4）：在边界外 <paramref name="offset"/> 处
-        /// 铺一条由短划线组成的环带，y = <paramref name="y"/>。四边各走一遍。
-        /// </summary>
-        /// <returns>划线段数（供报告/测试核对）。</returns>
-        public static int AddDashedBorder(MeshBuffers b, float arenaWidth, float arenaDepth,
-            float offset, float y, float dashLength, float gap, float width)
-        {
-            if (b == null || dashLength <= 0f || width <= 0f)
-                return 0;
-
-            int total = 0;
-            float half = width * 0.5f;
-
-            // 南北边：沿 X 走，横跨（含拐角外扩）。
-            float xFrom = -offset, xTo = arenaWidth + offset;
-            // 东西边：沿 Z 走，仅竞技场纵深。
-            float zFrom = 0f, zTo = arenaDepth;
-
-            for (int side = 0; side < 4; side++)
-            {
-                bool alongX = side < 2;
-                float sign = (side % 2 == 0) ? -1f : 1f;
-                float lineAt = alongX
-                    ? (side == 0 ? -offset : arenaDepth + offset)
-                    : (side == 2 ? -offset : arenaWidth + offset);
-                float from = alongX ? xFrom : zFrom;
-                float to = alongX ? xTo : zTo;
-
-                total += AddDashesAlong(b, from, to, lineAt, sign, alongX, y, dashLength, gap, half);
-            }
-
-            return total;
-        }
-
-        /// <summary>gap < 0 的坏参数告警只打一次（同一次构建 4 条边会带同样的坏值进来）。</summary>
-        static bool _dashGapWarned;
-
-        static int AddDashesAlong(MeshBuffers b, float from, float to, float lineAt, float outwardSign,
-            bool alongX, float y, float dashLength, float gap, float half)
-        {
-            float length = Mathf.Abs(to - from);
-            if (length <= 0f)
-                return 0;
-
-            // gap < 0 会让步距 <= 0、下面的 for 永不前进（死循环）——非法参数直接拒收本条虚线。
-            if (gap < 0f)
-            {
-                if (!_dashGapWarned)
-                {
-                    _dashGapWarned = true;
-                    global::PirateCrew.Core.Log.Warn(
-                        "[IslandShellGeometry] AddDashedBorder 收到 gap < 0（步距死循环）——本条虚线不铺。");
-                }
-                return 0;
-            }
-
-            float step = dashLength + gap;
-            int count = 0;
-            for (float t = 0f; t + dashLength <= length + 1e-4f; t += step)
-            {
-                float a = from + Mathf.Sign(to - from) * t;
-                float c = from + Mathf.Sign(to - from) * (t + dashLength);
-                float inner = lineAt - outwardSign * half;
-                float outer = lineAt + outwardSign * half;
-
-                Vector3 p0, p1, p2, p3;
-                if (alongX)
-                {
-                    p0 = new Vector3(a, y, inner);
-                    p1 = new Vector3(c, y, inner);
-                    p2 = new Vector3(c, y, outer);
-                    p3 = new Vector3(a, y, outer);
-                }
-                else
-                {
-                    p0 = new Vector3(inner, y, a);
-                    p1 = new Vector3(inner, y, c);
-                    p2 = new Vector3(outer, y, c);
-                    p3 = new Vector3(outer, y, a);
-                }
-
-                b.AddQuad(p0, p1, p2, p3, Vector3.up);
-                count++;
-            }
-
-            return count;
-        }
-
         // ==================================================================
         // 悬空平台底部（船体侧板+龙骨 / 岩锥收尖 / 梯田岩层）
         // ==================================================================
@@ -652,8 +563,7 @@ namespace PirateCrew.SceneArt
         /// <summary>
         /// 把所有平台簇底部按材质写入：<see cref="PlatformClusterKind.Ship"/> → 暗木（水线以下船板/龙骨），
         /// 空岛 / 梯田岛 → 岩，使底部与既有材质组（DrawCall）合并。
-        /// 【消费链现状】当前**没有生产调用方**（原编辑器构建器 <c>SceneArtBuilder</c> 已删除；
-        /// 现在进 prefab 的烘焙件只走 <c>AddDashedBorder</c> 危险虚线一条链）。
+        /// 【消费链现状】当前**没有生产调用方**（原编辑器构建器 <c>SceneArtBuilder</c> 已删除）。
         /// 【去留裁决留给创始人】重新接线复用前，先跑 Showcase 出图验证底部收形与水线暗带的观感。
         /// 同时沿每个簇包络在**水线**处补一圈窄暗部（并入暗木/岩）与一条细泡沫线（并入 Foam 组）：
         /// 修 r2 诊断「平台与水面交界是平直切边、无底面感、无接触暗部、无浪」。

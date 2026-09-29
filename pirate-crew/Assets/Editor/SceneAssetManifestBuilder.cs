@@ -46,8 +46,6 @@ namespace PirateCrew.EditorTools
             // ---- SceneKit：C# 烘焙件（程序化，输入 = 固定输出）----
             new UpstreamEntry { PathInModels = "SceneKit/CloudField.prefab", Origin = "programmatic",
                 Source = "SceneArtBaker.BakeCloudField: CloudFieldSpec.Default, Seed=26091401" },
-            new UpstreamEntry { PathInModels = "SceneKit/ShowcaseDangerBorder.prefab", Origin = "programmatic",
-                Source = "SceneArtBaker.BakeDangerBorder: IslandShellGeometry.AddDashedBorder 20x15" },
             new UpstreamEntry { PathInModels = "SceneKit/Baked", Origin = "programmatic",
                 Source = "SceneArtBaker 烘焙网格资产（被同目录 prefab 引用，不单独摆放）" },
 

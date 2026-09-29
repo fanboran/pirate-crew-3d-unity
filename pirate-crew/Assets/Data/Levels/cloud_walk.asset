@@ -388,12 +388,6 @@ MonoBehaviour:
       - 0
       - 0
     bakedPieces:
-    - pieceId: 0
-      instanceName: DangerBorder
-      x: 0
-      y: 0
-      z: 0
-      yawDeg: 0
     - pieceId: 1
       instanceName: CloudField
       x: 20

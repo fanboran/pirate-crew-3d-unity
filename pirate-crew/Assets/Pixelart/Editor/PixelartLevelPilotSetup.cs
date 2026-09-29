@@ -49,7 +49,6 @@ namespace PirateCrew.EditorTools
 
         // ---- 内容件（与 SceneArtBaker 的产物路径一致）----
         const string CloudFieldPrefabPath = "Assets/Art/Models/SceneKit/CloudField.prefab";
-        const string DangerBorderPrefabPath = "Assets/Art/Models/SceneKit/ShowcaseDangerBorder.prefab";
 
         /// <summary>海面替身尺寸：Plane 图元 10×10 × 16 = 160×160（与试点场景同量级）。</summary>
         const float SeaPlaneScale = 16f;
@@ -61,7 +60,6 @@ namespace PirateCrew.EditorTools
         const string IslandRootName = "FloatingIslandShowcase";
 
         const string SeaMaterialName = "PixelartLevel_Sea";
-        const string DangerMaterialName = "PixelartLevel_DangerLine";
 
         [MenuItem("PirateCrew/Pixelart/烘焙三个关卡试点场景（云场/碎岛/空岛）")]
         public static void BuildAll()
@@ -135,10 +133,6 @@ namespace PirateCrew.EditorTools
             // ---------------- 材质 ----------------
             Material sea = PixelartStageKit.EnsureMaterial(SeaMaterialName,
                 PixelartStageKit.Hex("2E5F84"), 2f, outlinePixels: 0f);
-            // 危险虚线在原链是半透明红（`Scene_Danger`：a=0.5、队列 3000）——本路径的 G-buffer
-            // 没有混合、不透明批次也不会拉它，故改成不透明红（同一色相，去掉透明度）。
-            Material danger = PixelartStageKit.EnsureMaterial(DangerMaterialName,
-                PixelartStageKit.Hex("CC2222"), 2f, outlinePixels: 0f);
 
             var materialMap = new Dictionary<string, Material>();
             bool deriveMissing = false;
@@ -225,7 +219,7 @@ namespace PirateCrew.EditorTools
 
                 PixelartStageKit.SwapMaterials(instance, materialMap, LogTag, deriveMissing);
 
-                if (placement.Piece != ShowcasePieceId.DangerBorder && content == null)
+                if (content == null)
                     content = instance;
             }
 
@@ -272,7 +266,7 @@ namespace PirateCrew.EditorTools
             camGo.transform.SetParent(root.transform);
             Vector3 target = view.Target;
             Vector3 dir = PixelartPilotScene.CameraDirection(
-                PixelartPilotScene.PitchDegrees, PixelartPilotScene.AzimuthDegrees);
+                PixelartPilotScene.PitchDegrees, PixelartLevelScene.AzimuthFor(view));
             camGo.transform.position = target + dir * PixelartPilotScene.CameraDistance;
             camGo.transform.LookAt(target);
 
@@ -323,7 +317,6 @@ namespace PirateCrew.EditorTools
             switch (piece)
             {
                 case ShowcasePieceId.CloudField: return CloudFieldPrefabPath;
-                case ShowcasePieceId.DangerBorder: return DangerBorderPrefabPath;
                 default: return null;
             }
         }

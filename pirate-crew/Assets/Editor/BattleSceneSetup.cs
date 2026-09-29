@@ -322,7 +322,7 @@ namespace PirateCrew.EditorTools
         ///   <item>`deriveOrthographicSize = false`：取景归 `BattleCameraDriver`（正交整数档 = 视野档），
         ///         本路径只管像素网格与着色；</item>
         ///   <item>第三个渲染器（叠加档）给半透明内容留一条路：本路径放不下混合，
-        ///         少了它 FX / 危险虚线 / 接触阴影 / 弹道预览会**整类消失**；</item>
+        ///         少了它 FX / 接触阴影 / 弹道预览会**整类消失**；</item>
         ///   <item><see cref="PixelartContentConverter"/> 挂在同一个物体上：内容成型后按源材质取色，
         ///         把还不在本路径上的不透明件就地换成本路径材质（幂等、低频补扫）。</item>
         /// </list>
@@ -347,7 +347,7 @@ namespace PirateCrew.EditorTools
             if (!PixelartPathInstaller.EnsureOverlayRenderer(out overlayIndex, out error))
             {
                 Debug.LogError("[BattleSceneSetup] 透明件叠加渲染器装配失败：" + error
-                    + "——FX / 危险虚线 / 接触阴影 / 弹道预览在新管线下会看不见。");
+                    + "——FX / 接触阴影 / 弹道预览在新管线下会看不见。");
             }
 
             var rig = camera.gameObject.AddComponent<PixelartCameraRig>();
@@ -500,7 +500,6 @@ namespace PirateCrew.EditorTools
                 root.objectReferenceValue = runtimeSceneArt.transform;
 
             SetPrefabRefIfExists(so, "cloudFieldPrefab", "Assets/Art/Models/SceneKit/CloudField.prefab");
-            SetPrefabRefIfExists(so, "dangerBorderPrefab", "Assets/Art/Models/SceneKit/ShowcaseDangerBorder.prefab");
             // 第 4 关「废弃化工厂」整场件（Blender 手作 FBX 本体直接当预制引用）
             SetPrefabRefIfExists(so, "chemPlantYardPrefab", "Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx");
             // 第 5 关「废弃化工厂·六件并行版」整场件（六件并行 kit 的总装 FBX 本体）

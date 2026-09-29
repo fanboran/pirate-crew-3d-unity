@@ -37,9 +37,6 @@ namespace PirateCrew.Battle
         [Tooltip("烘焙件：低模云场（第 1 关主景）。由 SceneArtBaker 烘焙并接线。")]
         [SerializeField] GameObject cloudFieldPrefab;
 
-        [Tooltip("烘焙件：落水危险虚线（现存样板关共用一圈）。由 SceneArtBaker 烘焙并接线。")]
-        [SerializeField] GameObject dangerBorderPrefab;
-
         /// <summary>第 4 关「废弃化工厂」的整场件（FBX 本体；装配器
         /// <c>PirateCrew.EditorTools.ChemPlantBattleWiring</b> 写进场景）。</summary>
         [SerializeField] GameObject chemPlantYardPrefab;
@@ -143,7 +140,6 @@ namespace PirateCrew.Battle
             switch (piece)
             {
                 case ShowcasePieceId.CloudField: return cloudFieldPrefab;
-                case ShowcasePieceId.DangerBorder: return dangerBorderPrefab;
                 case ShowcasePieceId.ChemPlantYard: return chemPlantYardPrefab;
                 case ShowcasePieceId.ChemPlantTeamYard: return chemPlantTeamYardPrefab;
                 default: return null;

@@ -213,8 +213,8 @@ namespace PirateCrew.Battle.Tests
         /// </summary>
         static readonly string[] FrozenLevelSignatures =
         {
-            "1|cloud_walk|云端漫步|20x15|14|3|3||units=redPirate/0/8/6/5;redPirate/0/12/9/5;redPirate/0/10/4/5;redPirateCaptain/0/10/11/5;cabinBoy/1/12/6/1;cabinBoy/1/8/9/1;cabinBoyCaptain/1/13/7/1|air=Dynamite:10|raster=solid48/total422/digest68270|pieces=0/DangerBorder;1/CloudField",
-            "3|sky_island|天空之岛|20x15|14|3|3||units=redPirate/0/11/5/5;redPirate/0/13/6/5;redPirate/0/11/8/5;redPirateCaptain/0/12/6/5;cabinBoy/1/6/5/5;cabinBoy/1/8/5/5;cabinBoy/1/5/7/5;cabinBoy/1/8/8/5;cabinBoyCaptain/1/6/8/5|air=TidalWave:10|Anchor:10|Seagull:10|raster=solid96/total2688/digest404544|pieces=0/DangerBorder",
+            "1|cloud_walk|云端漫步|20x15|14|3|3||units=redPirate/0/8/6/5;redPirate/0/12/9/5;redPirate/0/10/4/5;redPirateCaptain/0/10/11/5;cabinBoy/1/12/6/1;cabinBoy/1/8/9/1;cabinBoyCaptain/1/13/7/1|air=Dynamite:10|raster=solid48/total422/digest68270|pieces=1/CloudField",
+            "3|sky_island|天空之岛|20x15|14|3|3||units=redPirate/0/11/5/5;redPirate/0/13/6/5;redPirate/0/11/8/5;redPirateCaptain/0/12/6/5;cabinBoy/1/6/5/5;cabinBoy/1/8/5/5;cabinBoy/1/5/7/5;cabinBoy/1/8/8/5;cabinBoyCaptain/1/6/8/5|air=TidalWave:10|Anchor:10|Seagull:10|raster=solid96/total2688/digest404544|pieces=",
             // L4 废弃化工厂（2026-09-29 入库，提案/待定）：32x22 大场地，平地可走 + 建筑足印抬高成掩体
             // （solid704 = 32×22 − 建筑格）；整场件 pieceId 2 = ChemPlantYard（Blender 手作 FBX）。
             "4|chem_plant|废弃化工厂|32x22|14|3|3||units=redPirate/0/5/8/5;redPirate/0/8/9/5;redPirate/0/7/11/5;redPirateCaptain/0/9/10/5;cabinBoy/1/16/4/5;cabinBoy/1/19/5/5;cabinBoy/1/17/6/5;cabinBoy/1/24/3/5;cabinBoyCaptain/1/28/4/5|air=Dynamite:10|raster=solid704/total5500/digest1783200|pieces=2/ChemPlantYard",

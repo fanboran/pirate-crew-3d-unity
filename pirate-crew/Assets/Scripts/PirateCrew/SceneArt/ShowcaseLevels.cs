@@ -9,9 +9,6 @@ namespace PirateCrew.SceneArt
     /// <summary>烘焙陈设件种类（= SceneArtBaker 的产物；一个种类一个 prefab 资产）。</summary>
     public enum ShowcasePieceId
     {
-        /// <summary>落水危险虚线（样板关共用一圈）。</summary>
-        DangerBorder = 0,
-
         /// <summary>低模云场（第 1 关「云端漫步」主景）。</summary>
         CloudField = 1,
 

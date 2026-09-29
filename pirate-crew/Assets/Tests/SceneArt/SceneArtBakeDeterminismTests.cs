@@ -15,13 +15,6 @@ namespace PirateCrew.SceneArt.Tests
     /// </summary>
     public class SceneArtBakeDeterminismTests
     {
-        /// <summary>
-        /// 现存样板关号。关卡 2「碎岛雨」已删除（2026-09-22），号段有意不连续——
-        /// 显式清单而非 <c>FirstLevel..LastLevel</c> 连续区间：区间会在关卡 2 上取到空摆位表
-        /// 而误判，显式清单则让"哪一关的烘焙件丢了"直接红在那一关。
-        /// </summary>
-        static readonly int[] ExistingLevels = { 1, 3 };
-
         // ------------------------------------------------------------------
         // 断言工具
         // ------------------------------------------------------------------
@@ -49,20 +42,6 @@ namespace PirateCrew.SceneArt.Tests
         // ------------------------------------------------------------------
         // 用例：确定性（同输入两次，逐顶点一致）
         // ------------------------------------------------------------------
-
-        [Test]
-        public void DangerBorder_SameParamsTwice_VertexIdentical()
-        {
-            var a = new ScenePropBuffers();
-            var b = new ScenePropBuffers();
-            IslandShellGeometry.AddDashedBorder(a.Danger, ShowcaseLevels.WidthTiles, ShowcaseLevels.DepthTiles,
-                3.15f, LevelGeometry.WaterSurfaceY + 0.012f, 0.9f, 0.55f, 0.18f);
-            IslandShellGeometry.AddDashedBorder(b.Danger, ShowcaseLevels.WidthTiles, ShowcaseLevels.DepthTiles,
-                3.15f, LevelGeometry.WaterSurfaceY + 0.012f, 0.9f, 0.55f, 0.18f);
-
-            Assert.Greater(a.Danger.VertexCount, 0, "危险虚线应有几何");
-            AssertBuffersIdentical(a.Danger, b.Danger, "DangerBorder");
-        }
 
         [Test]
         public void CloudField_SameSpecTwice_VertexIdentical()
@@ -99,22 +78,6 @@ namespace PirateCrew.SceneArt.Tests
                 }
             }
             Assert.AreEqual(1, clouds, "云端漫步应恰摆一片云场");
-
-            // 现存关卡共用危险虚线于原点。
-            for (int l = 0; l < ExistingLevels.Length; l++)
-            {
-                int level = ExistingLevels[l];
-                var list = ShowcaseLevels.BakedPlacements(level);
-                bool hasBorder = false;
-                for (int i = 0; i < list.Count; i++)
-                {
-                    if (list[i].Piece != ShowcasePieceId.DangerBorder)
-                        continue;
-                    hasBorder = true;
-                    Assert.AreEqual(Vector3.zero, list[i].Position, "关 " + level + " 危险虚线应恒在原点");
-                }
-                Assert.IsTrue(hasBorder, "关 " + level + " 应有危险虚线");
-            }
         }
     }
 }

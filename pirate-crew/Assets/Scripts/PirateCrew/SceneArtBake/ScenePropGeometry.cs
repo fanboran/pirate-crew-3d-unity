@@ -14,14 +14,13 @@ namespace PirateCrew.SceneArt
     /// 【消费链现状】道具/水线几何家族当前**没有生产调用方**（原编辑器构建器
     /// <c>Assets/Editor/SceneArtBuilder.cs</c> 已删除）；全仓对 <see cref="ScenePropGeometry"/>
     /// 的唯一在用入口是 <c>FloatingIslandComposer</c> 遗迹光环的 <c>AddRingLoop</c>
-    /// （写进 Glow 组）。烘焙进 prefab 的危险虚线走的是
-    /// <c>IslandShellGeometry.AddDashedBorder</c>（Danger 组），不经道具家族。
+    /// （写进 Glow 组）。
     /// 【去留裁决留给创始人】重新接线复用前，先跑 Showcase 出图验证观感。
     ///
     /// 【分组与材质的对应】（原 SceneArtBuilder 时代的分配，重接时按此对照材质组）：
     ///   Wood/WoodDark/Rock/Metal/Foliage/Cloth/FlagRed/FlagBlue 用
     ///   <c>PirateCrew/PirateOutline</c>（本体 + #2A2A2A 描边，满足场景文档 M12）；
-    ///   Foam/Danger/WaterDark 用 URP/Unlit 半透明（不参与光照、不投影，场景文档 §5.3）；
+    ///   Foam/WaterDark 用 URP/Unlit 半透明（不参与光照、不投影，场景文档 §5.3）；
     ///   Silhouette/Cloud 用 URP/Unlit（远景剪影与云带）；
     ///   SandWet 用环境湿沙材质（潮间带坡 + 海床坡）。
     /// </summary>
@@ -54,9 +53,6 @@ namespace PirateCrew.SceneArt
         /// <summary>浪花/泡沫（URP/Unlit 半透明白）。</summary>
         public readonly MeshBuffers Foam = new MeshBuffers();
 
-        /// <summary>落水危险虚线（URP/Unlit 半透明 #CC2222）。</summary>
-        public readonly MeshBuffers Danger = new MeshBuffers();
-
         /// <summary>岸边暗水带（URP/Unlit 半透明 #1A4F7A）。</summary>
         public readonly MeshBuffers WaterDark = new MeshBuffers();
 
@@ -77,7 +73,7 @@ namespace PirateCrew.SceneArt
                 return Wood.TriangleCount + WoodDark.TriangleCount + Rock.TriangleCount
                     + Metal.TriangleCount + Foliage.TriangleCount + Cloth.TriangleCount
                     + FlagRed.TriangleCount + FlagBlue.TriangleCount + Foam.TriangleCount
-                    + Danger.TriangleCount + WaterDark.TriangleCount + Silhouette.TriangleCount
+                    + WaterDark.TriangleCount + Silhouette.TriangleCount
                     + Cloud.TriangleCount + SandWet.TriangleCount;
             }
         }

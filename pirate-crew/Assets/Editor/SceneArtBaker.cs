@@ -17,7 +17,6 @@ namespace PirateCrew.EditorTools
     ///
     /// 【产物】（全部在 <see cref="BakeFolder"/>，与 Blender 手作 FBX 同目录同清单）
     ///   · CloudField.prefab          —— 低模云场（第 1 关主景）
-    ///   · ShowcaseDangerBorder.prefab —— 落水危险虚线（样板三关共用）
     /// 2026-09-19 起程序化双船（Ship_Galleon/Ship_Longboat）退役：观感不可接受（用户裁决），
     /// 船类资产此后一律走 Blender 手作管线。
     /// 每个材质组一个合并子网格（命名口径 "SceneArt_&lt;组名&gt;"——历史风摆绑定契约，不能改）。
@@ -28,7 +27,7 @@ namespace PirateCrew.EditorTools
     /// 【幂等】网格资产就地覆写（GUID 稳定，prefab 引用不漂）、prefab 覆盖保存、场景接线重写。
     ///
     /// 【入口】
-    ///   菜单: PirateCrew/烘焙/样板场景件（云场/碎岛/危险线）
+    ///   菜单: PirateCrew/烘焙/样板场景件（云场）
     ///   无头: -batchmode -nographics -quit -executeMethod PirateCrew.EditorTools.SceneArtBaker.BuildAll
     /// </summary>
     public static class SceneArtBaker
@@ -55,7 +54,7 @@ namespace PirateCrew.EditorTools
         /// <summary>低模云槽位材质目录（运行时 GetOrCreateMaterial 的烘焙落盘版）。</summary>
         const string LowpolyMaterialFolder = "Assets/Art/Materials/Lowpoly";
 
-        [MenuItem("PirateCrew/烘焙/样板场景件（云场/碎岛/危险线）")]
+        [MenuItem("PirateCrew/烘焙/样板场景件（云场）")]
         public static void BuildAll()
         {
             EnsureFolder(BakeFolder);
@@ -63,13 +62,12 @@ namespace PirateCrew.EditorTools
             EnsureFolder(LowpolyMaterialFolder);
 
             BakeCloudField();
-            BakeDangerBorder();
             WireBattleScene();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("[SceneArtBaker] 样板场景件烘焙完成：" + BakeFolder
-                + "（云场 + 危险线；同输入重跑逐顶点一致，见确定性测试）。");
+                + "（云场；同输入重跑逐顶点一致，见确定性测试）。");
         }
 
         // ------------------------------------------------------------------
@@ -192,27 +190,6 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // 危险虚线（样板三关共用）
-        // ------------------------------------------------------------------
-
-        /// <summary>
-        /// 落水危险虚线：参数照抄 <c>ShowcaseLevels.ComposeInto</code> 的既有调用
-        /// （偏移 3.15 / 线宽 0.9-0.18；绕 20×15 格竞技场一圈），烘焙成单网格 prefab。
-        /// </summary>
-        static void BakeDangerBorder()
-        {
-            var buffers = new ScenePropBuffers();
-            IslandShellGeometry.AddDashedBorder(buffers.Danger,
-                ShowcaseLevels.WidthTiles, ShowcaseLevels.DepthTiles,
-                3.15f, LevelGeometry.WaterSurfaceY + 0.012f, 0.9f, 0.55f, 0.18f);
-
-            var root = new GameObject("ShowcaseDangerBorder");
-            EmitGroupMesh(root, "SceneArt_DangerLine", buffers.Danger, "Scene_Danger", castShadows: false);
-
-            SavePrefab(root, BakeFolder + "/ShowcaseDangerBorder.prefab");
-        }
-
-        // ------------------------------------------------------------------
         // 组 → 合并网格（口径照抄 RuntimeSceneArt.EmitGroup）
         // ------------------------------------------------------------------
 
@@ -321,7 +298,6 @@ namespace PirateCrew.EditorTools
 
             var so = new SerializedObject(sceneArt);
             SetPrefabRef(so, "cloudFieldPrefab", BakeFolder + "/CloudField.prefab");
-            SetPrefabRef(so, "dangerBorderPrefab", BakeFolder + "/ShowcaseDangerBorder.prefab");
             so.ApplyModifiedPropertiesWithoutUndo();
 
             EditorSceneManager.MarkSceneDirty(scene);
