@@ -203,7 +203,7 @@ Shader "PirateCrew/Pixelart/PixelartObject"
                 return output;
             }
 
-            // 抖动取值 [0,1]（0.5 = 无偏移），两种图案二选一。
+            // 抖动取值：0.5 = 无偏移；偏移幅度已按模式归一成"强度 1 = 满幅"（见返回处注释）。
             // 坐标用**艺术像素**（细像素坐标 ÷ pixelScale 取整），保证图案贴在像素网格上、不随相机游动。
             half DitherValue(Varyings input)
             {
@@ -224,7 +224,17 @@ Shader "PirateCrew/Pixelart/PixelartObject"
                 // 【幅度在这里施加，不在着色 pass 里】着色 pass 只负责"读出偏移量"，
                 // 逐物体的幅度是材质的旋钮。曾经漏了这一步（_DitherStrength 只声明没用），
                 // 于是抖动恒等于满幅度——症状是"关着也有规律点阵"。
-                return (value - 0.5) * _DitherStrength + 0.5;
+                //
+                // 【满幅按模式折算】着色趟统一乘 ±0.5 个量化边界间距、它不认识图案种类，
+                // 所以两范式的满幅差在这里折进存储值：
+                //   · Bayer 16 值离中心最远 15/32 ⇒ 除回去，解包(×2−1)后满幅 = ±强度；
+                //   · 密度图案只有 0/1 两态，撕满一条带需要**整带**摆幅 ⇒ 满幅解包 = ±2×强度
+                //     （Palette.g 走 ARGBHalf 不钳位；密度档强度 > 0.5 时越出 0..1 是预期）。
+                // 满幅语义（实现口径 §4）：Bayer 强度 1 = ±0.5 间距（渐变铺满不重叠），
+                // 密度强度 1 = ±1 间距（两态撕满、跳变率 ≈ 1，v3 口径）。
+                if (_DitherMode < 0.5)
+                    return (value - 0.5) * (1.0 / 0.9375) * _DitherStrength + 0.5;
+                return (value - 0.5) * 2.0 * _DitherStrength + 0.5;
             }
 
             GBufferOut PixelartObjectFragment(Varyings input)

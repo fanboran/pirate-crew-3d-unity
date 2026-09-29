@@ -193,17 +193,16 @@ Shader "PirateCrew/Pixelart/PixelartShading"
 
                 ndotl = pow(ndotl, 1.0 / 2.2);
                 ndotl = saturate(ndotl);
-                // 抖动幅度口径：**强度 1 = 偏移摆满 ±0.5 个量化边界间距**。两个量纲缺一不可：
+                // 抖动幅度口径：**施加量 = 偏移 × 0.5 个量化边界间距**。关键量纲：
                 //   ① MultiStep 的翻档边界在 value*level = 整数 ⇒ 边界间距 = **1/level**，
                 //      不是上面的 singleLevel（1/(level-1)，level=4 时差 1.33 倍）——用 singleLevel
                 //      施加时相邻翻转带互相重叠，全表面处处翻档（症状：整个亮面均匀棋盘格，
                 //      r19/r24 实拍定位）；
-                //   ② Palette.g 解包后的极值幅度 = 0.9375 × 强度（物体 pass 的 Bayer 图案
-                //      (m+0.5)/16 距中心最远 15/32），除回去"强度"才回到 0..1 的本义。
-                // 结果：强度 0.5 = 只有边界 ±1/4 间距内的像素翻档（渐变态，现役默认）；
-                //       强度 1.0 = 翻转带铺满整个值域（经典满幅有序抖动 / 两态撕边）。
+                //   ② 偏移（Palette.g 解包）已按模式在物体 pass 归一成"强度 1 = 满幅"
+                //      （Bayer 满幅 ±0.5 间距＝渐变铺满；密度满幅 ±1 间距＝两态撕满——
+                //      折算见物体 pass 的 DitherValue），这里不做任何图案相关的缩放。
                 // 附加光那一路（档数 3.0）走本函数，自动按 1/3 间距换算。
-                ndotl += offset * ((0.5 / 0.9375) / level);
+                ndotl += offset * (0.5 / level);
 
                 ndotl = MultiStep(ndotl, level, 0.0, 0.0);
 
