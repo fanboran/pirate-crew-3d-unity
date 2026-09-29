@@ -177,6 +177,7 @@ namespace PirateCrew.EditorTools
                     SetRelative(element, "root", view.pips[i].root);
                     SetRelative(element, "label", view.pips[i].label);
                     SetRelative(element, "frame", view.pips[i].frame);
+                    SetRelative(element, "button", view.pips[i].button);
                 }
             }
         }

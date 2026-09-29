@@ -40,14 +40,16 @@ namespace PirateCrew.EditorTools
         const float FieldHalfX = 20f;
         const float FieldHalfZ = 14f;
 
-        /// <summary>草簇间距（米）：0.55（r18 起的近满铺密度，3723 簇）。</summary>
-        const float Spacing = 0.55f;
+        /// <summary>草簇间距（米）：0.75——quad 加大到 0.9 后放疏（约 2000 簇，近满铺不互相盖死）。</summary>
+        const float Spacing = 0.75f;
 
         /// <summary>草簇种子（确定性：同参数重跑逐顶点一致）。</summary>
         const int Seed = 20260930;
 
-        /// <summary>sprite 四边形边长（米）：0.45 的方形，簇底对齐地面。</summary>
-        const float QuadSize = 0.45f;
+        /// <summary>sprite 四边形边长（米）：0.9——**纹素密度判据**「1 纹素 ≈ 1 艺术像素」：
+        /// 16 纹素 × 5.6cm ≈ 宽机位 11 艺术像素高（r19 教训：0.45m 时 1 艺术像素盖 3 纹素，
+        /// 点采样把细叶尖全跳掉，sprite 被降采样成 V 字碎片）。</summary>
+        const float QuadSize = 0.9f;
 
         /// <summary>稀有高株 accent 概率（原版 _AccentFrequency 口径）。</summary>
         const float AccentFrequency = 0.06f;
@@ -195,16 +197,17 @@ namespace PirateCrew.EditorTools
                 px[i] = new Color32(0, 0, 0, 0);
 
             // 常规簇（下半，原点 y=0）：中央高叶 + 两侧外撇 + 两根补空，5 叶束。
-            DrawBlade(px, 0, 0, baseX: 7, height: 13, lean: 0, width: 2);
-            DrawBlade(px, 0, 0, baseX: 4, height: 9, lean: -3, width: 2);
-            DrawBlade(px, 0, 0, baseX: 10, height: 10, lean: 3, width: 2);
-            DrawBlade(px, 0, 0, baseX: 6, height: 7, lean: -1, width: 1);
-            DrawBlade(px, 0, 0, baseX: 9, height: 8, lean: 1, width: 1);
+            // 叶基 3 纹素（≈2 艺术像素宽的笔触，quad 0.9m 口径下点采样不丢列）。
+            DrawBlade(px, 0, 0, baseX: 7, height: 13, lean: 0, width: 3);
+            DrawBlade(px, 0, 0, baseX: 4, height: 9, lean: -3, width: 3);
+            DrawBlade(px, 0, 0, baseX: 10, height: 10, lean: 3, width: 3);
+            DrawBlade(px, 0, 0, baseX: 6, height: 7, lean: -1, width: 2);
+            DrawBlade(px, 0, 0, baseX: 9, height: 8, lean: 1, width: 2);
 
             // 高株 accent（上半，原点 y=16）：更高更瘦的三叶。
-            DrawBlade(px, 0, 16, baseX: 8, height: 15, lean: 0, width: 2);
-            DrawBlade(px, 0, 16, baseX: 5, height: 12, lean: -3, width: 1);
-            DrawBlade(px, 0, 16, baseX: 10, height: 12, lean: 3, width: 1);
+            DrawBlade(px, 0, 16, baseX: 8, height: 15, lean: 0, width: 3);
+            DrawBlade(px, 0, 16, baseX: 5, height: 12, lean: -3, width: 2);
+            DrawBlade(px, 0, 16, baseX: 10, height: 12, lean: 3, width: 2);
 
             var texture = new Texture2D(AtlasW, AtlasH, TextureFormat.RGBA32, false)
             {
@@ -215,9 +218,14 @@ namespace PirateCrew.EditorTools
             texture.SetPixels32(px);
             texture.Apply();
 
-            if (AssetDatabase.LoadAssetAtPath<Texture2D>(path) != null)
-                AssetDatabase.DeleteAsset(path);            // 就地重建：点阵是确定性的，覆盖即可
-            AssetDatabase.CreateAsset(texture, path);
+            // PNG 文件覆写 + 重新导入（**不走** DeleteAsset→CreateAsset：两者相邻调用在
+            // batchmode 的导入队列里有竞态——Delete 未落地 Create 就报"路径占用"抛
+            // UnityException，实测 PixelartScenesRebuild 首跑即中断草场装配；文件覆写
+            // 没有这步竞态，点阵确定性重生成语义不变）。File IO 走绝对路径（batchmode 铁律）。
+            string absPath = System.IO.Path.GetFullPath(
+                System.IO.Path.Combine(Application.dataPath, "..", path));
+            System.IO.File.WriteAllBytes(absPath, texture.EncodeToPNG());
+            AssetDatabase.ImportAsset(path);
 
             var importer = AssetImporter.GetAtPath(path) as TextureImporter;
             if (importer != null)
