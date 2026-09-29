@@ -85,7 +85,7 @@ namespace PirateCrew.EditorTools
                 new Vector3(-2.4f, 1.0f, 1.2f), new Vector3(0.6f, 2f, 0.6f), prop);
 
             // ---------------- 中央角色骨架（网格由控制器生成；两件式同正式角色口径）----------------
-            var subject = BuildSubjectSkeleton(crewRed);
+            var subject = BuildSubjectSkeleton(root, crewRed);
 
             // ---------------- 光（投影关：见类头）----------------
             Light sun = PixelartStageKit.CreateSunAndAmbient(root.transform);
@@ -159,7 +159,7 @@ namespace PirateCrew.EditorTools
         /// 建一具两件式角色骨架（BodyPivot + HeadPivot，网格与摆位由控制器 <c>RebuildMeshes</c> 写），
         /// 站在画面中心。头顶球用共用木色，身体材质由装配器给定。
         /// </summary>
-        static GameObject BuildSubjectSkeleton(Material bodyMaterial)
+        static GameObject BuildSubjectSkeleton(Transform root, Material bodyMaterial)
         {
             var subject = new GameObject("DebugSubject");
             subject.transform.SetParent(root.transform);
