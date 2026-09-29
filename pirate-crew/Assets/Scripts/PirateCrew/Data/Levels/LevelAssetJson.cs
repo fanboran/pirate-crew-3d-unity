@@ -63,10 +63,7 @@ namespace PirateCrew.Data
             w.Field("displayName", payload.displayName);
             w.Field("widthTiles", payload.widthTiles);
             w.Field("depthTiles", payload.depthTiles);
-            w.Field("originalXmlPlayers", payload.originalXmlPlayers);
             w.Field("waterTileY", payload.waterTileY);
-            w.Field("maxChests", payload.maxChests);
-            w.Field("sourceXmlMaxChests", payload.sourceXmlMaxChests);
 
             w.FieldName("airdropPool");
             WriteWeaponStacks(w, payload.airdropPool);
@@ -275,10 +272,7 @@ namespace PirateCrew.Data
                 displayName = root.String("displayName"),
                 widthTiles = root.Int("widthTiles"),
                 depthTiles = root.Int("depthTiles"),
-                originalXmlPlayers = root.Int("originalXmlPlayers"),
                 waterTileY = root.Float("waterTileY"),
-                maxChests = root.Int("maxChests"),
-                sourceXmlMaxChests = root.Int("sourceXmlMaxChests"),
                 airdropPool = ReadWeaponStacks(root["airdropPool"]),
                 units = new List<LevelUnit>(),
                 terrain = ReadRaster(root["terrain"]),

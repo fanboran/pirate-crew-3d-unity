@@ -65,9 +65,6 @@ namespace PirateCrew.Battle
         /// <summary>竞技场纵深尺寸（瓦片；来自原版关卡的 heightTiles）。</summary>
         public readonly int DepthTiles;
 
-        /// <summary>原版 XML players 属性（§7.2；运行时模式由菜单/序列化开关决定）。</summary>
-        public readonly int OriginalXmlPlayers;
-
         /// <summary>水面世界 Y（Unity 约定，y 向上；低于该值即落水，§4.4）。全局常量，见 LevelGeometry。</summary>
         public readonly float WaterWorldY;
 
@@ -80,13 +77,12 @@ namespace PirateCrew.Battle
         readonly IReadOnlyList<SpawnPlanEntry> _entries;
 
         public BattlePlan(
-            int levelNumber, int widthTiles, int depthTiles, int originalXmlPlayers,
+            int levelNumber, int widthTiles, int depthTiles,
             float waterWorldY, IReadOnlyList<SpawnPlanEntry> entries)
         {
             LevelNumber = levelNumber;
             WidthTiles = widthTiles;
             DepthTiles = depthTiles;
-            OriginalXmlPlayers = originalXmlPlayers;
             WaterWorldY = waterWorldY;
             // 1 瓦片 = TileWorldSize 世界单位（见 LevelGeometry 类头的 px→单位换算决策）。
             WorldWidth = LevelGeometry.TileToWorld(widthTiles);
@@ -486,12 +482,12 @@ namespace PirateCrew.Battle
         public static BattlePlan BuildBattlePlan(LevelData data)
         {
             return BuildPlan(
-                data.LevelNumber, data.WidthTiles, data.HeightTiles, data.OriginalXmlPlayers,
+                data.LevelNumber, data.WidthTiles, data.HeightTiles,
                 data.Units);
         }
 
         static BattlePlan BuildPlan(
-            int levelNumber, int widthTiles, int depthTiles, int originalXmlPlayers,
+            int levelNumber, int widthTiles, int depthTiles,
             IReadOnlyList<LevelUnit> units)
         {
             units = units ?? new List<LevelUnit>();
@@ -511,7 +507,7 @@ namespace PirateCrew.Battle
             }
 
             return new BattlePlan(
-                levelNumber, widthTiles, depthTiles, originalXmlPlayers,
+                levelNumber, widthTiles, depthTiles,
                 WaterSurfaceY, entries);
         }
 

@@ -203,22 +203,22 @@ namespace PirateCrew.Battle.Tests
         static readonly string[] FrozenWorldMapSignatures = { };
 
         /// <summary>
-        /// 关卡（现存样板关）骨架：关卡号|资产名|显示名|格子|waterTileY|maxChests|sourceXmlMaxChests
+        /// 关卡（现存样板关）骨架：关卡号|资产名|显示名|格子|waterTileY
         /// ‖编成（符号/队/格/luck）‖军火‖高度场（实心格数/块高总和/加权摘要）‖烘焙件。
         /// 数值出处：迁移前 `ShowcaseLevels.cs` 与各关设计文档 docs/设计/关卡/L0N-*.md。
         /// 关卡 2「碎岛雨」已删除（2026-09-22），号段有意不连续——故表里只有 1、3 两行。
         /// </summary>
         static readonly string[] FrozenLevelSignatures =
         {
-            "1|cloud_walk|云端漫步|20x15|14|3|3||units=redPirate/0/8/6/5;redPirate/0/12/9/5;redPirate/0/10/4/5;redPirateCaptain/0/10/11/5;cabinBoy/1/12/6/1;cabinBoy/1/8/9/1;cabinBoyCaptain/1/13/7/1|air=Dynamite:10|raster=solid48/total422/digest68270|pieces=1/CloudField",
-            "3|sky_island|天空之岛|20x15|14|3|3||units=redPirate/0/11/5/5;redPirate/0/13/6/5;redPirate/0/11/8/5;redPirateCaptain/0/12/6/5;cabinBoy/1/6/5/5;cabinBoy/1/8/5/5;cabinBoy/1/5/7/5;cabinBoy/1/8/8/5;cabinBoyCaptain/1/6/8/5|air=TidalWave:10|Anchor:10|Seagull:10|raster=solid96/total2688/digest404544|pieces=",
+            "1|cloud_walk|云端漫步|20x15|14||units=redPirate/0/8/6/5;redPirate/0/12/9/5;redPirate/0/10/4/5;redPirateCaptain/0/10/11/5;cabinBoy/1/12/6/1;cabinBoy/1/8/9/1;cabinBoyCaptain/1/13/7/1|air=Dynamite:10|raster=solid48/total422/digest68270|pieces=1/CloudField",
+            "3|sky_island|天空之岛|20x15|14||units=redPirate/0/11/5/5;redPirate/0/13/6/5;redPirate/0/11/8/5;redPirateCaptain/0/12/6/5;cabinBoy/1/6/5/5;cabinBoy/1/8/5/5;cabinBoy/1/5/7/5;cabinBoy/1/8/8/5;cabinBoyCaptain/1/6/8/5|air=TidalWave:10|Anchor:10|Seagull:10|raster=solid96/total2688/digest404544|pieces=",
             // L4 废弃化工厂（2026-09-29 入库，提案/待定）：32x22 大场地，平地可走 + 建筑足印抬高成掩体
             // （solid704 = 32×22 − 建筑格）；整场件 pieceId 2 = ChemPlantYard（Blender 手作 FBX）。
-            "4|chem_plant|废弃化工厂|32x22|14|3|3||units=redPirate/0/5/8/5;redPirate/0/8/9/5;redPirate/0/7/11/5;redPirateCaptain/0/9/10/5;cabinBoy/1/16/4/5;cabinBoy/1/19/5/5;cabinBoy/1/17/6/5;cabinBoy/1/24/3/5;cabinBoyCaptain/1/28/4/5|air=Dynamite:10|raster=solid704/total5500/digest1783200|pieces=2/ChemPlantYard",
+            "4|chem_plant|废弃化工厂|32x22|14||units=redPirate/0/5/8/5;redPirate/0/8/9/5;redPirate/0/7/11/5;redPirateCaptain/0/9/10/5;cabinBoy/1/16/4/5;cabinBoy/1/19/5/5;cabinBoy/1/17/6/5;cabinBoy/1/24/3/5;cabinBoyCaptain/1/28/4/5|air=Dynamite:10|raster=solid704/total5500/digest1783200|pieces=2/ChemPlantYard",
             // L5 废弃化工厂·六件并行版（2026-09-29 入库，提案/待定）：28x20 = 本 kit 场地 56×40 m 1:1；
             // 平地 2 块（单位踩在地坪顶 y=1.0，总装件摆 y=1.0）+ 四个设备区抬高 14 块（+7 m 掩体）；
             // 整场件 pieceId 3 = ChemPlantTeamYard（SceneKit/ChemPlant.fbx，六件并行 kit）。
-            "5|chem_plant_team|废弃化工厂·六件版|28x20|14|3|3||units=redPirate/0/3/12/5;redPirate/0/6/12/5;redPirate/0/5/13/5;redPirateCaptain/0/4/13/5;cabinBoy/1/19/12/5;cabinBoy/1/22/12/5;cabinBoy/1/20/13/5;cabinBoy/1/24/13/5;cabinBoyCaptain/1/22/11/5|air=Dynamite:10|raster=solid560/total5464/digest1306248|pieces=3/ChemPlantTeamYard",
+            "5|chem_plant_team|废弃化工厂·六件版|28x20|14||units=redPirate/0/3/12/5;redPirate/0/6/12/5;redPirate/0/5/13/5;redPirateCaptain/0/4/13/5;cabinBoy/1/19/12/5;cabinBoy/1/22/12/5;cabinBoy/1/20/13/5;cabinBoy/1/24/13/5;cabinBoyCaptain/1/22/11/5|air=Dynamite:10|raster=solid560/total5464/digest1306248|pieces=3/ChemPlantTeamYard",
         };
 
         [Test]
@@ -388,8 +388,7 @@ namespace PirateCrew.Battle.Tests
             var sb = new System.Text.StringBuilder();
             sb.Append(p.levelNumber).Append('|').Append(p.assetName).Append('|').Append(p.displayName)
               .Append('|').Append(p.widthTiles).Append('x').Append(p.depthTiles).Append('|')
-              .Append(Number(p.waterTileY)).Append('|').Append(p.maxChests).Append('|')
-              .Append(p.sourceXmlMaxChests).Append("||units=");
+              .Append(Number(p.waterTileY)).Append("||units=");
 
             for (int i = 0; i < p.units.Count; i++)
             {

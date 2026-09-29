@@ -225,7 +225,7 @@ namespace PirateCrew.Battle.WorldMaps
             }
 
             return new BattlePlan(
-                map.LevelNumber, widthTiles, depthTiles, originalXmlPlayers: 1,
+                map.LevelNumber, widthTiles, depthTiles,
                 LevelGeometry.WaterSurfaceY, entries);
         }
 

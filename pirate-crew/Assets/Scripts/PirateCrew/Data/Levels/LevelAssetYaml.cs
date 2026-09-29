@@ -50,10 +50,7 @@ namespace PirateCrew.Data
             data.Add("displayName", payload.displayName);
             data.Add("widthTiles", payload.widthTiles);
             data.Add("depthTiles", payload.depthTiles);
-            data.Add("originalXmlPlayers", payload.originalXmlPlayers);
             data.Add("waterTileY", payload.waterTileY);
-            data.Add("maxChests", payload.maxChests);
-            data.Add("sourceXmlMaxChests", payload.sourceXmlMaxChests);
             data.Add("airdropPool", WeaponStackNodes(payload.airdropPool));
 
             var units = new Node(NodeKind.Seq);

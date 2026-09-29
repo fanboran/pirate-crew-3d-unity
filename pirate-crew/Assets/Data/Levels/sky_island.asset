@@ -18,10 +18,7 @@ MonoBehaviour:
     displayName: 天空之岛
     widthTiles: 20
     depthTiles: 15
-    originalXmlPlayers: 1
     waterTileY: 14
-    maxChests: 3
-    sourceXmlMaxChests: 3
     airdropPool:
     - id: 13
       count: 10

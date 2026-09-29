@@ -27,20 +27,11 @@ namespace PirateCrew.Data
         /// <summary>场地高度（逻辑格）。</summary>
         public readonly int HeightTiles;
 
-        /// <summary>XML players 属性（1/2；仅样板数据保留此口径，世界图为 1）。</summary>
-        public readonly int OriginalXmlPlayers;
-
         /// <summary>逻辑水面行。</summary>
         public readonly float WaterTileY;
 
         /// <summary>运行时水面 Y（px）= WaterTileY * 32。</summary>
         public readonly float WaterY;
-
-        /// <summary>宝箱同时存在上限（宝箱未实装，恒为 3 的占位口径）。</summary>
-        public readonly int MaxChests;
-
-        /// <summary>源 XML 的 maxChests 属性原值（仅存档备查）。</summary>
-        public readonly int SourceXmlMaxChests;
 
         /// <summary>空投武器池。</summary>
         public readonly IReadOnlyList<WeaponStack> PotentialWeapons;
@@ -53,10 +44,7 @@ namespace PirateCrew.Data
             string name,
             int widthTiles,
             int heightTiles,
-            int originalXmlPlayers,
             float waterTileY,
-            int maxChests,
-            int sourceXmlMaxChests,
             IReadOnlyList<WeaponStack> potentialWeapons,
             IReadOnlyList<LevelUnit> units)
         {
@@ -64,11 +52,8 @@ namespace PirateCrew.Data
             Name = name;
             WidthTiles = widthTiles;
             HeightTiles = heightTiles;
-            OriginalXmlPlayers = originalXmlPlayers;
             WaterTileY = waterTileY;
             WaterY = waterTileY * 32f;               // Controller.water.y = y * 32
-            MaxChests = maxChests;
-            SourceXmlMaxChests = sourceXmlMaxChests;
             PotentialWeapons = potentialWeapons;
             Units = units;
         }

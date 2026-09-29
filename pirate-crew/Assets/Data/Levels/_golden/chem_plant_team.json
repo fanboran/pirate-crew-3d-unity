@@ -6,10 +6,7 @@
   "displayName": "废弃化工厂·六件版",
   "widthTiles": 28,
   "depthTiles": 20,
-  "originalXmlPlayers": 1,
   "waterTileY": 14,
-  "maxChests": 3,
-  "sourceXmlMaxChests": 3,
   "airdropPool": [
     {
       "id": 2,

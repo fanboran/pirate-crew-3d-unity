@@ -18,10 +18,7 @@ MonoBehaviour:
     displayName: 云端漫步
     widthTiles: 20
     depthTiles: 15
-    originalXmlPlayers: 1
     waterTileY: 14
-    maxChests: 3
-    sourceXmlMaxChests: 3
     airdropPool:
     - id: 2
       count: 10

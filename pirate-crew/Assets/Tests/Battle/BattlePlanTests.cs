@@ -27,7 +27,6 @@ namespace PirateCrew.Battle.Tests
             Assert.AreEqual(7, plan.Entries.Count);
             Assert.AreEqual(4, plan.CountForTeam(0));
             Assert.AreEqual(3, plan.CountForTeam(1));
-            Assert.AreEqual(1, plan.OriginalXmlPlayers);
             Assert.AreEqual(ShowcaseLevels.FirstLevel, plan.LevelNumber);
         }
 
