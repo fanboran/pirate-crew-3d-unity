@@ -63,6 +63,21 @@ namespace PirateCrew.Rendering.Pixelart
         public const float DefaultDitherStrength = 0.5f;
 
         /// <summary>
+        /// 法线边加成档（**负 = 压暗**）。口径照参考库的 `_EdgeLevel` 默认值与演示非金属件 = -1：
+        /// 面转折处**压暗一档**成内墨线（v3 的 `DiffuseShading` 里这一项就是 `ndotl += singleLevel * 本值`，
+        /// 负值即减一档）。
+        /// ⚠ shader 属性必须声明成 `Range(-1, 1)`——`Range(0, 1)` 会把 -1 夹成 0，本项静默失效。
+        /// </summary>
+        public const float NormalEdgeLevel = -1f;
+
+        /// <summary>
+        /// 法线边阈值（连通域 `Result.b` = 单元内最大法线差 = 两个单位法线之差的模长，值域 0..2）。
+        /// 口径照参考库默认值与演示非金属件 = 1.0：`diff > 1.0` ⇔ 面夹角 &gt; 60°，
+        /// 于是内墨线只在**硬转折**上出现（参考库演示里这一项对多数材质等同关闭）。
+        /// </summary>
+        public const float NormalEdgeThreshold = 1f;
+
+        /// <summary>
         /// 描边线宽默认值（**艺术像素**，1 = 1 个艺术像素 = 屏幕上的 `pixelScale` 像素）。
         /// 【为什么不是旧链的 2px】旧链"全分辨率渲染 → 3× 点降采"会把 1px 线欠采掉才需要 2；
         /// 本路径几何直接渲进低分辨率域，1 是实打实可见的（渲染篇 §5）。
@@ -90,6 +105,27 @@ namespace PirateCrew.Rendering.Pixelart
         }
 
         /// <summary>
+        /// 剪影 sprite 版（t3ssel8r 草坪口径，参照 external/ref/unity-isometric-pixel-pipeline 的
+        /// GrassBlade.shader："贴图只管形状、颜色全在调色板"——<paramref name="mask"/> 是**像素画剪影
+        /// 遮罩**，物体 pass 只采样它的 alpha 裁切形状（<c>clip(a - _Cutoff)</c>），颜色仍是
+        /// <paramref name="albedo"/> 纯色。开 `_SPRITE` 关键字后连通域/描边/着色对裁掉的部分
+        /// 一无所知 ⇒ 等价于"这些像素不存在"。描边恒关（草叶不该有墨线，r17/r18 实拍教训）。
+        /// 贴图导入口径：**Point / Clamp / 无 mip / 不压缩**（像素 mask 任何过滤都会糊边）。
+        /// </summary>
+        public static Material CreateSprite(string name, Color albedo, Texture2D mask,
+            float bandCount = DefaultBandCount, float cutoff = 0.5f)
+        {
+            Material material = Create(name, albedo, bandCount, outlinePixels: 0f);
+            if (material == null)
+                return null;
+
+            material.EnableKeyword("_SPRITE");
+            material.SetTexture("_BaseMap", mask);
+            material.SetFloat("_Cutoff", cutoff);
+            return material;
+        }
+
+        /// <summary>
         /// 把配方写进一个已存在的材质（编辑器侧"就地更新资产"与运行期"新建后套参数"共用）。
         ///
         /// 【逐项为什么是这个值】
@@ -98,13 +134,21 @@ namespace PirateCrew.Rendering.Pixelart
         ///   <item>`_DitherMode` = 0（Bayer 4×4）/ `_DitherStrength` = <see cref="DefaultDitherStrength"/>：
         ///         抖动默认**开**（2026-09-29 创始人裁决，渐变态半幅）；出图脚本用
         ///         MaterialPropertyBlock 临时拨档对照；</item>
-        ///   <item>`_NormalEdgeLevel/Threshold` = 0.5：连通域判出"单元内法线差超阈值"时给该像素加半档
-        ///         （内部转折提亮，靠的是连通域那份数据）；</item>
+        ///   <item>`_NormalEdgeLevel` = **-1（压暗）** / `_NormalEdgeThreshold` = **1.0**：连通域判出
+        ///         "单元内法线差超阈值"时给该像素**降**一档——面转折处压出一条内墨线。
+        ///         口径照参考库：它的 `_EdgeLevel` 默认值与演示非金属件都是 -1，阈值默认值与演示
+        ///         非金属件都是 1.0（两个单位法线之差 &gt; 1 ⇒ 面夹角 &gt; 60° 才触发，于是只在硬转折上出现）。
+        ///         ⚠ **负值能表达的前提是 shader 属性声明成 `Range(-1, 1)`**：`Range(0, 1)` 会把 -1 夹成 0，
+        ///         这一项就静默变成"永不触发"（表面看是"没效果"，实则参数根本没传进去）。</item>
         ///   <item>`_AAScale` = 1：连通域降档门控不缩放（v3 的 `_AAScale` 同义）；</item>
-        ///   <item>`_Smoothness` = **0**：本路径的高光趟（`PixelartSpecular`）对 `pow(NdotH, exp)`
-        ///         做两档量化后**乘 `_Smoothness`**——地面/海面这类大平面上，相机方位一转 NdotH 就
-        ///         扫过量化的 floor 边界，高光带整档跳变（创始人报的"地面反太阳光、旋转时颜色骤变"）。
-        ///         置 0 高光项代数上恒为 0，纯色带卡通的物体一律无镜面；`_Metallic` 0（无金属反射色）。</item>
+        ///   <item>`_Smoothness` = **0（高光关）**：本路径高光趟对 `pow(NdotH, exp)` 做两档量化后乘
+        ///         `_Smoothness`——地面/海面这类大平面上，相机方位一转 NdotH 就扫过量化的 floor 边界，
+        ///         高光带整档翻面（创始人报的"地面反太阳光、旋转时颜色骤变"）。
+        ///         **这不是本仓的偏离**：参考库 `SpecularShading`（`ShadingPass.hlsl:117-126`）逐行同式、
+        ///         `level` 也硬编码 2.0 ⇒ 跳变是参考实现自带的行为。所以这是"要不要付跳变代价换回高光"
+        ///         的裁决项，不是修 bug：**恢复 `_Smoothness` 之前必须先软化高光量化**（按艺术像素有序
+        ///         抖动 / 提高档数），否则会原样重现那个跳变。`_Metallic` 0 = 无金属反射色（与参考库
+        ///         非金属件一致）。</item>
         ///   <item>`_RimLightColor` = 黑：本物体不出边缘光（改画面要有理由，验证通路才拨亮）；</item>
         ///   <item>`_SnapToPixelGrid` = 1：物体级像素吸附（v3 CommonPass 的第二层）。</item>
         /// </list>
@@ -119,8 +163,8 @@ namespace PirateCrew.Rendering.Pixelart
             material.SetFloat("_MainLightLevel", bandCount);
             material.SetFloat("_DitherMode", 0f);
             material.SetFloat("_DitherStrength", DefaultDitherStrength);
-            material.SetFloat("_NormalEdgeLevel", 0.5f);
-            material.SetFloat("_NormalEdgeThreshold", 0.5f);
+            material.SetFloat("_NormalEdgeLevel", NormalEdgeLevel);
+            material.SetFloat("_NormalEdgeThreshold", NormalEdgeThreshold);
             material.SetFloat("_AAScale", 1f);
             material.SetFloat("_Smoothness", 0f);
             material.SetFloat("_Metallic", 0f);

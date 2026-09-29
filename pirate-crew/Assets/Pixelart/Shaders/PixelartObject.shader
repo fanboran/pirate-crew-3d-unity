@@ -45,14 +45,17 @@ Shader "PirateCrew/Pixelart/PixelartObject"
         _DitherPattern        ("1-bit 密度图案（v3 口径；需 Point/Repeat 导入）", 2D) = "gray" {}
         _DitherPatternSize    ("图案边长（纹素）：4/6/8/16，须与图案资产一致", Float) = 4.0
 
-        _NormalEdgeLevel      ("法线边加成档（连通域降档的提亮项）", Range(0.0, 1.0)) = 0.0
-        _NormalEdgeThreshold  ("法线边阈值", Range(0.0, 1.0)) = 0.5
+        _NormalEdgeLevel      ("法线边加成档（负 = 面转折处压暗成内墨线；口径同参考库 _EdgeLevel = -1）", Range(-1.0, 1.0)) = -1.0
+        _NormalEdgeThreshold  ("法线边阈值（两单位法线之差；1.0 ⇒ 面夹角 > 60° 才触发）", Range(0.0, 1.0)) = 1.0
         _AAScale              ("AA 缩放（连通域降档的门控乘数；1 = 不缩放）", Range(0.0, 1.0)) = 1.0
 
         _Smoothness           ("光滑度", Range(0.0, 1.0)) = 0.5
         _Metallic             ("金属度", Range(0.0, 1.0)) = 0.0
         _BumpMap              ("法线贴图（默认平坦 = 不干预）", 2D) = "gray" {}
         _BumpScale            ("法线贴图强度", Range(0.0, 4.0)) = 1.0
+
+        _BaseMap              ("剪影遮罩（_SPRITE 开时只采样 alpha 裁形状；颜色仍取 _BaseColor）", 2D) = "white" {}
+        _Cutoff               ("剪影裁切阈值（alpha &lt; 阈值的纹素整个像素不要）", Range(0.0, 1.0)) = 0.5
 
         _RimLightColor        ("逐物体边缘光色（黑 = 无边缘光）", Color) = (0, 0, 0, 1)
         _Priority             ("优先级（本仓未移植优先级仲裁，保留）", Float) = 0.0
@@ -91,6 +94,9 @@ Shader "PirateCrew/Pixelart/PixelartObject"
             // 法线贴图通道**默认不参与编译**：只有材质里真挂了法线贴图并翻开这个开关，
             // 那段切线空间解码才会进来（见 fragment 里那段实测事故的注释）。
             #pragma shader_feature_local _NORMALMAP
+            // 剪影 sprite 通道（t3ssel8r 草坪口径）：同样默认不参与编译，材质真挂了遮罩并翻开
+            // 关键字才进来（PixelartMaterialFactory.CreateSprite）。先例与事故教训见 _NORMALMAP。
+            #pragma shader_feature_local _SPRITE
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Packing.hlsl"
@@ -111,10 +117,12 @@ Shader "PirateCrew/Pixelart/PixelartObject"
                 float  _Priority;
                 float  _OutlinePixels;
                 float  _SnapToPixelGrid;
+                float  _Cutoff;
             CBUFFER_END
 
             TEXTURE2D(_DitherPattern);  SAMPLER(sampler_point_repeat);   // UV 会越界，必须 Repeat
             TEXTURE2D(_BumpMap);        SAMPLER(sampler_BumpMap);
+            TEXTURE2D(_BaseMap);        SAMPLER(sampler_BaseMap);        // Point/Clamp 在贴图导入侧定
 
             // 全局：1 艺术像素的世界尺寸（BeforeRender / rig 下发）。
             float _PixelartUnitSize = 0.0778;
@@ -222,6 +230,13 @@ Shader "PirateCrew/Pixelart/PixelartObject"
             GBufferOut PixelartObjectFragment(Varyings input)
             {
                 GBufferOut output;
+
+                #if defined(_SPRITE)
+                // 剪影遮罩：alpha 低于阈值的纹素**连深度一起不要**。像素画 sprite 的"透明"是裁切
+                // 不是混合——本路径没有混合；裁掉后连通域/描边/着色对它一无所知，
+                // 等价于"这些像素不存在"（铁律：背景像素 clip，同一句话）。
+                clip(SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv).a - _Cutoff);
+                #endif
 
                 output.albedo = half4(_BaseColor.rgb, 1.0);
 

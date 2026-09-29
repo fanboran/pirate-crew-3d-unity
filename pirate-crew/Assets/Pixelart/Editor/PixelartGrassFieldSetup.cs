@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using PirateCrew.Rendering.Pixelart;
 using PirateCrew.SceneArt;
 using PirateCrew.SceneArt.Showcase;
@@ -9,19 +10,18 @@ using UnityEngine.Rendering.Universal;   // GetUniversalAdditionalCameraData 是
 namespace PirateCrew.EditorTools
 {
     /// <summary>
-    /// 「纯草坪验收场」装配器：一块**无地形的平地**满铺 t3ssel8r 口径草簇
-    /// （<see cref="GrassPatchRules"/> 三档斑块 + 草叶法线强制朝上 + 稀有高株 accent），
-    /// 烘出 `Assets/Scenes/PixelartGrassField.unity`，供播放器出图链
-    /// （`-pixelartOut -pixelartLevel 6`）产出**实机管线成图**——专门回答
-    /// "新草丛观感在像素路径下是什么样"，把空岛/化工厂的其它内容全部排除在外。
+    /// 「纯草坪验收场」装配器——**t3ssel8r 草坪的全量模仿**（第三轮，r19）：
+    /// 草不再是几何叶片，而是**像素画剪影 sprite 贴在相机朝向的四边形上**
+    /// （`PixelartMaterialFactory.CreateSprite`：`_BaseMap` 只管形状、`_BaseColor` 调色板只管颜色、
+    /// `_SPRITE` 关键字 alpha 裁切——与参考库 GrassBlade.shader 同构；本仓相机固定等距，
+    /// 四边形在**烘焙期**就朝向相机，不需要运行时 billboard）。
+    /// 三档斑块（<see cref="GrassPatchRules"/>）与 6% 高株 accent（图集上半窗）沿用。
     ///
-    /// 【为什么独立成场景】草丛的三档斑块是**世界坐标噪声**，只有在"除了草没别的"的场地上，
-    /// 斑块的形状/尺度/连贯性才能被单独读出来；空岛里它们混在岩皮穹顶之间，验收会互相污染。
+    /// 【为什么叶形必须是画的】几何叶片（AddLeaf 单段折面）在 2-3 艺术像素的高度下只能读成
+    /// "长方形板"（r17/r18 实拍裁决）；sprite 的锯齿尖叶是逐纹素画出来的，密度对齐艺术像素。
     ///
-    /// 【口径与复用】草几何与分档全部复用空岛同款（<see cref="IslandPrimitives.AddGrassTuft"/> /
-    /// <see cref="GrassPatchRules.SelectBuffer"/>，满铺循环照抄 `FloatingIslandComposer` 的草簇段）；
-    /// 材质/光/相机/门禁照 `PixelartChemPlantSetup` 先例。**不接玩法数据**（无高度场/编成），
-    /// 取景走 `PixelartLevelScene` 关卡 6 行。
+    /// 【遮罩图集】烘焙期程序化点阵绘制（确定性）：16×32，下半 = 常规簇（三尖叶束），
+    /// 上半 = 高株 accent（更高更瘦）。导入口径 Point/Clamp/无 mip/不压缩。
     ///
     /// 用法（仓库根执行，一次只跑一个 Unity 进程）：
     ///   Unity.exe -batchmode -nographics -quit -projectPath pirate-crew \
@@ -36,20 +36,28 @@ namespace PirateCrew.EditorTools
 
         const int LevelNumber = 6;
 
-        /// <summary>草皮满铺区（米）：以取景表 Target 为中心的 XZ 范围——宽机位 32 m 可见高
-        /// （横跨 ≈57 m）能吃到整个铺草区加边缘余量。</summary>
+        /// <summary>草皮满铺区（米）：以取景表 Target 为中心的 XZ 范围。</summary>
         const float FieldHalfX = 20f;
         const float FieldHalfZ = 14f;
 
-        /// <summary>草簇间距（米）：0.55——r17 实拍 0.85 太稀（地面全露），加密到近满铺
-        /// （约 3700 簇 / 18 万三角面，桌面量级无压力）。</summary>
+        /// <summary>草簇间距（米）：0.55（r18 起的近满铺密度，3723 簇）。</summary>
         const float Spacing = 0.55f;
 
         /// <summary>草簇种子（确定性：同参数重跑逐顶点一致）。</summary>
         const int Seed = 20260930;
 
-        /// <summary>网格资产目录（独立子目录，不与空岛网格混放）。</summary>
+        /// <summary>sprite 四边形边长（米）：0.45 的方形，簇底对齐地面。</summary>
+        const float QuadSize = 0.45f;
+
+        /// <summary>稀有高株 accent 概率（原版 _AccentFrequency 口径）。</summary>
+        const float AccentFrequency = 0.06f;
+
         const string MeshFolder = "Assets/Art/Models/Scene/GrassField";
+        const string SpriteFolder = "Assets/Pixelart/Textures/GrassTuft";
+
+        /// <summary>遮罩图集：16 宽 × 32 高。下半（uv.y 0-0.5）= 常规簇；上半（0.5-1）= 高株 accent。</summary>
+        const int AtlasW = 16;
+        const int AtlasH = 32;
 
         [MenuItem("PirateCrew/Pixelart/烘焙纯草坪验收场景")]
         public static void BuildAll()
@@ -71,43 +79,48 @@ namespace PirateCrew.EditorTools
 
             PixelartStageKit.EnsureFolder(PixelartStageKit.MaterialFolder);
             PixelartStageKit.EnsureFolder(MeshFolder);
+            PixelartStageKit.EnsureFolder(SpriteFolder);
 
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             var root = new GameObject("PixelartGrassField");
 
-            // ---------------- 材质（像素路径唯一配方；色值 = 草皮三档调色板）----------------
+            // ---------------- 遮罩图集（程序化点阵，确定性）----------------
+            Texture2D atlas = EnsureTuftAtlas();
+
+            // ---------------- 材质（遮罩只管形状，颜色 = 草皮三档调色板）----------------
             Material ground = PixelartStageKit.EnsureMaterial("PixelartGrassField_Ground",
                 PixelartStageKit.Hex(SceneArtPalette.GrassDark), 3f, outlinePixels: 0f);
-            // 草皮材质**关逐叶描边**（r17 实拍教训：0.3 m 的簇只有 2-3 艺术像素高，
-            // 1 像素描边吃掉近半——近读成贴纸、远读成黑斑点噪声；t3ssel8r 原版草没有逐叶描边）。
-            Material mid = PixelartStageKit.EnsureMaterial("PixelartGrassField_Mid",
-                PixelartStageKit.Hex(SceneArtPalette.GrassMid), 3f, outlinePixels: 0f);
-            Material light = PixelartStageKit.EnsureMaterial("PixelartGrassField_Light",
-                PixelartStageKit.Hex(SceneArtPalette.GrassLight), 3f, outlinePixels: 0f);
-            Material dark = PixelartStageKit.EnsureMaterial("PixelartGrassField_Dark",
-                PixelartStageKit.Hex(SceneArtPalette.GrassDark), 3f, outlinePixels: 0f);
+            Material mid = EnsureSpriteMaterial("PixelartGrassField_Mid",
+                PixelartStageKit.Hex(SceneArtPalette.GrassMid), atlas);
+            Material light = EnsureSpriteMaterial("PixelartGrassField_Light",
+                PixelartStageKit.Hex(SceneArtPalette.GrassLight), atlas);
+            Material dark = EnsureSpriteMaterial("PixelartGrassField_Dark",
+                PixelartStageKit.Hex(SceneArtPalette.GrassDark), atlas);
             if (ground == null || mid == null || light == null || dark == null)
             {
                 Debug.LogError(LogTag + " 草皮材质没造出来（shader 缺失？）——出图上会是品红。");
                 return;
             }
 
-            // ---------------- 底板：暗绿大平面（草簇的"土"，只承接不投影）----------------
+            // ---------------- 底板：暗绿大平面（草的"土"，只承接不投影）----------------
             GameObject groundMesh = PixelartStageKit.NewPrimitive(
                 PrimitiveType.Plane, "Ground", root.transform, ground);
             groundMesh.transform.localPosition = new Vector3(view.Target.x, 0f, view.Target.z);
             groundMesh.transform.localScale = new Vector3(8f, 1f, 8f);   // Plane 10 m × 8 = 80×80
 
-            // ---------------- 草簇满铺（三档缓冲 → 各自 1 网格 1 材质 1 DrawCall）----------------
-            var buffers = new IslandBuffers();
-            int tufts = FillGrass(buffers, view.Target);
+            // ---------------- 草簇满铺（sprite 四边形，三档缓冲 → 各 1 网格 1 材质）----------------
+            Vector3 camForward = -PixelartPilotScene.CameraDirection(
+                PixelartPilotScene.PitchDegrees, PixelartLevelScene.AzimuthFor(view)).normalized;
+            Vector3 camRight = Vector3.Cross(Vector3.up, camForward).normalized;
+            Vector3 camUp = Vector3.Cross(camForward, camRight).normalized;
 
-            EmitBand(root.transform, "Grass_Mid", buffers.GrassMid, mid);
-            EmitBand(root.transform, "Grass_Light", buffers.GrassLight, light);
-            EmitBand(root.transform, "Grass_Dark", buffers.GrassDark, dark);
+            Dictionary<IslandMaterial, SpriteQuadBatch> batches = FillGrass(view.Target, camRight, camUp);
+            EmitBand(root.transform, "Grass_Mid", batches[IslandMaterial.GrassMid], mid);
+            EmitBand(root.transform, "Grass_Light", batches[IslandMaterial.GrassLight], light);
+            EmitBand(root.transform, "Grass_Dark", batches[IslandMaterial.GrassDark], dark);
 
-            // ---------------- 尺度参照：3 个船员（人的高度就是草坪的尺度锚）----------------
+            // ---------------- 尺度参照：3 个船员 ----------------
             Material crewRed = PixelartStageKit.CrewRed();
             Material crewBlue = PixelartStageKit.CrewBlue();
             Material crewHead = PixelartStageKit.CrewHead();
@@ -125,7 +138,6 @@ namespace PirateCrew.EditorTools
             }
 
             // ---------------- 光 / 相机（俯角 30° = 规则像素阶梯，口径见 PixelartLevelScene）----------------
-            // 投影开（r16 口径）：草簇贴地投影是"草长在地上"的一部分。
             Light sun = PixelartStageKit.CreateSunAndAmbient(root.transform, castShadows: true);
 
             var camGo = new GameObject("PixelartLevelCamera");
@@ -160,29 +172,138 @@ namespace PirateCrew.EditorTools
             rig.castRendererIndex = castIndex;
             rig.screenRendererIndex = screenIndex;
 
-            // 物体 pass 按层拉全部不透明物体、不按 shader 过滤：混进一个旧 shader 的 renderer
-            // 就是"那片像素花屏、一行报错都没有"（口径见 PixelartStageKit 类头）。
             PixelartStageKit.AssertObjectShaderOnly(root, LogTag);
 
             string scenePath = "Assets/Scenes/" + SceneName + ".unity";
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), scenePath);
             PixelartStageKit.RegisterScene(scenePath, LogTag);
 
-            Debug.Log(LogTag + " 场景完成：" + scenePath + "（草簇 " + tufts + " 簇 / 间距 " + Spacing
-                + " m；Cast 渲染器 " + castIndex + " / Screen 渲染器 " + screenIndex
-                + "；放大倍数 " + PixelartPilotScene.PixelScale + "×；俯角 "
-                + PixelartPilotScene.PitchDegrees + "°）。出图：播放器 -pixelartOut <目录> -pixelartLevel "
-                + LevelNumber);
+            Debug.Log(LogTag + " 场景完成（sprite 版）：Assets/Scenes/" + SceneName + ".unity。出图：播放器 "
+                + "-pixelartOut <目录> -pixelartLevel " + LevelNumber);
         }
 
-        /// <summary>
-        /// 满铺草簇（照抄 `FloatingIslandComposer` 草簇段的三件套：
-        /// <see cref="GrassPatchRules.SelectBuffer"/> 选档 + 尺寸哈希 + 6% 高株 accent）。
-        /// 返回簇数。网格抖动 ±0.3 m 打散排布感。
-        /// </summary>
-        static int FillGrass(IslandBuffers buffers, Vector3 center)
+        // ------------------------------------------------------------------
+        // 遮罩图集（程序化点阵：尖叶逐纹素走列，t3ssel8r grassleaf 的读法）
+        // ------------------------------------------------------------------
+
+        /// <summary>图集就地覆写（GUID 稳定）：16×32，下半常规簇、上半高株 accent。</summary>
+        static Texture2D EnsureTuftAtlas()
         {
-            int count = 0;
+            string path = SpriteFolder + "/GrassTuftMask.png";
+            var px = new Color32[AtlasW * AtlasH];
+            for (int i = 0; i < px.Length; i++)
+                px[i] = new Color32(0, 0, 0, 0);
+
+            // 常规簇（下半，原点 y=0）：中央高叶 + 两侧外撇 + 两根补空，5 叶束。
+            DrawBlade(px, 0, 0, baseX: 7, height: 13, lean: 0, width: 2);
+            DrawBlade(px, 0, 0, baseX: 4, height: 9, lean: -3, width: 2);
+            DrawBlade(px, 0, 0, baseX: 10, height: 10, lean: 3, width: 2);
+            DrawBlade(px, 0, 0, baseX: 6, height: 7, lean: -1, width: 1);
+            DrawBlade(px, 0, 0, baseX: 9, height: 8, lean: 1, width: 1);
+
+            // 高株 accent（上半，原点 y=16）：更高更瘦的三叶。
+            DrawBlade(px, 0, 16, baseX: 8, height: 15, lean: 0, width: 2);
+            DrawBlade(px, 0, 16, baseX: 5, height: 12, lean: -3, width: 1);
+            DrawBlade(px, 0, 16, baseX: 10, height: 12, lean: 3, width: 1);
+
+            var texture = new Texture2D(AtlasW, AtlasH, TextureFormat.RGBA32, false)
+            {
+                name = "GrassTuftMask",
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            texture.SetPixels32(px);
+            texture.Apply();
+
+            if (AssetDatabase.LoadAssetAtPath<Texture2D>(path) != null)
+                AssetDatabase.DeleteAsset(path);            // 就地重建：点阵是确定性的，覆盖即可
+            AssetDatabase.CreateAsset(texture, path);
+
+            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer != null)
+            {
+                // 像素 mask 任何过滤/压缩都会糊边：Point / Clamp / 无 mip / 不压缩。
+                importer.mipmapEnabled = false;
+                importer.wrapMode = TextureWrapMode.Clamp;
+                importer.filterMode = FilterMode.Point;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.alphaIsTransparency = true;
+                importer.SaveAndReimport();
+            }
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        }
+
+        /// <summary>一根尖叶：从底往上逐行走，二次曲线外撇（叶中段打折的读法），半高以上收成 1 纹素尖。</summary>
+        static void DrawBlade(Color32[] px, int ox, int oy, int baseX, int height, int lean, int width)
+        {
+            for (int i = 0; i < height; i++)
+            {
+                float t = i / (float)height;
+                int x = baseX + Mathf.RoundToInt(lean * t * t);
+                int w = i < height * 0.5f ? width : 1;
+                for (int dx = 0; dx < w; dx++)
+                    SetPx(px, ox + x + dx, oy + i);
+            }
+        }
+
+        static void SetPx(Color32[] px, int x, int y)
+        {
+            if (x < 0 || x >= AtlasW || y < 0 || y >= AtlasH)
+                return;
+            px[y * AtlasW + x] = new Color32(255, 255, 255, 255);
+        }
+
+        // ------------------------------------------------------------------
+        // sprite 材质（资产就地覆写：r17/r18 已有同名材质，重烘补上关键字与遮罩）
+        // ------------------------------------------------------------------
+
+        static Material EnsureSpriteMaterial(string name, Color albedo, Texture2D atlas)
+        {
+            string path = PixelartStageKit.MaterialFolder + "/" + name + ".mat";
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = PixelartMaterialFactory.CreateSprite(name, albedo, atlas);
+                if (material != null)
+                    AssetDatabase.CreateAsset(material, path);
+                return material;
+            }
+
+            // 已存在（前几轮的纯色版）：就地补 sprite 配方（幂等）。
+            PixelartMaterialFactory.Configure(material, albedo, 3f, outlinePixels: 0f);
+            material.EnableKeyword("_SPRITE");
+            material.SetTexture("_BaseMap", atlas);
+            material.SetFloat("_Cutoff", 0.5f);
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        // ------------------------------------------------------------------
+        // 草簇满铺（sprite 四边形；档位/密度/accent 与 r18 同参）
+        // ------------------------------------------------------------------
+
+        /// <summary>一档草皮的全部四边形（世界空间已展开；法线一律朝上——
+        /// quad 是单一平面 ⇒ 整簇一个面法线 ⇒ 整簇同光照档，"地形法线着色"自动成立）。</summary>
+        class SpriteQuadBatch
+        {
+            public readonly List<Vector3> Vertices = new List<Vector3>();
+            public readonly List<Vector2> UVs = new List<Vector2>();
+            public readonly List<Vector3> Normals = new List<Vector3>();
+            public readonly List<int> Triangles = new List<int>();
+        }
+
+        /// <summary>满铺：每簇一个相机朝向四边形（烘焙期定向——本仓相机固定等距，无需运行时 billboard）。
+        /// 返回 档位 → 批次。accent 簇用图集上半窗（uv.y 0.5-1）。</summary>
+        static Dictionary<IslandMaterial, SpriteQuadBatch> FillGrass(Vector3 center,
+            Vector3 camRight, Vector3 camUp)
+        {
+            var batches = new Dictionary<IslandMaterial, SpriteQuadBatch>
+            {
+                [IslandMaterial.GrassMid] = new SpriteQuadBatch(),
+                [IslandMaterial.GrassLight] = new SpriteQuadBatch(),
+                [IslandMaterial.GrassDark] = new SpriteQuadBatch(),
+            };
+
             int i = 0;
             for (float x = center.x - FieldHalfX; x <= center.x + FieldHalfX; x += Spacing)
             {
@@ -192,44 +313,70 @@ namespace PirateCrew.EditorTools
                     float jz = (SceneArtHash.Hash01(Seed, i, 5) - 0.5f) * 0.6f;
                     var p = new Vector3(x + jx, 0f, z + jz);
 
-                    float scale = 0.26f + 0.22f * SceneArtHash.Hash01(Seed, i, 7);
-                    // 稀有高株 accent（原版 _AccentFrequency/_AccentHeight 口径）：6% 概率高出一截。
-                    if (SceneArtHash.Hash01(Seed, i, 1021) < 0.06f)
-                        scale *= 1.45f;
+                    bool accent = SceneArtHash.Hash01(Seed, i, 1021) < AccentFrequency;
+                    float uvY0 = accent ? 0.5f : 0f;
+                    float uvY1 = accent ? 1f : 0.5f;
+                    float size = QuadSize * (accent ? 1.15f : 1f);
 
-                    IslandPrimitives.AddGrassTuft(GrassPatchRules.SelectBuffer(buffers, p), p, scale,
-                        Seed + i * 13, 4 + (int)(SceneArtHash.Hash01(Seed, i, 1009) * 3f));
-                    count++;
+                    AddQuad(batches[IslandBuffersBand(p)], p, size, uvY0, uvY1, camRight, camUp);
                     i++;
                 }
             }
-            return count;
+            return batches;
         }
 
-        /// <summary>一档缓冲 → 网格资产（就地覆写，GUID 稳定）→ 命名子物体 + 渲染器。</summary>
-        static void EmitBand(Transform parent, string objectName, MeshBuffers source, Material material)
+        static IslandMaterial IslandBuffersBand(Vector3 p)
         {
-            if (source == null || source.IsEmpty)
+            switch (GrassPatchRules.SelectBand(p))
             {
-                Debug.LogWarning(LogTag + " 档位 " + objectName + " 缓冲为空（该档斑块没铺到？核对阈值）。");
+                case 1: return IslandMaterial.GrassLight;
+                case 2: return IslandMaterial.GrassDark;
+                default: return IslandMaterial.GrassMid;
+            }
+        }
+
+        /// <summary>一个四边形：底边中点 = <paramref name="basePos"/>，沿相机右/上轴展开；
+        /// 双面（正反绕序各一遍——剪影叶不该被背面剔除吃掉）。</summary>
+        static void AddQuad(SpriteQuadBatch batch, Vector3 basePos, float size,
+            float uvY0, float uvY1, Vector3 camRight, Vector3 camUp)
+        {
+            float half = size * 0.5f;
+            Vector3 bl = basePos - camRight * half;
+            Vector3 br = basePos + camRight * half;
+            Vector3 tl = bl + camUp * size;
+            Vector3 tr = br + camUp * size;
+            var up = Vector3.up;
+
+            int v = batch.Vertices.Count;
+            batch.Vertices.Add(bl);
+            batch.Vertices.Add(br);
+            batch.Vertices.Add(tl);
+            batch.Vertices.Add(tr);
+            batch.UVs.Add(new Vector2(0f, uvY0));
+            batch.UVs.Add(new Vector2(1f, uvY0));
+            batch.UVs.Add(new Vector2(0f, uvY1));
+            batch.UVs.Add(new Vector2(1f, uvY1));
+            for (int k = 0; k < 4; k++)
+                batch.Normals.Add(up);
+
+            batch.Triangles.AddRange(new[] { v, v + 1, v + 2, v + 1, v + 3, v + 2 });       // 正面
+            batch.Triangles.AddRange(new[] { v + 2, v + 1, v, v + 2, v + 3, v + 1 });       // 反面
+        }
+
+        /// <summary>一批四边形 → 网格资产（含 UV 通道）→ 命名子物体 + 渲染器。</summary>
+        static void EmitBand(Transform parent, string objectName, SpriteQuadBatch batch, Material material)
+        {
+            if (batch == null || batch.Triangles.Count == 0)
+            {
+                Debug.LogWarning(LogTag + " 档位 " + objectName + " 批次为空（该档斑块没铺到？核对阈值）。");
                 return;
             }
 
-            Mesh mesh = EnsureMeshAsset(MeshFolder + "/" + objectName + ".asset", source);
-
-            var child = new GameObject(objectName);
-            child.transform.SetParent(parent, false);
-            child.AddComponent<MeshFilter>().sharedMesh = mesh;
-            child.AddComponent<MeshRenderer>().sharedMaterial = material;
-        }
-
-        /// <summary>网格资产就地覆写（模式照抄 SceneArtBaker.EnsureMeshAsset：重写顶点保持 GUID 稳定）。</summary>
-        static Mesh EnsureMeshAsset(string path, MeshBuffers source)
-        {
+            string path = MeshFolder + "/" + objectName + ".asset";
             Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
             if (mesh == null)
             {
-                mesh = new Mesh { name = System.IO.Path.GetFileNameWithoutExtension(path) };
+                mesh = new Mesh { name = objectName };
                 mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
                 AssetDatabase.CreateAsset(mesh, path);
             }
@@ -239,12 +386,17 @@ namespace PirateCrew.EditorTools
                 mesh.Clear(false);
             }
 
-            mesh.SetVertices(new System.Collections.Generic.List<Vector3>(source.ToVertices()));
-            mesh.SetNormals(new System.Collections.Generic.List<Vector3>(source.ToNormals()));
-            mesh.SetTriangles(new System.Collections.Generic.List<int>(source.ToTriangles()), 0, true);
+            mesh.SetVertices(batch.Vertices);
+            mesh.SetUVs(0, batch.UVs);
+            mesh.SetNormals(batch.Normals);
+            mesh.SetTriangles(batch.Triangles, 0, true);
             mesh.RecalculateBounds();
             EditorUtility.SetDirty(mesh);
-            return mesh;
+
+            var child = new GameObject(objectName);
+            child.transform.SetParent(parent, false);
+            child.AddComponent<MeshFilter>().sharedMesh = mesh;
+            child.AddComponent<MeshRenderer>().sharedMaterial = material;
         }
     }
 }
