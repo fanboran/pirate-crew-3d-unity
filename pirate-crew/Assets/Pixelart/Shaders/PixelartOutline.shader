@@ -27,13 +27,16 @@
 //     加了它整圈外轮廓会全部消失。这也正是 v3 那趟不做 `clip(albedo.a)` 的原因。
 //   ⚠ 更近那一侧的像素自己的门控不通过（`closer`=1），所以上面两圈**不会叠成 2 像素**。
 //
-//   【第三条分支：接触边兜底】门控的两位都源自"深度不连续"，而物体与**更近**的大平面
-//     **深度相切**时（角色落地的那一圈接触弧），切平面预测残差 ≈ 0 ⇒ 物体像素侧
-//     `connected = 1`、平面像素侧 `closer = 1` ⇒ 四方向无一合法出线像素，接触弧整条没有
-//     墨线（r19 实拍：角色左下弧段的墨线到剪影切点戛然而止，dbg-outline 直读档证实该段
-//     `Outline.r = 0`）。补法：`本像素开着描边 && 该方向邻域更近（closer = 0）&& 邻域不开
-//     描边` ⇒ 也算命中，墨线落在物体自己的边界行。按门控 `else` 挂载 ⇒ 与上面两条互斥，
-//     线宽仍恒为 1 艺术像素。
+//   【第三条分支：接触边兜底】门控的两位都源自"深度不连续"，但角色贴地站的剪影大半圈
+//     在判据里**不构成不连续**：逐像素深度/高度差只有厘米级，远小于连通域阈值（0.25 m，
+//     v3 量纲）⇒ 两像素被判**深度相切连通**（connected = 1），门控从 connected 一侧关死。
+//     实拍两类症状：接触弧整条无墨（r19：左下弧段的墨线到剪影切点戛然而止，dbg-outline
+//     证实该段 `Outline.r = 0`）、mid 机位下左剪影整条裸奔（r24 分类染色图定位——角色侧壁
+//     比脚边地面更近，closer 也关死角色像素自己的门）。
+//     补法：`本像素开着描边 && 邻域不开描边 &&（邻域更近 或 相切连通）` ⇒ 也算命中，
+//     墨线落在物体自己的边界行。唯一排除「closer = 1 且 connected = 0」＝**更近侧的干净
+//     不连续边**——那种边由外侧像素照常出线，这里再出会叠成 2 像素。按门控 `else` 挂载
+//     ⇒ 线宽仍恒为 1 艺术像素。
 //
 // 【每物体独立描边怎么保证】判据只看两件逐像素的数据：邻域的 `Palette.a`（逐物体写）与
 //   连通域的不连续位（逐像素算）。与"全场景一圈外轮廓"无关，也与绘制次序无关——
@@ -173,8 +176,9 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 //   · 近侧边（外面是更近的面）→ 由**物体自己的边界像素**出线。
                 // 两种情形互斥（同一方向只有一个更远侧）⇒ 线宽仍是 **1 艺术像素**，不会叠成两像素。
                 //
-                // 还有一个这两条都治不了的缺口：**接触弧**（物体贴着更近且不开描边的平面、
-                // 深度相切）会把门控从 connected 一侧关死——见下面各方向的「接触边兜底」分支。
+                // 还有一个这两条都治不了的缺口：**深度相切的邻接**（角色贴地站的剪影大半圈
+                // 判成"连通"）会把门控从 connected / closer 两侧都关死——见下面各方向的
+                // 「接触边兜底」分支。
                 bool centerAppliesOutline = AppliesOutlineAt(uvCenter);
 
                 int connectedToRight = (connectCode & 128u) > 0u ? 1 : 0;   // bit7
@@ -190,13 +194,19 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 float gateHit = 0.0;    // 调试档 5：门控命中的方向数
 
                 // 【接触边兜底】四个方向共用的第三条分支，挂在门控的 **else** 侧：
-                //   本像素开着描边、该方向邻域**更近**（closer = 0）且**不开描边** ⇒ 墨线落在
-                //   自己边界行。能到这里门控必然是因 `connected ≥ 1` 关死的（closer ≥ 1 的情形
-                //   进不了条件）——即"深度相切的接触弧"：物体表面与更近的大平面在剪影切点以外
-                //   深度连续，切平面预测残差 ≈ 0，两位门控四位全堵（物体像素 connected=1、
-                //   平面像素 closer=1），r19 实拍角色左下弧段整段无墨就是它。邻域开着描边的
-                //   情形不触发（两个描边物体相切不互描）；调试档 8 只统计门控命中、不含本分支
-                //   （它依赖 applyOutline，混进去会污染"连通域在不在命中"的诊断语义）。
+                //   本像素开着描边、该方向邻域**不开描边**，且二者**深度相切或邻域更近**
+                //   ⇒ 墨线落在自己边界行。覆盖两类真实缺口（r19/r24 实拍 + 分类染色图定位）：
+                //   ① 接触弧（邻域更近，closer=0）：角色落地那圈，柱面与地面深度相切，
+                //      切平面预测残差 ≈ 0 ⇒ 两像素判"连通"，四方向门控全堵；
+                //   ② 相切的更近侧剪影（closer=1 且 connected=1）：角色侧壁比脚边地面**更近**，
+                //      而逐像素深度差（每艺术像素厘米级）远小于连通域阈值（0.25 m）⇒ 两侧判
+                //      "连通"——外侧像素的门被 connected 关死、角色像素的门被 closer 关死，
+                //      mid 机位下左剪影整条无墨就是它（连通域阈值是 v3 量纲，脆弱性放大器）。
+                //   唯一不触发的格是「closer=1 且 connected=0」＝**更近侧的干净不连续边**：
+                //   那种边由外侧像素照常出线（门控本来就开），这里再出会叠成 2 像素。
+                //   邻域开着描边（两个描边物体相邻）也不触发（不互描）。
+                //   调试档 8 只统计门控命中、不含本分支（它依赖 applyOutline，混进去会污染
+                //   "连通域在不在命中"的诊断语义）。
 
                 // ---- 右（v3 `OutlinePass.hlsl:35-44`）----
                 float2 uvRight = uvCenter + float2(texel.x, 0.0);
@@ -206,7 +216,8 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     if (centerAppliesOutline || AppliesOutlineAt(uvRight))
                         marker = 1.0;
                 }
-                else if (centerAppliesOutline && closerThanRight < 1 && !AppliesOutlineAt(uvRight))
+                else if (centerAppliesOutline && !AppliesOutlineAt(uvRight)
+                         && (closerThanRight < 1 || connectedToRight >= 1))
                 {
                     marker = 1.0;
                 }
@@ -219,7 +230,8 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     if (centerAppliesOutline || AppliesOutlineAt(uvLeft))
                         marker = 1.0;
                 }
-                else if (centerAppliesOutline && closerThanLeft < 1 && !AppliesOutlineAt(uvLeft))
+                else if (centerAppliesOutline && !AppliesOutlineAt(uvLeft)
+                         && (closerThanLeft < 1 || connectedToLeft >= 1))
                 {
                     marker = 1.0;
                 }
@@ -232,7 +244,8 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     if (centerAppliesOutline || AppliesOutlineAt(uvUp))
                         marker = 1.0;
                 }
-                else if (centerAppliesOutline && closerThanUp < 1 && !AppliesOutlineAt(uvUp))
+                else if (centerAppliesOutline && !AppliesOutlineAt(uvUp)
+                         && (closerThanUp < 1 || connectedToUp >= 1))
                 {
                     marker = 1.0;
                 }
@@ -245,7 +258,8 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     if (centerAppliesOutline || AppliesOutlineAt(uvDown))
                         marker = 1.0;
                 }
-                else if (centerAppliesOutline && closerThanDown < 1 && !AppliesOutlineAt(uvDown))
+                else if (centerAppliesOutline && !AppliesOutlineAt(uvDown)
+                         && (closerThanDown < 1 || connectedToDown >= 1))
                 {
                     marker = 1.0;
                 }
