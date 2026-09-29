@@ -125,7 +125,13 @@ namespace PirateCrew.Battle
                 return false;
             }
 
-            Quaternion rotation = Quaternion.Euler(0f, placement.YawDegrees, 0f);
+            // 【yaw 与预制自带旋转复合，不许替换】Instantiate 的显式旋转重载会**覆盖**预制根节点
+            // 自带的旋转——FBX 导入件（化工厂两代）的根上挂着轴向约定转换（+90°X，Blender Z-up→
+            // Unity Y-up），被替换后整场模型立起来（创始人 2026-09-29 实测「地面垂直了」）。
+            // 编辑器烘的预制（云场/空岛）根旋转恒 identity，复合对它们是无操作；FBX 件则保命。
+            // yaw 语义不变：绕**世界** Y 轴的朝向，作用于模型自身姿态之后。
+            Quaternion rotation = Quaternion.Euler(0f, placement.YawDegrees, 0f)
+                * prefab.transform.localRotation;
             GameObject instance = Instantiate(prefab, placement.Position, rotation, Root);
             instance.name = placement.InstanceName;
             _instances.Add(instance);

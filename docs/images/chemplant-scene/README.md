@@ -42,13 +42,22 @@
 
 ## 四、实机图（游戏本体跑出来的，不是 Blender 渲染）
 
-| 图 | 机位 / 说明 |
+**玩法实拍**（环绕采集：进战斗、禁用跟随相机、绕场心 360°×3 层高度自动拍照，工具
+`ChemPlantOrbitCapture`，播放器 `-orbitOut <目录> -orbitLevel 5`）：
+
+| 图 | 内容 |
 | --- | --- |
-| [ingame/pl5-wide.png](ingame/pl5-wide.png) | 宽机位（可见高度 32 m；正交 30°、放大 2×） |
-| [ingame/pl5-mid.png](ingame/pl5-mid.png) | 中机位（14 m ＝ 游戏内正交档 7，与玩家能看到的那一档同源） |
-| [ingame/pl5-close.png](ingame/pl5-close.png) | 近机位（7 m） |
-| [ingame/pl5-mid-density.png](ingame/pl5-mid-density.png) | 中机位 + 抖动图案 A/B（**游戏内默认不开**，本张只为验证"抖动通路真的走通"） |
-| [ingame/pl5-dbg-albedo.png](ingame/pl5-dbg-albedo.png) · [ingame/pl5-dbg-outline.png](ingame/pl5-dbg-outline.png) | 调试缓冲（albedo / 描边），证明物体 pass 与描边趟真的写了 |
+| [ingame-play/play-high-overview.png](ingame-play/play-high-overview.png) | 70 m 俯瞰：28×20 格场地布局、道路、管廊、罐区、旁楼 |
+| [ingame-play/play-mid-buildings.png](ingame-play/play-mid-buildings.png) | 34 m 中层：旁楼窗带、卷帘门仓库、精馏塔、管廊桁架 |
+| [ingame-play/play-low-pipes.png](ingame-play/play-low-pipes.png) | 14 m 近地（= 游戏内正交档 7 的取景）：管廊下视角 |
+| [ingame-play/play-l04-tanks.png](ingame-play/play-l04-tanks.png) | 并行线 L4 同链验证（罐体/精馏塔/单位在场） |
+
+**像素试点场景**（独立小场景的取景口径出图，非战斗场景）：`ingame/pl5-*.png`（宽/中/近 +
+抖动 A/B + albedo/描边调试缓冲）——机位与构图口径见 `PixelartLevelScene` 取景表。
+
+**⚠ 固定机位美术评审图（`-artReviewOut -artReviewLevel 5` 的 `battle-45` 等十一张）对
+非标准场地不可用**：那组机位的瞄准点/距离按 20×15 标准竞技场手抄，28×20/32×22 的新关
+会框到地面或场边（实拍为证）。给新关补机位属相机侧任务（见待办）。
 
 **出图链**（可复现）：场景 `Assets/Scenes/PixelartChemPlantTeam.unity`（装配器
 `Assets/Pixelart/Editor/PixelartChemPlantTeamSetup.cs`，取景表关卡号 **5**）

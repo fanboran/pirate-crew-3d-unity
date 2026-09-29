@@ -82,14 +82,24 @@
 //      唯一被本仓挪动的是把 `prev` 的两个不变量提到循环外（`prev` 恒为 center ⇒ 值完全一致，
 //      只是少 k−1 次对同一坐标的重复取样）。
 //
-// ⑥ **`CheckNormalContinuous` 的 `z < 0` 门控改在视图空间判**（本仓口径，[提案]）。
+// ⑥ **`CheckNormalContinuous` 的朝向门控改在视图空间判，且判据是 `z > 0`**。
 //      v3 拿**世界**法线的 `.z` 判正负（`:21`/`:32`），而世界 Z 轴与相机朝向无关 ⇒ 那是
 //      "在 v3 的固定机位下凑巧像'朝向相机'"的遗留写法。本仓的竞技场是固定的 XZ 地面 + 45° 机位，
 //      世界 Z 对任何面都不是"朝向相机"，照抄会让水平顶面（世界法线 z = 0）**一律拿不到法线差**。
-//      本仓改成与 ① 同一份**视图**法线判 `z < 0`（视图空间里 z < 0 = 面朝相机），
-//      即"只有朝向相机的两个邻居之间才认出法线转折"。
+//      故本仓改成与 ① 同一份**视图**法线判。
+//
+//      ⚠ **符号是 `z > 0`，不是 `z < 0`**：Unity 的相机/视图空间是 **OpenGL 惯例——前向 = −Z**
+//      （`Camera.worldToCameraMatrix` 的官方说明），所以视图 **+Z 指向观察者**
+//      （同一个事实在本仓着色趟写作 `UNITY_MATRIX_I_V` 第三列 = "从场景指向相机"，
+//      见 `PixelartShading.shader` 的 `PixelartViewDirWS`）。于是"面朝相机"的法线在视图空间里
+//      **z 为正**，`z < 0` 挑的是背面。
+//      【这条写反的代价是静默的】可见几何全是正面 ⇒ 两个邻居的条件**恒不成立** ⇒
+//      `Result.b` 恒为 0 ⇒ 着色那趟的"法线边加成"（`_NormalEdgeLevel`）**整项失效**，
+//      没有任何报错，`_NormalEdgeThreshold` 怎么调都没反应（这是本轮靠"阈值压到 0、加成给 -1
+//      的极端探针出图仍与基线逐像素相同"证伪出来的）。判据只喂 `Result.b`，
+//      **不影响连通域、描边、降档**（那几路走 `PixelartConnectivityCheckConnectedDepthNormal`）。
 //      幅度不受影响：两个单位法线之差是旋转不变量（所以着色那趟的 `_NormalEdgeThreshold`
-//      标定值不用改）。⇒ 这一条只影响 Result.b，**不影响连通域本身**。
+//      标定值不用改）。
 //
 // 【不使用 `_ScreenParams`】（契约 §2.2）：尺寸一律读显式全局。
 // ============================================================================
@@ -176,7 +186,7 @@ float2 PixelartConnectivityViewStep(int2 pixelStep)
 
 /// 单元内最大法线差（v3 `CheckNormalContinuous`，`:7-40`）。
 /// `coord` 必须在界内（调用方负责），于是四个邻居的边界判断与 v3 一致、不会越界读。
-/// 与 v3 的唯一差别：`.z < 0` 用**视图**法线判（头注 ⑥）。
+/// 与 v3 的唯一差别：朝向门控用**视图**法线的 `z > 0` 判（头注 ⑥——那个符号的来路与写反的代价）。
 float PixelartConnectivityNormalContinuous(int2 coord, int2 size)
 {
     float maxNormalDiff = 0.0;
@@ -191,7 +201,7 @@ float PixelartConnectivityNormalContinuous(int2 coord, int2 size)
         float3 upNormal = PixelartConnectivityViewNormal(up);
         float3 downNormal = PixelartConnectivityViewNormal(down);
 
-        if (upNormal.z < 0.0 && downNormal.z < 0.0)
+        if (upNormal.z > 0.0 && downNormal.z > 0.0)
             maxNormalDiff = max(maxNormalDiff, length(downNormal - upNormal));
     }
 
@@ -200,7 +210,7 @@ float PixelartConnectivityNormalContinuous(int2 coord, int2 size)
         float3 leftNormal = PixelartConnectivityViewNormal(left);
         float3 rightNormal = PixelartConnectivityViewNormal(right);
 
-        if (leftNormal.z < 0.0 && rightNormal.z < 0.0)
+        if (leftNormal.z > 0.0 && rightNormal.z > 0.0)
             maxNormalDiff = max(maxNormalDiff, length(rightNormal - leftNormal));
     }
 
