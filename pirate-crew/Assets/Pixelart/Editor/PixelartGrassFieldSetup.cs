@@ -90,15 +90,20 @@ namespace PirateCrew.EditorTools
             // ---------------- 遮罩图集（程序化点阵，确定性）----------------
             Texture2D atlas = EnsureTuftAtlas();
 
-            // ---------------- 材质（遮罩只管形状，颜色 = 草皮三档调色板）----------------
+            // ---------------- 材质（遮罩只管形状，颜色 = 草皮三档）----------------
+            // 【对齐参考】v5 成品帧（external/pixel-render-ref/frames/v5/035.jpg）的草坪是
+            // **偏黄亮绿底 + ±1 色阶的柔和斑驳**，没有高对比亮/暗块。三档全部取既有调色板值、
+            // 相邻只差半档：主档 #6FB86A（空岛草皮配方衍生档）/ 亮斑 #7BC67E（GrassLight）/
+            // 暗斑 #4A8C4A（GrassMid 降半档当暗斑，替代 r20 的 #2D5A2D 阴影洞）。
+            // 【提案】底色比空岛草皮亮，进岛前要过创始人配色裁决。
             Material ground = PixelartStageKit.EnsureMaterial("PixelartGrassField_Ground",
-                PixelartStageKit.Hex(SceneArtPalette.GrassDark), 3f, outlinePixels: 0f);
+                PixelartStageKit.Hex("4A8C4A"), 3f, outlinePixels: 0f);
             Material mid = EnsureSpriteMaterial("PixelartGrassField_Mid",
-                PixelartStageKit.Hex(SceneArtPalette.GrassMid), atlas);
+                PixelartStageKit.Hex("6FB86A"), atlas);
             Material light = EnsureSpriteMaterial("PixelartGrassField_Light",
                 PixelartStageKit.Hex(SceneArtPalette.GrassLight), atlas);
             Material dark = EnsureSpriteMaterial("PixelartGrassField_Dark",
-                PixelartStageKit.Hex(SceneArtPalette.GrassDark), atlas);
+                PixelartStageKit.Hex(SceneArtPalette.GrassMid), atlas);
             if (ground == null || mid == null || light == null || dark == null)
             {
                 Debug.LogError(LogTag + " 草皮材质没造出来（shader 缺失？）——出图上会是品红。");
