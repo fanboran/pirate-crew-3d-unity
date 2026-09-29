@@ -37,7 +37,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _AAScale: 1
+    - _AAScale: 0
     - _BumpScale: 1
     - _Cutoff: 0.5
     - _DitherMode: 0

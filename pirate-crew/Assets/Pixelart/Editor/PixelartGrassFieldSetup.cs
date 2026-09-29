@@ -114,8 +114,11 @@ namespace PirateCrew.EditorTools
             // （t3ssel8r 原话 "a randomized color"：×0.92 / ×1.0 / ×1.08，哈希逐簇随机）
             // 叠加空间斑块（GrassPatchRules）共同承担。3 档 × 3 tint = 9 材质 / 9 DrawCall。
             // 【提案】色值系 #6FB86A 邻近域派生，进岛前过创始人配色裁决。
+            // 【aaScale=0】草坪全系关闭连通域降档：降档的聚合窗格跨到剪影上时，物体旁的地面
+            // 像素被误判"面转折"压暗一档，描边外圈长出忽有忽无的深色毛边（r25 逐像素定位，
+            // 创始人报"头上描边毛边"）。草地自身没有合法内线，整系置 0；角色/道具保持 1。
             Material ground = PixelartStageKit.EnsureMaterial("PixelartGrassField_Ground",
-                PixelartStageKit.Hex("5C9556"), 3f, outlinePixels: 0f);
+                PixelartStageKit.Hex("5C9556"), 3f, outlinePixels: 0f, aaScale: 0f);
 
             var bandBases = new[]
             {
@@ -325,14 +328,14 @@ namespace PirateCrew.EditorTools
             Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
             if (material == null)
             {
-                material = PixelartMaterialFactory.CreateSprite(name, albedo, atlas);
+                material = PixelartMaterialFactory.CreateSprite(name, albedo, atlas, aaScale: 0f);
                 if (material != null)
                     AssetDatabase.CreateAsset(material, path);
                 return material;
             }
 
             // 已存在（前几轮的纯色版）：就地补 sprite 配方（幂等）。
-            PixelartMaterialFactory.Configure(material, albedo, 3f, outlinePixels: 0f);
+            PixelartMaterialFactory.Configure(material, albedo, 3f, outlinePixels: 0f, aaScale: 0f);
             material.EnableKeyword("_SPRITE");
             material.SetTexture("_BaseMap", atlas);
             material.SetFloat("_Cutoff", 0.5f);

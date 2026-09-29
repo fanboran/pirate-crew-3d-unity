@@ -74,7 +74,7 @@ namespace PirateCrew.EditorTools
         /// 所以这里**不要**把旧链的 2px 当基准搬过来。
         /// </summary>
         public static Material EnsureMaterial(string name, Color albedo, float bandCount,
-            float outlinePixels = 1.0f)
+            float outlinePixels = 1.0f, float aaScale = 1.0f)
         {
             string path = MaterialFolder + "/" + name + ".mat";
             Shader shader = Shader.Find(PixelartPath.ObjectShaderName);
@@ -96,7 +96,7 @@ namespace PirateCrew.EditorTools
 
             // 配方只有一份：运行期的 `PixelartMaterialFactory`（游戏本体在运行期造材质也要用它）。
             // 本类只负责"把它落成资产"与"挂上抖动图案"（图案是工程内 png，运行期没有按路径加载的入口）。
-            PixelartMaterialFactory.Configure(mat, albedo, bandCount, outlinePixels);
+            PixelartMaterialFactory.Configure(mat, albedo, bandCount, outlinePixels, aaScale);
             var pattern = AssetDatabase.LoadAssetAtPath<Texture2D>(DitherFolder + "/ToonDither_0.png");
             if (pattern != null)
             {

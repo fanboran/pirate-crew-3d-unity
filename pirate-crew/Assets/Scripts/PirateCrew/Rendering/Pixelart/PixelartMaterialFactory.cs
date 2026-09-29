@@ -92,7 +92,8 @@ namespace PirateCrew.Rendering.Pixelart
         /// （调用方各自决定兜底，但绝不静默拿品红顶上）。
         /// </summary>
         public static Material Create(string name, Color albedo,
-            float bandCount = DefaultBandCount, float outlinePixels = DefaultOutlinePixels)
+            float bandCount = DefaultBandCount, float outlinePixels = DefaultOutlinePixels,
+            float aaScale = 1f)
         {
             Shader shader = Shader.Find(PixelartPath.ObjectShaderName);
             if (shader == null)
@@ -103,7 +104,7 @@ namespace PirateCrew.Rendering.Pixelart
             }
 
             var material = new Material(shader) { name = name };
-            Configure(material, albedo, bandCount, outlinePixels);
+            Configure(material, albedo, bandCount, outlinePixels, aaScale);
             return material;
         }
 
@@ -116,9 +117,9 @@ namespace PirateCrew.Rendering.Pixelart
         /// 贴图导入口径：**Point / Clamp / 无 mip / 不压缩**（像素 mask 任何过滤都会糊边）。
         /// </summary>
         public static Material CreateSprite(string name, Color albedo, Texture2D mask,
-            float bandCount = DefaultBandCount, float cutoff = 0.5f)
+            float bandCount = DefaultBandCount, float cutoff = 0.5f, float aaScale = 1f)
         {
-            Material material = Create(name, albedo, bandCount, outlinePixels: 0f);
+            Material material = Create(name, albedo, bandCount, outlinePixels: 0f, aaScale: aaScale);
             if (material == null)
                 return null;
 
@@ -143,7 +144,10 @@ namespace PirateCrew.Rendering.Pixelart
         ///         非金属件都是 1.0（两个单位法线之差 &gt; 1 ⇒ 面夹角 &gt; 60° 才触发，于是只在硬转折上出现）。
         ///         ⚠ **负值能表达的前提是 shader 属性声明成 `Range(-1, 1)`**：`Range(0, 1)` 会把 -1 夹成 0，
         ///         这一项就静默变成"永不触发"（表面看是"没效果"，实则参数根本没传进去）。</item>
-        ///   <item>`_AAScale` = 1：连通域降档门控不缩放（v3 的 `_AAScale` 同义）；</item>
+        ///   <item>`_AAScale` = 1：连通域降档门控不缩放（v3 的 `_AAScale` 同义）；**0 = 整体关闭降档**
+        ///         （草坪口径：降档的聚合窗格跨到物体剪影上时，物体旁的地面像素被误判成"面转折"
+        ///         而压暗一档，观感是描边外圈忽有忽无的深色毛边——r25 逐像素定位。草地/大平面这类
+        ///         "自身没有合法内线"的材质置 0，角色/道具保持 1）；</item>
         ///   <item>`_Smoothness` = **0（高光关）**：本路径高光趟对 `pow(NdotH, exp)` 做两档量化后乘
         ///         `_Smoothness`——地面/海面这类大平面上，相机方位一转 NdotH 就扫过量化的 floor 边界，
         ///         高光带整档翻面（创始人报的"地面反太阳光、旋转时颜色骤变"）。
@@ -157,7 +161,8 @@ namespace PirateCrew.Rendering.Pixelart
         /// </list>
         /// </summary>
         public static void Configure(Material material, Color albedo,
-            float bandCount = DefaultBandCount, float outlinePixels = DefaultOutlinePixels)
+            float bandCount = DefaultBandCount, float outlinePixels = DefaultOutlinePixels,
+            float aaScale = 1f)
         {
             if (material == null)
                 return;
@@ -168,7 +173,7 @@ namespace PirateCrew.Rendering.Pixelart
             material.SetFloat("_DitherStrength", DefaultDitherStrength);
             material.SetFloat("_NormalEdgeLevel", NormalEdgeLevel);
             material.SetFloat("_NormalEdgeThreshold", NormalEdgeThreshold);
-            material.SetFloat("_AAScale", 1f);
+            material.SetFloat("_AAScale", aaScale);
             material.SetFloat("_Smoothness", 0f);
             material.SetFloat("_Metallic", 0f);
             material.SetColor("_RimLightColor", Color.black);
