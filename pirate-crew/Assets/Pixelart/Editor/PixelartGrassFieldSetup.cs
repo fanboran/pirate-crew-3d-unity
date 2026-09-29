@@ -68,7 +68,16 @@ namespace PirateCrew.EditorTools
         /// <summary>遮罩图集：64 宽 × 32 高。下行（uv.y 0-0.5）= 4 种常规簇；
         /// 上行（0.5-1）= 3 种高株 accent。逐簇随机选格 + 随机水平镜像。</summary>
         const int AtlasW = 64;
-        const int AtlasH = 32;
+        const int AtlasH = 80;
+
+        /// <summary>遮罩图集的瓦片表（ox, oy, size）：常规簇 16×16 × 4；高株 accent
+        /// **32×32 × 3**——accent 四边形是常草的 2 倍大（0.6m），分辨率同步加倍才能让
+        /// 两者的纹素世界尺寸一致（r23 教训：同一张 16 纹素图拉两倍 = accent 全是大颗粒）。</summary>
+        static readonly (int ox, int oy, int size)[] Tiles =
+        {
+            (0, 0, 16), (16, 0, 16), (32, 0, 16), (48, 0, 16),   // 常规 4 变体
+            (0, 16, 32), (32, 16, 32), (0, 48, 32),              // 高株 accent 3 变体
+        };
 
         [MenuItem("PirateCrew/Pixelart/烘焙纯草坪验收场景")]
         public static void BuildAll()
@@ -224,17 +233,17 @@ namespace PirateCrew.EditorTools
             for (int i = 0; i < px.Length; i++)
                 px[i] = new Color32(0, 0, 0, 0);
 
-            // 常规簇 4 变体（下行，每格 16×16）：叶数/高矮/撇向各异——逐簇随机选格，
-            // 叠加随机水平镜像 ⇒ 4 变体 × 2 镜像 × 3 档色 = 24 种组合，治"个个一模一样"。
+            // 常规簇 4 变体（16×16）：叶数/高矮/撇向各异——逐簇随机选格，
+            // 叠加随机水平镜像 ⇒ 4 变体 × 2 镜像 × 3 档色 × 3 tint = 72 种组合。
             DrawTuft(px, 0, 0, new[] { (7, 13, 0, 3), (4, 9, -3, 2), (10, 10, 3, 2), (6, 7, -1, 1), (9, 8, 1, 1) });
             DrawTuft(px, 16, 0, new[] { (8, 11, 0, 2), (5, 8, -2, 2), (11, 9, 2, 2) });
             DrawTuft(px, 32, 0, new[] { (6, 12, -1, 2), (9, 12, 1, 2), (3, 7, -3, 2), (12, 8, 3, 2), (8, 6, 0, 1) });
             DrawTuft(px, 48, 0, new[] { (8, 14, 0, 2), (5, 10, -2, 1), (11, 11, 2, 1), (8, 7, 0, 1) });
 
-            // 高株 accent 3 变体（上行 y=16，更高更瘦，占前 3 格）。
-            DrawTuft(px, 0, 16, new[] { (8, 15, 0, 2), (5, 12, -3, 1), (10, 12, 3, 1) });
-            DrawTuft(px, 16, 16, new[] { (7, 15, -1, 2), (10, 13, 2, 1) });
-            DrawTuft(px, 32, 16, new[] { (8, 15, 0, 1), (6, 13, -2, 1), (11, 13, 2, 1), (8, 10, 0, 1) });
+            // 高株 accent 3 变体（32×32，纹素密度与常草一致）：更高更瘦，参数整体 ×2。
+            DrawTuft(px, 0, 16, new[] { (14, 30, 0, 4), (9, 24, -6, 2), (20, 24, 6, 2) });
+            DrawTuft(px, 32, 16, new[] { (13, 30, -2, 4), (20, 26, 4, 2) });
+            DrawTuft(px, 0, 48, new[] { (16, 30, 0, 2), (12, 26, -4, 2), (22, 26, 4, 2), (16, 20, 0, 1) });
 
             var texture = new Texture2D(AtlasW, AtlasH, TextureFormat.RGBA32, false)
             {
@@ -367,11 +376,11 @@ namespace PirateCrew.EditorTools
                     bool mirror = SceneArtHash.Hash01(Seed, i, 103) < 0.5f;
                     int tint = Mathf.Min((int)(SceneArtHash.Hash01(Seed, i, 107) * TintLevels.Length),
                         TintLevels.Length - 1);
-                    float cell = 16f / AtlasW;            // 一格宽（uv.x，图集横排每格 16 纹素）
-                    float uvX0 = variant * cell;
-                    float uvX1 = uvX0 + cell;
-                    float uvY0 = accent ? 0.5f : 0f;
-                    float uvY1 = accent ? 1f : 0.5f;
+                    var (tox, toy, tsize) = Tiles[accent ? Variants + variant : variant];
+                    float uvX0 = (float)tox / AtlasW;
+                    float uvX1 = (float)(tox + tsize) / AtlasW;
+                    float uvY0 = (float)toy / AtlasH;
+                    float uvY1 = (float)(toy + tsize) / AtlasH;
                     float size = QuadSize * (accent ? 2f : 1f);
 
                     var key = (IslandBuffersBand(p), tint);

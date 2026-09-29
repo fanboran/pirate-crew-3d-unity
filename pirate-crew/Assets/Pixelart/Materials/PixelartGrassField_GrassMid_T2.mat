@@ -44,7 +44,7 @@ Material:
     - _DitherMode: 0
     - _DitherPatternSize: 4
     - _DitherStrength: 0.5
-    - _MainLightLevel: 4
+    - _MainLightLevel: 3
     - _Metallic: 0
     - _NormalEdgeLevel: -1
     - _NormalEdgeThreshold: 1
