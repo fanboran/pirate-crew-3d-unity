@@ -57,12 +57,13 @@ namespace PirateCrew.Rendering.Pixelart
         public const float DefaultBandCount = 4f;
 
         /// <summary>
-        /// 抖动默认 = **Bayer 4×4、幅度 0.5**（创始人 2026-09-30 拍板保留撕边质感；
-        /// 2026-09-29 曾随调试场定档带入，2026-09-30 早间因「描边/色块分离」报告回退过一次，
-        /// 同日创始人看后拍板要抖动，重新开回。分离观感若再现，逐关/逐材质走面板与装配器参数微调，
-        /// 不再动全仓默认）。
+        /// 抖动默认 = **Bayer 4×4、幅度 0.21**（创始人 2026-09-30 定值：撕边质感保留、压住
+        /// 「整个亮面棋盘格」的观感；同日曾定 0.5，但旧施加式下 0.5 实际超过量化边界间距的一半，
+        /// 相邻翻转带互相重叠、全表面处处翻档——幅度单位已重定标为「强度 1 = ±0.5 个量化边界
+        /// 间距」，见 `PixelartShading.shader` 的 DiffuseShading）。分离观感若再现，
+        /// 逐关/逐材质走面板与装配器参数微调，不再动全仓默认。
         /// </summary>
-        public const float DefaultDitherStrength = 0.5f;
+        public const float DefaultDitherStrength = 0.21f;
 
         /// <summary>
         /// 法线边加成档（**负 = 压暗**）。口径照参考库的 `_EdgeLevel` 默认值与演示非金属件 = -1：
