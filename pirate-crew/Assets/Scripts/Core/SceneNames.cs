@@ -1,3 +1,5 @@
+using System;
+
 namespace PirateCrew.Core
 {
     /// <summary>
@@ -40,10 +42,15 @@ namespace PirateCrew.Core
         /// 场景名 → 场景资产路径（<c>Battle</c> → <c>Assets/Scenes/Game/Battle.unity</c>；
         /// <c>Pixelart*</c> 前缀 → <see cref="PixelartFolder"/>）。目录布局的唯一出处，
         /// 编辑器装配/构建链与契约测试共用本方法。
+        /// null / 空白场景名直接抛参数异常——拼出的 <c>Assets/Scenes/Game/.unity</c> 不是任何
+        /// 已登记场景，静默放行只会把"忘传场景名"推迟到加载失败的运行期才现形。
         /// </summary>
         public static string PathOf(string sceneName)
         {
-            var folder = sceneName != null && sceneName.StartsWith("Pixelart")
+            if (string.IsNullOrWhiteSpace(sceneName))
+                throw new ArgumentException("场景名不能为 null / 空白；可用值见 SceneNames 的常量登记表。", nameof(sceneName));
+
+            var folder = sceneName.StartsWith("Pixelart")
                 ? PixelartFolder
                 : GameFolder;
             return folder + "/" + sceneName + ".unity";

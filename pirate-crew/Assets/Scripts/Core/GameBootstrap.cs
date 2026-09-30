@@ -122,7 +122,7 @@ namespace PirateCrew.Core
             return invoked;
         }
 
-        /// <summary>清空发现缓存（测试隔离用；正常启动不需要）。</summary>
+        /// <summary>清空发现缓存（唯一入口 ResetStatics 阶段 + 测试隔离用）。</summary>
         public static void ResetDiscovery()
         {
             _discovered.Clear();

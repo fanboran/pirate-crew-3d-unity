@@ -13,6 +13,11 @@ namespace PirateCrew.Campaign
     ///   与 <c>CrewManagementSaveCodec</c> 同一思路：数据量小、JsonUtility 不支持 Dictionary，
     ///   用分隔符文本表达，纯 C# 可无头断言，且不需要改 Core。
     ///   解码对空段/非法段一律跳过（坏档不影响启动）。
+    ///
+    /// 【与 CrewManagementSaveCodec 的分歧：键存在但值为空串】本类按**清空进度**执行
+    ///   （Read 里 raw 非 null 即 Reset）——因为本模块 Write 空字典就写出空串，写读对称：
+    ///   空串 = "星数就是零"这份数据本身，照数据执行。而船员名册模块对空串**保持现状**，
+    ///   理由见该类注释（它的名册永远写不出空串）。两侧语义有意不同，勿"顺手对齐"。
     /// </summary>
     public static class CampaignSaveCodec
     {

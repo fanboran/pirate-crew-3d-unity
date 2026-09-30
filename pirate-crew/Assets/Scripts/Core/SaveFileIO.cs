@@ -29,14 +29,36 @@ namespace PirateCrew.Core
 
         readonly string _rootPath;
 
+        /// <summary>
+        /// 槽位号合法域下界（合法域 = [0, +∞)，无上限）。
+        /// 依据：本工程实际使用的槽位号全部非负——0 = 自动存档（<see cref="SaveManager.AutoSaveSlot"/>），
+        /// 1 起手动档（如 <c>CampaignApi.ProgressSlot = 1</c>），9 = 设置档
+        /// （<c>AudioSettingsStore.SettingsSlot</c> / <c>VideoSettingsStore.SettingsSlot</c>）；
+        /// 负号拼出的 <c>slot_-1.json</c> 是没有任何读写方会碰的孤儿文件名。
+        /// </summary>
+        public const int MinSlot = 0;
+
         public SaveFileIO(string rootPath)
         {
-            _rootPath = rootPath ?? string.Empty;
+            // null / 空串拒绝在构造期：Path.Combine(null/空串, …) 会静默回落进程当前目录（CWD），
+            // 编辑器、批处理、无头验证台的 CWD 各不相同——存档会散落到随机工作区，
+            // 且只有玩家发现丢档时才现形。宁可构造即抛，不留"看似可用"的实例。
+            if (rootPath == null)
+                throw new ArgumentNullException(nameof(rootPath), "存档根目录不能为 null。");
+            if (rootPath.Length == 0)
+                throw new ArgumentException("存档根目录不能为空串（会静默落进程当前目录）。", nameof(rootPath));
+
+            _rootPath = rootPath;
         }
 
-        /// <summary>槽位文件路径：slot_{n}.json。</summary>
+        /// <summary>槽位文件路径：slot_{n}.json。槽位号界外（负数）即抛，不做静默兜底。</summary>
         public string GetSlotPath(int slot)
         {
+            if (slot < MinSlot)
+                throw new ArgumentOutOfRangeException(nameof(slot), slot,
+                    "槽位号必须 ≥ " + MinSlot + "（0 = 自动存档，1 起手动/设置档）；"
+                    + "负槽位号只会拼出无人读写的孤儿文件名，宁抛不静默。");
+
             return Path.Combine(_rootPath, "slot_" + slot + ".json");
         }
 

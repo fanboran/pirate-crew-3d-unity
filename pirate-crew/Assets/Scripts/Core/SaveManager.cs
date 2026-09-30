@@ -49,7 +49,12 @@ namespace PirateCrew.Core
         bool _autoSaveEnabled;
         float _autoSaveInterval = DefaultAutoSaveInterval;
 
-        /// <summary>全局访问入口（由 Bootstrapper 创建本组件后可用）。</summary>
+        /// <summary>
+        /// 全局访问入口（由 Bootstrapper 创建本组件后可用）。
+        /// 【定位】与 <see cref="Services"/> 注册表双轨并存：本属性是**便捷过渡入口**，
+        /// 权威定位器是 <see cref="Services"/>（Bootstrapper 已把本组件 Register 进注册表）——
+        /// 新代码优先经 Services 解析，本属性仅为存量调用点保留。
+        /// </summary>
         public static SaveManager Instance { get; private set; }
 
         // 【存件·自动存档链（代码审计登记）】EnableAutoSave → AutoSaveRoutine → TriggerAutoSave

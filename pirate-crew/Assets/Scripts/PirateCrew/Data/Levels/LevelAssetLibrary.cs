@@ -148,6 +148,9 @@ namespace PirateCrew.Data
 
             _source = Source.Empty;
             _diagnostic = "未取到任何关卡数据（Unity 资产清单缺失，且 golden JSON 不可读）";
+            // 静默落 Empty 会把"数据没装上"（构建配置错误）伪装成"0 关卡的合法空库"，
+            // 故障一路推迟到选关页空白才现形——必须当场留痕（EnsureLoaded 每进程只走到这里一次，不刷日志）。
+            global::PirateCrew.Core.Log.Error("[LevelAssetLibrary] " + _diagnostic);
         }
 
         /// <summary>
@@ -269,6 +272,16 @@ namespace PirateCrew.Data
         {
             if (payload == null)
                 return;
+
+            if (_levelByNumber.ContainsKey(payload.levelNumber))
+            {
+                // 与 AddMap 同款吵闹纪律：关卡号是选关/结算/按号线取数据的键，重复号会让
+                // 后到者顶掉号索引里的先到者，而 _levels 列表里两者并存——按号线取与按列表
+                // 遍历将看到不同的数据集，必须留痕而不是静默顶掉。
+                global::PirateCrew.Core.Log.Warn("[LevelAssetLibrary] 关卡号重复: " + payload.levelNumber
+                    + "（assetName=" + payload.assetName + "），后到者将顶掉号索引里的先到者");
+            }
+
             _levels.Add(payload);
             _levelByNumber[payload.levelNumber] = payload;
         }

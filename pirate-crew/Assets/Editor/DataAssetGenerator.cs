@@ -24,6 +24,8 @@ namespace PirateCrew.EditorTools
     /// 【幂等】同名资产已存在时复用该实例并覆盖字段，不产生重名副本。
     /// 【单一来源】数值全部从 Catalog / BalanceConfig.Defaults 读取并调用各自的 Apply* 方法灌入，
     ///             本生成器内不出现第二份硬编码数值副本。
+    /// 【投影资产】生成的这批数值 SO 是运行时零消费的**投影**：真值在 WeaponCatalog / CrewCatalog
+    ///             等纯 C# 目录类里，改这里的 .asset 不改任何运行时行为——要调数值请改 Catalog。
     /// </summary>
     public static class DataAssetGenerator
     {

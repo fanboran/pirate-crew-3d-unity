@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace PirateCrew.CrewManagement
 {
@@ -17,6 +18,12 @@ namespace PirateCrew.CrewManagement
         readonly List<string> _unlocked = new List<string>();
         readonly List<string> _active = new List<string>();
 
+        // 内部列表的只读包装（活视图：内部增删后视图自动同步）。
+        // 【为什么不止靠 IReadOnlyList】IReadOnlyList 只是编译期约定，调用方随手一个强转
+        // (List<string>) 就能绕过去改内部状态；ReadOnlyCollection 是运行期防线，强转/写操作直接抛。
+        readonly ReadOnlyCollection<string> _unlockedView;
+        readonly ReadOnlyCollection<string> _activeView;
+
         /// <summary>编成上限。</summary>
         public int MaxSize { get; }
 
@@ -29,14 +36,16 @@ namespace PirateCrew.CrewManagement
         public Roster(int maxSize = CrewRosterCatalog.MaxRosterSize)
         {
             MaxSize = maxSize > 0 ? maxSize : CrewRosterCatalog.MaxRosterSize;
+            _unlockedView = new ReadOnlyCollection<string>(_unlocked);
+            _activeView = new ReadOnlyCollection<string>(_active);
             Reset();
         }
 
-        /// <summary>已拥有（已解锁）船员 id 列表（只读视图，勿改）。</summary>
-        public IReadOnlyList<string> Unlocked => _unlocked;
+        /// <summary>已拥有（已解锁）船员 id 列表（只读视图，包装内部列表，外部写操作会被拒绝）。</summary>
+        public IReadOnlyList<string> Unlocked => _unlockedView;
 
-        /// <summary>当前编成阵容（只读视图，勿改）。</summary>
-        public IReadOnlyList<string> Active => _active;
+        /// <summary>当前编成阵容（只读视图，包装内部列表，外部写操作会被拒绝）。</summary>
+        public IReadOnlyList<string> Active => _activeView;
 
         /// <summary>已拥有船员数。</summary>
         public int UnlockedCount => _unlocked.Count;

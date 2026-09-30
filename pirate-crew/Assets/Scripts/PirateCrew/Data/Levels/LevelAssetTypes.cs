@@ -43,9 +43,6 @@ namespace PirateCrew.Data
         /// <summary>关卡资产目录（工程内相对路径，无头读取 golden JSON 的根）。</summary>
         public const string LevelGoldenDir = "Assets/Data/Levels/_golden";
 
-        /// <summary>海图资产目录。</summary>
-        public const string WorldMapGoldenDir = "Assets/Data/WorldMaps/_golden";
-
         /// <summary>
         /// 资源清单资产的 <c>Resources.Load</c> 路径（Unity 侧唯一加载入口；
         /// 资产落 <c>Assets/Data/Levels/Resources/LevelCatalog.asset</c>，Resources 路径不含目录）。

@@ -61,6 +61,12 @@ namespace PirateCrew.Core
             Services.Clear();
             CommandLineOptions.Reset();
 
+            // GameBootstrap 的 _discovered/_methods 反射缓存也跨播放存活，必须一并清掉：
+            // 关闭 Domain Reload 时缓存里握着的是上一域程序集的 MethodInfo，原样复用会把
+            // 本局的接线调用打到已失效的旧代码上（或直接 TargetInvocationException）。
+            // 清后由下面的 RunPhase 重新 Scan，重建的缓存才指向当前域。
+            GameBootstrap.ResetDiscovery();
+
             GameBootstrap.RunPhase(GameBootstrapPhase.ResetStatics);
         }
     }

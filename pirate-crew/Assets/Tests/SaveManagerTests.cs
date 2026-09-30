@@ -154,6 +154,25 @@ namespace PirateCrew.Tests
         }
 
         [Test]
+        public void SaveFileIO_NegativeSlot_Throws()
+        {
+            // 槽位合法域 = [0, ∞)（SaveFileIO.MinSlot：0 自动档、1 起手动/设置档）；
+            // 负号只会拼出无人读写的 slot_-1.json 孤儿文件，界外必须抛而不是静默拼路径。
+            Assert.Throws<ArgumentOutOfRangeException>(() => _io.GetSlotPath(-1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => _io.SaveSlot(-1, MakeData("k", "v")));
+            Assert.Throws<ArgumentOutOfRangeException>(() => _io.LoadSlot(-1));
+        }
+
+        [Test]
+        public void SaveFileIO_NullOrEmptyRootPath_Throws()
+        {
+            // null / 空串根目录会让 Path.Combine 静默落进程当前目录，存档散落到随机工作区——
+            // 构造期就抛，不留"看似可用"的实例。
+            Assert.Throws<ArgumentNullException>(() => new SaveFileIO(null));
+            Assert.Throws<ArgumentException>(() => new SaveFileIO(string.Empty));
+        }
+
+        [Test]
         public void SaveFileIO_Overwrite_CreatesBackupAndKeepsLatest()
         {
             Assert.That(_io.SaveSlot(1, MakeData("k", "old")), Is.True);

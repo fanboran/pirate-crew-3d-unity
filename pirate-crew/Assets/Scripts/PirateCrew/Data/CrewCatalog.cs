@@ -83,7 +83,9 @@ namespace PirateCrew.Data
     /// <summary>
     /// 海盗属性与种类名录的纯 C# 静态目录（真值来源）。
     ///
-    /// 【出处】静态逆向文档：
+    /// 【出处】静态逆向文档
+    ///   <c>docs/项目/归档/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md</c>
+    ///   （下文各条「§n」均指该文档章节，已归档：只作数值出处，不是设计依据）：
     ///   §4.1 角色属性（health/extents/weight/friction/bounce/twangMaxForce/dragRange/dragOffset/luck）
     ///   §4.2 海盗种类导出符号
     ///   §4.3 队伍归属硬编码规则与坐标换算

@@ -16,6 +16,12 @@ namespace PirateCrew.CrewManagement
     /// 【安全性】键值两侧只允许出现名录里的 id（<c>[a-zA-Z]</c>）与整数，
     ///   分隔符 <c>|</c> / <c>:</c> 不会出现在 id 里，故无需转义；
     ///   解码时对空段、非法段一律跳过（不抛异常），保证坏档不会让游戏起不来。
+    ///
+    /// 【与 CampaignSaveCodec 的分歧：键存在但值为空串】名册侧**保持现状**不清空
+    ///   （Read 里空串视为"没有可用数据"）——因为名册经 Reset 后至少有初始船员，
+    ///   本模块永远写不出空名册，读到的空串必是异常/外来档，保守处理优于把玩家名册清掉。
+    ///   而战役进度模块对空串按**清空进度**执行（它的 Write 空字典就写空串，写读对称），
+    ///   理由见该类注释。两侧语义有意不同，勿"顺手对齐"。
     /// </summary>
     public static class CrewManagementSaveCodec
     {
@@ -36,6 +42,8 @@ namespace PirateCrew.CrewManagement
 
         /// <summary>
         /// 把名册与经验写进存档数据（三个键整体覆盖）。
+        /// progression 为 null 即抛（与 data/roster 同一口径）：静默放过会让 <see cref="JoinXp"/>
+        /// 写出空串，读档时经验键存在且为空 → 经验账本被清零——存档动作"成功"却丢数据，宁抛不静默。
         /// </summary>
         public static void Write(SaveData data, Roster roster, CrewProgression progression)
         {
@@ -43,6 +51,8 @@ namespace PirateCrew.CrewManagement
                 throw new ArgumentNullException(nameof(data));
             if (roster == null)
                 throw new ArgumentNullException(nameof(roster));
+            if (progression == null)
+                throw new ArgumentNullException(nameof(progression));
 
             data.SetData(UnlockedKey, JoinIds(roster.UnlockedCopy()));
             data.SetData(ActiveKey, JoinIds(roster.ActiveCopy()));

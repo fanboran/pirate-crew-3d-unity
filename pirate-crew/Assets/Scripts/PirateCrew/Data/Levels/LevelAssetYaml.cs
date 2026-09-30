@@ -286,6 +286,8 @@ namespace PirateCrew.Data
         static string WriteMonoBehaviour(
             string assetName, string scriptGuid, IReadOnlyList<KeyValuePair<string, Node>> fields)
         {
+            AssertAsciiSafeAssetName(assetName);
+
             var sb = new StringBuilder(4096);
             sb.Append("%YAML 1.1\n");
             sb.Append("%TAG !u! tag:unity3d.com,2011:\n");
@@ -308,6 +310,38 @@ namespace PirateCrew.Data
                 Emit(sb, fields[i].Value, 4);
             }
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// assetName 的 ASCII 安全断言（约定出处：<see cref="LevelAssetPayload.assetName"/>
+        /// 的字段注释——它是 <c>.asset</c> 文件名 /
+        /// <c>m_Name</c> / golden JSON 文件名三处共用的锚点，必须是安全 ASCII）。
+        ///
+        /// 【为什么只断言、不转义】<c>m_Name</c> 行是裸拼不走转义，而 assetName 同时被迁移器
+        /// 拿去拼 <c>.asset</c> 文件路径、被 golden JSON 侧用作文件名——若在这里转义，
+        /// m_Name 与文件系统/JSON 文件名立即分叉，"资产文本 == golden JSON" 的逐字节门禁
+        /// 就断了。所以坏名字必须在源头炸出来、改 golden JSON 重跑，而不是静默转出一个
+        /// 三处对不上的名字。
+        /// </summary>
+        static void AssertAsciiSafeAssetName(string assetName)
+        {
+            if (assetName == null || assetName.Length == 0)
+                throw new ArgumentException("assetName 不能为 null / 空串（m_Name 与资产文件名的锚点）。", nameof(assetName));
+
+            for (int i = 0; i < assetName.Length; i++)
+            {
+                char c = assetName[i];
+                bool safe = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                            || (c >= '0' && c <= '9') || c == '_' || c == '-';
+                if (!safe)
+                {
+                    throw new ArgumentException(
+                        "assetName 含不安全字符 '" + c + "'（仅允许 ASCII 字母/数字/下划线/连字符）。"
+                        + "中文等显示用文本请放 payload.displayName——assetName 是文件名锚点，"
+                        + "请改 golden JSON 的 assetName 字段后重跑迁移器，不要在生成侧转义。",
+                        nameof(assetName));
+                }
+            }
         }
 
         /// <summary>递归发射：映射的每个字段一行；序列的每项以「- 」起头。</summary>

@@ -75,7 +75,7 @@ namespace PirateCrew.Data
         int teamIndex;
 
         [Header("初始武器")]
-        [SerializeField, Tooltip("初始武器栈；count=10 表示无限。关卡内每单位的实际配置见 LevelUnit.initialWeapons。")]
+        [SerializeField, Tooltip("初始武器栈（生成器恒灌空栈，真值在关卡侧编成——见 LevelUnit.initialWeapons）；count=10 表示无限。")]
         List<WeaponStack> initialWeapons = new List<WeaponStack>();
 
         public string CrewId => crewId;

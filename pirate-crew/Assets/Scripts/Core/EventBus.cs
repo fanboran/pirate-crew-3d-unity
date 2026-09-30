@@ -37,7 +37,8 @@ namespace PirateCrew.Core
     /// 【空载荷哨兵】无载荷事件用非泛型 <see cref="Event"/> 频道 + 无参 <c>Action</c> 订阅；
     ///   <see cref="NoPayload"/> 哨兵类型仅用于内部统一表示"无载荷"。
     ///
-    /// 【遍历中订阅/退订】回调里改订阅表不会破坏本轮遍历（快照语义）。
+    /// 【遍历中订阅/退订】回调里改订阅表不会破坏本轮遍历（快照语义）；推论：回调中**退订**
+    ///   的另一订阅者本轮仍会收到这次投递（投递前快照已建好，退订只影响下一轮）。
     ///
     /// 【静态残留】Unity 关闭 Domain Reload 后静态字段不会自动清空；清空动作由唯一入口
     ///   <see cref="GameEntryPoint"/> 调用 <see cref="ResetForNewSession"/> 完成（见该类注释）。
