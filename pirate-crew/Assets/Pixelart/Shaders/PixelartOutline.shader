@@ -238,8 +238,8 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                             if (closerThanRight < 1 || (connectedToRight >= 1 && centerIsGround))
                                 markerGate = 1.0;
                         }
-                        else if (connectedToRight < 1)
-                            markerGate = 1.0;   // ② 接缝
+                        else if (connectedToRight < 1 && closerThanRight < 1)
+                            markerGate = 1.0;   // ② 接缝（只落更远一侧——双向出墨曾使头颈交界 2px）
                     }
                 }
 
@@ -258,8 +258,8 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                             if (closerThanLeft < 1 || (connectedToLeft >= 1 && centerIsGround))
                                 markerGate = 1.0;
                         }
-                        else if (connectedToLeft < 1)
-                            markerGate = 1.0;   // ② 接缝
+                        else if (connectedToLeft < 1 && closerThanLeft < 1)
+                            markerGate = 1.0;   // ② 接缝（只落更远一侧——双向出墨曾使头颈交界 2px）
                     }
                 }
 
@@ -278,8 +278,8 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                             if (closerThanUp < 1 || (connectedToUp >= 1 && centerIsGround))
                                 markerGate = 1.0;
                         }
-                        else if (connectedToUp < 1)
-                            markerGate = 1.0;   // ② 接缝
+                        else if (connectedToUp < 1 && closerThanUp < 1)
+                            markerGate = 1.0;   // ② 接缝（只落更远一侧——双向出墨曾使头颈交界 2px）
                     }
                 }
 
@@ -298,8 +298,8 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                             if (closerThanDown < 1 || (connectedToDown >= 1 && centerIsGround))
                                 markerGate = 1.0;
                         }
-                        else if (connectedToDown < 1)
-                            markerGate = 1.0;   // ② 接缝
+                        else if (connectedToDown < 1 && closerThanDown < 1)
+                            markerGate = 1.0;   // ② 接缝（只落更远一侧——双向出墨曾使头颈交界 2px）
                     }
                 }
 
