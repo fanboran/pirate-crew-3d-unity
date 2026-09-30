@@ -143,7 +143,7 @@ namespace PirateCrew.Rendering.Pixelart
                 int resultGroupsX = (artWidth + kThreadGroupSize - 1) / kThreadGroupSize;
                 int resultGroupsY = (artHeight + kThreadGroupSize - 1) / kThreadGroupSize;
 
-                // Flood 次数：v3 是 RoundToInt(DownSamplingScale × 1.5)。pixelScale = 3 ⇒ 4 次。
+                // Flood 次数：v3 是 RoundToInt(DownSamplingScale × 1.5)。pixelScale = 2 ⇒ 3 次。
                 int floodIterations = Mathf.Max(1, Mathf.RoundToInt(rig.PixelScale * m_Owner.iterationScale));
 
                 CommandBuffer cmd = CommandBufferPool.Get();

@@ -7,7 +7,7 @@ namespace PirateCrew.Rendering.Pixelart
     /// <summary>
     /// **像素化着色路径**的相机装配（挂在本场景的相机上，一场景一个）。
     ///
-    /// 【装配出什么】（接口契约：docs/技术/渲染/像素化着色路径-P4P5接口契约.md §0/§1）
+    /// 【装配出什么】（接口契约：docs/技术/渲染/像素化着色路径/接口契约-P4P5.md §0/§1）
     /// <list type="bullet">
     ///   <item><b>Cast 相机</b>：本相机的**子物体、local 恒等**——自动继承主相机的 Transform，
     ///         相机怎么动它怎么动，不需要任何接线（v3 `SloanePixelartCamera.cs:283-285` 同一手法）。
@@ -38,14 +38,14 @@ namespace PirateCrew.Rendering.Pixelart
         const string OverlayCameraName = "Pixelart Overlay Camera";
 
         [Header("低分辨率域")]
-        [Tooltip("像素化档位 = 一个艺术像素占几个**屏幕**像素（整数放大倍数，锁死）。3 = 1920×1080 下 640×360。")]
+        [Tooltip("像素化档位 = 一个艺术像素占几个**屏幕**像素（整数放大倍数，锁死）。2 = 1920×1080 下 960×540。")]
         [Min(1)] public int pixelScale = PixelScaleDefault;
 
         /// <summary>像素比例档下限（1:2）——创始人 2026-09-24 裁决：滚轮只在 1:2–1:5 间步进。</summary>
         public const int PixelScaleMin = 2;
         /// <summary>像素比例档上限（1:5）。</summary>
         public const int PixelScaleMax = 5;
-        /// <summary>默认档（1:3）。</summary>
+        /// <summary>默认档（1:2）。</summary>
         public const int PixelScaleDefault = 2;
 
         /// <summary>
@@ -132,8 +132,9 @@ namespace PirateCrew.Rendering.Pixelart
         int _allocatedWidth;
         int _allocatedHeight;
 
-        // 屏幕 → 像素网格的映射（日志与整数性判断用）。
-        int _chosenScale = 3;
+        // 屏幕 → 像素网格的映射（日志与整数性判断用）。初值只是字段兜底：
+        // OnEnable → EnsureBuffers → ComputeTargetSize 当帧就用 pixelScale 覆写它。
+        int _chosenScale = 2;
         int _screenWidth;
         int _screenHeight;
         int _residualX;

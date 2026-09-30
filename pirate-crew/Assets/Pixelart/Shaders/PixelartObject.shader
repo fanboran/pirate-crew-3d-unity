@@ -8,7 +8,9 @@
 //   SV_Target2  normal1   切线空间法线贴图→世界法线（没有贴图/没有切线时 = 平滑法线）
 //                         —— 着色用的法线
 //   SV_Target3  physical  r = 光滑度  g = 金属度
-//   SV_Target4  shape     r = 优先级（本仓未移植优先级仲裁，恒 0）  b = 法线边阈值  a = AA 缩放
+//   SV_Target4  shape     r = 优先级（1 = 可行走地面 / 0 = 遮挡物——描边出线规则①的 ground
+//                         分支据它判接地线落地面侧；语义以本文件 fragment 写 `output.shape`
+//                         的 `_Priority` 为准：工厂默认 1、剪影贴片 0）  b = 法线边阈值  a = AA 缩放
 //   SV_Target5  palette   r = 主光档数  g = 抖动标量（0..1，中心 0.5）  b = 边光档数
 //                         a = applyOutline（逐物体描边开关；**屏幕空间描边那一趟读它**）
 //   SV_Target6  rimlight  rgb = 逐物体边缘光色
@@ -38,10 +40,12 @@ Shader "PirateCrew/Pixelart/PixelartObject"
 {
     Properties
     {
+        // 下面两个默认值须与 PixelartMaterialFactory 的 DefaultBandCount / DefaultDitherStrength
+        // 对齐——绕过工厂手配的材质拿的就是这里的兜底值，两处各写一份就会出图与实机观感对不上。
         _BaseColor            ("亮部色（albedo）", Color) = (0.93, 0.85, 0.68, 1.0)
-        _MainLightLevel       ("色带档数（1 = 不量化；逐物体可调）", Range(1.0, 8.0)) = 3.0
+        _MainLightLevel       ("色带档数（1 = 不量化；逐物体可调）", Range(1.0, 8.0)) = 4.0
         _DitherMode           ("抖动图案 0=Bayer4 1=1-bit密度图案（v3）", Range(0.0, 1.0)) = 0.0
-        _DitherStrength       ("抖动幅度（占一个色带步长的比例；0 = 观感上等于关）", Range(0.0, 1.0)) = 0.5
+        _DitherStrength       ("抖动幅度（占一个色带步长的比例；0 = 观感上等于关）", Range(0.0, 1.0)) = 0.21
         _DitherPattern        ("1-bit 密度图案（v3 口径；需 Point/Repeat 导入）", 2D) = "gray" {}
         _DitherPatternSize    ("图案边长（纹素）：4/6/8/16，须与图案资产一致", Float) = 4.0
 
@@ -58,7 +62,7 @@ Shader "PirateCrew/Pixelart/PixelartObject"
         _Cutoff               ("剪影裁切阈值（alpha &lt; 阈值的纹素整个像素不要）", Range(0.0, 1.0)) = 0.5
 
         _RimLightColor        ("逐物体边缘光色（黑 = 无边缘光）", Color) = (0, 0, 0, 1)
-        _Priority             ("优先级（本仓未移植优先级仲裁，保留）", Float) = 0.0
+        _Priority             ("优先级（1 = 可行走地面 / 0 = 遮挡物，描边接触线判定用）", Float) = 0.0
         _OutlinePixels        ("描边开关（&gt;0 ⇒ 本物体的 applyOutline 置位）", Range(0.0, 1.0)) = 1.0
 
         _SnapToPixelGrid      ("物体级像素吸附（1 = 开）", Range(0.0, 1.0)) = 1.0
@@ -124,10 +128,12 @@ Shader "PirateCrew/Pixelart/PixelartObject"
             TEXTURE2D(_BumpMap);        SAMPLER(sampler_BumpMap);
             TEXTURE2D(_BaseMap);        SAMPLER(sampler_BaseMap);        // Point/Clamp 在贴图导入侧定
 
-            // 全局：1 艺术像素的世界尺寸（BeforeRender / rig 下发）。
-            float _PixelartUnitSize = 0.0778;
-            // 全局：一个艺术像素占几个细像素（= pixelScale）。抖动取块坐标要用。
-            float _PixelartSamplingScale = 3.0;
+            // 全局：1 艺术像素的世界尺寸（须由 rig / BeforeRender 每帧下发，此处仅为兜底；
+            // 兜底值取 rig 的 worldPerPixel 默认 0.07778——可见米数是美术锚，不随档位变）。
+            float _PixelartUnitSize = 0.07778;
+            // 全局：一个艺术像素占几个细像素（= pixelScale，须由 rig / BeforeRender 每帧下发，
+            // 此处仅为兜底；兜底档 = 现役默认 k=2）。抖动取块坐标要用。
+            float _PixelartSamplingScale = 2.0;
 
             // 4×4 Bayer，中点归一化 (m+0.5)/16（调研-赛璐璐 §4：直接 /16 会整体偏亮）。
             static const int kBayer4[16] =

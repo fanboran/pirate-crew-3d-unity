@@ -8,7 +8,7 @@
 //
 // 【怎么跑】由 `PixelartConnectivityFeature` 派发
 //   `max(1, RoundToInt(pixelScale × iterationScale))` 次（v3 是 RoundToInt(5 × 1.5) = 8；
-//   本仓 pixelScale = 3、iterationScale = 1.5 ⇒ RoundToInt(4.5) = 4）。
+//   本仓 pixelScale = 2、iterationScale = 1.5 ⇒ RoundToInt(3.0) = 3）。
 //   **每次派发前**先把当前的 Detail 整张拷成 Prev（v3 `...RendererFeature.cs:82-91` 的
 //   `GetTemporaryRT` + `Blit`，本仓换成两张常驻 RT）：本 kernel 是"读 Prev、写 Detail"，
 //   不拷贝就会在邻居之间读出半新半旧的数据（同一张纹理既当 SRV 又当 UAV 会有竞争）。

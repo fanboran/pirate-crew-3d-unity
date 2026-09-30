@@ -399,7 +399,10 @@ Shader "PirateCrew/Pixelart/PixelartShading"
                 outputColor += DiffuseShading(mainLight, normalWS, connectInfo.g, connectInfo.b,
                     normalEdgeThreshold, normalEdgeLevel, mainLightLevel, ditherOffset, 0.0, applyAA);
 
-                // ---- 附加光（v3 `:101-104`：档数 `level*0.5`、偏移 3.0）----
+                // ---- 附加光（v3 `:101-104` 同一循环）----
+                // 【实传参数以本处调用为准】色带档数恒 **3.0**、法线边加成档 **×0.5**、
+                // 抖动偏移与主光同源原样下发；v3 口径「档数 level*0.5、偏移 3.0」与本仓
+                // 实传不符，作废（口径登记见实现口径 §4 的【提案/待定】）。
                 // 【写法说明】v3 用 `LIGHT_LOOP_BEGIN(_PixelartAdditionalLightCount)`。URP 14 的这条宏
                 // 在 **Forward+** 下展开成簇式遍历（`ClusterInit(inputData...)`），而全屏 blit 没有
                 // `InputData` ⇒ 那种写法在 Forward+ 下**编不过**。本仓的 Cast 渲染器是 **Forward**
