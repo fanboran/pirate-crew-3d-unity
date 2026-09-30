@@ -199,8 +199,12 @@ namespace PirateCrew.EditorTools
             Vector3 target = view.Target;
             Vector3 dir = PixelartPilotScene.CameraDirection(
                 PixelartPilotScene.PitchDegrees, PixelartLevelScene.AzimuthFor(view));
-            camGo.transform.position = target + dir * PixelartLevelScene.CameraDistanceFor(view);
-            camGo.transform.LookAt(target);
+            // 【对准角色】创始人要求相机中心对准蓝色角色（Crew0）：头部圆弧的左右对称
+            // 取决于圆心是否落在艺术像素网格的镜像位上；画面中心 (480,270)@960×540 是
+            // 像素角点 = 镜像对称位，角色对准后头部栅格化左右对称。
+            Vector3 aimPoint = new Vector3(crewSpots[0].x, 0.66f, crewSpots[0].z);
+            camGo.transform.position = aimPoint + dir * PixelartLevelScene.CameraDistanceFor(view);
+            camGo.transform.LookAt(aimPoint);
 
             var camera = camGo.AddComponent<Camera>();
             camera.orthographic = true;

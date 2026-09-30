@@ -204,14 +204,15 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                         + (connectedToDown  < 1 && closerThanDown  < 1 ? 1.0 : 0.0);
 
 
-                // 【出线规则 v2（r25 终版）】墨只落在配对中**更远**的一侧，沿弧线绝不换边：
-                //   ① 远侧：邻域是描边物体、本像素不是、本像素不比它近 ⇒ 本像素出线
-                //      （身后草地/背景；**不看 connected**——切线带里深度差渐变使 connected 位
-                //      沿弧线翻转，墨线在内外两列间横跳，正是双宽毛边的根因，
-                //      r25 分支诊断图：RR/GG 交替即两规则各管一段）；
+                // 【出线规则 v3（r25 终版）】墨只落在配对中**更远**的一侧，沿弧线绝不换边：
+                //   ① 远侧：邻域是描边物体、本像素不是 ⇒ 本像素出线（身后草地/背景）。
+                //      相切连通（connected=1）恒出线；干净断开须本像素更近侧判 closer=0。
+                //      v2 曾整段不看 connected，但切线带边缘 closer 位仍会抖动出 1px 横跳
+                //      （v3 分支诊断实拍：正下方底弧 RR/GG 交替）；v3 把相切带的出墨侧
+                //      钉死在非物体侧，抖动源退役；
                 //   ② 接缝：两者都是描边物体且不连通（头-身交界）；
-                //   ③ 近侧接触：邻域是更近的非物体面、本像素是描边物体 ⇒ 墨落自己边界行
-                //      （角色落地那圈；更近面自己不出线）。
+                //   ③ 近侧遮挡（断开）：更近的非物体面贴着描边物体 ⇒ 墨落物体边界行
+                //      （相切连通的接触由 ① 出在非物体侧）。
                 // 填充列（两者都是物体且连通）与草地-草地：不出线。
                 // closer 位判"墨落哪边"，connected 位只判接缝——各司其职。
 
@@ -221,11 +222,18 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     bool xApplies = AppliesOutlineAt(uvX);
                     if (xApplies)
                     {
-                        if (!centerAppliesOutline) { if (closerThanRight < 1) markerGate = 1.0; }
-                        else if (connectedToRight < 1) markerGate = 1.0;
+                        if (!centerAppliesOutline)
+                        {
+                            // ① 远侧：相切连通（connected=1）恒出线——切线带里 closer 位随
+                            //    亚像素深度差抖动，正是出墨侧横跳的根源，不再依赖它；
+                            //    干净断开时须本像素更远（closer=0）。
+                            if (connectedToRight >= 1 || closerThanRight < 1) markerGate = 1.0;
+                        }
+                        else if (connectedToRight < 1)
+                            markerGate = 1.0;   // ② 接缝
                     }
-                    else if (centerAppliesOutline && closerThanRight < 1)
-                        markerFallback = 1.0;
+                    else if (centerAppliesOutline && connectedToRight < 1 && closerThanRight >= 1)
+                        markerFallback = 1.0;   // ③ 断开的近侧遮挡（更近非物体面贴着物体）
                 }
 
                 // ---- 左 ----
@@ -234,11 +242,18 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     bool xApplies = AppliesOutlineAt(uvX);
                     if (xApplies)
                     {
-                        if (!centerAppliesOutline) { if (closerThanLeft < 1) markerGate = 1.0; }
-                        else if (connectedToLeft < 1) markerGate = 1.0;
+                        if (!centerAppliesOutline)
+                        {
+                            // ① 远侧：相切连通（connected=1）恒出线——切线带里 closer 位随
+                            //    亚像素深度差抖动，正是出墨侧横跳的根源，不再依赖它；
+                            //    干净断开时须本像素更远（closer=0）。
+                            if (connectedToLeft >= 1 || closerThanLeft < 1) markerGate = 1.0;
+                        }
+                        else if (connectedToLeft < 1)
+                            markerGate = 1.0;   // ② 接缝
                     }
-                    else if (centerAppliesOutline && closerThanLeft < 1)
-                        markerFallback = 1.0;
+                    else if (centerAppliesOutline && connectedToLeft < 1 && closerThanLeft >= 1)
+                        markerFallback = 1.0;   // ③ 断开的近侧遮挡（更近非物体面贴着物体）
                 }
 
                 // ---- 上 ----
@@ -247,11 +262,18 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     bool xApplies = AppliesOutlineAt(uvX);
                     if (xApplies)
                     {
-                        if (!centerAppliesOutline) { if (closerThanUp < 1) markerGate = 1.0; }
-                        else if (connectedToUp < 1) markerGate = 1.0;
+                        if (!centerAppliesOutline)
+                        {
+                            // ① 远侧：相切连通（connected=1）恒出线——切线带里 closer 位随
+                            //    亚像素深度差抖动，正是出墨侧横跳的根源，不再依赖它；
+                            //    干净断开时须本像素更远（closer=0）。
+                            if (connectedToUp >= 1 || closerThanUp < 1) markerGate = 1.0;
+                        }
+                        else if (connectedToUp < 1)
+                            markerGate = 1.0;   // ② 接缝
                     }
-                    else if (centerAppliesOutline && closerThanUp < 1)
-                        markerFallback = 1.0;
+                    else if (centerAppliesOutline && connectedToUp < 1 && closerThanUp >= 1)
+                        markerFallback = 1.0;   // ③ 断开的近侧遮挡（更近非物体面贴着物体）
                 }
 
                 // ---- 下 ----
@@ -260,11 +282,18 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     bool xApplies = AppliesOutlineAt(uvX);
                     if (xApplies)
                     {
-                        if (!centerAppliesOutline) { if (closerThanDown < 1) markerGate = 1.0; }
-                        else if (connectedToDown < 1) markerGate = 1.0;
+                        if (!centerAppliesOutline)
+                        {
+                            // ① 远侧：相切连通（connected=1）恒出线——切线带里 closer 位随
+                            //    亚像素深度差抖动，正是出墨侧横跳的根源，不再依赖它；
+                            //    干净断开时须本像素更远（closer=0）。
+                            if (connectedToDown >= 1 || closerThanDown < 1) markerGate = 1.0;
+                        }
+                        else if (connectedToDown < 1)
+                            markerGate = 1.0;   // ② 接缝
                     }
-                    else if (centerAppliesOutline && closerThanDown < 1)
-                        markerFallback = 1.0;
+                    else if (centerAppliesOutline && connectedToDown < 1 && closerThanDown >= 1)
+                        markerFallback = 1.0;   // ③ 断开的近侧遮挡（更近非物体面贴着物体）
                 }
 
                 marker = max(markerGate, markerFallback);
