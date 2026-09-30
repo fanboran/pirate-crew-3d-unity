@@ -168,6 +168,9 @@ namespace PirateCrew.ArtReview
 
                 if (CommandLineOptions.TryGetFloat(ToolFlags.PixelartMainLightLevel, out float bandArg))
                     PixelartMainLightLevelOverride = bandArg;
+
+                if (CommandLineOptions.TryGetFloat(ToolFlags.PixelartDitherStrength, out float ditherArg))
+                    PixelartDitherStrengthOverride = Mathf.Clamp01(ditherArg);
             }
 
             // 多关卡出图验收：覆盖 BattleController 的关卡解析（见 ArtReviewCaptureOverride）。
@@ -218,6 +221,9 @@ namespace PirateCrew.ArtReview
 
         /// <summary>`-pixelartMainLightLevel` 覆盖的色带档数。</summary>
         static float PixelartMainLightLevelOverride { get; set; } = NoOverride;
+
+        /// <summary>`-pixelartDitherStrength` 覆盖的抖动幅度。</summary>
+        static float PixelartDitherStrengthOverride { get; set; } = NoOverride;
 
         IEnumerator Start()
         {
@@ -456,6 +462,8 @@ namespace PirateCrew.ArtReview
                 (p + "-mid-density", view.MidVisibleMeters,   0.6f,  1, 1.0f, 0),
                 (p + "-dbg-albedo",  view.MidVisibleMeters,   0.6f, -1, 0f, 1),
                 (p + "-dbg-outline", view.MidVisibleMeters,   0.6f, -1, 0f, 4),
+                // 描边分支诊断（close 机位）：R=门控出线 / G=兜底出线 / B=门控命中数——毛边定位用。
+                (p + "-dbg-branch",  view.CloseVisibleMeters, 0.6f, -1, 0f, 10),
             };
         }
 
@@ -731,6 +739,7 @@ namespace PirateCrew.ArtReview
                 ("_NormalEdgeLevel", PixelartNormalEdgeLevelOverride),
                 ("_NormalEdgeThreshold", PixelartNormalEdgeThresholdOverride),
                 ("_MainLightLevel", PixelartMainLightLevelOverride),
+                ("_DitherStrength", PixelartDitherStrengthOverride),
             };
 
             foreach (MeshRenderer renderer in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))

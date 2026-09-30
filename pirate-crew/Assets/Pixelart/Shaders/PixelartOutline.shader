@@ -191,132 +191,94 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 int closerThanDown   = (connectCode &   1u) > 0u ? 1 : 0;   // bit0
 
                 float marker  = 0.0;    // r = 墨线标记（契约 §1.2）
-                float gateHit = 0.0;    // 调试档 5：门控命中的方向数
+                float gateHit = 0.0;    // 调试档 8：v3 门控（connected/closer 双开）命中的方向数
+                // 【分支诊断（调试档 10）】R = 规则①②（远侧/接缝）出墨，G = 规则③（近侧接触）出墨，
+                // B = 门控命中数（sRGB 编码：137≈1、191≈3、255=4）。双墨 = R、G 同亮的相邻像素。
+                float markerGate     = 0.0;
+                float markerFallback = 0.0;
 
-                // 【接触边兜底】四个方向共用的第三条分支，挂在门控的 **else** 侧：
-                //   本像素开着描边、该方向邻域**不开描边**，且二者**深度相切或邻域更近**
-                //   ⇒ 墨线落在自己边界行。覆盖两类真实缺口（r19/r24 实拍 + 分类染色图定位）：
-                //   ① 接触弧（邻域更近，closer=0）：角色落地那圈，柱面与地面深度相切，
-                //      切平面预测残差 ≈ 0 ⇒ 两像素判"连通"，四方向门控全堵；
-                //   ② 相切的更近侧剪影（closer=1 且 connected=1）：角色侧壁比脚边地面**更近**，
-                //      而逐像素深度差（每艺术像素厘米级）远小于连通域阈值（0.25 m）⇒ 两侧判
-                //      "连通"——外侧像素的门被 connected 关死、角色像素的门被 closer 关死，
-                //      mid 机位下左剪影整条无墨就是它（连通域阈值是 v3 量纲，脆弱性放大器）。
-                //   唯一不触发的格是「closer=1 且 connected=0」＝**更近侧的干净不连续边**：
-                //   那种边由外侧像素照常出线（门控本来就开），这里再出会叠成 2 像素。
-                //   邻域开着描边（两个描边物体相邻）也不触发（不互描）。
-                //   调试档 8 只统计门控命中、不含本分支（它依赖 applyOutline，混进去会污染
-                //   "连通域在不在命中"的诊断语义）。
+                // v3 门控命中数（纯连通域诊断，与出墨规则解耦——调试档 8 的语义）
+                gateHit = (connectedToRight < 1 && closerThanRight < 1 ? 1.0 : 0.0)
+                        + (connectedToLeft  < 1 && closerThanLeft  < 1 ? 1.0 : 0.0)
+                        + (connectedToUp    < 1 && closerThanUp    < 1 ? 1.0 : 0.0)
+                        + (connectedToDown  < 1 && closerThanDown  < 1 ? 1.0 : 0.0);
 
-                // ---- 右（v3 `OutlinePass.hlsl:35-44`）----
-                // 【出线三型 + 填充列不上墨 + 邻域位兜底】门控开时：
-                //   ① 邻域是描边物体：本像素非物体 ⇒ 外圈墨线；两者都是物体且**不连通** ⇒ 接缝
-                //      （头-身交界）；两者都是物体且**连通** ⇒ 填充列，保持填充（上墨会把轮廓
-                //      啃掉一圈、线宽 1↔2px 振荡）；
-                //   ② 邻域不是物体、本像素是 ⇒ 近侧自描边（门开 = 邻域更近，接触弧语义）。
-                // 【门被关死的兜底】门关（相切连通 / 本像素更近）且邻域非物体时，要看**邻域自己**
-                // 能不能出线——采样邻域朝向本像素的连通/更近位：任一为真 = 邻域的门也被关死
-                // （没人出线）⇒ 墨落本像素边界行；两位都假 = 邻域的门开着，外圈墨线由它出，
-                // 本像素**不再上墨**（否则同一条边内外双墨、线宽 2px——r25 头部左弧双宽墨行根因）。
-                float2 uvRight = uvCenter + float2(texel.x, 0.0);
-                bool rightApplies = AppliesOutlineAt(uvRight);
-                if (connectedToRight < 1 && closerThanRight < 1)
+
+                // 【出线规则 v2（r25 终版）】墨只落在配对中**更远**的一侧，沿弧线绝不换边：
+                //   ① 远侧：邻域是描边物体、本像素不是、本像素不比它近 ⇒ 本像素出线
+                //      （身后草地/背景；**不看 connected**——切线带里深度差渐变使 connected 位
+                //      沿弧线翻转，墨线在内外两列间横跳，正是双宽毛边的根因，
+                //      r25 分支诊断图：RR/GG 交替即两规则各管一段）；
+                //   ② 接缝：两者都是描边物体且不连通（头-身交界）；
+                //   ③ 近侧接触：邻域是更近的非物体面、本像素是描边物体 ⇒ 墨落自己边界行
+                //      （角色落地那圈；更近面自己不出线）。
+                // 填充列（两者都是物体且连通）与草地-草地：不出线。
+                // closer 位判"墨落哪边"，connected 位只判接缝——各司其职。
+
+                // ---- 右 ----
                 {
-                    gateHit += 1.0;
-                    if (rightApplies)
+                    float2 uvX = uvCenter + float2(texel.x, 0.0);
+                    bool xApplies = AppliesOutlineAt(uvX);
+                    if (xApplies)
                     {
-                        if (!centerAppliesOutline || connectedToRight < 1)
-                            marker = 1.0;
+                        if (!centerAppliesOutline) { if (closerThanRight < 1) markerGate = 1.0; }
+                        else if (connectedToRight < 1) markerGate = 1.0;
                     }
-                    else if (centerAppliesOutline)
-                        marker = 1.0;
-                }
-                else if (centerAppliesOutline && !rightApplies)
-                {
-                    uint nbCode = DecodeConnectivityByte(SAMPLE_TEXTURE2D(
-                        _PixelartConnectivityResultBuffer, sampler_PixelartConnectivityResultBuffer, uvRight).a);
-                    bool nbBlocked = ((nbCode &  64u) > 0u)   // 邻域朝本像素：连通（其左位 bit6）
-                                  || ((nbCode &   4u) > 0u);  // 邻域比本像素更近（其左位 bit2）
-                    if (nbBlocked)
-                        marker = 1.0;
+                    else if (centerAppliesOutline && closerThanRight < 1)
+                        markerFallback = 1.0;
                 }
 
-                // ---- 左（v3 `:46-55`）----
-                float2 uvLeft = uvCenter - float2(texel.x, 0.0);
-                bool leftApplies = AppliesOutlineAt(uvLeft);
-                if (connectedToLeft < 1 && closerThanLeft < 1)
+                // ---- 左 ----
                 {
-                    gateHit += 1.0;
-                    if (leftApplies)
+                    float2 uvX = uvCenter - float2(texel.x, 0.0);
+                    bool xApplies = AppliesOutlineAt(uvX);
+                    if (xApplies)
                     {
-                        if (!centerAppliesOutline || connectedToLeft < 1)
-                            marker = 1.0;
+                        if (!centerAppliesOutline) { if (closerThanLeft < 1) markerGate = 1.0; }
+                        else if (connectedToLeft < 1) markerGate = 1.0;
                     }
-                    else if (centerAppliesOutline)
-                        marker = 1.0;
-                }
-                else if (centerAppliesOutline && !leftApplies)
-                {
-                    uint nbCode = DecodeConnectivityByte(SAMPLE_TEXTURE2D(
-                        _PixelartConnectivityResultBuffer, sampler_PixelartConnectivityResultBuffer, uvLeft).a);
-                    bool nbBlocked = ((nbCode & 128u) > 0u)   // 邻域朝本像素：连通（其右位 bit7）
-                                  || ((nbCode &   8u) > 0u);  // 邻域比本像素更近（其右位 bit3）
-                    if (nbBlocked)
-                        marker = 1.0;
+                    else if (centerAppliesOutline && closerThanLeft < 1)
+                        markerFallback = 1.0;
                 }
 
-                // ---- 上（v3 `:57-66`）----
-                float2 uvUp = uvCenter + float2(0.0, texel.y);
-                bool upApplies = AppliesOutlineAt(uvUp);
-                if (connectedToUp < 1 && closerThanUp < 1)
+                // ---- 上 ----
                 {
-                    gateHit += 1.0;
-                    if (upApplies)
+                    float2 uvX = uvCenter + float2(0.0, texel.y);
+                    bool xApplies = AppliesOutlineAt(uvX);
+                    if (xApplies)
                     {
-                        if (!centerAppliesOutline || connectedToUp < 1)
-                            marker = 1.0;
+                        if (!centerAppliesOutline) { if (closerThanUp < 1) markerGate = 1.0; }
+                        else if (connectedToUp < 1) markerGate = 1.0;
                     }
-                    else if (centerAppliesOutline)
-                        marker = 1.0;
-                }
-                else if (centerAppliesOutline && !upApplies)
-                {
-                    uint nbCode = DecodeConnectivityByte(SAMPLE_TEXTURE2D(
-                        _PixelartConnectivityResultBuffer, sampler_PixelartConnectivityResultBuffer, uvUp).a);
-                    bool nbBlocked = ((nbCode &  16u) > 0u)   // 邻域朝本像素：连通（其下位 bit4）
-                                  || ((nbCode &   1u) > 0u);  // 邻域比本像素更近（其下位 bit0）
-                    if (nbBlocked)
-                        marker = 1.0;
+                    else if (centerAppliesOutline && closerThanUp < 1)
+                        markerFallback = 1.0;
                 }
 
-                // ---- 下（v3 `:68-77`）----
-                float2 uvDown = uvCenter - float2(0.0, texel.y);
-                bool downApplies = AppliesOutlineAt(uvDown);
-                if (connectedToDown < 1 && closerThanDown < 1)
+                // ---- 下 ----
                 {
-                    gateHit += 1.0;
-                    if (downApplies)
+                    float2 uvX = uvCenter - float2(0.0, texel.y);
+                    bool xApplies = AppliesOutlineAt(uvX);
+                    if (xApplies)
                     {
-                        if (!centerAppliesOutline || connectedToDown < 1)
-                            marker = 1.0;
+                        if (!centerAppliesOutline) { if (closerThanDown < 1) markerGate = 1.0; }
+                        else if (connectedToDown < 1) markerGate = 1.0;
                     }
-                    else if (centerAppliesOutline)
-                        marker = 1.0;
+                    else if (centerAppliesOutline && closerThanDown < 1)
+                        markerFallback = 1.0;
                 }
-                else if (centerAppliesOutline && !downApplies)
-                {
-                    uint nbCode = DecodeConnectivityByte(SAMPLE_TEXTURE2D(
-                        _PixelartConnectivityResultBuffer, sampler_PixelartConnectivityResultBuffer, uvDown).a);
-                    bool nbBlocked = ((nbCode &  32u) > 0u)   // 邻域朝本像素：连通（其上位 bit5）
-                                  || ((nbCode &   2u) > 0u);  // 邻域比本像素更近（其上位 bit1）
-                    if (nbBlocked)
-                        marker = 1.0;
-                }
+
+                marker = max(markerGate, markerFallback);
 
                 // 调试档（0 = 契约语义，别的值都是本 pass 的诊断档；见文件头的取值表）
                 if (_PixelartDebugMode > kDebugGate - 0.5 && _PixelartDebugMode < kDebugGate + 0.5)
                 {
                     marker = gateHit > 0.0 ? 1.0 : 0.0;
+                }
+                else if (_PixelartDebugMode > 9.5 && _PixelartDebugMode < 10.5)
+                {
+                    // 分支诊断：R = 门控出线 / G = 兜底出线 / B = 门控命中数（÷4 归一）。
+                    // 双墨像素 R、G 同亮——一眼定位"哪条规则在毛边处上墨"。
+                    return half4(markerGate, markerFallback, saturate(gateHit * 0.25), 1.0);
                 }
                 else if (_PixelartDebugMode > kDebugCoverage - 0.5 && _PixelartDebugMode < kDebugCoverage + 0.5)
                 {

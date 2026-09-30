@@ -246,6 +246,13 @@ Shader "PirateCrew/Pixelart/PixelartShading"
                 return half4(1.0, 1.0, 1.0, 1.0);
             }
 
+            // 【描边自诊断直通（8/9/10）】8/9/10 的诊断色由描边趟写进 Outline 缓冲；
+            // 本趟的分派表只认 0–5，mode ≥ 8 会掉进最后的 else 被连通域可视化**覆盖**
+            // （描边调试档在出图链里从未真正出过图——首例 10 档即踩中）。直通透传。
+            if (_PixelartDebugMode > 7.5)
+                return half4(SAMPLE_TEXTURE2D(_PixelartOutlineBuffer,
+                    sampler_PixelartOutlineBuffer, uv).rgb, 1.0);
+
             if (coverage < 0.5)
                 return half4(1.0, 0.0, 1.0, 1.0);
 
