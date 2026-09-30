@@ -14,6 +14,9 @@ namespace PirateCrew.UI.DebugUi
     /// 面板四枚，全部可拖动、独立 × 关闭：①组件实摆（全交互）②New Sprite 对话框复刻
     /// ③Aseprite 菜单栏复刻（File/Edit/Sprite 真下拉）④部件陈列廊（theme 345 件全量，
     /// 数据驱动）。启动器本体 = 一列 SketchButton，再点「调试场景」收起。
+    ///
+    /// 唯一入口 <see cref="Toggle"/> 由 MainMenuController 以编译符号隔离
+    /// （UNITY_EDITOR / DEVELOPMENT_BUILD），发布包不可达。
     /// </summary>
     public static class DebugMenuHost
     {

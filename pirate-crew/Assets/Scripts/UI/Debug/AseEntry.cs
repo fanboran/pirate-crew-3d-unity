@@ -149,6 +149,7 @@ namespace PirateCrew.UI.DebugUi
 
         // 鼠标交互
         bool _dragging;
+        bool _imeOnByThis;   // 本件曾申领全局 IME On（全局静态状态，多实例并存时只有申领者负责还原）
 
         // 外向文本模型（禁用态 TMP_InputField）
         TMP_InputField _field;
@@ -382,6 +383,9 @@ namespace PirateCrew.UI.DebugUi
                         if (r <= l) r = l + _fontSize;   // 不可见/零宽字符兜底
                         _boxes.Add(new CharBox
                         {
+                            // 【提案/待定】codepoint 存的是 UTF-16 code unit 不是完整码点：
+                            // 代理对（emoji 等增补平面字符）会拆成两个字符盒（光标/选词按
+                            // 半格走）；是否改按码点建盒待定。
                             codepoint = text[i],
                             from = i,
                             to = i + 1,
@@ -583,6 +587,19 @@ namespace PirateCrew.UI.DebugUi
         // ==================================================================
         // 生命周期
         // ==================================================================
+
+        void OnDisable()
+        {
+            // 选中态可能被 SetActive(false)/销毁直接掐断（不经过 OnDeselect），全局 IME
+            // 模式与拖拽态会就此卡死：IME 按申领位还原（没申领过的不去动别人开的），
+            // 拖拽位照 OnDeselect 的语义直接复位。
+            if (_imeOnByThis)
+            {
+                Input.imeCompositionMode = IMECompositionMode.Auto;
+                _imeOnByThis = false;
+            }
+            _dragging = false;
+        }
 
         void Update()
         {
@@ -1164,6 +1181,7 @@ namespace PirateCrew.UI.DebugUi
             // setTextInput(true, ...)（entry.cpp:283-287）：开 IME 组合输入（中文等）——
             // Unity 默认 Auto 模式下自制编辑器不申领 IME，组合键盘打不出中文
             Input.imeCompositionMode = IMECompositionMode.On;
+            _imeOnByThis = true;
 
             if (_lockSelection)
             {
@@ -1179,8 +1197,12 @@ namespace PirateCrew.UI.DebugUi
 
         public virtual void OnDeselect(BaseEventData eventData)
         {
-            // setTextInput(false)（entry.cpp:288-292）：交还 IME 模式
-            Input.imeCompositionMode = IMECompositionMode.Auto;
+            // setTextInput(false)（entry.cpp:288-292）：交还 IME 模式（只还原本件申领过的）
+            if (_imeOnByThis)
+            {
+                Input.imeCompositionMode = IMECompositionMode.Auto;
+                _imeOnByThis = false;
+            }
             Refresh();
             StopTimer();
 
@@ -1286,7 +1308,6 @@ namespace PirateCrew.UI.DebugUi
             }
         }
 
-        /// <summary>左顶锚摆放（整数像素坐标）。</summary>
         // ==================================================================
         // 外向文本模型（禁用态 TMP_InputField）
         // ==================================================================

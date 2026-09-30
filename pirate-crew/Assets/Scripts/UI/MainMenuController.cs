@@ -72,8 +72,10 @@ namespace PirateCrew.UI
                 crewButton.onClick.AddListener(OnCrewClicked);
             if (settingsButton != null)
                 settingsButton.onClick.AddListener(OpenSettings);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (showcaseButton != null)
                 showcaseButton.onClick.AddListener(OnShowcaseClicked);
+#endif
             if (quitButton != null)
                 quitButton.onClick.AddListener(OnQuitClicked);
 
@@ -145,8 +147,10 @@ namespace PirateCrew.UI
                 crewButton.onClick.RemoveListener(OnCrewClicked);
             if (settingsButton != null)
                 settingsButton.onClick.RemoveListener(OpenSettings);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (showcaseButton != null)
                 showcaseButton.onClick.RemoveListener(OnShowcaseClicked);
+#endif
             if (quitButton != null)
                 quitButton.onClick.RemoveListener(OnQuitClicked);
             if (settingsBackButton != null)
@@ -182,6 +186,10 @@ namespace PirateCrew.UI
             EventBus.Publish(SceneEvents.ChangeScene, SceneNames.CrewManagement);
         }
 
+        // 调试入口走编译符号而非运行时开关：发布构建里这段代码物理不存在，不给
+        // 「配置误开 / 被调起」留任何可达路径；开发构建保留符号供 QA 进调试面板。
+        // 发布包下按钮仍在场景里但未绑监听（判空照常），点击无效果、无空引用。
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         /// 调试场景（创始人 2026-09-25）：弹出**可拖动调试菜单启动器**——里面的按钮再开
         /// 具体调试面板（组件实摆 / New Sprite 对话框复刻 / Aseprite 菜单栏 / 部件陈列廊）。
         void OnShowcaseClicked()
@@ -190,6 +198,7 @@ namespace PirateCrew.UI
             if (transform.parent != null)
                 DebugUi.DebugMenuHost.Toggle(transform.parent);
         }
+#endif
 
         // ------------------------------------------------------------------
         // 设置（真接线）
