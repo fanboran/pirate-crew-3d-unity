@@ -217,7 +217,6 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 //      （r25 头部左弧逐像素定位：交替出现的双宽墨行）；
                 //   ③ 本像素是物体、邻域不是 ⇒ 近侧自描边。
                 float2 uvRight = uvCenter + float2(texel.x, 0.0);
-                float2 uvRight = uvCenter + float2(texel.x, 0.0);
                 bool rightApplies = AppliesOutlineAt(uvRight);
                 if (connectedToRight < 1 && closerThanRight < 1)
                 {
