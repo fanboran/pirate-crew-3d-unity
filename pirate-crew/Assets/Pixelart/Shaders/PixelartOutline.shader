@@ -216,12 +216,21 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 //      此处上墨会把物体轮廓啃掉一圈、线宽在 1↔2px 间振荡
                 //      （r25 头部左弧逐像素定位：交替出现的双宽墨行）；
                 //   ③ 本像素是物体、邻域不是 ⇒ 近侧自描边。
+                float2 uvRight = uvCenter + float2(texel.x, 0.0);
+                float2 uvRight = uvCenter + float2(texel.x, 0.0);
                 bool rightApplies = AppliesOutlineAt(uvRight);
                 if (connectedToRight < 1 && closerThanRight < 1)
                 {
                     gateHit += 1.0;
-                    if (!centerAppliesOutline || connectedToRight < 1 || !rightApplies)
-                        marker = 1.0;
+                    if (rightApplies)
+                    {
+                        // 外圈（本像素非物体）或接缝（两者都是物体但不连通）；
+                        // 两者都是物体且连通 = 填充列，保持填充。
+                        if (!centerAppliesOutline || connectedToRight < 1)
+                            marker = 1.0;
+                    }
+                    else if (centerAppliesOutline)
+                        marker = 1.0;   // 近侧自描边
                 }
                 else if (centerAppliesOutline && !rightApplies
                          && (closerThanRight < 1 || connectedToRight >= 1))
@@ -235,7 +244,12 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 if (connectedToLeft < 1 && closerThanLeft < 1)
                 {
                     gateHit += 1.0;
-                    if (!centerAppliesOutline || connectedToLeft < 1 || !leftApplies)
+                    if (leftApplies)
+                    {
+                        if (!centerAppliesOutline || connectedToLeft < 1)
+                            marker = 1.0;
+                    }
+                    else if (centerAppliesOutline)
                         marker = 1.0;
                 }
                 else if (centerAppliesOutline && !leftApplies
@@ -250,7 +264,12 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 if (connectedToUp < 1 && closerThanUp < 1)
                 {
                     gateHit += 1.0;
-                    if (!centerAppliesOutline || connectedToUp < 1 || !upApplies)
+                    if (upApplies)
+                    {
+                        if (!centerAppliesOutline || connectedToUp < 1)
+                            marker = 1.0;
+                    }
+                    else if (centerAppliesOutline)
                         marker = 1.0;
                 }
                 else if (centerAppliesOutline && !upApplies
@@ -265,7 +284,12 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 if (connectedToDown < 1 && closerThanDown < 1)
                 {
                     gateHit += 1.0;
-                    if (!centerAppliesOutline || connectedToDown < 1 || !downApplies)
+                    if (downApplies)
+                    {
+                        if (!centerAppliesOutline || connectedToDown < 1)
+                            marker = 1.0;
+                    }
+                    else if (centerAppliesOutline)
                         marker = 1.0;
                 }
                 else if (centerAppliesOutline && !downApplies
