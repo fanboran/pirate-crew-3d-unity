@@ -76,11 +76,13 @@ summarize() {
   fi
 }
 
-# 档位缓存：key = HEAD + 工作区状态哈希；30 分钟内同状态且上次全绿 → 直接回放（不启 Unity）。
+# 档位缓存：key = HEAD + 工作区状态与内容哈希；30 分钟内同状态且上次全绿 → 直接回放（不启 Unity）。
+# 哈希必须含脏文件**内容**（diff HEAD）：只看"哪些文件脏"时，未提交状态下改码→跑测→再改→再跑
+# 的 porcelain 输出不变，会把 30 分钟内的旧"全绿"原样回放（假绿）。
 # 文件名含工程路径哈希（防 PC3D_PROJ 指向别处时误读别人的缓存）+ 子集标识
 # （test 档按 平台/过滤器 分别记，不同子集之间不可互相回放）。
 cache_key() {
-  echo "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)-$(git -C "$ROOT" status --porcelain 2>/dev/null | md5sum | cut -c1-12)"
+  echo "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)-$( { git -C "$ROOT" status --porcelain 2>/dev/null; git -C "$ROOT" diff HEAD 2>/dev/null; } | md5sum | cut -c1-12)"
 }
 cache_file_for() {
   echo "$TEMP/pc3d-headless-$1-$(echo -n "$PROJ" | md5sum | cut -c1-8).cache"
