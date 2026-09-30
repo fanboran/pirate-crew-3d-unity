@@ -14,9 +14,9 @@ namespace PirateCrew.EditorTools
     ///
     /// 【本脚本不接线】它只产出资产，**不写 RenderSettings**（不改 ambientMode / skybox 引用）。
     /// 原因：环境光一换，全场景观感基准就变了，而视觉审计批次 A–F 的【提案/待定】数值尚未实拍转正
-    /// （docs/审计/视觉审计报告.md §四 遗留 1），此时动全局参数会让两轮调参互相覆盖。
+    /// （docs/审计/归档/视觉审计报告.md §四 遗留 1），此时动全局参数会让两轮调参互相覆盖。
     /// 接线步骤（ambientMode=Skybox + 按档切 skybox 材质）见
-    /// docs/隔壁交接-3-天空盒环境光驱动.md 的「接线轮操作清单」。
+    /// docs/项目/归档/隔壁交接-3-天空盒环境光驱动.md 的「接线轮操作清单」。
     ///
     /// 【为什么"就地更新"而不是"已存在就跳过"】同 <see cref="BattleSceneLighting"/>：
     /// 改了 <see cref="AmbientSkyboxCatalog"/> 的常量必须能生效，否则会出现"代码改了、画面没变"

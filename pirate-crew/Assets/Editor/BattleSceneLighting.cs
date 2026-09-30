@@ -576,7 +576,7 @@ namespace PirateCrew.EditorTools
             tonemapping.mode.value = TonemappingMode.Neutral;
 
             // ---- Bloom：写实"阳光感"（threshold 1.05 / intensity 0.42 / scatter 0.62）----
-            // 数值出处：docs/阳光感打光调研.md §4 调法 3（17 条官方文档来源）。
+            // 数值出处：docs/技术/渲染/阳光感打光调研.md §4 调法 3（17 条官方文档来源）。
             //   threshold 0.85→1.05：URP 文档明确 Threshold 是 gamma 空间截断、默认 0.9；
             //     0.85 会把大片近白地面也点进辉光，是"亮而糊/刺"的直接来源，
             //     且已偏离美术风格指南 §4.5 自己定的 Bloom 区间（1.0-1.2）。
@@ -790,11 +790,11 @@ namespace PirateCrew.EditorTools
             //   `_GroundColor` 只进天空盒下半球/混合带；本工程环境光走 **Trilight**（见 ApplyThreePointAmbient），
             //   **不**从天空盒取 SH，故改它不会动到环境光/金属反射口径。
             //
-            // 【目标判据（docs/美术风格指南.md §2.1 天空-正午行 + §4.2）】
+            // 【目标判据（docs/设计/美术风格指南.md §2.1 天空-正午行 + §4.2）】
             //   · 正午地平线色 = **#BFE3F5**（暖白蓝，hue≈200、L* 78-88）；
             //   · 全图 R/G > 0.98（G 不得系统性高于 R）；
             //   · 禁止出现 L* > 95 的绿/黄绿带（hue 60-160、L* 过高即判失败）。
-            //   出处：`docs/美术风格指南.md:92`（天空-正午 #BFE3F5）、`:100`（实现在此落地）。
+            //   出处：`docs/设计/美术风格指南.md:92`（天空-正午 #BFE3F5）、`:100`（实现在此落地）。
             //
             // 【本次改动（旧值 → 新值）及理由】
             //   _GroundColor       #7A6A4C → #BFE3F5  —— 直接换成目标地平线色，从混合带里移除"黄"这一半，
@@ -895,15 +895,15 @@ namespace PirateCrew.EditorTools
             RenderSettings.ambientGroundColor = Hex("#C9A268");  // 暖地面反弹（朝下法线）
             // 强度 0.85：与 AmbientDirector 正午档的 ambientIntensity=0.85 逐值一致，
             //   保证 applyPresetOnStart 后环境光强度零跳变（该档只写强度，不写三色 → 三色梯度保留）。
-            //   1.00→0.85：拉开直射:天光比例（docs/阳光感打光调研.md §4 调法 2，
+            //   1.00→0.85：拉开直射:天光比例（docs/技术/渲染/阳光感打光调研.md §4 调法 2，
             //   Unreal 官方"晴天天空约占总照度 20%"≈4:1；旧 1.35:1.00 仅 ≈2.6:1，天光过强=灰蒙蒙）。
             RenderSettings.ambientIntensity = 0.85f;
         }
 
         /// <summary>
         /// 主方向光。数值出处：GDD §10.4「主方向光：暖色 #FFF4E0，Shadow 开启」；
-        /// 强度 1.35 / 姿态 <c>Euler(48,140,0)</c> 依据 docs/场景设计-战斗竞技场.md §6.5
-        /// 与 docs/美术风格指南.md §4.1 Q-7 裁决（强度 1.2–1.4，实现取 1.35）。
+        /// 强度 1.35 / 姿态 <c>Euler(48,140,0)</c> 依据 docs/设计/场景设计-战斗竞技场.md §6.5
+        /// 与 docs/设计/美术风格指南.md §4.1 Q-7 裁决（强度 1.2–1.4，实现取 1.35）。
         ///
         /// 【两案对比：现 (48,140) vs 基准方位 -34° → **取现案**】
         ///   判据 = 光线方向与相机视线方向的夹角，越接近 90° 越"立体"（侧光出明暗交界），
@@ -927,7 +927,7 @@ namespace PirateCrew.EditorTools
             light.color = Hex("#FFF4E0");
             // 旧值 1.1 / Euler(50,-30,0) 已作废：方位 -30° 让朝镜头的面全部背光，是画面发平主因之一。
             // 1.35→1.55：与 ambientIntensity 0.85 配对拉开直射:天光到 ≈4:1（阳光感七要素之
-            //   "阴影做深+天光收敛"，docs/阳光感打光调研.md §4 调法 2）。
+            //   "阴影做深+天光收敛"，docs/技术/渲染/阳光感打光调研.md §4 调法 2）。
             light.intensity = 1.55f;
             // 投影是"看起来像 3D"的主要深度线索之一。
             // LightShadows.Soft 需要 URP Asset 打开 m_SoftShadowsSupported（ConfigureUrpAsset 已打开）。
@@ -958,7 +958,7 @@ namespace PirateCrew.EditorTools
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = Hex("#B0D4F1");
-            // 距离按审计契约「可见海域预算」（docs/审计/视觉审计报告.md §三）【提案/待定】：
+            // 距离按审计契约「可见海域预算」（docs/审计/归档/视觉审计报告.md §三）【提案/待定】：
             //   全景相机距离 82~160u、55° 俯角下画面可见海面斜距 ≤~350u。
             //   start=150 —— 主战区在全景与近景取景下都不被雾洗白（雾从视野远端才开始）；
             //   end=1200 —— 雾全饱和点落在海洋侧地平线融合（1000→1400）区间内，

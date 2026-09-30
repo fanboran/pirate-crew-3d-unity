@@ -13,7 +13,7 @@ namespace PirateCrew.Fx
     /// 由唯一入口 <c>Core/GameEntryPoint</c> 在进入播放时装配，建一个 <c>DontDestroyOnLoad</c> 的
     /// <c>[FxRoot]</c>——因此**不需要改任何场景/Prefab**，从任意场景按 Play 特效层都在位。
     ///
-    /// 【订阅的频道（全部已登记在 docs/EventBus事件契约.md，未新增）】
+    /// 【订阅的频道（全部已登记在 docs/技术/架构/EventBus事件契约.md，未新增）】
     ///   · <c>BattleEvents.BattleStarted</c>        → 建「PirateId → PirateBase」注册表、复位标记与拖尾跟踪；
     ///   · <c>BattleEvents.ProjectileDetonated</c>  → 爆心 y 在水面附近则水花，否则按武器是否有爆炸播爆炸/尘爆；
     ///   · <c>BattleEvents.CrewDamaged</c>          → 命中火花 + 尘土 + 伤害数字（位置经注册表由 id 还原）；

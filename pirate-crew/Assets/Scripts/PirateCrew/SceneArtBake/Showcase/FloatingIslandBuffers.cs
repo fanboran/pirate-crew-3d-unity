@@ -13,7 +13,7 @@ namespace PirateCrew.SceneArt.Showcase
     /// 【合并口径】每个槽位最终落成 1 个网格 + 1 个材质 = 1 个 DrawCall；
     /// 一座约 2 万面的浮空岛（岩层 + 悬瀑 + 植被 + 遗迹 + 浮岛群）只有 15 个 DrawCall。
     /// 顶点不复用（<see cref="MeshBuffers"/> 每面独立输出 3 顶点）是块面硬边平面着色的前提，
-    /// 顶点量对 2022.3 的静态网格完全不是瓶颈（预算详见 docs/场景设计-战斗竞技场.md §8）。
+    /// 顶点量对 2022.3 的静态网格完全不是瓶颈（预算详见 docs/设计/场景设计-战斗竞技场.md §8）。
     /// </summary>
     public sealed class IslandBuffers
     {

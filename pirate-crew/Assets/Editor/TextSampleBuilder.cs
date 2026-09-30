@@ -25,7 +25,7 @@ namespace PirateCrew.EditorTools
     ///
     /// 【为什么不能走本项目的两条老出图路】
     ///   · 本机 batchmode 必须 -nographics（否则卡 GfxDevice），无渲染路径拿不到像素
-    ///     ——见 OutlineDebugCapture / docs/技术/描边Shader调试.md 的实测结论；
+    ///     ——见 OutlineDebugCapture / docs/技术/渲染/描边Shader调试.md 的实测结论；
     ///   · ScreenCapture.CaptureScreenshot 抓的是 Game View 当前帧，分辨率受 Game View
     ///     窗口尺寸限制，压不出"精确 1920×1080"；
     ///   · 故本工具走 **编辑器离屏单相机渲染**：RenderPipeline.SubmitRenderRequest +

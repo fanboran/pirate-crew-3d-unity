@@ -21,7 +21,7 @@ namespace PirateCrew.EditorTools
     ///
     ///   **尺度推导链（先定格子的世界尺寸，再定目标比例）**——
     ///   <list type="number">
-    ///   <item>关卡地面尺寸 = 关卡 widthTiles × heightTiles（`docs/3D空间模型对齐.md` §2），
+    ///   <item>关卡地面尺寸 = 关卡 widthTiles × heightTiles（`docs/设计/3D空间模型对齐.md` §2），
     ///         兜底关宽 50 格（`LevelCatalog` 兜底关 widthTiles = 50）
     ///         → **1 格 = 1 世界单位**（<see cref="UnitsPerTile"/>）；</item>
     ///   <item>单位总高 = Body 圆柱 h1.2 与 Head 球 d0.7 在轴上重叠 0.05
@@ -45,7 +45,7 @@ namespace PirateCrew.EditorTools
     ///   全部 Crew 材质走**像素化路径**物体 shader（<see cref="PixelartPath.ObjectShaderName"/>，
     ///   配方唯一来源 = <see cref="PixelartMaterialFactory"/>）——反壳描边（PirateOutline）已退役，
     ///   选中/悬停反馈由像素路径的屏幕空间描边承担。
-    ///   职业差异只在数据（攻/防/技能）与 HUD，**不体现在造型上**（见 docs/角色造型规范.md）。
+    ///   职业差异只在数据（攻/防/技能）与 HUD，**不体现在造型上**（见 docs/设计/角色造型规范.md）。
     ///
     /// 【为什么删掉了腿/靴/臂/掌/三角帽/头巾/发/鼻/眼/手持武器】那些零件是此前多轮复验里
     ///   **AI 自主加件**的产物（"评委"式跑偏），用户从未要求；用户原话是"一个球加一个梯形"，

@@ -217,7 +217,7 @@ namespace PirateCrew.Battle
     /// 为 null 时退化为「全平坦 + 矩形边界」，即地形系统落地前的行为（既有 AI 用例逐值不变）。
     ///
     /// 【M2 取舍】仍未模拟**侧墙反弹**（原版可借墙弹）：PhysX 实弹会与地形块发生真实碰撞反弹，
-    /// 但纯 C# 的 AI 预演不做反弹。这是已知降级（见 <c>docs/待办事项.md</c> 瓦片地形项）。
+    /// 但纯 C# 的 AI 预演不做反弹。这是已知降级（见 <c>docs/项目/待办事项.md</c> 瓦片地形项）。
     /// </summary>
     public sealed class AiTerrain
     {

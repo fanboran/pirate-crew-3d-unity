@@ -17,7 +17,7 @@ namespace PirateCrew.UI
     ///   · 数据来源全部是同场景 <c>[SerializeField]</c> 引用（单位根节点 + 点阵层），
     ///     **不**做 <c>GameObject.Find</c>、**不**依赖 <see cref="BattleController"/> 内部、
     ///     **不**新增 EventBus 事件——位置是每帧直接读取，正是「每帧高频数据不走 EventBus」的推荐做法
-    ///     （见 docs/EventBus事件契约.md §3）。
+    ///     （见 docs/技术/架构/EventBus事件契约.md §3）。
     ///   · 点位用锚点定位（<c>anchorMin = anchorMax = 归一化坐标</c>），面板缩放时自动跟随，不依赖 rect 尺寸。
     ///   · 美术资源：纯色方块占位（无外部图片）。
     /// </summary>

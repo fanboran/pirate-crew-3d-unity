@@ -9,7 +9,7 @@ namespace PirateCrew.Visual
     /// 【职责】读 <see cref="PirateBase"/> 的状态位（存活 / 移动 / 落水标记）与外部显式通知
     /// （投掷、受击），按 <see cref="CrewAnimationRules"/> 的时长/曲线写 <see cref="CrewVisualRig"/>
     /// 的部件 Transform。所有位移/旋转都作用在 <c>Visual</c> 子层级上，**不改 Rigidbody/根 Transform**，
-    /// 因此不会影响战斗/AI/弹道判定（docs/角色造型规范.md §4 纪律）。
+    /// 因此不会影响战斗/AI/弹道判定（docs/设计/角色造型规范.md §4 纪律）。
     ///
     /// 【为什么不新增 EventBus 事件】投掷/受击由 <see cref="PirateBase"/> 直接方法调用通知本组件
     /// （同一 GameObject 内的强关系，不该伪装成松耦合；见 AGENTS.md 事件契约节）。

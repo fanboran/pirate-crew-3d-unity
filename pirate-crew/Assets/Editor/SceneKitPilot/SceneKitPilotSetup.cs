@@ -45,10 +45,10 @@ namespace PirateCrew.EditorTools
         public const string ShowcaseRootName = "[SceneKitPilotShowcase]";
 
         // ---- 世界口径 ----
-        const float WaterY = -0.4f;         // 水面（docs/3D空间模型对齐.md，格 1→2 单位后）
+        const float WaterY = -0.4f;         // 水面（docs/设计/3D空间模型对齐.md，格 1→2 单位后）
         const float DockRootY = 0.25f;      // = WaterY + 0.65（桥面高）
         const float DockDeckTop = 0.65f;    // 桥面在水面上方的高度（Blender 侧 DOCK 桥面 0.65）
-        const float UrpLitSmoothWood = 0.28f;   // docs/美术风格指南.md §3.1 木
+        const float UrpLitSmoothWood = 0.28f;   // docs/设计/美术风格指南.md §3.1 木
 
         // ---- Kit_ 换装常量表（色值与 Blender 侧 build_scene_kit.py 同源，sRGB 直存）----
         // 本工程是 Gamma 色彩空间（SceneArtPalette.cs 头注），hex 归一化即与色板一致。

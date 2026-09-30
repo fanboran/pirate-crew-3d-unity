@@ -98,7 +98,7 @@ namespace PirateCrew.SceneArt
     ///   再由 <see cref="AddClusterUnderside"/> 的收形锥沿**不规则岛形轮廓**继续往下收尖
     ///   （用户裁决 1：厚重底部收形、悬空可见）。列式旧地形仍走"下延成裙边到 y=-0.6"的旧路径。
     ///   破坏流程不变：整格摧毁后该格不再参与建壳（见 <see cref="BattleTerrainView.ApplyDestruction"/>）。
-    ///   （方案出处：`docs/场景设计-战斗竞技场.md` §3.1「视觉层与碰撞层解耦」与 §9.1。）
+    ///   （方案出处：`docs/设计/场景设计-战斗竞技场.md` §3.1「视觉层与碰撞层解耦」与 §9.1。）
     ///
     /// 【为什么不改碰撞高度】单位出生高度叠在 <c>Terrain.SurfaceWorldY</c> 上
     ///   （<c>BattleController.cs:253-257</c>），任何抬高都会让单位悬空/陷地（场景文档 §9.1）。

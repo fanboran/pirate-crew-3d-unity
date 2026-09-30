@@ -24,7 +24,7 @@ namespace PirateCrew.EditorTools
     ///   Assets/Scenes/Game/CrewManagement.unity、Assets/Scenes/Game/LevelSelect.unity；
     ///   Build Settings = Bootstrapper(0) / MainMenu(1) / Battle(2) / CrewManagement(3) / LevelSelect(4)。
     ///
-    /// 【视觉层（Beveled Pixel 像素皮，docs/UI-UX与中文本地化规范.md §3.3 / §3.4 / §3.6 线框不变）】
+    /// 【视觉层（Beveled Pixel 像素皮，docs/设计/UI-UX与中文本地化规范.md §3.3 / §3.4 / §3.6 线框不变）】
     ///   · 背景 = WINDOW_BG 令牌（alpha 提到 1）全屏底板；相机背景不动，只换 UI 层；
     ///   · 列表容器 = **带标题窗体**（theme window 直切件，经 <see cref="UiKit.EnsureWindow"/>，
     ///     顶 15u 标题带）+ **view 凹槽底**（theme view：sunken 九宫格，行区 padding 3/顶 4）；

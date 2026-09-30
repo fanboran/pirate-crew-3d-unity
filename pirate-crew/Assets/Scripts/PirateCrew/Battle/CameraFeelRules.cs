@@ -22,7 +22,7 @@ namespace PirateCrew.Battle
 
     /// <summary>
     /// 驱动 <see cref="CameraFollowState"/> 迁移的触发源。全部来自现有 EventBus 事件，
-    /// 不新增事件（见 docs/EventBus事件契约.md）。
+    /// 不新增事件（见 docs/技术/架构/EventBus事件契约.md）。
     /// </summary>
     public enum CameraFollowTrigger
     {

@@ -8,7 +8,7 @@ namespace PirateCrew.Visual
     /// 标记组件：挂在"阵营色部件"的渲染器所在 GameObject 上。
     /// <c>UnitOutlineBinder</c> 只对这些渲染器写阵营色 <c>_BaseColor</c>，
     /// 其余部件（皮肤/铁/木/骨/皮革）保留各自材质的基础色，
-    /// 满足 docs/角色造型规范.md §2.1「阵营色不得污染肤色/铁/木部件」的纪律。
+    /// 满足 docs/设计/角色造型规范.md §2.1「阵营色不得污染肤色/铁/木部件」的纪律。
     /// </summary>
     public sealed class CrewTeamTintPart : MonoBehaviour
     {
@@ -94,7 +94,7 @@ namespace PirateCrew.Visual
     /// <summary>
     /// 角色视觉装配根（挂在单位的 <c>Visual</c> 子节点上），持有动画层需要的部件引用。
     ///
-    /// 【层级与枢轴】（坐标口径见 docs/3D空间模型对齐.md：脚底 y=0、枢轴 y=0.25）
+    /// 【层级与枢轴】（坐标口径见 docs/设计/3D空间模型对齐.md：脚底 y=0、枢轴 y=0.25）
     /// <code>
     /// 单位根（BoxCollider 1×1×1，scale 0.375/0.5/0.375 → 世界 AABB 0.375×0.5×0.375）
     /// └ Visual（本组件；localPos (0,-0.5,0)、localScale (2.6667,2,2.6667)）
@@ -119,7 +119,7 @@ namespace PirateCrew.Visual
     public sealed class CrewVisualRig : MonoBehaviour
     {
         // ------------------------------------------------------------------
-        // 通用比例常量（docs/角色造型规范.md §1.2）
+        // 通用比例常量（docs/设计/角色造型规范.md §1.2）
         // ------------------------------------------------------------------
 
         /// <summary>标准腿高（§1.2：0.090）。</summary>

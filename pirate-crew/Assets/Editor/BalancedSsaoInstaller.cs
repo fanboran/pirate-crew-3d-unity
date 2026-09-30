@@ -11,7 +11,7 @@ namespace PirateCrew.EditorTools
     /// 给 <see cref="UniversalRendererData"/>（PC_Balanced_Renderer）程序化加装 URP 内置
     /// SSAO RendererFeature，作为 M4 视觉审计批次 C「光照资产补课」的一部分
     /// （审计结论：渲染器上唯一 Feature 是自研描边，无 SSAO；间接光无遮蔽差异是画面"塑料感"根因之一，
-    /// 见 docs/审计/视觉审计报告.md §二.4 / §三 批次 C）。
+    /// 见 docs/审计/归档/视觉审计报告.md §二.4 / §三 批次 C）。
     ///
     /// 【为什么只对 URP/Lit 物件生效】URP 内置 SSAO 的产出路径有两条：
     ///   1. 表现侧：SSAO Pass 把 AO 图设为全局纹理 _ScreenSpaceOcclusionTexture，

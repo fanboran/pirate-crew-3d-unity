@@ -4,7 +4,7 @@ using UnityEngine;
 namespace PirateCrew.Visual
 {
     /// <summary>
-    /// 角色零件网格库：把 docs/角色造型规范.md §6.2 的生成器清单固化成一份**确定性零件表**
+    /// 角色零件网格库：把 docs/设计/角色造型规范.md §6.2 的生成器清单固化成一份**确定性零件表**
     /// （键 → <see cref="MeshData"/>），并给出各职业的零件用量计划（用于三角面预算核算）。
     ///
     /// 【单一来源】编辑器脚本 <c>CrewVisualPrefabBuilder</c> 用它生成网格资产；

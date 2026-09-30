@@ -183,7 +183,7 @@ namespace PirateCrew.Battle.WorldMaps
         /// <c>localScale = (Size.x, 顶高+4, Size.y)</c>（用单位立方体拉伸成 box 的实现），
         /// 把装饰挂成它的子物体、再写 <c>localPosition</c> 会被父级缩放**再乘一遍**——
         /// 实测 50~147 件装饰全部被甩到图外 3000~12000u 处，实拍里"散布几乎不可见"
-        /// （docs/审计/地图设计审计报告.md §二.6）的根因就是这个。故装饰一律挂 <c>Decor</c> 根、
+        /// （docs/审计/归档/地图设计审计报告.md §二.6）的根因就是这个。故装饰一律挂 <c>Decor</c> 根、
         /// 写世界坐标；散布位置只有一处数学（下面的 lx/lz → 世界），不再经过父变换。
         /// </summary>
         static void ScatterDecorations(Transform parent, in WorldMapRules.WorldBox box,

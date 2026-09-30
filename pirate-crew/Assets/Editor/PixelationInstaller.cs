@@ -8,7 +8,7 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// 给两档 URP Renderer（PC_Balanced / PC_Performant）程序化加装
     /// <see cref="global::PirateCrew.Rendering.PixelationRendererFeature"/>——
-    /// 等距像素卡通开工序列第 1 步（docs/技术/渲染管线-等距像素卡通.md §8）。
+    /// 等距像素卡通开工序列第 1 步（docs/技术/渲染/渲染管线-等距像素卡通.md §8）。
     ///
     /// 【为什么两档都装（与 BalancedSsaoInstaller 只装 Balanced 不同）】像素化是本作
     ///   画面风格的**基底**而非画质增强项：Performant 档若不装，切低画质时整个风格消失。

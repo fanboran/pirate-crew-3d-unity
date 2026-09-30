@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 namespace PirateCrew.Visual
 {
     /// <summary>
-    /// 程序化网格工厂：按 docs/角色造型规范.md §6.2 的生成器清单，
+    /// 程序化网格工厂：按 docs/设计/角色造型规范.md §6.2 的生成器清单，
     /// 用确定性算法产出零件几何（顶点 / 法线 / UV / 三角面），**不依赖任何美术资产**。
     ///
     /// 【与规格的对应】
@@ -21,18 +21,18 @@ namespace PirateCrew.Visual
     ///   · 硬边（盒 / 端盖）用**分面法线**（每面独立顶点），避免"假圆角"；
     ///   · 两极用扇形三角（不产生退化三角，见 <see cref="LowPolySphere"/>）。
     ///
-    /// 【三角面预算】单单位 ≤ 2500 tri（docs/角色造型规范.md §1.4）。默认分段按"低模"取值，
+    /// 【三角面预算】单单位 ≤ 2500 tri（docs/设计/角色造型规范.md §1.4）。默认分段按"低模"取值，
     /// 实测各职业预算见 <c>CrewVisualPrefabBuilder</c> 的报告输出。
     ///
     /// 【无头边界】本类的生成函数全部是纯 C#；只有 <see cref="CreateMesh"/> 触碰原生 Mesh。
     /// </summary>
     public static class CrewMeshFactory
     {
-        /// <summary>单单位三角面预算（docs/角色造型规范.md §1.4：≤2500）。</summary>
+        /// <summary>单单位三角面预算（docs/设计/角色造型规范.md §1.4：≤2500）。</summary>
         public const int MaxTrianglesPerUnit = 2500;
 
         // ------------------------------------------------------------------
-        // 分段默认值（docs/角色造型规范.md §6.2）
+        // 分段默认值（docs/设计/角色造型规范.md §6.2）
         // ------------------------------------------------------------------
 
         /// <summary>圆台/车削默认分段（§6.2：sides=10）。</summary>
@@ -457,7 +457,7 @@ namespace PirateCrew.Visual
 
         /// <summary>
         /// 三角帽（船长专属）：帽冠圆台 + 三片 120° 均布的上翻帽檐片（盒，闭合几何以保描边完整）。
-        /// 【提案】三片翻檐的倾角/长度按 docs/角色造型规范.md §3.8 的"宽 0.13 / 高 0.07"反推，
+        /// 【提案】三片翻檐的倾角/长度按 docs/设计/角色造型规范.md §3.8 的"宽 0.13 / 高 0.07"反推，
         /// 原版无三角帽几何数据，规格也标为自定义网格。
         /// </summary>
         public static MeshData Tricorn(float brimRadius, float crownRadius, float crownHeight,

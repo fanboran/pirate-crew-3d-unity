@@ -101,7 +101,7 @@ namespace PirateCrew.Combat
 
     /// <summary>
     /// 爆炸范围伤害/击退结算（<b>3D 球</b>）。
-    /// 对应逆向文档 §5.3（Explosion.as）与 <c>docs/3D空间模型对齐.md</c> §5：
+    /// 对应逆向文档 §5.3（Explosion.as）与 <c>docs/设计/3D空间模型对齐.md</c> §5：
     ///   radius = size/2 + 20
     ///   d = 目标到爆心的 <b>3D 距离</b>（Flash 平面 (x,y) + 世界高度 Height）；仅 d &lt;= radius 命中
     ///   （d == radius 的 falloff = 0，产出一条 0 伤害/0 击退的空命中——忠实原版口径，调用方按 no-op 处理）
