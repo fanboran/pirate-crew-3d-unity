@@ -232,8 +232,8 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                         else if (connectedToRight < 1)
                             markerGate = 1.0;   // ② 接缝
                     }
-                    else if (centerAppliesOutline && connectedToRight < 1 && closerThanRight >= 1)
-                        markerFallback = 1.0;   // ③ 断开的近侧遮挡（更近非物体面贴着物体）
+                    else if (centerAppliesOutline && connectedToRight < 1 && closerThanRight < 1)
+                        markerFallback = 1.0;   // ③ 近侧接触（邻域更近的非物体面贴着物体——closer<1 即本像素不比邻域近）
                 }
 
                 // ---- 左 ----
@@ -252,8 +252,8 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                         else if (connectedToLeft < 1)
                             markerGate = 1.0;   // ② 接缝
                     }
-                    else if (centerAppliesOutline && connectedToLeft < 1 && closerThanLeft >= 1)
-                        markerFallback = 1.0;   // ③ 断开的近侧遮挡（更近非物体面贴着物体）
+                    else if (centerAppliesOutline && connectedToLeft < 1 && closerThanLeft < 1)
+                        markerFallback = 1.0;   // ③ 近侧接触（邻域更近的非物体面贴着物体——closer<1 即本像素不比邻域近）
                 }
 
                 // ---- 上 ----
@@ -272,8 +272,8 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                         else if (connectedToUp < 1)
                             markerGate = 1.0;   // ② 接缝
                     }
-                    else if (centerAppliesOutline && connectedToUp < 1 && closerThanUp >= 1)
-                        markerFallback = 1.0;   // ③ 断开的近侧遮挡（更近非物体面贴着物体）
+                    else if (centerAppliesOutline && connectedToUp < 1 && closerThanUp < 1)
+                        markerFallback = 1.0;   // ③ 近侧接触（邻域更近的非物体面贴着物体——closer<1 即本像素不比邻域近）
                 }
 
                 // ---- 下 ----
@@ -292,8 +292,8 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                         else if (connectedToDown < 1)
                             markerGate = 1.0;   // ② 接缝
                     }
-                    else if (centerAppliesOutline && connectedToDown < 1 && closerThanDown >= 1)
-                        markerFallback = 1.0;   // ③ 断开的近侧遮挡（更近非物体面贴着物体）
+                    else if (centerAppliesOutline && connectedToDown < 1 && closerThanDown < 1)
+                        markerFallback = 1.0;   // ③ 近侧接触（邻域更近的非物体面贴着物体——closer<1 即本像素不比邻域近）
                 }
 
                 marker = max(markerGate, markerFallback);

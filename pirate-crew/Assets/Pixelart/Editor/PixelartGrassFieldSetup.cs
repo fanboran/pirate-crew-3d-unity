@@ -177,11 +177,15 @@ namespace PirateCrew.EditorTools
             Material crewRed = PixelartStageKit.CrewRed();
             Material crewBlue = PixelartStageKit.CrewBlue();
             Material crewHead = PixelartStageKit.CrewHead();
+            // 【Crew0 在构图中心】创始人要求相机中心对准蓝色角色——头部圆弧的左右对称
+            // 取决于圆心是否落在艺术像素网格的镜像位（画面中心 480,270@960×540 = 像素角点）。
+            // 出图脚本的相机瞄 PixelartLevelScene.Target（场景相机被覆盖），故把 Crew0 放上
+            // Target 本身；Crew1/2 相对 Crew0 的几何不变（旧 offsets 各减 (3,0,5)）。
             var crewSpots = new[]
             {
-                new Vector3(view.Target.x + 3f, 0f, view.Target.z + 5f),
-                new Vector3(view.Target.x - 8f, 0f, view.Target.z - 2f),
-                new Vector3(view.Target.x + 14f, 0f, view.Target.z - 6f),
+                new Vector3(view.Target.x, 0f, view.Target.z),
+                new Vector3(view.Target.x - 11f, 0f, view.Target.z - 7f),
+                new Vector3(view.Target.x + 11f, 0f, view.Target.z - 11f),
             };
             for (int i = 0; i < crewSpots.Length; i++)
             {
@@ -199,12 +203,8 @@ namespace PirateCrew.EditorTools
             Vector3 target = view.Target;
             Vector3 dir = PixelartPilotScene.CameraDirection(
                 PixelartPilotScene.PitchDegrees, PixelartLevelScene.AzimuthFor(view));
-            // 【对准角色】创始人要求相机中心对准蓝色角色（Crew0）：头部圆弧的左右对称
-            // 取决于圆心是否落在艺术像素网格的镜像位上；画面中心 (480,270)@960×540 是
-            // 像素角点 = 镜像对称位，角色对准后头部栅格化左右对称。
-            Vector3 aimPoint = new Vector3(crewSpots[0].x, 0.66f, crewSpots[0].z);
-            camGo.transform.position = aimPoint + dir * PixelartLevelScene.CameraDistanceFor(view);
-            camGo.transform.LookAt(aimPoint);
+            camGo.transform.position = target + dir * PixelartLevelScene.CameraDistanceFor(view);
+            camGo.transform.LookAt(target);
 
             var camera = camGo.AddComponent<Camera>();
             camera.orthographic = true;
