@@ -21,7 +21,7 @@ namespace PirateCrew.EditorTools
     ///   菜单: PirateCrew/Scenes/批量重建 M1 场景
     ///   无头: -batchmode -quit -executeMethod PirateCrew.EditorTools.SceneSetup.BuildAll
     ///
-    /// 【产物】Assets/Scenes/{Bootstrapper,MainMenu}.unity（Battle 归 BattleSceneSetup 重建）；
+    /// 【产物】Assets/Scenes/Game/{Bootstrapper,MainMenu}.unity（Battle 归 BattleSceneSetup 重建）；
     ///   Build Settings 登记 6 场景（见 RegisterBuildSettings）。
     ///
     /// 【主菜单视觉口径（Beveled Pixel 像素皮）】深暖色清屏（透底语义）+ StickHand 标题
@@ -33,15 +33,13 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class SceneSetup
     {
-        const string ScenesFolder = "Assets/Scenes";
-
         static readonly Vector2 CenterAnchor = new Vector2(0.5f, 0.5f);
 
         /// <summary>无头 -executeMethod 入口。</summary>
         [MenuItem("PirateCrew/Scenes/批量重建 M1 场景")]
         public static void BuildAll()
         {
-            EnsureFolder(ScenesFolder);
+            EnsureFolder(SceneNames.GameFolder);
 
             BuildBootstrapperScene();
             BuildMainMenuScene();
@@ -53,7 +51,7 @@ namespace PirateCrew.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("[SceneSetup] 菜单场景重建完成：Assets/Scenes/{Bootstrapper,MainMenu}.unity（含视频设置服务与设置面板），"
+            Debug.Log("[SceneSetup] 菜单场景重建完成：Assets/Scenes/Game/{Bootstrapper,MainMenu}.unity（含视频设置服务与设置面板），"
                 + "Build Settings 登记 6 场景。");
         }
 
@@ -286,7 +284,7 @@ namespace PirateCrew.EditorTools
 
         static void SaveScene(Scene scene, string sceneName)
         {
-            string path = ScenesFolder + "/" + sceneName + ".unity";
+            string path = SceneNames.PathOf(sceneName);
             if (!EditorSceneManager.SaveScene(scene, path))
                 Debug.LogError("[SceneSetup] 保存场景失败: " + path);
         }

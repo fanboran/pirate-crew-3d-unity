@@ -16,7 +16,7 @@ using UnityEngine.UI;
 namespace PirateCrew.EditorTools
 {
     /// <summary>
-    /// 战斗场景装配器：程序化重建 <c>Assets/Scenes/Battle.unity</c>，创建 PirateBase 预制体，
+    /// 战斗场景装配器：程序化重建 <c>Assets/Scenes/Game/Battle.unity</c>，创建 PirateBase 预制体，
     /// 并把 <c>Scripts/PirateCrew/Battle/</c> 下各 MonoBehaviour 的 <c>[SerializeField]</c> 引用逐个接好。
     ///
     /// 【入口】
@@ -59,7 +59,6 @@ namespace PirateCrew.EditorTools
         // 路径常量
         // ------------------------------------------------------------------
 
-        const string ScenesFolder = "Assets/Scenes";
         const string PrefabFolder = "Assets/Prefabs/PirateCrew";
         const string MaterialFolder = PrefabFolder + "/Materials";
 
@@ -76,8 +75,7 @@ namespace PirateCrew.EditorTools
         const string CrewPrefabFolder = PrefabFolder + "/Crew";
         const string OutlineMaterialPath = MaterialFolder + "/PirateOutlineUnit.mat";
         const string OutlineShaderName = "PirateCrew/PirateOutline";
-        const string BattleScenePath = ScenesFolder + "/Battle.unity";
-
+        static readonly string BattleScenePath = BuildSystem.BuildScenes.PathOf("Battle");
         /// <summary>地形块父节点名（BattleTerrainView 挂在其下）。</summary>
         const string TerrainRootName = "Terrain";
 
@@ -94,7 +92,7 @@ namespace PirateCrew.EditorTools
         [MenuItem("PirateCrew/Scenes/重建 Battle 战斗场景")]
         public static void BuildAll()
         {
-            EnsureFolder(ScenesFolder);
+            EnsureFolder(Path.GetDirectoryName(BattleScenePath));
             EnsureFolder("Assets/Prefabs");
             EnsureFolder(PrefabFolder);
             EnsureFolder(MaterialFolder);
