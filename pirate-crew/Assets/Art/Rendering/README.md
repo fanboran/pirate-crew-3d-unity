@@ -15,7 +15,7 @@
 
 | 资产 | 作用 | 谁引用它 |
 | --- | --- | --- |
-| `BattleGlobalVolumeProfile.asset` | 战斗场景的 Global Volume 后处理栈（六个组件，现全部停用） | `Assets/Scenes/Battle.unity`（唯一消费者） |
+| `BattleGlobalVolumeProfile.asset` | 战斗场景的 Global Volume 后处理栈（六个组件，现全部停用） | `Assets/Scenes/Game/Battle.unity`（唯一消费者） |
 
 URP 的 Renderer / URPAsset 在 `Assets/Settings/URP/`，不在这里；Renderer Feature 的挂载/摘除脚本在
 `Assets/Editor/`（`PixelationInstaller` 装、`UrpRendererFeatureRetire` 卸）。
@@ -74,9 +74,9 @@ M2a 定案后再删。停用是幂等的、可一键还原的中间态。
 
 | 消费者 | 用法 | 状态 |
 | --- | --- | --- |
-| `Assets/Art/Shaders/PirateWater.shader:276` | `#include DeclareOpaqueTexture.hlsl` → `SampleSceneColor()`（屏幕空间折射） | **现役**：材质 `Assets/Art/Materials/Environment/Water_Ocean.mat` 被 `Assets/Scenes/Battle.unity` 引用 |
+| `Assets/Art/Shaders/PirateWater.shader:276` | `#include DeclareOpaqueTexture.hlsl` → `SampleSceneColor()`（屏幕空间折射） | **现役**：材质 `Assets/Art/Materials/Environment/Water_Ocean.mat` 被 `Assets/Scenes/Game/Battle.unity` 引用 |
 | `Assets/Art/Shaders/PirateWater.shader:273` | `DeclareDepthTexture.hlsl` → `SampleSceneDepth()`（浅深水过渡/岸边泡沫） | 同上 |
-| `Assets/Art/Shaders/Ocean/PirateOcean.shader:250` | `DeclareOpaqueTexture.hlsl` → `SampleSceneColor()`（水下透射） | **现役**：材质 `Assets/Art/Materials/Environment/Ocean_Water.mat` 被 `Assets/Scenes/Battle.unity` 引用 |
+| `Assets/Art/Shaders/Ocean/PirateOcean.shader:250` | `DeclareOpaqueTexture.hlsl` → `SampleSceneColor()`（水下透射） | **现役**：材质 `Assets/Art/Materials/Environment/Ocean_Water.mat` 被 `Assets/Scenes/Game/Battle.unity` 引用 |
 | `Assets/Art/Shaders/Ocean/PirateOcean.shader:247` | `DeclareDepthTexture.hlsl` → `SampleSceneDepth()`（岸线/深度带） | 同上 |
 | `Assets/Art/Shaders/PirateTerrain.shader:627`（DepthOnly pass） | **写**深度（不读）；`PirateWater` 的岸线依赖它写入 | 现役，但"写"不要求开关打开 |
 | `Assets/Art/Scripts/.../ScenePropGeometry.cs:622`（注释） | 说明浅水线索之一 | 注释，非消费者 |

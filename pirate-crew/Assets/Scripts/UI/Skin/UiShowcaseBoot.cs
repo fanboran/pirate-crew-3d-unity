@@ -8,7 +8,7 @@ using UnityEngine.UI;
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 组件展示**实机调试窗口**的场景引导（<c>Assets/Scenes/UIShowcase.unity</c> 唯一职责）：
+    /// 组件展示**实机调试窗口**的场景引导（<c>Assets/Scenes/Game/UIShowcase.unity</c> 唯一职责）：
     /// 建 overlay Canvas + 纵向滚动的 <see cref="PartsGalleryPage"/>（Aseprite 直切件全量陈列廊）
     /// + "返回总览"小钮。悬停/按压/页签切换全部真交互（创始人 2026-09-22："做成游戏内展示，
     /// 专门开一个实机调试窗口"；后续走查加码："字体用像素字体、件按 3:1 栅格"）。

@@ -4,11 +4,12 @@ using UnityEngine;
 using UnityEngine.Rendering.Universal;
 using PirateCrew.CharCamDebug;
 using PirateCrew.Rendering.Pixelart;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
     /// <summary>
-    /// **角色/镜头参数调试场**装配（`Assets/Scenes/PixelartCharCamDebug.unity`）。
+    /// **角色/镜头参数调试场**装配（`Assets/Scenes/Pixelart/PixelartCharCamDebug.unity`）。
     ///
     /// 【这个场景是干什么的】创始人要一个"画面中心一个角色、实时调角色体格（上下径/高度/头径）
     /// 与镜头取景（可见米数/像素档/俯仰角）"的场，在**像素化风格化渲染**下定镜头参数。
@@ -33,7 +34,7 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class PixelartCharCamDebugSetup
     {
-        const string ScenePath = "Assets/Scenes/" + CharCamDebugController.SceneName + ".unity";
+        static readonly string ScenePath = BuildScenes.PathOf(CharCamDebugController.SceneName);
 
         /// <summary>日志前缀（装配过程的行都带它，出问题时按前缀捞）。</summary>
         const string LogTag = "[PixelartCharCamDebugSetup]";

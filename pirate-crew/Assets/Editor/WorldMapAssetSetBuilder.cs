@@ -6,6 +6,7 @@ using PirateCrew.Rendering.Pixelart;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -25,7 +26,7 @@ namespace PirateCrew.EditorTools
         const string WorldKitRoot = "Assets/Art/Models/WorldKit";
         const string MaterialsDir = WorldKitRoot + "/Materials";
         const string AssetSetPath = WorldKitRoot + "/WorldMapAssetSet.asset";
-        const string BattleScenePath = "Assets/Scenes/Battle.unity";
+        static readonly string BattleScenePath = BuildScenes.PathOf("Battle");
 
         /// <summary>Kit_ 槽位表（hex / 双面；与 style_tokens.SLOTS 同源）。</summary>
         static readonly (string name, string hex, bool doubleSided)[]

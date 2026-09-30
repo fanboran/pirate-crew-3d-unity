@@ -21,7 +21,7 @@ namespace PirateCrew.EditorTools
     ///   无头: -batchmode -quit -executeMethod PirateCrew.EditorTools.ManagementSceneSetup.BuildAll
     ///
     /// 【产物】
-    ///   Assets/Scenes/CrewManagement.unity、Assets/Scenes/LevelSelect.unity；
+    ///   Assets/Scenes/Game/CrewManagement.unity、Assets/Scenes/Game/LevelSelect.unity；
     ///   Build Settings = Bootstrapper(0) / MainMenu(1) / Battle(2) / CrewManagement(3) / LevelSelect(4)。
     ///
     /// 【视觉层（Beveled Pixel 像素皮，docs/UI-UX与中文本地化规范.md §3.3 / §3.4 / §3.6 线框不变）】
@@ -38,8 +38,6 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class ManagementSceneSetup
     {
-        const string ScenesFolder = "Assets/Scenes";
-
         static readonly Vector2 CenterAnchor = new Vector2(0.5f, 0.5f);
         static readonly Vector2 TopCenterAnchor = new Vector2(0.5f, 1f);
         static readonly Vector2 BottomCenterAnchor = new Vector2(0.5f, 0f);
@@ -50,7 +48,7 @@ namespace PirateCrew.EditorTools
         [MenuItem("PirateCrew/Scenes/重建管理场景")]
         public static void BuildAll()
         {
-            EnsureFolder(ScenesFolder);
+            EnsureFolder(SceneNames.GameFolder);
 
             BuildCrewManagementScene();
             BuildLevelSelectScene();
@@ -60,8 +58,8 @@ namespace PirateCrew.EditorTools
             AssetDatabase.Refresh();
 
             Debug.Log("[ManagementSceneSetup] 管理场景重建完成（StickUI 复刻层视觉）。\n"
-                + "  场景: " + ScenesFolder + "/CrewManagement.unity、"
-                + ScenesFolder + "/LevelSelect.unity\n"
+                + "  场景: " + SceneNames.GameFolder + "/CrewManagement.unity、"
+                + SceneNames.GameFolder + "/LevelSelect.unity\n"
                 + "  Build Settings: Bootstrapper(0) / MainMenu(1) / Battle(2, 未重建) / "
                 + "CrewManagement(3) / LevelSelect(4)");
         }
@@ -544,7 +542,7 @@ namespace PirateCrew.EditorTools
 
         static void SaveScene(Scene scene, string sceneName)
         {
-            string path = ScenesFolder + "/" + sceneName + ".unity";
+            string path = SceneNames.PathOf(sceneName);
             if (!EditorSceneManager.SaveScene(scene, path))
                 Debug.LogError("[ManagementSceneSetup] 保存场景失败: " + path);
         }

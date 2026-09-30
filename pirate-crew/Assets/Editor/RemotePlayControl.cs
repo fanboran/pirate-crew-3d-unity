@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.Rendering.Universal;
 using PirateCrew.Core;
 using PirateCrew.Rendering.Pixelart;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -33,7 +34,7 @@ namespace PirateCrew.EditorTools
     {
         const string FlagPath = "../external/editor-remote-play.flag";
         const string DiagDir = "../external/pixelart-diag";
-        const string BattleScene = "Assets/Scenes/Battle.unity";
+        static readonly string BattleScene = BuildScenes.PathOf("Battle");
         const double PollInterval = 0.25;
         static double _nextPoll;
         static bool _busy;
@@ -153,7 +154,7 @@ namespace PirateCrew.EditorTools
 
             if (!EditorApplication.isPlaying)
             {
-                string scenePath = "Assets/Scenes/" + content + ".unity";
+                string scenePath = BuildScenes.PathOf(content);
                 if (!File.Exists(scenePath))
                 {
                     Debug.LogError("[RemotePlayControl] 标记里的场景不存在：" + scenePath);

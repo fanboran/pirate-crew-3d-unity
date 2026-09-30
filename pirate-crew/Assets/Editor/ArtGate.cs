@@ -156,7 +156,7 @@ namespace PirateCrew.EditorTools
 
             Debug.Log("[ArtGate] 一键构建全部完成：" + steps.Count + " 步均成功，用时 "
                 + sw.Elapsed.TotalSeconds.ToString("0.0") + "s。\n"
-                + "  战斗场景: Assets/Scenes/Battle.unity（Build Settings 以 M3 重建后的列表为准）\n"
+                + "  战斗场景: Assets/Scenes/Game/Battle.unity（Build Settings 以 M3 重建后的列表为准）\n"
                 + "  评审出图: 另开有图形界面的编辑器会话，跑菜单 PirateCrew/美术评审/采集评审图。");
         }
 

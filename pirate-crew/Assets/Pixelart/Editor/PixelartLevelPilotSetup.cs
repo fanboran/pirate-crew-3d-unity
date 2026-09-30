@@ -8,6 +8,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -302,7 +303,7 @@ namespace PirateCrew.EditorTools
             // renderer 就是"那片像素花屏、一行报错都没有"（细节见 PixelartStageKit 类头）。
             PixelartStageKit.AssertObjectShaderOnly(root, LogTag);
 
-            string scenePath = "Assets/Scenes/" + view.SceneName + ".unity";
+            string scenePath = BuildScenes.PathOf(view.SceneName);
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), scenePath);
             PixelartStageKit.RegisterScene(scenePath, LogTag);
 

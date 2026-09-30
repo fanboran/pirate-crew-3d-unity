@@ -5,11 +5,12 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using PirateCrew.Rendering.Pixelart;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
     /// <summary>
-    /// **像素化着色路径试点场景**装配（`Assets/Scenes/PixelartPilot.unity`）。
+    /// **像素化着色路径试点场景**装配（`Assets/Scenes/Pixelart/PixelartPilot.unity`）。
     ///
     /// 【这个场景是干什么的】给新路径（物体 pass 写 G-buffer → 低分辨率域着色 → 点采样上屏）一个
     /// **几何正确、内容最小**的载体，用来回答"v3 的观感在**本仓**长什么样"。
@@ -40,7 +41,7 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class PixelartPilotSetup
     {
-        const string ScenePath = "Assets/Scenes/" + PixelartPilotScene.SceneName + ".unity";
+        static readonly string ScenePath = BuildScenes.PathOf(PixelartPilotScene.SceneName);
 
         /// <summary>日志前缀（装配过程的行都带它，出问题时按前缀捞）。</summary>
         const string LogTag = "[PixelartPilotSetup]";

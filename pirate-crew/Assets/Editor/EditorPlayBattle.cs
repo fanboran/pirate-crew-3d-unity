@@ -3,6 +3,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using PirateCrew.Core;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -26,8 +27,8 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class EditorPlayBattle
     {
-        const string BattleScenePath = "Assets/Scenes/Battle.unity";
-        const string BootScenePath = "Assets/Scenes/Bootstrapper.unity";
+        static readonly string BattleScenePath = BuildScenes.PathOf("Battle");
+        static readonly string BootScenePath = BuildScenes.PathOf("Bootstrapper");
 
         [MenuItem("PirateCrew/评审/进战斗（打开 Battle 并 Play）", priority = 0)]
         public static void EnterBattle()

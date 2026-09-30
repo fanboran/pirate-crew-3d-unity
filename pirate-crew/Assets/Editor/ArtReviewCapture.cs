@@ -7,6 +7,7 @@ using UnityEditor.SceneManagement;
 using UnityEditorInternal;
 using UnityEngine;
 using UnityEngine.Rendering;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -302,7 +303,7 @@ namespace PirateCrew.EditorTools
             {
                 Debug.LogError("[ArtReviewCapture] 当前会话没有可用渲染路径，无法出真实评审图。原因：" + reason + "\n"
                     + "  本脚本不会生成占位图/空白图。请改用**有图形界面的 Unity 编辑器会话**：\n"
-                    + "    1) 打开 Assets/Scenes/Battle.unity；\n"
+                    + "    1) 打开 Assets/Scenes/Game/Battle.unity；\n"
                     + "    2) 菜单 PirateCrew/美术评审/采集评审图（当前场景 EditMode 或 进 Play 自动出图）。\n"
                     + "  注意: 不要用 -batchmode -nographics 跑截图（GfxDevice 创建不了且无真实像素）。");
                 return false;
@@ -318,7 +319,7 @@ namespace PirateCrew.EditorTools
             if (Object.FindObjectOfType<BattleController>() == null)
             {
                 Debug.LogError("[ArtReviewCapture] 当前打开的场景里没有 BattleController。\n"
-                    + "  请先打开 Assets/Scenes/Battle.unity 再运行本工具（当前场景: "
+                    + "  请先打开 Assets/Scenes/Game/Battle.unity 再运行本工具（当前场景: "
                     + UnityEngine.SceneManagement.SceneManager.GetActiveScene().path + "）。");
                 return false;
             }
@@ -482,7 +483,7 @@ namespace PirateCrew.EditorTools
             if (Object.FindObjectOfType<BattleController>() != null)
                 return true;
 
-            const string battleScenePath = "Assets/Scenes/Battle.unity";
+            string battleScenePath = BuildScenes.PathOf("Battle");
             if (AssetDatabase.LoadAssetAtPath<SceneAsset>(battleScenePath) == null)
             {
                 Debug.LogError("[ArtReviewCapture] 自动采集放弃：找不到 " + battleScenePath

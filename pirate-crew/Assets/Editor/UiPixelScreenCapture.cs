@@ -3,6 +3,7 @@ using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -206,7 +207,7 @@ namespace PirateCrew.EditorTools
                 case 0:
                     if (EditorApplication.isPlaying)
                         return;   // 等上一段 Play 完全退出再开场景
-                    EditorSceneManager.OpenScene("Assets/Scenes/" + sceneName + ".unity",
+                    EditorSceneManager.OpenScene(BuildScenes.PathOf(sceneName),
                         OpenSceneMode.Single);
                     Screen.SetResolution(1920, 1080, false);
                     SessionState.SetInt(StateKey, 1);

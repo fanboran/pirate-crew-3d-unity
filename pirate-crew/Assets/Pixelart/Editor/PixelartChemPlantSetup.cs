@@ -3,6 +3,7 @@ using PirateCrew.Rendering.Pixelart;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using PirateCrew.EditorTools.BuildSystem;
 using UnityEngine.Rendering.Universal;   // GetUniversalAdditionalCameraData 是这里的扩展方法
 
 namespace PirateCrew.EditorTools
@@ -10,7 +11,7 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// 第三手搓样板关「废弃化工厂」的**像素化路径试点场景**装配：
     /// 把 Blender 侧手作的总装件（`ChemPlant_Level.fbx`，见 `tools/blender/scene/chemplant/`）
-    /// 摆进 `PixelartLevelScene` 的取景口径里，烘出 `Assets/Scenes/PixelartChemPlant.unity`，
+    /// 摆进 `PixelartLevelScene` 的取景口径里，烘出 `Assets/Scenes/Pixelart/PixelartChemPlant.unity`，
     /// 供播放器出图链（`-pixelartOut -pixelartLevel 4`）产出**实机管线成图**。
     ///
     /// 【为什么需要这个装配器】`PixelartPilot` 是图元几何（验机制）、其余行是真实玩法内容；
@@ -210,7 +211,7 @@ namespace PirateCrew.EditorTools
             // 就是"那片像素花屏、一行报错都没有"（口径见 PixelartStageKit 类头）。
             PixelartStageKit.AssertObjectShaderOnly(root, LogTag);
 
-            string scenePath = "Assets/Scenes/" + SceneName + ".unity";
+            string scenePath = BuildScenes.PathOf(SceneName);
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), scenePath);
             PixelartStageKit.RegisterScene(scenePath, LogTag);
 

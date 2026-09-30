@@ -59,7 +59,7 @@
 非标准场地不可用**：那组机位的瞄准点/距离按 20×15 标准竞技场手抄，28×20/32×22 的新关
 会框到地面或场边（实拍为证）。给新关补机位属相机侧任务（见待办）。
 
-**出图链**（可复现）：场景 `Assets/Scenes/PixelartChemPlantTeam.unity`（装配器
+**出图链**（可复现）：场景 `Assets/Scenes/Pixelart/PixelartChemPlantTeam.unity`（装配器
 `Assets/Pixelart/Editor/PixelartChemPlantTeamSetup.cs`，取景表关卡号 **5**）
 → 开发包（`BuildScript` 加 `-buildFlavors development -buildScenes development`）
 → 播放器 `PirateCrew3D.exe -pixelartOut <目录> -pixelartLevel 5`。

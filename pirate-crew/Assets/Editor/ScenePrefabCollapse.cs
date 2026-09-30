@@ -4,6 +4,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -65,28 +66,28 @@ namespace PirateCrew.EditorTools
             new Entry
             {
                 Key = "Battle",
-                ScenePath = "Assets/Scenes/Battle.unity",
+                ScenePath = BuildScenes.PathOf("Battle"),
                 PrefabPath = "Assets/Prefabs/PirateCrew/Battle/BattleRig.prefab",
                 RootName = "BattleRig",
             },
             new Entry
             {
                 Key = "MainMenu",
-                ScenePath = "Assets/Scenes/MainMenu.unity",
+                ScenePath = BuildScenes.PathOf("MainMenu"),
                 PrefabPath = "Assets/Prefabs/UI/MainMenuScreen.prefab",
                 RootName = "MainMenuScreen",
             },
             new Entry
             {
                 Key = "LevelSelect",
-                ScenePath = "Assets/Scenes/LevelSelect.unity",
+                ScenePath = BuildScenes.PathOf("LevelSelect"),
                 PrefabPath = "Assets/Prefabs/UI/LevelSelectScreen.prefab",
                 RootName = "LevelSelectScreen",
             },
             new Entry
             {
                 Key = "CrewManagement",
-                ScenePath = "Assets/Scenes/CrewManagement.unity",
+                ScenePath = BuildScenes.PathOf("CrewManagement"),
                 PrefabPath = "Assets/Prefabs/UI/CrewManagementScreen.prefab",
                 RootName = "CrewManagementScreen",
             },

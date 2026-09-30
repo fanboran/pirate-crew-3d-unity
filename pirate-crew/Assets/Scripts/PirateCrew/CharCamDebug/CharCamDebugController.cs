@@ -7,7 +7,7 @@ using PirateCrew.Visual;
 namespace PirateCrew.CharCamDebug
 {
     /// <summary>
-    /// **角色/镜头参数调试场**（`Assets/Scenes/PixelartCharCamDebug.unity`）的运行时控制器。
+    /// **角色/镜头参数调试场**（`Assets/Scenes/Pixelart/PixelartCharCamDebug.unity`）的运行时控制器。
     ///
     /// 【这个场景是干什么的】画面中心站一个**两件式程序化角色**（圆台 Body + 圆球 Head，几何与
     /// 游戏角色同一条生成链），挂一个 IMGUI 面板实时调两组参数，回答"镜头参数怎么设置"：

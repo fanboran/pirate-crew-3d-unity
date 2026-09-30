@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -38,7 +39,7 @@ namespace PirateCrew.EditorTools
         public const string FlagshipFbxPath = "Assets/Art/Models/SceneKit/Flagship.fbx";
         public const string DockFbxPath = "Assets/Art/Models/SceneKit/Dock.fbx";
         public const string MaterialDir = "Assets/Art/Models/SceneKit/Materials";
-        public const string ScenePath = "Assets/Scenes/SceneKitPilot.unity";
+        public static readonly string ScenePath = BuildScenes.PathOf("SceneKitPilot");
 
         /// <summary>showcase 根节点名（幂等重建的扫描键，不用 GameObject.Find）。</summary>
         public const string ShowcaseRootName = "[SceneKitPilotShowcase]";

@@ -4,6 +4,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -34,7 +35,7 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class HudMinimapSceneSetup
     {
-        const string BattleScenePath = "Assets/Scenes/Battle.unity";
+        static readonly string BattleScenePath = BuildScenes.PathOf("Battle");
         const string CanvasName = "BattleCanvas";
         const string MinimapPanelName = "MinimapPanel";
         const string Team0RootName = "Team0_Red";

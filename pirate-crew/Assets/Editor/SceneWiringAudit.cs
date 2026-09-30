@@ -6,6 +6,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -22,7 +23,7 @@ namespace PirateCrew.EditorTools
     ///   菜单: PirateCrew/Audit/场景接线转储（Battle）
     ///   无头: -batchmode -nographics -quit -projectPath &lt;P&gt; \
     ///         -executeMethod PirateCrew.EditorTools.SceneWiringAudit.DumpBattle \
-    ///         [-sceneAuditOut &lt;绝对目录&gt;] [-sceneAuditScene Assets/Scenes/xxx.unity] \
+    ///         [-sceneAuditOut &lt;绝对目录&gt;] [-sceneAuditScene Assets/Scenes/Game/xxx.unity] \
     ///         [-sceneAuditStripRoot &lt;载体根名&gt;]
     ///   比对: 菜单 PirateCrew/Audit/比对两次转储（选两份 tsv）；或 -executeMethod
     ///         SceneWiringAudit.DiffFromCommandLine -sceneAuditDiff "a.tsv;b.tsv"
@@ -39,7 +40,7 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class SceneWiringAudit
     {
-        const string DefaultScene = "Assets/Scenes/Battle.unity";
+        static readonly string DefaultScene = BuildScenes.PathOf("Battle");
 
         /// <summary>默认输出目录（仓库根的 external/ 下，该目录不入库）。</summary>
         static string DefaultOutDir

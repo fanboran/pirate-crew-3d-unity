@@ -37,8 +37,14 @@ namespace PirateCrew.EditorTools.BuildSystem
     /// </summary>
     public static class BuildScenes
     {
-        /// <summary>场景资产所在目录（AssetDatabase 相对路径）。</summary>
-        public const string Folder = "Assets/Scenes";
+        /// <summary>游戏场景目录（Bootstrapper/MainMenu/LevelSelect/CrewManagement/Battle/UIShowcase）。</summary>
+        public const string GameFolder = PirateCrew.Core.SceneNames.GameFolder;
+
+        /// <summary>像素化试点/验收场景目录（Pixelart* 前缀的 7 张）。</summary>
+        public const string PixelartFolder = PirateCrew.Core.SceneNames.PixelartFolder;
+
+        /// <summary>【兼容旧名】游戏场景目录——存量代码引用它；新代码请用 <see cref="PathOf"/>。</summary>
+        public const string Folder = GameFolder;
 
         /// <summary>场景资产扩展名。</summary>
         public const string Extension = ".unity";
@@ -140,15 +146,12 @@ namespace PirateCrew.EditorTools.BuildSystem
             var scenes = new UnityEditor.EditorBuildSettingsScene[names.Length];
             for (int i = 0; i < names.Length; i++)
                 scenes[i] = new UnityEditor.EditorBuildSettingsScene(
-                    Folder + "/" + names[i] + Extension, true);
+                    PathOf(names[i]), true);
             return scenes;
         }
 
-        /// <summary>场景名 → 场景资产路径（<c>Battle</c> → <c>Assets/Scenes/Battle.unity</c>）。</summary>
-        public static string PathOf(string sceneName)
-        {
-            return Folder + "/" + sceneName + Extension;
-        }
+        /// <summary>场景名 → 场景资产路径（推导规则见 <see cref="PirateCrew.Core.SceneNames.PathOf"/>）。</summary>
+        public static string PathOf(string sceneName) => PirateCrew.Core.SceneNames.PathOf(sceneName);
 
         /// <summary>
         /// 按清单名解析场景集：<c>release</c> / <c>development</c> / <c>a,b,c</c>（逗号分隔的自定义场景名）。
@@ -200,7 +203,7 @@ namespace PirateCrew.EditorTools.BuildSystem
         /// <summary>
         /// 校验一份场景集。返回问题清单（空 = 通过）。检查项：
         /// <list type="number">
-        ///   <item>非空，元素非空，且是「场景名」而不是路径（禁止传 <c>Assets/Scenes/Battle.unity</c>）</item>
+        ///   <item>非空，元素非空，且是「场景名」而不是路径（禁止传 <c>Assets/Scenes/Game/Battle.unity</c>）</item>
         ///   <item>无重复项（重复会让包内出现同名场景，加载行为依赖顺序，属静默故障）</item>
         ///   <item>场景资产真实存在（<c>LoadAssetAtPath&lt;SceneAsset&gt;</c> 非空）</item>
         ///   <item><c>[0]</c> 必须是 <see cref="SceneNames.Bootstrapper"/>——播放器启动场景</item>

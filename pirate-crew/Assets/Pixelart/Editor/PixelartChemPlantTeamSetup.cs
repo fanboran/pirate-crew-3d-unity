@@ -5,6 +5,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;   // GetUniversalAdditionalCameraData 是这里的扩展方法
 using PixelartLevelView = PirateCrew.Rendering.Pixelart.PixelartLevelScene.View;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -12,7 +13,7 @@ namespace PirateCrew.EditorTools
     /// 「废弃化工厂 · 六件并行版」的**像素化路径试点场景**装配：把
     /// `Assets/Art/Models/SceneKit/ChemPlant.fbx`（六件并行分件式 kit，
     /// `tools/blender/scene/chemplant/` 的 `assemble_chemplant.py` 产出）摆进
-    /// <see cref="PixelartLevelScene"/> 的取景口径里，烘出 `Assets/Scenes/PixelartChemPlantTeam.unity`，
+    /// <see cref="PixelartLevelScene"/> 的取景口径里，烘出 `Assets/Scenes/Pixelart/PixelartChemPlantTeam.unity`，
     /// 供播放器出图链（`-pixelartOut -pixelartLevel 5`）产**实机管线成图**。
     ///
     /// 【与 `PixelartChemPlantSetup`（单文件版）的关系】两套是同一主题的两条并行路线，共用：
@@ -206,7 +207,7 @@ namespace PirateCrew.EditorTools
 
             PixelartStageKit.AssertObjectShaderOnly(root, LogTag);
 
-            string scenePath = "Assets/Scenes/" + SceneName + ".unity";
+            string scenePath = BuildScenes.PathOf(SceneName);
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), scenePath);
             PixelartStageKit.RegisterScene(scenePath, LogTag);
 

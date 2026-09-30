@@ -8,6 +8,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -101,7 +102,7 @@ namespace PirateCrew.EditorTools
         public static void PlaceIntoBattleCenter()
         {
             var scene = EditorSceneManager.OpenScene(
-                "Assets/Scenes/Battle.unity", OpenSceneMode.Single);
+                BuildScenes.PathOf("Battle"), OpenSceneMode.Single);
 
             GameObject root = Place(FloatingIslandSpec.Default);
             root.transform.position = new Vector3(

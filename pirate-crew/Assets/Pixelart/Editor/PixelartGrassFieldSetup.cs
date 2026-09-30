@@ -5,6 +5,7 @@ using PirateCrew.SceneArt.Showcase;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using PirateCrew.EditorTools.BuildSystem;
 using UnityEngine.Rendering.Universal;   // GetUniversalAdditionalCameraData 是这里的扩展方法
 
 namespace PirateCrew.EditorTools
@@ -231,11 +232,11 @@ namespace PirateCrew.EditorTools
 
             PixelartStageKit.AssertObjectShaderOnly(root, LogTag);
 
-            string scenePath = "Assets/Scenes/" + SceneName + ".unity";
+            string scenePath = BuildScenes.PathOf(SceneName);
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), scenePath);
             PixelartStageKit.RegisterScene(scenePath, LogTag);
 
-            Debug.Log(LogTag + " 场景完成（sprite 版）：Assets/Scenes/" + SceneName + ".unity。出图：播放器 "
+            Debug.Log(LogTag + " 场景完成（sprite 版）：" + scenePath + "。出图：播放器 "
                 + "-pixelartOut <目录> -pixelartLevel " + LevelNumber);
         }
 

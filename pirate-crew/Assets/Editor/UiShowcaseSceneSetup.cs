@@ -4,6 +4,7 @@ using PirateCrew.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -19,7 +20,7 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class UiShowcaseSceneSetup
     {
-        const string ScenePath = "Assets/Scenes/UIShowcase.unity";
+        static readonly string ScenePath = BuildScenes.PathOf("UIShowcase");
         const string CaptureDir = "export/ui-pixel-4a";
         const string CaptureFile = "showcase-live.png";
 
@@ -40,7 +41,7 @@ namespace PirateCrew.EditorTools
 
             new GameObject("ShowcaseBoot").AddComponent<UiShowcaseBoot>();
 
-            Directory.CreateDirectory("Assets/Scenes");
+            Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), ScenePath);
             // 出包注册已删（清理波裁决：演示场景不随构建发布；本场景仅供编辑器内验收对拍）。
             Debug.Log("[UiShowcaseSceneSetup] 组件展示场景已构建：" + ScenePath);

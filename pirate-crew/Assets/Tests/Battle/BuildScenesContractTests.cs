@@ -38,7 +38,7 @@ namespace PirateCrew.Tests
 
             foreach (string name in RequiredSceneNames)
             {
-                string path = "Assets/Scenes/" + name + ".unity";
+                string path = SceneNames.PathOf(name);
                 Assert.IsTrue(enabledPaths.Contains(path),
                     "Build Settings 缺少场景 " + path + "——又有代码用自带清单覆盖了场景表"
                     + "（UIShowcase 历史上被这样摘过四次。修复：写表一律走"

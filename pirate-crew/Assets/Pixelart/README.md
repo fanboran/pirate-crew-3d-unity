@@ -26,7 +26,7 @@
 | 场景常量（取景/像素档位） | `Assets/Scripts/PirateCrew/Rendering/Pixelart/PixelartPilotScene.cs`、`PixelartLevelScene.cs` | 同上；**取景口径的唯一来源**，装配器与出图脚本都读它 |
 | 出图脚本（播放器侧） | `Assets/Scripts/PirateCrew/ArtReview/PlayerArtCapture.cs` | 与既有出图链同文件（`-artReviewOut` / `-toonPilotOut` / `-pixelartOut` 共用一个入口） |
 | 判据脚本 | `tools/pixel-review/judge_pixelart_pilot.py`（另 `ink_gap_probe.py`） | 仓库工具目录（Python） |
-| 场景（试点 + 样板关） | `Assets/Scenes/PixelartPilot.unity`、`PixelartCloud.unity`（关卡 1）、`PixelartSkyIsland.unity`（关卡 3）、`PixelartChemPlant.unity` / `PixelartChemPlantTeam.unity`（关卡 4·5，提案/待定）；**关卡 2 已删除**（2026-09-22）、**八张世界海图（101–108）已删除待重做**，关卡号有意不连续 | Unity 场景必须在 `Assets/Scenes/`（Build Settings 与出图链按名切换） |
+| 场景（试点 + 样板关） | `Assets/Scenes/Pixelart/PixelartPilot.unity`、`PixelartCloud.unity`（关卡 1）、`PixelartSkyIsland.unity`（关卡 3）、`PixelartChemPlant.unity` / `PixelartChemPlantTeam.unity`（关卡 4·5，提案/待定）；**关卡 2 已删除**（2026-09-22）、**八张世界海图（101–108）已删除待重做**，关卡号有意不连续 | Unity 场景必须在 `Assets/Scenes/` 的二级目录下（试点/样板关在 `Pixelart/`，游戏场景在 `Game/`；Build Settings 与出图链按名切换，路径推导真源 `SceneNames.PathOf`） |
 | 档案（每轮出图 + 判据读数） | `docs/images/pixelart-path/r*/README.md` | 文档区 |
 | 实现口径 / 接口契约 | `docs/技术/渲染/像素化着色路径.md`、`像素化着色路径-P4P5接口契约.md` | 文档区 |
 

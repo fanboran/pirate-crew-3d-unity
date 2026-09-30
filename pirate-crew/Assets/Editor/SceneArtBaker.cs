@@ -8,6 +8,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -45,7 +46,7 @@ namespace PirateCrew.EditorTools
         /// <summary>场景美术材质（Scene_* 族，原 SceneArtBuilder 生成、RuntimeSceneArt 同源）。</summary>
         const string SceneMaterialFolder = "Assets/Art/Materials/Scene";
 
-        const string BattleScenePath = "Assets/Scenes/Battle.unity";
+        static readonly string BattleScenePath = BuildScenes.PathOf("Battle");
 
         // ------------------------------------------------------------------
         // 入口

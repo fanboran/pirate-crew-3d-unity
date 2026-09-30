@@ -6,6 +6,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
 {
@@ -50,7 +51,7 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class BattleLookupWiring
     {
-        const string BattleScenePath = "Assets/Scenes/Battle.unity";
+        static readonly string BattleScenePath = BuildScenes.PathOf("Battle");
 
         /// <summary>一条"目标组件字段 ← 源对象"的接线描述。</summary>
         struct WireAssignment

@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
+using PirateCrew.Core;
 using PirateCrew.Rendering.Pixelart;
 using UnityEngine;
 
@@ -65,7 +66,9 @@ namespace PirateCrew.Tests
 
             foreach (string name in PixelartSceneNames)
             {
-                string path = Path.Combine(scenesDir, name + ".unity");
+                // 场景已分两级目录（Game/ / Pixelart/）——路径一律经 SceneNames.PathOf 推导。
+                string path = Path.GetFullPath(Path.Combine(
+                    Application.dataPath, "..", SceneNames.PathOf(name)));
                 if (!File.Exists(path))
                 {
                     problems.Add(name + ": 场景资产缺失 " + path);

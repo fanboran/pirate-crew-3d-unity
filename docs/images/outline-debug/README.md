@@ -47,7 +47,7 @@
 ## 复现方式
 
 1. 用图形界面编辑器打开 `pirate-crew/`（**不要** `-batchmode -nographics`，那样没有渲染路径）。
-2. 打开 `Assets/Scenes/Battle.unity`，进 play mode，**确认没有暂停**（暂停时画面不重绘，采集会明确报错退出）。
+2. 打开 `Assets/Scenes/Game/Battle.unity`，进 play mode，**确认没有暂停**（暂停时画面不重绘，采集会明确报错退出）。
 3. 菜单 **`PirateCrew/Rendering/采集描边调试截图`** → 5 张图写到本目录（采集脚本会先把全场单位强制为选中态，结束后复位）。
 4. 想单独看"真实选中通路"：play mode 下点选一个己方角色后自行截图即可（本目录的 `01-*` 就是这么来的）。
 
