@@ -136,13 +136,13 @@ namespace PirateCrew.Core
 
             if (string.IsNullOrEmpty(sceneName))
             {
-                Debug.LogError("[SceneLoader] 场景名为空");
+                global::PirateCrew.Core.Log.Error("[SceneLoader] 场景名为空");
                 return;
             }
 
             if (!Application.CanStreamedLevelBeLoaded(sceneName))
             {
-                Debug.LogError("[SceneLoader] 场景不存在或未加入 Build Settings: " + sceneName);
+                global::PirateCrew.Core.Log.Error("[SceneLoader] 场景不存在或未加入 Build Settings: " + sceneName);
                 return;
             }
 
@@ -214,7 +214,7 @@ namespace PirateCrew.Core
             AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Single);
             if (operation == null)
             {
-                Debug.LogError("[SceneLoader] 场景加载失败: " + sceneName);
+                global::PirateCrew.Core.Log.Error("[SceneLoader] 场景加载失败: " + sceneName);
                 if (transition)
                     yield return FadeRoutine(1f, 0f);
                 _isLoading = false;

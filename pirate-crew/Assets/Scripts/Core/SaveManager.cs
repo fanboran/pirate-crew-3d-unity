@@ -120,7 +120,7 @@ namespace PirateCrew.Core
             }
             catch (Exception e)
             {
-                Debug.LogError("[SaveManager] 创建存档目录失败: " + e);
+                global::PirateCrew.Core.Log.Error("[SaveManager] 创建存档目录失败: " + e);
             }
         }
 
@@ -153,7 +153,7 @@ namespace PirateCrew.Core
         {
             if (data == null)
             {
-                Debug.LogError("[SaveManager] SaveToSlot 收到空数据，slot=" + slot);
+                global::PirateCrew.Core.Log.Error("[SaveManager] SaveToSlot 收到空数据，slot=" + slot);
                 return false;
             }
 
@@ -299,7 +299,8 @@ namespace PirateCrew.Core
             }
             catch (Exception e)
             {
-                Debug.LogError("[SaveManager] 自动存档数据源异常: " + e);
+                // 数据源异常只废掉本次自动存档，可恢复，收口为 Warn（发布版不再留日志）
+                global::PirateCrew.Core.Log.Warn("[SaveManager] 自动存档数据源异常: " + e);
                 return false;
             }
 
@@ -333,7 +334,7 @@ namespace PirateCrew.Core
                 }
                 catch (Exception e)
                 {
-                    Debug.LogError("[SaveManager] 自动存档异常: " + e);
+                    global::PirateCrew.Core.Log.Warn("[SaveManager] 自动存档异常: " + e);
                 }
             }
         }
@@ -380,7 +381,7 @@ namespace PirateCrew.Core
             catch (Exception e)
             {
                 // 元数据写失败不影响存档本体，只记录
-                Debug.LogError("[SaveManager] 更新存档元数据失败: " + e);
+                global::PirateCrew.Core.Log.Warn("[SaveManager] 更新存档元数据失败: " + e);
             }
         }
 
@@ -398,7 +399,7 @@ namespace PirateCrew.Core
             }
             catch (Exception e)
             {
-                Debug.LogError("[SaveManager] 删除存档元数据失败: " + e);
+                global::PirateCrew.Core.Log.Warn("[SaveManager] 删除存档元数据失败: " + e);
             }
         }
 

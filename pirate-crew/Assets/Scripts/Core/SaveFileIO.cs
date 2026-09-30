@@ -7,8 +7,10 @@ namespace PirateCrew.Core
     /// <summary>
     /// 存档文件 IO 纯 C# 层（无 MonoBehaviour，可脱离 Unity 生命周期单独测试）。
     ///
-    /// 【健壮性契约】照搬 external/core-reference/savesystem-shapedbyrain 的 FileDataHandler：
-    ///   写入：写 .tmp → 回读校验 → 旧正式文件转 .bak → .tmp 转正；
+    /// 【健壮性契约】源自 external/core-reference/savesystem-shapedbyrain 的 FileDataHandler，
+    ///   转正一步升级为同卷原子操作（Replace/Move 取代非原子的 Copy）：
+    ///   写入：写 .tmp → 回读校验 → 转正（目标已存在则 Replace、旧档自动进 .bak；
+    ///   不存在则 Move 同卷重命名）；
     ///   读取：解析失败时从 .bak 回滚一次（allowRestoreFromBackup 防无限递归）。
     ///   路径一律 Path.Combine，跨平台。
     ///
@@ -75,7 +77,7 @@ namespace PirateCrew.Core
             }
             catch (Exception e)
             {
-                Debug.LogError("[SaveFileIO] 删除存档失败: " + path + "\n" + e);
+                global::PirateCrew.Core.Log.Error("[SaveFileIO] 删除存档失败: " + path + "\n" + e);
                 return false;
             }
         }
@@ -110,7 +112,7 @@ namespace PirateCrew.Core
             {
                 if (!allowRestoreFromBackup)
                 {
-                    Debug.LogError("[SaveFileIO] 存档损坏且无法从 .bak 恢复: " + path + "\n" + e);
+                    global::PirateCrew.Core.Log.Error("[SaveFileIO] 存档损坏且无法从 .bak 恢复: " + path + "\n" + e);
                     return null;
                 }
 
@@ -122,12 +124,12 @@ namespace PirateCrew.Core
             }
         }
 
-        /// <summary>写入槽位（.tmp → 回读校验 → 旧文件转 .bak → 转正）；成功返回 true。</summary>
+        /// <summary>写入槽位（.tmp → 回读校验 → 存在则 Replace 旧档进 .bak / 不存在则 Move 转正）；成功返回 true。</summary>
         public bool SaveSlot(int slot, SaveData data)
         {
             if (data == null)
             {
-                Debug.LogError("[SaveFileIO] SaveSlot 收到空数据，slot=" + slot);
+                global::PirateCrew.Core.Log.Error("[SaveFileIO] SaveSlot 收到空数据，slot=" + slot);
                 return false;
             }
 
@@ -167,7 +169,7 @@ namespace PirateCrew.Core
             {
                 if (!allowRestoreFromBackup)
                 {
-                    Debug.LogError("[SaveFileIO] 元数据损坏且无法从 .bak 恢复: " + path + "\n" + e);
+                    global::PirateCrew.Core.Log.Error("[SaveFileIO] 元数据损坏且无法从 .bak 恢复: " + path + "\n" + e);
                     return null;
                 }
 
@@ -201,8 +203,10 @@ namespace PirateCrew.Core
         }
 
         /// <summary>
-        /// 原子写入：写 .tmp → 回读校验 → 旧正式文件转 .bak → .tmp 转正。
-        /// 任一步失败都删除 .tmp 并返回 false，绝不留下半截正式文件。
+        /// 原子写入：写 .tmp → 回读校验 → 转正。
+        /// 转正按目标是否存在二选一：已存在走 File.Replace（原子替换，旧档自动转 .bak），
+        /// 不存在（首写）走 File.Move（同卷重命名）——两者都是原子操作，崩溃也绝不留下半截正式文件。
+        /// 任一步失败删除 .tmp 并返回 false。
         /// </summary>
         bool WriteJsonAtomic<T>(string path, T data) where T : class
         {
@@ -220,22 +224,29 @@ namespace PirateCrew.Core
                 if (Deserialize<T>(File.ReadAllText(tempPath)) == null)
                 {
                     SafeDelete(tempPath);
-                    Debug.LogError("[SaveFileIO] 回读校验失败，放弃写入: " + path);
+                    global::PirateCrew.Core.Log.Error("[SaveFileIO] 回读校验失败，放弃写入: " + path);
                     return false;
                 }
 
-                // 旧正式文件转 .bak（首次写入无旧文件则跳过）
+                // 转正不用 File.Copy：拷贝中途崩溃会留半截正式档，这里走同卷原子操作——
+                // 目标已存在用 File.Replace 原子换入，旧档自动转 .bak；
+                // 首次写入（无目标）用 File.Move 同卷重命名，没有内容拷贝窗口。
                 if (File.Exists(path))
-                    File.Copy(path, backupPath, true);
-
-                // .tmp 转正
-                File.Copy(tempPath, path, true);
-                SafeDelete(tempPath);
+                {
+                    // Unix 实现的 Replace 遇 .bak 已存在会抛异常（Windows 则直接覆盖），
+                    // 先清掉旧 .bak 保证跨平台行为一致。
+                    SafeDelete(backupPath);
+                    File.Replace(tempPath, path, backupPath);
+                }
+                else
+                {
+                    File.Move(tempPath, path);
+                }
                 return true;
             }
             catch (Exception e)
             {
-                Debug.LogError("[SaveFileIO] 写入存档失败: " + path + "\n" + e);
+                global::PirateCrew.Core.Log.Error("[SaveFileIO] 写入存档失败: " + path + "\n" + e);
                 SafeDelete(tempPath);
                 return false;
             }
@@ -249,7 +260,7 @@ namespace PirateCrew.Core
             {
                 if (!File.Exists(backupPath))
                 {
-                    Debug.LogError("[SaveFileIO] 没有可回滚的 .bak 文件: " + backupPath);
+                    global::PirateCrew.Core.Log.Error("[SaveFileIO] 没有可回滚的 .bak 文件: " + backupPath);
                     return false;
                 }
 
@@ -259,7 +270,7 @@ namespace PirateCrew.Core
             }
             catch (Exception e)
             {
-                Debug.LogError("[SaveFileIO] 回滚失败: " + backupPath + "\n" + e);
+                global::PirateCrew.Core.Log.Error("[SaveFileIO] 回滚失败: " + backupPath + "\n" + e);
                 return false;
             }
         }
