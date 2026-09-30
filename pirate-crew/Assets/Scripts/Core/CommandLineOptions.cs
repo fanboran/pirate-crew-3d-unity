@@ -234,9 +234,16 @@ namespace PirateCrew.Core
 
         /// <summary>
         /// `-pixelartOut` 的色带档数覆盖：<c>-pixelartMainLightLevel &lt;1..8&gt;</c>。
-        /// **出图对照用**：参考库演示材质主流是 4，本仓现役 3。
+        /// **出图对照用**：本仓现役档 = `PixelartMaterialFactory.DefaultBandCount`（已按参考库演示主流值定档）。
         /// </summary>
         public const string PixelartMainLightLevel = "-pixelartMainLightLevel";
+
+        /// <summary>
+        /// `-pixelartOut` 的抖动幅度覆盖：<c>-pixelartDitherStrength &lt;0..1&gt;</c>。
+        /// **出图对照用**：临时覆盖所有本路径材质的 `_DitherStrength`（Bayer 4×4 图案，
+        /// 幅度 = 占一个色带步长的比例）。默认档见 `PixelartMaterialFactory.DefaultDitherStrength`。
+        /// </summary>
+        public const string PixelartDitherStrength = "-pixelartDitherStrength";
 
         /// <summary>场景资产样板出图目录：<c>-sceneKitOut &lt;绝对目录&gt;</c>。</summary>
         public const string SceneKitOut = "-sceneKitOut";
