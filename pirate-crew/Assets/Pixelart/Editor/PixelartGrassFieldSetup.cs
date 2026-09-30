@@ -157,10 +157,21 @@ namespace PirateCrew.EditorTools
             Vector3 camRight = Vector3.Cross(Vector3.up, camForward).normalized;
             Vector3 camUp = Vector3.Cross(camForward, camRight).normalized;
 
-            var batches = FillGrass(view.Target, camRight, camUp);
-            foreach (var kvp in batches)
-                EmitBand(root.transform,
-                    "Grass_" + kvp.Key.Item1 + "_T" + kvp.Key.Item2, kvp.Value, materials[kvp.Key]);
+            // 【诊断开关】PC3D_GRASSFIELD_NO_TUFTS=1 时跳过草簇（创始人要求的无草对照版：
+            // 把"管线描边毛边"与"草叶遮挡/自身描边"分开验证）。烘焙后场景无草簇，
+            // 重跑不带该变量即恢复。
+            bool noTufts = System.Environment.GetEnvironmentVariable("PC3D_GRASSFIELD_NO_TUFTS") == "1";
+            if (!noTufts)
+            {
+                var batches = FillGrass(view.Target, camRight, camUp);
+                foreach (var kvp in batches)
+                    EmitBand(root.transform,
+                        "Grass_" + kvp.Key.Item1 + "_T" + kvp.Key.Item2, kvp.Value, materials[kvp.Key]);
+            }
+            else
+            {
+                Debug.LogWarning(LogTag + " PC3D_GRASSFIELD_NO_TUFTS=1：本次烘焙跳过草簇（无草对照版）。");
+            }
 
             // ---------------- 尺度参照：3 个船员 ----------------
             Material crewRed = PixelartStageKit.CrewRed();

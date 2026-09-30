@@ -209,14 +209,21 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 //   "连通域在不在命中"的诊断语义）。
 
                 // ---- 右（v3 `OutlinePass.hlsl:35-44`）----
-                float2 uvRight = uvCenter + float2(texel.x, 0.0);
+                // 【出线三型 + 填充列不上墨】门控开时：
+                //   ① 本像素不是物体、邻域是 ⇒ 外圈墨线（落在更远一侧的像素上）；
+                //   ② 本像素也是物体 ⇒ 只有它与邻域**不连通**（两描边物体的接缝，如头-身交界）
+                //      才出线；若连通 ⇒ 本像素是"剪影跨块的填充列"，必须保持填充——
+                //      此处上墨会把物体轮廓啃掉一圈、线宽在 1↔2px 间振荡
+                //      （r25 头部左弧逐像素定位：交替出现的双宽墨行）；
+                //   ③ 本像素是物体、邻域不是 ⇒ 近侧自描边。
+                bool rightApplies = AppliesOutlineAt(uvRight);
                 if (connectedToRight < 1 && closerThanRight < 1)
                 {
                     gateHit += 1.0;
-                    if (centerAppliesOutline || AppliesOutlineAt(uvRight))
+                    if (!centerAppliesOutline || connectedToRight < 1 || !rightApplies)
                         marker = 1.0;
                 }
-                else if (centerAppliesOutline && !AppliesOutlineAt(uvRight)
+                else if (centerAppliesOutline && !rightApplies
                          && (closerThanRight < 1 || connectedToRight >= 1))
                 {
                     marker = 1.0;
@@ -224,13 +231,14 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
 
                 // ---- 左（v3 `:46-55`）----
                 float2 uvLeft = uvCenter - float2(texel.x, 0.0);
+                bool leftApplies = AppliesOutlineAt(uvLeft);
                 if (connectedToLeft < 1 && closerThanLeft < 1)
                 {
                     gateHit += 1.0;
-                    if (centerAppliesOutline || AppliesOutlineAt(uvLeft))
+                    if (!centerAppliesOutline || connectedToLeft < 1 || !leftApplies)
                         marker = 1.0;
                 }
-                else if (centerAppliesOutline && !AppliesOutlineAt(uvLeft)
+                else if (centerAppliesOutline && !leftApplies
                          && (closerThanLeft < 1 || connectedToLeft >= 1))
                 {
                     marker = 1.0;
@@ -238,13 +246,14 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
 
                 // ---- 上（v3 `:57-66`）----
                 float2 uvUp = uvCenter + float2(0.0, texel.y);
+                bool upApplies = AppliesOutlineAt(uvUp);
                 if (connectedToUp < 1 && closerThanUp < 1)
                 {
                     gateHit += 1.0;
-                    if (centerAppliesOutline || AppliesOutlineAt(uvUp))
+                    if (!centerAppliesOutline || connectedToUp < 1 || !upApplies)
                         marker = 1.0;
                 }
-                else if (centerAppliesOutline && !AppliesOutlineAt(uvUp)
+                else if (centerAppliesOutline && !upApplies
                          && (closerThanUp < 1 || connectedToUp >= 1))
                 {
                     marker = 1.0;
@@ -252,13 +261,14 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
 
                 // ---- 下（v3 `:68-77`）----
                 float2 uvDown = uvCenter - float2(0.0, texel.y);
+                bool downApplies = AppliesOutlineAt(uvDown);
                 if (connectedToDown < 1 && closerThanDown < 1)
                 {
                     gateHit += 1.0;
-                    if (centerAppliesOutline || AppliesOutlineAt(uvDown))
+                    if (!centerAppliesOutline || connectedToDown < 1 || !downApplies)
                         marker = 1.0;
                 }
-                else if (centerAppliesOutline && !AppliesOutlineAt(uvDown)
+                else if (centerAppliesOutline && !downApplies
                          && (closerThanDown < 1 || connectedToDown >= 1))
                 {
                     marker = 1.0;
