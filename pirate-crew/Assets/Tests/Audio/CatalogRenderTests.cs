@@ -43,17 +43,16 @@ namespace PirateCrew.Tests.Audio
         [Test]
         public void Catalog_EveryEnumValueIsRegistered()
         {
-            int max = 0;
-            SfxRecipe[] all = SfxCatalog.All;
-            for (int i = 0; i < all.Length; i++)
-                max = Math.Max(max, (int)all[i].Id);
+            // 逐枚举成员对账（而非"行数 = 最大值+1"）：SfxId 编号允许有历史空洞
+            // （已删音效的编号不复用），稠密假设会在删条目时误报。
+            SfxId[] ids = (SfxId[])Enum.GetValues(typeof(SfxId));
+            Assert.That(SfxCatalog.All.Length, Is.EqualTo(ids.Length),
+                "SfxCatalog 行数应与 SfxId 成员数一致");
 
-            Assert.That(all.Length, Is.EqualTo(max + 1), "SfxId 枚举有值未登记进 SfxCatalog");
-
-            for (int i = 0; i <= max; i++)
+            foreach (SfxId id in ids)
             {
-                SfxRecipe recipe = SfxCatalog.Get((SfxId)i);
-                Assert.That(recipe.DurationSeconds, Is.GreaterThan(0d), recipe.Id + " 未登记或时长为 0");
+                SfxRecipe recipe = SfxCatalog.Get(id);
+                Assert.That(recipe.DurationSeconds, Is.GreaterThan(0d), id + " 未登记或时长为 0");
                 Assert.That(recipe.Recipe, Is.Not.EqualTo("(未登记)"));
             }
         }
@@ -225,7 +224,7 @@ namespace PirateCrew.Tests.Audio
             SfxId[] combat =
             {
                 SfxId.Explosion, SfxId.WoodCrack, SfxId.FleshHit, SfxId.WaterSplash,
-                SfxId.ThrowWhoosh, SfxId.Bounce, SfxId.StoneRoll, SfxId.MineBeep, SfxId.CrewDown,
+                SfxId.ThrowWhoosh, SfxId.Bounce, SfxId.StoneRoll, SfxId.CrewDown,
             };
 
             foreach (SfxId id in combat)
@@ -279,32 +278,6 @@ namespace PirateCrew.Tests.Audio
 
             Assert.That(high, Is.GreaterThan(low),
                 "水花应以中高频为主，低频过强会听成「落石」");
-        }
-
-        [Test]
-        public void Render_MineBeepConcentratesEnergyAtItsTone()
-        {
-            AudioBuffer buffer = Rendered(SfxId.MineBeep);
-
-            var atTone = Biquad.BandPass(2093d, 8d, buffer.SampleRate);
-            var offTone = Biquad.BandPass(700d, 8d, buffer.SampleRate);
-
-            double onSum = 0d;
-            double offSum = 0d;
-            for (int i = 0; i < buffer.FrameCount; i++)
-            {
-                float x = buffer.Samples[i];
-                double on = atTone.Process(x);
-                double off = offTone.Process(x);
-                if (i >= buffer.FrameCount / 4)
-                {
-                    onSum += on * on;
-                    offSum += off * off;
-                }
-            }
-
-            Assert.That(onSum, Is.GreaterThan(offSum * 4d),
-                "蜂鸣的主能量应集中在约 2093 Hz（对应 §5.2 引信提示音）");
         }
 
         [Test]

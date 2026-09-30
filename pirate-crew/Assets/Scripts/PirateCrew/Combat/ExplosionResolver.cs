@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PirateCrew.Data;
 using UnityEngine;
 
 namespace PirateCrew.Combat
@@ -115,22 +116,25 @@ namespace PirateCrew.Combat
     /// 【与 2D 旧值的关系】高度差（含爆心高度）为 0 时：d 退化为原平面距离，
     /// falloff / damage / deltaVx 与原实现逐值相同；原 <c>deltaVy = ny*5k - 6k</c> 里的 -6k
     /// 被拆到 <see cref="ExplosionHit.DeltaVUp"/>（改为世界 +Y 的 +6k），故 <c>deltaVy</c> 净增 +6k。
-    /// 公式与常数全部取自 Flash，**不**采纳任何占位值。
+    /// 公式为已裁决口径；常数取自 <see cref="BalanceConfig.Defaults"/>（单一真值，见常量区注释）。
     /// 纯静态逻辑，不依赖 MonoBehaviour / GameObject。
     /// </summary>
     public static class ExplosionResolver
     {
-        /// <summary>半径在 size/2 基础上的额外膨胀（原版固定 +20px）。</summary>
-        public const float RadiusPadding = 20f;
+        // 【单一真值】爆炸常数只存于 BalanceConfig.Defaults（半径 padding / 击退系数 /
+        // 水平·竖直倍率），本类全部引用它——规则层与平衡配置层各写一份、互不引用的旧口径
+        // 会让"改一处另一处静默失真"，这里从源头消灭双真值。
+        /// <summary>半径在 size/2 基础上的额外膨胀。</summary>
+        public static float RadiusPadding => BalanceConfig.Defaults.ExplosionRadiusPadding;
 
-        /// <summary>击退系数基数（原版 0.06）。</summary>
-        public const float KnockbackCoefficient = 0.06f;
+        /// <summary>击退系数基数。</summary>
+        public static float KnockbackCoefficient => BalanceConfig.Defaults.KnockbackCoefficient;
 
-        /// <summary>击退速度倍率（原版 5）。</summary>
-        public const float KnockbackMultiplier = 5f;
+        /// <summary>击退水平/平面分量的速度倍率。</summary>
+        public static float KnockbackMultiplier => BalanceConfig.Defaults.KnockbackHorizontal;
 
-        /// <summary>额外上抛系数（原版 6；在原版里是 velocityY -= 6k，即向上）。</summary>
-        public const float ExtraLiftCoefficient = 6f;
+        /// <summary>额外上抛系数（"总是额外上抛"的固定抬升项）。</summary>
+        public static float ExtraLiftCoefficient => BalanceConfig.Defaults.KnockbackVertical;
 
         /// <summary>爆炸半径：size / 2 + 20（px）。</summary>
         public static float Radius(float size)

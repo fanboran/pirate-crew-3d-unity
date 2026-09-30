@@ -73,10 +73,9 @@ namespace PirateCrew.ArtReview
         static readonly Color ShowcaseBackdrop = new Color(0x8E / 255f, 0x97 / 255f, 0xA6 / 255f, 1f);
 
         /// <summary>
-        /// 主动引爆用的爆炸 size：取 160（`WeaponCatalog.cs` banana / parachuteBomb 档），
-        /// 比 cannonball 基准 100（`CannonRules.cs:45`）大一档，纯为评审画面里火光可辨——
-        /// size→视觉由 <c>FxRules.ExplosionVisualScale</c> 映射（100→scale 1.0、160→1.43，
-        /// 上限 2.20 对应 dynamite/mine 的 250）。本处只调 FxApi（纯表现），不触发伤害结算。
+        /// 主动引爆用的爆炸 size：取 160（评审画面里火光更可辨的一档），
+        /// 纯为出图效果——size→视觉由 <c>FxRules.ExplosionVisualScale</c> 映射
+        /// （100→scale 1.0、160→1.43，上限 2.20 对应 250）。本处只调 FxApi（纯表现），不触发伤害结算。
         /// </summary>
         const float ExplosionSize = 160f;
 

@@ -67,6 +67,17 @@ namespace PirateCrew.Data
 
             /// <summary>角色 AABB 半高（【提案/待定】）。</summary>
             public const float CharHalfHeight = 8f;
+
+            // ---- 标准炸弹口径（占位空壳期数值）----
+            // 全部 WeaponId 共用的标准小炸弹：爆炸尺寸与爆心伤害。消费方是
+            // Combat/StandardBombRules（唯一入口），重做裁决后只改这里。
+            /// <summary>标准炸弹爆炸尺寸参数：radius = size/2 + ExplosionRadiusPadding。
+            /// 【提案/待定：标准炸弹口径，占位空壳期数值】。</summary>
+            public const float StandardBombExplosionSize = 100f;
+
+            /// <summary>标准炸弹爆心最大伤害。
+            /// 【提案/待定：标准炸弹口径，占位空壳期数值】。</summary>
+            public const float StandardBombDamage = 50f;
         }
 
         [Header("投掷（§5.1）")]

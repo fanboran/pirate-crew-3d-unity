@@ -71,23 +71,6 @@ namespace PirateCrew.Audio
             return (float)(minVolume + (maxVolume - minVolume) * k);
         }
 
-        /// <summary>
-        /// 地雷蜂鸣强度：引信越接近引爆（elapsedFrames 越大）越响、越急促，
-        /// 给玩家「快炸了」的紧迫感。区间取 <c>WeaponTriggerRules.MineBeepTimes</c>
-        /// 的最后一个值（§5.2 beepTimes 末项 = 59 帧）。
-        /// 返回 [<paramref name="minGain"/>, 1]。
-        /// </summary>
-        public static float MineBeepGain(int elapsedFrames, int lastBeepFrame = 59, float minGain = 0.45f)
-        {
-            if (lastBeepFrame <= 0)
-                return 1f;
-
-            double k = elapsedFrames / (double)lastBeepFrame;
-            if (k < 0d) k = 0d;
-            if (k > 1d) k = 1d;
-            return (float)(minGain + (1d - minGain) * k);
-        }
-
         /// <summary>判断距离是否在可听范围内（用于提前短路一次播放请求）。</summary>
         public static bool IsAudible(float distance, float maxDistance)
         {

@@ -332,7 +332,6 @@ namespace PirateCrew.Battle
             EventBus.Subscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
             EventBus.Subscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
             EventBus.Subscribe(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Subscribe(BattleEvents.AiThinking, OnAiThinking);
             EventBus.Subscribe(BattleEvents.MatchFinished, OnMatchFinished);
         }
 
@@ -347,7 +346,6 @@ namespace PirateCrew.Battle
             EventBus.Unsubscribe(BattleEvents.ProjectileDetonated, OnProjectileDetonated);
             EventBus.Unsubscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
             EventBus.Unsubscribe(BattleEvents.CrewDied, OnCrewDied);
-            EventBus.Unsubscribe(BattleEvents.AiThinking, OnAiThinking);
             EventBus.Unsubscribe(BattleEvents.MatchFinished, OnMatchFinished);
 
             // 兜底：任何情况下都不能把 timeScale 留在压低状态（否则整个工程"卡死"）。
@@ -948,13 +946,6 @@ namespace PirateCrew.Battle
             // FocusRequested 在规则层优先级最高：任何时候都取消跟随（回合推进绝不被跟随拖住）。
             if (target != null)
                 FocusOn(target);
-        }
-
-        void OnAiThinking(AiThinkingPayload thinking)
-        {
-            // §8.1：AI 决策中相机停止自动滚动；配合更慢的聚焦 + 略外扩形成"旁观"感。
-            if (aiSpectatorEnabled)
-                _spectator = true;
         }
 
         void OnActionSelected(ActionSelectedPayload action)

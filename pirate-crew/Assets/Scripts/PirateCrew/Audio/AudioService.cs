@@ -23,8 +23,8 @@ namespace PirateCrew.Audio
     ///   ① **EventBus 订阅**（只订阅现有频道，不新增、不改他人文件；订阅表见
     ///      <see cref="SubscribedChannels"/>，可被测试断言）：
     ///      BattleEvents.BattleStarted / TurnStarted / TurnEnded / ShotReleased /
-    ///      ProjectileDetonated / MineBeep / CrewDamaged / CrewDied /
-    ///      AiDecided / MatchFinished / SceneEvents.SceneLoadStarted。
+    ///      ProjectileDetonated / CrewDamaged / CrewDied /
+    ///      MatchFinished / SceneEvents.SceneLoadStarted。
     ///   ② **公开静态 API**（给没有事件的场合手动接线）：
     ///      <see cref="PlaySfx"/>（3D）、<see cref="PlaySfx2D"/>、<see cref="PlayUi"/>、
     ///      <see cref="PlayAmbient"/>、<see cref="StartAmbientBed"/>、<see cref="PlayMusic"/> 等。
@@ -73,9 +73,6 @@ namespace PirateCrew.Audio
         /// <summary>crew_died 阵亡音（CrewDown）的调用侧缩放。</summary>
         const float CrewDownVolumeScale = 0.90f;
 
-        /// <summary>ai_decided 武器切换音（WeaponSwitch）的调用侧缩放。</summary>
-        const float WeaponSwitchVolumeScale = 0.75f;
-
         /// <summary>环境底床按镜头距离重算衰减的节流间隔（秒）。</summary>
         public const float AmbientUpdateIntervalSeconds = 0.25f;
 
@@ -100,10 +97,8 @@ namespace PirateCrew.Audio
             BattleEvents.TurnEnded,
             BattleEvents.ShotReleased,
             BattleEvents.ProjectileDetonated,
-            BattleEvents.MineBeep,
             BattleEvents.CrewDamaged,
             BattleEvents.CrewDied,
-            BattleEvents.AiDecided,
             BattleEvents.MatchFinished,
             SceneEvents.SceneLoadStarted,
         };
@@ -178,10 +173,6 @@ namespace PirateCrew.Audio
 
         /// <summary>变奏（音高/音量抖动）用的随机源；与鸟鸣分开，避免互相干扰随机序列。</summary>
         readonly System.Random _variationRng = new System.Random(20260914);
-
-        /// <summary>各队上一次 AI 决策的武器槽位（哨兵 <see cref="int.MinValue"/> = 尚未记录；
-        /// 开局由 OnBattleStarted 复位，避免上一局的槽位残留压制本局第一声武器切换音）。</summary>
-        int[] _lastAiWeaponSlot = { int.MinValue, int.MinValue };
 
         /// <summary>循环源 + 其层权重（权重只对底床层有意义，其余为 1）。</summary>
         struct LoopVoice
@@ -343,17 +334,11 @@ namespace PirateCrew.Audio
                 case var c when ReferenceEquals(c, BattleEvents.ProjectileDetonated):
                     handler = OnProjectileDetonated;
                     break;
-                case var c when ReferenceEquals(c, BattleEvents.MineBeep):
-                    handler = OnMineBeep;
-                    break;
                 case var c when ReferenceEquals(c, BattleEvents.CrewDamaged):
                     handler = OnCrewDamaged;
                     break;
                 case var c when ReferenceEquals(c, BattleEvents.CrewDied):
                     handler = OnCrewDied;
-                    break;
-                case var c when ReferenceEquals(c, BattleEvents.AiDecided):
-                    handler = OnAiDecided;
                     break;
                 case var c when ReferenceEquals(c, BattleEvents.MatchFinished):
                     handler = OnMatchFinished;
@@ -378,16 +363,8 @@ namespace PirateCrew.Audio
         void OnBattleStarted(object payload)
         {
             _gate.Reset();
-            ResetAiWeaponSlotMemory();
             StopMusic();
             StartAmbientBedInternal();
-        }
-
-        /// <summary>把各队武器槽位记忆复位到哨兵值（见 <see cref="_lastAiWeaponSlot"/>）。</summary>
-        void ResetAiWeaponSlotMemory()
-        {
-            for (int i = 0; i < _lastAiWeaponSlot.Length; i++)
-                _lastAiWeaponSlot[i] = int.MinValue;
         }
 
         void OnTurnStarted(object payload)
@@ -417,15 +394,6 @@ namespace PirateCrew.Audio
             PlaySfx(id, detonated.Position);
         }
 
-        void OnMineBeep(object payload)
-        {
-            if (!(payload is MineBeepPayload beep))
-                return;
-
-            float gain = SpatialAudioRules.MineBeepGain(beep.ElapsedFrames);
-            PlayInternal(SfxId.MineBeep, beep.Position, gain, 1f);
-        }
-
         void OnCrewDamaged(object payload)
         {
             // 载荷只有 PirateId/队伍/伤害，没有世界坐标 → 走 PlaySfx2D 强制 2D
@@ -437,22 +405,6 @@ namespace PirateCrew.Audio
         {
             // 同上：无坐标 → 2D（CrewDown 配方本身就是 TwoD）。
             PlaySfx2D(SfxId.CrewDown, CrewDownVolumeScale);
-        }
-
-        void OnAiDecided(object payload)
-        {
-            if (!(payload is AiDecidedPayload decided))
-                return;
-
-            int team = decided.TeamIndex;
-            if (team < 0 || team >= _lastAiWeaponSlot.Length)
-                return;
-
-            if (decided.WeaponSlotIndex >= 0 && decided.WeaponSlotIndex != _lastAiWeaponSlot[team])
-            {
-                _lastAiWeaponSlot[team] = decided.WeaponSlotIndex;
-                PlaySfx2D(SfxId.WeaponSwitch, WeaponSwitchVolumeScale);
-            }
         }
 
         void OnMatchFinished(object payload)
@@ -620,7 +572,7 @@ namespace PirateCrew.Audio
             if (gain <= 0f)
                 return false;
 
-            // 整型 key 直存闸门字典，替代 id.ToString()（受击/地雷蜂鸣高频路径避免装箱+字符串分配）。
+            // 整型 key 直存闸门字典，替代 id.ToString()（受击/爆炸高频路径避免装箱+字符串分配）。
             if (!_gate.TryAcquire((int)id, recipe.Category, Now, recipe.DurationSeconds))
                 return false;
 

@@ -147,10 +147,6 @@ namespace PirateCrew.Audio
                 "无事件（boulder 滚动在 WeaponProjectile 内部结算）；公开 API 手动触发",
                 "低频隆隆（低通 420 Hz + 900 Hz 双层噪声）+ 4/7 Hz 摩擦调制 + 70 Hz 次低音抖动"),
 
-            new SfxRecipe(SfxId.MineBeep, AudioCategory.Sfx, 0.09d, false, SpatialMode.ThreeD, 0.62f, 6f, 80f,
-                "battle_mine_beep（§5.2 beepTimes：0/15/30/38/45/49/53/55/57/59 帧）",
-                "方波 2093 Hz（C7）60 ms，5 ms 起音/释音，轻微音高下坠；越接近引爆音量略升（由 AudioService 按 ElapsedFrames 缩放）"),
-
             new SfxRecipe(SfxId.CrewDown, AudioCategory.Sfx, 0.70d, false, SpatialMode.TwoD, 0.62f, 4f, 60f,
                 "crew_died（载荷无世界坐标 → 2D 播放）",
                 "下行低音号角（锯齿+谐波 330→165 Hz，低通 1200→400 Hz 扫落）+ 短混响"),

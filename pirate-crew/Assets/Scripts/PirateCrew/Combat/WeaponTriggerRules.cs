@@ -65,10 +65,7 @@ namespace PirateCrew.Combat
     }
 
     /// <summary>
-    /// 武器触发判定与地雷引信。
-    /// 引信长度 60 帧与蜂鸣帧序 <see cref="MineBeepTimes"/> 为本工程设计值
-    /// （<b>【提案/待定】</b>：当前无已裁决文档为其取值背书）。
-    /// 全部为静态纯函数，不依赖 MonoBehaviour / GameObject。
+    /// 武器触发判定（纯静态函数，不依赖 MonoBehaviour / GameObject）。
     /// </summary>
     public static class WeaponTriggerRules
     {
@@ -85,25 +82,6 @@ namespace PirateCrew.Combat
         public const float AtRestSqrMagnitudeEpsilon = 0.01f;
 
         /// <summary>
-        /// boulder 碾压伤害系数（<b>伤害 = |vx| × 1.5</b>，vx 为移动速度；碾压是接触直接伤害，
-        /// 不走引爆/爆炸路径）。<b>【提案/待定】</b>：本工程设计值，尚无已裁决文档为其取值背书。
-        /// Combat 侧暂无 boulder 专用规则类，暂存本类。
-        /// </summary>
-        public const float BoulderCrushDamageScale = 1.5f;
-
-        /// <summary>地雷感应半径（px）。</summary>
-        public const float ProximityRadius = 60f;
-
-        /// <summary>地雷引信长度（帧，25fps ≈ 2.4s）。</summary>
-        public const int MineFuseFrames = 60;
-
-        /// <summary>
-        /// 地雷引信期间的蜂鸣帧序号（相对点燃时刻的经过帧数）。
-        /// 最后一响 59，第 60 帧爆炸。
-        /// </summary>
-        public static readonly int[] MineBeepTimes = { 0, 15, 30, 38, 45, 49, 53, 55, 57, 59 };
-
-        /// <summary>
         /// 是否处于静止（<c>vx == 0 &amp;&amp; |vy| &lt; 0.2</c>）。
         /// 水平要求严格为 0；垂直用阈值。
         /// </summary>
@@ -118,7 +96,7 @@ namespace PirateCrew.Combat
         ///   AtRest       → 静止即爆
         ///   Click        → 点击引爆
         ///   BlastContact → 被爆炸命中触发
-        ///   ProximityFuse→ 引信点燃且剩余帧数到点（起爆瞬间由 ShouldStartFuse 判定）
+        ///   ProximityFuse→ 引信点燃且剩余帧数到点
         ///   None         → 永不
         /// </summary>
         public static bool ShouldDetonate(WeaponTrigger trigger, TriggerContext context)
@@ -138,67 +116,6 @@ namespace PirateCrew.Combat
                 default:
                     return false;
             }
-        }
-
-        /// <summary>
-        /// 是否应点燃引信（mine）：触发方式为 ProximityFuse，且有角色在 60px 内<b>且</b>在移动。
-        /// 距离为负（无效输入）视为不在范围内。
-        /// </summary>
-        public static bool ShouldStartFuse(
-            WeaponTrigger trigger, float distanceToNearestCharacter, bool characterMoving)
-        {
-            if (trigger != WeaponTrigger.ProximityFuse)
-            {
-                return false;
-            }
-
-            if (!characterMoving)
-            {
-                return false;
-            }
-
-            return distanceToNearestCharacter >= 0f && distanceToNearestCharacter <= ProximityRadius;
-        }
-
-        /// <summary>引信推进一帧，返回新的剩余帧数（下限 0）。</summary>
-        public static int TickFuse(int framesRemaining)
-        {
-            return framesRemaining > 0 ? framesRemaining - 1 : 0;
-        }
-
-        /// <summary>引信是否已到点（可以引爆）。</summary>
-        public static bool IsFuseExpired(int framesRemaining)
-        {
-            return framesRemaining <= 0;
-        }
-
-        /// <summary>该经过帧是否应播放蜂鸣（严格命中 beepTimes 序列）。</summary>
-        public static bool ShouldBeep(int elapsedFrames)
-        {
-            for (int i = 0; i < MineBeepTimes.Length; i++)
-            {
-                if (MineBeepTimes[i] == elapsedFrames)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>从点燃到 <paramref name="elapsedFrames"/>（含）为止已播放的蜂鸣次数。</summary>
-        public static int BeepCountUpTo(int elapsedFrames)
-        {
-            int count = 0;
-            for (int i = 0; i < MineBeepTimes.Length; i++)
-            {
-                if (MineBeepTimes[i] <= elapsedFrames)
-                {
-                    count++;
-                }
-            }
-
-            return count;
         }
     }
 }

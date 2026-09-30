@@ -690,11 +690,10 @@ namespace PirateCrew.Battle
         public IReadOnlyList<WeaponProjectile> AllProjectiles => _projectiles;
 
         /// <summary>
-        /// 使用一件武器：按 <see cref="ProjectileSpawnPlanner"/> 生成弹体（放置类生成 N 个），
+        /// 使用一件武器：按 <see cref="ProjectileSpawnPlanner"/> 生成弹体，
         /// 并接上物理与引爆判定。返回生成的弹体数量。
         ///
-        /// 【单一入口】<see cref="AimThrowController"/>（玩家）与 <see cref="AiController"/>（AI）
-        /// 都必须经此生成，避免两条路径各写一套。
+        /// 【单一入口】一切武器使用（玩家投掷链）都必须经此生成，避免多条路径各写一套。
         /// </summary>
         /// <param name="stats">武器数值（来自 <see cref="WeaponCatalog"/>）。</param>
         /// <param name="owner">投掷者（累加 evilness；可为 null）。</param>
@@ -825,8 +824,8 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 半径内的全部角色（三维 <see cref="Physics.OverlapSphere"/>，按实例去重），写入 <paramref name="results"/>。
-        /// 供 6 把特殊武器的纯规则/胶水层做范围判定（tidalWave 横扫、anchor 命中、seagull 目标、
-        /// cannon AI 选敌、SweepingFlame 命中）——避免各弹体各写一份 OverlapSphere + GetComponentInParent。
+        /// 范围判定的公共查询口（爆炸表现、表现层辅助查询等共用）——避免各处各写一份
+        /// OverlapSphere + GetComponentInParent。
         /// </summary>
         public void CollectPiratesInRadius(Vector3 worldCenter, float radiusWorld, List<PirateBase> results)
         {
@@ -846,29 +845,6 @@ namespace PirateCrew.Battle
                 if (pirate != null && !results.Contains(pirate))
                     results.Add(pirate);
             }
-        }
-
-        /// <summary>
-        /// rumBottle 落地（引爆）时额外生成 2 个 SweepingFlame（§5.2 rumBottle 行 / 表格末行）。
-        /// 生成计划与其它武器共用 <see cref="ProjectileSpawnPlanner"/>，保证"数据只有一份"。
-        /// </summary>
-        public int SpawnSweepingFlames(Vector3 worldCenter)
-        {
-            WeaponStats stats = WeaponCatalog.Get(WeaponId.SweepingFlame);
-            IReadOnlyList<ProjectileSpawn> plan = ProjectileSpawnPlanner.Plan(
-                stats, worldCenter, worldCenter, 0f, 0f);
-
-            for (int i = 0; i < plan.Count; i++)
-                CreateProjectile(stats, null, plan[i]);
-
-            return plan.Count;
-        }
-
-        /// <summary>该队是否由 AI 控制（cannon 的 §6.3 <c>aiFireTime=25</c> 自动发射判定用）。</summary>
-        public bool IsTeamAi(int teamIndex)
-        {
-            BattleTeam team = GetTeam(teamIndex);
-            return team != null && team.AiControlled;
         }
 
         // ------------------------------------------------------------------

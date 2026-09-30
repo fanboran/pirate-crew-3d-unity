@@ -97,14 +97,13 @@ namespace PirateCrew.Battle
     ///         <see cref="BattleCameraDriver"/>（订阅 EventBus、读写 Transform/Lens/Time）。
     ///
     /// 【对应章节】震屏强度借用 <c>docs/设计/3D空间模型对齐.md</c> §5 爆炸 falloff 的线性衰减形状；
-    ///             相机优先级见 §8.1（AI 决策中停止滚动 → 本类的"旁观"态）；
+    ///             相机优先级见 §8.1（决策/演出时段停止滚动 → 本类的"旁观"态）；
     ///             回合节奏按 inactivity &gt; 10 帧 ≈ 0.4s 取聚焦时长量级。
     ///
     /// 【数值出处】本项目在此之上新增了镜头震动/跟随/顿帧机制，
     ///   因此本类全部强度/时长参数都是<b>提案/待定</b>，量级参照"回合节奏"：
     ///   · 回合推进阈值 = 10 帧 @25fps = 0.4s，所以任何聚焦动画应在 ≲0.4s 内完成；
-    ///   · AI 决策后先给镜头再执行，Unity 侧 <c>AiController.executeDelayFrames = 12</c>
-    ///     ≈ 0.2s @60fps，故跟随回焦也要短；
+    ///   · 动作发布后先给镜头再执行（0.2s 量级），故跟随回焦也要短；
     ///   · 震屏幅度取"不遮挡 30px 选中判定"的量级：峰值 ≈ 0.7 世界单位 ≈ 11px
 ///     （px 口径不变；格 1→2 单位后世界值 ×2，见 <see cref="DefaultMaxShakeAmplitude"/>）。
     /// </summary>
@@ -394,7 +393,6 @@ namespace PirateCrew.Battle
         //     不存在"顿帧期间把空闲帧攒够"的情况。
         //   · PhysX 每个固定步仍以 Time.fixedDeltaTime(=1/25s) 积分（timeScale 只改变每秒发生多少步，
         //     不改变单步 dt），故 ThrowTrajectory 与实弹"逐步等价（预览=实弹）"不受影响。
-        //   · AiController 的时间片用 Stopwatch（真实时间）、executeDelayFrames 用帧计数，均不受 timeScale 影响。
         // 【唯一真实风险】timeScale 被留在 0/低位未恢复 → 物理停步、IsAnythingActive 恒真、回合死锁。
         //   因此：下限严格 >0（0.05）、时长 ≤2 帧、恢复用 unscaled 计时、OnDisable/OnMatchFinished 兜底恢复、
         //   且 timeScale 已被他人接管（≠1）时一律不施加。

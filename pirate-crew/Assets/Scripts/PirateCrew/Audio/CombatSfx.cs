@@ -173,31 +173,6 @@ namespace PirateCrew.Audio
             return buffer;
         }
 
-        /// <summary>地雷引信蜂鸣（0.09 s）。</summary>
-        public static AudioBuffer MineBeep(int sampleRate)
-        {
-            AudioBuffer buffer = SynthUtil.Create(0.09d, sampleRate);
-            var adsr = new Adsr(0.005d, 0.010d, 0.60d, 0.020d);
-            double gate = 0.06d;
-            double phase = 0d;
-            int frames = buffer.FrameCount;
-
-            for (int f = 0; f < frames; f++)
-            {
-                double t = (double)f / sampleRate;
-                double freq = 2093d * (1d - 0.02d * Math.Min(1d, t / gate)); // 轻微下坠，更像机械蜂鸣
-                phase += freq / sampleRate;
-                if (phase >= 1d)
-                    phase -= Math.Floor(phase);
-
-                float level = (float)adsr.LevelAt(t, gate);
-                float value = (float)(Waveforms.Square(phase, 0.42d) * level * 0.55d);
-                buffer.SetSample(f, value);
-            }
-
-            return buffer;
-        }
-
         /// <summary>船员阵亡（0.7 s，2D）。</summary>
         public static AudioBuffer CrewDown(int sampleRate)
         {

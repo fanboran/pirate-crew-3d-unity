@@ -37,8 +37,7 @@ namespace PirateCrew.Audio
         /// <summary>石块滚动：低频隆隆 + 慢速摩擦调制。</summary>
         StoneRoll = 6,
 
-        /// <summary>地雷引信蜂鸣（对应 <c>battle_mine_beep</c> 事件，§5.2 beepTimes）。</summary>
-        MineBeep = 7,
+        // 值 7 空缺：曾为已删除音效的编号，不复用（登记门禁按枚举成员逐一对账，允许编号有洞）。
 
         /// <summary>船员阵亡：下行低音号角（crew_died 无位置载荷，2D 播放）。</summary>
         CrewDown = 8,

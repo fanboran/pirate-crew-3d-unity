@@ -3,8 +3,7 @@ using NUnit.Framework;
 namespace PirateCrew.Combat.Tests
 {
     /// <summary>
-    /// WeaponTriggerRules 测试。覆盖各类触发/引爆条件，
-    /// 以及 mine 的 60 帧引信与 beepTimes [0,15,30,38,45,49,53,55,57,59]（本工程设计值，【提案/待定】）。
+    /// WeaponTriggerRules 测试。覆盖各类触发/引爆条件的判定语义。
     /// </summary>
     [TestFixture]
     public class WeaponTriggerRulesTests
@@ -77,29 +76,8 @@ namespace PirateCrew.Combat.Tests
         }
 
         // ------------------------------------------------------------------
-        // mine：60px 内有人且移动 → 引信 60 帧
+        // 引信语义（ProximityFuse 触发类：点燃且到点才引爆）
         // ------------------------------------------------------------------
-
-        [Test]
-        public void ProximityFuse_StartsWhenMovingCharacterWithin60Px()
-        {
-            Assert.IsTrue(WeaponTriggerRules.ShouldStartFuse(WeaponTrigger.ProximityFuse, 10f, true));
-            Assert.IsTrue(WeaponTriggerRules.ShouldStartFuse(WeaponTrigger.ProximityFuse, 60f, true));
-        }
-
-        [Test]
-        public void ProximityFuse_DoesNotStartBeyond60PxOrWhenStill()
-        {
-            Assert.IsFalse(WeaponTriggerRules.ShouldStartFuse(WeaponTrigger.ProximityFuse, 60.1f, true));
-            Assert.IsFalse(WeaponTriggerRules.ShouldStartFuse(WeaponTrigger.ProximityFuse, 10f, false));
-            Assert.IsFalse(WeaponTriggerRules.ShouldStartFuse(WeaponTrigger.ProximityFuse, -1f, true));
-        }
-
-        [Test]
-        public void ProximityFuse_OnlyAppliesToFuseTrigger()
-        {
-            Assert.IsFalse(WeaponTriggerRules.ShouldStartFuse(WeaponTrigger.Contact, 0f, true));
-        }
 
         [Test]
         public void ProximityFuse_DetonatesOnlyWhenArmedAndExpired()
@@ -110,72 +88,6 @@ namespace PirateCrew.Combat.Tests
                 WeaponTrigger.ProximityFuse, Ctx(fuseArmed: true, fuseRemaining: 1)));
             Assert.IsTrue(WeaponTriggerRules.ShouldDetonate(
                 WeaponTrigger.ProximityFuse, Ctx(fuseArmed: true, fuseRemaining: 0)));
-        }
-
-        [Test]
-        public void TickFuse_CountsDownAndStopsAtZero()
-        {
-            Assert.AreEqual(59, WeaponTriggerRules.TickFuse(60));
-            Assert.AreEqual(0, WeaponTriggerRules.TickFuse(1));
-            Assert.AreEqual(0, WeaponTriggerRules.TickFuse(0));
-            Assert.AreEqual(0, WeaponTriggerRules.TickFuse(-3));
-        }
-
-        [Test]
-        public void Fuse_ExpiresAfterExactly60Frames()
-        {
-            int remaining = WeaponTriggerRules.MineFuseFrames;
-            for (int i = 0; i < 59; i++)
-            {
-                remaining = WeaponTriggerRules.TickFuse(remaining);
-            }
-
-            Assert.AreEqual(1, remaining);
-            Assert.IsFalse(WeaponTriggerRules.IsFuseExpired(remaining));
-
-            remaining = WeaponTriggerRules.TickFuse(remaining);
-            Assert.IsTrue(WeaponTriggerRules.IsFuseExpired(remaining));
-        }
-
-        [Test]
-        public void FuseEpsilon_IsFiftyNineFramesUntilDetonation()
-        {
-            // 文档：引信 60 帧；TickFuse(1) → 0 → 到点
-            Assert.AreEqual(WeaponTriggerRules.MineFuseFrames, 60);
-            Assert.IsTrue(WeaponTriggerRules.IsFuseExpired(WeaponTriggerRules.TickFuse(1)));
-        }
-
-        // ------------------------------------------------------------------
-        // beepTimes 序列
-        // ------------------------------------------------------------------
-
-        [Test]
-        public void MineBeepTimes_MatchesDocumentedSequence()
-        {
-            Assert.AreEqual(
-                new[] { 0, 15, 30, 38, 45, 49, 53, 55, 57, 59 },
-                WeaponTriggerRules.MineBeepTimes);
-        }
-
-        [Test]
-        public void ShouldBeep_TrueOnlyOnListedFrames()
-        {
-            Assert.IsTrue(WeaponTriggerRules.ShouldBeep(0));
-            Assert.IsTrue(WeaponTriggerRules.ShouldBeep(15));
-            Assert.IsTrue(WeaponTriggerRules.ShouldBeep(38));
-            Assert.IsTrue(WeaponTriggerRules.ShouldBeep(59));
-            Assert.IsFalse(WeaponTriggerRules.ShouldBeep(14));
-            Assert.IsFalse(WeaponTriggerRules.ShouldBeep(60));
-        }
-
-        [Test]
-        public void BeepCountUpTo_AccumulatesTenBeepsBeforeDetonation()
-        {
-            Assert.AreEqual(1, WeaponTriggerRules.BeepCountUpTo(0));
-            Assert.AreEqual(1, WeaponTriggerRules.BeepCountUpTo(14));
-            Assert.AreEqual(2, WeaponTriggerRules.BeepCountUpTo(15));
-            Assert.AreEqual(10, WeaponTriggerRules.BeepCountUpTo(59));
-            Assert.AreEqual(10, WeaponTriggerRules.BeepCountUpTo(60));
         }
 
         [Test]

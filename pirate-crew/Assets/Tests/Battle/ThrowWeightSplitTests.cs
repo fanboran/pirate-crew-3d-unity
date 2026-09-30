@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using NUnit.Framework;
+using PirateCrew.Combat;
 using PirateCrew.Data;
 using UnityEngine;
 
@@ -8,15 +9,13 @@ namespace PirateCrew.Battle.Tests
     /// <summary>
     /// 抛初速「按 Weight 分流」的回归测试（<see cref="LevelGeometry.ThrowVelocityForWeight"/>）。
     ///
-    /// 【背景】cannonball weight=0（§5.2「无重力」，逆向口径）此前也被 ThrowLift 强抬约 35° 仰角，
-    /// 直线爬升越过出界清理线后被静默销毁（不爆炸、无事件）。修复口径：UsesGravity=false 的弹体
-    /// 不加仰角、水平直线飞行，忠于 Flash「无重力直线弹道」语义。
+    /// 【口径】weight &gt; 0 走固定仰角抬升（抛物线）；weight == 0 不加仰角、水平直线。
+    /// 标准炸弹恒 weight &gt; 0（<see cref="StandardBombRules.Weight"/>），走抛物线弹道。
     ///
-    /// 【三条链路同源】玩家投掷与 AI 的实弹都经 <see cref="ProjectileSpawnPlanner"/> →
+    /// 【两条链路同源】实弹生成经 <see cref="ProjectileSpawnPlanner"/> →
     /// <see cref="LevelGeometry.FlashLaunchVelocityToWorld(float, float, float)"/>，
-    /// 预览经 <see cref="ThrowTrajectory.PredictFromFlashSpeed"/>，AI 预测经
-    /// <see cref="AiEvaluation.SimulateShot"/>——三者全部落在同一个分流函数
-    /// <see cref="LevelGeometry.ThrowVelocityForWeight"/> 上，本文件逐链路断言其初速一致。
+    /// 预览经 <see cref="ThrowTrajectory.PredictFromFlashSpeed"/>——两条链路落在同一个
+    /// 分流函数上，本文件断言其初速一致（预览 = 实弹）。
     /// </summary>
     [TestFixture]
     public class ThrowWeightSplitTests
@@ -49,53 +48,44 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void PositiveWeight_Unchanged_EqualsThrowVelocityWithLift()
         {
-            // weight>0：逐位等于旧的 ThrowVelocity（固定仰角抬升），既有弹道不受分流影响。
+            // weight>0：逐位等于 ThrowVelocity（固定仰角抬升），抛物线弹道不受分流影响。
             const float speedPx = 12f;
             Vector3 split = LevelGeometry.ThrowVelocityForWeight(Forward, speedPx, 1f);
-            Vector3 legacy = LevelGeometry.ThrowVelocity(Forward, speedPx);
+            Vector3 lifted = LevelGeometry.ThrowVelocity(Forward, speedPx);
 
-            Assert.AreEqual(legacy.x, split.x, 1e-6f);
-            Assert.AreEqual(legacy.y, split.y, 1e-6f);
-            Assert.AreEqual(legacy.z, split.z, 1e-6f);
-            Assert.Greater(split.y, 0f, "有重力弹体仍由 ThrowLift 抬出仰角");
+            Assert.AreEqual(lifted.x, split.x, 1e-6f);
+            Assert.AreEqual(lifted.y, split.y, 1e-6f);
+            Assert.AreEqual(lifted.z, split.z, 1e-6f);
+            Assert.Greater(split.y, 0f, "有重力弹体由 ThrowLift 抬出仰角");
         }
 
         // ------------------------------------------------------------------
-        // 实弹链路（ProjectileSpawnPlanner，玩家投掷与加农炮共用）
+        // 实弹链路（ProjectileSpawnPlanner）：任意武器 → 同一条标准抛掷
         // ------------------------------------------------------------------
 
         [Test]
-        public void Planner_Cannonball_WeightZero_SpawnsStraightVelocity()
+        public void Planner_AnyWeapon_SpawnsStandardThrowFromOwner()
         {
-            WeaponStats stats = WeaponCatalog.Get(WeaponId.Cannonball);
-            Assert.AreEqual(0f, stats.Weight, 1e-6f, "cannonball weight=0 是逆向口径（§5.2），数值表未变");
-            Assert.IsFalse(ProjectileProfile.FromStats(stats).UsesGravity);
+            // 标准炸弹 weight>0：抬升仰角的抛物线初速；生成点 = 投掷者位置、非 kinematic。
+            Assert.Greater(StandardBombRules.Weight, 0f, "标准炸弹恒吃重力（抛物线弹道的前提）");
 
-            IReadOnlyList<ProjectileSpawn> plan = ProjectileSpawnPlanner.Plan(
-                stats, new Vector3(1f, 0.5f, 1f), new Vector3(5f, 0f, 5f), vxFlash: 8f, vyFlash: 0f);
+            foreach (WeaponId id in new[] { WeaponId.CherryBomb, WeaponId.Anchor, WeaponId.Cannon })
+            {
+                IReadOnlyList<ProjectileSpawn> plan = ProjectileSpawnPlanner.Plan(
+                    WeaponCatalog.Get(id), new Vector3(1f, 0.5f, 1f), new Vector3(5f, 0f, 5f),
+                    vxFlash: 4f, vyFlash: 0f);
 
-            Assert.AreEqual(1, plan.Count);
-            Assert.AreEqual(0f, plan[0].WorldVelocity.y, 0f,
-                "加农炮弹（FireCannonToward 也走本链路）不得再带 ThrowLift 仰角");
-            Assert.AreEqual(8f * LevelGeometry.FlashSpeedScale,
-                new Vector2(plan[0].WorldVelocity.x, plan[0].WorldVelocity.z).magnitude, 1e-5f);
-        }
+                Assert.AreEqual(1, plan.Count, id.ToString());
+                Assert.IsFalse(plan[0].Kinematic, id.ToString());
+                Assert.AreEqual(new Vector3(1f, 0.5f, 1f), plan[0].WorldPosition, id.ToString());
 
-        [Test]
-        public void Planner_GravityWeapon_KeepsLegacyLift()
-        {
-            // cherryBomb weight=1：与旧口径 FlashLaunchVelocityToWorld(vx, vy) 逐位一致。
-            WeaponStats stats = WeaponCatalog.Get(WeaponId.CherryBomb);
-            Assert.Greater(stats.Weight, 0f);
-
-            IReadOnlyList<ProjectileSpawn> plan = ProjectileSpawnPlanner.Plan(
-                stats, new Vector3(1f, 0.5f, 1f), new Vector3(5f, 0f, 5f), vxFlash: 4f, vyFlash: 0f);
-
-            Vector3 legacy = LevelGeometry.FlashLaunchVelocityToWorld(4f, 0f);
-            Assert.AreEqual(legacy.x, plan[0].WorldVelocity.x, 1e-6f);
-            Assert.AreEqual(legacy.y, plan[0].WorldVelocity.y, 1e-6f);
-            Assert.AreEqual(legacy.z, plan[0].WorldVelocity.z, 1e-6f);
-            Assert.Greater(plan[0].WorldVelocity.y, 0f);
+                Vector3 expected = LevelGeometry.FlashLaunchVelocityToWorld(
+                    4f, 0f, StandardBombRules.Weight);
+                Assert.AreEqual(expected.x, plan[0].WorldVelocity.x, 1e-6f, id.ToString());
+                Assert.AreEqual(expected.y, plan[0].WorldVelocity.y, 1e-6f, id.ToString());
+                Assert.AreEqual(expected.z, plan[0].WorldVelocity.z, 1e-6f, id.ToString());
+                Assert.Greater(plan[0].WorldVelocity.y, 0f, id + " 应带 ThrowLift 仰角");
+            }
         }
 
         // ------------------------------------------------------------------
@@ -103,73 +93,29 @@ namespace PirateCrew.Battle.Tests
         // ------------------------------------------------------------------
 
         [Test]
-        public void Preview_FirstSample_MatchesPlannerInitialVelocity_BothWeights()
+        public void Preview_FirstSample_MatchesPlannerInitialVelocity()
         {
             // 预览第 1 个采样点 = 起点 +（实弹初速 + 首步重力）× 物理步——Predict 与 PhysX
-            // 同为半隐式欧拉（先更新速度再位移），weight=0 时重力项为零退化为纯匀速，
-            // 两种重量下预览与实弹取的都是同一个分流函数给出的初速。
+            // 同为半隐式欧拉（先更新速度再位移），两者取的都是同一个分流函数给出的初速。
             const float vx = 6f, vy = 2.5f;
             float speed = Mathf.Sqrt(vx * vx + vy * vy);
             Vector3 direction = new Vector3(vx, 0f, vy);
             Vector3 origin = new Vector3(3f, 0.5f, 4f);
+            float weight = StandardBombRules.Weight;
             var buffer = new Vector3[2];
 
-            foreach (float weight in new[] { 0f, 1f })
-            {
-                IReadOnlyList<ProjectileSpawn> plan = ProjectileSpawnPlanner.Plan(
-                    WeaponCatalog.Get(weight == 0f ? WeaponId.Cannonball : WeaponId.CherryBomb),
-                    origin, origin, vx, vy);
+            IReadOnlyList<ProjectileSpawn> plan = ProjectileSpawnPlanner.Plan(
+                WeaponCatalog.Get(WeaponId.CherryBomb), origin, origin, vx, vy);
 
-                ThrowTrajectory.PredictFromFlashSpeed(
-                    origin, direction, speed, weight, buffer, 2, LevelGeometry.FrameSeconds);
-
-                Vector3 firstStepVelocity = plan[0].WorldVelocity
-                    + new Vector3(0f, LevelGeometry.WorldGravityY(weight) * LevelGeometry.FrameSeconds, 0f);
-                Vector3 expectedFirst = origin + firstStepVelocity * LevelGeometry.FrameSeconds;
-                Assert.AreEqual(expectedFirst.x, buffer[0].x, 1e-5f, "weight=" + weight);
-                Assert.AreEqual(expectedFirst.y, buffer[0].y, 1e-5f, "weight=" + weight);
-                Assert.AreEqual(expectedFirst.z, buffer[0].z, 1e-5f, "weight=" + weight);
-            }
-
-            // weight=0 时整条预览线是水平直线（y 恒等于起点高度）。
             ThrowTrajectory.PredictFromFlashSpeed(
-                origin, direction, speed, 0f, buffer, 2, LevelGeometry.FrameSeconds);
-            Assert.AreEqual(origin.y, buffer[0].y, 1e-5f);
-            Assert.AreEqual(origin.y, buffer[1].y, 1e-5f);
-        }
+                origin, direction, speed, weight, buffer, 2, LevelGeometry.FrameSeconds);
 
-        // ------------------------------------------------------------------
-        // AI 预测链路（AiEvaluation.SimulateShot）
-        // ------------------------------------------------------------------
-
-        [Test]
-        public void SimulateShot_ZeroWeight_TravelsStraightAtFlashPixelsPerStep()
-        {
-            // 无重力弹体的 AI 预测 = 直线：Flash 平面速度 vx px/帧，每物理步恰好前进 vx px
-            // （1 步 = 1 帧 @25fps），5 步 × vx=10 → 落点 = 起点 + 50px，纵深不动。
-            // 旧口径（强抬仰角 + 零重力）会沿 35° 上斜线漂走，此断言把它钉死在直线口径上。
-            var terrain = new AiTerrain(0f, 2000f, 0f, 2000f);
-            AiThrowSample sample = AiEvaluation.SimulateShot(
-                startX: 100f, startY: 400f, vx: 10f, vy: 0f,
-                weight: 0f, terrain: terrain, maxSteps: 5);
-
-            Assert.AreEqual(150f, sample.Ex, 1e-3f, "每步直线前进 vx px");
-            Assert.AreEqual(400f, sample.Ey, 1e-3f, "纵深不受重力/抬升影响");
-            Assert.IsFalse(sample.Drowned);
-        }
-
-        [Test]
-        public void SimulateShot_PositiveWeight_Unchanged_StillArcsAndLands()
-        {
-            // weight=1（角色自抛口径）：仍走抛物线并落到地面平面——分流不改变有重力弹道的落点。
-            var terrain = new AiTerrain(0f, 2000f, 0f, 2000f);
-            AiThrowSample sample = AiEvaluation.SimulateShot(
-                startX: 100f, startY: 400f, vx: 6f, vy: 3f,
-                weight: CrewCatalog.Weight, terrain: terrain);
-
-            Assert.IsFalse(sample.Drowned, "2000×200px 竞技场内满步数内应落地而非落水");
-            Vector3 world = LevelGeometry.PixelToArena(sample.Ex, sample.Ey);
-            Assert.AreEqual(LevelGeometry.GroundTopY, world.y, 1e-4f, "落点必须在地面上");
+            Vector3 firstStepVelocity = plan[0].WorldVelocity
+                + new Vector3(0f, LevelGeometry.WorldGravityY(weight) * LevelGeometry.FrameSeconds, 0f);
+            Vector3 expectedFirst = origin + firstStepVelocity * LevelGeometry.FrameSeconds;
+            Assert.AreEqual(expectedFirst.x, buffer[0].x, 1e-5f);
+            Assert.AreEqual(expectedFirst.y, buffer[0].y, 1e-5f);
+            Assert.AreEqual(expectedFirst.z, buffer[0].z, 1e-5f);
         }
     }
 }

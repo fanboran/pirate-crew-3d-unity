@@ -20,7 +20,7 @@ namespace PirateCrew.Battle
     ///
     /// 【计时口径（审计 代码审计报告 §一.2）】原版的"帧"是 Flash 25fps 帧；工程在
     /// <c>BattleController.ApplyPhysicsConvention</c> 把 <c>fixedDeltaTime</c> 设为 0.04s（25Hz）
-    /// 对齐该口径。inactivity / AI 看门狗一律在 <c>FixedUpdate</c> 里计数——放渲染帧 Update
+    /// 对齐该口径。inactivity 一律在 <c>FixedUpdate</c> 里计数——放渲染帧 Update
     /// 会让回合节奏随刷新率漂移（60fps 下阈值 10 帧 = 0.167s，是原版 0.4s 的 2.4 倍快）。
     /// </summary>
     [DisallowMultipleComponent]
@@ -34,21 +34,15 @@ namespace PirateCrew.Battle
 
         [Header("组装引用（场景内直连）")]
         [SerializeField] BattleController battle;
-        [Tooltip("AI 评估器（§6）。未接线时退化为 autoResolveAiTurns 占位，保证回合循环不卡死。")]
-        [SerializeField] AiController aiController;
 
         [Header("推进参数")]
         [Tooltip("inactivity 阈值（§3.1 = 10，严格大于才推进）。")]
         [SerializeField] int inactivityThreshold = BattleFlowRules.InactivityThreshold;
 
-        [Tooltip("兜底：AI 队回合无决策时自动结束，保证回合循环不卡死（aiController 为空时也走这条）。")]
+        [Tooltip("兜底：AI 队回合无决策时自动结束，保证回合循环不卡死。")]
         [SerializeField] bool autoResolveAiTurns = true;
 
-        [Tooltip("AI 决策看门狗（Flash 帧，25Hz）：超时强制结束本回合，避免评估异常/无候选导致回合卡死。")]
-        [SerializeField] int aiTurnTimeoutFrames = 600;
-
         int _inactivityFrames;
-        int _aiWatchdogFrames;
         bool _started;
         BattleTeam _currentTeam;
 
@@ -95,38 +89,9 @@ namespace PirateCrew.Battle
             if (!_started || _currentTeam == null || battle == null)
                 return;
 
-            // 对局已结束：取消 AI 思考，不再推进。
+            // 对局已结束：不再推进。
             if (battle.IsMatchOver)
-            {
-                aiController?.CancelAiTurn();
                 return;
-            }
-
-            // 0) AI 队：看门狗 + 思考期间冻结 inactivity。
-            if (_currentTeam.AiControlled && aiController != null)
-            {
-                switch (BattleFlowRules.DecideAiTick(
-                    battle.IsAnythingActive(), aiController.IsThinking, _aiWatchdogFrames, aiTurnTimeoutFrames))
-                {
-                    case AiTickDecision.ResetWatchdogAndWait:
-                        // 活动（弹体飞行/角色翻滚/瞄准中）是回合的合法内容：重置看门狗。
-                        // 否则 dynamite 等长弹道武器飞 7-10s 就被强制收尾——审计 §一.3：
-                        // ForceResolveAiTurn → OnTurnEnded 会把仍在飞的弹体直接销毁。
-                        _aiWatchdogFrames = 0;
-                        return;
-
-                    case AiTickDecision.ForceResolve:
-                        // 兜底：评估失败/超时也必须能推进回合（ForceResolveAiTurn 内部清零看门狗）。
-                        ForceResolveAiTurn();
-                        return;
-
-                    case AiTickDecision.WaitThinking:
-                        _aiWatchdogFrames++;   // 分帧评估中：看门狗继续计（它防的就是评估卡死）
-                        return;
-                }
-
-                // Proceed：AI 已有决策且场上无活动 → 落入下方通用 inactivity 推进。
-            }
 
             // 1) 有任何"活动"（角色在动/瞄准中）→ 清零，不推进。
             if (battle.IsAnythingActive())
@@ -154,55 +119,24 @@ namespace PirateCrew.Battle
                 ContinueTurn();
         }
 
-        /// <summary>
-        /// 兜底：AI 队回合迟迟拿不到决策（评估异常/无候选/未接线）时强制收尾，保证循环不卡死。
-        /// 与 <see cref="AiController"/> 内部的正常收尾互不冲突（幂等）。
-        /// </summary>
-        void ForceResolveAiTurn()
-        {
-            _aiWatchdogFrames = 0;
-            aiController?.CancelAiTurn();
-
-            PirateBase pick = _currentTeam.SelectedCharacter ?? _currentTeam.FirstAlive();
-            if (pick != null)
-            {
-                if (_currentTeam.SelectedCharacter == null)
-                    _currentTeam.Select(pick, again: false);
-                pick.MarkEndGo();
-            }
-
-            EndTeamTurn();
-        }
-
-        /// <summary>§3.2 continueTurn：同一角色继续第 2 个动作（AI 走评估器；未接线时走占位）。</summary>
+        /// <summary>§3.2 continueTurn：同一角色继续第 2 个动作（AI 队走自动收尾兜底）。</summary>
         void ContinueTurn()
         {
-            if (_currentTeam.AiControlled)
+            if (_currentTeam.AiControlled && autoResolveAiTurns)
             {
-                if (aiController != null)
+                // AI 队兜底：选首个存活角色并结束回合，保证循环不卡死。
+                PirateBase pick = _currentTeam.SelectedCharacter ?? _currentTeam.FirstAlive();
+                if (pick == null)
                 {
-                    // 真正评估：canThrow=false、只有已选角色 canShoot、aiCanBailOut=true（§3.2/§6.1）。
-                    _aiWatchdogFrames = 0;
-                    aiController.BeginAiContinueTurn(_currentTeam);
-                    return;
-                }
-
-                if (autoResolveAiTurns)
-                {
-                    // 未接线 AiController 时的兜底：选首个存活角色并结束回合，保证循环不卡死。
-                    PirateBase pick = _currentTeam.SelectedCharacter ?? _currentTeam.FirstAlive();
-                    if (pick == null)
-                    {
-                        EndTeamTurn();
-                        return;
-                    }
-
-                    if (_currentTeam.SelectedCharacter == null)
-                        _currentTeam.Select(pick, again: false);
-                    pick.MarkEndGo();
                     EndTeamTurn();
                     return;
                 }
+
+                if (_currentTeam.SelectedCharacter == null)
+                    _currentTeam.Select(pick, again: false);
+                pick.MarkEndGo();
+                EndTeamTurn();
+                return;
             }
 
             // 人类玩家：角色还有动作（canThrow/canShoot 至少一个为 true），等其继续操作，不强制推进。
@@ -236,7 +170,6 @@ namespace PirateCrew.Battle
 
             _currentTeam = team;
             _inactivityFrames = 0;
-            _aiWatchdogFrames = 0;
 
             team.StartTurn();
             battle.ResetTeamForTurnStart(team);
@@ -252,10 +185,6 @@ namespace PirateCrew.Battle
             // §3.2 panToCharacter：首回合优先船长，否则选离相机中心最近的角色。
             if (pan != null)
                 EventBus.Publish(BattleEvents.CameraFocusRequested, pan.transform);
-
-            // §6.1：AI 队回合开始即启动分帧评估（整队逐角色 aiThink）。
-            if (team.AiControlled && aiController != null)
-                aiController.BeginAiTurn(team);
         }
 
         /// <summary>§3.2 默认镜头目标选择。</summary>

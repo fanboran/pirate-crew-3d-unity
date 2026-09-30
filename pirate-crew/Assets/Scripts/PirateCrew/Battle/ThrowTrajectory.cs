@@ -17,8 +17,8 @@ namespace PirateCrew.Battle
     ///   与同一份重力（<see cref="LevelGeometry.WorldGravity"/>），故逐步严格一致：
     ///   预览线上第 i 个采样点 = 实弹第 i 个物理步的位置。
     ///
-    /// 【谁在用】<see cref="TrajectoryPreview"/>（玩家预览）与 <c>AiEvaluation</c>（AI 落点评估）
-    ///   共用本类，避免两套弹道口径。
+    /// 【谁在用】<see cref="TrajectoryPreview"/>（玩家预览）与实弹生成（ProjectileSpawnPlanner）
+    ///   共用本类的初速/重力口径，避免两套弹道口径。
     /// </summary>
     public static class ThrowTrajectory
     {

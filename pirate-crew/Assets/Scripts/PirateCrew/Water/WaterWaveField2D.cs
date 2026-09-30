@@ -92,7 +92,7 @@ namespace PirateCrew.Water
     /// 浪峰（−∇²u 大）持续生成泡沫，波走后只衰减 → 泡沫带随浪前进（"生成式传输"）。
     ///
     /// 【输出只驱动观感】本类不参与任何玩法判定：落水判定仍是 <c>LevelGeometry.WaterWorldY</c>
-    /// 标量阈值，"预览 = 实弹"的确定性预演（AiEvaluation）不读这里。
+    /// 标量阈值，"预览 = 实弹"的确定性预演（ThrowTrajectory）不读这里。
     /// </summary>
     public sealed class WaterWaveField2D
     {

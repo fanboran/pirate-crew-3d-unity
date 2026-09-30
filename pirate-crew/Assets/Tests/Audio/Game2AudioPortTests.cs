@@ -32,8 +32,6 @@ namespace PirateCrew.Tests.Audio
         static readonly Event[] NonPortedSubscriptions =
         {
             BattleEvents.TurnEnded,             // 回合结束 → SfxId.TurnEnd（合成，Game-2 无对应源）
-            BattleEvents.MineBeep,              // 地雷引信 → SfxId.MineBeep（合成，§5.2 beepTimes）
-            BattleEvents.AiDecided,             // AI 换武器 → SfxId.WeaponSwitch（合成）
             SceneEvents.SceneLoadStarted,       // 离开战斗场景 → 停底床/停音乐（清理，不出声）
         };
 

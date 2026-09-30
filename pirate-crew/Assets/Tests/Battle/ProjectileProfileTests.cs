@@ -1,296 +1,131 @@
 using NUnit.Framework;
+using PirateCrew.Combat;
 using PirateCrew.Data;
 
 namespace PirateCrew.Battle.Tests
 {
     /// <summary>
-    /// <see cref="ProjectileProfile"/> 参数推导测试（§5.2 武器总表 → PhysX 参数映射）。
-    /// 逐值手算，算式写在每个断言旁。
+    /// <see cref="ProjectileProfile"/> 参数推导测试。
+    ///
+    /// 【单一弹体口径】全部 <see cref="WeaponId"/> 都映射到同一份标准小炸弹 profile
+    /// （<see cref="StandardBombRules"/> 单一规则源，数值单源 <see cref="BalanceConfig.Defaults"/>）。
+    /// 本文件逐条断言「任意武器 → 同一份标准参数」，以及 px→世界单位换算（1 单位 = 16px）。
     /// </summary>
     [TestFixture]
     public class ProjectileProfileTests
     {
         static WeaponStats Stats(WeaponId id) => WeaponCatalog.Get(id);
 
+        static readonly WeaponId[] AllWeaponIds =
+        {
+            WeaponId.Cannonball, WeaponId.CherryBomb, WeaponId.Dynamite, WeaponId.Boulder,
+            WeaponId.Banana, WeaponId.Mine, WeaponId.ParachuteBomb, WeaponId.RumBottle,
+            WeaponId.PiecesOfEight, WeaponId.GunpowderBarrel, WeaponId.WoodenCrate,
+            WeaponId.Anchor, WeaponId.Seagull, WeaponId.TidalWave,
+            WeaponId.VoodooDoll, WeaponId.Cannon, WeaponId.SweepingFlame,
+        };
+
         // ------------------------------------------------------------------
-        // AABB → Collider 半尺寸（1 单位 = 16px，格 1→2 单位后 PixelsPerUnit=16）
+        // 任意武器 → 同一份标准炸弹参数
         // ------------------------------------------------------------------
 
         [Test]
-        public void Cannonball_Aabb10px_BecomesHalfWidth0Point625()
+        public void AnyWeapon_YieldsIdenticalStandardProfile()
+        {
+            ProjectileProfile reference = ProjectileProfile.FromStats(Stats(WeaponId.CherryBomb));
+
+            foreach (WeaponId id in AllWeaponIds)
+            {
+                ProjectileProfile p = ProjectileProfile.FromStats(Stats(id));
+                Assert.AreEqual(reference.HalfWidth, p.HalfWidth, 1e-6f, id.ToString());
+                Assert.AreEqual(reference.HalfHeight, p.HalfHeight, 1e-6f, id.ToString());
+                Assert.AreEqual(reference.Mass, p.Mass, 1e-6f, id.ToString());
+                Assert.AreEqual(reference.UsesGravity, p.UsesGravity, id.ToString());
+                Assert.AreEqual(reference.GravityScale, p.GravityScale, 1e-6f, id.ToString());
+                Assert.AreEqual(reference.Bounciness, p.Bounciness, 1e-6f, id.ToString());
+                Assert.AreEqual(reference.DynamicFriction, p.DynamicFriction, 1e-6f, id.ToString());
+                Assert.AreEqual(reference.TwangMax, p.TwangMax, 1e-6f, id.ToString());
+                Assert.AreEqual(reference.HasExplosion, p.HasExplosion, id.ToString());
+                Assert.AreEqual(reference.ExplosionSize, p.ExplosionSize, 1e-6f, id.ToString());
+                Assert.AreEqual(reference.ExplosionMaxDamage, p.ExplosionMaxDamage, 1e-6f, id.ToString());
+                Assert.AreEqual(ProjectileShape.Sphere, p.Shape, id.ToString());
+            }
+        }
+
+        [Test]
+        public void StandardProfile_MatchesStandardBombRules()
         {
             ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.Cannonball));
-            // 10 / 16 = 0.625；全宽 1.25
-            Assert.AreEqual(0.625f, p.HalfWidth, 1e-6f);
-            Assert.AreEqual(0.625f, p.HalfHeight, 1e-6f);
-            Assert.AreEqual(1.25f, p.ColliderWidth, 1e-6f);
-            Assert.AreEqual(1.25f, p.ColliderHeight, 1e-6f);
-            Assert.AreEqual(ProjectileShape.Sphere, p.Shape);
-        }
 
-        [Test]
-        public void Boulder_Aabb31px_BecomesHalfWidth1Point9375()
-        {
-            ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.Boulder));
-            // 31 / 16 = 1.9375
-            Assert.AreEqual(1.9375f, p.HalfWidth, 1e-6f);
-        }
+            float half = LevelGeometry.PixelsToUnits(StandardBombRules.HalfSizePixels);
+            // 8 / 16 = 0.5 世界单位；全宽 1.0
+            Assert.AreEqual(half, p.HalfWidth, 1e-6f);
+            Assert.AreEqual(half, p.HalfHeight, 1e-6f);
+            Assert.AreEqual(half, p.HalfDepth, 1e-6f);
+            Assert.AreEqual(1.0f, p.ColliderWidth, 1e-6f);
+            Assert.AreEqual(1.0f, p.ColliderHeight, 1e-6f);
+            Assert.AreEqual(1.0f, p.ColliderDepth, 1e-6f);
 
-        [Test]
-        public void GunpowderBarrel_IsBox_WithVerticalRadius15px()
-        {
-            ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.GunpowderBarrel));
-            // 水平 16/16 = 1.0；垂直 15/16 = 0.9375；全宽 2.0、全高 1.875
-            Assert.AreEqual(1.0f, p.HalfWidth, 1e-6f);
-            Assert.AreEqual(0.9375f, p.HalfHeight, 1e-6f);
-            Assert.AreEqual(2.0f, p.ColliderWidth, 1e-6f);
-            Assert.AreEqual(1.875f, p.ColliderHeight, 1e-6f);
-            Assert.AreEqual(ProjectileShape.Box, p.Shape);
-        }
-
-        [Test]
-        public void WoodenCrate_IsBox_SameAabbAsBarrel()
-        {
-            ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.WoodenCrate));
-            Assert.AreEqual(1.0f, p.HalfWidth, 1e-6f);
-            Assert.AreEqual(0.9375f, p.HalfHeight, 1e-6f);
-            Assert.AreEqual(ProjectileShape.Box, p.Shape);
-        }
-
-        // ------------------------------------------------------------------
-        // Weight → 质量 / 重力
-        // ------------------------------------------------------------------
-
-        [Test]
-        public void WeightlessWeapon_HasUnitMassAndNoGravity()
-        {
-            ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.Cannonball));
-            // §5.2 cannonball weight=0：无重力；PhysX 不接受 0 质量，取 1。
-            Assert.AreEqual(1f, p.Mass, 1e-6f);
-            Assert.IsFalse(p.UsesGravity);
-            Assert.AreEqual(0f, p.GravityScale, 1e-6f);
-        }
-
-        [Test]
-        public void Boulder_Weight1Point5_ScalesMassAndGravity()
-        {
-            ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.Boulder));
-            // §5.2 boulder 全表唯一非 1 重量 1.5
-            Assert.AreEqual(1.5f, p.Mass, 1e-6f);
+            // 重量/重力：标准口径 = 角色自重同档，恒吃重力
+            Assert.AreEqual(StandardBombRules.Weight, p.Mass, 1e-6f);
             Assert.IsTrue(p.UsesGravity);
-            Assert.AreEqual(1.5f, p.GravityScale, 1e-6f);
+            Assert.AreEqual(StandardBombRules.Weight, p.GravityScale, 1e-6f);
+
+            // 物理材质取全局物理默认
+            Assert.AreEqual(StandardBombRules.Bounciness, p.Bounciness, 1e-6f);
+            Assert.AreEqual(StandardBombRules.Friction, p.DynamicFriction, 1e-6f);
+            Assert.AreEqual(StandardBombRules.Friction, p.StaticFriction, 1e-6f);
+
+            // 弹弓上限 = 角色自抛同限
+            Assert.AreEqual(StandardBombRules.TwangMax, p.TwangMax, 1e-6f);
         }
 
+        // ------------------------------------------------------------------
+        // 爆炸口径单源（StandardBombRules → BalanceConfig.Defaults）
+        // ------------------------------------------------------------------
+
         [Test]
-        public void NormalWeapon_Weight1_UsesUnitGravity()
+        public void StandardExplosion_ValuesComeFromBalanceDefaults()
         {
             ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.CherryBomb));
-            Assert.AreEqual(1f, p.Mass, 1e-6f);
-            Assert.IsTrue(p.UsesGravity);
-            Assert.AreEqual(1f, p.GravityScale, 1e-6f);
+
+            Assert.IsTrue(p.HasExplosion);
+            Assert.AreEqual(BalanceConfig.Defaults.StandardBombExplosionSize, p.ExplosionSize, 1e-6f);
+            Assert.AreEqual(BalanceConfig.Defaults.StandardBombDamage, p.ExplosionMaxDamage, 1e-6f);
+            Assert.AreEqual(StandardBombRules.ExplosionSize, p.ExplosionSize, 1e-6f);
+            Assert.AreEqual(StandardBombRules.ExplosionMaxDamage, p.ExplosionMaxDamage, 1e-6f);
         }
 
         // ------------------------------------------------------------------
-        // Bounce / Friction → PhysicsMaterial
+        // 寿命投影仍消费目录数据锚（LimitedToTurn / MaxReuses）
         // ------------------------------------------------------------------
 
         [Test]
-        public void Banana_HasHighestBounce0Point8()
+        public void LifetimeProjection_StillReadsCatalogAnchors()
         {
-            ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.Banana));
-            Assert.AreEqual(0.8f, p.Bounciness, 1e-6f);
-            Assert.AreEqual(0.5f, p.DynamicFriction, 1e-6f);
-            Assert.AreEqual(0.5f, p.StaticFriction, 1e-6f);
-        }
-
-        [Test]
-        public void Dynamite_Friction1Point7_IsCarriedIntoMaterial()
-        {
-            ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.Dynamite));
-            Assert.AreEqual(1.7f, p.DynamicFriction, 1e-6f);
-            Assert.AreEqual(0.2f, p.Bounciness, 1e-6f);
-        }
-
-        [Test]
-        public void BoxWeapon_HasZeroFrictionAndZeroBounce()
-        {
-            ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.WoodenCrate));
-            Assert.AreEqual(0f, p.Bounciness, 1e-6f);
-            Assert.AreEqual(0f, p.DynamicFriction, 1e-6f);
-        }
-
-        // ------------------------------------------------------------------
-        // 生命周期 / 复用 / 放置
-        // ------------------------------------------------------------------
-
-        [Test]
-        public void LimitedToTurn_TrueWeapons_AreNotPersistent()
-        {
+            // LimitedToTurn=true 的武器（如 cherryBomb）→ 非常驻；false（如 mine）→ 常驻投影。
             Assert.IsFalse(ProjectileProfile.FromStats(Stats(WeaponId.CherryBomb)).IsPersistent);
-            Assert.IsFalse(ProjectileProfile.FromStats(Stats(WeaponId.Cannonball)).IsPersistent);
-            Assert.IsFalse(ProjectileProfile.FromStats(Stats(WeaponId.PiecesOfEight)).IsPersistent);
-        }
-
-        [Test]
-        public void LimitedToTurn_FalseWeapons_ArePersistent()
-        {
-            // §5.2：mine / gunpowderBarrel / woodenCrate / cannon
             Assert.IsTrue(ProjectileProfile.FromStats(Stats(WeaponId.Mine)).IsPersistent);
-            Assert.IsTrue(ProjectileProfile.FromStats(Stats(WeaponId.GunpowderBarrel)).IsPersistent);
-            Assert.IsTrue(ProjectileProfile.FromStats(Stats(WeaponId.WoodenCrate)).IsPersistent);
-            Assert.IsTrue(ProjectileProfile.FromStats(Stats(WeaponId.Cannon)).IsPersistent);
-        }
 
-        [Test]
-        public void PlaceableCounts_MatchSection5_2()
-        {
-            Assert.AreEqual(2, ProjectileProfile.FromStats(Stats(WeaponId.GunpowderBarrel)).PlaceableCount);
-            Assert.AreEqual(3, ProjectileProfile.FromStats(Stats(WeaponId.WoodenCrate)).PlaceableCount);
-            Assert.IsTrue(ProjectileProfile.FromStats(Stats(WeaponId.GunpowderBarrel)).IsPlaceable);
-            Assert.IsFalse(ProjectileProfile.FromStats(Stats(WeaponId.CherryBomb)).IsPlaceable);
-        }
-
-        [Test]
-        public void PiecesOfEight_ReuseCountIs8()
-        {
-            // §5.2 / §8.4「You get eight turns with this weapon」
+            // 复用次数投影：piecesOfEight 目录记 8 → 8；普通武器 → 1。
             Assert.AreEqual(8, ProjectileProfile.FromStats(Stats(WeaponId.PiecesOfEight)).ReuseCount);
             Assert.AreEqual(1, ProjectileProfile.FromStats(Stats(WeaponId.CherryBomb)).ReuseCount);
         }
 
         // ------------------------------------------------------------------
-        // 通用弹体范围 / 弹弓发射资格 / 瓦片碰撞 / 落水处置
+        // 放置/掩体路径已收敛为通用抛掷
         // ------------------------------------------------------------------
 
         [Test]
-        public void SupportsGenericProjectile_CoversElevenWeapons()
+        public void NoWeapon_IsPlaceable_Anymore()
         {
-            WeaponId[] supported =
+            foreach (WeaponId id in AllWeaponIds)
             {
-                WeaponId.Cannonball, WeaponId.CherryBomb, WeaponId.Dynamite, WeaponId.Boulder,
-                WeaponId.Banana, WeaponId.Mine, WeaponId.ParachuteBomb, WeaponId.RumBottle,
-                WeaponId.PiecesOfEight, WeaponId.GunpowderBarrel, WeaponId.WoodenCrate,
-            };
-            foreach (WeaponId id in supported)
-                Assert.IsTrue(ProjectileProfile.SupportsGenericProjectile(Stats(id)), id.ToString());
-
-            WeaponId[] todo =
-            {
-                WeaponId.Anchor, WeaponId.Seagull, WeaponId.TidalWave,
-                WeaponId.VoodooDoll, WeaponId.Cannon, WeaponId.SweepingFlame,
-            };
-            foreach (WeaponId id in todo)
-                Assert.IsFalse(ProjectileProfile.SupportsGenericProjectile(Stats(id)), id.ToString());
-        }
-
-        [Test]
-        public void Cannonball_IsSlingLaunchable_DespiteTwangMaxZero()
-        {
-            // §5.2 cannonball twangMax 为「—」，但作为保底武器必须能抛（§3.2）。
-            Assert.AreEqual(0f, Stats(WeaponId.Cannonball).TwangMax, 1e-6f);
-            Assert.IsTrue(ProjectileProfile.CanBeSlingLaunched(Stats(WeaponId.Cannonball)));
-            Assert.IsTrue(ProjectileProfile.CanBeSlingLaunched(Stats(WeaponId.Banana)));
-            Assert.IsFalse(ProjectileProfile.CanBeSlingLaunched(Stats(WeaponId.WoodenCrate)));
-        }
-
-        [Test]
-        public void HitsTiles_FalseOnlyForSeagullAndTidalWave()
-        {
-            Assert.IsFalse(ProjectileProfile.HitsTilesFor(WeaponId.Seagull));
-            Assert.IsFalse(ProjectileProfile.HitsTilesFor(WeaponId.TidalWave));
-            Assert.IsTrue(ProjectileProfile.HitsTilesFor(WeaponId.Cannonball));
-            Assert.IsTrue(ProjectileProfile.HitsTilesFor(WeaponId.GunpowderBarrel));
-        }
-
-        [Test]
-        public void WaterBehavior_MatchesSection5_2Notes()
-        {
-            // cannonball「落水即消失」；dynamite 落水不立即爆（M2 近似为消失）；
-            // 其余带爆炸的武器落水即引爆。
-            Assert.AreEqual(ProjectileWaterBehavior.Vanish,
-                ProjectileProfile.WaterBehavior(Stats(WeaponId.Cannonball)));
-            Assert.AreEqual(ProjectileWaterBehavior.Vanish,
-                ProjectileProfile.WaterBehavior(Stats(WeaponId.Dynamite)));
-            Assert.AreEqual(ProjectileWaterBehavior.Vanish,
-                ProjectileProfile.WaterBehavior(Stats(WeaponId.WoodenCrate)));
-            Assert.AreEqual(ProjectileWaterBehavior.Detonate,
-                ProjectileProfile.WaterBehavior(Stats(WeaponId.CherryBomb)));
-            Assert.AreEqual(ProjectileWaterBehavior.Detonate,
-                ProjectileProfile.WaterBehavior(Stats(WeaponId.PiecesOfEight)));
-            Assert.AreEqual(ProjectileWaterBehavior.Detonate,
-                ProjectileProfile.WaterBehavior(Stats(WeaponId.Mine)));
-        }
-
-        [Test]
-        public void ExplosionParams_AreCarriedThrough()
-        {
-            ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.CherryBomb));
-            Assert.IsTrue(p.HasExplosion);
-            Assert.AreEqual(80f, p.ExplosionSize, 1e-6f);
-            Assert.AreEqual(40f, p.ExplosionMaxDamage, 1e-6f);
-
-            ProjectileProfile crate = ProjectileProfile.FromStats(Stats(WeaponId.WoodenCrate));
-            Assert.IsFalse(crate.HasExplosion);
-        }
-
-        // ------------------------------------------------------------------
-        // 特殊武器机制分类（§5.2 六行备注）
-        // ------------------------------------------------------------------
-
-        [Test]
-        public void MechanicFor_ClassifiesElevenGenericAndSixSpecial()
-        {
-            WeaponId[] generic =
-            {
-                WeaponId.Cannonball, WeaponId.CherryBomb, WeaponId.Dynamite, WeaponId.Boulder,
-                WeaponId.Banana, WeaponId.Mine, WeaponId.ParachuteBomb, WeaponId.RumBottle,
-                WeaponId.PiecesOfEight, WeaponId.GunpowderBarrel, WeaponId.WoodenCrate,
-            };
-            foreach (WeaponId id in generic)
-            {
-                Assert.AreEqual(ProjectileMechanic.Generic, ProjectileProfile.MechanicFor(id), id.ToString());
-                Assert.IsFalse(ProjectileProfile.IsSpecialMechanic(id), id.ToString());
+                ProjectileProfile p = ProjectileProfile.FromStats(Stats(id));
+                Assert.IsFalse(p.IsPlaceable, id.ToString());
+                Assert.AreEqual(0, p.PlaceableCount, id.ToString());
+                Assert.IsTrue(p.HitsTiles, id.ToString());
             }
-
-            Assert.AreEqual(ProjectileMechanic.AnchorDrop, ProjectileProfile.MechanicFor(WeaponId.Anchor));
-            Assert.AreEqual(ProjectileMechanic.SeagullFlight, ProjectileProfile.MechanicFor(WeaponId.Seagull));
-            Assert.AreEqual(ProjectileMechanic.TidalWaveSweep, ProjectileProfile.MechanicFor(WeaponId.TidalWave));
-            Assert.AreEqual(ProjectileMechanic.VoodooDollTransfer, ProjectileProfile.MechanicFor(WeaponId.VoodooDoll));
-            Assert.AreEqual(ProjectileMechanic.CannonPlacement, ProjectileProfile.MechanicFor(WeaponId.Cannon));
-            Assert.AreEqual(ProjectileMechanic.SweepingFlameSpread, ProjectileProfile.MechanicFor(WeaponId.SweepingFlame));
-            Assert.IsTrue(ProjectileProfile.IsSpecialMechanic(WeaponId.Anchor));
         }
-
-        [Test]
-        public void FallbackHalfSize_UsedWhenAabbIsMissing()
-        {
-            // §5.2 里 seagull / tidalWave / voodooDoll / cannon / SweepingFlame 的 AABB 各格为「—」。
-            // 兜底 8px = 8/16 = 0.5 世界单位（提案/待定；格 1→2 单位后由 0.25 ×2）。
-            Assert.AreEqual(8f, ProjectileProfile.HorizontalHalfSizePixels(Stats(WeaponId.Seagull)), 1e-6f);
-            ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.VoodooDoll));
-            Assert.AreEqual(0.5f, p.HalfWidth, 1e-6f);
-            Assert.AreEqual(0.5f, p.HalfHeight, 1e-6f);
-        }
-
-        [Test]
-        public void Anchor_HasExplicitAabb48By96()
-        {
-            // §5.2 anchor：l/r=48、top=96、bottom=0 —— 使用显式 AABB，不走兜底。
-            // 世界半尺寸 = px / PixelsPerUnit(16)：48/16 = 3、96/16 = 6。
-            Assert.AreEqual(48f, ProjectileProfile.HorizontalHalfSizePixels(Stats(WeaponId.Anchor)), 1e-6f);
-            Assert.AreEqual(96f, ProjectileProfile.VerticalHalfSizePixels(Stats(WeaponId.Anchor)), 1e-6f);
-            ProjectileProfile p = ProjectileProfile.FromStats(Stats(WeaponId.Anchor));
-            Assert.AreEqual(3f, p.HalfWidth, 1e-6f);
-            Assert.AreEqual(6f, p.HalfHeight, 1e-6f);
-        }
-
-        [Test]
-        public void VoodooDoll_IsSlingLaunchable_CannonIsNot()
-        {
-            // §5.2 voodooDoll twangMax=20（可抛）；cannon twangMax 为「—」，只走放置。
-            Assert.IsTrue(ProjectileProfile.CanBeSlingLaunched(Stats(WeaponId.VoodooDoll)));
-            Assert.IsFalse(ProjectileProfile.CanBeSlingLaunched(Stats(WeaponId.Cannon)));
-        }
-
     }
 }

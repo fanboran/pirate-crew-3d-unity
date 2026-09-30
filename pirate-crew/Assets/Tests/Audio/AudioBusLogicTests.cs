@@ -249,22 +249,6 @@ namespace PirateCrew.Tests.Audio
         }
 
         [Test]
-        public void Spatial_MineBeepGain_RampsUpAsFuseShortens()
-        {
-            Assert.That(SpatialAudioRules.MineBeepGain(0), Is.EqualTo(0.45f).Within(1e-4f));
-            Assert.That(SpatialAudioRules.MineBeepGain(59), Is.EqualTo(1f).Within(1e-4f));
-            Assert.That(SpatialAudioRules.MineBeepGain(999), Is.EqualTo(1f), "越界应钳制");
-
-            float previous = 0f;
-            for (int f = 0; f <= 59; f++)
-            {
-                float gain = SpatialAudioRules.MineBeepGain(f);
-                Assert.That(gain, Is.GreaterThanOrEqualTo(previous));
-                previous = gain;
-            }
-        }
-
-        [Test]
         public void Spatial_IsAudible_MatchesMaxDistance()
         {
             Assert.That(SpatialAudioRules.IsAudible(10f, 50f), Is.True);

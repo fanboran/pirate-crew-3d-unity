@@ -241,8 +241,8 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 水面以下的**虚空哨兵**：平台模式的水格没有地表，游戏性查询返回此值，
-        /// 使 AI 投掷模拟能走到 <c>p.y &lt;= WaterSurfaceY</c> 的「落水」分支
-        /// （见 <c>AiEvaluation.SimulateFromWorld</c>；不能返回 <see cref="LevelGeometry.WaterSurfaceY"/> 本身，
+        /// 使落点/放置类查询能走到 <c>p.y &lt;= WaterSurfaceY</c> 的「落水」分支
+        /// （不能返回 <see cref="LevelGeometry.WaterSurfaceY"/> 本身，
         /// 否则会与"落到地表"分支同时命中而不是判定落水）。余量随格世界尺寸（半格 = 1 单位；TileWorldSize=2）。
         /// </summary>
         public static float WaterVoidY => LevelGeometry.WaterSurfaceY - LevelGeometry.TileWorldSize * 0.5f;

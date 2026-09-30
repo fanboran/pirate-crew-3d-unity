@@ -251,19 +251,24 @@ namespace PirateCrew.Battle
             if (_health <= 0)
             {
                 _health = 0;
-                HealthChanged?.Invoke(this, _health, maxHealth);
-                EventBus.Publish(BattleEvents.CrewDamaged, new CrewDamagedPayload(
-                    _pirateId, teamIndex, rounded, _health, maxHealth));
+                PublishHealthChanged(rounded);
                 Kill();
                 return true;
             }
 
-            HealthChanged?.Invoke(this, _health, maxHealth);
-            EventBus.Publish(BattleEvents.CrewDamaged, new CrewDamagedPayload(
-                _pirateId, teamIndex, rounded, _health, maxHealth));
+            PublishHealthChanged(rounded);
             if (visualAnimator != null)
                 visualAnimator.NotifyHit();
             return false;
+        }
+
+        /// <summary>血量变动广播（血量回调 + 受击事件）：死亡/存活两分支同序同参，
+        /// 收拢一处防两份拷贝各自漂移。</summary>
+        void PublishHealthChanged(int rounded)
+        {
+            HealthChanged?.Invoke(this, _health, maxHealth);
+            EventBus.Publish(BattleEvents.CrewDamaged, new CrewDamagedPayload(
+                _pirateId, teamIndex, rounded, _health, maxHealth));
         }
 
         /// <summary>直接死亡（§4.4；也用于落水）。幂等。</summary>

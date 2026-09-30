@@ -52,7 +52,8 @@ namespace PirateCrew.Battle
         Vector3 _originWorld;
         Vector2 _dragScreen;
         bool _useWeapon;
-        bool _directPlacement;
+        // 投掷物理口径：选中任意武器后统一取标准炸弹口径（StandardBombRules），
+        // 抛自己回落角色口径——「点哪把都是它」在瞄准手感层同样成立。
         float _twangMax = CrewCatalog.TwangMaxForce;
         float _weight = CrewCatalog.Weight;
 
@@ -64,40 +65,6 @@ namespace PirateCrew.Battle
 
         /// <summary>当前拟使用的武器（false = 抛自己）。</summary>
         public bool UseWeapon => _useWeapon;
-
-        /// <summary>
-        /// 该武器是否走「点击直接放置」而非弹弓拖拽（<b>提案/待定</b>，见 <see cref="IsDirectPlacementWeapon"/>）。
-        /// 供 UI/测试查询当前瞄准模式。
-        /// </summary>
-        public bool IsDirectPlacement => _directPlacement;
-
-        /// <summary>
-        /// 四把非弹道机制武器：anchor / seagull / tidalWave / cannon（§5.2「触发/引爆条件」列）。
-        /// 它们不是弹弓打出的抛物线弹体，弹弓拖拽预览对它们**没有物理意义**（预览 ≠ 实弹是既知缺陷），
-        /// 故本工程对它们隐藏弹弓拖拽预览，改为点击直接放置（最小交互）。
-        ///
-        /// 【为何不含 voodooDoll / SweepingFlame】
-        ///   · voodooDoll 原版就是「弹弓抛出木偶」（twangMax=20，§5.2），属于弹道武器，保持现状；
-        ///   · SweepingFlame 由 rumBottle 落地生成，不在背包里直接使用。
-        ///
-        /// 【最小交互（提案/待定）】原版各有专属交互（锚点击落 / 海鸥点选高度再点投弹 /
-        ///   潮汐点击引爆 / 加农炮拖尾部 pin 蓄力）。M2 统一取「点击 → 在点击处生成该武器」：
-        ///   锚从点击处上方直落、海鸥从点击纵深飞入、潮汐以点击纵深横扫、加农炮在点击处摆位后
-        ///   自动朝最近敌人发射。原版的细粒度交互留待后续（见报告「提案与遗留」）。
-        /// </summary>
-        public static bool IsDirectPlacementWeapon(WeaponId weapon)
-        {
-            switch (ProjectileProfile.MechanicFor(weapon))
-            {
-                case ProjectileMechanic.AnchorDrop:
-                case ProjectileMechanic.SeagullFlight:
-                case ProjectileMechanic.TidalWaveSweep:
-                case ProjectileMechanic.CannonPlacement:
-                    return true;
-                default:
-                    return false;
-            }
-        }
 
         void Awake()
         {
@@ -208,14 +175,6 @@ namespace PirateCrew.Battle
 
             if (_phase == Phase.CharacterSelected)
             {
-                // 直接放置类武器（锚/海鸥/潮汐/加农）：点击即生成，不走拖拽、不显示弹弓预览。
-                if (_useWeapon && _directPlacement)
-                {
-                    PressStartedOnUnit = true;
-                    PlaceDirectWeapon();
-                    return;
-                }
-
                 PirateBase picked = PickTeamCharacter(mouse);
                 if (picked != null && picked != _selected)
                 {
@@ -342,102 +301,6 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// 直接放置一次（<see cref="IsDirectPlacementWeapon"/> 的四把武器）：把鼠标点投到地面作为
-        /// 生成点，生成弹体并消耗本次武器（用武器即结束回合，§3.4）。
-        /// 加农炮额外立刻朝最近敌人发射一发（最小交互，提案/待定）。
-        /// </summary>
-        void PlaceDirectWeapon()
-        {
-            PirateBase pirate = _selected;
-            if (pirate == null || !pirate.Alive)
-            {
-                CancelAim();
-                return;
-            }
-
-            Vector3 aimWorld = ResolveAimPointWorld();
-
-            if (pirate.MarkUseWeapon(out WeaponId used))
-            {
-                int spawned = SpawnWeapon(pirate, used, aimWorld, 0f, 0f);
-                if (spawned > 0 && used == WeaponId.Cannon)
-                    TryFirePlacedCannon();
-
-                EventBus_PublishAction(pirate, BattleActionKind.UseWeapon);
-            }
-            else
-            {
-                // 【提案/待定】MarkUseWeapon 失败（库存空/复用尽）仍发布 UseWeapon 动作，
-                // 与成功分支同构——回合语义需创始人裁决：失败分支应当发 EndGo 结束回合，
-                // 还是不发动作让玩家重选（现行为=回合推进器把失败当作"用过武器"）。
-                // 先保持现状不改行为。
-                EventBus_PublishAction(pirate, BattleActionKind.UseWeapon);
-            }
-
-            EndDirectPlacement();
-        }
-
-        /// <summary>加农炮摆位后立刻朝最近敌人发射（提案/待定：原版需玩家拖尾部 pin 蓄力）。</summary>
-        void TryFirePlacedCannon()
-        {
-            if (battle == null)
-                return;
-
-            WeaponProjectile cannon = null;
-            IReadOnlyList<WeaponProjectile> projectiles = battle.AllProjectiles;
-            for (int i = projectiles.Count - 1; i >= 0; i--)
-            {
-                WeaponProjectile p = projectiles[i];
-                if (p != null && p.WeaponId == WeaponId.Cannon)
-                {
-                    cannon = p;
-                    break;
-                }
-            }
-
-            if (cannon == null)
-                return;
-
-            PirateBase target = FindNearestEnemy();
-            if (target != null)
-                cannon.FireCannonToward(target.transform.position);
-        }
-
-        PirateBase FindNearestEnemy()
-        {
-            if (battle == null || _selected == null)
-                return null;
-
-            PirateBase best = null;
-            float bestDistance = float.MaxValue;
-            IReadOnlyList<PirateBase> all = battle.AllPirates;
-            for (int i = 0; i < all.Count; i++)
-            {
-                PirateBase p = all[i];
-                if (p == null || !p.Alive || p.TeamIndex == _selected.TeamIndex)
-                    continue;
-
-                float d = Vector3.Distance(_selected.transform.position, p.transform.position);
-                if (d < bestDistance)
-                {
-                    bestDistance = d;
-                    best = p;
-                }
-            }
-
-            return best;
-        }
-
-        void EndDirectPlacement()
-        {
-            _phase = Phase.Idle;
-            _selected = null;
-            ResetAimState();
-            if (trajectory != null)
-                trajectory.Hide();
-        }
-
-        /// <summary>
         /// （炮台合成的等效）拖拽向量 → (XZ 世界水平方向, Flash 初速大小)。
         /// <b>方向</b>按相机基向量投影（§M2-3D 规范 §3），
         /// 相机绕转后仍正确；<b>大小</b>取 <see cref="Ballistics.TwangVelocity"/> 的模长，
@@ -513,9 +376,8 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// 生成武器弹体（§5.2）。放置类生成 N 个、常驻；其余生成 1 个并给初速。
-        /// 特殊机制（anchor/seagull/tidalWave/voodooDoll/cannon/SweepingFlame）的生成计划由
-        /// <see cref="ProjectileSpawnPlanner.PlanSpecial"/> 给出，返回 0 时给出明确警告而非静默失败。
+        /// 生成武器弹体：所有武器都走通用抛掷（<see cref="BattleController.SpawnWeaponProjectiles"/>），
+        /// 生成 1 颗标准炸弹并带弹弓初速。
         /// </summary>
         /// <returns>本次生成的弹体数量。</returns>
         int SpawnWeapon(PirateBase pirate, WeaponId weapon, Vector3 aimWorld, float vx, float vy)
@@ -524,16 +386,8 @@ namespace PirateCrew.Battle
                 return 0;
 
             WeaponStats stats = WeaponCatalog.Get(weapon);
-            int spawned = battle.SpawnWeaponProjectiles(
+            return battle.SpawnWeaponProjectiles(
                 stats, pirate, pirate.transform.position, aimWorld, vx, vy);
-
-            if (spawned == 0)
-            {
-                global::PirateCrew.Core.Log.Warn("[AimThrowController] 武器 " + weapon
-                    + " 的专用机制尚未实现（TODO 见 ProjectileProfile.SupportsGenericProjectile），本次未生成弹体。");
-            }
-
-            return spawned;
         }
 
         // ------------------------------------------------------------------
@@ -552,8 +406,8 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 选择武器（§3.4 阶段 B 的 <c>button_&lt;weaponId&gt;</c>）：
-        /// 装备该武器并把 twangMax/weight 切到武器数值（<see cref="WeaponCatalog"/> 单一来源）。
-        /// 直接放置类（<see cref="IsDirectPlacementWeapon"/>）不进入拖拽模式，并隐藏弹弓预览。
+        /// 装备该武器（外壳保留），投掷口径统一取标准炸弹
+        /// （<see cref="StandardBombRules"/>：twangMax/weight 不按武器分叉）。
         /// </summary>
         public bool SelectWeapon(WeaponId weapon)
         {
@@ -567,15 +421,9 @@ namespace PirateCrew.Battle
 
             inventory.Equip(index);
             _useWeapon = true;
-            _directPlacement = IsDirectPlacementWeapon(weapon);
 
-            WeaponStats stats = WeaponCatalog.Get(weapon);
-            _twangMax = stats.TwangMax > 0f ? stats.TwangMax : CrewCatalog.TwangMaxForce;
-            _weight = stats.Weight;
-
-            // 非弹道武器不显示弹弓拖拽预览（预览对它们没有物理意义）。
-            if (_directPlacement && trajectory != null)
-                trajectory.Hide();
+            _twangMax = StandardBombRules.TwangMax;
+            _weight = StandardBombRules.Weight;
 
             return true;
         }
@@ -619,14 +467,13 @@ namespace PirateCrew.Battle
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 状态重置的公共块（原先在 EndDirectPlacement / ReleaseDrag / ResetForSelection /
-        /// CancelAim 各抄一份）：清武装与放置标记，twangMax/weight 回落到角色口径。
+        /// 状态重置的公共块（原先在 ReleaseDrag / ResetForSelection / CancelAim 各抄一份）：
+        /// 清武装标记，twangMax/weight 回落到角色口径。
         /// 阶段与选中角色的置位属于各自语义，由调用方另写。
         /// </summary>
         void ResetAimState()
         {
             _useWeapon = false;
-            _directPlacement = false;
             _twangMax = CrewCatalog.TwangMaxForce;
             _weight = CrewCatalog.Weight;
         }

@@ -102,8 +102,6 @@ namespace PirateCrew.Audio
                     return CombatSfx.Bounce(sampleRate);
                 case SfxId.StoneRoll:
                     return CombatSfx.StoneRoll(sampleRate);
-                case SfxId.MineBeep:
-                    return CombatSfx.MineBeep(sampleRate);
                 case SfxId.CrewDown:
                     return CombatSfx.CrewDown(sampleRate);
 

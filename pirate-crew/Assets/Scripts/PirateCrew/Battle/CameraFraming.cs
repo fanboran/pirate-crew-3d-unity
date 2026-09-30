@@ -15,7 +15,8 @@ namespace PirateCrew.Battle
         /// <summary>最终相机位置（焦点 + 机位偏移 + 震屏/下压）。</summary>
         public Vector3 Position;
 
-        /// <summary>最终朝向（烘焙机位 + 震屏滚转）。</summary>
+        /// <summary>最终朝向（看向焦点 + 震屏滚转——环绕重瞄裁决后朝向随焦点逐帧重算，
+        /// 见 <see cref="CameraFraming.ComputeRotationLooking"/>；「恒烘焙机位」是已推翻的旧口径）。</summary>
         public Quaternion Rotation;
 
         /// <summary>最终正交半高（手动档 × 特效当量比率）。</summary>
@@ -126,7 +127,7 @@ namespace PirateCrew.Battle
         /// <c>depth(b) = BaseDistance + b·cot(俯角)</c>
         /// （相机在焦点斜上方、焦点地面深度 = BaseDistance，沿视线轴的投影关系即此式）。
         /// 取屏顶 b = orthoSize（OrthoSize 即正交半高）即得本函数。
-        /// θ = 30° ⇒ cot θ = √3：基准档（7）≈ 42、全景上限（60）≈ 134。
+        /// θ = 30° ⇒ cot θ = √3：基准档（6.85，2026-09-30 创始人定值）≈ 42、全景上限（60）≈ 134。
         ///
         /// 【为什么需要它】远裁剪该多大是 orthoSize 的函数，不是可以随手写死的大数；
         /// 战斗侧海面是"跟随相机、半径 4200"的圆盘，其可见部分恒落在本范围内，

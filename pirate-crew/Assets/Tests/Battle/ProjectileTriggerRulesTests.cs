@@ -156,36 +156,6 @@ namespace PirateCrew.Battle.Tests
             Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(contact: true)));
         }
 
-        [Test]
-        public void Mine_FuseArmsOnlyForMovingCharacterWithin60px()
-        {
-            // 复用 WeaponTriggerRules.ShouldStartFuse：点燃条件
-            Assert.IsTrue(WeaponTriggerRules.ShouldStartFuse(CombatTrigger.ProximityFuse, 60f, true));
-            Assert.IsFalse(WeaponTriggerRules.ShouldStartFuse(CombatTrigger.ProximityFuse, 60f, false));
-            Assert.IsFalse(WeaponTriggerRules.ShouldStartFuse(CombatTrigger.ProximityFuse, 60.1f, true));
-        }
-
-        [Test]
-        public void Mine_FuseCountsDownFrom60ToDetonation()
-        {
-            // 手算：60 → TickFuse 逐帧 -1；第 60 帧剩余 0 → 可引爆。
-            int remaining = WeaponTriggerRules.MineFuseFrames;
-            for (int i = 0; i < WeaponTriggerRules.MineFuseFrames; i++)
-            {
-                Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(
-                    Trigger(WeaponId.Mine), Ctx(fuseArmed: true, fuseRemaining: remaining)));
-                remaining = WeaponTriggerRules.TickFuse(remaining);
-            }
-
-            Assert.IsTrue(WeaponTriggerRules.IsFuseExpired(remaining));
-            Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(
-                Trigger(WeaponId.Mine), Ctx(fuseArmed: true, fuseRemaining: remaining)));
-
-            // beepTimes 末响 59，第 60 帧爆。
-            Assert.IsTrue(WeaponTriggerRules.ShouldBeep(59));
-            Assert.IsFalse(WeaponTriggerRules.ShouldBeep(60));
-        }
-
         // ------------------------------------------------------------------
         // 被爆炸命中触发：gunpowderBarrel（连锁）
         // ------------------------------------------------------------------

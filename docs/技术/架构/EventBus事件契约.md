@@ -131,20 +131,12 @@ EventBus 拒绝投递、记入 `EventBus.ContractViolations` 并告警——机�
 | `BattleEvents.CrewDamaged` | `CrewDamagedPayload` | `PirateBase` | HUD（血条）/ 相机（震屏）/ `FxRoot` |
 | `BattleEvents.CrewDied` | `CrewDiedPayload` | `PirateBase` | HUD / 相机 / `AudioService` / `FxRoot` / `CampaignApi`（累计阵亡数供星级评价）。**胜负检查不走本事件**（`BattleController` 只订阅 `BattleEvents.TurnEnded`） |
 | `BattleEvents.MatchFinished` | `MatchFinishedPayload` | `BattleController` | HUD / 相机 / `AudioService` / `CampaignApi`（结算） |
-| `BattleEvents.AiThinking` | `AiThinkingPayload` | `AiController` | 相机（停止自动滚动，§6.1）——**HUD「电脑思考中」提示未兑现** |
-| `BattleEvents.AiDecided` | `AiDecidedPayload` | `AiController` | `AudioService`（§6.3 特殊武器的实际表现由后续武器脚本消费，当前无其它订阅方） |
 | `BattleEvents.ProjectileDetonated` | `ProjectileDetonatedPayload` | `WeaponProjectile` | 表现层（`FxRoot` 爆炸/水花、`WaterSimulationDriver` 涟漪、相机震屏、音频） |
-| `BattleEvents.MineBeep` | `MineBeepPayload` | `WeaponProjectile`（mine 引信） | 音频层（§5.2 beepTimes 滴答声） |
 | `BattleEvents.ShotReleased` | `float` 拖拽距离（px，`AimThrowController.cs:758`） | `AimThrowController` | 音频层（发射音） |
-| `BattleEvents.CameraFocusRequested` | `Transform` 目标 | `TurnManager` / `WeaponProjectile`（voodoo 切镜）/ `AiController` / `BattleController` | 相机（`BattleCameraDriver`）/ HUD |
+| `BattleEvents.CameraFocusRequested` | `Transform` 目标 | `TurnManager` / `BattleController` | 相机（`BattleCameraDriver`）/ HUD |
 
-> **武器运行时事件备注**：`BattleEvents.ProjectileDetonated` / `BattleEvents.MineBeep` 的频道与载荷定义在
-> `Battle/BattleEvents.cs`，由 `Battle/WeaponProjectile.cs` 发布（弹体引爆 / 地雷引信蜂鸣）。
-
-> **AI 事件备注**：`BattleEvents.AiThinking` / `BattleEvents.AiDecided` 的频道与载荷定义在 `Battle/BattleEvents.cs`，
-> 由 `Battle/AiController.cs` 发布（§6.1 时间片评估）。`BattleEvents.AiDecided` 同时承担「把 §6.3 特殊武器
-> 的落点/目标/速度交给武器运行时」的契约职责——M2 的 `AiController` 只改行动经济与装备状态，
-> 浪/海鸥/巫毒娃娃/箱体的实际表现由后续武器脚本消费该事件（见 `AiController` 类头注释）。
+> **武器运行时事件备注**：`BattleEvents.ProjectileDetonated` 的频道与载荷定义在
+> `Battle/BattleEvents.cs`，由 `Battle/WeaponProjectile.cs` 发布（弹体引爆）。
 
 ---
 

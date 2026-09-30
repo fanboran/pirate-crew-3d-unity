@@ -47,17 +47,8 @@ namespace PirateCrew.Battle
         /// <summary>投掷/发射释放（载荷 float：释放时的拖拽距离 px）。</summary>
         public static readonly Event<float> ShotReleased = new();
 
-        /// <summary>AI 队伍开始思考（载荷 <see cref="AiThinkingPayload"/>；§6.1，相机停止自动滚动）。</summary>
-        public static readonly Event<AiThinkingPayload> AiThinking = new();
-
-        /// <summary>AI 选定动作（载荷 <see cref="AiDecidedPayload"/>；§6.1 <c>aiMoveDetails</c>）。</summary>
-        public static readonly Event<AiDecidedPayload> AiDecided = new();
-
-        /// <summary>武器弹体引爆（载荷 <see cref="ProjectileDetonatedPayload"/>；§5.2/§5.3，供表现层做爆炸特效）。</summary>
+        /// <summary>武器弹体引爆（载荷 <see cref="ProjectileDetonatedPayload"/>，供表现层做爆炸特效）。</summary>
         public static readonly Event<ProjectileDetonatedPayload> ProjectileDetonated = new();
-
-        /// <summary>地雷引信蜂鸣（载荷 <see cref="MineBeepPayload"/>；§5.2 beepTimes，供音频层播放滴答）。</summary>
-        public static readonly Event<MineBeepPayload> MineBeep = new();
     }
 
     /// <summary>动作种类（<see cref="BattleEvents.ActionSelected"/> 载荷用，对应 §3.4 三路径）。</summary>
@@ -201,60 +192,6 @@ namespace PirateCrew.Battle
         }
     }
 
-    /// <summary>ai_thinking 载荷（§6.1 AI 队伍开始分帧评估）。</summary>
-    public readonly struct AiThinkingPayload
-    {
-        /// <summary>AI 队伍编号（1/2）。</summary>
-        public readonly int TeamNumber;
-
-        /// <summary>本次需要评估的存活角色数。</summary>
-        public readonly int ActorCount;
-
-        public AiThinkingPayload(int teamNumber, int actorCount)
-        {
-            TeamNumber = teamNumber;
-            ActorCount = actorCount;
-        }
-    }
-
-    /// <summary>ai_decided 载荷（§6.1 <c>aiMoveDetails</c> 的可观测投影）。</summary>
-    public readonly struct AiDecidedPayload
-    {
-        /// <summary>行动角色 id。</summary>
-        public readonly int PirateId;
-
-        /// <summary>队伍索引（0/1）。</summary>
-        public readonly int TeamIndex;
-
-        /// <summary>动作种类（<see cref="AiActionKind"/> 的整数值）。</summary>
-        public readonly int ActionKind;
-
-        /// <summary>武器槽位索引；-1 = 抛自己。</summary>
-        public readonly int WeaponSlotIndex;
-
-        /// <summary>voodooDoll 锁定目标 id；无则 -1。</summary>
-        public readonly int TargetUnitId;
-
-        /// <summary>最终排序分（含 M2 伤害增强项）。</summary>
-        public readonly float Success;
-
-        /// <summary>§6.1 无正收益且允许放弃 → 跳过本回合。</summary>
-        public readonly bool ShouldBailOut;
-
-        public AiDecidedPayload(
-            int pirateId, int teamIndex, int actionKind, int weaponSlotIndex,
-            int targetUnitId, float success, bool shouldBailOut)
-        {
-            PirateId = pirateId;
-            TeamIndex = teamIndex;
-            ActionKind = actionKind;
-            WeaponSlotIndex = weaponSlotIndex;
-            TargetUnitId = targetUnitId;
-            Success = success;
-            ShouldBailOut = shouldBailOut;
-        }
-    }
-
     /// <summary>WeaponProjectileDetonated 载荷。</summary>
     public readonly struct ProjectileDetonatedPayload
     {
@@ -267,26 +204,6 @@ namespace PirateCrew.Battle
         public ProjectileDetonatedPayload(WeaponId weapon, Vector3 position)
         {
             Weapon = weapon;
-            Position = position;
-        }
-    }
-
-    /// <summary>MineBeep 载荷（§5.2 beepTimes）。</summary>
-    public readonly struct MineBeepPayload
-    {
-        /// <summary>武器 id（预期为 mine）。</summary>
-        public readonly WeaponId Weapon;
-
-        /// <summary>相对引信点燃的经过帧数（beepTimes 值）。</summary>
-        public readonly int ElapsedFrames;
-
-        /// <summary>地雷世界坐标。</summary>
-        public readonly Vector3 Position;
-
-        public MineBeepPayload(WeaponId weapon, int elapsedFrames, Vector3 position)
-        {
-            Weapon = weapon;
-            ElapsedFrames = elapsedFrames;
             Position = position;
         }
     }
