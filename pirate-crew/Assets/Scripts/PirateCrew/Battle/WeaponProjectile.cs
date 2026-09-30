@@ -24,7 +24,7 @@ namespace PirateCrew.Battle
     /// 【程序化兜底】弹体可由 <c>BattleController.projectilePrefab</c> 提供；为空时由
     ///   <see cref="BattleController"/> 用图元 + 颜色程序化构建，因此<b>既有场景无需重新装配</b>。
     ///
-    /// 【3D 运动语义（见 docs/3D空间模型对齐.md）】
+    /// 【3D 运动语义（见 docs/设计/3D空间模型对齐.md）】
     ///   · 竞技场是 <b>XZ 水平面</b>、重力沿 <b>-Y</b>：弹体在 X/Z 上惯性飞行、在 Y 上受重力。
     ///   · 刚体<b>只锁旋转、不锁位置</b>。
     ///
@@ -115,6 +115,8 @@ namespace PirateCrew.Battle
         /// <summary>火焰存活帧数（按蔓延段数换算）。</summary>
         int _flameFramesRemaining;
         readonly List<PirateBase> _pirateBuffer = new List<PirateBase>(16);
+        /// <summary><see cref="NearestPirateDistance"/> 找到的最近敌人是否在移动（地雷引信的引爆参数之一）。</summary>
+        bool _nearestMoving;
 
         /// <summary>武器 id。</summary>
         public WeaponId WeaponId => _stats.Id;
@@ -449,6 +451,21 @@ namespace PirateCrew.Battle
 
         // ---------------- anchor（§5.2 anchor 行） ----------------
 
+        /// <summary>
+        /// 锚的落地线（纯函数，供无头测试钉口径）：该 XZ 处地表世界 Y + 锚半高。
+        /// 地表不高于水面（<see cref="TileTerrainGrid.WaterVoidY"/> 水格哨兵即此列）
+        /// 意味着没有可落定的地表 → 返回 <see cref="float.NaN"/>，调用方不落地、继续下坠，
+        /// 交给 <see cref="HandleSpecialBounds"/> 的落水清退（§4.4「落水即死」全局规则）自然消失——
+        /// 与 AI 投掷模拟对水格的「落水」判定（<see cref="TileTerrainGrid.SurfaceWorldYAtWorld"/>
+        /// 的哨兵语义，见其类头）共用同一条界线，不在水下虚构一条落地线。
+        /// </summary>
+        public static float AnchorLandingY(float surfaceWorldY, float halfHeight)
+        {
+            if (surfaceWorldY <= LevelGeometry.WaterSurfaceY)
+                return float.NaN;
+            return surfaceWorldY + halfHeight;
+        }
+
         /// <summary>等速下砸一帧：位置下移 FallSpeed（px/帧 → 世界单位/秒），触地即落地。</summary>
         void AdvanceAnchor()
         {
@@ -458,7 +475,16 @@ namespace PirateCrew.Battle
             float speed = AnchorRules.FallSpeed * LevelGeometry.FlashSpeedScale;
             transform.position += Vector3.down * (speed * Time.fixedDeltaTime);
 
-            float groundY = LevelGeometry.GroundTopY + _profile.HalfHeight;
+            // 落地阈值取「该 XZ 处的地表高度 + 半高」，与出生摆放（BattleController 的
+            // Terrain.SurfaceWorldY）和 AI 模拟 / 弹道预览（SurfaceWorldYAtWorld）共用同一份
+            // 静态高度场——现役关卡高度场普遍带抬升块（见 docs/技术/架构/关卡数据资产.md），
+            // 写死基础地面会让锚穿过高台落到 y=0。Terrain 缺席（合成兜底路径）时回退基础地面。
+            float surfaceY = _battle != null && _battle.Terrain != null
+                ? _battle.Terrain.SurfaceWorldYAtWorld(transform.position.x, transform.position.z)
+                : LevelGeometry.GroundTopY;
+            float groundY = AnchorLandingY(surfaceY, _profile.HalfHeight);
+            if (float.IsNaN(groundY))
+                return;   // 水格：无地表可落定，沉过水面线后由 HandleSpecialBounds 清退
             if (transform.position.y <= groundY)
             {
                 Vector3 p = transform.position;
@@ -911,8 +937,6 @@ namespace PirateCrew.Battle
             _fuseRemaining = WeaponTriggerRules.TickFuse(_fuseRemaining);
             _fuseElapsed++;
         }
-
-        bool _nearestMoving;
 
         float NearestPirateDistance()
         {
