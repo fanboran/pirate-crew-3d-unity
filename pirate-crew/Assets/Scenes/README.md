@@ -17,8 +17,12 @@
 | `MainMenu.unity` | `Editor/SceneSetup.cs` | `Assets/Prefabs/UI/MainMenuScreen.prefab` | 95 |
 | `LevelSelect.unity` | `Editor/ManagementSceneSetup.cs` | `Assets/Prefabs/UI/LevelSelectScreen.prefab` | 43 |
 | `CrewManagement.unity` | `Editor/ManagementSceneSetup.cs` | `Assets/Prefabs/UI/CrewManagementScreen.prefab` | 21 |
-| **`Battle.unity`** | `Editor/BattleScenePipeline.cs` 八步子链 | `Assets/Prefabs/PirateCrew/Battle/BattleRig.prefab` | 217（18 根） |
+| **`Battle.unity`** | `Editor/BattleScenePipeline.cs` 八步子链 | `Assets/Prefabs/PirateCrew/Battle/BattleRig.prefab` | 240（16 根） |
 | `UIShowcase.unity` | `Editor/UiShowcaseSceneSetup.cs` | 场景本体（相机 + `UiShowcaseBoot`，页面运行时自建） | 2 |
+
+> Battle 数字口径（可复现）：对象数 = Prefab YAML 的 `GameObject` 块数
+> （`grep -c '^--- !u!1 &' Assets/Prefabs/PirateCrew/Battle/BattleRig.prefab`）；
+> 根数 = 载体根 `BattleRig` Transform 的 `m_Children` 条数。
 
 `UIShowcase` 是**组件展示实机调试窗口**：内容刻意不折叠——场景里只有相机和一个引导件，
 页面由 `PixelShowcasePage` 运行时自建（组件总表的真件版，全页落在 3:1 艺术像素栅格 +
