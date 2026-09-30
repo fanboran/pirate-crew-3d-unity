@@ -209,13 +209,15 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 //   "连通域在不在命中"的诊断语义）。
 
                 // ---- 右（v3 `OutlinePass.hlsl:35-44`）----
-                // 【出线三型 + 填充列不上墨】门控开时：
-                //   ① 本像素不是物体、邻域是 ⇒ 外圈墨线（落在更远一侧的像素上）；
-                //   ② 本像素也是物体 ⇒ 只有它与邻域**不连通**（两描边物体的接缝，如头-身交界）
-                //      才出线；若连通 ⇒ 本像素是"剪影跨块的填充列"，必须保持填充——
-                //      此处上墨会把物体轮廓啃掉一圈、线宽在 1↔2px 间振荡
-                //      （r25 头部左弧逐像素定位：交替出现的双宽墨行）；
-                //   ③ 本像素是物体、邻域不是 ⇒ 近侧自描边。
+                // 【出线三型 + 填充列不上墨 + 邻域位兜底】门控开时：
+                //   ① 邻域是描边物体：本像素非物体 ⇒ 外圈墨线；两者都是物体且**不连通** ⇒ 接缝
+                //      （头-身交界）；两者都是物体且**连通** ⇒ 填充列，保持填充（上墨会把轮廓
+                //      啃掉一圈、线宽 1↔2px 振荡）；
+                //   ② 邻域不是物体、本像素是 ⇒ 近侧自描边（门开 = 邻域更近，接触弧语义）。
+                // 【门被关死的兜底】门关（相切连通 / 本像素更近）且邻域非物体时，要看**邻域自己**
+                // 能不能出线——采样邻域朝向本像素的连通/更近位：任一为真 = 邻域的门也被关死
+                // （没人出线）⇒ 墨落本像素边界行；两位都假 = 邻域的门开着，外圈墨线由它出，
+                // 本像素**不再上墨**（否则同一条边内外双墨、线宽 2px——r25 头部左弧双宽墨行根因）。
                 float2 uvRight = uvCenter + float2(texel.x, 0.0);
                 bool rightApplies = AppliesOutlineAt(uvRight);
                 if (connectedToRight < 1 && closerThanRight < 1)
@@ -223,18 +225,20 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     gateHit += 1.0;
                     if (rightApplies)
                     {
-                        // 外圈（本像素非物体）或接缝（两者都是物体但不连通）；
-                        // 两者都是物体且连通 = 填充列，保持填充。
                         if (!centerAppliesOutline || connectedToRight < 1)
                             marker = 1.0;
                     }
                     else if (centerAppliesOutline)
-                        marker = 1.0;   // 近侧自描边
+                        marker = 1.0;
                 }
-                else if (centerAppliesOutline && !rightApplies
-                         && (closerThanRight < 1 || connectedToRight >= 1))
+                else if (centerAppliesOutline && !rightApplies)
                 {
-                    marker = 1.0;
+                    uint nbCode = DecodeConnectivityByte(SAMPLE_TEXTURE2D(
+                        _PixelartConnectivityResultBuffer, sampler_PixelartConnectivityResultBuffer, uvRight).a);
+                    bool nbBlocked = ((nbCode &  64u) > 0u)   // 邻域朝本像素：连通（其左位 bit6）
+                                  || ((nbCode &   4u) > 0u);  // 邻域比本像素更近（其左位 bit2）
+                    if (nbBlocked)
+                        marker = 1.0;
                 }
 
                 // ---- 左（v3 `:46-55`）----
@@ -251,10 +255,14 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     else if (centerAppliesOutline)
                         marker = 1.0;
                 }
-                else if (centerAppliesOutline && !leftApplies
-                         && (closerThanLeft < 1 || connectedToLeft >= 1))
+                else if (centerAppliesOutline && !leftApplies)
                 {
-                    marker = 1.0;
+                    uint nbCode = DecodeConnectivityByte(SAMPLE_TEXTURE2D(
+                        _PixelartConnectivityResultBuffer, sampler_PixelartConnectivityResultBuffer, uvLeft).a);
+                    bool nbBlocked = ((nbCode & 128u) > 0u)   // 邻域朝本像素：连通（其右位 bit7）
+                                  || ((nbCode &   8u) > 0u);  // 邻域比本像素更近（其右位 bit3）
+                    if (nbBlocked)
+                        marker = 1.0;
                 }
 
                 // ---- 上（v3 `:57-66`）----
@@ -271,10 +279,14 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     else if (centerAppliesOutline)
                         marker = 1.0;
                 }
-                else if (centerAppliesOutline && !upApplies
-                         && (closerThanUp < 1 || connectedToUp >= 1))
+                else if (centerAppliesOutline && !upApplies)
                 {
-                    marker = 1.0;
+                    uint nbCode = DecodeConnectivityByte(SAMPLE_TEXTURE2D(
+                        _PixelartConnectivityResultBuffer, sampler_PixelartConnectivityResultBuffer, uvUp).a);
+                    bool nbBlocked = ((nbCode &  16u) > 0u)   // 邻域朝本像素：连通（其下位 bit4）
+                                  || ((nbCode &   1u) > 0u);  // 邻域比本像素更近（其下位 bit0）
+                    if (nbBlocked)
+                        marker = 1.0;
                 }
 
                 // ---- 下（v3 `:68-77`）----
@@ -291,10 +303,14 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     else if (centerAppliesOutline)
                         marker = 1.0;
                 }
-                else if (centerAppliesOutline && !downApplies
-                         && (closerThanDown < 1 || connectedToDown >= 1))
+                else if (centerAppliesOutline && !downApplies)
                 {
-                    marker = 1.0;
+                    uint nbCode = DecodeConnectivityByte(SAMPLE_TEXTURE2D(
+                        _PixelartConnectivityResultBuffer, sampler_PixelartConnectivityResultBuffer, uvDown).a);
+                    bool nbBlocked = ((nbCode &  32u) > 0u)   // 邻域朝本像素：连通（其上位 bit5）
+                                  || ((nbCode &   2u) > 0u);  // 邻域比本像素更近（其上位 bit1）
+                    if (nbBlocked)
+                        marker = 1.0;
                 }
 
                 // 调试档（0 = 契约语义，别的值都是本 pass 的诊断档；见文件头的取值表）
