@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PirateCrew.Core;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -25,6 +26,8 @@ namespace PirateCrew.UI.DebugUi
         bool _standalone;
         readonly List<MenuScope> _popups = new List<MenuScope>();
         readonly List<GameObject> _catchers = new List<GameObject>();
+        readonly List<MenuScope> _closeBuffer = new List<MenuScope>();   // CloseMenus 的快照缓冲（免每次 new）
+        readonly Vector3[] _cornerBuffer = new Vector3[4];               // BoundsInOverlay 的 GetWorldCorners 缓冲
         MenuScope _hoverScope;
         MenuRow _hoverRow;
 
@@ -137,6 +140,13 @@ namespace PirateCrew.UI.DebugUi
         void OnDisable()
         {
             CloseMenus();
+        }
+
+        void OnDestroy()
+        {
+            // 会话 GameObject 被销毁（场景卸载/换栏重建）时反向解挂 Kit 侧静态槽，
+            // 不让静态引用隔着 fake-null 悬挂到下一次 Build 才被发现
+            Detach(this);
         }
 
         // ------------------------------------------------------------------
@@ -369,9 +379,12 @@ namespace PirateCrew.UI.DebugUi
             _closing = true;
             _wasClicked = false;                           // base->was_clicked = false
             _isProcessing = false;
-            var all = new List<MenuScope>(_popups);
-            for (int i = all.Count - 1; i >= 0; i--)
-                DestroyPopup(all[i]);
+            // 快照到成员缓冲再倒序销（DestroyPopup 会从 _popups 摘除）；重入由上面的
+            // _closing 闸挡住，缓冲不会被嵌套调用改写。
+            _closeBuffer.Clear();
+            _closeBuffer.AddRange(_popups);
+            for (int i = _closeBuffer.Count - 1; i >= 0; i--)
+                DestroyPopup(_closeBuffer[i]);
             _popups.Clear();
 
             if (_bar != null)
@@ -396,7 +409,7 @@ namespace PirateCrew.UI.DebugUi
             {
                 GameObject host = _hostGo;
                 _hostGo = null;
-                DestroySafe(host);
+                UnityObjectCleanup.DestroySafe(host);
             }
         }
 
@@ -1175,7 +1188,7 @@ namespace PirateCrew.UI.DebugUi
         void DestroyCatchers()
         {
             for (int i = 0; i < _catchers.Count; i++)
-                DestroySafe(_catchers[i]);
+                UnityObjectCleanup.DestroySafe(_catchers[i]);
             _catchers.Clear();
         }
 
@@ -1352,7 +1365,7 @@ namespace PirateCrew.UI.DebugUi
                 _hoverRow = null;
             }
             if (scope.Rect != null)
-                DestroySafe(scope.Rect.gameObject);
+                UnityObjectCleanup.DestroySafe(scope.Rect.gameObject);
             scope.Rect = null;
         }
 
@@ -1363,22 +1376,11 @@ namespace PirateCrew.UI.DebugUi
         Rect BoundsInOverlay(RectTransform rect)
         {
             Vector2 tl = AseUi.EdgesOf(rect, _overlay);
-            var corners = new Vector3[4];
-            rect.GetWorldCorners(corners);                 // 0 左下 / 1 左上 / 2 右上 / 3 右下
-            Vector2 local = _overlay.InverseTransformPoint(corners[3]);
+            rect.GetWorldCorners(_cornerBuffer);           // 0 左下 / 1 左上 / 2 右上 / 3 右下
+            Vector2 local = _overlay.InverseTransformPoint(_cornerBuffer[3]);
             Rect hr = _overlay.rect;
             Vector2 br = new Vector2(local.x - hr.xMin, hr.yMax - local.y);
             return new Rect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
-        }
-
-        static void DestroySafe(GameObject go)
-        {
-            if (go == null)
-                return;
-            if (Application.isPlaying)
-                Object.Destroy(go);
-            else
-                Object.DestroyImmediate(go);
         }
     }
 }

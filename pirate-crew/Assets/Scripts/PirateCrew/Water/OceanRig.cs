@@ -77,6 +77,7 @@ namespace PirateCrew.Water
         Material _material;
         bool _ownsMaterial;
         Transform _followTarget;
+        Transform _fallbackCamera;   // 兜底主相机缓存（见 ResolveMainCamera）
 
         /// <summary>当前配置（只读快照）。</summary>
         public OceanConfig Config => _config;
@@ -332,8 +333,15 @@ namespace PirateCrew.Water
 
         Transform ResolveMainCamera()
         {
-            Camera cam = Camera.main;
-            return cam != null ? cam.transform : null;
+            // 兜底解析一次后缓存：无 _followTarget 接线时 LateUpdate 每帧走到这，
+            // Camera.main 每帧全场按 Tag 找不值当。解析成功后缓存复用，相机销毁/换场景
+            // 时 fake-null 判空自动重解析；解析失败（编辑器装配期）保持每帧重试的旧语义。
+            if (_fallbackCamera == null)
+            {
+                Camera cam = Camera.main;
+                _fallbackCamera = cam != null ? cam.transform : null;
+            }
+            return _fallbackCamera;
         }
 
         /// <summary>发布包络与网格中心全局（shader 的长涌衰减/几何梯子都依赖）。</summary>

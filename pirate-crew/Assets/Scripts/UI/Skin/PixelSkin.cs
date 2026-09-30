@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 
 namespace PirateCrew.UI
 {
@@ -82,6 +83,7 @@ namespace PirateCrew.UI
 
         static PixelSkinAsset s_asset;
         static bool s_loaded;
+        static Dictionary<string, int> s_aseIndex;   // Ase 直切件名 → aseParts 下标（见 Ase 内失效口径）
 
         /// <summary>图集资产（首次取用时从 Resources 惰性加载；缺资产只报一次错）。</summary>
         public static PixelSkinAsset Asset
@@ -119,15 +121,20 @@ namespace PirateCrew.UI
                 Debug.LogError("[PixelSkin] 图集缺 aseParts 表——重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
                 return null;
             }
-            for (int i = 0; i < a.asePartNames.Length; i++)
+            if (s_aseIndex == null)
             {
-                if (a.asePartNames[i] == partId)
-                {
-                    if (a.aseParts[i] != null)
-                        return a.aseParts[i];
-                    break;
-                }
+                // 名 → 下标惰性建一次：345 件全表线性扫落在装配热路径（首帧几十次 Ase 调用）
+                // 是 O(n²)。【失效口径】s_asset 本就是进程级单例（Asset 惰性加载后不重载，
+                // 运行期无换肤/重建资产的路径），静态缓存与其同生命周期；域重载（进出播放/
+                // 脚本重编译）静态字段整体归零，缓存随之自动重建，无需另设失效开关。
+                var index = new Dictionary<string, int>(a.asePartNames.Length, System.StringComparer.Ordinal);
+                for (int i = 0; i < a.asePartNames.Length; i++)
+                    if (!index.ContainsKey(a.asePartNames[i]))
+                        index.Add(a.asePartNames[i], i);   // 同名取首个，与旧线性扫命中语义一致
+                s_aseIndex = index;
             }
+            if (s_aseIndex.TryGetValue(partId, out int idx) && a.aseParts[idx] != null)
+                return a.aseParts[idx];
             Debug.LogError("[PixelSkin] 图集缺 Aseprite 直切件 \"" + partId
                 + "\"——全量迁移由烘焙器枚举 theme.xml <parts>（345 件），重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
             return null;

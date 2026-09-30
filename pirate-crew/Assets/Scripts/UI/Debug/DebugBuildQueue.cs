@@ -28,6 +28,14 @@ namespace PirateCrew.UI.DebugUi
             return _instance;
         }
 
+        void OnDestroy()
+        {
+            // 宿主随场景卸载时反向置空静态槽：Unity fake-null 判空虽能兜住重建，
+            // 真置空让「旧实例已死」在销毁当下就成立，不给跨场景悬挂留窗口
+            if (_instance == this)
+                _instance = null;
+        }
+
         /// <summary>延迟一帧执行整闭包（首开窗：按压反馈先落地）。</summary>
         public void RunNextFrame(System.Action build)
         {

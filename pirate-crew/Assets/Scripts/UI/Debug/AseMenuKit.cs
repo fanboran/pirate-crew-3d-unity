@@ -128,12 +128,28 @@ namespace PirateCrew.UI.DebugUi
         static AseMenuSession s_popupSession;
 
         /// <summary>
+        /// 会话销毁时反向解挂静态槽：场景卸载/重建栏会把旧会话连同 GameObject 一起销毁，
+        /// 静态引用若不清会隔着 Unity fake-null 悬挂到下一次 Build 才被发现。
+        /// </summary>
+        internal static void Detach(AseMenuSession session)
+        {
+            if (s_session == session)
+                s_session = null;
+            if (s_popupSession == session)
+                s_popupSession = null;
+        }
+
+        /// <summary>
         /// 建菜单栏（横向标题行）。返回栏根（顶左锚，高 = textHeight + 2*2）——调用方按 return 自行定位。
         /// 弹层不在栏子树里：它挂在画布层（源码里 popup 是显示器上的独立 window），由本件自找画布。
         /// </summary>
         public static RectTransform BuildMenuBar(Transform parent, string name,
             (string title, Item[] items)[] menus)
         {
+            // 重复 Build 先显式收旧会话：静态槽直接覆盖会让旧弹层/捕获板悬着没人关
+            if (s_session != null)
+                s_session.CloseMenus();
+
             RectTransform barRect = MakeRect(name, parent);
 
             var session = barRect.gameObject.AddComponent<AseMenuSession>();

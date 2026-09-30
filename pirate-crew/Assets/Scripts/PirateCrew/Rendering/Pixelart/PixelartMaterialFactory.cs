@@ -225,8 +225,24 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>sRGB hex → Color（口径同 `SceneArtPalette` / 编辑器侧的 `PixelartStageKit.Hex`）。</summary>
         public static Color Hex(string hex)
         {
+            string raw = hex;
             if (!string.IsNullOrEmpty(hex) && hex[0] == '#')
                 hex = hex.Substring(1);
+
+            // 守卫：非法串在这里就带着原始串与期望格式报 ArgumentException，不漏进
+            // Substring/int.Parse 变成深处的越界/FormatException——失败语义不变，失败原因说人话。
+            if (hex == null || hex.Length != 6)
+                throw new System.ArgumentException(
+                    "sRGB hex 期望 \"RRGGBB\"（可选 # 前缀、6 位十六进制），收到 \"" + raw + "\"。", nameof(hex));
+            for (int i = 0; i < hex.Length; i++)
+            {
+                char c = hex[i];
+                bool isHex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+                if (!isHex)
+                    throw new System.ArgumentException(
+                        "sRGB hex 期望 \"RRGGBB\"（可选 # 前缀、6 位十六进制），收到 \""
+                        + raw + "\"（第 " + (i + 1) + " 位 \"" + c + "\" 不是十六进制位）。", nameof(hex));
+            }
 
             return new Color(
                 int.Parse(hex.Substring(0, 2), System.Globalization.NumberStyles.HexNumber) / 255f,

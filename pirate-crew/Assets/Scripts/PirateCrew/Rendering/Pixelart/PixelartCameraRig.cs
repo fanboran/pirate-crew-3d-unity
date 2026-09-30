@@ -1,3 +1,4 @@
+using PirateCrew.Core;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -369,7 +370,7 @@ namespace PirateCrew.Rendering.Pixelart
                 }
 
                 if (_overlayCamera.gameObject != null)
-                    DestroyImmediateIfNotPlaying(_overlayCamera.gameObject);
+                    UnityObjectCleanup.DestroySafe(_overlayCamera.gameObject);
                 _overlayCamera = null;
             }
 
@@ -777,18 +778,8 @@ namespace PirateCrew.Rendering.Pixelart
                 return null;
             if (rt.IsCreated())
                 rt.Release();
-            DestroyImmediateIfNotPlaying(rt);
+            UnityObjectCleanup.DestroySafe(rt);
             return null;
-        }
-
-        static void DestroyImmediateIfNotPlaying(Object obj)
-        {
-            if (obj == null)
-                return;
-            if (Application.isPlaying)
-                Object.Destroy(obj);
-            else
-                Object.DestroyImmediate(obj);
         }
 
         /// <summary>下发与尺寸相关的全局量（尺寸变化时调一次；每帧由 BeforeRender pass 再确认）。</summary>

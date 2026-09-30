@@ -606,6 +606,9 @@ namespace PirateCrew.UI.DebugUi
             if (!Resolve())
                 return;
 
+            // 【已知性能债·Debug 工具】每帧一次 SyncFromField 的 O(n) 串比较不省：外部文本
+            // 采纳的兜底靠它——不走 onValueChanged 的写入（SetTextWithoutNotify 等）没有事件，
+            // 少了它禁用态输入框与本件的文本就对不上（见 AdoptExternalText 处登记）。行为不动。
             SyncFromField();
 
             if (!IsEnabled)
@@ -757,6 +760,9 @@ namespace PirateCrew.UI.DebugUi
             string text = _text;
             EntryRange range = SelectedRange();
 
+            // 【已知性能债·Debug 工具】一条命令可能多次 RecalcCharBoxes（Paste 最多 3 次：
+            // 删选区/插入/超限裁剪后各一次，每次都 ForceMeshUpdate）——合并重算要动中间态
+            // 盒表语义，Debug 工具不优化，行为保持与源 entry.cpp 对齐。
             switch (cmd)
             {
                 case Cmd.NoOp:
@@ -1333,6 +1339,9 @@ namespace PirateCrew.UI.DebugUi
 
         void AdoptExternalText(string value)
         {
+            // 【取舍登记·Debug 工具】本回调只接住走 onValueChanged 的外部写入；无事件路径
+            // （SetTextWithoutNotify 等）依赖 Update 每帧 SyncFromField 兜底收敛——两条路
+            // 缺一不可，所以每帧 O(n) 比较这笔性能债不修（登记见 Update）。
             if (_syncingField)
                 return;
             if (value == null) value = string.Empty;

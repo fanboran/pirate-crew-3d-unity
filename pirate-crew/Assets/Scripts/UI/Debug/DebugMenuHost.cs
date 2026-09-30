@@ -50,27 +50,29 @@ namespace PirateCrew.UI.DebugUi
             _root.offsetMax = Vector2.zero;
 
             _launcher = DebugWindowKit.CreateWindow(_root, "DebugLauncher", "调试菜单",
-                new Vector2(20f, 44f), new Vector2(150f, 144f), closeButton: false);
+                DefaultTopLeft(20f, 44f), new Vector2(150f, 144f), closeButton: false);
 
             float y = DebugWindowKit.ContentTopOf(_launcher);
-            // 四窗默认位错开排布（画布 960×540）：陈列廊右大块 / 对话框与菜单栏右列上下，
-            // 启动器左列——默认位互不压盖，全幅陈列廊例外（打开即覆盖、× 即还原）。
+            // 四窗默认位错开排布：陈列廊右大块 / 对话框与菜单栏右列上下，启动器左列——
+            // 默认位互不压盖，全幅陈列廊例外（打开即覆盖、× 即还原）。
+            // 基准坐标按 960×540 画布设计（1080p ÷ Unit=2），落位经 DefaultTopLeft 按宿主
+            // 画布 rect 等比换算——旧版把 960×540 坐标直接写死，非该尺寸画布会落错位/越缘。
             // 首开一律延一帧（DebugBuildQueue）：按压反馈先落地，重构建不吞点击帧。
             y = MakeLauncherButton("组件实摆", y, () => ToggleWindow(_widgetGallery,
-                () => { _widgetGallery = WidgetGalleryPanel.Build(_root, new Vector2(170f, 26f)); _widgetGallery.SetAsLastSibling(); }));
+                () => { _widgetGallery = WidgetGalleryPanel.Build(_root, DefaultTopLeft(170f, 26f)); _widgetGallery.SetAsLastSibling(); }));
             y = MakeLauncherButton("新建精灵（xml 装载）", y, () => ToggleWindow(_newSprite,
-                () => { _newSprite = LoadNewSprite(new Vector2(510f, 26f)); _newSprite.SetAsLastSibling(); }));
+                () => { _newSprite = LoadNewSprite(DefaultTopLeft(510f, 26f)); _newSprite.SetAsLastSibling(); }));
             y = MakeLauncherButton("Aseprite 菜单栏", y, () => ToggleWindow(_menuBarDemo,
-                () => { _menuBarDemo = BuildMenuBarDemo(new Vector2(510f, 250f)); _menuBarDemo.SetAsLastSibling(); }));
+                () => { _menuBarDemo = BuildMenuBarDemo(DefaultTopLeft(510f, 250f)); _menuBarDemo.SetAsLastSibling(); }));
             y = MakeLauncherButton("库对话框 Duplicate/Goto", y, () =>
             {
                 ToggleWindow(_dupDialog,
-                    () => { _dupDialog = LoadDialog("duplicate_sprite", new Vector2(510f, 330f)); WindowDragger.RaiseToCanvasTop(_dupDialog); });
+                    () => { _dupDialog = LoadDialog("duplicate_sprite", DefaultTopLeft(510f, 330f)); WindowDragger.RaiseToCanvasTop(_dupDialog); });
                 ToggleWindow(_gotoDialog,
-                    () => { _gotoDialog = LoadDialog("goto_frame", new Vector2(510f, 430f)); WindowDragger.RaiseToCanvasTop(_gotoDialog); });
+                    () => { _gotoDialog = LoadDialog("goto_frame", DefaultTopLeft(510f, 430f)); WindowDragger.RaiseToCanvasTop(_gotoDialog); });
             });
             y = MakeLauncherButton("部件陈列廊", y, () => ToggleWindow(_partsGallery,
-                () => { _partsGallery = BuildPartsGalleryWindow(new Vector2(170f, 26f)); WindowDragger.RaiseToCanvasTop(_partsGallery); }));
+                () => { _partsGallery = BuildPartsGalleryWindow(DefaultTopLeft(170f, 26f)); WindowDragger.RaiseToCanvasTop(_partsGallery); }));
             // 3D 调试场入口：跳 PixelartCharCamDebug（像素化路径下调角色体格与镜头取景）。
             // 走 ChangeScene 事件 = 标准场景流转通道（SceneLoader 把主菜单记进返回栈，
             // 调试场里的「返回主菜单」走 GoBack 弹栈）。
@@ -80,6 +82,18 @@ namespace PirateCrew.UI.DebugUi
             // Build 完先收起：首开走 Toggle 的 show 分支（旧版建好即激活，第一次点
             // 调试场景反而把它藏了——「要点击两下才能点开」的根因）。
             _launcher.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// 调试窗默认落位：基准坐标按 960×540 画布设计，按宿主画布 rect 等比换算。
+        /// 【基准画布假设已移除】旧版把 960×540 坐标直接写死，现 960×540 只是**比例基准**
+        /// （1080p ÷ Unit=2 的历史基准），不再假设画布就是它；该尺寸下换算结果与旧写死值
+        /// 逐像素一致，视觉布局不变。窗尺寸（宽高）是像素定值，不随画布缩放。
+        /// </summary>
+        static Vector2 DefaultTopLeft(float baseX, float baseY)
+        {
+            Rect canvas = _root.rect;
+            return new Vector2(baseX * canvas.width / 960f, baseY * canvas.height / 540f);
         }
 
         static float MakeLauncherButton(string label, float y, System.Action onClick)
@@ -160,7 +174,7 @@ namespace PirateCrew.UI.DebugUi
                     {
                         echo("File → New…");
                         ToggleWindow(_newSprite,
-                            () => { _newSprite = LoadNewSprite(new Vector2(510f, 26f)); _newSprite.SetAsLastSibling(); });
+                            () => { _newSprite = LoadNewSprite(DefaultTopLeft(510f, 26f)); _newSprite.SetAsLastSibling(); });
                     }),
                     AseMenuKit.Item_("Open…", "Ctrl+O", () => echo("File → Open…")),
                     AseMenuKit.Item_("Open Recent", null, null, false, new AseMenuKit.Item[]
@@ -216,8 +230,9 @@ namespace PirateCrew.UI.DebugUi
         }
 
         /// <summary>部件陈列廊窗（theme 345 件全量，数据驱动）：竖向滚动 + theme 滚动条。
-        /// 窗宽 784 起于启动器右侧（x=170）——全幅 940 会从 x=120 越出 960 画布右缘且整片
-        /// 盖住启动器；列数由滚动区宽自适应（PartsGalleryPage.Build）。</summary>
+        /// 窗宽 784 是像素定值（按 960×540 比例基准画布定：全幅 940 会越出画布右缘且整片
+        /// 盖住启动器），不随画布缩放；默认落位走 <see cref="DefaultTopLeft"/> 等比换算。
+        /// 列数由滚动区宽自适应（PartsGalleryPage.Build）。</summary>
         static RectTransform BuildPartsGalleryWindow(Vector2 topLeft)
         {
             RectTransform window = DebugWindowKit.CreateWindow(_root, "PartsGalleryWindow",
