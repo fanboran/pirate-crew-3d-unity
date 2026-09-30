@@ -30,7 +30,7 @@ namespace PirateCrew.Battle
     /// 【机位口径 — 等距像素卡通（创始人裁决 2026-09-22/23）】
     ///   正交投影、**俯角锁 30°**（与出图口径 <see cref="PixelartPilotScene.PitchDegrees"/> 同一常量，
     ///   "宣传图里的观感"才等于"玩的时候的观感"）、**方位可自由旋转**（右键拖拽只改偏移的方位角）、
-    ///   **取景恒为基准档 <see cref="CloseUpOrthoSize"/>（可见 14 m）——没有滚轮缩放**；
+    ///   **取景恒为基准档 <see cref="CloseUpOrthoSize"/>（可见 13.7 m）——没有滚轮缩放**；
     ///   以后说"缩放"只指像素比例（PixelScale 3:1 → 4:1/5:1/2:1，画面长相恒定）。
     ///
     /// 【环绕重瞄（2026-09-23 定案，推翻"不重瞄"旧口径）】
@@ -62,10 +62,11 @@ namespace PirateCrew.Battle
         public const float BaseDistance = 30f;
 
         /// <summary>
-        /// **基准机位 OrthoSize（正交半高；唯一取景档）= 可见 14 m**——中机位口径（r12 取景表）。
+        /// **基准机位 OrthoSize（正交半高；唯一取景档）= 可见 13.7 m**——中机位口径（r12 取景表）。
         /// 创始人裁决 2026-09-23：**没有滚轮缩放**，相机取景恒为这一档。**要改基准只动这一个数。**
+        /// 2026-09-30 定值 6.85（可见 13.7 m，创始人定值；原 7 / 14 m）。
         /// </summary>
-        public const int CloseUpOrthoSize = 7;
+        public const float CloseUpOrthoSize = 6.85f;
 
         /// <summary>全场档 OrthoSize：纵向 2×17=34u 覆盖样板关 30u 全场。
         /// 【2026-09-23 起退役为内部基准值】输入侧已无滚轮，玩家不可达此档；

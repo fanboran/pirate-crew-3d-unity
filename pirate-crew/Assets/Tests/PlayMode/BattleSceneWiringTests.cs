@@ -74,9 +74,9 @@ namespace PirateCrew.Tests
             Assert.GreaterOrEqual(mainCamera.farClipPlane, farNeeded - 0.5f,
                 "远裁剪面须覆盖基准取景档可见的地面范围（CameraFraming.MinFarClipForOrthoSize）");
 
-            // ---- 运行时默认 = 基准机位（唯一取景档：size 7 = 可见 14 m，创始人 2026-09-23 裁决）----
-            Assert.AreEqual(CameraFraming.CloseUpOrthoSize, driver.RuntimeOrthoSize,
-                "运行时取景应恒为基准档（无滚轮缩放）");
+            // ---- 运行时默认 = 基准机位（唯一取景档：size 6.85 = 可见 13.7 m，创始人 2026-09-30 定值）----
+            Assert.AreEqual(Mathf.RoundToInt(CameraFraming.CloseUpOrthoSize), driver.RuntimeOrthoSize,
+                "运行时取景应恒为基准档（无滚轮缩放；档数按 OrthoSize 四舍五入）");
 
             // ---- 单一写入者：让游戏跑几帧，再逐位比对 ----
             yield return null;

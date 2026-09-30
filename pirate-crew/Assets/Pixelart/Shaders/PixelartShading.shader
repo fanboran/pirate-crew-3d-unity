@@ -206,10 +206,12 @@ Shader "PirateCrew/Pixelart/PixelartShading"
 
                 ndotl = MultiStep(ndotl, level, 0.0, 0.0);
 
-                // 连通域降档 = **内线**（面转折处降一档，观感上是一条内描边）。
+                // 连通域降档 = **内线**（面转折处降档，观感上是一条内描边）。
                 // v3 `:53` 原样：只降"已经跨过第 0 档"的像素，且该像素不属于连通域（`connect` 小）。
+                // 【内档降线 = 2】降两档（创始人 2026-09-30 定值；v3 原式降一档）。
+                // 附加光那一路走本函数，自动同幅。
                 if (ndotl > singleLevel && connect < _PixelartAAThreshold)
-                    ndotl -= applyAA * singleLevel;
+                    ndotl -= applyAA * singleLevel * 2.0;
 
                 // 法线边加成：法线差超过阈值的像素**提亮**（与外轮廓墨线正交的另一条结构线）。
                 if (normalDiff > normalEdgeThreshold)
@@ -350,7 +352,7 @@ Shader "PirateCrew/Pixelart/PixelartShading"
                 // ——**g 判两次、b 一次没判**（蓝图 §4.4 第 2 条），纯蓝边缘光不会抑制降档。
                 // 本仓判 r/g/b 三通道：任一非零（= 有边缘光）⇒ applyAA = 0；
                 // 三通道全为零（= 没边缘光）才让它等于 1，再乘逐物体的 `shape.a`（`_AAScale`）。
-                // 语义：边缘光已经标出"这里是光照层的边缘"，此时再按连通域降一档会双重描边。
+                // 语义：边缘光已经标出"这里是光照层的边缘"，此时再按连通域降档会双重描边。
                 // 【时序前提】边缘光那一趟必须**早于**本趟（契约 §3 第 5 项 < 第 6 项），否则
                 // rimLightInfo 恒为（上一帧的）零 ⇒ 降档永远生效，观感上"边缘光压不住内线"。
                 // ------------------------------------------------------------------

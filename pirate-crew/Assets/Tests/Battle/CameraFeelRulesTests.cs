@@ -414,9 +414,9 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void CloseUpPreset_IsTheOnlyFramingTier()
         {
-            // 基准档 size 7 = 可见 14 m（r12 取景表的中机位，创始人 2026-09-23 定档、唯一档）。
-            Assert.AreEqual(7, CameraFraming.CloseUpOrthoSize, "基准机位 = 可见 14 m（改基准只动这一个数）");
-            Assert.AreEqual(14f, CameraFraming.CloseUpOrthoSize * 2f, 1e-4f, "可见高度 = 2 × OrthoSize");
+            // 基准档 size 6.85 = 可见 13.7 m（r12 取景表的中机位，创始人 2026-09-30 定值、唯一档）。
+            Assert.AreEqual(6.85f, CameraFraming.CloseUpOrthoSize, "基准机位 = 可见 13.7 m（改基准只动这一个数）");
+            Assert.AreEqual(13.7f, CameraFraming.CloseUpOrthoSize * 2f, 1e-4f, "可见高度 = 2 × OrthoSize");
             Assert.Less(CameraFraming.CloseUpOrthoSize,
                 CameraFraming.FullFieldOrthoSize, "基准档应比全场档更近（size 更小）");
         }

@@ -39,8 +39,8 @@ namespace PirateCrew.Rendering.Pixelart
     ///         **人物大小才是锚**——同一档在不同关卡里角色必须一样大，否则"横向比观感"这件事本身不成立
     ///         （实测踩过：把 mid 绑成 0.35×跨度时，280 m 的地图里角色只有 150 m 地图里的一半大）。
     ///         32 m 是"一处台面群落 + 若干单位"的取景，与两张样板关的 README 成图同尺度、可直接对比；
-    ///         mid 取 **14 m**（创始人 2026-09-22：「比当前的 mid 略微近一点的距离最好」，原 16 m）——
-    ///         14 m 同时是游戏内正交档 7（可见高度 = 2 × OrthoSize，见 `BattleCameraDriver.RuntimeVisibleMeters`），
+    ///         mid 取 **13.7 m**（创始人 2026-09-30 定值，原 14 m；再往前 2026-09-22 从 16 m 收紧）——
+    ///         13.7 m 同时是游戏内正交档 6.85（可见高度 = 2 × OrthoSize，见 `BattleCameraDriver.RuntimeVisibleMeters`），
     ///         也就是"游戏内能滚轮滚到的那个档"，图与游戏内因此对得上。</item>
     ///   <item><b>整图总览另开一档</b>（只在海图档里出现，见 `PlayerArtCapture.LevelShots` 的 `-overview`）：
     ///         可见高度 = 0.85 × span，整张地图进画面。**为什么不把它当默认的 wide**：整图取景下场地
@@ -121,8 +121,8 @@ namespace PirateCrew.Rendering.Pixelart
         /// </summary>
         static readonly View[] _views =
         {
-            new View(1,   "PixelartCloud",     new Vector3(20f, 4.5f, 15f),  32f, 14f, 7f),
-            new View(3,   "PixelartSkyIsland", new Vector3(20f, 12.5f, 15f), 30f, 14f, 7f),
+            new View(1,   "PixelartCloud",     new Vector3(20f, 4.5f, 15f),  32f, 13.7f, 7f),
+            new View(3,   "PixelartSkyIsland", new Vector3(20f, 12.5f, 15f), 30f, 13.7f, 7f),
 
             // 第 4 关「废弃化工厂」（**提案/待定**）：内容来自 Blender 手作总装件
             // `Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx`（装配器
@@ -131,20 +131,20 @@ namespace PirateCrew.Rendering.Pixelart
             // `docs/设计/关卡/L04-废弃化工厂.md`）。总装件原点 = 场地中心 ⇒ 场心 = 世界原点。
             // 竖直 6 的来路：场地地坪 0、最高件（烟囱 26.5 / 冷却塔 22.5）拉高剪影，
             // 质量重心在 0–15 m 之间，取 6 = "场地中低部 + 略高于人眼"，与样板关取眼位同一个读法。
-            new View(4,   "PixelartChemPlant", new Vector3(0f, 6f, 0f),     32f, 14f, 7f),
+            new View(4,   "PixelartChemPlant", new Vector3(0f, 6f, 0f),     32f, 13.7f, 7f),
             // 第 5 关「废弃化工厂 · 六件并行版」（**提案/待定**）：内容来自 Blender 六件并行分件式 kit
             // （`tools/blender/scene/chemplant/`）的总装件 `Assets/Art/Models/SceneKit/ChemPlant.fbx`
             // （装配器 `PixelartChemPlantTeamSetup`）——**尚未接玩法数据**，这一行只服务
             // 「这套观感用在这座 56×40 m 场地上的实机成图」。总装件原点 = 场地中心 ⇒ 场心 = 世界原点；
             // 竖直 6 的读法与第 4 关相同（地坪 0、最高件（烟囱）26 m，取 6 = 场地中低部 + 略高于人眼）。
-            new View(5,   "PixelartChemPlantTeam", new Vector3(0f, 6f, 0f), 32f, 14f, 7f),
+            new View(5,   "PixelartChemPlantTeam", new Vector3(0f, 6f, 0f), 32f, 13.7f, 7f),
 
             // 关卡 6「纯草坪验收场」（**提案/待定**）：专门验收 t3ssel8r 口径草丛的**无地形平地**
             // （装配器 `PixelartGrassFieldSetup`：暗绿底板 + 满铺草簇，不接玩法数据）——
             // 草丛三档斑块是世界坐标噪声，只有在"除了草没别的"的场地上才能单独读出形状/尺度/连贯性。
             // 竖直 0.3 的来路：草簇高 0.26-0.5 m，取"草尖之半"的眼位，与样板关取眼位同一个读法。
             // 近机位 10（r22，创始人判 7 太贴地）：草皮尺度下 7 m 只剩斑驳，10 m 能读到簇形。
-            new View(6,   "PixelartGrassField", new Vector3(20f, 0.3f, 15f), 32f, 14f, 10f),
+            new View(6,   "PixelartGrassField", new Vector3(20f, 0.3f, 15f), 32f, 13.7f, 10f),
 
             // 【海图取景行：当前 0 张】八张海图（101–108）已删除待重做，取景行随数据资产一并移除。
             // 重做时的口径（列在这里备查，规则与上面一致）：
