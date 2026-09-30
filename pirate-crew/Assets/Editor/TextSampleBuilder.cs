@@ -12,7 +12,7 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// 文本渲染对比样张（stick-world UI 复刻 · Unity 侧基准图）：
     /// 程序化搭一个 1920×1080 的 8 档字号 TMP 样张场景并离屏渲染成 PNG，
-    /// 与隔壁 Godot stick-world 的同规格基准图逐项对比（字号/摆位/配色/描边）。
+    /// 与隔壁 stick-world 的同规格基准图逐项对比（字号/摆位/配色/描边）。
     ///
     /// 【入口】
     ///   菜单: PirateCrew/文本样张/搭建 8 档字号样张场景（不落盘）
@@ -51,37 +51,37 @@ namespace PirateCrew.EditorTools
     public static class TextSampleBuilder
     {
         // ------------------------------------------------------------------
-        // 样张规格（与 Godot 基准图逐项对齐，勿单方面改动；对不上先怀疑 Godot 侧）
+        // 样张规格（与 stick-world 基准图逐项对齐，勿单方面改动；对不上先怀疑基准图侧）
         // ------------------------------------------------------------------
 
         const int CanvasWidth = 1920;
         const int CanvasHeight = 1080;
 
-        /// <summary>8 档字号，索引 i=0..7，与 Godot 基准 [44,36,24,17,15,14,12,11] 一致。</summary>
+        /// <summary>8 档字号，索引 i=0..7：[44,36,24,17,15,14,12,11]。</summary>
         static readonly int[] FontSizes = { 44, 36, 24, 17, 15, 14, 12, 11 };
 
-        /// <summary>行距（anchoredPosition.y 每 -125 一行）与首行边距 40，同 Godot 基准。</summary>
+        /// <summary>行距（anchoredPosition.y 每 -125 一行）与首行边距 40。</summary>
         const float RowStep = 125f;
         const float Margin = 40f;
 
         /// <summary>统一文案（含中英混排/数字/标点/破折号，覆盖字形覆盖面检查）。</summary>
         const string SampleText = "火柴人大战略 StickWorld 按E敲击建造 0123456789 ——木石金沥青！";
 
-        /// <summary>背景纯色（近黑深海蓝），同 Godot 基准。</summary>
+        /// <summary>背景纯色（近黑深海蓝）。</summary>
         static readonly Color BgColor = new Color(0.012f, 0.014f, 0.02f, 1f);
 
-        /// <summary>正文色（近白冷灰），同 Godot 基准。</summary>
+        /// <summary>正文色（近白冷灰）。</summary>
         static readonly Color TextColor = new Color(0.93f, 0.94f, 0.96f, 1f);
 
-        /// <summary>墨描边色（近黑暖褐），同 Godot 基准。</summary>
+        /// <summary>墨描边色（近黑暖褐）。</summary>
         static readonly Color OutlineColor = new Color(0.05f, 0.04f, 0.03f, 1f);
 
         /// <summary>
         /// TMP 描边宽度初值 0.2（材质属性 Range(0,1)）。
         /// 【待校准】TMP 的 _OutlineWidth 是归一化值，像素粗细 = _OutlineWidth × 0.5 ×
         /// "每张图集纹素的屏幕像素数"（见 TMP_SDF_SSD.cginc:73 param.z 与 :105-110 的 SDF
-        /// 距离场公式），随渲染字号等比变粗——与 Godot outline_size=3px 的固定像素语义
-        /// 不是一套量纲，无直接换算式。首图出来后与 Godot 基准并排目测校准本值。
+        /// 距离场公式），随渲染字号等比变粗——与固定像素语义（如 outline_size=3px）
+        /// 不是一套量纲，无直接换算式。首图出来后与基准图并排目测校准本值。
         /// </summary>
         const float OutlineWidthInitial = 0.2f;
 
@@ -303,7 +303,7 @@ namespace PirateCrew.EditorTools
             var scaler = go.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(CanvasWidth, CanvasHeight);
-            // 对齐 Godot canvas_items+expand 口径（Expand(1)；采样画布渲染尺寸=参考分辨率时缩放恒 1，输出不受影响）。
+            // CanvasScaler 取 Expand 口径（Expand(1)；采样画布渲染尺寸=参考分辨率时缩放恒 1，输出不受影响）。
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
             return canvas;
@@ -326,8 +326,8 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 行 i：anchor 左上角、pivot(0,1)、anchoredPosition=(40, -(40+i×125))——与 Godot
-        /// 基准摆位逐像素一致。宽 1840 = 1920 - 左右各 40，仅作排版容器，不裁字。
+        /// 行 i：anchor 左上角、pivot(0,1)、anchoredPosition=(40, -(40+i×125))——与基准图
+        /// 摆位逐像素一致。宽 1840 = 1920 - 左右各 40，仅作排版容器，不裁字。
         /// </summary>
         static void CreateTextRow(Transform parent, TMP_FontAsset font, int index)
         {
@@ -340,7 +340,7 @@ namespace PirateCrew.EditorTools
             tmp.text = SampleText;
             tmp.fontSize = fontSize;
             tmp.color = TextColor;
-            tmp.alignment = TextAlignmentOptions.TopLeft; // 同 Godot Label 左上起排
+            tmp.alignment = TextAlignmentOptions.TopLeft; // 左上起排
             tmp.enableWordWrapping = false;               // 单行样张，禁换行
             tmp.raycastTarget = false;
             tmp.margin = Vector4.zero;

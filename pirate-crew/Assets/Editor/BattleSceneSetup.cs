@@ -205,7 +205,7 @@ namespace PirateCrew.EditorTools
             // 竞技场中心（相机与相机目标都以此为准）。
             Vector3 arenaCenter = new Vector3(worldWidth * 0.5f, LevelGeometry.GroundTopY, worldDepth * 0.5f);
 
-            // 天空盒 + 环境光（对齐 Godot 基准的 WorldEnvironment：procedural sky + Sky 环境光）。
+            // 天空盒 + 环境光（procedural sky + Sky 环境光）。
             // 天空盒/环境光/主光/雾/后处理全部由 BattleSceneLighting 负责（本文件只管场景编排）。
             bool hasSkybox = BattleSceneLighting.ConfigureSkyAndAmbient();
 
@@ -1009,8 +1009,8 @@ namespace PirateCrew.EditorTools
 
             material.SetFloat("_OutlineState", 0f);
             material.SetFloat("_OutlineAlpha", 1f);
-            material.SetFloat("_OutlineExpandMode", 0f);              // 0 = 屏幕空间恒定粗细（Godot 等价做法）
-            material.SetFloat("_OutlineDistanceAttenuation", 0.4f);   // Godot 默认 0.4
+            material.SetFloat("_OutlineExpandMode", 0f);              // 0 = 屏幕空间恒定粗细
+            material.SetFloat("_OutlineDistanceAttenuation", 0.4f);   // 默认 0.4
             material.SetFloat("_DashSpeed", 5f);
             // 与 CrewVisualPrefabBuilder.DashFrequencySelected 同步（r5：50→150，
             // OFF 带短于最小部件，防"整件落在 OFF 带"的描边假阴性；推导见该常量注释）。

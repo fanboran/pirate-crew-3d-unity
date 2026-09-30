@@ -1,15 +1,13 @@
 // ============================================================================
 // PirateOutline.shader —— 海盗军团夺宝 3D / M2 单位选中·悬停单体描边
 //
-// 【设计参照】Godot 版真实接线的那套描边 shader（本项目是 Godot 版重制）：
-//   - modules/pirate_crew/shaders/outline_hover.gdshader   （悬停，inverted hull）
-//   - modules/pirate_crew/shaders/outline_selected.gdshader（选中，inverted hull + 屏幕空间虚线）
-//   - assets/shaders/outline.gdshader                     （基础描边，近处增粗）
-//   接线在 modules/pirate_crew/scripts/characters/pirate_base.gd：
-//     悬停 -> 生成一圈复制网格、material_override = outline_hover，cull_front
-//     选中 -> 不启用 inverted hull，改由全屏后处理 outline_post.gdshader 画（见 PirateOutlinePost.shader）
+// 【设计参照】三条并行描边路径，按状态选用：
+//   - 悬停：inverted hull（复制一圈网格 + 法线外扩 + 只画背面）
+//   - 选中：inverted hull + 屏幕空间流动虚线
+//   - 基础描边：近处增粗
+//   实测选中的 inverted hull 版**未启用**，选中实际走全屏后处理（见 PirateOutlinePost.shader）。
 //   本 shader 把 hover/selected 两种状态合并进同一个材质，用 _OutlineState 切换，
-//   免去 Godot 版"为每个骨骼复制一圈网格、再换 material_override"的做法。
+//   免去"为每个骨骼复制一圈网格、再换 material_override"的做法。
 //
 // 【实现路径】inverted hull（法线外扩 + 只画背面）：
 //   第 1 个 Pass（Base）  ：正常画本体。**写实化后为 URP PBR**（BRDF + 主光阴影 + SH 环境光 + 雾，
@@ -30,13 +28,13 @@
 //   取 SRPDefaultUnlit / UniversalForward / UniversalForwardOnly；阴影通道取 ShadowCaster；
 //   深度通道取 DepthOnly）。任何"再加一个与既有 Pass 同 LightMode 的 Pass"都会被静默丢弃，
 //   详见 §八-2 的真实事故复盘与第 2 个 Pass 上方的注释。
-//   hover 与 selected 的差异（翻译自 Godot，逐条对应）：
+//   hover 与 selected 的差异（逐条对应）：
 //     | 维度     | hover                              | selected                          |
 //     | 颜色     | 淡白 a≈0.22                        | 青色 #49d9d6 a≈0.949              |
 //     | 粗细     | 细（_OutlineWidthHover=0.0025）     | 粗（_OutlineWidthSelected=0.006） |
 //     | 线型     | 实线                               | 屏幕空间流动虚线（sin 相位）        |
 //     | 语义     | "可选中"提示                        | "已选中"                          |
-//   Godot 的 hover/selected 都做了"距离衰减"（pow(clip.w, 1-attenuation)），
+//   hover/selected 都做了"距离衰减"（pow(clip.w, 1-attenuation)），
 //   使远处线条变细、近处不变，避免远处单位糊成一片；本 shader 保留该参数。
 //
 // 【_DebugMode 分档】图形学调试截图规范要求 shader 内含 debug_mode 拆分管线步骤。
@@ -133,7 +131,7 @@ Shader "PirateCrew/PirateOutline"
         [NoScaleOffset] _DetailBumpMap ("本体细节法线图（切空间；重定向到世界 XZ 基）", 2D) = "bump" {}
         _DetailBumpScale    ("本体细节法线强度（0=关闭）", Range(0.0, 2.0)) = 0.0
 
-        // ---- 描边：三套色 + 三套宽（对应 Godot outline_hover / outline_selected）----
+        // ---- 描边：三套色 + 三套宽 ----
         // _OutlineColor 是"无状态"兜底色；实际运行时由 _OutlineState 选中 hover/selected 两套。
         _OutlineColor           ("描边兜底色（state=0）", Color) = (0.286, 0.851, 0.839, 0.949)
         _OutlineColorHover      ("悬停描边色", Color) = (1.0, 1.0, 1.0, 0.22)
@@ -148,11 +146,11 @@ Shader "PirateCrew/PirateOutline"
         _OutlineAlpha           ("描边整体透明度（叠加乘算）", Range(0.0, 1.0)) = 1.0
 
         // ---- 外扩方式 ----
-        // [0] 屏幕空间恒定粗细：距离无关，对应 Godot hover/selected 的做法（推荐）
+        // [0] 屏幕空间恒定粗细：距离无关（推荐）
         // [1] 世界/物体空间法线外扩：经典 inverted hull，粗细随距离变小；
         //     该模式下 _OutlineWidth* 单位变成"米"，需调到 0.01~0.05 量级（见调参文档）
         _OutlineExpandMode      ("外扩模式 0=屏幕空间恒定 1=世界空间法线", Range(0.0, 1.0)) = 0.0
-        // 距离衰减：0=恒定粗细，1=远处显著变细（Godot 默认 0.4）
+        // 距离衰减：0=恒定粗细，1=远处显著变细（默认 0.4）
         _OutlineDistanceAttenuation ("距离衰减 0=恒定 1=远处显著变细", Range(0.0, 1.0)) = 0.4
 
         // ---- 选中虚线 ----
@@ -396,7 +394,7 @@ Shader "PirateCrew/PirateOutline"
 
         // ====================================================================
         // Pass 2 / Outline：inverted hull（法线外扩 + Cull Front 只画背面）
-        // 对应 Godot outline_hover.gdshader / outline_selected.gdshader 的 vertex() 段
+        // （vertex() 段）
         //
         // 【LightMode 必须与 Base Pass 不同，这是本 shader 最隐蔽的一处坑】
         //   URP 的不透明前向 DrawObjectsPass 用固定的 ShaderTagId 列表取 pass
@@ -464,7 +462,7 @@ Shader "PirateCrew/PirateOutline"
                 float  dashed     : TEXCOORD2; // 1 = 走虚线（选中），0 = 实线
             };
 
-            // 按 _OutlineState 取色（Godot 用 material_override 切换，本 shader 用 uniform 选）。
+            // 按 _OutlineState 取色（不用多份材质切换，本 shader 用 uniform 选）。
             float4 OutlineColorForState()
             {
                 if (_OutlineState > 1.5) return _OutlineColorSelected;
@@ -498,8 +496,8 @@ Shader "PirateCrew/PirateOutline"
                 VertexPositionInputs p = GetVertexPositionInputs(positionOS.xyz);
                 float4 positionCS = p.positionCS;
 
-                // ---- 外扩模式 0：屏幕空间恒定粗细（Godot hover/selected 的原始做法）----
-                // Godot: clip.xy += normalize(mat3(P)*view_normal).xy * width * pow(w, 1-att)
+                // ---- 外扩模式 0：屏幕空间恒定粗细 ----
+                // 公式：clip.xy += normalize(mat3(P)*view_normal).xy * width * pow(w, 1-att)
                 // 逐项对应：normalize(mat3(P)*view_normal).xy 即 clipNormal.xy；
                 //           pow(clip.w, 1.0-distance_attenuation) 即 distFactor。
                 if (_OutlineExpandMode <= 0.5)
@@ -517,7 +515,7 @@ Shader "PirateCrew/PirateOutline"
 
                 OUT.positionCS = positionCS;
 
-                // 屏幕空间虚线相位用 NDC（不随 3D 形体变形，对应 Godot 的 screen_pos = clip.xy / clip.w）。
+                // 屏幕空间虚线相位用 NDC（不随 3D 形体变形，screen_pos = clip.xy / clip.w）。
                 float w = max(positionCS.w, 1e-3);
                 OUT.screenNDC = positionCS.xy / w;
 
@@ -559,7 +557,7 @@ Shader "PirateCrew/PirateOutline"
                 float alpha = IN.color.a;
                 if (IN.dashed > 0.5)
                 {
-                    // 屏幕空间流动虚线，对应 Godot outline_selected.gdshader 的
+                    // 屏幕空间流动虚线：
                     // phase = screen_pos.y * dash_frequency + TIME * dash_speed。
                     float phase = IN.screenNDC.y * _DashFrequency + _Time.y * _DashSpeed;
                     float dash  = smoothstep(-0.15, 0.15, sin(phase));

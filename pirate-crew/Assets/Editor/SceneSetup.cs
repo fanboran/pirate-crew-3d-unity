@@ -218,7 +218,7 @@ namespace PirateCrew.EditorTools
 
         /// <summary>全屏底 = theme 桌面（`desktop` style：window_face #2C2C30）纯色 Image，
         /// raycast 关闭（装饰层，不挡主菜单按钮命中）。原 StickTokens.WINDOW_BG（88% 黑半透）
-        /// 是隔壁 Godot 版「窗户」语义的自造底，本波按 Aseprite 桌面换掉。</summary>
+        /// 是旧「窗户」语义的自造底，本波按 Aseprite 桌面换掉。</summary>
         static void CreateStickBackdrop(Transform parent)
         {
             RectTransform rect = MenuUiBuilder.CreateRect("WindowBackdrop", parent);

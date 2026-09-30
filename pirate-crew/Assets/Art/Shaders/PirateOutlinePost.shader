@@ -1,19 +1,16 @@
 // ============================================================================
 // PirateOutlinePost.shader —— 海盗军团夺宝 3D / M2 全屏后处理描边
 //
-// 【设计参照】Godot modules/pirate_crew/shaders/outline_post.gdshader（126 行）
-//   它把"选中单位"渲染进一个 SubViewport 得到 mask_texture，再在全屏 quad 上做
-//   3x3 Sobel 边缘检测 + 沿边缘切线的流动虚线。
-//   本 shader 逐段翻译其 fragment()，差异只在平台写法（见下）。
+// 【设计参照】把"选中单位"渲染进一张 mask RT，再在全屏 quad 上做
+//   3x3 Sobel 边缘检测 + 沿边缘切线的流动虚线。差异只在平台写法（见下）。
 //
-// 【与 Godot 版的对应关系】
-//   Godot                                   -> 本 shader
-//   texelFetch(mask_texture, coord, 0).a    -> SAMPLE_TEXTURE2D_X(_SelectionMask, sampler_PointClamp, uv).r
-//   SCREEN_UV * VIEWPORT_SIZE               -> uv * _ScaledScreenParams.xy
-//   step(0.5, alpha) 二值化                  -> 同名 step()
-//   sobel_kernel_x/y(pos)=pos.x/(x²+y²)     -> 同名公式（逐字照搬）
-//   TIME * dash_speed                       -> _Time.y * _DashSpeed
-//   hint_default_white/filter_nearest        -> 由 C# 侧把 mask RT 建为 Point 采样（见 OutlineRendererFeature.cs）
+// 【平台写法】
+//   掩码采样                                 -> SAMPLE_TEXTURE2D_X(_SelectionMask, sampler_PointClamp, uv).r
+//   屏幕坐标                                 -> uv * _ScaledScreenParams.xy
+//   二值化 step(0.5, alpha)                  -> 同名 step()
+//   sobel_kernel_x/y(pos)=pos.x/(x²+y²)      -> 同名公式
+//   时间/虚线 TIME * dash_speed               -> _Time.y * _DashSpeed
+//   采样滤波 hint_default_white/filter_nearest-> 由 C# 侧把 mask RT 建为 Point 采样（见 OutlineRendererFeature.cs）
 //
 // 【Pass 顺序（重要）】
 //   Pass 0 "SelectionMask"  ：几何 Pass。把指定 Layer 上的"已选中单位"画成纯白，
@@ -24,7 +21,7 @@
 //                             采样 _BlitTexture（相机颜色）+ _SelectionMask（全局 mask），
 //                             Sobel 出边缘后与原画面合成。
 //
-// 【_DebugMode 分档】逐字继承 Godot outline_post.gdshader 的 debug_mode：
+// 【_DebugMode 分档】：
 //   // [DEBUG] 档 0 正常虚线描边（最终效果）
 //   // [DEBUG] 档 1 原始 mask（未二值化，白=选中）
 //   // [DEBUG] 档 2 二值化 mask（step(0.5) 之后）
@@ -49,9 +46,9 @@ Shader "PirateCrew/PirateOutlinePost"
 {
     Properties
     {
-        // 选中描边色，默认对应 Godot #49d9d6f2
+        // 选中描边色，默认 #49d9d6f2
         _OutlineColor   ("选中描边色 #49d9d6", Color) = (0.286, 0.851, 0.839, 0.949)
-        // Sobel 边缘强度阈值：越大描边越细/越少。Godot 默认 0.2
+        // Sobel 边缘强度阈值：越大描边越细/越少。默认 0.2
         _EdgeThreshold  ("边缘阈值（越大描边越少）", Range(0.01, 0.9)) = 0.2
         _DashLength     ("虚线长度(像素)", Range(2.0, 20.0)) = 8.0
         _DashGap        ("虚线间隔(像素)", Range(2.0, 20.0)) = 6.0
@@ -113,7 +110,7 @@ Shader "PirateCrew/PirateOutlinePost"
             }
 
             // 纯白 = "这里有一个选中单位"。RGB 与 A 都写 1，
-            // 全屏 Pass 采样 .r（Godot 采样的是 .a，两边等价，见文件头差异表）。
+            // 全屏 Pass 采样 .r（与掩码通道等价，见文件头平台写法）。
             half4 MaskFragment(VaryingsMask IN) : SV_Target
             {
                 return half4(1.0, 1.0, 1.0, 1.0);
@@ -153,13 +150,13 @@ Shader "PirateCrew/PirateOutlinePost"
                 float  _DebugMode;
             CBUFFER_END
 
-            // 采样 mask（最近邻，避免 Sobel 被插值糊掉；对应 Godot filter_nearest）
+            // 采样 mask（最近邻，避免 Sobel 被插值糊掉）
             float SampleMask(float2 uv)
             {
                 return SAMPLE_TEXTURE2D_X(_SelectionMask, sampler_PointClamp, uv).r;
             }
 
-            // 二值化（对应 Godot sample_binary）
+            // 二值化（sample_binary）
             float SampleMaskBinary(float2 uv)
             {
                 return step(0.5, SampleMask(uv));
@@ -172,7 +169,7 @@ Shader "PirateCrew/PirateOutlinePost"
                 float2 uv = input.texcoord;
                 float3 srcColor = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv).rgb;
 
-                // 二值化 mask（对应 Godot 的 sample_binary），供后续分支使用。
+                // 二值化 mask（sample_binary），供后续分支使用。
                 float maskBinary = SampleMaskBinary(uv);
 
                 // [DEBUG] 档 1：原始 mask。预期画面：白=选中单位，边缘可能有轻微灰阶过渡；
@@ -186,11 +183,11 @@ Shader "PirateCrew/PirateOutlinePost"
                     return half4(maskBinary.xxx, 1.0);
 
                 // 掩码内部不是"外轮廓"：直接透出原画面。
-                // （Godot 此处是 discard；本实现改返回原色，使调试截图语义更直观，已在文档标注差异。）
+                // （本实现返回原色而非 discard，使调试截图语义更直观，已在文档标注差异。）
                 if (maskBinary > 0.5)
                     return half4(srcColor, 1.0);
 
-                // ---- 3x3 Sobel（逐字翻译 Godot 的 sobel_kernel_x/y）----
+                // ---- 3x3 Sobel ----
                 float2 texel = 1.0 / _ScaledScreenParams.xy;
                 float edgeX = 0.0;
                 float edgeY = 0.0;
@@ -224,7 +221,7 @@ Shader "PirateCrew/PirateOutlinePost"
                     return half4(v.xxx, 1.0);
                 }
 
-                // smoothstep 阈值（对应 Godot edge_mask）
+                // smoothstep 阈值（edge_mask）
                 float edgeMask = smoothstep(_EdgeThreshold - 0.05, _EdgeThreshold + 0.05, edge);
                 if (edgeMask < 0.001)
                     return half4(srcColor, 1.0);
@@ -236,7 +233,7 @@ Shader "PirateCrew/PirateOutlinePost"
                 // [档 0] 正常最终效果：在边缘上再乘一层沿边缘切线流动的虚线。
                 if (_DebugMode <= 0.5)
                 {
-                    // 沿边缘切线切虚线（对应 Godot：tangent = normalize(vec2(-edge_y, edge_x))）
+                    // 沿边缘切线切虚线（tangent = normalize(vec2(-edge_y, edge_x))）
                     float2 tangent = normalize(float2(-edgeY, edgeX) + float2(1e-6, 1e-6));
                     float2 px = uv * _ScaledScreenParams.xy;
                     float s = dot(px, tangent);

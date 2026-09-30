@@ -11,7 +11,7 @@ using UnityEngine.UI;
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 主菜单控制器（翻译自 Godot <c>modules/pirate_crew/scripts/ui/main_menu.gd</c>）。
+    /// 主菜单控制器。
     ///
     /// 【行为】
     ///   - 进入战斗：发布 EventBus 切场景频道（<see cref="SceneEvents.ChangeScene"/>，载荷为场景名），
