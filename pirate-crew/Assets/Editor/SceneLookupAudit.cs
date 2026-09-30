@@ -161,6 +161,61 @@ namespace PirateCrew.EditorTools
                 Reason = "出图工具路径（-artReviewOut 命令行模式）：要在任意手工场景里量天际线，"
                          + "被测量对象没有持有者可以注入；改成显式引用会让命令行工具模式复杂化。运行时零调用。",
             },
+            new WhitelistEntry
+            {
+                Path = "PirateCrew/ArtReview/ChemPlantOrbitCapture.cs",
+                Token = "FindObjectOfType<BattleCameraDriver>",
+                LineAtRegistration = 72,
+                Kind = Kind.Tool,
+                Reason = "离线环绕出图工具路径（-orbitOut 命令行模式，拍完自动退出）：要接管的是"
+                         + "任意跑起来的战斗场景的跟随相机，接管对象没有持有者可以注入。运行时零调用。",
+            },
+            new WhitelistEntry
+            {
+                Path = "PirateCrew/ArtReview/ChemPlantOrbitCapture.cs",
+                Token = "GameObject.Find",
+                LineAtRegistration = 121,
+                Kind = Kind.Tool,
+                Reason = "离线环绕出图工具路径：按名字找关卡陈设件（烘焙 prefab 实例）算环绕中心，"
+                         + "陈设件由运行时装配器实例化，工具侧拿不到它的显式引用。运行时零调用。",
+            },
+            new WhitelistEntry
+            {
+                Path = "PirateCrew/ArtReview/ChemPlantOrbitCapture.cs",
+                Token = "FindObjectOfType<BattleTerrainView>",
+                LineAtRegistration = 141,
+                Kind = Kind.Tool,
+                Reason = "离线环绕出图工具路径：陈设件缺失时退用地形碰撞盒算环绕中心的兜底，"
+                         + "地形视图没有持有者可以注入。运行时零调用。",
+            },
+            new WhitelistEntry
+            {
+                Path = "PirateCrew/Rendering/Pixelart/PixelartContentConverter.cs",
+                Token = "FindObjectsByType<MeshRenderer>",
+                LineAtRegistration = 130,
+                Kind = Kind.Runtime,
+                Reason = "有界补扫（rescanIntervalSeconds=1s 起隔、rescanDurationSeconds=30s 总上限，跑完即停）："
+                         + "世界内容不是一次到齐的（海图开局合成、FX/道具更晚），要转换的是场景里任意"
+                         + "新出现的 MeshRenderer，没有持有者可以逐个注入。",
+            },
+            new WhitelistEntry
+            {
+                Path = "PirateCrew/CharCamDebug/CharCamDebugController.cs",
+                Token = "FindObjectsByType<MeshRenderer>",
+                LineAtRegistration = 226,
+                Kind = Kind.Runtime,
+                Reason = "调试组件的一次性初始化（Start 里缓存一次场景 renderer 清单，渲染路径切换时靠它"
+                         + "保存/还原各件原材质）：调试器挂在相机上、管的却是全场景材质，清单对象没有持有者可以注入。",
+            },
+            new WhitelistEntry
+            {
+                Path = "PirateCrew/Rendering/Pixelart/PixelartCameraRig.cs",
+                Token = "FindObjectsByType<MeshRenderer>",
+                LineAtRegistration = 695,
+                Kind = Kind.Runtime,
+                Reason = "装配自检（LogSelfCheckOnce 守卫只跑一次）：这条路径的失效方式是静默的（shader 被剥离 /"
+                         + "渲染器索引没接上 → 画面只剩背景色而不报错），首帧数一遍走本路径的 renderer 把证据写进日志。",
+            },
         };
 
         /// <summary>工具/演示路径目录前缀（这些目录里的命中按 <see cref="Kind.Tool"/> 归类）。</summary>

@@ -92,6 +92,9 @@ namespace PirateCrew.EditorTools
         [MenuItem("PirateCrew/Scenes/重建 Battle 战斗场景")]
         public static void BuildAll()
         {
+            if (!ConfirmSceneReplacement())
+                return;
+
             EnsureFolder(Path.GetDirectoryName(BattleScenePath));
             EnsureFolder("Assets/Prefabs");
             EnsureFolder(PrefabFolder);
@@ -138,6 +141,34 @@ namespace PirateCrew.EditorTools
                 + "  场景美术: 关卡专属静态陈设不入场景（烘焙退位），开局由 RuntimeSceneArt 按实际关卡重建。");
         }
 
+        /// <summary>
+        /// 重建入口的确认闸：本链两处 <c>NewScene(Single)</c>（搭预制体、建战斗场景）都会把当前
+        /// 打开的场景直接顶掉，未保存的修改随之蒸发。已脏场景直接拒绝（先保存再重建），
+        /// 干净场景弹一次确认；无头模式跳过——batchmode 下对话框不显示，重建本就是无人程序化流程。
+        /// </summary>
+        static bool ConfirmSceneReplacement()
+        {
+            if (Application.isBatchMode)
+                return true;
+
+            Scene active = EditorSceneManager.GetActiveScene();
+            if (active.IsValid() && active.isDirty)
+            {
+                EditorUtility.DisplayDialog(
+                    "重建 Battle 战斗场景",
+                    "当前场景 \"" + (string.IsNullOrEmpty(active.path) ? active.name : active.path)
+                        + "\" 有未保存的修改，重建会直接丢弃它。\n请先保存当前场景，再执行重建。",
+                    "知道了");
+                return false;
+            }
+
+            return EditorUtility.DisplayDialog(
+                "重建 Battle 战斗场景",
+                "重建会新建场景并覆盖保存 " + BattleScenePath + "，当前打开的场景将被直接关闭（未保存内容会丢失）。\n确定继续吗？",
+                "继续重建",
+                "取消");
+        }
+
         // ------------------------------------------------------------------
         // 预制体
         // ------------------------------------------------------------------
@@ -180,8 +211,14 @@ namespace PirateCrew.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
 
             GameObject prefab = PrefabUtility.SaveAsPrefabAsset(go, PiratePrefabPath, out bool success);
-            if (!success)
-                Debug.LogError("[BattleSceneSetup] 保存 PirateBase 预制体失败: " + PiratePrefabPath);
+            if (!success || prefab == null)
+            {
+                // 资产写入失败就停：null 继续流进装配链会被接成 BattleController.piratePrefab = null，
+                // 场景照常保存、错误却延迟到运行时才暴露，排查成本远高于此刻中断重建。
+                Object.DestroyImmediate(go);
+                throw new IOException("[BattleSceneSetup] 保存 PirateBase 预制体失败: " + PiratePrefabPath
+                    + "——已中断重建，请先排查资产写入失败的原因（磁盘/路径/Library 锁），再重跑本工具。");
+            }
 
             Object.DestroyImmediate(go);
             return prefab;
@@ -283,7 +320,7 @@ namespace PirateCrew.EditorTools
 
         // ------------------------------------------------------------------
         // 战斗相机参数（等距像素卡通 · 正交口径，创始人裁决 2026-09-22：
-        // docs/技术/渲染管线-等距像素卡通.md §2——斜轴测 + 正交投影 + 整数 OrthoSize）。
+        // docs/技术/渲染/渲染管线-等距像素卡通.md §2——斜轴测 + 正交投影 + 整数 OrthoSize）。
         // **俯角 30° 与出图口径同源**（`CameraFraming.BasePitchDegrees` ←
         // `PixelartPilotScene.PitchDegrees`）：游戏内看到的投影必须与宣传图/观感图是同一个，
         // 否则"拿图比观感"这件事本身就错的。距离 30 沿用 3D 空间契约（正交下只定机位）；
