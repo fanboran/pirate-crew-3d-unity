@@ -279,9 +279,10 @@ namespace PirateCrew.EditorTools.BuildSystem
         }
 
         /// <summary>
-        /// 反射列出 <see cref="SceneNames"/> 里声明的全部 <c>public const string</c>。
+        /// 反射列出 <see cref="SceneNames"/> 里声明的全部 <c>public const string</c> 场景名。
         /// 用反射而不是手抄一遍，是为了让「新增场景常量忘了进发行集」自动变成一条报错——
         /// 手抄的清单会随常量一起漂移，等于没校验。
+        /// 目录常量（*Folder 后缀）不是场景名，跳过——它们永远不该进场景集。
         /// </summary>
         public static List<string> DeclaredRuntimeSceneNames()
         {
@@ -292,6 +293,8 @@ namespace PirateCrew.EditorTools.BuildSystem
             {
                 FieldInfo field = fields[i];
                 if (!field.IsLiteral || field.FieldType != typeof(string))
+                    continue;
+                if (field.Name.EndsWith("Folder"))
                     continue;
 
                 var value = field.GetRawConstantValue() as string;
