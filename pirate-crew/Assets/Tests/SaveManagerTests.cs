@@ -16,6 +16,10 @@ namespace PirateCrew.Tests
     ///
     /// 【覆盖边界】自动存档协程需要真实协程调度（PlayMode），EditMode 下不启动；
     /// 这里覆盖其同步契约（TriggerAutoSave 未启用时返回 false）与文件层健壮性。
+    ///
+    /// 【已知残余风险】转正走 File.Replace（SaveFileIO.WriteJsonAtomic）：为跨平台一致
+    /// 会先删旧 .bak 再 Replace——若 Replace 中途失败，旧档已随 .bak 先删。构造该写失败
+    /// 需要文件系统注入点，超出本测试范围，故只在此登记、不做硬测。
     /// </summary>
     public class SaveManagerTests
     {
@@ -162,6 +166,21 @@ namespace PirateCrew.Tests
             Assert.That(File.Exists(backupPath), Is.True, "覆盖时应生成 .bak");
             SaveData backup = JsonUtility.FromJson<SaveData>(File.ReadAllText(backupPath));
             Assert.That(backup.GetData("k"), Is.EqualTo("old"), ".bak 应为上一版");
+        }
+
+        [Test]
+        public void SaveFileIO_Write_LeavesNoTempFileBehind()
+        {
+            // 转正语义（SaveFileIO.WriteJsonAtomic：.tmp 写入 → 回读校验 → 转正）的关键终态：
+            // .tmp 只是写入中转，首写走 File.Move、覆盖走 File.Replace，两条路径转正后
+            // .tmp 都必须消失——残留 .tmp 意味着写入中途断链，不能假装成功。
+            Assert.That(_io.SaveSlot(1, MakeData("k", "v1")), Is.True);
+            Assert.That(File.Exists(_io.GetSlotPath(1) + SaveFileIO.TempExtension), Is.False,
+                "首写（Move 转正）后 .tmp 不应残留");
+
+            Assert.That(_io.SaveSlot(1, MakeData("k", "v2")), Is.True);
+            Assert.That(File.Exists(_io.GetSlotPath(1) + SaveFileIO.TempExtension), Is.False,
+                "覆盖写（Replace 转正）后 .tmp 不应残留");
         }
 
         [Test]

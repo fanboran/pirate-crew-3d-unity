@@ -1,7 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using PirateCrew.Core;
+using UnityEngine;
+using UnityEngine.TestTools;
+// 被测类型 Event 与 UnityEngine.Event 同名：本文件的裸 Event 一律指被测类型（LogAssert 需要上面的 using）。
+using Event = PirateCrew.Core.Event;
 
 namespace PirateCrew.Tests
 {
@@ -114,6 +119,57 @@ namespace PirateCrew.Tests
         {
             Assert.DoesNotThrow(() => EventBus.Publish(new Event<int>(), 1));
             Assert.DoesNotThrow(() => EventBus.Publish(new Event()));
+        }
+
+        // ------------------------------------------------------------------
+        // 订阅者异常隔离（Dispatch 按订阅者 try/catch）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void Publish_FirstSubscriberThrows_SecondStillReceives()
+        {
+#if UNITY_EDITOR
+            // 契约出处 EventBus.Dispatch：一个监听者抛异常不能吞掉本轮对后续监听者的投递
+            // （全局总线是所有模块的传令兵，单点故障不得截断广播）。
+            // 抛出的异常按 Log.Error 留痕，Expect 收口顺带满足「预期错误日志」检查。
+            LogAssert.Expect(LogType.Error, new Regex(@"\[EventBus\].*抛异常"));
+
+            var calls = new List<string>();
+            EventBus.Subscribe(IntChannel, (Action<int>)(payload =>
+            {
+                calls.Add("first");
+                throw new InvalidOperationException("监听者故障（测试注入）");
+            }));
+            EventBus.Subscribe(IntChannel, (Action<int>)(payload => calls.Add("second")));
+
+            EventBus.Publish(IntChannel, 1);
+
+            Assert.That(calls, Is.EqualTo(new[] { "first", "second" }),
+                "第一个订阅者抛异常必须被隔离，不得截断对后续订阅者的投递");
+#else
+            // 无头域跑不了：留痕路径 Debug.LogError 的 ECall 脱离 Unity 运行时必抛 SecurityException，
+            // 本契约以 Unity EditMode 为权威判定环境（同 harness 基线口径）。
+            Assert.Ignore("EventBus 订阅者异常隔离依赖 Debug.LogError，无头域不可达，EditMode 为权威判定");
+#endif
+        }
+
+        [Test]
+        public void Publish_SubscriberThrows_ExceptionIsLogged()
+        {
+#if UNITY_EDITOR
+            // 留痕契约：EventBus 吞掉订阅者异常但不静默——Log.Error 直通 Debug.LogError
+            // （见 Log.cs 语义：真错误必须留在播放器日志），LogAssert.Expect 收口并锁定该行为。
+            LogAssert.Expect(LogType.Error, new Regex(@"\[EventBus\].*抛异常"));
+
+            EventBus.Subscribe(IntChannel, (Action<int>)(payload =>
+            {
+                throw new InvalidOperationException("监听者故障（测试注入）");
+            }));
+
+            Assert.DoesNotThrow(() => EventBus.Publish(IntChannel, 1));
+#else
+            Assert.Ignore("留痕路径 Debug.LogError 在无头域 ECall 必抛，EditMode 为权威判定");
+#endif
         }
 
         // ------------------------------------------------------------------

@@ -12,9 +12,9 @@ namespace PirateCrew.Battle.WorldMaps.Tests
     /// 接缝是 <see cref="ReefFieldRules.HasExplicitProfile"/>：与取档逻辑同一个
     /// switch，单一出处、两边不会漂移。
     ///
-    /// 【零海图口径】八张世界海图（101–108）已删除待重做、目录当前为空 ⇒ 门禁真空通过
-    /// （不再断言 <c>Count &gt; 0</c>：零图是当前的数据现状，不是通道故障）。
-    /// 海图重做后本门禁自动恢复，目录里每张图仍必须显式登记档案。
+    /// 【零海图口径】八张世界海图（101–108）已删除待重做、目录当前为空 ⇒ 门禁以
+    /// Assert.Ignore 跳过——空目录下 foreach 零迭代恒真，绝不能把"无对象可查"
+    /// 当作通过（假绿）。海图重做后本门禁自动恢复，目录里每张图仍必须显式登记档案。
     /// </summary>
     [TestFixture]
     public class WorldMapReefProfileGateTests
@@ -22,6 +22,10 @@ namespace PirateCrew.Battle.WorldMaps.Tests
         [Test]
         public void AllMaps_HaveExplicitReefProfile()
         {
+            // 空目录显式跳过而非通过：foreach 零迭代恒真会让门禁在无对象时静默变绿（假绿）。
+            if (WorldMapCatalog.Count == 0)
+                Assert.Ignore("海图目录为空，门禁无对象（八张世界海图已删除待重做，重做后本门禁自动生效）");
+
             foreach (WorldMapDefinition map in WorldMapCatalog.All)
             {
                 Assert.IsTrue(ReefFieldRules.HasExplicitProfile(map.Id),
