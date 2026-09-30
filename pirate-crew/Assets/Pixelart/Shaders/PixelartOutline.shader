@@ -97,6 +97,8 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
             TEXTURE2D(_PixelartAlbedoBuffer);             SAMPLER(sampler_PixelartAlbedoBuffer);
             // palette：**屏幕档**，.a = applyOutline（0/1，逐物体描边开关）
             TEXTURE2D(_PixelartPaletteBuffer);            SAMPLER(sampler_PixelartPaletteBuffer);
+            // shape：**屏幕档**，.r = 优先级（1 = 可行走地面，见出线规则 ① 的 ground 分支）
+            TEXTURE2D(_PixelartShapeBuffer);              SAMPLER(sampler_PixelartShapeBuffer);
             // 连通域结论：**艺术画布**，.a = 打包的四方向 connected/closer（位序见文件头）
             TEXTURE2D(_PixelartConnectivityResultBuffer); SAMPLER(sampler_PixelartConnectivityResultBuffer);
 
@@ -180,6 +182,11 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 // 判成"连通"）会把门控从 connected / closer 两侧都关死——见下面各方向的
                 // 「接触边兜底」分支。
                 bool centerAppliesOutline = AppliesOutlineAt(uvCenter);
+                // 【Shape.r 优先级】1 = 可行走地面：相切连通的接触线落在地面侧；
+                // 0 = 遮挡物（草叶/贴片/道具）——遮挡关系，描边不与它互动。
+                float3 shapePack = SAMPLE_TEXTURE2D(_PixelartShapeBuffer,
+                    sampler_PixelartShapeBuffer, uvCenter).rgb;
+                bool centerIsGround = shapePack.r > 0.5;
 
                 int connectedToRight = (connectCode & 128u) > 0u ? 1 : 0;   // bit7
                 int connectedToLeft  = (connectCode &  64u) > 0u ? 1 : 0;   // bit6
@@ -224,16 +231,16 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     {
                         if (!centerAppliesOutline)
                         {
-                            // ① 远侧：相切连通（connected=1）恒出线——切线带里 closer 位随
-                            //    亚像素深度差抖动，正是出墨侧横跳的根源，不再依赖它；
-                            //    干净断开时须本像素更远（closer=0）。
-                            if (connectedToRight >= 1 || closerThanRight < 1) markerGate = 1.0;
+                            // ① 远侧：干净断开须本像素更远（closer=0）；相切连通（connected=1）
+                            //    恒出线**且仅当本像素是地面**（接地线）——更近的遮挡物
+                            //    （草叶/道具，Shape.r=0）纯遮挡、不出线（创始人裁定：
+                            //    草与角色是遮掩关系，不影响角色描边）。
+                            if (closerThanRight < 1 || (connectedToRight >= 1 && centerIsGround))
+                                markerGate = 1.0;
                         }
                         else if (connectedToRight < 1)
                             markerGate = 1.0;   // ② 接缝
                     }
-                    else if (centerAppliesOutline && connectedToRight < 1 && closerThanRight < 1)
-                        markerFallback = 1.0;   // ③ 近侧接触（邻域更近的非物体面贴着物体——closer<1 即本像素不比邻域近）
                 }
 
                 // ---- 左 ----
@@ -244,16 +251,16 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     {
                         if (!centerAppliesOutline)
                         {
-                            // ① 远侧：相切连通（connected=1）恒出线——切线带里 closer 位随
-                            //    亚像素深度差抖动，正是出墨侧横跳的根源，不再依赖它；
-                            //    干净断开时须本像素更远（closer=0）。
-                            if (connectedToLeft >= 1 || closerThanLeft < 1) markerGate = 1.0;
+                            // ① 远侧：干净断开须本像素更远（closer=0）；相切连通（connected=1）
+                            //    恒出线**且仅当本像素是地面**（接地线）——更近的遮挡物
+                            //    （草叶/道具，Shape.r=0）纯遮挡、不出线（创始人裁定：
+                            //    草与角色是遮掩关系，不影响角色描边）。
+                            if (closerThanLeft < 1 || (connectedToLeft >= 1 && centerIsGround))
+                                markerGate = 1.0;
                         }
                         else if (connectedToLeft < 1)
                             markerGate = 1.0;   // ② 接缝
                     }
-                    else if (centerAppliesOutline && connectedToLeft < 1 && closerThanLeft < 1)
-                        markerFallback = 1.0;   // ③ 近侧接触（邻域更近的非物体面贴着物体——closer<1 即本像素不比邻域近）
                 }
 
                 // ---- 上 ----
@@ -264,16 +271,16 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     {
                         if (!centerAppliesOutline)
                         {
-                            // ① 远侧：相切连通（connected=1）恒出线——切线带里 closer 位随
-                            //    亚像素深度差抖动，正是出墨侧横跳的根源，不再依赖它；
-                            //    干净断开时须本像素更远（closer=0）。
-                            if (connectedToUp >= 1 || closerThanUp < 1) markerGate = 1.0;
+                            // ① 远侧：干净断开须本像素更远（closer=0）；相切连通（connected=1）
+                            //    恒出线**且仅当本像素是地面**（接地线）——更近的遮挡物
+                            //    （草叶/道具，Shape.r=0）纯遮挡、不出线（创始人裁定：
+                            //    草与角色是遮掩关系，不影响角色描边）。
+                            if (closerThanUp < 1 || (connectedToUp >= 1 && centerIsGround))
+                                markerGate = 1.0;
                         }
                         else if (connectedToUp < 1)
                             markerGate = 1.0;   // ② 接缝
                     }
-                    else if (centerAppliesOutline && connectedToUp < 1 && closerThanUp < 1)
-                        markerFallback = 1.0;   // ③ 近侧接触（邻域更近的非物体面贴着物体——closer<1 即本像素不比邻域近）
                 }
 
                 // ---- 下 ----
@@ -284,16 +291,16 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                     {
                         if (!centerAppliesOutline)
                         {
-                            // ① 远侧：相切连通（connected=1）恒出线——切线带里 closer 位随
-                            //    亚像素深度差抖动，正是出墨侧横跳的根源，不再依赖它；
-                            //    干净断开时须本像素更远（closer=0）。
-                            if (connectedToDown >= 1 || closerThanDown < 1) markerGate = 1.0;
+                            // ① 远侧：干净断开须本像素更远（closer=0）；相切连通（connected=1）
+                            //    恒出线**且仅当本像素是地面**（接地线）——更近的遮挡物
+                            //    （草叶/道具，Shape.r=0）纯遮挡、不出线（创始人裁定：
+                            //    草与角色是遮掩关系，不影响角色描边）。
+                            if (closerThanDown < 1 || (connectedToDown >= 1 && centerIsGround))
+                                markerGate = 1.0;
                         }
                         else if (connectedToDown < 1)
                             markerGate = 1.0;   // ② 接缝
                     }
-                    else if (centerAppliesOutline && connectedToDown < 1 && closerThanDown < 1)
-                        markerFallback = 1.0;   // ③ 近侧接触（邻域更近的非物体面贴着物体——closer<1 即本像素不比邻域近）
                 }
 
                 marker = max(markerGate, markerFallback);

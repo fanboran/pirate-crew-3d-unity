@@ -93,7 +93,7 @@ namespace PirateCrew.Rendering.Pixelart
         /// </summary>
         public static Material Create(string name, Color albedo,
             float bandCount = DefaultBandCount, float outlinePixels = DefaultOutlinePixels,
-            float aaScale = 1f)
+            float aaScale = 1f, float priority = 1f)
         {
             Shader shader = Shader.Find(PixelartPath.ObjectShaderName);
             if (shader == null)
@@ -104,7 +104,7 @@ namespace PirateCrew.Rendering.Pixelart
             }
 
             var material = new Material(shader) { name = name };
-            Configure(material, albedo, bandCount, outlinePixels, aaScale);
+            Configure(material, albedo, bandCount, outlinePixels, aaScale, priority);
             return material;
         }
 
@@ -119,7 +119,9 @@ namespace PirateCrew.Rendering.Pixelart
         public static Material CreateSprite(string name, Color albedo, Texture2D mask,
             float bandCount = DefaultBandCount, float cutoff = 0.5f, float aaScale = 1f)
         {
-            Material material = Create(name, albedo, bandCount, outlinePixels: 0f, aaScale: aaScale);
+            // 贴片（草叶等）是**遮挡物**：priority=0（Shape.r），描边不与它出接触线。
+            Material material = Create(name, albedo, bandCount, outlinePixels: 0f, aaScale: aaScale,
+                priority: 0f);
             if (material == null)
                 return null;
 
@@ -162,11 +164,14 @@ namespace PirateCrew.Rendering.Pixelart
         /// </summary>
         public static void Configure(Material material, Color albedo,
             float bandCount = DefaultBandCount, float outlinePixels = DefaultOutlinePixels,
-            float aaScale = 1f)
+            float aaScale = 1f, float priority = 1f)
         {
             if (material == null)
                 return;
 
+            // 【Shape.r 优先级】1 = 可行走地面（描边接触线落在地面侧，见 PixelartOutline
+            // 出线规则 ① 的 ground 分支）；0 = 遮挡物（草叶/贴片/道具——纯遮挡，不出接触线）。
+            material.SetFloat("_Priority", priority);
             material.SetColor("_BaseColor", albedo);
             material.SetFloat("_MainLightLevel", bandCount);
             material.SetFloat("_DitherMode", 0f);

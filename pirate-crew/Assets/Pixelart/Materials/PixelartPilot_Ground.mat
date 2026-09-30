@@ -48,7 +48,7 @@ Material:
     - _NormalEdgeLevel: -1
     - _NormalEdgeThreshold: 1
     - _OutlinePixels: 0
-    - _Priority: 0
+    - _Priority: 1
     - _Smoothness: 0
     - _SnapToPixelGrid: 1
     m_Colors:

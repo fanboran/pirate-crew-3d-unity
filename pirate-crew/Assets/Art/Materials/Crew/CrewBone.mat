@@ -69,7 +69,7 @@ Material:
     - _OutlineWidth: 0.01
     - _OutlineWidthHover: 0.0042
     - _OutlineWidthSelected: 0.01
-    - _Priority: 0
+    - _Priority: 1
     - _Smoothness: 0
     - _SnapToPixelGrid: 1
     m_Colors:
