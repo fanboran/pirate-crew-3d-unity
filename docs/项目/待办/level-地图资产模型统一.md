@@ -11,13 +11,15 @@
 > `TileTerrainGrid`、`SpawnPlanEntry.GridX/GridY`）——消费它们的 `BattleController` /
 > `BattleSceneSetup` / `BattleSceneWiringTests` 是**创始人在建文件**，待其提交后收口。
 
-## 一、要改成什么
+## 详情
+
+### 一、要改成什么
 
 - **只有一种地图资产载荷**，`levelNumber` 作唯一身份键；
 - **尺幅、出生点、水位、射程、跳距……一切数值一律用米**；
 - **格号作为对外概念消失**：`gridX/gridY`、`widthTiles/depthTiles`、`waterTileY`、`TileWorldSize` 不再出现在资产与文档里。
 
-## 二、现状（待改，实测）
+### 二、现状（待改，实测）
 
 | 层 | 关卡资产（`kind=level`） | 海图资产（`kind=world_map`，已删） | 是否统一 |
 | --- | --- | --- | --- |
@@ -29,7 +31,7 @@
 （出战计划 / 地形 / 水位 / 图幅 / 氛围档），全仓唯一分叉点 = `LevelSourceResolver`。
 资产载荷定义见 [`LevelAssetTypes.cs`](../../../pirate-crew/Assets/Scripts/PirateCrew/Data/Levels/LevelAssetTypes.cs)。
 
-## 三、影响面
+### 三、影响面
 
 1. **schema**：`widthTiles/depthTiles` → 世界米；`LevelUnit.gridX/gridY` → 世界米（与海图的 `SpawnEntry` 并成一套出生点）；`waterTileY` → `waterWorldY`。
 2. **两类载荷合并**成一个：`levelNumber` 作唯一身份键（`id` 退为字符串别名）；编成 / 武器（船员·船长·空投三套）/ 陈设 / 氛围字段并成一套。
@@ -53,7 +55,7 @@
 > **实现备注**（不是玩法概念，不出现在资产与文档）：运行时地形数据总得有个存储粒度
 > （现行 2 m 一格）。它只是**数据采样间隔**，不对玩家、不对资产、不对文档暴露。
 
-## 四、坑（预先登记）
+### 四、坑（预先登记）
 
 - **格 schema 是一代遗留的容器**：全米 = 连容器一起清掉，内含化石字段一并消失——
   `originalXmlPlayers` / `sourceXmlMaxChests`（自注「仅存档备查」）、`waterTileY`
