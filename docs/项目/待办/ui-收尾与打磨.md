@@ -19,7 +19,11 @@ sheet.png 直切 108 件+×1 量纲+kind 退役+四态按钮+主菜单窗体化+
 ④ 16px 字体连锁重排（标题带/按钮边框整套标定，与密度档联动裁决）；
 ⑤ 已烘未接屏件按场景接入（页签/tooltip/滚动条/组合框/菜单）；
 ⑥ 残留两项：手绘 tone 族窗皮 `PixelSkin.Window` 已无调用点待退役、Battle 确认框
-正文 rect 仍 100 宽（VBox 不控宽陷阱）；Battle HUD 屏相位未排查。
+正文 rect 仍 100 宽（VBox 不控宽陷阱）；Battle HUD 屏相位未排查；
+⑦ theme 色取用迁移（顺手档）：新代码取 theme 色改用 `AseThemeLayers.TryGetColor(id)`
+逐步消化手抄 Color32 存量（22 处对拍测试已兜底，非急件）；微尾三件顺手清——
+`BattleTerrainView` 类头「瓦片地形」描述语、`场景设计-战斗竞技场.md` 一行已删 API 史实行、
+`BeveledPixelSpriteBuilder.cs:1187` 注释（待 [ui-九宫格契约测试补建.md](ui-九宫格契约测试补建.md) 收官时改）。
 **同轮创始人走查后加修「按钮三缺陷 + 一真缺陷」**：列表行内按钮高 24 > 行距 17 致相邻按钮
 互相叠印 → 行内按钮高改 = min(行高, 令牌高)（行高即 theme button 原生 16）；
 按钮内文字偏下 1 格（切口 h1=4/h3=6 字区偏上）→ 字盒底边多让 1 格，标题/行标签
