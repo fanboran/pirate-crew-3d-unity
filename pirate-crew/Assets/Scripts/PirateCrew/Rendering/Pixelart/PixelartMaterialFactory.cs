@@ -88,14 +88,15 @@ namespace PirateCrew.Rendering.Pixelart
         public const float DefaultOutlinePixels = 1f;
 
         /// <summary>
-        /// 用本路径的物体 shader 造一个材质并套上配方。shader 被剔除/没编译时**报错返回 null**
-        /// （调用方各自决定兜底，但绝不静默拿品红顶上）。
+        /// 用本路径的物体 shader 造一个材质并套上配方。shader 摸不到时**报错返回 null**
+        /// （调用方各自决定兜底，但绝不静默拿品红顶上）。shader 走 <see cref="PixelartShaders"/>
+        /// 取用口：Resources 持有为主路径、按名回退兜底，丢失必有响亮报错（不静默）。
         /// </summary>
         public static Material Create(string name, Color albedo,
             float bandCount = DefaultBandCount, float outlinePixels = DefaultOutlinePixels,
             float aaScale = 1f, float priority = 1f)
         {
-            Shader shader = Shader.Find(PixelartPath.ObjectShaderName);
+            Shader shader = PixelartShaders.Load(PixelartPath.ObjectShaderName);
             if (shader == null)
             {
                 global::PirateCrew.Core.Log.Error("[PixelartMaterialFactory] 找不到 shader \""

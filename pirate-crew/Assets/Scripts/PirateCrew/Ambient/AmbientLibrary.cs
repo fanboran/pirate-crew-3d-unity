@@ -235,10 +235,14 @@ namespace PirateCrew.Ambient
             }
         }
 
-        /// <summary>取 shader，找不到时记警告并返回 null（调用方负责回落）。</summary>
+        /// <summary>
+        /// 取 shader，找不到时记警告并返回 null（调用方负责回落）。
+        /// 走 <see cref="PixelartShaders.Find"/> 取用口（URP Unlit / Standard 这类内置 shader
+        /// 不持有于 Resources）——摸不到时取用口已响亮报错，这里保留带修复指引的警告。
+        /// </summary>
         public static Shader FindShader(string name)
         {
-            Shader shader = Shader.Find(name);
+            Shader shader = PixelartShaders.Find(name);
             if (shader == null)
                 global::PirateCrew.Core.Log.Warn("[Ambient] 找不到 shader " + name
                     + "（可能未编译或未进构建）。请先在有渲染路径的编辑器里 read_console 确认 shader 无编译错误。");

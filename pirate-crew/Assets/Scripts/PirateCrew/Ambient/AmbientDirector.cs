@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using PirateCrew.Core;
 using PirateCrew.Battle;
+using PirateCrew.Rendering.Pixelart;
 using UnityEngine;
 
 namespace PirateCrew.Ambient
@@ -500,7 +501,9 @@ namespace PirateCrew.Ambient
 
             if (_runtimeSkyboxMaterial == null)
             {
-                Shader shader = Shader.Find(AmbientSkyboxCatalog.SkyShaderName);
+                // 天空 shader（PirateGradientSky）不持有于 Resources（文件在 Assets/Art/Shaders/Sky/，
+                // 入包由 ArtGate ⓪ 登记 Always Included 保障），走取用口 Find——摸不到必响亮报错。
+                Shader shader = PixelartShaders.Find(AmbientSkyboxCatalog.SkyShaderName);
                 if (shader == null)
                     return null;
 

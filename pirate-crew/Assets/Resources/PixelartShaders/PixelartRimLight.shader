@@ -21,7 +21,7 @@
 //   注意 v3 的对应趟是 `clip(albedo.a - 0.0001)` 丢掉背景、且它**没有墨线概念**
 //   （墨线是它自己的 `OutlinePass.hlsl` 的事，且那 feature 在 v3 里是关着的）。
 //
-// 【门控本体在 Includes/RimLight.hlsl】那边是 v3 `RimLight.hlsl:16-20` 的逐行翻译
+// 【门控本体在 Pixelart/Shaders/Includes/RimLight.hlsl】那边是 v3 `RimLight.hlsl:16-20` 的逐行翻译
 //   （屏幕空间光向 × 连通域四方向），连同 `.a` 打包字节的解码与"为什么 v3 那两步
 //   （ndotl / multiStep）本仓不接"都写在文件头。本文件只负责"哪些像素有资格"。
 //
@@ -58,7 +58,9 @@ Shader "PirateCrew/Pixelart/PixelartRimLight"
             // (1,1,0,0)——不置的话 Vert 算出的 uv 恒为 0（只采到一个像素，全屏同色）。
             #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
             // 门控本体（v3 `RimLight.hlsl:16-20` 的翻译 + 打包字节解码）。
-            #include "Includes/RimLight.hlsl"
+            // 本文件在 Assets/Resources/PixelartShaders/，include 用**项目根相对路径**指向
+            // 留在 Assets/Pixelart/Shaders/Includes/ 的 .hlsl（相对路径会随本文件位置解析错）。
+            #include "Assets/Pixelart/Shaders/Includes/RimLight.hlsl"
 
             // 输入全是 shader 全局（契约 §2.2）：屏幕档的覆盖标记、艺术画布的连通域结论与
             // 逐物体边缘光色。连通域与墨线两张的绑定由本趟自己发布（Feature 侧

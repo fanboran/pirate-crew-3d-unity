@@ -180,11 +180,11 @@ namespace PirateCrew.Water
             if (material != null && material.HasProperty("_DebugMode"))
             {
                 material.SetFloat("_DebugMode", mode);
-                Debug.Log("[OceanRig] 调试档 _DebugMode=" + mode);
+                global::PirateCrew.Core.Log.Info("[OceanRig] 调试档 _DebugMode=" + mode);
                 return;
             }
 
-            Debug.LogError("[OceanRig] -oceanDebug=" + mode + " 未生效：当前是像素化路径的**替身海面**"
+            global::PirateCrew.Core.Log.Error("[OceanRig] -oceanDebug=" + mode + " 未生效：当前是像素化路径的**替身海面**"
                 + "（物体 shader " + PixelartPath.ObjectShaderName + " 没有 _DebugMode 属性）。"
                 + "这个调试档只属于旧 PirateCrew/Ocean 材质——要逐档诊断旧海面，请显式传入 Ocean_Water.mat。");
         }
@@ -206,9 +206,9 @@ namespace PirateCrew.Water
             if (mat != null)
                 return mat;
 
-            Debug.LogError("[OceanRig] 替身海面材质未创建（物体 shader \"" + PixelartPath.ObjectShaderName
+            global::PirateCrew.Core.Log.Error("[OceanRig] 替身海面材质未创建（物体 shader \"" + PixelartPath.ObjectShaderName
                 + "\" 不在包里），已回退 Sprites/Default。这是**构建包丢 shader 资产**，不是逻辑错误。");
-            Shader fallback = Shader.Find("Sprites/Default"); // 兜底：至少不是隐藏异常
+            Shader fallback = PixelartShaders.Find("Sprites/Default"); // 兜底：至少不是隐藏异常
             return new Material(fallback) { name = "Ocean_Water_Runtime_Fallback" };
         }
 

@@ -1,4 +1,5 @@
 using PirateCrew.Data;
+using PirateCrew.Rendering.Pixelart;
 using UnityEngine;
 
 namespace PirateCrew.Fx
@@ -76,12 +77,14 @@ namespace PirateCrew.Fx
     ///
     /// 【为什么运行时自己建材质】装配根（Battle.unity）不在本 agent 的白名单里，无法把
     /// `Assets/Art/Materials/Fx/*.mat` 序列化进场景；<c>Assets/Art/...</c> 也不是 Resources 目录，
-    /// 运行时无法按路径加载。因此运行时用 <see cref="Shader.Find"/> 找本工程的 FX shader
-    /// （资源目录里的 .mat 只作美术可调/资产可见性与"把 shader 带进构建"的载体），按同一张
+    /// 运行时无法按路径加载。因此运行时按名字找本工程的 FX shader（shader 文件在
+    /// <c>Assets/Art/Shaders/Fx/</c>，不持有于 Resources，入包由 ArtGate ⓪ 登记 Always Included
+    /// 保障；取用走 <see cref="PixelartShaders.Find"/>——丢失必有响亮报错），按同一张
     /// <see cref="Specs"/> 表建内存材质并缓存 —— 规格唯一来源仍是这张表，两边不会漂移。
     ///
     /// 【容错】找不到 FX shader 时回落到 URP 官方 Particles/Unlit，再退到 Sprites/Default、
-    /// Unlit/Transparent；全找不到则返回 null，调用方（FxParticles/FxSpriteFx）静默不出特效不报错。
+    /// Unlit/Transparent（回落链同样走取用口）；全找不到则返回 null，
+    /// 调用方（FxParticles/FxSpriteFx）静默不出特效不报错。
     ///
     /// 【实例化边界】本类触碰 <c>Shader</c>/<c>Material</c>（ECall），只能在 Unity 运行时/编辑器里用，
     /// 不进无头断言；规格表 <see cref="Specs"/> 本身是纯数据，可对表做无头断言。
@@ -187,17 +190,19 @@ namespace PirateCrew.Fx
             if (!additive && _alphaShader != null)
                 return _alphaShader;
 
-            Shader primary = Shader.Find(additive ? AdditiveShaderName : AlphaShaderName);
+            // 主 FX shader 不持有于 Resources（文件在 Assets/Art/Shaders/Fx/，入包由
+            // ArtGate ⓪ 保障），走 Find 口；摸不到时取用口已响亮报错，这里继续回落链。
+            Shader primary = PixelartShaders.Find(additive ? AdditiveShaderName : AlphaShaderName);
             if (primary != null)
             {
                 if (additive) _additiveShader = primary; else _alphaShader = primary;
                 return primary;
             }
 
-            // 回落链：URP 粒子 unlit → 内置 Sprites → 内置 Unlit。
-            Shader fallback = Shader.Find("Universal Render Pipeline/Particles/Unlit")
-                              ?? Shader.Find("Sprites/Default")
-                              ?? Shader.Find("Unlit/Transparent");
+            // 回落链：URP 粒子 unlit → 内置 Sprites → 内置 Unlit（全是内置/URP shader，走 Find 口）。
+            Shader fallback = PixelartShaders.Find("Universal Render Pipeline/Particles/Unlit")
+                              ?? PixelartShaders.Find("Sprites/Default")
+                              ?? PixelartShaders.Find("Unlit/Transparent");
             if (!_warnedShaderFallback)
             {
                 _warnedShaderFallback = true;

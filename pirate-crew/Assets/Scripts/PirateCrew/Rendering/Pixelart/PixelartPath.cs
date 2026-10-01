@@ -87,8 +87,13 @@ namespace PirateCrew.Rendering.Pixelart
 
         // ==================== 资产路径（装配器用；资产名也必须集中）====================
 
-        /// <summary>shader 资产目录。</summary>
-        public const string ShaderFolder = "Assets/Pixelart/Shaders";
+        /// <summary>
+        /// shader 资产目录。graphics shader 现居 <c>Assets/Resources/PixelartShaders/</c>
+        /// （Resources 持有：Resources 资产必然入构建包，运行时按名取用不静默失效，
+        /// 取用口 <see cref="PixelartShaders"/>）；include 用的 .hlsl 留在
+        /// <c>Assets/Pixelart/Shaders/Includes/</c>（非 shader，不占 Resources）。
+        /// </summary>
+        public const string ShaderFolder = "Assets/Resources/PixelartShaders";
 
         /// <summary>连通域 compute 资产目录。</summary>
         public const string ConnectivityComputeFolder = "Assets/Pixelart/Compute/Connectivity";
@@ -226,10 +231,14 @@ namespace PirateCrew.Rendering.Pixelart
         /// </summary>
         public static PixelartCameraRig ActiveRig { get; internal set; }
 
-        /// <summary>解析 CoreBlit shader 并造一个隐藏材质；失败返回 null（调用方负责报错）。</summary>
+        /// <summary>
+        /// 解析 CoreBlit shader 并造一个隐藏材质；失败返回 null（调用方负责报错）。
+        /// CoreBlit 是 URP 包内置 shader（URP 运行时自身引用、播放器必然保活，不是本工程
+        /// Resources 资产），走取用口的 <see cref="PixelartShaders.Find"/> 口。
+        /// </summary>
         public static Material CreateCoreBlitMaterial()
         {
-            Shader shader = Shader.Find(CoreBlitShaderName);
+            Shader shader = PixelartShaders.Find(CoreBlitShaderName);
             if (shader == null)
                 return null;
 
