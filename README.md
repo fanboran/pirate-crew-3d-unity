@@ -2,12 +2,12 @@
 
 **把敌人的浮空岛轰进海里**。回合制投掷对战——环绕角色转视角、装填、开炮，看抛物线划过阳光下的云海，然后一炮把对手掀进天空的尽头。
 
-> Unity 2022.3 写实 PBR 重制 · 向 Nitrome《Mutiny》（中译《海盗军团抢宝藏》）致敬的 3D 学习重制 · 求职作品集项目（非商业）
+> Unity 2022.3 重制（美术翻新进行中：写实 PBR → 等距像素卡通）· 向 Nitrome《Mutiny》（中译《海盗军团抢宝藏》）致敬的 3D 学习重制 · 求职作品集项目（非商业）
 >
 > **当前版本 v0.3.0** · [下载 Windows 版](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.3.0) · 1P vs AI / 2P 同屏热座
 
 [![Unity](https://img.shields.io/badge/Unity-2022.3-black?logo=unity)](https://unity.com)
-[![URP](https://img.shields.io/badge/%E6%B8%B2%E6%9F%93-URP_14%E5%86%99%E5%AE%9EPBR-blue)](https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@14)
+[![URP](https://img.shields.io/badge/%E6%B8%B2%E6%9F%93-URP_14-blue)](https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@14)
 [![Tests](https://img.shields.io/badge/%E6%B5%8B%E8%AF%95-1161%E6%9D%A1%E5%85%A8%E7%BB%BF-green)](#质量工程)
 [![Release](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-v0.3.0-orange)](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.3.0)
 
@@ -16,10 +16,11 @@
 ## 两个关卡，两种心情
 
 首发聚焦两个手作样板关——岛屿由放样曲线与低模几何直接生成，**没有任何方块拼接**。
-（原第三张「碎岛雨」已删除：它的主景是已退役的程序化船体，剩下一片碎岛礁盘撑不起一关。）
+（原第三张「碎岛雨」已删除：它的主景是已退役的程序化船体，剩下一片碎岛礁盘撑不起一关；
+main 分支另有两张 Blender 手作化工厂样板关（关卡 4/5）已入库。）
 
-> 下面两张是**像素化着色路径试点场景**（`-pixelartOut -pixelartLevel <N>`）的实拍——
-> 这条路径正在试点、**尚未接进游戏本体**（本体仍是旧视觉链）。口径、读数与偏差项见
+> 下面两张是**像素化着色路径**（`-pixelartOut -pixelartLevel <N>`）的实拍——
+> 这条路径**已接进游戏本体**（编辑器实机验收，r1–r25 迭代），正在推进到正式战斗关卡。口径、读数与偏差项见
 > [像素化路径 r9 归档](docs/images/pixelart-path/r9/README.md)。
 
 ### ☁️ 云端漫步
@@ -45,7 +46,9 @@
 | **3 观察** | 我的世界同款：鼠标转视角、WASD 平移、Space/Shift 升降；点击准星选角色即返回 |
 
 
-## 💣 17 种武器，17 种坏心眼
+## 💣 武器库（重做中）
+
+> main 分支武器系统已掏空为「标准小炸弹」占位（17 武器重做中、逐值待裁决，HUD 武器面板与选择流保留）；下表是 v0.3.0 发行版的武器清单，也是重做的概念底稿。
 
 | | | |
 |---|---|---|
@@ -59,8 +62,8 @@
 ## ⚓ 一整条海盗生涯
 
 - **回合规则忠实原版**：每回合一名角色行动，先跳一次再攻击；开火即交回合；落水即死——全部逐条对齐原版反编译结论（见[逆向文档](docs/项目/归档/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md)）
-- **AI 对手**：原版行为模型——自抛 50 次模拟落点、评估命中/落水/地形收益，还会记仇（evilness 加权）；也可切换 2P 同屏热座
-- **海盗生涯循环**：港口招募 → 编成出战小队 → 选图出海 → 星级结算 → 存档（大海域 8 张海图全部可出战，招募按累计星数解锁）
+- **AI 对手**：v0.3.0 发行版为原版行为模型（自抛模拟落点评估、记仇加权）；main 分支评估链已随武器掏空整拔、对手暂只会结束回合，随武器重做再立。也可切换 2P 同屏热座
+- **海盗生涯循环**：港口招募 → 编成出战小队 → 选图出海 → 星级结算 → 存档（v0.3.0 发行版含大海域 8 张海图、招募按累计星数解锁；main 分支海图 101–108 已整批删除待重做，现役 4 张样板关）
 
 ## 🎯 预览 = 实弹
 
@@ -91,12 +94,12 @@
 
 **玩（推荐）**：从 [Releases](https://github.com/fanboran/pirate-crew-3d-unity/releases/tag/v0.3.0) 下载 `PirateCrew3D_v0.3.0_win64.zip`，解压双击 `PirateCrew3D.exe`。
 
-**从源码跑**：Unity Hub 打开 `pirate-crew/` 子目录（**不是仓库根**），Unity 2022.3.62f1c1，菜单 `PirateCrew → 管线 → 一键构建全部资产与场景`（可选），Play `Bootstrapper` 场景。
+**从源码跑**：Unity Hub 打开 `pirate-crew/` 子目录（**不是仓库根**），Unity 2022.3.62f1，菜单 `PirateCrew → 管线 → 一键构建全部资产与场景`（可选），Play `Bootstrapper` 场景。
 
 **从源码构建播放器**（`-buildWindows64Player` 为 Unity 原生命令行参数）：
 
 ```bash
-"F:/Unity/2022.3.62f1c1/Editor/Unity.exe" -batchmode -nographics -quit \
+"F:/Unity/2022.3.62f1/Editor/Unity.exe" -batchmode -nographics -quit \
   -projectPath ./pirate-crew \
   -buildWindows64Player ./external/build/PirateCrew3D.exe -logFile -
 ```
@@ -122,14 +125,15 @@ pirate-crew/Assets/
 
 ## 开发状态与路线图
 
-- ✅ **v0.3.0（当前）**：整套 UI 按 Aseprite 参考库逐像素复刻重做（菜单 / 滚动列表 / 下拉框 / 输入框 / 键盘导航）、相机重构（正交取景 + 观察模式鼠标转视角）、像素画面修正（描边缝隙 / 地面高光 / 角色造型 / 场景档位统一）、屏幕中心准星退役（选人 = 移动模式左键直接点选，观察模式专注巡视）；
+- 🚧 **main 分支进行中**：等距像素卡通美术翻新（像素化着色路径 r1–r25 已接进游戏本体）、武器系统重做（现为标准炸弹占位）、海图 101–108 重做（已整删、主题存档）
+- ✅ **v0.3.0（当前发行）**：整套 UI 按 Aseprite 参考库逐像素复刻重做（菜单 / 滚动列表 / 下拉框 / 输入框 / 键盘导航）、相机重构（正交取景 + 观察模式鼠标转视角）、像素画面修正（描边缝隙 / 地面高光 / 角色造型 / 场景档位统一）、屏幕中心准星退役（选人 = 移动模式左键直接点选，观察模式专注巡视）；
 - ✅ **v0.2.2**：武器/职业 UI 图标真像素化（96 源 → 16 艺术像素 BOX 降采样 → 最近邻 1:1 回放）+
   HUD 全几何吸附 3px 艺术像素栅格（Safe/面板宽/单元格/右列/队血条/徽章/模式钮）；
 - ✅ **v0.2.1**：
 - ✅ **v0.2.0**：全 UI 切 Beveled Pixel 像素皮 + 满精度像素字体（FusionPixel 12px 正文 @36 / ArkPixel 10px 小字 @30）、组件展示实机窗口、游戏本体接像素化渲染管线（640×360 RT 整数放大、UI 与 3D 同颗粒度）、战斗 HUD 紧凑化、版本号单一真源贯通到主菜单显示；
 - ✅ **v0.1.0**：大海域 8 张世界海图（kit 岛 + 径向大海面）为唯一战斗内容、三个自由几何样板关（美术宣传层）、三模式操作、17/17 武器、回合制对战闭环、AI 对手、2P 热座、海盗生涯循环（招募/编成/出海/星级结算）、写实 PBR、音效
 - 🔜 **v0.2.x**：手感 juice（hit-stop/屏震/运镜）、观察模式润色、海面视觉打磨
-- 🗺️ **远期**：Blender 岛体管线批量扩容大海域、本地化（英文）、手柄支持
+- 🗺️ **远期**：Blender 场景管线批量扩容关卡（含海图重做）、本地化（英文）、手柄支持
 
 ## 文档
 
