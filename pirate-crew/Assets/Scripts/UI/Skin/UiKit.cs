@@ -154,7 +154,7 @@ namespace PirateCrew.UI
                 asset = Resources.Load<TMP_FontAsset>(path);
                 _tierCache[path] = asset;
                 if (asset == null)
-                    Debug.LogWarning("[UiKit] Resources/" + path + " 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
+                    global::PirateCrew.Core.Log.Error("[UiKit] Resources/" + path + " 缺失（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产）");
             }
             return asset;
         }

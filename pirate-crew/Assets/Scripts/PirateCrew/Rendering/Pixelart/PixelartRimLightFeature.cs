@@ -164,7 +164,7 @@ namespace PirateCrew.Rendering.Pixelart
                 if (!m_IndicesReported)
                 {
                     m_IndicesReported = true;
-                    Debug.LogError("[PixelartRimLightFeature] 边缘光趟的索引解析失败：pass 「"
+                    global::PirateCrew.Core.Log.Error("[PixelartRimLightFeature] 边缘光趟的索引解析失败：pass 「"
                         + PixelartPath.RimLightPassName + "」= " + m_PassIndex
                         + "（RimLight shader 里没有这条 pass？）、kernel 「" + kCorrectionKernelName
                         + "」= " + m_KernelIndex + "（RimLightCorrection.compute 里没有这个 kernel？）"
@@ -185,7 +185,7 @@ namespace PirateCrew.Rendering.Pixelart
                     return;
 
                 m_Logged = true;
-                Debug.Log("[PixelartRimLightFeature] 边缘光趟已在 " + cameraName + " 上执行：pass "
+                global::PirateCrew.Core.Log.Info("[PixelartRimLightFeature] 边缘光趟已在 " + cameraName + " 上执行：pass "
                     + m_PassIndex + "（按名「" + PixelartPath.RimLightPassName + "」解析）、清洁工 kernel "
                     + m_KernelIndex + "（「" + kCorrectionKernelName + "」）、艺术画布 "
                     + target.width + "×" + target.height
@@ -204,7 +204,7 @@ namespace PirateCrew.Rendering.Pixelart
             Shader shader = rimLightShader != null ? rimLightShader : Shader.Find(PixelartPath.RimLightShaderName);
             if (shader == null)
             {
-                Debug.LogError("[PixelartRimLightFeature] 找不到 shader 「" + PixelartPath.RimLightShaderName
+                global::PirateCrew.Core.Log.Error("[PixelartRimLightFeature] 找不到 shader 「" + PixelartPath.RimLightShaderName
                     + "」（资产引用为空、编译失败或改过名？）。边缘光趟不会生效——"
                     + "重跑装配器 PirateCrew/Pixelart/装配像素化路径渲染器 可重新写入引用。");
                 m_Material = null;
@@ -218,7 +218,7 @@ namespace PirateCrew.Rendering.Pixelart
             {
                 // 报错并整趟不接：compute **没有**按名查找的兜底 API（那是 Shader 的 API），
                 // 序列化引用是唯一入口。去孤立点是契约里这一趟的第三步，缺了它就不算这一趟跑齐了。
-                Debug.LogError("[PixelartRimLightFeature] 没有引用 RimLightCorrection.compute"
+                global::PirateCrew.Core.Log.Error("[PixelartRimLightFeature] 没有引用 RimLightCorrection.compute"
                     + "（rimLightCorrectionShader 字段为空）。本趟不会接入（画面不会有边缘光）——"
                     + "重跑装配器可写入该引用。");
                 m_Pass = null;

@@ -132,7 +132,7 @@ namespace PirateCrew.ArtReview
                     }
                     else
                     {
-                        Debug.LogError("[PlayerArtCapture] -pixelartLevel " + level
+                        global::PirateCrew.Core.Log.Error("[PlayerArtCapture] -pixelartLevel " + level
                             + " 不在取景表里（现存样板关 1 与 3、海图 101–108，号段有意不连续）——回落到关卡 "
                             + PixelartDefaultLevel + "。");
                         if (PixelartLevelScene.TryGet(PixelartDefaultLevel, out PixelartLevelView fallback))
@@ -249,7 +249,7 @@ namespace PirateCrew.ArtReview
             yield return null;
             if (SceneManager.GetActiveScene().name != SceneNames.Battle)
             {
-                Debug.LogError("[PlayerArtCapture] Battle 场景加载失败，当前场景："
+                global::PirateCrew.Core.Log.Error("[PlayerArtCapture] Battle 场景加载失败，当前场景："
                     + SceneManager.GetActiveScene().name + "——中止采集");
                 Application.Quit(1);
                 yield break;
@@ -475,7 +475,7 @@ namespace PirateCrew.ArtReview
             yield return null;
             if (SceneManager.GetActiveScene().name != sceneName)
             {
-                Debug.LogError("[PlayerArtCapture] " + sceneName + " 场景加载失败（Build Settings 未注册？），当前："
+                global::PirateCrew.Core.Log.Error("[PlayerArtCapture] " + sceneName + " 场景加载失败（Build Settings 未注册？），当前："
                     + SceneManager.GetActiveScene().name);
                 Application.Quit(1);
                 yield break;
@@ -487,7 +487,7 @@ namespace PirateCrew.ArtReview
             Camera cam = Camera.main;
             if (cam == null)
             {
-                Debug.LogError("[PlayerArtCapture] " + sceneName + " 场景里找不到 MainCamera。");
+                global::PirateCrew.Core.Log.Error("[PlayerArtCapture] " + sceneName + " 场景里找不到 MainCamera。");
                 Application.Quit(1);
                 yield break;
             }
@@ -495,7 +495,7 @@ namespace PirateCrew.ArtReview
             var rig = cam.GetComponent<global::PirateCrew.Rendering.Pixelart.PixelartCameraRig>();
             if (rig == null)
             {
-                Debug.LogError("[PlayerArtCapture] 相机上没有 PixelartCameraRig——这条路没被装配。");
+                global::PirateCrew.Core.Log.Error("[PlayerArtCapture] 相机上没有 PixelartCameraRig——这条路没被装配。");
                 Application.Quit(1);
                 yield break;
             }

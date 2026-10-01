@@ -87,7 +87,7 @@ namespace PirateCrew.UI.DebugUi
             TextAsset xmlAsset = Resources.Load<TextAsset>("AseWidgets/" + widgetName);
             if (xmlAsset == null)
             {
-                Debug.LogError("[AseDialogLoader] 找不到声明资产 AseWidgets/" + widgetName
+                global::PirateCrew.Core.Log.Error("[AseDialogLoader] 找不到声明资产 AseWidgets/" + widgetName
                     + "（菜单 PirateCrew/同步 Aseprite widgets 资产）");
                 return null;
             }
@@ -96,13 +96,13 @@ namespace PirateCrew.UI.DebugUi
             try { doc = XDocument.Parse(xmlAsset.text); }
             catch (System.Exception e)
             {
-                Debug.LogError("[AseDialogLoader] xml 解析失败 " + widgetName + "：" + e.Message);
+                global::PirateCrew.Core.Log.Error("[AseDialogLoader] xml 解析失败 " + widgetName + "：" + e.Message);
                 return null;
             }
             XElement win = doc.Root?.Element("window");
             if (win == null)
             {
-                Debug.LogError("[AseDialogLoader] " + widgetName + " 无 <window> 根件。");
+                global::PirateCrew.Core.Log.Error("[AseDialogLoader] " + widgetName + " 无 <window> 根件。");
                 return null;
             }
 
@@ -974,7 +974,7 @@ namespace PirateCrew.UI.DebugUi
                     node = BuildButton(el, parent, ctx);
                     break;
                 default:
-                    Debug.LogWarning("[AseDialogLoader] 未实现语义 <" + el.Name.LocalName
+                    global::PirateCrew.Core.Log.Error("[AseDialogLoader] 未实现语义 <" + el.Name.LocalName
                         + ">（" + ctx.WidgetName + "）跳过——覆盖表登记");
                     return null;
             }
@@ -1080,7 +1080,7 @@ namespace PirateCrew.UI.DebugUi
             if (columns <= 0)
             {
                 // widget_loader.cpp:250-257：无 columns 不建 Grid（元素被丢弃）。
-                Debug.LogWarning("[AseDialogLoader] <grid> 缺 columns（" + ctx.WidgetName + "）跳过");
+                global::PirateCrew.Core.Log.Error("[AseDialogLoader] <grid> 缺 columns（" + ctx.WidgetName + "）跳过");
                 return null;
             }
 
@@ -1267,7 +1267,7 @@ namespace PirateCrew.UI.DebugUi
             int columns = IntAttr(el, "columns", 0);
             if (columns <= 0)
             {
-                Debug.LogWarning("[AseDialogLoader] <buttonset> 缺 columns（" + ctx.WidgetName + "）跳过");
+                global::PirateCrew.Core.Log.Error("[AseDialogLoader] <buttonset> 缺 columns（" + ctx.WidgetName + "）跳过");
                 return null;
             }
 
@@ -1497,7 +1497,7 @@ namespace PirateCrew.UI.DebugUi
             var map = new Dictionary<string, Dictionary<string, string>>();
             if (string.IsNullOrEmpty(ini))
             {
-                Debug.LogWarning("[AseStrings] en.ini.txt 未找到——@ 文案引用将回退原串");
+                global::PirateCrew.Core.Log.Error("[AseStrings] en.ini.txt 未找到——@ 文案引用将回退原串");
                 return map;
             }
             string section = null;

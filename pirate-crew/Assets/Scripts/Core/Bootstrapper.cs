@@ -62,7 +62,7 @@ namespace PirateCrew.Core
             // 服务已在 Awake 中就绪，进入主菜单（默认）。
             if (!Services.TryGet<SceneLoader>(out SceneLoader loader))
             {
-                Debug.LogError("[Bootstrapper] SceneLoader 未创建，无法进入主菜单。");
+                global::PirateCrew.Core.Log.Error("[Bootstrapper] SceneLoader 未创建，无法进入主菜单。");
                 return;
             }
 

@@ -95,7 +95,7 @@ namespace PirateCrew.UI
                     s_loaded = true;
                     s_asset = Resources.Load<PixelSkinAsset>(AssetPath);
                     if (s_asset == null)
-                        Debug.LogError("[PixelSkin] 图集资产缺失：Resources/" + AssetPath
+                        global::PirateCrew.Core.Log.Error("[PixelSkin] 图集资产缺失：Resources/" + AssetPath
                             + ".asset（Editor 侧跑 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格 重新生成）。");
                 }
                 return s_asset;
@@ -118,7 +118,7 @@ namespace PirateCrew.UI
             PixelSkinAsset a = Asset;
             if (a == null || a.AsePartNames == null || a.AseParts == null)
             {
-                Debug.LogError("[PixelSkin] 图集缺 aseParts 表——重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
+                global::PirateCrew.Core.Log.Error("[PixelSkin] 图集缺 aseParts 表——重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
                 return null;
             }
             if (s_aseIndex == null)
@@ -135,7 +135,7 @@ namespace PirateCrew.UI
             }
             if (s_aseIndex.TryGetValue(partId, out int idx) && a.AseParts[idx] != null)
                 return a.AseParts[idx];
-            Debug.LogError("[PixelSkin] 图集缺 Aseprite 直切件 \"" + partId
+            global::PirateCrew.Core.Log.Error("[PixelSkin] 图集缺 Aseprite 直切件 \"" + partId
                 + "\"——全量迁移由烘焙器枚举 theme.xml <parts>（345 件），重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
             return null;
         }
@@ -313,14 +313,14 @@ namespace PirateCrew.UI
         {
             if (array != null && index >= 0 && index < array.Count && array[index] != null)
                 return array[index];
-            Debug.LogError("[PixelSkin] 图集缺 " + what + "——重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
+            global::PirateCrew.Core.Log.Error("[PixelSkin] 图集缺 " + what + "——重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
             return null;
         }
 
         static Sprite Single(string what, Sprite sprite)
         {
             if (sprite == null)
-                Debug.LogError("[PixelSkin] 图集缺 " + what + "——重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
+                global::PirateCrew.Core.Log.Error("[PixelSkin] 图集缺 " + what + "——重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
             return sprite;
         }
 
@@ -330,7 +330,7 @@ namespace PirateCrew.UI
             int i = (int)tone * 3 + shade;
             if (a != null && i < a.ToneColors.Count)
                 return a.ToneColors[i];
-            Debug.LogError("[PixelSkin] 图集缺 tone " + tone + " 的取色令牌。");
+            global::PirateCrew.Core.Log.Error("[PixelSkin] 图集缺 tone " + tone + " 的取色令牌。");
             return new Color32(255, 0, 255, 255);
         }
     }

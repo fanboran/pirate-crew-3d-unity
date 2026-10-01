@@ -19,9 +19,10 @@ namespace PirateCrew.ArtReview
         [GameBootstrap(GameBootstrapPhase.Initialize, order: 150)]
         internal static void Install()
         {
-            string outDir = GetArg("-orbitOut");
-            int level = GetIntArg("-orbitLevel");
-            if (string.IsNullOrEmpty(outDir) || level <= 0)
+            string outDir = CommandLineOptions.GetValue(ToolFlags.OrbitOut);
+            if (string.IsNullOrEmpty(outDir)
+                || !CommandLineOptions.TryGetInt(ToolFlags.OrbitLevel, out int level)
+                || level <= 0)
                 return;
 
             outDir = Path.GetFullPath(outDir);
@@ -29,23 +30,6 @@ namespace PirateCrew.ArtReview
             var go = new GameObject("[ChemPlantOrbitCapture]");
             go.AddComponent<OrbitRunner>().Setup(outDir, level);
             Object.DontDestroyOnLoad(go);
-        }
-
-        static string GetArg(string name)
-        {
-            var args = System.Environment.GetCommandLineArgs();
-            for (int i = 0; i < args.Length - 1; i++)
-            {
-                if (args[i] == name)
-                    return args[i + 1];
-            }
-            return null;
-        }
-
-        static int GetIntArg(string name)
-        {
-            string v = GetArg(name);
-            return v != null && int.TryParse(v, out int n) ? n : 0;
         }
 
         sealed class OrbitRunner : MonoBehaviour
@@ -76,12 +60,12 @@ namespace PirateCrew.ArtReview
                 yield return null;
 
                 Vector3 center = ResolveCenter();
-                Debug.Log("[Orbit] level=" + _level + " center=" + center.ToString("0.0"));
+                global::PirateCrew.Core.Log.Info("[Orbit] level=" + _level + " center=" + center.ToString("0.0"));
 
                 cam = Camera.main;
                 if (cam == null)
                 {
-                    Debug.LogError("[Orbit] 找不到主相机");
+                    global::PirateCrew.Core.Log.Error("[Orbit] 找不到主相机");
                     yield break;
                 }
 
@@ -106,7 +90,7 @@ namespace PirateCrew.ArtReview
                     }
                 }
 
-                Debug.Log("[Orbit] 完成 " + shot + " 张");
+                global::PirateCrew.Core.Log.Info("[Orbit] 完成 " + shot + " 张");
                 yield return new WaitForSeconds(1f);
                 Application.Quit();
             }
@@ -124,12 +108,12 @@ namespace PirateCrew.ArtReview
                     if (renderers.Length == 0) continue;
                     Bounds b = renderers[0].bounds;
                     for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
-                    Debug.Log("[Orbit] 陈设件 " + name + " bounds=" + b.size.ToString("0.0")
+                    global::PirateCrew.Core.Log.Info("[Orbit] 陈设件 " + name + " bounds=" + b.size.ToString("0.0")
                         + " center=" + b.center.ToString("0.0"));
                     Transform t = go.transform;
                     while (t != null)
                     {
-                        Debug.Log("[Orbit]   链 " + t.name + " localRot=" + t.localRotation.eulerAngles.ToString("0.0")
+                        global::PirateCrew.Core.Log.Info("[Orbit]   链 " + t.name + " localRot=" + t.localRotation.eulerAngles.ToString("0.0")
                             + " worldRot=" + t.rotation.eulerAngles.ToString("0.0")
                             + " localPos=" + t.localPosition.ToString("0.0")
                             + " lossyScale=" + t.lossyScale.ToString("0.00"));

@@ -248,6 +248,12 @@ namespace PirateCrew.Core
         /// <summary>场景资产样板出图目录：<c>-sceneKitOut &lt;绝对目录&gt;</c>。</summary>
         public const string SceneKitOut = "-sceneKitOut";
 
+        /// <summary>环绕诊断出图输出目录：<c>-orbitOut &lt;绝对目录&gt;</c>（见 ChemPlantOrbitCapture）。</summary>
+        public const string OrbitOut = "-orbitOut";
+
+        /// <summary>环绕诊断出图的样板关序号：<c>-orbitLevel &lt;N&gt;</c>（复用关卡覆盖通道出该关）。</summary>
+        public const string OrbitLevel = "-orbitLevel";
+
 
         /// <summary>水面 shader 调试档：<c>-oceanDebug &lt;0-13&gt;</c>（模块自有开关，见 OceanRig）。</summary>
         public const string OceanDebug = "-oceanDebug";

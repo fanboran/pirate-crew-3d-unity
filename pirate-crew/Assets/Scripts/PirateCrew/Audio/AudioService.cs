@@ -347,7 +347,7 @@ namespace PirateCrew.Audio
                     handler = OnSceneLoadStarted;
                     break;
                 default:
-                    Debug.LogError("[AudioService] 订阅表里有未接线的频道: " + channel.GetType().FullName);
+                    global::PirateCrew.Core.Log.Error("[AudioService] 订阅表里有未接线的频道: " + channel.GetType().FullName);
                     return null;
             }
 
@@ -995,7 +995,7 @@ namespace PirateCrew.Audio
             }
             catch (Exception e)
             {
-                Debug.LogError("[AudioService] 运行时合成失败 " + id + ": " + e.Message);
+                global::PirateCrew.Core.Log.Error("[AudioService] 运行时合成失败 " + id + ": " + e.Message);
                 return null;
             }
         }

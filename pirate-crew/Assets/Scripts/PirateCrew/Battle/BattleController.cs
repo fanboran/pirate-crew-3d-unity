@@ -190,7 +190,7 @@ namespace PirateCrew.Battle
             if (turnManager != null)
                 turnManager.StartBattle();
             else
-                Debug.LogError("[BattleController] 未接线 TurnManager，回合不会推进。");
+                global::PirateCrew.Core.Log.Error("[BattleController] 未接线 TurnManager，回合不会推进。");
         }
 
         void OnEnable()
@@ -256,13 +256,13 @@ namespace PirateCrew.Battle
             _source = LevelSourceResolver.Resolve();
             if (_source == null)
             {
-                Debug.LogError("[BattleController] 取不到任何关卡数据：检查 Assets/Data/Levels/Resources/LevelCatalog.asset "
+                global::PirateCrew.Core.Log.Error("[BattleController] 取不到任何关卡数据：检查 Assets/Data/Levels/Resources/LevelCatalog.asset "
                     + "是否已生成并列入构建（或开发者机上的 Assets/Data/**/_golden/*.json 是否齐全）。本局不组建战斗。");
                 return false;
             }
 
             if (!string.IsNullOrEmpty(_source.Notice))
-                Debug.LogWarning(_source.Notice);
+                global::PirateCrew.Core.Log.Warn(_source.Notice);
 
             _worldMap = _source.WorldMap;
             _plan = _source.Plan;
@@ -414,7 +414,7 @@ namespace PirateCrew.Battle
         {
             if (piratePrefab == null && !HasAnyCrewVisualPrefab())
             {
-                Debug.LogError("[BattleController] 未配置 PirateBase 预制体，无法生成出战单位。");
+                global::PirateCrew.Core.Log.Error("[BattleController] 未配置 PirateBase 预制体，无法生成出战单位。");
                 return;
             }
 

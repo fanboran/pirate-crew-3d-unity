@@ -131,23 +131,23 @@ namespace PirateCrew.Battle.WorldMaps
                 {
                     if (SetPendingShowcase(bootLevel))
                     {
-                        Debug.Log("[WorldMapRuntime] -bootBattle " + bootLevel
+                        global::PirateCrew.Core.Log.Info("[WorldMapRuntime] -bootBattle " + bootLevel
                             + "：启动即进手作样板关 " + bootLevel + "。");
                         return;
                     }
 
-                    Debug.LogWarning("[WorldMapRuntime] -bootBattle " + bootLevel
+                    global::PirateCrew.Core.Log.Warn("[WorldMapRuntime] -bootBattle " + bootLevel
                         + " 不是已登记的样板关（关卡表里没有它），忽略。");
                 }
                 else if (WorldMapCatalog.TryGet(boot, out _))
                 {
                     _pendingMapId = boot;
-                    Debug.Log("[WorldMapRuntime] -bootBattle " + boot + "：启动即进海图。");
+                    global::PirateCrew.Core.Log.Info("[WorldMapRuntime] -bootBattle " + boot + "：启动即进海图。");
                     return;
                 }
                 else
                 {
-                    Debug.LogWarning("[WorldMapRuntime] -bootBattle " + boot
+                    global::PirateCrew.Core.Log.Warn("[WorldMapRuntime] -bootBattle " + boot
                         + " 既不是关卡号也不是海图 id，忽略。");
                 }
             }
@@ -159,7 +159,7 @@ namespace PirateCrew.Battle.WorldMaps
             if (WorldMapCatalog.TryGet(requested, out _))
                 _pendingMapId = requested;
             else
-                Debug.LogWarning(string.Format(
+                global::PirateCrew.Core.Log.Warn(string.Format(
                     "[WorldMapRuntime] -worldMap {0} 不在目录中，忽略（共 {1} 张：wreck_hymn…sunken_gate）",
                     requested, WorldMapCatalog.Count));
         }
@@ -194,7 +194,7 @@ namespace PirateCrew.Battle.WorldMaps
                 // 越界时钳进边界格并点名——数据侧病根（出生点超出地图 Span）靠日志暴露。
                 if (gridX < 0 || gridY < 0 || gridX >= widthTiles || gridY >= depthTiles)
                 {
-                    Debug.LogWarning(string.Format(
+                    global::PirateCrew.Core.Log.Error(string.Format(
                         "[WorldMapRuntime] [{0}] spawn#{1} ({2:F1},{3:F1}) 格 ({4},{5}) 越界"
                         + "（块表 {6}x{7}），已钳入边界格。",
                         map.Id, i, spawn.X, spawn.Z, gridX, gridY, widthTiles, depthTiles));
@@ -209,7 +209,7 @@ namespace PirateCrew.Battle.WorldMaps
                 if (string.IsNullOrEmpty(spawn.Archetype) && !_warnedBlankArchetype)
                 {
                     _warnedBlankArchetype = true;
-                    Debug.LogWarning(string.Format(
+                    global::PirateCrew.Core.Log.Error(string.Format(
                         "[WorldMapRuntime] [{0}] spawn#{1} 的 Archetype 为空，视为普通船员（非 Captain）。",
                         map.Id, i));
                 }
@@ -272,7 +272,7 @@ namespace PirateCrew.Battle.WorldMaps
                 }
                 else
                 {
-                    Debug.LogWarning(string.Format(
+                    global::PirateCrew.Core.Log.Error(string.Format(
                         "[{0}] spawn#{1} ({2:F1},{3:F1}) 不在任何站面 box 上（水面），"
                         + "块表保留栅格化原值——请把出生点挪回站面（校验见 WorldMapRules.ValidateSpawns）。",
                         map.Id, i, p.x, p.y));

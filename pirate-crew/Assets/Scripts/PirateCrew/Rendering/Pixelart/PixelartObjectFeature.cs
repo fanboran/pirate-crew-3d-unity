@@ -70,7 +70,7 @@ namespace PirateCrew.Rendering.Pixelart
                     if (!m_Logged)
                     {
                         m_Logged = true;
-                        Debug.Log("[PixelartObjectFeature] 物体 pass 已在 " + camera.name
+                        global::PirateCrew.Core.Log.Info("[PixelartObjectFeature] 物体 pass 已在 " + camera.name
                             + " 上执行：屏幕档 " + rig.FineWidth + "×" + rig.FineHeight
                             + "，7 张 G-buffer + 可采样深度（艺术画布 " + rig.RenderWidth + "×"
                             + rig.RenderHeight + "）。");

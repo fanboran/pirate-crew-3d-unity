@@ -443,7 +443,7 @@ namespace PirateCrew.Battle
                 if (_warnedEmptyCollection)
                     return;
                 _warnedEmptyCollection = true;
-                Debug.LogError("[UnitOutlineBinder] " + name + " 一个描边 renderer 都没收集到"
+                global::PirateCrew.Core.Log.Error("[UnitOutlineBinder] " + name + " 一个描边 renderer 都没收集到"
                     + "（子层级里没有 Renderer，或全被排除了）。选中/悬停不会画出任何描边——"
                     + "请检查预制体的 Visual 层级。");
                 return;

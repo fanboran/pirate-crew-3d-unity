@@ -227,7 +227,7 @@ namespace PirateCrew.Rendering.Pixelart
                 m_CopyMaterial = PixelartPath.CreateCoreBlitMaterial();
                 if (m_CopyMaterial == null)
                 {
-                    Debug.LogError("[PixelartConnectivityFeature] 找不到 shader「"
+                    global::PirateCrew.Core.Log.Error("[PixelartConnectivityFeature] 找不到 shader「"
                         + PixelartPath.CoreBlitShaderName + "」，Flood 的整张拷贝没有实现，"
                         + "连通域这一段不会生效。");
                 }
@@ -282,7 +282,7 @@ namespace PirateCrew.Rendering.Pixelart
                 if (!m_MissingShaderWarned)
                 {
                     m_MissingShaderWarned = true;
-                    Debug.LogError("[PixelartConnectivityFeature] compute 资产引用不全（check="
+                    global::PirateCrew.Core.Log.Error("[PixelartConnectivityFeature] compute 资产引用不全（check="
                         + (checkShader != null ? checkShader.name : "空")
                         + " flood=" + (floodShader != null ? floodShader.name : "空")
                         + " result=" + (resultShader != null ? resultShader.name : "空")
@@ -299,7 +299,7 @@ namespace PirateCrew.Rendering.Pixelart
 
             if (m_CheckKernel < 0 || m_FloodKernel < 0 || m_ResultKernel < 0)
             {
-                Debug.LogError("[PixelartConnectivityFeature] 找不到 kernel「" + kKernelName
+                global::PirateCrew.Core.Log.Error("[PixelartConnectivityFeature] 找不到 kernel「" + kKernelName
                     + "」：check=" + m_CheckKernel + " flood=" + m_FloodKernel
                     + " result=" + m_ResultKernel + "——连通域不派发（kernel 一律按名字解析，"
                     + "三个 .compute 里的 kernel 名必须都是 " + kKernelName + "）。");
@@ -332,7 +332,7 @@ namespace PirateCrew.Rendering.Pixelart
             if (!m_IntermediatesLogged)
             {
                 m_IntermediatesLogged = true;
-                Debug.Log("[PixelartConnectivityFeature] 中间缓冲已就绪：ConnectivityDetail / ConnectivityPrev "
+                global::PirateCrew.Core.Log.Info("[PixelartConnectivityFeature] 中间缓冲已就绪：ConnectivityDetail / ConnectivityPrev "
                     + fineWidth + "×" + fineHeight + "（屏幕档，ARGB32，enableRandomWrite）。");
             }
             return true;
@@ -349,7 +349,7 @@ namespace PirateCrew.Rendering.Pixelart
                 if (!m_NotDispatchableWarned)
                 {
                     m_NotDispatchableWarned = true;
-                    Debug.LogError("[PixelartConnectivityFeature] rig 的 Normal0 / Depth / ConnectivityResult "
+                    global::PirateCrew.Core.Log.Error("[PixelartConnectivityFeature] rig 的 Normal0 / Depth / ConnectivityResult "
                         + "缓冲有空值——连通域不派发。");
                 }
                 return false;
@@ -360,7 +360,7 @@ namespace PirateCrew.Rendering.Pixelart
                 if (!m_NotDispatchableWarned)
                 {
                     m_NotDispatchableWarned = true;
-                    Debug.LogError("[PixelartConnectivityFeature] rig.ConnectivityResultBuffer 没有开 "
+                    global::PirateCrew.Core.Log.Error("[PixelartConnectivityFeature] rig.ConnectivityResultBuffer 没有开 "
                         + "enableRandomWrite，compute 的 UAV 绑不上（写入会被静默丢弃、且不报错）"
                         + "——连通域不派发。修法：PixelartCameraRig 分配这张缓冲时在 "
                         + "RenderTextureDescriptor 里置 enableRandomWrite = true。");
@@ -378,7 +378,7 @@ namespace PirateCrew.Rendering.Pixelart
                 return;
 
             m_ExecutedLogged = true;
-            Debug.Log("[PixelartConnectivityFeature] 连通域三阶段已在「"
+            global::PirateCrew.Core.Log.Info("[PixelartConnectivityFeature] 连通域三阶段已在「"
                 + rig.CastCamera.name + "」上执行：Check + Flood × " + floodIterations
                 + "（屏幕档 " + fineWidth + "×" + fineHeight + "，pixelScale " + rig.PixelScale
                 + "）→ Result（艺术画布 " + artWidth + "×" + artHeight

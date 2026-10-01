@@ -267,7 +267,7 @@ namespace PirateCrew.Rendering.Pixelart
             _screenCamera = GetComponent<Camera>();
             if (_screenCamera == null)
             {
-                Debug.LogError("[PixelartCameraRig] 本组件必须挂在相机上。");
+                global::PirateCrew.Core.Log.Error("[PixelartCameraRig] 本组件必须挂在相机上。");
                 enabled = false;
                 return;
             }
@@ -574,7 +574,7 @@ namespace PirateCrew.Rendering.Pixelart
             if (mainData != null && !mainData.cameraStack.Contains(_overlayCamera))
                 mainData.cameraStack.Add(_overlayCamera);
 
-            Debug.Log("[PixelartCameraRig] 透明件叠加相机已建（栈内 Overlay，渲染器 " + overlayRendererIndex
+            global::PirateCrew.Core.Log.Info("[PixelartCameraRig] 透明件叠加相机已建（栈内 Overlay，渲染器 " + overlayRendererIndex
                 + "，只画 Transparent 队列）—— FX / 危险虚线 / 接触阴影 / 弹道预览走这一档。");
         }
 
@@ -588,7 +588,7 @@ namespace PirateCrew.Rendering.Pixelart
             if (_unsupportedDeviceLogged)
                 return;
             _unsupportedDeviceLogged = true;
-            Debug.LogWarning("[PixelartCameraRig] 本设备不支持本路径（需要同时绑 " + GbufferCount
+            global::PirateCrew.Core.Log.Warn("[PixelartCameraRig] 本设备不支持本路径（需要同时绑 " + GbufferCount
                 + " 张渲染目标 + compute UAV）：当前 渲染目标上限 " + SystemInfo.supportedRenderTargetCount
                 + "、compute " + (SystemInfo.supportsComputeShaders ? "支持" : "不支持")
                 + "。像素化路径整趟 inert（常见于批处理 `-nographics` 与无头测试环境，真 GPU 上不会出现）。");
@@ -675,9 +675,9 @@ namespace PirateCrew.Rendering.Pixelart
                 FineWidth, FineHeight, RenderHeight * worldPerPixel, worldPerPixel);
 
             if (_exactScale)
-                Debug.Log(line + " —— 整数映射严格成立。");
+                global::PirateCrew.Core.Log.Info(line + " —— 整数映射严格成立。");
             else
-                Debug.LogWarning(line + " —— **非严格整数映射**：右/下残余 "
+                global::PirateCrew.Core.Log.Warn(line + " —— **非严格整数映射**：右/下残余 "
                     + _residualX + "×" + _residualY + " 屏幕像素（落在一条边上）。"
                     + "屏幕宽高同时能被 " + _chosenScale + " 整除时才会完全对齐。");
         }
@@ -701,7 +701,7 @@ namespace PirateCrew.Rendering.Pixelart
                     shaderMatched++;
             }
 
-            Debug.Log("[PixelartCameraRig] 自检：屏幕相机 " + _screenCamera.name
+            global::PirateCrew.Core.Log.Info("[PixelartCameraRig] 自检：屏幕相机 " + _screenCamera.name
                 + "（层掩码 0 + 不清屏）、Cast 相机 " + (_castCamera != null ? _castCamera.name : "<无>")
                 + "（层掩码 " + _savedCullingMask + "）、艺术画布 " + RenderWidth + "×" + RenderHeight
                 + "、屏幕档 " + FineWidth + "×" + FineHeight
@@ -851,7 +851,7 @@ namespace PirateCrew.Rendering.Pixelart
 
             Color lightLinear = lightColor.linear;
             Color ambientLinear = ambient.linear;
-            Debug.Log(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+            global::PirateCrew.Core.Log.Info(string.Format(System.Globalization.CultureInfo.InvariantCulture,
                 "[PixelartCameraRig] 下发值：lightDir=({0:F4},{1:F4},{2:F4}) "
                 + "lightColorLinear=({3:F4},{4:F4},{5:F4}) ambientLinear=({6:F4},{7:F4},{8:F4}) "
                 + "unitSize={9:F6} fineUnitSize={10:F6} rt={11}x{12} fine={13}x{14} k={15}",

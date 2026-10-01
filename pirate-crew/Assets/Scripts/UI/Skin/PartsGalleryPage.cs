@@ -61,7 +61,7 @@ namespace PirateCrew.UI
                 || a.AseParts.Count != a.AsePartNames.Count
                 || a.AseParts.Count != a.AsePartFamilies.Count)
             {
-                Debug.LogError("[PartsGalleryPage] 图集直切件表缺失或不对齐——先重烘焙（PirateCrew/UI/重烘焙 Beveled Pixel 九宫格）。");
+                global::PirateCrew.Core.Log.Error("[PartsGalleryPage] 图集直切件表缺失或不对齐——先重烘焙（PirateCrew/UI/重烘焙 Beveled Pixel 九宫格）。");
                 yield break;
             }
 
@@ -182,7 +182,7 @@ namespace PirateCrew.UI
             TMP_FontAsset font = Resources.Load<TMP_FontAsset>(UiKit.BodyPixelFontPath);
             if (font == null)
             {
-                Debug.LogWarning("[PartsGalleryPage] Resources/" + UiKit.BodyPixelFontPath + " 缺失"
+                global::PirateCrew.Core.Log.Error("[PartsGalleryPage] Resources/" + UiKit.BodyPixelFontPath + " 缺失"
                     + "（跑 PirateCrew/Fonts/强制重建 TMP 中文字体资产 后可用），回落默认字体");
                 return null;
             }

@@ -144,7 +144,7 @@ namespace PirateCrew.Rendering.Pixelart
 
                 if (m_DiffusePass < 0 || m_SpecularPass < 0 || m_GIPass < 0 || m_CombinePass < 0)
                 {
-                    Debug.LogError("[PixelartShadingFeature] 着色 shader 里找不到 pass："
+                    global::PirateCrew.Core.Log.Error("[PixelartShadingFeature] 着色 shader 里找不到 pass："
                         + PixelartPath.DiffusePassName + "(" + m_DiffusePass + ") / "
                         + PixelartPath.SpecularPassName + "(" + m_SpecularPass + ") / "
                         + PixelartPath.GIPassName + "(" + m_GIPass + ") / "
@@ -156,7 +156,7 @@ namespace PirateCrew.Rendering.Pixelart
                 if (!m_Logged)
                 {
                     m_Logged = true;
-                    Debug.Log("[PixelartShadingFeature] 着色四趟已在 " + cameraName + " 上执行：Diffuse "
+                    global::PirateCrew.Core.Log.Info("[PixelartShadingFeature] 着色四趟已在 " + cameraName + " 上执行：Diffuse "
                         + m_DiffusePass + " / Specular " + m_SpecularPass + " / GI " + m_GIPass
                         + " / Combine " + m_CombinePass + "（按 pass 名解析）。");
                 }
@@ -172,7 +172,7 @@ namespace PirateCrew.Rendering.Pixelart
             Shader shader = shadingShader != null ? shadingShader : Shader.Find(PixelartPath.ShadingShaderName);
             if (shader == null)
             {
-                Debug.LogError("[PixelartShadingFeature] 找不到 shader \"" + PixelartPath.ShadingShaderName
+                global::PirateCrew.Core.Log.Error("[PixelartShadingFeature] 找不到 shader \"" + PixelartPath.ShadingShaderName
                     + "\"（资产引用为空、编译失败或改过名？）。着色四趟不会生效——"
                     + "重跑装配器 PirateCrew/Pixelart/装配像素化路径渲染器可重新写入引用。");
                 m_Material = null;

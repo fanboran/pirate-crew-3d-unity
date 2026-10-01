@@ -83,7 +83,7 @@ namespace PirateCrew.Rendering
                 if (!m_ShaderMissingLogged)
                 {
                     m_ShaderMissingLogged = true;
-                    Debug.LogError("[PixelationRendererFeature] 未找到 shader \"" + CoreBlitShaderName
+                    global::PirateCrew.Core.Log.Error("[PixelationRendererFeature] 未找到 shader \"" + CoreBlitShaderName
                         + "\"——URP 包异常或被改名，请核对 com.unity.render-pipelines.universal 版本。");
                 }
                 return;

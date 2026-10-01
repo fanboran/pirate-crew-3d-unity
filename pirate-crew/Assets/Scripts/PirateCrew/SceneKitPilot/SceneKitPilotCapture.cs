@@ -76,7 +76,7 @@ namespace PirateCrew.SceneKitPilot
             yield return null;
             if (SceneManager.GetActiveScene().name != SceneName)
             {
-                Debug.LogError("[SceneKitPilotCapture] " + SceneName
+                global::PirateCrew.Core.Log.Error("[SceneKitPilotCapture] " + SceneName
                     + " 场景加载失败（未登记进 Build Settings？），当前场景："
                     + SceneManager.GetActiveScene().name + "——中止采集");
                 Application.Quit(1);
@@ -108,14 +108,14 @@ namespace PirateCrew.SceneKitPilot
                     yield return null;
                 if (!File.Exists(path))
                 {
-                    Debug.LogError("[SceneKitPilotCapture] 截图未落盘：" + path + "——中止采集");
+                    global::PirateCrew.Core.Log.Error("[SceneKitPilotCapture] 截图未落盘：" + path + "——中止采集");
                     Application.Quit(1);
                     yield break;
                 }
                 yield return new WaitForSeconds(0.2f);
             }
 
-            Debug.Log("[SceneKitPilotCapture] 采集完成（6 张 1280x720），退出。目录：" + _outDir);
+            global::PirateCrew.Core.Log.Info("[SceneKitPilotCapture] 采集完成（6 张 1280x720），退出。目录：" + _outDir);
             yield return new WaitForSeconds(0.5f);
             Application.Quit(0);
         }

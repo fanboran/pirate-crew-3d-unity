@@ -253,7 +253,7 @@ namespace PirateCrew.UI
                     if (_buildRetryAttempts >= BuildRetryMaxAttempts)
                     {
                         _buildAbandoned = true;
-                        Debug.LogWarning("[BattleMinimap] 连续 " + BuildRetryMaxAttempts
+                        global::PirateCrew.Core.Log.Error("[BattleMinimap] 连续 " + BuildRetryMaxAttempts
                                          + " 次建点失败（找不到 PirateBase）：unitRoots 接线缺失或单位未生成，"
                                          + "小地图停建。修复：HudMinimapSceneSetup 接线 / 检查单位生成时序。");
                     }

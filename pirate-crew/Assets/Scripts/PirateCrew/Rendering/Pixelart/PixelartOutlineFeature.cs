@@ -113,7 +113,7 @@ namespace PirateCrew.Rendering.Pixelart
                     if (!m_PassMissingLogged)
                     {
                         m_PassMissingLogged = true;
-                        Debug.LogError("[PixelartOutlineFeature] 描边 shader 里找不到 pass 「"
+                        global::PirateCrew.Core.Log.Error("[PixelartOutlineFeature] 描边 shader 里找不到 pass 「"
                             + PixelartPath.OutlinePassName + "」——本帧不描边（画面不会有墨线）。"
                             + "检查 shader 的 Pass 名是否被改名（契约 §2.1）。");
                     }
@@ -124,7 +124,7 @@ namespace PirateCrew.Rendering.Pixelart
                 {
                     m_Logged = true;
                     PixelartCameraRig rig = PixelartPath.ActiveRig;
-                    Debug.Log("[PixelartOutlineFeature] 描边 pass 已在 " + cameraName + " 上执行"
+                    global::PirateCrew.Core.Log.Info("[PixelartOutlineFeature] 描边 pass 已在 " + cameraName + " 上执行"
                         + "（艺术画布 " + rig.RenderWidth + "×" + rig.RenderHeight
                         + "，邻域偏移 1 艺术像素、pixelScale " + rig.PixelScale
                         + "；pass " + m_PassIndex + " 按名解析）。");
@@ -141,7 +141,7 @@ namespace PirateCrew.Rendering.Pixelart
             Shader shader = outlineShader != null ? outlineShader : Shader.Find(PixelartPath.OutlineShaderName);
             if (shader == null)
             {
-                Debug.LogError("[PixelartOutlineFeature] 找不到 shader「" + PixelartPath.OutlineShaderName
+                global::PirateCrew.Core.Log.Error("[PixelartOutlineFeature] 找不到 shader「" + PixelartPath.OutlineShaderName
                     + "」（资产引用为空、编译失败或改过名？）。描边不会生效——"
                     + "重跑装配器 PirateCrew/Pixelart/装配像素化路径渲染器可重新写入引用。");
                 m_Material = null;

@@ -589,7 +589,7 @@ namespace PirateCrew.UI.Stick
                 return;
             _warned = true;
             if (!Resolve())
-                Debug.LogError("[SketchSlider] 件缺失（Empty/ClipFull/Fill/ValueLight/ClipRest/ValueDark）"
+                global::PirateCrew.Core.Log.Error("[SketchSlider] 件缺失（Empty/ClipFull/Fill/ValueLight/ClipRest/ValueDark）"
                     + "——滑条只许经 SketchSlider.Create 装配。");
         }
 

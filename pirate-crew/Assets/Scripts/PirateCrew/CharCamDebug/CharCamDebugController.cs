@@ -253,7 +253,7 @@ namespace PirateCrew.CharCamDebug
                 Shader lit = Shader.Find("Universal Render Pipeline/Lit");
                 if (lit == null)
                 {
-                    Debug.LogError("[CharCamDebugController] 找不到 URP/Lit，对照档不可用，回退像素化。");
+                    global::PirateCrew.Core.Log.Error("[CharCamDebugController] 找不到 URP/Lit，对照档不可用，回退像素化。");
                     renderPath = 0;
                     return;
                 }
@@ -506,7 +506,7 @@ namespace PirateCrew.CharCamDebug
             SceneLoader loader = SceneLoader.Instance;
             if (loader == null)
             {
-                Debug.LogWarning("[CharCamDebugController] SceneLoader 服务不在（脱离 Bootstrapper 运行？），无法跳转。");
+                global::PirateCrew.Core.Log.Warn("[CharCamDebugController] SceneLoader 服务不在（脱离 Bootstrapper 运行？），无法跳转。");
                 return;
             }
 

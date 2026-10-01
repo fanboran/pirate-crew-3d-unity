@@ -47,7 +47,7 @@ namespace PirateCrew.Rendering.Pixelart
                     if (!m_Logged)
                     {
                         m_Logged = true;
-                        Debug.Log("[PixelartScreenCopyFeature] 上屏 blit 已在 "
+                        global::PirateCrew.Core.Log.Info("[PixelartScreenCopyFeature] 上屏 blit 已在 "
                             + renderingData.cameraData.camera.name + " 上执行（源 "
                             + rig.ResultBuffer.width + "×" + rig.ResultBuffer.height + "）。");
                     }
@@ -70,7 +70,7 @@ namespace PirateCrew.Rendering.Pixelart
             m_Material = PixelartPath.CreateCoreBlitMaterial();
             if (m_Material == null)
             {
-                Debug.LogError("[PixelartScreenCopyFeature] 找不到 shader \""
+                global::PirateCrew.Core.Log.Error("[PixelartScreenCopyFeature] 找不到 shader \""
                     + PixelartPath.CoreBlitShaderName + "\"——URP 包异常或被改名，屏幕不会有画面。");
             }
 
