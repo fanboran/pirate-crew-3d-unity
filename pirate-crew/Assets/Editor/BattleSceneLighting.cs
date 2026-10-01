@@ -922,6 +922,7 @@ namespace PirateCrew.EditorTools
         public static Light CreateDirectionalLight()
         {
             var go = new GameObject("Directional Light", typeof(Light));
+            Undo.RegisterCreatedObjectUndo(go, "创建主方向光");
             var light = go.GetComponent<Light>();
             light.type = LightType.Directional;
             light.color = Hex("#FFF4E0");
@@ -968,6 +969,7 @@ namespace PirateCrew.EditorTools
 
             // ---- 全局 Volume ----
             var volumeGo = new GameObject("GlobalVolume");
+            Undo.RegisterCreatedObjectUndo(volumeGo, "创建全局后处理体积");
             var volume = volumeGo.AddComponent<Volume>();
             volume.isGlobal = true;
             volume.priority = 0f;

@@ -95,6 +95,10 @@ namespace PirateCrew.EditorTools
             if (!ConfirmSceneReplacement())
                 return;
 
+            // Undo 组：整链折叠为一步撤销，组名与确认对话框标题呼应。
+            Undo.SetCurrentGroupName("重建 Battle 战斗场景");
+            int undoGroup = Undo.GetCurrentGroup();
+
             EnsureFolder(Path.GetDirectoryName(BattleScenePath));
             EnsureFolder("Assets/Prefabs");
             EnsureFolder(PrefabFolder);
@@ -123,6 +127,9 @@ namespace PirateCrew.EditorTools
             RunArtHook("HudMinimapSceneSetup.WireMinimap", HudMinimapSceneSetup.WireMinimap);
 
             RegisterBuildSettings();
+
+            // 折叠 Undo 组：Ctrl+Z 一次撤掉整链装配的场景对象（资产写入不在 Undo 栈，不受影响）。
+            Undo.CollapseUndoOperations(undoGroup);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -183,6 +190,7 @@ namespace PirateCrew.EditorTools
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            Undo.RegisterCreatedObjectUndo(go, "搭建 PirateBase 预制体原型");
             go.name = "PirateBase";
             // §4.1：AABB 12×16px（left/rightExtent=6、top/bottomExtent=8）；1 单位 = 16px
             // （格 1→2 单位后 px 足迹随格放大：0.375×0.5 → 0.75×1.0，与 LevelGeometry.UnitPivotHeight 自洽）。
@@ -278,14 +286,19 @@ namespace PirateCrew.EditorTools
             // 场景美术陈设根节点：旧烘焙工具（SceneArtBuilder）已删除，
             // 材质资产（Assets/Art/Materials/Scene/）保留，由 RuntimeSceneArt 消费。
             var sceneArt = new GameObject(SceneArtRootName);
+            Undo.RegisterCreatedObjectUndo(sceneArt, "创建场景美术根节点");
 
             // 运行时陈设装配器：持有烘焙 prefab 引用（SceneArtBaker 产物），
             // 开局由 BattleController.RebuildSceneArt → RuntimeSceneArt.RebuildFor(实际关卡号) 实例化。
             RuntimeSceneArt runtimeSceneArt = sceneArt.AddComponent<RuntimeSceneArt>();
             WireRuntimeSceneArt(runtimeSceneArt);
 
-            Transform team0Root = new GameObject("Team0_Red").transform;
-            Transform team1Root = new GameObject("Team1_Blue").transform;
+            var team0Go = new GameObject("Team0_Red");
+            Undo.RegisterCreatedObjectUndo(team0Go, "创建红队根节点");
+            Transform team0Root = team0Go.transform;
+            var team1Go = new GameObject("Team1_Blue");
+            Undo.RegisterCreatedObjectUndo(team1Go, "创建蓝队根节点");
+            Transform team1Root = team1Go.transform;
 
             // 活物（波次 ambient）：挂 SceneArt 子节点，接线 ground/sun/队伍根/相机与瓦片数。
             // 不接线时 AmbientDirector 有容错回落（自动取父节点、Camera.main），但瓦片数只能靠默认 50×17。
@@ -293,11 +306,19 @@ namespace PirateCrew.EditorTools
                 ShowcaseLevels.WidthTiles, ShowcaseLevels.DepthTiles);
 
             // 规则宿主。
-            var turnManager = new GameObject("TurnManager").AddComponent<TurnManager>();
-            var aimController = new GameObject("AimThrowController").AddComponent<AimThrowController>();
-            var battleCamera = new GameObject("BattleCameraDriver").AddComponent<BattleCameraDriver>();
+            var turnManagerGo = new GameObject("TurnManager");
+            Undo.RegisterCreatedObjectUndo(turnManagerGo, "创建回合管理器");
+            var turnManager = turnManagerGo.AddComponent<TurnManager>();
+            var aimControllerGo = new GameObject("AimThrowController");
+            Undo.RegisterCreatedObjectUndo(aimControllerGo, "创建投掷瞄准控制器");
+            var aimController = aimControllerGo.AddComponent<AimThrowController>();
+            var battleCameraGo = new GameObject("BattleCameraDriver");
+            Undo.RegisterCreatedObjectUndo(battleCameraGo, "创建战斗相机驱动");
+            var battleCamera = battleCameraGo.AddComponent<BattleCameraDriver>();
             TrajectoryPreview trajectory = CreateTrajectoryPreview();
-            var battle = new GameObject("BattleController").AddComponent<BattleController>();
+            var battleGo = new GameObject("BattleController");
+            Undo.RegisterCreatedObjectUndo(battleGo, "创建战斗控制器");
+            var battle = battleGo.AddComponent<BattleController>();
 
             BattleHud hud = BuildHud(battle, turnManager, aimController);
 
@@ -411,6 +432,7 @@ namespace PirateCrew.EditorTools
 
         static Camera CreateCamera(bool useSkybox)
         {            var go = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
+            Undo.RegisterCreatedObjectUndo(go, "创建主相机");
             go.tag = "MainCamera";
 
             var camera = go.GetComponent<Camera>();
@@ -443,6 +465,7 @@ namespace PirateCrew.EditorTools
             const float margin = 200f;
 
             var water = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            Undo.RegisterCreatedObjectUndo(water, "创建水面");
             water.name = "Water";
             // 注意：BattleController.Start 会把 waterPlane.position.y 设为 LevelGeometry.WaterSurfaceY，
             // 所以这里直接放在该高度上（不要再加偏移，否则运行时会跳一下）。
@@ -506,6 +529,7 @@ namespace PirateCrew.EditorTools
         static BattleTerrainView CreateTerrainView()
         {
             var go = new GameObject(TerrainRootName);
+            Undo.RegisterCreatedObjectUndo(go, "创建地形根节点");
             var view = go.AddComponent<BattleTerrainView>();
 
             var so = new SerializedObject(view);
@@ -563,6 +587,7 @@ namespace PirateCrew.EditorTools
         static TrajectoryPreview CreateTrajectoryPreview()
         {
             var go = new GameObject("TrajectoryPreview");
+            Undo.RegisterCreatedObjectUndo(go, "创建弹道预览");
             var line = go.AddComponent<LineRenderer>();
             line.useWorldSpace = true;
             line.positionCount = 0;
@@ -593,6 +618,7 @@ namespace PirateCrew.EditorTools
             CreateEventSystem();
 
             var controllerGo = new GameObject("BattleHud", typeof(RectTransform));
+            Undo.RegisterCreatedObjectUndo(controllerGo, "创建战斗 HUD");
             controllerGo.transform.SetParent(canvas.transform, false);
             Stretch(controllerGo.GetComponent<RectTransform>());
             var hud = controllerGo.AddComponent<BattleHud>();
@@ -719,6 +745,7 @@ namespace PirateCrew.EditorTools
             Transform team0Root, Transform team1Root, Camera targetCamera, int widthTiles, int depthTiles)
         {
             var go = new GameObject("Ambient");
+            Undo.RegisterCreatedObjectUndo(go, "创建氛围导演节点");
             go.transform.SetParent(sceneArtRoot, false);
 
             var ambient = go.AddComponent<AmbientDirector>();
@@ -839,6 +866,7 @@ namespace PirateCrew.EditorTools
         static GameObject CreateUiObject(string name, Transform parent)
         {
             var go = new GameObject(name, typeof(RectTransform));
+            Undo.RegisterCreatedObjectUndo(go, "创建 UI 节点");
             go.transform.SetParent(parent, false);
             return go;
         }
@@ -846,6 +874,7 @@ namespace PirateCrew.EditorTools
         static Canvas CreateCanvas(string name)
         {
             var go = new GameObject(name, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            Undo.RegisterCreatedObjectUndo(go, "创建战斗画布");
             var canvas = go.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 
@@ -862,7 +891,8 @@ namespace PirateCrew.EditorTools
 
         static void CreateEventSystem()
         {
-            new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+            var eventSystemGo = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+            Undo.RegisterCreatedObjectUndo(eventSystemGo, "创建事件系统");
         }
 
         static RectTransform CreatePanel(string name, Transform parent, Vector2 anchor, Vector2 pivot,
