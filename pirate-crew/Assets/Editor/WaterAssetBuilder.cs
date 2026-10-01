@@ -40,7 +40,7 @@ namespace PirateCrew.EditorTools
         {
             int width = ShowcaseLevels.WidthTiles;
             int depth = ShowcaseLevels.DepthTiles;
-            TileTerrainGrid grid = ShowcaseLevels.BuildLogicGrid(1);
+            HeightfieldGrid grid = ShowcaseLevels.BuildLogicGrid(1);
 
             int cells = WaterSimRules.DefaultCellsPerAxis;
             float domainSize = WaterSimRules.DefaultDomainSize;

@@ -34,7 +34,7 @@ namespace PirateCrew.SceneArt.Tests
             {
                 int level = ExistingLevels[l];
                 LevelData data = ShowcaseLevels.BuildLevelData(level).Value;
-                TileTerrainGrid grid = ShowcaseLevels.BuildLogicGrid(level);
+                HeightfieldGrid grid = ShowcaseLevels.BuildLogicGrid(level);
 
                 Assert.IsNotEmpty(data.Units, "关 " + level + " 应有单位");
                 for (int i = 0; i < data.Units.Count; i++)
@@ -92,7 +92,7 @@ namespace PirateCrew.SceneArt.Tests
         {
             // 云场高度档 {5,9,13,15} 块（y2.5/4.5/6.5/7.5）——高低错落的美术方向（用户裁决）
             // 偏离 R18 的 ≤2 层基准，此处在测试里钉住实际档位防漂移。
-            TileTerrainGrid grid = ShowcaseLevels.BuildLogicGrid(1);
+            HeightfieldGrid grid = ShowcaseLevels.BuildLogicGrid(1);
             int min = int.MaxValue, max = int.MinValue;
             var tiers = new HashSet<int>();
             ForEachSolid(grid, (blocks) =>
@@ -115,7 +115,7 @@ namespace PirateCrew.SceneArt.Tests
         public void L03_SkyIsland_FlatTop_TwentyEightBlocks()
         {
             // 岛面恒 28 块（y14），与场景空岛草皮面对齐（设计文档 L03 §3）。
-            TileTerrainGrid grid = ShowcaseLevels.BuildLogicGrid(3);
+            HeightfieldGrid grid = ShowcaseLevels.BuildLogicGrid(3);
             int solid = 0;
             ForEachSolid(grid, (blocks) =>
             {
@@ -147,7 +147,7 @@ namespace PirateCrew.SceneArt.Tests
 
         delegate void SolidVisitor(int blocks);
 
-        static void ForEachSolid(TileTerrainGrid grid, SolidVisitor visit)
+        static void ForEachSolid(HeightfieldGrid grid, SolidVisitor visit)
         {
             for (int y = 0; y < grid.DepthTiles; y++)
                 for (int x = 0; x < grid.WidthTiles; x++)

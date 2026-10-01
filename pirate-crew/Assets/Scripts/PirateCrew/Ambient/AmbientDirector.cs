@@ -30,7 +30,7 @@ namespace PirateCrew.Ambient
     ///   · 无 Collider / Rigidbody（不改变任何物理与弹道，场景文档 §9.4）；
     ///   · 不进入竞技场内的 Z≥13 近侧带（灯笼/旗绳全部放竞技场**外**水域）；
     ///   · 海鸥位置写回前必过禁飞区钳制（不遮挡投掷视线）；
-    ///   · 不触碰 <c>TileTerrainGrid</c> / <c>AiTerrain</c> / 出生位。
+    ///   · 不触碰 <c>HeightfieldGrid</c> / <c>AiTerrain</c> / 出生位。
     ///
     /// 【性能】只有一个 <c>Update</c>：活物 Tick（少量正弦 + 一次 O(n²) boids，n ≤ 20）
     /// + 摆动节点 Tick。全部计算量在报告里给出实测公式估算；无每帧堆分配

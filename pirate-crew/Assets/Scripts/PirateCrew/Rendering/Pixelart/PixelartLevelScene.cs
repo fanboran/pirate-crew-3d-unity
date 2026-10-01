@@ -15,7 +15,7 @@ namespace PirateCrew.Rendering.Pixelart
     /// <list type="bullet">
     ///   <item>样板关 1/3（`PixelartLevelPilotSetup`）：关卡资产的烘焙摆位（`ShowcaseLevels.BakedPlacements`，
     ///         与主战斗场景 `RuntimeSceneArt` 同一张表）、出生表与逻辑高度场
-    ///         （`units` + `TileTerrainGrid.SurfaceWorldY`）；第 3 关的空岛按 `FloatingIslandShowcaseMenu.Place`
+    ///         （`units` + `HeightfieldGrid.SurfaceWorldY`）；第 3 关的空岛按 `FloatingIslandShowcaseMenu.Place`
     ///         同一入口合成，摆位沿用 <c>PlaceIntoBattleCenter</c> 的 (20, 13.3, 15)。</item>
     ///   <item>海图 101–108（`PixelartWorldMapPilotSetup`，当前 0 张）：`WorldMapCatalog` 的地图定义，
     ///         内容由 `WorldMapComposer.Build` 合成（站面/装饰/kit/道具/礁石），出生点按

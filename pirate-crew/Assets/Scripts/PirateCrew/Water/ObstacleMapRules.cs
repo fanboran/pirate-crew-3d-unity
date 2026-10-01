@@ -7,13 +7,13 @@ namespace PirateCrew.Water
     /// 障碍图烘焙规则（纯 C#，无头可测）。
     ///
     /// 【判据】模拟域内某世界点是不是"水面反射墙"：
-    ///   · 竞技场范围内：地形地表（<see cref="TileTerrainGrid.SurfaceWorldYAtWorld"/>）**高于水面** → 障碍
+    ///   · 竞技场范围内：地形地表（<see cref="HeightfieldGrid.SurfaceWorldYAtWorld"/>）**高于水面** → 障碍
     ///     （沙岛本体、被抬升的台子、礁石）；地形低于水面 → 开阔水；
     ///   · 竞技场范围外：没有地形（只有水面之下的海床台阶）→ 开阔水。
     ///   本工程地面顶面 y=0、水面 y=-0.4（格 ×2 后；旧口径 -0.2）→ 整个沙岛都是障碍，海浪在岛缘反射——这正是要的"浪拍岸"。
     ///
     /// 【为什么单独成类】<c>Assets/Editor/WaterAssetBuilder.cs</c> 只负责把这里的输出编码成 PNG；
-    /// 判据留在纯 C# 里，就能在无头验证台用 <see cref="TileTerrainGrid"/>（也是纯 C#）抽格断言
+    /// 判据留在纯 C# 里，就能在无头验证台用 <see cref="HeightfieldGrid"/>（也是纯 C#）抽格断言
     /// "烘焙障碍图与地形高度一致"。
     /// </summary>
     public static class ObstacleMapRules
@@ -22,7 +22,7 @@ namespace PirateCrew.Water
         public const float SurfaceEpsilon = 0.01f;
 
         /// <summary>单个世界点是否为障碍（反射墙）。</summary>
-        public static bool IsObstacleAt(TileTerrainGrid grid, float worldX, float worldZ,
+        public static bool IsObstacleAt(HeightfieldGrid grid, float worldX, float worldZ,
             float waterWorldY, float arenaWidth, float arenaDepth)
         {
             bool insideArena = worldX >= 0f && worldX <= arenaWidth
@@ -40,7 +40,7 @@ namespace PirateCrew.Water
         /// 烘焙整张障碍掩码（行主序，长度 = cells×cells）。域是以 <paramref name="domainCenterXZ"/> 为中心、
         /// 边长 <paramref name="domainSize"/> 的正方形，与 <see cref="WaterSimulationDriver"/> 的域参数一致。
         /// </summary>
-        public static bool[] Bake(TileTerrainGrid grid, Vector2 domainCenterXZ, float domainSize, int cells,
+        public static bool[] Bake(HeightfieldGrid grid, Vector2 domainCenterXZ, float domainSize, int cells,
             float waterWorldY, float arenaWidth, float arenaDepth)
         {
             cells = Mathf.Max(1, cells);

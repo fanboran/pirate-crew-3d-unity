@@ -122,7 +122,7 @@ namespace PirateCrew.EditorTools
                 return false;
             }
 
-            TileTerrainGrid grid = LevelRasterFromAsset.Build(payload);
+            HeightfieldGrid grid = LevelRasterFromAsset.Build(payload);
             List<ShowcasePiecePlacement> placements = ShowcaseLevels.BakedPlacements(level);
             Debug.Log(LogTag + " 关卡 " + level + "「" + payload.displayName + "」："
                 + payload.sizeX + "m × " + payload.sizeZ + "m、块高 " + grid.BlockWorldHeight
@@ -404,7 +404,7 @@ namespace PirateCrew.EditorTools
         /// 全 miss 则更像"编辑器批处理下物理查询不可用"，与"几何对不上"分开报。
         /// </summary>
         static void AssertCrewsStandOnGround(PixelartLevelScene.View view, LevelAssetPayload payload,
-            TileTerrainGrid grid, Transform sceneRoot)
+            HeightfieldGrid grid, Transform sceneRoot)
         {
             // 【先看这一关的内容有没有碰撞体】云场件每朵云带双 BoxCollider（可查），
             // 合并出的岛壳网格**没有任何碰撞体**（纯渲染壳，碰撞由逻辑高度场/隐形方块负责）。

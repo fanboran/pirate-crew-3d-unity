@@ -115,7 +115,7 @@ namespace PirateCrew.SceneArt
         /// <see cref="AddClusterUnderside"/> 的收形锥继续往下收尖 —— 这样基准高度 ≥3 的岛
         /// 会读成"悬浮 + 厚底"，而不是"从海底长上来的柱子"（旧实现的侧壁到地面就是柱子）。
         /// </summary>
-        public static void AddSolidCell(MeshBuffers b, TileTerrainGrid grid, int gx, int gy, in IslandShellSettings s)
+        public static void AddSolidCell(MeshBuffers b, HeightfieldGrid grid, int gx, int gy, in IslandShellSettings s)
         {
             if (b == null || grid == null)
                 return;
@@ -165,7 +165,7 @@ namespace PirateCrew.SceneArt
         /// 该簇的**岛底平面**世界 Y：簇最低地表 − <see cref="IslandShellSettings.SideThickness"/>，
         /// 下限 <see cref="IslandShellSettings.UndersideBottomY"/>（低于水面，保证贴水档也有厚度可看）。
         /// </summary>
-        public static float IslandBottomWorldY(TileTerrainGrid grid, int clusterIndex, in IslandShellSettings s)
+        public static float IslandBottomWorldY(HeightfieldGrid grid, int clusterIndex, in IslandShellSettings s)
         {
             if (grid == null)
                 return s.UndersideBottomY;
@@ -177,7 +177,7 @@ namespace PirateCrew.SceneArt
 
         enum ShellSide { North, South, West, East }
 
-        static void AddSide(MeshBuffers b, TileTerrainGrid grid, int gx, int gy,
+        static void AddSide(MeshBuffers b, HeightfieldGrid grid, int gx, int gy,
             float x0, float x1, float z0, float z1,
             float surfaceY, float chamferBottomY, float skirtY, float islandBottomY,
             bool platform, int clusterIndex, float c, int layers, in IslandShellSettings s, ShellSide side)
@@ -322,7 +322,7 @@ namespace PirateCrew.SceneArt
         /// <summary>
         /// 0 块列（原版水道列 → 本工程的"潮沟/沙洼"）的薄水膜视觉层：
         /// 一格格心高度的单面片，用湿沙/薄水色表示"刚退潮"。**不是挖洞**——
-        /// 基础地面永远存在（<see cref="TileTerrainGrid"/> 类头），本片只是贴在地面上的一层观感。
+        /// 基础地面永远存在（<see cref="HeightfieldGrid"/> 类头），本片只是贴在地面上的一层观感。
         /// </summary>
         public static void AddLowZonePlate(MeshBuffers b, int gx, int gy, float yOffset)
         {
@@ -338,7 +338,7 @@ namespace PirateCrew.SceneArt
         }
 
         /// <summary>把整张网格的实心格建成一个合并壳（每关 1 个网格 → 1 个 DrawCall）。</summary>
-        public static MeshBuffers BuildSolidShell(TileTerrainGrid grid, in IslandShellSettings s)
+        public static MeshBuffers BuildSolidShell(HeightfieldGrid grid, in IslandShellSettings s)
         {
             var b = new MeshBuffers();
             if (grid == null)
@@ -358,7 +358,7 @@ namespace PirateCrew.SceneArt
         /// 【平台化修正】只铺在**有地面**且块高为 0 的格；平台簇模式的水格（无地面）不铺——
         /// 那里是真正的海水，由水面 shader 的泡沫承担接水面观感，不能画成沙面。
         /// </summary>
-        public static MeshBuffers BuildLowZone(TileTerrainGrid grid, float yOffset)
+        public static MeshBuffers BuildLowZone(HeightfieldGrid grid, float yOffset)
         {
             var b = new MeshBuffers();
             if (grid == null)
@@ -551,7 +551,7 @@ namespace PirateCrew.SceneArt
         /// 单材质）。编辑器构建期若要按材质分组（船=暗木、岛=岩），改用
         /// <see cref="AddPlatformUndersides"/>。
         /// </summary>
-        public static void AddPlatformUnderside(MeshBuffers b, TileTerrainGrid grid, in IslandShellSettings s)
+        public static void AddPlatformUnderside(MeshBuffers b, HeightfieldGrid grid, in IslandShellSettings s)
         {
             if (b == null || grid == null)
                 return;
@@ -568,7 +568,7 @@ namespace PirateCrew.SceneArt
         /// 同时沿每个簇包络在**水线**处补一圈窄暗部（并入暗木/岩）与一条细泡沫线（并入 Foam 组）：
         /// 修 r2 诊断「平台与水面交界是平直切边、无底面感、无接触暗部、无浪」。
         /// </summary>
-        public static void AddPlatformUndersides(ScenePropBuffers buffers, TileTerrainGrid grid,
+        public static void AddPlatformUndersides(ScenePropBuffers buffers, HeightfieldGrid grid,
             in IslandShellSettings s)
         {
             if (buffers == null || grid == null)
@@ -620,7 +620,7 @@ namespace PirateCrew.SceneArt
         ///   2. 岛底平面 = 簇最低地表 − <see cref="IslandShellSettings.SideThickness"/>（侧壁负责这段厚度），
         ///      收形锥从岛底平面再往下 <see cref="IslandShellSettings.UndersideTaperDepth"/> 收尖。
         /// </summary>
-        public static void AddClusterUnderside(MeshBuffers b, TileTerrainGrid grid, in PlatformClusterInfo cluster,
+        public static void AddClusterUnderside(MeshBuffers b, HeightfieldGrid grid, in PlatformClusterInfo cluster,
             int clusterIndex, in IslandShellSettings s)
         {
             if (b == null || grid == null)
@@ -662,7 +662,7 @@ namespace PirateCrew.SceneArt
         /// （各自朝岛心收缩，缝越往下越宽）；而"同一个线性缩放"对共享端点给出同一位置，
         /// 环与环之间天然连续，无裂缝，且轮廓与 <see cref="AddSolidCell"/> 的侧壁底边**逐点对齐**。
         /// </summary>
-        static void AddIslandTaperUnderside(MeshBuffers b, TileTerrainGrid grid, in PlatformClusterInfo cluster,
+        static void AddIslandTaperUnderside(MeshBuffers b, HeightfieldGrid grid, in PlatformClusterInfo cluster,
             int clusterIndex, float bottomY, float tipY, in IslandShellSettings s)
         {
             float cx = LevelGeometry.TileToWorld((cluster.X0 + cluster.X1 + 1) * 0.5f);
@@ -719,7 +719,7 @@ namespace PirateCrew.SceneArt
         /// 一条岛缘边在相邻两环之间生成的侧裙面（退化边 / 非岛缘边自动跳过）。
         /// <paramref name="ax"/>/<paramref name="az"/> → <paramref name="bx"/>/<paramref name="bz"/> 为边的两个端点（格角坐标）。
         /// </summary>
-        static void AddTaperEdge(MeshBuffers b, TileTerrainGrid grid, int clusterIndex,
+        static void AddTaperEdge(MeshBuffers b, HeightfieldGrid grid, int clusterIndex,
             float cx, float cz, float bottomY, float tipY, int rings, in IslandShellSettings s,
             int ax, int az, int bx, int bz)
         {
@@ -787,7 +787,7 @@ namespace PirateCrew.SceneArt
         /// 边由两个格角坐标给出，用"边中点沿法线两侧各偏 0.5 格角（半格，恰好跨进相邻格）"
         /// 的两个采样点判定。
         /// </summary>
-        static bool IsEdgeInterior(TileTerrainGrid grid, int clusterIndex, int ax, int az, int bx, int bz)
+        static bool IsEdgeInterior(HeightfieldGrid grid, int clusterIndex, int ax, int az, int bx, int bz)
         {
             float mx = (ax + bx) * 0.5f;
             float mz = (az + bz) * 0.5f;

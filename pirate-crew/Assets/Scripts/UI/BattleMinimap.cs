@@ -359,7 +359,7 @@ namespace PirateCrew.UI
             if (tileLayer == null)
                 return;
 
-            TileTerrainGrid grid = terrain.Grid;
+            HeightfieldGrid grid = terrain.Grid;
             int width = grid.WidthTiles;
             int depth = grid.DepthTiles;
             _tiles = new Image[width * depth];
@@ -399,7 +399,7 @@ namespace PirateCrew.UI
                 return;
 
             _tileVersion = version;
-            TileTerrainGrid grid = terrain.Grid;
+            HeightfieldGrid grid = terrain.Grid;
 
             for (int i = 0; i < _tiles.Length; i++)
             {

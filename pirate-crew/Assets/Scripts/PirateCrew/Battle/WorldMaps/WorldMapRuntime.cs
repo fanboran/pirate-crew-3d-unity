@@ -250,7 +250,7 @@ namespace PirateCrew.Battle.WorldMaps
         /// <see cref="WorldMapRules.TryRasterize"/> 的栅格化原值并按 <see cref="WorldMapRules.ValidateSpawns"/>
         /// 同款格式点名——报告风格对齐，数据侧病根由日志暴露。返回 null 表示地图无站面（无效）。
         /// </summary>
-        public static TileTerrainGrid BuildTerrainGrid(WorldMapDefinition map)
+        public static HeightfieldGrid BuildTerrainGrid(WorldMapDefinition map)
         {
             if (!WorldMapRules.TryRasterize(map, out int widthTiles, out int depthTiles, out int[] blocks))
                 return null;
@@ -279,7 +279,7 @@ namespace PirateCrew.Battle.WorldMaps
                 }
             }
 
-            return new TileTerrainGrid(widthTiles, depthTiles, blocks, 0.5f);
+            return new HeightfieldGrid(widthTiles, depthTiles, blocks, 0.5f);
         }
     }
 }

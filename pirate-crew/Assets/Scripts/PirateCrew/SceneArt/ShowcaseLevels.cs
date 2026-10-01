@@ -55,7 +55,7 @@ namespace PirateCrew.SceneArt
     /// 改数据请改 golden JSON 再跑迁移器，见 <c>docs/技术/架构/关卡数据资产.md</c>。
     ///
     /// 【架构口径（未变）】高度场是**不可见的逻辑地形**，只承担两件玩家看不见的事：
-    ///   1) 单位站位高度——<c>BattleController.SpawnTeams</c> 用 <c>TileTerrainGrid.SurfaceWorldY</c>；
+    ///   1) 单位站位高度——<c>BattleController.SpawnTeams</c> 用 <c>HeightfieldGrid.SurfaceWorldY</c>；
     ///   2) AI 落点评估——<c>AiTerrain</c> 按采样格判实心/落水。
     /// 渲染层由烘焙 prefab 按摆位表实例化（RuntimeSceneArt），与逻辑层共用同一份高度场资产对齐。
     ///
@@ -95,7 +95,7 @@ namespace PirateCrew.SceneArt
         /// 样板关的逻辑地形（唯一栅格语义；读资产里的高度场）。
         /// 资产栅格不自洽时返回全平网格——由内容门禁把坏数据拦在构建期。
         /// </summary>
-        public static TileTerrainGrid BuildLogicGrid(int levelNumber)
+        public static HeightfieldGrid BuildLogicGrid(int levelNumber)
         {
             LevelAssetLibrary.TryGetLevel(levelNumber, out LevelAssetPayload payload);
             return LevelRasterFromAsset.Build(payload);

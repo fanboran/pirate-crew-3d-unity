@@ -127,7 +127,7 @@ namespace PirateCrew.Battle
         public BattlePlan Plan => _plan;
 
         /// <summary>瓦片地形网格（纯 C#；平坦竞技场时也非 null，只是全部 0 块）。AI 的落点/放置查询用它。</summary>
-        public TileTerrainGrid Terrain { get; private set; }
+        public HeightfieldGrid Terrain { get; private set; }
 
         /// <summary>全部角色。</summary>
         public IReadOnlyList<PirateBase> AllPirates => _allPirates;

@@ -180,14 +180,14 @@ namespace PirateCrew.Water
 
         /// <summary>
         /// 带地形数据的域重载（审计 视觉§四.2 的修复）：世界地图模式由装配方传入
-        /// <see cref="BattleController"/> 已栅格化的站面 <see cref="TileTerrainGrid"/> 与水面/图幅，
+        /// <see cref="BattleController"/> 已栅格化的站面 <see cref="HeightfieldGrid"/> 与水面/图幅，
         /// 掩码改由 <see cref="ObstacleMapRules.Bake"/> 按"地表高于水面 → 障碍"实时烘焙——
         /// 不再采样 M2 烘焙的旧竞技场 PNG（域扩大后旧图只盖住一小角，岛缘无反射、涟漪穿岛）。
         /// <paramref name="terrainGrid"/> 为 null 时回落序列化 <paramref name="obstacleMap"/> PNG 路径
         /// （旧关卡行为不变）。
         /// </summary>
         public void ConfigureWorldDomain(Vector2 center, float spanUnits,
-            TileTerrainGrid terrainGrid, float waterWorldY, float arenaWidth, float arenaDepth)
+            HeightfieldGrid terrainGrid, float waterWorldY, float arenaWidth, float arenaDepth)
         {
             float newSize = WaterSimRules.WorldDomainSizeForSpan(spanUnits);
 

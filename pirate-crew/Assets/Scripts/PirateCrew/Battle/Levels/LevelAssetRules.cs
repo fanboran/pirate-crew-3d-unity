@@ -73,7 +73,7 @@ namespace PirateCrew.Battle.Levels
                 problems.AddRange(WorldMapRules.ValidateSpawns(map, boxes));
             }
 
-            // 栅格化（进 TileTerrainGrid 的通道必须通）。
+            // 栅格化（进 HeightfieldGrid 的通道必须通）。
             if (!WorldMapRules.TryRasterize(map, out int widthTiles, out int depthTiles, out int[] blocks))
             {
                 problems.Add(tag + "栅格化失败");

@@ -4,7 +4,7 @@ using UnityEngine;
 namespace PirateCrew.Battle
 {
     /// <summary>
-    /// 瓦片地形的场景视图（MonoBehaviour 薄壳）：把纯 C# 的 <see cref="TileTerrainGrid"/>
+    /// 瓦片地形的场景视图（MonoBehaviour 薄壳）：把纯 C# 的 <see cref="HeightfieldGrid"/>
     /// 落成**隐形碰撞层**——每实心格一个 Cube + BoxCollider（Renderer 关闭），是单位与弹体的
     /// 物理地面。视觉层不在本类：样板三关外观由烘焙 prefab（<c>RuntimeSceneArt</c>）承担，
     /// 世界图外观由 <c>WorldMapComposer</c> 的 kit 件与站面承担。
@@ -27,14 +27,14 @@ namespace PirateCrew.Battle
         [SerializeField] Transform blockRoot;
 
         // 运行时的纯 C# 网格（非 UnityEngine.Object，不进 Inspector；由 BattleController 注入）。
-        TileTerrainGrid grid;
+        HeightfieldGrid grid;
 
         GameObject[] _cellObjects = new GameObject[0];
 
         int _version;
 
         /// <summary>当前地形网格；未渲染前为 null。</summary>
-        public TileTerrainGrid Grid => grid;
+        public HeightfieldGrid Grid => grid;
 
         /// <summary>地形变化计数（小地图等只在变化时刷新）。</summary>
         public int Version => _version;
@@ -62,7 +62,7 @@ namespace PirateCrew.Battle
         /// 只建**碰撞层**（每实心格一个隐形 Cube+BoxCollider，单位与弹体的物理地面），
         /// 不建视觉——外观由烘焙件承担（样板三关玩家看不到任何格子）。幂等：先清旧物。
         /// </summary>
-        public void RenderCollidersOnly(TileTerrainGrid terrainGrid)
+        public void RenderCollidersOnly(HeightfieldGrid terrainGrid)
         {
             grid = terrainGrid;
             ClearAll();

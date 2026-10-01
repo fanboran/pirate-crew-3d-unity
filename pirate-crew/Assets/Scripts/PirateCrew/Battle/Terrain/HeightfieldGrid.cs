@@ -3,25 +3,28 @@ using UnityEngine;
 namespace PirateCrew.Battle
 {
     /// <summary>
-    /// 瓦片地形网格（纯 C#，不引用 MonoBehaviour / GameObject，可在无头验证台断言）。
+    /// 静态高度场网格（纯 C#，不引用 MonoBehaviour / GameObject，可在无头验证台断言）。
     ///
     /// ==================================================================
     /// 【3D 化语义（地形数据模型 / 空间约定）】
     /// ==================================================================
-    /// 这份地形由**瓦片栅格**（内容：每格瓦片名与「实心 / 空」）与 **XZ 空间约定**
-    /// （几何：平铺成世界 XZ 格、重力沿 -Y）两部分合成，各自贡献如下：
+    /// 这份地形由**静态高度场**（内容：每格一个整数块数，给出该列地表抬升）与 **XZ 空间约定**
+    /// （几何：平铺成世界 XZ 格、重力沿 -Y）两部分合成，各自贡献如下。
+    /// 名字里的「格」只是**存储与换算单位**（1 格 = 2 世界单位），不是玩法：
+    /// 一代「瓦片竞技场」已删除，本类不存瓦片名、不表达任何逐格玩法语义，
+    /// 只回答「这一列的地表在哪」。
     ///
-    /// 一、<b>瓦片栅格（内容）</b>
-    ///   · 瓦片网格与「实心 / 空」判据：逐格瓦片名给出每个 (gridX, gridY) 是哪种瓦片，
-    ///     <c>-</c> = 空、
-    ///     <c>tile_ripple_*</c> / <c>boat_ripple_*</c> = 水（非实心），其余为陆地。
-    ///   · 1 瓦片 = 32px；本工程沿用 **1 瓦片 = 2 世界单位**
+    /// 一、<b>高度场（内容）</b>
+    ///   · 行主序整数块阵列：每格 (gridX, gridY) 存一个块数，0 = 基础地面，
+    ///     正值 = 该列地表相对基础地面的抬升；「无地面」（水）由地面标记表达（见构造形态）。
+    ///   · 1 格 = 2 世界单位
     ///     （<see cref="LevelGeometry.TileWorldSize"/>，故 1 单位 = 16px = <see cref="LevelGeometry.PixelsPerUnit"/>）。
     ///     格号 ↔ 世界坐标的换算**只走** <see cref="LevelGeometry.WorldToTileIndex"/> /
     ///     <see cref="LevelGeometry.TileCenterWorld"/>，不要在这里手搓 <c>+0.5f</c>。
-    ///   · 每列最上方的实心瓦片 = 该列**地表**（单位站的就是它）。本类用
-    ///     <c>altitude = heightTiles − topSolidRow</c> 表示该地表在关卡里的高度。
-    ///   · 空列（整列无水陆瓦片）= 水道。
+    ///   · 每格块数 = 该列**地表**（单位站的就是它）。现役生产者是关卡资产高度场
+    ///     （<c>LevelRasterFromAsset</c> 把米高度折成整数块）；海图站面走
+    ///     <c>WorldMapRuntime.BuildTerrainGrid</c>，产出同一种列式形态。
+    ///   · 空列（整列无地面）= 水道。
     ///
     /// 二、<b>XZ 空间约定（几何）</b>
     ///   · 竞技场是 <b>XZ 水平面</b>、重力沿 <b>-Y</b>、单位沿 Z 分路（见
@@ -48,7 +51,7 @@ namespace PirateCrew.Battle
         ///
         /// ==================================================================
         /// </summary>
-        public sealed class TileTerrainGrid
+        public sealed class HeightfieldGrid
         {
             readonly int[] _blocks;   // 行主序 [gx + gy * WidthTiles]；0 = 基础地面（无抬升块）
             readonly bool[] _ground;  // 该格是否有地面（false = 水）
@@ -67,9 +70,9 @@ namespace PirateCrew.Battle
         public float BlockWorldHeight { get; }
 
         /// <summary>全平坦地面（无抬升块）的网格。</summary>
-        public static TileTerrainGrid Flat(int widthTiles, int depthTiles)
+        public static HeightfieldGrid Flat(int widthTiles, int depthTiles)
         {
-            return new TileTerrainGrid(widthTiles, depthTiles, null, 0f);
+            return new HeightfieldGrid(widthTiles, depthTiles, null, 0f);
         }
 
         /// <summary>行主序索引 → 横向格号。</summary>
@@ -86,7 +89,7 @@ namespace PirateCrew.Battle
         /// <param name="blocks">每格堆叠块数（长度须 = widthTiles × depthTiles，行主序）。
         /// 传 null 视为全 0（平坦地面）。</param>
         /// <param name="blockWorldHeight">单块世界高度（&lt;= 0 时用 <see cref="LevelGeometry.BlockWorldHeight"/>）。</param>
-        public TileTerrainGrid(int widthTiles, int depthTiles, int[] blocks, float blockWorldHeight)
+        public HeightfieldGrid(int widthTiles, int depthTiles, int[] blocks, float blockWorldHeight)
             : this(widthTiles, depthTiles, blocks, blockWorldHeight, null)
         {
         }
@@ -95,7 +98,7 @@ namespace PirateCrew.Battle
         /// 构造地形网格（平台簇模式）：地面/水由 <paramref name="platforms"/> 决定。
         /// 水格块高强制归零；列式旧地形传 <c>null</c>。
         /// </summary>
-        public TileTerrainGrid(int widthTiles, int depthTiles, int[] blocks, float blockWorldHeight,
+        public HeightfieldGrid(int widthTiles, int depthTiles, int[] blocks, float blockWorldHeight,
             PlatformMap platforms)
         {
             WidthTiles = Mathf.Max(1, widthTiles);

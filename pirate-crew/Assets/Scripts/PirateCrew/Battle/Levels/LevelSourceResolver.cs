@@ -32,7 +32,7 @@ namespace PirateCrew.Battle.Levels
         public readonly BattlePlan Plan;
 
         /// <summary>逻辑高度场（AI / 站位 / 小地图共用）。</summary>
-        public readonly TileTerrainGrid Terrain;
+        public readonly HeightfieldGrid Terrain;
 
         /// <summary>水面世界 Y（低于即落水，§4.4）。</summary>
         public readonly float WaterWorldY;
@@ -60,7 +60,7 @@ namespace PirateCrew.Battle.Levels
 
         public LevelSource(
             LevelSourceKind kind, WorldMapDefinition worldMap, LevelAssetPayload showcaseAsset,
-            BattlePlan plan, TileTerrainGrid terrain, float waterWorldY,
+            BattlePlan plan, HeightfieldGrid terrain, float waterWorldY,
             float spanX, float spanZ, string ambientTier, float cameraWorldSpan, string notice)
         {
             Kind = kind;
@@ -164,8 +164,8 @@ namespace PirateCrew.Battle.Levels
                 return null;
 
             BattlePlan plan = WorldMapRuntime.BuildBattlePlan(map);
-            TileTerrainGrid terrain = WorldMapRuntime.BuildTerrainGrid(map)
-                                      ?? TileTerrainGrid.Flat(plan.WidthTiles, plan.DepthTiles);
+            HeightfieldGrid terrain = WorldMapRuntime.BuildTerrainGrid(map)
+                                      ?? HeightfieldGrid.Flat(plan.WidthTiles, plan.DepthTiles);
 
             return new LevelSource(
                 LevelSourceKind.WorldMap, map, null, plan, terrain, plan.WaterWorldY,
@@ -182,7 +182,7 @@ namespace PirateCrew.Battle.Levels
                 return null;
 
             BattlePlan plan = LevelGeometry.BuildBattlePlan(asset.ToLevelData());
-            TileTerrainGrid terrain = LevelRasterFromAsset.Build(asset);
+            HeightfieldGrid terrain = LevelRasterFromAsset.Build(asset);
 
             return new LevelSource(
                 LevelSourceKind.Showcase, null, asset, plan, terrain, plan.WaterWorldY,

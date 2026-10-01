@@ -55,7 +55,7 @@ namespace PirateCrew.Data
     ///
     /// 【为什么是唯一一份】地面/水面的唯一判据就是"该处地面高度是否 &gt; 0"：
     /// 海图栅格从站面 box 派生、样板关栅格是手摆真值，但落到运行时都进
-    /// <c>TileTerrainGrid</c> 的同一个列式分支；资产里也只存这一种形态。
+    /// <c>HeightfieldGrid</c> 的同一个列式分支；资产里也只存这一种形态。
     ///
     /// 【全米】采样格尺寸由 <c>LevelAssetSchema.RasterCellSize</c>（米）推出，
     /// <see cref="heights"/> 存的是**该处地面的世界高度（米）**，不再存"堆了几块"。

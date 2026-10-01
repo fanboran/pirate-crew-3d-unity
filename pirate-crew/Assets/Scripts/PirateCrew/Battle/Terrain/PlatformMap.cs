@@ -52,7 +52,7 @@ namespace PirateCrew.Battle
         /// 岛基准高度（世界单位）：整簇地基相对基础地面 <see cref="LevelGeometry.GroundTopY"/> 的抬高量。
         ///
         /// 【数据口径】<see cref="PlatformMap.CellBlocks"/> 仍只记**局部**块高（簇内台阶差），
-        /// 由 <see cref="TileTerrainGrid"/> 构造时换算成「局部 + 基准」的总块高。这样：
+        /// 由 <see cref="HeightfieldGrid"/> 构造时换算成「局部 + 基准」的总块高。这样：
         ///   · 碰撞（<c>BattleTerrainView</c> 按 <c>BlocksAt</c> 摆方块）与视觉壳（按
         ///     <c>SurfaceWorldY</c>）**无需任何改动**就跟随基准高度；
         ///   · 「簇内台阶差」这条既有契约不被基准高度污染（基准是整簇平移，不是簇内加高）。
@@ -127,8 +127,8 @@ namespace PirateCrew.Battle
     /// <c>CellBlocks = 0</c>。
     ///
     /// 【近死登记（代码审计）】当前全仓**没有任何生产者**：唯一引用是
-    /// <see cref="TileTerrainGrid"/> 的平台簇构造形态（字段与构造参数），而该构造形态本身
-    /// 零调用（悬空平台模式已无生产者，见 TileTerrainGrid 头注的保留契约）。本结构随那份
+    /// <see cref="HeightfieldGrid"/> 的平台簇构造形态（字段与构造参数），而该构造形态本身
+    /// 零调用（悬空平台模式已无生产者，见 HeightfieldGrid 头注的保留契约）。本结构随那份
     /// 保留契约一并存续；裁掉形态②时应连同本文件整体清退，不要再为新内容单独启用。
     /// </summary>
     public sealed class PlatformMap

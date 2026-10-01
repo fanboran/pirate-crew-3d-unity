@@ -8,7 +8,7 @@ namespace PirateCrew.Water.Tests
 {
     /// <summary>
     /// <see cref="ObstacleMapRules"/> 测试：烘焙障碍图与地形高度一致（抽格断言）、
-    /// 域中心与开关的边界行为。用纯 C# 的 <see cref="TileTerrainGrid"/> 造地形，无需 Unity 运行时。
+    /// 域中心与开关的边界行为。用纯 C# 的 <see cref="HeightfieldGrid"/> 造地形，无需 Unity 运行时。
     /// </summary>
     [TestFixture]
     public class ObstacleMapRulesTests
@@ -19,7 +19,7 @@ namespace PirateCrew.Water.Tests
             // 4×4 网格：只有 (1,1) 堆了 8 块（8×0.25 = 2.0 单位高，块高为本测试自定参数）。
             var blocks = new int[16];
             blocks[1 + 1 * 4] = 8;
-            var grid = new TileTerrainGrid(4, 4, blocks, 0.25f);
+            var grid = new HeightfieldGrid(4, 4, blocks, 0.25f);
 
             // 把水面抬到 y=1.0：该柱（地表 2.0）是障碍，平地（地表 0）是开阔水。
             const float waterY = 1.0f;
@@ -34,7 +34,7 @@ namespace PirateCrew.Water.Tests
         [Test]
         public void IsObstacle_OutsideArenaIsOpenWater()
         {
-            var grid = TileTerrainGrid.Flat(4, 4);
+            var grid = HeightfieldGrid.Flat(4, 4);
             // 默认水面 -0.2、地面 0 → 场内处处障碍（沙岛）。
             Assert.IsTrue(ObstacleMapRules.IsObstacleAt(grid, 2f, 2f, -0.2f, 4f, 4f));
             // 场外（岛外海床在水面之下）→ 开阔水。
@@ -46,7 +46,7 @@ namespace PirateCrew.Water.Tests
         public void Bake_FlatArena_MarksExactlyTheArenaCells()
         {
             // 域 64×64、128 格 → dx=0.5；竞技场 50×17 居中在 (25, 8.5)。
-            var grid = TileTerrainGrid.Flat(50, 17);
+            var grid = HeightfieldGrid.Flat(50, 17);
             var center = new Vector2(25f, 8.5f);
             const float domainSize = 64f;
             const int cells = 128;
@@ -94,7 +94,7 @@ namespace PirateCrew.Water.Tests
         public void Bake_IsDeterministic()
         {
             var grid = ShowcaseLevels.BuildLogicGrid(1)
-                           ?? TileTerrainGrid.Flat(ShowcaseLevels.WidthTiles, ShowcaseLevels.DepthTiles);
+                           ?? HeightfieldGrid.Flat(ShowcaseLevels.WidthTiles, ShowcaseLevels.DepthTiles);
             var center = new Vector2(25f, 8.5f);
 
             bool[] a = ObstacleMapRules.Bake(grid, center, 64f, 64, -0.2f, 50f, 17f);

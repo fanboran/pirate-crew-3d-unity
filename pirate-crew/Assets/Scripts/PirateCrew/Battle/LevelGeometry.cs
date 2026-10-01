@@ -20,10 +20,10 @@ namespace PirateCrew.Battle
         /// <summary>该单位的 luck（§4.1，AI 随机投掷次数基数）。</summary>
         public readonly int Luck;
 
-        /// <summary>地形采样格 X（由 <see cref="WorldPosition"/> 的 X 反推；只供 <c>TileTerrainGrid</c> 查询）。</summary>
+        /// <summary>地形采样格 X（由 <see cref="WorldPosition"/> 的 X 反推；只供 <c>HeightfieldGrid</c> 查询）。</summary>
         public readonly int GridX;
 
-        /// <summary>地形采样格 Z（由 <see cref="WorldPosition"/> 的 Z 反推；只供 <c>TileTerrainGrid</c> 查询）。</summary>
+        /// <summary>地形采样格 Z（由 <see cref="WorldPosition"/> 的 Z 反推；只供 <c>HeightfieldGrid</c> 查询）。</summary>
         public readonly int GridY;
 
         /// <summary>
@@ -492,7 +492,7 @@ namespace PirateCrew.Battle
         /// 由纯 C# 关卡数据 <see cref="LevelData"/> 生成出战计划（无头可测路径）。
         /// 数据已是全米口径：出生点直接用 <c>x/z</c>（世界 X / Z），不再做格→米换算；
         /// 采样格号（<see cref="SpawnPlanEntry.GridX"/>/<see cref="SpawnPlanEntry.GridY"/>）由米反推，
-        /// 仅供运行时地形查询（<c>TileTerrainGrid.SurfaceWorldY</c>）使用。
+        /// 仅供运行时地形查询（<c>HeightfieldGrid.SurfaceWorldY</c>）使用。
         /// </summary>
         public static BattlePlan BuildBattlePlan(LevelData data)
         {

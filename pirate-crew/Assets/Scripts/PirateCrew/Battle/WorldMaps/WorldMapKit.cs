@@ -13,7 +13,7 @@ namespace PirateCrew.Battle.WorldMaps
     ///
     /// 【站面平直机制】可站立面只来自 <see cref="WorldMapStandables"/> 的 box 表
     /// （Blender 侧 &lt;Asset&gt;.standable.json 的入库转写版）：Unity 侧按 box 生成 BoxCollider、
-    /// 并栅格化进 <c>TileTerrainGrid</c> 供 AI/小地图/出生高度使用——视觉网格不参与碰撞。
+    /// 并栅格化进 <c>HeightfieldGrid</c> 供 AI/小地图/出生高度使用——视觉网格不参与碰撞。
     /// </summary>
 
     /// <summary>一个可站立矩形：资产本地系（Y-up）。Center/Size 定义在<b>先绕资产原点转 YawDeg 后</b>的坐标系内；TopY 为顶面高度（0.5 档）。</summary>
