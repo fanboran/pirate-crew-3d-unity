@@ -98,8 +98,8 @@ python tools/pixel-review/judge_pixelart_pilot.py export/pixelart-l1-r9   # 三�
 
 | README 位置 | 新图 | 来源档位 |
 | --- | --- | --- |
-| 云端漫步 | [l1-overview.jpg](../promo/l1-overview.jpg) | `pl1-wide` |
-| 天空之岛 | [l3-overview.jpg](../promo/l3-overview.jpg) | `pl3-wide` |
+| 云端漫步 | [l1-overview.jpg](../../promo/l1-overview.jpg) | `pl1-wide` |
+| 天空之岛 | [l3-overview.jpg](../../promo/l3-overview.jpg) | `pl3-wide` |
 
 第 2 关那张（`pl2-wide`，带 §4 的缺陷）没进 README，只留在本节与本轮的出图目录里。
 README 的关卡小节加了**如实标注**：这些是**试点场景**的实拍，这条路径**还没接进游戏本体**

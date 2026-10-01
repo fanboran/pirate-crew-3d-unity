@@ -2,7 +2,7 @@
 
 > **本目录是什么**：环境光从 Trilight 三色切换为天空盒驱动（`AmbientSkyboxCatalog.DefaultAmbientSource
 > = Skybox`，2026-09-17 用户拍板翻转）后的三档氛围实拍对比图，供用户终审。
-> 数值口径见 [`../../docs/技术/环境光天空盒化-预研与接线清单.md`(../../../docs/技术/环境光天空盒化-预研与接线清单.md) §四
+> 数值口径见 [环境光天空盒化-预研与接线清单](../../../技术/渲染/环境光天空盒化-预研与接线清单.md) §四
 > （全部【提案/待定】）；程序化判据见 `tools/ambient/judge_ambient_captures.py`（初筛），人眼看图为终审。
 >
 > 原始 PNG 不入库（.gitignore），入库的是 1280 宽 JPEG（同 art-review / worldmap-captures-r2 惯例）。
