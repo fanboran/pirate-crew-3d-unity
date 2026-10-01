@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using PirateCrew.Battle;
 using PirateCrew.Battle.Levels;
@@ -7,6 +8,7 @@ using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Data;
 using PirateCrew.SceneArt;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace PirateCrew.Battle.Tests
 {
@@ -98,6 +100,42 @@ namespace PirateCrew.Battle.Tests
                 Assert.That(LevelAssetJson.Write(again), Is.EqualTo(first),
                     name + " golden JSON 往返不稳定");
             }
+        }
+
+        // ------------------------------------------------------------------
+        // ①' schema 校验：代差资产按坏数据拒绝（LevelAssetJson 读侧）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void GoldenJson_SchemaMismatch_RejectedAsBadData()
+        {
+#if UNITY_EDITOR
+            // 两条读入口各留痕一条 Error（LogAssert 按序消费），返回 null 走既有坏数据路径。
+            // 无头域整体让位：schema 拒绝走 Log.Error 直通 Debug.LogError，ECall 脱离 Unity 运行时
+            // 必抛 SecurityException（harness 边界），EditMode 为权威判定环境。
+            LogAssert.Expect(LogType.Error, new Regex("\\[LevelAssetJson\\].*schema"));
+            LogAssert.Expect(LogType.Error, new Regex("\\[LevelAssetJson\\].*schema"));
+
+            Assert.That(LevelAssetJson.ReadLevel("{\"schema\": 999, \"kind\": \"level\"}"), Is.Null,
+                "schema 高于当前版本的关卡资产必须拒绝，不能拿旧语义当新语义错读");
+            Assert.That(LevelAssetJson.ReadWorldMap("{\"schema\": 999, \"kind\": \"world_map\"}"), Is.Null,
+                "schema 高于当前版本的海图资产必须拒绝");
+#else
+            Assert.Ignore("schema 拒绝留痕走 Debug.LogError，无头域 ECall 必抛，EditMode 为权威判定");
+#endif
+        }
+
+        [Test]
+        public void GoldenJson_SchemaCurrent_MinimalPayloadAccepted()
+        {
+            // 对照组：schema 等于当前版本的最小载荷能通过校验——证明上面的拒绝只来自 schema
+            // （版本号引用 LevelAssetSchema.Version，版本递增时本用例不红）
+            string schema = LevelAssetSchema.Version.ToString();
+
+            Assert.That(LevelAssetJson.ReadLevel("{\"schema\": " + schema + ", \"kind\": \"level\"}"),
+                Is.Not.Null, "当前 schema 的最小载荷应通过读侧校验");
+            Assert.That(LevelAssetJson.ReadWorldMap("{\"schema\": " + schema + ", \"kind\": \"world_map\"}"),
+                Is.Not.Null, "当前 schema 的最小海图载荷应通过读侧校验");
         }
 
         // ------------------------------------------------------------------

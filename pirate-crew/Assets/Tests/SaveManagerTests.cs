@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using PirateCrew.Core;
 using UnityEngine;
@@ -33,6 +34,8 @@ namespace PirateCrew.Tests
         {
             EventBus.ClearAll();
             LogAssert.ignoreFailingMessages = false;
+            // 迁移注册表是 static 状态：上个用例（尤其失败没走到 finally 的）不许泄漏进来
+            SaveManager.MigrationSteps.Clear();
 
             _tempDir = Path.Combine(Path.GetTempPath(), "PirateCrewSaveTests_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_tempDir);
@@ -49,6 +52,7 @@ namespace PirateCrew.Tests
         {
             LogAssert.ignoreFailingMessages = false;
             EventBus.ClearAll();
+            SaveManager.MigrationSteps.Clear();
 
             if (_go != null)
                 UnityEngine.Object.DestroyImmediate(_go);
@@ -400,6 +404,117 @@ namespace PirateCrew.Tests
             _manager.SaveRootPath = null;
 
             Assert.That(_manager.SaveRootPath, Does.Contain("saves"));
+        }
+
+        // ------------------------------------------------------------------
+        // 版本校验与迁移钩子（读侧门卫）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void SaveManager_LoadFromSlot_FutureVersion_ReturnsNullAndLogs()
+        {
+            // 手写一个"来自未来版本"的档（Version 高于当前 GameVersion）——
+            // 模拟用新版游戏存的档被旧版程序读到，必须拒绝而不是当旧档静默错读
+            File.WriteAllText(_io.GetSlotPath(1),
+                "{\"Version\":\"999.0.0\",\"Timestamp\":1,\"DisplayName\":\"未来档\",\"Data\":[]}");
+
+            LogAssert.Expect(LogType.Error, new Regex("\\[SaveManager\\].*版本不受支持"));
+
+            Assert.That(_manager.LoadFromSlot(1), Is.Null, "未来版本的档必须拒绝读取");
+            LogAssert.Expect(LogType.Error, new Regex("\\[SaveManager\\].*版本不受支持"));
+            Assert.That(_manager.TryLoadSlotQuiet(1), Is.Null, "静默读档走同一套版本校验");
+        }
+
+        [Test]
+        public void SaveManager_LoadFromSlot_UnparsableVersion_ReturnsNull()
+        {
+            // 段比较解析不动的版本号同样拒绝：解析不动就宁可拒绝，不做"大概差不多"的猜测
+            File.WriteAllText(_io.GetSlotPath(1),
+                "{\"Version\":\"beta-7\",\"Timestamp\":1,\"DisplayName\":\"怪档\",\"Data\":[]}");
+            LogAssert.Expect(LogType.Error, new Regex("\\[SaveManager\\].*版本不受支持"));
+
+            Assert.That(_manager.LoadFromSlot(1), Is.Null);
+        }
+
+        [Test]
+        public void SaveManager_LoadFromSlot_OlderVersion_PassesThroughMigrationPipeline()
+        {
+            File.WriteAllText(_io.GetSlotPath(1),
+                "{\"Version\":\"0.0.1\",\"Timestamp\":1,\"DisplayName\":\"旧档\",\"Data\":[]}");
+            SaveManager.MigrationSteps.Add(data =>
+            {
+                data.SetData("migrated", "yes");
+                return data;
+            });
+
+            SaveData loaded = _manager.LoadFromSlot(1);
+
+            Assert.That(loaded, Is.Not.Null, "低于当前版本的旧档应放行");
+            Assert.That(loaded.GetData("migrated"), Is.EqualTo("yes"), "旧档应经过迁移管线");
+        }
+
+        [Test]
+        public void SaveManager_MigrationSteps_TransformLoadedData()
+        {
+            // 管线连通性证明：当前版本档也过注册表，挂一个变换函数就能在读档结果里观测到
+            SaveManager.MigrationSteps.Add(data =>
+            {
+                data.SetData("migrated", "yes");
+                return data;
+            });
+
+            Assert.That(_manager.SaveToSlot(1, MakeData("k", "v"), "档"), Is.True);
+
+            SaveData loaded = _manager.LoadFromSlot(1);
+
+            Assert.That(loaded, Is.Not.Null);
+            Assert.That(loaded.GetData("migrated"), Is.EqualTo("yes"), "读档结果应经过迁移注册表");
+            Assert.That(loaded.GetData("k"), Is.EqualTo("v"), "迁移不丢既有键值");
+        }
+
+        [Test]
+        public void SaveManager_MigrationSteps_ReturnNull_RejectsLoad()
+        {
+            SaveManager.MigrationSteps.Add(_ => null);
+            Assert.That(_manager.SaveToSlot(1, MakeData("k", "v"), "档"), Is.True);
+
+            LogAssert.Expect(LogType.Error, new Regex("\\[SaveManager\\].*迁移失败"));
+
+            Assert.That(_manager.LoadFromSlot(1), Is.Null, "迁移步骤返回 null 视为失败，不吐半截档");
+        }
+
+        // ------------------------------------------------------------------
+        // ListSlots「有档无 meta」兜底
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void SaveManager_ListSlots_SlotFileWithoutMeta_GetsFallbackRow()
+        {
+            // 手写槽位文件、不写 _meta.json：模拟元数据损坏/丢失后的"有档无名"——
+            // 列表页空掉会让人误以为存档没了，兜底行必须让孤儿档可见
+            File.WriteAllText(_io.GetSlotPath(7), "{\"Version\":\"0.3.0\",\"Data\":[]}");
+            File.WriteAllText(_io.GetSlotPath(2), "{\"Version\":\"0.3.0\",\"Data\":[]}");
+
+            List<SlotMeta> slots = _manager.ListSlots();
+
+            Assert.That(slots.Count, Is.EqualTo(2), "两个孤儿档都应以兜底行出现在列表");
+            Assert.That(slots[0].Slot, Is.EqualTo(2), "兜底行同样按槽位号升序");
+            Assert.That(slots[0].DisplayName, Is.EqualTo("槽位 2"), "兜底显示名 = 写侧默认名");
+            Assert.That(slots[0].Timestamp, Is.GreaterThan(0), "兜底时间戳取文件最后写入时间");
+            Assert.That(slots[1].Slot, Is.EqualTo(7));
+            Assert.That(slots[1].DisplayName, Is.EqualTo("槽位 7"));
+        }
+
+        [Test]
+        public void SaveManager_ListSlots_MetaWins_NoDuplicateFallbackRow()
+        {
+            // meta 已登记的槽位不应因文件也存在而多出一行兜底（兜底只补"有档无 meta"）
+            Assert.That(_manager.SaveToSlot(1, MakeData("k", "v"), "档一"), Is.True);
+
+            List<SlotMeta> slots = _manager.ListSlots();
+
+            Assert.That(slots.Count, Is.EqualTo(1));
+            Assert.That(slots[0].DisplayName, Is.EqualTo("档一"));
         }
     }
 }

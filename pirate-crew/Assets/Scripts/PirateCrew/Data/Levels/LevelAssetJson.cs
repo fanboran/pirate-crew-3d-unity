@@ -256,13 +256,44 @@ namespace PirateCrew.Data
         // 读
         // ------------------------------------------------------------------
 
-        /// <summary>golden JSON → 样板关载荷；不是 level 载荷或字段缺失时返回 null。</summary>
+        /// <summary>
+        /// 读侧 schema 校验：schema 不等于当前 <see cref="LevelAssetSchema.Version"/> 的资产按坏数据拒绝
+        /// （返回 null + <see cref="PirateCrew.Core.Log.Error"/> 留痕）。
+        ///
+        /// 【口径】跟本文件读侧既有坏数据风格一致——**返回 null、不抛异常**：调用方
+        /// （<c>LevelAssetLibrary</c> / 门禁测试）对 null 已有统一的失败路径，抛异常等于
+        /// 悄悄改契约。kind 不符保持静默 null（那可能只是"读错了文件"）；schema 不符必须吵闹：
+        /// 走到这说明文件**确实是本类载荷、但字段语义已经代差**——继续读就是拿旧语义当新语义
+        /// 静默错读，比解析失败更危险。留痕指向两条出路：用对应版本的迁移器重写资产，
+        /// 或把工程对齐到资产所属版本。
+        ///
+        /// 【无头验证台】Log.Error 直通 <see cref="UnityEngine.Debug.LogError"/>，脱离 Unity
+        /// 运行时会抛——与写侧 <see cref="Number"/> 的先例同款边界：正常对拍只喂当前 schema
+        /// 的 golden JSON，不会走进本路径；schema 用例只在 Unity 侧（EditMode）跑。
+        /// </summary>
+        static bool SchemaMatches(JsonValue root)
+        {
+            int schema = root.Int("schema");
+            if (schema == LevelAssetSchema.Version)
+                return true;
+
+            global::PirateCrew.Core.Log.Error(
+                "[LevelAssetJson] 资产 schema=" + schema
+                + (schema == 0 ? "（缺失或非数字）" : "")
+                + "，当前版本=" + LevelAssetSchema.Version + "，字段语义已代差，拒绝读取——"
+                + "请用对应版本的迁移器重写资产，或将工程对齐到资产所属版本");
+            return false;
+        }
+
+        /// <summary>golden JSON → 样板关载荷；不是 level 载荷、schema 代差或字段缺失时返回 null。</summary>
         public static LevelAssetPayload ReadLevel(string json)
         {
             JsonValue root = JsonValue.Parse(json);
             if (root == null || root.Kind != JsonKind.Object)
                 return null;
             if (root.String("kind") != LevelAssetSchema.KindLevel)
+                return null;
+            if (!SchemaMatches(root))
                 return null;
 
             var payload = new LevelAssetPayload
@@ -302,13 +333,15 @@ namespace PirateCrew.Data
             return payload;
         }
 
-        /// <summary>golden JSON → 海图载荷；不是海图载荷时返回 null。</summary>
+        /// <summary>golden JSON → 海图载荷；不是海图载荷、schema 代差时返回 null。</summary>
         public static WorldMapAssetPayload ReadWorldMap(string json)
         {
             JsonValue root = JsonValue.Parse(json);
             if (root == null || root.Kind != JsonKind.Object)
                 return null;
             if (root.String("kind") != LevelAssetSchema.KindWorldMap)
+                return null;
+            if (!SchemaMatches(root))
                 return null;
 
             var payload = new WorldMapAssetPayload
