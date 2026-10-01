@@ -114,7 +114,7 @@ namespace PirateCrew.Tests.Audio
         [Test]
         public void Store_SettingsSlotDoesNotCollideWithKnownSlots()
         {
-            Assert.That(AudioSettingsStore.SettingsSlot, Is.Not.EqualTo(SaveManager.AutoSaveSlot), "槽位 0 是自动存档");
+            // 已知占用槽只剩 1（战役进度）；大于 1 同时蕴含避开槽位 0（当前无占用方）
             Assert.That(AudioSettingsStore.SettingsSlot, Is.GreaterThan(1), "槽位 1 是战役进度");
         }
     }

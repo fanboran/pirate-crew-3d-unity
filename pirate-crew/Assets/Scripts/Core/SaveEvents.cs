@@ -11,8 +11,5 @@ namespace PirateCrew.Core
 
         /// <summary>读档完成（载荷 = int 槽位；当前零订阅方）。</summary>
         public static readonly Event<int> LoadCompleted = new();
-
-        /// <summary>自动存档触发（载荷 = int 槽位；当前零订阅方）。</summary>
-        public static readonly Event<int> AutoSaveTriggered = new();
     }
 }

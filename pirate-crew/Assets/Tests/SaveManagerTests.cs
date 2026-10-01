@@ -14,8 +14,8 @@ namespace PirateCrew.Tests
     /// 【隔离方式】每个用例建独立临时目录：SaveFileIO 直接构造，SaveManager 通过
     /// <see cref="SaveManager.SaveRootPath"/> 注入；[TearDown] 删除临时目录。
     ///
-    /// 【覆盖边界】自动存档协程需要真实协程调度（PlayMode），EditMode 下不启动；
-    /// 这里覆盖其同步契约（TriggerAutoSave 未启用时返回 false）与文件层健壮性。
+    /// 【覆盖边界】这里覆盖槽位 / 元数据 / 事件通知的同步契约与文件层健壮性
+    /// （协程类行为本就需要 PlayMode，EditMode 不覆盖）。
     ///
     /// 【已知残余风险】转正走 File.Replace（SaveFileIO.WriteJsonAtomic）：为跨平台一致
     /// 会先删旧 .bak 再 Replace——若 Replace 中途失败，旧档已随 .bak 先删。构造该写失败
@@ -156,7 +156,7 @@ namespace PirateCrew.Tests
         [Test]
         public void SaveFileIO_NegativeSlot_Throws()
         {
-            // 槽位合法域 = [0, ∞)（SaveFileIO.MinSlot：0 自动档、1 起手动/设置档）；
+            // 槽位合法域 = [0, ∞)（SaveFileIO.MinSlot）；
             // 负号只会拼出无人读写的 slot_-1.json 孤儿文件，界外必须抛而不是静默拼路径。
             Assert.Throws<ArgumentOutOfRangeException>(() => _io.GetSlotPath(-1));
             Assert.Throws<ArgumentOutOfRangeException>(() => _io.SaveSlot(-1, MakeData("k", "v")));
@@ -391,12 +391,6 @@ namespace PirateCrew.Tests
             SlotMeta meta = _manager.GetSlotMeta(1);
             Assert.That(meta.DisplayName, Is.EqualTo("新档"));
             Assert.That(_manager.ListSlots().Count, Is.EqualTo(1), "覆盖不应产生新槽位");
-        }
-
-        [Test]
-        public void SaveManager_TriggerAutoSave_WhenDisabled_ReturnsFalse()
-        {
-            Assert.That(_manager.TriggerAutoSave(), Is.False);
         }
 
         [Test]

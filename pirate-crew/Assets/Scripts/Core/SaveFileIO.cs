@@ -31,10 +31,10 @@ namespace PirateCrew.Core
 
         /// <summary>
         /// 槽位号合法域下界（合法域 = [0, +∞)，无上限）。
-        /// 依据：本工程实际使用的槽位号全部非负——0 = 自动存档（<see cref="SaveManager.AutoSaveSlot"/>），
-        /// 1 起手动档（如 <c>CampaignApi.ProgressSlot = 1</c>），9 = 设置档
-        /// （<c>AudioSettingsStore.SettingsSlot</c> / <c>VideoSettingsStore.SettingsSlot</c>）；
+        /// 依据：槽位号拼进文件名 slot_{n}.json，非负才能保证文件名无歧义——
         /// 负号拼出的 <c>slot_-1.json</c> 是没有任何读写方会碰的孤儿文件名。
+        /// 当前占用登记：1 = 战役进度（<c>CampaignApi.ProgressSlot</c>）、9 = 设置档
+        /// （<c>AudioSettingsStore.SettingsSlot</c> / <c>VideoSettingsStore.SettingsSlot</c>）；0 无占用方。
         /// </summary>
         public const int MinSlot = 0;
 
@@ -56,7 +56,7 @@ namespace PirateCrew.Core
         {
             if (slot < MinSlot)
                 throw new ArgumentOutOfRangeException(nameof(slot), slot,
-                    "槽位号必须 ≥ " + MinSlot + "（0 = 自动存档，1 起手动/设置档）；"
+                    "槽位号必须 ≥ " + MinSlot + "；"
                     + "负槽位号只会拼出无人读写的孤儿文件名，宁抛不静默。");
 
             return Path.Combine(_rootPath, "slot_" + slot + ".json");

@@ -106,14 +106,13 @@ EventBus 拒绝投递、记入 `EventBus.ContractViolations` 并告警——机�
 
 ### 1.4 存档（`SaveManager` 广播）
 
-> `SaveEvents.SaveCompleted` / `SaveEvents.LoadCompleted` / `SaveEvents.AutoSaveTriggered` 当前**暂无订阅方**
+> `SaveEvents.SaveCompleted` / `SaveEvents.LoadCompleted` 当前**暂无订阅方**
 > （发布侧保留；频道字段在 `Core/SaveEvents`）。
 
 | 频道 | 载荷类型 | 时机 |
 | --- | --- | --- |
 | `SaveEvents.SaveCompleted` | `int` 槽位号 | 存档成功 |
 | `SaveEvents.LoadCompleted` | `int` 槽位号 | 读档成功 |
-| `SaveEvents.AutoSaveTriggered` | `int` 槽位号（`SaveManager.AutoSaveSlot = 0`） | 触发自动存档 |
 
 ---
 

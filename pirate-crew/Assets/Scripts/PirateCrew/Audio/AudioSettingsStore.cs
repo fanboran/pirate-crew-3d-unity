@@ -12,8 +12,7 @@ namespace PirateCrew.Audio
     /// 本项目里没有任何既有用法，引入第二套存储会分散口径。
     ///
     /// 【槽位选择】<see cref="SettingsSlot"/> = 9。
-    /// 已知占用：<c>SaveManager.AutoSaveSlot</c> = 0（自动存档）、
-    /// <c>CampaignApi.ProgressSlot</c> = 1（战役进度）。9 与测试里出现过的 2/3/5/6 均不冲突。
+    /// 已知占用：<c>CampaignApi.ProgressSlot</c> = 1（战役进度）。9 与测试里出现过的 2/3/5/6 均不冲突。
     /// 这是 **提案/待定**：若协调者要统一规划槽位，改此一处常量即可。
     ///
     /// 【纯/脏分层】<see cref="WriteTo"/> / <see cref="TryApplyFrom"/> 只操作

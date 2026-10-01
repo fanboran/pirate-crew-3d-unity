@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
@@ -11,14 +10,16 @@ namespace PirateCrew.Core
     ///
     /// 【架构定位】
     ///   全局服务，由 Bootstrapper 创建并随 Services 对象 DontDestroyOnLoad（同 SceneLoader）。
-    ///   Core 层不依赖玩法模块：自动存档的数据由玩法模块通过 <see cref="AutoSaveDataProvider"/> 注入。
+    ///   Core 层不依赖玩法模块：玩法数据（战役进度、设置）由玩法模块持有并传入槽位 API 落盘。
     ///
     /// 【核心职责】
     ///   1. 多槽位存档：SaveToSlot / LoadFromSlot / DeleteSlot / ListSlots / SlotExists
     ///   2. 槽位元数据：独立 _meta.json；GetSlotMeta / ListSlots 以元数据为唯一来源、不碰槽位文件
     ///      （本工程定案：以元数据为唯一来源，不扫描/读取槽位文件）
-    ///   3. 自动存档：EnableAutoSave 协程定时 + TriggerAutoSave 手动触发 + 退出兜底
-    ///   4. 事件通知：本地 event + 转发 EventBus 频道（SaveEvents.SaveCompleted / LoadCompleted / AutoSaveTriggered）
+    ///   3. 事件通知：本地 event + 转发 EventBus 频道（SaveEvents.SaveCompleted / LoadCompleted）
+    ///
+    /// 【存档写入路径】只有两条：手动存档（SaveToSlot）与战役结算落盘（CampaignApi 战后写进度，
+    ///   内部同样走 SaveToSlot）；本类不含定时快照。
     ///
     /// 【文件布局】&lt;SaveRootPath&gt;/slot_{n}.json、&lt;SaveRootPath&gt;/_meta.json（+ .bak / .tmp）
     ///   默认 SaveRootPath = Application.persistentDataPath/saves；测试或特殊平台可注入覆盖。
@@ -29,25 +30,10 @@ namespace PirateCrew.Core
     [DisallowMultipleComponent]
     public sealed class SaveManager : MonoBehaviour
     {
-        /// <summary>
-        /// 自动存档占用的槽位号。
-        /// 手动存档请从 1 起，避免覆盖自动存档。
-        /// </summary>
-        public const int AutoSaveSlot = 0;
-
-        /// <summary>自动存档默认间隔（秒）。</summary>
-        public const float DefaultAutoSaveInterval = 60f;
-
-        /// <summary>自动存档最短间隔，防止传入 0/负值时协程每帧空转。</summary>
-        const float MinAutoSaveInterval = 1f;
-
         [SerializeField] string savesFolder = "saves";
 
         string _saveRootPath;
         SaveFileIO _io;
-        Coroutine _autoSaveRoutine;
-        bool _autoSaveEnabled;
-        float _autoSaveInterval = DefaultAutoSaveInterval;
 
         /// <summary>
         /// 全局访问入口（由 Bootstrapper 创建本组件后可用）。
@@ -57,26 +43,11 @@ namespace PirateCrew.Core
         /// </summary>
         public static SaveManager Instance { get; private set; }
 
-        // 【存件·自动存档链（代码审计登记）】EnableAutoSave → AutoSaveRoutine → TriggerAutoSave
-        // → AutoSaveTriggered 整条链当前**零调用方**：没有任何代码调 EnableAutoSave，故
-        // _autoSaveEnabled 恒为 false，OnApplicationQuit 的 TriggerAutoSave 每次都在开关处短路；
-        // AutoSaveDataProvider 也从未被赋值。保留原因：自动存档是完整实现的标准功能，启用路径 =
-        // Bootstrapper 调 EnableAutoSave 并注入 AutoSaveDataProvider。删除或接线二选一，别让链上成员各自零散演化。
-
         /// <summary>存档成功。</summary>
         public event Action<int> SaveCompleted;
 
         /// <summary>读档成功。</summary>
         public event Action<int> LoadCompleted;
-
-        /// <summary>自动存档触发。</summary>
-        public event Action<int> AutoSaveTriggered;
-
-        /// <summary>
-        /// 自动存档数据来源（由玩法模块注册；Core 不依赖玩法，故用委托注入）。
-        /// 返回 null 时本次自动存档跳过；抛异常会被捕获，不影响其他系统。
-        /// </summary>
-        public Func<SaveData> AutoSaveDataProvider { get; set; }
 
         /// <summary>
         /// 存档根目录。默认 <c>Application.persistentDataPath/saves</c>；
@@ -98,12 +69,6 @@ namespace PirateCrew.Core
                 _io = null; // 惰性重建，指向新目录
             }
         }
-
-        /// <summary>自动存档是否已启用。</summary>
-        public bool AutoSaveEnabled => _autoSaveEnabled;
-
-        /// <summary>当前自动存档间隔（秒）。</summary>
-        public float AutoSaveInterval => _autoSaveInterval;
 
         SaveFileIO Io => _io ?? (_io = new SaveFileIO(SaveRootPath));
 
@@ -131,16 +96,8 @@ namespace PirateCrew.Core
 
         void OnDestroy()
         {
-            DisableAutoSave();
-
             if (Instance == this)
                 Instance = null;
-        }
-
-        void OnApplicationQuit()
-        {
-            // 兜底：退出前落盘一次（未启用自动存档或无数据源时为 no-op）
-            TriggerAutoSave();
         }
 
         // ------------------------------------------------------------------
@@ -151,7 +108,7 @@ namespace PirateCrew.Core
         /// 保存数据到指定槽位（对应 <c>save_to_slot</c>）。
         /// 会覆盖 data 的 Version / Timestamp / DisplayName，并更新 _meta.json。
         /// </summary>
-        /// <param name="slot">槽位号（0 预留给自动存档，手动存档建议从 1 起）。</param>
+        /// <param name="slot">槽位号（非负；当前占用：1 = 战役进度、9 = 设置档，0 无占用方）。</param>
         /// <param name="data">存档数据；为 null 直接失败。</param>
         /// <param name="displayName">显示名称；空则用「槽位 n」。</param>
         public bool SaveToSlot(int slot, SaveData data, string displayName = "")
@@ -251,97 +208,6 @@ namespace PirateCrew.Core
         public bool SlotExists(int slot)
         {
             return Io.SlotExists(slot);
-        }
-
-        // ------------------------------------------------------------------
-        // 自动存档
-        // ------------------------------------------------------------------
-
-        /// <summary>启用自动存档（对应 <c>enable_auto_save</c>）；重复调用会按新间隔重置计时。</summary>
-        public void EnableAutoSave(float intervalSeconds = DefaultAutoSaveInterval)
-        {
-            _autoSaveInterval = Mathf.Max(intervalSeconds, MinAutoSaveInterval);
-            _autoSaveEnabled = true;
-
-            if (_autoSaveRoutine != null)
-                StopCoroutine(_autoSaveRoutine);
-
-            _autoSaveRoutine = StartCoroutine(AutoSaveRoutine(_autoSaveInterval));
-        }
-
-        /// <summary>禁用自动存档（对应 <c>disable_auto_save</c>）。</summary>
-        public void DisableAutoSave()
-        {
-            _autoSaveEnabled = false;
-
-            if (_autoSaveRoutine != null)
-            {
-                StopCoroutine(_autoSaveRoutine);
-                _autoSaveRoutine = null;
-            }
-        }
-
-        /// <summary>
-        /// 立刻触发一次自动存档（对应 <c>trigger_auto_save</c>）。
-        /// 未启用自动存档、未注册数据源、数据源抛异常或返回 null 时返回 false，
-        /// 且任何失败都不会让定时协程中断。
-        /// </summary>
-        public bool TriggerAutoSave()
-        {
-            if (!_autoSaveEnabled)
-                return false;
-
-            if (AutoSaveDataProvider == null)
-            {
-                global::PirateCrew.Core.Log.Warn("[SaveManager] 未注册 AutoSaveDataProvider，跳过自动存档");
-                return false;
-            }
-
-            SaveData data;
-            try
-            {
-                data = AutoSaveDataProvider();
-            }
-            catch (Exception e)
-            {
-                // 数据源异常只废掉本次自动存档，可恢复，收口为 Warn（发布版不再留日志）
-                global::PirateCrew.Core.Log.Warn("[SaveManager] 自动存档数据源异常: " + e);
-                return false;
-            }
-
-            if (data == null)
-            {
-                global::PirateCrew.Core.Log.Warn("[SaveManager] 自动存档数据源返回 null，跳过本次");
-                return false;
-            }
-
-            // 先发事件，再写盘
-            AutoSaveTriggered?.Invoke(AutoSaveSlot);
-            EventBus.Publish(SaveEvents.AutoSaveTriggered, AutoSaveSlot);
-
-            return SaveToSlot(AutoSaveSlot, data, "自动存档");
-        }
-
-        IEnumerator AutoSaveRoutine(float interval)
-        {
-            // WaitForSecondsRealtime：游戏暂停（timeScale = 0）时也照常计时
-            while (_autoSaveEnabled)
-            {
-                yield return new WaitForSecondsRealtime(interval);
-
-                if (!_autoSaveEnabled)
-                    yield break;
-
-                // 单次失败不能弄死协程（健壮性保障）
-                try
-                {
-                    TriggerAutoSave();
-                }
-                catch (Exception e)
-                {
-                    global::PirateCrew.Core.Log.Warn("[SaveManager] 自动存档异常: " + e);
-                }
-            }
         }
 
         // ------------------------------------------------------------------

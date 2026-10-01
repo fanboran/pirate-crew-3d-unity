@@ -33,7 +33,7 @@ namespace PirateCrew.Campaign
     /// </summary>
     public static class CampaignApi
     {
-        /// <summary>管理循环存档槽位（0 被 <c>SaveManager.AutoSaveSlot</c> 占用，手动存档从 1 起）。</summary>
+        /// <summary>管理循环存档槽位（槽位号是持久化语义，沿用 1；当前槽位占用登记见 <see cref="SaveFileIO.MinSlot"/> 注释）。</summary>
         public const int ProgressSlot = 1;
 
         /// <summary>存档显示名。</summary>
