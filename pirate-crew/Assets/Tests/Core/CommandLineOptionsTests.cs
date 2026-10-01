@@ -1,3 +1,5 @@
+using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 using PirateCrew.Core;
 
@@ -181,6 +183,75 @@ namespace PirateCrew.Tests
 
             Assert.That(CommandLineOptions.Has(ToolFlags.WorldMap), Is.False, "重解析必须整表替换");
             Assert.That(CommandLineOptions.Has(ToolFlags.SceneKitOut), Is.True);
+        }
+
+        // ------------------------------------------------------------------
+        // 登记制与防御性边界（下列用例为补课批新增）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void ToolFlags_Registry_FlagsAreUniqueAndWellFormed()
+        {
+            // 登记制不变量（ToolFlags 类头："单一事实源：不许在业务代码里散落 -flag 字面量"）：
+            // 全部常量非空、以 '-' 开头、互不重复——复制粘贴拼错一个开关名，两个 flag
+            // 就会各自带着错名字静默落表，消费方永远等不到参数。
+            string[] flags = typeof(ToolFlags)
+                .GetFields(BindingFlags.Public | BindingFlags.Static)
+                .Where(f => f.IsLiteral && f.FieldType == typeof(string))
+                .Select(f => (string)f.GetValue(null))
+                .ToArray();
+
+            Assert.That(flags, Is.Not.Empty, "登记表不应为空");
+
+            foreach (string flag in flags)
+            {
+                Assert.That(flag, Is.Not.Empty, "开关名不应为空串");
+                Assert.That(flag[0], Is.EqualTo('-'), $"'{flag}' 应以 '-' 开头");
+            }
+
+            Assert.That(flags.Distinct().Count(), Is.EqualTo(flags.Length),
+                "开关名出现重复（复制粘贴未改值）：" + string.Join(", ", flags));
+        }
+
+        [Test]
+        public void Parse_NullOrEmptyTokens_AreSkipped()
+        {
+            // 防御性边界（CommandLineOptions.Parse 的 IsNullOrEmpty 分支）：
+            // token 位置与值位置的 null / 空串都不能把解析器带崩——
+            // 值位 null 等价"无值"，不能 NRE 也不能把 null 记成值。
+            CommandLineOptions.Parse(new[] { null, "", "-artReviewOut", null, "-worldMap", "wreck_hymn" });
+
+            Assert.That(CommandLineOptions.Has(ToolFlags.ArtReviewOut), Is.True);
+            Assert.That(CommandLineOptions.GetValue(ToolFlags.ArtReviewOut), Is.Null,
+                "值位 null 应按『出现但无值』处理");
+            Assert.That(CommandLineOptions.GetValue(ToolFlags.WorldMap), Is.EqualTo("wreck_hymn"));
+        }
+
+        [Test]
+        public void HasAndGetValue_NullOrEmptyFlag_AreSafe()
+        {
+            // 防御性边界（CommandLineOptions.cs:58 / 68 的 IsNullOrEmpty 分支）：
+            // 调用方传 null / 空串查询必须得到 false / null，而不是内部字典异常。
+            CommandLineOptions.Parse(new[] { "app", "-worldMap", "wreck_hymn" });
+
+            Assert.That(CommandLineOptions.Has(null), Is.False);
+            Assert.That(CommandLineOptions.Has(""), Is.False);
+            Assert.That(CommandLineOptions.GetValue(null), Is.Null);
+            Assert.That(CommandLineOptions.GetValue(""), Is.Null);
+        }
+
+        [Test]
+        public void TryGetInt_NegativeNumericValue_ParsesAsInt()
+        {
+            // 负数判据（IsNumericLiteral）对整数取值同样生效——除了 float 侧
+            // （Parse_NegativeNumericValue_IsAcceptedAsValue），int 侧消费方也要吃得下负值。
+            // 消费口径例：ChemPlantOrbitCapture.Install 以 TryGetInt(ToolFlags.OrbitLevel)
+            // + level <= 0 拒绝非法关号（pirate-crew/Assets/Scripts/PirateCrew/ArtReview/ChemPlantOrbitCapture.cs:22-25）——
+            // 解析层只负责把 "-3" 原样交到调用方手里，裁值权在消费方。
+            CommandLineOptions.Parse(new[] { "app", ToolFlags.PixelartNormalEdgeLevel, "-1" });
+
+            Assert.That(CommandLineOptions.TryGetInt(ToolFlags.PixelartNormalEdgeLevel, out int level), Is.True);
+            Assert.That(level, Is.EqualTo(-1));
         }
     }
 }
