@@ -109,6 +109,8 @@ namespace PirateCrew.UI
         const string ResourcePath = "AseWidgets/theme.xml";
 
         static Dictionary<string, AseThemeStyle> s_styles;
+        /// <summary>colors 段按 id 索引（<see cref="TryGetColor"/> 取色用，与样式同次懒解析）。</summary>
+        static Dictionary<string, Color32> s_colors;
         static bool s_parsed;
 
         /// <summary>解析是否已发生（<see cref="EnsureParsed"/> 幂等；每帧不读文件）。</summary>
@@ -125,6 +127,32 @@ namespace PirateCrew.UI
             EnsureParsed();
             style = null;
             return styleId != null && s_styles.TryGetValue(styleId, out style);
+        }
+
+        /// <summary>
+        /// 按 id 查 theme.xml <c>&lt;colors&gt;</c> 段的命名色（如 <c>menuitem_hot_face</c>）。
+        /// 新代码取权威色走这里，不再手抄 Color32 字面量；手抄漂移对拍防线见
+        /// Tests/UI/ThemeColorParityTests.cs。未解析/无此 id 返回 false。
+        /// </summary>
+        public static bool TryGetColor(string id, out Color32 color)
+        {
+            EnsureParsed();
+            color = default;
+            return id != null && s_colors != null && s_colors.TryGetValue(id, out color);
+        }
+
+        /// <summary>
+        /// theme.xml **文本** → colors 表（纯 C#，不碰 Resources）：与 <see cref="Parse"/>
+        /// 共用 <see cref="ParseColors"/> 的解析缝，供无头对拍测试（harness 纯 dotnet）直接喂
+        /// 盘上 theme.xml 取权威值——<see cref="TryGetColor"/> 的 EnsureParsed 走
+        /// Resources.Load，脱离 Unity 运行时不可调。喂非法 XML 直接抛不吞：
+        /// 调用方前提是合法 theme.xml。
+        /// </summary>
+        public static IReadOnlyDictionary<string, Color32> ParseColorsFromText(string xml)
+        {
+            if (string.IsNullOrEmpty(xml))
+                return new Dictionary<string, Color32>();
+            return ParseColors(XDocument.Parse(xml));
         }
 
         // ------------------------------------------------------------------
@@ -293,6 +321,7 @@ namespace PirateCrew.UI
                     + ".txt——状态层匹配将全部落空。由 AseWidgetAssetSync（菜单 PirateCrew/同步 Aseprite widgets 资产）"
                     + "从 Assets/Art/Sprites/UI/Aseprite/theme.xml 拷入。");
                 s_styles = new Dictionary<string, AseThemeStyle>();
+                s_colors = new Dictionary<string, Color32>();
                 return;
             }
             s_styles = Parse(asset.text);
@@ -320,6 +349,7 @@ namespace PirateCrew.UI
             }
 
             var colors = ParseColors(doc);
+            s_colors = colors;
             XElement stylesEl = doc.Root?.Element("styles");
             if (stylesEl == null)
             {
