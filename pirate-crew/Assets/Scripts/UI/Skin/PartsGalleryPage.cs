@@ -56,26 +56,26 @@ namespace PirateCrew.UI
             float galleryW = MarginX * 2f + columns * CellW + (columns - 1) * CellGap;
 
             PixelSkinAsset a = PixelSkin.Asset;
-            if (a == null || a.aseParts == null || a.asePartNames == null || a.asePartFamilies == null
-                || a.aseParts.Length == 0
-                || a.aseParts.Length != a.asePartNames.Length
-                || a.aseParts.Length != a.asePartFamilies.Length)
+            if (a == null || a.AseParts == null || a.AsePartNames == null || a.AsePartFamilies == null
+                || a.AseParts.Count == 0
+                || a.AseParts.Count != a.AsePartNames.Count
+                || a.AseParts.Count != a.AsePartFamilies.Count)
             {
                 Debug.LogError("[PartsGalleryPage] 图集直切件表缺失或不对齐——先重烘焙（PirateCrew/UI/重烘焙 Beveled Pixel 九宫格）。");
                 yield break;
             }
 
-            float y = PageHeader(content, topOffset, a.aseParts.Length, galleryW);
+            float y = PageHeader(content, topOffset, a.AseParts.Count, galleryW);
             onProgress?.Invoke(y);
 
             // 家族面板：数组序 = 家族序（烘焙器排好），连续同族一段
-            int n = a.aseParts.Length;
+            int n = a.AseParts.Count;
             int familyStart = 0;
             for (int i = 1; i <= n; i++)
             {
-                if (i == n || a.asePartFamilies[i] != a.asePartFamilies[familyStart])
+                if (i == n || a.AsePartFamilies[i] != a.AsePartFamilies[familyStart])
                 {
-                    y = FamilyPanel(content, y, a.asePartFamilies[familyStart], a, familyStart, i - familyStart, columns, galleryW);
+                    y = FamilyPanel(content, y, a.AsePartFamilies[familyStart], a, familyStart, i - familyStart, columns, galleryW);
                     onProgress?.Invoke(y);
                     yield return null;   // 一步 = 一个家族面板
                     familyStart = i;
@@ -105,7 +105,7 @@ namespace PirateCrew.UI
                 int col = i % columns;
                 int row = i / columns;
                 float x = MarginX + col * (CellW + CellGap);
-                Cell(content, x, y + row * (CellH + CellGap), a.aseParts[start + i], a.asePartNames[start + i]);
+                Cell(content, x, y + row * (CellH + CellGap), a.AseParts[start + i], a.AsePartNames[start + i]);
             }
             int rows = (count + columns - 1) / columns;
             return y + rows * CellH + (rows - 1) * CellGap + 12f;

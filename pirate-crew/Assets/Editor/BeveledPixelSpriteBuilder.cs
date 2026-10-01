@@ -1727,9 +1727,6 @@ namespace PirateCrew.EditorTools
                 toneColors.Add(r.S2);
             }
 
-            asset.windows = windows.ToArray();
-            asset.focus = LoadSprite("Pixel_Focus");
-
             // Aseprite dark 控件件（×1 全量迁移）：BakeAsepriteParts 的直切成品，
             // 平行数组 aseParts/asePartNames/asePartFamilies 收**全表 345 件**——
             // 运行时 PixelSkin.Ase(id) 查它；陈列廊按 families 分组、数组序即面板序
@@ -1753,50 +1750,53 @@ namespace PirateCrew.EditorTools
                 aseFamilies.Add(AseFamilyOf(id));
                 aseById[id] = sprite;
             }
-            asset.aseParts = aseSprites.ToArray();
-            asset.asePartNames = aseNames.ToArray();
-            asset.asePartFamilies = aseFamilies.ToArray();
-
-            // 语义取用器的固定族字段也落直切件（id 与 PixelSkin 取用器映射一一对应）
-            asset.windowButtons = new[]
-            {
-                aseById["window_button_normal"],
-                aseById["window_button_hot"],
-                aseById["window_button_selected"],
-            };
-            asset.windowIcons = new[]
-            {
-                aseById["window_close_icon"],
-                aseById["window_help_icon"],
-                aseById["window_play_icon"],
-                aseById["window_stop_icon"],
-                aseById["window_center_icon"],
-            };
-            asset.checks = new[] { aseById["check_normal"], aseById["check_selected"] };
-            asset.radios = new[] { aseById["radio_normal"], aseById["radio_selected"] };
-            asset.widgetFocus = aseById["check_focus"];
-            asset.sunken = new[] { aseById["sunken_normal"], aseById["sunken_focused"] };
-            asset.sliderEmpty = new[]
-            {
-                aseById["slider_empty"], aseById["slider_empty_focused"],
-            };
-            asset.sliderFull = new[]
-            {
-                aseById["slider_full"], aseById["slider_full_focused"],
-            };
-            asset.sliderThumb = aseById["mini_slider_thumb"];
-            asset.scrollbars = new[] { aseById["scrollbar_bg"], aseById["scrollbar_thumb"] };
-            asset.tooltip = aseById["tooltip"];
-            asset.arrowsDown = new[]
-            {
-                aseById["combobox_arrow_down"],
-                aseById["combobox_arrow_down_selected"],
-                aseById["combobox_arrow_down_disabled"],
-            };
-
-            asset.toneColors = toneColors.ToArray();
-            asset.ink = Slot("INK");
-            asset.paperWhite = Slot("UI_TEXT");   // Aseprite 正文灰 #C0C0C0（text 色原值）
+            // 全表灌进图集：唯一写口 ApplyBake（烘焙器专用，运行时只读），具名参数与
+            // 序列化字段一一对照，落盘内容与旧直写逐位一致。
+            asset.ApplyBake(
+                windows: windows.ToArray(),
+                focus: LoadSprite("Pixel_Focus"),
+                // 语义取用器的固定族字段也落直切件（id 与 PixelSkin 取用器映射一一对应）
+                windowButtons: new[]
+                {
+                    aseById["window_button_normal"],
+                    aseById["window_button_hot"],
+                    aseById["window_button_selected"],
+                },
+                windowIcons: new[]
+                {
+                    aseById["window_close_icon"],
+                    aseById["window_help_icon"],
+                    aseById["window_play_icon"],
+                    aseById["window_stop_icon"],
+                    aseById["window_center_icon"],
+                },
+                checks: new[] { aseById["check_normal"], aseById["check_selected"] },
+                radios: new[] { aseById["radio_normal"], aseById["radio_selected"] },
+                widgetFocus: aseById["check_focus"],
+                sunken: new[] { aseById["sunken_normal"], aseById["sunken_focused"] },
+                sliderEmpty: new[]
+                {
+                    aseById["slider_empty"], aseById["slider_empty_focused"],
+                },
+                sliderFull: new[]
+                {
+                    aseById["slider_full"], aseById["slider_full_focused"],
+                },
+                sliderThumb: aseById["mini_slider_thumb"],
+                scrollbars: new[] { aseById["scrollbar_bg"], aseById["scrollbar_thumb"] },
+                tooltip: aseById["tooltip"],
+                arrowsDown: new[]
+                {
+                    aseById["combobox_arrow_down"],
+                    aseById["combobox_arrow_down_selected"],
+                    aseById["combobox_arrow_down_disabled"],
+                },
+                aseParts: aseSprites.ToArray(),
+                asePartNames: aseNames.ToArray(),
+                asePartFamilies: aseFamilies.ToArray(),
+                toneColors: toneColors.ToArray(),
+                ink: Slot("INK"),
+                paperWhite: Slot("UI_TEXT"));   // Aseprite 正文灰 #C0C0C0（text 色原值）
 
             EditorUtility.SetDirty(asset);
             AssetDatabase.SaveAssets();
@@ -1816,42 +1816,43 @@ namespace PirateCrew.EditorTools
                 problems.Add("图集资产缺失：" + AtlasAssetPath + "（GenerateAtlas 应在烘焙后跑）。");
                 return;
             }
-            if (asset.windows == null || asset.windows.Length != 7)
-                problems.Add("图集 windows 长度 " + (asset.windows == null ? 0 : asset.windows.Length) + "，应为 7（7 tone）。");
-            if (asset.toneColors == null || asset.toneColors.Length != 7 * 3)
-                problems.Add("图集 toneColors 长度 " + (asset.toneColors == null ? 0 : asset.toneColors.Length) + "，应为 21。");
-            CheckNoNull(problems, asset.windows, "windows");
+            // 只读访问器（IReadOnlyList：判空语义与旧数组一致，Length→Count 是唯一口径差）
+            if (asset.Windows == null || asset.Windows.Count != 7)
+                problems.Add("图集 windows 长度 " + (asset.Windows == null ? 0 : asset.Windows.Count) + "，应为 7（7 tone）。");
+            if (asset.ToneColors == null || asset.ToneColors.Count != 7 * 3)
+                problems.Add("图集 toneColors 长度 " + (asset.ToneColors == null ? 0 : asset.ToneColors.Count) + "，应为 21。");
+            CheckNoNull(problems, asset.Windows, "windows");
             // Aseprite 直切件：三平行数组对齐 + 长度 = theme <parts> 全表 + 无空槽
             // （空槽 = 直切漏件或 part id 对不上）。
             int aseTableCount = ParseAseParts().Count;
-            if (asset.aseParts == null || asset.asePartNames == null || asset.asePartFamilies == null
-                || asset.aseParts.Length != asset.asePartNames.Length
-                || asset.aseParts.Length != asset.asePartFamilies.Length
-                || asset.aseParts.Length != aseTableCount)
+            if (asset.AseParts == null || asset.AsePartNames == null || asset.AsePartFamilies == null
+                || asset.AseParts.Count != asset.AsePartNames.Count
+                || asset.AseParts.Count != asset.AsePartFamilies.Count
+                || asset.AseParts.Count != aseTableCount)
             {
                 problems.Add("图集 aseParts/asePartNames/asePartFamilies 缺失或长度与 theme.xml 全表（"
                     + aseTableCount + " 件）不对齐——GenerateAtlas 应在直切后跑。");
             }
-            CheckNoNull(problems, asset.aseParts, "aseParts");
-            if (asset.toneColors != null)
+            CheckNoNull(problems, asset.AseParts, "aseParts");
+            if (asset.ToneColors != null)
             {
-                for (int i = 0; i < asset.toneColors.Length; i++)
+                for (int i = 0; i < asset.ToneColors.Count; i++)
                 {
-                    if (asset.toneColors[i].a != 255)
+                    if (asset.ToneColors[i].a != 255)
                     {
                         problems.Add("图集 toneColors[" + i + "] alpha != 255。");
                         break;
                     }
                 }
             }
-            if (asset.focus == null) problems.Add("图集缺 focus。");
+            if (asset.Focus == null) problems.Add("图集缺 focus。");
         }
 
-        static void CheckNoNull(List<string> problems, Sprite[] sprites, string what)
+        static void CheckNoNull(List<string> problems, IReadOnlyList<Sprite> sprites, string what)
         {
             if (sprites == null)
                 return;
-            for (int i = 0; i < sprites.Length; i++)
+            for (int i = 0; i < sprites.Count; i++)
             {
                 if (sprites[i] == null)
                 {

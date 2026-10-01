@@ -104,7 +104,7 @@ namespace PirateCrew.UI
 
         /// <summary>【存件·零调用方（UI 重构 W4 登记）】旧焦点框——现役键盘焦点一律
         /// <see cref="WidgetFocus"/>（= Ase check_focus）。保留仅为烘焙器存件，新代码禁用。</summary>
-        public static Sprite Focus { get { return Single("Focus", Asset != null ? Asset.focus : null); } }
+        public static Sprite Focus { get { return Single("Focus", Asset != null ? Asset.Focus : null); } }
 
         // ---------- Aseprite dark 直切件（×1 全量对齐波；sheet.png 直切，theme.xml <parts> 表） ----------
 
@@ -116,7 +116,7 @@ namespace PirateCrew.UI
         public static Sprite Ase(string partId)
         {
             PixelSkinAsset a = Asset;
-            if (a == null || a.asePartNames == null || a.aseParts == null)
+            if (a == null || a.AsePartNames == null || a.AseParts == null)
             {
                 Debug.LogError("[PixelSkin] 图集缺 aseParts 表——重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
                 return null;
@@ -127,14 +127,14 @@ namespace PirateCrew.UI
                 // 是 O(n²)。【失效口径】s_asset 本就是进程级单例（Asset 惰性加载后不重载，
                 // 运行期无换肤/重建资产的路径），静态缓存与其同生命周期；域重载（进出播放/
                 // 脚本重编译）静态字段整体归零，缓存随之自动重建，无需另设失效开关。
-                var index = new Dictionary<string, int>(a.asePartNames.Length, System.StringComparer.Ordinal);
-                for (int i = 0; i < a.asePartNames.Length; i++)
-                    if (!index.ContainsKey(a.asePartNames[i]))
-                        index.Add(a.asePartNames[i], i);   // 同名取首个，与旧线性扫命中语义一致
+                var index = new Dictionary<string, int>(a.AsePartNames.Count, System.StringComparer.Ordinal);
+                for (int i = 0; i < a.AsePartNames.Count; i++)
+                    if (!index.ContainsKey(a.AsePartNames[i]))
+                        index.Add(a.AsePartNames[i], i);   // 同名取首个，与旧线性扫命中语义一致
                 s_aseIndex = index;
             }
-            if (s_aseIndex.TryGetValue(partId, out int idx) && a.aseParts[idx] != null)
-                return a.aseParts[idx];
+            if (s_aseIndex.TryGetValue(partId, out int idx) && a.AseParts[idx] != null)
+                return a.AseParts[idx];
             Debug.LogError("[PixelSkin] 图集缺 Aseprite 直切件 \"" + partId
                 + "\"——全量迁移由烘焙器枚举 theme.xml <parts>（345 件），重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
             return null;
@@ -145,7 +145,7 @@ namespace PirateCrew.UI
         /// 新代码禁用；连同烘焙器程序化残段一并清退时再删。</summary>
         public static Sprite Window(PixelTone tone)
         {
-            return SpriteAt(Asset != null ? Asset.windows : null, (int)tone, "Window/" + tone);
+            return SpriteAt(Asset != null ? Asset.Windows : null, (int)tone, "Window/" + tone);
         }
 
         /// <summary>窗体标题带高（theme window h1=15 设计格，×1 即 15 画布像素）——内容区从带底往下排。</summary>
@@ -289,10 +289,10 @@ namespace PirateCrew.UI
         public static Color32 DarkOf(PixelTone tone) { return ColorAt(tone, 2); }
 
         /// <summary>墨色（浅底上的文字/线条）。</summary>
-        public static Color32 Ink { get { return Asset != null ? Asset.ink : new Color32(0x14, 0x12, 0x16, 255); } }
+        public static Color32 Ink { get { return Asset != null ? Asset.Ink : new Color32(0x14, 0x12, 0x16, 255); } }
 
         /// <summary>暖白（深底上的最亮文字）。</summary>
-        public static Color32 PaperWhite { get { return Asset != null ? Asset.paperWhite : Color.white; } }
+        public static Color32 PaperWhite { get { return Asset != null ? Asset.PaperWhite : Color.white; } }
 
         /// <summary>
         /// 某 tone 底上的正文字色（创始人 2026-09-23 裁决"背景深色就白色文字，否则才黑色"）：
@@ -308,9 +308,10 @@ namespace PirateCrew.UI
             return lum > 140f ? Ink : PaperWhite;
         }
 
-        static Sprite SpriteAt(Sprite[] array, int index, string what)
+        // 数组走 IReadOnlyList 只读视图（图集资产运行时只读），判空/下标读语义与数组一致
+        static Sprite SpriteAt(IReadOnlyList<Sprite> array, int index, string what)
         {
-            if (array != null && index >= 0 && index < array.Length && array[index] != null)
+            if (array != null && index >= 0 && index < array.Count && array[index] != null)
                 return array[index];
             Debug.LogError("[PixelSkin] 图集缺 " + what + "——重烘焙 PirateCrew/UI/重烘焙 Beveled Pixel 九宫格。");
             return null;
@@ -327,8 +328,8 @@ namespace PirateCrew.UI
         {
             PixelSkinAsset a = Asset;
             int i = (int)tone * 3 + shade;
-            if (a != null && i < a.toneColors.Length)
-                return a.toneColors[i];
+            if (a != null && i < a.ToneColors.Count)
+                return a.ToneColors[i];
             Debug.LogError("[PixelSkin] 图集缺 tone " + tone + " 的取色令牌。");
             return new Color32(255, 0, 255, 255);
         }
