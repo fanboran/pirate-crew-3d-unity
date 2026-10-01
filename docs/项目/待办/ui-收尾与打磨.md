@@ -186,7 +186,8 @@ VBox/HStack/Grid（间距/内边距全 u 整数倍）+ Element 首选尺寸 + Fl
 ### 翻新流程 UI 段（步骤 4a–4e）
 
 - [x] 步骤 4a：**UI 九宫格生成器（Beveled Pixel）已落地**（2026-09-22）——
-      `Assets/Editor/BeveledPixelSpriteBuilder.cs`、判据 `Assets/Art/Tests/BeveledPixelSkinTests.cs`、
+      `Assets/Editor/BeveledPixelSpriteBuilder.cs`、判据（原 `BeveledPixelSkinTests` 已随 tone 族
+      退役删除，九宫格契约测试待补建 → [ui-九宫格契约测试补建.md](ui-九宫格契约测试补建.md)）、
       `ArtGate` ⑦.5 步；实现口径见
       [Beveled Pixel 九宫格规范](../../技术/资产管线/BeveledPixel九宫格规范.md)。
       走查修掉两处（都已固化成判据）：① 三层带改**同心环**（外环 8 连通 1 段无端点）；

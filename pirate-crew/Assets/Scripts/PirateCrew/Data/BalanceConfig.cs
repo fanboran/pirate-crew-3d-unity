@@ -72,11 +72,11 @@ namespace PirateCrew.Data
             // 全部 WeaponId 共用的标准小炸弹：爆炸尺寸与爆心伤害。消费方是
             // Combat/StandardBombRules（唯一入口），重做裁决后只改这里。
             /// <summary>标准炸弹爆炸尺寸参数：radius = size/2 + ExplosionRadiusPadding。
-            /// 【提案/待定：标准炸弹口径，占位空壳期数值】。</summary>
+            /// 【已裁决：空壳期维持占位大覆盖档（尺寸 100→半径 70px），重做批次定稿时再裁】。</summary>
             public const float StandardBombExplosionSize = 100f;
 
-            /// <summary>标准炸弹爆心最大伤害。
-            /// 【提案/待定：标准炸弹口径，占位空壳期数值】。</summary>
+            /// <summary>标准炸弹爆心最大伤害（满血 100 的两发线）。
+            /// 【已裁决：空壳期维持占位档；伤害 50 有逆向 §5.2 樱桃系基准背书，重做批次定稿时再裁】。</summary>
             public const float StandardBombDamage = 50f;
         }
 

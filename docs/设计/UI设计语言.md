@@ -9,7 +9,7 @@
 > **【当前方向】UI 视觉风格已由**[美术风格指南.md](美术风格指南.md) §5 的**像素斜面浮雕（Beveled Pixel + Chunky Pixel）**取代（创始人裁决）；本文的**色彩/贴图/沸腾等风格层条款待 UI 换肤实施时重写**，机制骨架（Token 单源/变体表/zone 布局表/陈列页自检）继续有效并直接承载新皮肤。
 >
 > **新皮的实现口径**已落地在 [Beveled Pixel 九宫格规范](../技术/资产管线/BeveledPixel九宫格规范.md)
-> （生成器 `Editor/BeveledPixelSpriteBuilder.cs` 出 26 张九宫格，判据 `Assets/Art/Tests/BeveledPixelSkinTests.cs`）；
+> （生成器 `Editor/BeveledPixelSpriteBuilder.cs` 出 26 张九宫格；九宫格契约测试待补建，见待办 [ui-九宫格契约测试补建](../项目/待办/ui-九宫格契约测试补建.md)）；
 > **但装配侧还没换皮**——本文下面的色彩/贴图条款要等 4b 一屏试点出图过审后再重写，别提前按它们施工。
 >
 > 视觉系统的设计意图与使用纪律。所有常量的**代码真相源**是

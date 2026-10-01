@@ -1,0 +1,29 @@
+# ui-九宫格契约测试补建
+
+> 九宫格皮肤的契约测试层缺位：原 `Assets/Art/Tests/BeveledPixelSkinTests.cs` 已随 tone 族整退役删除（`6a50654a`），[BeveledPixel九宫格规范](../../技术/资产管线/BeveledPixel九宫格规范.md) §五判据表中间层（独立复核）无处承载，docs 引用已止血为「待补建」。
+
+## 详情
+
+**缺的是什么**：规范 §五立了三层判据、要求「两套独立实现」（生成器自检 / 契约测试各一份，两边都过才算数）——
+生成器自检层 `BeveledPixelSpriteBuilder.Verify()` 与被检物同源，契约测试层负责**不依赖生成器的独立复核**
+（直接读盘上 PNG）。该层原由 `BeveledPixelSkinTests.cs` 承载，随 tone 族退役整删
+（出处：[归档/2026-09-ui与代码清退批次.md](归档/2026-09-ui与代码清退批次.md)「判据与被它判的 tone 族 PNG 随族整退役」）。
+导入设置层现役判据是 `PixelArtTextureImportTests`（`PixelArtTextureRules.CheckSprite`），与本任务不重叠。
+
+**补建范围提示**：规范 §五判据表成文于 tone 族（47 张）现役时期；该族退役后皮肤资产已换代重烘焙
+（8 张 = Focus + 7 窗体件，出处同上归档档）。补建时**目标表按现役资产族重列**，判据算法口径不变。
+
+**验收清单**（契约口径逐条，出处：[BeveledPixel九宫格规范 §五](../../技术/资产管线/BeveledPixel九宫格规范.md)判据表「契约测试」行）：
+
+- [ ] 目标表逐张：资产在、尺寸对、切片对、PPU/Point 对、导入五项合规
+- [ ] **直接读盘上 PNG** 量色带——核心判据：色带边界必须落在 u 的整数倍上（规范 §五核心判据 1）
+- [ ] 按画法族复算透明形状（切角/环/菱形）
+- [ ] 外环闭合：8 连通 1 段且无端点（规范 §五核心判据 2；页签按底边开放口径，plate 按模板格级）
+- [ ] 「光来自左上」（按压态反向）
+- [ ] 内暗线 = 同侧外环（该关系仅对 Track 族成立，见规范 §一规则 1）
+- [ ] 页签平底
+- [ ] 投影单色 / 分隔线两色 / 暗位点中心对称
+- [ ] 图集满格 + PixelSkin 全入口非空
+
+**测试落点**：EditMode，与 `PixelArtTextureImportTests.cs` 同轨道（`pirate-crew/Assets/Art/Tests/`）——
+放这里而非 `Assets/Tests/` 的理由见该文件头注释（无头验证台 All 域不引用 UnityEditor）。

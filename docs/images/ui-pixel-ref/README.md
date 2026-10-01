@@ -143,8 +143,10 @@
   Minecraft GUI Scale 式，拆解见 [待办事项.md](../../项目/待办事项.md) 步骤 4e，落地前 3 为现役值）；
 - 运行时取用：`Assets/Scripts/UI/Skin/PixelSkin.cs` + 图集资产 `Resources/UI/PixelSkin.asset`
   （装配侧唯一入口，规范 §四.2 有槽位映射表）；
-- 判据：`Assets/Art/Tests/BeveledPixelSkinTests.cs`（直接读盘上 PNG 按画法族复算透明形状、
-  量色带边界与明暗方向、页签平底、投影单色、位点中心对称、图集满格）；
+- 判据：九宫格契约测试**待补建**（见待办
+  [ui-九宫格契约测试补建](../../项目/待办/ui-九宫格契约测试补建.md)；契约口径 = 直接读盘上 PNG
+  按画法族复算透明形状、量色带边界与明暗方向、页签平底、投影单色、位点中心对称、图集满格），
+  当前仅有纹理导入契约测试 `Assets/Art/Tests/PixelArtTextureImportTests.cs`；
 - 本目录发布的**由本工程色板重新生成**的对照图（不含参照素材本身）：
   - [`gen-contact-sheet-2x.png`](gen-contact-sheet-2x.png)（2× 放大，全族接触表：7 tone×6 列 +
     页签区 + 语义件区 + 5 填充；**行/列/分区都印了 3×5 字模标注**，底纹棋盘用来读透明切角与环内）；
