@@ -274,7 +274,8 @@ namespace PirateCrew.Tests
         {
             Assert.That(_manager.SaveToSlot(3, MakeData("k", "v")), Is.True);
 
-            Assert.That(_manager.LoadFromSlot(3).DisplayName, Is.EqualTo("槽位 3"));
+            // 语义判据：默认显示名由槽位号生成（措辞按文案裁决 2026-10-01 不锁）。
+            Assert.That(_manager.LoadFromSlot(3).DisplayName, Does.Contain("3"));
         }
 
         [Test]

@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using PirateCrew.UI;
 using UnityEngine;
 
 namespace PirateCrew.Ambient.Tests
@@ -138,9 +139,15 @@ namespace PirateCrew.Ambient.Tests
         [Test]
         public void DisplayName_IsChinese()
         {
-            Assert.AreEqual("正午", AmbientTimeOfDayCatalog.DisplayName(AmbientTimeOfDay.Noon));
-            Assert.AreEqual("黄昏", AmbientTimeOfDayCatalog.DisplayName(AmbientTimeOfDay.Dusk));
-            Assert.AreEqual("阴云", AmbientTimeOfDayCatalog.DisplayName(AmbientTimeOfDay.Overcast));
+            // 判据：逐档非空 + 无不允许英文（文案字面不锁——创始人裁决 2026-10-01，
+            // 方法名 IsChinese 与该判据自洽）；循环遍历全部档位，新增档自动纳入。
+            for (int i = 0; i < AmbientTimeOfDayCatalog.Count; i++)
+            {
+                string display = AmbientTimeOfDayCatalog.DisplayName(AmbientTimeOfDayCatalog.FromInt(i));
+                Assert.IsFalse(string.IsNullOrEmpty(display), "档 " + i + " 显示名为空");
+                Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(display),
+                    "档 " + i + " 显示名混入英文：" + display);
+            }
         }
 
         [Test]

@@ -170,24 +170,9 @@ namespace PirateCrew.Tests
             return true;
         }
 
-        [Test]
-        public void SpotCheck_KeyCopyMatchesSpec()
-        {
-            Assert.AreEqual("海盗军团夺宝 3D", UiStrings.MainTitle);
-            Assert.AreEqual("进入战斗", UiStrings.MainBattle);
-            Assert.AreEqual("船员管理", UiStrings.MainCrew);
-            Assert.AreEqual("退出游戏", UiStrings.MainQuit);
-            // 【2026-09-14 对齐源码现值】"抛自己"（把自己抛出去的攻击动作）随 r12/r13 模式系统
-            // 裁决改为"跳跃"（UiStrings.cs:303）——动作语义从"投掷自己"改为"跳跃位移"。
-            Assert.AreEqual("跳跃", UiStrings.BattleThrowSelf);
-            Assert.AreEqual("结束回合", UiStrings.BattleEndGo);
-            // 【UI 审计 P1-5】"瞄准中 / 聚焦中"两个标签随永久隐藏的死节点一并退役，不再断言。
-            Assert.AreEqual("选择武器", UiStrings.BattleWeaponListTitle);
-            Assert.AreEqual("再来一局", UiStrings.BattleRestart);
-            // 【版本单一真源】菜单只出前缀，数字运行时取 Application.version
-            // （BuildVersion.Current → bundleVersion 链）——文案表不再保存版本数字。
-            Assert.AreEqual("版本", UiStrings.MainVersionPrefix);
-        }
+        // 【文案内容不进测试契约】具体文案字面不做 SpotCheck 逐条锁定——文案属设计迭代面，
+        // 改字不应触发测试红行（创始人裁决 2026-10-01）。规则性判据已够用：
+        // 无英文残留 / 中文占比（空串也在其判罚范围）/ 旧英文串回归，见上方三条用例。
 
         [Test]
         public void EnglishRegressionStrings_AreGone()

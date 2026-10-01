@@ -10,6 +10,11 @@ namespace PirateCrew.Tests
     /// <summary>
     /// 文案格式化规则与武器/职业中文名的纯逻辑测试（规范 §4.5–§4.7、§4.10）。
     /// 全部不碰 GameObject，无头验证台可跑。
+    ///
+    /// 【文案内容不进测试契约】具体文案字面不做逐条锁定——文案属设计迭代面，
+    /// 改字不应触发测试红行（创始人裁决 2026-10-01）。规则性判据已够用：
+    /// 非空 / 无不允许英文 / 参数往返（喂什么拼什么）、覆盖全枚举，
+    /// 逐用例见各自注记；仅存的字面比较都在「旧英文串回归」与门禁哨兵（如回落值）上。
     /// </summary>
     [TestFixture]
     public class UiTextRulesTests
@@ -40,18 +45,26 @@ namespace PirateCrew.Tests
         }
 
         [Test]
-        public void WeaponName_SpotCheckSpec()
+        public void WeaponName_MineCodexPairIsSingleSource()
         {
-            Assert.AreEqual("炮弹", UiTextRules.WeaponName(WeaponId.Cannonball));
-            Assert.AreEqual("樱桃炸弹", UiTextRules.WeaponName(WeaponId.CherryBomb));
-            // 「水雷」是裁决值（UiSkin.WeaponColor(WeaponId.Mine) 行内注：水雷玩法语义保留不换）。
-            // 武器中文名曾有两张独立表（UiTextRules「地雷」vs 图鉴短名表「水雷」），
-            // 文案审计收敛为 UiTextRules 单源后用本断言钉住裁决。
-            Assert.AreEqual("水雷", UiTextRules.WeaponName(WeaponId.Mine));
-            Assert.AreEqual("降落伞炸弹", UiTextRules.WeaponName(WeaponId.ParachuteBomb));
-            Assert.AreEqual("八枚金币", UiTextRules.WeaponName(WeaponId.PiecesOfEight));
-            Assert.AreEqual("潮汐巨浪", UiTextRules.WeaponName(WeaponId.TidalWave));
-            Assert.AreEqual("扫射火焰", UiTextRules.WeaponName(WeaponId.SweepingFlame));
+            // 「水雷」两表收敛为单源的裁决钉子（文案字面已按文件头裁决退役，防线改判据制）。
+            // 来历：武器中文名曾有独立两张表——UiTextRules.WeaponName 与图鉴自持短名表
+            //（UiGalleryPage.WeaponShortName）漂移成两套（「地雷」vs「水雷」），
+            // 2026-09-23 文案审计按 UiSkin.WeaponColor(Mine) 行内注的裁决语义收敛为
+            // UiTextRules 单源，图鉴侧改为直接调用本函数（短名表随后随旧画廊退役）。
+            // 现存形态的单源防线：Mine 的名字与图鉴 hover 说明必须成对出自 UiTextRules、
+            // 双双过「非空 + 无不允许英文」门禁——任一侧漏条目或再漂出英文即红。
+            string name = UiTextRules.WeaponName(WeaponId.Mine);
+            string codexDescription = UiTextRules.WeaponDescription(WeaponId.Mine);
+
+            Assert.IsFalse(string.IsNullOrEmpty(name),
+                "水雷中文名缺失——武器名单源（UiTextRules.WeaponName）漏条目");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(name),
+                "水雷中文名混入英文——单源表被污染");
+            Assert.IsFalse(string.IsNullOrEmpty(codexDescription),
+                "水雷图鉴说明缺失——名字/说明应成对出自单源");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(codexDescription),
+                "水雷图鉴说明混入英文");
         }
 
         [Test]
@@ -85,22 +98,23 @@ namespace PirateCrew.Tests
                 Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(name));
             }
 
-            // 未知符号不得回显英文。
-            Assert.AreEqual("海盗", UiTextRules.CrewNameByBattleSymbol("someUnknownSymbol"));
-            Assert.AreEqual("海盗", UiTextRules.CrewNameByBattleSymbol(null));
+            // 未知符号回落中文名，不得回显英文（回落值措辞按文件头裁决不锁）。
+            string unknownFallback = UiTextRules.CrewNameByBattleSymbol("someUnknownSymbol");
+            Assert.IsFalse(string.IsNullOrEmpty(unknownFallback), "未知符号应回落中文名而非空串");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(unknownFallback), "未知符号回落值混入英文");
+
+            string nullFallback = UiTextRules.CrewNameByBattleSymbol(null);
+            Assert.IsFalse(string.IsNullOrEmpty(nullFallback), "null 符号应回落中文名而非空串");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(nullFallback), "null 符号回落值混入英文");
         }
 
         // ------------------------------------------------------------------
         // 战斗 HUD 文案
         // ------------------------------------------------------------------
 
-        [Test]
-        public void TurnHint_IsChineseForBothSides()
-        {
-            Assert.AreEqual("玩家 1，该你了", UiTextRules.TurnHint(false, 1));
-            Assert.AreEqual("玩家 2，该你了", UiTextRules.TurnHint(false, 2));
-            Assert.AreEqual("电脑回合，行动中……", UiTextRules.TurnHint(true, 2));
-        }
+        // 【文案内容不进测试契约】TurnHint 的三条逐字断言退役（创始人裁决 2026-10-01）：
+        // TurnHint 只是 UiStrings.BattleTurnAi / BattleTurnYouFormat 两常量的二选一拼接，
+        // 措辞由 UiStringsTests.EveryUiString_* 反射门禁兜底，这里再锁字面即纯重复。
 
         // 【名册文案家族已随左下名册退役】TeamStatus / RosterRow / RosterTitle /
         // WeaponPanelTitle / TurnCounter / Alive 的断言一并删除（图标优先裁决）。
@@ -111,16 +125,13 @@ namespace PirateCrew.Tests
             Assert.AreEqual(79, UiTextRules.Percent(0.786f));
             Assert.AreEqual(0, UiTextRules.Percent(-1f));
             Assert.AreEqual(100, UiTextRules.Percent(2f));
-            Assert.AreEqual("79%", UiTextRules.StrengthPercent(0.786f));
-            Assert.AreEqual("力度 79%", UiTextRules.StrengthLabel(0.786f));
+            // StrengthPercent/StrengthLabel 的模板措辞按文件头裁决不锁——
+            // 它们只是 UiStrings 模板 + Percent 数值的拼接，数值正确性由上面三条钉住。
         }
 
-        [Test]
-        public void ModeLabels()
-        {
-            Assert.AreEqual("移动", UiTextRules.ModeLabel(true));
-            Assert.AreEqual("操作", UiTextRules.ModeLabel(false));
-        }
+        // 【文案内容不进测试契约】ModeLabel 的两条逐字断言退役（创始人裁决 2026-10-01）：
+        // ModeLabel 只是 UiStrings.BattleModeMove / BattleModeAction 的二选一，
+        // 措辞由 UiStringsTests.EveryUiString_* 反射门禁兜底。
 
         // ------------------------------------------------------------------
         // 结算（§4.7）
@@ -129,21 +140,55 @@ namespace PirateCrew.Tests
         [Test]
         public void OutcomeTitle_MapsAllOutcomesToChinese()
         {
-            Assert.AreEqual("胜 利", UiTextRules.OutcomeTitle(MatchOutcome.Team0Win, true));
-            Assert.AreEqual("玩家 1 获胜", UiTextRules.OutcomeTitle(MatchOutcome.Team0Win, false));
-            Assert.AreEqual("玩家 2 获胜", UiTextRules.OutcomeTitle(MatchOutcome.Team1Win, true));
-            Assert.AreEqual("平 局", UiTextRules.OutcomeTitle(MatchOutcome.Draw, true));
-            Assert.AreEqual("挑战失败", UiTextRules.OutcomeTitle(MatchOutcome.LevelFailed, true));
+            // 判据（文件头裁决：字面不锁）：全部结局枚举 × 1P/2P 两态，标题非空且无不允许英文；
+            // 枚举再增新值时循环自动纳入覆盖。
+            var values = (MatchOutcome[])Enum.GetValues(typeof(MatchOutcome));
+            bool[] aiStates = { true, false };
+
+            var offenders = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < values.Length; i++)
+            {
+                for (int j = 0; j < aiStates.Length; j++)
+                {
+                    string title = UiTextRules.OutcomeTitle(values[i], aiStates[j]);
+                    if (string.IsNullOrEmpty(title) || UiTextRules.ContainsDisallowedEnglish(title))
+                        offenders.Add(values[i] + "(ai=" + aiStates[j] + ") → \"" + title + "\"");
+                }
+            }
+
+            Assert.IsNotEmpty(values, "MatchOutcome 枚举不应为空");
+            Assert.IsEmpty(offenders, "结局标题缺失/含英文：\n" + string.Join("\n", offenders));
         }
 
         [Test]
-        public void SettlementRows_AreChinese()
+        public void SettlementRows_FormatParamsAndStayChinese()
         {
-            Assert.AreEqual("关卡　第 3 关", UiTextRules.SettlementLevel("第 3 关"));
-            Assert.AreEqual("评分　1250", UiTextRules.SettlementScore(1250));
-            Assert.AreEqual("星级　2/3", UiTextRules.SettlementStars(2, 3));
-            Assert.AreEqual("每人经验　+40", UiTextRules.SettlementXp(40));
-            Assert.AreEqual("新招募　炮手", UiTextRules.SettlementUnlock("炮手"));
+            // 判据（文件头裁决：字面不锁）：结算行非空、无不允许英文、且吃进传入参数
+            //（数字/名称原样出现——模板漏拼参数即红；具体模板措辞归 UiStrings 门禁）。
+            string level = UiTextRules.SettlementLevel("第 3 关");
+            Assert.IsFalse(string.IsNullOrEmpty(level), "结算「关卡」行为空");
+            Assert.That(level, Does.Contain("第 3 关"), "结算「关卡」行未吃进关卡名");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(level), "结算「关卡」行混入英文");
+
+            string score = UiTextRules.SettlementScore(1250);
+            Assert.IsFalse(string.IsNullOrEmpty(score), "结算「评分」行为空");
+            Assert.That(score, Does.Contain("1250"), "结算「评分」行未吃进分数");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(score), "结算「评分」行混入英文");
+
+            string stars = UiTextRules.SettlementStars(2, 3);
+            Assert.IsFalse(string.IsNullOrEmpty(stars), "结算「星级」行为空");
+            Assert.That(stars, Does.Contain("2").And.Contains("3"), "结算「星级」行未吃进星数");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(stars), "结算「星级」行混入英文");
+
+            string xp = UiTextRules.SettlementXp(40);
+            Assert.IsFalse(string.IsNullOrEmpty(xp), "结算「经验」行为空");
+            Assert.That(xp, Does.Contain("40"), "结算「经验」行未吃进经验值");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(xp), "结算「经验」行混入英文");
+
+            string unlock = UiTextRules.SettlementUnlock("炮手");
+            Assert.IsFalse(string.IsNullOrEmpty(unlock), "结算「新招募」行为空");
+            Assert.That(unlock, Does.Contain("炮手"), "结算「新招募」行未吃进招募名");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(unlock), "结算「新招募」行混入英文");
         }
 
         // ------------------------------------------------------------------
@@ -151,19 +196,44 @@ namespace PirateCrew.Tests
         // ------------------------------------------------------------------
 
         [Test]
-        public void CrewRows_AreChinese()
+        public void CrewRows_FormatParamsAndStayChinese()
         {
-            Assert.AreEqual("水手　等级 3　经验 120", UiTextRules.CrewRow("水手", 3, 120));
-            Assert.AreEqual("狙击手　（累计 5 星后招募）", UiTextRules.CrewRowLocked("狙击手", 5));
+            // 判据（文件头裁决：字面不锁）：船员管理行非空、无不允许英文、且吃进传入参数。
+            string row = UiTextRules.CrewRow("水手", 3, 120);
+            Assert.IsFalse(string.IsNullOrEmpty(row), "船员管理行为空");
+            Assert.That(row, Does.Contain("水手").And.Contains("3").And.Contains("120"),
+                "船员管理行未吃进名字/等级/经验");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(row), "船员管理行混入英文");
+
+            string locked = UiTextRules.CrewRowLocked("狙击手", 5);
+            Assert.IsFalse(string.IsNullOrEmpty(locked), "未解锁行为空");
+            Assert.That(locked, Does.Contain("狙击手").And.Contains("5"),
+                "未解锁行未吃进名字/解锁等级");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(locked), "未解锁行混入英文");
         }
 
         [Test]
-        public void LevelAndChapterNames_AreChinese()
+        public void LevelAndChapterNames_FormatParamsAndStayChinese()
         {
-            Assert.AreEqual("第 3 关", UiTextRules.LevelName(3));
-            Assert.AreEqual("第一章 · 加勒比新手海域", UiTextRules.ChapterName(1));
-            Assert.AreEqual("第三章 · 传奇宝藏", UiTextRules.ChapterName(3));
-            Assert.AreEqual("第 9 章", UiTextRules.ChapterName(9));
+            // 判据（文件头裁决：字面不锁）：关名/章名非空、无不允许英文；
+            // 序号与越界回落都吃进章节数字（模板漏拼参数即红）。
+            string level = UiTextRules.LevelName(3);
+            Assert.IsFalse(string.IsNullOrEmpty(level), "关卡名为空");
+            Assert.That(level, Does.Contain("3"), "关卡名未吃进序号");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(level), "关卡名混入英文");
+
+            string chapter1 = UiTextRules.ChapterName(1);
+            Assert.IsFalse(string.IsNullOrEmpty(chapter1), "第 1 章名为空");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(chapter1), "第 1 章名混入英文");
+
+            string chapter3 = UiTextRules.ChapterName(3);
+            Assert.IsFalse(string.IsNullOrEmpty(chapter3), "第 3 章名为空");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(chapter3), "第 3 章名混入英文");
+
+            string chapterFallback = UiTextRules.ChapterName(9);
+            Assert.IsFalse(string.IsNullOrEmpty(chapterFallback), "越界章名回落为空");
+            Assert.That(chapterFallback, Does.Contain("9"), "越界章名回落未吃进章节数字");
+            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(chapterFallback), "越界章名回落混入英文");
         }
 
         // ------------------------------------------------------------------

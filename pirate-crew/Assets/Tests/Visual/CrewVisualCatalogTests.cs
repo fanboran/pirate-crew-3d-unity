@@ -69,9 +69,8 @@ namespace PirateCrew.Visual.Tests
                 Assert.IsTrue(files.Add(CrewVisualCatalog.PrefabFileName(p)), "预制体文件名重复: " + p);
             }
 
-            Assert.AreEqual("水手", CrewVisualCatalog.DisplayName(CrewProfession.Sailor));
-            Assert.AreEqual("骷髅海盗", CrewVisualCatalog.DisplayName(CrewProfession.Skeleton));
-            Assert.AreEqual("船长", CrewVisualCatalog.DisplayName(CrewProfession.Captain));
+            // 【文案内容不进测试契约】职业中文名逐字断言退役（创始人裁决 2026-10-01）；
+            // 中文名仍被上方 names.Add 的唯一性检查与 UiTextRules 的无英文门禁兜底。
         }
 
         [Test]
