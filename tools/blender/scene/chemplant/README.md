@@ -20,9 +20,9 @@
 
 本项目渲染管线是**像素化着色路径**（[docs/技术/渲染/像素化着色路径/实现口径.md](../../../../docs/技术/渲染/像素化着色路径/实现口径.md)）：
 物体 pass 只写 `Albedo`（亮部色）+ `Physical`（光滑度/金属度）+ `Palette`（主光档数/抖动/边光/描边开关），
-着色跑在**低分辨率艺术画布**上，还要过**帧级调色板**。推论：
+着色跑在**低分辨率艺术画布**上（帧级调色板 LUT 已整删，颜色限制只剩逐物体色带量化——见实现口径）。推论：
 
-- **PBR 贴图 / 金属度在链上落不住**——细节被分档量化与调色板吃掉，低分辨率下还会变成闪烁噪点。
+- **PBR 贴图 / 金属度在链上落不住**——细节被色带分档量化吃掉，低分辨率下还会变成闪烁噪点。
   所以本 kit **零贴图、零金属度**：材质一律 `style_tokens.SLOTS` 里的**平色槽**，`Metallic = 0`。
 - **「质感」只能由两件事承担**：① **几何密度**（板缝 / 法兰 / 铆钉排 / 爬梯 / 栏杆 / 管件 / 格栅）；
   ② **调色板对比**（锈 / 混凝土 / 漆色的相邻搭配，锈痕用**薄板与细环带贴面**做，不整面上锈色）。
@@ -86,12 +86,12 @@ cd F:/VSCode/pirate-crew-3d-unity            # worktree 里则 cd <worktree>
 ## 五、成品图（写实质感的来源）
 
 成品渲染用**渐变天穹 + 日光 + 冷补光**，`Standard` 视图变换（AgX 会洗掉调色板色值），
-**曝光收在 −0.7 EV**（`assemble_chemplant.py:EXPOSURE`）：`Standard` 没有高光滚降，
+**曝光收在 −0.35 EV**（`assemble_chemplant.py:EXPOSURE`）：`Standard` 没有高光滚降，
 不收曝光时浅色混凝土/浅灰钢会直接冲成白片——这张数是用材质标定卡量出来的
 （9 槽并排正视、正交相机、读回像素值），别随手改。
 
 `--pixel N` 另出「低分辨率档参考图」：把成品图按块中心降采到 1/N 再用最近邻放大回来，
-说明像素管线"块边长锁整数倍"这件事。**它是近似**：游戏内实拍另有描边、光带量化与帧级调色板。
+说明像素管线"块边长锁整数倍"这件事。**它是近似**：游戏内实拍另有描边与光带量化。
 
 ## 六、Unity 侧接线（本 kit 只给口径，不含 C# 改动）
 
@@ -103,16 +103,21 @@ cd F:/VSCode/pirate-crew-3d-unity            # worktree 里则 cd <worktree>
 FBX 的 −Z → Unity 经 `bakeAxisConversion=true` 折算后朝 **Unity +Z**；Unity 里把根节点摆在
 场地中心、`y=0` 即落地（厂区在 XZ 平面上展开 56 × 40 m）。
 
-**接线是下一步的活，不在本 kit 内**，两条现成通道任选：
+**接线（已完成，走的是像素化装配器）**：`Assets/Pixelart/Editor/` 下两套装配器——
+`PixelartChemPlantSetup`（单件版 kit）与 `PixelartChemPlantTeamSetup`（本目录六件版），
+试点场景 `PixelartChemPlant(.unity)`，关卡 4/5 已进选关页。**导入参数与 `SceneKitPilotSetup`
+不同，别照抄**（逐项理由见装配器源码注释）：
 
-1. **照 `SceneKitPilotSetup`**（`Assets/Editor/SceneKitPilot/SceneKitPilotSetup.cs`）扩一件：
-   同一组踩坑导入参数（`materialImportMode=None` / `useFileScale=false` / `bakeAxisConversion=true`
-   / `useFileUnits=true` + `globalScale=1`），按 `Kit_` 槽名重建像素材质，再搭一个 showcase 场景。
-2. **并入 WorldKit 资产表**：把 FBX 挪到 `Assets/Art/Models/WorldKit/<分类>/` 后跑
-   `WorldMapAssetSetBuilder.BuildAll` —— 它的 `Slots` 表**已经登记了本 kit 用到的 9 个工业槽**
-   （见 `WorldMapAssetSetBuilder.cs` 的「工业/废弃【提】」段），材质会自动重建。
+- `materialImportMode = ImportStandard`（**不是 None**——None 读不到槽名，只能按槽序兜底，
+  实测会串色：地坪套上漆黄、罐体套上草绿）；
+- `useFileScale = true`（吃掉 FBX 根上那层 (100,100,100)）；
+- `bakeAxisConversion = true`（不设模型躺倒 -90°）。
+
+备选通道（未走）：把 FBX 挪到 `Assets/Art/Models/WorldKit/<分类>/` 后跑
+`WorldMapAssetSetBuilder.BuildAll`——它的 `Slots` 表已登记本 kit 的 9 个工业槽
+（见 `WorldMapAssetSetBuilder.cs` 的「工业/废弃【提】」段）。
 **未知 `Kit_` 槽一律品红暴露**（零容忍纪律）：新增槽必须同时改
-`style_tokens.py:SLOTS` 与上面两张 C# 表的其中一张，双侧同源。
+`style_tokens.py:SLOTS` 与对应 C# 表，双侧同源。
 
 ## 七、实测口径
 
