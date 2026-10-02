@@ -15,7 +15,9 @@ sheet.png 直切 108 件+×1 量纲+kind 退役+四态按钮+主菜单窗体化+
 实测边缘由奇转偶）；附带**标题与窗皮三处收口单轨**（`UiKit.EnsureTitleLabel` 唯一入口、
 `SketchPanel.Titled` 改穿 sheet.png 直切窗皮、补两处漏挂 `PixelSnapText`）——
 验收产物 `F:\VSCode\pirate-crew-3d-unity\pirate-crew\export\ui-pixel-4c\` 五屏）——
-**余项按序**：③ MC 式像素密度可调档（Unit 运行时化+设置面板档位+非整倍窗口取整留黑边）；
+**余项按序**：~~③ MC 式像素密度可调档~~（**已落地** 2026-10，feat/ui-runtime-assembly：
+`PixelScaleStore/Service` 真源单点 + 设置页「像素比例 2×/3×/4×/自动」四档 + 「分辨率循环锁定」，
+槽 9 读改写；渲染 rig 经 `Core.PixelScaleState` 同档自适应）；
 ④ 16px 字体连锁重排（标题带/按钮边框整套标定，与密度档联动裁决）；
 ⑤ 已烘未接屏件按场景接入（页签/tooltip/滚动条/组合框/菜单）；
 ⑥ 残留两项：手绘 tone 族窗皮 `PixelSkin.Window` 已无调用点待退役、Battle 确认框
@@ -141,7 +143,7 @@ rebake 崩溃与陈旧判据清零、终版重装配+四屏验收过（51725ef6/
 ——**完整剩余学习项清单见 [Aseprite观感对齐](../交接/归档/Aseprite观感对齐.md)**
 （剩余：按钮聚焦态/禁用影子字/菜单反白、tooltip/组合框、引擎级、观感悬案四档
 + 哪里用什么速查 + 新会话操作速查；**列表三件套+分组线已接屏**见该档 §〇）
-③装配器运行时化（assemble 退役）+ 比例下拉进设置（真源=PixelSkin.Unit 单点）
+③~~装配器运行时化（assemble 退役）+ 比例下拉进设置~~（**已落地** 2026-10，feat/ui-runtime-assembly：三张菜单/管理屏改 `UiScreenBoot`+`UiScreenBuilder` 加载时自建，场景 = 相机+EventSystem+Boot 三个对象，三张 `Prefabs/UI/*Screen.prefab` 退役、折叠表只剩 Battle；比例下拉见打磨波③）
 ④SceneLoader overlay 补 CanvasScaler×Unit ⑤SketchSeparator 厚度核对
 
 ### UiLayout 流式布局器
@@ -250,15 +252,11 @@ VBox/HStack/Grid（间距/内边距全 u 整数倍）+ Element 首选尺寸 + Fl
       悬停档差实机可见度）+ 薄条两处低于 `PlateMinRender` 的例外（武器面板 HP 条 15px、头顶条
       世界空间）+ 折叠态_CrewManagement 测试的 batchmode 权威复跑；
       实机 1:1 截图归档（`docs/images/ui-pixel-ref/` 换 gen-showcase-live 等）
-- [ ] 步骤 4e：**动态 UI 像素比例（设置可调，创始人 2026-09-23 裁决“像我的世界的 UI 比例，
-      缩放给几个预设方案”）**——u 不再永久冻结，做视频设置预设档（Minecraft GUI Scale 式）：
-      - 预设档建议：1×/2×/3×/自动（按屏幕高 ÷ 参考档取最大整数，上限 4），存视频设置槽 9；
-      - 渲染侧几乎免费：`pixelScale` 本就是参数（`PixelartPilotScene.cs` `PixelScale` 现值 2），
-        RT 尺寸 = 屏幕高 ÷ k 反推（1080p 下 3×=640×360、2×=960×540（现行默认）、1×=1920×1080）；
-      - UI 侧解冻清单：`PixelSkin.Unit` 常量 → 运行时值；`UiSkin.Font` 四档原生字号是否随档
-        乘算待裁决（现行“字体像素不锚定艺术像素”口径下字号不随 u 走——直接放大违反原生档纪律，
-        换档意味着按档重选字号映射，需要专项设计）；`UiSkin.Px` 按钮高等几何令牌随档联动；
-        HUD zone 表坐标是画布像素（CanvasScaler 缩放，不随 u 变）；`CheckUnitAlignment`
-        判据双源改随档联动（`UiShowcaseBoot` 已按 `PixelSkin.Unit` 计算，无 1920×1080 硬编码残留）；
-      - 验收：切档后世界块边长 = UI 包边 = 字形像素三者在实机截图上逐像素对齐；
-      - 规范文档已挂“方向修正”注（实现口径/九宫格规范/ui-pixel-ref README），落地时回写本条
+- [x] 步骤 4e：**动态 UI 像素比例（设置可调）**（**已落地** 2026-10，feat/ui-runtime-assembly）——
+      设置页四档选项块（2×/3×/4×/自动；1× 与渲染侧相机契约域 [2,5] 冲突，不做），
+      真源 `PixelScaleService`（槽 9 持久化 + sceneLoaded 重应用）；
+      UI 画布 scaleFactor 与像素化渲染 rig（`Core.PixelScaleState` 自适应）同档联动；
+      HUD zone 表是画布像素（CanvasScaler 缩放，不随档变，零改动）；「字号随档」不需要——
+      恒定像素密度画布下整档等比，原生档纪律自然成立；
+      附带：分辨率循环锁定（`VideoSettingsStore/Service`，播放器限定）；
+      验收：实机切档三像素（世界块/UI 包边/字形）对齐待创始人走查（挂「用户实玩验收」）

@@ -63,6 +63,34 @@ namespace PirateCrew.UI
         /// <summary>结算弹窗开合动效驱动（菜单 juice 与战斗内同口径；数值/曲线全在 UiMotionRules）。</summary>
         UiMotion _motion;
 
+        /// <summary>
+        /// 运行时注入 UI 引用（<see cref="UiScreenBoot"/> 自建界面后调用，替代原装配器的
+        /// 序列化回写——字段名与原 [SerializeField] 契约零改动）。必须在对象激活前调用。
+        /// </summary>
+        public void Bind(UiScreenBuilder.LevelRefs refs)
+        {
+            headerText = refs.HeaderText;
+            chapterNameText = refs.ChapterNameText;
+            statusText = refs.StatusText;
+            chapterContainer = refs.ChapterContainer;
+            levelListContainer = refs.LevelListContainer;
+            crewButton = refs.CrewButton;
+            backButton = refs.BackButton;
+            bodyFont = UiScreenBuilder.BodyFont;
+            settlementModal = refs.SettlementModal;
+            settlementTitle = refs.SettlementTitle;
+            settlementLevelText = refs.SettlementLevelText;
+            settlementScoreText = refs.SettlementScoreText;
+            settlementStarsText = refs.SettlementStarsText;
+            settlementXpText = refs.SettlementXpText;
+            settlementUnlockText = refs.SettlementUnlockText;
+            settlementFirstClearText = refs.SettlementFirstClearText;
+            settlementStarRuleText = refs.SettlementStarRuleText;
+            settlementStars = refs.SettlementStars;
+            settlementReplayButton = refs.SettlementReplayButton;
+            settlementBackButton = refs.SettlementBackButton;
+        }
+
         void Awake()
         {
             _motion = gameObject.AddComponent<UiMotion>();

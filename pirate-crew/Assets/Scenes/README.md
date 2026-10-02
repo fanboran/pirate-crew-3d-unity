@@ -1,22 +1,26 @@
 # 场景目录与装配契约
 
 > 本文件回答一个问题：**这个目录里的场景，内容在哪、由谁生成、改的时候该动谁。**
-> 背景与证据见 [`docs/审计/专项/场景接线审计报告.md`](../../../docs/审计/专项/场景接线审计报告.md)；
+> 背景与证据见 [`docs/审计/场景接线审计报告.md`](../../../docs/审计/场景接线审计报告.md)；
 > 分层总览见 [`docs/技术/架构/架构总览.md`](../../../docs/技术/架构/架构总览.md) §7。
 
-## 一、场景是「装配清单」，内容是 Prefab
+## 一、两种形态：Battle 折叠，菜单/管理屏运行时自建
 
-四个由装配脚本产出的场景已经**折叠**成"一个 Prefab 实例"：场景文件只剩两百行上下
-（`Battle.unity` 18,772 → 186 行，`MainMenu` 10,050 → 206，`LevelSelect` 5,111 → 194，
-`CrewManagement` 2,446 → 198；四个场景合计 38,034 → 784 行），全部内容搬进 Prefab 资产。
-这样做的三个具体收益：场景 diff 能读、内容可在 Prefab 模式里单独打开调、Prefab 能被别的场景复用。
+**Battle** 仍是「场景 = 一个 Prefab 实例」：场景文件 18,772 → 186 行，全部内容搬进
+`BattleRig.prefab`——场景 diff 能读、内容可在 Prefab 模式里单独打开调、Prefab 能被别的场景复用。
 
-| 场景 | 来源 | 内容载体 | 对象数 |
+**三个菜单/管理屏已 UI 运行时化**（MainMenu / LevelSelect / CrewManagement）：场景只剩
+相机 + EventSystem + `UiScreenBoot` 三个对象，页面（含设置面板/退出确认/结算模态）由
+`Scripts/UI/UiScreenBuilder.cs` 在加载时全量自建，控制器由 Boot 非激活注入 refs 后再激活
+（先例：UIShowcase 的 UiShowcaseBoot 模式）。场景不再有需要折叠的装配树，旧的三张
+`Assets/Prefabs/UI/*Screen.prefab` 已随之退役。
+
+| 场景 | 来源 | 内容载体 | 形态 |
 | --- | --- | --- | --- |
-| `Bootstrapper.unity` | 手摆（组合根 + 视频设置） | 场景本体（**有意不折叠**） | 2 |
-| `MainMenu.unity` | `Editor/SceneSetup.cs` | `Assets/Prefabs/UI/MainMenuScreen.prefab` | 95 |
-| `LevelSelect.unity` | `Editor/ManagementSceneSetup.cs` | `Assets/Prefabs/UI/LevelSelectScreen.prefab` | 43 |
-| `CrewManagement.unity` | `Editor/ManagementSceneSetup.cs` | `Assets/Prefabs/UI/CrewManagementScreen.prefab` | 21 |
+| `Bootstrapper.unity` | 手摆（组合根 + 视频设置） | 场景本体（**有意不折叠**） | 2 对象 |
+| `MainMenu.unity` | `Editor/SceneSetup.cs` | `UiScreenBoot`(MainMenu) 运行时自建 | 3 对象 |
+| `LevelSelect.unity` | `Editor/ManagementSceneSetup.cs` | `UiScreenBoot`(LevelSelect) 运行时自建 | 3 对象 |
+| `CrewManagement.unity` | `Editor/ManagementSceneSetup.cs` | `UiScreenBoot`(CrewManagement) 运行时自建 | 3 对象 |
 | **`Battle.unity`** | `Editor/BattleScenePipeline.cs` 八步子链 | `Assets/Prefabs/PirateCrew/Battle/BattleRig.prefab` | 240（16 根） |
 | `UIShowcase.unity` | `Editor/UiShowcaseSceneSetup.cs` | 场景本体（相机 + `UiShowcaseBoot`，页面运行时自建） | 2 |
 

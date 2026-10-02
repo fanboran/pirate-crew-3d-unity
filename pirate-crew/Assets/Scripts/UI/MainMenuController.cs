@@ -66,6 +66,41 @@ namespace PirateCrew.UI
         /// <summary>面板开合动效驱动（菜单 juice 与战斗内同口径；数值/曲线全在 UiMotionRules）。</summary>
         UiMotion _motion;
 
+        /// <summary>
+        /// 运行时注入 UI 引用（<see cref="UiScreenBoot"/> 自建界面后调用，替代原装配器的
+        /// 序列化回写——字段名与原 [SerializeField] 契约零改动）。必须在对象激活前调用。
+        /// </summary>
+        public void Bind(UiScreenBuilder.MainMenuRefs refs)
+        {
+            battleButton = refs.BattleButton;
+            crewButton = refs.CrewButton;
+            settingsButton = refs.SettingsButton;
+            showcaseButton = refs.ShowcaseButton;
+            quitButton = refs.QuitButton;
+            statusText = refs.StatusText;
+            versionText = refs.VersionText;
+            settingsPanel = refs.SettingsPanel;
+            settingsBackButton = refs.SettingsBackButton;
+            settingsCloseButton = refs.SettingsCloseButton;
+            settingsRestoreButton = refs.SettingsRestoreButton;
+            masterVolumeSlider = refs.MasterSlider;
+            sfxVolumeSlider = refs.SfxSlider;
+            musicVolumeSlider = refs.MusicSlider;
+            ambientVolumeSlider = refs.AmbientSlider;
+            qualityHighButton = refs.QualityHighButton;
+            qualitySmoothButton = refs.QualitySmoothButton;
+            fullscreenOnButton = refs.FullscreenOnButton;
+            fullscreenOffButton = refs.FullscreenOffButton;
+            pixelScale2Button = refs.PixelScale2Button;
+            pixelScale3Button = refs.PixelScale3Button;
+            pixelScale4Button = refs.PixelScale4Button;
+            pixelScaleAutoButton = refs.PixelScaleAutoButton;
+            resolutionButton = refs.ResolutionButton;
+            quitConfirmPanel = refs.QuitConfirmPanel;
+            quitConfirmOkButton = refs.QuitConfirmOkButton;
+            quitConfirmCancelButton = refs.QuitConfirmCancelButton;
+        }
+
         void Awake()
         {
             _motion = gameObject.AddComponent<UiMotion>();

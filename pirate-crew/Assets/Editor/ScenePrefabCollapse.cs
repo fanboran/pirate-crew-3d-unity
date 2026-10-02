@@ -57,9 +57,9 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 全部折叠目标。Battle 与三个 UI 场景都是装配脚本产物（见各自 Setup 脚本），
-        /// 一律折叠；Bootstrapper 只有 2 个对象（服务宿主 + 视频设置）且是入口场景，
-        /// 折它只增加一层间接，故**有意不折**。
+        /// 折叠目标。**只剩 Battle**：三个菜单/管理屏已 UI 运行时化（场景 = 相机 + EventSystem +
+        /// <see cref="UiScreenBoot"/>，页面加载时自建，见 <see cref="UiScreenBuilder"/>），
+        /// 没有"装配产物整树"可折；Bootstrapper 只有 2 个对象且是入口场景，**有意不折**。
         /// </summary>
         public static readonly Entry[] Targets =
         {
@@ -69,27 +69,6 @@ namespace PirateCrew.EditorTools
                 ScenePath = BuildScenes.PathOf("Battle"),
                 PrefabPath = "Assets/Prefabs/PirateCrew/Battle/BattleRig.prefab",
                 RootName = "BattleRig",
-            },
-            new Entry
-            {
-                Key = "MainMenu",
-                ScenePath = BuildScenes.PathOf("MainMenu"),
-                PrefabPath = "Assets/Prefabs/UI/MainMenuScreen.prefab",
-                RootName = "MainMenuScreen",
-            },
-            new Entry
-            {
-                Key = "LevelSelect",
-                ScenePath = BuildScenes.PathOf("LevelSelect"),
-                PrefabPath = "Assets/Prefabs/UI/LevelSelectScreen.prefab",
-                RootName = "LevelSelectScreen",
-            },
-            new Entry
-            {
-                Key = "CrewManagement",
-                ScenePath = BuildScenes.PathOf("CrewManagement"),
-                PrefabPath = "Assets/Prefabs/UI/CrewManagementScreen.prefab",
-                RootName = "CrewManagementScreen",
             },
         };
 

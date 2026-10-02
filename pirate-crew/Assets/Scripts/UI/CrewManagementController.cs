@@ -40,6 +40,21 @@ namespace PirateCrew.UI
         [Tooltip("正文中文字体（霞鹜文楷 Medium SDF）；运行时建列表行用。")]
         [SerializeField] TMP_FontAsset bodyFont;
 
+        /// <summary>
+        /// 运行时注入 UI 引用（<see cref="UiScreenBoot"/> 自建界面后调用，替代原装配器的
+        /// 序列化回写——字段名与原 [SerializeField] 契约零改动）。必须在对象激活前调用。
+        /// </summary>
+        public void Bind(UiScreenBuilder.CrewRefs refs)
+        {
+            summaryText = refs.SummaryText;
+            statusText = refs.StatusText;
+            crewListContainer = refs.CrewListContainer;
+            levelSelectButton = refs.LevelSelectButton;
+            saveButton = refs.SaveButton;
+            backButton = refs.BackButton;
+            bodyFont = UiScreenBuilder.BodyFont;
+        }
+
         /// <summary>按钮/列表动效驱动（菜单 juice 与战斗内同口径；数值/曲线全在 UiMotionRules）。</summary>
         UiMotion _motion;
 
