@@ -73,7 +73,7 @@ UI 唯一权威 = Aseprite 参考库（已写进 AGENTS 导航表）。
 （游戏域口径 25/111=23%）。素材终审：**按钮按下态 = button_selected 蓝面 + 白字**
 （按下=selected+capture 状态位，button.cpp:168-175 + theme.cpp:69-73）；sheet 图标是
 **换色不是乘色**。挂账七项见交接档 §三之三。
-恢复指引与工程细节见 [Aseprite观感对齐-交接](../交接/归档/Aseprite观感对齐-交接.md)。
+恢复指引与工程细节见 [Aseprite观感对齐](../交接/归档/Aseprite观感对齐.md)。
 **调试场景系统 + 走查六修**（2026-09-25/26，`e80d62ed`/`bbfe85c6`）：主菜单第五钮
 「调试场景」→ 可拖动启动器四面板（组件实摆/New Sprite/Aseprite 菜单栏/部件陈列廊）；
 六修 = 拖动带负宽/陈列廊零视口/输入框负宽/滑块零尺寸/下拉两件套/列表悬停字灰。
@@ -109,7 +109,7 @@ box childSpacing 0→4）、SketchSlider 新增（整数取值/双色分区/键�
 ### Aseprite 全量对齐波·已裁决待执行
 
 **【Aseprite 全量对齐波·已裁决待执行】**（交接档
-[Aseprite观感对齐-交接](../交接/归档/Aseprite观感对齐-交接.md) §〇之一）——
+[Aseprite观感对齐](../交接/归档/Aseprite观感对齐.md) §〇之一）——
 **创始人 2026-09-25 深夜最终裁决：原封不动复刻参考库（theme.xml+sheet.png），
 项目原 UI 设定（tone 铺色/kind 体系/×2 量纲/按压位移/投影/自创变体）全部覆盖**，
 四悬案全关；验收标准唯一 = 与参考库一致；执行案五步（×1 重烘全表→令牌 ×1 化→
@@ -120,7 +120,7 @@ kind 退役四态映射→四屏重排+主菜单窗体化→与 sheet.png 并排
 ### 像素 UI 与字阶收口·待创始人验收
 
 **【像素 UI 与字阶收口·待创始人验收】**（交接档
-[像素UI与字阶-进度与交接](../交接/归档/像素UI与字阶-进度与交接.md)）——
+[像素UI与字阶-进度](../交接/归档/像素UI与字阶-进度.md)）——
 四档原生字体 / 2:1 画布栈 / 直角 Panel 件已入库（df87dd1c+d07503e1）；09-24 晚：
 rebake 崩溃与陈旧判据清零、终版重装配+四屏验收过（51725ef6/cc62815d）；
 **09-25 凌晨（创始人两项裁决落地，ffcdeb0e/8a7fb195/d61a1daa）**：①画布改红警2 式
@@ -135,7 +135,7 @@ rebake 崩溃与陈旧判据清零、终版重装配+四屏验收过（51725ef6/
 ②搬皮第二批接屏：~~滚动条~~（裁决跳过：无溢出）~~/sunken~~（已接 view）~~/蓝字分组线~~
 （已接设置屏）/ tooltip / 组合框箭头 / 更多面板上标题带
 （按钮 focused 内描边 #4069C2 / disabled 影子字在审计报告部件对比表，随接屏复刻）
-——**完整剩余学习项清单见 [Aseprite观感对齐-交接](../交接/归档/Aseprite观感对齐-交接.md)**
+——**完整剩余学习项清单见 [Aseprite观感对齐](../交接/归档/Aseprite观感对齐.md)**
 （剩余：按钮聚焦态/禁用影子字/菜单反白、tooltip/组合框、引擎级、观感悬案四档
 + 哪里用什么速查 + 新会话操作速查；**列表三件套+分组线已接屏**见该档 §〇）
 ③装配器运行时化（assemble 退役）+ 比例下拉进设置（真源=PixelSkin.Unit 单点）
@@ -155,9 +155,9 @@ VBox/HStack/Grid（间距/内边距全 u 整数倍）+ Element 首选尺寸 + Fl
 ### 战斗 HUD 换装·收尾件
 
 **战斗 HUD 换装 Aseprite 观感——收尾件**（2026-09-28 换装波落地，`78db1a52..df4cd0d0`，
-判据与提交链见 [Aseprite观感对齐-交接](../交接/归档/Aseprite观感对齐-交接.md) §三之十六；
+判据与提交链见 [Aseprite观感对齐](../交接/归档/Aseprite观感对齐.md) §三之十六；
 后续观感迭代已并入 UI 系统重构线，见
-[UI系统重构-进度与交接](../交接/归档/UI系统重构-进度与交接.md)）：
+[UI系统重构-进度](../交接/归档/UI系统重构-进度.md)）：
 - [ ] **海图内容恢复**（换装裁决「内部内容先空着」的暂态回头路）：三处同改——
       `BattleHudBuilder.BuildMinimap` 重建 DotLayer 子树、`HudMinimapSceneSetup` 恢复层接线
       （现显式写 null）、`BattleMinimap` 撤 Start 的 dotLayer==null 休眠守卫；
@@ -184,7 +184,7 @@ VBox/HStack/Grid（间距/内边距全 u 整数倍）+ Element 首选尺寸 + Fl
 **⚠ 2026-09-28 全量 EditMode 实测该测试红**：DebugUi 组合框波（`61461929`）新增
 12 条嵌套类违规（`AseComboBoxArrow` / `AseComboBoxPopup` / `AseListItem` /
 `AseListbox` 文件名大小写等）未入白名单——先补白名单止红（或直接迁出顶级，
-同 `AseWindowTitleBand` 案例，见 Aseprite观感对齐-交接 §三之十六：嵌套类存 Prefab
+同 `AseWindowTitleBand` 案例，见 Aseprite观感对齐 §三之十六：嵌套类存 Prefab
 必丢件，战斗折叠已实锤一次）。
 
 ### 翻新流程 UI 段（步骤 4a–4e）
