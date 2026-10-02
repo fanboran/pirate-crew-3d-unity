@@ -36,6 +36,12 @@ namespace PirateCrew.Settings
         /// <summary>当前全屏状态（编辑器里始终为 <see cref="VideoSettingsStore.DefaultFullscreen"/> 的存储值）。</summary>
         public bool Fullscreen { get; private set; } = VideoSettingsStore.DefaultFullscreen;
 
+        /// <summary>当前分辨率覆盖；(0, 0) = 跟随当前/原生（用户未锁分辨率）。</summary>
+        public int ResolutionWidth { get; private set; }
+
+        /// <summary>当前分辨率覆盖高；(0, 0) = 跟随当前/原生。</summary>
+        public int ResolutionHeight { get; private set; }
+
         void Awake()
         {
             if (Instance != null && Instance != this)
@@ -57,17 +63,23 @@ namespace PirateCrew.Settings
             // 读档（无存档/无 SaveManager 时保持默认值）。
             bool fullscreen = Fullscreen;
             int quality = QualityIndex;
+            int width = ResolutionWidth;
+            int height = ResolutionHeight;
             SaveManager save = SaveManager.Instance;
             if (save != null && save.SlotExists(VideoSettingsStore.SettingsSlot))
             {
                 SaveData data = save.LoadFromSlot(VideoSettingsStore.SettingsSlot);
                 VideoSettingsStore.TryReadFrom(data, ref fullscreen, ref quality);
+                VideoSettingsStore.TryReadDisplayFrom(data, ref width, ref height);
                 Fullscreen = fullscreen;
                 QualityIndex = quality;
+                ResolutionWidth = width;
+                ResolutionHeight = height;
             }
 
             ApplyFullscreen();
             ApplyQuality();
+            ApplyResolution();
         }
 
         void OnDestroy()
@@ -97,6 +109,21 @@ namespace PirateCrew.Settings
             return true;
         }
 
+        /// <summary>
+        /// 锁定窗口分辨率（立即生效；播放器构建限定）。(0, 0) = 解除锁定、跟随当前/原生。
+        /// 非法尺寸（非正数）忽略并返回 false。
+        /// </summary>
+        public bool SetResolution(int width, int height)
+        {
+            if (width < 0 || height < 0 || (width == 0) != (height == 0))
+                return false;
+
+            ResolutionWidth = width;
+            ResolutionHeight = height;
+            ApplyResolution();
+            return true;
+        }
+
         /// <summary>把当前设置落盘（与音频设置同槽读改写，互不覆盖）。返回是否写入成功。</summary>
         public bool SaveSettings()
         {
@@ -112,6 +139,7 @@ namespace PirateCrew.Settings
                 data = new SaveData();
 
             VideoSettingsStore.WriteTo(data, Fullscreen, QualityIndex);
+            VideoSettingsStore.WriteDisplayTo(data, ResolutionWidth, ResolutionHeight);
             return save.SaveToSlot(VideoSettingsStore.SettingsSlot, data, VideoSettingsStore.SettingsDisplayName);
         }
 
@@ -122,6 +150,16 @@ namespace PirateCrew.Settings
                 return;
 
             Screen.fullScreen = Fullscreen;
+        }
+
+        void ApplyResolution()
+        {
+            // 同全屏口径：只在播放器生效；未锁定（0,0）不动作。切全屏时 Unity 会按
+            // Screen.SetResolution 的宽高重建窗口，所以这里把全屏态一并传入。
+            if (Application.isEditor || ResolutionWidth <= 0 || ResolutionHeight <= 0)
+                return;
+
+            Screen.SetResolution(ResolutionWidth, ResolutionHeight, Fullscreen);
         }
 
         void ApplyQuality()

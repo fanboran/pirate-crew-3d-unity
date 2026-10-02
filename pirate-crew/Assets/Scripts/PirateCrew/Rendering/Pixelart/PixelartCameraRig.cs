@@ -73,6 +73,7 @@ namespace PirateCrew.Rendering.Pixelart
             if (next == pixelScale)
                 return false;
             pixelScale = next;
+            Core.PixelScaleState.Unit = next;   // 滚轮与设置页写同一运行期真值（两入口同源）
             return true;
         }
 
@@ -396,6 +397,12 @@ namespace PirateCrew.Rendering.Pixelart
         {
             if (_castCamera == null)
                 return;
+
+            // 设置页改档 → 运行期真值（PixelScaleState）→ 本 rig 自适应对齐
+            // （真值被钳在本 rig 契约域内；滚轮步进也会回写真值，两个入口不打架）。
+            int contractScale = Mathf.Clamp(Core.PixelScaleState.Unit, PixelScaleMin, PixelScaleMax);
+            if (pixelScale != contractScale)
+                pixelScale = contractScale;
 
             // 屏幕尺寸变化（窗口拉伸/分辨率切换）→ 两档缓冲与上屏尺寸一起重算。
             ComputeTargetSize(out int wantWidth, out int wantHeight);

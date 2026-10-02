@@ -365,6 +365,30 @@ namespace PirateCrew.UI
         /// <summary>设置项：窗口。</summary>
         public const string SettingsOptionWindowed = "窗口";
 
+        /// <summary>设置项：像素比例（UI 画布与像素化渲染同档；详见 PixelScaleStore）。</summary>
+        public const string SettingsFieldPixelScale = "像素比例";
+
+        /// <summary>设置项：像素比例 2×（1080p → 960×540，默认档）。</summary>
+        public const string SettingsOptionPixelScale2 = "2×";
+
+        /// <summary>设置项：像素比例 3×。</summary>
+        public const string SettingsOptionPixelScale3 = "3×";
+
+        /// <summary>设置项：像素比例 4×。</summary>
+        public const string SettingsOptionPixelScale4 = "4×";
+
+        /// <summary>设置项：像素比例自动（按屏幕高 ÷ 参考画布高取最大整数倍）。</summary>
+        public const string SettingsOptionPixelScaleAuto = "自动";
+
+        /// <summary>设置项：分辨率锁定。</summary>
+        public const string SettingsFieldResolution = "分辨率";
+
+        /// <summary>设置项：分辨率跟随当前/原生（不锁定）。</summary>
+        public const string SettingsOptionResolutionFollow = "跟随系统";
+
+        /// <summary>设置项：分辨率占位（装配期定宽用；刷新时被实际 "宽×高" 覆写）。</summary>
+        public const string SettingsOptionResolutionPlaceholder = "0000×0000";
+
         /// <summary>设置分组：音频（theme separator_label 蓝字分组线）。</summary>
         public const string SettingsGroupAudio = "音频";
 

@@ -304,6 +304,11 @@ namespace PirateCrew.EditorTools
             public Button QualitySmoothButton;
             public Button FullscreenOnButton;
             public Button FullscreenOffButton;
+            public Button PixelScale2Button;
+            public Button PixelScale3Button;
+            public Button PixelScale4Button;
+            public Button PixelScaleAutoButton;
+            public Button ResolutionButton;
         }
 
         /// <summary>
@@ -329,7 +334,7 @@ namespace PirateCrew.EditorTools
             panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 0.5f);
             panel.pivot = new Vector2(0.5f, 0.5f);
             panel.anchoredPosition = Vector2.zero;
-            panel.sizeDelta = new Vector2(426f, 322f);
+            panel.sizeDelta = new Vector2(426f, 384f);
             // 皮 = theme window 直切件；标题走唯一入口（带内左上、边距 5、灰字 #c0c0c0、
             // 字号 12 正文档、顶点像素对齐）——与主菜单窗体/模态标题同源，不再本处手摆。
             // 关闭钮由下方 CreateWindowButton 单独接控制器行为（EnsureWindow 不自动建）。
@@ -357,13 +362,13 @@ namespace PirateCrew.EditorTools
             // 音量百分比与选项块当前值才会落地。
             result.CloseButton = settingsCloseButton;
 
-            // 行容器：八行流式纵排（缝 3u）——两条蓝字分组线 + 四条音量滑条 + 两组选项块。
+            // 行容器：十行流式纵排（缝 3u）——两条蓝字分组线 + 四条音量滑条 + 四组选项行。
             // 行距/行位由布局器排，不再手算 pitch 坐标。
-            // 高 215 = 2 线×13 + 6 行×28 + 7 缝×3（行高取偶、线行取奇，见两个常量处的居中相位注释）。
-            // 宽 384（原 383）与卡 426 同为偶数——居中链整格对齐，见卡声明处注释。
+            // 高 277 = 2 线×13 + 8 行×28 + 9 缝×3（行高取偶、线行取奇，见两个常量处的居中相位注释）。
+            // 宽 384 与卡同偶——居中链整格对齐，见卡声明处注释。
             RectTransform rows = UiKit.CreateRect("Rows", panel);
             rows.pivot = new Vector2(0.5f, 1f);
-            UiKit.SetAnchored(rows, new Vector2(0.5f, 1f), new Vector2(384f, 215f), new Vector2(0f, -40f));
+            UiKit.SetAnchored(rows, new Vector2(0.5f, 1f), new Vector2(384f, 277f), new Vector2(0f, -40f));
             UiLayout.VBox(rows, 3, default(UiPadding));
 
             // 音频组（theme separator_label 蓝字分组线）+ 音量四行（滑条实时改 AudioService，
@@ -382,6 +387,14 @@ namespace PirateCrew.EditorTools
             BuildSettingsRow(rows, 5, UiStrings.SettingsFieldWindowMode, hand,
                 out result.FullscreenOnButton, out result.FullscreenOffButton,
                 UiStrings.SettingsOptionFullscreen, UiStrings.SettingsOptionWindowed);
+            // 像素比例（四档选项块，UI 画布与像素化渲染同档；真源 PixelScaleService，选中态控制器刷）。
+            BuildSettingsRowN(rows, 6, UiStrings.SettingsFieldPixelScale, hand,
+                out result.PixelScale2Button, out result.PixelScale3Button,
+                out result.PixelScale4Button, out result.PixelScaleAutoButton,
+                UiStrings.SettingsOptionPixelScale2, UiStrings.SettingsOptionPixelScale3,
+                UiStrings.SettingsOptionPixelScale4, UiStrings.SettingsOptionPixelScaleAuto);
+            // 分辨率锁定（循环钮：点击在 跟随系统 → 各可选分辨率 间循环；真源 VideoSettingsService）。
+            result.ResolutionButton = BuildResolutionRow(rows, 7, UiStrings.SettingsFieldResolution, hand);
 
             // 提示：角标档（像素 Tiny）+ theme status_bar_text 灰（最弱档，theme 里 status_bar_text
             // #636D79 是给状态行的），放底部通带。
@@ -581,6 +594,62 @@ namespace PirateCrew.EditorTools
 
         /// <summary>选项块件高 = theme <c>buttonset_item</c> 原生高（切片 h1 3 + h2 8 + h3 5 = 16）。</summary>
         const float ButtonSetHeight = 16f;
+
+        /// <summary>
+        /// 建一行「字段名 + N 个等宽选项块」（<see cref="BuildSettingsRow"/> 的多档泛化：
+        /// 像素比例四档用它）。选项块右对齐成一组，从右往左排；宽度按最长标签统一定宽，
+        /// 选中态由控制器按当前档刷新（同二选一口径）。
+        /// </summary>
+        static void BuildSettingsRowN(Transform rows, int index, string field, TMP_FontAsset hand,
+            out Button option0, out Button option1, out Button option2, out Button option3,
+            string label0, string label1, string label2, string label3)
+        {
+            RectTransform row = CreateSettingsRowBackground(rows, index);
+
+            TextMeshProUGUI label = CreateTextExact("Field", row, field, UiSkin.Font.Body,
+                TextAlignmentOptions.Left, PixelSkin.Theme.Text, hand);
+            SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 15f),
+                new Vector2(8f, 0f));
+
+            string[] labels = { label0, label1, label2, label3 };
+            Button[] options = { null, null, null, null };
+            float itemWidth = Mathf.Max(Mathf.Max(label0.Length, label1.Length),
+                Mathf.Max(label2.Length, label3.Length))
+                * ButtonSetFontSize + 2f * (AseLayout.Px(AseLayout.CheckBorder) + 3f);
+
+            for (int i = labels.Length - 1; i >= 0; i--)
+            {
+                float x = -6f - (labels.Length - 1 - i) * (itemWidth + ButtonSetGap);
+                options[i] = SketchButtonSet.Create(row, "Option" + i, labels[i], hand,
+                    ButtonSetFontSize, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+                    new Vector2(x, 0f), new Vector2(itemWidth, ButtonSetHeight));
+            }
+
+            option0 = options[0];
+            option1 = options[1];
+            option2 = options[2];
+            option3 = options[3];
+        }
+
+        /// <summary>
+        /// 建一行「字段名 + 分辨率循环钮」：点击在 跟随系统 → 各可选分辨率 间循环
+        /// （候选清单与当前值由控制器按 <c>Screen.resolutions</c> 刷新，构建器只建钮）。
+        /// 钮宽按占位串定死——循环后标签变宽不重排，占位 9 字符覆盖 "0000×0000" 全域。
+        /// </summary>
+        static Button BuildResolutionRow(Transform rows, int index, string field, TMP_FontAsset hand)
+        {
+            RectTransform row = CreateSettingsRowBackground(rows, index);
+
+            TextMeshProUGUI label = CreateTextExact("Field", row, field, UiSkin.Font.Body,
+                TextAlignmentOptions.Left, PixelSkin.Theme.Text, hand);
+            SetAnchored(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 15f),
+                new Vector2(8f, 0f));
+
+            return CreateSketchButton("ResolutionButton", row,
+                UiStrings.SettingsOptionResolutionPlaceholder,
+                new Vector2(1f, 0.5f), new Vector2(-6f, 0f),
+                ButtonSize(UiStrings.SettingsOptionResolutionPlaceholder));
+        }
 
         /// <summary>选项块字号：theme <c>&lt;style id="buttonset_item" font="mini"&gt;</c>——mini 是
         /// Aseprite 最小字档；本工程最小原生档 = 8（<see cref="UiSkin.Font.Tiny"/>），映射过来。

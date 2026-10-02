@@ -49,6 +49,15 @@ namespace PirateCrew.UI
         [SerializeField] Button fullscreenOnButton;
         [SerializeField] Button fullscreenOffButton;
 
+        [Header("像素比例与分辨率（真接线）")]
+        [Tooltip("像素比例四档选项块；真源 PixelScaleService（UI 画布与像素化渲染同档）。")]
+        [SerializeField] Button pixelScale2Button;
+        [SerializeField] Button pixelScale3Button;
+        [SerializeField] Button pixelScale4Button;
+        [SerializeField] Button pixelScaleAutoButton;
+        [Tooltip("分辨率循环钮：点击在 跟随系统 → 各可选分辨率 间循环；真源 VideoSettingsService。")]
+        [SerializeField] Button resolutionButton;
+
         [Header("退出确认")]
         [SerializeField] GameObject quitConfirmPanel;
         [SerializeField] Button quitConfirmOkButton;
@@ -114,6 +123,37 @@ namespace PirateCrew.UI
                 {
                     RuntimeUiBuilder.ButtonFeedback(fullscreenOffButton, true, _motion);
                     SetFullscreen(false);
+                });
+
+            if (pixelScale2Button != null)
+                pixelScale2Button.onClick.AddListener(() =>
+                {
+                    RuntimeUiBuilder.ButtonFeedback(pixelScale2Button, true, _motion);
+                    SetPixelScale(2);
+                });
+            if (pixelScale3Button != null)
+                pixelScale3Button.onClick.AddListener(() =>
+                {
+                    RuntimeUiBuilder.ButtonFeedback(pixelScale3Button, true, _motion);
+                    SetPixelScale(3);
+                });
+            if (pixelScale4Button != null)
+                pixelScale4Button.onClick.AddListener(() =>
+                {
+                    RuntimeUiBuilder.ButtonFeedback(pixelScale4Button, true, _motion);
+                    SetPixelScale(4);
+                });
+            if (pixelScaleAutoButton != null)
+                pixelScaleAutoButton.onClick.AddListener(() =>
+                {
+                    RuntimeUiBuilder.ButtonFeedback(pixelScaleAutoButton, true, _motion);
+                    SetPixelScale(PixelScaleStore.ScaleAuto);
+                });
+            if (resolutionButton != null)
+                resolutionButton.onClick.AddListener(() =>
+                {
+                    RuntimeUiBuilder.ButtonFeedback(resolutionButton, true, _motion);
+                    CycleResolution();
                 });
 
             if (quitConfirmOkButton != null)
@@ -222,6 +262,7 @@ namespace PirateCrew.UI
             AudioService.SaveVolumes();
             if (VideoSettingsService.Instance != null)
                 VideoSettingsService.Instance.SaveSettings();
+            PixelScaleService.Save();
 
             RuntimeUiBuilder.ClosePanel(settingsPanel, _motion);
 
@@ -241,7 +282,9 @@ namespace PirateCrew.UI
             {
                 VideoSettingsService.Instance.SetFullscreen(VideoSettingsStore.DefaultFullscreen);
                 VideoSettingsService.Instance.SetQuality(VideoSettingsStore.DefaultQuality);
+                VideoSettingsService.Instance.SetResolution(0, 0);   // 解除分辨率锁定
             }
+            PixelScaleService.SetScale(PixelScaleStore.ScaleDefault);   // 2×（现行口径）
 
             RefreshSettingsControls();
         }
@@ -267,6 +310,42 @@ namespace PirateCrew.UI
         {
             if (VideoSettingsService.Instance != null)
                 VideoSettingsService.Instance.SetFullscreen(fullscreen);
+            RefreshVideoChips();
+        }
+
+        /// <summary>改像素比例档（真源 <see cref="PixelScaleService"/>；UI 画布与渲染 rig 同档生效）。</summary>
+        void SetPixelScale(int scaleIndex)
+        {
+            PixelScaleService.SetScale(scaleIndex);
+            RefreshVideoChips();
+        }
+
+        /// <summary>当前分辨率候选（跟随系统 + 按宽高去重的可用清单，编辑器下通常只有当前档）。</summary>
+        static List<(int Width, int Height)> ResolutionChoices()
+        {
+            var choices = new List<(int Width, int Height)> { (0, 0) };   // 0 = 跟随系统
+            foreach (Resolution r in Screen.resolutions)
+            {
+                var size = (r.width, r.height);
+                if (!choices.Contains(size))
+                    choices.Add(size);
+            }
+            return choices;
+        }
+
+        (int Width, int Height) _currentResolutionChoice;
+
+        /// <summary>循环切换分辨率：跟随系统 → 候选 1 → … → 候选 N → 回到跟随系统。</summary>
+        void CycleResolution()
+        {
+            var choices = ResolutionChoices();
+            int index = choices.IndexOf(_currentResolutionChoice);
+            _currentResolutionChoice = choices[(index + 1) % choices.Count];
+
+            if (VideoSettingsService.Instance != null)
+                VideoSettingsService.Instance.SetResolution(
+                    _currentResolutionChoice.Width, _currentResolutionChoice.Height);
+
             RefreshVideoChips();
         }
 
@@ -308,6 +387,27 @@ namespace PirateCrew.UI
             SetChipSelected(qualitySmoothButton, quality == VideoSettingsStore.QualitySmooth);
             SetChipSelected(fullscreenOnButton, fullscreen);
             SetChipSelected(fullscreenOffButton, !fullscreen);
+
+            // 像素比例四档（真源 PixelScaleService；档位含义见 PixelScaleStore）。
+            SetChipSelected(pixelScale2Button, PixelScaleService.ScaleIndex == 2);
+            SetChipSelected(pixelScale3Button, PixelScaleService.ScaleIndex == 3);
+            SetChipSelected(pixelScale4Button, PixelScaleService.ScaleIndex == 4);
+            SetChipSelected(pixelScaleAutoButton, PixelScaleService.ScaleIndex == PixelScaleStore.ScaleAuto);
+
+            // 分辨率循环钮：标签 = 当前选择（锁定值优先取服务真值，未走服务的刷新路径回落本地记录）。
+            int width = VideoSettingsService.Instance != null
+                ? VideoSettingsService.Instance.ResolutionWidth : _currentResolutionChoice.Width;
+            int height = VideoSettingsService.Instance != null
+                ? VideoSettingsService.Instance.ResolutionHeight : _currentResolutionChoice.Height;
+            if (VideoSettingsService.Instance != null)
+                _currentResolutionChoice = (width, height);
+            if (resolutionButton != null && resolutionButton is Stick.SketchButton sketch
+                && sketch.Label != null)
+            {
+                sketch.Label.text = width > 0 && height > 0
+                    ? $"{width}×{height}"
+                    : UiStrings.SettingsOptionResolutionFollow;
+            }
         }
 
         /// <summary>编程改值走 SetValueWithoutNotify，避免把「刷新」误当成一次用户输入。</summary>

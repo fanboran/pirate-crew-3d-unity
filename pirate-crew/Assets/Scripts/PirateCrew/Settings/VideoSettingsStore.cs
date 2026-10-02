@@ -41,6 +41,50 @@ namespace PirateCrew.Settings
         /// <summary>默认画质档（高画质；低配玩家可手动切流畅）。</summary>
         public const int DefaultQuality = QualityHigh;
 
+        /// <summary>分辨率宽键（值像素数；"0" = 跟随当前/原生）。</summary>
+        public const string ResolutionWidthKey = "video.resolutionWidth";
+
+        /// <summary>分辨率高键（值像素数；"0" = 跟随当前/原生）。</summary>
+        public const string ResolutionHeightKey = "video.resolutionHeight";
+
+        /// <summary>把分辨率设置写入存档数据（纯函数，不落盘；(0,0) = 跟随当前/原生）。</summary>
+        public static void WriteDisplayTo(SaveData data, int width, int height)
+        {
+            if (data == null)
+                return;
+
+            data.SetData(ResolutionWidthKey, width.ToString(CultureInfo.InvariantCulture));
+            data.SetData(ResolutionHeightKey, height.ToString(CultureInfo.InvariantCulture));
+        }
+
+        /// <summary>
+        /// 从存档数据读分辨率（纯函数）。两键都缺失时返回 false（旧档/首启保持传入原值）；
+        /// 宽高任一非正整数按"跟随当前"处理（非法值不挡另一个维度）。
+        /// </summary>
+        public static bool TryReadDisplayFrom(SaveData data, ref int width, ref int height)
+        {
+            if (data == null)
+                return false;
+
+            bool any = false;
+
+            if (int.TryParse(data.GetData(ResolutionWidthKey), NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out int parsedWidth))
+            {
+                width = parsedWidth > 0 ? parsedWidth : 0;
+                any = true;
+            }
+
+            if (int.TryParse(data.GetData(ResolutionHeightKey), NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out int parsedHeight))
+            {
+                height = parsedHeight > 0 ? parsedHeight : 0;
+                any = true;
+            }
+
+            return any;
+        }
+
         /// <summary>把当前设置写入存档数据（纯函数，不落盘）。</summary>
         public static void WriteTo(SaveData data, bool fullscreen, int qualityIndex)
         {
