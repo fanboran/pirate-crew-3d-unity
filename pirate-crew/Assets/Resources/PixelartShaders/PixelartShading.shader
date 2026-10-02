@@ -63,7 +63,7 @@ Shader "PirateCrew/Pixelart/PixelartShading"
         // 用了 core 的 `LerpWhiteTo`，而它自己**没有** include 定义它的 `CommonMaterial.hlsl`。
         // 出包时（d3d11 目标）报的是 `undeclared identifier 'LerpWhiteTo' at .../Shadows.hlsl(298)`，
         // 而编辑器里不报——**静态核对"符号存在"证明不了 include 链自洽**，这正是本仓记过的事故类
-        // （见 docs/技术/渲染/描边Shader调试.md §八：`GlobalIllumination.hlsl` 用 `BRDFData` 却不 include
+        // （见 docs/技术/渲染/调研/描边Shader调试.md §八：`GlobalIllumination.hlsl` 用 `BRDFData` 却不 include
         // `BRDF.hlsl`，同一个形状）。所以这里显式补齐，顺序放在 Shadows.hlsl 之前。
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
         // 主光/附加光的 GetMainLight / GetAdditionalPerObjectLight / LIGHT_LOOP_BEGIN 都在这里

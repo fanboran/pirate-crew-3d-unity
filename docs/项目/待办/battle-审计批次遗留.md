@@ -22,7 +22,7 @@
   （AssetFolder/AssetLoadPrefix/WavFileExtension）。
 - ⑤ **死代码**（`036f268`+`10d95e3`）：删 `CrewManagementController.DisplayNames` 与
   `AmbientSwayNode._cameraTransform`（grep 全仓仅定义处）；`OutlineRendererFeature` 类头补处置裁决
-  注释、[描边Shader调试](../../技术/渲染/描边Shader调试.md) §6.2/§7.3 对齐「未挂载任何 Renderer」现状。
+  注释、[描边Shader调试](../../技术/渲染/调研/描边Shader调试.md) §6.2/§7.3 对齐「未挂载任何 Renderer」现状。
 - ⑥ **WorldMaps**（`57a2b10`+`bdc2183`）：kit 件名收敛 `WorldMapKitParts`；新增
   `WorldMapReefProfileGateTests`——目录每图必须有显式 profile，堵静默落兜底档（.meta 手写 GUID，
   Unity 首开确认导入）。**⚠ 随海图 101–108 全删一并作废**（见 [world-海图101-108删除.md](world-海图101-108删除.md)）。
@@ -36,7 +36,7 @@
 
 ### 投掷批次 S2–S4（待实施）
 
-方案与依据见 [投掷机制修正方案-提案](../../设计/投掷机制修正方案-提案.md)，全部**提案/待定**：
+方案与依据见 [投掷机制](../../设计/投掷机制.md)，全部**提案/待定**：
 S1（炮台为唯一）已实施并入；下一批：S2 弹体弹跳/摩擦 Flash 口径接线（P0，
 `Ballistics.Integrate*` 接进 `WeaponProjectile`，bounce/friction 入 `ProjectileProfile`）→
 S3 仰角轴（`ThrowVelocityForWeight` 加默认参数，三端同源不破）→ S4 预览超射程语义。

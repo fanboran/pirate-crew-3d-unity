@@ -49,8 +49,8 @@ RENDER = True                # False = 只建模导出 FBX，不出预览图
 KIT_W, KIT_H = 1024, 576     # 分件预览 16:9
 LEVEL_W, LEVEL_H = 1920, 1080  # 场地成品图（块边长 2 → 艺术画布 960×540 = 1080p 实机同口径）
 PIXEL_BLOCK = 2              # 像素块边长（屏幕像素；与 PixelartCameraRig.PixelScaleDefault 同值）
-CULL_BACKFACES = True        # 预览是否按实机口径剔背面（像素路径物体 pass 单面渲染）
-                             # 【为什么默认开】Cycles 默认双面渲染：任何**朝向朝内/开壳**的面在预览里
+CULL_BACKFACES = True        # 预览是否按实机口径剔背面（像素路径物体 pass 单面染染）
+                             # 【为什么默认开】Cycles 默认双面染染：任何**朝向朝内/开壳**的面在预览里
                              # 照常可见，进实机却因背面剔除变成"透视洞"（冷却塔 2026-09-29 实测：
                              # 预览是实心塔、实机是镂空壳）。开这一档，预览才会提前暴露这类缺陷。
 PIXEL_STEPS = 0              # 全图色阶量化档数（0 = 只像素化不做量化；>1 才挂 Posterize 节点）
@@ -154,7 +154,7 @@ def join_to_object(acc, obj_name, mats):
             pass
     # 【不跑 recalc_face_normals，2026-09-29 实机实测】它对本 kit 大量存在的**开口面**（壳体/盘/条）
     # 是启发式的：会把整片翻成朝内 ⇒ 实机（像素路径物体 pass，剔背面）直接变成"透视洞"，
-    # 而 Blender 双面渲染与 recalc 前的作者朝向都看不出来（塔壳/罐体/球罐/烟囱/地面水池全中过）。
+    # 而 Blender 双面染染与 recalc 前的作者朝向都看不出来（塔壳/罐体/球罐/烟囱/地面水池全中过）。
     # 改为**按构造保证外法线**：loft / fan / annulus / cyl / sphere_shell / patch_poly / wall_seg
     # 的绕序已逐条核对；sbox 的面表已按右手定则改写。新增图元请照此自查（预览用
     # `--double-sided` 关掉剔除可看双面效果，默认按实机口径剔背面）。
@@ -178,7 +178,7 @@ def srgb_hex(hex_str):
 def make_materials():
     """预览材质：只吃 ST 槽色 + 哑光（Specular=0 / Roughness=1）。
 
-    像素化着色路径（docs/技术/渲染/像素化着色路径/实现口径.md §1.1）的物体材质由
+    像素化着色路径（docs/技术/染染/管线/染染管线.md §1.1）的物体材质由
     `PixelartMaterialFactory.Create(name, albedo)` 造——**逐物体只认 albedo 一个量**，
     粗糙度/金属度不参与着色（色带 + 描边在屏幕空间那几趟里）。所以预览用哑光漫反射
     + 像素化合成，才是对得上实机观感的近似；ST.SLOTS 的 roughness 仅供别的路径/记录。
@@ -1090,7 +1090,7 @@ def build_cooling_tower(acc, dress=True):
     rs = [_rr(z) for z in zs]
     # 【实机口径修正 2026-09-29，两轮实测】壳体**不做周向棱槽**：在近似竖直的曲面上，
     # 任何幅度的交替半径都会让相邻扇区的法线差几度，而像素路径的漫反射只有三档 ⇒
-    # 相邻扇区互相翻档，读成"棋盘格"（±5.5%）乃至"镂空壳"（±1.5%）；Blender 的连续渲染看不出这个。
+    # 相邻扇区互相翻档，读成"棋盘格"（±5.5%）乃至"镂空壳"（±1.5%）；Blender 的连续染染看不出这个。
     # 改法照厂房压型墙的成功做法：壳体光滑，装饰改成**外凸细肋条**（见下方 ribs），
     # 肋条自身是单一面朝向、只落一档色，不参与翻档。
     roff = None
@@ -1105,7 +1105,7 @@ def build_cooling_tower(acc, dress=True):
 
     # 【闭合实体，2026-09-29 实测】壳体必须**双壁 + 顶口环盖 + 底环盖**闭合成实体：
     # 单面开壳（只有外壁）在 `recalc_face_normals` 下判不准朝向——实机剔背面后塔身成"镂空壳"
-    # （Blender 双面渲染完全看不出来）。闭合体的法线收口是确定的，这才是可判的。
+    # （Blender 双面染染完全看不出来）。闭合体的法线收口是确定的，这才是可判的。
     rings = [ring_pts(0, 0, r, z, S, roff=roff) for r, z in zip(rs, zs)]
     rings_in = [ring_pts(0, 0, max(r - 0.30, 0.5), z, S, roff=roff) for r, z in zip(rs, zs)]
     loft(acc, list(reversed(rings_in)), lambda b, s: 'Kit_ConcreteDark', smooth=True)   # 内壁（朝轴）
@@ -1459,14 +1459,14 @@ def place(acc, fn, x, y, yaw=0.0, **kw):
 
 
 # ============================================================================
-# 预览渲染（样板同款：Cycles + 标准视图变换 + 中性灰底 + 三灯）
+# 预览染染（样板同款：Cycles + 标准视图变换 + 中性灰底 + 三灯）
 # ============================================================================
 
 def setup_pixel_pass(scene, block=2, steps=6):
     """合成器：像素化（块边长 = block 屏幕像素）+ 色阶量化（steps 档）。
 
-    对齐像素化着色路径的成图口径（docs/技术/渲染/像素化着色路径/实现口径.md §1.1）：
-    几何渲进屏幕档 → 着色跑在艺术画布（屏幕 ÷ pixelScale，现役 2）→ 点采样放大上屏。
+    对齐像素化着色路径的成图口径（docs/技术/染染/管线/染染管线.md §1.1）：
+    几何染进屏幕档 → 着色跑在艺术画布（屏幕 ÷ pixelScale，现役 2）→ 点采样放大上屏。
     预览图以 block=2 出（与 1080p 现役 `pixelScale=2` 同口径），色阶量化近似其逐物体色带。
     Blender 5.2 的合成器挂在 `scene.compositing_node_group`（Scene.node_tree 已移除）。
     """
@@ -1494,8 +1494,8 @@ def setup_pixel_pass(scene, block=2, steps=6):
         ng.links.new(last.outputs['Color'], out.inputs[0])
         log('pixel pass: block=%d steps=%d' % (block, steps))
         return True
-    except Exception as exc:                                     # 合成器不可用则退化为净渲染
-        log('pixel pass 不可用（%s），本轮到净渲染' % exc)
+    except Exception as exc:                                     # 合成器不可用则退化为净染染
+        log('pixel pass 不可用（%s），本轮到净染染' % exc)
         return False
 
 

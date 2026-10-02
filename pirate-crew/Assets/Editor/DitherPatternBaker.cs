@@ -7,7 +7,7 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// 烘焙 **1-bit 密度抖动图案**（v3 口径）为工程资产：4×4/6×6/8×8/16×16 共 9 张，
     /// 供像素化物体 shader（<c>PirateCrew/Pixelart/PixelartObject</c>）的 <c>_DitherMode=1/2</c> 采样
-    /// （对照依据见 docs/技术/渲染/蓝图-新渲染管线-v3蓝本.md §6 P0-2）。
+    /// （对照依据见 docs/技术/渲染/调研/v3蓝本.md §6 P0-2）。
     ///
     /// 【为什么是"密度图案"而不是有序抖动矩阵】v3（`SL0ANE/SloanePixelartURP`，MIT）的抖动不是
     ///   Bayer 矩阵，而是一张**二值图案**：着色时 <c>ndotl += singleLevel · ±strength</c>，

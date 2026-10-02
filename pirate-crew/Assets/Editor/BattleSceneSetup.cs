@@ -27,14 +27,14 @@ namespace PirateCrew.EditorTools
     ///   §3.2（CameraBrain/panToCharacter 的目标点）、§3.3（胜负）、§3.4（两阶段操作 + end go）、
     ///   §4.3（按关卡数据生成出战单位）、§4.4（落水即死 → 可站面必须高于水面；平台关由逐格平台提供，
     ///   不铺整块 y=0 地面（海床台阶/远海床兜底装配段已删除；重烘后的场景不再含旧残留，
-    ///   BattleController 的旧退役器已随之删除——渲染退役在烘焙期落实，见 CreateWaterPlane）。
+    ///   BattleController 的旧退役器已随之删除——染染退役在烘焙期落实，见 CreateWaterPlane）。
     ///
     /// 【幂等】
     ///   · 预制体用 <see cref="PrefabUtility.SaveAsPrefabAsset(GameObject,string,out bool)"/> 覆盖同名资产；
     ///   · 场景用 EmptyScene 全新建后覆盖保存（不叠加旧内容）；
     ///   · 材质/文件夹按路径复用，不产生重名副本。
     ///
-    /// 【职责边界：本文件是**总编排**，渲染细节已拆出】
+    /// 【职责边界：本文件是**总编排**，染染细节已拆出】
     ///   · 光照 / 天空盒 / 环境光 / 雾 / 后处理 / 环境材质库 / URP 设置 → <see cref="BattleSceneLighting"/>；
     ///   · 三个「后续波次填充」的桩钩子（本文件只负责在正确的时机用容错方式调用）：
     ///       Assets/Editor/CrewVisualPrefabBuilder.cs → <see cref="CrewVisualPrefabBuilder.BuildAll"/>（波次 I2 角色建模）
@@ -107,7 +107,7 @@ namespace PirateCrew.EditorTools
             EnsureFolder(BattleSceneLighting.EnvironmentMaterialFolder);
             EnsureFolder(BattleSceneLighting.ArtRenderingFolder);
 
-            // ---- 渲染基础（环境材质库 / 后处理 VolumeProfile / URP 设置）----
+            // ---- 染染基础（环境材质库 / 后处理 VolumeProfile / URP 设置）----
             // 必须先于场景构建：场景要引用这些材质资产；URP 的"深度图 on"与"软阴影 on"
             // 也是水面（PirateWater 读 _CameraDepthTexture）与阴影的前提。
             BattleSceneLighting.BuildAll();
@@ -138,7 +138,7 @@ namespace PirateCrew.EditorTools
                 + "  场景: " + BattleScenePath + "（Build Settings index 2）\n"
                 + "  预制体: " + PiratePrefabPath + "\n"
                 + "  内容: 大海域海图（唯一玩法路径）+ 样板三关兜底（ShowcaseLevels）\n"
-                + "  渲染: 环境材质库 " + BattleSceneLighting.EnvironmentMaterialFolder
+                + "  染染: 环境材质库 " + BattleSceneLighting.EnvironmentMaterialFolder
                 + " / 后处理 " + BattleSceneLighting.VolumeProfilePath
                 + " / URP " + BattleSceneLighting.UrpAssetPath + "（软阴影+深度图+MSAA2）\n"
                 + "  接线: BattleController / TurnManager / AimThrowController / TrajectoryPreview / "
@@ -341,7 +341,7 @@ namespace PirateCrew.EditorTools
 
         // ------------------------------------------------------------------
         // 战斗相机参数（等距像素卡通 · 正交口径，创始人裁决 2026-09-22：
-        // docs/技术/渲染/渲染管线.md §2——斜轴测 + 正交投影 + 整数 OrthoSize）。
+        // docs/技术/染染/染染管线.md §2——斜轴测 + 正交投影 + 整数 OrthoSize）。
         // **俯角 30° 与出图口径同源**（`CameraFraming.BasePitchDegrees` ←
         // `PixelartPilotScene.PitchDegrees`）：游戏内看到的投影必须与宣传图/观感图是同一个，
         // 否则"拿图比观感"这件事本身就错的。距离 30 沿用 3D 空间契约（正交下只定机位）；
@@ -374,10 +374,10 @@ namespace PirateCrew.EditorTools
         ///         （继承主相机 Transform ⇒ <see cref="BattleCameraDriver"/> 怎么写主相机它就怎么跟，
         ///         取景/跟随逻辑一行不改），
         ///         主相机退化成"不清屏不画东西"的上屏器；</item>
-        ///   <item>两个渲染器索引由装配器查出（Cast / Screen）——**写死数字会在别的机器上错位**；</item>
+        ///   <item>两个染染器索引由装配器查出（Cast / Screen）——**写死数字会在别的机器上错位**；</item>
         ///   <item>`deriveOrthographicSize = false`：取景归 `BattleCameraDriver`（正交整数档 = 视野档），
         ///         本路径只管像素网格与着色；</item>
-        ///   <item>第三个渲染器（叠加档）给半透明内容留一条路：本路径放不下混合，
+        ///   <item>第三个染染器（叠加档）给半透明内容留一条路：本路径放不下混合，
         ///         少了它 FX / 接触阴影 / 弹道预览会**整类消失**；</item>
         ///   <item><see cref="PixelartContentConverter"/> 挂在同一个物体上：内容成型后按源材质取色，
         ///         把还不在本路径上的不透明件就地换成本路径材质（幂等、低频补扫）。</item>
@@ -395,14 +395,14 @@ namespace PirateCrew.EditorTools
             int screenIndex = -1;
             if (!PixelartPathInstaller.TryInstall(out castIndex, out screenIndex, out string error))
             {
-                Debug.LogError("[BattleSceneSetup] 像素化路径渲染器装配失败：" + error
+                Debug.LogError("[BattleSceneSetup] 像素化路径染染器装配失败：" + error
                     + "——相机已挂 rig，但 Cast/Screen 索引为 -1（画面会停在上屏那一档）。");
             }
 
             int overlayIndex = -1;
             if (!PixelartPathInstaller.EnsureOverlayRenderer(out overlayIndex, out error))
             {
-                Debug.LogError("[BattleSceneSetup] 透明件叠加渲染器装配失败：" + error
+                Debug.LogError("[BattleSceneSetup] 透明件叠加染染器装配失败：" + error
                     + "——FX / 接触阴影 / 弹道预览在新管线下会看不见。");
             }
 
@@ -481,10 +481,10 @@ namespace PirateCrew.EditorTools
             water.GetComponent<MeshRenderer>().sharedMaterial = EnsureEnvironmentMaterial(
                 BattleSceneLighting.WaterMaterial, new Color(0.13f, 0.42f, 0.68f, 1f));
 
-            // 【海面渲染统一走 OceanRig（2026-09-19，管线合并前置）】本物体只作为常驻
+            // 【海面染染统一走 OceanRig（2026-09-19，管线合并前置）】本物体只作为常驻
             // WaterSimulationDriver 的宿主：Renderer 与 WaterTessellator 在烘焙期就禁用，
             // 运行时不再需要"定向退役"逻辑（BattleController 的 RetireLegacyWaterPlane 已删）。
-            // 海面由 BattleController.SetupBattleEnvironment 创建的 OceanRig 圆盘渲染——
+            // 海面由 BattleController.SetupBattleEnvironment 创建的 OceanRig 圆盘染染——
             // 世界图与样板关同一条路径。水面 shader 没有 ShadowCaster Pass（透明水体不投影）；
             // 组件禁用后 shadowCastingMode 无所谓，仍显式关掉防误开。
             MeshRenderer waterRenderer = water.GetComponent<MeshRenderer>();

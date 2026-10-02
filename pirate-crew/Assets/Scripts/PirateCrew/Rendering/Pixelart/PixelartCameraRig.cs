@@ -8,7 +8,7 @@ namespace PirateCrew.Rendering.Pixelart
     /// <summary>
     /// **像素化着色路径**的相机装配（挂在本场景的相机上，一场景一个）。
     ///
-    /// 【装配出什么】（接口契约：docs/技术/渲染/像素化着色路径/接口契约-P4P5.md §0/§1）
+    /// 【装配出什么】（接口契约：docs/技术/渲染/管线/接口契约.md §0/§1）
     /// <list type="bullet">
     ///   <item><b>Cast 相机</b>：本相机的**子物体、local 恒等**——自动继承主相机的 Transform，
     ///         相机怎么动它怎么动，不需要任何接线（v3 `SloanePixelartCamera.cs:283-285` 同一手法）。

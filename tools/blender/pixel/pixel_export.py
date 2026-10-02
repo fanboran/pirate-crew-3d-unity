@@ -4,7 +4,7 @@ pixel_export —— 等距像素卡通资产导出模板（资产篇 §6 的三�
 
 【它解决什么问题】
     Kit 脚本（tools/blender/scene/<kit>/*.py）导出的 FBX 在**新美术口径下缺三样东西**：
-      ① 平滑法线没有烘进顶点色 ⇒ 反壳描边的外扩方向在硬边处开裂（渲染篇 §5）；
+      ① 平滑法线没有烘进顶点色 ⇒ 反壳描边的外扩方向在硬边处开裂（染染篇 §5）；
       ② 没有量化步骤 ⇒ 顶点色/贴图色漂在全局调色板之外，无法参与逐字节回归；
       ③ 没有纹素密度校验 ⇒ 32px/m 的密度纪律只能靠人眼看，量产后必然失控。
     本模块把这三件事做成三个纯函数 + 一个导出包装，kit 脚本 import 即可用。
@@ -17,7 +17,7 @@ pixel_export —— 等距像素卡通资产导出模板（资产篇 §6 的三�
 【顶点色的两个互斥用途（本模块的硬边界）】
     顶点色在这条管线里承载两种**完全不同**的数据：
       · 数据通道：<b>SmoothNormal</b> —— R = 色带阈值偏移（0.5 中性），GBA = 平滑法线（×0.5+0.5）
-        （渲染篇 §5 / 裁决点 #8）；反壳描边 Pass 读它决定外扩方向。
+        （染染篇 §5 / 裁决点 #8）；反壳描边 Pass 读它决定外扩方向。
       · 平涂色：<b>Col</b>（Blender 默认名）—— 美术刷的装饰颜色，是"颜色"，可以量化。
     把后者当前者量化（或反过来）会**静默毁掉描边**（法线被映射到板色上，外扩方向全错）。
     所以 quantize_vertex_colors 只接受 Col 一类的平涂属性名，遇到 SmoothNormal 直接抛错。
@@ -191,7 +191,7 @@ def nearest_palette_index(rgb01, lab_table, weight=1.0):
 def smooth_normals_per_corner(mesh, angle_weighted=True, weld_tolerance=WELD_TOLERANCE):
     """算出每个 loop（corner）应该写的**平滑法线**，返回 [Vector]（长度 = len(mesh.loops)）。
 
-    算法（资产篇 §6 第 1 条 / 调研-反向壳 §3）：
+    算法（资产篇 §6 第 1 条 / 反向壳描边 §3）：
       1. **按位置合并**：位置在 weld_tolerance 内的顶点视为几何同一点（硬边顶点位置相同、
       只有法线不同，正是要合并的对象）；
       2. 对每个多边形朝该多边形的每个角累加 `面法线 × 权重`，权重 = 该角的角度
@@ -313,7 +313,7 @@ def quantize_vertex_colors(obj, palette_entries=None, attribute=FLAT_COLOR_ATTRI
     """
     if attribute == SMOOTH_NORMAL_ATTRIBUTE or "SmoothNormal" in attribute:
         raise ValueError("拒绝对 %r 量化：该属性承载反壳描边的平滑法线数据，不是颜色"
-                         "（渲染篇 §5 / 裁决点 #8）。平涂色属性名应是 %r。"
+                         "（染染篇 §5 / 裁决点 #8）。平涂色属性名应是 %r。"
                          % (attribute, FLAT_COLOR_ATTRIBUTE))
 
     mesh = obj.data
@@ -566,7 +566,7 @@ def export_fbx(objects, fbx_path, use_selection=True, colors_type="SRGB",
         所以必须选 `SRGB`。名字听起来像"要加 gamma"，实为"文件里的数值就是作者数值"。
 
       · `mesh_smooth_type`：本版枚举只有 OFF/FACE/EDGE/SMOOTH_GROUP ——
-        **没有旧文档（资产篇 §6 / 调研-反向壳 §6）写的 "Normals Only"**（那是 Blender 2.8x 的选项名）。
+        **没有旧文档（资产篇 §6 / 反向壳描边 §6）写的 "Normals Only"**（那是 Blender 2.8x 的选项名）。
         自定分裂法线在本版经 SMOOTH_GROUP（锐边标记）传递，故默认用它；
         传 smooth_type=None 则不传该参数，完全交给 Blender 默认值。
 

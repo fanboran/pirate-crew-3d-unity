@@ -25,8 +25,8 @@
 
 | 主题 | 去哪 |
 | --- | --- |
-| 渲染期色彩口径（色带 / 暗部 / 抖动 / 描边） | [渲染管线.md](../渲染/渲染管线.md) §4/§5 |
-| 美术方向与调色板策略 | [美术风格指南.md](../../设计/美术风格指南.md) §3.2 |
+| 染染期色彩口径（色带 / 暗部 / 抖动 / 描边） | [染染管线.md](../染染/管线/染染管线.md) §4/§5 |
+| 美术方向与调色板策略 | [美术/风格指南.md](../../设计/美术/风格指南.md) §3.2 |
 | 写实栈退役的逐项依据（后处理 / Depth / Opaque / Renderer Feature） | [Assets/Art/Rendering/README.md](../../../pirate-crew/Assets/Art/Rendering/README.md) |
 | 里程碑归属与裁决点 | [美术翻新-等距像素卡通立项任务书.md](../美术翻新-等距像素卡通立项任务书.md) |
 
@@ -35,6 +35,6 @@
 | 域 | 路径 |
 | --- | --- |
 | 板与工具 | `pirate-crew/Assets/Data/Palette/`、`tools/palette/`、`tools/blender/pixel/` |
-| 渲染资产 | `pirate-crew/Assets/Art/`、`pirate-crew/Assets/Settings/` |
-| 美术向编辑器脚本 | `pirate-crew/Assets/Editor/Art/`、`pirate-crew/Assets/Editor/` 下的美术渲染向脚本 |
+| 染染资产 | `pirate-crew/Assets/Art/`、`pirate-crew/Assets/Settings/` |
+| 美术向编辑器脚本 | `pirate-crew/Assets/Editor/Art/`、`pirate-crew/Assets/Editor/` 下的美术染染向脚本 |
 | 本域测试 | `pirate-crew/Assets/Art/Tests/`（理由见[导入规范](像素纹理导入规范.md) §4.1） |

@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """assemble_chemplant.py —— 第三样板关「废弃化工厂」总装 + FBX 导出 + 成品渲染。
 
-分件脚本（`mod_*.py`，各由一名 Agent 独立产出）只管在自己的分区里建模；本脚本负责：
-    ① 逐件 build → 单件网格对象（本地系）→ 按 `K.AREAS[名]['center']` 平移就位；
+分件脚图（`mod_*.py`，各由一名 Agent 独立产出）只管在自己的分区里建模；图脚图负责：
+    ① 逐件 build → 单件网格对象（图地系）→ 按 `K.AREAS[名]['center']` 平移就位；
     ② 打印每件 + 全场的 STAT（三角面 / 材质槽 / 包围盒）；
     ③ 导出 FBX（`Assets/Art/Models/SceneKit/ChemPlant.fbx`，一场景多节点）；
     ④ 出成品图（Nishita 天空 + 日光 + 补光，零贴图平色材质，Standard 视图变换）；
     ⑤（可选）出「低分辨率档」参考图：整图按**块中心**降采到 1/N 再用最近邻放大回来 ——
        块边长 N 取 `PixelartCameraRig.PixelScaleDefault` 的值（现役 2），说明"块边长锁整数倍、
        块中心采样"这两件事。**它只是近似**：游戏内实拍另有屏幕空间描边、逐物体光带量化与
-       帧级调色板（见 docs/技术/渲染/像素化着色路径/实现口径.md），本图不做色阶量化。
+       级级调色板（见 docs/技术/渲染/管线/渲染管线.md），图图不做色阶量化。
 
 复现（仓库根执行，约 3~8 分钟，视采样数与机位数量）：
     B="F:/SteamLibrary/steamapps/common/Blender/blender.exe"
@@ -134,7 +134,7 @@ def setup_sky(scene, strength=0.30):
     """手调三段渐变天穹（地平线暖雾 → 中天灰蓝 → 天顶冷蓝），零贴图。
 
     为什么不用 ShaderNodeTexSky（Nishita/Hosek）：那套物理天空在 `Standard` 视图变换下
-    近地平线亮度轻易越过 1.0（没有高光滚降 ⇒ 直接冲成白片），且不同 Blender 版本枚举名还会变
+    近地平线亮度轻易越过 1.0（没有高光滚降 ⇒ 直接冲成白片），且不同 Blender 版图枚举名还会变
     （5.x 把 NISHITA 改成了 MULTIPLE_SCATTERING）。渐变天穹可预测、出图稳定，观感也够用。
     太阳角度与 `add_sun` 同源（方位 155° / 高度 34°）。
     """
@@ -171,7 +171,7 @@ def setup_sky(scene, strength=0.30):
 
 
 def ST_hex(hex_str):
-    """#RRGGBB → (r, g, b) 0~1（sRGB 分量，本模块内小工具）。"""
+    """#RRGGBB → (r, g, b) 0~1（sRGB 分量，图模块内小工具）。"""
     h = hex_str.lstrip("#")
     return tuple(int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
 
@@ -265,7 +265,7 @@ def render_views(scene, out_dir, views, res, samples):
 def pixel_reference(view, out_dir, res, block):
     """低分辨率档参考图：把成品图降采到 1/block，再用最近邻放大回来（块边长 = block 屏幕像素）。
 
-    **近似**：只说"块边长锁整数倍"这一件事；游戏内实拍另有描边/光带量化/帧级调色板。
+    **近似**：只说"块边长锁整数倍"这一件事；游戏内实拍另有描边/光带量化/级级调色板。
     """
     src = os.path.join(out_dir, "%s.jpg" % view[0])
     if not os.path.exists(src):
@@ -305,7 +305,7 @@ def verify_bounds(objs, tolerance=1.5):
     """
     bad = 0
     # 铁律：刚设过 obj.location 之后 matrix_world 还是旧的（Blender 惰性求值），
-    # 不刷新就量，量到的是本地坐标 —— 会得到满天飞的假越界。
+    # 不刷新就量，量到的是图地坐标 —— 会得到满天飞的假越界。
     bpy.context.view_layer.update()
     for obj in objs:
         name = obj.name.replace("ChemPlant_", "").lower()
