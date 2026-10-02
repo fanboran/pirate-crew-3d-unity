@@ -32,8 +32,7 @@
 **② 游戏本体解包出来的 UI 原始件 41 张**（含你两张样本图的**原始件**）：
 `external/terraria-ref/UI/PlayerResourceSets/HorizontalBars/{HP_Panel_Middle,HP_Fill,Panel_Left,…}.png`
 就是第一张样本图的来源，`FancyClassic/` 是第二张的心/星来源。
-版权原因产物只在本地工作区，**不入库、不进构建**；提取方法与 XNB 布局见
-[泰拉瑞亚参照资产提取.md](../../技术/资产管线/泰拉瑞亚参照资产提取.md)。
+版权原因产物只在本地工作区，**不入库、不进构建**。
 
 > 成就图标改走 wiki 直下即全量拿到（137/137）；游戏本体的 `Achievements.xnb` 那张总表
 > 仍解不出（解码器首帧失败），但已无必要——wiki 提供的正是同一批 64×64 图标。
@@ -134,7 +133,7 @@
 ## 五.1 生成器落地状态（本目录的测量已被实现承接）
 
 §二/§三/§四 的测量已转写成生成器常数，实现口径见
-[Beveled Pixel 九宫格规范](../../技术/资产管线/BeveledPixel九宫格规范.md)：
+[Beveled Pixel 九宫格规范](../../技术/资产管线/UI九宫格.md)：
 
 - 生成器：`Assets/Editor/BeveledPixelSpriteBuilder.cs`（7 tone × {常态, 悬停, 按压, 凹槽} +
   页签 7 + 填充 5 + 语义件 7【选人圈/焦点框/位点×2/分隔线×2/投影】，共 47 张）；

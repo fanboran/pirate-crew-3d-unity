@@ -8,7 +8,7 @@ using UnityEngine;
 namespace PirateCrew.ArtPipeline.Tests
 {
     /// <summary>
-    /// 像素纹理导入规范的 EditMode 门禁用例（像素纹理资产管线 §3 的机器判据）。
+    /// 像素纹理.md §3 的 EditMode 门禁用例（导入落地的机器判据）。
     ///
     /// 【为什么这个文件在 Assets/Art/Tests/ 而不是 Assets/Tests/】
     /// 无头验证台的 <c>-p:HarnessScope=All</c> 域会编译 <c>Assets/Tests/**</c>，而该域**不引用
@@ -24,7 +24,7 @@ namespace PirateCrew.ArtPipeline.Tests
     ///
     /// 【跑法】
     ///   Unity: Test Runner → EditMode → PirateCrew.ArtPipelineTests
-    ///   无头: 见 docs/技术/资产管线/像素纹理导入规范.md §4（batchmode -runTests -testPlatform EditMode）
+    ///   无头: 见 docs/技术/资产管线/像素纹理.md §3.4（batchmode -runTests -testPlatform EditMode）
     /// </summary>
     [TestFixture]
     public class PixelArtTextureImportTests
@@ -81,7 +81,7 @@ namespace PirateCrew.ArtPipeline.Tests
         {
             string root = PixelRoot();
             Assert.That(root, Is.EqualTo("Assets/Art/Textures/Pixel"),
-                "约定根目录变了就必须同步改文档（像素纹理导入规范 §2）与本用例");
+                "约定根目录变了就必须同步改文档（像素纹理.md §3.1）与本用例");
 
             Assert.That(IsPixelAsset(root + "/Diagnostics/PixelSpecSample_64.png"), Is.True,
                 "约定目录内的贴图必须是像素纹理");

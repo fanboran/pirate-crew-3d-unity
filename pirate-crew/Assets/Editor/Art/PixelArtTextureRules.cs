@@ -4,7 +4,7 @@ using UnityEngine;
 namespace PirateCrew.EditorTools.Art
 {
     /// <summary>
-    /// 像素纹理的**约定域**与导入设置的唯一真源（像素纹理资产管线 §3 的执行体）。
+    /// 像素纹理的**约定域**与导入设置的唯一真源（像素纹理 §3 的执行体）。
     ///
     /// 【约定规则（只有一条，别再发明第二条）】
     /// <code>Assets/Art/Textures/Pixel/** （含任意深度子目录）= 像素纹理</code>

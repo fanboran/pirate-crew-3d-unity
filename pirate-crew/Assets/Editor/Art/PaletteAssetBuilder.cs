@@ -164,7 +164,7 @@ namespace PirateCrew.EditorTools.Art
         /// 但"读到的 CRLF"不该被报成"镜像与真源不一致"（那是 git 的行尾策略，不是内容差异）。
         /// 写出侧（<see cref="ExportToJson"/>）永远写 LF。
         /// 【根治】给 <c>.gitattributes</c> 补一行 <c>*.json text eol=lf</c> 可让这层容错变成冗余；
-        /// 该文件属仓库根共享基建，改动登记在 docs/技术/资产管线/调色板与量化手册.md 的遗留区。
+        /// 该文件属仓库根共享基建，改动登记在 docs/技术/资产管线/调色板.md 的遗留区。
         /// </summary>
         static string ReadTextLf(string path)
         {
@@ -177,7 +177,7 @@ namespace PirateCrew.EditorTools.Art
             if (!File.Exists(abs))
             {
                 Debug.LogError("[PaletteAssetBuilder] 找不到板的真源 JSON：" + abs
-                    + "（板与量化链的手册见 docs/技术/资产管线/调色板与量化手册.md）");
+                    + "（板与量化链的手册见 docs/技术/资产管线/调色板.md）");
                 return null;
             }
             try

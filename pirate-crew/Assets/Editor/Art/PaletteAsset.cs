@@ -37,7 +37,7 @@ namespace PirateCrew.EditorTools.Art
 
     /// <summary>
     /// 全局调色板资产（等距像素卡通的「风格令牌表」；美术风格指南 §3.2、
-    /// 像素纹理资产管线 §5）。
+    /// 像素纹理 §5）。
     ///
     /// 【唯一真源】<c>Assets/Data/Palette/pirate_palette.json</c>。本资产是它的一份
     /// **派生镜像**，由 <see cref="PaletteAssetBuilder"/> 生成，供 Unity 侧工具

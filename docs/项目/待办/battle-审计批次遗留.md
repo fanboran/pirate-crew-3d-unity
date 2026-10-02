@@ -30,7 +30,7 @@
   3D 版 = 点中弹体。多弹体归属与 UI 点击排除待裁决，裁决后按行为契约流程改，参考核心行为指令#4）；
   `AiEvaluation.cs` 拆分（边界已画：AiRandom/AiBattlefield 快照/弹道评分/四武器规划器/目标选择+期望
   伤害/Session——两份审计明确缓办，关卡内容稳定后解锁）；CrewProfession 13 色 +
-  `BattleController.TintFor` 11 组收敛调色板 JSON（[调色板手册](../../技术/资产管线/调色板与量化手册.md)
+  `BattleController.TintFor` 11 组收敛调色板 JSON（[调色板手册](../../技术/资产管线/调色板.md)
   §2「代码只引用槽位 id」口径，随 Aseprite 批次收口窗口）；boulder 系数未来独立 Rules 类；
   `AiEvaluation` 残余内联 0.3f/0.5f 补名。
 
