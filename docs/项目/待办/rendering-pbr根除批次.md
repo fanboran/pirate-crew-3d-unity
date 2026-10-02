@@ -19,7 +19,7 @@ ToonMaterialFactory 删除。
 ToonPilot.unity+Islet+7 材质+2 贴图共 33 资产清除；装配链场景清单 6→5、开发集 17→16
 （`ManagementSceneSetup`/`SceneSetup` 幂等写入同步，防重跑写回）。**船员反壳纠缠未动**：
 描边是 PirateOutline shader 内置 Pass 非独立材质槽，迁移会破 `UnitOutlineBinder._OutlineState`
-MPB 契约，且立项任务书 §3 保留「反壳骨架（基座）」；运行期 PixelartContentConverter 派生兜底。
+MPB 契约，且「反壳骨架」属保留基座（渲染篇口径）；运行期 PixelartContentConverter 派生兜底。
 ③ **清扫**：删 6 个零消费者 shader（PirateSurface/Water/Toon/Terrain/Wind/Glow）+ 28 个孤儿材质
 （Surface×8/瓦片地形/海水/旧浮岛×9/风摆灯笼/低模云，每件 guid 反查零命中）+ ToonPilot 残留
 （`-toonPilotOut` 参数、PlayerArtCapture 出图流程、scene-assets.json 死条目、

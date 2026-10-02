@@ -94,7 +94,7 @@
       ⑤ 大平面 Bayer 抖动 0.3 档 A/B（色带边界加颗粒）
 - 蓝 ] 相机 snap 第二步（上采样 UV 反补偿）；内线归属（裁决点 3，外轮廓已做）
 
-### 开工序列（立项任务书 §4）与落轮记录
+### 开工序列与落轮记录
 
 - 蓝x] **步骤 1：正交相机 + 全屏像素化**（2026-09-21）——`PixelationRendererFeature`（两档渲染器挂载，
       blit 材质 = URP 自带 CoreBlit pass 0 Nearest）+ `BattleCameraController` 正交化（OrthoSize 档位
@@ -129,8 +129,8 @@
       `Body`=CrewTeamCloth、`Head`=CrewWood（本体件，非独立反壳槽——描边是 PirateOutline shader
       内 `PirateOutlineHull` Pass 反壳）、`ContactShadow`=CrewContactShadow（URP/Unlit 效果件保留）。
       删 TeamCloth 槽会令 Body 子网格洋红（纠缠）；迁 `PixelartCrew_*` 会破
-      `UnitOutlineBinder` 的 `_OutlineState` 契约（见该文件 r4/r5 取证注释），且立项任务书 §3
-      把「反壳骨架」列为保留基座。本轮不动；后续走 `CrewVisualPrefabBuilder` 重生成时换材质，
+      `UnitOutlineBinder` 的 `_OutlineState` 契约（见该文件 r4/r5 取证注释），且「反壳骨架」属
+      保留基座（渲染篇口径）。本轮不动；后续走 `CrewVisualPrefabBuilder` 重生成时换材质，
       或 shader 收编批次统一处理。
       详见 蓝蓝图-新渲染管线-v3蓝本](../../技术/渲染/调研/v3蓝本.md) §3.1/§3.3 与 §8 裁决点 3
 - 蓝 ] **步骤 2/3 的架构级前置：观感锚裁决 + 管线重写蓝图**（2026-09-22 蓝图已入库，**代码零改动**）——
@@ -157,7 +157,7 @@
       ② **抖动范式 (b)**（2×2 抖动贴图 + soft-light，t3ssel8r 系）与现行范式 (a)（4×4 Bayer 加法偏移）
       做成开关做 A/B，两范式**不可叠加**；注意抖动贴图必须**中点归一化** `(m+0.5)/4`——
       v4 源码用的是 `m/4`，会系统性偏暗，**不要照抄**
-- 蓝 ] 步骤 5：存量资产批量翻新（任务书 M3：49 件 FBX 按「视线焦点 > 单位 > 远景」分批）
+- 蓝 ] 步骤 5：存量资产批量翻新（49 件 FBX 按「视线焦点 > 单位 > 远景」分批）
 - 蓝x] 阴影关闭后的落地感补偿：**放置类弹体已接**（2026-09-21，`ProjectileContactShadow` 按
       `IsPersistent` 判定挂脚下径向面片；7 个船员 prefab 此前已有）。摸底结论：空中飞行弹体不做
       （需射线贴地组件，像素风下接受）；静态装饰的接触遮蔽待海面/地形方案一并定
