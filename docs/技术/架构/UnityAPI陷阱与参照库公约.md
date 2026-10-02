@@ -4,7 +4,7 @@
 > 防照抄网上 Unity 6 / 旧版本教程踩坑）；② 参照库**借鉴与许可证公约**（只借鉴模式，不搬运代码）；
 > ③ `external/` 工作台目录的**总登记与使用公约**。
 > 核对环境：Unity 2022.3.62f1c1 + URP 14.0.12 + Cinemachine 2.9.7（本地 PackageCache）。
-> 本地权威核对源：`F:\Unity\2022.3.62f1c1\Editor\Data\Managed\UnityEngine\*.xml`、
+> 本地权威核对源：`F:\Unity\2022.3.62f1\Editor\Data\Managed\UnityEngine\*.xml`、
 > `pirate-crew\Library\PackageCache\com.unity.cinemachine@2.9.7\`、
 > `pirate-crew\Library\PackageCache\com.unity.render-pipelines.universal@14.0.12\`。
 > 所有结论以本机 DLL/XML/包源码核对为准，不凭教程记忆。
@@ -18,7 +18,7 @@
 核对命令：
 
 ```bash
-MG="F:/Unity/2022.3.62f1c1/Editor/Data/Managed/UnityEngine"
+MG="F:/Unity/2022.3.62f1/Editor/Data/Managed/UnityEngine"
 grep -oE '<member name="P:UnityEngine\.Rigidbody\.(velocity|linearVelocity)"' "$MG/UnityEngine.PhysicsModule.xml"
 grep -c "linearVelocity" "$MG/UnityEngine.PhysicsModule.xml"
 grep -c "linearVelocity" "$MG/UnityEngine.PhysicsModule.dll"
@@ -55,7 +55,7 @@ grep -n '"version"' "$CM/package.json"
 核对命令：
 
 ```bash
-MG="F:/Unity/2022.3.62f1c1/Editor/Data/Managed/UnityEngine"
+MG="F:/Unity/2022.3.62f1/Editor/Data/Managed/UnityEngine"
 grep -oE '<member name="[^"]*(positionCount|SetVertexCount|SetPositions)[^"]*"' "$MG/UnityEngine.CoreModule.xml" | sort -u
 ```
 
@@ -66,7 +66,7 @@ grep -oE '<member name="[^"]*(positionCount|SetVertexCount|SetPositions)[^"]*"' 
 核对命令与结论：
 
 ```bash
-MG="F:/Unity/2022.3.62f1c1/Editor/Data/Managed/UnityEngine"
+MG="F:/Unity/2022.3.62f1/Editor/Data/Managed/UnityEngine"
 grep -oE '<member name="P:UnityEngine\.Physics\.gravity"' "$MG/UnityEngine.PhysicsModule.xml"          # 命中
 grep -oE '<member name="M:UnityEngine\.Rigidbody\.AddForce\(UnityEngine\.Vector3,UnityEngine\.ForceMode\)"' "$MG/UnityEngine.PhysicsModule.xml"  # 命中
 grep -oE '<member name="F:UnityEngine\.ForceMode\.Impulse"' "$MG/UnityEngine.PhysicsModule.xml"       # 命中
@@ -81,7 +81,7 @@ grep -oE '<member name="F:UnityEngine\.ForceMode\.Impulse"' "$MG/UnityEngine.Phy
 核对命令：
 
 ```bash
-MG="F:/Unity/2022.3.62f1c1/Editor/Data/Managed/UnityEngine"
+MG="F:/Unity/2022.3.62f1/Editor/Data/Managed/UnityEngine"
 grep -oE '<member name="M:UnityEngine\.Application\.LoadLevel[^"]*"' "$MG/UnityEngine.CoreModule.xml"      # 存在但过时
 grep -oE '<member name="M:UnityEngine\.SceneManagement\.SceneManager\.LoadScene\([^"]*"' "$MG/UnityEngine.CoreModule.xml"  # 存在
 ```
@@ -115,7 +115,7 @@ grep -n "public abstract partial class ScriptableRenderPass" "$URP/Runtime/Passe
 
 ```bash
 grep -i "inputsystem" "F:/VSCode/pirate-crew-3d-unity/pirate-crew/Packages/manifest.json"   # 无输出
-MG="F:/Unity/2022.3.62f1c1/Editor/Data/Managed/UnityEngine"
+MG="F:/Unity/2022.3.62f1/Editor/Data/Managed/UnityEngine"
 grep -oE '<member name="[PM]:UnityEngine\.Input\.(GetMouseButton|GetAxisRaw|GetKey|mouseScrollDelta|mousePosition)[^"]*"' "$MG/UnityEngine.InputLegacyModule.xml" | sort -u
 ```
 
@@ -126,7 +126,7 @@ grep -oE '<member name="[PM]:UnityEngine\.Input\.(GetMouseButton|GetAxisRaw|GetK
 核对命令：
 
 ```bash
-MG="F:/Unity/2022.3.62f1c1/Editor/Data/Managed/UnityEngine"
+MG="F:/Unity/2022.3.62f1/Editor/Data/Managed/UnityEngine"
 grep -oE '<member name="M:UnityEngine\.Physics\.Raycast\([^"]*"' "$MG/UnityEngine.PhysicsModule.xml" | head
 grep -oE '<member name="M:UnityEngine\.Camera\.(ScreenToWorldPoint|ScreenPointToRay|WorldToScreenPoint)\([^"]*"' "$MG/UnityEngine.CoreModule.xml" | sort -u
 ```

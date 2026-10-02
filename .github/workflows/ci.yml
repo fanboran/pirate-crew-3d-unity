@@ -19,7 +19,7 @@
 #   build-windows—— 出包，只在手动触发或推 v* tag 时跑（一次几十分钟，不该每次 push 都烧）。
 #
 # 【本机环境 vs CI 环境的差异（必须知道）】
-#   本机：Windows + Unity 2022.3.62f1c1（路径 F:/Unity/2022.3.62f1c1/Editor/Unity.exe）+ 只装了
+#   本机：Windows + Unity 2022.3.62f1c1（路径 F:/Unity/2022.3.62f1/Editor/Unity.exe）+ 只装了
 #         Mono 脚本后端（无 Windows IL2CPP 模块）+ 无头验证台 external/harness（不入库）。
 #   CI ：Ubuntu runner + game-ci 的 unityci/editor 镜像 + license 从 secrets 注入。
 #   两个直接后果：

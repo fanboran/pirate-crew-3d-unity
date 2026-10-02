@@ -498,7 +498,7 @@ namespace PirateCrew.EditorTools
             sb.AppendLine("## 怎么复跑");
             sb.AppendLine();
             sb.AppendLine("```bash");
-            sb.AppendLine("U=\"F:/Unity/2022.3.62f1c1/Editor/Unity.exe\"");
+            sb.AppendLine("U=\"F:/Unity/2022.3.62f1/Editor/Unity.exe\"");
             sb.AppendLine("P=\"F:/VSCode/pirate-crew-3d-unity/pirate-crew\"");
             sb.AppendLine();
             sb.AppendLine("# 扫描 + 写本报告；有未登记命中则退出码 1（CI 用）");

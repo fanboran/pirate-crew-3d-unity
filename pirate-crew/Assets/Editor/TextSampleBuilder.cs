@@ -157,7 +157,7 @@ namespace PirateCrew.EditorTools
                 Debug.LogError("[TextSampleBuilder] 当前会话没有可用渲染路径，无法渲染样张。原因："
                     + unavailableReason + "\n  请改用**有图形界面的 Unity 编辑器**运行：\n"
                     + "    菜单 PirateCrew/文本样张/渲染样张 PNG，或\n"
-                    + "    \"F:/Unity/2022.3.62f1c1/Editor/Unity.exe\" -projectPath <Unity工程> "
+                    + "    \"F:/Unity/2022.3.62f1/Editor/Unity.exe\" -projectPath <Unity工程> "
                     + "-executeMethod PirateCrew.EditorTools.TextSampleBuilder.CaptureSample -logFile -\n"
                     + "  注意：不要带 -batchmode/-nographics（本机该模式没有 GfxDevice）。");
                 if (exitWhenDone)

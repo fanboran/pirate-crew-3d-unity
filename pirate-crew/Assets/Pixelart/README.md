@@ -52,7 +52,7 @@
 ## 4. 怎么跑（全部 batchmode，一次只跑一个 Unity 进程）
 
 ```bash
-U="F:/Unity/2022.3.62f1c1/Editor/Unity.exe"
+U="F:/Unity/2022.3.62f1/Editor/Unity.exe"
 P="F:/VSCode/pirate-crew-3d-unity/pirate-crew"
 
 # ① 装配渲染器（两档 URP 资产各追加 Cast/Screen；幂等）
