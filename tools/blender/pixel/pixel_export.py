@@ -4,7 +4,7 @@ pixel_export —— 等距像素卡通资产导出模板（资产篇 §6 的三�
 
 【它解决什么问题】
     Kit 脚本（tools/blender/scene/<kit>/*.py）导出的 FBX 在**新美术口径下缺三样东西**：
-      ① 平滑法线没有烘进顶点色 ⇒ 反壳描边的外扩方向在硬边处开裂（染染篇 §5）；
+      ① 平滑法线没有烘进顶点色 ⇒ 反壳描边的外扩方向在硬边处开裂（渲染篇 §5）；
       ② 没有量化步骤 ⇒ 顶点色/贴图色漂在全局调色板之外，无法参与逐字节回归；
       ③ 没有纹素密度校验 ⇒ 32px/m 的密度纪律只能靠人眼看，量产后必然失控。
     本模块把这三件事做成三个纯函数 + 一个导出包装，kit 脚本 import 即可用。
@@ -17,7 +17,7 @@ pixel_export —— 等距像素卡通资产导出模板（资产篇 §6 的三�
 【顶点色的两个互斥用途（本模块的硬边界）】
     顶点色在这条管线里承载两种**完全不同**的数据：
       · 数据通道：<b>SmoothNormal</b> —— R = 色带阈值偏移（0.5 中性），GBA = 平滑法线（×0.5+0.5）
-        （染染篇 §5 / 裁决点 #8）；反壳描边 Pass 读它决定外扩方向。
+        （渲染篇 §5 / 裁决点 #8）；反壳描边 Pass 读它决定外扩方向。
       · 平涂色：<b>Col</b>（Blender 默认名）—— 美术刷的装饰颜色，是"颜色"，可以量化。
     把后者当前者量化（或反过来）会**静默毁掉描边**（法线被映射到板色上，外扩方向全错）。
     所以 quantize_vertex_colors 只接受 Col 一类的平涂属性名，遇到 SmoothNormal 直接抛错。
@@ -313,7 +313,7 @@ def quantize_vertex_colors(obj, palette_entries=None, attribute=FLAT_COLOR_ATTRI
     """
     if attribute == SMOOTH_NORMAL_ATTRIBUTE or "SmoothNormal" in attribute:
         raise ValueError("拒绝对 %r 量化：该属性承载反壳描边的平滑法线数据，不是颜色"
-                         "（染染篇 §5 / 裁决点 #8）。平涂色属性名应是 %r。"
+                         "（渲染篇 §5 / 裁决点 #8）。平涂色属性名应是 %r。"
                          % (attribute, FLAT_COLOR_ATTRIBUTE))
 
     mesh = obj.data
