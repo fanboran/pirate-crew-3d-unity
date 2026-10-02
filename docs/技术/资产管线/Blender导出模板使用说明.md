@@ -5,7 +5,7 @@
 > 它是 [像素纹理资产管线.md](像素纹理资产管线.md) §6「Blender 导出模板新增」三件事的落地说明。
 >
 > **前置阅读**：[调色板与量化手册.md](调色板与量化手册.md)（板与 OkLab 口径）、
-> [渲染管线-等距像素卡通.md](../渲染/渲染管线-等距像素卡通.md) §5（反壳描边为什么需要平滑法线）。
+> [渲染管线.md](../渲染/渲染管线.md) §5（反壳描边为什么需要平滑法线）。
 
 ---
 
@@ -187,7 +187,7 @@ alpha 通道在两种模式都不转换（`0.749`）。
 ### 5.2 `mesh_smooth_type`：本版**没有** "Normals Only"
 
 Blender 5.2.2 的枚举是 `OFF / FACE / EDGE / SMOOTH_GROUP`。
-资产篇 §6 与调研-反向壳 §6 写的 **"Smoothing: Normals Only" 是 Blender 2.8x 时代的选项名**，
+资产篇 §6 与反向壳描边 §6 写的 **"Smoothing: Normals Only" 是 Blender 2.8x 时代的选项名**，
 在本版不存在。自定分裂法线在本版经 **`SMOOTH_GROUP`（锐边标记）**传递，故本模块默认用它；
 传 `smooth_type=None` 则不传该参数、完全交给 Blender 默认值。
 **这条口径以本文为准**（`pixel_export.export_fbx` 的探测式传参是执行体：只传目标 Blender

@@ -1,10 +1,10 @@
-# 参照 · t3ssel8r 的 3D 像素引擎口径（作者自述）
+# t3ssel8r 的 3D 像素引擎口径（作者自述）
 
-> **这份文档是什么**：**t3ssel8r**（[频道](https://www.youtube.com/channel/UCIjUIjWig0r5DIixQrt6A3A)，Unity 3D 像素引擎「[参照六视频](调研-3D像素渲染视频整合.md) v5」的作者）**逐条自述的引擎算法口径**。它是本次调研里**唯一由作者本人写清算法**的来源——比任何第三方复刻都可靠。
+> **这份文档是什么**：**t3ssel8r**（[频道](https://www.youtube.com/channel/UCIjUIjWig0r5DIixQrt6A3A)，Unity 3D 像素引擎「[参照六视频](3D像素渲染视频整合.md) v5」的作者）**逐条自述的引擎算法口径**。它是本次调研里**唯一由作者本人写清算法**的来源——比任何第三方复刻都可靠。
 > **为什么单独成篇**：那六支视频里，v5 只讲建模不讲渲染，导致 v5 的算法在本仓一度只能靠画面推测。查他的投稿后发现：**他把每个系统的算法都写在对应视频的官方简介里**，27 条投稿合起来就是一份引擎规格书。本仓 §3 的两处缺口（帧级量化、内线）与三处现行裁决都能在这里找到作者口径。
 > **调研时间**：2026-09-22。
 > **素材与校验**：27 条投稿的标题/时长/发布日期/官方简介全文（第一手拉取），存于 `external/pixel-render-ref/t3ssel8r-desc.txt`；两条视频的官方英文字幕（`yt-subs/`）；v5 的抽帧与高倍裁切（`frames/v5/`、`crops/`）。**未下载全部视频**——本文所有算法描述均出自**官方简介原文**，不是从画面推测的。
-> **标注约定**：沿用 [美术风格指南](../../设计/美术风格指南.md) §0。**引号内是作者原文（英文）**，后附中译与出处；方括号内是本仓的解读，属【AI 提案】。
+> **标注约定**：沿用 [美术风格指南](../../../设计/美术风格指南.md) §0。**引号内是作者原文（英文）**，后附中译与出处；方括号内是本仓的解读，属【AI 提案】。
 
 ---
 
@@ -15,7 +15,7 @@
 > `Subpixel Camera for a 3D Pixel Art Game Engine`（`NutO1jzuVXU`，2020-10-10）：
 > "we render our scene at a low pixel art resolution (**640x360**) and upscale the result to the screen resolution for presentation. At render-time, the camera is **snapped to the nearest "pixel"**, and when blitting to screen, the **snap offset is corrected** so that the camera is permitted to smoothly glide over the pixels of the screen at the display's native resolution. Some extra projections need to be computed in order to ensure that this operation works precisely even when the camera is rotated **45 degrees**."
 
-⇒ **与本仓 [调研-全屏像素化](调研-全屏像素化与像素完美.md) §2 的"视空间 snap + UV 反向补偿两步法"完全同构**，连内部分辨率都是 **640×360**，且同样处理 45° 方位角下的投影。时间上是 **2020-10**，早于本仓原引的 David Holland——**溯源可补：两步法的最早公开出处应记 t3ssel8r**。
+⇒ **与本仓 [全屏像素化](全屏像素化与像素完美.md) §2 的"视空间 snap + UV 反向补偿两步法"完全同构**，连内部分辨率都是 **640×360**，且同样处理 45° 方位角下的投影。时间上是 **2020-10**，早于本仓原引的 David Holland——**溯源可补：两步法的最早公开出处应记 t3ssel8r**。
 ⇒ 同一支还写了一条阴影侧的做法：**"The pixel art shaders were also updated to add contrast in shadowed regions by shading the shadowed regions using a simple **monochromatic Lambertian BRDF**, resulting in a soft fake ambient lighting effect."** —— 暗部用**单色 Lambert BRDF** 补对比，得到柔和的假环境光。对应本仓 §4.2"暗部不做纯乘暗、用替换式预制暗部色"，**是同一问题的另一条解法**。
 
 ### 1.2 相机机位：30° 俯角 + 方位角 snap 到 45°【与本仓 35.264° 的差异，值得回看】
@@ -23,7 +23,7 @@
 > `Isometric Camera`（`ij555s4mAuI`，2020-10-05）：
 > "a **30 degree pitch** isometric camera that **snaps the yaw to 45 degree increments** is used. This can perfectly reproduce the **2-pixels-across-1-pixel-down look** of rectangular pixel art blocks, while still allowing smooth camera motion between snapping regions."
 
-⇒ 他取 **30° 俯角**，理由正是"2 像素横 : 1 像素竖"的**经典手绘像素等距网格**；本仓 [渲染管线-等距像素卡通](渲染管线-等距像素卡通.md) §2.1 的表格里，30° 一行写的也正是"经典像素等距（手绘像素画沿用至今的网格）"，但**现行裁决取的是 35.264°（真等距）**。
+⇒ 他取 **30° 俯角**，理由正是"2 像素横 : 1 像素竖"的**经典手绘像素等距网格**；本仓 [渲染管线](../渲染管线.md) §2.1 的表格里，30° 一行写的也正是"经典像素等距（手绘像素画沿用至今的网格）"，但**现行裁决取的是 35.264°（真等距）**。
 ⇒ **这不是要推翻裁决**，而是补一条外部证据：**该方向公认参照作者选了 30°**。若 M1 样张在"像不像手绘像素等距"上不满意，30° 是第一个该回头看的档位。【AI 提案】
 ⇒ 另外他明确用了 **yaw snap 到 45° 增量**——与本仓"方位角固定 45°"同类，证据方向一致。
 
@@ -40,7 +40,7 @@
 > "To get the **edge highlight and shadow effects, the depth buffer is sampled for adjacent points, and the pixel is brightened or dimmed based on whether it is closer or further to the camera than its neighbors**."
 
 ⇒ **这是 v5 边缘效果的核心口径**：不画线，而是**在深度缓冲上取邻域、比较远近，然后对该像素的着色值提亮或压暗**。同时解释了画面里"棱线上是浅色亮边"（比邻域近 → 提亮）。
-⇒ 对本仓 [渲染管线-等距像素卡通](渲染管线-等距像素卡通.md) §7"内线"与 [待办事项](../../项目/待办事项.md) 步骤 2 遗留⑥ 的**直接可抄路线**：它比 v2 的七步更简（不做阈值化 + 遮罩合成，直接改着色值），比 v3 的连通域更省（不做 compute 连通域）。
+⇒ 对本仓 [渲染管线](../渲染管线.md) §7"内线"与 [待办事项](../../../项目/待办事项.md) 步骤 2 遗留⑥ 的**直接可抄路线**：它比 v2 的七步更简（不做阈值化 + 遮罩合成，直接改着色值），比 v3 的连通域更省（不做 compute 连通域）。
 
 ### 1.5 边缘检测器：**改用 normal pass** ←（v3 的可靠性问题的正解）
 
@@ -48,7 +48,7 @@
 > "The **pixel art edge detector was completely rewritten to use a normal pass**, which is **much more reliable at producing clean results**. I think it's a big step toward looking like hand-drawn isometric pixel art."
 
 ⇒ 这是一条**明确的迭代结论**：他先做的是**深度**方案（§1.4），随后**重写为法线通道**，理由是"结果干净得多、更像手绘等距像素画"。
-⇒ 对本仓的意义：若走屏幕空间内线，**法线通道优先于深度通道**；深度方案适合做"边缘高光/阴影的提亮压暗"（§1.4）、法线方案适合做"边缘检测"。本仓 [调研-反向壳描边](调研-反向壳描边.md) 与 v3 的连通域路线都只用到深度+法线的**混合判据**，这条给出了优先级。
+⇒ 对本仓的意义：若走屏幕空间内线，**法线通道优先于深度通道**；深度方案适合做"边缘高光/阴影的提亮压暗"（§1.4）、法线方案适合做"边缘检测"。本仓 [反向壳描边](反向壳描边.md) 与 v3 的连通域路线都只用到深度+法线的**混合判据**，这条给出了优先级。
 
 ### 1.6 边缘色随光变化（light-aware edge coloration）←（v5 画面"细线随昼夜变色"的答案）
 
@@ -56,7 +56,7 @@
 > "Here we are showing off the improvement to the main pixel art shader including **light-aware edge coloration**, and some procedural moss."
 
 ⇒ **v5 的边线颜色随昼夜变（夜里淡紫、白天近白）就是这一条**：边缘着色**对光照有感知**，不是固定墨色。
-⇒ 与本仓 [渲染管线-等距像素卡通](渲染管线-等距像素卡通.md) §5"颜色统一墨色（与 UI 令牌 INK 同色）"**是一处口径分歧**：本仓要的是 3D/2D 统一的固定墨线，他要的是随环境光变化的边缘色。**两条都要留**（固定墨色更"平面设计"、随光变色更"融入场景"），M1 样张可对比。【AI 提案】
+⇒ 与本仓 [渲染管线](../渲染管线.md) §5"颜色统一墨色（与 UI 令牌 INK 同色）"**是一处口径分歧**：本仓要的是 3D/2D 统一的固定墨线，他要的是随环境光变化的边缘色。**两条都要留**（固定墨色更"平面设计"、随光变色更"融入场景"），M1 样张可对比。【AI 提案】
 
 ### 1.7 动态光：加法 pass 忽略 ramp + **低帧率抖动光位** + 光照档位量化
 
@@ -72,7 +72,7 @@
 > "The material colors are **blended by interpolating between different variants of the materials** for day, night, golden hour, and twilight **depending on the angle of the sun**. This gives the artist full control over the color palette for specific sun angles, while making the day/night system itself entirely procedural."
 
 ⇒ 与 v5 抽帧所见一致（`Assets/Materials/DayNightCycle` 里 4 种表面 × 4 个时段 = 16 个材质）。**插值**在变体之间做，不是硬切。
-⇒ 提醒本仓：若要做时段变化，**在锁板内插值变体**，而不是复制 N 套资产（呼应 [六视频文档](调研-3D像素渲染视频整合.md) §3.3 的冲突提醒）。
+⇒ 提醒本仓：若要做时段变化，**在锁板内插值变体**，而不是复制 N 套资产（呼应 [六视频文档](3D像素渲染视频整合.md) §3.3 的冲突提醒）。
 
 ### 1.9 水面：边缘高光用**深度 pass 判"背景深 1 像素"**，折射用屏幕空间像素完美位移图
 
@@ -103,7 +103,7 @@
 > `Parallax Effect for 3D Pixel Art Engine`（`cCUCMBmc9yQ`，2020-12-11）：
 > "**cleverly blending between a real perspective camera for distant geometry and the orthographic camera for nearby geometry**. When tuned appropriately, this automatically creates the multilayered parallax effect for distant objects, **while maintaining crisp pixel positioning in the foreground**. A depth-based fog helps tie the scene together."
 
-⇒ 大景深场景（山顶俯瞰）里保住前景像素干净、同时远景有层次的办法。本仓"全场/全景档（正交 size 3~60）"跨 20 倍密度，**这条可作为远景档的候选**（[渲染管线-等距像素卡通](渲染管线-等距像素卡通.md) §3.1 推论 3 的"对远景档降级像素化口径"）。【AI 提案】
+⇒ 大景深场景（山顶俯瞰）里保住前景像素干净、同时远景有层次的办法。本仓"全场/全景档（正交 size 3~60）"跨 20 倍密度，**这条可作为远景档的候选**（[渲染管线](../渲染管线.md) §3.1 推论 3 的"对远景档降级像素化口径"）。【AI 提案】
 
 ### 1.13 火 / 雨 / 云 / 上帝光：四条要点
 
@@ -129,7 +129,7 @@
 > - AABB 会**高估**所需模糊量 → 用略小的 box，或**让 box 中心权重高于边缘**；取**二次型平均窗**时积分出来是三次过渡，**可直接用 `smoothstep` 算**，很便宜；
 > - 末尾处理**直通 alpha（straight alpha）**的透明 sprite：透明纹素的颜色未定义，需要单独处理。
 
-⇒ 与本仓 [调研-全屏像素化](调研-全屏像素化与像素完美.md) §5 备用的"**伪带限过滤**（themaister，属纹理侧：2x2 伪带限、不重开 mip）"是**同一个问题的两档解法**：themaister 是"一次 bilinear fetch 的廉价版"，t3ssel8r 这篇是"用 `fwidth` 算足迹 + box 平均 + 显式梯度带 mip/aniso 的完整版"。
+⇒ 与本仓 [全屏像素化](全屏像素化与像素完美.md) §5 备用的"**伪带限过滤**（themaister，属纹理侧：2x2 伪带限、不重开 mip）"是**同一个问题的两档解法**：themaister 是"一次 bilinear fetch 的廉价版"，t3ssel8r 这篇是"用 `fwidth` 算足迹 + box 平均 + 显式梯度带 mip/aniso 的完整版"。
 ⇒ **本仓是否要用**：本仓是**固定等距机位 + 正交**，纹理在屏幕上的压缩是全局常数（§2.1 的 1:0.577），**没有透视导致的纹理游动**，所以风险低；一旦 M-B 样张出现"细纹理在斜面上闪"，这篇就是首选参考（**但那是全分辨率域的操作，注意与"上采样后零颜色操作"红线的关系——它属纹理采样，不属颜色处理**）。【AI 提案】
 
 ---
