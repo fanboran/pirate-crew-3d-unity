@@ -20,6 +20,7 @@
 | [Blender导出模板使用说明.md](Blender导出模板使用说明.md) | 写 kit 脚本的人 | `tools/blender/pixel/` 三件事（平滑法线烘顶点色 / 顶点色量化 / 纹素密度校验）的用法、参数、退出码；**顶点色两个互斥用途**的硬边界；判据的硬失败 vs 只计数口径；正反对照自证；Blender 5.2 的两条版本差异（`colors_type=SRGB`、没有 "Normals Only"）；实测发现（49 件 FBX 无 UV） |
 | [像素海面技术方案.md](像素海面技术方案.md) | M2f 实施者 | `PirateOcean` 退役后海面用什么替代：三层设计（色带波纹 / 量化泡沫 / 岸线带）、与 ppm 密度方程的耦合（决定 tile 尺寸）、岸距用高度场解析算而**不用深度图**、7 步实现清单与风险；**刻意不落半成品 shader**；实施前先裁决其 §5.1 与创始人半透明/拍击新提案的两处冲突 |
 | [泰拉瑞亚参照资产提取.md](泰拉瑞亚参照资产提取.md) | 追溯 Track 条槽语法出处 / 需要 Terraria 参照件的人 | **注意**：UI 参照的现役主体是 Aseprite dark 主题（见[九宫格规范](BeveledPixel九宫格规范.md)头部），Terraria 参照是 Track 条槽语法的来源与版权边界记录。提取方法：**wiki 优先**（成就图标每张独立 64×64 PNG，一把抓完 137 张），wiki 不提供的 UI 原始件走 **XNB 解包**（41 件）。含实测的 XNB 字段布局、两个卡了很久的坑（7 位变长整数是**小端**；版本后那 2 字节必须先跳）、自校验判据、解码器选型（libmspack 的 lzxd 解不了，要用 MonoGame 的 LzxDecoderStream） |
+| （WorldKit 场景套件） | 建 kit 资产的人 | `tools/blender/scene/` 的 kit 建模与站面 manifest 机制（`style_tokens.py` / `sync_standables.py`）：**文档已随 M4 归档**，机制见 [归档/M4-世界化](../../项目/归档/M4-世界化/大海域世界化.md) §4；基建去留裁决挂 [world-海图101-108删除](../../项目/待办/world-海图101-108删除.md) §三 |
 
 ## 与其它域的交界
 
