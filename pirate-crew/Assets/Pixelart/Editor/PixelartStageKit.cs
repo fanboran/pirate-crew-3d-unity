@@ -469,8 +469,8 @@ namespace PirateCrew.EditorTools
         /// 【为什么走文本直改而不是 SerializedObject】`EditorBuildSettingsScene.guid` 在 2022.3 是
         /// <c>GUID</c> **结构体**而不是字符串——用 <c>SerializedProperty.stringValue</c> 读它直接抛
         /// "type is not a supported string value"，而异常发生在写完 path 之前，于是**插进去了半条脏记录**
-        /// （实测：本脚本第一版把 ToonPilot 变成两条、新场景反而没进去，且只在日志里留一行异常）。
-        /// 本仓既有装配脚本（`ToonPilotSetup`）对同一问题也是走 YAML 直改，这里沿用同一条路。
+        /// （实测：本脚本第一版把 ToonPilot（场景已随 PBR 根除删除）变成两条、新场景反而没进去，且只在日志里留一行异常）。
+        /// 本仓已删除的装配脚本（`ToonPilotSetup`）对同一问题也是走 YAML 直改，这里沿用同一条路。
         ///
         /// 【实现口径】先找**最后一条 guid 行**（每个场景条目的末行），在它之后插入完整的三行条目；
         /// 幂等靠"文本里已有该 path 就跳过"；写完**读文件回验**并把条数打进日志——
@@ -553,7 +553,7 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// sRGB hex（Gamma 空间直存）→ Color，口径同 SceneArtPalette / ToonPilotSetup。
+        /// sRGB hex（Gamma 空间直存）→ Color，口径同 SceneArtPalette。
         /// **带不带 `#` 都收**：文档里写色值几乎都带 `#`（`#DE524D`），装配代码里不带——
         /// 两种写法混用时 `int.Parse(HexNumber)` 会抛 FormatException 并把整条装配打断
         /// （实测踩过：`CrewRed` 在文档里抄了带 `#` 的写法，装配在材质那一步整条挂掉，
