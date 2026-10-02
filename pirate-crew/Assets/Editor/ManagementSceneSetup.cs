@@ -25,12 +25,12 @@ namespace PirateCrew.EditorTools
     ///   Build Settings = Bootstrapper(0) / MainMenu(1) / Battle(2) / CrewManagement(3) / LevelSelect(4)。
     ///
     /// 【视觉层（Beveled Pixel 像素皮，docs/设计/UI设计语言.md §5.1 / §5.2 / §5.3 线框不变）】
-    ///   · 背景 = WINDOW_BG 令牌（alpha 提到 1）全屏底板；相机背景不动，只换 UI 层；
+    ///   · 背景 = theme 桌面色全屏底板（旧 WINDOW_BG「窗户」语义、alpha 提到 1）；相机背景不动，只换 UI 层；
     ///   · 列表容器 = **带标题窗体**（theme window 直切件，经 <see cref="UiKit.EnsureWindow"/>，
     ///     顶 15u 标题带）+ **view 凹槽底**（theme view：sunken 九宫格，行区 padding 3/顶 4）；
     ///     列表行 = theme list_item 纯色三态（RuntimeUiBuilder.CreateRow：常态灰 / 选中金 / 禁用暗）；
     ///   · 按钮 = <see cref="SketchButton"/>（Dark 为次级行动，Primary 为屏内主行动；三态 SpriteSwap）；
-    ///   · 文字层级取 <see cref="StickTokens"/> 字号档 + <see cref="PixelSkin"/> 的 tone 字色；
+    ///   · 文字层级取 <see cref="UiSkin"/> 字号档 + <see cref="PixelSkin"/> 的 tone 字色；
     ///   · 分隔线 = <see cref="SketchSeparator"/> 蚀刻线贴图（1u 厚）；
     ///   · 文本统一 TMP + 中文字体（字体入口仍在 <see cref="MenuUiBuilder"/>）；
     ///   · 选关页「上一局结算」为模态弹窗（§3.6），数据源 CampaignApi（沿用
@@ -489,14 +489,14 @@ namespace PirateCrew.EditorTools
             anchoredPosition, size, font, label, UiSkin.Font.Body);
     }
 
-        /// <summary>模态压暗遮罩：MODAL_DIM 令牌；拦截点击承载模态语义。</summary>
+        /// <summary>模态压暗遮罩：黑 60%（原 StickTokens.MODAL_DIM 同值，遗留层已根除）；拦截点击承载模态语义。</summary>
         static void CreateDimOverlay(Transform parent)
         {
             RectTransform rect = RuntimeUiBuilder.CreateRect("DimOverlay", parent);
             RuntimeUiBuilder.Stretch(rect);
 
             var image = rect.gameObject.AddComponent<Image>();
-            image.color = StickTokens.MODAL_DIM;
+            image.color = new Color(0f, 0f, 0f, 0.6f);   // 原 StickTokens.MODAL_DIM 同值，遗留层已根除。
             image.raycastTarget = true;   // 挡住底下的点击，符合模态语义。
         }
 

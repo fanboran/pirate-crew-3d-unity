@@ -9,8 +9,6 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-// StickTokens 令牌是 Stick 复刻层的单一真相源，using static 提到顶层免逐处限定（同 SketchButton.cs）。
-using static PirateCrew.UI.Stick.StickTokens;
 
 namespace PirateCrew.EditorTools
 {
@@ -25,10 +23,10 @@ namespace PirateCrew.EditorTools
     ///   Build Settings 登记 6 场景（见 RegisterBuildSettings）。
     ///
     /// 【主菜单视觉口径（Beveled Pixel 像素皮）】深暖色清屏（透底语义）+ StickHand 标题
-    /// （像素皮 Frame tone 浅字 + INK 墨描边）+ <see cref="SketchButton"/> 菜单列
+    /// （像素皮 Frame tone 浅字 + 墨色描边）+ <see cref="SketchButton"/> 菜单列
     /// （tone 九宫格 + 三态 SpriteSwap，高 BTN_H=32）+ <see cref="UiKit.EnsureWindow"/> /
     /// <see cref="UiKit.EnsurePanel"/>（Ase 直切件皮）的设置/退出确认弹窗 + <see cref="SketchSeparator"/> 蚀刻分隔线；
-    /// 文字/字号仍取 <see cref="StickTokens"/> 令牌。控制器
+    /// 文字/字号仍取 <see cref="UiSkin"/> 令牌。控制器
     /// <see cref="MainMenuController"/> 的 [SerializeField] 引用契约不变（按字段名回写）。
     /// </summary>
     public static class SceneSetup
@@ -89,7 +87,7 @@ namespace PirateCrew.EditorTools
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            // 深棕暖色清屏色：StickUI「窗户」语义的透底——WINDOW_BG 88% 黑留 12% 让它透出，不动。
+            // 清屏色 = theme 桌面（window_face #2C2C30），为窗体提供透底。
             CreateCamera(PixelSkin.Theme.Face);   // theme desktop = window_face #2C2C30
 
             Canvas canvas = CreateCanvas("MainMenuCanvas");
@@ -98,8 +96,7 @@ namespace PirateCrew.EditorTools
             // 像素字体单字体纪律（UiKit.RuntimeFont 同口径）：全部 Fusion Pixel 位图档。
             TMP_FontAsset handFont = MenuUiBuilder.TitleFont;
 
-            // z=0 背景：WINDOW_BG 原值（88% 黑）全屏一层——「窗户不是海报」，相机暖色透 12%，
-            // 不铺死黑（stick-world window 底同口径；不再叠压暗 vignette 以免毁掉透底）。
+            // z=0 背景：全屏一层 theme 桌面色（CreateStickBackdrop），不铺死黑、不叠压暗 vignette。
             CreateStickBackdrop(canvas.transform);
 
             // 主菜单**窗体化**（执行案 §4，创始人 2026-09-25 裁决）：window_with_title 容器
@@ -145,20 +142,22 @@ namespace PirateCrew.EditorTools
             SketchButton quitButton = CreateMenuButton(menuWindow.transform, "QuitButton",
                 UiStrings.MainQuit, handFont);
 
-            // 左下：版本号 + 存档状态（SCREEN_MARGIN=12 安全边距；角标 Tiny 30 = ArkPixel 10px
-            // 原生档 + TEXT_FAINT，状态反馈用 TEXT_DIM 略提一级）。版本数字运行时取
+            // 左下：版本号 + 存档状态（安全边距 12；角标 Tiny = 8 原生档 + 亮字 32% 档，
+            // 状态反馈用 55% 档略提一级——原 StickTokens.TEXT_FAINT/TEXT_DIM 同值，
+            // 遗留层根除后落字面量）。版本数字运行时取
             // Application.version（单一真源链 BuildVersion.Current → bundleVersion）。
             TextMeshProUGUI versionText = MenuUiBuilder.CreateTextExact("VersionText", canvas.transform,
                 UiStrings.MainVersionPrefix + " " + Application.version, UiSkin.Font.Tiny,
-                TextAlignmentOptions.BottomLeft, TEXT_FAINT, handFont);
+                TextAlignmentOptions.BottomLeft, new Color(0.93f, 0.94f, 0.96f, 0.32f), handFont);
             MenuUiBuilder.SetAnchored(versionText.rectTransform,
-                new Vector2(0f, 0f), new Vector2(133f, 12f), new Vector2(SCREEN_MARGIN, SCREEN_MARGIN));
+                new Vector2(0f, 0f), new Vector2(133f, 12f), new Vector2(12f, 12f));
 
             TextMeshProUGUI statusText = MenuUiBuilder.CreateTextExact("StatusText", canvas.transform,
-                string.Empty, UiSkin.Font.Tiny, TextAlignmentOptions.BottomLeft, TEXT_DIM, handFont);
+                string.Empty, UiSkin.Font.Tiny, TextAlignmentOptions.BottomLeft,
+                new Color(0.93f, 0.94f, 0.96f, 0.55f), handFont);
             MenuUiBuilder.SetAnchored(statusText.rectTransform,
                 new Vector2(0f, 0f), new Vector2(167f, 12f),
-                new Vector2(SCREEN_MARGIN, SCREEN_MARGIN + 13f));
+                new Vector2(12f, 12f + 13f));
 
             // 设置界面（真接线：音量滑条 ×4 / 画质档 / 窗口模式；默认隐藏；theme window 直切件底板）。
             MenuUiBuilder.SettingsPanelResult settings = MenuUiBuilder.BuildSettingsPanel(canvas.transform);
@@ -217,8 +216,8 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>全屏底 = theme 桌面（`desktop` style：window_face #2C2C30）纯色 Image，
-        /// raycast 关闭（装饰层，不挡主菜单按钮命中）。原 StickTokens.WINDOW_BG（88% 黑半透）
-        /// 是旧「窗户」语义的自造底，本波按 Aseprite 桌面换掉。</summary>
+        /// raycast 关闭（装饰层，不挡主菜单按钮命中）。旧自造「窗户」黑半透底已随
+        /// StickTokens 遗留层根除替换为桌面色。</summary>
         static void CreateStickBackdrop(Transform parent)
         {
             RectTransform rect = MenuUiBuilder.CreateRect("WindowBackdrop", parent);

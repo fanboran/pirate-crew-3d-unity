@@ -169,13 +169,14 @@ namespace PirateCrew.UI.Stick
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = Vector2.one;
             rt.pivot = new Vector2(0.5f, 0.5f);
-            // 【文字盒边距】左右 = PAD_X + 2（gd 按钮盒 content margins 同源）；
+            // 【文字盒边距】左右 = 12 + 2（原 StickTokens.PAD_X=12，遗留层根除后落字面量；
+            // gd 按钮盒 content margins 同源）；
             // 上下**不对称**——theme button 切片 h1=4 / h3=6（theme.xml:155），sprite 设计的
             // 字区是 [4, h-6]，其中心比矩形几何中心高 1 画布格。按几何居中（2/2 边距）会让
             // 字落在字区偏下 1 格（实拍：墨迹中心 462 屏像素 vs 盒心 461.5、字区中心 460）。
             // 故底边多让 1 格：字盒 = [3, h-1]，中心 = 几何中心 + 1 格 ✓ 与 sprite 字区对齐。
-            rt.offsetMin = new Vector2(StickTokens.PAD_X + 2f, 3f);
-            rt.offsetMax = new Vector2(-(StickTokens.PAD_X + 2f), -1f);
+            rt.offsetMin = new Vector2(12f + 2f, 3f);
+            rt.offsetMax = new Vector2(-(12f + 2f), -1f);
             if (shadowMode)
             {
                 // theme.xml:617：影子色 = theme background（#41444a），偏移 (1,1) 设计格

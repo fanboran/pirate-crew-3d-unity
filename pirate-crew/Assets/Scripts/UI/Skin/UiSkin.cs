@@ -1,28 +1,16 @@
 using PirateCrew.Data;
-using PirateCrew.UI.Stick;
 using UnityEngine;
 
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 多彩卡通 UI 的设计 Token 真值源（配色 / 形状 / 字号 / 语义色槽）。
+    /// UI 设计 Token 真值源（字号 / 几何 / 内容语义色 / 队色）。
     ///
-    /// 【换装（Beveled Pixel）】皮肤的真值源已交给 <see cref="PixelSkin"/>（tone 色阶 +
-    /// 九宫格件）；本类的底色十个成员因被 Tests/UI/UiSkinTests.cs 钉死而暂留 StickTokens
-    /// 值（详见「像素皮取色桥」段落）。像素皮新代码一律经 PixelPlate / PixelTextOn 或
-    /// <see cref="PixelSkin"/> 取色，别再新写魔法值。
-    ///
-    /// 【风格定案（用户三轮裁决，2026-09-19）】
-    ///   · 高饱和多彩：每个武器 / 职业 / 状态有自己的色相（哈迪斯式"深底 + 宝石彩图标 +
-    ///     金强调"），不再收敛到单一暖木色板；
-    ///   · 形状收敛：小圆角（面板 8 / 按钮 6）、无粗描边（至多 1px 细线）、无贴纸硬投影——
-    ///     层级靠色彩明度差与留白，不靠装饰；
-    ///   · 拟物极度抽离：默认纯平涂，不追求材质真实感；
-    ///   · 图标优先：文字只留标题横幅 / 一条操作提示 / 无障碍兜底。
-    ///
-    /// 【单一真值】全项目字号体系（原 <c>MenuUiBuilder.FontScale</c>，用户 2026-09-14 裁决
-    /// "整体下调一档"）迁移到本类 <see cref="Font"/>；皮肤形状 / 语义色也只许引用本类，
-    /// 禁止散落魔法值（单一真值纪律，同本类其余令牌段）。
+    /// 【分工】观感与控件皮的取色一律走 <see cref="PixelSkin"/>（theme 色表 + 九宫格件）
+    /// 与 <c>AseThemeLayers</c>（theme 层引擎）——本类只保留它们不覆盖的内容：
+    /// 字号档（<see cref="Font"/>，原生档纪律）、像素几何档（<see cref="Px"/>，×1 终局）、
+    /// 队色与武器/职业内容语义色、WCAG 工具。旧 stick-world 底色系与取色桥已随
+    /// StickTokens 遗留层根除，勿再在此新起配色。
     ///
     /// 【可测性】只含常量 / 纯函数（<see cref="ContrastRatio"/> 是 WCAG 2.1 相对亮度比的
     /// 纯 C# 实现），不触碰 GameObject，可在无头验证台断言。
@@ -30,83 +18,14 @@ namespace PirateCrew.UI
     public static class UiSkin
     {
         // ------------------------------------------------------------------
-        // 底色系（【P1 令牌接管】色值整体换血为 StickTokens——stick-world ui_tokens.json
-        // 的同源编译层；UI 语义名全部保留，调用方零改动。
-        // 映射：InkDeep=WINDOW_BG / InkSoft=WINDOW_BG_LIGHT / TextOnInk=TEXT /
-        // TextDim=TEXT_DIM / Gold=ACCENT / InkOnGold=INK / BarTrackInk=GROOVE_BG /
-        // Info·Warn·Success=INFO·WARN·SUCCESS。窗底半透明是隔壁「窗户不是海报」
-        // 设计语言；WCAG 标注值按 tokens RGB 直算。
+        // 受击残影 / 阵亡标识（战斗 HUD 活消费；玩法语义色，不随换装走）
         // ------------------------------------------------------------------
-
-        /// <summary>HUD / 卡片面板底。UI 语义 = StickTokens.WINDOW_BG（纯黑高不透明
-        /// "窗户"底，透 12% 画面）。正文 <see cref="TextOnInk"/>(=TEXT) 压其上 18.0:1、
-        /// 强调 <see cref="Gold"/>(=ACCENT) 10.6:1（WCAG 计算见 <see cref="ContrastRatio"/>）。</summary>
-        public static readonly Color InkDeep = StickTokens.WINDOW_BG;
-
-        /// <summary>面板底的次级档（嵌套小容器 / 选中行底）。UI 语义 = StickTokens.WINDOW_BG_LIGHT
-        /// （隔壁"次窗体底"：HUD 横条/内嵌区块）。正文其上 17.7:1。</summary>
-        public static readonly Color InkSoft = StickTokens.WINDOW_BG_LIGHT;
-
-        /// <summary>深底上的正文。UI 语义 = StickTokens.TEXT（压 InkDeep 18.0:1）。</summary>
-        public static readonly Color TextOnInk = StickTokens.TEXT;
-
-        /// <summary>深底上的次级文字。UI 语义 = StickTokens.TEXT_DIM（白 55% 透明档；
-        /// 混入窗底后的有效对比 5.6:1 ≥4.5，提示/角标用）。</summary>
-        public static readonly Color TextDim = StickTokens.TEXT_DIM;
-
-        /// <summary>全局强调色（标题 / 选中态 / 星级）。UI 语义 = StickTokens.ACCENT
-        /// （琥珀火光；压 InkDeep 10.6:1）。</summary>
-        public static readonly Color Gold = StickTokens.ACCENT;
-
-        /// <summary>强调底上的深字（主按钮 / 选中 chip 的文字）。UI 语义 = StickTokens.INK
-        /// （隔壁深墨：亮底字色同族；压 Gold(=ACCENT) 10.2:1。原 InkOnGold 同源收编，
-        /// 消灭 BattleHud 与 BattleUiTheme.Tok 的两份拷贝）。</summary>
-        public static readonly Color InkOnGold = StickTokens.INK;
-
-        /// <summary>血条 / 凹槽底。UI 语义 = StickTokens.GROOVE_BG（隔壁"输入框/凹槽底"
-        /// 纯黑 45%）；非文字元素，3:1 即可达标。</summary>
-        public static readonly Color BarTrackInk = StickTokens.GROOVE_BG;
 
         /// <summary>血条受击残影（damage ghost 的白条，乘在队伍色下层慢慢追平）。</summary>
         public static readonly Color DamageGhost = new Color(1f, 1f, 1f, 0.85f);
 
-        /// <summary>阵亡单位 pip / 死亡标识（骨灰 #6E6A60，非靛蓝系保留原值；压窗底 3.8:1——
-        /// 非文字图形 ≥3:1）。</summary>
+        /// <summary>阵亡单位 pip / 死亡标识（骨灰 #6E6A60；压暗底 3.8:1——非文字图形 ≥3:1）。</summary>
         public static readonly Color DeadGray = Rgb(0x6E, 0x6A, 0x60);
-
-        /// <summary>危险动作底（像素皮取 <see cref="PixelTone.Danger"/> 的暗档；图集缺失回落原深酒红）。</summary>
-        public static Color Danger => PixelSkin.Asset != null
-            ? (Color)PixelSkin.DarkOf(PixelTone.Danger)
-            : Rgb(0x8A, 0x1F, 0x1F);
-
-        /// <summary>语义色·信息。UI 语义 = StickTokens.INFO（压 InkDeep 11.5:1；Toast/通知/链接）。</summary>
-        public static readonly Color Info = StickTokens.INFO;
-
-        /// <summary>语义色·警告。UI 语义 = StickTokens.WARN（压 InkDeep 14.0:1；资源不足/警告通知）。</summary>
-        public static readonly Color Warn = StickTokens.WARN;
-
-        /// <summary>语义色·成功。UI 语义 = StickTokens.SUCCESS（压 InkDeep 10.4:1；完工/增益）。</summary>
-        public static readonly Color Success = StickTokens.SUCCESS;
-
-        // ------------------------------------------------------------------
-        // 像素皮（Beveled Pixel）取色桥：像素件一律经 <see cref="PixelSkin"/> 取件/取色，
-        // 本段只是把 tone 语义映射成"UI 令牌名"口径，便于调用点不必同时 import 两个类。
-        //
-        // 【为什么上方底色系字段没有一并改写】InkDeep / InkSoft / TextOnInk / TextDim /
-        // Gold / InkOnGold / BarTrackInk / Info / Warn / Success 十个成员被
-        // Tests/UI/UiSkinTests.cs 的 PanelBaseColors_AreStickTokensPipelined 钉死在
-        // StickTokens 上——该测试文件不在本波文件域，故本次不动它们（值不变，测试仍绿）。
-        // 像素皮新代码请直接取本段的桥接取色，或直接用 <see cref="PixelSkin"/> 的 API。
-        // ------------------------------------------------------------------
-
-        /// <summary>像素皮某 tone 的 Plate 底色（= 该 tone 的中档）。</summary>
-        public static Color PixelPlate(PixelTone tone) => PixelSkin.MidOf(tone);
-
-        /// <summary>像素皮某 tone 底上的正文字色（浅底给墨字 / 深底给本 tone 亮档字）。</summary>
-        public static Color PixelTextOn(PixelTone tone) => PixelSkin.TextColorOn(tone);
-
-        /// <summary>像素皮暖白（深底上最亮的正文色）。</summary>
-        public static Color PixelPaperWhite => PixelSkin.PaperWhite;
 
         // ---- 队色 / 队名文字（pirate 玩法语义色，不随 P1 令牌接管换血；收编 BattleHud 的两份写死色） ----
 
@@ -388,18 +307,6 @@ namespace PirateCrew.UI
                 default: return Rgb(0x8A, 0x97, 0xA8);             // 未知·钢灰
             }
         }
-
-        /// <summary>格底暗档系数：内容色格底向 <see cref="InkDeep"/> 压 22%——
-        /// "深底让彩色跳出来"在格子尺度上的应用（静物/头像保持全彩，图底不再同色相融，
-        /// r9 出图裁决：铁球贴灰蓝底 / 香蕉贴金底近隐身）。装配与运行时刷新同源调用。
-        /// （InkDeep 已接管为半透明窗底，Lerp 后格底 α≈0.97，视觉近实底。）</summary>
-        public static Color CellBase(Color contentColor)
-        {
-            return Color.Lerp(contentColor, InkDeep, 0.22f);
-        }
-
-        /// <summary>武器格底（<see cref="WeaponColor"/> 的暗档）。</summary>
-        public static Color WeaponCellBase(WeaponId id) => CellBase(WeaponColor(id));
 
         // ------------------------------------------------------------------
         // 工具（纯函数，可无头断言）

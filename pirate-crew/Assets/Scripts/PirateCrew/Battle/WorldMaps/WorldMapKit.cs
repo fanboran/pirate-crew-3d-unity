@@ -150,7 +150,7 @@ namespace PirateCrew.Battle.WorldMaps
     /// 的查表键，字面量散落在规则层（<see cref="ReefFieldRules"/> 的每图混比）与装配层
     /// （<see cref="WorldMapComposer"/> 的站面装饰散布池）时，改名要全文搜多处、
     /// 漏一处就静默缺件（装配层对查表落空的件是静默跳过）。消费方用
-    /// <c>using static</c> 引用，保持混比行的紧凑（同 SketchButton 对 StickTokens 的用法）。
+    /// <c>using static</c> 引用，保持混比行的紧凑。
     /// </summary>
     public static class WorldMapKitParts
     {

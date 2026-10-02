@@ -6,8 +6,6 @@ using TMPro;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
-// StickTokens 令牌是 Stick 复刻层的单一真相源，using static 提到顶层免逐处限定（同 SketchButton.cs）。
-using static PirateCrew.UI.Stick.StickTokens;
 
 namespace PirateCrew.EditorTools
 {
@@ -231,13 +229,16 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 给标题类文本挂 StickUI 口径的「墨色描边」（INK 3px 档：色 <see cref="StickTokens.INK"/>、
+        /// 给标题类文本挂「墨色描边」（3px 档：色近黑 #0D0A08，原 StickTokens.INK 遗留层根除后落本类常量、
         /// TMP 归一化宽 <c>TmpOutlineWidth</c>=0.2（本地常量；按钮描边已随 kind 退役，仅标题用），与 ControlsSampleBuilder
         /// 样张标题同口径）。材质落成 <c>Assets/Art/Materials/UI/TmpTitleOutlineInk.mat</c> 持久资产
         /// （场景重开不丢描边；与 M3 链路仍在用的 TmpTitleOutline.mat 分开，互不污染）。
         /// </summary>
             /// <summary>TMP 归一化描边宽（归一化量纲；位图字禁伪粗，标题专用）。</summary>
         const float TmpOutlineWidth = 0.2f;
+
+        /// <summary>标题描边墨色（原 StickTokens.INK 同值，遗留层根除后落本类常量）。</summary>
+        static readonly Color TitleOutlineInk = new Color(0.05f, 0.04f, 0.03f, 1f);
 
         public static void ApplyStickTitleOutline(TextMeshProUGUI text)
         {
@@ -255,7 +256,7 @@ namespace PirateCrew.EditorTools
                     EnsureFolder("Assets/Art/Materials/UI");
 
                     material = new Material(text.font.material) { name = "TmpTitleOutlineInk" };
-                    material.SetColor("_OutlineColor", INK);
+                    material.SetColor("_OutlineColor", TitleOutlineInk);
                     material.SetFloat("_OutlineWidth", TmpOutlineWidth);
                     material.EnableKeyword("OUTLINE_ON");
                     AssetDatabase.CreateAsset(material, path);
@@ -263,7 +264,7 @@ namespace PirateCrew.EditorTools
                 catch (System.Exception e)
                 {
                     Debug.LogWarning("[MenuUiBuilder] 生成 Stick 标题描边材质失败（" + path + "）："
-                        + e.Message + "\n  标题将不带描边，仅靠 TEXT 亮字压暗底保可读性。");
+                        + e.Message + "\n  标题将不带描边，仅靠亮字压暗底保可读性。");
                 }
             }
 

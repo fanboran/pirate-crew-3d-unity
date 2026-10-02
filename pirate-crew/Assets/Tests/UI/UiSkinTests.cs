@@ -2,14 +2,14 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using PirateCrew.Data;
 using PirateCrew.UI;
-using PirateCrew.UI.Stick;
 using UnityEngine;
 
 namespace PirateCrew.Tests.UI
 {
     /// <summary>
-    /// <see cref="UiSkin"/> 设计 Token 的无头断言：语义色槽覆盖率 + WCAG 对比度硬门禁。
-    /// （纯 Color 数学，不触碰 GameObject，可在 harness 无头跑。）
+    /// <see cref="UiSkin"/> 的无头断言：内容语义色（武器/职业）覆盖率 + 字号/几何档位锁。
+    /// （纯 Color 数学，不触碰 GameObject，可在 harness 无头跑。旧底色系 WCAG 门禁随
+    /// StickTokens 遗留层根除退役——现役观感取色走 theme 对拍。）
     /// </summary>
     public sealed class UiSkinTests
     {
@@ -37,63 +37,6 @@ namespace PirateCrew.Tests.UI
                 Assert.GreaterOrEqual(s, 0.28f, "武器 {0} 饱和度过低（{1:F2}），多彩风格要求每格都有自己的色相",
                     (WeaponId)i, s);
             }
-        }
-
-        [Test]
-        public void TextColors_OnInkDeepPanel_MeetWcagAA()
-        {
-            // P1 令牌接管后底色 = StickTokens.WINDOW_BG 系（"窗户"黑玻璃），断言仍走
-            // InkDeep/InkSoft 语义名——换血只换值不改名，此处数值按 tokens RGB 重算。
-            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.TextOnInk, UiSkin.InkDeep), 4.5f, "正文白(=TEXT)");
-            // TEXT_DIM 是 55% 透明档：ContrastRatio 不吃 alpha，须先混到底色再断言
-            // （渲染时透明度才生效），否则对比度虚高。
-            Assert.GreaterOrEqual(UiSkin.ContrastRatio(BlendedOver(UiSkin.TextDim, UiSkin.InkDeep), UiSkin.InkDeep), 4.5f,
-                "次级文字(=TEXT_DIM)混底后有效对比");
-            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.Gold, UiSkin.InkDeep), 4.5f, "强调琥珀(=ACCENT)");
-            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.TeamRedText, UiSkin.InkDeep), 4.5f, "红队文字");
-            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.TeamBlueText, UiSkin.InkDeep), 4.5f, "蓝队文字");
-            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.TextOnInk, UiSkin.InkSoft), 4.5f, "正文压次级底(=WINDOW_BG_LIGHT)");
-        }
-
-        [Test]
-        public void PanelBaseColors_AreStickTokensPipelined()
-        {
-            // P1 令牌接管回归锁：底色系必须继续取自 StickTokens（防手改回魔法值、
-            // 与 stick-world ui_tokens.json 漂移）。武器/职业/队色是 pirate 玩法语义，不在本锁内。
-            Assert.AreEqual(StickTokens.WINDOW_BG, UiSkin.InkDeep, "面板底");
-            Assert.AreEqual(StickTokens.WINDOW_BG_LIGHT, UiSkin.InkSoft, "次级面板底");
-            Assert.AreEqual(StickTokens.TEXT, UiSkin.TextOnInk, "正文");
-            Assert.AreEqual(StickTokens.TEXT_DIM, UiSkin.TextDim, "次级文字");
-            Assert.AreEqual(StickTokens.ACCENT, UiSkin.Gold, "强调");
-            Assert.AreEqual(StickTokens.INK, UiSkin.InkOnGold, "强调底深字");
-            Assert.AreEqual(StickTokens.GROOVE_BG, UiSkin.BarTrackInk, "凹槽底");
-            Assert.AreEqual(StickTokens.INFO, UiSkin.Info, "语义·信息");
-            Assert.AreEqual(StickTokens.WARN, UiSkin.Warn, "语义·警告");
-            Assert.AreEqual(StickTokens.SUCCESS, UiSkin.Success, "语义·成功");
-        }
-
-        /// <summary>半透明前景按 alpha 混到不透明底上（sRGB 直混，与渲染合成同式）。</summary>
-        static Color BlendedOver(Color foreground, Color background)
-        {
-            return new Color(
-                foreground.r * foreground.a + background.r * (1f - foreground.a),
-                foreground.g * foreground.a + background.g * (1f - foreground.a),
-                foreground.b * foreground.a + background.b * (1f - foreground.a),
-                1f);
-        }
-
-        [Test]
-        public void TeamFill_GraphicsOnlyColors_StayAtLeastThreeToOne()
-        {
-            // 队色本体是图形色（血条段 / 徽章环 / 点位），WCAG 1.4.11 非文字下限 3:1。
-            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.TeamRed, UiSkin.InkDeep), 3f, "红队图形色");
-            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.TeamBlue, UiSkin.InkDeep), 3f, "蓝队图形色");
-        }
-
-        [Test]
-        public void InkOnGold_OnGoldChip_MeetsWcagAA()
-        {
-            Assert.GreaterOrEqual(UiSkin.ContrastRatio(UiSkin.InkOnGold, UiSkin.Gold), 4.5f, "金底深字");
         }
 
         [Test]
