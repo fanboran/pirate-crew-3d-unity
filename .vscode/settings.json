@@ -3,7 +3,6 @@
   "files.exclude": {
     // 仓库根的非代码目录
     ".zcode": true, // Zcode 工具缓存
-    "temp": true, // 临时目录
     "export": true, // 导出产物
     "external": true, // 工作台（gitignored：参照库/逆向材料/Blender 源）；要翻材料时临时改 false
     // Unity 工程本体的自动生成目录
