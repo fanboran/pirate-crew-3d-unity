@@ -63,7 +63,7 @@ namespace PirateCrew.EditorTools.BuildSystem
         /// <summary>
         /// 【CI / 本地发布主入口】读命令行参数出 Release 包。
         /// <code>
-        /// "F:/Unity/2022.3.62f1c1/Editor/Unity.exe" -batchmode -nographics -quit ^
+        /// "F:/Unity/2022.3.62f1/Editor/Unity.exe" -batchmode -nographics -quit ^
         ///   -projectPath "F:/VSCode/pirate-crew-3d-unity/pirate-crew" ^
         ///   -executeMethod PirateCrew.EditorTools.BuildSystem.BuildScript.BuildFromCommandLineArgs ^
         ///   -logFile - -buildFlavor release -buildCommit %GIT_SHA%
@@ -185,20 +185,20 @@ namespace PirateCrew.EditorTools.BuildSystem
         }
 
         /// <summary>
-        /// 把 Build Settings 同步成**开发集**（= 发行 5 场景 + 像素化试点 11 场景 = 16 场景）。
+        /// 把 Build Settings 同步成**开发集**（= 发行集 + 仅开发试点场景，见 <see cref="BuildScenes.DevelopmentSet"/>）。
         /// 这是给「编辑器里按 Play / 播放器出图」用的列表，保持与装配脚本文档一致。
         /// </summary>
-        [MenuItem("PirateCrew/Build/同步 Build Settings（开发集 16 场景）", priority = 210)]
+        [MenuItem("PirateCrew/Build/同步 Build Settings（开发集）", priority = 210)]
         public static void MenuSyncBuildSettingsDevelopment()
         {
             SyncBuildSettings(BuildScenes.DevelopmentSet(), "开发集");
         }
 
         /// <summary>
-        /// 把 Build Settings 同步成**发行集**（5 场景，不含像素化试点场景）。
+        /// 把 Build Settings 同步成**发行集**（不含像素化试点场景）。
         /// 提交发行前的准备动作；之后要跑像素试点出图请再同步回开发集。
         /// </summary>
-        [MenuItem("PirateCrew/Build/同步 Build Settings（发行集 5 场景）", priority = 211)]
+        [MenuItem("PirateCrew/Build/同步 Build Settings（发行集）", priority = 211)]
         public static void MenuSyncBuildSettingsRelease()
         {
             SyncBuildSettings(BuildScenes.ReleaseSet(), "发行集");
