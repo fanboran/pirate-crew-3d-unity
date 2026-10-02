@@ -30,3 +30,4 @@ __pycache__/
 #   仓库内合法的出图暂存目录就这两处；新增的要显式加一行，别图省事放宽规则。
 /export/
 /pirate-crew/export/
+.trae/
