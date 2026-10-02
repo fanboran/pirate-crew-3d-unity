@@ -1,9 +1,6 @@
-using System.Collections;
 using System.IO;
-using PirateCrew.Battle;
 using PirateCrew.Core;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace PirateCrew.ArtReview
 {
@@ -30,107 +27,6 @@ namespace PirateCrew.ArtReview
             var go = new GameObject("[ChemPlantOrbitCapture]");
             go.AddComponent<OrbitRunner>().Setup(outDir, level);
             Object.DontDestroyOnLoad(go);
-        }
-
-        sealed class OrbitRunner : MonoBehaviour
-        {
-            string _outDir;
-            int _level;
-
-            public void Setup(string outDir, int level)
-            {
-                _outDir = outDir;
-                _level = level;
-            }
-
-            IEnumerator Start()
-            {
-                // 等 Bootstrapper 引导完成（它会异步加载主菜单并顶掉抢先加载的场景），再切 Battle。
-                float bootDeadline = Time.unscaledTime + 15f;
-                while (SceneManager.GetActiveScene().name != "MainMenu" && Time.unscaledTime < bootDeadline)
-                    yield return null;
-                yield return new WaitForSeconds(0.5f);
-                SceneManager.LoadScene("Battle", LoadSceneMode.Single);
-                yield return new WaitForSeconds(3f);   // 等战斗装配 + 单位生成
-
-                var driver = Object.FindObjectOfType<BattleCameraDriver>();
-                if (driver != null)
-                    driver.enabled = false;            // 停掉跟随，相机归我
-
-                yield return null;
-
-                Vector3 center = ResolveCenter();
-                global::PirateCrew.Core.Log.Info("[Orbit] level=" + _level + " center=" + center.ToString("0.0"));
-
-                cam = Camera.main;
-                if (cam == null)
-                {
-                    global::PirateCrew.Core.Log.Error("[Orbit] 找不到主相机");
-                    yield break;
-                }
-
-                Directory.CreateDirectory(_outDir);
-                float[] heights = { 14f, 34f, 70f };
-                float radius = 42f;
-                int shot = 0;
-                foreach (float h in heights)
-                {
-                    for (int i = 0; i < 12; i++)
-                    {
-                        float a = i * 30f * Mathf.Deg2Rad;
-                        Vector3 pos = center + new Vector3(Mathf.Cos(a) * radius, h, Mathf.Sin(a) * radius);
-                        cam.transform.position = pos;
-                        cam.transform.LookAt(center + Vector3.up * 4f);
-                        yield return new WaitForEndOfFrame();
-                        yield return new WaitForEndOfFrame();
-                        ScreenCapture.CaptureScreenshot(Path.Combine(_outDir,
-                            "L" + _level + "-h" + (int)h + "-a" + (i * 30) + ".png"));
-                        shot++;
-                        yield return new WaitForSeconds(0.15f);
-                    }
-                }
-
-                global::PirateCrew.Core.Log.Info("[Orbit] 完成 " + shot + " 张");
-                yield return new WaitForSeconds(1f);
-                Application.Quit();
-            }
-
-            Camera cam;
-
-            Vector3 ResolveCenter()
-            {
-                // 优先：陈设件实例（化工厂整场件）的包围盒中心
-                foreach (var name in new[] { "ChemPlantTeamYard", "ChemPlantYard" })
-                {
-                    var go = GameObject.Find(name);
-                    if (go == null) continue;
-                    var renderers = go.GetComponentsInChildren<MeshRenderer>();
-                    if (renderers.Length == 0) continue;
-                    Bounds b = renderers[0].bounds;
-                    for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
-                    global::PirateCrew.Core.Log.Info("[Orbit] 陈设件 " + name + " bounds=" + b.size.ToString("0.0")
-                        + " center=" + b.center.ToString("0.0"));
-                    Transform t = go.transform;
-                    while (t != null)
-                    {
-                        global::PirateCrew.Core.Log.Info("[Orbit]   链 " + t.name + " localRot=" + t.localRotation.eulerAngles.ToString("0.0")
-                            + " worldRot=" + t.rotation.eulerAngles.ToString("0.0")
-                            + " localPos=" + t.localPosition.ToString("0.0")
-                            + " lossyScale=" + t.lossyScale.ToString("0.00"));
-                        t = t.parent;
-                    }
-                    return new Vector3(b.center.x, 0f, b.center.z);
-                }
-                // 兜底：地形碰撞盒
-                var terrain = Object.FindObjectOfType<BattleTerrainView>();
-                if (terrain != null)
-                {
-                    var col = terrain.GetComponentInChildren<Collider>();
-                    if (col != null)
-                        return new Vector3(col.bounds.center.x, 0f, col.bounds.center.z);
-                }
-                return new Vector3(25f, 0f, 8.5f);
-            }
         }
     }
 }
