@@ -162,9 +162,14 @@ def check_version():
 # 门禁 2：发行场景集与运行时场景常量的交叉校验
 # ---------------------------------------------------------------------------
 def _scene_names_consts():
-    """SceneNames.cs 里的 public const string 值集合。"""
+    """SceneNames.cs 里的 public const string 值集合（只收场景名，不含目录常量）。
+
+    场景名登记约定是「不含路径与扩展名」（SceneNames 类注释）；以 `Assets/` 开头的是
+    目录常量（`GameFolder` / `PixelartFolder`），不是场景名，排除。
+    """
     src = read(SCENE_NAMES_CS)
-    return re.findall(r'public\s+const\s+string\s+\w+\s*=\s*"([^"]+)"', src)
+    values = re.findall(r'public\s+const\s+string\s+\w+\s*=\s*"([^"]+)"', src)
+    return [v for v in values if not v.startswith("Assets/")]
 
 
 def _release_scene_array():
@@ -173,7 +178,7 @@ def _release_scene_array():
     数组元素的三种合法写法都要认：
       · `SceneNames.Battle`  —— 常态写法，经 SceneNames 常量表解析
       · `"Battle"`           —— 字面量
-      · `ToonPilot`          —— 本文件自己的 const（仅开发场景就是这种写法）
+      · `PixelartPilot`      —— 本文件自己的 const（仅开发场景就是这种写法）
     认不出来的 token 一律返回 None（门禁自报失效），**不猜**——猜错的代价是把「漏了场景」
     静默判成通过，而这是本门禁唯一值钱的断言。
     """
@@ -184,7 +189,7 @@ def _release_scene_array():
     if not match:
         return None
 
-    # 本文件内的 const string 表（ToonPilot 是这么声明的）
+    # 本文件内的 const string 表（PixelartPilot 是这么声明的）
     local_consts = dict(
         re.findall(r'public\s+const\s+string\s+(\w+)\s*=\s*"([^"]+)"', src)
     )
@@ -214,7 +219,8 @@ def check_scenes():
         r'public\s+const\s+string\s+(\w+)\s*=\s*"([^"]+)"', read(SCENE_NAMES_CS)
     )
     by_const = {name: value for name, value in const_names}
-    declared = set(by_const.values())
+    # declared 只收场景名（目录常量 GameFolder/PixelartFolder 不是场景，见 _scene_names_consts）
+    declared = set(_scene_names_consts())
 
     items = _release_scene_array()
     if items is None or not items:
@@ -244,13 +250,14 @@ def check_scenes():
         fail("发行场景集里有 SceneNames 未声明的场景名: %s。" % ", ".join(extra))
 
     # (d) 仅开发场景不许混进发行集
-    if "ToonPilot" in release:
-        fail("ToonPilot 是等距像素卡通试点场景（开发/测试专用），不许进发行包。")
+    if "PixelartPilot" in release:
+        fail("PixelartPilot 是像素化路径试点场景（开发/测试专用），不许进发行包。")
 
     # (e) 与 Build Settings 对账：发行集必须是 Build Settings 的子集
-    #     （Build Settings 是超集才正常：它还要含 ToonPilot 供播放器出图）
+    #     （Build Settings 是超集才正常：它还要含 Pixelart 试点场景供播放器出图）
     build_settings = read("pirate-crew/ProjectSettings/EditorBuildSettings.asset")
-    registered = set(re.findall(r"path:\s*Assets/Scenes/(\w+)\.unity", build_settings))
+    # 场景分布在 Assets/Scenes/ 及其子目录（Game/、Pixelart/），允许任意一层子目录
+    registered = set(re.findall(r"path:\s*Assets/Scenes/(?:\w+/)*(\w+)\.unity", build_settings))
     not_registered = sorted(set(release) - registered)
     if not_registered:
         warn(
