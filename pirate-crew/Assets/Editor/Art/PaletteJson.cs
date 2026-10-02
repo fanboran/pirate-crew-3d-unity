@@ -183,11 +183,10 @@ namespace PirateCrew.EditorTools.Art
             return sb.ToString();
         }
 
-        /// <summary>结构化校验（与 palette_tool.py 的 validate_palette 同口径，供 Editor 侧即时反馈）。</summary>
+        /// <summary>结构化校验（与 palette_tool.py 的 validate_palette 同口径，供 Editor 侧即时反馈）。
+        /// 色数不设区间检查——全局锁色数机制已随创始人 2026-09-29 裁决取消，板的职能是取色令牌真源。</summary>
         public static void Validate(Root root, List<string> errors, List<string> warnings)
         {
-            if (root.slots.Count < 32 || root.slots.Count > 64)
-                errors.Add("色数 " + root.slots.Count + " 不在 32~64 区间（美术风格指南 §3.2）");
 
             var seenIds = new HashSet<string>();
             var seenHex = new Dictionary<string, string>();

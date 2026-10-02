@@ -4,14 +4,14 @@
 
 【它解决什么问题】
     `pirate-crew/Assets/Data/Palette/pirate_palette.json` 是本作唯一的全局调色板真源
-    （美术风格指南 §3.2 / 像素纹理资产管线 §5）。本工具把这张板变成可执行的约束：
+    （美术风格指南 §3.2 / 像素纹理 §5）。本工具把这张板变成可执行的约束：
     校验板自身结构、出人眼验收条带图、把任意 PNG 量化到板上（OkLab 空间最近邻），
     并用一组自证用例把「确定性 / 锁板 / 明度单调」三条性质变成可重跑的断言。
 
 【使用者】像素纹理烘焙链的下游（tools/blender/pixel）、CI 式回归、人工抽查。
 
 【为什么是 OkLab 而不是 RGB 欧氏距离】
-    见 docs/技术/资产管线/调研-调色板量化与纹素密度.md §1：RGB 空间最近邻会系统性偏色，
+    见 docs/技术/资产管线/调研.md §1：RGB 空间最近邻会系统性偏色，
     且会毁掉明度层次（一张渐变在 RGB 距离下会被切成明度乱序的色块）。OkLab 是感知均匀空间，
     L / C / H 正交解耦，明度阶梯在量化后基本保持单调。
 
@@ -23,7 +23,7 @@
     以上合起来 ⇒ 同输入同输出，逐字节一致；`verify` 子命令用 sha256 当场证明。
 
 【子命令】
-    check                        校验板：id/hex 唯一、色数 32~64、组内明度单调、OkLCH 表
+    check                        校验板：id/hex 唯一、阶梯族连续与明度单调、OkLCH 表
     oklch                        打印每槽的 OkLCh(L,C,H) 与 hex（人眼核色用）
     strip --out <png>            出参考条带图（供人眼验收；入 docs/images/palette/）
     quantize --in <png> --out <png> [--dither none|bayer4|bayer8] [--weight W]
@@ -51,9 +51,10 @@ from PIL import Image
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 DEFAULT_PALETTE = os.path.join(REPO_ROOT, "pirate-crew", "Assets", "Data", "Palette", "pirate_palette.json")
 
-#: 板色数允许区间（美术风格指南 §3.2：32~64 色）
-MIN_COLORS = 32
-MAX_COLORS = 64
+#: 语义色族：槽位是「不同色相的语义」（描边灰/强调蓝/危险红/警告金/文字灰…），
+#: 不构成同一色相的明暗阶梯，豁免「族内连续 / 明度升序」两条阶梯族结构规则。
+#: 新增语义族须显式登记到这里（未登记的族一律按阶梯族从严检查）。
+SEMANTIC_GROUPS = frozenset({"UI"})
 
 #: 行尾常量（写出侧恒 LF；读入侧把 CRLF 归一 —— 见 _read_text 的说明）
 CRLF = "\r\n"
@@ -279,11 +280,11 @@ def is_canonical(palette):
 
 
 def validate_palette(palette):
-    """结构性校验；返回 (errors, warnings) 两个字符串列表。"""
+    """结构性校验；返回 (errors, warnings) 两个字符串列表。
+
+    色数不设任何区间检查——创始人 2026-09-29 裁决取消「全局锁色数」机制后，
+    板的职能是取色令牌真源（UI 换装/材质取色），不再服务纹理量化锁板。"""
     errors, warnings = [], []
-    n = len(palette)
-    if not (MIN_COLORS <= n <= MAX_COLORS):
-        errors.append("色数 %d 不在 %d~%d 区间（美术风格指南 §3.2）" % (n, MIN_COLORS, MAX_COLORS))
 
     seen_id, seen_hex = {}, {}
     for i, slot in enumerate(palette.slots):
@@ -309,9 +310,11 @@ def validate_palette(palette):
             if not slot.get(field):
                 warnings.append("槽位 %s 缺 %s 字段（项目规范要求标注出处与提案状态）" % (sid, field))
 
-    # 组内必须连续声明（同一材质族不许被别的组打断 —— 板文件的可读性契约）
+    # 阶梯族必须连续声明（同一明暗阶梯不许被别的组打断 —— 板文件的可读性契约）；
+    # 语义族（SEMANTIC_GROUPS）按语义分块追加，豁免连续与升序两条阶梯族规则
+    step_sequence = [g for g in palette.groups if g not in SEMANTIC_GROUPS]
     seen_groups = []
-    for group in palette.groups:
+    for group in step_sequence:
         if not seen_groups or seen_groups[-1] != group:
             seen_groups.append(group)
     if len(seen_groups) != len(set(seen_groups)):
@@ -319,9 +322,11 @@ def validate_palette(palette):
                       % (len(seen_groups),
                          sorted({g for g in seen_groups if seen_groups.count(g) > 1})))
 
-    # 组内明度单调：同一材质族的亮/中/暗必须真的按 L 排序，否则「阶梯」是假的
+    # 组内明度单调：同一阶梯族的亮/中/暗必须真的按 L 排序，否则「阶梯」是假的
     by_group = {}
     for slot, lch in zip(palette.slots, palette.lch):
+        if slot.get("group", "") in SEMANTIC_GROUPS:
+            continue
         by_group.setdefault(slot.get("group", ""), []).append((slot["id"], float(lch[0])))
     for group, items in sorted(by_group.items()):
         ls = [v for _, v in items]
@@ -523,7 +528,7 @@ def render_sample_tile(palette, out_path, slot_light="SAND_LIGHT", slot_mid="SAN
     它同时是三件事：
       ① 资产篇 §5「内部结构线画进纹理」的样板（结构线 = 2px 的 OUTLINE_INK，写在贴图里，
          不靠 shader 判定）；
-      ② 像素纹理导入规范（Point / mip off / Uncompressed）的**门禁靶子** ——
+      ② 像素纹理.md §3（Point / mip off / Uncompressed）的**门禁靶子** ——
          Assets/Art/Tests/PixelArtTextureImportTests.cs 断言这张图的导入设置，
          没有真实资产时那条用例是空转的；
       ③ 量化链的端到端演示（唯一色数必然 ≤ 板色数）。
@@ -610,7 +615,7 @@ def verify(palette, verbose=True):
         for e in errors:
             emit("[FAIL] 板结构：" + e)
     else:
-        emit("[ok] 板结构：%d 色 / %d 组，id 与色值唯一、组内明度升序" % (len(palette), len(set(palette.groups))))
+        emit("[ok] 板结构：%d 色 / %d 组，id 与色值唯一、阶梯族连续且明度升序" % (len(palette), len(set(palette.groups))))
     for w in warnings:
         emit("[warn] " + w)
 
@@ -727,8 +732,7 @@ def cmd_check(args):
     for e in errors:
         print("[FAIL] " + e)
     if not errors:
-        print("[ok] 板结构校验通过（id/色值唯一、色数 %d∈[%d,%d]、组内明度升序）"
-              % (len(palette), MIN_COLORS, MAX_COLORS))
+        print("[ok] 板结构校验通过（id/色值唯一、阶梯族连续且明度升序）")
     return 0 if not errors else 1
 
 
