@@ -4,10 +4,10 @@ using UnityEngine;
 namespace PirateCrew.Battle
 {
     /// <summary>
-    /// 瓦片地形的场景视图（MonoBehaviour 薄壳）：把纯 C# 的 <see cref="HeightfieldGrid"/>
-    /// 落成**隐形碰撞层**——每实心格一个 Cube + BoxCollider（Renderer 关闭），是单位与弹体的
-    /// 物理地面。视觉层不在本类：样板三关外观由烘焙 prefab（<c>RuntimeSceneArt</c>）承担，
-    /// 世界图外观由 <c>WorldMapComposer</c> 的 kit 件与站面承担。
+    /// 地形碰撞层的场景视图（MonoBehaviour 薄壳）：把纯 C# 的 <see cref="HeightfieldGrid"/>
+    /// 落成**隐形碰撞块**——每实心采样格一个 Cube + BoxCollider（Renderer 关闭），是单位与弹体的
+    /// 物理地面。视觉层不在本类：样板关外观由烘焙 prefab（<c>RuntimeSceneArt</c>）承担。
+    /// 本类只负责碰撞几何，不参与渲染。
     ///
     /// 【旧视觉壳为何删除（2026-09-19，管线合并阶段 D）】旧"台地壳/潮沟/平台底部"路径由
     /// <c>IslandShellGeometry</c> 在运行时逐格生成合并网格——该几何生成器已随糖豆人式资产架构
