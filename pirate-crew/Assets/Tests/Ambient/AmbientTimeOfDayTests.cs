@@ -10,7 +10,7 @@ namespace PirateCrew.Ambient.Tests
     /// 【最关键的一条】<c>Noon_MatchesBattleSceneLightingCurrentValues</c>：
     /// 任务书要求"默认正午，不要改变默认可玩状态"。正午档必须与
     /// <c>Assets/Editor/BattleSceneLighting.cs</c> 的写值及 Battle.unity RenderSettings 烘焙值
-    /// **三方逐值一致**（主光 1.55 / Euler(48,140,0)，出处：docs/阳光感打光调研.md §4 调法 2 /
+    /// **三方逐值一致**（主光 1.55 / Euler(48,140,0)，出处：docs/技术/渲染/调研/阳光感打光调研.md §4 调法 2 /
     /// 雾 #B0D4F1 · 150→1200，口径为审计契约「可见海域预算」docs/审计/视觉审计报告.md §三
     /// 【提案/待定】/ 环境光 0.85），否则"默认档"一应用就把画面改了。
     /// </summary>
@@ -30,7 +30,7 @@ namespace PirateCrew.Ambient.Tests
             AmbientLightingPreset noon = AmbientTimeOfDayCatalog.For(AmbientTimeOfDay.Noon);
 
             // 出处：Assets/Editor/BattleSceneLighting.cs CreateDirectionalLight / ApplySceneAtmosphere
-            //（主光 1.55 / 环境光 0.85 = 直射:天光 ≈4:1，docs/阳光感打光调研.md §4 调法 2；
+            //（主光 1.55 / 环境光 0.85 = 直射:天光 ≈4:1，docs/技术/渲染/调研/阳光感打光调研.md §4 调法 2；
             // 姿态 Euler(48,140,0) 维持场景设计 §6.5 原裁决）。
             // 雾距离 150→1200：审计契约「可见海域预算」（docs/审计/视觉审计报告.md §三【提案/待定】）。
             // 【改一处必须改另一处】BattleSceneLighting 的雾写值是方法内私有字面量、无 public 常量可引，

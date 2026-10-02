@@ -18,7 +18,7 @@
 
 【材质纪律】零贴图，Principled BSDF 纯色；槽名 Kit_ 前缀（Unity 侧换装键，C# 常量表同源色值）：
     Kit_WoodMid #A67B42 / Kit_WoodDark #6B4C28 / Kit_Sail #F5E8C8 /
-    Kit_Brass #C9A227 / Kit_Rope #8A6F4D（项目调色板，docs/美术风格指南.md §2.1）。
+    Kit_Brass #C9A227 / Kit_Rope #8A6F4D（项目调色板，docs/设计/美术/风格指南.md §2.1）。
 
 复现（仓库根 F:/VSCode/pirate-crew-3d-unity/ 执行）：
     "F:/SteamLibrary/steamapps/common/Blender/blender.exe" -b --factory-startup \

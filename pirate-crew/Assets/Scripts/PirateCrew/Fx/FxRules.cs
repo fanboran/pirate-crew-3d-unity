@@ -31,7 +31,7 @@ namespace PirateCrew.Fx
     ///
     /// 【数值性质】本文件所有映射常量均为 **【AI 提案】**（美术风格指南 §1.1「不假」的可读性诉求，
     /// 没有原版 Flash 反编译依据——原版特效是 AS2 逐帧绘制，逆向文档未导出参数）。
-    /// 颜色例外：标注【依据】的取自 `docs/设计/美术风格指南.md` 调色板，可核对。
+    /// 颜色例外：标注【依据】的取自 `docs/设计/美术/风格指南.md` 调色板，可核对。
     /// </summary>
     public static class FxRules
     {
@@ -40,7 +40,7 @@ namespace PirateCrew.Fx
         // ==================================================================
 
         /// <summary>
-        /// 全场同时存活粒子上限（含所有特效）。目标 1080p / 60fps（`docs/设计/场景设计-战斗竞技场.md:397`）。
+        /// 全场同时存活粒子上限（含所有特效）。目标 1080p / 60fps（`docs/设计/场景/战斗竞技场.md:397`）。
         /// 游戏同时只有一次爆炸/一两个命中，实测远低于此值；此值作为 ParticleSystem 的 hard cap 用。
         /// </summary>
         public const int MaxLiveParticles = 1200;
@@ -331,7 +331,7 @@ namespace PirateCrew.Fx
             return DamageTier.Critical;
         }
 
-        /// <summary>伤害数字颜色（【依据】`docs/设计/美术风格指南.md` §2.1/§2.2/§2.3 调色板，可核对）。</summary>
+        /// <summary>伤害数字颜色（【依据】`docs/设计/美术/风格指南.md` §2.1/§2.2/§2.3 调色板，可核对）。</summary>
         public static Color32 TierColor(DamageTier tier)
         {
             switch (tier)

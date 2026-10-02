@@ -84,7 +84,7 @@ namespace PirateCrew.Battle
         /// 单位视觉总高（世界单位）= 1.85：<c>CrewVisualPrefabBuilder.TargetUnitHeight</c> 的常量镜像
         /// （运行时不引用 Editor 程序集）。
         /// <b>【待标定】</b>：该镜像值尚未随现役造型总高（≈2.0321，见
-        /// <c>docs/设计/角色造型规范.md</c>）同步，取值待重新标定。
+        /// <c>docs/设计/美术/角色造型.md</c>）同步，取值待重新标定。
         /// </summary>
         public const float UnitVisualHeight = 1.85f;
 

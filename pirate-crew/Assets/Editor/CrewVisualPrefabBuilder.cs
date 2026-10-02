@@ -45,7 +45,7 @@ namespace PirateCrew.EditorTools
     ///   全部 Crew 材质走**像素化路径**物体 shader（<see cref="PixelartPath.ObjectShaderName"/>，
     ///   配方唯一来源 = <see cref="PixelartMaterialFactory"/>）——反壳描边（PirateOutline）已退役，
     ///   选中/悬停反馈由像素路径的屏幕空间描边承担。
-    ///   职业差异只在数据（攻/防/技能）与 HUD，**不体现在造型上**（见 docs/设计/角色造型规范.md）。
+    ///   职业差异只在数据（攻/防/技能）与 HUD，**不体现在造型上**（见 docs/设计/美术/角色造型.md）。
     ///
     /// 【为什么删掉了腿/靴/臂/掌/三角帽/头巾/发/鼻/眼/手持武器】那些零件是此前多轮复验里
     ///   **AI 自主加件**的产物（"评委"式跑偏），用户从未要求；用户原话是"一个球加一个梯形"，

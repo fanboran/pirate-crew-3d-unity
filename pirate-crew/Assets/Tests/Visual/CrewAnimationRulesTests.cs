@@ -4,7 +4,7 @@ using UnityEngine;
 namespace PirateCrew.Visual.Tests
 {
     /// <summary>
-    /// <see cref="CrewAnimationRules"/> 断言：状态时长 / 曲线 / 幅度按 docs/角色造型规范.md §4 表
+    /// <see cref="CrewAnimationRules"/> 断言：状态时长 / 曲线 / 幅度按 docs/设计/美术/角色造型.md §4 表
     /// （该表标【AI 提案】，锚定原版死亡/落水/受击行为）。
     /// 纯 C#，可无头跑。
     /// </summary>

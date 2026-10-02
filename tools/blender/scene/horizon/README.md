@@ -77,7 +77,7 @@
   实测踩坑见 `tools/blender/scene/README.md`）。
 - 材质：`materialImportMode=None`，按槽名前缀 `Kit_` 用 URP/Lit 重建（色值与
   `style_tokens.SLOTS` 同源）；远景件**不要**生成碰撞体（无 standable manifest，不可达区域装饰）。
-- 远景件摆放距离参考（`docs/设计/美术风格指南.md` §4.4 雾绑定 Q-9）：剪影 Z 落在雾 end 的 70% 以内
+- 远景件摆放距离参考（`docs/设计/美术/风格指南.md` §4.4 雾绑定 Q-9）：剪影 Z 落在雾 end 的 70% 以内
   （end=140 时 Z≈-38~-70）；FarFar 槽件可更远，靠雾色同化自然分层。
 
 ## 调参行号（`horizon_kit.py`）

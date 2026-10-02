@@ -135,7 +135,7 @@ Shader "PirateCrew/Pixelart/PixelartObject"
             // 此处仅为兜底；兜底档 = 现役默认 k=2）。抖动取块坐标要用。
             float _PixelartSamplingScale = 2.0;
 
-            // 4×4 Bayer，中点归一化 (m+0.5)/16（调研-赛璐璐 §4：直接 /16 会整体偏亮）。
+            // 4×4 Bayer，中点归一化 (m+0.5)/16（赛璐璐与色带 §4：直接 /16 会整体偏亮）。
             static const int kBayer4[16] =
             {
                  0,  8,  2, 10,

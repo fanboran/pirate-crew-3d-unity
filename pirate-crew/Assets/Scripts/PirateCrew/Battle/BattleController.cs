@@ -53,7 +53,7 @@ namespace PirateCrew.Battle
         [Header("组装引用（场景内直连）")]
         [SerializeField] PirateBase piratePrefab;
         [Tooltip("按职业外观档覆盖预制体（可选）。命中则用职业预制体，未命中/为空回落 piratePrefab；"
-                 + "生成顺序与职业外观由 CrewVisualPrefabBuilder 产出，见 docs/设计/角色造型规范.md §3。")]
+                 + "生成顺序与职业外观由 CrewVisualPrefabBuilder 产出，见 docs/设计/美术/角色造型.md §3。")]
         [SerializeField] CrewVisualPrefabEntry[] crewVisualPrefabs = new CrewVisualPrefabEntry[0];
         [SerializeField] Transform team0Root;
         [SerializeField] Transform team1Root;
@@ -438,7 +438,7 @@ namespace PirateCrew.Battle
                     entry.TeamIndex, entry.TypeName, entry.Luck, entry.GridX, entry.GridY,
                     spawnPosition, entry.InitialWeapons);
 
-                // 按职业外观档取预制体；未命中回落 piratePrefab（docs/设计/角色造型规范.md §3 职业表）。
+                // 按职业外观档取预制体；未命中回落 piratePrefab（docs/设计/美术/角色造型.md §3 职业表）。
                 PirateBase prefab = ResolveCrewVisualPrefab(entry.TypeName) ?? piratePrefab;
                 if (prefab == null)
                     continue;

@@ -12,7 +12,7 @@ namespace PirateCrew.Visual
     /// （见 <c>Assets/Tests/Visual/CrewMeshFactoryTests.cs</c>）。
     ///
     /// 【口径】所有生成器都在**建模空间**（spec space）产几何：脚底 y=0、单位总高约 0.5
-    /// （见 docs/设计/角色造型规范.md §1.2）。装配时靠 Transform 摆位，不在网格里烘坐标。
+    /// （见 docs/设计/美术/角色造型.md §1.2）。装配时靠 Transform 摆位，不在网格里烘坐标。
     /// </summary>
     public struct MeshData
     {

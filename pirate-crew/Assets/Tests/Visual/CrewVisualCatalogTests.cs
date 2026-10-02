@@ -5,7 +5,7 @@ namespace PirateCrew.Visual.Tests
 {
     /// <summary>
     /// <see cref="CrewVisualCatalog"/> 断言：符号/名册 id → 职业外观档映射、中文名、调色板。
-    /// 映射出处 docs/角色造型规范.md §3.1「母题来源」列（§8.4 标【待定】：职业与原版外观的映射未拍板）。
+    /// 映射出处 docs/设计/美术/角色造型.md §3.1「母题来源」列（§8.4 标【待定】：职业与原版外观的映射未拍板）。
     /// </summary>
     [TestFixture]
     public class CrewVisualCatalogTests

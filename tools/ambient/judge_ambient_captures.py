@@ -8,7 +8,7 @@
 目录约定（与 tools/worldmap/judge_worldmap_captures.py 同风格）：
     export/ambient-skybox-debug/<tier>/world-*.png|jpg   tier ∈ {noon, dusk, overcast}
 
-口径来源：docs/环境光天空盒化-预研与接线清单.md §四（三档参数表【提案/待定】）与
+口径来源：docs/技术/渲染/调研/环境光天空盒化-预研与接线清单.md §四（三档参数表【提案/待定】）与
 docs/审计/视觉审计报告.md §二.4（环境光是"画面假"根因之一）。判据回答的是
 "三档是不是真的分得开、方向对不对"，不回答"好不好看"——后者必须人眼看图：
 

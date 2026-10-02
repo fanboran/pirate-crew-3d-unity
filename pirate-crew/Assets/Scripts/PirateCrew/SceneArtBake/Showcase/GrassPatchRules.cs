@@ -8,7 +8,7 @@ namespace PirateCrew.SceneArt.Showcase
     /// 让亮/暗草皮连成**空间连贯的大斑块**（相邻簇同色），而非彩色纸屑。
     /// 口径出处：external/ref/unity-isometric-pixel-pipeline 的 GrassBlade.shader
     /// （_Noise2/_Noise3 世界噪声 + _Noise2Threshold/_Noise3Threshold；作者自述见
-    /// docs/技术/渲染/参照-t3ssel8r像素引擎.md §1.10）。【AI 提案】尺度/阈值待实机出图裁决。
+    /// docs/技术/渲染/调研/t3ssel8r像素引擎.md §1.10）。【AI 提案】尺度/阈值待实机出图裁决。
     ///
     /// 【档位即既有材质槽】0=GrassMid（主底色）/ 1=GrassLight（亮斑）/ 2=GrassDark（暗斑），
     /// 复用空岛草皮三档材质（<see cref="FloatingIslandMaterials"/>），不新增 DrawCall。

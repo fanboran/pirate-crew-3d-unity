@@ -10,7 +10,7 @@ namespace PirateCrew.Visual
     /// 二者都没有"职业外观"枚举。外观档只服务造型/装配，故定义在 Visual 域，
     /// 由 <see cref="CrewVisualCatalog"/> 从符号字符串映射而来。
     ///
-    /// 【映射出处】docs/设计/角色造型规范.md §3.1 的"母题来源"列（该列本身在 §8.4 标【待定】：
+    /// 【映射出处】docs/设计/美术/角色造型.md §3.1 的"母题来源"列（该列本身在 §8.4 标【待定】：
     /// 职业与原版外观母题的映射尚未被用户确认）。
     /// </summary>
     public enum CrewProfession
@@ -39,7 +39,7 @@ namespace PirateCrew.Visual
 
     /// <summary>
     /// 部件材质角色。每个角色对应一份**共享材质资产**（`Assets/Art/Materials/Crew/`），
-    /// 颜色取自 docs/设计/美术风格指南.md §3.1 材质表 + docs/设计/角色造型规范.md §2.1 配色分工。
+    /// 颜色取自 docs/设计/美术/风格指南.md §3.1 材质表 + docs/设计/美术/角色造型.md §2.1 配色分工。
     ///
     /// 【阵营色纪律】只有 <see cref="TeamCloth"/> 走阵营色（红 #FF3A29 / 蓝 #3366FF，静态文档:721），
     /// 且运行时由 <c>UnitOutlineBinder</c> 用 MaterialPropertyBlock 写 <c>_BaseColor</c> 覆盖；
@@ -91,7 +91,7 @@ namespace PirateCrew.Visual
         public const int ProfessionCount = 7;
 
         // ------------------------------------------------------------------
-        // 调色板（docs/设计/美术风格指南.md §2.2 / §3.1；造型规范 §2.1）
+        // 调色板（docs/设计/美术/风格指南.md §2.2 / §3.1；造型规范 §2.1）
         // 注：直接取 hex 的 0-1 归一化值，不做 sRGB→Linear 转换——与本工程既有材质
         //     （BattleSceneSetup 里的 new Color(...)）保持同一口径；若日后统一色彩空间，
         //     应整体迁移而不是只改角色。
@@ -158,7 +158,7 @@ namespace PirateCrew.Visual
         }
 
         /// <summary>
-        /// 粗糙度（docs/设计/美术风格指南.md §3.1 材质表；相邻部件至少差 0.15，见 §3.2 纪律 1）。
+        /// 粗糙度（docs/设计/美术/风格指南.md §3.1 材质表；相邻部件至少差 0.15，见 §3.2 纪律 1）。
         /// 描边 shader（PirateOutline）没有 Smoothness 通道，此值仅供记录与后续 PBR 材质迁移。
         /// </summary>
         public static float RoleSmoothness(CrewMaterialRole role)
@@ -191,7 +191,7 @@ namespace PirateCrew.Visual
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 战斗导出符号 → 外观档。映射按 docs/设计/角色造型规范.md §3.1 母题来源（【待定】，见 §8.4）；
+        /// 战斗导出符号 → 外观档。映射按 docs/设计/美术/角色造型.md §3.1 母题来源（【待定】，见 §8.4）；
         /// 先判 Captain（符号含 "Captain"），再精确匹配母题，未知符号回落 <see cref="CrewProfession.Sailor"/>。
         /// </summary>
         public static CrewProfession ProfessionFromBattleSymbol(string symbol)
@@ -246,7 +246,7 @@ namespace PirateCrew.Visual
             }
         }
 
-        /// <summary>外观档中文显示名（docs/设计/美术风格指南.md §7.1 术语表口径）。</summary>
+        /// <summary>外观档中文显示名（docs/设计/美术/风格指南.md §7.1 术语表口径）。</summary>
         public static string DisplayName(CrewProfession profession)
         {
             switch (profession)

@@ -296,7 +296,7 @@ namespace PirateCrew.Battle
 
             if (LevelGeometry.IsBelowWater(transform.position.y, waterWorldY))
             {
-                Drowned = true;   // 表现层据此播"下沉"而不是"倒地"（docs/设计/角色造型规范.md §4）
+                Drowned = true;   // 表现层据此播"下沉"而不是"倒地"（docs/设计/美术/角色造型.md §4）
                 BeginDrownPerformance();   // M4 §3.1：落水死亡旋转下沉演出（参考 Character.as:164-180）
                 Kill();
                 return true;
@@ -599,7 +599,7 @@ namespace PirateCrew.Battle
         }
 
         // ------------------------------------------------------------------
-        // 表现层通知（仅视觉，不改玩法状态；见 docs/设计/角色造型规范.md §4）
+        // 表现层通知（仅视觉，不改玩法状态；见 docs/设计/美术/角色造型.md §4）
         // ------------------------------------------------------------------
 
         /// <summary>是否因落水而死（表现层据此播"下沉"而不是"倒地"）。</summary>

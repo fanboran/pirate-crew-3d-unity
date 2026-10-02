@@ -10,7 +10,7 @@ namespace PirateCrew.Audio
     ///
     /// 【内容依据】GDD 支柱 4「海盗味」列出的听觉符号——
     /// 「船歌小调、海浪声、木桶碎裂、大炮轰鸣」（F:\VSCode\game-3\docs\gdd.md:113）；
-    /// 场景氛围基调「加勒比正午海岛」（docs/设计/美术风格指南.md:12-16）。
+    /// 场景氛围基调「加勒比正午海岛」（docs/设计/美术/风格指南.md:12-16）。
     /// 具体每个音效的配方要点见 <see cref="SfxCatalog"/> 的 Recipe 字段。
     /// </summary>
     public enum SfxId

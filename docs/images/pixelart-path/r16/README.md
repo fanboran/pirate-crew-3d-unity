@@ -34,7 +34,7 @@ python tools/pixel-review/judge_pixelart_pilot.py docs/images/pixelart-path/r16
   `PixelartPalette.cs`、`Palette/Palette.asset`、`Compute/Palette/PaletteGenerationCIEDE.compute`、
   装配器开关 `EnableFramePalette`（它自首轮起就因 LUT 索引口径问题恒为 false）。
 - Cast 特征顺序**七趟改六趟**（契约 §3 修订）；`Assets/Pixelart/README.md`、实现口径、契约文档同步。
-- 全局 32~64 色锁板的**提案**本身也按创始人裁决作废（[美术风格指南](../../../设计/美术风格指南.md) §3.2）。
+- 全局 32~64 色锁板的**提案**本身也按创始人裁决作废（[美术风格指南](../../../设计/美术/风格指南.md) §3.2）。
 - 色彩纪律现行口径：**逐资产在源的槽位色表**（`tools/blender/scene/style_tokens.py` 的 `SLOTS`，
   Unity 侧镜像 `WorldMapAssetSetBuilder.Slots` / `PixelartChemPlantSetup.SlotHex`）。
 

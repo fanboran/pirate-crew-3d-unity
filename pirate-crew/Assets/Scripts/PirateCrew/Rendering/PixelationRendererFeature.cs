@@ -6,7 +6,7 @@ namespace PirateCrew.Rendering
 {
     /// <summary>
     /// 等距像素卡通的**全屏像素化** RendererFeature（docs/技术/渲染/渲染管线.md §3；
-    /// 方向裁决见 docs/设计/美术风格指南.md §1.2——创始人 2026-09-21）。
+    /// 方向裁决见 docs/设计/美术/风格指南.md §1.2——创始人 2026-09-21）。
     ///
     /// 【工作流程】<c>AfterRenderingPostProcessing</c> 时机抓相机颜色：
     ///   屏幕分辨率颜色 → nearest blit 到低分辨率 Point RT（高 360，宽随屏幕宽高比）

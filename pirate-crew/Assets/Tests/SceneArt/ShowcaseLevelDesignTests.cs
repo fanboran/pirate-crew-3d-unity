@@ -10,7 +10,7 @@ namespace PirateCrew.SceneArt.Tests
     /// 样板关**设计契约测试**（关卡制作管线阶段 2 门禁：R 规则的可测项落成用例）。
     /// 设计真源 = docs/设计/关卡/L0N-*.md；这里钉住「数据层 ↔ 设计文档」不无声分叉——
     /// 改设计先改文档，再改 ShowcaseLevels，然后让这里的断言跟着新口径走。
-    /// 规则出处：docs/设计/关卡设计语言-参照游戏全场景分析.md §4（R1-R18）。
+    /// 规则出处：docs/设计/关卡/设计语言.md §4（R1-R18）。
     /// </summary>
     public class ShowcaseLevelDesignTests
     {

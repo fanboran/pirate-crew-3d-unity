@@ -4,7 +4,7 @@ using UnityEngine;
 namespace PirateCrew.SceneArt
 {
     /// <summary>
-    /// 反向壳描边的**平滑法线**烘焙器（等距像素卡通渲染篇 §5；调研-反向壳 §3：
+    /// 反向壳描边的**平滑法线**烘焙器（等距像素卡通渲染篇 §5；反向壳描边 §3：
     /// 角度加权平均 + 位置容差合并，优于等权平均）。
     ///
     /// 【它解决什么】本项目程序化几何（<see cref="MeshBuffers"/>）是**每面独立顶点、面法线硬边**
@@ -21,7 +21,7 @@ namespace PirateCrew.SceneArt
     ///
     /// 【存件登记（代码审计）】当前生产烘焙链（Editor/SceneArtBaker）**不调用**本类；
     /// 唯一消费者是 Tests/SceneArt/SmoothNormalsBakerTests，其顶点色编码的 shader 消费端
-    /// 已随 PirateToon.shader 清退。作为「反向壳描边」算法存件保留（调研-反向壳描边.md §3、
+    /// 已随 PirateToon.shader 清退。作为「反向壳描边」算法存件保留（反向壳描边.md §3、
     /// 美术翻新审计 M5 在案）；重启用前需先恢复 shader 侧解码，别当现役链路引用。
     ///
     /// 【纯 C# 纪律】不触碰 Mesh/Texture 等 Unity 对象实例化（ECall 限制），可在无头验证台跑；

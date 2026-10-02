@@ -93,7 +93,7 @@ namespace PirateCrew.Ambient
     /// ——即默认不改变现役画面基准。理由：任务书的前置门要求"视觉批次 A–F 实拍转正后"才动全局参数
     /// （环境光一换全场景观感基准就变，两轮调参会互相覆盖）；把开关做成常量而不是场景里的序列化字段，
     /// 是为了让"翻转"成为**一处改动**（序列化字段会被旧值钉住，改代码默认值对已存场景无效——这是本项目
-    /// 踩过的坑）。翻转步骤见 `docs/技术/渲染/环境光天空盒化-预研与接线清单.md` §6。
+    /// 踩过的坑）。翻转步骤见 `docs/技术/渲染/调研/环境光天空盒化-预研与接线清单.md` §6。
     ///
     /// 【为什么色值不另起一套】三色直接取既有单一事实源，避免"同一档天空两处色值"：
     ///   · 天顶色   = <see cref="SkyTierCatalog"/> 该档的 <c>ZenithHex</c>
@@ -136,7 +136,7 @@ namespace PirateCrew.Ambient
         /// 环境光改由天空盒卷积驱动（有方向与色彩变化），Trilight 三色路径保留为回退锚点未删。
         /// 此前默认 Trilight 是任务书前置门（A–F 实拍转正前不动全局参数）的钉子，对应测试
         /// `Switch_DefaultsToSkybox_AmbientUpgradeLanded` 记录了这次翻转；A–F 与天空盒改为
-        /// **同一轮实拍验收**。翻转操作三步见 `docs/技术/渲染/环境光天空盒化-预研与接线清单.md` §6。
+        /// **同一轮实拍验收**。翻转操作三步见 `docs/技术/渲染/调研/环境光天空盒化-预研与接线清单.md` §6。
         /// </summary>
         public const AmbientSkySource DefaultAmbientSource = AmbientSkySource.Skybox;
 
