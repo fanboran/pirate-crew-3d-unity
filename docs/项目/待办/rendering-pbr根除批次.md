@@ -29,7 +29,9 @@ DitherPatternBaker 菜单路径归 Pixelart）。
 （BattleSceneLighting/ArtGate 仍有活消费）。「URP 下位替代」口径已从 AGENTS 移除（用户裁决同日）。
 ⑤ **遗留**：`BattleSceneLighting.BuildEnvironmentMaterials` 8 材质段仍 Surface 口径（重跑 BuildAll
 会报错跳过不崩）；`Water_Ocean.mat` 仍被 Battle.unity 引用而 shader 已删（该 renderer 烘焙期
-enabled=false 不参与渲染，随下波场景手术清引用或删材质）；`Assets/Pixelart/Editor/` 内 4 处
-ToonPilot 注释字样（禁区未动）；docs/ 约 10 文件 ToonPilot 引用待顺带更新。
+enabled=false 不参与渲染，随下波场景手术清引用或删材质）；~~`Assets/Pixelart/Editor/` 内 4 处
+ToonPilot 注释字样~~（**已清**：改为「已删除」标注，踩坑史保留）；~~docs/ 约 10 文件 ToonPilot
+引用待顺带更新~~（**已清**：活文档 6 处改为现役口径，归档/交接/待办按规范保留原貌；
+顺带修活 `repo_gates.py` 三处死门禁与 Build Settings 子目录正则）。
 ⑥ **验收**：待编辑器空闲窗口跑 batchmode open 档 + 必查清单（浮岛无洋红、海面显示
 PixelartOcean_Sea、ToonPilot 无 missing 引用、删除资产导入无红）。

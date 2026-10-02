@@ -2,6 +2,9 @@
 
 一任务一文件。任务收官时把 `../<任务名>.md` 移进本目录，并在本清单加一行。
 
+- [x] **EditMode 两条先存测试红** — 资产计数门禁已改按现实数据、`ChemPlantOrbitCapture+OrbitRunner` 已拆顶级类；EditMode 全量 0 失败复验 — → [tests-editmode先存红.md](tests-editmode先存红.md)
+- [x] **Cinemachine 包卸载** — manifest 摘除 2.9.7，open 档重析验证 0 错误（31→30 包）；守卫测试继续钉住去 Cinemachine 化不变式 — → [infra-cinemachine包卸载.md](infra-cinemachine包卸载.md)
+- [x] **验证环境·Unity 路径引用债** — 全仓 47 处失效 `2022.3.62f1c1` 路径引用清扫：10 个活文件改对，版本号语义与归档/图档按规范保留 — → [infra-unity路径引用债.md](infra-unity路径引用债.md)
 - [x] **用户实玩与出图验收（旧账销号）** — LICENSE 已入库（MIT）；关卡数 33vs18 随「不参考原版」裁决失效；r13 出图验收被像素化路径 r 系实拍取代；设置/暂停/结算观感随 2026-09-28 UI 换装实机复测完成；HUD 动效手感若后续再提另立新档 — → [验收-用户实玩与出图.md](验收-用户实玩与出图.md)
 - [x] **EventBus 类型化频道全量迁移** — 事件键升级 `static readonly Event<T>` 频道实例（键即类型，拼错/张冠李戴 = 编译错误），全量一次到位落地；快照零分配与误用守卫保留，逃生口仅 AudioService 一处 — → [infra-eventbus类型化频道迁移.md](infra-eventbus类型化频道迁移.md)
 - [x] **2026-10-01 代码质量审计·全量处置批次** — 七分区 111 条当日清零：立即批修复（锚判据/闸门白名单/存档原子写/死链 101 处/渲染口径对齐/调试隔离）；用户裁决（武器链掏空为标准炸弹空壳+AI 链拔除、自动存档删链、文案锁死全库退役 39 条）；C 档防线九项（日志收口/版本钩子/shader Resources 化/theme 对拍/PlayMode E2E×2/Editor Undo/补测 43 条）——残项已转移至 武器系统重做/world-海图101-108删除/ui-收尾与打磨 各活档 — → [审计遗留-质量防线补强.md](审计遗留-质量防线补强.md)
