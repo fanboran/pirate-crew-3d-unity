@@ -10,7 +10,7 @@
 `Editor\Data\Managed\` 齐全，33f1 亦完整）。**真正的残留债** = 全仓 **47 处、25 个文件**
 仍写不存在的 `F:/Unity/2022.3.62f1c1/Editor/Unity.exe`——活的有 CI `ci.yml`(3)、
 [构建与发布手册](../构建与发布手册.md)(5)、[开发者指南](../开发者指南.md)(5)、
-README(2)、[Unity参照库调研](../../技术/架构/Unity参照库调研.md)(9)、4 个 Editor 脚本
+README(2)、[UnityAPI陷阱与参照库公约](../../技术/架构/UnityAPI陷阱与参照库公约.md)(9)、4 个 Editor 脚本
 （`BuildScript`/`PlayerPreset`/`TextSampleBuilder`/`SceneLookupAudit`）、`Pixelart/README.md`；
 已改对的只有 AGENTS / `run.sh` / Scenes README / 架构总览四处。另：`~36K 僵尸 Unity.exe`
 现已清零（当前 Unity 进程数 = 0）。

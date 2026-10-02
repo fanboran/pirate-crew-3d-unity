@@ -1,0 +1,21 @@
+# EventBus 类型化频道全量迁移
+
+> 已完成：事件键已从裸 `string` 升级为**类型化频道**——每个事件在所属模块 `XxxEvents` 类里声明
+> `static readonly Event<T>` 频道实例（键即类型，拼错/键与载荷张冠李戴 = 编译错误 CS1503），
+> 全量一次到位（D-1 启动 / D-2 全量节奏 / D-3 DI 关闭记远期）。
+> 快照零分配、误用守卫、`ResetForNewSession` 收口保留；`SubscribeDynamic` 逃生口全仓仅 `AudioService` 一处。
+> 设计理由见 [架构总览 §5.6](../../../技术/架构/架构总览.md)，事件登记表见 [EventBus事件契约.md](../../../技术/架构/EventBus事件契约.md)。
+> （原「调研-模块间通信.md」的调研过程与裁决史见 Git 历史，设计理由已并入架构总览 §5.6。）
+
+## 详情
+
+**EventBus 类型化频道全量迁移（已裁决 2026-09-23：D-1 启动 / D-2 全量一次到位 / D-3 DI 关闭记远期）**。
+执行清单（存档）：
+① `Core/Events/` 新增 `Event<T>` 频道类型（键即类型，`static readonly` 实例承载）；EventBus 内核改为按频道对象索引，
+快照/零分配/快照语义/`ResetForNewSession` 原样保留；
+② 5 个 `XxxEvents.cs`（Battle / Campaign / CrewManagement / Scene / Save）全部改写为频道定义；
+③ 全量改写发布/订阅调用点（注意 `AudioService.SubscribeEvents` 的 `SubscribeDynamic` 逃生口——按名查表改为频道表遍历）；
+④ `EventCatalog` / `RegisterContracts` / 契约文档（EventBus事件契约.md）同步：登记层退化为纯文档还是保留测试断言，执行时定；
+⑤ 测试同步：EventBusTests / EventCatalogTests 改写，补"键拼错 = 编译错误"的用例形态；
+⑥ 验证：harness `All` 域全绿 + batchmode EditMode/PlayMode 收口；原子提交 `refactor(events): 事件键升级类型化频道`。
+归属：Core（安全第一——动 `Core/EventBus.cs` 前重读其全文与契约文档）

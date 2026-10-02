@@ -11,7 +11,7 @@ namespace PirateCrew.Core
     ///   模块化架构的解耦核心。模块间通信一律走 EventBus，发布者不需要知道谁在监听，
     ///   监听者也不需要知道谁在发布。
     ///
-    /// 【使用方式（事件键 = 类型化频道，出处：docs/技术/架构/调研-模块间通信.md §4 建议A）】
+    /// 【使用方式（事件键 = 类型化频道；设计理由见 docs/技术/架构/架构总览.md §5，登记表见 EventBus事件契约.md）】
     ///   每个事件在所属模块的 <c>XxxEvents</c> 类里声明一个 <c>static readonly</c> 频道字段：
     ///     <c>public static readonly Event&lt;CrewDamagedPayload&gt; CrewDamaged = new();</c>（带载荷）
     ///     <c>public static readonly Event GoBack = new();</c>（无载荷）
