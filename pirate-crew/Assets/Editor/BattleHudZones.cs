@@ -55,13 +55,17 @@ namespace PirateCrew.EditorTools
         /// 数字用 Tiny 档（两位数回合号在 12 格内不溢）。</summary>
         public const float BadgeSize = 12f;
 
-        /// <summary>模式钮行：血条带下方独立一行（与蓝条 x 区段重叠，靠 y 错层避撞）。</summary>
-        public const float ModeButtonDrop = 16f;
+        /// <summary>操作 HUD 面板：与武器面板共用贴底位（互斥弹出，见 UI 设计语言 §5.4）。
+        /// 宽 180 = 边框 6 + 读数行 168 + 边框 6；高 64 = 内容顶 23 + 读数行 12 + 缝 2 +
+        /// 按钮行 20 + 底边 6 + 1 余。</summary>
+        public const float OperationPanelWidth = 180f;
+        public const float OperationPanelHeight = 64f;
 
-        /// <summary>模式文字钮尺寸（宽 = <see cref="UiSkin.Px.ButtonWidth"/>）。
-        /// 高 20（2026-09-28 创始人「垂直方向按钮太小」：12 号字上下各留 4 格，
-        /// 不再贴 theme 原生 16 的紧凑档）。</summary>
-        public const float ModeButtonHeight = 20f;
+        /// <summary>操作读数行高（12 号字一行的 Hud 档）。</summary>
+        public const float OperationReadoutRowHeight = 12f;
+
+        /// <summary>提示条：贴底、武器面板右侧（共享底边线）；宽固定 200，文字单行截断。</summary>
+        public const float HintTextWidth = 200f;
 
         // ---------------- 底部带：武器面板（theme 窗体） ----------------
 

@@ -139,7 +139,7 @@ namespace PirateCrew.EditorTools
                 Token = "FindObjectOfType<BattleCameraDriver>",
                 LineAtRegistration = 363,
                 Kind = Kind.Runtime,
-                Reason = "**一次性装配兜底**（Awake 里跑一次；旧写法在每次 SetHudMode 都可能扫一次，已删）："
+                Reason = "**一次性装配兜底**（Awake 里跑一次；旧写法在每次 HUD 刷新都可能扫一次，已删）："
                          + "理由同 BattleCameraDriver——注入优先、兜底只为不静默，装配完整性由 "
                          + "CameraControllerWiredByAssembly（PlayMode 测试断言）钉住。",
             },

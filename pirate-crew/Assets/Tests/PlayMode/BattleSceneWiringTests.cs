@@ -17,7 +17,7 @@ namespace PirateCrew.Tests
     ///
     /// 【验证闭环】对应 <c>BattleSceneSetup</c> 的装配结果：
     ///   · 关键 <c>[SerializeField]</c> 引用非空（BattleController / TurnManager /
-    ///     AimThrowController / TrajectoryPreview / BattleCameraDriver / BattleHud）；
+    ///     BattleInteractionController / TrajectoryPreview / BattleCameraDriver / BattleHud）；
     ///   · 双方船员数量 = 样板第 1 关（云端漫步）数据（红 4 / 蓝 4）；
     ///   · 单位站位落在 XZ 竞技场（<see cref="LevelGeometry.GridToArena"/>，脚底贴地、枢轴抬高）；
     ///   · 水面世界 Y = <see cref="LevelGeometry.WaterSurfaceY"/>（3D 化的全局水位常量）；
@@ -143,18 +143,20 @@ namespace PirateCrew.Tests
             Assert.IsNotNull(Field(controller, "team1Root"), "BattleController.team1Root 未接线");
             Assert.IsNotNull(Field(controller, "waterPlane"), "BattleController.waterPlane 未接线");
             Assert.IsNotNull(Field(controller, "turnManager"), "BattleController.turnManager 未接线");
-            Assert.IsNotNull(Field(controller, "aimController"), "BattleController.aimController 未接线");
+            Assert.IsNotNull(Field(controller, "interaction"), "BattleController.interaction 未接线");
             Assert.IsNotNull(Field(controller, "battleCamera"), "BattleController.battleCamera 未接线");
 
             var turnManager = Object.FindObjectOfType<TurnManager>();
             Assert.IsNotNull(turnManager, "Battle 场景应有 TurnManager");
             Assert.IsNotNull(Field(turnManager, "battle"), "TurnManager.battle 未接线");
 
-            var aim = Object.FindObjectOfType<AimThrowController>();
-            Assert.IsNotNull(aim, "Battle 场景应有 AimThrowController");
-            Assert.IsNotNull(Field(aim, "battleCamera"), "AimThrowController.battleCamera 未接线");
-            Assert.IsNotNull(Field(aim, "battle"), "AimThrowController.battle 未接线");
-            Assert.IsNotNull(Field(aim, "trajectory"), "AimThrowController.trajectory 未接线");
+            var aim = Object.FindObjectOfType<BattleInteractionController>();
+            Assert.IsNotNull(aim, "Battle 场景应有 BattleInteractionController");
+            Assert.IsNotNull(Field(aim, "battleCamera"), "BattleInteractionController.battleCamera 未接线");
+            Assert.IsNotNull(Field(aim, "battle"), "BattleInteractionController.battle 未接线");
+            Assert.IsNotNull(Field(aim, "trajectory"), "BattleInteractionController.trajectory 未接线");
+            Assert.IsNotNull(Field(aim, "cameraDriver"), "BattleInteractionController.cameraDriver 未接线");
+            Assert.IsNotNull(aim.GetComponent<BattleInputReader>(), "交互控制器同物体应有 BattleInputReader");
 
             var camDriver = Object.FindObjectOfType<BattleCameraDriver>();
             Assert.IsNotNull(camDriver, "Battle 场景应有 BattleCameraDriver");
@@ -165,10 +167,10 @@ namespace PirateCrew.Tests
             // 现改为 [SerializeField] 显式注入 + Awake 一次性兜底。这里断言"确实来自装配接线"
             // （WiredByAssembly），而不是"兜底也能跑"——兜底是给旧场景的降级通道，不是合格标准。
             // 修复命令：PirateCrew.EditorTools.BattleLookupWiring.Wire（会写 Battle.unity）。
-            Assert.IsNotNull(Field(camDriver, "aimThrow"),
-                "BattleCameraDriver.aimThrow 未接线（跑 BattleLookupWiring.Wire）");
-            Assert.IsTrue(camDriver.AimThrowWiredByAssembly,
-                "BattleCameraDriver.aimThrow 未经装配接线，只在跑一次性兜底"
+            Assert.IsNotNull(Field(camDriver, "interaction"),
+                "BattleCameraDriver.interaction 未接线（跑 BattleLookupWiring.Wire）");
+            Assert.IsTrue(camDriver.InteractionWiredByAssembly,
+                "BattleCameraDriver.interaction 未经装配接线，只在跑一次性兜底"
                 + "（跑 PirateCrew.EditorTools.BattleLookupWiring.Wire 写入 Battle.unity）");
 
             Assert.IsNotNull(Object.FindObjectOfType<TrajectoryPreview>(), "Battle 场景应有 TrajectoryPreview");
@@ -213,10 +215,10 @@ namespace PirateCrew.Tests
             var hud = Object.FindObjectOfType<BattleHud>();
             Assert.IsNotNull(hud, "Battle 场景应有 BattleHud");
             Assert.IsTrue(hud.HasCoreReferences, "BattleHud 核心引用未接线");
-            Assert.IsNotNull(Field(hud, "cameraController"),
-                "BattleHud.cameraController 未接线（跑 BattleLookupWiring.Wire）");
-            Assert.IsTrue(hud.CameraControllerWiredByAssembly,
-                "BattleHud.cameraController 未经装配接线，只在跑一次性兜底"
+            Assert.IsNotNull(Field(hud, "interaction"),
+                "BattleHud.interaction 未接线（跑 BattleLookupWiring.Wire）");
+            Assert.IsTrue(hud.InteractionWiredByAssembly,
+                "BattleHud.interaction 未经装配接线，只在跑一次性兜底"
                 + "（跑 PirateCrew.EditorTools.BattleLookupWiring.Wire 写入 Battle.unity）");
 
             // 水面太阳方向：第三档"扫全场找最亮平行光"已退役，来源改为
@@ -236,7 +238,7 @@ namespace PirateCrew.Tests
             Assert.AreEqual(17, hud.WeaponSlotCount, "HUD 应有 17 个武器槽（§5.2）");
             Assert.IsTrue(hud.HasWeaponWiring, "HUD 武器图标格未全部接线");
             Assert.IsTrue(hud.HasTeamBarWiring, "HUD 双队血条（段+pips）未全部接线");
-            Assert.IsTrue(hud.HasModeWiring, "HUD 模式图标钮未全部接线");
+            Assert.IsTrue(hud.HasOperationWiring, "HUD 操作面板（三读数 + 发射/取消）未全部接线");
 
             // ---- 小地图（c78fdea 复盘：组件在必须成为门禁；2026-09-28 创始人裁决：
             //      外框换 Aseprite 窗体、**内容清空暂态**——dotLayer 不接线即休眠）----

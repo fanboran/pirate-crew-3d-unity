@@ -325,7 +325,7 @@ namespace PirateCrew.EditorTools
 
             WireBattleController(battle, piratePrefab, team0Root, team1Root, water, turnManager, aimController, battleCamera, terrainView, runtimeSceneArt);
             WireTurnManager(turnManager, battle);
-            WireAimController(aimController, camera, battle, battleCamera, hud, trajectory);
+            WireAimController(aimController, camera, battle, battleCamera, trajectory);
             WireBattleCamera(battleCamera, battle, aimController, camera);
             WireHud(hud, battle, turnManager, aimController);
 
@@ -604,7 +604,7 @@ namespace PirateCrew.EditorTools
 
             var preview = go.AddComponent<TrajectoryPreview>();
             var so = new SerializedObject(preview);
-            so.FindProperty("line").objectReferenceValue = line;
+            so.FindProperty("legacyLine").objectReferenceValue = line;
             so.ApplyModifiedPropertiesWithoutUndo();
             return preview;
         }
@@ -786,13 +786,12 @@ namespace PirateCrew.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        static void WireAimController(BattleInteractionController aimController, Camera battleCamera, BattleController battle, BattleCameraDriver cameraDriver, BattleHud hud, TrajectoryPreview trajectory)
+        static void WireAimController(BattleInteractionController aimController, Camera battleCamera, BattleController battle, BattleCameraDriver cameraDriver, TrajectoryPreview trajectory)
         {
             var so = new SerializedObject(aimController);
             SetRef(so, "battleCamera", battleCamera);
             SetRef(so, "battle", battle);
             SetRef(so, "cameraDriver", cameraDriver);
-            SetRef(so, "hud", hud);
             SetRef(so, "trajectory", trajectory);
             so.ApplyModifiedPropertiesWithoutUndo();
         }

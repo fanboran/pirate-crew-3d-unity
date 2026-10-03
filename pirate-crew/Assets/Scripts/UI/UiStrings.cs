@@ -257,6 +257,9 @@ namespace PirateCrew.UI
         /// <summary>武器列表标题。</summary>
         public const string BattleWeaponListTitle = "选择武器";
 
+        /// <summary>操作 HUD 面板标题（操作中态）。</summary>
+        public const string BattleOperationTitle = "操作中";
+
         /// <summary>操作提示：自由镜头（编辑器飞行式，2026-10-03 两态裁决）。</summary>
         public const string BattleHintFreeCamera = "按住右键飞行观察　左键选中单位";
 

@@ -1,7 +1,6 @@
 using PirateCrew.Core;
 using PirateCrew.Combat;
 using PirateCrew.Data;
-using PirateCrew.UI;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -31,8 +30,6 @@ namespace PirateCrew.Battle
         [SerializeField] Camera battleCamera;
         [SerializeField] BattleController battle;
         [SerializeField] BattleCameraDriver cameraDriver;
-        [Tooltip("HUD（Esc 矩阵的弹窗/暂停层归属 UI；装配链接线）。缺失时 Esc 矩阵的 UI 层降级为无操作。")]
-        [SerializeField] BattleHud hud;
         [SerializeField] TrajectoryPreview trajectory;
 
         BattleInputReader _input;
@@ -102,17 +99,16 @@ namespace PirateCrew.Battle
             if (_intent.PausePressed)
                 TogglePause();
 
-            // Esc 矩阵：唯一解析点（交互操作契约 §C）。
+            // Esc 矩阵：唯一解析点（交互操作契约 §C）；UI 层动作经 BattleUiBridge 跨程序集门面。
             if (_intent.CancelPressed)
             {
-                bool dialogOpen = hud != null && hud.ConfirmDialogOpen;
-                switch (InteractionRules.ResolveEsc(dialogOpen, BattlePause.IsPaused, _state))
+                switch (InteractionRules.ResolveEsc(BattleUiBridge.ConfirmDialogOpen, BattlePause.IsPaused, _state))
                 {
                     case EscAction.CloseDialog:
-                        hud?.CloseConfirmDialog();
+                        BattleUiBridge.RequestCloseDialog();
                         break;
                     case EscAction.ResumePause:
-                        hud?.ClosePause();
+                        BattleUiBridge.RequestResumePause();
                         break;
                     case EscAction.CancelOperation:
                         CancelOperation();
@@ -121,7 +117,7 @@ namespace PirateCrew.Battle
                         Deselect();
                         break;
                     case EscAction.OpenPause:
-                        hud?.OpenPauseKeyboard();
+                        BattleUiBridge.RequestOpenPause();
                         break;
                 }
             }
@@ -487,9 +483,9 @@ namespace PirateCrew.Battle
         void TogglePause()
         {
             if (BattlePause.IsPaused)
-                hud?.ClosePause();
+                BattleUiBridge.RequestResumePause();
             else
-                hud?.OpenPauseKeyboard();
+                BattleUiBridge.RequestOpenPause();
         }
     }
 }

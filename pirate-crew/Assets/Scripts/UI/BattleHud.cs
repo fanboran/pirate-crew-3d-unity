@@ -194,6 +194,11 @@ namespace PirateCrew.UI
 
         void OnEnable()
         {
+            // Esc 矩阵的 UI 层接线（BattleUiBridge 跨程序集门面；订阅成对增删）。
+            BattleUiBridge.OpenPauseRequested += OpenPause;
+            BattleUiBridge.ResumePauseRequested += ClosePause;
+            BattleUiBridge.CloseDialogRequested += CloseConfirmDialog;
+
             EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
             EventBus.Subscribe(BattleEvents.TurnStarted, OnTurnStarted);
             EventBus.Subscribe(BattleEvents.TurnEnded, OnTurnEnded);
@@ -209,6 +214,10 @@ namespace PirateCrew.UI
         {
             // 离场兜底：暂停中直接回主菜单/选关，绝不能把 timeScale=0 带出战斗场景。
             BattlePause.ForceResume();
+            BattleUiBridge.ConfirmDialogOpen = false;
+            BattleUiBridge.OpenPauseRequested -= OpenPause;
+            BattleUiBridge.ResumePauseRequested -= ClosePause;
+            BattleUiBridge.CloseDialogRequested -= CloseConfirmDialog;
 
             EventBus.Unsubscribe(BattleEvents.BattleStarted, OnBattleStarted);
             EventBus.Unsubscribe(BattleEvents.TurnStarted, OnTurnStarted);
@@ -366,13 +375,7 @@ namespace PirateCrew.UI
             RefreshHint();
         }
 
-        /// <summary>键盘/交互控制器入口：Esc 矩阵 C5 / P 键（与暂停钮同一条路径）。</summary>
-        public void OpenPauseKeyboard()
-        {
-            OpenPause();
-        }
-
-        /// <summary>解除暂停（按钮 / Esc 矩阵 C2 / P 键共用）。</summary>
+        /// <summary>解除暂停（按钮 / Esc 矩阵 C2 / P 键经 BattleUiBridge 共用）。</summary>
         public void ClosePause()
         {
             if (!BattlePause.IsPaused)
@@ -385,12 +388,10 @@ namespace PirateCrew.UI
             RefreshHint();
         }
 
-        /// <summary>确认弹窗是否开着（交互控制器 Esc 矩阵 C1 的判定输入）。</summary>
-        public bool ConfirmDialogOpen => confirmDialogRoot != null && confirmDialogRoot.activeSelf;
-
-        /// <summary>关闭返回确认弹窗（Esc 矩阵 C1 的动作口）。</summary>
+        /// <summary>关闭返回确认弹窗（Esc 矩阵 C1 经 BattleUiBridge 的动作口）。</summary>
         public void CloseConfirmDialog()
         {
+            BattleUiBridge.ConfirmDialogOpen = false;
             CloseModal(confirmDialogRoot);
         }
 
@@ -453,11 +454,13 @@ namespace PirateCrew.UI
 
             if (confirmMessage != null)
                 UiTextUtil.SetText(confirmMessage, UiStrings.BackConfirm);
+            BattleUiBridge.ConfirmDialogOpen = true;
             OpenModal(confirmDialogRoot, confirmCard);
         }
 
         void ConfirmLeaveBattle()
         {
+            BattleUiBridge.ConfirmDialogOpen = false;
             CloseModal(confirmDialogRoot);
             BattlePause.ForceResume();
             AudioService.PlayUi(SfxId.UiClick);
