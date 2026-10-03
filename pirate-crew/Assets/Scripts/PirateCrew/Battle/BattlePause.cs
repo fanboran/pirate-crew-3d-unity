@@ -12,7 +12,7 @@ namespace PirateCrew.Battle
     /// 所以暂停 = timeScale 归零（冻物理）+ 各 Update 入口查询 <see cref="IsPaused"/>（冻逻辑）。
     ///
     /// 【谁查询】TurnManager / BattleCameraDriver（Update 入口）、
-    /// BattleHud（输入与面板）、AimThrowController 经由 BattleHud 关掉 InputEnabled。
+    /// BattleHud（面板）、BattleInteractionController（玩法输入入口自查 IsPaused）。
     ///
     /// 【静态残留】关闭 Domain Reload 时静态字段跨播放存活（与 CampaignApi 同一手法），
     /// 进入播放前强制复位；战斗重开/离场前也必须先 <see cref="Resume"/>。

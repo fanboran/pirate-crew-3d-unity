@@ -315,15 +315,12 @@ namespace PirateCrew.EditorTools
                         | System.Reflection.BindingFlags.Instance);
                     sb.AppendLine(name + " = " + (fld != null ? fld.GetValue(cam)?.ToString() ?? "null" : "<无字段>"));
                 }
-                sb.AppendLine("ObserveMode = " + cam.ObserveMode);
-                sb.AppendLine("FollowState = " + cam.FollowState + "  Spectator = " + cam.SpectatorMode);
+                sb.AppendLine("InteractionState = " + (cam.InteractionStateForDiagnostics));
+                sb.AppendLine("FollowState = " + cam.FollowState);
                 sb.AppendLine("RuntimeOrthoSize = " + cam.RuntimeOrthoSize
                     + "  可见 " + cam.RuntimeVisibleMeters.ToString("F1") + " m"
                     + "  全景档 = " + cam.PanoramaOrthoSize);
-                sb.AppendLine("aimThrow 装配接线 = " + cam.AimThrowWiredByAssembly);
-                var reader = cam.GetComponent<PirateCrew.Battle.CameraInputReader>();
-                sb.AppendLine("input reader = " + (reader != null
-                    ? "Orbit " + reader.OrbitDegreesPerMouseUnit + "°/鼠标单位" : "<null>"));
+                sb.AppendLine("interaction 装配接线 = " + cam.InteractionWiredByAssembly);
                 sb.AppendLine("mousePos = " + Input.mousePosition
                     + "  rightDown = " + Input.GetMouseButton(1));
             }

@@ -5,22 +5,18 @@ namespace PirateCrew.Battle
     /// <summary>
     /// 弹道轨迹预览（MonoBehaviour 薄壳，采样用纯逻辑 <see cref="ThrowTrajectory"/>）。
     ///
-    /// 【对应章节】§5.1 <c>drawTwangLine</c>（15 段虚线轨迹，逐段加重力）；
-    ///             M4 §3.2：步数随射程延长 + 预测落点标记。
+    /// 【预览重做（创始人裁决 2026-10-03，投掷行为契约 #9）】三条可判定行为：
+    ///   1. **落点终止**：弧线积分到首次穿地（<see cref="ThrowTrajectory.TryPredictUntilImpact"/>），
+    ///      不按飞行时长截断；
+    ///   2. **不入地**：写入的全部珠点 y ≥ 地面（穿地点按 y 插值收在地面）；
+    ///   3. **落点标记恒显**：兜底步数内穿地必显示标记（旧预览远射程时标记消失）。
     ///
-    /// 【3D 重写要点】
-    ///   · 本实现用
-    ///     <see cref="LineRenderer"/>，且<b>与实弹共用</b> <see cref="LevelGeometry.ThrowVelocity"/> 的初速、
-    ///     <see cref="LevelGeometry.WorldGravity"/> 的重力、<see cref="ThrowTrajectory"/> 的半隐式欧拉，
-    ///     从根上保证"预览 = 实弹"（不另立一套预演参数）。
-    ///   · 重力沿 -Y，水平面（XZ）内**匀速**——3D 化后重力与水平面正交（见 ThrowTrajectory 类头）。
-    ///   · API 遵守风险清单 R3：用 <c>positionCount</c> + <c>SetPositions()</c>，不用已过时的 <c>SetVertexCount</c>。
+    /// 【视觉形态】珠点弧线（池化面片 quad 串，像素语言一致）+ 青色落点环（沿用既有口径）。
+    /// 读数（方向/仰角/力度）归操作 HUD，不在 3D 场景写字。
     ///
-    /// 【M4 落点标记（提案/待定）】小环（LineRenderer 闭合圆，复用预览线的 Sprites/Default 材质），
-    ///   选中青 #49D9D6（与选中描边/选中光环同源，Art Bible §2.2）。落点由
-    ///   <see cref="ThrowTrajectory.TryGetImpactPoint"/> 对采样序列做穿地插值（纯数学，无额外射线）。
+    /// 【预览 = 实弹】初速与重力由调用方（<see cref="BattleInteractionController"/>）从
+    /// <see cref="StandardThrowRules"/> 取**与执行同源**的值传入；本类不自算任何弹道参数。
     /// </summary>
-    [RequireComponent(typeof(LineRenderer))]
     public sealed class TrajectoryPreview : MonoBehaviour
     {
         /// <summary>落点标记环的半径（世界单位，提案）：直径 0.9 ≈ 单位脚边，读作"落在这儿"。</summary>
@@ -32,101 +28,151 @@ namespace PirateCrew.Battle
         /// <summary>落点标记环的抬高（世界单位，防与地面 z-fight）。</summary>
         public const float ImpactMarkerLift = 0.06f;
 
-        [Tooltip("轨迹线组件；留空则 Awake 时取同对象上的 LineRenderer。")]
-        [SerializeField] LineRenderer line;
+        [Tooltip("珠点池大小（弧线最长显示的点数；更长弧线自动拉开点距）。")]
+        [SerializeField] int dotPoolSize = 48;
 
-        [Tooltip("默认预测采样段数（§5.1 原版 15 段）；Show 可按力度传延长步数（M4 §3.2）。")]
-        [SerializeField] int sampleCount = ThrowTrajectory.DefaultSteps;
+        [Tooltip("珠点边长（世界单位，提案）：0.18 在基准档下约 3 px。")]
+        [SerializeField] float dotSize = 0.18f;
 
-        [Tooltip("是否在轨迹最前面补一个起点。")]
-        [SerializeField] bool includeOrigin = true;
-
-        [Tooltip("是否显示预测落点标记（M4 §3.2，提案）。")]
+        [Tooltip("是否显示预测落点标记。")]
         [SerializeField] bool showImpactMarker = true;
 
-        Vector3[] _buffer;
-        /// <summary>喂 LineRenderer 的位置缓存（grow-only）：Show 随瞄准逐帧调用，
-        /// 旧实现每次 <c>new Vector3[steps+offset]</c>，这里改为按需扩容、永不缩容。</summary>
-        Vector3[] _positions;
+        [Tooltip("预制体上遗留的旧轨迹 LineRenderer（两态重构退役件）；Awake 时直接禁用。")]
+        [SerializeField] LineRenderer legacyLine;
+
+        Transform _dotsRoot;
+        Transform[] _dots;
         LineRenderer _impactMarker;
+        readonly Vector3[] _samples = new Vector3[StandardThrowRules.PreviewMaxSteps];
 
         void Awake()
         {
-            if (line == null)
-                line = GetComponent<LineRenderer>();
-
-            if (line != null)
+            if (legacyLine == null)
+                legacyLine = GetComponent<LineRenderer>();
+            if (legacyLine != null)
             {
-                line.useWorldSpace = true;
-                line.positionCount = 0;
+                legacyLine.enabled = false;   // 旧连续细线随预览重做退役
+                if (legacyLine.sharedMaterial == null)
+                    legacyLine.sharedMaterial = FallbackDotMaterial();
             }
 
-            _buffer = new Vector3[Mathf.Max(1, sampleCount)];
+            EnsureDots();
         }
 
         /// <summary>
-        /// 刷新轨迹。参数与 <see cref="AimThrowController"/> 真正发射时传给
-        /// <see cref="PirateBase.ApplyLaunchVelocity(Vector3)"/> 的完全同源
-        /// （同一个 <see cref="LevelGeometry.ThrowVelocity"/> 调用点语义）。
+        /// 刷新轨迹。初速/重力与执行路径同源（<see cref="StandardThrowRules"/>，由调用方传入）——
+        /// 「预览 = 实弹」的换算不在本类内发生第二次。
         /// </summary>
-        /// <param name="originWorld">起点世界坐标。</param>
-        /// <param name="horizontalDirection">XZ 平面上的投掷方向（未归一化亦可，内部会归一化并加抬升）。</param>
-        /// <param name="speedPixelsPerFrame">Flash 口径的初速大小（px/帧，由 twang 的 twangMax 限速决定）。</param>
-        /// <param name="weight">重力权重（角色 = 1；武器见 §5.2）。</param>
-        /// <param name="steps">采样步数（M4 §3.2：随力度延长，见 <see cref="ThrowTrajectory.StepsForSpeed"/>）；
-        /// 缺省保持原版 15 段。</param>
-        public void Show(Vector3 originWorld, Vector3 horizontalDirection, float speedPixelsPerFrame, float weight,
-            int steps = ThrowTrajectory.DefaultSteps)
+        /// <param name="originWorld">投掷起点（= 单位枢轴 + ThrowOriginHeight）。</param>
+        /// <param name="velocity">完整初速向量（米制）。</param>
+        public void Show(Vector3 originWorld, Vector3 velocity)
         {
-            if (line == null)
-                return;
+            bool landed = ThrowTrajectory.TryPredictUntilImpact(
+                originWorld, velocity, StandardThrowRules.LaunchGravityY,
+                _samples, out int count, out Vector3 impact);
 
-            steps = Mathf.Clamp(steps, 1, ThrowTrajectory.MaxSteps);
-            if (_buffer == null || _buffer.Length < steps)
-                _buffer = new Vector3[steps];
-
-            ThrowTrajectory.PredictFromFlashSpeed(
-                originWorld, horizontalDirection, speedPixelsPerFrame, weight, _buffer, steps);
-
-            int offset = includeOrigin ? 1 : 0;
-            int total = steps + offset;
-            if (_positions == null || _positions.Length < total)
-                _positions = new Vector3[total];
-
-            if (includeOrigin)
-                _positions[0] = originWorld;
-
-            for (int i = 0; i < steps; i++)
-                _positions[i + offset] = _buffer[i];
-
-            // positionCount 先行赋值；SetPositions 只取数组前 positionCount 个条目
-            // （Unity 2022.3 手册明确忽略超出部分），故缓存数组大于本次点数也安全——
-            // 整条线刷新零分配。
-            line.positionCount = total;
-            line.SetPositions(_positions);
-
-            if (showImpactMarker
-                && ThrowTrajectory.TryGetImpactPoint(
-                    originWorld, _buffer, steps, LevelGeometry.GroundTopY, out Vector3 impact))
+            if (!landed)
             {
-                PlaceImpactMarker(impact);
-            }
-            else
-            {
+                // 兜底步数内不穿地（理论不可达的极端平射）：整条隐藏，不出半截线。
+                SetDotsActive(0);
                 HideImpactMarker();
+                return;
             }
+
+            // 珠点沿弧线**均匀铺满**：点距 = 采样数 / 池大小（向上取整 ≥1），弧线长短都完整显示。
+            int step = Mathf.Max(1, (count + dotPoolSize - 1) / dotPoolSize);
+            Camera cam = Camera.current != null ? Camera.current : Camera.main;
+
+            int shown = 0;
+            for (int i = 0; i < count && shown < _dots.Length; i += step)
+            {
+                Transform dot = _dots[shown++];
+                dot.position = _samples[i];
+                if (cam != null)
+                    dot.rotation = Quaternion.LookRotation(cam.transform.forward);
+            }
+            SetDotsActive(shown);
+
+            if (showImpactMarker)
+                PlaceImpactMarker(impact);
+            else
+                HideImpactMarker();
         }
 
         /// <summary>隐藏轨迹。</summary>
         public void Hide()
         {
-            if (line != null)
-                line.positionCount = 0;
+            SetDotsActive(0);
             HideImpactMarker();
         }
 
         // ------------------------------------------------------------------
-        // 落点标记（M4 §3.2，提案/待定）
+        // 珠点池
+        // ------------------------------------------------------------------
+
+        void SetDotsActive(int count)
+        {
+            for (int i = 0; i < _dots.Length; i++)
+            {
+                if (_dots[i].gameObject.activeSelf != i < count)
+                    _dots[i].gameObject.SetActive(i < count);
+            }
+        }
+
+        void EnsureDots()
+        {
+            if (_dots != null)
+                return;
+
+            var root = new GameObject("TrajectoryDots");
+            root.transform.SetParent(transform, false);
+            _dotsRoot = root.transform;
+
+            Material material = legacyLine != null && legacyLine.sharedMaterial != null
+                ? legacyLine.sharedMaterial
+                : FallbackDotMaterial();
+            MeshFilter quadMesh = CreateQuadTemplate();
+
+            _dots = new Transform[dotPoolSize];
+            for (int i = 0; i < dotPoolSize; i++)
+            {
+                var dot = new GameObject("Dot" + i);
+                dot.transform.SetParent(_dotsRoot, false);
+                dot.transform.localScale = new Vector3(dotSize, dotSize, dotSize);
+                var meshFilter = dot.AddComponent<MeshFilter>();
+                meshFilter.sharedMesh = quadMesh.sharedMesh;
+                var renderer = dot.AddComponent<MeshRenderer>();
+                renderer.sharedMaterial = material;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                _dots[i] = dot.transform;
+                dot.SetActive(false);
+            }
+        }
+
+        /// <summary>四边形模板（Primitive Quad 去碰撞体；池内共享同一 Mesh）。</summary>
+        MeshFilter CreateQuadTemplate()
+        {
+            var template = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Collider collider = template.GetComponent<Collider>();
+            if (collider != null)
+                Destroy(collider);
+            template.SetActive(false);
+            template.transform.SetParent(transform, false);
+            return template.GetComponent<MeshFilter>();
+        }
+
+        static Material FallbackDotMaterial()
+        {
+            // 无序列化材质时的兜底（正常装配链都带 Trajectory.mat）；像素化管线会按色带重着色。
+            var shader = Shader.Find("Sprites/Default");
+            var material = shader != null ? new Material(shader) : new Material(Shader.Find("Unlit/Color"));
+            material.color = new Color32(0xFF, 0xE6, 0x4D, 0xE6);   // 暖黄，旧轨迹线同族
+            return material;
+        }
+
+        // ------------------------------------------------------------------
+        // 落点标记
         // ------------------------------------------------------------------
 
         void PlaceImpactMarker(Vector3 impact)
@@ -158,7 +204,7 @@ namespace PirateCrew.Battle
             if (_impactMarker != null)
                 return;
 
-            // 运行时动态创建（不改场景/Prefab）；材质复用预览线的（Sprites/Default 读顶点色），
+            // 运行时动态创建（不改场景/Prefab）；材质复用珠点的（Sprites/Default 读顶点色），
             // 颜色 = 选中青 #49D9D6（Art Bible §2.2，与选中描边/光环同源）。
             var go = new GameObject("ImpactMarker");
             go.transform.SetParent(transform, false);
@@ -173,8 +219,9 @@ namespace PirateCrew.Battle
             _impactMarker.endColor = teal;
             _impactMarker.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             _impactMarker.receiveShadows = false;
-            if (line != null && line.sharedMaterial != null)
-                _impactMarker.sharedMaterial = line.sharedMaterial;
+            _impactMarker.sharedMaterial = legacyLine != null
+                ? legacyLine.sharedMaterial
+                : FallbackDotMaterial();
             _impactMarker.enabled = false;
         }
     }

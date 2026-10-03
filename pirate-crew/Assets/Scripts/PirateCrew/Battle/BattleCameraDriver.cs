@@ -2,41 +2,33 @@ using System.Collections.Generic;
 using PirateCrew.Core;
 using PirateCrew.Combat;
 using PirateCrew.Data;
-using PirateCrew.Rendering.Pixelart;
 using UnityEngine;
 
 namespace PirateCrew.Battle
 {
     /// <summary>
-    /// 战斗相机 **Driver**（三件套之三，主相机的唯一写入者）：
-    /// 订阅 EventBus、维护全部表现状态机（跟随/震屏/顿帧/下压/推近/旁观/Scope 混合），
-    /// 每帧把它们组装成一个 <see cref="CameraFrame"/> 直接写到主相机的 transform/lens 上。
+    /// 战斗相机 **Driver**（主相机的唯一写入者）。
     ///
-    /// 【三件套分工】<see cref="CameraFraming"/>（纯数学：基准机位/偏移/OrthoSize 合成，无头可测）→
-    /// <see cref="CameraInputReader"/>（只读输入出增量）→ 本类（唯一写入者）。
-    /// **除本类外任何系统不得写主相机的 transform / orthographicSize / near / far**
-    /// （PlayMode 守卫测试逐帧比对相机实况与 <see cref="LastFrame"/>；
-    /// far 的唯一例外口是 <see cref="SetFarClipForSpan"/>——仍经本类写入并保底 OrthoFarClip）。
+    /// 【位姿全目标化（两态重构核心不变量，相机行为契约 #7）】
+    ///   相机位姿 = {焦点, 方位, 俯角, 取景档} 四元目标 + 指数平滑的现实值。
+    ///   除**对局开局的首次落位**外，全工程不存在直写现实值的路径——任何状态切换
+    ///   （选人/换人/取消/回合 pan）都是目标变更，跳变在结构上不可构造。
+    ///   · 取景档恒 <see cref="CameraFraming.CloseUpOrthoSize"/>（缩放锁死，契约 #9）；
+    ///   · 俯角基准 30°，仅自由镜头允许玩家偏离 [15°, 80°]（契约 #8）。
     ///
-    /// 【去 Cinemachine 化（2026-09-23，创始人认可方案）】正交竞技场相机 = 定长偏移 + 平滑跟随 +
-    /// 抬高看点，全部数学在 <see cref="CameraFraming"/>；原 Brain 的掩码筛选与镜头应用链
-    /// 造成过两次实机事故（r13 修复档案），随本重构退役。
-    /// 与原链路的**等价关系**（实机探针 + CM 2.9.7 源码共同验证，2026-09-23）：
-    ///   · 原链 = Transposer（阻尼 0）只写位置 + Aim 档为空 ⇒ 主相机**朝向恒为烘焙机位**，
-    ///     右键环绕在视觉上是**平移拖拽**——该语义已被创始人裁决推翻（"还是拖动""我的旋转呢"
-    ///     连驳多次，2026-09-23 定案）：**环绕必须重瞄 = 画面绕焦点转动**，
-    ///     见 <see cref="CameraFraming.ComputeRotationLooking"/>；
-    ///   · 原链的 lens near/far 由 Brain 每帧推送（0.1/200）——本类在 Awake 写一次同值；
-    ///   · 跟随弹体时原链把 vcam.Follow 切到弹体（无阻尼 ⇒ 弹体位置精确上屏）——
-    ///     本类在 FollowProjectile 态直接用弹体位置做焦点（不平滑），其余态用平滑焦点；
-    ///   · 原链把震屏/下压写在"相机目标"上再由 Transposer 叠加——本类在帧组装时叠加，和相同。
+    /// 【模式表（相机行为契约 #1）】由 <see cref="BattleInteractionController.State"/> 拉模型分派：
+    ///   FreeCamera → **FreeFly**（编辑器飞行式：按住右键转视角/平移，横纵同灵敏度）；
+    ///   SelectedIdle → **Orbit**（环绕选中单位，右键拖拽改方位，俯角回基准）；
+    ///   OperationActive → **OpLock**（位姿冻结，不接受任何相机输入——契约 #5）；
+    ///   Executing → **Follow**（既有跟随状态机：弹体/被抛角色/命中停留/回焦）。
     ///
-    /// 【对应章节】相机表现口径见 <c>docs/设计/3D空间模型对齐.md</c>：
-    ///             panToCharacter/选中反馈/相机优先级见 §8.1，爆炸 falloff 借形见 §5；
-    ///             Scope/弹体追焦为本项目新增（<b>提案/待定</b>）。
+    /// 【三件套分工】<see cref="CameraFraming"/>（纯数学）→ <see cref="BattleInputReader"/>（唯一输入
+    /// 采样，经交互控制器转手）→ 本类（唯一写入者）。**除本类外任何系统不得写主相机的
+    /// transform / orthographicSize / near / far**（PlayMode 守卫测试逐帧比对相机实况与
+    /// <see cref="LastFrame"/>；far 的唯一例外口是 <see cref="SetFarClipForSpan"/>）。
     ///
     /// 【安全底线（勿破坏）】
-    ///   · 震屏只加在最终位置上，且**玩家按住左键（拖拽瞄准）时不施加**；
+    ///   · 震屏只加在最终位置上，且玩家按住左键期间不施加；
     ///     <see cref="FocusPoint"/> 返回**去震屏**的干净位置，不影响"离相机中心最近"判定。
     ///   · 顿帧的 timeScale 安全上限在 <see cref="CameraFeelRules"/>；暂停中不施加、退场兜底恢复。
     /// </summary>
@@ -47,22 +39,33 @@ namespace PirateCrew.Battle
         [Tooltip("主相机。本类是它 transform/lens 的唯一写入者（像素化 rig 只改掩码/渲染器，不碰取景）。")]
         [SerializeField] Camera mainCamera;
 
-        [Tooltip("输入读取器（同物体自动补建；装配链显式接线）。")]
-        [SerializeField] CameraInputReader input;
-
         [Header("组装引用（手感数据源；留空时跟随/死亡反馈降级，其余仍工作）")]
-        [Tooltip("战斗根。用于把 PirateId 解析成角色、把弹体取出做跟随。留空时：震屏与聚焦仍工作，"
-                 + "但投掷跟随、落水/死亡的定焦无法定位（需在场景里接线）。")]
+        [Tooltip("战斗根。用于把 PirateId 解析成角色、把弹体取出做跟随。")]
         [SerializeField] BattleController battle;
 
-        [Tooltip("瞄准/投掷控制器（同场景显式注入，由 EditorTools.BattleLookupWiring 接线）。"
-                 + "本类每帧采样它的 IsScopeActive / IsTurretAiming（Scope 视野混合；力度-镜头耦合已废除——缩放按 2026-09-24 裁决锁死），"
-                 + "是**热路径依赖**——所以必须显式注入，绝不做每帧回退扫描（清退报告 2026-09-21）。")]
-        [SerializeField] AimThrowController aimThrow;
+        [Tooltip("交互控制器（热路径依赖：每帧拉取 State/SelectedTarget/LastIntent 决定相机模式）。"
+                 + "必须显式注入，绝不做每帧回退扫描。")]
+        [SerializeField] BattleInteractionController interaction;
 
         [Header("参数")]
-        [Tooltip("聚焦平滑速度（1/s）。默认 6 → 90% 到位约 0.384s，贴合回合节奏（10 帧 @25fps ≈ 0.4s）。")]
+        [Tooltip("聚焦平滑速度（1/s）。默认 6 → 90% 到位约 0.384s，贴合回合节奏。")]
         [SerializeField] float focusLerpPerSecond = 6f;
+
+        [Tooltip("环绕方位角的平滑速度（1/s）；自由镜头转视角不走平滑（鼠标输入即目标，无滞后）。")]
+        [SerializeField] float orbitSmoothingPerSecond = 10f;
+
+        [Header("自由镜头（编辑器飞行式；数值【提案/待定】）")]
+        [Tooltip("自由镜头飞行速度（m/s，未加速；加速倍率 ×3）。")]
+        [SerializeField] float freeFlySpeed = 12f;
+
+        [Tooltip("自由镜头飞行加速倍率（按住 Shift）。")]
+        [SerializeField] float freeFlyFastScale = 3f;
+
+        [Tooltip("自由镜头俯仰夹取下限（度）。")]
+        [SerializeField] float freePitchMinDegrees = 15f;
+
+        [Tooltip("自由镜头俯仰夹取上限（度）。")]
+        [SerializeField] float freePitchMaxDegrees = 80f;
 
         [Header("震屏（提案/待定）")]
         [Tooltip("总开关：关闭后命中/爆炸/死亡都不震屏。")]
@@ -71,13 +74,13 @@ namespace PirateCrew.Battle
         [Tooltip("震屏强度整体缩放（1 = 默认）。")]
         [SerializeField] float shakeAmplitudeScale = 1f;
 
-        [Tooltip("峰值位移（世界单位）；默认 0.7 ≈ 11px（px 口径不变），小于 30px 选中半径。")]
+        [Tooltip("峰值位移（世界单位）；默认 0.7 ≈ 11px，小于 30px 选中半径。")]
         [SerializeField] float maxShakeAmplitude = CameraFeelRules.DefaultMaxShakeAmplitude;
 
         [Tooltip("峰值滚转（度）；默认 1.2°。")]
         [SerializeField] float maxShakeRollDegrees = CameraFeelRules.DefaultMaxShakeRollDegrees;
 
-        [Tooltip("单次震屏时长（秒）；默认 0.30s ≈ 7.5 帧。")]
+        [Tooltip("单次震屏时长（秒）；默认 0.30s。")]
         [SerializeField] float shakeDurationSeconds = CameraFeelRules.DefaultShakeDurationSeconds;
 
         [Tooltip("震屏振荡频率（Hz）；默认 18。")]
@@ -100,9 +103,6 @@ namespace PirateCrew.Battle
         [Tooltip("推近单程时长（秒）。")]
         [SerializeField] float selectionPushInDurationSeconds = CameraFeelRules.SelectionPushInDurationSeconds;
 
-        [Tooltip("AI 回合进入旁观态（聚焦更慢 + 视野略外扩）。")]
-        [SerializeField] bool aiSpectatorEnabled = true;
-
         [Header("跟随弹体（提案/待定）")]
         [Tooltip("跟随的最长时长（秒），兜底防止弹体卡住时相机不回来。")]
         [SerializeField] float followTimeoutSeconds = 2.5f;
@@ -117,15 +117,17 @@ namespace PirateCrew.Battle
         [Tooltip("落水时相机焦点下压位移（世界单位）。")]
         [SerializeField] float drownDipWorldUnits = CameraFeelRules.DrownDipWorldUnits;
 
-        [Tooltip("手动相机平滑速率（1/s）。")]
-        [SerializeField] float manualSmoothingPerSecond = 10f;
+        // ---- 位姿（目标 + 现实；"位姿全目标化"不变量的载体）----
+        float _yaw;
+        float _targetYaw;
+        float _pitch;
+        float _targetPitch;
+        float _targetOrthoSize = CameraFraming.CloseUpOrthoSize;
+        float _panoramaOrthoSize = CameraFraming.PanoramaOrthoSizeForSpan(CameraFraming.DefaultWorldSpan);
 
-        // ---- 聚焦目标 / 焦点（原控制器的等价物，语义逐位保留）----
-        Transform _focusTarget;
-        Vector3 _goalPosition;
-
-        // ---- 干净位置（不含震屏/下压；FocusPoint 与距离判定都用它）----
+        // ---- 焦点（干净位置，不含震屏/下压；FocusPoint 与距离判定都用它）----
         Vector3 _cleanPosition;
+        Vector3 _goalPosition;
         bool _cleanInitialized;
 
         // ---- 震屏 ----
@@ -135,8 +137,6 @@ namespace PirateCrew.Battle
         float _shakeRoll;
         float _shakeFrequency;
         float _shakePhase;
-        /// <summary>本帧已施加过震屏：刚启动的事件 <c>_shakeElapsed==0</c>，
-        /// strongest-wins 守卫靠它识别「正在播放」（同帧多事件只让更强者落位）。</summary>
         bool _shakeJustStarted;
 
         // ---- 顿帧 ----
@@ -145,11 +145,9 @@ namespace PirateCrew.Battle
         float _hitStopSavedTimeScale = 1f;
         bool _sceneUnloading;
 
-        // ---- 推近 / 旁观 ----
-        bool _baseOrthoSizeCaptured;
-        float _pushInElapsed;
+        // ---- 推近 ----
         bool _pushInActive;
-        bool _spectator;
+        float _pushInElapsed;
 
         // ---- 跟随状态机 ----
         CameraFollowState _followState = CameraFollowState.None;
@@ -168,24 +166,6 @@ namespace PirateCrew.Battle
         float _dipAmount;
         bool _dipActive;
 
-        // ---- 手动环绕（方位角；俯角锁 30° 无输入路径）----
-        float _manualYaw;
-        float _targetYaw;
-        float _manualOrthoSize = CameraFraming.FullFieldOrthoSize;
-        float _targetOrthoSize = CameraFraming.FullFieldOrthoSize;
-
-        // ---- 观察模式 / 自由锚（标注的调试/辅助出口，见 CameraInputReader 类头）----
-        public bool ObserveMode { get; private set; }
-        float _observePitchDegrees = CameraFraming.BasePitchDegrees;
-        Vector3 _freeAnchorPosition;
-        bool _freeAnchorActive;
-        Vector3 _cameraTargetDirtyPosition;   // 原链 cameraTarget.position 的等价物（干净焦点+下压+震屏）
-
-        // ---- M4：Scope / 全景档 ----
-        float _panoramaOrthoSize = CameraFraming.PanoramaOrthoSizeForSpan(CameraFraming.DefaultWorldSpan);
-        float _scopeBlend;              // Scope 等效 FOV 混合系数 0..1（按 ScopeBlendSeconds 线性推进）
-        float _baseOrthoSize = CameraFraming.FullFieldOrthoSize;
-
         /// <summary>本帧实际落到主相机上的取景（守卫测试用它逐帧比对相机实况）。</summary>
         public CameraFrame LastFrame { get; private set; }
 
@@ -195,7 +175,7 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 当前相机聚焦参考点（供"离相机中心最近"判定）。
-        /// <b>返回去震屏的干净位置</b>：震屏是纯表现，不应影响"选哪个角色当镜头目标"的判定。
+        /// <b>返回去震屏的干净位置</b>：震屏是纯表现，不影响"选哪个角色当镜头目标"的判定。
         /// </summary>
         public Vector3 FocusPoint
         {
@@ -210,30 +190,28 @@ namespace PirateCrew.Battle
         /// <summary>当前跟随状态（调试/测试用）。</summary>
         public CameraFollowState FollowState => _followState;
 
-        /// <summary>当前是否处于 AI 旁观态（调试/测试用）。</summary>
-        public bool SpectatorMode => _spectator;
+        /// <summary>交互状态读数（camdiag 诊断用；未接线为 &lt;null&gt;）。</summary>
+        public string InteractionStateForDiagnostics =>
+            interaction != null ? interaction.State.ToString() : "<null>";
 
         /// <summary>
-        /// <see cref="aimThrow"/> 是否来自**装配期注入**（而非 Awake 的一次性兜底）。
+        /// <see cref="interaction"/> 是否来自**装配期注入**（而非 Awake 的一次性兜底）。
         /// 供 PlayMode 装配完整性测试区分"装配接线"与"兜底也能跑"——兜底成功不算过关。
         /// </summary>
-        public bool AimThrowWiredByAssembly { get; private set; }
+        public bool InteractionWiredByAssembly { get; private set; }
 
-        /// <summary>运行时 OrthoSize 档（四舍五入到整数；基准档 <see cref="CameraFraming.CloseUpOrthoSize"/>）。</summary>
+        /// <summary>运行时 OrthoSize（缩放锁死：恒基准档）。</summary>
         public int RuntimeOrthoSize => Mathf.RoundToInt(_targetOrthoSize);
 
-        /// <summary>
-        /// 运行时取景的等效"可见高度"（米）= 2 × OrthoSize（正交半高 ×2）。
-        /// 它是**出图取景表的同一个单位**（HUD 提示条的临时调参读数）。
-        /// </summary>
+        /// <summary>运行时取景的等效"可见高度"（米）= 2 × OrthoSize。</summary>
         public float RuntimeVisibleMeters => _targetOrthoSize * 2f;
 
         /// <summary>当前全景档 OrthoSize（由 <see cref="SetWorldSpan"/> 决定；默认跨度 100u → 30）。</summary>
         public int PanoramaOrthoSize => Mathf.RoundToInt(_panoramaOrthoSize);
 
         /// <summary>
-        /// 按地图可玩跨度设置全景档：OrthoSize = clamp(round(span × 0.3), 全场档, 60)。
-        /// 由 Battle 场景接线方在世界地图建成后调用；不调用时默认 span=100（全景 30）。
+        /// 按地图可玩跨度记录全景档：OrthoSize = clamp(round(span × 0.3), 全场档, 60)。
+        /// 由 Battle 场景接线方在世界地图建成后调用（远裁剪推导的消费输入）。
         /// </summary>
         public void SetWorldSpan(float spanUnits)
         {
@@ -241,11 +219,23 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
+        /// 相机当前朝向的世界方位角（度；0 = +Z，俯视顺时针——与 <see cref="ThrowParams.YawDegrees"/>
+        /// 同约定）。交互控制器用它做投掷方向角的"玩家面向起步"。
+        /// </summary>
+        public float FocusYawDegrees
+        {
+            get
+            {
+                Vector3 toCamera = CameraFraming.ComputeFocusOffset(_targetYaw, _targetPitch, 1f);
+                Vector3 forward = new Vector3(-toCamera.x, 0f, -toCamera.z);
+                return Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
+            }
+        }
+
+        /// <summary>
         /// 按场景跨度抬高远裁剪面（唯一写入者契约的**显式例外**：本类之外不得直写
         /// <c>farClipPlane</c>，统一经此入口——内部保底不低于 <see cref="CameraFraming.OrthoFarClip"/>）。
-        /// 供 <see cref="BattleController.SetupBattleEnvironment"/> 按本关可达的最松取景档设置远裁剪
-        /// （需求量由 <see cref="CameraFraming.MinFarClipForOrthoSize"/> 推导；正交基线 OrthoFarClip
-        /// 已覆盖现役全部档位，本入口主要用于大图幅与将来放宽取景时保持"够用且不过大"）。
+        /// 供 <see cref="BattleController.SetupBattleEnvironment"/> 按本关可达的最松取景档设置远裁剪。
         /// </summary>
         public void SetFarClipForSpan(float farClipPlane)
         {
@@ -256,64 +246,37 @@ namespace PirateCrew.Battle
 
         void Awake()
         {
-            // 依赖解析：一次性（装配期注入优先，兜底只跑一次）。
-            ResolveAimThrowOnce();
-            EnsureInputReader();
-            CaptureBaseOrthoSize();
+            ResolveInteractionOnce();
             ApplyLensClips();
-            // 开局即进入基准机位（创始人裁决：取景恒为这一档；覆盖场景里烘焙的全场档出厂机位）。
-            EnterCloseUpView();
+
+            // 【全工程唯一瞬切点】对局开局从烘焙机位反推初始位姿（相机行为契约 #7 的唯一例外）：
+            // 烘焙位置 = 场地中心 + 方位 0 / 俯角 30° 的基准偏移。
             if (mainCamera != null)
             {
-                // 从烘焙机位反推干净焦点（烘焙位置 = 场地中心 + 同一条机位偏移公式）。
-                _cleanPosition = mainCamera.transform.position
-                    - CameraFraming.ComputeFocusOffset(0f, CameraFraming.BasePitchDegrees, CameraFraming.BaseDistance);
-                _cameraTargetDirtyPosition = _cleanPosition;
+                Vector3 offset = CameraFraming.ComputeFocusOffset(
+                    0f, CameraFraming.BasePitchDegrees, CameraFraming.BaseDistance);
+                _cleanPosition = mainCamera.transform.position - offset;
+                _goalPosition = _cleanPosition;
+                _cleanInitialized = true;
+                _yaw = _targetYaw = 0f;
+                _pitch = _targetPitch = CameraFraming.BasePitchDegrees;
             }
         }
 
-        /// <summary>
-        /// 解析 <see cref="aimThrow"/>：**只在 Awake 跑一次**（不是每帧轮询）。
-        /// 兜底把"静默失效"降级成"可用但吵闹"，真正的装配缺陷交给
-        /// <see cref="AimThrowWiredByAssembly"/>（PlayMode 测试断言它）去失败。
-        /// </summary>
-        void ResolveAimThrowOnce()
+        /// <summary>装配期注入优先；未注入时一次性兜底并吵闹（装配缺陷交给 PlayMode 断言钉住）。</summary>
+        void ResolveInteractionOnce()
         {
-            AimThrowWiredByAssembly = aimThrow != null;
-            if (aimThrow != null)
+            InteractionWiredByAssembly = interaction != null;
+            if (interaction != null)
                 return;
 
-            aimThrow = FindObjectOfType<AimThrowController>();
-            Log.Warn("[BattleCameraDriver] aimThrow 未经装配接线，已一次性兜底解析"
-                     + (aimThrow != null ? "成功" : "失败（Scope 视野混合与力度-镜头耦合将不生效）")
-                     + "。修复：跑 PirateCrew.EditorTools.BattleLookupWiring.Wire（写 Battle.unity），"
-                     + "把它写进 BattleCameraDriver.aimThrow 序列化字段。");
+            interaction = FindObjectOfType<BattleInteractionController>();
+            Log.Warn("[BattleCameraDriver] interaction 未经装配接线，已一次性兜底解析"
+                     + (interaction != null ? "成功" : "失败（相机将停留在开局机位，FreeFly/Orbit 不生效）")
+                     + "。修复：跑 PirateCrew.EditorTools.BattleLookupWiring.Wire（写 Battle.unity）。");
         }
 
-        /// <summary>输入读取器缺省时同物体补建（装配链会显式接线，此为旧场景兜底）。</summary>
-        void EnsureInputReader()
-        {
-            if (input != null)
-                return;
-            input = GetComponent<CameraInputReader>();
-            if (input == null)
-                input = gameObject.AddComponent<CameraInputReader>();
-        }
-
-        /// <summary>捕获烘焙 OrthoSize 基准（当量链分母已常量化，此值仅作"烘焙值语义"的记录与推近开关）。</summary>
-        void CaptureBaseOrthoSize()
-        {
-            if (mainCamera != null && mainCamera.orthographicSize > 0f)
-                _baseOrthoSize = mainCamera.orthographicSize;
-            if (_baseOrthoSize <= 0f)
-                _baseOrthoSize = CameraFraming.FullFieldOrthoSize;
-            _baseOrthoSizeCaptured = true;
-        }
-
-        /// <summary>
-        /// 正交近/远裁剪写一次（原链路由 Brain 每帧从虚机 Lens 推送 0.1/200——
-        /// 同值常量化在 <see cref="CameraFraming"/>；主相机烘焙的 400 运行期原本一直被覆盖成 200）。
-        /// </summary>
+        /// <summary>正交近/远裁剪写一次（常量单源 CameraFraming）。</summary>
         void ApplyLensClips()
         {
             if (mainCamera == null)
@@ -337,8 +300,7 @@ namespace PirateCrew.Battle
 
         void OnDisable()
         {
-            // 【退订，不是再订阅】订阅/退订必须成对（历史上曾把 Subscribe 原样抄进 OnDisable，
-            // 每次禁用都让订阅翻倍——r13 修复档案 11c1919）。
+            // 【退订，不是再订阅】订阅/退订必须成对（历史上曾把 Subscribe 原样抄进 OnDisable）。
             EventBus.Unsubscribe(BattleEvents.TurnStarted, OnTurnStarted);
             EventBus.Unsubscribe(BattleEvents.TurnEnded, OnTurnEnded);
             EventBus.Unsubscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
@@ -353,37 +315,6 @@ namespace PirateCrew.Battle
             RestoreTimeScale();
         }
 
-        void Update()
-        {
-            // 暂停中：冻结手动相机输入，画面平滑交由 LateUpdate 原样收敛。
-            if (BattlePause.IsPaused)
-                return;
-
-            // 拉模型采样输入（消费顺序确定，无双 Update 帧序抖动）。
-            if (input != null)
-            {
-                CameraInputFrame frame = input.Sample(ObserveMode,
-                    mainCamera != null ? mainCamera.transform : transform);
-
-                _targetYaw += frame.YawDeltaDegrees;
-
-                if (frame.FreeAnchorToggleRequested)
-                    ToggleFreeAnchor();
-
-                if (ObserveMode)
-                {
-                    _observePitchDegrees = Mathf.Clamp(
-                        _observePitchDegrees + frame.ObservePitchDeltaDegrees, 12f, 78f);
-                    if (_freeAnchorActive && frame.ObserveFlyDelta != Vector3.zero)
-                        _freeAnchorPosition += frame.ObserveFlyDelta;
-                }
-            }
-
-            // 滚轮不承担任何缩放/比例职责（创始人裁决，多次重申：滚轮别缩放、也别步进像素档，
-            // 曾经的"滚轮步进像素档"与俯仰角冲突，已整体移除）。瞄准态滚轮归投掷域（力度微调，
-            // 见 AimThrowController）；像素比例档唯一入口 = 设置界面（待接线，见待办 4e）。
-        }
-
         void LateUpdate()
         {
             float unscaledDt = Time.unscaledDeltaTime;
@@ -392,30 +323,43 @@ namespace PirateCrew.Battle
             AdvancePushIn(unscaledDt);
             AdvanceHitStop(unscaledDt);
             AdvanceDip(unscaledDt);
-            AdvanceScopeBlend(unscaledDt);
 
-            Vector3 goal = ResolveGoalPosition();
+            // ---- 按交互状态分派相机模式（拉模型：所有 Update 已跑完，无帧序竞态）----
+            BattleIntentFrame intent = interaction != null ? interaction.LastIntent : default;
+            InteractionState state = interaction != null
+                ? interaction.State
+                : InteractionState.FreeCamera;
 
-            // 聚焦平滑速率：旁观更慢（看戏）；跟随弹体时也更慢更轻（M4 §3.2"轻跟+迟滞"）。
-            float focusScale = _spectator ? CameraFeelRules.SpectatorFocusScale : 1f;
-            if (_followState == CameraFollowState.FollowProjectile)
-                focusScale = Mathf.Min(focusScale, CameraFeelRules.ProjectileFollowFocusScale);
-            float lerp = focusLerpPerSecond * focusScale;
-            float t = CameraFeelRules.ApproachAlpha(lerp, Time.deltaTime);
+            if (InteractionRules.CameraAcceptsInput(state))
+            {
+                if (state == InteractionState.FreeCamera)
+                    ApplyFreeFlyInput(intent);
+                else
+                    ApplyOrbitInput(intent);
+            }
+            // OpLock / Executing：不接受任何相机输入（目标位姿保持）。
+
+            // ---- 解析焦点目标（跟随态覆盖；环绕态锁定选中单位；自由态用 _goalPosition）----
+            _goalPosition = ResolveGoalPosition(state);
+
+            // ---- 平滑 ----
+            float focusScale = _followState == CameraFollowState.FollowProjectile
+                ? CameraFeelRules.ProjectileFollowFocusScale
+                : 1f;
+            float t = CameraFeelRules.ApproachAlpha(focusLerpPerSecond * focusScale, Time.deltaTime);
             if (!_cleanInitialized)
             {
-                _cleanPosition = goal;
+                _cleanPosition = _goalPosition;
                 _cleanInitialized = true;
             }
             else
             {
-                _cleanPosition = Vector3.Lerp(_cleanPosition, goal, t);
+                _cleanPosition = Vector3.Lerp(_cleanPosition, _goalPosition, t);
             }
 
-            // 手动档平滑（yaw / OrthoSize 各自的指数曲线）。
-            SmoothManualCamera(Time.deltaTime);
+            SmoothManualCamera(Time.deltaTime, state);
 
-            // ---- 震屏采样：玩家按住左键（拖拽瞄准）期间一律为 0，保证不影响瞄准精度判定 ----
+            // ---- 震屏采样：玩家按住左键期间一律为 0，保证不影响瞄准精度判定 ----
             Vector2 shake2D = Vector2.zero;
             float roll = 0f;
             if (enableShake && !IsAimingInputHeld()
@@ -427,7 +371,6 @@ namespace PirateCrew.Battle
                     _shakeElapsed, _shakeDuration, _shakeRoll, _shakeFrequency, _shakePhase);
             }
             _shakeElapsed += unscaledDt;
-            // 跨入下一帧后回到 elapsed 口径的守卫（同帧内多个事件才用 _shakeJustStarted）。
             _shakeJustStarted = false;
 
             float dipOffset = _dipActive
@@ -435,27 +378,19 @@ namespace PirateCrew.Battle
                 : 0f;
 
             // ---- 组装本帧取景 ----
-            // 焦点先定：自由锚 > 跟随弹体（原链 vcam.Follow 直切弹体、无阻尼 → 精确位置）> 平滑焦点。
             Vector3 appliedFocus = ResolveAppliedFocus();
-
             Vector3 basePosition = CameraFraming.ComputePosition(
-                appliedFocus, _manualYaw, OffsetPitchForFraming, CameraFraming.BaseDistance);
+                appliedFocus, _yaw, _pitch, CameraFraming.BaseDistance);
 
-            // 朝向 = **看向焦点**（LookRotation(focus − position)）——右键环绕时画面**绕焦点转动**，
-            // 这才是创始人裁决的"旋转"；旧实现朝向恒烘焙机位，环绕在视觉上是平移拖拽
-            // （2026-09-23 定案推翻"环绕不重瞄"）。震屏的相机平面基向量取自它。
+            // 朝向 = 看向焦点（环绕必须重瞄 = 画面绕焦点转动，2026-09-23 裁决沿用）。
             Quaternion rotation = CameraFraming.ComputeRotationLooking(
                 (appliedFocus - basePosition).normalized, roll);
-
-            // 原链 cameraTarget.position 的等价物（锚定/观察进入时取它，保持同一瞬时值语义）。
-            _cameraTargetDirtyPosition = appliedFocus + Vector3.up * dipOffset
-                + CameraFraming.PlaneOffsetToWorld(shake2D, rotation);
 
             Vector3 position = basePosition + Vector3.up * dipOffset
                 + CameraFraming.PlaneOffsetToWorld(shake2D, rotation);
 
             float orthoSize = CameraFraming.ComposeOrthoSize(
-                _manualOrthoSize, _scopeBlend, aiSpectatorEnabled, _spectator,
+                _targetOrthoSize,
                 _pushInActive, _pushInElapsed, selectionPushInDurationSeconds, selectionPushInDegrees);
 
             var frame = new CameraFrame
@@ -468,8 +403,7 @@ namespace PirateCrew.Battle
             ApplyFrame(frame);
         }
 
-        /// <summary>把一帧取景写到主相机。**全工程只有这里写主相机的 transform / orthographicSize**
-        /// （near/far 在 Awake 写一次；far 另有 <see cref="SetFarClipForSpan"/> 例外口）。</summary>
+        /// <summary>把一帧取景写到主相机。**全工程只有这里写主相机的 transform / orthographicSize**。</summary>
         void ApplyFrame(in CameraFrame frame)
         {
             if (mainCamera == null)
@@ -479,83 +413,84 @@ namespace PirateCrew.Battle
                 mainCamera.orthographicSize = frame.OrthoSize;
         }
 
-        /// <summary>
-        /// 机位偏移用的俯角：正常恒锁 <see cref="CameraFraming.BasePitchDegrees"/> 30°；
-        /// 观察模式（调试出口）允许自由俯仰——只改**偏移方向**，不改朝向（实机等价，见 CameraFraming 类头）。
-        /// </summary>
-        float OffsetPitchForFraming => ObserveMode ? _observePitchDegrees : CameraFraming.BasePitchDegrees;
-
-        /// <summary>
-        /// 本帧的取景焦点：自由锚激活 → 锚点（相机冻结）；跟随弹体 → 弹体精确位置
-        /// （原链 vcam.Follow 直切弹体、Transposer 阻尼 0 → 无平滑）；其余 → 平滑焦点。
-        /// </summary>
-        Vector3 ResolveAppliedFocus()
-        {
-            if (_freeAnchorActive)
-                return _freeAnchorPosition;
-            if (_followState == CameraFollowState.FollowProjectile && _followTarget != null)
-                return _followTarget.position;
-            return _cleanPosition;
-        }
-
         // ------------------------------------------------------------------
-        // 对外 API（保持既有语义）
+        // 模式输入
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 聚焦到某 Transform（回合开始 / 选中角色时调用）。**同时进入基准机位**（用户裁决：
-        /// "开局/每次换行动单位时镜头进入跟随特写"），lookAt 抬到单位胸/头高度。
+        /// 自由镜头（编辑器飞行式）：按住右键时转视角 + WASD/QE 飞行。
+        /// 转视角是**原地转身**：机位不动——数学上保持 <c>机位 = 焦点 + Offset(方位,俯角)</c>
+        /// 的恒等（Offset 从焦点指向相机），方位/俯角变化时用 Offset 差补偿焦点；
+        /// 方位/俯角直写（鼠标输入即目标，无平滑滞后，编辑器飞行手感）；俯角夹取 [15°, 80°]。
         /// </summary>
-        public void FocusOn(Transform target)
+        void ApplyFreeFlyInput(in BattleIntentFrame intent)
         {
-            if (target == null)
+            if (!intent.LookHeld)
                 return;
 
-            _focusTarget = target;
-            _goalPosition = CameraFraming.FocusTargetPoint(target.position);
-            CancelFollow();
-            EnterCloseUpView();
-            StartPushIn();
+            bool rotated = !Mathf.Approximately(intent.LookYawDelta, 0f)
+                           || !Mathf.Approximately(intent.LookPitchDelta, 0f);
+            if (rotated)
+            {
+                Vector3 oldOffset = CameraFraming.ComputeFocusOffset(
+                    _targetYaw, _targetPitch, CameraFraming.BaseDistance);
+                _targetYaw += intent.LookYawDelta;
+                _targetPitch = Mathf.Clamp(
+                    _targetPitch + intent.LookPitchDelta, freePitchMinDegrees, freePitchMaxDegrees);
+                Vector3 newOffset = CameraFraming.ComputeFocusOffset(
+                    _targetYaw, _targetPitch, CameraFraming.BaseDistance);
+
+                // 原地转身：机位不动 ⇒ 焦点补偿 Offset 差（机位 = 焦点 + Offset）。
+                _cleanPosition += oldOffset - newOffset;
+                _goalPosition = _cleanPosition;
+            }
+
+            if (intent.FlyMove != Vector3.zero)
+            {
+                // 沿当前朝向的水平基向量平移（与画面所见一致）。
+                Vector3 offset = CameraFraming.ComputeFocusOffset(
+                    _yaw, _pitch, CameraFraming.BaseDistance);
+                Vector3 forward = new Vector3(-offset.x, 0f, -offset.z).normalized;
+                Vector3 right = new Vector3(forward.z, 0f, -forward.x);
+                float speed = freeFlySpeed * (intent.FlyFast ? freeFlyFastScale : 1f);
+                _cleanPosition += (forward * intent.FlyMove.z + right * intent.FlyMove.x
+                    + Vector3.up * intent.FlyMove.y) * (speed * Time.deltaTime);
+                _goalPosition = _cleanPosition;
+            }
         }
 
-        /// <summary>聚焦到某世界坐标（一次性）。同样回到基准机位（换机位即回到"操作当前角色"的距离感）。</summary>
-        public void FocusOn(Vector3 worldPosition)
+        /// <summary>选中 · 环绕：右键拖拽改方位角（平滑）；俯角目标回基准 30°（平滑）。</summary>
+        void ApplyOrbitInput(in BattleIntentFrame intent)
         {
-            _focusTarget = null;
-            _goalPosition = worldPosition;
-            CancelFollow();
-            EnterCloseUpView();
-            StartPushIn();
+            _targetPitch = CameraFraming.BasePitchDegrees;
+            if (intent.OrbitDragHeld)
+                _targetYaw += intent.LookYawDelta;
         }
 
-        /// <summary>解除跟随（相机停在当前位置）。</summary>
-        public void Release()
+        /// <summary>位姿平滑：环绕/回焦态方位与俯角指数逼近目标；自由镜头直写（转身零滞后）。</summary>
+        void SmoothManualCamera(float deltaTime, InteractionState state)
         {
-            _focusTarget = null;
-            CancelFollow();
+            if (state == InteractionState.FreeCamera)
+            {
+                // 自由镜头：ApplyFreeFlyInput 已直写目标；现实值直接跟随（无平滑）。
+                _yaw = _targetYaw;
+                _pitch = _targetPitch;
+                return;
+            }
+
+            float t = CameraFeelRules.ApproachAlpha(orbitSmoothingPerSecond, deltaTime);
+            if (!Mathf.Approximately(_yaw, _targetYaw))
+                _yaw = Mathf.Lerp(_yaw, _targetYaw, t);
+            if (!Mathf.Approximately(_pitch, _targetPitch))
+                _pitch = Mathf.Lerp(_pitch, _targetPitch, t);
         }
 
         // ------------------------------------------------------------------
-        // 机位档位
+        // 焦点目标解析
         // ------------------------------------------------------------------
 
-        /// <summary>
-        /// 进入基准机位：OrthoSize 立刻切到 <see cref="CameraFraming.CloseUpOrthoSize"/>，yaw 归零
-        /// （回到烘焙机位朝向：方位 45° 对称构图），并立即生效——"开局 / 换行动单位即基准"，不平滑过渡。
-        /// </summary>
-        void EnterCloseUpView()
-        {
-            _manualYaw = 0f;
-            _targetYaw = 0f;
-            _manualOrthoSize = CameraFraming.CloseUpOrthoSize;
-            _targetOrthoSize = CameraFraming.CloseUpOrthoSize;
-        }
-
-        // ------------------------------------------------------------------
-        // 目标解析
-        // ------------------------------------------------------------------
-
-        Vector3 ResolveGoalPosition()
+        /// <summary>本帧的焦点目标：跟随弹体 > 环绕选中单位（取景点）> 自由/操作/执行态的 _goalPosition。</summary>
+        Vector3 ResolveGoalPosition(InteractionState state)
         {
             switch (_followState)
             {
@@ -563,23 +498,38 @@ namespace PirateCrew.Battle
                     return _followTarget != null ? _followTarget.position : _followLastPosition;
 
                 case CameraFollowState.DetonationHold:
-                    return _goalPosition;
+                    return _deathHoldUntilUnscaled > Time.unscaledTime
+                        ? _deathHoldPosition
+                        : _goalPosition;
 
                 case CameraFollowState.ReturnToFocus:
-                    return _focusTarget != null ? CameraFraming.FocusTargetPoint(_focusTarget.position) : _returnGoal;
+                    if (interaction != null && interaction.SelectedTarget != null)
+                        return CameraFraming.FocusTargetPoint(interaction.SelectedTarget.position);
+                    return _returnGoal;
             }
 
-            // None：落水定焦窗口内先看落水点，否则看当前行动角色（含 lookAt 抬高）。
+            // None：落水定焦窗口内先看落水点；环绕态锁定选中单位；其余维持 _goalPosition。
             if (Time.unscaledTime < _deathHoldUntilUnscaled)
                 return _deathHoldPosition;
-            return _focusTarget != null ? CameraFraming.FocusTargetPoint(_focusTarget.position) : _goalPosition;
+            if (state == InteractionState.SelectedIdle
+                && interaction != null && interaction.SelectedTarget != null)
+                return CameraFraming.FocusTargetPoint(interaction.SelectedTarget.position);
+            return _goalPosition;
+        }
+
+        /// <summary>本帧的取景焦点：跟随弹体 → 弹体精确位置（无平滑，原链阻尼 0 语义）；其余 → 平滑焦点。</summary>
+        Vector3 ResolveAppliedFocus()
+        {
+            if (_followState == CameraFollowState.FollowProjectile && _followTarget != null)
+                return _followTarget.position;
+            return _cleanPosition;
         }
 
         // ------------------------------------------------------------------
         // 震屏
         // ------------------------------------------------------------------
 
-        /// <summary>玩家是否按住左键（正在拖拽瞄准）。此时抑制震屏，保证瞄准用的相机基向量稳定。</summary>
+        /// <summary>玩家是否按住左键（瞄准输入）。此时抑制震屏，保证瞄准用的相机基向量稳定。</summary>
         static bool IsAimingInputHeld()
         {
             return Input.GetMouseButton(0);
@@ -598,10 +548,6 @@ namespace PirateCrew.Battle
                 return;
 
             // 不叠加：只有更强者才替换（避免 AoE 同时命中多单位时连抖）。
-            // 守卫不能只看「_shakeElapsed > 0」：刚启动的事件 elapsed==0，
-            // 旧守卫会让同帧后到的更弱事件把它顶掉（strongest-wins 失效）。
-            // 故用「本帧已设震屏」标志补充识别播放中；刚启动时取峰值振幅比较
-            // （CurrentShakeAmplitude 在 elapsed==0 时按定义返回 0，不是有效的"当前强度"）。
             bool shakePlaying = _shakeJustStarted
                                 || (_shakeElapsed > 0f && _shakeElapsed < _shakeDuration);
             float currentAmplitude = _shakeJustStarted
@@ -697,21 +643,18 @@ namespace PirateCrew.Battle
 
         void BeginFollow(Transform target)
         {
-            // 任何一次跟随开始都退出自由锚（原链 BeginFollow → ExitFreeAnchor 的语义）。
-            ExitFreeAnchor();
             _followTarget = target;
             _followState = CameraFollowState.FollowProjectile;
             _followStateElapsed = 0f;
             _followLastPosition = target.position;
-            _returnGoal = _focusTarget != null
-                ? CameraFraming.FocusTargetPoint(_focusTarget.position)
+            _returnGoal = interaction != null && interaction.SelectedTarget != null
+                ? CameraFraming.FocusTargetPoint(interaction.SelectedTarget.position)
                 : _cleanPosition;
         }
 
         /// <summary>结束跟随并停在 <paramref name="position"/>（平滑焦点同步搬过去，切回不跳帧）。</summary>
         void EndFollowAt(Vector3 position)
         {
-            ExitFreeAnchor();
             _followLastPosition = position;
             _cleanPosition = position;
             _goalPosition = position;
@@ -726,9 +669,6 @@ namespace PirateCrew.Battle
         {
             if (_followState == CameraFollowState.None && _followTarget == null)
                 return;
-
-            if (_followState == CameraFollowState.FollowProjectile)
-                ExitFreeAnchor();
 
             _followState = CameraFollowState.None;
             _followTarget = null;
@@ -773,14 +713,13 @@ namespace PirateCrew.Battle
             // 进入 DetonationHold 由 OnProjectileDetonated 直接设定；此处只处理其余迁移。
             if (next == CameraFollowState.None || next == CameraFollowState.ReturnToFocus)
             {
-                ExitFreeAnchor();
                 _followTarget = null;
                 _followPirate = null;
                 _followProjectile = null;
                 if (next == CameraFollowState.ReturnToFocus)
                 {
-                    _returnGoal = _focusTarget != null
-                        ? CameraFraming.FocusTargetPoint(_focusTarget.position)
+                    _returnGoal = interaction != null && interaction.SelectedTarget != null
+                        ? CameraFraming.FocusTargetPoint(interaction.SelectedTarget.position)
                         : _followLastPosition;
                     // 从落点平滑回焦，而不是瞬移。
                     _goalPosition = _returnGoal;
@@ -792,82 +731,12 @@ namespace PirateCrew.Battle
         }
 
         // ------------------------------------------------------------------
-        // 观察模式 / 自由锚（标注的调试/辅助出口）
+        // 推近 / 下压
         // ------------------------------------------------------------------
-
-        /// <summary>
-        /// 进入/退出观察模式（HUD 模式 3 调用）：进入 = 焦点冻结在当前锚点 + 鼠标转视角 + WASD 飞行；
-        /// 退出 = 恢复跟随。
-        /// </summary>
-        public void SetObserveMode(bool on)
-        {
-            if (ObserveMode == on)
-                return;
-
-            ObserveMode = on;
-            if (on)
-            {
-                _observePitchDegrees = Mathf.Clamp(CameraFraming.BasePitchDegrees, 12f, 78f);
-                if (!_freeAnchorActive)
-                    _freeAnchorPosition = CurrentFollowOrDirtyPosition();
-                _freeAnchorActive = true;
-            }
-            else
-            {
-                ExitFreeAnchor();
-            }
-        }
-
-        /// <summary>中键：把焦点冻结在当前位置（相机不再跟人，环绕即自由视角）；再按恢复。
-        /// 只动锚不动观察模式——两个调试出口互相独立（与原实现一致）。</summary>
-        void ToggleFreeAnchor()
-        {
-            if (_freeAnchorActive)
-            {
-                _freeAnchorActive = false;
-            }
-            else
-            {
-                _freeAnchorPosition = CurrentFollowOrDirtyPosition();
-                _freeAnchorActive = true;
-            }
-        }
-
-        /// <summary>
-        /// 自由锚的取点：原链取 vcam.Follow 的位置（跟随中 = 弹体；否则 = cameraTarget 的**瞬时脏值**，
-        /// 含当帧震屏/下压——同一语义）。
-        /// </summary>
-        Vector3 CurrentFollowOrDirtyPosition()
-        {
-            if (_followState == CameraFollowState.FollowProjectile && _followTarget != null)
-                return _followTarget.position;
-            return _cameraTargetDirtyPosition;
-        }
-
-        /// <summary>任何一次聚焦/跟随赋前调用：自由视角是临时态，聚焦即回归跟随（原 ExitFreeAnchor 语义）。</summary>
-        void ExitFreeAnchor()
-        {
-            ObserveMode = false;
-            _freeAnchorActive = false;
-        }
-
-        // ------------------------------------------------------------------
-        // Scope 混合 / 推近 / 下压
-        // ------------------------------------------------------------------
-
-        /// <summary>Scope FOV 混合推进（暂停时也收敛）：目标态取自 <see cref="AimThrowController.IsScopeActive"/>。</summary>
-        void AdvanceScopeBlend(float unscaledDt)
-        {
-            // aimThrow 由 Awake 一次性解析（装配注入优先），此处只读——不再每帧 FindObjectOfType。
-            bool desired = aimThrow != null && aimThrow.IsScopeActive;
-            float step = unscaledDt / Mathf.Max(1e-4f, CameraFeelRules.ScopeBlendSeconds);
-            _scopeBlend = Mathf.MoveTowards(_scopeBlend, desired ? 1f : 0f, step);
-        }
 
         void StartPushIn()
         {
-            if (!_baseOrthoSizeCaptured || selectionPushInDegrees <= 0f
-                || selectionPushInDurationSeconds <= 0f)
+            if (selectionPushInDegrees <= 0f || selectionPushInDurationSeconds <= 0f)
                 return;
 
             _pushInElapsed = 0f;
@@ -910,42 +779,37 @@ namespace PirateCrew.Battle
             }
         }
 
-        /// <summary>手动档平滑：yaw 与 OrthoSize 各自的指数曲线（落盘统一在 LateUpdate 的帧组装里）。</summary>
-        void SmoothManualCamera(float deltaTime)
-        {
-            float t = CameraFeelRules.ApproachAlpha(manualSmoothingPerSecond, deltaTime);
-
-            if (!Mathf.Approximately(_manualYaw, _targetYaw))
-                _manualYaw = Mathf.Lerp(_manualYaw, _targetYaw, t);
-
-            if (!Mathf.Approximately(_manualOrthoSize, _targetOrthoSize))
-                _manualOrthoSize = Mathf.Lerp(_manualOrthoSize, _targetOrthoSize, t);
-        }
-
         // ------------------------------------------------------------------
         // EventBus 回调
         // ------------------------------------------------------------------
 
         void OnTurnStarted(TurnStartedPayload turn)
         {
-            // §3.2 panToCharacter：TurnStartedPayload 已带默认镜头目标。
-            _spectator = false;
-
+            // §3.2 panToCharacter：回合开始的**平滑提示**（不瞬跳、不抢玩家镜头——
+            // 自由镜头下玩家一动输入即接管；选中环绕由 SelectedTarget 每帧锁定，不经这里）。
             if (turn.PanTarget != null)
-                FocusOn(turn.PanTarget);
+            {
+                _goalPosition = CameraFraming.FocusTargetPoint(turn.PanTarget.position);
+                StartPushIn();
+            }
         }
 
         void OnTurnEnded(int teamNumber)
         {
-            // 载荷是队伍编号，本控制器不用——只借"回合结束"这个时机退出旁观态。
-            _spectator = false;
+            // 只借"回合结束"这个时机清落水定焦窗口（若有残留）。
+            _deathHoldUntilUnscaled = 0f;
         }
 
         void OnCameraFocusRequested(Transform target)
         {
-            // FocusRequested 在规则层优先级最高：任何时候都取消跟随（回合推进绝不被跟随拖住）。
-            if (target != null)
-                FocusOn(target);
+            // 选中反馈：自由镜头下平滑把焦点挪向该单位（环绕/操作态不抢——环绕由拉模型锁定）。
+            if (target == null)
+                return;
+            if (interaction != null && interaction.State != InteractionState.FreeCamera)
+                return;
+
+            _goalPosition = CameraFraming.FocusTargetPoint(target.position);
+            StartPushIn();
         }
 
         void OnActionSelected(ActionSelectedPayload action)
@@ -1021,7 +885,7 @@ namespace PirateCrew.Battle
 
             if (pirate.Drowned)
             {
-                // §4.4 落水即死：焦点短暂停在落水点并轻微下压（下沉/淡出由视觉层负责，这里只做镜头）。
+                // §4.4 落水即死：焦点短暂停在落水点并轻微下压。
                 StartDrownDip(pirate.transform.position);
             }
             else if (enableShake)
@@ -1034,7 +898,6 @@ namespace PirateCrew.Battle
 
         void OnMatchFinished(MatchFinishedPayload payload)
         {
-            _spectator = false;
             _pushInActive = false;
             CancelFollow();
             _dipActive = false;
@@ -1080,7 +943,6 @@ namespace PirateCrew.Battle
         {
             if (battle == null)
                 return null;
-
             IReadOnlyList<WeaponProjectile> all = battle.AllProjectiles;
             for (int i = all.Count - 1; i >= 0; i--)
             {
@@ -1096,7 +958,6 @@ namespace PirateCrew.Battle
         {
             if (battle == null)
                 return null;
-
             IReadOnlyList<PirateBase> all = battle.AllPirates;
             for (int i = 0; i < all.Count; i++)
             {

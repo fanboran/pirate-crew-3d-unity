@@ -200,13 +200,6 @@ namespace PirateCrew.Battle.Tests
             Assert.AreEqual(60f, CameraFeelRules.PushInFov(60f, 1.5f, 0.1f, 0f), 1e-6f);
         }
 
-        [Test]
-        public void SpectatorFov_WidensOnlyWhenSpectating()
-        {
-            Assert.AreEqual(60f, CameraFeelRules.SpectatorFov(60f, 1.5f, false), 1e-6f);
-            Assert.AreEqual(61.5f, CameraFeelRules.SpectatorFov(60f, 1.5f, true), 1e-6f);
-        }
-
         // ------------------------------------------------------------------
         // 落水下压
         // ------------------------------------------------------------------
@@ -450,23 +443,12 @@ namespace PirateCrew.Battle.Tests
         }
 
         // ------------------------------------------------------------------
-        // M4 手感：Scope（docs/项目/归档/M4-世界化/大海域世界化.md §3.2，已归档；提案数值）
+        // M4 手感：弹体追焦（Scope/旁观已随两态重构退役）
         // ------------------------------------------------------------------
 
         [Test]
-        public void ScopeFov_BlendsFromBaseToSniperTarget()
+        public void ProjectileFollowFocusScale_IsSubUnitDecelerator()
         {
-            Assert.AreEqual(60f, CameraFeelRules.ScopeFov(60f, 0f), 1e-5f, "未进入 Scope = 基准 FOV");
-            Assert.AreEqual(CameraFeelRules.ScopeTargetFov, CameraFeelRules.ScopeFov(60f, 1f), 1e-5f, "完全进入 = 28");
-            Assert.AreEqual(44f, CameraFeelRules.ScopeFov(60f, 0.5f), 1e-4f);
-        }
-
-        [Test]
-        public void Scope_Constants_AreSensible()
-        {
-            Assert.AreEqual(28f, CameraFeelRules.ScopeTargetFov, 1e-4f, "M4 §3.2：FOV 60→28");
-            Assert.AreEqual(0.25f, CameraFeelRules.ScopeBlendSeconds, 1e-4f, "M4 §3.2：平滑收敛 0.25s");
-            Assert.AreEqual(0.4f, CameraFeelRules.ScopeAimSensitivityScale, 1e-4f, "M4 §3.2：灵敏度 ×0.4");
             Assert.That(CameraFeelRules.ProjectileFollowFocusScale,
                 Is.InRange(0f, 1f), "追焦平滑缩放应是减速因子");
             Assert.Less(CameraFeelRules.ProjectileFollowFocusScale, 1f, "追焦要比回焦更慢（迟滞感）");

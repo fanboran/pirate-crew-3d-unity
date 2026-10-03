@@ -28,14 +28,13 @@ namespace PirateCrew.Battle
     }
 
     /// <summary>
-    /// 把一次「选武器 → 松手」翻译成弹体生成计划（纯 C#，可无头测试）。
+    /// 把一次「确认执行」翻译成弹体生成计划（纯 C#，可无头测试）。
     ///
-    /// 【单一弹道】全部武器都走同一条通用抛掷：生成点 = 投掷者位置，初速 =
-    /// <see cref="LevelGeometry.FlashLaunchVelocityToWorld(float, float, float)"/>（重量分流既有通道，
-    /// 标准炸弹 weight &gt; 0 → 固定抬升仰角）。一次使用产 1 条弹。
+    /// 【单一弹道】全部武器都走同一条通用抛掷：生成点 = 投掷起点（单位枢轴 + ThrowOriginHeight），
+    /// 初速 = 调用方传入的**米制世界向量**（<see cref="StandardThrowRules.LaunchVelocity"/>，
+    /// 与角色自抛、轨迹预览同一份值）。一次使用产 1 条弹。
     ///
-    /// 【同源约束】与角色自抛、轨迹预览共用同一换算入口
-    /// （<c>LevelGeometry.ThrowVelocityForWeight</c> 的按重量分流），保证预览 = 实弹。
+    /// 【同源约束】本类不做任何弹道换算——「预览 = 实弹」由调用方传同一初速保证。
     /// </summary>
     public static class ProjectileSpawnPlanner
     {
@@ -43,26 +42,15 @@ namespace PirateCrew.Battle
         /// 规划一次武器使用产生的弹体。
         /// </summary>
         /// <param name="stats">武器数值（数据锚；物理口径取标准炸弹）。</param>
-        /// <param name="ownerWorldPosition">投掷者世界坐标（弹弓发射点）。</param>
-        /// <param name="aimWorldPosition">瞄准落点世界坐标（抛掷路径不消费，保留入参以稳定调用方签名）。</param>
-        /// <param name="vxFlash">弹弓初速 vx（Flash px/帧，由 <c>Ballistics.TwangVelocity</c> 算好）。</param>
-        /// <param name="vyFlash">弹弓初速 vy（Flash px/帧）。</param>
+        /// <param name="originWorld">投掷起点世界坐标（ThrowOrigin 高度）。</param>
+        /// <param name="velocity">米制初速向量（与预览/自抛同源）。</param>
         public static IReadOnlyList<ProjectileSpawn> Plan(
             WeaponStats stats,
-            Vector3 ownerWorldPosition,
-            Vector3 aimWorldPosition,
-            float vxFlash,
-            float vyFlash)
+            Vector3 originWorld,
+            Vector3 velocity)
         {
-            // stats 为数据锚入参：抛掷初速与落点只由标准口径与弹弓结果决定，不按武器分叉
-            //（aimWorldPosition 同理保留，稳定调用方签名）。
-
-            // 与角色投掷、轨迹预览共用同一个换算入口（按 weight 分流的抬升，
-            // 见 LevelGeometry.ThrowVelocityForWeight）：标准炸弹 weight>0，
-            // 走固定仰角抬升的抛物线弹道。
-            Vector3 velocity = LevelGeometry.FlashLaunchVelocityToWorld(
-                vxFlash, vyFlash, StandardBombRules.Weight);
-            return new[] { new ProjectileSpawn(ownerWorldPosition, velocity, kinematic: false) };
+            // stats 为数据锚入参：抛掷初速只由标准投掷模组参数决定，不按武器分叉。
+            return new[] { new ProjectileSpawn(originWorld, velocity, kinematic: false) };
         }
     }
 }

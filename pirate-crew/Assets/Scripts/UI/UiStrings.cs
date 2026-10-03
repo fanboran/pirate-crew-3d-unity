@@ -230,38 +230,47 @@ namespace PirateCrew.UI
         /// <summary>电脑回合提示。</summary>
         public const string BattleTurnAi = "电脑回合，行动中……";
 
-        /// <summary>模式开关：移动。</summary>
-        public const string BattleModeMove = "移动";
-
-        /// <summary>模式开关：操作。</summary>
-        public const string BattleModeAction = "操作";
-
-        /// <summary>模式开关：观察（r12 用户裁决；我的世界同款鼠标转视角）。</summary>
-        public const string BattleModeObserve = "观察";
-
         /// <summary>抛自己按钮（r12 用户裁决：对外文案叫"跳跃"，机制仍是抛出自己）。</summary>
         public const string BattleThrowSelf = "跳跃";
 
         /// <summary>结束回合按钮。</summary>
         public const string BattleEndGo = "结束回合";
 
-        /// <summary>力度数字模板（瞄准态，不标「力度」二字）。</summary>
+        /// <summary>力度数字模板（操作中读数，不标「力度」二字）。</summary>
         public const string BattleStrengthFormat = "{0}%";
 
-        /// <summary>力度完整写法模板（非瞄准态）。</summary>
-        public const string BattleStrengthLabelFormat = "力度 {0}%";
+        /// <summary>操作 HUD 的方向角读数标签。</summary>
+        public const string BattleYawLabel = "方向";
+
+        /// <summary>操作 HUD 的仰角读数标签。</summary>
+        public const string BattleElevationLabel = "仰角";
+
+        /// <summary>操作 HUD 的仰角读数模板（度）。</summary>
+        public const string BattleElevationFormat = "{0}°";
+
+        /// <summary>操作确认按钮（回车同义；2 字动宾）。</summary>
+        public const string BattleConfirmOperation = "发射";
+
+        /// <summary>操作取消按钮（Esc 同义）。</summary>
+        public const string BattleCancelOperation = "取消";
 
         /// <summary>武器列表标题。</summary>
         public const string BattleWeaponListTitle = "选择武器";
 
-        /// <summary>操作提示：操作模式（炮台开火，对号 <c>BattleHudMode.Act</c>）。</summary>
-        public const string BattleHintAiming = "AD 转向　WS 力度　回车开炮";
+        /// <summary>操作提示：自由镜头（编辑器飞行式，2026-10-03 两态裁决）。</summary>
+        public const string BattleHintFreeCamera = "按住右键飞行观察　左键选中单位";
 
-        /// <summary>操作提示：移动模式（对号 <c>BattleHudMode.Move</c>）。</summary>
-        public const string BattleHintMove = "左键选角色　拖动转视角　滚轮力度　空格跳";
+        /// <summary>操作提示：选中浏览。</summary>
+        public const string BattleHintSelected = "右键环绕　点武器或跳跃开始操作";
 
-        /// <summary>操作提示：观察模式（对号 <c>BattleHudMode.Observe</c>）。</summary>
-        public const string BattleHintObserve = "WASD 移动　Esc 返回";
+        /// <summary>操作提示：操作中（标准投掷模组键位）。</summary>
+        public const string BattleHintOperation = "A/D 方向　W/S 仰角　空格/Shift 力度　回车发射";
+
+        /// <summary>操作提示：执行中。</summary>
+        public const string BattleHintExecuting = "飞行中……";
+
+        /// <summary>操作提示：暂停中。</summary>
+        public const string BattleHintPaused = "已暂停　P 或 Esc 继续";
 
         /// <summary>小地图面板标题。</summary>
         public const string BattleMinimapTitle = "海图";

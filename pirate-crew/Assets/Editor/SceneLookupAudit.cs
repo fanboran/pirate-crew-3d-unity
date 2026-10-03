@@ -104,13 +104,13 @@ namespace PirateCrew.EditorTools
             new WhitelistEntry
             {
                 Path = "PirateCrew/Battle/BattleCameraDriver.cs",
-                Token = "FindObjectOfType<AimThrowController>",
+                Token = "FindObjectOfType<BattleInteractionController>",
                 LineAtRegistration = 386,
                 Kind = Kind.Runtime,
                 Reason = "**一次性装配兜底**（Awake 里跑一次，HotPath 的 Update/LateUpdate 轮询已彻底删除）："
                          + "场景是装配脚本的产物，未跑 BattleLookupWiring.Wire 的旧场景该字段为空。"
                          + "兜底把\"静默失效\"降级成\"可用但吵闹\"，而真正的装配缺陷由 "
-                         + "AimThrowWiredByAssembly（PlayMode 测试断言）失败暴露——注入是正路，兜底只是防静默。",
+                         + "InteractionWiredByAssembly（PlayMode 测试断言）失败暴露——注入是正路，兜底只是防静默。",
             },
             new WhitelistEntry
             {
