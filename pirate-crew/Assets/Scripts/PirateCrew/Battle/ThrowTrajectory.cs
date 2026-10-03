@@ -104,6 +104,50 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
+        /// **落点终止采样**（预览重做，投掷行为契约 #9）：半隐式欧拉积分到首次穿地——
+        /// 跨越 <paramref name="groundY"/> 的那一步按 y 线性插值出恰好落在地面上的终点，
+        /// 因此写入的全部采样点 **y ≥ groundY**（不入地），末点即预测落点。
+        /// 步数上限 <paramref name="maxSteps"/> 兜底（默认
+        /// <see cref="StandardThrowRules.PreviewMaxSteps"/> = 300 步 = 12 s）；
+        /// 到上限仍未穿地（如极限平射出图）返回 <c>false</c> 且不写终点。
+        /// </summary>
+        /// <returns>写入 <paramref name="buffer"/> 的采样数；out 参数为预测落点（无则 zero）。</returns>
+        public static bool TryPredictUntilImpact(
+            Vector3 origin, Vector3 initialVelocity, float gravityY,
+            Vector3[] buffer, out int count, out Vector3 impact,
+            float groundY = LevelGeometry.GroundTopY,
+            int maxSteps = StandardThrowRules.PreviewMaxSteps,
+            float stepSeconds = LevelGeometry.FrameSeconds)
+        {
+            Vector3 v = initialVelocity;
+            Vector3 p = origin;
+            count = 0;
+            impact = Vector3.zero;
+
+            int limit = Mathf.Min(maxSteps, buffer.Length);
+            for (int i = 0; i < limit; i++)
+            {
+                // 与 PhysX 相同的半隐式欧拉：先更新速度，再用新速度更新位置。
+                v.y += gravityY * stepSeconds;
+                Vector3 next = p + v * stepSeconds;
+
+                if (p.y > groundY && next.y <= groundY)
+                {
+                    float span = p.y - next.y;
+                    float t = span > 1e-6f ? (p.y - groundY) / span : 0f;
+                    impact = Vector3.Lerp(p, next, t);
+                    buffer[count++] = impact;
+                    return true;
+                }
+
+                buffer[count++] = next;
+                p = next;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// 直接由"Flash 平面初速 + 按 weight 分流的抬升"采样 —— 参数与
         /// <see cref="LevelGeometry.ThrowVelocityForWeight"/> 的输入完全一致，供调用方少写一步换算。
         /// weight == 0（§5.2「无重力」）时不抬仰角、重力也为 0：预览为水平直线，

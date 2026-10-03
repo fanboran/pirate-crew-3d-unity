@@ -151,6 +151,37 @@ namespace PirateCrew.Combat.Tests
             Assert.IsTrue(TurnRules.IsTurnComplete(true, next));
         }
 
+        // ------------------------------------------------------------------
+        // 换人规则（交互操作契约 §D：未行动可换、动作后锁定）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void CanSwitchSelection_UntouchedStart_Allowed()
+        {
+            Assert.IsTrue(TurnRules.CanSwitchSelection(ActionState.Start),
+                "未抛未射未结束 → 允许换人");
+        }
+
+        [Test]
+        public void CanSwitchSelection_AfterThrowSelf_Denied()
+        {
+            // 抛自己已消耗移动 → 锁定该单位到回合结束
+            Assert.IsFalse(TurnRules.CanSwitchSelection(TurnRules.ApplyThrowSelf(ActionState.Start)));
+        }
+
+        [Test]
+        public void CanSwitchSelection_AfterUseWeapon_Denied()
+        {
+            Assert.IsFalse(TurnRules.CanSwitchSelection(TurnRules.ApplyUseWeapon(ActionState.Start)));
+        }
+
+        [Test]
+        public void CanSwitchSelection_AfterEndGo_Denied()
+        {
+            // end-go 虽 Thrown/Fired 均 false，但 CanAct 已耗尽 → 拒绝换人
+            Assert.IsFalse(TurnRules.CanSwitchSelection(TurnRules.ApplyEndGo(ActionState.Start)));
+        }
+
         [Test]
         public void ApplyThrowSelf_WhenAlreadyUsedWeapon_KeepsShootDisabled()
         {

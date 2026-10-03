@@ -151,15 +151,20 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// §3.2 <c>select</c>：选中本回合唯一行动角色；拒绝死亡角色；
-        /// 本回合已选过角色时仅 <paramref name="again"/>（continueTurn）允许重复选中。
+        /// §3.2 <c>select</c>：选中本回合唯一行动角色；拒绝死亡角色。
+        /// 本回合已选过角色时：重复选中同一角色需 <paramref name="again"/>（continueTurn）；
+        /// 改选**其他**角色 = 换人，仅当当前选中未消耗任何动作时放行
+        /// （换人规则见 <see cref="TurnRules.CanSwitchSelection"/>，交互操作契约 §D）。
         /// </summary>
         public bool Select(PirateBase pirate, bool again = false)
         {
             if (pirate == null || !pirate.Alive)
                 return false;
             if (SelectedCharacter != null && !again)
-                return false;
+            {
+                if (!TurnRules.CanSwitchSelection(SelectedCharacter.CurrentAction))
+                    return false;
+            }
 
             SelectedIndex = IndexOf(pirate);
             if (SelectedIndex < 0)
