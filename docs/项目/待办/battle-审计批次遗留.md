@@ -36,7 +36,7 @@
 
 ### 投掷批次 S2–S4（待实施）
 
-方案与依据见 [投掷机制](../../设计/投掷机制.md)，全部**提案/待定**：
+方案与依据见 [投掷机制](../../技术/投掷机制.md)，全部**提案/待定**：
 S1（炮台为唯一）已实施并入；下一批：S2 弹体弹跳/摩擦 Flash 口径接线（P0，
 `Ballistics.Integrate*` 接进 `WeaponProjectile`，bounce/friction 入 `ProjectileProfile`）→
 S3 仰角轴（`ThrowVelocityForWeight` 加默认参数，三端同源不破）→ S4 预览超射程语义。
