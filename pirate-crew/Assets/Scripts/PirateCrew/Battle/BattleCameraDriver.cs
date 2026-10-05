@@ -171,8 +171,10 @@ namespace PirateCrew.Battle
         // ---- 手动环绕（方位角；俯角锁 30° 无输入路径）----
         float _manualYaw;
         float _targetYaw;
-        float _manualOrthoSize = CameraFraming.FullFieldOrthoSize;
-        float _targetOrthoSize = CameraFraming.FullFieldOrthoSize;
+        // 【默认 = 近景基准档（创始人定值：默认 13.7 m）】初始即定值，不做「先全场再聚焦」——
+        // 旧初始全场档(34 m)口径在走查中表现为"开局镜头很远"，2026-10-05 废弃。
+        float _manualOrthoSize = CameraFraming.CloseUpOrthoSize;
+        float _targetOrthoSize = CameraFraming.CloseUpOrthoSize;
 
         // ---- 观察模式 / 自由锚（标注的调试/辅助出口，见 CameraInputReader 类头）----
         public bool ObserveMode { get; private set; }
