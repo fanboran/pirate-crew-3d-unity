@@ -341,13 +341,15 @@ namespace PirateCrew.EditorTools
             result.badgeRing.color = Color.white;
             result.badgeRing.raycastTarget = false;
 
-            // 数字压金面 → theme 选中底深字；Tiny 档（两位数回合号在 12 格内不溢）。
+            // 数字压金面 → 墨字（金面是浅底，走皮肤「浅底→墨字」规则；原 SelectedText #41444A
+            // 压金面读作灰字，2026-10-05 走查废弃）；Tiny 档（两位数回合号在 16 格内不溢）。
             result.badgeText = UiKit.CreateText("TurnText", badge, "1", UiSkin.Font.Tiny,
-                TextAlignmentOptions.Center, PixelSkin.Theme.SelectedText, MenuUiBuilder.TitleFont);
+                TextAlignmentOptions.Center, PixelSkin.Ink, MenuUiBuilder.TitleFont);
             UiKit.Stretch(result.badgeText.rectTransform);
 
-            // 提示文字（「轮到你了 / 敌方行动中」）：徽章正下方**纯文字**，
-            // 深色四向 Outline + 斜投影保可读（沙地亮部会吞裸浅色字），字色 = 暖白。
+            // 提示文字（「轮到你了 / 敌方行动中」）：徽章正下方**纯文字**，字色 = 暖白。
+            // 深色四向 Outline 收薄到 1px/0.55 并**去掉斜投影**——12px 位图字下 1.5px 描边
+            // 加投影会吃掉近半字形像素，整行读作灰字（2026-10-05 走查废弃）。
             result.turnHintText = UiKit.CreateText("TurnHintText", hudRoot, string.Empty,
                 UiSkin.Font.Hud, TextAlignmentOptions.Center, PixelSkin.PaperWhite, MenuUiBuilder.TitleFont);
             result.turnHintText.enableWordWrapping = false;
@@ -359,12 +361,8 @@ namespace PirateCrew.EditorTools
                 -BattleHudZones.TopBandFromTop - BattleHudZones.BadgeSize * 0.5f - 6f);
             var hintOutline = result.turnHintText.gameObject.AddComponent<UnityEngine.UI.Outline>();
             hintOutline.effectColor = new Color(PixelSkin.Ink.r / 255f, PixelSkin.Ink.g / 255f,
-                PixelSkin.Ink.b / 255f, 0.78f);   // 调色板墨色收编
-            hintOutline.effectDistance = new Vector2(1.5f, 1.5f);
-            var hintShadow = result.turnHintText.gameObject.AddComponent<UnityEngine.UI.Shadow>();
-            hintShadow.effectColor = new Color(PixelSkin.Ink.r / 255f, PixelSkin.Ink.g / 255f,
-                PixelSkin.Ink.b / 255f, 0.5f);
-            hintShadow.effectDistance = new Vector2(1f, -1f);
+                PixelSkin.Ink.b / 255f, 0.55f);   // 调色板墨色收编
+            hintOutline.effectDistance = new Vector2(1f, 1f);
         }
 
         // ------------------------------------------------------------------
