@@ -34,23 +34,20 @@ namespace PirateCrew.Fx
         /// <summary>水沫（近白，透明）。</summary>
         WaterFoam = 8,
 
-        /// <summary>涟漪环（浅蓝，加法）。</summary>
-        Ripple = 9,
-
         /// <summary>冲击波环（暖白，加法）。</summary>
-        Shockwave = 10,
+        Shockwave = 9,
 
         /// <summary>伤害数字（贴图由运行时逐串生成，透明）。</summary>
-        DamageNumber = 11,
+        DamageNumber = 10,
 
         /// <summary>爆炸类弹体拖尾（暖橙，加法）。</summary>
-        TrailExplosive = 12,
+        TrailExplosive = 11,
 
         /// <summary>普通弹体拖尾（选中青，加法）。</summary>
-        TrailDefault = 13,
+        TrailDefault = 12,
 
         /// <summary>四芒星闪（星屑，加法）。</summary>
-        Star4 = 14,
+        Star4 = 13,
     }
 
     /// <summary>材质档的静态规格（编辑器生成 .mat 与运行时创建材质共用同一张表，保证两边一致）。</summary>
@@ -99,6 +96,8 @@ namespace PirateCrew.Fx
 
         static readonly FxMaterialSpec[] Specs =
         {
+            // 【顺序铁律】SpecOf/Get 按 (int)FxMaterial 直接索引本表——行的顺序必须与
+            // FxMaterial 枚举逐位一致，增删档位时枚举与本表同处一处同改。
             // ---- 爆炸 ----
             // 亮度三轮压制（r4/r5 后续各一轮，r6 一轮，r7 再收一档）：
             //   r4/r5 已把 core/fire 的 Tint ×0.60 / ×0.70、Intensity 同步乘同系数；
@@ -118,7 +117,6 @@ namespace PirateCrew.Fx
             new FxMaterialSpec { Name = "Fx_ExplosionCore",  Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = ScaleRgb(FxRules.ExplosionCoreColor(), 0.60f), Intensity = 0.4284f },
             new FxMaterialSpec { Name = "Fx_Sparks",         Additive = true,  Texture = FxTextureKind.Spark,      Tint = FxRules.SparkColor(),         Intensity = 1.80f },
             new FxMaterialSpec { Name = "Fx_FineSparks",     Additive = true,  Texture = FxTextureKind.FineSpark,  Tint = FxRules.ExplosionCoreColor(), Intensity = 1.90f },
-            new FxMaterialSpec { Name = "Fx_Star4",          Additive = true,  Texture = FxTextureKind.Star4,      Tint = FxRules.ExplosionCoreColor(), Intensity = 1.60f },
             // ---- 碎屑 / 烟 ----
             // r6：烟 Tint 由 Color.white 改烟灰——贴图本身明度 ≈0.62，乘白后是"浅灰白团"，
             // 在提亮后的场景里就是复验看到的"白雾"；改乘 SmokeColor（#8C8A86）后 ≈0.34 明度，读作暗烟。
@@ -128,13 +126,14 @@ namespace PirateCrew.Fx
             // ---- 水 ----
             new FxMaterialSpec { Name = "Fx_WaterSplash",    Additive = true,  Texture = FxTextureKind.Droplet,    Tint = FxRules.SplashDropletColor(), Intensity = 1.30f },
             new FxMaterialSpec { Name = "Fx_WaterFoam",      Additive = false, Texture = FxTextureKind.SoftCircle, Tint = FxRules.SplashFoamColor(),    Intensity = 1.00f },
-            new FxMaterialSpec { Name = "Fx_Ripple",         Additive = true,  Texture = FxTextureKind.Ring,       Tint = FxRules.RippleColor(),        Intensity = 1.00f },
-            // ---- 环 ----
+            // ---- 环（冲击波；涟漪环已根除——创始人裁决：平滑扩散圆环与像素语言不符）----
             new FxMaterialSpec { Name = "Fx_Shockwave",      Additive = true,  Texture = FxTextureKind.Ring,       Tint = FxRules.ShockwaveColor(),     Intensity = 1.20f },
             // ---- 数字 / 拖尾 ----
             new FxMaterialSpec { Name = "Fx_DamageNumber",   Additive = false, Texture = FxTextureKind.Spark,      Tint = Color.white,                  Intensity = 1.00f },
             new FxMaterialSpec { Name = "Fx_TrailExplosive", Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = FxRules.TrailColor(WeaponId.CherryBomb), Intensity = 1.40f },
             new FxMaterialSpec { Name = "Fx_TrailDefault",   Additive = true,  Texture = FxTextureKind.SoftCircle, Tint = FxRules.TrailColor(WeaponId.Boulder),    Intensity = 1.40f },
+            // ---- 星屑 ----
+            new FxMaterialSpec { Name = "Fx_Star4",          Additive = true,  Texture = FxTextureKind.Star4,      Tint = FxRules.ExplosionCoreColor(), Intensity = 1.60f },
         };
 
         /// <summary>材质档总数。</summary>
