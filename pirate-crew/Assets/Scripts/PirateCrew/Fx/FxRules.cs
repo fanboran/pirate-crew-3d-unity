@@ -278,18 +278,6 @@ namespace PirateCrew.Fx
             return Mathf.Clamp(0.12f + Mathf.Max(0f, fallSpeed) * 0.004f, 0.12f, 0.28f);
         }
 
-        /// <summary>涟漪最大直径（世界单位）。常数项 ×2、上下限 ×2；速度项系数不变（输入已 ×2）。</summary>
-        public static float RippleDiameter(float fallSpeed)
-        {
-            return Mathf.Clamp(2.4f + Mathf.Max(0f, fallSpeed) * 0.06f, 2.4f, 6.0f);
-        }
-
-        /// <summary>涟漪动画时长（秒）。时刻类不乘；速度项系数减半以保持输出。</summary>
-        public static float RippleLifetime(float fallSpeed)
-        {
-            return Mathf.Clamp(0.55f + Mathf.Max(0f, fallSpeed) * 0.01f, 0.55f, 1.00f);
-        }
-
         // ==================================================================
         // 命中（HitFx）
         // ==================================================================
@@ -427,9 +415,6 @@ namespace PirateCrew.Fx
 
         /// <summary>水沫（浪花白，Art Bible §2.1 海水组提亮，【AI 提案】）。</summary>
         public static Color32 SplashFoamColor() => FromHex(0xEAF6FF);
-
-        /// <summary>涟漪（= 正午天空地平线色 #BFE3F5，Art Bible §2.1，【依据】）。</summary>
-        public static Color32 RippleColor() => FromHex(0xBFE3F5);
 
         /// <summary>冲击波（暖白，与爆炸核心同源）。</summary>
         public static Color32 ShockwaveColor() => FromHex(0xFFD9A8);
