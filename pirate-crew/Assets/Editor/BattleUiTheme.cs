@@ -97,6 +97,7 @@ namespace PirateCrew.EditorTools
             SetRef(so, "cancelOperationButton", result.cancelOperationButton);
             SetRef(so, "backButton", result.backButton);
             SetRef(so, "pauseButton", result.pauseButton);
+            SetRef(so, "hintPlate", result.hintPlate);
             SetRef(so, "hintText", result.hintText);
             SetRef(so, "stateIndicator", result.stateIndicator);
             SetRef(so, "stateIndicatorLabel", result.stateIndicatorLabel);

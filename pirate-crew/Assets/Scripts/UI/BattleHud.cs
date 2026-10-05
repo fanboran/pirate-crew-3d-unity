@@ -84,6 +84,7 @@ namespace PirateCrew.UI
         [SerializeField] Button cancelOperationButton;
 
         [Header("提示条与系统按钮")]
+        [SerializeField] SketchButton hintPlate;
         [SerializeField] MaskableGraphic hintText;
         [SerializeField] SketchButton stateIndicator;
         [SerializeField] MaskableGraphic stateIndicatorLabel;
@@ -662,7 +663,13 @@ namespace PirateCrew.UI
             if (stateIndicator != null)
                 stateIndicator.Sticky = title.Length > 0 && title != UiStrings.BattleStateFreeCamera;
 
-            UiTextUtil.SetText(hintText, ComposeHintText(title, keys));
+            // 自由镜头下整条状态盘隐藏（右上状态钮已表达状态——21 走查裁决：浅灰截断键位串
+            // 是噪音）；暂停/选中/操作中/执行中显示（墨底盘 + 白字，压世界背景可读）。
+            bool showStatusLine = interaction != null
+                && (BattlePause.IsPaused || interaction.State != InteractionState.FreeCamera);
+            if (hintPlate != null)
+                hintPlate.gameObject.SetActive(showStatusLine);
+            UiTextUtil.SetText(hintText, showStatusLine ? ComposeHintText(title, keys) : string.Empty);
         }
 
         /// <summary>两行合成：有状态名有键位 = 两行；只有其一 = 单行。</summary>

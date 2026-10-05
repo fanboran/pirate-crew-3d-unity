@@ -72,12 +72,18 @@ namespace PirateCrew.EditorTools
         /// <summary>操作读数行高（12 号字一行的 Hud 档）。</summary>
         public const float OperationReadoutRowHeight = 12f;
 
-        /// <summary>状态条（交互操作契约 §G）：武器面板正上方居中的两行文字——第一行状态名、
-        /// 第二行键位提示。宽 460（最长键位行留余量，超出单行截断）、高 30（两行 12 号 + 行距）；
-        /// 底边 = 面板顶 + 4（操作面板与武器面板共用贴底位，状态条位置恒定不随面板切换漂移）。</summary>
-        public const float HintBarWidth = 460f;
-        public const float HintBarHeight = 30f;
+        /// <summary>状态条（交互操作契约 §G）：武器面板正上方居中的**墨底盘 + 白字**——
+        /// 宽 640（最长键位行整行放得下，不再省略号截断）、高 48（两行 + 行距 + 盘面呼吸）；
+        /// 底边 = 面板顶 + 4（操作面板与武器面板共用贴底位，状态条位置恒定不随面板切换漂移）。
+        /// 自由镜头下整条隐藏（右上状态钮已表达状态，21 走查裁决）。</summary>
+        public const float HintBarWidth = 640f;
+        public const float HintBarHeight = 48f;
         public const float HintBarGapAbovePanels = 4f;
+
+        /// <summary>回合提示盘（「玩家 1，该你了 / 敌方行动中」）：徽章正下方墨底盘 + 白字——
+        /// 裸白字压浅色岛面读作浅灰，半透明描边救不回对比度（21 走查裁决）。</summary>
+        public const float TurnHintPlateWidth = 300f;
+        public const float TurnHintPlateHeight = 24f;
 
         // ---------------- 底部带：武器面板（theme 窗体） ----------------
 

@@ -51,6 +51,8 @@ namespace PirateCrew.EditorTools
             public Image badgeRing;
             public TextMeshProUGUI badgeText;
             public TextMeshProUGUI turnHintText;
+            public SketchButton turnHintPlate;
+            public SketchButton hintPlate;
             public GameObject weaponPanelRoot;
             public TextMeshProUGUI unitNameText;
             public BattleHud.HpBarView unitHpBar;
@@ -356,22 +358,20 @@ namespace PirateCrew.EditorTools
                 TextAlignmentOptions.Center, PixelSkin.Ink, MenuUiBuilder.TitleFont);
             UiKit.Stretch(result.badgeText.rectTransform);
 
-            // 提示文字（「轮到你了 / 敌方行动中」）：徽章正下方**纯文字**，字色 = 暖白。
-            // 深色四向 Outline 收薄到 1px/0.55 并**去掉斜投影**——12px 位图字下 1.5px 描边
-            // 加投影会吃掉近半字形像素，整行读作灰字（2026-10-05 走查废弃）。
-            result.turnHintText = UiKit.CreateText("TurnHintText", hudRoot, string.Empty,
+            // 提示文字（「轮到你了 / 敌方行动中」）：徽章正下方。**墨底盘 + 白字**——
+            // 裸白字压浅色岛面读作浅灰（21 轮走查裁决「文字屡教不改」的根子：零衬底 +
+            // 半透明描边都救不回对比度），盘面复用状态钮同款按钮皮，palette 不新增。
+            result.turnHintPlate = SketchButton.Create(hudRoot, "TurnHintPlate",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -BattleHudZones.TopBandFromTop - BattleHudZones.BadgeSize * 0.5f - 2f),
+                new Vector2(BattleHudZones.TurnHintPlateWidth, BattleHudZones.TurnHintPlateHeight),
+                MenuUiBuilder.TitleFont, string.Empty, UiSkin.Font.Hud);
+            result.turnHintPlate.image.raycastTarget = false;
+
+            result.turnHintText = UiKit.CreateText("TurnHintText", result.turnHintPlate.transform, string.Empty,
                 UiSkin.Font.Hud, TextAlignmentOptions.Center, PixelSkin.PaperWhite, MenuUiBuilder.TitleFont);
             result.turnHintText.enableWordWrapping = false;
-            result.turnHintText.rectTransform.anchorMin = result.turnHintText.rectTransform.anchorMax =
-                new Vector2(0.5f, 1f);
-            result.turnHintText.rectTransform.pivot = new Vector2(0.5f, 1f);
-            result.turnHintText.rectTransform.sizeDelta = new Vector2(100f, 8f);
-            result.turnHintText.rectTransform.anchoredPosition = new Vector2(0f,
-                -BattleHudZones.TopBandFromTop - BattleHudZones.BadgeSize * 0.5f - 6f);
-            var hintOutline = result.turnHintText.gameObject.AddComponent<UnityEngine.UI.Outline>();
-            hintOutline.effectColor = new Color(PixelSkin.Ink.r / 255f, PixelSkin.Ink.g / 255f,
-                PixelSkin.Ink.b / 255f, 0.55f);   // 调色板墨色收编
-            hintOutline.effectDistance = new Vector2(1f, 1f);
+            UiKit.Stretch(result.turnHintText.rectTransform);
         }
 
         // ------------------------------------------------------------------
@@ -550,23 +550,22 @@ namespace PirateCrew.EditorTools
                 rect.anchorMax = new Vector2(0.5f, 0f);
             }
 
-            // 底部带第三段：状态条（交互操作契约 §G）——武器面板正上方居中的两行文字，
-            // 第一行状态名、第二行键位提示（BattleHud.RefreshHint 五态刷新；先行纯文字）。
+            // 底部带第三段：状态条（交互操作契约 §G）——**墨底盘 + 白字**：压世界背景必须可读，
+            // 裸白字压浅色岛面读作浅灰（21 走查裁决）。自由镜头下整条隐藏（右上状态钮已表达
+            // 状态），由 BattleHud.RefreshHint 控制 SetActive。
             // 位置锚在武器面板高度之上：操作面板与武器面板共用贴底位，状态条不随切换漂移。
-            result.hintText = UiKit.CreateText("HintText", hudRoot, string.Empty, UiSkin.Font.Hud,
-                TextAlignmentOptions.Center, PixelSkin.PaperWhite, secondary);
+            result.hintPlate = SketchButton.Create(hudRoot, "HintPlate",
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, BattleHudZones.Safe + BattleHudZones.WeaponPanelHeight
+                    + BattleHudZones.HintBarGapAbovePanels),
+                new Vector2(BattleHudZones.HintBarWidth, BattleHudZones.HintBarHeight),
+                secondary, string.Empty, UiSkin.Font.Hud);
+            result.hintPlate.image.raycastTarget = false;
+            result.hintText = UiKit.CreateText("HintText", result.hintPlate.transform, string.Empty,
+                UiSkin.Font.Hud, TextAlignmentOptions.Center, PixelSkin.PaperWhite, secondary);
             result.hintText.enableWordWrapping = false;
             result.hintText.overflowMode = TextOverflowModes.Ellipsis;
-            {
-                RectTransform rect = result.hintText.rectTransform;
-                rect.anchorMin = new Vector2(0.5f, 0f);
-                rect.anchorMax = new Vector2(0.5f, 0f);
-                rect.pivot = new Vector2(0.5f, 0f);
-                rect.sizeDelta = new Vector2(BattleHudZones.HintBarWidth, BattleHudZones.HintBarHeight);
-                rect.anchoredPosition = new Vector2(0f,
-                    BattleHudZones.Safe + BattleHudZones.WeaponPanelHeight
-                    + BattleHudZones.HintBarGapAbovePanels);
-            }
+            UiKit.Stretch(result.hintText.rectTransform);
 
             // 顶部带右翼：状态指示钮（交互操作契约 §G4，2026-10-05 走查"我到底是哪个状态"）——
             // 按钮皮指示件：自由镜头 = 常态灰面，选中/操作中/执行中 = 金面 sticky（BattleHud.RefreshHint 刷）。
