@@ -55,13 +55,21 @@ namespace PirateCrew.EditorTools
         /// 数字 Tiny 8px 落在金面字区内——12 格档数字压描边穿模，2026-10-05 走查废弃）。</summary>
         public const float BadgeSize = 16f;
 
-        /// <summary>模式钮行：血条带下方独立一行（与蓝条 x 区段重叠，靠 y 错层避撞）。</summary>
-        public const float ModeButtonDrop = 16f;
+        /// <summary>操作 HUD 面板：与武器面板共用贴底位（互斥弹出，见 UI 设计语言 §5.4）。
+        /// 宽 210 = 边框 6 + 读数区 198 + 边框 6（读数标签/值放宽，修 180 档「方向」二字贴边）；
+        /// 高 64 = 内容顶 23 + 读数行 12 + 缝 2 + 按钮行 20 + 底边 6 + 1 余。</summary>
+        public const float OperationPanelWidth = 210f;
+        public const float OperationPanelHeight = 64f;
 
-        /// <summary>模式文字钮尺寸（宽 = <see cref="UiSkin.Px.ButtonWidth"/>）。
-        /// 高 20（2026-09-28 创始人「垂直方向按钮太小」：12 号字上下各留 4 格，
-        /// 不再贴 theme 原生 16 的紧凑档）。</summary>
-        public const float ModeButtonHeight = 20f;
+        /// <summary>操作读数行高（12 号字一行的 Hud 档）。</summary>
+        public const float OperationReadoutRowHeight = 12f;
+
+        /// <summary>状态条（交互操作契约 §G）：武器面板正上方居中的两行文字——第一行状态名、
+        /// 第二行键位提示。宽 460（最长键位行留余量，超出单行截断）、高 30（两行 12 号 + 行距）；
+        /// 底边 = 面板顶 + 4（操作面板与武器面板共用贴底位，状态条位置恒定不随面板切换漂移）。</summary>
+        public const float HintBarWidth = 460f;
+        public const float HintBarHeight = 30f;
+        public const float HintBarGapAbovePanels = 4f;
 
         // ---------------- 底部带：武器面板（theme 窗体） ----------------
 

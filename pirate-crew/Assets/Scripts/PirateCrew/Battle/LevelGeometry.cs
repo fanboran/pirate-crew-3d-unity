@@ -128,30 +128,18 @@ namespace PirateCrew.Battle
     ///   常量集中在 <see cref="TilePixels"/> / <see cref="TileWorldSize"/>，
     ///   <see cref="PixelsPerUnit"/>（= 16，1 单位 = 16px）由两者相除得到。
     ///   <b>凡是"由 Flash px / 格语义换算成世界单位"的量都必须走这里的换算</b>：
-    ///   · 距离类（选中半径、爆炸半径、投掷射程、水距）→ <see cref="PixelsToUnits"/> / <see cref="TileToWorld"/>；
-    ///   · 速度/重力类 → <see cref="FlashSpeedScale"/> / <see cref="WorldGravityY"/>（随 PixelsPerUnit 缩放）；
+    ///   · 距离类（选中半径、爆炸半径、水距）→ <see cref="PixelsToUnits"/> / <see cref="TileToWorld"/>；
+    ///   · 速度增量类（击退/翻滚/下沉，武器数值域）→ <see cref="FlashSpeedScale"/>（随 PixelsPerUnit 缩放）；
     ///   · **格号 → 世界坐标** → <see cref="GridToArena"/> / <see cref="TileToWorld"/> / <see cref="TileCenterWorld"/>；
         ///   · 反向（世界 → 格号）→ <see cref="PixelsToTiles"/> / <see cref="WorldToTileIndex"/>（**不是** PixelsToUnits）。
     ///   格语义（射程多少格、水距多少格）在本次扫荡里逐项不变——只有"一格有几个世界单位"变了。
     ///
-    /// 【3D 化决策 2：重力与力度换算】Flash 每帧 vy += weight（25fps，1px/帧²）。
-    ///   本工程让 Unity 物理与 Ballistics 同源：
-    ///   1) <see cref="Time.fixedDeltaTime"/> = <see cref="FrameSeconds"/>（0.04s，25Hz），
-    ///      Rigidbody 用 <c>useGravity</c> + <c>Physics.gravity = WorldGravity(1)</c>；
-    ///   2) 初速换算 <see cref="FlashVelocityToArena"/>：v_world = v_flash / (16 * 0.04)；
-    ///   3) 重力换算 <see cref="WorldGravityY"/>：g_world = -weight / (16 * 0.04²) = -39.0625·weight。
-    ///   由于 Flash 的离散积分是 vy += w; y += vy、PhysX 的半隐式欧拉是 v += g·dt; p += v·dt，
-    ///   在 dt 相同时二者逐步完全一致 → <b>预览 = 实弹</b>（见测试
-    ///   <c>LevelGeometryTests.Ballistics_And_WorldSemiImplicit_Match_Exactly</c>）。
-    ///   【格 1→2 单位后弹道为什么逐点不变】Flash 侧 (vx, vy, weight) 是**像素口径**，一个字都没改；
-    ///   变的只是 px→世界的除数（32→16），于是整条抛物线在**格空间里逐点相同**、在世界里整体乘 2。
-    ///   这条不变量是刻意保留的：一旦预览与实弹各用一套速度/重力就会分叉
-    ///   （如两者速度差 18 倍、重力 -18 vs -9.8 的实现），重做时**不要**引入两套数值。
-    ///
-    /// 【3D 化决策 3：投掷抬升】Flash 的拖拽竖直分量直接给 vy（2D 里就是"抛多高"）。
-    ///   3D 里拖拽只表达"水平往哪扔"，仰角由固定抬升 <see cref="ThrowLift"/> 提供
-    ///   （本工程统一取 0.7 单一常量，预览与实弹共用），
-    ///   速度**大小**仍由 Flash 的 twangMax 限速决定 —— 限速语义不被抬升破坏。
+    /// 【投掷口径（米制重立，2026-10-03 创始人裁决）】投掷链的初速/重力/仰角不再走 Flash px 换算：
+    ///   单源 <see cref="StandardThrowRules"/>（MaxLaunchSpeed=30 m/s、LaunchGravity=−30 m/s²、
+    ///   三参数=方向角/仰角/力度）。本类只保留**武器/爆炸/翻滚数值域**的 px 换算
+    ///   （FlashVelocityDeltaToArena / ArenaVelocityToFlash / FlashSpeedScale），随武器系统重做再迁米制。
+    ///   物理步率 25 Hz（<see cref="FrameSeconds"/>）保留——回合/像素节奏，非 Flash 专属；
+    ///   PhysX 半隐式欧拉与预览积分器同 dt 同重力 → <b>预览 = 实弹</b>（不变量沿用）。
     ///
     /// 【3D 化决策 4：落水即死】§4.1/§4.3：原版每关都有 water 对象，落水即死是<b>全局规则</b>。
     ///   Unity 取全局：<see cref="IsBelowWater"/>，由 BattleController 每帧对所有存活角色判定。
@@ -199,14 +187,11 @@ namespace PirateCrew.Battle
         public const float WaterSurfaceY = -0.4f;
 
         /// <summary>
-        /// 投掷的固定抬升系数：<c>throwDir = normalize(水平方向 + UP * ThrowLift)</c>。
-        /// 本工程统一为单一常量，以保"预览 = 实弹"。
-        /// </summary>
-        public const float ThrowLift = 0.7f;
-
-        /// <summary>
         /// Flash 速度（px/帧）→ 世界速度（单位/秒）的比例：
-        /// <c>1 / (PixelsPerUnit * FrameSeconds) = 1 / 0.64 = 1.5625</c>（格 1→2 单位后 PixelsPerUnit=16）。
+        /// <c>1 / (PixelsPerUnit * FrameSeconds) = 1 / 0.64 = 1.5625</c>。
+        /// 【口径归属】投掷链已随米制重立退役本比例（初速/重力单源 <see cref="StandardThrowRules"/>）；
+        /// 现役消费方是**武器/爆炸/翻滚数值域**（击退增量、翻滚角速度、下沉速度——数值仍以 Flash px/帧
+        /// 表达，随武器系统重做再迁米制），故保留。
         /// </summary>
         public const float FlashSpeedScale = 1f / (PixelsPerUnit * FrameSeconds);
 
@@ -313,20 +298,9 @@ namespace PirateCrew.Battle
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// Flash 水平初速（px/帧，平面内 (vx, vy)）→ Unity 世界速度（单位/秒）：
-        /// 平面分量落到 (X, Z)，高度分量恒为 0（仰角由 <see cref="ApplyThrowLift"/> 提供）。
-        /// </summary>
-        public static Vector3 FlashVelocityToArena(float vxPixelsPerFrame, float vyPixelsPerFrame)
-        {
-            return new Vector3(
-                vxPixelsPerFrame * FlashSpeedScale,
-                0f,
-                vyPixelsPerFrame * FlashSpeedScale);
-        }
-
-        /// <summary>
-        /// Unity 世界速度（单位/秒）→ Flash 平面速度（px/帧）；<see cref="FlashVelocityToArena"/> 的逆变换。
-        /// 供弹体运行时判静止（§5.2 dynamite 的 <c>vx==0 &amp;&amp; |vy|&lt;0.2</c>）等回读场景。
+        /// Unity 世界速度（单位/秒）→ Flash 平面速度（px/帧）。
+        /// 供弹体运行时判静止（§5.2 dynamite 的 <c>vx==0 &amp;&amp; |vy|&lt;0.2</c>）等回读场景
+        /// （武器数值域；投掷链已米制化，不走本函数）。
         /// </summary>
         public static Vector2 ArenaVelocityToFlash(Vector3 worldVelocity)
         {
@@ -345,121 +319,6 @@ namespace PirateCrew.Battle
                 deltaVxPixelsPerFrame * FlashSpeedScale,
                 0f,
                 deltaVyPixelsPerFrame * FlashSpeedScale);
-        }
-
-        /// <summary>
-        /// 平面方向 + 固定抬升 → 3D 投掷方向（已归一化）。零向量返回 <see cref="Vector3.zero"/>。
-        /// </summary>
-        public static Vector3 ApplyThrowLift(Vector3 horizontalDirection)
-        {
-            Vector3 flat = new Vector3(horizontalDirection.x, 0f, horizontalDirection.z);
-            if (flat.sqrMagnitude < 1e-12f)
-                return Vector3.zero;
-
-            return (flat.normalized + Vector3.up * ThrowLift).normalized;
-        }
-
-        /// <summary>
-        /// 投掷初速：平面方向由 <see cref="ApplyThrowLift"/> 定仰角，**大小**由 Flash 的
-        /// twang 结果（px/帧）决定 —— 抬升只改方向、不改速度大小，从而不破坏 twangMax 限速语义。
-        /// </summary>
-        public static Vector3 ThrowVelocity(Vector3 horizontalDirection, float speedPixelsPerFrame)
-        {
-            Vector3 dir = ApplyThrowLift(horizontalDirection);
-            if (dir == Vector3.zero)
-                return Vector3.zero;
-
-            return dir * (speedPixelsPerFrame * FlashSpeedScale);
-        }
-
-        /// <summary>
-        /// 由相机基向量把屏幕拖拽 (dx, dy) 映射成世界水平方向（已归一化，y = 0）。
-        /// <c>horiz = camRight.xz * dx + camForward.xz * dy</c>（直接瞄准：拖向哪扔向哪）。
-        /// 相机 yaw 变化时映射随基向量旋转，预览与实弹永远同口径。
-        /// </summary>
-        public static Vector3 ScreenDragToArenaDirection(Vector3 cameraRight, Vector3 cameraForward, float dragX, float dragY)
-        {
-            Vector3 right = new Vector3(cameraRight.x, 0f, cameraRight.z);
-            Vector3 forward = new Vector3(cameraForward.x, 0f, cameraForward.z);
-
-            // 【r12 用户裁决"拖向哪扔向哪"】玩家输入采用**直接瞄准**语义（拖拽方向=投掷方向），
-            // 不再做 Flash 弹弓取反（旧口径实测第一次上手就反，直觉性优先于原版输入习惯）；
-            // 预览与实弹共用本函数，口径仍唯一。
-            Vector3 horiz = right * dragX + forward * dragY;
-            if (horiz.sqrMagnitude < 1e-12f)
-                return Vector3.zero;
-
-            return horiz.normalized;
-        }
-
-        /// <summary>
-        /// <b>投掷/发射的统一入口</b>：Flash 平面初速 (vx, vy)（px/帧）→ 3D 世界初速（含抬升）。
-        /// 速度**大小**仍由 Flash 的 twang 结果（已含 twangMax 限速）决定，抬升只改仰角。
-        /// 角色自抛（<c>PirateBase.ApplyLaunchVelocity</c>，weight 恒 &gt; 0）走这里；
-        /// 弹体生成走按重量分流的 <see cref="FlashLaunchVelocityToWorld(float, float, float)"/>，
-        /// 保证「无重力直线弹道」与预览/AI 同口径。
-        /// </summary>
-        public static Vector3 FlashLaunchVelocityToWorld(float vxPixelsPerFrame, float vyPixelsPerFrame)
-        {
-            float speed = Mathf.Sqrt(
-                vxPixelsPerFrame * vxPixelsPerFrame + vyPixelsPerFrame * vyPixelsPerFrame);
-            if (speed <= 1e-6f)
-                return Vector3.zero;
-
-            return ThrowVelocity(new Vector3(vxPixelsPerFrame, 0f, vyPixelsPerFrame), speed);
-        }
-
-        /// <summary>
-        /// 投掷初速的**按重量分流**出口（玩家投掷 / 轨迹预览 / 弹体生成的唯一入口）：
-        ///   · <paramref name="weight"/> &gt; 0：走 <see cref="ThrowVelocity"/>（固定仰角抬升，§3 决策 3）；
-        ///   · weight == 0：**不加仰角**，沿水平方向直线飞行——
-        ///     忠于「无重力直线弹道」语义。此前无重力弹体也被 ThrowLift 强抬约 35° 仰角，
-        ///     直线爬升越过通用出界清理线（y &gt; OutOfMapMargin，保留作安全网）后被静默销毁
-        ///     （不爆炸、无事件），故按重量分流。
-        /// 同源约束：<see cref="ProjectileSpawnPlanner"/>（实弹生成）、
-        /// <see cref="ThrowTrajectory.PredictFromFlashSpeed"/>（预览）
-        /// 都经本函数取初速，保证预览 = 实弹。
-        /// </summary>
-        public static Vector3 ThrowVelocityForWeight(Vector3 horizontalDirection, float speedPixelsPerFrame, float weight)
-        {
-            if (weight > 0f)
-                return ThrowVelocity(horizontalDirection, speedPixelsPerFrame);
-
-            Vector3 flat = new Vector3(horizontalDirection.x, 0f, horizontalDirection.z);
-            if (flat.sqrMagnitude < 1e-12f)
-                return Vector3.zero;
-
-            return flat.normalized * (speedPixelsPerFrame * FlashSpeedScale);
-        }
-
-        /// <summary>
-        /// <see cref="FlashLaunchVelocityToWorld(float, float)"/> 的按重量分流版：
-        /// weight == 0（§5.2「无重力」）时不抬仰角、水平直线（见 <see cref="ThrowVelocityForWeight"/>）。
-        /// </summary>
-        public static Vector3 FlashLaunchVelocityToWorld(float vxPixelsPerFrame, float vyPixelsPerFrame, float weight)
-        {
-            float speed = Mathf.Sqrt(
-                vxPixelsPerFrame * vxPixelsPerFrame + vyPixelsPerFrame * vyPixelsPerFrame);
-            if (speed <= 1e-6f)
-                return Vector3.zero;
-
-            return ThrowVelocityForWeight(new Vector3(vxPixelsPerFrame, 0f, vyPixelsPerFrame), speed, weight);
-        }
-
-        /// <summary>
-        /// Flash 重力加速度（weight px/帧²）→ Unity 世界重力 Y（单位/秒²，向下为负）：
-        /// <c>-weight / (16 * 0.04²) = -39.0625 * weight</c>（格 1→2 单位后由 -19.53125 乘 2）。
-        /// 重力沿 -Y（垂直向下），与水平面正交。
-        /// </summary>
-        public static float WorldGravityY(float weight)
-        {
-            return -weight / (PixelsPerUnit * FrameSeconds * FrameSeconds);
-        }
-
-        /// <summary>Flash 重力加速度 → Unity 世界重力向量 (0, g, 0)。</summary>
-        public static Vector3 WorldGravity(float weight)
-        {
-            return new Vector3(0f, WorldGravityY(weight), 0f);
         }
 
         // ------------------------------------------------------------------

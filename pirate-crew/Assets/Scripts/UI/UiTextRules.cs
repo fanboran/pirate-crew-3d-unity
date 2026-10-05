@@ -186,16 +186,37 @@ namespace PirateCrew.UI
         // WeaponPanelTitle / Alive / TurnCounter 及其 UiStrings 模板一并删除——
         // 双方存活由顶栏血条分段 + pips 图形化，回合数由徽章纯数字表达（图标优先裁决）。
 
-        /// <summary>力度数字（瞄准态，不标「力度」）。</summary>
+        /// <summary>力度数字（操作中读数，不标「力度」）。</summary>
         public static string StrengthPercent(float normalized01)
         {
             return string.Format(UiStrings.BattleStrengthFormat, Percent(normalized01));
         }
 
-        /// <summary>力度完整写法（非瞄准态）。</summary>
-        public static string StrengthLabel(float normalized01)
+        /// <summary>仰角读数（度，四舍五入整数；不引 UnityEngine——本类刻意纯托管）。</summary>
+        public static string ElevationDegrees(float degrees)
         {
-            return string.Format(UiStrings.BattleStrengthLabelFormat, Percent(normalized01));
+            return string.Format(UiStrings.BattleElevationFormat, ElevationRounded(degrees));
+        }
+
+        /// <summary>仰角读数的整数值（四舍五入；供 HUD 的变化检测直接比 int）。</summary>
+        public static int ElevationRounded(float degrees)
+        {
+            return (int)Math.Round(degrees);
+        }
+
+        /// <summary>方向角读数（度，规范到 [0,360) 后四舍五入整数）。</summary>
+        public static string YawDegrees(float degrees)
+        {
+            return YawRounded(degrees).ToString();
+        }
+
+        /// <summary>方向角读数的整数值（规范到 [0,360) 后四舍五入）。</summary>
+        public static int YawRounded(float degrees)
+        {
+            float wrapped = degrees % 360f;
+            if (wrapped < 0f)
+                wrapped += 360f;
+            return (int)Math.Round(wrapped);
         }
 
         /// <summary>0–1 → 0–100 整数百分比（夹取）。</summary>
@@ -205,11 +226,8 @@ namespace PirateCrew.UI
             return (int)(clamped * 100f + 0.5f);
         }
 
-        /// <summary>模式开关文案。</summary>
-        public static string ModeLabel(bool moveMode)
-        {
-            return moveMode ? UiStrings.BattleModeMove : UiStrings.BattleModeAction;
-        }
+        // 【模式开关文案已随两态重构退役】ModeLabel/BattleMode* 不复存在——交互状态
+        // 由提示条按 BattleHint*（自由镜头/浏览/操作中/执行中）表达。
 
         // ------------------------------------------------------------------
         // 结算文案
@@ -306,7 +324,7 @@ namespace PirateCrew.UI
         // ------------------------------------------------------------------
 
         /// <summary>规范明确允许保留半角的例外 token（品牌名 / 按键字母）。</summary>
-        static readonly string[] AllowedTokens = { "3d", "esc", "e", "w", "s", "wasd" };
+        static readonly string[] AllowedTokens = { "3d", "esc", "e", "w", "s", "wasd", "p" };
 
         /// <summary>
         /// 文案里是否含**不允许**的英文单词/字母串。

@@ -83,6 +83,16 @@ namespace PirateCrew.Combat
         }
 
         /// <summary>
+        /// 换人规则（交互操作契约 §D）：当前选中**未消耗任何动作**（未抛自己、未用武器、
+        /// 也没走过 end-go——后者把 CanThrow/CanShoot 全清）时，才允许改选其他单位；
+        /// 动作后锁定到回合结束。
+        /// </summary>
+        public static bool CanSwitchSelection(ActionState selectedAction)
+        {
+            return !selectedAction.Thrown && !selectedAction.Fired && selectedAction.CanAct;
+        }
+
+        /// <summary>
         /// 空闲帧数是否已超过阈值：inactivityFrames &gt; threshold。
         /// 注意是严格大于：正好 10 帧不算，11 帧才算。
         /// </summary>

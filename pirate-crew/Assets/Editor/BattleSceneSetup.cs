@@ -141,7 +141,7 @@ namespace PirateCrew.EditorTools
                 + "  渲染: 环境材质库 " + BattleSceneLighting.EnvironmentMaterialFolder
                 + " / 后处理 " + BattleSceneLighting.VolumeProfilePath
                 + " / URP " + BattleSceneLighting.UrpAssetPath + "（软阴影+深度图+MSAA2）\n"
-                + "  接线: BattleController / TurnManager / AimThrowController / TrajectoryPreview / "
+                + "  接线: BattleController / TurnManager / BattleInteractionController（含输入读取器） / TrajectoryPreview / "
                 + "BattleCameraDriver（含 battle 手感源）/ BattleHud / "
                 + "crewVisualPrefabs（7 职业）/ SceneArt.Ambient（活物）/ "
                 + "RuntimeSceneArt（材质组数组，关卡无关的场景美术）的全部 [SerializeField] 引用。\n"
@@ -309,9 +309,10 @@ namespace PirateCrew.EditorTools
             var turnManagerGo = new GameObject("TurnManager");
             Undo.RegisterCreatedObjectUndo(turnManagerGo, "创建回合管理器");
             var turnManager = turnManagerGo.AddComponent<TurnManager>();
-            var aimControllerGo = new GameObject("AimThrowController");
-            Undo.RegisterCreatedObjectUndo(aimControllerGo, "创建投掷瞄准控制器");
-            var aimController = aimControllerGo.AddComponent<AimThrowController>();
+            var aimControllerGo = new GameObject("BattleInteraction");
+            Undo.RegisterCreatedObjectUndo(aimControllerGo, "创建战斗交互控制器");
+            var aimController = aimControllerGo.AddComponent<BattleInteractionController>();
+            aimControllerGo.AddComponent<BattleInputReader>();
             var battleCameraGo = new GameObject("BattleCameraDriver");
             Undo.RegisterCreatedObjectUndo(battleCameraGo, "创建战斗相机驱动");
             var battleCamera = battleCameraGo.AddComponent<BattleCameraDriver>();
@@ -324,8 +325,8 @@ namespace PirateCrew.EditorTools
 
             WireBattleController(battle, piratePrefab, team0Root, team1Root, water, turnManager, aimController, battleCamera, terrainView, runtimeSceneArt);
             WireTurnManager(turnManager, battle);
-            WireAimController(aimController, camera, battle, trajectory);
-            WireBattleCamera(battleCamera, battle, camera);
+            WireAimController(aimController, camera, battle, battleCamera, trajectory);
+            WireBattleCamera(battleCamera, battle, aimController, camera);
             WireHud(hud, battle, turnManager, aimController);
 
             // 供 Debug 查看的层级整理（不影响逻辑引用）。
@@ -603,7 +604,7 @@ namespace PirateCrew.EditorTools
 
             var preview = go.AddComponent<TrajectoryPreview>();
             var so = new SerializedObject(preview);
-            so.FindProperty("line").objectReferenceValue = line;
+            so.FindProperty("legacyLine").objectReferenceValue = line;
             so.ApplyModifiedPropertiesWithoutUndo();
             return preview;
         }
@@ -612,7 +613,7 @@ namespace PirateCrew.EditorTools
         // HUD
         // ------------------------------------------------------------------
 
-        static BattleHud BuildHud(BattleController battle, TurnManager turnManager, AimThrowController aimController)
+        static BattleHud BuildHud(BattleController battle, TurnManager turnManager, BattleInteractionController aimController)
         {
             Canvas canvas = CreateCanvas("BattleCanvas");
             CreateEventSystem();
@@ -629,7 +630,7 @@ namespace PirateCrew.EditorTools
             var so = new SerializedObject(hud);
             so.FindProperty("battle").objectReferenceValue = battle;
             so.FindProperty("turnManager").objectReferenceValue = turnManager;
-            so.FindProperty("aimController").objectReferenceValue = aimController;
+            so.FindProperty("interaction").objectReferenceValue = aimController;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             // ---- 波次 I4 钩子（UI 主题）----
@@ -645,7 +646,7 @@ namespace PirateCrew.EditorTools
         static void WireBattleController(
             BattleController battle, GameObject piratePrefab,
             Transform team0Root, Transform team1Root, Transform waterPlane,
-            TurnManager turnManager, AimThrowController aimController, BattleCameraDriver battleCamera,
+            TurnManager turnManager, BattleInteractionController aimController, BattleCameraDriver battleCamera,
             BattleTerrainView terrainView, RuntimeSceneArt runtimeSceneArt)
         {
             var prefabComponent = piratePrefab != null ? piratePrefab.GetComponent<PirateBase>() : null;
@@ -658,7 +659,7 @@ namespace PirateCrew.EditorTools
             SetRef(so, "team1Root", team1Root);
             SetRef(so, "waterPlane", waterPlane);
             SetRef(so, "turnManager", turnManager);
-            SetRef(so, "aimController", aimController);
+            SetRef(so, "interaction", aimController);
             SetRef(so, "battleCamera", battleCamera);
             SetRef(so, "terrainView", terrainView);
             SetRef(so, "sceneArt", runtimeSceneArt);
@@ -785,32 +786,35 @@ namespace PirateCrew.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        static void WireAimController(AimThrowController aimController, Camera battleCamera, BattleController battle, TrajectoryPreview trajectory)
+        static void WireAimController(BattleInteractionController aimController, Camera battleCamera, BattleController battle, BattleCameraDriver cameraDriver, TrajectoryPreview trajectory)
         {
             var so = new SerializedObject(aimController);
             SetRef(so, "battleCamera", battleCamera);
             SetRef(so, "battle", battle);
+            SetRef(so, "cameraDriver", cameraDriver);
             SetRef(so, "trajectory", trajectory);
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        static void WireBattleCamera(BattleCameraDriver controller, BattleController battle, Camera mainCamera)
+        static void WireBattleCamera(BattleCameraDriver controller, BattleController battle, BattleInteractionController interaction, Camera mainCamera)
         {
             var so = new SerializedObject(controller);
             SetRef(so, "mainCamera", mainCamera);
             // 手感数据源：投掷跟随/落水定焦要按 PirateId 定位单位与弹体。
             // 不接线时这些反馈静默降级（震屏/聚焦仍工作），故必须在此显式接线。
             SetRef(so, "battle", battle);
+            // 模式分派热路径：每帧拉取交互状态/选中目标/意图帧。
+            SetRef(so, "interaction", interaction);
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        static void WireHud(BattleHud hud, BattleController battle, TurnManager turnManager, AimThrowController aimController)
+        static void WireHud(BattleHud hud, BattleController battle, TurnManager turnManager, BattleInteractionController aimController)
         {
             // BuildHud 已接线；此处仅确保引用仍有效（防御性，幂等重建时不会残留）。
             var so = new SerializedObject(hud);
             SetRef(so, "battle", battle);
             SetRef(so, "turnManager", turnManager);
-            SetRef(so, "aimController", aimController);
+            SetRef(so, "interaction", aimController);
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

@@ -4,9 +4,10 @@ using UnityEngine;
 namespace PirateCrew.Battle.Tests
 {
     /// <summary>
-    /// <see cref="LevelGeometry"/> 测试（3D 重投影版，契约见 docs/3D空间模型对齐.md）。
-    /// 覆盖：px→单位换算、px/py→XZ 水平面、水位常量、速度/重力换算、投掷抬升、
-    /// 相机基向量拖拽映射，以及"预览=实弹"的 3D 半隐式欧拉等价性（§3/§5.4 的 3D 化决策）。
+    /// <see cref="LevelGeometry"/> 测试（3D 重投影版，契约见 docs/技术/3D空间模型对齐.md）。
+    /// 覆盖：px→单位换算、px/py→XZ 水平面、水位常量、武器/爆炸域的 px 速度增量换算，
+    /// 以及"预览=实弹"的 3D 半隐式欧拉等价性。投掷链已米制化（初速/重力单源
+    /// StandardThrowRules，见 StandardThrowRulesTests），旧投掷换算测试随 API 退役删除。
     /// </summary>
     [TestFixture]
     public class LevelGeometryTests
@@ -98,26 +99,6 @@ namespace PirateCrew.Battle.Tests
         }
 
         [Test]
-        public void WorldGravityY_WeightOne_IsMinus39Point0625()
-        {
-            // -1 / (16 * 0.04^2) = -1 / 0.0256 = -39.0625；重力沿 -Y，与水平面正交
-            // （格 1→2 单位后由 -19.53125 乘 2，LevelGeometry.WorldGravityY）。
-            Assert.AreEqual(-39.0625f, LevelGeometry.WorldGravityY(1f), 1e-5f);
-        }
-
-        [Test]
-        public void FlashVelocityToArena_MapsPlanarVelocityToXZ()
-        {
-            // 3D 重投影：Flash 平面速度 (vx, vy) → 世界 (X, Z)，高度分量恒为 0
-            // （仰角由 ApplyThrowLift 提供，不由 Flash 平面速度提供）。
-            // vx=4 → 4×1.5625 = 6.25；vy=10 → 10×1.5625 = 15.625。
-            Vector3 v = LevelGeometry.FlashVelocityToArena(4f, 10f);
-            Assert.AreEqual(6.25f, v.x, 1e-5f);
-            Assert.AreEqual(0f, v.y, 1e-5f);
-            Assert.AreEqual(15.625f, v.z, 1e-5f);
-        }
-
-        [Test]
         public void FlashVelocityDeltaToArena_MapsToPlaneComponents()
         {
             // 击退/爆炸的速度增量同样落在平面：Flash (dvx, dvy) → 世界 (X, Z)，y = 0。
@@ -128,115 +109,6 @@ namespace PirateCrew.Battle.Tests
             Assert.AreEqual(3.125f, dv.x, 1e-5f);
             Assert.AreEqual(0f, dv.y, 1e-6f);
             Assert.AreEqual(-9.375f, dv.z, 1e-5f);
-        }
-
-        // ------------------------------------------------------------------
-        // 投掷抬升（§3 决策 3）
-        // ------------------------------------------------------------------
-
-        [Test]
-        public void ApplyThrowLift_AddsFixedElevation_AndKeepsUnitLength()
-        {
-            // throwDir = normalize(flatDir + UP * ThrowLift)，ThrowLift = 0.7。
-            // 仰角 = atan2(0.7, 1) = atan(0.7) ≈ 35°，方向仍为单位向量。
-            Vector3 dir = LevelGeometry.ApplyThrowLift(Vector3.forward);
-
-            Assert.AreEqual(1f, dir.magnitude, 1e-5f, "抬升只改方向，结果必须已归一化");
-            Assert.AreEqual(Mathf.Atan(LevelGeometry.ThrowLift),
-                Mathf.Atan2(dir.y, new Vector2(dir.x, dir.z).magnitude), 1e-5f);
-            Assert.AreEqual(0f, dir.x, 1e-6f);
-            Assert.Greater(dir.y, 0f, "抬升后竖直分量必须向上（+Y）");
-
-            // 斜向水平输入：水平朝向不变（x:z 比例保持），仰角不变。
-            Vector3 diagonal = LevelGeometry.ApplyThrowLift(new Vector3(1f, 0f, 1f));
-            Assert.AreEqual(1f, diagonal.magnitude, 1e-5f);
-            Assert.AreEqual(diagonal.x, diagonal.z, 1e-6f);
-            Assert.AreEqual(dir.y / Mathf.Sqrt(1f - dir.y * dir.y),
-                diagonal.y / Mathf.Sqrt(1f - diagonal.y * diagonal.y), 1e-5f);
-
-            // 零输入返回零，不产生 NaN。
-            Assert.AreEqual(0f, LevelGeometry.ApplyThrowLift(Vector3.zero).sqrMagnitude, 1e-6f);
-        }
-
-        [Test]
-        public void ThrowVelocity_LiftDoesNotChangeSpeedMagnitude()
-        {
-            // 速度**大小**由 Flash 的 twang 结果决定；抬升只改仰角 → 限速语义不被破坏。
-            const float speedPx = 12f;
-            float expected = speedPx * LevelGeometry.FlashSpeedScale;
-
-            Vector3 forward = LevelGeometry.ThrowVelocity(Vector3.forward, speedPx);
-            Vector3 diagonal = LevelGeometry.ThrowVelocity(new Vector3(1f, 0f, 1f), speedPx);
-
-            Assert.AreEqual(expected, forward.magnitude, 1e-5f);
-            Assert.AreEqual(forward.magnitude, diagonal.magnitude, 1e-5f,
-                "不同水平朝向的抬升投掷必须模长相同");
-            Assert.AreEqual(expected, LevelGeometry.FlashVelocityToArena(speedPx, 0f).magnitude, 1e-5f,
-                "抬升不应改变与无抬升平面速度相同的模长");
-        }
-
-        [Test]
-        public void FlashLaunchVelocityToWorld_MagnitudeIsFlashSpeedScaled()
-        {
-            // 统一入口：Flash 平面初速 (vx, vy) → 3D 世界初速（含抬升）。
-            // 模长 = √(vx²+vy²) × FlashSpeedScale = √(vx²+vy²) / 1.28（与 ThrowVelocity 同源）。
-            const float vx = 4f, vy = 10f;
-            float speed = Mathf.Sqrt(vx * vx + vy * vy);
-
-            Vector3 v = LevelGeometry.FlashLaunchVelocityToWorld(vx, vy);
-
-            Assert.AreEqual(speed * LevelGeometry.FlashSpeedScale, v.magnitude, 1e-5f);
-            Assert.AreEqual(speed / 0.64f, v.magnitude, 1e-4f);
-            Assert.Greater(v.y, 0f, "含抬升的初速必须有向上的竖直分量");
-
-            // 水平朝向 = Flash 平面速度 (vx, vy) 的方向；仰角 = atan(ThrowLift)。
-            float horizontal = new Vector2(v.x, v.z).magnitude;
-            Assert.AreEqual(vx / speed, v.x / horizontal, 1e-5f);
-            Assert.AreEqual(vy / speed, v.z / horizontal, 1e-5f);
-            Assert.AreEqual(Mathf.Atan(LevelGeometry.ThrowLift),
-                Mathf.Atan2(v.y, horizontal), 1e-5f);
-
-            // 零速度返回零，不产生 NaN。
-            Assert.AreEqual(0f, LevelGeometry.FlashLaunchVelocityToWorld(0f, 0f).sqrMagnitude, 1e-6f);
-        }
-
-        // ------------------------------------------------------------------
-        // 屏幕拖拽 → 世界水平方向（§3 决策：用相机基向量投影）
-        // ------------------------------------------------------------------
-
-        [Test]
-        public void ScreenDragToArenaDirection_YawZero_EqualsMinusDrag()
-        {
-            // yaw=0 且相机水平朝向 +Z 时：right=(1,0,0)、forward=(0,0,1)，
-            // 直接瞄准语义：horiz = right*dx + forward*dy → (0.6, 0, 0.8)（拖向哪扔向哪，r12 用户裁决）。
-            Vector3 dir = LevelGeometry.ScreenDragToArenaDirection(
-                new Vector3(1f, 0f, 0f), new Vector3(0f, 0f, 1f), 3f, 4f);
-
-            Assert.AreEqual(0.6f, dir.x, 1e-5f);
-            Assert.AreEqual(0f, dir.y, 1e-6f);
-            Assert.AreEqual(0.8f, dir.z, 1e-5f);
-
-            // 零拖拽返回零，不产生 NaN。
-            Assert.AreEqual(0f, LevelGeometry.ScreenDragToArenaDirection(
-                new Vector3(1f, 0f, 0f), new Vector3(0f, 0f, 1f), 0f, 0f).sqrMagnitude, 1e-6f);
-        }
-
-        [Test]
-        public void ScreenDragToArenaDirection_YawNinety_RotatesWithCamera()
-        {
-            // yaw=90°：right=(0,0,-1)、forward=(1,0,0)（绕 Y 旋转 90°）。
-            // 同一拖拽 (3,4) → horiz = right*3 + forward*4 = (4, 0, -3) → (0.8, 0, -0.6)。
-            Vector3 dir = LevelGeometry.ScreenDragToArenaDirection(
-                new Vector3(0f, 0f, -1f), new Vector3(1f, 0f, 0f), 3f, 4f);
-
-            Assert.AreEqual(0.8f, dir.x, 1e-5f);
-            Assert.AreEqual(0f, dir.y, 1e-6f);
-            Assert.AreEqual(-0.6f, dir.z, 1e-5f);
-
-            // 与 yaw=0 的同一拖拽方向不同 → 映射确实随相机环绕而旋转（而非硬编码）。
-            Vector3 yaw0 = LevelGeometry.ScreenDragToArenaDirection(
-                new Vector3(1f, 0f, 0f), new Vector3(0f, 0f, 1f), 3f, 4f);
-            Assert.AreNotEqual(yaw0, dir, "相机 yaw 变化后映射必须随之旋转");
         }
 
         // ------------------------------------------------------------------
@@ -272,17 +144,17 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void ThrowTrajectory_Predict_WithPhysXFrame_OnlyGravityActsOnY()
         {
-            // 用真实物理常数（dt = FrameSeconds = 1/25、g = WorldGravityY(1) = -39.0625）
+            // 用真实物理常数（dt = FrameSeconds = 1/25、g = StandardThrowRules.LaunchGravityY = -30）
             // 验证"预览 = 实弹"：重力只作用在 Y，水平面（XZ）匀速。
-            // g*dt = -1.5625 → 手算：
-            //   第 1 步：vy=-1.5625  → y=-0.0625；第 2 步：vy=-3.125 → y=-0.1875；
-            //   第 3 步：vy=-4.6875 → y=-0.375。x 每步 +10*0.04=0.4，z 恒为 0。
+            // g*dt = -1.2 → 手算：
+            //   第 1 步：vy=-1.2  → y=-0.048；第 2 步：vy=-2.4 → y=-0.144；
+            //   第 3 步：vy=-3.6 → y=-0.288。x 每步 +10*0.04=0.4，z 恒为 0。
             var buffer = new Vector3[3];
             ThrowTrajectory.Predict(
-                Vector3.zero, new Vector3(10f, 0f, 0f), LevelGeometry.WorldGravityY(1f),
+                Vector3.zero, new Vector3(10f, 0f, 0f), StandardThrowRules.LaunchGravityY,
                 buffer, 3, LevelGeometry.FrameSeconds);
 
-            float[] expectedY = { -0.0625f, -0.1875f, -0.375f };
+            float[] expectedY = { -0.048f, -0.144f, -0.288f };
             for (int i = 0; i < 3; i++)
             {
                 Assert.AreEqual(10f * LevelGeometry.FrameSeconds * (i + 1), buffer[i].x, 1e-5f,

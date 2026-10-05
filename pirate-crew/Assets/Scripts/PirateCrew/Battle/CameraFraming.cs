@@ -26,7 +26,7 @@ namespace PirateCrew.Battle
     /// <summary>
     /// 战斗相机取景数学的纯 C# 汇总层：基准机位常量 + 机位偏移/朝向/OrthoSize 合成的纯函数。
     /// 不引用 MonoBehaviour、不实例化 GameObject，可在无头验证台（external/harness-*）直接断言；
-    /// 胶水层是 <see cref="BattleCameraDriver"/>（唯一写入者）与 <see cref="CameraInputReader"/>（只读输入）。
+    /// 胶水层是 <see cref="BattleCameraDriver"/>（唯一写入者）与 <see cref="BattleInputReader"/>（唯一输入采样，经交互控制器转手）。
     ///
     /// 【机位口径 — 等距像素卡通（创始人裁决 2026-09-22/23）】
     ///   正交投影、**俯角锁 30°**（与出图口径 <see cref="PixelartPilotScene.PitchDegrees"/> 同一常量，
@@ -63,15 +63,14 @@ namespace PirateCrew.Battle
         public const float BaseDistance = 30f;
 
         /// <summary>
-        /// **基准机位 OrthoSize（正交半高；唯一取景档）= 可见 13.7 m**——中机位口径（r12 取景表）。
-        /// 创始人裁决 2026-09-23：**没有滚轮缩放**，相机取景恒为这一档。**要改基准只动这一个数。**
-        /// 2026-09-30 定值 6.85（可见 13.7 m，创始人定值；原 7 / 14 m）。
+        /// **近景档 OrthoSize（正交半高，两档取景的近档）= 可见 13.7 m**——中机位口径（r12 取景表）。
+        /// 2026-09-30 定值 6.85（创始人定值；原 7 / 14 m）。**要改近景基准只动这一个数。**
         /// </summary>
         public const float CloseUpOrthoSize = 6.85f;
 
         /// <summary>全场档 OrthoSize：纵向 2×17=34u 覆盖样板关 30u 全场。
-        /// 【2026-09-23 起退役为内部基准值】输入侧已无滚轮，玩家不可达此档；
-        /// 仍作为全景档下限与烘焙基准存在。</summary>
+        /// 两档取景制（2026-10-05 走查反馈）下是远景档的下限（<see cref="PanoramaOrthoSizeForSpan"/>
+        /// 的 clamp 下界）。</summary>
         public const int FullFieldOrthoSize = 17;
 
         /// <summary>全景档 OrthoSize 的上限（世界图大跨度时封顶；原退役常量 MaxOrthoSize 的唯一存活职责）。</summary>
@@ -96,7 +95,7 @@ namespace PirateCrew.Battle
         public static float LookAtHeight => UnitVisualHeight * LookAtHeightRatio;
 
         /// <summary>
-        /// 烘焙 FOV 当量分母（正交下不参与投影）：Scope/推近/旁观等"FOV 特效"按
+        /// 烘焙 FOV 当量分母（正交下不参与投影）：推近等"FOV 特效"按
         /// fov/baseFov 的**当量比率**映射到 OrthoSize（手感量级连续）。与原虚机 Lens 的 60 同源。
         /// </summary>
         public const float BaseFov = 60f;
@@ -147,6 +146,17 @@ namespace PirateCrew.Battle
         public static int PanoramaOrthoSizeForSpan(float spanUnits)
         {
             return Mathf.Clamp(Mathf.RoundToInt(spanUnits * 0.3f), FullFieldOrthoSize, PanoramaMaxOrthoSize);
+        }
+
+        /// <summary>
+        /// 两档取景切换的纯函数（相机行为契约 #9，交互操作契约 §B17）：当前档在两档中点以上
+        /// 视为远景 → 切回近景基准档；否则 → 切到远景档。Tab 键的无状态翻转。
+        /// </summary>
+        public static float ToggleFramingTier(float currentOrthoSize, float panoramaOrthoSize)
+        {
+            return currentOrthoSize > (CloseUpOrthoSize + panoramaOrthoSize) * 0.5f
+                ? CloseUpOrthoSize
+                : panoramaOrthoSize;
         }
 
         /// <summary>
@@ -314,17 +324,15 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// OrthoSize 合成：手动档 × FOV 当量比率。与原 ApplyFov 逐式等价——
-        /// Scope 收敛（60 → 28）→ 旁观外扩 → 选中推近，最后 <c>max(1, manual × fov/60)</c>。
+        /// OrthoSize 合成：手动档 × FOV 当量比率（选中推近的当量映射）。
+        /// Scope（瞄准镜收敛）与旁观外扩已随两态重构退役（旧链路根除，相机行为契约 §重构纪律 2）；
+        /// 最后 <c>max(1, manual × fov/60)</c> 兜底。
         /// </summary>
         public static float ComposeOrthoSize(
-            float manualOrthoSize, float scopeBlend,
-            bool aiSpectatorEnabled, bool spectator,
+            float manualOrthoSize,
             bool pushInActive, float pushInElapsed, float pushInDuration, float pushInDegrees)
         {
-            float fov = CameraFeelRules.ScopeFov(BaseFov, scopeBlend);
-            if (aiSpectatorEnabled)
-                fov = CameraFeelRules.SpectatorFov(fov, CameraFeelRules.SpectatorFovDeltaDegrees, spectator);
+            float fov = BaseFov;
             if (pushInActive)
                 fov = CameraFeelRules.PushInFov(
                     fov, pushInDegrees, pushInElapsed, pushInDuration);

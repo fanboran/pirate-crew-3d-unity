@@ -32,6 +32,12 @@ namespace PirateCrew.Battle
         /// <summary>玩家/AI 选定一次动作（载荷 <see cref="ActionSelectedPayload"/>）。</summary>
         public static readonly Event<ActionSelectedPayload> ActionSelected = new();
 
+        /// <summary>选中状态变化（载荷 <see cref="SelectionChangedPayload"/>；选中/取消/换人/执行落定回浏览）。</summary>
+        public static readonly Event<SelectionChangedPayload> SelectionChanged = new();
+
+        /// <summary>操作模组激活/结束（载荷 <see cref="OperationChangedPayload"/>；开始瞄准、取消或进入执行）。</summary>
+        public static readonly Event<OperationChangedPayload> OperationChanged = new();
+
         /// <summary>角色受伤（载荷 <see cref="CrewDamagedPayload"/>）。</summary>
         public static readonly Event<CrewDamagedPayload> CrewDamaged = new();
 
@@ -44,7 +50,7 @@ namespace PirateCrew.Battle
         /// <summary>请求战斗相机聚焦某目标（载荷 <see cref="Transform"/>，§3.2 panToCharacter）。</summary>
         public static readonly Event<Transform> CameraFocusRequested = new();
 
-        /// <summary>投掷/发射释放（载荷 float：释放时的拖拽距离 px）。</summary>
+        /// <summary>投掷/发射释放（载荷 float：初速 m/s，米制口径）。</summary>
         public static readonly Event<float> ShotReleased = new();
 
         /// <summary>武器弹体引爆（载荷 <see cref="ProjectileDetonatedPayload"/>，供表现层做爆炸特效）。</summary>
@@ -121,6 +127,46 @@ namespace PirateCrew.Battle
             PirateId = pirateId;
             TeamIndex = teamIndex;
             Kind = kind;
+        }
+    }
+
+    /// <summary>selection_changed 载荷（两态交互，规格见 docs/技术/交互操作契约.md §事件）。</summary>
+    public readonly struct SelectionChangedPayload
+    {
+        /// <summary>角色 id。</summary>
+        public readonly int PirateId;
+
+        /// <summary>true = 该角色成为当前选中；false = 取消选中（含换人时旧单位的取消）。</summary>
+        public readonly bool Selected;
+
+        public SelectionChangedPayload(int pirateId, bool selected)
+        {
+            PirateId = pirateId;
+            Selected = selected;
+        }
+    }
+
+    /// <summary>operation_changed 载荷（操作模组激活/结束；武器格或跳跃对应的瞄准交互）。</summary>
+    public readonly struct OperationChangedPayload
+    {
+        /// <summary>行动角色 id。</summary>
+        public readonly int PirateId;
+
+        /// <summary>true = 武器操作；false = 跳跃（抛自己）。</summary>
+        public readonly bool IsWeapon;
+
+        /// <summary>武器 id（IsWeapon=false 时无意义，取 -1）。</summary>
+        public readonly WeaponId WeaponId;
+
+        /// <summary>true = 模组激活（进入操作中）；false = 结束（取消或进入执行）。</summary>
+        public readonly bool Active;
+
+        public OperationChangedPayload(int pirateId, bool isWeapon, WeaponId weaponId, bool active)
+        {
+            PirateId = pirateId;
+            IsWeapon = isWeapon;
+            WeaponId = weaponId;
+            Active = active;
         }
     }
 

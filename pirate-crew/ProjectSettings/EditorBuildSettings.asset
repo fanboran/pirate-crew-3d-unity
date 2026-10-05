@@ -23,4 +23,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Game/UIShowcase.unity
     guid: eb4b0ba634782204ba01a12677d99a3d
+  - enabled: 1
+    path: Assets/Scenes/Pixelart/PixelartCharCamDebug.unity
+    guid: 5014c260dc389ac47a625142f94a608e
   m_configObjects: {}

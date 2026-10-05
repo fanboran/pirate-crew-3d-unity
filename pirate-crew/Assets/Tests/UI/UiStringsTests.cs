@@ -47,19 +47,24 @@ namespace PirateCrew.Tests
         }
 
         /// <summary>
-        /// 测试侧追加的**按键名白名单**（r12/r13 模式系统裁决：操作提示词有意包含按键标签，
-        /// 见 <c>UiStrings.BattleHintAiming/BattleHintObserve</c> 与
-        /// <c>BattleHud.RefreshModeHint</c>）。按键名是合法 UX 惯例，不是漏译——
+        /// 测试侧追加的**按键名白名单**（两态交互裁决 2026-10-03：操作提示词有意包含按键标签，
+        /// 见 <c>UiStrings.BattleHintOperation/BattleHintPaused</c> 与
+        /// <c>BattleHud.RefreshHint</c>）。按键名是合法 UX 惯例，不是漏译——
         /// 源码侧 <c>UiTextRules.AllowedTokens</c> 只登记了 3d/esc/e/w/s/wasd，
-        /// 这里在审计逻辑里**补充**过滤，命中全部为白名单 token 的文案不再记违规。
+        /// 这里在审计逻辑中**补充**过滤，命中全部为白名单 token 的文案不再记违规。
         /// 逐项理由：
-        ///   · AD / WS —— 瞄准提示的水平转向 / 力度键位对（BattleHintAiming）；
-        ///   · Space / Shift —— 常见修饰键的英文键帽名（模式提示词预留）；
+        ///   · a / d / w / s（含单字母）—— 标准投掷模组键位提示（A/D 方向、W/S 仰角，
+        ///     BattleHintOperation 用斜杠分隔所以逐字母成 token）；
+        ///   · AD / WS / WASD —— 键位对与键位簇整体（历史口径保留；自由镜头平移提示用 WASD）；
+        ///   · e / esc —— 升降键与退出键（源码白名单同款；键位提示串整串豁免判定需逐 token 在册）；
+        ///   · q —— 自由镜头升降键（Q/E 升降；e 已在源码白名单）；
+        ///   · tab —— 两档取景切换键（Tab 切换取景）；
+        ///   · Space / Shift —— 常见修饰键的英文键帽名（Space 已中文化为「空格」，Shift 保留）；
+        ///   · P —— 暂停键（BattleHintPaused）；
         ///   · HP —— 血量条通用缩写（HUD 布局规范有意保留，规范 §4.10 例外项）。
-        /// 单独的 A / D / W / S / E 单字母不在此列：源码白名单已覆盖 E/W/S，
-        /// 而孤立的 A/D 更可能是漏译碎片，出现时应当人工裁决而不是静默放行。
         /// </summary>
-        static readonly string[] KeyLabelWhitelist = { "ad", "ws", "space", "shift", "hp" };
+        static readonly string[] KeyLabelWhitelist =
+            { "ad", "ws", "wasd", "space", "shift", "hp", "a", "d", "w", "s", "p", "q", "e", "tab", "esc" };
 
         /// <summary>文本里的英文字母 token 是否**全部**落在按键名白名单里。</summary>
         static bool AllTokensAreKeyLabels(string text)

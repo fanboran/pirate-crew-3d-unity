@@ -387,23 +387,19 @@ namespace PirateCrew.Battle
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// §5.1 施加初速。传 **Flash 平面初速 (vx, vy)（px/帧）**，由
-        /// <see cref="LevelGeometry.FlashLaunchVelocityToWorld(float, float, float)"/> 统一换算成 3D 世界初速
-        /// （按 weight 分流的抬升；角色 weight 恒 &gt; 0，走固定仰角抬升口径）——
-        /// 与弹体、预览共用同一个入口，保证三者弹道口径一致。
+        /// §5.1 施加初速（米制重立后接口）。传**完整世界初速向量**——由
+        /// <see cref="StandardThrowRules.LaunchVelocity"/> 从三参数合成，与弹体生成、轨迹预览
+        /// 同一份值（「预览 = 实弹」的不变量落在调用方传同一向量上）。
         /// 使用 <see cref="ForceMode.Impulse"/>：Δv = impulse / mass，与质量无关。
         /// </summary>
-        public void ApplyLaunchVelocity(float vxPixelsPerFrame, float vyPixelsPerFrame)
+        public void ApplyLaunchVelocity(Vector3 worldVelocity)
         {
             if (body == null || body.isKinematic)
                 return;
-
-            Vector3 deltaV = LevelGeometry.FlashLaunchVelocityToWorld(
-                vxPixelsPerFrame, vyPixelsPerFrame, CrewCatalog.Weight);
-            if (deltaV == Vector3.zero)
+            if (worldVelocity == Vector3.zero)
                 return;
 
-            body.AddForce(deltaV * body.mass, ForceMode.Impulse);
+            body.AddForce(worldVelocity * body.mass, ForceMode.Impulse);
         }
 
         /// <summary>

@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
@@ -10,32 +9,32 @@ using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Combat;
 using PirateCrew.Data;
 using PirateCrew.UI.Stick;
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 战斗 HUD（文字占位版，2026-09-24 创始人三连裁决：图标全删换文字、HUD 按 3:1 艺术像素
-    /// 收敛、文字解除像素栅格）。
+    /// 战斗 HUD（两态重构版，2026-10-03 裁决：三模式开关退役，交互状态由
+    /// <see cref="BattleInteractionController"/> 唯一持有）。
     ///
     /// 【信息架构】
     ///   · **顶栏双队合成血条**：左右屏缘各一条，每名存活单位 = 一段分格（受击只掉自己那段，
-    ///     白色 damage ghost 残影延迟回落），条下一排小方格 pips（存活空格 / 阵亡「×」——
-    ///     职业头像图标已退役）；**头顶血条已根除**（非像素世界空间件清退），这是唯一血量读数；
-    ///   · **中央回合徽章**：theme 金面钮（button_selected）+ 数字，回合切换弹跳；
-    ///   · **武器面板**：17 武器各占一格**文字钮**（武器中文名），投掷 / 结束回合为文字按钮；
-    ///   · 模式开关 = 移动 / 操作 / 观察三文字钮（快捷键 1/2/3 角标）；暂停 / 返回 = 文字钮。
+    ///     白色 damage ghost 残影延迟回落），条下一排小方格 pips（存活空格 / 阵亡「×」）；
+    ///   · **中央回合徽章**：theme 金面钮 + 数字，回合切换弹跳；
+    ///   · **操作菜单**（选中·浏览态弹出，原武器面板转型）：17 武器各占一格文字钮，
+    ///     跳跃 / 结束回合为文字按钮；
+    ///   · **操作 HUD**（操作中弹出，与操作菜单互斥）：方向/仰角/力度三读数 + 发射/取消钮；
+    ///   · **提示条**：按交互状态刷新键位提示（自由镜头/浏览/操作中/执行中/暂停）；
+    ///   · 暂停 / 返回 = 文字钮（P 键与 Esc 矩阵由交互控制器解析，经本类的公开口开合面板）。
     ///
     /// 【架构约定】引用一律 <c>[SerializeField]</c>（<c>BattleUiTheme.WireHud</c> 回写）；
-    /// 状态刷新全部 EventBus 事件驱动；
-    /// 皮肤 / 字号 / 颜色一律 <see cref="UiSkin"/> Token。
+    /// 状态刷新全部 EventBus 事件驱动；皮肤 / 字号 / 颜色一律 <see cref="UiSkin"/> Token。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed partial class BattleHud : MonoBehaviour
     {
-        /// <summary>武器面板头条的 HP 条（凹槽 + ghost + fill）。</summary>
+        /// <summary>操作菜单头条的 HP 条（凹槽 + ghost + fill）。</summary>
         [Serializable]
         public sealed class HpBarView
         {
@@ -51,10 +50,7 @@ namespace PirateCrew.UI
         [Header("战场引用")]
         [SerializeField] BattleController battle;
         [SerializeField] TurnManager turnManager;
-        [SerializeField] AimThrowController aimController;
-        [Tooltip("战斗相机控制器（同场景显式注入，由 EditorTools.BattleLookupWiring 接线）："
-                 + "观察模式开关要转交给它（SetObserveMode）。缺失时观察模式只切 UI 态、相机不动。")]
-        [SerializeField] BattleCameraDriver cameraController;
+        [SerializeField] BattleInteractionController interaction;
 
         [Header("顶栏双队血条")]
         [SerializeField] TeamBarView teamBarRed;
@@ -65,7 +61,7 @@ namespace PirateCrew.UI
         [SerializeField] MaskableGraphic badgeText;
         [SerializeField] MaskableGraphic turnHintText;
 
-        [Header("武器面板（底部中央）")]
+        [Header("操作菜单（贴底居中，选中·浏览态）")]
         [SerializeField] GameObject weaponPanelRoot;
         [SerializeField] MaskableGraphic unitNameText;
         [SerializeField] HpBarView unitHpBar;
@@ -78,14 +74,19 @@ namespace PirateCrew.UI
         [SerializeField] Button throwSelfButton;
         [SerializeField] Button endGoButton;
 
-        [Header("模式开关（右上，索引 = BattleHudMode）")]
-        [SerializeField] Button[] modeButtons = new Button[3];
-        [SerializeField] Image[] modeFrames = new Image[3];
+        [Header("操作 HUD（贴底居中，操作中态；与操作菜单互斥）")]
+        [Tooltip("操作面板根（读数行 + 发射/取消钮）。")]
+        [SerializeField] GameObject operationPanelRoot;
+        [SerializeField] MaskableGraphic yawReadoutText;
+        [SerializeField] MaskableGraphic elevationReadoutText;
+        [SerializeField] MaskableGraphic powerReadoutText;
+        [SerializeField] Button confirmOperationButton;
+        [SerializeField] Button cancelOperationButton;
 
-        [Header("系统按钮与提示")]
+        [Header("提示条与系统按钮")]
+        [SerializeField] MaskableGraphic hintText;
         [SerializeField] Button backButton;
         [SerializeField] Button pauseButton;
-        [SerializeField] MaskableGraphic hintText;
 
         [Header("暂停面板")]
         [SerializeField] GameObject pausePanelRoot;
@@ -114,7 +115,6 @@ namespace PirateCrew.UI
         // 运行时状态
         // ------------------------------------------------------------------
 
-
         /// <summary>这一局是否战役局（结算面板按它决定显示哪些行）。</summary>
         bool _campaignBattle;
 
@@ -128,12 +128,20 @@ namespace PirateCrew.UI
         /// <summary>首次状态直接落位（不打动效、不出声），之后的翻转才播动效。</summary>
         bool _panelResolved;
 
+        /// <summary>操作读数上一次显示的三元组（变化才写文本，避免逐帧写字符串）。</summary>
+        int _lastReadoutYaw = int.MinValue;
+        int _lastReadoutElevation = int.MinValue;
+        int _lastReadoutPower = int.MinValue;
+
+        /// <summary>当前操作名（状态条第一行用，交互操作契约 §G1；空串 = 非操作中）。</summary>
+        string _operationLabel = string.Empty;
+
         // ------------------------------------------------------------------
         // 装配自检（供 PlayMode 结构断言）
         // ------------------------------------------------------------------
 
         /// <summary>HUD 是否已接好核心战场引用。</summary>
-        public bool HasCoreReferences => battle != null && turnManager != null && aimController != null;
+        public bool HasCoreReferences => battle != null && turnManager != null && interaction != null;
 
         /// <summary>武器槽位数（应为 17）。</summary>
         public int WeaponSlotCount => weaponButtons != null ? weaponButtons.Length : 0;
@@ -157,43 +165,43 @@ namespace PirateCrew.UI
             }
         }
 
-        /// <summary>模式开关（3 段图标钮）是否接好。</summary>
-        public bool HasModeWiring
-        {
-            get
-            {
-                if (modeButtons == null || modeButtons.Length != 3)
-                    return false;
-                if (modeFrames == null || modeFrames.Length != 3)
-                    return false;
-                for (int i = 0; i < 3; i++)
-                {
-                    if (modeButtons[i] == null || modeFrames[i] == null)
-                        return false;
-                }
-                return true;
-            }
-        }
+        /// <summary>操作 HUD（读数 + 发射/取消）是否接好。</summary>
+        public bool HasOperationWiring =>
+            operationPanelRoot != null && yawReadoutText != null && elevationReadoutText != null
+            && powerReadoutText != null && confirmOperationButton != null && cancelOperationButton != null;
+
+        /// <summary>
+        /// 交互控制器是否来自**装配期注入**（PlayMode 装配测试读它；兜底成功不算过关）。
+        /// </summary>
+        public bool InteractionWiredByAssembly { get; private set; }
 
         // ------------------------------------------------------------------
         // 生命周期
         // ------------------------------------------------------------------
 
-        /// <summary>提示条上"镜头 N m"上一次显示的值（-1 = 还没写过；滚轮改档才刷新）。</summary>
-        int _lastCameraMeters = -1;
-
         void Awake()
         {
             _motion = gameObject.AddComponent<UiMotion>();
-            // 依赖解析必须在 InitModeButtons 之前（它内部会走 SetHudMode → 驱动相机）。
-            ResolveCameraControllerOnce();
+            InteractionWiredByAssembly = interaction != null;
+            if (interaction == null)
+            {
+                interaction = FindObjectOfType<BattleInteractionController>();
+                Log.Warn("[BattleHud] interaction 未经装配接线，已一次性兜底解析"
+                         + (interaction != null ? "成功" : "失败（Esc 矩阵的 UI 层将降级）")
+                         + "。修复：跑 PirateCrew.EditorTools.BattleLookupWiring.Wire（写 Battle.unity）。");
+            }
+
             WireWeaponButtons();
             WireCommandButtons();
-            InitModeButtons();
         }
 
         void OnEnable()
         {
+            // Esc 矩阵的 UI 层接线（BattleUiBridge 跨程序集门面；订阅成对增删）。
+            BattleUiBridge.OpenPauseRequested += OpenPause;
+            BattleUiBridge.ResumePauseRequested += ClosePause;
+            BattleUiBridge.CloseDialogRequested += CloseConfirmDialog;
+
             EventBus.Subscribe(BattleEvents.BattleStarted, OnBattleStarted);
             EventBus.Subscribe(BattleEvents.TurnStarted, OnTurnStarted);
             EventBus.Subscribe(BattleEvents.TurnEnded, OnTurnEnded);
@@ -201,13 +209,18 @@ namespace PirateCrew.UI
             EventBus.Subscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
             EventBus.Subscribe(BattleEvents.CrewDied, OnCrewDied);
             EventBus.Subscribe(BattleEvents.MatchFinished, OnMatchFinished);
-            EventBus.Subscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Subscribe(BattleEvents.SelectionChanged, OnSelectionChanged);
+            EventBus.Subscribe(BattleEvents.OperationChanged, OnOperationChanged);
         }
 
         void OnDisable()
         {
             // 离场兜底：暂停中直接回主菜单/选关，绝不能把 timeScale=0 带出战斗场景。
             BattlePause.ForceResume();
+            BattleUiBridge.ConfirmDialogOpen = false;
+            BattleUiBridge.OpenPauseRequested -= OpenPause;
+            BattleUiBridge.ResumePauseRequested -= ClosePause;
+            BattleUiBridge.CloseDialogRequested -= CloseConfirmDialog;
 
             EventBus.Unsubscribe(BattleEvents.BattleStarted, OnBattleStarted);
             EventBus.Unsubscribe(BattleEvents.TurnStarted, OnTurnStarted);
@@ -216,7 +229,15 @@ namespace PirateCrew.UI
             EventBus.Unsubscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
             EventBus.Unsubscribe(BattleEvents.CrewDied, OnCrewDied);
             EventBus.Unsubscribe(BattleEvents.MatchFinished, OnMatchFinished);
-            EventBus.Unsubscribe(BattleEvents.CameraFocusRequested, OnCameraFocusRequested);
+            EventBus.Unsubscribe(BattleEvents.SelectionChanged, OnSelectionChanged);
+            EventBus.Unsubscribe(BattleEvents.OperationChanged, OnOperationChanged);
+        }
+
+        void Update()
+        {
+            // 操作读数只在操作中刷新（值变化才写文本）。
+            if (interaction != null && interaction.IsOperationActive)
+                RefreshOperationReadout();
         }
 
         void WireWeaponButtons()
@@ -253,176 +274,15 @@ namespace PirateCrew.UI
             if (confirmOkButton != null)
                 confirmOkButton.onClick.AddListener(ConfirmLeaveBattle);
             if (confirmCancelButton != null)
-                confirmCancelButton.onClick.AddListener(HideConfirmDialog);
+                confirmCancelButton.onClick.AddListener(CloseConfirmDialog);
             if (settlementRestartButton != null)
                 settlementRestartButton.onClick.AddListener(RestartBattle);
             if (settlementBackButton != null)
                 settlementBackButton.onClick.AddListener(OnBackClicked);
-        }
-
-        // ------------------------------------------------------------------
-        // 模式系统（r12 用户裁决；本波次图标化 + DeepFind 清退）
-        //
-        // 【移动】左键=选角色；选角色后 A/D 转向、W/S 力度、空格=跳跃发射；拖空白=转视角。
-        // 【操作】炮台模式：AD 转向、WS 力度、回车=开火（防走火）。
-        // 【观察】我的世界同款：鼠标移动=转视角（准星点选已退役，选中走鼠标直接点选）。
-        // 可感知行为规格见 docs/技术/投掷行为契约.md。
-        // ------------------------------------------------------------------
-
-        public enum BattleHudMode { Move, Act, Observe }
-
-        BattleHudMode _mode = BattleHudMode.Move;
-
-        /// <summary>
-        /// 战斗相机解析：**只在 Awake 跑一次**（旧写法在 <see cref="SetHudMode"/> 里
-        /// <c>if (_cameraController == null) _cameraController = FindObjectOfType&lt;...&gt;()</c>，
-        /// 于是每次模式切换都可能全场扫描一次）。
-        ///
-        /// 装配期注入优先；未注入时一次性兜底并吵闹——真正的装配缺陷由
-        /// <see cref="CameraControllerWiredByAssembly"/>（PlayMode 装配测试断言）钉住。
-        /// </summary>
-        void ResolveCameraControllerOnce()
-        {
-            CameraControllerWiredByAssembly = cameraController != null;
-            if (cameraController != null)
-                return;
-
-            cameraController = FindObjectOfType<BattleCameraDriver>();
-            Log.Warn("[BattleHud] cameraController 未经装配接线，已一次性兜底解析"
-                     + (cameraController != null ? "成功" : "失败（观察模式将不再驱动相机）")
-                     + "。修复：跑 PirateCrew.EditorTools.BattleLookupWiring.Wire（写 Battle.unity）。");
-        }
-
-        /// <summary>本类的 <see cref="cameraController"/> 是否来自**装配期注入**。PlayMode 装配测试读它。</summary>
-        public bool CameraControllerWiredByAssembly { get; private set; }
-
-        void InitModeButtons()
-        {
-            for (int i = 0; i < 3; i++)
-            {
-                BattleHudMode mode = (BattleHudMode)i;
-                if (modeButtons != null && modeButtons[i] != null)
-                {
-                    Button button = modeButtons[i];
-                    button.onClick.AddListener(() =>
-                    {
-                        ButtonFeedback(button, success: true);
-                        SetHudMode(mode);
-                    });
-                }
-            }
-
-            SetHudMode(BattleHudMode.Move);
-        }
-
-        void Update()
-        {
-            if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
-                SetHudMode(BattleHudMode.Move);
-            else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
-                SetHudMode(BattleHudMode.Act);
-            else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3))
-                SetHudMode(BattleHudMode.Observe);
-            else if (Input.GetKeyDown(KeyCode.Escape))
-            {
-                // Esc 优先级：暂停中→恢复；观察模式→退出观察；瞄准中→不抢；否则→打开暂停。
-                if (BattlePause.IsPaused)
-                    ClosePause();
-                else if (_mode == BattleHudMode.Observe)
-                    SetHudMode(BattleHudMode.Move);
-                else if (aimController == null || !aimController.IsAiming)
-                    OpenPause();
-            }
-
-            // 暂停时冻结瞄准输入。
-            if (aimController != null && BattlePause.IsPaused)
-                aimController.InputEnabled = false;
-
-            // 提示条上的镜头档读数：滚轮改档后跟一次（见 CameraReadout 的注释）。
-            RefreshCameraReadout();
-        }
-
-        void SetHudMode(BattleHudMode mode)
-        {
-            _mode = mode;
-
-            // 相机引用在 Awake 已解析完（ResolveCameraControllerOnce）——此处不再查找。
-            if (cameraController != null)
-                cameraController.SetObserveMode(mode == BattleHudMode.Observe);
-            if (aimController != null)
-            {
-                aimController.SetWeaponPreference(mode == BattleHudMode.Act);
-                aimController.InputEnabled = mode != BattleHudMode.Observe;
-            }
-
-            RefreshModeSegments();
-            RefreshModeHint();
-        }
-
-        /// <summary>模式钮状态：选中 = 金面（<see cref="UiKit.ApplyThemeButton"/> sticky 档，
-        /// 四态全钉 button_selected——悬停/按压不再回落灰面）；未选中 = 常态灰面。
-        /// 与菜单系统选中语义同源（2026-09-28 Aseprite 换装波，Focus 环退役）。
-        /// 【为什么不乘色】像素件的明暗色阶烘死在贴图里，状态必须换贴图。</summary>
-        void RefreshModeSegments()
-        {
-            if (modeButtons == null || modeFrames == null)
-                return;
-
-            for (int i = 0; i < modeButtons.Length && i < 3 && i < modeFrames.Length; i++)
-            {
-                if (modeButtons[i] == null || modeFrames[i] == null)
-                    continue;
-
-                // 【产线合一 W2】按钮实际都出 SketchButton（ActionButton 薄壳化），业务选中
-                // 直接走 Sticky（状态层引擎单一真源）；else 分支只是非 SketchButton 的兜底。
-                bool selected = i == (int)_mode;
-                if (modeButtons[i] is SketchButton sketch)
-                    sketch.Sticky = selected;
-                else
-                    UiKit.ApplyThemeButton(modeButtons[i], modeFrames[i], sticky: selected);
-            }
-        }
-
-        void RefreshModeHint()
-        {
-            if (hintText == null)
-                return;
-            string text = _mode == BattleHudMode.Move
-                ? UiStrings.BattleHintMove
-                : _mode == BattleHudMode.Act
-                    ? UiStrings.BattleHintAiming
-                    : UiStrings.BattleHintObserve;
-            UiTextUtil.SetText(hintText, text + CameraReadout());
-        }
-
-        /// <summary>
-        /// 镜头档读数（临时调参用，创始人 2026-09-22：「我在游戏内调整一个我看着最顺眼的距离
-        /// 当做基准」）。显示的是**出图取景表的同一个单位**——可见高度米数 = 2 × OrthoSize
-        /// （<see cref="BattleCameraDriver.RuntimeVisibleMeters"/>），所以滚轮挑完之后
-        /// 念出这个数就能直接改 `PixelartLevelScene` 的 mid/wide/close。
-        /// 基准定下后本读数可删（它只是提示条后缀，删掉不影响任何逻辑）。
-        /// 【临时】"镜头 N m" 格式串是动态读数，暂留本处拼接；基准定案删除本读数前，
-        /// 若要在别处复用再并入 <see cref="UiStrings"/>（字符串模板 + <see cref="UiTextRules"/>）。
-        /// </summary>
-        string CameraReadout()
-        {
-            if (cameraController == null)
-                return string.Empty;
-            return "　｜　镜头 " + Mathf.RoundToInt(cameraController.RuntimeVisibleMeters) + " m";
-        }
-
-        /// <summary>滚轮改变了正交档才刷新提示条（避免每帧写文本）。</summary>
-        void RefreshCameraReadout()
-        {
-            if (hintText == null)
-                return;
-            int meters = cameraController != null
-                ? Mathf.RoundToInt(cameraController.RuntimeVisibleMeters)
-                : 0;
-            if (meters == _lastCameraMeters)
-                return;
-            _lastCameraMeters = meters;
-            RefreshModeHint();
+            if (confirmOperationButton != null)
+                confirmOperationButton.onClick.AddListener(OnConfirmOperationClicked);
+            if (cancelOperationButton != null)
+                cancelOperationButton.onClick.AddListener(OnCancelOperationClicked);
         }
 
         // ------------------------------------------------------------------
@@ -440,47 +300,51 @@ namespace PirateCrew.UI
 
         void OnWeaponClicked(int weaponId)
         {
-            if (aimController == null)
+            if (interaction == null)
                 return;
 
-            bool selected = aimController.SelectWeapon((WeaponId)weaponId);
+            bool selected = interaction.SelectWeapon((WeaponId)weaponId);
             ButtonFeedback(weaponButtons != null && weaponId >= 0 && weaponId < weaponButtons.Length
                 ? weaponButtons[weaponId]
                 : null, selected);
             if (selected)
-            {
                 RefreshWeaponPanel();
-                PunchWeaponFrame(weaponId);
-            }
-        }
-
-        void PunchWeaponFrame(int weaponId)
-        {
-            if (_motion == null || weaponFrames == null
-                || weaponId < 0 || weaponId >= weaponFrames.Length || weaponFrames[weaponId] == null)
-                return;
-
-            _motion.Punch(weaponFrames[weaponId], UiMotionRules.PunchSeconds);
         }
 
         void OnThrowSelfClicked()
         {
-            if (aimController == null)
+            if (interaction == null)
                 return;
 
             ButtonFeedback(throwSelfButton, success: true);
-            aimController.SelectThrowSelf();
-            RefreshWeaponPanel();
+            interaction.SelectThrowSelf();
         }
 
         void OnEndGoClicked()
         {
-            if (aimController == null)
+            if (interaction == null)
                 return;
 
             ButtonFeedback(endGoButton, success: true);
-            aimController.EndGo();
-            RefreshWeaponPanel(hide: true);
+            interaction.EndGo();
+        }
+
+        void OnConfirmOperationClicked()
+        {
+            if (interaction == null)
+                return;
+
+            ButtonFeedback(confirmOperationButton, success: true);
+            interaction.ConfirmOperationFromUi();
+        }
+
+        void OnCancelOperationClicked()
+        {
+            if (interaction == null)
+                return;
+
+            ButtonFeedback(cancelOperationButton, success: true);
+            interaction.CancelOperation();
         }
 
         void OnBackClicked()
@@ -509,19 +373,29 @@ namespace PirateCrew.UI
 
             BattlePause.Pause();
             RefreshWeaponPanel(hide: true);
+            HideOperationPanel();
             OpenModal(pausePanelRoot, pauseCard);
+            RefreshHint();
         }
 
-        void ClosePause()
+        /// <summary>解除暂停（按钮 / Esc 矩阵 C2 / P 键经 BattleUiBridge 共用）。</summary>
+        public void ClosePause()
         {
             if (!BattlePause.IsPaused)
                 return;
 
             BattlePause.Resume();
             CloseModal(pausePanelRoot);
-            if (aimController != null)
-                aimController.InputEnabled = _mode != BattleHudMode.Observe;
             AudioService.PlayUi(SfxId.UiClick);
+            RefreshWeaponPanel();
+            RefreshHint();
+        }
+
+        /// <summary>关闭返回确认弹窗（Esc 矩阵 C1 经 BattleUiBridge 的动作口）。</summary>
+        public void CloseConfirmDialog()
+        {
+            BattleUiBridge.ConfirmDialogOpen = false;
+            CloseModal(confirmDialogRoot);
         }
 
         /// <summary>再来一局：重载 Battle 场景（同名目标自动不压栈，栈顶返回点天然保住）。</summary>
@@ -583,22 +457,18 @@ namespace PirateCrew.UI
 
             if (confirmMessage != null)
                 UiTextUtil.SetText(confirmMessage, UiStrings.BackConfirm);
+            BattleUiBridge.ConfirmDialogOpen = true;
             OpenModal(confirmDialogRoot, confirmCard);
         }
 
         void ConfirmLeaveBattle()
         {
+            BattleUiBridge.ConfirmDialogOpen = false;
             CloseModal(confirmDialogRoot);
             BattlePause.ForceResume();
             AudioService.PlayUi(SfxId.UiClick);
             EventBus.Publish(SceneEvents.GoBack);
         }
-
-        void HideConfirmDialog()
-        {
-            CloseModal(confirmDialogRoot);
-        }
-
 
         // ------------------------------------------------------------------
         // EventBus 回调
@@ -617,10 +487,13 @@ namespace PirateCrew.UI
             BattlePause.ForceResume();
             CloseModal(settlementPanelRoot);
             CloseModal(confirmDialogRoot);
+            CloseModal(pausePanelRoot);
 
             BuildTeamBars();
             RefreshTurnHint();
             RefreshWeaponPanel(hide: true);
+            HideOperationPanel();
+            RefreshHint();
         }
 
         void OnTurnStarted(TurnStartedPayload payload)
@@ -630,13 +503,17 @@ namespace PirateCrew.UI
             RefreshBadge(punch: true);
             RefreshTurnHint();
             RefreshTeamBars();
-            RefreshWeaponPanel();
+            RefreshWeaponPanel(hide: true);
+            HideOperationPanel();
+            RefreshHint();
         }
 
         void OnTurnEnded(int teamNumber)
         {
-            // 队伍编号不进 HUD，只用“回合结束”这个时机收起武器面板。
+            // 队伍编号不进 HUD，只用“回合结束”这个时机收起操作面。
             RefreshWeaponPanel(hide: true);
+            HideOperationPanel();
+            RefreshHint();
         }
 
         void OnActionSelected(ActionSelectedPayload action)
@@ -644,6 +521,37 @@ namespace PirateCrew.UI
             // 动作种类不进 HUD（面板收起与队伍条刷新与种类无关）。
             RefreshWeaponPanel(hide: true);
             RefreshTeamBars();
+            RefreshHint();
+        }
+
+        void OnSelectionChanged(SelectionChangedPayload payload)
+        {
+            // 选中/取消/换人/落定回浏览——操作菜单随之开合；读数面板只在操作中（OperationChanged 管）。
+            RefreshWeaponPanel();
+            RefreshHint();
+        }
+
+        void OnOperationChanged(OperationChangedPayload payload)
+        {
+            // 操作名进状态条（§G1）：跳跃 = 「跳跃」，武器 = 武器名。
+            _operationLabel = payload.Active
+                ? (payload.IsWeapon ? UiTextRules.WeaponName(payload.WeaponId) : UiStrings.BattleThrowSelf)
+                : string.Empty;
+
+            if (payload.Active)
+            {
+                RefreshWeaponPanel(hide: true);
+                ShowOperationPanel();
+                _lastReadoutYaw = int.MinValue;   // 强制下一次读数刷新
+            }
+            else
+            {
+                HideOperationPanel();
+                // 取消操作回浏览 → 操作菜单重新弹出；进入执行则保持收起（等落定 SelectionChanged）。
+                if (interaction != null && interaction.State == InteractionState.SelectedIdle)
+                    RefreshWeaponPanel();
+            }
+            RefreshHint();
         }
 
         void OnCrewDamaged(CrewDamagedPayload damaged)
@@ -669,13 +577,7 @@ namespace PirateCrew.UI
 
             ShowSettlement(finished);
             RefreshWeaponPanel(hide: true);
-        }
-
-        void OnCameraFocusRequested(Transform target)
-        {
-            // 回合开始 pan 与玩家点选角色都会走这里；点选时 aimController.SelectedCharacter 已就绪。
-            // 焦点 Transform 由相机层消费（HUD 只借这个时机收起/弹出武器面板）。
-            RefreshWeaponPanel();
+            HideOperationPanel();
         }
 
         // ------------------------------------------------------------------
@@ -704,15 +606,76 @@ namespace PirateCrew.UI
                 : string.Empty);
         }
 
+        /// <summary>
+        /// 状态条（交互操作契约 §G）：两行式——第一行状态名（操作中含操作名），第二行该状态的
+        /// 键位提示（§B 的玩家可读形式，文案与 §B 同源）；暂停态整体覆盖。
+        /// </summary>
+        void RefreshHint()
+        {
+            if (hintText == null)
+                return;
+
+            string title;
+            string keys;
+            if (BattlePause.IsPaused)
+            {
+                title = UiStrings.BattleStatePaused;
+                keys = UiStrings.BattleHintPaused;
+            }
+            else if (interaction == null)
+            {
+                title = string.Empty;
+                keys = string.Empty;
+            }
+            else
+            {
+                switch (interaction.State)
+                {
+                    case InteractionState.FreeCamera:
+                        title = UiStrings.BattleStateFreeCamera;
+                        keys = UiStrings.BattleHintFreeCamera;
+                        break;
+                    case InteractionState.SelectedIdle:
+                        title = UiStrings.BattleStateSelected;
+                        keys = UiStrings.BattleHintSelected;
+                        break;
+                    case InteractionState.OperationActive:
+                        title = string.Format(UiStrings.BattleStateOperationFormat, _operationLabel);
+                        keys = UiStrings.BattleHintOperation;
+                        break;
+                    case InteractionState.Executing:
+                        title = UiStrings.BattleStateExecuting;
+                        keys = UiStrings.BattleHintExecuting;
+                        break;
+                    default:
+                        title = string.Empty;
+                        keys = string.Empty;
+                        break;
+                }
+            }
+
+            UiTextUtil.SetText(hintText, ComposeHintText(title, keys));
+        }
+
+        /// <summary>两行合成：有状态名有键位 = 两行；只有其一 = 单行。</summary>
+        static string ComposeHintText(string title, string keys)
+        {
+            if (title.Length > 0 && keys.Length > 0)
+                return title + "\n" + keys;
+            return title.Length > 0 ? title : keys;
+        }
+
         // ------------------------------------------------------------------
 
-        /// <summary>显示条件：已选中角色 &amp;&amp; 角色存活 &amp;&amp; 当前队非 AI。</summary>
+        /// <summary>操作菜单显示条件：选中·浏览态 &amp;&amp; 角色存活 &amp;&amp; 当前队非 AI。</summary>
         void RefreshWeaponPanel(bool hide = false)
         {
-            PirateBase selected = aimController != null ? aimController.SelectedCharacter : null;
+            PirateBase selected = interaction != null ? interaction.SelectedCharacter : null;
             BattleTeam team = turnManager != null ? turnManager.CurrentTeam : null;
 
             bool visible = !hide
+                && interaction != null
+                && interaction.State == InteractionState.SelectedIdle
                 && selected != null
                 && selected.Alive
                 && team != null
@@ -723,7 +686,7 @@ namespace PirateCrew.UI
             if (!visible)
                 return;
 
-            // 右列头条：队色职业名 + HP 条（头像格随图标退役删除）。
+            // 右列头条：队色职业名 + HP 条。
             if (unitNameText != null)
             {
                 UiTextUtil.SetText(unitNameText,
@@ -747,19 +710,16 @@ namespace PirateCrew.UI
             if (endGoButton != null)
                 endGoButton.interactable = true;
 
-            // 已装备的武器名 / 说明（未装备时显示选择提示——文字退位的兜底：只有一行）。
+            // 已装备的武器名 / 说明（未装备时留空——格子本身已表意）。
             WeaponInventory inventory = selected.Inventory;
             bool equipped = inventory != null && inventory.HasEquipped;
             var equippedId = equipped ? (WeaponId)inventory.EquippedIndex : (WeaponId)(-1);
 
             if (weaponNameText != null)
             {
-                // 未装备时**留空**（创始人 2026-09-28：「点格子选择武器」字样删掉——
-                // 格子本身已表意，不再重复提示）。
                 UiTextUtil.SetText(weaponNameText, equipped
                     ? UiTextRules.WeaponName(equippedId)
                     : string.Empty);
-                // 文字色从像素皮调色板取（黄铜强调档 / 暖白压 alpha 的次级档）。
                 UiTextUtil.SetColor(weaponNameText, equipped
                     ? PixelSkin.LightOf(PixelTone.Primary)
                     : UiSkin.WithAlpha(PixelSkin.PaperWhite, 0.72f));
@@ -783,12 +743,10 @@ namespace PirateCrew.UI
                 // 未拥有 → 按钮禁用（theme disabled 双层影子字压暗，不烘黑图也不乘色）。
                 weaponButtons[i].interactable = owned;
 
-                // 格底状态：已装备 = 金面 sticky（四态全钉 button_selected）；其余 = 常态灰面。
+                // 格底状态：已装备 = 金面 sticky；其余 = 常态灰面。
                 if (weaponFrames != null && i < weaponFrames.Length && weaponFrames[i] != null)
                 {
                     bool chosen = equipped && i == (int)equippedId;
-                    // 【产线合一 W2】武器格已出 SketchButton（BattleHudBuilder 改产线），
-                    // 已装备 = Sticky 金面；未拥有 = disabled 双层影子字由引擎承担。
                     if (weaponButtons[i] is SketchButton sketch)
                         sketch.Sticky = chosen;
                     else
@@ -797,7 +755,7 @@ namespace PirateCrew.UI
             }
         }
 
-        /// <summary>武器面板显隐唯一入口：状态翻转才动效 + 音。</summary>
+        /// <summary>操作菜单显隐唯一入口：状态翻转才动效 + 音。</summary>
         void SetWeaponPanelVisible(bool visible)
         {
             if (_panelVisible == visible && _panelResolved)
@@ -840,6 +798,68 @@ namespace PirateCrew.UI
                     _motion.HidePanel(weaponPanelRoot, UiMotionRules.PanelHideSeconds);
                 else
                     weaponPanelRoot.SetActive(false);
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // 操作 HUD（操作中态）
+        // ------------------------------------------------------------------
+
+        /// <summary>操作面板弹出（OperationChanged Active=true 时）。</summary>
+        void ShowOperationPanel()
+        {
+            if (operationPanelRoot == null)
+                return;
+
+            if (_motion != null)
+            {
+                _motion.ShowPanel(operationPanelRoot, UiMotionRules.PanelShowSeconds,
+                    UiMotionRules.PanelSlideOffsetPixels);
+                AudioService.PlayUi(SfxId.UiPanelOpen);
+            }
+            else
+                operationPanelRoot.SetActive(true);
+
+            RefreshOperationReadout(force: true);
+        }
+
+        /// <summary>操作面板收起（取消/进入执行）。</summary>
+        void HideOperationPanel()
+        {
+            if (operationPanelRoot == null)
+                return;
+
+            if (_motion != null && operationPanelRoot.activeSelf)
+                _motion.HidePanel(operationPanelRoot, UiMotionRules.PanelHideSeconds);
+            else if (operationPanelRoot.activeSelf)
+                operationPanelRoot.SetActive(false);
+        }
+
+        /// <summary>三参数读数（方向/仰角/力度），值变化才写文本。</summary>
+        void RefreshOperationReadout(bool force = false)
+        {
+            if (interaction == null || yawReadoutText == null)
+                return;
+
+            ThrowParams p = interaction.CurrentParams;
+            int yaw = UiTextRules.YawRounded(p.YawDegrees);
+            int elevation = UiTextRules.ElevationRounded(p.ElevationDegrees);
+            int power = UiTextRules.Percent(p.Power);
+
+            if (force || yaw != _lastReadoutYaw)
+            {
+                UiTextUtil.SetText(yawReadoutText, yaw + "°");
+                _lastReadoutYaw = yaw;
+            }
+            if (force || elevation != _lastReadoutElevation)
+            {
+                UiTextUtil.SetText(elevationReadoutText, UiTextRules.ElevationDegrees(p.ElevationDegrees));
+                _lastReadoutElevation = elevation;
+            }
+            if (force || power != _lastReadoutPower)
+            {
+                UiTextUtil.SetText(powerReadoutText, UiTextRules.StrengthPercent(p.Power));
+                _lastReadoutPower = power;
             }
         }
     }

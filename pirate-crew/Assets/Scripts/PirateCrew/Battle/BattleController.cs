@@ -61,7 +61,7 @@ namespace PirateCrew.Battle
                  + "已在装配期禁用，海面渲染统一走 OceanRig）。运行时只把 y 设为水位（§5.5）。")]
         [SerializeField] Transform waterPlane;
         [SerializeField] TurnManager turnManager;
-        [SerializeField] AimThrowController aimController;
+        [SerializeField] BattleInteractionController interaction;
         [SerializeField] BattleCameraDriver battleCamera;
 
         [Header("武器弹体（可选 Prefab；为空时程序化构建，无需重新装配既有场景）")]
@@ -399,14 +399,14 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// 3D 化决策：把 PhysX 全局重力设为 Flash weight=1 的等价重力（-19.53125），
-        /// 并把物理帧率设为原版 25fps，使离散积分与 Ballistics 逐步一致（预览 = 实弹）。
-        /// 角色/武器的 Rigidbody 用 <c>useGravity</c> 吃这份全局重力；weight=0 的 cannonball
-        /// 由其实弹脚本自行 <c>useGravity = false</c>，weight=1.5 的 boulder 同理自定义。
+        /// 物理口径（米制重立）：全局重力 = <see cref="StandardThrowRules.LaunchGravity"/>
+        /// （-30 m/s²，投掷域唯一真源）；物理帧率 25 Hz（回合/像素节奏，非 Flash 专属），
+        /// 使 PhysX 离散积分与预览积分器逐步一致（预览 = 实弹）。
+        /// 角色/武器的 Rigidbody 用 <c>useGravity</c> 吃这份全局重力；WeightScale 型弹体由其实弹脚本自乘。
         /// </summary>
         void ApplyPhysicsConvention()
         {
-            Physics.gravity = LevelGeometry.WorldGravity(CrewCatalog.Weight);
+            Physics.gravity = StandardThrowRules.LaunchGravity;
             Time.fixedDeltaTime = LevelGeometry.FrameSeconds;
         }
 
@@ -524,32 +524,34 @@ namespace PirateCrew.Battle
                     return true;
             }
 
-            return aimController != null && aimController.IsAiming;
+            return interaction != null && interaction.IsOperationActive;
         }
 
-        /// <summary>选中角色（AimThrowController 在点选命中后调用）。</summary>
-        public void SelectCharacter(PirateBase pirate)
+        /// <summary>
+        /// 选中角色（<see cref="BattleInteractionController"/> 在点选命中后调用）。
+        /// 返回是否选中成功（换人合法性由队伍规则把关：未行动可换、动作后锁定——
+        /// <see cref="TurnRules.CanSwitchSelection"/>）。
+        /// </summary>
+        public bool SelectCharacter(PirateBase pirate)
         {
             BattleTeam team = CurrentTeam;
             if (team == null || pirate == null || !pirate.Alive || pirate.TeamIndex != team.TeamIndex)
-                return;
+                return false;
 
-            // 已经选过同一角色（continueTurn）或尚未选人时才允许。
+            // 已经选过同一角色（continueTurn）或尚未选人时才允许；换人需未行动。
             bool again = team.SelectedCharacter == pirate;
             if (!team.Select(pirate, again))
-                return;
+                return false;
 
-            if (aimController != null)
-                aimController.ResetForSelection(pirate);
-
-            // ActionSelected 频道在真正执行动作（抛自己/用武器/end go）时由 AimThrowController 发布；
-            // 这里只做镜头聚焦与清零 inactivity（选择本身也是"有活动"）。
+            // ActionSelected 频道在真正执行动作（抛自己/用武器/end go）时由交互控制器发布；
+            // 这里只做镜头聚焦提示与清零 inactivity（选择本身也是"有活动"）。
             EventBus.Publish(BattleEvents.CameraFocusRequested, pirate.transform);
             if (turnManager != null)
                 turnManager.NotifyActivity();
+            return true;
         }
 
-        /// <summary>广播一次动作选择（AimThrowController 在真正执行动作时调用）。</summary>
+        /// <summary>广播一次动作选择（BattleInteractionController 在真正执行动作时调用）。</summary>
         public void NotifyActionSelected(PirateBase pirate, BattleActionKind kind)
         {
             if (pirate == null)
@@ -697,17 +699,12 @@ namespace PirateCrew.Battle
         /// </summary>
         /// <param name="stats">武器数值（来自 <see cref="WeaponCatalog"/>）。</param>
         /// <param name="owner">投掷者（累加 evilness；可为 null）。</param>
-        /// <param name="ownerWorldPosition">投掷者位置（弹弓发射点）。</param>
-        /// <param name="aimWorldPosition">瞄准落点（放置类铺开中心）。</param>
-        /// <param name="vxFlash">弹弓初速 vx（Flash px/帧）。</param>
-        /// <param name="vyFlash">弹弓初速 vy（Flash px/帧）。</param>
+        /// <param name="originWorld">投掷起点（ThrowOrigin 高度，与预览同源）。</param>
+        /// <param name="velocity">米制初速向量（<see cref="StandardThrowRules.LaunchVelocity"/>）。</param>
         public int SpawnWeaponProjectiles(
-            WeaponStats stats, PirateBase owner,
-            Vector3 ownerWorldPosition, Vector3 aimWorldPosition,
-            float vxFlash, float vyFlash)
+            WeaponStats stats, PirateBase owner, Vector3 originWorld, Vector3 velocity)
         {
-            IReadOnlyList<ProjectileSpawn> plan = ProjectileSpawnPlanner.Plan(
-                stats, ownerWorldPosition, aimWorldPosition, vxFlash, vyFlash);
+            IReadOnlyList<ProjectileSpawn> plan = ProjectileSpawnPlanner.Plan(stats, originWorld, velocity);
 
             for (int i = 0; i < plan.Count; i++)
                 CreateProjectile(stats, owner, plan[i]);

@@ -42,10 +42,10 @@ namespace PirateCrew.EditorTools
     ///
     /// 【接哪三条】三条都是"场景内对象 → 场景内对象"，与 docs/审计/专项/场景接线审计报告.md F-3 的
     /// 修法一致：
-    ///   · <c>BattleCameraDriver.aimThrow</c> ← 根对象 <c>AimThrowController</c>
-    ///     （**热路径**：Update 的力度-镜头耦合、LateUpdate 的 Scope 视野混合每帧读它）；
-    ///   · <c>BattleHud.cameraController</c> ← 根对象 <c>BattleCameraDriver</c>
-    ///     （观察模式开关要转交给相机）；
+    ///   · <c>BattleCameraDriver.interaction</c> ← 根对象 <c>BattleInteractionController</c>
+    ///     （**热路径**：LateUpdate 每帧拉取交互状态/选中目标/意图帧分派相机模式）；
+    ///   · <c>BattleHud.interaction</c> ← 根对象 <c>BattleInteractionController</c>
+    ///     （操作菜单/操作 HUD/提示条随交互状态开合；Esc 矩阵的弹窗层归属 HUD）；
     ///   · <c>WaterSimulationDriver.sunLight</c> ← <c>AmbientDirector.sunLight</c>
     ///     （水面太阳光路方向；解析顺序 <c>RenderSettings.sun</c> → 本字段 → 静态正午方向）。
     /// </summary>
@@ -85,7 +85,7 @@ namespace PirateCrew.EditorTools
 
             var applied = new List<string>();
 
-            var aim = FindInScene<AimThrowController>(scene);
+            var aim = FindInScene<BattleInteractionController>(scene);
             var battleCamera = FindInScene<BattleCameraDriver>(scene);
             var hud = FindInScene<BattleHud>(scene);
             var water = FindInScene<WaterSimulationDriver>(scene);
@@ -99,13 +99,13 @@ namespace PirateCrew.EditorTools
             if (battleCamera != null)
                 ApplyWires(battleCamera, new[]
                 {
-                    new WireAssignment { TargetField = "aimThrow", Value = aim },
+                    new WireAssignment { TargetField = "interaction", Value = aim },
                 }, applied, problems);
 
             if (hud != null)
                 ApplyWires(hud, new[]
                 {
-                    new WireAssignment { TargetField = "cameraController", Value = battleCamera },
+                    new WireAssignment { TargetField = "interaction", Value = aim },
                 }, applied, problems);
 
             if (water != null)
@@ -165,8 +165,8 @@ namespace PirateCrew.EditorTools
 
             var ok = new List<string>();
 
-            Check<BattleCameraDriver>(scene, "aimThrow", ok, problems);
-            Check<BattleHud>(scene, "cameraController", ok, problems);
+            Check<BattleCameraDriver>(scene, "interaction", ok, problems);
+            Check<BattleHud>(scene, "interaction", ok, problems);
             Check<WaterSimulationDriver>(scene, "sunLight", ok, problems);
 
             for (int i = 0; i < ok.Count; i++)
