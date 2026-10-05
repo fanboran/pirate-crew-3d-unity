@@ -26,9 +26,9 @@ namespace PirateCrew.EditorTools
     public static class BattleHudScreenshot
     {
         const string ScenePath = "Assets/Scenes/Game/Battle.unity";
-        const int ShotCount = 2;
+        const int ShotCount = 3;
         const int FirstShotDelayTicks = 90;   // 进场稳定（装配/首回合/相机落位）
-        const int ShotIntervalTicks = 60;
+        const int ShotIntervalTicks = 90;     // 缩放档切换后的平滑到位余量
         const string KeyArmed = "BattleHudScreenshot.Armed";
         const string KeyCountdown = "BattleHudScreenshot.Countdown";
         const string KeyShotsLeft = "BattleHudScreenshot.ShotsLeft";
@@ -145,6 +145,32 @@ namespace PirateCrew.EditorTools
 
             ShotsLeft--;
             Countdown = ShotIntervalTicks;
+            ApplyZoomTier(ShotIndex + 1);
+        }
+
+        /// <summary>缩放档对比（创始人裁决「还是太小了」）：第 2/3 枪把 Driver 的目标 ortho
+        /// 反射改档（<c>_targetOrthoSize</c> 是单一写入者的输入口，随帧平滑到位），
+        /// 第 1 枪保持默认近景档不动。档值只服务对比出图，不回写任何常量。</summary>
+        static readonly float[] ZoomTierTargets = { 0f, 5.15f, 3.43f };   // 0 = 保持默认
+
+        static void ApplyZoomTier(int nextShot)
+        {
+            if (nextShot < 1 || nextShot > ZoomTierTargets.Length)
+                return;
+            float tier = ZoomTierTargets[nextShot - 1];
+            if (tier <= 0f)
+                return;
+            var driver = Object.FindFirstObjectByType<PirateCrew.Battle.BattleCameraDriver>();
+            var fld = typeof(PirateCrew.Battle.BattleCameraDriver).GetField("_targetOrthoSize",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (driver == null || fld == null)
+            {
+                Debug.LogError("[BattleHudScreenshot] 找不到 BattleCameraDriver._targetOrthoSize，缩放档跳过。");
+                return;
+            }
+            fld.SetValue(driver, tier);
+            Debug.Log("[BattleHudScreenshot] 第 " + nextShot + " 枪目标 ortho = " + tier
+                + "（可见高 " + (tier * 2f).ToString("F1") + " m）");
         }
 
         static RenderTexture _rt;
@@ -346,7 +372,9 @@ namespace PirateCrew.EditorTools
             Object.DestroyImmediate(world);
             Object.DestroyImmediate(ui);
             Object.DestroyImmediate(final);
-            Debug.Log("[BattleHudScreenshot] 已写入 " + path);
+            Debug.Log("[BattleHudScreenshot] 已写入 " + path
+                + "（ortho " + cam.orthographicSize.ToString("F2")
+                + "，可见高 " + (cam.orthographicSize * 2f).ToString("F1") + " m）");
         }
     }
 }
