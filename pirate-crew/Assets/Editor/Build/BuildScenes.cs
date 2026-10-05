@@ -56,6 +56,13 @@ namespace PirateCrew.EditorTools.BuildSystem
         public const string PixelartPilot = "PixelartPilot";
 
         /// <summary>
+        /// 角色/镜头参数调试场（创始人量取景/体格参数的台子）：开发专用，**不进发行包**。
+        /// 场景资产由 <c>PixelartCharCamDebugSetup</c> 烘焙（菜单/无头），运行时控制器在
+        /// <c>CharCamDebug</c> 域；调试菜单「角色镜头调试场」按名载入 ⇒ Build Settings 须含它。
+        /// </summary>
+        public const string PixelartCharCamDebug = "PixelartCharCamDebug";
+
+        /// <summary>
         /// 关卡像素化试点场景（三个样板关的真实内容走本路径）：开发/测试专用，**不进发行包**。
         /// 它们是 <c>-pixelartOut -pixelartLevel &lt;N&gt;</c> 出图入口的载体，装配器见
         /// <c>PixelartLevelPilotSetup</c>，取景口径见 <c>PixelartLevelScene</c>；
@@ -91,12 +98,13 @@ namespace PirateCrew.EditorTools.BuildSystem
         /// <summary>仅开发/测试集：发行包不含，Build Settings 需要含（播放器出图入口依赖）。</summary>
         static readonly string[] _developmentOnlySceneNames = BuildDevelopmentOnlySet();
 
-        /// <summary>仅开发场景集 = 试点场景 + <see cref="PixelartLevelScenes"/>（表在别处，避免两处维护）。</summary>
+        /// <summary>仅开发场景集 = 像素化试点 + 角色镜头调试场 + <see cref="PixelartLevelScenes"/>（表在别处，避免两处维护）。</summary>
         static string[] BuildDevelopmentOnlySet()
         {
-            var set = new string[1 + PixelartLevelScenes.Length];
+            var set = new string[2 + PixelartLevelScenes.Length];
             set[0] = PixelartPilot;
-            PixelartLevelScenes.CopyTo(set, 1);
+            set[1] = PixelartCharCamDebug;
+            PixelartLevelScenes.CopyTo(set, 2);
             return set;
         }
 
@@ -128,15 +136,18 @@ namespace PirateCrew.EditorTools.BuildSystem
         }
 
         /// <summary>
-        /// 编辑器 Build Settings 登记集（= 发行集，已含 UIShowcase——主菜单「组件展示」钮
-        /// 运行时按名载入，故它在 <see cref="_releaseSceneNames"/> 里）。
+        /// 编辑器 Build Settings 登记集 = **开发集**（发行集 + 仅开发场景）：编辑器里按 Play
+        /// 要能进调试场与出图试点；发行包范围与此无关——构建期经 <c>BuildPlayerOptions.scenes</c>
+        /// 显式传 <see cref="ReleaseSet"/>，不读 EditorBuildSettings。
         /// **场景装配器的唯一写表出口**：SceneSetup / ManagementSceneSetup / BattleSceneSetup
         /// 的 RegisterBuildSettings 一律调 <see cref="EditorRegistrationScenes"/>，不许自带清单
         /// （三处硬编码互相覆盖砍掉 UIShowcase 四次的教训，2026-09-28 收口）。
+        /// 【2026-10-05 走查】曾按仅发行集登记，场景装配链每次重建都把 Build Settings 里的
+        /// 调试场/出图试点剔掉——「角色镜头调试场」启动器报「场景不存在或未加入 Build Settings」。
         /// </summary>
         public static string[] EditorRegistrationSet()
         {
-            return ReleaseSet();
+            return DevelopmentSet();
         }
 
         /// <summary><see cref="EditorRegistrationSet"/> 的 EditorBuildSettingsScene 形态（全部 enabled）。</summary>
