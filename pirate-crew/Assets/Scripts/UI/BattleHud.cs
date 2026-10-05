@@ -699,7 +699,9 @@ namespace PirateCrew.UI
             {
                 UiTextUtil.SetText(unitNameText,
                     UiTextRules.CrewNameByBattleSymbol(selected.CrewType));
-                UiTextUtil.SetColor(unitNameText, UiSkin.TeamFill(selected.TeamIndex));
+                // 【配色冻结（创始人 2026-10-05：不许再自作主张动色）】维持既有 TeamText 提亮档；
+                // 任何配色调整先出截图给创始人过目再落。
+                UiTextUtil.SetColor(unitNameText, UiSkin.TeamText(selected.TeamIndex));
             }
 
             if (unitHpBar != null && unitHpBar.fill != null)
