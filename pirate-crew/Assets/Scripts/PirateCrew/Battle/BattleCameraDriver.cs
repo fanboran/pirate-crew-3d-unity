@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using PirateCrew.Core;
 using PirateCrew.Combat;
 using PirateCrew.Data;
+using PirateCrew.Rendering.Pixelart;
 using UnityEngine;
 
 namespace PirateCrew.Battle
@@ -39,6 +40,10 @@ namespace PirateCrew.Battle
         [Header("写入目标（唯一写入者的对象）")]
         [Tooltip("主相机。本类是它 transform/lens 的唯一写入者（像素化 rig 只改掩码/渲染器，不碰取景）。")]
         [SerializeField] Camera mainCamera;
+
+        [Tooltip("像素化相机 rig（主相机同物体；worldPerPixel 由本类按取景实况逐帧同步——"
+                 + "像素密度与取景自洽契约，装配期静态标定退役）。")]
+        [SerializeField] PixelartCameraRig pixelRig;
 
         [Header("组装引用（手感数据源；留空时跟随/死亡反馈降级，其余仍工作）")]
         [Tooltip("战斗根。用于把 PirateId 解析成角色、把弹体取出做跟随。")]
@@ -254,6 +259,10 @@ namespace PirateCrew.Battle
             ResolveInteractionOnce();
             ApplyLensClips();
 
+            // 像素化 rig 与主相机同物体（BattleSceneSetup 装配）；未注入时一次性兜底取同物体组件。
+            if (pixelRig == null && mainCamera != null)
+                pixelRig = mainCamera.GetComponent<PixelartCameraRig>();
+
             // 【全工程唯一瞬切点】对局开局从烘焙机位反推初始位姿（相机行为契约 #7 的唯一例外）：
             // 烘焙位置 = 场地中心 + 方位 0 / 俯角 30° 的基准偏移。
             if (mainCamera != null)
@@ -422,6 +431,14 @@ namespace PirateCrew.Battle
             mainCamera.transform.SetPositionAndRotation(frame.Position, frame.Rotation);
             if (!Mathf.Approximately(mainCamera.orthographicSize, frame.OrthoSize))
                 mainCamera.orthographicSize = frame.OrthoSize;
+
+            // 【像素密度随取景自洽】一个艺术像素的世界覆盖 = 可见米数 × 档数 ÷ 1080（与调试场
+            // CharCamDebug 同式）。取景两档与平滑中间态全程保持"艺术画布 = 屏幕 ÷ 档数"的
+            // 整数上采样；装配期 28m 静态标定退役（2026-10-05 走查：与 13.7m 实况脱钩一倍，
+            // 描边宽度/细节网格的世界换算全错）。
+            if (pixelRig != null)
+                pixelRig.worldPerPixel = Mathf.Max(0.0001f, frame.OrthoSize * 2f)
+                    * Mathf.Max(1, pixelRig.pixelScale) / 1080f;
         }
 
         // ------------------------------------------------------------------
@@ -479,18 +496,15 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// 两档取景输入（交互操作契约 §B16/B17）：Tab 翻转近景/远景；滚轮上 = 近景、下 = 远景
-        /// （方向性入口，重复滚动停在同档）。只在自由镜头与浏览态被调用（锁定态不进这里）。
+        /// 两档取景输入（交互操作契约 §B17）：**只认 Tab**。滚轮不消费——滚轮是反射性输入，
+        /// 误触即把镜头翻到另一档（2026-10-05 走查实锤：滚动一次 → 远景档约 48m 可见，
+        /// 像素格跌破 1 屏幕像素，读作"镜头自己变远了 / 不是 3x 了"）。
         /// 切换只改目标档——现实值由位姿全目标化的指数平滑逼近（无跳变不变量）。
         /// </summary>
         void ApplyFramingTierInput(in BattleIntentFrame intent)
         {
             if (intent.ZoomTogglePressed)
                 _targetOrthoSize = CameraFraming.ToggleFramingTier(_targetOrthoSize, _panoramaOrthoSize);
-            else if (intent.ScrollDelta > 0.01f)
-                _targetOrthoSize = CameraFraming.CloseUpOrthoSize;
-            else if (intent.ScrollDelta < -0.01f)
-                _targetOrthoSize = _panoramaOrthoSize;
         }
 
         /// <summary>位姿平滑：环绕/回焦态方位与俯角指数逼近目标；自由镜头直写（转身零滞后）。</summary>

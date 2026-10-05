@@ -408,8 +408,14 @@ namespace PirateCrew.EditorTools
             }
 
             var rig = camera.gameObject.AddComponent<PixelartCameraRig>();
-            rig.pixelScale = PixelartPilotScene.PixelScale;
-            rig.worldPerPixel = 28f / PixelartPilotScene.ReferenceRenderHeight;   // 取景不动：28m 可见高换算到 1:2 档
+            // 【运行时档 3× = 创始人习惯档】与调试场 CharCamDebugController.DefaultPixelScale 同源；
+            // 出图口径 PixelartPilotScene.PixelScale（2×）只管出图，不进战斗相机（2026-10-05 走查
+            // "为什么不是 3x"：局内 2× 与调试场 3× 观感割裂）。
+            rig.pixelScale = PirateCrew.CharCamDebug.CharCamDebugController.DefaultPixelScale;
+            // 初值按近景档自洽；运行时由 BattleCameraDriver.ApplyFrame 按取景实况逐帧覆写
+            // （28m 静态标定与 13.7m 实况脱钩一倍，已废）。
+            rig.worldPerPixel = CameraFraming.CloseUpOrthoSize * 2f
+                * PirateCrew.CharCamDebug.CharCamDebugController.DefaultPixelScale / 1080f;
             rig.deriveOrthographicSize = false;
             rig.castRendererIndex = castIndex;
             rig.screenRendererIndex = screenIndex;
@@ -421,7 +427,7 @@ namespace PirateCrew.EditorTools
 
             Debug.Log("[BattleSceneSetup] 像素化路径已接上主相机：Cast " + castIndex
                 + " / Screen " + screenIndex + " / 叠加 " + overlayIndex
-                + "，像素档 " + PixelartPilotScene.PixelScale + "×（来源 = 出图口径 PixelartPilotScene）。");
+                + "，像素档 " + rig.pixelScale + "×（创始人习惯档，与调试场同源）。");
         }
 
         /// <summary>
@@ -890,6 +896,9 @@ namespace PirateCrew.EditorTools
             // 几何令牌与字号全部按画布像素取值（见 UiSkin.Px / UiSkin.Font）。
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
             scaler.scaleFactor = PixelSkin.Unit;
+            // 【像素级对齐】动画/布局会把部件放到分数画布坐标上，九宫格切片描边在分数位采样
+            // 即出细缝（走查"左下角描边有缝隙"）；开启后 UGUI 把每部件吸附到整屏像素。
+            canvas.pixelPerfect = true;
             return canvas;
         }
 

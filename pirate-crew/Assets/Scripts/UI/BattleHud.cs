@@ -85,6 +85,8 @@ namespace PirateCrew.UI
 
         [Header("提示条与系统按钮")]
         [SerializeField] MaskableGraphic hintText;
+        [SerializeField] SketchButton stateIndicator;
+        [SerializeField] MaskableGraphic stateIndicatorLabel;
         [SerializeField] Button backButton;
         [SerializeField] Button pauseButton;
 
@@ -654,6 +656,12 @@ namespace PirateCrew.UI
                 }
             }
 
+            // 状态指示钮（§G4）与状态条第一行同源：自由镜头灰面，其余态金面。
+            if (stateIndicatorLabel != null)
+                UiTextUtil.SetText(stateIndicatorLabel, title);
+            if (stateIndicator != null)
+                stateIndicator.Sticky = title.Length > 0 && title != UiStrings.BattleStateFreeCamera;
+
             UiTextUtil.SetText(hintText, ComposeHintText(title, keys));
         }
 
@@ -691,7 +699,7 @@ namespace PirateCrew.UI
             {
                 UiTextUtil.SetText(unitNameText,
                     UiTextRules.CrewNameByBattleSymbol(selected.CrewType));
-                UiTextUtil.SetColor(unitNameText, UiSkin.TeamText(selected.TeamIndex));
+                UiTextUtil.SetColor(unitNameText, UiSkin.TeamFill(selected.TeamIndex));
             }
 
             if (unitHpBar != null && unitHpBar.fill != null)

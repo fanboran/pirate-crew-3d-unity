@@ -55,6 +55,14 @@ namespace PirateCrew.EditorTools
         /// 数字 Tiny 8px 落在金面字区内——12 格档数字压描边穿模，2026-10-05 走查废弃）。</summary>
         public const float BadgeSize = 16f;
 
+        /// <summary>状态指示钮（交互操作契约 §G4，2026-10-05 走查"我到底是哪个状态"）：
+        /// 蓝队血条/pips 正下方右对齐的按钮皮指示件——自由镜头 = 常态灰面，选中/操作中/执行中 =
+        /// 金面 sticky。宽按标签自适应（builder 内 FitToLabel），高 20 = HudButtonHeight；
+        /// 距屏顶 34 = 顶带 8 + 血条 8 + 缝 6 + pips 6 + 缝 6。</summary>
+        public const float StateIndicatorFromRight = 156f;
+        public const float StateIndicatorFromTop = 34f;
+        public const float StateIndicatorHeight = 20f;
+
         /// <summary>操作 HUD 面板：与武器面板共用贴底位（互斥弹出，见 UI 设计语言 §5.4）。
         /// 宽 210 = 边框 6 + 读数区 198 + 边框 6（读数标签/值放宽，修 180 档「方向」二字贴边）；
         /// 高 64 = 内容顶 23 + 读数行 12 + 缝 2 + 按钮行 20 + 底边 6 + 1 余。</summary>

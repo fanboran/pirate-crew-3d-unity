@@ -69,6 +69,8 @@ namespace PirateCrew.EditorTools
             public Button backButton;
             public Button pauseButton;
             public TextMeshProUGUI hintText;
+            public SketchButton stateIndicator;
+            public TextMeshProUGUI stateIndicatorLabel;
 
             // ---- 模态：暂停 / 结算 / 返回确认 ----
             public GameObject pausePanelRoot;
@@ -565,6 +567,20 @@ namespace PirateCrew.EditorTools
                     BattleHudZones.Safe + BattleHudZones.WeaponPanelHeight
                     + BattleHudZones.HintBarGapAbovePanels);
             }
+
+            // 顶部带右翼：状态指示钮（交互操作契约 §G4，2026-10-05 走查"我到底是哪个状态"）——
+            // 按钮皮指示件：自由镜头 = 常态灰面，选中/操作中/执行中 = 金面 sticky（BattleHud.RefreshHint 刷）。
+            // 蓝队血条/pips 正下方右对齐；关 raycast = 纯指示不接点击（点击语义归状态条文案与既有入口）。
+            result.stateIndicator = SketchButton.Create(hudRoot, "StateIndicator",
+                new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-BattleHudZones.StateIndicatorFromRight, -BattleHudZones.StateIndicatorFromTop),
+                new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattleStateFreeCamera) + 8f,
+                    BattleHudZones.StateIndicatorHeight),
+                secondary, UiStrings.BattleStateFreeCamera, UiSkin.Font.Hud);
+            result.stateIndicator.image.raycastTarget = false;
+            result.stateIndicatorLabel = SketchButton.LabelOf(result.stateIndicator);
+            if (result.stateIndicatorLabel != null)
+                result.stateIndicatorLabel.raycastTarget = false;
         }
 
         // ------------------------------------------------------------------

@@ -98,6 +98,8 @@ namespace PirateCrew.EditorTools
             SetRef(so, "backButton", result.backButton);
             SetRef(so, "pauseButton", result.pauseButton);
             SetRef(so, "hintText", result.hintText);
+            SetRef(so, "stateIndicator", result.stateIndicator);
+            SetRef(so, "stateIndicatorLabel", result.stateIndicatorLabel);
 
             // 模态：暂停 / 返回确认 / 结算。
             SetRef(so, "pausePanelRoot", result.pausePanelRoot);

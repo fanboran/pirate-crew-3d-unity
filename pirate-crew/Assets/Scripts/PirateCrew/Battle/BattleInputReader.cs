@@ -59,9 +59,6 @@ namespace PirateCrew.Battle
 
         /// <summary>力度输入：Shift=-1（降）/ Space=+1（升）。</summary>
         public int ThrowPowerInput;
-
-        /// <summary>滚轮增量（自由镜头/浏览态被相机消费为取景换档 §B16；操作中为模组扩展位 §B18）。</summary>
-        public float ScrollDelta;
     }
 
     /// <summary>
@@ -130,8 +127,6 @@ namespace PirateCrew.Battle
             frame.ThrowPowerInput =
                 (Input.GetKey(KeyCode.Space) ? 1 : 0)
                 - (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? 1 : 0);
-
-            frame.ScrollDelta = Input.mouseScrollDelta.y;
 
             return frame;
         }
