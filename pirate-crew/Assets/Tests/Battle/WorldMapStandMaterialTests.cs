@@ -86,7 +86,7 @@ namespace PirateCrew.Battle.Tests
                 try
                 {
                     Assert.That(mat, Is.Not.Null, MissingMaterial(band));
-                    Assert.That(mat.shader.name, Is.EqualTo(PixelartPath.ObjectShaderName),
+                    Assert.That(ShaderNameOf(mat), Is.EqualTo(PixelartPath.ObjectShaderName),
                         "band" + band + " 站面没用本路径物体 shader（退回旧 Terrain / URP Lit = 回归）");
                 }
                 finally
@@ -94,6 +94,13 @@ namespace PirateCrew.Battle.Tests
                     DestroyMaterial(mat);
                 }
             }
+        }
+
+        /// <summary>shader 名读取收进辅助方法——<c>Material.shader</c> 是内部调用（icall），
+        /// 直接写在测试体里会让 harness 域整个方法 JIT 失败，连 Unity 域守卫都轮不到跑。</summary>
+        static string ShaderNameOf(Material mat)
+        {
+            return mat.shader.name;
         }
 
         [Test]
@@ -207,6 +214,9 @@ namespace PirateCrew.Battle.Tests
         /// </summary>
         static Material CreateTerrainMaterial(int band)
         {
+            if (!IsUnityRuntimeDomain())
+                Assert.Ignore("非 Unity 运行时（无头验证台纯 dotnet）：站面材质是运行时 new 出来的原生"
+                    + "对象，脱离 Unity 运行时必抛 ECall SecurityException——本组档位材质断言由 EditMode 收口。");
             MethodInfo method = typeof(WorldMapComposer).GetMethod(
                 "CreateTerrainMaterial", BindingFlags.Static | BindingFlags.NonPublic);
             Assert.That(method, Is.Not.Null,
@@ -225,6 +235,22 @@ namespace PirateCrew.Battle.Tests
         {
             if (mat != null)
                 Object.DestroyImmediate(mat);
+        }
+
+        /// <summary>反射探测是否在 Unity 运行时域（纯 dotnet 域拿不到 Application.dataPath）。</summary>
+        static bool IsUnityRuntimeDomain()
+        {
+            try
+            {
+                System.Type appType = System.Type.GetType("UnityEngine.Application, UnityEngine.CoreModule");
+                PropertyInfo dataPath = appType?.GetProperty("dataPath",
+                    BindingFlags.Public | BindingFlags.Static);
+                return !string.IsNullOrEmpty(dataPath?.GetValue(null) as string);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         static void AssertColor(Color actual, Color expected, string message)

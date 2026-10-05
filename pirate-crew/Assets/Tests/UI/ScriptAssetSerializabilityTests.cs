@@ -48,8 +48,6 @@ namespace PirateCrew.Tests
         /// </summary>
         static readonly Dictionary<string, string> KnownOffenders = new Dictionary<string, string>
         {
-            { "PirateCrew.Visual.CrewTeamTintPart",
-              "构建期临时标记 + 运行期兜底，**永不进 Prefab**：CrewVisualPrefabBuilder 建完部件就把它删掉、改用显式引用（CrewVisualPrefabBuilder.cs:932）" },
         };
 
         static bool IsProjectAssembly(Assembly assembly)
@@ -96,6 +94,10 @@ namespace PirateCrew.Tests
         [Test]
         public void EveryMonoBehaviourType_IsBackedByASameNamedScriptFile()
         {
+            if (!IsUnityRuntimeDomain())
+                Assert.Ignore("非 Unity 运行时（无头验证台纯 dotnet）：MonoScript 映射要 AssetDatabase，"
+                    + "脱离 Unity 域加载 UnityEditor 必炸——本断言由 EditMode 收口。");
+
             Dictionary<Type, string> map = BuildMonoScriptMap();
             // 违规项按「类型全名 → 说明」成对收集：棘轮按全名过滤，
             // 不要事后从说明文本里反解全名（两种说明格式的首个括号位置不同，反解会漏）。
@@ -189,6 +191,22 @@ namespace PirateCrew.Tests
             Assert.IsEmpty(stale,
                 "KnownOffenders 里的这些类型已经不存在了（被删/改名/已修）——请删掉对应的白名单行：\n  · "
                 + string.Join("\n  · ", stale));
+        }
+
+        /// <summary>反射探测是否在 Unity 运行时域（纯 dotnet 域拿不到 Application.dataPath）。</summary>
+        static bool IsUnityRuntimeDomain()
+        {
+            try
+            {
+                Type appType = Type.GetType("UnityEngine.Application, UnityEngine.CoreModule");
+                PropertyInfo dataPath = appType?.GetProperty("dataPath",
+                    BindingFlags.Public | BindingFlags.Static);
+                return !string.IsNullOrEmpty(dataPath?.GetValue(null) as string);
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

@@ -60,9 +60,13 @@ namespace PirateCrew.Tests
         static List<CollapseTarget> ReadTargets()
         {
             Type type = FindEditorType("PirateCrew.EditorTools.ScenePrefabCollapse");
-            Assert.IsNotNull(type,
-                "找不到 PirateCrew.EditorTools.ScenePrefabCollapse —— 编辑器程序集没加载？"
-                + "本测试必须在编辑器里跑（EditMode）。");
+            if (type == null)
+            {
+                // 非 Unity 域（harness 不加载编辑器程序集）：回空集交给用例源给占位用例 +
+                // 测试体顶部的 Unity 域守卫 Ignore。不在这层硬 Assert——TestCaseSource 在
+                // **用例发现期**执行，断言失败会让整组用例连守卫都没机会跑就红。
+                return new List<CollapseTarget>();
+            }
 
             FieldInfo field = type.GetField("Targets", BindingFlags.Public | BindingFlags.Static);
             Assert.IsNotNull(field, "ScenePrefabCollapse.Targets 字段不存在（被改名？本测试按名反射读它）。");
@@ -104,6 +108,19 @@ namespace PirateCrew.Tests
         public static IEnumerable<TestCaseData> CollapseTargetCases()
         {
             List<CollapseTarget> targets = ReadTargets();
+            if (targets.Count == 0)
+            {
+                // 非 Unity 域占位：空用例集会被 NUnit 记成 NotRunnable（红），
+                // 给一个占位让测试体顶部的守卫把它 Ignore（黄）。
+                yield return new TestCaseData(new CollapseTarget
+                {
+                    Key = "非Unity域占位",
+                    ScenePath = "",
+                    PrefabPath = "",
+                    RootName = "",
+                }).SetName("折叠态_非Unity域占位");
+                yield break;
+            }
             for (int i = 0; i < targets.Count; i++)
                 yield return new TestCaseData(targets[i]).SetName("折叠态_" + targets[i].Key);
         }
@@ -114,6 +131,16 @@ namespace PirateCrew.Tests
 
         [TestCaseSource(nameof(CollapseTargetCases))]
         public void Scene_IsExactlyOnePurePrefabInstance(CollapseTarget target)
+        {
+            // 【方法体必须纯】UnityEditor 交互全部收进 CheckSceneIsPurePrefabInstance——
+            // 缺失程序集的类型让整个方法体 JIT 失败，守卫语句放在同一个方法里连跑的机会都没有。
+            if (!IsUnityRuntimeDomain())
+                Assert.Ignore("非 Unity 运行时（无头验证台纯 dotnet）：开场景/查 Prefab 要 EditorSceneManager/"
+                    + "AssetDatabase——本断言由 EditMode 收口。");
+            CheckSceneIsPurePrefabInstance(target);
+        }
+
+        static void CheckSceneIsPurePrefabInstance(CollapseTarget target)
         {
             Assert.IsTrue(File.Exists(Path.Combine(ProjectRoot, target.ScenePath)),
                 "场景不存在: " + target.ScenePath);
@@ -163,6 +190,15 @@ namespace PirateCrew.Tests
         [TestCaseSource(nameof(CollapseTargetCases))]
         public void Prefab_ExistsWithExpectedRoot_AndNoMissingScripts(CollapseTarget target)
         {
+            // 【方法体必须纯】同 Scene_IsExactlyOnePurePrefabInstance 的 JIT 机理。
+            if (!IsUnityRuntimeDomain())
+                Assert.Ignore("非 Unity 运行时（无头验证台纯 dotnet）：加载 Prefab 要 AssetDatabase"
+                    + "——本断言由 EditMode 收口。");
+            CheckPrefabBackbone(target);
+        }
+
+        static void CheckPrefabBackbone(CollapseTarget target)
+        {
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(target.PrefabPath);
             Assert.IsNotNull(prefab, "Prefab 不存在: " + target.PrefabPath
                 + "（跑 ScenePrefabCollapse.CollapseAll 或整条装配链重建）。");
@@ -208,6 +244,10 @@ namespace PirateCrew.Tests
 
         static string[] ReadPipelineSteps()
         {
+            if (!IsUnityRuntimeDomain())
+                Assert.Ignore("非 Unity 运行时（无头验证台纯 dotnet）：BattleScenePipeline 在编辑器"
+                    + "程序集里，harness 不加载——步骤契约由 EditMode 收口。");
+
             Type type = FindEditorType("PirateCrew.EditorTools.BattleScenePipeline");
             Assert.IsNotNull(type, "找不到 PirateCrew.EditorTools.BattleScenePipeline（编辑器程序集没加载？）。");
 
@@ -217,6 +257,22 @@ namespace PirateCrew.Tests
             var names = method.Invoke(null, null) as string[];
             Assert.IsNotNull(names, "BattleScenePipeline.StepNames() 没返回 string[]。");
             return names;
+        }
+
+        /// <summary>反射探测是否在 Unity 运行时域（纯 dotnet 域拿不到 Application.dataPath）。</summary>
+        static bool IsUnityRuntimeDomain()
+        {
+            try
+            {
+                System.Type appType = System.Type.GetType("UnityEngine.Application, UnityEngine.CoreModule");
+                PropertyInfo dataPath = appType?.GetProperty("dataPath",
+                    BindingFlags.Public | BindingFlags.Static);
+                return !string.IsNullOrEmpty(dataPath?.GetValue(null) as string);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         [Test]
