@@ -550,20 +550,22 @@ namespace PirateCrew.EditorTools
                 rect.anchorMax = new Vector2(0.5f, 0f);
             }
 
-            // 底部带第三段：提示条（武器面板右侧共享底边线，右对齐文字）——按交互状态刷新键位
-            // 提示（BattleHud.RefreshHint；自由镜头/浏览/操作中/执行中/暂停五态）。
-            float panelRight = BattleHudZones.WeaponPanelWidth * 0.5f;
-            result.hintText = UiKit.CreateText("HintText", hudRoot, string.Empty, UiSkin.Font.Hint,
-                TextAlignmentOptions.MidlineRight, UiSkin.WithAlpha(PixelSkin.PaperWhite, 0.72f), secondary);
+            // 底部带第三段：状态条（交互操作契约 §G）——武器面板正上方居中的两行文字，
+            // 第一行状态名、第二行键位提示（BattleHud.RefreshHint 五态刷新；先行纯文字）。
+            // 位置锚在武器面板高度之上：操作面板与武器面板共用贴底位，状态条不随切换漂移。
+            result.hintText = UiKit.CreateText("HintText", hudRoot, string.Empty, UiSkin.Font.Hud,
+                TextAlignmentOptions.Center, PixelSkin.PaperWhite, secondary);
             result.hintText.enableWordWrapping = false;
             result.hintText.overflowMode = TextOverflowModes.Ellipsis;
             {
                 RectTransform rect = result.hintText.rectTransform;
                 rect.anchorMin = new Vector2(0.5f, 0f);
                 rect.anchorMax = new Vector2(0.5f, 0f);
-                rect.pivot = new Vector2(0f, 0.5f);
-                rect.sizeDelta = new Vector2(BattleHudZones.HintTextWidth, BattleHudZones.HudButtonHeight);
-                rect.anchoredPosition = new Vector2(panelRight + 6f, textButtonY);
+                rect.pivot = new Vector2(0.5f, 0f);
+                rect.sizeDelta = new Vector2(BattleHudZones.HintBarWidth, BattleHudZones.HintBarHeight);
+                rect.anchoredPosition = new Vector2(0f,
+                    BattleHudZones.Safe + BattleHudZones.WeaponPanelHeight
+                    + BattleHudZones.HintBarGapAbovePanels);
             }
         }
 
@@ -625,13 +627,13 @@ namespace PirateCrew.EditorTools
             var labelText = UiKit.CreateText(name + "Label", panel, label, UiSkin.Font.Hint,
                 TextAlignmentOptions.MidlineRight, UiSkin.WithAlpha(PixelSkin.PaperWhite, 0.72f), font);
             labelText.enableWordWrapping = false;
-            UiKit.PlaceTopLeft(labelText.rectTransform, x, y + 5f, new Vector2(20f, 10f));
+            UiKit.PlaceTopLeft(labelText.rectTransform, x, y + 5f, new Vector2(26f, 10f));
 
             var value = UiKit.CreateText(name, panel, string.Empty, UiSkin.Font.Hud,
                 valueAlignment, PixelSkin.PaperWhite, font);
             value.enableWordWrapping = false;
-            UiKit.PlaceTopLeft(value.rectTransform, x + 22f, y + 4f,
-                new Vector2(width - 22f, BattleHudZones.OperationReadoutRowHeight));
+            UiKit.PlaceTopLeft(value.rectTransform, x + 28f, y + 4f,
+                new Vector2(width - 28f, BattleHudZones.OperationReadoutRowHeight));
             return value;
         }
 

@@ -63,15 +63,14 @@ namespace PirateCrew.Battle
         public const float BaseDistance = 30f;
 
         /// <summary>
-        /// **基准机位 OrthoSize（正交半高；唯一取景档）= 可见 13.7 m**——中机位口径（r12 取景表）。
-        /// 创始人裁决 2026-09-23：**没有滚轮缩放**，相机取景恒为这一档。**要改基准只动这一个数。**
-        /// 2026-09-30 定值 6.85（可见 13.7 m，创始人定值；原 7 / 14 m）。
+        /// **近景档 OrthoSize（正交半高，两档取景的近档）= 可见 13.7 m**——中机位口径（r12 取景表）。
+        /// 2026-09-30 定值 6.85（创始人定值；原 7 / 14 m）。**要改近景基准只动这一个数。**
         /// </summary>
         public const float CloseUpOrthoSize = 6.85f;
 
         /// <summary>全场档 OrthoSize：纵向 2×17=34u 覆盖样板关 30u 全场。
-        /// 【2026-09-23 起退役为内部基准值】输入侧已无滚轮，玩家不可达此档；
-        /// 仍作为全景档下限与烘焙基准存在。</summary>
+        /// 两档取景制（2026-10-05 走查反馈）下是远景档的下限（<see cref="PanoramaOrthoSizeForSpan"/>
+        /// 的 clamp 下界）。</summary>
         public const int FullFieldOrthoSize = 17;
 
         /// <summary>全景档 OrthoSize 的上限（世界图大跨度时封顶；原退役常量 MaxOrthoSize 的唯一存活职责）。</summary>
@@ -147,6 +146,17 @@ namespace PirateCrew.Battle
         public static int PanoramaOrthoSizeForSpan(float spanUnits)
         {
             return Mathf.Clamp(Mathf.RoundToInt(spanUnits * 0.3f), FullFieldOrthoSize, PanoramaMaxOrthoSize);
+        }
+
+        /// <summary>
+        /// 两档取景切换的纯函数（相机行为契约 #9，交互操作契约 §B17）：当前档在两档中点以上
+        /// 视为远景 → 切回近景基准档；否则 → 切到远景档。Tab 键的无状态翻转。
+        /// </summary>
+        public static float ToggleFramingTier(float currentOrthoSize, float panoramaOrthoSize)
+        {
+            return currentOrthoSize > (CloseUpOrthoSize + panoramaOrthoSize) * 0.5f
+                ? CloseUpOrthoSize
+                : panoramaOrthoSize;
         }
 
         /// <summary>

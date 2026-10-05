@@ -56,16 +56,20 @@ namespace PirateCrew.EditorTools
         public const float BadgeSize = 12f;
 
         /// <summary>操作 HUD 面板：与武器面板共用贴底位（互斥弹出，见 UI 设计语言 §5.4）。
-        /// 宽 180 = 边框 6 + 读数行 168 + 边框 6；高 64 = 内容顶 23 + 读数行 12 + 缝 2 +
-        /// 按钮行 20 + 底边 6 + 1 余。</summary>
-        public const float OperationPanelWidth = 180f;
+        /// 宽 210 = 边框 6 + 读数区 198 + 边框 6（读数标签/值放宽，修 180 档「方向」二字贴边）；
+        /// 高 64 = 内容顶 23 + 读数行 12 + 缝 2 + 按钮行 20 + 底边 6 + 1 余。</summary>
+        public const float OperationPanelWidth = 210f;
         public const float OperationPanelHeight = 64f;
 
         /// <summary>操作读数行高（12 号字一行的 Hud 档）。</summary>
         public const float OperationReadoutRowHeight = 12f;
 
-        /// <summary>提示条：贴底、武器面板右侧（共享底边线）；宽固定 200，文字单行截断。</summary>
-        public const float HintTextWidth = 200f;
+        /// <summary>状态条（交互操作契约 §G）：武器面板正上方居中的两行文字——第一行状态名、
+        /// 第二行键位提示。宽 460（最长键位行留余量，超出单行截断）、高 30（两行 12 号 + 行距）；
+        /// 底边 = 面板顶 + 4（操作面板与武器面板共用贴底位，状态条位置恒定不随面板切换漂移）。</summary>
+        public const float HintBarWidth = 460f;
+        public const float HintBarHeight = 30f;
+        public const float HintBarGapAbovePanels = 4f;
 
         // ---------------- 底部带：武器面板（theme 窗体） ----------------
 

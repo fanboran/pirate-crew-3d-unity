@@ -46,6 +46,9 @@ namespace PirateCrew.Battle
         /// <summary>暂停（P，边沿；全局键，不经 Esc 矩阵）。</summary>
         public bool PausePressed;
 
+        /// <summary>取景换档（Tab，边沿；近景 ⇄ 远景两档切换，交互操作契约 §B17）。</summary>
+        public bool ZoomTogglePressed;
+
         // ---- 标准投掷模组参数意图（-1/0/+1；只该操作中态消费）----
 
         /// <summary>方向角输入：A=-1（逆时针）/ D=+1（顺时针）。</summary>
@@ -57,7 +60,7 @@ namespace PirateCrew.Battle
         /// <summary>力度输入：Shift=-1（降）/ Space=+1（升）。</summary>
         public int ThrowPowerInput;
 
-        /// <summary>滚轮增量（现役无消费者；模组扩展位，相机永不消费——契约 §B16）。</summary>
+        /// <summary>滚轮增量（自由镜头/浏览态被相机消费为取景换档 §B16；操作中为模组扩展位 §B18）。</summary>
         public float ScrollDelta;
     }
 
@@ -118,6 +121,7 @@ namespace PirateCrew.Battle
             frame.ConfirmPressed = Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
             frame.CancelPressed = Input.GetKeyDown(KeyCode.Escape);
             frame.PausePressed = Input.GetKeyDown(KeyCode.P);
+            frame.ZoomTogglePressed = Input.GetKeyDown(KeyCode.Tab);
 
             frame.ThrowYawInput =
                 (Input.GetKey(KeyCode.D) ? 1 : 0) - (Input.GetKey(KeyCode.A) ? 1 : 0);

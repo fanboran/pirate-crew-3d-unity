@@ -5,13 +5,17 @@ namespace PirateCrew.Battle
     /// <summary>
     /// 弹道轨迹预览（MonoBehaviour 薄壳，采样用纯逻辑 <see cref="ThrowTrajectory"/>）。
     ///
-    /// 【预览重做（创始人裁决 2026-10-03，投掷行为契约 #9）】三条可判定行为：
+    /// 【预览规格（投掷行为契约 #9）】可判定行为：
     ///   1. **落点终止**：弧线积分到首次穿地（<see cref="ThrowTrajectory.TryPredictUntilImpact"/>），
     ///      不按飞行时长截断；
     ///   2. **不入地**：写入的全部珠点 y ≥ 地面（穿地点按 y 插值收在地面）；
-    ///   3. **落点标记恒显**：兜底步数内穿地必显示标记（旧预览远射程时标记消失）。
+    ///   3. **落点标记恒显**：兜底步数内穿地必显示标记（旧预览远射程时标记消失）；
+    ///   4. **方向可读 + 三维实体**（2026-10-05 走查反馈）：珠点沿弧线尺寸/色深递减
+    ///      （大→小 = 起点→落点），落点组带随水平初速方向的指向箭头；全部件都是带深度
+    ///      测试的世界物体，被单位/地形正常遮挡，禁止覆盖式渲染（旧预览线浮在角色上层的病灶）。
     ///
-    /// 【视觉形态】珠点弧线（池化面片 quad 串，像素语言一致）+ 青色落点环（沿用既有口径）。
+    /// 【视觉形态】锥形珠点弧线（暖黄→深橙顶点色渐变）+ 青色落点组（贴地环 + 中心点 +
+    /// 指向箭头，环带微脉动）——暖色是"这条路"，青组是"落在这"；两族语义分开。
     /// 读数（方向/仰角/力度）归操作 HUD，不在 3D 场景写字。
     ///
     /// 【预览 = 实弹】初速与重力由调用方（<see cref="BattleInteractionController"/>）从
@@ -28,13 +32,21 @@ namespace PirateCrew.Battle
         /// <summary>落点标记环的抬高（世界单位，防与地面 z-fight）。</summary>
         public const float ImpactMarkerLift = 0.06f;
 
+        /// <summary>珠点尺寸锥形的起点/落点倍率（相对 <see cref="dotSize"/>；提案）。</summary>
+        public const float DotScaleStart = 1.15f;
+        public const float DotScaleEnd = 0.5f;
+
+        /// <summary>落点指向箭头（贴地三角）的长度与半宽（世界单位，提案；整体收在落点环内）。</summary>
+        public const float ImpactArrowLength = 0.4f;
+        public const float ImpactArrowHalfWidth = 0.18f;
+
         [Tooltip("珠点池大小（弧线最长显示的点数；更长弧线自动拉开点距）。")]
         [SerializeField] int dotPoolSize = 48;
 
-        [Tooltip("珠点边长（世界单位，提案）：0.18 在基准档下约 3 px。")]
+        [Tooltip("珠点基准边长（世界单位，提案）：0.18 在基准档下约 3 px，随弧线锥形缩放。")]
         [SerializeField] float dotSize = 0.18f;
 
-        [Tooltip("是否显示预测落点标记。")]
+        [Tooltip("是否显示预测落点标记（贴地环 + 中心点 + 指向箭头）。")]
         [SerializeField] bool showImpactMarker = true;
 
         [Tooltip("预制体上遗留的旧轨迹 LineRenderer（两态重构退役件）；Awake 时直接禁用。")]
@@ -43,6 +55,8 @@ namespace PirateCrew.Battle
         Transform _dotsRoot;
         Transform[] _dots;
         LineRenderer _impactMarker;
+        Transform _impactArrow;
+        Transform _impactCenter;
         readonly Vector3[] _samples = new Vector3[StandardThrowRules.PreviewMaxSteps];
 
         void Awake()
@@ -53,7 +67,7 @@ namespace PirateCrew.Battle
             {
                 legacyLine.enabled = false;   // 旧连续细线随预览重做退役
                 if (legacyLine.sharedMaterial == null)
-                    legacyLine.sharedMaterial = FallbackDotMaterial();
+                    legacyLine.sharedMaterial = FallbackPreviewMaterial();
             }
 
             EnsureDots();
@@ -75,39 +89,43 @@ namespace PirateCrew.Battle
             {
                 // 兜底步数内不穿地（理论不可达的极端平射）：整条隐藏，不出半截线。
                 SetDotsActive(0);
-                HideImpactMarker();
+                HideImpactGroup();
                 return;
             }
 
-            // 珠点沿弧线**均匀铺满**：点距 = 采样数 / 池大小（向上取整 ≥1），弧线长短都完整显示。
+            // 珠点沿弧线**均匀铺满**：点距 = 采样数 / 池大小（向上取整 ≥1），弧线长短都完整显示；
+            // 尺寸沿弧线锥形收小（大→小 = 起点→落点，方向可读）。
             int step = Mathf.Max(1, (count + dotPoolSize - 1) / dotPoolSize);
             Camera cam = Camera.current != null ? Camera.current : Camera.main;
 
             int shown = 0;
             for (int i = 0; i < count && shown < _dots.Length; i += step)
             {
+                float t = count > 1 ? (float)i / (count - 1) : 0f;
+                float scale = dotSize * Mathf.Lerp(DotScaleStart, DotScaleEnd, t);
                 Transform dot = _dots[shown++];
                 dot.position = _samples[i];
+                dot.localScale = new Vector3(scale, scale, scale);
                 if (cam != null)
                     dot.rotation = Quaternion.LookRotation(cam.transform.forward);
             }
             SetDotsActive(shown);
 
             if (showImpactMarker)
-                PlaceImpactMarker(impact);
+                PlaceImpactGroup(impact, velocity);
             else
-                HideImpactMarker();
+                HideImpactGroup();
         }
 
         /// <summary>隐藏轨迹。</summary>
         public void Hide()
         {
             SetDotsActive(0);
-            HideImpactMarker();
+            HideImpactGroup();
         }
 
         // ------------------------------------------------------------------
-        // 珠点池
+        // 珠点池（顶点色锥形：颜色按池位渐变烘进各自 Mesh，共享一份白材质）
         // ------------------------------------------------------------------
 
         void SetDotsActive(int count)
@@ -130,8 +148,7 @@ namespace PirateCrew.Battle
 
             Material material = legacyLine != null && legacyLine.sharedMaterial != null
                 ? legacyLine.sharedMaterial
-                : FallbackDotMaterial();
-            MeshFilter quadMesh = CreateQuadTemplate();
+                : FallbackPreviewMaterial();
 
             _dots = new Transform[dotPoolSize];
             for (int i = 0; i < dotPoolSize; i++)
@@ -140,7 +157,7 @@ namespace PirateCrew.Battle
                 dot.transform.SetParent(_dotsRoot, false);
                 dot.transform.localScale = new Vector3(dotSize, dotSize, dotSize);
                 var meshFilter = dot.AddComponent<MeshFilter>();
-                meshFilter.sharedMesh = quadMesh.sharedMesh;
+                meshFilter.sharedMesh = CreateTintedQuad(DotColor(i, dotPoolSize));
                 var renderer = dot.AddComponent<MeshRenderer>();
                 renderer.sharedMaterial = material;
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -150,56 +167,88 @@ namespace PirateCrew.Battle
             }
         }
 
-        /// <summary>四边形模板（Primitive Quad 去碰撞体；池内共享同一 Mesh）。</summary>
-        MeshFilter CreateQuadTemplate()
+        /// <summary>珠点锥形色：暖黄（起点）→ 深橙（落点），按池位渐变（提案）。</summary>
+        static Color32 DotColor(int poolIndex, int poolSize)
         {
-            var template = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            Collider collider = template.GetComponent<Collider>();
-            if (collider != null)
-                Destroy(collider);
-            template.SetActive(false);
-            template.transform.SetParent(transform, false);
-            return template.GetComponent<MeshFilter>();
+            float t = poolSize > 1 ? (float)poolIndex / (poolSize - 1) : 0f;
+            return Color32.Lerp(new Color32(0xFF, 0xEC, 0x78, 0xE6), new Color32(0xFF, 0x78, 0x28, 0xE6), t);
         }
 
-        static Material FallbackDotMaterial()
+        /// <summary>带顶点色的单位面片（-0.5..0.5）；Sprites/Default 乘顶点色，材质保持白色。</summary>
+        static Mesh CreateTintedQuad(Color32 tint)
         {
-            // 无序列化材质时的兜底（正常装配链都带 Trajectory.mat）；像素化管线会按色带重着色。
+            var mesh = new Mesh { name = "PreviewDot" };
+            mesh.vertices = new[]
+            {
+                new Vector3(-0.5f, -0.5f, 0f), new Vector3(0.5f, -0.5f, 0f),
+                new Vector3(-0.5f, 0.5f, 0f), new Vector3(0.5f, 0.5f, 0f),
+            };
+            mesh.triangles = new[] { 0, 3, 1, 0, 2, 3 };
+            mesh.colors32 = new[] { tint, tint, tint, tint };
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        static Material FallbackPreviewMaterial()
+        {
+            // 无序列化材质时的兜底（正常装配链都带 Trajectory.mat）；着色全靠顶点色，材质保白。
             var shader = Shader.Find("Sprites/Default");
             var material = shader != null ? new Material(shader) : new Material(Shader.Find("Unlit/Color"));
-            material.color = new Color32(0xFF, 0xE6, 0x4D, 0xE6);   // 暖黄，旧轨迹线同族
+            material.color = Color.white;
             return material;
         }
 
         // ------------------------------------------------------------------
-        // 落点标记
+        // 落点组：贴地环（微脉动）+ 中心点 + 指向箭头（随水平初速方向）
         // ------------------------------------------------------------------
 
-        void PlaceImpactMarker(Vector3 impact)
+        void PlaceImpactGroup(Vector3 impact, Vector3 velocity)
         {
-            EnsureImpactMarker();
+            EnsureImpactGroup();
             if (_impactMarker == null)
                 return;
 
+            // 环微脉动（呼吸感提示"这是活的落点标记"，幅度收敛在环内不扩出）。
+            float pulse = 1f + 0.08f * Mathf.Sin(Time.time * 5f);
+            float radius = ImpactMarkerRadius * pulse;
             for (int i = 0; i < ImpactMarkerSegments; i++)
             {
                 float angle = i * Mathf.PI * 2f / ImpactMarkerSegments;
                 _impactMarker.SetPosition(i, impact + new Vector3(
-                    Mathf.Cos(angle) * ImpactMarkerRadius,
+                    Mathf.Cos(angle) * radius,
                     ImpactMarkerLift,
-                    Mathf.Sin(angle) * ImpactMarkerRadius));
+                    Mathf.Sin(angle) * radius));
+            }
+            _impactMarker.enabled = true;
+
+            // 指向箭头：贴地三角尖朝水平初速方向（速度近垂直时的兜底 = 保持上次朝向）。
+            Vector3 horizontal = new Vector3(velocity.x, 0f, velocity.z);
+            if (horizontal.sqrMagnitude > 1e-6f && _impactArrow != null)
+            {
+                _impactArrow.position = impact + Vector3.up * ImpactMarkerLift;
+                _impactArrow.rotation = Quaternion.LookRotation(horizontal.normalized, Vector3.up);
+                _impactArrow.gameObject.SetActive(true);
             }
 
-            _impactMarker.enabled = true;
+            // 中心点：贴地小方片，压在环心（略高于环线避免 z-fight）。
+            if (_impactCenter != null)
+            {
+                _impactCenter.position = impact + Vector3.up * (ImpactMarkerLift + 0.01f);
+                _impactCenter.gameObject.SetActive(true);
+            }
         }
 
-        void HideImpactMarker()
+        void HideImpactGroup()
         {
             if (_impactMarker != null && _impactMarker.enabled)
                 _impactMarker.enabled = false;
+            if (_impactArrow != null && _impactArrow.gameObject.activeSelf)
+                _impactArrow.gameObject.SetActive(false);
+            if (_impactCenter != null && _impactCenter.gameObject.activeSelf)
+                _impactCenter.gameObject.SetActive(false);
         }
 
-        void EnsureImpactMarker()
+        void EnsureImpactGroup()
         {
             if (_impactMarker != null)
                 return;
@@ -221,8 +270,46 @@ namespace PirateCrew.Battle
             _impactMarker.receiveShadows = false;
             _impactMarker.sharedMaterial = legacyLine != null
                 ? legacyLine.sharedMaterial
-                : FallbackDotMaterial();
+                : FallbackPreviewMaterial();
             _impactMarker.enabled = false;
+
+            Material material = _impactMarker.sharedMaterial;
+
+            // 指向箭头：XZ 平面内朝 +Z 的三角（顶点色青），旋转交给 PlaceImpactGroup。
+            var arrow = new GameObject("ImpactArrow");
+            arrow.transform.SetParent(transform, false);
+            var arrowFilter = arrow.AddComponent<MeshFilter>();
+            var arrowMesh = new Mesh { name = "ImpactArrow" };
+            arrowMesh.vertices = new[]
+            {
+                new Vector3(0f, 0f, ImpactArrowLength * 0.6f),
+                new Vector3(-ImpactArrowHalfWidth, 0f, -ImpactArrowLength * 0.4f),
+                new Vector3(ImpactArrowHalfWidth, 0f, -ImpactArrowLength * 0.4f),
+            };
+            arrowMesh.triangles = new[] { 0, 1, 2 };
+            arrowMesh.colors32 = new[] { teal, teal, teal };
+            arrowMesh.RecalculateBounds();
+            arrowFilter.sharedMesh = arrowMesh;
+            var arrowRenderer = arrow.AddComponent<MeshRenderer>();
+            arrowRenderer.sharedMaterial = material;
+            arrowRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            arrowRenderer.receiveShadows = false;
+            arrow.SetActive(false);
+            _impactArrow = arrow.transform;
+
+            // 中心点：贴地小方片（旋转放平由 PlaceImpactGroup 设定）。
+            var center = new GameObject("ImpactCenter");
+            center.transform.SetParent(transform, false);
+            var centerFilter = center.AddComponent<MeshFilter>();
+            centerFilter.sharedMesh = CreateTintedQuad(teal);
+            center.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
+            center.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            var centerRenderer = center.AddComponent<MeshRenderer>();
+            centerRenderer.sharedMaterial = material;
+            centerRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            centerRenderer.receiveShadows = false;
+            center.SetActive(false);
+            _impactCenter = center.transform;
         }
     }
 }

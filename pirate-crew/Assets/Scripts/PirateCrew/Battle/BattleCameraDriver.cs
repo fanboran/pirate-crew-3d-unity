@@ -13,7 +13,8 @@ namespace PirateCrew.Battle
     ///   相机位姿 = {焦点, 方位, 俯角, 取景档} 四元目标 + 指数平滑的现实值。
     ///   除**对局开局的首次落位**外，全工程不存在直写现实值的路径——任何状态切换
     ///   （选人/换人/取消/回合 pan）都是目标变更，跳变在结构上不可构造。
-    ///   · 取景档恒 <see cref="CameraFraming.CloseUpOrthoSize"/>（缩放锁死，契约 #9）；
+    ///   · 取景两档（近景基准档 ⇄ 远景全景档）：Tab / 滚轮在自由镜头与浏览态切换，
+///     切换 = 目标档变更 + 指数平滑（契约 #9）；
     ///   · 俯角基准 30°，仅自由镜头允许玩家偏离 [15°, 80°]（契约 #8）。
     ///
     /// 【模式表（相机行为契约 #1）】由 <see cref="BattleInteractionController.State"/> 拉模型分派：
@@ -53,6 +54,9 @@ namespace PirateCrew.Battle
 
         [Tooltip("环绕方位角的平滑速度（1/s）；自由镜头转视角不走平滑（鼠标输入即目标，无滞后）。")]
         [SerializeField] float orbitSmoothingPerSecond = 10f;
+
+        [Tooltip("取景档平滑速度（1/s）：近景⇄远景两档切换的指数逼近速率（【提案/待定】）。")]
+        [SerializeField] float orthoSmoothingPerSecond = 8f;
 
         [Header("自由镜头（编辑器飞行式；数值【提案/待定】）")]
         [Tooltip("自由镜头飞行速度（m/s，未加速；加速倍率 ×3）。")]
@@ -123,6 +127,7 @@ namespace PirateCrew.Battle
         float _pitch;
         float _targetPitch;
         float _targetOrthoSize = CameraFraming.CloseUpOrthoSize;
+        float _orthoSize = CameraFraming.CloseUpOrthoSize;
         float _panoramaOrthoSize = CameraFraming.PanoramaOrthoSizeForSpan(CameraFraming.DefaultWorldSpan);
 
         // ---- 焦点（干净位置，不含震屏/下压；FocusPoint 与距离判定都用它）----
@@ -200,7 +205,7 @@ namespace PirateCrew.Battle
         /// </summary>
         public bool InteractionWiredByAssembly { get; private set; }
 
-        /// <summary>运行时 OrthoSize（缩放锁死：恒基准档）。</summary>
+        /// <summary>当前取景档目标（近景 / 远景两档之一；四舍五入读数，camdiag 与测试用）。</summary>
         public int RuntimeOrthoSize => Mathf.RoundToInt(_targetOrthoSize);
 
         /// <summary>运行时取景的等效"可见高度"（米）= 2 × OrthoSize。</summary>
@@ -336,8 +341,10 @@ namespace PirateCrew.Battle
                     ApplyFreeFlyInput(intent);
                 else
                     ApplyOrbitInput(intent);
+
+                ApplyFramingTierInput(intent);
             }
-            // OpLock / Executing：不接受任何相机输入（目标位姿保持）。
+            // OpLock / Executing：不接受任何相机输入（目标位姿与取景档保持）。
 
             // ---- 解析焦点目标（跟随态覆盖；环绕态锁定选中单位；自由态用 _goalPosition）----
             _goalPosition = ResolveGoalPosition(state);
@@ -389,8 +396,12 @@ namespace PirateCrew.Battle
             Vector3 position = basePosition + Vector3.up * dipOffset
                 + CameraFraming.PlaneOffsetToWorld(shake2D, rotation);
 
+            if (!Mathf.Approximately(_orthoSize, _targetOrthoSize))
+                _orthoSize = Mathf.Lerp(_orthoSize, _targetOrthoSize,
+                    CameraFeelRules.ApproachAlpha(orthoSmoothingPerSecond, Time.deltaTime));
+
             float orthoSize = CameraFraming.ComposeOrthoSize(
-                _targetOrthoSize,
+                _orthoSize,
                 _pushInActive, _pushInElapsed, selectionPushInDurationSeconds, selectionPushInDegrees);
 
             var frame = new CameraFrame
@@ -465,6 +476,21 @@ namespace PirateCrew.Battle
             _targetPitch = CameraFraming.BasePitchDegrees;
             if (intent.OrbitDragHeld)
                 _targetYaw += intent.LookYawDelta;
+        }
+
+        /// <summary>
+        /// 两档取景输入（交互操作契约 §B16/B17）：Tab 翻转近景/远景；滚轮上 = 近景、下 = 远景
+        /// （方向性入口，重复滚动停在同档）。只在自由镜头与浏览态被调用（锁定态不进这里）。
+        /// 切换只改目标档——现实值由位姿全目标化的指数平滑逼近（无跳变不变量）。
+        /// </summary>
+        void ApplyFramingTierInput(in BattleIntentFrame intent)
+        {
+            if (intent.ZoomTogglePressed)
+                _targetOrthoSize = CameraFraming.ToggleFramingTier(_targetOrthoSize, _panoramaOrthoSize);
+            else if (intent.ScrollDelta > 0.01f)
+                _targetOrthoSize = CameraFraming.CloseUpOrthoSize;
+            else if (intent.ScrollDelta < -0.01f)
+                _targetOrthoSize = _panoramaOrthoSize;
         }
 
         /// <summary>位姿平滑：环绕/回焦态方位与俯角指数逼近目标；自由镜头直写（转身零滞后）。</summary>

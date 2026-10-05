@@ -133,6 +133,9 @@ namespace PirateCrew.UI
         int _lastReadoutElevation = int.MinValue;
         int _lastReadoutPower = int.MinValue;
 
+        /// <summary>当前操作名（状态条第一行用，交互操作契约 §G1；空串 = 非操作中）。</summary>
+        string _operationLabel = string.Empty;
+
         // ------------------------------------------------------------------
         // 装配自检（供 PlayMode 结构断言）
         // ------------------------------------------------------------------
@@ -530,6 +533,11 @@ namespace PirateCrew.UI
 
         void OnOperationChanged(OperationChangedPayload payload)
         {
+            // 操作名进状态条（§G1）：跳跃 = 「跳跃」，武器 = 武器名。
+            _operationLabel = payload.Active
+                ? (payload.IsWeapon ? UiTextRules.WeaponName(payload.WeaponId) : UiStrings.BattleThrowSelf)
+                : string.Empty;
+
             if (payload.Active)
             {
                 RefreshWeaponPanel(hide: true);
@@ -598,28 +606,63 @@ namespace PirateCrew.UI
                 : string.Empty);
         }
 
-        /// <summary>提示条按交互状态刷新键位提示（交互操作契约 §B 的玩家可读形式）。</summary>
+        /// <summary>
+        /// 状态条（交互操作契约 §G）：两行式——第一行状态名（操作中含操作名），第二行该状态的
+        /// 键位提示（§B 的玩家可读形式，文案与 §B 同源）；暂停态整体覆盖。
+        /// </summary>
         void RefreshHint()
         {
             if (hintText == null)
                 return;
 
-            string text;
+            string title;
+            string keys;
             if (BattlePause.IsPaused)
-                text = UiStrings.BattleHintPaused;
+            {
+                title = UiStrings.BattleStatePaused;
+                keys = UiStrings.BattleHintPaused;
+            }
             else if (interaction == null)
-                text = string.Empty;
+            {
+                title = string.Empty;
+                keys = string.Empty;
+            }
             else
+            {
                 switch (interaction.State)
                 {
-                    case InteractionState.FreeCamera: text = UiStrings.BattleHintFreeCamera; break;
-                    case InteractionState.SelectedIdle: text = UiStrings.BattleHintSelected; break;
-                    case InteractionState.OperationActive: text = UiStrings.BattleHintOperation; break;
-                    case InteractionState.Executing: text = UiStrings.BattleHintExecuting; break;
-                    default: text = string.Empty; break;
+                    case InteractionState.FreeCamera:
+                        title = UiStrings.BattleStateFreeCamera;
+                        keys = UiStrings.BattleHintFreeCamera;
+                        break;
+                    case InteractionState.SelectedIdle:
+                        title = UiStrings.BattleStateSelected;
+                        keys = UiStrings.BattleHintSelected;
+                        break;
+                    case InteractionState.OperationActive:
+                        title = string.Format(UiStrings.BattleStateOperationFormat, _operationLabel);
+                        keys = UiStrings.BattleHintOperation;
+                        break;
+                    case InteractionState.Executing:
+                        title = UiStrings.BattleStateExecuting;
+                        keys = UiStrings.BattleHintExecuting;
+                        break;
+                    default:
+                        title = string.Empty;
+                        keys = string.Empty;
+                        break;
                 }
+            }
 
-            UiTextUtil.SetText(hintText, text);
+            UiTextUtil.SetText(hintText, ComposeHintText(title, keys));
+        }
+
+        /// <summary>两行合成：有状态名有键位 = 两行；只有其一 = 单行。</summary>
+        static string ComposeHintText(string title, string keys)
+        {
+            if (title.Length > 0 && keys.Length > 0)
+                return title + "\n" + keys;
+            return title.Length > 0 ? title : keys;
         }
 
         // ------------------------------------------------------------------

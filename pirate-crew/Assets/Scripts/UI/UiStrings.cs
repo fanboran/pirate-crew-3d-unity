@@ -260,20 +260,35 @@ namespace PirateCrew.UI
         /// <summary>操作 HUD 面板标题（操作中态）。</summary>
         public const string BattleOperationTitle = "操作中";
 
-        /// <summary>操作提示：自由镜头（编辑器飞行式，2026-10-03 两态裁决）。</summary>
-        public const string BattleHintFreeCamera = "按住右键飞行观察　左键选中单位";
+        /// <summary>状态条第一行：自由镜头态（交互操作契约 §G1）。</summary>
+        public const string BattleStateFreeCamera = "自由镜头";
 
-        /// <summary>操作提示：选中浏览。</summary>
-        public const string BattleHintSelected = "右键环绕　点武器或跳跃开始操作";
+        /// <summary>状态条第一行：选中 · 浏览态。</summary>
+        public const string BattleStateSelected = "已选中单位";
 
-        /// <summary>操作提示：操作中（标准投掷模组键位）。</summary>
-        public const string BattleHintOperation = "A/D 方向　W/S 仰角　空格/Shift 力度　回车发射";
+        /// <summary>状态条第一行：操作中态模板（{0} = 跳跃或武器名）。</summary>
+        public const string BattleStateOperationFormat = "{0} · 操作中";
 
-        /// <summary>操作提示：执行中。</summary>
-        public const string BattleHintExecuting = "飞行中……";
+        /// <summary>状态条第一行：执行中态。</summary>
+        public const string BattleStateExecuting = "执行中";
 
-        /// <summary>操作提示：暂停中。</summary>
-        public const string BattleHintPaused = "已暂停　P 或 Esc 继续";
+        /// <summary>状态条第一行：暂停态。</summary>
+        public const string BattleStatePaused = "已暂停";
+
+        /// <summary>状态条第二行键位提示：自由镜头（编辑器飞行式 + 两档取景）。</summary>
+        public const string BattleHintFreeCamera = "右键 转视角/飞行　WASD 平移　Q/E 升降　左键 选中单位　Tab 切换取景";
+
+        /// <summary>状态条第二行键位提示：选中浏览。</summary>
+        public const string BattleHintSelected = "右键 环绕　左键点队友 换人　点武器/跳跃 开始操作　Esc 取消选中";
+
+        /// <summary>状态条第二行键位提示：操作中（标准投掷模组键位）。</summary>
+        public const string BattleHintOperation = "A/D 方向　W/S 仰角　空格/Shift 力度　回车 发射　Esc 取消";
+
+        /// <summary>状态条第二行键位提示：执行中。</summary>
+        public const string BattleHintExecuting = "镜头跟随行动单位，落定后按回合规则继续";
+
+        /// <summary>状态条第二行键位提示：暂停中。</summary>
+        public const string BattleHintPaused = "P 或 Esc 继续";
 
         /// <summary>小地图面板标题。</summary>
         public const string BattleMinimapTitle = "海图";

@@ -398,20 +398,21 @@ namespace PirateCrew.Battle.Tests
 
         // ------------------------------------------------------------------
         // 默认机位档位（等距像素卡通 · 正交口径，创始人裁决 2026-09-22/23：
-        //   正交投影 + 整数 OrthoSize + 俯角统一 30° + **无滚轮缩放**——取景恒为基准档）。
+        //   正交投影 + 整数 OrthoSize + 俯角统一 30°；两档取景制（2026-10-05 走查反馈）下
+        //   近景 = 基准档、远景 = 全景档，Tab/滚轮切换——连续无级缩放仍退役）。
         //   这些是 CameraFraming 的 public const 常量/纯函数，无需实例化 MonoBehaviour。
-        //   旧透视档位与滚轮缩放（MinOrthoSize/MaxOrthoSize/OrthoZoomStep）已随
+        //   旧透视档位与连续滚轮缩放（MinOrthoSize/MaxOrthoSize/OrthoZoomStep）已随
         //   2026-09-23 裁决退役，相关断言一并移除；M4 全景档语义转写为 size 档（span × 0.3）。
         // ------------------------------------------------------------------
 
         [Test]
-        public void CloseUpPreset_IsTheOnlyFramingTier()
+        public void CloseUpPreset_IsTheNearFramingTier()
         {
-            // 基准档 size 6.85 = 可见 13.7 m（r12 取景表的中机位，创始人 2026-09-30 定值、唯一档）。
-            Assert.AreEqual(6.85f, CameraFraming.CloseUpOrthoSize, "基准机位 = 可见 13.7 m（改基准只动这一个数）");
+            // 近景档 size 6.85 = 可见 13.7 m（r12 取景表的中机位，创始人 2026-09-30 定值、近档基准）。
+            Assert.AreEqual(6.85f, CameraFraming.CloseUpOrthoSize, "近景档 = 可见 13.7 m（改基准只动这一个数）");
             Assert.AreEqual(13.7f, CameraFraming.CloseUpOrthoSize * 2f, 1e-4f, "可见高度 = 2 × OrthoSize");
             Assert.Less(CameraFraming.CloseUpOrthoSize,
-                CameraFraming.FullFieldOrthoSize, "基准档应比全场档更近（size 更小）");
+                CameraFraming.FullFieldOrthoSize, "近景档应比远景下限更近（size 更小）");
         }
 
         [Test]
@@ -440,6 +441,23 @@ namespace PirateCrew.Battle.Tests
                 CameraFraming.PanoramaOrthoSizeForSpan(300f), "上限 = PanoramaMaxOrthoSize 60");
             Assert.AreEqual(CameraFraming.PanoramaOrthoSizeForSpan(
                 CameraFraming.DefaultWorldSpan), 30, "默认跨度 = 现行 100u 图");
+        }
+
+        [Test]
+        public void ToggleFramingTier_FlipsBetweenNearAndPanorama()
+        {
+            // 两档取景切换纯函数（相机行为契约 #9）：近景 ↔ 远景双向翻转，中点判定抗浮点误差。
+            float panorama = CameraFraming.PanoramaOrthoSizeForSpan(CameraFraming.DefaultWorldSpan);
+            Assert.AreEqual(panorama, CameraFraming.ToggleFramingTier(CameraFraming.CloseUpOrthoSize, panorama),
+                "近景翻到远景");
+            Assert.AreEqual(CameraFraming.CloseUpOrthoSize,
+                CameraFraming.ToggleFramingTier(panorama, panorama), "远景翻回近景");
+            Assert.AreEqual(panorama, CameraFraming.ToggleFramingTier(
+                (CameraFraming.CloseUpOrthoSize + panorama) * 0.5f - 0.01f, panorama),
+                "中点以下视为近景 → 翻远景");
+            Assert.AreEqual(CameraFraming.CloseUpOrthoSize, CameraFraming.ToggleFramingTier(
+                (CameraFraming.CloseUpOrthoSize + panorama) * 0.5f + 0.01f, panorama),
+                "中点以上视为远景 → 翻近景");
         }
 
         // ------------------------------------------------------------------

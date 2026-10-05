@@ -161,10 +161,20 @@ namespace PirateCrew.Tests
                 Assert.AreEqual(impact.y + TrajectoryPreview.ImpactMarkerLift, ringPoint.y, 1e-3f,
                     "落点环应抬在穿地点上方");
 
+                // 落点组三件套（贴地环 + 指向箭头 + 中心点；方向可读口径）。
+                var arrow = go.transform.Find("ImpactArrow");
+                var center = go.transform.Find("ImpactCenter");
+                Assert.IsNotNull(arrow, "落点组应有指向箭头（随水平初速方向）");
+                Assert.IsNotNull(center, "落点组应有中心点");
+                Assert.IsTrue(arrow.gameObject.activeSelf, "展示中箭头应显示");
+                Assert.IsTrue(center.gameObject.activeSelf, "展示中中心点应显示");
+
                 preview.Hide();
                 foreach (Transform dot in dotsRoot)
                     Assert.IsFalse(dot.gameObject.activeSelf, "Hide 后珠点应收起");
                 Assert.IsFalse(markerLine.enabled, "Hide 后落点标记应隐藏");
+                Assert.IsFalse(arrow.gameObject.activeSelf, "Hide 后箭头应收起");
+                Assert.IsFalse(center.gameObject.activeSelf, "Hide 后中心点应收起");
             }
             finally
             {

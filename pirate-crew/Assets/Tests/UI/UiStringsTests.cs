@@ -55,13 +55,16 @@ namespace PirateCrew.Tests
         /// 逐项理由：
         ///   · a / d / w / s（含单字母）—— 标准投掷模组键位提示（A/D 方向、W/S 仰角，
         ///     BattleHintOperation 用斜杠分隔所以逐字母成 token）；
-        ///   · AD / WS —— 键位对整体（历史口径保留）；
+        ///   · AD / WS / WASD —— 键位对与键位簇整体（历史口径保留；自由镜头平移提示用 WASD）；
+        ///   · e / esc —— 升降键与退出键（源码白名单同款；键位提示串整串豁免判定需逐 token 在册）；
+        ///   · q —— 自由镜头升降键（Q/E 升降；e 已在源码白名单）；
+        ///   · tab —— 两档取景切换键（Tab 切换取景）；
         ///   · Space / Shift —— 常见修饰键的英文键帽名（Space 已中文化为「空格」，Shift 保留）；
         ///   · P —— 暂停键（BattleHintPaused）；
         ///   · HP —— 血量条通用缩写（HUD 布局规范有意保留，规范 §4.10 例外项）。
         /// </summary>
         static readonly string[] KeyLabelWhitelist =
-            { "ad", "ws", "space", "shift", "hp", "a", "d", "w", "s", "p" };
+            { "ad", "ws", "wasd", "space", "shift", "hp", "a", "d", "w", "s", "p", "q", "e", "tab", "esc" };
 
         /// <summary>文本里的英文字母 token 是否**全部**落在按键名白名单里。</summary>
         static bool AllTokensAreKeyLabels(string text)
