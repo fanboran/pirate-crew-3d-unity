@@ -444,8 +444,16 @@ namespace PirateCrew.Rendering.Pixelart
         /// </summary>
         void ComputeTargetSize(out int width, out int height)
         {
-            int screenWidth = Mathf.Max(2, Screen.width);
-            int screenHeight = Mathf.Max(2, Screen.height);
+            // 【口径】"屏幕"= 相机的**实际像素目标**：运行时无 targetTexture，pixelWidth/Height
+            // 就是后台缓冲（与旧行为逐位一致）；相机被渲到固定 RT 时（离线抓帧等）网格跟 RT
+            // 尺寸走——否则小后台缓冲反推的网格被拉伸到大 RT 上，块凭空粗化（抓帧实测 9×6）。
+            RenderTexture pixelTarget = _screenCamera != null ? _screenCamera.targetTexture : null;
+            int screenWidth = pixelTarget != null
+                ? Mathf.Max(2, pixelTarget.width)
+                : Mathf.Max(2, Screen.width);
+            int screenHeight = pixelTarget != null
+                ? Mathf.Max(2, pixelTarget.height)
+                : Mathf.Max(2, Screen.height);
             int k = Mathf.Max(1, pixelScale);
 
             int exactWidth = screenWidth / k * k;

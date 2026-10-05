@@ -119,8 +119,16 @@ namespace PirateCrew.Tests
             Assert.IsFalse(rig.deriveOrthographicSize,
                 "deriveOrthographicSize 必须关：取景归 BattleCameraDriver（正交整数档 = 视野档），"
                 + "本路径只管像素网格与着色，开着会把玩家的缩放覆盖掉");
-            Assert.AreEqual(PixelartPilotScene.PixelScale, rig.pixelScale,
-                "像素档位必须等于出图口径 PixelartPilotScene.PixelScale（两边同一个艺术像素网格）");
+            // 【运行时档 3× = 创始人习惯档（2026-10-05 走查：局内 2× 与调试场 3× 观感割裂）】
+            // 与调试场 CharCamDebugController.DefaultPixelScale 同源；出图口径
+            // PixelartPilotScene.PixelScale（2×）只管出图，不进战斗相机（相机行为契约 #9）。
+            Assert.AreEqual(PirateCrew.CharCamDebug.CharCamDebugController.DefaultPixelScale, rig.pixelScale,
+                "战斗像素档位必须 = 创始人习惯档 3×（与调试场同源；出图口径 2× 不进战斗相机）");
+            // worldPerPixel 随取景实况逐帧自洽（Driver.ApplyFrame 单点写，= 可见米数×档数÷1080）：
+            // 断言它落在近景档的合理域（13.7m±平滑余量），防 28m 旧静态标定回流。
+            float nearWpp = CameraFraming.CloseUpOrthoSize * 2f * rig.pixelScale / 1080f;
+            Assert.That(rig.worldPerPixel, Is.EqualTo(nearWpp).Within(nearWpp * 1.5f),
+                "worldPerPixel 应随取景实况自洽（近景档 13.7m 量级；28m 旧静态标定已废）");
 
             var converter = Object.FindObjectOfType<PixelartContentConverter>();
             Assert.IsNotNull(converter,
