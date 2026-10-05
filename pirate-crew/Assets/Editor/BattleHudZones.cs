@@ -51,9 +51,9 @@ namespace PirateCrew.EditorTools
         public const float PipSize = 6f;
         public const float PipGap = 2f;
 
-        /// <summary>回合徽章 = theme button_selected 金面钮（12×12，button 切片和 10 的最小安全档）；
-        /// 数字用 Tiny 档（两位数回合号在 12 格内不溢）。</summary>
-        public const float BadgeSize = 12f;
+        /// <summary>回合徽章 = theme button_selected 金面钮（16×16 = 该件原生高 4+6+6，1:1 无拉伸；
+        /// 数字 Tiny 8px 落在金面字区内——12 格档数字压描边穿模，2026-10-05 走查废弃）。</summary>
+        public const float BadgeSize = 16f;
 
         /// <summary>操作 HUD 面板：与武器面板共用贴底位（互斥弹出，见 UI 设计语言 §5.4）。
         /// 宽 210 = 边框 6 + 读数区 198 + 边框 6（读数标签/值放宽，修 180 档「方向」二字贴边）；
