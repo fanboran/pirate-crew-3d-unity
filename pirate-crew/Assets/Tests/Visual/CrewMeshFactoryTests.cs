@@ -177,31 +177,25 @@ namespace PirateCrew.Visual.Tests
         // ------------------------------------------------------------------
 
         [Test]
-        public void EachProfession_IsWithinTriangleBudget()
+        public void TwoPieceSilhouette_IsWithinTriangleBudget()
         {
-            for (int i = 0; i < CrewVisualCatalog.AllProfessions.Length; i++)
-            {
-                CrewProfession profession = CrewVisualCatalog.AllProfessions[i];
-                int triangles = CrewMeshLibrary.TotalTriangles(profession);
-                Assert.Greater(triangles, 0, profession + " 应有零件");
-                Assert.LessOrEqual(triangles, CrewMeshFactory.MaxTrianglesPerUnit,
-                    profession + " 三角面 " + triangles + " 超过预算 " + CrewMeshFactory.MaxTrianglesPerUnit);
-            }
+            // 单一外观档（2026-10-05 职业外观塌缩裁决）：两件式 = 圆台柱 + 圆球。
+            int triangles = CrewMeshLibrary.TotalTriangles();
+            Assert.Greater(triangles, 0, "两件式应有零件");
+            Assert.LessOrEqual(triangles, CrewMeshFactory.MaxTrianglesPerUnit,
+                "两件式三角面 " + triangles + " 超过预算 " + CrewMeshFactory.MaxTrianglesPerUnit);
         }
 
         [Test]
-        public void EachProfession_PlanUsesSharedPartsOnly()
+        public void TwoPieceSilhouette_PlanUsesSharedPartsOnly()
         {
+            Dictionary<string, int> counts = CrewMeshLibrary.CountPartInstances();
             Dictionary<string, MeshData> meshes = CrewMeshLibrary.BuildAll();
-            for (int i = 0; i < CrewVisualCatalog.AllProfessions.Length; i++)
+            Assert.Greater(counts.Count, 0);
+            foreach (KeyValuePair<string, int> pair in counts)
             {
-                Dictionary<string, int> counts = CrewMeshLibrary.CountPartInstances(CrewVisualCatalog.AllProfessions[i]);
-                Assert.Greater(counts.Count, 0);
-                foreach (KeyValuePair<string, int> pair in counts)
-                {
-                    Assert.IsTrue(meshes.ContainsKey(pair.Key), "零件 " + pair.Key + " 必须在零件表内");
-                    Assert.Greater(pair.Value, 0);
-                }
+                Assert.IsTrue(meshes.ContainsKey(pair.Key), "零件 " + pair.Key + " 必须在零件表内");
+                Assert.Greater(pair.Value, 0);
             }
         }
 

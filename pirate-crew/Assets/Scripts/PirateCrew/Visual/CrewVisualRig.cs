@@ -165,9 +165,6 @@ namespace PirateCrew.Visual
         // 序列化部件引用（动画层用；由 Build 直接赋值）
         // ------------------------------------------------------------------
 
-        [Header("职业外观档")]
-        [SerializeField] CrewProfession profession;
-
         [Header("动画枢轴")]
         [SerializeField] Transform body;
         [SerializeField] Transform torsoPivot;
@@ -184,9 +181,6 @@ namespace PirateCrew.Visual
 
         List<Renderer> _outlineRenderers;
         List<Renderer> _teamTintRenderers;
-
-        /// <summary>外观档。</summary>
-        public CrewProfession Profession => profession;
 
         /// <summary>整体枢轴（脚底，倒地/位移表现用；**不可旋转 Visual 本身**，见类头）。</summary>
         public Transform Body => body;
@@ -262,7 +256,7 @@ namespace PirateCrew.Visual
         /// 在 <paramref name="visualRoot"/> 上装配指定职业的部件层级并挂上本组件。
         /// **仅供编辑器脚本调用**（内部会 new GameObject / MeshFilter）。
         /// </summary>
-        public static CrewVisualRig Build(Transform visualRoot, CrewProfession professionValue, CrewVisualAssetSet assets)
+        public static CrewVisualRig Build(Transform visualRoot, CrewVisualAssetSet assets)
         {
             if (visualRoot == null || assets == null)
                 return null;
@@ -275,36 +269,14 @@ namespace PirateCrew.Visual
             var rig = visualRoot.gameObject.GetComponent<CrewVisualRig>();
             if (rig == null)
                 rig = visualRoot.gameObject.AddComponent<CrewVisualRig>();
-            rig.profession = professionValue;
             rig._outlineRenderers = null;
             rig._teamTintRenderers = null;
 
             rig.body = NewPivot(visualRoot, "Body", Vector3.zero);
 
-            switch (professionValue)
-            {
-                case CrewProfession.Sailor:
-                    BuildSailor(rig, assets);
-                    break;
-                case CrewProfession.Bombardier:
-                    BuildBombardier(rig, assets);
-                    break;
-                case CrewProfession.Sniper:
-                    BuildSniper(rig, assets);
-                    break;
-                case CrewProfession.Hook:
-                    BuildHook(rig, assets);
-                    break;
-                case CrewProfession.Arsonist:
-                    BuildArsonist(rig, assets);
-                    break;
-                case CrewProfession.Skeleton:
-                    BuildSkeleton(rig, assets);
-                    break;
-                case CrewProfession.Captain:
-                    BuildCaptain(rig, assets);
-                    break;
-            }
+            // 单一外观档（2026-10-05 创始人裁决：职业外观塌缩）——先按默认比例立起全套零件，
+            // 两件式装配（ApplyTwoPieceSilhouette）随即只保三枢轴并整体重建为圆台柱 + 圆球。
+            BuildCore(rig, assets, DefaultProportions(assets));
 
             return rig;
         }
@@ -427,303 +399,6 @@ namespace PirateCrew.Visual
                 if (side < 0) { rig.armLPivot = armPivot; rig.heldL = held; }
                 else { rig.armRPivot = armPivot; rig.heldR = held; }
             }
-        }
-
-        // ---- 逐职业 --------------------------------------------------------
-
-        static void BuildSailor(CrewVisualRig rig, CrewVisualAssetSet assets)
-        {
-            Proportions p = DefaultProportions(assets);
-            BuildCore(rig, assets, p);
-
-            // 头巾 + 结（阵营色，规格 §3.2）。
-            AddPart(rig.headPivot, "Bandana", assets.BandanaStandard, assets.For(CrewMaterialRole.TeamCloth),
-                new Vector3(0f, p.HeadRadius * 0.90f, 0f), Vector3.zero, Vector3.one, teamTint: true);
-            AddPart(rig.headPivot, "BandanaKnot", assets.SphereSmall, assets.For(CrewMaterialRole.TeamCloth),
-                new Vector3(0.055f, p.HeadRadius * 0.55f, -0.048f), Vector3.zero,
-                new Vector3(0.021f, 0.021f, 0.021f), teamTint: true);
-
-            AddEyePair(rig.headPivot, assets, p.HeadRadius);
-
-            // 右手短刀（铁刃 + 木柄，规格 §3.2）。
-            AddKnife(rig.heldR, assets, 0.110f, 0.016f);
-        }
-
-        static void BuildBombardier(CrewVisualRig rig, CrewVisualAssetSet assets)
-        {
-            Proportions p = DefaultProportions(assets);
-            p.TorsoMesh = assets.TorsoWide;
-            p.ArmRadius = 0.026f;
-            p.ArmHeight = 0.115f;
-            p.HandRadius = 0.023f;
-            BuildCore(rig, assets, p);
-
-            AddPart(rig.headPivot, "Bandana", assets.BandanaTight, assets.For(CrewMaterialRole.TeamCloth),
-                new Vector3(0f, p.HeadRadius * 0.86f, 0f), Vector3.zero, Vector3.one, teamTint: true);
-            AddEyePair(rig.headPivot, assets, p.HeadRadius);
-
-            float torsoBottomY = p.LegHeight;
-
-            // 肩甲（压扁球，补"最宽肩"，规格 §3.3）。
-            for (int side = -1; side <= 1; side += 2)
-            {
-                AddPart(rig.torsoPivot, side < 0 ? "ShoulderPadL" : "ShoulderPadR", assets.SphereSmall,
-                    assets.For(CrewMaterialRole.Leather),
-                    new Vector3(ShoulderOffsetX * side * 0.95f, ShoulderY - torsoBottomY + 0.008f, 0f),
-                    Vector3.zero, new Vector3(0.042f, 0.026f, 0.042f));
-            }
-
-            // 皮革围裙（前挂薄盒，规格 §3.3）。
-            AddPart(rig.torsoPivot, "Apron", assets.Box, assets.For(CrewMaterialRole.Leather),
-                new Vector3(0f, 0.045f, 0.070f), Vector3.zero, new Vector3(0.130f, 0.110f, 0.016f));
-
-            // 火药袋（小深色球 + 口，规格 §3.3）。
-            AddPart(rig.torsoPivot, "PowderBag", assets.SphereSmall, assets.For(CrewMaterialRole.Dark),
-                new Vector3(-0.070f, 0.060f, 0.045f), Vector3.zero, new Vector3(0.028f, 0.030f, 0.028f));
-            AddPart(rig.torsoPivot, "PowderBagCollar", assets.Cylinder, assets.For(CrewMaterialRole.Dark),
-                new Vector3(-0.070f, 0.084f, 0.045f), Vector3.zero, new Vector3(0.012f, 0.018f, 0.012f));
-
-            // 双手抱炸弹（腹前中心，规格 §3.3）。挂在身体上而非手挂点，保证"抱"的姿态稳定。
-            AddPart(rig.body, "Bomb", assets.SphereSmall, assets.For(CrewMaterialRole.Dark),
-                new Vector3(0f, 0.150f, 0.075f), Vector3.zero, Vector3.one * 0.025f);
-            AddPart(rig.body, "BombFuse", assets.Cylinder, assets.For(CrewMaterialRole.Flame),
-                new Vector3(0.014f, 0.176f, 0.075f), Vector3.zero, new Vector3(0.004f, 0.028f, 0.004f));
-        }
-
-        static void BuildSniper(CrewVisualRig rig, CrewVisualAssetSet assets)
-        {
-            Proportions p = DefaultProportions(assets);
-            p.LegRadius = 0.019f;
-            p.LegHeight = 0.100f;
-            p.TorsoMesh = assets.TorsoNarrow;
-            p.TorsoHeight = 0.205f;
-            p.HeadRadius = 0.0725f;              // d0.145
-            p.ArmRadius = 0.017f;
-            p.ArmHeight = 0.112f;
-            p.ArmMesh = assets.Capsule;          // 细胶囊臂
-            p.HandRadius = 0.018f;
-            BuildCore(rig, assets, p);
-
-            AddPart(rig.headPivot, "Bandana", assets.BandanaLow, assets.For(CrewMaterialRole.TeamCloth),
-                new Vector3(0f, p.HeadRadius * 0.80f, 0f), Vector3.zero, Vector3.one, teamTint: true);
-
-            // 单眼眼罩（压扁深色球 + 细带，规格 §3.4）。
-            AddPart(rig.headPivot, "EyePatch", assets.SphereSmall, assets.For(CrewMaterialRole.Dark),
-                new Vector3(-0.030f, 0.008f, 0.062f), Vector3.zero, new Vector3(0.019f, 0.019f, 0.010f));
-            AddPart(rig.headPivot, "EyePatchStrap", assets.Box, assets.For(CrewMaterialRole.Dark),
-                new Vector3(0f, 0.008f, 0.055f), Vector3.zero, new Vector3(0.150f, 0.007f, 0.006f));
-
-            // 长管火枪（长 0.28 = 身高 0.56 倍，规格 §3.4）：管 + 木托。
-            Transform held = rig.heldR;
-            AddPart(held, "MusketBarrel", assets.Cylinder, assets.For(CrewMaterialRole.Iron),
-                new Vector3(0f, -0.070f, 0.020f), new Vector3(0f, 0f, 90f),
-                new Vector3(0.011f, 0.280f, 0.011f));
-            AddPart(held, "MusketStock", assets.Box, assets.For(CrewMaterialRole.Wood),
-                new Vector3(0f, -0.008f, 0.020f), new Vector3(0f, 0f, 90f),
-                new Vector3(0.026f, 0.075f, 0.030f));
-        }
-
-        static void BuildHook(CrewVisualRig rig, CrewVisualAssetSet assets)
-        {
-            Proportions p = DefaultProportions(assets);
-            p.LegRadius = 0.021f;
-            p.LegHeight = 0.095f;
-            p.ArmRadius = 0.019f;
-            p.ArmHeight = 0.110f;
-            BuildCore(rig, assets, p);
-
-            // 头巾歪戴 12°（规格 §3.5）。
-            AddPart(rig.headPivot, "Bandana", assets.BandanaStandard, assets.For(CrewMaterialRole.TeamCloth),
-                new Vector3(0f, p.HeadRadius * 0.88f, 0f), new Vector3(0f, 0f, 12f), Vector3.one, teamTint: true);
-            AddEyePair(rig.headPivot, assets, p.HeadRadius);
-
-            // 左腿木腿（木 + 铁箍，规格 §3.5）：叠在通用左腿外侧。
-            Transform leftLeg = rig.legLPivot;
-            AddPart(leftLeg, "WoodLeg", assets.Cylinder, assets.For(CrewMaterialRole.Wood),
-                new Vector3(0f, 0.050f, 0f), Vector3.zero, new Vector3(0.024f, 0.100f, 0.024f));
-            AddPart(leftLeg, "WoodLegBand", assets.Cylinder, assets.For(CrewMaterialRole.Iron),
-                new Vector3(0f, 0.030f, 0f), Vector3.zero, new Vector3(0.027f, 0.010f, 0.027f));
-
-            // 铁钩替代左手（270° 弯管），挂在左手挂点。
-            AddPart(rig.heldL, "Hook", assets.Hook, assets.For(CrewMaterialRole.Iron),
-                new Vector3(-0.010f, -0.010f, 0f), new Vector3(90f, 0f, 0f), Vector3.one);
-
-            // 麻绳腰带 + 绳结（规格 §3.5）。
-            AddPart(rig.torsoPivot, "RopeBelt", assets.Cylinder, assets.For(CrewMaterialRole.Leather),
-                new Vector3(0f, BeltCenterY - p.LegHeight + 0.010f, 0f), Vector3.zero,
-                new Vector3(BeltRadius * 1.02f, 0.018f, BeltRadius * 1.02f));
-            AddPart(rig.torsoPivot, "RopeKnot", assets.SphereSmall, assets.For(CrewMaterialRole.Leather),
-                new Vector3(0.060f, BeltCenterY - p.LegHeight + 0.010f, 0.055f), Vector3.zero,
-                new Vector3(0.018f, 0.018f, 0.018f));
-
-            // 右手短刀。
-            AddKnife(rig.heldR, assets, 0.110f, 0.016f);
-        }
-
-        static void BuildArsonist(CrewVisualRig rig, CrewVisualAssetSet assets)
-        {
-            Proportions p = DefaultProportions(assets);
-            p.ArmRadius = 0.021f;
-            BuildCore(rig, assets, p);
-
-            // 乱发：头巾 + 3 簇小球（阵营色，规格 §3.6）。
-            AddPart(rig.headPivot, "Hair", assets.BandanaStandard, assets.For(CrewMaterialRole.TeamCloth),
-                new Vector3(0f, p.HeadRadius * 0.86f, 0f), Vector3.zero, Vector3.one, teamTint: true);
-            for (int k = 0; k < 3; k++)
-            {
-                float a = k * 2.094f;
-                AddPart(rig.headPivot, "HairClump" + k, assets.HairClump, assets.For(CrewMaterialRole.TeamCloth),
-                    new Vector3(Mathf.Cos(a) * 0.055f, p.HeadRadius * 0.55f, Mathf.Sin(a) * 0.055f),
-                    new Vector3(0f, -a * Mathf.Rad2Deg, 0f), Vector3.one, teamTint: true);
-            }
-
-            // 爆炸状大胡子（球簇，灰白毛色，规格 §3.6）。
-            AddPart(rig.headPivot, "Beard", assets.Beard, assets.For(CrewMaterialRole.Fur),
-                new Vector3(0f, -0.040f, 0.040f), Vector3.zero, Vector3.one);
-
-            // 火把（右手）：木柄 + 高亮火球（规格 §3.6）。详见 CrewVisualPrefabBuilder 的发光说明。
-            AddPart(rig.heldR, "TorchHandle", assets.Cylinder, assets.For(CrewMaterialRole.Wood),
-                new Vector3(0f, -0.040f, 0f), Vector3.zero, new Vector3(0.008f, 0.090f, 0.008f));
-            AddPart(rig.heldR, "TorchFlame", assets.SphereSmall, assets.For(CrewMaterialRole.Flame),
-                new Vector3(0f, 0.014f, 0f), Vector3.zero, Vector3.one * 0.023f);
-
-            // 燃烧瓶（左手）：玻璃瓶身 + 瓶颈 + 布塞（规格 §3.6）。
-            AddPart(rig.heldL, "MolotovBody", assets.Cylinder, assets.For(CrewMaterialRole.Glass),
-                new Vector3(0f, -0.020f, 0f), Vector3.zero, new Vector3(0.018f, 0.060f, 0.018f));
-            AddPart(rig.heldL, "MolotovNeck", assets.Cylinder, assets.For(CrewMaterialRole.Glass),
-                new Vector3(0f, 0.016f, 0f), Vector3.zero, new Vector3(0.007f, 0.020f, 0.007f));
-            AddPart(rig.heldL, "MolotovCork", assets.SphereSmall, assets.For(CrewMaterialRole.Fur),
-                new Vector3(0f, 0.030f, 0f), Vector3.zero, new Vector3(0.008f, 0.010f, 0.008f));
-
-            // 肩挂油壶（小铁圆台，规格 §3.6）。
-            AddPart(rig.torsoPivot, "OilFlask", assets.Cylinder, assets.For(CrewMaterialRole.Iron),
-                new Vector3(-0.060f, 0.100f, -0.060f), Vector3.zero, new Vector3(0.020f, 0.045f, 0.020f));
-        }
-
-        static void BuildSkeleton(CrewVisualRig rig, CrewVisualAssetSet assets)
-        {
-            Proportions p = DefaultProportions(assets);
-            p.LegRadius = 0.018f;
-            p.LegHeight = 0.090f;
-            p.TorsoMesh = assets.TorsoRib;
-            p.TorsoHeight = 0.185f;
-            p.HeadRadius = 0.080f;               // d0.160
-            p.ArmRadius = 0.016f;
-            p.ArmHeight = 0.110f;
-            p.HandRadius = 0.016f;
-            p.HeadMaterial = CrewMaterialRole.Bone;
-            p.TorsoMaterial = CrewMaterialRole.Bone;
-            p.TorsoTeamTint = false;
-            p.BeltMaterial = CrewMaterialRole.Iron;
-            p.BeltTeamTint = false;
-            p.LegClothMaterial = CrewMaterialRole.Bone;
-            p.BootMaterial = CrewMaterialRole.Bone;
-            p.ArmMaterial = CrewMaterialRole.Bone;
-            p.HandMaterial = CrewMaterialRole.Bone;
-            BuildCore(rig, assets, p);
-
-            // 头心抬到胸腔顶上（胸高 0.185 < 标准躯干）。
-            rig.headPivot.localPosition = new Vector3(0f, p.TorsoHeight + p.HeadRadius * 0.72f, 0f);
-
-            // 眼窝（两个黑洞，规格 §3.7）。
-            for (int side = -1; side <= 1; side += 2)
-            {
-                AddPart(rig.headPivot, side < 0 ? "EyeSocketL" : "EyeSocketR", assets.SphereSmall,
-                    assets.For(CrewMaterialRole.Dark),
-                    new Vector3(0.028f * side, 0.008f, 0.066f), Vector3.zero,
-                    new Vector3(0.016f, 0.018f, 0.012f));
-            }
-
-            // 下颌（盒，规格 §3.7）。
-            AddPart(rig.headPivot, "Jaw", assets.Box, assets.For(CrewMaterialRole.Bone),
-                new Vector3(0f, -0.058f, 0.040f), Vector3.zero, new Vector3(0.070f, 0.026f, 0.045f));
-
-            // 肋骨 ×3（半环弯管横跨胸腔，规格 §3.7）。
-            for (int k = 0; k < 3; k++)
-            {
-                AddPart(rig.torsoPivot, "Rib" + k, assets.Rib, assets.For(CrewMaterialRole.Bone),
-                    new Vector3(0f, 0.045f + k * 0.038f, 0.010f), Vector3.zero,
-                    new Vector3(1.0f, 1.0f, 0.75f));
-            }
-
-            // 脊椎（背后 4 小球串，规格 §3.7）。
-            for (int k = 0; k < 4; k++)
-            {
-                AddPart(rig.torsoPivot, "Spine" + k, assets.SphereSmall, assets.For(CrewMaterialRole.Bone),
-                    new Vector3(0f, 0.030f + k * 0.036f, -0.052f), Vector3.zero,
-                    Vector3.one * 0.013f);
-            }
-
-            // 破头巾残片（阵营色，规格 §3.7 / R-11）。
-            AddPart(rig.headPivot, "TornBandana", assets.Box, assets.For(CrewMaterialRole.TeamCloth),
-                new Vector3(0.020f, p.HeadRadius * 0.72f, -0.010f), new Vector3(0f, 0f, -18f),
-                new Vector3(0.090f, 0.014f, 0.070f), teamTint: true);
-
-            // 骨头棒（右手，规格 §3.7）。
-            AddPart(rig.heldR, "BoneClub", assets.Cylinder, assets.For(CrewMaterialRole.Bone),
-                new Vector3(0f, -0.045f, 0f), Vector3.zero, new Vector3(0.011f, 0.100f, 0.011f));
-            AddPart(rig.heldR, "BoneClubKnob", assets.SphereSmall, assets.For(CrewMaterialRole.Bone),
-                new Vector3(0f, -0.095f, 0f), Vector3.zero, Vector3.one * 0.018f);
-        }
-
-        static void BuildCaptain(CrewVisualRig rig, CrewVisualAssetSet assets)
-        {
-            Proportions p = DefaultProportions(assets);
-            p.LegHeight = 0.100f;                // 比普通船员高约 0.06（规格 §3.8 / R-10）
-            p.LegRadius = 0.023f;
-            p.TorsoMesh = assets.TorsoCaptain;
-            p.TorsoHeight = 0.210f;
-            p.HeadRadius = 0.080f;               // d0.160
-            p.ArmRadius = 0.026f;
-            p.ArmHeight = 0.115f;
-            p.HandRadius = 0.021f;
-            p.ArmMaterial = CrewMaterialRole.TeamCloth;
-            BuildCore(rig, assets, p);
-
-            // 头心相对躯干顶抬升，保证三角帽有落位空间。
-            rig.headPivot.localPosition = new Vector3(0f, p.TorsoHeight + p.HeadRadius * 0.92f, 0f);
-
-            // 三角帽（自定义网格，规格 §3.8）。
-            AddPart(rig.headPivot, "Tricorn", assets.Tricorn, assets.For(CrewMaterialRole.TeamCloth),
-                new Vector3(0f, p.HeadRadius * 0.80f, 0f), Vector3.zero, Vector3.one, teamTint: true);
-
-            // 白胡（球簇，规格 §3.8）。
-            AddPart(rig.headPivot, "WhiteBeard", assets.Beard, assets.For(CrewMaterialRole.Fur),
-                new Vector3(0f, -0.044f, 0.044f), Vector3.zero, new Vector3(1.1f, 0.9f, 1.0f));
-
-            // 长大衣下摆（外扩圆台，阵营色，规格 §3.8）。
-            AddPart(rig.body, "CoatSkirt", assets.CoatSkirt, assets.For(CrewMaterialRole.TeamCloth),
-                new Vector3(0f, p.LegHeight + 0.050f, 0f), Vector3.zero, Vector3.one, teamTint: true);
-
-            // 黄铜肩章（压扁球 + 流苏盒，规格 §3.8）。
-            float torsoBottomY = p.LegHeight;
-            for (int side = -1; side <= 1; side += 2)
-            {
-                AddPart(rig.torsoPivot, side < 0 ? "EpauletteL" : "EpauletteR", assets.SphereSmall,
-                    assets.For(CrewMaterialRole.Brass),
-                    new Vector3(ShoulderOffsetX * side, ShoulderY - torsoBottomY + 0.012f, 0f),
-                    Vector3.zero, new Vector3(0.052f, 0.026f, 0.052f));
-                AddPart(rig.torsoPivot, side < 0 ? "TasselL" : "TasselR", assets.Box,
-                    assets.For(CrewMaterialRole.Brass),
-                    new Vector3(ShoulderOffsetX * side * 1.15f, ShoulderY - torsoBottomY - 0.020f, 0f),
-                    Vector3.zero, new Vector3(0.012f, 0.038f, 0.012f));
-            }
-
-            // 袖口环（阵营色，规格 §3.8"袖口加宽"）。
-            AddPart(rig.armRPivot, "CuffR", assets.Cylinder, assets.For(CrewMaterialRole.TeamCloth),
-                new Vector3(0f, -p.ArmHeight + 0.008f, 0f), Vector3.zero,
-                new Vector3(p.ArmRadius * 1.25f, 0.020f, p.ArmRadius * 1.25f), teamTint: true);
-            AddPart(rig.armLPivot, "CuffL", assets.Cylinder, assets.For(CrewMaterialRole.TeamCloth),
-                new Vector3(0f, -p.ArmHeight + 0.008f, 0f), Vector3.zero,
-                new Vector3(p.ArmRadius * 1.25f, 0.020f, p.ArmRadius * 1.25f), teamTint: true);
-
-            // 佩剑（细长盒刀身 + 护手环 + 圆柱柄，规格 §3.8）。
-            AddPart(rig.heldR, "SwordBlade", assets.Box, assets.For(CrewMaterialRole.Iron),
-                new Vector3(0f, -0.090f, 0f), Vector3.zero, new Vector3(0.014f, 0.150f, 0.004f));
-            AddPart(rig.heldR, "SwordGuard", assets.Cylinder, assets.For(CrewMaterialRole.Brass),
-                new Vector3(0f, -0.012f, 0f), new Vector3(90f, 0f, 0f), new Vector3(0.008f, 0.050f, 0.008f));
-            AddPart(rig.heldR, "SwordHilt", assets.Cylinder, assets.For(CrewMaterialRole.Brass),
-                new Vector3(0f, 0.010f, 0f), Vector3.zero, new Vector3(0.008f, 0.036f, 0.008f));
         }
 
         // ---- 公共零件 ------------------------------------------------------

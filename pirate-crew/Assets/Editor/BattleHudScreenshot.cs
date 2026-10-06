@@ -37,7 +37,10 @@ namespace PirateCrew.EditorTools
         const string KeyCanvasPrepared = "BattleHudScreenshot.CanvasPrepared";
 
         static string OutputDir =>
-            Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "temp", "hud-shots"));
+            Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..",
+                System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_DIR") is string dir && dir.Length > 0
+                    ? dir
+                    : Path.Combine("temp", "hud-shots")));
 
         static bool Armed => SessionState.GetBool(KeyArmed, false);
         static int Countdown
@@ -72,13 +75,20 @@ namespace PirateCrew.EditorTools
         [MenuItem("PirateCrew/Debug/战斗截图（进 Play 抓取）")]
         public static void CaptureFromMenu() => Start(headless: false);
 
-        /// <summary>无头入口：-executeMethod（带图形 batchmode）。</summary>
+        /// <summary>无头入口：-executeMethod（带图形 batchmode）。
+        /// 环境变量 <c>PC3D_CAPTURE_SCENE</c> 可换目标场景（如调试场景对比取景口径），
+        /// 不设 = Battle。非 Battle 场景没有 BattleCameraDriver，缩放档自动跳过。</summary>
         public static void CaptureHeadless()
         {
             if (Armed)
                 return;   // 已在进行中（不该发生在单次 -executeMethod 里，防重入）
             Start(headless: true);
         }
+
+        static string ScenePathOrOverride =>
+            System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_SCENE") is string s && s.Length > 0
+                ? s
+                : ScenePath;
 
         static void Start(bool headless)
         {
@@ -101,7 +111,7 @@ namespace PirateCrew.EditorTools
             // （实测块 9×6 而非 3×3——艺术画布跟着小后台缓冲走，再被拉伸到大 RT 上）。
             Screen.SetResolution(1920, 1080, FullScreenMode.Windowed);
 
-            EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            EditorSceneManager.OpenScene(ScenePathOrOverride, OpenSceneMode.Single);
             EditorApplication.isPlaying = true;   // 触发域重载 → 静态构造重挂 Tick
             EditorApplication.update += Tick;     // 重载前这几帧也直接跑（若该项目关了重载则不触发）
             Debug.Log("[BattleHudScreenshot] 已武装：进 Play 后自动抓 " + ShotCount + " 张 → " + OutputDir);
@@ -126,6 +136,7 @@ namespace PirateCrew.EditorTools
             if (!SessionState.GetBool(KeyCanvasPrepared, false))
             {
                 PrepareCanvasForCapture();
+                DumpCrewScales();
                 SessionState.SetBool(KeyCanvasPrepared, true);
                 Countdown = 3;
                 return;
@@ -161,9 +172,14 @@ namespace PirateCrew.EditorTools
             if (tier <= 0f)
                 return;
             var driver = Object.FindFirstObjectByType<PirateCrew.Battle.BattleCameraDriver>();
+            if (driver == null)
+            {
+                Debug.Log("[BattleHudScreenshot] 场景无 BattleCameraDriver（非 Battle 对比拍），缩放档跳过。");
+                return;
+            }
             var fld = typeof(PirateCrew.Battle.BattleCameraDriver).GetField("_targetOrthoSize",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (driver == null || fld == null)
+            if (fld == null)
             {
                 Debug.LogError("[BattleHudScreenshot] 找不到 BattleCameraDriver._targetOrthoSize，缩放档跳过。");
                 return;
@@ -171,6 +187,21 @@ namespace PirateCrew.EditorTools
             fld.SetValue(driver, tier);
             Debug.Log("[BattleHudScreenshot] 第 " + nextShot + " 枪目标 ortho = " + tier
                 + "（可见高 " + (tier * 2f).ToString("F1") + " m）");
+        }
+
+        /// <summary>运行时取证：出战船员的根/Visual 世界缩放（身高争议现场数据）。</summary>
+        static void DumpCrewScales()
+        {
+            foreach (PirateCrew.Battle.PirateBase p in Object.FindObjectsByType<PirateCrew.Battle.PirateBase>(
+                FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            {
+                Transform visual = p.transform.Find("Visual");
+                Debug.Log("[BattleHudScreenshot] 船员 " + p.name
+                    + " root.lossyScale=" + p.transform.lossyScale.ToString("F3")
+                    + " visual.localScale=" + (visual != null ? visual.localScale.ToString("F3") : "<无 Visual>")
+                    + " visual.lossyScale=" + (visual != null ? visual.lossyScale.ToString("F3") : "-")
+                    + " crewType=" + p.CrewType);
+            }
         }
 
         static RenderTexture _rt;

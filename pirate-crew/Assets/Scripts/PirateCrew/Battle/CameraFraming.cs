@@ -80,12 +80,13 @@ namespace PirateCrew.Battle
         public const float DefaultWorldSpan = 100f;
 
         /// <summary>
-        /// 单位视觉总高（世界单位）= 1.85：<c>CrewVisualPrefabBuilder.TargetUnitHeight</c> 的常量镜像
-        /// （运行时不引用 Editor 程序集）。
-        /// <b>【待标定】</b>：该镜像值尚未随现役造型总高（≈2.0321，见
-        /// <c>docs/设计/美术/角色造型.md</c>）同步，取值待重新标定。
+        /// 单位视觉总高（世界单位）= <c>CrewVisualPrefabBuilder</c> 两件式常量推导值
+        /// **2.0321**（身体 1.3215 + 头心 1.7321 + 头半径 0.3，见其 <c>HeadSphereCenterY</c>）。
+        /// 镜像原因：运行时不引用 Editor 程序集。2026-10-05 创始人裁决"船员 = 标定人偶体格"
+        /// 后，预制体重烘落盘补偿（Visual ×2 抵消根压缩），此镜像随之定案（旧值 1.85 的
+        /// 【待标定】标记销号）。
         /// </summary>
-        public const float UnitVisualHeight = 1.85f;
+        public const float UnitVisualHeight = 2.0321f;
 
         /// <summary>lookAt 抬高比例（用户裁决区间 0.6–0.7 取中值 0.65）：镜头看向单位胸/头部而非脚底。</summary>
         public const float LookAtHeightRatio = 0.65f;

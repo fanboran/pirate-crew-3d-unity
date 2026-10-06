@@ -4,75 +4,13 @@ using UnityEngine;
 namespace PirateCrew.Visual.Tests
 {
     /// <summary>
-    /// <see cref="CrewVisualCatalog"/> 断言：符号/名册 id → 职业外观档映射、中文名、调色板。
-    /// 映射出处 docs/设计/美术/角色造型.md §3.1「母题来源」列（§8.4 标【待定】：职业与原版外观的映射未拍板）。
+    /// <see cref="CrewVisualCatalog"/> 断言：调色板与材质角色。
+    /// （2026-10-05 创始人裁决：职业外观塌缩为单一档，符号/名册 → 外观档映射测试随之根除；
+    /// 战斗符号的 UI 短名映射由 <c>UiSkin.CrewKey</c> 独立承担，见 UiSkinTests。）
     /// </summary>
     [TestFixture]
     public class CrewVisualCatalogTests
     {
-        [Test]
-        public void ProfessionFromBattleSymbol_MapsMotherThemes()
-        {
-            Assert.AreEqual(CrewProfession.Sailor, CrewVisualCatalog.ProfessionFromBattleSymbol("redPirate"));
-            Assert.AreEqual(CrewProfession.Sailor, CrewVisualCatalog.ProfessionFromBattleSymbol("bluePirate"));
-            Assert.AreEqual(CrewProfession.Bombardier, CrewVisualCatalog.ProfessionFromBattleSymbol("soldier"));
-            Assert.AreEqual(CrewProfession.Sniper, CrewVisualCatalog.ProfessionFromBattleSymbol("femalePirate"));
-            Assert.AreEqual(CrewProfession.Sniper, CrewVisualCatalog.ProfessionFromBattleSymbol("cabinBoy"));
-            Assert.AreEqual(CrewProfession.Hook, CrewVisualCatalog.ProfessionFromBattleSymbol("blindPirate"));
-            Assert.AreEqual(CrewProfession.Arsonist, CrewVisualCatalog.ProfessionFromBattleSymbol("oldPirate"));
-            Assert.AreEqual(CrewProfession.Skeleton, CrewVisualCatalog.ProfessionFromBattleSymbol("skeletonPirate"));
-        }
-
-        [Test]
-        public void ProfessionFromBattleSymbol_CaptainVariantsWin()
-        {
-            // 任何含 "Captain" 的符号都归船长档（redPirateCaptain / cabinBoyCaptain / skeletonPirateCaptain…）。
-            Assert.AreEqual(CrewProfession.Captain, CrewVisualCatalog.ProfessionFromBattleSymbol("redPirateCaptain"));
-            Assert.AreEqual(CrewProfession.Captain, CrewVisualCatalog.ProfessionFromBattleSymbol("bluePirateCaptain"));
-            Assert.AreEqual(CrewProfession.Captain, CrewVisualCatalog.ProfessionFromBattleSymbol("soldierCaptain"));
-            Assert.AreEqual(CrewProfession.Captain, CrewVisualCatalog.ProfessionFromBattleSymbol("cabinBoyCaptain"));
-        }
-
-        [Test]
-        public void ProfessionFromBattleSymbol_UnknownFallsBackToSailor()
-        {
-            Assert.AreEqual(CrewProfession.Sailor, CrewVisualCatalog.ProfessionFromBattleSymbol(null));
-            Assert.AreEqual(CrewProfession.Sailor, CrewVisualCatalog.ProfessionFromBattleSymbol(""));
-            Assert.AreEqual(CrewProfession.Sailor, CrewVisualCatalog.ProfessionFromBattleSymbol("parrot"));
-            Assert.AreEqual(CrewProfession.Sailor, CrewVisualCatalog.ProfessionFromBattleSymbol("monkey"));
-        }
-
-        [Test]
-        public void ProfessionFromRosterId_MapsSixRecruits()
-        {
-            Assert.AreEqual(CrewProfession.Sailor, CrewVisualCatalog.ProfessionFromRosterId("sailor"));
-            Assert.AreEqual(CrewProfession.Bombardier, CrewVisualCatalog.ProfessionFromRosterId("gunner"));
-            Assert.AreEqual(CrewProfession.Sniper, CrewVisualCatalog.ProfessionFromRosterId("sniper"));
-            Assert.AreEqual(CrewProfession.Hook, CrewVisualCatalog.ProfessionFromRosterId("hooker"));
-            Assert.AreEqual(CrewProfession.Arsonist, CrewVisualCatalog.ProfessionFromRosterId("arsonist"));
-            Assert.AreEqual(CrewProfession.Skeleton, CrewVisualCatalog.ProfessionFromRosterId("skeleton"));
-            Assert.AreEqual(CrewProfession.Sailor, CrewVisualCatalog.ProfessionFromRosterId("nobody"));
-        }
-
-        [Test]
-        public void AllProfessions_AreSevenWithUniqueNames()
-        {
-            Assert.AreEqual(7, CrewVisualCatalog.AllProfessions.Length);
-            Assert.AreEqual(7, CrewVisualCatalog.ProfessionCount);
-
-            var names = new System.Collections.Generic.HashSet<string>();
-            var files = new System.Collections.Generic.HashSet<string>();
-            for (int i = 0; i < CrewVisualCatalog.AllProfessions.Length; i++)
-            {
-                CrewProfession p = CrewVisualCatalog.AllProfessions[i];
-                Assert.IsTrue(names.Add(CrewVisualCatalog.DisplayName(p)), "中文名重复: " + p);
-                Assert.IsTrue(files.Add(CrewVisualCatalog.PrefabFileName(p)), "预制体文件名重复: " + p);
-            }
-
-            // 【文案内容不进测试契约】职业中文名逐字断言退役（创始人裁决 2026-10-01）；
-            // 中文名仍被上方 names.Add 的唯一性检查与 UiTextRules 的无英文门禁兜底。
-        }
-
         [Test]
         public void TeamColors_MatchStaticDoc()
         {

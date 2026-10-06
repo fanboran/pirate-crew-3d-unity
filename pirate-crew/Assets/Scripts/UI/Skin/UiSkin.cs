@@ -232,7 +232,8 @@ namespace PirateCrew.UI
         /// （<c>Resources/UIIcons/Crew_&lt;短名&gt;</c>）都以短名为键——符号带队伍前后缀
         /// 的全部归一到同档职业。
         ///
-        /// 【与 3D 外观侧同源】映射规则对齐 <c>CrewVisualCatalog.ProfessionFromBattleSymbol</c>
+        /// 【与 3D 外观侧的关系】职业外观已塌缩为单一档（2026-10-05 创始人裁决），此映射只服务
+        /// UI 色槽/图标；
         /// （§4.2 导出符号 27 个全覆盖：cabinBoy→sniper、soldier→gunner、blindPirate→hooker、
         /// oldPirate/rainbowBeard→arsonist、skeletonPirate→skeleton、Captain 后缀与 bossGuy→captain、
         /// tribe→sailor、无法识别回落 sailor）——r9 出图事故：本表曾用更窄的符号命名空间，
@@ -288,7 +289,7 @@ namespace PirateCrew.UI
                 case "bossGuyZombie":
                     return "captain";
                 default:
-                    return "sailor";   // 与外观侧同回落（ProfessionFromBattleSymbol default→Sailor）
+                    return "sailor";
             }
         }
 

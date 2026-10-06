@@ -168,35 +168,42 @@ namespace PirateCrew.Battle
                 CreateRollPivot();
         }
 
-        /// <summary>
-        /// 在 <c>CrewVisualRig</c> 的 Visual 与 Body 之间插入滚动 Pivot。
-        /// Pivot 的 localScale 取 Visual localScale 的逐分量倒数，恰好抵消 Visual 的非均匀缩放——
-        /// Pivot 之下的数值矩阵 = 单位阵，任意刚体旋转都不产生剪切；静止时 Body 的世界矩阵与
-        /// 插入前完全一致，<see cref="CrewVisualAnimator"/> 对 rig.Body 的读写无感知。
-        /// </summary>
-        void CreateRollPivot()
-        {
-            if (_rollPivot != null)
-                return;
+    /// <summary>
+    /// 在 <c>CrewVisualRig</c> 的 Visual 与 Body 之间插入滚动 Pivot。
+    /// Pivot 只负责把 Body 子树的**世界缩放归一到竖轴基准**（任意刚体旋转不产生剪切；
+    /// 静止时 Body 的世界矩阵与插入前完全一致，<see cref="CrewVisualAnimator"/> 对 rig.Body
+    /// 的读写无感知）。
+    ///
+    /// 【为什么不能取 Visual localScale 的逐分量倒数】那会把装配器侧的补偿二次抵消：
+    /// 预制体链条 = 根(0.375,0.5,0.375) × Visual(2.667,2,2.667) = (1,1,1)（视觉世界缩放恒
+    /// 均匀），倒数层一插，Body 子树落回 (0.375,0.5,0.375)——身高凭空减半
+    /// （2026-10-05 身高争议的运行时根因，实测 lossyScale 日志定案）。
+    /// </summary>
+    void CreateRollPivot()
+    {
+        if (_rollPivot != null)
+            return;
 
-            CrewVisualRig rig = GetComponentInChildren<CrewVisualRig>(true);
-            if (rig == null || rig.Body == null)
-                return;
+        CrewVisualRig rig = GetComponentInChildren<CrewVisualRig>(true);
+        if (rig == null || rig.Body == null)
+            return;
 
-            Transform visual = rig.transform;
-            Vector3 visualScale = visual.localScale;
+        Transform visual = rig.transform;
+        Vector3 visualWorld = visual.lossyScale;
 
-            _rollPivot = new GameObject("RollPivot").transform;
-            _rollPivot.SetParent(visual, false);
-            _rollPivot.localPosition = Vector3.zero;
-            _rollPivot.localRotation = Quaternion.identity;
-            _rollPivot.localScale = new Vector3(
-                visualScale.x > 1e-5f ? 1f / visualScale.x : 1f,
-                visualScale.y > 1e-5f ? 1f / visualScale.y : 1f,
-                visualScale.z > 1e-5f ? 1f / visualScale.z : 1f);
+        // 以竖轴为基准把 XZ 拉平：Body 子树世界缩放 = (基准, 基准, 基准)，均匀无剪切。
+        float refScale = visualWorld.y;
+        _rollPivot = new GameObject("RollPivot").transform;
+        _rollPivot.SetParent(visual, false);
+        _rollPivot.localPosition = Vector3.zero;
+        _rollPivot.localRotation = Quaternion.identity;
+        _rollPivot.localScale = new Vector3(
+            visualWorld.x > 1e-5f ? refScale / visualWorld.x : 1f,
+            1f,
+            visualWorld.z > 1e-5f ? refScale / visualWorld.z : 1f);
 
-            rig.Body.SetParent(_rollPivot, false);
-        }
+        rig.Body.SetParent(_rollPivot, false);
+    }
 
         /// <summary>
         /// 由 <see cref="BattleController"/> 按出战计划初始化（§4.1 共享属性 + §5.5 初始武器）。

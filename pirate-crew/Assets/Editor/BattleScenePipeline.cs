@@ -166,5 +166,18 @@ namespace PirateCrew.EditorTools
             if (Application.isBatchMode)
                 UnityEditor.EditorApplication.Exit(0);
         }
+
+        /// <summary>
+        /// **一条龙无头入口**（单次 Unity 进程）：生成船员视觉预制体 → 重烘 Battle 场景 →
+        /// 进 Play 抓三档截图后退出。相比"三段独立 -executeMethod"省两次冷启动/编译/资产扫描
+        /// （每轮 ≈3 分钟的启动开销只付一次；截图工具自带域重载存活与收尾 Exit）。
+        /// 环境变量 <c>PC3D_CAPTURE_SCENE/PC3D_CAPTURE_DIR</c> 语义同截图器。
+        /// </summary>
+        public static void CrewRebakeCapture()
+        {
+            CrewVisualPrefabBuilder.BuildAll();
+            Build();
+            BattleHudScreenshot.CaptureHeadless();   // 失败/完成都在其内部 Exit
+        }
     }
 }

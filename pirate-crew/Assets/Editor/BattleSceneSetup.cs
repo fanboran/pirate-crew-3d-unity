@@ -71,8 +71,9 @@ namespace PirateCrew.EditorTools
 
         const string PiratePrefabPath = PrefabFolder + "/PirateBase.prefab";
 
-        /// <summary>职业视觉预制体目录（波次 I2 产出；命名 = <c>CrewVisualCatalog.PrefabFileName</c>）。</summary>
+        /// <summary>船员视觉预制体目录（单一外观档，2026-10-05 职业外观塌缩裁决）。</summary>
         const string CrewPrefabFolder = PrefabFolder + "/Crew";
+        const string CrewPrefabFileName = "Crew";
         const string OutlineMaterialPath = MaterialFolder + "/PirateOutlineUnit.mat";
         const string OutlineShaderName = "PirateCrew/PirateOutline";
         static readonly string BattleScenePath = BuildSystem.BuildScenes.PathOf("Battle");
@@ -143,7 +144,7 @@ namespace PirateCrew.EditorTools
                 + " / URP " + BattleSceneLighting.UrpAssetPath + "（软阴影+深度图+MSAA2）\n"
                 + "  接线: BattleController / TurnManager / BattleInteractionController（含输入读取器） / TrajectoryPreview / "
                 + "BattleCameraDriver（含 battle 手感源）/ BattleHud / "
-                + "crewVisualPrefabs（7 职业）/ SceneArt.Ambient（活物）/ "
+                + "crewVisualPrefab（单一外观档）/ SceneArt.Ambient（活物）/ "
                 + "RuntimeSceneArt（材质组数组，关卡无关的场景美术）的全部 [SerializeField] 引用。\n"
                 + "  场景美术: 关卡专属静态陈设不入场景（烘焙退位），开局由 RuntimeSceneArt 按实际关卡重建。");
         }
@@ -679,67 +680,44 @@ namespace PirateCrew.EditorTools
             // 不报错、就是不画）。
             SetRef(so, "worldOceanMaterial", null);
 
-            // 职业视觉预制体（波次 I2）：按 CrewVisualCatalog 的职业顺序填 crewVisualPrefabs，
-            // 未命中/缺失时该元素留 null，BattleController 会回落 piratePrefab（方块外观兜底）。
-            WireCrewVisualPrefabs(so);
+            // 船员视觉预制体（单一外观档，2026-10-05 职业外观塌缩裁决）：
+            // 接线 crewVisualPrefab，缺失时单位回落 piratePrefab（方块外观兜底）。
+            WireCrewVisualPrefab(so);
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
         /// <summary>
-        /// 从 <c>Assets/Prefabs/PirateCrew/Crew/&lt;职业&gt;.prefab</c> 装载 7 个职业预制体，
-        /// 按 <see cref="CrewVisualCatalog.AllProfessions"/> 顺序写入 <c>crewVisualPrefabs</c>。
-        ///
-        /// 【顺序为什么用 AllProfessions 而不是枚举遍历】职业枚举顺序与外观档顺序一致
-        /// （<see cref="CrewProfession"/> 0..6），但用目录数组可避免枚举增删后顺序漂移。
-        /// 【缺资产怎么办】找不到的项填 null 并汇总一条警告；不阻断场景重建（可能只是没跑
+        /// 从 <c>Assets/Prefabs/PirateCrew/Crew/Crew.prefab</c> 装载船员预制体并写入
+        /// <c>crewVisualPrefab</c>。缺资产不阻断场景重建（可能只是没跑
         /// <see cref="CrewVisualPrefabBuilder.BuildAll"/>，此时场景仍可用方块兜底跑起来）。
         /// </summary>
-        static void WireCrewVisualPrefabs(SerializedObject battleSo)
+        static void WireCrewVisualPrefab(SerializedObject battleSo)
         {
-            SerializedProperty array = battleSo.FindProperty("crewVisualPrefabs");
-            if (array == null)
+            SerializedProperty prop = battleSo.FindProperty("crewVisualPrefab");
+            if (prop == null)
             {
-                Debug.LogError("[BattleSceneSetup] BattleController.crewVisualPrefabs 字段未找到（字段名漂移？）");
+                Debug.LogError("[BattleSceneSetup] BattleController.crewVisualPrefab 字段未找到（字段名漂移？）");
                 return;
             }
 
-            CrewProfession[] professions = CrewVisualCatalog.AllProfessions;
-            array.arraySize = professions.Length;
-
-            var missing = new System.Collections.Generic.List<string>();
-            for (int i = 0; i < professions.Length; i++)
-            {
-                SerializedProperty element = array.GetArrayElementAtIndex(i);
-                element.FindPropertyRelative("profession").enumValueIndex = (int)professions[i];
-                element.FindPropertyRelative("prefab").objectReferenceValue =
-                    LoadCrewPrefab(professions[i], missing);
-            }
-
-            if (missing.Count > 0)
-            {
-                Debug.LogWarning("[BattleSceneSetup] 以下职业预制体缺失，对应单位将回落 piratePrefab（方块）："
-                    + string.Join("、", missing) + "。请先跑 PirateCrew.EditorTools.CrewVisualPrefabBuilder.BuildAll。");
-            }
+            prop.objectReferenceValue = LoadCrewPrefab();
         }
 
-        /// <summary>按职业加载 <c>Assets/Prefabs/PirateCrew/Crew/&lt;职业&gt;.prefab</c>；缺失返回 null。</summary>
-        static PirateBase LoadCrewPrefab(CrewProfession profession,
-            System.Collections.Generic.List<string> missing)
+        /// <summary>加载 <c>Crew.prefab</c>；缺失返回 null（调用方写 null，运行时回落 piratePrefab）。</summary>
+        static PirateBase LoadCrewPrefab()
         {
-            string path = CrewPrefabFolder + "/" + CrewVisualCatalog.PrefabFileName(profession) + ".prefab";
+            string path = CrewPrefabFolder + "/" + CrewPrefabFileName + ".prefab";
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (prefab == null)
             {
-                missing.Add(CrewVisualCatalog.DisplayName(profession));
+                Debug.LogWarning("[BattleSceneSetup] 船员视觉预制体缺失（" + path
+                    + "），单位将回落 piratePrefab（方块）。请先跑 PirateCrew.EditorTools.CrewVisualPrefabBuilder.BuildAll。");
                 return null;
             }
 
             PirateBase pirate = prefab.GetComponent<PirateBase>();
             if (pirate == null)
-            {
-                Debug.LogWarning("[BattleSceneSetup] 职业预制体缺 PirateBase 组件: " + path);
-                missing.Add(CrewVisualCatalog.DisplayName(profession));
-            }
+                Debug.LogWarning("[BattleSceneSetup] 船员视觉预制体缺 PirateBase 组件: " + path);
             return pirate;
         }
 

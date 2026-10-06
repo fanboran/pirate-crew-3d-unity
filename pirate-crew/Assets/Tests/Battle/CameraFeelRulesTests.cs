@@ -501,13 +501,14 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void LookAtHeight_FollowsUnitHeightAndRatio()
         {
-            // lookAt 抬高 = 单位视觉高 × 比例；视觉高与 CrewVisualPrefabBuilder.TargetUnitHeight 同源（1.85，待随现役造型重新标定）。
-            Assert.That(CameraFraming.UnitVisualHeight, Is.EqualTo(1.85f).Within(1e-4f),
-                "单位视觉总高应 = 1.85（1 格 = 1 单位 = 1 本工程单位）");
+            // lookAt 抬高 = 单位视觉高 × 比例；视觉高 = 两件式常量推导 2.0321（2026-10-05 裁决
+            // "船员 = 标定人偶体格"，预制体重烘落盘 Visual 补偿后定案）。
+            Assert.That(CameraFraming.UnitVisualHeight, Is.EqualTo(2.0321f).Within(1e-4f),
+                "单位视觉总高应 = 2.0321（身体 1.3215 + 头心 1.7321 + 头半径 0.3）");
             Assert.That(CameraFraming.LookAtHeightRatio, Is.InRange(0.6f, 0.7f),
                 "lookAt 抬高比例应在 0.6–0.7");
             Assert.That(CameraFraming.LookAtHeight,
-                Is.EqualTo(1.85f * 0.65f).Within(1e-4f), "lookAt 抬高 ≈ 1.20");
+                Is.EqualTo(2.0321f * 0.65f).Within(1e-4f), "lookAt 抬高 ≈ 1.32");
         }
     }
 }

@@ -12,20 +12,6 @@ using UnityEngine;
 namespace PirateCrew.Battle
 {
     /// <summary>
-    /// 职业视觉预制体选择项：外观档 → 预制体。由 <c>CrewVisualPrefabBuilder</c> 生成预制体后，
-    /// 场景装配方把 7 个职业预制体填进 <see cref="BattleController"/> 的数组字段。
-    /// </summary>
-    [Serializable]
-    public struct CrewVisualPrefabEntry
-    {
-        /// <summary>职业外观档。</summary>
-        public CrewProfession profession;
-
-        /// <summary>对应预制体（根含 BoxCollider + Rigidbody + PirateBase + UnitOutlineBinder + 视觉子层级）。</summary>
-        public PirateBase prefab;
-    }
-
-    /// <summary>
     /// 战斗组装与结算根。
     ///
     /// 【对应章节】§4.3（按布阵坐标/队伍实例化出战单位）、§5.5（水位 = waterTileY*32）、
@@ -52,9 +38,9 @@ namespace PirateCrew.Battle
     {
         [Header("组装引用（场景内直连）")]
         [SerializeField] PirateBase piratePrefab;
-        [Tooltip("按职业外观档覆盖预制体（可选）。命中则用职业预制体，未命中/为空回落 piratePrefab；"
-                 + "生成顺序与职业外观由 CrewVisualPrefabBuilder 产出，见 docs/设计/美术/角色造型.md §3。")]
-        [SerializeField] CrewVisualPrefabEntry[] crewVisualPrefabs = new CrewVisualPrefabEntry[0];
+        [Tooltip("船员视觉预制体（单一外观档，2026-10-05 职业外观塌缩裁决）：由 CrewVisualPrefabBuilder 生成；"
+                 + "为空回落 piratePrefab（方块兜底）。")]
+        [SerializeField] PirateBase crewVisualPrefab;
         [SerializeField] Transform team0Root;
         [SerializeField] Transform team1Root;
         [Tooltip("水面物体（承载常驻的 WaterSimulationDriver 水模拟；其 MeshRenderer/WaterTessellator "
@@ -412,7 +398,7 @@ namespace PirateCrew.Battle
 
         void SpawnTeams()
         {
-            if (piratePrefab == null && !HasAnyCrewVisualPrefab())
+            if (piratePrefab == null && crewVisualPrefab == null)
             {
                 global::PirateCrew.Core.Log.Error("[BattleController] 未配置 PirateBase 预制体，无法生成出战单位。");
                 return;
@@ -438,8 +424,8 @@ namespace PirateCrew.Battle
                     entry.TeamIndex, entry.TypeName, entry.Luck, entry.GridX, entry.GridY,
                     spawnPosition, entry.InitialWeapons);
 
-                // 按职业外观档取预制体；未命中回落 piratePrefab（docs/设计/美术/角色造型.md §3 职业表）。
-                PirateBase prefab = ResolveCrewVisualPrefab(entry.TypeName) ?? piratePrefab;
+                // 单一外观档（2026-10-05 职业外观塌缩裁决）；未接线回落 piratePrefab（方块兜底）。
+                PirateBase prefab = crewVisualPrefab != null ? crewVisualPrefab : piratePrefab;
                 if (prefab == null)
                     continue;
 
@@ -450,38 +436,6 @@ namespace PirateCrew.Battle
             }
 
             _spawned = true;
-        }
-
-        /// <summary>是否至少配置了一个职业视觉预制体。</summary>
-        bool HasAnyCrewVisualPrefab()
-        {
-            if (crewVisualPrefabs == null)
-                return false;
-            for (int i = 0; i < crewVisualPrefabs.Length; i++)
-            {
-                if (crewVisualPrefabs[i].prefab != null)
-                    return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// 按战斗导出符号映射到职业外观档，取对应预制体；未命中返回 null（调用方回落 piratePrefab）。
-        /// 映射规则见 <see cref="CrewVisualCatalog.ProfessionFromBattleSymbol"/>。
-        /// </summary>
-        PirateBase ResolveCrewVisualPrefab(string typeName)
-        {
-            if (crewVisualPrefabs == null || crewVisualPrefabs.Length == 0)
-                return null;
-
-            CrewProfession profession = CrewVisualCatalog.ProfessionFromBattleSymbol(typeName);
-            for (int i = 0; i < crewVisualPrefabs.Length; i++)
-            {
-                if (crewVisualPrefabs[i].profession == profession && crewVisualPrefabs[i].prefab != null)
-                    return crewVisualPrefabs[i].prefab;
-            }
-
-            return null;
         }
 
         /// <summary>取队伍（teamIndex 0/1）。</summary>

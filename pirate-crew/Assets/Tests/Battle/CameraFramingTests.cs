@@ -172,7 +172,7 @@ namespace PirateCrew.Battle.Tests
             Assert.AreEqual(60f, CameraFraming.BaseFov, 1e-4f, "FOV 当量分母 60");
             Assert.AreEqual(0.1f, CameraFraming.OrthoNearClip, 1e-4f, "近裁剪 = 原虚机 Lens 实机值");
             Assert.AreEqual(200f, CameraFraming.OrthoFarClip, 1e-4f, "远裁剪 = 原虚机 Lens 实机值（非主相机烘焙的 400）");
-            Assert.AreEqual(1.85f, CameraFraming.UnitVisualHeight, 1e-4f, "单位视觉总高与 CrewVisualPrefabBuilder 同源");
+            Assert.AreEqual(2.0321f, CameraFraming.UnitVisualHeight, 1e-4f, "单位视觉总高与 CrewVisualPrefabBuilder 两件式常量同源（2.0321）");
         }
 
         // ------------------------------------------------------------------
