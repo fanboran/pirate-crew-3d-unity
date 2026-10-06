@@ -279,8 +279,30 @@ namespace PirateCrew.Rendering.Pixelart
 
             Material derived = PixelartMaterialFactory.Create(
                 PixelartMaterialFactory.DerivedName(source.name), albedo);
+            if (derived != null)
+                InheritPerMaterialTuning(source, derived);
             _derived[key] = derived;
             return derived;
+        }
+
+        /// <summary>
+        /// 派生材质继承源材质的**逐材质调校**：抖动图案 <c>_DitherPattern</c> 与色带档数
+        /// <c>_MainLightLevel</c>。工厂 <c>Create</c> 只有强度默认值、挂不上图案（Bayer 图案是
+        /// 工程内 PNG，运行期没有按路径加载的入口，见工厂头注释）——不继承的话抖动项退化，
+        /// 战斗场景（Play 期派生）与试点场景（装配材质原样渲染）观感分裂：一边硬边色带、
+        /// 一边抖动带（2026-10-06 创始人裁决修复）。档数继承保证逐材质的"平涂/细腻"调校不被
+        /// 工厂默认值抹平。
+        /// </summary>
+        static void InheritPerMaterialTuning(Material source, Material derived)
+        {
+            if (source.HasProperty("_DitherPattern"))
+            {
+                Texture pattern = source.GetTexture("_DitherPattern");
+                if (pattern != null)
+                    derived.SetTexture("_DitherPattern", pattern);
+            }
+            if (source.HasProperty("_MainLightLevel"))
+                derived.SetFloat("_MainLightLevel", source.GetFloat("_MainLightLevel"));
         }
 
         /// <summary>

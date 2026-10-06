@@ -16,8 +16,10 @@ namespace PirateCrew.Rendering.Pixelart
     /// 每帧下发的光照与尺寸全局）；本类只写"这个物体该长什么样"。
     ///
     /// 【抖动图案为什么要外部传】`_DitherPattern` 是工程内的 png（`Assets/Pixelart/Textures/Dither`），
-    /// 运行期没有按路径加载的入口，也没有 `Resources` 副本。默认 `_DitherStrength = 0` ⇒ 图案不参与
-    /// 着色，所以运行期材质不挂它也是正确的；要做出图那种抖动对照，走编辑器侧的装配器（它会挂上）。
+    /// 运行期没有按路径加载的入口，也没有 `Resources` 副本，本类 <c>Create</c> 挂不上它。
+    /// 运行期要抖动靠**继承**：`PixelartContentConverter.InheritPerMaterialTuning` 派生时从源材质
+    /// （编辑器装配、图案已挂）拷贝图案与档数——不继承则抖动项退化成硬边色带，战斗场景与
+    /// 试点场景观感分裂（2026-10-06 修复）；编辑器侧直接装配的材质由装配路径自行挂上。
     /// </summary>
     public static class PixelartMaterialFactory
     {
