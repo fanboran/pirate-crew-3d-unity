@@ -223,8 +223,8 @@ namespace PirateCrew.Ambient.Tests
         /// 任务书前置门——"视觉批次 A–F 实拍转正前不动全局参数"。用户拍板"你自己干"后翻转；
         /// A–F 与天空盒由此改为**同一轮实拍验收**（此前没有已转正的基线图，不存在被作废的调参轮）。
         /// 【2026-10-06 翻回 Trilight】创始人裁决"暗面色板别那么暗"——Skybox SH 模式下暗面
-        /// 采样过弱且量化色带吞增益（环境光 0.85→1.15 实拍暗面不动），翻回三灯分层精准提亮
-        /// 侧脸（BattleSceneLighting.ApplyThreePointAmbient 的地平三色）。
+        /// 采样过弱（实拍崖壁 (53,56,56)）；翻回后暗面亮度由 AmbientDirector 写目录正午档
+        /// AmbientColor 承载（ApplyPreset 尾部 ambientLight 覆写，强度旋钮非 Skybox 模式不参与）。
         /// </summary>
         [Test]
         public void DefaultsToTrilight_ForDarkFacePalette()

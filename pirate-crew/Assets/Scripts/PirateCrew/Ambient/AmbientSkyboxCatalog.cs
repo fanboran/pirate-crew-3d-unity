@@ -139,8 +139,10 @@ namespace PirateCrew.Ambient
         /// **同一轮实拍验收**。翻转操作三步见 `docs/技术/渲染/调研/环境光天空盒化-预研与接线清单.md` §6。
         ///
         /// 【2026-10-06 翻回 Trilight】创始人裁决"暗面色板别那么暗"：Skybox 模式下暗面
-        /// （侧/朝下法线）的 SH 采样过弱，量化色带把环境光增益吞掉（环境光 0.85→1.15
-        /// 实拍暗面纹丝不动）；要单独提亮"侧脸"只能走 Trilight 的分层三色。
+        /// （侧/朝下法线）的 SH 采样过弱（实拍崖壁 (53,56,56) 炭黑）。注意战斗场景的暗面
+        /// 亮度现役旋钮是 AmbientTimeOfDayCatalog 正午档 AmbientColor（ApplyPreset 每局写
+        /// ambientLight 覆写一切）；ambientIntensity 在非 Skybox 模式下不参与（0.85→1.15
+        /// 实拍暗面纹丝不动正是此故），本烘焙三色只在 director 缺席时兜底上屏。
         /// </summary>
         public const AmbientSkySource DefaultAmbientSource = AmbientSkySource.Trilight;
 

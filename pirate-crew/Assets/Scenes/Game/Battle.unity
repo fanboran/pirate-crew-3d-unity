@@ -21,7 +21,7 @@ RenderSettings:
   m_LinearFogStart: 150
   m_LinearFogEnd: 1200
   m_AmbientSkyColor: {r: 0.49411765, g: 0.65882355, b: 0.8, a: 1}
-  m_AmbientEquatorColor: {r: 0.76862746, g: 0.8235294, b: 0.85490197, a: 1}
+  m_AmbientEquatorColor: {r: 0.59607846, g: 0.63529414, b: 0.654902, a: 1}
   m_AmbientGroundColor: {r: 0.7882353, g: 0.63529414, b: 0.40784314, a: 1}
   m_AmbientIntensity: 0.85
   m_AmbientMode: 1
@@ -122,7 +122,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1001 &1783299251
+--- !u!1001 &1913026388
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -183,4 +183,4 @@ PrefabInstance:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 1783299251}
+  - {fileID: 1913026388}
