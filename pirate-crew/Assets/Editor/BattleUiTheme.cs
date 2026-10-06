@@ -88,12 +88,19 @@ namespace PirateCrew.EditorTools
             SetRef(so, "throwSelfButton", result.throwSelfButton);
             SetRef(so, "endGoButton", result.endGoButton);
 
-            // 模式开关 / 系统钮 / 提示。
-            SetArray(so.FindProperty("modeButtons"), result.modeButtons);
-            SetArray(so.FindProperty("modeFrames"), result.modeFrames);
+            // 操作 HUD / 系统钮 / 提示。
+            SetRef(so, "operationPanelRoot", result.operationPanelRoot);
+            SetRef(so, "yawReadoutText", result.yawReadoutText);
+            SetRef(so, "elevationReadoutText", result.elevationReadoutText);
+            SetRef(so, "powerReadoutText", result.powerReadoutText);
+            SetRef(so, "confirmOperationButton", result.confirmOperationButton);
+            SetRef(so, "cancelOperationButton", result.cancelOperationButton);
             SetRef(so, "backButton", result.backButton);
             SetRef(so, "pauseButton", result.pauseButton);
+            SetRef(so, "hintPlate", result.hintPlate);
             SetRef(so, "hintText", result.hintText);
+            SetRef(so, "stateIndicator", result.stateIndicator);
+            SetRef(so, "stateIndicatorLabel", result.stateIndicatorLabel);
 
             // 模态：暂停 / 返回确认 / 结算。
             SetRef(so, "pausePanelRoot", result.pausePanelRoot);

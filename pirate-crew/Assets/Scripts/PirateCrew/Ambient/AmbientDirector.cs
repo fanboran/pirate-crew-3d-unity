@@ -18,7 +18,7 @@ namespace PirateCrew.Ambient
     ///   · 既有植被/旗帜的顶点风摆（换材质，见 <see cref="AmbientWindBinder"/>）；
     ///   · 灯笼（悬挂摆动 + 自发光辉光 + 可选点光）；
     ///   · 燕尾旗绳（缆绳 + 6 面垂旗随风摆）；
-    ///   · 近岸浮标（随波起伏 + 周期性涟漪，涟漪复用 Fx 模块）；
+    ///   · 近岸浮标（随波起伏）；
     ///   · 昼夜/天气档位（默认正午 = 与现状逐值一致，切档才改氛围）。
     ///
     /// 【接线纪律（任务书）】
@@ -820,9 +820,7 @@ namespace PirateCrew.Ambient
                     primaryAmplitudeDeg: 9f,
                     secondaryAmplitudeDeg: 4.5f,
                     bobAmplitude: 0f,
-                    billboard: glow.transform,
-                    rippleInterval: 0f,
-                    rippleSpeed: 0f);
+                    billboard: glow.transform);
                 _swayNodes.Add(sway);
             }
         }
@@ -894,7 +892,7 @@ namespace PirateCrew.Ambient
         }
 
         // ------------------------------------------------------------------
-        // 近岸浮标（随波起伏 + 周期性涟漪）
+        // 近岸浮标（随波起伏）
         // ------------------------------------------------------------------
 
         void SpawnCorkFloats(AmbientRandom rng)
@@ -921,10 +919,7 @@ namespace PirateCrew.Ambient
                     primaryAmplitudeDeg: 0f,
                     secondaryAmplitudeDeg: 0f,
                     bobAmplitude: 0.045f,
-                    billboard: null,
-                    // 每 6-11 秒一次小涟漪：复用 Fx 的入水水花/涟漪系统，不重造涟漪。
-                    rippleInterval: rng.Range(6f, 11f),
-                    rippleSpeed: 2.2f);
+                    billboard: null);
                 _swayNodes.Add(sway);
             }
         }

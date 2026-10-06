@@ -208,7 +208,8 @@ namespace PirateCrew.Visual
             if (_drownSettled && state == CrewVisualState.Drown)
                 return;
 
-            int professionIndex = (int)rig.Profession;
+            // 单一外观档（2026-10-05 职业外观塌缩裁决）：呼吸参数表保留分档接口，恒取 0 档。
+            int professionIndex = 0;
 
             // 复位到基准姿势，再按状态叠加（状态间不会残留）。
             ResetPose();

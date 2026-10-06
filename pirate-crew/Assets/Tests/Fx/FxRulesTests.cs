@@ -101,13 +101,11 @@ namespace PirateCrew.Fx.Tests
         }
 
         [Test]
-        public void SplashSizesAndRipples_GrowWithFallSpeed_AndStayPositive()
+        public void SplashSizes_GrowWithFallSpeed_AndStayPositive()
         {
+            // 涟漪环已根除（创始人裁决：平滑扩散圆环与像素语言不符）——只剩水花粒子档。
             Assert.Greater(FxRules.SplashDropletSize(10f), FxRules.SplashDropletSize(1f));
-            Assert.Greater(FxRules.RippleDiameter(10f), FxRules.RippleDiameter(1f));
-            Assert.Greater(FxRules.RippleLifetime(10f), FxRules.RippleLifetime(1f));
 
-            Assert.GreaterOrEqual(FxRules.RippleDiameter(-5f), 1.2f, "负速度被钳到下限");
             Assert.GreaterOrEqual(FxRules.SplashLifetime(-5f), 0.35f);
             Assert.Greater(FxRules.SplashDropletSize(-5f), 0f);
         }

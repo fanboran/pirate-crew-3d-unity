@@ -174,7 +174,7 @@ namespace PirateCrew.Audio
 
             // ================= 反馈 =================
             new SfxRecipe(SfxId.UnitSelect, AudioCategory.Sfx, 0.16d, false, SpatialMode.TwoD, 0.55f, 0f, 0f,
-                "无事件（选角在 AimThrowController 内部）；公开 API PlayUi 手动触发",
+                "无事件（选角在 BattleInteractionController 内部）；公开 API PlayUi 手动触发",
                 "两音上行：正弦 1046.5 Hz（C6）40 ms → 1567.98 Hz（G6）50 ms，5 ms 起音"),
 
             new SfxRecipe(SfxId.WeaponSwitch, AudioCategory.Sfx, 0.22d, false, SpatialMode.TwoD, 0.60f, 0f, 0f,

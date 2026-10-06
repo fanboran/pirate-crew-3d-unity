@@ -252,18 +252,6 @@ namespace PirateCrew.Battle
             return baseFov - peakDegrees * Mathf.Sin(Mathf.PI * t);
         }
 
-        /// <summary>"旁观"态（AI 回合）的 FOV 外扩量（度，提案）：略拉远，体现"轮到对手"。</summary>
-        public const float SpectatorFovDeltaDegrees = 1.5f;
-
-        /// <summary>"旁观"态的聚焦速率缩放（提案）：×0.6 更慢、更"看戏"，不抢操作节奏。</summary>
-        public const float SpectatorFocusScale = 0.6f;
-
-        /// <summary>旁观 FOV：旁观时 <c>base + delta</c>，否则为 base（不写回时不显示变化）。</summary>
-        public static float SpectatorFov(float baseFov, float deltaDegrees, bool spectator)
-        {
-            return spectator ? baseFov + deltaDegrees : baseFov;
-        }
-
         // ------------------------------------------------------------------
         // 落水 / 死亡的下压
         // ------------------------------------------------------------------
@@ -289,28 +277,6 @@ namespace PirateCrew.Battle
             if (duration <= 0f || amountWorldUnits <= 0f || elapsed < 0f || elapsed >= duration)
                 return 0f;
             return -amountWorldUnits * ShakeEnvelope(elapsed / duration);
-        }
-
-        // ------------------------------------------------------------------
-        // Scope 瞄准（M4 §3.2，提案/待定：战舰世界式瞄准仪式，数值待手感实测调参）
-        // ------------------------------------------------------------------
-
-        /// <summary>Scope 模式的目标 FOV（度，提案）：60 → 28，长焦"瞄准仪式"。</summary>
-        public const float ScopeTargetFov = 28f;
-
-        /// <summary>Scope 进入/退出的平滑收敛时长（秒，提案）：0.25s。</summary>
-        public const float ScopeBlendSeconds = 0.25f;
-
-        /// <summary>Scope 模式的瞄准灵敏度缩放（提案）：炮台 yaw/力度增速/滚轮微调同步 ×0.4。</summary>
-        public const float ScopeAimSensitivityScale = 0.4f;
-
-        /// <summary>
-        /// Scope 混合后的 FOV：<c>lerp(base, 28, blend01)</c>。blend 由胶水层按
-        /// <see cref="ScopeBlendSeconds"/> 线性推进（进入与退出同一条曲线，"退出平滑回"）。
-        /// </summary>
-        public static float ScopeFov(float baseFov, float blend01)
-        {
-            return Mathf.Lerp(baseFov, ScopeTargetFov, Mathf.Clamp01(blend01));
         }
 
         // ------------------------------------------------------------------

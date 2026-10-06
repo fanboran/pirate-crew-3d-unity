@@ -55,38 +55,38 @@ namespace PirateCrew.Tests
         }
 
         // ------------------------------------------------------------------
-        // BattleCameraDriver（原热路径每帧 FindObjectOfType<AimThrowController>）
+        // BattleCameraDriver（热路径：LateUpdate 每帧拉取交互状态/选中目标/意图帧）
         // ------------------------------------------------------------------
 
         [Test]
-        public void BattleCameraDriver_AimThrow_IsSerializedInjectionPoint()
+        public void BattleCameraDriver_Interaction_IsSerializedInjectionPoint()
         {
-            AssertSerializedField<BattleCameraDriver>("aimThrow", "AimThrowController",
+            AssertSerializedField<BattleCameraDriver>("interaction", "BattleInteractionController",
                 "修复：PirateCrew.EditorTools.BattleLookupWiring.Wire。");
         }
 
         [Test]
         public void BattleCameraDriver_ExposesAssemblyWiringFlag()
         {
-            AssertAssemblyFlag<BattleCameraDriver>("AimThrowWiredByAssembly",
+            AssertAssemblyFlag<BattleCameraDriver>("InteractionWiredByAssembly",
                 "修复：PirateCrew.EditorTools.BattleLookupWiring.Wire。");
         }
 
         // ------------------------------------------------------------------
-        // BattleHud（原 SetHudMode 里按需 FindObjectOfType<BattleCameraDriver>）
+        // BattleHud（操作菜单/操作 HUD/提示条随交互状态开合；Esc 矩阵的弹窗层归属 HUD）
         // ------------------------------------------------------------------
 
         [Test]
-        public void BattleHud_CameraController_IsSerializedInjectionPoint()
+        public void BattleHud_Interaction_IsSerializedInjectionPoint()
         {
-            AssertSerializedField<BattleHud>("cameraController", "BattleCameraDriver",
+            AssertSerializedField<BattleHud>("interaction", "BattleInteractionController",
                 "修复：PirateCrew.EditorTools.BattleLookupWiring.Wire。");
         }
 
         [Test]
         public void BattleHud_ExposesAssemblyWiringFlag()
         {
-            AssertAssemblyFlag<BattleHud>("CameraControllerWiredByAssembly",
+            AssertAssemblyFlag<BattleHud>("InteractionWiredByAssembly",
                 "修复：PirateCrew.EditorTools.BattleLookupWiring.Wire。");
         }
 

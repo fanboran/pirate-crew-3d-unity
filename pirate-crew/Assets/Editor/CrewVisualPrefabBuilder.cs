@@ -13,33 +13,18 @@ namespace PirateCrew.EditorTools
     /// 配套网格资产（<c>Assets/Art/Models/Generated/</c>）与共享材质（<c>Assets/Art/Materials/Crew/</c>）。
     ///
     /// 【入口】
-    ///   菜单: PirateCrew/角色/生成职业视觉预制体
+    ///   菜单: PirateCrew/角色/生成船员视觉预制体
     ///   无头: -batchmode -nographics -quit -executeMethod PirateCrew.EditorTools.CrewVisualPrefabBuilder.BuildAll
     ///
     /// 【造型口径 — 用户裁决 2026-09-14；尺度口径 2026-09-14 修正（用户裁决②"角色为什么比木筏子小这么多"）】
-    ///   7 个职业的视觉装配**完全相同**：一个圆台柱 Body + 一个圆球 Head。
+    ///   **单一外观档**（2026-10-05 创始人裁决：职业外观塌缩，7 档目录根除）：
+    ///   一个圆台柱 Body + 一个圆球 Head。
     ///
-    ///   **尺度推导链（先定格子的世界尺寸，再定目标比例）**——
-    ///   <list type="number">
-    ///   <item>关卡地面尺寸 = 关卡 widthTiles × heightTiles（`docs/设计/3D空间模型对齐.md` §2），
-    ///         兜底关宽 50 格（`LevelCatalog` 兜底关 widthTiles = 50）
-    ///         → **1 格 = 1 世界单位**（<see cref="UnitsPerTile"/>）；</item>
-    ///   <item>单位总高 = Body 圆柱 h1.2 与 Head 球 d0.7 在轴上重叠 0.05
-    ///         → **1.85 世界单位**（<see cref="ReferenceHeight"/>）；</item>
-    ///   <item>归一换算取 1 格 = 1 世界单位（<see cref="UnitsPerTile"/>；仅归一用，非现行
-    ///         <c>LevelGeometry.TileWorldSize</c>）→ 换算系数 = 1（<see cref="UnityUnitsPerTile"/>）；</item>
-    ///   <item>→ **目标视觉总高 = 1.85 世界单位**（<see cref="TargetUnitHeight"/>）。</item>
-    ///   </list>
-    ///   于是等比缩放系数 k = <see cref="TargetUnitHeight"/> / 1.85 = 1，两件式尺寸即归一基准原值：
-    ///   <list type="bullet">
-    ///   <item>Body 圆台柱 = 顶 r <see cref="BodyTopRadius"/> 0.35
-    ///         / 底 r <see cref="BodyBottomRadius"/> **0.4667**（这一项按创始人
-    ///         2026-09-22 裁决放大出台柱感、2026-09-28 微调对齐艺术像素网格，理由见该常量的注释）/
-    ///         高 <see cref="BodyHeight"/> 1.20，底面贴脚底 y=0；</item>
-    ///   <item>Head 圆球 = r <see cref="HeadSphereRadius"/> 0.35、球直径 0.7，
-    ///         球心 y <see cref="HeadSphereCenterY"/> 1.50（球底 1.15 与柱顶 1.20 微叠 0.05，即
-    ///         `1.2/2 − 0.7/2 = 0.05`；总高 = 1.50 + 0.35 = 1.85）。</item>
-    ///   </list>
+    ///   **造型规格单一真源 = <see cref="CrewMeshLibrary"/>**（顶/底半径 0.30、身高 1.3215、
+    ///   头球 r 0.30、总高 2.0321 与分段数，2026-09-29 调试场定档）——规格常量与两件式网格
+    ///   生成已下沉到该库（无头验证台直接可测），本文件只消费，不私藏尺寸。
+    ///   （历史推导链：归一基准 1.85 与换算系数 k=1 的 Machinery 已随下沉删除，
+    ///   演进史见 <c>docs/设计/美术/角色造型.md</c> 与 CrewMeshLibrary 各常量注释。）
     ///   材质：Head = 木色 <c>#D4A76A</c>（CrewWood），
     ///   Body = 阵营色（运行时由 UnitOutlineBinder 逐队写 <c>_BaseColor</c>）；
     ///   全部 Crew 材质走**像素化路径**物体 shader（<see cref="PixelartPath.ObjectShaderName"/>，
@@ -55,7 +40,7 @@ namespace PirateCrew.EditorTools
     ///
     /// 【预制体结构】
     /// <code>
-    /// Crew_&lt;Profession&gt;（根）
+    /// Crew（根）
     /// ├ Transform.scale = (0.375, 0.5, 0.375)   ← 与 PirateBase.prefab 一致
     /// ├ BoxCollider size=(1,1,1)                  ← 世界 AABB 0.375×0.5×0.375（碰撞契约不变）
     /// ├ Rigidbody mass=1 drag=0 angularDrag=0.05 useGravity=on
@@ -72,7 +57,7 @@ namespace PirateCrew.EditorTools
     ///
     /// 【为什么不替换 PirateBase.prefab 的 Cube 外观】<c>BattleSceneSetup.BuildAll</c> 会重建
     ///   PirateBase.prefab 为 Cube；把职业外观塞进去会与该重建互相覆盖。这里改为**独立职业预制体**，
-    ///   由 <c>BattleController.crewVisualPrefabs</c> 按 <c>CrewVisualCatalog</c> 映射选择，
+    ///   由 <c>BattleController.crewVisualPrefab</c> 单字段接线选择，
     ///   未命中/未接线时回落 PirateBase.prefab（对方块外观做兜底，不破坏既有场景）。
     ///
     /// 【坐标口径】单位根是 0.375/0.5/0.375 的非均匀缩放，Visual 用 (1/0.375, 1/0.5, 1/0.375) 抵消，
@@ -99,103 +84,14 @@ namespace PirateCrew.EditorTools
         /// <summary>单位根缩放：与 PirateBase.prefab 一致，使 BoxCollider(1,1,1) 的世界 AABB = 0.375×0.5×0.375。</summary>
         static readonly Vector3 UnitRootScale = new Vector3(12f / 32f, 16f / 32f, 12f / 32f);
 
-        // ------------------------------------------------------------------
-        // 造型尺寸（2026-09-29 创始人在角色镜头调试场定档；起点是 2026-09-14
-        // 的两件式归一尺寸，之后底径/体格/头颈距几经裁决演进）
-        // ------------------------------------------------------------------
-
-        /// <summary>
-        /// 归一基准总高 = 1.85：Body 圆柱 h1.2 与 Head 球 d0.7
-        /// 在轴上重叠 0.05（0.4−0.35）→ 总高 1.2 + 0.7 − 0.05 = 1.85。
-        /// 只作 <see cref="ReferenceToWorldScale"/> 的归一基准（该比值恒 1，实际不缩放）；
-        /// **现役总高以两件式常量推导为准（≈2.03，见 <see cref="HeadSphereCenterY"/>）**。
-        /// <b>【提案/待定】</b>：归一基准值尚无已裁决文档背书。
-        /// </summary>
-        const float ReferenceHeight = 1.85f;
-
-        /// <summary>
-        /// 归一换算的"格"分母（与 <see cref="UnityUnitsPerTile"/> 同为 1，故比值恒 1）。
-        /// <b>【提案/待定】</b>：仅作归一系数来源，不代表现行 <c>LevelGeometry.TileWorldSize</c>。
-        /// </summary>
-        const float UnitsPerTile = 1f;
-
-        /// <summary>
-        /// 本工程 1 格 = 1 世界单位（`LevelGeometry.PixelsPerUnit = 32`，`WorldWidth = widthTiles`）。
-        /// </summary>
-        const float UnityUnitsPerTile = 1f;
-
-        /// <summary>
-        /// 目标视觉总高的归一系数来源（1.85 × UnityUnitsPerTile / UnitsPerTile）。
-        /// <see cref="ReferenceToWorldScale"/> 恒 1，两件式常量直接写世界值——**总高不锚 1.85**，由 Body/Head 常量推出。
-        ///
-        /// 【为什么不用旧的 0.55】旧口径把整身压到 0.55 世界单位（≈0.55 格高），
-        ///   与 1.85 格高的角色差了 3.36 倍，用户一眼看出"角色比木筏子小这么多"。
-        ///   碰撞足迹仍由根级 BoxCollider 决定（0.375×0.5×0.375，12×16px 契约，见
-        ///   <see cref="UnitRootScale"/>），**与视觉高度无关**，改造型不动碰撞体。
-        /// </summary>
-        const float TargetUnitHeight = ReferenceHeight * UnityUnitsPerTile / UnitsPerTile;
-
-        /// <summary>等比缩放系数 k = 1.85 / 1.85 = **1**（归一单位 → 本工程世界单位；两件式即归一基准原值）。</summary>
-        static readonly float ReferenceToWorldScale = TargetUnitHeight / ReferenceHeight;
-
-        /// <summary>
-        /// Body 圆台柱顶半径 = **0.30**（创始人 2026-09-29 在角色镜头调试场定档，即
-        /// CharCamDebugController.DefaultTopRadius；前值 0.35）。
-        /// </summary>
-        static readonly float BodyTopRadius = 0.3f * ReferenceToWorldScale;
-
-        /// <summary>
-        /// Body 圆台柱底半径 = **0.30**（2026-09-29 调试档——与顶径等宽的圆柱身；
-        /// 演进：0.4 → 0.4667（2026-09-22 台柱感 + 2026-09-28 整像素）→ 0.3）。
-        /// 锥度 0.30/0.30 = 1，直筒；特写档直径 0.6 m 在可见 14 m@540 画布 = 23.1 px（1:2）。
-        /// </summary>
-        static readonly float BodyBottomRadius = 0.3f * ReferenceToWorldScale;
-
-        /// <summary>Body 圆台柱高 = **1.3215**（2026-09-29 调试档；前值 1.20），底面贴脚底（局部 y 0..1.3215）。</summary>
-        static readonly float BodyHeight = 1.3215f * ReferenceToWorldScale;
-
-        /// <summary>Head 球半径 = **0.30**（2026-09-29 调试档；前值 0.35）。</summary>
-        static readonly float HeadSphereRadius = 0.3f * ReferenceToWorldScale;
-
-        /// <summary>
-        /// 头颈间距 = **0.1606**（2026-09-29 调试档）：头心上抬量，正 = 拉出脖颈间隙、0 = 球底与柱顶
-        /// 重叠 0.05 的口径。
-        /// </summary>
-        static readonly float HeadLift = 0.1606f;
-
-        /// <summary>
-        /// Head 球心高度 = 身高 − 头身重叠(0.05) + 头半径 + 头颈间距 = **1.7321**。
-        /// 校验：球底 1.7321 − 0.30 = 1.4321 &lt; 柱顶 1.3215（反超 0.11——头颈间距 0.1606 把头
-        /// 拉离柱顶，间隙 0.11 m），总高 = 1.7321 + 0.30 = **2.0321**。
-        /// </summary>
-        static readonly float HeadSphereCenterY = BodyHeight - 0.05f + HeadSphereRadius + HeadLift;
-
-        /// <summary>圆台柱侧壁分段（16；三角面 = 侧壁 32 + 上下盖 32 = 64）。底缘弦长 6.9 px@1:2 特写，
-        /// 12 段以下剪影棱边在特写档可辨（&gt;0.6 px 偏差），保持 16。</summary>
-        const int BodySides = 16;
-
-        /// <summary>
-        /// 球经向分段 = **12**（原 16）。像素感口径（创始人 2026-09-28 令"建模微调产生像素感"）：
-        /// 16×12 的面片在 1:2 特写档只有 3.5×5.3 px、在 1:3 与全场档跌破 1 px——面片小于艺术像素
-        /// 等于白费三角面，还让色带/内线沿 11 条纬棱碎成细噪。12×8 的面片 3.5×5.3 px@1:2 特写、
-        /// ≥1.45 px@全场档，剪影偏差 ≤0.26 px（27 px 圆头上不可辨，圆头轮廓裁决不变），
-        /// 三角面 352 → 168（−52%），色带 3 档对 8 环 = 每档约 2.7 行，阶梯变整。
-        /// </summary>
-        const int HeadSegments = 12;
-
-        /// <summary>球纬向分段 = **8**（原 12；三角面 = 2×12×(8−1) = 168）。依据见 <see cref="HeadSegments"/>。</summary>
-        const int HeadRings = 8;
 
         // ------------------------------------------------------------------
         // 本文件追加的资产键（**不登记进 CrewMeshLibrary**，
         // 以免动到预算镜像表 CrewMeshLibrary.CountPartInstances 的既有断言）
         // ------------------------------------------------------------------
 
-        /// <summary>两件式 Body 圆台柱（顶 r 0.30 / 底 r 0.30 / h 1.3215，16 段；演进史见常量注释）。</summary>
-        const string BodyFrustumKey = "CrewBodyFrustum";
-
-        /// <summary>两件式 Head 圆球（r 0.35，12×8）。</summary>
-        const string HeadSphereKey = "CrewHeadSphere";
+        // 两件式网格键改挂 CrewMeshLibrary 公共常量（值 = 网格资产文件名，与磁盘资产一致）：
+        // Body = "CrewBodyFrustum"（顶 r 0.30 / 底 r 0.30 / h 1.3215，16 段）、Head = "CrewHeadSphere"（r 0.30，12×8）。
 
         // ------------------------------------------------------------------
         // 选中反馈（像素路径）：Crew 材质不再携带描边壳参数
@@ -208,7 +104,7 @@ namespace PirateCrew.EditorTools
         // 追加资产打包
         // ------------------------------------------------------------------
 
-        /// <summary>本文件生成的两件式网格件（生成后注入 <see cref="BuildProfessionPrefab"/>）。</summary>
+        /// <summary>本文件生成的两件式网格件（生成后注入 <see cref="BuildCrewPrefab"/>）。</summary>
         struct VisualAddOns
         {
             public Mesh BodyFrustum;
@@ -235,37 +131,32 @@ namespace PirateCrew.EditorTools
             EnsureFolder(CrewPrefabFolder);
 
             Dictionary<string, MeshData> meshData = CrewMeshLibrary.BuildAll();
-            InjectAddOnMeshes(meshData);
             Dictionary<string, Mesh> meshes = BuildMeshAssets(meshData);
             Material[] materials = BuildMaterialAssets();
             VisualAddOns addOns = BuildAddOns(meshes);
             CrewVisualAssetSet assetSet = BuildAssetSet(meshes, materials);
 
             var report = new System.Text.StringBuilder();
-            report.AppendLine("[CrewVisualPrefabBuilder] 职业视觉预制体生成完成（用户裁决：两件式 = 圆球 + 圆台柱）：");
+            report.AppendLine("[CrewVisualPrefabBuilder] 船员视觉预制体生成完成（单一外观档；用户裁决：两件式 = 圆球 + 圆台柱）：");
             report.AppendLine("  网格资产: " + MeshFolder + "（" + meshes.Count + " 个）");
             report.AppendLine("  材质资产: " + CrewMaterialFolder + "（" + materials.Length + " 个 + 接触阴影 1 个）");
-            report.AppendLine("  Body 圆台柱: 顶 r " + BodyTopRadius.ToString("0.00000")
-                + " / 底 r " + BodyBottomRadius.ToString("0.00000")
-                + " / h " + BodyHeight.ToString("0.00000") + "（" + BodySides + " 段）");
-            report.AppendLine("  Head 圆球: r " + HeadSphereRadius.ToString("0.00000")
-                + " / 球心 y " + HeadSphereCenterY.ToString("0.00000")
-                + "（" + HeadSegments + "×" + HeadRings + "）");
+            report.AppendLine("  Body 圆台柱: 顶 r " + CrewMeshLibrary.BodyTopRadius.ToString("0.00000")
+                + " / 底 r " + CrewMeshLibrary.BodyBottomRadius.ToString("0.00000")
+                + " / h " + CrewMeshLibrary.BodyHeight.ToString("0.00000") + "（" + CrewMeshLibrary.BodySides + " 段）");
+            report.AppendLine("  Head 圆球: r " + CrewMeshLibrary.HeadSphereRadius.ToString("0.00000")
+                + " / 球心 y " + CrewMeshLibrary.HeadSphereCenterY.ToString("0.00000")
+                + "（" + CrewMeshLibrary.HeadSegments + "×" + CrewMeshLibrary.HeadRings + "）");
 
+            GameObject crew = BuildCrewPrefab(assetSet, addOns, out int renderers, out int triangles);
             int failures = 0;
-            for (int i = 0; i < CrewVisualCatalog.AllProfessions.Length; i++)
+            if (crew == null)
             {
-                CrewProfession profession = CrewVisualCatalog.AllProfessions[i];
-                GameObject prefab = BuildProfessionPrefab(profession, assetSet, addOns,
-                    out int renderers, out int triangles);
-                if (prefab == null)
-                {
-                    failures++;
-                    report.AppendLine("  [" + CrewVisualCatalog.DisplayName(profession) + "] 生成失败");
-                    continue;
-                }
-
-                report.AppendLine("  [" + CrewVisualCatalog.DisplayName(profession) + " / " + profession + "] "
+                failures++;
+                report.AppendLine("  [Crew] 生成失败");
+            }
+            else
+            {
+                report.AppendLine("  [Crew] "
                     + "部件 renderer=" + renderers + "（Body+Head）"
                     + " tri=" + triangles + "（含接触阴影 2）"
                     + " 预算 " + CrewMeshFactory.MaxTrianglesPerUnit
@@ -279,23 +170,6 @@ namespace PirateCrew.EditorTools
                 Debug.LogError(report.ToString());
             else
                 Debug.Log(report.ToString());
-        }
-
-        // ------------------------------------------------------------------
-        // 追加网格（两件式造型）
-        // ------------------------------------------------------------------
-
-        /// <summary>
-        /// 往网格表里追加本文件需要的两件网格：
-        /// · <see cref="BodyFrustumKey"/>：按世界尺寸（不是单位尺寸）生成，装配时缩放恒为 1 —— 尺寸即规格值；
-        /// · <see cref="HeadSphereKey"/>：同样按世界半径生成。
-        /// </summary>
-        static void InjectAddOnMeshes(Dictionary<string, MeshData> meshData)
-        {
-            meshData[BodyFrustumKey] = CrewMeshFactory.Frustum(
-                BodyTopRadius, BodyBottomRadius, BodyHeight, BodySides);
-            meshData[HeadSphereKey] = CrewMeshFactory.LowPolySphere(
-                HeadSphereRadius, HeadSegments, HeadRings);
         }
 
         // ------------------------------------------------------------------
@@ -376,8 +250,8 @@ namespace PirateCrew.EditorTools
         {
             return new VisualAddOns
             {
-                BodyFrustum = meshes[BodyFrustumKey],
-                HeadSphere = meshes[HeadSphereKey],
+                BodyFrustum = meshes[CrewMeshLibrary.BodyFrustum],
+                HeadSphere = meshes[CrewMeshLibrary.HeadSphere],
             };
         }
 
@@ -412,16 +286,18 @@ namespace PirateCrew.EditorTools
         // 预制体
         // ------------------------------------------------------------------
 
-        static GameObject BuildProfessionPrefab(CrewProfession profession, CrewVisualAssetSet assetSet,
+        /// <summary>船员视觉预制体文件名（不含扩展名）。单一外观档（2026-10-05 职业外观塌缩裁决）。</summary>
+        const string CrewPrefabName = "Crew";
+
+        static GameObject BuildCrewPrefab(CrewVisualAssetSet assetSet,
             VisualAddOns addOns, out int rendererCount, out int triangles)
         {
             rendererCount = 0;
             triangles = 0;
 
-            string fileName = CrewVisualCatalog.PrefabFileName(profession);
-            string path = CrewPrefabFolder + "/" + fileName + ".prefab";
+            string path = CrewPrefabFolder + "/" + CrewPrefabName + ".prefab";
 
-            var root = new GameObject("Crew_" + fileName);
+            var root = new GameObject(CrewPrefabName);
             root.transform.localScale = UnitRootScale;
 
             var collider = root.AddComponent<BoxCollider>();
@@ -439,10 +315,10 @@ namespace PirateCrew.EditorTools
 
             var visual = new GameObject("Visual");
             visual.transform.SetParent(root.transform, false);
-            CrewVisualRig rig = CrewVisualRig.Build(visual.transform, profession, assetSet);
+            CrewVisualRig rig = CrewVisualRig.Build(visual.transform, assetSet);
             if (rig == null)
             {
-                Debug.LogError("[CrewVisualPrefabBuilder] CrewVisualRig.Build 失败: " + fileName);
+                Debug.LogError("[CrewVisualPrefabBuilder] CrewVisualRig.Build 失败: " + CrewPrefabName);
                 Object.DestroyImmediate(root);
                 return null;
             }
@@ -455,7 +331,7 @@ namespace PirateCrew.EditorTools
             // 阵营色部件：显式写进 binder，并拆掉必然变成 missing script 的运行时标记组件。
             Renderer[] tintRenderers = CollectAndStripTintMarkers(root);
             if (tintRenderers.Length != 1)
-                Debug.LogError("[CrewVisualPrefabBuilder] " + fileName + " 的阵营色部件数 = "
+                Debug.LogError("[CrewVisualPrefabBuilder] " + CrewPrefabName + " 的阵营色部件数 = "
                     + tintRenderers.Length + "（两件式口径下恒为 1 = Body），请检查 "
                     + "ApplyTwoPieceSilhouette 是否被改动。");
 
@@ -476,7 +352,7 @@ namespace PirateCrew.EditorTools
                     rendererCount++;
             }
             if (rendererCount != 2)
-                Debug.LogError("[CrewVisualPrefabBuilder] " + fileName + " 的角色部件 renderer 数 = "
+                Debug.LogError("[CrewVisualPrefabBuilder] " + CrewPrefabName + " 的角色部件 renderer 数 = "
                     + rendererCount + "（两件式口径下恒为 2 = Body + Head），请检查 "
                     + "ApplyTwoPieceSilhouette 是否被改动。");
 
@@ -486,7 +362,8 @@ namespace PirateCrew.EditorTools
             SetRef(so, "body", body);
             SetRef(so, "bodyCollider", collider);
             SetRef(so, "visualAnimator", animator);
-            SetString(so, "crewType", RepresentativeSymbol(profession));
+            // 预制体默认符号（运行时由 PirateBase.Initialize 按出战数据覆盖；单一外观档恒红方水手）。
+            SetString(so, "crewType", "redPirate");
             so.ApplyModifiedPropertiesWithoutUndo();
 
             var animatorSo = new SerializedObject(animator);
@@ -522,10 +399,12 @@ namespace PirateCrew.EditorTools
         ///   这里沿用"rig 装配 + 后处理"的既有做法，只把零件层整体替换。
         ///
         /// 【尺寸与位置】
-        ///   · Body：<see cref="BodyFrustumKey"/> 网格按世界尺寸建模（顶 r 0.35 / 底 r 0.46 /
-        ///     h 1.20），缩放恒为 1，中心放在柱高的中点 → 底面恰在脚底 y=0（Visual 局部 y=0）。
-        ///   · Head：<see cref="HeadSphereKey"/> 网格半径 0.35，挂在 HeadPivot 下的原点 →
-        ///     球心 y 1.50，球底 1.15 与柱顶 1.20 微叠 0.05（重叠量 = 1.2/2 − 0.7/2 = 0.05）。
+        ///   · Body：<see cref="CrewMeshLibrary.BodyFrustum"/> 网格按世界尺寸建模
+        ///     （顶 r 0.30 / 底 r 0.30 / h 1.3215），缩放恒为 1，中心放在柱高的中点 →
+        ///     底面恰在脚底 y=0（Visual 局部 y=0）。
+        ///   · Head：<see cref="CrewMeshLibrary.HeadSphere"/> 网格半径 0.30，挂在 HeadPivot 下的原点 →
+        ///     球心 y 1.7321（身体 1.3215 − 重叠 0.05 + 头半径 0.30 + 头颈间距 0.1606），
+        ///     总高 = 1.7321 + 0.30 = 2.0321（= <see cref="CrewMeshLibrary.HeadSphereCenterY"/> + <see cref="CrewMeshLibrary.HeadSphereRadius"/>）。
         ///   · 枢轴归位：TorsoPivot 移到脚底（呼吸缩放/前倾都绕脚底，语义与原来一致），
         ///     HeadPivot 移到球心高度；BodyPivot 保持脚底（与 rig 建的一致）。
         ///
@@ -544,7 +423,7 @@ namespace PirateCrew.EditorTools
                 || addOns.BodyFrustum == null || addOns.HeadSphere == null)
             {
                 Debug.LogError("[CrewVisualPrefabBuilder] 两件式装配缺枢轴或网格"
-                    + "（Body/TorsoPivot/HeadPivot 或 " + BodyFrustumKey + "/" + HeadSphereKey
+                    + "（Body/TorsoPivot/HeadPivot 或 " + CrewMeshLibrary.BodyFrustum + "/" + CrewMeshLibrary.HeadSphere
                     + "），本预制体的零件层保持 rig 原样。");
                 return;
             }
@@ -565,14 +444,14 @@ namespace PirateCrew.EditorTools
             torsoPivot.localRotation = Quaternion.identity;
             torsoPivot.localScale = Vector3.one;
 
-            headPivot.localPosition = new Vector3(0f, HeadSphereCenterY, 0f);
+            headPivot.localPosition = new Vector3(0f, CrewMeshLibrary.HeadSphereCenterY, 0f);
             headPivot.localRotation = Quaternion.identity;
             headPivot.localScale = Vector3.one;
 
             // ---- 3) Body 圆台柱（阵营色：建时挂 CrewTeamTintPart 标记，随后被写进 binder 并删掉）----
             AddSimplePart(torsoPivot, "Body", addOns.BodyFrustum,
                 assets.For(CrewMaterialRole.TeamCloth),
-                new Vector3(0f, BodyHeight * 0.5f, 0f), Vector3.one, teamTint: true);
+                new Vector3(0f, CrewMeshLibrary.BodyHeight * 0.5f, 0f), Vector3.one, teamTint: true);
 
             // ---- 4) Head 圆球（木色 #D4A76A）----
             AddSimplePart(headPivot, "Head", addOns.HeadSphere,
@@ -640,7 +519,7 @@ namespace PirateCrew.EditorTools
         /// 实测 7 个预制体 26 处，是 r3「蓝队顶着红队底色」的根因。
         /// 删掉它、改走显式引用后，预制体不再有 missing script，也不再依赖运行时类型。
         ///
-        /// 【两件式下的期望】恰好 1 个（Body）；<see cref="BuildProfessionPrefab"/> 会断言这一点。
+        /// 【两件式下的期望】恰好 1 个（Body）；<see cref="BuildCrewPrefab"/> 会断言这一点。
         /// </summary>
         static Renderer[] CollectAndStripTintMarkers(GameObject root)
         {
@@ -656,21 +535,7 @@ namespace PirateCrew.EditorTools
             return tintRenderers.ToArray();
         }
 
-        /// <summary>职业的默认战斗导出符号（运行时由 PirateBase.Initialize 覆盖，仅作 prefab 默认值）。</summary>
-        static string RepresentativeSymbol(CrewProfession profession)
-        {
-            switch (profession)
-            {
-                case CrewProfession.Sailor: return "redPirate";
-                case CrewProfession.Bombardier: return "soldier";
-                case CrewProfession.Sniper: return "femalePirate";
-                case CrewProfession.Hook: return "blindPirate";
-                case CrewProfession.Arsonist: return "oldPirate";
-                case CrewProfession.Skeleton: return "skeletonPirate";
-                case CrewProfession.Captain: return "redPirateCaptain";
-                default: return "redPirate";
-            }
-        }
+        /// <summary>RepresentativeSymbol 已随职业外观塌缩删除——预制体默认符号恒 "redPirate"（运行时覆盖）。</summary>
 
         // ------------------------------------------------------------------
         // 工具

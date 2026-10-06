@@ -13,14 +13,10 @@ namespace PirateCrew.Ambient
     }
 
     /// <summary>
-    /// 通用环境摆动节点：悬挂物（灯笼）摆动 / 水面浮标起伏 / 辉光贴片朝向相机 / 周期性涟漪。
+    /// 通用环境摆动节点：悬挂物（灯笼）摆动 / 水面浮标起伏 / 辉光贴片朝向相机。
     ///
     /// 【为什么做成通用小组件】灯笼、浮标、燕尾旗挂点、远景剪影都是"少量对象的低频正弦运动"，
     /// 共用一个组件比给每类写一个专用组件更省代码，也保证只有一条时间源（相位不会互相漂移）。
-    ///
-    /// 【涟漪复用 Fx】水面涟漪环已经在 <c>PirateCrew.Fx.WaterSplashFx</c> 里实现
-    /// （<c>PlayRipple</c> 两道错开扩散），本模块**不重造**，只在"浮标周期入水"时调用
-    /// <see cref="Fx.FxApi.PlayWaterSplash"/> —— 这是跨模块走公开 <c>XxxApi</c> 出口的合规用法。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class AmbientSwayNode : MonoBehaviour
@@ -37,15 +33,12 @@ namespace PirateCrew.Ambient
 
         Transform _billboard;
 
-        float _rippleInterval;
-        float _rippleTimer;
-        float _rippleSpeed;
         float _time;
 
-        /// <summary>绑定参数。<paramref name="rippleInterval"/> ≤ 0 表示不产生涟漪。</summary>
+        /// <summary>绑定参数。</summary>
         public void Configure(AmbientSwayMode mode, float angularSpeed, float phase,
             float primaryAmplitudeDeg, float secondaryAmplitudeDeg, float bobAmplitude,
-            Transform billboard, float rippleInterval, float rippleSpeed)
+            Transform billboard)
         {
             _mode = mode;
             _angularSpeed = angularSpeed;
@@ -54,8 +47,6 @@ namespace PirateCrew.Ambient
             _secondaryAmplitudeDeg = secondaryAmplitudeDeg;
             _bobAmplitude = bobAmplitude;
             _billboard = billboard;
-            _rippleInterval = rippleInterval;
-            _rippleSpeed = rippleSpeed;
             // 初始相位由 _phase 承担（Tick 里 phase = _phase + _time * _angularSpeed）。
             // 【_time 不能预存 phase】Tick 又会按 _phase 起算，预存会让初相位变成
             // phase × (1 + angularSpeed)（双重计入），绑定时摆动/起伏全都不在预期相位上。
@@ -63,7 +54,6 @@ namespace PirateCrew.Ambient
 
             _basePosition = transform.position;
             _baseRotation = transform.localRotation;
-            _rippleTimer = rippleInterval > 0f ? rippleInterval * Mathf.Repeat(phase * 0.31f, 1f) : 0f;
         }
 
         /// <summary>推进一帧。<paramref name="camera"/> 可为 null（无相机则不旋转辉光片）。</summary>
@@ -94,17 +84,6 @@ namespace PirateCrew.Ambient
                 Vector3 toCamera = _billboard.position - camera.transform.position;
                 if (toCamera.sqrMagnitude > 1e-6f)
                     _billboard.rotation = Quaternion.LookRotation(toCamera.normalized, Vector3.up);
-            }
-
-            // 周期性涟漪（复用 Fx 模块的入水水花/涟漪）。
-            if (_rippleInterval > 0f)
-            {
-                _rippleTimer -= dt;
-                if (_rippleTimer <= 0f)
-                {
-                    _rippleTimer = _rippleInterval;
-                    Fx.FxApi.PlayWaterSplash(transform.position, _rippleSpeed);
-                }
             }
         }
     }

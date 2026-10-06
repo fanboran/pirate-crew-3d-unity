@@ -110,7 +110,12 @@ namespace PirateCrew.Ambient
         // ---- 色值常量（出处见类头注释）----
         const string NoonSunHex = "#FFF4E0";
         const string NoonFogHex = "#B0D4F1";
-        const string NoonAmbientHex = "#C8DDF0";
+        // 正午环境单色 = **战斗场景暗面亮度的现役旋钮**：ApplyPreset 每次开局把它写进
+        // RenderSettings.ambientLight（URP 实际渲染的是这一笔平坦环境光，场景烘焙的三色
+        // 梯度被覆写、ambientIntensity 在非 Skybox 模式下不参与——见 AmbientDirector.ApplyPreset 尾部）。
+        // 2026-10-06 两裁决取中："暗面别那么暗"（Skybox 时代崖壁 (53,56,56)）×"别过曝"
+        // （#C8DDF0 实拍崖壁 (200,210,206) 近白）→ #9BABB8，崖壁落 ≈(155,162,158) ≈ 顶面六成。
+        const string NoonAmbientHex = "#9BABB8";
         const string NoonSkyHex = "#4DA6D9";
 
         const string DuskSunHex = "#FFD9A8";

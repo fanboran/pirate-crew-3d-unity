@@ -42,7 +42,7 @@ namespace PirateCrew.Tests.UI
         [Test]
         public void CrewColor_KnownBattleSymbols_NonFallback()
         {
-            // §4.2 导出符号 → 职业短名（与 3D 外观侧 CrewVisualCatalog.ProfessionFromBattleSymbol
+            // §4.2 导出符号 → 职业短名（UI 独立映射；3D 外观侧已塌缩为单一档，
             // 同源；r9 出图事故回归锁：cabinBoy 曾落 unknown → 钢灰底+舵轮占位）。
             Assert.AreEqual("sniper", UiSkin.CrewKey("cabinBoy"));
             Assert.AreEqual("captain", UiSkin.CrewKey("cabinBoyCaptain"));

@@ -118,7 +118,7 @@ namespace PirateCrew.Ambient
                 position = GullFlightRules.DivePoint(_diveFrom, _diveTarget, _diveT);
                 velocity = (GullFlightRules.DivePoint(_diveFrom, _diveTarget, _diveT + 0.02f) - position) / 0.02f;
 
-                // 触水瞬间复用 Fx 模块的水花 + 涟漪（不重复造涟漪系统）。
+                // 触水瞬间复用 Fx 模块的入水水花（像素粒子）。
                 if (_splashPending && _diveT >= 1f)
                 {
                     _splashPending = false;

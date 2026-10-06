@@ -51,17 +51,39 @@ namespace PirateCrew.EditorTools
         public const float PipSize = 6f;
         public const float PipGap = 2f;
 
-        /// <summary>回合徽章 = theme button_selected 金面钮（12×12，button 切片和 10 的最小安全档）；
-        /// 数字用 Tiny 档（两位数回合号在 12 格内不溢）。</summary>
-        public const float BadgeSize = 12f;
+        /// <summary>回合徽章 = theme button_selected 金面钮（16×16 = 该件原生高 4+6+6，1:1 无拉伸；
+        /// 数字 Tiny 8px 落在金面字区内——12 格档数字压描边穿模，2026-10-05 走查废弃）。</summary>
+        public const float BadgeSize = 16f;
 
-        /// <summary>模式钮行：血条带下方独立一行（与蓝条 x 区段重叠，靠 y 错层避撞）。</summary>
-        public const float ModeButtonDrop = 16f;
+        /// <summary>状态指示钮（交互操作契约 §G4，2026-10-05 走查"我到底是哪个状态"）：
+        /// 蓝队血条/pips 正下方右对齐的按钮皮指示件——自由镜头 = 常态灰面，选中/操作中/执行中 =
+        /// 金面 sticky。宽按标签自适应（builder 内 FitToLabel），高 20 = HudButtonHeight；
+        /// 距屏顶 34 = 顶带 8 + 血条 8 + 缝 6 + pips 6 + 缝 6。</summary>
+        public const float StateIndicatorFromRight = 156f;
+        public const float StateIndicatorFromTop = 34f;
+        public const float StateIndicatorHeight = 20f;
 
-        /// <summary>模式文字钮尺寸（宽 = <see cref="UiSkin.Px.ButtonWidth"/>）。
-        /// 高 20（2026-09-28 创始人「垂直方向按钮太小」：12 号字上下各留 4 格，
-        /// 不再贴 theme 原生 16 的紧凑档）。</summary>
-        public const float ModeButtonHeight = 20f;
+        /// <summary>操作 HUD 面板：与武器面板共用贴底位（互斥弹出，见 UI 设计语言 §5.4）。
+        /// 宽 210 = 边框 6 + 读数区 198 + 边框 6（读数标签/值放宽，修 180 档「方向」二字贴边）；
+        /// 高 64 = 内容顶 23 + 读数行 12 + 缝 2 + 按钮行 20 + 底边 6 + 1 余。</summary>
+        public const float OperationPanelWidth = 210f;
+        public const float OperationPanelHeight = 64f;
+
+        /// <summary>操作读数行高（12 号字一行的 Hud 档）。</summary>
+        public const float OperationReadoutRowHeight = 12f;
+
+        /// <summary>状态条（交互操作契约 §G）：武器面板正上方居中的**墨底盘 + 白字**——
+        /// 宽 640（最长键位行整行放得下，不再省略号截断）、高 48（两行 + 行距 + 盘面呼吸）；
+        /// 底边 = 面板顶 + 4（操作面板与武器面板共用贴底位，状态条位置恒定不随面板切换漂移）。
+        /// 自由镜头下整条隐藏（右上状态钮已表达状态，21 走查裁决）。</summary>
+        public const float HintBarWidth = 640f;
+        public const float HintBarHeight = 48f;
+        public const float HintBarGapAbovePanels = 4f;
+
+        /// <summary>回合提示盘（「玩家 1，该你了 / 敌方行动中」）：徽章正下方墨底盘 + 白字——
+        /// 裸白字压浅色岛面读作浅灰，半透明描边救不回对比度（21 走查裁决）。</summary>
+        public const float TurnHintPlateWidth = 300f;
+        public const float TurnHintPlateHeight = 24f;
 
         // ---------------- 底部带：武器面板（theme 窗体） ----------------
 

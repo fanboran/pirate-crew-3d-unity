@@ -865,11 +865,12 @@ namespace PirateCrew.EditorTools
         ///
         /// 【色值（sRGB 设计色，引擎自动转 Linear；见类头色空间说明）】
         ///   sky     #7EA8CC  冷蓝补   —— 朝上法线（地面/台地顶面）的冷色托底，制造"暖光冷影"
-        ///   equator #93A2AC  地平中性 —— 竖直面（角色/箱桶侧面）的中性灰，避免整场偏蓝
+        ///   equator #C4D2DA  地平中性 —— 竖直面（角色/箱桶侧面、岛崖暗面）的主环境光；
+        ///                     2026-10-06 由 #93A2AC 提亮（创始人裁决"暗面色板别那么暗"）
         ///   ground  #C9A268  暖沙反弹 —— 朝下法线（悬空物底面/岩檐）的暖色，模拟沙地反光
         ///   三色 sRGB 相对亮度 ≈ 0.58 : 0.63 : 0.79（sky : equator : ground），
         ///   ground/sky ≈ 1.36，与基准反弹/补光 ≈ 1.6 同向（未拉满，避免朝上的沙地顶面被重复加暖
-        ///   —— 那里已有暖主光直射）。
+        ///   —— 那里已有暖主光直射）。注意 Trilight 下 ambientIntensity 不参与，三色即最终环境光。
         /// </summary>
         public static void ApplyThreePointAmbient()
         {
@@ -891,7 +892,13 @@ namespace PirateCrew.EditorTools
             // AmbientMode.Trilight 就是 Lighting 窗口里的 "Gradient"（Skybox / Gradient / Color）。
             RenderSettings.ambientMode = AmbientMode.Trilight;
             RenderSettings.ambientSkyColor = Hex("#7EA8CC");     // 冷蓝补光（朝上法线）
-            RenderSettings.ambientEquatorColor = Hex("#93A2AC"); // 地平中性（竖直法线）
+            // 地平中性（竖直法线）= 无 AmbientDirector 场景的暗面兜底色。战斗场景运行时
+            // AmbientDirector.ApplyPreset 每次开局用目录正午档 AmbientColor 覆写 ambientLight
+            // （URP 实际渲染那笔平坦环境光；ambientIntensity 在非 Skybox 模式不参与，本三色不上屏）
+            // ——暗面亮度的现役旋钮是 AmbientTimeOfDayCatalog.NoonAmbientHex（#9BABB8，2026-10-06
+            // 两裁决取中：Skybox 时代崖壁 (53,56,56) 太暗 × #C8DDF0 实拍 (200,210,206) 过曝）。
+            // 本值取同一目标（崖壁 ≈ 顶面六成亮度），保证 director 缺席时口径一致。
+            RenderSettings.ambientEquatorColor = Hex("#98A2A7");
             RenderSettings.ambientGroundColor = Hex("#C9A268");  // 暖地面反弹（朝下法线）
             // 强度 0.85：与 AmbientDirector 正午档的 ambientIntensity=0.85 逐值一致，
             //   保证 applyPresetOnStart 后环境光强度零跳变（该档只写强度，不写三色 → 三色梯度保留）。

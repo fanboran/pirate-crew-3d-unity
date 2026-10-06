@@ -51,6 +51,8 @@ namespace PirateCrew.EditorTools
             public Image badgeRing;
             public TextMeshProUGUI badgeText;
             public TextMeshProUGUI turnHintText;
+            public SketchButton turnHintPlate;
+            public SketchButton hintPlate;
             public GameObject weaponPanelRoot;
             public TextMeshProUGUI unitNameText;
             public BattleHud.HpBarView unitHpBar;
@@ -60,11 +62,17 @@ namespace PirateCrew.EditorTools
             public Image[] weaponFrames;
             public Button throwSelfButton;
             public Button endGoButton;
-            public Button[] modeButtons;
-            public Image[] modeFrames;
+            public GameObject operationPanelRoot;
+            public TextMeshProUGUI yawReadoutText;
+            public TextMeshProUGUI elevationReadoutText;
+            public TextMeshProUGUI powerReadoutText;
+            public Button confirmOperationButton;
+            public Button cancelOperationButton;
             public Button backButton;
             public Button pauseButton;
             public TextMeshProUGUI hintText;
+            public SketchButton stateIndicator;
+            public TextMeshProUGUI stateIndicatorLabel;
 
             // ---- 模态：暂停 / 结算 / 返回确认 ----
             public GameObject pausePanelRoot;
@@ -105,6 +113,7 @@ namespace PirateCrew.EditorTools
             BuildTeamBars(hudRoot, result);
             BuildBadge(hudRoot, result);
             BuildWeaponPanel(hudRoot, body, secondary, result);
+            BuildOperationPanel(hudRoot, body, secondary, result);
             BuildBottomBar(hudRoot, secondary, result);
 
             // 模态层最后建（同级后建者画在上层）。
@@ -157,9 +166,11 @@ namespace PirateCrew.EditorTools
                     continue;
 
                 // 全屏 Stretch 件（模态根/HudLayout 自身）与过小件（准星）不参与。
+                // 休眠件也不参与：操作 HUD 与武器面板共用贴底位（互斥弹出），
+                // 休眠方不占位——防撞只对"同屏可见"的部件生效。
                 bool stretch = rect.anchorMin == Vector2.zero && rect.anchorMax == Vector2.one;
                 bool tiny = rect.rect.width < 4f || rect.rect.height < 4f;
-                if (stretch || tiny)
+                if (stretch || tiny || !rect.gameObject.activeSelf)
                     continue;
                 parts.Add(rect);
             }
@@ -341,30 +352,26 @@ namespace PirateCrew.EditorTools
             result.badgeRing.color = Color.white;
             result.badgeRing.raycastTarget = false;
 
-            // 数字压金面 → theme 选中底深字；Tiny 档（两位数回合号在 12 格内不溢）。
+            // 数字压金面 → 墨字（金面是浅底，走皮肤「浅底→墨字」规则；原 SelectedText #41444A
+            // 压金面读作灰字，2026-10-05 走查废弃）；Tiny 档（两位数回合号在 16 格内不溢）。
             result.badgeText = UiKit.CreateText("TurnText", badge, "1", UiSkin.Font.Tiny,
-                TextAlignmentOptions.Center, PixelSkin.Theme.SelectedText, MenuUiBuilder.TitleFont);
+                TextAlignmentOptions.Center, PixelSkin.Ink, MenuUiBuilder.TitleFont);
             UiKit.Stretch(result.badgeText.rectTransform);
 
-            // 提示文字（「轮到你了 / 敌方行动中」）：徽章正下方**纯文字**，
-            // 深色四向 Outline + 斜投影保可读（沙地亮部会吞裸浅色字），字色 = 暖白。
-            result.turnHintText = UiKit.CreateText("TurnHintText", hudRoot, string.Empty,
+            // 提示文字（「轮到你了 / 敌方行动中」）：徽章正下方。**墨底盘 + 白字**——
+            // 裸白字压浅色岛面读作浅灰（21 轮走查裁决「文字屡教不改」的根子：零衬底 +
+            // 半透明描边都救不回对比度），盘面复用状态钮同款按钮皮，palette 不新增。
+            result.turnHintPlate = SketchButton.Create(hudRoot, "TurnHintPlate",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -BattleHudZones.TopBandFromTop - BattleHudZones.BadgeSize * 0.5f - 2f),
+                new Vector2(BattleHudZones.TurnHintPlateWidth, BattleHudZones.TurnHintPlateHeight),
+                MenuUiBuilder.TitleFont, string.Empty, UiSkin.Font.Hud);
+            result.turnHintPlate.image.raycastTarget = false;
+
+            result.turnHintText = UiKit.CreateText("TurnHintText", result.turnHintPlate.transform, string.Empty,
                 UiSkin.Font.Hud, TextAlignmentOptions.Center, PixelSkin.PaperWhite, MenuUiBuilder.TitleFont);
             result.turnHintText.enableWordWrapping = false;
-            result.turnHintText.rectTransform.anchorMin = result.turnHintText.rectTransform.anchorMax =
-                new Vector2(0.5f, 1f);
-            result.turnHintText.rectTransform.pivot = new Vector2(0.5f, 1f);
-            result.turnHintText.rectTransform.sizeDelta = new Vector2(100f, 8f);
-            result.turnHintText.rectTransform.anchoredPosition = new Vector2(0f,
-                -BattleHudZones.TopBandFromTop - BattleHudZones.BadgeSize * 0.5f - 6f);
-            var hintOutline = result.turnHintText.gameObject.AddComponent<UnityEngine.UI.Outline>();
-            hintOutline.effectColor = new Color(PixelSkin.Ink.r / 255f, PixelSkin.Ink.g / 255f,
-                PixelSkin.Ink.b / 255f, 0.78f);   // 调色板墨色收编
-            hintOutline.effectDistance = new Vector2(1.5f, 1.5f);
-            var hintShadow = result.turnHintText.gameObject.AddComponent<UnityEngine.UI.Shadow>();
-            hintShadow.effectColor = new Color(PixelSkin.Ink.r / 255f, PixelSkin.Ink.g / 255f,
-                PixelSkin.Ink.b / 255f, 0.5f);
-            hintShadow.effectDistance = new Vector2(1f, -1f);
+            UiKit.Stretch(result.turnHintText.rectTransform);
         }
 
         // ------------------------------------------------------------------
@@ -543,34 +550,104 @@ namespace PirateCrew.EditorTools
                 rect.anchorMax = new Vector2(0.5f, 0f);
             }
 
-            // 右上：模式三**文字钮**成组贴右缘（0=移动 1=操作 2=观察；快捷键 1/2/3 角标保留），
-            // 整组落在顶栏血条带下方一行（与蓝条 x 区段重叠，靠 y 错层避撞）。
-            // 选中态 = 金面 sticky（运行时 RefreshModeSegments 切换）。
-            string[] modeLabels =
-            {
-                UiStrings.BattleModeMove, UiStrings.BattleModeAction, UiStrings.BattleModeObserve,
-            };
-            result.modeButtons = new Button[3];
-            result.modeFrames = new Image[3];
-            for (int i = 0; i < 3; i++)
-            {
-                // 【2026-09-28 创始人裁决】快捷键角标已撤——钮宽不再为 1/2/3 让位。
-                Vector2 size = new Vector2(UiSkin.Px.ButtonWidth(modeLabels[i]), BattleHudZones.ModeButtonHeight);
-                // 右上**角锚**（1,1）：x/y 都相对屏角累退（Safe + 同排前钮宽 + 缝 6），任何分辨率贴角不漂移。
-                Vector2 position = new Vector2(
-                    -(BattleHudZones.Safe + (2 - i) * (size.x + 6f) + size.x * 0.5f),
-                    -(BattleHudZones.TopBandFromTop + BattleHudZones.ModeButtonDrop));
-                Button button = UiKit.ActionButton("ModeButton_" + (BattleHud.BattleHudMode)i, hudRoot,
-                    modeLabels[i], position, size, secondary);
-                {
-                    RectTransform rect = (RectTransform)button.transform;
-                    rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
-                }
+            // 底部带第三段：状态条（交互操作契约 §G）——**墨底盘 + 白字**：压世界背景必须可读，
+            // 裸白字压浅色岛面读作浅灰（21 走查裁决）。自由镜头下整条隐藏（右上状态钮已表达
+            // 状态），由 BattleHud.RefreshHint 控制 SetActive。
+            // 位置锚在武器面板高度之上：操作面板与武器面板共用贴底位，状态条不随切换漂移。
+            result.hintPlate = SketchButton.Create(hudRoot, "HintPlate",
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, BattleHudZones.Safe + BattleHudZones.WeaponPanelHeight
+                    + BattleHudZones.HintBarGapAbovePanels),
+                new Vector2(BattleHudZones.HintBarWidth, BattleHudZones.HintBarHeight),
+                secondary, string.Empty, UiSkin.Font.Hud);
+            result.hintPlate.image.raycastTarget = false;
+            result.hintText = UiKit.CreateText("HintText", result.hintPlate.transform, string.Empty,
+                UiSkin.Font.Hud, TextAlignmentOptions.Center, PixelSkin.PaperWhite, secondary);
+            result.hintText.enableWordWrapping = false;
+            result.hintText.overflowMode = TextOverflowModes.Ellipsis;
+            UiKit.Stretch(result.hintText.rectTransform);
 
-                // 快捷键 1/2/3 切模式的**功能**保留（BattleHud.Update 读键），此处只撤视觉角标。
-                result.modeButtons[i] = button;
-                result.modeFrames[i] = button.image;
-            }
+            // 顶部带右翼：状态指示钮（交互操作契约 §G4，2026-10-05 走查"我到底是哪个状态"）——
+            // 按钮皮指示件：自由镜头 = 常态灰面，选中/操作中/执行中 = 金面 sticky（BattleHud.RefreshHint 刷）。
+            // 蓝队血条/pips 正下方右对齐；关 raycast = 纯指示不接点击（点击语义归状态条文案与既有入口）。
+            result.stateIndicator = SketchButton.Create(hudRoot, "StateIndicator",
+                new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-BattleHudZones.StateIndicatorFromRight, -BattleHudZones.StateIndicatorFromTop),
+                new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BattleStateFreeCamera) + 8f,
+                    BattleHudZones.StateIndicatorHeight),
+                secondary, UiStrings.BattleStateFreeCamera, UiSkin.Font.Hud);
+            result.stateIndicator.image.raycastTarget = false;
+            result.stateIndicatorLabel = SketchButton.LabelOf(result.stateIndicator);
+            if (result.stateIndicatorLabel != null)
+                result.stateIndicatorLabel.raycastTarget = false;
+        }
+
+        // ------------------------------------------------------------------
+        // 操作 HUD（操作中态：三读数 + 发射/取消；与武器面板互斥共用贴底位）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 建操作面板。构建后即休眠（activeSelf=false）——操作中态由 BattleHud 弹出；
+        /// 休眠件不参与防撞自检（与武器面板共用贴底位是设计意图，不是事故）。
+        /// </summary>
+        static void BuildOperationPanel(RectTransform hudRoot, TMP_FontAsset body, TMP_FontAsset secondary,
+            Result result)
+        {
+            RectTransform panel = UiKit.CreatePanel("OperationPanel", hudRoot,
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, BattleHudZones.Safe),
+                new Vector2(BattleHudZones.OperationPanelWidth, BattleHudZones.OperationPanelHeight));
+            result.operationPanelRoot = panel.gameObject;
+            UiKit.EnsureWindow(panel, PixelTone.Frame, UiStrings.BattleOperationTitle,
+                body, UiSkin.Font.Body, helpButton: false, closeButton: false);
+            float contentTop = UiKit.WindowContentTopOf(panel);
+            float border = AseLayout.Px(AseLayout.WindowBorder);
+
+            // ---- 读数行：方向 xxx° / 仰角 xx° / xx%（标签静态 + 值动态，左中右三分）。----
+            float rowY = contentTop;
+            float colThird = (BattleHudZones.OperationPanelWidth - 2f * border) / 3f;
+            result.yawReadoutText = BuildReadout(panel, "YawReadout", UiStrings.BattleYawLabel,
+                border, rowY, colThird, TextAlignmentOptions.MidlineLeft, secondary);
+            result.elevationReadoutText = BuildReadout(panel, "ElevationReadout", UiStrings.BattleElevationLabel,
+                border + colThird, rowY, colThird, TextAlignmentOptions.Midline, secondary);
+            // 力度读数不带标签（契约口径：只显百分比不标「力度」二字）。
+            result.powerReadoutText = UiKit.CreateText("PowerReadout", panel, string.Empty, UiSkin.Font.Hud,
+                TextAlignmentOptions.MidlineRight, PixelSkin.PaperWhite, secondary);
+            result.powerReadoutText.enableWordWrapping = false;
+            UiKit.PlaceTopLeft(result.powerReadoutText.rectTransform,
+                border + 2f * colThird, rowY + 4f, new Vector2(colThird, BattleHudZones.OperationReadoutRowHeight));
+
+            // ---- 按钮行：发射（确认）/ 取消。----
+            float buttonTop = rowY + BattleHudZones.OperationReadoutRowHeight + 2f;
+            float rightEdge = BattleHudZones.OperationPanelWidth - border;
+            float confirmWidth = UiSkin.Px.ButtonWidth(UiStrings.BattleConfirmOperation);
+            float cancelWidth = UiSkin.Px.ButtonWidth(UiStrings.BattleCancelOperation);
+            result.confirmOperationButton = TopLeftButton("ConfirmOperationButton", panel,
+                UiStrings.BattleConfirmOperation,
+                rightEdge - confirmWidth, buttonTop, new Vector2(confirmWidth, BattleHudZones.HudButtonHeight), body);
+            result.cancelOperationButton = TopLeftButton("CancelOperationButton", panel,
+                UiStrings.BattleCancelOperation,
+                rightEdge - confirmWidth - 2f - cancelWidth, buttonTop,
+                new Vector2(cancelWidth, BattleHudZones.HudButtonHeight), body);
+
+            panel.gameObject.SetActive(false);
+        }
+
+        /// <summary>建一个带静态标签 + 动态值的读数（标签小字 + 值 12 号，横向并排）。</summary>
+        static TextMeshProUGUI BuildReadout(RectTransform panel, string name, string label,
+            float x, float y, float width, TextAlignmentOptions valueAlignment, TMP_FontAsset font)
+        {
+            var labelText = UiKit.CreateText(name + "Label", panel, label, UiSkin.Font.Hint,
+                TextAlignmentOptions.MidlineRight, UiSkin.WithAlpha(PixelSkin.PaperWhite, 0.72f), font);
+            labelText.enableWordWrapping = false;
+            UiKit.PlaceTopLeft(labelText.rectTransform, x, y + 5f, new Vector2(26f, 10f));
+
+            var value = UiKit.CreateText(name, panel, string.Empty, UiSkin.Font.Hud,
+                valueAlignment, PixelSkin.PaperWhite, font);
+            value.enableWordWrapping = false;
+            UiKit.PlaceTopLeft(value.rectTransform, x + 28f, y + 4f,
+                new Vector2(width - 28f, BattleHudZones.OperationReadoutRowHeight));
+            return value;
         }
 
         // ------------------------------------------------------------------

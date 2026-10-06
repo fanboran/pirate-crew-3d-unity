@@ -166,5 +166,34 @@ namespace PirateCrew.EditorTools
             if (Application.isBatchMode)
                 UnityEditor.EditorApplication.Exit(0);
         }
+
+        /// <summary>
+        /// **一条龙无头入口**（单次 Unity 进程）：生成船员视觉预制体 → 重烘 Battle 场景 →
+        /// 进 Play 抓三档截图后退出。相比"三段独立 -executeMethod"省两次冷启动/编译/资产扫描
+        /// （每轮 ≈3 分钟的启动开销只付一次；截图工具自带域重载存活与收尾 Exit）。
+        /// 环境变量 <c>PC3D_CAPTURE_SCENE/PC3D_CAPTURE_DIR</c> 语义同截图器。
+        /// 【调用铁律】**必须不带 -quit**：出图靠 <c>isPlaying=true</c> 的延迟 Play 切换，
+        /// -quit 会抢在切换生效前收掉进程（2026-10-06 实测：Library 热时这是必输竞态，
+        /// 两次重烘都在退出拆除段 MonoManager 踩空崩溃）；收口由截图器 Finish 的 Exit(0) 负责。
+        /// **必须不带 -nographics**：抓像素需要真 GfxDevice，-nographics 强制 Null Device，
+        /// 相机一帧都渲不出、读回均匀灰帧（同日实测）；batchmode 隐藏窗口 + Screen.SetResolution
+        /// 可以正常建 D3D11 设备，不踩 AGENTS.md 那条 -nographics 铁律（该条针对 open/test 档）。
+        /// </summary>
+        public static void CrewRebakeCapture()
+        {
+            try
+            {
+                CrewVisualPrefabBuilder.BuildAll();
+                Build();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError(e.ToString());
+                if (Application.isBatchMode)
+                    UnityEditor.EditorApplication.Exit(1);
+                return;
+            }
+            BattleHudScreenshot.CaptureHeadless();   // 失败/完成都在其内部 Exit
+        }
     }
 }

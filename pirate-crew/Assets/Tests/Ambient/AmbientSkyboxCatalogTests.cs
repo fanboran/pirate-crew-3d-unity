@@ -222,16 +222,16 @@ namespace PirateCrew.Ambient.Tests
         /// 【这条测试的历史】它最初叫 <c>Switch_DefaultsToTrilight_SoBaselineIsUnchanged</c>，钉的是
         /// 任务书前置门——"视觉批次 A–F 实拍转正前不动全局参数"。用户拍板"你自己干"后翻转；
         /// A–F 与天空盒由此改为**同一轮实拍验收**（此前没有已转正的基线图，不存在被作废的调参轮）。
-        /// 若要把环境光整体回退到三灯分层，把 <see cref="AmbientSkyboxCatalog.DefaultAmbientSource"/>
-        /// 改回 <see cref="AmbientSkySource.Trilight"/> 即可（Trilight 路径完整保留，见
-        /// BattleSceneLighting.ApplyThreePointAmbient），本测试随之改回旧断言。
+        /// 【2026-10-06 翻回 Trilight】创始人裁决"暗面色板别那么暗"——Skybox SH 模式下暗面
+        /// 采样过弱（实拍崖壁 (53,56,56)）；翻回后暗面亮度由 AmbientDirector 写目录正午档
+        /// AmbientColor 承载（ApplyPreset 尾部 ambientLight 覆写，强度旋钮非 Skybox 模式不参与）。
         /// </summary>
         [Test]
-        public void Switch_DefaultsToSkybox_AmbientUpgradeLanded()
+        public void DefaultsToTrilight_ForDarkFacePalette()
         {
-            Assert.AreEqual(AmbientSkySource.Skybox, AmbientSkyboxCatalog.DefaultAmbientSource,
-                "环境光来源开关当前默认是天空盒驱动（2026-09-17 翻转，见测试注释）");
-            Assert.IsTrue(AmbientSkyboxCatalog.SkyboxAmbientEnabled,
+            Assert.AreEqual(AmbientSkySource.Trilight, AmbientSkyboxCatalog.DefaultAmbientSource,
+                "环境光来源开关当前默认是三灯分层（2026-10-06 暗面提亮裁决翻回，见测试注释）");
+            Assert.IsFalse(AmbientSkyboxCatalog.SkyboxAmbientEnabled,
                 "开关与 DefaultAmbientSource 必须一致（SkyboxAmbientEnabled 是它的派生读法）");
         }
 

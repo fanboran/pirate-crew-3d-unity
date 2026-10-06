@@ -12,20 +12,6 @@ using UnityEngine;
 namespace PirateCrew.Battle
 {
     /// <summary>
-    /// 职业视觉预制体选择项：外观档 → 预制体。由 <c>CrewVisualPrefabBuilder</c> 生成预制体后，
-    /// 场景装配方把 7 个职业预制体填进 <see cref="BattleController"/> 的数组字段。
-    /// </summary>
-    [Serializable]
-    public struct CrewVisualPrefabEntry
-    {
-        /// <summary>职业外观档。</summary>
-        public CrewProfession profession;
-
-        /// <summary>对应预制体（根含 BoxCollider + Rigidbody + PirateBase + UnitOutlineBinder + 视觉子层级）。</summary>
-        public PirateBase prefab;
-    }
-
-    /// <summary>
     /// 战斗组装与结算根。
     ///
     /// 【对应章节】§4.3（按布阵坐标/队伍实例化出战单位）、§5.5（水位 = waterTileY*32）、
@@ -52,16 +38,16 @@ namespace PirateCrew.Battle
     {
         [Header("组装引用（场景内直连）")]
         [SerializeField] PirateBase piratePrefab;
-        [Tooltip("按职业外观档覆盖预制体（可选）。命中则用职业预制体，未命中/为空回落 piratePrefab；"
-                 + "生成顺序与职业外观由 CrewVisualPrefabBuilder 产出，见 docs/设计/美术/角色造型.md §3。")]
-        [SerializeField] CrewVisualPrefabEntry[] crewVisualPrefabs = new CrewVisualPrefabEntry[0];
+        [Tooltip("船员视觉预制体（单一外观档，2026-10-05 职业外观塌缩裁决）：由 CrewVisualPrefabBuilder 生成；"
+                 + "为空回落 piratePrefab（方块兜底）。")]
+        [SerializeField] PirateBase crewVisualPrefab;
         [SerializeField] Transform team0Root;
         [SerializeField] Transform team1Root;
         [Tooltip("水面物体（承载常驻的 WaterSimulationDriver 水模拟；其 MeshRenderer/WaterTessellator "
                  + "已在装配期禁用，海面渲染统一走 OceanRig）。运行时只把 y 设为水位（§5.5）。")]
         [SerializeField] Transform waterPlane;
         [SerializeField] TurnManager turnManager;
-        [SerializeField] AimThrowController aimController;
+        [SerializeField] BattleInteractionController interaction;
         [SerializeField] BattleCameraDriver battleCamera;
 
         [Header("武器弹体（可选 Prefab；为空时程序化构建，无需重新装配既有场景）")]
@@ -399,20 +385,20 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// 3D 化决策：把 PhysX 全局重力设为 Flash weight=1 的等价重力（-19.53125），
-        /// 并把物理帧率设为原版 25fps，使离散积分与 Ballistics 逐步一致（预览 = 实弹）。
-        /// 角色/武器的 Rigidbody 用 <c>useGravity</c> 吃这份全局重力；weight=0 的 cannonball
-        /// 由其实弹脚本自行 <c>useGravity = false</c>，weight=1.5 的 boulder 同理自定义。
+        /// 物理口径（米制重立）：全局重力 = <see cref="StandardThrowRules.LaunchGravity"/>
+        /// （-30 m/s²，投掷域唯一真源）；物理帧率 25 Hz（回合/像素节奏，非 Flash 专属），
+        /// 使 PhysX 离散积分与预览积分器逐步一致（预览 = 实弹）。
+        /// 角色/武器的 Rigidbody 用 <c>useGravity</c> 吃这份全局重力；WeightScale 型弹体由其实弹脚本自乘。
         /// </summary>
         void ApplyPhysicsConvention()
         {
-            Physics.gravity = LevelGeometry.WorldGravity(CrewCatalog.Weight);
+            Physics.gravity = StandardThrowRules.LaunchGravity;
             Time.fixedDeltaTime = LevelGeometry.FrameSeconds;
         }
 
         void SpawnTeams()
         {
-            if (piratePrefab == null && !HasAnyCrewVisualPrefab())
+            if (piratePrefab == null && crewVisualPrefab == null)
             {
                 global::PirateCrew.Core.Log.Error("[BattleController] 未配置 PirateBase 预制体，无法生成出战单位。");
                 return;
@@ -438,8 +424,8 @@ namespace PirateCrew.Battle
                     entry.TeamIndex, entry.TypeName, entry.Luck, entry.GridX, entry.GridY,
                     spawnPosition, entry.InitialWeapons);
 
-                // 按职业外观档取预制体；未命中回落 piratePrefab（docs/设计/美术/角色造型.md §3 职业表）。
-                PirateBase prefab = ResolveCrewVisualPrefab(entry.TypeName) ?? piratePrefab;
+                // 单一外观档（2026-10-05 职业外观塌缩裁决）；未接线回落 piratePrefab（方块兜底）。
+                PirateBase prefab = crewVisualPrefab != null ? crewVisualPrefab : piratePrefab;
                 if (prefab == null)
                     continue;
 
@@ -450,38 +436,6 @@ namespace PirateCrew.Battle
             }
 
             _spawned = true;
-        }
-
-        /// <summary>是否至少配置了一个职业视觉预制体。</summary>
-        bool HasAnyCrewVisualPrefab()
-        {
-            if (crewVisualPrefabs == null)
-                return false;
-            for (int i = 0; i < crewVisualPrefabs.Length; i++)
-            {
-                if (crewVisualPrefabs[i].prefab != null)
-                    return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// 按战斗导出符号映射到职业外观档，取对应预制体；未命中返回 null（调用方回落 piratePrefab）。
-        /// 映射规则见 <see cref="CrewVisualCatalog.ProfessionFromBattleSymbol"/>。
-        /// </summary>
-        PirateBase ResolveCrewVisualPrefab(string typeName)
-        {
-            if (crewVisualPrefabs == null || crewVisualPrefabs.Length == 0)
-                return null;
-
-            CrewProfession profession = CrewVisualCatalog.ProfessionFromBattleSymbol(typeName);
-            for (int i = 0; i < crewVisualPrefabs.Length; i++)
-            {
-                if (crewVisualPrefabs[i].profession == profession && crewVisualPrefabs[i].prefab != null)
-                    return crewVisualPrefabs[i].prefab;
-            }
-
-            return null;
         }
 
         /// <summary>取队伍（teamIndex 0/1）。</summary>
@@ -524,32 +478,34 @@ namespace PirateCrew.Battle
                     return true;
             }
 
-            return aimController != null && aimController.IsAiming;
+            return interaction != null && interaction.IsOperationActive;
         }
 
-        /// <summary>选中角色（AimThrowController 在点选命中后调用）。</summary>
-        public void SelectCharacter(PirateBase pirate)
+        /// <summary>
+        /// 选中角色（<see cref="BattleInteractionController"/> 在点选命中后调用）。
+        /// 返回是否选中成功（换人合法性由队伍规则把关：未行动可换、动作后锁定——
+        /// <see cref="TurnRules.CanSwitchSelection"/>）。
+        /// </summary>
+        public bool SelectCharacter(PirateBase pirate)
         {
             BattleTeam team = CurrentTeam;
             if (team == null || pirate == null || !pirate.Alive || pirate.TeamIndex != team.TeamIndex)
-                return;
+                return false;
 
-            // 已经选过同一角色（continueTurn）或尚未选人时才允许。
+            // 已经选过同一角色（continueTurn）或尚未选人时才允许；换人需未行动。
             bool again = team.SelectedCharacter == pirate;
             if (!team.Select(pirate, again))
-                return;
+                return false;
 
-            if (aimController != null)
-                aimController.ResetForSelection(pirate);
-
-            // ActionSelected 频道在真正执行动作（抛自己/用武器/end go）时由 AimThrowController 发布；
-            // 这里只做镜头聚焦与清零 inactivity（选择本身也是"有活动"）。
+            // ActionSelected 频道在真正执行动作（抛自己/用武器/end go）时由交互控制器发布；
+            // 这里只做镜头聚焦提示与清零 inactivity（选择本身也是"有活动"）。
             EventBus.Publish(BattleEvents.CameraFocusRequested, pirate.transform);
             if (turnManager != null)
                 turnManager.NotifyActivity();
+            return true;
         }
 
-        /// <summary>广播一次动作选择（AimThrowController 在真正执行动作时调用）。</summary>
+        /// <summary>广播一次动作选择（BattleInteractionController 在真正执行动作时调用）。</summary>
         public void NotifyActionSelected(PirateBase pirate, BattleActionKind kind)
         {
             if (pirate == null)
@@ -697,17 +653,12 @@ namespace PirateCrew.Battle
         /// </summary>
         /// <param name="stats">武器数值（来自 <see cref="WeaponCatalog"/>）。</param>
         /// <param name="owner">投掷者（累加 evilness；可为 null）。</param>
-        /// <param name="ownerWorldPosition">投掷者位置（弹弓发射点）。</param>
-        /// <param name="aimWorldPosition">瞄准落点（放置类铺开中心）。</param>
-        /// <param name="vxFlash">弹弓初速 vx（Flash px/帧）。</param>
-        /// <param name="vyFlash">弹弓初速 vy（Flash px/帧）。</param>
+        /// <param name="originWorld">投掷起点（ThrowOrigin 高度，与预览同源）。</param>
+        /// <param name="velocity">米制初速向量（<see cref="StandardThrowRules.LaunchVelocity"/>）。</param>
         public int SpawnWeaponProjectiles(
-            WeaponStats stats, PirateBase owner,
-            Vector3 ownerWorldPosition, Vector3 aimWorldPosition,
-            float vxFlash, float vyFlash)
+            WeaponStats stats, PirateBase owner, Vector3 originWorld, Vector3 velocity)
         {
-            IReadOnlyList<ProjectileSpawn> plan = ProjectileSpawnPlanner.Plan(
-                stats, ownerWorldPosition, aimWorldPosition, vxFlash, vyFlash);
+            IReadOnlyList<ProjectileSpawn> plan = ProjectileSpawnPlanner.Plan(stats, originWorld, velocity);
 
             for (int i = 0; i < plan.Count; i++)
                 CreateProjectile(stats, owner, plan[i]);

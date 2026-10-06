@@ -4,7 +4,10 @@ using UnityEngine;
 namespace PirateCrew.Fx
 {
     /// <summary>
-    /// 入水水花特效：飞沫水柱 + 水沫 + 两道扩散涟漪。
+    /// 入水水花特效：飞沫水柱 + 水沫（像素粒子）。
+    ///
+    /// 【涟漪环已根除（创始人裁决：平滑扩散圆环与像素语言不符）】本类只出粒子水花，
+    /// 不再画任何环形面片；水面的波纹表现归海面着色的波动方程注入（像素化着色路径内）。
     ///
     /// 【触发来源】两条，都由 <see cref="FxRoot"/> 订阅：
     ///   1. <c>crew_died</c> + 实例的 <c>PirateBase.Drowned</c>（落水即死，§4.4 全局规则）→
@@ -15,8 +18,7 @@ namespace PirateCrew.Fx
     /// 【水面坐标】一律吸附到 <c>LevelGeometry.WaterSurfaceY</c>（= -0.4），而不是用单位当前高度：
     /// 单位落水时已经沉到水面以下，直接拿它的 y 会让水花出现在水下（`docs/设计/3D空间模型对齐.md` §4）。
     ///
-    /// 【预算】普通水花 2 个粒子系统 + 2 个涟漪 Quad ≈ 4 个 DrawCall；
-    /// 落水款额外加一圈大涟漪与泡沫，≈ 5 个。
+    /// 【预算】普通水花与落水款都是 2 个粒子系统 ≈ 2 个 DrawCall。
     /// </summary>
     public static class WaterSplashFx
     {
@@ -84,44 +86,12 @@ namespace PirateCrew.Fx
                 RiseSpeed = 0.36f,
                 SortingFudge = 2f,
             });
-
-            // ---- 两道错开的涟漪（近处快、远处慢，读作"一圈圈荡开"）----
-            PlayRipple(at, speed, 0.30f, 1.00f);
-            PlayRipple(at, speed, 0.62f, 0.72f);
         }
 
-        /// <summary>落水即死的强反馈：水花 + 额外一圈大涟漪 + 更长的泡沫。</summary>
+        /// <summary>落水即死的强反馈：更大落速的水花（泡沫随 <see cref="Play"/> 的速度项加长）。</summary>
         public static void PlayDrown(Vector3 position)
         {
             Play(position, DrownFallSpeed);
-
-            Vector3 at = new Vector3(position.x, LevelGeometry.WaterSurfaceY + SurfaceLift, position.z);
-            Color ripple = FxRules.RippleColor();
-            FxSpriteFx big = FxPool.RentSprite(additive: true, billboard: false);
-            big.SetTexture(FxTextures.Get(FxTextureKind.Ring));
-            big.PlayOnce(
-                at,
-                new Vector2(0.80f, 0.80f),   // 大涟漪起止尺寸 ×2（格 1→2 单位）
-                new Vector2(6.00f, 6.00f),
-                new Color(ripple.r, ripple.g, ripple.b, 0.85f),
-                new Color(ripple.r, ripple.g, ripple.b, 0f),
-                0.95f);
-        }
-
-        /// <summary>单个涟漪环。</summary>
-        static void PlayRipple(Vector3 at, float speed, float startScale, float alphaScale)
-        {
-            float diameter = FxRules.RippleDiameter(speed);
-            Color ripple = FxRules.RippleColor();
-            FxSpriteFx ring = FxPool.RentSprite(additive: true, billboard: false);
-            ring.SetTexture(FxTextures.Get(FxTextureKind.Ring));
-            ring.PlayOnce(
-                at,
-                new Vector2(diameter * startScale, diameter * startScale),
-                new Vector2(diameter, diameter),
-                new Color(ripple.r, ripple.g, ripple.b, 0.80f * alphaScale),
-                new Color(ripple.r, ripple.g, ripple.b, 0f),
-                FxRules.RippleLifetime(speed) * (0.75f + startScale * 0.35f));
         }
     }
 }

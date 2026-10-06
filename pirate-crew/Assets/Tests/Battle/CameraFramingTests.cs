@@ -106,43 +106,28 @@ namespace PirateCrew.Battle.Tests
         }
 
         // ------------------------------------------------------------------
-        // OrthoSize 合成（与原 ApplyFov 逐式等价）
+        // OrthoSize 合成（推近当量；Scope/旁观已随两态重构退役）
         // ------------------------------------------------------------------
 
         [Test]
         public void ComposeOrthoSize_NoEffects_IsManualTierExactly()
         {
-            Assert.AreEqual(7f, CameraFraming.ComposeOrthoSize(7f, 0f, true, false, false, 0f, 0.3f, 1.5f), 1e-4f);
+            Assert.AreEqual(7f, CameraFraming.ComposeOrthoSize(7f, false, 0f, 0.3f, 1.5f), 1e-4f);
         }
 
         [Test]
-        public void ComposeOrthoSize_ScopeFull_ScalesByFovRatio()
+        public void ComposeOrthoSize_PushInPeak_ScalesByFovRatio()
         {
-            // Scope 完全收敛：fov 60 → 28 ⇒ size × 28/60（画面放大 2.14 倍）。
-            Assert.AreEqual(7f * 28f / 60f,
-                CameraFraming.ComposeOrthoSize(7f, 1f, true, false, false, 0f, 0.3f, 1.5f), 1e-4f);
-        }
-
-        [Test]
-        public void ComposeOrthoSize_SpectatorWiden_AndPushInPeak()
-        {
-            // 旁观：+1.5° 外扩；推近中点：−1.5° 收窄（sin(π/2)=1 的峰值）。
-            float spectator = CameraFraming.ComposeOrthoSize(7f, 0f, true, true, false, 0f, 0.3f, 1.5f);
-            Assert.AreEqual(7f * 61.5f / 60f, spectator, 1e-4f, "旁观外扩按当量比率作用");
-
-            float pushInPeak = CameraFraming.ComposeOrthoSize(7f, 0f, true, false, true, 0.15f, 0.3f, 1.5f);
+            // 推近中点：−1.5° 收窄（sin(π/2)=1 的峰值）→ fov 60 → 58.5。
+            float pushInPeak = CameraFraming.ComposeOrthoSize(7f, true, 0.15f, 0.3f, 1.5f);
             Assert.AreEqual(7f * 58.5f / 60f, pushInPeak, 1e-4f, "推近峰值 = −1.5° 当量");
-
-            // aiSpectatorEnabled=false 时旁观不生效。
-            float spectatorOff = CameraFraming.ComposeOrthoSize(7f, 0f, false, true, false, 0f, 0.3f, 1.5f);
-            Assert.AreEqual(7f, spectatorOff, 1e-4f, "旁观开关关闭时不外扩");
         }
 
         [Test]
         public void ComposeOrthoSize_NeverBelowOne()
         {
-            // 极端 Scope + 小手动档也不许穿透 1（原 ApplyFov 的 max(1, …) 兜底）。
-            Assert.GreaterOrEqual(CameraFraming.ComposeOrthoSize(1f, 1f, true, false, false, 0f, 0.3f, 1.5f), 1f);
+            // 小手动档 + 推近峰值也不许穿透 1（原 ApplyFov 的 max(1, …) 兜底）。
+            Assert.GreaterOrEqual(CameraFraming.ComposeOrthoSize(1f, true, 0.15f, 0.3f, 30f), 1f);
         }
 
         // ------------------------------------------------------------------
@@ -187,7 +172,7 @@ namespace PirateCrew.Battle.Tests
             Assert.AreEqual(60f, CameraFraming.BaseFov, 1e-4f, "FOV 当量分母 60");
             Assert.AreEqual(0.1f, CameraFraming.OrthoNearClip, 1e-4f, "近裁剪 = 原虚机 Lens 实机值");
             Assert.AreEqual(200f, CameraFraming.OrthoFarClip, 1e-4f, "远裁剪 = 原虚机 Lens 实机值（非主相机烘焙的 400）");
-            Assert.AreEqual(1.85f, CameraFraming.UnitVisualHeight, 1e-4f, "单位视觉总高与 CrewVisualPrefabBuilder 同源");
+            Assert.AreEqual(2.0321f, CameraFraming.UnitVisualHeight, 1e-4f, "单位视觉总高与 CrewVisualPrefabBuilder 两件式常量同源（2.0321）");
         }
 
         // ------------------------------------------------------------------

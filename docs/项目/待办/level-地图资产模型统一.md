@@ -45,7 +45,7 @@
      `OceanRig`、`CameraWorldSpan`）——是视觉与模拟范围，不是边界墙。
    - **"别把图做大"是设计口径、不是代码约束**：见 [大海域世界化（归档）](../归档/M4-世界化/大海域世界化.md)
      §0 裁决 2 与 §1「不无限摊平可玩区（回合制节奏保护）」——该口径为已删 M4 线所作，
-     重做时随 [环境表现 §4.4](../../设计/场景/环境表现.md) 逐条重新确认；靠**设计时把图做小**落地。
+     重做时随 [环境表现 §4.4](../../设计/场景.md) 逐条重新确认；靠**设计时把图做小**落地。
    - 建关侧的**校验规则**（[WorldMapRules](../../../pirate-crew/Assets/Scripts/PirateCrew/Battle/WorldMaps/WorldMapRules.cs)：
      跳隙 ≤ 13u、上跳 ≤ 3.5u、出生点必须同连通分量）是**设计期校验器**，拦的是"这图能不能打"，不是玩家。
 5. **工具链**：`LevelDataMigrator`、`LevelAssetValidator`、`LevelYaml`、golden JSON 同步。

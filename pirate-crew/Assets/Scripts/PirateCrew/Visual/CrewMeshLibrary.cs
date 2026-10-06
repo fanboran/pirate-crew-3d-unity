@@ -38,6 +38,52 @@ namespace PirateCrew.Visual
         public const string Beard = "Beard";
         public const string HairClump = "HairClump";
 
+        /// <summary>两件式 Body 圆台柱（世界尺寸直造，键值与既有网格资产文件名一致）。</summary>
+        public const string BodyFrustum = "CrewBodyFrustum";
+
+        /// <summary>两件式 Head 圆球（世界半径直造）。</summary>
+        public const string HeadSphere = "CrewHeadSphere";
+
+        // ------------------------------------------------------------------
+        // 两件式造型规格（世界单位；2026-09-29 创始人在角色镜头调试场定档。
+        // 2026-10-05 随职业外观塌缩从 CrewVisualPrefabBuilder 下沉至此——单一真源、
+        // 无头验证台直接可测，装配器只消费不私藏尺寸）。
+        // ------------------------------------------------------------------
+
+        /// <summary>Body 圆台柱顶半径 = 0.30（前值 0.35）。</summary>
+        public const float BodyTopRadius = 0.3f;
+
+        /// <summary>Body 圆台柱底半径 = 0.30（与顶径等宽的直筒；演进 0.4 → 0.4667 → 0.3）。
+        /// 特写档直径 0.6 m 在可见 14 m@540 画布 = 23.1 px（1:2）。</summary>
+        public const float BodyBottomRadius = 0.3f;
+
+        /// <summary>Body 圆台柱高 = 1.3215，底面贴脚底（局部 y 0..1.3215）。</summary>
+        public const float BodyHeight = 1.3215f;
+
+        /// <summary>Head 球半径 = 0.30（前值 0.35）。</summary>
+        public const float HeadSphereRadius = 0.3f;
+
+        /// <summary>头颈间距 = 0.1606：头心上抬量，正 = 拉出脖颈间隙、0 = 球底与柱顶重叠 0.05。</summary>
+        public const float HeadLift = 0.1606f;
+
+        /// <summary>Head 球心高度 = 身高 − 头身重叠(0.05) + 头半径 + 头颈间距 = 1.7321。
+        /// 校验：球底 1.4321 &lt; 柱顶 1.3215 不成立（头颈间距把头拉离柱顶，间隙 0.11 m）。</summary>
+        public const float HeadSphereCenterY = BodyHeight - 0.05f + HeadSphereRadius + HeadLift;
+
+        /// <summary>造型总高 = 球心 1.7321 + 头半径 0.30 = <c>2.0321</c>
+        /// （相机侧镜像 <c>CameraFraming.UnitVisualHeight</c> 同源）。</summary>
+        public const float TotalHeight = HeadSphereCenterY + HeadSphereRadius;
+
+        /// <summary>圆台柱侧壁分段 = 16（三角面 = 侧壁 32 + 上下盖 32 = 64）。底缘弦长 6.9 px@1:2 特写。</summary>
+        public const int BodySides = 16;
+
+        /// <summary>球经向分段 = 12（像素感口径：16×12 面片在特写档只有 3.5×5.3 px，白费三角面；
+        /// 12×8 为 3.5×5.3 px@1:2、≥1.45 px@全场档，三角面 352 → 168）。</summary>
+        public const int HeadSegments = 12;
+
+        /// <summary>球纬向分段 = 8（三角面 = 2×12×(8−1) = 168）。</summary>
+        public const int HeadRings = 8;
+
         /// <summary>全部零件键（顺序稳定，用于生成资产与日志）。</summary>
         public static readonly string[] Keys =
         {
@@ -45,6 +91,7 @@ namespace PirateCrew.Visual
             TorsoStandard, TorsoWide, TorsoNarrow, TorsoRib, TorsoCaptain,
             BandanaStandard, BandanaTight, BandanaLow,
             Tricorn, CoatSkirt, HookMesh, RibMesh, Beard, HairClump,
+            BodyFrustum, HeadSphere,
         };
 
         /// <summary>构建全部零件网格（纯 C#，确定性）。</summary>
@@ -98,102 +145,30 @@ namespace PirateCrew.Visual
                 new CrewMeshFactory.Blob(new Vector3(-0.016f, 0.008f, -0.012f), new Vector3(0.016f, 0.016f, 0.016f)),
             }, 6, 4);
 
+            // 两件式网格（世界尺寸直造，装配时缩放恒为 1 —— 尺寸即规格值）。
+            map[BodyFrustum] = CrewMeshFactory.Frustum(BodyTopRadius, BodyBottomRadius, BodyHeight, BodySides);
+            map[HeadSphere] = CrewMeshFactory.LowPolySphere(HeadSphereRadius, HeadSegments, HeadRings);
+
             return map;
         }
 
         /// <summary>
-        /// 一个职业用到的零件及实例数（镜像 <see cref="CrewVisualRig.Build"/> 的装配结构）。
+        /// 两件式造型的零件及实例数（镜像 ApplyTwoPieceSilhouette 的装配结构：
+        /// 圆台柱 Body + 圆球 Head。2026-10-05 职业外观塌缩裁决，7 档分职业计划随之根除）。
         /// </summary>
-        public static Dictionary<string, int> CountPartInstances(CrewProfession profession)
+        public static Dictionary<string, int> CountPartInstances()
         {
             var counts = new Dictionary<string, int>();
-
-            // 通用骨架（BuildCore）：腿 ×2、靴 ×2、躯干、腰带、头、手 ×2，臂由各职业指定。
-            Add(counts, Cylinder, 2);        // 腿
-            Add(counts, Box, 2);             // 靴
-            Add(counts, Sphere, 1);          // 头
-            Add(counts, SphereSmall, 2);     // 手
-            Add(counts, Cylinder, 1);        // 腰带
-            Add(counts, TorsoStandard, 1);   // 躯干（各职业可能替换）
-
-            switch (profession)
-            {
-                case CrewProfession.Sailor:
-                    Add(counts, Cylinder, 2);        // 臂 ×2
-                    Add(counts, BandanaStandard, 1);
-                    Add(counts, SphereSmall, 3);     // 眼 ×2 + 头巾结
-                    Add(counts, Cylinder, 1);        // 刀柄
-                    Add(counts, Box, 1);             // 刀身
-                    break;
-
-                case CrewProfession.Bombardier:
-                    Add(counts, Cylinder, 2);        // 臂 ×2
-                    Replace(counts, TorsoStandard, TorsoWide);
-                    Add(counts, BandanaTight, 1);
-                    Add(counts, SphereSmall, 6);     // 眼 ×2 + 肩甲 ×2 + 火药袋 + 炸弹
-                    Add(counts, Cylinder, 2);        // 火药袋口 + 引线
-                    Add(counts, Box, 1);             // 围裙
-                    break;
-
-                case CrewProfession.Sniper:
-                    Add(counts, Capsule, 2);         // 细胶囊臂 ×2
-                    Replace(counts, TorsoStandard, TorsoNarrow);
-                    Add(counts, BandanaLow, 1);
-                    Add(counts, SphereSmall, 1);     // 眼罩
-                    Add(counts, Box, 2);             // 眼罩带 + 木托
-                    Add(counts, Cylinder, 1);        // 长枪管
-                    break;
-
-                case CrewProfession.Hook:
-                    Add(counts, Cylinder, 2);        // 臂 ×2
-                    Add(counts, BandanaStandard, 1);
-                    Add(counts, SphereSmall, 3);     // 眼 ×2 + 绳结
-                    Add(counts, Cylinder, 3);        // 木腿 + 铁箍 + 绳腰带
-                    Add(counts, Cylinder, 1);        // 刀柄
-                    Add(counts, Box, 1);             // 刀身
-                    Add(counts, HookMesh, 1);
-                    break;
-
-                case CrewProfession.Arsonist:
-                    Add(counts, Cylinder, 2);        // 臂 ×2
-                    Add(counts, BandanaStandard, 1); // 头发
-                    Add(counts, HairClump, 3);
-                    Add(counts, Beard, 1);
-                    Add(counts, Cylinder, 3);        // 火把柄 + 燃烧瓶身 + 瓶颈
-                    Add(counts, SphereSmall, 2);     // 火球 + 布塞
-                    Add(counts, Cylinder, 1);        // 肩挂油壶
-                    break;
-
-                case CrewProfession.Skeleton:
-                    Add(counts, Cylinder, 2);        // 骨臂 ×2
-                    Replace(counts, TorsoStandard, TorsoRib);
-                    Add(counts, SphereSmall, 7);     // 眼窝 ×2 + 脊椎 ×4 + 骨棒球
-                    Add(counts, Box, 2);             // 下颌 + 破头巾
-                    Add(counts, RibMesh, 3);         // 肋骨 ×3
-                    Add(counts, Cylinder, 1);        // 骨头棒
-                    break;
-
-                case CrewProfession.Captain:
-                    Add(counts, Cylinder, 4);        // 臂 ×2 + 袖口 ×2
-                    Replace(counts, TorsoStandard, TorsoCaptain);
-                    Add(counts, Tricorn, 1);
-                    Add(counts, Beard, 1);
-                    Add(counts, CoatSkirt, 1);
-                    Add(counts, SphereSmall, 2);     // 肩章 ×2
-                    Add(counts, Box, 2);             // 流苏 ×2
-                    Add(counts, Cylinder, 2);        // 护手 + 剑柄
-                    Add(counts, Box, 1);             // 剑身
-                    break;
-            }
-
+            Add(counts, BodyFrustum, 1);     // 身体圆台柱
+            Add(counts, HeadSphere, 1);      // 头球
             return counts;
         }
 
-        /// <summary>单职业三角面合计（用真实 MeshData 统计，非估算）。</summary>
-        public static int TotalTriangles(CrewProfession profession)
+        /// <summary>两件式造型三角面合计（用真实 MeshData 统计，非估算）。</summary>
+        public static int TotalTriangles()
         {
             Dictionary<string, MeshData> meshes = BuildAll();
-            Dictionary<string, int> counts = CountPartInstances(profession);
+            Dictionary<string, int> counts = CountPartInstances();
 
             int total = 0;
             foreach (KeyValuePair<string, int> pair in counts)
@@ -221,14 +196,6 @@ namespace PirateCrew.Visual
                 counts[key] = existing + count;
             else
                 counts[key] = count;
-        }
-
-        static void Replace(Dictionary<string, int> counts, string from, string to)
-        {
-            int count = counts.TryGetValue(from, out int c) ? c : 0;
-            counts.Remove(from);
-            if (count > 0)
-                Add(counts, to, count);
         }
     }
 }

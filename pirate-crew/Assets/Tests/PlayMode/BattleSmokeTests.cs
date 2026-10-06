@@ -107,55 +107,74 @@ namespace PirateCrew.Tests
         }
 
         [UnityTest]
-        public IEnumerator TrajectoryPreview_UsesSameThrowTrajectorySource()
+        public IEnumerator TrajectoryPreview_ImpactTerminated_AndNeverBelowGround()
         {
-            var go = new GameObject("Trajectory", typeof(LineRenderer), typeof(TrajectoryPreview));
+            var go = new GameObject("Trajectory", typeof(TrajectoryPreview));
             try
             {
                 var preview = go.GetComponent<TrajectoryPreview>();
-                var line = go.GetComponent<LineRenderer>();
 
-                // 3D 模型：起点是 XZ 竞技场上的世界点（格位 + 枢轴高度），方向是 XZ 水平方向，
-                // 速度取 Flash 口径（px/帧）。预览内部走 LevelGeometry.ThrowVelocity + ThrowTrajectory，
-                // 与实弹（PirateBase.ApplyLaunchVelocity / ProjectileSpawnPlanner）同源。
-                Vector3 origin = LevelGeometry.GridToArena(3, 6);          // (3.5, 0.25, 6.5)
-                var horizontal = new Vector3(1f, 0f, -0.5f);
-                const float speedPixelsPerFrame = 12f;                     // px/帧（twang 限速后的模长）
-                const float weight = 1f;
+                // 米制口径：起点 = 格位 + 投掷手高度；初速 = 标准投掷模组三参数合成。
+                Vector3 origin = LevelGeometry.GridToArena(3, 6)
+                    + Vector3.up * StandardThrowRules.ThrowOriginHeight;
+                Vector3 velocity = StandardThrowRules.LaunchVelocity(StandardThrowRules.Initial(45f));
 
-                preview.Show(origin, horizontal, speedPixelsPerFrame, weight);
+                preview.Show(origin, velocity);
 
-                // 15 段采样 + 起点。
-                Assert.AreEqual(ThrowTrajectory.DefaultSteps + 1, line.positionCount);
-
-                // 起点 = 传入的世界原点，x/y/z 三分量原样（旧版曾在 XY 平面翻转 y）。
-                Vector3 p0 = line.GetPosition(0);
-                Assert.AreEqual(origin.x, p0.x, 1e-4f);
-                Assert.AreEqual(origin.y, p0.y, 1e-4f);
-                Assert.AreEqual(origin.z, p0.z, 1e-4f);
-
-                // 每个采样点必须等于 ThrowTrajectory 的同源积分（预览 = 实弹的关键不变量）。
-                var expected = new Vector3[ThrowTrajectory.DefaultSteps];
-                ThrowTrajectory.PredictFromFlashSpeed(
-                    origin, horizontal, speedPixelsPerFrame, weight, expected, ThrowTrajectory.DefaultSteps);
-
-                for (int i = 0; i < expected.Length; i++)
+                // 珠点池自建且逐点不低于地面（投掷行为契约 #9：不入地）。
+                Transform dotsRoot = go.transform.Find("TrajectoryDots");
+                Assert.IsNotNull(dotsRoot, "预览应自建珠点池");
+                int activeDots = 0;
+                foreach (Transform dot in dotsRoot)
                 {
-                    Vector3 got = line.GetPosition(i + 1);
-                    Assert.AreEqual(expected[i].x, got.x, 1e-4f, "采样点 " + i + " 的 X 应同源");
-                    Assert.AreEqual(expected[i].y, got.y, 1e-4f, "采样点 " + i + " 的 Y（高度）应同源");
-                    Assert.AreEqual(expected[i].z, got.z, 1e-4f, "采样点 " + i + " 的 Z 应同源");
+                    if (!dot.gameObject.activeSelf)
+                        continue;
+                    activeDots++;
+                    Assert.GreaterOrEqual(dot.position.y, LevelGeometry.GroundTopY - 1e-3f,
+                        "珠点不得穿到地面之下");
                 }
+                Assert.Greater(activeDots, 0, "展示中的预览应有可见珠点");
 
-                // 3D 抛物线：XZ 水平面内匀速（重力只沿 -Y，与水平面正交），Y 的速度逐段被重力削去。
-                Vector3 step0To1 = expected[1] - expected[0];
-                Vector3 step1To2 = expected[2] - expected[1];
-                Assert.AreEqual(step0To1.x, step1To2.x, 1e-4f, "XZ 水平面内匀速：X 步长恒定");
-                Assert.AreEqual(step0To1.z, step1To2.z, 1e-4f, "XZ 水平面内匀速：Z 步长恒定");
-                Assert.Greater(step0To1.y, step1To2.y, "重力沿 -Y：竖直步长逐段变小");
+                // 与同源积分一致（预览 = 实弹的关键不变量）：首珠点 = 第一个采样步。
+                var expected = new Vector3[StandardThrowRules.PreviewMaxSteps];
+                bool landed = ThrowTrajectory.TryPredictUntilImpact(
+                    origin, velocity, StandardThrowRules.LaunchGravityY,
+                    expected, out int count, out Vector3 impact);
+                Assert.IsTrue(landed, "满力 45° 仰角必在兜底步数内穿地");
+                Transform firstDot = null;
+                foreach (Transform dot in dotsRoot)
+                    if (dot.gameObject.activeSelf)
+                    {
+                        firstDot = dot;
+                        break;
+                    }
+                Assert.AreEqual(expected[0].x, firstDot.position.x, 1e-3f, "首珠点应 = 同源积分第一步");
+                Assert.AreEqual(expected[0].y, firstDot.position.y, 1e-3f);
+                Assert.AreEqual(expected[0].z, firstDot.position.z, 1e-3f);
+
+                // 落点标记恒显且恰在地面（环抬升 ImpactMarkerLift 防 z-fight）。
+                var marker = go.transform.Find("ImpactMarker");
+                Assert.IsNotNull(marker, "落点标记应存在（落点终止预览）");
+                var markerLine = marker.GetComponent<LineRenderer>();
+                Assert.IsTrue(markerLine.enabled, "落点标记应显示");
+                Vector3 ringPoint = markerLine.GetPosition(0);
+                Assert.AreEqual(impact.y + TrajectoryPreview.ImpactMarkerLift, ringPoint.y, 1e-3f,
+                    "落点环应抬在穿地点上方");
+
+                // 落点组三件套（贴地环 + 指向箭头 + 中心点；方向可读口径）。
+                var arrow = go.transform.Find("ImpactArrow");
+                var center = go.transform.Find("ImpactCenter");
+                Assert.IsNotNull(arrow, "落点组应有指向箭头（随水平初速方向）");
+                Assert.IsNotNull(center, "落点组应有中心点");
+                Assert.IsTrue(arrow.gameObject.activeSelf, "展示中箭头应显示");
+                Assert.IsTrue(center.gameObject.activeSelf, "展示中中心点应显示");
 
                 preview.Hide();
-                Assert.AreEqual(0, line.positionCount);
+                foreach (Transform dot in dotsRoot)
+                    Assert.IsFalse(dot.gameObject.activeSelf, "Hide 后珠点应收起");
+                Assert.IsFalse(markerLine.enabled, "Hide 后落点标记应隐藏");
+                Assert.IsFalse(arrow.gameObject.activeSelf, "Hide 后箭头应收起");
+                Assert.IsFalse(center.gameObject.activeSelf, "Hide 后中心点应收起");
             }
             finally
             {

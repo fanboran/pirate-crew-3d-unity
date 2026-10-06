@@ -71,8 +71,9 @@ namespace PirateCrew.EditorTools
 
         const string PiratePrefabPath = PrefabFolder + "/PirateBase.prefab";
 
-        /// <summary>职业视觉预制体目录（波次 I2 产出；命名 = <c>CrewVisualCatalog.PrefabFileName</c>）。</summary>
+        /// <summary>船员视觉预制体目录（单一外观档，2026-10-05 职业外观塌缩裁决）。</summary>
         const string CrewPrefabFolder = PrefabFolder + "/Crew";
+        const string CrewPrefabFileName = "Crew";
         const string OutlineMaterialPath = MaterialFolder + "/PirateOutlineUnit.mat";
         const string OutlineShaderName = "PirateCrew/PirateOutline";
         static readonly string BattleScenePath = BuildSystem.BuildScenes.PathOf("Battle");
@@ -141,9 +142,9 @@ namespace PirateCrew.EditorTools
                 + "  渲染: 环境材质库 " + BattleSceneLighting.EnvironmentMaterialFolder
                 + " / 后处理 " + BattleSceneLighting.VolumeProfilePath
                 + " / URP " + BattleSceneLighting.UrpAssetPath + "（软阴影+深度图+MSAA2）\n"
-                + "  接线: BattleController / TurnManager / AimThrowController / TrajectoryPreview / "
+                + "  接线: BattleController / TurnManager / BattleInteractionController（含输入读取器） / TrajectoryPreview / "
                 + "BattleCameraDriver（含 battle 手感源）/ BattleHud / "
-                + "crewVisualPrefabs（7 职业）/ SceneArt.Ambient（活物）/ "
+                + "crewVisualPrefab（单一外观档）/ SceneArt.Ambient（活物）/ "
                 + "RuntimeSceneArt（材质组数组，关卡无关的场景美术）的全部 [SerializeField] 引用。\n"
                 + "  场景美术: 关卡专属静态陈设不入场景（烘焙退位），开局由 RuntimeSceneArt 按实际关卡重建。");
         }
@@ -309,9 +310,10 @@ namespace PirateCrew.EditorTools
             var turnManagerGo = new GameObject("TurnManager");
             Undo.RegisterCreatedObjectUndo(turnManagerGo, "创建回合管理器");
             var turnManager = turnManagerGo.AddComponent<TurnManager>();
-            var aimControllerGo = new GameObject("AimThrowController");
-            Undo.RegisterCreatedObjectUndo(aimControllerGo, "创建投掷瞄准控制器");
-            var aimController = aimControllerGo.AddComponent<AimThrowController>();
+            var aimControllerGo = new GameObject("BattleInteraction");
+            Undo.RegisterCreatedObjectUndo(aimControllerGo, "创建战斗交互控制器");
+            var aimController = aimControllerGo.AddComponent<BattleInteractionController>();
+            aimControllerGo.AddComponent<BattleInputReader>();
             var battleCameraGo = new GameObject("BattleCameraDriver");
             Undo.RegisterCreatedObjectUndo(battleCameraGo, "创建战斗相机驱动");
             var battleCamera = battleCameraGo.AddComponent<BattleCameraDriver>();
@@ -324,8 +326,8 @@ namespace PirateCrew.EditorTools
 
             WireBattleController(battle, piratePrefab, team0Root, team1Root, water, turnManager, aimController, battleCamera, terrainView, runtimeSceneArt);
             WireTurnManager(turnManager, battle);
-            WireAimController(aimController, camera, battle, trajectory);
-            WireBattleCamera(battleCamera, battle, camera);
+            WireAimController(aimController, camera, battle, battleCamera, trajectory);
+            WireBattleCamera(battleCamera, battle, aimController, camera);
             WireHud(hud, battle, turnManager, aimController);
 
             // 供 Debug 查看的层级整理（不影响逻辑引用）。
@@ -407,8 +409,14 @@ namespace PirateCrew.EditorTools
             }
 
             var rig = camera.gameObject.AddComponent<PixelartCameraRig>();
-            rig.pixelScale = PixelartPilotScene.PixelScale;
-            rig.worldPerPixel = 28f / PixelartPilotScene.ReferenceRenderHeight;   // 取景不动：28m 可见高换算到 1:2 档
+            // 【运行时档 3× = 创始人习惯档】与调试场 CharCamDebugController.DefaultPixelScale 同源；
+            // 出图口径 PixelartPilotScene.PixelScale（2×）只管出图，不进战斗相机（2026-10-05 走查
+            // "为什么不是 3x"：局内 2× 与调试场 3× 观感割裂）。
+            rig.pixelScale = PirateCrew.CharCamDebug.CharCamDebugController.DefaultPixelScale;
+            // 初值按近景档自洽；运行时由 BattleCameraDriver.ApplyFrame 按取景实况逐帧覆写
+            // （28m 静态标定与 13.7m 实况脱钩一倍，已废）。
+            rig.worldPerPixel = CameraFraming.CloseUpOrthoSize * 2f
+                * PirateCrew.CharCamDebug.CharCamDebugController.DefaultPixelScale / 1080f;
             rig.deriveOrthographicSize = false;
             rig.castRendererIndex = castIndex;
             rig.screenRendererIndex = screenIndex;
@@ -420,7 +428,7 @@ namespace PirateCrew.EditorTools
 
             Debug.Log("[BattleSceneSetup] 像素化路径已接上主相机：Cast " + castIndex
                 + " / Screen " + screenIndex + " / 叠加 " + overlayIndex
-                + "，像素档 " + PixelartPilotScene.PixelScale + "×（来源 = 出图口径 PixelartPilotScene）。");
+                + "，像素档 " + rig.pixelScale + "×（创始人习惯档，与调试场同源）。");
         }
 
         /// <summary>
@@ -603,7 +611,7 @@ namespace PirateCrew.EditorTools
 
             var preview = go.AddComponent<TrajectoryPreview>();
             var so = new SerializedObject(preview);
-            so.FindProperty("line").objectReferenceValue = line;
+            so.FindProperty("legacyLine").objectReferenceValue = line;
             so.ApplyModifiedPropertiesWithoutUndo();
             return preview;
         }
@@ -612,7 +620,7 @@ namespace PirateCrew.EditorTools
         // HUD
         // ------------------------------------------------------------------
 
-        static BattleHud BuildHud(BattleController battle, TurnManager turnManager, AimThrowController aimController)
+        static BattleHud BuildHud(BattleController battle, TurnManager turnManager, BattleInteractionController aimController)
         {
             Canvas canvas = CreateCanvas("BattleCanvas");
             CreateEventSystem();
@@ -629,7 +637,7 @@ namespace PirateCrew.EditorTools
             var so = new SerializedObject(hud);
             so.FindProperty("battle").objectReferenceValue = battle;
             so.FindProperty("turnManager").objectReferenceValue = turnManager;
-            so.FindProperty("aimController").objectReferenceValue = aimController;
+            so.FindProperty("interaction").objectReferenceValue = aimController;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             // ---- 波次 I4 钩子（UI 主题）----
@@ -645,7 +653,7 @@ namespace PirateCrew.EditorTools
         static void WireBattleController(
             BattleController battle, GameObject piratePrefab,
             Transform team0Root, Transform team1Root, Transform waterPlane,
-            TurnManager turnManager, AimThrowController aimController, BattleCameraDriver battleCamera,
+            TurnManager turnManager, BattleInteractionController aimController, BattleCameraDriver battleCamera,
             BattleTerrainView terrainView, RuntimeSceneArt runtimeSceneArt)
         {
             var prefabComponent = piratePrefab != null ? piratePrefab.GetComponent<PirateBase>() : null;
@@ -658,7 +666,7 @@ namespace PirateCrew.EditorTools
             SetRef(so, "team1Root", team1Root);
             SetRef(so, "waterPlane", waterPlane);
             SetRef(so, "turnManager", turnManager);
-            SetRef(so, "aimController", aimController);
+            SetRef(so, "interaction", aimController);
             SetRef(so, "battleCamera", battleCamera);
             SetRef(so, "terrainView", terrainView);
             SetRef(so, "sceneArt", runtimeSceneArt);
@@ -672,67 +680,44 @@ namespace PirateCrew.EditorTools
             // 不报错、就是不画）。
             SetRef(so, "worldOceanMaterial", null);
 
-            // 职业视觉预制体（波次 I2）：按 CrewVisualCatalog 的职业顺序填 crewVisualPrefabs，
-            // 未命中/缺失时该元素留 null，BattleController 会回落 piratePrefab（方块外观兜底）。
-            WireCrewVisualPrefabs(so);
+            // 船员视觉预制体（单一外观档，2026-10-05 职业外观塌缩裁决）：
+            // 接线 crewVisualPrefab，缺失时单位回落 piratePrefab（方块外观兜底）。
+            WireCrewVisualPrefab(so);
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
         /// <summary>
-        /// 从 <c>Assets/Prefabs/PirateCrew/Crew/&lt;职业&gt;.prefab</c> 装载 7 个职业预制体，
-        /// 按 <see cref="CrewVisualCatalog.AllProfessions"/> 顺序写入 <c>crewVisualPrefabs</c>。
-        ///
-        /// 【顺序为什么用 AllProfessions 而不是枚举遍历】职业枚举顺序与外观档顺序一致
-        /// （<see cref="CrewProfession"/> 0..6），但用目录数组可避免枚举增删后顺序漂移。
-        /// 【缺资产怎么办】找不到的项填 null 并汇总一条警告；不阻断场景重建（可能只是没跑
+        /// 从 <c>Assets/Prefabs/PirateCrew/Crew/Crew.prefab</c> 装载船员预制体并写入
+        /// <c>crewVisualPrefab</c>。缺资产不阻断场景重建（可能只是没跑
         /// <see cref="CrewVisualPrefabBuilder.BuildAll"/>，此时场景仍可用方块兜底跑起来）。
         /// </summary>
-        static void WireCrewVisualPrefabs(SerializedObject battleSo)
+        static void WireCrewVisualPrefab(SerializedObject battleSo)
         {
-            SerializedProperty array = battleSo.FindProperty("crewVisualPrefabs");
-            if (array == null)
+            SerializedProperty prop = battleSo.FindProperty("crewVisualPrefab");
+            if (prop == null)
             {
-                Debug.LogError("[BattleSceneSetup] BattleController.crewVisualPrefabs 字段未找到（字段名漂移？）");
+                Debug.LogError("[BattleSceneSetup] BattleController.crewVisualPrefab 字段未找到（字段名漂移？）");
                 return;
             }
 
-            CrewProfession[] professions = CrewVisualCatalog.AllProfessions;
-            array.arraySize = professions.Length;
-
-            var missing = new System.Collections.Generic.List<string>();
-            for (int i = 0; i < professions.Length; i++)
-            {
-                SerializedProperty element = array.GetArrayElementAtIndex(i);
-                element.FindPropertyRelative("profession").enumValueIndex = (int)professions[i];
-                element.FindPropertyRelative("prefab").objectReferenceValue =
-                    LoadCrewPrefab(professions[i], missing);
-            }
-
-            if (missing.Count > 0)
-            {
-                Debug.LogWarning("[BattleSceneSetup] 以下职业预制体缺失，对应单位将回落 piratePrefab（方块）："
-                    + string.Join("、", missing) + "。请先跑 PirateCrew.EditorTools.CrewVisualPrefabBuilder.BuildAll。");
-            }
+            prop.objectReferenceValue = LoadCrewPrefab();
         }
 
-        /// <summary>按职业加载 <c>Assets/Prefabs/PirateCrew/Crew/&lt;职业&gt;.prefab</c>；缺失返回 null。</summary>
-        static PirateBase LoadCrewPrefab(CrewProfession profession,
-            System.Collections.Generic.List<string> missing)
+        /// <summary>加载 <c>Crew.prefab</c>；缺失返回 null（调用方写 null，运行时回落 piratePrefab）。</summary>
+        static PirateBase LoadCrewPrefab()
         {
-            string path = CrewPrefabFolder + "/" + CrewVisualCatalog.PrefabFileName(profession) + ".prefab";
+            string path = CrewPrefabFolder + "/" + CrewPrefabFileName + ".prefab";
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (prefab == null)
             {
-                missing.Add(CrewVisualCatalog.DisplayName(profession));
+                Debug.LogWarning("[BattleSceneSetup] 船员视觉预制体缺失（" + path
+                    + "），单位将回落 piratePrefab（方块）。请先跑 PirateCrew.EditorTools.CrewVisualPrefabBuilder.BuildAll。");
                 return null;
             }
 
             PirateBase pirate = prefab.GetComponent<PirateBase>();
             if (pirate == null)
-            {
-                Debug.LogWarning("[BattleSceneSetup] 职业预制体缺 PirateBase 组件: " + path);
-                missing.Add(CrewVisualCatalog.DisplayName(profession));
-            }
+                Debug.LogWarning("[BattleSceneSetup] 船员视觉预制体缺 PirateBase 组件: " + path);
             return pirate;
         }
 
@@ -785,32 +770,35 @@ namespace PirateCrew.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        static void WireAimController(AimThrowController aimController, Camera battleCamera, BattleController battle, TrajectoryPreview trajectory)
+        static void WireAimController(BattleInteractionController aimController, Camera battleCamera, BattleController battle, BattleCameraDriver cameraDriver, TrajectoryPreview trajectory)
         {
             var so = new SerializedObject(aimController);
             SetRef(so, "battleCamera", battleCamera);
             SetRef(so, "battle", battle);
+            SetRef(so, "cameraDriver", cameraDriver);
             SetRef(so, "trajectory", trajectory);
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        static void WireBattleCamera(BattleCameraDriver controller, BattleController battle, Camera mainCamera)
+        static void WireBattleCamera(BattleCameraDriver controller, BattleController battle, BattleInteractionController interaction, Camera mainCamera)
         {
             var so = new SerializedObject(controller);
             SetRef(so, "mainCamera", mainCamera);
             // 手感数据源：投掷跟随/落水定焦要按 PirateId 定位单位与弹体。
             // 不接线时这些反馈静默降级（震屏/聚焦仍工作），故必须在此显式接线。
             SetRef(so, "battle", battle);
+            // 模式分派热路径：每帧拉取交互状态/选中目标/意图帧。
+            SetRef(so, "interaction", interaction);
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        static void WireHud(BattleHud hud, BattleController battle, TurnManager turnManager, AimThrowController aimController)
+        static void WireHud(BattleHud hud, BattleController battle, TurnManager turnManager, BattleInteractionController aimController)
         {
             // BuildHud 已接线；此处仅确保引用仍有效（防御性，幂等重建时不会残留）。
             var so = new SerializedObject(hud);
             SetRef(so, "battle", battle);
             SetRef(so, "turnManager", turnManager);
-            SetRef(so, "aimController", aimController);
+            SetRef(so, "interaction", aimController);
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -886,6 +874,9 @@ namespace PirateCrew.EditorTools
             // 几何令牌与字号全部按画布像素取值（见 UiSkin.Px / UiSkin.Font）。
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
             scaler.scaleFactor = PixelSkin.Unit;
+            // 【像素级对齐】动画/布局会把部件放到分数画布坐标上，九宫格切片描边在分数位采样
+            // 即出细缝（走查"左下角描边有缝隙"）；开启后 UGUI 把每部件吸附到整屏像素。
+            canvas.pixelPerfect = true;
             return canvas;
         }
 
