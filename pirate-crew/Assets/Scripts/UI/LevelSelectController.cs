@@ -46,7 +46,6 @@ namespace PirateCrew.UI
         [SerializeField] TextMeshProUGUI settlementLevelText;
         [SerializeField] TextMeshProUGUI settlementScoreText;
         [SerializeField] TextMeshProUGUI settlementStarsText;
-        [SerializeField] TextMeshProUGUI settlementXpText;
         [SerializeField] TextMeshProUGUI settlementUnlockText;
         [SerializeField] TextMeshProUGUI settlementFirstClearText;
         [SerializeField] TextMeshProUGUI settlementStarRuleText;
@@ -82,7 +81,6 @@ namespace PirateCrew.UI
             settlementLevelText = refs.SettlementLevelText;
             settlementScoreText = refs.SettlementScoreText;
             settlementStarsText = refs.SettlementStarsText;
-            settlementXpText = refs.SettlementXpText;
             settlementUnlockText = refs.SettlementUnlockText;
             settlementFirstClearText = refs.SettlementFirstClearText;
             settlementStarRuleText = refs.SettlementStarRuleText;
@@ -157,14 +155,6 @@ namespace PirateCrew.UI
                 settlementStarsText.text = UiTextRules.SettlementStars(value.Stars, StarRules.MaxStars);
 
             ApplyStars(value.Stars);
-
-            if (settlementXpText != null)
-            {
-                CrewRewardPayload? reward = CampaignApi.LastReward;
-                int xp = reward != null ? reward.Value.XpPerCrew : 0;
-                settlementXpText.text = UiTextRules.SettlementXp(xp);
-                settlementXpText.gameObject.SetActive(value.Cleared);
-            }
 
             if (settlementUnlockText != null)
             {

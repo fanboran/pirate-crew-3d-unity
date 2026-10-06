@@ -680,7 +680,6 @@ namespace PirateCrew.UI
             public TextMeshProUGUI SettlementLevelText;
             public TextMeshProUGUI SettlementScoreText;
             public TextMeshProUGUI SettlementStarsText;
-            public TextMeshProUGUI SettlementXpText;
             public TextMeshProUGUI SettlementUnlockText;
             public TextMeshProUGUI SettlementFirstClearText;
             public TextMeshProUGUI SettlementStarRuleText;
@@ -756,7 +755,6 @@ namespace PirateCrew.UI
                 SettlementLevelText = settlement.LevelText,
                 SettlementScoreText = settlement.ScoreText,
                 SettlementStarsText = settlement.StarsText,
-                SettlementXpText = settlement.XpText,
                 SettlementUnlockText = settlement.UnlockText,
                 SettlementFirstClearText = settlement.FirstClearText,
                 SettlementStarRuleText = settlement.StarRuleText,
@@ -774,7 +772,6 @@ namespace PirateCrew.UI
             public TextMeshProUGUI LevelText;
             public TextMeshProUGUI ScoreText;
             public TextMeshProUGUI StarsText;
-            public TextMeshProUGUI XpText;
             public TextMeshProUGUI UnlockText;
             public TextMeshProUGUI FirstClearText;
             public TextMeshProUGUI StarRuleText;
@@ -831,7 +828,6 @@ namespace PirateCrew.UI
 
             refs.LevelText = BuildSettlementRow(card, "LevelRow", -312f, bodyFont);
             refs.ScoreText = BuildSettlementRow(card, "ScoreRow", -368f, bodyFont);
-            refs.XpText = BuildSettlementRow(card, "XpRow", -424f, bodyFont);
             refs.UnlockText = BuildSettlementRow(card, "UnlockRow", -480f, bodyFont);
             refs.FirstClearText = BuildSettlementRow(card, "FirstClearRow", -536f, bodyFont);
 
