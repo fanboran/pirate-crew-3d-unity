@@ -423,22 +423,17 @@ namespace PirateCrew.Battle
             ApplyFrame(frame);
         }
 
-        /// <summary>把一帧取景写到主相机。**全工程只有这里写主相机的 transform / orthographicSize**。</summary>
+        /// <summary>
+        /// 把一帧取景写到主相机。**全工程只有这里写主相机的 transform**——
+        /// 【距离不写（创始人 2026-10-07 裁决禁多镜头距离）】ortho 由 rig 的
+        /// <c>deriveOrthographicSize</c> 模式按 <see cref="CameraFraming.WorldPerPixel"/> 自反推，
+        /// 本驱动只管位置/朝向；取景/聚焦/全景的距离语义已在 <see cref="CameraFraming"/> 收口恒定。
+        /// </summary>
         void ApplyFrame(in CameraFrame frame)
         {
             if (mainCamera == null)
                 return;
             mainCamera.transform.SetPositionAndRotation(frame.Position, frame.Rotation);
-            if (!Mathf.Approximately(mainCamera.orthographicSize, frame.OrthoSize))
-                mainCamera.orthographicSize = frame.OrthoSize;
-
-            // 【像素密度随取景自洽】一个艺术像素的世界覆盖 = 可见米数 × 档数 ÷ 1080（与调试场
-            // CharCamDebug 同式）。取景两档与平滑中间态全程保持"艺术画布 = 屏幕 ÷ 档数"的
-            // 整数上采样；装配期 28m 静态标定退役（2026-10-05 走查：与 13.7m 实况脱钩一倍，
-            // 描边宽度/细节网格的世界换算全错）。
-            if (pixelRig != null)
-                pixelRig.worldPerPixel = Mathf.Max(0.0001f, frame.OrthoSize * 2f)
-                    * Mathf.Max(1, pixelRig.pixelScale) / 1080f;
         }
 
         // ------------------------------------------------------------------

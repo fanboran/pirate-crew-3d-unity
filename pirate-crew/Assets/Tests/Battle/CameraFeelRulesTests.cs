@@ -408,11 +408,15 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void CloseUpPreset_IsTheNearFramingTier()
         {
-            // 近景档 size 6.85 = 可见 13.7 m（r12 取景表的中机位，创始人 2026-09-30 定值、近档基准）。
-            Assert.AreEqual(6.85f, CameraFraming.CloseUpOrthoSize, "近景档 = 可见 13.7 m（改基准只动这一个数）");
-            Assert.AreEqual(13.7f, CameraFraming.CloseUpOrthoSize * 2f, 1e-4f, "可见高度 = 2 × OrthoSize");
-            Assert.Less(CameraFraming.CloseUpOrthoSize,
-                CameraFraming.FullFieldOrthoSize, "近景档应比远景下限更近（size 更小）");
+            // 【距离恒定收口（创始人 2026-10-07 裁决禁多镜头距离）】唯一恒定档 = 16.0
+            // （1080p·2× 等效，可见 32 m）；像素密度常量 WorldPerPixel = 0.05925926 与
+            // 像素化试点场景（调试关）序列化值逐位同源——调试关与战斗关同密度。
+            Assert.AreEqual(16f, CameraFraming.CloseUpOrthoSize, "恒定档 = 可见 32 m（1080p·2× 等效）");
+            Assert.AreEqual(32f, CameraFraming.CloseUpOrthoSize * 2f, 1e-4f, "可见高度 = 2 × OrthoSize");
+            Assert.AreEqual(0.05925926f, CameraFraming.WorldPerPixel, 1e-8f,
+                "像素密度常量与调试关 rig 序列化值逐位同源");
+            Assert.AreEqual(540f * CameraFraming.WorldPerPixel / 2f, CameraFraming.CloseUpOrthoSize, 1e-4f,
+                "CloseUpOrthoSize = 1080p·2× 下按 WorldPerPixel 反推的正交半高");
         }
 
         [Test]
@@ -431,33 +435,23 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void PanoramaOrthoSizeForSpan_ClampsPerM4Contract()
         {
-            // 【M4 的正交转写】全景档 size = clamp(round(span × 0.3), 17, 60)。
-            Assert.AreEqual(30, CameraFraming.PanoramaOrthoSizeForSpan(100f),
-                "默认跨度 100u → 30");
-            Assert.AreEqual(17, CameraFraming.PanoramaOrthoSizeForSpan(50f), "小图也保全场档下限");
-            Assert.AreEqual(60, CameraFraming.PanoramaOrthoSizeForSpan(200f));
-            Assert.AreEqual(60, CameraFraming.PanoramaOrthoSizeForSpan(300f), "大图被 60 上限夹住");
-            Assert.AreEqual(CameraFraming.PanoramaMaxOrthoSize,
-                CameraFraming.PanoramaOrthoSizeForSpan(300f), "上限 = PanoramaMaxOrthoSize 60");
+            // 【距离恒定收口（创始人 2026-10-07 裁决禁多镜头距离）】全景档与近景档合一——
+            // 任何跨度都返回恒定档，不再随 span 变化。
+            Assert.AreEqual(16, CameraFraming.PanoramaOrthoSizeForSpan(100f));
+            Assert.AreEqual(16, CameraFraming.PanoramaOrthoSizeForSpan(50f));
+            Assert.AreEqual(16, CameraFraming.PanoramaOrthoSizeForSpan(300f));
             Assert.AreEqual(CameraFraming.PanoramaOrthoSizeForSpan(
-                CameraFraming.DefaultWorldSpan), 30, "默认跨度 = 现行 100u 图");
+                CameraFraming.DefaultWorldSpan), 16, "默认跨度也 = 恒定档");
         }
 
         [Test]
         public void ToggleFramingTier_FlipsBetweenNearAndPanorama()
         {
-            // 两档取景切换纯函数（相机行为契约 #9）：近景 ↔ 远景双向翻转，中点判定抗浮点误差。
-            float panorama = CameraFraming.PanoramaOrthoSizeForSpan(CameraFraming.DefaultWorldSpan);
-            Assert.AreEqual(panorama, CameraFraming.ToggleFramingTier(CameraFraming.CloseUpOrthoSize, panorama),
-                "近景翻到远景");
+            // 【距离恒定收口】Tab 两档翻转退役——恒返回恒定档，翻转不再改变画面距离。
             Assert.AreEqual(CameraFraming.CloseUpOrthoSize,
-                CameraFraming.ToggleFramingTier(panorama, panorama), "远景翻回近景");
-            Assert.AreEqual(panorama, CameraFraming.ToggleFramingTier(
-                (CameraFraming.CloseUpOrthoSize + panorama) * 0.5f - 0.01f, panorama),
-                "中点以下视为近景 → 翻远景");
-            Assert.AreEqual(CameraFraming.CloseUpOrthoSize, CameraFraming.ToggleFramingTier(
-                (CameraFraming.CloseUpOrthoSize + panorama) * 0.5f + 0.01f, panorama),
-                "中点以上视为远景 → 翻近景");
+                CameraFraming.ToggleFramingTier(CameraFraming.CloseUpOrthoSize, 16f));
+            Assert.AreEqual(CameraFraming.CloseUpOrthoSize,
+                CameraFraming.ToggleFramingTier(16f, 16f));
         }
 
         // ------------------------------------------------------------------

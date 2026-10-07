@@ -409,15 +409,12 @@ namespace PirateCrew.EditorTools
             }
 
             var rig = camera.gameObject.AddComponent<PixelartCameraRig>();
-            // 【运行时档 3× = 创始人习惯档】与调试场 CharCamDebugController.DefaultPixelScale 同源；
-            // 出图口径 PixelartPilotScene.PixelScale（2×）只管出图，不进战斗相机（2026-10-05 走查
-            // "为什么不是 3x"：局内 2× 与调试场 3× 观感割裂）。
+            // 【恒定距离（创始人 2026-10-07 裁决禁多镜头距离）】与像素化试点场景（调试关）同源：
+            // rig 按 CameraFraming.WorldPerPixel 自反推 ortho（deriveOrthographicSize），战斗相机的
+            // 距离自此恒定——驱动只管位置/朝向，取景/聚焦/全景一律不改距离；特写=大图裁切。
             rig.pixelScale = PirateCrew.CharCamDebug.CharCamDebugController.DefaultPixelScale;
-            // 初值按近景档自洽；运行时由 BattleCameraDriver.ApplyFrame 按取景实况逐帧覆写
-            // （28m 静态标定与 13.7m 实况脱钩一倍，已废）。
-            rig.worldPerPixel = CameraFraming.CloseUpOrthoSize * 2f
-                * PirateCrew.CharCamDebug.CharCamDebugController.DefaultPixelScale / 1080f;
-            rig.deriveOrthographicSize = false;
+            rig.worldPerPixel = CameraFraming.WorldPerPixel;
+            rig.deriveOrthographicSize = true;
             rig.castRendererIndex = castIndex;
             rig.screenRendererIndex = screenIndex;
             rig.overlayRendererIndex = overlayIndex;
@@ -566,7 +563,8 @@ namespace PirateCrew.EditorTools
             if (root != null)
                 root.objectReferenceValue = runtimeSceneArt.transform;
 
-            SetPrefabRefIfExists(so, "cloudFieldPrefab", "Assets/Art/Models/SceneKit/CloudField.prefab");
+            // 第 1 关「云端漫步」岛体（Blender 岛形驱动件，FBX 本体直接当预制引用）
+            SetPrefabRefIfExists(so, "cloudFieldPrefab", "Assets/Art/Models/SceneKit/CloudWalk.prefab");
             // 第 4 关「废弃化工厂」整场件（Blender 手作 FBX 本体直接当预制引用）
             SetPrefabRefIfExists(so, "chemPlantYardPrefab", "Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx");
             // 第 5 关「废弃化工厂·六件并行版」整场件（六件并行 kit 的总装 FBX 本体）
@@ -743,6 +741,9 @@ namespace PirateCrew.EditorTools
             SetRef(so, "targetCamera", targetCamera);
             SetInt(so, "arenaWidthTiles", widthTiles);
             SetInt(so, "arenaDepthTiles", depthTiles);
+            // 【对齐调试关（创始人 2026-10-07 裁决"完全复刻调试关观感"）】关闭时段环境覆写——
+            // 正午档的 ambientLight/fog 覆写会把装配期对齐好的素面打光再改亮，两关观感重新割裂。
+            SetBool(so, "applyPresetOnStart", false);
 
             // 三档天空盒材质（视觉遗留 #6 接线）：下标 = AmbientTimeOfDay。某档材质缺失就写 null——
             // AmbientDirector 运行时按 AmbientSkyboxCatalog 程序化兜底，不因跳步执行而断。

@@ -118,9 +118,10 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void ComposeOrthoSize_PushInPeak_ScalesByFovRatio()
         {
-            // 推近中点：−1.5° 收窄（sin(π/2)=1 的峰值）→ fov 60 → 58.5。
+            // 【距离恒定收口（创始人 2026-10-07 裁决禁多镜头距离）】推近当量退役——任何参数下
+            // 都返回 manualOrthoSize 本身，不再按 FOV 比率缩放。
             float pushInPeak = CameraFraming.ComposeOrthoSize(7f, true, 0.15f, 0.3f, 1.5f);
-            Assert.AreEqual(7f * 58.5f / 60f, pushInPeak, 1e-4f, "推近峰值 = −1.5° 当量");
+            Assert.AreEqual(7f, pushInPeak, 1e-4f, "推近不再改变距离");
         }
 
         [Test]

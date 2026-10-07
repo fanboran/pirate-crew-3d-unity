@@ -874,37 +874,15 @@ namespace PirateCrew.EditorTools
         /// </summary>
         public static void ApplyThreePointAmbient()
         {
-            // ---- 环境光来源开关（视觉遗留 #6，2026-09-17 翻转）----
-            // Skybox 模式：环境光 SH 完全由天空盒卷积而来，下面三色在 Lighting 窗口里仍可填但不生效，
-            // 故只切模式直接返回。Trilight 三灯分层路径**完整保留**——它是唯一能单独配"冷补/暖反弹"
-            // 的方案，也是翻案出问题时的回退锚点（改回 AmbientSkyboxCatalog.DefaultAmbientSource 即整体回退）。
-            if (AmbientSkyboxCatalog.SkyboxAmbientEnabled)
-            {
-                RenderSettings.ambientMode = AmbientMode.Skybox;
-                // Skybox 模式下 ambientIntensity 仍生效（环境探针的整体倍率，Lighting 窗口的
-                // "Intensity Multiplier"）。取目录正午档的 0.85 而不是写死字面量——烘焙值必须与
-                // 运行时 AmbientDirector.ApplyPreset 写的值逐值一致，否则编辑器与运行时亮度不一致。
-                RenderSettings.ambientIntensity =
-                    AmbientTimeOfDayCatalog.For(AmbientTimeOfDay.Noon).AmbientIntensity;
-                return;
-            }
-
-            // AmbientMode.Trilight 就是 Lighting 窗口里的 "Gradient"（Skybox / Gradient / Color）。
+            // 【对齐像素化试点场景（创始人 2026-10-07 裁决"完全复刻调试关观感"）】
+            // Trilight + 调试关场景文件的三色/强度逐值一致——旧三灯分层（#7EA8CC/#98A2A7/#C9A268
+            // + Skybox 分支 + 0.85）与 AmbientDirector 正午档覆写一并退役，是"战斗关偏亮偏蓝白、
+            // 调试关暗调对比强"的环境根源。三色取自 PixelartCloud.unity 的 RenderSettings。
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = Hex("#7EA8CC");     // 冷蓝补光（朝上法线）
-            // 地平中性（竖直法线）= 无 AmbientDirector 场景的暗面兜底色。战斗场景运行时
-            // AmbientDirector.ApplyPreset 每次开局用目录正午档 AmbientColor 覆写 ambientLight
-            // （URP 实际渲染那笔平坦环境光；ambientIntensity 在非 Skybox 模式不参与，本三色不上屏）
-            // ——暗面亮度的现役旋钮是 AmbientTimeOfDayCatalog.NoonAmbientHex（#9BABB8，2026-10-06
-            // 两裁决取中：Skybox 时代崖壁 (53,56,56) 太暗 × #C8DDF0 实拍 (200,210,206) 过曝）。
-            // 本值取同一目标（崖壁 ≈ 顶面六成亮度），保证 director 缺席时口径一致。
-            RenderSettings.ambientEquatorColor = Hex("#98A2A7");
-            RenderSettings.ambientGroundColor = Hex("#C9A268");  // 暖地面反弹（朝下法线）
-            // 强度 0.85：与 AmbientDirector 正午档的 ambientIntensity=0.85 逐值一致，
-            //   保证 applyPresetOnStart 后环境光强度零跳变（该档只写强度，不写三色 → 三色梯度保留）。
-            //   1.00→0.85：拉开直射:天光比例（docs/技术/渲染/调研/阳光感打光调研.md §4 调法 2，
-            //   Unreal 官方"晴天天空约占总照度 20%"≈4:1；旧 1.35:1.00 仅 ≈2.6:1，天光过强=灰蒙蒙）。
-            RenderSettings.ambientIntensity = 0.85f;
+            RenderSettings.ambientSkyColor = new Color(0.2f, 0.23529412f, 0.2901961f);
+            RenderSettings.ambientEquatorColor = new Color(0.114f, 0.125f, 0.133f);
+            RenderSettings.ambientGroundColor = new Color(0.047f, 0.043f, 0.035f);
+            RenderSettings.ambientIntensity = 1f;
         }
 
         /// <summary>
@@ -932,22 +910,15 @@ namespace PirateCrew.EditorTools
             Undo.RegisterCreatedObjectUndo(go, "创建主方向光");
             var light = go.GetComponent<Light>();
             light.type = LightType.Directional;
-            light.color = Hex("#FFF4E0");
-            // 旧值 1.1 / Euler(50,-30,0) 已作废：方位 -30° 让朝镜头的面全部背光，是画面发平主因之一。
-            // 1.35→1.55：与 ambientIntensity 0.85 配对拉开直射:天光到 ≈4:1（阳光感七要素之
-            //   "阴影做深+天光收敛"，docs/技术/渲染/调研/阳光感打光调研.md §4 调法 2）。
-            light.intensity = 1.55f;
-            // 投影是"看起来像 3D"的主要深度线索之一。
-            // LightShadows.Soft 需要 URP Asset 打开 m_SoftShadowsSupported（ConfigureUrpAsset 已打开）。
-            light.shadows = LightShadows.Soft;
-            // 0.7→0.86：阴影做深拉清"直射 vs 天光"分界（调研 §4 调法 1）。本工程
-            //   PirateSurface.shader:452-454 的环境光不乘阴影衰减，深阴影不会死黑。
-            light.shadowStrength = 0.86f;
-            // 48° 仰角 + 140° 方位：入射方向约 (0.43,-0.74,-0.51)，光从相机侧后方来，
-            // 朝镜头的面受光、阴影朝屏幕右下延伸。**不得回退到 -30°**（见上文裁决出处与两案夹角计算）。
-            // 天空盒的太阳盘（ConfigureSkyAndAmbient 的 _SunDisk/_SunSize）由本方向光驱动，
-            // 太阳方位 = 仰角 48°/方位 -40°。
-            go.transform.rotation = Quaternion.Euler(48f, 140f, 0f);
+            // 【对齐像素化试点场景（创始人 2026-10-07 裁决"完全复刻调试关观感"）】白光 / 1.1 /
+            // 无阴影 / 同一方向四元数——旧值（#FFF4E0 / 1.55 / 软影 0.86 / Euler(48,140)）是
+            // "阳光感调研"的调法，与调试关并存导致两关观感割裂；裁决后战斗关与调试关**同一份光**。
+            // 四元数取自 PixelartCloud.unity 的 Directional Light（方向 ≈ 仰角 50°、从场景北侧来）。
+            light.color = new Color(1f, 1f, 1f, 1f);
+            light.intensity = 1.1f;
+            light.shadows = LightShadows.None;
+            light.shadowStrength = 0.65f;
+            go.transform.rotation = new Quaternion(0.16581465f, 0.8218737f, -0.455572f, 0.29913756f);
             return light;
         }
 
@@ -957,22 +928,12 @@ namespace PirateCrew.EditorTools
         /// </summary>
         public static void ApplySceneAtmosphere(Camera camera)
         {
-            // ---- 雾（空气透视）----
-            // 颜色取天空地平色一带 #B0D4F1（提案：与 Procedural Sky 的地平色近似即可；
-            //   若之后调了天空盒参数，需回来对齐，否则远山/远海会与天空"接缝"）。
-            // 【写值口径】正午雾色/雾距 = AmbientTimeOfDayCatalog 正午档 = Battle.unity RenderSettings
-            //   烘焙值，**三方逐值一致**：运行时 AmbientDirector.ApplyPreset 会覆写 fogColor/fogStart/
-            //   fogEnd，只改本处不改另外两处，运行时会跳回预设值、编辑器与运行时画面不一致。
-            RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogColor = Hex("#B0D4F1");
-            // 距离按审计契约「可见海域预算」（docs/审计/归档/视觉审计报告.md §三）【提案/待定】：
-            //   全景相机距离 82~160u、55° 俯角下画面可见海面斜距 ≤~350u。
-            //   start=150 —— 主战区在全景与近景取景下都不被雾洗白（雾从视野远端才开始）；
-            //   end=1200 —— 雾全饱和点落在海洋侧地平线融合（1000→1400）区间内，
-            //               远海平滑并入雾色（= 天空地平色族），海天线在雾饱和前收干净。
-            RenderSettings.fogStartDistance = 150f;
-            RenderSettings.fogEndDistance = 1200f;
+            // ---- 雾 ----
+            // 【对齐像素化试点场景（创始人 2026-10-07 裁决"完全复刻调试关观感"）】**关雾**——
+            // 调试关 m_Fog=0，战斗关的线性雾（#B0D4F1）把云与远景整体洗白发蓝，是两关观感
+            // 割裂的环境根源之一。旧空气透视口径（雾色/雾距 = AmbientTimeOfDayCatalog 正午档）
+            // 一并退役；运行时 AmbientDirector 的 preset 覆写已在装配侧关闭（applyPresetOnStart=false）。
+            RenderSettings.fog = false;
 
             // ---- 全局 Volume ----
             var volumeGo = new GameObject("GlobalVolume");

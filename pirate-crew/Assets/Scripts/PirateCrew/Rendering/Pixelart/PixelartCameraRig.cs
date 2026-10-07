@@ -47,7 +47,7 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>像素比例档上限（1:5）。</summary>
         public const int PixelScaleMax = 5;
         /// <summary>默认档（1:2）。</summary>
-        public const int PixelScaleDefault = 2;
+        public const int PixelScaleDefault = 2;   // 2×+拉远超采样口径(见 PixelScaleStore.ScaleDefault 同源注释);CharCamDebugController 的调试档独立于本默认
 
         /// <summary>
         /// 像素比例档步进（纯函数，无头可测）：当前档 ±1 步，钳在
@@ -180,11 +180,38 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>屏幕档深度（可采样；着色里重建 positionWS 用）。</summary>
         public RenderTexture DepthBuffer { get; private set; }
 
+        // ---- 屏幕档 Patch 副本（块锚修补；BlockPatch.compute 产出，下游"块级"判定读这份）----
+        // 【为什么存在】下游（描边 / 着色 / 连通域 Result）都点采样**块锚**细像素（原点 + k/2
+        // 取整）；偶数档锚偏在块角上，斜剪影边的"半物体块"锚落空 ⇒ 覆盖与描边两路同时判空
+        // ——观感即"填充内缩 + 墨线断"的缝。Patch 副本 = 原版逐格直通 + 锚空块补块内命中格
+        // 的值（细节见 BlockPatch.compute 头注）。原版保持给 Check/Flood（细像素级判据）与诊断。
+        /// <summary>Patch：亮部色 + 覆盖标记（a）。</summary>
+        public RenderTexture AlbedoPatchBuffer { get; private set; }
+        /// <summary>Patch：几何法线（连通域 Result 输入）。</summary>
+        public RenderTexture Normal0PatchBuffer { get; private set; }
+        /// <summary>Patch：着色用世界法线。</summary>
+        public RenderTexture Normal1PatchBuffer { get; private set; }
+        /// <summary>Patch：光滑度 / 金属度。</summary>
+        public RenderTexture PhysicalPatchBuffer { get; private set; }
+        /// <summary>Patch：优先级 / 法线边阈值 / AA 缩放。</summary>
+        public RenderTexture ShapePatchBuffer { get; private set; }
+        /// <summary>Patch：主光档数 / 抖动 / 边光档数 / applyOutline。</summary>
+        public RenderTexture PalettePatchBuffer { get; private set; }
+        /// <summary>Patch：逐物体边缘光色。</summary>
+        public RenderTexture RimLightPropertyPatchBuffer { get; private set; }
+        /// <summary>Patch：raw depth（RFloat 颜色纹理；读法与深度附件一致）。</summary>
+        public RenderTexture DepthPatchBuffer { get; private set; }
+
         // ---- 艺术画布域 ----
         /// <summary>连通域结论。</summary>
         public RenderTexture ConnectivityResultBuffer { get; private set; }
         /// <summary>墨线标记。</summary>
         public RenderTexture OutlineBuffer { get; private set; }
+        /// <summary>
+        /// 墨线标记（描边第二趟"缝闭合"后的最终版）。着色几趟读这份（Feature 发布全局时指向它）；
+        /// <see cref="OutlineBuffer"/> 保留第一趟原始判定——诊断用（两份对照 = 闭合 pass 补了哪些格）。
+        /// </summary>
+        public RenderTexture OutlineClosedBuffer { get; private set; }
         /// <summary>漫反射结果。</summary>
         public RenderTexture DiffuseBuffer { get; private set; }
         /// <summary>高光结果。</summary>
@@ -648,12 +675,25 @@ namespace PirateCrew.Rendering.Pixelart
             RimLightPropertyBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGBHalf, "PixelartRimLightProperty", false);
             DepthBuffer = NewDepth(FineWidth, FineHeight, "PixelartDepth");
 
+            // ---- 屏幕档 Patch 副本（块锚修补，全带 UAV——BlockPatch.compute 用 RWTexture2D 写）----
+            // 深度 Patch 是 RFloat 颜色纹理（存 raw depth）：深度附件绑不了 UAV，而下游
+            // 读法只取 .r 的原始值再线性化，颜色纹理与深度附件在该口径下数值一致。
+            AlbedoPatchBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGB32, "PixelartAlbedoPatch", false, randomWrite: true);
+            Normal0PatchBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGBHalf, "PixelartNormal0Patch", false, randomWrite: true);
+            Normal1PatchBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGBHalf, "PixelartNormal1Patch", false, randomWrite: true);
+            PhysicalPatchBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGBHalf, "PixelartPhysicalPatch", false, randomWrite: true);
+            ShapePatchBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGBHalf, "PixelartShapePatch", false, randomWrite: true);
+            PalettePatchBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGBHalf, "PixelartPalettePatch", false, randomWrite: true);
+            RimLightPropertyPatchBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.ARGBHalf, "PixelartRimLightPropertyPatch", false, randomWrite: true);
+            DepthPatchBuffer = NewColor(FineWidth, FineHeight, RenderTextureFormat.RFloat, "PixelartDepthPatch", false, randomWrite: true);
+
             // ---- 艺术画布域 ----
             // 【两张带 UAV 的】连通域结论与边缘光都由 compute 用 `RWTexture2D` 写，
             // 而 `RenderTextureDescriptor.enableRandomWrite` 不设就是**绑不上 UAV、写入被静默丢弃**
             // （Unity 不抛异常）。所以这两张必须显式打开。
             ConnectivityResultBuffer = NewColor(RenderWidth, RenderHeight, RenderTextureFormat.ARGB32, "PixelartConnectivityResult", false, randomWrite: true);
             OutlineBuffer = NewColor(RenderWidth, RenderHeight, RenderTextureFormat.ARGB32, "PixelartOutline", false);
+            OutlineClosedBuffer = NewColor(RenderWidth, RenderHeight, RenderTextureFormat.ARGB32, "PixelartOutlineClosed", false);
             DiffuseBuffer = NewColor(RenderWidth, RenderHeight, RenderTextureFormat.ARGBHalf, "PixelartDiffuse", false);
             SpecularBuffer = NewColor(RenderWidth, RenderHeight, RenderTextureFormat.ARGBHalf, "PixelartSpecular", false);
             GIBuffer = NewColor(RenderWidth, RenderHeight, RenderTextureFormat.ARGBHalf, "PixelartGI", false);
@@ -771,8 +811,17 @@ namespace PirateCrew.Rendering.Pixelart
             PaletteBuffer = Release(PaletteBuffer);
             RimLightPropertyBuffer = Release(RimLightPropertyBuffer);
             DepthBuffer = Release(DepthBuffer);
+            AlbedoPatchBuffer = Release(AlbedoPatchBuffer);
+            Normal0PatchBuffer = Release(Normal0PatchBuffer);
+            Normal1PatchBuffer = Release(Normal1PatchBuffer);
+            PhysicalPatchBuffer = Release(PhysicalPatchBuffer);
+            ShapePatchBuffer = Release(ShapePatchBuffer);
+            PalettePatchBuffer = Release(PalettePatchBuffer);
+            RimLightPropertyPatchBuffer = Release(RimLightPropertyPatchBuffer);
+            DepthPatchBuffer = Release(DepthPatchBuffer);
             ConnectivityResultBuffer = Release(ConnectivityResultBuffer);
             OutlineBuffer = Release(OutlineBuffer);
+            OutlineClosedBuffer = Release(OutlineClosedBuffer);
             DiffuseBuffer = Release(DiffuseBuffer);
             SpecularBuffer = Release(SpecularBuffer);
             GIBuffer = Release(GIBuffer);
@@ -897,7 +946,9 @@ namespace PirateCrew.Rendering.Pixelart
         public void PublishArtBuffers(CommandBuffer cmd)
         {
             cmd.SetGlobalTexture(PixelartPath.ConnectivityResultId, ConnectivityResultBuffer);
-            cmd.SetGlobalTexture(PixelartPath.OutlineBufferId, OutlineBuffer);
+            // 墨线发布**缝闭合后的最终版**（描边第二趟写 Closed；本方法由边缘光/着色前发布，
+            // 若发第一趟版会把闭合补的格整帧丢掉——着色读不到 = 画面上缝又回来）。
+            cmd.SetGlobalTexture(PixelartPath.OutlineBufferId, OutlineClosedBuffer != null ? OutlineClosedBuffer : OutlineBuffer);
         }
     }
 }

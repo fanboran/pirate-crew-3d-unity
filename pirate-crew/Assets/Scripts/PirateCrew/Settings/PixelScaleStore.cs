@@ -33,7 +33,9 @@ namespace PirateCrew.Settings
         /// <summary>档位上界（4K 下 4× 恰好回到 960×540 艺术画布；5 留给战斗滚轮）。</summary>
         public const int ScaleMax = 4;
 
-        /// <summary>默认档：2×（1080p → 960×540 画布，现行口径不变）。</summary>
+        /// <summary>默认档：2×（创始人定值：2× + 近景拉远 1.5× 的超采样口径——颗粒观感与
+        /// 3×@13.7m 相同、画布翻倍；与 PixelartCameraRig.PixelScaleDefault、
+        /// PixelartPilotScene.PixelScale 同源，历史上分写出过混档缝）。</summary>
         public const int ScaleDefault = 2;
 
         /// <summary>参考画布高（960×540）：自动档换算基准（屏幕高 ÷ 本值 = 整数倍数）。</summary>

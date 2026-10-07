@@ -63,10 +63,20 @@ namespace PirateCrew.Battle
         public const float BaseDistance = 30f;
 
         /// <summary>
-        /// **近景档 OrthoSize（正交半高，两档取景的近档）= 可见 13.7 m**——中机位口径（r12 取景表）。
-        /// 2026-09-30 定值 6.85（创始人定值；原 7 / 14 m）。**要改近景基准只动这一个数。**
+        /// **恒定像素密度（米 / 艺术像素）= 0.05925926（= 32m ÷ 540 行 @1080p·2×）**。
+        /// 【创始人 2026-10-07 裁决：禁多镜头距离】战斗相机**恒定这一个距离**——取景/聚焦/
+        /// 全景一律不再改变 ortho，要"特写"就从大图里裁小图（像素游戏没有推拉镜头这回事）。
+        /// 本值与像素化试点场景（PixelartCloud 等）rig 上的序列化标定**逐位同源**——调试关与
+        /// 战斗关自此观感一致（同密度、同色带、同光）。
         /// </summary>
-        public const float CloseUpOrthoSize = 6.85f;
+        public const float WorldPerPixel = 0.05925926f;
+
+        /// <summary>
+        /// **恒定档 OrthoSize（1080p·2× 等效正交半高 = 540 × <see cref="WorldPerPixel"/> ÷ 2 = 16.0，
+        /// 可见 32 m）**。运行时 rig 以 <c>deriveOrthographicSize</c> 模式按
+        /// <see cref="WorldPerPixel"/> 自反推（分辨率无关），本常量只供"1080p 基准值"引用与测试锚定。
+        /// </summary>
+        public const float CloseUpOrthoSize = 16f;
 
         /// <summary>全场档 OrthoSize：纵向 2×17=34u 覆盖样板关 30u 全场。
         /// 两档取景制（2026-10-05 走查反馈）下是远景档的下限（<see cref="PanoramaOrthoSizeForSpan"/>
@@ -143,21 +153,23 @@ namespace PirateCrew.Battle
         // 档位 / 特效当量纯函数
         // ------------------------------------------------------------------
 
-        /// <summary>全景档 OrthoSize = clamp(round(span × 0.3), 全场档, 60)：span 100u → 30、160u → 48。</summary>
+        /// <summary>
+        /// 【已收口恒定（创始人 2026-10-07 裁决禁多镜头距离）】全景档与近景档同为
+        /// <see cref="CloseUpOrthoSize"/>——两档取景制退役，参数保留维持调用方兼容，
+        /// 返回值不再随 span 变化。
+        /// </summary>
         public static int PanoramaOrthoSizeForSpan(float spanUnits)
         {
-            return Mathf.Clamp(Mathf.RoundToInt(spanUnits * 0.3f), FullFieldOrthoSize, PanoramaMaxOrthoSize);
+            return Mathf.RoundToInt(CloseUpOrthoSize);
         }
 
         /// <summary>
-        /// 两档取景切换的纯函数（相机行为契约 #9，交互操作契约 §B17）：当前档在两档中点以上
-        /// 视为远景 → 切回近景基准档；否则 → 切到远景档。Tab 键的无状态翻转。
+        /// 【已收口恒定（创始人 2026-10-07 裁决禁多镜头距离）】Tab 两档翻转退役——恒返回
+        /// <see cref="CloseUpOrthoSize"/>，两档合一后翻转不再改变画面距离。
         /// </summary>
         public static float ToggleFramingTier(float currentOrthoSize, float panoramaOrthoSize)
         {
-            return currentOrthoSize > (CloseUpOrthoSize + panoramaOrthoSize) * 0.5f
-                ? CloseUpOrthoSize
-                : panoramaOrthoSize;
+            return CloseUpOrthoSize;
         }
 
         /// <summary>
@@ -329,17 +341,15 @@ namespace PirateCrew.Battle
         /// Scope（瞄准镜收敛）与旁观外扩已随两态重构退役（旧链路根除，相机行为契约 §重构纪律 2）；
         /// 最后 <c>max(1, manual × fov/60)</c> 兜底。
         /// </summary>
+        /// <summary>
+        /// 【已收口恒定（创始人 2026-10-07 裁决禁多镜头距离）】聚焦推近当量退役——恒返回
+        /// <c>manualOrthoSize</c>（推近参数不再改变画面距离；参数保留维持调用方兼容）。
+        /// </summary>
         public static float ComposeOrthoSize(
             float manualOrthoSize,
             bool pushInActive, float pushInElapsed, float pushInDuration, float pushInDegrees)
         {
-            float fov = BaseFov;
-            if (pushInActive)
-                fov = CameraFeelRules.PushInFov(
-                    fov, pushInDegrees, pushInElapsed, pushInDuration);
-
-            float ratio = fov / Mathf.Max(1e-3f, BaseFov);
-            return Mathf.Max(1f, manualOrthoSize * ratio);
+            return Mathf.Max(1f, manualOrthoSize);
         }
 
         /// <summary>

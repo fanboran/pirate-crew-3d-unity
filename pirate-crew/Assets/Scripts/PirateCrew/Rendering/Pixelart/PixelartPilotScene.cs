@@ -32,7 +32,7 @@ namespace PirateCrew.Rendering.Pixelart
         /// 改为 2×。`PixelSkin.Unit` 与 `BeveledPixelSpriteBuilder` 的 u 对齐判据与本值
         /// 保持一致（三处现值均为 2）。
         /// </summary>
-        public const int PixelScale = 2;
+        public const int PixelScale = 2;   // 与 PixelScaleStore.ScaleDefault 同源(2×+拉远超采样口径)
 
         /// <summary>
         /// 参考画布高（1080p ÷ 2 = 540 艺术像素）。**只用于把"看得见多少米"换算成
