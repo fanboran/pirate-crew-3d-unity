@@ -92,12 +92,16 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 【第 3 关可玩地面】把天空之岛岛体（Blender 件）摆进 Battle 场景**场心居中位**并存盘
-        /// （batchmode 可调：
+        /// 【第 3 关可玩地面】把空岛摆进 Battle 场景**场心居中位**并存盘（batchmode 可调：
         /// <c>-executeMethod PirateCrew.EditorTools.FloatingIslandShowcaseMenu.PlaceIntoBattleCenter</c>）。
-        /// 岛顶平面 y14 = 逐点复刻关卡 terrain 轮廓（岛形驱动，与 28 块 × 0.5 高度场同源）；
+        /// 草皮站位面 ≈ y14，与 ShowcaseLevels 关卡 3 的逻辑高度场（28 块 × 0.5）对齐；
         /// 运行时由 RuntimeSceneArt 按关卡号开关（只有第 3 关激活）。
         /// 必须在 ArtGate ⑦（BattleSceneSetup 重建 Battle 场景）**之后**跑，否则会被洗掉。
+        ///
+        /// 【创始人裁决（天空之岛回退案）】第 3 关岛体 = <see cref="FloatingIslandComposer"/> 程序化
+        /// 装配的有机空岛（过审观感，元素/摆位/构图一律不动）；"Blender 化"指**元素级**替换
+        /// （逐个零件出 Blender FBX 换 mesh 引用），**不是**整体总装 FBX——格板 SkyIsland.fbx
+        /// 路线（照化工厂样板重发明形制）已废弃，RemoveNamedRoots 仅用于清其残根。
         /// </summary>
         [MenuItem("PirateCrew/Showcase/摆进战斗场景居中（第3关地面）", false, 5)]
         public static void PlaceIntoBattleCenter()
@@ -105,29 +109,15 @@ namespace PirateCrew.EditorTools
             var scene = EditorSceneManager.OpenScene(
                 BuildScenes.PathOf("Battle"), OpenSceneMode.Single);
 
-            // 岛体 = Blender 岛形驱动件（tools/blender/scene/islands/build_sky_island.py 出库）：
-            // 顶面逐点复刻关卡 terrain 轮廓（顶面 y14 自带在几何里，根 y=0），装饰浮空岛群同件。
-            const string ModelPath = "Assets/Art/Models/SceneKit/SkyIsland.fbx";
-            SceneArtBaker.EnsureModelImporter(ModelPath);
-            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
-            if (prefab == null)
-            {
-                Debug.LogError("[FloatingIslandShowcase] 缺 " + ModelPath
-                    + "（先跑 tools/blender/scene/islands/build_sky_island.py 出库）");
-                return;
-            }
-
-            // 幂等重建：清旧样板根（Place 时代产物）与上一版岛体。
+            // 幂等重建：清上一座空岛与格板时代的残根（SkyIsland.fbx 路线产物）。
             Remove();
             RemoveNamedRoots("SkyIsland");
 
-            GameObject root = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
-            root.name = "SkyIsland";
-            root.isStatic = true;
+            GameObject root = Place(FloatingIslandSpec.Default);
             root.transform.position = new Vector3(
                 LevelGeometry.TileToWorld(10f),
-                0f,
-                LevelGeometry.TileToWorld(7.5f));   // 场心（FBX 根原点 = 场地中心）
+                13.3f,
+                LevelGeometry.TileToWorld(7.5f));
 
             // 连线：Battle 场景的 RuntimeSceneArt 持有空岛根引用（运行时按关卡号开关可见性）。
             var sceneArt = Object.FindObjectOfType<RuntimeSceneArt>();
@@ -141,8 +131,7 @@ namespace PirateCrew.EditorTools
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
-            Debug.Log("[FloatingIslandShowcase] 天空之岛岛体（Blender 件）已摆进 Battle 场景场心并保存："
-                + root.transform.position);
+            Debug.Log("[FloatingIslandShowcase] 已摆进 Battle 场景场心并保存：" + root.transform.position);
         }
 
         /// <summary>按根名清理场景根部对象（本文件内幂等重建用）。</summary>
