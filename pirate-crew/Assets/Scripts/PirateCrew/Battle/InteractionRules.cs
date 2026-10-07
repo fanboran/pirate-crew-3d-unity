@@ -11,7 +11,7 @@ namespace PirateCrew.Battle
     /// </summary>
     public enum InteractionState
     {
-        /// <summary>自由镜头：未选中任何单位，编辑器飞行式观察战场（默认起态）。</summary>
+        /// <summary>自由镜头：未选中任何单位，拖拽绕焦点转方位观察战场（默认起态；俯角恒 30°）。</summary>
         FreeCamera = 0,
 
         /// <summary>选中 · 浏览：唯一单位为视野中心（可环绕），等待选择操作。</summary>
@@ -182,7 +182,7 @@ namespace PirateCrew.Battle
         /// <summary>交互状态对应的相机模式归属（相机行为契约 #1 的纯函数形式）。</summary>
         public static bool CameraAcceptsInput(InteractionState state)
         {
-            // 自由镜头（飞行观察）与选中浏览（环绕）吃相机输入；操作中冻结、执行中交跟随。
+            // 自由镜头（拖拽绕焦点转方位）与选中浏览（环绕）吃相机输入；操作中冻结、执行中交跟随。
             return state == InteractionState.FreeCamera || state == InteractionState.SelectedIdle;
         }
 

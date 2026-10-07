@@ -10,18 +10,19 @@ namespace PirateCrew.Battle
     /// <summary>
     /// 战斗相机 **Driver**（主相机的唯一写入者）。
     ///
-    /// 【位姿全目标化（两态重构核心不变量，相机行为契约 #7）】
+    /// 【位姿全目标化（两态重构核心不变量，相机行为契约）】
     ///   相机位姿 = {焦点, 方位, 俯角, 取景档} 四元目标 + 指数平滑的现实值。
     ///   除**对局开局的首次落位**外，全工程不存在直写现实值的路径——任何状态切换
     ///   （选人/换人/取消/回合 pan）都是目标变更，跳变在结构上不可构造。
-    ///   · 取景两档（近景基准档 ⇄ 远景全景档）：Tab / 滚轮在自由镜头与浏览态切换，
-///     切换 = 目标档变更 + 指数平滑（契约 #9）；
-    ///   · 俯角基准 30°，仅自由镜头允许玩家偏离 [15°, 80°]（契约 #8）。
+    ///   · 取景恒定一档（禁多镜头距离裁决）：Tab 无相机职责；
+    ///   · 俯角恒 30°——**无任何玩家偏离通道**（自由镜头飞行式俯仰随飞行一起退役，
+    ///     创始人裁决：拖动只转方位角，俯仰角不变）。
     ///
     /// 【模式表（相机行为契约 #1）】由 <see cref="BattleInteractionController.State"/> 拉模型分派：
-    ///   FreeCamera → **FreeFly**（编辑器飞行式：按住右键转视角/平移，横纵同灵敏度）；
+    ///   FreeCamera → **FreeOrbit**（拖拽绕当前焦点转方位；焦点默认开局场地中心，
+    ///     仅由回合 pan / 点选血条的聚焦请求平滑引导，拖拽不挪焦点）；
     ///   SelectedIdle → **Orbit**（环绕选中单位，右键拖拽改方位，俯角回基准）；
-    ///   OperationActive → **OpLock**（位姿冻结，不接受任何相机输入——契约 #5）；
+    ///   OperationActive → **OpLock**（位姿冻结，不接受任何相机输入）；
     ///   Executing → **Follow**（既有跟随状态机：弹体/被抛角色/命中停留/回焦）。
     ///
     /// 【三件套分工】<see cref="CameraFraming"/>（纯数学）→ <see cref="BattleInputReader"/>（唯一输入
@@ -57,24 +58,11 @@ namespace PirateCrew.Battle
         [Tooltip("聚焦平滑速度（1/s）。默认 6 → 90% 到位约 0.384s，贴合回合节奏。")]
         [SerializeField] float focusLerpPerSecond = 6f;
 
-        [Tooltip("环绕方位角的平滑速度（1/s）；自由镜头转视角不走平滑（鼠标输入即目标，无滞后）。")]
+        [Tooltip("环绕方位角的平滑速度（1/s）：自由/环绕两态拖拽转方位共用。")]
         [SerializeField] float orbitSmoothingPerSecond = 10f;
 
         [Tooltip("取景档平滑速度（1/s）：近景⇄远景两档切换的指数逼近速率（【提案/待定】）。")]
         [SerializeField] float orthoSmoothingPerSecond = 8f;
-
-        [Header("自由镜头（编辑器飞行式；数值【提案/待定】）")]
-        [Tooltip("自由镜头飞行速度（m/s，未加速；加速倍率 ×3）。")]
-        [SerializeField] float freeFlySpeed = 12f;
-
-        [Tooltip("自由镜头飞行加速倍率（按住 Shift）。")]
-        [SerializeField] float freeFlyFastScale = 3f;
-
-        [Tooltip("自由镜头俯仰夹取下限（度）。")]
-        [SerializeField] float freePitchMinDegrees = 15f;
-
-        [Tooltip("自由镜头俯仰夹取上限（度）。")]
-        [SerializeField] float freePitchMaxDegrees = 80f;
 
         [Header("震屏（提案/待定）")]
         [Tooltip("总开关：关闭后命中/爆炸/死亡都不震屏。")]
@@ -286,7 +274,7 @@ namespace PirateCrew.Battle
 
             interaction = FindObjectOfType<BattleInteractionController>();
             Log.Warn("[BattleCameraDriver] interaction 未经装配接线，已一次性兜底解析"
-                     + (interaction != null ? "成功" : "失败（相机将停留在开局机位，FreeFly/Orbit 不生效）")
+                     + (interaction != null ? "成功" : "失败（相机将停留在开局机位，拖拽旋转不生效）")
                      + "。修复：跑 PirateCrew.EditorTools.BattleLookupWiring.Wire（写 Battle.unity）。");
         }
 
@@ -346,11 +334,7 @@ namespace PirateCrew.Battle
 
             if (InteractionRules.CameraAcceptsInput(state))
             {
-                if (state == InteractionState.FreeCamera)
-                    ApplyFreeFlyInput(intent);
-                else
-                    ApplyOrbitInput(intent);
-
+                ApplyOrbitInput(intent);
                 ApplyFramingTierInput(intent);
             }
             // OpLock / Executing：不接受任何相机输入（目标位姿与取景档保持）。
@@ -373,7 +357,7 @@ namespace PirateCrew.Battle
                 _cleanPosition = Vector3.Lerp(_cleanPosition, _goalPosition, t);
             }
 
-            SmoothManualCamera(Time.deltaTime, state);
+            SmoothManualCamera(Time.deltaTime);
 
             // ---- 震屏采样：玩家按住左键期间一律为 0，保证不影响瞄准精度判定 ----
             Vector2 shake2D = Vector2.zero;
@@ -441,48 +425,11 @@ namespace PirateCrew.Battle
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 自由镜头（编辑器飞行式）：按住右键时转视角 + WASD/QE 飞行。
-        /// 转视角是**原地转身**：机位不动——数学上保持 <c>机位 = 焦点 + Offset(方位,俯角)</c>
-        /// 的恒等（Offset 从焦点指向相机），方位/俯角变化时用 Offset 差补偿焦点；
-        /// 方位/俯角直写（鼠标输入即目标，无平滑滞后，编辑器飞行手感）；俯角夹取 [15°, 80°]。
+        /// 拖拽转方位（自由镜头与选中环绕**共用**，创始人裁决「以焦点为锚拖动旋转、俯仰角不变」）：
+        /// 右键拖拽（超过阈值）只加方位角目标；俯角目标恒基准 30°；焦点不动——
+        /// 自由态的焦点 = 上次引导点（开局为场地中心，回合 pan / 点选血条可平滑引导）。
+        /// 现实值由 <see cref="SmoothManualCamera"/> 指数平滑逼近（两态手感一致）。
         /// </summary>
-        void ApplyFreeFlyInput(in BattleIntentFrame intent)
-        {
-            if (!intent.LookHeld)
-                return;
-
-            bool rotated = !Mathf.Approximately(intent.LookYawDelta, 0f)
-                           || !Mathf.Approximately(intent.LookPitchDelta, 0f);
-            if (rotated)
-            {
-                Vector3 oldOffset = CameraFraming.ComputeFocusOffset(
-                    _targetYaw, _targetPitch, CameraFraming.BaseDistance);
-                _targetYaw += intent.LookYawDelta;
-                _targetPitch = Mathf.Clamp(
-                    _targetPitch + intent.LookPitchDelta, freePitchMinDegrees, freePitchMaxDegrees);
-                Vector3 newOffset = CameraFraming.ComputeFocusOffset(
-                    _targetYaw, _targetPitch, CameraFraming.BaseDistance);
-
-                // 原地转身：机位不动 ⇒ 焦点补偿 Offset 差（机位 = 焦点 + Offset）。
-                _cleanPosition += oldOffset - newOffset;
-                _goalPosition = _cleanPosition;
-            }
-
-            if (intent.FlyMove != Vector3.zero)
-            {
-                // 沿当前朝向的水平基向量平移（与画面所见一致）。
-                Vector3 offset = CameraFraming.ComputeFocusOffset(
-                    _yaw, _pitch, CameraFraming.BaseDistance);
-                Vector3 forward = new Vector3(-offset.x, 0f, -offset.z).normalized;
-                Vector3 right = new Vector3(forward.z, 0f, -forward.x);
-                float speed = freeFlySpeed * (intent.FlyFast ? freeFlyFastScale : 1f);
-                _cleanPosition += (forward * intent.FlyMove.z + right * intent.FlyMove.x
-                    + Vector3.up * intent.FlyMove.y) * (speed * Time.deltaTime);
-                _goalPosition = _cleanPosition;
-            }
-        }
-
-        /// <summary>选中 · 环绕：右键拖拽改方位角（平滑）；俯角目标回基准 30°（平滑）。</summary>
         void ApplyOrbitInput(in BattleIntentFrame intent)
         {
             _targetPitch = CameraFraming.BasePitchDegrees;
@@ -502,17 +449,9 @@ namespace PirateCrew.Battle
                 _targetOrthoSize = CameraFraming.ToggleFramingTier(_targetOrthoSize, _panoramaOrthoSize);
         }
 
-        /// <summary>位姿平滑：环绕/回焦态方位与俯角指数逼近目标；自由镜头直写（转身零滞后）。</summary>
-        void SmoothManualCamera(float deltaTime, InteractionState state)
+        /// <summary>位姿平滑：方位与俯角目标一律指数逼近（自由/环绕两态同手感，直写路径已随飞行退役）。</summary>
+        void SmoothManualCamera(float deltaTime)
         {
-            if (state == InteractionState.FreeCamera)
-            {
-                // 自由镜头：ApplyFreeFlyInput 已直写目标；现实值直接跟随（无平滑）。
-                _yaw = _targetYaw;
-                _pitch = _targetPitch;
-                return;
-            }
-
             float t = CameraFeelRules.ApproachAlpha(orbitSmoothingPerSecond, deltaTime);
             if (!Mathf.Approximately(_yaw, _targetYaw))
                 _yaw = Mathf.Lerp(_yaw, _targetYaw, t);
@@ -524,7 +463,8 @@ namespace PirateCrew.Battle
         // 焦点目标解析
         // ------------------------------------------------------------------
 
-        /// <summary>本帧的焦点目标：跟随弹体 > 环绕选中单位（取景点）> 自由/操作/执行态的 _goalPosition。</summary>
+        /// <summary>本帧的焦点目标：跟随弹体 > 环绕选中单位（取景点）> 自由/操作/执行态的 _goalPosition
+        ///（自由态的 _goalPosition = 上次引导点，开局为场地中心；飞行挪动通道已退役）。</summary>
         Vector3 ResolveGoalPosition(InteractionState state)
         {
             switch (_followState)
@@ -820,8 +760,8 @@ namespace PirateCrew.Battle
 
         void OnTurnStarted(TurnStartedPayload turn)
         {
-            // §3.2 panToCharacter：回合开始的**平滑提示**（不瞬跳、不抢玩家镜头——
-            // 自由镜头下玩家一动输入即接管；选中环绕由 SelectedTarget 每帧锁定，不经这里）。
+            // §3.2 panToCharacter：回合开始的**平滑提示**（不瞬跳；拖拽转方位不挪焦点、与 pan 并行不悖——
+            // 选中环绕由 SelectedTarget 每帧锁定，不经这里）。
             if (turn.PanTarget != null)
             {
                 _goalPosition = CameraFraming.FocusTargetPoint(turn.PanTarget.position);
@@ -837,7 +777,8 @@ namespace PirateCrew.Battle
 
         void OnCameraFocusRequested(Transform target)
         {
-            // 选中反馈：自由镜头下平滑把焦点挪向该单位（环绕/操作态不抢——环绕由拉模型锁定）。
+            // 聚焦引导（点选血条角色方块等）：自由镜头下平滑把焦点挪向该单位——
+            // 这是自由态焦点的两个引导源之一（另一个是回合 pan）；环绕/操作态不抢（环绕由拉模型锁定）。
             if (target == null)
                 return;
             if (interaction != null && interaction.State != InteractionState.FreeCamera)

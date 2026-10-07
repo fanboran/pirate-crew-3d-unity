@@ -14,22 +14,11 @@ namespace PirateCrew.Battle
     {
         // ---- 相机意图（自由镜头/环绕共用通道，解释权归相机驱动按模式分派）----
 
-        /// <summary>右键是否按住（自由镜头的转视角/飞行修饰键；环绕的拖拽键）。</summary>
-        public bool LookHeld;
-
-        /// <summary>转视角方位增量（度，横纵**同一灵敏度**——修旧观察模式 0.35 对 3.0 的 9 倍失配）。</summary>
+        /// <summary>拖拽方位增量（度）。**俯仰不参与**——俯角恒 30°（创始人裁决：拖动旋转俯仰角不变），
+        /// 自由飞行（WASD/QE）已随真自由镜头一起退役。</summary>
         public float LookYawDelta;
 
-        /// <summary>转视角俯仰增量（度，向上为正）。</summary>
-        public float LookPitchDelta;
-
-        /// <summary>飞行移动意图（归一化：x=平移、y=升降、z=前后；仅 LookHeld 时非零）。</summary>
-        public Vector3 FlyMove;
-
-        /// <summary>飞行加速修饰（Shift）。</summary>
-        public bool FlyFast;
-
-        /// <summary>环绕拖拽已超过阈值（右键按住且位移 &gt; 阈值——区分"点右键"与"拖拽环绕"）。</summary>
+        /// <summary>拖拽已超过阈值（右键按住且位移 &gt; 阈值——区分"点右键"与"拖拽转方位"）。</summary>
         public bool OrbitDragHeld;
 
         // ---- 交互意图 ----
@@ -70,16 +59,10 @@ namespace PirateCrew.Battle
     [DisallowMultipleComponent]
     public sealed class BattleInputReader : MonoBehaviour
     {
-        [Tooltip("转视角灵敏度（度/鼠标位移单位）——方位与俯仰共用同一值（契约 §B1：横纵同灵敏度）。")]
+        [Tooltip("拖拽转方位的灵敏度（度/鼠标位移单位），自由/环绕两态共用。")]
         [SerializeField] float lookDegreesPerMouseUnit = 0.25f;
 
-        [Tooltip("自由镜头飞行速度（m/s，未按 Shift）。")]
-        [SerializeField] float flySpeed = 12f;
-
-        [Tooltip("自由镜头飞行加速倍率（按住 Shift）。")]
-        [SerializeField] float flyFastScale = 3f;
-
-        [Tooltip("环绕拖拽阈值（px）：右键按住位移超过它才算拖拽（区分点按）。")]
+        [Tooltip("拖拽阈值（px）：右键按住位移超过它才算拖拽（区分点按）。")]
         [SerializeField] float orbitDragThresholdPixels = 6f;
 
         Vector2 _rightPressPosition;
@@ -90,11 +73,8 @@ namespace PirateCrew.Battle
         {
             var frame = new BattleIntentFrame();
 
-            float mouseX = Input.GetAxis("Mouse X");
-            float mouseY = Input.GetAxis("Mouse Y");
-
-            frame.LookHeld = Input.GetMouseButton(1);
-            if (frame.LookHeld)
+            bool lookHeld = Input.GetMouseButton(1);
+            if (lookHeld)
             {
                 if (Input.GetMouseButtonDown(1))
                 {
@@ -102,12 +82,9 @@ namespace PirateCrew.Battle
                     _haveRightPress = true;
                 }
 
-                frame.LookYawDelta = mouseX * lookDegreesPerMouseUnit;
-                frame.LookPitchDelta = -mouseY * lookDegreesPerMouseUnit;   // 鼠标上推 = 抬视角
+                frame.LookYawDelta = Input.GetAxis("Mouse X") * lookDegreesPerMouseUnit;
                 frame.OrbitDragHeld = _haveRightPress
                     && Vector2.Distance(Input.mousePosition, _rightPressPosition) >= orbitDragThresholdPixels;
-                frame.FlyMove = ReadFlyMove();
-                frame.FlyFast = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
             }
             else
             {
@@ -129,20 +106,6 @@ namespace PirateCrew.Battle
                 - (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? 1 : 0);
 
             return frame;
-        }
-
-        /// <summary>
-        /// 自由镜头飞行意图（编辑器飞行式）：WASD 沿相机水平朝向、Q/E 降/升。
-        /// 返回**归一化方向**（速度与加速在相机侧换算——保持读取器只出意图不出位移）。
-        /// </summary>
-        static Vector3 ReadFlyMove()
-        {
-            float fwd = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
-            float side = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
-            float up = (Input.GetKey(KeyCode.E) ? 1f : 0f) - (Input.GetKey(KeyCode.Q) ? 1f : 0f);
-
-            var move = new Vector3(side, up, fwd);
-            return move.sqrMagnitude > 1f ? move.normalized : move;
         }
     }
 }

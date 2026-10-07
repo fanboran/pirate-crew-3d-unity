@@ -18,7 +18,7 @@ namespace PirateCrew.Battle
     /// 按「新增模组规则类 + 此处分派」接入，不改状态机（交互操作契约 §F）。
     ///
     /// 【与相机】相机驱动拉取本控制器的 <see cref="State"/> / <see cref="SelectedTarget"/> /
-    /// <see cref="LastIntent"/> 决定自身模式（FreeFly/Orbit/OpLock/Follow）——拉模型，无帧序依赖。
+    /// <see cref="LastIntent"/> 决定自身模式（FreeOrbit/Orbit/OpLock/Follow）——拉模型，无帧序依赖。
     ///
     /// 【挂机保护】操作中（<see cref="IsOperationActive"/>）计入 <c>BattleController.IsAnythingActive</c>，
     /// 回合推进器的 inactivity 清零（契约不变量 5）。
