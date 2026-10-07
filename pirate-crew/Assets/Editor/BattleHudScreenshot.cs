@@ -35,6 +35,7 @@ namespace PirateCrew.EditorTools
         const string KeyIndex = "BattleHudScreenshot.Index";
         const string KeyHeadless = "BattleHudScreenshot.Headless";
         const string KeyCanvasPrepared = "BattleHudScreenshot.CanvasPrepared";
+        const string KeyCaptureLevel = "BattleHudScreenshot.CaptureLevel";
 
         static string OutputDir =>
             Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..",
@@ -64,12 +65,27 @@ namespace PirateCrew.EditorTools
             set => SessionState.SetBool(KeyHeadless, value);
         }
 
+        /// <summary>拍图目标关卡号（0 = 不覆写，走正常选关链/兜底关）。存 SessionState 跨域重载。</summary>
+        static int CaptureLevel
+        {
+            get => SessionState.GetInt(KeyCaptureLevel, 0);
+            set => SessionState.SetInt(KeyCaptureLevel, value);
+        }
+
         static BattleHudScreenshot()
         {
             if (Application.isBatchMode && !Armed)
                 return;
             if (Armed)
+            {
+                // 拍图关卡覆写：写 ArtReviewCaptureOverride（官方出图覆盖通道，消费点在
+                // LevelSourceResolver 的 ① 级）。InitializeOnLoad 构造在 Play 域重载后、
+                // 场景 Awake 前跑 ⇒ BattleController 解析关卡时已就位；Play 结束回编辑器域
+                // 再重载即清零，不残留劫持后续选关。
+                if (CaptureLevel > 0)
+                    global::PirateCrew.ArtReview.ArtReviewCaptureOverride.LevelNumber = CaptureLevel;
                 EditorApplication.update += Tick;   // 域重载后重新挂上（进入 Play 必触发重载）
+            }
         }
 
         [MenuItem("PirateCrew/Debug/战斗截图（进 Play 抓取）")]
@@ -105,6 +121,10 @@ namespace PirateCrew.EditorTools
             ShotsLeft = ShotCount;
             ShotIndex = 0;
             Countdown = FirstShotDelayTicks;
+            // 拍图关卡（环境变量 PC3D_CAPTURE_LEVEL，如 3 = 天空之岛）：存 SessionState，
+            // 由静态构造在 Play 域里写成关卡覆写（见其注释的时序说明）。
+            CaptureLevel = System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_LEVEL") is string lvRaw
+                && int.TryParse(lvRaw, out int lv) && lv > 0 ? lv : 0;
             SessionState.SetBool(KeyArmed, true);
 
             // 【口径对齐】像素管线的艺术画布 = 屏幕后台缓冲 ÷ pixelScale（PixelartPath 顶部口径）。
