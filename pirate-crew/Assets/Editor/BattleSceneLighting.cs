@@ -878,10 +878,15 @@ namespace PirateCrew.EditorTools
             // Trilight + 调试关场景文件的三色/强度逐值一致——旧三灯分层（#7EA8CC/#98A2A7/#C9A268
             // + Skybox 分支 + 0.85）与 AmbientDirector 正午档覆写一并退役，是"战斗关偏亮偏蓝白、
             // 调试关暗调对比强"的环境根源。三色取自 PixelartCloud.unity 的 RenderSettings。
+            //
+            // 【三色暖化（创始人 2026-10-07 二裁："岛体要整块棕土，别是黑剪影"）】
+            // 暗面的颜色 = **环境光色 × 反照率**——反照率再棕，环境光是冷灰蓝（原 sky #334A4A 族）
+            // 也会把棕乘成中性黑。故三色整体换成**暖土灰**（同位相：天光暖灰 / 赤道暖 / 地面暖褐），
+            // 明度维持原档（不加曝）。浮空岛的朝下面吃到的主要是 ground 这一档 → 岛底因此回褐。
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.2f, 0.23529412f, 0.2901961f);
-            RenderSettings.ambientEquatorColor = new Color(0.114f, 0.125f, 0.133f);
-            RenderSettings.ambientGroundColor = new Color(0.047f, 0.043f, 0.035f);
+            RenderSettings.ambientSkyColor = new Color(0.235f, 0.222f, 0.205f);
+            RenderSettings.ambientEquatorColor = new Color(0.145f, 0.132f, 0.115f);
+            RenderSettings.ambientGroundColor = new Color(0.075f, 0.065f, 0.050f);
             RenderSettings.ambientIntensity = 1f;
         }
 

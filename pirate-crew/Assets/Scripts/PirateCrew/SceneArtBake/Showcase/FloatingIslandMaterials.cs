@@ -158,29 +158,32 @@ namespace PirateCrew.SceneArt.Showcase
         };
 
         // ---- 岩层三档（中档 = SceneArtPalette.RockMid #8C7B6A）----
-        // 【暗档别压到近黑】岩体是"背光面的岩"，不是剪影：旧值 (#4A4038/#6E6154) 在流水线色阶
-        // 量化下整面塌成黑块，近机位读作"碎掉的黑板"。提亮一档、保留暖褐相。
+        // 【棕色纪律（创始人 2026-10-07 裁决）】岩体整族**棕土化**：岛底的墙是背光面，
+        // 反照率不抬高就整片塌成黑（此前 #4A4038/#6E6154 在流水线色阶量化下就是"黑块"）；
+        // 抬到棕土族后，同一套光照下背光墙落在"深棕"、朝上/朝光的台面落在"浅棕"，
+        // 整座岛才是"一块浮起来的土石"而不是"黑剪影 + 一圈圈棕线"。
+        // 三档仍保留明度序（上亮下暗），但档距收窄——档距大就是"一环一环"的读法来源。
         static readonly IslandMaterialRecipe RockLightRecipe = new IslandMaterialRecipe
         {
             Kind = IslandShaderKind.SurfaceSolid,
-            HexDark = "#6E6154", HexMid = SceneArtPalette.RockMid, HexLight = SceneArtPalette.RockLight,
-            NoiseStrength = 0.42f, RampContrast = 2.1f,
+            HexDark = "#8A755C", HexMid = "#A79077", HexLight = "#BFA98C",
+            NoiseStrength = 0.42f, RampContrast = 1.9f,
             NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };
 
         static readonly IslandMaterialRecipe RockMidRecipe = new IslandMaterialRecipe
         {
             Kind = IslandShaderKind.SurfaceSolid,
-            HexDark = "#564B41", HexMid = "#7B6D5F", HexLight = SceneArtPalette.RockMid,
-            NoiseStrength = 0.46f, RampContrast = 2.2f,
+            HexDark = "#7C6A54", HexMid = "#94806A", HexLight = "#AC987E",
+            NoiseStrength = 0.46f, RampContrast = 2.0f,
             NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };
 
         static readonly IslandMaterialRecipe RockDarkRecipe = new IslandMaterialRecipe
         {
             Kind = IslandShaderKind.SurfaceSolid,
-            HexDark = "#3B3229", HexMid = "#524941", HexLight = "#6B5C4B",
-            NoiseStrength = 0.40f, RampContrast = 1.9f,
+            HexDark = "#685844", HexMid = "#806C55", HexLight = "#98846B",
+            NoiseStrength = 0.40f, RampContrast = 1.8f,
             NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };
 

@@ -548,53 +548,40 @@ namespace PirateCrew.SceneArt.Showcase
         static void AddStrata(IslandBuffers buffers, FloatingIslandSpec spec, Vector3[] rim,
             Vector3[] grassFringe, int seed)
         {
-            float top = -0.8f;   // 与草皮垂帘末端接续
+            // 【接缝纪律（创始人 2026-10-07：岛体不许再"一环一环"）】
+            // 每道接缝**只算一圈、上下两带共用**：逐顶点严丝合缝，结构上不可能再开出透背景的缝；
+            // 每道缝又各有**自己的抖相位**（salt 401/409/419…各不相同）→ 层界互不平行，"套筒感"消失；
+            // 层高间距也故意不等（0.9 / 2.2 / 2.5 / 4.3 / 4.4 / 3.1）——等距本身就是"一环一环"的读法来源。
+            // 层理靠"色档 + 散石"读，不再靠外扩台阶（台阶封完檐仍是硬边，读起来还是圈）。
+            Vector3[] seam0 = grassFringe;                                             // 草皮垂帘下缘
+            Vector3[] seam1 = IslandPrimitives.ScaleRing(rim, 1.020f, -0.9f, seed, 401, 0.05f, 0.22f);
+            Vector3[] seam2 = IslandPrimitives.ScaleRing(rim, 0.960f, -3.1f, seed, 409, 0.06f, 0.26f);
+            Vector3[] seam3 = IslandPrimitives.ScaleRing(rim, 0.885f, -5.6f, seed, 419, 0.07f, 0.30f);
+            Vector3[] seam4 = IslandPrimitives.ScaleRing(rim, 0.700f, -9.9f, seed, 431, 0.08f, 0.34f);
+            Vector3[] seam5 = IslandPrimitives.ScaleRing(rim, 0.470f, -14.3f, seed, 443, 0.09f, 0.36f);
+            Vector3[] seam6 = IslandPrimitives.ScaleRing(rim, 0.230f, -17.4f, seed, 457, 0.11f, 0.40f);
 
-            // 【接缝纪律（两条缺一不可，实拍"碎岛/背景从缝里透出来"就是这么来的）】
-            // ① **同源抖动**：全带用 salt=131（与草皮垂帘、碰撞裙同源），逐顶点抖动一致；
-            // ② **同幅 + 逐层对齐**：相邻两带在接缝处 y 必须逐顶点相等——下一带的顶 y 取
-            //    上一带的底 y（不是"底 y − 0.1"），且两带的 yJitter 幅值必须同为 0.20。
-            //    旧写法把每带顶面压在上一层下面 0.1m，等于整圈开了一条水平缝，背景直接透出来。
-            // 层理观感改由**半径差**（scale 台阶）承担，不靠错开高度。
-            Vector3[] dirtTop = IslandPrimitives.ScaleRing(rim, 1.03f, top, seed, 131, 0.05f, 0.20f);
-            Vector3[] dirtBottom = IslandPrimitives.ScaleRing(rim, 0.995f, -2.3f, seed, 131, 0.04f, 0.20f);
-            IslandPrimitives.AddSideRing(buffers.Dirt, dirtTop, dirtBottom);
-            SealLedge(buffers.Dirt, grassFringe, dirtTop);
-
-            Vector3[] rock1Top = IslandPrimitives.ScaleRing(rim, 1.02f, -2.3f, seed, 131, 0.05f, 0.20f);
-            Vector3[] rock1Bottom = IslandPrimitives.ScaleRing(rim, 0.86f, -5.4f, seed, 131, 0.06f, 0.20f);
-            IslandPrimitives.AddSideRing(buffers.RockLight, rock1Top, rock1Bottom);
-            SealLedge(buffers.RockLight, dirtBottom, rock1Top);
-
-            Vector3[] rock2Top = IslandPrimitives.ScaleRing(rim, 0.885f, -5.4f, seed, 131, 0.06f, 0.20f);
-            Vector3[] rock2Bottom = IslandPrimitives.ScaleRing(rim, 0.66f, -9.6f, seed, 131, 0.07f, 0.20f);
-            IslandPrimitives.AddSideRing(buffers.RockMid, rock2Top, rock2Bottom);
-            SealLedge(buffers.RockMid, rock1Bottom, rock2Top);
-
-            Vector3[] rock3Top = IslandPrimitives.ScaleRing(rim, 0.685f, -9.6f, seed, 131, 0.07f, 0.20f);
-            Vector3[] rock3Bottom = IslandPrimitives.ScaleRing(rim, 0.43f, -13.8f, seed, 131, 0.08f, 0.20f);
-            IslandPrimitives.AddSideRing(buffers.RockDark, rock3Top, rock3Bottom);
-            SealLedge(buffers.RockDark, rock2Bottom, rock3Top);
-
-            Vector3[] rootTop = IslandPrimitives.ScaleRing(rim, 0.455f, -13.8f, seed, 131, 0.09f, 0.20f);
-            Vector3[] rootBottom = IslandPrimitives.ScaleRing(rim, 0.19f, -17.4f, seed, 131, 0.11f, 0.20f);
-            IslandPrimitives.AddSideRing(buffers.RockDark, rootTop, rootBottom);
-            SealLedge(buffers.RockDark, rock3Bottom, rootTop);
+            IslandPrimitives.AddSideRing(buffers.Dirt, seam0, seam1);
+            IslandPrimitives.AddSideRing(buffers.RockLight, seam1, seam2);
+            IslandPrimitives.AddSideRing(buffers.RockMid, seam2, seam3);
+            IslandPrimitives.AddSideRing(buffers.RockDark, seam3, seam4);
+            IslandPrimitives.AddSideRing(buffers.RockDark, seam4, seam5);
+            IslandPrimitives.AddSideRing(buffers.RockDark, seam5, seam6);
 
             // 收锥成尖：岛尖稍微偏离轴心（正圆锥尖读成"陀螺"，偏一点才像被掰下来的岩块）
             Vector3 tip = new Vector3(
                 spec.RadiusX * 0.06f * SceneArtHash.SignedHash(seed, 0, 181),
                 -spec.RockDepth,
                 spec.RadiusZ * 0.06f * SceneArtHash.SignedHash(seed, 1, 191));
-            IslandPrimitives.AddFan(buffers.RockDark, rootBottom, tip, Vector3.down);
+            IslandPrimitives.AddFan(buffers.RockDark, seam6, tip, Vector3.down);
 
-            // 层理散石：每条阶地外沿摆几块，把笔直的水平棱线打散。
+            // 层理散石：沿接缝外沿摆几块——自然层理的"破线"靠它（不靠外扩台阶）。
             // 【体量纪律】只做"崖壁上的凸块"（外扩 ≈1.0、半径 ≤1.65）——外扩一大就成"悬空的板"，
             // 侧下方机位整座岛读作碎掉（近机位实拍踩过）。
-            AddLedgeRocks(buffers.RockLight, rock1Bottom, 6, seed, 211, 1.0f, 0.55f, 1.15f);
-            AddLedgeRocks(buffers.RockMid, rock2Bottom, 7, seed, 223, 1.0f, 0.65f, 1.35f);
-            AddLedgeRocks(buffers.RockDark, rock3Bottom, 7, seed, 227, 1.02f, 0.75f, 1.55f);
-            AddLedgeRocks(buffers.RockDark, rootBottom, 5, seed, 229, 1.02f, 0.80f, 1.65f);
+            AddLedgeRocks(buffers.RockLight, seam2, 6, seed, 211, 1.0f, 0.55f, 1.15f);
+            AddLedgeRocks(buffers.RockMid, seam3, 7, seed, 223, 1.0f, 0.65f, 1.35f);
+            AddLedgeRocks(buffers.RockDark, seam4, 7, seed, 227, 1.02f, 0.75f, 1.55f);
+            AddLedgeRocks(buffers.RockDark, seam5, 5, seed, 229, 1.02f, 0.80f, 1.65f);
         }
 
         /// <summary>沿一条环摆散石（<paramref name="outward"/> = 外扩比例，让石块半身探出崖外）。</summary>
@@ -1660,7 +1647,7 @@ namespace PirateCrew.SceneArt.Showcase
                             0.25f + 0.15f * SceneArtHash.Hash01(seed, i, 1291),
                             0.50f + 0.40f * SceneArtHash.Hash01(seed, i, 1293),
                             0.45f + 0.30f * SceneArtHash.Hash01(seed, i, 1295), seed, 1277 + i),
-                            buffers.RockDark, IslandMaterial.RockDark),
+                            buffers.Dirt, IslandMaterial.Dirt),
                         p, heading * Mathf.Rad2Deg,
                         0.34f + 0.34f * SceneArtHash.Hash01(seed, i, 1289), seed + i * 61);
                 }
@@ -1692,23 +1679,6 @@ namespace PirateCrew.SceneArt.Showcase
         // ==================================================================
         // 工具
         // ==================================================================
-
-        /// <summary>
-        /// 封"台阶檐口"：把上一带的**底环**与下一带的**顶环**之间的环形口补成**双面**环面。
-        ///
-        /// 【为什么必须补】层带做"外扩台阶"时，下一带的顶环比上一带的底环宽 2-3%，
-        /// 这道环形口就是**通进岛体内部的洞**——任何角度都能顺着台阶看穿、背景从缝里透出来
-        /// （实拍岛体上那些细蓝缝就是它，肉眼看像"碎成一块块黑板"）。
-        /// 双面（up + down 各铺一遍）保证俯视与仰视两个方向都不漏。
-        /// </summary>
-        static void SealLedge(MeshBuffers target, Vector3[] upperBottom, Vector3[] lowerTop)
-        {
-            if (target == null || upperBottom == null || lowerTop == null)
-                return;
-
-            IslandPrimitives.AddAnnulus(target, lowerTop, upperBottom, Vector3.up);
-            IslandPrimitives.AddAnnulus(target, lowerTop, upperBottom, Vector3.down);
-        }
 
         /// <summary>绕过 <paramref name="pivot"/> 的竖直轴把点旋转 <paramref name="degrees"/>（交叉水帘用）。</summary>
         static Vector3 RotateAboutUp(Vector3 point, Vector3 pivot, float degrees)

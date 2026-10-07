@@ -52,6 +52,6 @@ Material:
     - _Smoothness: 0
     - _SnapToPixelGrid: 1
     m_Colors:
-    - _BaseColor: {r: 0.4313725, g: 0.3803921, b: 0.32941175, a: 1}
+    - _BaseColor: {r: 0.5411765, g: 0.45882344, b: 0.3607843, a: 1}
     - _RimLightColor: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []
