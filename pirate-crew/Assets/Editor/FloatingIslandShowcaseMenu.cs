@@ -242,6 +242,10 @@ namespace PirateCrew.EditorTools
                     // 摆头幅度随体量：云与鸟摆一点（读得出生气），石与晶几乎不摆（是"悬"不是"摇"）。
                     drift.yawAmplitudeDegrees = floater.BobAmplitude > 0.5f ? 3.5f : 1.2f;
 
+                    // 近裁剪守卫：被相机平面碰到就**整件隐藏**（创始人裁决"别切成一半"）。
+                    // 放在 drift 之后加——它 Awake 时按包围球取半径，和漂移参数无关。
+                    item.AddComponent<NearClipHider>();
+
                     for (int k = 0; k < floater.Parts.Count; k++)
                     {
                         IslandFloaterPart part = floater.Parts[k];

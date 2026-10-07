@@ -450,8 +450,7 @@ namespace PirateCrew.EditorTools
             // 预补偿后落地才是目标色；漏掉这一步就会"代码改了、颜色还是浅的"。
             camera.backgroundColor = new Color(0x35 / 255f, 0x6A / 255f, 0x95 / 255f, 1f).linear;
             // 正交 + 全场档出厂机位：运行期 BattleCameraDriver.Awake 会切基准档并接管全部写入
-            //（near/far 亦由 Driver 按 CameraFraming.OrthoNearClip/OrthoFarClip 覆盖——近裁剪是负值，
-            //  见常量注释：空岛浮件壳比基准机位更靠外，正近裁剪会把壳内物体齐平切开）。
+            //（near/far 用 CameraFraming 常量；"跨近平面被切一半"由空岛浮件的 NearClipHider 兜底成整件消失）。
             camera.orthographic = true;
             camera.orthographicSize = CameraOrthoSize;
             camera.nearClipPlane = CameraFraming.OrthoNearClip;
