@@ -238,7 +238,9 @@ namespace PirateCrew.SceneArt.Showcase
         static readonly IslandMaterialRecipe WaterRecipe = new IslandMaterialRecipe
         {
             Kind = IslandShaderKind.UnlitTransparent,
-            Hex = "#63D6E8", Alpha = 0.60f, CastShadows = false, VertexTint = Color.white,
+            // 0.70 / 稍深的青：水帘与潭面在亮天空前要读成"水蓝"而不是"浅白"——
+            // 0.60 / #63D6E8 时瀑布整条被沫芯与雾团洗成白色（近机位实测），加深后才压得住白。
+            Hex = "#55CFE4", Alpha = 0.70f, CastShadows = false, VertexTint = Color.white,
         };
 
         static readonly IslandMaterialRecipe FoamRecipe = new IslandMaterialRecipe

@@ -11,10 +11,12 @@ namespace PirateCrew.SceneArt.Showcase
     /// 竞技场上方——这样"岛体尺寸"与"摆多高"是两件互不干扰的事。
     ///
     /// 【构图意图（AI 自有设计，本工程无既有空岛资产）】
-    ///   一座**有生活痕迹的浮空岛**，而不是一块浮石：岩层分 6 层读得出地质史；3 条悬瀑落向云海；
-    ///   老树 + 树群 + 垂藤 + 发光花草；东侧一座半塌的遗迹（石柱/断拱/台上悬浮的主晶）；
-    ///   西侧崖沿一座木制瞭望台（海盗旗 + 灯）；一条石板小径把两处连起来；
-    ///   岛外 9 颗悬浮晶、7 块浮石、64 点萤光尘、12 团云、6 只飞鸟——把"它在天上"讲完整。
+    ///   一座**有生活痕迹的浮空岛**，而不是一块浮石：岩层分 6 层读得出地质史；3 条悬瀑（前两条带
+    ///   水潭与溪流）落向云海；老树 + 树群 + 垂藤 + 发光花草 + 潭边芦苇睡莲；东侧一座半塌的遗迹
+    ///   （石柱/断拱/台上悬浮的主晶 + 符文光环）；西侧崖沿一座木制瞭望台（海盗旗 + 灯 + 营地篝火）；
+    ///   一条双色石板小径把两处连起来、老树下藏一口金光照人的宝箱；
+    ///   岛外 9 颗悬浮晶（三颗带金环）、7 块浮石、80 点萤光尘、12 团云、6 只飞鸟成编队
+    ///   ——把"它在天上、有人住过"一起讲完整。
     /// </summary>
     public sealed class FloatingIslandSpec
     {
@@ -46,19 +48,19 @@ namespace PirateCrew.SceneArt.Showcase
         public int GrassTuftCount = 76;
 
         /// <summary>发光花簇数量。</summary>
-        public int FlowerCount = 20;
+        public int FlowerCount = 26;
 
         /// <summary>崖沿垂藤数量。</summary>
         public int VineCount = 9;
 
-        /// <summary>悬瀑数量（每条自带水潭 + 溪流 + 末端雾团）。</summary>
+        /// <summary>悬瀑数量（前两条自带水潭 + 溪流；全部带末端雾团）。</summary>
         public int WaterfallCount = 3;
 
         /// <summary>悬瀑长度（从崖沿往下落多少米）。</summary>
         public float WaterfallLength = 23f;
 
         /// <summary>浮尘光点数量。</summary>
-        public int MoteCount = 64;
+        public int MoteCount = 80;
 
         /// <summary>悬浮晶簇数量。</summary>
         public int SatelliteCrystalCount = 9;
@@ -214,12 +216,16 @@ namespace PirateCrew.SceneArt.Showcase
 
             // ---- 6：瞭望台 ----
             AddWatchPlatform(buffers, spec, watchCenter, seed);
+            AddCampfire(buffers, spec, watchCenter, seed);
 
             // ---- 7：小径 ----
             AddPath(buffers, spec, ruinCenter, watchCenter, seed);
 
             // ---- 8：植被 ----
             AddVegetation(buffers, spec, ruinCenter, watchCenter, keepOut, seed);
+
+            // ---- 8b：宝箱（老树脚边；用同一处定位函数，摆位不会与老树漂移）----
+            AddTreasureChest(buffers, spec, ElderTreeSpot(spec), seed);
 
             // ---- 9：天外 ----
             AddOuterWorld(buffers, spec, seed);
@@ -284,6 +290,15 @@ namespace PirateCrew.SceneArt.Showcase
         }
 
         /// <summary>
+        /// 老树立点（方位 2.55 rad、半径比例 0.34）：遗留区、树本体、树脚宝箱三处共用这一处，
+        /// 三处各写一份坐标必然漂移（树挪了而宝箱/预留区没挪，只能靠出图发现）。
+        /// </summary>
+        static Vector3 ElderTreeSpot(FloatingIslandSpec spec)
+        {
+            return OnPlateau(spec, 2.55f, 0.34f);
+        }
+
+        /// <summary>
         /// 顶面**预留区**快照（不可站位/摆放的圆形区域）：遗迹台基、瞭望台、老树、两处水潭。
         /// <see cref="Compose"/> 内部的排斥圈与 <see cref="FloatingIslandSpawnTable"/> 的出生点
         /// 校验共用这一份——两处各写一遍必然漂移。
@@ -296,9 +311,13 @@ namespace PirateCrew.SceneArt.Showcase
             var zones = new List<IslandKeepOutZone>(6);
             zones.Add(new IslandKeepOutZone(OnPlateau(spec, spec.RuinAngle, 0.44f), 4.6f));
             zones.Add(new IslandKeepOutZone(OnPlateau(spec, spec.WatchAngle, 0.70f), 3.4f));
-            zones.Add(new IslandKeepOutZone(OnPlateau(spec, 2.55f, 0.34f), 2.4f));   // 老树
+            zones.Add(new IslandKeepOutZone(ElderTreeSpot(spec), 2.4f));
 
-            // 水潭：只有前两条瀑布带潭（第三条是干瀑）；角度公式与 AddWaterfalls 同一出处。
+            // 水潭：只有前两条瀑布带潭（第三条从崖沿直落，是 J2 原设计的"干瀑"）。
+            // 【为什么不能三条全带】第三条的方位（≈280°）正落在红队的出生带里——
+            // 实测三潭时出生点求解器在东半区找不到任何合法锚点，出生表只剩 5 个
+            //（FloatingIslandShowcaseTests 的"两支小队"断言直接红）。要三潭齐开，
+            // 得先改出生点带的方位划分，不做在这个批次里。
             int count = Mathf.Clamp(spec.WaterfallCount, 0, 6);
             for (int i = 0; i < Mathf.Min(2, count); i++)
                 zones.Add(new IslandKeepOutZone(OnPlateau(spec, WaterfallAngle(spec, i, count), 0.42f), 2.6f));
@@ -453,11 +472,11 @@ namespace PirateCrew.SceneArt.Showcase
                 spec.RadiusZ * 0.06f * SceneArtHash.SignedHash(seed, 1, 191));
             IslandPrimitives.AddFan(buffers.RockDark, rootBottom, tip, Vector3.down);
 
-            // 层理散石：每条阶地外沿摆几块，把笔直的水平棱线打散。
-            AddLedgeRocks(buffers.RockLight, rock1Bottom, 5, seed, 211, 1.05f, 0.55f, 1.15f);
-            AddLedgeRocks(buffers.RockMid, rock2Bottom, 6, seed, 223, 1.1f, 0.65f, 1.35f);
-            AddLedgeRocks(buffers.RockDark, rock3Bottom, 6, seed, 227, 1.15f, 0.75f, 1.5f);
-            AddLedgeRocks(buffers.RockDark, rootBottom, 4, seed, 229, 1.2f, 0.8f, 1.6f);
+            // 层理散石：每条阶地外沿摆几块，把笔直的水平棱线打散（数量与体量按"远机位仍能读出齿"定）
+            AddLedgeRocks(buffers.RockLight, rock1Bottom, 7, seed, 211, 1.05f, 0.70f, 1.45f);
+            AddLedgeRocks(buffers.RockMid, rock2Bottom, 8, seed, 223, 1.1f, 0.85f, 1.70f);
+            AddLedgeRocks(buffers.RockDark, rock3Bottom, 8, seed, 227, 1.15f, 0.95f, 1.90f);
+            AddLedgeRocks(buffers.RockDark, rootBottom, 6, seed, 229, 1.2f, 1.00f, 2.00f);
         }
 
         /// <summary>沿一条环摆散石（<paramref name="outward"/> = 外扩比例，让石块半身探出崖外）。</summary>
@@ -511,15 +530,15 @@ namespace PirateCrew.SceneArt.Showcase
                 radial.Normalize();
 
                 float outward0 = 1.00f + 0.03f * SceneArtHash.Hash01(seed, i, 251);
-                float inward1 = 0.56f + 0.16f * SceneArtHash.Hash01(seed, i, 257);
+                float inward1 = 0.54f + 0.16f * SceneArtHash.Hash01(seed, i, 257);
                 float y0 = -2.6f - 1.4f * SceneArtHash.Hash01(seed, i, 263);
-                float y1 = -11.0f - 3.0f * SceneArtHash.Hash01(seed, i, 269);
+                float y1 = -12.0f - 4.0f * SceneArtHash.Hash01(seed, i, 269);
 
                 Vector3 from = new Vector3(radial.x * spec.RadiusX * outward0, y0, radial.z * spec.RadiusZ * outward0);
                 Vector3 to = new Vector3(radial.x * spec.RadiusX * inward1, y1, radial.z * spec.RadiusZ * inward1);
 
-                float w0 = 0.50f + 0.75f * SceneArtHash.Hash01(seed, i, 271);
-                float t0 = 0.34f + 0.44f * SceneArtHash.Hash01(seed, i, 277);
+                float w0 = 0.72f + 0.95f * SceneArtHash.Hash01(seed, i, 271);
+                float t0 = 0.42f + 0.52f * SceneArtHash.Hash01(seed, i, 277);
                 float w1 = w0 * (0.45f + 0.30f * SceneArtHash.Hash01(seed, i, 281));
                 float t1 = t0 * 0.55f;
 
@@ -615,11 +634,29 @@ namespace PirateCrew.SceneArt.Showcase
                 pts[5] = rimPt + outward * 1.16f + Vector3.down * (len * 0.82f) + side * (swayA * 0.20f);
                 pts[6] = rimPt + outward * 0.88f + Vector3.down * len;
 
-                float[] halfWidth = { 1.05f, 0.86f, 0.66f, 0.56f, 0.54f, 0.66f, 0.94f };
+                // 【宽度口径】帘宽比"水口宽度"再放大一档：30° 俯角下 2.1m 的水帘只投影成一条窄带，
+                // 远机位读作"一根蓝线"。加宽到 ~2.9m 后近中远三档都能读成"一条瀑布"。
+                float[] halfWidth = { 1.25f, 1.02f, 0.78f, 0.66f, 0.64f, 0.78f, 1.10f };
                 for (int k = 0; k < halfWidth.Length; k++)
                     halfWidth[k] *= 0.78f + 0.44f * SceneArtHash.Hash01(seed, i, 431 + k);
 
                 IslandPrimitives.AddRibbon(buffers.Water, pts, halfWidth, outward);
+
+                // 交叉帘：同一帘心线绕竖轴转 ~62° 的第二片水帘。
+                // 【为什么必须交叉】水帘是单朝向的片——相机方位与帘面平行时整条瀑布收成一根发丝
+                //（实测左瀑布正是这个读法）。两片成 ~62° 夹角后，任意机位至少有一片以 ≥30° 角对着相机。
+                {
+                    float crossDeg = 52f + 26f * SceneArtHash.Hash01(seed, i, 433);
+                    var cross = new Vector3[pts.Length];
+                    var crossW = new float[halfWidth.Length];
+                    for (int k = 0; k < pts.Length; k++)
+                    {
+                        cross[k] = RotateAboutUp(pts[k], rimPt, crossDeg);
+                        crossW[k] = halfWidth[k] * 0.68f;
+                    }
+                    Vector3 crossOut = RotateAboutUp(rimPt + outward, rimPt, crossDeg) - rimPt;
+                    IslandPrimitives.AddRibbon(buffers.Water, cross, crossW, crossOut);
+                }
 
                 // 水沫芯：3 条更窄的白帘，沿法线方向前后错开 → 正面看是"翻涌的水柱"。
                 for (int f = 0; f < 3; f++)
@@ -633,12 +670,14 @@ namespace PirateCrew.SceneArt.Showcase
                         int src = Mathf.Min(6, k + 1);   // 水沫比水帘短一截（先落地）
                         fpts[k] = pts[src] + outward * offN + side * offS
                             + outward * (0.05f + 0.05f * SceneArtHash.Hash01(seed, i * 7 + f, 441 + k));
-                        fw[k] = halfWidth[src] * (0.24f + 0.16f * SceneArtHash.Hash01(seed, i * 5 + f, 451 + k));
+                        // 【宽度纪律】沫芯是"水里的白"，不是"白帘"——三条合计只能盖住帘宽的三分之一左右，
+                        // 盖过一半就会把水帘读成一块白板（实测 0.30-0.48 档就是这么翻车的）。
+                        fw[k] = halfWidth[src] * (0.15f + 0.10f * SceneArtHash.Hash01(seed, i * 5 + f, 451 + k));
                     }
                     IslandPrimitives.AddRibbon(buffers.Foam, fpts, fw, outward);
                 }
 
-                // 末端雾团 + 水花
+                // 末端雾团 + 水花（雾团比帘宽一档即可：再大就读成"挂在瀑布上的白板"——近机位实测）
                 Vector3 end = pts[6];
                 for (int m = 0; m < 3; m++)
                 {
@@ -647,7 +686,7 @@ namespace PirateCrew.SceneArt.Showcase
                         -0.5f - 1.4f * SceneArtHash.Hash01(seed, i * 3 + m, 463),
                         outward.z * (0.5f + 1.4f * SceneArtHash.Hash01(seed, i * 3 + m, 467)));
                     IslandPrimitives.AddCloudPuff(buffers.Cloud, c,
-                        1.5f + 1.5f * SceneArtHash.Hash01(seed, i * 3 + m, 471), seed + i * 50 + m, 4);
+                        1.5f + 1.3f * SceneArtHash.Hash01(seed, i * 3 + m, 471), seed + i * 50 + m, 4);
                 }
 
                 for (int s = 0; s < 5; s++)
@@ -670,7 +709,7 @@ namespace PirateCrew.SceneArt.Showcase
                     buffers.RockMid.AddRock(c, w, new Vector3(0.9f, 0.7f, 1.15f), seed + i * 11 + l, 6);
                 }
 
-                // 顶面水潭 + 溪流（前两条瀑布带水潭；第三条是"干瀑"，直接从崖沿落下）
+                // 顶面水潭 + 溪流（前两条带潭；第三条从崖沿直落——见 BuildKeepOutZones 的出生带约束说明）
                 if (i < 2)
                 {
                     Vector3 pond = OnPlateau(spec, ang, 0.42f);
@@ -693,9 +732,13 @@ namespace PirateCrew.SceneArt.Showcase
                             seed + i * 5 + s, 531, 0.24f);
                     }
 
-                    // 溪流：潭 → 崖沿凹口，逐点贴草皮面
+                    AddPondLife(buffers, spec, pond, pondR, seed + i * 53);
+
+                    // 溪流：青水带（主体，读作"水"）+ 中央窄白沫芯（读作"流"）。
+                    // 【为什么不整条走 Foam】白沫铺满整条在中机位是一条"白漆刷痕"，水色带才读得活。
                     var stream = new Vector3[7];
-                    var sw = new float[7];
+                    var swWater = new float[7];
+                    var swFoam = new float[7];
                     for (int k = 0; k < 7; k++)
                     {
                         float t = k / 6f;
@@ -704,10 +747,64 @@ namespace PirateCrew.SceneArt.Showcase
                             * SceneArtHash.SignedHash(seed, i, 541));
                         p.y = PlateauY(spec, p.x, p.z) + 0.045f;
                         stream[k] = p;
-                        sw[k] = Mathf.Lerp(0.42f, 0.62f, t) * (0.85f + 0.3f * SceneArtHash.Hash01(seed, i, 547 + k));
+                        swWater[k] = Mathf.Lerp(0.34f, 0.50f, t) * (0.85f + 0.3f * SceneArtHash.Hash01(seed, i, 547 + k));
+                        swFoam[k] = swWater[k] * 0.38f;
                     }
-                    IslandPrimitives.AddRibbon(buffers.Foam, stream, sw, Vector3.up);
+                    IslandPrimitives.AddRibbon(buffers.Water, stream, swWater, Vector3.up);
+
+                    var foamLine = new Vector3[7];
+                    for (int k = 0; k < 7; k++)
+                        foamLine[k] = stream[k] + Vector3.up * 0.015f;
+                    IslandPrimitives.AddRibbon(buffers.Foam, foamLine, swFoam, Vector3.up);
                 }
+            }
+        }
+
+        /// <summary>
+        /// 潭边生活件：芦苇丛（细叶杆 + 深褐蒲棒）与睡莲（贴水圆叶 + 暖光花）。
+        /// 【为什么值得单独写】潭面在近/中机位是一大片纯色水盘；两三株芦苇、几片浮叶
+        /// 就把"水"读成"水塘"，是同类零件里单位面积收益最高的一件。
+        /// </summary>
+        static void AddPondLife(IslandBuffers buffers, FloatingIslandSpec spec, Vector3 pond, float pondR, int seed)
+        {
+            // 芦苇：3-5 丛，立在潭边（不进水心，避免与睡莲抢构图）
+            int clumps = 3 + (int)(SceneArtHash.Hash01(seed, 0, 3) * 3f);
+            for (int r = 0; r < clumps; r++)
+            {
+                float ang = Mathf.PI * 2f * r / clumps + SceneArtHash.Hash01(seed, r, 7) * 1.1f;
+                Vector3 basePos = pond + new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang))
+                    * (pondR * (0.92f + 0.16f * SceneArtHash.Hash01(seed, r, 11)));
+                basePos.y = PlateauY(spec, basePos.x, basePos.z) + 0.02f;
+
+                int stalks = 3 + (int)(SceneArtHash.Hash01(seed, r, 13) * 3f);
+                for (int s = 0; s < stalks; s++)
+                {
+                    float sa = ang + Mathf.PI * 2f * s / stalks
+                        + SceneArtHash.SignedHash(seed, r * 7 + s, 17) * 0.7f;
+                    float sh = 0.9f + 0.7f * SceneArtHash.Hash01(seed, r * 7 + s, 19);
+                    Vector3 dir = new Vector3(Mathf.Cos(sa) * 0.10f, 1f, Mathf.Sin(sa) * 0.10f).normalized;
+                    buffers.GrassMid.AddLeaf(basePos, dir, sh, 0.055f, 0.02f, 1, Vector3.up);
+
+                    // 蒲棒：深褐色小棒挂在 3/4 高度（芦苇的"识别特征"，没有它只是三根草）
+                    buffers.Dirt.AddBox(basePos + dir * (sh * 0.78f),
+                        new Vector3(0.075f, sh * 0.22f, 0.075f), sa * Mathf.Rad2Deg);
+                }
+            }
+
+            // 睡莲：2-3 片贴水圆叶 + 偶发暖光花
+            int pads = 2 + (int)(SceneArtHash.Hash01(seed, 0, 23) * 2f);
+            for (int p = 0; p < pads; p++)
+            {
+                float pa = SceneArtHash.Hash01(seed, p, 29) * Mathf.PI * 2f;
+                Vector3 c = pond + new Vector3(Mathf.Cos(pa), 0f, Mathf.Sin(pa))
+                    * (pondR * (0.30f + 0.40f * SceneArtHash.Hash01(seed, p, 31)));
+                c.y = pond.y + 0.045f;
+                float r = pondR * (0.16f + 0.10f * SceneArtHash.Hash01(seed, p, 37));
+                buffers.GrassMid.AddDisc(c, r, 7, Vector3.up, true);
+
+                if (SceneArtHash.Hash01(seed, p, 41) > 0.45f)
+                    IslandPrimitives.AddBlob(buffers.Glow, c + Vector3.up * (r * 0.35f),
+                        new Vector3(r * 0.30f, r * 0.26f, r * 0.30f), 2, 5, seed + p * 11, 43, 0.20f);
             }
         }
 
@@ -787,6 +884,16 @@ namespace PirateCrew.SceneArt.Showcase
             stone.AddBox(new Vector3(mid.x + (archB.x - archA.x) * 0.28f, lintelY + 0.12f, mid.z + (archB.z - archA.z) * 0.28f),
                 new Vector3(span * 0.36f, 0.28f, 0.34f), spanYaw + 7f);
 
+            // 悬空过梁下的三颗光点：把"巨石为什么悬着"从"穿帮"读成"魔法托举"
+            //（近机位最容易被误读成模型没对齐的地方，就是这两段悬梁的下面）。
+            for (int g = 0; g < 3; g++)
+            {
+                float t = 0.30f + 0.20f * g;
+                Vector3 c = archA + (archB - archA) * t + Vector3.up * (3.66f - 0.62f - 0.22f * g);
+                IslandPrimitives.AddBlob(buffers.Glow, c, new Vector3(0.105f, 0.125f, 0.105f), 2, 5,
+                    seed + 700 + g, 761, 0.20f);
+            }
+
             {
                 var temp = new MeshBuffers();
                 temp.AddBox(Vector3.zero, new Vector3(span * 0.4f, 0.30f, 0.36f), 0f);
@@ -810,6 +917,11 @@ namespace PirateCrew.SceneArt.Showcase
 
             // 光环（复用场景道具的闭合环实现：轴 = up）
             ScenePropGeometry.AddRingLoop(buffers.Glow, core - Vector3.up * 0.05f, Vector3.up, 0.92f, 0.045f, 14);
+
+            // 台基符文环：嵌在台面上的第二圈细光环——俯视时给遗迹一个"魔法阵"的读法，
+            // 也让悬浮主晶与台面之间有视觉联系（不是两件互不相干的摆件）。
+            ScenePropGeometry.AddRingLoop(buffers.Glow, new Vector3(center.x, deck + 0.04f, center.z),
+                Vector3.up, 1.55f, 0.03f, 18);
 
             for (int i = 0; i < 4; i++)
             {
@@ -968,6 +1080,98 @@ namespace PirateCrew.SceneArt.Showcase
         }
 
         // ==================================================================
+        // 6b：营地篝火 + 老树下的宝箱（"有人住过"的两件叙事道具）
+        // ==================================================================
+
+        /// <summary>
+        /// 瞭望台脚下的营地篝火：石圈 + 三根交叉原木 + 火光芯 + 两缕余烟。
+        /// 【为什么值得单独做】瞭望台只证明"有人站岗"；篝火才证明"有人在这里过夜"——
+        /// 海盗叙事里信息量最大的小道具，成本不到百面。
+        /// 【位置约束】落进瞭望台预留区（3.4m）之内 → 不占出生点、也不与小径打架。
+        /// </summary>
+        static void AddCampfire(IslandBuffers buffers, FloatingIslandSpec spec, Vector3 watchCenter, int seed)
+        {
+            Vector3 inward = new Vector3(-watchCenter.x, 0f, -watchCenter.z);
+            if (inward.sqrMagnitude < 1e-6f)
+                inward = Vector3.forward;
+            inward.Normalize();
+            Vector3 c = watchCenter + inward * 2.3f;
+            c.y = PlateauY(spec, c.x, c.z) + 0.02f;
+
+            // 石圈：8 颗小石围座
+            for (int i = 0; i < 8; i++)
+            {
+                float ang = Mathf.PI * 2f * i / 8f + SceneArtHash.Hash01(seed, i, 811) * 0.4f;
+                Vector3 s = c + new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * 0.62f;
+                s.y = PlateauY(spec, s.x, s.z) + 0.01f;
+                buffers.RockMid.AddRock(s, 0.16f + 0.10f * SceneArtHash.Hash01(seed, i, 823),
+                    new Vector3(1.1f, 0.75f, 1.0f), seed + i * 17, 6);
+            }
+
+            // 三根原木交叉斜靠成三脚架 + 中央炭芯
+            for (int i = 0; i < 3; i++)
+            {
+                float ang = Mathf.PI * 2f * i / 3f + 0.5f;
+                Vector3 foot = c + new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * 0.34f;
+                buffers.Dirt.AddRod(new Vector3(foot.x, c.y + 0.02f, foot.z), c + Vector3.up * 0.42f, 0.075f, 5);
+            }
+
+            IslandPrimitives.AddBlob(buffers.Glow, c + Vector3.up * 0.16f,
+                new Vector3(0.30f, 0.24f, 0.30f), 2, 6, seed + 61, 829, 0.22f);
+
+            // 余烟：两小团云，沿"向岛心"方向斜飘（风向与旗、悬瀑的摆向同侧）
+            for (int k = 0; k < 2; k++)
+                IslandPrimitives.AddCloudPuff(buffers.Cloud,
+                    c + Vector3.up * (0.85f + 0.55f * k) + inward * (0.30f * k),
+                    0.34f - 0.06f * k, seed + 71 + k, 3);
+        }
+
+        /// <summary>
+        /// 老树下的宝箱：木箱体 + 两道铁箍 + 掀开的盖 + 溢出的金光。
+        /// 【为什么藏在老树下】岛上的三处人工件（遗迹 / 瞭望台 / 小径）都在东-西轴线上，
+        /// 老树丘是唯一的"私角落"——宝箱在这，岛才读成"有主的藏宝地"，而不是布景板。
+        /// 【位置约束】落在老树预留区（2.4m）之内 → 不占出生点、也不挡树根。
+        /// </summary>
+        static void AddTreasureChest(IslandBuffers buffers, FloatingIslandSpec spec, Vector3 elderTree, int seed)
+        {
+            const float bearing = 1.35f;
+            Vector3 c = elderTree + new Vector3(Mathf.Cos(bearing), 0f, Mathf.Sin(bearing)) * 2.0f;
+            c.y = PlateauY(spec, c.x, c.z) + 0.02f;
+            float yaw = bearing * Mathf.Rad2Deg + 25f;
+
+            buffers.Wood.AddBox(c + Vector3.up * 0.30f, new Vector3(0.98f, 0.58f, 0.66f), yaw);
+
+            // 两道铁箍（借泥土暗色当铁）
+            for (int b = 0; b < 2; b++)
+                buffers.Dirt.AddBox(c + Vector3.up * (0.30f + (b * 2 - 1) * 0.18f),
+                    new Vector3(1.01f, 0.075f, 0.69f), yaw);
+
+            // 掀开的盖：向后翻 24°
+            {
+                var lid = new MeshBuffers();
+                lid.AddBox(Vector3.zero, new Vector3(1.02f, 0.14f, 0.70f), 0f);
+                buffers.Wood.AppendTransformed(lid,
+                    SceneArtRot.Trs(c + Vector3.up * 0.62f, SceneArtRot.Euler(-24f, yaw, 0f), Vector3.one));
+            }
+
+            // 锁扣
+            buffers.Dirt.AddBox(c + Vector3.up * 0.34f
+                + new Vector3(Mathf.Cos(yaw * Mathf.Deg2Rad), 0f, Mathf.Sin(yaw * Mathf.Deg2Rad)) * 0.35f,
+                new Vector3(0.16f, 0.20f, 0.06f), yaw);
+
+            // 溢出的金光：箱前一枚枚金币 + 一颗悬浮的金点
+            for (int g = 0; g < 3; g++)
+            {
+                float ga = yaw * Mathf.Deg2Rad + (g - 1) * 0.5f;
+                Vector3 p = c + new Vector3(Mathf.Cos(ga), 0f, Mathf.Sin(ga)) * (0.55f + 0.10f * g);
+                p.y = PlateauY(spec, p.x, p.z) + 0.04f + 0.025f * g;
+                buffers.Glow.AddFrustum(p, 0.105f, 0.095f, 0.05f, 8, ga * Mathf.Rad2Deg, true, true);
+            }
+            IslandPrimitives.AddBlob(buffers.Glow, c + Vector3.up * (0.74f + 0.12f * SceneArtHash.Hash01(seed, 0, 907)),
+                new Vector3(0.10f, 0.13f, 0.10f), 2, 5, seed + 31, 911, 0.20f);
+        }
+
+        // ==================================================================
         // 7：小径
         // ==================================================================
 
@@ -997,8 +1201,11 @@ namespace PirateCrew.SceneArt.Showcase
 
                 Vector3 tangent = p - prev;
                 float yaw = tangent.sqrMagnitude > 1e-6f ? Mathf.Atan2(tangent.z, tangent.x) * Mathf.Rad2Deg : 0f;
-                float w = 0.92f + 0.20f * SceneArtHash.Hash01(seed, i, 901);
-                stone.AddBox(new Vector3(p.x, p.y, p.z), new Vector3(w, 0.10f, w * 0.78f),
+                float w = 0.88f + 0.30f * SceneArtHash.Hash01(seed, i, 901);
+                // 双色交替：同材质的白石板在中机位读成"贴上去的一条白带"，
+                // 石工（亮）与岩亮（暖）交替才有"一块块铺出来"的节奏。
+                MeshBuffers slab = i % 2 == 0 ? stone : buffers.RockLight;
+                slab.AddBox(new Vector3(p.x, p.y, p.z), new Vector3(w, 0.10f, w * 0.78f),
                     yaw + SceneArtHash.SignedHash(seed, i, 907) * 9f);
                 prev = p;
 
@@ -1040,7 +1247,7 @@ namespace PirateCrew.SceneArt.Showcase
             var zones = new List<KeepOutZone>(keepOut);
 
             // 老树：立在西侧缓丘上（丘顶最高处，树冠正好是侧影的最高点）
-            Vector3 elder = OnPlateau(spec, 2.55f, 0.34f);
+            Vector3 elder = ElderTreeSpot(spec);
             IslandPrimitives.AddElderTree(buffers, elder, 5.6f, 2.55f * Mathf.Rad2Deg + 20f, seed + 5);
             zones.Add(new KeepOutZone(elder, 2.4f));
 
@@ -1142,10 +1349,19 @@ namespace PirateCrew.SceneArt.Showcase
                 Vector3 p = new Vector3(Mathf.Cos(ang) * spec.RadiusX * r, y, Mathf.Sin(ang) * spec.RadiusZ * r);
 
                 IslandPrimitives.AddCrystal(buffers.Crystal, p,
-                    0.34f + 0.42f * SceneArtHash.Hash01(seed, i, 1117),
-                    1.25f + 1.45f * SceneArtHash.Hash01(seed, i, 1123),
+                    0.42f + 0.50f * SceneArtHash.Hash01(seed, i, 1117),
+                    1.50f + 1.70f * SceneArtHash.Hash01(seed, i, 1123),
                     new Vector3(12f + 34f * SceneArtHash.Hash01(seed, i, 1129), ang * Mathf.Rad2Deg,
                         12f + 34f * SceneArtHash.Hash01(seed, i, 1131)), seed + i * 29, 5, 0.14f);
+
+                // 每三颗里挂一圈金色光环：远机位给晶簇一个"魔力装置"的身份，
+                // 不然它们在大图上只是一些青色碎片。
+                if (i % 3 == 0)
+                {
+                    float ringH = 1.50f + 1.70f * SceneArtHash.Hash01(seed, i, 1123);
+                    ScenePropGeometry.AddRingLoop(buffers.Glow, p + Vector3.up * (ringH * 0.40f),
+                        Vector3.up, 0.70f + 0.75f * SceneArtHash.Hash01(seed, i, 1133), 0.035f, 14);
+                }
 
                 // 每两颗晶旁边挂一点萤光尘
                 if (i % 2 == 0)
@@ -1173,7 +1389,19 @@ namespace PirateCrew.SceneArt.Showcase
                 float y = -7f + 11f * SceneArtHash.Hash01(seed, i, 1171);
                 Vector3 c = new Vector3(Mathf.Cos(ang) * spec.RadiusX * r, y, Mathf.Sin(ang) * spec.RadiusZ * r);
 
-                buffers.RockMid.AddRock(c, rad, new Vector3(1.15f, 0.88f, 1.0f), seed + i * 31, 7);
+                // 主岩：三轴各带抖动（同一 aspect 的球体在中机位读成"圆石头"而不是"撕下来的岩块"）
+                buffers.RockMid.AddRock(c, rad, new Vector3(
+                    1.00f + 0.50f * SceneArtHash.Hash01(seed, i, 1199),
+                    0.70f + 0.42f * SceneArtHash.Hash01(seed, i, 1201),
+                    0.88f + 0.36f * SceneArtHash.Hash01(seed, i, 1203)), seed + i * 31, 7);
+
+                // 副岩：约七成带一块半嵌的暗岩（贴在同一岩块侧下方）
+                if (SceneArtHash.Hash01(seed, i, 1183) > 0.30f)
+                {
+                    Vector3 c2 = c + new Vector3(Mathf.Cos(ang + 2.1f), -0.22f, Mathf.Sin(ang + 2.1f)) * (rad * 0.72f);
+                    buffers.RockDark.AddRock(c2, rad * (0.45f + 0.25f * SceneArtHash.Hash01(seed, i, 1189)),
+                        new Vector3(1.2f, 0.85f, 1.05f), seed + i * 37, 6);
+                }
 
                 // 草帽：顶面一片压扁的草皮球团
                 if (SceneArtHash.Hash01(seed, i, 1173) > 0.35f)
@@ -1262,21 +1490,44 @@ namespace PirateCrew.SceneArt.Showcase
                     seed + 1300 + i, 5);
             }
 
-            // 飞鸟
-            for (int i = 0; i < spec.BirdCount; i++)
+            // 飞鸟：一个松散 V 字编队（领头 1 只 + 两翼各 2-3 只，高度微错落）。
+            // 【为什么改编队】散射的 6 只鸟在中机位读成"六个黑点"；排成 V 即刻读成"一群鸟在飞"，
+            // 顺带给出了风向与"岛在移动"的暗示。
             {
-                float ang = i * 2.399963f + 0.4f + SceneArtHash.SignedHash(seed, i, 1277) * 0.6f;
-                float r = 0.85f + 0.95f * SceneArtHash.Hash01(seed, i, 1279);
-                Vector3 p = new Vector3(Mathf.Cos(ang) * spec.RadiusX * r,
-                    5.5f + 9f * SceneArtHash.Hash01(seed, i, 1283), Mathf.Sin(ang) * spec.RadiusZ * r);
-                IslandPrimitives.AddBird(buffers.RockDark, p, ang * Mathf.Rad2Deg + 90f,
-                    0.34f + 0.34f * SceneArtHash.Hash01(seed, i, 1289), seed + i * 61);
+                float heading = 0.4f + SceneArtHash.SignedHash(seed, 0, 1277) * 0.6f;
+                Vector3 fwd = new Vector3(Mathf.Cos(heading), 0f, Mathf.Sin(heading));
+                Vector3 wing = new Vector3(-fwd.z, 0f, fwd.x);
+                Vector3 lead = new Vector3(Mathf.Cos(heading) * spec.RadiusX * 1.35f,
+                    9.5f + 3f * SceneArtHash.Hash01(seed, 0, 1279),
+                    Mathf.Sin(heading) * spec.RadiusZ * 1.35f);
+
+                for (int i = 0; i < spec.BirdCount; i++)
+                {
+                    int rank = i / 2 + 1;
+                    float sideSign = i % 2 == 0 ? -1f : 1f;
+                    Vector3 p = i == 0
+                        ? lead
+                        : lead - fwd * (rank * 1.45f) + wing * (sideSign * rank * 1.15f)
+                            + Vector3.up * (0.28f * SceneArtHash.SignedHash(seed, i, 1283));
+
+                    IslandPrimitives.AddBird(buffers.RockDark, p, heading * Mathf.Rad2Deg,
+                        0.34f + 0.34f * SceneArtHash.Hash01(seed, i, 1289), seed + i * 61);
+                }
             }
         }
 
         // ==================================================================
         // 工具
         // ==================================================================
+
+        /// <summary>绕过 <paramref name="pivot"/> 的竖直轴把点旋转 <paramref name="degrees"/>（交叉水帘用）。</summary>
+        static Vector3 RotateAboutUp(Vector3 point, Vector3 pivot, float degrees)
+        {
+            float rad = degrees * Mathf.Deg2Rad;
+            float c = Mathf.Cos(rad), s = Mathf.Sin(rad);
+            float dx = point.x - pivot.x, dz = point.z - pivot.z;
+            return new Vector3(pivot.x + dx * c - dz * s, point.y, pivot.z + dx * s + dz * c);
+        }
 
         /// <summary>两个方位角的最小夹角（弧度）。</summary>
         static float AngleDistance(float a, float b)

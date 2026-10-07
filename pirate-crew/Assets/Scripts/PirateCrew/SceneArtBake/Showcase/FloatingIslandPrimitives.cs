@@ -577,13 +577,17 @@ namespace PirateCrew.SceneArt.Showcase
             }
 
             Vector3 crown = trunk[4];
-            float cw = height * 0.60f;
+            // 树冠形态分型（同 seed 派生三档：宽扁 / 标准 / 高窄）。
+            // 【为什么】树群的可读性靠**轮廓差异**而不是数量——同款圆球排在一起会读成同一棵树复制。
+            float shape = SceneArtHash.Hash01(seed, 3, 29);
+            float cw = height * (shape < 0.34f ? 0.74f : shape < 0.70f ? 0.60f : 0.50f);
+            float ch = height * (shape < 0.34f ? 0.46f : shape < 0.70f ? 0.54f : 0.62f);
             AddBlob(buffers.GrassDark, crown - Vector3.up * (height * 0.12f),
-                new Vector3(cw * 0.94f, cw * 0.44f, cw * 0.94f), 3, 8, seed, 11, 0.16f);
+                new Vector3(cw * 0.94f, ch * 0.82f, cw * 0.94f), 3, 8, seed, 11, 0.16f);
             AddBlob(buffers.GrassMid, crown + Vector3.up * (height * 0.06f),
-                new Vector3(cw, cw * 0.54f, cw), 3, 9, seed, 17, 0.15f);
+                new Vector3(cw, ch, cw), 3, 9, seed, 17, 0.15f);
             AddBlob(buffers.GrassLight, crown + Vector3.up * (height * 0.22f) + leanDir * (height * 0.04f),
-                new Vector3(cw * 0.60f, cw * 0.36f, cw * 0.60f), 3, 8, seed, 23, 0.14f);
+                new Vector3(cw * 0.60f, ch * 0.66f, cw * 0.60f), 3, 8, seed, 23, 0.14f);
         }
 
         /// <summary>
