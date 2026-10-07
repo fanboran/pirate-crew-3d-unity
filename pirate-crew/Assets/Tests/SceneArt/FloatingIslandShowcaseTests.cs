@@ -326,5 +326,46 @@ namespace PirateCrew.SceneArt.Tests
         {
             return FloatingIslandSpec.Default;
         }
+
+        // ------------------------------------------------------------------
+        // 浮件拆件（天外件 → 独立物体，运行期缓慢浮沉）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void Compose_WithFloaterTable_SeparatesSkyPieces_WithoutChangingGeometry()
+        {
+            FloatingIslandSpec spec = DefaultSpec();
+            var mergedBuffers = new IslandBuffers();
+            FloatingIslandStats mergedStats = FloatingIslandComposer.Compose(mergedBuffers, spec);
+
+            var splitBuffers = new IslandBuffers();
+            var floaters = new System.Collections.Generic.List<FloatingIslandFloater>();
+            FloatingIslandStats splitStats = FloatingIslandComposer.Compose(splitBuffers, spec, floaters);
+
+            // 件数 = 悬浮晶 + 浮石 + 云团 + 岛底云裙(3) + 飞鸟；萤光尘留在共享槽（太小，动也读不出）。
+            Assert.AreEqual(
+                spec.SatelliteCrystalCount + spec.FloatingRockCount + spec.CloudPuffCount + 3 + spec.BirdCount,
+                floaters.Count, "天外浮件件数不符（应各成一件）");
+
+            int floaterTriangles = 0;
+            for (int i = 0; i < floaters.Count; i++)
+            {
+                FloatingIslandFloater floater = floaters[i];
+                Assert.Greater(floater.Parts.Count, 0, "浮件 " + i + " 没有任何分件网格");
+                Assert.Greater(floater.BobAmplitude, 0f, "浮件 " + i + " 缺浮沉幅度");
+                Assert.Greater(floater.Speed, 0f, "浮件 " + i + " 缺浮沉速度");
+                for (int k = 0; k < floater.Parts.Count; k++)
+                {
+                    Assert.False(floater.Parts[k].Mesh.IsEmpty,
+                        "浮件 " + i + " 的 " + floater.Parts[k].Slot + " 分件为空");
+                    floaterTriangles += floater.Parts[k].Mesh.TriangleCount;
+                }
+            }
+
+            // 拆件只是"把天外件搬进自己的网格"：总面数必须与不拆时逐面相等。
+            Assert.AreEqual(mergedStats.Triangles, splitStats.Triangles,
+                "拆件前后的总面数必须一致（拆件不该增删几何）");
+            Assert.Greater(floaterTriangles, 0, "浮件表里一片几何都没有");
+        }
     }
 }

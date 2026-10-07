@@ -129,6 +129,77 @@ namespace PirateCrew.SceneArt.Showcase
         public float VerticalSpan => BoundsMax.y - BoundsMin.y;
     }
 
+    /// <summary>浮件的一件分材质网格（浮石 = 主岩 + 草帽 + 小晶 + 石笋，会跨多个槽）。</summary>
+    public readonly struct IslandFloaterPart
+    {
+        /// <summary>材质槽（烘焙侧据此选材质）。</summary>
+        public readonly IslandMaterial Slot;
+
+        /// <summary>该槽的三角面（顶点已在岛局部坐标的正确位置）。</summary>
+        public readonly MeshBuffers Mesh;
+
+        public IslandFloaterPart(IslandMaterial slot, MeshBuffers mesh)
+        {
+            Slot = slot;
+            Mesh = mesh;
+        }
+    }
+
+    /// <summary>
+    /// 一件"会飘的"天外件（悬浮晶 / 浮石 / 云 / 鸟）：独立网格 + 缓慢浮沉参数。
+    ///
+    /// 【为什么必须独立出件】共享槽网格是"整岛一张合并网格"，运行期无法单独动其中一件；
+    /// 要让悬浮物"原地缓缓浮动"，每件就得各自成物体——烘焙侧按本表给每件挂
+    /// <c>FloatingIslandDrift</c>（幅度/速度/相位都在这张表里定，运行时不再自己掷随机）。
+    ///
+    /// 【顶点口径】网格顶点保持岛局部坐标（和混进共享槽时逐顶点一致）——
+    /// 物体挂在岛根下、localPosition 从零开始浮沉，不需要把顶点搬到锚点原点。
+    /// </summary>
+    public sealed class FloatingIslandFloater
+    {
+        /// <summary>锚点（岛局部坐标；供日志与相位参考——网格顶点已在正确位置）。</summary>
+        public readonly Vector3 Anchor;
+
+        /// <summary>竖直浮动幅度（米）。</summary>
+        public readonly float BobAmplitude;
+
+        /// <summary>水平漂移幅度（米）。</summary>
+        public readonly float SwayAmplitude;
+
+        /// <summary>角速度（弧度/秒）。"缓慢"档 ≈ 0.08-0.45（周期 14-80 秒）。</summary>
+        public readonly float Speed;
+
+        /// <summary>相位（弧度；同 seed 固定，避免全岛上下同步得像在呼吸）。</summary>
+        public readonly float Phase;
+
+        /// <summary>分材质网格（≥1 件；同槽位复用同一份网格）。</summary>
+        public readonly List<IslandFloaterPart> Parts = new List<IslandFloaterPart>(4);
+
+        public FloatingIslandFloater(Vector3 anchor, float bobAmplitude, float swayAmplitude,
+            float speed, float phase)
+        {
+            Anchor = anchor;
+            BobAmplitude = bobAmplitude;
+            SwayAmplitude = swayAmplitude;
+            Speed = speed;
+            Phase = phase;
+        }
+
+        /// <summary>取某槽位的分件网格（同槽位复用，不重复建件）。</summary>
+        public MeshBuffers Part(IslandMaterial slot)
+        {
+            for (int i = 0; i < Parts.Count; i++)
+            {
+                if (Parts[i].Slot == slot)
+                    return Parts[i].Mesh;
+            }
+
+            var mesh = new MeshBuffers();
+            Parts.Add(new IslandFloaterPart(slot, mesh));
+            return mesh;
+        }
+    }
+
     /// <summary>
     /// 空岛总装（纯 C#，无头可测）：把一座"超级美观"的浮空岛的全部零件按构图写进
     /// <see cref="IslandBuffers"/>。**不含任何 Unity 对象**——顶点推演全在
@@ -177,6 +248,17 @@ namespace PirateCrew.SceneArt.Showcase
         /// <summary>合成一座完整空岛（幂等：同 spec 必得同一几何）。</summary>
         public static FloatingIslandStats Compose(IslandBuffers buffers, FloatingIslandSpec spec)
         {
+            return Compose(buffers, spec, null);
+        }
+
+        /// <summary>
+        /// 合成一座完整空岛；<paramref name="floaters"/> 非空时，天外件（悬浮晶 / 浮石 / 云 / 鸟）
+        /// 拆成**独立小网格**登记进表（烘焙侧给每件挂缓慢浮沉），不再混进共享槽；
+        /// 传 null（测试与统计口径）时全部混进共享槽，两种口径几何逐顶点相同。
+        /// </summary>
+        public static FloatingIslandStats Compose(IslandBuffers buffers, FloatingIslandSpec spec,
+            List<FloatingIslandFloater> floaters)
+        {
             if (buffers == null)
                 return new FloatingIslandStats(0, 0, Vector3.zero, Vector3.zero, 0, 0, 0);
 
@@ -200,8 +282,8 @@ namespace PirateCrew.SceneArt.Showcase
             keepOut.Add(new KeepOutZone(watchCenter, 3.4f));
 
             // ---- 1/2/3：岛体 ----
-            AddPlateau(buffers, spec, rim);
-            AddStrata(buffers, spec, rim, seed);
+            AddPlateau(buffers, spec, rim, out Vector3[] grassFringe);
+            AddStrata(buffers, spec, rim, grassFringe, seed);
             AddFins(buffers, spec, rim, seed);
             AddUnderside(buffers, spec, seed);
 
@@ -228,11 +310,32 @@ namespace PirateCrew.SceneArt.Showcase
             AddTreasureChest(buffers, spec, ElderTreeSpot(spec), seed);
 
             // ---- 9：天外 ----
-            AddOuterWorld(buffers, spec, seed);
+            AddOuterWorld(buffers, spec, seed, floaters);
 
             buffers.TryGetBounds(out Vector3 min, out Vector3 max);
 
-            return new FloatingIslandStats(buffers.TotalTriangles, buffers.NonEmptySlots, min, max,
+            // 浮件拆件时它们不在共享缓冲里，统计与包围盒要一并算上（否则日志的面数/包围盒缩水）。
+            int triangles = buffers.TotalTriangles;
+            if (floaters != null)
+            {
+                for (int i = 0; i < floaters.Count; i++)
+                {
+                    List<IslandFloaterPart> parts = floaters[i].Parts;
+                    for (int k = 0; k < parts.Count; k++)
+                    {
+                        MeshBuffers mesh = parts[k].Mesh;
+                        triangles += mesh.TriangleCount;
+                        Vector3[] verts = mesh.ToVertices();
+                        for (int v = 0; v < verts.Length; v++)
+                        {
+                            min = Vector3.Min(min, verts[v]);
+                            max = Vector3.Max(max, verts[v]);
+                        }
+                    }
+                }
+            }
+
+            return new FloatingIslandStats(triangles, buffers.NonEmptySlots, min, max,
                 spec.WaterfallCount, spec.TreeCount + 1, spec.MoteCount);
         }
 
@@ -396,7 +499,8 @@ namespace PirateCrew.SceneArt.Showcase
         /// 加一圈**外扩下垂的草皮垂帘**（暗草）压住崖沿——浮空岛的"边缘"必须是软的，
         /// 一刀切的岩沿会读成"切开的蛋糕"。
         /// </summary>
-        static void AddPlateau(IslandBuffers buffers, FloatingIslandSpec spec, Vector3[] rim)
+        static void AddPlateau(IslandBuffers buffers, FloatingIslandSpec spec, Vector3[] rim,
+            out Vector3[] grassFringe)
         {
             MeshBuffers grass = buffers.GrassLight;
             MeshBuffers dark = buffers.GrassDark;
@@ -411,11 +515,11 @@ namespace PirateCrew.SceneArt.Showcase
             IslandPrimitives.AddAnnulus(grass, ringB, ringC, Vector3.up);
             IslandPrimitives.AddFan(grass, ringC, hub, Vector3.up);
 
-            // 垂帘：外扩 3.5% 并落 0.8m（外沿比顶面宽 → 形成"草从崖沿挂下来"的倒悬感）
-            Vector3[] fringe = IslandPrimitives.ScaleRing(rim, 1.035f, 0f, spec.Seed, 131, 0.045f, 0.22f);
-            for (int i = 0; i < fringe.Length; i++)
-                fringe[i].y = rim[i].y - 0.8f;
-            IslandPrimitives.AddSideRing(dark, rim, fringe);
+            // 垂帘：外扩 3.5% 并落到 **-0.8（绝对高度）+ 与岩层带同一份抖动参数**。
+            // 【为什么不再写 rim[i].y - 0.8】垂帘下缘必须与第一层岩带（AddStrata 的 dirtTop）
+            // 逐顶点重合——两处各算一次 y，整圈就会开出细缝、背景从缝里透出来（实拍"碎岛"的根因之一）。
+            grassFringe = IslandPrimitives.ScaleRing(rim, 1.035f, -0.8f, spec.Seed, 131, 0.05f, 0.20f);
+            IslandPrimitives.AddSideRing(dark, rim, grassFringe);
         }
 
         /// <summary>把轮廓环按比例收缩并在 XZ 上贴合草皮高度场。</summary>
@@ -441,29 +545,41 @@ namespace PirateCrew.SceneArt.Showcase
         /// 材质自亮到暗（草皮垂帘 → 土层 → 岩亮 → 岩中 → 岩暗），
         /// 越深越暗 = 越照不到光，这是零光源调色下唯一能讲"深度"的手段。
         /// </summary>
-        static void AddStrata(IslandBuffers buffers, FloatingIslandSpec spec, Vector3[] rim, int seed)
+        static void AddStrata(IslandBuffers buffers, FloatingIslandSpec spec, Vector3[] rim,
+            Vector3[] grassFringe, int seed)
         {
             float top = -0.8f;   // 与草皮垂帘末端接续
 
-            Vector3[] dirtTop = IslandPrimitives.ScaleRing(rim, 1.03f, top, seed, 141, 0.05f, 0.20f);
-            Vector3[] dirtBottom = IslandPrimitives.ScaleRing(rim, 0.995f, -2.3f, seed, 143, 0.04f, 0.18f);
+            // 【接缝纪律（两条缺一不可，实拍"碎岛/背景从缝里透出来"就是这么来的）】
+            // ① **同源抖动**：全带用 salt=131（与草皮垂帘、碰撞裙同源），逐顶点抖动一致；
+            // ② **同幅 + 逐层对齐**：相邻两带在接缝处 y 必须逐顶点相等——下一带的顶 y 取
+            //    上一带的底 y（不是"底 y − 0.1"），且两带的 yJitter 幅值必须同为 0.20。
+            //    旧写法把每带顶面压在上一层下面 0.1m，等于整圈开了一条水平缝，背景直接透出来。
+            // 层理观感改由**半径差**（scale 台阶）承担，不靠错开高度。
+            Vector3[] dirtTop = IslandPrimitives.ScaleRing(rim, 1.03f, top, seed, 131, 0.05f, 0.20f);
+            Vector3[] dirtBottom = IslandPrimitives.ScaleRing(rim, 0.995f, -2.3f, seed, 131, 0.04f, 0.20f);
             IslandPrimitives.AddSideRing(buffers.Dirt, dirtTop, dirtBottom);
+            SealLedge(buffers.Dirt, grassFringe, dirtTop);
 
-            Vector3[] rock1Top = IslandPrimitives.ScaleRing(rim, 1.02f, -2.4f, seed, 151, 0.05f, 0.16f);
-            Vector3[] rock1Bottom = IslandPrimitives.ScaleRing(rim, 0.86f, -5.4f, seed, 153, 0.06f, 0.24f);
+            Vector3[] rock1Top = IslandPrimitives.ScaleRing(rim, 1.02f, -2.3f, seed, 131, 0.05f, 0.20f);
+            Vector3[] rock1Bottom = IslandPrimitives.ScaleRing(rim, 0.86f, -5.4f, seed, 131, 0.06f, 0.20f);
             IslandPrimitives.AddSideRing(buffers.RockLight, rock1Top, rock1Bottom);
+            SealLedge(buffers.RockLight, dirtBottom, rock1Top);
 
-            Vector3[] rock2Top = IslandPrimitives.ScaleRing(rim, 0.885f, -5.5f, seed, 157, 0.06f, 0.22f);
-            Vector3[] rock2Bottom = IslandPrimitives.ScaleRing(rim, 0.66f, -9.6f, seed, 159, 0.07f, 0.30f);
+            Vector3[] rock2Top = IslandPrimitives.ScaleRing(rim, 0.885f, -5.4f, seed, 131, 0.06f, 0.20f);
+            Vector3[] rock2Bottom = IslandPrimitives.ScaleRing(rim, 0.66f, -9.6f, seed, 131, 0.07f, 0.20f);
             IslandPrimitives.AddSideRing(buffers.RockMid, rock2Top, rock2Bottom);
+            SealLedge(buffers.RockMid, rock1Bottom, rock2Top);
 
-            Vector3[] rock3Top = IslandPrimitives.ScaleRing(rim, 0.685f, -9.7f, seed, 163, 0.07f, 0.26f);
-            Vector3[] rock3Bottom = IslandPrimitives.ScaleRing(rim, 0.43f, -13.8f, seed, 167, 0.08f, 0.36f);
+            Vector3[] rock3Top = IslandPrimitives.ScaleRing(rim, 0.685f, -9.6f, seed, 131, 0.07f, 0.20f);
+            Vector3[] rock3Bottom = IslandPrimitives.ScaleRing(rim, 0.43f, -13.8f, seed, 131, 0.08f, 0.20f);
             IslandPrimitives.AddSideRing(buffers.RockDark, rock3Top, rock3Bottom);
+            SealLedge(buffers.RockDark, rock2Bottom, rock3Top);
 
-            Vector3[] rootTop = IslandPrimitives.ScaleRing(rim, 0.455f, -13.9f, seed, 173, 0.09f, 0.30f);
-            Vector3[] rootBottom = IslandPrimitives.ScaleRing(rim, 0.19f, -17.4f, seed, 179, 0.11f, 0.42f);
+            Vector3[] rootTop = IslandPrimitives.ScaleRing(rim, 0.455f, -13.8f, seed, 131, 0.09f, 0.20f);
+            Vector3[] rootBottom = IslandPrimitives.ScaleRing(rim, 0.19f, -17.4f, seed, 131, 0.11f, 0.20f);
             IslandPrimitives.AddSideRing(buffers.RockDark, rootTop, rootBottom);
+            SealLedge(buffers.RockDark, rock3Bottom, rootTop);
 
             // 收锥成尖：岛尖稍微偏离轴心（正圆锥尖读成"陀螺"，偏一点才像被掰下来的岩块）
             Vector3 tip = new Vector3(
@@ -472,11 +588,13 @@ namespace PirateCrew.SceneArt.Showcase
                 spec.RadiusZ * 0.06f * SceneArtHash.SignedHash(seed, 1, 191));
             IslandPrimitives.AddFan(buffers.RockDark, rootBottom, tip, Vector3.down);
 
-            // 层理散石：每条阶地外沿摆几块，把笔直的水平棱线打散（数量与体量按"远机位仍能读出齿"定）
-            AddLedgeRocks(buffers.RockLight, rock1Bottom, 7, seed, 211, 1.05f, 0.70f, 1.45f);
-            AddLedgeRocks(buffers.RockMid, rock2Bottom, 8, seed, 223, 1.1f, 0.85f, 1.70f);
-            AddLedgeRocks(buffers.RockDark, rock3Bottom, 8, seed, 227, 1.15f, 0.95f, 1.90f);
-            AddLedgeRocks(buffers.RockDark, rootBottom, 6, seed, 229, 1.2f, 1.00f, 2.00f);
+            // 层理散石：每条阶地外沿摆几块，把笔直的水平棱线打散。
+            // 【体量纪律】只做"崖壁上的凸块"（外扩 ≈1.0、半径 ≤1.65）——外扩一大就成"悬空的板"，
+            // 侧下方机位整座岛读作碎掉（近机位实拍踩过）。
+            AddLedgeRocks(buffers.RockLight, rock1Bottom, 6, seed, 211, 1.0f, 0.55f, 1.15f);
+            AddLedgeRocks(buffers.RockMid, rock2Bottom, 7, seed, 223, 1.0f, 0.65f, 1.35f);
+            AddLedgeRocks(buffers.RockDark, rock3Bottom, 7, seed, 227, 1.02f, 0.75f, 1.55f);
+            AddLedgeRocks(buffers.RockDark, rootBottom, 5, seed, 229, 1.02f, 0.80f, 1.65f);
         }
 
         /// <summary>沿一条环摆散石（<paramref name="outward"/> = 外扩比例，让石块半身探出崖外）。</summary>
@@ -529,7 +647,7 @@ namespace PirateCrew.SceneArt.Showcase
 
                 radial.Normalize();
 
-                float outward0 = 1.00f + 0.03f * SceneArtHash.Hash01(seed, i, 251);
+                float outward0 = 0.99f + 0.02f * SceneArtHash.Hash01(seed, i, 251);
                 float inward1 = 0.54f + 0.16f * SceneArtHash.Hash01(seed, i, 257);
                 float y0 = -2.6f - 1.4f * SceneArtHash.Hash01(seed, i, 263);
                 float y1 = -12.0f - 4.0f * SceneArtHash.Hash01(seed, i, 269);
@@ -537,12 +655,14 @@ namespace PirateCrew.SceneArt.Showcase
                 Vector3 from = new Vector3(radial.x * spec.RadiusX * outward0, y0, radial.z * spec.RadiusZ * outward0);
                 Vector3 to = new Vector3(radial.x * spec.RadiusX * inward1, y1, radial.z * spec.RadiusZ * inward1);
 
-                float w0 = 0.72f + 0.95f * SceneArtHash.Hash01(seed, i, 271);
-                float t0 = 0.42f + 0.52f * SceneArtHash.Hash01(seed, i, 277);
+                float w0 = 0.55f + 0.75f * SceneArtHash.Hash01(seed, i, 271);
+                float t0 = 0.34f + 0.44f * SceneArtHash.Hash01(seed, i, 277);
                 float w1 = w0 * (0.45f + 0.30f * SceneArtHash.Hash01(seed, i, 281));
                 float t1 = t0 * 0.55f;
 
-                MeshBuffers target = SceneArtHash.Hash01(seed, i, 283) > 0.55f ? buffers.RockLight : buffers.RockMid;
+                // 岩鳍是崖壁的**凸起**、不是外挂件：色要落在它跨过的岩带族里（多数中档、少数亮档），
+                // 亮度跳太远（亮鳍横跨暗带）侧看就是"挂着的板"。
+                MeshBuffers target = SceneArtHash.Hash01(seed, i, 283) > 0.70f ? buffers.RockLight : buffers.RockMid;
                 IslandPrimitives.AddTaperedBox(target, from, to, w0, t0, w1, t1, radial);
             }
         }
@@ -1334,11 +1454,15 @@ namespace PirateCrew.SceneArt.Showcase
         // ==================================================================
 
         /// <summary>
-        /// 岛外世界：9 颗悬浮晶、7 块浮石（带草帽与晶）、64 点萤光尘、12 团云 + 岛底云裙、6 只飞鸟。
+        /// 岛外世界：9 颗悬浮晶、7 块浮石（带草帽与晶）、80 点萤光尘、12 团云 + 岛底云裙、6 只飞鸟。
         /// 【构图用意】这些都不是"装饰"，而是**尺度参照**：没有它们，浮空岛只是一块悬空的石头，
         /// 看不出多大、多高、是否在动。云给出海拔，晶给出魔力，鸟给出尺度。
+        /// 【浮件出库】<paramref name="floaters"/> 非空时，悬浮晶/浮石/云/鸟 **各成一件**并登记
+        /// 缓慢浮沉参数（幅度小、周期长——它们"同在天上"，不是迪士尼的气球）；萤光尘留在共享槽
+        /// （体积太小，动也读不出来，反倒省几十件 DrawCall）。
         /// </summary>
-        static void AddOuterWorld(IslandBuffers buffers, FloatingIslandSpec spec, int seed)
+        static void AddOuterWorld(IslandBuffers buffers, FloatingIslandSpec spec, int seed,
+            List<FloatingIslandFloater> floaters)
         {
             // 悬浮晶簇
             for (int i = 0; i < spec.SatelliteCrystalCount; i++)
@@ -1348,7 +1472,12 @@ namespace PirateCrew.SceneArt.Showcase
                 float y = -8f + 17f * SceneArtHash.Hash01(seed, i, 1109);
                 Vector3 p = new Vector3(Mathf.Cos(ang) * spec.RadiusX * r, y, Mathf.Sin(ang) * spec.RadiusZ * r);
 
-                IslandPrimitives.AddCrystal(buffers.Crystal, p,
+                FloatingIslandFloater f = NewFloater(floaters, p,
+                    0.45f + 0.30f * SceneArtHash.Hash01(seed, i, 1141),
+                    0.25f + 0.10f * SceneArtHash.Hash01(seed, i, 1143),
+                    0.16f + 0.14f * SceneArtHash.Hash01(seed, i, 1145), seed, 1101 + i);
+
+                IslandPrimitives.AddCrystal(Piece(f, buffers.Crystal, IslandMaterial.Crystal), p,
                     0.42f + 0.50f * SceneArtHash.Hash01(seed, i, 1117),
                     1.50f + 1.70f * SceneArtHash.Hash01(seed, i, 1123),
                     new Vector3(12f + 34f * SceneArtHash.Hash01(seed, i, 1129), ang * Mathf.Rad2Deg,
@@ -1359,11 +1488,12 @@ namespace PirateCrew.SceneArt.Showcase
                 if (i % 3 == 0)
                 {
                     float ringH = 1.50f + 1.70f * SceneArtHash.Hash01(seed, i, 1123);
-                    ScenePropGeometry.AddRingLoop(buffers.Glow, p + Vector3.up * (ringH * 0.40f),
+                    ScenePropGeometry.AddRingLoop(Piece(f, buffers.Glow, IslandMaterial.Glow),
+                        p + Vector3.up * (ringH * 0.40f),
                         Vector3.up, 0.70f + 0.75f * SceneArtHash.Hash01(seed, i, 1133), 0.035f, 14);
                 }
 
-                // 每两颗晶旁边挂一点萤光尘
+                // 每两颗晶旁边挂一点萤光尘（跟着这颗晶一起飘，才像"它身上的光"）
                 if (i % 2 == 0)
                 {
                     for (int m = 0; m < 3; m++)
@@ -1374,8 +1504,8 @@ namespace PirateCrew.SceneArt.Showcase
                             y + SceneArtHash.SignedHash(seed, i * 3 + m, 1151) * 1.6f,
                             Mathf.Sin(ma) * spec.RadiusZ * mr);
                         float s = 0.07f + 0.07f * SceneArtHash.Hash01(seed, i * 3 + m, 1153);
-                        IslandPrimitives.AddBlob(buffers.Glow, mc, new Vector3(s, s, s), 2, 5,
-                            seed + i * 7 + m, 1157, 0.22f);
+                        IslandPrimitives.AddBlob(Piece(f, buffers.Glow, IslandMaterial.Glow), mc,
+                            new Vector3(s, s, s), 2, 5, seed + i * 7 + m, 1157, 0.22f);
                     }
                 }
             }
@@ -1389,8 +1519,13 @@ namespace PirateCrew.SceneArt.Showcase
                 float y = -7f + 11f * SceneArtHash.Hash01(seed, i, 1171);
                 Vector3 c = new Vector3(Mathf.Cos(ang) * spec.RadiusX * r, y, Mathf.Sin(ang) * spec.RadiusZ * r);
 
+                FloatingIslandFloater f = NewFloater(floaters, c,
+                    0.30f + 0.20f * SceneArtHash.Hash01(seed, i, 1205),
+                    0.20f + 0.10f * SceneArtHash.Hash01(seed, i, 1207),
+                    0.22f + 0.14f * SceneArtHash.Hash01(seed, i, 1209), seed, 1161 + i);
+
                 // 主岩：三轴各带抖动（同一 aspect 的球体在中机位读成"圆石头"而不是"撕下来的岩块"）
-                buffers.RockMid.AddRock(c, rad, new Vector3(
+                Piece(f, buffers.RockMid, IslandMaterial.RockMid).AddRock(c, rad, new Vector3(
                     1.00f + 0.50f * SceneArtHash.Hash01(seed, i, 1199),
                     0.70f + 0.42f * SceneArtHash.Hash01(seed, i, 1201),
                     0.88f + 0.36f * SceneArtHash.Hash01(seed, i, 1203)), seed + i * 31, 7);
@@ -1399,15 +1534,17 @@ namespace PirateCrew.SceneArt.Showcase
                 if (SceneArtHash.Hash01(seed, i, 1183) > 0.30f)
                 {
                     Vector3 c2 = c + new Vector3(Mathf.Cos(ang + 2.1f), -0.22f, Mathf.Sin(ang + 2.1f)) * (rad * 0.72f);
-                    buffers.RockDark.AddRock(c2, rad * (0.45f + 0.25f * SceneArtHash.Hash01(seed, i, 1189)),
+                    Piece(f, buffers.RockDark, IslandMaterial.RockDark).AddRock(c2,
+                        rad * (0.45f + 0.25f * SceneArtHash.Hash01(seed, i, 1189)),
                         new Vector3(1.2f, 0.85f, 1.05f), seed + i * 37, 6);
                 }
 
                 // 草帽：顶面一片压扁的草皮球团
                 if (SceneArtHash.Hash01(seed, i, 1173) > 0.35f)
                 {
-                    MeshBuffers cap = SceneArtHash.Hash01(seed, i, 1179) > 0.5f
-                        ? buffers.GrassMid : buffers.GrassDark;
+                    bool mid = SceneArtHash.Hash01(seed, i, 1179) > 0.5f;
+                    MeshBuffers cap = Piece(f, mid ? buffers.GrassMid : buffers.GrassDark,
+                        mid ? IslandMaterial.GrassMid : IslandMaterial.GrassDark);
                     Vector3 top = c + Vector3.up * (rad * 0.72f);
                     IslandPrimitives.AddBlob(cap, top, new Vector3(rad * 0.82f, rad * 0.24f, rad * 0.80f),
                         2, 7, seed + i * 41, 1181, 0.16f);
@@ -1416,7 +1553,8 @@ namespace PirateCrew.SceneArt.Showcase
                 // 小晶
                 if (SceneArtHash.Hash01(seed, i, 1187) > 0.45f)
                 {
-                    IslandPrimitives.AddCrystal(buffers.Crystal, c + Vector3.up * (rad * 0.62f),
+                    IslandPrimitives.AddCrystal(Piece(f, buffers.Crystal, IslandMaterial.Crystal),
+                        c + Vector3.up * (rad * 0.62f),
                         0.16f + 0.16f * SceneArtHash.Hash01(seed, i, 1191),
                         0.55f + 0.55f * SceneArtHash.Hash01(seed, i, 1193),
                         new Vector3(16f, ang * Mathf.Rad2Deg, 22f), seed + i * 43, 4, 0.16f);
@@ -1427,7 +1565,7 @@ namespace PirateCrew.SceneArt.Showcase
                 {
                     Vector3 root = c + Vector3.down * (rad * 0.6f)
                         + new Vector3(Mathf.Cos(ang + s), 0f, Mathf.Sin(ang + s)) * (rad * 0.28f);
-                    IslandPrimitives.AddStalactite(buffers.RockDark, root,
+                    IslandPrimitives.AddStalactite(Piece(f, buffers.RockDark, IslandMaterial.RockDark), root,
                         rad * (0.5f + 0.5f * SceneArtHash.Hash01(seed, i * 2 + s, 1197)), rad * 0.28f,
                         ang * Mathf.Rad2Deg, 12f, seed + i * 5 + s);
                 }
@@ -1476,7 +1614,11 @@ namespace PirateCrew.SceneArt.Showcase
                 }
 
                 Vector3 c = new Vector3(Mathf.Cos(ang) * spec.RadiusX * r, y, Mathf.Sin(ang) * spec.RadiusZ * r);
-                IslandPrimitives.AddCloudPuff(buffers.Cloud, c, size, seed + i * 59, 4 + i % 3);
+                FloatingIslandFloater f = NewFloater(floaters, c,
+                    0.55f + 0.55f * SceneArtHash.Hash01(seed, i, 1271),
+                    0.40f + 0.40f * SceneArtHash.Hash01(seed, i, 1273),
+                    0.08f + 0.08f * SceneArtHash.Hash01(seed, i, 1275), seed, 1231 + i);
+                IslandPrimitives.AddCloudPuff(Piece(f, buffers.Cloud, IslandMaterial.Cloud), c, size, seed + i * 59, 4 + i % 3);
             }
 
             // 岛底云裙：直接挂在岛尖下方，把岛"托"起来
@@ -1486,8 +1628,12 @@ namespace PirateCrew.SceneArt.Showcase
                 Vector3 c = new Vector3(Mathf.Cos(ang) * spec.RadiusX * 0.22f,
                     -spec.RockDepth - 0.4f - 1.1f * i,
                     Mathf.Sin(ang) * spec.RadiusZ * 0.22f);
-                IslandPrimitives.AddCloudPuff(buffers.Cloud, c, 2.8f + 1.2f * SceneArtHash.Hash01(seed, i, 1267),
-                    seed + 1300 + i, 5);
+                FloatingIslandFloater f = NewFloater(floaters, c,
+                    0.45f + 0.25f * SceneArtHash.Hash01(seed, i, 1277),
+                    0.30f + 0.20f * SceneArtHash.Hash01(seed, i, 1279),
+                    0.06f + 0.06f * SceneArtHash.Hash01(seed, i, 1281), seed, 1261 + i);
+                IslandPrimitives.AddCloudPuff(Piece(f, buffers.Cloud, IslandMaterial.Cloud), c,
+                    2.8f + 1.2f * SceneArtHash.Hash01(seed, i, 1267), seed + 1300 + i, 5);
             }
 
             // 飞鸟：一个松散 V 字编队（领头 1 只 + 两翼各 2-3 只，高度微错落）。
@@ -1510,15 +1656,59 @@ namespace PirateCrew.SceneArt.Showcase
                         : lead - fwd * (rank * 1.45f) + wing * (sideSign * rank * 1.15f)
                             + Vector3.up * (0.28f * SceneArtHash.SignedHash(seed, i, 1283));
 
-                    IslandPrimitives.AddBird(buffers.RockDark, p, heading * Mathf.Rad2Deg,
+                    IslandPrimitives.AddBird(Piece(NewFloater(floaters, p,
+                            0.25f + 0.15f * SceneArtHash.Hash01(seed, i, 1291),
+                            0.50f + 0.40f * SceneArtHash.Hash01(seed, i, 1293),
+                            0.45f + 0.30f * SceneArtHash.Hash01(seed, i, 1295), seed, 1277 + i),
+                            buffers.RockDark, IslandMaterial.RockDark),
+                        p, heading * Mathf.Rad2Deg,
                         0.34f + 0.34f * SceneArtHash.Hash01(seed, i, 1289), seed + i * 61);
                 }
             }
         }
 
+        /// <summary>
+        /// 登记一件浮件（<paramref name="floaters"/> 为 null 时返回 null = 照旧混进共享槽；
+        /// 测试与统计走这一支，几何逐顶点不变）。
+        /// </summary>
+        static FloatingIslandFloater NewFloater(List<FloatingIslandFloater> floaters, Vector3 anchor,
+            float bobAmplitude, float swayAmplitude, float speed, int seed, int salt)
+        {
+            if (floaters == null)
+                return null;
+
+            var floater = new FloatingIslandFloater(anchor, bobAmplitude, swayAmplitude, speed,
+                SceneArtHash.Hash01(seed, salt, 2003) * Mathf.PI * 2f);
+            floaters.Add(floater);
+            return floater;
+        }
+
+        /// <summary>浮件取件缓冲：浮件非空 → 该件自己的分槽网格；否则 → 共享槽。</summary>
+        static MeshBuffers Piece(FloatingIslandFloater floater, MeshBuffers shared, IslandMaterial slot)
+        {
+            return floater != null ? floater.Part(slot) : shared;
+        }
+
         // ==================================================================
         // 工具
         // ==================================================================
+
+        /// <summary>
+        /// 封"台阶檐口"：把上一带的**底环**与下一带的**顶环**之间的环形口补成**双面**环面。
+        ///
+        /// 【为什么必须补】层带做"外扩台阶"时，下一带的顶环比上一带的底环宽 2-3%，
+        /// 这道环形口就是**通进岛体内部的洞**——任何角度都能顺着台阶看穿、背景从缝里透出来
+        /// （实拍岛体上那些细蓝缝就是它，肉眼看像"碎成一块块黑板"）。
+        /// 双面（up + down 各铺一遍）保证俯视与仰视两个方向都不漏。
+        /// </summary>
+        static void SealLedge(MeshBuffers target, Vector3[] upperBottom, Vector3[] lowerTop)
+        {
+            if (target == null || upperBottom == null || lowerTop == null)
+                return;
+
+            IslandPrimitives.AddAnnulus(target, lowerTop, upperBottom, Vector3.up);
+            IslandPrimitives.AddAnnulus(target, lowerTop, upperBottom, Vector3.down);
+        }
 
         /// <summary>绕过 <paramref name="pivot"/> 的竖直轴把点旋转 <paramref name="degrees"/>（交叉水帘用）。</summary>
         static Vector3 RotateAboutUp(Vector3 point, Vector3 pivot, float degrees)

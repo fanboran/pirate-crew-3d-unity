@@ -155,8 +155,10 @@ namespace PirateCrew.EditorTools
                 spec = FloatingIslandSpec.Default;
 
             // 1. 纯 C# 构图 → 分材质缓冲（同 seed 必得同一座岛；这一步无 Unity 对象）。
+            //    浮件表非空 → 天外件（悬浮晶/浮石/云/鸟）单独出件，供运行期缓慢浮沉。
             var buffers = new IslandBuffers();
-            FloatingIslandStats stats = FloatingIslandComposer.Compose(buffers, spec);
+            var floaters = new List<FloatingIslandFloater>();
+            FloatingIslandStats stats = FloatingIslandComposer.Compose(buffers, spec, floaters);
 
             EnsureFolder(FloatingIslandScenePlan.MaterialFolder);
             EnsureFolder(FloatingIslandScenePlan.MeshFolder);
@@ -214,6 +216,63 @@ namespace PirateCrew.EditorTools
                 groups++;
             }
 
+            // ---- 天外浮件：每件一个物体 + FloatingIslandDrift（缓慢浮沉）----
+            // 合并网格动不了单件，浮件因此在构图侧就单独出网格（见 FloatingIslandFloater）。
+            // 【静态旗标】组与件都**不设 isStatic**——静态批合的物体不响应 Transform，动了也不动。
+            int skyItems = 0;
+            if (floaters.Count > 0)
+            {
+                EnsureFolder(FloatingIslandScenePlan.SkyMeshFolder);
+                var skyRoot = new GameObject(FloatingIslandScenePlan.SkyGroupName);
+                skyRoot.transform.SetParent(root.transform, false);
+                skyRoot.isStatic = false;
+
+                for (int i = 0; i < floaters.Count; i++)
+                {
+                    FloatingIslandFloater floater = floaters[i];
+                    var item = new GameObject(FloatingIslandScenePlan.SkyItemName(i));
+                    item.transform.SetParent(skyRoot.transform, false);
+                    item.isStatic = false;
+
+                    FloatingIslandDrift drift = item.AddComponent<FloatingIslandDrift>();
+                    drift.bobAmplitude = floater.BobAmplitude;
+                    drift.swayAmplitude = floater.SwayAmplitude;
+                    drift.speed = floater.Speed;
+                    drift.phase = floater.Phase;
+                    // 摆头幅度随体量：云与鸟摆一点（读得出生气），石与晶几乎不摆（是"悬"不是"摇"）。
+                    drift.yawAmplitudeDegrees = floater.BobAmplitude > 0.5f ? 3.5f : 1.2f;
+
+                    for (int k = 0; k < floater.Parts.Count; k++)
+                    {
+                        IslandFloaterPart part = floater.Parts[k];
+                        if (part.Mesh.IsEmpty)
+                            continue;
+
+                        Material partMaterial = EnsureMaterial(part.Slot);
+                        if (partMaterial == null)
+                            continue;
+
+                        Mesh partMesh = EnsureMeshAssetAtPath(
+                            FloatingIslandScenePlan.SkyMeshPath(i, part.Slot), part.Mesh,
+                            IslandMaterialCatalog.For(part.Slot));
+
+                        var partGo = new GameObject("Part_" + part.Slot);
+                        partGo.transform.SetParent(item.transform, false);
+                        partGo.isStatic = false;
+                        partGo.AddComponent<MeshFilter>().sharedMesh = partMesh;
+
+                        var partRenderer = partGo.AddComponent<MeshRenderer>();
+                        partRenderer.sharedMaterial = partMaterial;
+                        partRenderer.shadowCastingMode = IslandMaterialCatalog.For(part.Slot).CastShadows
+                            ? ShadowCastingMode.On : ShadowCastingMode.Off;
+                        partRenderer.receiveShadows = FloatingIslandScenePlan.ReceivesShadows(part.Slot);
+                        partRenderer.lightProbeUsage = LightProbeUsage.BlendProbes;
+                    }
+
+                    skyItems++;
+                }
+            }
+
             // ---- 可玩地面：顶面碰撞代理（无 renderer，只有 MeshCollider；凹面/静态）----
             var collisionSource = new MeshBuffers();
             FloatingIslandComposer.BuildCollisionSurface(collisionSource, spec);
@@ -249,7 +308,7 @@ namespace PirateCrew.EditorTools
                 + "  根节点位置: " + rootPosition.ToString("0.0")
                 + "（岛尖净空 " + FloatingIslandComposer.ArenaClearance + "，见 PlacementHeight）\n"
                 + "  三角面合计: " + stats.Triangles + " / 材质槽: " + groups
-                + "（预算约 2 万面 / 15 DrawCall）\n"
+                + " / 浮件: " + skyItems + " 件（缓慢浮沉）\n"
                 + "  包围盒(局部): min=" + stats.BoundsMin.ToString("0.0")
                 + " max=" + stats.BoundsMax.ToString("0.0") + "\n"
                 + "  网格资产: " + FloatingIslandScenePlan.MeshFolder

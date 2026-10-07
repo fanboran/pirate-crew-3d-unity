@@ -58,6 +58,27 @@ namespace PirateCrew.SceneArt.Showcase
             return MeshFolder + "/" + IslandMaterialCatalog.AssetName(material) + ".asset";
         }
 
+        /// <summary>
+        /// 天外浮件（悬浮晶 / 浮石 / 云 / 鸟）的子组名：挂在岛根下，组内**每件一个物体**
+        /// （各挂 <c>FloatingIslandDrift</c> 缓慢浮沉——合并网格动不了单件，见浮件表注释）。
+        /// </summary>
+        public const string SkyGroupName = "Island_Sky";
+
+        /// <summary>浮件网格目录（与整岛合并网格分开：它们的生命周期是"可动件"）。</summary>
+        public const string SkyMeshFolder = MeshFolder + "/Sky";
+
+        /// <summary>第 <paramref name="index"/> 件浮件的某槽位网格资产路径（幂等覆写）。</summary>
+        public static string SkyMeshPath(int index, IslandMaterial material)
+        {
+            return SkyMeshFolder + "/FloatingIsland_Sky_" + index.ToString("00") + "_" + material + ".asset";
+        }
+
+        /// <summary>浮件物体名（组内唯一，出问题时按名定位）。</summary>
+        public static string SkyItemName(int index)
+        {
+            return "Sky_" + index.ToString("00");
+        }
+
         /// <summary>材质资产路径（幂等覆写：重摆只改属性不换引用）。</summary>
         public static string MaterialAssetPath(IslandMaterial material)
         {

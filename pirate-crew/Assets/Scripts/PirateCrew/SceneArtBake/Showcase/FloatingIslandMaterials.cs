@@ -158,6 +158,8 @@ namespace PirateCrew.SceneArt.Showcase
         };
 
         // ---- 岩层三档（中档 = SceneArtPalette.RockMid #8C7B6A）----
+        // 【暗档别压到近黑】岩体是"背光面的岩"，不是剪影：旧值 (#4A4038/#6E6154) 在流水线色阶
+        // 量化下整面塌成黑块，近机位读作"碎掉的黑板"。提亮一档、保留暖褐相。
         static readonly IslandMaterialRecipe RockLightRecipe = new IslandMaterialRecipe
         {
             Kind = IslandShaderKind.SurfaceSolid,
@@ -169,7 +171,7 @@ namespace PirateCrew.SceneArt.Showcase
         static readonly IslandMaterialRecipe RockMidRecipe = new IslandMaterialRecipe
         {
             Kind = IslandShaderKind.SurfaceSolid,
-            HexDark = "#4A4038", HexMid = "#6E6154", HexLight = SceneArtPalette.RockMid,
+            HexDark = "#564B41", HexMid = "#7B6D5F", HexLight = SceneArtPalette.RockMid,
             NoiseStrength = 0.46f, RampContrast = 2.2f,
             NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };
@@ -177,7 +179,7 @@ namespace PirateCrew.SceneArt.Showcase
         static readonly IslandMaterialRecipe RockDarkRecipe = new IslandMaterialRecipe
         {
             Kind = IslandShaderKind.SurfaceSolid,
-            HexDark = "#2E2823", HexMid = "#403832", HexLight = SceneArtPalette.RockDark,
+            HexDark = "#3B3229", HexMid = "#524941", HexLight = "#6B5C4B",
             NoiseStrength = 0.40f, RampContrast = 1.9f,
             NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
         };

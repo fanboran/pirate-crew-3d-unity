@@ -442,7 +442,13 @@ namespace PirateCrew.EditorTools
 
             var camera = go.GetComponent<Camera>();
             camera.clearFlags = useSkybox ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.53f, 0.72f, 0.88f, 1f);
+            // 【背景色 = 调试关的深钢蓝（创始人 2026-10-07 裁决：向调试关观感对齐）】
+            // 像素管线清屏用的是本相机的 backgroundColor 字段（天空盒进不了这条路径）——镜头看空处时
+            // 画面底色就是这一笔。目标 #356A95 = 调试关出图里背景的实测值（海面替身 #2E5F84 受光后）。
+            // 【必须 .linear】Cast 颜色目标是**线性** RT，清屏色按原始值写进去、末尾再做 linear→sRGB，
+            // 直接给 sRGB 值会被整体提亮一档（实测 #2E5F84→#76A4BE、旧值 #87B8E0→#C0DDF1，逐值吻合）。
+            // 预补偿后落地才是目标色；漏掉这一步就会"代码改了、颜色还是浅的"。
+            camera.backgroundColor = new Color(0x35 / 255f, 0x6A / 255f, 0x95 / 255f, 1f).linear;
             // 正交 + 全场档出厂机位：运行期 BattleCameraDriver.Awake 会切基准档并接管全部写入
             //（near/far 亦由 Driver 按 CameraFraming.OrthoNearClip/OrthoFarClip 写成 0.1/200）。
             camera.orthographic = true;
