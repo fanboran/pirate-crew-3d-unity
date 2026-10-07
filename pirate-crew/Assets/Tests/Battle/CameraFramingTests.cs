@@ -171,7 +171,11 @@ namespace PirateCrew.Battle.Tests
             Assert.AreEqual(30f, CameraFraming.BasePitchDegrees, 1e-4f, "俯角锁 30°（与出图口径同一常量）");
             Assert.AreEqual(30f, CameraFraming.BaseDistance, 1e-4f, "机位距离 30（正交下只定机位）");
             Assert.AreEqual(60f, CameraFraming.BaseFov, 1e-4f, "FOV 当量分母 60");
-            Assert.AreEqual(0.1f, CameraFraming.OrthoNearClip, 1e-4f, "近裁剪 = 原虚机 Lens 实机值");
+            // 近裁剪 = 负值：正交相机下"相机平面之后"的物体投影位置与平面之前完全一致（只差被裁剪），
+            // 取正数会把落在相机平面附近的空岛浮件（壳外径 ≈45 > 基准机位 30）齐平切开。
+            Assert.Less(CameraFraming.OrthoNearClip, 0f, "近裁剪必须为负（正交 + 浮件壳比基准机位更靠外）");
+            Assert.LessOrEqual(CameraFraming.OrthoNearClip, -80f,
+                "近裁剪深度要盖住空岛浮件壳（基准机位 30 + 壳层外径 ≈45 + 浮沉余量）");
             Assert.AreEqual(200f, CameraFraming.OrthoFarClip, 1e-4f, "远裁剪 = 原虚机 Lens 实机值（非主相机烘焙的 400）");
             Assert.AreEqual(2.0321f, CameraFraming.UnitVisualHeight, 1e-4f, "单位视觉总高与 CrewVisualPrefabBuilder 两件式常量同源（2.0321）");
         }

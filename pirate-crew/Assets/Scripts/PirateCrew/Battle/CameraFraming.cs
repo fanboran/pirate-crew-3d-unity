@@ -111,8 +111,18 @@ namespace PirateCrew.Battle
         /// </summary>
         public const float BaseFov = 60f;
 
-        /// <summary>正交近裁剪（原虚机 Lens 的实机值——CinemachineBrain 每帧把它推给主相机，此处取同一值）。</summary>
-        public const float OrthoNearClip = 0.1f;
+        /// <summary>
+        /// 正交近裁剪。**取负值**：正交相机没有透视缩放，"相机平面之后"的物体投影到屏幕的位置
+        /// 与平面之前完全一致（差别只是被近裁剪切掉），故负近裁剪是正交/2D 的标准做法。
+        ///
+        /// 【为什么必须为负（2026-10-07 实拍缺陷"物体离得太近被视平面切割"）】
+        /// 战斗基准机位到焦点的距离是 <see cref="BaseDistance"/>=30，而第 3 关空岛的天外浮件壳
+        /// 最外圈（高层云）半径可达 ≈42（= 2.9 × 岛半长轴 14.5）再加云团自身半径 ≈3 ——
+        /// **相机在基准档就落在浮件壳内部**：近裁剪取正数（旧值 0.1）时，飘到相机平面附近的
+        /// 浮石 / 云团会被齐平切开（正交的切面平行于屏幕，读起来就是"半个石头"）。
+        /// 取 -(BaseDistance + 壳层外径 + 浮沉幅度余量) 后，整壳都落在近平面之后仍参与渲染。
+        /// </summary>
+        public const float OrthoNearClip = -80f;
 
         /// <summary>正交远裁剪（原虚机 Lens 的实机值 200；主相机烘焙的 400 运行期一直被 Lens 覆盖）。</summary>
         public const float OrthoFarClip = 200f;
