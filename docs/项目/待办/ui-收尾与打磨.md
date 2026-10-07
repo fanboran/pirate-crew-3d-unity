@@ -175,22 +175,12 @@ VBox/HStack/Grid（间距/内边距全 u 整数倍）+ Element 首选尺寸 + Fl
       `BattleHudZones` 21 常量单表，builder 67 处引用只消费；遗留派生量表达式化
       观察登记在重构交接档）。
 
-### UI 脚本「类名 = 文件名、不嵌套」规则债
+### UI 脚本「类名 = 文件名、不嵌套」规则债（已清零）
 
-**UI 脚本不满足 Unity 的「类名 = 文件名、不嵌套」规则（10 处存量，已登记棘轮）**：
-类型 `StickLayoutElement` / `StickLayoutGroup` / `StickContextAnchor` / `WobbledDotGraphic`
-与宿主同文件不同名；`SketchSwitchGraphic` / `SketchToggleGraphic` / `StickHoverScale` /
-`WindowDragHandle` / `ToastFader`（×2，`SketchWidgets` 与 `StickKit` **同名重复**）是嵌套类。
-后果：这些组件**存不进 Prefab**、场景重载后还原不回来（`WavyLineGraphic` 就是同一类，
-做场景 Prefab 化时才暴露、已修）。当前它们都不在任何场景里，故不阻塞；
-清理由 `Tests/UI/ScriptAssetSerializabilityTests` 的 `KnownOffenders` 白名单逐条推进
-（清一条删一行，白名单留僵尸项会被另一条测试抓）。
-两个同名 `ToastFader` 谁留谁删属设计决定。
-**⚠ 2026-09-28 全量 EditMode 实测该测试红**：DebugUi 组合框波（`61461929`）新增
-12 条嵌套类违规（`AseComboBoxArrow` / `AseComboBoxPopup` / `AseListItem` /
-`AseListbox` 文件名大小写等）未入白名单——先补白名单止红（或直接迁出顶级，
-同 `AseWindowTitleBand` 案例，见 Aseprite观感对齐 §三之十六：嵌套类存 Prefab
-必丢件，战斗折叠已实锤一次）。
+原 10 处存量（`StickLayoutElement` / `WobbledDotGraphic` / `ToastFader`×2 等）已随 UI 皮肤清退
+批次整批删除，DebugUi 组合框波新增的 12 条嵌套类违规也已迁出为顶级类；
+`Tests/UI/ScriptAssetSerializabilityTests` 的 `KnownOffenders` 棘轮现为空——
+规则仍全量守卫，新增违规（组件存不进 Prefab、场景重载还原不回来）当场红。
 
 ### 翻新流程 UI 段（步骤 4a–4e）
 

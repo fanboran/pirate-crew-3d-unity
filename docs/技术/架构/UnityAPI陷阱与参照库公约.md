@@ -67,9 +67,9 @@ grep -oE '<member name="[^"]*(positionCount|SetVertexCount|SetPositions)[^"]*"' 
 
 ```bash
 MG="F:/Unity/2022.3.62f1/Editor/Data/Managed/UnityEngine"
-grep -oE '<member name="P:UnityEngine\.Physics\.gravity"' "$MG/UnityEngine.PhysicsModule.xml"          # 命中
-grep -oE '<member name="M:UnityEngine\.Rigidbody\.AddForce\(UnityEngine\.Vector3,UnityEngine\.ForceMode\)"' "$MG/UnityEngine.PhysicsModule.xml"  # 命中
-grep -oE '<member name="F:UnityEngine\.ForceMode\.Impulse"' "$MG/UnityEngine.PhysicsModule.xml"       # 命中
+grep -oE '<member name="P:UnityEngine\.Physics\.gravity"' "$MG/UnityEngine.PhysicsModule.xml" # 命中
+grep -oE '<member name="M:UnityEngine\.Rigidbody\.AddForce\(UnityEngine\.Vector3,UnityEngine\.ForceMode\)"' "$MG/UnityEngine.PhysicsModule.xml" # 命中
+grep -oE '<member name="F:UnityEngine\.ForceMode\.Impulse"' "$MG/UnityEngine.PhysicsModule.xml" # 命中
 ```
 
 - 本工程 URP 3D + 内置 PhysX（AGENTS.md），**不能用 `Physics2D.gravity` / `Rigidbody2D` / `ForceMode2D` / `CircleCollider2D` / `Physics2D.OverlapPoint`**。
@@ -82,8 +82,8 @@ grep -oE '<member name="F:UnityEngine\.ForceMode\.Impulse"' "$MG/UnityEngine.Phy
 
 ```bash
 MG="F:/Unity/2022.3.62f1/Editor/Data/Managed/UnityEngine"
-grep -oE '<member name="M:UnityEngine\.Application\.LoadLevel[^"]*"' "$MG/UnityEngine.CoreModule.xml"      # 存在但过时
-grep -oE '<member name="M:UnityEngine\.SceneManagement\.SceneManager\.LoadScene\([^"]*"' "$MG/UnityEngine.CoreModule.xml"  # 存在
+grep -oE '<member name="M:UnityEngine\.Application\.LoadLevel[^"]*"' "$MG/UnityEngine.CoreModule.xml" # 存在但过时
+grep -oE '<member name="M:UnityEngine\.SceneManagement\.SceneManager\.LoadScene\([^"]*"' "$MG/UnityEngine.CoreModule.xml" # 存在
 ```
 
 结论：**本工程禁止用 `Application.LoadLevel`，改用 `SceneManager.LoadScene` 或现有 `PirateCrew.Core.SceneLoader`（走 EventBus 场景频道），保持导航统一。**
@@ -95,13 +95,13 @@ grep -oE '<member name="M:UnityEngine\.SceneManagement\.SceneManager\.LoadScene\
 ```bash
 PC="F:/VSCode/pirate-crew-3d-unity/pirate-crew/Library/PackageCache"
 URP="$PC/com.unity.render-pipelines.universal@14.0.12"; CORE="$PC/com.unity.render-pipelines.core@14.0.12"
-grep -n "public RTHandle cameraColorTargetHandle" "$URP/Runtime/ScriptableRenderer.cs"                 # :417
-grep -n "public RenderTargetIdentifier cameraColorTarget$" "$URP/Runtime/ScriptableRenderer.cs"        # :398（旧）
-grep -n "public static void BlitCameraTexture" "$CORE/Runtime/Utilities/Blitter.cs"                    # :377 带 Material 重载
-grep -n "public static bool ReAllocateIfNeeded" "$URP/Runtime/RenderingUtils.cs"                       # :596
-grep -n "public struct RenderingData" "$URP/Runtime/UniversalRenderPipelineCore.cs"                    # :84
-grep -n "public class RTHandle" "$CORE/Runtime/Textures/RTHandle.cs"                                   # :58
-grep -n "public abstract partial class ScriptableRenderPass" "$URP/Runtime/Passes/ScriptableRenderPass.cs"  # :173
+grep -n "public RTHandle cameraColorTargetHandle" "$URP/Runtime/ScriptableRenderer.cs" # :417
+grep -n "public RenderTargetIdentifier cameraColorTarget$" "$URP/Runtime/ScriptableRenderer.cs" # :398（旧）
+grep -n "public static void BlitCameraTexture" "$CORE/Runtime/Utilities/Blitter.cs" # :377 带 Material 重载
+grep -n "public static bool ReAllocateIfNeeded" "$URP/Runtime/RenderingUtils.cs" # :596
+grep -n "public struct RenderingData" "$URP/Runtime/UniversalRenderPipelineCore.cs" # :84
+grep -n "public class RTHandle" "$CORE/Runtime/Textures/RTHandle.cs" # :58
+grep -n "public abstract partial class ScriptableRenderPass" "$URP/Runtime/Passes/ScriptableRenderPass.cs" # :173
 ```
 
 结论：
@@ -114,7 +114,7 @@ grep -n "public abstract partial class ScriptableRenderPass" "$URP/Runtime/Passe
 核对命令：
 
 ```bash
-grep -i "inputsystem" "F:/VSCode/pirate-crew-3d-unity/pirate-crew/Packages/manifest.json"   # 无输出
+grep -i "inputsystem" "F:/VSCode/pirate-crew-3d-unity/pirate-crew/Packages/manifest.json" # 无输出
 MG="F:/Unity/2022.3.62f1/Editor/Data/Managed/UnityEngine"
 grep -oE '<member name="[PM]:UnityEngine\.Input\.(GetMouseButton|GetAxisRaw|GetKey|mouseScrollDelta|mousePosition)[^"]*"' "$MG/UnityEngine.InputLegacyModule.xml" | sort -u
 ```
@@ -190,7 +190,7 @@ grep -oE '<member name="M:UnityEngine\.Camera\.(ScreenToWorldPoint|ScreenPointTo
 | `m2-combat-reference/trajectory-dots` | 点阵抛物线轨迹 | <https://github.com/herbou/Tuto_DrawTrajectory> |
 | `m2-combat-reference/urp-outlines` | URP 屏幕空间描边 | <https://github.com/Robinseibold/Unity-URP-Outlines> |
 | `m2-combat-reference/rts-camera-cinemachine` | RTS 相机（Cinemachine） | <https://github.com/Nickk888SAMP/RTSCameraController-Cinemachine>（sparse checkout：Assets/Packages/ProjectSettings） |
-| `comm-reference/`（预留） | 模块间通信调研参照：MessagePipe / R3 / VContainer / Zenject（+官方 SO 通道 PaddleGameSO） | **URL 研读、未落盘**；对照结论与裁决见 [架构总览 §5.6](架构总览.md)。代理恢复后 `--depth 1` 补克隆 |
+| `comm-reference/`（预留） | 模块间通信调研参照：MessagePipe / R3 / VContainer / Zenject（+官方 SO 通道 PaddleGameSO） | **URL 研读、未落盘**；对照结论与定案见 [架构总览 §5.6](架构总览.md)。代理恢复后 `--depth 1` 补克隆 |
 | `fluid-ref/FLIP` | Unity_FLIP_Fluid_Simulation | <https://github.com/lamp-cap/Unity_FLIP_Fluid_Simulation>（水体参照） |
 | `fluid-ref/HPWater` | HPWater | <https://github.com/AshenOneArt/HPWater>（水体参照） |
 | `swf-decompile/` + `tools/` | game.swf、levels_all.json、ffdec 反编译器 | Flash 原版逆向材料与工具链，逆向文档的原始依据 |

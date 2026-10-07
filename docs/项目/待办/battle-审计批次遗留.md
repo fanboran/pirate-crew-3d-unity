@@ -1,6 +1,6 @@
 # 战斗·审计批次遗留
 
-> 四个「审计批次」小尾巴合并：常量收敛批次（已落，待实机走查）、投掷批次 S2–S4（待实施，**含 [投掷行为契约](../../技术/投掷行为契约.md) 文首挂的「PlayMode 契约用例（待补）」**）、待裁决行为/结构类 5 项、同域备案 4 项小债。
+> 四个「审计批次」小尾巴合并：常量收敛批次（已落，待实机走查）、投掷批次 S2–S4（待实施，**含 [投掷行为契约](../../技术/投掷行为契约.md) 文首挂的「PlayMode 契约用例（待补）」**）、待定行为/结构类 4 项、同域备案 4 项小债。
 
 ## 详情
 
@@ -27,12 +27,12 @@
   `WorldMapReefProfileGateTests`——目录每图必须有显式 profile，堵静默落兜底档（.meta 手写 GUID，
   Unity 首开确认导入）。**⚠ 随海图 101–108 全删一并作废**（见 [world-海图101-108删除.md](world-海图101-108删除.md)）。
 - ⑦ **提案/待定（本批未动代码）**：点击引爆语义契约（旧口径 = 点击任意处引爆；
-  3D 版 = 点中弹体。多弹体归属与 UI 点击排除待裁决，裁决后按行为契约流程改，参考核心行为指令#4）；
-  `AiEvaluation.cs` 拆分（边界已画：AiRandom/AiBattlefield 快照/弹道评分/四武器规划器/目标选择+期望
-  伤害/Session——两份审计明确缓办，关卡内容稳定后解锁）；CrewProfession 13 色 +
+  3D 版 = 点中弹体。多弹体归属与 UI 点击排除待定，定后按行为契约流程改，参考核心行为指令#4）；
+  CrewProfession 13 色 +
   `BattleController.TintFor` 11 组收敛调色板 JSON（[调色板手册](../../技术/资产管线/调色板.md)
-  §2「代码只引用槽位 id」口径，随 Aseprite 批次收口窗口）；boulder 系数未来独立 Rules 类；
-  `AiEvaluation` 残余内联 0.3f/0.5f 补名。
+  §2「代码只引用槽位 id」口径，随 Aseprite 批次收口窗口）。
+  （原提案中的 `AiEvaluation.cs` 拆分与残余内联补名、boulder 系数独立 Rules 类，已随
+  AI 评估链整拔与武器空壳化消解。）
 
 ### 投掷批次 S2–S4（随两态重构重排）
 
@@ -46,10 +46,8 @@ S2 弹体弹跳/摩擦属**武器数值域**，随武器系统重做再立（bou
 
 代码处均已标「提案/待定」，等创始人定：
 
-- ① `MarkUseWeapon` 扣武器失败仍发布 UseWeapon 动作，回合语义（发 EndGo 还是不发）待裁决
-  （`AimThrowController.cs` 两处）；
-- ② cannon 蓄力 5–29 区间永不开炮（`CannonRules.FireThreshold = MaxFireStrength`，
-  逆向原文即有此空档，文件标提案/待定）；
+- ① `MarkUseWeapon` 扣武器失败仍发布 UseWeapon 动作，回合语义（发 EndGo 还是不发）待定
+  （`BattleInteractionController.cs` 两处，【提案/待定】注释在发布点旁）；
 - ③ 平台簇·水线家族复核**已关闭**（2026-09 死码清理分支 `refactor/audit-dead-code`）：
   `ScenePropKind` 整枚举零引用已删；`IslandShellGeometry` 瘦身至现役 `AddDashedBorder`
   （`IslandShellSettings` 及平台/收形锥族已删）；`ScenePropGeometry` 复核为活

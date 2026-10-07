@@ -3,7 +3,7 @@
 > **这份文档是什么**：`tools/blender/pixel/` 这套**像素化导出模板**的用法与实测口径——
 > 三个函数各做什么、命令行怎么调、kit 脚本怎么接入、有哪些 Blender 版本差异必须知道。
 > 它是 [像素纹理.md](像素纹理.md) §6「Blender 导出模板新增」三件事的落地说明。
-> **注意**：三件事中的 ②（顶点色量化锁板）属「纹理量化锁板」层，已随创始人 2026-09-29 裁决取消
+> **注意**：三件事中的 ②（顶点色量化锁板）属「纹理量化锁板」层，已取消
 > （[风格指南 §3.2](../../设计/美术.md)）——功能仍在库且自证通过，kit 脚本已无调用；①③ 现役。
 >
 > **前置阅读**：[调色板.md](调色板.md)（板与 OkLab 口径）、
@@ -98,10 +98,10 @@
 | 量化边界 | 传 `SmoothNormal` | 必须抛错 |
 | OkLab | 官方 4 组 XYZ | 最大偏差 0.000403 ≤ 1e-3 |
 
-实测输出（2026-09-21，Blender 5.2.2）：
+实测输出（，Blender 5.2.2）：
 
 ```
-POS  density=32.0000 jac_max=1.00000 problems=[]
+POS density=32.0000 jac_max=1.00000 problems=[]
 NEG1 density=96.0000 jac_max=1.00000 problems=['…聚合纹素密度 96.000 px/米 不在 31.840~32.160…']
 NEG2 density=55.4256 jac_max=3.00000 problems=['…密度 55.426…', '…Jacobian 长短轴比 3.0000 ≥ 1.0100…']
 SMOOTH corner_groups=8 inconsistent=0 channel_range={'min': (0.5029, 0.2122, 0.2122, 0.2118), 'max': (0.5029, 0.7913, 0.7913, 0.7882)}
@@ -133,7 +133,7 @@ SELFTEST PASSED
 
 ## 4. UV 展开与密度锁定（存量资产的补齐步骤）
 
-**实测发现（2026-09-21）**：`Assets/Art/Models/` 下 **49 件 FBX 全部没有 UV 层**
+**实测发现（）**：`Assets/Art/Models/` 下 **49 件 FBX 全部没有 UV 层**
 （WorldKit 47 件 + SceneKit 的 `Flagship` / `Dock`），逐件清单见
 `check_worldkit_density.py` 的 JSON 报告。批量体检结果：**不合规 49/49，根因全是"没有 UV"**。
 
@@ -148,12 +148,12 @@ kit 脚本只出几何与 `Kit_*` 材质槽，不展开 UV。所以像素纹理�
 实测 `BarrelWood.fbx`（199 三角面、4 个材质槽、313 顶点）：
 
 ```
-STEP 平滑法线→顶点色 BarrelWood   R=0.503 G=0.000 B=0.000 A=0.000
-STEP UV 展开+密度锁定 BarrelWood  密度 21.977 → 32.000
+STEP 平滑法线→顶点色 BarrelWood R=0.503 G=0.000 B=0.000 A=0.000
+STEP UV 展开+密度锁定 BarrelWood 密度 21.977 → 32.000
 STEP 导出 FBX …/BarrelWood_pixel.fbx（1 个对象，26620 字节）
-ROUNDTRIP 重新导入：color_attributes=['SmoothNormal']  min=(0.5029, 0.0, 0.0, 0.0) max=(0.5029, 1.0, 1.0, 1.0)
-asset          tris  uvless  density  jac_max  outliers  verdict
-BarrelWood      199       0   32.000  2.36555       195  FAIL(1)
+ROUNDTRIP 重新导入：color_attributes=['SmoothNormal'] min=(0.5029, 0.0, 0.0, 0.0) max=(0.5029, 1.0, 1.0, 1.0)
+asset tris uvless density jac_max outliers verdict
+BarrelWood 199 0 32.000 2.36555 195 FAIL(1)
 DENSITY-FAIL BarrelWood：Jacobian 长短轴比 2.3655 ≥ 1.0100（texel 非方形）
 ```
 
@@ -206,13 +206,13 @@ import sys, os
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "blender", "export"))
 import pixel_export as PX
 
-PX.oklab_selftest()                                   # 转换自检（漂移即抛错，别让污染过夜）
+PX.oklab_selftest() # 转换自检（漂移即抛错，别让污染过夜）
 for obj in export_objects:
-    PX.bake_smooth_normals_to_vertex_colors(obj)      # ① 平滑法线 → 顶点色
+    PX.bake_smooth_normals_to_vertex_colors(obj) # ① 平滑法线 → 顶点色
     if obj.data.color_attributes.get(PX.FLAT_COLOR_ATTRIBUTE):
-        PX.quantize_vertex_colors(obj, PX.load_palette_lab())   # ② 平涂色锁板（有才做）
-PX.assert_texel_density(export_objects, texel_size_px=128)      # ③ 密度硬门禁（不达标就抛）
-PX.export_fbx(export_objects, fbx_path)               # 导出（单位/轴向铁律不变）
+        PX.quantize_vertex_colors(obj, PX.load_palette_lab()) # ② 平涂色锁板（有才做）
+PX.assert_texel_density(export_objects, texel_size_px=128) # ③ 密度硬门禁（不达标就抛）
+PX.export_fbx(export_objects, fbx_path) # 导出（单位/轴向铁律不变）
 ```
 
 `assert_texel_density` 是**硬版本**（有问题就抛），`check_texel_density` 是返回结果的软版本

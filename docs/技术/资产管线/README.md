@@ -7,8 +7,8 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [像素纹理.md](像素纹理.md) | **现行资产生产口径**：纹素密度 / 尺寸 / 导入落地（目录判定规则、导入五项设置、AssetPostprocessor 强制、EditMode 门禁、新资产接入步骤）；§4/§5 量化链已随 2026-09-29 锁板裁决取消、保留存档 |
-| [调研.md](调研.md) | 量化调研：OkLab 锁板映射、Yliluoma 任意板抖动、密度校验公式、BC7 除名裁决、行业先例（已核 17 来源） |
+| [像素纹理.md](像素纹理.md) | **现行资产生产口径**：纹素密度 / 尺寸 / 导入落地（目录判定规则、导入五项设置、AssetPostprocessor 强制、EditMode 门禁、新资产接入步骤）；§4/§5 量化链已随 锁板定案取消、保留存档 |
+| [调研.md](调研.md) | 量化调研：OkLab 锁板映射、Yliluoma 任意板抖动、密度校验公式、BC7 除名定案、行业先例（已核 17 来源） |
 | [UI九宫格.md](UI九宫格.md) | **UI 换装的实现口径**：九段几何（u 基本单位，现役 3px）、七 tone 令牌派生、九宫格切片契约、与参照的逐段实测对照（UI 像素参照档案见 [images/ui-pixel-ref](../../images/ui-pixel-ref/README.md)） |
 
 ## 操作手册（按角色）
@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | [调色板.md](调色板.md) | 美术 / 管线工程师 / 任何改板的人 | 68 槽板的**族结构与阶梯族规则**（现役职能 = 取色令牌真源，限色机制已取消）；唯一真源（JSON）与 Unity 镜像的一致性路径与三条对账命令；`tools/palette/palette_tool.py` 全部子命令；量化工具链存档（已退出生产链）与确定性证据（sha256） |
 | [Blender导出.md](Blender导出.md) | 写 kit 脚本的人 | `tools/blender/pixel/` 三件事（平滑法线烘顶点色 / 顶点色量化 / 纹素密度校验）的用法、参数、退出码；**顶点色两个互斥用途**的硬边界；判据的硬失败 vs 只计数口径；正反对照自证；Blender 5.2 的两条版本差异（`colors_type=SRGB`、没有 "Normals Only"）；实测发现（49 件 FBX 无 UV） |
-| （WorldKit 场景套件） | 建 kit 资产的人 | `tools/blender/scene/` 的 kit 建模与站面 manifest 机制（`style_tokens.py` / `sync_standables.py`）：**文档已随 M4 归档**，机制见 [归档/M4-世界化](../../项目/归档/M4-世界化/大海域世界化.md) §4；基建去留裁决挂 [world-海图101-108删除](../../项目/待办/world-海图101-108删除.md) §三 |
+| （WorldKit 场景套件） | 建 kit 资产的人 | `tools/blender/scene/` 的 kit 建模与站面 manifest 机制（`style_tokens.py` / `sync_standables.py`）：**文档已随 M4 归档**，机制见 [归档/M4-世界化](../../项目/归档/M4-世界化/大海域世界化.md) §4；基建去留定案挂 [world-海图101-108删除](../../项目/待办/world-海图101-108删除.md) §三 |
 
 ## 与其它域的交界
 

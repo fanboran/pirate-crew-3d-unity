@@ -8,9 +8,9 @@
 >
 > **登记有两层**：
 > 1. **代码侧真源**：各模块 `XxxEvents` 类的频道字段（`Core/SceneEvents.cs`、`Core/SaveEvents.cs`、
->    `PirateCrew/Battle/BattleEvents.cs`、`Campaign/CampaignEvents.cs`、`CrewManagement/CrewManagementEvents.cs`）。
->    每个事件一个频道字段，发布/订阅双方都从这里取——单一事实源，**禁止在调用点内联 `new Event()`**
->    （两个各自 `new` 出来的实例是两个不同频道，发布与订阅对不上就是"事件发了没人收到"）。
+> `PirateCrew/Battle/BattleEvents.cs`、`Campaign/CampaignEvents.cs`、`CrewManagement/CrewManagementEvents.cs`）。
+> 每个事件一个频道字段，发布/订阅双方都从这里取——单一事实源，**禁止在调用点内联 `new Event()`**
+> （两个各自 `new` 出来的实例是两个不同频道，发布与订阅对不上就是"事件发了没人收到"）。
 > 2. **本表（人读）**：给人和新会话 AI 看的契约全貌——频道 / 载荷类型 / 发布方 / 订阅方。
 >
 > **新增事件两步走**：
@@ -26,24 +26,24 @@
 
 ```csharp
 // ── 声明（只写在所属模块的 XxxEvents 类里，调用点禁止内联 new Event）──
-public static readonly Event<CrewDamagedPayload> CrewDamaged = new();   // 带载荷
-public static readonly Event GoBack = new();                            // 无载荷
+public static readonly Event<CrewDamagedPayload> CrewDamaged = new(); // 带载荷
+public static readonly Event GoBack = new(); // 无载荷
 
 // ── 发布：载荷类型由频道锁定，写错即编译错误 ──
 EventBus.Publish(BattleEvents.CrewDamaged, new CrewDamagedPayload(id, team, dmg, hp, maxHp));
-EventBus.Publish(SceneEvents.GoBack);                       // 无载荷事件
+EventBus.Publish(SceneEvents.GoBack); // 无载荷事件
 
 // ── 订阅 / 退订：T 由频道推断，不需要显式写 <T> ──
-EventBus.Subscribe(BattleEvents.CrewDamaged, OnCrewDamaged);   // OnCrewDamaged: Action<CrewDamagedPayload>
+EventBus.Subscribe(BattleEvents.CrewDamaged, OnCrewDamaged); // OnCrewDamaged: Action<CrewDamagedPayload>
 EventBus.Unsubscribe(BattleEvents.CrewDamaged, OnCrewDamaged);
-EventBus.Subscribe(SceneEvents.GoBack, OnGoBackRequest);       // 无载荷: Action
+EventBus.Subscribe(SceneEvents.GoBack, OnGoBackRequest); // 无载荷: Action
 
 // ── 查询 / 清理 ──
-EventBus.HasListeners(BattleEvents.CrewDamaged);            // 有无监听者
-EventBus.ListenerCount(BattleEvents.CrewDamaged);           // 监听者数量（诊断/测试用）
-EventBus.ClearEvent(BattleEvents.CrewDamaged);              // 清某个频道
-EventBus.ClearAll();                                        // 清全部（慎用）
-EventBus.ResetForNewSession();                              // 清订阅表 + 误用记录；由唯一入口 GameEntryPoint 进入播放前调用
+EventBus.HasListeners(BattleEvents.CrewDamaged); // 有无监听者
+EventBus.ListenerCount(BattleEvents.CrewDamaged); // 监听者数量（诊断/测试用）
+EventBus.ClearEvent(BattleEvents.CrewDamaged); // 清某个频道
+EventBus.ClearAll(); // 清全部（慎用）
+EventBus.ResetForNewSession(); // 清订阅表 + 误用记录；由唯一入口 GameEntryPoint 进入播放前调用
 ```
 
 **频道语义三条**：

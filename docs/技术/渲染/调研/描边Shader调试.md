@@ -16,7 +16,7 @@
 
 ---
 
-## ✅ 截图已产出（2026-09-13，图形界面编辑器 + play mode）
+## ✅ 截图已产出（，图形界面编辑器 + play mode）
 
 **5 档截图已实际采集并逐档核验**，产物在仓库根 [`docs/images/outline-debug/`](../../images/outline-debug/)：
 
@@ -114,7 +114,7 @@
 
 - **应看到**：本体消失，单位位置变成**品红实色块**（外扩后的背面壳），无描边颜色、无虚线。
   ⚠ **对实心凸体（本工程的单位是 Cube）这里是"实心剪影"，不是"一圈环"**：背面壳的投影并集等于整个剪影，
-  要等本体 Pass 盖住中间才看得出环。2026-09-13 实测：单位区域 675 个像素全是 `(255,0,255)`。
+  要等本体 Pass 盖住中间才看得出环。 实测：单位区域 675 个像素全是 `(255,0,255)`。
   如果模型是薄壳/镂空件，才会看到真正的"环"。
 - **常见异常**：
   - 本体轮廓"发胖"但看不到品红 → 说明看到的是本体在档 1 的残留？不对，档 2 本体 Pass 会 `discard`；若仍见本体，是档位写错。
@@ -126,7 +126,7 @@
 ### 档 3 —— 只显示描边掩码（单色剪影）
 
 - **应看到**：单位位置是**不透明、无流动**的纯青色实心剪影（把描边当实线画），忽略虚线、忽略 hover 的半透明。
-  同样是"实心"而非"一圈"，原因见档 2。2026-09-13 实测：单位区域 675 个像素全是 `(73,215,211)`。
+  同样是"实心"而非"一圈"，原因见档 2。 实测：单位区域 675 个像素全是 `(73,215,211)`。
 - **常见异常**：
   - 轮廓断断续续 → 同档 2 的法线不连续问题（外扩位移在硬边处不一致）。
   - 完全没有轮廓 → 见档 2 最后一条（`LightMode` 撞车）；或 `Cull Front` 写反（改 `Cull Back` 试）。
@@ -179,7 +179,7 @@
 | 虚线像静止/闪烁 | 检查 `_Time.y * _DashSpeed`，`_DashSpeed = 0` 会静止 |
 | **描边只有两三段短线、不成一圈** | 虚线周期与单位屏幕尺寸同量级：`_DashFrequency` 调小（更长虚线）**或**把战斗相机拉近（当前正交尺寸 10，整关可见，单位只有约 27×36px） |
 
-> **2026-09-13 实测的观感记录**：选中态在 2560×1440 下，`_DashFrequency = 50` 对应约 45px 实线 + 45px 空白，
+> ** 实测的观感记录**：选中态在 2560×1440 下，`_DashFrequency = 50` 对应约 45px 实线 + 45px 空白，
 > 而单位周长约 126px → 一圈上只能落 1~2 个完整虚线段，视觉上像"角落有两三道短线"。
 > 这是**相机取景 + 单位尺寸**与虚线频率的合成结果，不是描边失效（判据：档 3 的实心掩码是完整剪影）。
 > 改法有两条独立杠杆（调 `_DashFrequency`、调相机正交尺寸/跟随），都属美术取向，留观感验收决定。
@@ -224,8 +224,8 @@
 
 > **实测结论（重要）**：本工程当前两套 URP 资产都是 **未开启** 的，直接抄那条路线会输出死色：
 > ```
-> Assets/Settings/URP/PC_Balanced_URPAsset.asset:22   m_RequireDepthTexture: 0
-> Assets/Settings/URP/PC_Balanced_URPAsset.asset:23   m_RequireOpaqueTexture: 0
+> Assets/Settings/URP/PC_Balanced_URPAsset.asset:22 m_RequireDepthTexture: 0
+> Assets/Settings/URP/PC_Balanced_URPAsset.asset:23 m_RequireOpaqueTexture: 0
 > Assets/Settings/URP/PC_Performant_URPAsset.asset:22 m_RequireDepthTexture: 0
 > Assets/Settings/URP/PC_Performant_URPAsset.asset:23 m_RequireOpaqueTexture: 0
 > ```
@@ -371,7 +371,7 @@ dotnet build VerifyEditorOutline.csproj
 
 ### 6.2 全屏后处理描边（代码保留，**当前未启用**）
 
-`OutlineRendererFeature` 当前**未挂到任何 URP Renderer 资产**（已裁决退役，出处：
+`OutlineRendererFeature` 当前**未挂到任何 URP Renderer 资产**（已定案退役，出处：
 PBR 根除批次待办的描边退役行，原立项任务书处置表已根除）。
 
 - mask Pass 会把 `maskLayer` 上的**全部不透明物体**画成白剪影再做 Sobel，`Everything` 会把地面也算进去，
@@ -397,7 +397,7 @@ PBR 根除批次待办的描边退役行，原立项任务书处置表已根除�
 
 1. ~~真实截图未产出~~ → **已产出并核验**（见文首与 `docs/images/outline-debug/`）。
 2. `PirateOutline.shader` **没有 ShadowCaster Pass**：单位材质换成它之后单位不投影，且本体光照是 shader 内的简单 Lambert + SH（不再是 URP/Lit）。若观感验收要求阴影/更丰富光照，补一个 `LightMode = "ShadowCaster"` 的极简 Pass（注意 `_LightDirection` / `ApplyShadowBias`），或改成"本体保持 URP/Lit + 描边走复制网格"（代价是共面 z-fighting 与网格复制管理）。
-3. ~~`OutlineRendererFeature` 需要手工加到 URP Renderer 资产~~ → **未挂载**（已裁决退役，代码保留作未来"Sobel 虚线轮廓"备选，见 §6.2 与 [PBR 根除批次待办](../../../项目/待办/rendering-pbr根除批次.md)），当前不参与渲染。
+3. ~~`OutlineRendererFeature` 需要手工加到 URP Renderer 资产~~ → **未挂载**（已定案退役，代码保留作未来"Sobel 虚线轮廓"备选，见 §6.2 与 [PBR 根除批次待办](../../../项目/待办/rendering-pbr根除批次.md)），当前不参与渲染。
 4. 基础描边的「近处增粗」（`outline_near_boost`）未实现。
 5. 后处理描边的 `_DashLength/_DashGap` 是**像素**单位，分辨率变化时观感会变；若要分辨率无关需改成 NDC 单位。
 6. **实体描边的虚线在小单位上偏碎**（见 §三 末尾的实测记录）——观感问题，留验收决定。
