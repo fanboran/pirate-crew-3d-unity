@@ -289,5 +289,16 @@ namespace PirateCrew.Ambient.Tests
             Assert.Greater(AmbientBudget.MaxAmbientTriangles, 0);
             Assert.Greater(AmbientBudget.MaxAmbientDrawCalls, 0);
         }
+
+        [Test]
+        public void CrabsAllowedForLevel_SkyLevelsExcluded()
+        {
+            // 空中关（1 云端漫步、3 天空之岛）无滩涂 → 螃蟹禁（2026-10-07 创始人裁决）；
+            // 其余关卡（4 化工厂等有岸关）默认允许，未知关号也默认允许。
+            Assert.IsFalse(AmbientBudget.CrabsAllowedForLevel(1));
+            Assert.IsFalse(AmbientBudget.CrabsAllowedForLevel(3));
+            Assert.IsTrue(AmbientBudget.CrabsAllowedForLevel(4));
+            Assert.IsTrue(AmbientBudget.CrabsAllowedForLevel(99));
+        }
     }
 }

@@ -101,6 +101,7 @@ namespace PirateCrew.EditorTools
             }
 
             Headless = headless;
+            ApplyEnvMaterialTuning();
             ShotsLeft = ShotCount;
             ShotIndex = 0;
             Countdown = FirstShotDelayTicks;
@@ -121,6 +122,14 @@ namespace PirateCrew.EditorTools
         {
             if (!Armed || !EditorApplication.isPlaying)
                 return;
+
+            // 拍图档位覆盖（环境变量 PC3D_PIXEL_SCALE）：**每帧写**直到生效——Start 时 Play 还没起，
+            // PixelScaleService.Install 的读档（batchmode 下能读到存档档位）会覆盖 ScaleDefault；
+            // rig 下一帧 Update 按 Unit 自适应。1×（关像素化）不在设置域内，此处专供拍图对照。
+            if (System.Environment.GetEnvironmentVariable("PC3D_PIXEL_SCALE") is string psRaw
+                && int.TryParse(psRaw, out int psOverride) && psOverride >= 1 && psOverride <= 5
+                && global::PirateCrew.Core.PixelScaleState.Unit != psOverride)
+                global::PirateCrew.Core.PixelScaleState.Unit = psOverride;
 
             Countdown--;
             if (Countdown > 0)
@@ -156,37 +165,6 @@ namespace PirateCrew.EditorTools
 
             ShotsLeft--;
             Countdown = ShotIntervalTicks;
-            ApplyZoomTier(ShotIndex + 1);
-        }
-
-        /// <summary>缩放档对比（创始人裁决「还是太小了」）：第 2/3 枪把 Driver 的目标 ortho
-        /// 反射改档（<c>_targetOrthoSize</c> 是单一写入者的输入口，随帧平滑到位），
-        /// 第 1 枪保持默认近景档不动。档值只服务对比出图，不回写任何常量。</summary>
-        static readonly float[] ZoomTierTargets = { 0f, 5.15f, 3.43f };   // 0 = 保持默认
-
-        static void ApplyZoomTier(int nextShot)
-        {
-            if (nextShot < 1 || nextShot > ZoomTierTargets.Length)
-                return;
-            float tier = ZoomTierTargets[nextShot - 1];
-            if (tier <= 0f)
-                return;
-            var driver = Object.FindFirstObjectByType<PirateCrew.Battle.BattleCameraDriver>();
-            if (driver == null)
-            {
-                Debug.Log("[BattleHudScreenshot] 场景无 BattleCameraDriver（非 Battle 对比拍），缩放档跳过。");
-                return;
-            }
-            var fld = typeof(PirateCrew.Battle.BattleCameraDriver).GetField("_targetOrthoSize",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (fld == null)
-            {
-                Debug.LogError("[BattleHudScreenshot] 找不到 BattleCameraDriver._targetOrthoSize，缩放档跳过。");
-                return;
-            }
-            fld.SetValue(driver, tier);
-            Debug.Log("[BattleHudScreenshot] 第 " + nextShot + " 枪目标 ortho = " + tier
-                + "（可见高 " + (tier * 2f).ToString("F1") + " m）");
         }
 
         /// <summary>运行时取证：出战船员的根/Visual 世界缩放（身高争议现场数据）。</summary>
@@ -212,6 +190,9 @@ namespace PirateCrew.EditorTools
 
         static void PrepareCanvasForCapture()
         {
+            if (TryGetDebugMode(out float debugMode))
+                Shader.SetGlobalFloat(global::PirateCrew.Rendering.Pixelart.PixelartPath.DebugModeId, debugMode);
+
             Camera cam = Camera.main;
             if (cam == null)
                 cam = Object.FindObjectOfType<Camera>();
@@ -323,8 +304,151 @@ namespace PirateCrew.EditorTools
             Canvas.ForceUpdateCanvases();
         }
 
+        /// <summary>
+        /// 同帧导出墨线标记缓冲（battle-hud-N-outline.png，艺术画布原尺寸，描边第二趟缝闭合后的
+        /// 最终版）——拆管线用：最终画面与描边趟的标记逐像素对得上（同一帧、同一次渲染），
+        /// 不存在跨进程相位差。
+        /// </summary>
+        static void DumpOutlineBufferSameFrame(int index)
+        {
+            var rig = global::PirateCrew.Rendering.Pixelart.PixelartPath.ActiveRig;
+            RenderTexture outline = rig != null ? rig.OutlineClosedBuffer : null;
+            if (outline == null)
+                outline = rig != null ? rig.OutlineBuffer : null;   // 旧资产/闭合趟未跑时兜底
+            if (outline == null)
+                return;
+
+            // 对照导出第一趟原始判定（battle-hud-N-outline-pass1.png）：两份相减 = 闭合趟补了哪些格。
+            if (rig != null && rig.OutlineBuffer != null && rig.OutlineBuffer != outline)
+            {
+                RenderTexture prev0 = RenderTexture.active;
+                RenderTexture.active = rig.OutlineBuffer;
+                var tex0 = new Texture2D(rig.OutlineBuffer.width, rig.OutlineBuffer.height, TextureFormat.RGBA32, false);
+                tex0.ReadPixels(new Rect(0, 0, rig.OutlineBuffer.width, rig.OutlineBuffer.height), 0, 0);
+                tex0.Apply();
+                RenderTexture.active = prev0;
+                File.WriteAllBytes(Path.Combine(OutputDir, "battle-hud-" + index + "-outline-pass1.png"),
+                    tex0.EncodeToPNG());
+                Object.DestroyImmediate(tex0);
+            }
+
+            Debug.Log("[BattleHudScreenshot][勘] pixelScale=" + rig.pixelScale
+                + " Screen=" + Screen.width + "x" + Screen.height
+                + " 画布=" + outline.width + "x" + outline.height);
+            RenderTexture prev = RenderTexture.active;
+            RenderTexture.active = outline;
+            var tex = new Texture2D(outline.width, outline.height, TextureFormat.RGBA32, false);
+            tex.ReadPixels(new Rect(0, 0, outline.width, outline.height), 0, 0);
+            tex.Apply();
+            RenderTexture.active = prev;
+
+            File.WriteAllBytes(Path.Combine(OutputDir, "battle-hud-" + index + "-outline.png"),
+                tex.EncodeToPNG());
+            Object.DestroyImmediate(tex);
+        }
+
+        /// <summary>
+        /// 同帧导出覆盖缓冲（battle-hud-N-cover.png，屏幕档原尺寸，灰度 = albedo.a × 255）——
+        /// 拆"块内细像素覆盖分布"用：缝诊断要数每个艺术像素块 (k×k) 里有几何的细像素数，
+        /// 判"锚点细像素落空但块内有几何"（偶数档锚偏角上的量化丢边）。
+        /// 环境变量 PC3D_DUMP_COVER 非空时才导（例常截图不多写两张大图）。
+        /// </summary>
+        static void DumpCoverageBufferSameFrame(int index)
+        {
+            if (System.Environment.GetEnvironmentVariable("PC3D_DUMP_COVER") is not string on
+                || on.Length == 0)
+                return;
+
+            var rig = global::PirateCrew.Rendering.Pixelart.PixelartPath.ActiveRig;
+            RenderTexture albedo = rig != null ? rig.AlbedoBuffer : null;
+            if (albedo == null)
+                return;
+
+            RenderTexture prev = RenderTexture.active;
+            RenderTexture.active = albedo;
+            var tex = new Texture2D(albedo.width, albedo.height, TextureFormat.RGBA32, false);
+            tex.ReadPixels(new Rect(0, 0, albedo.width, albedo.height), 0, 0);
+            tex.Apply();
+            RenderTexture.active = prev;
+
+            // 只留覆盖灰度（RGB = a），脚本侧免解 alpha 通道。
+            var px = tex.GetPixels32();
+            for (int i = 0; i < px.Length; i++)
+                px[i] = new Color32(px[i].a, px[i].a, px[i].a, 255);
+            tex.SetPixels32(px);
+
+            File.WriteAllBytes(Path.Combine(OutputDir, "battle-hud-" + index + "-cover.png"),
+                tex.EncodeToPNG());
+            Object.DestroyImmediate(tex);
+
+            // 同帧导出 Patch 副本覆盖（battle-hud-N-coverpatch.png）——与 cover 对照即 BlockPatch
+            // 的提升/直通实况（假覆盖、错位一眼可辨）。
+            RenderTexture albedoPatch = rig.AlbedoPatchBuffer;
+            if (albedoPatch != null)
+            {
+                RenderTexture.active = albedoPatch;
+                var texAP = new Texture2D(albedoPatch.width, albedoPatch.height, TextureFormat.RGBA32, false);
+                texAP.ReadPixels(new Rect(0, 0, albedoPatch.width, albedoPatch.height), 0, 0);
+                texAP.Apply();
+                RenderTexture.active = prev;
+                var pxAP = texAP.GetPixels32();
+                for (int i = 0; i < pxAP.Length; i++)
+                    pxAP[i] = new Color32(pxAP[i].a, pxAP[i].a, pxAP[i].a, 255);
+                texAP.SetPixels32(pxAP);
+                File.WriteAllBytes(Path.Combine(OutputDir, "battle-hud-" + index + "-coverpatch.png"),
+                    texAP.EncodeToPNG());
+                Object.DestroyImmediate(texAP);
+            }
+
+            // 同帧导出逐物体描边开关（battle-hud-N-palette.png，灰度 = palette.a × 255）——
+            // 缝诊断要区分"墨线与物体之间的空格"是病（物体开着描边却没出墨）还是
+            // 合法（物体本就不描边，墨线是旁边另一个物体的）。
+            RenderTexture palette = rig.PaletteBuffer;
+            if (palette == null)
+                return;
+            RenderTexture.active = palette;
+            var texP = new Texture2D(palette.width, palette.height, TextureFormat.RGBA32, false);
+            texP.ReadPixels(new Rect(0, 0, palette.width, palette.height), 0, 0);
+            texP.Apply();
+            RenderTexture.active = prev;
+            var pxP = texP.GetPixels32();
+            for (int i = 0; i < pxP.Length; i++)
+                pxP[i] = new Color32(pxP[i].a, pxP[i].a, pxP[i].a, 255);
+            texP.SetPixels32(pxP);
+            File.WriteAllBytes(Path.Combine(OutputDir, "battle-hud-" + index + "-palette.png"),
+                texP.EncodeToPNG());
+            Object.DestroyImmediate(texP);
+        }
+
+        /// <summary>
+        /// 拍摄帧 dump 全部战斗单位（勘日志）：世界坐标 + Cast 相机视口坐标 + 激活状态——
+        /// "画面里少了谁/谁被谁挡"这类问题靠它一锤定音（视口 [0,1]²，出界 = 不在取景内）。
+        /// </summary>
+        static void DumpUnitsSameFrame(int index)
+        {
+            var rig = global::PirateCrew.Rendering.Pixelart.PixelartPath.ActiveRig;
+            Camera cam = rig != null ? rig.CastCamera : Camera.main;
+            var units = Object.FindObjectsByType<global::PirateCrew.Battle.PirateBase>(
+                FindObjectsSortMode.None);
+            Debug.Log("[BattleHudScreenshot][勘] shot" + index + " 单位数=" + units.Length
+                + " 相机=" + (cam != null ? cam.name : "空"));
+            foreach (var u in units)
+            {
+                Vector3 p = u.transform.position;
+                Vector3 vp = cam != null ? cam.WorldToViewportPoint(p) : Vector3.zero;
+                Debug.Log("[BattleHudScreenshot][勘]   " + u.name
+                    + " pos=(" + p.x.ToString("F2") + "," + p.y.ToString("F2") + "," + p.z.ToString("F2")
+                    + ") viewport=(" + vp.x.ToString("F2") + "," + vp.y.ToString("F2") + ")"
+                    + " active=" + u.gameObject.activeInHierarchy);
+            }
+        }
+
         static void Finish()
         {
+            Shader.SetGlobalFloat(global::PirateCrew.Rendering.Pixelart.PixelartPath.DebugModeId, 0f);
+            foreach (var (mat, prop, value) in _EnvTuningBackup)
+                mat.SetFloat(prop, value);      // 恢复资产原值,防退出时自动保存泄漏临时值
+            _EnvTuningBackup.Clear();
             SessionState.SetBool(KeyArmed, false);
             SessionState.SetBool(KeyCanvasPrepared, false);
             EditorApplication.update -= Tick;
@@ -333,6 +457,64 @@ namespace PirateCrew.EditorTools
             Debug.Log("[BattleHudScreenshot] 完成，输出目录 " + OutputDir);
             if (Headless)
                 EditorApplication.Exit(0);
+        }
+
+        /// <summary>
+        /// 环境变量材质调参（参数扫描出图用，只改内存值不落盘）：
+        /// PC3D_EDGE_T = 法线边阈值（云两材质 _NormalEdgeThreshold，1.0 ≈ 面夹角 60°）
+        /// PC3D_EDGE_L = 法线边档位（负 = 压暗档数）
+        /// PC3D_CUTS   = 色带档数（_MainLightLevel）
+        /// </summary>
+        // 环境变量调参的资产原值备份(退出前恢复,防 Unity 资产自动保存把临时值写盘)
+        static readonly List<(Material mat, string prop, float value)> _EnvTuningBackup
+            = new List<(Material, string, float)>();
+
+        static void ApplyEnvMaterialTuning()
+        {
+            string tRaw = System.Environment.GetEnvironmentVariable("PC3D_EDGE_T");
+            string lRaw = System.Environment.GetEnvironmentVariable("PC3D_EDGE_L");
+            string cRaw = System.Environment.GetEnvironmentVariable("PC3D_CUTS");
+            if (tRaw == null && lRaw == null && cRaw == null)
+                return;
+
+            foreach (string path in new[]
+            {
+                "Assets/Art/Materials/Lowpoly/Lowpoly_CloudWarmWhite.mat",
+                "Assets/Art/Materials/Lowpoly/Lowpoly_CloudPaleGold.mat",
+            })
+            {
+                Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (m == null)
+                    continue;
+                if (tRaw != null && float.TryParse(tRaw, out float tv))
+                {
+                    _EnvTuningBackup.Add((m, "_NormalEdgeThreshold", m.GetFloat("_NormalEdgeThreshold")));
+                    m.SetFloat("_NormalEdgeThreshold", tv);
+                }
+                if (lRaw != null && float.TryParse(lRaw, out float lv))
+                {
+                    _EnvTuningBackup.Add((m, "_NormalEdgeLevel", m.GetFloat("_NormalEdgeLevel")));
+                    m.SetFloat("_NormalEdgeLevel", lv);
+                }
+                if (cRaw != null && float.TryParse(cRaw, out float cv))
+                {
+                    _EnvTuningBackup.Add((m, "_MainLightLevel", m.GetFloat("_MainLightLevel")));
+                    m.SetFloat("_MainLightLevel", cv);
+                }
+            }
+            Debug.Log("[BattleHudScreenshot] 材质调参 EDGE_T=" + tRaw + " EDGE_L=" + lRaw + " CUTS=" + cRaw);
+        }
+
+        /// <summary>
+        /// 出图诊断档（环境变量 PC3D_CAPTURE_DEBUG）：非空时把
+        /// <c>_PixelartDebugMode</c> 置为该值再抓帧（契约 §2.2 档位表——1 = albedo、
+        /// 4 = 墨线标记、8/9/10 = 描边趟自有诊断）。抓完 Finish 里归 0。
+        /// </summary>
+        static bool TryGetDebugMode(out float mode)
+        {
+            mode = 0f;
+            string raw = System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_DEBUG");
+            return !string.IsNullOrEmpty(raw) && float.TryParse(raw, out mode);
         }
 
         static void CaptureOne(int index)
@@ -400,6 +582,9 @@ namespace PirateCrew.EditorTools
             Directory.CreateDirectory(OutputDir);
             string path = Path.Combine(OutputDir, "battle-hud-" + index + ".png");
             File.WriteAllBytes(path, final.EncodeToPNG());
+            DumpOutlineBufferSameFrame(index);
+            DumpCoverageBufferSameFrame(index);
+            DumpUnitsSameFrame(index);
             Object.DestroyImmediate(world);
             Object.DestroyImmediate(ui);
             Object.DestroyImmediate(final);

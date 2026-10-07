@@ -435,6 +435,11 @@ namespace PirateCrew.Battle
                 _teams[entry.TeamIndex].Add(pirate);
             }
 
+            // 按关氛围规则：空中关（云端/天空岛）的螃蟹是滩涂生物、出现在云侧读作噪点，
+            // 按关移除（规则本体在 AmbientBudget.CrabsAllowedForLevel，纯函数可无头测）。
+            FindFirstObjectByType<global::PirateCrew.Ambient.AmbientDirector>()
+                ?.ApplyLevelCrabRules(LevelNumber);
+
             _spawned = true;
         }
 

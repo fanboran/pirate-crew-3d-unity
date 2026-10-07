@@ -658,8 +658,39 @@ namespace PirateCrew.Ambient
         // 螃蟹
         // ------------------------------------------------------------------
 
+        /// <summary>
+        /// 按关应用螃蟹规则（<see cref="AmbientBudget.CrabsAllowedForLevel"/>）：空中关（云端/天空岛）
+        /// 不该有滩涂生物。**双向时序防御**——本方法可能早于（存号，Build 时跳过 SpawnCrabs）
+        /// 或晚于（就地清掉已刷的 Crab_N）本组件的 Start/Build，两个方向都正确。
+        /// 调用方：<c>BattleController.SpawnTeams</c>。
+        /// </summary>
+        public void ApplyLevelCrabRules(int levelNumber)
+        {
+            _levelNumber = levelNumber;
+            if (AmbientBudget.CrabsAllowedForLevel(levelNumber) || _crabs.Count == 0)
+                return;
+
+            for (int i = 0; i < _crabs.Count; i++)
+            {
+                if (_crabs[i] != null)
+                    Destroy(_crabs[i].gameObject);
+            }
+            _crabs.Clear();
+            Debug.Log("[AmbientDirector] 关卡 " + levelNumber + " 无滩涂：螃蟹按关规则移除。");
+        }
+
+        /// <summary>按关氛围规则的关卡号缓存（-1 = 未知，按默认全套氛围处理）。</summary>
+        int _levelNumber = -1;
+
         void SpawnCrabs(AmbientRandom rng)
         {
+            // 空中关无滩涂：Build 晚于 ApplyLevelCrabRules 时在这里拦下（时序竞态的另一侧）。
+            if (!AmbientBudget.CrabsAllowedForLevel(_levelNumber))
+            {
+                Debug.Log("[AmbientDirector] 关卡 " + _levelNumber + " 无滩涂：螃蟹不生成。");
+                return;
+            }
+
             int count = crabCount >= 0 ? crabCount : AmbientBudget.DefaultCrabs;
             count = Mathf.Clamp(count, 0, AmbientBudget.MaxCrabs);
 
