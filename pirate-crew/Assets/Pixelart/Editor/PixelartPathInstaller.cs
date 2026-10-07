@@ -318,6 +318,7 @@ namespace PirateCrew.EditorTools
                 connectivity.checkShader = LoadCompute(PixelartPath.ConnectivityComputeFolder + "/ConnectivityCheck.compute");
                 connectivity.floodShader = LoadCompute(PixelartPath.ConnectivityComputeFolder + "/ConnectivityFlood.compute");
                 connectivity.resultShader = LoadCompute(PixelartPath.ConnectivityComputeFolder + "/ConnectivityResult.compute");
+                connectivity.blockPatchShader = LoadCompute("Assets/Pixelart/Compute/BlockPatch/BlockPatch.compute");
                 EditorUtility.SetDirty(connectivity);
             }
 

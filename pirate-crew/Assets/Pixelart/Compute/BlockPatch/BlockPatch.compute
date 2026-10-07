@@ -1,0 +1,105 @@
+// ============================================================================
+// BlockPatch.compute —— 块锚修补（"半物体块"的覆盖丢失，偶数档重灾）
+//
+// 【它是什么】屏幕档每细像素一线程：默认把 8 张 G-buffer / 深度的原值**直通**写进各自的
+//   Patch 副本；若本格是某艺术像素块的**锚**（coord % k == k/2，与 Check 段 isCenter、
+//   着色各趟"块中心 uv 点采样"同一个细像素）且锚上没有几何（albedo.a < 0.5）、而块内其它
+//   细像素有（行优先第一个 albedo.a ≥ 0.5），改写为**那个命中细像素**的全部 8 个值。
+//
+// 【为什么需要它】下游一切"块级"判定都点采样块锚：着色的 `clip(albedo.a - 0.5)`、描边的
+//   `AppliesOutlineAt`、连通域 Result 的锚走查。锚 = 块原点 + k/2 **取整**：奇数 k 落在块
+//   正中心；偶数 k（k=2）只能落在块内偏 (1,1) 的角格。斜剪影边斜穿块时，几何盖住块的
+//   左上半而锚落在物体外 ⇒ 整块被判"无覆盖"——填充被 clip（向内缩）且描边的邻域判定
+//   同样翻空（谁都不为它出墨 ⇒ 墨线断）。两个症状合观即"描边与填充之间的缝、描边消失"。
+//   本 pass 只补数据口径，**判据 / 阈值 / 出墨规则一概不动**；下游绑定切到 Patch 副本即
+//   自动修复。奇数档锚在正中、落空率天然低，行为几乎不变（顺带治它残留的少量缝）。
+//
+// 【口径】命中 = 块内覆盖**过半**（计数 ≥ (k²+1)/2：k=2 → 2/4、k=3 → 5/9），代表格取
+//   行优先第一个 albedo.a ≥ 0.5 的细像素（跳过锚，确定性与跨帧稳定）。【为什么过半而不是
+//   任意】"任意"会把块内 1/4 覆盖的亚像素碎屑（云抖动边缘的毛边）提升成整格物体——
+//   孤岛填充自带一圈新边界，实拍缝数反升（66→102）。斜剪影边的"半物体主体格"在 k=2 下
+//   恰为对角分割的 2/4，与 1/4 碎屑被过半线干净分开；k=3 收在 5/9 偏保守——奇数档本来
+//   缝少，观感以不动为上。扫描窗 clamp 在缓冲内（边缘不满块，出界格当空）。
+//   k=1 时块即单像素、扫描无候选，纯直通，行为不变。
+// ============================================================================
+
+#pragma kernel Main
+
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+// ---------------- 输入（原版，只读）----------------
+Texture2D<float4> _PixelartAlbedoBuffer;
+Texture2D<float4> _PixelartNormal0Buffer;
+Texture2D<float4> _PixelartNormal1Buffer;
+Texture2D<float4> _PixelartPhysicalBuffer;
+Texture2D<float4> _PixelartShapeBuffer;
+Texture2D<float4> _PixelartPaletteBuffer;
+Texture2D<float4> _PixelartRimLightPropertyBuffer;
+Texture2D<float>   _PixelartDepthBuffer;   // 深度附件（raw depth，与 Check 段同一读法）
+
+// ---------------- 输出（Patch 副本，UAV）----------------
+RWTexture2D<float4> _PixelartAlbedoPatch;
+RWTexture2D<float4> _PixelartNormal0Patch;
+RWTexture2D<float4> _PixelartNormal1Patch;
+RWTexture2D<float4> _PixelartPhysicalPatch;
+RWTexture2D<float4> _PixelartShapePatch;
+RWTexture2D<float4> _PixelartPalettePatch;
+RWTexture2D<float4> _PixelartRimLightPropertyPatch;
+RWTexture2D<float>   _PixelartDepthPatch;  // RFloat，存 raw depth（读法零改）
+
+// ---------------- 尺寸全局（契约 §2.2；rig 下发）----------------
+float _PixelartFineWidth;
+float _PixelartFineHeight;
+float _PixelartSamplingScale;
+
+[numthreads(8, 8, 1)]
+void Main(uint3 tid : SV_DispatchThreadID)
+{
+    int2 id = int2(tid.xy);
+    int fw = (int)_PixelartFineWidth;
+    int fh = (int)_PixelartFineHeight;
+    if (id.x < 0 || id.y < 0 || id.x >= fw || id.y >= fh)
+        return;
+
+    int k = max((int)_PixelartSamplingScale, 1);
+    int anchor = k / 2;
+
+    // 取值源：默认本格；本格是块锚、锚空、且块内覆盖过半 → 块内行优先第一个实格。
+    int2 src = id;
+    if (id.x % k == anchor && id.y % k == anchor
+        && _PixelartAlbedoBuffer[id].a < 0.5)
+    {
+        int minHits = (k * k + 1) / 2;   // 过半准入：k=2 → 2、k=3 → 5
+        int2 origin = id - int2(anchor, anchor);
+        int hits = 0;
+        int2 first = id;
+        for (int dy = 0; dy < k; dy++)
+        {
+            for (int dx = 0; dx < k; dx++)
+            {
+                if (dx == anchor && dy == anchor)
+                    continue;   // 锚本身已知为空
+                int2 c = origin + int2(dx, dy);
+                if (c.x < 0 || c.y < 0 || c.x >= fw || c.y >= fh)
+                    continue;   // 边缘不满块
+                if (_PixelartAlbedoBuffer[c].a >= 0.5)
+                {
+                    if (hits == 0)
+                        first = c;
+                    hits++;
+                }
+            }
+        }
+        if (hits >= minHits)
+            src = first;
+    }
+
+    _PixelartAlbedoPatch[id]          = _PixelartAlbedoBuffer[src];
+    _PixelartNormal0Patch[id]         = _PixelartNormal0Buffer[src];
+    _PixelartNormal1Patch[id]         = _PixelartNormal1Buffer[src];
+    _PixelartPhysicalPatch[id]        = _PixelartPhysicalBuffer[src];
+    _PixelartShapePatch[id]           = _PixelartShapeBuffer[src];
+    _PixelartPalettePatch[id]         = _PixelartPaletteBuffer[src];
+    _PixelartRimLightPropertyPatch[id] = _PixelartRimLightPropertyBuffer[src];
+    _PixelartDepthPatch[id]           = _PixelartDepthBuffer[src];
+}

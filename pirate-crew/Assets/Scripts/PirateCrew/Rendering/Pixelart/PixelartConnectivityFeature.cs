@@ -67,6 +67,11 @@ namespace PirateCrew.Rendering.Pixelart
         [Tooltip("Result 段 compute（kernel 名 Main）。")]
         public ComputeShader resultShader;
 
+        [Tooltip("块锚修补 compute（kernel 名 Main；Assets/Pixelart/Compute/BlockPatch/）。"
+            + "锚空块补块内命中格的值——偶数档描边缝的根治。引用为空时跳过修补，"
+            + "全局继续指向原版 G-buffer（等于现行行为）。")]
+        public ComputeShader blockPatchShader;
+
         // ---------------- compute 侧的私有 uniform 名（不是 shader 全局；只 SetCompute* 用）----------------
 
         /// <summary>判据阈值（v3 `ShaderPropertyStorage.cs:22` 同名）。Check / Result 两段各下发一次。</summary>
@@ -84,6 +89,17 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>`[numthreads(8,8,1)]`（三个 compute 一致）。</summary>
         const int kThreadGroupSize = 8;
 
+        // ---------------- BlockPatch 的 RW 纹理名（kernel 私有 uniform，只 SetCompute* 用）----------------
+
+        static readonly int kAlbedoPatchId = Shader.PropertyToID("_PixelartAlbedoPatch");
+        static readonly int kNormal0PatchId = Shader.PropertyToID("_PixelartNormal0Patch");
+        static readonly int kNormal1PatchId = Shader.PropertyToID("_PixelartNormal1Patch");
+        static readonly int kPhysicalPatchId = Shader.PropertyToID("_PixelartPhysicalPatch");
+        static readonly int kShapePatchId = Shader.PropertyToID("_PixelartShapePatch");
+        static readonly int kPalettePatchId = Shader.PropertyToID("_PixelartPalettePatch");
+        static readonly int kRimLightPropertyPatchId = Shader.PropertyToID("_PixelartRimLightPropertyPatch");
+        static readonly int kDepthPatchId = Shader.PropertyToID("_PixelartDepthPatch");
+
         // ---------------- 运行期状态 ----------------
 
         /// <summary>Flood 的 ping-pong 中间件（屏幕档）。**本 Feature 自管**（分配 + Dispose 释放）。</summary>
@@ -98,11 +114,13 @@ namespace PirateCrew.Rendering.Pixelart
         int m_CheckKernel = -1;
         int m_FloodKernel = -1;
         int m_ResultKernel = -1;
+        int m_BlockPatchKernel = -1;
         bool m_KernelsResolved;
         bool m_MissingShaderWarned;
         bool m_NotDispatchableWarned;
         bool m_ExecutedLogged;
         bool m_IntermediatesLogged;
+        bool m_PatchMissingWarned;
 
         sealed class Pass : ScriptableRenderPass
         {
@@ -151,7 +169,62 @@ namespace PirateCrew.Rendering.Pixelart
                 {
                     m_Owner.LogExecutedOnce(rig, fineWidth, fineHeight, artWidth, artHeight, floodIterations);
 
-                    // ---- 1) Check（屏幕档）：Normal0 + Depth → Detail ----
+                    // ---- 0) BlockPatch（屏幕档）：原 G-buffer → Patch 副本（块锚修补）----
+                    // 【为什么放在 Check 之前】Check/Flood 是**细像素级**判据，必须继续读原版
+                    //（锚修补只服务"块级"消费者）；而 Result 段与下游全部块级判定（描边 /
+                    // 着色 clip / 边缘光）要读 Patch 版。全局切换在这里做（帧内命令序）而不是
+                    // rig 的 PushStaticGlobals：引用为空时**不切**，全局保持原版 = 现行行为，
+                    // null 安全天然成立。
+                    bool usePatch = m_Owner.EnsurePatchKernel(rig);
+                    if (usePatch)
+                    {
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            PixelartPath.AlbedoBufferId, rig.AlbedoBuffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            PixelartPath.Normal0BufferId, rig.Normal0Buffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            PixelartPath.Normal1BufferId, rig.Normal1Buffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            PixelartPath.PhysicalBufferId, rig.PhysicalBuffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            PixelartPath.ShapeBufferId, rig.ShapeBuffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            PixelartPath.PaletteBufferId, rig.PaletteBuffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            PixelartPath.RimLightPropertyBufferId, rig.RimLightPropertyBuffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            PixelartPath.DepthBufferId, rig.DepthBuffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            kAlbedoPatchId, rig.AlbedoPatchBuffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            kNormal0PatchId, rig.Normal0PatchBuffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            kNormal1PatchId, rig.Normal1PatchBuffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            kPhysicalPatchId, rig.PhysicalPatchBuffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            kShapePatchId, rig.ShapePatchBuffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            kPalettePatchId, rig.PalettePatchBuffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            kRimLightPropertyPatchId, rig.RimLightPropertyPatchBuffer);
+                        cmd.SetComputeTextureParam(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            kDepthPatchId, rig.DepthPatchBuffer);
+                        cmd.DispatchCompute(m_Owner.blockPatchShader, m_Owner.m_BlockPatchKernel,
+                            groupsX, groupsY, 1);
+
+                        // 下游读全局的（描边 / 着色 / 边缘光）从这一刻起拿 Patch 版。
+                        cmd.SetGlobalTexture(PixelartPath.AlbedoBufferId, rig.AlbedoPatchBuffer);
+                        cmd.SetGlobalTexture(PixelartPath.Normal0BufferId, rig.Normal0PatchBuffer);
+                        cmd.SetGlobalTexture(PixelartPath.Normal1BufferId, rig.Normal1PatchBuffer);
+                        cmd.SetGlobalTexture(PixelartPath.PhysicalBufferId, rig.PhysicalPatchBuffer);
+                        cmd.SetGlobalTexture(PixelartPath.ShapeBufferId, rig.ShapePatchBuffer);
+                        cmd.SetGlobalTexture(PixelartPath.PaletteBufferId, rig.PalettePatchBuffer);
+                        cmd.SetGlobalTexture(PixelartPath.RimLightPropertyBufferId, rig.RimLightPropertyPatchBuffer);
+                        cmd.SetGlobalTexture(PixelartPath.DepthBufferId, rig.DepthPatchBuffer);
+                    }
+
+                    // ---- 1) Check（屏幕档）：Normal0 + Depth → Detail ----（细像素级，读原版）
                     cmd.SetComputeFloatParam(m_Owner.checkShader, kThresholdId, m_Owner.threshold);
                     cmd.SetComputeTextureParam(m_Owner.checkShader, m_Owner.m_CheckKernel,
                         PixelartPath.Normal0BufferId, rig.Normal0Buffer);
@@ -177,13 +250,16 @@ namespace PirateCrew.Rendering.Pixelart
                     }
 
                     // ---- 3) Result（艺术画布）：Detail + Normal0 + Depth → ConnectivityResult ----
+                    // 锚语义的消费者：Normal0/Depth 读 Patch 版（锚空块已被补上块内命中格的值）。
                     cmd.SetComputeFloatParam(m_Owner.resultShader, kThresholdId, m_Owner.threshold);
                     cmd.SetComputeTextureParam(m_Owner.resultShader, m_Owner.m_ResultKernel,
                         PixelartPath.ConnectivityDetailId, m_Owner.m_Detail);
                     cmd.SetComputeTextureParam(m_Owner.resultShader, m_Owner.m_ResultKernel,
-                        PixelartPath.Normal0BufferId, rig.Normal0Buffer);
+                        PixelartPath.Normal0BufferId,
+                        usePatch ? rig.Normal0PatchBuffer : rig.Normal0Buffer);
                     cmd.SetComputeTextureParam(m_Owner.resultShader, m_Owner.m_ResultKernel,
-                        PixelartPath.DepthBufferId, rig.DepthBuffer);
+                        PixelartPath.DepthBufferId,
+                        usePatch ? rig.DepthPatchBuffer : rig.DepthBuffer);
                     cmd.SetComputeTextureParam(m_Owner.resultShader, m_Owner.m_ResultKernel,
                         PixelartPath.ConnectivityResultId, rig.ConnectivityResultBuffer);
                     cmd.DispatchCompute(m_Owner.resultShader, m_Owner.m_ResultKernel,
@@ -219,6 +295,8 @@ namespace PirateCrew.Rendering.Pixelart
             m_CheckKernel = -1;
             m_FloodKernel = -1;
             m_ResultKernel = -1;
+            m_BlockPatchKernel = -1;
+            m_PatchMissingWarned = false;
 
             // Detail → Prev 的拷贝用 URP 自带的 CoreBlit（与上屏 blit 同一个 shader：
             // 它被 URP 运行时自身引用，播放器构建必然保活，不受"Shader.Find 被剥离"影响）。
@@ -264,6 +342,8 @@ namespace PirateCrew.Rendering.Pixelart
             m_CheckKernel = -1;
             m_FloodKernel = -1;
             m_ResultKernel = -1;
+            m_BlockPatchKernel = -1;
+            m_PatchMissingWarned = false;
         }
 
         // ---------------- 资源与自检 ----------------
@@ -308,6 +388,52 @@ namespace PirateCrew.Rendering.Pixelart
             }
 
             m_KernelsResolved = true;
+            return true;
+        }
+
+        /// <summary>
+        /// BlockPatch 的 kernel 解析与缓冲自检。**独立于 <see cref="EnsureKernels"/>**：
+        /// 引用为空 / 缓冲不全时只跳过修补（全局保持原版 = 现行行为），不阻塞连通域主链。
+        /// </summary>
+        bool EnsurePatchKernel(PixelartCameraRig rig)
+        {
+            if (m_BlockPatchKernel >= 0)
+                return true;
+
+            if (blockPatchShader == null)
+            {
+                if (!m_PatchMissingWarned)
+                {
+                    m_PatchMissingWarned = true;
+                    global::PirateCrew.Core.Log.Warn("[PixelartConnectivityFeature] blockPatchShader 引用为空"
+                        + "——块锚修补不生效（偶数档描边缝不治），全局继续读原版 G-buffer。"
+                        + "重跑装配器「装配像素化路径渲染器」可写入引用。");
+                }
+                return false;
+            }
+
+            if (rig.AlbedoPatchBuffer == null || rig.DepthPatchBuffer == null)
+            {
+                if (!m_PatchMissingWarned)
+                {
+                    m_PatchMissingWarned = true;
+                    global::PirateCrew.Core.Log.Warn("[PixelartConnectivityFeature] rig 的 Patch 副本缓冲有空值"
+                        + "——块锚修补不派发（设备不支持 UAV 时 rig 不建缓冲，属预期）。");
+                }
+                return false;
+            }
+
+            m_BlockPatchKernel = blockPatchShader.FindKernel(kKernelName);
+            if (m_BlockPatchKernel < 0)
+            {
+                if (!m_PatchMissingWarned)
+                {
+                    m_PatchMissingWarned = true;
+                    global::PirateCrew.Core.Log.Error("[PixelartConnectivityFeature] BlockPatch.compute 里找不到 kernel「"
+                        + kKernelName + "」——修补不派发。");
+                }
+                return false;
+            }
             return true;
         }
 

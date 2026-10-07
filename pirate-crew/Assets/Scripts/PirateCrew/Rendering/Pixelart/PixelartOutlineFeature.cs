@@ -46,7 +46,9 @@ namespace PirateCrew.Rendering.Pixelart
             readonly ProfilingSampler m_Sampler = new ProfilingSampler("Pixelart Outline");
             readonly Material m_Material;
             int m_PassIndex = -1;
+            int m_ClosePassIndex = -1;
             bool m_PassMissingLogged;
+            bool m_ClosePassMissingLogged;
             bool m_Logged;
 
             public Pass(Material material)
@@ -89,12 +91,47 @@ namespace PirateCrew.Rendering.Pixelart
                     cmd.DrawProcedural(Matrix4x4.identity, m_Material, m_PassIndex,
                         MeshTopology.Triangles, 3, 1);
 
-                    // 发布成全局供着色几趟读（同帧内全局纹理持久；这里显式发布让依赖在代码里可读）。
+                    // 发布第一趟结果，供第二趟（缝闭合）当输入采样。
                     cmd.SetGlobalTexture(PixelartPath.OutlineBufferId, rig.OutlineBuffer);
+
+                    // ---- 第二趟：缝闭合（读第一趟墨标 + Patch 版 G-buffer → 写 Closed 版）----
+                    // 残余缝 = 碎屑簇边界上的 [墨][空][描边物体] 空格；判据与不误伤论证见
+                    // shader 里 PixelartOutlineCloseFragment 的注。pass 缺失只跳过闭合
+                    // （第一趟结果原样发布 = 现行行为），不阻塞描边主链。
+                    if (EnsureClosePassIndex(renderingData.cameraData.camera.name))
+                    {
+                        cmd.SetRenderTarget(rig.OutlineClosedBuffer);
+                        cmd.DrawProcedural(Matrix4x4.identity, m_Material, m_ClosePassIndex,
+                            MeshTopology.Triangles, 3, 1);
+
+                        // 着色几趟读最终版。
+                        cmd.SetGlobalTexture(PixelartPath.OutlineBufferId, rig.OutlineClosedBuffer);
+                    }
                 }
 
                 context.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
+            }
+
+            /// <summary>缝闭合 pass 的索引（按名解析；缺失时报一次错并跳过闭合）。</summary>
+            bool EnsureClosePassIndex(string cameraName)
+            {
+                if (m_ClosePassIndex >= 0)
+                    return true;
+
+                m_ClosePassIndex = m_Material.FindPass(PixelartPath.OutlineClosePassName);
+                if (m_ClosePassIndex < 0)
+                {
+                    if (!m_ClosePassMissingLogged)
+                    {
+                        m_ClosePassMissingLogged = true;
+                        global::PirateCrew.Core.Log.Error("[PixelartOutlineFeature] 描边 shader 里找不到 pass 「"
+                            + PixelartPath.OutlineClosePassName + "」——缝闭合不生效（残余碎屑缝不治），"
+                            + "第一趟墨线原样发布。");
+                    }
+                    return false;
+                }
+                return true;
             }
 
             /// <summary>

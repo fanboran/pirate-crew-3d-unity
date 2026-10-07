@@ -68,6 +68,9 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>描边 pass 名。</summary>
         public const string OutlinePassName = "PixelartOutline";
 
+        /// <summary>描边第二趟（缝闭合）pass 名。</summary>
+        public const string OutlineClosePassName = "PixelartOutlineClose";
+
         /// <summary>漫反射 pass 名。</summary>
         public const string DiffusePassName = "PixelartDiffuse";
 

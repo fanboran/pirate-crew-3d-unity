@@ -335,6 +335,85 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
             }
             ENDHLSL
         }
+
+        Pass
+        {
+            // 第二趟：缝闭合。名字同样是契约 §2.1 的一行（驱动侧按名解析索引）。
+            Name "PixelartOutlineClose"
+            ZWrite Off
+            ZTest Always
+            Blend Off
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex   Vert
+            #pragma fragment PixelartOutlineCloseFragment
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
+
+            // 第一趟的墨线标记（艺术画布；本趟只读它、写另一张目标——同 buffer 读写未定义）。
+            TEXTURE2D(_PixelartOutlineBuffer);      SAMPLER(sampler_PixelartOutlineBuffer);
+            // 屏幕档 G-buffer（全局已被连通域 Feature 改绑到 BlockPatch 的 Patch 副本）。
+            TEXTURE2D(_PixelartAlbedoBuffer);       SAMPLER(sampler_PixelartAlbedoBuffer);
+            TEXTURE2D(_PixelartPaletteBuffer);      SAMPLER(sampler_PixelartPaletteBuffer);
+
+            float _PixelartRTWidth   = 1.0;
+            float _PixelartRTHeight  = 1.0;
+
+            /// 与第一趟 `AppliesOutlineAt` 同一口径：有几何覆盖且逐物体 applyOutline 开着。
+            bool OutlineObjectAt(float2 uv)
+            {
+                if (SAMPLE_TEXTURE2D(_PixelartAlbedoBuffer, sampler_PixelartAlbedoBuffer, uv).a < 0.5)
+                    return false;
+                return SAMPLE_TEXTURE2D(_PixelartPaletteBuffer, sampler_PixelartPaletteBuffer, uv).a > 0.5;
+            }
+
+            /// 残余缝的形态是「碎屑簇边界」：斜剪影边附近的碎屑格（块内覆盖不过半、锚恰好实）
+            /// 各自算物体、各自出墨，与主物体之间留下犬牙交错的空格——[墨][空][描边物体]。
+            /// 本趟把这种空格补成墨：4 邻中既有墨格、又有开着描边的物体格 ⇒ 出墨。
+            /// 【为什么不误伤】两描边物体相距 1 格时，中间格本就是其中一方的远侧墨（无空可补）；
+            /// 不描边物体（海面/草叶）不满足 OutlineObjectAt，不触发；正常边墨紧贴物体（无空格）。
+            half4 PixelartOutlineCloseFragment(Varyings input) : SV_Target
+            {
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+
+                float2 uv = input.texcoord;
+                float marker = SAMPLE_TEXTURE2D(_PixelartOutlineBuffer,
+                    sampler_PixelartOutlineBuffer, uv).r > 0.5 ? 1.0 : 0.0;
+                if (marker > 0.5
+                    || SAMPLE_TEXTURE2D(_PixelartAlbedoBuffer, sampler_PixelartAlbedoBuffer, uv).a >= 0.5)
+                    return half4(marker, 0.0, 0.0, 0.0);   // 已是墨或物体：原样直通
+
+                float2 texel = float2(1.0 / max(_PixelartRTWidth, 1.0),
+                                      1.0 / max(_PixelartRTHeight, 1.0));
+                float2 nbs[4] = {
+                    uv + float2(texel.x, 0.0), uv - float2(texel.x, 0.0),
+                    uv + float2(0.0, texel.y), uv - float2(0.0, texel.y) };
+
+                // 【对向成对才补】墨与物体必须来自**相反方向的两个邻格**。[墨+物体同格] 邻
+                // （第一趟规则②的接缝墨就落在物体格上）会让同侧的 hasInk/hasObject 同时为真——
+                // 若按"任意方向组合"补，接缝墨外侧的空格也被吃进来，线宽变 2 艺术像素。
+                bool li = SAMPLE_TEXTURE2D(_PixelartOutlineBuffer,
+                    sampler_PixelartOutlineBuffer, nbs[0]).r > 0.5;
+                bool ri = SAMPLE_TEXTURE2D(_PixelartOutlineBuffer,
+                    sampler_PixelartOutlineBuffer, nbs[1]).r > 0.5;
+                bool ui = SAMPLE_TEXTURE2D(_PixelartOutlineBuffer,
+                    sampler_PixelartOutlineBuffer, nbs[2]).r > 0.5;
+                bool di = SAMPLE_TEXTURE2D(_PixelartOutlineBuffer,
+                    sampler_PixelartOutlineBuffer, nbs[3]).r > 0.5;
+                bool lo = OutlineObjectAt(nbs[0]);
+                bool ro = OutlineObjectAt(nbs[1]);
+                bool uo = OutlineObjectAt(nbs[2]);
+                bool do2 = OutlineObjectAt(nbs[3]);
+
+                if ((li && ro) || (ri && lo) || (ui && do2) || (di && uo))
+                    marker = 1.0;
+                return half4(marker, 0.0, 0.0, 0.0);
+            }
+            ENDHLSL
+        }
     }
 
     Fallback Off
