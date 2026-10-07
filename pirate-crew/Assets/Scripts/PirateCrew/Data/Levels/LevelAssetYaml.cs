@@ -69,16 +69,38 @@ namespace PirateCrew.Data
             data.Add("units", units);
 
             var terrain = new Node(NodeKind.Map);
-            terrain.Add("sizeX", payload.terrain.sizeX);
-            terrain.Add("sizeZ", payload.terrain.sizeZ);
             terrain.Add("blockWorldHeight", payload.terrain.blockWorldHeight);
-            var heights = new Node(NodeKind.Seq);
-            if (payload.terrain.heights != null)
+            var islands = new Node(NodeKind.Seq);
+            if (payload.terrain.islands != null)
             {
-                for (int i = 0; i < payload.terrain.heights.Count; i++)
-                    heights.Add(payload.terrain.heights[i]);
+                for (int i = 0; i < payload.terrain.islands.Count; i++)
+                {
+                    TerrainIsland island = payload.terrain.islands[i];
+                    var item = new Node(NodeKind.Map);
+                    item.Add("topY", island.topY);
+                    var outline = new Node(NodeKind.Seq);
+                    if (island.outline != null)
+                    {
+                        for (int k = 0; k < island.outline.Count; k++)
+                            outline.Add(island.outline[k]);
+                    }
+                    item.Add("outline", outline);
+                    if (island.holes != null && island.holes.Count > 0)
+                    {
+                        var holes = new Node(NodeKind.Seq);
+                        for (int h = 0; h < island.holes.Count; h++)
+                        {
+                            var ring = new Node(NodeKind.Seq);
+                            for (int k = 0; k < island.holes[h].Count; k++)
+                                ring.Add(island.holes[h][k]);
+                            holes.Add(ring);
+                        }
+                        item.Add("holes", holes);
+                    }
+                    islands.Add(item);
+                }
             }
-            terrain.Add("heights", heights);
+            terrain.Add("islands", islands);
             data.Add("terrain", terrain);
 
             var pieces = new Node(NodeKind.Seq);

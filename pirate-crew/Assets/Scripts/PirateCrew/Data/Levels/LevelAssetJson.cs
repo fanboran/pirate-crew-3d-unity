@@ -88,12 +88,32 @@ namespace PirateCrew.Data
 
             w.FieldName("terrain");
             w.BeginObject();
-            TerrainRaster raster = payload.terrain;
-            w.Field("sizeX", raster.sizeX);
-            w.Field("sizeZ", raster.sizeZ);
-            w.Field("blockWorldHeight", raster.blockWorldHeight);
-            w.FieldName("heights");
-            WriteFloatGrid(w, raster.heights, LevelAssetSchema.RasterCells(raster.sizeX));
+            TerrainShape shape = payload.terrain;
+            w.Field("blockWorldHeight", shape.blockWorldHeight);
+            w.FieldName("islands");
+            w.BeginArray();
+            if (shape.islands != null)
+            {
+                for (int i = 0; i < shape.islands.Count; i++)
+                {
+                    TerrainIsland island = shape.islands[i];
+                    w.Item();
+                    w.BeginObject();
+                    w.Field("topY", island.topY);
+                    w.FieldName("outline");
+                    w.RawField(FloatRing(island.outline));
+                    if (island.holes != null && island.holes.Count > 0)
+                    {
+                        w.FieldName("holes");
+                        w.BeginArray();
+                        for (int h = 0; h < island.holes.Count; h++)
+                            w.RawItem(FloatRing(island.holes[h]));
+                        w.EndArray();
+                    }
+                    w.EndObject();
+                }
+            }
+            w.EndArray();
             w.EndObject();
 
             w.FieldName("bakedPieces");
@@ -230,26 +250,20 @@ namespace PirateCrew.Data
         /// 高度阵列（米）：**每行 = 栅格一行**（宽度 <paramref name="cellCountX"/> 个采样格）。
         /// 这样改动一处地形 = diff 里改一行里的一个数，而不是在 300 行单列里数位置。
         /// </summary>
-        static void WriteFloatGrid(JsonWriter w, List<float> values, int cellCountX)
+        /// <summary>写一条轮廓环为一行扁平数组（<c>[x0, z0, x1, z1, ...]</c>）。</summary>
+        static string FloatRing(List<float> ring)
         {
-            w.BeginArray();
-            if (values != null && values.Count > 0)
+            if (ring == null || ring.Count == 0)
+                return "[]";
+
+            var sb = new StringBuilder(ring.Count * 8);
+            for (int i = 0; i < ring.Count; i++)
             {
-                int width = cellCountX > 0 ? cellCountX : values.Count;
-                for (int start = 0; start < values.Count; start += width)
-                {
-                    int end = Math.Min(start + width, values.Count);
-                    var sb = new StringBuilder(end - start);
-                    for (int i = start; i < end; i++)
-                    {
-                        if (i > start)
-                            sb.Append(", ");
-                        sb.Append(Number(values[i]));
-                    }
-                    w.RawItem("[" + sb + "]");
-                }
+                if (i > 0)
+                    sb.Append(", ");
+                sb.Append(Number(ring[i]));
             }
-            w.EndArray();
+            return "[" + sb + "]";
         }
 
         // ------------------------------------------------------------------
@@ -306,7 +320,7 @@ namespace PirateCrew.Data
                 waterWorldY = root.Float("waterWorldY"),
                 airdropPool = ReadWeaponStacks(root["airdropPool"]),
                 units = new List<LevelUnit>(),
-                terrain = ReadRaster(root["terrain"]),
+                terrain = ReadTerrain(root["terrain"]),
                 bakedPieces = new List<BakedPieceEntry>(),
             };
 
@@ -411,33 +425,41 @@ namespace PirateCrew.Data
             };
         }
 
-        static TerrainRaster ReadRaster(JsonValue node)
+        static TerrainShape ReadTerrain(JsonValue node)
         {
-            var raster = new TerrainRaster
+            var shape = new TerrainShape
             {
-                heights = new List<float>(),
+                islands = new List<TerrainIsland>(),
             };
             if (node == null)
-                return raster;
+                return shape;
 
-            raster.sizeX = node.Float("sizeX");
-            raster.sizeZ = node.Float("sizeZ");
-            raster.blockWorldHeight = node.Float("blockWorldHeight");
-            // 高度写作「每行一个数组」；同时容忍扁平写法（一个数一行），
-            // 免得手改过的 JSON 读出静默的半截数据。
-            foreach (JsonValue row in node.ArrayItems("heights"))
+            shape.blockWorldHeight = node.Float("blockWorldHeight");
+            foreach (JsonValue item in node.ArrayItems("islands"))
             {
-                if (row.Kind == JsonKind.Array)
+                var island = new TerrainIsland
                 {
-                    foreach (JsonValue b in row.Items())
-                        raster.heights.Add(b.AsFloat());
-                }
-                else
-                {
-                    raster.heights.Add(row.AsFloat());
-                }
+                    topY = item.Float("topY"),
+                    outline = ReadRing(item["outline"]),
+                    holes = new List<List<float>>(),
+                };
+                foreach (JsonValue hole in item.ArrayItems("holes"))
+                    island.holes.Add(ReadRing(hole));
+                shape.islands.Add(island);
             }
-            return raster;
+            return shape;
+        }
+
+        /// <summary>读一条轮廓环（扁平 <c>[x0, z0, ...]</c>）；节点缺失/非法返回空列表。</summary>
+        static List<float> ReadRing(JsonValue node)
+        {
+            var ring = new List<float>();
+            if (node == null || node.Kind != JsonKind.Array)
+                return ring;
+
+            foreach (JsonValue v in node.Items())
+                ring.Add(v.AsFloat());
+            return ring;
         }
 
         static List<WeaponStack> ReadWeaponStacks(JsonValue node)
@@ -495,10 +517,16 @@ namespace PirateCrew.Data
                 _sb.Append('"').Append(name).Append("\": ");
             }
 
-            /// <summary>整行原样元素（栅格按行输出用）。</summary>
+            /// <summary>整行原样元素（数组元素位；内部自带分隔）。</summary>
             public void RawItem(string text)
             {
                 Item();
+                _sb.Append(text);
+            }
+
+            /// <summary>对象成员直接写原始 JSON 值（FieldName 之后用，不加分隔）。</summary>
+            public void RawField(string text)
+            {
                 _sb.Append(text);
             }
 

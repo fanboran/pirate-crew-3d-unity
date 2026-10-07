@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace PirateCrew.Data
 {
@@ -19,7 +20,7 @@ namespace PirateCrew.Data
     public static class LevelAssetSchema
     {
         /// <summary>资产 schema 版本；字段语义变化时递增，迁移器按它判断要不要重写。</summary>
-        public const int Version = 2;
+        public const int Version = 3;
 
         /// <summary>
         /// 逻辑高度场的**采样间隔**（米/采样格，= <c>LevelGeometry.TileWorldSize</c>）。
@@ -51,40 +52,54 @@ namespace PirateCrew.Data
     }
 
     /// <summary>
-    /// 逻辑高度场——**唯一**的栅格语义（行主序 <c>heights[x + z * cellCountX]</c>，米）。
+    /// 地形——**岛形轮廓**（形状即数据）。一块地形 = 一组悬浮岛，每岛 = 顶面高度 +
+    /// 俯视外轮廓多边形（+ 可选内洞）；顶点全部是米制世界坐标。
     ///
-    /// 【为什么是唯一一份】地面/水面的唯一判据就是"该处地面高度是否 &gt; 0"：
-    /// 海图栅格从站面 box 派生、样板关栅格是手摆真值，但落到运行时都进
-    /// <c>HeightfieldGrid</c> 的同一个列式分支；资产里也只存这一种形态。
+    /// 【为什么是形状不是网格】场地设计是环形范围内的有机岛群，矩形采样数组是历史载体的
+    /// 遗留概念；资产直接记录岛形，运行时按需要栅格化（见 <c>TerrainShapeRasterizer</c>），
+    /// 采样数组从此只存在于运行时内部（<c>HeightfieldGrid</c>），不进资产、不进文档概念。
     ///
-    /// 【全米】采样格尺寸由 <c>LevelAssetSchema.RasterCellSize</c>（米）推出，
-    /// <see cref="heights"/> 存的是**该处地面的世界高度（米）**，不再存"堆了几块"。
-    /// 采样格数 = <see cref="sizeX"/> / <see cref="RasterCellSize"/>（行主序）。
-    ///
-    /// 【块高】<see cref="blockWorldHeight"/> = 运行时地形的单块世界高度（现行 0.5 =
-    /// <c>LevelGeometry.BlockWorldHeight</c>）；它只用于把米高度折回运行时的整数块表示，
-    /// 存进资产是为了让资产自解释。
+    /// 【全米】顶点、高度全是米（Unity 世界单位）；<see cref="blockWorldHeight"/> =
+    /// 运行时地形的单块世界高度（现行 0.5 = <c>LevelGeometry.BlockWorldHeight</c>），
+    /// 只用于把米高度折回运行时的整数块表示，存进资产是为了让资产自解释。
     /// </summary>
     [Serializable]
-    public struct TerrainRaster
+    public struct TerrainShape
     {
-        /// <summary>栅格 X 尺幅（米）。</summary>
-        public float sizeX;
-
-        /// <summary>栅格 Z 尺幅（米）。</summary>
-        public float sizeZ;
-
         /// <summary>单块世界高度（米）。</summary>
         public float blockWorldHeight;
 
-        /// <summary>逐采样格的地面世界高度（米），行主序；0 = 该处无地面（水面高度基准）。</summary>
-        public List<float> heights;
+        /// <summary>岛列表（每岛一个顶面高度 + 外轮廓 + 可选内洞）。</summary>
+        public List<TerrainIsland> islands;
 
-        /// <summary>高度数量是否与尺幅自洽（读入校验用）。</summary>
+        /// <summary>结构是否自洽（读入校验用）。</summary>
         public bool IsWellFormed =>
-            sizeX > 0f && sizeZ > 0f
-            && heights != null
-            && heights.Count == LevelAssetSchema.RasterCells(sizeX) * LevelAssetSchema.RasterCells(sizeZ);
+            blockWorldHeight > 0f
+            && islands != null && islands.Count > 0
+            && islands.All(i => i.IsWellFormed);
+    }
+
+    /// <summary>
+    /// 一座岛的形状：顶面高度 + 外轮廓（+ 可选内洞）。顶点是俯视平面的米制世界坐标
+    /// （<c>[x0, z0, x1, z1, ...]</c> 扁平列表）；轮廓方向不限（点包含判定用 even-odd）。
+    /// </summary>
+    [Serializable]
+    public struct TerrainIsland
+    {
+        /// <summary>顶面世界高度（米，&gt; 0；0 或负 = 无地面）。</summary>
+        public float topY;
+
+        /// <summary>外轮廓顶点（扁平 <c>[x0, z0, x1, z1, ...]</c>，至少 3 个顶点）。</summary>
+        public List<float> outline;
+
+        /// <summary>内洞轮廓列表（环岛用；null 或空 = 无洞）。</summary>
+        public List<List<float>> holes;
+
+        /// <summary>岛是否自洽（读入校验用）。</summary>
+        public bool IsWellFormed =>
+            topY > 0f
+            && outline != null && outline.Count >= 6 && outline.Count % 2 == 0
+            && (holes == null || holes.All(h => h != null && h.Count >= 6 && h.Count % 2 == 0));
     }
 
     /// <summary>
@@ -150,7 +165,7 @@ namespace PirateCrew.Data
         public List<LevelUnit> units = new List<LevelUnit>();
 
         /// <summary>逻辑高度场（唯一栅格语义）。</summary>
-        public TerrainRaster terrain;
+        public TerrainShape terrain;
 
         /// <summary>烘焙陈设摆位表（几何在 prefab 里，本表只记"件 id + 摆位"）。</summary>
         public List<BakedPieceEntry> bakedPieces = new List<BakedPieceEntry>();

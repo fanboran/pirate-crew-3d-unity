@@ -203,21 +203,13 @@ namespace PirateCrew.Battle.Levels
                 }
             }
 
-            // 单一栅格语义：尺幅自洽 + 块高与工程常量一致。
+            // 单一岛形语义：结构自洽 + 块高与工程常量一致。
             if (!payload.terrain.IsWellFormed)
             {
-                problems.Add(tag + "逻辑高度场不自洽（高度数 " + HeightCount(payload)
-                    + " ≠ " + LevelAssetSchema.RasterCells(payload.sizeX) + "×"
-                    + LevelAssetSchema.RasterCells(payload.sizeZ) + " 采样格）");
+                problems.Add(tag + "岛形地形不自洽（岛列表为空，或存在顶面高度非正 / 顶点数非法的岛）");
             }
             else
             {
-                if (payload.terrain.sizeX != payload.sizeX || payload.terrain.sizeZ != payload.sizeZ)
-                {
-                    problems.Add(tag + "栅格尺幅 " + payload.terrain.sizeX + "m × " + payload.terrain.sizeZ + "m"
-                        + " 与场地尺幅 " + payload.sizeX + "m × " + payload.sizeZ + "m 不一致");
-                }
-
                 float expectedBlock = LevelGeometry.BlockWorldHeight;
                 if (System.Math.Abs(payload.terrain.blockWorldHeight - expectedBlock) > 1e-4f)
                 {
@@ -225,21 +217,33 @@ namespace PirateCrew.Battle.Levels
                         + " 与 LevelGeometry.BlockWorldHeight=" + expectedBlock + " 不一致");
                 }
 
+                for (int i = 0; i < payload.terrain.islands.Count; i++)
+                {
+                    TerrainIsland island = payload.terrain.islands[i];
+                    for (int k = 0; k + 1 < island.outline.Count; k += 2)
+                    {
+                        if (island.outline[k] < 0f || island.outline[k] > payload.sizeX
+                            || island.outline[k + 1] < 0f || island.outline[k + 1] > payload.sizeZ)
+                        {
+                            problems.Add(tag + "岛 #" + i + " 的轮廓顶点 ("
+                                + island.outline[k] + ", " + island.outline[k + 1] + ")m 落在场地外");
+                        }
+                    }
+                }
+
+                List<float> heights = TerrainShapeRasterizer.ToHeights(payload.terrain, payload.sizeX, payload.sizeZ);
                 int solid = 0;
                 float maxHeight = 0f;
-                List<float> heights = payload.terrain.heights;
                 for (int i = 0; i < heights.Count; i++)
                 {
                     if (heights[i] > 0f)
                         solid++;
                     if (heights[i] > maxHeight)
                         maxHeight = heights[i];
-                    if (heights[i] < 0f)
-                        problems.Add(tag + "栅格存在负高度（第 " + i + " 格）");
                 }
 
                 if (solid == 0)
-                    problems.Add(tag + "逻辑高度场全是空格（没有可站地面）");
+                    problems.Add(tag + "地形没有可站地面（岛形全部落在采样格外？）");
 
                 if (maxHeight > MaxTerrainTopWorldY)
                     problems.Add(tag + "最高顶 " + maxHeight + "m 超过上限 " + MaxTerrainTopWorldY + "m");
@@ -276,25 +280,10 @@ namespace PirateCrew.Battle.Levels
                         problems.Add(tag + "单位 #" + i + " (" + unit.typeName + ") 落在场外 ("
                             + unit.x + ", " + unit.z + " 米)");
                     }
-                    else if (payload.terrain.sizeX != payload.sizeX || payload.terrain.sizeZ != payload.sizeZ)
+                    else if (!TerrainShapeRasterizer.PointOnGround(payload.terrain, unit.x, unit.z))
                     {
-                        // 栅格尺幅与场地尺幅不一致（上方已有独立告警）：heights 按 terrain 的
-                        // 行主序存储，拿场地尺幅索引会读错格、产出不可信的
-                        // "站在空格"结论——跳过站位校验并告警，不给出假阳性/假阴性。
-                        PirateCrew.Core.Log.Warn("[LevelAssetRules] " + tag + "单位 #" + i + " ("
-                            + unit.typeName + ") 站位校验跳过：栅格尺幅 " + payload.terrain.sizeX
-                            + "m × " + payload.terrain.sizeZ + "m 与场地尺幅 " + payload.sizeX
-                            + "m × " + payload.sizeZ + "m 不一致（heights 行宽 ≠ 场地宽，索引口径失效）");
-                    }
-                    else
-                    {
-                        int cellX = LevelGeometry.WorldToTileIndex(unit.x);
-                        int cellZ = LevelGeometry.WorldToTileIndex(unit.z);
-                        if (payload.terrain.heights[cellX + cellZ * LevelGeometry.CellCount(payload.sizeX)] <= 0f)
-                        {
-                            problems.Add(tag + "单位 #" + i + " (" + unit.typeName + ") 站在空格 ("
-                                + cellX + "," + cellZ + ") 上（会开局坠落）");
-                        }
+                        problems.Add(tag + "单位 #" + i + " (" + unit.typeName + ") 站在空地 ("
+                            + unit.x + ", " + unit.z + ") 米上（会开局坠落）");
                     }
                 }
 
@@ -320,9 +309,5 @@ namespace PirateCrew.Battle.Levels
             return problems;
         }
 
-        static int HeightCount(LevelAssetPayload payload)
-        {
-            return payload.terrain.heights == null ? 0 : payload.terrain.heights.Count;
-        }
     }
 }

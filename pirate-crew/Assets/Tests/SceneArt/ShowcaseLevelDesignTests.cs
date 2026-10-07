@@ -88,9 +88,13 @@ namespace PirateCrew.SceneArt.Tests
         // ------------------------------------------------------------------
 
         [Test]
-        public void L01_CloudHeights_FourTiers_MaxFifteenBlocks()
+        public void L01_CloudHeights_TenTiers_MaxSixteenBlocks()
         {
-            // 云场高度档 {5,9,13,15} 块（y2.5/4.5/6.5/7.5）——高低错落的美术方向（用户裁决）
+            // 云场高度档：内 5 坛 {5,9,13,15} 块（y2.5/4.5/6.5/7.5，高低错落的美术方向，用户裁决）
+            // + 第二环 6 朵（照云田视觉补可站面）。【前排防遮挡】45° 机位视线朝 +x+z：东北朵
+            // 必须 ≤y2.5（蓝队长站位 y2.5 的视线走廊全程最低触及 y2.75），与内坛共用 2.5 档；
+            // 16 块档在正南深处朵（视线后方）。高度档集 **9 档**（slot0 与内坛共用 2.5，
+            // 10 档不可达）。布局裁决见 tools/blender/scene/islands/translate_cloudfield.py；
             // 偏离 R18 的 ≤2 层基准，此处在测试里钉住实际档位防漂移。
             HeightfieldGrid grid = ShowcaseLevels.BuildLogicGrid(1);
             int min = int.MaxValue, max = int.MinValue;
@@ -102,9 +106,9 @@ namespace PirateCrew.SceneArt.Tests
                 tiers.Add(blocks);
             });
 
-            Assert.AreEqual(5, min, "最低云应为 5 块（y2.5）");
-            Assert.AreEqual(15, max, "最高云应为 15 块（y7.5 北云）");
-            Assert.AreEqual(4, tiers.Count, "云场应有 4 个高度档");
+            Assert.AreEqual(5, min, "最低云应为 5 块（y2.5 东西云/东北朵）");
+            Assert.AreEqual(16, max, "最高云应为 16 块（y8 第二环南朵）");
+            Assert.AreEqual(9, tiers.Count, "云场应有 9 个高度档（散开布局，与防遮挡布局同档数）；");
         }
 
         // ------------------------------------------------------------------

@@ -45,15 +45,27 @@ namespace PirateCrew.EditorTools
         {
             // ---- SceneKit：C# 烘焙件（程序化，输入 = 固定输出）----
             new UpstreamEntry { PathInModels = "SceneKit/CloudField.prefab", Origin = "programmatic",
-                Source = "SceneArtBaker.BakeCloudField: CloudFieldSpec.Default, Seed=26091401" },
+                Source = "PixelartLevelPilotSetup 的像素试点云场样件（LowpolyStageBuilder.BuildCloudField, Seed=26091401）" },
             new UpstreamEntry { PathInModels = "SceneKit/Baked", Origin = "programmatic",
                 Source = "SceneArtBaker 烘焙网格资产（被同目录 prefab 引用，不单独摆放）" },
+
+            // ---- SceneKit：关卡岛体（Blender 岛形驱动，顶面逐点复刻关卡 terrain 轮廓）----
+            new UpstreamEntry { PathInModels = "SceneKit/CloudWalk.fbx", Origin = "handmade",
+                Source = "tools/blender/scene/islands/build_cloud_walk.py（Blender 无头，golden terrain 岛形驱动）" },
+            new UpstreamEntry { PathInModels = "SceneKit/SkyIsland.fbx", Origin = "handmade",
+                Source = "tools/blender/scene/islands/build_sky_island.py（Blender 无头，golden terrain 岛形驱动 + 装饰浮空岛群）" },
 
             // ---- SceneKit：Blender 手作主件（§19 样板）----
             new UpstreamEntry { PathInModels = "SceneKit/Flagship.fbx", Origin = "handmade",
                 Source = "tools/blender/scene/build_scene_kit.py（Blender 无头）" },
             new UpstreamEntry { PathInModels = "SceneKit/Dock.fbx", Origin = "handmade",
                 Source = "tools/blender/scene/build_scene_kit.py（Blender 无头）" },
+            new UpstreamEntry { PathInModels = "SceneKit/ChemPlant.fbx", Origin = "handmade",
+                Source = "tools/blender/scene/chemplant/assemble_chemplant.py（六件并行 kit 总装）" },
+
+            // ---- WorldKit：化工厂分件（同 chemplant kit 的单件导出）----
+            new UpstreamEntry { PathInModels = "WorldKit/ChemPlant", Origin = "handmade",
+                Source = "tools/blender/scene/chemplant/（Blender 无头，style_tokens.py 统一风格）" },
 
             // ---- WorldKit：四组 Blender 无头批量建模（M4，风格参数 style_tokens.py）----
             new UpstreamEntry { PathInModels = "WorldKit/Archipelago", Origin = "handmade",

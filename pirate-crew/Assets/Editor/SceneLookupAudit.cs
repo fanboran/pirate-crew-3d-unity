@@ -12,7 +12,7 @@ namespace PirateCrew.EditorTools
     /// 运行期查找防回归闸门：扫描 <c>Assets/Scripts/**</c>，把
     /// <c>GameObject.Find</c> / <c>FindObjectOfType</c> / <c>FindObjectsOfType</c> / <c>FindWithTag</c>
     /// （含新 API 逃逸写法 <c>FindAnyObjectByType</c> / <c>FindObjectsByType</c>）逐条分类，写入
-    /// <c>docs/审计/专项/运行期查找清退报告.md</c>，**未登记白名单的命中一律以退出码 1 失败**。
+    /// <c>docs/审计/运行期查找清退报告.md</c>，**未登记白名单的命中一律以退出码 1 失败**。
     ///
     /// 【入口】
     ///   菜单: PirateCrew/审计/运行期查找清退报告
@@ -37,7 +37,7 @@ namespace PirateCrew.EditorTools
     public static class SceneLookupAudit
     {
         const string ScriptsRoot = "Assets/Scripts";
-        const string ReportPathFallback = "docs/审计/专项/运行期查找清退报告.md";
+        const string ReportPathFallback = "docs/审计/运行期查找清退报告.md";
 
         /// <summary>报告输出覆盖参数（无头调用时可选）。</summary>
         const string OutputArg = "-lookupAuditOut";

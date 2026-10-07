@@ -246,13 +246,16 @@ namespace PirateCrew.Battle.Tests
         /// 数值出处：迁移前 `ShowcaseLevels.cs` 与各关设计文档 docs/设计/关卡/L0N-*.md。
         /// 关卡 2「碎岛雨」已删除（2026-09-22），号段有意不连续——故表里只有 1、3、4、5 行。
         ///
-        /// 【为什么高度场仍报"格/块"】资产的栅格已改存**米高度**（`terrain.heights`），
+        /// 【为什么高度场仍报"格/块"】资产的岛形地形按采样粒度栅格化后折回**米高度**，
         /// 这里按 `blockWorldHeight` 折回运行时块数再算摘要——目的正是让摘要值与换单位前**逐字相同**，
         /// 从而把"换单位没有动任何一处地形"变成可机器复核的证据（不是靠人肉看米数对不对）。
         /// </summary>
         static readonly string[] FrozenLevelSignatures =
         {
-            "1|cloud_walk|云端漫步|40x30|-0.4||units=redPirate/0/17/13/5;redPirate/0/25/19/5;redPirate/0/21/9/5;redPirateCaptain/0/21/23/5;cabinBoy/1/25/13/1;cabinBoy/1/17/19/1;cabinBoyCaptain/1/27/15/1|air=Dynamite:10|raster=solid48/total422/digest68270|pieces=1/CloudField",
+            // L1 云端漫步：5 坛（主角云+环1）+ 第二环 6 朵可站面（16 边形贴云台；solid 48→112）。
+            // 【前排防遮挡】45° 机位下前排两朵压到 y3/y5、16 块档挪正南深处（translate_cloudfield.py
+            // 的布局裁决）——total/digest 随高度重算重冻，solid 不变（坛形未动）。
+            "1|cloud_walk|云端漫步|40x30|-0.4||units=redPirate/0/17/13/5;redPirate/0/25/19/5;redPirate/0/19/15/5;redPirateCaptain/0/14/21/5;cabinBoy/1/25/13/1;cabinBoy/1/17/19/1;cabinBoyCaptain/1/12.5/22.5/1|air=Dynamite:10|raster=solid127/total1289/digest176398|pieces=1/CloudField",
             "3|sky_island|天空之岛|40x30|-0.4||units=redPirate/0/23/11/5;redPirate/0/27/13/5;redPirate/0/23/17/5;redPirateCaptain/0/25/13/5;cabinBoy/1/13/11/5;cabinBoy/1/17/11/5;cabinBoy/1/11/15/5;cabinBoy/1/17/17/5;cabinBoyCaptain/1/13/17/5|air=TidalWave:10|Anchor:10|Seagull:10|raster=solid96/total2688/digest404544|pieces=",
             // L4 废弃化工厂（2026-09-29 入库，提案/待定）：64×44 m 大场地，平地可走 + 建筑足印抬高成掩体
             // （solid704 = 704 个 2m 采样格 − 建筑格）；整场件 pieceId 2 = ChemPlantYard（Blender 手作 FBX）。
@@ -441,10 +444,11 @@ namespace PirateCrew.Battle.Tests
                   .Append(Number(u.x)).Append('/').Append(Number(u.z)).Append('/').Append(u.luck);
             }
 
-            // 米高度折回运行时块数（÷ blockWorldHeight）：摘要值与换单位前逐字相同 = 地形零漂移的证据。
+            // 岛形栅格化回米高度再折回运行时块数（÷ blockWorldHeight）：摘要值与迁移前逐字相同
+            // = 地形零漂移的证据（岛形数据与旧采样数组表达同一场地）。
             int solid = 0, total = 0;
             long digest = 0;
-            List<float> heights = p.terrain.heights;
+            List<float> heights = TerrainShapeRasterizer.ToHeights(p.terrain, p.sizeX, p.sizeZ);
             for (int i = 0; i < heights.Count; i++)
             {
                 int blocks = (int)System.Math.Round(heights[i] / p.terrain.blockWorldHeight);
