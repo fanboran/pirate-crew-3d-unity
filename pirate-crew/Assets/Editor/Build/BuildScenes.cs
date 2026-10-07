@@ -74,7 +74,6 @@ namespace PirateCrew.EditorTools.BuildSystem
             "PixelartSkyIsland",    // 关卡 3 天空之岛
             "PixelartChemPlant",    // 关卡 4 废弃化工厂（提案/待定：美术件试点，尚未接玩法数据）
             "PixelartChemPlantTeam",// 关卡 5 废弃化工厂·六件并行版（提案/待定：美术件试点，尚未接玩法数据）
-            "PixelartGrassField",   // 关卡 6 纯草坪验收场（提案/待定：t3ssel8r 草丛专项验收，不接玩法数据）
             // 【海图试点场景：当前 0 张】八张世界海图（关卡 101–108）已删除待重做，
             // 其试点场景曾由 `PixelartWorldMapPilotSetup` 烘制并以 `-pixelartLevel 101..108` 出图，
             // 必须进**播放器**场景集（出图链按场景名 LoadScene）。海图重做后在这里补回场景名。

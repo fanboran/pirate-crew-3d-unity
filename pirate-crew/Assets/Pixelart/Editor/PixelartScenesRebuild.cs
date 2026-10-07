@@ -37,7 +37,6 @@ namespace PirateCrew.EditorTools
             Failed("材质配方推平（全仓像素 .mat）", () => PixelartMaterialRecipeSync.Run(), ref failed);
             Failed("PixelartPilotSetup（试点）", () => PixelartPilotSetup.BuildAll(), ref failed);
             Failed("PixelartLevelPilotSetup（云/空岛）", () => PixelartLevelPilotSetup.BuildAll(), ref failed);
-            Failed("PixelartGrassFieldSetup（草场）", () => PixelartGrassFieldSetup.BuildAll(), ref failed);
             Failed("PixelartWorldMapPilotSetup（海图 101–108）", () => PixelartWorldMapPilotSetup.BuildAll(), ref failed);
             Failed("PixelartCharCamDebugSetup（调试场）", () => PixelartCharCamDebugSetup.BuildAll(), ref failed);
 

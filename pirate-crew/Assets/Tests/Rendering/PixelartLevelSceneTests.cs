@@ -10,8 +10,9 @@ namespace PirateCrew.Tests
     /// （纯 C#——表与查询全是静态数据/静态方法，无 GameObject）。
     ///
     /// 【为什么钉这张表】它是装配器、出图脚本与 Build Settings 登记共用的唯一数据源
-    /// （PixelartLevelScene.cs 类头："两处各写一份的坑本仓踩过"）；号段语义（样板关 1/3/4/5/6，
-    /// 海图 101–108 已删除待重做）也登记在此——解析错号必须显式失败，不许静默兜底到别的关。
+    /// （PixelartLevelScene.cs 类头："两处各写一份的坑本仓踩过"）；号段语义（样板关 1/3/4/5，
+    /// 关 6 草坪验收场已随草坪线收官退役，海图 101–108 已删除待重做）也登记在此——
+    /// 解析错号必须显式失败，不许静默兜底到别的关。
     /// </summary>
     public class PixelartLevelSceneTests
     {
@@ -22,7 +23,7 @@ namespace PirateCrew.Tests
         [Test]
         public void TryGet_InRegistryLevels_ReturnsRowWithMatchingIdentity()
         {
-            int[] inRegistry = { 1, 3, 4, 5, 6 };
+            int[] inRegistry = { 1, 3, 4, 5 };
 
             foreach (int level in inRegistry)
             {
@@ -37,10 +38,10 @@ namespace PirateCrew.Tests
         [Test]
         public void TryGet_OutOfRegistryLevel_ReturnsFalse()
         {
-            // 2 = 样板关号段空洞；101 = 已删除待重做的海图号段（PixelartLevelScene.cs:149 注释）——
-            // 查不到就返回 false（"未知关卡号返回 false（不静默兜底到别的关）"），
-            // PlayerArtCapture.Install 依赖它走回落分支并打 error 日志。
-            foreach (int level in new[] { 0, 2, 7, 100, 101, -1 })
+            // 2 = 样板关号段空洞；6 = 草坪验收场已退役；101 = 已删除待重做的海图号段
+            // （PixelartLevelScene.cs 类头注释）——查不到就返回 false（"未知关卡号返回 false
+            // （不静默兜底到别的关）"），PlayerArtCapture.Install 依赖它走回落分支并打 error 日志。
+            foreach (int level in new[] { 0, 2, 6, 7, 100, 101, -1 })
             {
                 Assert.That(PixelartLevelScene.TryGet(level, out _), Is.False,
                     "关卡 " + level + " 不应在取景表里");
