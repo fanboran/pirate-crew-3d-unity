@@ -8,7 +8,7 @@ using UnityEngine.UI;
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 船员管理界面（M3）：展示名册与经验、招募状态、编成（上阵/取消），并提供「选关」「保存」「返回」入口。
+    /// 船员管理界面（M3）：展示名册、招募状态、编成（上阵/取消），并提供「选关」「保存」「返回」入口。
     ///
     /// 【界面性质】本界面是 M3 新增的最小可用版。
     ///
@@ -151,9 +151,7 @@ namespace PirateCrew.UI
                 Button rowButton = RuntimeUiBuilder.RowButton(row);
 
                 string label = unlocked
-                    ? UiTextRules.CrewRow(entry.DisplayName,
-                        CrewManagementApi.Progression.GetLevel(entry.Id),
-                        CrewManagementApi.Progression.GetXp(entry.Id))
+                    ? entry.DisplayName
                     : UiTextRules.CrewRowLocked(entry.DisplayName, entry.UnlockStars);
 
                 // 字色与行态同源（theme list_item：常态 text 灰 / 选中金底深字 / 禁用 disabled）。
@@ -254,7 +252,7 @@ namespace PirateCrew.UI
             else
                 SetStatus(string.Format(UiStrings.CrewStatusFailedFormat, levelName));
 
-            // Refresh 已由 CrewManagementEvents.RosterUpdated 频道驱动（关卡结算会广播经验变化）。
+            // Refresh 已由 CrewManagementEvents.RosterUpdated 频道驱动（关卡结算会广播变化）。
         }
 
         void SetStatus(string message)

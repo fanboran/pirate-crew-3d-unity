@@ -77,17 +77,14 @@ namespace PirateCrew.Tests
         }
 
         [Test]
-        public void GrantMapReward_GivesXpToActiveRosterOnly()
+        public void GrantMapReward_RewardCarriesActiveCrew()
         {
             CrewManagementApi.Recruit("gunner");
             CrewManagementApi.SetActiveRoster(new[] { "gunner" });   // 水手下阵
 
             CrewRewardPayload reward = CrewManagementApi.GrantMapReward("wreck_hymn", stars: 3, totalStars: 3);
 
-            Assert.That(reward.XpPerCrew, Is.EqualTo(CrewProgressionRules.XpAward(3)));
             Assert.That(reward.CrewIds, Is.EqualTo(new[] { "gunner" }));
-            Assert.That(CrewManagementApi.Progression.GetXp("gunner"), Is.EqualTo(reward.XpPerCrew));
-            Assert.That(CrewManagementApi.Progression.GetXp("sailor"), Is.EqualTo(0), "下阵船员不发经验");
             Assert.That(_lastReward?.LevelId, Is.EqualTo("wreck_hymn"));
         }
 
@@ -108,9 +105,7 @@ namespace PirateCrew.Tests
         {
             CrewRewardPayload reward = CrewManagementApi.GrantMapReward("wreck_hymn", stars: 0, totalStars: 0);
 
-            Assert.That(reward.XpPerCrew, Is.EqualTo(0));
             Assert.That(reward.UnlockedCrewIds, Is.Empty);
-            Assert.That(CrewManagementApi.Progression.GetXp("sailor"), Is.EqualTo(0));
             Assert.That(CrewManagementApi.IsUnlocked("gunner"), Is.False, "失败不推进招募");
         }
 
@@ -119,7 +114,7 @@ namespace PirateCrew.Tests
         {
             CrewManagementApi.Recruit("gunner");
             CrewManagementApi.SetActiveRoster(new[] { "sailor", "gunner" });
-            CrewManagementApi.Progression.GrantXp("sailor", 250);
+            CrewManagementApi.Progression.SetXp("sailor", 250);
 
             var data = new SaveData();
             CrewManagementApi.WriteTo(data);
@@ -133,7 +128,6 @@ namespace PirateCrew.Tests
             Assert.That(CrewManagementApi.Roster.UnlockedCount, Is.EqualTo(2));
             Assert.That(CrewManagementApi.Roster.Active, Is.EqualTo(new[] { "sailor", "gunner" }));
             Assert.That(CrewManagementApi.Progression.GetXp("sailor"), Is.EqualTo(250));
-            Assert.That(CrewManagementApi.Progression.GetLevel("sailor"), Is.EqualTo(2), "250 XP：100 到 2 级，还差 50 到 3 级");
         }
 
         [Test]

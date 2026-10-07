@@ -8,7 +8,7 @@ namespace PirateCrew.UI.Tests
     ///
     /// 【为什么值得测】"结算面板显示哪几行"原来是 <c>BattleHud.ShowSettlement</c> 里的一串 <c>if</c>，
     /// 只有跑起来、开一局战役、看面板才知道对不对。抽成纯规则后，**行集合与顺序**都被断言钉住——
-    /// 顺序尤其重要（评分 → 关卡 / 星级 / 经验 / 招募 / 首通 这条顺序按旧实现逐字保持，
+    /// 顺序尤其重要（评分 → 关卡 / 星级 / 招募 / 首通 这条顺序按旧实现逐字保持，
     /// 改动会改变玩家看到的信息排列）。
     /// </summary>
     [TestFixture]
@@ -21,11 +21,10 @@ namespace PirateCrew.UI.Tests
             int stars = 0,
             bool firstClear = false,
             bool hasReward = false,
-            int xpPerCrew = 0,
             int unlockedCrewCount = 0)
         {
             return new SettlementPanelRules.PanelInput(
-                score, campaignBattle, hasSettlement, stars, firstClear, hasReward, xpPerCrew, unlockedCrewCount);
+                score, campaignBattle, hasSettlement, stars, firstClear, hasReward, unlockedCrewCount);
         }
 
         [Test]
@@ -69,7 +68,7 @@ namespace PirateCrew.UI.Tests
         public void ScoreRow_ComesFirst_CampaignRowsFollow()
         {
             var input = Input(score: 300, campaignBattle: true, hasSettlement: true, stars: 3, firstClear: true,
-                hasReward: true, xpPerCrew: 25, unlockedCrewCount: 2);
+                hasReward: true, unlockedCrewCount: 2);
 
             CollectionAssert.AreEqual(
                 new[]
@@ -77,21 +76,10 @@ namespace PirateCrew.UI.Tests
                     SettlementPanelRules.RowKind.Score,      // 旧实现把评分加在战役块之前 → 顺序不可变
                     SettlementPanelRules.RowKind.Level,
                     SettlementPanelRules.RowKind.Stars,
-                    SettlementPanelRules.RowKind.Xp,
                     SettlementPanelRules.RowKind.Unlock,
                     SettlementPanelRules.RowKind.FirstClear,
                 },
                 SettlementPanelRules.RowsFor(input));
-        }
-
-        [TestCase(0, false, TestName = "XpRow_HiddenWhenZero")]
-        [TestCase(-3, false, TestName = "XpRow_HiddenWhenNegative")]
-        [TestCase(25, true, TestName = "XpRow_ShownWhenPositive")]
-        public void XpRow_DependsOnRewardXp(int xpPerCrew, bool expected)
-        {
-            var input = Input(campaignBattle: true, hasSettlement: true, hasReward: true, xpPerCrew: xpPerCrew);
-
-            Assert.AreEqual(expected, SettlementPanelRules.RowsFor(input).Contains(SettlementPanelRules.RowKind.Xp));
         }
 
         [TestCase(0, false, TestName = "UnlockRow_HiddenWhenNoCrewUnlocked")]
@@ -107,12 +95,11 @@ namespace PirateCrew.UI.Tests
         [Test]
         public void RewardRows_HiddenWhenNoRewardPayload()
         {
-            // 没有奖励载荷时，即便经验/解锁计数字段被填了也不显示（避免"数据串台"渲染出错误行）。
+            // 没有奖励载荷时，即便解锁计数字段被填了也不显示（避免"数据串台"渲染出错误行）。
             var input = Input(campaignBattle: true, hasSettlement: true,
-                hasReward: false, xpPerCrew: 40, unlockedCrewCount: 5);
+                hasReward: false, unlockedCrewCount: 5);
 
             List<SettlementPanelRules.RowKind> rows = SettlementPanelRules.RowsFor(input);
-            CollectionAssert.DoesNotContain(rows, SettlementPanelRules.RowKind.Xp);
             CollectionAssert.DoesNotContain(rows, SettlementPanelRules.RowKind.Unlock);
         }
 

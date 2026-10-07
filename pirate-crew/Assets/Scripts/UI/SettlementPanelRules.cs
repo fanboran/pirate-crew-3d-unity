@@ -31,9 +31,6 @@ namespace PirateCrew.UI
             /// <summary>星级行（<c>n/max</c>）。</summary>
             Stars,
 
-            /// <summary>每人经验行。</summary>
-            Xp,
-
             /// <summary>新招募行。</summary>
             Unlock,
 
@@ -64,14 +61,11 @@ namespace PirateCrew.UI
             /// <summary>是否带奖励载荷（<c>CampaignApi.LastReward != null</c>）。</summary>
             public readonly bool HasReward;
 
-            /// <summary>每人经验（&lt;=0 不显示经验行）。</summary>
-            public readonly int XpPerCrew;
-
             /// <summary>本次解锁的船员数（0 不显示新招募行）。</summary>
             public readonly int UnlockedCrewCount;
 
             public PanelInput(int score, bool campaignBattle, bool hasSettlement, int stars, bool firstClear,
-                bool hasReward, int xpPerCrew, int unlockedCrewCount)
+                bool hasReward, int unlockedCrewCount)
             {
                 Score = score;
                 CampaignBattle = campaignBattle;
@@ -79,7 +73,6 @@ namespace PirateCrew.UI
                 Stars = stars;
                 FirstClear = firstClear;
                 HasReward = hasReward;
-                XpPerCrew = xpPerCrew;
                 UnlockedCrewCount = unlockedCrewCount;
             }
         }
@@ -92,7 +85,7 @@ namespace PirateCrew.UI
 
         /// <summary>
         /// 结算面板要显示的行，**顺序即显示顺序**（与抽类前的 HUD 实现逐行等价）：
-        /// 评分 →（战役行：关卡 / 星级 / 经验 / 新招募 / 首通）。
+        /// 评分 →（战役行：关卡 / 星级 / 新招募 / 首通）。
         /// </summary>
         public static List<RowKind> RowsFor(in PanelInput input)
         {
@@ -108,11 +101,9 @@ namespace PirateCrew.UI
             rows.Add(RowKind.Level);
             rows.Add(RowKind.Stars);
 
-            // 经验 / 新招募都是奖励载荷里的可选项，各自按"有没有内容"决定（0 / 空数组不显示）。
+            // 新招募是奖励载荷里的可选项，按"有没有内容"决定（空数组不显示）。
             if (input.HasReward)
             {
-                if (input.XpPerCrew > 0)
-                    rows.Add(RowKind.Xp);
                 if (input.UnlockedCrewCount > 0)
                     rows.Add(RowKind.Unlock);
             }

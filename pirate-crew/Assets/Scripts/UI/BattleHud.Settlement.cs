@@ -50,7 +50,6 @@ namespace PirateCrew.UI
                 settlement.Stars,
                 settlement.FirstClear,
                 reward != null,
-                reward?.XpPerCrew ?? 0,
                 reward?.UnlockedCrewIds?.Length ?? 0);
 
             if (settlementTitleText != null)
@@ -92,8 +91,6 @@ namespace PirateCrew.UI
                     return UiTextRules.SettlementLevel(UiTextRules.MapDisplayName(settlement.MapId));
                 case SettlementPanelRules.RowKind.Stars:
                     return UiTextRules.SettlementStars(settlement.Stars, StarRules.MaxStars);
-                case SettlementPanelRules.RowKind.Xp:
-                    return UiTextRules.SettlementXp(input.XpPerCrew);
                 case SettlementPanelRules.RowKind.Unlock:
                     // 规则只在 HasReward 时才会给出 Unlock 行；这里再守一道，避免数据源中途变了就 NRE。
                     return reward.HasValue

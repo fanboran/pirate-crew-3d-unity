@@ -151,7 +151,7 @@ namespace PirateCrew.Tests
         // ------------------------------------------------------------------
 
         [Test]
-        public void MatchFinished_ClearedMap_WritesProgressAndGrantsXp()
+        public void MatchFinished_ClearedMap_WritesProgressAndRewards()
         {
             Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
@@ -161,11 +161,9 @@ namespace PirateCrew.Tests
             Assert.That(_lastCompleted?.MapId, Is.EqualTo(MapA));
             Assert.That(_lastCompleted?.Stars, Is.EqualTo(2));
 
-            // 奖励发给编成阵容（初始只有水手）；累计 2 星还不到炮手的 3 星门槛。
-            Assert.That(CrewManagementApi.Progression.GetXp(CrewRosterCatalog.InitialCrewId),
-                Is.EqualTo(CrewProgressionRules.XpAward(2)));
+            // 奖励载荷带编成阵容（初始只有水手）；累计 2 星还不到炮手的 3 星门槛。
             Assert.That(CrewManagementApi.Roster.UnlockedCount, Is.EqualTo(1));
-            Assert.That(CampaignApi.LastReward?.XpPerCrew, Is.EqualTo(CrewProgressionRules.XpAward(2)));
+            Assert.That(CampaignApi.LastReward?.CrewIds, Is.EqualTo(new[] { CrewRosterCatalog.InitialCrewId }));
             Assert.That(CampaignApi.HasPendingMap, Is.False, "结算后待结算海图应清空");
         }
 
@@ -200,12 +198,11 @@ namespace PirateCrew.Tests
         }
 
         [Test]
-        public void MatchFinished_FailedRun_KeepsProgressAndGivesNoXp()
+        public void MatchFinished_FailedRun_KeepsProgress()
         {
             PlayBattle(MapA, (int)MatchOutcome.LevelFailed, 0, playerDeaths: 3);
 
             Assert.That(CampaignApi.Progress.CompletedCount, Is.EqualTo(0));
-            Assert.That(CrewManagementApi.Progression.GetXp(CrewRosterCatalog.InitialCrewId), Is.EqualTo(0));
             Assert.That(_lastCompleted?.Cleared, Is.False);
             Assert.That(CampaignApi.LastSettlement?.Stars, Is.EqualTo(0));
         }
@@ -279,8 +276,6 @@ namespace PirateCrew.Tests
             Assert.That(CampaignApi.Progress.GetStars(MapA), Is.EqualTo(3));
             Assert.That(CampaignApi.Progress.TotalStars, Is.EqualTo(3));
             Assert.That(CrewManagementApi.Roster.Active, Is.EqualTo(new[] { "sailor", "gunner" }));
-            Assert.That(CrewManagementApi.Progression.GetXp("sailor"),
-                Is.EqualTo(CrewProgressionRules.XpAward(3)));
         }
 
         [Test]

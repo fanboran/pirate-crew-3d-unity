@@ -483,7 +483,7 @@ namespace PirateCrew.UI
             _turnNumber = 0;
             RefreshBadge();
 
-            // BattleStarted 时仍有待结算关卡 = 这一局从选关进来（结算面板要显示星级/经验）。
+            // BattleStarted 时仍有待结算关卡 = 这一局从选关进来（结算面板要显示星级/招募）。
             _campaignBattle = CampaignApi.HasPendingMap;
 
             // 重开一局经场景重载进来：清掉可能残留的暂停态与旧模态。

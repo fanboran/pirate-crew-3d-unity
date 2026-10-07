@@ -100,9 +100,6 @@ namespace PirateCrew.UI
         /// <summary>船员管理：未编成占位。</summary>
         public const string CrewSummaryEmpty = "（未编成）";
 
-        /// <summary>船员管理行文本模板（等级 / 经验，去掉既有 Lv./XP 混排）。</summary>
-        public const string CrewRowFormat = "{0}　等级 {1}　经验 {2}";
-
         /// <summary>船员管理行文本模板（未解锁）。</summary>
         public const string CrewRowLockedFormat = "{0}　（累计 {1} 星后招募）";
 
@@ -338,9 +335,6 @@ namespace PirateCrew.UI
 
         /// <summary>结算行：星级。</summary>
         public const string SettlementRowStarsFormat = "星级　{0}/{1}";
-
-        /// <summary>结算行：每人经验。</summary>
-        public const string SettlementRowXpFormat = "每人经验　+{0}";
 
         /// <summary>结算行：新招募。</summary>
         public const string SettlementRowUnlockFormat = "新招募　{0}";

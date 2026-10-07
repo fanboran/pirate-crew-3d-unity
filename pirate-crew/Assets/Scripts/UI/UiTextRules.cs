@@ -267,12 +267,6 @@ namespace PirateCrew.UI
             return string.Format(UiStrings.SettlementRowStarsFormat, stars, maxStars);
         }
 
-        /// <summary>结算行：每人经验。</summary>
-        public static string SettlementXp(int xpPerCrew)
-        {
-            return string.Format(UiStrings.SettlementRowXpFormat, xpPerCrew);
-        }
-
         /// <summary>结算行：新招募。</summary>
         public static string SettlementUnlock(string displayNames)
         {
@@ -282,12 +276,6 @@ namespace PirateCrew.UI
         // ------------------------------------------------------------------
         // 船员管理 / 选关文案
         // ------------------------------------------------------------------
-
-        /// <summary>船员管理行文本。</summary>
-        public static string CrewRow(string displayName, int level, int xp)
-        {
-            return string.Format(UiStrings.CrewRowFormat, displayName, level, xp);
-        }
 
         /// <summary>船员管理行文本（未解锁）。</summary>
         public static string CrewRowLocked(string displayName, int unlockLevelNumber)

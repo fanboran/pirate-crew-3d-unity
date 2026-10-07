@@ -21,7 +21,7 @@ namespace PirateCrew.CrewManagement
         /// <summary>新船员被招募（载荷 <see cref="CrewUnlockedPayload"/>）。</summary>
         public static readonly Event<CrewUnlockedPayload> CrewUnlocked = new();
 
-        /// <summary>关卡结算给船员发经验/招募（载荷 <see cref="CrewRewardPayload"/>）。</summary>
+        /// <summary>关卡结算的奖励通知（招募发放；载荷 <see cref="CrewRewardPayload"/>）。</summary>
         public static readonly Event<CrewRewardPayload> RewardGranted = new();
     }
 
@@ -66,21 +66,17 @@ namespace PirateCrew.CrewManagement
         /// <summary>本局星级（0 = 未通关）。</summary>
         public readonly int Stars;
 
-        /// <summary>每个出战船员获得的经验。</summary>
-        public readonly int XpPerCrew;
-
-        /// <summary>实际获得经验的船员 id（= 编成阵容）。</summary>
+        /// <summary>本局编成阵容（船员 id 列表）。</summary>
         public readonly string[] CrewIds;
 
         /// <summary>本次结算新招募的船员 id（无则空数组）。</summary>
         public readonly string[] UnlockedCrewIds;
 
-        public CrewRewardPayload(string levelId, int stars, int xpPerCrew,
+        public CrewRewardPayload(string levelId, int stars,
             string[] crewIds, string[] unlockedCrewIds)
         {
             LevelId = levelId;
             Stars = stars;
-            XpPerCrew = xpPerCrew;
             CrewIds = crewIds ?? Array.Empty<string>();
             UnlockedCrewIds = unlockedCrewIds ?? Array.Empty<string>();
         }

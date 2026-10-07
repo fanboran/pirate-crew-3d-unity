@@ -8,7 +8,7 @@ namespace PirateCrew.CrewManagement
     /// 船员管理模块的跨模块公共出口（纯静态外观）。
     ///
     /// 【架构定位】
-    ///   模块状态（名册 + 经验）是**纯 C# 静态持有**的，不需要 MonoBehaviour、不需要摆进场景：
+    ///   模块状态（名册）是**纯 C# 静态持有**的，不需要 MonoBehaviour、不需要摆进场景：
     ///   · 战斗场景会卸载管理场景，状态必须跨场景存活；
     ///   · MonoBehaviour 实例化在无头验证台不可用，纯 C# 才能被 NUnit 直接断言。
     ///   进入播放时由唯一入口 <c>Core/GameEntryPoint</c> 调用 <see cref="ResetStatics"/> 清空静态残留。
@@ -18,7 +18,7 @@ namespace PirateCrew.CrewManagement
     ///
     /// 【M3 边界（重要，别高估）】编成阵容目前**不会注入战斗**——
     ///   <c>PirateCrew.Battle.BattleController</c> 的出战名单来自关卡资产（§7.2），
-    ///   本轮（M3）不允许改 PirateCrew/，故名册/编成只影响「结算发经验给谁」。
+    ///   本轮（M3）不允许改 PirateCrew/，故名册/编成只影响「结算奖励归属谁」。
     ///   真正把编成喂给战斗需要 BattleController 增一个读取入口，已写进交付报告由协调者裁决。
     /// </summary>
     public static class CrewManagementApi
@@ -36,7 +36,7 @@ namespace PirateCrew.CrewManagement
             }
         }
 
-        /// <summary>经验账本（懒初始化）。</summary>
+        /// <summary>经验账本（**仅存档兼容**：旧档字段保留、原样搬运，运行时不发经验）。</summary>
         public static CrewProgression Progression
         {
             get
@@ -101,7 +101,7 @@ namespace PirateCrew.CrewManagement
         }
 
         /// <summary>
-        /// 海图战结算：给编成阵容发经验 + 按「累计星数」过招募门槛招募新船员，并广播事件。
+        /// 海图战结算：按「累计星数」过招募门槛招募新船员，并广播事件。
         ///
         /// 【调用方】<c>CampaignApi</c>（跨模块命令走本方法；通知走事件）。
         /// 【门槛口径】招募门槛 = 累计星数
@@ -114,17 +114,10 @@ namespace PirateCrew.CrewManagement
         public static CrewRewardPayload GrantMapReward(string mapId, int stars, int totalStars)
         {
             string[] activeIds = Roster.ActiveCopy();
-            int xpPerCrew = CrewProgressionRules.XpAward(stars);
-
-            if (xpPerCrew > 0)
-            {
-                for (int i = 0; i < activeIds.Length; i++)
-                    Progression.GrantXp(activeIds[i], xpPerCrew);
-            }
 
             List<string> unlocked = UnlockCrewsForStars(totalStars);
 
-            var payload = new CrewRewardPayload(mapId, stars, xpPerCrew, activeIds, unlocked.ToArray());
+            var payload = new CrewRewardPayload(mapId, stars, activeIds, unlocked.ToArray());
             EventBus.Publish(CrewManagementEvents.RewardGranted, payload);
             PublishRosterUpdated();
             return payload;
@@ -159,13 +152,13 @@ namespace PirateCrew.CrewManagement
         // 存档（走 Core.SaveData 的字符串键值 API，不改 Core）
         // ------------------------------------------------------------------
 
-        /// <summary>把名册与经验写进存档数据。</summary>
+        /// <summary>把名册写进存档数据（经验键随账本原样搬运，兼容旧档）。</summary>
         public static void WriteTo(SaveData data)
         {
             CrewManagementSaveCodec.Write(data, Roster, Progression);
         }
 
-        /// <summary>从存档数据恢复名册与经验。</summary>
+        /// <summary>从存档数据恢复名册（经验字段原样读回账本，不做升级换算）。</summary>
         public static void ReadFrom(SaveData data)
         {
             CrewManagementSaveCodec.Read(data, Roster, Progression);

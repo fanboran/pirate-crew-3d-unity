@@ -180,11 +180,6 @@ namespace PirateCrew.Tests
             Assert.That(stars, Does.Contain("2").And.Contains("3"), "结算「星级」行未吃进星数");
             Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(stars), "结算「星级」行混入英文");
 
-            string xp = UiTextRules.SettlementXp(40);
-            Assert.IsFalse(string.IsNullOrEmpty(xp), "结算「经验」行为空");
-            Assert.That(xp, Does.Contain("40"), "结算「经验」行未吃进经验值");
-            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(xp), "结算「经验」行混入英文");
-
             string unlock = UiTextRules.SettlementUnlock("炮手");
             Assert.IsFalse(string.IsNullOrEmpty(unlock), "结算「新招募」行为空");
             Assert.That(unlock, Does.Contain("炮手"), "结算「新招募」行未吃进招募名");
@@ -198,13 +193,6 @@ namespace PirateCrew.Tests
         [Test]
         public void CrewRows_FormatParamsAndStayChinese()
         {
-            // 判据（文件头裁决：字面不锁）：船员管理行非空、无不允许英文、且吃进传入参数。
-            string row = UiTextRules.CrewRow("水手", 3, 120);
-            Assert.IsFalse(string.IsNullOrEmpty(row), "船员管理行为空");
-            Assert.That(row, Does.Contain("水手").And.Contains("3").And.Contains("120"),
-                "船员管理行未吃进名字/等级/经验");
-            Assert.IsFalse(UiTextRules.ContainsDisallowedEnglish(row), "船员管理行混入英文");
-
             string locked = UiTextRules.CrewRowLocked("狙击手", 5);
             Assert.IsFalse(string.IsNullOrEmpty(locked), "未解锁行为空");
             Assert.That(locked, Does.Contain("狙击手").And.Contains("5"),
