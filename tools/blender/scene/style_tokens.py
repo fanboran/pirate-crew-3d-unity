@@ -97,6 +97,8 @@ SLOTS = {
     "Kit_FarNear":    {"hex": "#7E93A8", "roughness": 1.00},
     "Kit_FarFar":     {"hex": "#AFC2D4", "roughness": 1.00},
     "Kit_Cloud":      {"hex": "#FFFFFF", "roughness": 1.00},
+    "Kit_CloudShade": {"hex": "#DCE6EE", "roughness": 1.00},   # 云背光/云底（CloudWarmWhite 同系冷档）
+    "Kit_CloudGold":  {"hex": "#F2E4C4", "roughness": 1.00},   # 云晒面淡金斑（CloudPaleGold 同源）
     "Kit_FarSail":    {"hex": "#E8E8E0", "roughness": 1.00},
 }
 
