@@ -2,6 +2,7 @@
 
 一任务一文件。任务收官时把 `../<任务名>.md` 移进本目录，并在本清单加一行。
 
+- [x] **sceneart-云端空岛岛体 Blender 重做** — 云田 11 朵逐位翻译(C# 几何→Blender FBX，哈希/削平/抖动/分带照抄)+散开布局+第二环可站面+观感对齐并 main；**天空之岛全零件翻译未开工**(待办索引另追踪) — → [sceneart-云端空岛岛体Blender重做.md](sceneart-云端空岛岛体Blender重做.md)
 - [x] **EditMode 两条先存测试红** — 资产计数门禁已改按现实数据、`ChemPlantOrbitCapture+OrbitRunner` 已拆顶级类；EditMode 全量 0 失败复验 — → [tests-editmode先存红.md](tests-editmode先存红.md)
 - [x] **Cinemachine 包卸载** — manifest 摘除 2.9.7，open 档重析验证 0 错误（31→30 包）；守卫测试继续钉住去 Cinemachine 化不变式 — → [infra-cinemachine包卸载.md](infra-cinemachine包卸载.md)
 - [x] **验证环境·Unity 路径引用债** — 全仓 47 处失效 `2022.3.62f1c1` 路径引用清扫：10 个活文件改对，版本号语义与归档/图档按规范保留 — → [infra-unity路径引用债.md](infra-unity路径引用债.md)
@@ -18,3 +19,4 @@
 - [x] **M1 主菜单 + 场景流转 + 存档骨架** — EventBus / SceneLoader / SaveManager / Bootstrapper + 端到端 PlayMode 流转 — → [M1-主菜单与场景流转.md](M1-主菜单与场景流转.md)
 - [x] **M0 骨架** — URP 落地、asmdef + UTF 接入、ProjectSettings 定名、`pirate-crew/` 子目录结构 — → [M0-骨架.md](M0-骨架.md)
 - [x] **像素化路径 P4/P5 补齐** — 连通域内线 / 屏幕空间描边 / 四趟着色 / G-buffer ×7 / 像素档迁移 — → [像素化路径-P4P5补齐.md](像素化路径-P4P5补齐.md)
+- [level-关卡地形岛形化.md](level-关卡地形岛形化.md) — 矩形采样网格根除,地形=岛形轮廓(schema 3),栅格化回填与冻结签名逐字等价
