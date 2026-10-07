@@ -1511,19 +1511,25 @@ namespace PirateCrew.SceneArt.Showcase
                     0.20f + 0.10f * SceneArtHash.Hash01(seed, i, 1207),
                     0.22f + 0.14f * SceneArtHash.Hash01(seed, i, 1209), seed, 1161 + i);
 
-                // 主岩：三轴各带抖动（同一 aspect 的球体在中机位读成"圆石头"而不是"撕下来的岩块"）
-                Piece(f, buffers.RockMid, IslandMaterial.RockMid).AddRock(c, rad, new Vector3(
-                    1.00f + 0.50f * SceneArtHash.Hash01(seed, i, 1199),
-                    0.70f + 0.42f * SceneArtHash.Hash01(seed, i, 1201),
-                    0.88f + 0.36f * SceneArtHash.Hash01(seed, i, 1203)), seed + i * 31, 7);
+                // 主岩：**低抖动球团**（不是 MeshBuffers.AddRock 的折角岩块）。
+                // 【形态纪律（创始人 2026-10-07 实拍："这TM三角片"）】浮石会飘到近机位，而
+                // 像素管线会给"面间法线差大"的每条折角勾内线——折角岩块近看就是一坨线框
+                //（实拍该物体 4 成像素是纯墨/纯黑）。球团的面间法线差小、内线少，
+                // 三轴 aspect 仍带抖动 → 仍是"各不相同的石头"，但读得出是石头。
+                IslandPrimitives.AddBlob(Piece(f, buffers.RockMid, IslandMaterial.RockMid), c,
+                    new Vector3(
+                        rad * (1.00f + 0.50f * SceneArtHash.Hash01(seed, i, 1199)),
+                        rad * (0.70f + 0.42f * SceneArtHash.Hash01(seed, i, 1201)),
+                        rad * (0.88f + 0.36f * SceneArtHash.Hash01(seed, i, 1203))),
+                    3, 10, seed + i * 31, 11, 0.10f);
 
-                // 副岩：约七成带一块半嵌的暗岩（贴在同一岩块侧下方）
+                // 副岩：约七成带一块半嵌的暗岩（贴在同一岩块侧下方；同样用球团）
                 if (SceneArtHash.Hash01(seed, i, 1183) > 0.30f)
                 {
                     Vector3 c2 = c + new Vector3(Mathf.Cos(ang + 2.1f), -0.22f, Mathf.Sin(ang + 2.1f)) * (rad * 0.72f);
-                    Piece(f, buffers.RockDark, IslandMaterial.RockDark).AddRock(c2,
-                        rad * (0.45f + 0.25f * SceneArtHash.Hash01(seed, i, 1189)),
-                        new Vector3(1.2f, 0.85f, 1.05f), seed + i * 37, 6);
+                    float sr = rad * (0.45f + 0.25f * SceneArtHash.Hash01(seed, i, 1189));
+                    IslandPrimitives.AddBlob(Piece(f, buffers.RockDark, IslandMaterial.RockDark), c2,
+                        new Vector3(sr * 1.2f, sr * 0.85f, sr * 1.05f), 3, 8, seed + i * 37, 17, 0.12f);
                 }
 
                 // 草帽：顶面一片压扁的草皮球团
@@ -1547,13 +1553,14 @@ namespace PirateCrew.SceneArt.Showcase
                         new Vector3(16f, ang * Mathf.Rad2Deg, 22f), seed + i * 43, 4, 0.16f);
                 }
 
-                // 底面几根小石笋，浮石才有"撕下来"的读感
+                // 底面几根小石笋，浮石才有"撕下来"的读感。
+                // 【长粗比纪律】浮石会飘到近机位：短而钝才读成"岩齿"，长而细就是两根针（实拍已证伪）。
                 for (int s = 0; s < 2; s++)
                 {
                     Vector3 root = c + Vector3.down * (rad * 0.6f)
                         + new Vector3(Mathf.Cos(ang + s), 0f, Mathf.Sin(ang + s)) * (rad * 0.28f);
                     IslandPrimitives.AddStalactite(Piece(f, buffers.RockDark, IslandMaterial.RockDark), root,
-                        rad * (0.5f + 0.5f * SceneArtHash.Hash01(seed, i * 2 + s, 1197)), rad * 0.28f,
+                        rad * (0.35f + 0.30f * SceneArtHash.Hash01(seed, i * 2 + s, 1197)), rad * 0.34f,
                         ang * Mathf.Rad2Deg, 12f, seed + i * 5 + s);
                 }
             }

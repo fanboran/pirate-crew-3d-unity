@@ -351,6 +351,13 @@ namespace PirateCrew.SceneArt.Showcase
         /// 石笋 / 垂岩（岛底倒挂的尖齿）：圆台倒转 180° + 一点倾斜。
         /// 尖端朝下 = 悬空岩体的重力指示，是"浮空"读感的关键部件之一。
         /// </summary>
+        /// <summary>
+        /// 岩钟乳 / 石笋：**上粗下钝**的锥（不是针）。
+        /// 【钝头纪律（创始人 2026-10-07 实拍："这TM三角片你叫这石笋？"）】
+        /// 早先 5 段 + 尖端 0.09r 的写法，在近机位就是两根细针/薄片——低段数的细锥侧面只有几条
+        /// 狭长三角形，像素管线再把每个面的内线勾出来，读起来就是"三角片"。
+        /// 现在 7 段 + 尖端 0.18r（更钝）+ 由调用方控制长粗比：近处（浮石上）短粗、远处（岛底）可长。
+        /// </summary>
         public static void AddStalactite(MeshBuffers b, Vector3 rootPos, float length, float radius,
             float yawDegrees, float tiltDegrees, int seed)
         {
@@ -359,7 +366,7 @@ namespace PirateCrew.SceneArt.Showcase
 
             var local = new MeshBuffers();
             // 局部：底面（宽）在 y=0，尖端在 y=+length，capTop=true 封尖。
-            local.AddFrustum(Vector3.zero, radius, radius * 0.09f, length, 5, yawDegrees, true, true);
+            local.AddFrustum(Vector3.zero, radius, radius * 0.18f, length, 7, yawDegrees, true, true);
 
             // 倒转（绕 X 180°）再倾斜，最后平移。SceneArtRot.Euler 顺序与 Quaternion.Euler 一致。
             Matrix4x4 m = SceneArtRot.Trs(rootPos,
