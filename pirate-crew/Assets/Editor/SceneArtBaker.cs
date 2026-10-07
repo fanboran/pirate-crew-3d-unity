@@ -29,13 +29,12 @@ namespace PirateCrew.EditorTools
         public static void BuildAll()
         {
             EnsureModelImporter(BakeFolder + "/CloudWalk.fbx");
-            EnsureModelImporter(BakeFolder + "/SkyIsland.fbx");
             BakeCloudWalkPrefab();
             WireBattleScene();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[SceneArtBaker] 样板场景件接线完成：岛体 Blender 件（CloudWalk / SkyIsland）→ Battle 场景。");
+            Debug.Log("[SceneArtBaker] 样板场景件接线完成：云场 Blender 件（CloudWalk）→ Battle 场景。");
         }
 
         /// <summary>

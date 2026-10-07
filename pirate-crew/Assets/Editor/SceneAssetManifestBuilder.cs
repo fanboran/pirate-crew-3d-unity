@@ -52,8 +52,6 @@ namespace PirateCrew.EditorTools
             // ---- SceneKit：关卡岛体（Blender 岛形驱动，顶面逐点复刻关卡 terrain 轮廓）----
             new UpstreamEntry { PathInModels = "SceneKit/CloudWalk.fbx", Origin = "handmade",
                 Source = "tools/blender/scene/islands/build_cloud_walk.py（Blender 无头，golden terrain 岛形驱动）" },
-            new UpstreamEntry { PathInModels = "SceneKit/SkyIsland.fbx", Origin = "handmade",
-                Source = "tools/blender/scene/islands/build_sky_island.py（Blender 无头，golden terrain 岛形驱动 + 装饰浮空岛群）" },
 
             // ---- SceneKit：Blender 手作主件（§19 样板）----
             new UpstreamEntry { PathInModels = "SceneKit/Flagship.fbx", Origin = "handmade",

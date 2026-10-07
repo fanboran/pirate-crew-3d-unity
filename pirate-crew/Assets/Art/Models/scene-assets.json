@@ -1,7 +1,7 @@
 {
   "manifestVersion": 1,
   "note": "场景资产总清单（生成器 SceneAssetManifestBuilder.BuildAll；手工编辑会被覆盖）。格式为提案/待定。",
-  "assetCount": 90,
+  "assetCount": 89,
   "assets": [
     { "path": "SceneKit/Baked/Lowpoly_CloudPaleGold.asset", "kind": "mesh", "origin": "programmatic", "source": "SceneArtBaker 烘焙网格资产（被同目录 prefab 引用，不单独摆放）" },
     { "path": "SceneKit/Baked/Lowpoly_CloudWarmWhite.asset", "kind": "mesh", "origin": "programmatic", "source": "SceneArtBaker 烘焙网格资产（被同目录 prefab 引用，不单独摆放）" },
@@ -11,7 +11,6 @@
     { "path": "SceneKit/CloudWalk.prefab", "kind": "prefab", "origin": "unknown", "source": "未登记" },
     { "path": "SceneKit/Dock.fbx", "kind": "fbx", "origin": "handmade", "source": "tools/blender/scene/build_scene_kit.py（Blender 无头）" },
     { "path": "SceneKit/Flagship.fbx", "kind": "fbx", "origin": "handmade", "source": "tools/blender/scene/build_scene_kit.py（Blender 无头）" },
-    { "path": "SceneKit/SkyIsland.fbx", "kind": "fbx", "origin": "handmade", "source": "tools/blender/scene/islands/build_sky_island.py（Blender 无头，golden terrain 岛形驱动 + 装饰浮空岛群）" },
     { "path": "WorldKit/Archipelago/AtollArcA.fbx", "kind": "fbx", "origin": "handmade", "source": "tools/blender/scene/archipelago/（Blender 无头批量，style_tokens.py 统一风格）" },
     { "path": "WorldKit/Archipelago/AtollArcA.standable.json", "kind": "standable", "origin": "generated", "source": "tools/blender/scene/sync_standables.py（GENERATED，勿手改）" },
     { "path": "WorldKit/Archipelago/AtollCore.fbx", "kind": "fbx", "origin": "handmade", "source": "tools/blender/scene/archipelago/（Blender 无头批量，style_tokens.py 统一风格）" },
