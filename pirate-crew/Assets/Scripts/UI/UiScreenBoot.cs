@@ -34,22 +34,22 @@ namespace PirateCrew.UI
                 case ScreenKind.CrewManagement:
                 {
                     UiScreenBuilder.CrewRefs refs = UiScreenBuilder.BuildCrewManagement(canvas.transform);
-                    var controller = AttachController<CrewManagementController>(canvas.transform, "CrewManagementController");
-                    controller.Bind(refs);
+                    AttachController<CrewManagementController>(canvas.transform, "CrewManagementController",
+                        c => c.Bind(refs));
                     break;
                 }
                 case ScreenKind.LevelSelect:
                 {
                     UiScreenBuilder.LevelRefs refs = UiScreenBuilder.BuildLevelSelect(canvas.transform);
-                    var controller = AttachController<LevelSelectController>(canvas.transform, "LevelSelectController");
-                    controller.Bind(refs);
+                    AttachController<LevelSelectController>(canvas.transform, "LevelSelectController",
+                        c => c.Bind(refs));
                     break;
                 }
                 default:
                 {
                     UiScreenBuilder.MainMenuRefs refs = UiScreenBuilder.BuildMainMenu(canvas.transform);
-                    var controller = AttachController<MainMenuController>(canvas.transform, "MainMenuController");
-                    controller.Bind(refs);
+                    AttachController<MainMenuController>(canvas.transform, "MainMenuController",
+                        c => c.Bind(refs));
                     break;
                 }
             }
@@ -58,13 +58,21 @@ namespace PirateCrew.UI
             PixelScaleService.ApplyAll();
         }
 
-        /// <summary>控制器挂画布下：非激活期注入 refs，激活才跑 Awake（字段已齐）。</summary>
-        static T AttachController<T>(Transform canvas, string name) where T : MonoBehaviour
+        /// <summary>
+        /// 控制器挂画布下：**非激活期注入 refs，激活才跑 Awake**（字段已齐）——
+        /// 这是控制器 Bind 契约（"必须在对象激活前调用"）的唯一正确时序。
+        /// 【2026-10-08 修】原实现先 SetActive(true) 再在外层 Bind：激活那刻字段全空，
+        /// Awake 里所有 <c>if (x != null)</c> 挂监听全部跳过——主菜单五钮/设置滑条/选关/编成
+        /// 全量失灵（创始人实拍"调试场景点了没反应、按压反馈却有"；探针实测 onClick 监听数=0）。
+        /// 注入挪进激活前，与文档注释的口径一致。
+        /// </summary>
+        static T AttachController<T>(Transform canvas, string name, System.Action<T> bind) where T : MonoBehaviour
         {
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(canvas.transform, false);
             go.SetActive(false);
             T controller = go.AddComponent<T>();
+            bind?.Invoke(controller);
             go.SetActive(true);
             return controller;
         }

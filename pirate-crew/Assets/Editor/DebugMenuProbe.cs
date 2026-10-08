@@ -4,6 +4,8 @@ using System.Text;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace PirateCrew.EditorTools
 {
@@ -61,14 +63,51 @@ namespace PirateCrew.EditorTools
             Frames++;
             if (Frames == ClickFrame)
             {
+                // 第二版取证：**真实点击链**模拟——射线打点 + executeHierarchy（不直调处理器）。
+                // 第一版直调 OnShowcaseClicked 已证明 Toggle/Build 本体是通的；本版回答
+                // 「指针事件到底有没有/被谁吃掉」。射线结果写进转储（_raycastDump）。
                 var controller = Object.FindFirstObjectByType<global::PirateCrew.UI.MainMenuController>();
-                MethodInfo click = controller != null
-                    ? typeof(global::PirateCrew.UI.MainMenuController).GetMethod(
-                        "OnShowcaseClicked", BindingFlags.Instance | BindingFlags.NonPublic)
+                var go = controller != null
+                    ? FindButton(controller.transform.parent)
                     : null;
                 Debug.Log("[DebugMenuProbe] 控制器=" + (controller != null ? controller.name : "<无>")
-                    + "，处理器=" + (click != null ? "在" : "<缺失>"));
-                click?.Invoke(controller, null);
+                    + "，按钮=" + (go != null ? go.name : "<未找到>"));
+                if (go != null)
+                {
+                    Vector2 screenPos = RectTransformUtility.WorldToScreenPoint(null, go.transform.position);
+                    var ped = new PointerEventData(EventSystem.current) { position = screenPos };
+                    var hits = new System.Collections.Generic.List<RaycastResult>();
+                    EventSystem.current.RaycastAll(ped, hits);
+                    var sbHits = new StringBuilder();
+                    sbHits.AppendLine("== 射线命中（自上而下，第一个吃点击）==");
+                    foreach (var hit in hits)
+                        sbHits.AppendLine("  " + hit.gameObject.name
+                            + " (depth=" + hit.sortingOrder + ")");
+
+                    // 监听器计数 + 可交互态 + 事件链分段取证：
+                    // ①onClick 挂没挂监听（UnityEvent m_Calls 反射）；②直接 Invoke 与
+                    // ③ExecuteEvents 点击链的结果分开报——哪一段断的一目了然。
+                    Button button = go.GetComponent<Button>();
+                    FieldInfo callsField = typeof(UnityEngine.Events.UnityEventBase).GetField(
+                        "m_Calls", BindingFlags.Instance | BindingFlags.NonPublic);
+                    object calls = callsField != null ? callsField.GetValue(button.onClick) : null;
+                    FieldInfo countField = calls != null ? calls.GetType().GetField(
+                        "m_RuntimeCalls", BindingFlags.Instance | BindingFlags.NonPublic) : null;
+                    object runtimeCalls = countField != null ? countField.GetValue(calls) : null;
+                    var runtimeList = runtimeCalls as System.Collections.ICollection;
+                    sbHits.AppendLine("onClick 运行期监听数=" + (runtimeList != null ? runtimeList.Count : -1)
+                        + "，interactable=" + button.interactable
+                        + "，activeInHierarchy=" + go.activeInHierarchy
+                        + "，组件启用=" + button.enabled);
+
+                    ExecuteEvents.Execute(go, ped, ExecuteEvents.pointerDownHandler);
+                    ExecuteEvents.Execute(go, ped, ExecuteEvents.pointerUpHandler);
+                    ExecuteEvents.Execute(go, ped, ExecuteEvents.pointerClickHandler);
+                    sbHits.AppendLine("ExecuteEvents 点击链后 _root 建否=" + (HostRoot() != null));
+                    button.onClick.Invoke();
+                    sbHits.AppendLine("onClick.Invoke() 后 _root 建否=" + (HostRoot() != null));
+                    _raycastDump = sbHits.ToString();
+                }
             }
             if (Frames >= DumpFrame)
             {
@@ -79,10 +118,29 @@ namespace PirateCrew.EditorTools
             }
         }
 
+        static string _raycastDump = "<未采集>";
+
+        /// <summary>DebugMenuHost 私有静态 _root 的当前值（建窗判据）。</summary>
+        static object HostRoot()
+        {
+            return typeof(global::PirateCrew.UI.DebugUi.DebugMenuHost)
+                .GetField("_root", BindingFlags.Static | BindingFlags.NonPublic)
+                ?.GetValue(null);
+        }
+
+        static UnityEngine.GameObject FindButton(Transform canvas)
+        {
+            if (canvas == null)
+                return null;
+            Transform button = canvas.Find("MenuWindow/ShowcaseButton");
+            return button != null ? button.gameObject : null;
+        }
+
         static void Dump()
         {
             var sb = new StringBuilder();
             sb.AppendLine("== DebugMenuProbe 转储（帧 " + Frames + "，点击发生在 " + ClickFrame + "）==");
+            sb.Append(_raycastDump);
 
             // DebugMenuHost 静态态（static class，反射取私有字段）
             System.Type host = typeof(global::PirateCrew.UI.DebugUi.DebugMenuHost);
