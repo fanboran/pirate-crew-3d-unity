@@ -35,17 +35,13 @@
 
 ### 🏝️ 天空之岛（关卡 3）
 
-程序化浮空岛：一颗种子稳定生成整座岛——草皮穹顶下藏着半塌的遗迹与悬浮主晶，崖边三挂瀑布坠向云海，西侧瞭望台飘着海盗旗，四周浮岩与萤光尘环绕。红蓝两队各据一头，岛缘之外就是天空。这座岛就是当前的正式战斗关，由八步装配链无头重烘入库。
-
-![天空之岛近景](docs/images/readme/battle-island-close.png)
+程序化浮空岛：一颗种子稳定生成整座岛——草皮穹顶下藏着半塌的遗迹与悬浮主晶，崖边三挂瀑布坠向云海，西侧瞭望台飘着海盗旗，四周浮岩与萤光尘环绕。红蓝两队各据一头，岛缘之外就是天空。这座岛就是当前的正式战斗关，由八步装配链无头重烘入库（实拍即本页顶部大图）。
 
 ### 🏭 废弃化工厂（关卡 4/5）
 
 Blender 无头管线手作建模的工业废墟两连关：精馏塔、管廊、储罐、冷却塔与四层旁楼，黄昏天光下打一场废墟攻防。
 
-| 化工厂鸟瞰 | 厂区主路人视 |
-| --- | --- |
-| ![化工厂鸟瞰](docs/images/readme/level-chemplant.jpg) | ![厂区主路](docs/images/readme/level-chemplant-street.jpg) |
+![废弃化工厂](docs/images/readme/level-chemplant.png)
 
 ## 战斗：两态交互 + 米制投掷
 
@@ -64,15 +60,13 @@ Blender 无头管线手作建模的工业废墟两连关：精馏塔、管廊、
 
 观感与布局不照截图目测——控件语义出自 `theme.xml` 风格表，对话框走 `AseDialogLoader` 声明式装载，布局数字直接来自源库；像素纪律由代码控件库强制，不走 prefab 拼装。
 
-- **组件体系**（下图为设计稿总表）：面板七档色调 × 三态、凹槽（血条真实用法）、五色填充、语义件、页签、三态按钮，比例令牌逐件钉死
+- **组件体系**：面板七档色调 × 三态、凹槽（血条真实用法）、五色填充、语义件、页签、三态按钮，比例令牌逐件钉死
 - **满精度像素字体四档**：正文位图栅格（12 的整数倍艺术像素），位图采样 + 图集 Point 过滤，杜绝亚像素糊边
 - **战斗 HUD 墨盘化**：顶部回合提示盘 + 底部状态条，压世界层文字一律走按钮皮墨底盘，禁裸文字
 
-<a href="docs/images/readme/ui-components.png"><img src="docs/images/readme/ui-components.png" width="520" alt="UI 组件总表"></a>
+*战斗 HUD 实拍顶部带（海图槽 / 红蓝分段血条 / 回合提示盘 / 自由镜头指示，自游戏内截图裁切）：*
 
-*UI 窗体设计稿（船员卡 / 海图 / 敌船横幅 / 警告钮 / Toast）：*
-
-![UI 窗体设计稿](docs/images/readme/ui-dialog.png)
+![战斗 HUD](docs/images/readme/hud-detail.png)
 
 ## ⚓ 一整条海盗生涯
 
@@ -89,8 +83,6 @@ Blender 无头管线手作建模的工业废墟两连关：精馏塔、管廊、
 - **模块化架构**：asmdef 编译期强制模块边界，跨模块通信只走登记在册的 EventBus 事件契约
 - **AI 辅助开发流程**：协调者 agent 把关关键模块、并行 subagent 按互斥文件域分工、无头内循环 + batchmode 外循环收口，决策全部落档 `docs/`
 - 测试结果以 Unity Test Runner 与 harness 实跑为准（EditMode / PlayMode / 纯逻辑域三档门禁）
-
-连应用图标都是管线产物（Blender Cycles 无头渲染）：<img src="docs/images/readme/icon.jpg" width="72" alt="应用图标" valign="middle">
 
 ## 系统需求
 
