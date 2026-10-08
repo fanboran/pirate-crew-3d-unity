@@ -88,7 +88,7 @@ Blender 无头管线手作建模的工业废墟两连关：精馏塔、管廊、
 - **纯 C# 核心 + 自研无头验证台**：战斗数值/回合规则刻意写成纯 C# 静态类，配套 harness（`dotnet` 直引 Unity 编译产物 + NUnit）——**不启动引擎**即可编译全工程并跑纯逻辑测试（秒级），多 agent 并行开发时绕开 `Library/` 独占锁
 - **分级无头运行器 + 八步装配链**：战斗场景由一条命令无头重烘，场景折叠态（场景 = Prefab 实例）由 EditMode 契约测试冻结，改场景必跑接线转储比对
 - **数值三层架构**：纯 C# Catalog 是唯一真值来源（可无头测试）→ ScriptableObject 序列化投影 → Editor 幂等生成器，数值永不分叉
-- **视觉迭代闭环**：播放器自截图 → 程序化像素判据（洋红/对比度/色相扫描）→ 修复 → 重拍，每轮迭代有像素级验收档案（`docs/images/art-review/`）
+- **视觉迭代闭环**：播放器自截图 → 程序化像素判据（洋红/对比度/色相扫描）→ 修复 → 重拍，每轮迭代有实拍归档（`docs/images/pixelart-path/`）
 - **模块化架构**：asmdef 编译期强制模块边界，跨模块通信只走登记在册的 EventBus 事件契约
 - **AI 辅助开发流程**：协调者 agent 把关关键模块、并行 subagent 按互斥文件域分工、无头内循环 + batchmode 外循环收口，决策全部落档 `docs/`
 - 测试结果以 Unity Test Runner 与 harness 实跑为准（EditMode / PlayMode / 纯逻辑域三档门禁）
@@ -155,7 +155,7 @@ pirate-crew/Assets/
 | 交互与操作规格 | [docs/技术/交互操作契约.md](docs/技术/交互操作契约.md)（设计层见 [docs/设计/操作与交互.md](docs/设计/操作与交互.md)） |
 | 跨模块事件契约 | [docs/技术/架构/EventBus事件契约.md](docs/技术/架构/EventBus事件契约.md) |
 | 玩法数值历史参考（原版逆向·已归档） | [docs/项目/归档/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md](docs/项目/归档/参考逆向/参考游戏逆向-海盗军团抢宝藏-静态.md) |
-| 视觉迭代档案 | `docs/images/art-review/*/诊断报告.md` |
+| 视觉迭代档案 | `docs/images/pixelart-path/`（像素化路径逐轮实拍归档） |
 
 ## 致谢
 
