@@ -31,6 +31,7 @@
   - `build <类名.方法名> [透传参数…]` — 无头构建/烘培（如 `BuildScript.BuildFromCommandLineArgs`），建议后台发起。
   - `harness <All|Data|Combat|DataEditor|Battle|Runtime>` — 代理 `external/harness/run.sh`，不开 Unity、绕开 Library 独占锁。
 - 启动次数是成本，用例数量不是：单次 Unity 冷启动 ≈2.5 分钟，而 EditMode 1300 条用例本体只要 ≈16 秒，同 HEAD + 同工作区重跑命令即命中缓存（强制真跑加 `PC3D_NO_CACHE=1`）。一次验收**不默认 open/EditMode/PlayMode 三档全跑**；按改动面选档的口径见 [docs/技术/无头验证与启动成本优化.md](docs/技术/无头验证与启动成本优化.md) §6。
+- **冒烟测试按需跑，严禁例行化**（创始人 2026-10-08 定）：不为「顺手验一下」而跑测试——存疑才跑，且只在改动真可能引入回归时才跑（文档 / 图 / 编辑器工具 / 明确的加性代码不跑）；优先级 harness 秒级档 > 单目标过滤 > 全量。把「改完随手跑一遍」当默认动作是浪费，会让每次交付都变慢。
 - 等无头任务用后台完成通知，避免 `sleep` 轮询。
 - 直接调 Unity 的等价命令（不经运行器手动跑时）：
   ```bash
