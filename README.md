@@ -40,9 +40,13 @@
 
 Blender 无头管线手作建模的工业废墟两连关：精馏塔、管廊、储罐、冷却塔与四层旁楼，黄昏天光下打一场废墟攻防。两关各一张游戏内实拍：
 
-| 关卡 4 · 手作总装 | 关卡 5 · 六件并行版 |
-| --- | --- |
-| ![废弃化工厂·关4](docs/images/readme/level-chemplant.png) | ![废弃化工厂·关5](docs/images/readme/level-chemplant5.png) |
+*关卡 4 · 手作总装：*
+
+![废弃化工厂·关4](docs/images/readme/level-chemplant.png)
+
+*关卡 5 · 六件并行版：*
+
+![废弃化工厂·关5](docs/images/readme/level-chemplant5.png)
 
 ## 战斗：两态交互 + 米制投掷
 
