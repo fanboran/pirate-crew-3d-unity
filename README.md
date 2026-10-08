@@ -11,7 +11,6 @@
 [![Unity](https://img.shields.io/badge/Unity-2022.3-black?logo=unity)](https://unity.com)
 [![URP](https://img.shields.io/badge/%E6%B8%B2%E6%9F%93-URP_14-blue)](https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@14)
 [![渲染](https://img.shields.io/badge/%E7%94%BB%E9%A3%8E-%E7%AD%89%E8%B7%9D%E5%83%8F%E7%B4%A0%E5%8D%A1%E9%80%9A-teal)](docs/技术/渲染/管线/渲染管线.md)
-[![测试](https://img.shields.io/badge/%E9%97%A8%E7%A8%81-%E4%B8%89%E6%A1%A3%E5%85%A8%E7%BB%BF-green)](#质量工程)
 [![Demo](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows_Demo-orange)](https://github.com/fanboran/pirate-crew-3d-unity/releases/latest)
 
 ---
@@ -39,9 +38,11 @@
 
 ### 🏭 废弃化工厂（关卡 4/5）
 
-Blender 无头管线手作建模的工业废墟两连关：精馏塔、管廊、储罐、冷却塔与四层旁楼，黄昏天光下打一场废墟攻防。
+Blender 无头管线手作建模的工业废墟两连关：精馏塔、管廊、储罐、冷却塔与四层旁楼，黄昏天光下打一场废墟攻防。两关各一张游戏内实拍：
 
-![废弃化工厂](docs/images/readme/level-chemplant.png)
+| 关卡 4 · 手作总装 | 关卡 5 · 六件并行版 |
+| --- | --- |
+| ![废弃化工厂·关4](docs/images/readme/level-chemplant.png) | ![废弃化工厂·关5](docs/images/readme/level-chemplant5.png) |
 
 ## 战斗：两态交互 + 米制投掷
 
