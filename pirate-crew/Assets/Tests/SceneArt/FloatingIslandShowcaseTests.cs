@@ -158,18 +158,20 @@ namespace PirateCrew.SceneArt.Tests
         }
 
         [Test]
-        public void ScenePlan_ShadowPolicy_SolidReceives_TransparentAndGlowNot()
+        public void ScenePlan_ShadowPolicy_SolidReceives_TransparentNot()
         {
             Assert.True(FloatingIslandScenePlan.ReceivesShadows(IslandMaterial.RockMid));
             Assert.True(FloatingIslandScenePlan.ReceivesShadows(IslandMaterial.GrassLight));
             Assert.True(FloatingIslandScenePlan.ReceivesShadows(IslandMaterial.Wood));
             Assert.True(FloatingIslandScenePlan.ReceivesShadows(IslandMaterial.Stone));
             Assert.True(FloatingIslandScenePlan.ReceivesShadows(IslandMaterial.Banner));
+            // 晶/光自 2026-10-07 改受光像素材质（加色在亮天空前必截顶成白片），随实体档收影；
+            // 像素材质不采样 Unity 阴影贴图，这一位只作场景存档口径。
+            Assert.True(FloatingIslandScenePlan.ReceivesShadows(IslandMaterial.Crystal));
+            Assert.True(FloatingIslandScenePlan.ReceivesShadows(IslandMaterial.Glow));
             Assert.False(FloatingIslandScenePlan.ReceivesShadows(IslandMaterial.Water));
             Assert.False(FloatingIslandScenePlan.ReceivesShadows(IslandMaterial.Foam));
             Assert.False(FloatingIslandScenePlan.ReceivesShadows(IslandMaterial.Cloud));
-            Assert.False(FloatingIslandScenePlan.ReceivesShadows(IslandMaterial.Crystal));
-            Assert.False(FloatingIslandScenePlan.ReceivesShadows(IslandMaterial.Glow));
         }
 
         [Test]
@@ -202,6 +204,18 @@ namespace PirateCrew.SceneArt.Tests
                 // 实体档不投影发光/半透明件：投影口径由配方唯一决定（CastShadows），
                 // 与 ScenePlan.ReceivesShadows 的分档在上方用例单独断言。
             }
+        }
+
+        [Test]
+        public void MaterialCatalog_CrystalAndGlow_AreLitPixelSurfaces()
+        {
+            // 加色档在亮天空前必把 G/B 推过 1 截顶成"没有明暗的惨白片"（创始人实拍：
+            // "为什么我们的水晶变成这样了"）——晶/光两槽锁在实体像素档 = 与试点场景的派生观感同源。
+            Assert.AreEqual(IslandShaderKind.SurfaceSolid, IslandMaterialCatalog.For(IslandMaterial.Crystal).Kind);
+            Assert.AreEqual(IslandShaderKind.SurfaceSolid, IslandMaterialCatalog.For(IslandMaterial.Glow).Kind);
+            Assert.AreEqual("#7CF0E4", IslandMaterialCatalog.For(IslandMaterial.Crystal).HexDark,
+                "晶体的像素反照率（试点派生也读这个色，改了会出现两场景分叉）");
+            Assert.AreEqual("#FFCB6B", IslandMaterialCatalog.For(IslandMaterial.Glow).HexDark);
         }
 
         // ------------------------------------------------------------------

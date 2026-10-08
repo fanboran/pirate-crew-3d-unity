@@ -56,10 +56,10 @@ namespace PirateCrew.SceneArt.Showcase
         /// <summary>云雾（半透明白）：云团、瀑布末端雾团、云裙。</summary>
         Cloud,
 
-        /// <summary>晶体（加法发光青）：空岛魔力晶簇（遗迹核心 + 悬浮卫星晶）。</summary>
+        /// <summary>晶体（受光像素材质·青）：空岛魔力晶簇（遗迹核心 + 悬浮卫星晶）。</summary>
         Crystal,
 
-        /// <summary>暖光（加法发光金）：萤火/灯芯/浮尘光点。</summary>
+        /// <summary>暖光（受光像素材质·金）：萤火/灯芯/浮尘光点/金环。</summary>
         Glow,
 
         /// <summary>旗帜（不透明红）：瞭望台桅顶海盗旗。</summary>
@@ -78,7 +78,7 @@ namespace PirateCrew.SceneArt.Showcase
         /// <summary><c>Universal Render Pipeline/Unlit</c> 半透明（水/沫/云）。</summary>
         UnlitTransparent,
 
-        /// <summary><c>PirateCrew/Fx/Additive</c> 加法发光（晶体/暖光点）——在亮天空前会自然过曝成"发光"。</summary>
+        /// <summary><c>PirateCrew/Fx/Additive</c> 加法发光（战斗特效件用；空岛自 2026-10-07 起无槽位走此档）。</summary>
         FxAdditive,
     }
 
@@ -262,16 +262,27 @@ namespace PirateCrew.SceneArt.Showcase
             Hex = "#E4EAF0", Alpha = 0.52f, CastShadows = false, VertexTint = Color.white,
         };
 
+        // 【晶体/暖光为什么是实体像素档而不是加色】
+        // 加色（SrcAlpha One）在亮天空/浅色岩面前，G/B 两个通道必然被推过 1 而截顶——晶体、光环、萤光尘
+        // 整片读成"没有明暗、没有描边的惨白纸片"（创始人实拍："为什么我们的水晶变成这样了"）。
+        // 试点场景（调试关）走 SwapMaterials 派生：取原材质的 _Color 当反照率、走像素材质，
+        // 于是同一条水晶在调试关是青蓝晶体、在 Battle 是白片——两场景观感就此分叉。
+        // 现在两个槽位直接落成像素物体档（albedo = HexDark），Battle 与试点同观感：
+        // 晶体有三档明暗 + 墨线描边，萤光尘读成青/琥珀小亮点而不是白菱形。
         static readonly IslandMaterialRecipe CrystalRecipe = new IslandMaterialRecipe
         {
-            Kind = IslandShaderKind.FxAdditive,
-            Hex = "#7CF0E4", Intensity = 1.9f, CastShadows = false, VertexTint = Color.white,
+            Kind = IslandShaderKind.SurfaceSolid,
+            HexDark = "#7CF0E4", HexMid = "#A9F6EE", HexLight = "#D6FFF9",
+            NoiseStrength = 0f, RampContrast = 1f, NoiseStretch = new Vector3(1f, 1f, 0f),
+            CastShadows = false, VertexTint = Color.white,
         };
 
         static readonly IslandMaterialRecipe GlowRecipe = new IslandMaterialRecipe
         {
-            Kind = IslandShaderKind.FxAdditive,
-            Hex = "#FFCB6B", Intensity = 1.7f, CastShadows = false, VertexTint = Color.white,
+            Kind = IslandShaderKind.SurfaceSolid,
+            HexDark = "#FFCB6B", HexMid = "#FFDD9A", HexLight = "#FFF3CC",
+            NoiseStrength = 0f, RampContrast = 1f, NoiseStretch = new Vector3(1f, 1f, 0f),
+            CastShadows = false, VertexTint = Color.white,
         };
 
         static readonly IslandMaterialRecipe BannerRecipe = new IslandMaterialRecipe

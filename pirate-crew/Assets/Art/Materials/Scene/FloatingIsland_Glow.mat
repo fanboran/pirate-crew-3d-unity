@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: FloatingIsland_Glow
-  m_Shader: {fileID: 4800000, guid: 005735867a6cb944cacb43993a605223, type: 3}
+  m_Shader: {fileID: 4800000, guid: f3355f5903de4b7429ddf7124384477c, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -16,7 +16,7 @@ Material:
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
+  m_CustomRenderQueue: 2000
   stringTagMap: {}
   disabledShaderPasses: []
   m_LockedProperties: 
@@ -27,10 +27,34 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _BumpMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DitherPattern:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _AAScale: 1
+    - _BumpScale: 1
+    - _Cutoff: 0.5
     - _DebugMode: 0
+    - _DitherMode: 0
+    - _DitherPatternSize: 4
+    - _DitherStrength: 0.21
     - _Intensity: 1.7
+    - _MainLightLevel: 4
+    - _Metallic: 0
+    - _NormalEdgeLevel: -1
+    - _NormalEdgeThreshold: 1
+    - _OutlinePixels: 1
+    - _Priority: 1
+    - _Smoothness: 0
+    - _SnapToPixelGrid: 1
     m_Colors:
+    - _BaseColor: {r: 1, g: 0.79607844, b: 0.41960785, a: 1}
     - _Color: {r: 1, g: 0.79607844, b: 0.41960785, a: 1}
+    - _RimLightColor: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []
