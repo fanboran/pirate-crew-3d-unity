@@ -120,6 +120,13 @@ namespace PirateCrew.EditorTools
             if (!ApplyImportSettings())
                 return;
 
+            // 材质重映射（2026-10-08「关5 偏暗、红太深」修复）：同关4 的修法——把 18 个 Kit_ 槽
+            // 外链到本路径着色材质。FBX 内嵌材质携带的是**线性值**（Kit_Rust=(0.262,0.068,0.021)），
+            // 而像素材质的 _BaseColor 口径是 **sRGB 原值**（PixelartChemPlantTeam_Kit_Rust.mat =
+            // (0.549,0.290,0.157)）——战斗路径（RuntimeSceneArt 直接实例化、不换装）拿到线性值
+            // 就整关掉一档 gamma：实测亮度 V 0.49→0.28、锈红 (144,77,42)→(83,24,2)。
+            BindImporterMaterialRemap();
+
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             var root = new GameObject("PixelartChemPlantTeam");
@@ -223,6 +230,47 @@ namespace PirateCrew.EditorTools
 
         /// <summary>导入设置：与 `PixelartChemPlantSetup` / `WorldMapAssetSetBuilder.ApplyImportSettings`
         /// 逐项同值（含两条实测坑：ImportStandard 才读得到槽名、useFileScale=true 吃掉根上的 100×）。</summary>
+        /// <summary>
+        /// 【2026-10-08「关5 偏暗、红太深」修复】把 FBX 导入器的材质重映射表（meta 的
+        /// externalObjects）的 18 个 <c>Kit_</c> 槽外链到本路径的着色像素材质
+        /// （<c>PixelartChemPlantTeam_Kit_*.mat</c>）。
+        ///
+        /// 【为什么】FBX 内嵌材质携带**线性值**（Kit_Rust=(0.262,0.068,0.021)），而像素材质
+        /// _BaseColor 的口径是 **sRGB 原值**（Team_Kit_Rust=(0.549,0.290,0.157)）——战斗路径
+        /// （RuntimeSceneArt 直接实例化模型预制、不换装）随之整关偏暗一档 gamma
+        /// （实测 V 0.49→0.28、锈红 (144,77,42)→(83,24,2)），试点路径靠按槽名换装从未受影响。
+        /// 与关4 的 PixelartChemPlantSetup.BindImporterMaterialRemap 同机制、同修法。
+        /// </summary>
+        [MenuItem("PirateCrew/Pixelart/关5 FBX 材质重映射绑定")]
+        public static void BindImporterMaterialRemap()
+        {
+            var importer = AssetImporter.GetAtPath(ModelPath) as ModelImporter;
+            if (importer == null)
+            {
+                Debug.LogError(LogTag + " 找不到模型 " + ModelPath + "，重映射未执行。");
+                return;
+            }
+
+            int bound = 0;
+            for (int i = 0; i < SlotNames.Length; i++)
+            {
+                string matPath = PixelartStageKit.MaterialFolder + "/PixelartChemPlantTeam_"
+                    + SlotNames[i] + ".mat";
+                var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+                if (mat == null)
+                {
+                    Debug.LogError(LogTag + " 着色材质缺件：" + matPath);
+                    continue;
+                }
+                importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), SlotNames[i]), mat);
+                bound++;
+            }
+
+            importer.SaveAndReimport();
+            Debug.Log(LogTag + " 材质重映射完成：" + bound + "/" + SlotNames.Length
+                + " 槽 → PixelartChemPlantTeam_Kit_*.mat（战斗路径实例化即着色）。");
+        }
+
         static bool ApplyImportSettings()
         {
             if (AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath) == null)

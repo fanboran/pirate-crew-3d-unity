@@ -90,8 +90,7 @@ namespace PirateCrew.EditorTools
 
         [MenuItem("PirateCrew/Pixelart/烘焙废弃化工厂试点场景")]
         public static void BuildAll()
-        {
-            if (!PixelartLevelScene.TryGet(LevelNumber, out PixelartLevelScene.View view))
+        {            if (!PixelartLevelScene.TryGet(LevelNumber, out PixelartLevelScene.View view))
             {
                 Debug.LogError(LogTag + " 取景表里没有关卡 " + LevelNumber + " 的行，先补 "
                     + "PixelartLevelScene。");
@@ -112,6 +111,10 @@ namespace PirateCrew.EditorTools
             // ---------------- 模型：导入口径与 WorldKit 全套一致（WorldMapAssetSetBuilder.ApplyImportSettings）----------------
             if (!ApplyImportSettings())
                 return;
+
+            // 材质重映射（2026-10-08「关4 灰盒」修复）：把 16 个 Kit_ 槽外链到本路径着色材质，
+            // 战斗路径（RuntimeSceneArt 直接实例化模型预制、不换装）靠它才有色，见方法注释。
+            BindImporterMaterialRemap();
 
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -222,6 +225,49 @@ namespace PirateCrew.EditorTools
                 + " m）。出图：播放器 -pixelartOut <目录> -pixelartLevel " + LevelNumber);
         }
 
+        /// <summary>
+        /// 【2026-10-08「关4 灰盒」修复】把 FBX 导入器的材质重映射表（meta 的 externalObjects）
+        /// 的 16 个 <c>Kit_</c> 槽外链到本路径的着色像素材质（<c>PixelartChemPlant_Kit_*.mat</c>）。
+        ///
+        /// 【为什么必须这么做】Level.fbx 的导出把 16 个材质写成了 FBX 占位灰（实测内嵌 _BaseColor
+        /// 全 = 0.800 默认灰；同管线的关5 ChemPlant.fbx 内嵌色正常）——**战斗路径**（RuntimeSceneArt
+        /// 直接实例化模型预制、不换装）随之全灰；**试点路径**靠本文件的按槽名换装从未受影响
+        /// （r14 起一直有色），所以问题只在实机。
+        /// 重导出 FBX 有几何风险（创始人对现几何已过目），改走导入器重映射——与
+        /// <c>WorldMapAssetSetBuilder</c>「按槽写入 Kit_* 材质」同机制，零几何风险、随 meta 入库；
+        /// 重导后任何实例化（战斗/未来装配）直接拿到着色材质。
+        /// 串色防线：槽名匹配已兼容重映射后的 <c>PixelartChemPlant_</c> 前缀（见 SlotIndex）。
+        /// </summary>
+        [MenuItem("PirateCrew/Pixelart/关4 FBX 材质重映射绑定")]
+        public static void BindImporterMaterialRemap()
+        {
+            var importer = AssetImporter.GetAtPath(ModelPath) as ModelImporter;
+            if (importer == null)
+            {
+                Debug.LogError(LogTag + " 找不到模型 " + ModelPath + "，重映射未执行。");
+                return;
+            }
+
+            int bound = 0;
+            for (int i = 0; i < SlotNames.Length; i++)
+            {
+                string matPath = PixelartStageKit.MaterialFolder + "/PixelartChemPlant_"
+                    + SlotNames[i] + ".mat";
+                var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+                if (mat == null)
+                {
+                    Debug.LogError(LogTag + " 着色材质缺件：" + matPath);
+                    continue;
+                }
+                importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), SlotNames[i]), mat);
+                bound++;
+            }
+
+            importer.SaveAndReimport();
+            Debug.Log(LogTag + " 材质重映射完成：" + bound + "/" + SlotNames.Length
+                + " 槽 → PixelartChemPlant_Kit_*.mat（战斗路径实例化即着色）。");
+        }
+
         /// <summary>导入设置：与 WorldMapAssetSetBuilder.ApplyImportSettings 逐项同值（含那两条实测注释的坑）。</summary>
         static bool ApplyImportSettings()
         {
@@ -329,7 +375,15 @@ namespace PirateCrew.EditorTools
             if (string.IsNullOrEmpty(slotName))
                 return -1;
             int index;
-            return s_SlotIndex.TryGetValue(slotName, out index) ? index : -1;
+            if (s_SlotIndex.TryGetValue(slotName, out index))
+                return index;
+            // 【2026-10-08】材质重映射生效后槽名带外链前缀（PixelartChemPlant_Kit_Rust）——
+            // 后缀匹配回同槽；否则会跌进按槽序兜底而串色（按槽序假设的是"名字不可读"场景，
+            // 与重映射后的真实槽名无关）。
+            foreach (var pair in s_SlotIndex)
+                if (slotName.EndsWith(pair.Key, System.StringComparison.Ordinal))
+                    return pair.Value;
+            return -1;
         }
 
         static Material MaterialFor(int index)
