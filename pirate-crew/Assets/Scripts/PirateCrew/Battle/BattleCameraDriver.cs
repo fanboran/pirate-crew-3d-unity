@@ -242,6 +242,20 @@ namespace PirateCrew.Battle
             mainCamera.farClipPlane = Mathf.Max(CameraFraming.OrthoFarClip, farClipPlane);
         }
 
+        /// <summary>
+        /// 【出图专用】把取景覆写成「焦点 = 世界点、手动档 ortho」：只写目标值，随帧由既有
+        /// 平滑收口。消费方是编辑器侧截图器（BattleHudScreenshot）——README/验收图要把
+        /// <b>整张地图</b>收进画框并指向<b>本关</b>场地中心，而场景里烘的机位是装配那关的中心、
+        /// 运行时恒定取景档也只保证 32 m 窗（禁多镜头距离的裁决管运行时，不管出图口径）。
+        /// 游戏运行链路不得调用（回合 pan / 点选血条仍走各自入口）。
+        /// </summary>
+        public void ApplyCaptureFraming(Vector3 focusWorldPoint, float orthoSize)
+        {
+            _goalPosition = focusWorldPoint;
+            _targetOrthoSize = Mathf.Max(1f, orthoSize);
+            _cleanInitialized = true;
+        }
+
         void Awake()
         {
             ResolveInteractionOnce();

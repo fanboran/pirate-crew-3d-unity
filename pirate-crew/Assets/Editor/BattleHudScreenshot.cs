@@ -126,6 +126,8 @@ namespace PirateCrew.EditorTools
             CaptureLevel = System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_LEVEL") is string lvRaw
                 && int.TryParse(lvRaw, out int lv) && lv > 0 ? lv : 0;
             SessionState.SetBool(KeyArmed, true);
+            _framedShot = 0;
+            _frameAttempts = 0;
 
             // 【口径对齐】像素管线的艺术画布 = 屏幕后台缓冲 ÷ pixelScale（PixelartPath 顶部口径）。
             // batchmode 的隐藏窗口只有几百像素高，不先撑到 1920×1080，抓出的图会比实机粗 3 倍
@@ -136,6 +138,68 @@ namespace PirateCrew.EditorTools
             EditorApplication.isPlaying = true;   // 触发域重载 → 静态构造重挂 Tick
             EditorApplication.update += Tick;     // 重载前这几帧也直接跑（若该项目关了重载则不触发）
             Debug.Log("[BattleHudScreenshot] 已武装：进 Play 后自动抓 " + ShotCount + " 张 → " + OutputDir);
+        }
+
+        // ---- 出图取景覆写（PC3D_CAPTURE_CENTER / PC3D_CAPTURE_ORTHO）----
+        static int _framedShot;      // 已对第 N 枪完成取景引导（N = ShotIndex + 1，域内静态即可）
+        static int _frameAttempts;   // 引导重试计数（关卡源晚建时的等待上限）
+
+        static bool CaptureCenterFraming =>
+            !string.IsNullOrEmpty(System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_CENTER"));
+
+        /// <summary>场地跨度 → 整图入画的 ortho：横向按 16:9 视口装下 spanX；纵向地面深度在
+        /// 30° 俯角下按 sin 压缩后装下 spanZ；留 15% 边距；下限基准档、上限全景档封顶。</summary>
+        static float OrthoForSpans(float spanX, float spanZ)
+        {
+            const float aspect = 16f / 9f;
+            float pitchSin = Mathf.Sin(global::PirateCrew.Battle.CameraFraming.BasePitchDegrees * Mathf.Deg2Rad);
+            float byWidth = spanX * 1.15f / (2f * aspect);
+            float byDepth = spanZ * 1.15f * pitchSin / 2f;
+            return Mathf.Min(
+                Mathf.Max(byWidth, byDepth, global::PirateCrew.Battle.CameraFraming.CloseUpOrthoSize),
+                global::PirateCrew.Battle.CameraFraming.PanoramaMaxOrthoSize);
+        }
+
+        /// <summary>
+        /// 读 BattleController 的关卡源（SpanX/SpanZ，反射取私有字段——编辑器侧出图工具，
+        /// 不为它给战斗组装层开公开口），把 Driver 取景覆写成「焦点 = 本关场地中心 +
+        /// 整图入画 ortho」。菜单等非战斗场景返回 false（调用方按现状抓帧）。
+        /// </summary>
+        static bool TryApplyArenaCenterFraming()
+        {
+            var driver = Object.FindFirstObjectByType<global::PirateCrew.Battle.BattleCameraDriver>();
+            if (driver == null)
+                return false;
+            var controller = Object.FindFirstObjectByType<global::PirateCrew.Battle.BattleController>();
+            if (controller == null)
+                return false;
+            var sourceField = typeof(global::PirateCrew.Battle.BattleController).GetField(
+                "_source", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            object source = sourceField != null ? sourceField.GetValue(controller) : null;
+            if (source == null)
+                return false;
+            var type = source.GetType();
+            var fx = type.GetField("SpanX");
+            var fz = type.GetField("SpanZ");
+            if (fx == null || fz == null)
+                return false;
+            float spanX = (float)fx.GetValue(source);
+            float spanZ = (float)fz.GetValue(source);
+            float ortho = System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_ORTHO") is string oRaw
+                && float.TryParse(oRaw, out float manualOrtho) && manualOrtho >= 1f
+                ? manualOrtho
+                : OrthoForSpans(spanX, spanZ);
+            // 焦点默认在地面；PC3D_CAPTURE_FOCUS_Y 抬高焦点（高塔关卡整栋入画又不至于拉太远
+            // 保像素密度——塔顶裁切是焦点太低，不是 ortho 一定不够）。
+            float focusY = System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_FOCUS_Y") is string fyRaw
+                && float.TryParse(fyRaw, out float fy) ? fy : 0f;
+            var focus = new Vector3(spanX * 0.5f, focusY, spanZ * 0.5f);
+            driver.ApplyCaptureFraming(focus, ortho);
+            Debug.Log("[BattleHudScreenshot] 出图取景：场地中心 (" + focus.x.ToString("F1") + ", "
+                + focus.z.ToString("F1") + ") y=" + focusY.ToString("F1")
+                + "，span " + spanX.ToString("F0") + "×" + spanZ.ToString("F0")
+                + "，ortho " + ortho.ToString("F1"));
+            return true;
         }
 
         static void Tick()
@@ -169,6 +233,28 @@ namespace PirateCrew.EditorTools
                 SessionState.SetBool(KeyCanvasPrepared, true);
                 Countdown = 3;
                 return;
+            }
+
+            // 【出图取景覆写】PC3D_CAPTURE_CENTER 非空 = 每枪抓帧前把视野指向本关场地中心
+            //（场景烘的机位是装配那关的中心，关卡覆写拍别的关会偏心——云关实拍内容缩在
+            // 画面左下就是它）；PC3D_CAPTURE_ORTHO 可指定整图入画的 ortho，不设则按场地
+            // 跨度自适应。档值只服务出图，不回写任何常量（同 55a6155e 缩放档对比的纪律）。
+            if (CaptureCenterFraming && _framedShot != ShotIndex + 1)
+            {
+                if (TryApplyArenaCenterFraming())
+                {
+                    _framedShot = ShotIndex + 1;
+                    Countdown = 60;   // 焦点/ortho 平滑逼近余量
+                    return;
+                }
+                if (++_frameAttempts < 120)
+                {
+                    Countdown = 1;   // 关卡源还没建好，等它（最多再等 120 帧）
+                    return;
+                }
+                Debug.LogWarning("[BattleHudScreenshot] 场地中心引导失败（无 Driver/关卡源），按现状抓帧。");
+                _framedShot = ShotIndex + 1;
+                _frameAttempts = 0;
             }
 
             ShotIndex++;
