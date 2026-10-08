@@ -69,9 +69,9 @@ Blender 无头管线手作建模的工业废墟两连关：精馏塔、管廊、
 
 ![战斗 HUD](docs/images/readme/hud-detail.png)
 
-*主菜单实拍（进入战斗 / 船员管理 / 设置 / 调试场景 / 退出游戏）：*
+*主菜单实拍（含可拖动调试菜单：组件实摆 / 新建精灵 / Aseprite 菜单栏 / 部件陈列廊 / 角色镜头调试场）：*
 
-![主菜单](docs/images/readme/ui-menu.png)
+![主菜单与调试菜单](docs/images/readme/ui-menu.png)
 
 *UI 组件陈列廊实机窗口（theme.xml 全量 345 件直切件，原生尺寸陈列 + 九宫切片标注）：*
 
