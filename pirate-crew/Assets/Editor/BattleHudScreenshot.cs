@@ -342,11 +342,30 @@ namespace PirateCrew.EditorTools
             _uiCam.backgroundColor = new Color(0f, 0f, 0f, 0f);   // 透明底 → 合成用 alpha
             _uiCam.targetTexture = _rtUi;
 
-            // 【渲染器是关键】裸相机默认拿到管线默认渲染器（像素化 Cast——专为 rig 铸图，
-            // 单独跑直接输出空屏，13/16 轮取证 UI RT 全透明就栽在这）。UI 相机改用 rig 叠加
-            // 相机同款 PixelartOverlay 渲染器（标准前向 + 只画透明队列）。
+            // 【渲染器是关键】裸相机默认拿到管线默认渲染器（Balanced/Cast——带后处理或专为
+            // rig 铸图，位图字体 UI 过它们会碎字/空屏，13/16 轮取证 UI RT 全透明就栽在这）。
+            // UI 相机一律用 PixelartOverlay 渲染器（标准前向 + 只画透明队列）：
+            // 战斗场景从 rig 读索引；**无 rig 的菜单/展示场景**（rig=null 曾落默认 Balanced，
+            // 实测主菜单整屏碎字的根子）按渲染器名扫管线表兜底。
             var pixelRig = Object.FindFirstObjectByType<PirateCrew.Rendering.Pixelart.PixelartCameraRig>();
             int overlayIdx = pixelRig != null ? pixelRig.overlayRendererIndex : -1;
+            if (overlayIdx < 0
+                && UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline
+                    is UniversalRenderPipelineAsset urpAsset)
+            {
+                var soAsset = new SerializedObject(urpAsset);
+                var listAsset = soAsset.FindProperty("m_RendererDataList");
+                if (listAsset != null)
+                    for (int i = 0; i < listAsset.arraySize; i++)
+                    {
+                        var r = listAsset.GetArrayElementAtIndex(i).objectReferenceValue;
+                        if (r != null && r.name.Contains("Overlay"))
+                        {
+                            overlayIdx = i;
+                            break;
+                        }
+                    }
+            }
             Debug.Log("[BattleHudScreenshot] rig=" + (pixelRig != null ? pixelRig.name : "<null>")
                 + " 叠加渲染器索引 = " + overlayIdx);
             if (overlayIdx >= 0)
@@ -370,6 +389,11 @@ namespace PirateCrew.EditorTools
                 rc.worldCamera = _uiCam;    // 画布跟 UI 相机走（正交覆盖 1920×1080 视口）
                 rc.planeDistance = 1f;
                 rc.renderMode = RenderMode.ScreenSpaceCamera;
+                // 【与战斗画布对齐】BattleRig 的画布出厂即开 pixelPerfect（分数坐标吸附整屏像素，
+                // 2026-10-05 a8268808）——菜单等运行时自建画布没开，进相机域渲染时位图字体
+                // 会被分数坐标撕碎（实测主菜单/选关/展示场景整屏碎字，战斗 HUD 同一套件却清晰）。
+                // 出图要复刻游戏内观感，统一对齐到战斗画布口径。
+                rc.pixelPerfect = true;
                 _switchedCanvases.Add(rc);
                 Debug.Log("[BattleHudScreenshot] 画布 " + rc.name + " → 层UI + ScreenSpaceCamera(UI cam)，"
                     + "可绘元件 " + rc.GetComponentsInChildren<UnityEngine.UI.Graphic>(true).Length
