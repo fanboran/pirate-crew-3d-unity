@@ -13,8 +13,8 @@ namespace PirateCrew.Rendering.Pixelart
     ///   ③ **描边、四趟着色、合成、帧级调色板全部在「艺术画布」**（= 屏幕 ÷ pixelScale）；
     ///   ④ 最后一次点采样放大上屏。
     /// 与"全分辨率前向着色 + 事后降采"（旧链）的分野不在用哪个 shader，
-    /// 而在**着色发生在哪一档分辨率**。本路径独立于旧链（`PirateToon` / `PixelationRendererFeature`），
-    /// 不引用它们任何一处实现。
+    /// 而在**着色发生在哪一档分辨率**。旧链（`PirateToon` / `PixelationRendererFeature`）
+    /// 已整条根除，本路径不引用其任何实现。
     ///
     /// 【为什么常量集中在这里】shader 全局名、pass 名、资产路径都是字符串契约（拼错即静默失效），
     /// 同 EventBus 事件名的纪律：**只有这一处写字面量**，其余全部走常量。

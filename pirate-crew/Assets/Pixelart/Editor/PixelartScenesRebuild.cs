@@ -17,7 +17,7 @@ namespace PirateCrew.EditorTools
     ///    按 Configure 覆写（色带 4 档 / Bayer 0.5），逐物体的色/档数/描边保留；
     /// ③ 像素场景装配器重跑：rig 的序列化值（aaScaler 等）回到当前常量。
     ///
-    /// 【化工厂 L04/L05 有意不在 ③】它们有另一会话的**在途未提交修改**（场景文件 dirty），
+    /// 【化工厂 L03/L04 有意不在 ③】它们有另一会话的**在途未提交修改**（场景文件 dirty），
     /// 重跑装配器会洗掉在途工作——其材质已由 ② 推平、角色网格由 ① 自动跟随，
     /// 只剩 rig 序列化值待该批修改收尾后单独跑各自装配器。
     ///
@@ -43,7 +43,7 @@ namespace PirateCrew.EditorTools
             if (failed > 0)
                 Debug.LogError(LogTag + " 完成，" + failed + " 步报错（见上方逐条 Error）。");
             else
-                Debug.Log(LogTag + " 全部收敛完成。化工厂 L04/L05 有在途修改未重跑装配器"
+                Debug.Log(LogTag + " 全部收敛完成。化工厂 L03/L04 有在途修改未重跑装配器"
                     + "（材质/角色已推平跟随，rig 序列化值待该批收尾后单独重跑）。");
         }
 

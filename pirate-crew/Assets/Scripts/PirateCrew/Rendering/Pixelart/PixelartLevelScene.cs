@@ -3,8 +3,8 @@ using UnityEngine;
 namespace PirateCrew.Rendering.Pixelart
 {
     /// <summary>
-    /// **像素化路径"真实内容"试点场景**的取景口径（唯一来源）：四个样板关（1 云场 / 3 空岛 /
-    /// 4·5 废弃化工厂）当前在册。八张大海域海图（关卡号 101–108）已删除待重做——它们的取景行
+    /// **像素化路径"真实内容"试点场景**的取景口径（唯一来源）：四个样板关（1 云场 / 2 空岛 /
+    /// 3·4 废弃化工厂）当前在册。八张大海域海图（关卡号 101–108）已删除待重做——它们的取景行
     /// 随数据资产一并移除，重做后按下面的规则补回（规则本身不变）。
     ///
     /// 【这一族场景在回答什么】<see cref="PixelartPilotScene"/>（图元几何）证明的是"机制对不对"；
@@ -13,9 +13,9 @@ namespace PirateCrew.Rendering.Pixelart
     ///
     /// 【内容从哪来（不许自己编）】两套装配器各自读**它那一侧的权威数据**，本表只管取景：
     /// <list type="bullet">
-    ///   <item>样板关 1/3（`PixelartLevelPilotSetup`）：关卡资产的烘焙摆位（`ShowcaseLevels.BakedPlacements`，
+    ///   <item>样板关 1/2（`PixelartLevelPilotSetup`）：关卡资产的烘焙摆位（`ShowcaseLevels.BakedPlacements`，
     ///         与主战斗场景 `RuntimeSceneArt` 同一张表）、出生表与逻辑高度场
-    ///         （`units` + `HeightfieldGrid.SurfaceWorldY`）；第 3 关的空岛按 `FloatingIslandShowcaseMenu.Place`
+    ///         （`units` + `HeightfieldGrid.SurfaceWorldY`）；第 2 关的空岛按 `FloatingIslandShowcaseMenu.Place`
     ///         同一入口合成，摆位沿用 <c>PlaceIntoBattleCenter</c> 的 (20, 13.3, 15)。</item>
     ///   <item>海图 101–108（`PixelartWorldMapPilotSetup`，当前 0 张）：`WorldMapCatalog` 的地图定义，
     ///         内容由 `WorldMapComposer.Build` 合成（站面/装饰/kit/道具/礁石），出生点按
@@ -103,11 +103,11 @@ namespace PirateCrew.Rendering.Pixelart
         }
 
         /// <summary>
-        /// 全部"真实内容"试点场景的取景表（样板关 1/3 在前，随后是废弃化工厂 4·5；
+        /// 全部"真实内容"试点场景的取景表（样板关 1/2 在前，随后是废弃化工厂 3·4；
         /// 海图 101–108 已删除待重做，取景行随之移除，重做后按类头与表内注释的口径补回）。
         ///
         /// 【样板关竖直取值的来路】云顶中位高 4.5（`CloudFieldSpec.HeroTopY`）/ 空岛草皮面 ≈ 13.3
-        /// （`PlaceIntoBattleCenter` 的根高，与关卡 3 高度场 28 块 × 0.5 = 14.0 同档）。
+        /// （`PlaceIntoBattleCenter` 的根高，与关卡 2 高度场 28 块 × 0.5 = 14.0 同档）。
         /// 取"略高于台面的眼位"而不是台面本身，免得构图上把场地压在画面下缘。
         ///
         /// 【海图竖直取值 3.0 的来路（备查）】站面顶高是 0.5 m 档的离散平台，旧八图的最高站面 2.5–7.5 m
@@ -122,22 +122,22 @@ namespace PirateCrew.Rendering.Pixelart
         static readonly View[] _views =
         {
             new View(1,   "PixelartCloud",     new Vector3(20f, 4.5f, 15f),  32f, 13.7f, 7f),
-            new View(3,   "PixelartSkyIsland", new Vector3(20f, 12.5f, 15f), 30f, 13.7f, 7f),
+            new View(2,   "PixelartSkyIsland", new Vector3(20f, 12.5f, 15f), 30f, 13.7f, 7f),
 
-            // 第 4 关「废弃化工厂」（**提案/待定**）：内容来自 Blender 手作总装件
+            // 第 3 关「废弃化工厂」（**提案/待定**）：内容来自 Blender 手作总装件
             // `Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx`（装配器
-            // `PixelartChemPlantSetup`），**尚未接玩法数据**——没有高度场/编成/摆位表，故这一行
-            // 只服务"这套观感用在这座场地上的实机成图"，不是可玩关卡（见
-            // `docs/设计/关卡/L04-废弃化工厂.md`）。总装件原点 = 场地中心 ⇒ 场心 = 世界原点。
+            // `PixelartChemPlantSetup`），这一行只服务"这套观感用在这座场地上的实机成图"，
+            // 与可玩关卡数据（`chem_plant.asset`）是两条线（见
+            // `docs/设计/关卡/03-废弃化工厂.md`）。总装件原点 = 场地中心 ⇒ 场心 = 世界原点。
             // 竖直 6 的来路：场地地坪 0、最高件（烟囱 26.5 / 冷却塔 22.5）拉高剪影，
             // 质量重心在 0–15 m 之间，取 6 = "场地中低部 + 略高于人眼"，与样板关取眼位同一个读法。
-            new View(4,   "PixelartChemPlant", new Vector3(0f, 6f, 0f),     32f, 13.7f, 7f),
-            // 第 5 关「废弃化工厂 · 六件并行版」（**提案/待定**）：内容来自 Blender 六件并行分件式 kit
+            new View(3,   "PixelartChemPlant", new Vector3(0f, 6f, 0f),     32f, 13.7f, 7f),
+            // 第 4 关「废弃化工厂 · 六件并行版」（**提案/待定**）：内容来自 Blender 六件并行分件式 kit
             // （`tools/blender/scene/chemplant/`）的总装件 `Assets/Art/Models/SceneKit/ChemPlant.fbx`
-            // （装配器 `PixelartChemPlantTeamSetup`）——**尚未接玩法数据**，这一行只服务
+            // （装配器 `PixelartChemPlantTeamSetup`）——这一行只服务
             // 「这套观感用在这座 56×40 m 场地上的实机成图」。总装件原点 = 场地中心 ⇒ 场心 = 世界原点；
-            // 竖直 6 的读法与第 4 关相同（地坪 0、最高件（烟囱）26 m，取 6 = 场地中低部 + 略高于人眼）。
-            new View(5,   "PixelartChemPlantTeam", new Vector3(0f, 6f, 0f), 32f, 13.7f, 7f),
+            // 竖直 6 的读法与第 3 关相同（地坪 0、最高件（烟囱）26 m，取 6 = 场地中低部 + 略高于人眼）。
+            new View(4,   "PixelartChemPlantTeam", new Vector3(0f, 6f, 0f), 32f, 13.7f, 7f),
 
             // 【海图取景行：当前 0 张】八张海图（101–108）已删除待重做，取景行随数据资产一并移除。
             // 重做时的口径（列在这里备查，规则与上面一致）：

@@ -1671,6 +1671,66 @@ MonoBehaviour:
     m_Scale: 1
     m_AtlasIndex: 0
     m_ClassDefinitionType: 0
+  - m_Index: 2048
+    m_Metrics:
+      m_Width: 9
+      m_Height: 9
+      m_HorizontalBearingX: 0
+      m_HorizontalBearingY: 8
+      m_HorizontalAdvance: 10
+    m_GlyphRect:
+      m_X: 654
+      m_Y: 21
+      m_Width: 9
+      m_Height: 9
+    m_Scale: 1
+    m_AtlasIndex: 0
+    m_ClassDefinitionType: 0
+  - m_Index: 3616
+    m_Metrics:
+      m_Width: 9
+      m_Height: 9
+      m_HorizontalBearingX: 0
+      m_HorizontalBearingY: 8
+      m_HorizontalAdvance: 10
+    m_GlyphRect:
+      m_X: 671
+      m_Y: 21
+      m_Width: 9
+      m_Height: 9
+    m_Scale: 1
+    m_AtlasIndex: 0
+    m_ClassDefinitionType: 0
+  - m_Index: 2870
+    m_Metrics:
+      m_Width: 9
+      m_Height: 9
+      m_HorizontalBearingX: 0
+      m_HorizontalBearingY: 8
+      m_HorizontalAdvance: 10
+    m_GlyphRect:
+      m_X: 688
+      m_Y: 21
+      m_Width: 9
+      m_Height: 9
+    m_Scale: 1
+    m_AtlasIndex: 0
+    m_ClassDefinitionType: 0
+  - m_Index: 1947
+    m_Metrics:
+      m_Width: 9
+      m_Height: 9
+      m_HorizontalBearingX: 0
+      m_HorizontalBearingY: 8
+      m_HorizontalAdvance: 10
+    m_GlyphRect:
+      m_X: 705
+      m_Y: 21
+      m_Width: 9
+      m_Height: 9
+    m_Scale: 1
+    m_AtlasIndex: 0
+    m_ClassDefinitionType: 0
   m_CharacterTable:
   - m_ElementType: 1
     m_Unicode: 8230
@@ -2079,6 +2139,22 @@ MonoBehaviour:
   - m_ElementType: 1
     m_Unicode: 20301
     m_GlyphIndex: 2924
+    m_Scale: 1
+  - m_ElementType: 1
+    m_Unicode: 26041
+    m_GlyphIndex: 2048
+    m_Scale: 1
+  - m_ElementType: 1
+    m_Unicode: 21521
+    m_GlyphIndex: 3616
+    m_Scale: 1
+  - m_ElementType: 1
+    m_Unicode: 20208
+    m_GlyphIndex: 2870
+    m_Scale: 1
+  - m_ElementType: 1
+    m_Unicode: 35282
+    m_GlyphIndex: 1947
     m_Scale: 1
   m_AtlasTextures:
   - {fileID: -8510155322148387701}
@@ -2494,6 +2570,22 @@ MonoBehaviour:
     m_Y: 17
     m_Width: 17
     m_Height: 17
+  - m_X: 650
+    m_Y: 17
+    m_Width: 17
+    m_Height: 17
+  - m_X: 667
+    m_Y: 17
+    m_Width: 17
+    m_Height: 17
+  - m_X: 684
+    m_Y: 17
+    m_Width: 17
+    m_Height: 17
+  - m_X: 701
+    m_Y: 17
+    m_Width: 17
+    m_Height: 17
   m_FreeGlyphRects:
   - m_X: 16
     m_Y: 9
@@ -2535,9 +2627,9 @@ MonoBehaviour:
     m_Y: 24
     m_Width: 1
     m_Height: 1000
-  - m_X: 650
+  - m_X: 718
     m_Y: 17
-    m_Width: 374
+    m_Width: 306
     m_Height: 1007
   m_fontInfo:
     Name: 

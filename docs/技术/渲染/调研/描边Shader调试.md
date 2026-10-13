@@ -397,7 +397,7 @@ PBR 根除批次待办的描边退役行，原立项任务书处置表已根除�
 
 1. ~~真实截图未产出~~ → **已产出并核验**（见文首与 `docs/images/outline-debug/`）。
 2. `PirateOutline.shader` **没有 ShadowCaster Pass**：单位材质换成它之后单位不投影，且本体光照是 shader 内的简单 Lambert + SH（不再是 URP/Lit）。若观感验收要求阴影/更丰富光照，补一个 `LightMode = "ShadowCaster"` 的极简 Pass（注意 `_LightDirection` / `ApplyShadowBias`），或改成"本体保持 URP/Lit + 描边走复制网格"（代价是共面 z-fighting 与网格复制管理）。
-3. ~~`OutlineRendererFeature` 需要手工加到 URP Renderer 资产~~ → **未挂载**（已定案退役，代码保留作未来"Sobel 虚线轮廓"备选，见 §6.2 与 [PBR 根除批次待办](../../../项目/待办/rendering-pbr根除批次.md)），当前不参与渲染。
+3. ~~`OutlineRendererFeature` 需要手工加到 URP Renderer 资产~~ → **未挂载**（已定案退役，代码保留作未来"Sobel 虚线轮廓"备选，见 §6.2 与 [PBR 根除批次待办](../../../项目/待办/pbr根除批次.md)），当前不参与渲染。
 4. 基础描边的「近处增粗」（`outline_near_boost`）未实现。
 5. 后处理描边的 `_DashLength/_DashGap` 是**像素**单位，分辨率变化时观感会变；若要分辨率无关需改成 NDC 单位。
 6. **实体描边的虚线在小单位上偏碎**（见 §三 末尾的实测记录）——观感问题，留验收决定。

@@ -25,7 +25,7 @@ namespace PirateCrew.EditorTools
     ///   <item>烘焙陈设（云场 / 岛壳 / 落水危险虚线）：摆位读关卡资产的摆位表
     ///         （<see cref="ShowcaseLevels.BakedPlacements"/>），与主战斗场景 <c>RuntimeSceneArt</c>
     ///         读的是同一张表；</item>
-    ///   <item>第 3 关的空岛**没有烘焙件**（它由 `FloatingIslandShowcaseMenu.Place` 程序化合成进场景），
+    ///   <item>第 2 关的空岛**没有烘焙件**（它由 `FloatingIslandShowcaseMenu.Place` 程序化合成进场景），
     ///         故这里调用同一个入口合成，摆位沿用 `PlaceIntoBattleCenter` 的 (20, 13.3, 15)；</item>
     ///   <item>船员：格坐标与阵营读关卡资产的出生表（`units`），站位高度用逻辑高度场的
     ///         <c>SurfaceWorldY</c>（与 <c>BattleTerrainView</c> 同一口径）；</item>
@@ -40,9 +40,9 @@ namespace PirateCrew.EditorTools
     /// 走**派生档**（`PixelartStageKit.EnsureDerivedMaterial`：从关卡自己的材质取色），
     /// 每个材质一行日志说清派生关系，收尾由 `AssertObjectShaderOnly` 兜底。
     ///
-    /// 入口：菜单 <c>PirateCrew/Pixelart/烘焙三个关卡试点场景</c>；
+    /// 入口：菜单 <c>PirateCrew/Pixelart/烘焙关卡试点场景</c>；
     /// 无头 <c>-executeMethod PirateCrew.EditorTools.PixelartLevelPilotSetup.BuildAll</c>
-    /// （单关调试用 <c>BuildLevel1/2/3</c>）。
+    /// （单关调试用 <c>BuildLevel1/2</c>）。
     /// </summary>
     public static class PixelartLevelPilotSetup
     {
@@ -54,15 +54,15 @@ namespace PirateCrew.EditorTools
         /// <summary>海面替身尺寸：Plane 图元 10×10 × 16 = 160×160（与试点场景同量级）。</summary>
         const float SeaPlaneScale = 16f;
 
-        /// <summary>第 3 关空岛的根位置（= `FloatingIslandShowcaseMenu.PlaceIntoBattleCenter` 的取值）。</summary>
+        /// <summary>第 2 关空岛的根位置（= `FloatingIslandShowcaseMenu.PlaceIntoBattleCenter` 的取值）。</summary>
         static readonly Vector3 IslandRootPosition = new Vector3(20f, 13.3f, 15f);
 
-        /// <summary>第 3 关空岛根名（`FloatingIslandScenePlan.RootName` 的镜像，仅用于日志核对）。</summary>
+        /// <summary>第 2 关空岛根名（`FloatingIslandScenePlan.RootName` 的镜像，仅用于日志核对）。</summary>
         const string IslandRootName = "FloatingIslandShowcase";
 
         const string SeaMaterialName = "PixelartLevel_Sea";
 
-        [MenuItem("PirateCrew/Pixelart/烘焙三个关卡试点场景（云场/碎岛/空岛）")]
+        [MenuItem("PirateCrew/Pixelart/烘焙关卡试点场景")]
         public static void BuildAll()
         {
             PixelartLevelScene.View[] views = PixelartLevelScene.All;
@@ -81,7 +81,7 @@ namespace PirateCrew.EditorTools
         // ---- 单关入口（batchmode 调试用；菜单只留 BuildAll）----
 
         public static void BuildLevel1() => BuildSingle(1);
-        public static void BuildLevel3() => BuildSingle(3);
+        public static void BuildLevel2() => BuildSingle(2);
 
         static void BuildSingle(int levelNumber)
         {
@@ -149,7 +149,7 @@ namespace PirateCrew.EditorTools
             }
             else
             {
-                // 第 2/3 关的岛体有十几个材质槽（岩三档/草三档/土/石/木/水/沫/云/晶/光/旗），
+                // 空岛与化工厂两关的岛体/场地有十几个材质槽（岩三档/草三档/土/石/木/水/沫/云/晶/光/旗），
                 // 逐个手挑色号既慢又会让"岛还是那座岛的颜色"失去保证 ⇒ 走派生档（见类头）。
                 deriveMissing = true;
             }
@@ -171,7 +171,7 @@ namespace PirateCrew.EditorTools
             seaMesh.transform.localScale = new Vector3(SeaPlaneScale, 1f, SeaPlaneScale);
 
             // ---------------- 关卡内容 ----------------
-            if (level == 3)
+            if (level == 2)
             {
                 // 空岛没有烘焙件：调同一个合成入口（`Place` 幂等、资产就地覆写），
                 // 摆位照抄 `PlaceIntoBattleCenter`。
@@ -179,7 +179,7 @@ namespace PirateCrew.EditorTools
                 if (island == null)
                 {
                     Debug.LogError(LogTag + " 空岛合成失败（FloatingIslandShowcaseMenu.Place 返回空）——"
-                        + "关卡 3 场景没有地面。");
+                        + "关卡 2 场景没有地面。");
                     return false;
                 }
 
@@ -399,7 +399,7 @@ namespace PirateCrew.EditorTools
         /// 不同管线产出）。"逻辑上实心、可见几何上没有那一块"出图后的表现是"角色悬空站在场地外"，
         /// 很容易被当成渲染问题查半天；这里直接对碰撞体打一条向下的射线验一遍。
         ///
-        /// 【Δy 报警不是装饰】高度场给的高度与几何面不一致（例如第 3 关的岛面与 28×0.5 的栅格差
+        /// 【Δy 报警不是装饰】高度场给的高度与几何面不一致（例如第 2 关的岛面与 28×0.5 的栅格差
         /// 零点几米）时，角色会悬空或陷进去——那是**关卡数据问题**，该报出来而不是悄悄贴到几何上。
         /// 全 miss 则更像"编辑器批处理下物理查询不可用"，与"几何对不上"分开报。
         /// </summary>

@@ -31,7 +31,7 @@ namespace PirateCrew.EditorTools
     /// 字段名对不上会直接编译报错，不给静默失效留口子。
     ///
     /// 【既有的两档渲染器一律不动】本路径与旧视觉链（`PirateToon` + `PixelationRendererFeature`）
-    /// 并行存在、互不引用；后者的退役另行处置。
+    /// 曾是并行关系；**旧视觉链已整条根除（2026-10-09）**，本路径是唯一渲染路径。
     ///
     /// 入口：菜单 <c>PirateCrew/Pixelart/装配像素化路径渲染器</c>；
     /// 无头 <c>-executeMethod PirateCrew.EditorTools.PixelartPathInstaller.Install</c>。
