@@ -19,14 +19,17 @@ namespace PirateCrew.UI
     /// <see cref="BattleInteractionController"/> 唯一持有）。
     ///
     /// 【信息架构】
-    ///   · **顶栏双队合成血条**：左右屏缘各一条，每名存活单位 = 一段分格（受击只掉自己那段，
-    ///     白色 damage ghost 残影延迟回落），条下一排小方格 pips（存活空格 / 阵亡「×」）；
+    ///   · **顶栏双队合成血条**：中轴两侧各一条，长随编成人数伸缩（每名单位 = 一段
+    ///     标准段，受击只掉自己那段，白色 damage ghost 残影延迟回落），条下一排小方格
+    ///     pips（存活空格 / 阵亡「×」）；
     ///   · **中央回合徽章**：theme 金面钮 + 数字，回合切换弹跳；
-    ///   · **操作菜单**（选中·浏览态弹出，原武器面板转型）：17 武器各占一格文字钮，
-    ///     跳跃 / 结束回合为文字按钮；
-    ///   · **操作 HUD**（操作中弹出，与操作菜单互斥）：方向/仰角/力度三读数 + 发射/取消钮；
-    ///   · **提示条**：按交互状态刷新键位提示（自由镜头/浏览/操作中/执行中/暂停）；
-    ///   · 暂停 / 返回 = 文字钮（P 键与 Esc 矩阵由交互控制器解析，经本类的公开口开合面板）。
+    ///   · **操作菜单**（选中·浏览态弹出，原武器面板转型，贴底靠左）：17 武器各占一格
+    ///     文字钮，跳跃 / 结束回合为文字按钮；
+    ///   · **操作 HUD**（操作中弹出，与操作菜单互斥同位）：方向/仰角/力度三读数 + 发射/取消钮；
+    ///   · **操作提示裸字**（正右方贴边，无底盘）与**回合提示盘**（徽章正下方）：
+    ///     前者静态两行常驻（点击单位选中 / 右键拖动旋转视角），后者宽随文案自适应；
+    ///   · 底部无文字钮：暂停/返回全走 ESC 矩阵——自由镜头 ESC 开暂停面板，返回经
+    ///     暂停面板内按钮（P 键亦可暂停，Esc 矩阵由交互控制器解析，经本类公开口开合面板）。
     ///
     /// 【架构约定】引用一律 <c>[SerializeField]</c>（<c>BattleUiTheme.WireHud</c> 回写）；
     /// 状态刷新全部 EventBus 事件驱动；皮肤 / 字号 / 颜色一律 <see cref="UiSkin"/> Token。
@@ -34,6 +37,18 @@ namespace PirateCrew.UI
     [DisallowMultipleComponent]
     public sealed partial class BattleHud : MonoBehaviour
     {
+        // ------------------------------------------------------------------
+        // 墨底盘宽度自适应口径（与 Editor 侧 BattleHudZones 同源——程序集隔离各持一份，
+        // 改一处必改两处）：盘宽 = 最宽行字符数 × HUD 字号 + 两侧 pad,夹在 [min, max]。
+        // ------------------------------------------------------------------
+
+        /// <summary>回合提示盘两侧内边距合计（与按钮皮 pad 观感一致）。</summary>
+        internal const float PlatePadX = 8f;
+        /// <summary>回合提示盘（顶中）最小/最大宽：宽变化时锚居中、两翼对称伸缩。</summary>
+        internal const float TurnPlateMinWidth = 120f;
+        internal const float TurnPlateMaxWidth = 300f;
+        internal const float TurnPlateHeight = 24f;
+
         /// <summary>操作菜单头条的 HP 条（凹槽 + ghost + fill）。</summary>
         [Serializable]
         public sealed class HpBarView
@@ -59,9 +74,10 @@ namespace PirateCrew.UI
         [Header("回合徽章（中央）")]
         [SerializeField] Image badgeRing;
         [SerializeField] MaskableGraphic badgeText;
+        [SerializeField] SketchButton turnHintPlate;
         [SerializeField] MaskableGraphic turnHintText;
 
-        [Header("操作菜单（贴底居中，选中·浏览态）")]
+        [Header("操作菜单（贴底靠左，选中·浏览态）")]
         [SerializeField] GameObject weaponPanelRoot;
         [SerializeField] MaskableGraphic unitNameText;
         [SerializeField] HpBarView unitHpBar;
@@ -74,7 +90,7 @@ namespace PirateCrew.UI
         [SerializeField] Button throwSelfButton;
         [SerializeField] Button endGoButton;
 
-        [Header("操作 HUD（贴底居中，操作中态；与操作菜单互斥）")]
+        [Header("操作 HUD（贴底靠左，操作中态；与操作菜单互斥）")]
         [Tooltip("操作面板根（读数行 + 发射/取消钮）。")]
         [SerializeField] GameObject operationPanelRoot;
         [SerializeField] MaskableGraphic yawReadoutText;
@@ -83,13 +99,9 @@ namespace PirateCrew.UI
         [SerializeField] Button confirmOperationButton;
         [SerializeField] Button cancelOperationButton;
 
-        [Header("提示条与系统按钮")]
-        [SerializeField] SketchButton hintPlate;
-        [SerializeField] MaskableGraphic hintText;
+        [Header("状态钮")]
         [SerializeField] SketchButton stateIndicator;
         [SerializeField] MaskableGraphic stateIndicatorLabel;
-        [SerializeField] Button backButton;
-        [SerializeField] Button pauseButton;
 
         [Header("暂停面板")]
         [SerializeField] GameObject pausePanelRoot;
@@ -136,7 +148,7 @@ namespace PirateCrew.UI
         int _lastReadoutElevation = int.MinValue;
         int _lastReadoutPower = int.MinValue;
 
-        /// <summary>当前操作名（状态条第一行用，交互操作契约 §G1；空串 = 非操作中）。</summary>
+        /// <summary>当前操作名(状态指示钮「操作中」态用,交互操作契约 §G1;空串 = 非操作中)。</summary>
         string _operationLabel = string.Empty;
 
         // ------------------------------------------------------------------
@@ -264,10 +276,6 @@ namespace PirateCrew.UI
                 throwSelfButton.onClick.AddListener(OnThrowSelfClicked);
             if (endGoButton != null)
                 endGoButton.onClick.AddListener(OnEndGoClicked);
-            if (backButton != null)
-                backButton.onClick.AddListener(ShowBackConfirm);
-            if (pauseButton != null)
-                pauseButton.onClick.AddListener(OnPauseButtonClicked);
             if (resumeButton != null)
                 resumeButton.onClick.AddListener(ClosePause);
             if (pauseRestartButton != null)
@@ -352,21 +360,13 @@ namespace PirateCrew.UI
 
         void OnBackClicked()
         {
-            ButtonFeedback(settlementBackButton != null && settlementBackButton.interactable
-                ? settlementBackButton
-                : backButton, success: true);
+            ButtonFeedback(settlementBackButton, success: true);
             EventBus.Publish(SceneEvents.GoBack);
         }
 
         // ------------------------------------------------------------------
         // 暂停 / 返回确认 / 结算 / 重开
         // ------------------------------------------------------------------
-
-        void OnPauseButtonClicked()
-        {
-            ButtonFeedback(pauseButton, success: true);
-            OpenPause();
-        }
 
         /// <summary>进入暂停：timeScale=0 + BattlePause 状态位（冻逐帧计数，见 BattlePause 类注释）。</summary>
         void OpenPause()
@@ -378,7 +378,7 @@ namespace PirateCrew.UI
             RefreshWeaponPanel(hide: true);
             HideOperationPanel();
             OpenModal(pausePanelRoot, pauseCard);
-            RefreshHint();
+            RefreshStateIndicator();
         }
 
         /// <summary>解除暂停（按钮 / Esc 矩阵 C2 / P 键经 BattleUiBridge 共用）。</summary>
@@ -391,7 +391,7 @@ namespace PirateCrew.UI
             CloseModal(pausePanelRoot);
             AudioService.PlayUi(SfxId.UiClick);
             RefreshWeaponPanel();
-            RefreshHint();
+            RefreshStateIndicator();
         }
 
         /// <summary>关闭返回确认弹窗（Esc 矩阵 C1 经 BattleUiBridge 的动作口）。</summary>
@@ -496,7 +496,7 @@ namespace PirateCrew.UI
             RefreshTurnHint();
             RefreshWeaponPanel(hide: true);
             HideOperationPanel();
-            RefreshHint();
+            RefreshStateIndicator();
         }
 
         void OnTurnStarted(TurnStartedPayload payload)
@@ -508,7 +508,7 @@ namespace PirateCrew.UI
             RefreshTeamBars();
             RefreshWeaponPanel(hide: true);
             HideOperationPanel();
-            RefreshHint();
+            RefreshStateIndicator();
         }
 
         void OnTurnEnded(int teamNumber)
@@ -516,7 +516,7 @@ namespace PirateCrew.UI
             // 队伍编号不进 HUD，只用“回合结束”这个时机收起操作面。
             RefreshWeaponPanel(hide: true);
             HideOperationPanel();
-            RefreshHint();
+            RefreshStateIndicator();
         }
 
         void OnActionSelected(ActionSelectedPayload action)
@@ -524,19 +524,19 @@ namespace PirateCrew.UI
             // 动作种类不进 HUD（面板收起与队伍条刷新与种类无关）。
             RefreshWeaponPanel(hide: true);
             RefreshTeamBars();
-            RefreshHint();
+            RefreshStateIndicator();
         }
 
         void OnSelectionChanged(SelectionChangedPayload payload)
         {
             // 选中/取消/换人/落定回浏览——操作菜单随之开合；读数面板只在操作中（OperationChanged 管）。
             RefreshWeaponPanel();
-            RefreshHint();
+            RefreshStateIndicator();
         }
 
         void OnOperationChanged(OperationChangedPayload payload)
         {
-            // 操作名进状态条（§G1）：跳跃 = 「跳跃」，武器 = 武器名。
+            // 操作名进状态钮（§G1）：跳跃 = 「跳跃」，武器 = 武器名。
             _operationLabel = payload.Active
                 ? (payload.IsWeapon ? UiTextRules.WeaponName(payload.WeaponId) : UiStrings.BattleThrowSelf)
                 : string.Empty;
@@ -554,7 +554,7 @@ namespace PirateCrew.UI
                 if (interaction != null && interaction.State == InteractionState.SelectedIdle)
                     RefreshWeaponPanel();
             }
-            RefreshHint();
+            RefreshStateIndicator();
         }
 
         void OnCrewDamaged(CrewDamagedPayload damaged)
@@ -576,6 +576,7 @@ namespace PirateCrew.UI
             {
                 UiTextUtil.SetText(turnHintText, UiTextRules.OutcomeTitle(
                     (MatchOutcome)finished.Outcome, finished.Team1IsAi));
+                FitTurnPlate();
             }
 
             ShowSettlement(finished);
@@ -607,77 +608,73 @@ namespace PirateCrew.UI
             UiTextUtil.SetText(turnHintText, team != null
                 ? UiTextRules.TurnHint(team.AiControlled, team.Number)
                 : string.Empty);
+            FitTurnPlate();
+        }
+
+        /// <summary>回合盘宽随文案自适应（顶中锚,宽变化两翼对称伸缩）。
+        /// 只写宽度不写位置——「运行时不写坐标」纪律的受控扩展:盘宽是内容自适应口径,
+        /// 上下限常量与 Editor 侧 BattleHudZones 同源。</summary>
+        void FitTurnPlate()
+        {
+            if (turnHintPlate == null || turnHintText == null)
+                return;
+            ((RectTransform)turnHintPlate.transform).sizeDelta = new Vector2(
+                PlateWidthFor(UiTextUtil.GetText(turnHintText), TurnPlateMinWidth, TurnPlateMaxWidth),
+                TurnPlateHeight);
+        }
+
+        /// <summary>墨底盘宽 = 最宽行字符数 × HUD 字号 + 两侧 pad,夹在 [min, max]。
+        /// 与 <see cref="UiSkin.Px.ButtonWidth"/> 同口径：全 CJK 按全宽计（半角偏宽是
+        /// 安全向,略宽不截断）,无头可测。</summary>
+        static float PlateWidthFor(string text, float minWidth, float maxWidth)
+        {
+            float widest = 0f;
+            if (!string.IsNullOrEmpty(text))
+            {
+                foreach (string line in text.Split('\n'))
+                    widest = Mathf.Max(widest, line.Length * UiSkin.Font.Hud);
+            }
+            return Mathf.Clamp(widest + 2f * PlatePadX, minWidth, maxWidth);
         }
 
         /// <summary>
-        /// 状态条（交互操作契约 §G）：两行式——第一行状态名（操作中含操作名），第二行该状态的
-        /// 键位提示（§B 的玩家可读形式，文案与 §B 同源）；暂停态整体覆盖。
+        /// 状态指示钮（交互操作契约 §G1）：文字 = 当前交互状态名（操作中含操作名），
+        /// 暂停态覆盖为「已暂停」。随状态翻转在各个 EventBus 回调里刷新。
         /// </summary>
-        void RefreshHint()
+        void RefreshStateIndicator()
         {
-            if (hintText == null)
-                return;
-
             string title;
-            string keys;
             if (BattlePause.IsPaused)
-            {
                 title = UiStrings.BattleStatePaused;
-                keys = UiStrings.BattleHintPaused;
-            }
             else if (interaction == null)
-            {
                 title = string.Empty;
-                keys = string.Empty;
-            }
             else
             {
                 switch (interaction.State)
                 {
                     case InteractionState.FreeCamera:
                         title = UiStrings.BattleStateFreeCamera;
-                        keys = UiStrings.BattleHintFreeCamera;
                         break;
                     case InteractionState.SelectedIdle:
                         title = UiStrings.BattleStateSelected;
-                        keys = UiStrings.BattleHintSelected;
                         break;
                     case InteractionState.OperationActive:
                         title = string.Format(UiStrings.BattleStateOperationFormat, _operationLabel);
-                        keys = UiStrings.BattleHintOperation;
                         break;
                     case InteractionState.Executing:
                         title = UiStrings.BattleStateExecuting;
-                        keys = UiStrings.BattleHintExecuting;
                         break;
                     default:
                         title = string.Empty;
-                        keys = string.Empty;
                         break;
                 }
             }
 
-            // 状态指示钮（§G4）与状态条第一行同源：自由镜头灰面，其余态金面。
+            // 状态钮：自由镜头灰面，其余态金面 sticky（空标题 = 未接线兜底，灰面）。
             if (stateIndicatorLabel != null)
                 UiTextUtil.SetText(stateIndicatorLabel, title);
             if (stateIndicator != null)
                 stateIndicator.Sticky = title.Length > 0 && title != UiStrings.BattleStateFreeCamera;
-
-            // 自由镜头下整条状态盘隐藏（右上状态钮已表达状态——21 走查裁决：浅灰截断键位串
-            // 是噪音）；暂停/选中/操作中/执行中显示（墨底盘 + 白字，压世界背景可读）。
-            bool showStatusLine = interaction != null
-                && (BattlePause.IsPaused || interaction.State != InteractionState.FreeCamera);
-            if (hintPlate != null)
-                hintPlate.gameObject.SetActive(showStatusLine);
-            UiTextUtil.SetText(hintText, showStatusLine ? ComposeHintText(title, keys) : string.Empty);
-        }
-
-        /// <summary>两行合成：有状态名有键位 = 两行；只有其一 = 单行。</summary>
-        static string ComposeHintText(string title, string keys)
-        {
-            if (title.Length > 0 && keys.Length > 0)
-                return title + "\n" + keys;
-            return title.Length > 0 ? title : keys;
         }
 
         // ------------------------------------------------------------------

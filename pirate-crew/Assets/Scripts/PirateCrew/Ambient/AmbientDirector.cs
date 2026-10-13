@@ -659,8 +659,8 @@ namespace PirateCrew.Ambient
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 按关应用螃蟹规则（<see cref="AmbientBudget.CrabsAllowedForLevel"/>）：空中关（云端/天空岛）
-        /// 不该有滩涂生物。**双向时序防御**——本方法可能早于（存号，Build 时跳过 SpawnCrabs）
+        /// 按关应用螃蟹规则（<see cref="AmbientBudget.CrabsAllowedForLevel"/>）：天空之岛（第 2 关）
+        /// 不该有滩涂生物（云端漫步第 1 关经创始人裁决保留螃蟹）。**双向时序防御**——本方法可能早于（存号，Build 时跳过 SpawnCrabs）
         /// 或晚于（就地清掉已刷的 Crab_N）本组件的 Start/Build，两个方向都正确。
         /// 调用方：<c>BattleController.SpawnTeams</c>。
         /// </summary>
@@ -684,7 +684,7 @@ namespace PirateCrew.Ambient
 
         void SpawnCrabs(AmbientRandom rng)
         {
-            // 空中关无滩涂：Build 晚于 ApplyLevelCrabRules 时在这里拦下（时序竞态的另一侧）。
+            // 禁入关无滩涂：Build 晚于 ApplyLevelCrabRules 时在这里拦下（时序竞态的另一侧）。
             if (!AmbientBudget.CrabsAllowedForLevel(_levelNumber))
             {
                 Debug.Log("[AmbientDirector] 关卡 " + _levelNumber + " 无滩涂：螃蟹不生成。");

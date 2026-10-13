@@ -62,7 +62,7 @@ namespace PirateCrew.EditorTools
             Debug.Log("[EditorPlayBattle] 进入 Play（场景 " + scenePath
                 + (viaBoot ? "，-bootBattle " + (CommandLineOptions.GetValue(ToolFlags.BootBattle) ?? "") : "")
                 + "）。相机：右键拖 = 转视角，俯角基准 30°（自由镜头 15°–80°）；Tab/滚轮两档取景，"
-                + "底部状态条显示当前交互状态与键位提示。");
+                + "右上状态钮显示当前交互状态。");
             EditorApplication.isPlaying = true;
         }
     }

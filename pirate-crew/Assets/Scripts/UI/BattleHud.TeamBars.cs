@@ -202,15 +202,17 @@ namespace PirateCrew.UI
                     bar.pips[i].root.SetActive(false);
             }
 
-            // 段按实际人数满格重排（4v4 时每段 1/4 宽，不留空槽——装配期按 6 人预建只是骨架）。
-            // 公式与 BattleHudBuilder.BuildOneTeamBar 同式：两端各内缩 SegmentInset。
+            // 段按实际人数重排：每单位一段**标准段长**,条总长 = 两端 inset + n×段长
+            // + (n-1)×缝,随人数伸缩（固定缘不动:红条 pivot 右 / 蓝条 pivot 左,向各自
+            // 外侧伸展）。标准段长 = 原固定条宽的三分之一（创始人裁决「几个单位就是
+            // 几个条加起来」）;公式与 BattleHudBuilder.BuildOneTeamBar 同式,常量同源
+            // （Editor 侧 BattleHudZones.TeamBarSegmentLength/SegmentGap/SegmentInset）
+            // ——改一处必改两处。
             if (count > 0 && bar.segments != null && bar.segmentRoot != null)
             {
-                float trackWidth = bar.segmentRoot.sizeDelta.x;
-                // 段宽向下取整：平涂段（2026-09-28 换装波）边缘必须落整格——
-                // 分数宽会在色块边缘糊出抗锯齿带。装配侧（BattleHudBuilder）同式。
-                float segmentWidth = Mathf.Floor(
-                    (trackWidth - 2f * SegmentInset - (count - 1) * SegmentGap) / count);
+                float segmentWidth = Mathf.Floor(SegmentLength);
+                float trackWidth = 2f * SegmentInset + count * segmentWidth + (count - 1) * SegmentGap;
+                bar.segmentRoot.sizeDelta = new Vector2(trackWidth, bar.segmentRoot.sizeDelta.y);
                 for (int i = 0; i < count && i < bar.segments.Length; i++)
                 {
                     var rect = bar.segments[i] != null
@@ -229,6 +231,10 @@ namespace PirateCrew.UI
     /// 2026-09-28 换装波统一两侧：平涂槽 1 格缝即分段读感，两端各缩 1 露暗槽）。</summary>
     const float SegmentGap = 1f;
     const float SegmentInset = 1f;
+
+    /// <summary>标准段长（每单位一段的段宽,33 = 原固定条宽 99 的三分之一）；
+    /// 与 Editor 侧 BattleHudZones.TeamBarSegmentLength 同源。</summary>
+    const float SegmentLength = 33f;
 
         /// <summary>阵亡 pip 压暗：CanvasGroup alpha（不烘黑图、不给像素件乘色）。</summary>
         static void SetPipDimmed(GameObject pipRoot, bool dimmed)

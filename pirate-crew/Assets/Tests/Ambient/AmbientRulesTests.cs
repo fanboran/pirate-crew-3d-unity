@@ -291,13 +291,14 @@ namespace PirateCrew.Ambient.Tests
         }
 
         [Test]
-        public void CrabsAllowedForLevel_SkyLevelsExcluded()
+        public void CrabsAllowedForLevel_SkyIslandExcluded()
         {
-            // 空中关（1 云端漫步、3 天空之岛）无滩涂 → 螃蟹禁（2026-10-07 创始人裁决）；
-            // 其余关卡（4 化工厂等有岸关）默认允许，未知关号也默认允许。
-            Assert.IsFalse(AmbientBudget.CrabsAllowedForLevel(1));
-            Assert.IsFalse(AmbientBudget.CrabsAllowedForLevel(3));
-            Assert.IsTrue(AmbientBudget.CrabsAllowedForLevel(4));
+            // 天空之岛（2）的背景水面读不出滩涂 → 螃蟹禁；云端漫步（1）经创始人裁决
+            // 保留来回走的螃蟹（2026-10-13）。其余关卡（3/4 化工厂等有岸关）默认允许，
+            // 未知关号也默认允许。
+            Assert.IsTrue(AmbientBudget.CrabsAllowedForLevel(1));
+            Assert.IsFalse(AmbientBudget.CrabsAllowedForLevel(2));
+            Assert.IsTrue(AmbientBudget.CrabsAllowedForLevel(3));
             Assert.IsTrue(AmbientBudget.CrabsAllowedForLevel(99));
         }
     }

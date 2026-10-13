@@ -75,6 +75,7 @@ namespace PirateCrew.EditorTools
             SetTeamBar(so.FindProperty("teamBarBlue"), result.teamBarBlue);
             SetRef(so, "badgeRing", result.badgeRing);
             SetRef(so, "badgeText", result.badgeText);
+            SetRef(so, "turnHintPlate", result.turnHintPlate);
             SetRef(so, "turnHintText", result.turnHintText);
 
             // 武器面板。
@@ -88,17 +89,13 @@ namespace PirateCrew.EditorTools
             SetRef(so, "throwSelfButton", result.throwSelfButton);
             SetRef(so, "endGoButton", result.endGoButton);
 
-            // 操作 HUD / 系统钮 / 提示。
+            // 操作 HUD / 状态钮。
             SetRef(so, "operationPanelRoot", result.operationPanelRoot);
             SetRef(so, "yawReadoutText", result.yawReadoutText);
             SetRef(so, "elevationReadoutText", result.elevationReadoutText);
             SetRef(so, "powerReadoutText", result.powerReadoutText);
             SetRef(so, "confirmOperationButton", result.confirmOperationButton);
             SetRef(so, "cancelOperationButton", result.cancelOperationButton);
-            SetRef(so, "backButton", result.backButton);
-            SetRef(so, "pauseButton", result.pauseButton);
-            SetRef(so, "hintPlate", result.hintPlate);
-            SetRef(so, "hintText", result.hintText);
             SetRef(so, "stateIndicator", result.stateIndicator);
             SetRef(so, "stateIndicatorLabel", result.stateIndicatorLabel);
 

@@ -77,13 +77,13 @@ namespace PirateCrew.Ambient
 
         /// <summary>
         /// 螃蟹是否允许在该关出现。螃蟹是**滩涂生物**（巡岸 + 遇爆惊逃），只在有岸的关卡有语义；
-        /// 空中关（1 云端漫步、3 天空之岛）的"海面"只是背景圆盘，螃蟹爬在云侧/背景水上读作
-        /// 噪点（2026-10-07 创始人裁决：螃蟹不该出现在云端图里）。未知关卡默认允许（新关先给
-        /// 全套氛围，确认不合适再进本表）。
+        /// 第 2 关天空之岛的"海面"只是背景圆盘，螃蟹爬在云侧/背景水上读作噪点，禁入。
+        /// 第 1 关云端漫步经创始人裁决保留来回走的螃蟹（2026-10-13）。未知关卡默认允许
+        /// （新关先给全套氛围，确认不合适再进本表）。
         /// </summary>
         public static bool CrabsAllowedForLevel(int levelNumber)
         {
-            return levelNumber != 1 && levelNumber != 3;
+            return levelNumber != 2;
         }
 
         /// <summary>

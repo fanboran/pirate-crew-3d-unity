@@ -28,14 +28,21 @@ namespace PirateCrew.EditorTools
         // 文字尺寸不在纪律内（原生档四档，见 UiSkin.Font）。
         // ------------------------------------------------------------------
 
-        /// <summary>顶部带垂直中心**距屏顶**的像素（血条/徽章的锚顶偏移）。</summary>
+        /// <summary>顶部带垂直中心**距屏顶**的像素（血条的锚顶偏移）。</summary>
         public const float TopBandFromTop = 8f;
 
         // ---------------- 顶栏：双队血条 + pips（theme 平涂） ----------------
 
-        /// <summary>队血条宽 / 高（红蓝镜像等长；段宽运行时按实际人数重排）。
-        /// 平涂槽时代高度 8 = 槽底 8 格、段上下各让 1 格露槽 → 填充带 6 格。</summary>
-        public const float TeamBarWidth = 99f;
+        /// <summary>队血条**标准段长**（每单位一段，段宽即此值）：以原固定条宽的三分之一
+        /// 为一个标准血条，几个单位就是几段加起来。条总长随编成人数伸缩
+        /// = 两端 inset + n×段长 + (n-1)×段缝；装配期按上限段数预排骨架、运行时按实际
+        /// 人数重排——Builder 与 <c>BattleHud.TeamBars</c> 两端同式，常量同源
+        /// （运行时侧同值在 TeamBars.SegmentLength），改一处必改两处。</summary>
+        public const float TeamBarSegmentLength = 33f;
+
+        /// <summary>队血条**基准宽**（分段伸缩前的固定条宽）：血条本体不再恒宽，
+        /// 现仅作状态指示钮的对齐基准（与其右缘同列的口径锚）。</summary>
+        public const float TeamBarBaseWidth = 99f;
         public const float TeamBarHeight = 8f;
 
         /// <summary>段间距 / 段区两端内边距（与 BattleHud.SegmentGap/SegmentInset 同源=1：
@@ -43,13 +50,18 @@ namespace PirateCrew.EditorTools
         public const float SegmentGap = 1f;
         public const float SegmentInset = 1f;
 
-        /// <summary>红条左端 = 小地图右缘 + 缝；蓝条右端镜像同值。
-        /// 海图加大到 144 宽（2026-09-28 创始人「面积为什么这么小」）→ 4 + 144 + 8。</summary>
-        public const float TeamBarInsetX = 156f;
+        /// <summary>红条右缘 / 蓝条左缘**距屏幕中轴**的像素（镜像等长）= 72（海图半宽）+ 8（缝）。
+        /// 双条锚中轴、贴中央海图两侧，任意画布宽度下条与海图的缝恒 8；条长随人数伸缩时
+        /// 固定缘不动、向各自外侧伸展（红条 pivot 右 / 蓝条 pivot 左）。</summary>
+        public const float TeamBarFromCenter = 80f;
 
         /// <summary>pip 尺寸 / 间距（血条正下方一排队色方格，阵亡「×」+ 压暗）。</summary>
         public const float PipSize = 6f;
         public const float PipGap = 2f;
+
+        /// <summary>回合徽章中心**距屏顶**的像素：海图（顶部正中）底缘 = Safe + MinimapHeight，
+        /// 徽章中心再让 10 格缝 → 110；回合提示盘接其下 2 格。</summary>
+        public const float TurnBadgeFromTop = 110f;
 
         /// <summary>回合徽章 = theme button_selected 金面钮（16×16 = 该件原生高 4+6+6，1:1 无拉伸；
         /// 数字 Tiny 8px 落在金面字区内——12 格档数字压描边穿模，2026-10-05 走查废弃）。</summary>
@@ -59,7 +71,9 @@ namespace PirateCrew.EditorTools
         /// 蓝队血条/pips 正下方右对齐的按钮皮指示件——自由镜头 = 常态灰面，选中/操作中/执行中 =
         /// 金面 sticky。宽按标签自适应（builder 内 FitToLabel），高 20 = HudButtonHeight；
         /// 距屏顶 34 = 顶带 8 + 血条 8 + 缝 6 + pips 6 + 缝 6。</summary>
-        public const float StateIndicatorFromRight = 156f;
+        /// <summary>状态指示钮右缘距屏幕中轴 = TeamBarFromCenter + TeamBarBaseWidth（对齐
+        /// 基准宽右缘；血条本体改按人数分段伸缩后不再跟随条长）。</summary>
+        public const float StateIndicatorFromCenterX = TeamBarFromCenter + TeamBarBaseWidth;
         public const float StateIndicatorFromTop = 34f;
         public const float StateIndicatorHeight = 20f;
 
@@ -72,22 +86,23 @@ namespace PirateCrew.EditorTools
         /// <summary>操作读数行高（12 号字一行的 Hud 档）。</summary>
         public const float OperationReadoutRowHeight = 12f;
 
-        /// <summary>状态条（交互操作契约 §G）：武器面板正上方居中的**墨底盘 + 白字**——
-        /// 宽 640（最长键位行整行放得下，不再省略号截断）、高 48（两行 + 行距 + 盘面呼吸）；
-        /// 底边 = 面板顶 + 4（操作面板与武器面板共用贴底位，状态条位置恒定不随面板切换漂移）。
-        /// 自由镜头下整条隐藏（右上状态钮已表达状态，21 走查裁决）。</summary>
-        public const float HintBarWidth = 640f;
-        public const float HintBarHeight = 48f;
-        public const float HintBarGapAbovePanels = 4f;
+        /// <summary>操作提示裸字（交互操作契约 §G2）：屏幕**正右方贴边**的无底悬浮字——
+        /// 静态两行常驻（「点击单位选中」「右键拖动旋转视角」），新玩家基础操作引导，
+        /// 不随交互状态刷新。宽按最宽行（8 字 × Hud 字号）+ 余量，右对齐；高容两行。</summary>
+        public const float SideHintFromRight = Safe;
+        public const float SideHintWidth = 104f;
+        public const float SideHintHeight = 32f;
 
         /// <summary>回合提示盘（「玩家 1，该你了 / 敌方行动中」）：徽章正下方墨底盘 + 白字——
-        /// 裸白字压浅色岛面读作浅灰，半透明描边救不回对比度（21 走查裁决）。</summary>
-        public const float TurnHintPlateWidth = 300f;
+        /// 裸白字压浅色岛面读作浅灰，半透明描边救不回对比度（21 走查裁决）。
+        /// 宽按文案自适应（单行，运行时刷新），夹在 [Min, Max]。</summary>
+        public const float TurnHintPlateMinWidth = 120f;
+        public const float TurnHintPlateMaxWidth = 300f;
         public const float TurnHintPlateHeight = 24f;
 
         // ---------------- 底部带：武器面板（theme 窗体） ----------------
 
-        /// <summary>武器面板：贴底居中（bottom = Safe）。窗体几何：边框 6 / 内容顶随标题
+        /// <summary>武器面板：贴底**靠左**（锚左下，x = Safe）。窗体几何：边框 6 / 内容顶随标题
         /// 字高（12 号 → 23）。宽 406 = 6 + 格区 394 + 6；高 124 = 内容顶 23 + 格区 58 +
         /// 缝 2 + 行动行 20 + 缝 2 + 信息行 12 + 底边 6 + 1 余。</summary>
         public const float WeaponPanelWidth = 406f;
@@ -106,9 +121,9 @@ namespace PirateCrew.EditorTools
         /// 「垂直方向按钮大小太小」，theme 原生 16 装 12 号字只剩 2 格余量太挤）。</summary>
         public const float HudButtonHeight = 20f;
 
-        /// <summary>小地图窗尺寸（2026-09-28 创始人「面积为什么这么小」：64×44 太小，
-        /// 提到 144×96 占角面积；内容仍为清空暂态）。</summary>
-        public const float MinimapWidth = 144f;
-        public const float MinimapHeight = 96f;
+        /// <summary>小地图窗尺寸（136×102 = 4:3，与场地长宽比 40×30 一致——顶视图信箱留白最小化；
+        /// 面积与旧 144×96 基本持平。居画布顶部正中，标题带「海图」）。</summary>
+        public const float MinimapWidth = 136f;
+        public const float MinimapHeight = 102f;
     }
 }
