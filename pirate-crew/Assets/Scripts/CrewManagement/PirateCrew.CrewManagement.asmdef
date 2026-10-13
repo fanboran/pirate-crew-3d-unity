@@ -2,8 +2,7 @@
     "name": "PirateCrew.CrewManagement",
     "rootNamespace": "PirateCrew",
     "references": [
-        "PirateCrew.Core",
-        "PirateCrew.Gameplay"
+        "PirateCrew.Core"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
