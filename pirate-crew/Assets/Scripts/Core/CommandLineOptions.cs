@@ -190,13 +190,27 @@ namespace PirateCrew.Core
         public const string ArtReviewLevel = "-artReviewLevel";
 
         /// <summary>
+        /// 战斗小地图顶视底图出图目录：<c>-minimapOut &lt;绝对目录&gt;</c>（内置播放器）。
+        /// 把当前关的静态陈设从正上方渲成一帧平色缩略图存 PNG（建议直接指到
+        /// <c>Assets/Resources/Minimaps/</c>，配合 <see cref="MinimapLevel"/> 逐关跑一遍）。
+        /// 采集流程见 <c>MinimapTopViewCapture</c>。
+        /// </summary>
+        public const string MinimapOut = "-minimapOut";
+
+        /// <summary>
+        /// `-minimapOut` 的样板关序号：<c>-minimapLevel &lt;1..ShowcaseLevels.LastLevel&gt;</c>。
+        /// 与 <see cref="MinimapOut"/> 同用：写 <c>ArtReviewCaptureOverride</c> 让本局解析到目标关。
+        /// </summary>
+        public const string MinimapLevel = "-minimapLevel";
+
+        /// <summary>
         /// 像素化着色路径（v3 蓝本重写线）试点出图目录：<c>-pixelartOut &lt;绝对目录&gt;</c>。
         /// 进 <c>PixelartPilot</c> 场景，机位与抖动档见 <c>PlayerArtCapture.RunPixelartCapture</c>。
         /// </summary>
         public const string PixelartOut = "-pixelartOut";
 
         /// <summary>
-        /// `-pixelartOut` 的场景切换：<c>-pixelartLevel &lt;1|3&gt;</c>（现存样板关，号段不连续）⇒ 改拍该关的关卡试点场景
+        /// `-pixelartOut` 的场景切换：<c>-pixelartLevel &lt;1|2|3|4&gt;</c>（现存样板关）⇒ 改拍该关的关卡试点场景
         /// （真实内容：场地件 + 按关卡出生表摆的单位；场景名与取景口径见 `PixelartLevelScene`）。
         /// 不带它时拍 <c>PixelartPilot</c>（图元几何，验机制）。两个档共用同一条采集流程与判据脚本。
         /// </summary>

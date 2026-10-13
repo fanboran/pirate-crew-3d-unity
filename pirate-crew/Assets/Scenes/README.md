@@ -48,7 +48,7 @@ PirateCrew/UI/打开组件展示（构建并播放）。
 | ② | `FloatingIslandShowcaseMenu.PlaceIntoBattleCenter` | 空岛样板件（第 3 关地面）；在 ① 之后，否则被重建洗掉 |
 | ③ | `SceneArtBaker.BuildAll` | 样板场景件烘焙（云场 → prefab + 接线） |
 | ④ | `SceneAssetManifestBuilder.BuildAll` | 场景资产总清单 |
-| ⑤ | `HudMinimapSceneSetup.WireMinimap` | 小地图面板/层级/引用增量接线；必须在 ① 之后（曾因此静默坏过三轮，c78fdea） |
+| ⑤ | `HudMinimapSceneSetup.WireMinimap` | 小地图窗体/内容子树（顶视底图 RawImage + 点位层）/引用增量接线，顺带校正顶视 PNG 导入参数并登记顶视平色 shader；必须在 ① 之后（曾因此静默坏过三轮，c78fdea） |
 | ⑥ | `BattleLookupWiring.Wire` | 运行期查找清退的三条显式接线（`aimThrow` / `cameraController` / `sunLight`） |
 | ⑦ | `WorldMapAssetSetBuilder.BuildAll` | WorldKit 资产表 + 海面材质接线（写 `BattleController` 两个字段） |
 | ⑧ | `ScenePrefabCollapse.CollapseBattle` | **折叠**：全部根收进载体根 → 存 `BattleRig.prefab` → 场景只留实例 |

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using PirateCrew.Battle;
+using PirateCrew.Battle.Levels;
 using PirateCrew.Battle.WorldMaps;
 using UnityEngine;
 using UnityEngine.UI;
@@ -7,19 +8,22 @@ using UnityEngine.UI;
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 战斗小地图（UGUI）：竞技场 XZ **俯视示意** + 双方单位点位。
+    /// 战斗小地图（UGUI）：**顶视图缩略**——关卡顶视平色底图（编辑器出图的静态 PNG，
+    /// 见 <see cref="TopViewFraming.TopViewResourcePath"/>）+ 双方单位动态点位。
     ///
-    /// 【口径】战斗小地图 = 竞技场 XZ **俯视示意** + 双方单位点位。
-    /// 点阵尺寸、红/蓝队色、透明度淡出、容器位置等常量见 <see cref="MinimapRules"/>
-    /// （本工程设计值，<b>【提案/待定】</b>：尚无已裁决文档为其取值背书）。
+    /// 【口径】海图窗 = 顶视底图（<c>TopViewMapping</c> 信箱适配，
+    /// 与出图取景同一份数学，点位与底图像素级对齐）+ 单位点（红/蓝队色、死亡淡出）。
+    /// 常量与映射规则见 <see cref="MinimapRules"/>（本工程设计值，<b>【提案/待定】</b>）。
     ///
     /// 【架构约定】
-    ///   · 数据来源全部是同场景 <c>[SerializeField]</c> 引用（单位根节点 + 点阵层），
+    ///   · 数据来源全部是同场景 <c>[SerializeField]</c> 引用（单位根节点 + 底图 + 点位层），
     ///     **不**做 <c>GameObject.Find</c>、**不**依赖 <see cref="BattleController"/> 内部、
     ///     **不**新增 EventBus 事件——位置是每帧直接读取，正是「每帧高频数据不走 EventBus」的推荐做法
     ///     （见 docs/技术/架构/EventBus事件契约.md §3）。
-    ///   · 点位用锚点定位（<c>anchorMin = anchorMax = 归一化坐标</c>），面板缩放时自动跟随，不依赖 rect 尺寸。
-    ///   · 美术资源：纯色方块占位（无外部图片）。
+    ///   · 本局关卡跨度/关卡号走 <see cref="LevelSourceResolver.Resolve"/>（与
+    ///     BattleController.Awake 同一解析口、同值；Start 时查询安全，待战状态不被提前消费）。
+    ///   · 底图缺失（未跑出图）时响亮告警一次、退化为纯点位层，不阻塞战斗。
+    ///   · 点位用锚点定位（<c>anchorMin = anchorMax = 归一化坐标</c>），面板缩放时自动跟随。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class BattleMinimap : MonoBehaviour
@@ -31,25 +35,21 @@ namespace PirateCrew.UI
         [Header("场景引用")]
         [Tooltip("单位根节点（Team0_Red / Team1_Blue 或它们的共同父级）；运行时扫描其下的 PirateBase。")]
         [SerializeField] Transform[] unitRoots = new Transform[0];
-        [Tooltip("点阵层（ugui RectTransform）；单位点按其归一化锚点落位。")]
+        [Tooltip("顶视底图（ugui RawImage）；运行时按关卡号贴 Resources/Minimaps/level-<关卡号>。")]
+        [SerializeField] RawImage topViewImage;
+        [Tooltip("点阵层（ugui RectTransform）；单位点按顶视映射的归一化锚点落位。")]
         [SerializeField] RectTransform dotLayer;
 
-        [Header("瓦片地形点阵（两档 alpha；可为空 = 不画瓦片）")]
-        [Tooltip("地形视图（同场景 [SerializeField] 注入，禁 GameObject.Find）；由 HudMinimapSceneSetup 接线。")]
-        [SerializeField] BattleTerrainView terrain;
-        [Tooltip("瓦片点层（ugui RectTransform）；一格一颗点，实心 0.5 / 空 0.2 alpha。为空时自建在点阵层下。")]
-        [SerializeField] RectTransform tileLayer;
-
-        [Header("竞技场范围（瓦片数；1 瓦片 = 1 世界单位）")]
-        [Tooltip("竞技场横向 X 尺寸（关卡 widthTiles，1 瓦片 = 1 世界单位）。")]
+        [Header("竞技场范围（米；Start 按本局关卡数据覆盖）")]
+        [Tooltip("竞技场横向 X 尺寸（米）。默认值仅布局未生效时的回落口径。")]
         [SerializeField] float arenaWidth = 50f;
-        [Tooltip("竞技场纵深 Z 尺寸（关卡 heightTiles）。")]
+        [Tooltip("竞技场纵深 Z 尺寸（米）。")]
         [SerializeField] float arenaDepth = 17f;
 
         [Header("表现参数（提案/待定）")]
-        [Tooltip("一颗瓦片在小地图上画多少像素（决定面板与点位大小）。")]
-        [SerializeField] float pixelsPerTile = 5f;
-        [Tooltip("单位点位直径（px）；<=0 时按 MinimapRules.DotSizePixels(pixelsPerTile) 推导。")]
+        [Tooltip("布局未生效（rect=0）时的每米像素回落值，决定点位直径。")]
+        [SerializeField] float pixelsPerMeter = 2.5f;
+        [Tooltip("单位点位直径（px）；<=0 时按 MinimapRules.DotSizePixels(pixelsPerMeter) 推导。")]
         [SerializeField] float dotSizePixels = 0f;
 
         // ------------------------------------------------------------------
@@ -59,10 +59,12 @@ namespace PirateCrew.UI
         PirateBase[] _units = new PirateBase[0];
         Image[] _dots = new Image[0];
         float[] _visibility = new float[0];
-        Image[] _tiles = new Image[0];
-        int _tileVersion = -1;
         bool _built;
-        /// <summary>世界地图海图模式：按实际图跨度映射、装配期烘好的兜底岛层隐藏、改用站面 box 岛层。</summary>
+        /// <summary>顶视取景/点位映射（跨度 × 图幅长宽比，Start 与海图模式切换时重建）。</summary>
+        TopViewMapping _topView;
+        /// <summary>本局关卡号（底图资源名用；取不到时回落 1）。</summary>
+        int _levelNumber = 1;
+        /// <summary>世界地图海图模式：按实际图跨度映射、改用站面 box 岛层（海图重做基建，现役零海图不可达）。</summary>
         bool _worldChartMode;
         RectTransform _worldChartLayer;
         /// <summary>Refresh 上次校准点径时的点层像素宽（漂移 >0.5px 时重设全部点径）。</summary>
@@ -80,19 +82,20 @@ namespace PirateCrew.UI
         const int BuildRetryMaxAttempts = 10;
 
         /// <summary>
-        /// 有效每瓦像素 = 点层实际像素宽 / 场地跨度——点径随面板尺寸自动缩放
-        /// （r11 海图放大裁决；布局未生效 rect=0 时回落序列化的 <see cref="pixelsPerTile"/>）。
+        /// 有效每米像素 = 点层实际像素宽 / 顶视覆盖跨度——点径随面板尺寸自动缩放
+        /// （布局未生效 rect=0 时回落序列化的 <see cref="pixelsPerMeter"/>）。
         /// </summary>
-        float EffectivePixelsPerTile()
+        float EffectivePixelsPerMeter()
         {
-            if (dotLayer != null && dotLayer.rect.width > 1f && arenaWidth > 1e-6f)
-                return dotLayer.rect.width / arenaWidth;
-            return pixelsPerTile;
+            if (dotLayer != null && dotLayer.rect.width > 1f)
+                return dotLayer.rect.width / _topView.CoverX;
+            return pixelsPerMeter;
         }
 
         /// <summary>接线自检（供 PlayMode 装配测试断言）。</summary>
         public bool HasMinimapWiring =>
             dotLayer != null
+            && topViewImage != null
             && unitRoots != null && unitRoots.Length > 0
             && HasAnyRoot()
             && arenaWidth > 0f && arenaDepth > 0f;
@@ -124,25 +127,64 @@ namespace PirateCrew.UI
         // Start 在所有 Awake 之后执行，此时单位已生成（见 BattleController.Awake → SpawnTeams）。
         void Start()
         {
-            // 【空窗暂态（创始人 2026-09-28 裁决）】海图只留 Aseprite 窗体外框、内容清空——
-            // dotLayer 未接线时整组件休眠（不建点、不进重试循环、不告警）。
-            // 恢复内容：HudMinimapSceneSetup 重建 DotLayer 接线即自动恢复本路径。
-            if (dotLayer == null)
-            {
-                _buildAbandoned = true;
-                return;
-            }
-
-            ConfigureWorldChartFromRuntime();
+            ApplyLevelContext();
             TryBuild();
         }
 
         /// <summary>
-        /// 世界地图海图模式自探测（UI 审计 P0-2 / 地图审计 §二.10 的修复）：
-        /// 本局是世界地图时，把换算范围改为实际图跨度、隐藏装配期烘好的兜底岛层、
-        /// 改从站面 box 生成海图岛层——否则世界图单位点位会被压进左上 1/9、底下垫着不相关的岛形。
-        /// <see cref="WorldMapRuntime.TryGetPending"/> 不清除待战状态，Start 时查询安全
-        /// （BattleController.Awake 消费 pending 也不清）。public 供测试与选关 UI 显式调用；
+        /// 按本局关卡数据定跨度/关卡号，重建顶视映射并贴底图。
+        /// <see cref="LevelSourceResolver.Resolve"/> 与 BattleController.Awake 是同一解析口
+        /// （命令行覆盖 > 待战内容 > 兜底关），Start 时调用与 Awake 同值。
+        /// 取景参数优先读出图随 PNG 落盘的 <see cref="TopViewFrame"/>（内容包围盒实测，
+        /// 点位与底图严格同源）；缺失（旧图/未跑出图）时回落「场地矩形」口径。
+        /// </summary>
+        void ApplyLevelContext()
+        {
+            LevelSource source = LevelSourceResolver.Resolve();
+            if (source != null)
+            {
+                arenaWidth = Mathf.Max(1f, source.SpanX);
+                arenaDepth = Mathf.Max(1f, source.SpanZ);
+                if (source.LevelNumber > 0)
+                    _levelNumber = source.LevelNumber;
+            }
+
+            var frameAsset = Resources.Load<TextAsset>(TopViewFraming.TopViewFrameResourcePath(_levelNumber));
+            if (frameAsset != null)
+            {
+                TopViewFrame frame = JsonUtility.FromJson<TopViewFrame>(frameAsset.text);
+                _topView = TopViewMapping.ForContent(
+                    frame.centerX, frame.centerZ, frame.spanX, frame.spanZ,
+                    TopViewFraming.TopViewTexAspect);
+            }
+            else
+            {
+                _topView = TopViewMapping.ForSpan(
+                    arenaWidth, arenaDepth, TopViewFraming.TopViewTexAspect);
+            }
+
+            if (topViewImage != null)
+            {
+                Texture2D topView = Resources.Load<Texture2D>(TopViewFraming.TopViewResourcePath(_levelNumber));
+                if (topView != null)
+                {
+                    topViewImage.texture = topView;
+                }
+                else
+                {
+                    global::PirateCrew.Core.Log.Warn("[BattleMinimap] 顶视底图缺失：Resources/"
+                        + TopViewFraming.TopViewResourcePath(_levelNumber)
+                        + "（先跑播放器出图 -minimapOut，再跑接线批次设置导入参数）——海图窗退化为纯点位层。");
+                }
+            }
+        }
+
+        /// <summary>
+        /// 世界地图海图模式自探测（海图重做基建；现役零海图，待战入口不可达）：
+        /// 本局是世界地图时，把换算范围改为实际图跨度、改从站面 box 生成海图岛层；
+        /// 顶视底图无海图资源，置空退化为纯点位 + 岛层示意。
+        /// <see cref="WorldMapRuntime.TryGetPending"/> 不清除待战状态，Start 时查询安全。
+        /// public 供测试与选关 UI 显式调用；
         /// **已进入海图模式后是幂等守卫直接返回**——重复调用会再叠一层岛层。
         /// </summary>
         public void ConfigureWorldChartFromRuntime()
@@ -156,15 +198,11 @@ namespace PirateCrew.UI
             _worldChartMode = true;
             arenaWidth = Mathf.Max(1f, map.SpanX);
             arenaDepth = Mathf.Max(1f, map.SpanZ);
+            _topView = TopViewMapping.ForSpan(
+                arenaWidth, arenaDepth, TopViewFraming.TopViewTexAspect);
 
-            // 装配期烘好的兜底岛层退位（先退订地形刷新再断开，防 BuildTiles 复用它）。
-            if (terrain != null)
-            {
-                terrain.Changed -= OnTerrainChanged;
-                terrain = null;
-            }
-            if (tileLayer != null)
-                tileLayer.gameObject.SetActive(false);
+            if (topViewImage != null)
+                topViewImage.texture = null;
 
             BuildWorldChartIslands(WorldMapRules.AllStandBoxes(map));
         }
@@ -216,24 +254,6 @@ namespace PirateCrew.UI
 
         /// <summary>当前换算范围 Z（测试/调试用）。</summary>
         public float ArenaDepth => arenaDepth;
-
-        void OnEnable()
-        {
-            if (terrain != null)
-                terrain.Changed += OnTerrainChanged;
-        }
-
-        void OnDisable()
-        {
-            if (terrain != null)
-                terrain.Changed -= OnTerrainChanged;
-        }
-
-        /// <summary>地形变化（爆炸破坏等）→ 只在下一帧刷新瓦片 alpha，避免每帧全量重绘。</summary>
-        void OnTerrainChanged()
-        {
-            _tileVersion = -1;
-        }
 
         void Update()
         {
@@ -287,7 +307,7 @@ namespace PirateCrew.UI
             if (found.Count == 0)
                 return false;
 
-            float size = dotSizePixels > 0f ? dotSizePixels : MinimapRules.DotSizePixels(EffectivePixelsPerTile());
+            float size = dotSizePixels > 0f ? dotSizePixels : MinimapRules.DotSizePixels(EffectivePixelsPerMeter());
             _units = found.ToArray();
             _dots = new Image[_units.Length];
             _visibility = new float[_units.Length];
@@ -312,121 +332,23 @@ namespace PirateCrew.UI
             }
 
             _built = true;
-            BuildTiles();
             Refresh();
             return true;
-        }
-
-        // ------------------------------------------------------------------
-        // 瓦片点阵（§8.1 实心 alpha 50 / 空 alpha 20）
-        // ------------------------------------------------------------------
-
-        /// <summary>已建出的瓦片点数（调试/测试用）。</summary>
-        public int TileCount => _tiles.Length;
-
-        /// <summary>瓦片点层引用（测试用）。</summary>
-        public RectTransform TileLayer => tileLayer;
-
-        static RectTransform EnsureTileLayer(RectTransform parent, RectTransform existing)
-        {
-            if (existing != null)
-            {
-                existing.anchorMin = Vector2.zero;
-                existing.anchorMax = Vector2.one;
-                existing.offsetMin = Vector2.zero;
-                existing.offsetMax = Vector2.zero;
-                return existing;
-            }
-
-            var go = new GameObject("TileLayer", typeof(RectTransform));
-            var rect = go.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
-            return rect;
-        }
-
-        /// <summary>按地形网格铺满瓦片点（一格一颗）。无地形数据/未接线时不做任何事。</summary>
-        void BuildTiles()
-        {
-            if (terrain == null || terrain.Grid == null || _tiles.Length > 0)
-                return;
-
-            RectTransform parent = dotLayer != null ? dotLayer : (RectTransform)transform;
-            tileLayer = EnsureTileLayer(parent, tileLayer);
-            if (tileLayer == null)
-                return;
-
-            HeightfieldGrid grid = terrain.Grid;
-            int width = grid.WidthTiles;
-            int depth = grid.DepthTiles;
-            _tiles = new Image[width * depth];
-
-            for (int gy = 0; gy < depth; gy++)
-            {
-                for (int gx = 0; gx < width; gx++)
-                {
-                    var go = new GameObject("MinimapTile_" + gx + "_" + gy,
-                        typeof(RectTransform), typeof(Image));
-                    var rect = go.GetComponent<RectTransform>();
-                    rect.SetParent(tileLayer, false);
-                    // 锚点直接框住一整格：面板缩放/换关卡尺寸时自动铺满，不依赖像素尺寸。
-                    rect.anchorMin = new Vector2((float)gx / width, 1f - (float)(gy + 1) / depth);
-                    rect.anchorMax = new Vector2((float)(gx + 1) / width, 1f - (float)gy / depth);
-                    rect.offsetMin = Vector2.zero;
-                    rect.offsetMax = Vector2.zero;
-
-                    var image = go.GetComponent<Image>();
-                    image.raycastTarget = false;
-                    image.color = MinimapRules.TileColor(grid.BlocksAt(gx, gy) > 0);
-                    _tiles[gx + gy * width] = image;
-                }
-            }
-
-            _tileVersion = terrain.Version;
-        }
-
-        /// <summary>地形版本变化时刷新瓦片 alpha（实心/空两档，§8.1）。</summary>
-        void RefreshTiles()
-        {
-            if (_tiles.Length == 0 || terrain == null || terrain.Grid == null)
-                return;
-
-            int version = terrain.Version;
-            if (version == _tileVersion)
-                return;
-
-            _tileVersion = version;
-            HeightfieldGrid grid = terrain.Grid;
-
-            for (int i = 0; i < _tiles.Length; i++)
-            {
-                if (_tiles[i] == null)
-                    continue;
-
-                int gx = grid.CellXOf(i);
-                int gy = grid.CellYOf(i);
-                _tiles[i].color = MinimapRules.TileColor(grid.BlocksAt(gx, gy) > 0);
-            }
         }
 
         /// <summary>把每个单位的当前 XZ 位置映射到小地图锚点，并按存活状态推进淡出。</summary>
         void Refresh()
         {
-            RefreshTiles();
-
             if (dotLayer == null || _dots.Length == 0)
                 return;
 
-            // 点径随面板校准：布局首帧 rect.width 才生效、以及运行时面板尺寸变化
-            // （r11 海图放大）时，把全部点位直径重设一遍（数量 = 单位数，代价可忽略）。
+            // 点径随面板校准：布局首帧 rect.width 才生效、以及运行时面板尺寸变化时，
+            // 把全部点位直径重设一遍（数量 = 单位数，代价可忽略）。
             float layerWidth = dotLayer.rect.width;
             if (layerWidth > 1f && Mathf.Abs(layerWidth - _dotLayerWidthForSize) > 0.5f)
             {
                 _dotLayerWidthForSize = layerWidth;
-                float size = dotSizePixels > 0f ? dotSizePixels : MinimapRules.DotSizePixels(EffectivePixelsPerTile());
+                float size = dotSizePixels > 0f ? dotSizePixels : MinimapRules.DotSizePixels(EffectivePixelsPerMeter());
                 for (int i = 0; i < _dots.Length; i++)
                 {
                     if (_dots[i] != null)
@@ -454,7 +376,7 @@ namespace PirateCrew.UI
 
                 Vector3 world = pirate.transform.position;
                 Vector2 normalized = MinimapRules.ClampNormalized(
-                    MinimapRules.ArenaToNormalized(world.x, world.z, arenaWidth, arenaDepth));
+                    _topView.WorldToNormalized(world.x, world.z));
 
                 RectTransform rect = dot.rectTransform;
                 rect.anchorMin = normalized;

@@ -4,6 +4,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 using PirateCrew.EditorTools.BuildSystem;
 
 namespace PirateCrew.EditorTools
@@ -18,18 +19,20 @@ namespace PirateCrew.EditorTools
     /// 【前置】先跑 <see cref="BattleSceneSetup.BuildAll"/> 生成 Battle.unity；
     ///         本脚本只做增量接线，若场景/装配根缺失会明确报错而不是静默造半个场景。
     ///
-    /// 【空窗暂态（创始人 2026-09-28 裁决）】海图只留 Aseprite 窗体外框、**内容清空**：
-    ///   本脚本不再建 DotLayer / TileLayer / 岛层，dotLayer / tileLayer / terrain 显式写 null
-    ///   （清掉旧场景残留引用），<see cref="BattleMinimap"/> 见 dotLayer 为空即整组件休眠。
-    ///   恢复内容时三处同改：<see cref="BattleHudBuilder"/>.BuildMinimap 重建 DotLayer 子树、
-    ///   本脚本恢复层接线、BattleMinimap 撤休眠守卫。
+    /// 【顶视缩略方案】海图窗内容 = 顶视底图（RawImage，运行时按关卡号贴
+    /// <c>Resources/Minimaps/level-&lt;关卡号&gt;</c>，PNG 由播放器出图组件
+    /// <c>MinimapTopViewCapture</c> 产出）+ 单位动态点位层。本脚本：
+    ///   ① <see cref="BattleHudBuilder.EnsureMinimapContent"/> 重建内容子树（幂等）；
+    ///   ② 把 dotLayer / topViewImage 引用写进 <see cref="BattleMinimap"/>；
+    ///   ③ 顺带把 Minimaps 目录下已有 PNG 的纹理导入参数校到位（点采样/无 mipmap/不压缩），
+    ///     并登记顶视平色 shader 进 Always Included（<see cref="ArtGate"/>，幂等）。
     ///
     /// 【为什么单独一个脚本】小地图是 M2 之后追加的功能，而「其它 Editor 脚本」由协调者/其它 agent
     /// 管理，不能改 <c>BattleSceneSetup.cs</c>；本脚本复用它的代码模式
     /// （SerializedObject 写私有 <c>[SerializeField]</c>、不手写 .unity YAML）。
     ///
     /// 【幂等】面板按名复用；已存在的只补缺失组件并重写引用，不重复创建。
-    /// 【职责边界】本脚本**只接线**（BattleMinimap 的 unitRoots 等字段），
+    /// 【职责边界】本脚本**只接线**（BattleMinimap 的引用字段），
     ///   面板的位置/尺寸/外框归 <see cref="BattleUiTheme"/> / <see cref="BattleHudBuilder"/>；
     ///   只有面板缺失时才兜底建一个同款窗体，避免覆盖 UI 波次的样式。
     /// </summary>
@@ -40,6 +43,9 @@ namespace PirateCrew.EditorTools
         const string MinimapPanelName = "MinimapPanel";
         const string Team0RootName = "Team0_Red";
         const string Team1RootName = "Team1_Blue";
+
+        /// <summary>顶视图资源目录（相对工程；PNG 由 MinimapTopViewCapture 直接写进这里）。</summary>
+        const string MinimapResourceDir = "Assets/Resources/Minimaps";
 
         /// <summary>小地图窗体在屏幕左上角的外边距（画布像素；与 BattleHudBuilder.Safe 同源=4。
         /// 兜底新建路径才用得到——正常路径的几何归 BattleHudBuilder）。</summary>
@@ -97,7 +103,8 @@ namespace PirateCrew.EditorTools
             if (minimap == null)
                 minimap = panel.gameObject.AddComponent<BattleMinimap>();
 
-            WriteReferences(minimap, team0, team1);
+            RectTransform content = BattleHudBuilder.EnsureMinimapContent(panel);
+            WriteReferences(minimap, content, team0, team1);
 
             EditorSceneManager.MarkSceneDirty(scene);
             if (!EditorSceneManager.SaveScene(scene, BattleScenePath))
@@ -109,12 +116,17 @@ namespace PirateCrew.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("[HudMinimapSceneSetup] 小地图接线完成（空窗暂态：外框窗体 + 内容清空）。\n"
+            ApplyTextureImportSettings();
+            ArtGate.EnsureRuntimeShadersIncluded();
+
+            Debug.Log("[HudMinimapSceneSetup] 小地图接线完成（顶视缩略：底图 RawImage + 点位层）。\n"
                 + "  场景: " + BattleScenePath + "\n"
-                + "  面板: " + MinimapPanelName + "（左上角 theme 窗体，标题带「海图」）\n"
-                + "  内容: dotLayer / tileLayer / terrain 显式置空（BattleMinimap 休眠）\n"
+                + "  面板: " + MinimapPanelName + "（顶部正中 theme 窗体，标题带「海图」）\n"
+                + "  内容: " + BattleHudBuilder.MinimapContentName + "/"
+                + BattleHudBuilder.MinimapTopViewName + "+"
+                + BattleHudBuilder.MinimapDotLayerName + "\n"
                 + "  单位根: " + (team0 != null ? team0.name : "null") + " / "
-                + (team1 != null ? team1.name : "null") + "（恢复内容时即用）");
+                + (team1 != null ? team1.name : "null"));
         }
 
         // ------------------------------------------------------------------
@@ -157,11 +169,11 @@ namespace PirateCrew.EditorTools
         // 引用注入（SerializedObject，字段名与 BattleMinimap 一一对应）
         // ------------------------------------------------------------------
 
-        static void WriteReferences(BattleMinimap minimap, Transform team0, Transform team1)
+        static void WriteReferences(BattleMinimap minimap, RectTransform content,
+            Transform team0, Transform team1)
         {
             var so = new SerializedObject(minimap);
 
-            // 单位根照旧写上（休眠组件不消费；恢复内容时无需重跑接线）。
             SerializedProperty roots = so.FindProperty("unitRoots");
             if (roots == null)
             {
@@ -179,19 +191,74 @@ namespace PirateCrew.EditorTools
             for (int i = 0; i < list.Count; i++)
                 roots.GetArrayElementAtIndex(i).objectReferenceValue = list[i];
 
-            // 【空窗暂态】内容层显式置 null（清掉旧场景/旧 Prefab 残留引用）——
-            // BattleMinimap 见 dotLayer 为空即休眠。
-            so.FindProperty("dotLayer").objectReferenceValue = null;
+            so.FindProperty("topViewImage").objectReferenceValue =
+                content.Find(BattleHudBuilder.MinimapTopViewName).GetComponent<RawImage>();
 
-            SerializedProperty tileLayer = so.FindProperty("tileLayer");
-            if (tileLayer != null)
-                tileLayer.objectReferenceValue = null;
-
-            SerializedProperty terrain = so.FindProperty("terrain");
-            if (terrain != null)
-                terrain.objectReferenceValue = null;
+            SerializedProperty dotLayer = so.FindProperty("dotLayer");
+            if (dotLayer == null)
+            {
+                Debug.LogError("[HudMinimapSceneSetup] BattleMinimap.dotLayer 字段未找到（序列化字段名漂移？）");
+                return;
+            }
+            dotLayer.objectReferenceValue = content.Find(BattleHudBuilder.MinimapDotLayerName);
 
             so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        // ------------------------------------------------------------------
+        // 顶视图纹理导入参数（像素图：点采样 / 无 mipmap / 不压缩）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 独立入口：只校正 Minimaps 目录下 PNG 的导入参数（不打开场景、不重接线）。
+        /// 出图批次跑完后执行；无头：-executeMethod PirateCrew.EditorTools.HudMinimapSceneSetup.ApplyMinimapTextureImports
+        /// </summary>
+        [MenuItem("PirateCrew/HUD/校正顶视图导入参数")]
+        public static void ApplyMinimapTextureImports()
+        {
+            AssetDatabase.Refresh();
+            ApplyTextureImportSettings();
+        }
+
+        /// <summary>Minimaps 目录下已有 PNG 的导入参数校到位（幂等；目录不存在则跳过）。</summary>
+        static void ApplyTextureImportSettings()
+        {
+            string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { MinimapResourceDir });
+            foreach (string guid in guids)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+                if (importer == null)
+                    continue;
+
+                bool dirty = false;
+                if (importer.filterMode != FilterMode.Point)
+                {
+                    importer.filterMode = FilterMode.Point;
+                    dirty = true;
+                }
+                if (importer.mipmapEnabled)
+                {
+                    importer.mipmapEnabled = false;
+                    dirty = true;
+                }
+                if (importer.textureCompression != TextureImporterCompression.Uncompressed)
+                {
+                    importer.textureCompression = TextureImporterCompression.Uncompressed;
+                    dirty = true;
+                }
+                if (importer.textureType != TextureImporterType.Default)
+                {
+                    importer.textureType = TextureImporterType.Default;
+                    dirty = true;
+                }
+
+                if (dirty)
+                {
+                    importer.SaveAndReimport();
+                    Debug.Log("[HudMinimapSceneSetup] 顶视图导入参数已校正（Point/无 mipmap/不压缩）: " + path);
+                }
+            }
         }
 
         static T FindFirstComponent<T>() where T : Component

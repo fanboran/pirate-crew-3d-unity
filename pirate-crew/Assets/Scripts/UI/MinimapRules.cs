@@ -6,22 +6,19 @@ namespace PirateCrew.UI
     /// <summary>
     /// 战斗小地图的换算与表现规则（纯 C# 静态类，不引用 MonoBehaviour，可在无头验证台断言）。
     ///
-    /// 【口径】本类常量为本工程设计值（<b>【提案/待定】</b>：尚无已裁决文档为其取值背书）：
-    ///   · 点阵 <c>dotSize=3</c>；实心瓦片 alpha 50 / 空瓦片 alpha 20；宝箱黄 <c>0xFFFF00</c>；
-    ///       红队 <c>0xFF3A29</c>、蓝队 <c>0x3366FF</c>，<c>alpha = mapVisibility*100</c>；
-    ///       角色死亡后 <c>mapVisibility -= 0.1/帧</c> 淡出。
-    ///   · 小地图容器 <c>mapHolder</c> 挂在 (20,20)（屏幕左上角，视口 550×400）。
-    ///   · 每帧刷新「活动点」（= 活着的单位位置）。
+    /// 【口径】海图窗体 = **顶视图缩略**（编辑器出图的关卡顶视平色图打底 + 单位动态点位）；
+    /// 取景与点位映射的数学在 <c>PirateCrew.Battle.Levels.TopViewFraming</c>
+    /// （域换算归 Battle 层——出图组件在 Gameplay 程序集，放 UI 侧会成环），
+    /// 本类只保留队色/淡出等 UI 呈现口径。窗体挂在画布顶部正中
+    /// （theme 窗体 144×96，标题带「海图」）。
     ///
-    /// 【本工程自定的部分（**提案/待定**）】
-    ///   · 2D 侧视时代小地图复用关卡像素布局；本工程把瓦片栅格的
-    ///     (gridX, gridY) 重投影成 XZ 平面（见 <c>docs/设计/3D空间模型对齐.md</c> §1），
-    ///     所以「竞技场世界坐标 → 小地图归一化坐标」的映射是本工程自定的：
-    ///       u = x / width（右为 +u）；v = 1 - z / depth（+Z 朝相机，落在小地图下方）。
-    ///     这样小地图方向与屏幕上方 = 远处（-Z）一致。
-    ///   · 点阵按瓦片有无绘制（实心/空 alpha 两档）。本工程已落地瓦片地形
-    ///     （<c>Battle/Terrain/</c>：瓦片行 → XZ 抬升块），故补回两档 alpha 点阵；
-    ///     无地形数据的关卡退化为全空点阵（铺基础地面色）。
+    /// 【坐标方向】世界 XZ → 图归一化：屏幕上方 = 远处（-Z）、右侧 = +X。
+    ///
+    /// 【队色/淡出（原版逆向口径）】红队 <c>0xFF3A29</c>、蓝队 <c>0x3366FF</c>，
+    /// <c>alpha = mapVisibility*100</c>；角色死亡后 <c>mapVisibility -= 0.1/帧</c> 淡出。
+    ///
+    /// 【瓦片点阵（已退役）】实心 alpha 50 / 空瓦片 alpha 20 两档点阵随顶视图底图退役，
+    /// 色板常量保留（海图岛层色与既有测试仍引用）。
     /// </summary>
     public static class MinimapRules
     {
@@ -92,8 +89,11 @@ namespace PirateCrew.UI
 
         /// <summary>
         /// 竞技场世界位置（XZ）→ 小地图归一化坐标（0–1，UGUI 锚点口径）。
-        /// <c>u = x / width</c>，<c>v = 1 - z / depth</c>（+Z 朝相机 → 小地图下方）。
+        /// <c>u = x / width</c>，<c>v = 1 - z / depth</c>（+Z 朝相机 → 图下方）。
         /// 越界不裁剪，由 <see cref="ClampNormalized"/> 处理。
+        /// 【旧口径】「场地铺满面板」的等比假设；现行主路径走
+        /// <c>TopViewFraming.TopViewMapping</c>（顶视底图是信箱适配，场地不铺满图幅）。
+        /// 本函数保留给海图岛层示意路径与测试。
         /// </summary>
         public static Vector2 ArenaToNormalized(float worldX, float worldZ, float width, float depth)
         {
@@ -179,8 +179,8 @@ namespace PirateCrew.UI
             return Rect.MinMaxRect(uMin, vMin, uMax, vMax);
         }
 
-        /// <summary>海图岛层色（站面示意；**提案/待定**：取实心瓦片同系沙色、提高不透明度便于瞄准读图）。</summary>
-        public static Color WorldChartIslandColor => new Color(
-            SolidTileColor.r, SolidTileColor.g, SolidTileColor.b, 0.85f);
-    }
+    /// <summary>海图岛层色（站面示意；**提案/待定**：取实心瓦片同系沙色、提高不透明度便于瞄准读图）。</summary>
+    public static Color WorldChartIslandColor => new Color(
+        SolidTileColor.r, SolidTileColor.g, SolidTileColor.b, 0.85f);
+}
 }
