@@ -16,7 +16,7 @@ namespace PirateCrew.Core
     ///     <see cref="GameEntryPoint"/> 在首个场景加载前调用它。
     ///   两条路径共用同一份装配代码，因此"直接 Play 也能跑"这条隐式价值不会因为收口而丢。
     ///
-    /// 【为什么这里不装配 AudioService / FxRoot / CampaignApi】
+    /// 【为什么这里不装配 AudioService / CampaignApi】
     ///   Core 是零游戏依赖的底座程序集（不引用 Gameplay/Campaign/UI 等高层，见重构总纲 §3.1），
     ///   编译期就看不到它们。它们各自在**自己模块**里用一个
     ///   <see cref="GameBootstrapAttribute"/> 标注的方法声明接线（服务创建 / 事件订阅），

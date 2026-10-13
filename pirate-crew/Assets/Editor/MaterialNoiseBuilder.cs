@@ -17,7 +17,7 @@ namespace PirateCrew.EditorTools
     ///   （P-10 量的是高频能量），所以必须在 albedo/normal 上落一层细粒度的确定性纹理。
     ///
     /// 【为什么这不是"外部贴图"】本工程 0 外部贴图（AGENTS.md）。本类是**程序化资产**管线的一员，
-    ///   与 <see cref="FxAssetBuilder"/>（特效贴图）、<see cref="AudioAssetBuilder"/>（wav 导入）
+    ///   与 <see cref="AudioAssetBuilder"/>（wav 导入）
     ///   同一哲学：算法在本仓库内、可复算、可审查、可重跑出**逐像素一致**的结果。
     ///   风格指南 §3.3 也明确「先程序化生成法线/噪声贴图，再考虑手绘」。
     ///
@@ -52,7 +52,7 @@ namespace PirateCrew.EditorTools
     ///   岩 0.28(≈15.6°)。这样换噪声函数也不会把法线搞暴；albedo 则实测并打印线性明度标准差，
     ///   作为 P-9「同材质窗内 std」的**程序化判据**（AGENTS.md 要求判图用程序化判据，不靠"看着像"）。
     ///
-    /// 【幂等】再次执行时字节一致则不重写文件（同 FxAssetBuilder），只校正导入设置；.mat 不在此类改。
+    /// 【幂等】再次执行时字节一致则不重写文件，只校正导入设置；.mat 不在此类改。
     ///
     /// 【r5 对比提档（本类改动）】r4 复验实测 unit-closeup 沙面 120×120 窗 std 只有 2-3、量化色仅 5 种：
     ///   生成端乘性系数起伏太弱。r5 把明度扰动由 ±6% 提到 **±12-18%**（沙 ±18%、草 ±15%、岩 ±14%），
@@ -179,7 +179,7 @@ namespace PirateCrew.EditorTools
         /// <summary>
         /// 生成/校正全部 6 张贴图。任何单张失败只记 Warning 继续（不中断 batchmode）。
         /// 【刻意不用 StartAssetEditing/StopAssetEditing】需要逐张 SaveAndReimport 立刻落实导入设置，
-        ///   理由与 <see cref="FxAssetBuilder"/> 完全相同（见该文件 Build() 的注释）。
+        ///   批量编辑块会把导入设置推迟到块关闭才落实，中途失败就留下半校正状态。
         /// </summary>
         public static void Build(bool force)
         {
@@ -867,7 +867,7 @@ namespace PirateCrew.EditorTools
         }
 
         // ==================================================================
-        // 文件 / 目录辅助（与 FxAssetBuilder 同款，刻意重复以免耦合）
+        // 文件 / 目录辅助（刻意重复以免耦合）
         // ==================================================================
 
         static string ToAbsolutePath(string assetPath)

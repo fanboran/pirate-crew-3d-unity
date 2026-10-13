@@ -79,9 +79,6 @@ namespace PirateCrew.SceneArtBake.Showcase
 
         /// <summary><c>Universal Render Pipeline/Unlit</c> 半透明（水/沫/云）。</summary>
         UnlitTransparent,
-
-        /// <summary><c>PirateCrew/Fx/Additive</c> 加法发光（战斗特效件用；空岛自 2026-10-07 起无槽位走此档）。</summary>
-        FxAdditive,
     }
 
     /// <summary>
@@ -109,23 +106,14 @@ namespace PirateCrew.SceneArtBake.Showcase
         /// <summary>噪声 XZ 拉伸：(1,1)=各向同性；(0.22,1)=沿 Z 拉长成木纹/层理。</summary>
         public Vector3 NoiseStretch;
 
-        // ---- Unlit / Additive：单基色 + alpha / 发光强度 ----
-        /// <summary>单基色 sRGB 十六进制（Unlit 与 Additive 档用）。</summary>
+        // ---- Unlit：单基色 + alpha ----
+        /// <summary>单基色 sRGB 十六进制（Unlit 档用）。</summary>
         public string Hex;
         /// <summary>半透明档的 alpha（0-1）。</summary>
         public float Alpha;
-        /// <summary>加法发光档的强度（<c>PirateCrew/Fx/Additive</c> 的 _Intensity）。</summary>
-        public float Intensity;
 
-        /// <summary>是否投射阴影（实体档 true、半透明与发光档 false——浮空发光件不该在地上投影）。</summary>
+        /// <summary>是否投射阴影（实体档 true、半透明档 false）。</summary>
         public bool CastShadows;
-
-        /// <summary>
-        /// 发光/加法档写入网格顶点色的颜色（白 = 不改色）。
-        /// 【为什么必须显式写】<c>PirateCrew/Fx/Additive</c> 的片元是 <c>tex * _Color * IN.color</c>：
-        /// 网格若没有 COLOR 通道，默认值在 D3D11 上不可依赖；写一份纯白即把这条链路钉死。
-        /// </summary>
-        public Color VertexTint;
     }
 
     /// <summary>
@@ -170,7 +158,7 @@ namespace PirateCrew.SceneArtBake.Showcase
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#8A755C", HexMid = "#A79077", HexLight = "#BFA98C",
             NoiseStrength = 0.42f, RampContrast = 1.9f,
-            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
+            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true,
         };
 
         static readonly IslandMaterialRecipe RockMidRecipe = new IslandMaterialRecipe
@@ -178,7 +166,7 @@ namespace PirateCrew.SceneArtBake.Showcase
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#7C6A54", HexMid = "#94806A", HexLight = "#AC987E",
             NoiseStrength = 0.46f, RampContrast = 2.0f,
-            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
+            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true,
         };
 
         static readonly IslandMaterialRecipe RockDarkRecipe = new IslandMaterialRecipe
@@ -186,7 +174,7 @@ namespace PirateCrew.SceneArtBake.Showcase
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#685844", HexMid = "#806C55", HexLight = "#98846B",
             NoiseStrength = 0.40f, RampContrast = 1.8f,
-            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
+            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true,
         };
 
         // ---- 草皮三档（中档 = SceneArtPalette.GrassMid #4A8C4A）----
@@ -195,7 +183,7 @@ namespace PirateCrew.SceneArtBake.Showcase
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = SceneArtPalette.GrassMid, HexMid = SceneArtPalette.GrassLight, HexLight = "#A9E39B",
             NoiseStrength = 0.52f, RampContrast = 1.6f,
-            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
+            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true,
         };
 
         static readonly IslandMaterialRecipe GrassMidRecipe = new IslandMaterialRecipe
@@ -203,7 +191,7 @@ namespace PirateCrew.SceneArtBake.Showcase
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = SceneArtPalette.GrassDark, HexMid = SceneArtPalette.GrassMid, HexLight = "#6FB86A",
             NoiseStrength = 0.50f, RampContrast = 1.7f,
-            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
+            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true,
         };
 
         static readonly IslandMaterialRecipe GrassDarkRecipe = new IslandMaterialRecipe
@@ -211,7 +199,7 @@ namespace PirateCrew.SceneArtBake.Showcase
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#1C3A1C", HexMid = SceneArtPalette.GrassDark, HexLight = SceneArtPalette.GrassMid,
             NoiseStrength = 0.44f, RampContrast = 1.5f,
-            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
+            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true,
         };
 
         // ---- 泥土（中档取 WoodDark #6B4C28 的暖褐；亮档借沙地暗档）----
@@ -220,7 +208,7 @@ namespace PirateCrew.SceneArtBake.Showcase
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#3D2C1D", HexMid = SceneArtPalette.WoodDark, HexLight = SceneArtPalette.SandDark,
             NoiseStrength = 0.50f, RampContrast = 1.6f,
-            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
+            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true,
         };
 
         // ---- 石工（比天然岩层更亮更滑：遗迹的"人工感"就靠这三档与岩层区分）----
@@ -229,7 +217,7 @@ namespace PirateCrew.SceneArtBake.Showcase
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#6E6759", HexMid = "#9C9282", HexLight = "#CFC7B4",
             NoiseStrength = 0.32f, RampContrast = 1.8f,
-            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
+            NoiseStretch = new Vector3(1f, 1f, 0f), CastShadows = true,
         };
 
         // ---- 木料（中档 = SceneArtPalette.WoodMid #A67B42；噪声沿 Z 拉长 → 木纹）----
@@ -238,7 +226,7 @@ namespace PirateCrew.SceneArtBake.Showcase
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = SceneArtPalette.WoodDark, HexMid = SceneArtPalette.WoodMid, HexLight = SceneArtPalette.WoodLight,
             NoiseStrength = 0.40f, RampContrast = 1.7f,
-            NoiseStretch = new Vector3(0.22f, 1f, 0f), CastShadows = true, VertexTint = Color.white,
+            NoiseStretch = new Vector3(0.22f, 1f, 0f), CastShadows = true,
         };
 
         // ---- 效果类 ----
@@ -247,21 +235,21 @@ namespace PirateCrew.SceneArtBake.Showcase
             Kind = IslandShaderKind.UnlitTransparent,
             // 0.70 / 稍深的青：水帘与潭面在亮天空前要读成"水蓝"而不是"浅白"——
             // 0.60 / #63D6E8 时瀑布整条被沫芯与雾团洗成白色（近机位实测），加深后才压得住白。
-            Hex = "#55CFE4", Alpha = 0.70f, CastShadows = false, VertexTint = Color.white,
+            Hex = "#55CFE4", Alpha = 0.70f, CastShadows = false,
         };
 
         static readonly IslandMaterialRecipe FoamRecipe = new IslandMaterialRecipe
         {
             Kind = IslandShaderKind.UnlitTransparent,
             // 泡沫基色取 SceneArtPalette.Foam (#F0F7FF) 再压到 #E6F1FA：禁用纯白（r2 教训）。
-            Hex = "#E6F1FA", Alpha = 0.74f, CastShadows = false, VertexTint = Color.white,
+            Hex = "#E6F1FA", Alpha = 0.74f, CastShadows = false,
         };
 
         static readonly IslandMaterialRecipe CloudRecipe = new IslandMaterialRecipe
         {
             Kind = IslandShaderKind.UnlitTransparent,
             // 云团走"带一点天空青灰的白"：#E4EAF0（最大通道 240，与 SceneArtBuilder 的云核同口径）
-            Hex = "#E4EAF0", Alpha = 0.52f, CastShadows = false, VertexTint = Color.white,
+            Hex = "#E4EAF0", Alpha = 0.52f, CastShadows = false,
         };
 
         // 【晶体/暖光为什么是实体像素档而不是加色】
@@ -276,7 +264,7 @@ namespace PirateCrew.SceneArtBake.Showcase
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#7CF0E4", HexMid = "#A9F6EE", HexLight = "#D6FFF9",
             NoiseStrength = 0f, RampContrast = 1f, NoiseStretch = new Vector3(1f, 1f, 0f),
-            CastShadows = false, VertexTint = Color.white,
+            CastShadows = false,
         };
 
         static readonly IslandMaterialRecipe GlowRecipe = new IslandMaterialRecipe
@@ -284,13 +272,13 @@ namespace PirateCrew.SceneArtBake.Showcase
             Kind = IslandShaderKind.SurfaceSolid,
             HexDark = "#FFCB6B", HexMid = "#FFDD9A", HexLight = "#FFF3CC",
             NoiseStrength = 0f, RampContrast = 1f, NoiseStretch = new Vector3(1f, 1f, 0f),
-            CastShadows = false, VertexTint = Color.white,
+            CastShadows = false,
         };
 
         static readonly IslandMaterialRecipe BannerRecipe = new IslandMaterialRecipe
         {
             Kind = IslandShaderKind.UnlitOpaque,
-            Hex = SceneArtPalette.TeamRed, CastShadows = false, VertexTint = Color.white,
+            Hex = SceneArtPalette.TeamRed, CastShadows = false,
         };
 
         /// <summary>取槽位配方（未在表内的槽位回落为岩层中档，避免静默返回 null）。</summary>

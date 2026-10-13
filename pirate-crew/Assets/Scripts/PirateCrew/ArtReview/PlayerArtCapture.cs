@@ -51,9 +51,6 @@ namespace PirateCrew.ArtReview
         /// <summary>默认关卡试点场景 = 关卡 1（不带 `-pixelartLevel` 时拍它）。</summary>
         const int PixelartDefaultLevel = 1;
 
-        /// <summary>爆炸机位名（与 <c>ArtReviewShots</c> 的 slug 保持一致）。</summary>
-        const string ExplosionShotName = "explosion-moment";
-
         /// <summary>单角色特写机位名（与 <c>ArtReviewShots</c> 的 slug 保持一致）。</summary>
         const string UnitCloseupShotName = "unit-closeup";
 
@@ -71,22 +68,6 @@ namespace PirateCrew.ArtReview
 
         /// <summary>演示底色（中亮蓝灰）：深底 HUD 与红蓝队色在其上对比最清晰。</summary>
         static readonly Color ShowcaseBackdrop = new Color(0x8E / 255f, 0x97 / 255f, 0xA6 / 255f, 1f);
-
-        /// <summary>
-        /// 主动引爆用的爆炸 size：取 160（评审画面里火光更可辨的一档），
-        /// 纯为出图效果——size→视觉由 <c>FxRules.ExplosionVisualScale</c> 映射
-        /// （100→scale 1.0、160→1.43，上限 2.20 对应 250）。本处只调 FxApi（纯表现），不触发伤害结算。
-        /// </summary>
-        const float ExplosionSize = 160f;
-
-        /// <summary>
-        /// 引爆后到截屏的等待（火球峰值期）。按 `FxRules` 的 size→寿命映射，size=160 时
-        /// 火球寿命 = 0.16+0.06×1.43 ≈ **0.246s**（r6 起三层结构下火球仍是这一寿命）。
-        /// 【r6 由 0.2 → 0.12】0.2s 落在火球寿命的 **81%**——此时火球已几乎淡出、只剩低透的烟，
-        /// 这正是 r5 复验"拍不到火球、只有白雾"的采集侧原因。0.12s 落在 **49%**，
-        /// 在火球最亮的中前段（粒子 LifeSpan 刚过一半、尺寸接近峰值），火光可辨。
-        /// </summary>
-        const float ExplosionWarmupSeconds = 0.12f;
 
         /// <summary>
         /// battle-45/hud-fullscreen 瞄准点的高度（世界 Y）。地面顶面 y=0，单位身高约 1.5–2，
@@ -289,13 +270,6 @@ namespace PirateCrew.ArtReview
                 if (shot.Name == WeaponPanelShotName || shot.Name == ShowcaseArmedShotName)
                     yield return new WaitForSeconds(0.6f);
 
-                // 爆炸瞬间：先真的引爆再等火光/烟起来，否则拍到的只是空场中景。
-                if (shot.Name == ExplosionShotName)
-                {
-                    FireTestExplosion(_arenaCenter);
-                    yield return new WaitForSeconds(ExplosionWarmupSeconds);
-                }
-
                 yield return new WaitForEndOfFrame();
                 yield return new WaitForEndOfFrame();
                 yield return new WaitForEndOfFrame();
@@ -308,7 +282,7 @@ namespace PirateCrew.ArtReview
                     yield return null;
                 yield return new WaitForSeconds(0.2f);
 
-                // 特写拍完立刻熄选中态，避免污染其后的 explosion-moment。
+                // 特写拍完立刻熄选中态，避免污染后续机位。
                 if (shot.Name == UnitCloseupShotName)
                     ClearFocusSelection();
             }
@@ -834,7 +808,7 @@ namespace PirateCrew.ArtReview
         }
 
         /// <summary>
-        /// 清除特写用的选中态，让后续机位（explosion-moment）画面干净。
+        /// 清除特写用的选中态，让后续机位画面干净。
         ///
         /// 【为什么用 FinishTurn】<c>BattleTeam.ClearSelection</c> 是私有方法，模块内没有公开的
         /// "取消选中"入口；<c>FinishTurn()</c>（BattleTeam.cs:180-196）是唯一会同时清
@@ -849,26 +823,6 @@ namespace PirateCrew.ArtReview
 
             _focusTeam.FinishTurn();
             _focusTeam = null;
-        }
-
-        /// <summary>
-        /// 在竞技场中心附近主动引爆一次，让火光/烟/冲击波真的出现在 explosion-moment 画面里。
-        ///
-        /// 【为什么直接调 FxApi】<c>FxApi</c> 是 FX 模块的公开出口（架构原则 3）；
-        /// 造一条假弹体走 <c>battle_projectile_detonated</c> 只为出图，会多一层耦合、
-        /// 且弹体可能真的砸到单位（改变这一轮要评审的画面）。
-        ///
-        /// 【为什么靠时序而非确认播放】<c>FxApi.PlayExplosion</c> 返回 void，
-        /// <c>FxPool</c>/<c>FxRoot</c> 也没有"当前是否有存活爆炸"的公开查询，
-        /// 故只能按寿命曲线取峰值期截屏（见 <see cref="ExplosionWarmupSeconds"/>），
-        /// 并打日志记录引爆参数便于事后核对。
-        /// </summary>
-        static void FireTestExplosion(Vector3 center)
-        {
-            Vector3 blast = center + new Vector3(0f, 0.5f, 0f);
-            Fx.FxApi.PlayExplosion(blast, ExplosionSize);
-            global::PirateCrew.Core.Log.Info("[PlayerArtCapture] 已引爆 FX：center=" + blast.ToString("F2")
-                + " size=" + ExplosionSize + "，等 " + ExplosionWarmupSeconds + "s 取闪光峰值。");
         }
 
         Shot[] BuildShots()
@@ -915,12 +869,7 @@ namespace PirateCrew.ArtReview
                     u + new Vector3(1.1f, 0.9f, 1.4f), 45f, u + new Vector3(0f, 1.2f, 0f)));
             }
 
-            // 爆炸瞬间：斜 45° 中景正视爆心（r3 的近正俯视 (0,6,2) 既框歪又不显火光）。
-            // 【必须与 ArtReviewShots.cs 的 explosion-moment 同步】Offset (0,5,-7)、瞄准中心+0.5y。
-            shots.Add(NewShot(ExplosionShotName, false,
-                c + new Vector3(0f, 5f, -7f), 60f, c + new Vector3(0f, 0.5f, 0f)));
-
-            // 纯 HUD 常态演示（空白背景）放最末：不依赖选中，3D/粒子全被裁掉。
+            // 纯 HUD 常态演示（空白背景）放最末：不依赖选中，3D 全被裁掉。
             // lookTarget 偏 +forward 的原因见上面 ShowcaseArmedShotName（避开零向量 LookRotation）。
             shots.Add(NewShot(ShowcaseShotName, true, c, 60f, c + Vector3.forward));
 

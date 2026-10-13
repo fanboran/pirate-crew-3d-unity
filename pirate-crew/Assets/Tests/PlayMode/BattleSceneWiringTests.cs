@@ -242,13 +242,6 @@ namespace PirateCrew.Tests
             Assert.IsNotNull(Field(waterDriver, "sunLight"),
                 "WaterSimulationDriver.sunLight 未接线（跑 BattleLookupWiring.Wire）");
 
-            // 特效层：FxRoot 由组合根在 BeforeSceneLoad 建立（进程级常驻，无场景可接线），
-            // 它唯一的查找白名单条目是"每局一次地拿 BattleController"——这里断言那一发**真的命中了**，
-            // 否则 crew_damaged/crew_died 的按 id 定位会静默降级。
-            PirateCrew.Fx.FxRoot fx = PirateCrew.Fx.FxRoot.Instance;
-            Assert.IsNotNull(fx, "组合根未建立 [FxRoot]（FxBootstrap.Install 未跑？）");
-            Assert.IsNotNull(Field(fx, "_battle"),
-                "FxRoot 未解析到战场根（BattleController）——单位注册表与弹体拖尾会本局缺席");
             Assert.AreEqual(17, hud.WeaponSlotCount, "HUD 应有 17 个武器槽（§5.2）");
             Assert.IsTrue(hud.HasWeaponWiring, "HUD 武器图标格未全部接线");
             Assert.IsTrue(hud.HasTeamBarWiring, "HUD 双队血条（段+pips）未全部接线");

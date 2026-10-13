@@ -194,12 +194,6 @@ namespace PirateCrew.Ambient
             return a * (u * u) + control * (2f * u * t) + b * (t * t);
         }
 
-        /// <summary>俯冲入水点（水面高度）—— 水花在 y = 水面处触发。</summary>
-        public static Vector3 SplashPoint(Vector3 target, float waterY)
-        {
-            return new Vector3(target.x, waterY, target.z);
-        }
-
         /// <summary>由速度求朝向角（度，绕 Y）。速度过小时保持 <paramref name="fallback"/>。</summary>
         public static float HeadingDegrees(Vector3 velocity, float fallback = 0f)
         {

@@ -163,24 +163,6 @@ namespace PirateCrew.EditorTools
                 ShowHud = false,
                 Note = "侧后方视角，看角色轮廓/描边在明暗交界处的表现。",
             },
-            new ArtReviewShot
-            {
-                Slug = "explosion-moment",
-                Label = "爆炸瞬间（PlayMode）",
-                Pivot = ArtReviewPivot.ArenaCenter,
-                Offset = new Vector3(0f, 5f, -7f),
-                LookAtOffset = new Vector3(0f, 1.2f, 0f),
-                Fov = 60f,
-                ShowHud = false,
-                RequiresPlayMode = true,
-                Enabled = true,
-                Note = "看特效层（FxBootstrap 自举的爆炸/烟/火）在场景里的可读性与亮度。"
-                     + "斜 45° 中景正视爆心（r3 的近正俯视 (0,6,2) 既框歪又不显火光）。"
-                     + "需要 PlayMode（单位与特效运行时才生成）；采集器（PlayerArtCapture）"
-                     + "在这张图前会先在竞技场中心主动引爆一次（size=160，banana/parachuteBomb 档，"
-                     + "火光比 cannonball 100 更可辨）并等约 0.2s 取闪光峰值——size=160 的火球寿命仅约 0.25s，"
-                     + "r3 等 0.4s 时火球/火花已消散（实测 fire_orange=0px），0.2s 才有火光。",
-            },
         };
 
         /// <summary>本轮启用的机位（按 Enabled 过滤，保持清单顺序）。</summary>

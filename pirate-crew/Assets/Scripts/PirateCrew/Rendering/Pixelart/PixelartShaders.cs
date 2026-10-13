@@ -23,7 +23,7 @@ namespace PirateCrew.Rendering.Pixelart
     ///     （<c>Hidden/Universal/CoreBlit</c>、<c>Sprites/Default</c>、URP Unlit 等，
     ///     是包资产或引擎常驻，塞不进也塞不该进 Resources），以及由 ArtGate ⓪
     ///     登记进 Always Included Shaders 保障入包的本工程 shader
-    ///     （Fx/Additive、Fx/Alpha、PirateGradientSky——文件在 Assets/Art/Shaders/，
+    ///     （PirateGradientSky——文件在 Assets/Art/Shaders/，
     ///     走 Load 会对"不在 Resources"误报）。
     ///
     /// 【报错去重】同一 shader 名只报一次（静态去重表），避免每帧/每材质创建刷屏；

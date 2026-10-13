@@ -38,7 +38,7 @@ namespace PirateCrew.Tests
             foreach (GameBootstrap.Entry entry in GameBootstrap.DescribeAll())
                 descriptions.Add(entry.Description);
 
-            // 全仓接线入口清单（重构后 10 处；由 Core/GameEntryPoint 一处调度）。
+            // 全仓接线入口清单（由 Core/GameEntryPoint 一处调度）。
             string[] expected =
             {
                 // ResetStatics：进入播放前清静态残留
@@ -48,7 +48,6 @@ namespace PirateCrew.Tests
                 "PirateCrew.Battle.BattlePause.ResetStatics",
                 // Initialize：服务创建 / 事件订阅 / 命令行工具装配
                 "PirateCrew.Audio.AudioService.Install",
-                "PirateCrew.Fx.FxBootstrap.Install",
                 "PirateCrew.Campaign.CampaignApi.Install",
                 "PirateCrew.ArtReview.PlayerArtCapture.Install",
                 "PirateCrew.SceneKitPilot.SceneKitPilotCapture.Install",
@@ -101,13 +100,11 @@ namespace PirateCrew.Tests
             IReadOnlyList<GameBootstrap.Entry> entries = GameBootstrap.DescribeAll();
 
             int audio = IndexOf(entries, "PirateCrew.Audio.AudioService.Install");
-            int fx = IndexOf(entries, "PirateCrew.Fx.FxBootstrap.Install");
             int campaign = IndexOf(entries, "PirateCrew.Campaign.CampaignApi.Install");
             int artCapture = IndexOf(entries, "PirateCrew.ArtReview.PlayerArtCapture.Install");
 
             Assert.That(audio, Is.GreaterThanOrEqualTo(0));
-            Assert.That(fx, Is.GreaterThan(audio), "服务（音频）必须先于表现层（特效）建立");
-            Assert.That(campaign, Is.GreaterThan(fx), "玩法接线晚于服务/表现层装配");
+            Assert.That(campaign, Is.GreaterThan(audio), "玩法接线晚于服务装配");
             Assert.That(artCapture, Is.GreaterThan(campaign),
                 "命令行工具的最后装配位：工具要等服务与玩法接线都就位（否则出图链路取不到状态）");
         }

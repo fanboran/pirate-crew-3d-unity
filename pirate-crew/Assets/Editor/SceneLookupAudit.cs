@@ -82,8 +82,6 @@ namespace PirateCrew.EditorTools
             "PirateCrew/Battle/BattleCameraDriver.cs:419 · FindObjectOfType",
             "PirateCrew/Battle/BattleCameraDriver.cs:1117 · FindObjectOfType",
             "PirateCrew/Battle/BattleController.cs:360 · FindObjectOfType",
-            "PirateCrew/Fx/FxRoot.cs:143 · FindObjectOfType",
-            "PirateCrew/Fx/FxRoot.cs:293 · FindObjectsOfType",
             "PirateCrew/Water/WaterSimulationDriver.cs:457 · FindObjectsOfType",
             "UI/BattleHud.cs:403 · FindObjectOfType",
         };
@@ -121,17 +119,6 @@ namespace PirateCrew.EditorTools
                 Reason = "**不属本轨道**：BattleController.cs 归数据外化轨道（同一分支并行在改）。"
                          + "修法已由审计 F-4 定案（加 [SerializeField] AmbientDirector 并在装配期写入），"
                          + "登记在此以保证闸门可用，清账由该轨道完成。",
-            },
-            new WhitelistEntry
-            {
-                Path = "PirateCrew/Fx/FxRoot.cs",
-                Token = "FindObjectOfType<BattleController>",
-                LineAtRegistration = 167,
-                Kind = Kind.Runtime,
-                Reason = "FxRoot 由组合根在 BeforeSceneLoad 创建并 DontDestroyOnLoad（进程级常驻，无场景可接线），"
-                         + "而它要的是场景作用域的 BattleController 实例；battle_started 载荷不带该实例。"
-                         + "已收敛为每局一次（只在该事件回调里），失败会打告警。"
-                         + "彻底消除需给载荷加字段（破坏性事件契约变更，归事件/数据轨道）。",
             },
             new WhitelistEntry
             {
@@ -615,10 +602,6 @@ namespace PirateCrew.EditorTools
                 return "清退：改为 `[SerializeField] aimThrow`（装配注入）+ Awake 一次性兜底（不在热路径）";
             if (baseline.StartsWith("UI/BattleHud.cs", StringComparison.Ordinal))
                 return "清退：改为 `[SerializeField] cameraController`（装配注入）+ Awake 一次性兜底";
-            if (baseline.StartsWith("PirateCrew/Fx/FxRoot.cs:293", StringComparison.Ordinal))
-                return "删除：死代码（battle_started 的发布者必然激活，回落扫描拿不到任何对象）";
-            if (baseline.StartsWith("PirateCrew/Fx/FxRoot.cs:143", StringComparison.Ordinal))
-                return "收敛并登记：每局一次（非每帧）的类型获取，白名单有理由";
             if (baseline.StartsWith("PirateCrew/Water/WaterSimulationDriver.cs", StringComparison.Ordinal))
                 return "清退：改为 `[SerializeField] sunLight`（装配注入，来源 AmbientDirector.sunLight）";
             if (baseline.StartsWith("PirateCrew/Audio/AudioService.cs", StringComparison.Ordinal))

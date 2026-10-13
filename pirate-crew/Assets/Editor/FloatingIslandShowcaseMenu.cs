@@ -27,11 +27,7 @@ namespace PirateCrew.EditorTools
     /// 材质为空的 renderer 在播放器构建里是洋红炸弹。实体槽（SurfaceSolid）走
     /// <see cref="PixelartMaterialFactory"/>（像素物体 shader 的唯一配方，SceneArtBaker 同口径），
     /// shader 缺失时报错返回 null、调用方跳过该槽——绝不静默拿别族 shader 顶上；
-    /// Unlit/FxAdditive 槽保留三级回落链（URP/Unlit → URP/Lit → Standard），回落时记 Warning。
-    /// 另一条隐形红线：<c>PirateCrew/Fx/Additive</c> 的片元是 <c>tex × _Color × 顶点色</c>，
-    /// 而合并网格默认没有 COLOR 通道（D3D11 上默认值不可依赖）——因此晶体/暖光两槽的网格
-    /// **必须显式写入顶点色**（<see cref="IslandMaterialRecipe.VertexTint"/>），否则发光件整体变黑
-    /// 或直接不可见（加法混合下黑色 = 无贡献）。
+    /// Unlit 槽保留三级回落链（URP/Unlit → URP/Lit → Standard），回落时记 Warning。
     ///
     /// 【可静态复用】<see cref="PlaceDefault"/> / <see cref="Place"/> / <see cref="Remove"/>
     /// / <see cref="FindIslandRoot"/> 是公共静态 API，供 ArtGate 等烘焙流程直接调用
@@ -41,10 +37,9 @@ namespace PirateCrew.EditorTools
     public static class FloatingIslandShowcaseMenu
     {
         // ------------------------------------------------------------------
-        // shader 名（Unlit/FxAdditive 共系件；实体槽走 PixelartMaterialFactory）
+        // shader 名（Unlit；实体槽走 PixelartMaterialFactory）
         // ------------------------------------------------------------------
 
-        const string AdditiveShaderName = "PirateCrew/Fx/Additive";
         const string UnlitShaderName = "Universal Render Pipeline/Unlit";
         const string LitFallbackShaderName = "Universal Render Pipeline/Lit";
 
@@ -421,21 +416,13 @@ namespace PirateCrew.EditorTools
             mesh.SetNormals(normals);
             mesh.SetTriangles(triangles, 0, true);
 
-            if (recipe != null && recipe.Kind == IslandShaderKind.FxAdditive)
-            {
-                var colors = new List<Color>(vertices.Count);
-                for (int i = 0; i < vertices.Count; i++)
-                    colors.Add(recipe.VertexTint);
-                mesh.SetColors(colors);
-            }
-
             mesh.RecalculateBounds();
             EditorUtility.SetDirty(mesh);
             return mesh;
         }
 
         // ------------------------------------------------------------------
-        // 资产落盘：材质（配方 → Unity 材质；实体槽走像素工厂，Unlit/FxAdditive 走回落链）
+        // 资产落盘：材质（配方 → Unity 材质；实体槽走像素工厂，Unlit 走回落链）
         // ------------------------------------------------------------------
 
         /// <summary>取/建槽位材质（幂等；按 <see cref="IslandShaderKind"/> 分四族配置）。</summary>
@@ -454,7 +441,7 @@ namespace PirateCrew.EditorTools
             if (recipe.Kind == IslandShaderKind.SurfaceSolid)
                 return EnsurePixelSurfaceMaterial(m, path, slot, recipe);
 
-            Shader shader = ResolveShader(recipe.Kind, slot);
+            Shader shader = ResolveShader(slot);
             if (shader == null)
             {
                 Debug.LogError("[FloatingIslandShowcase] 槽位 " + slot + " 的 shader 全链落空"
@@ -479,9 +466,6 @@ namespace PirateCrew.EditorTools
                     break;
                 case IslandShaderKind.UnlitTransparent:
                     ConfigureUnlitTransparent(m, recipe);
-                    break;
-                default:
-                    ConfigureFxAdditive(m, recipe);
                     break;
             }
 
@@ -525,12 +509,12 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// Unlit/FxAdditive 槽的 shader 解析 + 三级回落链（FxAdditive/URP-Unlit → URP/Lit → Standard）。
+        /// Unlit 槽的 shader 解析 + 三级回落链（URP-Unlit → URP/Lit → Standard）。
         /// **保证返回非空或显式 null**：回落只记 Warning 不抛；全链落空返回 null，由调用方跳槽。
         /// </summary>
-        static Shader ResolveShader(IslandShaderKind kind, IslandMaterial slot)
+        static Shader ResolveShader(IslandMaterial slot)
         {
-            string primary = kind == IslandShaderKind.FxAdditive ? AdditiveShaderName : UnlitShaderName;
+            string primary = UnlitShaderName;
 
             Shader shader = Shader.Find(primary);
             if (shader != null)
@@ -572,15 +556,6 @@ namespace PirateCrew.EditorTools
             SetFloat(m, "_ZWrite", 0f);
             SetFloat(m, "_AlphaClip", 0f);
             m.renderQueue = (int)RenderQueue.Transparent;
-        }
-
-        /// <summary>加法发光（晶体/暖光点）：<c>PirateCrew/Fx/Additive</c> 的 _Color × _Intensity。</summary>
-        static void ConfigureFxAdditive(Material m, IslandMaterialRecipe recipe)
-        {
-            SetColor(m, "_Color", SceneArtPalette.Hex(recipe.Hex));
-            SetFloat(m, "_Intensity", recipe.Intensity);
-            SetFloat(m, "_DebugMode", 0f);
-            // 渲染队列由 shader 自带（Transparent + ZWrite Off）；加法混合不需要改排序。
         }
 
         // ------------------------------------------------------------------

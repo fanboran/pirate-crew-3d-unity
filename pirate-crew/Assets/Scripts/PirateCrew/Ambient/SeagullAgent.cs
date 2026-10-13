@@ -46,7 +46,6 @@ namespace PirateCrew.Ambient
 
         float _panic;
         Vector3 _blastPosition;
-        bool _splashPending;
         bool _canDive = true;
 
         /// <summary>当前状态（报告/调试）。</summary>
@@ -105,7 +104,6 @@ namespace PirateCrew.Ambient
                     _state = GullState.Dive;
                     _diveT = 0f;
                     _diveFrom = _orbit.Evaluate(_time);
-                    _splashPending = true;
                 }
 
                 position = _orbit.Evaluate(_time);
@@ -117,14 +115,6 @@ namespace PirateCrew.Ambient
                 _diveT += dt * 2f / GullFlightRules.DiveDuration;
                 position = GullFlightRules.DivePoint(_diveFrom, _diveTarget, _diveT);
                 velocity = (GullFlightRules.DivePoint(_diveFrom, _diveTarget, _diveT + 0.02f) - position) / 0.02f;
-
-                // 触水瞬间复用 Fx 模块的入水水花（像素粒子）。
-                if (_splashPending && _diveT >= 1f)
-                {
-                    _splashPending = false;
-                    Fx.FxApi.PlayWaterSplash(
-                        GullFlightRules.SplashPoint(_diveTarget, _diveTarget.y), 6f);
-                }
 
                 if (_diveT >= 2f)
                 {

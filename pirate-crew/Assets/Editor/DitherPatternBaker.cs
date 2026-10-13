@@ -144,7 +144,6 @@ namespace PirateCrew.EditorTools
         public static void Bake()
         {
             EnsureFolder("Assets/Art/Textures");
-            EnsureFolder("Assets/Art/Textures/Fx");
             EnsureFolder(OutputFolder);
 
             for (int i = 0; i < Patterns.Length; i++)
