@@ -43,26 +43,26 @@
 ## 四、实机图（游戏本体跑出来的，不是 Blender 渲染）
 
 **玩法实拍**（环绕采集：进战斗、禁用跟随相机、绕场心 360°×3 层高度自动拍照，工具
-`ChemPlantOrbitCapture`，播放器 `-orbitOut <目录> -orbitLevel 5`）：
+`ChemPlantOrbitCapture`，播放器 `-orbitOut <目录> -orbitLevel 4`）：
 
 | 图 | 内容 |
 | --- | --- |
 | [ingame-play/play-high-overview.png](ingame-play/play-high-overview.png) | 70 m 俯瞰：28×20 格场地布局、道路、管廊、罐区、旁楼 |
 | [ingame-play/play-mid-buildings.png](ingame-play/play-mid-buildings.png) | 34 m 中层：旁楼窗带、卷帘门仓库、精馏塔、管廊桁架 |
 | [ingame-play/play-low-pipes.png](ingame-play/play-low-pipes.png) | 14 m 近地（= 游戏内正交档 7 的取景）：管廊下视角 |
-| [ingame-play/play-l04-tanks.png](ingame-play/play-l04-tanks.png) | 并行线 L4 同链验证（罐体/精馏塔/单位在场） |
+| [ingame-play/play-l03-tanks.png](ingame-play/play-l03-tanks.png) | 并行线 L3 同链验证（罐体/精馏塔/单位在场） |
 
-**像素试点场景**（独立小场景的取景口径出图，非战斗场景）：`ingame/pl5-*.png`（宽/中/近 +
+**像素试点场景**（独立小场景的取景口径出图，非战斗场景）：`ingame/pl4-*.png`（宽/中/近 +
 抖动 A/B + albedo/描边调试缓冲）——机位与构图口径见 `PixelartLevelScene` 取景表。
 
-**⚠ 固定机位美术评审图（`-artReviewOut -artReviewLevel 5` 的 `battle-45` 等十一张）对
+**⚠ 固定机位美术评审图（`-artReviewOut -artReviewLevel 4` 的 `battle-45` 等十一张）对
 非标准场地不可用**：那组机位的瞄准点/距离按 20×15 标准竞技场手抄，28×20/32×22 的新关
 会框到地面或场边（实拍为证）。给新关补机位属相机侧任务（见待办）。
 
 **出图链**（可复现）：场景 `Assets/Scenes/Pixelart/PixelartChemPlantTeam.unity`（装配器
-`Assets/Pixelart/Editor/PixelartChemPlantTeamSetup.cs`，取景表关卡号 **5**）
+`Assets/Pixelart/Editor/PixelartChemPlantTeamSetup.cs`，取景表关卡号 **4**）
 → 开发包（`BuildScript` 加 `-buildFlavors development -buildScenes development`）
-→ 播放器 `PirateCrew3D.exe -pixelartOut <目录> -pixelartLevel 5`。
+→ 播放器 `PirateCrew3D.exe -pixelartOut <目录> -pixelartLevel 4`。
 
 **与游戏内实拍的差别**：这批图经了低分辨率艺术画布 + 逐物体 3 档色带 + 屏幕空间描边，
 **没有**经帧级调色板（P5 默认整趟跳过，见 [像素化着色路径/实现口径.md](../../技术/渲染/像素化着色路径/实现口径.md) §4.3）。

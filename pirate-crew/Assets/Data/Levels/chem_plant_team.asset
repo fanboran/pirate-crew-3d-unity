@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: chem_plant_team
   m_EditorClassIdentifier: 
   data:
-    levelNumber: 5
+    levelNumber: 4
     assetName: chem_plant_team
     displayName: 废弃化工厂·六件版
     sizeX: 56

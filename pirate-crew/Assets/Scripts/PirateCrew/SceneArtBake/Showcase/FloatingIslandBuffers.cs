@@ -1,6 +1,8 @@
 using UnityEngine;
 
-namespace PirateCrew.SceneArt.Showcase
+using PirateCrew.SceneArt;
+
+namespace PirateCrew.SceneArtBake.Showcase
 {
     /// <summary>
     /// 空岛的**分材质三角面缓冲组**（纯 C#，无头可测）。

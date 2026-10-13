@@ -120,7 +120,7 @@ namespace PirateCrew.ArtReview
                 PixelartMode = true;
                 // 【拍哪个场景】默认 `PixelartPilot`（图元几何，验机制）；加 `-pixelartLevel N`
                 // 改拍该关的关卡试点场景（真实内容，验"这套观感用在真关卡上"，也是宣传图的成图入口）。
-                // N 取 `PixelartLevelScene` 取景表里的号：样板关 1 / 3，以及海图 101–108
+                // N 取 `PixelartLevelScene` 取景表里的号：样板关 1–4，以及海图 101–108
                 // （海图号段有意不连续——1–33 是原版转写关卡号）。
                 // 两个档共用同一条采集流程与同一个判据脚本，只有场景名/构图中心/档位前缀不同。
                 if (CommandLineOptions.TryGetInt(ToolFlags.PixelartLevel, out int level))
@@ -133,7 +133,7 @@ namespace PirateCrew.ArtReview
                     else
                     {
                         global::PirateCrew.Core.Log.Error("[PlayerArtCapture] -pixelartLevel " + level
-                            + " 不在取景表里（现存样板关 1 与 3、海图 101–108，号段有意不连续）——回落到关卡 "
+                            + " 不在取景表里（现存样板关 1–4、海图 101–108）——回落到关卡 "
                             + PixelartDefaultLevel + "。");
                         if (PixelartLevelScene.TryGet(PixelartDefaultLevel, out PixelartLevelView fallback))
                         {
@@ -433,12 +433,12 @@ namespace PirateCrew.ArtReview
                 };
             }
 
-            // 【第 4 关（废弃化工厂）多一张整场总览】本关场地 68×48 m，是样板关竞技场（40×30）的 2.7 倍，
+            // 【第 3 关（废弃化工厂）多一张整场总览】本关场地 68×48 m，是样板关竞技场（40×30）的 2.7 倍，
             // wide 的 32 m 可见高只盖住约三分之一——判"整场观感"不够用。它同时又**没有玩法数据**
             // （不是可玩关卡，内容是一件手作总装件），不受"人物为锚、横向比观感"那条口径的约束，
             // 故单开一张：可见高 58 m ≈ 0.85 × 场地长边（68 m），整场地进画面。
             // 场地尺度出处：tools/blender/scene/chemplant/README.md 的 STAT 实测表。
-            if (view.LevelNumber == 4)
+            if (view.LevelNumber == 3)
             {
                 return new (string, float, float, int, float, int)[]
                 {

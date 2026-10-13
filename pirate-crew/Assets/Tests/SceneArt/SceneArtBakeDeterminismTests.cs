@@ -1,8 +1,9 @@
 using NUnit.Framework;
 using PirateCrew.Battle;
+using PirateCrew.SceneArt;
 using UnityEngine;
 
-namespace PirateCrew.SceneArt.Tests
+namespace PirateCrew.SceneArtBake.Tests
 {
     /// <summary>
     /// 烘焙确定性断言（糖豆人式资产架构的阶段 E 判据）：同输入两次合成，

@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.SceneArt.Showcase
+using PirateCrew.SceneArt;
+
+namespace PirateCrew.SceneArtBake.Showcase
 {
     /// <summary>
     /// 空岛尺寸/构图参数（纯 C#，无头可测）。全部字段都有默认值，<see cref="Default"/> 即"交付构图"。
@@ -444,7 +446,7 @@ namespace PirateCrew.SceneArt.Showcase
         }
 
         // ==================================================================
-        // 可玩性：顶面碰撞代理（第 3 关把它当地面）
+        // 可玩性：顶面碰撞代理（第 2 关把它当地面）
         // ==================================================================
 
         /// <summary>

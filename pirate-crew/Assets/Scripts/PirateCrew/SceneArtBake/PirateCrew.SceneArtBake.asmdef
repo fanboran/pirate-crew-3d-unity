@@ -1,6 +1,6 @@
 {
     "name": "PirateCrew.SceneArtBake",
-    "rootNamespace": "PirateCrew",
+    "rootNamespace": "PirateCrew.SceneArtBake",
     "references": [
         "PirateCrew.Core",
         "PirateCrew.Gameplay",

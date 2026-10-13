@@ -191,10 +191,12 @@ namespace PirateCrew.EditorTools
             FxMaterials.AdditiveShaderName,
             FxMaterials.AlphaShaderName,
             SkyAssetBuilder.SkyShaderName,
+            PirateCrew.ArtReview.MinimapTopViewCapture.TopFlatShaderName,
         };
 
         /// <summary>
         /// 把 <see cref="RuntimeFindShaderNames"/> 追加进 Graphics Settings 的 Always Included Shaders（幂等）。
+        /// internal 供增量接线批次单独调用（如 HudMinimapSceneSetup 新增运行时 shader 后顺手登记）。
         ///
         /// 【为什么是 Always Included 而不是 Preloaded Shaders】Graphics Settings 的 "Preloaded Shaders"
         /// 只接受 <c>ShaderVariantCollection</c> 资产（预热指定变体），**收不了单个 <c>Shader</c>**；
@@ -208,7 +210,7 @@ namespace PirateCrew.EditorTools
         /// 【幂等】已在列表中的 shader 跳过，可反复重跑整条管线。
         /// 取不到资产/字段时抛异常，交回 BuildAll 的步骤 try/catch 汇总（不静默吞）。
         /// </summary>
-        static void EnsureRuntimeShadersIncluded()
+        internal static void EnsureRuntimeShadersIncluded()
         {
             UnityEngine.Object settings = GraphicsSettings.GetGraphicsSettings();
             if (settings == null)

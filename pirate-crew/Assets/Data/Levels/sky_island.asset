@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: sky_island
   m_EditorClassIdentifier: 
   data:
-    levelNumber: 3
+    levelNumber: 2
     assetName: sky_island
     displayName: 天空之岛
     sizeX: 40

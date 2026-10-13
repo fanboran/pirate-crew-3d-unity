@@ -12,11 +12,11 @@ namespace PirateCrew.SceneArt
         /// <summary>低模云场（第 1 关「云端漫步」主景）。</summary>
         CloudField = 1,
 
-        /// <summary>废弃化工厂整场（第 4 关主景；Blender 手作总装件，见 tools/blender/scene/chemplant/）。
+        /// <summary>废弃化工厂整场（第 3 关主景；Blender 手作总装件，见 tools/blender/scene/chemplant/）。
         /// 预制引用 = FBX 本体（`Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx`）。</summary>
         ChemPlantYard = 2,
 
-        /// <summary>废弃化工厂整场·六件并行版（第 5 关主景；`Assets/Art/Models/SceneKit/ChemPlant.fbx`，
+        /// <summary>废弃化工厂整场·六件并行版（第 4 关主景；`Assets/Art/Models/SceneKit/ChemPlant.fbx`，
         /// 六名建模 Agent 分件 + 总装，见 tools/blender/scene/chemplant/README.md）。</summary>
         ChemPlantTeamYard = 3,
     }
@@ -46,8 +46,8 @@ namespace PirateCrew.SceneArt
 
     /// <summary>样板关数据层的**读口**（数据本身在关卡资产里，不在代码里）：
     ///   L1 云端漫步（教学：投掷手感 / 回合流转 / 小心坠落）
-    ///   L3 天空之岛（考核：以少打多 4v5 / 越水控场武器）
-    /// 数值依据逐条引用在各设计文档（docs/设计/关卡/L0N-*.md，AI 提案，待用户终审）。
+    ///   L2 天空之岛（考核：以少打多 4v5 / 越水控场武器）
+    /// 数值依据逐条引用在各设计文档（docs/设计/关卡/NN-*.md，AI 提案，待用户终审）。
     ///
     /// 【本类现在是什么】纯读口：编成 / luck / 武器池 / 逻辑高度场 / 烘焙件摆位全部来自
     /// <see cref="LevelDefinition"/> 资产（`Assets/Data/Levels/*.asset`，文本锚点 = `_golden/*.json`）。
@@ -60,7 +60,7 @@ namespace PirateCrew.SceneArt
     /// 渲染层由烘焙 prefab 按摆位表实例化（RuntimeSceneArt），与逻辑层共用同一份高度场资产对齐。
     ///
     /// 【尺度】数值全米：块高 0.5 m、水面 y = −0.4 m；运行时地形按 2 m 采样
-    /// （<see cref="LevelGeometry.TileWorldSize"/>，只是数据粒度）。L1/L3 场地 40×30 m。
+    /// （<see cref="LevelGeometry.TileWorldSize"/>，只是数据粒度）。L1/L2 场地 40×30 m。
     ///
     /// 【WidthTiles / DepthTiles 为何还在】它们是 2 m 采样口径下的格数（20×15），
     /// 仍是场景装配 / 水面资产构建等编辑器工具的对齐口径；资产与玩法数值一律用米。
@@ -71,7 +71,7 @@ namespace PirateCrew.SceneArt
         public const int FirstLevel = 1;
 
         /// <summary>关卡号末位。</summary>
-        public const int LastLevel = 5;
+        public const int LastLevel = 4;
 
         /// <summary>场地宽度（采样格数，= 40 m / 2 m）——样板关统一尺寸，也是空岛展示件对齐用的场地口径。</summary>
         public const int WidthTiles = 20;
@@ -105,8 +105,8 @@ namespace PirateCrew.SceneArt
         /// 某样板关的烘焙件摆位表（<see cref="RuntimeSceneArt"/> 实例化消费）。
         /// 换这里的数 = 换摆位，不需要重新烘焙。
         ///
-        /// 【号段有意不连续】样板关号不做重编号——重编号会牵动存档/选关/测试的
-        /// 既有语义，而空号在数据层是允许的（校验器不要求号段连续）。
+        /// 【号段连续】现役四关的关卡号 1–4 连续、无空号；校验器不要求号段连续，
+        /// 这条是内容现状而非数据层规则。
         /// </summary>
         public static List<ShowcasePiecePlacement> BakedPlacements(int levelNumber)
         {

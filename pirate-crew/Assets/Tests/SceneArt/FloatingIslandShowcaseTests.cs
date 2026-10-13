@@ -1,6 +1,6 @@
 using NUnit.Framework;
 using PirateCrew.SceneArt;
-using PirateCrew.SceneArt.Showcase;
+using PirateCrew.SceneArtBake.Showcase;
 using UnityEngine;
 
 namespace PirateCrew.SceneArt.Tests
@@ -219,7 +219,7 @@ namespace PirateCrew.SceneArt.Tests
         }
 
         // ------------------------------------------------------------------
-        // 可玩地面：碰撞代理 + 出生点表（第 3 关验收口径）
+        // 可玩地面：碰撞代理 + 出生点表（第 2 关验收口径）
         // ------------------------------------------------------------------
 
         [Test]

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PirateCrew.SceneArt.Showcase
+namespace PirateCrew.SceneArtBake.Showcase
 {
     /// <summary>一个建议出生位（脚底贴草皮面；站位朝向由装配器决定）。</summary>
     public readonly struct IslandSpawnPoint
@@ -25,7 +25,7 @@ namespace PirateCrew.SceneArt.Showcase
     }
 
     /// <summary>
-    /// 空岛顶面的**建议出生点表**（纯 C#，无头可测）：第 3 关把角色直接生在空岛上，
+    /// 空岛顶面的**建议出生点表**（纯 C#，无头可测）：第 2 关把角色直接生在空岛上，
     /// 红蓝各 3-4 个、间距 ≥3 单位（用户验收口径），且不得压进任何构图预留区
     /// （遗迹 / 瞭望台 / 老树 / 水潭，<see cref="FloatingIslandComposer.BuildKeepOutZones"/>）。
     ///

@@ -2,7 +2,9 @@ using PirateCrew.Battle;
 using PirateCrew.Data;
 using UnityEngine;
 
-namespace PirateCrew.SceneArt.Showcase
+using PirateCrew.SceneArt;
+
+namespace PirateCrew.SceneArtBake.Showcase
 {
     /// <summary>
     /// 空岛展示件的**落场景计划**（纯 C#，无头可测）：给 Editor 装配层
@@ -35,7 +37,7 @@ namespace PirateCrew.SceneArt.Showcase
         public const string MeshFolder = "Assets/Art/Models/Scene";
 
         /// <summary>
-        /// 碰撞代理子节点名（第 3 关可玩地面）：只有 MeshFilter + MeshCollider、**没有 renderer**
+        /// 碰撞代理子节点名（第 2 关可玩地面）：只有 MeshFilter + MeshCollider、**没有 renderer**
         /// ——不违反"renderer 必绑材质"红线（无 renderer 即无洋红风险）。
         /// </summary>
         public const string CollisionChildName = "Island_Collision";

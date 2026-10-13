@@ -23,12 +23,12 @@ namespace PirateCrew.Battle.Tests
     /// </summary>
     public class ShowcaseLevelSelectionTests
     {
-        /// <summary>现存样板关的关卡号：1 云端漫步 / 3 天空之岛 / 4·5 废弃化工厂（关卡 2「碎岛雨」已删除，号段有意不连续）。</summary>
+        /// <summary>现存样板关的关卡号：1 云端漫步 / 2 天空之岛 / 3·4 废弃化工厂。</summary>
         const int CloudWalk = 1;
-        const int SkyIsland = 3;
+        const int SkyIsland = 2;
 
-        /// <summary>已删除的关卡号——用来证明"不存在的样板关号会被拒绝"。</summary>
-        const int DeletedLevel = 2;
+        /// <summary>当前无对应资产的关卡号——用来证明"不存在的样板关号会被拒绝"。</summary>
+        const int MissingLevel = 9;
 
         /// <summary>合成海图（零海图下的注入对象；内容全空，只给 span 与氛围档）。</summary>
         static WorldMapDefinition SyntheticMap()
@@ -161,9 +161,9 @@ namespace PirateCrew.Battle.Tests
             // Arrange：先放一个有效的待战样板关，用来验证"拒绝时也不改动现状"。
             Assert.That(WorldMapRuntime.SetPendingShowcase(CloudWalk), Is.True);
 
-            // Act / Assert：已删除的关卡号、以及 0 / 负数（表示"无"）都不得被接受。
-            Assert.That(WorldMapRuntime.SetPendingShowcase(DeletedLevel), Is.False,
-                "关卡 " + DeletedLevel + " 已删除，不该被接受");
+            // Act / Assert：无资产的关卡号、以及 0 / 负数（表示"无"）都不得被接受。
+            Assert.That(WorldMapRuntime.SetPendingShowcase(MissingLevel), Is.False,
+                "关卡 " + MissingLevel + " 没有对应资产，不该被接受");
             Assert.That(WorldMapRuntime.SetPendingShowcase(0), Is.False);
             Assert.That(WorldMapRuntime.SetPendingShowcase(-1), Is.False);
 
@@ -173,7 +173,7 @@ namespace PirateCrew.Battle.Tests
 
             // 解析侧同样忽略坏关号：即使有人绕过写侧校验塞进来，也不得把它当成有效样板关
             // （零海图下没有待战海图可让位 ⇒ 落到兜底关 1 并留提示）。
-            LevelSource source = LevelSourceResolver.Resolve(0, null, DeletedLevel);
+            LevelSource source = LevelSourceResolver.Resolve(0, null, MissingLevel);
             Assert.That(source.Kind, Is.EqualTo(LevelSourceKind.Showcase));
             Assert.That(source.LevelNumber, Is.EqualTo(LevelSourceResolver.FallbackLevelNumber));
             Assert.That(source.Notice, Is.Not.Null, "坏样板关号被忽略后必须留回落提示");
@@ -209,7 +209,7 @@ namespace PirateCrew.Battle.Tests
 
         /// <summary>
         /// 选关页必须列出全部 4 个现役内容、且按关卡号升序（页面把两份清单拼起来后排序，
-        /// 海图目录当前为空 ⇒ 只剩手作样板关 1/3/4/5）。冻结期望值：改号段等于改界面，
+        /// 海图目录当前为空 ⇒ 只剩手作样板关 1/2/3/4）。冻结期望值：改号段等于改界面，
         /// 属于设计裁决，必须同时改这里。
         /// </summary>
         [Test]
@@ -227,7 +227,7 @@ namespace PirateCrew.Battle.Tests
 
             numbers.Sort();
 
-            Assert.That(numbers, Is.EqualTo(new[] { 1, 3, 4, 5 }),
+            Assert.That(numbers, Is.EqualTo(new[] { 1, 2, 3, 4 }),
                 "选关页应列出 4 张手作样板关（海图目录当前为空），按关卡号升序");
         }
     }

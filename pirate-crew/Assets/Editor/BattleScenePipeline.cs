@@ -53,7 +53,7 @@ namespace PirateCrew.EditorTools
             new Step("① 重建 Battle 场景骨架（BattleSceneSetup.BuildAll）",
                 BattleSceneSetup.BuildAll),
 
-            // ② 空岛样板件摆入（第 3 关地面）。必须在 ① 之后：① 的 NewScene 会把它洗掉。
+            // ② 空岛样板件摆入（第 2 关地面）。必须在 ① 之后：① 的 NewScene 会把它洗掉。
             new Step("② 空岛样板件摆入（FloatingIslandShowcaseMenu.PlaceIntoBattleCenter）",
                 FloatingIslandShowcaseMenu.PlaceIntoBattleCenter),
 

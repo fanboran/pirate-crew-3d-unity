@@ -8,19 +8,19 @@ namespace PirateCrew.SceneArt.Tests
 {
     /// <summary>
     /// 样板关**设计契约测试**（关卡制作管线阶段 2 门禁：R 规则的可测项落成用例）。
-    /// 设计真源 = docs/设计/关卡/L0N-*.md；这里钉住「数据层 ↔ 设计文档」不无声分叉——
+    /// 设计真源 = docs/设计/关卡/NN-*.md；这里钉住「数据层 ↔ 设计文档」不无声分叉——
     /// 改设计先改文档，再改 ShowcaseLevels，然后让这里的断言跟着新口径走。
     /// 规则出处：docs/设计/关卡/设计语言.md §4（R1-R18）。
     /// </summary>
     public class ShowcaseLevelDesignTests
     {
         /// <summary>
-        /// 现存样板关号。关卡 2「碎岛雨」已删除（2026-09-22），号段有意不连续——
-        /// 所以这里写**显式清单**而不是 <c>FirstLevel..LastLevel</c> 的连续区间：
-        /// 区间会在 2 上取到空数据（抛异常），而"遍历数据源里现存的关"会让数据源整片缺失时
-        /// 循环体一次都不跑、门禁变成空跑绿灯。显式清单两者都避开：缺哪关就红在哪关。
+        /// 现存样板关号（现役四关 1–4 连续）。这里仍写**显式清单**而不是
+        /// <c>FirstLevel..LastLevel</c> 的连续区间：区间会在数据出现空号时取到空数据（抛异常），
+        /// 而"遍历数据源里现存的关"会让数据源整片缺失时循环体一次都不跑、门禁变成空跑绿灯。
+        /// 显式清单两者都避开：缺哪关就红在哪关。
         /// </summary>
-        static readonly int[] ExistingLevels = { 1, 3, 4 };
+        static readonly int[] ExistingLevels = { 1, 2, 3, 4 };
 
         // ------------------------------------------------------------------
         // 硬门禁：站位 / 难度旋钮（全关普查）
@@ -50,9 +50,9 @@ namespace PirateCrew.SceneArt.Tests
         }
 
         [Test]
-        public void EnemyLuck_LadderIs_One_Two_Five()
+        public void EnemyLuck_FollowsPerLevelCurve()
         {
-            // 关间难度曲线（设计文档 README curve 块）：蓝方 luck 1→2→5；红方（玩家）恒 5。
+            // 关间难度曲线（设计文档 README curve 块）：蓝方按关卡号取档；红方（玩家）恒 5。
             for (int l = 0; l < ExistingLevels.Length; l++)
             {
                 int level = ExistingLevels[l];
@@ -68,17 +68,18 @@ namespace PirateCrew.SceneArt.Tests
         }
 
         /// <summary>
-        /// 蓝方 luck 按**关卡号**取值（难度曲线 1/2/5）。关卡 2 已删除（2026-09-22）后号段不连续，
-        /// 不能用「下标 = 关卡号 - 1」的连续假设（那会把关 3 读成 2）；这里按键取，curve 表本身照留。
+        /// 蓝方 luck 按**关卡号**取值。设计难度曲线原是 1/2/5 三档，其中 2 属旧第 2 关「碎岛雨」
+        /// （2026-09-22 连资产删除）——现役四关只剩 1（云端漫步）与 5（其余三关）两档。
+        /// 这里按键取而不是「下标 = 关卡号 - 1」：关卡号与 curve 档位是两张表，不能互相推。
         /// </summary>
         static int ExpectedBlueLuck(int level)
         {
             switch (level)
             {
-                case 1: return 1;
-                case 2: return 2;   // 关卡 2 已删除：此档只作难度曲线的完整刻度记录，不再被遍历到
-                case 3: return 5;
-                case 4: return 5;   // L4 废弃化工厂（4v5，同 L3 档；难度靠大场地 + 掩体做区分）
+                case 1: return 1;   // 云端漫步（教学）
+                case 2: return 5;   // 天空之岛（考核）
+                case 3: return 5;   // 废弃化工厂（同档；难度靠大场地 + 掩体做区分）
+                case 4: return 5;   // 废弃化工厂·六件版（同档；难度靠四设备区掩体做区分）
                 default: return 5;  // 新增关卡需同时登记 curve 档位
             }
         }
@@ -112,14 +113,14 @@ namespace PirateCrew.SceneArt.Tests
         }
 
         // ------------------------------------------------------------------
-        // L3 天空之岛：考核关尺度
+        // L2 天空之岛：考核关尺度
         // ------------------------------------------------------------------
 
         [Test]
-        public void L03_SkyIsland_FlatTop_TwentyEightBlocks()
+        public void L02_SkyIsland_FlatTop_TwentyEightBlocks()
         {
-            // 岛面恒 28 块（y14），与场景空岛草皮面对齐（设计文档 L03 §3）。
-            HeightfieldGrid grid = ShowcaseLevels.BuildLogicGrid(3);
+            // 岛面恒 28 块（y14），与场景空岛草皮面对齐（设计文档 02-天空之岛 §3）。
+            HeightfieldGrid grid = ShowcaseLevels.BuildLogicGrid(2);
             int solid = 0;
             ForEachSolid(grid, (blocks) =>
             {
@@ -131,10 +132,10 @@ namespace PirateCrew.SceneArt.Tests
         }
 
         [Test]
-        public void L03_SkyIsland_FourVersusFive()
+        public void L02_SkyIsland_FourVersusFive()
         {
-            // 以少打多（设计文档 L03 §4）：红 4 vs 蓝 5。
-            LevelData data = ShowcaseLevels.BuildLevelData(3).Value;
+            // 以少打多（设计文档 02-天空之岛 §4）：红 4 vs 蓝 5。
+            LevelData data = ShowcaseLevels.BuildLevelData(2).Value;
             int red = 0, blue = 0;
             for (int i = 0; i < data.Units.Count; i++)
             {

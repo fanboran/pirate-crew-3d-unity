@@ -12,12 +12,12 @@ namespace PirateCrew.EditorTools
     /// 第三手搓样板关「废弃化工厂」的**像素化路径试点场景**装配：
     /// 把 Blender 侧手作的总装件（`ChemPlant_Level.fbx`，见 `tools/blender/scene/chemplant/`）
     /// 摆进 `PixelartLevelScene` 的取景口径里，烘出 `Assets/Scenes/Pixelart/PixelartChemPlant.unity`，
-    /// 供播放器出图链（`-pixelartOut -pixelartLevel 4`）产出**实机管线成图**。
+    /// 供播放器出图链（`-pixelartOut -pixelartLevel 3`）产出**实机管线成图**。
     ///
     /// 【为什么需要这个装配器】`PixelartPilot` 是图元几何（验机制）、其余行是真实玩法内容；
-    /// 本次要回答的是"这套观感用在这座化工厂上是什么样"，而本关**尚未接玩法数据**
-    /// （没有高度场/编成/摆位表，见 `docs/设计/关卡/L04-废弃化工厂.md`）⇒ 内容不进 `ShowcaseLevels`，
-    /// 只能像 `PixelartLevelPilotSetup` 那样直接摆一件总装件。取景仍走 `PixelartLevelScene`
+    /// 本次要回答的是"这套观感用在这座化工厂上是什么样"——本关用**单独一件总装件**
+    /// （`ChemPlant_Level.fbx`）出图，与 `PixelartLevelPilotSetup` 直接摆件的做法一致
+    /// （见 `docs/设计/关卡/03-废弃化工厂.md`）。取景仍走 `PixelartLevelScene`
     /// 的同一张表（本文件不写任何机位数字）。
     ///
     /// 【材质的唯一配方】逐个 `Kit_` 槽调 <see cref="PixelartStageKit.EnsureMaterial"/>——
@@ -36,11 +36,11 @@ namespace PirateCrew.EditorTools
     {
         public const string LogTag = "[PixelartChemPlant]";
 
-        /// <summary>场景名（与 `PixelartLevelScene` 表的第 4 行、`BuildScenes` 的开发场景集同名）。</summary>
+        /// <summary>场景名（与 `PixelartLevelScene` 表的第 3 行、`BuildScenes` 的开发场景集同名）。</summary>
         public const string SceneName = "PixelartChemPlant";
 
         const string ModelPath = "Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx";
-        const int LevelNumber = 4;
+        const int LevelNumber = 3;
 
         /// <summary>场地样板用的海面替身（口径抄 `PixelartLevelPilotSetup`：平面 10 m × 缩放 16）。</summary>
         const float SeaPlaneScale = 16f;
@@ -112,7 +112,7 @@ namespace PirateCrew.EditorTools
             if (!ApplyImportSettings())
                 return;
 
-            // 材质重映射（2026-10-08「关4 灰盒」修复）：把 16 个 Kit_ 槽外链到本路径着色材质，
+            // 材质重映射（2026-10-08「关3 灰盒」修复）：把 16 个 Kit_ 槽外链到本路径着色材质，
             // 战斗路径（RuntimeSceneArt 直接实例化模型预制、不换装）靠它才有色，见方法注释。
             BindImporterMaterialRemap();
 
@@ -226,11 +226,11 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 【2026-10-08「关4 灰盒」修复】把 FBX 导入器的材质重映射表（meta 的 externalObjects）
+        /// 【2026-10-08「关3 灰盒」修复】把 FBX 导入器的材质重映射表（meta 的 externalObjects）
         /// 的 16 个 <c>Kit_</c> 槽外链到本路径的着色像素材质（<c>PixelartChemPlant_Kit_*.mat</c>）。
         ///
         /// 【为什么必须这么做】Level.fbx 的导出把 16 个材质写成了 FBX 占位灰（实测内嵌 _BaseColor
-        /// 全 = 0.800 默认灰；同管线的关5 ChemPlant.fbx 内嵌色正常）——**战斗路径**（RuntimeSceneArt
+        /// 全 = 0.800 默认灰；同管线的关4 ChemPlant.fbx 内嵌色正常）——**战斗路径**（RuntimeSceneArt
         /// 直接实例化模型预制、不换装）随之全灰；**试点路径**靠本文件的按槽名换装从未受影响
         /// （r14 起一直有色），所以问题只在实机。
         /// 重导出 FBX 有几何风险（创始人对现几何已过目），改走导入器重映射——与
@@ -238,7 +238,7 @@ namespace PirateCrew.EditorTools
         /// 重导后任何实例化（战斗/未来装配）直接拿到着色材质。
         /// 串色防线：槽名匹配已兼容重映射后的 <c>PixelartChemPlant_</c> 前缀（见 SlotIndex）。
         /// </summary>
-        [MenuItem("PirateCrew/Pixelart/关4 FBX 材质重映射绑定")]
+        [MenuItem("PirateCrew/Pixelart/关3 FBX 材质重映射绑定")]
         public static void BindImporterMaterialRemap()
         {
             var importer = AssetImporter.GetAtPath(ModelPath) as ModelImporter;

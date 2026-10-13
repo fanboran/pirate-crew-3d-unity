@@ -149,7 +149,7 @@ namespace PirateCrew.Battle.Tests
         /// 脱离 Unity 运行时必抛 <c>SecurityException</c>），所以期望值随环境而变，用
         /// <c>UNITY_EDITOR</c> 区分——EditMode 测试定义它，无头验证台不定义。
         /// 断言强度不变：两条通道都必须给出**与目录表一致**的海图/关卡数
-        /// （八张世界海图已删除待重做 ⇒ 当前海图 0 张；关卡 2 已删除 2026-09-22 ⇒ 现存 1、3、4、5）。
+        /// （八张世界海图已删除待重做 ⇒ 当前海图 0 张；现役四关号 1–4 连续）。
         /// </summary>
         [Test]
         public void Library_LoadedFrom_MatchesEnvironment_WithCatalogCounts()
@@ -243,8 +243,8 @@ namespace PirateCrew.Battle.Tests
         /// <summary>
         /// 关卡（现存样板关）骨架：关卡号|资产名|显示名|尺幅（米）|waterWorldY
         /// ‖编成（符号/队/世界 x/世界 z/luck）‖军火‖高度场（实心格数/块高总和/加权摘要）‖烘焙件。
-        /// 数值出处：迁移前 `ShowcaseLevels.cs` 与各关设计文档 docs/设计/关卡/L0N-*.md。
-        /// 关卡 2「碎岛雨」已删除（2026-09-22），号段有意不连续——故表里只有 1、3、4、5 行。
+        /// 数值出处：迁移前 `ShowcaseLevels.cs` 与各关设计文档 docs/设计/关卡/NN-*.md。
+        /// 现役四关的关卡号 1–4 连续、无空号，表里四行按关卡号排列。
         ///
         /// 【为什么高度场仍报"格/块"】资产的岛形地形按采样粒度栅格化后折回**米高度**，
         /// 这里按 `blockWorldHeight` 折回运行时块数再算摘要——目的正是让摘要值与换单位前**逐字相同**，
@@ -256,14 +256,14 @@ namespace PirateCrew.Battle.Tests
             // 【前排防遮挡】45° 机位下前排两朵压到 y3/y5、16 块档挪正南深处（translate_cloudfield.py
             // 的布局裁决）——total/digest 随高度重算重冻，solid 不变（坛形未动）。
             "1|cloud_walk|云端漫步|40x30|-0.4||units=redPirate/0/17/13/5;redPirate/0/25/19/5;redPirate/0/19/15/5;redPirateCaptain/0/14/21/5;cabinBoy/1/25/13/1;cabinBoy/1/17/19/1;cabinBoyCaptain/1/12.5/22.5/1|air=Dynamite:10|raster=solid127/total1289/digest176398|pieces=1/CloudField",
-            "3|sky_island|天空之岛|40x30|-0.4||units=redPirate/0/23/11/5;redPirate/0/27/13/5;redPirate/0/23/17/5;redPirateCaptain/0/25/13/5;cabinBoy/1/13/11/5;cabinBoy/1/17/11/5;cabinBoy/1/11/15/5;cabinBoy/1/17/17/5;cabinBoyCaptain/1/13/17/5|air=TidalWave:10|Anchor:10|Seagull:10|raster=solid96/total2688/digest404544|pieces=",
-            // L4 废弃化工厂（2026-09-29 入库，提案/待定）：64×44 m 大场地，平地可走 + 建筑足印抬高成掩体
+            "2|sky_island|天空之岛|40x30|-0.4||units=redPirate/0/23/11/5;redPirate/0/27/13/5;redPirate/0/23/17/5;redPirateCaptain/0/25/13/5;cabinBoy/1/13/11/5;cabinBoy/1/17/11/5;cabinBoy/1/11/15/5;cabinBoy/1/17/17/5;cabinBoyCaptain/1/13/17/5|air=TidalWave:10|Anchor:10|Seagull:10|raster=solid96/total2688/digest404544|pieces=",
+            // L3 废弃化工厂（2026-09-29 入库，提案/待定）：64×44 m 大场地，平地可走 + 建筑足印抬高成掩体
             // （solid704 = 704 个 2m 采样格 − 建筑格）；整场件 pieceId 2 = ChemPlantYard（Blender 手作 FBX）。
-            "4|chem_plant|废弃化工厂|64x44|-0.4||units=redPirate/0/11/17/5;redPirate/0/17/19/5;redPirate/0/15/23/5;redPirateCaptain/0/19/21/5;cabinBoy/1/33/9/5;cabinBoy/1/39/11/5;cabinBoy/1/35/13/5;cabinBoy/1/49/7/5;cabinBoyCaptain/1/57/9/5|air=Dynamite:10|raster=solid704/total5500/digest1783200|pieces=2/ChemPlantYard",
-            // L5 废弃化工厂·六件并行版（2026-09-29 入库，提案/待定）：56×40 m = 本 kit 场地 1:1；
+            "3|chem_plant|废弃化工厂|64x44|-0.4||units=redPirate/0/11/17/5;redPirate/0/17/19/5;redPirate/0/15/23/5;redPirateCaptain/0/19/21/5;cabinBoy/1/33/9/5;cabinBoy/1/39/11/5;cabinBoy/1/35/13/5;cabinBoy/1/49/7/5;cabinBoyCaptain/1/57/9/5|air=Dynamite:10|raster=solid704/total5500/digest1783200|pieces=2/ChemPlantYard",
+            // L4 废弃化工厂·六件并行版（2026-09-29 入库，提案/待定）：56×40 m = 本 kit 场地 1:1；
             // 平地 2 块（单位踩在地坪顶 y=1.0，总装件摆 y=1.0）+ 四个设备区抬高 14 块（+7 m 掩体）；
             // 整场件 pieceId 3 = ChemPlantTeamYard（SceneKit/ChemPlant.fbx，六件并行 kit）。
-            "5|chem_plant_team|废弃化工厂·六件版|56x40|-0.4||units=redPirate/0/7/25/5;redPirate/0/13/25/5;redPirate/0/11/27/5;redPirateCaptain/0/9/27/5;cabinBoy/1/39/25/5;cabinBoy/1/45/25/5;cabinBoy/1/41/27/5;cabinBoy/1/49/27/5;cabinBoyCaptain/1/45/23/5|air=Dynamite:10|raster=solid560/total5464/digest1306248|pieces=3/ChemPlantTeamYard",
+            "4|chem_plant_team|废弃化工厂·六件版|56x40|-0.4||units=redPirate/0/7/25/5;redPirate/0/13/25/5;redPirate/0/11/27/5;redPirateCaptain/0/9/27/5;cabinBoy/1/39/25/5;cabinBoy/1/45/25/5;cabinBoy/1/41/27/5;cabinBoy/1/49/27/5;cabinBoyCaptain/1/45/23/5|air=Dynamite:10|raster=solid560/total5464/digest1306248|pieces=3/ChemPlantTeamYard",
         };
 
         [Test]
@@ -310,13 +310,11 @@ namespace PirateCrew.Battle.Tests
             WorldMapDefinition synthetic = SyntheticMap();
 
             // ① -artReviewLevel 覆盖命中关卡资产 → 走关卡资产（哪怕同时有待战海图）
-            //    用关卡 3 而非关卡 1：只有非兜底关号才能证明"覆盖优先于兜底"。
-            //    （关卡 2 已删除（2026-09-22），号段有意不连续——覆盖到不存在的关号会落到
-            //    兜底关 1 并留告警，不再能承担这条断言。）
-            LevelSource overridden = LevelSourceResolver.Resolve(3, synthetic, 0);
+            //    用关卡 2 而非关卡 1：只有非兜底关号才能证明"覆盖优先于兜底"。
+            LevelSource overridden = LevelSourceResolver.Resolve(2, synthetic, 0);
             Assert.That(overridden, Is.Not.Null);
             Assert.That(overridden.Kind, Is.EqualTo(LevelSourceKind.Showcase));
-            Assert.That(overridden.LevelNumber, Is.EqualTo(3));
+            Assert.That(overridden.LevelNumber, Is.EqualTo(2));
             Assert.That(overridden.Notice, Is.Null, "覆盖命中时不该有回落告警");
 
             // ② 无覆盖 + 有待战海图 → 走海图

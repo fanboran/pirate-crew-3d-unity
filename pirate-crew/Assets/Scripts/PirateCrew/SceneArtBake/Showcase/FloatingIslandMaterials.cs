@@ -1,6 +1,8 @@
 using UnityEngine;
 
-namespace PirateCrew.SceneArt.Showcase
+using PirateCrew.SceneArt;
+
+namespace PirateCrew.SceneArtBake.Showcase
 {
     /// <summary>
     /// 空岛（Floating Island）的材质槽位（纯 C#，无头可测）。

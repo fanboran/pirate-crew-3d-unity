@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using PirateCrew.Battle;
 using PirateCrew.Rendering.Pixelart;
 using PirateCrew.SceneArt;
-using PirateCrew.SceneArt.Showcase;
+using PirateCrew.SceneArtBake.Showcase;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -92,18 +92,18 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 【第 3 关可玩地面】把空岛摆进 Battle 场景**场心居中位**并存盘（batchmode 可调：
+        /// 【第 2 关可玩地面】把空岛摆进 Battle 场景**场心居中位**并存盘（batchmode 可调：
         /// <c>-executeMethod PirateCrew.EditorTools.FloatingIslandShowcaseMenu.PlaceIntoBattleCenter</c>）。
-        /// 草皮站位面 ≈ y14，与 ShowcaseLevels 关卡 3 的逻辑高度场（28 块 × 0.5）对齐；
-        /// 运行时由 RuntimeSceneArt 按关卡号开关（只有第 3 关激活）。
+        /// 草皮站位面 ≈ y14，与 ShowcaseLevels 关卡 2 的逻辑高度场（28 块 × 0.5）对齐；
+        /// 运行时由 RuntimeSceneArt 按关卡号开关（只有第 2 关激活）。
         /// 必须在 ArtGate ⑦（BattleSceneSetup 重建 Battle 场景）**之后**跑，否则会被洗掉。
         ///
-        /// 【创始人裁决（天空之岛回退案）】第 3 关岛体 = <see cref="FloatingIslandComposer"/> 程序化
+        /// 【创始人裁决（天空之岛回退案）】第 2 关岛体 = <see cref="FloatingIslandComposer"/> 程序化
         /// 装配的有机空岛（过审观感，元素/摆位/构图一律不动）；"Blender 化"指**元素级**替换
         /// （逐个零件出 Blender FBX 换 mesh 引用），**不是**整体总装 FBX——格板 SkyIsland.fbx
         /// 路线（照化工厂样板重发明形制）已废弃，RemoveNamedRoots 仅用于清其残根。
         /// </summary>
-        [MenuItem("PirateCrew/Showcase/摆进战斗场景居中（第3关地面）", false, 5)]
+        [MenuItem("PirateCrew/Showcase/摆进战斗场景居中（第2关地面）", false, 5)]
         public static void PlaceIntoBattleCenter()
         {
             var scene = EditorSceneManager.OpenScene(
@@ -291,7 +291,7 @@ namespace PirateCrew.EditorTools
             collision.sharedMesh = collisionMesh;
             collision.convex = false;   // 凹面静态网格：站得住、弹体任意方向撞壳都起爆
 
-            // ---- 出生点表（第 3 关装配器接队伍用）：局部 → 世界坐标记进日志 ----
+            // ---- 出生点表（第 2 关装配器接队伍用）：局部 → 世界坐标记进日志 ----
             IslandSpawnPoint[] spawns = FloatingIslandSpawnTable.Build(spec);
             var spawnLog = new System.Text.StringBuilder();
             spawnLog.Append("[FloatingIslandShowcase] 出生点表（世界坐标，y=脚底草皮面；"

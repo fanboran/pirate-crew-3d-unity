@@ -9,7 +9,8 @@ namespace PirateCrew.Battle.Tests
     /// 出战计划生成测试（§4.3 坐标/队伍、§4.1 luck、§5.5 初始武器、§4.4 全局水面常量）。
     /// 坐标按 3D 重投影语义（gridY→Z 纵深），数据源 = 样板第 1 关的
     /// <see cref="ShowcaseLevels"/> 数据（一代退场后 BuildBattlePlan 的纯 C# 入口），无头可跑。
-    /// 关卡 2「碎岛雨」已删除（2026-09-22），本文件只覆盖关卡 1。
+    /// 本文件只覆盖关卡 1（云端漫步的教学口径）；其余关的设计契约见
+    /// <c>ShowcaseLevelDesignTests</c>。
     /// </summary>
     [TestFixture]
     public class BattlePlanTests

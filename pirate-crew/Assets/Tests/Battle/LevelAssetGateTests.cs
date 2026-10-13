@@ -20,8 +20,7 @@ namespace PirateCrew.Battle.Tests
     ///   ① 手写/generated 的 `.asset` YAML 真能被 Unity 反序列化成 <see cref="LevelDefinition"/> /
     ///      <see cref="WorldMapDefinitionAsset"/>（<c>m_Script</c> guid 对得上、字段名与类型吻合）；
     ///   ② <c>Resources.Load("LevelCatalog")</c> 能取到清单，且清单把 4 张关卡资产全带进来
-    ///      （**海图 0 张**：八张世界海图 101–108 已删除待重做；关卡 2「碎岛雨」也已删除
-    ///      2026-09-22，号段有意不连续）；
+    ///      （**海图 0 张**：八张世界海图 101–108 已删除待重做；现役四关号 1–4 连续）；
     ///   ③ 校验器（<see cref="PirateCrew.EditorTools.LevelAssetValidator"/>）在同一批资产上零错误。
     ///
     /// 跑法：Test Runner → EditMode；无头见 docs/项目/工业级重构总纲.md §5。
@@ -41,7 +40,7 @@ namespace PirateCrew.Battle.Tests
                 + "清单必须落在 Assets/Data/Levels/Resources/ 下才会进构建包");
 
             Assert.That(catalog.WorldMaps.Count, Is.EqualTo(0), "清单里的海图数不对（海图已删除待重做，应为 0）");
-            Assert.That(catalog.Levels.Count, Is.EqualTo(4), "清单里的关卡数不对（关卡 2 已删除；现存 1、3、4、5）");
+            Assert.That(catalog.Levels.Count, Is.EqualTo(4), "清单里的关卡数不对（现役四关，关卡号 1–4）");
 
             for (int i = 0; i < catalog.WorldMaps.Count; i++)
                 Assert.That(catalog.WorldMaps[i], Is.Not.Null, "清单 worldMaps[" + i + "] 是空引用");

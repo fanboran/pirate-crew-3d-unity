@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using PirateCrew.SceneArt;
 using UnityEngine;
 
-namespace PirateCrew.SceneArt.Lowpoly
+namespace PirateCrew.SceneArtBake.Lowpoly
 {
     /// <summary>
     /// 云朵平台场的尺寸/布局参数（纯 C#，无头可测）。

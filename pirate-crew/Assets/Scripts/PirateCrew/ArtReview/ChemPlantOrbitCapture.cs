@@ -9,7 +9,7 @@ namespace PirateCrew.ArtReview
     /// 用于复现创始人报告的「地面垂直」——正常出图通道的固定机位看不到的东西，环绕一圈就能看到。
     /// 用完即删，不入库口径。
     ///
-    /// 用法：播放器 -orbitOut &lt;绝对目录&gt; -orbitLevel 4|5
+    /// 用法：播放器 -orbitOut &lt;绝对目录&gt; -orbitLevel 3|4
     /// </summary>
     public static class ChemPlantOrbitCapture
     {

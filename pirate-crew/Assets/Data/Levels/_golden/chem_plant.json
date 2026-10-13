@@ -1,7 +1,7 @@
 {
   "schema": 3,
   "kind": "level",
-  "levelNumber": 4,
+  "levelNumber": 3,
   "assetName": "chem_plant",
   "displayName": "废弃化工厂",
   "sizeX": 64,

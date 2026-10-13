@@ -19,7 +19,7 @@ namespace PirateCrew.Battle
     /// 【世界海域图不经本类】陈设走 <see cref="WorldMapComposer"/>（kit FBX + 灰盒站面）。
     ///
     /// 【超美空岛】是场景内静态物（FloatingIslandShowcaseMenu.PlaceIntoBattleCenter 烘进
-    /// Battle.unity），本类只按关卡号开关（只有样板第 3 关激活）。
+    /// Battle.unity），本类只按关卡号开关（只有样板第 2 关激活）。
     ///
     /// 【烘焙件缺失怎么办】烘焙 prefab 引用为空（未跑 SceneArtBaker）时告警一次、陈设留空，
     /// 不影响地形与玩法——先跑 PirateCrew/烘焙/样板场景件。
@@ -37,16 +37,16 @@ namespace PirateCrew.Battle
         [Tooltip("烘焙件：低模云场（第 1 关主景）。由 SceneArtBaker 烘焙并接线。")]
         [SerializeField] GameObject cloudFieldPrefab;
 
-        /// <summary>第 4 关「废弃化工厂」的整场件（FBX 本体；装配器
+        /// <summary>第 3 关「废弃化工厂」的整场件（FBX 本体；装配器
         /// <c>PirateCrew.EditorTools.ChemPlantBattleWiring</b> 写进场景）。</summary>
         [SerializeField] GameObject chemPlantYardPrefab;
 
-        /// <summary>第 5 关「废弃化工厂·六件并行版」的整场件（FBX 本体；六件并行 kit 的总装件，
+        /// <summary>第 4 关「废弃化工厂·六件并行版」的整场件（FBX 本体；六件并行 kit 的总装件，
         /// 装配器 <c>PirateCrew.EditorTools.PixelartChemPlantTeamSetup</c> 同源的另一条关卡线）。</summary>
         [SerializeField] GameObject chemPlantTeamYardPrefab;
 
         [Tooltip("超美空岛根（场景内静态物，由 FloatingIslandShowcaseMenu.PlaceIntoBattleCenter 烘进场景）。"
-            + "只有样板第 3 关激活，其余关卡隐藏。")]
+            + "只有样板第 2 关激活，其余关卡隐藏。")]
         [SerializeField] GameObject skyIslandRoot;
 
         // 运行时实例（每次重建先删后建；只删自己的，不动 Ambient 等同级子节点）。
@@ -54,6 +54,35 @@ namespace PirateCrew.Battle
 
         /// <summary>最近一次重建的关卡号（未重建过为 0）。</summary>
         public int LastLevelNumber { get; private set; }
+
+        /// <summary>
+        /// 陈设件的 renderer（本次实例化的烘焙件 + 场景静态空岛）：顶视出图圈定「内容包围盒」用。
+        /// **只含陈设**——SceneArt 根下还挂着水面圆盘等运行期环境件（SetupBattleEnvironment 以
+        /// 本 transform 为父节点），它们是背景不是内容，进盒会把取景中心拉偏、跨度撑爆
+        /// （实测 centerZ=-16 / spanZ=107 两次事故）。
+        /// </summary>
+        public System.Collections.Generic.IEnumerable<Renderer> EnumeratePieceRenderers()
+        {
+            foreach (GameObject inst in _instances)
+            {
+                if (inst == null)
+                    continue;
+                foreach (Renderer r in inst.GetComponentsInChildren<Renderer>(false))
+                    yield return r;
+            }
+
+            if (skyIslandRoot != null && skyIslandRoot.activeSelf)
+            {
+                foreach (Renderer r in skyIslandRoot.GetComponentsInChildren<Renderer>(false))
+                    yield return r;
+            }
+        }
+
+        /// <summary>
+        /// 场景内静态空岛根（只读口：顶视出图等编辑器/采集工具按它圈定「陈设层级」——
+        /// 小地图内容盒只算陈设件，环境件（水面/远景）不参与取景）。
+        /// </summary>
+        public GameObject SkyIslandRoot => skyIslandRoot;
 
         /// <summary>生成物父节点（为空回落自身）。</summary>
         Transform Root => sceneryRoot != null ? sceneryRoot : transform;
@@ -70,9 +99,9 @@ namespace PirateCrew.Battle
         {
             Clear();
 
-            // 场景内静态空岛：只有样板第 3 关可见（其余关一律隐藏）。
-            if (skyIslandRoot != null && skyIslandRoot.activeSelf != (levelNumber == 3))
-                skyIslandRoot.SetActive(levelNumber == 3);
+            // 场景内静态空岛：只有样板第 2 关可见（其余关一律隐藏）。
+            if (skyIslandRoot != null && skyIslandRoot.activeSelf != (levelNumber == 2))
+                skyIslandRoot.SetActive(levelNumber == 2);
 
             if (!SceneArt.ShowcaseLevels.IsShowcase(levelNumber))
             {

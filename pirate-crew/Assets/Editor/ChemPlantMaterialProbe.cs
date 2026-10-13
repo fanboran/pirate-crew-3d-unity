@@ -6,18 +6,18 @@ using UnityEngine;
 namespace PirateCrew.EditorTools
 {
     /// <summary>
-    /// 化工厂两关「关4 灰盒」取证：把两份 FBX 的**内嵌材质子资产**（ImportStandard 产物，
+    /// 化工厂两关「关3 灰盒」取证：把两份 FBX 的**内嵌材质子资产**（ImportStandard 产物，
     /// 战斗路径 RuntimeSceneArt 直接实例化模型预制时 renderer 拿到的就是它们）逐个打印
     /// 名字 + shader + _BaseColor 到 export/chemplant-materials.txt。
-    /// 判据：关4/关5 的 Kit_* 基色若一边白一边有色 → 颜色差在 FBX 内嵌材质本身。
+    /// 判据：关3/关4 的 Kit_* 基色若一边白一边有色 → 颜色差在 FBX 内嵌材质本身。
     /// 无头 -executeMethod 直接跑（不用进 Play）。
     /// </summary>
     public static class ChemPlantMaterialProbe
     {
         static readonly (string label, string path)[] Files =
         {
-            ("关4 ChemPlant_Level.fbx", "Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx"),
-            ("关5 SceneKit/ChemPlant.fbx", "Assets/Art/Models/SceneKit/ChemPlant.fbx"),
+            ("关3 ChemPlant_Level.fbx", "Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx"),
+            ("关4 SceneKit/ChemPlant.fbx", "Assets/Art/Models/SceneKit/ChemPlant.fbx"),
         };
 
         public static void Dump()

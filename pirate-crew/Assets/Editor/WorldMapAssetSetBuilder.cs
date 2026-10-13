@@ -92,6 +92,17 @@ namespace PirateCrew.EditorTools
             foreach (string guid in fbxGuids)
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid);
+
+                // 化工厂两关的 FBX 是**战斗陈设**（RuntimeSceneArt 直接实例化 Level.fbx，
+                // 材质靠 meta 的 externalObjects 重映射到 PixelartChemPlant_Kit_*，
+                // materialImportMode 必须 = Standard：None 档读不到槽名、重映射不咬合，
+                // 整场回落 FBX 占位灰——331efe92 刷 None、40c268e1 手工恢复 meta、
+                // 本步再刷 None 的三次反复即同款事故）。它们的导入设置归
+                // PixelartChemPlantSetup / PixelartChemPlantTeamSetup 管，这里跳过；
+                // 海图已整删，kit 资产表对它们无消费者。
+                if (path.Replace('\\', '/').Contains("/ChemPlant/"))
+                    continue;
+
                 if (!ApplyImportSettings(path))
                     continue;
                 GameObject root = AssetDatabase.LoadAssetAtPath<GameObject>(path);

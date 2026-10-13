@@ -1,6 +1,8 @@
 using UnityEngine;
 
-namespace PirateCrew.SceneArt.Showcase
+using PirateCrew.SceneArt;
+
+namespace PirateCrew.SceneArtBake.Showcase
 {
     /// <summary>
     /// 草坪三档斑块选色（纯 C#，无头可测）——t3ssel8r「Pixel Art Grass Shader V2」口径的几何版：

@@ -1,6 +1,6 @@
 using NUnit.Framework;
 using PirateCrew.SceneArt;
-using PirateCrew.SceneArt.Showcase;
+using PirateCrew.SceneArtBake.Showcase;
 using UnityEngine;
 
 namespace PirateCrew.SceneArt.Tests
