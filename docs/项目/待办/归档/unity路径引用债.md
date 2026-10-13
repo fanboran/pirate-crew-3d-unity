@@ -9,10 +9,10 @@
 
 - **改了什么**（两类区分是本次的关键口径）：
   - **文件路径**（`F:/Unity/2022.3.62f1c1/…` 或 `F:\Unity\2022.3.62f1c1\…`，目录不存在）→ 全部改为
-    `2022.3.62f1`，共 10 个活文件：CI `ci.yml`、[UnityAPI陷阱与参照库公约](../../技术/架构/UnityAPI陷阱与参照库公约.md)、
-    [重构迁移报告](../重构迁移报告.md)、[构建与发布手册](../构建与发布手册.md)、
-    [运行期查找清退报告](../../审计/专项/运行期查找清退报告.md)、`Assets/Pixelart/README.md`、
-    Editor 脚本 `BuildScript` / `TextSampleBuilder` / `SceneLookupAudit`、[海面.md](../../技术/渲染/管线/海面.md)。
+    `2022.3.62f1`，共 10 个活文件：CI `ci.yml`、[UnityAPI陷阱与参照库公约](../../../技术/架构/UnityAPI陷阱与参照库公约.md)、
+    [重构迁移报告](../../重构迁移报告.md)、[构建与发布手册](../../构建与发布手册.md)、
+    [运行期查找清退报告](../../审计/运行期查找清退报告.md)、`Assets/Pixelart/README.md`、
+    Editor 脚本 `BuildScript` / `TextSampleBuilder` / `SceneLookupAudit`、[海面.md](../../../技术/渲染/管线/海面.md)。
   - **版本号语义**（Unity 官方版本字符串本身确实以 `c1` 结尾）→ **保留不改**：
     `ProjectSettings/ProjectVersion.txt`（Unity 真源）、CI `UNITY_VERSION`、Hub 安装指引文案等。
 - **有意不改**（按文档规范保留）：交接归档 5 处、`docs/images` 图档 README 2 处、
@@ -20,4 +20,4 @@
 - ① ~~`F:\Unity\2022.3.62f1c1` 安装残缺~~ 该目录已不存在；本机可用编辑器在 `F:\Unity\2022.3.62f1`
   （ProductVersion 实测 = `2022.3.62f1c1`，只是文件夹名少了 `c1`）。
 - ② ~~`tools/headless/run.sh` 不透传 `-p:ProjectRoot`~~ **已修**（2026-09-30 前完成）。
-- ③ 基线既有失败见 `./infra-harness纪律与基线.md`。
+- ③ 基线既有失败见 `./harness纪律与基线.md`。

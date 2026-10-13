@@ -85,7 +85,7 @@ EventBus 拒绝投递、记入 `EventBus.ContractViolations` 并告警——机�
 | 项 | 内容 |
 | --- | --- |
 | 载荷类型 | **无**（非泛型 `Event` 频道） |
-| 发布方 | 业务侧（`UI/BattleHud` 返回按钮/返回确认弹窗、`UI/LevelSelectController` 返回按钮） |
+| 发布方 | 业务侧（`UI/BattleHud` 返回确认弹窗——暂停面板返回钮/结算返回钮触发、`UI/LevelSelectController` 返回按钮；战斗 HUD 底部无返回钮，暂停/返回走 ESC 矩阵） |
 | 订阅方 | `Core/SceneLoader.OnGoBackRequest` |
 | 备注 | 走 `SceneLoader` 的返回栈；栈空时 `GoBack()` 只告警、不抛异常（M1 有测试锁定） |
 

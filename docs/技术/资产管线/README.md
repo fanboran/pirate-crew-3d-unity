@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | [调色板.md](调色板.md) | 美术 / 管线工程师 / 任何改板的人 | 68 槽板的**族结构与阶梯族规则**（现役职能 = 取色令牌真源，限色机制已取消）；唯一真源（JSON）与 Unity 镜像的一致性路径与三条对账命令；`tools/palette/palette_tool.py` 全部子命令；量化工具链存档（已退出生产链）与确定性证据（sha256） |
 | [Blender导出.md](Blender导出.md) | 写 kit 脚本的人 | `tools/blender/pixel/` 三件事（平滑法线烘顶点色 / 顶点色量化 / 纹素密度校验）的用法、参数、退出码；**顶点色两个互斥用途**的硬边界；判据的硬失败 vs 只计数口径；正反对照自证；Blender 5.2 的两条版本差异（`colors_type=SRGB`、没有 "Normals Only"）；实测发现（49 件 FBX 无 UV） |
-| （WorldKit 场景套件） | 建 kit 资产的人 | `tools/blender/scene/` 的 kit 建模与站面 manifest 机制（`style_tokens.py` / `sync_standables.py`）：**文档已随 M4 归档**，机制见 [归档/M4-世界化](../../项目/归档/M4-世界化/大海域世界化.md) §4；基建去留定案挂 [world-海图101-108删除](../../项目/待办/world-海图101-108删除.md) §三 |
+| （WorldKit 场景套件） | 建 kit 资产的人 | `tools/blender/scene/` 的 kit 建模与站面 manifest 机制（`style_tokens.py` / `sync_standables.py`）：**文档已随 M4 归档**，机制见 [归档/M4-世界化](../../项目/归档/M4-世界化/大海域世界化.md) §4；基建去留定案挂 [地图资产模型统一](../../项目/待办/地图资产模型统一.md) §四 |
 
 ## 与其它域的交界
 
