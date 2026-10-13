@@ -22,7 +22,8 @@ namespace PirateCrew.Battle
     ///   FreeCamera → **FreeOrbit**（拖拽绕当前焦点转方位；焦点默认开局场地中心，
     ///     仅由回合 pan / 点选血条的聚焦请求平滑引导，拖拽不挪焦点）；
     ///   SelectedIdle → **Orbit**（环绕选中单位，右键拖拽改方位，俯角回基准）；
-    ///   OperationActive → **OpLock**（位姿冻结，不接受任何相机输入）；
+    ///   OperationActive → **OpLock**（焦点锁定选中单位附近、取景档冻结；右键拖拽可转
+    ///     方位——瞄准时观察地形与落点）；
     ///   Executing → **Follow**（既有跟随状态机：弹体/被抛角色/命中停留/回焦）。
     ///
     /// 【三件套分工】<see cref="CameraFraming"/>（纯数学）→ <see cref="BattleInputReader"/>（唯一输入
@@ -346,12 +347,12 @@ namespace PirateCrew.Battle
                 ? interaction.State
                 : InteractionState.FreeCamera;
 
-            if (InteractionRules.CameraAcceptsInput(state))
-            {
+            if (InteractionRules.CameraAcceptsOrbit(state))
                 ApplyOrbitInput(intent);
+            if (InteractionRules.CameraAcceptsFramingTier(state))
                 ApplyFramingTierInput(intent);
-            }
-            // OpLock / Executing：不接受任何相机输入（目标位姿与取景档保持）。
+            // Executing：跟随态，不接受任何相机输入。操作中：焦点锁定选中单位附近，
+            // 右键拖拽可转方位（瞄准观察；取景档保持冻结）。
 
             // ---- 解析焦点目标（跟随态覆盖；环绕态锁定选中单位；自由态用 _goalPosition）----
             _goalPosition = ResolveGoalPosition(state);

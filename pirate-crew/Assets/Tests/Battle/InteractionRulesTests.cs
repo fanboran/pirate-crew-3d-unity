@@ -165,13 +165,24 @@ namespace PirateCrew.Battle.Tests
         // ------------------------------------------------------------------
 
         [Test]
-        public void CameraInput_OnlyInFreeCameraAndSelectedIdle()
+        public void CameraOrbit_FreeCameraSelectedIdleAndOperationActive()
         {
-            Assert.IsTrue(InteractionRules.CameraAcceptsInput(InteractionState.FreeCamera));
-            Assert.IsTrue(InteractionRules.CameraAcceptsInput(InteractionState.SelectedIdle));
-            Assert.IsFalse(InteractionRules.CameraAcceptsInput(InteractionState.OperationActive),
-                "操作中相机冻结（定义性特征）");
-            Assert.IsFalse(InteractionRules.CameraAcceptsInput(InteractionState.Executing));
+            Assert.IsTrue(InteractionRules.CameraAcceptsOrbit(InteractionState.FreeCamera));
+            Assert.IsTrue(InteractionRules.CameraAcceptsOrbit(InteractionState.SelectedIdle));
+            Assert.IsTrue(InteractionRules.CameraAcceptsOrbit(InteractionState.OperationActive),
+                "操作中开放右键拖拽转方位（瞄准观察;焦点锁定不变）");
+            Assert.IsFalse(InteractionRules.CameraAcceptsOrbit(InteractionState.Executing),
+                "执行跟随态封闭");
+        }
+
+        [Test]
+        public void CameraFramingTier_OnlyInFreeCameraAndSelectedIdle()
+        {
+            Assert.IsTrue(InteractionRules.CameraAcceptsFramingTier(InteractionState.FreeCamera));
+            Assert.IsTrue(InteractionRules.CameraAcceptsFramingTier(InteractionState.SelectedIdle));
+            Assert.IsFalse(InteractionRules.CameraAcceptsFramingTier(InteractionState.OperationActive),
+                "操作中取景档冻结");
+            Assert.IsFalse(InteractionRules.CameraAcceptsFramingTier(InteractionState.Executing));
         }
 
         [Test]

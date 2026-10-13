@@ -179,10 +179,18 @@ namespace PirateCrew.Battle
             return EscAction.OpenPause;
         }
 
-        /// <summary>交互状态对应的相机模式归属（相机行为契约 #1 的纯函数形式）。</summary>
-        public static bool CameraAcceptsInput(InteractionState state)
+        /// <summary>该状态是否接受相机 orbit 输入（右键拖拽绕焦点转方位；相机行为契约 #1 的
+        /// 纯函数形式）。自由/环绕/操作中三态开放——操作中开放拖拽旋转（创始人裁决：瞄准时
+        /// 可观察地形与落点；焦点仍锁定选中单位附近，方位平滑与两态同源），仅执行跟随态封闭。</summary>
+        public static bool CameraAcceptsOrbit(InteractionState state)
         {
-            // 自由镜头（拖拽绕焦点转方位）与选中浏览（环绕）吃相机输入；操作中冻结、执行中交跟随。
+            return state != InteractionState.Executing;
+        }
+
+        /// <summary>该状态是否接受取景档切换（近景⇄远景）：仅自由/环绕两态；操作中取景档
+        /// 保持冻结（档位跳变会打断瞄准观察）。</summary>
+        public static bool CameraAcceptsFramingTier(InteractionState state)
+        {
             return state == InteractionState.FreeCamera || state == InteractionState.SelectedIdle;
         }
 
