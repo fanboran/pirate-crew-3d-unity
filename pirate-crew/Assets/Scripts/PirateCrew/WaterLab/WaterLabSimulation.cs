@@ -113,24 +113,27 @@ namespace PirateCrew.WaterLab
             if (steps == maxSteps)
                 _accumulator = 0f; // 追帧雪崩保护（沿 WaterSimulationDriver 先例）
 
-            // 诊断落盘（环境变量开才生效）：把高度/湿沙纹理存 PNG，供无头链排查模拟纹理内容。
-            if (System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_DUMP") == "1")
-                DumpDiagnostics();
-        }
+        // 诊断落盘（环境变量开才生效）：把高度/湿沙纹理存 PNG，供无头链排查模拟纹理内容。
+        // 【模拟时间锚定】按 simTime 取样（36 s 起每 1.2 s 一张×8，覆盖一个主波周期）——
+        // 旧实现按真实时间在开机 1 秒内连拍 3 张，拍到的是开场而非稳态；且与截图链的
+        // PC3D_CAPTURE_MIN_SIM_TIME 稳态门同口径（先转储后开拍）。注意 $TEMP 里的同名
+        // 旧文件会冒充本轮产物——capture 前先清空。
+        if (System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_DUMP") == "1")
+            DumpDiagnostics();
+    }
 
-        float _dumpTimer;
-        int _dumpIndex;
+    int _dumpIndex;
 
-        void DumpDiagnostics()
-        {
-            _dumpTimer += Time.deltaTime;
-            if (_dumpTimer < 0.3f || _dumpIndex >= 3)
-                return;
-            _dumpTimer = 0f;
-            DumpTexture(_heightTex, $"waterlab-height-{_dumpIndex}");
-            DumpTexture(_wetTex, $"waterlab-wet-{_dumpIndex}");
-            _dumpIndex++;
-        }
+    void DumpDiagnostics()
+    {
+        if (_simTime < 36f || _dumpIndex >= 8)
+            return;
+        if (_simTime < 36f + _dumpIndex * 1.2f)
+            return;
+        DumpTexture(_heightTex, $"waterlab-height-{_dumpIndex}");
+        DumpTexture(_wetTex, $"waterlab-wet-{_dumpIndex}");
+        _dumpIndex++;
+    }
 
         static void DumpTexture(RenderTexture rt, string name)
         {
@@ -293,10 +296,11 @@ namespace PirateCrew.WaterLab
             cs.SetFloat(ShaderIds.Time, _simTime);
             cs.SetFloat(ShaderIds.SeaLevel, WaterLabRules.SeaLevel);
             cs.SetFloat(ShaderIds.WaveBandWidth, WaterLabRules.WaveBandWidth);
+            cs.SetFloat(ShaderIds.GridFilterEps, WaterLabRules.GridFilterEps);
             PushWaveTrains();
             cs.SetFloat(ShaderIds.TideAmp, WaterLabRules.TideAmplitude);
             cs.SetFloat(ShaderIds.TideOmega, 2f * Mathf.PI / WaterLabRules.TidePeriod);
-            cs.SetFloat(ShaderIds.TideRelaxRate, WaterLabRules.TideRelaxRate);
+            cs.SetFloat(ShaderIds.TideRelaxRate, WaterLabRules.TideRelaxDepthRate);
             cs.SetFloat(ShaderIds.WaveRelaxRate, WaterLabRules.WaveRelaxRate);
             cs.SetFloat(ShaderIds.BreakingSteepness, WaterLabRules.BreakingSteepness);
             cs.SetFloat(ShaderIds.FoamGain, WaterLabRules.FoamGain);
@@ -384,6 +388,7 @@ namespace PirateCrew.WaterLab
             public static readonly int Time = Shader.PropertyToID("_Time");
             public static readonly int SeaLevel = Shader.PropertyToID("_SeaLevel");
             public static readonly int WaveBandWidth = Shader.PropertyToID("_WaveBandWidth");
+            public static readonly int GridFilterEps = Shader.PropertyToID("_GridFilterEps");
             public static readonly int WaveTrainsA = Shader.PropertyToID("_WaveTrainsA");
             public static readonly int WaveTrainsB = Shader.PropertyToID("_WaveTrainsB");
             public static readonly int TideAmp = Shader.PropertyToID("_TideAmp");

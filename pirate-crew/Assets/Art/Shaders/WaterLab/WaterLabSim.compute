@@ -45,6 +45,9 @@ float _Time;
 float _SeaLevel;
 
 float _WaveBandWidth;
+// Shapiro 网格滤波强度（WaterLabRules.GridFilterEps）：h -= ε×(h−4邻均值)，带外全场——
+// 压 2 格棋盘模（弱阻尼+弱松弛下无人看管会毁掉破碎判据与长波），对长波近乎无伤
+float _GridFilterEps;
 // 四列入射波（致敬 Sandcastle WavesProperty a/b/c/d 四列结构，数值 C# 侧重推）：
 // A: xy=单位传播方向 z=波数k w=角频ω（浅水色散 ω=k·√(g·h带)，与 SWE 特征速匹配）；B: x=振幅 y=初相
 float4 _WaveTrainsA[4];
@@ -52,6 +55,7 @@ float4 _WaveTrainsB[4];
 // 潮位呼吸（Sandcastle UpdateAmount 实证：全场向 seaLevel+amp·sin(ωt) 松弛）
 float _TideAmp;
 float _TideOmega;
+// 松弛深度系数 1/(s·m)：权重 = 此值 × 局部水深 × dt（UpdateAmount 同构，见 WaveSource）
 float _TideRelaxRate;
 float _WaveRelaxRate;
 
@@ -146,10 +150,27 @@ void WaveSource(uint3 id : SV_DispatchThreadID)
     }
     else
     {
-        // 带外全场：向潮位弱松弛（岸线呼吸；幅度平缓不抹平行波）
-        float relaxT = min(1.0, _TideRelaxRate * _Dt);
+        // 带外全场：向潮位弱松弛（岸线呼吸）。【权重 ∝ 水深】——原作 UpdateAmount
+        // （Water_20632 反汇编）为 `amount += 水场×(1/15)×间隙`，干处权重 0 完全不松弛：
+        // 深水被压平向潮位、浅水架几乎不阻尼，行波活着冲上滩。均匀权重对行波是
+        // 指数阻尼（旧值 0.25/s → 衰减长度 14 m，涌浪没到岸就被吃光，第九轮根因）。
+        float relaxT = min(1.0, _TideRelaxRate * w.x * _Dt);
         float etaNew = lerp(eta, tide, relaxT);
         w.x = max(etaNew - g, 0.0);
+    }
+
+    // Shapiro 网格滤波（带外）：压 2 格棋盘模（GridFilterEps 注释见上与规则单源）。
+    // 邻域读本步前值——带外每步松弛增量 ~1e-4 量级，同 dispatch 读写竞态的偏差无实质
+    // 影响；带内不滤（造波机强松弛自洽，且实验室按带外口径标定）。
+    if (worldXZ.x >= -_HalfDomain + _WaveBandWidth)
+    {
+        int il = (c.x > 0) ? i - 1 : i;
+        int ir = (c.x < _Cells - 1) ? i + 1 : i;
+        int idn = (c.y > 0) ? i - _Cells : i;
+        int iup = (c.y < _Cells - 1) ? i + _Cells : i;
+        float mean4 = (_WaterA[il].x + _WaterA[ir].x + _WaterA[idn].x + _WaterA[iup].x) * 0.25;
+        w.x -= _GridFilterEps * (w.x - mean4);
+        w.x = max(w.x, 0.0);
     }
 
     // z 两侧海绵：速度阻尼（平方曲线），吸收侧向行波

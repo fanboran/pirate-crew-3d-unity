@@ -30,7 +30,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _CausticScale: 0.7
-    - _CausticStrength: 0.7
+    - _CausticStrength: 0.3
     - _DryClip: 0.02
     - _FoamStrength: 1.5
     - _RefractionFactor: 0.0121

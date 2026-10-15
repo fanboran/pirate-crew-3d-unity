@@ -72,6 +72,15 @@ namespace PirateCrew.EditorTools
             set => SessionState.SetInt(KeyCaptureLevel, value);
         }
 
+        /// <summary>模拟稳态门限（秒）：环境变量 PC3D_CAPTURE_MIN_SIM_TIME，0 = 不等。
+        /// 跨域重载后静态清零无所谓——每次取都重读环境变量（headless 全程同值）。</summary>
+        static float MinSimTime =>
+            System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_MIN_SIM_TIME") is string tRaw
+            && float.TryParse(tRaw, out float t) && t > 0f ? t : 0f;
+
+        /// <summary>等待稳态的日志只打一次（域重载会重置，最多多打一条）。</summary>
+        static bool _simWaitLogged;
+
         static BattleHudScreenshot()
         {
             if (Application.isBatchMode && !Armed)
@@ -218,6 +227,24 @@ namespace PirateCrew.EditorTools
             Countdown--;
             if (Countdown > 0)
                 return;
+
+            // 模拟时间门（PC3D_CAPTURE_MIN_SIM_TIME）：tick 倒计时是编辑器节拍，模拟年龄
+            // 取决于当时帧率（capture 52 实证 90 tick 时 WaterLab sim 才跑了几秒，拍到
+            // 静水开场）。设了此值的场景（实验水体）先等模拟到稳态再开拍；场景里没有
+            // WaterLabSimulation（战斗等）不阻塞。
+            if (MinSimTime > 0f)
+            {
+                var sim = Object.FindFirstObjectByType<PirateCrew.WaterLab.WaterLabSimulation>();
+                if (sim != null && sim.SimTime < MinSimTime)
+                {
+                    if (!_simWaitLogged)
+                    {
+                        _simWaitLogged = true;
+                        Debug.Log($"[BattleHudScreenshot] 等待模拟稳态：SimTime {sim.SimTime:F1}s / 目标 {MinSimTime:F0}s");
+                    }
+                    return;
+                }
+            }
 
             if (ShotsLeft <= 0)
             {

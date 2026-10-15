@@ -162,10 +162,10 @@ alpha:  saturate(水量 × 100)   ← 不透明队列，「透明」全在 shade
 
 Water compute 的 11 个 kernel 全部反汇编后逐条判读（每个 kernel 两份等价编译产物互为对账）：
 
-- **环境浪 = 涌浪泵 + 潮位松弛，都在 `UpdateAmount` kernel 里**（全 compute 唯一含三角函数的 kernel，两条 `sinc`）：
-  1. **涌浪泵**：`spawnMap` 纹理圈定的注水带内 `amount += 0.15·sin(空间相位 + 8·相位)·dt`（0.15 是 shader 字面量）——振荡注水把水「泵」进海盆，浅化后自然陡化成卷浪；CPU 侧 `Water.Spawn()` 往 `spawnMap` 写目标水量（场景实例 `spawnRate=20`）；
-  2. **潮位松弛**：每格水面高程向 `seaLevel + amp·sin(相位)` 松弛（下限 clamp −0.5、目标水量下限 0.05），松弛率是**每格 8bit 权重 ÷15**——空间可变权重即波形整形；
-  3. **蒸发**：`amount -= damping·evaporationFactor·0.001·exp(-0.72·ground)·dt`——高地蒸发快（滩面比海盆干得快）。
+- **环境浪 = 涌浪泵 + 潮位松弛，都在 `UpdateAmount` kernel 里**（全 compute 唯一含三角函数的 kernel，两条 `sinc`；2026-10-15 重读逐行修正）：
+  1. **涌浪泵**：`spawnMap` 纹理圈定的注水带内 `amount += 0.15·sin(空间相位 + 8·相位)·dt`（0.15 是 shader 字面量）——且被门控：只在水量落在 spawnMap 目标下方 0.1 窗口内的格子注入（单向补齐到目标）——振荡注水把水「泵」进海盆，浅化后自然陡化成卷浪；CPU 侧 `Water.Spawn()` 往 `spawnMap` 写目标水量（场景实例 `spawnRate=20`）；
+  2. **潮位松弛**：每格水面高程向 `seaLevel + amp·sin(相位)` 松弛（潮位下限 clamp −0.5、目标水量下限 0.05），权重 = **同一 22bit 水场的双线性值 ÷15**（与第 3 条蒸发的 exp 项同一场；旧记「每格 8bit 权重」系误读）——即**权重比例于局部水深**：深水强松弛被压平向潮位，浅水/干处权重→0 近乎不松弛，行波得以活着冲上滩；
+  3. **蒸发**：`amount -= rate·exp(-0.721×水场)·dt`（rate = 配置乘积 ×0.001）——水越浅蒸发越快（滩面薄水比海盆干得快）。
 - **`Paint` kernel**：CPU 写 `input` 缓冲（stride 16，24bit 定点），kernel 双线性溅射进水场——笔刷/泼水/造波机道具（`WaveGenerator`）的注水通道，非环境浪。
 - **渲染网格无三角函数**：`Lit/Water` 两个 vs 全无 `sinc`——海面起伏全部来自模拟场，无「视觉波」叠层。
 - **`WaterCell.wave`/`tangent` 字段**：`UpdateTangent` 只做邻域差分（法线用），无波形生成。

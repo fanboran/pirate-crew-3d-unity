@@ -34,7 +34,7 @@ Shader "PirateCrew/WaterLab/Ocean"
 
         // ---- 折射与焦散 ----
         _RefractionFactor       ("折射偏移系数（原作实测 0.0121）", Range(0.0, 0.1)) = 0.0121
-        _CausticStrength        ("水下焦散强度", Range(0.0, 2.0)) = 0.7
+        _CausticStrength        ("水下焦散强度", Range(0.0, 2.0)) = 0.3
         _CausticScale           ("焦散图案频率 (rad/m)", Range(0.2, 4.0)) = 0.7
 
         // ---- 太阳高光（碎金 = 细节法线 × 近镜面瓣）----
@@ -236,7 +236,10 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float3 bgColor = sandAlbedo * (_RefAmbient.rgb + _RefSunTint.rgb
                     * saturate(dot(float3(0, 1, 0), sunDir2)) * 1.15 * floorSh * floorColumn);
 
-                // 焦散乘进背景色（只在水浅处可见；原作由体素 GI 提供，本仓程序化近似）
+                // 焦散乘进背景色（只在水浅处可见；原作由体素 GI 提供，本仓程序化近似）。
+                // 【强度压到 0.3】原作沙侧光照无焦散项（Lit_Sand PS 解码实证），本项是自造
+                // 近似；±40% 的自振荡图案会把水底波影带（目标信号）整个盖住——第九轮降档，
+                // 波影可见后若还缺 GI 质感再独立裁决。
                 float caustic = Caustic(refrXZ, t) * exp(-depth * 0.55) * _CausticStrength;
                 bgColor *= 1.0 + caustic;
 

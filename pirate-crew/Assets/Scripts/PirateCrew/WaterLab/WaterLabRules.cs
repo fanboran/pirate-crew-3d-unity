@@ -42,10 +42,18 @@ namespace PirateCrew.WaterLab
 
         // ---- 物理与数值参数 ----
 
-        /// <summary>重力加速度（m/s²）。</summary>
+        /// <summary>
+        /// 重力加速度（m/s²）。【逆向已知场景真值 16，暂不采纳】：本仓显式平均通量 +
+        /// 中心差分动量格式在 g=16、弱阻尼下数值色散/负水深钳制超界（harness 实测：
+        /// 质量漂移 0.655%、孤立波速比 0.625），要吃下 16 需先升通量格式（如 donor-cell
+        /// 迎风），独立裁决后再对齐。
+        /// </summary>
         public const float Gravity = 9.81f;
 
-        /// <summary>固定时间步（s）。CFL 验证：h_max≈3 m → c=√(g·h)≈5.4，C = c·dt/dx ≈ 0.36 ≤ <see cref="CflLimit"/>。</summary>
+        /// <summary>
+        /// 固定时间步（s）。CFL 验证：h_max≈1.6 m（深水台 1.3 + 波列 + 潮位）→
+        /// c=√(9.81·1.6)≈4.0，C = c·dt/dx ≈ 0.26；保守上界 h=3 m 时 C≈0.36 ≤ <see cref="CflLimit"/>。
+        /// </summary>
         public const float FixedStep = 1f / 60f;
 
         /// <summary>SWE 显式格式的 CFL 安全上限（理论 1.0，取保守 0.5）。</summary>
@@ -54,8 +62,12 @@ namespace PirateCrew.WaterLab
         /// <summary>干湿阈值（m）：水深低于此值的格不产生流动（防干湿界振荡；Sandcastle 实测 0.05）。</summary>
         public const float DryDepth = 0.05f;
 
-        /// <summary>速度阻尼（1/s，线性阻力项）。</summary>
-        public const float VelocityDamping = 0.12f;
+        /// <summary>
+        /// 速度阻尼（1/s，线性阻力项）。原作涌浪能横穿 40 m+ 水面到岸（demo 实景），
+        /// 反证其深水有效阻尼 ≲ c·t/λ ≈ 0.05/s；0.12/s 会让 λ40 涌浪一个域宽就衰减到
+        /// 1/3，水底波影先天不可见（第九轮根因之一），压到 0.02。
+        /// </summary>
+        public const float VelocityDamping = 0.02f;
 
         /// <summary>速度限幅（m/s；超限等比缩回，防局部数值尖峰）。</summary>
         public const float MaxVelocity = 8f;
@@ -74,6 +86,17 @@ namespace PirateCrew.WaterLab
         /// <summary>波源带宽度（m，从 -x 域边向内）。注入带内水面高程向目标松弛。</summary>
         public const float WaveBandWidth = 4f;
 
+        /// <summary>
+        /// Shapiro 网格滤波强度（每步 `h -= ε×(h − 4邻均值)`，带外全场）。
+        /// 【为什么必须有】弱阻尼（0.02）+ 深度比例弱松弛下，2 格尺度的棋盘模无人压制
+        /// （旧体系里速度阻尼 0.12 与均匀松弛 0.25 恰好兼职压着它）——η 场长出 ±0.5 m 级
+        /// 逐格锯齿，把破碎判据 |η−邻均值|/h 全场误触发 → 泡沫饱和成白幕、相干长波被
+        /// 散射殆尽（近岸时域波幅 0.010 m，Python 实验室与 GPU 稳态转储双重实证）。
+        /// 【选择性】对 2dx 模衰减 0.84/步（半衰 4 步）；对 λ40 m 长波每秒仅 0.4%；
+        /// 对质量严格零和（偏差全场求和为 0），守恒契约不受影响。
+        /// </summary>
+        public const float GridFilterEps = 0.08f;
+
         /// <summary>松弛系数（1/s）：注入带内 η 与速度向目标值的逼近速率。大到两三步到位、小到不生硬反射。</summary>
         public const float WaveRelaxRate = 6f;
 
@@ -84,8 +107,19 @@ namespace PirateCrew.WaterLab
         /// <summary>潮位呼吸周期（s）。</summary>
         public const float TidePeriod = 9f;
 
-        /// <summary>潮位松弛速率（1/s，全场向潮位目标）：平缓到不抹平行波、又足以驱动岸线进退。</summary>
-        public const float TideRelaxRate = 0.25f;
+        /// <summary>
+        /// 潮位松弛深度系数（1/(s·m)）：带外全场松弛权重 = 此值 × 局部水深 × dt。
+        /// 【逆向结构对齐】原作 UpdateAmount（Water_20632 反汇编）的潮位松弛权重比例于
+        /// 局部水场值（`amount += 水场×(1/15)×间隙`），干处权重为 0 完全不松弛——
+        /// 深水被压平向潮位、浅水架几乎不阻尼，行波得以活着冲上滩。本仓旧实现是全场
+        /// 均匀 0.25/s，对行波等价 14 m 衰减长度（叠加速度阻尼 ~10 m），λ40 涌浪
+        /// 没到岸就被吃光（近岸 η 振幅 ±0.008 m，水底波影调制 <1%，第九轮解析实锤）。
+        /// 系数 0.02 按「WavesType 数值抄不到、按涌浪存活自推」口径取：深水 1.3 m 处
+        /// 松弛 0.026/s，涌浪穿越半域衰减少于两成；浅水 0.2 m 处 0.004/s 近乎自由。
+        /// 代价：潮位呼吸在浅水跟踪率仅 ~4%（近岸岸线呼吸变弱），swash 群性改由
+        /// 涌浪本身承担。
+        /// </summary>
+        public const float TideRelaxDepthRate = 0.02f;
 
         /// <summary>一列入射波：方向、波长、振幅、初相。相速由深水色散关系 ω²=g·k 导出——
         /// 四列波长互质，波峰线永不重合，叠加天然不规律（这正是单正弦「太规律」的解药）。</summary>
