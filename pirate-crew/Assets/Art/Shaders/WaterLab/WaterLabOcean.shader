@@ -30,18 +30,16 @@ Shader "PirateCrew/WaterLab/Ocean"
     {
         // ---- 吸收（Lit/Water PS 同构：exp(-8.65617·σ·真光程)，σ 单位 1/m）----
         _Absorption             ("消光 σ (8.65617 缩放前, 1/m)", Color) = (0.45, 0.14, 0.03, 1.0)
-        _WaterTint              ("水色乘子（cb0[131]）", Color) = (0.96, 0.99, 1.0, 1.0)
-        _ScatterColor           ("掠射散射色（天空蓝）", Color) = (0.30, 0.47, 0.72, 1.0)
+        _WaterTint              ("水色乘子（原作 waterColor 实测）", Color) = (0.9603, 0.9858, 0.9995, 1.0)
+        _ScatterColor           ("散射色（原作 waterScatteringColor 实测暖橙）", Color) = (0.5684, 0.3569, 0.0, 1.0)
 
         // ---- 折射与焦散 ----
         _RefractionFactor       ("折射偏移系数（原作实测 0.0121）", Range(0.0, 0.1)) = 0.0121
-        _CausticStrength        ("水下焦散强度", Range(0.0, 2.0)) = 0.3
-        _CausticScale           ("焦散图案频率 (rad/m)", Range(0.2, 4.0)) = 0.7
+        _CausticGain            ("焦散聚焦增益（η 拉普拉斯系数）", Range(0.0, 8.0)) = 0.2
 
         // ---- 太阳高光（碎金 = 细节法线 × 近镜面瓣）----
         _SunColor               ("太阳色", Color) = (1.0, 0.93, 0.78, 1.0)
         _SpecularPower          ("镜面瓣锐度（原作 1500）", Range(64.0, 4096.0)) = 1500.0
-        _SpecularBroad          ("次级宽瓣强度", Range(0.0, 1.0)) = 0.6
 
         // ---- 泡沫 ----
         _FoamColor              ("泡沫色", Color) = (0.95, 0.97, 0.96, 1.0)
@@ -56,12 +54,12 @@ Shader "PirateCrew/WaterLab/Ocean"
         // ---- 细节法线（必须进 Properties 才能被材质序列化绑定；gray = 平坦）----
         _WaterLabDetailNormal   ("细节法线", 2D) = "gray" {}
 
-        // ---- 解析折射底色的沙色板（与 WaterLab_Sand 同值；改两侧同步）----
-        _RefSandDry             ("折射·干沙色", Color) = (0.92, 0.85, 0.69, 1.0)
-        _RefSandWet             ("折射·湿沙色", Color) = (0.62, 0.50, 0.35, 1.0)
-        _RefSandUnder           ("折射·水下亮沙色", Color) = (0.92, 0.85, 0.66, 1.0)
-        _RefAmbient             ("折射·环境色", Color) = (0.42, 0.50, 0.58, 1.0)
-        _RefSunTint             ("折射·太阳染色", Color) = (1.0, 0.95, 0.85, 1.0)
+        // ---- 解析折射底色的沙色板（原作 Sand 材质实测值；与 WaterLab_Sand 同值，改两侧同步）----
+        _RefSandDry             ("折射·干沙色（sandColor）", Color) = (0.9255, 0.8863, 0.7255, 1.0)
+        _RefSandWet             ("折射·湿沙色（wetSandColor）", Color) = (0.9060, 0.8104, 0.6333, 1.0)
+        _RefSandUnder           ("折射·水下沙色（sandColor2）", Color) = (0.9294, 0.8980, 0.7529, 1.0)
+        _RefAmbient             ("折射·环境色（原作天光平行光实测）", Color) = (0.0627, 0.1333, 0.2196, 1.0)
+        _RefSunTint             ("折射·太阳色（原作太阳平行光实测）", Color) = (1.0, 0.9709, 0.9403, 1.0)
     }
 
     SubShader
@@ -101,11 +99,9 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float3 _WaterTint;
                 float3 _ScatterColor;
                 float  _RefractionFactor;
-                float  _CausticStrength;
-                float  _CausticScale;
+                float  _CausticGain;
                 float3 _SunColor;
                 float  _SpecularPower;
-                float  _SpecularBroad;
                 float3 _FoamColor;
                 float  _FoamStrength;
                 float  _DryClip;
@@ -132,15 +128,21 @@ Shader "PirateCrew/WaterLab/Ocean"
                 return (worldPos.xz - _WaterLabOrigin.xz) / _WaterLabOrigin.y + 0.5;
             }
 
-            // 程序化焦散：两层干涉条纹锐化（原作的焦散来自体素 GI，本仓程序化近似）。
-            float Caustic(float2 p, float t)
+            // 焦散（严格对标原作 Lit_Sand：域内叠加 causticsMap RT，随水场移动）。
+            // 原作 RT 由引擎侧从水场渲染；本仓直接取真实水面的聚焦因子——η 的拉普拉斯
+            // （凹面聚光为亮，凸面发散为暗），图案与浪完全同源、随波移动。采样在折射
+            // 扭曲后的水底点（与解析底色同点），衰减随深度由 Beer–Lambert 自然承担。
+            float SimCaustic(float2 domainUv, float etaCenter)
             {
-                float a = sin(p.x * _CausticScale + t * 1.3) * sin(p.y * _CausticScale * 1.18 - t * 1.1);
-                float b = sin((p.x * 0.7 + p.y) * _CausticScale * 0.83 - t * 0.8)
-                        * sin((p.x - p.y * 0.6) * _CausticScale * 1.29 + t * 1.5);
-                float v = a * 0.6 + b * 0.4;
-                return pow(saturate(v * 0.5 + 0.5), 3.0) * 1.6;
+                float2 texel = 1.0 / _WaterLabOrigin.w;
+                float eL = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, domainUv + float2(-texel.x, 0)).r);
+                float eR = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, domainUv + float2(texel.x, 0)).r);
+                float eD = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, domainUv + float2(0, -texel.y)).r);
+                float eU = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, domainUv + float2(0, texel.y)).r);
+                float lap = (eL + eR + eD + eU) * 0.25 - etaCenter;
+                return saturate(1.0 + _CausticGain * lap);
             }
+
 
             struct Attributes
             {
@@ -243,16 +245,16 @@ Shader "PirateCrew/WaterLab/Ocean"
                 // （水底波影由此而来：波浪经过时折射点水深振荡 → 底色直射光明暗带）
                 float3 floorPosWS = float3(refrXZ.x, groundRefr, refrXZ.y);
                 float floorSh = MainLightRealtimeShadow(TransformWorldToShadowCoord(floorPosWS));
-                float floorColumn = exp(-0.721 * depthRefr);
+                float floorColumn = exp(-0.721348 * depthRefr);
                 float3 bgColor = sandAlbedo * (_RefAmbient.rgb + _RefSunTint.rgb
-                    * saturate(dot(float3(0, 1, 0), sunDir2)) * 1.15 * floorSh * floorColumn);
+                    * saturate(dot(float3(0, 1, 0), sunDir2)) * floorSh * floorColumn);
 
-                // 焦散乘进背景色（只在水浅处可见；原作由体素 GI 提供，本仓程序化近似）。
-                // 【强度压到 0.3】原作沙侧光照无焦散项（Lit_Sand PS 解码实证），本项是自造
-                // 近似；±40% 的自振荡图案会把水底波影带（目标信号）整个盖住——第九轮降档，
-                // 波影可见后若还缺 GI 质感再独立裁决。
-                float caustic = Caustic(refrXZ, t) * exp(-depth * 0.55) * _CausticStrength;
-                bgColor *= 1.0 + caustic;
+                // 焦散叠加（严格对标 Lit_Sand @34958 输出结构：
+                // o0 = albedo×(直射×阴影×水柱 + 天光) + albedo×焦散——加法项、不经阴影，
+                // 原作由引擎侧焦散 RT 提供（材质槽 causticsMap），本仓用真实水面的
+                // η 拉普拉斯聚焦因子现算（凹面亮/凸面暗），图案随波移动同源同频）
+                float etaRefr = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, refrDomainUv).r);
+                bgColor += sandAlbedo * SimCaustic(refrDomainUv, etaRefr);
 
                 // ---- Beer–Lambert（原作 8.65617 字面量缩放；T 只调制底色，不再生成 alpha）
                 float3 T = exp(-8.65617 * _Absorption.rgb * dist) * _WaterTint.rgb;
@@ -265,13 +267,13 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float scatterW = pow(vDotN, 5.0) * shadowSoft * 0.75;
                 float3 col = lerp(baseCol, _ScatterColor.rgb, scatterW);
 
-                // ---- 太阳镜面：双瓣（原作 GGX 宽瓣 + pow1500 尖瓣并存，调研档案 §4.1）。
-                // 尖瓣出孤立碎点；**宽瓣扫亮细节法线的长脊线 = 连绵亮网**——pow96 时代
-                // 脊上只能加 1-4% 亮度（法线摆幅 ±0.26 打不到面），网一直「有形无光」；
-                // pow48×0.6 ≈ GGX 中粗糙度，脊线上 +0.2 亮度、脊下近零（r17→r18 对照）
+                // ---- 太阳镜面：单瓣 pow(NdotH,1500) × 阴影原值（Lit_Water PS 全文只有
+                // 一对 log+exp = 一个 pow，无第二宽瓣/GGX——旧记「GGX 宽瓣」系同一项的
+                // 误读，第十二轮自造的 pow48 宽瓣按严格对标删除）。亮网的观感=原作
+                // 贴图的长连通脊在 pow1500 下的碎金随相机距离在屏面上融合成网
                 float3 h = normalize(viewDir + sunDir);
                 float ndh = saturate(dot(normalWS, h));
-                float spec = pow(ndh, _SpecularPower) + pow(ndh, 48.0) * _SpecularBroad;
+                float spec = pow(ndh, _SpecularPower);
                 col += _SunColor.rgb * spec * sunShadow;
 
                 // ---- 泡沫：只留模拟破碎通道（原作水体 PS 无泡沫项——白水是 Whitewater

@@ -30,10 +30,10 @@ Material:
     - _StrataBandWidth: 0.16
     - _StrataStrength: 0.35
     m_Colors:
-    - _AmbientColor: {r: 0.41999996, g: 0.5, b: 0.58, a: 1}
-    - _DrySandColor: {r: 0.92, g: 0.85, b: 0.69, a: 1}
+    - _AmbientColor: {r: 0.06269998, g: 0.13329998, b: 0.21959996, a: 1}
+    - _DrySandColor: {r: 0.9255, g: 0.8863, b: 0.7255, a: 1}
     - _StrataColor: {r: 0.72, g: 0.61, b: 0.45, a: 1}
-    - _SunTint: {r: 1, g: 0.95, b: 0.85, a: 1}
-    - _UnderwaterSandColor: {r: 0.88, g: 0.8, b: 0.6, a: 1}
-    - _WetSandColor: {r: 0.62, g: 0.5, b: 0.34999996, a: 1}
+    - _SunTint: {r: 1, g: 0.9709, b: 0.9403, a: 1}
+    - _UnderwaterSandColor: {r: 0.9294, g: 0.898, b: 0.7529, a: 1}
+    - _WetSandColor: {r: 0.906, g: 0.8104, b: 0.6333, a: 1}
   m_BuildTextureStacks: []

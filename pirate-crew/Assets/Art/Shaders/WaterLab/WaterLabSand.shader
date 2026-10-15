@@ -17,16 +17,16 @@ Shader "PirateCrew/WaterLab/Sand"
 {
     Properties
     {
-        _DrySandColor       ("干沙色", Color) = (0.92, 0.85, 0.69, 1.0)
-        _WetSandColor       ("湿沙色（深且饱和）", Color) = (0.62, 0.50, 0.35, 1.0)
-        _UnderwaterSandColor ("水下亮沙色（被阳光照亮，透过水体可见）", Color) = (0.88, 0.80, 0.60, 1.0)
+        _DrySandColor       ("干沙色（原作 sandColor 实测）", Color) = (0.9255, 0.8863, 0.7255, 1.0)
+        _WetSandColor       ("湿沙色（原作 wetSandColor 实测）", Color) = (0.9060, 0.8104, 0.6333, 1.0)
+        _UnderwaterSandColor ("水下沙色（原作 sandColor2 实测）", Color) = (0.9294, 0.8980, 0.7529, 1.0)
         _StrataColor        ("层理色（深带）", Color) = (0.72, 0.61, 0.45, 1.0)
         _StrataBandWidth    ("层理带宽（m）", Range(0.05, 0.5)) = 0.16
         _StrataStrength     ("层理强度", Range(0.0, 1.0)) = 0.35
         _RippleStrength     ("沙纹强度", Range(0.0, 1.0)) = 0.08
         _SparkleStrength    ("闪沙强度", Range(0.0, 0.5)) = 0.10
-        _AmbientColor       ("环境色", Color) = (0.42, 0.50, 0.58, 1.0)
-        _SunTint            ("太阳染色", Color) = (1.0, 0.95, 0.85, 1.0)
+        _AmbientColor       ("环境色（原作天光平行光实测）", Color) = (0.0627, 0.1333, 0.2196, 1.0)
+        _SunTint            ("太阳色（原作太阳平行光实测）", Color) = (1.0, 0.9709, 0.9403, 1.0)
     }
 
     SubShader
@@ -153,12 +153,12 @@ Shader "PirateCrew/WaterLab/Sand"
                 //   （原作水面没有 ShadowCaster，blob 只有 2VS+2PS）；天光/环境项不采影不衰减。
                 //   阴影用比较采样原值，无软化（min(sh+0.25,1) 只存在于原作水体 PS 散射项）。
                 float waterDepth = max(eta - ground, 0.0);
-                float column = exp(-0.721 * waterDepth);
+                float column = exp(-0.721348 * waterDepth);
                 float3 sunRaw = _WaterLabSunDir.xyz;
                 float3 sunDir = (dot(sunRaw, sunRaw) < 0.25) ? normalize(float3(-0.525, 0.669, -0.525)) : normalize(sunRaw);
                 float ndl = saturate(dot(n, sunDir));
                 float sh = MainLightRealtimeShadow(TransformWorldToShadowCoord(IN.positionWS));
-                float3 col = albedo * (_AmbientColor + _SunTint * ndl * 1.15 * sh * column);
+                float3 col = albedo * (_AmbientColor + _SunTint * ndl * sh * column);
 
                 return half4(col, 1.0);
             }

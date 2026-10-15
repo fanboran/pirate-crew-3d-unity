@@ -29,23 +29,21 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _CausticScale: 0.7
-    - _CausticStrength: 0.3
+    - _CausticGain: 0.2
     - _DryClip: 0.02
     - _FoamStrength: 1.5
     - _RefractionFactor: 0.0121
     - _RippleStrength: 0.08
-    - _SpecularBroad: 0.6
     - _SpecularPower: 1500
     m_Colors:
     - _Absorption: {r: 0.45, g: 0.13999996, b: 0.03, a: 1}
     - _FoamColor: {r: 0.95, g: 0.96999997, b: 0.96, a: 1}
-    - _RefAmbient: {r: 0.41999996, g: 0.5, b: 0.58, a: 1}
-    - _RefSandDry: {r: 0.92, g: 0.85, b: 0.69, a: 1}
-    - _RefSandUnder: {r: 0.92, g: 0.85, b: 0.65999997, a: 1}
-    - _RefSandWet: {r: 0.62, g: 0.5, b: 0.34999996, a: 1}
-    - _RefSunTint: {r: 1, g: 0.95, b: 0.85, a: 1}
-    - _ScatterColor: {r: 0.29999998, g: 0.4699999, b: 0.72, a: 1}
+    - _RefAmbient: {r: 0.06269998, g: 0.13329998, b: 0.21959996, a: 1}
+    - _RefSandDry: {r: 0.9255, g: 0.8863, b: 0.7255, a: 1}
+    - _RefSandUnder: {r: 0.9294, g: 0.898, b: 0.7529, a: 1}
+    - _RefSandWet: {r: 0.906, g: 0.8104, b: 0.6333, a: 1}
+    - _RefSunTint: {r: 1, g: 0.9709, b: 0.9403, a: 1}
+    - _ScatterColor: {r: 0.5684, g: 0.35689998, b: 0, a: 1}
     - _SunColor: {r: 1, g: 0.93, b: 0.78, a: 1}
-    - _WaterTint: {r: 0.96, g: 0.98999995, b: 1, a: 1}
+    - _WaterTint: {r: 0.9603, g: 0.98579997, b: 0.9995, a: 1}
   m_BuildTextureStacks: []
