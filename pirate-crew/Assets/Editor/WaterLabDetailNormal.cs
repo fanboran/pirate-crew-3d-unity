@@ -5,18 +5,16 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// 实验水体细节法线贴图的程序化生成（WaterNormal2D 的等价物）。
     ///
-    /// 【逆向依据】Sandcastle Lit/Water PS：水面亮脊网 = 细节法线的棱线被**宽瓣**镜面
-    /// 连续点亮（原作 GGX 宽瓣 + pow1500 尖瓣并存；尖瓣只出孤立碎点——同一贴图在
-    /// pow400/p80 两种瓣下的形态对照实证，调研档案 §4.1）。本件只负责贴图；
-    /// 宽瓣能量在 WaterLabSetup（_SpecularBroad=0.10，装配器所有权路径）。
+    /// 【逆向依据】Sandcastle Lit/Water PS：碎金闪点 = pow(NdotH, 1500) 的近镜面瓣，
+    /// 高频法线全部来自 WaterNormal2D（1024²，世界 XZ×0.05 / ×0.2 双尺度采样）。
     ///
-    /// 【生成法（第十二轮终版）】原作贴图本体已抽出实拍（UnityPy，external/sandcastle-ref/）：
-    /// 有机「鹅卵石」胞、胞界成脊、R/G std≈33/27。经四版对照（平滑值噪声→F1−F2
-    /// Voronoi→平滑鼓包核→**域扭曲+脊状 fbm**），只有末版在宽瓣下出原作那种
-    /// **长程蜿蜒的连通亮丝线**（8.2% vs 原作 11.3%，同口径 p80 镜面渲染对照）——
-    /// 长连通脊线正是 ridged multifractal 的标志性形态，域扭曲（fbm 推弯采样坐标）
-    /// 供给有机蜿蜒度。晶格 wrap 天然可平铺；生成后按 R 通道 std 自标定到原作同统计。
-    /// 不拷原作资产，只对齐统计特征与形态。
+    /// 【生成法（第十三轮终版，第十四轮回退定案）】原作贴图本体已抽出实拍
+    /// （UnityPy，external/sandcastle-ref/）：有机「鹅卵石」胞、胞界成脊、
+    /// R/G std≈33/27。候选四版对照：平滑值噪声（孤立碎点）、平滑鼓包核（鹅卵石群）、
+    /// 域扭曲+脊状 fbm（r17-r23 在役——长丝形态对但整片海面皱成「保鲜膜」，
+    /// 创始人实证「R17 开始就不对」）、**F1−F2 Voronoi 有机胞（本版，r13-r16 在役）**——
+    /// 主倍频泊松随机点集（一胞一点的抖动网格拓扑永远是变形方格）、细倍频抖动网格；
+    /// 生成后按 R 通道 std 自标定到原作同统计。不拷原作资产，只对齐统计特征与形态。
     /// </summary>
     public static class WaterLabDetailNormal
     {
@@ -28,25 +26,14 @@ namespace PirateCrew.EditorTools
         /// <summary>生成可平铺细节法线贴图（RG=法线 xy 编码，B=高度，A=1）。</summary>
         public static Texture2D Create()
         {
+            var rand = new System.Random(20261015);
             var height = new float[Size * Size];
+            AccumulateOrganic(height, 6, 0.30f, rand);   // 大胞起伏（成组感）
+            AccumulateOrganic(height, 16, 1.0f, rand);   // 主胞（原作主导尺度 ~64px/1024）
+            AccumulateGrid(height, 23, 0.35f, rand);     // 胞内褶皱（非谐波频率防与主格架成拍）
+            AccumulateGrid(height, 38, 0.15f, rand);     // 细鳞
 
-            // 域扭曲：采样坐标被低频 fbm 推弯 → 脊线长程蜿蜒（不做这一步脊线短促发闷）
-            for (int y = 0; y < Size; y++)
-            {
-                float v = y / (float)Size;
-                for (int x = 0; x < Size; x++)
-                {
-                    float u = x / (float)Size;
-                    float wx = (Fbm(u, v, 3, 3, 11) - 0.5f) * 1.5f;
-                    float wy = (Fbm(u, v, 3, 3, 29) - 0.5f) * 1.5f;
-                    float r1 = Ridged(u + wx, v + wy, 4, 5, 53);
-                    float r2 = Ridged(u + wx, v + wy, 9, 4, 97);
-                    height[y * Size + x] = r1 + r2 * 0.3f;
-                }
-            }
-            BlurWrap(height, 1.5f);
-
-            // 归一化到零均值单位差
+            // 归一化到零均值单位差，中心差分转切线法线
             float mean = 0f;
             for (int i = 0; i < height.Length; i++) mean += height[i];
             mean /= height.Length;
@@ -103,94 +90,59 @@ namespace PirateCrew.EditorTools
             return tex;
         }
 
-        static readonly System.Collections.Generic.Dictionary<long, float[]> LatticeCache
-            = new System.Collections.Generic.Dictionary<long, float[]>();
-
-        /// <summary>晶格随机数表（按 freq+seed 缓存；同一 (freq,seed) 恒定 → 生成可复现）。</summary>
-        static float[] Lattice(int freq, int seed)
+        /// <summary>叠加一层 F1−F2 Voronoi 胞脊高度场（points 为平铺坐标内的点集，
+        /// 距离按 period 周期化取最短，保证可平铺；h=F1−F2 在胞界（F1≈F2）成脊）。</summary>
+        static void AddCellLayer(float[] field, float[] px, float[] py, float period, float amplitude)
         {
-            long key = ((long)freq << 32) ^ (uint)seed;
-            if (LatticeCache.TryGetValue(key, out var cached))
-                return cached;
-            var lat = new float[freq * freq];
-            var rand = new System.Random(seed);
-            for (int i = 0; i < lat.Length; i++)
-                lat[i] = (float)rand.NextDouble();
-            LatticeCache[key] = lat;
-            return lat;
-        }
-
-        static int Mod(int a, int m) => (a % m + m) % m;
-
-        /// <summary>可平铺值噪声（晶格 wrap，任意坐标合法——含域扭曲后的越界坐标）。</summary>
-        static float ValueNoise(float gx, float gy, int freq, int seed)
-        {
-            var lat = Lattice(freq, seed);
-            int x0 = Mod(Mathf.FloorToInt(gx), freq);
-            int y0 = Mod(Mathf.FloorToInt(gy), freq);
-            float tx = gx - Mathf.Floor(gx);
-            float ty = gy - Mathf.Floor(gy);
-            tx = tx * tx * (3f - 2f * tx);
-            ty = ty * ty * (3f - 2f * ty);
-            int x1 = (x0 + 1) % freq;
-            int y1 = (y0 + 1) % freq;
-            return Mathf.Lerp(
-                Mathf.Lerp(lat[y0 * freq + x0], lat[y0 * freq + x1], tx),
-                Mathf.Lerp(lat[y1 * freq + x0], lat[y1 * freq + x1], tx), ty);
-        }
-
-        /// <summary>多倍频值噪声（幅度减半、频率加倍）。</summary>
-        static float Fbm(float u, float v, int freq0, int octaves, int seed)
-        {
-            float h = 0f, amp = 1f, total = 0f;
-            int freq = freq0;
-            for (int o = 0; o < octaves; o++)
-            {
-                h += ValueNoise(u * freq, v * freq, freq, seed + o) * amp;
-                total += amp;
-                amp *= 0.5f;
-                freq *= 2;
-            }
-            return h / total;
-        }
-
-        /// <summary>脊化：1−|2u−1| 把值噪声的等值带折成沿脊线走的长连通结构。</summary>
-        static float Ridged(float u, float v, int freq0, int octaves, int seed)
-        {
-            return 1f - Mathf.Abs(Fbm(u, v, freq0, octaves, seed) * 2f - 1f);
-        }
-
-        /// <summary>可平铺高斯模糊（x/y 两轴分离，圆化脊线让宽瓣沿脊连续点亮）。</summary>
-        static void BlurWrap(float[] field, float sigma)
-        {
-            int r = Mathf.CeilToInt(sigma * 2.5f);
-            var kernel = new float[r * 2 + 1];
-            float sum = 0f;
-            for (int i = -r; i <= r; i++)
-            {
-                float w = Mathf.Exp(-i * i / (2f * sigma * sigma));
-                kernel[i + r] = w;
-                sum += w;
-            }
-            for (int i = 0; i < kernel.Length; i++) kernel[i] /= sum;
-
-            var tmp = new float[field.Length];
             for (int y = 0; y < Size; y++)
+            {
+                float gy = y / (float)Size * period;
                 for (int x = 0; x < Size; x++)
                 {
-                    float acc = 0f;
-                    for (int i = -r; i <= r; i++)
-                        acc += field[y * Size + (x + i & Size - 1)] * kernel[i + r];
-                    tmp[y * Size + x] = acc;
+                    float gx = x / (float)Size * period;
+                    float f1 = float.MaxValue, f2 = float.MaxValue;
+                    for (int i = 0; i < px.Length; i++)
+                    {
+                        float ddx = gx - px[i];
+                        ddx -= Mathf.Round(ddx / period) * period;
+                        float ddy = gy - py[i];
+                        ddy -= Mathf.Round(ddy / period) * period;
+                        float d = ddx * ddx + ddy * ddy;
+                        if (d < f1) { f2 = f1; f1 = d; }
+                        else if (d < f2) { f2 = d; }
+                    }
+                    field[y * Size + x] += (Mathf.Sqrt(f1) - Mathf.Sqrt(f2)) * amplitude;
                 }
-            for (int y = 0; y < Size; y++)
-                for (int x = 0; x < Size; x++)
-                {
-                    float acc = 0f;
-                    for (int i = -r; i <= r; i++)
-                        acc += tmp[(y + i & Size - 1) * Size + x] * kernel[i + r];
-                    field[y * Size + x] = acc;
-                }
+            }
+        }
+
+        /// <summary>泊松随机点集（cellsPerSide² 个均匀点）——有机胞与大小变化的来源。</summary>
+        static void AccumulateOrganic(float[] field, int cellsPerSide, float amplitude, System.Random rand)
+        {
+            int n = cellsPerSide * cellsPerSide;
+            var px = new float[n];
+            var py = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                px[i] = (float)rand.NextDouble() * cellsPerSide;
+                py[i] = (float)rand.NextDouble() * cellsPerSide;
+            }
+            AddCellLayer(field, px, py, cellsPerSide, amplitude);
+        }
+
+        /// <summary>抖动网格点集（一胞一点，抖动可越胞界）——细尺度褶皱用，
+        /// 小尺度上残余格架感不可见。</summary>
+        static void AccumulateGrid(float[] field, int freq, float amplitude, System.Random rand)
+        {
+            int n = freq * freq;
+            var px = new float[n];
+            var py = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                px[i] = (i % freq) + Mathf.Lerp(-0.05f, 1.05f, (float)rand.NextDouble());
+                py[i] = (i / freq) + Mathf.Lerp(-0.05f, 1.05f, (float)rand.NextDouble());
+            }
+            AddCellLayer(field, px, py, freq, amplitude);
         }
     }
 }

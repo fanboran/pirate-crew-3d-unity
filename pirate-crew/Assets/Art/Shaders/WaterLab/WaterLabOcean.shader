@@ -140,7 +140,10 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float eD = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, domainUv + float2(0, -texel.y)).r);
                 float eU = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, domainUv + float2(0, texel.y)).r);
                 float lap = (eL + eR + eD + eU) * 0.25 - etaCenter;
-                return saturate(1.0 + _CausticGain * lap);
+                // 【零基线】焦散是重新分配光线（净量为零）：带符号调制，基线 0——
+                // 曾误写 saturate(1+增益×lap)，基线 1.0 整项入底色＝全场 +100% 反照率
+                // （r19-r23 奶白 wash 真凶，削顶与均值双双实锤）
+                return _CausticGain * lap;
             }
 
 
