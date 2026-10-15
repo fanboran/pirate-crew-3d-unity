@@ -159,18 +159,25 @@ void WaveSource(uint3 id : SV_DispatchThreadID)
         w.x = max(etaNew - g, 0.0);
     }
 
-    // Shapiro 网格滤波（带外）：压 2 格棋盘模（GridFilterEps 注释见上与规则单源）。
-    // 邻域读本步前值——带外每步松弛增量 ~1e-4 量级，同 dispatch 读写竞态的偏差无实质
-    // 影响；带内不滤（造波机强松弛自洽，且实验室按带外口径标定）。
+    // Shapiro 网格滤波（带外）：压 2 格棋盘模，**四阶** x/y 两轴分离施加
+    // （GridFilterEps 注释见规则单源：λ2 与旧二阶同杀、λ4–8 的 bore 陡 front 保留）。
+    // 邻域读本步前值（两轴的 δ⁴ 都按旧场算，Jacobi 式）——带外每步松弛增量 ~1e-4 量级，
+    // 同 dispatch 读写竞态的偏差无实质影响；带内不滤（造波机强松弛自洽，实验室按带外口径标定）。
     if (worldXZ.x >= -_HalfDomain + _WaveBandWidth)
     {
-        int il = (c.x > 0) ? i - 1 : i;
-        int ir = (c.x < _Cells - 1) ? i + 1 : i;
-        int idn = (c.y > 0) ? i - _Cells : i;
-        int iup = (c.y < _Cells - 1) ? i + _Cells : i;
-        float mean4 = (_WaterA[il].x + _WaterA[ir].x + _WaterA[idn].x + _WaterA[iup].x) * 0.25;
-        w.x -= _GridFilterEps * (w.x - mean4);
-        w.x = max(w.x, 0.0);
+        int xm = (c.x > 0) ? i - 1 : i;
+        int xp = (c.x < _Cells - 1) ? i + 1 : i;
+        int x2m = (c.x > 1) ? i - 2 : i;
+        int x2p = (c.x < _Cells - 2) ? i + 2 : i;
+        int ym = (c.y > 0) ? i - _Cells : i;
+        int yp = (c.y < _Cells - 1) ? i + _Cells : i;
+        int y2m = (c.y > 1) ? i - 2 * _Cells : i;
+        int y2p = (c.y < _Cells - 2) ? i + 2 * _Cells : i;
+        float h = w.x;
+        float d4x = _WaterA[x2p].x - 4.0 * _WaterA[xp].x + 6.0 * h - 4.0 * _WaterA[xm].x + _WaterA[x2m].x;
+        float d4y = _WaterA[y2p].x - 4.0 * _WaterA[yp].x + 6.0 * h - 4.0 * _WaterA[ym].x + _WaterA[y2m].x;
+        h -= _GridFilterEps * 0.0625 * (d4x + d4y);
+        w.x = max(h, 0.0);
     }
 
     // z 两侧海绵：速度阻尼（平方曲线），吸收侧向行波
