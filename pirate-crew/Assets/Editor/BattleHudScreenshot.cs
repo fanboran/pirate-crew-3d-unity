@@ -707,6 +707,20 @@ namespace PirateCrew.EditorTools
 
             var final = new Texture2D(width, height, TextureFormat.RGB24, false);
             final.SetPixels32(merged);
+
+            // 【色彩直写缺陷】Linear 工程下 ReadPixels 从 RT 拿到的是 linear 值，EncodeToPNG
+            // 不做 sRGB 编码 → 出图系统性偏暗偏灰（WaterLab 诊断帧实证：shader 输出 linear
+            // 0.70，PNG 字节恰为 178=0.70×255）。PC3D_CAPTURE_SRGB=1 时在此补 linear→sRGB，
+            // 让 PNG 对齐实机观感；默认关闭——历史战斗截图链保持原样。
+            if (System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_SRGB") == "1")
+            {
+                var lut = new byte[256];
+                for (int i = 0; i < 256; i++)
+                    lut[i] = (byte)Mathf.RoundToInt(Mathf.Pow(i / 255f, 1f / 2.2f) * 255f);
+                for (int i = 0; i < merged.Length; i++)
+                    merged[i] = new Color32(lut[merged[i].r], lut[merged[i].g], lut[merged[i].b], 255);
+                final.SetPixels32(merged);
+            }
             final.Apply();
 
             Directory.CreateDirectory(OutputDir);
