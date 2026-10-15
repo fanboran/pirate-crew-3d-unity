@@ -41,7 +41,7 @@ Shader "PirateCrew/WaterLab/Ocean"
         // ---- 太阳高光（碎金 = 细节法线 × 近镜面瓣）----
         _SunColor               ("太阳色", Color) = (1.0, 0.93, 0.78, 1.0)
         _SpecularPower          ("镜面瓣锐度（原作 1500）", Range(64.0, 4096.0)) = 1500.0
-        _SpecularBroad          ("次级宽瓣强度", Range(0.0, 0.5)) = 0.02
+        _SpecularBroad          ("次级宽瓣强度", Range(0.0, 1.0)) = 0.6
 
         // ---- 泡沫 ----
         _FoamColor              ("泡沫色", Color) = (0.95, 0.97, 0.96, 1.0)
@@ -192,16 +192,19 @@ Shader "PirateCrew/WaterLab/Ocean"
                                      float2(-0.6, -0.6), float2(0.6, 0.6));
                 float3 vertexNormal = normalize(float3(slope.x, 1.0, slope.y) * float3(1.5, 1.0, 1.5));
 
-                // 细节法线：双尺度（20m / 5m 平铺）+ 时间×0.8 动画 + 动差混合（原作同参数）
+                // 细节法线：双尺度（20m / 5m 平铺）+ 时间×0.8 双向漂移动画
                 float t1 = t * 0.8;
                 float2 uvA = IN.positionWS.xz * 0.05 + t1 * float2(0.013, -0.011);
                 float2 uvB = IN.positionWS.xz * 0.20 + t1 * float2(-0.017, 0.013);
-                float blend = 0.5 + 0.5 * sin(t * 0.23 + dot(IN.positionWS.xz, float2(0.05, 0.043)));
                 float2 dA = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, uvA).rg * 2.0 - 1.0;
                 float2 dB = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, uvB).rg * 2.0 - 1.0;
-                // 掠射角下高频法线欠采样 → 镜面瓣出粉色摩尔带（实拍实证），随距离淡出
-                float detailFade = saturate(1.0 - (length(IN.positionWS - GetCameraPositionWS()) - 18.0) / 72.0);
-                float2 dn = lerp(dA, dB, blend) * detailFade;
+                // 掠射角下高频法线欠采样 → 镜面瓣出粉色摩尔带（实拍实证），远距淡出；
+                // 贴图自带 mip 链抗欠采样，淡出只兜远端（18-90 档曾把出图相机的网整个
+                // 打折——亮脊网变稀即是此因，r13 实证后外推）
+                float detailFade = saturate(1.0 - (length(IN.positionWS - GetCameraPositionWS()) - 40.0) / 160.0);
+                // 两尺度法线**相加**后归一系数：lerp 会把两套标定梯度各稀释一半
+                // （亮脊网变稀的第二根因）；×0.7071 保持单尺度标定的统计强度
+                float2 dn = (dA + dB) * 0.7071 * detailFade;
                 float3 normalWS = normalize(vertexNormal + float3(dn.x, 0.0, dn.y));
 
                 // viewDir：表面指向相机（vDotN = dot(viewDir, N)，符号千万别反）
@@ -262,11 +265,13 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float scatterW = pow(vDotN, 5.0) * shadowSoft * 0.75;
                 float3 col = lerp(baseCol, _ScatterColor.rgb, scatterW);
 
-                // ---- 太阳镜面（原作 pow(NdotH,1500) 近镜面瓣 + 次级宽瓣 shimmer；
-                // 碎金闪点全部来自细节法线贴图的高频法线；乘阴影原值、不乘菲涅尔）
+                // ---- 太阳镜面：双瓣（原作 GGX 宽瓣 + pow1500 尖瓣并存，调研档案 §4.1）。
+                // 尖瓣出孤立碎点；**宽瓣扫亮细节法线的长脊线 = 连绵亮网**——pow96 时代
+                // 脊上只能加 1-4% 亮度（法线摆幅 ±0.26 打不到面），网一直「有形无光」；
+                // pow48×0.6 ≈ GGX 中粗糙度，脊线上 +0.2 亮度、脊下近零（r17→r18 对照）
                 float3 h = normalize(viewDir + sunDir);
                 float ndh = saturate(dot(normalWS, h));
-                float spec = pow(ndh, _SpecularPower) + pow(ndh, 96.0) * _SpecularBroad;
+                float spec = pow(ndh, _SpecularPower) + pow(ndh, 48.0) * _SpecularBroad;
                 col += _SunColor.rgb * spec * sunShadow;
 
                 // ---- 泡沫：只留模拟破碎通道（原作水体 PS 无泡沫项——白水是 Whitewater

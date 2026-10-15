@@ -199,6 +199,11 @@ namespace PirateCrew.EditorTools
                 AssetDatabase.CreateAsset(detail, detailPath);
             }
             renderer.sharedMaterial.SetTexture("_WaterLabDetailNormal", detail);
+            // 亮脊网 = 宽瓣镜面扫亮细节法线的棱线（逆向档案 §4.1：原作 GGX 高光与
+            // pow1500 尖瓣并存——尖瓣只出孤立碎点，宽瓣才出连绵网；p80/p400 同贴图
+            // 对照实证）。pow48 旧值 96、强度旧值 0.02：脊上只能加 1-4% 亮度，
+            // 网「有形无光」；0.6×pow48 ≈ GGX 中粗糙度，脊线 +0.2 亮度（r17→r18）
+            renderer.sharedMaterial.SetFloat("_SpecularBroad", 0.6f);
         }
 
         static void CreateSimulation()
