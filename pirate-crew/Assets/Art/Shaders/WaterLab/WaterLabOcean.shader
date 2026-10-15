@@ -1,5 +1,5 @@
 // ============================================================================
-// WaterLabOcean.shader —— 实验水体（W2）：URP 前向透明水体。
+// WaterLabOcean.shader —— 实验水体（W2）：URP 前向不透明水体。
 //
 // 【观感目标】Sandcastle 参考图：近岸透亮见沙、碎金波光、浪脊影子。
 //
@@ -16,8 +16,9 @@
 //      的比较采样结果，不乘菲涅尔）；
 //   7. 原作水面不投影（Lit_Water blob 只有 2VS+2PS，无 ShadowCaster）；水底波影在
 //      沙侧由「阴影 × exp(-0.721×水深)」承担（逆向档案 §5），本仓同构。
-//   与原作的机制差异（URP 约束）：原作不透明队列 alpha=水量×100，本仓透明队列
-//   alpha=1−min 透过率——观感等价（见逆向档案 §4.1 覆盖率表）。
+//   队列与原作同构（Geometry+2400、ZWrite On、不透明直出，2026-10-15 创始人拍板）：
+//   水色完全自包含（解析水底×吸收）——「透明度」只是连续颜色项（透过率调制底色
+//   亮度），透明队列的 alpha 混合层（近岸蓝白骤变的根）整类消失。
 //
 // 【教训记录】vDotN = dot(viewDir, N)（viewDir 指向相机），写反 → 菲涅尔恒 1；
 //   细节法线必须是贴图（正弦格架出网格状点阵）；法线 y 增益 ≤1.5。
@@ -49,6 +50,9 @@ Shader "PirateCrew/WaterLab/Ocean"
         // ---- 岸线 ----
         _DryClip                ("干区水深裁剪（m）", Range(0.005, 0.2)) = 0.02
 
+        // ---- 解析水底的沙纹（与 WaterLab_Sand._RippleStrength 同式同值；改两侧同步）----
+        _RippleStrength         ("折射·沙纹强度", Range(0.0, 1.0)) = 0.08
+
         // ---- 细节法线（必须进 Properties 才能被材质序列化绑定；gray = 平坦）----
         _WaterLabDetailNormal   ("细节法线", 2D) = "gray" {}
 
@@ -64,8 +68,8 @@ Shader "PirateCrew/WaterLab/Ocean"
     {
         Tags
         {
-            "RenderType" = "Transparent"
-            "Queue" = "Transparent"
+            "RenderType" = "Opaque"
+            "Queue" = "Geometry+400"
             "RenderPipeline" = "UniversalPipeline"
             "IgnoreProjector" = "True"
         }
@@ -76,8 +80,7 @@ Shader "PirateCrew/WaterLab/Ocean"
             Tags { "LightMode" = "UniversalForward" }
 
             Cull Back
-            ZWrite Off
-            Blend SrcAlpha OneMinusSrcAlpha
+            ZWrite On
 
             HLSLPROGRAM
             #pragma target 3.5
@@ -92,7 +95,6 @@ Shader "PirateCrew/WaterLab/Ocean"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float3 _Absorption;
@@ -107,6 +109,7 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float3 _FoamColor;
                 float  _FoamStrength;
                 float  _DryClip;
+                float  _RippleStrength;
                 float3 _RefSandDry;
                 float3 _RefSandWet;
                 float3 _RefSandUnder;
@@ -225,6 +228,11 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float depthRefr = max(eta - groundRefr, 0.0);
                 float3 sandAlbedo = lerp(_RefSandDry.rgb, _RefSandWet.rgb, wetRefr);
                 sandAlbedo = lerp(sandAlbedo, _RefSandUnder.rgb, saturate(depthRefr * 4.0));
+                // 沙纹（WaterLab_Sand 同式移植）：透明队列时代近岸薄水靠 alpha 漏出真实
+                // 沙网格的沙纹/湿沙带；不透明后这段细节只剩解析底色，不补纹会显平
+                float ripple = sin(refrXZ.x * 1.7 + refrXZ.y * 0.6) * 0.85
+                             + sin(refrXZ.y * 2.3 - refrXZ.x * 0.4) * 0.15;
+                sandAlbedo *= 1.0 + ripple * 0.5 * _RippleStrength;
                 float3 sunRaw2 = _WaterLabSunDir.xyz;
                 float3 sunDir2 = (dot(sunRaw2, sunRaw2) < 0.25) ? normalize(float3(-0.525, 0.669, -0.525)) : normalize(sunRaw2);
                 // 原作的折射底色 = 真实沙网格的渲染纹理（含沙侧光照与阴影）。本仓解析等价：
@@ -243,9 +251,8 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float caustic = Caustic(refrXZ, t) * exp(-depth * 0.55) * _CausticStrength;
                 bgColor *= 1.0 + caustic;
 
-                // ---- Beer–Lambert（原作 8.65617 字面量缩放）
+                // ---- Beer–Lambert（原作 8.65617 字面量缩放；T 只调制底色，不再生成 alpha）
                 float3 T = exp(-8.65617 * _Absorption.rgb * dist) * _WaterTint.rgb;
-                float minT = min(T.r, min(T.g, T.b));
 
                 // ---- 基底与散射混合（原作公式：底 0.9 + 曲率补偿 0.2·NdotV⁶；
                 // 散射权重 = NdotV⁵ × 阴影软化 × 0.75，俯视时水体体色最重）
@@ -271,9 +278,8 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float foam = saturate((field.a + foamA) * 0.5) * _FoamStrength;
                 col = lerp(col, _FoamColor.rgb, foam);
 
-                // 真 alpha 透明（URP 约束；原作不透明队列 alpha=水量×100，观感等价）
-                float alpha = saturate(max(foam, 1.0 - minT));
-                return half4(col, alpha);
+                // 不透明直出（与原作同队列：透明度只是上面的颜色项，alpha 不再生效）
+                return half4(col, 1.0);
             }
             ENDHLSL
         }

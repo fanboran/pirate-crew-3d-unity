@@ -34,6 +34,7 @@ Material:
     - _DryClip: 0.02
     - _FoamStrength: 1.5
     - _RefractionFactor: 0.0121
+    - _RippleStrength: 0.08
     - _SpecularBroad: 0.02
     - _SpecularPower: 1500
     m_Colors:
