@@ -44,6 +44,5 @@ Material:
     - _RefSandWet: {r: 0.906, g: 0.8104, b: 0.6333, a: 1}
     - _RefSunTint: {r: 1, g: 0.9709, b: 0.9403, a: 1}
     - _ScatterColor: {r: 0.5684, g: 0.35689998, b: 0, a: 1}
-    - _SunColor: {r: 1, g: 0.93, b: 0.78, a: 1}
     - _WaterTint: {r: 0.9603, g: 0.98579997, b: 0.9995, a: 1}
   m_BuildTextureStacks: []

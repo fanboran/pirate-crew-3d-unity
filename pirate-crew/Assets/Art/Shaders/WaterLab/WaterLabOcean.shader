@@ -38,7 +38,6 @@ Shader "PirateCrew/WaterLab/Ocean"
         _CausticGain            ("焦散聚焦增益（η 拉普拉斯系数）", Range(0.0, 8.0)) = 0.2
 
         // ---- 太阳高光（碎金 = 细节法线 × 近镜面瓣）----
-        _SunColor               ("太阳色", Color) = (1.0, 0.93, 0.78, 1.0)
         _SpecularPower          ("镜面瓣锐度（原作 1500）", Range(64.0, 4096.0)) = 1500.0
 
         // ---- 泡沫 ----
@@ -100,7 +99,6 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float3 _ScatterColor;
                 float  _RefractionFactor;
                 float  _CausticGain;
-                float3 _SunColor;
                 float  _SpecularPower;
                 float3 _FoamColor;
                 float  _FoamStrength;
@@ -277,7 +275,7 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float3 h = normalize(viewDir + sunDir);
                 float ndh = saturate(dot(normalWS, h));
                 float spec = pow(ndh, _SpecularPower);
-                col += _SunColor.rgb * spec * sunShadow;
+                col += _RefSunTint.rgb * spec * sunShadow;   // 原作太阳平行光实测色（白），镜面与沙面同源
 
                 // ---- 泡沫：只留模拟破碎通道（原作水体 PS 无泡沫项——白水是 Whitewater
                 // 粒子系统（W4 范围），岸线亮带来自湿沙与白水粒子。按深度刷白沫带是
