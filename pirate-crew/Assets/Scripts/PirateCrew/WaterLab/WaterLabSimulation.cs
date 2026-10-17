@@ -12,6 +12,8 @@ namespace PirateCrew.WaterLab
     ///
     /// 【全局发布】本类是这些全局的**唯一发布者**（沿 WaterSimulationDriver 先例）：
     /// <c>_WaterLabHeightTex</c>（R=η G,B=法线xz A=泡沫）、<c>_WaterLabWetTex</c>（R=湿沙）、
+    /// <c>_WaterLabCausticTex</c>（R=焦散拉普拉斯，OutputField 顺带烘焙，渲染侧乘
+    /// _CausticGain——对标原作「焦散 RT 由引擎侧产出、材质只采 causticsMap」的外包分工）、
     /// <c>_WaterLabGroundTex</c>（R=地形高程编码，静态一次上传）、<c>_WaterLabOrigin</c>
     /// （x,z=域中心 y=域边长 w=水格数）、<c>_WaterLabSimEnabled</c>。禁用时清 0 防止渲染
     /// shader 采到冻结纹理。
@@ -29,8 +31,9 @@ namespace PirateCrew.WaterLab
         ComputeBuffer _wetCur, _wetNext;     // float  × 128²
         ComputeBuffer _ground;               // float  × 128²（静态）
 
-        RenderTexture _heightTex;  // 256² ARGB32
+        RenderTexture _heightTex;  // 256²（ARGBHalf，见 NewDataTexture）
         RenderTexture _wetTex;     // 128² ARGB32（R 有效）
+        RenderTexture _causticTex; // 256² ARGBHalf（R=焦散拉普拉斯，带符号；OutputField 顺带烘焙）
         Texture2D _groundTex;      // 128² R8 编码（静态）
 
         float _accumulator;
@@ -88,6 +91,7 @@ namespace PirateCrew.WaterLab
             _ground?.Dispose();
             DestroyTexture(ref _heightTex);
             DestroyTexture(ref _wetTex);
+            DestroyTexture(ref _causticTex);
             if (_groundTex != null)
             {
                 Destroy(_groundTex);
@@ -192,6 +196,7 @@ namespace PirateCrew.WaterLab
                 computeShader.SetBuffer(k, ShaderIds.WetB, _wetNext);
                 computeShader.SetTexture(k, ShaderIds.WetTex, _wetTex);
                 computeShader.SetTexture(k, ShaderIds.HeightTex, _heightTex);
+                computeShader.SetTexture(k, ShaderIds.CausticTex, _causticTex);
             }
         }
 
@@ -249,6 +254,7 @@ namespace PirateCrew.WaterLab
         {
             _heightTex = NewDataTexture(WaterLabRules.WaterCells, "WaterLabHeight");
             _wetTex = NewDataTexture(WaterLabRules.GroundCells, "WaterLabWet");
+            _causticTex = NewDataTexture(WaterLabRules.WaterCells, "WaterLabCaustic");
         }
 
         static RenderTexture NewDataTexture(int size, string name)
@@ -334,6 +340,7 @@ namespace PirateCrew.WaterLab
         {
             Shader.SetGlobalTexture(ShaderIds.HeightTex, _heightTex);
             Shader.SetGlobalTexture(ShaderIds.WetTex, _wetTex);
+            Shader.SetGlobalTexture(ShaderIds.CausticTex, _causticTex);
             Shader.SetGlobalTexture(ShaderIds.GroundTex, _groundTex);
             // 域中心固定在原点（场景装配约定），发布一次即可。
             // 【约定】shader 端 WorldToDomainUv 读 .xz 当中心、.y 当域边长——
@@ -370,6 +377,7 @@ namespace PirateCrew.WaterLab
             public static readonly int Ground = Shader.PropertyToID("_Ground");
             public static readonly int HeightTex = Shader.PropertyToID("_WaterLabHeightTex");
             public static readonly int WetTex = Shader.PropertyToID("_WaterLabWetTex");
+            public static readonly int CausticTex = Shader.PropertyToID("_WaterLabCausticTex");
             public static readonly int GroundTex = Shader.PropertyToID("_WaterLabGroundTex");
             public static readonly int Origin = Shader.PropertyToID("_WaterLabOrigin");
             public static readonly int SunDir = Shader.PropertyToID("_WaterLabSunDir");

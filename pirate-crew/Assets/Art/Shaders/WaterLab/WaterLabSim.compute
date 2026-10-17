@@ -11,6 +11,10 @@
 //   AdvectFoam        A→B（泡沫回溯/生成/衰减/扩散，读 4 邻）
 //   WetnessStep       C→D（湿沙浸润/蒸发/扩散，读 4 邻，地形分辨率）
 //   OutputField       读 B，写 _WaterLabHeightTex（水场输出，水分辨率）
+//                     同 kernel 顺带写 _WaterLabCausticTex（焦散烘焙：η 四邻均值−中心
+//                     的带符号拉普拉斯——邻域本就为法线算好，零额外采样；增益留在
+//                     渲染材质侧 _CausticGain，RT 只存物理量。对标原作「焦散由引擎
+//                     侧渲 RT、材质只采 causticsMap」的外包分工）
 // 帧末最新水场在 B、最新湿沙在 D；下一帧驱动侧把 (B,D) 当输入 (A,C)。
 // 本文件不写任何数值常量的默认值——全部由 C# 侧按 WaterLabRules 下发（防双源漂移）。
 
@@ -27,6 +31,7 @@ StructuredBuffer<float> _Ground;      // 地形高程（世界 Y），128²，�
 RWStructuredBuffer<float> _WetA;      // 湿沙 [0,1]，128²
 RWStructuredBuffer<float> _WetB;
 RWTexture2D<float4> _WaterLabHeightTex; // 输出：R=η(编码) G,B=法线xz(编码) A=泡沫（与渲染 shader 全局同名）
+RWTexture2D<float4> _WaterLabCausticTex; // 输出：R=焦散拉普拉斯（带符号，凹聚正/凸散负；与渲染 shader 全局同名）
 RWTexture2D<float> _WaterLabWetTex;     // 输出：R=湿沙（与渲染 shader 全局同名）
 
 // ---- C# 下发常量（名字与 WaterLabRules 对齐）----
@@ -390,4 +395,10 @@ void OutputField(uint3 id : SV_DispatchThreadID)
         saturate(-dx * invLen * 0.5 + 0.5),
         saturate(-dz * invLen * 0.5 + 0.5),
         saturate(w.w));
+
+    // 焦散烘焙：拉普拉斯 = 四邻 η 均值 − 中心（凹面聚光为正、凸面发散为负——
+    // 重新分配光线、净量为零，基线必须 0）。原逐像素 5 采样现算整体撤出渲染
+    // shader，换 1 次本 RT 采样；增益在材质侧 _CausticGain。
+    float lap = (etaL + etaR + etaD + etaU) * 0.25 - eta;
+    _WaterLabCausticTex[c] = float4(lap, 0.0, 0.0, 1.0);
 }

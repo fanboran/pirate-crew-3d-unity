@@ -115,6 +115,7 @@ Shader "PirateCrew/WaterLab/Ocean"
             float4 _WaterLabSunDir;
             float  _WaterLabSimEnabled;
             TEXTURE2D(_WaterLabHeightTex); SAMPLER(sampler_WaterLabHeightTex);
+            TEXTURE2D(_WaterLabCausticTex); SAMPLER(sampler_WaterLabCausticTex);
             TEXTURE2D(_WaterLabGroundTex); SAMPLER(sampler_WaterLabGroundTex);
             TEXTURE2D(_WaterLabWetTex);    SAMPLER(sampler_WaterLabWetTex);
             TEXTURE2D(_WaterLabDetailNormal); SAMPLER(sampler_WaterLabDetailNormal);
@@ -126,22 +127,16 @@ Shader "PirateCrew/WaterLab/Ocean"
                 return (worldPos.xz - _WaterLabOrigin.xz) / _WaterLabOrigin.y + 0.5;
             }
 
-            // 焦散（严格对标原作 Lit_Sand：域内叠加 causticsMap RT，随水场移动）。
-            // 原作 RT 由引擎侧从水场渲染；本仓直接取真实水面的聚焦因子——η 的拉普拉斯
-            // （凹面聚光为亮，凸面发散为暗），图案与浪完全同源、随波移动。采样在折射
-            // 扭曲后的水底点（与解析底色同点），衰减随深度由 Beer–Lambert 自然承担。
-            float SimCaustic(float2 domainUv, float etaCenter)
+            // 焦散（严格对标原作 Lit_Sand：域内叠加 causticsMap RT，随水场移动；
+            // RT 由引擎侧产出——本仓由模拟侧 OutputField 每 SimStep 从 η 场烘焙，
+            //第十五轮重外包：逐像素 5 采样现算撤出渲染 shader，换 1 次该 RT 采样）。
+            // RT 值 = η 四邻均值−中心的带符号拉普拉斯（凹面聚光为正、凸面发散为负）。
+            // 【零基线】焦散是重新分配光线（净量为零）：带符号调制，基线 0——
+            // 曾误写 saturate(1+增益×lap)，基线 1.0 整项入底色＝全场 +100% 反照率
+            //（r19-r23 奶白 wash 真凶，削顶与均值双双实锤）。增益留在材质侧。
+            float SimCaustic(float2 domainUv)
             {
-                float2 texel = 1.0 / _WaterLabOrigin.w;
-                float eL = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, domainUv + float2(-texel.x, 0)).r);
-                float eR = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, domainUv + float2(texel.x, 0)).r);
-                float eD = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, domainUv + float2(0, -texel.y)).r);
-                float eU = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, domainUv + float2(0, texel.y)).r);
-                float lap = (eL + eR + eD + eU) * 0.25 - etaCenter;
-                // 【零基线】焦散是重新分配光线（净量为零）：带符号调制，基线 0——
-                // 曾误写 saturate(1+增益×lap)，基线 1.0 整项入底色＝全场 +100% 反照率
-                // （r19-r23 奶白 wash 真凶，削顶与均值双双实锤）
-                return _CausticGain * lap;
+                return SAMPLE_TEXTURE2D(_WaterLabCausticTex, sampler_WaterLabCausticTex, domainUv).r * _CausticGain;
             }
 
 
@@ -252,10 +247,9 @@ Shader "PirateCrew/WaterLab/Ocean"
 
                 // 焦散叠加（严格对标 Lit_Sand @34958 输出结构：
                 // o0 = albedo×(直射×阴影×水柱 + 天光) + albedo×焦散——加法项、不经阴影，
-                // 原作由引擎侧焦散 RT 提供（材质槽 causticsMap），本仓用真实水面的
-                // η 拉普拉斯聚焦因子现算（凹面亮/凸面暗），图案随波移动同源同频）
-                float etaRefr = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, refrDomainUv).r);
-                bgColor += sandAlbedo * SimCaustic(refrDomainUv, etaRefr);
+                // 原作由引擎侧焦散 RT 提供（材质槽 causticsMap），本仓由模拟侧 OutputField
+                // 烘焙同源 RT（η 拉普拉斯聚焦因子，凹面亮/凸面暗），图案随波移动同源同频）
+                bgColor += sandAlbedo * SimCaustic(refrDomainUv);
 
                 // ---- Beer–Lambert（原作 8.65617 字面量缩放；T 只调制底色，不再生成 alpha）
                 float3 T = exp(-8.65617 * _Absorption.rgb * dist) * _WaterTint.rgb;
