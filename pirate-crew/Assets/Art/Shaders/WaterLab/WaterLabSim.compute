@@ -15,6 +15,11 @@
 //                     的带符号拉普拉斯——邻域本就为法线算好，零额外采样；增益留在
 //                     渲染材质侧 _CausticGain，RT 只存物理量。对标原作「焦散由引擎
 //                     侧渲 RT、材质只采 causticsMap」的外包分工）
+//   WhitewaterBegin   清活粒子计数（1 线程）
+//   WhitewaterSpawn   读 B 泡沫，超阈值按概率写粒子缓冲环（环游标跨步连续）
+//   WhitewaterUpdate  粒子平流+贴水面弹簧+寿命衰减（64 线程/组，容量域）
+//   WhitewaterCompact 活粒子槽位写 drawList（InterlockedAdd 产出紧凑列表）
+//   WhitewaterEnd     写 DrawProceduralIndirect args (6, count, 0, 0)（1 线程）
 // 帧末最新水场在 B、最新湿沙在 D；下一帧驱动侧把 (B,D) 当输入 (A,C)。
 // 本文件不写任何数值常量的默认值——全部由 C# 侧按 WaterLabRules 下发（防双源漂移）。
 
@@ -24,6 +29,11 @@
 #pragma kernel AdvectFoam
 #pragma kernel WetnessStep
 #pragma kernel OutputField
+#pragma kernel WhitewaterBegin
+#pragma kernel WhitewaterSpawn
+#pragma kernel WhitewaterUpdate
+#pragma kernel WhitewaterCompact
+#pragma kernel WhitewaterEnd
 
 RWStructuredBuffer<float4> _WaterA;   // x=h(水深) y=vx z=vz w=foam，256²
 RWStructuredBuffer<float4> _WaterB;
@@ -33,6 +43,13 @@ RWStructuredBuffer<float> _WetB;
 RWTexture2D<float4> _WaterLabHeightTex; // 输出：R=η(编码) G,B=法线xz(编码) A=泡沫（与渲染 shader 全局同名）
 RWTexture2D<float4> _WaterLabCausticTex; // 输出：R=焦散拉普拉斯（带符号，凹聚正/凸散负；与渲染 shader 全局同名）
 RWTexture2D<float> _WaterLabWetTex;     // 输出：R=湿沙（与渲染 shader 全局同名）
+
+// 白水粒子（W4，对标 Whitewater：泡沫场实例化，Compact 写 drawList、End 写 drawArgs）
+RWStructuredBuffer<float4> _WWPos;   // xyz=世界坐标 w=寿命 [0,1]，容量 _WwCapacity（缓冲环）
+RWStructuredBuffer<float4> _WWVel;   // xyz=速度 w=基准尺寸 (m)
+RWStructuredBuffer<uint> _WWDraw;    // draw list：活粒子槽位（Compact 产出，渲染侧按实例号查）
+RWStructuredBuffer<uint> _WWAlive;   // [0]=本步活粒子计数（Begin 清零）[1]=缓冲环写游标（跨步连续）
+RWStructuredBuffer<uint> _WWArgs;    // DrawProceduralIndirect 参数 (6, count, 0, 0)
 
 // ---- C# 下发常量（名字与 WaterLabRules 对齐）----
 int _Cells;              // 水域每轴格数 (256)
@@ -75,6 +92,12 @@ float _WetDiffuse;
 
 int _SpongeCells;
 float _SpongeMaxDamping;
+
+int _WwCapacity;            // 粒子池容量（32768，WaterLabRules.WhitewaterCapacity）
+float _WwLifetime;          // 粒子寿命 (s)
+float _WwSpawnThreshold;    // 生成阈值（泡沫浓度）
+float _WwSpawnRate;         // 生成产率系数（1/s）
+float _WwSize;              // 粒子基准尺寸 (m)
 
 // ---- 共用采样 ----
 
@@ -401,4 +424,85 @@ void OutputField(uint3 id : SV_DispatchThreadID)
     // shader，换 1 次本 RT 采样；增益在材质侧 _CausticGain。
     float lap = (etaL + etaR + etaD + etaU) * 0.25 - eta;
     _WaterLabCausticTex[c] = float4(lap, 0.0, 0.0, 1.0);
+}
+
+// ---- kernel：白水粒子（W4，对标 Whitewater：泡沫场实例化粒子，
+//      Compact 写 drawList、End 写 drawArgs——原作 Update→Culling 同构）----
+
+// 帧首：清活粒子计数（写游标 [1] 不清——缓冲环跨步连续回卷覆盖最老粒子）
+[numthreads(1, 1, 1)]
+void WhitewaterBegin(uint3 id : SV_DispatchThreadID)
+{
+    _WWAlive[0] = 0;
+}
+
+// 泡沫场驱动生成：浓度超阈值的格按概率取环槽写入（读 B——AdvectFoam 后的最新泡沫）
+[numthreads(8, 8, 1)]
+void WhitewaterSpawn(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Cells || id.y >= (uint)_Cells) return;
+    int2 c = int2(id.x, id.y);
+    int i = c.x + c.y * _Cells;
+    float foam = _WaterB[i].w;
+    if (foam < _WwSpawnThreshold) return;
+
+    // 两路哈希随机：r1 生成判定、r2 个体尺寸/位置抖动（无硬件 RNG，格号+时间混合）
+    float r1 = frac(sin(i * 12.9898 + _Time * 91.7) * 43758.5453);
+    float r2 = frac(sin(i * 78.233 - _Time * 57.3) * 24634.6345);
+    float rate = (foam - _WwSpawnThreshold) * _WwSpawnRate * _Dt;
+    if (r1 > rate) return;
+
+    uint cursor;
+    InterlockedAdd(_WWAlive[1], 1, cursor);
+    uint slot = cursor % (uint)_WwCapacity;
+    float2 jitter = (float2(r1, r2) * 2.0 - 1.0) * _CellSize;
+    float2 worldXZ = -_HalfDomain + (c + 0.5) * _CellSize + jitter;
+    float eta = SampleGround(c + 0.5) + _WaterB[i].x;
+    _WWPos[slot] = float4(worldXZ.x, eta + 0.05, worldXZ.y, 1.0);
+    _WWVel[slot] = float4(_WaterB[i].y * 0.6, 0.3, _WaterB[i].z * 0.6, _WwSize * (0.6 + 0.8 * r2));
+}
+
+// 积分：随速度场平流 + 弹簧贴水面（浮力近似）+ 寿命衰减；死粒子 w=0 留在环里等覆盖
+[numthreads(64, 1, 1)]
+void WhitewaterUpdate(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_WwCapacity) return;
+    float4 p = _WWPos[id.x];
+    if (p.w <= 0.0) return;
+    float4 v = _WWVel[id.x];
+
+    // 世界坐标反查最近水格（不双线性——粒子视觉尺寸远大于半格误差）
+    float2 cellF = (p.xz + _HalfDomain) / _CellSize - 0.5;
+    int2 c = int2(clamp(round(cellF), float2(0.0, 0.0), float2(_Cells - 1, _Cells - 1)));
+    float eta = SampleGround(c + 0.5) + _WaterB[c.x + c.y * _Cells].x;
+
+    float damp = exp(-1.6 * _Dt);
+    v.xyz *= damp;
+    v.y += (eta + 0.04 - p.y) * 12.0 * _Dt;
+    p.xyz += v.xyz * _Dt;
+    p.w -= _Dt / _WwLifetime;
+    _WWVel[id.x] = v;
+    _WWPos[id.x] = float4(p.xyz, max(p.w, 0.0));
+}
+
+// 压缩：活粒子槽位写入 draw list（对标原作 Culling kernel 的 drawList；
+// 粒子全在 64 m 域内且随相机取景，不做逐粒视锥剔除）
+[numthreads(64, 1, 1)]
+void WhitewaterCompact(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_WwCapacity) return;
+    if (_WWPos[id.x].w <= 0.0) return;
+    uint j;
+    InterlockedAdd(_WWAlive[0], 1, j);
+    _WWDraw[j] = id.x;
+}
+
+// 帧尾：写 DrawProceduralIndirect 参数（顶点数/实例数/起始顶点/起始实例）
+[numthreads(1, 1, 1)]
+void WhitewaterEnd(uint3 id : SV_DispatchThreadID)
+{
+    _WWArgs[0] = 6;
+    _WWArgs[1] = min(_WWAlive[0], (uint)_WwCapacity);
+    _WWArgs[2] = 0;
+    _WWArgs[3] = 0;
 }

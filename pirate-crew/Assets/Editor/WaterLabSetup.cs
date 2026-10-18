@@ -1,9 +1,12 @@
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using PirateCrew.Core;
+using PirateCrew.Rendering;
 using PirateCrew.WaterLab;
+using UnityEngine.Rendering.Universal;
 
 namespace PirateCrew.EditorTools
 {
@@ -22,6 +25,7 @@ namespace PirateCrew.EditorTools
     {
         const string ShaderPathOcean = "Assets/Art/Shaders/WaterLab/WaterLabOcean.shader";
         const string ShaderPathSand = "Assets/Art/Shaders/WaterLab/WaterLabSand.shader";
+        const string ShaderPathWhitewater = "Assets/Art/Shaders/WaterLab/WaterLabWhitewater.shader";
         const string ComputePath = "Assets/Art/Shaders/WaterLab/WaterLabSim.compute";
         const string MaterialFolder = "Assets/Art/Materials/WaterLab";
 
@@ -46,6 +50,7 @@ namespace PirateCrew.EditorTools
             CreateTerrain();
             CreateWaterSurface();
             CreateSimulation();
+            EnsureWhitewaterFeature();
             _ = camera; // 取景只影响保存时的默认视角，Play 沿用
 
             Directory.CreateDirectory("Assets/Scenes/Lab");
@@ -199,11 +204,6 @@ namespace PirateCrew.EditorTools
                 AssetDatabase.CreateAsset(detail, detailPath);
             }
             renderer.sharedMaterial.SetTexture("_WaterLabDetailNormal", detail);
-            // 亮脊网 = 宽瓣镜面扫亮细节法线的棱线（逆向档案 §4.1：原作 GGX 高光与
-            // pow1500 尖瓣并存——尖瓣只出孤立碎点，宽瓣才出连绵网；p80/p400 同贴图
-            // 对照实证）。pow48 旧值 96、强度旧值 0.02：脊上只能加 1-4% 亮度，
-            // 网「有形无光」；0.6×pow48 ≈ GGX 中粗糙度，脊线 +0.2 亮度（r17→r18）
-            renderer.sharedMaterial.SetFloat("_SpecularBroad", 0.6f);
         }
 
         static void CreateSimulation()
@@ -213,6 +213,63 @@ namespace PirateCrew.EditorTools
             sim.computeShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(ComputePath);
             if (sim.computeShader == null)
                 Debug.LogError($"[WaterLabSetup] 找不到 compute：{ComputePath}（检查文件是否入库/被导入）");
+        }
+
+        /// <summary>白水出画 Feature 幂等注入现役渲染器资产（Balanced+Performant，
+        /// WaterLab 取景跟随质量档）。实例以子资产形式存进 .asset（URP 惯例），
+        /// 清单/映射同步补位；白水材质随注（已有实例缺材质也补）。</summary>
+        static void EnsureWhitewaterFeature()
+        {
+            foreach (var path in new[]
+            {
+                "Assets/Settings/URP/PC_Balanced_Renderer.asset",
+                "Assets/Settings/URP/PC_Performant_Renderer.asset",
+            })
+            {
+                var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(path);
+                if (data == null)
+                {
+                    Debug.LogError($"[WaterLabSetup] 找不到渲染器资产：{path}");
+                    continue;
+                }
+
+                bool found = false;
+                foreach (var existing in data.rendererFeatures.OfType<WaterLabRefractionFeature>())
+                {
+                    found = true;
+                    // 材质后到：已有 Feature 但没挂白水材质（如早前轮次注入的）也补上
+                    if (existing.WhitewaterMaterial == null)
+                    {
+                        existing.WhitewaterMaterial = LoadOrCreateMaterial("WaterLab_Whitewater", ShaderPathWhitewater);
+                        EditorUtility.SetDirty(existing);
+                    }
+                }
+
+                if (found)
+                    continue;
+
+                var feature = ScriptableObject.CreateInstance<WaterLabRefractionFeature>();
+                feature.name = "WaterLabRefraction";
+                feature.WhitewaterMaterial = LoadOrCreateMaterial("WaterLab_Whitewater", ShaderPathWhitewater);
+                AssetDatabase.AddObjectToAsset(feature, data);
+                AssetDatabase.ImportAsset(path); // 子资产登记后才有 localId（map 语义 = localId）
+
+                var so = new SerializedObject(data);
+                var list = so.FindProperty("m_RendererFeatures");
+                int idx = list.arraySize;
+                list.InsertArrayElementAtIndex(idx);
+                list.GetArrayElementAtIndex(idx).objectReferenceValue = feature;
+                var map = so.FindProperty("m_RendererFeatureMap");
+                map.arraySize++;
+                map.GetArrayElementAtIndex(map.arraySize - 1).longValue =
+                    AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out _, out long localId)
+                        ? localId : 0;
+                so.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(data);
+                Debug.Log($"[WaterLabSetup] 已挂真折射 Feature：{path}");
+            }
+
+            AssetDatabase.SaveAssets();
         }
 
         static Material LoadOrCreateMaterial(string name, string shaderPath)

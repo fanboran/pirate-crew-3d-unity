@@ -1,4 +1,5 @@
 using UnityEngine;
+using PirateCrew.Rendering;
 
 namespace PirateCrew.WaterLab
 {
@@ -26,10 +27,14 @@ namespace PirateCrew.WaterLab
 
         // kernel 句柄
         int _kWaveSource, _kHeight, _kVelocity, _kAdvectFoam, _kWetness, _kOutput;
+        int _kWWBegin, _kWWSpawn, _kWWUpdate, _kWWCompact, _kWWEnd;
 
         ComputeBuffer _waterCur, _waterNext; // float4: h,vx,vz,foam × 256²
         ComputeBuffer _wetCur, _wetNext;     // float  × 128²
         ComputeBuffer _ground;               // float  × 128²（静态）
+        ComputeBuffer _wwPos, _wwVel;        // float4 × 容量（白水粒子池，缓冲环）
+        ComputeBuffer _wwDraw;               // uint   × 容量（活粒子 draw list）
+        ComputeBuffer _wwAlive, _wwArgs;     // uint ×2（计数/游标）、uint ×4（indirect args）
 
         RenderTexture _heightTex;  // 256²（ARGBHalf，见 NewDataTexture）
         RenderTexture _wetTex;     // 128² ARGB32（R 有效）
@@ -78,6 +83,11 @@ namespace PirateCrew.WaterLab
             _kAdvectFoam = computeShader.FindKernel("AdvectFoam");
             _kWetness = computeShader.FindKernel("WetnessStep");
             _kOutput = computeShader.FindKernel("OutputField");
+            _kWWBegin = computeShader.FindKernel("WhitewaterBegin");
+            _kWWSpawn = computeShader.FindKernel("WhitewaterSpawn");
+            _kWWUpdate = computeShader.FindKernel("WhitewaterUpdate");
+            _kWWCompact = computeShader.FindKernel("WhitewaterCompact");
+            _kWWEnd = computeShader.FindKernel("WhitewaterEnd");
 
             CreateBuffers();
             CreateTextures();
@@ -89,6 +99,9 @@ namespace PirateCrew.WaterLab
             _waterCur?.Dispose(); _waterNext?.Dispose();
             _wetCur?.Dispose(); _wetNext?.Dispose();
             _ground?.Dispose();
+            _wwPos?.Dispose(); _wwVel?.Dispose();
+            _wwDraw?.Dispose(); _wwAlive?.Dispose(); _wwArgs?.Dispose();
+            WaterLabWhitewaterBridge.Clear();
             DestroyTexture(ref _heightTex);
             DestroyTexture(ref _wetTex);
             DestroyTexture(ref _causticTex);
@@ -168,11 +181,18 @@ namespace PirateCrew.WaterLab
             int groundGroups = WaterLabRules.GroundCells / 8;
 
             // WaveSource(原地写 A) → Height(A→B) → Velocity(B→A) → AdvectFoam(A→B)
+            // → 白水（Begin→Spawn(读B泡沫)→Update→Compact→End）
             // → Wetness(C→D，读最新水场 B) → Output(读 B)
             computeShader.Dispatch(_kWaveSource, waterGroups, waterGroups, 1);
             computeShader.Dispatch(_kHeight, waterGroups, waterGroups, 1);
             computeShader.Dispatch(_kVelocity, waterGroups, waterGroups, 1);
             computeShader.Dispatch(_kAdvectFoam, waterGroups, waterGroups, 1);
+            int wwGroups = WaterLabRules.WhitewaterCapacity / 64;
+            computeShader.Dispatch(_kWWBegin, 1, 1, 1);
+            computeShader.Dispatch(_kWWSpawn, waterGroups, waterGroups, 1);
+            computeShader.Dispatch(_kWWUpdate, wwGroups, 1, 1);
+            computeShader.Dispatch(_kWWCompact, wwGroups, 1, 1);
+            computeShader.Dispatch(_kWWEnd, 1, 1, 1);
             computeShader.Dispatch(_kWetness, groundGroups, groundGroups, 1);
             computeShader.Dispatch(_kOutput, waterGroups, waterGroups, 1);
 
@@ -187,7 +207,8 @@ namespace PirateCrew.WaterLab
         /// 逐个绑齐，消除 kernel 级「Property not set」警告的全部空间。</summary>
         void BindAll()
         {
-            foreach (int k in new[] { _kWaveSource, _kHeight, _kVelocity, _kAdvectFoam, _kWetness, _kOutput })
+            foreach (int k in new[] { _kWaveSource, _kHeight, _kVelocity, _kAdvectFoam, _kWetness, _kOutput,
+                     _kWWBegin, _kWWSpawn, _kWWUpdate, _kWWCompact, _kWWEnd })
             {
                 computeShader.SetBuffer(k, ShaderIds.WaterA, _waterCur);
                 computeShader.SetBuffer(k, ShaderIds.WaterB, _waterNext);
@@ -197,6 +218,11 @@ namespace PirateCrew.WaterLab
                 computeShader.SetTexture(k, ShaderIds.WetTex, _wetTex);
                 computeShader.SetTexture(k, ShaderIds.HeightTex, _heightTex);
                 computeShader.SetTexture(k, ShaderIds.CausticTex, _causticTex);
+                computeShader.SetBuffer(k, ShaderIds.WWPos, _wwPos);
+                computeShader.SetBuffer(k, ShaderIds.WWVel, _wwVel);
+                computeShader.SetBuffer(k, ShaderIds.WWDraw, _wwDraw);
+                computeShader.SetBuffer(k, ShaderIds.WWAlive, _wwAlive);
+                computeShader.SetBuffer(k, ShaderIds.WWArgs, _wwArgs);
             }
         }
 
@@ -210,6 +236,11 @@ namespace PirateCrew.WaterLab
             _wetCur = new ComputeBuffer(groundCount, 4);
             _wetNext = new ComputeBuffer(groundCount, 4);
             _ground = new ComputeBuffer(groundCount, 4);
+            _wwPos = new ComputeBuffer(WaterLabRules.WhitewaterCapacity, 16);
+            _wwVel = new ComputeBuffer(WaterLabRules.WhitewaterCapacity, 16);
+            _wwDraw = new ComputeBuffer(WaterLabRules.WhitewaterCapacity, 4);
+            _wwAlive = new ComputeBuffer(2, 4);
+            _wwArgs = new ComputeBuffer(4, 4, ComputeBufferType.IndirectArguments);
 
             // 初始水场：静水面（h = SeaLevel - ground，干处 0）；泡沫 0
             var waterInit = new Vector4[waterCount];
@@ -238,6 +269,8 @@ namespace PirateCrew.WaterLab
             _waterCur.SetData(waterInit);
             _waterNext.SetData(waterInit);
             _ground.SetData(groundData);
+            // 粒子池零初始化（寿命 0 = 全死；ComputeBuffer 内容不保证清零）
+            _wwPos.SetData(new Vector4[WaterLabRules.WhitewaterCapacity]);
 
             // 地形静态纹理（渲染 shader 采样：R=高程编码 [-3,2]→[0,1]，与 OutputField 同式）
             _groundTex = new Texture2D(WaterLabRules.GroundCells, WaterLabRules.GroundCells,
@@ -317,6 +350,11 @@ namespace PirateCrew.WaterLab
             cs.SetFloat(ShaderIds.WetDiffuse, WaterLabRules.WetnessDiffuse);
             cs.SetInt(ShaderIds.SpongeCells, WaterLabRules.SpongeCells);
             cs.SetFloat(ShaderIds.SpongeMaxDamping, WaterLabRules.SpongeMaxDamping);
+            cs.SetInt(ShaderIds.WWCapacity, WaterLabRules.WhitewaterCapacity);
+            cs.SetFloat(ShaderIds.WWLifetime, WaterLabRules.WhitewaterLifetime);
+            cs.SetFloat(ShaderIds.WWSpawnThreshold, WaterLabRules.WhitewaterSpawnThreshold);
+            cs.SetFloat(ShaderIds.WWSpawnRate, WaterLabRules.WhitewaterSpawnRate);
+            cs.SetFloat(ShaderIds.WWSize, WaterLabRules.WhitewaterSize);
         }
 
         // 波列常量数组（PushConstants 每步复用，避免逐帧分配）
@@ -350,6 +388,7 @@ namespace PirateCrew.WaterLab
             Shader.SetGlobalVector(ShaderIds.Origin, new Vector4(
                 0f, WaterLabRules.DomainSize, 0f, WaterLabRules.WaterCells));
             Shader.SetGlobalFloat(ShaderIds.SimEnabled, 1f);
+            WaterLabWhitewaterBridge.Publish(_wwPos, _wwVel, _wwDraw, _wwArgs);
             PublishSunDir();
         }
 
@@ -412,6 +451,17 @@ namespace PirateCrew.WaterLab
             public static readonly int WetDiffuse = Shader.PropertyToID("_WetDiffuse");
             public static readonly int SpongeCells = Shader.PropertyToID("_SpongeCells");
             public static readonly int SpongeMaxDamping = Shader.PropertyToID("_SpongeMaxDamping");
+
+            public static readonly int WWPos = Shader.PropertyToID("_WWPos");
+            public static readonly int WWVel = Shader.PropertyToID("_WWVel");
+            public static readonly int WWDraw = Shader.PropertyToID("_WWDraw");
+            public static readonly int WWAlive = Shader.PropertyToID("_WWAlive");
+            public static readonly int WWArgs = Shader.PropertyToID("_WWArgs");
+            public static readonly int WWCapacity = Shader.PropertyToID("_WwCapacity");
+            public static readonly int WWLifetime = Shader.PropertyToID("_WwLifetime");
+            public static readonly int WWSpawnThreshold = Shader.PropertyToID("_WwSpawnThreshold");
+            public static readonly int WWSpawnRate = Shader.PropertyToID("_WwSpawnRate");
+            public static readonly int WWSize = Shader.PropertyToID("_WwSize");
         }
     }
 }

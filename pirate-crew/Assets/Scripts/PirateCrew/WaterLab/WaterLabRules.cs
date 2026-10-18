@@ -222,6 +222,24 @@ namespace PirateCrew.WaterLab
         /// <summary>泡沫邻域扩散保留比（每步向 4 邻均摊的量）。</summary>
         public const float FoamDiffuse = 0.16f;
 
+        // ---- 白水粒子（W4，对标原作 Whitewater：泡沫场实例化粒子，Update→Culling 写
+        // drawList/args——本仓 Compact kernel 同构产出 draw list，End kernel 写 drawArgs）----
+
+        /// <summary>粒子池容量（缓冲环：写游标回卷覆盖最老粒子）。</summary>
+        public const int WhitewaterCapacity = 32768;
+
+        /// <summary>粒子寿命（s）：白水生成后存续时长。</summary>
+        public const float WhitewaterLifetime = 1.2f;
+
+        /// <summary>生成阈值：泡沫浓度超过此值的格才可能出粒。</summary>
+        public const float WhitewaterSpawnThreshold = 0.55f;
+
+        /// <summary>生成产率系数：每格每步生成概率 = (泡沫−阈值) × 此值 × dt。</summary>
+        public const float WhitewaterSpawnRate = 6f;
+
+        /// <summary>粒子基准尺寸（m，个体在 ±40% 内随机）。</summary>
+        public const float WhitewaterSize = 0.22f;
+
         /// <summary>
         /// 破碎判据：局部波面陡度。陡度 = |η - 邻域均值| / max(水深, 干湿阈值)，
         /// 超过 <see cref="BreakingSteepness"/> 即认为该格处于破碎波峰。
