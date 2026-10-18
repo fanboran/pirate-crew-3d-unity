@@ -6,9 +6,16 @@
 // 【光照模型 = Lit/Water PS 逐指令复刻】（逆向档案 §4.1 完整公式，2026-10-15 全解）
 //   1. 细节法线 = 法线贴图双尺度采样（世界 XZ×0.05 / ×0.20，时间×0.8 动画，动差混合）
 //      + 模拟坡度场（顶点法线），归一——碎金闪点全部由贴图高频法线供 pow1500 镜面瓣；
-//   2. 折射偏移 = N.xz × refractionFactor（实测 0.0121，Y 轴乘纵横比），深度安全门控；
-//   3. 光程 = InvVP 重建折射点世界坐标，dist = |折射点 − 表面点|（真路径长度，
-//      不是 depth/vDotN 近似——透明度衰减曲线与原作一致的关键）；
+//   2. 折射 = 真屏幕折射（外包债①清偿）：底色采 _CameraOpaqueTexture（URP
+//      CopyColorPass 在「沙/天空渲完、透明队列未开」时拷的帧色 = 原作折射底色即
+//      真实沙网格渲染纹理的正身）；水体排 Transparent+10 调度位以落到拷贝之后，
+//      渲染语义仍不透明（ZWrite On、无 Blend、alpha 恒 1——第十轮的不透明观感
+//      原样保留，透明度只是连续颜色项）；偏移 = N.xz × refractionFactor（实测
+//      0.0121，Y 轴乘纵横比），深度安全门控（折射点比当前像素近→不偏移）；
+//   3. 光程 = 解析水下段（depth/max(−rayDir.y, 0.25)，深度来自模拟高度场）——
+//      原作用深度重建折射点（真路径长度），URP 拷深落点在透明队列之后、
+//      水体采样时 _CameraDepthTexture 无内容（r27 DBG 实锤），解析近似代之，
+//      深度安全门控同因暂缺（域内无水上遮挡物，判据本就不激活）；
 //   4. 吸收 T = exp(-8.65617·σ_rgb·dist) × 水色（8.65617 为原作 PS 字面量）；
 //   5. col = lerp(背景×T×(0.9+0.2·NdotV⁶), 散射色, NdotV⁵ × min(阴影+0.25,1) × 0.75)
 //      ——散射权重随俯视增大；阴影软化只接在散射项（+0.25 下限 = 影子最深 75%）；
@@ -16,9 +23,10 @@
 //      的比较采样结果，不乘菲涅尔）；
 //   7. 原作水面不投影（Lit_Water blob 只有 2VS+2PS，无 ShadowCaster）；水底波影在
 //      沙侧由「阴影 × exp(-0.721×水深)」承担（逆向档案 §5），本仓同构。
-//   队列与原作同构（Geometry+2400、ZWrite On、不透明直出，2026-10-15 创始人拍板）：
-//   水色完全自包含（解析水底×吸收）——「透明度」只是连续颜色项（透过率调制底色
-//   亮度），透明队列的 alpha 混合层（近岸蓝白骤变的根）整类消失。
+//   队列：Transparent+10 调度位（排在 URP CopyColorPass 之后、白水 3050 之前），
+//   渲染语义不透明（ZWrite On、无 Blend、alpha 恒 1）——「透明度」只是透过率调制
+//   底色亮度的连续颜色项；当年透明队列的蓝白骤变来自 alpha=1−minT 的混合层，
+//   本 shader 无 Blend，该伪影类在构造上不存在（2026-10-15 创始人拍板不透明观感）。
 //
 // 【教训记录】vDotN = dot(viewDir, N)（viewDir 指向相机），写反 → 菲涅尔恒 1；
 //   细节法线必须是贴图（正弦格架出网格状点阵）；法线 y 增益 ≤1.5。
@@ -47,29 +55,22 @@ Shader "PirateCrew/WaterLab/Ocean"
         // ---- 岸线 ----
         _DryClip                ("干区水深裁剪（m）", Range(0.005, 0.2)) = 0.02
 
-        // ---- 解析水底的沙纹（与 WaterLab_Sand._RippleStrength 同式同值；改两侧同步）----
-        _RippleStrength         ("折射·沙纹强度", Range(0.0, 1.0)) = 0.08
-
         // ---- 细节法线（必须进 Properties 才能被材质序列化绑定；gray = 平坦）----
         _WaterLabDetailNormal   ("细节法线", 2D) = "gray" {}
 
-        // ---- 解析折射底色的沙色板（原作 Sand 材质实测值；与 WaterLab_Sand 同值，改两侧同步）----
-        _RefSandDry             ("折射·干沙色（sandColor）", Color) = (0.9255, 0.8863, 0.7255, 1.0)
-        _RefSandWet             ("折射·湿沙色（wetSandColor）", Color) = (0.9060, 0.8104, 0.6333, 1.0)
-        _RefSandUnder           ("折射·水下沙色（sandColor2）", Color) = (0.9294, 0.8980, 0.7529, 1.0)
-        _RefAmbient             ("折射·环境色（原作天光平行光实测）", Color) = (0.0627, 0.1333, 0.2196, 1.0)
-        _RefSunTint             ("折射·太阳色（原作太阳平行光实测）", Color) = (1.0, 0.9709, 0.9403, 1.0)
+        // ---- 太阳色（原作太阳平行光实测；镜面与焦散调制共用）----
+        _RefSunTint             ("太阳色", Color) = (1.0, 0.9709, 0.9403, 1.0)
     }
 
     SubShader
     {
-        Tags
-        {
-            "RenderType" = "Opaque"
-            "Queue" = "Geometry+400"
-            "RenderPipeline" = "UniversalPipeline"
-            "IgnoreProjector" = "True"
-        }
+    Tags
+    {
+        "RenderType" = "Opaque"
+        "Queue" = "Transparent+10"
+        "RenderPipeline" = "UniversalPipeline"
+        "IgnoreProjector" = "True"
+    }
 
         Pass
         {
@@ -91,7 +92,7 @@ Shader "PirateCrew/WaterLab/Ocean"
             // Shadows.hlsl 的 LerpWhiteTo 在 core CommonMaterial 里（单独 include Shadows 不够）
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float3 _Absorption;
@@ -103,11 +104,6 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float3 _FoamColor;
                 float  _FoamStrength;
                 float  _DryClip;
-                float  _RippleStrength;
-                float3 _RefSandDry;
-                float3 _RefSandWet;
-                float3 _RefSandUnder;
-                float3 _RefAmbient;
                 float3 _RefSunTint;
             CBUFFER_END
 
@@ -117,7 +113,6 @@ Shader "PirateCrew/WaterLab/Ocean"
             TEXTURE2D(_WaterLabHeightTex); SAMPLER(sampler_WaterLabHeightTex);
             TEXTURE2D(_WaterLabCausticTex); SAMPLER(sampler_WaterLabCausticTex);
             TEXTURE2D(_WaterLabGroundTex); SAMPLER(sampler_WaterLabGroundTex);
-            TEXTURE2D(_WaterLabWetTex);    SAMPLER(sampler_WaterLabWetTex);
             TEXTURE2D(_WaterLabDetailNormal); SAMPLER(sampler_WaterLabDetailNormal);
 
             float DecodeEta(float e) { return e * 5.0 - 3.0; }
@@ -216,40 +211,30 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float sunShadow = MainLightRealtimeShadow(TransformWorldToShadowCoord(IN.positionWS));
                 float shadowSoft = min(sunShadow + 0.25, 1.0);
 
-                // ---- 折射：解析水底（不依赖 _CameraOpaqueTexture——拍图链里它是空的，
-                // 实证 bgColor 恒黑、透明度曲线整个塌掉）。视线在水下延伸至地形：
-                // 水底 XZ = 表面 XZ + 视线水平分量 × 水下段长；按折射扭曲读地形/湿沙纹理，
-                // 用与 WaterLab_Sand 同式的沙色光照出「透过水看到的底」。
+                // ---- 折射：真屏幕折射（外包债①清偿，对标原作「折射底色 = 真实沙网格
+                // 渲染纹理」）。底色采 _CameraOpaqueTexture——URP CopyColorPass 在
+                // AfterRenderingSkybox 拷的帧色（沙/天空已渲完，透明队列的水还没画，
+                // 拷贝里没有自己）；水体排透明调度位即天然落在拷贝之后。
+                // 偏移 = N.xz × refractionFactor（实测 0.0121，Y 轴乘纵横比）。
+                // 【已知缺口】深度安全门控与「深度重建折射点」暂缺：渲染器资产
+                // m_CopyDepthMode=AfterTransparents，_CameraDepthTexture 拷贝点落在
+                // 透明队列之后，水体采样时纹理无内容（DBG1 实锤全帧均匀 0.196）。
+                // 域内无水上遮挡物，安全门判据本就不激活；光程用解析水下段
+                // （r26 口径，沙底平坦近似），沙侧真深度来自模拟高度场。
+                float2 baseUV = IN.screenPos.xy / IN.screenPos.w;
+                float aspect = _ScreenParams.x / max(_ScreenParams.y, 1.0);
+                float2 refrUV = baseUV + normalWS.xz * _RefractionFactor * float2(1.0, aspect);
+                float3 bgColor = SampleSceneColor(refrUV);
                 float3 rayDir = normalize(IN.positionWS - GetCameraPositionWS());
                 float dist = depth / max(-rayDir.y, 0.25);
-                float2 refrXZ = IN.positionWS.xz + rayDir.xz * dist + normalWS.xz * _RefractionFactor * 10.0;
+                float2 refrXZ = IN.positionWS.xz + rayDir.xz * dist;
                 float2 refrDomainUv = WorldToDomainUv(float3(refrXZ.x, 0.0, refrXZ.y));
-                float groundRefr = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabGroundTex, sampler_WaterLabGroundTex, refrDomainUv).r);
-                float wetRefr = saturate(SAMPLE_TEXTURE2D(_WaterLabWetTex, sampler_WaterLabWetTex, refrDomainUv).r);
-                float depthRefr = max(eta - groundRefr, 0.0);
-                float3 sandAlbedo = lerp(_RefSandDry.rgb, _RefSandWet.rgb, wetRefr);
-                sandAlbedo = lerp(sandAlbedo, _RefSandUnder.rgb, saturate(depthRefr * 4.0));
-                // 沙纹（WaterLab_Sand 同式移植）：透明队列时代近岸薄水靠 alpha 漏出真实
-                // 沙网格的沙纹/湿沙带；不透明后这段细节只剩解析底色，不补纹会显平
-                float ripple = sin(refrXZ.x * 1.7 + refrXZ.y * 0.6) * 0.85
-                             + sin(refrXZ.y * 2.3 - refrXZ.x * 0.4) * 0.15;
-                sandAlbedo *= 1.0 + ripple * 0.5 * _RippleStrength;
-                float3 sunRaw2 = _WaterLabSunDir.xyz;
-                float3 sunDir2 = (dot(sunRaw2, sunRaw2) < 0.25) ? normalize(float3(-0.525, 0.669, -0.525)) : normalize(sunRaw2);
-                // 原作的折射底色 = 真实沙网格的渲染纹理（含沙侧光照与阴影）。本仓解析等价：
-                // 与 WaterLab_Sand 同式——直射项乘「阴影@折射点 × exp(-0.721×水深)」
-                // （水底波影由此而来：波浪经过时折射点水深振荡 → 底色直射光明暗带）
-                float3 floorPosWS = float3(refrXZ.x, groundRefr, refrXZ.y);
-                float floorSh = MainLightRealtimeShadow(TransformWorldToShadowCoord(floorPosWS));
-                float floorColumn = exp(-0.721348 * depthRefr);
-                float3 bgColor = sandAlbedo * (_RefAmbient.rgb + _RefSunTint.rgb
-                    * saturate(dot(float3(0, 1, 0), sunDir2)) * floorSh * floorColumn);
 
-                // 焦散叠加（严格对标 Lit_Sand @34958 输出结构：
-                // o0 = albedo×(直射×阴影×水柱 + 天光) + albedo×焦散——加法项、不经阴影，
-                // 原作由引擎侧焦散 RT 提供（材质槽 causticsMap），本仓由模拟侧 OutputField
-                // 烘焙同源 RT（η 拉普拉斯聚焦因子，凹面亮/凸面暗），图案随波移动同源同频）
-                bgColor += sandAlbedo * SimCaustic(refrDomainUv);
+                // 焦散叠加（Lit_Sand 输出结构不变：+ albedo×焦散、不经阴影、随 T 衰减）。
+                // 底色拷贝即「albedo×光」，以其为乘子的相对调制对齐原作 albedo×焦散
+                //（直射≈1 时逐项等价，阴影/环境调制随底色走、零新增常量）；焦散 RT
+                // 仍由模拟侧 OutputField 烘焙，域 UV 由折射点世界坐标反推
+                bgColor += bgColor * SimCaustic(refrDomainUv);
 
                 // ---- Beer–Lambert（原作 8.65617 字面量缩放；T 只调制底色，不再生成 alpha）
                 float3 T = exp(-8.65617 * _Absorption.rgb * dist) * _WaterTint.rgb;
