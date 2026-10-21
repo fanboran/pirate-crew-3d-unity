@@ -77,6 +77,9 @@ float _TideClampMin;         // clamp(wave·sin(playTime), −0.5, +∞) 的下�
 float _TideMinAmount;        // max(level−ground+wave, 0.05) 的 5 cm 结合水下限
 float _CouplingWeight;       // 归一化耦合权重 0..1（原作 4 bit/15）；本仓按初始淹没区取满/干区取 0
 float _EvaporationRate;      // exp(−0.721348·湿度)×sun·evaporationFactor×0.001（m/s）
+// 干滩薄水渗透（C 级近似）：原作沙层是孔隙介质，本仓无沙-水交换层。
+float _BeachInfiltrationDepth;
+float _BeachInfiltrationRate;
 
 float _BreakingSteepness;   // H/h 破碎阈值（0.78，Miche 准则工程版）
 float _BreakingFroude;      // = _BreakingSteepness/2（浅水 u=a√(g/h)、c=√(gh) ⇒ a/h=Fr，
@@ -100,6 +103,8 @@ float _WwSize;              // 粒子基准尺寸 (m)
 // 白水粒子的水面上抬量（m）。原作 Whitewater VS：粒子世界高度 =
 // max(amount−0.05,0) + 0.02；本仓粒子在世界坐标里，等价式再加 ground。
 float _WwSurfaceOffset;
+// 白水最小可见水深（m）：低于此值不生成、已存在的立即消亡。
+float _WwMinDepth;
 // 相机视锥平面（世界空间：xyz=法线 n、w=距离 d；内侧判据 dot(n,p)+d ≥ 0）
 // 与视锥外扩（原作 Culling.frustumOverscan = 0.1，见 WaterLabRules.WhitewaterFrustumOverscan）
 float4 _WwFrustumPlanes[6];
@@ -169,6 +174,13 @@ void SurfaceUpdate(uint3 id : SV_DispatchThreadID)
     // 初始干区 0 耦合的静态代理近似（C 级，见 WaterLabRules.CouplingWeightAt）。
     float coupling = (g < _SeaLevel) ? _CouplingWeight : 0.0;
     h = lerp(h, target, coupling);
+
+    // 干滩薄水渗透：ground>0 且可见水深 < 阈值的薄片，快速吸回 5 cm 结合水。
+    // 退潮后滩面上的 1–5 cm 残片没有足够坡降自行流回，会在画面上读成残留水；
+    // 原作靠沙层的孔隙交换处理，本仓用这一项做 C 级补偿。深水/主水线不受影响。
+    float visible = h - _DryDepth;
+    if (g > _SeaLevel && visible > 0.0 && visible < _BeachInfiltrationDepth)
+        h = lerp(h, _DryDepth, 1.0 - exp(-_BeachInfiltrationRate * _Dt));
 
     _WaterA[i] = float4(h, w.y, w.z, w.w);
 }
@@ -444,6 +456,8 @@ void WhitewaterSpawn(uint3 id : SV_DispatchThreadID)
     int i = c.x + c.y * _Cells;
     float foam = _WaterB[i].w;
     if (foam < _WwSpawnThreshold) return;
+    // 薄水片上不吐粒子：退潮后搁在湿沙上的白沫会被读成残留水。
+    if (_WaterB[i].x - _DryDepth < _WwMinDepth) return;
 
     // 两路哈希随机：r1 生成判定、r2 个体尺寸/位置抖动（无硬件 RNG，格号+时间混合）
     float r1 = frac(sin(i * 12.9898 + _Time * 91.7) * 43758.5453);
@@ -478,6 +492,12 @@ void WhitewaterUpdate(uint3 id : SV_DispatchThreadID)
     int2 c = int2(clamp(round(cellF), float2(0.0, 0.0), float2(_Cells - 1, _Cells - 1)));
     // 与 Spawn 同一高度语义：可见水面 + 原作的 0.02 上抬。
     float hCell = _WaterB[c.x + c.y * _Cells].x;
+    if (hCell - _DryDepth < _WwMinDepth)
+    {
+        // 水退走后粒子立即消亡，而不是靠 1.5 s 寿命挂在沙面上。
+        _WWPos[id.x] = float4(p.xyz, 0.0);
+        return;
+    }
     float surface = SampleGround(c + 0.5) + max(hCell - _DryDepth, 0.0);
 
     float damp = exp(-1.6 * _Dt);

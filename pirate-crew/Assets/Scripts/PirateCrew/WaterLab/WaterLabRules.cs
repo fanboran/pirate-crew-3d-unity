@@ -262,6 +262,10 @@ namespace PirateCrew.WaterLab
         /// 本仓粒子在世界空间，高度 = ground + max(h−DryDepth,0) + 该值。</summary>
         public const float WhitewaterSurfaceOffset = 0.02f;
 
+        /// <summary>白水粒子最小可见水深（m）：低于此值粒子会搁在湿沙上，被读成残留
+        /// 水沫；生成与存续都检查，与干滩渗透同一口径。</summary>
+        public const float WhitewaterMinVisibleDepth = 0.02f;
+
         /// <summary>
         /// 视锥剔除外扩（m）：Compact kernel 对 6 平面做内侧判定时的容差，
         /// 防粒子在视口边缘突现突隐（原作 Whitewater.frustumOverscan = 0.1）。
@@ -286,6 +290,15 @@ namespace PirateCrew.WaterLab
 
         /// <summary>湿沙蒸发速率（1/s）：无水覆盖后向 w=0 衰减（比浸润慢一个量级，退潮后湿痕留存）。</summary>
         public const float WetnessEvaporateRate = 0.15f;
+
+        /// <summary>干滩薄水渗透阈值（m）：ground&gt;0 且可见水深低于此值时，水片按
+        /// <see cref="BeachInfiltrationRate"/> 吸回 5 cm 结合水。原作沙层是孔隙介质，
+        /// 本仓没有沙-水交换层，这是 C 级近似；深水/主水线（depth 远大于阈值）不受影响。</summary>
+        public const float BeachInfiltrationDepth = 0.04f;
+
+        /// <summary>干滩薄水渗透速率（1/s）：约 0.17 s 时间常数，退潮前沿的薄片在
+        /// 半个潮周期内被吸走，同时保留水深 &gt;4 cm 的主水线。</summary>
+        public const float BeachInfiltrationRate = 6f;
 
         /// <summary>湿沙邻域扩散保留比（湿痕向干沙摊开）。</summary>
         public const float WetnessDiffuse = 0.08f;

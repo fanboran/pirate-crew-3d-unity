@@ -42,5 +42,5 @@ Material:
     - _DrySandColor: {r: 1, g: 0.92, b: 0.69, a: 1}
     - _SunTint: {r: 1, g: 0.9709, b: 0.9403, a: 1}
     - _UnderwaterSandColor: {r: 1, g: 0.93, b: 0.72, a: 1}
-    - _WetSandColor: {r: 0.82, g: 0.72, b: 0.52, a: 1}
+    - _WetSandColor: {r: 0.99, g: 0.885, b: 0.65, a: 1}
   m_BuildTextureStacks: []
