@@ -154,8 +154,8 @@ namespace PirateCrew.SceneArt.Tests
 
         static void ForEachSolid(HeightfieldGrid grid, SolidVisitor visit)
         {
-            for (int y = 0; y < grid.DepthTiles; y++)
-                for (int x = 0; x < grid.WidthTiles; x++)
+            for (int y = 0; y < grid.DepthCells; y++)
+                for (int x = 0; x < grid.WidthCells; x++)
                 {
                     int blocks = grid.BlocksAt(x, y);
                     if (blocks > 0)

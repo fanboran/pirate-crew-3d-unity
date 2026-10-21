@@ -198,14 +198,14 @@ namespace PirateCrew.Tests
             Assert.Greater(plan.CountForTeam(0), 0, "红队应有成员");
             Assert.Greater(plan.CountForTeam(1), 0, "蓝队应有成员");
 
-            // ---- 单位站位：XZ 竞技场（横向 X = gridX+0.5，纵深 Z = gridY+0.5，高度 = 枢轴离地）----
+            // ---- 单位站位：XZ 竞技场（横向 X = cellX+0.5，纵深 Z = cellY+0.5，高度 = 枢轴离地）----
             var pirates = controller.AllPirates;
             for (int i = 0; i < plan.Entries.Count; i++)
             {
                 SpawnPlanEntry entry = plan.Entries[i];
-                Vector3 expectedPos = LevelGeometry.GridToArena(entry.GridX, entry.GridY);
-                Assert.AreEqual(expectedPos.x, entry.WorldPosition.x, 1e-4f, "计划条目的 X 应 = gridX+0.5");
-                Assert.AreEqual(expectedPos.z, entry.WorldPosition.z, 1e-4f, "计划条目的 Z 应 = gridY+0.5");
+                Vector3 expectedPos = LevelGeometry.GridToArena(entry.CellX, entry.CellY);
+                Assert.AreEqual(expectedPos.x, entry.WorldPosition.x, 1e-4f, "计划条目的 X 应 = cellX+0.5");
+                Assert.AreEqual(expectedPos.z, entry.WorldPosition.z, 1e-4f, "计划条目的 Z 应 = cellY+0.5");
 
                 Vector3 actual = pirates[i].transform.position;
                 // 物理落点按**半格**界（格 2u 宽）：出生体在斜坡/挤碰下的物理滑移是已知环境性

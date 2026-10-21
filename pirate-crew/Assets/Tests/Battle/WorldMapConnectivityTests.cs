@@ -94,14 +94,14 @@ namespace PirateCrew.Battle.Tests
 
             foreach (WorldMapSpawn spawn in map.Spawns)
             {
-                int gridX = Mathf.FloorToInt(spawn.X / WorldMapRules.RasterTileSize);
-                int gridY = Mathf.FloorToInt(spawn.Z / WorldMapRules.RasterTileSize);
-                Assert.GreaterOrEqual(gridX, 0, map.Id);
-                Assert.GreaterOrEqual(gridY, 0, map.Id);
-                Assert.Less(gridX, widthTiles, map.Id);
-                Assert.Less(gridY, depthTiles, map.Id);
-                Assert.Greater(blocks[gridX + gridY * widthTiles], 0,
-                    map.Id + " 出生格 " + gridX + "," + gridY + " 落在水里");
+                int cellX = Mathf.FloorToInt(spawn.X / WorldMapRules.RasterTileSize);
+                int cellY = Mathf.FloorToInt(spawn.Z / WorldMapRules.RasterTileSize);
+                Assert.GreaterOrEqual(cellX, 0, map.Id);
+                Assert.GreaterOrEqual(cellY, 0, map.Id);
+                Assert.Less(cellX, widthTiles, map.Id);
+                Assert.Less(cellY, depthTiles, map.Id);
+                Assert.Greater(blocks[cellX + cellY * widthTiles], 0,
+                    map.Id + " 出生格 " + cellX + "," + cellY + " 落在水里");
             }
         }
 

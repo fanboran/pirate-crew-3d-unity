@@ -23,7 +23,7 @@ namespace PirateCrew.Data
         public const int Version = 3;
 
         /// <summary>
-        /// 逻辑高度场的**采样间隔**（米/采样格，= <c>LevelGeometry.TileWorldSize</c>）。
+        /// 逻辑高度场的**采样间隔**（米/采样格，= <c>LevelGeometry.SampleCellSize</c>）。
         /// 它只是运行时地形的数据采样粒度（不对玩家与资产暴露）；资产里的栅格尺幅用米写，
         /// 采样格数由本常量推出，故读写两侧不可能各自漂移。
         /// </summary>

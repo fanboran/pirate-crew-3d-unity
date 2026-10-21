@@ -98,10 +98,10 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>整簇包络的宽度（格）。</summary>
-        public int WidthTiles => X1 - X0 + 1;
+        public int WidthCells => X1 - X0 + 1;
 
         /// <summary>整簇包络的纵深（格）。</summary>
-        public int DepthTiles => Z1 - Z0 + 1;
+        public int DepthCells => Z1 - Z0 + 1;
 
         /// <summary>格是否落在本簇包络内（含边界）。</summary>
         public bool Contains(int gx, int gz) => gx >= X0 && gx <= X1 && gz >= Z0 && gz <= Z1;
@@ -134,10 +134,10 @@ namespace PirateCrew.Battle
     public sealed class PlatformMap
     {
         /// <summary>横向格数。</summary>
-        public readonly int WidthTiles;
+        public readonly int WidthCells;
 
         /// <summary>纵深格数。</summary>
-        public readonly int DepthTiles;
+        public readonly int DepthCells;
 
         /// <summary>逐格块高（行主序）；0 = 水。**局部**块高——不含所属簇的 <see cref="PlatformClusterInfo.BaseHeight"/>。</summary>
         public readonly int[] CellBlocks;
@@ -151,20 +151,20 @@ namespace PirateCrew.Battle
         public PlatformMap(int widthTiles, int depthTiles, int[] cellBlocks, int[] cellCluster,
             IReadOnlyList<PlatformClusterInfo> clusters)
         {
-            WidthTiles = widthTiles;
-            DepthTiles = depthTiles;
+            WidthCells = widthTiles;
+            DepthCells = depthTiles;
             CellBlocks = cellBlocks;
             CellCluster = cellCluster;
             Clusters = clusters;
         }
 
         /// <summary>行主序索引。</summary>
-        public int IndexOf(int gx, int gz) => gx + gz * WidthTiles;
+        public int IndexOf(int gx, int gz) => gx + gz * WidthCells;
 
         /// <summary>该格是否是地面（非水）。</summary>
         public bool IsGround(int gx, int gz)
         {
-            if (gx < 0 || gz < 0 || gx >= WidthTiles || gz >= DepthTiles)
+            if (gx < 0 || gz < 0 || gx >= WidthCells || gz >= DepthCells)
                 return false;
             return CellCluster[IndexOf(gx, gz)] >= 0;
         }
@@ -172,7 +172,7 @@ namespace PirateCrew.Battle
         /// <summary>该格的块高（水 / 越界 = 0）；**局部**块高（不含簇基准高度）。</summary>
         public int BlocksAt(int gx, int gz)
         {
-            if (gx < 0 || gz < 0 || gx >= WidthTiles || gz >= DepthTiles)
+            if (gx < 0 || gz < 0 || gx >= WidthCells || gz >= DepthCells)
                 return 0;
             return CellBlocks[IndexOf(gx, gz)];
         }
@@ -180,7 +180,7 @@ namespace PirateCrew.Battle
         /// <summary>该格所属簇的基准块数（水 / 越界 = 0）。</summary>
         public int BaseBlocksAt(int gx, int gz)
         {
-            if (gx < 0 || gz < 0 || gx >= WidthTiles || gz >= DepthTiles)
+            if (gx < 0 || gz < 0 || gx >= WidthCells || gz >= DepthCells)
                 return 0;
 
             int c = CellCluster[IndexOf(gx, gz)];
@@ -211,7 +211,7 @@ namespace PirateCrew.Battle
         /// <summary>取包含该格的簇；水格返回 default（<c>Name == null</c>）。</summary>
         public PlatformClusterInfo ClusterAt(int gx, int gz)
         {
-            if (gx < 0 || gz < 0 || gx >= WidthTiles || gz >= DepthTiles)
+            if (gx < 0 || gz < 0 || gx >= WidthCells || gz >= DepthCells)
                 return default;
             int c = CellCluster[IndexOf(gx, gz)];
             return c >= 0 && c < Clusters.Count ? Clusters[c] : default;

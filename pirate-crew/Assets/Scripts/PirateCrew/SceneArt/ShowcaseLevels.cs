@@ -60,9 +60,9 @@ namespace PirateCrew.SceneArt
     /// 渲染层由烘焙 prefab 按摆位表实例化（RuntimeSceneArt），与逻辑层共用同一份高度场资产对齐。
     ///
     /// 【尺度】数值全米：块高 0.5 m、水面 y = −0.4 m；运行时地形按 2 m 采样
-    /// （<see cref="LevelGeometry.TileWorldSize"/>，只是数据粒度）。L1/L2 场地 40×30 m。
+    /// （<see cref="LevelGeometry.SampleCellSize"/>，只是数据粒度）。L1/L2 场地 40×30 m。
     ///
-    /// 【WidthTiles / DepthTiles 为何还在】它们是 2 m 采样口径下的格数（20×15），
+    /// 【WidthCells / DepthCells 为何还在】它们是 2 m 采样口径下的格数（20×15），
     /// 仍是场景装配 / 水面资产构建等编辑器工具的对齐口径；资产与玩法数值一律用米。
     /// </summary>
     public static class ShowcaseLevels
@@ -74,10 +74,10 @@ namespace PirateCrew.SceneArt
         public const int LastLevel = 4;
 
         /// <summary>场地宽度（采样格数，= 40 m / 2 m）——样板关统一尺寸，也是空岛展示件对齐用的场地口径。</summary>
-        public const int WidthTiles = 20;
+        public const int WidthCells = 20;
 
         /// <summary>场地纵深（采样格数，= 30 m / 2 m）。</summary>
-        public const int DepthTiles = 15;
+        public const int DepthCells = 15;
 
         /// <summary>该关卡号是否有对应关卡资产。</summary>
         public static bool IsShowcase(int levelNumber) =>

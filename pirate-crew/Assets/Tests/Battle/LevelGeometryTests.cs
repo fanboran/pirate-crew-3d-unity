@@ -19,7 +19,7 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void PixelsToUnits_ThirtyTwoPixels_IsTwoUnits()
         {
-            // 决策 1：1 瓦片 = 32px；格 1→2 单位后 1 瓦片 = 2 世界单位（LevelGeometry.TileWorldSize=2，
+            // 决策 1：1 瓦片 = 32px；格 1→2 单位后 1 瓦片 = 2 世界单位（LevelGeometry.SampleCellSize=2，
             // PixelsPerUnit = 32/2 = 16）。故 32px = 32/16 = 2 单位。
             Assert.AreEqual(2f, LevelGeometry.PixelsToUnits(32f), 1e-6f);
         }
@@ -38,8 +38,8 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void GridToArena_MatchesSection4_3Formula()
         {
-            // §4.3：世界 X = (gridX + 0.5) × TileWorldSize(2)、Z 同理、Y = 地面 + UnitPivotHeight（脚底贴地）。
-            // gridX=17 → 17.5×2 = 35；gridY=10 → 10.5×2 = 21；Y = 0 + 0.5 = 0.5。
+            // §4.3：世界 X = (cellX + 0.5) × SampleCellSize(2)、Z 同理、Y = 地面 + UnitPivotHeight（脚底贴地）。
+            // cellX=17 → 17.5×2 = 35；cellY=10 → 10.5×2 = 21；Y = 0 + 0.5 = 0.5。
             Vector3 world = LevelGeometry.GridToArena(17, 10);
             Assert.AreEqual(35f, world.x, 1e-5f);
             Assert.AreEqual(0.5f, world.y, 1e-5f);

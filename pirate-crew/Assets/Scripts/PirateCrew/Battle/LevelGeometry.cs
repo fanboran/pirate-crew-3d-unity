@@ -21,10 +21,10 @@ namespace PirateCrew.Battle
         public readonly int Luck;
 
         /// <summary>地形采样格 X（由 <see cref="WorldPosition"/> 的 X 反推；只供 <c>HeightfieldGrid</c> 查询）。</summary>
-        public readonly int GridX;
+        public readonly int CellX;
 
         /// <summary>地形采样格 Z（由 <see cref="WorldPosition"/> 的 Z 反推；只供 <c>HeightfieldGrid</c> 查询）。</summary>
-        public readonly int GridY;
+        public readonly int CellY;
 
         /// <summary>
         /// Unity 世界坐标：脚底贴地、枢轴抬高 <see cref="LevelGeometry.UnitPivotHeight"/>。
@@ -36,14 +36,14 @@ namespace PirateCrew.Battle
         public readonly IReadOnlyList<WeaponStack> InitialWeapons;
 
         public SpawnPlanEntry(
-            int teamIndex, string typeName, int luck, int gridX, int gridY,
+            int teamIndex, string typeName, int luck, int cellX, int cellY,
             Vector3 worldPosition, IReadOnlyList<WeaponStack> initialWeapons)
         {
             TeamIndex = teamIndex;
             TypeName = typeName;
             Luck = luck;
-            GridX = gridX;
-            GridY = gridY;
+            CellX = cellX;
+            CellY = cellY;
             WorldPosition = worldPosition;
             InitialWeapons = initialWeapons ?? EmptyWeapons;
         }
@@ -59,11 +59,11 @@ namespace PirateCrew.Battle
         /// <summary>关卡序号（1–33）。</summary>
         public readonly int LevelNumber;
 
-        /// <summary>竞技场横向尺寸（瓦片）。世界尺寸 = 本值 × <see cref="TileWorldSize"/>。</summary>
-        public readonly int WidthTiles;
+        /// <summary>竞技场横向尺寸（瓦片）。世界尺寸 = 本值 × <see cref="SampleCellSize"/>。</summary>
+        public readonly int WidthCells;
 
         /// <summary>竞技场纵深尺寸（瓦片；来自原版关卡的 heightTiles）。</summary>
-        public readonly int DepthTiles;
+        public readonly int DepthCells;
 
         /// <summary>水面世界 Y（Unity 约定，y 向上；低于该值即落水，§4.4）。全局常量，见 LevelGeometry。</summary>
         public readonly float WaterWorldY;
@@ -81,10 +81,10 @@ namespace PirateCrew.Battle
             float waterWorldY, IReadOnlyList<SpawnPlanEntry> entries)
         {
             LevelNumber = levelNumber;
-            WidthTiles = widthTiles;
-            DepthTiles = depthTiles;
+            WidthCells = widthTiles;
+            DepthCells = depthTiles;
             WaterWorldY = waterWorldY;
-            // 1 瓦片 = TileWorldSize 世界单位（见 LevelGeometry 类头的 px→单位换算决策）。
+            // 1 瓦片 = SampleCellSize 世界单位（见 LevelGeometry 类头的 px→单位换算决策）。
             WorldWidth = LevelGeometry.TileToWorld(widthTiles);
             WorldDepth = LevelGeometry.TileToWorld(depthTiles);
             _entries = entries ?? new List<SpawnPlanEntry>();
@@ -116,7 +116,7 @@ namespace PirateCrew.Battle
     ///   结果是"披着 3D 引擎的 2D 游戏"。现行模型：
     ///     · 竞技场 = <b>XZ 水平面</b>；重力沿 <b>-Y</b>；地面顶面 y = 0，水面 y = <see cref="WaterSurfaceY"/>。
     ///     · Flash 的 px（横向）→ 世界 X；Flash 的 py（原侧视的"竖直"轴）→ 世界 <b>Z（纵深）</b>。
-    ///       即把原版 2D 关卡当作**平面图**重新投影，`gridY` 从"平台高度"变成"纵深位置"。
+    ///       即把原版 2D 关卡当作**平面图**重新投影，`cellY` 从"平台高度"变成"纵深位置"。
     ///     · **y 不取负**：侧视图里"越往下"= 越靠近观众；平面图里"越靠近观众"= +Z（相机在 +Z 侧），
     ///       方向天然一致，故 <c>PixelToArena</c> 直接映射而不翻转。
     ///   这一改动使空间结构成为真 3D（XZ 地面 + 45° 相机 + 单位沿 Z 分路），
@@ -125,7 +125,7 @@ namespace PirateCrew.Battle
     /// 【3D 化决策 1：px→单位换算】原版 1 瓦片 = 32px。本工程定 <b>1 瓦片 = 2 Unity 单位</b>
     ///   （用户裁决 2026-09-14：格子世界尺寸 1→2 单位，岛 4-8 格 = 8-16 单位才够厚重；
     ///   **角色自身尺寸 1.85 不随格变化**），即
-    ///   常量集中在 <see cref="TilePixels"/> / <see cref="TileWorldSize"/>，
+    ///   常量集中在 <see cref="TilePixels"/> / <see cref="SampleCellSize"/>，
     ///   <see cref="PixelsPerUnit"/>（= 16，1 单位 = 16px）由两者相除得到。
     ///   <b>凡是"由 Flash px / 格语义换算成世界单位"的量都必须走这里的换算</b>：
     ///   · 距离类（选中半径、爆炸半径、水距）→ <see cref="PixelsToUnits"/> / <see cref="TileToWorld"/>；
@@ -156,13 +156,13 @@ namespace PirateCrew.Battle
         /// （"岛 4-8 格 = 8-16 单位才够厚重"；角色自身尺寸 1.85 不乘）。
         /// <b>改这一个数即等于给全工程所有"格语义 → 世界单位"的量乘同一个系数</b>。
         /// </summary>
-        public const float TileWorldSize = 2f;
+        public const float SampleCellSize = 2f;
 
         /// <summary>
-        /// 1 世界单位对应多少 Flash 像素 = <see cref="TilePixels"/> / <see cref="TileWorldSize"/>
+        /// 1 世界单位对应多少 Flash 像素 = <see cref="TilePixels"/> / <see cref="SampleCellSize"/>
         /// = 32 / 2 = <b>16</b>（旧口径是 32）。所有 px ↔ 世界单位的换算的唯一来源。
         /// </summary>
-        public const float PixelsPerUnit = TilePixels / TileWorldSize;
+        public const float PixelsPerUnit = TilePixels / SampleCellSize;
 
         /// <summary>原版帧率 25fps（§1）。</summary>
         public const float FrameRate = 25f;
@@ -202,7 +202,7 @@ namespace PirateCrew.Battle
         public const float SelectionRadiusWorld = SelectionRadiusPixels / PixelsPerUnit;
 
         /// <summary>
-        /// 单位枢轴离地高度：Flash 的 <c>py = (gridY+0.5)*32 + 16 - bottomExtent</c> 里那半格偏移
+        /// 单位枢轴离地高度：Flash 的 <c>py = (cellY+0.5)*32 + 16 - bottomExtent</c> 里那半格偏移
         /// （§4.3）。它是**格内偏移**（半格 = 16px），故随格世界尺寸一起放大：16px / 16px每单位
         /// = 0.5 单位（旧口径 0.25）。角色碰撞箱半高（RootScale 0.5→1.0 × BoxCollider 1）同为 0.5，
         /// 脚底因此贴地。
@@ -228,17 +228,17 @@ namespace PirateCrew.Battle
         /// <summary>
         /// 像素 → **格号**（栅格索引，**与格世界尺寸无关**；恒为 px / 32）。
         /// 与 <see cref="PixelsToUnits"/> 的区别是本轮扫荡的核心：格号语义不随"1 格几个单位"变，
-        /// 凡是拿 px 去查 (gridX, gridZ) 的地方（AI 放置判定等）都必须用本函数。
+        /// 凡是拿 px 去查 (cellX, gridZ) 的地方（AI 放置判定等）都必须用本函数。
         /// </summary>
         public static float PixelsToTiles(float px)
         {
             return px / TilePixels;
         }
 
-        /// <summary>格号（含小数）→ 世界单位（× <see cref="TileWorldSize"/>）。</summary>
+        /// <summary>格号（含小数）→ 世界单位（× <see cref="SampleCellSize"/>）。</summary>
         public static float TileToWorld(float tiles)
         {
-            return tiles * TileWorldSize;
+            return tiles * SampleCellSize;
         }
 
         /// <summary>
@@ -247,13 +247,13 @@ namespace PirateCrew.Battle
         /// </summary>
         public static int WorldToTileIndex(float units)
         {
-            return Mathf.FloorToInt(units / TileWorldSize);
+            return Mathf.FloorToInt(units / SampleCellSize);
         }
 
         /// <summary>格号 → 该格**中心**的世界坐标（XZ 平面；不含高度）。</summary>
-        public static Vector2 TileCenterWorld(int gridX, int gridZ)
+        public static Vector2 TileCenterWorld(int cellX, int gridZ)
         {
-            return new Vector2(TileToWorld(gridX + 0.5f), TileToWorld(gridZ + 0.5f));
+            return new Vector2(TileToWorld(cellX + 0.5f), TileToWorld(gridZ + 0.5f));
         }
 
         // ------------------------------------------------------------------
@@ -282,15 +282,15 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 关卡栅格格坐标 → 单位站位世界坐标（§4.3）。
-        /// 横向 X = (gridX + 0.5) × <see cref="TileWorldSize"/>；纵深 Z 同理；
+        /// 横向 X = (cellX + 0.5) × <see cref="SampleCellSize"/>；纵深 Z 同理；
         /// 高度 Y = 地面 + <see cref="UnitPivotHeight"/>（脚底贴地）。
         /// </summary>
-        public static Vector3 GridToArena(int gridX, int gridY)
+        public static Vector3 GridToArena(int cellX, int cellY)
         {
             return new Vector3(
-                TileToWorld(gridX + 0.5f),
+                TileToWorld(cellX + 0.5f),
                 GroundTopY + UnitPivotHeight,
-                TileToWorld(gridY + 0.5f));
+                TileToWorld(cellY + 0.5f));
         }
 
         // ------------------------------------------------------------------
@@ -339,18 +339,18 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 米尺寸 → 运行时地形采样格数（四舍五入）。
-        /// 采样格只是运行时地形数据的粒度（<see cref="TileWorldSize"/> 米/格），不是对外概念；
+        /// 采样格只是运行时地形数据的粒度（<see cref="SampleCellSize"/> 米/格），不是对外概念；
         /// 资产与玩法数值一律用米。
         /// </summary>
         public static int CellCount(float meters)
         {
-            return Mathf.RoundToInt(meters / TileWorldSize);
+            return Mathf.RoundToInt(meters / SampleCellSize);
         }
 
         /// <summary>
         /// 由纯 C# 关卡数据 <see cref="LevelData"/> 生成出战计划（无头可测路径）。
         /// 数据已是全米口径：出生点直接用 <c>x/z</c>（世界 X / Z），不再做格→米换算；
-        /// 采样格号（<see cref="SpawnPlanEntry.GridX"/>/<see cref="SpawnPlanEntry.GridY"/>）由米反推，
+        /// 采样格号（<see cref="SpawnPlanEntry.CellX"/>/<see cref="SpawnPlanEntry.CellY"/>）由米反推，
         /// 仅供运行时地形查询（<c>HeightfieldGrid.SurfaceWorldY</c>）使用。
         /// </summary>
         public static BattlePlan BuildBattlePlan(LevelData data)

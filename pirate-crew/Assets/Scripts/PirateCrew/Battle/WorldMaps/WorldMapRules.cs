@@ -19,7 +19,7 @@ namespace PirateCrew.Battle.WorldMaps
         /// <summary>上行方向允许的最大顶面高差（u）（§1）。</summary>
         public const float MaxUpStep = 3.5f;
 
-        /// <summary>栅格化：世界地图的 1 瓦片 = <see cref="LevelGeometry.TileWorldSize"/>（2u）。</summary>
+        /// <summary>栅格化：世界地图的 1 瓦片 = <see cref="LevelGeometry.SampleCellSize"/>（2u）。</summary>
         public const float RasterTileSize = 2f;
 
         /// <summary>出生点离站面边缘的最小余量（u）——本义是"不悬空站出台沿"（角色宽 0.375）；

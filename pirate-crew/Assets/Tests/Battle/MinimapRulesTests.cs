@@ -64,7 +64,7 @@ namespace PirateCrew.Tests
         [Test]
         public void Level1_RedTeamSitsLeftOfBlueTeam()
         {
-            // level_1：红队 gridX=17 / 蓝队 gridX=48，世界 X = gridX + 0.5（§4.3 LevelGeometry.GridToArena）。
+            // level_1：红队 cellX=17 / 蓝队 cellX=48，世界 X = cellX + 0.5（§4.3 LevelGeometry.GridToArena）。
             float red = MinimapRules.ArenaToNormalized(17.5f, 10.5f, 50f, 17f).x;
             float blue = MinimapRules.ArenaToNormalized(48.5f, 10.5f, 50f, 17f).x;
             Assert.Less(red, blue, "红队在竞技场左侧（u 更小），小地图上应仍在左边");

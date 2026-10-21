@@ -38,8 +38,8 @@ namespace PirateCrew.EditorTools
         [MenuItem("Tools/PirateCrew/Water/Bake Obstacle Map")]
         public static void BakeObstacleMap()
         {
-            int width = ShowcaseLevels.WidthTiles;
-            int depth = ShowcaseLevels.DepthTiles;
+            int width = ShowcaseLevels.WidthCells;
+            int depth = ShowcaseLevels.DepthCells;
             HeightfieldGrid grid = ShowcaseLevels.BuildLogicGrid(1);
 
             int cells = WaterSimRules.DefaultCellsPerAxis;

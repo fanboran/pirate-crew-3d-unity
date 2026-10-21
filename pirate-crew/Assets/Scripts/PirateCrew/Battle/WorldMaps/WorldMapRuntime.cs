@@ -187,19 +187,19 @@ namespace PirateCrew.Battle.WorldMaps
             {
                 WorldMapSpawn spawn = map.Spawns[i];
                 float surfaceY = WorldMapRules.HeightAtWorld(boxes, new Vector2(spawn.X, spawn.Z));
-                int gridX = Mathf.FloorToInt(spawn.X / WorldMapRules.RasterTileSize);
-                int gridY = Mathf.FloorToInt(spawn.Z / WorldMapRules.RasterTileSize);
+                int cellX = Mathf.FloorToInt(spawn.X / WorldMapRules.RasterTileSize);
+                int cellY = Mathf.FloorToInt(spawn.Z / WorldMapRules.RasterTileSize);
                 // 与 <see cref="BuildTerrainGrid"/> 同款越界检查：贴边出生点 floor(Span/2)
                 // 可能踩到格数上限。出战条目不能像块表那样跳过（跳过 = 静默丢角色），
                 // 越界时钳进边界格并点名——数据侧病根（出生点超出地图 Span）靠日志暴露。
-                if (gridX < 0 || gridY < 0 || gridX >= widthTiles || gridY >= depthTiles)
+                if (cellX < 0 || cellY < 0 || cellX >= widthTiles || cellY >= depthTiles)
                 {
                     global::PirateCrew.Core.Log.Error(string.Format(
                         "[WorldMapRuntime] [{0}] spawn#{1} ({2:F1},{3:F1}) 格 ({4},{5}) 越界"
                         + "（块表 {6}x{7}），已钳入边界格。",
-                        map.Id, i, spawn.X, spawn.Z, gridX, gridY, widthTiles, depthTiles));
-                    gridX = Mathf.Clamp(gridX, 0, widthTiles - 1);
-                    gridY = Mathf.Clamp(gridY, 0, depthTiles - 1);
+                        map.Id, i, spawn.X, spawn.Z, cellX, cellY, widthTiles, depthTiles));
+                    cellX = Mathf.Clamp(cellX, 0, widthTiles - 1);
+                    cellY = Mathf.Clamp(cellY, 0, depthTiles - 1);
                 }
 
                 // Captain 判据带空引用防御：Archetype null/空视为普通船员（非 Captain），
@@ -215,7 +215,7 @@ namespace PirateCrew.Battle.WorldMaps
                 }
 
                 entries.Add(new SpawnPlanEntry(
-                    spawn.TeamIndex, spawn.Archetype, spawn.Luck, gridX, gridY,
+                    spawn.TeamIndex, spawn.Archetype, spawn.Luck, cellX, cellY,
                     new Vector3(spawn.X, surfaceY + LevelGeometry.UnitPivotHeight, spawn.Z),
                     // 方案 D 分层军火：初配真值在目录（近程基线 / 船长含全图级旗舰）；
                     // 未配（null）时回落战役惯例，外部构造的 definition 不破。
@@ -260,15 +260,15 @@ namespace PirateCrew.Battle.WorldMaps
             {
                 WorldMapSpawn spawn = map.Spawns[i];
                 var p = new Vector2(spawn.X, spawn.Z);
-                int gridX = Mathf.FloorToInt(p.x / WorldMapRules.RasterTileSize);
-                int gridY = Mathf.FloorToInt(p.y / WorldMapRules.RasterTileSize);
-                if (gridX < 0 || gridY < 0 || gridX >= widthTiles || gridY >= depthTiles)
+                int cellX = Mathf.FloorToInt(p.x / WorldMapRules.RasterTileSize);
+                int cellY = Mathf.FloorToInt(p.y / WorldMapRules.RasterTileSize);
+                if (cellX < 0 || cellY < 0 || cellX >= widthTiles || cellY >= depthTiles)
                     continue;
                 float surfaceY = WorldMapRules.HeightAtWorld(boxes, p);
                 // 仅当脚下确有站面（顶高高于水面）才覆写；否则该格维持水，Warn 点名。
                 if (surfaceY > LevelGeometry.WaterSurfaceY)
                 {
-                    blocks[gridX + gridY * widthTiles] = Mathf.Max(1, Mathf.RoundToInt(surfaceY / 0.5f));
+                    blocks[cellX + cellY * widthTiles] = Mathf.Max(1, Mathf.RoundToInt(surfaceY / 0.5f));
                 }
                 else
                 {

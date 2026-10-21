@@ -244,9 +244,9 @@ namespace PirateCrew.EditorTools
             // 场地尺寸 = 样板第 1 关（云端漫步，20×15 格；这是兜底场）。
             // 3D 化后 widthTiles → 世界 X，heightTiles → 世界 Z（纵深）；水面高度为全局常量。
             float waterWorldY = LevelGeometry.WaterSurfaceY;
-            // 格 1→2 单位（用户裁决 2026-09-14）：竞技场世界尺寸 = 格数 × TileWorldSize。
-            float worldWidth = LevelGeometry.TileToWorld(ShowcaseLevels.WidthTiles);
-            float worldDepth = LevelGeometry.TileToWorld(ShowcaseLevels.DepthTiles);
+            // 格 1→2 单位（用户裁决 2026-09-14）：竞技场世界尺寸 = 格数 × SampleCellSize。
+            float worldWidth = LevelGeometry.TileToWorld(ShowcaseLevels.WidthCells);
+            float worldDepth = LevelGeometry.TileToWorld(ShowcaseLevels.DepthCells);
 
             // 竞技场中心（相机与相机目标都以此为准）。
             Vector3 arenaCenter = new Vector3(worldWidth * 0.5f, LevelGeometry.GroundTopY, worldDepth * 0.5f);
@@ -304,7 +304,7 @@ namespace PirateCrew.EditorTools
             // 活物（波次 ambient）：挂 SceneArt 子节点，接线 ground/sun/队伍根/相机与瓦片数。
             // 不接线时 AmbientDirector 有容错回落（自动取父节点、Camera.main），但瓦片数只能靠默认 50×17。
             BuildAmbientDirector(sceneArt.transform, ground, sunLight, team0Root, team1Root, camera,
-                ShowcaseLevels.WidthTiles, ShowcaseLevels.DepthTiles);
+                ShowcaseLevels.WidthCells, ShowcaseLevels.DepthCells);
 
             // 规则宿主。
             var turnManagerGo = new GameObject("TurnManager");
@@ -745,8 +745,8 @@ namespace PirateCrew.EditorTools
             SetRef(so, "team0Root", team0Root);
             SetRef(so, "team1Root", team1Root);
             SetRef(so, "targetCamera", targetCamera);
-            SetInt(so, "arenaWidthTiles", widthTiles);
-            SetInt(so, "arenaDepthTiles", depthTiles);
+            SetInt(so, "arenaWidthCells", widthTiles);
+            SetInt(so, "arenaDepthCells", depthTiles);
             // 【对齐调试关（创始人 2026-10-07 裁决"完全复刻调试关观感"）】关闭时段环境覆写——
             // 正午档的 ambientLight/fog 覆写会把装配期对齐好的素面打光再改亮，两关观感重新割裂。
             SetBool(so, "applyPresetOnStart", false);

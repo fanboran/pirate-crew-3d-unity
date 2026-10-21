@@ -131,7 +131,7 @@ namespace PirateCrew.SceneArtBake
             float ch = Mathf.Max(0.01f, s.ChamferHeight);
             int layers = Mathf.Max(1, s.SideLayers);
 
-            // 格号 → 世界坐标（1 格 = LevelGeometry.TileWorldSize 单位；不要写成 gx..gx+1）。
+            // 格号 → 世界坐标（1 格 = LevelGeometry.SampleCellSize 单位；不要写成 gx..gx+1）。
             float x0 = LevelGeometry.TileToWorld(gx), x1 = LevelGeometry.TileToWorld(gx + 1);
             float z0 = LevelGeometry.TileToWorld(gy), z1 = LevelGeometry.TileToWorld(gy + 1);
 
@@ -195,7 +195,7 @@ namespace PirateCrew.SceneArtBake
                     break;
                 case ShellSide.South:
                     ny = gy + 1;
-                    outside = ny >= grid.DepthTiles;
+                    outside = ny >= grid.DepthCells;
                     break;
                 case ShellSide.West:
                     nx = gx - 1;
@@ -203,7 +203,7 @@ namespace PirateCrew.SceneArtBake
                     break;
                 default:
                     nx = gx + 1;
-                    outside = nx >= grid.WidthTiles;
+                    outside = nx >= grid.WidthCells;
                     break;
             }
 
@@ -346,9 +346,9 @@ namespace PirateCrew.SceneArtBake
             if (grid == null)
                 return b;
 
-            for (int gy = 0; gy < grid.DepthTiles; gy++)
+            for (int gy = 0; gy < grid.DepthCells; gy++)
             {
-                for (int gx = 0; gx < grid.WidthTiles; gx++)
+                for (int gx = 0; gx < grid.WidthCells; gx++)
                     AddSolidCell(b, grid, gx, gy, s);
             }
 
@@ -366,9 +366,9 @@ namespace PirateCrew.SceneArtBake
             if (grid == null)
                 return b;
 
-            for (int gy = 0; gy < grid.DepthTiles; gy++)
+            for (int gy = 0; gy < grid.DepthCells; gy++)
             {
-                for (int gx = 0; gx < grid.WidthTiles; gx++)
+                for (int gx = 0; gx < grid.WidthCells; gx++)
                 {
                     if (grid.IsGroundAt(gx, gy) && grid.BlocksAt(gx, gy) <= 0)
                         AddLowZonePlate(b, gx, gy, yOffset);
@@ -582,7 +582,7 @@ namespace PirateCrew.SceneArtBake
                 MeshBuffers target = info.Kind == PlatformClusterKind.Ship ? buffers.WoodDark : buffers.Rock;
                 AddClusterUnderside(target, grid, info, c, s);
 
-                // 簇包络（格）→ 世界（1 格 = LevelGeometry.TileWorldSize 单位）。
+                // 簇包络（格）→ 世界（1 格 = LevelGeometry.SampleCellSize 单位）。
                 float cx0 = LevelGeometry.TileToWorld(info.X0), cx1 = LevelGeometry.TileToWorld(info.X1 + 1);
                 float cz0 = LevelGeometry.TileToWorld(info.Z0), cz1 = LevelGeometry.TileToWorld(info.Z1 + 1);
                 int clusterSalt = 101 + c * 17;
@@ -632,7 +632,7 @@ namespace PirateCrew.SceneArtBake
             float bottomY = IslandBottomWorldY(grid, clusterIndex, s);
             float tipY = bottomY - Mathf.Max(0.1f, s.UndersideTaperDepth);
 
-            // 簇包络（格）→ 世界（1 格 = LevelGeometry.TileWorldSize 单位）。
+            // 簇包络（格）→ 世界（1 格 = LevelGeometry.SampleCellSize 单位）。
             float x0 = LevelGeometry.TileToWorld(cluster.X0), x1 = LevelGeometry.TileToWorld(cluster.X1 + 1);
             float z0 = LevelGeometry.TileToWorld(cluster.Z0), z1 = LevelGeometry.TileToWorld(cluster.Z1 + 1);
 

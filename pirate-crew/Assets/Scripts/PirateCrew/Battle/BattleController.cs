@@ -416,12 +416,12 @@ namespace PirateCrew.Battle
                 Vector3 spawnPosition = entry.WorldPosition;
                 if (Terrain != null)
                 {
-                    spawnPosition.y = Terrain.SurfaceWorldY(entry.GridX, entry.GridY)
+                    spawnPosition.y = Terrain.SurfaceWorldY(entry.CellX, entry.CellY)
                                       + LevelGeometry.UnitPivotHeight;
                 }
 
                 var spawnEntry = new SpawnPlanEntry(
-                    entry.TeamIndex, entry.TypeName, entry.Luck, entry.GridX, entry.GridY,
+                    entry.TeamIndex, entry.TypeName, entry.Luck, entry.CellX, entry.CellY,
                     spawnPosition, entry.InitialWeapons);
 
                 // 单一外观档（2026-10-05 职业外观塌缩裁决）；未接线回落 piratePrefab（方块兜底）。

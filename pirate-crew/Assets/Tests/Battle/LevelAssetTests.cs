@@ -338,14 +338,14 @@ namespace PirateCrew.Battle.Tests
         {
             LevelSource worldMap = LevelSourceResolver.Resolve(0, SyntheticMap(), 0);
             Assert.That(worldMap.Terrain, Is.Not.Null);
-            Assert.That(worldMap.Terrain.WidthTiles, Is.EqualTo(worldMap.Plan.WidthTiles));
+            Assert.That(worldMap.Terrain.WidthCells, Is.EqualTo(worldMap.Plan.WidthCells));
             Assert.That(worldMap.WaterWorldY, Is.EqualTo(LevelGeometry.WaterSurfaceY));
 
             LevelSource level = LevelSourceResolver.Resolve(1, null, 0);
             Assert.That(level.Terrain, Is.Not.Null);
             Assert.That(level.Terrain.BlocksAt(8, 6), Is.GreaterThan(0), "L1 首个出生点那一格必须是实心");
-            Assert.That(level.Terrain.WidthTiles, Is.EqualTo(ShowcaseLevels.WidthTiles));
-            Assert.That(level.Terrain.DepthTiles, Is.EqualTo(ShowcaseLevels.DepthTiles));
+            Assert.That(level.Terrain.WidthCells, Is.EqualTo(ShowcaseLevels.WidthCells));
+            Assert.That(level.Terrain.DepthCells, Is.EqualTo(ShowcaseLevels.DepthCells));
         }
 
         /// <summary>

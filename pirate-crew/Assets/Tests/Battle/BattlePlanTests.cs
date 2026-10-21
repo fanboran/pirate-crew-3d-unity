@@ -7,7 +7,7 @@ namespace PirateCrew.Battle.Tests
 {
     /// <summary>
     /// 出战计划生成测试（§4.3 坐标/队伍、§4.1 luck、§5.5 初始武器、§4.4 全局水面常量）。
-    /// 坐标按 3D 重投影语义（gridY→Z 纵深），数据源 = 样板第 1 关的
+    /// 坐标按 3D 重投影语义（cellY→Z 纵深），数据源 = 样板第 1 关的
     /// <see cref="ShowcaseLevels"/> 数据（一代退场后 BuildBattlePlan 的纯 C# 入口），无头可跑。
     /// 本文件只覆盖关卡 1（云端漫步的教学口径）；其余关的设计契约见
     /// <c>ShowcaseLevelDesignTests</c>。
@@ -34,19 +34,19 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void Showcase1_FirstEntry_HasExpectedCoordinatesLuckAndType()
         {
-            // 云端漫步 红1：redPirate, teamIndex 0, gridX 8, gridY 6, luck 5
+            // 云端漫步 红1：redPirate, teamIndex 0, cellX 8, cellY 6, luck 5
             BattlePlan plan = LevelGeometry.BuildBattlePlan(Showcase1());
             SpawnPlanEntry first = plan.Entries[0];
 
             Assert.AreEqual(0, first.TeamIndex);
             Assert.AreEqual("redPirate", first.TypeName);
             Assert.AreEqual(5, first.Luck);
-            Assert.AreEqual(8, first.GridX);
-            Assert.AreEqual(6, first.GridY);
+            Assert.AreEqual(8, first.CellX);
+            Assert.AreEqual(6, first.CellY);
 
             // 世界坐标 = GridToArena(8,6) = ((8+0.5)×2, UnitPivotHeight=0.5, (6+0.5)×2)
-            // = (17, 0.5, 13)：3D 重投影后 gridY→纵深 Z、高度 Y 只有脚底贴地的 0.5 枢轴偏移
-            //（格 1→2 单位后格心 = (格号+0.5)×TileWorldSize，见 LevelGeometry.cs:313）。
+            // = (17, 0.5, 13)：3D 重投影后 cellY→纵深 Z、高度 Y 只有脚底贴地的 0.5 枢轴偏移
+            //（格 1→2 单位后格心 = (格号+0.5)×SampleCellSize，见 LevelGeometry.cs:313）。
             Assert.AreEqual(17f, first.WorldPosition.x, 1e-5f);
             Assert.AreEqual(LevelGeometry.UnitPivotHeight, first.WorldPosition.y, 1e-5f);
             Assert.AreEqual(13f, first.WorldPosition.z, 1e-5f);
@@ -55,11 +55,11 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void Showcase1_Plan_UsesDepthSemanticsForXZDepth()
         {
-            // 样板场地 20×15：3D 重投影后 heightTiles 是竞技场**纵深**（Z），字段名为 DepthTiles / WorldDepth。
-            // 世界尺寸 = 格数 × TileWorldSize(2)（LevelGeometry.TileToWorld，见 BattlePlan 构造）。
+            // 样板场地 20×15：3D 重投影后 heightTiles 是竞技场**纵深**（Z），字段名为 DepthCells / WorldDepth。
+            // 世界尺寸 = 格数 × SampleCellSize(2)（LevelGeometry.TileToWorld，见 BattlePlan 构造）。
             BattlePlan plan = LevelGeometry.BuildBattlePlan(Showcase1());
-            Assert.AreEqual(ShowcaseLevels.WidthTiles, plan.WidthTiles);
-            Assert.AreEqual(ShowcaseLevels.DepthTiles, plan.DepthTiles);
+            Assert.AreEqual(ShowcaseLevels.WidthCells, plan.WidthCells);
+            Assert.AreEqual(ShowcaseLevels.DepthCells, plan.DepthCells);
             Assert.AreEqual(40f, plan.WorldWidth, 1e-5f);
             Assert.AreEqual(30f, plan.WorldDepth, 1e-5f);
         }

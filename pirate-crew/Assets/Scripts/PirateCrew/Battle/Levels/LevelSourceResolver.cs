@@ -165,7 +165,7 @@ namespace PirateCrew.Battle.Levels
 
             BattlePlan plan = WorldMapRuntime.BuildBattlePlan(map);
             HeightfieldGrid terrain = WorldMapRuntime.BuildTerrainGrid(map)
-                                      ?? HeightfieldGrid.Flat(plan.WidthTiles, plan.DepthTiles);
+                                      ?? HeightfieldGrid.Flat(plan.WidthCells, plan.DepthCells);
 
             return new LevelSource(
                 LevelSourceKind.WorldMap, map, null, plan, terrain, plan.WaterWorldY,

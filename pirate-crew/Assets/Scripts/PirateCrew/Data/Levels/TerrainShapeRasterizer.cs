@@ -13,7 +13,7 @@ namespace PirateCrew.Data
     /// 【判定语义】逐采样格取**格中心**（<c>((col+0.5)·cell, (row+0.5)·cell)</c>）做
     /// even-odd 点包含判定；多岛重叠取顶面最高者（迁移产物互不重叠，重叠语义供手编数据用）。
     ///
-    /// 【行主序约定】heights[col + row · cols]，row = Z 方向（gridY → +Z），与
+    /// 【行主序约定】heights[col + row · cols]，row = Z 方向（cellY → +Z），与
     /// <c>HeightfieldGrid</c> 的索引口径一致。
     /// </summary>
     public static class TerrainShapeRasterizer

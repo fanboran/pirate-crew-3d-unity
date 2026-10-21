@@ -74,13 +74,13 @@ namespace PirateCrew.Battle
             }
 
             Transform root = blockRoot != null ? blockRoot : transform;
-            _cellObjects = new GameObject[grid.WidthTiles * grid.DepthTiles];
+            _cellObjects = new GameObject[grid.WidthCells * grid.DepthCells];
 
-            for (int gy = 0; gy < grid.DepthTiles; gy++)
+            for (int gy = 0; gy < grid.DepthCells; gy++)
             {
-                for (int gx = 0; gx < grid.WidthTiles; gx++)
+                for (int gx = 0; gx < grid.WidthCells; gx++)
                 {
-                    int index = gx + gy * grid.WidthTiles;
+                    int index = gx + gy * grid.WidthCells;
                     if (grid.BlocksAt(gx, gy) <= 0)
                         continue;
 
@@ -121,8 +121,8 @@ namespace PirateCrew.Battle
             if (height < 0.01f)
                 height = 0.01f;   // 防御：0 高度会让 PhysX 产生退化碰撞体
 
-            // 1 格 = LevelGeometry.TileWorldSize 世界单位。
-            float size = LevelGeometry.TileWorldSize;
+            // 1 格 = LevelGeometry.SampleCellSize 世界单位。
+            float size = LevelGeometry.SampleCellSize;
             go.transform.localScale = new Vector3(size, height, size);
             Vector2 center = LevelGeometry.TileCenterWorld(gx, gy);
             go.transform.localPosition = new Vector3(

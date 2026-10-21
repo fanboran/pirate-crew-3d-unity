@@ -94,7 +94,7 @@ namespace PirateCrew.Water.Tests
         public void Bake_IsDeterministic()
         {
             var grid = ShowcaseLevels.BuildLogicGrid(1)
-                           ?? HeightfieldGrid.Flat(ShowcaseLevels.WidthTiles, ShowcaseLevels.DepthTiles);
+                           ?? HeightfieldGrid.Flat(ShowcaseLevels.WidthCells, ShowcaseLevels.DepthCells);
             var center = new Vector2(25f, 8.5f);
 
             bool[] a = ObstacleMapRules.Bake(grid, center, 64f, 64, -0.2f, 50f, 17f);

@@ -15,10 +15,10 @@ namespace PirateCrew.Battle
     /// 只回答「这一列的地表在哪」。
     ///
     /// 一、<b>高度场（内容）</b>
-    ///   · 行主序整数块阵列：每格 (gridX, gridY) 存一个块数，0 = 基础地面，
+    ///   · 行主序整数块阵列：每格 (cellX, cellY) 存一个块数，0 = 基础地面，
     ///     正值 = 该列地表相对基础地面的抬升；「无地面」（水）由地面标记表达（见构造形态）。
     ///   · 1 格 = 2 世界单位
-    ///     （<see cref="LevelGeometry.TileWorldSize"/>，故 1 单位 = 16px = <see cref="LevelGeometry.PixelsPerUnit"/>）。
+    ///     （<see cref="LevelGeometry.SampleCellSize"/>，故 1 单位 = 16px = <see cref="LevelGeometry.PixelsPerUnit"/>）。
     ///     格号 ↔ 世界坐标的换算**只走** <see cref="LevelGeometry.WorldToTileIndex"/> /
     ///     <see cref="LevelGeometry.TileCenterWorld"/>，不要在这里手搓 <c>+0.5f</c>。
     ///   · 每格块数 = 该列**地表**（单位站的就是它）。现役生产者是关卡资产高度场
@@ -34,9 +34,9 @@ namespace PirateCrew.Battle
     ///   · <b>行号 <c>rowY</c> = 离水面的竖直高度</b>。每座岛（栅格里的 4 连通域）取自己最
     ///     上面一行地面格到水线的行数差，换算成该岛的悬浮基准高度——越高的岛，3D 里浮得越高。
     ///   · <b>纵深 <c>gridZ</c> = <c>rowY − 1</c></b>：岛在 3D 里占的 Z 范围就是它在栅格里占的行范围
-    ///     （"土/岩行 = 岛体厚度"）。减 1 是为了让单位的 <c>(gridX, gridY)</c> 正好落在它脚下的
+    ///     （"土/岩行 = 岛体厚度"）。减 1 是为了让单位的 <c>(cellX, cellY)</c> 正好落在它脚下的
     ///     地面格上（栅格里对象 y 是"脚底行 − 1"），使 <c>BattleController</c> 的
-    ///     <c>z = (gridY + 0.5) × TileWorldSize</c>
+    ///     <c>z = (cellY + 0.5) × SampleCellSize</c>
     ///     与 <see cref="SurfaceWorldY(int,int)"/> 同时命中同一格。
     ///   · <b>每格块高</b> = 簇基准（行号给出）+ 局部 1 块（栅格只说"这格是陆地"）。
         ///   · <b>{ 有地面 / 是水 } 的两种构造形态</b>：① <b>列式栅格</b>（<c>blocks</c> 全图铺底、
@@ -53,7 +53,7 @@ namespace PirateCrew.Battle
         /// </summary>
         public sealed class HeightfieldGrid
         {
-            readonly int[] _blocks;   // 行主序 [gx + gy * WidthTiles]；0 = 基础地面（无抬升块）
+            readonly int[] _blocks;   // 行主序 [gx + gy * WidthCells]；0 = 基础地面（无抬升块）
             readonly bool[] _ground;  // 该格是否有地面（false = 水）
             readonly int[] _cluster;  // 平台簇索引；-1 = 水 / 列式旧地形
             readonly int[] _baseBlocks; // 该格所属簇的基准块数（整簇抬高的"地板"）；0 = 无基准
@@ -61,10 +61,10 @@ namespace PirateCrew.Battle
             readonly PlatformMap _platforms;
 
         /// <summary>竞技场横向格数（= 关卡 widthTiles）。</summary>
-        public int WidthTiles { get; }
+        public int WidthCells { get; }
 
         /// <summary>竞技场纵深格数（= 关卡 heightTiles）。</summary>
-        public int DepthTiles { get; }
+        public int DepthCells { get; }
 
         /// <summary>单块世界高度（提案/待定，见类头；0.5 = 8px，格 1→2 单位后随格放大）。</summary>
         public float BlockWorldHeight { get; }
@@ -76,10 +76,10 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>行主序索引 → 横向格号。</summary>
-        public int CellXOf(int index) => WidthTiles > 0 ? index % WidthTiles : 0;
+        public int CellXOf(int index) => WidthCells > 0 ? index % WidthCells : 0;
 
         /// <summary>行主序索引 → 纵深格号。</summary>
-        public int CellYOf(int index) => WidthTiles > 0 ? index / WidthTiles : 0;
+        public int CellYOf(int index) => WidthCells > 0 ? index / WidthCells : 0;
 
         /// <summary>
         /// 构造地形网格（列式旧地形模式）。
@@ -101,18 +101,18 @@ namespace PirateCrew.Battle
         public HeightfieldGrid(int widthTiles, int depthTiles, int[] blocks, float blockWorldHeight,
             PlatformMap platforms)
         {
-            WidthTiles = Mathf.Max(1, widthTiles);
-            DepthTiles = Mathf.Max(1, depthTiles);
+            WidthCells = Mathf.Max(1, widthTiles);
+            DepthCells = Mathf.Max(1, depthTiles);
             BlockWorldHeight = blockWorldHeight > 0f ? blockWorldHeight : LevelGeometry.BlockWorldHeight;
 
-            int expected = WidthTiles * DepthTiles;
+            int expected = WidthCells * DepthCells;
             _blocks = new int[expected];
             _ground = new bool[expected];
             _cluster = new int[expected];
             _baseBlocks = new int[expected];
 
             bool platformMode = platforms != null
-                && platforms.WidthTiles == WidthTiles && platforms.DepthTiles == DepthTiles;
+                && platforms.WidthCells == WidthCells && platforms.DepthCells == DepthCells;
             _platformMode = platformMode;
             _platforms = platformMode ? platforms : null;
 
@@ -152,40 +152,40 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>格号 → 行主序索引；越界返回 -1。</summary>
-        public int IndexOf(int gridX, int gridY)
+        public int IndexOf(int cellX, int cellY)
         {
-            if (gridX < 0 || gridY < 0 || gridX >= WidthTiles || gridY >= DepthTiles)
+            if (cellX < 0 || cellY < 0 || cellX >= WidthCells || cellY >= DepthCells)
                 return -1;
-            return gridX + gridY * WidthTiles;
+            return cellX + cellY * WidthCells;
         }
 
         /// <summary>该格的堆叠块数；越界返回 0。</summary>
-        public int BlocksAt(int gridX, int gridY)
+        public int BlocksAt(int cellX, int cellY)
         {
-            int index = IndexOf(gridX, gridY);
+            int index = IndexOf(cellX, cellY);
             return index < 0 ? 0 : _blocks[index];
         }
 
         /// <summary>该格是否堆了抬升块（小地图「实心」判据）。水格恒为 false。</summary>
-        public bool IsSolidAt(int gridX, int gridY) => BlocksAt(gridX, gridY) > 0;
+        public bool IsSolidAt(int cellX, int cellY) => BlocksAt(cellX, cellY) > 0;
 
         /// <summary>
         /// 该格是否有地面（可站、有碰撞）。平台簇模式下 = 「属于某簇且块高 &gt; 0」，
         /// 故平台被炸空（块归零）后该格变为水；列式旧地形恒为 true。
         /// </summary>
-        public bool IsGroundAt(int gridX, int gridY)
+        public bool IsGroundAt(int cellX, int cellY)
         {
-            int index = IndexOf(gridX, gridY);
+            int index = IndexOf(cellX, cellY);
             if (index < 0)
                 return false;
             return _platformMode ? _cluster[index] >= 0 && _blocks[index] > 0 : _ground[index];
         }
 
         /// <summary>该格所属平台簇索引；水格 / 列式旧地形返回 -1。</summary>
-        public int ClusterIndexOf(int gridX, int gridY)
+        public int ClusterIndexOf(int cellX, int cellY)
         {
-            int index = IndexOf(gridX, gridY);
-            if (index < 0 || !_platformMode || !IsGroundAt(gridX, gridY))
+            int index = IndexOf(cellX, cellY);
+            if (index < 0 || !_platformMode || !IsGroundAt(cellX, cellY))
                 return -1;
             return _cluster[index];
         }
@@ -208,16 +208,16 @@ namespace PirateCrew.Battle
         /// 该格所属簇的基准块数（整簇"地板"）。水格 / 列式旧地形 = 0。
         /// 视觉壳与底部收形靠它区分"岛底平面"与"局部台阶"。
         /// </summary>
-        public int BaseBlocksAt(int gridX, int gridY)
+        public int BaseBlocksAt(int cellX, int cellY)
         {
-            int index = IndexOf(gridX, gridY);
+            int index = IndexOf(cellX, cellY);
             return index < 0 ? 0 : _baseBlocks[index];
         }
 
         /// <summary>该格所属簇的基准高度（世界单位）；水格 / 列式旧地形 = 0。</summary>
-        public float BaseWorldYAt(int gridX, int gridY)
+        public float BaseWorldYAt(int cellX, int cellY)
         {
-            return BaseBlocksAt(gridX, gridY) * BlockWorldHeight;
+            return BaseBlocksAt(cellX, cellY) * BlockWorldHeight;
         }
 
         /// <summary>该簇的**最低**地表世界 Y（含基准高度）——岛底收形从这里往下走。</summary>
@@ -237,18 +237,18 @@ namespace PirateCrew.Battle
         /// 【兼容口径】平台模式的水格（块 0）这里返回基础地面 <see cref="LevelGeometry.GroundTopY"/>；
         /// 需要"水格无地表"的**游戏性**查询请用 <see cref="SurfaceWorldYAtWorld"/>。
         /// </summary>
-        public float SurfaceWorldY(int gridX, int gridY)
+        public float SurfaceWorldY(int cellX, int cellY)
         {
-            return LevelGeometry.GroundTopY + BlocksAt(gridX, gridY) * BlockWorldHeight;
+            return LevelGeometry.GroundTopY + BlocksAt(cellX, cellY) * BlockWorldHeight;
         }
 
         /// <summary>
         /// 水面以下的**虚空哨兵**：平台模式的水格没有地表，游戏性查询返回此值，
         /// 使落点/放置类查询能走到 <c>p.y &lt;= WaterSurfaceY</c> 的「落水」分支
         /// （不能返回 <see cref="LevelGeometry.WaterSurfaceY"/> 本身，
-        /// 否则会与"落到地表"分支同时命中而不是判定落水）。余量随格世界尺寸（半格 = 1 单位；TileWorldSize=2）。
+        /// 否则会与"落到地表"分支同时命中而不是判定落水）。余量随格世界尺寸（半格 = 1 单位；SampleCellSize=2）。
         /// </summary>
-        public static float WaterVoidY => LevelGeometry.WaterSurfaceY - LevelGeometry.TileWorldSize * 0.5f;
+        public static float WaterVoidY => LevelGeometry.WaterSurfaceY - LevelGeometry.SampleCellSize * 0.5f;
 
         /// <summary>
         /// 世界 XZ 处的**游戏性**地表世界 Y：平台模式的水格返回 <see cref="WaterVoidY"/>（落水哨兵）；

@@ -188,10 +188,10 @@ namespace PirateCrew.Battle.Levels
             }
 
             // 采样格尺寸必须与运行时地形粒度一致（两个常量分处 Data / Battle 程序集，靠这条盯住）。
-            if (System.Math.Abs(LevelAssetSchema.RasterCellSize - LevelGeometry.TileWorldSize) > 1e-4f)
+            if (System.Math.Abs(LevelAssetSchema.RasterCellSize - LevelGeometry.SampleCellSize) > 1e-4f)
             {
                 problems.Add(tag + "采样格尺寸 " + LevelAssetSchema.RasterCellSize
-                    + "m 与运行时 LevelGeometry.TileWorldSize=" + LevelGeometry.TileWorldSize + "m 不一致");
+                    + "m 与运行时 LevelGeometry.SampleCellSize=" + LevelGeometry.SampleCellSize + "m 不一致");
             }
             else
             {

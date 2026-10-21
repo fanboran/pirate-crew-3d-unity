@@ -65,7 +65,7 @@ namespace PirateCrew.EditorTools
     /// <summary>
     /// 美术评审机位清单——**改这里就能增删/调整机位**，不改采集器逻辑。
     ///
-    /// 【偏移量依据】竞技场由 <c>LevelData.WidthTiles × HeightTiles</c> 决定（兜底场 50×17，
+    /// 【偏移量依据】竞技场由 <c>LevelData.WidthCells × HeightTiles</c> 决定（兜底场 50×17，
     /// 中心约 (25, 0, 8.5)）；下列偏移按该尺度取景，换更大的关卡时按需调大 Offset。
     /// 相机默认战斗视角对齐场景出厂值（distance 15、pitch 45°、yaw 0 →
     /// offset ≈ (0, 10.61, 10.61)，见 <c>BattleSceneSetup.CameraDistance/CameraPitchDegrees</c>）。

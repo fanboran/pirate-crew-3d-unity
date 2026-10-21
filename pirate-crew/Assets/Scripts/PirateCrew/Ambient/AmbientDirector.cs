@@ -70,8 +70,8 @@ namespace PirateCrew.Ambient
         [SerializeField] Material windClothMaterial;
 
         [Header("竞技场（groundPlane 未接线时使用；默认 level_1 = 50×17）")]
-        [SerializeField] int arenaWidthTiles = 50;
-        [SerializeField] int arenaDepthTiles = 17;
+        [SerializeField] int arenaWidthCells = 50;
+        [SerializeField] int arenaDepthCells = 17;
 
         [Header("活物开关（数量 -1 = 用模块默认值）")]
         [SerializeField] bool enableGulls = true;
@@ -529,8 +529,8 @@ namespace PirateCrew.Ambient
                     return AmbientArena.FromTiles(scale.x, scale.z);
             }
 
-            int width = arenaWidthTiles > 0 ? arenaWidthTiles : 50;
-            int depth = arenaDepthTiles > 0 ? arenaDepthTiles : 17;
+            int width = arenaWidthCells > 0 ? arenaWidthCells : 50;
+            int depth = arenaDepthCells > 0 ? arenaDepthCells : 17;
             return AmbientArena.FromTiles(width, depth);
         }
 

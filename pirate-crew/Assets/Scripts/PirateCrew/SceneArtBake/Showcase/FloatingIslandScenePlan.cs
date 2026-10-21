@@ -148,8 +148,8 @@ namespace PirateCrew.SceneArtBake.Showcase
         /// </summary>
         public static Vector3 DefaultBackdropRootPosition(FloatingIslandSpec spec)
         {
-            // 样板第 1 关的场地：ShowcaseLevels.WidthTiles × DepthTiles（20×15 格，1 格 = 2 单位）。
-            float halfWidth = LevelGeometry.TileToWorld(ShowcaseLevels.WidthTiles) * 0.5f;
+            // 样板第 1 关的场地：ShowcaseLevels.WidthCells × DepthCells（20×15 格，1 格 = 2 单位）。
+            float halfWidth = LevelGeometry.TileToWorld(ShowcaseLevels.WidthCells) * 0.5f;
             float farEdgeZ = 0f;   // GridToArena 的 Z 从 0 起（见 LevelGeometry 类头），远缘即 Z=0。
             return BackdropRootPosition(spec, halfWidth, farEdgeZ, LevelGeometry.GroundTopY);
         }
