@@ -1,3 +1,4 @@
+using PirateCrew.AssetInspect;
 using PirateCrew.CharCamDebug;
 using PirateCrew.Core;
 using PirateCrew.UI.Stick;
@@ -50,7 +51,7 @@ namespace PirateCrew.UI.DebugUi
             _root.offsetMax = Vector2.zero;
 
             _launcher = DebugWindowKit.CreateWindow(_root, "DebugLauncher", "调试菜单",
-                DefaultTopLeft(20f, 44f), new Vector2(150f, 144f), closeButton: false);
+                DefaultTopLeft(20f, 44f), new Vector2(150f, 164f), closeButton: false);
 
             float y = DebugWindowKit.ContentTopOf(_launcher);
             // 四窗默认位错开排布：陈列廊右大块 / 对话框与菜单栏右列上下，启动器左列——
@@ -78,6 +79,8 @@ namespace PirateCrew.UI.DebugUi
             // 调试场里的「返回主菜单」走 GoBack 弹栈）。
             MakeLauncherButton("角色镜头调试场", y, () =>
                 EventBus.Publish(SceneEvents.ChangeScene, CharCamDebugController.SceneName));
+            MakeLauncherButton("资产特写观察", y, () =>
+                EventBus.Publish(SceneEvents.ChangeScene, AssetInspectController.SceneName));
 
             // Build 完先收起：首开走 Toggle 的 show 分支（旧版建好即激活，第一次点
             // 调试场景反而把它藏了——「要点击两下才能点开」的根因）。

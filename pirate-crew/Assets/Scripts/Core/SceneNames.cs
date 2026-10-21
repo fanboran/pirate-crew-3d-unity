@@ -17,7 +17,7 @@ namespace PirateCrew.Core
         /// <summary>游戏场景目录（Bootstrapper/MainMenu/Battle/CrewManagement/LevelSelect/UIShowcase）。</summary>
         public const string GameFolder = "Assets/Scenes/Game";
 
-        /// <summary>像素化试点/验收场景目录（Pixelart* 前缀的 7 张，开发/测试专用不进发行包）。</summary>
+        /// <summary>像素化试点/验收场景目录（Pixelart* 前缀的 8 张，开发/测试专用不进发行包）。</summary>
         public const string PixelartFolder = "Assets/Scenes/Pixelart";
 
         /// <summary>实验场景目录（WaterLab 等，技术验证专用不进发行包）。</summary>
