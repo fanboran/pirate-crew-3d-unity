@@ -9,7 +9,8 @@ style_tokens —— 世界套件（WorldKit）统一风格参数，单一事实�
 然后只用 ST 里的常量/工具，**禁止在脚本内散写色值、粗糙度、导出参数**。
 
 契约文档（已归档）：docs/项目/归档/M4-世界化/大海域世界化.md §4（尺度契约见 §1，站面平直机制见 §4.2）。
-调色板出处：docs/设计/美术/风格指南.md §2.1 / SceneArtPalette.cs（双侧同源纪律）。
+调色板真源：pirate-crew/Assets/Data/Palette/（共享核心板 pirate_palette.json + 域板 palette_<域>.json，
+分域两层体系见 docs/技术/资产管线/调色板.md）——本文件不再散写板内色值，槽位表按（域, 槽 id）引用。
 预览渲染与 FBX 参数出处：tools/blender/scene/build_scene_kit.py（样板）。
 """
 
@@ -52,55 +53,101 @@ POLY_BUDGETS = {
 # ---------------------------------------------------------------------------
 # 1. 材质槽表（Kit_ 前缀；Unity 侧 SceneKitPilotSetup 同步同源）
 #    roughness = 1 - Unity smoothness（美术风格指南 §3.1）。
+#    【色值不在本文件】sRGB hex 唯一取自调色板真源（共享核心板 + 域板，分域两层；
+#    板管色、本表管 roughness 等材质参数）。表项按（域, 槽 id）声明，导入时解析成
+#    原始 {"hex", "roughness"} 形状 —— kit 脚本照旧 ST.slot(name)["hex"]，不感知拆分。
+#    · domain "core"                 = 共享核心板（跨关共用：墨线/金属/布缆/点缀/远景…）
+#    · domain "caribbean"/"chemplant" = 域板（palette_<域>.json，每关/每生物群系的地形风格档）
+#    标【板外】的槽尚未入板，暂留字面值；要收编先在共享核心板登记槽位。
 #    标【提】的槽为 M4 新增提案槽，Unity 侧表由协调者同步扩展。
 # ---------------------------------------------------------------------------
 
-SLOTS = {
-    # 木（三档）
-    "Kit_WoodLight":  {"hex": "#D4A76A", "roughness": 0.72},
-    "Kit_WoodMid":    {"hex": "#A67B42", "roughness": 0.72},
-    "Kit_WoodDark":   {"hex": "#6B4C28", "roughness": 0.74},
-    # 沙（三档）+ 湿沙
-    "Kit_SandLight":  {"hex": "#E8D5A3", "roughness": 0.82},
-    "Kit_SandMid":    {"hex": "#C4A76A", "roughness": 0.82},
-    "Kit_SandDark":   {"hex": "#8B7355", "roughness": 0.82},
-    "Kit_WetSand":    {"hex": "#5C4A34", "roughness": 0.60},
-    # 草/植被（三档；树叶复用草地档——美术风格指南 §2.1）
-    "Kit_GrassLight": {"hex": "#7BC67E", "roughness": 0.86},
-    "Kit_GrassMid":   {"hex": "#4A8C4A", "roughness": 0.86},
-    "Kit_GrassDark":  {"hex": "#2D5A2D", "roughness": 0.86},
-    # 岩（三档）
-    "Kit_RockLight":  {"hex": "#B8A99A", "roughness": 0.78},
-    "Kit_RockMid":    {"hex": "#8C7B6A", "roughness": 0.78},
-    "Kit_RockDark":   {"hex": "#5C4F42", "roughness": 0.78},
-    # 金属
-    "Kit_Iron":       {"hex": "#6E6A63", "roughness": 0.58},
-    "Kit_Brass":      {"hex": "#C9A227", "roughness": 0.50},
-    # 布缆
-    "Kit_Sail":       {"hex": "#F5E8C8", "roughness": 0.88},
-    "Kit_Rope":       {"hex": "#8A6F4D", "roughness": 0.78},
-    # 特殊【提】
-    "Kit_Ember":      {"hex": "#FFB347", "roughness": 0.90},   # 篝火余烬亮色
-    "Kit_Coral":      {"hex": "#E8845A", "roughness": 0.70},   # 珊瑚/贝彩点缀
+_PALETTE_DIR = os.path.join(
+    # 本文件在 <仓库根>/tools/blender/scene/ 下：文件目录向上三级 = 仓库根
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+    "pirate-crew", "Assets", "Data", "Palette")
+_CORE_FILE = "pirate_palette.json"
+_DOMAIN_FILE = "palette_%s.json"
+_HEX_CACHE = {}
+
+
+def palette_hex(domain, slot_id):
+    """从调色板真源取槽位 hex（无 #；域板与共享核心板同读法，结果按（域, id）缓存）。"""
+    key = (domain, slot_id)
+    if key not in _HEX_CACHE:
+        path = os.path.join(_PALETTE_DIR, _CORE_FILE if domain == "core" else _DOMAIN_FILE % domain)
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        for s in data["slots"]:
+            _HEX_CACHE[(domain, s["id"])] = str(s["hex"]).lstrip("#")
+        if key not in _HEX_CACHE:
+            raise KeyError("style_tokens: 调色板（域 %s）没有槽位 %r（合法槽见 %s）" % (domain, slot_id, path))
+    return _HEX_CACHE[key]
+
+
+_SLOT_DECLS = {
+    # 木（三档）—— 加勒比域板 WOOD 族
+    "Kit_WoodLight":  {"domain": "caribbean", "slot": "WOOD_LIGHT", "roughness": 0.72},
+    "Kit_WoodMid":    {"domain": "caribbean", "slot": "WOOD_MID", "roughness": 0.72},
+    "Kit_WoodDark":   {"domain": "caribbean", "slot": "WOOD_DARK", "roughness": 0.74},
+    # 沙（三档）+ 湿沙 —— 加勒比域板 SAND 族
+    "Kit_SandLight":  {"domain": "caribbean", "slot": "SAND_LIGHT", "roughness": 0.82},
+    "Kit_SandMid":    {"domain": "caribbean", "slot": "SAND_MID", "roughness": 0.82},
+    "Kit_SandDark":   {"domain": "caribbean", "slot": "SAND_DARK", "roughness": 0.82},
+    "Kit_WetSand":    {"domain": "caribbean", "slot": "SAND_WET", "roughness": 0.60},
+    # 草/植被（三档；树叶复用草地档——美术风格指南 §2.1）—— 加勒比域板 GRASS 族
+    "Kit_GrassLight": {"domain": "caribbean", "slot": "GRASS_LIGHT", "roughness": 0.86},
+    "Kit_GrassMid":   {"domain": "caribbean", "slot": "GRASS_MID", "roughness": 0.86},
+    "Kit_GrassDark":  {"domain": "caribbean", "slot": "GRASS_DARK", "roughness": 0.86},
+    # 岩（三档）—— 加勒比域板 ROCK 族
+    "Kit_RockLight":  {"domain": "caribbean", "slot": "ROCK_LIGHT", "roughness": 0.78},
+    "Kit_RockMid":    {"domain": "caribbean", "slot": "ROCK_MID", "roughness": 0.78},
+    "Kit_RockDark":   {"domain": "caribbean", "slot": "ROCK_DARK", "roughness": 0.78},
+    # 金属 —— 共享核心板 METAL 族
+    "Kit_Iron":       {"domain": "core", "slot": "IRON", "roughness": 0.58},
+    "Kit_Brass":      {"domain": "core", "slot": "BRASS", "roughness": 0.50},
+    # 布缆 —— 共享核心板 CLOTH 族
+    "Kit_Sail":       {"domain": "core", "slot": "SAIL_CANVAS", "roughness": 0.88},
+    "Kit_Rope":       {"domain": "core", "slot": "ROPE", "roughness": 0.78},
+    # 特殊【提】—— 共享核心板 ACCENT 族
+    "Kit_Ember":      {"domain": "core", "slot": "EMBER", "roughness": 0.90},   # 篝火余烬亮色
+    "Kit_Coral":      {"domain": "core", "slot": "CORAL", "roughness": 0.70},   # 珊瑚/贝彩点缀
     # 工业/废弃【提】——第三样板关「废弃化工厂」用（kit: tools/blender/scene/chemplant/）
-    # Unity 侧同源表：pirate-crew/Assets/Editor/WorldMapAssetSetBuilder.cs（Slots）
-    "Kit_ConcreteLight": {"hex": "#C6C1B4", "roughness": 0.84},
-    "Kit_ConcreteMid":   {"hex": "#9E988A", "roughness": 0.84},
-    "Kit_ConcreteDark":  {"hex": "#6B665C", "roughness": 0.84},
-    "Kit_Rust":          {"hex": "#8C4A28", "roughness": 0.86},
-    "Kit_RustDark":      {"hex": "#5A2F1A", "roughness": 0.88},
-    "Kit_SteelBlue":     {"hex": "#4E6270", "roughness": 0.62},
-    "Kit_SteelPale":     {"hex": "#98A2A6", "roughness": 0.60},
-    "Kit_GlassDark":     {"hex": "#2E3A3E", "roughness": 0.35},
-    "Kit_PaintYellow":   {"hex": "#C9A63C", "roughness": 0.66},
-    # 远景剪影（SceneArtPalette.cs:85-91；近→远两级 + 云/远帆）
-    "Kit_FarNear":    {"hex": "#7E93A8", "roughness": 1.00},
-    "Kit_FarFar":     {"hex": "#AFC2D4", "roughness": 1.00},
-    "Kit_Cloud":      {"hex": "#FFFFFF", "roughness": 1.00},
+    # —— 化工厂域板 CONCRETE/RUST/STEEL/GLASS/PAINT 族；Unity 侧同源表：
+    #    pirate-crew/Assets/Editor/WorldMapAssetSetBuilder.cs（Slots）
+    "Kit_ConcreteLight": {"domain": "chemplant", "slot": "CONCRETE_LIGHT", "roughness": 0.84},
+    "Kit_ConcreteMid":   {"domain": "chemplant", "slot": "CONCRETE_MID", "roughness": 0.84},
+    "Kit_ConcreteDark":  {"domain": "chemplant", "slot": "CONCRETE_DARK", "roughness": 0.84},
+    "Kit_Rust":          {"domain": "chemplant", "slot": "RUST_LIGHT", "roughness": 0.86},
+    "Kit_RustDark":      {"domain": "chemplant", "slot": "RUST_DARK", "roughness": 0.88},
+    "Kit_SteelBlue":     {"domain": "chemplant", "slot": "STEEL_DARK", "roughness": 0.62},
+    "Kit_SteelPale":     {"domain": "chemplant", "slot": "STEEL_LIGHT", "roughness": 0.60},
+    "Kit_GlassDark":     {"domain": "chemplant", "slot": "GLASS_DARK", "roughness": 0.35},
+    "Kit_PaintYellow":   {"domain": "chemplant", "slot": "PAINT_YELLOW", "roughness": 0.66},
+    # 远景剪影（SceneArtPalette.cs:85-91；近→远两级 + 云/远帆）—— 共享核心板 FARFIELD 族
+    "Kit_FarNear":    {"domain": "core", "slot": "FAR_NEAR", "roughness": 1.00},
+    "Kit_FarFar":     {"domain": "core", "slot": "FAR_FAR", "roughness": 1.00},
+    "Kit_Cloud":      {"domain": "core", "slot": "CLOUD", "roughness": 1.00},
+    # 【板外】云/远帆辅档，尚未入共享核心板（要收编先在板上登记槽位）
     "Kit_CloudShade": {"hex": "#DCE6EE", "roughness": 1.00},   # 云背光/云底（CloudWarmWhite 同系冷档）
     "Kit_CloudGold":  {"hex": "#F2E4C4", "roughness": 1.00},   # 云晒面淡金斑（CloudPaleGold 同源）
     "Kit_FarSail":    {"hex": "#E8E8E0", "roughness": 1.00},
 }
+
+
+def _build_slots(decls):
+    """把槽声明解析成 kit 消费的原始形状 {"hex", "roughness"}（hex 带 #，导入时取板）。"""
+    slots = {}
+    for name, decl in decls.items():
+        if "hex" in decl:      # 【板外】槽：字面值
+            slots[name] = {"hex": decl["hex"], "roughness": decl["roughness"]}
+        else:                  # 板内槽：色值唯一取自调色板真源
+            slots[name] = {"hex": "#" + palette_hex(decl["domain"], decl["slot"]),
+                           "roughness": decl["roughness"]}
+    return slots
+
+
+SLOTS = _build_slots(_SLOT_DECLS)
 
 
 def hex_to_rgb(hex_str):
