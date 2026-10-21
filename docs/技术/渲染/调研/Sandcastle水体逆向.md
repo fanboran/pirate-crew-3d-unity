@@ -280,6 +280,34 @@ Water compute 的 11 个 kernel 全部反汇编后逐条判读（每个 kernel �
 即原作白水粒子不是「贴一张白花贴图」：它是**程序化径向 falloff + 世界域遮罩 + 水柱衰减 + 阴影**的组合。
 
 
+### 10.6 沙地与水下装饰的观感真值（2026-10-21，第一手材质/资产回读）
+
+- **沙材质** `Sand`（自研 `Lit/Sand`）：`sandColor=(0.9255,0.8863,0.7255)`、
+  `sandColor2=(0.9294,0.8980,0.7529)`、`wetSandColor=(0.9060,0.8104,0.6333)`
+  （序列化 linear）。湿沙不是独立贴图：VS 把 `max(water−0.05,0)` 传入，PS 先
+  `sat×52.63` 再 `3t²−2t³` smoothstep——约 2 cm 水膜即全湿；随后按水深 ×20 与
+  坡度因子继续压向第三色。
+- **没有反照率沙贴图**：`sandMap` 是 1024² RG 向量流噪声，只用于扭曲焦散 UV；
+  沙面颗粒/波纹来自 GPU 高度场法线（`Lit_Sand@702.vs` 从地面缓冲解 8-bit 法线）。
+  焦散是烘焙 `Texture3D "Caustics" 256×256×64`、1 byte/voxel，PS 双采样时间 lerp，
+  强度乘 `exp(−1.731×水深)`。
+- **水下装饰**：珊瑚/海草是 GPU Imposter 广告牌（`Plant.cs`，capacity 32768，
+  sizeRange 默认 0.75），图集不透明像均色见下表；礁石/卵石/贝壳/海星是实体网格
+  （Rock_01–06 473–2576 顶点、Pebble_01–06 54–67 顶点、贝壳 187–712 顶点）。
+  分布为 loose 群簇（单簇 0.3–0.8 m，间距 1–3 m），浅水可辨色、深水退成暗青剪影。
+
+| Imposter | 均色 RGB（sRGB） | 观感 |
+| --- | --- | --- |
+| GroovedBrainCoral | (0.687,0.440,0.128) | 橙褐脑珊瑚 |
+| CarnationCoral | (0.740,0.521,0.445) | 粉珊瑚 |
+| LettuceCoral | (0.610,0.560,0.431) | 灰绿生菜珊瑚 |
+| Kelp | (0.678,0.526,0.221) | 橄榄褐海带 |
+| Seagrass | ≈(0.36,0.46,0.21) | 绿色海草 |
+
+- **不可恢复**：七种沙型预设（`SandType` 的 color/wetColor/sedimentColor 是运行时
+  构造配置，序列化 MonoBehaviour 无 typetree）；Caustics 体素内容；`WorldHeightMap`
+  的 `FormatProperty.size`。
+
 ## 11. 水体渲染代码量对照（2026-10-16，全量反汇编精读）
 
 **原作 Lit_Water 全部程序＝1 VS + 1 PS**（blob 内两份「变体」字节级相同，非两个实现）：
