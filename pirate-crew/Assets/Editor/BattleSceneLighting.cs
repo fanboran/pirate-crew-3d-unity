@@ -14,15 +14,16 @@ namespace PirateCrew.EditorTools
     ///
     /// 【两个层次，别混用】
     ///   1. **资产层**（<see cref="BuildAll"/>，走 -executeMethod 或菜单）：
-    ///      生成环境材质库 → 生成后处理 VolumeProfile → 配置 URP Asset（软阴影 / 深度图 / MSAA）。
+    ///      生成后处理 VolumeProfile → 配置 URP Asset（软阴影 / 深度图 / MSAA）。
     ///      这些都是"改工程资产"，与场景无关，可独立重复执行（幂等）。
     ///   2. **场景层**（<see cref="ConfigureSkyAndAmbient"/> / <see cref="CreateDirectionalLight"/> /
     ///      <see cref="ApplySceneAtmosphere"/>）：由 BattleSceneSetup 在重建 Battle 场景时调用，
     ///      写入场景的 RenderSettings / 全局 Volume / 相机后处理开关。
     ///
-    /// 【风格契约】GDD §10.4「风格化写实（Stylized PBR）」：
-    ///   暖主光 #FFF4E0 + 冷环境光（天空盒 SH，浅蓝）+ 实时软阴影；
-    ///   后处理 = ACES + 轻微 Bloom + ColorGrading + Vignette。
+    /// 【口径】PBR 根除后本文件不再生成任何材质（Surface 族环境材质与 PirateWater /
+    ///   PirateTerrain 建材质行已随 PBR 根除拆除——海水由 OceanRig 运行时装配像素海面，
+    ///   瓦片地形站面走像素物体 shader）；后处理（Neutral tonemap / Bloom / ColorGrading /
+    ///   Vignette）与光照配置保留，服务像素化成图的亮度/氛围基座。
     ///
     /// 【色空间】本工程 ProjectSettings m_ActiveColorSpace = 1（**Linear**）——PBR 物理正确的前提。
     ///   **关键结论（别再"顺手"把所有 Hex() 改成 .linear，那反而会整体变暗）**：
@@ -37,7 +38,7 @@ namespace PirateCrew.EditorTools
     ///   故 <see cref="Hex"/> 保持"解析 sRGB 十六进制、不做转换"的语义，**所有调用点都不改**。
     ///
     /// 【材质目录切分（与其它波次的约定）】
-    ///   本文件只生成**环境类**材质，统一放 Assets/Art/Materials/Environment/。
+    ///   环境类材质统一放 Assets/Art/Materials/Environment/（本文件只按名读取，不再生成）。
     ///   角色类材质（皮肤/骨骼/皮革/阵营布料/胡须）由角色波次负责，放 Assets/Art/Materials/Crew/ —— 本文件不碰。
     ///
     /// 【无头入口】
@@ -70,26 +71,11 @@ namespace PirateCrew.EditorTools
         public const string UrpAssetPath = "Assets/Settings/URP/PC_Balanced_URPAsset.asset";
 
         // ------------------------------------------------------------------
-        // Shader 名（与 Assets/Art/Shaders/ 下的程序化材质 shader 对应）
-        // 【范围】本文件只产 Surface 族环境材质；PirateWater / PirateTerrain 建材质行已随
-        // PBR 根除拆除——海水由 OceanRig 运行时装配像素海面，瓦片地形站面走像素物体 shader
-        // （WorldMapComposer）。同名材质资产（Water_Ocean / Terrain_Island）由场景波次处置。
+        // 环境材质文件名（不含扩展名）；BattleSceneSetup 用这些常量取材质。
+        // 资产本体仍在（Water_Ocean / Terrain_Island），shader 已随 PBR 根除拆除，
+        // 去留随水体表现口径裁决定夺。
         // ------------------------------------------------------------------
 
-        const string SurfaceShaderName = "PirateCrew/PirateSurface";
-
-        // ------------------------------------------------------------------
-        // 环境材质文件名（不含扩展名）；BattleSceneSetup 用这些常量取材质
-        // ------------------------------------------------------------------
-
-        public const string DrySandMaterial   = "Surface_DrySand";    // 干沙（也用作竞技场地面）
-        public const string WetSandMaterial   = "Surface_WetSand";    // 湿沙（也用作岛外浅海床台阶）
-        public const string GrassMaterial     = "Surface_Grass";      // 草地
-        public const string RockMaterial      = "Surface_Rock";       // 岩石（也用作深海床台阶）
-        public const string WoodPlankMaterial = "Surface_WoodPlank";  // 木板
-        public const string WoodDarkMaterial  = "Surface_WoodDark";   // 深色木
-        public const string BrassMaterial     = "Surface_Brass";      // 黄铜
-        public const string IronMaterial      = "Surface_Iron";       // 铁
         public const string WaterMaterial     = "Water_Ocean";        // 海水
         public const string TerrainMaterial   = "Terrain_Island";     // 瓦片地形
 
@@ -98,31 +84,15 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 统一入口：生成环境材质库 → 生成后处理 VolumeProfile → 配置 URP Asset。幂等，可重复执行。
+        /// 统一入口：生成后处理 VolumeProfile → 配置 URP Asset。幂等，可重复执行。
         /// </summary>
-        [MenuItem("PirateCrew/Rendering/生成材质库与渲染资产")]
+        [MenuItem("PirateCrew/Rendering/生成渲染资产")]
         public static void BuildAll()
         {
             EnsureFolder(ArtMaterialFolder);
             EnsureFolder(EnvironmentMaterialFolder);
             EnsureFolder(ArtRenderingFolder);
 
-            // ⓪ 程序化细节贴图**必须先生成**：下面 8 个 Surface 材质要引用它们（幂等：已生成则按字节比对跳过）。
-            // 【为什么在这里也调一次】本方法自身是无头入口（-executeMethod BattleSceneLighting.BuildAll），
-            //   不能假设调用方（ArtGate）已经跑过这一步——否则直接调本方法会得到"没有细节贴图的材质"。
-            // 【为什么吞异常】细节贴图缺失只让沙/草/岩退回"纯色 + 噪声"（细节强度置 0），
-            //   材质仍然可用；失败由 ArtGate 的独立步骤（⓪.5）负责汇总成非零退出码，不在这里静默。
-            try
-            {
-                MaterialNoiseBuilder.Build(false);
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogError("[BattleSceneLighting] 程序化细节贴图生成失败：沙/草/岩材质将不带细节贴图"
-                    + "（对应强度被置 0，画面仍可运行，但 P-9/P-10 会不达标）。原因：\n" + e);
-            }
-
-            int materialCount = BuildEnvironmentMaterials();
             VolumeProfile profile = EnsureVolumeProfile();
             ConfigureUrpAsset();
 
@@ -130,8 +100,6 @@ namespace PirateCrew.EditorTools
             AssetDatabase.Refresh();
 
             Debug.Log("[BattleSceneLighting] 渲染资产生成完成。\n"
-                + "  环境材质: " + materialCount + " 个 → " + EnvironmentMaterialFolder + "\n"
-                + "  细节贴图: " + MaterialNoiseBuilder.TextureFolder + "（由 MaterialNoiseBuilder 生成）\n"
                 + "  后处理: " + (profile != null ? VolumeProfilePath : "（生成失败）") + "\n"
                 + "  URP: " + UrpAssetPath + "（软阴影 on / 深度图 on / **MSAA 0**——像素化裁决）；");
         }
@@ -146,402 +114,9 @@ namespace PirateCrew.EditorTools
                 EnvironmentMaterialFolder + "/" + materialName + ".mat");
         }
 
-        // ------------------------------------------------------------------
-        // 环境材质库（8 个 Surface 族；基色为色值、细节为程序化噪声贴图 —— 0 外部贴图）
-        // ------------------------------------------------------------------
-
-        /// <summary>生成/刷新全部环境材质，返回成功处理的数量。</summary>
-        static int BuildEnvironmentMaterials()
-        {
-            int count = 0;
-
-            if (BuildDrySandMaterial())   count++;
-            if (BuildWetSandMaterial())   count++;
-            if (BuildGrassMaterial())     count++;
-            if (BuildRockMaterial())      count++;
-            if (BuildWoodPlankMaterial()) count++;
-            if (BuildWoodDarkMaterial())  count++;
-            if (BuildBrassMaterial())     count++;
-            if (BuildIronMaterial())      count++;
-
-            return count;
-        }
-
-        // 干沙（GDD §10.4 沙地三档：暗 #8B7355 → 中 #C4A76A → 亮 #E8D5A3）
-        // 参数理由：沙是细腻介质 → 噪声尺度偏大（4.5，即约 0.22 世界单位的斑块）、细节法线中等；
-        //           完全无金属、光滑度低（0.25）—— 干沙几乎无高光，匹配 cel-shader-guide §8 的 "specular=0"。
-        // 【本次改动（r3 复验 N4 返工）】_Smoothness 0.12 → **0.25**：沙/草/岩三族的粗糙度必须拉开
-        //   （docs/设计/美术/风格指南.md:199-204 §3.2 纪律 1：相邻面 smoothness 差 ≥ 0.15），
-        //   三族基准取 沙 0.25 / 草 0.40 / 岩 0.55（差 0.15）。同时挂上程序化细节贴图（P-9/P-10）。
-        static bool BuildDrySandMaterial()
-        {
-            Material m = EnsureMaterial(DrySandMaterial, SurfaceShaderName);
-            if (m == null) return false;
-
-            SetColor(m, "_BaseColorA", Hex("#8B7355"));
-            SetColor(m, "_BaseColorB", Hex("#C4A76A"));
-            SetColor(m, "_BaseColorC", Hex("#E8D5A3"));
-            SetFloat(m, "_ColorRampContrast", 1.5f);
-            SetFloat(m, "_ColorRampBias", 0.5f);
-            SetFloat(m, "_NoiseScale", 4.5f);
-            SetFloat(m, "_NoiseStrength", 0.4f);
-            SetVector(m, "_NoiseStretch", new Vector4(1f, 1f, 0f, 0f));
-            SetFloat(m, "_DetailNoiseScale", 18f);
-            SetFloat(m, "_DetailNormalStrength", 0.45f);
-            // 细节贴图：世界 XZ UV，1/0.05 = 20m 平铺（r5 把世界尺度放大 8×，见 MaterialNoiseBuilder
-            //   文件头"采样尺度"：原 0.35 时最细八度只有 ~1.3cm，近景被 mip 抹平、特写看不到砂粒）；
-            //   微色斑强度 1.0 = 用满贴图里烘好的 ±（明度 std 见 MaterialNoiseBuilder 构建日志）；
-            //   法线强度 1.0（贴图本身的 RMS 斜率已被规到 0.07≈4° 的温和档）。
-            ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandAlbedo, MaterialNoiseBuilder.NoiseKind.SandNormal,
-                0.05f, 1f, 1f);
-            SetFloat(m, "_Metallic", 0f);
-            SetFloat(m, "_Smoothness", 0.25f);
-            SetFloat(m, "_AmbientStrength", 1f);
-            SetFloat(m, "_EdgeWear", 0f);
-            // 干沙/湿沙共用同一组湿参数（否则两种材质交界处湿带断裂露缝，见 ApplySandWetParameters）。
-            ApplySandWetParameters(m);
-            SetFloat(m, "_DebugMode", 0f);
-            return Save(m);
-        }
-
-        // 湿沙（提案/待定：GDD 只有一组沙色，没有"湿沙"色值。
-        //   本组由沙地暗档继续压暗 + 提饱和得到，湿润参数让水面附近/浪线内侧的沙更暗更亮）。
-        // 【本次改动】_Smoothness 0.22 → **0.30**：必须比干沙（0.25）更滑，否则
-        //   "湿沙更滑"这条物理直觉会在两种材质的交界处反过来（旧的 0.12/0.22 配对同理）。
-        static bool BuildWetSandMaterial()
-        {
-            Material m = EnsureMaterial(WetSandMaterial, SurfaceShaderName);
-            if (m == null) return false;
-
-            SetColor(m, "_BaseColorA", Hex("#5C4A34"));
-            SetColor(m, "_BaseColorB", Hex("#8B7355"));
-            SetColor(m, "_BaseColorC", Hex("#A8906A"));
-            SetFloat(m, "_ColorRampContrast", 1.4f);
-            SetFloat(m, "_ColorRampBias", 0.5f);
-            SetFloat(m, "_NoiseScale", 4.0f);
-            SetFloat(m, "_NoiseStrength", 0.35f);
-            SetVector(m, "_NoiseStretch", new Vector4(1f, 1f, 0f, 0f));
-            SetFloat(m, "_DetailNoiseScale", 16f);
-            SetFloat(m, "_DetailNormalStrength", 0.3f);
-            // 与干沙**同一组贴图与参数**：两种沙材质若细节强度不同，交界处会露出贴图强度差。
-            ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandAlbedo, MaterialNoiseBuilder.NoiseKind.SandNormal,
-                0.05f, 1f, 1f);
-            SetFloat(m, "_Metallic", 0f);
-            SetFloat(m, "_Smoothness", 0.30f);
-            SetFloat(m, "_AmbientStrength", 1f);
-            SetFloat(m, "_EdgeWear", 0f);
-            // 与干沙同一组湿参数：湿感全部由世界高度（水位 ± _WetBandWidth）驱动，
-            // 不再用材质级 _Wetness 常量（旧值 0.75 会让整块湿沙无梯度，且与干沙交界露缝）。
-            ApplySandWetParameters(m);
-            SetFloat(m, "_DebugMode", 0f);
-            return Save(m);
-        }
-
-        /// <summary>
-        /// 两个沙材质共用的"沙滩湿区"参数（干沙 <see cref="DrySandMaterial"/> 与
-        /// 湿沙 <see cref="WetSandMaterial"/> 必须逐值相同，否则材质交界处湿带断裂露缝）。
-        ///
-        /// 【为什么不合并两个材质】<c>SceneArtBuilder</c> 等处按名字查找 <c>Surface_WetSand</c>，
-        /// 删除会触发回退材质与告警；合并列为后续优化（本次只统一参数）。
-        ///
-        /// 【取值依据】湿带宽度覆盖潮间带坡 0→-0.6（场景设计 §3.3），水位 -0.2 与
-        /// PirateWater / LevelGeometry 一致；湿沙色 #A88D5C 是**AI 提案**（介于沙地暗/中档之间）。
-        /// <c>_Wetness</c> 固定 0：湿感只由世界高度驱动，设 1 会退化成"整块湿"、失去梯度。
-        /// 幂等：每次 BuildAll 就地覆写这些属性，不改其它材质参数。
-        /// </summary>
-        static void ApplySandWetParameters(Material m)
-        {
-            SetFloat(m, "_WaterLevelY", -0.2f);          // 与 PirateWater / LevelGeometry.WaterSurfaceY 同源
-            SetFloat(m, "_WetBandWidth", 0.45f);         // 水线以上过渡到全干的世界单位宽
-            SetFloat(m, "_Wetness", 0f);                 // 关键：不用材质级常量，靠高度掩码出梯度
-            SetColor(m, "_WetSandColor", Hex("#A88D5C"));// 湿态 albedo 目标色【AI 提案】
-            SetFloat(m, "_WetLineMin", 0.10f);           // 高水位残留线（潮痕）下边界
-            SetFloat(m, "_WetLineMax", 0.22f);           // 上边界
-            SetFloat(m, "_WetDarken", 0.3f);             // 湿区额外压暗
-            SetFloat(m, "_WetSmoothnessBoost", 0.45f);   // 湿沙更滑 → 高光是"湿"的关键信号
-            SetFloat(m, "_RippleScale", 16f);            // 沙纹频率（λ ≈ 0.39 世界单位）
-            SetFloat(m, "_RippleStrength", 0.10f);       // 沙纹振幅（shader 硬钳 ≤0.15）
-            SetFloat(m, "_RippleDistort", 0.35f);        // 沙纹相位扭曲
-        }
-
-        // 草地（GDD §10.4 草地三档：#2D5A2D → #4A8C4A → #7BC67E）
-        // 参数理由：草是高频细密介质 → 噪声尺度最大（8）、细节法线最强（0.75），制造"绒毛感"；
-        //           光滑度 **0.40**（本次改动：旧值 0.10 与沙只差 0.02，违反 §3.2 纪律 1 的 ≥0.15；
-        //           0.40 与沙 0.25 / 岩 0.55 各差 0.15）。
-        // 【本次改动】挂草族细节贴图（r5 世界尺度 0.25 → 0.04，放大 6.25×，见 MaterialNoiseBuilder
-        //   文件头"采样尺度"；原 0.25 时最细八度 ~4cm 近景仍被 mip 抹平）。
-        static bool BuildGrassMaterial()
-        {
-            Material m = EnsureMaterial(GrassMaterial, SurfaceShaderName);
-            if (m == null) return false;
-
-            SetColor(m, "_BaseColorA", Hex("#2D5A2D"));
-            SetColor(m, "_BaseColorB", Hex("#4A8C4A"));
-            SetColor(m, "_BaseColorC", Hex("#7BC67E"));
-            SetFloat(m, "_ColorRampContrast", 1.7f);
-            SetFloat(m, "_ColorRampBias", 0.5f);
-            SetFloat(m, "_NoiseScale", 8f);
-            SetFloat(m, "_NoiseStrength", 0.5f);
-            SetVector(m, "_NoiseStretch", new Vector4(1f, 1f, 0f, 0f));
-            SetFloat(m, "_DetailNoiseScale", 26f);
-            SetFloat(m, "_DetailNormalStrength", 0.75f);
-            // 草族贴图：法线强度 1.1（贴图 RMS 斜率 0.16≈9°，比沙强、比岩弱）。
-            ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.GrassAlbedo, MaterialNoiseBuilder.NoiseKind.GrassNormal,
-                0.04f, 1f, 1.1f);
-            SetFloat(m, "_Metallic", 0f);
-            SetFloat(m, "_Smoothness", 0.40f);
-            SetFloat(m, "_AmbientStrength", 1f);
-            SetFloat(m, "_EdgeWear", 0f);
-            SetFloat(m, "_Wetness", 0f);
-            SetFloat(m, "_DebugMode", 0f);
-            return Save(m);
-        }
-
-        // 岩石（GDD §10.4 岩石三档：#5C4F42 → #8C7B6A → #B8A99A）
-        // 参数理由：岩石是块状硬表面 → 噪声尺度中等（5）、细节法线强（0.9）制造碎裂感；
-        //           光滑度 **0.55**（本次改动：旧值 0.28 与草只差 0.18、与沙差 0.16，勉强达标；
-        //           0.55 让"岩 vs 草/沙"一眼可比 —— 岩是风化硬面，湿气/矿物的微光比草沙明显）；
-        //           边缘磨损 0.3 + 磨损色偏白 —— 岩棱被风化磨亮是风格化写实的常见做法（AI 提案）。
-        // 【本次改动】挂岩族细节贴图（r5 世界尺度 0.5 → 0.10，放大 5×；
-        //   法线 1.2 × 贴图 RMS 0.28≈15.6° = 强断裂感）。
-        static bool BuildRockMaterial()
-        {
-            Material m = EnsureMaterial(RockMaterial, SurfaceShaderName);
-            if (m == null) return false;
-
-            SetColor(m, "_BaseColorA", Hex("#5C4F42"));
-            SetColor(m, "_BaseColorB", Hex("#8C7B6A"));
-            SetColor(m, "_BaseColorC", Hex("#B8A99A"));
-            SetFloat(m, "_ColorRampContrast", 1.6f);
-            SetFloat(m, "_ColorRampBias", 0.5f);
-            SetFloat(m, "_NoiseScale", 5f);
-            SetFloat(m, "_NoiseStrength", 0.45f);
-            SetVector(m, "_NoiseStretch", new Vector4(1f, 1f, 0f, 0f));
-            SetFloat(m, "_DetailNoiseScale", 12f);
-            SetFloat(m, "_DetailNormalStrength", 0.9f);
-            ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.RockAlbedo, MaterialNoiseBuilder.NoiseKind.RockNormal,
-                0.10f, 1f, 1.2f);
-            SetFloat(m, "_Metallic", 0f);
-            SetFloat(m, "_Smoothness", 0.55f);
-            SetFloat(m, "_AmbientStrength", 1f);
-            SetFloat(m, "_EdgeWear", 0.3f);
-            SetColor(m, "_WearColor", Hex("#C8BCA8"));
-            SetFloat(m, "_Wetness", 0f);
-            SetFloat(m, "_DebugMode", 0f);
-            return Save(m);
-        }
-
-        // 木板（GDD §10.4 木材三档：#6B4C28 → #A67B42 → #D4A76A）
-        // 参数理由：木纹是**各向异性**条纹 → _NoiseStretch=(0.18, 1.0) 把噪声沿 Z 拉成长条；
-        //           光滑度 0.18（cel-shader-guide 木材预设 specular=0，但木板有微弱油光）。
-        static bool BuildWoodPlankMaterial()
-        {
-            Material m = EnsureMaterial(WoodPlankMaterial, SurfaceShaderName);
-            if (m == null) return false;
-
-            SetColor(m, "_BaseColorA", Hex("#6B4C28"));
-            SetColor(m, "_BaseColorB", Hex("#A67B42"));
-            SetColor(m, "_BaseColorC", Hex("#D4A76A"));
-            SetFloat(m, "_ColorRampContrast", 1.9f);
-            SetFloat(m, "_ColorRampBias", 0.5f);
-            SetFloat(m, "_NoiseScale", 3.0f);
-            SetFloat(m, "_NoiseStrength", 0.45f);
-            SetVector(m, "_NoiseStretch", new Vector4(0.18f, 1.0f, 0f, 0f));
-            SetFloat(m, "_DetailNoiseScale", 9f);
-            SetFloat(m, "_DetailNormalStrength", 0.35f);
-            // 木族细节贴图（v2 新增）：低强度**暖噪**（沙族 albedo 的暖色微斑）+ 岩族法线（节疤/木纹起伏）。
-            //   与木纹主噪声（_NoiseStretch=(0.18,1) 的各向异性条带）叠加：主噪声给"长条纹理"、
-            //   细节贴图给"介质颗粒" —— 只提噪声强度会把木纹做成"塑料拉丝"，加介质色斑才像木头。
-            //   世界尺度 0.55（≈1.8m 平铺）：木板/船舷这类 0.5-3m 构件上能看出 2-4 个斑块。
-            ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandAlbedo, MaterialNoiseBuilder.NoiseKind.RockNormal,
-                0.55f, 0.22f, 0.35f);
-            SetFloat(m, "_Metallic", 0f);
-            SetFloat(m, "_Smoothness", 0.18f);
-            SetFloat(m, "_AmbientStrength", 1f);
-            SetFloat(m, "_EdgeWear", 0.2f);
-            SetColor(m, "_WearColor", Hex("#D8BC8C"));
-            SetFloat(m, "_Wetness", 0f);
-            SetFloat(m, "_DebugMode", 0f);
-            return Save(m);
-        }
-
-        // 深色木（提案/待定：GDD 木材三档之外的自定义档，用作船舷/栅栏/箱体的压暗木色）
-        static bool BuildWoodDarkMaterial()
-        {
-            Material m = EnsureMaterial(WoodDarkMaterial, SurfaceShaderName);
-            if (m == null) return false;
-
-            SetColor(m, "_BaseColorA", Hex("#3A2A18"));
-            SetColor(m, "_BaseColorB", Hex("#55391F"));
-            SetColor(m, "_BaseColorC", Hex("#6B4C28"));
-            SetFloat(m, "_ColorRampContrast", 1.7f);
-            SetFloat(m, "_ColorRampBias", 0.5f);
-            SetFloat(m, "_NoiseScale", 3.0f);
-            SetFloat(m, "_NoiseStrength", 0.4f);
-            SetVector(m, "_NoiseStretch", new Vector4(0.18f, 1.0f, 0f, 0f));
-            SetFloat(m, "_DetailNoiseScale", 9f);
-            SetFloat(m, "_DetailNormalStrength", 0.35f);
-            // 深色木（v2 新增，与木板同款但强度更低）：压暗木不让细节噪点过跳 —— 深色底上
-            //   同样的乘性起伏视觉对比更强（人眼对暗部更敏感），故 0.18/0.30 < 木板的 0.22/0.35。
-            ApplyDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandAlbedo, MaterialNoiseBuilder.NoiseKind.RockNormal,
-                0.55f, 0.18f, 0.30f);
-            SetFloat(m, "_Metallic", 0f);
-            SetFloat(m, "_Smoothness", 0.22f);
-            SetFloat(m, "_AmbientStrength", 1f);
-            SetFloat(m, "_EdgeWear", 0.25f);
-            SetColor(m, "_WearColor", Hex("#8A6A3C"));
-            SetFloat(m, "_Wetness", 0f);
-            SetFloat(m, "_DebugMode", 0f);
-            return Save(m);
-        }
-
-        // 黄铜（提案/待定：GDD 没有金属色值。取 #B08D3E 一带的黄铜色阶：
-        //   暗 #7A5C1E → 中 #B08D3E → 亮 #D9B65A；金属度 1、光滑度 0.75）。
-        // 参数理由：金属的 albedo 三档 = 反射率差异，噪声给"铸造/氧化的不均匀"；
-        //           光滑度 0.75 让 SH 环境反射与主光高光都能看出金属感。
-        static bool BuildBrassMaterial()
-        {
-            Material m = EnsureMaterial(BrassMaterial, SurfaceShaderName);
-            if (m == null) return false;
-
-            SetColor(m, "_BaseColorA", Hex("#7A5C1E"));
-            SetColor(m, "_BaseColorB", Hex("#B08D3E"));
-            SetColor(m, "_BaseColorC", Hex("#D9B65A"));
-            SetFloat(m, "_ColorRampContrast", 1.5f);
-            SetFloat(m, "_ColorRampBias", 0.5f);
-            SetFloat(m, "_NoiseScale", 6f);
-            SetFloat(m, "_NoiseStrength", 0.35f);
-            SetVector(m, "_NoiseStretch", new Vector4(1f, 1f, 0f, 0f));
-            SetFloat(m, "_DetailNoiseScale", 20f);
-            SetFloat(m, "_DetailNormalStrength", 0.25f);
-            // 金属本轮不挂细节贴图（细节贴图是"介质的色斑"，金属的不均匀来自边缘磨损）。
-            DisableDetailTexture(m);
-            SetFloat(m, "_Metallic", 1f);
-            SetFloat(m, "_Smoothness", 0.75f);
-            SetFloat(m, "_AmbientStrength", 1f);
-            SetFloat(m, "_EdgeWear", 0.35f);
-            SetColor(m, "_WearColor", Hex("#E8D5A3"));
-            SetFloat(m, "_Wetness", 0f);
-            SetFloat(m, "_DebugMode", 0f);
-            return Save(m);
-        }
-
-        // 铁（提案/待定：GDD 没有金属色值。冷灰金属：暗 #4A4E52 → 中 #7C8288 → 亮 #A8AFB6；
-        //   金属度 1、光滑度 0.45）。光滑度低于黄铜 → 铁是哑光/粗糙金属。
-        static bool BuildIronMaterial()
-        {
-            Material m = EnsureMaterial(IronMaterial, SurfaceShaderName);
-            if (m == null) return false;
-
-            SetColor(m, "_BaseColorA", Hex("#4A4E52"));
-            SetColor(m, "_BaseColorB", Hex("#7C8288"));
-            SetColor(m, "_BaseColorC", Hex("#A8AFB6"));
-            SetFloat(m, "_ColorRampContrast", 1.5f);
-            SetFloat(m, "_ColorRampBias", 0.5f);
-            SetFloat(m, "_NoiseScale", 7f);
-            SetFloat(m, "_NoiseStrength", 0.4f);
-            SetVector(m, "_NoiseStretch", new Vector4(1f, 1f, 0f, 0f));
-            SetFloat(m, "_DetailNoiseScale", 22f);
-            SetFloat(m, "_DetailNormalStrength", 0.5f);
-            DisableDetailTexture(m);
-            SetFloat(m, "_Metallic", 1f);
-            SetFloat(m, "_Smoothness", 0.45f);
-            SetFloat(m, "_AmbientStrength", 1f);
-            SetFloat(m, "_EdgeWear", 0.4f);
-            SetColor(m, "_WearColor", Hex("#C9C2B4"));
-            SetFloat(m, "_Wetness", 0f);
-            SetFloat(m, "_DebugMode", 0f);
-            return Save(m);
-        }
-
         // 【海水 / 瓦片地形材质已不在本文件生成】PirateWater / PirateTerrain 建材质行随
         // PBR 根除拆除：海水由 OceanRig 运行时装配像素海面，瓦片地形站面走像素物体 shader
         // （WorldMapComposer）。同名材质资产（Water_Ocean / Terrain_Island）由场景波次处置。
-
-        // ------------------------------------------------------------------
-        // 细节贴图接线（沙/草/岩三族；程序化资产的引用点）
-        // ------------------------------------------------------------------
-
-        /// <summary>
-        /// 给 <see cref="SurfaceShaderName"/> 的材质挂上 albedo 微色斑图 + 法线图。
-        ///
-        /// 【两条强度同时是"开关"】shader 里 <c>_DetailAlbedoStrength</c> / <c>_BumpScale</c> 默认 0
-        /// （未赋贴图的木/铜/铁必须与加贴图之前逐像素一致，见 PirateSurface.shader 文件头【默认关闭】）；
-        /// 本方法**只在贴图确实加载成功时**才把强度打开，贴图缺失则强度留 0 并记 Warning。
-        /// 这样"忘了跑 MaterialNoiseBuilder"的表现是"画面退回改动前 + 一条明确警告"，而不是随机变色。
-        /// </summary>
-        static void ApplyDetailTexture(Material m, MaterialNoiseBuilder.NoiseKind albedoKind,
-            MaterialNoiseBuilder.NoiseKind normalKind, float worldScale, float albedoStrength, float bumpScale)
-        {
-            SetFloat(m, "_NoiseWorldScale", worldScale);
-            SetFloat(m, "_NoiseWarpStrength", 0.18f);   // 打断贴图与 1 单位格子的轴向对齐
-
-            bool albedoOk = AssignDetailTexture(m, albedoKind, "_DetailNoiseMap", "_DetailAlbedoStrength", albedoStrength);
-            bool normalOk = AssignDetailTexture(m, normalKind, "_BumpMap", "_BumpScale", bumpScale);
-
-            if (!albedoOk || !normalOk)
-                WarnDetailMissing(m.name, albedoOk, normalOk);
-        }
-
-        /// <summary>地形材质：三族 albedo + 法线共 6 张，各自的平铺米数与强度。</summary>
-        static void ApplyTerrainDetailTextures(Material m)
-        {
-            SetFloat(m, "_NoiseWarpStrength", 0.18f);
-            // r5 世界尺度放大 5-7×：沙 0.05（20m）、草 0.04（25m）、岩 0.10（10m）；
-            //   见 MaterialNoiseBuilder 文件头"采样尺度"——原值让最细八度近景被 mip 抹平。
-            SetFloat(m, "_SandNoiseWorldScale", 0.05f);
-            SetFloat(m, "_GrassNoiseWorldScale", 0.04f);
-            SetFloat(m, "_RockNoiseWorldScale", 0.10f);
-
-            bool sandAlb  = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandAlbedo,  "_SandNoiseMap",  "_SandDetailAlbedoStrength",  1f);
-            bool grassAlb = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.GrassAlbedo, "_GrassNoiseMap", "_GrassDetailAlbedoStrength", 1f);
-            bool rockAlb  = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.RockAlbedo,  "_RockNoiseMap",  "_RockDetailAlbedoStrength",  1f);
-            // 法线强度 = 贴图自带 RMS 斜率的倍率：沙 1.0(4°) / 草 1.1(9°) / 岩 1.2(15.6°)。
-            bool sandNrm  = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.SandNormal,  "_SandBumpMap",  "_SandBumpScale",  1.0f);
-            bool grassNrm = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.GrassNormal, "_GrassBumpMap", "_GrassBumpScale", 1.1f);
-            bool rockNrm  = AssignDetailTexture(m, MaterialNoiseBuilder.NoiseKind.RockNormal,  "_RockBumpMap",  "_RockBumpScale",  1.2f);
-
-            if (!(sandAlb && grassAlb && rockAlb && sandNrm && grassNrm && rockNrm))
-                WarnDetailMissing(m.name, sandAlb && grassAlb && rockAlb, sandNrm && grassNrm && rockNrm);
-        }
-
-        /// <summary>
-        /// 赋一张细节贴图并打开对应强度；返回 false = 贴图缺失（强度保持 0，材质行为退回改动前）。
-        /// 先把强度写 0：保证"上次跑过、这次贴图没了"时不会留下旧的开启状态。
-        /// </summary>
-        static bool AssignDetailTexture(Material m, MaterialNoiseBuilder.NoiseKind kind,
-            string textureProperty, string strengthProperty, float strength)
-        {
-            SetFloat(m, strengthProperty, 0f);
-            if (!m.HasProperty(textureProperty))
-                return false;
-
-            Texture2D texture = MaterialNoiseBuilder.Load(kind);
-            if (texture == null)
-                return false;
-
-            m.SetTexture(textureProperty, texture);
-            SetFloat(m, strengthProperty, strength);
-            return true;
-        }
-
-        /// <summary>刻意不挂细节贴图的材质（黄铜/铁）显式关掉两个强度，保证幂等与可预期。
-        /// 金属的不均匀来自边缘磨损（_EdgeWear）而不是介质色斑，与 SceneArtBuilder 对 Scene_Metal
-        /// 的处理是同一条纪律。</summary>
-        static void DisableDetailTexture(Material m)
-        {
-            SetFloat(m, "_DetailAlbedoStrength", 0f);
-            SetFloat(m, "_BumpScale", 0f);
-        }
-
-        static void WarnDetailMissing(string materialName, bool albedoOk, bool normalOk)
-        {
-            Debug.LogWarning("[BattleSceneLighting] 材质 " + materialName + " 的细节贴图缺失："
-                + (albedoOk ? "" : "albedo ")
-                + (normalOk ? "" : "normal ")
-                + "→ 对应强度已置 0（画面退回改动前，P-9/P-10 会不达标）。"
-                + "先跑菜单 PirateCrew/渲染/生成程序化材质噪声贴图（或 ArtGate 的 ⓪.5 步）。");
-        }
 
         // ------------------------------------------------------------------
         // 后处理 VolumeProfile
@@ -1003,61 +578,8 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // 辅助：材质 / 字段 / 路径
+        // 辅助：字段 / 路径
         // ------------------------------------------------------------------
-
-        /// <summary>取/建环境材质资产，并保证 shader 正确（幂等：已存在的材质会就地换 shader）。</summary>
-        static Material EnsureMaterial(string fileName, string shaderName)
-        {
-            Shader shader = Shader.Find(shaderName);
-            if (shader == null)
-            {
-                Debug.LogError("[BattleSceneLighting] 找不到 shader " + shaderName
-                    + "（材质 " + fileName + " 未生成）。请先用 read_console 确认该 shader 无编译错误。");
-                return null;
-            }
-
-            string path = EnvironmentMaterialFolder + "/" + fileName + ".mat";
-            Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
-            if (material == null)
-            {
-                material = new Material(shader) { name = fileName };
-                AssetDatabase.CreateAsset(material, path);
-            }
-            else if (material.shader != shader)
-            {
-                material.shader = shader;
-            }
-
-            return material;
-        }
-
-        static bool Save(Material material)
-        {
-            if (material == null)
-                return false;
-
-            EditorUtility.SetDirty(material);
-            return true;
-        }
-
-        static void SetColor(Material m, string property, Color value)
-        {
-            if (m.HasProperty(property))
-                m.SetColor(property, value);
-        }
-
-        static void SetFloat(Material m, string property, float value)
-        {
-            if (m.HasProperty(property))
-                m.SetFloat(property, value);
-        }
-
-        static void SetVector(Material m, string property, Vector4 value)
-        {
-            if (m.HasProperty(property))
-                m.SetVector(property, value);
-        }
 
         static void SetBoolField(SerializedObject so, string fieldName, bool value)
         {

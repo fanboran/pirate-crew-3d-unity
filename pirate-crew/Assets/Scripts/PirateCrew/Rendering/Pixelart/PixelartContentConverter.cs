@@ -46,9 +46,6 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>已派生过的材质（源材质实例 ID → 派生材质）。同一个源材质只派生一次。</summary>
         readonly Dictionary<int, Material> _derived = new Dictionary<int, Material>();
 
-        /// <summary>取不到色的源材质（只报一次，避免每次补扫重复刷屏）。</summary>
-        readonly HashSet<int> _reportedNoColor = new HashSet<int>();
-
         float _nextScanTime;
         float _stopScanTime;
         bool _summaryLogged;
@@ -273,7 +270,6 @@ namespace PirateCrew.Rendering.Pixelart
 
             if (!PixelartMaterialFactory.TryGetAlbedo(source, out Color albedo))
             {
-                _reportedNoColor.Add(key);   // 清单在 Scan 末尾统一列
                 return null;
             }
 
