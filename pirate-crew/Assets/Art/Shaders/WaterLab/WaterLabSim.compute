@@ -477,7 +477,8 @@ void WhitewaterUpdate(uint3 id : SV_DispatchThreadID)
     float2 cellF = (p.xz + _HalfDomain) / _CellSize - 0.5;
     int2 c = int2(clamp(round(cellF), float2(0.0, 0.0), float2(_Cells - 1, _Cells - 1)));
     // 与 Spawn 同一高度语义：可见水面 + 原作的 0.02 上抬。
-    float surface = SampleGround(c + 0.5) + max(_WaterB[c.x + c.y * _Cells].x - _DryDepth, 0.0);
+    float hCell = _WaterB[c.x + c.y * _Cells].x;
+    float surface = SampleGround(c + 0.5) + max(hCell - _DryDepth, 0.0);
 
     float damp = exp(-1.6 * _Dt);
     v.xyz *= damp;

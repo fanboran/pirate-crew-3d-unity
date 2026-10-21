@@ -104,8 +104,8 @@ namespace PirateCrew.WaterLab.Tests
             for (float x = WaterLabRules.ShelfStartX + 1f; x <= WaterLabRules.FaceEndX; x += 1f)
             {
                 float cur = WaterLabRules.TerrainHeight(x, 0f);
-                Assert.That(cur, Is.GreaterThan(prev - WaterLabRules.SandRippleAmplitude * 2.1f),
-                    $"爬升段在 x={x} 处出现超过沙纹容差的下降");
+                Assert.That(cur, Is.GreaterThan(prev - WaterLabRules.TerrainMonotoneTolerance),
+                    $"爬升段在 x={x} 处出现超过地形噪声容差的下降");
                 prev = cur;
             }
         }
