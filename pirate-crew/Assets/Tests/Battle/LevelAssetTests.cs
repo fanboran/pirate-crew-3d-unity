@@ -256,7 +256,9 @@ namespace PirateCrew.Battle.Tests
             // 【前排防遮挡】45° 机位下前排两朵压到 y3/y5、16 块档挪正南深处（translate_cloudfield.py
             // 的布局裁决）——total/digest 随高度重算重冻，solid 不变（坛形未动）。
             "1|cloud_walk|云端漫步|40x30|-0.4||units=redPirate/0/17/13/5;redPirate/0/25/19/5;redPirate/0/19/15/5;redPirateCaptain/0/14/21/5;cabinBoy/1/25/13/1;cabinBoy/1/17/19/1;cabinBoyCaptain/1/12.5/22.5/1|air=Dynamite:10|raster=solid127/total1289/digest176398|pieces=1/CloudField",
-            "2|sky_island|天空之岛|40x30|-0.4||units=redPirate/0/23/11/5;redPirate/0/27/13/5;redPirate/0/23/17/5;redPirateCaptain/0/25/13/5;cabinBoy/1/13/11/5;cabinBoy/1/17/11/5;cabinBoy/1/11/15/5;cabinBoy/1/17/17/5;cabinBoyCaptain/1/13/17/5|air=TidalWave:10|Anchor:10|Seagull:10|raster=solid96/total2688/digest404544|pieces=",
+            // L2 重冻（逐格高度入 LevelData）：穹顶烘进数据面后岛面从恒 28 块平顶变为
+            // 0.5 m 量化台阶（27/28/29 块）——solid 不变（96 格仍是岛），total/digest 随台阶重算。
+            "2|sky_island|天空之岛|40x30|-0.4||units=redPirate/0/23/11/5;redPirate/0/27/13/5;redPirate/0/23/17/5;redPirateCaptain/0/25/13/5;cabinBoy/1/13/11/5;cabinBoy/1/17/11/5;cabinBoy/1/11/15/5;cabinBoy/1/17/17/5;cabinBoyCaptain/1/13/17/5|air=TidalWave:10|Anchor:10|Seagull:10|raster=solid96/total2689/digest404694|pieces=",
             // L3 废弃化工厂（2026-09-29 入库，提案/待定）：64×44 m 大场地，平地可走 + 建筑足印抬高成掩体
             // （solid704 = 704 个 2m 采样格 − 建筑格）；整场件 pieceId 2 = ChemPlantYard（Blender 手作 FBX）。
             "3|chem_plant|废弃化工厂|64x44|-0.4||units=redPirate/0/11/17/5;redPirate/0/17/19/5;redPirate/0/15/23/5;redPirateCaptain/0/19/21/5;cabinBoy/1/33/9/5;cabinBoy/1/39/11/5;cabinBoy/1/35/13/5;cabinBoy/1/49/7/5;cabinBoyCaptain/1/57/9/5|air=Dynamite:10|raster=solid704/total5500/digest1783200|pieces=2/ChemPlantYard",
@@ -543,5 +545,138 @@ namespace PirateCrew.Battle.Tests
 
         static string LevelScriptGuid() =>
             LevelAssetYaml.GuidFor("Assets/Scripts/PirateCrew/Data/Levels/LevelDefinition.cs");
+
+        // ------------------------------------------------------------------
+        // ④ 逐格高度（v4 类体素）：读写往返 / 缺席语义 / 校验器
+        // ------------------------------------------------------------------
+
+        /// <summary>带逐格高度的合法关卡载荷（岛 0..8 × 0..6，网格 col 0..4 / row 0..3 全覆盖）。</summary>
+        static LevelAssetPayload HeightFixturePayload()
+        {
+            return new LevelAssetPayload
+            {
+                levelNumber = 99,
+                assetName = "height_fixture",
+                displayName = "逐格高度fixture",
+                sizeX = 8f,
+                sizeZ = 6f,
+                waterWorldY = LevelGeometry.WaterSurfaceY,
+                terrain = new TerrainShape
+                {
+                    blockWorldHeight = 0.5f,
+                    islands = new List<TerrainIsland>
+                    {
+                        new TerrainIsland
+                        {
+                            topY = 14f,
+                            outline = new List<float> { 0f, 0f, 8f, 0f, 8f, 6f, 0f, 6f },
+                            heightCol0 = 0,
+                            heightRow0 = 0,
+                            heightCols = 4,
+                            heightRows = 3,
+                            heights = new List<float>
+                            {
+                                13.5f, 14f, 14.5f, 14f,
+                                14f, 14.5f, 14f, 13.5f,
+                                14.5f, 14f, 13.5f, 14f,
+                            },
+                        },
+                    },
+                },
+            };
+        }
+
+        [Test]
+        public void HeightsJson_RoundTripIsStable_AndFieldsSurvive()
+        {
+            // schema v4：带逐格高度的载荷 Write → Read → Write 逐字节一致（重复烘焙不产生 diff），
+            // 且字段（网格四角 + 行主序数组）完整往返。
+            string first = LevelAssetJson.Write(HeightFixturePayload());
+            Assert.That(first, Does.Contain("\"schema\": " + LevelAssetSchema.Version),
+                "写侧必须是当前 schema 版本");
+            Assert.That(first, Does.Contain("\"heights\""), "逐格高度字段应写进 golden JSON");
+
+            LevelAssetPayload again = LevelAssetJson.ReadLevel(first);
+            Assert.That(again, Is.Not.Null, "当前 schema 的载荷回读失败");
+
+            TerrainIsland island = again.terrain.islands[0];
+            Assert.That(island.HasHeights, Is.True);
+            Assert.That(island.heightCol0, Is.EqualTo(0));
+            Assert.That(island.heightRow0, Is.EqualTo(0));
+            Assert.That(island.heightCols, Is.EqualTo(4));
+            Assert.That(island.heightRows, Is.EqualTo(3));
+            CollectionAssert.AreEqual(HeightFixturePayload().terrain.islands[0].heights, island.heights,
+                "逐格高度数组（行主序）必须逐值往返");
+            Assert.That(LevelAssetJson.Write(again), Is.EqualTo(first), "第二次写出必须逐字节一致");
+
+            // 资产 YAML 渲染同样携带逐格高度（「资产 == golden JSON」门禁的载体侧）。
+            string yaml = LevelAssetYaml.WriteLevel(again, "height_fixture", LevelScriptGuid());
+            Assert.That(yaml, Does.Contain("heightCol0: 0"), "YAML 侧缺逐格高度字段");
+            Assert.That(yaml, Does.Contain("heights:"));
+        }
+
+        [Test]
+        public void HeightsJson_AbsentKeepsFlatTop_AndWrittenWithoutField()
+        {
+            // 缺席语义：不带（或带空）逐格高度的载荷读回仍无高度（HasHeights = false），
+            // 写出的 JSON 不含 "heights" 键——L1/L3/L4 的 golden 除 schema 行外零改动靠这条。
+            var payload = HeightFixturePayload();
+            TerrainIsland absent = payload.terrain.islands[0];
+            absent.heights = new List<float>();   // 空数组 = 缺席
+            payload.terrain.islands[0] = absent;
+
+            string json = LevelAssetJson.Write(payload);
+            Assert.That(json, Does.Not.Contains("\"heights\""), "缺席岛不得写 heights 键");
+
+            LevelAssetPayload again = LevelAssetJson.ReadLevel(json);
+            Assert.That(again.terrain.islands[0].HasHeights, Is.False, "空数组读回应保持缺席");
+        }
+
+        [Test]
+        public void HeightsRules_PassOnWellFormedGrid()
+        {
+            var payload = HeightFixturePayload();
+            payload.units.Add(new LevelUnit("redPirate", 0, 2f, 2f, 5,
+                new List<WeaponStack>()));   // 校验器要求有单位（站格 (2,2) 在岛内）
+            payload.units.Add(new LevelUnit("cabinBoy", 1, 4f, 4f, 1, new List<WeaponStack>()));
+
+            var problems = LevelAssetRules.Problems(payload);
+            Assert.That(problems.FindAll(p => p.Contains("逐格高度")), Is.Empty,
+                "合法逐格高度不应报问题：" + string.Join(" ; ", problems));
+        }
+
+        [Test]
+        public void HeightsRules_FlagLengthMismatch_CoverageGap_AndDataHole()
+        {
+            // 长度与包围盒不符：结构层（IsWellFormed）直接判不自洽，整张载荷按坏数据拒绝。
+            var badLength = HeightFixturePayload();
+            TerrainIsland tooFew = badLength.terrain.islands[0];
+            tooFew.heightCols = 5;   // 5×3 ≠ 12
+            badLength.terrain.islands[0] = tooFew;
+            Assert.That(badLength.terrain.IsWellFormed, Is.False, "长度不符 = 结构不自洽");
+            Assert.That(LevelAssetRules.Problems(badLength),
+                Has.Some.Contains("岛形地形不自洽"), "长度不符必须报红");
+
+            // 网格未盖住轮廓包围盒（结构自洽但覆盖有缺口）。
+            var badCover = HeightFixturePayload();
+            TerrainIsland shifted = badCover.terrain.islands[0];
+            shifted.heightCol0 = 1;   // 盖世界 2..10，缺轮廓 0..2 一段
+            badCover.terrain.islands[0] = shifted;
+            Assert.That(badCover.terrain.IsWellFormed, Is.True, "前置：覆盖缺口不破坏结构自洽");
+            Assert.That(LevelAssetRules.Problems(badCover),
+                Has.Some.Contains("未盖住轮廓包围盒"), "覆盖缺口必须报红");
+
+            // 岛内数据洞（格中心在轮廓内但高度 0）。
+            var badHole = HeightFixturePayload();
+            badHole.terrain.islands[0].heights[1 + 1 * 4] = 0f;   // 格 (1,1) 中心 (3,3) 在岛内
+            Assert.That(LevelAssetRules.Problems(badHole),
+                Has.Some.Contains("数据洞"), "岛内 0 高度格必须报红");
+
+            // 值越上限。
+            var badValue = HeightFixturePayload();
+            badValue.terrain.islands[0].heights[0] = 99f;
+            Assert.That(LevelAssetRules.Problems(badValue),
+                Has.Some.Contains("超出"), "超上限值必须报红");
+        }
     }
 }

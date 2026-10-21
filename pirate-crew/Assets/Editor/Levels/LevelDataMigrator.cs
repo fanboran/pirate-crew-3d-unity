@@ -28,8 +28,10 @@ namespace PirateCrew.EditorTools
     /// 【入口】
     ///   菜单: PirateCrew/关卡/迁移关卡资产（golden JSON → 资产）
     ///         PirateCrew/关卡/回写 golden JSON（资产 → 文本锚点）
+    ///         PirateCrew/关卡/烘焙逐格高度入 golden（schema 3→4，第 2 关空岛）
     ///   无头: -executeMethod PirateCrew.EditorTools.LevelDataMigrator.MigrateAll
     ///         -executeMethod PirateCrew.EditorTools.LevelDataMigrator.WriteGoldenFromAssets
+    ///         -executeMethod PirateCrew.EditorTools.LevelDataMigrator.BakeVoxelHeights
     /// </summary>
     public static class LevelDataMigrator
     {
@@ -148,6 +150,153 @@ namespace PirateCrew.EditorTools
 
             AssetDatabase.Refresh();
             Report("回写 golden JSON", "写 " + written + " 份 JSON", problems);
+        }
+
+        // ==================================================================
+        // ③ 烘焙逐格高度（schema 3→4，第 2 关空岛穹顶 → LevelData 类体素）
+        // ==================================================================
+
+        /// <summary>
+        /// 把第 2 关空岛的草皮穹顶按 2 m 采样格烘焙进 golden JSON（幂等，batchmode 可调：
+        /// <c>-executeMethod PirateCrew.EditorTools.LevelDataMigrator.BakeVoxelHeights</c>）。
+        ///
+        /// 【它做三件事】
+        ///   ① schema 升版：golden JSON 的 <c>"schema": 3</c> 行升到 4（一次性文本替换——
+        ///      读侧按版本拒读，升版必须先于解析）；没烘高度的文件**只动这一行、逐字节保留原文**
+        ///      （存量 golden 有旧排版文件，整写会把排版一起规范化，评审面就没了）；
+        ///   ② 第 2 关采样：<see cref="PirateCrew.SceneArt.FloatingIslandHeightsBake"/> 按
+        ///      Battle 场景里空岛根的**实际世界位**采样 <c>PlateauY</c> 写进岛的逐格高度字段，
+        ///      该文件走确定性写出器整写（新字段要插进岛对象）；
+        ///   ③ 落盘后重跑 <see cref="MigrateAll"/> 把 `.asset` 与清单对齐（门禁逐字节对拍）。
+        /// </summary>
+        [MenuItem("PirateCrew/关卡/烘焙逐格高度入 golden（schema 3→4，第 2 关）")]
+        public static void BakeVoxelHeights()
+        {
+            var problems = new List<string>();
+            int schemaBumped = 0, rewritten = 0, bakedIslands = 0;
+
+            // 第 2 关采样要贴的是「场景里实际摆的穹顶」——根位取 Battle 场景的实例，不抄常量。
+            Vector3? islandRoot = null;
+            bool rootMissing = false;
+
+            string[] levelJsons = GoldenFiles(LevelsGolden);
+            for (int i = 0; i < levelJsons.Length; i++)
+            {
+                string text = File.ReadAllText(levelJsons[i]);
+                string parseable = BumpSchema3To4(text);
+                if (!ReferenceEquals(text, parseable))
+                    schemaBumped++;
+
+                LevelAssetPayload payload = LevelAssetJson.ReadLevel(parseable);
+                if (payload == null || string.IsNullOrEmpty(payload.assetName))
+                {
+                    problems.Add("golden JSON 不是合法关卡载荷：" + levelJsons[i]);
+                    continue;
+                }
+
+                bool bakedThis = false;
+                if (payload.levelNumber == 2 && payload.terrain.islands != null && !rootMissing)
+                {
+                    if (islandRoot == null)
+                    {
+                        islandRoot = FindSkyIslandRootWorld(problems);
+                        if (islandRoot == null)
+                            rootMissing = true;   // 根没取到：跳过采样，其余关卡照常升版重写。
+                    }
+                    if (islandRoot != null)
+                    {
+                        for (int k = 0; k < payload.terrain.islands.Count; k++)
+                        {
+                            payload.terrain.islands[k] = PirateCrew.SceneArt.FloatingIslandHeightsBake.Bake(
+                                payload.terrain.islands[k], PirateCrew.SceneArt.FloatingIslandSpec.Default,
+                                islandRoot.Value, payload.sizeX, payload.sizeZ);
+                            bakedIslands++;
+                        }
+                        bakedThis = true;
+                    }
+                }
+
+                if (bakedThis)
+                {
+                    // 烘过高度的文件必须整写（新字段要插进岛对象）——走确定性写出器。
+                    WriteText(levelJsons[i], LevelAssetJson.Write(payload));
+                }
+                else
+                {
+                    // 没烘高度的文件**只升 schema 行、逐字节保留原文**——存量 golden 里还有
+                    // 旧排版的文件（如 1 空格缩进的 cloud_walk），整写会把排版一起规范化，
+                    // "除 schema 行外零改动"的评审面就没了。可读性已由上面的解析证明。
+                    WriteText(levelJsons[i], parseable);
+                }
+                rewritten++;
+            }
+
+            // 海图 golden（现为空）同款升版：海图没有岛形逐格高度，只升 schema 行、保留原文。
+            string[] mapJsons = GoldenFiles(WorldMapsGolden);
+            for (int i = 0; i < mapJsons.Length; i++)
+            {
+                string text = File.ReadAllText(mapJsons[i]);
+                string parseable = BumpSchema3To4(text);
+                WorldMapAssetPayload payload = LevelAssetJson.ReadWorldMap(parseable);
+                if (payload == null || string.IsNullOrEmpty(payload.id))
+                {
+                    problems.Add("golden JSON 不是合法海图载荷：" + mapJsons[i]);
+                    continue;
+                }
+                WriteText(mapJsons[i], parseable);
+                rewritten++;
+            }
+
+            AssetDatabase.Refresh();
+            if (problems.Count == 0)
+                MigrateAll();
+
+            Report("烘焙逐格高度入 golden",
+                "schema 升版 " + schemaBumped + " 份 / 重写 " + rewritten + " 份 / 烘焙岛 " + bakedIslands
+                + " 座（根位 " + (islandRoot != null ? islandRoot.Value.ToString("0.##") : "未取到") + "）",
+                problems);
+        }
+
+        /// <summary>
+        /// schema 3→4 的一次性升版替换：文本已是当前版本时原样返回（同一实例）；
+        /// 不是 3 也不是当前版本时原样返回，交给解析侧按坏数据拒绝。
+        /// 写侧数字格式固定（<c>"schema": 3</c>），整文件只有这一处该字面量。
+        /// </summary>
+        static string BumpSchema3To4(string text)
+        {
+            const string oldLine = "\"schema\": 3";
+            const string newLine = "\"schema\": 4";
+            if (!text.Contains(oldLine))
+                return text;
+            return text.Replace(oldLine, newLine);
+        }
+
+        /// <summary>
+        /// 取 Battle 场景里空岛根的世界位（additive 打开、读完即关，不保存不弄脏）。
+        /// 取不到（场景未接线 SkyIslandRoot）返回 null 并记问题——烘焙贴的是场景实况，
+        /// 宁可失败也不拿常量猜。
+        /// </summary>
+        static Vector3? FindSkyIslandRootWorld(List<string> problems)
+        {
+            var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(
+                BuildSystem.BuildScenes.PathOf("Battle"), UnityEditor.SceneManagement.OpenSceneMode.Additive);
+            try
+            {
+                PirateCrew.Battle.RuntimeSceneArt sceneArt =
+                    Object.FindObjectOfType<PirateCrew.Battle.RuntimeSceneArt>();
+                GameObject root = sceneArt != null ? sceneArt.SkyIslandRoot : null;
+                if (root == null)
+                {
+                    problems.Add("Battle 场景未接线空岛根（SkyIslandRoot）——先跑 "
+                        + "PirateCrew/Showcase/摆进战斗场景居中（第2关地面）再烘焙");
+                    return null;
+                }
+                return root.transform.position;
+            }
+            finally
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
+            }
         }
 
         // ==================================================================

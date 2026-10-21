@@ -459,5 +459,148 @@ namespace PirateCrew.SceneArt.Tests
             Assert.LessOrEqual(worstFlatGap, 0.7f,
                 "出生点与平顶落差超 0.7——构图参数（PlateauDome/半径）改动后穹顶起伏已超原验收窗口，重看");
         }
+
+        // ------------------------------------------------------------------
+        // 类体素逐格高度（v4）：烘焙采样 ↔ 穹顶公式 ↔ 光栅化消费 的一致性
+        // ------------------------------------------------------------------
+
+        /// <summary>第 2 关空岛根位（Battle 场景装配器写死的场心居中位；与上方穹顶用例同源）。</summary>
+        static readonly Vector3 SkyIslandRoot = new Vector3(20f, 13.3f, 15f);
+
+        [Test]
+        public void HeightsBake_SamplesDomeAtCellCenters_WithGridConvention()
+        {
+            // 采样口径与 TerrainShapeRasterizer 同一套：格中心 ((col+0.5)·cell, (row+0.5)·cell)、
+            // 行主序、轮廓外包围盒角落 = 0（那里不是岛）。逐格与穹顶公式在格中心严格同值。
+            FloatingIslandSpec spec = DefaultSpec();
+            var island = new PirateCrew.Data.TerrainIsland
+            {
+                topY = 14f,
+                outline = new System.Collections.Generic.List<float>
+                { 8f, 4f, 32f, 4f, 32f, 26f, 8f, 26f },   // L2 岛包围盒量级的矩形岛
+            };
+
+            PirateCrew.Data.TerrainIsland baked = FloatingIslandHeightsBake.Bake(
+                island, spec, SkyIslandRoot, 40f, 30f);
+
+            Assert.IsTrue(baked.HasHeights, "烘焙后岛必须带逐格高度");
+            // 包围盒 8..32 × 4..26 → 格 col 4..16、row 2..13（外扩到整格）。
+            Assert.AreEqual(4, baked.heightCol0, "col0 = floor(minX/cell)");
+            Assert.AreEqual(16 - 4, baked.heightCols, "cols = ceil(maxX/cell) - col0");
+            Assert.AreEqual(2, baked.heightRow0, "row0 = floor(minZ/cell)");
+            Assert.AreEqual(13 - 2, baked.heightRows, "rows = ceil(maxZ/cell) - row0");
+            Assert.AreEqual(baked.heightCols * baked.heightRows, baked.heights.Count);
+
+            const float cell = PirateCrew.Data.LevelAssetSchema.RasterCellSize;
+            for (int row = 0; row < baked.heightRows; row++)
+            {
+                float cz = (baked.heightRow0 + row + 0.5f) * cell;
+                for (int col = 0; col < baked.heightCols; col++)
+                {
+                    float cx = (baked.heightCol0 + col + 0.5f) * cell;
+                    float value = baked.heights[col + row * baked.heightCols];
+                    if (PirateCrew.Data.TerrainShapeRasterizer.PointInIsland(cx, cz, baked))
+                    {
+                        Assert.AreEqual(
+                            SkyIslandRoot.y + FloatingIslandDome.PlateauY(
+                                spec, cx - SkyIslandRoot.x, cz - SkyIslandRoot.z),
+                            value, 1e-4f,
+                            "岛内格 (" + cx + "," + cz + ") 必须 = 根 Y + PlateauY(局部)（格中心采样）");
+                        Assert.Greater(value, 13.29f, "岛内格不低于崖沿");
+                    }
+                    else
+                    {
+                        Assert.AreEqual(0f, value, 1e-6f,
+                            "轮廓外包围盒角落 (" + cx + "," + cz + ") 不是岛，写 0");
+                    }
+                }
+            }
+        }
+
+        [Test]
+        public void HeightsBake_IsDeterministic()
+        {
+            FloatingIslandSpec spec = DefaultSpec();
+            var outline = new System.Collections.Generic.List<float>
+            { 8f, 4f, 32f, 4f, 32f, 26f, 8f, 26f };
+
+            var a = new PirateCrew.Data.TerrainIsland { topY = 14f, outline = outline };
+            var b = new PirateCrew.Data.TerrainIsland { topY = 14f, outline = outline };
+            FloatingIslandHeightsBake.Bake(a, spec, SkyIslandRoot, 40f, 30f);
+            FloatingIslandHeightsBake.Bake(b, spec, SkyIslandRoot, 40f, 30f);
+
+            CollectionAssert.AreEqual(a.heights, b.heights, "同岛同根必得同一数组（golden 重生成不漂移）");
+            Assert.AreEqual(a.heightCol0, b.heightCol0);
+            Assert.AreEqual(a.heightCols, b.heightCols);
+        }
+
+        [Test]
+        public void SkyIslandLevel_DataHeights_MatchDome_WithinCellDropPlusQuantization()
+        {
+            // 出生站位单源化的收口判据：第 2 关 golden 带逐格高度后，「光栅化数据高度」与
+            // 「穹顶公式逐点值」的差 ≤ 该单位所在采样格内的穹顶落差 + 半块量化（0.25）。
+            // 两条路径都活、数据赢——这条钉住它们没有分叉（采样口径漂移会立刻爆掉）。
+            Assert.IsTrue(PirateCrew.Data.LevelAssetLibrary.TryGetLevel(2,
+                out PirateCrew.Data.LevelAssetPayload payload),
+                "取不到第 2 关关卡数据（无头侧应回落 golden JSON）");
+
+            PirateCrew.Data.TerrainIsland island = payload.terrain.islands[0];
+            Assert.IsTrue(island.HasHeights,
+                "第 2 关 golden 未带逐格高度——先跑 PirateCrew/关卡/烘焙逐格高度入 golden（schema 3→4）");
+
+            FloatingIslandSpec spec = DefaultSpec();
+            const float cell = PirateCrew.Data.LevelAssetSchema.RasterCellSize;
+
+            // 抽 5 点对拍（网格四角 + 中心）：golden 里的值必须与穹顶公式在这些格中心严格同值。
+            (int col, int row)[] probes =
+            {
+                (island.heightCol0, island.heightRow0),
+                (island.heightCol0 + island.heightCols - 1, island.heightRow0),
+                (island.heightCol0, island.heightRow0 + island.heightRows - 1),
+                (island.heightCol0 + island.heightCols - 1, island.heightRow0 + island.heightRows - 1),
+                (island.heightCol0 + island.heightCols / 2, island.heightRow0 + island.heightRows / 2),
+            };
+            foreach ((int col, int row) in probes)
+            {
+                float cx = (col + 0.5f) * cell;
+                float cz = (row + 0.5f) * cell;
+                float golden = island.heights[col - island.heightCol0 + (row - island.heightRow0) * island.heightCols];
+                float expected = PirateCrew.Data.TerrainShapeRasterizer.PointInIsland(cx, cz, island)
+                    ? SkyIslandRoot.y + FloatingIslandDome.PlateauY(spec, cx - SkyIslandRoot.x, cz - SkyIslandRoot.z)
+                    : 0f;
+                Assert.AreEqual(expected, golden, 1e-4f,
+                    "对拍格 (col " + col + ", row " + row + ") 与穹顶公式分叉——采样口径漂移");
+            }
+
+            PirateCrew.Battle.HeightfieldGrid grid =
+                PirateCrew.Battle.Levels.LevelRasterFromAsset.Build(payload);
+            float halfBlock = payload.terrain.blockWorldHeight * 0.5f;
+
+            foreach (PirateCrew.Data.LevelUnit unit in payload.units)
+            {
+                float domeY = FloatingIslandDome.SpawnGroundY(spec, SkyIslandRoot, unit.x, unit.z);
+                int cellX = Mathf.FloorToInt(unit.x / cell);
+                int cellY = Mathf.FloorToInt(unit.z / cell);
+                float dataY = grid.SurfaceWorldY(cellX, cellY);
+
+                // 格内穹顶落差：格中心的穹顶值 vs 单位点（同一条公式，只是位置不同）。
+                float domeAtCenter = FloatingIslandDome.SpawnGroundY(
+                    spec, SkyIslandRoot, (cellX + 0.5f) * cell, (cellY + 0.5f) * cell);
+                float inCellDrop = Mathf.Abs(domeAtCenter - domeY);
+                float tolerance = inCellDrop + halfBlock + 1e-3f;
+
+                Assert.AreEqual(domeAtCenter,
+                    SkyIslandRoot.y + FloatingIslandDome.PlateauY(
+                        spec, (cellX + 0.5f) * cell - SkyIslandRoot.x, (cellY + 0.5f) * cell - SkyIslandRoot.z),
+                    1e-4f, "前置：格中心穹顶值与采样公式一致");
+
+                Assert.LessOrEqual(Mathf.Abs(dataY - domeY), tolerance,
+                    "单位 " + unit.typeName + " (" + unit.x + "," + unit.z + ") 的数据高度 "
+                    + dataY + " 与穹顶 " + domeY + " 的差超过「格内落差 " + inCellDrop.ToString("0.000")
+                    + " + 半块 " + halfBlock + "」——采样口径或格子对齐漂移了");
+                Assert.GreaterOrEqual(dataY, 13.5f, "台阶不得低于 27 块档（穹顶最低 13.3 量化后 13.5）");
+                Assert.LessOrEqual(dataY, 14.5f, "台阶不得高于 29 块档（穹顶最高 14.65 量化后 14.5）");
+            }
+        }
     }
 }

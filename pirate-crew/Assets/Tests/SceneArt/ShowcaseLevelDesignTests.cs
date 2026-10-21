@@ -117,18 +117,25 @@ namespace PirateCrew.SceneArt.Tests
         // ------------------------------------------------------------------
 
         [Test]
-        public void L02_SkyIsland_FlatTop_TwentyEightBlocks()
+        public void L02_SkyIsland_DomeSteps_WithinThreeTiers()
         {
-            // 岛面恒 28 块（y14），与场景空岛草皮面对齐（设计文档 02-天空之岛 §3）。
+            // 穹顶已烘焙进 LevelData 逐格高度（v4 类体素）：岛面从恒 28 块平顶变为
+            // 0.5 m 量化的穹顶台阶（27/28/29 块，y13.5–14.5）——判定场与可见穹顶同源，
+            // 视觉零改动（创始人裁决口径）；至少出现两档才证明「穹顶真的进了数据」。
             HeightfieldGrid grid = ShowcaseLevels.BuildLogicGrid(2);
             int solid = 0;
+            var tiers = new HashSet<int>();
             ForEachSolid(grid, (blocks) =>
             {
-                Assert.AreEqual(28, blocks, "大岛顶面应恒 28 块（y14）");
+                Assert.GreaterOrEqual(blocks, 27, "台阶不得低于 27 块（穹顶崖沿 13.3 → 量化 13.5）");
+                Assert.LessOrEqual(blocks, 29, "台阶不得高于 29 块（穹顶中心 14.65 → 量化 14.5）");
+                tiers.Add(blocks);
                 solid++;
             });
 
             Assert.GreaterOrEqual(solid, 36, "大岛面积 ≥9 人 ×4 格（R2）");
+            Assert.GreaterOrEqual(tiers.Count, 2,
+                "岛面只有一档 = 逐格高度没生效（穹顶没烘进 LevelData，退回了平顶？）");
         }
 
         [Test]

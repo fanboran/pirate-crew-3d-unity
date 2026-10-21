@@ -229,6 +229,7 @@ namespace PirateCrew.Battle.Levels
                                 + island.outline[k] + ", " + island.outline[k + 1] + ")m 落在场地外");
                         }
                     }
+                    HeightGridProblems(payload, island, i, problems, tag);
                 }
 
                 List<float> heights = TerrainShapeRasterizer.ToHeights(payload.terrain, payload.sizeX, payload.sizeZ);
@@ -307,6 +308,75 @@ namespace PirateCrew.Battle.Levels
             }
 
             return problems;
+        }
+
+        /// <summary>
+        /// 岛逐格高度（v4 类体素）的问题清单：结构（长度 = cols×rows，IsWellFormed 兜底）、
+        /// 覆盖（网格必须盖住轮廓包围盒——漏盖的格运行时只能平顶兜底，数据即错）、
+        /// 值域（0 ≤ 值 ≤ 上限；岛内格不许是 0——那是数据洞，岛内必有地面）。
+        /// </summary>
+        static void HeightGridProblems(LevelAssetPayload payload, TerrainIsland island, int index,
+            List<string> problems, string tag)
+        {
+            if (!island.HasHeights)
+                return;
+
+            if (island.heightCols <= 0 || island.heightRows <= 0
+                || island.heights.Count != island.heightCols * island.heightRows)
+            {
+                problems.Add(tag + "岛 #" + index + " 逐格高度结构非法：cols=" + island.heightCols
+                    + " rows=" + island.heightRows + " 数组长=" + island.heights.Count
+                    + "（应 cols×rows；结构问题同时会让 IsWellFormed 失败）");
+                return;
+            }
+
+            // 覆盖：网格 [col0·cell, (col0+cols)·cell) 必须罩住轮廓包围盒。
+            float cell = LevelAssetSchema.RasterCellSize;
+            float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+            for (int k = 0; k + 1 < island.outline.Count; k += 2)
+            {
+                minX = System.Math.Min(minX, island.outline[k]);
+                maxX = System.Math.Max(maxX, island.outline[k]);
+                minZ = System.Math.Min(minZ, island.outline[k + 1]);
+                maxZ = System.Math.Max(maxZ, island.outline[k + 1]);
+            }
+            if (island.heightCol0 * cell > minX + 1e-4f
+                || (island.heightCol0 + island.heightCols) * cell < maxX - 1e-4f
+                || island.heightRow0 * cell > minZ + 1e-4f
+                || (island.heightRow0 + island.heightRows) * cell < maxZ - 1e-4f)
+            {
+                problems.Add(tag + "岛 #" + index + " 逐格高度网格（col " + island.heightCol0 + ".."
+                    + (island.heightCol0 + island.heightCols) + " / row " + island.heightRow0 + ".."
+                    + (island.heightRow0 + island.heightRows) + "）未盖住轮廓包围盒 ("
+                    + minX + ".." + maxX + ", " + minZ + ".." + maxZ + ")——漏盖的格运行时只能平顶兜底");
+            }
+
+            // 值域 + 岛内数据洞：只查岛自己的网格，轮廓外的包围盒角落允许 0（那里本来就不是岛）。
+            for (int row = 0; row < island.heightRows; row++)
+            {
+                float cz = (island.heightRow0 + row + 0.5f) * cell;
+                for (int col = 0; col < island.heightCols; col++)
+                {
+                    float value = island.heights[col + row * island.heightCols];
+                    if (value < 0f || value > MaxTerrainTopWorldY)
+                    {
+                        problems.Add(tag + "岛 #" + index + " 逐格高度值 " + value
+                            + " 超出 [0, " + MaxTerrainTopWorldY + "]（col " + (island.heightCol0 + col)
+                            + " row " + (island.heightRow0 + row) + "）");
+                        continue;
+                    }
+                    if (value <= 0f)
+                    {
+                        float cx = (island.heightCol0 + col + 0.5f) * cell;
+                        if (TerrainShapeRasterizer.PointInIsland(cx, cz, island))
+                        {
+                            problems.Add(tag + "岛 #" + index + " 岛内有逐格高度为 0 的数据洞（col "
+                                + (island.heightCol0 + col) + " row " + (island.heightRow0 + row)
+                                + "：格中心在轮廓内但高度为 0，该格会变成无地面）");
+                        }
+                    }
+                }
+            }
         }
 
     }
