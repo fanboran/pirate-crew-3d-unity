@@ -161,12 +161,22 @@ namespace PirateCrew.Battle
         /// <summary>true = 模组激活（进入操作中）；false = 结束（取消或进入执行）。</summary>
         public readonly bool Active;
 
-        public OperationChangedPayload(int pirateId, bool isWeapon, WeaponId weaponId, bool active)
+        /// <summary>
+        /// 本次操作的模组（操作与交互 §6 模组体系；默认 StandardThrow——
+        /// 未显式传模组的旧调用点/武器格即标准投掷，行为不变）。
+        /// HUD 状态钮/参数面板按它分派模组名与读数形态。
+        /// </summary>
+        public readonly OperationModuleKind Module;
+
+        public OperationChangedPayload(
+            int pirateId, bool isWeapon, WeaponId weaponId, bool active,
+            OperationModuleKind module = OperationModuleKind.StandardThrow)
         {
             PirateId = pirateId;
             IsWeapon = isWeapon;
             WeaponId = weaponId;
             Active = active;
+            Module = module;
         }
     }
 
