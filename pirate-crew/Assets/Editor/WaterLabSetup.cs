@@ -80,6 +80,9 @@ namespace PirateCrew.EditorTools
             light.type = LightType.Directional;
             light.shadows = LightShadows.Soft;
             light.intensity = 1.0f;
+            // 参考的礁石/珊瑚投影是柔和接触影，不是硬黑块；0.75 配合 Soft shadows，
+            // 避免低模 prop 自阴影在暗部读成第二层黑团。
+            light.shadowStrength = 0.75f;
             light.color = new Color(1.0f, 0.95f, 0.85f);
             // 太阳放在相机对面、抬高到仰角 ≈58°：相机现在正对 -x 看岸线，太阳在 -x 侧
             // 才能让水面镜像路径落回取景（与旧 225° 方位同理）；抬高后参考图那种短影
@@ -177,12 +180,10 @@ namespace PirateCrew.EditorTools
         /// 沙/礁石统一的显示链曝光因子（与 shader 默认值同源；此处显式下发是因为
         /// <see cref="LoadOrCreateMaterial"/> 只在资产不存在时取 shader 默认值——
         /// 改了 shader 默认值而不回填，已存在的 .mat 会一直留着旧数）。
-        /// 【1.20】旧值 1.05 是按**二次 sRGB 编码**的截图标的；出图链修成单次编码后，
-        /// 同一组沙色实际渲染明显偏暗偏饱和（参考干沙 (253,229,169)，实机只有 (240,194,89)）。
-        /// 按参考受光干沙线性 (0.982,0.784,0.397) 反解：光照核
-        /// (ambient + sun×ndl)×1.20 ≈ (0.99,0.94,0.90)，乘 albedo 后命中参考。
+        /// 【1.08】环境项抬到 (0.18,0.20,0.22) 补原作 GI 的暗部亮度后，受光核略增；
+        /// 同步把曝光从 1.20 压到 1.08，保持参考受光干沙 (253,229,169) 同亮度。
         /// </summary>
-        const float LightScale = 1.20f;
+        const float LightScale = 1.08f;
 
         static void ApplyCalibratedSandColors(Material m)
         {
@@ -202,6 +203,17 @@ namespace PirateCrew.EditorTools
             // 观感是「水底一片黄绿斑」而不是参考那种**细亮网**；0.5（=2 m 周期）回到网尺度。
             m.SetFloat("_CausticScale", CausticScale);
             m.SetFloat("_CausticGain", CausticGain);
+            // 沙面细节：层理弱化/加宽、平行岸线缓弧沙纹、两档细节法线、干沙卵石暗点、
+            // 湿沙窄高光。全部是纯视觉项，不改变 WaterLabRules 的模拟地形/物理参数。
+            m.SetFloat("_StrataBandWidth", 0.45f);
+            m.SetFloat("_StrataStrength", 0.12f);
+            m.SetFloat("_RippleStrength", 0.16f);
+            m.SetFloat("_DetailNormalStrength", 0.30f);
+            m.SetFloat("_DetailNormalScale", 1.20f);
+            m.SetFloat("_GrainNormalStrength", 0.16f);
+            m.SetFloat("_MottleStrength", 0.06f);
+            m.SetFloat("_PebbleStrength", 0.45f);
+            m.SetFloat("_WetSheen", 0.25f);
         }
 
         /// <summary>焦散采样世界尺度（1/m）：周期 = 1/此值。参考的焦散网约 0.5–2 m。</summary>
@@ -212,11 +224,11 @@ namespace PirateCrew.EditorTools
         const float CausticGain = 0.6f;
 
         /// <summary>
-        /// 天光环境项（沙/石/白水共用）。原作 HDR+GI 下暗部由天光补亮；本仓只有这一个
-        /// 常数项，取 (0.08,0.14,0.21)（原作天光色略提亮）让干沙阴影不发死黑，
-        /// 同时不把蓝通道抬回灰白。
+        /// 天光环境项（沙/石共用）。原作 HDR+GI 下暗部由天空 + 沙面反弹补亮；本仓只有
+        /// 这一个常数项，取 (0.18,0.20,0.22) 近似合成亮度——旧 (0.08,0.14,0.21) 只保留
+        /// 天空色，阴影里的沙红通道过低、发青发死。曝光因子已同步压到 1.08。
         /// </summary>
-        static readonly Color AmbientColor = new Color(0.08f, 0.14f, 0.21f);
+        static readonly Color AmbientColor = new Color(0.18f, 0.20f, 0.22f);
 
         /// <summary>
         /// 散射显示域强度：原作散射色 (0.568,0.357,0) 是 HDR 管线里的文件值，经 tonemap
@@ -279,34 +291,41 @@ namespace PirateCrew.EditorTools
 
             // 深色水底参照物是「透明感」的载体：参考图水底是密集的大丛海草/珊瑚，
             // 旧版 80 件 0.1–0.8 m 散石在画面里只占 <2% 像素，读不出水深。
+            // 【色板依据】原作水底装饰是 Imposter 图集（实测不透明像均色）：
+            // 橙褐脑珊瑚 (0.687,0.440,0.128)、粉珊瑚 (0.740,0.521,0.445)、
+            // 灰绿生菜珊瑚 (0.610,0.560,0.431)、海带 (0.678,0.526,0.221)、
+            // 海草 (0.36,0.46,0.21)（均为 sRGB 均值）。这里取 sRGB→线性值后
+            // **再乘约 1.8–2 倍显示域补偿**：本仓水体按 5.6/1.94/0.35 每米消光，
+            // 0.5 m 水深处红光只剩 ~2%、绿光 ~27%，不补的话任何色板都会读成暗蓝剪影。
+            // 干滩的海星/滩草不做补偿（不在水下）。
             var rockMats = new[]
             {
-                MakePropMaterial("WaterLab_Rock0", new Color(0.11f, 0.105f, 0.10f), detail),
-                MakePropMaterial("WaterLab_Rock1", new Color(0.22f, 0.12f, 0.06f), detail),
-                MakePropMaterial("WaterLab_Rock2", new Color(0.06f, 0.12f, 0.08f), detail),
+                MakePropMaterial("WaterLab_Rock0", new Color(0.55f, 0.52f, 0.45f), detail),
+                MakePropMaterial("WaterLab_Rock1", new Color(0.65f, 0.55f, 0.42f), detail),
+                MakePropMaterial("WaterLab_Rock2", new Color(0.45f, 0.50f, 0.45f), detail),
             };
             var grassMats = new[]
             {
-                MakePropMaterial("WaterLab_Grass0", new Color(0.08f, 0.20f, 0.06f), detail),
-                MakePropMaterial("WaterLab_Grass1", new Color(0.14f, 0.22f, 0.07f), detail),
-                MakePropMaterial("WaterLab_Grass2", new Color(0.20f, 0.18f, 0.06f), detail),
-                MakePropMaterial("WaterLab_Grass3", new Color(0.13f, 0.10f, 0.04f), detail),
+                MakePropMaterial("WaterLab_Grass0", new Color(0.22f, 0.38f, 0.08f), detail),
+                MakePropMaterial("WaterLab_Grass1", new Color(0.30f, 0.44f, 0.10f), detail),
+                MakePropMaterial("WaterLab_Grass2", new Color(0.52f, 0.45f, 0.12f), detail),
+                MakePropMaterial("WaterLab_Grass3", new Color(0.34f, 0.26f, 0.08f), detail),
             };
             var coralMats = new[]
             {
-                MakePropMaterial("WaterLab_Coral0", new Color(0.32f, 0.10f, 0.06f), detail),
-                MakePropMaterial("WaterLab_Coral1", new Color(0.26f, 0.12f, 0.20f), detail),
-                MakePropMaterial("WaterLab_Coral2", new Color(0.30f, 0.20f, 0.07f), detail),
+                MakePropMaterial("WaterLab_Coral0", new Color(0.95f, 0.32f, 0.04f), detail),
+                MakePropMaterial("WaterLab_Coral1", new Color(0.90f, 0.40f, 0.30f), detail),
+                MakePropMaterial("WaterLab_Coral2", new Color(0.62f, 0.50f, 0.20f), detail),
             };
             var beachGrassMats = new[]
             {
-                MakePropMaterial("WaterLab_BeachGrass0", new Color(0.12f, 0.18f, 0.05f), detail),
-                MakePropMaterial("WaterLab_BeachGrass1", new Color(0.18f, 0.20f, 0.07f), detail),
+                MakePropMaterial("WaterLab_BeachGrass0", new Color(0.12f, 0.17f, 0.05f), detail),
+                MakePropMaterial("WaterLab_BeachGrass1", new Color(0.18f, 0.19f, 0.07f), detail),
             };
             var starfishMats = new[]
             {
                 MakePropMaterial("WaterLab_Starfish0", new Color(0.55f, 0.18f, 0.08f), detail),
-                MakePropMaterial("WaterLab_Starfish1", new Color(0.35f, 0.12f, 0.25f), detail),
+                MakePropMaterial("WaterLab_Starfish1", new Color(0.40f, 0.13f, 0.26f), detail),
             };
 
             var rockShapes = new Mesh[6];
@@ -327,21 +346,48 @@ namespace PirateCrew.EditorTools
 
             var rnd = new System.Random(20261020); // 确定性：每次重建同一散布
 
-            int rockCount = 0;
-            for (int attempt = 0; attempt < 2400 && rockCount < 140; attempt++)
+            // 参考原作：珊瑚/海草是成簇分布，不是均匀撒点。先取 16 个浅水簇心，
+            // 70–75% 的实例落在簇心 0.4–2.4 m 内，其余仍全场点缀。
+            var clusters = new Vector2[16];
+            for (int i = 0; i < clusters.Length; i++)
             {
-                float x = Mathf.Lerp(-30f, 14f, (float)rnd.NextDouble());
+                clusters[i] = new Vector2(5f, 0f); // 兜底：近岸浅水
+                for (int attempt = 0; attempt < 200; attempt++)
+                {
+                    // 簇心压在**水线附近的透亮带**（静态水深 0.02–0.30 m；高潮时
+                    // 实际水深约 0.2–0.5 m）：水体的红光消光约 5.6/m，0.5 m 以下
+                    // 任何色板都会退成暗蓝剪影。参考的彩色珊瑚/海草床也在这一带。
+                    // 代价是低潮时部分簇会露出湿沙——参考的潮间带本来就有这种暴露。
+                    float cx = Mathf.Lerp(5.0f, 7.2f, (float)rnd.NextDouble());
+                    float cz = Mathf.Lerp(-28f, 28f, (float)rnd.NextDouble());
+                    float ch = WaterLabRules.TerrainHeight(cx, cz);
+                    if (ch < -0.02f && ch > -0.30f)
+                    {
+                        clusters[i] = new Vector2(cx, cz);
+                        break;
+                    }
+                }
+            }
+
+            int rockCount = 0;
+            for (int attempt = 0; attempt < 2400 && rockCount < 90; attempt++)
+            {
+                // 礁石只撒在可见的浅/中水带（x −14…12，约 0–1.0 m）；旧版
+                // 撒到 x=−30 的深水，62 块落在 1.5–2.4 m，水下只剩一团团黑斑。
+                float x = Mathf.Lerp(-14f, 12f, (float)rnd.NextDouble());
                 float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
                 float h = WaterLabRules.TerrainHeight(x, z);
                 if (h > -0.04f) continue; // 只落在有水处（地形低于静水面 y=0）
 
                 // 尺寸按当地水深封顶：露出水面就不是「水底参照物」了（静水面 y=0，水深=-h）
                 float depth = -h;
-                float size = Mathf.Min(Mathf.Lerp(0.10f, 1.30f, (float)rnd.NextDouble()), depth * 0.80f);
+                // 原作礁石多为 0.2–1.5 m 直径；旧上限 1.30 是半径，直径到 2.6 m，
+                // 在画面里就是一团大黑块。缩到 0.75 半径并抬到半埋高度，露出礁石轮廓。
+                float size = Mathf.Min(Mathf.Lerp(0.08f, 0.75f, (float)rnd.NextDouble()), depth * 0.80f);
                 if (size < 0.08f) continue;
                 var go = NewProp($"Rock_{rockCount}", rocks, rockShapes[rnd.Next(rockShapes.Length)],
                     rockMats[rnd.Next(rockMats.Length)]);
-                go.transform.position = new Vector3(x, h + size * 0.15f, z);
+                go.transform.position = new Vector3(x, h + size * 0.35f, z);
                 go.transform.rotation = Quaternion.Euler(
                     (float)rnd.NextDouble() * 25f - 12f,
                     (float)rnd.NextDouble() * 360f,
@@ -351,17 +397,29 @@ namespace PirateCrew.EditorTools
             }
 
             int grassCount = 0;
-            for (int attempt = 0; attempt < 3600 && grassCount < 240; attempt++)
+            for (int attempt = 0; attempt < 3600 && grassCount < 150; attempt++)
             {
-                float x = Mathf.Lerp(-30f, 10f, (float)rnd.NextDouble());
-                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float x, z;
+                if (rnd.NextDouble() < 0.85)
+                {
+                    Vector2 c = clusters[rnd.Next(clusters.Length)];
+                    float ang = (float)rnd.NextDouble() * Mathf.PI * 2f;
+                    float rad = Mathf.Lerp(0.4f, 2.4f, (float)rnd.NextDouble());
+                    x = c.x + Mathf.Cos(ang) * rad;
+                    z = c.y + Mathf.Sin(ang) * rad;
+                }
+                else
+                {
+                    x = Mathf.Lerp(-30f, 10f, (float)rnd.NextDouble());
+                    z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                }
                 float h = WaterLabRules.TerrainHeight(x, z);
                 float depth = -h;
-                if (depth < 0.12f || depth > 2.25f) continue;
-                // 主要分布在 0.35–1.8 m 的可视带；浅水/深渊只少量点缀
-                if ((depth < 0.35f || depth > 1.8f) && rnd.NextDouble() > 0.25) continue;
+                if (depth < 0.02f || depth > 0.80f) continue;
+                // 主要分布在 0.05–0.45 m 的透亮带；更深只保留 20% 剪影点缀
+                if ((depth < 0.05f || depth > 0.45f) && rnd.NextDouble() > 0.20) continue;
 
-                float scale = Mathf.Lerp(0.70f, 1.60f, (float)rnd.NextDouble());
+                float scale = Mathf.Lerp(0.70f, 1.30f, (float)rnd.NextDouble());
                 scale = Mathf.Min(scale, Mathf.Max(0.35f, depth * 0.90f)); // 草尖基本不出水
                 var go = NewProp($"Seagrass_{grassCount}", seagrass, grassShapes[rnd.Next(grassShapes.Length)],
                     grassMats[rnd.Next(grassMats.Length)]);
@@ -372,15 +430,30 @@ namespace PirateCrew.EditorTools
             }
 
             int coralCount = 0;
-            for (int attempt = 0; attempt < 1200 && coralCount < 60; attempt++)
+            for (int attempt = 0; attempt < 1200 && coralCount < 42; attempt++)
             {
-                float x = Mathf.Lerp(-30f, 8f, (float)rnd.NextDouble());
-                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float x, z;
+                if (rnd.NextDouble() < 0.85)
+                {
+                    Vector2 c = clusters[rnd.Next(clusters.Length)];
+                    float ang = (float)rnd.NextDouble() * Mathf.PI * 2f;
+                    float rad = Mathf.Lerp(0.4f, 2.2f, (float)rnd.NextDouble());
+                    x = c.x + Mathf.Cos(ang) * rad;
+                    z = c.y + Mathf.Sin(ang) * rad;
+                }
+                else
+                {
+                    x = Mathf.Lerp(-30f, 8f, (float)rnd.NextDouble());
+                    z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                }
                 float h = WaterLabRules.TerrainHeight(x, z);
                 float depth = -h;
-                if (depth < 0.40f || depth > 2.25f) continue;
+                if (depth < 0.02f || depth > 0.70f) continue;
+                // 主要分布在 0.05–0.40 m 的透亮带；更深只保留 15% 剪影点缀
+                if ((depth < 0.05f || depth > 0.40f) && rnd.NextDouble() > 0.15) continue;
 
-                float scale = Mathf.Lerp(0.55f, 1.25f, (float)rnd.NextDouble());
+                float scale = Mathf.Lerp(0.55f, 1.05f, (float)rnd.NextDouble());
+                scale = Mathf.Min(scale, Mathf.Max(0.35f, depth * 0.90f)); // 珊瑚枝基本不出水
                 var go = NewProp($"Coral_{coralCount}", coral, coralShapes[rnd.Next(coralShapes.Length)],
                     coralMats[rnd.Next(coralMats.Length)]);
                 go.transform.position = new Vector3(x, h - 0.03f, z);
@@ -433,6 +506,10 @@ namespace PirateCrew.EditorTools
             m.SetColor("_BaseColor", color);
             m.SetTexture("_WaterLabDetailNormal", detail);
             m.SetFloat("_LightScale", LightScale);
+            // 调试口：PC3D_WATERLAB_PROP_NOSHADOW=1 时关闭 prop 阴影采样，
+            // 用来分辨“自阴影导致暗团”与“水柱吸收导致暗团”。
+            m.SetFloat("_ShadowStrength",
+                System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_PROP_NOSHADOW") == "1" ? 0f : 1f);
             m.SetColor("_AmbientColor", AmbientColor);
             m.SetFloat("_CausticScale", CausticScale);
             m.SetFloat("_CausticGain", CausticGain);

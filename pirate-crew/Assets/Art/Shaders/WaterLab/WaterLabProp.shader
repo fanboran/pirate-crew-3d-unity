@@ -15,10 +15,11 @@ Shader "PirateCrew/WaterLab/Prop"
 {
     Properties
     {
-        _BaseColor          ("基础色", Color) = (0.42, 0.40, 0.38, 1.0)
-        _AmbientColor       ("环境色（原作天光色略提亮）", Color) = (0.08, 0.14, 0.21, 1.0)
+        _BaseColor          ("基础色（线性；按原作 Imposter 色板反定）", Color) = (0.42, 0.40, 0.38, 1.0)
+        _AmbientColor       ("环境色（原作天光 + GI 的常数近似）", Color) = (0.18, 0.20, 0.22, 1.0)
         _SunTint            ("太阳色（原作太阳平行光实测）", Color) = (1.0, 0.9709, 0.9403, 1.0)
-        _LightScale         ("显示链曝光因子（与沙面同核，定标见 WaterLabSand）", Range(0.2, 3.0)) = 1.05
+        _LightScale         ("显示链曝光因子（与沙面同核，定标见 WaterLabSand）", Range(0.2, 3.0)) = 1.08
+        _ShadowStrength     ("阴影采样强度（1=正常；0=调试关闭）", Range(0.0, 1.0)) = 1.0
         _CausticGain        ("焦散强度（水面坡度散度系数）", Range(0.0, 4.0)) = 0.6
         _CausticScale       ("焦散世界尺度（1/m）", Range(0.02, 2.0)) = 0.5
         _CausticSampleOffset ("焦散采样偏移（UV）", Range(0.0005, 0.05)) = 0.0156
@@ -59,6 +60,7 @@ Shader "PirateCrew/WaterLab/Prop"
                 float3 _AmbientColor;
                 float3 _SunTint;
                 float  _LightScale;
+                float  _ShadowStrength;
                 float  _CausticGain;
                 float  _CausticScale;
                 float  _CausticSampleOffset;
@@ -109,8 +111,12 @@ Shader "PirateCrew/WaterLab/Prop"
                 float3 sunRaw = _WaterLabSunDir.xyz;
                 float3 sunDir = (dot(sunRaw, sunRaw) < 0.25)
                     ? normalize(float3(-0.525, 0.669, -0.525)) : normalize(sunRaw);
-                float ndl = saturate(dot(n, sunDir));
-                float sh = MainLightRealtimeShadow(TransformWorldToShadowCoord(IN.positionWS));
+                // 半兰伯特：低模 prop 是平面着色，背光面若按硬 ndl 会整面只剩很低的
+                // 环境项、读成一团黑；原作靠 GI/天光把背面托起来，这里用半兰伯特近似。
+                float ndl = saturate(dot(n, sunDir) * 0.5 + 0.5);
+                float sh = lerp(1.0,
+                    MainLightRealtimeShadow(TransformWorldToShadowCoord(IN.positionWS)),
+                    _ShadowStrength);
                 float column = exp(-0.721348 * waterDepth);
                 float3 col = _BaseColor * (_AmbientColor + _SunTint * ndl * sh * column);
 
@@ -127,8 +133,44 @@ Shader "PirateCrew/WaterLab/Prop"
                     col += _BaseColor * (-div * _CausticGain * saturate(waterDepth * 4.0));
                 }
 
+                // 形体可读性：水柱把 prop 压成剪影后，靠“顶部提亮 + 边缘光”把
+                // 枝/叶/石的轮廓从背景水里拉出来。lift 用 prop 相对当地沙面的高度，
+                // 不依赖 mesh 局部坐标；rim 只加在掠射边缘。两者只作用于水下，
+                // 干滩的海星/滩草保持原色。
+                float underwaterMask = saturate(waterDepth * 4.0);
+                float lift = saturate((IN.positionWS.y - ground) / 0.70);
+                col *= lerp(1.0, lerp(0.75, 1.30, lift), underwaterMask);
+                float3 viewDir = normalize(_WorldSpaceCameraPos.xyz - IN.positionWS);
+                float rim = pow(1.0 - saturate(dot(n, viewDir)), 2.0) * 0.30;
+                col += _BaseColor * _SunTint * rim * underwaterMask;
+
                 return half4(col * _LightScale, 1.0);
             }
+            ENDHLSL
+        }
+
+        // 投影 Pass：低模 props 有形体分离和接触影，才不会读成贴着沙面的暗色团。
+        // 直接复用 URP 官方 ShadowCasterPass（含 Normal Bias / Punctual 分支）。
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode" = "ShadowCaster" }
+
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma target 2.0
+            #pragma vertex   ShadowPassVertex
+            #pragma fragment ShadowPassFragment
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            // Shadows.hlsl 的 LerpWhiteTo 在 core CommonMaterial 里；单独 include ShadowCasterPass
+            // 不够（沙 shader 同款坑，见 WaterLabSand 的 include 次序）。
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/ShadowCasterPass.hlsl"
             ENDHLSL
         }
     }
