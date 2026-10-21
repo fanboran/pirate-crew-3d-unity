@@ -97,6 +97,19 @@ namespace PirateCrew.Data
                         }
                         item.Add("holes", holes);
                     }
+                    if (island.HasHeights)
+                    {
+                        // 逐格高度（v4 类体素）：字段名与 C# 载荷一致（Unity 序列化按名对上）；
+                        // 行主序扁平列表（Unity 不序列化嵌套 List，行结构只存在于 golden JSON 的分行排版里）。
+                        item.Add("heightCol0", island.heightCol0);
+                        item.Add("heightRow0", island.heightRow0);
+                        item.Add("heightCols", island.heightCols);
+                        item.Add("heightRows", island.heightRows);
+                        var heights = new Node(NodeKind.Seq);
+                        for (int k = 0; k < island.heights.Count; k++)
+                            heights.Add(island.heights[k]);
+                        item.Add("heights", heights);
+                    }
                     islands.Add(item);
                 }
             }

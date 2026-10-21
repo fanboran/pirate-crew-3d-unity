@@ -414,9 +414,8 @@ namespace PirateCrew.Battle
 
                 // 站面抬升：单位脚底要落在地表上（LevelGeometry 的 WorldPosition 只算基础地面，
                 // 站面高度在 BattleController 这一层叠加，避免改 LevelGeometry 的口径）。
-                // 空岛关（第 2 关）逐点贴草皮穹顶：可见可站面是穹顶不是逻辑高度场的平顶
-                // （穹顶 13.3→14.65 vs 平顶 14，逐点差 -0.11~+0.69——悬空/埋脚即消，
-                // 见 SpawnGroundWorldY）。
+                // 空岛关（第 2 关）站面优先吃光栅化后的数据高度（穹顶已烘焙进 LevelData 的
+                // 逐格高度，0.5 m 量化台阶），穹顶公式仅在数据缺失时兜底——见 SpawnGroundWorldY。
                 Vector3 spawnPosition = entry.WorldPosition;
                 spawnPosition.y = SpawnGroundWorldY(entry) + LevelGeometry.UnitPivotHeight;
 
@@ -445,31 +444,27 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 出生站面的世界 Y（不含 <see cref="LevelGeometry.UnitPivotHeight"/>，调用方叠加）。
+        /// 优先级整块在 <see cref="Levels.SpawnGroundRules"/>（纯 C#，无头可测）：
         ///
-        /// 空岛关（第 2 关）：站面 = 草皮穹顶，逐点贴 <see cref="FloatingIslandDome"/>——
-        /// 烘焙几何、碰撞薄壳、出生点表与出生站位共用同一高度场（「可见表面 = 可站立表面」；
-        /// 逻辑高度场仍是平顶 14，投掷弹道/爆炸遮蔽等判定见待办「出生站位单源化」中期项）。
-        /// 空岛根由 <see cref="RuntimeSceneArt.RebuildFor"/> 按关卡号开关（Awake 时序先于出生），
-        /// 其激活态即"本局站穹顶"的判据；根未烘焙（SkyIslandRoot 为空）时回落逻辑高度场，
-        /// 站位仍在岛上，只是不贴穹顶。
-        /// 其余关卡：逻辑高度场平顶（<see cref="HeightfieldGrid.SurfaceWorldY(int,int)"/>）；
-        /// 无地形时回落基础地面。
+        ///   ① 数据优先——岛带逐格高度（v4 类体素，穹顶烘焙进 LevelData）时光栅化后的
+        ///      <see cref="Terrain"/> 即站面（blockWorldHeight 量化台阶，判定场与可见穹顶同源）；
+        ///   ② 穹顶兜底——数据缺失而空岛根激活（<see cref="RuntimeSceneArt.RebuildFor"/> 按关卡号
+        ///      开关，Awake 时序先于出生）时逐点贴 <see cref="FloatingIslandDome"/>
+        ///      （短期方案，保留为「场景有穹顶、资产没高度数据」窗口期的回退）；
+        ///   ③ 平顶兜底——逻辑高度场平顶；④ 基础地面。
         /// </summary>
         float SpawnGroundWorldY(in SpawnPlanEntry entry)
         {
             GameObject islandRoot = sceneArt != null ? sceneArt.SkyIslandRoot : null;
-            if (islandRoot != null && islandRoot.activeInHierarchy)
-            {
-                return FloatingIslandDome.SpawnGroundY(
-                    FloatingIslandSpec.Default,
-                    islandRoot.transform.position,
-                    entry.WorldPosition.x, entry.WorldPosition.z);
-            }
+            bool domeActive = islandRoot != null && islandRoot.activeInHierarchy;
 
-            if (Terrain != null)
-                return Terrain.SurfaceWorldY(entry.CellX, entry.CellY);
-
-            return LevelGeometry.GroundTopY;
+            return Levels.SpawnGroundRules.GroundWorldY(
+                _source != null ? _source.ShowcaseAsset : null,
+                Terrain,
+                entry.WorldPosition.x, entry.WorldPosition.z,
+                entry.CellX, entry.CellY,
+                domeActive,
+                domeActive ? islandRoot.transform.position : Vector3.zero);
         }
 
         /// <summary>取队伍（teamIndex 0/1）。</summary>

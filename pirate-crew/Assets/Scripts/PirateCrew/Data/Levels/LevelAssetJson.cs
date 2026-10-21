@@ -22,7 +22,14 @@ namespace PirateCrew.Data
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 浮点的规范文本：整数型不带小数点，其余最短往返形式（InvariantCulture）。
+        /// 浮点的规范文本：整数型不带小数点，其余 G7（7 位有效数字，InvariantCulture）。
+        ///
+        /// 【为什么是 G7 不是 R】写侧在 Unity Mono（迁移器）、对拍侧在 .NET 8（无头验证台），
+        /// 两家对 <c>"R"</c> 的实现不同代（Mono 是旧语义、.NET Core 3+ 是最短往返）——同一浮点
+        /// 会写出 13.6486235 与 13.648623 两种文本，「资产 == golden JSON」的跨环境逐字节门禁
+        /// 直接破。G7 两边同算法同结果；代价是 ≤1 ulp（约 1e-6 米）的往返精度损失，
+        /// 对消费侧（块量化步长 0.5 米、穹顶等价容差 ≥1e-3）完全无感。逐格高度（v4）是第一个
+        /// 带满精度浮点的字段，R 的分叉由它首次暴露。
         ///
         /// 【NaN/Infinity 兜底】JSON 规范没有这两个字面量，静默写 "0" 是唯一的合法出路，
         /// 但必须吵闹：golden JSON 由本写入器生成、被门禁逐字节对拍——不告警的话，
@@ -41,7 +48,7 @@ namespace PirateCrew.Data
             }
             if (value == Math.Floor(value) && Math.Abs(value) < 1e7f)
                 return ((long)value).ToString(CultureInfo.InvariantCulture);
-            return value.ToString("R", CultureInfo.InvariantCulture);
+            return value.ToString("G7", CultureInfo.InvariantCulture);
         }
 
         // ------------------------------------------------------------------
@@ -109,6 +116,22 @@ namespace PirateCrew.Data
                         for (int h = 0; h < island.holes.Count; h++)
                             w.RawItem(FloatRing(island.holes[h]));
                         w.EndArray();
+                    }
+                    if (island.HasHeights)
+                    {
+                        w.FieldName("heights");
+                        w.BeginObject();
+                        w.Field("col0", island.heightCol0);
+                        w.Field("row0", island.heightRow0);
+                        w.Field("cols", island.heightCols);
+                        w.Field("rows", island.heightRows);
+                        w.FieldName("values");
+                        w.BeginArray();
+                        // 每行 = 栅格一行（cols 个采样格）：改动一处地形 = diff 里改一行里的一个数。
+                        for (int r = 0; r < island.heightRows; r++)
+                            w.RawItem(FloatRing(HeightRowSlice(island.heights, r, island.heightCols)));
+                        w.EndArray();
+                        w.EndObject();
                     }
                     w.EndObject();
                 }
@@ -246,10 +269,6 @@ namespace PirateCrew.Data
             w.EndArray();
         }
 
-        /// <summary>
-        /// 高度阵列（米）：**每行 = 栅格一行**（宽度 <paramref name="cellCountX"/> 个采样格）。
-        /// 这样改动一处地形 = diff 里改一行里的一个数，而不是在 300 行单列里数位置。
-        /// </summary>
         /// <summary>写一条轮廓环为一行扁平数组（<c>[x0, z0, x1, z1, ...]</c>）。</summary>
         static string FloatRing(List<float> ring)
         {
@@ -264,6 +283,15 @@ namespace PirateCrew.Data
                 sb.Append(Number(ring[i]));
             }
             return "[" + sb + "]";
+        }
+
+        /// <summary>取逐格高度的第 <paramref name="row"/> 行（行主序数组切 <paramref name="cols"/> 个）。</summary>
+        static List<float> HeightRowSlice(List<float> heights, int row, int cols)
+        {
+            var slice = new List<float>(cols);
+            for (int c = 0; c < cols; c++)
+                slice.Add(heights[row * cols + c]);
+            return slice;
         }
 
         // ------------------------------------------------------------------
@@ -445,9 +473,42 @@ namespace PirateCrew.Data
                 };
                 foreach (JsonValue hole in item.ArrayItems("holes"))
                     island.holes.Add(ReadRing(hole));
+                ReadIslandHeights(item["heights"], ref island);
                 shape.islands.Add(island);
             }
             return shape;
+        }
+
+        /// <summary>
+        /// 读岛的逐格高度（v4；字段缺失/非法 = 无逐格高度，保持平顶语义）。
+        /// <c>values</c> 既接受「每行一个数组」的分行写法（写侧格式），也接受扁平单数组——
+        /// 手编数据两种都合法；长度与 cols×rows 不符由 <c>LevelAssetRules</c> 报红。
+        /// </summary>
+        static void ReadIslandHeights(JsonValue node, ref TerrainIsland island)
+        {
+            if (node == null || node.Kind != JsonKind.Object)
+                return;
+
+            island.heightCol0 = node.Int("col0");
+            island.heightRow0 = node.Int("row0");
+            island.heightCols = node.Int("cols");
+            island.heightRows = node.Int("rows");
+
+            var values = new List<float>();
+            foreach (JsonValue row in node.ArrayItems("values"))
+            {
+                if (row.Kind == JsonKind.Array)
+                {
+                    foreach (JsonValue v in row.Items())
+                        values.Add(v.AsFloat());
+                }
+                else
+                {
+                    values.Add(row.AsFloat());
+                }
+            }
+            if (values.Count > 0)
+                island.heights = values;
         }
 
         /// <summary>读一条轮廓环（扁平 <c>[x0, z0, ...]</c>）；节点缺失/非法返回空列表。</summary>

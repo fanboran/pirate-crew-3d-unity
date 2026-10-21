@@ -19,8 +19,12 @@ namespace PirateCrew.Data
     /// </summary>
     public static class LevelAssetSchema
     {
-        /// <summary>资产 schema 版本；字段语义变化时递增，迁移器按它判断要不要重写。</summary>
-        public const int Version = 3;
+        /// <summary>
+        /// 资产 schema 版本；字段语义变化时递增，迁移器按它判断要不要重写。
+        /// v4：岛形加可选逐格高度（<see cref="TerrainIsland.heights"/>，类体素）——
+        /// 空岛关把草皮穹顶烘进数据面，判定场与可见面同源；无数组岛仍按 topY 平顶（向后兼容）。
+        /// </summary>
+        public const int Version = 4;
 
         /// <summary>
         /// 逻辑高度场的**采样间隔**（米/采样格，= <c>LevelGeometry.SampleCellSize</c>）。
@@ -80,13 +84,20 @@ namespace PirateCrew.Data
     }
 
     /// <summary>
-    /// 一座岛的形状：顶面高度 + 外轮廓（+ 可选内洞）。顶点是俯视平面的米制世界坐标
+    /// 一座岛的形状：顶面高度 + 外轮廓（+ 可选内洞）+ 可选逐格高度。顶点是俯视平面的米制世界坐标
     /// （<c>[x0, z0, x1, z1, ...]</c> 扁平列表）；轮廓方向不限（点包含判定用 even-odd）。
+    ///
+    /// 【逐格高度（类体素，v4）】空岛这类「可见面是曲面」的岛，把曲面按
+    /// <see cref="LevelAssetSchema.RasterCellSize"/>（2 m）采样进 <see cref="heights"/>——
+    /// 烘焙期一次采样（见 SceneArt 侧采样器），运行时栅格化优先逐格值、无则回退 <see cref="topY"/> 平顶。
+    /// 它**只进逻辑/碰撞高度场**（站立/弹道/遮蔽/视线判定）；视觉零改动（穹顶平滑壳照旧，不离散成台阶）。
+    /// 折回块表示后（÷ <see cref="TerrainShape.blockWorldHeight"/> 四舍五入）是 0.5 m 档的台阶——
+    /// 判定场从平顶变台阶属预期语义变化（创始人裁决口径）。
     /// </summary>
     [Serializable]
     public struct TerrainIsland
     {
-        /// <summary>顶面世界高度（米，&gt; 0；0 或负 = 无地面）。</summary>
+        /// <summary>顶面世界高度（米，&gt; 0；0 或负 = 无地面）。无逐格高度时即整岛平顶。</summary>
         public float topY;
 
         /// <summary>外轮廓顶点（扁平 <c>[x0, z0, x1, z1, ...]</c>，至少 3 个顶点）。</summary>
@@ -95,11 +106,38 @@ namespace PirateCrew.Data
         /// <summary>内洞轮廓列表（环岛用；null 或空 = 无洞）。</summary>
         public List<List<float>> holes;
 
-        /// <summary>岛是否自洽（读入校验用）。</summary>
+        /// <summary>
+        /// 逐格高度网格的起始列（全场栅格索引，格口径与 <c>TerrainShapeRasterizer</c> 同一套：
+        /// 格 <c>col</c> 覆盖世界 <c>[col·cell, (col+1)·cell)</c>）。
+        /// </summary>
+        public int heightCol0;
+
+        /// <summary>逐格高度网格的起始行（row = Z 方向）。</summary>
+        public int heightRow0;
+
+        /// <summary>逐格高度网格的列数（X 方向采样格数）。</summary>
+        public int heightCols;
+
+        /// <summary>逐格高度网格的行数（Z 方向采样格数）。</summary>
+        public int heightRows;
+
+        /// <summary>
+        /// 逐格高度（米，行主序 <c>heights[col - heightCol0 + (row - heightRow0) · heightCols]</c>；
+        /// 仅覆盖轮廓包围盒；0 = 该格无地面）。null / 空 = 无逐格高度，整岛回退 topY 平顶
+        /// ——扁平岛不必带数组，旧资产（schema ≤ 3）语义不变。
+        /// </summary>
+        public List<float> heights;
+
+        /// <summary>是否带逐格高度（数组非空才算；空列表当缺席处理）。</summary>
+        public bool HasHeights => heights != null && heights.Count > 0;
+
+        /// <summary>岛是否自洽（读入校验用：结构自洽，值域/覆盖由 <c>LevelAssetRules</c> 校验）。</summary>
         public bool IsWellFormed =>
             topY > 0f
             && outline != null && outline.Count >= 6 && outline.Count % 2 == 0
-            && (holes == null || holes.All(h => h != null && h.Count >= 6 && h.Count % 2 == 0));
+            && (holes == null || holes.All(h => h != null && h.Count >= 6 && h.Count % 2 == 0))
+            && (!HasHeights
+                || (heightCols > 0 && heightRows > 0 && heights.Count == heightCols * heightRows));
     }
 
     /// <summary>
