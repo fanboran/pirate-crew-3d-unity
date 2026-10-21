@@ -11,12 +11,19 @@ namespace PirateCrew.Battle
     ///   2. **不入地**：写入的全部珠点 y ≥ 地面（穿地点按 y 插值收在地面）；
     ///   3. **落点标记恒显**：兜底步数内穿地必显示标记（旧预览远射程时标记消失）；
     ///   4. **方向可读 + 三维实体**（2026-10-05 走查反馈）：珠点沿弧线尺寸/色深递减
-    ///      （大→小 = 起点→落点），落点组带随水平初速方向的指向箭头；全部件都是带深度
-    ///      测试的世界物体，被单位/地形正常遮挡，禁止覆盖式渲染（旧预览线浮在角色上层的病灶）。
+    ///      （大→小 = 起点→落点），落点组带随水平初速方向的指向箭头；全部件都是世界物体、
+    ///      被单位/地形正常遮挡，禁止覆盖式渲染（旧预览线浮在角色上层的病灶）。
     ///
     /// 【视觉形态】锥形珠点弧线（暖黄→深橙顶点色渐变）+ 青色落点组（贴地环 + 中心点 +
     /// 指向箭头，环带微脉动）——暖色是"这条路"，青组是"落在这"；两族语义分开。
     /// 读数（方向/仰角/力度）归操作 HUD，不在 3D 场景写字。
+    ///
+    /// 【遮挡机制（叠加档无深度缓冲，射线判定补位）】像素化路径的物体 pass 只收
+    /// PixelartOpaque 材质，本件（Sprites/Default）由栈内 Overlay 叠加相机全分辨率绘制、
+    /// 其深度每帧清空（Assets/Pixelart/Editor/PixelartPathInstaller.cs 的 EnsureOverlayRenderer、
+    /// PixelartCameraRig 的 EnsureOverlayCamera）——旧表述「带深度测试」在现役管线没有物理前提。
+    /// 等效补位见 <see cref="IsOccluded"/>；真解（挪进像素化域透明趟）归叠加档待办整线处置，
+    /// 本类不做渲染管线侵入。
     ///
     /// 【预览 = 实弹】初速与重力由调用方（<see cref="BattleInteractionController"/>）从
     /// <see cref="StandardThrowRules"/> 取**与执行同源**的值传入；本类不自算任何弹道参数。
@@ -48,6 +55,9 @@ namespace PirateCrew.Battle
 
         [Tooltip("是否显示预测落点标记（贴地环 + 中心点 + 指向箭头）。")]
         [SerializeField] bool showImpactMarker = true;
+
+        [Tooltip("被地形/单位挡住的珠点与落点组隐藏（叠加档无深度缓冲，CPU 射线判定补位；提案）。")]
+        [SerializeField] bool occlusionTest = true;
 
         [Tooltip("预制体上遗留的旧轨迹 LineRenderer（两态重构退役件）；Awake 时直接禁用。")]
         [SerializeField] LineRenderer legacyLine;
@@ -108,10 +118,15 @@ namespace PirateCrew.Battle
                 dot.localScale = new Vector3(scale, scale, scale);
                 if (cam != null)
                     dot.rotation = Quaternion.LookRotation(cam.transform.forward);
+                // 被崖/单位挡住的珠点隐藏——弧线在遮挡物处截断即"正常遮挡"的正确观感
+                // （逐点显隐，崖棱半切珠点的窄带误差在像素观感下不做逐像素细分）。
+                dot.gameObject.SetActive(!(occlusionTest && IsOccluded(_samples[i], cam)));
             }
             SetDotsActive(shown);
 
-            if (showImpactMarker)
+            // 落点组整组判定（环/箭头/中心都收在环内，按落点单点判定即可；
+            // 被"完全"挡住时隐藏与深度测试行为一致，"落点标记恒显"约束的是采样兜底不是遮挡）。
+            if (showImpactMarker && !(occlusionTest && IsOccluded(impact + Vector3.up * ImpactMarkerLift, cam)))
                 PlaceImpactGroup(impact, velocity);
             else
                 HideImpactGroup();
@@ -128,13 +143,40 @@ namespace PirateCrew.Battle
         // 珠点池（顶点色锥形：颜色按池位渐变烘进各自 Mesh，共享一份白材质）
         // ------------------------------------------------------------------
 
+        /// <summary>关掉前 <paramref name="count"/> 个池位之后的所有珠点（前缀的显隐已逐点判定）。</summary>
         void SetDotsActive(int count)
         {
-            for (int i = 0; i < _dots.Length; i++)
+            for (int i = count; i < _dots.Length; i++)
             {
-                if (_dots[i].gameObject.activeSelf != i < count)
-                    _dots[i].gameObject.SetActive(i < count);
+                if (_dots[i].gameObject.activeSelf)
+                    _dots[i].gameObject.SetActive(false);
             }
+        }
+
+        // ------------------------------------------------------------------
+        // 遮挡判定（叠加档无深度缓冲的等效补位）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 珠点/落点是否被地形或单位挡住：沿"物体 → 相机"的射线投给 PhysX，首命中落在
+        /// 相机平面之前即被挡。像素化路径下本件由叠加相机全分辨率绘制、深度每帧清空，
+        /// 这里用射线等效补位；地形是隐形 BoxCollider 碰撞层、单位是 BoxCollider
+        /// （均与可视几何同源生成），判定与画面一致。起点在 collider 内部（弧线贴崖壁、
+        /// 起手在投掷者体内）时 PhysX 不命中背面，不误判。相机缺失（ Camera.current 与
+        /// Camera.main 皆空）时不判定，保持旧的全显行为。
+        /// </summary>
+        bool IsOccluded(Vector3 worldPos, Camera cam)
+        {
+            if (cam == null)
+                return false;
+
+            Vector3 forward = cam.transform.forward;
+            float planeDistance = Vector3.Dot(cam.transform.position - worldPos, forward);
+            if (planeDistance <= 0f)
+                return false;
+
+            Ray ray = new Ray(worldPos, -forward);
+            return Physics.Raycast(ray, planeDistance, ~0, QueryTriggerInteraction.Ignore);
         }
 
         void EnsureDots()
