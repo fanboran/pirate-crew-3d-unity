@@ -291,9 +291,10 @@ Water compute 的 11 个 kernel 全部反汇编后逐条判读（每个 kernel �
   也不是运行时唯一的高度源。
 - **沙材质** `Sand`（自研 `Lit/Sand`）：`sandColor=(0.9255,0.8863,0.7255)`、
   `sandColor2=(0.9294,0.8980,0.7529)`、`wetSandColor=(0.9060,0.8104,0.6333)`
-  （序列化 linear）。湿沙不是独立贴图：VS 把 `max(water−0.05,0)` 传入，PS 先
-  `sat×52.63` 再 `3t²−2t³` smoothstep——约 2 cm 水膜即全湿；随后按水深 ×20 与
-  坡度因子继续压向第三色。
+  （序列化 linear）。**湿沙只比干沙暗 2–13%**：`wetSandColor/sandColor` 的 linear
+  比例 ≈ `(0.979,0.914,0.873)`，不是深棕湿带。湿沙不是独立贴图：VS 把
+  `max(water−0.05,0)` 传入，PS 先 `sat×52.63` 再 `3t²−2t³` smoothstep——约 2 cm
+  水膜即全湿；随后按水深 ×20 与坡度因子继续压向第三色。
 - **Lit_Sand 没有层理/沙纹/卵石 albedo**：`sandMap` 指向 1024² Texture2D `Sand`。
   实测该贴图 **R 通道是逐 texel 白噪声**（mean 0.508、std 0.161、4 px 自相关≈0；
   采样 `worldXZ×0.3` → 单 texel ≈3.3 mm），只给沙粒明暗（PS 以 `normal.y` 加权，
