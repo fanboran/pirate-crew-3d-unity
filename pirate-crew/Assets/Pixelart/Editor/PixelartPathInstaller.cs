@@ -8,14 +8,15 @@ using PirateCrew.Rendering.Pixelart;
 namespace PirateCrew.EditorTools
 {
     /// <summary>
-    /// **像素化着色路径**的渲染器装配（编辑器侧）：造两个专用渲染器资产、装齐七个特征、追加进两档 URP 资产。
+    /// **像素化着色路径**的渲染器装配（编辑器侧）：造两个专用渲染器资产、装齐 Cast 七个特征（六趟冻结顺序 + 末尾透明趟）、追加进两档 URP 资产。
     ///
     /// 【为什么要两个渲染器】这条路径是"一台相机只写数据、另一台只上屏"的形状：
     /// <list type="bullet">
     ///   <item><b>Cast 渲染器</b>（数组顺序 = 同一 RenderPassEvent 内的执行顺序，即契约 §3）：
     ///         BeforeRender（相机 snap + 尺寸下发）→ Object（几何 → 屏幕档 7 张 G-buffer）→
     ///         Connectivity（连通域三阶段）→ Outline（屏幕空间描边）→ RimLight（边缘光）→
-    ///         Shading（四趟着色 + 合成）。帧级调色板那一趟已于 2026-09-29 按创始人裁决删除。</item>
+    ///         Shading（四趟着色 + 合成）→ Transparent（像素化域透明趟，末尾追加）。
+    ///         帧级调色板那一趟已于 2026-09-29 按创始人裁决删除。</item>
     ///   <item><b>Screen 渲染器</b>：只有 ScreenCopy（ResultBuffer 点采样放大上屏）。</item>
     /// </list>
     /// 两台相机若共用同一个渲染器，主相机会把刚画好的 G-buffer 清掉再着色，画面变纯背景色——
@@ -47,6 +48,9 @@ namespace PirateCrew.EditorTools
         /// <summary>Cast 渲染器的特征顺序（= 执行顺序，契约 §3）。改这里就是改管线次序。
         /// 【2026-09-29 契约修订】原第 7 位 `PixelartColorCorrectionFeature`（帧级调色板 = 把整幅图
         /// 逐像素吸附到一张有限色板）**已删除**——创始人裁决「彻底去掉配色限制」。
+        /// 【追加纪律】前六位是冻结契约，只许在**末尾追加**：第 7 位 `PixelartTransparentFeature`
+        /// 是像素化域透明趟（着色合成后在艺术画布上画半透明效果件，吃细像素深度遮挡）——
+        /// 它必须排在 Shading 之后（合成本身整屏覆盖写，先画会被冲掉），其余趟与它无耦合。
         static readonly System.Type[] CastFeatureOrder =
         {
             typeof(PixelartBeforeRenderFeature),
@@ -55,6 +59,7 @@ namespace PirateCrew.EditorTools
             typeof(PixelartOutlineFeature),
             typeof(PixelartRimLightFeature),
             typeof(PixelartShadingFeature),
+            typeof(PixelartTransparentFeature),
         };
 
         /// <summary>本装配器上次成功装配的渲染器索引（同一次会话内供装配场景使用）。</summary>
@@ -342,6 +347,13 @@ namespace PirateCrew.EditorTools
             {
                 shading.shadingShader = LoadShader(PixelartPath.ShaderFolder + "/PixelartShading.shader");
                 EditorUtility.SetDirty(shading);
+            }
+
+            PixelartTransparentFeature transparent = Find<PixelartTransparentFeature>(features);
+            if (transparent != null)
+            {
+                transparent.transparentShader = LoadShader(PixelartPath.ShaderFolder + "/PixelartTransparent.shader");
+                EditorUtility.SetDirty(transparent);
             }
 
             EditorUtility.SetDirty(rendererData);

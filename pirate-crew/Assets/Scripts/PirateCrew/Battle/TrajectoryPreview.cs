@@ -18,12 +18,12 @@ namespace PirateCrew.Battle
     /// 指向箭头，环带微脉动）——暖色是"这条路"，青组是"落在这"；两族语义分开。
     /// 读数（方向/仰角/力度）归操作 HUD，不在 3D 场景写字。
     ///
-    /// 【遮挡机制（叠加档无深度缓冲，射线判定补位）】像素化路径的物体 pass 只收
-    /// PixelartOpaque 材质，本件（Sprites/Default）由栈内 Overlay 叠加相机全分辨率绘制、
-    /// 其深度每帧清空（Assets/Pixelart/Editor/PixelartPathInstaller.cs 的 EnsureOverlayRenderer、
-    /// PixelartCameraRig 的 EnsureOverlayCamera）——旧表述「带深度测试」在现役管线没有物理前提。
-    /// 等效补位见 <see cref="IsOccluded"/>；真解（挪进像素化域透明趟）归叠加档待办整线处置，
-    /// 本类不做渲染管线侵入。
+    /// 【遮挡机制（像素化域透明趟接管）】本件材质走 <c>PirateCrew/Pixelart/PixelartTransparent</c>
+    /// （本仓透明趟专用路径），由 Cast 渲染器的透明趟（<see cref="global::PirateCrew.Rendering.Pixelart.PixelartTransparentFeature"/>，
+    /// 着色合成之后）画进**艺术画布**：与画面同像素化，并由 shader 手动比细像素深度实现
+    /// 逐像素遮挡（崖后珠点被 clip 掉）。**PhysX 射线等效补位（occlusionTest/IsOccluded）
+    /// 已随之退役**——逐珠点显隐的窄带误差（崖棱半切珠点）由逐像素判定从根上取代；
+    /// 珠点不再因遮挡 SetActive(false)，被挡片元在渲染层丢弃。
     ///
     /// 【预览 = 实弹】初速与重力由调用方（<see cref="BattleInteractionController"/>）从
     /// <see cref="StandardThrowRules"/> 取**与执行同源**的值传入；本类不自算任何弹道参数。
@@ -55,9 +55,6 @@ namespace PirateCrew.Battle
 
         [Tooltip("是否显示预测落点标记（贴地环 + 中心点 + 指向箭头）。")]
         [SerializeField] bool showImpactMarker = true;
-
-        [Tooltip("被地形/单位挡住的珠点与落点组隐藏（叠加档无深度缓冲，CPU 射线判定补位；提案）。")]
-        [SerializeField] bool occlusionTest = true;
 
         [Tooltip("预制体上遗留的旧轨迹 LineRenderer（两态重构退役件）；Awake 时直接禁用。")]
         [SerializeField] LineRenderer legacyLine;
@@ -118,15 +115,14 @@ namespace PirateCrew.Battle
                 dot.localScale = new Vector3(scale, scale, scale);
                 if (cam != null)
                     dot.rotation = Quaternion.LookRotation(cam.transform.forward);
-                // 被崖/单位挡住的珠点隐藏——弧线在遮挡物处截断即"正常遮挡"的正确观感
-                // （逐点显隐，崖棱半切珠点的窄带误差在像素观感下不做逐像素细分）。
-                dot.gameObject.SetActive(!(occlusionTest && IsOccluded(_samples[i], cam)));
+                // 被崖/单位挡住的珠点不再逐点显隐——透明趟在 shader 里逐像素比细像素深度，
+                // 崖后片元直接 clip（比旧射线判定的"整点隐藏"更细，也免了每珠点一条 PhysX 射线）。
+                dot.gameObject.SetActive(true);
             }
             SetDotsActive(shown);
 
-            // 落点组整组判定（环/箭头/中心都收在环内，按落点单点判定即可；
-            // 被"完全"挡住时隐藏与深度测试行为一致，"落点标记恒显"约束的是采样兜底不是遮挡）。
-            if (showImpactMarker && !(occlusionTest && IsOccluded(impact + Vector3.up * ImpactMarkerLift, cam)))
+            // 落点组随珠点一起交给透明趟（"落点标记恒显"约束的是采样兜底；遮挡由渲染层判定）。
+            if (showImpactMarker)
                 PlaceImpactGroup(impact, velocity);
             else
                 HideImpactGroup();
@@ -143,7 +139,7 @@ namespace PirateCrew.Battle
         // 珠点池（顶点色锥形：颜色按池位渐变烘进各自 Mesh，共享一份白材质）
         // ------------------------------------------------------------------
 
-        /// <summary>关掉前 <paramref name="count"/> 个池位之后的所有珠点（前缀的显隐已逐点判定）。</summary>
+        /// <summary>关掉前 <paramref name="count"/> 个池位之后的所有珠点（前缀恒显示，遮挡由透明趟 clip）。</summary>
         void SetDotsActive(int count)
         {
             for (int i = count; i < _dots.Length; i++)
@@ -151,32 +147,6 @@ namespace PirateCrew.Battle
                 if (_dots[i].gameObject.activeSelf)
                     _dots[i].gameObject.SetActive(false);
             }
-        }
-
-        // ------------------------------------------------------------------
-        // 遮挡判定（叠加档无深度缓冲的等效补位）
-        // ------------------------------------------------------------------
-
-        /// <summary>
-        /// 珠点/落点是否被地形或单位挡住：沿"物体 → 相机"的射线投给 PhysX，首命中落在
-        /// 相机平面之前即被挡。像素化路径下本件由叠加相机全分辨率绘制、深度每帧清空，
-        /// 这里用射线等效补位；地形是隐形 BoxCollider 碰撞层、单位是 BoxCollider
-        /// （均与可视几何同源生成），判定与画面一致。起点在 collider 内部（弧线贴崖壁、
-        /// 起手在投掷者体内）时 PhysX 不命中背面，不误判。相机缺失（ Camera.current 与
-        /// Camera.main 皆空）时不判定，保持旧的全显行为。
-        /// </summary>
-        bool IsOccluded(Vector3 worldPos, Camera cam)
-        {
-            if (cam == null)
-                return false;
-
-            Vector3 forward = cam.transform.forward;
-            float planeDistance = Vector3.Dot(cam.transform.position - worldPos, forward);
-            if (planeDistance <= 0f)
-                return false;
-
-            Ray ray = new Ray(worldPos, -forward);
-            return Physics.Raycast(ray, planeDistance, ~0, QueryTriggerInteraction.Ignore);
         }
 
         void EnsureDots()
@@ -216,7 +186,7 @@ namespace PirateCrew.Battle
             return Color32.Lerp(new Color32(0xFF, 0xEC, 0x78, 0xE6), new Color32(0xFF, 0x78, 0x28, 0xE6), t);
         }
 
-        /// <summary>带顶点色的单位面片（-0.5..0.5）；Sprites/Default 乘顶点色，材质保持白色。</summary>
+        /// <summary>带顶点色的单位面片（-0.5..0.5）；透明趟 shader 乘顶点色，材质保持白色。</summary>
         static Mesh CreateTintedQuad(Color32 tint)
         {
             var mesh = new Mesh { name = "PreviewDot" };
@@ -234,7 +204,12 @@ namespace PirateCrew.Battle
         static Material FallbackPreviewMaterial()
         {
             // 无序列化材质时的兜底（正常装配链都带 Trajectory.mat）；着色全靠顶点色，材质保白。
-            var shader = Shader.Find("Sprites/Default");
+            // 本工程透明路径 shader 走 PixelartShaders 取用口（Resources 持有，防播放器剥离）；
+            // 极端情况（shader 丢失）退 Sprites/Default——画面颗粒不对但至少可见，Find 口会响亮报错。
+            var shader = global::PirateCrew.Rendering.Pixelart.PixelartShaders.Load(
+                global::PirateCrew.Rendering.Pixelart.PixelartPath.TransparentShaderName);
+            if (shader == null)
+                shader = global::PirateCrew.Rendering.Pixelart.PixelartShaders.Find("Sprites/Default");
             var material = shader != null ? new Material(shader) : new Material(Shader.Find("Unlit/Color"));
             material.color = Color.white;
             return material;
@@ -295,7 +270,7 @@ namespace PirateCrew.Battle
             if (_impactMarker != null)
                 return;
 
-            // 运行时动态创建（不改场景/Prefab）；材质复用珠点的（Sprites/Default 读顶点色），
+            // 运行时动态创建（不改场景/Prefab）；材质复用珠点的（透明趟 shader 读顶点色），
             // 颜色 = 选中青 #49D9D6（Art Bible §2.2，与选中描边/光环同源）。
             var go = new GameObject("ImpactMarker");
             go.transform.SetParent(transform, false);

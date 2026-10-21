@@ -609,9 +609,12 @@ namespace PirateCrew.EditorTools
             line.endColor = new Color(1f, 0.5f, 0.2f, 0.4f);
             line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             line.receiveShadows = false;
+            // 弹道预览走像素化域透明趟（艺术画布 + 细像素深度遮挡）；本工程 shader 由
+            // Resources 持有、经取用口取（裸 Shader.Find 是静默剥离点），见 PixelartShaders。
+            Shader trajectoryShader = PixelartShaders.Load(PixelartPath.TransparentShaderName);
             line.sharedMaterial = EnsureMaterial(
                 MaterialFolder + "/Trajectory.mat", "Trajectory",
-                "Sprites/Default", Color.white);
+                trajectoryShader, Color.white);
 
             var preview = go.AddComponent<TrajectoryPreview>();
             var so = new SerializedObject(preview);
@@ -1097,6 +1100,16 @@ namespace PirateCrew.EditorTools
                 shader = Shader.Find("Standard");
             }
 
+            return EnsureMaterial(path, name, shader, color);
+        }
+
+        /// <summary>
+        /// Shader 对象版重载：本工程 shader（Resources 持有、走 <c>PixelartShaders</c> 取用口）
+        /// 用这个入口，绕开上面按名 <c>Shader.Find</c> 的裸查路径（裸查是播放器剥离静默点）。
+        /// 就地更新语义与按名版一致（幂等重建时 shader/颜色跟上代码）。
+        /// </summary>
+        static Material EnsureMaterial(string path, string name, Shader shader, Color color)
+        {
             var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
             if (existing != null)
             {
