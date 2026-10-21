@@ -1,0 +1,16 @@
+{
+  "name": "PiratePalette-Chemplant",
+  "version": 1,
+  "note": "化工厂域板（每域一板的结构示例）：工业/废弃生物群系的材质档，替代加勒比域的地形四族语义位。槽位色值全部取自化工厂 kit 现役材质表 tools/blender/scene/style_tokens.py 的 Kit_*（Unity 侧同源表 WorldMapAssetSetBuilder.cs），未发明任何色值；roughness 等材质参数仍留在 style_tokens（板只管色）。合并视图 = 共享核心板（pirate_palette.json）+ 本板。",
+  "slots": [
+    {"id": "CONCRETE_DARK", "group": "CONCRETE", "hex": "6B665C", "usage": "混凝土暗档（厂房墙面背光面/基础座）", "status": "提案", "source": "style_tokens.Kit_ConcreteDark（化工厂 kit 现役材质色）"},
+    {"id": "CONCRETE_MID", "group": "CONCRETE", "hex": "9E988A", "usage": "混凝土中间调（厂房墙面主色）", "status": "提案", "source": "style_tokens.Kit_ConcreteMid（化工厂 kit 现役材质色）"},
+    {"id": "CONCRETE_LIGHT", "group": "CONCRETE", "hex": "C6C1B4", "usage": "混凝土亮档（受光墙面/槽罐顶面）", "status": "提案", "source": "style_tokens.Kit_ConcreteLight（化工厂 kit 现役材质色）"},
+    {"id": "RUST_DARK", "group": "RUST", "hex": "5A2F1A", "usage": "锈蚀深档（结构架锈斑暗部/水线锈带）", "status": "提案", "source": "style_tokens.Kit_RustDark（化工厂 kit 现役材质色）"},
+    {"id": "RUST_LIGHT", "group": "RUST", "hex": "8C4A28", "usage": "锈蚀主档（管道/罐体锈面）", "status": "提案", "source": "style_tokens.Kit_Rust（化工厂 kit 现役材质色）"},
+    {"id": "STEEL_DARK", "group": "STEEL", "hex": "4E6270", "usage": "钢构暗档（蓝灰钢架背光面）", "status": "提案", "source": "style_tokens.Kit_SteelBlue（化工厂 kit 现役材质色）"},
+    {"id": "STEEL_LIGHT", "group": "STEEL", "hex": "98A2A6", "usage": "钢构亮档（镀锌钢/栏杆受光面）", "status": "提案", "source": "style_tokens.Kit_SteelPale（化工厂 kit 现役材质色）"},
+    {"id": "GLASS_DARK", "group": "GLASS", "hex": "2E3A3E", "usage": "深色玻璃（厂房窗/观察孔）", "status": "提案", "source": "style_tokens.Kit_GlassDark（化工厂 kit 现役材质色）"},
+    {"id": "PAINT_YELLOW", "group": "PAINT", "hex": "C9A63C", "usage": "工业警示黄漆（护栏/危险区标识）", "status": "提案", "source": "style_tokens.Kit_PaintYellow（化工厂 kit 现役材质色）"}
+  ]
+}

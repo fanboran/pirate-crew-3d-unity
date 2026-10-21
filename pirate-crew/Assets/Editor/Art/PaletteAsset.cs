@@ -39,11 +39,14 @@ namespace PirateCrew.EditorTools.Art
     /// 全局调色板资产（等距像素卡通的「风格令牌表」；美术风格指南 §3.2、
     /// 像素纹理 §5）。
     ///
-    /// 【唯一真源】<c>Assets/Data/Palette/pirate_palette.json</c>。本资产是它的一份
-    /// **派生镜像**，由 <see cref="PaletteAssetBuilder"/> 生成，供 Unity 侧工具
+    /// 【唯一真源】<c>Assets/Data/Palette/</c> 下的分域两层板（共享核心板
+    /// <c>pirate_palette.json</c> + 域板 <c>palette_&lt;域&gt;.json</c>，见 <see cref="PaletteBoard"/>）。
+    /// 本资产是它们**合并视图**（共享核心 + 当前域）的派生镜像，由
+    /// <see cref="PaletteAssetBuilder"/> 生成，供 Unity 侧工具
     /// （UI 派生等编辑器侧调色消费方）在 Inspector 里直接读色值。
-    /// 反向路径（Inspector 手改 → 回写 JSON）由 PaletteAssetBuilder.ExportToJson 提供，
-    /// 两条命令互为镜像且收敛到同一字节，所以任何一方手改都能被另一方对账出来。
+    /// 反向路径（Inspector 手改 → 回写 JSON）由 PaletteAssetBuilder.ExportToJson 提供
+    /// （按槽位归属回写所属层文件），两条命令互为镜像且收敛到同一字节，
+    /// 所以任何一方手改都能被另一方对账出来。
     ///
     /// 【为什么本类型放在 Assets/Editor 下（editor-only）】它是**制作期令牌**，
     /// 消费点全在 Editor 工具与离线烘焙链；运行时材质把颜色烘进材质资产，播放器不需要读板。

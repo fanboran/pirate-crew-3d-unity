@@ -39,7 +39,7 @@ namespace PirateCrew.EditorTools
     ///     **近黑描边 + 受光侧一道唇边 + 平脸**，低对比、单描边。把金框语法推广到面板上
     ///     会读成"双层相框"（创始人一眼指出"和我给你的界面不一样"）。
     /// 本类只量**几何与色彩关系**，不复制它的任何贴图资源；色相一律换成
-    /// <c>Assets/Data/Palette/pirate_palette.json</c> 的槽位（本工程色板），
+    /// <c>Assets/Data/Palette/</c> 调色板真源（共享核心板 + 域板）合并视图的槽位（本工程色板），
     /// 于是"换主题只换色相"成立。
     ///
     /// 【一、两套边带语法（单位 u = 3px，从外缘向内）】
@@ -436,7 +436,7 @@ namespace PirateCrew.EditorTools
         }
 
         // ==================================================================
-        // 五、调色板（真源 = JSON，不读 .asset 镜像）
+        // 五、调色板（真源 = 分域 JSON 的合并视图，不读 .asset 镜像）
         // ==================================================================
 
         static Dictionary<string, Color32> s_slots;
@@ -460,8 +460,9 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 按槽位 id 取色（**读 JSON 真源**，不读 <c>PaletteAsset</c> 镜像——
-        /// 手改 JSON 后忘跑镜像生成是真实的坑，生成器不该踩）。装配侧要"平色底"（全屏背景）也走这里。
+        /// 按槽位 id 取色（**读 JSON 真源的合并视图**——共享核心板 + 当前域板，见
+        /// <see cref="PaletteBoard"/>；不读 <c>PaletteAsset</c> 镜像——手改 JSON 后忘跑镜像
+        /// 生成是真实的坑，生成器不该踩）。装配侧要"平色底"（全屏背景）也走这里。
         /// 缺槽返回**品红**并报错（沿用 <see cref="PaletteAsset.ColorOf"/> 的"一眼可见"口径）；
         /// 正式的缺槽红灯在 <see cref="Verify"/> / <see cref="BuildAll"/> 的预检里。
         /// </summary>
@@ -471,7 +472,7 @@ namespace PirateCrew.EditorTools
             if (s_slots.TryGetValue(id, out Color32 c))
                 return c;
             Debug.LogError("[BeveledPixelSpriteBuilder] 调色板没有槽位 " + id
-                + "（真源 " + PaletteAssetBuilder.JsonPath + "）——该色会渲染成品红。");
+                + "（真源 " + PaletteAssetBuilder.JsonPath + " + 当前域板）——该色会渲染成品红。");
             return new Color32(255, 0, 255, 255);
         }
 
@@ -481,14 +482,17 @@ namespace PirateCrew.EditorTools
                 return;
 
             s_slots = new Dictionary<string, Color32>();
-            string abs = Path.Combine(UnityProjectRoot(), PaletteAssetBuilder.JsonPath);
-            if (!File.Exists(abs))
+            PaletteJson.Root root;
+            try
             {
-                Debug.LogError("[BeveledPixelSpriteBuilder] 读不到调色板真源：" + abs);
+                root = PaletteBoard.LoadMerged();   // 共享核心 + 当前域（默认 caribbean）的合并视图
+            }
+            catch (Exception exc)
+            {
+                Debug.LogError("[BeveledPixelSpriteBuilder] 读不到调色板真源：" + exc.Message);
                 return;
             }
 
-            PaletteJson.Root root = PaletteJson.Parse(File.ReadAllText(abs));
             for (int i = 0; i < root.slots.Count; i++)
             {
                 PaletteSlot slot = root.slots[i];
@@ -1100,7 +1104,7 @@ namespace PirateCrew.EditorTools
             {
                 throw new InvalidOperationException(
                     "[BeveledPixelSpriteBuilder] 调色板缺少槽位：" + string.Join(", ", missing.ToArray())
-                    + "（真源 " + PaletteAssetBuilder.JsonPath + "）。缺槽时烘焙会画成品红——先补板再加 tone。");
+                    + "（真源 " + PaletteAssetBuilder.JsonPath + " + 当前域板）。缺槽时烘焙会画成品红——先补板再加 tone。");
             }
 
             BakeTarget[] targets = Targets();

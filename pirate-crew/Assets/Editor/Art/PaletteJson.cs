@@ -13,9 +13,12 @@ namespace PirateCrew.EditorTools.Art
     /// 人眼 review）如果各自按自己的库 dumps，会产生大量与语义无关的格式差异，真正的改动
     /// 淹没在 diff 噪声里、且「两边是否一致」无法用比较字节来判定。本类把布局钉死：
     ///
-    ///   顶层：<c>{</c> → 固定顺序的 <c>name/version/texelDensityPxPerMeter/note</c> 各占一行
+    ///   顶层：<c>{</c> → 固定顺序的 <c>name/version/texelDensityPxPerMeter/note/mergeOrder</c> 各占一行
     ///   （2 空格缩进、<c>": "</c> 分隔、行尾逗号）→ <c>"slots": [</c> → **一槽一行** →
     ///   <c>]</c> → <c>}</c>；UTF-8 无 BOM、LF 换行、末尾换行、中文不转义。
+    ///   <c>mergeOrder</c>（字符串数组的单行 JSON）只有共享核心板携带，是分域合并序的真源结构声明；
+    ///   域板没有该键，写出侧按「字段存在才写」跳过整行（与 python 侧 <c>if key in data</c> 同口径），
+    ///   因此合并视图（不含 mergeOrder）的规范文本与拆分前的单板逐位一致。
     ///
     ///   槽位字段顺序固定 <c>id, group, hex, usage, status, source</c>，行内 <c>", "</c> 分隔。
     ///
@@ -31,7 +34,7 @@ namespace PirateCrew.EditorTools.Art
         static readonly string[] SlotKeys = { "id", "group", "hex", "usage", "status", "source" };
 
         /// <summary>顶层字段的固定写出顺序（与 palette_tool.py 的 ROOT_KEYS 一致）。</summary>
-        static readonly string[] RootKeys = { "name", "version", "texelDensityPxPerMeter", "note" };
+        static readonly string[] RootKeys = { "name", "version", "texelDensityPxPerMeter", "note", "mergeOrder" };
 
         /// <summary>JSON 根的反序列化外壳（JsonUtility 要求 [Serializable] 的普通类 + public 字段）。</summary>
         [Serializable]
@@ -41,6 +44,10 @@ namespace PirateCrew.EditorTools.Art
             public int version;
             public int texelDensityPxPerMeter;
             public string note;
+
+            /// <summary>合并序声明（只有共享核心板携带；域板/合并视图为 null）。</summary>
+            public string[] mergeOrder;
+
             public List<PaletteSlot> slots = new List<PaletteSlot>();
         }
 
@@ -99,6 +106,19 @@ namespace PirateCrew.EditorTools.Art
                         break;
                     case "note":
                         AppendString(sb, "note", root.note);
+                        break;
+                    case "mergeOrder":
+                        // 只有共享核心板携带（null/空 = 域板或合并视图，整行省略，与 python 侧同口径）
+                        if (root.mergeOrder == null || root.mergeOrder.Length == 0)
+                            break;
+                        sb.Append("  \"mergeOrder\": [");
+                        for (int m = 0; m < root.mergeOrder.Length; m++)
+                        {
+                            if (m > 0)
+                                sb.Append(", ");
+                            sb.Append(PythonJsonString(root.mergeOrder[m]));
+                        }
+                        sb.Append("],\n");
                         break;
                 }
             }
