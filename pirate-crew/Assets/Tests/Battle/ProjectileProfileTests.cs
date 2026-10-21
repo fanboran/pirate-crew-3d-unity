@@ -44,6 +44,8 @@ namespace PirateCrew.Battle.Tests
                 Assert.AreEqual(reference.GravityScale, p.GravityScale, 1e-6f, id.ToString());
                 Assert.AreEqual(reference.Bounciness, p.Bounciness, 1e-6f, id.ToString());
                 Assert.AreEqual(reference.DynamicFriction, p.DynamicFriction, 1e-6f, id.ToString());
+                Assert.AreEqual(reference.GroundContactFriction, p.GroundContactFriction, 1e-6f, id.ToString());
+                Assert.AreEqual(reference.GroundContactBounce, p.GroundContactBounce, 1e-6f, id.ToString());
                 Assert.AreEqual(reference.TwangMax, p.TwangMax, 1e-6f, id.ToString());
                 Assert.AreEqual(reference.HasExplosion, p.HasExplosion, id.ToString());
                 Assert.AreEqual(reference.ExplosionSize, p.ExplosionSize, 1e-6f, id.ToString());
@@ -75,6 +77,11 @@ namespace PirateCrew.Battle.Tests
             Assert.AreEqual(StandardBombRules.Bounciness, p.Bounciness, 1e-6f);
             Assert.AreEqual(StandardBombRules.Friction, p.DynamicFriction, 1e-6f);
             Assert.AreEqual(StandardBombRules.Friction, p.StaticFriction, 1e-6f);
+
+            // S2 撞地积分参数：覆写表现役为空 → 全部武器回退全局默认
+            // （与参数化前逐位一致；登记入口见 Combat.ProjectileContactOverrides）。
+            Assert.AreEqual(BalanceConfig.Defaults.DefaultFriction, p.GroundContactFriction, 1e-6f);
+            Assert.AreEqual(BalanceConfig.Defaults.DefaultBounce, p.GroundContactBounce, 1e-6f);
 
             // 弹弓上限 = 角色自抛同限
             Assert.AreEqual(StandardBombRules.TwangMax, p.TwangMax, 1e-6f);

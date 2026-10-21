@@ -63,6 +63,20 @@ namespace PirateCrew.Battle
         /// <summary>PhysicsMaterial 静摩擦系数（与动摩擦同值）。</summary>
         public readonly float StaticFriction;
 
+        /// <summary>
+        /// 撞地积分摩擦（<see cref="Ballistics"/> 域，S2 参数化）：每次撞地对水平速度模长的递减量。
+        /// 每武器可覆写（<see cref="ProjectileContactOverrides"/>），无覆写 = 全局默认
+        /// <see cref="BalanceConfig.Defaults.DefaultFriction"/>（现役全表如此，与参数化前逐位一致）。
+        /// </summary>
+        public readonly float GroundContactFriction;
+
+        /// <summary>
+        /// 撞地积分弹跳（<see cref="Ballistics"/> 域，S2 参数化）：撞地 vy *= -bounce。
+        /// 每武器可覆写（<see cref="ProjectileContactOverrides"/>），无覆写 = 全局默认
+        /// <see cref="BalanceConfig.Defaults.DefaultBounce"/>。
+        /// </summary>
+        public readonly float GroundContactBounce;
+
         /// <summary>弹弓最大初速（标准口径 = 角色自抛同限）。</summary>
         public readonly float TwangMax;
 
@@ -97,6 +111,7 @@ namespace PirateCrew.Battle
             WeaponId id, float halfWidth, float halfHeight, float halfDepth,
             float mass, bool usesGravity, float gravityScale,
             float bounciness, float dynamicFriction, float staticFriction,
+            float groundContactFriction, float groundContactBounce,
             float twangMax, bool isPersistent, bool isPlaceable, int placeableCount,
             int reuseCount, bool hitsTiles, bool hasExplosion,
             float explosionSize, float explosionMaxDamage, ProjectileShape shape)
@@ -111,6 +126,8 @@ namespace PirateCrew.Battle
             Bounciness = bounciness;
             DynamicFriction = dynamicFriction;
             StaticFriction = staticFriction;
+            GroundContactFriction = groundContactFriction;
+            GroundContactBounce = groundContactBounce;
             TwangMax = twangMax;
             IsPersistent = isPersistent;
             IsPlaceable = isPlaceable;
@@ -142,6 +159,11 @@ namespace PirateCrew.Battle
             float half = LevelGeometry.PixelsToUnits(StandardBombRules.HalfSizePixels);
             float mass = StandardBombRules.Weight;
 
+            // S2 弹跳/摩擦参数化：每武器覆写（ProjectileContactOverrides）→ 全局默认回退。
+            // 现役覆写表为空 → 全部武器取默认值，与参数化前逐位一致（回归测试钉住）。
+            ProjectileContactRules.Resolve(
+                stats.Id, out float groundFriction, out float groundBounce);
+
             return new ProjectileProfile(
                 stats.Id,
                 half,
@@ -153,6 +175,8 @@ namespace PirateCrew.Battle
                 Mathf.Clamp(StandardBombRules.Bounciness, 0f, 1f),
                 Mathf.Max(0f, StandardBombRules.Friction),
                 Mathf.Max(0f, StandardBombRules.Friction),
+                groundFriction,
+                groundBounce,
                 StandardBombRules.TwangMax,
                 !stats.LimitedToTurn,
                 isPlaceable: false,
