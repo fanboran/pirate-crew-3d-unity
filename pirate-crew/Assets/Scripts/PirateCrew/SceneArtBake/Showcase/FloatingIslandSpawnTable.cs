@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PirateCrew.SceneArt;
 using UnityEngine;
 
 namespace PirateCrew.SceneArtBake.Showcase
