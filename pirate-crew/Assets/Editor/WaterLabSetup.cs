@@ -193,8 +193,9 @@ namespace PirateCrew.EditorTools
             // 沙面成浓黄。现按正确显示链反解：干沙 albedo sRGB (1.0,0.92,0.69)
             // → 线性 (1.0,0.831,0.434)，×光照核 (0.992,0.944,0.902) ≈ 参考线性值。
             m.SetColor("_DrySandColor", new Color(1.0f, 0.92f, 0.69f));
-            // 湿沙：干沙的压暗/去饱和版，保持水线附近的湿痕读感。
-            m.SetColor("_WetSandColor", new Color(0.82f, 0.72f, 0.52f));
+            // 湿沙：原作 wetSandColor/sandColor 的 linear 比例 ≈ (0.979,0.914,0.873)，
+            // 只轻微变暗；旧值 (0.82,0.72,0.52) 暗 40%+，退潮湿痕会被读成残留水。
+            m.SetColor("_WetSandColor", new Color(0.99f, 0.885f, 0.65f));
             // 水下沙：透过浅水看到的亮底沙，偏暖（水的青色会把它拉回绿松石）。
             m.SetColor("_UnderwaterSandColor", new Color(1.0f, 0.93f, 0.72f));
             m.SetFloat("_LightScale", LightScale);

@@ -501,6 +501,8 @@ namespace PirateCrew.WaterLab
             cs.SetFloat(ShaderIds.CouplingWeight,
                 WaterLabRules.CouplingWeightFull / WaterLabRules.CouplingWeightMax);
             cs.SetFloat(ShaderIds.EvaporationRate, WaterLabRules.EvaporationRate());
+            cs.SetFloat(ShaderIds.BeachInfiltrationDepth, WaterLabRules.BeachInfiltrationDepth);
+            cs.SetFloat(ShaderIds.BeachInfiltrationRate, WaterLabRules.BeachInfiltrationRate);
             if (!_constantsLogged)
             {
                 _constantsLogged = true;
@@ -527,6 +529,7 @@ namespace PirateCrew.WaterLab
             cs.SetFloat(ShaderIds.WWSpawnRate, WaterLabRules.WhitewaterSpawnRate);
             cs.SetFloat(ShaderIds.WWSize, WaterLabRules.WhitewaterSize);
             cs.SetFloat(ShaderIds.WWSurfaceOffset, WaterLabRules.WhitewaterSurfaceOffset);
+            cs.SetFloat(ShaderIds.WWMinDepth, WaterLabRules.WhitewaterMinVisibleDepth);
             PushWhitewaterFrustum();
         }
 
@@ -629,6 +632,8 @@ namespace PirateCrew.WaterLab
             public static readonly int TideMinAmount = Shader.PropertyToID("_TideMinAmount");
             public static readonly int CouplingWeight = Shader.PropertyToID("_CouplingWeight");
             public static readonly int EvaporationRate = Shader.PropertyToID("_EvaporationRate");
+            public static readonly int BeachInfiltrationDepth = Shader.PropertyToID("_BeachInfiltrationDepth");
+            public static readonly int BeachInfiltrationRate = Shader.PropertyToID("_BeachInfiltrationRate");
             public static readonly int BreakingSteepness = Shader.PropertyToID("_BreakingSteepness");
             public static readonly int BreakingFroude = Shader.PropertyToID("_BreakingFroude");
             public static readonly int FoamGain = Shader.PropertyToID("_FoamGain");
@@ -651,6 +656,7 @@ namespace PirateCrew.WaterLab
             public static readonly int WWSpawnRate = Shader.PropertyToID("_WwSpawnRate");
             public static readonly int WWSize = Shader.PropertyToID("_WwSize");
             public static readonly int WWSurfaceOffset = Shader.PropertyToID("_WwSurfaceOffset");
+            public static readonly int WWMinDepth = Shader.PropertyToID("_WwMinDepth");
             public static readonly int WWFrustumPlanes = Shader.PropertyToID("_WwFrustumPlanes");
             public static readonly int WWFrustumOverscan = Shader.PropertyToID("_WwFrustumOverscan");
         }
