@@ -675,6 +675,13 @@ namespace PirateCrew.Battle
         public IReadOnlyList<WeaponProjectile> AllProjectiles => _projectiles;
 
         /// <summary>
+        /// 跨回合常驻物注册表（放置物域纯数据，与弹体域 _projectiles 分立）：
+        /// 将来 mine/gunpowderBarrel/woodenCrate/cannon 放置时经
+        /// <see cref="PersistentObjectHandle"/> 登记；回合边界不清理（容器语义）。
+        /// </summary>
+        public PersistentObjectRegistry PersistentObjects { get; } = new PersistentObjectRegistry();
+
+        /// <summary>
         /// 使用一件武器：按 <see cref="ProjectileSpawnPlanner"/> 生成弹体，
         /// 并接上物理与引爆判定。返回生成的弹体数量。
         ///
