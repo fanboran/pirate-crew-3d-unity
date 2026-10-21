@@ -26,6 +26,12 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>物体 pass 的 shader（只写 7 张 G-buffer，不做着色）。</summary>
         public const string ObjectShaderName = "PirateCrew/Pixelart/PixelartObject";
 
+        /// <summary>
+        /// 透明趟 shader（艺术画布上 alpha 混合 + 手动细像素深度遮挡；贴图 × 顶点色 × 乘色）。
+        /// 首件消费者：弹道预览（<c>TrajectoryPreview</c>）。
+        /// </summary>
+        public const string TransparentShaderName = "PirateCrew/Pixelart/PixelartTransparent";
+
         /// <summary>低分辨率域着色 shader（四趟：Diffuse / Specular / GI / Combine）。</summary>
         public const string ShadingShaderName = "PirateCrew/Pixelart/PixelartShading";
 
@@ -64,6 +70,13 @@ namespace PirateCrew.Rendering.Pixelart
         /// （AGENTS.md 铁律：额外 pass 必须给它一个独立且未被占用的 LightMode）。
         /// </summary>
         public const string OpaqueShaderTagName = "PixelartOpaque";
+
+        /// <summary>
+        /// 透明趟 pass 的 ShaderTagId。**只有这一条 LightMode 会被透明趟画**——与
+        /// <see cref="OpaqueShaderTagName"/> 自立门户、互不相认：标准 URP pass 匹配不到
+        /// 本路径材质（不被 Cast 的常规趟与叠加相机重复画），透明趟也只按这条收件。
+        /// </summary>
+        public const string TransparentShaderTagName = "PixelartTransparent";
 
         /// <summary>描边 pass 名。</summary>
         public const string OutlinePassName = "PixelartOutline";
