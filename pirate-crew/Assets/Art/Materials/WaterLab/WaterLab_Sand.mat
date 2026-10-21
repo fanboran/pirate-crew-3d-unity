@@ -22,18 +22,26 @@ Material:
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
-    m_TexEnvs: []
+    m_TexEnvs:
+    - _WaterLabDetailNormal:
+        m_Texture: {fileID: 2800000, guid: 13fdf86d58f7cb449a647810afb8eb79, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _CausticGain: 0.6
+    - _CausticSampleOffset: 0.0156
+    - _CausticScale: 0.5
+    - _LightScale: 1.2
     - _RippleStrength: 0.08
-    - _SparkleStrength: 0.1
+    - _SparkleStrength: 0.02
     - _StrataBandWidth: 0.16
     - _StrataStrength: 0.35
     m_Colors:
-    - _AmbientColor: {r: 0.06269998, g: 0.13329998, b: 0.21959996, a: 1}
-    - _DrySandColor: {r: 0.9255, g: 0.8863, b: 0.7255, a: 1}
+    - _AmbientColor: {r: 0.08, g: 0.14, b: 0.21, a: 1}
+    - _DrySandColor: {r: 1, g: 0.92, b: 0.69, a: 1}
     - _StrataColor: {r: 0.72, g: 0.61, b: 0.45, a: 1}
     - _SunTint: {r: 1, g: 0.9709, b: 0.9403, a: 1}
-    - _UnderwaterSandColor: {r: 0.9294, g: 0.898, b: 0.7529, a: 1}
-    - _WetSandColor: {r: 0.906, g: 0.8104, b: 0.6333, a: 1}
+    - _UnderwaterSandColor: {r: 1, g: 0.93, b: 0.72, a: 1}
+    - _WetSandColor: {r: 0.82, g: 0.72, b: 0.52, a: 1}
   m_BuildTextureStacks: []

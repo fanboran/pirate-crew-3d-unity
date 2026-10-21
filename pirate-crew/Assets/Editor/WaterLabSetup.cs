@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -26,14 +27,18 @@ namespace PirateCrew.EditorTools
         const string ShaderPathOcean = "Assets/Art/Shaders/WaterLab/WaterLabOcean.shader";
         const string ShaderPathSand = "Assets/Art/Shaders/WaterLab/WaterLabSand.shader";
         const string ShaderPathWhitewater = "Assets/Art/Shaders/WaterLab/WaterLabWhitewater.shader";
+        const string ShaderPathProp = "Assets/Art/Shaders/WaterLab/WaterLabProp.shader";
         const string ComputePath = "Assets/Art/Shaders/WaterLab/WaterLabSim.compute";
         const string MaterialFolder = "Assets/Art/Materials/WaterLab";
 
-        /// <summary>地形网格每轴段数（0.5 m/格，与地形模拟分辨率一致）。</summary>
-        const int TerrainSegments = WaterLabRules.GroundCells;
+        /// <summary>地形渲染网格每轴段数（0.117 m/顶点）。模拟地形场是 1024²（5.86 cm，
+        /// 原作 groundResolution 同水格），渲染网格取一半分辨率：再往上翻倍只是把
+        /// 场景资产从 ~10 MB 抬到 ~50 MB，画面收益远小于模拟场本身。</summary>
+        const int TerrainSegments = 512;
 
-        /// <summary>水面网格每轴段数（0.5 m/顶点；顶点位移采样 0.25 m 高度场，双线性平滑）。</summary>
-        const int SurfaceSegments = 128;
+        /// <summary>水面渲染网格每轴段数（0.117 m/顶点）。模拟高度场 1024²（5.86 cm），
+        /// 渲染顶点取一半——前缘仍有 2 顶点/水格间距，且不至于把 1M 顶点塞进场景资产。</summary>
+        const int SurfaceSegments = 512;
 
         [MenuItem("Tools/PirateCrew/WaterLab/Build Scene")]
         public static void BuildScene()
@@ -48,10 +53,10 @@ namespace PirateCrew.EditorTools
             CreateLighting();
             var camera = CreateCamera();
             CreateTerrain();
+            CreateBottomProps(); // 水底参照物：透明感的载体（不透明队列，被水体折射）
             CreateWaterSurface();
-            CreateSimulation();
+            CreateSimulation(camera); // 相机随注：白水逐粒视锥剔除要用它的 6 平面
             EnsureWhitewaterFeature();
-            _ = camera; // 取景只影响保存时的默认视角，Play 沿用
 
             Directory.CreateDirectory("Assets/Scenes/Lab");
             var path = SceneNames.PathOf(SceneNames.WaterLab);
@@ -76,33 +81,42 @@ namespace PirateCrew.EditorTools
             light.shadows = LightShadows.Soft;
             light.intensity = 1.0f;
             light.color = new Color(1.0f, 0.95f, 0.85f);
-            // 太阳方位放相机对面（指向太阳 L=(-0.525,0.669,-0.525)，方位 225°/仰角 42°）：
-            // 水面反射闪耀路径 dot(reflect(-V,N), L)≈1 才会横穿取景——同侧时整条 glitter 路在画外
-            //（实拍第二轮海面无闪点的根因）。forward = -L 必须朝下照地。
-            sun.transform.rotation = Quaternion.LookRotation(new Vector3(0.525f, -0.669f, 0.525f));
-            sun.transform.position = new Vector3(-24f, 30f, -36f);
+            // 太阳放在相机对面、抬高到仰角 ≈58°：相机现在正对 -x 看岸线，太阳在 -x 侧
+            // 才能让水面镜像路径落回取景（与旧 225° 方位同理）；抬高后参考图那种短影
+            // 与高角度直射才成立，同时减少 42° 低阳造成的长条黑影。
+            // 指向太阳 L=(-0.50,0.82,-0.12)（归一化后仰角≈58°），forward=-L 朝下照地。
+            sun.transform.rotation = Quaternion.LookRotation(new Vector3(0.50f, -0.82f, 0.12f));
+            sun.transform.position = new Vector3(-25f, 41f, -6f);
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.42f, 0.50f, 0.58f);
+            // 场景全局环境色只对内置 Lit 生效；自写沙/石/水 shader 读的是材质 _AmbientColor。
+            // 这里同步回原作天光色，避免两套环境数再次打架（审计 §4.C 记录过该矛盾）。
+            RenderSettings.ambientLight = new Color(0.0627f, 0.1333f, 0.2196f);
             RenderSettings.sun = light; // WaterLabSimulation.PublishSunDir 解析源
         }
 
         static Camera CreateCamera()
         {
             var go = new GameObject("LabCamera");
+            // 出图链（BattleHudScreenshot）按 Camera.main 取景；本场景只有这一台相机，
+            // 打 tag 同时消掉 ShotUICam 建立后 FindObjectOfType 回退误命中的风险。
+            go.tag = "MainCamera";
             var cam = go.AddComponent<Camera>();
             cam.orthographic = false;
-            // 俯视沙盘取景（向 Battle 的俯角等距观感靠拢）：长焦 + 高机位俯角 40°、方位 45°。
-            // 岸线约在 x≈14（剖面 0 高程点），取景中心放 (2, 0)，海面与干沙滩同框。
+            // 俯视沙盘取景（向 Battle 的俯角等距观感靠拢）：长焦 + 高机位。
             cam.fieldOfView = 32f;
             cam.nearClipPlane = 0.1f;
             cam.farClipPlane = 400f;
             cam.backgroundColor = new Color(0.55f, 0.72f, 0.88f);
-            // 取景：48° 俯角，中心再向海压（水面为主体，沙滩退居画面下缘）
-            var center = new Vector3(-4f, -0.5f, 0f);
-            float pitch = 48f * Mathf.Deg2Rad;
-            float yaw = 45f * Mathf.Deg2Rad;
-            float dist = 40f;
+            // 【取景口径】正对岸线（yaw 90°，相机在 +x 侧朝 -x 看）：参考头图的岸线是横的，
+            // 旧 45° 斜看会把岸线拍成对角线，也让水色带斜切画面。取景中心 (1,0)、俯角 48°、
+            // 机距 46：画面构成 ≈ 沙 26% / 水 74%，顶部是 ≥2 m 的深水、底部是干沙滩，
+            // 64 m 域的边界全部落在画外（旧机位右上角 11% 露天空盒的灰色域外区消失）。
+            // 俯角 48° 与太阳仰角 58° 配对，水面镜像路径仍横穿取景。
+            var center = new Vector3(1f, 0f, 0f);
+            float pitch = 42f * Mathf.Deg2Rad; // 距天顶 42° → 实际俯角 48°
+            float yaw = 90f * Mathf.Deg2Rad;
+            float dist = 46f;
             var dir = new Vector3(
                 Mathf.Sin(pitch) * Mathf.Sin(yaw),
                 Mathf.Cos(pitch),
@@ -115,6 +129,7 @@ namespace PirateCrew.EditorTools
         static void CreateTerrain()
         {
             var mesh = new Mesh { name = "WaterLabTerrain" };
+            mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
             int verts = TerrainSegments + 1;
             float step = WaterLabRules.DomainSize / TerrainSegments;
 
@@ -151,13 +166,485 @@ namespace PirateCrew.EditorTools
 
             var go = new GameObject("Terrain");
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            go.AddComponent<MeshRenderer>().sharedMaterial = LoadOrCreateMaterial(
-                "WaterLab_Sand", ShaderPathSand);
+            var sandMat = LoadOrCreateMaterial("WaterLab_Sand", ShaderPathSand);
+            // 焦散源＝水面小尺度坡度场：沙 shader 用同一张细节法线贴图求散度（见其焦散段）
+            sandMat.SetTexture("_WaterLabDetailNormal", LoadOrCreateDetailNormal());
+            ApplyCalibratedSandColors(sandMat);
+            go.AddComponent<MeshRenderer>().sharedMaterial = sandMat;
+        }
+
+        /// <summary>
+        /// 沙/礁石统一的显示链曝光因子（与 shader 默认值同源；此处显式下发是因为
+        /// <see cref="LoadOrCreateMaterial"/> 只在资产不存在时取 shader 默认值——
+        /// 改了 shader 默认值而不回填，已存在的 .mat 会一直留着旧数）。
+        /// 【1.20】旧值 1.05 是按**二次 sRGB 编码**的截图标的；出图链修成单次编码后，
+        /// 同一组沙色实际渲染明显偏暗偏饱和（参考干沙 (253,229,169)，实机只有 (240,194,89)）。
+        /// 按参考受光干沙线性 (0.982,0.784,0.397) 反解：光照核
+        /// (ambient + sun×ndl)×1.20 ≈ (0.99,0.94,0.90)，乘 albedo 后命中参考。
+        /// </summary>
+        const float LightScale = 1.20f;
+
+        static void ApplyCalibratedSandColors(Material m)
+        {
+            // 反解自参考受光干沙 (253,229,169)（线性 (0.982,0.784,0.397)）。
+            // 【旧值为什么偏黄】旧沙色 (1.0,0.83,0.38) 是在二次编码截图上标的：截图把
+            // 蓝通道从 0.43 抬到约 0.69，看起来刚好；实机单次编码下蓝只剩 89/255，
+            // 沙面成浓黄。现按正确显示链反解：干沙 albedo sRGB (1.0,0.92,0.69)
+            // → 线性 (1.0,0.831,0.434)，×光照核 (0.992,0.944,0.902) ≈ 参考线性值。
+            m.SetColor("_DrySandColor", new Color(1.0f, 0.92f, 0.69f));
+            // 湿沙：干沙的压暗/去饱和版，保持水线附近的湿痕读感。
+            m.SetColor("_WetSandColor", new Color(0.82f, 0.72f, 0.52f));
+            // 水下沙：透过浅水看到的亮底沙，偏暖（水的青色会把它拉回绿松石）。
+            m.SetColor("_UnderwaterSandColor", new Color(1.0f, 0.93f, 0.72f));
+            m.SetFloat("_LightScale", LightScale);
+            m.SetColor("_AmbientColor", AmbientColor);
+            // 焦散世界尺度：0.05（=20 m 周期）会把细节法线的 Voronoi 胞放大成整片团块，
+            // 观感是「水底一片黄绿斑」而不是参考那种**细亮网**；0.5（=2 m 周期）回到网尺度。
+            m.SetFloat("_CausticScale", CausticScale);
+            m.SetFloat("_CausticGain", CausticGain);
+        }
+
+        /// <summary>焦散采样世界尺度（1/m）：周期 = 1/此值。参考的焦散网约 0.5–2 m。</summary>
+        const float CausticScale = 0.5f;
+
+        /// <summary>焦散增益：旧 0.2 在出图里几乎看不见网（参考浅滩有明显的亮暗纹）。
+        /// 0.6 是显示链下的可读档；沙/石同一值，避免两层焦散强度脱节。</summary>
+        const float CausticGain = 0.6f;
+
+        /// <summary>
+        /// 天光环境项（沙/石/白水共用）。原作 HDR+GI 下暗部由天光补亮；本仓只有这一个
+        /// 常数项，取 (0.08,0.14,0.21)（原作天光色略提亮）让干沙阴影不发死黑，
+        /// 同时不把蓝通道抬回灰白。
+        /// </summary>
+        static readonly Color AmbientColor = new Color(0.08f, 0.14f, 0.21f);
+
+        /// <summary>
+        /// 散射显示域强度：原作散射色 (0.568,0.357,0) 是 HDR 管线里的文件值，经 tonemap
+        /// 压缩后才是参考图里的暖调；本仓 LDR 直出若按 1.0 用，深水 R 通道会比参考高
+        /// 4–5 倍（r54 深带 R=67 vs 参考 16）。0.12 按参考深带反定——保留近岸暖散射，
+        /// 深水不再泛紫。
+        /// </summary>
+        const float ScatterStrength = 0.04f;
+
+        /// <summary>
+        /// 天空反射标定（原作 PS 步骤 8 是「按菲涅尔混环境色」，环境色依赖原作的
+        /// HDR 后处理/GI——本仓没有那一层，用线性/HDR 域的环境色近似）。
+        /// 【为什么是 Vector4 而不是 Color】Linear 工程会把 Color 属性按 sRGB→线性再压一次：
+        /// 旧 (0,0.2,0.8) 进 shader 实际只有 (0,0.033,0.603)，绿通道被压掉 6 倍，深水只剩蓝、
+        /// 没有参考那种带青的宝蓝。环境色必须按线性值原样下发。
+        /// 【定标】参考深带线性化 (0.0024,0.053,0.216)；顶部（viewDir.y≈0.53 → fresnel≈0.023）
+        /// 强度 9.5 得权重≈0.19，(0.01,0.30,1.15)×0.19≈(0.002,0.057,0.219)，命中参考深带。
+        /// 近岸俯视（viewDir.y≈0.85 → fresnel≈7.6e-5）几乎不受影响。
+        /// 菲涅尔用宏观视角而非逐像素法线（r52 实证后者会把整片水刷亮）。
+        /// </summary>
+        static readonly Vector4 SkyReflectionColor = new Vector4(0.01f, 0.30f, 1.15f, 1f);
+        const float SkyReflectionStrength = 9.5f;
+
+        /// <summary>细节法线贴图（WaterNormal2D 程序化等价物）：水面碎金的高频法线源，
+        /// 同时是沙侧焦散的坡度场源。生成一次落资产，重建时已存在则复用。</summary>
+        static Texture2D LoadOrCreateDetailNormal()
+        {
+            var path = $"{MaterialFolder}/WaterLabDetailNormal.asset";
+            var detail = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            if (detail == null)
+            {
+                detail = WaterLabDetailNormal.Create();
+                AssetDatabase.CreateAsset(detail, path);
+            }
+            return detail;
+        }
+
+        /// <summary>
+        /// 水底参照物（礁石/卵石/藻球）。**透明感靠它们传达**：只有沙纹时沙本身是亮的、
+        /// 水体只轻微调色，观感就是「一片亮沙」而非「一汪清水」；参考游戏水底有礁石/珊瑚/
+        /// 海草（深色、有轮廓、随焦散明暗），透过水看到它们才是透明的读法。
+        /// 走不透明队列（Geometry）→ 水体 Transparent+10 采 _CameraOpaqueTexture 时已含它们。
+        /// 确定性散布（固定种子），只落在真有水的高程区（地形低于静水面）。
+        /// </summary>
+        static void CreateBottomProps()
+        {
+            var detail = LoadOrCreateDetailNormal();
+            var root = new GameObject("BottomProps");
+            var rocks = new GameObject("Rocks").transform;
+            var seagrass = new GameObject("Seagrass").transform;
+            var coral = new GameObject("Coral").transform;
+            rocks.SetParent(root.transform, false);
+            seagrass.SetParent(root.transform, false);
+            coral.SetParent(root.transform, false);
+            var beach = new GameObject("BeachDetails");
+            var beachGrass = new GameObject("BeachGrass").transform;
+            var starfish = new GameObject("Starfish").transform;
+            beachGrass.SetParent(beach.transform, false);
+            starfish.SetParent(beach.transform, false);
+
+            // 深色水底参照物是「透明感」的载体：参考图水底是密集的大丛海草/珊瑚，
+            // 旧版 80 件 0.1–0.8 m 散石在画面里只占 <2% 像素，读不出水深。
+            var rockMats = new[]
+            {
+                MakePropMaterial("WaterLab_Rock0", new Color(0.11f, 0.105f, 0.10f), detail),
+                MakePropMaterial("WaterLab_Rock1", new Color(0.22f, 0.12f, 0.06f), detail),
+                MakePropMaterial("WaterLab_Rock2", new Color(0.06f, 0.12f, 0.08f), detail),
+            };
+            var grassMats = new[]
+            {
+                MakePropMaterial("WaterLab_Grass0", new Color(0.08f, 0.20f, 0.06f), detail),
+                MakePropMaterial("WaterLab_Grass1", new Color(0.14f, 0.22f, 0.07f), detail),
+                MakePropMaterial("WaterLab_Grass2", new Color(0.20f, 0.18f, 0.06f), detail),
+                MakePropMaterial("WaterLab_Grass3", new Color(0.13f, 0.10f, 0.04f), detail),
+            };
+            var coralMats = new[]
+            {
+                MakePropMaterial("WaterLab_Coral0", new Color(0.32f, 0.10f, 0.06f), detail),
+                MakePropMaterial("WaterLab_Coral1", new Color(0.26f, 0.12f, 0.20f), detail),
+                MakePropMaterial("WaterLab_Coral2", new Color(0.30f, 0.20f, 0.07f), detail),
+            };
+            var beachGrassMats = new[]
+            {
+                MakePropMaterial("WaterLab_BeachGrass0", new Color(0.12f, 0.18f, 0.05f), detail),
+                MakePropMaterial("WaterLab_BeachGrass1", new Color(0.18f, 0.20f, 0.07f), detail),
+            };
+            var starfishMats = new[]
+            {
+                MakePropMaterial("WaterLab_Starfish0", new Color(0.55f, 0.18f, 0.08f), detail),
+                MakePropMaterial("WaterLab_Starfish1", new Color(0.35f, 0.12f, 0.25f), detail),
+            };
+
+            var rockShapes = new Mesh[6];
+            for (int i = 0; i < rockShapes.Length; i++)
+                rockShapes[i] = BuildRockMesh(20261018 + i * 977, 0.16f + 0.06f * i);
+            var grassShapes = new Mesh[12];
+            for (int i = 0; i < grassShapes.Length; i++)
+                grassShapes[i] = BuildBladeCluster(20261020 + i * 613, 8, 14, 0.50f, 1.50f, 0.050f, 0.100f, 0.85f);
+            var coralShapes = new Mesh[8];
+            for (int i = 0; i < coralShapes.Length; i++)
+                coralShapes[i] = BuildCoralMesh(20261120 + i * 431);
+            var beachGrassShapes = new Mesh[8];
+            for (int i = 0; i < beachGrassShapes.Length; i++)
+                beachGrassShapes[i] = BuildBladeCluster(20261220 + i * 389, 5, 10, 0.25f, 0.60f, 0.020f, 0.040f, 0.25f);
+            var starfishShapes = new Mesh[3];
+            for (int i = 0; i < starfishShapes.Length; i++)
+                starfishShapes[i] = BuildStarfishMesh(20261320 + i * 211);
+
+            var rnd = new System.Random(20261020); // 确定性：每次重建同一散布
+
+            int rockCount = 0;
+            for (int attempt = 0; attempt < 2400 && rockCount < 140; attempt++)
+            {
+                float x = Mathf.Lerp(-30f, 14f, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float h = WaterLabRules.TerrainHeight(x, z);
+                if (h > -0.04f) continue; // 只落在有水处（地形低于静水面 y=0）
+
+                // 尺寸按当地水深封顶：露出水面就不是「水底参照物」了（静水面 y=0，水深=-h）
+                float depth = -h;
+                float size = Mathf.Min(Mathf.Lerp(0.10f, 1.30f, (float)rnd.NextDouble()), depth * 0.80f);
+                if (size < 0.08f) continue;
+                var go = NewProp($"Rock_{rockCount}", rocks, rockShapes[rnd.Next(rockShapes.Length)],
+                    rockMats[rnd.Next(rockMats.Length)]);
+                go.transform.position = new Vector3(x, h + size * 0.15f, z);
+                go.transform.rotation = Quaternion.Euler(
+                    (float)rnd.NextDouble() * 25f - 12f,
+                    (float)rnd.NextDouble() * 360f,
+                    (float)rnd.NextDouble() * 25f - 12f);
+                go.transform.localScale = new Vector3(size, size * Mathf.Lerp(0.55f, 1.0f, (float)rnd.NextDouble()), size);
+                rockCount++;
+            }
+
+            int grassCount = 0;
+            for (int attempt = 0; attempt < 3600 && grassCount < 240; attempt++)
+            {
+                float x = Mathf.Lerp(-30f, 10f, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float h = WaterLabRules.TerrainHeight(x, z);
+                float depth = -h;
+                if (depth < 0.12f || depth > 2.25f) continue;
+                // 主要分布在 0.35–1.8 m 的可视带；浅水/深渊只少量点缀
+                if ((depth < 0.35f || depth > 1.8f) && rnd.NextDouble() > 0.25) continue;
+
+                float scale = Mathf.Lerp(0.70f, 1.60f, (float)rnd.NextDouble());
+                scale = Mathf.Min(scale, Mathf.Max(0.35f, depth * 0.90f)); // 草尖基本不出水
+                var go = NewProp($"Seagrass_{grassCount}", seagrass, grassShapes[rnd.Next(grassShapes.Length)],
+                    grassMats[rnd.Next(grassMats.Length)]);
+                go.transform.position = new Vector3(x, h - 0.02f, z);
+                go.transform.rotation = Quaternion.Euler(0f, (float)rnd.NextDouble() * 360f, 0f);
+                go.transform.localScale = new Vector3(scale, scale, scale);
+                grassCount++;
+            }
+
+            int coralCount = 0;
+            for (int attempt = 0; attempt < 1200 && coralCount < 60; attempt++)
+            {
+                float x = Mathf.Lerp(-30f, 8f, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float h = WaterLabRules.TerrainHeight(x, z);
+                float depth = -h;
+                if (depth < 0.40f || depth > 2.25f) continue;
+
+                float scale = Mathf.Lerp(0.55f, 1.25f, (float)rnd.NextDouble());
+                var go = NewProp($"Coral_{coralCount}", coral, coralShapes[rnd.Next(coralShapes.Length)],
+                    coralMats[rnd.Next(coralMats.Length)]);
+                go.transform.position = new Vector3(x, h - 0.03f, z);
+                go.transform.rotation = Quaternion.Euler(0f, (float)rnd.NextDouble() * 360f, 0f);
+                go.transform.localScale = new Vector3(scale, scale, scale);
+                coralCount++;
+            }
+
+            int beachGrassCount = 0;
+            for (int attempt = 0; attempt < 2000 && beachGrassCount < 160; attempt++)
+            {
+                float x = Mathf.Lerp(11f, 30f, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float h = WaterLabRules.TerrainHeight(x, z);
+                if (h < 0.12f) continue;
+                float scale = Mathf.Lerp(0.60f, 1.30f, (float)rnd.NextDouble());
+                var go = NewProp($"BeachGrass_{beachGrassCount}", beachGrass,
+                    beachGrassShapes[rnd.Next(beachGrassShapes.Length)],
+                    beachGrassMats[rnd.Next(beachGrassMats.Length)]);
+                go.transform.position = new Vector3(x, h - 0.02f, z);
+                go.transform.rotation = Quaternion.Euler(0f, (float)rnd.NextDouble() * 360f, 0f);
+                go.transform.localScale = new Vector3(scale, scale, scale);
+                beachGrassCount++;
+            }
+
+            int starfishCount = 0;
+            for (int attempt = 0; attempt < 500 && starfishCount < 30; attempt++)
+            {
+                float x = Mathf.Lerp(9f, 30f, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float h = WaterLabRules.TerrainHeight(x, z);
+                if (h < 0.03f) continue;
+                float scale = Mathf.Lerp(0.70f, 1.30f, (float)rnd.NextDouble());
+                var go = NewProp($"Starfish_{starfishCount}", starfish,
+                    starfishShapes[rnd.Next(starfishShapes.Length)],
+                    starfishMats[rnd.Next(starfishMats.Length)]);
+                go.transform.position = new Vector3(x, h + 0.015f, z);
+                go.transform.rotation = Quaternion.Euler(0f, (float)rnd.NextDouble() * 360f, 0f);
+                go.transform.localScale = new Vector3(scale, scale, scale);
+                starfishCount++;
+            }
+
+            Debug.Log($"[WaterLabSetup] 水底参照物：礁石 {rockCount} / 海草 {grassCount} 丛 / 珊瑚 {coralCount} 丛；" +
+                      $"滩面草簇 {beachGrassCount} / 海星 {starfishCount}");
+        }
+
+        static Material MakePropMaterial(string name, Color color, Texture2D detail)
+        {
+            var m = LoadOrCreateMaterial(name, ShaderPathProp);
+            m.SetColor("_BaseColor", color);
+            m.SetTexture("_WaterLabDetailNormal", detail);
+            m.SetFloat("_LightScale", LightScale);
+            m.SetColor("_AmbientColor", AmbientColor);
+            m.SetFloat("_CausticScale", CausticScale);
+            m.SetFloat("_CausticGain", CausticGain);
+            return m;
+        }
+
+        static GameObject NewProp(string name, Transform parent, Mesh mesh, Material mat)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+            return go;
+        }
+
+        /// <summary>低模岩石：正二十面体（20 面）顶点径向抖动 + **平面着色**。
+        /// 平面法线显式按「面心朝外」定向并同步翻转绕序 → 不依赖灵感来源的顶点序，
+        /// 背面剔除与法线都不会翻（低模岩石的棱面观感也由此而来）。</summary>
+        static Mesh BuildRockMesh(int seed, float roughness)
+        {
+            float t = (1f + Mathf.Sqrt(5f)) * 0.5f;
+            var v = new[]
+            {
+                new Vector3(-1,  t,  0), new Vector3( 1,  t,  0), new Vector3(-1, -t,  0), new Vector3( 1, -t,  0),
+                new Vector3( 0, -1,  t), new Vector3( 0,  1,  t), new Vector3( 0, -1, -t), new Vector3( 0,  1, -t),
+                new Vector3( t,  0, -1), new Vector3( t,  0,  1), new Vector3(-t,  0, -1), new Vector3(-t,  0,  1),
+            };
+            var tri = new[]
+            {
+                0,11,5, 0,5,1, 0,1,7, 0,7,10, 0,10,11,
+                1,5,9, 5,11,4, 11,10,2, 10,7,6, 7,1,8,
+                3,9,4, 3,4,2, 3,2,6, 3,6,8, 3,8,9,
+                4,9,5, 2,4,11, 6,2,10, 8,6,7, 9,8,1,
+            };
+            var rnd = new System.Random(seed);
+            var dir = new Vector3[v.Length];
+            for (int i = 0; i < v.Length; i++)
+            {
+                dir[i] = v[i].normalized;
+                dir[i] *= 1f + (float)(rnd.NextDouble() * 2.0 - 1.0) * roughness;
+            }
+
+            var verts = new Vector3[tri.Length];
+            var norms = new Vector3[tri.Length];
+            var tris = new int[tri.Length];
+            for (int f = 0; f < tri.Length; f += 3)
+            {
+                Vector3 a = dir[tri[f]], b = dir[tri[f + 1]], c = dir[tri[f + 2]];
+                Vector3 n = Vector3.Cross(b - a, c - a);
+                Vector3 center = (a + b + c) / 3f;
+                if (Vector3.Dot(n, center) < 0f) { (b, c) = (c, b); n = -n; } // 面心朝外
+                verts[f] = a; verts[f + 1] = b; verts[f + 2] = c;
+                n.Normalize();
+                norms[f] = n; norms[f + 1] = n; norms[f + 2] = n;
+                tris[f] = f; tris[f + 1] = f + 1; tris[f + 2] = f + 2;
+            }
+
+            var mesh = new Mesh { name = "WaterLabRock" };
+            mesh.vertices = verts;
+            mesh.normals = norms;
+            mesh.triangles = tris;
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>海草/滩草簇：一丛若干片锥形草叶（三棱柱两段，低模平面着色）。
+        /// 单丛一个 mesh，避免每片草叶一个 GameObject 的 draw call 爆炸。</summary>
+        static Mesh BuildBladeCluster(int seed, int minBlades, int maxBlades,
+            float minHeight, float maxHeight, float minWidth, float maxWidth, float spread)
+        {
+            var rnd = new System.Random(seed);
+            var verts = new List<Vector3>();
+            var norms = new List<Vector3>();
+            var tris = new List<int>();
+            int blades = rnd.Next(minBlades, maxBlades + 1);
+            for (int b = 0; b < blades; b++)
+            {
+                float ang = (float)rnd.NextDouble() * Mathf.PI * 2f;
+                float rad = Mathf.Lerp(0.02f, spread, (float)rnd.NextDouble());
+                float bx = Mathf.Cos(ang) * rad;
+                float bz = Mathf.Sin(ang) * rad;
+                float h = Mathf.Lerp(minHeight, maxHeight, (float)rnd.NextDouble());
+                float w = Mathf.Lerp(minWidth, maxWidth, (float)rnd.NextDouble());
+                float lean = 0.12f + 0.30f * (float)rnd.NextDouble();
+                Vector3 p0 = new Vector3(bx, 0f, bz);
+                Vector3 p1 = p0 + new Vector3(Mathf.Cos(ang) * lean * 0.45f, h * 0.55f, Mathf.Sin(ang) * lean * 0.45f);
+                Vector3 p2 = p0 + new Vector3(Mathf.Cos(ang) * lean, h, Mathf.Sin(ang) * lean);
+                AddTaperedPrism(verts, norms, tris, p0, p1, p2, w, w * 0.55f, w * 0.10f, 3);
+            }
+            return FinishMesh("WaterLabBladeCluster", verts, norms, tris);
+        }
+
+        /// <summary>珊瑚丛：若干向上/向外分叉的四棱锥枝，两段收尖。</summary>
+        static Mesh BuildCoralMesh(int seed)
+        {
+            var rnd = new System.Random(seed);
+            var verts = new List<Vector3>();
+            var norms = new List<Vector3>();
+            var tris = new List<int>();
+            int branches = rnd.Next(5, 9);
+            for (int b = 0; b < branches; b++)
+            {
+                float ang = (float)rnd.NextDouble() * Mathf.PI * 2f;
+                float len = Mathf.Lerp(0.40f, 0.95f, (float)rnd.NextDouble());
+                float outward = Mathf.Lerp(0.12f, 0.45f, (float)rnd.NextDouble());
+                Vector3 p0 = new Vector3(Mathf.Cos(ang) * 0.05f, -0.02f, Mathf.Sin(ang) * 0.05f);
+                Vector3 p1 = p0 + new Vector3(Mathf.Cos(ang) * outward * 0.55f, len * 0.58f, Mathf.Sin(ang) * outward * 0.55f);
+                Vector3 p2 = p1 + new Vector3(Mathf.Cos(ang) * outward * 0.45f + ((float)rnd.NextDouble() - 0.5f) * 0.10f,
+                                             len * 0.42f,
+                                             Mathf.Sin(ang) * outward * 0.45f + ((float)rnd.NextDouble() - 0.5f) * 0.10f);
+                AddTaperedPrism(verts, norms, tris, p0, p1, p2, 0.085f, 0.055f, 0.018f, 4);
+            }
+            return FinishMesh("WaterLabCoral", verts, norms, tris);
+        }
+
+        /// <summary>海星：五角星薄片（顶面扇形 10 三角），平贴沙面。</summary>
+        static Mesh BuildStarfishMesh(int seed)
+        {
+            var rnd = new System.Random(seed);
+            var verts = new List<Vector3>();
+            var norms = new List<Vector3>();
+            var tris = new List<int>();
+            float outer = Mathf.Lerp(0.16f, 0.22f, (float)rnd.NextDouble());
+            float inner = outer * 0.42f;
+            Vector3 center = new Vector3(0f, 0.025f, 0f);
+            var rim = new Vector3[10];
+            for (int i = 0; i < 10; i++)
+            {
+                float a = i * Mathf.PI / 5f;
+                float r = (i % 2 == 0) ? outer : inner;
+                rim[i] = new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
+            }
+            for (int i = 0; i < 10; i++)
+                AddTriangle(verts, norms, tris, center, rim[i], rim[(i + 1) % 10], center - Vector3.up);
+            return FinishMesh("WaterLabStarfish", verts, norms, tris);
+        }
+
+        /// <summary>把两段锥形棱柱（p0→p1→p2，半径 r0/r1/r2）写进共享缓冲。
+        /// 面法线按「背离轴心」定向，背面剔除在任意视角都至少留一面。</summary>
+        static void AddTaperedPrism(List<Vector3> verts, List<Vector3> norms, List<int> tris,
+            Vector3 p0, Vector3 p1, Vector3 p2, float r0, float r1, float r2, int sides)
+        {
+            Vector3[] ring0 = Ring(p0, p1, r0, sides);
+            Vector3[] ring1 = Ring(p1, p2, r1, sides);
+            Vector3[] ring2 = Ring(p2, p2 + (p2 - p1), r2, sides);
+            AddRingBand(verts, norms, tris, ring0, ring1);
+            AddRingBand(verts, norms, tris, ring1, ring2);
+        }
+
+        static Vector3[] Ring(Vector3 a, Vector3 b, float radius, int sides)
+        {
+            Vector3 axis = b - a;
+            if (axis.sqrMagnitude < 1e-8f) axis = Vector3.up;
+            axis.Normalize();
+            Vector3 right = Vector3.Cross(axis, Vector3.forward);
+            if (right.sqrMagnitude < 1e-5f) right = Vector3.Cross(axis, Vector3.right);
+            right.Normalize();
+            Vector3 fwd = Vector3.Cross(right, axis).normalized;
+            var ring = new Vector3[sides];
+            for (int i = 0; i < sides; i++)
+            {
+                float ang = i * Mathf.PI * 2f / sides;
+                ring[i] = a + (right * Mathf.Cos(ang) + fwd * Mathf.Sin(ang)) * radius;
+            }
+            return ring;
+        }
+
+        static void AddRingBand(List<Vector3> verts, List<Vector3> norms, List<int> tris,
+            Vector3[] lo, Vector3[] hi)
+        {
+            int sides = lo.Length;
+            for (int i = 0; i < sides; i++)
+            {
+                Vector3 a = lo[i], b = lo[(i + 1) % sides];
+                Vector3 c = hi[(i + 1) % sides], d = hi[i];
+                Vector3 mid = (a + b + c + d) * 0.25f;
+                AddTriangle(verts, norms, tris, a, b, c, mid);
+                AddTriangle(verts, norms, tris, a, c, d, mid);
+            }
+        }
+
+        static void AddTriangle(List<Vector3> verts, List<Vector3> norms, List<int> tris,
+            Vector3 a, Vector3 b, Vector3 c, Vector3 outwardFrom)
+        {
+            Vector3 n = Vector3.Cross(b - a, c - a);
+            if (n.sqrMagnitude < 1e-10f) return;
+            n.Normalize();
+            if (Vector3.Dot(n, (a + b + c) / 3f - outwardFrom) < 0f)
+            {
+                (b, c) = (c, b);
+                n = -n;
+            }
+            int i0 = verts.Count;
+            verts.Add(a); verts.Add(b); verts.Add(c);
+            norms.Add(n); norms.Add(n); norms.Add(n);
+            tris.Add(i0); tris.Add(i0 + 1); tris.Add(i0 + 2);
+        }
+
+        static Mesh FinishMesh(string name, List<Vector3> verts, List<Vector3> norms, List<int> tris)
+        {
+            var mesh = new Mesh { name = name };
+            mesh.SetVertices(verts);
+            mesh.SetNormals(norms);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         static void CreateWaterSurface()
         {
             var mesh = new Mesh { name = "WaterLabSurface" };
+            mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
             int verts = SurfaceSegments + 1;
             float step = WaterLabRules.DomainSize / SurfaceSegments;
 
@@ -191,26 +678,41 @@ namespace PirateCrew.EditorTools
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = go.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = LoadOrCreateMaterial("WaterLab_Ocean", ShaderPathOcean);
+            // 吸收 σ 显式下发（同 LightScale 的理由：已存在的 .mat 不会跟着 shader 默认值走）。
+            // 值 = 对参考头图**三锚点同时命中**解出：本仓 dist=0.2/0.5/≥2 m 分别落在参考的
+            // 浅滩 (157,200,171) / 中带 (74,153,161) / 最深带 (16,70,119) 上
+            // → 有效 (5.6,1.94,0.35)/m ÷ 8.65617（tint 域）。通道比值取自参考自身的
+            // T=(0.0036,0.142,0.703)：σ_R:σ_G:σ_B = 15.9:5.52:1。
+            // 【SetVector，不是 SetColor】Linear 工程会把 Color 属性按 sRGB→线性再压一次，
+            // σ 被压成 (0.365,0.039,0.0033)，绿色消光只剩 1/5.7 → 深水发青绿。
+            renderer.sharedMaterial.SetVector("_Absorption",
+                new Vector4(0.6468f, 0.2241f, 0.0404f, 1f));
+            // 天空反射（原作 PS 步骤 8 缺件）：线性/HDR 域环境色，见上面对应常量注释。
+            renderer.sharedMaterial.SetVector("_SkyReflectionColor", SkyReflectionColor);
+            renderer.sharedMaterial.SetFloat("_SkyReflectionStrength", SkyReflectionStrength);
+            // 散射显示域强度：原作 HDR+tonemap 的文件值在 LDR 直出链里过强，见 ScatterStrength 注释。
+            renderer.sharedMaterial.SetFloat("_ScatterStrength", ScatterStrength);
+            // 【一次性探针】PC3D_WATERLAB_MAT_PROBE=1：把水色乘子强制纯红、σ 提到 5/m 均匀。
+            // 若水面在画 → 整幅被 ×T 染红（dist≥0.3 即近黑红）；若不在画（被裁/未绘）→ 看到的是
+            // 沙面本色。用于分辨「水没渲染」与「水渲染了但颜色不对」这两类完全不同的成因。
+            if (System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_MAT_PROBE") == "1")
+            {
+                renderer.sharedMaterial.SetColor("_WaterTint", new Color(1f, 0f, 0f));
+                renderer.sharedMaterial.SetVector("_Absorption", new Vector4(0.5776f, 0.5776f, 0.5776f, 1f));
+                Debug.Log("[WaterLabSetup] 探针：水色乘子=纯红，σ=5/m 均匀（看水面是否在画）");
+            }
             // 原作水面不投影（Lit_Water blob 实证无 ShadowCaster pass）；水底波影
             // 由沙侧「阴影 × exp(-0.721×水深)」承担——开投影反而整网格盖灰影（实拍实证）
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            // 细节法线贴图（WaterNormal2D 程序化等价物）：碎金 glitter 的高频法线源，
-            // 生成一次落资产（材质引用它；重建时已存在则复用）
-            var detailPath = $"{MaterialFolder}/WaterLabDetailNormal.asset";
-            var detail = AssetDatabase.LoadAssetAtPath<Texture2D>(detailPath);
-            if (detail == null)
-            {
-                detail = WaterLabDetailNormal.Create();
-                AssetDatabase.CreateAsset(detail, detailPath);
-            }
-            renderer.sharedMaterial.SetTexture("_WaterLabDetailNormal", detail);
+            renderer.sharedMaterial.SetTexture("_WaterLabDetailNormal", LoadOrCreateDetailNormal());
         }
 
-        static void CreateSimulation()
+        static void CreateSimulation(Camera renderCamera)
         {
             var go = new GameObject("WaterLabSimulation");
             var sim = go.AddComponent<WaterLabSimulation>();
             sim.computeShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(ComputePath);
+            sim.renderCamera = renderCamera; // 白水视锥剔除的平面来源（取景相机）
             if (sim.computeShader == null)
                 Debug.LogError($"[WaterLabSetup] 找不到 compute：{ComputePath}（检查文件是否入库/被导入）");
         }

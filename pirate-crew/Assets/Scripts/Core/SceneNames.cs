@@ -20,6 +20,12 @@ namespace PirateCrew.Core
         /// <summary>像素化试点/验收场景目录（Pixelart* 前缀的 7 张，开发/测试专用不进发行包）。</summary>
         public const string PixelartFolder = "Assets/Scenes/Pixelart";
 
+        /// <summary>实验场景目录（WaterLab 等，技术验证专用不进发行包）。</summary>
+        public const string LabFolder = "Assets/Scenes/Lab";
+
+        /// <summary>实验水体场景（浅水方程海浪 + 湿沙 + 泡沫，开发验证专用）。</summary>
+        public const string WaterLab = "WaterLab";
+
         /// <summary>入口/引导场景（Build Settings index 0）：只负责创建全局服务后跳主菜单。</summary>
         public const string Bootstrapper = "Bootstrapper";
 
@@ -52,7 +58,9 @@ namespace PirateCrew.Core
 
             var folder = sceneName.StartsWith("Pixelart")
                 ? PixelartFolder
-                : GameFolder;
+                : sceneName.StartsWith("WaterLab")
+                    ? LabFolder
+                    : GameFolder;
             return folder + "/" + sceneName + ".unity";
         }
     }

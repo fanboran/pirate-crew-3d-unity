@@ -7,9 +7,12 @@ namespace PirateCrew.WaterLab
     /// 实验水体的模拟驱动（W1）：分配缓冲、按固定步长调度 <c>WaterLabSim.compute</c> 的
     /// kernel 序、把结果发布为全局纹理供渲染 shader 采样。
     ///
-    /// 【调度序与缓冲语义】见 compute 文件头：WaveSource(原地) → Height(A→B) →
-    /// Velocity(B→A) → AdvectFoam(A→B) → Wetness(C→D，读最新水场 B) → Output(读 B)；
-    /// 帧末 cur/next 换位。常量全部按 <see cref="WaterLabRules"/> 下发（compute 无字面量）。
+    /// 【调度序与缓冲语义】若干子步 Height(A→B) → Velocity(B→A) → AdvectFoam(A→B)
+    /// → Wetness(C→D) → 子步末换位 → **帧末一次** SurfaceUpdate（原作 UpdateAmount：
+    /// 蒸发 + 潮位松弛，原地写 A）→ Output(读 A)。顺序与原作
+    /// `…Advection → UpdateAmount → UpdateTangent` 一致：先松弛再发布，避免把
+    /// Advection 带进 5 cm 结合水带的 h 直接上屏（岸线游离水膜）。
+    /// 常量全部按 <see cref="WaterLabRules"/> 下发（compute 无字面量）。
     ///
     /// 【全局发布】本类是这些全局的**唯一发布者**（沿 WaterSimulationDriver 先例）：
     /// <c>_WaterLabHeightTex</c>（R=η G,B=法线xz A=泡沫）、<c>_WaterLabWetTex</c>（R=湿沙）、
@@ -25,8 +28,14 @@ namespace PirateCrew.WaterLab
         /// <summary>模拟内核（装配器注入；缺省按路径 Resources 加载）。</summary>
         public ComputeShader computeShader;
 
+        /// <summary>
+        /// 白水逐粒视锥剔除所用相机（装配器接线；为空时回落 <see cref="Camera.main"/>，
+        /// 再为空则不做剔除——恒定绘出全部活粒子）。
+        /// </summary>
+        public Camera renderCamera;
+
         // kernel 句柄
-        int _kWaveSource, _kHeight, _kVelocity, _kAdvectFoam, _kWetness, _kOutput;
+        int _kSurface, _kHeight, _kVelocity, _kAdvectFoam, _kWetness, _kOutput;
         int _kWWBegin, _kWWSpawn, _kWWUpdate, _kWWCompact, _kWWEnd;
 
         ComputeBuffer _waterCur, _waterNext; // float4: h,vx,vz,foam × 256²
@@ -37,9 +46,9 @@ namespace PirateCrew.WaterLab
         ComputeBuffer _wwAlive, _wwArgs;     // uint ×2（计数/游标）、uint ×4（indirect args）
 
         RenderTexture _heightTex;  // 256²（ARGBHalf，见 NewDataTexture）
-        RenderTexture _wetTex;     // 128² ARGB32（R 有效）
+        RenderTexture _wetTex;     // 128²（ARGBHalf，R 有效）
         RenderTexture _causticTex; // 256² ARGBHalf（R=焦散拉普拉斯，带符号；OutputField 顺带烘焙）
-        Texture2D _groundTex;      // 128² R8 编码（静态）
+        Texture2D _groundTex;      // 128² RGBAFloat（R 编码高程）
 
         float _accumulator;
         float _simTime;
@@ -61,6 +70,31 @@ namespace PirateCrew.WaterLab
             return float.TryParse(raw, out float v) && v > 0f ? Mathf.Min(v, 60f) : 1f;
         }
 
+        /// <summary>
+        /// 出图用相位冻结（<c>PC3D_WATERLAB_FIXED_SIM_TIME</c>，秒，默认 &lt;0 不冻结）。
+        /// 潮位周期 2π s，TIME_SCALE 下每帧跳 0.5 s，三枪相位随机；给定目标时刻后
+        /// 模拟到达即停住，用于低潮/高潮的确定性对比。只影响实验出图，不进模拟公式。
+        /// </summary>
+        static readonly float FixedSimTime = ResolveFixedSimTime();
+
+        static float ResolveFixedSimTime()
+        {
+            string raw = System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_FIXED_SIM_TIME");
+            return float.TryParse(raw, out float v) && v >= 0f ? v : -1f;
+        }
+
+        /// <summary>
+        /// 水体渲染诊断档（<c>PC3D_WATERLAB_OCEAN_DEBUG</c>，默认 0）。非 0 时水面 PS
+        /// 不裁剪并按 2x2 分格输出中间量（depth/dist/T/底色/取样值），用于区分
+        /// 「水没画出来」「裁掉了」「取样读到 0」「吸收系数没到」四类只在实跑才暴露的
+        /// 绑定问题——必须在 Play 域读（编辑器域置全局会被域重载吞掉）。
+        /// </summary>
+        static float ResolveOceanDebug()
+        {
+            return System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_OCEAN_DEBUG") is string raw
+                && float.TryParse(raw, out float v) && v > 0f ? v : 0f;
+        }
+
         void Awake()
         {
             if (!SystemInfo.supportsComputeShaders)
@@ -77,7 +111,7 @@ namespace PirateCrew.WaterLab
                 return;
             }
 
-            _kWaveSource = computeShader.FindKernel("WaveSource");
+            _kSurface = computeShader.FindKernel("SurfaceUpdate");
             _kHeight = computeShader.FindKernel("HeightIntegration");
             _kVelocity = computeShader.FindKernel("VelocityIntegration");
             _kAdvectFoam = computeShader.FindKernel("AdvectFoam");
@@ -118,7 +152,22 @@ namespace PirateCrew.WaterLab
 
         void Update()
         {
-            _accumulator += Mathf.Min(Time.deltaTime, 0.1f) * TimeScale;
+            float frameDt = Mathf.Min(Time.deltaTime, 0.1f) * TimeScale;
+            if (FixedSimTime >= 0f)
+            {
+                if (_simTime >= FixedSimTime)
+                {
+                    _simTime = FixedSimTime;
+                    frameDt = 0f;
+                    _accumulator = 0f;
+                }
+                else if (_simTime + frameDt > FixedSimTime)
+                {
+                    frameDt = FixedSimTime - _simTime;
+                }
+            }
+            _accumulator += frameDt;
+
             int maxSteps = Mathf.CeilToInt(4f * TimeScale);
             int steps = 0;
             while (_accumulator >= WaterLabRules.FixedStep && steps < maxSteps)
@@ -129,6 +178,15 @@ namespace PirateCrew.WaterLab
             }
             if (steps == maxSteps)
                 _accumulator = 0f; // 追帧雪崩保护（沿 WaterSimulationDriver 先例）
+            if (FixedSimTime >= 0f && _simTime > FixedSimTime)
+                _simTime = FixedSimTime;
+
+            // 原作 Water.Run 的 UpdateAmount 在**所有子步之后**每帧派发一次，紧接着
+            // UpdateTangent 发布高度/法线。顺序不能反：Advection 会把 h 平流进 5 cm
+            // 结合水带，若先松弛后平流，渲染看到的是平流后的 h（岸线出现游离水膜）；
+            // 先子步、后松弛+发布，上屏的才是原作“松弛后的表面”。
+            if (frameDt > 0f)
+                UpdateSurface(frameDt);
 
         // 诊断落盘（环境变量开才生效）：把高度/湿沙纹理存 PNG，供无头链排查模拟纹理内容。
         // 【模拟时间锚定】按 simTime 取样（36 s 起每 1.2 s 一张×8，覆盖一个主波周期）——
@@ -137,15 +195,99 @@ namespace PirateCrew.WaterLab
         // 旧文件会冒充本轮产物——capture 前先清空。
         if (System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_DUMP") == "1")
             DumpDiagnostics();
+        if (System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_WW_DUMP") == "1")
+            DumpWhitewaterCount();
+        DumpCameraOnce();
     }
 
+    /// <summary>
+    /// 一次性相机点名（<c>PC3D_WATERLAB_CAM_DUMP=1</c>）。出图链的相机是 Camera.main，
+    /// 而本场景的 LabCamera 未打 MainCamera tag——若场景里另有一台被标了 tag 的相机
+    /// （出图准备的 UI 相机等），抓帧用的就不是装配器那台，取景/投影全对不上。
+    /// 站位、投影、渲染目标一次打全，供无头链判「拍的是哪台」。
+    /// </summary>
+    void DumpCameraOnce()
+    {
+        if (System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_CAM_DUMP") != "1")
+            return;
+        // 两个检查点：开场 2s 与出图前的 36s（第一枪前会 PrepareCanvasForCapture，
+        // 可能新添相机——抓帧用的 FindObjectOfType<Camera>() 会改为命中它）
+        int want = _simTime >= 36f ? 2 : (_simTime >= 2f ? 1 : 0);
+        if (want == 0 || _camDumped >= want)
+            return;
+        _camDumped = want;
+        var main = Camera.main;
+        Debug.LogWarning($"[WaterLab] 检查点{_camDumped} simTime={_simTime:F1}s Camera.main = "
+            + $"{(main == null ? "空" : main.name + " tag=" + main.tag)}"
+            + $"；渲染相机引用 = {(renderCamera == null ? "空" : renderCamera.name)}");
+        foreach (var c in Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            var t = c.transform;
+            Debug.LogWarning($"[WaterLab] 相机 {c.name} tag={c.tag} 使能={c.enabled} 激活={c.gameObject.activeInHierarchy}"
+                + $" ortho={c.orthographic} size={c.orthographicSize:F2} fov={c.fieldOfView:F1}"
+                + $" depth={c.depth:F1} 层={c.cullingMask} RT={(c.targetTexture == null ? "空" : c.targetTexture.name)}"
+                + $" pos={t.position} rot={t.rotation.eulerAngles}");
+        }
+
+        // 水面材质的运行期真值：shader 名 + 吸收/水色/折射/干区阈值/网格顶点数。
+        // 「吸收不生效」若源于材质属性没进 shader，这里读出来就是 0 或旧值。
+        foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            var m = r.sharedMaterial;
+            if (m == null || m.shader == null || !m.shader.name.Contains("WaterLab"))
+                continue;
+            Debug.LogWarning($"[WaterLab] 水面材质 {m.name} shader={m.shader.name}"
+                + $" _Absorption={m.GetVector("_Absorption")} _WaterTint={m.GetVector("_WaterTint")}"
+                + $" _RefractionFactor={m.GetFloat("_RefractionFactor"):F4} _DryClip={m.GetFloat("_DryClip"):F3}"
+                + $" 网格={(r as MeshRenderer)?.GetComponent<MeshFilter>()?.sharedMesh?.vertexCount ?? 0} 顶点");
+        }
+    }
+
+    int _camDumped;
+    bool _constantsLogged;
+
     int _dumpIndex;
+    int _wwDumpIndex;
+    bool _wwDumpPending;
+
+    /// <summary>
+    /// 白水链路诊断（环境变量 <c>PC3D_WATERLAB_WW_DUMP=1</c>）：按 simTime 锚点回读
+    /// <c>_WWAlive</c>——<c>[0]</c>=本步 draw list 长度（**已过视锥剔除**、即真正出画的粒子数）、
+    /// <c>[1]</c>=缓冲环写游标（累计生成数）。用于把「白水偏含蓄」拆成
+    /// 「没生成 / 生成了被剔除 / 生成了但看不见」三种可能（异步回读，不阻塞模拟）。
+    /// </summary>
+    void DumpWhitewaterCount()
+    {
+        if (_simTime < 36f || _wwDumpIndex >= 8 || _wwDumpPending)
+            return;
+        if (_simTime < 36f + _wwDumpIndex * 1.2f)
+            return;
+        _wwDumpPending = true;
+        int idx = _wwDumpIndex++;
+        UnityEngine.Rendering.AsyncGPUReadback.Request(_wwAlive, r =>
+        {
+            _wwDumpPending = false;
+            if (r.hasError)
+            {
+                Debug.LogWarning($"[WaterLab] 白水回读 {idx} 失败");
+                return;
+            }
+            var d = r.GetData<uint>();
+            Debug.LogWarning($"[WaterLab] 白水 {idx}: drawList={d[0]} 累计生成={d[1]}"
+                + $" 容量={WaterLabRules.WhitewaterCapacity} simTime={_simTime:F1}s");
+        });
+    }
 
     void DumpDiagnostics()
     {
-        if (_simTime < 36f || _dumpIndex >= 8)
+        // 诊断窗口：默认 36 s 起（稳态）；环境变量 PC3D_WATERLAB_DUMP_EARLY=1 时
+        // 改为 0.5 s 起、每 0.5 s 一张，用于定位“水体在最初几秒被抽干”这类问题。
+        bool early = System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_DUMP_EARLY") == "1";
+        float start = early ? 0.5f : 36f;
+        float interval = early ? 0.5f : 1.2f;
+        if (_simTime < start || _dumpIndex >= 8)
             return;
-        if (_simTime < 36f + _dumpIndex * 1.2f)
+        if (_simTime < start + _dumpIndex * interval)
             return;
         DumpTexture(_heightTex, $"waterlab-height-{_dumpIndex}");
         DumpTexture(_wetTex, $"waterlab-wet-{_dumpIndex}");
@@ -171,19 +313,35 @@ namespace PirateCrew.WaterLab
         /// <summary>一步完整 kernel 序（compute 文件头的调度约定）。绑定走 compute 级统一入口
         /// （不按 kernel 分开绑），帧首一次绑齐、换位后重绑——避免「Property not set」类
         /// kernel 级绑定缝隙。</summary>
+        /// <summary>
+        /// 原作 UpdateAmount 的帧级对应：水场蒸发 + 全场潮位松弛（每帧一次，在全部子步
+        /// 之后）。写入当前水场 A，随后立刻派发 OutputField 把松弛后的表面发布上屏——
+        /// 原作 `UpdateAmount → UpdateTangent` 同序；不能把松弛放在子步之前，否则
+        /// Advection 会把 h 平流进 5 cm 结合水带、渲染出游离水膜。
+        /// </summary>
+        void UpdateSurface(float frameDt)
+        {
+            PushConstants(frameDt);
+            BindAll();
+            int groups = (WaterLabRules.WaterCells + 7) / 8;
+            computeShader.Dispatch(_kSurface, groups, groups, 1);
+            computeShader.Dispatch(_kOutput, groups, groups, 1);
+        }
+
         void StepOnce(float dt)
         {
             _simTime += dt;
             PushConstants(dt);
             BindAll();
 
-            int waterGroups = WaterLabRules.WaterCells / 8;
-            int groundGroups = WaterLabRules.GroundCells / 8;
+            int waterGroups = (WaterLabRules.WaterCells + 7) / 8;
+            int groundGroups = (WaterLabRules.GroundCells + 7) / 8;
 
-            // WaveSource(原地写 A) → Height(A→B) → Velocity(B→A) → AdvectFoam(A→B)
+            // 子步：Height(A→B) → Velocity(B→A) → AdvectFoam(A→B)
             // → 白水（Begin→Spawn(读B泡沫)→Update→Compact→End）
-            // → Wetness(C→D，读最新水场 B) → Output(读 B)
-            computeShader.Dispatch(_kWaveSource, waterGroups, waterGroups, 1);
+            // → Wetness(C→D，读最新水场 B)。Output 不在这里——帧末 UpdateSurface
+            // 先把 h 松弛回原作目标，再由它统一派发 OutputField（读 A），保证
+            // 上屏的是松弛后的表面而不是 Advection 后的游离水膜。
             computeShader.Dispatch(_kHeight, waterGroups, waterGroups, 1);
             computeShader.Dispatch(_kVelocity, waterGroups, waterGroups, 1);
             computeShader.Dispatch(_kAdvectFoam, waterGroups, waterGroups, 1);
@@ -194,7 +352,6 @@ namespace PirateCrew.WaterLab
             computeShader.Dispatch(_kWWCompact, wwGroups, 1, 1);
             computeShader.Dispatch(_kWWEnd, 1, 1, 1);
             computeShader.Dispatch(_kWetness, groundGroups, groundGroups, 1);
-            computeShader.Dispatch(_kOutput, waterGroups, waterGroups, 1);
 
             // 帧末换位：最新水场在 next、最新湿沙在 nextW
             (_waterCur, _waterNext) = (_waterNext, _waterCur);
@@ -207,7 +364,7 @@ namespace PirateCrew.WaterLab
         /// 逐个绑齐，消除 kernel 级「Property not set」警告的全部空间。</summary>
         void BindAll()
         {
-            foreach (int k in new[] { _kWaveSource, _kHeight, _kVelocity, _kAdvectFoam, _kWetness, _kOutput,
+            foreach (int k in new[] { _kSurface, _kHeight, _kVelocity, _kAdvectFoam, _kWetness, _kOutput,
                      _kWWBegin, _kWWSpawn, _kWWUpdate, _kWWCompact, _kWWEnd })
             {
                 computeShader.SetBuffer(k, ShaderIds.WaterA, _waterCur);
@@ -334,14 +491,28 @@ namespace PirateCrew.WaterLab
             cs.SetFloat(ShaderIds.DryDepth, WaterLabRules.DryDepth);
             cs.SetFloat(ShaderIds.Time, _simTime);
             cs.SetFloat(ShaderIds.SeaLevel, WaterLabRules.SeaLevel);
-            cs.SetFloat(ShaderIds.WaveBandWidth, WaterLabRules.WaveBandWidth);
-            cs.SetFloat(ShaderIds.GridFilterEps, WaterLabRules.GridFilterEps);
-            PushWaveTrains();
-            cs.SetFloat(ShaderIds.TideAmp, WaterLabRules.TideAmplitude);
-            cs.SetFloat(ShaderIds.TideOmega, 2f * Mathf.PI / WaterLabRules.TidePeriod);
-            cs.SetFloat(ShaderIds.TideRelaxRate, WaterLabRules.TideRelaxDepthRate);
-            cs.SetFloat(ShaderIds.WaveRelaxRate, WaterLabRules.WaveRelaxRate);
+            cs.SetFloat(ShaderIds.AdvectionFactor, WaterLabRules.AdvectionFactor);
+            cs.SetFloat(ShaderIds.Kappa, WaterLabRules.Kappa);
+            // 原作 UpdateAmount：waveAmplitude 每帧按 `saturate(playTime×0.05)×max(四列)` 重算；
+            // 潮位目标/5 cm 下限/权重/蒸发全部从 WaterLabRules 单源下发。
+            cs.SetFloat(ShaderIds.WaveAmplitude, WaterLabRules.WaveAmplitude(_simTime));
+            cs.SetFloat(ShaderIds.TideClampMin, WaterLabRules.TideClampMin);
+            cs.SetFloat(ShaderIds.TideMinAmount, WaterLabRules.TideMinAmount);
+            cs.SetFloat(ShaderIds.CouplingWeight,
+                WaterLabRules.CouplingWeightFull / WaterLabRules.CouplingWeightMax);
+            cs.SetFloat(ShaderIds.EvaporationRate, WaterLabRules.EvaporationRate());
+            if (!_constantsLogged)
+            {
+                _constantsLogged = true;
+                Debug.LogWarning($"[WaterLab] 常量：cells={WaterLabRules.WaterCells} ground={WaterLabRules.GroundCells} "
+                    + $"dx={WaterLabRules.WaterCellSize:F5} dt={dt:F5} g={WaterLabRules.Gravity} "
+                    + $"vmax={WaterLabRules.MaxVelocity:F3} damping={WaterLabRules.VelocityDamping} "
+                    + $"adv={WaterLabRules.AdvectionFactor} kappa={WaterLabRules.Kappa} "
+                    + $"dry={WaterLabRules.DryDepth} sea={WaterLabRules.SeaLevel} "
+                    + $"waveMax={WaterLabRules.WaveAmplitudeMax} evap={WaterLabRules.EvaporationRate():E2}");
+            }
             cs.SetFloat(ShaderIds.BreakingSteepness, WaterLabRules.BreakingSteepness);
+            cs.SetFloat(ShaderIds.BreakingFroude, WaterLabRules.BreakingFroude);
             cs.SetFloat(ShaderIds.FoamGain, WaterLabRules.FoamGain);
             cs.SetFloat(ShaderIds.FoamDecay, WaterLabRules.FoamDecay);
             cs.SetFloat(ShaderIds.FoamDiffuse, WaterLabRules.FoamDiffuse);
@@ -355,23 +526,38 @@ namespace PirateCrew.WaterLab
             cs.SetFloat(ShaderIds.WWSpawnThreshold, WaterLabRules.WhitewaterSpawnThreshold);
             cs.SetFloat(ShaderIds.WWSpawnRate, WaterLabRules.WhitewaterSpawnRate);
             cs.SetFloat(ShaderIds.WWSize, WaterLabRules.WhitewaterSize);
+            cs.SetFloat(ShaderIds.WWSurfaceOffset, WaterLabRules.WhitewaterSurfaceOffset);
+            PushWhitewaterFrustum();
         }
 
-        // 波列常量数组（PushConstants 每步复用，避免逐帧分配）
-        readonly Vector4[] _trainsA = new Vector4[4];
-        readonly Vector4[] _trainsB = new Vector4[4];
+        // 视锥平面缓存（每步复用，避免逐帧分配；Plane→Vector4 隐式转换带 (n.xyz, d)）
+        readonly Plane[] _frustumPlanes = new Plane[6];
+        readonly Vector4[] _frustumPlaneV4 = new Vector4[6];
 
-        /// <summary>波列常量下发（A: 方向/k/ω，B: 振幅/初相；与 compute 的 _WaveTrainsA/B 对齐）。</summary>
-        void PushWaveTrains()
+        /// <summary>
+        /// 白水视锥剔除的相机平面下发（原作 Culling kernel 的相机那一路；
+        /// 阴影视锥那一路原作有 drawShadowList/argsShadow，我方白水不投影，无对应物）。
+        /// 无相机可解析时下发退化平面（w=+∞ 语义由 overscan 承担）——恒内侧，等于不剔除。
+        /// </summary>
+        void PushWhitewaterFrustum()
         {
-            var trains = WaterLabRules.WaveTrains;
-            for (int i = 0; i < trains.Length && i < 4; i++)
+            var cam = renderCamera != null ? renderCamera : Camera.main;
+            if (cam == null)
             {
-                _trainsA[i] = new Vector4(trains[i].DirX, trains[i].DirZ, trains[i].K, trains[i].Omega);
-                _trainsB[i] = new Vector4(trains[i].Amplitude, trains[i].Phase, 0f, 0f);
+                // 无相机：六面全部退化为「法线 0、距离 +1」，任意点都判为内侧 → 不剔除
+                for (int i = 0; i < 6; i++) _frustumPlaneV4[i] = new Vector4(0f, 0f, 0f, 1f);
             }
-            computeShader.SetVectorArray(ShaderIds.WaveTrainsA, _trainsA);
-            computeShader.SetVectorArray(ShaderIds.WaveTrainsB, _trainsB);
+            else
+            {
+                GeometryUtility.CalculateFrustumPlanes(cam, _frustumPlanes);
+                for (int i = 0; i < 6; i++)
+                {
+                    var p = _frustumPlanes[i];
+                    _frustumPlaneV4[i] = new Vector4(p.normal.x, p.normal.y, p.normal.z, p.distance);
+                }
+            }
+            computeShader.SetVectorArray(ShaderIds.WWFrustumPlanes, _frustumPlaneV4);
+            computeShader.SetFloat(ShaderIds.WWFrustumOverscan, WaterLabRules.WhitewaterFrustumOverscan);
         }
 
         void PublishGlobals()
@@ -388,6 +574,7 @@ namespace PirateCrew.WaterLab
             Shader.SetGlobalVector(ShaderIds.Origin, new Vector4(
                 0f, WaterLabRules.DomainSize, 0f, WaterLabRules.WaterCells));
             Shader.SetGlobalFloat(ShaderIds.SimEnabled, 1f);
+            Shader.SetGlobalFloat(ShaderIds.OceanDebug, ResolveOceanDebug());
             WaterLabWhitewaterBridge.Publish(_wwPos, _wwVel, _wwDraw, _wwArgs);
             PublishSunDir();
         }
@@ -421,6 +608,7 @@ namespace PirateCrew.WaterLab
             public static readonly int Origin = Shader.PropertyToID("_WaterLabOrigin");
             public static readonly int SunDir = Shader.PropertyToID("_WaterLabSunDir");
             public static readonly int SimEnabled = Shader.PropertyToID("_WaterLabSimEnabled");
+            public static readonly int OceanDebug = Shader.PropertyToID("_WaterLabOceanDebug");
 
             public static readonly int Cells = Shader.PropertyToID("_Cells");
             public static readonly int CellSize = Shader.PropertyToID("_CellSize");
@@ -434,15 +622,15 @@ namespace PirateCrew.WaterLab
             public static readonly int DryDepth = Shader.PropertyToID("_DryDepth");
             public static readonly int Time = Shader.PropertyToID("_Time");
             public static readonly int SeaLevel = Shader.PropertyToID("_SeaLevel");
-            public static readonly int WaveBandWidth = Shader.PropertyToID("_WaveBandWidth");
-            public static readonly int GridFilterEps = Shader.PropertyToID("_GridFilterEps");
-            public static readonly int WaveTrainsA = Shader.PropertyToID("_WaveTrainsA");
-            public static readonly int WaveTrainsB = Shader.PropertyToID("_WaveTrainsB");
-            public static readonly int TideAmp = Shader.PropertyToID("_TideAmp");
-            public static readonly int TideOmega = Shader.PropertyToID("_TideOmega");
-            public static readonly int TideRelaxRate = Shader.PropertyToID("_TideRelaxRate");
-            public static readonly int WaveRelaxRate = Shader.PropertyToID("_WaveRelaxRate");
+            public static readonly int AdvectionFactor = Shader.PropertyToID("_AdvectionFactor");
+            public static readonly int Kappa = Shader.PropertyToID("_Kappa");
+            public static readonly int WaveAmplitude = Shader.PropertyToID("_WaveAmplitude");
+            public static readonly int TideClampMin = Shader.PropertyToID("_TideClampMin");
+            public static readonly int TideMinAmount = Shader.PropertyToID("_TideMinAmount");
+            public static readonly int CouplingWeight = Shader.PropertyToID("_CouplingWeight");
+            public static readonly int EvaporationRate = Shader.PropertyToID("_EvaporationRate");
             public static readonly int BreakingSteepness = Shader.PropertyToID("_BreakingSteepness");
+            public static readonly int BreakingFroude = Shader.PropertyToID("_BreakingFroude");
             public static readonly int FoamGain = Shader.PropertyToID("_FoamGain");
             public static readonly int FoamDecay = Shader.PropertyToID("_FoamDecay");
             public static readonly int FoamDiffuse = Shader.PropertyToID("_FoamDiffuse");
@@ -462,6 +650,9 @@ namespace PirateCrew.WaterLab
             public static readonly int WWSpawnThreshold = Shader.PropertyToID("_WwSpawnThreshold");
             public static readonly int WWSpawnRate = Shader.PropertyToID("_WwSpawnRate");
             public static readonly int WWSize = Shader.PropertyToID("_WwSize");
+            public static readonly int WWSurfaceOffset = Shader.PropertyToID("_WwSurfaceOffset");
+            public static readonly int WWFrustumPlanes = Shader.PropertyToID("_WwFrustumPlanes");
+            public static readonly int WWFrustumOverscan = Shader.PropertyToID("_WwFrustumOverscan");
         }
     }
 }
