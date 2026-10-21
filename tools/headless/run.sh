@@ -25,22 +25,34 @@ usage() {
                      纯 C# 域测试优先 harness 档（秒级、不占 Library 锁）。
   build <类名.方法名> [透传参数…]
                       无头构建/烘培（如 BuildScript.BuildFromCommandLineArgs）。分钟级，建议后台发起。
-  chain <类名.方法名>[;<类名.方法名>…] [透传参数…]
-                      单入口编排：一次 Unity 启动按序串跑多件 Editor 装配
-                      （如 字体重建;Battle 管线;菜单场景），省掉每件一次的 ≈2.5 分钟冷启动。
-                      **不带缓存**——装配方法会改场景/资产，结果不可回放，每次都真跑。
+  chain <链名|类名.方法名>[;<类名.方法名>…] [透传参数…]
+                      单入口编排：一次 Unity 启动按序串跑多件 Editor 装配，省掉每件一次的
+                      ≈2.5 分钟冷启动。链名在 HeadlessChain 命名链注册表里定义（full = 字体重建 →
+                      Battle 八步管线 → M1 菜单场景；battle = 只重跑 Battle 子链），也可直接给
+                      分号分隔的步骤列表。**不带缓存**——装配会改场景/资产，结果不可回放。
   harness <All|Data|Combat|DataEditor|Battle|Runtime> [过滤器…]
                       代理 external/harness/run.sh：不开 Unity，绕开 Library 独占锁。
+  bridge <命令>       驱动**常驻编辑器**执行命令（不启动任何 Unity 进程，秒级往返）。
+                      编辑器侧桥 = Assets/Editor/CommandBridge.cs（[InitializeOnLoad] 自动装载，
+                      只消费本仓库 export/ 文件，不监听网络）。命令：
+                        ping / state / refresh / recompile
+                        call <类全名.方法名>       反射执行 public static 无参方法
+                        chain <链名|步骤列表>      与 chain 档同一张注册表（如 chain full）
+                        menu <菜单路径>            执行编辑器菜单项（如 "PirateCrew/Scenes/重跑 Battle 装配链"）
+                      编辑器没开本工程 / 桥未装载 → 明确报错退出 4（绝不静默）；命令执行失败 → 退出 5。
+  menu <菜单路径>     bridge "menu <路径>" 的糖（整段路径当一个参数传，含中文/空格）。
   unlock              清 Temp/UnityLockfile 僵尸锁兜底：无锁 → 退出 0；有锁且无 Unity.exe 进程
                       → 只删锁文件（Temp 下其余内容不动）并退出 0；有锁且 Unity.exe 在跑
                       → 拒绝并退出 3（与 guard_unity 同口径）。
 环境变量: PC3D_UNITY 覆盖 Unity 路径；PC3D_PROJ 覆盖工程目录（自测用）；
-          PC3D_NO_CACHE=1 跳过缓存回放（强制真跑一次）。
+          PC3D_NO_CACHE=1 跳过缓存回放（强制真跑一次）；
+          PC3D_BRIDGE_PING_TIMEOUT / PC3D_BRIDGE_TIMEOUT 覆盖 bridge 档探活/命令超时秒数
+          （默认 10 / 120；chain full 这类长装配可调大）。
 EOF
 }
 
 case "${1:-}" in
-  open|test|build|chain|harness|unlock) MODE="$1"; shift ;;
+  open|test|build|chain|bridge|menu|harness|unlock) MODE="$1"; shift ;;
   *) usage; exit 2 ;;
 esac
 
@@ -103,6 +115,64 @@ cache_replay() {
 }
 cache_store() { { echo "$2"; date +%s; echo "$3"; } > "$1"; }
 
+# ---- 命令桥（常驻编辑器执行通道；编辑器侧 = pirate-crew/Assets/Editor/CommandBridge.cs）----
+# 协议：写一行命令到 <仓库根>/export/unity-command.txt，编辑器每 0.4s 轮询，读到即执行并清空
+# 命令文件；结果追加到 export/unity-command-result.txt——">> 命令" 开场、"<<" OK/FAILED 命令 收尾。
+# 本档不启动 Unity、不碰 Library 锁（前提恰恰是编辑器开着）。桥文件相对本仓库根——
+# 在 worktree 里跑时要求常驻编辑器开的是本 worktree 的工程，两边根目录才会对上。
+BRIDGE_DIR="$ROOT/export"
+BRIDGE_CMD_FILE="$BRIDGE_DIR/unity-command.txt"
+BRIDGE_RES_FILE="$BRIDGE_DIR/unity-command-result.txt"
+BRIDGE_PING_TIMEOUT="${PC3D_BRIDGE_PING_TIMEOUT:-10}"
+BRIDGE_TIMEOUT="${PC3D_BRIDGE_TIMEOUT:-120}"
+
+bridge_res_lines() { [ -f "$BRIDGE_RES_FILE" ] && wc -l < "$BRIDGE_RES_FILE" 2>/dev/null || echo 0; }
+
+# 等待命令收尾行。$1=命令原文，$2=超时秒，$3=起始行数（写命令**之前**记的基线，防残留误命中）。
+# 只看基线之后的新增段；打印新增段作为回传日志。返回 0=<< OK；5=<< FAILED；1=超时。
+bridge_wait_finish() {
+  local cmd="$1" secs="$2" base="$3" deadline out
+  deadline=$(( $(date +%s) + secs ))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    if [ -f "$BRIDGE_RES_FILE" ]; then
+      out="$(tail -n +$((base + 1)) "$BRIDGE_RES_FILE" 2>/dev/null)"
+      if printf '%s\n' "$out" | grep -qF "<< FAILED $cmd"; then printf '%s\n' "$out"; return 5; fi
+      if printf '%s\n' "$out" | grep -qF "<< OK $cmd"; then printf '%s\n' "$out"; return 0; fi
+    fi
+    sleep 0.2
+  done
+  [ -f "$BRIDGE_RES_FILE" ] && tail -n +$((base + 1)) "$BRIDGE_RES_FILE" 2>/dev/null
+  return 1
+}
+
+# 发一条命令给常驻编辑器并等回执。返回 0=OK；4=桥无应答（编辑器不在跑等）；5=命令执行失败。
+bridge_run() {
+  local cmd="$1" base rc
+  mkdir -p "$BRIDGE_DIR"
+  # 先 ping 探活（短超时）：把「编辑器不在跑」从「命令执行得久」里拆出来快速失败
+  base="$(bridge_res_lines)"
+  printf 'ping\n' > "$BRIDGE_CMD_FILE"
+  bridge_wait_finish "ping" "$BRIDGE_PING_TIMEOUT" "$base" >/dev/null
+  if [ $? -ne 0 ]; then
+    echo "❌ 常驻编辑器 ${BRIDGE_PING_TIMEOUT}s 内未应答命令桥——编辑器没开本工程，或桥未装载/版本过旧。" >&2
+    echo "   处置：打开 Unity 编辑器（工程 $PROJ）并等它编译完；桥在 Assets/Editor/CommandBridge.cs，" >&2
+    echo "   [InitializeOnLoad] 自动装载。若编辑器开着仍无应答：它可能正在编译 / Play / 跑上一条长命令，" >&2
+    echo "   或它开的不是本仓库（$ROOT）的工程——桥按仓库根对文件，两边不一致就永远等不到。" >&2
+    return 4
+  fi
+  base="$(bridge_res_lines)"
+  printf '%s\n' "$cmd" > "$BRIDGE_CMD_FILE"
+  bridge_wait_finish "$cmd" "$BRIDGE_TIMEOUT" "$base"
+  rc=$?
+  if [ "$rc" -eq 1 ]; then
+    echo "❌ 命令 ${BRIDGE_TIMEOUT}s 内未收尾（ping 已通，编辑器在跑）：可能卡在编译/Play/上一条长命令，" >&2
+    echo "   或长装配超时——调大 PC3D_BRIDGE_TIMEOUT 重试；结果文件尾部如下：" >&2
+    tail -5 "$BRIDGE_RES_FILE" 2>/dev/null >&2
+    return 4
+  fi
+  return "$rc"
+}
+
 case "$MODE" in
   open)
     CACHE="$(cache_file_for open)"
@@ -153,7 +223,8 @@ case "$MODE" in
     ;;
   chain)
     if [ $# -lt 1 ]; then
-      echo "chain 档需要步骤列表 <类名.方法名>[;<类名.方法名>…]，例: FontAssetBuilder.BuildAll;BattleScenePipeline.Build" >&2
+      echo "chain 档需要链名或步骤列表，例: full / battle（命名链，注册表在 HeadlessChain.cs）" >&2
+      echo "  或 <类名.方法名>[;<类名.方法名>…] 显式列表" >&2
       exit 2
     fi
     STEPS="$1"; shift
@@ -195,5 +266,30 @@ case "$MODE" in
       exit 1
     fi
     echo "🗑️ 已删除僵尸锁: $LOCK（无 Unity.exe 进程，属陈旧锁）。"
+    ;;
+  bridge)
+    if [ $# -lt 1 ]; then
+      echo "bridge 档需要命令，例: state / refresh / 'call 类全名.方法名' / 'chain full' / 'menu 菜单路径'" >&2
+      exit 2
+    fi
+    # "$*"：允许 bridge call X.Y 不加引号也能拼成一条命令（含空格路径仍建议整体加引号）
+    bridge_run "$*"
+    RC=$?
+    echo "== run.sh 结果 =="
+    echo "档位: bridge  退出码: $RC（0=OK 4=桥无应答/超时 5=命令执行失败）"
+    echo "结果文件: $BRIDGE_RES_FILE"
+    exit $RC
+    ;;
+  menu)
+    if [ $# -lt 1 ]; then
+      echo "menu 档需要菜单路径（一个参数，含空格/中文整体加引号），例: 'PirateCrew/Scenes/重跑 Battle 装配链'" >&2
+      exit 2
+    fi
+    bridge_run "menu $*"
+    RC=$?
+    echo "== run.sh 结果 =="
+    echo "档位: menu  退出码: $RC（0=OK 4=桥无应答/超时 5=菜单路径无效）"
+    echo "结果文件: $BRIDGE_RES_FILE"
+    exit $RC
     ;;
 esac
