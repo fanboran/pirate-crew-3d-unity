@@ -152,11 +152,12 @@ namespace PirateCrew.EditorTools
         /// <summary>
         /// 重建入口的确认闸：本链两处 <c>NewScene(Single)</c>（搭预制体、建战斗场景）都会把当前
         /// 打开的场景直接顶掉，未保存的修改随之蒸发。已脏场景直接拒绝（先保存再重建），
-        /// 干净场景弹一次确认；无头模式跳过——batchmode 下对话框不显示，重建本就是无人程序化流程。
+        /// 干净场景弹一次确认；程序化流程跳过——batchmode 下对话框不显示，命令桥经
+        /// HeadlessChain 跑链时同样无人应答（HeadlessChain.IsRunning），跳过口径一致。
         /// </summary>
         static bool ConfirmSceneReplacement()
         {
-            if (Application.isBatchMode)
+            if (Application.isBatchMode || HeadlessChain.IsRunning)
                 return true;
 
             Scene active = EditorSceneManager.GetActiveScene();

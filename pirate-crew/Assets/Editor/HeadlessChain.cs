@@ -65,6 +65,14 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
+        /// 链执行期标志：装配步骤正在被程序化编排执行（batchmode 或命令桥）。
+        /// 装配器里的人工确认闸（如 BattleSceneSetup.ConfirmSceneReplacement）据此跳过——
+        /// 与 batchmode 跳过同口径：程序化流程无人应答对话框，真编辑器里弹确认框会把
+        /// 同步执行的链（进而命令桥的 Poll）整个卡死在模态等待上。同步执行期间无域重载。
+        /// </summary>
+        public static bool IsRunning { get; private set; }
+
+        /// <summary>
         /// chain 档入口（batchmode 专用）：读 -chainSteps "链名" 或 "类全名.方法名;类全名.方法名"
         /// （分号分隔），交给 <see cref="RunChainSpec"/> 执行并以退出码收口。
         /// 退出码：0 全部成功；2 参数缺失 / 步骤名解析失败；1 某步执行抛异常。
@@ -132,7 +140,21 @@ namespace PirateCrew.EditorTools
         }
 
         // 按序执行已解析的步骤；任一步失败即返回 1（不再往下跑，避免留下半截装配状态）。
+        // 执行期置 IsRunning（见该属性注释）——finally 复位，失败路径也不留悬挂标志。
         static int ExecuteSteps(string[] stepNames, MethodInfo[] methods)
+        {
+            IsRunning = true;
+            try
+            {
+                return ExecuteStepsCore(stepNames, methods);
+            }
+            finally
+            {
+                IsRunning = false;
+            }
+        }
+
+        static int ExecuteStepsCore(string[] stepNames, MethodInfo[] methods)
         {
             for (int i = 0; i < methods.Length; i++)
             {
