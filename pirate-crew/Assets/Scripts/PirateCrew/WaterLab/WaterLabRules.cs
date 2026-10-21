@@ -16,26 +16,33 @@ namespace PirateCrew.WaterLab
     /// 干湿阈值、双分辨率、湿沙渗透。本文件不含任何第三方代码。
     ///
     /// 【方程选择】质量方程用平均通量形式 ∂h/∂t = -∇·(h̄·v̄)（保留 h·v 非线性、天然守恒），
-    /// 动量方程省略平流项 v·∇v 只留 -g∇h 与阻尼——长波场景标准简化，破碎陡化由浅化承担
-    /// （水深变小 → 波速 √(gh) 变慢 → 波峰追上波谷）。速度场的半拉格朗日平流只用于
-    /// <b>泡沫场的输运</b>，不用于水深（平流不守恒，Sandcastle 采访自述的"数值误差累积"
-    /// bug 正是这条路的坑）。
+    /// 动量方程省略平流项 v·∇v 只留 -g∇h 与 kappa 时间低通——长波场景标准简化，破碎陡化
+    /// 由浅化承担（水深变小 → 波速 √(gh) 变慢 → 波峰追上波谷）。原作每子步在
+    /// HeightIntegration 之后另跑一个半拉格朗日 Advection（advectionFactor=0.2）对水量 h
+    /// 做回溯平流——它是原作 surf zone 的主要数值耗散，本仓照抄（见 AdvectFoam）。
+    /// 半拉格朗日不严格守恒，原作采访自述的「数值误差累积」即来自这条路；本仓照原作实现，
+    /// harness 的质量守恒测试钉的是不含平流的纯通量步。
     /// </summary>
     public static class WaterLabRules
     {
-        // ---- 域与分辨率（双分辨率：水密沙疏，Sandcastle 实证做法）----
+        // ---- 域与分辨率（原作格距 5.86 cm；实验室域 64 m 为取景保留）----
 
-        /// <summary>模拟域边长（世界单位，正方形，中心在原点）。</summary>
+        /// <summary>模拟域边长（世界单位，正方形，中心在原点）。实验室取景需要 64 m；
+        /// 原作的 Normal/Huge 档是 30/60 m，但格距同为 5.86 cm（见 WaterCells）。</summary>
         public const float DomainSize = 64f;
 
-        /// <summary>水域每轴格数 → 水格距 0.25 m。</summary>
-        public const int WaterCells = 256;
+        /// <summary>
+        /// 水域每轴格数：64 m / 1092 = 5.861 cm，对齐原作 FormatProperty 的 5.86 cm 格距
+        ///（60 m/1024²、30 m/512²、15 m/256² 三者同格距，reverse §8.1）。
+        /// 1092 不是 8 的倍数，dispatch 必须向上取整（WaterLabSimulation.StepOnce）。
+        /// </summary>
+        public const int WaterCells = 1092;
 
         /// <summary>水域格距（m）。</summary>
         public const float WaterCellSize = DomainSize / WaterCells;
 
-        /// <summary>地形每轴格数 → 地形格距 0.5 m（湿沙同分辨率挂在地形上）。</summary>
-        public const int GroundCells = 128;
+        /// <summary>地形每轴格数：原作 groundResolution 与 waterResolution 同档。</summary>
+        public const int GroundCells = 1092;
 
         /// <summary>地形格距（m）。</summary>
         public const float GroundCellSize = DomainSize / GroundCells;
@@ -43,178 +50,183 @@ namespace PirateCrew.WaterLab
         // ---- 物理与数值参数 ----
 
         /// <summary>
-        /// 重力加速度（m/s²）。【逆向已知场景真值 16，暂不采纳】：本仓显式平均通量 +
-        /// 中心差分动量格式在 g=16、弱阻尼下数值色散/负水深钳制超界（harness 实测：
-        /// 质量漂移 0.655%、孤立波速比 0.625），要吃下 16 需先升通量格式（如 donor-cell
-        /// 迎风），独立裁决后再对齐。
+        /// 重力加速度（m/s²）。原作场景实例真值 `gravityForce=16`（默认 10）。
+        /// 原作的全部派生量都从这里来：`maxVelocity=0.5·√g`、子步 `dt=0.5·dx/√g`。
         /// </summary>
-        public const float Gravity = 9.81f;
+        public const float Gravity = 16f;
 
         /// <summary>
-        /// 固定时间步（s）。CFL 验证：h_max≈1.6 m（深水台 1.3 + 波列 + 潮位）→
-        /// c=√(9.81·1.6)≈4.0，C = c·dt/dx ≈ 0.26；保守上界 h=3 m 时 C≈0.36 ≤ <see cref="CflLimit"/>。
+        /// 固定子步（s）= 原作 `MaxDeltaTime`：`0.5·cellSize/√gravityForce`
+        /// （Water.Run 每子步下发，见逆向 §8）。60 m/1024² 下 ≈7.32 ms。
         /// </summary>
-        public const float FixedStep = 1f / 60f;
+        public static readonly float FixedStep = 0.5f * WaterCellSize / Mathf.Sqrt(Gravity);
 
         /// <summary>SWE 显式格式的 CFL 安全上限（理论 1.0，取保守 0.5）。</summary>
         public const float CflLimit = 0.5f;
 
-        /// <summary>干湿阈值（m）：水深低于此值的格不产生流动（防干湿界振荡；Sandcastle 实测 0.05）。</summary>
+        /// <summary>结合水基准（m）：水面高度/通量/可见水深统一取 max(h − DryDepth, 0)；
+        /// 前 5 cm 是贴沙结合水，不参与流动、也不显形（Sandcastle WATER_SATURATION_POINT 实测 0.05）。</summary>
         public const float DryDepth = 0.05f;
 
         /// <summary>
-        /// 速度阻尼（1/s，线性阻力项）。原作涌浪能横穿 40 m+ 水面到岸（demo 实景），
-        /// 反证其深水有效阻尼 ≲ c·t/λ ≈ 0.05/s；0.12/s 会让 λ40 涌浪一个域宽就衰减到
-        /// 1/3，水底波影先天不可见（第九轮根因之一），压到 0.02。
+        /// 速度阻尼（1/s，线性阻力项）。原作 WaterProperty 四档预设全部 `damping=0`
+        ///（Regular/Clear/Bahamas/Syrup，Refs 序列化真值），本仓照抄 0。
         /// </summary>
-        public const float VelocityDamping = 0.02f;
+        public const float VelocityDamping = 0f;
 
-        /// <summary>速度限幅（m/s；超限等比缩回，防局部数值尖峰）。</summary>
-        public const float MaxVelocity = 8f;
+        /// <summary>
+        /// 速度限幅（m/s）。原作 `Water.MaxVelocity = 0.5·√gravityForce`（Water.cs 属性；
+        /// 场景 g=16 → 2.0 m/s）。这不是防尖峰的工程上限，而是原作的真实输运上限：
+        /// 涌潮速度被压在 2 m/s，配合 5.86 cm 格距，前置不会挤进一两格。
+        /// </summary>
+        public static readonly float MaxVelocity = 0.5f * Mathf.Sqrt(Gravity);
+
+        /// <summary>
+        /// 半拉格朗日水量平流系数（0..1）。原作 `WaterProperty.advectionFactor=0.2`
+        ///（四档预设一致，Refs 真值）。每个子步按 `v·advectionFactor·dt` 回溯采样 h，
+        /// 这是原作 surf zone 里把 bore 前缘摊开的主要数值耗散；本仓照抄。
+        /// </summary>
+        public const float AdvectionFactor = 0.2f;
+
+        /// <summary>
+        /// 动量时间平滑系数。原作 `WaterProperty.kappa=1000`（Regular/Clear/Bahamas；
+        /// Syrup=2），VelocityIntegration 末尾按 `v=(v_new·kappa+v_old)/(kappa+4)` 轻度低通。
+        /// </summary>
+        public const float Kappa = 1000f;
 
         /// <summary>海平面高程（m，世界 Y）。地形与水面都以它为基准。</summary>
         public const float SeaLevel = 0f;
 
-        // ---- 波源（offshore 边行波注入：多向波列 + 潮位呼吸）----
+        // ---- 波源（原作 UpdateAmount：全场潮位松弛 + 每格耦合权重）----
         //
-        // 【Sandcastle 实证】其环境浪 = UpdateAmount kernel 的「涌浪泵 + 潮位松弛」
-        // （Water compute blob 6/17 反汇编，docs/技术/渲染/调研/Sandcastle水体逆向.md §6）：
-        // spawnMap 注水带内 amount += rate·sin(空间相位 + 8ωt)·dt，全场向 seaLevel+amp·sin(ωt)
-        // 松弛。WavesProperty 预设的 a/b/c/d 四列 Vector3 是代码构造常量，方法体在 Cpp2IL
-        // v39 下不可恢复——本仓按同构「四列叠加」自推数值，结构（列数/色散/潮位）照抄。
+        // 【原作实证，Water compute blob 6/17 反汇编】UpdateAmount 每**帧**派发一次
+        //（不在子步循环里），顺序：蒸发 → obstaclesMap 泵 → 两段潮位松弛。环境浪没有
+        // 任何空间行波项：`waveAmplitude` 是标量，`WavesProperty` 四列预设只被 CPU 取
+        // `max(第三分量)` 得到峰值 0.2 m（Water.Run：`saturate(playTime×0.05) × max(...)`，
+        // 开盘 20 s 渐起，下限 0.01）。全场水面目标统一为
+        // `level + clamp(waveAmplitude·sin(playTime), −0.5, +∞)`；每格按自身 4 bit 耦合
+        // 权重 w/15 向目标松弛（每帧一次的比例，不乘 dt）。浪的不规律性来自地形浅化、
+        // 岸线进退与泵，不来自多列正弦叠加——旧「四列行波」是本仓自推，已删除。
 
-        /// <summary>波源带宽度（m，从 -x 域边向内）。注入带内水面高程向目标松弛。</summary>
-        public const float WaveBandWidth = 4f;
+        /// <summary>潮位振荡振幅上限（m）。原作 Regular 档 WavesProperty 四列第三分量
+        /// 0.1/0.15/0.2/0，`Water.Run` 取 max → 0.2 m。</summary>
+        public const float WaveAmplitudeMax = 0.2f;
 
-        /// <summary>
-        /// Shapiro 网格滤波强度（**四阶**、x/y 两轴分离，每步
-        /// `h -= ε/16×(h₊₂ − 4h₊₁ + 6h − 4h₋₁ + h₋₂)` 逐轴施加，带外全场）。
-        /// 【为什么必须有】弱阻尼（0.02）+ 深度比例弱松弛下，2 格尺度的棋盘模无人压制
-        /// （旧体系里速度阻尼 0.12 与均匀松弛 0.25 恰好兼职压着它）——η 场长出 ±0.5 m 级
-        /// 逐格锯齿，把破碎判据 |η−邻均值|/h 全场误触发 → 泡沫饱和成白幕（Python 实验室与
-        /// GPU 稳态转储双重实证）。
-        /// 【为什么是四阶】二阶 `h−ε(h−4邻均值)` 对 λ4–8 格每步衰减 0.92–0.98，恰好把
-        /// 涌浪浅化陡化出的 bore 陡 front 当噪声吃掉——r11 转储实证波到水线摆幅
-        /// 0.50→0.21 m 腰斩。四阶传函 1−(ε/16)(2cos2k−8cos k+6) 单调不放大：
-        /// λ2 保留 1−ε（与旧二阶 0.08 同杀 0.84/步，棋盘不复活）、λ4 保留 0.96、
-        /// λ6 保留 0.99、λ40 m 长波每秒损 <0.1%；偏差全场求和为零，质量守恒不受影响。
-        /// </summary>
-        public const float GridFilterEps = 0.16f;
+        /// <summary>振幅下限（m）：`Water.Run` 的 `max(0.01, …)`，开场也有 1 cm 微动。</summary>
+        public const float WaveAmplitudeFloor = 0.01f;
 
-        /// <summary>松弛系数（1/s）：注入带内 η 与速度向目标值的逼近速率。大到两三步到位、小到不生硬反射。</summary>
-        public const float WaveRelaxRate = 6f;
+        /// <summary>振幅渐起速率（1/s）：`saturate(playTime × 0.05)`，20 s 到满幅。</summary>
+        public const float WaveAmplitudeRampPerSecond = 0.05f;
 
-        /// <summary>潮位呼吸振幅（m）：全场水面目标 = SeaLevel + TideAmplitude·sin(ωt)，
-        /// 让浪以「组」的节奏涌上来（swash 群性）。</summary>
-        public const float TideAmplitude = 0.05f;
+        /// <summary>潮位目标的下钳（m）：`clamp(waveAmplitude·sin(playTime), −0.5, +∞)`。</summary>
+        public const float TideClampMin = -0.5f;
 
-        /// <summary>潮位呼吸周期（s）。</summary>
-        public const float TidePeriod = 9f;
+        /// <summary>潮位目标水量的下限（m）：`max(level − ground + wave, 0.05)`——
+        /// 前 5 cm 结合水始终保留，与 <see cref="DryDepth"/> 同一语义。</summary>
+        public const float TideMinAmount = 0.05f;
+
+        /// <summary>4 bit 耦合权重的量程上限：原作松弛步长 = 权重/15。</summary>
+        public const float CouplingWeightMax = 15f;
 
         /// <summary>
-        /// 潮位松弛深度系数（1/(s·m)）：带外全场松弛权重 = 此值 × 局部水深 × dt。
-        /// 【逆向结构对齐】原作 UpdateAmount（Water_20632 反汇编）的潮位松弛权重比例于
-        /// 局部水场值（`amount += 水场×(1/15)×间隙`），干处权重为 0 完全不松弛——
-        /// 深水被压平向潮位、浅水架几乎不阻尼，行波得以活着冲上滩。本仓旧实现是全场
-        /// 均匀 0.25/s，对行波等价 14 m 衰减长度（叠加速度阻尼 ~10 m），λ40 涌浪
-        /// 没到岸就被吃光（近岸 η 振幅 ±0.008 m，水底波影调制 <1%，第九轮解析实锤）。
-        /// 系数 0.02 按「WavesType 数值抄不到、按涌浪存活自推」口径取：深水 1.3 m 处
-        /// 松弛 0.026/s，涌浪穿越半域衰减少于两成；浅水 0.2 m 处 0.004/s 近乎自由。
-        /// 代价：潮位呼吸在浅水跟踪率仅 ~4%（近岸岸线呼吸变弱），swash 群性改由
-        /// 涌浪本身承担。
+        /// 满耦合权重。原作每格 word 高 4 bit 是运行时耦合系数，由关卡 `water.Fill`
+        /// 的初始水场写入；本仓拿不到该场的分布，改用**初始淹没区满耦合、初始干区零
+        /// 耦合**的静态代理（C 级近似）：涨潮时外海严格跟随潮位，初始干滩不被直接钉住，
+        /// 只能靠通量爬滩 → 保留 run-up/swash 的岸线进退。
         /// </summary>
-        public const float TideRelaxDepthRate = 0.02f;
+        public const float CouplingWeightFull = CouplingWeightMax;
 
-        /// <summary>一列入射波：方向、波长、振幅、初相。相速由深水色散关系 ω²=g·k 导出——
-        /// 四列波长互质，波峰线永不重合，叠加天然不规律（这正是单正弦「太规律」的解药）。</summary>
-        public struct WaveTrain
+        /// <summary>水场蒸发系数（原作场景实例 `evaporationFactor=0.1`）。</summary>
+        public const float EvaporationFactor = 0.1f;
+
+        /// <summary>蒸发公式缩放（UpdateAmount 字面量 0.001）。</summary>
+        public const float EvaporationScale = 0.001f;
+
+        /// <summary>水汽衰减系数（UpdateAmount 字面量 0.721348）。</summary>
+        public const float EvaporationHumidityDecay = 0.721348f;
+
+        /// <summary>
+        /// 水汽场取值。原作从 Air compute 的 22 bit 水汽场双线性采样；本仓不模拟气相，
+        /// 取 Air Initialization 的初值 0（word1=0x800 → 采样字段 0），属 C 级近似。
+        /// </summary>
+        public const float AirHumidity = 0f;
+
+        /// <summary>太阳辐照标量（原作 `sunColor.r`；实验室平行光强度 1）。</summary>
+        public const float SunIrradiance = 1f;
+
+        /// <summary>潮位振幅随时间渐起（m）。`max(0.01, saturate(t×0.05) × 0.2)`。</summary>
+        public static float WaveAmplitude(float playTime)
         {
-            public float DirX;
-            public float DirZ;
-            public float Length;
-            public float Amplitude;
-            public float Phase;
-
-            public WaveTrain(float dirX, float dirZ, float length, float amplitude, float phase)
-            {
-                float inv = 1f / Mathf.Sqrt(dirX * dirX + dirZ * dirZ);
-                DirX = dirX * inv;
-                DirZ = dirZ * inv;
-                Length = length;
-                Amplitude = amplitude;
-                Phase = phase;
-            }
-
-            /// <summary>波数 k = 2π/L（rad/m）。</summary>
-            public float K => 2f * Mathf.PI / Length;
-
-            /// <summary>
-            /// 浅水色散 ω = k·√(g·h带)（rad/s）。域内全是浅水长波（h≤1.3 m ≪ λ），
-            /// SWE 特征速 √(gh) 不色散——用深水色散 ω=√(gk) 会把 λ40 m 波的相速
-            /// 强迫到 7.9 m/s > 特征速 3.6 m/s（超临界），波源带激波化爆场（30× 快进实拍）。
-            /// h带 取波源带处的静水深（深水平台高程到海平面）。
-            /// </summary>
-            public float Omega => K * WaveSpeed(SeaLevel - OffshoreDepth);
+            float ramp = Mathf.Clamp01(playTime * WaveAmplitudeRampPerSecond);
+            return Mathf.Max(WaveAmplitudeFloor, ramp * WaveAmplitudeMax);
         }
 
         /// <summary>
-        /// 入射波列（致敬 Sandcastle WavesProperty.Parameters 的 a/b/c/d 四列结构）。
-        /// 【逆向对齐】原作渲染端无任何程序浪形（Lit_Water VS 已反汇编实证：顶点 Y 就是
-        /// 高度场 4 邻均值），其泵源为单条 ~40 m 长涌浪（spawnMap 相位 0.0378 rad/格×0.25 m/格
-        /// → λ≈41.6 m），且泵永不停——全场始终有一道行进的 η 图案（峰下水底暗、谷下亮，
-        /// 水柱透射项 exp(−0.721Δ) 随之持续扫动 = 「水底波影」连绵不断的来源）。
-        /// 【r11 裁决】四列互拍会产生 ~9 s 拍频平静窗，窗内 η 全平、水底静止（r10 三枪
-        /// 差分实证：跨枪位移 ≈0，浅水带主导条纹是层理/沙纹静态斑）——削次级列幅对齐
-        /// 单涌浪；主涌 0.16→0.30 m：0.16 m 下水柱透射调制仅 8–15% 不可见（r10 实测），
-        /// ≥25% 可见门槛反推需峰谷摆幅 ~0.6 m，0.30 m 浅化后可达。幅值按 bore 观感自推
-        /// （WavesProperty 数值不可恢复）；CFL 自检 h_max≈1.69 m → C≈0.27，余量足。
+        /// 潮位目标的“水量面”（m）：`SeaLevel + clamp(amp·sin(playTime), −0.5, +∞)`。
+        /// 它是**含 5 cm 结合水**的目标（amount 面），可见水面 = 该值 − <see cref="DryDepth"/>；
+        /// 与 <see cref="TideDepthTarget"/> 配套使用，别把它当渲染出来的 η。
         /// </summary>
-        public static readonly WaveTrain[] WaveTrains =
+        public static float TideEta(float playTime)
         {
-            new WaveTrain(1f, 0.00f, 40.0f, 0.300f, 0.0f),
-            new WaveTrain(1f, 0.30f, 21.0f, 0.020f, 1.7f),
-            new WaveTrain(1f, -0.35f, 11.0f, 0.010f, 3.9f),
-            new WaveTrain(1f, 0.15f, 5.9f, 0.006f, 5.1f),
-        };
-
-        /// <summary>波列总振幅（m）——CFL 与编码量程的自检上界（波峰同相的极端叠加）。</summary>
-        public static float MaxWaveAmplitude
-        {
-            get
-            {
-                float sum = 0f;
-                foreach (var train in WaveTrains)
-                    sum += train.Amplitude;
-                return sum;
-            }
+            float wave = WaveAmplitude(playTime) * Mathf.Sin(playTime);
+            return SeaLevel + Mathf.Max(wave, TideClampMin);
         }
 
-        /// <summary>潮位目标高程（m）。</summary>
-        public static float TideEta(float t)
+        /// <summary>潮位松弛的目标水量（m）：`max(level − ground + wave, 0.05)`。</summary>
+        public static float TideDepthTarget(float playTime, float ground)
         {
-            return SeaLevel + TideAmplitude * Mathf.Sin(2f * Mathf.PI * t / TidePeriod);
+            float wave = Mathf.Clamp(WaveAmplitude(playTime) * Mathf.Sin(playTime),
+                TideClampMin, float.PositiveInfinity);
+            return Mathf.Max(SeaLevel - ground + wave, TideMinAmount);
         }
 
-        /// <summary>波源目标水面高程（m）：潮位 + 四列行波（向 +x 传播）。</summary>
-        public static float WaveEta(float worldX, float worldZ, float t)
+        /// <summary>耦合权重（0..15）：初始淹没区满耦合，初始干区零耦合（C 级代理，见上）。</summary>
+        public static float CouplingWeightAt(float ground)
         {
-            float eta = TideEta(t);
-            foreach (var train in WaveTrains)
-            {
-                float s = Mathf.Sin(train.K * (train.DirX * worldX + train.DirZ * worldZ)
-                                    - train.Omega * t + train.Phase);
-                eta += train.Amplitude * s;
-            }
-            return eta;
+            return ground < SeaLevel ? CouplingWeightFull : 0f;
+        }
+
+        /// <summary>
+        /// 蒸发速率（m/s）：`exp(−0.721348·湿度) × sun.r × evaporationFactor × 0.001`。
+        /// 原作在 UpdateAmount 里先减蒸发再松弛；满耦合格随后被潮位拉回，故可见影响主要
+        /// 落在未耦合的干/浅格。本仓按 Air 初值湿度 0、太阳辐照 1 计算。
+        /// </summary>
+        public static float EvaporationRate()
+        {
+            return Mathf.Exp(-EvaporationHumidityDecay * AirHumidity)
+                 * SunIrradiance * EvaporationFactor * EvaporationScale;
         }
 
         // ---- 破碎与泡沫 ----
 
-        /// <summary>破碎判据：波陡 η'/h > 此值（Miche 准则常数 0.78 的工程版）判定破碎。</summary>
+        /// <summary>
+        /// 破碎判据（相对波高 H/h 的 Miche 准则常数 0.78 工程版，H = 2a）。
+        /// 实测量取 <see cref="BreakingFroude"/>：线性浅水波质点最大速度 u = a·√(g/h)、
+        /// 波速 c = √(g·h)，故 a/h = u/c = Fr，于是「H/h &gt; 0.78」等价于「Fr &gt; 0.39」。
+        /// </summary>
         public const float BreakingSteepness = 0.78f;
 
-        /// <summary>泡沫生成增益（每步生成量 = 超出判据部分 × 此值）。</summary>
-        public const float FoamGain = 2.4f;
+        /// <summary>
+        /// 破碎的弗劳德数阈值 = <see cref="BreakingSteepness"/>/2 = 0.39，即计划书 W1
+        /// 「波高/水深 &gt; 0.78 **或** 质点速 &gt; 波速」两条的等价形式：线性浅水波
+        /// u = a·√(g/h)、c = √(g·h) ⇒ a/h = Fr，而 H/h&gt;0.78（H = 2a）即 a/h &gt; 0.39。
+        /// 【别再退回 η 的曲率判据】|η − 4邻均值|/h 是 2 格曲率量（λ=40 m 涌浪仅 ~1e-4，
+        /// 够不着 0.78），且正是 Shapiro 网格滤波抑制的频带 → 泡沫恒 0、白水粒子恒 0
+        ///（2026-10-18 实证：泡沫 max 0.082、drawList 全程 0）。
+        /// 【也别取 1.0】本仓流态极少到超临界（实测 Fr&gt;1 时累计生成仅 417 颗、
+        /// drawList 0–27 ≈ 空转）；破碎带的宽度由 0.39 + <see cref="FoamGain"/> 共同定。
+        /// </summary>
+        public const float BreakingFroude = BreakingSteepness * 0.5f;
+
+        /// <summary>
+        /// 泡沫生成增益（每步生成量 = 超出判据部分 × 此值 × dt）。
+        /// 平衡值 ≈ 0.595·增益·(Fr − <see cref="BreakingFroude"/>)。
+        /// 【一个场两个消费者，必须一起标】泡沫既画水面白度、又当白水粒子的生成源
+        /// （阈值 <see cref="WhitewaterSpawnThreshold"/>）——只压增益会把粒子一起压没
+        /// （2026-10-18 实测：增益 2.4→0.9 时累计生成从 49490 掉到 0）。
+        /// 取 1.5：Fr≈1.5 处泡沫≈1.0（破碎核心纯白）、Fr≈1.0 处 ≈0.54（带内成梯度）。
+        /// </summary>
+        public const float FoamGain = 1.5f;
 
         /// <summary>泡沫每步衰减系数（保留比）。</summary>
         public const float FoamDecay = 0.972f;
@@ -229,25 +241,42 @@ namespace PirateCrew.WaterLab
         public const int WhitewaterCapacity = 32768;
 
         /// <summary>粒子寿命（s）：白水生成后存续时长。</summary>
-        public const float WhitewaterLifetime = 1.2f;
-
-        /// <summary>生成阈值：泡沫浓度超过此值的格才可能出粒。</summary>
-        public const float WhitewaterSpawnThreshold = 0.55f;
-
-        /// <summary>生成产率系数：每格每步生成概率 = (泡沫−阈值) × 此值 × dt。</summary>
-        public const float WhitewaterSpawnRate = 6f;
-
-        /// <summary>粒子基准尺寸（m，个体在 ±40% 内随机）。</summary>
-        public const float WhitewaterSize = 0.22f;
+        public const float WhitewaterLifetime = 1.5f;
 
         /// <summary>
-        /// 破碎判据：局部波面陡度。陡度 = |η - 邻域均值| / max(水深, 干湿阈值)，
-        /// 超过 <see cref="BreakingSteepness"/> 即认为该格处于破碎波峰。
+        /// 生成阈值：泡沫浓度超过此值的格才可能出粒。
+        /// 【0.35 → 0.72 → 0.60】0.35 时整个浅水架都在吐粒子（泡沫场覆盖 56% 水面），
+        /// r49 实测糊成密白点；0.72 只留破碎带中心、偏稀。0.55 在新取景里泡沫带偏厚，
+        /// 0.60 留住了岸线白沫但收窄了带宽。
         /// </summary>
-        public static bool IsBreaking(float eta, float neighborMeanEta, float depth)
+        public const float WhitewaterSpawnThreshold = 0.60f;
+
+        /// <summary>生成产率系数：每格每步生成概率 = (泡沫−阈值) × 此值 × dt。</summary>
+        public const float WhitewaterSpawnRate = 7f;
+
+        /// <summary>粒子基准尺寸（m，个体在 ±40% 内随机）。原作 Lit_Whitewater VS
+        /// 的尺寸式是 0.1×(1−exp(−5.77078×life))，故基准取 0.1。</summary>
+        public const float WhitewaterSize = 0.1f;
+
+        /// <summary>白水粒子的水面上抬量（m）：原作 VS 的 +0.02 字面量。
+        /// 本仓粒子在世界空间，高度 = ground + max(h−DryDepth,0) + 该值。</summary>
+        public const float WhitewaterSurfaceOffset = 0.02f;
+
+        /// <summary>
+        /// 视锥剔除外扩（m）：Compact kernel 对 6 平面做内侧判定时的容差，
+        /// 防粒子在视口边缘突现突隐（原作 Whitewater.frustumOverscan = 0.1）。
+        /// </summary>
+        public const float WhitewaterFrustumOverscan = 0.1f;
+
+
+        /// <summary>
+        /// 破碎判据（弗劳德形式，与 AdvectFoam 同式）：Fr = |v| / √(g·max(h, 干湿阈值))
+        /// 超过 <see cref="BreakingFroude"/> 即认为该格处于破碎（超临界涌潮/卷破）。
+        /// </summary>
+        public static bool IsBreaking(float speed, float depth)
         {
             float d = Mathf.Max(depth, DryDepth);
-            return Mathf.Abs(eta - neighborMeanEta) / d > BreakingSteepness;
+            return speed / Mathf.Sqrt(Gravity * d) > BreakingFroude;
         }
 
         // ---- 湿沙 ----
@@ -280,17 +309,23 @@ namespace PirateCrew.WaterLab
 
         // ---- 地形剖面（程序化沙滩）----
 
-        /// <summary>深水平台高程（m）。压在 1.3 m：吸收不至于饱和成死黑，浅水架更长。</summary>
-        public const float OffshoreDepth = -1.3f;
+        /// <summary>深水平台高程（m）。取 2.4 m 对齐参考：Steam 头图的离岸水色是**饱和宝蓝**
+        /// （实测最深带 (16,70,119)，T=(0.004,0.14,0.70)，对应光深 ≈1.6–2.0），而 1.3 m 台面
+        /// 在整个取景里都到不了那个光深——出图实测离岸只有 (62,136,92) 的**绿**：0.5 m 光深下
+        /// T_G(0.55) 仍远大于 T_B(0.90)，暖沙底的 G/B 压不过来。绿松石→宝蓝的转折要真实水深。
+        /// C# 侧测试全部按符号取值（IsStable 的 hMax 由本常量导出），不钉具体数。</summary>
+        public const float OffshoreDepth = -2.4f;
 
-        /// <summary>缓坡浅水架末端高程（m）： shelf 尽头留一段极浅，半透明绿松石带的主体。</summary>
+        /// <summary>缓坡浅水架末端（与滩面接缝）高程（m）：本场景地形设计值。
+        /// 接缝两侧共用同一非零斜率（C1），不再用两段 Smooth01 在 x=6 造出零坡度平台。</summary>
         public const float ShelfEndHeight = -0.15f;
 
-        /// <summary>缓坡浅水架起止（世界 X，域 [-32,32]，~4% 坡）。</summary>
+        /// <summary>缓坡浅水架起止（世界 X，域 [-30,30]）。</summary>
         public const float ShelfStartX = -26f;
         public const float ShelfEndX = 6f;
 
-        /// <summary>滩面段起止（世界 X，~8% 坡）：比浅水架陡，收窄浪的爬升带与湿沙带。</summary>
+        /// <summary>滩面段起止（世界 X）：接缝斜率与 shelf 相同（C1、非零），到 FaceEndX
+        /// 缓平到干沙台。8 m 是本场景原取景的设计值，不随模拟参数改动。</summary>
         public const float FaceStartX = 6f;
         public const float FaceEndX = 14f;
 
@@ -309,14 +344,65 @@ namespace PirateCrew.WaterLab
         }
 
         /// <summary>
-        /// 程序化沙滩剖面（世界 X → 高程）：深水台 → 缓坡浅水架 → 较陡滩面 → 干沙台，
+        /// 三次 Hermite 插值：h0/h1 端点高程，slope0/slope1 端点斜率（dh/dx，m/m），
+        /// length 段长，u∈[0,1]。两端斜率非零才能让相邻两段的接缝保持 C1——
+        /// smoothstep 两端斜率恒 0，两段各自用 smoothstep 会在接缝叠出一个平台。
+        /// </summary>
+        static float Hermite(float h0, float h1, float slope0, float slope1, float length, float u)
+        {
+            u = Mathf.Clamp01(u);
+            float u2 = u * u;
+            float u3 = u2 * u;
+            return (2f * u3 - 3f * u2 + 1f) * h0
+                 + (u3 - 2f * u2 + u) * (slope0 * length)
+                 + (-2f * u3 + 3f * u2) * h1
+                 + (u3 - u2) * (slope1 * length);
+        }
+
+        /// <summary>
+        /// 程序化沙滩剖面（世界 X → 高程）：深水台 → 缓坡浅水架 → 滩面 → 干沙台，
         /// 叠加沿 X/Z 的确定性沙纹。
+        /// shelf→face 接缝用同一非零斜率（C1）——旧实现两段 Smooth01 在 x=6 的斜率
+        /// 都是 0，形成一个平台：涌浪在那里堆高后塌成油膜级薄水，水面高度断崖被
+        /// 渲染成硬边（r68 高度剖面 x=7.0→7.5 eta 掉 0.37 m）。
         /// </summary>
         public static float TerrainHeight(float worldX, float worldZ)
         {
-            float h = OffshoreDepth;
-            h = Mathf.Lerp(h, ShelfEndHeight, Smooth01((worldX - ShelfStartX) / (ShelfEndX - ShelfStartX)));
-            h = Mathf.Lerp(h, BeachHeight, Smooth01((worldX - FaceStartX) / (FaceEndX - FaceStartX)));
+            // 岸线沿 z 低频摆动（±1.6 m）：参考头图的岸线不是直线，等距/高角度看过去
+            // 才有滩湾的层次；摆幅小于浅水架宽度，不会把剖面结构打乱。
+            float shoreWarp = Mathf.Sin(worldZ * 0.18f + 0.6f) * 1.2f
+                            + Mathf.Sin(worldZ * 0.47f + 2.2f) * 0.4f;
+            float x = worldX - shoreWarp;
+
+            // 接缝斜率（m/m）：取在 shelf/face 两段平均坡度之下（Fritsch–Carlson 单调条件
+            // 要求端点斜率 ≤ 3×弦坡），既保证单调爬升，又让涌浪过接缝时坡度不归零。
+            const float junctionSlope = 0.055f;
+
+            float h;
+            if (x <= ShelfStartX)
+            {
+                h = OffshoreDepth;
+            }
+            else if (x <= ShelfEndX)
+            {
+                h = Hermite(OffshoreDepth, ShelfEndHeight, 0f, junctionSlope,
+                            ShelfEndX - ShelfStartX,
+                            (x - ShelfStartX) / (ShelfEndX - ShelfStartX));
+            }
+            else
+            {
+                h = Hermite(ShelfEndHeight, BeachHeight, junctionSlope, 0f,
+                            FaceEndX - FaceStartX,
+                            (x - FaceStartX) / (FaceEndX - FaceStartX));
+            }
+
+            // 后滨沙丘（FaceEndX 起坡，+8 m 满幅）：两条不同相位的长波脊，最高 +0.46 m。
+            // 参考的干沙滩有起伏与草簇；平面沙台在 48° 俯视下会像一张纸。
+            float duneMask = Smooth01((x - FaceEndX) / 8f);
+            float dunes = (0.5f + 0.5f * Mathf.Sin(worldZ * 0.33f + 1.1f)) * 0.28f
+                        + (0.5f + 0.5f * Mathf.Sin(worldZ * 0.19f + 0.3f)) * 0.18f;
+            h += dunes * duneMask;
+
             // 确定性沙纹：单向为主的低幅正弦（两组等权交叉会出波腹节点格架，
             // 滩面上显成满场静态软点阵——实拍第六轮放大实证；次向留 0.25 打破平行单调）
             h += SandRippleAmplitude * (Mathf.Sin(worldX * 1.7f + worldZ * 0.6f) * 0.75f
@@ -396,38 +482,54 @@ namespace PirateCrew.WaterLab
                     {
                         int i = GridIndex(cx, cz, cellsX);
                         float hi = h[i];
+                        // 结合水：前 5 cm 贴沙，不参与流动；η/通量都用 d = max(h−0.05,0)。
+                        float di = Mathf.Max(hi - DryDepth, 0f);
 
                         // 4 邻（-1 = 出界＝反射墙）。墙界面上质量通量必须显式为 0：
-                        // 「越界取自身」会让 F = h·v ≠ 0，边界格凭空流进流出，破坏守恒。
+                        // 「越界取自身」会让 F = d·v ≠ 0，边界格凭空流进流出，破坏守恒。
                         int l = cx > 0 ? GridIndex(cx - 1, cz, cellsX) : -1;
                         int r = cx < cellsX - 1 ? GridIndex(cx + 1, cz, cellsX) : -1;
                         int d = cz > 0 ? GridIndex(cx, cz - 1, cellsX) : -1;
                         int u = cz < cellsZ - 1 ? GridIndex(cx, cz + 1, cellsX) : -1;
 
-                        // 平均通量（半格界面）：F = h̄·v̄。界面级干湿 gate——
-                        // 「两侧水深都超过干湿阈值」该界面才流动。必须两侧格算出同一判定，
-                        // 否则同一界面的进出通量不等，质量不守恒（这是界面格式守恒的关键）。
-                        float fluxL = (l >= 0 && h[l] > DryDepth && hi > DryDepth) ? ((h[l] + hi) * 0.5f) * ((vx[l] + vx[i]) * 0.5f) : 0f;
-                        float fluxR = (r >= 0 && hi > DryDepth && h[r] > DryDepth) ? ((hi + h[r]) * 0.5f) * ((vx[i] + vx[r]) * 0.5f) : 0f;
-                        float fluxD = (d >= 0 && h[d] > DryDepth && hi > DryDepth) ? ((h[d] + hi) * 0.5f) * ((vz[d] + vz[i]) * 0.5f) : 0f;
-                        float fluxU = (u >= 0 && hi > DryDepth && h[u] > DryDepth) ? ((hi + h[u]) * 0.5f) * ((vz[i] + vz[u]) * 0.5f) : 0f;
+                        float dL = l >= 0 ? Mathf.Max(h[l] - DryDepth, 0f) : 0f;
+                        float dR = r >= 0 ? Mathf.Max(h[r] - DryDepth, 0f) : 0f;
+                        float dD = d >= 0 ? Mathf.Max(h[d] - DryDepth, 0f) : 0f;
+                        float dU = u >= 0 ? Mathf.Max(h[u] - DryDepth, 0f) : 0f;
+
+                        float vL = l >= 0 ? (vx[l] + vx[i]) * 0.5f : 0f;
+                        float vR = r >= 0 ? (vx[i] + vx[r]) * 0.5f : 0f;
+                        float vD = d >= 0 ? (vz[d] + vz[i]) * 0.5f : 0f;
+                        float vU = u >= 0 ? (vz[i] + vz[u]) * 0.5f : 0f;
+
+                        // 平均通量（半格界面）：F = d̄·v̄。界面级迎风施主门——只有通量来向的
+                        // 格子 d>0 才放行：湿格可把水推上干滩（run-up），干格不能凭平均速度
+                        // 凭空吐水。两侧格对同一界面必须算出同一 F（界面格式守恒的关键）。
+                        float fluxL = (l >= 0 && ((vL > 0f) ? dL : di) > 0f) ? (dL + di) * 0.5f * vL : 0f;
+                        float fluxR = (r >= 0 && ((vR > 0f) ? di : dR) > 0f) ? (di + dR) * 0.5f * vR : 0f;
+                        float fluxD = (d >= 0 && ((vD > 0f) ? dD : di) > 0f) ? (dD + di) * 0.5f * vD : 0f;
+                        float fluxU = (u >= 0 && ((vU > 0f) ? di : dU) > 0f) ? (di + dU) * 0.5f * vU : 0f;
 
                         hNew[i] = hi - dt / dx * ((fluxR - fluxL) + (fluxU - fluxD));
                         if (hNew[i] < 0f) hNew[i] = 0f; // 数值保护：无负水深
 
                         // 动量：v += -dt·g·∇η（水面高程梯度，非水深梯度——干前滩这点很关键）。
-                        // 出界侧 η 取自身（诺伊曼：法向梯度 0）。
-                        float eta0 = ground[i] + hi;
+                        // η = ground + max(h−DryDepth, 0)；出界侧 η 取自身（诺伊曼：法向梯度 0）。
+                        float eta0 = ground[i] + di;
                         if (hNew[i] > DryDepth)
                         {
-                            float etaL = (l >= 0) ? ground[l] + h[l] : eta0;
-                            float etaR = (r >= 0) ? ground[r] + h[r] : eta0;
-                            float etaD = (d >= 0) ? ground[d] + h[d] : eta0;
-                            float etaU = (u >= 0) ? ground[u] + h[u] : eta0;
+                            float etaL = (l >= 0) ? ground[l] + dL : eta0;
+                            float etaR = (r >= 0) ? ground[r] + dR : eta0;
+                            float etaD = (d >= 0) ? ground[d] + dD : eta0;
+                            float etaU = (u >= 0) ? ground[u] + dU : eta0;
                             float sx = (etaR - etaL) / (2f * dx);
                             float sz = (etaU - etaD) / (2f * dx);
                             vxNew[i] = vx[i] - dt * (Gravity * sx + VelocityDamping * vx[i]);
                             vzNew[i] = vz[i] - dt * (Gravity * sz + VelocityDamping * vz[i]);
+                            // 原作 kappa 时间低通（VelocityIntegration 末段，kappa=1000）：
+                            // v = (v_new·kappa + v_old)/(kappa + 4)。
+                            vxNew[i] = (vxNew[i] * Kappa + vx[i]) / (Kappa + 4f);
+                            vzNew[i] = (vzNew[i] * Kappa + vz[i]) / (Kappa + 4f);
                             // 限幅
                             float sp = Mathf.Sqrt(vxNew[i] * vxNew[i] + vzNew[i] * vzNew[i]);
                             if (sp > MaxVelocity)

@@ -685,6 +685,9 @@ namespace PirateCrew.EditorTools
             int width = _rt.width;
             int height = _rt.height;
 
+            // 【读回颜色空间】RT 已是 sRGB（r65 实测：干沙线性 0.87 读回约 240），ReadPixels
+            // 写进默认 sRGB 目标就是一次 display 编码；不要再补 LUT（旧 PC3D_CAPTURE_SRGB
+            // 补丁会在 sRGB 之上再压一次，深水宝蓝被洗成亮青蓝）。
             Canvas.ForceUpdateCanvases();
             cam.Render();                       // 世界层 → _rt（像素化 rig 链，含栈内叠加相机）
             _uiCam.Render();                    // UI 层 → _rtUi（透明底）
@@ -735,19 +738,9 @@ namespace PirateCrew.EditorTools
             var final = new Texture2D(width, height, TextureFormat.RGB24, false);
             final.SetPixels32(merged);
 
-            // 【色彩直写缺陷】Linear 工程下 ReadPixels 从 RT 拿到的是 linear 值，EncodeToPNG
-            // 不做 sRGB 编码 → 出图系统性偏暗偏灰（WaterLab 诊断帧实证：shader 输出 linear
-            // 0.70，PNG 字节恰为 178=0.70×255）。PC3D_CAPTURE_SRGB=1 时在此补 linear→sRGB，
-            // 让 PNG 对齐实机观感；默认关闭——历史战斗截图链保持原样。
-            if (System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_SRGB") == "1")
-            {
-                var lut = new byte[256];
-                for (int i = 0; i < 256; i++)
-                    lut[i] = (byte)Mathf.RoundToInt(Mathf.Pow(i / 255f, 1f / 2.2f) * 255f);
-                for (int i = 0; i < merged.Length; i++)
-                    merged[i] = new Color32(lut[merged[i].r], lut[merged[i].g], lut[merged[i].b], 255);
-                final.SetPixels32(merged);
-            }
+            // 【显示编码】ReadPixels 读回目标已是 sRGB，world/ui 的字节就是 display 值；
+            // 不要再做 LUT 补编码（否则二次编码，深水宝蓝被洗成亮青蓝）。PC3D_CAPTURE_SRGB
+            // 环境变量保留为兼容旧脚本的空操作，不再参与出图。
             final.Apply();
 
             Directory.CreateDirectory(OutputDir);

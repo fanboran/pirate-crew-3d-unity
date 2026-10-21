@@ -12,23 +12,25 @@
 
 | 手段 | 产物 | 强度 |
 | --- | --- | --- |
-| UnityPy 解包 `sharedassets0.assets` | 58 个 Shader / 22 个 ComputeShader / 276 纹理 / 244 网格 / 材质属性表 清单 | 第一手 |
-| LZ4 解压 shader blob + `d3dcompiler_47.D3DDisassemble` 反汇编 DXBC | `Lit/Water` 等 8 个渲染 shader 全 pass 指令流、5 个 compute 全 kernel 指令流 | 第一手 |
-| compute 资产头部明文字符串提取 | 全部 kernel 名、StructuredBuffer 名、常量缓冲成员名（数值参数如 `gravityForce` 等） | 第一手 |
+| UnityPy 解包 `sharedassets0.assets` / `level0` | Shader / ComputeShader / Material / Texture / MonoBehaviour 全量清单（shader 58、compute 22、Texture2D、Texture3D、RenderTexture 等逐类清点） | 第一手 |
+| LZ4 解压 shader blob + `d3dcompiler_47.D3DDisassemble` 反汇编 DXBC | 渲染 shader 全 pass 指令流、compute 全 kernel 指令流 | 第一手 |
+| UnityPy 读 ComputeShader 变体表 | 全部 kernel 名、线程组尺寸、in/out buffer 与 texture 绑定名 | 第一手 |
+| **Cpp2IL ILR `Assembly-CSharp.dll` + `ilspycmd` 反编译** | **C# 方法体全文**（模拟常量、dispatch 序、剔除架构、预设读取） | 第一手 |
+| Cpp2IL `diffable-cs` 字段偏移签名 | 嵌套可序列化类的字节布局（用于直读资产预设） | 第一手 |
 | [80.lv 采访](https://80.lv/articles/creating-cozy-sandbox-sandcastle-with-a-focus-on-water-sand-simulation) | 开发者口述：自研无插件、基于科研论文、水沙统一框架、双分辨率、噪声去干涉伪影 | 二手（口述） |
 
-Il2CppDumper 不支持该作 metadata v39（Unity 6.2）——**但 Cpp2IL dev 分支（2026 版，需 .NET 10 SDK 编译）已支持**，2026-10-14 二次逆向用便携安装的 .NET 10 SDK（`dotnet-install.ps1 -Channel 10.0`，不入系统）编译 Cpp2IL 成功解析，产出 dummy DLL + `diffable-cs`（类/字段/方法签名）+ `dll_il_recovery`（恢复 IL 方法体）。**C# 侧已闭合**：模拟常量真值见 §8。复现脚本在 `external/sandcastle-ref/`（gitignored 工作台，不入库）。
+Il2CppDumper 不支持该作 metadata v39（Unity 6.2）——**但 Cpp2IL dev 分支（2026 版，需 .NET 10 SDK 编译）已支持**：用便携安装的 .NET 10 SDK（`dotnet-install.ps1 -Channel 10.0`，不入系统）编译 Cpp2IL，产出 dummy DLL + `diffable-cs`（类/字段/方法签名）+ `dll_il_recovery`（ILR DLL）。**ILR DLL 的 IL 是完好的**——用 `ilspycmd` 反编译可直接得到可读方法体（`external/sandcastle-ref/cs-full/`，251 个源文件）。因此 C# 侧**不止签名闭合，方法体也已闭合**：模拟常量真值见 §8、预设真值见 §12。复现脚本在 `external/sandcastle-ref/`（gitignored 工作台，不入库）。
 
 ## 8. 模拟常量真值（Cpp2IL ILR 从构造器初始化器恢复，2026-10-14）
 
 | 类 | 字段 | 真值 | 备注 |
 | --- | --- | --- | --- |
-| Water | `gravityForce` | **10.0**（[Range 0-20]）构造默认；**16.0**（level0 场景实例） | 本仓用 9.81，量级一致 |
+| Water | `gravityForce` | **10.0**（[Range 0-20]）构造默认；**16.0**（level0 场景实例） | 本仓已对齐 16 |
 | Water | `evaporationFactor` | **0.15**（构造默认）；**0.1**（场景实例） | 本仓湿沙蒸发恰好也调到 0.15 |
 | Water | `level` | **1.0** | 本仓 SeaLevel=0（相对地面，等价） |
 | Water | `floorBlurIterations` | **3**（场景实例） | 底床平滑迭代数 |
 | Water | `enableSpawn` / `enableEvaporation` | **true / true**（场景实例） | 涌浪泵与蒸发开关 |
-| Water | `spawnRate` | **20.0**（场景实例） | 涌浪泵目标水量（见 §9 泵机制） |
+| Water | `spawnRate` | **20.0**（场景实例） | 沙滩道具（Findable）生成步频；**与水量泵无关**（§9 更正） |
 | Water | `chunks` | Vector2Int(4, 4) 构造默认；场景实例 **(8, 8)** | 域分块 |
 | Ground | `gravityForce` | **0.1** | 沙=高粘性流体，「重力」是阻尼量级 |
 | Ground | `noiseFactor` | **0.0001** | 双分辨率解耦噪声 |
@@ -36,10 +38,48 @@ Il2CppDumper 不支持该作 metadata v39（Unity 6.2）——**但 Cpp2IL dev �
 | Air | `evaporationFactor` / `advectionFactor` | **0.2 / 0.5** | |
 | Whitewater | `capacity` | **32768** 粒子 | W4 浪花粒子的预算参考 |
 | Whitewater | `frustumOverscan` | 0.1 | 视锥剔除外扩 |
+| Water | `WATER_SATURATION_POINT` | **0.05** | **结合水基准**：`depth=max(h−0.05,0)`，同时用于 η/通量/水面高度/可见深度；h≤0.05 不显形 |
+| Water | `maxVelocity`（每帧下发） | **`0.5·√gravityForce`** | 不是独立常量，由 g 派生 |
+| Water | 子步 `deltaTime` | **`cellSize×0.5 / √gravityForce`** | Courant=0.5 的 CFL 显式步长，配累加器 |
+| Water | `waveAmplitude`（每帧下发） | `saturate(playTime×0.05) × max(四列预设项)` | 开盘 20 s 内渐起（见 §12 预设） |
+| Layer（所有域基类） | `resolution` / `THREADS_GROUP_SIZE` | 默认 64 / 32 | 每域各自解析度；`cellSize = beach.bounds.size / resolution` |
+| Gi | `resolution` | 128 | 体素 GI 网格 |
 
 场景实例真值来源：`level0` 序列化文件里 `Water` MonoBehaviour 的裸字节（UnityPy 按 m_Script PPtr 跨文件解析类名后直读，`external/sandcastle-ref/dump_configurator_raw.py`）。
 
-五档浪型预设（`WavesType`：Regular/Calm/Agitated/Storm/Rogue）的 `Parameters`（a/b/c/d 四列 Vector3）**已定性为不可恢复**：全游戏无 Addressables/bundle（`StreamingAssets` 为空，内容全在散装 assets）；五档配置是**运行时代码构造**，而 Cpp2IL v39 的 `dll_il_recovery` 产出方法体为乱码（token 流不可辨，2026-10-14 dump `Water.Spawn` 实证）——数值常量取不出。本仓按同构「四列波 + 潮位」自推数值（见 §9 与实验水体文档），预设只作为结构参照。
+**派生量在新一轮反编译中补全**（`Water.Run` 方法体，`external/sandcastle-ref/cs-audit/Water.cs`）：原作每帧只下发 `gravityForce`，`maxVelocity`/子步 `deltaTime` 全部由它**现场派生**；`advectionFactor`/`damping`/`kappa` 取自配置（`WaterProperty` 预设，见 §12）。
+
+**已从序列化资产回读的配置真值**（`Refs` 的 `waters`/`waves`/`formats` 列表，2026-10-21）：
+`WaterProperty` 四档全部 `advectionFactor=0.2`、`damping=0`；`kappa` Regular/Clear/Bahamas=1000、Syrup=2。
+`WavesProperty` Regular 四列第三分量 0.1/0.15/0.2/0 → `waveAmplitude` 峰值 0.2 m（CPU 取四列 **max**，不求和）。
+`FormatProperty` 15/30/60 m 分别配 256/512/1024²，格距恒 5.86 cm（§8.1）。
+
+### 8.1 域与网格分辨率（`FormatProperty` 预设，2026-10-18 直读）
+
+域尺寸与网格来自 `Refs` 的 `formats` 预设（`Beach.FormatProperty = {Vector2 size(m); Vector2Int resolution}`），
+`Layer.Setup` 据此算 `cellSize = bounds.size / resolution`：
+
+| 档 | 域 (m) | 网格 | 格距 |
+| --- | --- | --- | --- |
+| 1 | 30×15 | 512×256 | ≈5.86 cm |
+| 2 | 15×15 | 256×256 | ≈5.86 cm |
+| 3 | 30×30 | 512×512 | ≈5.86 cm |
+| 4 | 60×60 | 1024×1024 | ≈5.86 cm |
+
+即原作**模拟格距恒定 ≈5.86 cm**，域越大格数越多（另 `resolutions` 三档按位移调解析度、`Water.chunks` 分块调度）。本仓实验室域取 64 m/1092²（格距 5.861 cm），保留原取景机位，格距与原作一致。
+
+### 8.2 参数可恢复性分级（避免再把“工具解不出”当成“原作没有”）
+
+| 级别 | 内容 | 处理方式 |
+| --- | --- | --- |
+| A | 构造默认值、场景实例序列化字段、`Refs` 预设（`gravityForce`/`level`/`spawnRate`、`WavesProperty`/`WaterProperty`/`FormatProperty`） | 直接从发行包回读并逐项对齐 |
+| B | 由 A 在 `Water.Run` 现场派生的量（`maxVelocity`、子步 `dt`） | 按公式对齐，harness 契约测试 |
+| C | 运行时状态场（水格高 4 bit 耦合权重场——由关卡初始水场/笔刷写入；`obstaclesMap` 的运行时障碍高度分布） | 静态不可恢复；实现里必须标“自推/近似”并写理由，不得声称为原作值 |
+| D | 渲染侧不可从资产静态取出的量（σ、散射色等） | 按成品画面反定；属显示定标，不是模拟参数 |
+
+**纪律**：任何“抄不到”结论必须先过这张分级表；A/B 级拿不到是调查不足，C 级才允许自推，
+D 级只允许按参考图定标。参数对账与验收门见[实验水体 §2.4](../管线/实验水体.md)。
+
 
 ## 2. 总架构：三场一光的 GPU 物质模拟
 
@@ -61,9 +101,17 @@ Il2CppDumper 不支持该作 metadata v39（Unity 6.2）——**但 Cpp2IL dev �
 
 - 格点：`RWStructuredBuffer<float4>` stride 16（h, vx, vz, 泡沫/标志），`dcl_thread_group 32×32×1`；
 - 高度场以 **24 bit 定点**打包进相邻字段（`ushr 12`/`bfi`/`and 0x00ffffff` + `×1e-6` 还原）——带宽优化；
-- `HeightIntegration`：4 邻域通量 + **干湿阈值 0.05**（浅于 0.05 的格不参与流动，防干湿振荡）+ 边界 ghost 格（越界取镜像/虚拟值，`ige/movc` 分支）；
-- `Advection`：半拉格朗日回溯（`sample_l` 用速度场回退采样坐标，`frc` 处理亚格偏移，含 brush wrap 变体）；
-- `UpdateFloor/SubtractFloor/BlurFloor`：水深与地形高的耦合三步（`h' = max(h−ground, 0)` 类语义 + 底床平滑）。
+- `HeightIntegration`：4 邻域通量 + **5 cm 饱和点**：`depth = max(h − 0.05, 0)`、`η = ground + depth`，通量用 depth 而非原始 h（`WATER_SATURATION_POINT = 0.05`，C# 与 shader 字面量互证）+ 边界 ghost 格（越界取镜像/虚拟值，`ige/movc` 分支）。`h` 的前 5 cm 是结合水：渲染侧同样取 `max(h − 0.05, 0)` 作可见水深（§10.3），所以岸线是 h=0.05 等值线，不是 h=0；
+- `Advection`：半拉格朗日回溯 `uv_back = uv − v·advectionFactor·dt/cellSize`，在
+  `uv_back·resolution − 0.5` 处对 h 双线性采样后写回；**只平流 h**，速度/泡沫字节保留。
+  `advectionFactor=0.2`（Refs 真值）。这是原作对 h 的唯一数值耗散项，也是 surf zone
+  把 bore 前缘摊开的主要机制；它不严格守恒，原作靠 `UpdateAmount` 的潮位松弛补回。
+- `UpdateAmount`（每帧一次）：蒸发 → `obstaclesMap` 泵 → 潮位松弛。泵只在
+  `ground < obstacle ≤ η < obstacle+0.1` 的格上 `amount += 0.15·sin(8·playTime+0.0378·uv.y)·dt`
+  （相位空间项乘归一化 uv.y，几乎全场同相）；环境浪主体是全场潮位松弛
+  `max(level−ground+clamp(waveAmplitude·sin(playTime),−0.5,∞),0.05)`，每格按 4 bit 权重/15
+  向目标松弛（每帧比例，不乘 dt）。权重是运行时字段，静态不可恢复；本仓用初始淹没区
+  满耦合/干区零耦合的静态代理。详见 §9。
 
 结论：**标准 2D 浅水方程（SWE）格点求解器**，∂h/∂t = −∇·(hv)、∂v/∂t = −g∇h − 阻尼，半拉格朗日平流，干湿边界处理。与本仓 `WaterWaveField2D` 的波动方程（涟漪，无质量输运）是**不同方程**——波浪推岸、涌水、退潮这类行为只有 SWE 有。
 
@@ -115,7 +163,7 @@ alpha:  saturate(水量 × 100)   ← 不透明队列，「透明」全在 shade
 | 细节法线双尺度 | ✅ 已复刻 | 程序化可平铺法线贴图（512² 域扭曲+脊状 fbm，`WaterLabDetailNormal` 生成器，形态与统计对齐原作抽图 `external/sandcastle-ref/`）替代原作贴图，采样参数同（0.05/0.20、时间×0.8、相加合成）；流场扰动未复刻（原作 v4.xy 来自 VS，等价信息在我们是模拟速度场，暂未接入） |
 | 折射 | ✅ 已复刻 | refractionFactor=0.0121 照抄 + 纵横比修正 + 深度安全门控 |
 | 真光程 InvVP 重建 | ✅ 已复刻 | UNITY_MATRIX_I_VP + ComputeWorldSpacePosition |
-| 吸收 8.65617·σ·dist | ✅ 结构照抄 | σ 数值不可恢复（WaterType 预设驱动，同 a/b/c/d 一档），按曲线形状自定 |
+| 吸收 8.65617·σ·dist | ✅ 结构照抄 | **σ（cb0[132]）静态不可取**：不在 `WaterType` 预设里（四档 waters 只有 `color/scatteringColor/advectionFactor/kappa/damping`，见 §12）、C# 无该全局（全局名全表见 §13）、材质也无该槽，且 DXBC 的 RDEF 反射块被剥离（只有 ISGN/OSGN/SHEX）→ 名字与默认值都拿不到。**注意单位**：8.65617 是「归一系数→每米」的换算，σ 属 tint 域，本仓按判据定标（详见实验水体文档） |
 | 基底 0.9+0.2·NdotV⁶ | ✅ 已复刻 | — |
 | 散射混合 NdotV⁵×阴影×0.75 | ✅ 已复刻 | 阴影软化 min(+0.25,1) 同款；散射色原作文件值 (0.57,0.36,0) 暖橙按蓝天空色改（色管与后处理不同，见 §5.1） |
 | pow(NdotH,1500) 高光 | ✅ 已复刻 | ×阴影原值（原作同构）；+ 次级宽瓣 pow96×0.06 供近距离 shimmer（原作无，观感补） |
@@ -140,7 +188,12 @@ alpha:  saturate(水量 × 100)   ← 不透明队列，「透明」全在 shade
 
 **能照抄的（资产里明文，已照抄为起点）**：`refractionFactor 0.0121`（我们 0.05——因我们法线坡度场比他们的细节法线贴图弱，需要更大偏移达到同等扭曲读感）；水体不透明 + ZWrite、干湿 clip、深度安全折射、折射点世界坐标重建光程、exp(-σ·d) 三通道吸收结构——**这些是照抄的**。
 
-**抄不到的（值在 IL2CPP C# 里，metadata v39 无工具可解）**：模拟参数全部数值（`gravityForce/damping/kappa/advectionFactor`、双分辨率具体值、波源参数）——本仓按物理常识与 CFL 稳定域自定，harness 数值测试钉行为契约（波速 √(gh)、质量守恒）。
+**已从序列化资产回读（原「抄不到」结论作废）**：`gravityForce=16`（场景实例）、
+`maxVelocity=0.5√g=2 m/s`、子步 `dt=0.5·dx/√g`、`advectionFactor=0.2`、`damping=0`、
+`kappa=1000`（Regular；Syrup=2）、`waveAmplitude` 峰值 0.2 m（Regular 四列 max）、
+域/网格 15/30/60 m 对应 256/512/1024²（格距 5.86 cm）。仍不可静态恢复的只有：
+水格高 4 bit 的运行时耦合权重场（由关卡初始水场/笔刷写入）和 `obstaclesMap` 的运行时
+障碍高度分布；`WavesProperty` 四列只贡献 `max` 标量峰值，不存在运行时三角组合。
 
 **抄了但必须重调的（同值不同画面）**：`waterScatteringColor (0.57,0.36,0)` 橙色照抄后浅水发浑——他们的管线是自研 SRP + HDR 调色/曝光/tonemapping，同一线性值过他们的后处理才是画面上的样子；我们 URP 直出没有那层，最终色按 URP 前向 + 无后处理的显示链重调（σ_t、散射蓝、菲涅尔天空色都是）。**结论：结构照抄、数值对齐「显示观感」而非「文件数值」——两边的色管与后处理不同，文件数值对齐没有意义。**
 
@@ -162,15 +215,16 @@ alpha:  saturate(水量 × 100)   ← 不透明队列，「透明」全在 shade
 
 Water compute 的 11 个 kernel 全部反汇编后逐条判读（每个 kernel 两份等价编译产物互为对账）：
 
-- **环境浪 = 涌浪泵 + 潮位松弛，都在 `UpdateAmount` kernel 里**（全 compute 唯一含三角函数的 kernel，两条 `sinc`；2026-10-15 重读逐行修正）：
-  1. **涌浪泵**：`spawnMap` 纹理圈定的注水带内 `amount += 0.15·sin(空间相位 + 8·相位)·dt`（0.15 是 shader 字面量）——且被门控：只在水量落在 spawnMap 目标下方 0.1 窗口内的格子注入（单向补齐到目标）——振荡注水把水「泵」进海盆，浅化后自然陡化成卷浪；CPU 侧 `Water.Spawn()` 往 `spawnMap` 写目标水量（场景实例 `spawnRate=20`）；
-  2. **潮位松弛**：每格水面高程向 `seaLevel + amp·sin(相位)` 松弛（潮位下限 clamp −0.5、目标水量下限 0.05），权重 = **同一 22bit 水场的双线性值 ÷15**（与第 3 条蒸发的 exp 项同一场；旧记「每格 8bit 权重」系误读）——即**权重比例于局部水深**：深水强松弛被压平向潮位，浅水/干处权重→0 近乎不松弛，行波得以活着冲上滩；
-  3. **蒸发**：`amount -= rate·exp(-0.721×水场)·dt`（rate = 配置乘积 ×0.001）——水越浅蒸发越快（滩面薄水比海盆干得快）。
+- **环境浪 = 全场潮位松弛（主体）+ `obstaclesMap` 正弦泵（局部扰动）**，都在 `UpdateAmount` kernel 里（全 compute 唯一含三角函数的 kernel，两条 `sinc`；2026-10-21 按 DXBC 逐行重解，取代旧「spawnMap 涌浪泵」读法）：
+  1. **调度位置**：`Water.Run` 在全部 simulation 子步之后**每帧只派发一次** `UpdateAmount`，`deltaTime` 是帧 dt（子步才用 `0.5·dx/√g`）；kernel 内顺序为 蒸发 → 泵 → 两段潮位松弛。
+  2. **潮位松弛（环境浪主体）**：`waveAmplitude = max(0.01, saturate(playTime×0.05) × max(WavesProperty 四列第三分量))`（Regular 峰值 0.2 m，20 s 渐起）。全场目标水量 `max(level − ground + clamp(waveAmplitude·sin(playTime), −0.5, +∞), 0.05)`——**目标是空间均匀的纯时间函数，没有行波项**；`customWave>0` 时改为 `level + customWave − ground`（不夹 0.05）。每格按自身 4 bit 耦合权重 `w/15` 向目标松弛（每帧一次的比例，不乘 dt）。权重是水格高 4 bit 的运行时场，由关卡初始水场/笔刷写入，静态不可恢复。
+  3. **泵（局部扰动）**：`UpdateAmount` 绑定的是 **`obstaclesMap`**（Beach 的俯视 RGHalf RT，point 采样），不是 spawnMap。门控 = `ground < obstacleHeight` 且 `obstacleHeight ≤ η < obstacleHeight+0.1`；满足时 `amount += 0.15·sin(8·playTime + 0.0378·uv.y)·dt`。相位空间项乘的是**归一化 uv.y**（跨全域仅 0.0378 rad），旧记「0.0378 rad/格 → λ≈41.6 m」是把 uv 当格坐标的误读。`Water.Spawn()` 是沙滩道具的生成逻辑，与水量泵无关；`spawnRate=20` 只控制道具生成步频。
+  4. **蒸发**：`h -= exp(-0.721348 × A) × sunColor.r × evaporationFactor × 0.001 × dt`。A = **airCells.water（水汽）**在空气网格（`airResolution`）上的双线性采样，22 bit 取自空气格 byte offset 4 的 bits 12..33；`evaporationFactor=cb0[158].y`（`enableEvaporation=false` 时 CPU 下发 0）、`sunColor.r=cb0[125].x`、`dt=cb0[157].z`。`0.721348` 与沙面透光衰减共用同一常数。所以蒸发由「阳光 × 干空气」驱动、被水汽抑制，**不是「水越浅蒸发越快」**；它只作用在水场 h 上，湿沙湿度场不由此项直接更新。满耦合水格随后被潮位拉回目标，故可见影响主要落在未耦合的干/浅格。
 - **`Paint` kernel**：CPU 写 `input` 缓冲（stride 16，24bit 定点），kernel 双线性溅射进水场——笔刷/泼水/造波机道具（`WaveGenerator`）的注水通道，非环境浪。
 - **渲染网格无三角函数**：`Lit/Water` 两个 vs 全无 `sinc`——海面起伏全部来自模拟场，无「视觉波」叠层。
 - **`WaterCell.wave`/`tangent` 字段**：`UpdateTangent` 只做邻域差分（法线用），无波形生成。
 
-结论：Sandcastle 的「不规律海浪」不是多列 Gerstner 叠加，而是**振荡泵 + 每格可变松弛 + 地形浅化**三者涌现——泵的 sin 相位带空间项（λ≈41.6 m 单条长涌浪）、四列 `WavesProperty` 参数在 CPU 侧改泵/潮位的振幅与节奏（数值不可恢复，见 §8），渲染端无程序浪形（§10）。本仓复刻取同构机制：主涌浪放到 λ=40 m（长涌在缓坡上浅化陡化成 bore 是「不规律」的主体），互质短波列只留小幅次级纹理，全场潮位弱松弛承担「浪成组上岸」。
+结论：Sandcastle 的「不规律海浪」不是多列 Gerstner 叠加，而是**全场潮位松弛 + 每格静态耦合权重 + 地形浅化/岸线进退 + 障碍物泵**四者涌现——`WavesProperty` 四列只贡献一个标量峰值（`max`，不求和），不存在运行时三角组合；泵的空间相位项跨全域只有 0.0378 rad，本质是近均匀的局部扰动。渲染端无程序浪形（§10）。
 
 ## 10. Lit_Sand PS 与 Lit_Water VS 实锤（水底波影与浪形，反汇编逐条，2026-10-15）
 
@@ -181,12 +235,13 @@ Water compute 的 11 个 kernel 全部反汇编后逐条判读（每个 kernel �
 ### 10.2 Lit_Sand PS（@34958 最全变体，逐段）
 
 - **直射项 = ndl × 太阳色 × (阴影比较采样原值 × exp(−0.721348 × 水侧模拟场))**：阴影无 PCF 无软化（`sample_c_lz` 点比较 + 视锥外恒 1），exp 项的场按**逐像素 4 邻双线性**从结构化缓冲解包（22bit 定点 ×1e-6，0–4.19 m 量程）。**「水底波影」的真身就是这个 exp 项**：波浪经过时水深振荡 → 水下沙直射光明暗振荡 → 移动明暗带。太阳透过水柱的 Beer–Lambert 衰减（0.721348/m，精确到反汇编字面量），乘在直射项上。
-- **焦散叠加（2026-10-16 补录，旧记「沙侧无焦散项」系误判）**：输出结构为
-  `o0 = albedo×(直射×阴影×水柱 + 天光) + albedo×overlayTex`——末条按**水模拟域 UV** 采样
-  （`domainUV = worldXZ/domainSize + 0.5`，`sample_l` lod0）、仅域内生效（域外回退常量）的
-  三通道叠加纹理，即材质槽 **`causticsMap`**（引擎侧从水场渲染的焦散 RT，随波移动；
-  材质表实锤该槽位存在）。旧判漏因：打包 blob 剥掉资源名，t2/t3 成无名编号无法对号——
-  抽材质参数表后才对上。同结构下 sandMap（t3，worldXZ×0.3 静态细节）提供闪沙相位。
+- **焦散叠加**：材质槽 **`causticsMap`**（`Sand` 材质实锤：指向资产 **`Texture3D "Caustics" 256×256×64（9 mip）`**——**烘焙体积贴图，不在引擎侧由水场现渲染**）。`Lit_Sand` PS 里
+  `dcl_resource_texture3d ... t4` 后 `sample_indexable(texture3d) ... r3.xyzx, t4.yxzw, s3`：采样坐标
+  `xy = worldXZ×0.25 + 流场×0.1`、`z = 0.2×(sandMap.y + cb0[113].y)`——**xy 由世界坐标+水流平流驱动，z 由时间滚动**，
+  即焦散是「授权烘焙体 + 时间动画 + 水流扰动」，**不读水位场**。旧判漏因：打包 blob 剥掉资源名，t2/t3 成无名编号无法对号；
+  补读材质 PPtr 后对上真实资产。
+  同结构下 sandMap（t3，`worldXZ×0.3` 静态细节）提供闪沙相位。
+
 - **天光第二盏方向光不采影、不衰减**（cb0[124]/cb0[126]）——浅水亮绿松石的来源：直射被水柱压暗但天光全额到达。
 - **场身份判据**：Ground 侧 kernel 打包全为 24bit（0x00ffffff），该场为 22bit（0x003fffff）且 Water 侧 kernel 读写同款打包（含双线性+邻域差分）→ 水侧字段（水深/水量族），不是地面高度 AO。
 - **闪沙**：3D 噪声值 × |太阳色| × exp(−1.731·湿度) × 坡度门控 × 湿度平滑曲线，加进 albedo 随光照走——干沙闪、湿沙哑。
@@ -199,13 +254,59 @@ Water compute 的 11 个 kernel 全部反汇编后逐条判读（每个 kernel �
 
 ### 10.3 Lit_Water VS——渲染端无程序浪形
 
-两个 vs_5_0 全文无任何三角函数/噪声：顶点 Y = 水场高度 4 邻**盒式平均**（24bit 定点 ×1e-6，−0.05 基准，max 0），法线 = 格子速度字节重建 `(vx, √(1−vx²−vz²), vz)`，水流扰动量与泡沫量随 TEXCOORD 输出给 PS。**浪面轮廓 100% 来自 SWE 场**；「尖/碎」的观感 = 长涌浅化陡化（§9）+ 细节法线贴图 + Whitewater 泡沫粒子三者叠加。
+两个 vs_5_0 全文无任何三角函数/噪声：顶点 Y = 水场高度 4 邻**盒式平均**（24bit 定点 ×1e-6，−0.05 基准，max 0），法线 = 格子速度字节重建 `(vx, √(1−vx²−vz²), vz)`，水流扰动量与泡沫量随 TEXCOORD 输出给 PS。**可见水深同样是 `max(h−0.05,0)`**——h≤5 cm 时水面顶点就贴回沙面（`ground`），画面上没有薄水膜；岸线是 h=0.05 等值线。**浪面轮廓 100% 来自 SWE 场**；「尖/碎」的观感 = 长涌浅化陡化（§9）+ 细节法线贴图 + Whitewater 泡沫粒子三者叠加。
 
 ### 10.4 对本仓的裁决
 
 - 沙 shader：直射项乘「阴影原值 × exp(−0.721×水深)」，环境项不采影；加闪沙项——已照此改 `WaterLabSand.shader`。
 - 水体 shader：删 ShadowCaster（原作没有）；解析折射底色的光照与沙 shader 同式（原作底色=沙渲染纹理，等价物必须同光）——已照此改 `WaterLabOcean.shader`。
-- 波源：主涌浪 λ=40 m（对齐泵的 41.6 m），见 §9 结论与 `WaterLabRules.WaveTrains`。
+- 波源：原作是全场潮位松弛（`waveAmplitude` 标量 max）+ `obstaclesMap` 局部泵，没有行波项；
+  本仓按此改为 `SurfaceUpdate`（见[实验水体 §2.2/§2.4](../管线/实验水体.md)）。
+
+### 10.5 Lit_Whitewater PS（@12070 主变体，86 条实指令）
+
+资源：`t0`/`t2` = `texture2d`；**`t1` = `structured`(stride 16) = 水侧模拟场**；`s0` = 比较采样器（收阴影）；`CB0[140]`。
+
+逐段：
+1. **域裁剪**：`worldXZ` 超出 `±cb0[116].xz/2` 或 `y<0` → `discard`；域内掩码存 1.0。
+2. **billboard 径向 alpha**：`uv` 距中心的径向距离 → `alpha = (0.5 − ‖uv−0.5‖) × v2.z`（`v2.z` = 寿命/尺寸），
+   中心实、边缘虚，无形状贴图（形状靠程序化 falloff）。
+3. **域 UV 采样**：`uv = worldXZ / domainSize + 0.5`，`sample_l` 采 `t2` 得粒子色；
+   按域内掩码在「采样色 ↔ `cb0[40]` 底色」间 lerp，再 ×0.95。
+4. **透水衰减**：对 `t1` 水位场做 **4 邻双线性**（22bit 定点解包）得场值，乘 **`exp(−0.721348 × 场值)`**——
+   与 `Lit_Sand` 直射项**同一常数**：粒子被水淹没时被水柱压暗。
+5. 收主光阴影（比较采样）。
+
+即原作白水粒子不是「贴一张白花贴图」：它是**程序化径向 falloff + 世界域遮罩 + 水柱衰减 + 阴影**的组合。
+
+
+### 10.6 沙地与水下装饰的观感真值（2026-10-21，第一手材质/资产回读）
+
+- **沙材质** `Sand`（自研 `Lit/Sand`）：`sandColor=(0.9255,0.8863,0.7255)`、
+  `sandColor2=(0.9294,0.8980,0.7529)`、`wetSandColor=(0.9060,0.8104,0.6333)`
+  （序列化 linear）。湿沙不是独立贴图：VS 把 `max(water−0.05,0)` 传入，PS 先
+  `sat×52.63` 再 `3t²−2t³` smoothstep——约 2 cm 水膜即全湿；随后按水深 ×20 与
+  坡度因子继续压向第三色。
+- **没有反照率沙贴图**：`sandMap` 是 1024² RG 向量流噪声，只用于扭曲焦散 UV；
+  沙面颗粒/波纹来自 GPU 高度场法线（`Lit_Sand@702.vs` 从地面缓冲解 8-bit 法线）。
+  焦散是烘焙 `Texture3D "Caustics" 256×256×64`、1 byte/voxel，PS 双采样时间 lerp，
+  强度乘 `exp(−1.731×水深)`。
+- **水下装饰**：珊瑚/海草是 GPU Imposter 广告牌（`Plant.cs`，capacity 32768，
+  sizeRange 默认 0.75），图集不透明像均色见下表；礁石/卵石/贝壳/海星是实体网格
+  （Rock_01–06 473–2576 顶点、Pebble_01–06 54–67 顶点、贝壳 187–712 顶点）。
+  分布为 loose 群簇（单簇 0.3–0.8 m，间距 1–3 m），浅水可辨色、深水退成暗青剪影。
+
+| Imposter | 均色 RGB（sRGB） | 观感 |
+| --- | --- | --- |
+| GroovedBrainCoral | (0.687,0.440,0.128) | 橙褐脑珊瑚 |
+| CarnationCoral | (0.740,0.521,0.445) | 粉珊瑚 |
+| LettuceCoral | (0.610,0.560,0.431) | 灰绿生菜珊瑚 |
+| Kelp | (0.678,0.526,0.221) | 橄榄褐海带 |
+| Seagrass | ≈(0.36,0.46,0.21) | 绿色海草 |
+
+- **不可恢复**：七种沙型预设（`SandType` 的 color/wetColor/sedimentColor 是运行时
+  构造配置，序列化 MonoBehaviour 无 typetree）；Caustics 体素内容；`WorldHeightMap`
+  的 `FormatProperty.size`。
 
 ## 11. 水体渲染代码量对照（2026-10-16，全量反汇编精读）
 
@@ -225,22 +326,100 @@ VS 107 条指令、PS 119 条指令（7 次纹理采样），合计 **226 条指
 → Beer–Lambert exp(−8.65617σ·dist)×waterColor → 底色×T×(0.9+0.2·ndv⁶) → 散射
 lerp(ndv⁵×阴影软化×0.75) → 单一 pow(ndh,1500)×阴影原值 → 天空反射按菲涅尔混环境色 →
 alpha=saturate(水量×100)。阴影 1 次比较采样；无泡沫项、无闪沙、无焦散计算
-（焦散在沙侧 Lit_Sand 的 causticsMap RT，引擎侧另行渲染）。
+（焦散在沙侧 Lit_Sand，采样烘焙 `Texture3D Caustics`，见 §10.2）。
 
-**本仓对照**（`WaterLabOcean.shader`：297 行源码、实码 179 行、13 次纹理采样，VS 位移+
-单 PS）：
+**本仓对照**（`WaterLabOcean.shader`：VS 位移 + 单 PS）：
 
 | 维度 | 原作 | 本仓 | 差距判读 |
 | --- | --- | --- | --- |
-| 水底成像 | 屏幕折射 1 采样拿现成沙渲染 | 解析底色自算（地形/湿沙/波影/焦散，约 10 采样） | 架构差：本仓多出的采样与算术全部花在这里；换来的是不依赖沙网格渲染顺序 |
-| 焦散 | causticsMap RT（引擎侧另渲染，代码在水体之外） | η 拉普拉斯现算（5 采样） | RT 生成法未逆向（Gi 侧）；现算与浪同源 |
+| 水底成像 | 屏幕折射 1 采样拿现成沙渲染 | 透明调度位 + URP 内建帧色拷贝，`SampleSceneColor` 采真沙渲染（B 路线，已落地） | ✅ 机制等价（本仓另有解析底色作为退回路径） |
+| 焦散 | 采样烘焙 `Texture3D Caustics`（xy=世界XZ+水流、z=时间滚动） | η 拉普拉斯现算（5 采样） | 机制不同：原作是授权烘焙体+时间动画，不读水位场；本仓与浪同源（第十五轮外包债②收官） |
 | 细节法线平流 | 流场平流（VS 出逐顶点流） | 仅时间漂移 | 未对齐残留（数据在本仓是模拟速度场，接法已明） |
-| 泡沫 | PS 无（白水=Whitewater 粒子） | 模拟泡沫通道 lerp 进颜色 | 本仓多出；原作观感走粒子（W4） |
+| 泡沫 | PS 无（白水=Whitewater 粒子） | 同前（自造项已删） | ✅ 已对齐。本仓曾把模拟泡沫通道 lerp 进水面颜色（本表原记「本仓多出」）；实测该场在浅水架长期处于 0.25–0.9、覆盖 56% 水面，由出射色反解的水面泡沫混合权重达 **≈0.85** → 整片海面被刷成白沫，水色与折射水底全被盖掉。删除后水面立刻恢复「透底 + 体色」（第十八轮） |
+| 折射深度安全门控 | 折点更远才采纳 | **已实现**：`_CameraDepthTexture` 拷贝点改到 `AfterOpaques`，折点背景更近则不偏移（r81） | ✅（光程仍用解析近似） |
+| 天空反射 | 按菲涅尔混环境色 | **已补**：宏观视角 `(1−viewDir.y)⁵` × 强度 3，色值/强度按参考深带做显示域标定（r54） | ✅（显示域近似） |
 | 法线合成 | 锯齿动差混合 | 双尺度相加 | 近似（原式含时间锯齿项） |
-| 阴影/天光/水柱/吸收/散射 | 同式 | 同式（常数 0.721348/8.65617/0.0121/实测灯色全对齐） | ✅ |
+| 阴影/天光/水柱/吸收 | 同式 | 同式（常数 0.721348/8.65617/0.0121/实测灯色全对齐） | ✅ |
+| 散射项权重 | 实测色 `waterScatteringColor`=(0.5684,0.3569,0) 暖橙；**权重 = NdotV⁵**（反汇编 nv·nv²·nv²） | 同（第十九轮恢复） | 第十八轮曾误改 `(1−NdotV)⁵`，依据是「参考近似俯视且水面无暖调」；实际参考是**近岸浅水暖沙调、远/深水才宝蓝**，而 `(1−NdotV)⁵` 把暖散射加到掠射深水（r53 实测深带 G 115 vs 参考 70）。r54 恢复 NdotV⁵ 后深带 `B−R=+110`（参考 +103） |
 
 **量级结论**：原作水体表面着色的「指令预算」极小（226 条/7 采样）——小是**架构红利**
-（沙底成像外包给沙管线、焦散外包给引擎 RT、白水外包给粒子系统）；本仓单 pass 自包含，
-13 采样/179 行实码里约七成花在原作被外包掉的三件事上。真正的差距不在指令数，而在
-两张外包件我们还没有对应物：**焦散 RT 的引擎侧生成**与 **Whitewater 粒子**（前者已用
-现算替代，后者即 W4）。
+（沙底成像外包给沙管线、焦散外包给烘焙体、白水外包给粒子系统）。本仓三件均已补齐（真折射 / 焦散 / 白水粒子，
+第十五、十六轮），但焦散走的是**机制不同的模拟派生替代**，白水仍未做原作的**双剔除与水下衰减**——
+即「有对应物」但未逐项对齐，细则见 [水体实现覆盖率审计报告](../../../项目/审计/水体实现覆盖率审计报告-2026-10-18.md)。
+
+## 12. 预设真值（`Refs` ScriptableObject 直读，2026-10-18）
+
+`Refs`（`ScriptableObject`，`sharedassets0.assets`）持有 `List<Beach.WavesProperty>` / `List<Beach.WaterProperty>`
+等预设；`Game.cs` 以 `configuration.wavesParameters = wavesProperty.defaultParameters` 取用。
+字段布局取自 Cpp2IL 字段偏移（`WavesProperty` 序列化 80 B，`a/b/c/d` 在 +28），逐字节解出：
+
+**`waves`（5 档浪型，`Parameters{a,b,c,d: Vector3}`）**
+
+| 档 | a | b | c | d |
+| --- | --- | --- | --- | --- |
+| Regular | (0.2, 2, 0.1) | (0.16, 4, 0.15) | (0.07, 20, 0.2) | (0, 200, 0) |
+| Calm | (0.127, 2, 0.02) | (0.063, 4, 0.05) | (0, 20, 0.1) | (0, 200, 0) |
+| Agitated | (0.15, 2, 0.2) | (0.27, 4, 0.4) | (0.107, 20, 0.6) | (0.012, 200, 0.8) |
+| Storm | (0.1, 2, 1) | (0.184, 4, 1.25) | (0.154, 9, 1.5) | (0.33, 5, 1.75) |
+| Rogue | (0.1, 2, 0.1) | (0.22, 4, 0.15) | (0.154, 9, 0.2) | (0.02, 218, 2.5) |
+
+四列对应 CPU 侧的四个波/泵分量（`Water.Run` 里 `waveAmplitude = saturate(playTime×0.05)×max(四列项)`）；
+各列第二分量取值 2/4/9/20/200/218 呈「周期族」分布，第三分量为该列幅值权重。
+
+**`waters`（4 档水体，`Parameters{color, scatteringColor, advectionFactor, kappa, damping}`）**
+
+| 档 | color | scatteringColor | advectionFactor | kappa | damping |
+| --- | --- | --- | --- | --- | --- |
+| 0 | (0.898, 0.973, 1) | (1, 0.494, 0.263) | 0.2 | 1000 | 0 |
+| 1 | (0.961, 0.988, 1) | (0.584, 0.322, 0) | 0.2 | 1000 | 0 |
+| 2 | (0.769, 0.937, 1) | (0.824, 0.310, 0.035) | 0.2 | 1000 | 0 |
+| 3 | (1, 0.675, 0.710) | (0.286, 0.667, 0.576) | 0.2 | 2 | 0 |
+
+其中 0.584/0.322/0 即旧档所记「材质实测橙色散射色 (0.57,0.36,0)」的来源（档 1 的散射色）。
+
+## 13. C# 侧全局 shader 属性全表（`SetGlobal*` 穷举，2026-10-18）
+
+从 251 个反编译源文件穷举 `Shader.SetGlobal*`，**全局属性只有**：
+
+- color：`wetSandColor`、`waterScatteringColor`、`waterColor`、`sedimentColor`、`sandColor`、`sandColor2`
+- vector：`waterResolution`、`waterCellSize`、`groundResolution`、`groundCellSize`、`airResolution`、
+  `airCellSize`、`voxelsResolution`、`readbackResolution`、`beachSize`、`beachMin`、`beachMax`、
+  `beachExtents`、`beachCenter`、`sunDirection`、`moonDirection`、`cursorPosition`、`cursorVelocity`
+- texture / buffer：`_MainTex`、`_AtmosphereTexture`、`obstaclesMap`、`giVoxels`、`_BlurredMask`、
+  `waterCells`（`SetGlobalBuffer`）
+
+外加一个 `ShaderBindings` 静态类（只装 `unity_*` 内建：`_Time`、`unity_DeltaTime`、环境光三色、
+雾、相机矩阵与投影参数等）。
+
+**结论**：`Lit/Water` PS 里的吸收系数 `cb0[132]`（σ）**不是**全局属性（也没有任何名字带
+absor/extinct 的项）、不在材质 `Water` 的 saved properties 里、也不在 §12 的水体预设字段里，
+而 DXBC 的 RDEF 反射块被剥离 → **静态不可取**。同理 `cb0[121]`/`cb0[131]` 的槽名也无法从
+反射确认，只能按用途反推（131 乘进透射项 → 水色乘子；121 是散射混合的目标色）。
+
+
+
+## 14. 从 Steam 高清头图反定材质（2026-10-18）
+
+σ 静态取不到（§13），于是改用**成品画面**反定：Steam 客户端 `appcache/librarycache/<appid>/`
+里存着官方高清头图（本机 `4894830/…/library_hero.jpg`，1920×620），是实机渲染的成品，
+可直接当比色基准。方法：
+
+1. 头图按「蓝红差」分带，逐带取水像素均值 —— 得到参考从浅滩到离岸的完整色带：
+   `(157,200,171) (146,195,173) (113,177,167) (74,153,161) (46,126,146) (28,103,136) (19,83,126) (16,70,119)`；
+2. 取最深带出射色与**同一张图里**的受光干沙 `(252,226,167)`，按 `出射 = 沙底 × T` 反解
+   `T = (0.0036, 0.142, 0.703)`；
+3. T 的**通道比值**与水深无关，是最可靠的部分：`σ_R : σ_G : σ_B = 15.9 : 5.52 : 1`。
+   该比值可用参考自身交叉验证——相邻带的 T 比值给出的光深比在两两比较中一致（≈1.59）。
+4. 绝对尺度靠本仓实验域的光深锚定：取本仓 `dist = 0.2 / 0.5 / ≥2 m` 分别落在参考的
+   浅滩 `(157,200,171)`／中带 `(74,153,161)`／最深带 `(16,70,119)` 上（三锚点同时命中）
+   ⇒ 有效 `(5.6, 1.94, 0.35)/m`。
+
+**顺带反定出的两条事实**：
+
+- **沙色**：参考受光干沙 `(252,226,167)`，色度 85、亮度 Y=227。本仓曾出 `(199,186,162)`、
+  色度只有 36 —— **问题在色度不在亮度**，「沙跟纯白似的、没有透明感」的量测对应物就是它。
+- **水面极亮像素占比**：参考浅水内 `lum>235` 只占 **0.03%**，而本仓同尺度统计是它的 ~10 倍。
+  即参考的水面是「平滑水面 + 稀疏碎金」，不是「整面白噪」；这一条反定了细节法线强度。
+
+**这条路线可复用**：任何「材质常数静态取不到」的项，只要官方有成品图，就能按
+「底色 × 吸收」的物理式反解出通道比值，再用本地水深/光照锚定绝对值。

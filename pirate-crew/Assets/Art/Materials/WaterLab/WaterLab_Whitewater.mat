@@ -25,8 +25,10 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _Alpha: 0.85
+    - _Alpha: 0.4
     - _SizeScale: 1
     m_Colors:
+    - _AmbientColor: {r: 0.06269998, g: 0.13329998, b: 0.21959996, a: 1}
     - _BaseColor: {r: 0.95, g: 0.96999997, b: 0.96, a: 1}
+    - _SunTint: {r: 1, g: 0.9709, b: 0.9403, a: 1}
   m_BuildTextureStacks: []
