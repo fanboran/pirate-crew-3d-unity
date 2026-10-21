@@ -7,6 +7,7 @@ using PirateCrew.Visual;
 using PirateCrew.Battle.Levels;
 using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Rendering.Pixelart;
+using PirateCrew.SceneArt;
 using UnityEngine;
 
 namespace PirateCrew.Battle
@@ -411,14 +412,13 @@ namespace PirateCrew.Battle
                 if (root == null)
                     root = transform;
 
-                // 地形抬升：单位脚底要落在该格地表上（LevelGeometry 的 WorldPosition 只算基础地面，
-                // 地形高度在 BattleController 这一层叠加，避免改 LevelGeometry 的口径）。
+                // 站面抬升：单位脚底要落在地表上（LevelGeometry 的 WorldPosition 只算基础地面，
+                // 站面高度在 BattleController 这一层叠加，避免改 LevelGeometry 的口径）。
+                // 空岛关（第 2 关）逐点贴草皮穹顶：可见可站面是穹顶不是逻辑高度场的平顶
+                // （穹顶 13.3→14.65 vs 平顶 14，逐点差 -0.11~+0.69——悬空/埋脚即消，
+                // 见 SpawnGroundWorldY）。
                 Vector3 spawnPosition = entry.WorldPosition;
-                if (Terrain != null)
-                {
-                    spawnPosition.y = Terrain.SurfaceWorldY(entry.CellX, entry.CellY)
-                                      + LevelGeometry.UnitPivotHeight;
-                }
+                spawnPosition.y = SpawnGroundWorldY(entry) + LevelGeometry.UnitPivotHeight;
 
                 var spawnEntry = new SpawnPlanEntry(
                     entry.TeamIndex, entry.TypeName, entry.Luck, entry.CellX, entry.CellY,
@@ -441,6 +441,35 @@ namespace PirateCrew.Battle
                 ?.ApplyLevelCrabRules(LevelNumber);
 
             _spawned = true;
+        }
+
+        /// <summary>
+        /// 出生站面的世界 Y（不含 <see cref="LevelGeometry.UnitPivotHeight"/>，调用方叠加）。
+        ///
+        /// 空岛关（第 2 关）：站面 = 草皮穹顶，逐点贴 <see cref="FloatingIslandDome"/>——
+        /// 烘焙几何、碰撞薄壳、出生点表与出生站位共用同一高度场（「可见表面 = 可站立表面」；
+        /// 逻辑高度场仍是平顶 14，投掷弹道/爆炸遮蔽等判定见待办「出生站位单源化」中期项）。
+        /// 空岛根由 <see cref="RuntimeSceneArt.RebuildFor"/> 按关卡号开关（Awake 时序先于出生），
+        /// 其激活态即"本局站穹顶"的判据；根未烘焙（SkyIslandRoot 为空）时回落逻辑高度场，
+        /// 站位仍在岛上，只是不贴穹顶。
+        /// 其余关卡：逻辑高度场平顶（<see cref="HeightfieldGrid.SurfaceWorldY(int,int)"/>）；
+        /// 无地形时回落基础地面。
+        /// </summary>
+        float SpawnGroundWorldY(in SpawnPlanEntry entry)
+        {
+            GameObject islandRoot = sceneArt != null ? sceneArt.SkyIslandRoot : null;
+            if (islandRoot != null && islandRoot.activeInHierarchy)
+            {
+                return FloatingIslandDome.SpawnGroundY(
+                    FloatingIslandSpec.Default,
+                    islandRoot.transform.position,
+                    entry.WorldPosition.x, entry.WorldPosition.z);
+            }
+
+            if (Terrain != null)
+                return Terrain.SurfaceWorldY(entry.CellX, entry.CellY);
+
+            return LevelGeometry.GroundTopY;
         }
 
         /// <summary>取队伍（teamIndex 0/1）。</summary>

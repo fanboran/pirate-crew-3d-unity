@@ -381,5 +381,83 @@ namespace PirateCrew.SceneArt.Tests
                 "拆件前后的总面数必须一致（拆件不该增删几何）");
             Assert.Greater(floaterTriangles, 0, "浮件表里一片几何都没有");
         }
+
+        // ------------------------------------------------------------------
+        // 出生站位单源化：穹顶高度场下沉运行时程序集，出生链逐点贴穹顶
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void Dome_PlateauY_SingleSource_BakeForwardMatchesRuntime()
+        {
+            // 烘焙侧转发口（FloatingIslandComposer.PlateauY）与运行时唯一真源
+            // （FloatingIslandDome.PlateauY）逐点一致：烘焙几何与出生贴地共用同一高度场，
+            // 「可见表面 = 可站立表面」才不会因两份公式各自漂移而破。
+            FloatingIslandSpec spec = DefaultSpec();
+            for (int i = 0; i < 24; i++)
+            {
+                float x = Mathf.Cos(i * 0.71f) * spec.RadiusX * 0.75f;
+                float z = Mathf.Sin(i * 0.71f) * spec.RadiusZ * 0.75f;
+                Assert.AreEqual(FloatingIslandDome.PlateauY(spec, x, z),
+                    FloatingIslandComposer.PlateauY(spec, x, z), 1e-6f,
+                    "烘焙转发口与运行时穹顶高度场在 (" + x.ToString("0.00") + "," + z.ToString("0.00") + ") 分叉");
+            }
+        }
+
+        [Test]
+        public void Dome_SpawnGroundY_IsWorldOffsetOfLocalDome()
+        {
+            // 装配契约：PlaceIntoBattleCenter 只改根节点 position（不旋转不缩放），
+            // 世界↔局部即平移——SpawnGroundY 必须严格等于「根 Y + 局部穹顶高度」，
+            // 与装配器日志的 TransformPoint 同值。
+            FloatingIslandSpec spec = DefaultSpec();
+            Vector3 root = new Vector3(20f, 13.3f, 15f);   // 场心居中位（装配器写死的摆放）
+            for (int i = 0; i < 12; i++)
+            {
+                float localX = Mathf.Cos(i * 1.3f) * spec.RadiusX * 0.6f;
+                float localZ = Mathf.Sin(i * 1.3f) * spec.RadiusZ * 0.6f;
+                Assert.AreEqual(
+                    root.y + FloatingIslandDome.PlateauY(spec, localX, localZ),
+                    FloatingIslandDome.SpawnGroundY(spec, root, root.x + localX, root.z + localZ),
+                    1e-5f, "世界站面与「根 Y + 局部穹顶」不一致");
+            }
+        }
+
+        [Test]
+        public void SpawnGroundY_GroundsEverySkyIslandUnit_OnDome()
+        {
+            // 第 2 关（sky_island）golden 出生点逐点贴穹顶：出生站面 Y = 根 Y + PlateauY(局部)。
+            // 与逻辑高度场平顶（topY=14）的逐点落差即悬空/埋脚量（穹顶 13.3→14.65），
+            // 贴穹顶后归零；此测试钉住「落差窗口存在且有限」，单位挪位/构图改参时强制重看。
+            Assert.IsTrue(PirateCrew.Data.LevelAssetLibrary.TryGetLevel(2,
+                out PirateCrew.Data.LevelAssetPayload payload),
+                "取不到第 2 关关卡数据（无头侧应回落 golden JSON）");
+            Assert.Greater(payload.units.Count, 0, "第 2 关没有出战单位");
+
+            FloatingIslandSpec spec = DefaultSpec();
+            Vector3 root = new Vector3(20f, 13.3f, 15f);
+            float flatTopY = payload.terrain.islands[0].topY;
+            float worstFlatGap = 0f;
+
+            foreach (PirateCrew.Data.LevelUnit unit in payload.units)
+            {
+                float grounded = FloatingIslandDome.SpawnGroundY(spec, root, unit.x, unit.z);
+
+                Assert.AreEqual(
+                    root.y + FloatingIslandDome.PlateauY(spec, unit.x - root.x, unit.z - root.z),
+                    grounded, 1e-5f, "单位 " + unit.typeName + " 的出生站面未贴合穹顶");
+                Assert.GreaterOrEqual(grounded, 13.29f,
+                    "单位 " + unit.typeName + " 站面低于崖沿（出生点出了穹顶？）");
+                Assert.LessOrEqual(grounded, 14.75f,
+                    "单位 " + unit.typeName + " 站面高于穹顶中心");
+
+                worstFlatGap = Mathf.Max(worstFlatGap, Mathf.Abs(grounded - flatTopY));
+            }
+
+            Assert.GreaterOrEqual(worstFlatGap, 0.05f,
+                "出生点与平顶的落差消失了？——要么单位数据被挪到穹顶恰好 =14 的环上，"
+                + "要么贴地链路没生效，重看本测试与 golden 数据");
+            Assert.LessOrEqual(worstFlatGap, 0.7f,
+                "出生点与平顶落差超 0.7——构图参数（PlateauDome/半径）改动后穹顶起伏已超原验收窗口，重看");
+        }
     }
 }
