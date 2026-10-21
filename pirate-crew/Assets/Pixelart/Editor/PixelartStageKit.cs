@@ -33,8 +33,10 @@ namespace PirateCrew.EditorTools
         /// 船员预制体（角色几何的唯一来源）。用它是为了**试点的角色就是游戏里的角色**——
         /// 造型早有裁决（两件式 = 圆球 + 圆台柱，见 `CrewVisualPrefabBuilder` 类头），
         /// 自己拼图元必然走样（试过：方块 + 帽檐平板，被连着驳回两次）。
+        /// 【2026-10-21 修正】`3fb1b152` 起职业外观塌缩为单一 `Crew.prefab`，旧值指向的
+        /// `Sailor.prefab` 已不存在——`PlaceCrew` 因此静默少摆角色（四个装配器在调用）。
         /// </summary>
-        public const string CrewPrefabPath = "Assets/Prefabs/PirateCrew/Crew/Sailor.prefab";
+        public const string CrewPrefabPath = "Assets/Prefabs/PirateCrew/Crew/Crew.prefab";
 
         /// <summary>
         /// 预制体根原点到脚底的距离（米）。**不是猜的**：根缩放 y 0.5 × Visual.localPosition.y −0.5

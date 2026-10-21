@@ -40,7 +40,7 @@ namespace PirateCrew.EditorTools.BuildSystem
         /// <summary>游戏场景目录（Bootstrapper/MainMenu/LevelSelect/CrewManagement/Battle/UIShowcase）。</summary>
         public const string GameFolder = PirateCrew.Core.SceneNames.GameFolder;
 
-        /// <summary>像素化试点/验收场景目录（Pixelart* 前缀的 7 张）。</summary>
+        /// <summary>像素化试点/验收场景目录（Pixelart* 前缀的 8 张）。</summary>
         public const string PixelartFolder = PirateCrew.Core.SceneNames.PixelartFolder;
 
         /// <summary>【兼容旧名】游戏场景目录——存量代码引用它；新代码请用 <see cref="PathOf"/>。</summary>
@@ -61,6 +61,13 @@ namespace PirateCrew.EditorTools.BuildSystem
         /// <c>CharCamDebug</c> 域；调试菜单「角色镜头调试场」按名载入 ⇒ Build Settings 须含它。
         /// </summary>
         public const string PixelartCharCamDebug = "PixelartCharCamDebug";
+
+        /// <summary>
+        /// 资产特写观察调试场（单件资产上台环绕/缩放/灯光档观察 + 截图）：开发专用，**不进发行包**。
+        /// 场景资产由 <c>AssetInspectSceneSetup</c> 烘焙（菜单/无头），运行时控制器在
+        /// <c>AssetInspect</c> 域；调试菜单「资产特写观察」按名载入 ⇒ Build Settings 须含它。
+        /// </summary>
+        public const string PixelartAssetInspect = "PixelartAssetInspect";
 
         /// <summary>
         /// 关卡像素化试点场景（三个样板关的真实内容走本路径）：开发/测试专用，**不进发行包**。
@@ -97,13 +104,14 @@ namespace PirateCrew.EditorTools.BuildSystem
         /// <summary>仅开发/测试集：发行包不含，Build Settings 需要含（播放器出图入口依赖）。</summary>
         static readonly string[] _developmentOnlySceneNames = BuildDevelopmentOnlySet();
 
-        /// <summary>仅开发场景集 = 像素化试点 + 角色镜头调试场 + <see cref="PixelartLevelScenes"/>（表在别处，避免两处维护）。</summary>
+        /// <summary>仅开发场景集 = 像素化试点 + 角色镜头调试场 + 资产特写观察场 + <see cref="PixelartLevelScenes"/>（表在别处，避免两处维护）。</summary>
         static string[] BuildDevelopmentOnlySet()
         {
-            var set = new string[2 + PixelartLevelScenes.Length];
+            var set = new string[3 + PixelartLevelScenes.Length];
             set[0] = PixelartPilot;
             set[1] = PixelartCharCamDebug;
-            PixelartLevelScenes.CopyTo(set, 2);
+            set[2] = PixelartAssetInspect;
+            PixelartLevelScenes.CopyTo(set, 3);
             return set;
         }
 
