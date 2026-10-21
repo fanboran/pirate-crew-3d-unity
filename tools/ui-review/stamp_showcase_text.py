@@ -29,7 +29,10 @@ SHEETS = [
     (os.path.join(ROOT, "export", "ui-pixel-4a", "components.png"),
      os.path.join(ROOT, "export", "ui-pixel-4a", "components-labels.json")),
 ]
-PALETTE = os.path.join(ROOT, "pirate-crew", "Assets", "Data", "Palette", "pirate_palette.json")
+# 调色板真源是分域两层板（共享核心 + 域板）；取色走 palette_tool 的合并视图装载器
+sys.path.insert(0, os.path.join(ROOT, "tools", "palette"))
+from palette_tool import load_board  # noqa: E402
+
 FONT_DEFAULT = os.path.join(ROOT, "external", "font-ref", "fusion-pixel-12px-proportional-zh_hans.ttf")
 SCALE = 3          # 一个艺术像素 = 3 屏幕像素（与 PixelSkin.Unit 同口径）
 
@@ -43,8 +46,12 @@ def mix(a, b, t):
 
 
 def palette_roles():
-    """从调色板真源取三种文字色（与生成器同源；derivation 与 C# 侧一致）。"""
-    slots = {s["id"]: hex_to_rgb(s["hex"]) for s in json.load(open(PALETTE, encoding="utf-8"))["slots"]}
+    """从调色板真源取三种文字色（与生成器同源；derivation 与 C# 侧一致）。
+
+    读分域两层板的合并视图（共享核心 + 当前域，默认加勒比）——
+    INK/WHITE_HOT 在共享核心板，SEA_DEEP 在加勒比域板，单读核心板会缺槽。
+    """
+    slots = {s["id"]: hex_to_rgb(s["hex"]) for s in load_board().merged.slots}
     ink = slots["INK"]
     white = slots["WHITE_HOT"]
     backdrop = mix(slots["SEA_DEEP"], ink, 0.45)   # 展示板底色（C# 侧同式）

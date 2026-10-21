@@ -3,10 +3,14 @@
 """palette_tool —— 全局调色板的校验 / 预览 / 量化工具（确定性，纯 Python + numpy + Pillow）。
 
 【它解决什么问题】
-    `pirate-crew/Assets/Data/Palette/pirate_palette.json` 是本作唯一的全局调色板真源
-    （美术风格指南 §3.2 / 像素纹理 §5）。本工具把这张板变成可执行的约束：
-    校验板自身结构、出人眼验收条带图、把任意 PNG 量化到板上（OkLab 空间最近邻），
-    并用一组自证用例把「确定性 / 锁板 / 明度单调」三条性质变成可重跑的断言。
+    调色板真源是 `pirate-crew/Assets/Data/Palette/` 下的**分域两层板**（分域色板体系）：
+      · `pirate_palette.json`   共享核心板（跨关共用槽 + `mergeOrder` 合并序声明）；
+      · `palette_<域>.json`     域板（每关/每生物群系的地形四族与 SEA 风格变体）。
+    资产实际可用的板 = **共享核心 + 当前域**的合并视图（默认域 caribbean，`--domain` 可换）。
+    本工具把这张板变成可执行的约束：逐层与合并视图校验结构、出人眼验收条带图、
+    把任意 PNG 量化到板上（OkLab 空间最近邻），并用一组自证用例把
+    「确定性 / 锁板 / 明度单调」三条性质变成可重跑的断言。
+    目录里没有任何 `palette_*.json` 时按**单文件板**兼容处理（合并视图 = 该文件本身）。
 
 【使用者】像素纹理烘焙链的下游（tools/blender/pixel）、CI 式回归、人工抽查。
 
@@ -23,15 +27,16 @@
     以上合起来 ⇒ 同输入同输出，逐字节一致；`verify` 子命令用 sha256 当场证明。
 
 【子命令】
-    check                        校验板：id/hex 唯一、阶梯族连续与明度单调、OkLCH 表
-    oklch                        打印每槽的 OkLCh(L,C,H) 与 hex（人眼核色用）
-    strip --out <png>            出参考条带图（供人眼验收；入 docs/images/palette/）
+    check                        逐层校验 + 合并视图校验：id/hex 唯一、阶梯族连续与明度单调
+    oklch                        打印合并视图每槽的 OkLCh(L,C,H) 与 hex（人眼核色用）
+    strip --out <png>            出合并视图的参考条带图（供人眼验收；入 docs/images/palette/）
     quantize --in <png> --out <png> [--dither none|bayer4|bayer8] [--weight W]
-                                 把任意 PNG 量化到板上
-    verify                       自证：OkLab 官方测试表 + 确定性 hash + 锁板 + 明度单调
+                                 把任意 PNG 量化到合并视图上
+    verify                       自证：OkLab 官方测试表 + 分层规范文本 + 确定性 hash + 锁板 + 明度单调
 
 【用法（仓库根执行）】
     python tools/palette/palette_tool.py verify
+    python tools/palette/palette_tool.py check --domain caribbean
     python tools/palette/palette_tool.py quantize --in a.png --out b.png --dither bayer4
 """
 
@@ -50,6 +55,13 @@ from PIL import Image
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 DEFAULT_PALETTE = os.path.join(REPO_ROOT, "pirate-crew", "Assets", "Data", "Palette", "pirate_palette.json")
+
+#: 分域板文件命名（与 DEFAULT_PALETTE 同目录）：palette_<域>.json；核心板文件名固定。
+CORE_FILENAME = "pirate_palette.json"
+DOMAIN_PREFIX = "palette_"
+DOMAIN_SUFFIX = ".json"
+#: 合并视图的默认当前域（生产现役 = 加勒比；加勒比合并视图与拆分前的单板逐位一致）
+DEFAULT_DOMAIN = "caribbean"
 
 #: 语义色族：槽位是「不同色相的语义」（描边灰/强调蓝/危险红/警告金/文字灰…），
 #: 不构成同一色相的明暗阶梯，豁免「族内连续 / 明度升序」两条阶梯族结构规则。
@@ -224,10 +236,109 @@ def load_palette(path=DEFAULT_PALETTE):
         return Palette(json.load(f), path)
 
 
+# ---------------------------------------------------------------------------
+# 分域板：共享核心 + 域板 → 合并视图
+# ---------------------------------------------------------------------------
+
+class Board:
+    """一次装载的分层板（核心板 / 域板各自 + 合并视图）。
+
+    单文件兼容模式（目录里没有 palette_*.json）下 domain 为 None、merged 即核心板本身。
+    """
+
+    def __init__(self, core, domain, merged, domain_name):
+        self.core = core
+        self.domain = domain
+        self.merged = merged
+        self.domain_name = domain_name
+
+    def layers(self):
+        """全部层文件（核心板在前，域板在后），供逐层规范文本/结构校验。"""
+        return [self.core] + ([self.domain] if self.domain is not None else [])
+
+
+def domain_path(domain, core_path=DEFAULT_PALETTE):
+    return os.path.join(os.path.dirname(os.path.abspath(core_path)), DOMAIN_PREFIX + domain + DOMAIN_SUFFIX)
+
+
+def list_domains(core_path=DEFAULT_PALETTE):
+    """同目录下全部域板名（字典序；不含核心板）。"""
+    d = os.path.dirname(os.path.abspath(core_path))
+    names = []
+    for f in sorted(os.listdir(d)):
+        if f.startswith(DOMAIN_PREFIX) and f.endswith(DOMAIN_SUFFIX):
+            names.append(f[len(DOMAIN_PREFIX):-len(DOMAIN_SUFFIX)])
+    return names
+
+
+def merge_board_data(core_data, domain_data):
+    """共享核心 + 单个域板 → 合并视图数据。返回 (merged_data, skipped_ids)。
+
+    【合并序】核心板的 mergeOrder 声明已知槽位的合并顺序——现役加勒比域全量在册，
+    加勒比合并视图因此与拆分前的单板逐位一致。order 里只属于**其他域**的槽位（本次合并
+    不在场）跳过并记入 skipped_ids，由 `check` 的跨层联合存在性校验兜住拼错；
+    未列入 order 的槽位按「核心板在前、域板在后」的声明序追加尾部（确定性，不依赖字典序）。
+    mergeOrder 重复声明、跨层重复 id 在这里当场抛错（比靠合并后校验报错更可定位）。
+    """
+    slots_by_id = {}
+    tail = []
+    for slot in core_data["slots"]:
+        sid = slot["id"]
+        if sid in slots_by_id:
+            raise ValueError("核心板内槽位 id 重复：%s" % sid)
+        slots_by_id[sid] = slot
+        tail.append(slot)
+    if domain_data is not None:
+        for slot in domain_data["slots"]:
+            sid = slot["id"]
+            if sid in slots_by_id:
+                raise ValueError("槽位 id 同时出现在核心板与域板：%s（域板只许新增/整体接管组）" % sid)
+            slots_by_id[sid] = slot
+            tail.append(slot)
+
+    order = core_data.get("mergeOrder") or []
+    seen_order = set()
+    ordered = []
+    skipped = []
+    for sid in order:
+        if sid in seen_order:
+            raise ValueError("mergeOrder 中槽位重复声明：%s" % sid)
+        seen_order.add(sid)
+        slot = slots_by_id.get(sid)
+        if slot is None:
+            skipped.append(sid)   # 只属于其他域的槽位，本次合并不在场
+            continue
+        ordered.append(slot)
+    ordered.extend(s for s in tail if s["id"] not in seen_order)
+
+    # mergeOrder 是真源的**结构声明**，不是消费方数据：合并视图（供量化/出图/Unity 镜像）
+    # 不携带它 —— 加勒比合并视图的规范文本因此与拆分前的单板逐位一致。
+    merged = {k: v for k, v in core_data.items() if k != "mergeOrder"}
+    merged["slots"] = ordered
+    return merged, skipped
+
+
+def load_board(core_path=DEFAULT_PALETTE, domain=DEFAULT_DOMAIN):
+    """装载分层板并构建合并视图（domain 为 None 时不合域板）。
+
+    目录里没有 palette_*.json 时按单文件板兼容：merged = 核心板本身。
+    """
+    core = load_palette(core_path)
+    domains = list_domains(core_path)
+    if not domains:
+        return Board(core, None, core, None)
+    if domain is None or domain not in domains:
+        raise ValueError("未知域 %r（同目录域板：%s）" % (domain, ", ".join(domains)))
+    dom = load_palette(domain_path(domain, core_path))
+    merged_data, _ = merge_board_data(core.data, dom.data)
+    merged = Palette(merged_data, core_path)
+    return Board(core, dom, merged, domain)
+
+
 #: 槽位字段的**固定**写出顺序（改这里必须同步改 Unity 侧 PaletteJson.cs，否则两边 diff 不 dry）
 SLOT_KEYS = ("id", "group", "hex", "usage", "status", "source")
-#: 顶层字段的固定写出顺序
-ROOT_KEYS = ("name", "version", "texelDensityPxPerMeter", "note")
+#: 顶层字段的固定写出顺序（mergeOrder 仅共享核心板携带；域板无此键，写出侧按存在性跳过）
+ROOT_KEYS = ("name", "version", "texelDensityPxPerMeter", "note", "mergeOrder")
 
 
 def canonical_text(data):
@@ -587,8 +698,8 @@ def _synthetic_field(n=64):
     return np.stack([r, g, np.clip(b, 0, 255)], axis=-1).astype(np.uint8)
 
 
-def verify(palette, verbose=True):
-    """跑全部自证用例；返回 (ok, report_lines)。"""
+def verify(board, verbose=True):
+    """跑全部自证用例；返回 (ok, report_lines)。行为测试全部跑在**合并视图**上。"""
     lines = []
     ok = True
 
@@ -608,23 +719,38 @@ def verify(palette, verbose=True):
     else:
         emit("[ok] OkLab 官方测试表回归：4 组 XYZ 最大偏差 %.6f ≤ 1e-3" % max_err)
 
-    # 2) 板结构
+    # 2) 板结构：共享核心板 / 各域板逐层校验，合并视图再校验一遍
+    palette = board.merged
+    for layer in board.layers():
+        errors, warnings = validate_palette(layer)
+        label = os.path.basename(layer.path)
+        if errors:
+            ok = False
+            for e in errors:
+                emit("[FAIL] 板结构（%s）：" % label + e)
+        else:
+            emit("[ok] 板结构（%s）：%d 色 / %d 组，id 与色值唯一、阶梯族连续且明度升序"
+                 % (label, len(layer), len(set(layer.groups))))
     errors, warnings = validate_palette(palette)
     if errors:
         ok = False
         for e in errors:
-            emit("[FAIL] 板结构：" + e)
+            emit("[FAIL] 板结构（合并视图）：" + e)
     else:
-        emit("[ok] 板结构：%d 色 / %d 组，id 与色值唯一、阶梯族连续且明度升序" % (len(palette), len(set(palette.groups))))
+        emit("[ok] 板结构（合并视图 %s + 域 %s）：%d 色 / %d 组，id 与色值唯一、阶梯族连续且明度升序"
+             % (os.path.basename(palette.path), board.domain_name, len(palette), len(set(palette.groups))))
     for w in warnings:
         emit("[warn] " + w)
 
-    # 2b) 磁盘文本是否仍是规范文本（防三方写出者产生格式噪声）
-    if not is_canonical(palette):
-        ok = False
-        emit("[FAIL] 板文件不是规范文本（跑 `palette_tool.py fmt` 归一化；Unity 侧 PaletteAssetBuilder 写出的也必须是同一布局）")
-    else:
-        emit("[ok] 板文件是规范文本（与 Unity 侧 PaletteJson.ToCanonicalText 同一布局）")
+    # 2b) 各层磁盘文本是否仍是规范文本（防三方写出者产生格式噪声）
+    for layer in board.layers():
+        if not is_canonical(layer):
+            ok = False
+            emit("[FAIL] 板文件不是规范文本（%s；跑 `palette_tool.py fmt` 归一化；"
+                 "Unity 侧 PaletteAssetBuilder 写出的也必须是同一布局）" % os.path.basename(layer.path))
+        else:
+            emit("[ok] 板文件是规范文本（%s；与 Unity 侧 PaletteJson.ToCanonicalText 同一布局）"
+                 % os.path.basename(layer.path))
 
     # 3) 量化确定性：同一输入跑两次，逐字节一致。
     #    输入用 64×64 人造 2D 色场（行/列都跨 Bayer 矩阵多周期，bayer4 与 bayer8 会走出不同图案）。
@@ -723,37 +849,78 @@ def verify(palette, verbose=True):
 # ---------------------------------------------------------------------------
 
 def cmd_check(args):
-    palette = load_palette(args.palette)
-    errors, warnings = validate_palette(palette)
-    print("[palette] %s v%d  %d 色  %d 组  纹素密度 %s px/m"
-          % (palette.name, palette.version, len(palette), len(set(palette.groups)), palette.texel_density))
-    for w in warnings:
-        print("[warn] " + w)
-    for e in errors:
-        print("[FAIL] " + e)
-    if not errors:
-        print("[ok] 板结构校验通过（id/色值唯一、阶梯族连续且明度升序）")
-    return 0 if not errors else 1
+    """逐层校验（核心板 + 全部域板）+ 每个域的合并视图校验（重码/阶梯规则在合并口径上成立）。"""
+    rc = 0
+    core = load_palette(args.palette)
+    domains = list_domains(args.palette)
+
+    def report(palette, label):
+        errors, warnings = validate_palette(palette)
+        print("[palette] %s  %d 色  %d 组  纹素密度 %s px/m"
+              % (label, len(palette), len(set(palette.groups)), palette.texel_density))
+        for w in warnings:
+            print("[warn] " + w)
+        for e in errors:
+            print("[FAIL] " + e)
+        return not errors
+
+    ok = report(core, "%s（共享核心）" % os.path.basename(core.path))
+    rc |= 0 if ok else 1
+
+    # mergeOrder 的跨层联合存在性：order 里的每个 id 必须至少存在于核心板或某个域板，
+    # 否则多半是拼错了（合并时会被当作"其他域的槽位"跳过，只能在这里兜住）
+    order = core.data.get("mergeOrder") or []
+    union_ids = {s["id"] for s in core.data["slots"]}
+    for name in domains:
+        dom_data = load_palette(domain_path(name, args.palette)).data
+        union_ids.update(s["id"] for s in dom_data["slots"])
+    ghosts = [sid for sid in order if sid not in union_ids]
+    if ghosts:
+        print("[FAIL] mergeOrder 引用了任何层都不存在的槽位（拼错？）：%s" % ", ".join(ghosts))
+        rc |= 1
+
+    for name in domains:
+        dom = load_palette(domain_path(name, args.palette))
+        ok = report(dom, "%s（域 %s）" % (os.path.basename(dom.path), name))
+        rc |= 0 if ok else 1
+        merged_data, skipped = merge_board_data(core.data, dom.data)
+        merged = Palette(merged_data, args.palette)
+        ok = report(merged, "合并视图（核心 + %s）" % name)
+        rc |= 0 if ok else 1
+        if skipped:
+            print("[info] 域 %s 合并时跳过 mergeOrder 中属于其他域的 %d 个槽位（%s…）"
+                  % (name, len(skipped), ", ".join(skipped[:3])))
+        extra = [s["id"] for s in merged.slots if s["id"] not in set(order)]
+        if extra:
+            print("[info] 域 %s 有 %d 个槽位未列入核心板 mergeOrder（%s），合并视图中按声明序追加尾部"
+                  % (name, len(extra), ", ".join(extra)))
+    if not domains:
+        print("[palette] 单文件兼容模式：目录下没有 %s*.json，按单板处理" % DOMAIN_PREFIX)
+    if rc == 0:
+        print("[ok] 板结构校验通过（逐层与合并视图：id/色值唯一、阶梯族连续且明度升序）")
+    return rc
 
 
 def cmd_oklch(args):
-    print_oklch_table(load_palette(args.palette))
+    print_oklch_table(load_board(args.palette, args.domain).merged)
     return 0
 
 
 def cmd_fmt(args):
-    palette = load_palette(args.palette)
-    before = _read_text(palette.path)
-    text = write_canonical(palette)
-    changed = text != before
-    print("[fmt] %s：%s  sha256=%s" % (rel(palette.path),
-                                       "已归一化" if changed else "已是规范文本（无变化）",
-                                       hashlib.sha256(text.encode("utf-8")).hexdigest()))
+    paths = [args.palette] + [domain_path(name, args.palette) for name in list_domains(args.palette)]
+    for path in paths:
+        palette = load_palette(path)
+        before = _read_text(palette.path)
+        text = write_canonical(palette)
+        changed = text != before
+        print("[fmt] %s：%s  sha256=%s" % (rel(palette.path),
+                                           "已归一化" if changed else "已是规范文本（无变化）",
+                                           hashlib.sha256(text.encode("utf-8")).hexdigest()))
     return 0
 
 
 def cmd_strip(args):
-    palette = load_palette(args.palette)
+    palette = load_board(args.palette, args.domain).merged
     path = render_strip(palette, args.out)
     print("[strip] %s  %dx%d  sha256=%s"
           % (rel(path), SWATCH_W * min(len(palette), GRID_COLS),
@@ -763,7 +930,7 @@ def cmd_strip(args):
 
 
 def cmd_sample(args):
-    palette = load_palette(args.palette)
+    palette = load_board(args.palette, args.domain).merged
     path = render_sample_tile(palette, args.out)
     board = {tuple(int(v) for v in rgb) for rgb in palette.rgb8}
     uniq = {tuple(int(v) for v in px) for px in np.array(Image.open(path).convert("RGB")).reshape(-1, 3)}
@@ -779,7 +946,7 @@ def cmd_sample(args):
 
 
 def cmd_quantize(args):
-    palette = load_palette(args.palette)
+    palette = load_board(args.palette, args.domain).merged
     src = Image.open(args.input)
     out, stats = quantize_image(src, palette, args.dither, args.weight)
     save_png(out, args.output)
@@ -797,14 +964,15 @@ def cmd_quantize(args):
 
 
 def cmd_verify(args):
-    palette = load_palette(args.palette)
-    ok, _ = verify(palette)
+    board = load_board(args.palette, args.domain)
+    ok, _ = verify(board)
     return 0 if ok else 1
 
 
 def build_parser():
-    p = argparse.ArgumentParser(description="全局调色板校验 / 预览 / 量化工具（确定性）")
-    p.add_argument("--palette", default=DEFAULT_PALETTE, help="调色板 JSON（默认 Assets/Data/Palette/pirate_palette.json）")
+    p = argparse.ArgumentParser(description="全局调色板校验 / 预览 / 量化工具（确定性；分域两层板：共享核心 + 域板）")
+    p.add_argument("--palette", default=DEFAULT_PALETTE, help="共享核心板 JSON（默认 Assets/Data/Palette/pirate_palette.json；同目录 palette_<域>.json 一并参与）")
+    p.add_argument("--domain", default=DEFAULT_DOMAIN, help="合并视图的当前域（默认 caribbean；单文件兼容模式下忽略）")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("check", help="校验板结构").set_defaults(func=cmd_check)
