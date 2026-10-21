@@ -45,6 +45,12 @@ namespace PirateCrew.Battle
         /// <summary>通用弹体的出界判定的宽松边距（世界单位）。</summary>
         const float OutOfMapMargin = 4f;
 
+        /// <summary>
+        /// 撞地/撞墙分类阈值：接触点法线的世界 Y 分量 ≥ 此值判「地面」（走摩擦+弹跳积分），
+        /// 否则判「墙」（走墙反弹积分）。0.5 ≈ 45° 坡面分界，逐格定案时如需斜坡语义再调。
+        /// </summary>
+        const float GroundContactNormalYThreshold = 0.5f;
+
         [SerializeField] Rigidbody body;
         [SerializeField] Collider hitCollider;
 
@@ -191,6 +197,7 @@ namespace PirateCrew.Battle
                 return;
 
             _contact = true;
+            ApplyContactIntegration(collision);
         }
 
         void OnCollisionStay(Collision collision)
@@ -198,6 +205,38 @@ namespace PirateCrew.Battle
             if (!_initialized || _detonated || collision == null || collision.collider == null)
                 return;
             _contact = true;
+            ApplyContactIntegration(collision);
+        }
+
+        /// <summary>
+        /// 撞地/撞墙速度积分接线（S2「弹跳/摩擦参数化」）：
+        /// 仅对在 <see cref="ProjectileContactOverrides"/> 有覆写登记的武器生效（登记即启用），
+        /// 未登记弹体维持 PhysX 现状碰撞——现役全表未登记，碰撞行为与接线前逐位一致。
+        /// 接触引爆类弹体（标准炸弹 = OnContact|OnRest）碰撞后当帧引爆，积分不改变任何可观察
+        /// 结算输入（爆心取位置、不用速度）；非接触引爆弹体（将来的 dynamite/banana 格）经
+        /// 登记后自动获得每武器弹跳/摩擦口径。
+        /// </summary>
+        void ApplyContactIntegration(Collision collision)
+        {
+            if (!_initialized || body == null || body.isKinematic)
+                return;
+            if (!ProjectileContactRules.HasManualIntegration(_stats.Id))
+                return;
+
+            if (collision.contactCount == 0)
+                return;
+
+            ContactPoint contact = collision.GetContact(0);
+            if (contact.normal.y >= GroundContactNormalYThreshold)
+            {
+                ProjectileContactRules.Resolve(_stats.Id, out float friction, out float bounce);
+                body.velocity = ProjectileContactRules.IntegrateGroundVelocity(
+                    body.velocity, friction, bounce);
+            }
+            else
+            {
+                body.velocity = ProjectileContactRules.IntegrateWallVelocity(body.velocity);
+            }
         }
 
         void OnDestroy()

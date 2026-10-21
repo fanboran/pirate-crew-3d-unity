@@ -1,6 +1,8 @@
+using System;
 using PirateCrew.Core;
 using PirateCrew.Combat;
 using PirateCrew.Data;
+using PirateCrew.Rendering.Pixelart;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -39,10 +41,14 @@ namespace PirateCrew.Battle
         PirateBase _selected;
         PirateBase _hovered;
 
-        // 操作模组状态（现役仅标准投掷；专用模组各持参数集）
+        // 操作模组状态（标准投掷为现役唯一实装；Place/LineLaunch 为骨架槽——
+        // 路由表 OperationModuleRegistry 现役空，全部武器仍走标准投掷）
         bool _opIsWeapon;
         WeaponId _opWeapon;
+        OperationModuleKind _opModule = OperationModuleKind.StandardThrow;
         ThrowParams _params;
+        PlaceParams _placeParams;
+        LineLaunchParams _lineParams;
 
         /// <summary>当前交互状态（相机驱动据此分派模式）。</summary>
         public InteractionState State => _state;
@@ -58,6 +64,15 @@ namespace PirateCrew.Battle
 
         /// <summary>标准投掷模组当前参数（HUD 读数用；非操作中为上次残留，消费方自查状态）。</summary>
         public ThrowParams CurrentParams => _params;
+
+        /// <summary>当前操作模组（参数面板/状态钮按它分派读数形态；骨架槽占位可用）。</summary>
+        public OperationModuleKind CurrentModule => _opModule;
+
+        /// <summary>放置模组当前参数（仅 <see cref="OperationModuleKind.Place"/> 激活时有效）。</summary>
+        public PlaceParams CurrentPlaceParams => _placeParams;
+
+        /// <summary>直线发射模组当前参数（仅 <see cref="OperationModuleKind.LineLaunch"/> 激活时有效）。</summary>
+        public LineLaunchParams CurrentLineLaunchParams => _lineParams;
 
         /// <summary>本帧采样的意图帧（相机驱动在 LateUpdate 拉取——所有 Update 已跑完，无帧序竞态）。</summary>
         public BattleIntentFrame LastIntent => _intent;
@@ -198,10 +213,20 @@ namespace PirateCrew.Battle
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// HUD 入口：选择武器 → 进入该武器的标准投掷操作。
+        /// HUD 入口：选择武器 → 查 <see cref="OperationModuleRegistry"/> 路由进入该武器的操作模组
+        /// （路由表现役为空 → 一律标准投掷，与路由表引入前行为一致）。
         /// 装备库存里的该武器并激活模组；未选中/已行动（CanShoot=false）/库存没有 → false。
         /// </summary>
         public bool SelectWeapon(WeaponId weapon)
+        {
+            return SelectWeaponForModule(weapon, OperationModuleRegistry.ModuleFor(weapon));
+        }
+
+        /// <summary>
+        /// 显式指定模组进入武器操作（骨架槽验证入口：放置/直线发射模组尚无武器格路由，
+        /// 逐格定案前由调试/PlayMode 用它走通调度链路；守卫与 <see cref="SelectWeapon"/> 相同）。
+        /// </summary>
+        public bool SelectWeaponForModule(WeaponId weapon, OperationModuleKind module)
         {
             if (_state != InteractionState.SelectedIdle || _selected == null || !_selected.Alive)
                 return false;
@@ -216,6 +241,7 @@ namespace PirateCrew.Battle
             inventory.Equip(index);
             _opIsWeapon = true;
             _opWeapon = weapon;
+            _opModule = module;
             BeginOperation();
             return true;
         }
@@ -231,6 +257,7 @@ namespace PirateCrew.Battle
             _selected.Inventory.Unequip();
             _opIsWeapon = false;
             _opWeapon = (WeaponId)(-1);
+            _opModule = OperationModuleKind.StandardThrow;
             BeginOperation();
             return true;
         }
@@ -240,9 +267,11 @@ namespace PirateCrew.Battle
             // 方向角以玩家正对方向起步（契约 §B10）：取相机当前朝向的世界方位角。
             float yaw = cameraDriver != null ? cameraDriver.FocusYawDegrees : 0f;
             _params = StandardThrowRules.Initial(yaw);
+            _placeParams = PlaceModuleRules.Initial(_selected.transform.position, yaw);
+            _lineParams = LineLaunchModuleRules.Initial(yaw);
             _state = InteractionRules.Advance(_state, InteractionTrigger.StartOperation);
             EventBus.Publish(BattleEvents.OperationChanged, new OperationChangedPayload(
-                _selected.PirateId, _opIsWeapon, _opWeapon, active: true));
+                _selected.PirateId, _opIsWeapon, _opWeapon, active: true, _opModule));
         }
 
         /// <summary>取消操作回浏览（Esc 矩阵 C3；模组参数丢弃）。</summary>
@@ -253,12 +282,12 @@ namespace PirateCrew.Battle
 
             _state = InteractionRules.Advance(_state, InteractionTrigger.CancelOperation);
             EventBus.Publish(BattleEvents.OperationChanged, new OperationChangedPayload(
-                _selected.PirateId, _opIsWeapon, _opWeapon, active: false));
+                _selected.PirateId, _opIsWeapon, _opWeapon, active: false, _opModule));
             if (trajectory != null)
                 trajectory.Hide();
         }
 
-        /// <summary>操作中：推进三参数、刷新预览、确认执行。</summary>
+        /// <summary>操作中：按模组分派（标准投掷实装；放置/直线发射为骨架槽）。</summary>
         void HandleOperation()
         {
             if (_selected == null || !_selected.Alive)
@@ -267,6 +296,23 @@ namespace PirateCrew.Battle
                 return;
             }
 
+            switch (_opModule)
+            {
+                case OperationModuleKind.Place:
+                    HandlePlaceOperation();
+                    break;
+                case OperationModuleKind.LineLaunch:
+                    HandleLineLaunchOperation();
+                    break;
+                default:
+                    HandleStandardThrowOperation();
+                    break;
+            }
+        }
+
+        /// <summary>标准投掷模组：推进三参数、刷新预览、确认执行（现役唯一实装路径）。</summary>
+        void HandleStandardThrowOperation()
+        {
             _params = StandardThrowRules.Advance(
                 _params, _intent.ThrowYawInput, _intent.ThrowElevationInput, _intent.ThrowPowerInput,
                 Time.deltaTime);
@@ -277,36 +323,67 @@ namespace PirateCrew.Battle
                 trajectory.Show(origin, velocity);
 
             if (_intent.ConfirmPressed)
-                Execute(origin, velocity);
+                ExecuteModule((pirate, used) => SpawnWeapon(pirate, used, origin, velocity), velocity);
         }
 
-        /// <summary>确认执行（回车；屏幕确认钮走同一入口）——把初速给角色（抛自己）或生成弹体（用武器）。</summary>
-        void Execute(Vector3 origin, Vector3 velocity)
+        /// <summary>
+        /// 放置模组（骨架槽）：瞄准留桩——TODO(逐格定案·火药桶/木箱)：点选地面/吸附可放置面/
+        /// 重叠校验、逐件放置计数（PlaceableCount）、Ghost 预览。骨架期参数停在初始占位点。
+        /// </summary>
+        void HandlePlaceOperation()
+        {
+            // TODO(逐格定案)：放置点瞄准与预览。
+            if (_intent.ConfirmPressed)
+                ExecuteModule(SpawnPlaceModulePlaceholder, Vector3.zero);
+        }
+
+        /// <summary>
+        /// 直线发射模组（骨架槽）：占位键位推进方向/蓄力——TODO(逐格定案·加农炮)：拖拽炮尾
+        /// 手势同时调角度与蓄力、发射阈值（fireStrength）、弹道预览。
+        /// </summary>
+        void HandleLineLaunchOperation()
+        {
+            _lineParams = LineLaunchModuleRules.Advance(
+                _lineParams, _intent.ThrowYawInput, _intent.ThrowPowerInput, Time.deltaTime);
+
+            // TODO(逐格定案)：发射预览（直线弹道）。
+            if (_intent.ConfirmPressed)
+                ExecuteModule(
+                    SpawnLineLaunchPlaceholder, LineLaunchModuleRules.LaunchVelocity(_lineParams));
+        }
+
+        /// <summary>
+        /// 确认执行的公共骨架（回车/屏幕确认钮同一入口；各模组只差「武器产物怎么生成」，
+        /// 行动经济、事件序列与状态迁移完全共用）。
+        /// </summary>
+        /// <param name="spawnWeaponAction">武器操作的产物生成（参数为行动者与实际消耗的武器 id；抛自己时忽略）。</param>
+        /// <param name="reportedVelocity">事件上报用速度（ShotReleased 的模长；跳跃时为真实初速；放置骨架传零向量）。</param>
+        void ExecuteModule(Action<PirateBase, WeaponId> spawnWeaponAction, Vector3 reportedVelocity)
         {
             PirateBase pirate = _selected;
 
             if (_opIsWeapon)
             {
                 if (pirate.MarkUseWeapon(out WeaponId used))
-                    SpawnWeapon(pirate, used, origin, velocity);
+                    spawnWeaponAction(pirate, used);
                 // 【提案/待定】MarkUseWeapon 失败（库存空/复用尽）仍发布 UseWeapon——回合语义待裁决，
                 // 保持与旧链一致的现状不改行为。
                 PublishAction(pirate, BattleActionKind.UseWeapon);
             }
             else
             {
-                pirate.ApplyLaunchVelocity(velocity);
+                pirate.ApplyLaunchVelocity(reportedVelocity);
                 pirate.MarkThrowSelf();
                 PublishAction(pirate, BattleActionKind.ThrowSelf);
             }
 
-            EventBus.Publish(BattleEvents.ShotReleased, velocity.magnitude);
+            EventBus.Publish(BattleEvents.ShotReleased, reportedVelocity.magnitude);
             if (trajectory != null)
                 trajectory.Hide();
 
             _state = InteractionRules.Advance(_state, InteractionTrigger.ConfirmOperation);
             EventBus.Publish(BattleEvents.OperationChanged, new OperationChangedPayload(
-                pirate.PirateId, _opIsWeapon, _opWeapon, active: false));
+                pirate.PirateId, _opIsWeapon, _opWeapon, active: false, _opModule));
         }
 
         /// <summary>屏幕确认钮入口（HUD 调用；与回车同一条执行路径）。</summary>
@@ -315,8 +392,79 @@ namespace PirateCrew.Battle
             if (_state != InteractionState.OperationActive || _selected == null)
                 return;
 
-            Vector3 origin = StandardThrowRules.ThrowOrigin(_selected.transform.position);
-            Execute(origin, StandardThrowRules.LaunchVelocity(_params));
+            switch (_opModule)
+            {
+                case OperationModuleKind.Place:
+                    ExecuteModule(SpawnPlaceModulePlaceholder, Vector3.zero);
+                    break;
+                case OperationModuleKind.LineLaunch:
+                    ExecuteModule(
+                        SpawnLineLaunchPlaceholder, LineLaunchModuleRules.LaunchVelocity(_lineParams));
+                    break;
+                default:
+                    Vector3 origin = StandardThrowRules.ThrowOrigin(_selected.transform.position);
+                    Vector3 velocity = StandardThrowRules.LaunchVelocity(_params);
+                    ExecuteModule((pirate, used) => SpawnWeapon(pirate, used, origin, velocity), velocity);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// 放置模组的占位产物（调度链路验证）：在放置点放一个占位立方并登记进常驻物容器
+        /// （模组确认 → 产物 → <see cref="PersistentObjectRegistry"/> 登记 一条链）。
+        /// TODO(逐格定案)：正式产物 = 常驻武器格实体（火药桶/木箱），逐件放置计数在产物侧。
+        /// </summary>
+        void SpawnPlaceModulePlaceholder(PirateBase pirate, WeaponId used)
+        {
+            if (battle == null)
+                return;
+
+            float size = PlaceModuleRules.PlaceholderCubeSize;
+            GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cube.name = "PlaceModulePlaceholder_" + used;
+            cube.transform.SetParent(battle.transform, false);
+            cube.transform.position = _placeParams.TargetPosition;
+            cube.transform.localScale = new Vector3(size, size, size);
+            ApplyPlaceholderMaterial(cube);
+
+            PersistentObjectHandle handle = cube.AddComponent<PersistentObjectHandle>();
+            handle.Register(
+                battle.PersistentObjects, used, Vector3.one * (size * 0.5f), pirate.TeamIndex);
+        }
+
+        /// <summary>
+        /// 直线发射模组的占位产物（调度链路验证）：无重力刚体立方沿发射方向恒速直线飞行。
+        /// TODO(逐格定案)：正式弹药走 cannonball 格的实弹链（§2 第 1 格），由炮位发射。
+        /// </summary>
+        void SpawnLineLaunchPlaceholder(PirateBase pirate, WeaponId used)
+        {
+            if (battle == null)
+                return;
+
+            float size = PlaceModuleRules.PlaceholderCubeSize;
+            GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cube.name = "LineLaunchPlaceholder_" + used;
+            cube.transform.SetParent(battle.transform, false);
+            cube.transform.position = StandardThrowRules.ThrowOrigin(pirate.transform.position);
+            cube.transform.localScale = new Vector3(size, size, size);
+            ApplyPlaceholderMaterial(cube);
+
+            Rigidbody body = cube.AddComponent<Rigidbody>();
+            body.useGravity = false;
+            body.velocity = LineLaunchModuleRules.LaunchVelocity(_lineParams);
+        }
+
+        /// <summary>占位立方走像素化物体材质（与弹体兜底视觉同路径；拿不到 shader 就禁渲染）。</summary>
+        static void ApplyPlaceholderMaterial(GameObject cube)
+        {
+            Renderer renderer = cube.GetComponent<Renderer>();
+            if (renderer == null)
+                return;
+            Material material = PixelartMaterialFactory.Create("PixelartProjectile", Color.yellow);
+            if (material != null)
+                renderer.material = material;
+            else
+                renderer.enabled = false;
         }
 
         /// <summary>生成武器弹体（通用抛掷，BattleController 的单一弹体路径）。</summary>
