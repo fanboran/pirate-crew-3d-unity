@@ -148,9 +148,8 @@
 ```
 
 菜单：`PirateCrew/UI/重烘焙 Beveled Pixel 九宫格`；管线：`ArtGate` 第 ⑦.5 步。
-契约测试层**待补建**（验收清单见待办 [九宫格契约测试补建](../../项目/待办/九宫格契约测试补建.md)——
-按现役资产族（Focus + 7 窗体件 + 直切件逐位判据）补建 EditMode 独立复核；当前仅有纹理导入契约测试
-`PixelArtTextureImportTests`）。
+判据以生成器 `Verify()` 自检为准（原「第二套独立契约测试」随 2026-10-14 裁决退役不建；
+纹理导入契约 `PixelArtTextureImportTests` 继续生效）。
 
 ## 六、与参照的实测对照
 
@@ -168,6 +167,5 @@
   [pirate_palette.json](../../../pirate-crew/Assets/Data/Palette/pirate_palette.json) 为权威）。
 - **W4 存件清退**：`PixelSkin.Focus` / `Window(tone)` 零调用方，保留仅为烘焙器存件；
   连同烘焙器程序化残段一并清退时再删。
-- **契约测试待补建**：见 §五 与待办。
 - 其余（像素密度可调档、字体待定、`Resources/UIIcons/` 风格协调、1440p 画布等）统一登记在
   [收尾与打磨](../../项目/待办/收尾与打磨.md)，本文不重复清单。

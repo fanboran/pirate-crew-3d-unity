@@ -1183,9 +1183,6 @@ namespace PirateCrew.EditorTools
         /// 全部判据：返回违反项清单（空 = 通过）。**每一条都是可复算的数字**：
         /// 阶梯单调、几何成立（色带边界落偶数行）、颜色锁在 tone 的色阶里、
         /// 盘上资产与生成器输出逐像素一致（改了参数忘重烘焙就会被抓到）。
-        ///
-        /// 编辑器的契约测试（<c>Assets/Art/Tests/BeveledPixelSkinTests.cs</c>）另做一遍
-        /// **不依赖本类的独立复核**：直接读盘上 PNG，量色带边界与"光来自左上"的明暗方向。
         /// </summary>
         public static List<string> Verify()
         {
