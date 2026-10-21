@@ -45,7 +45,7 @@ PirateCrew/UI/打开组件展示（构建并播放）。
 | # | 步骤 | 为什么在这个位置 |
 | --- | --- | --- |
 | ① | `BattleSceneSetup.BuildAll` | `NewScene(EmptyScene)` 全量重建——它敢扔掉旧场景，因为后面每步都会把该补的补回来 |
-| ② | `FloatingIslandShowcaseMenu.PlaceIntoBattleCenter` | 空岛样板件（第 3 关地面）；在 ① 之后，否则被重建洗掉 |
+| ② | `FloatingIslandShowcaseMenu.PlaceIntoBattleCenter` | 空岛样板件（第 2 关地面）；在 ① 之后，否则被重建洗掉 |
 | ③ | `SceneArtBaker.BuildAll` | 样板场景件烘焙（云场 → prefab + 接线） |
 | ④ | `SceneAssetManifestBuilder.BuildAll` | 场景资产总清单 |
 | ⑤ | `HudMinimapSceneSetup.WireMinimap` | 小地图窗体/内容子树（顶视底图 RawImage + 点位层）/引用增量接线，顺带校正顶视 PNG 导入参数并登记顶视平色 shader；必须在 ① 之后（曾因此静默坏过三轮，c78fdea） |
@@ -112,7 +112,7 @@ P="F:/VSCode/pirate-crew-3d-unity/pirate-crew"
 ### (a.5) 关卡 3 的空岛地面（1 个根）
 
 `FloatingIslandShowcase`（16 个按材质分组的子物体）由链内第 ② 步 `PlaceIntoBattleCenter` 摆入，
-并在同一处接给 `RuntimeSceneArt.skyIslandRoot`——**运行期由它按关卡号开关可见性（只有第 3 关激活）**，
+并在同一处接给 `RuntimeSceneArt.skyIslandRoot`——**运行期由它按关卡号开关可见性（只有第 2 关激活）**，
 所以它进 Prefab 是正确的，不该当成"多出来的东西"删掉。
 
 ### (b) 按关卡参数定尺寸的几何（1 个根）
