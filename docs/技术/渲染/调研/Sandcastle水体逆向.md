@@ -282,15 +282,30 @@ Water compute 的 11 个 kernel 全部反汇编后逐条判读（每个 kernel �
 
 ### 10.6 沙地与水下装饰的观感真值（2026-10-21，第一手材质/资产回读）
 
+- **初始地形是高度图资产，运行时才是可塑高度场**：`Refs.worldHeightMap` 是
+  **2048×1024 Texture2D `WorldHeightMap`**（`sharedassets0.assets` path 163，灰度）。
+  `LayoutWorld` 建 `Brush(Operation.Add, shape=Box, easing=Constant)`，把
+  `brush.patternStencil` 指向它，再 `beach.ground.Paint(...)` 刷进 Ground 层，
+  随后 `UpdateTangent()`。即：**沙盘的初始高度分布来自这张贴图资产**；之后由
+  Ground compute（`sandAmount`/速度/高度积分）在运行时变形。资产本身不是 mesh，
+  也不是运行时唯一的高度源。
 - **沙材质** `Sand`（自研 `Lit/Sand`）：`sandColor=(0.9255,0.8863,0.7255)`、
   `sandColor2=(0.9294,0.8980,0.7529)`、`wetSandColor=(0.9060,0.8104,0.6333)`
   （序列化 linear）。湿沙不是独立贴图：VS 把 `max(water−0.05,0)` 传入，PS 先
   `sat×52.63` 再 `3t²−2t³` smoothstep——约 2 cm 水膜即全湿；随后按水深 ×20 与
   坡度因子继续压向第三色。
-- **没有反照率沙贴图**：`sandMap` 是 1024² RG 向量流噪声，只用于扭曲焦散 UV；
-  沙面颗粒/波纹来自 GPU 高度场法线（`Lit_Sand@702.vs` 从地面缓冲解 8-bit 法线）。
-  焦散是烘焙 `Texture3D "Caustics" 256×256×64`、1 byte/voxel，PS 双采样时间 lerp，
-  强度乘 `exp(−1.731×水深)`。
+- **Lit_Sand 没有层理/沙纹/卵石 albedo**：`sandMap` 指向 1024² Texture2D `Sand`。
+  实测该贴图 **R 通道是逐 texel 白噪声**（mean 0.508、std 0.161、4 px 自相关≈0；
+  采样 `worldXZ×0.3` → 单 texel ≈3.3 mm），只给沙粒明暗（PS 以 `normal.y` 加权，
+  幅度约 ±0.2×n.y）；**G/B 是低频平滑流场**（std≈0.042、64 px 自相关 0.42），
+  只驱动焦散 UV 扰动。`Strata`（512²，R 通道）只被 `BordersWaterFront` 材质使用，
+  不在 Lit_Sand 里。沙面法线来自 GPU 高度场（`Lit_Sand@702.vs` 从地面缓冲解
+  8-bit 法线），没有法线贴图。焦散是烘焙 `Texture3D "Caustics" 256×256×64`、
+  1 byte/voxel，PS 双采样时间 lerp，强度乘 `exp(−1.731×水深)`。
+- **暗颗粒是砾石粒子，不是 shader 点阵**：`Gravel` 是独立的 GPU 粒子层
+  （`GravelParticle{position,age}`，走 Ground compute 的 `gravel` buffer），
+  材质 `Gravel` 的 `baseColor1/2` 来自 `sandParameters.gravelColor/gravelColor2`。
+  参考图里随机大小/疏密的深色小点是这些实体粒子，沙 shader 不画卵石。
 - **水下装饰**：珊瑚/海草是 GPU Imposter 广告牌（`Plant.cs`，capacity 32768，
   sizeRange 默认 0.75），图集不透明像均色见下表；礁石/卵石/贝壳/海星是实体网格
   （Rock_01–06 473–2576 顶点、Pebble_01–06 54–67 顶点、贝壳 187–712 顶点）。
@@ -304,9 +319,13 @@ Water compute 的 11 个 kernel 全部反汇编后逐条判读（每个 kernel �
 | Kelp | (0.678,0.526,0.221) | 橄榄褐海带 |
 | Seagrass | ≈(0.36,0.46,0.21) | 绿色海草 |
 
+- **退潮薄水膜的原作口径**：`Lit_Water@246.vs` 顶点取 4 邻 `max(h−0.05,0)` 的
+  盒式平均，水高 = `ground + 可见水深`，并把该可见水深作为 `o4.w` 传给 PS；
+  `Lit_Water@8682.ps` 首条即 `v4.w − 1e−5 < 0 → discard`。**PS 不逐像素重采样
+  高度场**——岸线严格由顶点插值的可见水深决定；h≤5 cm 的格子水面直接贴回沙面。
 - **不可恢复**：七种沙型预设（`SandType` 的 color/wetColor/sedimentColor 是运行时
   构造配置，序列化 MonoBehaviour 无 typetree）；Caustics 体素内容；`WorldHeightMap`
-  的 `FormatProperty.size`。
+  的世界尺度映射（`FormatProperty.size` 未闭合；贴图本体 2048×1024 可读）。
 
 ## 11. 水体渲染代码量对照（2026-10-16，全量反汇编精读）
 

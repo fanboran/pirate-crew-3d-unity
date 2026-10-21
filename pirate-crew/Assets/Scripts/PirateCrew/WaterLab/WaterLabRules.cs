@@ -332,15 +332,51 @@ namespace PirateCrew.WaterLab
         /// <summary>干沙滩平台高程（m）。</summary>
         public const float BeachHeight = 0.5f;
 
-        /// <summary>沙纹起伏幅度（m）——高频微起伏给折射一点可读的底纹。
-        /// 0.03 时两组交叉正弦的波腹节点在滩面上显成规则暗点阵（实拍第五轮），压到 0.012。</summary>
-        public const float SandRippleAmplitude = 0.012f;
+        /// <summary>剖面单调测试容差（m）。原作滩面来自 WorldHeightMap 高度场资产，
+        /// 是光滑的大尺度地形；本仓不再叠加周期沙纹，容差只兜 value noise 的微小起伏。</summary>
+        public const float TerrainMonotoneTolerance = 0.005f;
 
         /// <summary>smoothstep（带 clamp）。</summary>
         static float Smooth01(float t)
         {
             t = Mathf.Clamp01(t);
             return t * t * (3f - 2f * t);
+        }
+
+        /// <summary>确定性整数哈希（0..1）。纯算术，harness 脱离 Unity 原生调用也能跑。</summary>
+        static float Hash01(int x, int y)
+        {
+            unchecked
+            {
+                uint h = (uint)(x * 374761393 + y * 668265263);
+                h = (h ^ (h >> 13)) * 1274126177u;
+                h ^= h >> 16;
+                return (h & 0xFFFFFFu) / 16777215f;
+            }
+        }
+
+        /// <summary>双线性平滑 value noise（0..1）。用噪声代替全场同相正弦，避免
+        /// 沙面/岸线出现贯穿画面的等高条纹。</summary>
+        static float ValueNoise(float x, float y)
+        {
+            int xi = Mathf.FloorToInt(x);
+            int yi = Mathf.FloorToInt(y);
+            float fx = x - xi;
+            float fy = y - yi;
+            fx = fx * fx * (3f - 2f * fx);
+            fy = fy * fy * (3f - 2f * fy);
+            float a = Hash01(xi, yi);
+            float b = Hash01(xi + 1, yi);
+            float c = Hash01(xi, yi + 1);
+            float d = Hash01(xi + 1, yi + 1);
+            return Mathf.Lerp(Mathf.Lerp(a, b, fx), Mathf.Lerp(c, d, fx), fy);
+        }
+
+        /// <summary>两倍频 value noise（互质缩放，压低格点感）。</summary>
+        static float Fbm(float x, float y)
+        {
+            return ValueNoise(x, y) * 0.65f
+                 + ValueNoise(x * 2.03f + 17.3f, y * 1.97f + 41.7f) * 0.35f;
         }
 
         /// <summary>
@@ -368,10 +404,12 @@ namespace PirateCrew.WaterLab
         /// </summary>
         public static float TerrainHeight(float worldX, float worldZ)
         {
-            // 岸线沿 z 低频摆动（±1.6 m）：参考头图的岸线不是直线，等距/高角度看过去
-            // 才有滩湾的层次；摆幅小于浅水架宽度，不会把剖面结构打乱。
-            float shoreWarp = Mathf.Sin(worldZ * 0.18f + 0.6f) * 1.2f
-                            + Mathf.Sin(worldZ * 0.47f + 2.2f) * 0.4f;
+            // 岸线沿 z 低频摆动：三组互质频率叠加（±2.0 m）。单频/双频摆动的波峰
+            // 波谷仍会读成规则弧线，第三组短波把岸线打散成滩湾；摆幅小于浅水架宽度，
+            // 不会把剖面结构打乱。
+            float shoreWarp = Mathf.Sin(worldZ * 0.13f + 0.6f) * 1.15f
+                            + Mathf.Sin(worldZ * 0.41f + 2.2f) * 0.55f
+                            + Mathf.Sin(worldZ * 0.87f + 4.4f) * 0.32f;
             float x = worldX - shoreWarp;
 
             // 接缝斜率（m/m）：取在 shelf/face 两段平均坡度之下（Fritsch–Carlson 单调条件
@@ -396,17 +434,22 @@ namespace PirateCrew.WaterLab
                             (x - FaceStartX) / (FaceEndX - FaceStartX));
             }
 
-            // 后滨沙丘（FaceEndX 起坡，+8 m 满幅）：两条不同相位的长波脊，最高 +0.46 m。
-            // 参考的干沙滩有起伏与草簇；平面沙台在 48° 俯视下会像一张纸。
+            // 后滨沙丘：脊线随 x 弯曲、脊高随 x/z 起伏。旧版只用 z 的正弦 → 沙丘是
+            // 一条贯穿画面的横条；现在相位与幅值都带 x 项，外加一层二维噪声明暗。
             float duneMask = Smooth01((x - FaceEndX) / 8f);
-            float dunes = (0.5f + 0.5f * Mathf.Sin(worldZ * 0.33f + 1.1f)) * 0.28f
-                        + (0.5f + 0.5f * Mathf.Sin(worldZ * 0.19f + 0.3f)) * 0.18f;
+            float dunePhaseA = worldZ * 0.31f + 1.1f + 0.85f * Mathf.Sin(worldX * 0.17f + 0.4f);
+            float dunePhaseB = worldZ * 0.19f + 0.3f + 0.55f * Mathf.Sin(worldX * 0.11f + 2.1f);
+            float dunes = (0.5f + 0.5f * Mathf.Sin(dunePhaseA)) * 0.24f
+                        + (0.5f + 0.5f * Mathf.Sin(dunePhaseB)) * 0.16f
+                        + (Fbm(worldX * 0.33f + 9.1f, worldZ * 0.29f + 3.7f) - 0.5f) * 0.14f;
             h += dunes * duneMask;
 
-            // 确定性沙纹：单向为主的低幅正弦（两组等权交叉会出波腹节点格架，
-            // 滩面上显成满场静态软点阵——实拍第六轮放大实证；次向留 0.25 打破平行单调）
-            h += SandRippleAmplitude * (Mathf.Sin(worldX * 1.7f + worldZ * 0.6f) * 0.75f
-                                        + Mathf.Sin(worldZ * 2.3f - worldX * 0.4f) * 0.25f);
+            // 湿滩到干滩的宽缓起伏：原作初始地形来自 WorldHeightMap 资产，岸线是
+            // 分形曲线、滩面是光滑的大尺度地形，没有周期沙纹。这里只加 12–20 m
+            // 波长的低幅起伏（±2.5 cm），让滩面不是一块斜板；不产生高频条纹。
+            float broadMask = Smooth01((x - FaceStartX) / 4f)
+                            * (1f - Smooth01((x - FaceEndX) / 3f));
+            h += (Fbm(worldX * 0.055f + 21.7f, worldZ * 0.060f + 4.3f) - 0.5f) * 0.05f * broadMask;
             return h;
         }
 

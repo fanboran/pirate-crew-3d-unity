@@ -79,9 +79,11 @@ Shader "PirateCrew/WaterLab/Ocean"
         // 即「一点也不像水」的直接成因。故整项删除：泡沫场只驱动白水粒子生成。
 
         // ---- 岸线 ----
-        // 模拟发布的 η 已扣除 5 cm 结合水（depth = max(h−0.05,0)），这里只裁几何贴地
-        // 与 z-fighting：保留 1 mm 可见水深，水线落在 h≈0.051 m。
-        _DryClip                ("可见水深裁剪（m）", Range(0.0, 0.05)) = 0.001
+        // 原作 Lit_Water PS 的 discard 是 v4.w（VS 逐顶点算的
+        // max(amount−0.05,0)，经三角形插值）< 1e-5。本仓同样把可见水深放在
+        // 顶点属性里传下来，不再在 PS 里逐像素重采样高度场——后者会在水线两侧
+        // 插值出 1–10 mm 的伪水膜（实拍“前沿残留水”的直接来源）。
+        _DryClip                ("可见水深裁剪（m）", Range(0.0, 0.05)) = 0.00001
 
         // ---- 细节法线（必须进 Properties 才能被材质序列化绑定；gray = 平坦）----
         _WaterLabDetailNormal   ("细节法线", 2D) = "gray" {}
@@ -175,19 +177,26 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float3 positionWS : TEXCOORD0;
                 float4 screenPos  : TEXCOORD1;
                 float  eyeDepth   : TEXCOORD2; // 水面到相机的视空间深度（折射安全门比较用）
+                float  visibleDepth : TEXCOORD3; // max(η−ground,0)，与原作 VS 的 v4.w 同义
             };
 
             Varyings WaterLabVertex(Attributes IN)
             {
                 Varyings OUT;
                 float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
+                OUT.visibleDepth = 0.0;
 
                 if (_WaterLabSimEnabled > 0.5)
                 {
                     float2 uv = WorldToDomainUv(positionWS);
-                    float etaEnc = SAMPLE_TEXTURE2D_LOD(_WaterLabHeightTex,
-                        sampler_WaterLabHeightTex, uv, 0).r;
-                    positionWS.y += DecodeEta(etaEnc); // 网格基准 y=0（静水面）
+                    float eta = DecodeEta(SAMPLE_TEXTURE2D_LOD(_WaterLabHeightTex,
+                        sampler_WaterLabHeightTex, uv, 0).r);
+                    float ground = DecodeEta(SAMPLE_TEXTURE2D_LOD(_WaterLabGroundTex,
+                        sampler_WaterLabGroundTex, uv, 0).r);
+                    // 原作 Lit_Water VS：顶点高度 = ground + max(h−0.05,0)，并把
+                    // max(h−0.05,0) 作为可见水深传给 PS（PS 用它做 1e-5 裁剪）。
+                    OUT.visibleDepth = max(eta - ground, 0.0);
+                    positionWS.y += eta; // 网格基准 y=0（静水面）
                 }
 
                 OUT.positionWS = positionWS;
@@ -202,11 +211,10 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float t = _TimeParameters.x;
                 float2 uv = WorldToDomainUv(IN.positionWS);
                 float4 field = SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, uv);
-                float ground = DecodeEta(SAMPLE_TEXTURE2D(_WaterLabGroundTex, sampler_WaterLabGroundTex, uv).r);
-
-                float eta = DecodeEta(field.r);
-                float depth = max(eta - ground, 0.0);
                 float groundRaw = SAMPLE_TEXTURE2D(_WaterLabGroundTex, sampler_WaterLabGroundTex, uv).r;
+
+                // 可见水深用 VS 插值属性（原作同构），不逐像素重采样 η−ground。
+                float depth = max(IN.visibleDepth, 0.0);
 
                 bool dbgOn = _WaterLabOceanDebug > 0.5;
                 if (_WaterLabSimEnabled > 0.5 && !dbgOn)

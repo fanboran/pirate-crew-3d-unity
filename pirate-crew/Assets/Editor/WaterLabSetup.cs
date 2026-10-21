@@ -203,17 +203,13 @@ namespace PirateCrew.EditorTools
             // 观感是「水底一片黄绿斑」而不是参考那种**细亮网**；0.5（=2 m 周期）回到网尺度。
             m.SetFloat("_CausticScale", CausticScale);
             m.SetFloat("_CausticGain", CausticGain);
-            // 沙面细节：层理弱化/加宽、平行岸线缓弧沙纹、两档细节法线、干沙卵石暗点、
-            // 湿沙窄高光。全部是纯视觉项，不改变 WaterLabRules 的模拟地形/物理参数。
-            m.SetFloat("_StrataBandWidth", 0.45f);
-            m.SetFloat("_StrataStrength", 0.12f);
-            m.SetFloat("_RippleStrength", 0.16f);
-            m.SetFloat("_DetailNormalStrength", 0.30f);
-            m.SetFloat("_DetailNormalScale", 1.20f);
-            m.SetFloat("_GrainNormalStrength", 0.16f);
-            m.SetFloat("_MottleStrength", 0.06f);
-            m.SetFloat("_PebbleStrength", 0.45f);
-            m.SetFloat("_WetSheen", 0.25f);
+            // 沙面细节按原作 Lit_Sand PS 的结构：没有层理/沙纹/卵石 albedo；
+            // 干湿混色、细粒噪声、闪沙、焦散与几何法线各自独立。全部是纯视觉项，
+            // 不改变 WaterLabRules 的模拟地形/物理参数。
+            m.SetFloat("_GrainStrength", 0.20f); // 原作沙粒噪声 ±0.2×n.y
+            m.SetFloat("_GrainScale", 300.0f);   // worldXZ×0.3 的 1024² 白噪声 ≈3.3 mm
+            m.SetFloat("_SparkleStrength", 0.02f);
+            m.SetFloat("_SparkleScale", 14.0f);
         }
 
         /// <summary>焦散采样世界尺度（1/m）：周期 = 1/此值。参考的焦散网约 0.5–2 m。</summary>
@@ -286,8 +282,10 @@ namespace PirateCrew.EditorTools
             var beach = new GameObject("BeachDetails");
             var beachGrass = new GameObject("BeachGrass").transform;
             var starfish = new GameObject("Starfish").transform;
+            var gravel = new GameObject("BeachGravel").transform;
             beachGrass.SetParent(beach.transform, false);
             starfish.SetParent(beach.transform, false);
+            gravel.SetParent(beach.transform, false);
 
             // 深色水底参照物是「透明感」的载体：参考图水底是密集的大丛海草/珊瑚，
             // 旧版 80 件 0.1–0.8 m 散石在画面里只占 <2% 像素，读不出水深。
@@ -326,6 +324,16 @@ namespace PirateCrew.EditorTools
             {
                 MakePropMaterial("WaterLab_Starfish0", new Color(0.55f, 0.18f, 0.08f), detail),
                 MakePropMaterial("WaterLab_Starfish1", new Color(0.40f, 0.13f, 0.26f), detail),
+            };
+            // 原作沙面没有卵石 albedo 贴图：参考图里那些随机暗点是 **Gravel 粒子**
+            // （实体小石网格，`Gravel` 材质 baseColor1/2 来自 sandParameters.gravelColor）。
+            // 这里用同一套低模岩石网格缩到砾石尺寸，颜色取深灰/褐/浅贝壳三档。
+            var gravelMats = new[]
+            {
+                MakePropMaterial("WaterLab_Gravel0", new Color(0.30f, 0.27f, 0.22f), detail),
+                MakePropMaterial("WaterLab_Gravel1", new Color(0.42f, 0.36f, 0.28f), detail),
+                MakePropMaterial("WaterLab_Gravel2", new Color(0.52f, 0.47f, 0.38f), detail),
+                MakePropMaterial("WaterLab_Gravel3", new Color(0.72f, 0.67f, 0.56f), detail),
             };
 
             var rockShapes = new Mesh[6];
@@ -496,8 +504,34 @@ namespace PirateCrew.EditorTools
                 starfishCount++;
             }
 
+            // 干滩砾石：原作是 3D 粒子（不是 shader 点阵）。按参考图的稀疏程度
+            // 撒在 h>0.05 的干沙上，半径 2–6 cm；少量浅色贝壳用扁平的 gravelMats[3]。
+            int gravelCount = 0;
+            for (int attempt = 0; attempt < 3000 && gravelCount < 320; attempt++)
+            {
+                float x = Mathf.Lerp(10f, 30f, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float h = WaterLabRules.TerrainHeight(x, z);
+                if (h < 0.05f) continue; // 只落在干沙/后滨，不进水线浮沫区
+                float size = Mathf.Lerp(0.02f, 0.06f, (float)rnd.NextDouble());
+                bool shell = rnd.NextDouble() < 0.08;
+                var go = NewProp($"Gravel_{gravelCount}", gravel,
+                    rockShapes[rnd.Next(rockShapes.Length)],
+                    shell ? gravelMats[3] : gravelMats[rnd.Next(3)]);
+                go.transform.position = new Vector3(x, h + size * 0.20f, z);
+                go.transform.rotation = Quaternion.Euler(
+                    (float)rnd.NextDouble() * 360f,
+                    (float)rnd.NextDouble() * 360f,
+                    (float)rnd.NextDouble() * 360f);
+                go.transform.localScale = new Vector3(
+                    shell ? size * 1.5f : size,
+                    size * (shell ? 0.22f : Mathf.Lerp(0.55f, 1.0f, (float)rnd.NextDouble())),
+                    shell ? size * 1.1f : size);
+                gravelCount++;
+            }
+
             Debug.Log($"[WaterLabSetup] 水底参照物：礁石 {rockCount} / 海草 {grassCount} 丛 / 珊瑚 {coralCount} 丛；" +
-                      $"滩面草簇 {beachGrassCount} / 海星 {starfishCount}");
+                      $"滩面草簇 {beachGrassCount} / 海星 {starfishCount} / 砾石 {gravelCount}");
         }
 
         static Material MakePropMaterial(string name, Color color, Texture2D detail)
@@ -769,6 +803,9 @@ namespace PirateCrew.EditorTools
             renderer.sharedMaterial.SetFloat("_SkyReflectionStrength", SkyReflectionStrength);
             // 散射显示域强度：原作 HDR+tonemap 的文件值在 LDR 直出链里过强，见 ScatterStrength 注释。
             renderer.sharedMaterial.SetFloat("_ScatterStrength", ScatterStrength);
+            // 原作 Lit_Water PS 的 discard 阈值是 1e-5（逐顶点可见水深），没有 6 mm 档；
+            // 残留水膜应由 VS 的逐顶点可见水深解决，不能靠抬高裁剪阈值掩盖。
+            renderer.sharedMaterial.SetFloat("_DryClip", 0.00001f);
             // 【一次性探针】PC3D_WATERLAB_MAT_PROBE=1：把水色乘子强制纯红、σ 提到 5/m 均匀。
             // 若水面在画 → 整幅被 ×T 染红（dist≥0.3 即近黑红）；若不在画（被裁/未绘）→ 看到的是
             // 沙面本色。用于分辨「水没渲染」与「水渲染了但颜色不对」这两类完全不同的成因。
