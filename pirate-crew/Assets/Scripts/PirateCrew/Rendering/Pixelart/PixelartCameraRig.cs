@@ -380,7 +380,14 @@ namespace PirateCrew.Rendering.Pixelart
                 _castCamera.targetTexture = null;
                 // 只销毁运行时自己建的；装配器写进场景的那台留着（场景资产不动）。
                 if (_castCameraCreatedAtRuntime && _castCamera.gameObject != null)
-                    DestroyImmediate(_castCamera.gameObject);
+                {
+                    // 播放期走延迟 Destroy（DestroyImmediate 在播放中会立即拆对象，绕过当帧渲染收尾）；
+                    // 编辑模式（装配/清理）保持 Immediate 才生效。
+                    if (Application.isPlaying)
+                        Destroy(_castCamera.gameObject);
+                    else
+                        DestroyImmediate(_castCamera.gameObject);
+                }
                 _castCamera = null;
                 _castCameraData = null;
             }
