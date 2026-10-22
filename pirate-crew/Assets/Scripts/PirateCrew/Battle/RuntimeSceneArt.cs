@@ -132,7 +132,7 @@ namespace PirateCrew.Battle
             for (int i = 0; i < _instances.Count; i++)
             {
                 if (_instances[i] != null)
-                    DestroyObject(_instances[i]);
+                    DestroyInstanceObject(_instances[i]);
             }
             _instances.Clear();
         }
@@ -175,7 +175,7 @@ namespace PirateCrew.Battle
             }
         }
 
-        static void DestroyObject(Object target)
+        static void DestroyInstanceObject(Object target)
         {
             if (target == null)
                 return;
