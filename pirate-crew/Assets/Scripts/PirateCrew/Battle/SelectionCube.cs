@@ -1,4 +1,5 @@
 using UnityEngine;
+using PirateCrew.Rendering.Pixelart;
 using PirateCrew.Visual;
 
 namespace PirateCrew.Battle
@@ -8,20 +9,17 @@ namespace PirateCrew.Battle
     ///
     /// 【形态】以单位脚底为底、包住整只单位的轴对齐立方体。只在 8 个角附近沿三条棱各画
     /// 一段短臂（<see cref="ArmLength"/>），棱中段留空——读起来是八个角框，而不是完整线框。
-    /// 每条短臂用一条面向相机的细长四边形表示，宽度 = **1 屏幕像素**。
+    /// 每条短臂用一条面向相机的细长四边形表示，宽度 = **1 艺术像素**
+    /// （<see cref="CameraFraming.WorldPerPixel"/>），和场景像素同一颗粒度。
     ///
-    /// 【全分辨率叠加】像素化域在 540p 艺术画布上光栅化再 2× 上屏，1 艺术像素 = 2 屏幕像素；
-    /// 要真正的 1 屏幕像素线宽，角框走 <c>PixelartCameraRig</c> 的全分辨率 Overlay 相机
-    /// （渲染器 <c>PixelartOverlay_Renderer</c>），用专用 shader
-    /// <c>PirateCrew/Pixelart/SelectionCube</c>：不读贴图/顶点色/光照，只输出阵营色。
+    /// 【像素化透明趟】角框走 <c>PixelartTransparent</c>（与弹道预览同一趟）：画进 540p
+    /// 艺术画布，再随场景一起点采样上屏；因此它的像素大小就是艺术像素，不会出现
+    /// “全分辨率细线比场景像素更细”的割裂。材质名带 SelectionCube，命中
+    /// <c>PixelartContentConverter</c> 的效果件白名单，不会被转成不透明像素化材质。
     ///
-    /// 【层隔离】角框在 <see cref="OverlayLayer"/>（31，SelectionOverlay）。Cast 渲染器的透明层
-    /// 掩码已排除该层——否则标准透明趟会把角框也画进艺术画布（一次全分辨率、一次像素化，
-    /// 出现双线）；Overlay 渲染器的透明掩码仍是全开，所以只有叠加相机画它。
-    ///
-    /// 【覆盖关系】Overlay 相机的深度附件是空的，所以专用 shader 手动采样 Cast 路径发布的
-    /// `_PixelartDepthBuffer` 做逐像素比较：角色身体/地形在前时，后面的棱被 clip。
-    /// 角框不进 G-buffer，不会触发屏幕空间描边。
+    /// 【覆盖关系】透明趟 shader 手动采样 Cast 路径发布的 `_PixelartDepthBuffer` 做逐像素
+    /// 比较：角色身体/地形在前时，后面的棱被 clip（等效 ZTest LEqual）。角框不进 G-buffer，
+    /// 不会触发屏幕空间描边。
     ///
     /// 【挂载】由 <see cref="PirateBase.Awake"/> 自动追加。线框物体**不挂在单位下**：
     /// 单位根带 0.375×0.5×0.375 的非均匀缩放，父级会把它剪切变形；改为世界空间独立物体，
@@ -30,7 +28,7 @@ namespace PirateCrew.Battle
     [RequireComponent(typeof(PirateBase))]
     public sealed class SelectionCube : MonoBehaviour
     {
-        /// <summary>叠加层专用层号（ProjectSettings 里名为 SelectionOverlay）。</summary>
+        /// <summary>选中框专用层号（ProjectSettings 里名为 SelectionOverlay；不与标准透明趟抢件）。</summary>
         const int OverlayLayer = 31;
 
         /// <summary>立方体半宽（米）：1.2 m 见方，包住单位视觉体宽。</summary>
@@ -39,8 +37,8 @@ namespace PirateCrew.Battle
         const float CubeHeight = CameraFraming.UnitVisualHeight + 0.10f;
         /// <summary>底边离地（米），避免与地面 z-fighting。</summary>
         const float GroundOffset = 0.02f;
-        /// <summary>无相机时的兜底线宽（1080p 下 1 屏幕像素的近似值）。</summary>
-        const float FallbackLineWidth = CameraFraming.WorldPerPixel * 0.5f;
+        /// <summary>棱线宽 = 1 艺术像素（0.0593 m）；画在像素化透明趟里，与场景同像素大小。</summary>
+        const float LineWidth = CameraFraming.WorldPerPixel;
 
         /// <summary>每条角臂的长度（米）：只画角附近，棱中段留空。</summary>
         const float ArmLength = 0.28f;
@@ -59,7 +57,6 @@ namespace PirateCrew.Battle
         static readonly Material[] _sharedMaterials = new Material[2];
         static Vector3 _lastRight;
         static Vector3 _lastUp;
-        static float _lastLineWidth = -1f;
         static bool _hasOrientation;
 
         PirateBase _pirate;
@@ -98,12 +95,7 @@ namespace PirateCrew.Battle
             Camera cam = Camera.main;
             Vector3 right = cam != null ? cam.transform.right : Vector3.right;
             Vector3 up = cam != null ? cam.transform.up : Vector3.up;
-            // 1 屏幕像素 = 正交视野高（2×orthoSize）÷ 屏幕像素高。
-            float lineWidth = cam != null
-                ? 2f * cam.orthographicSize / Mathf.Max(1, cam.pixelHeight)
-                : FallbackLineWidth;
-            lineWidth = Mathf.Clamp(lineWidth, 0.005f, 0.2f);
-            UpdateSharedMesh(right, up, lineWidth);
+            UpdateSharedMesh(right, up);
         }
 
         void Build()
@@ -143,21 +135,19 @@ namespace PirateCrew.Battle
                 DestroyImmediate(_cube.gameObject);
         }
 
-        /// <summary>按阵营各一份叠加材质；shader 只输出 _Color，不依赖贴图/顶点色/光照。</summary>
+        /// <summary>像素化透明趟材质（按阵营各一份）；线宽由几何保证 1 艺术像素。</summary>
         static Material SharedMaterial(int teamIndex)
         {
             int slot = teamIndex == 0 ? 0 : 1;
             if (_sharedMaterials[slot] != null)
                 return _sharedMaterials[slot];
 
-            Shader shader = Resources.Load<Shader>("PixelartShaders/SelectionCube");
-            if (shader == null)
-                shader = Shader.Find("PirateCrew/Pixelart/SelectionCube");
+            Shader shader = PixelartShaders.Load(PixelartPath.TransparentShaderName);
             if (shader == null)
             {
                 global::PirateCrew.Core.Log.Error(
-                    "[SelectionCube] 找不到 shader「PirateCrew/Pixelart/SelectionCube」"
-                    + "（Resources/PixelartShaders/SelectionCube.shader 被删/改名？），选中框不会显示。");
+                    "[SelectionCube] 找不到像素透明 shader「" + PixelartPath.TransparentShaderName
+                    + "」，选中框不会显示。");
                 return null;
             }
 
@@ -168,6 +158,8 @@ namespace PirateCrew.Battle
                 name = slot == 0 ? "SelectionCube_Red" : "SelectionCube_Blue",
             };
             material.SetColor("_Color", color);
+            if (material.HasProperty("_DepthTest"))
+                material.SetFloat("_DepthTest", 1f);
             _sharedMaterials[slot] = material;
             return material;
         }
@@ -190,12 +182,21 @@ namespace PirateCrew.Battle
                 triangles[t + 5] = v + 3;
             }
 
+            var colors = new Color32[VertexCount];
+            var uv = new Vector2[VertexCount];
+            for (int i = 0; i < VertexCount; i++)
+            {
+                colors[i] = new Color32(255, 255, 255, 255);
+                uv[i] = Vector2.zero;
+            }
+
             var mesh = new Mesh { name = "SelectionCube" };
             mesh.MarkDynamic();
-            FillVertices(Vector3.right, Vector3.up, FallbackLineWidth);
+            FillVertices(Vector3.right, Vector3.up);
             mesh.vertices = _vertices;
+            mesh.colors32 = colors;
+            mesh.uv = uv;
             mesh.triangles = triangles;
-            // 线宽随分辨率变化，包围盒留固定余量，避免远裁剪误杀。
             mesh.bounds = new Bounds(
                 Vector3.zero,
                 new Vector3(HalfWidth * 2f + 0.3f, CubeHeight + 0.3f, HalfWidth * 2f + 0.3f));
@@ -203,26 +204,24 @@ namespace PirateCrew.Battle
             return mesh;
         }
 
-        /// <summary>按相机右/上方向与当前 1 屏幕像素线宽重算 24 条角臂（相机/分辨率变化时才重算）。</summary>
-        static void UpdateSharedMesh(Vector3 right, Vector3 up, float lineWidth)
+        /// <summary>按相机右/上方向重算 24 条角臂（相机转动时才重算）。</summary>
+        static void UpdateSharedMesh(Vector3 right, Vector3 up)
         {
             if (_sharedMesh == null)
                 return;
             if (_hasOrientation
                 && Vector3.Dot(right, _lastRight) > 0.99999f
-                && Vector3.Dot(up, _lastUp) > 0.99999f
-                && Mathf.Abs(lineWidth - _lastLineWidth) < 1e-5f)
+                && Vector3.Dot(up, _lastUp) > 0.99999f)
                 return;
 
-            FillVertices(right, up, lineWidth);
+            FillVertices(right, up);
             _sharedMesh.SetVertices(_vertices);
             _lastRight = right;
             _lastUp = up;
-            _lastLineWidth = lineWidth;
             _hasOrientation = true;
         }
 
-        static void FillVertices(Vector3 right, Vector3 up, float lineWidth)
+        static void FillVertices(Vector3 right, Vector3 up)
         {
             for (int arm = 0; arm < ArmCount; arm++)
             {
@@ -230,20 +229,20 @@ namespace PirateCrew.Battle
                 Vector3 p1 = Arms[arm].B;
                 Vector3 delta = p1 - p0;
 
-                // 棱在屏幕上的方向；把线宽方向取成它的屏幕垂线，四边形投影后恒为 1 px 宽。
+                // 棱在屏幕上的方向；把线宽方向取成它的屏幕垂线，四边形投影后宽 1 艺术像素。
                 Vector3 screenDir = new Vector3(
                     Vector3.Dot(delta, right), Vector3.Dot(delta, up), 0f);
                 Vector3 offset;
                 if (screenDir.sqrMagnitude < 1e-8f)
                 {
                     // 棱正对镜头（投影成点）：任取一个屏幕方向，至少留一个像素点。
-                    offset = right * (lineWidth * 0.5f);
+                    offset = right * (LineWidth * 0.5f);
                 }
                 else
                 {
                     Vector3 perpendicular = new Vector3(-screenDir.y, screenDir.x, 0f).normalized;
                     offset = (right * perpendicular.x + up * perpendicular.y)
-                        * (lineWidth * 0.5f);
+                        * (LineWidth * 0.5f);
                 }
 
                 int v = arm * VertsPerArm;
