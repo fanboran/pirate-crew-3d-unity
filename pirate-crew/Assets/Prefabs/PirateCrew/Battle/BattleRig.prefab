@@ -3845,7 +3845,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 05c01b73c24d8064b9e4d115b1ca8a52, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  lookDegreesPerMouseUnit: 0.25
+  lookDegreesPerMouseUnit: 0.45
   orbitDragThresholdPixels: 6
 --- !u!1 &1172755874106221932
 GameObject:

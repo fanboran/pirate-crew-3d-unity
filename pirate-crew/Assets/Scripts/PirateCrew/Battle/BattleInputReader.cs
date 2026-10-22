@@ -60,7 +60,7 @@ namespace PirateCrew.Battle
     public sealed class BattleInputReader : MonoBehaviour
     {
         [Tooltip("拖拽转方位的灵敏度（度/鼠标位移单位），自由/环绕两态共用。")]
-        [SerializeField] float lookDegreesPerMouseUnit = 0.25f;
+        [SerializeField] float lookDegreesPerMouseUnit = 0.45f;
 
         [Tooltip("拖拽阈值（px）：右键按住位移超过它才算拖拽（区分点按）。")]
         [SerializeField] float orbitDragThresholdPixels = 6f;
