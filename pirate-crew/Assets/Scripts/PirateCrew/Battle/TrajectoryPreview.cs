@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -13,24 +14,27 @@ namespace PirateCrew.Battle
     ///   3. **落点标记恒显**：兜底步数内穿地必显示标记；
     ///   4. **方向可读**：整条弧线连续可见，落点用高对比度准星标出。
     ///
-    /// 【视觉形态 — 变体 A「磁轨光带」】与像素点阵弧完全不同的连续光带：
-    ///   · **双层轨道**：外层青色宽发光带（6 px，末端收窄）+ 内层亮青窄芯（2 px），
-    ///     走 <c>LineRenderer</c>（View 对齐 = 面向相机），沿抛物线连续铺满；
-    ///   · **刻度短线**：沿弧线等距铺 14 条 1×5 px 横向刻度，读起来像扫描出来的测距轨；
-    ///   · **流动脉冲**：3 颗白色菱形光点沿轨道循环飞行（同源采样步进 = 与实弹同速感），
-    ///     末端与起点渐隐，避免循环跳变；
-    ///   · **落点准星**：品红虚线环（缓慢自转）+ 四角括号（呼吸缩放）+ 菱形内环 + 中心点；
-    ///   · **起点节点**：投掷手位置的青色菱形轮廓，给弧线一个可读的"枪口"。
-    /// 全部件都是世界物体、被单位/地形正常遮挡（落点准星除外，见下）。
+    /// 【视觉形态 — 变体 A「磁轨光带」· 像素块状版】
+    ///   所有视觉元素都先换算到**相机平面艺术像素网格**（1 格 = <see cref="CameraFraming.WorldPerPixel"/>，
+    ///   1080p 下 = 2 屏幕像素），再用 1×1 艺术像素的小方块拼出来——没有 LineRenderer、
+    ///   没有连续丝带、没有任意角度的斜边，边缘与场景同颗粒：
+    ///   · **光带**：1 px 亮青核心 + 1 px 半透明青色晕边，沿弧线逐像素光栅化（阶梯状）；
+    ///   · **刻度**：每 10 art px 一条 1×3 px 深青横档，读成扫描测距轨；
+    ///   · **脉冲**：3 颗 3×3 px 菱形像素光点沿弧线逐像素移动；
+    ///   · **落点准星**：17×17 px 块状像素准星（四角括号 + 两帧交替的虚线菱形环 + 中心十字）；
+    ///   · **起手**：角色根部（transform.position）放 5×5 px 菱形锚点，并用 1 px 虚线引线
+    ///     连到实际出手点（手部）——视觉从脚下起弧，物理弹道仍严格从手部起算。
+    ///   起手锚点/引线是 UI 语义的覆盖标记（`_DepthTest = 0`），保证不被角色本体盖住；
+    ///   光带本体仍吃逐像素深度遮挡。
     ///
     /// 【遮挡机制（像素化域透明趟接管）】本件材质走 <c>PirateCrew/Pixelart/PixelartTransparent</c>
     /// （本仓透明趟专用路径），由 Cast 渲染器的透明趟（<see cref="global::PirateCrew.Rendering.Pixelart.PixelartTransparentFeature"/>，
     /// 着色合成之后）画进**艺术画布**：与画面同像素化，并由 shader 手动比细像素深度实现
-    /// 逐像素遮挡（崖后光带被 clip 掉）。落点准星是 UI 语义的覆盖标记，
-    /// 材质 `_DepthTest = 0`，贴地时不会被块锚深度误裁。
+    /// 逐像素遮挡（崖后光带被 clip 掉）。
     ///
     /// 【预览 = 实弹】初速与重力由调用方（<see cref="BattleInteractionController"/>）从
     /// <see cref="StandardThrowRules"/> 取**与执行同源**的值传入；本类不自算任何弹道参数。
+    /// 视觉下移到根部只画“根部→出手点”的引线，不改采样起点、不改落点。
     /// </summary>
     public sealed class TrajectoryPreview : MonoBehaviour
     {
@@ -38,80 +42,116 @@ namespace PirateCrew.Battle
         public const float ImpactMarkerLift = 0.06f;
 
         // ------------------------------------------------------------------
-        // 调参（视觉常量，不影响弹道）
+        // 调参（长度单位一律 = 艺术像素，1 art px = CameraFraming.WorldPerPixel）
         // ------------------------------------------------------------------
 
-        [Header("磁轨光带")]
-        [Tooltip("外层发光带宽（艺术像素）。")]
-        [SerializeField] float railGlowPixels = 6f;
+        [Header("光带（单位：艺术像素）")]
+        [Tooltip("亮芯宽度（艺术像素，1 = 单像素线）。")]
+        [SerializeField] int railCorePixels = 1;
 
-        [Tooltip("内层亮芯宽（艺术像素）。")]
-        [SerializeField] float railCorePixels = 1.8f;
+        [Tooltip("亮芯两侧的晕边宽度（艺术像素）。")]
+        [SerializeField] int railHaloPixels = 1;
 
-        [Tooltip("沿弧线铺设的横向刻度条数。")]
-        [SerializeField] int tickCount = 14;
+        [Tooltip("刻度间隔（沿弧线的艺术像素数）。")]
+        [SerializeField] int tickEveryPixels = 10;
 
-        [Tooltip("单条刻度的长度（艺术像素，横向跨过光带）。")]
-        [SerializeField] float tickLengthPixels = 5f;
+        [Tooltip("刻度长度（艺术像素）。")]
+        [SerializeField] int tickLengthPixels = 3;
 
-        [Header("流动脉冲")]
-        [Tooltip("沿光带循环飞行的菱形光点数。")]
+        [Header("流动脉冲（单位：艺术像素）")]
+        [Tooltip("沿光带循环飞行的像素光点数。")]
         [SerializeField] int pulseCount = 3;
 
         [Tooltip("脉冲沿整条弧线循环一次的频率（次/秒）。")]
         [SerializeField] float pulseTravelsPerSecond = 0.55f;
 
-        [Tooltip("脉冲菱形边长（艺术像素）。")]
-        [SerializeField] float pulseSizePixels = 4f;
+        [Tooltip("脉冲菱形边长（艺术像素，奇数）。")]
+        [SerializeField] int pulseSizePixels = 3;
 
-        [Header("落点准星")]
+        [Header("落点准星（单位：艺术像素）")]
         [Tooltip("是否显示预测落点准星。")]
         [SerializeField] bool showImpactMarker = true;
 
-        [Tooltip("准星虚线环半径（艺术像素）。")]
-        [SerializeField] float reticleRadiusPixels = 11f;
+        [Tooltip("准星外框半径（艺术像素，17×17 对应 8）。")]
+        [SerializeField] int reticleRadiusPixels = 8;
 
         [Tooltip("预制体上遗留的旧轨迹 LineRenderer（两态重构退役件）；Awake 时直接禁用。")]
         [SerializeField] LineRenderer legacyLine;
 
         // ------------------------------------------------------------------
-        // 运行时视觉件
+        // 像素格累积（键 = (x,y)，value 保留最高优先级的颜色）
         // ------------------------------------------------------------------
 
-        Material _baseMaterial;
+        struct PixelCell
+        {
+            public int Priority;
+            public Vector3 Center;
+            public Color32 Color;
+        }
 
-        LineRenderer _railGlow;
-        LineRenderer _railCore;
+        struct PixelPoint
+        {
+            public int X;
+            public int Y;
+            public float Z;
+        }
 
-        Mesh _tickMesh;
-        MeshFilter _tickFilter;
-        Vector3[] _tickVertices;
-        Color32[] _tickColors;
-        int[] _tickTriangles;
+        const int PriorityHalo = 0;
+        const int PriorityCore = 1;
+        const int PriorityTick = 2;
+
+        readonly Dictionary<long, PixelCell> _cells = new Dictionary<long, PixelCell>(4096);
+        readonly List<PixelCell> _cellList = new List<PixelCell>(4096);
+
+        Mesh _arcMesh;
+        MeshFilter _arcFilter;
+        Vector3[] _vertices;
+        Color32[] _colors;
+        int[] _triangles;
+
+        Mesh _originMesh;
+        MeshFilter _originFilter;
 
         Transform[] _pulses;
         Material _pulseMaterial;
 
-        Transform _originNode;
-        Material _originMaterial;
-
         Transform _reticle;
-        Transform _reticleRing;
-        Transform _reticleBrackets;
-        Material _ringMaterial;
-        Material _bracketMaterial;
+        Transform _ringA;
+        Transform _ringB;
+        Transform _brackets;
 
         Camera _camera;
         readonly Vector3[] _samples = new Vector3[StandardThrowRules.PreviewMaxSteps];
         int _sampleCount;
         bool _visible;
+        Vector3 _lastImpact;
+        bool _hasImpact;
 
-        static readonly Color32 kGlowStart = new Color32(0x1F, 0xA8, 0xC8, 0x52);
-        static readonly Color32 kGlowEnd = new Color32(0x1F, 0xA8, 0xC8, 0x1E);
-        static readonly Color32 kCoreStart = new Color32(0x9C, 0xF6, 0xFF, 0xF2);
-        static readonly Color32 kCoreEnd = new Color32(0x5F, 0xD8, 0xEE, 0x8C);
-        static readonly Color32 kTickColor = new Color32(0x0E, 0x7C, 0x99, 0xD9);
+        // 重建时的相机基（光栅化与方块落点共用）
+        Vector3 _camPos;
+        Vector3 _camRight;
+        Vector3 _camUp;
+        Vector3 _camForward;
+        float _unit;
+
+        // 重建签名（同一次瞄准内相机不动、参数不变时跳过重建）
+        bool _hasSignature;
+        Vector3 _sigOrigin;
+        Vector3 _sigVelocity;
+        Vector3 _sigCamPos;
+        Quaternion _sigCamRot;
+        HeightfieldGrid _sigTerrain;
+
+        HeightfieldGrid _samplerTerrain;
+        System.Func<float, float, float> _groundSampler;
+
+        static readonly Color32 kCoreNear = new Color32(0xB8, 0xFA, 0xFF, 0xF5);
+        static readonly Color32 kCoreMid = new Color32(0x6E, 0xE8, 0xF5, 0xEC);
+        static readonly Color32 kCoreFar = new Color32(0x2F, 0xB8, 0xD8, 0xE0);
+        static readonly Color32 kTick = new Color32(0x06, 0x5A, 0x70, 0xE6);
         static readonly Color32 kCyan = new Color32(0x9C, 0xF6, 0xFF, 0xE6);
+        static readonly Color32 kCyanDim = new Color32(0x6E, 0xE8, 0xF5, 0x8C);
+        static readonly Color32 kPulse = new Color32(0xFF, 0xFF, 0xFF, 0xF5);
         static readonly Color32 kMagenta = new Color32(0xFF, 0x4F, 0xA3, 0xF2);
         static readonly Color32 kMagentaBright = new Color32(0xFF, 0xD1, 0xE8, 0xFF);
 
@@ -129,6 +169,8 @@ namespace PirateCrew.Battle
         /// <summary>
         /// 刷新轨迹。初速/重力与执行路径同源（<see cref="StandardThrowRules"/>，由调用方传入）——
         /// 「预览 = 实弹」的换算不在本类内发生第二次。
+        /// 注意：<paramref name="originWorld"/> 仍是**实际出手点**（手部），视觉下移到根部
+        /// 只体现在“根部锚点 + 虚线引线”，采样/落点分毫不动。
         /// </summary>
         /// <param name="originWorld">投掷起点（= 单位枢轴 + ThrowOriginHeight）。</param>
         /// <param name="velocity">完整初速向量（米制）。</param>
@@ -148,26 +190,48 @@ namespace PirateCrew.Battle
             }
 
             Camera cam = Camera.main != null ? Camera.main : _camera;
+            if (cam == null)
+            {
+                HideVisuals();
+                return;
+            }
             _camera = cam;
             _sampleCount = count;
             _visible = true;
+            _lastImpact = impact;
+            _hasImpact = true;
 
-            BuildRail(count);
-            RebuildTicks(cam, count);
+            bool dirty = !_hasSignature
+                || _sigOrigin != originWorld
+                || _sigVelocity != velocity
+                || !ReferenceEquals(_sigTerrain, terrain)
+                || _sigCamPos != cam.transform.position
+                || _sigCamRot != cam.transform.rotation;
+
+            if (dirty)
+            {
+                CacheCamera(cam);
+                RebuildArc(originWorld, count);
+                RebuildOrigin(originWorld);
+                _sigOrigin = originWorld;
+                _sigVelocity = velocity;
+                _sigTerrain = terrain;
+                _sigCamPos = cam.transform.position;
+                _sigCamRot = cam.transform.rotation;
+                _hasSignature = true;
+            }
+
+            _arcFilter.gameObject.SetActive(true);
+            _originFilter.gameObject.SetActive(true);
 
             if (showImpactMarker)
                 PlaceReticle(impact, cam);
             else if (_reticle != null)
                 _reticle.gameObject.SetActive(false);
 
-            PlaceBillboard(_originNode, originWorld, cam);
-            if (_originNode != null)
-                _originNode.gameObject.SetActive(true);
-
             for (int i = 0; i < _pulses.Length; i++)
-                _pulses[i].gameObject.SetActive(cam != null);
+                _pulses[i].gameObject.SetActive(true);
 
-            // 立即摆一次脉冲/准星姿态，避免首帧全部堆在原点。
             Animate(Time.time);
         }
 
@@ -181,23 +245,15 @@ namespace PirateCrew.Battle
         {
             _visible = false;
             _sampleCount = 0;
+            _hasSignature = false;
+            _hasImpact = false;
 
-            if (_railGlow != null)
-            {
-                _railGlow.positionCount = 0;
-                _railGlow.gameObject.SetActive(false);
-            }
-            if (_railCore != null)
-            {
-                _railCore.positionCount = 0;
-                _railCore.gameObject.SetActive(false);
-            }
-            if (_tickFilter != null)
-                _tickFilter.gameObject.SetActive(false);
+            if (_arcFilter != null)
+                _arcFilter.gameObject.SetActive(false);
+            if (_originFilter != null)
+                _originFilter.gameObject.SetActive(false);
             if (_reticle != null)
                 _reticle.gameObject.SetActive(false);
-            if (_originNode != null)
-                _originNode.gameObject.SetActive(false);
             if (_pulses != null)
             {
                 for (int i = 0; i < _pulses.Length; i++)
@@ -226,10 +282,7 @@ namespace PirateCrew.Battle
             return _groundSampler;
         }
 
-        HeightfieldGrid _samplerTerrain;
-        System.Func<float, float, float> _groundSampler;
-
-        void Update()
+        void LateUpdate()
         {
             if (!_visible || _sampleCount < 2)
                 return;
@@ -238,11 +291,25 @@ namespace PirateCrew.Battle
             if (cam == null)
                 return;
             _camera = cam;
+
+            // 相机在 Show 之后才被相机驱动摆位（抓图脚本/后续震屏）时，像素格必须按新相机重建，
+            // 否则 1px 方块会对不上屏幕像素格。
+            if (_sigCamPos != cam.transform.position || _sigCamRot != cam.transform.rotation)
+            {
+                CacheCamera(cam);
+                RebuildArc(_sigOrigin, _sampleCount);
+                RebuildOrigin(_sigOrigin);
+                _sigCamPos = cam.transform.position;
+                _sigCamRot = cam.transform.rotation;
+                if (showImpactMarker && _hasImpact)
+                    PlaceReticle(_lastImpact, cam);
+            }
+
             Animate(Time.time);
         }
 
         // ------------------------------------------------------------------
-        // 每帧动画：流动脉冲 / 准星呼吸与自转
+        // 每帧动画：像素脉冲游走 + 准星帧交替
         // ------------------------------------------------------------------
 
         void Animate(float time)
@@ -251,11 +318,8 @@ namespace PirateCrew.Battle
             if (cam == null)
                 return;
 
-            float u = CameraFraming.WorldPerPixel;
-            Quaternion billboard = cam.transform.rotation;
-
-            // 脉冲：按**采样索引**推进（采样 = 等时间步，因此走速与实弹同源）；
-            // 端点缩放渐隐，循环回起点时不出现瞬移跳变。
+            // 脉冲：按采样索引推进（采样 = 等时间步，走速与实弹同源）；
+            // 位置吸附到艺术像素格，端点缩放不变（避免亚像素边），只做透明度呼吸。
             if (_pulses != null)
             {
                 int n = Mathf.Max(1, pulseCount);
@@ -263,51 +327,24 @@ namespace PirateCrew.Battle
                 {
                     float t = Mathf.Repeat(time * pulseTravelsPerSecond + (float)i / n, 1f);
                     Vector3 p = SnapToPixelGrid(SampleAt(t), cam);
-                    float edgeFade = Mathf.Clamp01(Mathf.Min(t, 1f - t) * 10f);
-                    float breathe = 0.85f + 0.15f * Mathf.Sin(time * 11f + i * 2.1f);
-                    float size = pulseSizePixels * u * breathe * (0.35f + 0.65f * edgeFade);
-
-                    Transform pulse = _pulses[i];
-                    pulse.position = p;
-                    pulse.rotation = billboard;
-                    pulse.localScale = new Vector3(size, size, 1f);
+                    _pulses[i].position = p;
+                    _pulses[i].rotation = cam.transform.rotation;
                 }
                 if (_pulseMaterial != null)
                 {
-                    float a = 0.78f + 0.22f * Mathf.Sin(time * 8f);
+                    float a = 0.80f + 0.20f * Mathf.Sin(time * 8f);
                     _pulseMaterial.color = new Color(1f, 1f, 1f, a);
                 }
             }
 
-            // 准星：虚线环自转 + 四角括号呼吸缩放 + 透明度呼吸。
+            // 准星：两帧虚线环交替（像素域的“走马灯”，不做平滑旋转/缩放）。
             if (_reticle != null && _reticle.gameObject.activeSelf)
             {
-                if (_reticleRing != null)
-                    _reticleRing.localRotation = Quaternion.AngleAxis(time * 32f, Vector3.forward);
-
-                float breathe = 1f + 0.06f * Mathf.Sin(time * 4.2f);
-                if (_reticleBrackets != null)
-                    _reticleBrackets.localScale = new Vector3(breathe, breathe, 1f);
-
-                if (_bracketMaterial != null)
-                {
-                    float a = 0.70f + 0.30f * (0.5f + 0.5f * Mathf.Sin(time * 4.2f));
-                    _bracketMaterial.color = new Color(1f, 1f, 1f, a);
-                }
-                if (_ringMaterial != null)
-                    _ringMaterial.color = new Color(1f, 1f, 1f, 0.92f);
-            }
-
-            // 起点节点：轻微呼吸。
-            if (_originNode != null && _originNode.gameObject.activeSelf)
-            {
-                float s = 1f + 0.10f * Mathf.Sin(time * 5.5f);
-                _originNode.localScale = new Vector3(s, s, 1f);
-                if (_originMaterial != null)
-                {
-                    float a = 0.72f + 0.28f * (0.5f + 0.5f * Mathf.Sin(time * 5.5f));
-                    _originMaterial.color = new Color(1f, 1f, 1f, a);
-                }
+                bool frameA = (Mathf.FloorToInt(time * 7f) & 1) == 0;
+                if (_ringA != null && _ringA.gameObject.activeSelf != frameA)
+                    _ringA.gameObject.SetActive(frameA);
+                if (_ringB != null && _ringB.gameObject.activeSelf != !frameA)
+                    _ringB.gameObject.SetActive(!frameA);
             }
         }
 
@@ -322,100 +359,36 @@ namespace PirateCrew.Battle
         }
 
         // ------------------------------------------------------------------
-        // 双层光带
+        // 相机平面像素网格
         // ------------------------------------------------------------------
 
-        void BuildRail(int count)
+        void CacheCamera(Camera cam)
         {
-            _railGlow.positionCount = count;
-            _railCore.positionCount = count;
-            for (int i = 0; i < count; i++)
-            {
-                Vector3 p = _samples[i];
-                _railGlow.SetPosition(i, p);
-                _railCore.SetPosition(i, p);
-            }
-            _railGlow.gameObject.SetActive(true);
-            _railCore.gameObject.SetActive(true);
+            Transform t = cam.transform;
+            _camPos = t.position;
+            _camRight = t.right;
+            _camUp = t.up;
+            _camForward = t.forward;
+            _unit = CameraFraming.WorldPerPixel;
         }
 
-        // ------------------------------------------------------------------
-        // 等距刻度条（单 mesh，逐帧更新顶点）
-        // ------------------------------------------------------------------
-
-        void RebuildTicks(Camera cam, int count)
+        PixelPoint ToPixel(Vector3 world)
         {
-            int n = Mathf.Clamp(tickCount, 0, _tickVertices.Length / 4);
-            if (cam == null || n <= 0)
+            Vector3 local = world - _camPos;
+            return new PixelPoint
             {
-                _tickFilter.gameObject.SetActive(false);
-                return;
-            }
-
-            Vector3 forward = cam.transform.forward;
-            float u = CameraFraming.WorldPerPixel;
-            float halfLen = tickLengthPixels * 0.5f * u;
-            float halfThick = 0.5f * u;
-            int v = 0;
-
-            for (int k = 0; k < n; k++)
-            {
-                float t = (k + 0.5f) / n;
-                int i = Mathf.Clamp(Mathf.RoundToInt(t * (count - 1)), 0, count - 1);
-                int i0 = Mathf.Max(0, i - 1);
-                int i1 = Mathf.Min(count - 1, i + 1);
-
-                Vector3 tangent = _samples[i1] - _samples[i0];
-                tangent -= forward * Vector3.Dot(tangent, forward);
-                if (tangent.sqrMagnitude < 1e-8f)
-                    continue;
-                tangent.Normalize();
-
-                Vector3 side = Vector3.Cross(forward, tangent).normalized;
-                Vector3 center = SnapToPixelGrid(_samples[i], cam);
-                Vector3 a = side * halfLen;
-                Vector3 b = tangent * halfThick;
-
-                _tickVertices[v] = transform.InverseTransformPoint(center + a + b);
-                _tickVertices[v + 1] = transform.InverseTransformPoint(center + a - b);
-                _tickVertices[v + 2] = transform.InverseTransformPoint(center - a - b);
-                _tickVertices[v + 3] = transform.InverseTransformPoint(center - a + b);
-                v += 4;
-            }
-
-            if (v == 0)
-            {
-                _tickFilter.gameObject.SetActive(false);
-                return;
-            }
-
-            _tickMesh.Clear();
-            _tickMesh.SetVertices(_tickVertices, 0, v);
-            _tickMesh.SetColors(_tickColors, 0, v);
-            _tickMesh.SetTriangles(_tickTriangles, 0, v / 4 * 6, 0, true);
-            _tickFilter.gameObject.SetActive(true);
+                X = Mathf.RoundToInt(Vector3.Dot(local, _camRight) / _unit),
+                Y = Mathf.RoundToInt(Vector3.Dot(local, _camUp) / _unit),
+                Z = Vector3.Dot(local, _camForward),
+            };
         }
 
-        // ------------------------------------------------------------------
-        // 落点 / 起点物件
-        // ------------------------------------------------------------------
-
-        void PlaceReticle(Vector3 impact, Camera cam)
+        Vector3 CellCenter(int x, int y, float z)
         {
-            if (_reticle == null)
-                return;
-            Vector3 position = impact + Vector3.up * ImpactMarkerLift;
-            _reticle.position = cam != null ? SnapToPixelGrid(position, cam) : position;
-            _reticle.rotation = cam != null ? cam.transform.rotation : Quaternion.identity;
-            _reticle.gameObject.SetActive(true);
-        }
-
-        static void PlaceBillboard(Transform target, Vector3 world, Camera cam)
-        {
-            if (target == null)
-                return;
-            target.position = cam != null ? SnapToPixelGrid(world, cam) : world;
-            target.rotation = cam != null ? cam.transform.rotation : Quaternion.identity;
+            return _camPos
+                + _camRight * (x * _unit)
+                + _camUp * (y * _unit)
+                + _camForward * z;
         }
 
         /// <summary>
@@ -437,100 +410,313 @@ namespace PirateCrew.Battle
         }
 
         // ------------------------------------------------------------------
-        // 装配（懒建一次，之后只改 transform / 顶点）
+        // 光带光栅化（全部格子 = 1 艺术像素）
+        // ------------------------------------------------------------------
+
+        void RebuildArc(Vector3 originWorld, int count)
+        {
+            _cells.Clear();
+
+            float sinceTick = 0f;
+            for (int i = 0; i < count - 1; i++)
+            {
+                float ta = (float)i / (count - 1);
+                float tb = (float)(i + 1) / (count - 1);
+                RasterizeArcSegment(_samples[i], _samples[i + 1], ta, tb, ref sinceTick);
+            }
+
+            BuildArcMesh();
+        }
+
+        void RasterizeArcSegment(Vector3 a, Vector3 b, float ta, float tb, ref float sinceTick)
+        {
+            PixelPoint p0 = ToPixel(a);
+            PixelPoint p1 = ToPixel(b);
+
+            int dx = p1.X - p0.X;
+            int dy = p1.Y - p0.Y;
+            int steps = Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy));
+            if (steps <= 0)
+            {
+                AddArcCell(p0.X, p0.Y, p0.Z, ta);
+                sinceTick += 1f;
+                return;
+            }
+
+            float length = Mathf.Sqrt((float)dx * dx + (float)dy * dy);
+            float stepLength = length / steps;
+            float dirX = dx / length;
+            float dirY = dy / length;
+
+            for (int s = 0; s <= steps; s++)
+            {
+                float k = (float)s / steps;
+                int x = Mathf.RoundToInt(Mathf.Lerp(p0.X, p1.X, k));
+                int y = Mathf.RoundToInt(Mathf.Lerp(p0.Y, p1.Y, k));
+                float z = Mathf.Lerp(p0.Z, p1.Z, k);
+                float t = Mathf.Lerp(ta, tb, k);
+
+                AddArcCell(x, y, z, t);
+
+                sinceTick += stepLength;
+                if (sinceTick >= tickEveryPixels && s > 0 && s < steps)
+                {
+                    sinceTick = 0f;
+                    AddTick(x, y, z, dirX, dirY);
+                }
+            }
+        }
+
+        void AddArcCell(int x, int y, float z, float t)
+        {
+            Color32 core = ArcColor(t);
+            AddCell(x, y, z, core, PriorityCore);
+
+            Color32 halo = WithAlpha(core, 0.28f);
+            for (int h = 1; h <= railHaloPixels; h++)
+            {
+                for (int ox = -h; ox <= h; ox++)
+                {
+                    for (int oy = -h; oy <= h; oy++)
+                    {
+                        if (Mathf.Max(Mathf.Abs(ox), Mathf.Abs(oy)) != h)
+                            continue;
+                        AddCell(x + ox, y + oy, z, halo, PriorityHalo);
+                    }
+                }
+            }
+        }
+
+        void AddTick(int x, int y, float z, float dirX, float dirY)
+        {
+            // 像素空间的垂直方向（-dy, dx），横向铺 1×3 px；斜向时自然是阶梯像素。
+            float px = -dirY;
+            float py = dirX;
+            int half = Mathf.Max(1, tickLengthPixels / 2);
+            for (int q = -half; q <= half; q++)
+            {
+                int tx = Mathf.RoundToInt(x + px * q);
+                int ty = Mathf.RoundToInt(y + py * q);
+                AddCell(tx, ty, z, kTick, PriorityTick);
+            }
+        }
+
+        void AddCell(int x, int y, float z, Color32 color, int priority)
+        {
+            long key = ((long)x << 32) | (uint)y;
+            if (_cells.TryGetValue(key, out PixelCell cell))
+            {
+                if (cell.Priority >= priority)
+                    return;
+                cell.Priority = priority;
+                cell.Color = color;
+                cell.Center = CellCenter(x, y, z);
+                _cells[key] = cell;
+                return;
+            }
+
+            _cells[key] = new PixelCell
+            {
+                Priority = priority,
+                Color = color,
+                Center = CellCenter(x, y, z),
+            };
+        }
+
+        static Color32 ArcColor(float t)
+        {
+            if (t < 1f / 3f)
+                return kCoreNear;
+            if (t < 2f / 3f)
+                return kCoreMid;
+            return kCoreFar;
+        }
+
+        static Color32 WithAlpha(Color32 color, float scale)
+        {
+            return new Color32(
+                color.r, color.g, color.b,
+                (byte)Mathf.Clamp(Mathf.RoundToInt(color.a * scale), 0, 255));
+        }
+
+        void BuildArcMesh()
+        {
+            _cellList.Clear();
+            foreach (KeyValuePair<long, PixelCell> pair in _cells)
+                _cellList.Add(pair.Value);
+
+            int count = _cellList.Count;
+            if (count == 0)
+            {
+                _arcFilter.gameObject.SetActive(false);
+                return;
+            }
+
+            EnsureCapacity(count);
+            float half = _unit * 0.5f;
+            Vector3 rx = _camRight * half;
+            Vector3 uy = _camUp * half;
+            Matrix4x4 toLocal = transform.worldToLocalMatrix;
+
+            int v = 0;
+            int t = 0;
+            for (int i = 0; i < count; i++)
+            {
+                PixelCell cell = _cellList[i];
+                Vector3 c = cell.Center;
+
+                _vertices[v] = toLocal.MultiplyPoint3x4(c - rx - uy);
+                _vertices[v + 1] = toLocal.MultiplyPoint3x4(c + rx - uy);
+                _vertices[v + 2] = toLocal.MultiplyPoint3x4(c + rx + uy);
+                _vertices[v + 3] = toLocal.MultiplyPoint3x4(c - rx + uy);
+                _colors[v] = cell.Color;
+                _colors[v + 1] = cell.Color;
+                _colors[v + 2] = cell.Color;
+                _colors[v + 3] = cell.Color;
+
+                _triangles[t] = v;
+                _triangles[t + 1] = v + 1;
+                _triangles[t + 2] = v + 2;
+                _triangles[t + 3] = v;
+                _triangles[t + 4] = v + 2;
+                _triangles[t + 5] = v + 3;
+
+                v += 4;
+                t += 6;
+            }
+
+            _arcMesh.Clear();
+            _arcMesh.SetVertices(_vertices, 0, v);
+            _arcMesh.SetColors(_colors, 0, v);
+            _arcMesh.SetTriangles(_triangles, 0, t, 0, true);
+        }
+
+        void EnsureCapacity(int cells)
+        {
+            int need = cells * 4;
+            if (_vertices != null && _vertices.Length >= need)
+                return;
+
+            int capacity = Mathf.NextPowerOfTwo(Mathf.Max(4, need));
+            _vertices = new Vector3[capacity];
+            _colors = new Color32[capacity];
+            _triangles = new int[capacity / 4 * 6];
+        }
+
+        // ------------------------------------------------------------------
+        // 起手：根部锚点 + 根部→出手点虚线引线（覆盖层，不被角色挡住）
+        // ------------------------------------------------------------------
+
+        void RebuildOrigin(Vector3 handWorld)
+        {
+            // 视觉根部 = 角色枢轴（StandardThrowRules.ThrowOrigin 的逆运算）；
+            // 只影响视觉，实际弹道起点仍是 handWorld。
+            Vector3 root = handWorld - Vector3.up * StandardThrowRules.ThrowOriginHeight;
+            PixelPoint rootPx = ToPixel(root);
+            PixelPoint handPx = ToPixel(handWorld);
+
+            var verts = new List<Vector3>();
+            var colors = new List<Color32>();
+            var tris = new List<int>();
+
+            // 根部 5×5 菱形锚点（|dx|+|dy| == 2）。
+            for (int dx = -2; dx <= 2; dx++)
+            {
+                for (int dy = -2; dy <= 2; dy++)
+                {
+                    if (Mathf.Abs(dx) + Mathf.Abs(dy) == 2)
+                        AddPixelCellQuad(verts, colors, tris, rootPx.X + dx, rootPx.Y + dy, rootPx.Z, kCyan);
+                }
+            }
+
+            // 根部 → 手部虚线引线（每 2 px 一格，末端留给光带亮芯）。
+            int steps = Mathf.Max(
+                Mathf.Abs(handPx.X - rootPx.X),
+                Mathf.Abs(handPx.Y - rootPx.Y));
+            if (steps > 0)
+            {
+                for (int s = 0; s < steps; s += 2)
+                {
+                    float k = (float)s / steps;
+                    int x = Mathf.RoundToInt(Mathf.Lerp(rootPx.X, handPx.X, k));
+                    int y = Mathf.RoundToInt(Mathf.Lerp(rootPx.Y, handPx.Y, k));
+                    float z = Mathf.Lerp(rootPx.Z, handPx.Z, k);
+                    AddPixelCellQuad(verts, colors, tris, x, y, z, kCyanDim);
+                }
+            }
+
+            var local = new Vector3[verts.Count];
+            for (int i = 0; i < verts.Count; i++)
+                local[i] = transform.InverseTransformPoint(verts[i]);
+
+            _originMesh.Clear();
+            _originMesh.SetVertices(local);
+            _originMesh.SetColors(colors);
+            _originMesh.SetTriangles(tris, 0);
+            _originMesh.RecalculateBounds();
+        }
+
+        /// <summary>把一格像素（世界空间中心）展开成面向相机的 1×1 方块。</summary>
+        void AddPixelCellQuad(List<Vector3> vertices, List<Color32> colors, List<int> triangles,
+            int x, int y, float z, Color32 color)
+        {
+            float half = _unit * 0.5f;
+            Vector3 c = CellCenter(x, y, z);
+            AddQuad(vertices, colors, triangles,
+                c - _camRight * half - _camUp * half,
+                c + _camRight * half - _camUp * half,
+                c + _camRight * half + _camUp * half,
+                c - _camRight * half + _camUp * half,
+                color);
+        }
+
+        // ------------------------------------------------------------------
+        // 装配（懒建一次）
         // ------------------------------------------------------------------
 
         void EnsureVisuals()
         {
-            if (_railGlow != null)
+            if (_arcFilter != null)
                 return;
 
-            _baseMaterial = legacyLine != null && legacyLine.sharedMaterial != null
+            Material baseMaterial = legacyLine != null && legacyLine.sharedMaterial != null
                 ? legacyLine.sharedMaterial
                 : FallbackPreviewMaterial();
 
-            _railGlow = MakeRail("TrajectoryRailGlow",
-                EffectMaterial(_baseMaterial, "TrajectoryRailGlow", depthTest: true),
-                railGlowPixels,
-                new AnimationCurve(
-                    new Keyframe(0f, 1.25f), new Keyframe(0.35f, 1f), new Keyframe(1f, 0.32f)),
-                MakeGradient(kGlowStart, kGlowEnd));
+            _arcMesh = new Mesh { name = "TrajectoryArc" };
+            _arcMesh.MarkDynamic();
+            var arcGo = new GameObject("TrajectoryArc");
+            arcGo.transform.SetParent(transform, false);
+            _arcFilter = arcGo.AddComponent<MeshFilter>();
+            _arcFilter.sharedMesh = _arcMesh;
+            var arcRenderer = arcGo.AddComponent<MeshRenderer>();
+            arcRenderer.sharedMaterial = EffectMaterial(baseMaterial, "TrajectoryArc", depthTest: true);
+            arcRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            arcRenderer.receiveShadows = false;
+            arcGo.SetActive(false);
 
-            _railCore = MakeRail("TrajectoryRailCore",
-                EffectMaterial(_baseMaterial, "TrajectoryRailCore", depthTest: true),
-                railCorePixels,
-                new AnimationCurve(
-                    new Keyframe(0f, 1f), new Keyframe(0.7f, 0.85f), new Keyframe(1f, 0.55f)),
-                MakeGradient(kCoreStart, kCoreEnd));
+            _originMesh = new Mesh { name = "TrajectoryOrigin" };
+            _originMesh.MarkDynamic();
+            var originGo = new GameObject("TrajectoryOrigin");
+            originGo.transform.SetParent(transform, false);
+            _originFilter = originGo.AddComponent<MeshFilter>();
+            _originFilter.sharedMesh = _originMesh;
+            var originRenderer = originGo.AddComponent<MeshRenderer>();
+            originRenderer.sharedMaterial = EffectMaterial(baseMaterial, "TrajectoryOrigin", depthTest: false);
+            originRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            originRenderer.receiveShadows = false;
+            originGo.SetActive(false);
 
-            EnsureTicks();
-            EnsurePulses();
-            EnsureOrigin();
-            EnsureReticle();
+            EnsurePulses(baseMaterial);
+            EnsureReticle(baseMaterial);
         }
 
-        LineRenderer MakeRail(string name, Material material, float widthPixels,
-            AnimationCurve widthCurve, Gradient gradient)
-        {
-            var go = new GameObject(name);
-            go.transform.SetParent(transform, false);
-            var line = go.AddComponent<LineRenderer>();
-            line.sharedMaterial = material;
-            line.useWorldSpace = true;
-            line.alignment = LineAlignment.View;
-            line.textureMode = LineTextureMode.Stretch;
-            line.numCapVertices = 0;
-            line.numCornerVertices = 0;
-            line.widthMultiplier = widthPixels * CameraFraming.WorldPerPixel;
-            line.widthCurve = widthCurve;
-            line.colorGradient = gradient;
-            line.shadowCastingMode = ShadowCastingMode.Off;
-            line.receiveShadows = false;
-            line.generateLightingData = false;
-            line.positionCount = 0;
-            go.SetActive(false);
-            return line;
-        }
-
-        void EnsureTicks()
-        {
-            int maxQuads = Mathf.Max(1, tickCount);
-            _tickVertices = new Vector3[maxQuads * 4];
-            _tickColors = new Color32[maxQuads * 4];
-            _tickTriangles = new int[maxQuads * 6];
-            for (int i = 0; i < _tickColors.Length; i++)
-                _tickColors[i] = kTickColor;
-            for (int q = 0; q < maxQuads; q++)
-            {
-                int v = q * 4;
-                int t = q * 6;
-                _tickTriangles[t] = v;
-                _tickTriangles[t + 1] = v + 1;
-                _tickTriangles[t + 2] = v + 2;
-                _tickTriangles[t + 3] = v;
-                _tickTriangles[t + 4] = v + 2;
-                _tickTriangles[t + 5] = v + 3;
-            }
-
-            var go = new GameObject("TrajectoryTicks");
-            go.transform.SetParent(transform, false);
-            _tickMesh = new Mesh { name = "TrajectoryTicks" };
-            _tickMesh.MarkDynamic();
-            _tickFilter = go.AddComponent<MeshFilter>();
-            _tickFilter.sharedMesh = _tickMesh;
-            var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = EffectMaterial(_baseMaterial, "TrajectoryTick", depthTest: true);
-            renderer.shadowCastingMode = ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-            go.SetActive(false);
-        }
-
-        void EnsurePulses()
+        void EnsurePulses(Material baseMaterial)
         {
             int n = Mathf.Max(1, pulseCount);
             _pulses = new Transform[n];
-            _pulseMaterial = EffectMaterial(_baseMaterial, "TrajectoryPulse", depthTest: true);
-            Mesh diamond = CreateDiamondMesh();
+            _pulseMaterial = EffectMaterial(baseMaterial, "TrajectoryPulse", depthTest: true);
+            Mesh diamond = CreatePixelDiamondMesh(pulseSizePixels);
 
             for (int i = 0; i < n; i++)
             {
@@ -547,51 +733,48 @@ namespace PirateCrew.Battle
             }
         }
 
-        void EnsureOrigin()
-        {
-            var go = new GameObject("TrajectoryOrigin");
-            go.transform.SetParent(transform, false);
-            var filter = go.AddComponent<MeshFilter>();
-            filter.sharedMesh = CreateDiamondOutlineMesh(4f, 1f, kCyan);
-            var renderer = go.AddComponent<MeshRenderer>();
-            _originMaterial = EffectMaterial(_baseMaterial, "TrajectoryOrigin", depthTest: true);
-            renderer.sharedMaterial = _originMaterial;
-            renderer.shadowCastingMode = ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-            go.SetActive(false);
-            _originNode = go.transform;
-        }
-
-        void EnsureReticle()
+        void EnsureReticle(Material baseMaterial)
         {
             var root = new GameObject("TrajectoryReticle");
             root.transform.SetParent(transform, false);
 
-            _ringMaterial = EffectMaterial(_baseMaterial, "TrajectoryReticleRing", depthTest: false);
-            _bracketMaterial = EffectMaterial(_baseMaterial, "TrajectoryReticleBrackets", depthTest: false);
+            Material ringMaterial = EffectMaterial(baseMaterial, "TrajectoryReticleRing", depthTest: false);
+            Material bracketMaterial = EffectMaterial(baseMaterial, "TrajectoryReticleBrackets", depthTest: false);
+            int radius = Mathf.Max(4, reticleRadiusPixels);
 
-            var ringGo = new GameObject("Ring");
-            ringGo.transform.SetParent(root.transform, false);
-            var ringFilter = ringGo.AddComponent<MeshFilter>();
-            ringFilter.sharedMesh = CreateReticleRingMesh(reticleRadiusPixels);
-            var ringRenderer = ringGo.AddComponent<MeshRenderer>();
-            ringRenderer.sharedMaterial = _ringMaterial;
-            ringRenderer.shadowCastingMode = ShadowCastingMode.Off;
-            ringRenderer.receiveShadows = false;
-            _reticleRing = ringGo.transform;
+            _ringA = MakeReticleChild(root.transform, "RingA",
+                CreateReticleRingMesh(radius, 0), ringMaterial);
+            _ringB = MakeReticleChild(root.transform, "RingB",
+                CreateReticleRingMesh(radius, 1), ringMaterial);
+            _brackets = MakeReticleChild(root.transform, "Brackets",
+                CreateReticleBracketsMesh(radius), bracketMaterial);
 
-            var bracketGo = new GameObject("Brackets");
-            bracketGo.transform.SetParent(root.transform, false);
-            var bracketFilter = bracketGo.AddComponent<MeshFilter>();
-            bracketFilter.sharedMesh = CreateReticleBracketsMesh();
-            var bracketRenderer = bracketGo.AddComponent<MeshRenderer>();
-            bracketRenderer.sharedMaterial = _bracketMaterial;
-            bracketRenderer.shadowCastingMode = ShadowCastingMode.Off;
-            bracketRenderer.receiveShadows = false;
-            _reticleBrackets = bracketGo.transform;
-
+            _ringB.gameObject.SetActive(false);
             root.SetActive(false);
             _reticle = root.transform;
+        }
+
+        static Transform MakeReticleChild(Transform parent, string name, Mesh mesh, Material material)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var filter = go.AddComponent<MeshFilter>();
+            filter.sharedMesh = mesh;
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            return go.transform;
+        }
+
+        void PlaceReticle(Vector3 impact, Camera cam)
+        {
+            if (_reticle == null)
+                return;
+            Vector3 position = impact + Vector3.up * ImpactMarkerLift;
+            _reticle.position = SnapToPixelGrid(position, cam);
+            _reticle.rotation = cam.transform.rotation;
+            _reticle.gameObject.SetActive(true);
         }
 
         Material EffectMaterial(Material source, string name, bool depthTest)
@@ -601,19 +784,6 @@ namespace PirateCrew.Battle
             if (material.HasProperty("_DepthTest"))
                 material.SetFloat("_DepthTest", depthTest ? 1f : 0f);
             return material;
-        }
-
-        static Gradient MakeGradient(Color32 start, Color32 end)
-        {
-            var gradient = new Gradient();
-            gradient.SetKeys(
-                new[] { new GradientColorKey(start, 0f), new GradientColorKey(end, 1f) },
-                new[]
-                {
-                    new GradientAlphaKey(start.a / 255f, 0f),
-                    new GradientAlphaKey(end.a / 255f, 1f),
-                });
-            return gradient;
         }
 
         static Material FallbackPreviewMaterial()
@@ -631,124 +801,99 @@ namespace PirateCrew.Battle
         }
 
         // ------------------------------------------------------------------
-        // 网格构造（局部单位 = 艺术像素；单位菱形的缩放由 transform 负责）
+        // 网格构造（全部以艺术像素为单位）
         // ------------------------------------------------------------------
 
-        /// <summary>单位菱形（半边长 0.5，便于用 localScale = 像素尺寸 × WorldPerPixel）。</summary>
-        static Mesh CreateDiamondMesh()
+        /// <summary>菱形像素光点：|dx|+|dy| ≤ r 的格子拼成块状菱形。</summary>
+        static Mesh CreatePixelDiamondMesh(int sizePixels)
         {
-            var mesh = new Mesh { name = "TrajectoryPulse" };
-            mesh.vertices = new[]
-            {
-                new Vector3(-0.5f, 0f, 0f),
-                new Vector3(0f, 0.5f, 0f),
-                new Vector3(0.5f, 0f, 0f),
-                new Vector3(0f, -0.5f, 0f),
-            };
-            mesh.colors32 = new[]
-            {
-                new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255),
-                new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255),
-            };
-            mesh.triangles = new[] { 0, 1, 2, 0, 2, 3 };
-            mesh.RecalculateBounds();
-            return mesh;
-        }
+            int r = Mathf.Max(1, sizePixels / 2);
+            var vertices = new List<Vector3>();
+            var colors = new List<Color32>();
+            var triangles = new List<int>();
 
-        /// <summary>空心菱形轮廓（起点节点）：四条 1 px 边。</summary>
-        static Mesh CreateDiamondOutlineMesh(float radiusPixels, float thicknessPixels, Color32 color)
-        {
-            var vertices = new System.Collections.Generic.List<Vector3>();
-            var colors = new System.Collections.Generic.List<Color32>();
-            var triangles = new System.Collections.Generic.List<int>();
-            var corners = new[]
+            float u = CameraFraming.WorldPerPixel;
+            for (int dx = -r; dx <= r; dx++)
             {
-                new Vector2(0f, radiusPixels),
-                new Vector2(radiusPixels, 0f),
-                new Vector2(0f, -radiusPixels),
-                new Vector2(-radiusPixels, 0f),
-            };
-            for (int i = 0; i < 4; i++)
-                AddSegment(vertices, colors, triangles, corners[i], corners[(i + 1) % 4], thicknessPixels, color);
-            return Finish(vertices, colors, triangles, "TrajectoryOrigin");
-        }
-
-        /// <summary>落点虚线环：8 段弧、1 px 粗，缓慢自转时读得出环在转。</summary>
-        static Mesh CreateReticleRingMesh(float radiusPixels)
-        {
-            var vertices = new System.Collections.Generic.List<Vector3>();
-            var colors = new System.Collections.Generic.List<Color32>();
-            var triangles = new System.Collections.Generic.List<int>();
-
-            const int dashes = 8;
-            float radius = Mathf.Max(2f, radiusPixels);
-            float halfArc = 2f / radius;   // 每段弧长 ≈ 4 px
-            for (int i = 0; i < dashes; i++)
-            {
-                float center = i * (Mathf.PI * 2f / dashes);
-                float a0 = center - halfArc;
-                float a1 = center + halfArc;
-                var p0 = new Vector2(Mathf.Cos(a0) * radius, Mathf.Sin(a0) * radius);
-                var p1 = new Vector2(Mathf.Cos(a1) * radius, Mathf.Sin(a1) * radius);
-                AddSegment(vertices, colors, triangles, p0, p1, 1f, kMagenta);
+                for (int dy = -r; dy <= r; dy++)
+                {
+                    if (Mathf.Abs(dx) + Mathf.Abs(dy) > r)
+                        continue;
+                    AddPixelQuad(vertices, colors, triangles, dx * u, dy * u, u * 0.5f, kPulse);
+                }
             }
-            return Finish(vertices, colors, triangles, "TrajectoryReticleRing");
+            return Finish(vertices, colors, triangles, "TrajectoryPulse");
         }
 
-        /// <summary>落点支架：四角括号 + 内层菱形环 + 中心亮点（与环分开自转/呼吸）。</summary>
-        static Mesh CreateReticleBracketsMesh()
+        /// <summary>17×17 准星外框：四角括号 + 中心十字（块状像素）。</summary>
+        static Mesh CreateReticleBracketsMesh(int radiusPixels)
         {
-            var vertices = new System.Collections.Generic.List<Vector3>();
-            var colors = new System.Collections.Generic.List<Color32>();
-            var triangles = new System.Collections.Generic.List<int>();
+            var vertices = new List<Vector3>();
+            var colors = new List<Color32>();
+            var triangles = new List<int>();
+            float u = CameraFraming.WorldPerPixel;
+            int r = Mathf.Max(3, radiusPixels);
 
-            // 四角括号：角点 (15,15) 向内伸 6 px 的两条边。
-            const float corner = 15f;
-            const float arm = 6f;
             for (int sx = -1; sx <= 1; sx += 2)
             {
                 for (int sy = -1; sy <= 1; sy += 2)
                 {
-                    var c = new Vector2(sx * corner, sy * corner);
-                    AddSegment(vertices, colors, triangles, c, new Vector2(sx * (corner - arm), sy * corner), 1f, kMagenta);
-                    AddSegment(vertices, colors, triangles, c, new Vector2(sx * corner, sy * (corner - arm)), 1f, kMagenta);
+                    for (int a = 0; a <= 2; a++)
+                    {
+                        AddPixelQuad(vertices, colors, triangles, (sx * (r - a)) * u, (sy * r) * u, u * 0.5f, kMagenta);
+                        AddPixelQuad(vertices, colors, triangles, (sx * r) * u, (sy * (r - a)) * u, u * 0.5f, kMagenta);
+                    }
                 }
             }
 
-            // 内层菱形环（半对角线 6 px）。
-            var diamond = new[]
-            {
-                new Vector2(0f, 6f), new Vector2(6f, 0f), new Vector2(0f, -6f), new Vector2(-6f, 0f),
-            };
-            for (int i = 0; i < 4; i++)
-                AddSegment(vertices, colors, triangles, diamond[i], diamond[(i + 1) % 4], 1f, kMagenta);
-
-            // 中心 2×2 亮点。
-            AddQuad(vertices, colors, triangles,
-                new Vector2(-1f, -1f), new Vector2(1f, -1f),
-                new Vector2(1f, 1f), new Vector2(-1f, 1f), kMagentaBright);
+            for (int dx = -1; dx <= 1; dx++)
+                AddPixelQuad(vertices, colors, triangles, dx * u, 0f, u * 0.5f, kMagentaBright);
+            for (int dy = -1; dy <= 1; dy++)
+                AddPixelQuad(vertices, colors, triangles, 0f, dy * u, u * 0.5f, kMagentaBright);
 
             return Finish(vertices, colors, triangles, "TrajectoryReticleBrackets");
         }
 
-        /// <summary>把线段展开成 thickness 宽的四边形（局部单位 = 艺术像素）。</summary>
-        static void AddSegment(System.Collections.Generic.List<Vector3> vertices,
-            System.Collections.Generic.List<Color32> colors,
-            System.Collections.Generic.List<int> triangles,
-            Vector2 from, Vector2 to, float thickness, Color32 color)
+        /// <summary>虚线菱形环：|x|+|y| = r-3，按 x 奇偶拆成两帧交替。</summary>
+        static Mesh CreateReticleRingMesh(int radiusPixels, int parity)
         {
-            Vector2 dir = to - from;
-            if (dir.sqrMagnitude < 1e-8f)
-                return;
-            dir.Normalize();
-            var normal = new Vector2(-dir.y, dir.x) * (thickness * 0.5f);
-            AddQuad(vertices, colors, triangles, from - normal, to - normal, to + normal, from + normal, color);
+            var vertices = new List<Vector3>();
+            var colors = new List<Color32>();
+            var triangles = new List<int>();
+            float u = CameraFraming.WorldPerPixel;
+            int r = Mathf.Max(3, radiusPixels - 3);
+
+            for (int x = -r; x <= r; x++)
+            {
+                for (int y = -r; y <= r; y++)
+                {
+                    if (Mathf.Abs(x) + Mathf.Abs(y) != r)
+                        continue;
+                    if ((x & 1) != parity)
+                        continue;
+                    AddPixelQuad(vertices, colors, triangles, x * u, y * u, u * 0.5f, kMagenta);
+                }
+            }
+
+            return Finish(vertices, colors, triangles, "TrajectoryReticleRing");
         }
 
-        static void AddQuad(System.Collections.Generic.List<Vector3> vertices,
-            System.Collections.Generic.List<Color32> colors,
-            System.Collections.Generic.List<int> triangles,
-            Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color32 color)
+        /// <summary>世界空间（相机平面）的 1×1 方块。</summary>
+        static void AddPixelQuad(List<Vector3> vertices, List<Color32> colors, List<int> triangles,
+            float x, float y, float half, Color32 color)
+        {
+            vertices.Add(new Vector3(x - half, y - half, 0f));
+            vertices.Add(new Vector3(x + half, y - half, 0f));
+            vertices.Add(new Vector3(x + half, y + half, 0f));
+            vertices.Add(new Vector3(x - half, y + half, 0f));
+            for (int i = 0; i < 4; i++)
+                colors.Add(color);
+            int v = vertices.Count - 4;
+            AddTriangles(triangles, v);
+        }
+
+        static void AddQuad(List<Vector3> vertices, List<Color32> colors, List<int> triangles,
+            Vector3 a, Vector3 b, Vector3 c, Vector3 d, Color32 color)
         {
             int v = vertices.Count;
             vertices.Add(a);
@@ -759,6 +904,11 @@ namespace PirateCrew.Battle
             colors.Add(color);
             colors.Add(color);
             colors.Add(color);
+            AddTriangles(triangles, v);
+        }
+
+        static void AddTriangles(List<int> triangles, int v)
+        {
             triangles.Add(v);
             triangles.Add(v + 1);
             triangles.Add(v + 2);
@@ -767,18 +917,10 @@ namespace PirateCrew.Battle
             triangles.Add(v + 3);
         }
 
-        /// <summary>像素单位 → 世界单位（局部空间），并落成 Mesh。</summary>
-        static Mesh Finish(System.Collections.Generic.List<Vector3> vertices,
-            System.Collections.Generic.List<Color32> colors,
-            System.Collections.Generic.List<int> triangles, string name)
+        static Mesh Finish(List<Vector3> vertices, List<Color32> colors, List<int> triangles, string name)
         {
-            float u = CameraFraming.WorldPerPixel;
-            var world = new Vector3[vertices.Count];
-            for (int i = 0; i < vertices.Count; i++)
-                world[i] = vertices[i] * u;
-
             var mesh = new Mesh { name = name };
-            mesh.vertices = world;
+            mesh.vertices = vertices.ToArray();
             mesh.colors32 = colors.ToArray();
             mesh.triangles = triangles.ToArray();
             mesh.RecalculateBounds();

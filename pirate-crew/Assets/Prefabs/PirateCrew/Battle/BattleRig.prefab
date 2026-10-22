@@ -22721,15 +22721,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5c98f00d114030248a3ad205eebb6456, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  railGlowPixels: 6
-  railCorePixels: 1.8
-  tickCount: 14
-  tickLengthPixels: 5
+  railCorePixels: 1
+  railHaloPixels: 1
+  tickEveryPixels: 10
+  tickLengthPixels: 3
   pulseCount: 3
   pulseTravelsPerSecond: 0.55
-  pulseSizePixels: 4
+  pulseSizePixels: 3
   showImpactMarker: 1
-  reticleRadiusPixels: 11
+  reticleRadiusPixels: 8
   legacyLine: {fileID: 1607360022346193462}
 --- !u!1 &6151312039072299152
 GameObject:
