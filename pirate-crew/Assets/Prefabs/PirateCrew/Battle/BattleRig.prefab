@@ -3832,7 +3832,7 @@ MonoBehaviour:
   battleCamera: {fileID: 3113655877893188633}
   battle: {fileID: 8165278289829619284}
   cameraDriver: {fileID: 8514636642611706073}
-  trajectory: {fileID: 0}
+  trajectory: {fileID: 5134312716470382021}
 --- !u!114 &8948355277086160600
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -22721,9 +22721,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5c98f00d114030248a3ad205eebb6456, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  dotPoolSize: 48
-  dotSize: 0.18
+  railGlowPixels: 6
+  railCorePixels: 1.8
+  tickCount: 14
+  tickLengthPixels: 5
+  pulseCount: 3
+  pulseTravelsPerSecond: 0.55
+  pulseSizePixels: 4
   showImpactMarker: 1
+  reticleRadiusPixels: 11
   legacyLine: {fileID: 1607360022346193462}
 --- !u!1 &6151312039072299152
 GameObject:
