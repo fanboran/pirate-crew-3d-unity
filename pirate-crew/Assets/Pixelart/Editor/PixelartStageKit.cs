@@ -481,9 +481,19 @@ namespace PirateCrew.EditorTools
         /// </summary>
         public static void RegisterScene(string scenePath, string logTag)
         {
-            AssetDatabase.ImportAsset(scenePath);   // 确保 .meta（guid）已生成
-
+            // 【不要无条件 ImportAsset】场景是装配器刚 `SaveScene` 保存、且**仍在编辑器里打开**的
+            // 同一个资产。真编辑器里对打开的场景强制重导，会让 Unity 的外部修改自检把这次导入
+            // 判成「磁盘被外部改了」，弹模态框 `The open scene(s) have been modified externally`
+            // 并卡死主线程——命令桥轮询也在主线程，后续命令全堵。batchmode 不弹对话框，所以
+            // 无头路径看不出来。guid 在 SaveScene 后通常已由 AssetDatabase 登记；只有首次新建
+            // 场景（.meta 还不存在）才补一次同步导入。
             string guid = AssetDatabase.AssetPathToGUID(scenePath);
+            if (string.IsNullOrEmpty(guid))
+            {
+                AssetDatabase.ImportAsset(scenePath);
+                guid = AssetDatabase.AssetPathToGUID(scenePath);
+            }
+
             if (string.IsNullOrEmpty(guid))
             {
                 Debug.LogError(logTag + " 场景 guid 解析失败：" + scenePath);
@@ -547,7 +557,10 @@ namespace PirateCrew.EditorTools
                     + "，共 " + registered + " 条场景。");
             }
 
-            AssetDatabase.Refresh();
+            // 【不要在这里 Refresh】EditorBuildSettings.asset 在 ProjectSettings/ 下，不属于
+            // AssetDatabase 的 Assets 域——刷新不会导入它，只会把刚保存的打开场景再导入一遍
+            // （同一份日志里能数到该场景连续两次 `Start importing`，就是本次导入 + 上一次
+            // ImportAsset 各一次）。ProjectSettings 的改动由编辑器自身的文件监控生效。
         }
 
         // ------------------------------------------------------------------
