@@ -560,6 +560,14 @@ namespace PirateCrew.UI
         void OnCrewDamaged(CrewDamagedPayload damaged)
         {
             UpdateUnitSegment(damaged.TeamIndex, damaged.PirateId, damaged.Health, damaged.MaxHealth);
+
+            // 受伤者 = 当前选中单位时同步右列血条（否则只有顶栏段掉血，右列停留在选中时的旧值）。
+            PirateBase selected = interaction != null ? interaction.SelectedCharacter : null;
+            if (selected != null
+                && selected.PirateId == damaged.PirateId
+                && selected.TeamIndex == damaged.TeamIndex)
+                RefreshUnitHpBar(selected);
+
             RefreshTurnHint();
         }
 
@@ -679,6 +687,21 @@ namespace PirateCrew.UI
 
         // ------------------------------------------------------------------
 
+        /// <summary>
+        /// 右列单位血条刷新（操作菜单与 <see cref="OnCrewDamaged"/> 共用，避免两处各自算比例）。
+        /// </summary>
+        void RefreshUnitHpBar(PirateBase unit)
+        {
+            if (unit == null || unitHpBar == null || unitHpBar.fill == null)
+                return;
+
+            float ratio = HealthRatio(unit.Health, unit.MaxHealth);
+            if (_motion != null)
+                _motion.SetFillPairTarget(unitHpBar.fill, unitHpBar.ghost, ratio);
+            else
+                unitHpBar.fill.rectTransform.anchorMax = new Vector2(ratio, 1f);
+        }
+
         /// <summary>操作菜单显示条件：选中·浏览态 &amp;&amp; 角色存活 &amp;&amp; 当前队非 AI。</summary>
         void RefreshWeaponPanel(bool hide = false)
         {
@@ -708,15 +731,7 @@ namespace PirateCrew.UI
                 UiTextUtil.SetColor(unitNameText, UiSkin.TeamText(selected.TeamIndex));
             }
 
-            if (unitHpBar != null && unitHpBar.fill != null)
-            {
-                if (_motion != null)
-                    _motion.SetFillPairTarget(unitHpBar.fill, unitHpBar.ghost,
-                        HealthRatio(selected.Health, selected.MaxHealth));
-                else
-                    unitHpBar.fill.rectTransform.anchorMax =
-                        new Vector2(HealthRatio(selected.Health, selected.MaxHealth), 1f);
-            }
+            RefreshUnitHpBar(selected);
 
             if (throwSelfButton != null)
                 throwSelfButton.interactable = selected.CurrentAction.CanThrow;

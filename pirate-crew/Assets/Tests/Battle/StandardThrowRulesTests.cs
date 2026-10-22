@@ -221,5 +221,81 @@ namespace PirateCrew.Battle.Tests
             for (int i = 0; i < count - 1; i++)
                 Assert.AreEqual(plainBuffer[i], untilBuffer[i], $"第 {i} 步应与裸积分一致");
         }
+
+        // ------------------------------------------------------------------
+        // 真实地表落点（掉血未生效 ③a：预览落点必须吃地形高度）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void PredictUntilImpact_ElevatedTerrain_LandsEarlierThanFlatGround()
+        {
+            // 同一抛掷：平地落点 vs 纵深 8m 起抬到 4m 的岛面/云场。
+            var p = new ThrowParams(0f, 35f, 1f);
+            Vector3 origin = new Vector3(0f, StandardThrowRules.ThrowOriginHeight, 0f);
+            Vector3 v0 = StandardThrowRules.LaunchVelocity(p);
+            var flatBuffer = new Vector3[StandardThrowRules.PreviewMaxSteps];
+            var hillBuffer = new Vector3[StandardThrowRules.PreviewMaxSteps];
+
+            Assert.IsTrue(ThrowTrajectory.TryPredictUntilImpact(
+                    origin, v0, StandardThrowRules.LaunchGravityY,
+                    flatBuffer, out _, out Vector3 flatImpact),
+                "平地基准必落地");
+            Assert.IsTrue(ThrowTrajectory.TryPredictUntilImpact(
+                    origin, v0, StandardThrowRules.LaunchGravityY,
+                    hillBuffer, out int hillCount, out Vector3 hillImpact,
+                    groundSampler: (x, z) => z >= 8f ? 4f : LevelGeometry.GroundTopY),
+                "抬升地形上必落地");
+
+            Assert.Less(hillImpact.z, flatImpact.z - 5f,
+                "抬升地形的落点应显著短于平地（旧口径按 y=0 算会越过岛面）");
+            Assert.AreEqual(4f, hillImpact.y, 1e-3f, "落点应贴在 4m 地表");
+            for (int i = 0; i < hillCount; i++)
+                Assert.GreaterOrEqual(hillBuffer[i].y, LevelGeometry.GroundTopY - 1e-3f,
+                    $"采样点 {i} 不得穿到基础地面之下");
+        }
+
+        [Test]
+        public void PredictUntilImpact_HighIslandSurface14m_SettlesOnPlateau()
+        {
+            // 85° 高抛弧顶约 15.9m，足以越过 14m 空岛地表并落在岛面上。
+            var p = new ThrowParams(0f, 85f, 1f);
+            Vector3 origin = new Vector3(0f, StandardThrowRules.ThrowOriginHeight, 0f);
+            Vector3 v0 = StandardThrowRules.LaunchVelocity(p);
+            var flatBuffer = new Vector3[StandardThrowRules.PreviewMaxSteps];
+            var islandBuffer = new Vector3[StandardThrowRules.PreviewMaxSteps];
+
+            ThrowTrajectory.TryPredictUntilImpact(
+                origin, v0, StandardThrowRules.LaunchGravityY, flatBuffer, out _, out Vector3 flatImpact);
+            bool landed = ThrowTrajectory.TryPredictUntilImpact(
+                origin, v0, StandardThrowRules.LaunchGravityY,
+                islandBuffer, out _, out Vector3 islandImpact,
+                groundSampler: (x, z) => z >= 2f ? 14f : LevelGeometry.GroundTopY);
+
+            Assert.IsTrue(landed, "高抛在兜底步数内应落到 14m 岛面");
+            Assert.AreEqual(14f, islandImpact.y, 1e-3f, "落点应贴在 14m 空岛地表");
+            Assert.Less(islandImpact.z, flatImpact.z, "落到抬升岛面应缩短水平落点");
+        }
+
+        [Test]
+        public void PredictUntilImpact_WaterCell_LandsBelowWaterSurface()
+        {
+            // 纵深 20m 起为水格：游戏性地表返回 WaterVoidY（水面以下哨兵）。
+            var p = new ThrowParams(0f, 35f, 1f);
+            Vector3 origin = new Vector3(0f, StandardThrowRules.ThrowOriginHeight, 0f);
+            Vector3 v0 = StandardThrowRules.LaunchVelocity(p);
+            var buffer = new Vector3[StandardThrowRules.PreviewMaxSteps];
+
+            bool landed = ThrowTrajectory.TryPredictUntilImpact(
+                origin, v0, StandardThrowRules.LaunchGravityY,
+                buffer, out _, out Vector3 impact,
+                groundSampler: (x, z) =>
+                    z >= 20f ? HeightfieldGrid.WaterVoidY : LevelGeometry.GroundTopY);
+
+            Assert.IsTrue(landed, "落水格同样应在兜底步数内终止");
+            Assert.Greater(impact.z, 20f, "应飞入水格后才落水");
+            Assert.AreEqual(HeightfieldGrid.WaterVoidY, impact.y, 1e-3f,
+                "水格落点应取 WaterVoidY 哨兵");
+            Assert.Less(impact.y, LevelGeometry.WaterSurfaceY, "落点应判为落水（低于水面）");
+        }
     }
 }
