@@ -66,6 +66,10 @@ namespace PirateCrew.Battle
         Transform _impactCenter;
         readonly Vector3[] _samples = new Vector3[StandardThrowRules.PreviewMaxSteps];
 
+        // 真实地形采样器（掉血未生效 ③a）：同一场战斗复用同一 delegate，避免逐帧瞄准时分配。
+        HeightfieldGrid _samplerTerrain;
+        System.Func<float, float, float> _groundSampler;
+
         void Awake()
         {
             if (legacyLine == null)
@@ -86,11 +90,13 @@ namespace PirateCrew.Battle
         /// </summary>
         /// <param name="originWorld">投掷起点（= 单位枢轴 + ThrowOriginHeight）。</param>
         /// <param name="velocity">完整初速向量（米制）。</param>
-        public void Show(Vector3 originWorld, Vector3 velocity)
+        /// <param name="terrain">本局地形（<see cref="BattleController.Terrain"/>）；null = 平地口径。</param>
+        public void Show(Vector3 originWorld, Vector3 velocity, HeightfieldGrid terrain = null)
         {
             bool landed = ThrowTrajectory.TryPredictUntilImpact(
                 originWorld, velocity, StandardThrowRules.LaunchGravityY,
-                _samples, out int count, out Vector3 impact);
+                _samples, out int count, out Vector3 impact,
+                groundSampler: ResolveGroundSampler(terrain));
 
             if (!landed)
             {
@@ -126,6 +132,24 @@ namespace PirateCrew.Battle
                 PlaceImpactGroup(impact, velocity);
             else
                 HideImpactGroup();
+        }
+
+        /// <summary>
+        /// 按地形取地表采样器；地形引用变化时才重建 delegate（战斗内每帧调用不分配）。
+        /// 水格由 <see cref="HeightfieldGrid.SurfaceWorldYAtWorld"/> 返回
+        /// <see cref="HeightfieldGrid.WaterVoidY"/>，预览据此表现落水。
+        /// </summary>
+        System.Func<float, float, float> ResolveGroundSampler(HeightfieldGrid terrain)
+        {
+            if (terrain == null)
+                return null;
+
+            if (!ReferenceEquals(_samplerTerrain, terrain))
+            {
+                _samplerTerrain = terrain;
+                _groundSampler = terrain.SurfaceWorldYAtWorld;
+            }
+            return _groundSampler;
         }
 
         /// <summary>隐藏轨迹。</summary>

@@ -43,19 +43,28 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// **落点终止采样**（预览重做，投掷行为契约 #9）：半隐式欧拉积分到首次穿地——
-        /// 跨越 <paramref name="groundY"/> 的那一步按 y 线性插值出恰好落在地面上的终点，
-        /// 因此写入的全部采样点 **y ≥ groundY**（不入地），末点即预测落点。
+        /// 跨越地表的那一步按 y 线性插值出恰好落在地面上的终点，
+        /// 因此写入的全部采样点 **y ≥ 当地地表**（不入地），末点即预测落点。
+        ///
+        /// 【地表高度】（掉血未生效 ③a）默认 <paramref name="groundY"/> 是平地口径；
+        /// 传入 <paramref name="groundSampler"/> 后每一步按世界 XZ 查**真实地表**，
+        /// 抬升岛面/云场/水格（<see cref="HeightfieldGrid.SurfaceWorldYAtWorld"/> 对水格
+        /// 返回 <see cref="HeightfieldGrid.WaterVoidY"/>）都能落到正确高度——预览落点不再
+        /// 与实弹（PhysX 真实地形碰撞）分叉。采样器作为参数注入，本方法仍是纯函数。
+        ///
         /// 步数上限 <paramref name="maxSteps"/> 兜底（默认
         /// <see cref="StandardThrowRules.PreviewMaxSteps"/> = 300 步 = 12 s）；
         /// 到上限仍未穿地（如极限平射出图）返回 <c>false</c> 且不写终点。
         /// </summary>
+        /// <param name="groundSampler">世界 (x, z) → 地表世界 Y；null = 用 <paramref name="groundY"/> 平地口径。</param>
         /// <returns>写入 <paramref name="buffer"/> 的采样数；out 参数为预测落点（无则 zero）。</returns>
         public static bool TryPredictUntilImpact(
             Vector3 origin, Vector3 initialVelocity, float gravityY,
             Vector3[] buffer, out int count, out Vector3 impact,
             float groundY = LevelGeometry.GroundTopY,
             int maxSteps = StandardThrowRules.PreviewMaxSteps,
-            float stepSeconds = LevelGeometry.FrameSeconds)
+            float stepSeconds = LevelGeometry.FrameSeconds,
+            System.Func<float, float, float> groundSampler = null)
         {
             Vector3 v = initialVelocity;
             Vector3 p = origin;
@@ -69,10 +78,13 @@ namespace PirateCrew.Battle
                 v.y += gravityY * stepSeconds;
                 Vector3 next = p + v * stepSeconds;
 
-                if (p.y > groundY && next.y <= groundY)
+                float surfaceY = groundSampler != null ? groundSampler(next.x, next.z) : groundY;
+                if (next.y <= surfaceY)
                 {
+                    // 从上方穿入 → 按 y 线性插值收在地表；横向撞上更高台阶/崖面时
+                    // p.y 可能已低于新格地表，t 夹到 0 退回最后一个合法采样点，保证不入地。
                     float span = p.y - next.y;
-                    float t = span > 1e-6f ? (p.y - groundY) / span : 0f;
+                    float t = span > 1e-6f ? Mathf.Clamp01((p.y - surfaceY) / span) : 0f;
                     impact = Vector3.Lerp(p, next, t);
                     buffer[count++] = impact;
                     return true;

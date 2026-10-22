@@ -320,7 +320,7 @@ namespace PirateCrew.Battle
             Vector3 origin = StandardThrowRules.ThrowOrigin(_selected.transform.position);
             Vector3 velocity = StandardThrowRules.LaunchVelocity(_params);
             if (trajectory != null)
-                trajectory.Show(origin, velocity);
+                trajectory.Show(origin, velocity, battle != null ? battle.Terrain : null);
 
             if (_intent.ConfirmPressed)
                 ExecuteModule((pirate, used) => SpawnWeapon(pirate, used, origin, velocity), velocity);

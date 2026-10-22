@@ -619,6 +619,24 @@ namespace PirateCrew.Battle
             // M2 近似：以爆心球形 OverlapSphere 扫描场上的可连锁弹体（文档为 AABB 最近点距离）。
             TriggerChainReactions(worldCenter, radiusWorld, source);
 
+            // 诊断（一发一条；Log.Info 带 [Conditional]，正式构建整条删除）：
+            // 一眼分辨「没炸（hits=0）/ 炸了没命中（hits=0 但 center/radius 异常）/
+            // 命中但 0 伤害（dmg=0）」。爆心世界坐标 + 半径米 + 每 hit 的候选索引/伤害。
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var line = new System.Text.StringBuilder(96);
+            line.Append("[Battle] 爆炸结算 center=(")
+                .Append(worldCenter.x.ToString("0.00", inv)).Append(", ")
+                .Append(worldCenter.y.ToString("0.00", inv)).Append(", ")
+                .Append(worldCenter.z.ToString("0.00", inv)).Append(") radius=")
+                .Append(radiusWorld.ToString("0.00", inv)).Append("m hits=")
+                .Append(result.Hits.Length);
+            for (int i = 0; i < result.Hits.Length; i++)
+            {
+                line.Append(" [idx=").Append(result.Hits[i].Index)
+                    .Append(" dmg=").Append(result.Hits[i].Damage.ToString("0.0", inv)).Append(']');
+            }
+            global::PirateCrew.Core.Log.Info(line.ToString());
+
             return result;
         }
 
