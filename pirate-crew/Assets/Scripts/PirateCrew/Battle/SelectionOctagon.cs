@@ -40,6 +40,7 @@ namespace PirateCrew.Battle
         PirateBase _pirate;
         Transform _ring;
         MeshRenderer _renderer;
+        Vector3 _baseScale = Vector3.one;
 
         void Awake()
         {
@@ -65,7 +66,8 @@ namespace PirateCrew.Battle
             {
                 float pulse = 1f + PulseAmplitude
                     * Mathf.Sin(Time.time * Mathf.PI * 2f / PulsePeriod);
-                _ring.localScale = new Vector3(pulse, 1f, pulse);
+                _ring.localScale = new Vector3(
+                    _baseScale.x * pulse, _baseScale.y, _baseScale.z * pulse);
             }
         }
 
@@ -75,7 +77,17 @@ namespace PirateCrew.Battle
             var ringGo = new GameObject("SelectionOctagon");
             _ring = ringGo.transform;
             _ring.SetParent(transform, false);
-            _ring.localPosition = new Vector3(0f, GroundOffset, 0f);
+
+            // 单位根节点带非 1 的缩放（Crew.prefab 根 0.375×0.5×0.375；物理模板 0.75×1×0.75）——
+            // 子物体不补偿就会被同比缩小（0.62 m 外径被压成 0.23 m，肉眼等于没有）。
+            // 这里按父级 lossyScale 取逆，保证**世界空间**外径恒为 OuterRadius。
+            Vector3 lossy = transform.lossyScale;
+            _baseScale = new Vector3(
+                Mathf.Abs(lossy.x) > 0.0001f ? 1f / lossy.x : 1f,
+                Mathf.Abs(lossy.y) > 0.0001f ? 1f / lossy.y : 1f,
+                Mathf.Abs(lossy.z) > 0.0001f ? 1f / lossy.z : 1f);
+            _ring.localScale = _baseScale;
+            _ring.localPosition = new Vector3(0f, GroundOffset / _baseScale.y, 0f);
 
             var filter = ringGo.AddComponent<MeshFilter>();
             filter.sharedMesh = SharedMesh();
@@ -94,7 +106,7 @@ namespace PirateCrew.Battle
             const int sides = 8;
             var vertices = new Vector3[sides * 2];
             var normals = new Vector3[sides * 2];
-            var triangles = new int[sides * 6];
+            var triangles = new int[sides * 12];
 
             for (int i = 0; i < sides; i++)
             {
@@ -123,6 +135,15 @@ namespace PirateCrew.Battle
                 triangles[t + 3] = outer;
                 triangles[t + 4] = inner;
                 triangles[t + 5] = innerNext;
+                // 双面可见兜底：地面标记不需要背面剔除，绕序若与引擎约定不符
+                // 会整件不可见（曾发生）——这里直接补一组反向三角形，肉眼永远看得到。
+                int back = t + sides * 6;
+                triangles[back] = outerNext;
+                triangles[back + 1] = innerNext;
+                triangles[back + 2] = outer;
+                triangles[back + 3] = innerNext;
+                triangles[back + 4] = inner;
+                triangles[back + 5] = outer;
             }
 
             _sharedMesh = new Mesh { name = "SelectionOctagonRing" };
