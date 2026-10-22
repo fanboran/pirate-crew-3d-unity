@@ -723,7 +723,7 @@ namespace PirateCrew.UI.Stick
             Refresh();
         }
 
-        void OnValidate()
+        protected override void OnValidate()
         {
             // Inspector 里改值域时先纠偏（源 enforceValidRange 的编辑器侧对应物），
             // 不在这里重绘——装配期孩子还没建出来。
