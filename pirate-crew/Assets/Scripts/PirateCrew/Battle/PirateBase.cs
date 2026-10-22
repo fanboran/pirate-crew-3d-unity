@@ -148,9 +148,9 @@ namespace PirateCrew.Battle
             if (visualAnimator == null)
                 visualAnimator = GetComponentInChildren<CrewVisualAnimator>(true);
 
-            // 选中标记（地面八角框）：自挂载，Prefab/场景零改动即可生效。
-            if (GetComponent<SelectionOctagon>() == null)
-                gameObject.AddComponent<SelectionOctagon>();
+            // 选中标记（立方体角框）：自挂载，Prefab/场景零改动即可生效。
+            if (GetComponent<SelectionCube>() == null)
+                gameObject.AddComponent<SelectionCube>();
 
             if (freezeRotation && body != null)
             {

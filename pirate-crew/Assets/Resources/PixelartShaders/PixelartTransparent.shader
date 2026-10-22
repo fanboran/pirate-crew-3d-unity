@@ -33,6 +33,7 @@ Shader "PirateCrew/Pixelart/PixelartTransparent"
     {
         _MainTex ("贴图（留空 = 白，颜色全靠顶点色）", 2D) = "white" {}
         _Color ("乘色（与顶点色相乘）", Color) = (1, 1, 1, 1)
+        _DepthTest ("手动深度遮挡（1 = 开，0 = 纯覆盖/选中框）", Range(0, 1)) = 1
     }
 
     SubShader
@@ -62,6 +63,7 @@ Shader "PirateCrew/Pixelart/PixelartTransparent"
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _Color;
+                float _DepthTest;
             CBUFFER_END
 
             struct Attributes
@@ -97,25 +99,27 @@ Shader "PirateCrew/Pixelart/PixelartTransparent"
                 half4 tint = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv) * input.color * _Color;
 
                 // —— 手动深度遮挡（等效 ZTest LEqual，对细像素深度的块锚点采样）——
-                float2 screenUv = input.screenPos.xy / input.screenPos.w;
-                float storedRaw = SAMPLE_TEXTURE2D(_PixelartDepthBuffer, sampler_PixelartDepthBuffer, screenUv).r;
-                float ndcDepth = input.clipPos.z / input.clipPos.w;
-                // NDC → 深度附件里的 raw device depth（逐平台口径）：
-                //   · reversed-Z（D3D/Metal/Switch）：附件存的就是 clip z ∈ [0,1]，近 = 1，直接用；
-                //   · 正向 Z（GL/GLES）：附件存 NDC 的 [0,1] 重映射，NDC z ∈ [-1,1] → [0,1]。
-                // 【不要写 (ndc - UNITY_NEAR_CLIP_VALUE) / (1 - UNITY_NEAR_CLIP_VALUE)】：
-                // reversed-Z 下该宏 = 1.0，分母 0，全屏片元会拿到 -inf 并被下面 clip 得一个不剩
-                // （弹道预览曾因此整条不可见）。
+                // `_DepthTest = 0` 的材质（选中角框）跳过整段：选中框是 UI 覆盖语义，
+                // 8 个角必须全部可见，不因角色身体/地形挡住而缺角。
+                if (_DepthTest > 0.5)
+                {
+                    float2 screenUv = input.screenPos.xy / input.screenPos.w;
+                    float storedRaw = SAMPLE_TEXTURE2D(_PixelartDepthBuffer, sampler_PixelartDepthBuffer, screenUv).r;
+                    float ndcDepth = input.clipPos.z / input.clipPos.w;
+                    // NDC → 深度附件里的 raw device depth（逐平台口径）：
+                    //   · reversed-Z（D3D/Metal/Switch）：附件存的就是 clip z ∈ [0,1]，近 = 1，直接用；
+                    //   · 正向 Z（GL/GLES）：附件存 NDC 的 [0,1] 重映射，NDC z ∈ [-1,1] → [0,1]。
+                    // 【不要写 (ndc - UNITY_NEAR_CLIP_VALUE) / (1 - UNITY_NEAR_CLIP_VALUE)】：
+                    // reversed-Z 下该宏 = 1.0，分母 0，全屏片元会拿到 -inf 并被下面 clip 得一个不剩
+                    // （弹道预览曾因此整条不可见）。
 #if defined(UNITY_REVERSED_Z)
-                float deviceDepth = ndcDepth;
+                    float deviceDepth = ndcDepth;
+                    clip(deviceDepth - storedRaw);     // reversed-Z：数值大 = 近；片元 ≥ 存储 → 通过
 #else
-                float deviceDepth = ndcDepth * 0.5 + 0.5;
+                    float deviceDepth = ndcDepth * 0.5 + 0.5;
+                    clip(storedRaw - deviceDepth);     // 正向 Z：数值小 = 近；片元 ≤ 存储 → 通过
 #endif
-#if defined(UNITY_REVERSED_Z)
-                clip(deviceDepth - storedRaw);     // reversed-Z：数值大 = 近；片元 ≥ 存储 → 通过
-#else
-                clip(storedRaw - deviceDepth);     // 正向 Z：数值小 = 近；片元 ≤ 存储 → 通过
-#endif
+                }
                 return tint;
             }
             ENDHLSL
