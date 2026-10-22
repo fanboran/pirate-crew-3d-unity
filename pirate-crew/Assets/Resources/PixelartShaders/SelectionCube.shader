@@ -63,14 +63,17 @@ Shader "PirateCrew/Pixelart/SelectionCube"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
-                float4 clipPos    : TEXCOORD0;
+                float4 clipPos    : TEXCOORD0;   // 深度比较用（z/w = NDC 深度）
+                float4 screenPos  : TEXCOORD1;   // URP positionNDC（xy/w = 屏幕 uv 0..1）
             };
 
             Varyings Vert(Attributes input)
             {
                 Varyings output;
-                output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
-                output.clipPos = output.positionCS;
+                VertexPositionInputs vpi = GetVertexPositionInputs(input.positionOS.xyz);
+                output.positionCS = vpi.positionCS;
+                output.clipPos = vpi.positionCS;
+                output.screenPos = vpi.positionNDC;
                 return output;
             }
 
@@ -78,7 +81,9 @@ Shader "PirateCrew/Pixelart/SelectionCube"
             {
                 // 手动深度遮挡：Overlay 相机没有场景深度附件，因此采样 Cast 路径发布的
                 // 细像素深度，等效 ZTest LEqual。角色身体/地形在前时，后面那几条棱被 clip。
-                float2 screenUv = input.clipPos.xy / input.clipPos.w;
+                // 屏幕 uv 必须走 positionNDC（URP 已做 0..1/w 的换算）；直接用
+                // clipPos.xy/w 会得到 NDC -1..1，左/下半屏深度采样全错。
+                float2 screenUv = input.screenPos.xy / input.screenPos.w;
                 float storedRaw = SAMPLE_TEXTURE2D(
                     _PixelartDepthBuffer, sampler_PixelartDepthBuffer, screenUv).r;
                 float ndcDepth = input.clipPos.z / input.clipPos.w;
