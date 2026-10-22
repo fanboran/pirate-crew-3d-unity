@@ -31,4 +31,4 @@
   实用件非 PBR）、`PirateOutline` + Crew 族（反壳基座）、`MaterialNoise` 贴图
   （BattleSceneLighting/ArtGate 仍有活消费）。
 - 船员反壳件纠缠（材质槽 / `_OutlineState` 契约）不属本批 →
-  [船员描边与伤害数字.md](船员描边与伤害数字.md)（该话题唯一正主）。
+  [伤害数字.md](../伤害数字.md)（该话题唯一正主）。

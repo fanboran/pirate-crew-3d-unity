@@ -100,8 +100,17 @@ Shader "PirateCrew/Pixelart/PixelartTransparent"
                 float2 screenUv = input.screenPos.xy / input.screenPos.w;
                 float storedRaw = SAMPLE_TEXTURE2D(_PixelartDepthBuffer, sampler_PixelartDepthBuffer, screenUv).r;
                 float ndcDepth = input.clipPos.z / input.clipPos.w;
-                // NDC（D3D [0,1] / GL [-1,1]）→ 设备深度 [0,1]，与深度缓冲存储口径对齐。
-                float deviceDepth = (ndcDepth - UNITY_NEAR_CLIP_VALUE) * rcp(1.0 - UNITY_NEAR_CLIP_VALUE);
+                // NDC → 深度附件里的 raw device depth（逐平台口径）：
+                //   · reversed-Z（D3D/Metal/Switch）：附件存的就是 clip z ∈ [0,1]，近 = 1，直接用；
+                //   · 正向 Z（GL/GLES）：附件存 NDC 的 [0,1] 重映射，NDC z ∈ [-1,1] → [0,1]。
+                // 【不要写 (ndc - UNITY_NEAR_CLIP_VALUE) / (1 - UNITY_NEAR_CLIP_VALUE)】：
+                // reversed-Z 下该宏 = 1.0，分母 0，全屏片元会拿到 -inf 并被下面 clip 得一个不剩
+                // （弹道预览曾因此整条不可见）。
+#if defined(UNITY_REVERSED_Z)
+                float deviceDepth = ndcDepth;
+#else
+                float deviceDepth = ndcDepth * 0.5 + 0.5;
+#endif
 #if defined(UNITY_REVERSED_Z)
                 clip(deviceDepth - storedRaw);     // reversed-Z：数值大 = 近；片元 ≥ 存储 → 通过
 #else
