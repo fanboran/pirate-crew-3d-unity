@@ -99,8 +99,8 @@ Shader "PirateCrew/Pixelart/PixelartTransparent"
                 half4 tint = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv) * input.color * _Color;
 
                 // —— 手动深度遮挡（等效 ZTest LEqual，对细像素深度的块锚点采样）——
-                // `_DepthTest = 0` 的材质（选中角框）跳过整段：选中框是 UI 覆盖语义，
-                // 8 个角必须全部可见，不因角色身体/地形挡住而缺角。
+                // `_DepthTest = 0` 的材质（落点 X 等 UI 覆盖件）跳过整段：覆盖标记不因
+                // 贴地/块锚深度误裁而缺块。
                 if (_DepthTest > 0.5)
                 {
                     float2 screenUv = input.screenPos.xy / input.screenPos.w;

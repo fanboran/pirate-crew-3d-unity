@@ -293,9 +293,15 @@ namespace PirateCrew.Battle
             filter.sharedMesh = CreateImpactCrossMesh();
 
             var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = legacyLine != null
+            Material baseMaterial = legacyLine != null
                 ? legacyLine.sharedMaterial
                 : FallbackPreviewMaterial();
+            // 落点 X 是 UI 语义的覆盖标记：关掉透明趟的手动深度，避免贴地时被
+            // 块锚深度误裁（珠点仍保留深度遮挡）。
+            var crossMaterial = new Material(baseMaterial) { name = "ImpactCross" };
+            if (crossMaterial.HasProperty("_DepthTest"))
+                crossMaterial.SetFloat("_DepthTest", 0f);
+            renderer.sharedMaterial = crossMaterial;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
             go.SetActive(false);

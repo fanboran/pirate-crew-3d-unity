@@ -309,8 +309,8 @@ namespace PirateCrew.Rendering.Pixelart
         /// 也常常是 alpha 混合的，把它们交给叠加档就等于"绕开像素化、用旧材质全分辨率画在成图上"
         /// ——实测症状：满屏平滑内容、没有墨线没有色带（创始人 2026-09-22 报的"完全不是"）。
         ///
-        /// 【名单怎么来的】对着试点场景的处置反推：船员/弹体接触阴影、弹道预览、空岛发光件——
-        /// 这几类是"贴在画面上的效果"，转成不透明会变成实体几何；其余一律算世界内容。
+        /// 【名单怎么来的】对着试点场景的处置反推：船员/弹体接触阴影、弹道预览、选中角框、
+        /// 空岛发光件——这几类是"贴在画面上的效果"，转成不透明会变成实体几何；其余一律算世界内容。
         /// 下面的 `PirateCrew/Fx/*` shader 前缀与 `Fx_` 材质名前缀是**已退役 FX 模块**的遗留判据
         /// （现役无资产命中，保留作防御）。
         /// </summary>
@@ -327,7 +327,8 @@ namespace PirateCrew.Rendering.Pixelart
             return name.StartsWith("Fx_")
                 || name.IndexOf("Trajectory", System.StringComparison.Ordinal) >= 0
                 || name.IndexOf("Glow", System.StringComparison.Ordinal) >= 0
-                || name.IndexOf("SelectionRing", System.StringComparison.Ordinal) >= 0;
+                || name.IndexOf("SelectionRing", System.StringComparison.Ordinal) >= 0
+                || name.IndexOf("SelectionCube", System.StringComparison.Ordinal) >= 0;
         }
     }
 }
