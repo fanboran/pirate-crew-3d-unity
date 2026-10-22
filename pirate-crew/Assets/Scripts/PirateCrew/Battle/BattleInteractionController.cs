@@ -32,6 +32,8 @@ namespace PirateCrew.Battle
         [SerializeField] Camera battleCamera;
         [SerializeField] BattleController battle;
         [SerializeField] BattleCameraDriver cameraDriver;
+        // 【暂时下线】抛物线指示器：prefab 引用已置空，Show/Hide 全部走 null 分支；
+        // 恢复时把 BattleRig 的 trajectory 接回即可。
         [SerializeField] TrajectoryPreview trajectory;
 
         BattleInputReader _input;

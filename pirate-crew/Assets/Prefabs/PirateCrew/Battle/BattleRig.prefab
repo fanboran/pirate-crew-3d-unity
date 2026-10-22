@@ -3832,7 +3832,7 @@ MonoBehaviour:
   battleCamera: {fileID: 3113655877893188633}
   battle: {fileID: 8165278289829619284}
   cameraDriver: {fileID: 8514636642611706073}
-  trajectory: {fileID: 5134312716470382021}
+  trajectory: {fileID: 0}
 --- !u!114 &8948355277086160600
 MonoBehaviour:
   m_ObjectHideFlags: 0
