@@ -148,6 +148,10 @@ namespace PirateCrew.Battle
             if (visualAnimator == null)
                 visualAnimator = GetComponentInChildren<CrewVisualAnimator>(true);
 
+            // 选中标记（地面八角框）：自挂载，Prefab/场景零改动即可生效。
+            if (GetComponent<SelectionOctagon>() == null)
+                gameObject.AddComponent<SelectionOctagon>();
+
             if (freezeRotation && body != null)
             {
                 // 只锁旋转（保持直立），**不锁位置**：3D 化后竞技场是 XZ 水平面，角色要能沿 X 和 Z 两个
