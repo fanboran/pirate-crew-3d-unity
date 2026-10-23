@@ -1,17 +1,16 @@
 # Unity API 陷阱与参照库公约
 
-> **这份文档是什么**：① 写 Unity 代码前必读的**本机 API 陷阱清单**（R1–R9，每条附本地核对命令与结论，
+> **这份文档是什么**：① 写 Unity 代码前必读的**本机 API 陷阱清单**（R1–R8，每条附本地核对命令与结论，
 > 防照抄网上 Unity 6 / 旧版本教程踩坑）；② 参照库**借鉴与许可证公约**（只借鉴模式，不搬运代码）；
 > ③ `external/` 工作台目录的**总登记与使用公约**。
-> 核对环境：Unity 2022.3.62f1c1 + URP 14.0.12 + Cinemachine 2.9.7（本地 PackageCache）。
+> 核对环境：Unity 2022.3.62f1c1 + URP 14.0.12（本地 PackageCache）。
 > 本地权威核对源：`F:\Unity\2022.3.62f1\Editor\Data\Managed\UnityEngine\*.xml`、
-> `pirate-crew\Library\PackageCache\com.unity.cinemachine@2.9.7\`、
 > `pirate-crew\Library\PackageCache\com.unity.render-pipelines.universal@14.0.12\`。
 > 所有结论以本机 DLL/XML/包源码核对为准，不凭教程记忆。
 
 ---
 
-## 1. API 陷阱清单（R1–R9）
+## 1. API 陷阱清单（R1–R8）
 
 ### R1. `Rigidbody.velocity`（2022.3）≠ `Rigidbody.linearVelocity`（Unity 6）
 
@@ -30,27 +29,7 @@ grep -c "linearVelocity" "$MG/UnityEngine.PhysicsModule.dll"
 - `Rigidbody.drag`（2022.3，XML 存在 `P:UnityEngine.Rigidbody.drag`）↔ Unity 6 `linearDamping`。本地 `linearDamping` 只命中 `P:UnityEngine.ArticulationBody.linearDamping`（PhysicsModule.xml:127），**不是 Rigidbody 的成员**，不要混用。
 - `Rigidbody.angularDrag` 同理 ↔ Unity 6 `angularDamping`；本地 `angularDamping` 只属 `ArticulationBody`（PhysicsModule.xml:22）。
 
-### R2. Cinemachine 2.9.7 用 `CinemachineVirtualCamera`，没有 `CinemachineCamera`
-
-核对命令：
-
-```bash
-CM="F:/VSCode/pirate-crew-3d-unity/pirate-crew/Library/PackageCache/com.unity.cinemachine@2.9.7"
-grep -n "public class CinemachineVirtualCamera" "$CM/Runtime/Behaviours/CinemachineVirtualCamera.cs"
-grep -rn "class CinemachineCamera\b" "$CM"
-grep -n '"version"' "$CM/package.json"
-```
-
-结论：`CinemachineVirtualCamera` 在 `Runtime/Behaviours/CinemachineVirtualCamera.cs:59`；`class CinemachineCamera` 无匹配（仅存在无关的 `CinemachineCameraOffset` 扩展类）；包版本 `2.9.7`。**Unity 6 的 `CinemachineCamera` / `Unity.Cinemachine` 命名空间写法在本工程不可用，必须用 `Cinemachine` 命名空间 + `CinemachineVirtualCamera`。**
-
-已核对的 2.9.7 关键成员（可直接用）：
-- `CinemachineVirtualCameraBase.Priority`（int，`Runtime/Core/CinemachineVirtualCameraBase.cs:357`；序列化字段 `m_Priority` 在第 59 行）。
-- `CinemachineVirtualCamera.GetCinemachineComponent<T>()`（`Runtime/Behaviours/CinemachineVirtualCamera.cs:331`）。
-- `CinemachineVirtualCamera.m_Follow` / `m_LookAt`（第 81 / 70 行，另有 `Follow`/`LookAt` 覆写属性在第 124/115 行）。
-- `CinemachineFramingTransposer.m_CameraDistance`（`Runtime/Components/CinemachineFramingTransposer.cs:127`）。
-- `CinemachineBrain`（`Runtime/Behaviours/CinemachineBrain.cs:90`）、`m_IgnoreTimeScale`（第 113 行）、`ActiveVirtualCamera`（第 516 行）。
-
-### R3. `LineRenderer.SetVertexCount` 已过时 → 用 `positionCount` + `SetPositions`
+### R2. `LineRenderer.SetVertexCount` 已过时 → 用 `positionCount` + `SetPositions`
 
 核对命令：
 
@@ -61,7 +40,7 @@ grep -oE '<member name="[^"]*(positionCount|SetVertexCount|SetPositions)[^"]*"' 
 
 结论：本地同时存在 `P:UnityEngine.LineRenderer.positionCount`、`M:UnityEngine.LineRenderer.SetPositions(UnityEngine.Vector3[])` 与遗留的 `M:UnityEngine.LineRenderer.SetVertexCount(System.Int32)`。**本工程应写 `line.positionCount = n; line.SetPositions(arr);`**，避免过时 API 警告，也便于以后升级。
 
-### R4. 2D 物理 API → 3D 物理 API
+### R3. 2D 物理 API → 3D 物理 API
 
 核对命令与结论：
 
@@ -76,7 +55,7 @@ grep -oE '<member name="F:UnityEngine\.ForceMode\.Impulse"' "$MG/UnityEngine.Phy
 - 对照替换表：`Physics2D.gravity` → `Physics.gravity`；`Rigidbody2D.velocity` → `Rigidbody.velocity`；`Rigidbody2D.isKinematic` → `Rigidbody.isKinematic`；`ForceMode2D.Impulse` → `ForceMode.Impulse`；`Physics2D.OverlapPoint` → `Physics.Raycast` / `Physics.OverlapSphere`；`Vector2.Angle` → `Vector3.Angle`。
 - `Rigidbody.AddForce(Vector3, ForceMode)` 与 `ForceMode.Impulse/Force/Acceleration/VelocityChange` 均已核对存在（PhysicsModule.xml）。
 
-### R5. `Application.LoadLevel` 已过时 → 用 `SceneManager.LoadScene` 或本工程 `SceneLoader`
+### R4. `Application.LoadLevel` 已过时 → 用 `SceneManager.LoadScene` 或本工程 `SceneLoader`
 
 核对命令：
 
@@ -88,7 +67,7 @@ grep -oE '<member name="M:UnityEngine\.SceneManagement\.SceneManager\.LoadScene\
 
 结论：**本工程禁止用 `Application.LoadLevel`，改用 `SceneManager.LoadScene` 或现有 `PirateCrew.Core.SceneLoader`（走 EventBus 场景频道），保持导航统一。**
 
-### R6. URP 14 渲染特性 API：`cameraColorTargetHandle` / `Blitter.BlitCameraTexture` / `RTHandle`
+### R5. URP 14 渲染特性 API：`cameraColorTargetHandle` / `Blitter.BlitCameraTexture` / `RTHandle`
 
 核对命令：
 
@@ -109,7 +88,7 @@ grep -n "public abstract partial class ScriptableRenderPass" "$URP/Runtime/Passe
 - **不要用** `cameraColorTarget`（`ScriptableRenderer.cs:398`，旧 `RenderTargetIdentifier` 路径）和 Unity 6 的 RenderGraph API；也不要引用 URP 15+ 才有的 `UniversalRenderPipeline.RenderGraph` 写法。
 - `Blitter.BlitCameraTexture` 带 Material 的重载在 core 包 `Blitter.cs:377`，`Blitter` 类在 `Blitter.cs` 内（`public static class Blitter`）。
 
-### R7. 输入系统：本工程用 legacy `Input`（manifest 无 Input System 包）
+### R6. 输入系统：本工程用 legacy `Input`（manifest 无 Input System 包）
 
 核对命令：
 
@@ -121,7 +100,7 @@ grep -oE '<member name="[PM]:UnityEngine\.Input\.(GetMouseButton|GetAxisRaw|GetK
 
 结论：`Input` 位于 `UnityEngine.InputLegacyModule`，本机 XML 确认存在 `Input.GetMouseButton(int)`、`GetMouseButtonDown/Up`、`GetAxis(String)`、`GetAxisRaw(String)`、`GetKey(String/KeyCode)`、`Input.mousePosition`、`Input.mouseScrollDelta`。工程 manifest 无 `com.unity.inputsystem`，因此**用 `Input.*` 即可**；新 Input System 写法会引入新包依赖，不要照抄。
 
-### R8. `Physics.Raycast` 与相机投影签名核对
+### R7. `Physics.Raycast` 与相机投影签名核对
 
 核对命令：
 
@@ -133,9 +112,8 @@ grep -oE '<member name="M:UnityEngine\.Camera\.(ScreenToWorldPoint|ScreenPointTo
 
 结论：存在 `Physics.Raycast(Ray, out RaycastHit, float, int, QueryTriggerInteraction)`、`Physics.Raycast(Vector3, Vector3, out RaycastHit, float, int, QueryTriggerInteraction)`；`Camera.ScreenToWorldPoint(Vector3)`、`Camera.ScreenPointToRay(Vector3)`、`Camera.WorldToScreenPoint(Vector3)` 均存在。选型脚本按这些签名写即可；`Physics.OverlapSphere` 亦可用于「选中附近单位」（未逐一列出，如使用再核对）。
 
-### R9. `Cinemachine` 命名空间与 URP `Shader.Find` 打包风险（经验项，非编译风险）
+### R8. URP `Shader.Find` 打包风险（经验项，非编译风险）
 
-- Cinemachine 2.9.7 包内命名空间确为 `Cinemachine`（`CinemachineVirtualCamera.cs` 声明在 `namespace Cinemachine` 下）。
 - 自实现屏幕空间描边 shader 时，`Shader.Find("Hidden/...")` 引用的 shader 必须在 `Always Included Shaders` 登记，否则构建后材质为 null。
 - 全局屏幕空间描边**不支持 MSAA**；本工程 URP Asset 若开了 MSAA，需切 FXAA/SMAA。
 

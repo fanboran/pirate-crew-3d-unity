@@ -77,7 +77,7 @@ EventBus 拒绝投递、记入 `EventBus.ContractViolations` 并告警——机�
 | 订阅方 | `Core/SceneLoader.OnChangeSceneRequest` |
 | 备注 | 空场景名**静默忽略**（场景卸载竞态里可能发空值）。<br>**字典载荷形式不存在**：要控制过渡请直接调 `SceneLoader.Instance.ChangeScene(name, transition)` |
 
-> **同名重载语义**（原 `"replaceTop"` 补丁已退役，`Core/SceneLoader.cs:125`）：目标场景与当前同名 = **原地重载、不压栈**——
+> **同名重载语义**（原 `"replaceTop"` 补丁已退役，口径钉在 `Core/SceneLoader.ShouldRecordReturnPoint`）：目标场景与当前同名 = **原地重载、不压栈**——
 > 用于"再来一局"这类同场景重载：栈深不变，重开后 `SceneEvents.GoBack` 仍回到进战前的场景。
 
 ### 1.2 `SceneEvents.GoBack` —— 请求返回上一场景
@@ -123,10 +123,10 @@ EventBus 拒绝投递、记入 `EventBus.ContractViolations` 并告警——机�
 
 | 频道 | 载荷类型 | 发布方 | 订阅方 |
 | --- | --- | --- | --- |
-| `BattleEvents.BattleStarted` | `BattleStartedPayload` | `BattleController` | HUD（`BattleHud`）/ 环境层（`AmbientDirector`）/ `AudioService` / `CampaignApi`（**相机不订阅本事件**——它跟 `BattleEvents.TurnStarted`） |
+| `BattleEvents.BattleStarted` | `BattleStartedPayload` | `BattleController` | HUD（`BattleHud`）/ 交互（`BattleInteractionController`）/ `AudioService` / `CampaignApi`（**相机不订阅本事件**——它跟 `BattleEvents.TurnStarted`；环境层 `AmbientDirector` 只订阅 `ProjectileDetonated`） |
 | `BattleEvents.TurnStarted` | `TurnStartedPayload` | `TurnManager` | HUD / 相机（pan 到行动角色） |
-| `BattleEvents.TurnEnded` | `int` 队伍编号 | `TurnManager` | HUD / 相机 / `BattleController` |
-| `BattleEvents.SelectionChanged` | `SelectionChangedPayload`（PirateId + 是否选中） | `BattleInteractionController`（选中/取消/换人） | HUD（操作菜单显隐）/ 相机（环绕 ↔ 自由镜头）；规格见[交互操作契约](../交互操作契约.md) §事件 |
+| `BattleEvents.TurnEnded` | `int` 队伍编号 | `TurnManager` | HUD / 相机 / `BattleController` / `BattleInteractionController` |
+| `BattleEvents.SelectionChanged` | `SelectionChangedPayload`（PirateId + 是否选中） | `BattleInteractionController`（选中/取消/换人） | HUD（操作菜单开合；相机不订阅本事件——相机跟 `ActionSelected` / `CameraFocusRequested`）；规格见[交互操作契约](../交互操作契约.md) §事件 |
 | `BattleEvents.OperationChanged` | `OperationChangedPayload`（PirateId + 是否武器 + WeaponId + 是否激活） | `BattleInteractionController`（模组激活/取消） | HUD（操作 HUD 显隐）／音频（操作开始结束音，待接） |
 | `BattleEvents.ActionSelected` | `ActionSelectedPayload` | `BattleInteractionController` / `BattleController` | HUD（操作面收起）/ 相机（`BattleCameraDriver` 跟随） |
 | `BattleEvents.CrewDamaged` | `CrewDamagedPayload` | `PirateBase` | HUD（血条）/ 相机（震屏） |
@@ -134,7 +134,7 @@ EventBus 拒绝投递、记入 `EventBus.ContractViolations` 并告警——机�
 | `BattleEvents.MatchFinished` | `MatchFinishedPayload` | `BattleController` | HUD / 相机 / `AudioService` / `CampaignApi`（结算） |
 | `BattleEvents.ProjectileDetonated` | `ProjectileDetonatedPayload` | `WeaponProjectile` | 表现层（`WaterSimulationDriver` 涟漪、相机震屏、音频） |
 | `BattleEvents.ShotReleased` | `float` 初速（m/s，米制口径；旧载荷为拖拽像素距离，随弹弓退役） | `BattleInteractionController` | 音频层（发射音，音高按初速映射） |
-| `BattleEvents.CameraFocusRequested` | `Transform` 目标 | `TurnManager`（回合开始 pan）/ `BattleController`（选中时环绕） | 相机（`BattleCameraDriver`，平滑过渡不瞬跳） |
+| `BattleEvents.CameraFocusRequested` | `Transform` 目标 | `TurnManager`（回合开始 pan）/ `BattleController`（选中时环绕）/ `UI/BattleHud.TeamBars`（点击血条方块跳对应单位） | 相机（`BattleCameraDriver`，平滑过渡不瞬跳） |
 
 > **武器运行时事件备注**：`BattleEvents.ProjectileDetonated` 的频道与载荷定义在
 > `Battle/BattleEvents.cs`，由 `Battle/WeaponProjectile.cs` 发布（弹体引爆）。

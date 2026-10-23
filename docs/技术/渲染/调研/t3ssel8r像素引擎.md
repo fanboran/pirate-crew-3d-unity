@@ -23,7 +23,7 @@
 > `Isometric Camera`（`ij555s4mAuI`，）：
 > "a **30 degree pitch** isometric camera that **snaps the yaw to 45 degree increments** is used. This can perfectly reproduce the **2-pixels-across-1-pixel-down look** of rectangular pixel art blocks, while still allowing smooth camera motion between snapping regions."
 
-⇒ 他取 **30° 俯角**，理由正是"2 像素横 : 1 像素竖"的**经典手绘像素等距网格**；本仓 [渲染管线](../渲染管线.md) §2.1 的表格里，30° 一行写的也正是"经典像素等距（手绘像素画沿用至今的网格）"，但**现行定案取的是 35.264°（真等距）**。
+⇒ 他取 **30° 俯角**，理由正是"2 像素横 : 1 像素竖"的**经典手绘像素等距网格**；本仓 [渲染管线](../管线/渲染管线.md) §2.1 的表格里，30° 一行写的也正是"经典像素等距（手绘像素画沿用至今的网格）"，但**现行定案取的是 35.264°（真等距）**。
 ⇒ **这不是要推翻定案**，而是补一条外部证据：**该方向公认参照作者选了 30°**。若 M1 样张在"像不像手绘像素等距"上不满意，30° 是第一个该回头看的档位。【AI 提案】
 ⇒ 另外他明确用了 **yaw snap 到 45° 增量**——与本仓"方位角固定 45°"同类，证据方向一致。
 
@@ -40,7 +40,7 @@
 > "To get the **edge highlight and shadow effects, the depth buffer is sampled for adjacent points, and the pixel is brightened or dimmed based on whether it is closer or further to the camera than its neighbors**."
 
 ⇒ **这是 v5 边缘效果的核心口径**：不画线，而是**在深度缓冲上取邻域、比较远近，然后对该像素的着色值提亮或压暗**。同时解释了画面里"棱线上是浅色亮边"（比邻域近 → 提亮）。
-⇒ 对本仓 [渲染管线](../渲染管线.md) §7"内线"与 [待办事项](../../../项目/待办事项.md) 步骤 2 遗留⑥ 的**直接可抄路线**：它比 v2 的七步更简（不做阈值化 + 遮罩合成，直接改着色值），比 v3 的连通域更省（不做 compute 连通域）。
+⇒ 对本仓 [渲染管线](../管线/渲染管线.md) §7"内线"与 [待办事项](../../../项目/待办事项.md) 步骤 2 遗留⑥ 的**直接可抄路线**：它比 v2 的七步更简（不做阈值化 + 遮罩合成，直接改着色值），比 v3 的连通域更省（不做 compute 连通域）。
 
 ### 1.5 边缘检测器：**改用 normal pass** ←（v3 的可靠性问题的正解）
 
@@ -56,7 +56,7 @@
 > "Here we are showing off the improvement to the main pixel art shader including **light-aware edge coloration**, and some procedural moss."
 
 ⇒ **v5 的边线颜色随昼夜变（夜里淡紫、白天近白）就是这一条**：边缘着色**对光照有感知**，不是固定墨色。
-⇒ 与本仓 [渲染管线](../渲染管线.md) §5"颜色统一墨色（与 UI 令牌 INK 同色）"**是一处口径分歧**：本仓要的是 3D/2D 统一的固定墨线，他要的是随环境光变化的边缘色。**两条都要留**（固定墨色更"平面设计"、随光变色更"融入场景"），M1 样张可对比。【AI 提案】
+⇒ 与本仓 [渲染管线](../管线/渲染管线.md) §5"颜色统一墨色（与 UI 令牌 INK 同色）"**是一处口径分歧**：本仓要的是 3D/2D 统一的固定墨线，他要的是随环境光变化的边缘色。**两条都要留**（固定墨色更"平面设计"、随光变色更"融入场景"），M1 样张可对比。【AI 提案】
 
 ### 1.7 动态光：加法 pass 忽略 ramp + **低帧率抖动光位** + 光照档位量化
 
@@ -103,7 +103,7 @@
 > `Parallax Effect for 3D Pixel Art Engine`（`cCUCMBmc9yQ`，）：
 > "**cleverly blending between a real perspective camera for distant geometry and the orthographic camera for nearby geometry**. When tuned appropriately, this automatically creates the multilayered parallax effect for distant objects, **while maintaining crisp pixel positioning in the foreground**. A depth-based fog helps tie the scene together."
 
-⇒ 大景深场景（山顶俯瞰）里保住前景像素干净、同时远景有层次的办法。本仓"全场/全景档（正交 size 3~60）"跨 20 倍密度，**这条可作为远景档的候选**（[渲染管线](../渲染管线.md) §3.1 推论 3 的"对远景档降级像素化口径"）。【AI 提案】
+⇒ 大景深场景（山顶俯瞰）里保住前景像素干净、同时远景有层次的办法。本仓"全场/全景档（正交 size 3~60）"跨 20 倍密度，**这条可作为远景档的候选**（[渲染管线](../管线/渲染管线.md) §3.1 推论 3 的"对远景档降级像素化口径"）。【AI 提案】
 
 ### 1.13 火 / 雨 / 云 / 上帝光：四条要点
 
