@@ -59,13 +59,43 @@ namespace PirateCrew.Battle
         static Vector3 _lastUp;
         static bool _hasOrientation;
 
+        /// <summary>
+        /// 静态资源跨播放复位：关 Domain Reload（Enter Play Mode Options）时静态字段不随域卸载，
+        /// 上一次播放懒建的 Mesh/Material 会以孤儿资产滞留跨进下一次播放——播放开始前统一销毁
+        /// 清空，本次播放重新走懒建；开 Domain Reload 时静态本已为空，这里空转。
+        /// 【为什么选静态复位而不是「最后一个使用者释放」】选中框按单位随建随拆、数量随选择波动，
+        /// 引用计数要把「谁第一个建 / 谁最后一个拆」的时序摊进所有实例，错一处就全队丢材质；
+        /// 这套静态资源的生命周期天然与「播放会话」对齐，复位点唯一、无实例间耦合。
+        /// SubsystemRegistration 在场景加载前触发，当时无任何渲染器引用这些资源，销毁无副作用。
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStaticResources()
+        {
+            if (_sharedMesh != null)
+                Destroy(_sharedMesh);
+            _sharedMesh = null;
+            for (int i = 0; i < _sharedMaterials.Length; i++)
+            {
+                if (_sharedMaterials[i] != null)
+                    Destroy(_sharedMaterials[i]);
+                _sharedMaterials[i] = null;
+            }
+            _lastRight = default;
+            _lastUp = default;
+            _hasOrientation = false;
+        }
+
         PirateBase _pirate;
         Transform _cube;
+        Camera _camera;
+        /// <summary>像素管线 rig 缓存（格网相位锚；与 _camera 同生命周期重取）。</summary>
+        PixelartCameraRig _pixelRig;
         bool _built;
 
         void Awake()
         {
             _pirate = GetComponent<PirateBase>();
+            _camera = Camera.main;
         }
 
         void Update()
@@ -87,12 +117,32 @@ namespace PirateCrew.Battle
 
             // 世界空间独立物体：位置跟单位，旋转/缩放保持单位阵——线框始终轴对齐，
             // 且不受单位根非均匀缩放影响。
-            _cube.position = transform.position
+            Vector3 center = transform.position
                 + Vector3.up * (GroundOffset + CubeHeight * 0.5f);
+            // 【像素相位锚】吸附到与场景像素格同相位的格网（rig 已吸附取景原点，逐世界轴）：
+            // 线宽 1 艺术像素的棱边落在像素边界上，相机平移不与场景错位；
+            // 单位移动时随格步进——与像素化渲染的步进一致。无 rig 场景保持连续位置。
+            if (_pixelRig != null)
+            {
+                Vector3 o = _pixelRig.SnappedViewOrigin;
+                float u = _pixelRig.UnitSize;
+                center = new Vector3(
+                    o.x + Mathf.Round((center.x - o.x) / u) * u,
+                    o.y + Mathf.Round((center.y - o.y) / u) * u,
+                    o.z + Mathf.Round((center.z - o.z) / u) * u);
+            }
+            _cube.position = center;
             _cube.rotation = Quaternion.identity;
             _cube.localScale = Vector3.one;
 
-            Camera cam = Camera.main;
+            // 相机缓存：Awake 一次解析，仅缓存失效（被销毁）时重取 Camera.main——
+            // 全队每帧都进这里，不能帧帧打 Camera.main。rig（格网相位锚）随相机一并取。
+            if (_camera == null)
+            {
+                _camera = Camera.main;
+                _pixelRig = _camera != null ? _camera.GetComponent<PixelartCameraRig>() : null;
+            }
+            Camera cam = _camera;
             Vector3 right = cam != null ? cam.transform.right : Vector3.right;
             Vector3 up = cam != null ? cam.transform.up : Vector3.up;
             UpdateSharedMesh(right, up);

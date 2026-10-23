@@ -28,8 +28,11 @@ namespace PirateCrew.SceneArt
         float _radius;
         bool _hidden;
 
+        Camera _camera;
+
         void Awake()
         {
+            _camera = Camera.main;
             _renderers = GetComponentsInChildren<Renderer>(true);
             RecomputeBounds();
         }
@@ -69,7 +72,11 @@ namespace PirateCrew.SceneArt
 
         void LateUpdate()
         {
-            Camera cam = Camera.main;
+            // 相机缓存：Awake 一次解析，仅缓存失效（被销毁，Unity 假 null）时重取——
+            // 每个浮件每帧都进这里，不能帧帧打 Camera.main（审计 R6/E 单元登记的清账点）。
+            if (_camera == null)
+                _camera = Camera.main;
+            Camera cam = _camera;
             if (cam == null || _renderers.Length == 0)
                 return;
 

@@ -444,16 +444,6 @@ namespace PirateCrew.Battle.Tests
                 CameraFraming.DefaultWorldSpan), 16, "默认跨度也 = 恒定档");
         }
 
-        [Test]
-        public void ToggleFramingTier_FlipsBetweenNearAndPanorama()
-        {
-            // 【距离恒定收口】Tab 两档翻转退役——恒返回恒定档，翻转不再改变画面距离。
-            Assert.AreEqual(CameraFraming.CloseUpOrthoSize,
-                CameraFraming.ToggleFramingTier(CameraFraming.CloseUpOrthoSize, 16f));
-            Assert.AreEqual(CameraFraming.CloseUpOrthoSize,
-                CameraFraming.ToggleFramingTier(16f, 16f));
-        }
-
         // ------------------------------------------------------------------
         // M4 手感：弹体追焦（Scope/旁观已随两态重构退役）
         // ------------------------------------------------------------------

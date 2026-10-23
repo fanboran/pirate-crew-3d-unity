@@ -31,7 +31,7 @@ namespace PirateCrew.Battle
     /// 【机位口径 — 等距像素卡通（创始人裁决 2026-09-22/23）】
     ///   正交投影、**俯角锁 30°**（与出图口径 <see cref="PixelartPilotScene.PitchDegrees"/> 同一常量，
     ///   "宣传图里的观感"才等于"玩的时候的观感"）、**方位可自由旋转**（右键拖拽只改偏移的方位角）、
-    ///   **取景恒为基准档 <see cref="CloseUpOrthoSize"/>（可见 13.7 m）——没有滚轮缩放**；
+    ///   **取景恒为基准档 <see cref="CloseUpOrthoSize"/>（可见 32 m）——没有滚轮缩放**；
     ///   以后说"缩放"只指像素比例（PixelScale 3:1 → 4:1/5:1/2:1，画面长相恒定）。
     ///
     /// 【环绕重瞄（2026-09-23 定案，推翻"不重瞄"旧口径）】
@@ -146,7 +146,7 @@ namespace PirateCrew.Battle
         /// <c>depth(b) = BaseDistance + b·cot(俯角)</c>
         /// （相机在焦点斜上方、焦点地面深度 = BaseDistance，沿视线轴的投影关系即此式）。
         /// 取屏顶 b = orthoSize（OrthoSize 即正交半高）即得本函数。
-        /// θ = 30° ⇒ cot θ = √3：基准档（6.85，2026-09-30 创始人定值）≈ 42、全景上限（60）≈ 134。
+        /// θ = 30° ⇒ cot θ = √3：基准档（16，可见 32 m）≈ 58、全景上限（60）≈ 134。
         ///
         /// 【为什么需要它】远裁剪该多大是 orthoSize 的函数，不是可以随手写死的大数；
         /// 战斗侧海面是"跟随相机、半径 4200"的圆盘，其可见部分恒落在本范围内，
@@ -170,15 +170,6 @@ namespace PirateCrew.Battle
         public static int PanoramaOrthoSizeForSpan(float spanUnits)
         {
             return Mathf.RoundToInt(CloseUpOrthoSize);
-        }
-
-        /// <summary>
-        /// 【已收口恒定（创始人 2026-10-07 裁决禁多镜头距离）】Tab 两档翻转退役——恒返回
-        /// <see cref="CloseUpOrthoSize"/>，两档合一后翻转不再改变画面距离。
-        /// </summary>
-        public static float ToggleFramingTier(float currentOrthoSize, float panoramaOrthoSize)
-        {
-            return CloseUpOrthoSize;
         }
 
         /// <summary>

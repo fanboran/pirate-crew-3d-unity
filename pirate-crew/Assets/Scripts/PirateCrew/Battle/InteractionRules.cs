@@ -187,13 +187,6 @@ namespace PirateCrew.Battle
             return state != InteractionState.Executing;
         }
 
-        /// <summary>该状态是否接受取景档切换（近景⇄远景）：仅自由/环绕两态；操作中取景档
-        /// 保持冻结（档位跳变会打断瞄准观察）。</summary>
-        public static bool CameraAcceptsFramingTier(InteractionState state)
-        {
-            return state == InteractionState.FreeCamera || state == InteractionState.SelectedIdle;
-        }
-
         /// <summary>当前是否处于「操作模组激活」态（挂机保护/inactivity 清零的判定口径）。</summary>
         public static bool IsOperationActive(InteractionState state)
         {

@@ -566,23 +566,7 @@ namespace PirateCrew.Battle
             // M2 近似：以爆心球形 OverlapSphere 扫描场上的可连锁弹体（文档为 AABB 最近点距离）。
             TriggerChainReactions(worldCenter, radiusWorld, source);
 
-            // 诊断（一发一条；Log.Info 带 [Conditional]，正式构建整条删除）：
-            // 一眼分辨「没炸（hits=0）/ 炸了没命中（hits=0 但 center/radius 异常）/
-            // 命中但 0 伤害（dmg=0）」。爆心世界坐标 + 半径米 + 每 hit 的候选索引/伤害。
-            var inv = System.Globalization.CultureInfo.InvariantCulture;
-            var line = new System.Text.StringBuilder(96);
-            line.Append("[Battle] 爆炸结算 center=(")
-                .Append(worldCenter.x.ToString("0.00", inv)).Append(", ")
-                .Append(worldCenter.y.ToString("0.00", inv)).Append(", ")
-                .Append(worldCenter.z.ToString("0.00", inv)).Append(") radius=")
-                .Append(radiusWorld.ToString("0.00", inv)).Append("m hits=")
-                .Append(result.Hits.Length);
-            for (int i = 0; i < result.Hits.Length; i++)
-            {
-                line.Append(" [idx=").Append(result.Hits[i].Index)
-                    .Append(" dmg=").Append(result.Hits[i].Damage.ToString("0.0", inv)).Append(']');
-            }
-            global::PirateCrew.Core.Log.Info(line.ToString());
+            LogExplosionDiagnostics(worldCenter, radiusWorld, result);
 
             return result;
         }
@@ -613,22 +597,53 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
+        /// 爆炸诊断（一发一条）。[Conditional] 与 <c>Core.Log</c> 同符号——正式构建连调用点带
+        /// 字符串构造整体剪除（独立构造语句不受 Log 内部条件编译保护，必须把构造也搬进来）。
+        /// 一眼分辨「没炸 / 炸了没命中 / 命中但 0 伤害」；爆心世界坐标 + 半径米 + 每 hit 的候选索引/伤害。
+        /// </summary>
+        [System.Diagnostics.Conditional("UNITY_EDITOR")]
+        [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+        static void LogExplosionDiagnostics(Vector3 worldCenter, float radiusWorld, ExplosionResult result)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var line = new System.Text.StringBuilder(96);
+            line.Append("[Battle] 爆炸结算 center=(")
+                .Append(worldCenter.x.ToString("0.00", inv)).Append(", ")
+                .Append(worldCenter.y.ToString("0.00", inv)).Append(", ")
+                .Append(worldCenter.z.ToString("0.00", inv)).Append(") radius=")
+                .Append(radiusWorld.ToString("0.00", inv)).Append("m hits=")
+                .Append(result.Hits.Length);
+            for (int i = 0; i < result.Hits.Length; i++)
+            {
+                line.Append(" [idx=").Append(result.Hits[i].Index)
+                    .Append(" dmg=").Append(result.Hits[i].Damage.ToString("0.0", inv)).Append(']');
+            }
+            global::PirateCrew.Core.Log.Info(line.ToString());
+        }
+
+        /// <summary>
         /// OverlapSphereNonAlloc 写入 grow-only scratch，返回实际命中数（爆炸/范围判定共用范式）。
         /// NonAlloc 装满即视为可能截断（不报错），此时翻倍重查一次；稳态零分配。
         /// </summary>
         static int OverlapSphereScratch(
             ref Collider[] scratch, Vector3 center, float radius, int layerMask)
         {
+            const int MaxScratch = 1024;
             Collider[] buffer = scratch;
             int count = Physics.OverlapSphereNonAlloc(
                 center, radius, buffer, layerMask, QueryTriggerInteraction.Ignore);
-            if (count < buffer.Length)
-                return count;
-
-            buffer = new Collider[buffer.Length * 2];
-            count = Physics.OverlapSphereNonAlloc(
-                center, radius, buffer, layerMask, QueryTriggerInteraction.Ignore);
+            // 装满 = 可能截断：持续翻倍重查（爆炸候选必须全量，漏一个就是漏判命中），
+            // 到上限仍满则吵闹一次——静默截断会把数据侧病根（场上碰撞体过多）藏成漏炸。
+            while (count == buffer.Length && buffer.Length < MaxScratch)
+            {
+                buffer = new Collider[buffer.Length * 2];
+                count = Physics.OverlapSphereNonAlloc(
+                    center, radius, buffer, layerMask, QueryTriggerInteraction.Ignore);
+            }
             scratch = buffer;
+            if (count == buffer.Length)
+                global::PirateCrew.Core.Log.Warn("[Battle] OverlapSphere scratch 达上限 " + buffer.Length
+                    + " 仍满，结果可能截断——场上碰撞体数超出预期，请核查。");
             return count;
         }
 
@@ -674,6 +689,7 @@ namespace PirateCrew.Battle
             GameObject go;
             Rigidbody body;
             BoxCollider box;
+            Material fallbackMaterial = null;
 
             if (projectilePrefab != null)
             {
@@ -691,7 +707,7 @@ namespace PirateCrew.Battle
                 go.transform.SetParent(transform, false);
                 go.transform.position = spawn.WorldPosition;
 
-                BuildFallbackVisual(go.transform, profile, stats.Id);
+                fallbackMaterial = BuildFallbackVisual(go.transform, profile, stats.Id);
 
                 body = go.AddComponent<Rigidbody>();
                 box = go.AddComponent<BoxCollider>();
@@ -705,6 +721,9 @@ namespace PirateCrew.Battle
                 projectile = go.AddComponent<WeaponProjectile>();
 
             projectile.Initialize(stats, this, owner, spawn.Kinematic, spawn.WorldVelocity);
+            // 兜底材质所有权移交弹体（OnDestroy 按播放/编辑分支销毁）。工厂无缓存、每弹一份
+            // 独立实例，逐弹销毁不会误伤其他弹体或任何资产材质。
+            projectile.AttachOwnedMaterial(fallbackMaterial);
 
             if (!_projectiles.Contains(projectile))
                 _projectiles.Add(projectile);
@@ -713,14 +732,16 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
-        /// 程序化兜底外观：图元 + 颜色（无 Prefab 时仍可区分武器）。
+        /// 程序化兜底外观：图元 + 颜色（无 Prefab 时仍可区分武器）。返回新建的兜底材质，
+        /// 所有权归调用方（随即移交弹体、由其 <c>OnDestroy</c> 释放）；shader 拿不到时
+        /// 返回 null（渲染器已禁用）。
         ///
         /// 【为什么走像素化路径】弹体是**不透明**几何，本路径的物体 pass 正好收它（G-buffer 只收不透明）；
         /// 颜色/色带/描边全走 <see cref="PixelartMaterialFactory"/> 的配方，不在调用点写档数。
         /// 旧实现用 URP/Lit（或内置 Standard）的 `material.color`——那是旧前向着色链的材质，
         /// 混进本路径的物体 pass 会"那片像素花屏、一行报错都没有"（见 PixelartStageKit 类头）。
         /// </summary>
-        static void BuildFallbackVisual(Transform parent, ProjectileProfile profile, WeaponId id)
+        static Material BuildFallbackVisual(Transform parent, ProjectileProfile profile, WeaponId id)
         {
             GameObject visual = GameObject.CreatePrimitive(
                 profile.Shape == ProjectileShape.Box ? PrimitiveType.Cube : PrimitiveType.Sphere);
@@ -735,16 +756,17 @@ namespace PirateCrew.Battle
                 Destroy(primitiveCollider);
 
             Renderer renderer = visual.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                Material material = PixelartMaterialFactory.Create("PixelartProjectile", TintFor(id));
-                if (material != null)
-                    renderer.material = material;
-                else
-                    // 物体 shader 拿不到（构建被剔除）时禁用渲染器而不是留着图元默认材质——
-                    // 播放器构建里 builtin 默认材质会被剥离，渲染成粉色方块。
-                    renderer.enabled = false;
-            }
+            if (renderer == null)
+                return null;
+
+            Material material = PixelartMaterialFactory.Create("PixelartProjectile", TintFor(id));
+            if (material != null)
+                renderer.material = material;
+            else
+                // 物体 shader 拿不到（构建被剔除）时禁用渲染器而不是留着图元默认材质——
+                // 播放器构建里 builtin 默认材质会被剥离，渲染成粉色方块。
+                renderer.enabled = false;
+            return material;
         }
 
         /// <summary>武器颜色（仅表现，便于在场景里区分弹体）。</summary>

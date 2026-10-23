@@ -103,6 +103,12 @@ namespace PirateCrew.Battle
         readonly Dictionary<long, PixelCell> _cells = new Dictionary<long, PixelCell>(4096);
         readonly List<PixelCell> _cellList = new List<PixelCell>(4096);
 
+        // 起手件的 grow-only 复用缓冲（Show/LateUpdate 在瞄准与相机平滑期逐帧重建，零分配——
+        // 口径同 BattleController 的 _pirateOverlapScratch）
+        readonly List<Vector3> _originVerts = new List<Vector3>(64);
+        readonly List<Color32> _originColors = new List<Color32>(64);
+        readonly List<int> _originTris = new List<int>(96);
+
         Mesh _arcMesh;
         MeshFilter _arcFilter;
         Vector3[] _vertices;
@@ -120,7 +126,22 @@ namespace PirateCrew.Battle
         Transform _ringB;
         Transform _brackets;
 
+        // 运行期资源登记（OnDestroy 逐项释放，见其注释）：子件 GO 随本物体销毁，
+        // Mesh/Material 是孤儿资产、必须显式销毁。共享件（脉冲材质、环材质）只登记一份、只销毁一次。
+        Mesh _pulseMesh;
+        Mesh _ringMeshA;
+        Mesh _ringMeshB;
+        Mesh _bracketMesh;
+        Material _arcMaterial;
+        Material _originMaterial;
+        Material _ringMaterial;
+        Material _bracketMaterial;
+        /// <summary>仅当源材质是兜底新建（<see cref="FallbackPreviewMaterial"/>）时非空；资产材质不登记不销毁。</summary>
+        Material _fallbackBaseMaterial;
+
         Camera _camera;
+        /// <summary>像素管线 rig 缓存（格网相位锚与粒度的来源；与 _camera 同生命周期重取）。</summary>
+        Rendering.Pixelart.PixelartCameraRig _pixelRig;
         readonly Vector3[] _samples = new Vector3[StandardThrowRules.PreviewMaxSteps];
         int _sampleCount;
         bool _visible;
@@ -189,13 +210,12 @@ namespace PirateCrew.Battle
                 return;
             }
 
-            Camera cam = Camera.main != null ? Camera.main : _camera;
+            Camera cam = ResolveCamera();
             if (cam == null)
             {
                 HideVisuals();
                 return;
             }
-            _camera = cam;
             _sampleCount = count;
             _visible = true;
             _lastImpact = impact;
@@ -265,6 +285,74 @@ namespace PirateCrew.Battle
         }
 
         /// <summary>
+        /// 运行期资源释放：本类懒建的 Mesh/Material 全是运行期 new 的孤儿资产，不随场景卸载
+        /// 自动回收，销毁时显式逐个释放——播放期 Destroy、编辑器 DestroyImmediate
+        /// （口径同 <c>PixelartContentConverter.OnDestroy</c>）。每件只登记一份、只销毁一次：
+        /// 脉冲材质被全部脉冲渲染器共享、环材质被两帧虚线环共享，销毁一次即全体失效；
+        /// 兜底源材质只在它是新建件（<see cref="_fallbackBaseMaterial"/>）时销毁，
+        /// 来自资产（legacyLine.sharedMaterial）的不在此列。子件 GO 播放期随本物体销毁，
+        /// 仅编辑器下单独移除本组件时需要显式拆，防场景留孤儿。
+        /// </summary>
+        void OnDestroy()
+        {
+            if (_arcFilter != null)
+                DestroyRuntimeObject(_arcFilter.gameObject);
+            if (_originFilter != null)
+                DestroyRuntimeObject(_originFilter.gameObject);
+            if (_pulses != null)
+            {
+                for (int i = 0; i < _pulses.Length; i++)
+                {
+                    if (_pulses[i] != null)
+                        DestroyRuntimeObject(_pulses[i].gameObject);
+                }
+            }
+            if (_reticle != null)
+                DestroyRuntimeObject(_reticle.gameObject);
+
+            DestroyRuntimeObject(_arcMesh);
+            DestroyRuntimeObject(_originMesh);
+            DestroyRuntimeObject(_pulseMesh);
+            DestroyRuntimeObject(_ringMeshA);
+            DestroyRuntimeObject(_ringMeshB);
+            DestroyRuntimeObject(_bracketMesh);
+            DestroyRuntimeObject(_arcMaterial);
+            DestroyRuntimeObject(_originMaterial);
+            DestroyRuntimeObject(_pulseMaterial);
+            DestroyRuntimeObject(_ringMaterial);
+            DestroyRuntimeObject(_bracketMaterial);
+            DestroyRuntimeObject(_fallbackBaseMaterial);
+        }
+
+        /// <summary>播放期 Destroy、编辑器 DestroyImmediate；空与假 null（已销毁）直接跳过。</summary>
+        void DestroyRuntimeObject(Object obj)
+        {
+            if (obj == null)
+                return;
+            if (Application.isPlaying)
+                Destroy(obj);
+            else
+                DestroyImmediate(obj);
+        }
+
+        /// <summary>
+        /// 取渲染相机：优先用缓存，仅缓存失效（被销毁，Unity 假 null）时重取 <c>Camera.main</c>——
+        /// Show/LateUpdate 在瞄准期逐帧走这里，不能帧帧打 Camera.main。主相机被销毁重建
+        /// （战斗相机重摆）由空判兜底自然重取。
+        /// </summary>
+        Camera ResolveCamera()
+        {
+            if (_camera == null)
+            {
+                _camera = Camera.main;
+                _pixelRig = _camera != null
+                    ? _camera.GetComponent<Rendering.Pixelart.PixelartCameraRig>()
+                    : null;
+            }
+            return _camera;
+        }
+
+        /// <summary>
         /// 按地形取地表采样器；地形引用变化时才重建 delegate（战斗内每帧调用不分配）。
         /// 水格由 <see cref="HeightfieldGrid.SurfaceWorldYAtWorld"/> 返回
         /// <see cref="HeightfieldGrid.WaterVoidY"/>，预览据此表现落水。
@@ -287,10 +375,9 @@ namespace PirateCrew.Battle
             if (!_visible || _sampleCount < 2)
                 return;
 
-            Camera cam = Camera.main != null ? Camera.main : _camera;
+            Camera cam = ResolveCamera();
             if (cam == null)
                 return;
-            _camera = cam;
 
             // 相机在 Show 之后才被相机驱动摆位（抓图脚本/后续震屏）时，像素格必须按新相机重建，
             // 否则 1px 方块会对不上屏幕像素格。
@@ -326,7 +413,7 @@ namespace PirateCrew.Battle
                 for (int i = 0; i < _pulses.Length; i++)
                 {
                     float t = Mathf.Repeat(time * pulseTravelsPerSecond + (float)i / n, 1f);
-                    Vector3 p = SnapToPixelGrid(SampleAt(t), cam);
+                    Vector3 p = SnapToPixelGrid(SampleAt(t));
                     _pulses[i].position = p;
                     _pulses[i].rotation = cam.transform.rotation;
                 }
@@ -365,11 +452,23 @@ namespace PirateCrew.Battle
         void CacheCamera(Camera cam)
         {
             Transform t = cam.transform;
-            _camPos = t.position;
             _camRight = t.right;
             _camUp = t.up;
             _camForward = t.forward;
-            _unit = CameraFraming.WorldPerPixel;
+            // 【像素相位锚】格网原点/粒度取自像素管线的已吸附取景相位（rig 口径），
+            // 不用未吸附的相机位——场景像素由渲染侧按吸附后的取景量化，锚在相机位上
+            // 会让叠加件与场景像素格相位差最多半个艺术像素（相机平滑平移时错位/跳格）。
+            // 无 rig（试点/测试场景）回落旧口径。
+            if (_pixelRig != null)
+            {
+                _camPos = _pixelRig.SnappedViewOrigin;
+                _unit = _pixelRig.UnitSize;
+            }
+            else
+            {
+                _camPos = t.position;
+                _unit = CameraFraming.WorldPerPixel;
+            }
         }
 
         PixelPoint ToPixel(Vector3 world)
@@ -393,16 +492,17 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 世界坐标在相机平面内吸附到艺术像素网格；深度沿视线保持不变。
+        /// 与 <see cref="ToPixel"/>/<see cref="CellCenter"/> 同一套相位锚
+        /// （<see cref="CacheCamera"/> 缓存的已吸附取景原点），不各自取相机位。
         /// </summary>
-        static Vector3 SnapToPixelGrid(Vector3 world, Camera cam)
+        Vector3 SnapToPixelGrid(Vector3 world)
         {
-            Transform t = cam.transform;
-            Vector3 right = t.right;
-            Vector3 up = t.up;
-            Vector3 forward = t.forward;
-            Vector3 origin = t.position;
+            Vector3 right = _camRight;
+            Vector3 up = _camUp;
+            Vector3 forward = _camForward;
+            Vector3 origin = _camPos;
             Vector3 local = world - origin;
-            float unit = CameraFraming.WorldPerPixel;
+            float unit = _unit;
             float x = Mathf.Round(Vector3.Dot(local, right) / unit) * unit;
             float y = Mathf.Round(Vector3.Dot(local, up) / unit) * unit;
             float z = Vector3.Dot(local, forward);
@@ -615,9 +715,10 @@ namespace PirateCrew.Battle
             PixelPoint rootPx = ToPixel(root);
             PixelPoint handPx = ToPixel(handWorld);
 
-            var verts = new List<Vector3>();
-            var colors = new List<Color32>();
-            var tris = new List<int>();
+            // 复用缓冲（grow-only）：瞄准与相机平滑期逐帧进这里，不能每次 new（热路径零 GC）。
+            _originVerts.Clear();
+            _originColors.Clear();
+            _originTris.Clear();
 
             // 根部 5×5 菱形锚点（|dx|+|dy| == 2）。
             for (int dx = -2; dx <= 2; dx++)
@@ -625,7 +726,7 @@ namespace PirateCrew.Battle
                 for (int dy = -2; dy <= 2; dy++)
                 {
                     if (Mathf.Abs(dx) + Mathf.Abs(dy) == 2)
-                        AddPixelCellQuad(verts, colors, tris, rootPx.X + dx, rootPx.Y + dy, rootPx.Z, kCyan);
+                        AddPixelCellQuad(_originVerts, _originColors, _originTris, rootPx.X + dx, rootPx.Y + dy, rootPx.Z, kCyan);
                 }
             }
 
@@ -641,18 +742,20 @@ namespace PirateCrew.Battle
                     int x = Mathf.RoundToInt(Mathf.Lerp(rootPx.X, handPx.X, k));
                     int y = Mathf.RoundToInt(Mathf.Lerp(rootPx.Y, handPx.Y, k));
                     float z = Mathf.Lerp(rootPx.Z, handPx.Z, k);
-                    AddPixelCellQuad(verts, colors, tris, x, y, z, kCyanDim);
+                    AddPixelCellQuad(_originVerts, _originColors, _originTris, x, y, z, kCyanDim);
                 }
             }
 
-            var local = new Vector3[verts.Count];
-            for (int i = 0; i < verts.Count; i++)
-                local[i] = transform.InverseTransformPoint(verts[i]);
+            // 就地变换到本地空间（MultiplyPoint3x4 = InverseTransformPoint 的零分配快径，
+            // 口径同 BuildArcMesh），List 直接喂 Mesh 重载，全程无临时数组。
+            Matrix4x4 toLocal = transform.worldToLocalMatrix;
+            for (int i = 0; i < _originVerts.Count; i++)
+                _originVerts[i] = toLocal.MultiplyPoint3x4(_originVerts[i]);
 
             _originMesh.Clear();
-            _originMesh.SetVertices(local);
-            _originMesh.SetColors(colors);
-            _originMesh.SetTriangles(tris, 0);
+            _originMesh.SetVertices(_originVerts);
+            _originMesh.SetColors(_originColors);
+            _originMesh.SetTriangles(_originTris, 0);
             _originMesh.RecalculateBounds();
         }
 
@@ -679,9 +782,19 @@ namespace PirateCrew.Battle
             if (_arcFilter != null)
                 return;
 
-            Material baseMaterial = legacyLine != null && legacyLine.sharedMaterial != null
-                ? legacyLine.sharedMaterial
-                : FallbackPreviewMaterial();
+            // 源材质：优先预制 LineRenderer 上的资产材质（只当配方源，不登记不销毁）；
+            // 没有时兜底新建，新建件登记进 _fallbackBaseMaterial 随本物体释放。
+            Material baseMaterial;
+            if (legacyLine != null && legacyLine.sharedMaterial != null)
+            {
+                baseMaterial = legacyLine.sharedMaterial;
+                _fallbackBaseMaterial = null;
+            }
+            else
+            {
+                baseMaterial = FallbackPreviewMaterial();
+                _fallbackBaseMaterial = baseMaterial;
+            }
 
             _arcMesh = new Mesh { name = "TrajectoryArc" };
             _arcMesh.MarkDynamic();
@@ -690,7 +803,8 @@ namespace PirateCrew.Battle
             _arcFilter = arcGo.AddComponent<MeshFilter>();
             _arcFilter.sharedMesh = _arcMesh;
             var arcRenderer = arcGo.AddComponent<MeshRenderer>();
-            arcRenderer.sharedMaterial = EffectMaterial(baseMaterial, "TrajectoryArc", depthTest: true);
+            _arcMaterial = EffectMaterial(baseMaterial, "TrajectoryArc", depthTest: true);
+            arcRenderer.sharedMaterial = _arcMaterial;
             arcRenderer.shadowCastingMode = ShadowCastingMode.Off;
             arcRenderer.receiveShadows = false;
             arcGo.SetActive(false);
@@ -702,7 +816,8 @@ namespace PirateCrew.Battle
             _originFilter = originGo.AddComponent<MeshFilter>();
             _originFilter.sharedMesh = _originMesh;
             var originRenderer = originGo.AddComponent<MeshRenderer>();
-            originRenderer.sharedMaterial = EffectMaterial(baseMaterial, "TrajectoryOrigin", depthTest: false);
+            _originMaterial = EffectMaterial(baseMaterial, "TrajectoryOrigin", depthTest: false);
+            originRenderer.sharedMaterial = _originMaterial;
             originRenderer.shadowCastingMode = ShadowCastingMode.Off;
             originRenderer.receiveShadows = false;
             originGo.SetActive(false);
@@ -716,14 +831,14 @@ namespace PirateCrew.Battle
             int n = Mathf.Max(1, pulseCount);
             _pulses = new Transform[n];
             _pulseMaterial = EffectMaterial(baseMaterial, "TrajectoryPulse", depthTest: true);
-            Mesh diamond = CreatePixelDiamondMesh(pulseSizePixels);
+            _pulseMesh = CreatePixelDiamondMesh(pulseSizePixels);
 
             for (int i = 0; i < n; i++)
             {
                 var go = new GameObject("TrajectoryPulse" + i);
                 go.transform.SetParent(transform, false);
                 var filter = go.AddComponent<MeshFilter>();
-                filter.sharedMesh = diamond;
+                filter.sharedMesh = _pulseMesh;
                 var renderer = go.AddComponent<MeshRenderer>();
                 renderer.sharedMaterial = _pulseMaterial;
                 renderer.shadowCastingMode = ShadowCastingMode.Off;
@@ -738,16 +853,16 @@ namespace PirateCrew.Battle
             var root = new GameObject("TrajectoryReticle");
             root.transform.SetParent(transform, false);
 
-            Material ringMaterial = EffectMaterial(baseMaterial, "TrajectoryReticleRing", depthTest: false);
-            Material bracketMaterial = EffectMaterial(baseMaterial, "TrajectoryReticleBrackets", depthTest: false);
+            _ringMaterial = EffectMaterial(baseMaterial, "TrajectoryReticleRing", depthTest: false);
+            _bracketMaterial = EffectMaterial(baseMaterial, "TrajectoryReticleBrackets", depthTest: false);
             int radius = Mathf.Max(4, reticleRadiusPixels);
 
-            _ringA = MakeReticleChild(root.transform, "RingA",
-                CreateReticleRingMesh(radius, 0), ringMaterial);
-            _ringB = MakeReticleChild(root.transform, "RingB",
-                CreateReticleRingMesh(radius, 1), ringMaterial);
-            _brackets = MakeReticleChild(root.transform, "Brackets",
-                CreateReticleBracketsMesh(radius), bracketMaterial);
+            _ringMeshA = CreateReticleRingMesh(radius, 0);
+            _ringMeshB = CreateReticleRingMesh(radius, 1);
+            _bracketMesh = CreateReticleBracketsMesh(radius);
+            _ringA = MakeReticleChild(root.transform, "RingA", _ringMeshA, _ringMaterial);
+            _ringB = MakeReticleChild(root.transform, "RingB", _ringMeshB, _ringMaterial);
+            _brackets = MakeReticleChild(root.transform, "Brackets", _bracketMesh, _bracketMaterial);
 
             _ringB.gameObject.SetActive(false);
             root.SetActive(false);
@@ -772,7 +887,7 @@ namespace PirateCrew.Battle
             if (_reticle == null)
                 return;
             Vector3 position = impact + Vector3.up * ImpactMarkerLift;
-            _reticle.position = SnapToPixelGrid(position, cam);
+            _reticle.position = SnapToPixelGrid(position);
             _reticle.rotation = cam.transform.rotation;
             _reticle.gameObject.SetActive(true);
         }
@@ -786,16 +901,20 @@ namespace PirateCrew.Battle
             return material;
         }
 
-        static Material FallbackPreviewMaterial()
+        Material FallbackPreviewMaterial()
         {
             // 无序列化材质时的兜底（正常装配链都带 Trajectory.mat）；着色全靠顶点色，材质保白。
-            // 本工程透明路径 shader 走 PixelartShaders 取用口（Resources 持有，防播放器剥离）；
-            // 极端情况（shader 丢失）退 Sprites/Default——画面颗粒不对但至少可见，Find 口会响亮报错。
+            // 本件新建材质的所有权由调用方（EnsureVisuals）登记进 _fallbackBaseMaterial 随本物体释放。
+            // shader 全走 PixelartShaders 取用口（全仓裸 Shader.Find 只许在该类内部）：
+            // 本工程透明路径走 Load（Resources 持有，防播放器剥离）；Sprites/Default 这类引擎内置
+            // 走 Find；两路都落空退 Unlit/Color——Find 口对丢失会响亮报错，不静默。
             var shader = global::PirateCrew.Rendering.Pixelart.PixelartShaders.Load(
                 global::PirateCrew.Rendering.Pixelart.PixelartPath.TransparentShaderName);
             if (shader == null)
                 shader = global::PirateCrew.Rendering.Pixelart.PixelartShaders.Find("Sprites/Default");
-            var material = shader != null ? new Material(shader) : new Material(Shader.Find("Unlit/Color"));
+            var material = shader != null
+                ? new Material(shader)
+                : new Material(global::PirateCrew.Rendering.Pixelart.PixelartShaders.Find("Unlit/Color"));
             material.color = Color.white;
             return material;
         }

@@ -176,16 +176,6 @@ namespace PirateCrew.Battle.Tests
         }
 
         [Test]
-        public void CameraFramingTier_OnlyInFreeCameraAndSelectedIdle()
-        {
-            Assert.IsTrue(InteractionRules.CameraAcceptsFramingTier(InteractionState.FreeCamera));
-            Assert.IsTrue(InteractionRules.CameraAcceptsFramingTier(InteractionState.SelectedIdle));
-            Assert.IsFalse(InteractionRules.CameraAcceptsFramingTier(InteractionState.OperationActive),
-                "操作中取景档冻结");
-            Assert.IsFalse(InteractionRules.CameraAcceptsFramingTier(InteractionState.Executing));
-        }
-
-        [Test]
         public void OperationActiveFlag_MatchesState()
         {
             Assert.IsTrue(InteractionRules.IsOperationActive(InteractionState.OperationActive));

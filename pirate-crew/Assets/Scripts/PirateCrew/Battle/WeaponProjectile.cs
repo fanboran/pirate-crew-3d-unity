@@ -34,7 +34,8 @@ namespace PirateCrew.Battle
     [DisallowMultipleComponent]
     public sealed class WeaponProjectile : MonoBehaviour
     {
-        /// <summary>生成后前若干帧不判接触，避免与投掷者/地面初始化重叠误爆。</summary>
+        /// <summary>生成后前若干**物理帧**不判接触，避免与投掷者/地面初始化重叠误爆
+        /// （物理 25Hz = Flash 帧口径；按渲染帧计数会随刷新率漂移——144Hz 下不足一个物理步）。</summary>
         const int SpawnGraceFrames = 2;
 
         /// <summary>
@@ -58,10 +59,11 @@ namespace PirateCrew.Battle
         ProjectileProfile _profile;
         BattleController _battle;
         PirateBase _owner;
+        Material _ownedMaterial;
 
         bool _detonated;
         bool _initialized;
-        int _armedFrame;
+        float _armedUntilFixedTime;
         bool _contact;
 
         /// <summary>武器 id。</summary>
@@ -112,7 +114,7 @@ namespace PirateCrew.Battle
             _owner = owner;
             _detonated = false;
             _initialized = true;
-            _armedFrame = Time.frameCount + SpawnGraceFrames;
+            _armedUntilFixedTime = Time.fixedTime + SpawnGraceFrames * Time.fixedDeltaTime;
 
             if (body == null)
                 body = GetComponent<Rigidbody>();
@@ -159,7 +161,7 @@ namespace PirateCrew.Battle
             if (!_initialized || _detonated || body == null)
                 return;
 
-            if (Time.frameCount < _armedFrame)
+            if (Time.fixedTime < _armedUntilFixedTime)
             {
                 _contact = false;
                 return;
@@ -239,9 +241,28 @@ namespace PirateCrew.Battle
             }
         }
 
+        /// <summary>
+        /// 移交运行期材质的所有权（仅程序化兜底外观路径调用；资产材质不走此口）。
+        /// 材质随后在 <see cref="OnDestroy"/> 释放——Unity 不随 GameObject 自动回收 Material。
+        /// </summary>
+        public void AttachOwnedMaterial(Material material)
+        {
+            _ownedMaterial = material;
+        }
+
         void OnDestroy()
         {
             _battle?.UnregisterProjectile(this);
+
+            // 【资源释放防线】兜底材质是运行期 new 的孤儿资产，不随场景卸载自动释放——
+            // 播放期 Destroy、编辑器 DestroyImmediate（口径同 PixelartContentConverter.OnDestroy）。
+            if (_ownedMaterial == null)
+                return;
+            if (Application.isPlaying)
+                Destroy(_ownedMaterial);
+            else
+                DestroyImmediate(_ownedMaterial);
+            _ownedMaterial = null;
         }
 
         // ==================================================================
