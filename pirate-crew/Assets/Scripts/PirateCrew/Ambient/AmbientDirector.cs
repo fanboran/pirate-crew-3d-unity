@@ -676,7 +676,7 @@ namespace PirateCrew.Ambient
                     Destroy(_crabs[i].gameObject);
             }
             _crabs.Clear();
-            Debug.Log("[AmbientDirector] 关卡 " + levelNumber + " 无滩涂：螃蟹按关规则移除。");
+            global::PirateCrew.Core.Log.Info("[AmbientDirector] 关卡 " + levelNumber + " 无滩涂：螃蟹按关规则移除。");
         }
 
         /// <summary>按关氛围规则的关卡号缓存（-1 = 未知，按默认全套氛围处理）。</summary>
@@ -687,7 +687,7 @@ namespace PirateCrew.Ambient
             // 禁入关无滩涂：Build 晚于 ApplyLevelCrabRules 时在这里拦下（时序竞态的另一侧）。
             if (!AmbientBudget.CrabsAllowedForLevel(_levelNumber))
             {
-                Debug.Log("[AmbientDirector] 关卡 " + _levelNumber + " 无滩涂：螃蟹不生成。");
+                global::PirateCrew.Core.Log.Info("[AmbientDirector] 关卡 " + _levelNumber + " 无滩涂：螃蟹不生成。");
                 return;
             }
 
