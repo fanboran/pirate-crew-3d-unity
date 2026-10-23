@@ -74,7 +74,7 @@ namespace PirateCrew.Core
         ///
         /// 【为什么要有这条】评审/试玩要的是"双击就看见目标画面"，而默认流程是
         /// Bootstrapper → 主菜单 → 选关页 → 关卡 → 出战，每验一次都得点四下。
-        /// 具体关卡（关卡号或海图 id）由 <c>WorldMapRuntime</c> 读同一个开关决定——
+        /// 具体关卡（关卡号）由 <c>PendingLevel</c> 读同一个开关决定——
         /// 那一层在 Gameplay 程序集，Core 不能反向引用，所以这里只负责"跳过菜单"。
         /// </summary>
         static string StartScene()

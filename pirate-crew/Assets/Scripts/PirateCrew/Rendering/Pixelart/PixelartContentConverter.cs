@@ -135,7 +135,7 @@ namespace PirateCrew.Rendering.Pixelart
                     continue;
 
                 // 【逐槽判类、逐槽转换】多材质 renderer 是真实存在的（世界图的 kit FBX 由
-                // WorldMapAssetSetBuilder 按槽写入 Kit_* 材质，WorldMapComposer 运行期实例化它们）：
+                // （旧海图 kit 材质已随 WorldMap 双轨退役删除，现存槽位为烘焙材质）：
                 // 只看第 0 槽会把其余槽留在旧材质上——那些子网格就以"旧材质 + 全分辨率 + 无墨线
                 // 色带"糊在成图上，正是本类要消灭的失效。效果件判定同样逐槽做：同一台 renderer
                 // 上"效果件槽留叠加档、世界内容槽转换"互不牵连。

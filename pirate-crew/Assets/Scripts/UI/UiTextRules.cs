@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using PirateCrew.Battle.WorldMaps;
 using PirateCrew.CrewManagement;
 using PirateCrew.Combat;
 using PirateCrew.Data;
@@ -145,13 +144,10 @@ namespace PirateCrew.UI
         // 海图名 / 船员显示名（单一真源：结算行 / 选关 / 船员管理此前各持一份拷贝）
         // ------------------------------------------------------------------
 
-        /// <summary>海图 id → 中文海图名（<see cref="WorldMapCatalog"/> 目录查不到时回退原始 id）。
-        /// 结算「关卡」行 / 选关与船员管理的通关、失败状态行共用。</summary>
+        /// <summary>结算线的关卡显示名（占位冻结：随 WorldMap 退役只剩 id 原样返回，见 CampaignApi 头注）。</summary>
         public static string MapDisplayName(string mapId)
         {
-            return WorldMapCatalog.TryGet(mapId, out WorldMapDefinition map)
-                ? map.DisplayName
-                : mapId;
+            return mapId;
         }
 
         /// <summary>船员 id 数组 → 显示名数组（目录查不到回显 id；结算「新招募」行用）。</summary>

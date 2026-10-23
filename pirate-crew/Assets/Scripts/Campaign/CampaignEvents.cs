@@ -25,7 +25,7 @@ namespace PirateCrew.Campaign
     /// <summary><see cref="CampaignEvents.MapCompleted"/> 载荷。</summary>
     public readonly struct CampaignMapCompletedPayload
     {
-        /// <summary>海图 id（<c>WorldMapCatalog</c> 收录，如 <c>wreck_hymn</c>）。</summary>
+        /// <summary>关卡 id（占位冻结：结算链休眠，见 CampaignApi 头注）。</summary>
         public readonly string MapId;
 
         /// <summary>本局星级（0 = 挑战失败；1–3 见 <see cref="StarRules"/>）。</summary>

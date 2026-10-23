@@ -20,7 +20,7 @@ namespace PirateCrew.EditorTools
     /// <list type="bullet">
     /// <item>场景名（如 <c>Bootstrapper</c>）→ 打开该场景并进 Play；</item>
     /// <item><c>play:&lt;关卡号|海图id&gt;</c> → **不依赖启动参数**直达样板关：
-    ///       先 <see cref="PirateCrew.Battle.WorldMaps.WorldMapRuntime.SetPendingShowcase"/>，
+    ///       先 <see cref="PirateCrew.Battle.Levels.PendingLevel.SetPending"/>，
     ///       再开 Battle 进 Play（编辑器不是本会话启动、argv 里没有 -bootBattle 时用这条）；</item>
     /// <item><c>stop</c> → 停 Play；</item>
     /// <item><c>diag</c> → 像素化路径现场取证：rig/三台相机状态 + Cast 视锥内物体数 +
@@ -142,9 +142,7 @@ namespace PirateCrew.EditorTools
                 string target = content.Substring(5).Trim();
                 _busy = true;
                 if (int.TryParse(target, out int level) && level > 0)
-                    PirateCrew.Battle.WorldMaps.WorldMapRuntime.SetPendingShowcase(level);
-                else
-                    PirateCrew.Battle.WorldMaps.WorldMapRuntime.SetPending(target);
+                    PirateCrew.Battle.Levels.PendingLevel.SetPending(level);
                 Debug.Log("[RemotePlayControl] 收到 play:" + target + "，开 Battle 进 Play（不依赖启动参数）。");
                 EditorSceneManager.OpenScene(BattleScene, OpenSceneMode.Single);
                 EditorApplication.isPlaying = true;

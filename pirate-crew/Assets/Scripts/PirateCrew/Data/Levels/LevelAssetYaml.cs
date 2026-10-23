@@ -134,62 +134,32 @@ namespace PirateCrew.Data
             return WriteMonoBehaviour(assetName, scriptGuid, "data", data);
         }
 
-        /// <summary>海图资产文本（<paramref name="scriptGuid"/> = WorldMapDefinitionAsset.cs.meta 的 guid）。</summary>
-        public static string WriteWorldMap(WorldMapAssetPayload payload, string assetName, string scriptGuid)
-        {
-            if (payload == null)
-                throw new ArgumentNullException(nameof(payload));
-
-            var data = new Node(NodeKind.Map);
-            data.Add("id", payload.id);
-            data.Add("displayName", payload.displayName);
-            data.Add("levelNumber", payload.levelNumber);
-            data.Add("spanX", payload.spanX);
-            data.Add("spanZ", payload.spanZ);
-            data.Add("ambientTier", payload.ambientTier);
-            data.Add("crewWeapons", WeaponStackNodes(payload.crewWeapons));
-            data.Add("captainWeapons", WeaponStackNodes(payload.captainWeapons));
-            data.Add("airdropPool", WeaponStackNodes(payload.airdropPool));
-            data.Add("terrain", KitPlacementNodes(payload.terrain));
-            data.Add("horizon", KitPlacementNodes(payload.horizon));
-            data.Add("props", PropPlacementNodes(payload.props));
-            data.Add("spawns", SpawnNodes(payload.spawns));
-            data.Add("horizonSeed", payload.horizonSeed);
-            data.Add("horizonFeatures", StringNodes(payload.horizonFeatures));
-
-            return WriteMonoBehaviour(assetName, scriptGuid, "data", data);
-        }
-
-        /// <summary>资源清单资产文本（<paramref name="scriptGuid"/> = LevelCatalog.cs.meta 的 guid）。
-        /// 清单持有的引用用「脚本 guid + fileID 11400000」写，见 <see cref="AssetRef"/>。
-        ///
-        /// 【注意清单没有 data 外壳】<see cref="LevelCatalog"/> 的两个字段直接挂在 MonoBehaviour 上
-        /// （与 <see cref="LevelDefinition"/> 那种「单个 data 载荷」的宿主不同）。写成 data 嵌套会让
-        /// Unity 把未知字段静默丢弃——清单加载成空表，关卡数据一条都取不到。</summary>
-        public static string WriteCatalog(
-            string assetName, string scriptGuid, IEnumerable<string> levelGuids, IEnumerable<string> worldMapGuids)
-        {
-            var levels = new Node(NodeKind.Seq);
-            foreach (string guid in levelGuids)
-                levels.AddRaw(AssetRef(guid));
-            var maps = new Node(NodeKind.Seq);
-            foreach (string guid in worldMapGuids)
-                maps.AddRaw(AssetRef(guid));
-
-            var fields = new List<KeyValuePair<string, Node>>(2)
-            {
-                new KeyValuePair<string, Node>("levels", levels),
-                new KeyValuePair<string, Node>("worldMaps", maps),
-            };
-
-            return WriteMonoBehaviour(assetName, scriptGuid, fields);
-        }
-
         /// <summary>一条资产引用（Unity 的 <c>{fileID: 11400000, guid: &lt;资产 guid&gt;, type: 2}</c>）。</summary>
         public static string AssetRef(string assetGuid)
         {
             return "{fileID: " + AssetFileId.ToString(CultureInfo.InvariantCulture)
                 + ", guid: " + assetGuid + ", type: 2}";
+        }
+
+        /// <summary>资源清单资产文本（<paramref name="scriptGuid"/> = LevelCatalog.cs.meta 的 guid）。
+        /// 清单持有的引用用「脚本 guid + fileID 11400000」写，见 <see cref="AssetRef"/>。
+        ///
+        /// 【注意清单没有 data 外壳】<see cref="LevelCatalog"/> 的字段直接挂在 MonoBehaviour 上
+        /// （与 <see cref="LevelDefinition"/> 那种「单个 data 载荷」的宿主不同）。写成 data 嵌套会让
+        /// Unity 把未知字段静默丢弃——清单加载成空表，关卡数据一条都取不到。</summary>
+        public static string WriteCatalog(
+            string assetName, string scriptGuid, IEnumerable<string> levelGuids)
+        {
+            var levels = new Node(NodeKind.Seq);
+            foreach (string guid in levelGuids)
+                levels.AddRaw(AssetRef(guid));
+
+            var fields = new List<KeyValuePair<string, Node>>(1)
+            {
+                new KeyValuePair<string, Node>("levels", levels),
+            };
+
+            return WriteMonoBehaviour(assetName, scriptGuid, fields);
         }
 
         /// <summary>
@@ -230,64 +200,6 @@ namespace PirateCrew.Data
                 var item = new Node(NodeKind.Map);
                 item.Add("id", (int)stacks[i].id);
                 item.Add("count", stacks[i].count);
-                seq.Add(item);
-            }
-            return seq;
-        }
-
-        static Node KitPlacementNodes(List<KitPlacementEntry> entries)
-        {
-            var seq = new Node(NodeKind.Seq);
-            if (entries == null)
-                return seq;
-            for (int i = 0; i < entries.Count; i++)
-            {
-                KitPlacementEntry e = entries[i];
-                var item = new Node(NodeKind.Map);
-                item.Add("kit", e.kit);
-                item.Add("asset", e.asset);
-                item.Add("x", e.x);
-                item.Add("y", e.y);
-                item.Add("z", e.z);
-                item.Add("yawDeg", e.yawDeg);
-                seq.Add(item);
-            }
-            return seq;
-        }
-
-        static Node PropPlacementNodes(List<PropPlacementEntry> entries)
-        {
-            var seq = new Node(NodeKind.Seq);
-            if (entries == null)
-                return seq;
-            for (int i = 0; i < entries.Count; i++)
-            {
-                PropPlacementEntry e = entries[i];
-                var item = new Node(NodeKind.Map);
-                item.Add("asset", e.asset);
-                item.Add("x", e.x);
-                item.Add("y", e.y);
-                item.Add("z", e.z);
-                item.Add("yawDeg", e.yawDeg);
-                seq.Add(item);
-            }
-            return seq;
-        }
-
-        static Node SpawnNodes(List<SpawnEntry> entries)
-        {
-            var seq = new Node(NodeKind.Seq);
-            if (entries == null)
-                return seq;
-            for (int i = 0; i < entries.Count; i++)
-            {
-                SpawnEntry e = entries[i];
-                var item = new Node(NodeKind.Map);
-                item.Add("teamIndex", e.teamIndex);
-                item.Add("archetype", e.archetype);
-                item.Add("x", e.x);
-                item.Add("z", e.z);
-                item.Add("luck", e.luck);
                 seq.Add(item);
             }
             return seq;

@@ -77,15 +77,9 @@ namespace PirateCrew.EditorTools
             //    于是缺陷表现为"安静地多跑几次全场景查找"而不是报错。收进本链即修复。
             new Step("⑥ 运行期查找接线（BattleLookupWiring.WireScene）", WireLookupsOrThrow),
 
-            // ⑦ WorldKit 资产表 + 海面材质接线（写 BattleController.worldMapAssetSet / worldOceanMaterial）。
-            //    原先排在 ArtGate 末步（⑩.5），理由是"⑦ 会重烘场景、先写必被洗掉"——
-            //    它的真实约束就是"在 ① 之后"，与 ⑨⑩（M1/M3 场景、Build Settings）无关，故收进本链。
-            new Step("⑦ WorldKit 资产表 + 海面材质接线（WorldMapAssetSetBuilder.BuildAll）",
-                WorldMapAssetSetBuilder.BuildAll),
-
             // ⑧ 折叠：全部根收进载体根 → 存 BattleRig.prefab → 场景只留一个实例。
             //    **必须是最后一步**：折叠之后任何往场景写字段的动作都会产生 Prefab 实例覆盖。
-            new Step("⑧ 折叠为 BattleRig.prefab 实例（ScenePrefabCollapse.CollapseBattle）",
+            new Step("⑦ 折叠为 BattleRig.prefab 实例（ScenePrefabCollapse.CollapseBattle）",
                 ScenePrefabCollapse.CollapseBattle),
         };
 

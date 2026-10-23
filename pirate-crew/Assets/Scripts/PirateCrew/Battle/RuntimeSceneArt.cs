@@ -16,7 +16,6 @@ namespace PirateCrew.Battle
     /// （Assets/Editor/SceneArtBaker.cs），同输入重跑逐顶点一致（确定性测试钉住）。
     /// 多样性来自"更多预制变体"而非运行时随机，运行时零成本换装。
     ///
-    /// 【世界海域图不经本类】陈设走 <see cref="WorldMapComposer"/>（kit FBX + 灰盒站面）。
     ///
     /// 【超美空岛】是场景内静态物（FloatingIslandShowcaseMenu.PlaceIntoBattleCenter 烘进
     /// Battle.unity），本类只按关卡号开关（只有样板第 2 关激活）。
@@ -93,7 +92,7 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 按关卡号重建全部静态陈设（幂等：先删上次实例）。由 <c>BattleController.Awake</c> 调用。
-        /// 样板关走烘焙件实例化；非样板关留空并告警（世界图陈设走 WorldMapComposer）。
+        /// 关卡走烘焙件实例化；未登记的关卡号留空并告警。
         /// </summary>
         public void RebuildFor(int levelNumber)
         {
@@ -105,9 +104,8 @@ namespace PirateCrew.Battle
 
             if (!SceneArt.ShowcaseLevels.IsShowcase(levelNumber))
             {
-                // 本装配器只服务样板关；世界图陈设走 WorldMapComposer。
                 global::PirateCrew.Core.Log.Warn("[RuntimeSceneArt] 非样板关 " + levelNumber
-                    + "，静态陈设留空（世界图陈设由 WorldMapComposer 装配）。");
+                    + "，静态陈设留空（该关卡号未登记烘焙陈设）。");
                 LastLevelNumber = levelNumber;
                 return;
             }

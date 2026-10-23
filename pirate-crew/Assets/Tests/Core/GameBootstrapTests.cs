@@ -42,7 +42,7 @@ namespace PirateCrew.Tests
             string[] expected =
             {
                 // ResetStatics：进入播放前清静态残留
-                "PirateCrew.Battle.WorldMaps.WorldMapRuntime.ResetStatics",
+                "PirateCrew.Battle.Levels.PendingLevel.ResetStatics",
                 "PirateCrew.Campaign.CampaignApi.ResetStatics",
                 "PirateCrew.CrewManagement.CrewManagementApi.ResetStatics",
                 "PirateCrew.Battle.BattlePause.ResetStatics",

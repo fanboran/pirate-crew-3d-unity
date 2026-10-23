@@ -116,7 +116,7 @@ namespace PirateCrew.EditorTools
 
         // 【海水 / 瓦片地形材质已不在本文件生成】PirateWater / PirateTerrain 建材质行随
         // PBR 根除拆除：海水由 OceanRig 运行时装配像素海面，瓦片地形站面走像素物体 shader
-        // （WorldMapComposer）。同名材质资产（Water_Ocean / Terrain_Island）由场景波次处置。
+        // 。同名材质资产（Water_Ocean / Terrain_Island）由场景波次处置。
 
         // ------------------------------------------------------------------
         // 后处理 VolumeProfile

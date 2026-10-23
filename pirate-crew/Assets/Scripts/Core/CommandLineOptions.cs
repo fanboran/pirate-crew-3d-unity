@@ -139,7 +139,7 @@ namespace PirateCrew.Core
         /// 于是 `-pixelartNormalEdgeLevel -1` 解析成"开关在、没带值"——静默拿到 null，
         /// 调用方只看到"参数没生效"。而本项目有一批参数**合法区间含负数**
         /// （如法线边加成档 -1 = 面转折处压暗，参考库口径），必须能传进来。
-        /// 【为什么这条判据安全】开关名是词（`-worldMap`），去掉前导减号后不是合法数字 ⇒ 不会被吞；
+        /// 【为什么这条判据安全】开关名是词（`-bootBattle`），去掉前导减号后不是合法数字 ⇒ 不会被吞；
         /// 单个 `-`（Unity 的 `-logFile -` 那种）也不是数字 ⇒ 仍按"无值"处理。
         /// </summary>
         static bool IsNumericLiteral(string token)
@@ -172,14 +172,10 @@ namespace PirateCrew.Core
     /// </summary>
     public static class ToolFlags
     {
-        /// <summary>指定待战世界海图：<c>-worldMap &lt;id&gt;</c>（无头试玩/捕图）。</summary>
-        public const string WorldMap = "-worldMap";
-
         /// <summary>
-        /// **启动即进战斗**：<c>-bootBattle &lt;关卡号 | 海图 id&gt;</c>（评审/试玩用，创始人 2026-09-22 要求）。
+        /// **启动即进战斗**：<c>-bootBattle &lt;关卡号&gt;</c>（评审/试玩用，创始人 2026-09-22 要求）。
         /// 不加这个开关时启动流程是「Bootstrapper → 主菜单」，要点好几下才能进到战斗；
         /// 加了这个开关就直接进该关的战斗场景，双击 exe 即可看到目标画面。
-        /// 关卡号走"手作样板关"通道（<c>1</c>/<c>3</c>），海图 id 走海图通道（<c>wreck_hymn</c> …）。
         /// </summary>
         public const string BootBattle = "-bootBattle";
 

@@ -26,10 +26,10 @@ namespace PirateCrew.Tests
         [Test]
         public void Parse_FlagWithValue_IsReadable()
         {
-            CommandLineOptions.Parse(new[] { "PirateCrew.exe", "-worldMap", "wreck_hymn" });
+            CommandLineOptions.Parse(new[] { "PirateCrew.exe", "-bootBattle", "3" });
 
-            Assert.That(CommandLineOptions.Has(ToolFlags.WorldMap), Is.True);
-            Assert.That(CommandLineOptions.GetValue(ToolFlags.WorldMap), Is.EqualTo("wreck_hymn"));
+            Assert.That(CommandLineOptions.Has(ToolFlags.BootBattle), Is.True);
+            Assert.That(CommandLineOptions.GetValue(ToolFlags.BootBattle), Is.EqualTo("3"));
         }
 
         [Test]
@@ -45,7 +45,7 @@ namespace PirateCrew.Tests
         [Test]
         public void Parse_MissingFlag_IsAbsent()
         {
-            CommandLineOptions.Parse(new[] { "PirateCrew.exe", "-worldMap", "wreck_hymn" });
+            CommandLineOptions.Parse(new[] { "PirateCrew.exe", "-bootBattle", "3" });
 
             Assert.That(CommandLineOptions.Has(ToolFlags.SceneKitOut), Is.False);
             Assert.That(CommandLineOptions.GetValue(ToolFlags.SceneKitOut), Is.Null);
@@ -54,9 +54,9 @@ namespace PirateCrew.Tests
         [Test]
         public void Parse_TwoAdjacentFlags_NeitherConsumesTheOther()
         {
-            CommandLineOptions.Parse(new[] { "app", "-worldMap", "-artReviewOut", "D:/out" });
+            CommandLineOptions.Parse(new[] { "app", "-bootBattle", "-artReviewOut", "D:/out" });
 
-            Assert.That(CommandLineOptions.GetValue(ToolFlags.WorldMap), Is.Null, "值不能吞掉下一个开关");
+            Assert.That(CommandLineOptions.GetValue(ToolFlags.BootBattle), Is.Null, "值不能吞掉下一个开关");
             Assert.That(CommandLineOptions.GetValue(ToolFlags.ArtReviewOut), Is.EqualTo("D:/out"));
         }
 
@@ -89,9 +89,9 @@ namespace PirateCrew.Tests
         [Test]
         public void Parse_RepeatedFlag_LastWins()
         {
-            CommandLineOptions.Parse(new[] { "app", "-worldMap", "a_map", "-worldMap", "sunken_gate" });
+            CommandLineOptions.Parse(new[] { "app", "-bootBattle", "a_map", "-bootBattle", "7" });
 
-            Assert.That(CommandLineOptions.GetValue(ToolFlags.WorldMap), Is.EqualTo("sunken_gate"));
+            Assert.That(CommandLineOptions.GetValue(ToolFlags.BootBattle), Is.EqualTo("7"));
         }
 
         [Test]
@@ -159,29 +159,29 @@ namespace PirateCrew.Tests
             Assert.That(CommandLineOptions.Count, Is.EqualTo(0));
 
             Assert.DoesNotThrow(() => CommandLineOptions.Parse(new string[0]));
-            Assert.That(CommandLineOptions.Has(ToolFlags.WorldMap), Is.False);
+            Assert.That(CommandLineOptions.Has(ToolFlags.BootBattle), Is.False);
         }
 
         [Test]
         public void Reset_ClearsPreviousParse()
         {
-            CommandLineOptions.Parse(new[] { "app", "-worldMap", "wreck_hymn" });
-            Assert.That(CommandLineOptions.Has(ToolFlags.WorldMap), Is.True);
+            CommandLineOptions.Parse(new[] { "app", "-bootBattle", "3" });
+            Assert.That(CommandLineOptions.Has(ToolFlags.BootBattle), Is.True);
 
             CommandLineOptions.Reset();
             CommandLineOptions.Parse(new[] { "app" });
 
-            Assert.That(CommandLineOptions.Has(ToolFlags.WorldMap), Is.False);
+            Assert.That(CommandLineOptions.Has(ToolFlags.BootBattle), Is.False);
             Assert.That(CommandLineOptions.Count, Is.EqualTo(0));
         }
 
         [Test]
         public void Reparse_ReplacesPreviousResult()
         {
-            CommandLineOptions.Parse(new[] { "app", "-worldMap", "wreck_hymn" });
+            CommandLineOptions.Parse(new[] { "app", "-bootBattle", "3" });
             CommandLineOptions.Parse(new[] { "app", "-sceneKitOut", "D:/kit" });
 
-            Assert.That(CommandLineOptions.Has(ToolFlags.WorldMap), Is.False, "重解析必须整表替换");
+            Assert.That(CommandLineOptions.Has(ToolFlags.BootBattle), Is.False, "重解析必须整表替换");
             Assert.That(CommandLineOptions.Has(ToolFlags.SceneKitOut), Is.True);
         }
 
@@ -219,12 +219,12 @@ namespace PirateCrew.Tests
             // 防御性边界（CommandLineOptions.Parse 的 IsNullOrEmpty 分支）：
             // token 位置与值位置的 null / 空串都不能把解析器带崩——
             // 值位 null 等价"无值"，不能 NRE 也不能把 null 记成值。
-            CommandLineOptions.Parse(new[] { null, "", "-artReviewOut", null, "-worldMap", "wreck_hymn" });
+            CommandLineOptions.Parse(new[] { null, "", "-artReviewOut", null, "-bootBattle", "3" });
 
             Assert.That(CommandLineOptions.Has(ToolFlags.ArtReviewOut), Is.True);
             Assert.That(CommandLineOptions.GetValue(ToolFlags.ArtReviewOut), Is.Null,
                 "值位 null 应按『出现但无值』处理");
-            Assert.That(CommandLineOptions.GetValue(ToolFlags.WorldMap), Is.EqualTo("wreck_hymn"));
+            Assert.That(CommandLineOptions.GetValue(ToolFlags.BootBattle), Is.EqualTo("3"));
         }
 
         [Test]
@@ -232,7 +232,7 @@ namespace PirateCrew.Tests
         {
             // 防御性边界（CommandLineOptions.cs:58 / 68 的 IsNullOrEmpty 分支）：
             // 调用方传 null / 空串查询必须得到 false / null，而不是内部字典异常。
-            CommandLineOptions.Parse(new[] { "app", "-worldMap", "wreck_hymn" });
+            CommandLineOptions.Parse(new[] { "app", "-bootBattle", "3" });
 
             Assert.That(CommandLineOptions.Has(null), Is.False);
             Assert.That(CommandLineOptions.Has(""), Is.False);

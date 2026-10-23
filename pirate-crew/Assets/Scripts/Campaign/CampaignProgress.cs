@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using PirateCrew.Battle.WorldMaps;
 
 namespace PirateCrew.Campaign
 {
@@ -8,7 +7,7 @@ namespace PirateCrew.Campaign
     /// 大海域的结算进度（海图 id → 星级）。没有顺序解锁链：
     /// 海图全部可出战（见选关页），进度只剩「星级记录」一个职责。
     ///
-    /// 【键值域】键 = 海图 id（<c>WorldMapCatalog</c> 收录的 <c>wreck_hymn</c> 等）；
+    /// 【键值域】键 = 关卡 id 字符串（占位冻结线：目录校验已随 WorldMap 退役移除）；
     /// 旧存档里的历史序号键会被 <see cref="SetStars"/> 静默丢弃（旧档不迁移，弃档）。
     ///
     /// 【纯 C#】不引用任何 UnityEngine 类型，可在无头验证台直接断言。
@@ -55,7 +54,8 @@ namespace PirateCrew.Campaign
         /// <returns>本次是否刷新了记录（首次通关或星级提高）。</returns>
         public bool CompleteLevel(string mapId, int stars)
         {
-            if (string.IsNullOrEmpty(mapId) || !WorldMapCatalog.TryGet(mapId, out _) || stars <= 0)
+            // 占位冻结：目录校验随 WorldMap 退役移除（结算链休眠，见 CampaignApi 头注）。
+            if (string.IsNullOrEmpty(mapId) || stars <= 0)
                 return false;
 
             int previous = GetStars(mapId);
@@ -81,7 +81,8 @@ namespace PirateCrew.Campaign
         /// <summary>直接写入星级（读档用）；id 不在目录 / ≤0 星忽略。</summary>
         public void SetStars(string mapId, int stars)
         {
-            if (string.IsNullOrEmpty(mapId) || !WorldMapCatalog.TryGet(mapId, out _) || stars <= 0)
+            // 占位冻结：目录校验随 WorldMap 退役移除。
+            if (string.IsNullOrEmpty(mapId) || stars <= 0)
                 return;
 
             _stars[mapId] = Math.Min(stars, StarRules.MaxStars);

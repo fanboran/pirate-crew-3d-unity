@@ -1,7 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using NUnit.Framework;
-using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Data;
 using UnityEditor;
 using UnityEngine;
@@ -18,7 +17,6 @@ namespace PirateCrew.Battle.Tests
     ///
     /// 【它多验了什么（无头侧验不到的）】
     ///   ① 手写/generated 的 `.asset` YAML 真能被 Unity 反序列化成 <see cref="LevelDefinition"/> /
-    ///      <see cref="WorldMapDefinitionAsset"/>（<c>m_Script</c> guid 对得上、字段名与类型吻合）；
     ///   ② <c>Resources.Load("LevelCatalog")</c> 能取到清单，且清单把 4 张关卡资产全带进来
     ///      （**海图 0 张**：八张世界海图 101–108 已删除待重做；现役四关号 1–4 连续）；
     ///   ③ 校验器（<see cref="PirateCrew.EditorTools.LevelAssetValidator"/>）在同一批资产上零错误。
@@ -28,7 +26,6 @@ namespace PirateCrew.Battle.Tests
     [TestFixture]
     public class LevelAssetGateTests
     {
-        const string WorldMapsFolder = "Assets/Data/WorldMaps";
         const string LevelsFolder = "Assets/Data/Levels";
 
         [Test]
@@ -39,11 +36,8 @@ namespace PirateCrew.Battle.Tests
                 "Resources.Load(\"" + LevelAssetSchema.CatalogResourcePath + "\") 取不到清单——"
                 + "清单必须落在 Assets/Data/Levels/Resources/ 下才会进构建包");
 
-            Assert.That(catalog.WorldMaps.Count, Is.EqualTo(0), "清单里的海图数不对（海图已删除待重做，应为 0）");
             Assert.That(catalog.Levels.Count, Is.EqualTo(4), "清单里的关卡数不对（现役四关，关卡号 1–4）");
 
-            for (int i = 0; i < catalog.WorldMaps.Count; i++)
-                Assert.That(catalog.WorldMaps[i], Is.Not.Null, "清单 worldMaps[" + i + "] 是空引用");
             for (int i = 0; i < catalog.Levels.Count; i++)
                 Assert.That(catalog.Levels[i], Is.Not.Null, "清单 levels[" + i + "] 是空引用");
         }
@@ -55,23 +49,6 @@ namespace PirateCrew.Battle.Tests
 
             // 海图：资产反序列化出的载荷必须与 golden JSON 解析出的载荷逐字段一致
             // （字段顺序/名字对不上、m_Script guid 指错脚本，都会在这里现形）。
-            string[] mapGuids = AssetDatabase.FindAssets("t:WorldMapDefinitionAsset", new[] { WorldMapsFolder });
-            for (int i = 0; i < mapGuids.Length; i++)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(mapGuids[i]);
-                var asset = AssetDatabase.LoadAssetAtPath<WorldMapDefinitionAsset>(path);
-                Assert.That(asset, Is.Not.Null, path + " 加载失败（m_Script guid 不对？）");
-
-                string goldenPath = WorldMapsFolder + "/_golden/" + asset.Id + ".json";
-                WorldMapAssetPayload expected =
-                    LevelAssetJson.ReadWorldMap(System.IO.File.ReadAllText(goldenPath));
-                Assert.That(expected, Is.Not.Null, goldenPath + " 解析失败");
-
-                Assert.That(LevelAssetJson.Write(asset.Data), Is.EqualTo(LevelAssetJson.Write(expected)),
-                    path + " 反序列化出的数据与 golden JSON 不一致");
-                checkedAssets++;
-            }
-
             string[] levelGuids = AssetDatabase.FindAssets("t:LevelDefinition", new[] { LevelsFolder });
             for (int i = 0; i < levelGuids.Length; i++)
             {
@@ -108,13 +85,7 @@ namespace PirateCrew.Battle.Tests
                 "关卡资产校验失败：\n" + JoinToList(errors));
         }
 
-        /// <summary>
-        /// 校验器真源在 `Assets/Editor`（预定义程序集 <c>Assembly-CSharp-Editor</c>），而 asmdef 汇编
-        /// **不能**引用预定义程序集——所以这里用装配件限定名反射取类型（同
-        /// `Assets/Art/Tests/PixelArtTextureImportTests.cs:22-25` 的处置）。
-        /// 好处是"校验器被改名/删除"会变成一条明确的红灯，而不是静默跳过。
-        /// </summary>
-        const string ValidatorTypeName =
+         const string ValidatorTypeName =
             "PirateCrew.EditorTools.LevelAssetValidator, Assembly-CSharp-Editor";
 
         static object RunValidator()
@@ -143,15 +114,6 @@ namespace PirateCrew.Battle.Tests
             for (int i = 0; i < items.Count; i++)
                 lines.Add(System.Convert.ToString(items[i]));
             return string.Join("\n", lines);
-        }
-
-        [Test]
-        public void WorldMapCatalog_ReadsFromAssets_NotFromCode()
-        {
-            // 海图目录现在只是"资产 → 运行时定义"的查表口；条数对不上说明加载链断了。
-            // 八张海图已删除待重做 ⇒ 目录为空，但查表口本身仍须可用（本用例同时证明"零图不炸"）。
-            Assert.That(WorldMapCatalog.Count, Is.EqualTo(0), "海图已删除待重做，目录应为空");
-            Assert.That(WorldMapCatalog.TryGet("no_such_map", out _), Is.False);
         }
     }
 }

@@ -5,7 +5,6 @@ using PirateCrew.Core;
 using PirateCrew.CrewManagement;
 using PirateCrew.Audio;
 using PirateCrew.Battle;
-using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Combat;
 using PirateCrew.Data;
 using PirateCrew.UI.Stick;
@@ -401,18 +400,13 @@ namespace PirateCrew.UI
             CloseModal(confirmDialogRoot);
         }
 
-        /// <summary>再来一局：重载 Battle 场景（同名目标自动不压栈，栈顶返回点天然保住）。</summary>
+        /// <summary>再来一局：重载 Battle 场景（同名目标自动不压栈，栈顶返回点天然保住）。
+        /// 战役结算的「再战同图」分支随 WorldMap 双轨退役移除（结算链占位冻结休眠中，
+        /// LastSettlement 无写入方）；重载即重进当前待战关卡。</summary>
         void RestartBattle()
         {
             AudioService.PlayUi(SfxId.UiClick);
             BattlePause.ForceResume();
-
-            if (_campaignBattle && CampaignApi.LastSettlement != null
-                && WorldMapRuntime.SetPending(CampaignApi.LastSettlement.Value.MapId))
-            {
-                EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
-                return;
-            }
 
             EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
         }

@@ -2,7 +2,7 @@ namespace PirateCrew.Campaign
 {
     /// <summary>
     /// 战役推进器（纯 C#）。本类不持有自己的关卡目录——
-    /// 「选哪张图」由 <c>WorldMapRuntime</c> 待战通道决定，本类只负责
+    /// 【占位冻结】星级/结算从未被设计（创始人 2026-10-23），本模块休眠待解冻；「选哪关」由 <c>PendingLevel</c> 待战通道决定，本类只负责
     /// 「记下本局要结算哪张海图」与「把一次战斗结果折算成 <see cref="CampaignSettlement"/>」。
     /// 不含 UI 与事件（那是 <see cref="CampaignApi"/> 的事）。
     /// </summary>
@@ -24,7 +24,7 @@ namespace PirateCrew.Campaign
         public bool HasPendingMap => !string.IsNullOrEmpty(PendingMapId);
 
         /// <summary>
-        /// 记录本局要结算的海图（id 合法性由 <c>WorldMapCatalog</c> 在待战入口校验过）。
+        /// 记录本局要结算的关卡 id（占位冻结：现无写入方，见 CampaignApi 头注）。
         /// </summary>
         public void SelectMap(string mapId)
         {

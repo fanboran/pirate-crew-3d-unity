@@ -11,29 +11,22 @@ namespace PirateCrew.Data
     /// 自身放 <c>Assets/Data/Levels/Resources/LevelCatalog.asset</c>，由
     /// <see cref="LevelAssetLibrary"/> 用 <see cref="Resources.Load{T}(string)"/> 取到。
     ///
-    /// 【新增一张关卡】把新资产拖进本清单的对应列表（或跑迁移器，它会重写清单）。
+    /// 【新增一张关卡】把新资产拖进本清单（或跑迁移器，它会重写清单）。
     /// 漏登记 = 运行时加载不到该关，由 <c>LevelAssetValidator</c> 的内容门禁报红。
     /// </summary>
     [CreateAssetMenu(menuName = "PirateCrew/Data/关卡资源清单", fileName = "LevelCatalog")]
     public sealed class LevelCatalog : ScriptableObject
     {
-        [SerializeField, Tooltip("样板关 / 非海图战斗场的关卡资产（按关卡号升序）。")]
+        [SerializeField, Tooltip("关卡资产（按关卡号升序）。")]
         List<LevelDefinition> levels = new List<LevelDefinition>();
 
-        [SerializeField, Tooltip("大海域海图资产（按关卡号升序）。")]
-        List<WorldMapDefinitionAsset> worldMaps = new List<WorldMapDefinitionAsset>();
-
-        /// <summary>非海图关卡资产（可能含 null 空洞——由校验器报）。</summary>
+        /// <summary>关卡资产（可能含 null 空洞——由校验器报）。</summary>
         public IReadOnlyList<LevelDefinition> Levels => levels;
 
-        /// <summary>海图资产（可能含 null 空洞——由校验器报）。</summary>
-        public IReadOnlyList<WorldMapDefinitionAsset> WorldMaps => worldMaps;
-
-        /// <summary>迁移器重写清单入口（覆盖，不追加——避免重复登记同一张图）。</summary>
-        public void Apply(List<LevelDefinition> levelAssets, List<WorldMapDefinitionAsset> worldMapAssets)
+        /// <summary>迁移器重写清单入口（覆盖，不追加——避免重复登记同一关）。</summary>
+        public void Apply(List<LevelDefinition> levelAssets)
         {
             levels = levelAssets ?? new List<LevelDefinition>();
-            worldMaps = worldMapAssets ?? new List<WorldMapDefinitionAsset>();
         }
     }
 }

@@ -22,8 +22,7 @@ namespace PirateCrew.Battle
     ///     格号 ↔ 世界坐标的换算**只走** <see cref="LevelGeometry.WorldToTileIndex"/> /
     ///     <see cref="LevelGeometry.TileCenterWorld"/>，不要在这里手搓 <c>+0.5f</c>。
     ///   · 每格块数 = 该列**地表**（单位站的就是它）。现役生产者是关卡资产高度场
-    ///     （<c>LevelRasterFromAsset</c> 把米高度折成整数块）；海图站面走
-    ///     <c>WorldMapRuntime.BuildTerrainGrid</c>，产出同一种列式形态。
+    ///     （<c>LevelRasterFromAsset</c> 把米高度折成整数块）。
     ///   · 空列（整列无地面）= 水道。
     ///
     /// 二、<b>XZ 空间约定（几何）</b>
@@ -40,7 +39,7 @@ namespace PirateCrew.Battle
     ///     与 <see cref="SurfaceWorldY(int,int)"/> 同时命中同一格。
     ///   · <b>每格块高</b> = 簇基准（行号给出）+ 局部 1 块（栅格只说"这格是陆地"）。
         ///   · <b>{ 有地面 / 是水 } 的两种构造形态</b>：① <b>列式栅格</b>（<c>blocks</c> 全图铺底、
-        ///     0 = 基础地面）——**关卡资产走的就是这一种**，海图的站面栅格与关卡资产的高度场在
+        ///     0 = 基础地面）——**关卡资产走的就是这一种**，
         ///     资产里都只有这一份形态（见 <c>docs/技术/架构/关卡数据资产.md</c>）；
         ///     ② <b>平台簇模式</b>（构造函数收 <see cref="PlatformMap"/>，逐格带簇归属、
         ///     <c>Cluster &lt; 0</c> 的水格无地面无碰撞）——早期"悬空平台群浮在海面上"的形态，

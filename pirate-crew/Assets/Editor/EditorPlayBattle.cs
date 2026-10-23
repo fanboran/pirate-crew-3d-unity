@@ -20,7 +20,7 @@ namespace PirateCrew.EditorTools
     ///   <item>命令行（编辑器会开着、不退出）：<c>-executeMethod PirateCrew.EditorTools.EditorPlayBattle.EnterBattle</c>。
     ///         想直接进某一关就再加 <c>-bootBattle &lt;关卡号|海图id&gt;</c>：此时改走
     ///         <see cref="BootScenePath"/>，与播放器完全同一条路（Bootstrapper 直跳该关，
-    ///         <see cref="PirateCrew.Battle.WorldMaps.WorldMapRuntime"/> 读同一个开关），验收画面与 exe 一致。</item>
+    ///         <see cref="PirateCrew.Battle.Levels.PendingLevel"/> 读同一个开关），验收画面与 exe 一致。</item>
     /// </list>
     ///
     /// 【注意】进 Play 前会先保存当前场景（未保存的改动不该被 Play 吃掉）。
@@ -41,7 +41,7 @@ namespace PirateCrew.EditorTools
             }
 
             // 进程参数带 -bootBattle 时走 Bootstrapper：与播放器同一条启动链
-            // （Bootstrapper.StartScene() 直跳 Battle，WorldMapRuntime 再按开关进对应关），
+            // （Bootstrapper.StartScene() 直跳 Battle，PendingLevel 再按开关进对应关），
             // 不带开关时（菜单点进来）保持"打开 Battle 直接 Play"的捷径。
             bool viaBoot = CommandLineOptions.Has(ToolFlags.BootBattle);
             string scenePath = viaBoot ? BootScenePath : BattleScenePath;

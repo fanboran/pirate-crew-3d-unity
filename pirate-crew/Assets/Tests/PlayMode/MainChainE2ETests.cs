@@ -3,7 +3,6 @@ using System.Collections;
 using System.IO;
 using NUnit.Framework;
 using PirateCrew.Battle;
-using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Campaign;
 using PirateCrew.CrewManagement;
 using PirateCrew.Core;
@@ -20,22 +19,17 @@ namespace PirateCrew.Tests
     /// 【实际接通的链（逐段读运行时代码核实，出处见各步注释）】
     ///   Bootstrapper（组合根，Start 自动进主菜单）
     ///   → MainMenu（战斗钮 = 发布 SceneEvents.ChangeScene 进选关页，MainMenuController.OnBattleClicked）
-    ///   → LevelSelect（样板行 = WorldMapRuntime.SetPendingShowcase + ChangeScene(Battle)，
-    ///     LevelSelectController.OnShowcaseClicked）
+    ///   → LevelSelect（行点击 = PendingLevel.SetPending + ChangeScene(Battle)，
+    ///     LevelSelectController.OnLevelClicked）
     ///   → Battle（BattleController.Awake → LevelSourceResolver.Resolve：
-    ///     选关页样板关 ② 优先命中；无待战内容时 ④ 回落样板第 1 关，进战斗不强制要求 pending）
+    ///     待战关卡 ② 优先命中；无待战内容时 ③ 回落第 1 关，进战斗不强制要求 pending）
     ///   → 杀光蓝队（SubtractHealth 杀队原语）→ BattleController.Update → CheckMatchOver
     ///   → EventBus.MatchFinished → CampaignApi.OnMatchFinished（TrySettle → 发奖励 → SaveProgress）
     ///   → SaveManager.SaveToSlot(1)（CampaignApi.ProgressSlot）。
     ///
-    /// 【断点（不为通测试硬改运行时代码，留协调者裁决补口）】
-    ///   海图目录当前为空（Assets/Data/WorldMaps/ 只剩空 _golden 目录，101–108 八张海图已删除
-    ///   待重做，见 LevelSelectController 类头），而「结算 → 进度落盘」链有两处以
-    ///   「海图 id 在 WorldMapCatalog 里」为前提：
-    ///     ① 入口：WorldMapRuntime.SetPending / TryGetPending 都需目录命中——
-    ///        BattleStarted 时 CampaignApi.OnBattleStarted 以 TryGetPending 决定结算归属；
-    ///     ② 记录：CampaignProgress.CompleteLevel / SetStars 有 WorldMapCatalog.TryGet 门卫——
-    ///        目录为空时星记录进不了进度表，存档里 campaign_level_stars 只能是空串。
+    /// 【占位冻结（创始人 2026-10-23 裁决）】星级/战役结算从未被设计，结算链休眠
+    ///   （WorldMap 双轨退役后结算归属无数据来源，见 CampaignApi 头注与
+    ///   docs/项目/待办/地图重做.md）——星记录落盘链待跨关卡玩法设计后解冻。
     ///   因此本类两档覆盖：
     ///     · <see cref="MainMenu_LevelSelect_ShowcaseBattle_MatchFinishes"/> —— 全程真实链，
     ///       打到「样板关 MatchFinished」这个当前可达的最深点，并钉住「样板关不结算、
@@ -83,7 +77,7 @@ namespace PirateCrew.Tests
             // ---- 静态域复位（公开 API，各自注释定位均为"测试 / 重开档用"）----
             CampaignApi.Reset();             // 退订结算链 + 清结算结果/归属/红队阵亡计数
             CrewManagementApi.Reset();       // 清真实档读进来的名册/经验内存态
-            WorldMapRuntime.ClearPendingShowcase();
+            PirateCrew.Battle.Levels.PendingLevel.ClearPending();
             CampaignApi.EnsureBootstrapped(); // Reset 退订了 BattleStarted/CrewDied/MatchFinished，重订
             _finishedPayload = null;
         }
@@ -134,9 +128,9 @@ namespace PirateCrew.Tests
             // 选关页必有可出战内容（数据驱动，不写死张数——现役 4 张手作样板关）
             Assert.Greater(LevelAssetLibrary.Levels.Count, 0, "选关页应至少有一张样板关");
 
-            // 选关页样板行的同一动作链（OnShowcaseClicked 的域调用，不模拟点击）
+            // 选关页行点击的同一动作链（OnLevelClicked 的域调用，不模拟点击）
             int levelNumber = LevelAssetLibrary.Levels[0].levelNumber;
-            Assert.IsTrue(WorldMapRuntime.SetPendingShowcase(levelNumber), "样板关应能设定为待战");
+            Assert.IsTrue(PirateCrew.Battle.Levels.PendingLevel.SetPending(levelNumber), "关卡应能设定为待战");
             EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
 
             yield return SceneFlowTests.WaitForScene(SceneNames.Battle);
@@ -149,7 +143,6 @@ namespace PirateCrew.Tests
             Assert.IsTrue(turnManager.Started, "TurnManager 应已开始第一回合");
 
             // 本局内容路由：选关页点选的样板关（LevelSourceResolver ② 优先级），不是海图
-            Assert.IsFalse(controller.IsWorldMapActive, "样板关入口不应激活海图模式");
             Assert.AreEqual(levelNumber, controller.LevelNumber, "应加载点选的那一关");
 
             yield return KillTeamOne(controller);
@@ -179,8 +172,7 @@ namespace PirateCrew.Tests
             yield return SceneFlowTests.WaitForTransitionEnd();
 
             // 直接进战斗（ChangeScene 频道 = 选关页行点击成功后发出的同一条）。
-            // 真实"海图行"在此之前还会 WorldMapRuntime.SetPending(mapId)——海图目录为空走不通
-            //（类头断点①），本局因此落 LevelSourceResolver ④ 兜底关（与直接 Play 同路径）。
+            // 无待战内容时落 LevelSourceResolver ③ 兜底关（与直接 Play 同路径）。
             EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
             yield return SceneFlowTests.WaitForScene(SceneNames.Battle);
             yield return SceneFlowTests.WaitForTransitionEnd();
@@ -190,7 +182,6 @@ namespace PirateCrew.Tests
             var turnManager = UnityEngine.Object.FindObjectOfType<TurnManager>();
             Assert.IsNotNull(turnManager, "Battle 场景应有 TurnManager");
             Assert.IsTrue(turnManager.Started, "TurnManager 应已开始第一回合");
-            Assert.IsFalse(controller.IsWorldMapActive, "无待战海图应回落样板关（LevelSourceResolver ④）");
 
             // 【桥接】结算归属：真实链路 = 海图行 SetPending → BattleStarted →
             // CampaignApi.OnBattleStarted 走 TryGetPending 命中分支调 Manager.SelectMap(map.Id)。
@@ -224,10 +215,9 @@ namespace PirateCrew.Tests
             Assert.IsTrue(saved.HasData(CrewManagementSaveCodec.UnlockedKey),
                 "船员名册键应已写入（CrewManagementApi.WriteTo）");
 
-            // 【断点镜像】Progress.CompleteLevel/SetStars 有 WorldMapCatalog 门卫（类头断点②）：
-            // 目录为空 ⇒ 星记录进不了进度表，存档里星键是空串而非 "id:3"。
-            // 海图资产回归后，把本用例的桥接换成真实 SetPending(mapId)，此处即可改断
-            // "含本次关卡记录"（CampaignSaveCodec.Read 读回 GetStars(mapId) == 结算星数）。
+            // 【占位冻结】结算链休眠 ⇒ 星记录进不了进度表，存档里星键是空串而非 "id:3"。
+            // 跨关卡玩法设计解冻后，把本用例的桥接换成真实结算归属，此处即可改断
+            // "含本次关卡记录"（CampaignSaveCodec.Read 读回 GetStars == 结算星数）。
             Assert.AreEqual(string.Empty, saved.GetData(CampaignSaveCodec.StarsKey, "<缺键>"),
                 "海图目录为空时星记录无法落盘（CompleteLevel 门卫）——空串即断点在存档里的镜像");
         }

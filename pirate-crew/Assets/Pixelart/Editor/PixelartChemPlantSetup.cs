@@ -404,7 +404,7 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 构图核对：镜头确实对着内容（口径同 PixelartWorldMapPilotSetup.AssertFraming 的读法，
+        /// 构图核对：镜头确实对着内容；
         /// 但这是美术件试点、内容是一件总装件 ⇒ 只打印读数 + 越界才报错，不硬断言）。
         /// </summary>
         static void LogFraming(PixelartLevelScene.View view, GameObject content, Transform root)

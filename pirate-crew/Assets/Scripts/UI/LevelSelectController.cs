@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
-using PirateCrew.Battle.WorldMaps;
+using PirateCrew.Battle.Levels;
 using PirateCrew.Data;
 using TMPro;
 using UnityEngine;
@@ -11,21 +11,15 @@ using UnityEngine.UI;
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 出海选关界面（M4）：**单列表**列出全部可玩内容——现役 4 张手作样板关
-    /// （云端漫步 / 天空之岛 / 废弃化工厂 · 四件与六件版），**按关卡号升序**排，点任意一行即出战。
-    /// 没有页签/章节/解锁链——全部内容都可直接打；
-    /// 已通关的**海图**行显示星级（结算进度记在海图 id 上，见 <see cref="CampaignApi"/>），
-    /// 样板关不记星（进度表里没有它的键），故样板行不带星级。
-    /// 八张世界海图（101–108）已删除待重做，海图目录当前为空 ⇒ 列表只有样板关这几行
-    /// （列表与页头都是数据驱动，海图回归后自动变长）。
+    /// 出海选关界面：**单列表**列出全部可玩关卡（关卡=唯一概念，创始人 2026-10-23 裁决），
+    /// **按关卡号升序**排，点任意一行即出战。没有页签/章节/解锁链——全部内容都可直接打。
     ///
-    /// 【加载行为】海图行 → <c>WorldMapRuntime.SetPending</c>；样板行 → <c>SetPendingShowcase</c>，
-    /// 两者互斥。Battle 侧由 <c>LevelSourceResolver</c> 一处分叉：海图走 kit 岛 + 俯视海图 + 大海域海面，
-    /// 样板关走关卡资产自带的竞技场（关卡自带布阵，两条路都不消耗编成阵容）。
+    /// 【加载行为】行 → <see cref="PendingLevel.SetPending"/>（单一待战槽），
+    /// Battle 侧由 <c>LevelSourceResolver</c> 解析为该关的关卡资产（关卡自带布阵，不消耗编成阵容）。
     ///
-    /// 【结算弹窗】打完回本页时以模态弹窗显示一次 胜负/星级/评分/经验/招募
-    ///（数据源 = <see cref="CampaignApi.LastSettlement"/> / <see cref="CampaignApi.LastReward"/>）；
-    /// 星级为 3 枚程序化黄铜五角星图标（规范 §3.4 / §5.4）。
+    /// 【结算弹窗】战役结算链**占位冻结休眠中**（创始人从未设计星级/跨关卡玩法，
+    /// 见 docs/项目/待办/地图重做.md），弹窗管线保留但当前无数据来源；
+    /// 解冻设计跨关卡玩法时再启用（弹窗几何错位审计项 U1 届时必修）。
     /// </summary>
     public sealed class LevelSelectController : MonoBehaviour
     {
@@ -230,13 +224,9 @@ namespace PirateCrew.UI
         void OnReplayClicked()
         {
             RuntimeUiBuilder.ButtonFeedback(settlementReplayButton, true, _motion);
-            // 再战同一张海图：SetPending(同图) + 原地重载（SceneLoader 对同名目标自动不压栈）。
-            // SetPending 失败 = 已结算的海图 id 不在目录（数据异常，正常流程不可达），
-            // 与 OnWorldMapClicked 同口径兜底到状态栏，不静默吞掉。
-            if (!string.IsNullOrEmpty(_settledMapId) && WorldMapRuntime.SetPending(_settledMapId))
-                EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
-            else if (statusText != null)
-                statusText.text = UiStrings.WorldStatusMapMissing;
+            // 结算链占位冻结休眠中，本按钮当前不可达；重载即重进待战/兜底关卡
+            //（SceneLoader 对同名目标自动不压栈）。
+            EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
         }
 
         // ------------------------------------------------------------------
@@ -255,26 +245,16 @@ namespace PirateCrew.UI
             if (headerText == null)
                 return;
 
-            int showcases = LevelAssetLibrary.Levels.Count;
-            int maps = WorldMapCatalog.Count;
-            // 页头报的关数必须与列表行数一致（列表 = 样板关 + 海图）。
-            // 星级满分只算海图（8 × 3 = 24）：星级进度的键是海图 id，样板关不记星，
-            // 把它算进满分会让"累计星数"永远差一截。
-            // 【零海图版式】海图目录为空时"海域图 0 / 累计 0/0 星"两段恒为 0、只是噪声，
-            // 改用不带海图与星数的版式（海图重做回来时自动切回完整版式）。
-            headerText.text = maps > 0
-                ? string.Format(UiStrings.LevelSelectHeaderFormat,
-                    showcases + maps, showcases, maps,
-                    CampaignApi.Progress.TotalStars, maps * StarRules.MaxStars)
-                : string.Format(UiStrings.LevelSelectHeaderNoWorldMapsFormat, showcases);
+            // 页头报的关数必须与列表行数一致（列表 = 全部关卡资产）。
+            headerText.text = string.Format(UiStrings.LevelSelectHeaderFormat,
+                LevelAssetLibrary.Levels.Count);
 
             if (chapterNameText != null)
                 chapterNameText.text = UiStrings.LevelTabWorldSeas;
         }
 
         /// <summary>
-        /// 选关列表（一张表）：手作样板关 + 全部世界海图，按关卡号升序。
-        /// 样板行不画星级（不记星）、按钮「出战」；海图行保留星级与「出海」。
+        /// 选关列表（一张表）：全部关卡资产，按关卡号升序。
         /// </summary>
         void RebuildLevelList()
         {
@@ -297,118 +277,63 @@ namespace PirateCrew.UI
                     TextAlignmentOptions.Left,
                     RuntimeUiBuilder.ListItemTextColor(ListItemState.Normal), bodyFont);
 
-                // 星级图标（右对齐图标组，theme 允许 align="right" 的行内图标；
-                // 3 枚，点亮 = 黄铜，熄灭 = 暗）——只有记星的海图行才画。
-                if (entry.Stars > 0)
-                    RuntimeUiBuilder.CreateStarRow(row, entry.Stars, StarRules.MaxStars, 36f);
-
-                if (entry.WorldMapId != null)
-                {
-                    string mapId = entry.WorldMapId;
-                    rowButton.onClick.AddListener(() => OnWorldMapClicked(mapId, rowButton));
-                }
-                else
-                {
-                    int levelNumber = entry.LevelNumber;
-                    rowButton.onClick.AddListener(() => OnShowcaseClicked(levelNumber, rowButton));
-                }
+                int levelNumber = entry.LevelNumber;
+                rowButton.onClick.AddListener(() => OnLevelClicked(levelNumber, rowButton));
 
                 RuntimeUiBuilder.LayoutRowContent(row, text, RowHeight);
             }
         }
 
         /// <summary>
-        /// 合并两类内容成一张表：编号取自关卡号本身（样板关 1/3、海图 101–108，两段不重叠），
-        /// 排序后样板关自然靠前——不依赖声明顺序，也不需要在别处维护一张"顺序表"。
+        /// 关卡表：编号取自关卡号本身，按号升序——不依赖声明顺序，
+        /// 也不需要在别处维护一张"顺序表"。
         /// </summary>
         static List<LevelListRow> BuildLevelList()
         {
-            IReadOnlyList<LevelAssetPayload> showcases = LevelAssetLibrary.Levels;
-            IReadOnlyList<WorldMapDefinition> maps = WorldMapCatalog.All;
-            var rows = new List<LevelListRow>(showcases.Count + maps.Count);
+            IReadOnlyList<LevelAssetPayload> levels = LevelAssetLibrary.Levels;
+            var rows = new List<LevelListRow>(levels.Count);
 
-            for (int i = 0; i < showcases.Count; i++)
+            for (int i = 0; i < levels.Count; i++)
             {
-                LevelAssetPayload level = showcases[i];
-                rows.Add(new LevelListRow(
-                    level.levelNumber,
-                    level.displayName + "　" + UiStrings.LevelRowShowcaseTag,
-                    stars: 0,
-                    worldMapId: null));
-            }
-
-            for (int i = 0; i < maps.Count; i++)
-            {
-                WorldMapDefinition map = maps[i];
-                int stars = CampaignApi.GetStars(map.Id);
-                // 行文本 = 名称 + 图幅（theme list_item 只有一条左对齐文本）。
-                // 「可出战/已通关」这类**状态**不进文本——行态由面与图标表达：本表行皆可点，
-                // 已通关由星级图标体现（stars > 0），不再复读成字。
-                string label = map.DisplayName + "　"
-                               + Mathf.RoundToInt(map.SpanX) + "×" + Mathf.RoundToInt(map.SpanZ);
-                rows.Add(new LevelListRow(
-                    map.LevelNumber, label, stars, map.Id));
+                LevelAssetPayload level = levels[i];
+                rows.Add(new LevelListRow(level.levelNumber, level.displayName));
             }
 
             rows.Sort((a, b) => a.LevelNumber.CompareTo(b.LevelNumber));
             return rows;
         }
 
-        /// <summary>
-        /// 选关列表的一行（纯视图数据）：把"样板关 / 海图"抹平成同一形状，
-        /// 于是排序、建行、按钮派发都只有一条代码路径。
-        /// <see cref="WorldMapId"/> 非 null = 海图行，null = 样板关行。
-        /// </summary>
+        /// <summary>选关列表的一行（纯视图数据）。</summary>
         readonly struct LevelListRow
         {
-            /// <summary>关卡号（排序键；样板关 1–3 / 海图 101–108）。</summary>
+            /// <summary>关卡号（排序键）。</summary>
             public readonly int LevelNumber;
 
-            /// <summary>行标签（theme list_item 的唯一一条左对齐文本：名称 + 图幅/标识）。</summary>
+            /// <summary>行标签（theme list_item 的唯一一条左对齐文本）。</summary>
             public readonly string Label;
 
-            /// <summary>已得星数（样板关恒 0 = 不画星级）。</summary>
-            public readonly int Stars;
-
-            /// <summary>海图 id；null = 样板关。</summary>
-            public readonly string WorldMapId;
-
-            public LevelListRow(int levelNumber, string label, int stars, string worldMapId)
+            public LevelListRow(int levelNumber, string label)
             {
                 LevelNumber = levelNumber;
                 Label = label;
-                Stars = stars;
-                WorldMapId = worldMapId;
             }
         }
 
-        // 海图名 / 船员显示名的本地拷贝已收编进 UiTextRules（MapDisplayName / CrewDisplayNames，
-        // 与结算 HUD、船员管理同源），本类只做调用。
+        // 船员显示名的本地拷贝已收编进 UiTextRules（CrewDisplayNames，与结算 HUD、
+        // 船员管理同源），本类只做调用。
 
         // ------------------------------------------------------------------
         // 按钮
         // ------------------------------------------------------------------
 
-        /// <summary>出海：<see cref="WorldMapRuntime.SetPending"/> 成功即切 Battle。</summary>
-        void OnWorldMapClicked(string mapId, Button action)
-        {
-            RuntimeUiBuilder.ButtonFeedback(action, true, _motion);
-            // 海图战用地图自带布阵（map.Spawns），不消耗编成阵容 → 不做空编成拦截。
-            if (WorldMapRuntime.SetPending(mapId))
-                EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
-            else if (statusText != null)
-                statusText.text = UiStrings.WorldStatusMapMissing;
-        }
-
         /// <summary>
-        /// 出战样板关：<see cref="WorldMapRuntime.SetPendingShowcase"/> 成功即切 Battle。
-        /// 与海图同理，样板关自带布阵（关卡资产里的 units）→ 不做空编成拦截。
-        /// SetPendingShowcase 自己会清掉待战海图，所以刚打完海图再点样板关不会串内容。
+        /// 出战关卡：<see cref="PendingLevel.SetPending"/> 成功即切 Battle。
+        /// 关卡自带布阵（关卡资产里的 units）→ 不做空编成拦截。
         /// </summary>
-        void OnShowcaseClicked(int levelNumber, Button action)
+        void OnLevelClicked(int levelNumber, Button action)
         {
             RuntimeUiBuilder.ButtonFeedback(action, true, _motion);
-            if (WorldMapRuntime.SetPendingShowcase(levelNumber))
+            if (PendingLevel.SetPending(levelNumber))
                 EventBus.Publish(SceneEvents.ChangeScene, SceneNames.Battle);
             else if (statusText != null)
                 statusText.text = UiStrings.LevelStatusShowcaseMissing;

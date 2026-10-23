@@ -86,7 +86,7 @@ namespace PirateCrew.Campaign
     /// </summary>
     public readonly struct CampaignSettlement
     {
-        /// <summary>海图 id（<c>WorldMapCatalog</c> 收录，如 <c>wreck_hymn</c>）。</summary>
+        /// <summary>关卡 id（占位冻结线）。</summary>
         public readonly string MapId;
 
         /// <summary>是否通关。</summary>

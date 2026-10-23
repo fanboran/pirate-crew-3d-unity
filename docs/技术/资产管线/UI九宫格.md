@@ -79,7 +79,7 @@
 | `Frame` | `UI_BEVEL_HI` | `UI_PANEL` | `UI_BEVEL_LO` | Aseprite window_face 族 #41444A / #2C2C30 / #202125 |
 | `Dense` | `UI_BEVEL_HI` | `UI_BTN_BODY` | `UI_BEVEL_LO` | button_normal：唇亮 / 身 / 唇暗（#41444A / #292B30 / #202125） |
 | `Light` | `UI_HOVER_HI` | `UI_BEVEL_HI` | `UI_PANEL` | 悬停面族（slider_full / check_hot_face）#575B61 / #41444A / #2C2C30 |
-| `Sea` | `SEA_SHALLOW` | `SEA_MID` | `SEA_DEEP` | 本仓海图语义色 |
+| `Sea` | `SEA_SHALLOW` | `SEA_MID` | `SEA_DEEP` | 本仓海面语义色 |
 | `Primary` | `UI_ACCENT_HI` | `UI_ACCENT_MID` | `UI_ACCENT_DEEP` | button_selected 蓝三档原值 #6E9ADB / #4069C2 / #2A4185 |
 | `Danger` | `UI_DANGER_HI` | `UI_DANGER_MID` | `UI_DANGER_DEEP` | 蓝阶 R/B 换位（亮度结构不变）；原 `UI_DANGER` 槽留血条底/落水提示 |
 | `Warn` | `GLOW_WARM` | `UI_WARN` | `SHADOW_WARM` | 本仓警告/冷却语义色 |

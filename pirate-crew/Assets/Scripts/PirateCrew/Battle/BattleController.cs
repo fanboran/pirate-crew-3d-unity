@@ -5,7 +5,6 @@ using PirateCrew.Combat;
 using PirateCrew.Data;
 using PirateCrew.Visual;
 using PirateCrew.Battle.Levels;
-using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Rendering.Pixelart;
 using PirateCrew.SceneArt;
 using UnityEngine;
@@ -29,10 +28,10 @@ namespace PirateCrew.Battle
     /// 平面两分量经 <see cref="LevelGeometry.FlashVelocityDeltaToArena"/> 落到世界 (X, Z)，
     /// 竖直项 <c>DeltaVUp</c>（含原版固定上抛 6k）直接落到世界 +Y。
     ///
-    /// 【内容来源】关卡数据全部来自**关卡资产**（<c>Assets/Data/**</c>）：海图
-    /// （<c>WorldMapCatalog</c> 的 8 张）与关卡快照（<c>SceneArt.ShowcaseLevels</c> 读的 1–3）。
-    /// 本类**不再判定内容来源**——优先级（-artReviewLevel 覆盖 &gt; -worldMap 待战 &gt; 兜底关 1）
-    /// 只写在 <see cref="LevelSourceResolver"/> 一处，结果经 <see cref="LevelSource"/> 注入。
+    /// 【内容来源】关卡数据全部来自**关卡资产**（<c>Assets/Data/Levels/</c>，关卡=唯一概念，
+    /// 创始人 2026-10-23 裁决）。本类**不判定内容来源**——优先级（-artReviewLevel 覆盖 &gt;
+    /// 待战关卡 &gt; 兜底关 1）只写在 <see cref="LevelSourceResolver"/> 一处，结果经
+    /// <see cref="LevelSource"/> 注入。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class BattleController : MonoBehaviour
@@ -64,10 +63,8 @@ namespace PirateCrew.Battle
                  + "由 BattleSceneSetup 装配；为空时场景保持无静态陈设（地形与玩法不受影响）。")]
         [SerializeField] RuntimeSceneArt sceneArt;
 
-        [Header("M4 世界地图（可选）")]
-        [Tooltip("世界地图的 kit 资产表（FBX 预制体引用）；为空时世界地图用灰盒站面兜底。")]
-        [SerializeField] WorldMapAssetSet worldMapAssetSet;
-        [Tooltip("大海域海面材质（Ocean_Water.mat）；必须由场景引用入构建包——运行时 Shader.Find "
+        [Header("海面（可选）")]
+        [Tooltip("战斗海面材质（Ocean_Water.mat）；必须由场景引用入构建包——运行时 Shader.Find "
                  + "在播放器里查不到未引用的 shader（实拍踩坑：海面变纯白兜底盘）。为空时运行时兜底。")]
         [SerializeField] Material worldOceanMaterial;
 
@@ -95,10 +92,8 @@ namespace PirateCrew.Battle
         Collider[] _explosionOverlapScratch = new Collider[32];
 
         BattlePlan _plan;
-        /// <summary>本局的关卡来源（计划/地形/水位/图幅/氛围档都在它里面；解析只发生在 Battle/Levels）。</summary>
+        /// <summary>本局的关卡来源（计划/地形/水位/图幅都在它里面；解析只发生在 Battle/Levels）。</summary>
         LevelSource _source;
-        /// <summary>M4：本局激活的世界地图（null = 关卡资产路径）。</summary>
-        WorldMapDefinition _worldMap;
         bool _spawned;
         bool _matchFinished;
         float _waterWorldY;
@@ -121,12 +116,6 @@ namespace PirateCrew.Battle
 
         /// <summary>水面世界 Y（Unity 约定，y 向上）。</summary>
         public float WaterWorldY => _waterWorldY;
-
-        /// <summary>本局是否为世界地图模式（地形/陈设/破坏/水面走 WorldMaps 分支）。</summary>
-        public bool IsWorldMapActive => _worldMap != null;
-
-        /// <summary>本局的世界地图定义（非世界地图模式返回 null）。</summary>
-        public WorldMapDefinition WorldMap => _worldMap;
 
         /// <summary>爆炸/单位射线层掩码。</summary>
         public LayerMask PirateLayerMask => pirateLayerMask;
@@ -251,7 +240,6 @@ namespace PirateCrew.Battle
             if (!string.IsNullOrEmpty(_source.Notice))
                 global::PirateCrew.Core.Log.Warn(_source.Notice);
 
-            _worldMap = _source.WorldMap;
             _plan = _source.Plan;
             Terrain = _source.Terrain;
             _waterWorldY = _source.WaterWorldY;
@@ -259,38 +247,26 @@ namespace PirateCrew.Battle
             _teams[0] = new BattleTeam(1, aiControlled: false);
             _teams[1] = new BattleTeam(2, aiControlled: team1IsAi);
 
-            // 非海图路径的地形只有碰撞层（视觉由烘焙件负责）；海图路径的碰撞与灰盒由 WorldMapComposer 摆。
-            if (!_source.IsWorldMapActive && terrainView != null)
+            // 地形只有碰撞层，视觉由烘焙件负责。
+            if (terrainView != null)
                 terrainView.RenderCollidersOnly(Terrain);
 
             return true;
         }
 
         /// <summary>
-        /// 按内容来源重建静态陈设。世界图：kit 件 + 灰盒站面由 <see cref="WorldMapComposer"/> 摆放；
-        /// 关卡资产（样板关等）：<see cref="RuntimeSceneArt"/> 走烘焙 prefab 装配（云朵/岛壳/危险虚线）。
+        /// 按关卡号重建静态陈设：<see cref="RuntimeSceneArt"/> 走烘焙 prefab 装配（云朵/岛壳/危险虚线）。
         /// 只做表现：不触碰地形协议。
         /// </summary>
         void RebuildSceneArt()
         {
-            Transform artRoot = sceneArt != null ? sceneArt.transform : transform;
-
-            switch (_source.Kind)
-            {
-                case LevelSourceKind.WorldMap:
-                    WorldMapComposer.Build(artRoot, _source.WorldMap, worldMapAssetSet);
-                    break;
-
-                default:
-                    if (sceneArt != null)
-                        sceneArt.RebuildFor(_source.LevelNumber);
-                    break;
-            }
+            if (sceneArt != null)
+                sceneArt.RebuildFor(_source.LevelNumber);
         }
 
         /// <summary>
-        /// 战斗环境接线（Start 调用，**所有内容来源统一走这一条路径**）：
-        /// 大海域海面（<see cref="Water.OceanRig"/> 圆盘，世界图按图幅、样板关按竞技场外扩）、
+        /// 战斗环境接线（Start 调用，**统一走这一条路径**）：
+        /// 海面（<see cref="Water.OceanRig"/> 圆盘，按竞技场图幅外扩）、
         /// 水模拟域重配（障碍掩码按本局地形实时烘）。落水死亡仍是纯 Y 阈值判定，不依赖水面碰撞。
         ///
         /// 【退役器为何删除（2026-09-19，管线合并前置）】旧场景靠运行时退役器藏旧残留
@@ -307,8 +283,7 @@ namespace PirateCrew.Battle
         /// </summary>
         void SetupBattleEnvironment()
         {
-            // 域尺寸与环境半径：海图取图幅、关卡资产取竞技场世界尺寸——差别已在 LevelSource 里算完，
-            // 本方法只读数字（不判"这局是不是海图"）。
+            // 域尺寸与环境半径：取竞技场世界尺寸（已在 LevelSource 里算完）。
             float spanX = _source.SpanX;
             float spanZ = _source.SpanZ;
             var arenaCenter = new Vector2(spanX * 0.5f, spanZ * 0.5f);
@@ -324,8 +299,8 @@ namespace PirateCrew.Battle
                     Mathf.Max(spanX, spanZ),
                     Terrain,
                     LevelGeometry.WaterSurfaceY,
-                    _source.ArenaWorldWidth,
-                    _source.ArenaWorldDepth);
+                    _source.SpanX,
+                    _source.SpanZ);
             }
 
             Water.OceanRig.Create(
@@ -343,8 +318,7 @@ namespace PirateCrew.Battle
             // 档位基准与 Driver 同源：有图幅用图幅，没有则 Driver 沿用 DefaultWorldSpan（全景档 30）。
             // 活海面是"跟随相机、半径 4200"的圆盘，其可见部分恒落在该范围内——按整盘口径
             // （OceanFarClipMin = 4500）抬高会把远裁剪放大 20 余倍，那是出图整盘入画的口径，不用于此处。
-            float reachableOrtho = CameraFraming.PanoramaOrthoSizeForSpan(
-                _source.CameraWorldSpan > 0f ? _source.CameraWorldSpan : CameraFraming.DefaultWorldSpan);
+            float reachableOrtho = CameraFraming.PanoramaOrthoSizeForSpan(CameraFraming.DefaultWorldSpan);
             float requiredFar = CameraFraming.MinFarClipForOrthoSize(reachableOrtho);
             if (battleCamera != null)
             {
@@ -356,33 +330,6 @@ namespace PirateCrew.Battle
                 if (cam != null)
                     cam.farClipPlane = Mathf.Max(cam.farClipPlane, requiredFar);
             }
-
-            // 大地图专属（图幅/氛围档由关卡数据给出）：全景档随图幅 + 氛围档按海图定义；
-            // 关卡资产路径这两项都是"未提供"（CameraWorldSpan = 0 / AmbientTier = null），
-            // 于是保持场景烘焙的正午档与既有相机边界。
-            if (_source.CameraWorldSpan > 0f)
-            {
-                if (battleCamera != null)
-                    battleCamera.SetWorldSpan(_source.CameraWorldSpan);
-            }
-
-            if (!string.IsNullOrEmpty(_source.AmbientTier))
-                SetupWorldMapAmbient(_source.AmbientTier);
-        }
-
-        /// <summary>海图的氛围档接线：Storm→Overcast、Dusk→Dusk、其余→Noon。</summary>
-        void SetupWorldMapAmbient(string ambientTier)
-        {
-            var ambientDirector = FindObjectOfType<Ambient.AmbientDirector>();
-            if (ambientDirector == null)
-                return;
-
-            Ambient.AmbientTimeOfDay tier = Ambient.AmbientTimeOfDay.Noon;
-            if (string.Equals(ambientTier, "Dusk", StringComparison.OrdinalIgnoreCase))
-                tier = Ambient.AmbientTimeOfDay.Dusk;
-            else if (string.Equals(ambientTier, "Storm", StringComparison.OrdinalIgnoreCase))
-                tier = Ambient.AmbientTimeOfDay.Overcast;
-            ambientDirector.SetTimeOfDay(tier);
         }
 
         /// <summary>
@@ -459,7 +406,7 @@ namespace PirateCrew.Battle
             bool domeActive = islandRoot != null && islandRoot.activeInHierarchy;
 
             return Levels.SpawnGroundRules.GroundWorldY(
-                _source != null ? _source.ShowcaseAsset : null,
+                _source != null ? _source.Asset : null,
                 Terrain,
                 entry.WorldPosition.x, entry.WorldPosition.z,
                 entry.CellX, entry.CellY,

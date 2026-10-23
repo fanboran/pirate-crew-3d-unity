@@ -238,8 +238,7 @@ namespace PirateCrew.Tests
             "④ 场景资产总清单（SceneAssetManifestBuilder.BuildAll）",
             "⑤ 小地图接线（HudMinimapSceneSetup.WireMinimap）",
             "⑥ 运行期查找接线（BattleLookupWiring.WireScene）",
-            "⑦ WorldKit 资产表 + 海面材质接线（WorldMapAssetSetBuilder.BuildAll）",
-            "⑧ 折叠为 BattleRig.prefab 实例（ScenePrefabCollapse.CollapseBattle）",
+            "⑦ 折叠为 BattleRig.prefab 实例（ScenePrefabCollapse.CollapseBattle）",
         };
 
         static string[] ReadPipelineSteps()

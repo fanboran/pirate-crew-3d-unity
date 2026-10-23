@@ -354,29 +354,6 @@ namespace PirateCrew.ArtReview
         }
 
         /// <summary>
-        /// 中/近机位该对准哪：**该关第一个出生点**（海图按 XZ 取出生点、Y 取那个点的场地高度 + 1.5）。
-        ///
-        /// 【为什么不是几何中心】海图的几何中心经常是开阔水面——106 的近机位就拍到过一整张纯海面
-        /// （块边长判据直接判"整图同色"）。出生点按定义落在台面上，永远有内容可看，
-        /// 而且它是**关卡数据**（`WorldMapCatalog` 的 Spawns），不是这里另写的一份坐标。
-        /// 样板关没有海图数据（竞技场中心就是主平台），直接沿用取景表里的构图中心。
-        /// </summary>
-        static Vector3 PixelartLevelDetailTarget(PixelartLevelView view, Vector3 fallback)
-        {
-            if (global::PirateCrew.Battle.WorldMaps.WorldMapCatalog.TryGetByLevelNumber(
-                    view.LevelNumber, out var map) && map.Spawns != null && map.Spawns.Count > 0)
-            {
-                var spawn = map.Spawns[0];
-                float surface = global::PirateCrew.Battle.WorldMaps.WorldMapRules.HeightAtWorld(
-                    global::PirateCrew.Battle.WorldMaps.WorldMapRules.AllStandBoxes(map),
-                    new Vector2(spawn.X, spawn.Z));
-                return new Vector3(spawn.X, surface + 1.5f, spawn.Z);
-            }
-
-            return fallback;
-        }
-
-        /// <summary>
         /// 关卡档位表（真实内容）：三档取景 + 一张抖动态 + 两张调试缓冲，档位名前缀 = `pl<关卡号>`。
         ///
         /// 【为什么表比试点短】试点那张表是**机制验收**用的（抖动两范式对照、边缘光通路、降档 A/B、
@@ -505,15 +482,6 @@ namespace PirateCrew.ArtReview
             (string name, float visibleMeters, float zoom, int ditherMode, float ditherStrength, int debugMode)[] shots =
                 levelMode ? LevelShots(PixelartLevelViewCache) : PilotShots();
 
-            // 【中/近机位对准"内容"而不是几何中心】wide 是"看全场"，中/近是"看场地上的东西"。
-            // 海图尤其明显：地图几何中心常常是开阔水面（106 的近机位就拍到过一整张纯海面），
-            // 所以中/近两档改用**该关第一个出生点**所在的位置当目标——出生点按定义在台面上，
-            // 一定踩得到内容（数据来源与摆人同一条：`WorldMapCatalog` 的 Spawns）。
-            // 样板关竞技场小、中心就是主平台，故这一项对它们无影响（值等于表里的 Target）。
-            Vector3 detailTarget = target;
-            if (levelMode)
-                detailTarget = PixelartLevelDetailTarget(PixelartLevelViewCache, target);
-
             // 船员 renderer 的期望条数 = 角色数 × 2（Body + Head）。关卡档从关卡资产读出人数，
             // 不写死数字——某关改了编成而这里没跟，出图会缺人却看不出来。
             int expectedCrews = 2;
@@ -522,12 +490,6 @@ namespace PirateCrew.ArtReview
                 expectedCrews = 0;
                 if (global::PirateCrew.Data.LevelAssetLibrary.TryGetLevel(PixelartLevel, out var payload))
                     expectedCrews = payload.units.Count;
-                // 海图 101–108 不在 `LevelAssetLibrary` 的关卡表里（它只收样板关），
-                // 人数改从海图出生表读——否则日志会写"期望 -1 个"，把正常的海图误报成读取问题。
-                if (expectedCrews == 0
-                    && Battle.WorldMaps.WorldMapCatalog.TryGetByLevelNumber(PixelartLevel,
-                        out Battle.WorldMaps.WorldMapDefinition worldMap))
-                    expectedCrews = worldMap.Spawns.Count;
                 if (expectedCrews == 0)
                     expectedCrews = -1;   // 两边都读不到时用 -1：日志会写"期望 -1 个"，一眼看出是读取问题
             }
@@ -537,9 +499,8 @@ namespace PirateCrew.ArtReview
             foreach (var shot in shots)
             {
                 // 机位 = 改"每艺术像素多少米"（正交 size 由 rig 按它乘艺术像素数推出）。
-                // `-overview` = 看整张地图（用取景表里的整图中心）；其余档 = 看内容（用出生点，见 detailTarget）。
-                // 这与"观感图要能横向比"是同一件事：wide/mid/close 三档到处都对着**场地上的东西**。
-                Vector3 shotTarget = shot.name.EndsWith("-overview") ? target : detailTarget;
+                // 所有档都对着取景表里的构图中心（场地上有内容的位置）。
+                Vector3 shotTarget = target;
 
                 // 取景口径 = 可见米数 ÷ 艺术画布高（画布高 = 屏幕高 ÷ 生效档位）。默认档下与
                 // `PixelartPilotScene.WorldPerPixel` 同值（1080 ÷ 2 = 540 参考高）；覆盖档位时按同一式
@@ -827,12 +788,6 @@ namespace PirateCrew.ArtReview
 
         Shot[] BuildShots()
         {
-            // 【M4 世界地图】经典六机位按 50×17 老竞技场写死，在 150–280u 的大海域图上全部失焦；
-            // world 模式改走按地图跨度动态计算的机位组。该组只在播放器 -worldMap 模式使用，
-            // 不属于与 ArtReviewShots.cs 互为镜像的经典清单（镜像铁律不覆盖）。
-            if (Battle.WorldMaps.WorldMapRuntime.TryGetPending(out var worldMap))
-                return BuildWorldShots(worldMap);
-
             Vector3 c = _arenaCenter;
 
             // battle-45/hud-fullscreen 瞄准"两队出生区中点"而非纯竞技场中心，让两队都尽量入画
@@ -876,80 +831,6 @@ namespace PirateCrew.ArtReview
             return shots.ToArray();
         }
 
-        /// <summary>
-        /// 世界地图机位组（-worldMap 模式专用）：全景斜 45° / 正俯瞰 / 海平线远眺 / 双方出生群近景。
-        /// 距离全部按跨度 span 比例计算，far clip 在 <see cref="SetupCamera"/> 里随 world 模式放宽到 4500。
-        /// 不做特写/爆炸机位——经典清单里那两张依赖老竞技场的聚焦与爆心约定。
-        /// </summary>
-        Shot[] BuildWorldShots(Battle.WorldMaps.WorldMapDefinition map)
-        {
-            var c = new Vector3(map.SpanX * 0.5f, 0f, map.SpanZ * 0.5f);
-            float span = Mathf.Max(map.SpanX, map.SpanZ);
-
-            var shots = new System.Collections.Generic.List<Shot>
-            {
-                NewShot("world-pano", true,
-                    c + new Vector3(span * 0.42f, span * 0.62f, span * 0.6f), 55f, c),
-                NewShot("world-overhead", false,
-                    c + new Vector3(0f, span * 0.92f, 0.01f), 50f, c),
-                NewShot("world-horizon", false,
-                    new Vector3(c.x, 2.5f, -span * 0.12f), 60f,
-                    c + new Vector3(0f, 6f, span * 0.18f)),
-            };
-
-            Vector3 team0 = TeamSpawnCentroid(0);
-            Vector3 team1 = TeamSpawnCentroid(1);
-            if (team0.sqrMagnitude > 0f)
-                shots.Add(SpawnGroupShot("world-team0-spawn", team0, team1));
-            if (team1.sqrMagnitude > 0f)
-                shots.Add(SpawnGroupShot("world-team1-spawn", team1, team0));
-
-            return shots.ToArray();
-        }
-
-        /// <summary>某队全部出生点的地面质心（取不到单位时返回 Vector3.zero，调用方跳过）。</summary>
-        Vector3 TeamSpawnCentroid(int teamIndex)
-        {
-            if (_controller == null || _controller.AllPirates == null)
-                return Vector3.zero;
-            Vector3 sum = Vector3.zero;
-            int count = 0;
-            foreach (var pirate in _controller.AllPirates)
-            {
-                if (pirate == null || !pirate.gameObject.activeInHierarchy)
-                    continue;
-                if (pirate.TeamIndex != teamIndex)
-                    continue;
-                sum += pirate.transform.position;
-                count++;
-            }
-            return count > 0 ? sum / count : Vector3.zero;
-        }
-
-        /// <summary>出生群近景：从南侧 16u、高 7u 斜视质心（FOV 55 下群像入画、局部地形可辨）。</summary>
-        Shot SpawnGroupShot(string name, Vector3 centroid, Vector3 enemyCentroid)
-        {
-            // 视线轴 = 本队质心 → 敌方质心（只取水平分量）。
-            Vector3 toEnemy = enemyCentroid - centroid;
-            toEnemy.y = 0f;
-            if (toEnemy.sqrMagnitude < 1e-4f)
-                toEnemy = Vector3.forward;   // 两队重合（数据异常）时退回固定朝向，不产生 NaN
-            toEnemy.Normalize();
-
-            // 【自适应抬升】机位在出生群**背后**（远离敌方那一侧）——而出生群多半落在岛上，
-            // "背后"往往正好是同一座岛的中部，kit 视觉件（梯田台地、龟背穹顶、断船船体）
-            // 比站面 box 高得多，固定 7u 高度会让画面被近处巨物糊满（实测 spiral_throne 蓝队
-            // 机位遮挡 77.9%、角色只剩几个像素）。故先量一次"出生群 30u 内的最高视觉件顶面"，
-            // 机位高度与后退距离随它上抬——这条就是"出生机位画面 ≥1/3 是可读战场"的落实。
-            float skylineTop = MaxVisualTopNear(centroid, SpawnShotClearRadius);
-            float lift = Mathf.Max(0f, skylineTop + SpawnShotClearance - SpawnShotHeight);
-            float eyeY = SpawnShotHeight + lift;
-            float distance = SpawnShotDistance + lift * SpawnShotLiftToDistance;
-
-            Vector3 eye = centroid - toEnemy * distance + Vector3.up * eyeY;
-            Vector3 aim = centroid + Vector3.up * SpawnShotAimHeight + toEnemy * SpawnShotAimPush;
-            return NewShot(name, false, eye, 55f, aim);
-        }
 
         /// <summary>出生群机位：沿「本队→敌方」轴反推机位（距离/高度/瞄准前推，单位 u）。</summary>
         const float SpawnShotDistance = 16f;
@@ -1066,11 +947,7 @@ namespace PirateCrew.ArtReview
             _camera.transform.rotation = shot.Rotation;
             _camera.fieldOfView = shot.Fov;
             _camera.nearClipPlane = 0.05f;
-            // M4 世界地图：4200u 远场裙边与远景装饰要入画，far 放宽到与战斗侧同一口径
-            // （Battle.CameraFraming.OceanFarClipMin，海面圆盘所需最小远裁剪）；经典图维持 300 防远景糊近景排序。
-            _camera.farClipPlane = Battle.WorldMaps.WorldMapRuntime.TryGetPending(out _)
-                ? Battle.CameraFraming.OceanFarClipMin
-                : 300f;
+            _camera.farClipPlane = 300f;
             _camera.enabled = true;
 
             // 纯 HUD 演示：裁掉全部 3D 层 + 纯色清屏（"空白窗口里看 HUD"）；其余机位恢复正常渲染。

@@ -10,7 +10,6 @@ namespace PirateCrew.Battle.Levels
     /// 【唯一形态】资产里只有岛形轮廓（形状即数据）；采样高度数组由
     /// <see cref="TerrainShapeRasterizer"/> 现算（采样粒度 = <see cref="LevelGeometry.SampleCellSize"/> 米），
     /// 再按 <see cref="LevelGeometry.BlockWorldHeight"/> 米/块折回整数块表示。
-    /// 海图那条线不走这里（它的栅格由站面 box 派生，见 <c>WorldMapRuntime.BuildTerrainGrid</c>），
     /// 但两者产出的是同一个 <see cref="HeightfieldGrid"/> 列式形态，AI/站位/小地图共用一套查询。
     ///
     /// 【坏数据怎么办】地形不自洽时返回 <see cref="HeightfieldGrid.Flat"/> 并把问题交给

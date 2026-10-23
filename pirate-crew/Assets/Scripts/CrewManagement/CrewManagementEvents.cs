@@ -60,7 +60,7 @@ namespace PirateCrew.CrewManagement
     /// <summary><see cref="CrewManagementEvents.RewardGranted"/> 载荷。</summary>
     public readonly struct CrewRewardPayload
     {
-        /// <summary>结算是哪张海图（<c>WorldMapCatalog</c> 的海图 id，如 <c>wreck_hymn</c>）。</summary>
+        /// <summary>结算是哪一关（占位冻结线）。</summary>
         public readonly string LevelId;
 
         /// <summary>本局星级（0 = 未通关）。</summary>

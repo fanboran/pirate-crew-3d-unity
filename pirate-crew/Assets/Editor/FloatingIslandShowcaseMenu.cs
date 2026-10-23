@@ -475,7 +475,7 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// SurfaceSolid 槽就地换血成像素物体材质：配方唯一来源 = <see cref="PixelartMaterialFactory"/>
-        /// （与 SceneArtBaker / WorldMapAssetSetBuilder 同口径）。albedo 取配方**暗档**（HexDark）——
+        /// （与 SceneArtBaker 同口径）。albedo 取配方**暗档**（HexDark）——
         /// 与 PixelartContentConverter 从旧 PirateSurface 材质派生 PixelartDerived_* 的取色口径一致
         /// （TryGetAlbedo 对三档色材质取 _BaseColorA），重跑装配链与已迁移的场景引用颜色不漂移。
         /// 物体 shader 缺失时报错返回 null（调用方跳过该槽），不静默拿别族 shader 顶上。

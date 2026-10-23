@@ -19,7 +19,7 @@ namespace PirateCrew.Tests
     /// 修法一律是**重跑该场景的装配器**（或按常量手改场景后由装配器幂等确认），不是改测试。
     ///
     /// 【海图试点场景：当前 0 张】八张海图（101–108）已删除待重做，其场景名从下表移除；
-    /// 海图重做后随装配器 `PixelartWorldMapPilotSetup` 一起补回。
+    /// （旧海图试点已随 WorldMap 双轨退役删除，重做口径见 docs/项目/待办/地图重做.md。）
     ///
     /// 【实现口径】只读场景 YAML 文本、正则提取（场景全用 EditorSceneManager 打开太慢）；
     /// 契约常量住在运行时程序集（<see cref="PixelartSceneContract"/>），本测试因此不需要引用

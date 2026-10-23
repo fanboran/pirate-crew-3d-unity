@@ -82,7 +82,7 @@ namespace PirateCrew.EditorTools.BuildSystem
             "PixelartChemPlant",    // 关卡 4 废弃化工厂（提案/待定：美术件试点，尚未接玩法数据）
             "PixelartChemPlantTeam",// 关卡 5 废弃化工厂·六件并行版（提案/待定：美术件试点，尚未接玩法数据）
             // 【海图试点场景：当前 0 张】八张世界海图（关卡 101–108）已删除待重做，
-            // 其试点场景曾由 `PixelartWorldMapPilotSetup` 烘制并以 `-pixelartLevel 101..108` 出图，
+            // 旧海图试点场景（`PixelartWorldMapPilotSetup`，101–108）已随 WorldMap 双轨退役删除，
             // 必须进**播放器**场景集（出图链按场景名 LoadScene）。海图重做后在这里补回场景名。
         };
 

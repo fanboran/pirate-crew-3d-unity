@@ -6,7 +6,6 @@ using PirateCrew.Core;
 using PirateCrew.CrewManagement;
 using PirateCrew.Audio;
 using PirateCrew.Battle;
-using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Combat;
 using PirateCrew.Data;
 using TMPro;

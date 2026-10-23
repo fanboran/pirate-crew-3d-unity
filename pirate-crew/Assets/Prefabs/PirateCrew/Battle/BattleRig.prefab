@@ -7634,7 +7634,6 @@ MonoBehaviour:
   projectilePrefab: {fileID: 0}
   terrainView: {fileID: 4458246437620168625}
   sceneArt: {fileID: 2845780084448791664}
-  worldMapAssetSet: {fileID: 11400000, guid: 82a37de6cdab81f45884cd25654dcc63, type: 2}
   worldOceanMaterial: {fileID: 0}
   pirateLayerMask:
     serializedVersion: 2

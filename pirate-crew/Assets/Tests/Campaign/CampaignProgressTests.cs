@@ -1,5 +1,4 @@
 using NUnit.Framework;
-using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Campaign;
 
 namespace PirateCrew.Tests
@@ -7,7 +6,7 @@ namespace PirateCrew.Tests
     /// <summary>
     /// 海图进度（海图 id → 星级）的纯 C# 断言。一代的「顺序解锁链」随一代退场：
     /// 8 张海图全部可出战，进度只剩「星级记录」一个职责（键 = 海图 id，值域由
-    /// <c>WorldMapCatalog</c> 校验）。
+    /// 目录校验随 WorldMap 退役移除，任意 id 字符串可测（占位冻结线）。
     ///
     /// 【零海图口径】八张世界海图已删除待重做、目录为空 ⇒ 一切 id 都在目录外，
     /// "需要合法海图 id 才能写入"的用例没有可写对象（写入被目录校验拒掉）。
@@ -34,7 +33,6 @@ namespace PirateCrew.Tests
         [Test]
         public void CompleteLevel_KeepsBestStars()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             var progress = new CampaignProgress();
 
@@ -51,16 +49,15 @@ namespace PirateCrew.Tests
             var progress = new CampaignProgress();
 
             Assert.That(progress.CompleteLevel(MapA, 0), Is.False, "0 星不算通关");
-            Assert.That(progress.CompleteLevel("level_99", 3), Is.False, "不在海图目录的 id");
-            Assert.That(progress.CompleteLevel("level_01", 3), Is.False, "一代旧档键不进新进度");
+            // id 域校验随 WorldMap 目录退役移除（占位冻结线，任意非空 id 可记）。
             Assert.That(progress.CompleteLevel(null, 3), Is.False);
+            Assert.That(progress.CompleteLevel("", 3), Is.False);
             Assert.That(progress.CompletedCount, Is.EqualTo(0), "未通关不应计入通关数");
         }
 
         [Test]
         public void CompleteLevel_ClampsStarsToMax()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             var progress = new CampaignProgress();
 
@@ -70,19 +67,21 @@ namespace PirateCrew.Tests
         }
 
         [Test]
-        public void SetStars_RejectsIdsOutsideMapCatalog()
+        public void SetStars_IgnoresInvalidStars()
         {
             var progress = new CampaignProgress();
 
-            progress.SetStars("level_01", 3);
+            // id 域校验已退役（占位冻结线）；仍钉住非法星级不落表。
+            progress.SetStars("any_id", 0);
+            progress.SetStars("any_id", -1);
+            progress.SetStars(null, 3);
 
-            Assert.That(progress.CompletedCount, Is.EqualTo(0), "一代旧档键（level_01）读档时静默丢弃");
+            Assert.That(progress.CompletedCount, Is.EqualTo(0), "非法星级/空 id 不应落表");
         }
 
         [Test]
         public void CompletedMaps_CountOnceEvenIfReplayedBetter()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             var progress = new CampaignProgress();
             progress.CompleteLevel(MapA, 1);
@@ -95,7 +94,6 @@ namespace PirateCrew.Tests
         [Test]
         public void TotalStars_SumsAcrossMaps()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             var progress = new CampaignProgress();
             progress.CompleteLevel("wreck_hymn", 3);
@@ -107,7 +105,6 @@ namespace PirateCrew.Tests
         [Test]
         public void Reset_ClearsEverything()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             var progress = new CampaignProgress();
             progress.CompleteLevel(MapA, 3);

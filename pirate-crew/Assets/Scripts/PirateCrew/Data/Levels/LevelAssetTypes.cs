@@ -8,7 +8,7 @@ namespace PirateCrew.Data
     /// 关卡数据资产的**唯一形状**（纯 C# 可序列化载荷）。三种渲染共用同一份字段名：
     ///   ① ScriptableObject 资产的 <c>data</c> 字段（Unity YAML，`.asset`）；
     ///   ② golden JSON 快照（`Assets/Data/**/_golden/*.json`，无头可读、diff 可读）；
-    ///   ③ 运行时视图（<see cref="LevelData"/> / WorldMaps 的 <c>WorldMapDefinition</c>）。
+    ///   ③ 运行时视图（<see cref="LevelData"/>）。
     ///
     /// 【为什么载荷与 SO 分家】SO 实例化在无头验证台走原生 ECall 必崩，而"资产内容 == golden JSON"
     /// 这条判据必须在无头环境也能算；把字段放在纯 C# 载荷上，SO 只是它的宿主，
@@ -41,9 +41,6 @@ namespace PirateCrew.Data
 
         /// <summary>golden JSON 的 kind 标记（玩家关卡快照）。</summary>
         public const string KindLevel = "level";
-
-        /// <summary>golden JSON 的 kind 标记（大海域海图）。</summary>
-        public const string KindWorldMap = "world_map";
 
         /// <summary>关卡资产目录（工程内相对路径，无头读取 golden JSON 的根）。</summary>
         public const string LevelGoldenDir = "Assets/Data/Levels/_golden";
@@ -217,119 +214,4 @@ namespace PirateCrew.Data
         }
     }
 
-    /// <summary>地形/船坞/远景件摆位（资产侧扁平字段版；<c>y</c> = 摆放根世界 Y，手摆件恒 0）。</summary>
-    [Serializable]
-    public struct KitPlacementEntry
-    {
-        /// <summary>套件名（Archipelago / Marine / Horizon）。</summary>
-        public string kit;
-
-        /// <summary>资产名（kit FBX 名，如 TerraceIslandM）。</summary>
-        public string asset;
-
-        /// <summary>世界 X。</summary>
-        public float x;
-
-        /// <summary>世界 Y（摆放根；需要脱离海平面的件才非 0）。</summary>
-        public float y;
-
-        /// <summary>世界 Z。</summary>
-        public float z;
-
-        /// <summary>绕 Y 朝向（度）。</summary>
-        public float yawDeg;
-    }
-
-    /// <summary>道具摆位（资产侧扁平字段版；<c>y</c> = 所站站面顶高）。</summary>
-    [Serializable]
-    public struct PropPlacementEntry
-    {
-        /// <summary>资产名。</summary>
-        public string asset;
-
-        /// <summary>世界 X。</summary>
-        public float x;
-
-        /// <summary>世界 Y（落地接触面）。</summary>
-        public float y;
-
-        /// <summary>世界 Z。</summary>
-        public float z;
-
-        /// <summary>绕 Y 朝向（度）。</summary>
-        public float yawDeg;
-    }
-
-    /// <summary>出生点（资产侧扁平字段版，世界坐标）。</summary>
-    [Serializable]
-    public struct SpawnEntry
-    {
-        /// <summary>队伍索引：0 = 红队，1 = 蓝队。</summary>
-        public int teamIndex;
-
-        /// <summary>战斗导出符号名（如 redPirateCaptain）。</summary>
-        public string archetype;
-
-        /// <summary>世界 X。</summary>
-        public float x;
-
-        /// <summary>世界 Z。</summary>
-        public float z;
-
-        /// <summary>该单位 luck（AI 随机投掷次数基数）。</summary>
-        public int luck;
-    }
-
-    /// <summary>
-    /// 一张大海域海图的数据载荷。字段与旧 <c>WorldMapCatalog</c> 的手写表逐条对应，
-    /// 语义（坐标口径 / 连通性约束 / 关卡号段）见 <c>docs/技术/架构/关卡数据资产.md</c>。
-    /// </summary>
-    [Serializable]
-    public class WorldMapAssetPayload
-    {
-        /// <summary>地图 id（选关/战役结算键，如 wreck_hymn）。</summary>
-        public string id;
-
-        /// <summary>显示名（中文名，选关页与结算展示）。</summary>
-        public string displayName;
-
-        /// <summary>关卡号（海图占 101–108 段，与样板关号段不冲突）。</summary>
-        public int levelNumber;
-
-        /// <summary>图幅 X（米）。</summary>
-        public float spanX;
-
-        /// <summary>图幅 Z（米）。</summary>
-        public float spanZ;
-
-        /// <summary>氛围档（"Noon"/"Dusk"/"Storm"，对接 AmbientTimeOfDayCatalog 预设名）。</summary>
-        public string ambientTier;
-
-        /// <summary>普通船员初配（方案 D 分层军火；null 时运行时回落「樱桃×∞」战役惯例）。</summary>
-        public List<WeaponStack> crewWeapons;
-
-        /// <summary>船长初配（含 ≥1 件全图级旗舰武器）。</summary>
-        public List<WeaponStack> captainWeapons;
-
-        /// <summary>地形/船坞件摆位（站面 box 由 kit 资产的 standable 表展开）。</summary>
-        public List<KitPlacementEntry> terrain = new List<KitPlacementEntry>();
-
-        /// <summary>远景件摆位（海平面外环）。</summary>
-        public List<KitPlacementEntry> horizon = new List<KitPlacementEntry>();
-
-        /// <summary>道具摆位（不承载站面，纯陈设）。</summary>
-        public List<PropPlacementEntry> props = new List<PropPlacementEntry>();
-
-        /// <summary>出生点（世界坐标）。</summary>
-        public List<SpawnEntry> spawns = new List<SpawnEntry>();
-
-        /// <summary>空投武器池。</summary>
-        public List<WeaponStack> airdropPool = new List<WeaponStack>();
-
-        /// <summary>远景环随机种子（确定性）。</summary>
-        public int horizonSeed;
-
-        /// <summary>本图专属远景特征件（如 LeviathanTentacle / GiantRibs）。</summary>
-        public List<string> horizonFeatures = new List<string>();
-    }
 }

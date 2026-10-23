@@ -154,7 +154,7 @@ EventBus 拒绝投递、记入 `EventBus.ContractViolations` 并告警——机�
 | --- | --- | --- | --- |
 | `CrewManagementEvents.RosterUpdated` | `RosterUpdatedPayload`（已拥有数 + 当前编成 id 数组） | `CrewManagementApi` | `UI/CrewManagementController`（重建名册列表） |
 | `CrewManagementEvents.CrewUnlocked` | `CrewUnlockedPayload`（船员 id + 显示名） | `CrewManagementApi.UnlockCrewsForStars` | `UI/CrewManagementController`、`UI/LevelSelectController`（提示新船员） |
-| `CrewManagementEvents.RewardGranted` | `CrewRewardPayload`（海图 id + 星级 + 每人经验 + 出战 id 数组 + 新招募 id 数组） | `CrewManagementApi.GrantMapReward` | **暂无订阅方**：M3 的结算弹窗读 `CampaignApi.LastReward` 静态快照；该事件留给存档/成就/音频层接入 |
+| `CrewManagementEvents.RewardGranted` | `CrewRewardPayload`（关卡 id + 星级 + 每人经验 + 出战 id 数组 + 新招募 id 数组；**占位冻结线**） | `CrewManagementApi.GrantMapReward` | **暂无订阅方**：结算弹窗读 `CampaignApi.LastReward` 静态快照 |
 
 ### 3.2 战役模块广播
 
@@ -178,8 +178,8 @@ EventBus 拒绝投递、记入 `EventBus.ContractViolations` 并告警——机�
 > 由组合根在进入播放时挂上（`Core/GameEntryPoint` → `CampaignApi.Install()`），不再依赖
 > "UI 层某个 `Awake` 恰好在某个时机跑过"。
 > 若直接从编辑器打开 Battle 场景进 Play（不经过主菜单/管理界面），结算链路**仍然**会订阅——
-> 但那种入口没有「待结算关卡」（`WorldMapRuntime` 没被 `SetPending`），所以不会误结算。
-> 另外，「待结算关卡」只在 `WorldMapRuntime.SetPending` 之后的第一局 `BattleEvents.BattleStarted` 有效：
+> 但那种入口没有「待结算关卡」（结算归属无来源），所以不会误结算。
+> 另外，「待结算关卡」只在归属确立之后的第一局 `BattleEvents.BattleStarted` 有效：
 > 非战役入口的一局（主菜单「进入战斗」/ 2P）会把陈旧待结算关卡清掉，避免没打完就退出的那一局被误结算。
 
 ---

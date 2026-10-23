@@ -11,7 +11,7 @@ namespace PirateCrew.Data
     ///   ① **Unity 资产**（编辑器与播放器）：<see cref="Resources.Load{T}(string)"/>
     ///      取 <see cref="LevelCatalog"/> 清单，资产是加载路径上的唯一真源。
     ///   ② **golden JSON**（无头验证台 / 批处理工具）：读
-    ///      <c>Assets/Data/**/_golden/*.json</c>——与资产逐字段同源（由迁移器同一次写出），
+    ///      <c>Assets/Data/Levels/_golden/*.json</c>——与资产逐字段同源（由迁移器同一次写出），
     ///      是"数据外化"的文本锚点，也是 diff 可读的评审面。
     ///
     /// 【为什么两条来源不是双真源】① 是加载通道，② 是同一份数据的文本渲染。门禁
@@ -20,7 +20,7 @@ namespace PirateCrew.Data
     /// 断言关卡语义的路径。
     ///
     /// 【静态缓存与复位】惰性加载一次并缓存（关卡数据是只读常量语义）。关闭 Domain Reload 时
-    /// 静态字段跨播放存活，故由 <c>WorldMapRuntime.ResetStatics</c>（唯一入口的 ResetStatics 阶段）
+    /// 静态字段跨播放存活，故由 <c>PendingLevel.ResetStatics</c>（唯一入口的 ResetStatics 阶段）
     /// 调 <see cref="Reset"/> 清空。
     /// </summary>
     public static class LevelAssetLibrary
@@ -46,12 +46,6 @@ namespace PirateCrew.Data
         static Source _source = Source.None;
         static string _diagnostic = string.Empty;
 
-        static readonly List<WorldMapAssetPayload> _maps = new List<WorldMapAssetPayload>();
-        static readonly Dictionary<string, WorldMapAssetPayload> _mapById =
-            new Dictionary<string, WorldMapAssetPayload>(StringComparer.Ordinal);
-        static readonly Dictionary<int, WorldMapAssetPayload> _mapByLevel =
-            new Dictionary<int, WorldMapAssetPayload>();
-
         static readonly List<LevelAssetPayload> _levels = new List<LevelAssetPayload>();
         static readonly Dictionary<int, LevelAssetPayload> _levelByNumber = new Dictionary<int, LevelAssetPayload>();
 
@@ -67,17 +61,7 @@ namespace PirateCrew.Data
         /// </summary>
         public static string DataRootPath => FindDataRoot();
 
-        /// <summary>全部海图载荷（按关卡号升序，与旧目录的声明顺序一致）。</summary>
-        public static IReadOnlyList<WorldMapAssetPayload> WorldMaps
-        {
-            get
-            {
-                EnsureLoaded();
-                return _maps;
-            }
-        }
-
-        /// <summary>全部非海图关卡载荷（按关卡号升序）。</summary>
+        /// <summary>全部关卡载荷（按关卡号升序）。</summary>
         public static IReadOnlyList<LevelAssetPayload> Levels
         {
             get
@@ -87,7 +71,7 @@ namespace PirateCrew.Data
             }
         }
 
-        /// <summary>按关卡号取非海图关卡载荷。</summary>
+        /// <summary>按关卡号取关卡载荷。</summary>
         public static bool TryGetLevel(int levelNumber, out LevelAssetPayload payload)
         {
             EnsureLoaded();
@@ -100,9 +84,6 @@ namespace PirateCrew.Data
             _loaded = false;
             _source = Source.None;
             _diagnostic = string.Empty;
-            _maps.Clear();
-            _mapById.Clear();
-            _mapByLevel.Clear();
             _levels.Clear();
             _levelByNumber.Clear();
         }
@@ -132,8 +113,7 @@ namespace PirateCrew.Data
             {
                 InstallFromCatalog(catalog);
                 _source = Source.UnityAssets;
-                _diagnostic = string.Format("Unity 资产清单：{0} 张海图 / {1} 张关卡",
-                    _maps.Count, _levels.Count);
+                _diagnostic = string.Format("Unity 资产清单：{0} 张关卡", _levels.Count);
                 return;
             }
 
@@ -141,8 +121,7 @@ namespace PirateCrew.Data
             if (files > 0)
             {
                 _source = Source.GoldenJson;
-                _diagnostic = string.Format("golden JSON：{0} 张海图 / {1} 张关卡",
-                    _maps.Count, _levels.Count);
+                _diagnostic = string.Format("golden JSON：{0} 张关卡", _levels.Count);
                 return;
             }
 
@@ -180,14 +159,6 @@ namespace PirateCrew.Data
                     AddLevel(asset.Data);
             }
 
-            IReadOnlyList<WorldMapDefinitionAsset> maps = catalog.WorldMaps;
-            for (int i = 0; i < maps.Count; i++)
-            {
-                WorldMapDefinitionAsset asset = maps[i];
-                if (asset != null)
-                    AddMap(asset.Data);
-            }
-
             SortByLevelNumber();
         }
 
@@ -197,14 +168,13 @@ namespace PirateCrew.Data
             if (dataRoot == null)
                 return 0;
 
-            int files = LoadGoldenDir(Path.Combine(dataRoot, "WorldMaps", "_golden"), isWorldMap: true);
-            files += LoadGoldenDir(Path.Combine(dataRoot, "Levels", "_golden"), isWorldMap: false);
+            int files = LoadGoldenDir(Path.Combine(dataRoot, "Levels", "_golden"));
             if (files > 0)
                 SortByLevelNumber();
             return files;
         }
 
-        static int LoadGoldenDir(string dir, bool isWorldMap)
+        static int LoadGoldenDir(string dir)
         {
             if (!Directory.Exists(dir))
                 return 0;
@@ -225,47 +195,16 @@ namespace PirateCrew.Data
                     continue;
                 }
 
-                if (isWorldMap)
+                LevelAssetPayload payload = LevelAssetJson.ReadLevel(json);
+                if (payload == null)
                 {
-                    WorldMapAssetPayload payload = LevelAssetJson.ReadWorldMap(json);
-                    if (payload == null || string.IsNullOrEmpty(payload.id))
-                    {
-                        _diagnostic = "golden JSON 解析失败：" + paths[i];
-                        continue;
-                    }
-                    AddMap(payload);
+                    _diagnostic = "golden JSON 解析失败：" + paths[i];
+                    continue;
                 }
-                else
-                {
-                    LevelAssetPayload payload = LevelAssetJson.ReadLevel(json);
-                    if (payload == null)
-                    {
-                        _diagnostic = "golden JSON 解析失败：" + paths[i];
-                        continue;
-                    }
-                    AddLevel(payload);
-                }
+                AddLevel(payload);
                 loaded++;
             }
             return loaded;
-        }
-
-        static void AddMap(WorldMapAssetPayload payload)
-        {
-            if (payload == null || string.IsNullOrEmpty(payload.id))
-                return;
-
-            if (_mapById.ContainsKey(payload.id))
-            {
-                // 海图 id 是选关/战役结算/进度存档的键：重复 id 会让后到者顶掉 id 索引里的先到者，
-                // 而 _maps 列表里两者并存——按 id 取图与按列表遍历将看到不同的数据集，必须吵闹。
-                global::PirateCrew.Core.Log.Warn("[LevelAssetLibrary] 海图 id 重复: " + payload.id
-                    + "（levelNumber=" + payload.levelNumber + "），后到者将顶掉 id 索引里的先到者");
-            }
-
-            _maps.Add(payload);
-            _mapById[payload.id] = payload;
-            _mapByLevel[payload.levelNumber] = payload;
         }
 
         static void AddLevel(LevelAssetPayload payload)
@@ -275,9 +214,9 @@ namespace PirateCrew.Data
 
             if (_levelByNumber.ContainsKey(payload.levelNumber))
             {
-                // 与 AddMap 同款吵闹纪律：关卡号是选关/结算/按号线取数据的键，重复号会让
-                // 后到者顶掉号索引里的先到者，而 _levels 列表里两者并存——按号线取与按列表
-                // 遍历将看到不同的数据集，必须留痕而不是静默顶掉。
+                // 关卡号是选关/按号线取数据的键：重复号会让后到者顶掉号索引里的先到者，
+                // 而 _levels 列表里两者并存——按号线取与按列表遍历将看到不同的数据集，
+                // 必须留痕而不是静默顶掉。
                 global::PirateCrew.Core.Log.Warn("[LevelAssetLibrary] 关卡号重复: " + payload.levelNumber
                     + "（assetName=" + payload.assetName + "），后到者将顶掉号索引里的先到者");
             }
@@ -288,7 +227,6 @@ namespace PirateCrew.Data
 
         static void SortByLevelNumber()
         {
-            _maps.Sort((a, b) => a.levelNumber.CompareTo(b.levelNumber));
             _levels.Sort((a, b) => a.levelNumber.CompareTo(b.levelNumber));
         }
 

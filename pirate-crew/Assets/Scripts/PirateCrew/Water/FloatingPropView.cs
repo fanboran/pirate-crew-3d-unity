@@ -13,7 +13,7 @@ namespace PirateCrew.Water
     /// 玩法组件，落水/立足判定照旧用标量 <see cref="LevelGeometry.WaterSurfaceY"/>
     /// （审计报告 §二.3：玩法层与水解耦是既有工程契约，本组件只解决"chop 在船体/浮标
     /// 水线上下穿模"的表现问题）。挂载资格由保守白名单判定，见
-    /// <see cref="EligibleForFloatingView"/>（装配点：WorldMapComposer）。
+    /// <see cref="EligibleForFloatingView"/>。
     ///
     /// 【旧竞技场模式】<see cref="OceanRig.Instance"/> == null（无大海域海面）→ 每帧早退、
     /// 不动 transform——道具停在放置时的静态位置，与无海面画面自洽。

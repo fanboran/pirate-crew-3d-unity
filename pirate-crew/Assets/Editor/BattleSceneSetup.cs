@@ -535,7 +535,7 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 瓦片地形视图：根节点 + <see cref="BattleTerrainView"/>（**纯碰撞层**——隐形 BoxCollider，
-        /// 视觉由烘焙 prefab / WorldMapComposer 承担）。具体地形块由运行时
+        /// 视觉由烘焙 prefab 承担）。具体地形块由运行时
         /// <c>BattleController.BuildTerrain → RenderCollidersOnly</c> 生成。
         /// </summary>
         static BattleTerrainView CreateTerrainView()

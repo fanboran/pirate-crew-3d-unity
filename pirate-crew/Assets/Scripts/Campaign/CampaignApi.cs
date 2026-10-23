@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
 using PirateCrew.Battle;
-using PirateCrew.Battle.WorldMaps;
+using PirateCrew.Battle.Levels;
 using PirateCrew.Data;
 using UnityEngine;
 
@@ -11,25 +11,18 @@ namespace PirateCrew.Campaign
     /// <summary>
     /// 战役模块的跨模块公共出口 + M3 管理循环的接线点（纯静态外观）。
     ///
-    /// 【M3 闭环接线】战役不拥有自己的关卡序列——出海目标就是
-    /// 世界海域图（<see cref="WorldMapRuntime"/> 待战通道，选关页/播放器 -worldMap 设置）。
-    /// 本类把三个**已有**战斗事件频道接到结算流程上：
-    ///   <c>BattleEvents.BattleStarted</c>（读取待战海图 → 记为待结算归属；清掉无主陈旧待结算）
-    ///   → <c>BattleEvents.CrewDied</c>（累计玩家方阵亡，用于 §9.3 星级）
-    ///   → <c>BattleEvents.MatchFinished</c>（评价星级 → 按海图 id 写进度 → 给编成阵容发经验/招募 → 广播 → 落盘）。
+    /// 【占位冻结（创始人 2026-10-23 裁决）】星级/战役结算/跨关卡进度从未被设计过——
+    /// 本模块是占位实现，**冻结**：不投新功能、不当设计依据引用；解冻待创始人设计
+    /// 跨关卡玩法时再定去留（裁决记录见 docs/项目/待办/地图重做.md）。随 WorldMap 双轨
+    /// 退役，结算归属不再有数据来源（<c>Manager.SelectMap</c> 无调用方），整条结算链
+    /// 静态休眠；星级/存档/招募的纯规则与测试保留，解冻时的数学底子不受影响。
     ///
-    /// 【结算键】星级存档的键 = 海图 id（<c>wreck_hymn</c> 等）。存档格式不变、值域变化
-    /// （旧存档里的历史序号键读档时被静默丢弃——项目未发布，旧档不迁移）。
-    ///
-    /// 【为什么读 WorldMapRuntime 而不是 UI 转告】Campaign → PirateCrew.Battle 是高层依赖低层，
-    /// 方向合法；战斗开局（<c>BattleEvents.BattleStarted</c>）时海图待战必然在位，无需 UI 在中间转发。
-    ///
-    /// 【编成与战斗的关系】海图战用地图自带布阵（<c>WorldMapDefinition.Spawns</c>），
-    /// 编成阵容不再注入/过滤出战名单（海图战用地图自带布阵）；
-    /// 名册语义保留在「结算发经验给谁 / 招募进度」上。
+    /// 【接线（休眠中）】三个战斗事件频道：BattleStarted（清阵亡计数、清无主陈旧待结算）
+    /// → CrewDied（累计玩家方阵亡，用于 §9.3 星级）
+    /// → MatchFinished（评价星级 → 写进度 → 发经验/招募 → 广播 → 落盘）。
     ///
     /// 【存档】本类是管理循环存档的所有者：槽位 <see cref="ProgressSlot"/>（1），
-    ///   把「海图星级」与「船员名册/经验」写进同一个 <see cref="SaveData"/>。
+    ///   把「关卡星级」与「船员名册/经验」写进同一个 <see cref="SaveData"/>。
     /// </summary>
     public static class CampaignApi
     {
@@ -112,11 +105,9 @@ namespace PirateCrew.Campaign
             // 每一局开打都从 0 计阵亡（不区分是哪个入口进的战斗）；本事件载荷（关卡/队伍数）此处不用。
             _playerDeaths = 0;
 
-            // 结算归属 = 本局实际加载的世界海图。没有待战海图（样板三关 / 直接 Play）时
-            // 丢掉陈旧待结算——没打完就退出的那一局不能被误结算成战役进度。
-            if (WorldMapRuntime.TryGetPending(out WorldMapDefinition map))
-                Manager.SelectMap(map.Id);
-            else if (Manager.HasPendingMap)
+            // 结算归属随 WorldMap 双轨退役失去数据来源（SelectMap 无调用方，结算链休眠）；
+            // 仍守住「没打完就退出的那一局不能被误结算」的防线。
+            if (Manager.HasPendingMap)
                 Manager.AbortLevel();
         }
 
@@ -240,8 +231,8 @@ namespace PirateCrew.Campaign
             _playerDeaths = 0;
             LastSettlement = null;
             LastReward = null;
-            // 海图待战同批清（测试域隔离也需要）。
-            WorldMapRuntime.ClearPending();
+            // 待战关卡同批清（测试域隔离也需要）。
+            PendingLevel.ClearPending();
         }
 
         /// <summary>

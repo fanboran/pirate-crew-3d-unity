@@ -17,7 +17,7 @@ namespace PirateCrew.Battle
     ///
     /// 【接线】由 <c>BattleSceneSetup</c> 在场景里创建并接好 <c>blockRoot</c>；
     /// 运行时由 <see cref="BattleController.BuildLevelSource"/> 调 <see cref="RenderCollidersOnly"/>
-    /// （仅非海图路径；海图路径的碰撞与灰盒由 <c>WorldMapComposer</c> 摆）。
+    /// 。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class BattleTerrainView : MonoBehaviour

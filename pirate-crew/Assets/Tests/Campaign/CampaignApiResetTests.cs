@@ -3,7 +3,6 @@ using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
 using PirateCrew.Battle;
-using PirateCrew.Battle.WorldMaps;
 
 namespace PirateCrew.Tests
 {
@@ -14,7 +13,7 @@ namespace PirateCrew.Tests
     /// Reset → EnsureBootstrapped 往返后结算路径就站在双份订阅的悬崖边（架构违规：
     /// 订阅方必须退订，见 <c>Core/EventBus</c> 约定 3）。
     ///
-    /// 【零海图口径】八张世界海图已删除待重做，待战海图通道（<c>WorldMapRuntime.SetPending</c>）
+    /// 【占位冻结】战役结算链休眠（见 CampaignApi 头注）；待战通道（<c>PendingLevel.SetPending</c>）
     /// 在数据上恒不可用，故「结算归属」这一前置改由 <c>CampaignApi.Manager.SelectMap</c> 直接注入；
     /// 结算链路与订阅纪律本身不变（见 <c>CampaignSettlementTests</c> 类头同一口径）。
     /// 又：进度写入按海图目录校验 id，零海图下"星数写进了进度表"这一断言没有可写对象 ⇒
@@ -72,7 +71,6 @@ namespace PirateCrew.Tests
         [Test]
         public void ResetThenEnsureBootstrapped_PublishOnce_TriggersOnce()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             CampaignApi.EnsureBootstrapped();
             CampaignApi.Reset();

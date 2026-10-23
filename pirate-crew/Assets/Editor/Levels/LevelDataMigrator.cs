@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.IO;
-using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Data;
 using UnityEditor;
 using UnityEngine;
@@ -35,14 +34,11 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class LevelDataMigrator
     {
-        const string WorldMapsFolder = "Assets/Data/WorldMaps";
-        const string WorldMapsGolden = WorldMapsFolder + "/_golden";
         const string LevelsFolder = "Assets/Data/Levels";
         const string LevelsGolden = LevelsFolder + "/_golden";
         const string CatalogPath = LevelsFolder + "/Resources/LevelCatalog.asset";
 
         const string LevelScriptPath = "Assets/Scripts/PirateCrew/Data/Levels/LevelDefinition.cs";
-        const string WorldMapScriptPath = "Assets/Scripts/PirateCrew/Data/Levels/WorldMapDefinitionAsset.cs";
         const string CatalogScriptPath = "Assets/Scripts/PirateCrew/Data/Levels/LevelCatalog.cs";
 
         // ==================================================================
@@ -56,30 +52,9 @@ namespace PirateCrew.EditorTools
             EnsureFolder(LevelsFolder);
             EnsureFolder(LevelsGolden);
             EnsureFolder(LevelsFolder + "/Resources");
-            EnsureFolder(WorldMapsFolder);
-            EnsureFolder(WorldMapsGolden);
 
             var levelAssets = new List<LevelDefinition>();
-            var mapAssets = new List<WorldMapDefinitionAsset>();
             var problems = new List<string>();
-
-            string[] mapJsons = GoldenFiles(WorldMapsGolden);
-            for (int i = 0; i < mapJsons.Length; i++)
-            {
-                WorldMapAssetPayload payload = LevelAssetJson.ReadWorldMap(File.ReadAllText(mapJsons[i]));
-                if (payload == null || string.IsNullOrEmpty(payload.id))
-                {
-                    problems.Add("golden JSON 不是合法海图载荷：" + mapJsons[i]);
-                    continue;
-                }
-
-                string assetPath = WorldMapsFolder + "/" + payload.id + ".asset";
-                WorldMapDefinitionAsset asset = EnsureAsset<WorldMapDefinitionAsset>(assetPath);
-                asset.Apply(payload);
-                WriteAssetText(assetPath, LevelAssetYaml.WriteWorldMap(
-                    payload, payload.id, LevelAssetYaml.GuidFor(WorldMapScriptPath)));
-                mapAssets.Add(asset);
-            }
 
             string[] levelJsons = GoldenFiles(LevelsGolden);
             for (int i = 0; i < levelJsons.Length; i++)
@@ -100,19 +75,19 @@ namespace PirateCrew.EditorTools
             }
 
             SortByLevelNumber(levelAssets);
-            SortByLevelNumber(mapAssets);
 
             LevelCatalog catalog = EnsureAsset<LevelCatalog>(CatalogPath);
-            catalog.Apply(levelAssets, mapAssets);
+            catalog.Apply(levelAssets);
             WriteAssetText(CatalogPath, LevelAssetYaml.WriteCatalog(
                 "LevelCatalog", LevelAssetYaml.GuidFor(CatalogScriptPath),
-                AssetGuids(LevelsFolder, LevelAssetNames(levelAssets)),
-                AssetGuids(WorldMapsFolder, MapNames(mapAssets))));
+                AssetGuids(LevelsFolder, LevelAssetNames(levelAssets))));
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+            if (problems.Count == 0)
+                MigrateAll();
 
-            Report("迁移关卡资产", "写 " + mapAssets.Count + " 张海图 / " + levelAssets.Count + " 张关卡 + 1 份清单",
+            Report("迁移关卡资产", "写 " + levelAssets.Count + " 张关卡 + 1 份清单",
                 problems);
         }
 
@@ -125,17 +100,6 @@ namespace PirateCrew.EditorTools
         {
             var problems = new List<string>();
             int written = 0;
-
-            string[] mapGuids = AssetDatabase.FindAssets("t:WorldMapDefinitionAsset", new[] { WorldMapsFolder });
-            for (int i = 0; i < mapGuids.Length; i++)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(mapGuids[i]);
-                var asset = AssetDatabase.LoadAssetAtPath<WorldMapDefinitionAsset>(path);
-                if (asset == null)
-                    continue;
-                WriteText(WorldMapsGolden + "/" + asset.Id + ".json", LevelAssetJson.Write(asset.Data));
-                written++;
-            }
 
             string[] levelGuids = AssetDatabase.FindAssets("t:LevelDefinition", new[] { LevelsFolder });
             for (int i = 0; i < levelGuids.Length; i++)
@@ -231,25 +195,7 @@ namespace PirateCrew.EditorTools
                 rewritten++;
             }
 
-            // 海图 golden（现为空）同款升版：海图没有岛形逐格高度，只升 schema 行、保留原文。
-            string[] mapJsons = GoldenFiles(WorldMapsGolden);
-            for (int i = 0; i < mapJsons.Length; i++)
-            {
-                string text = File.ReadAllText(mapJsons[i]);
-                string parseable = BumpSchema3To4(text);
-                WorldMapAssetPayload payload = LevelAssetJson.ReadWorldMap(parseable);
-                if (payload == null || string.IsNullOrEmpty(payload.id))
-                {
-                    problems.Add("golden JSON 不是合法海图载荷：" + mapJsons[i]);
-                    continue;
-                }
-                WriteText(mapJsons[i], parseable);
-                rewritten++;
-            }
-
             AssetDatabase.Refresh();
-            if (problems.Count == 0)
-                MigrateAll();
 
             Report("烘焙逐格高度入 golden",
                 "schema 升版 " + schemaBumped + " 份 / 重写 " + rewritten + " 份 / 烘焙岛 " + bakedIslands
@@ -339,14 +285,6 @@ namespace PirateCrew.EditorTools
             return names;
         }
 
-        static List<string> MapNames(List<WorldMapDefinitionAsset> assets)
-        {
-            var names = new List<string>(assets.Count);
-            for (int i = 0; i < assets.Count; i++)
-                names.Add(assets[i].Id);
-            return names;
-        }
-
         static List<string> AssetGuids(string folder, List<string> names)
         {
             var guids = new List<string>(names.Count);
@@ -356,11 +294,6 @@ namespace PirateCrew.EditorTools
         }
 
         static void SortByLevelNumber(List<LevelDefinition> assets)
-        {
-            assets.Sort((a, b) => a.LevelNumber.CompareTo(b.LevelNumber));
-        }
-
-        static void SortByLevelNumber(List<WorldMapDefinitionAsset> assets)
         {
             assets.Sort((a, b) => a.LevelNumber.CompareTo(b.LevelNumber));
         }

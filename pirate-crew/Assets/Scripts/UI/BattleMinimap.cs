@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using PirateCrew.Battle;
 using PirateCrew.Battle.Levels;
-using PirateCrew.Battle.WorldMaps;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -60,13 +59,10 @@ namespace PirateCrew.UI
         Image[] _dots = new Image[0];
         float[] _visibility = new float[0];
         bool _built;
-        /// <summary>顶视取景/点位映射（跨度 × 图幅长宽比，Start 与海图模式切换时重建）。</summary>
+        /// <summary>顶视取景/点位映射（跨度 × 图幅长宽比，Start 时重建）。</summary>
         TopViewMapping _topView;
         /// <summary>本局关卡号（底图资源名用；取不到时回落 1）。</summary>
         int _levelNumber = 1;
-        /// <summary>世界地图海图模式：按实际图跨度映射、改用站面 box 岛层（海图重做基建，现役零海图不可达）。</summary>
-        bool _worldChartMode;
-        RectTransform _worldChartLayer;
         /// <summary>Refresh 上次校准点径时的点层像素宽（漂移 >0.5px 时重设全部点径）。</summary>
         float _dotLayerWidthForSize = -1f;
         /// <summary>TryBuild 未收敛时的重试簿记：隔 <see cref="BuildRetryIntervalFrames"/> 帧试一次，
@@ -174,82 +170,12 @@ namespace PirateCrew.UI
                 {
                     global::PirateCrew.Core.Log.Warn("[BattleMinimap] 顶视底图缺失：Resources/"
                         + TopViewFraming.TopViewResourcePath(_levelNumber)
-                        + "（先跑播放器出图 -minimapOut，再跑接线批次设置导入参数）——海图窗退化为纯点位层。");
+                        + "（先跑播放器出图 -minimapOut，再跑接线批次设置导入参数）——地图窗退化为纯点位层。");
                 }
             }
         }
 
-        /// <summary>
-        /// 世界地图海图模式自探测（海图重做基建；现役零海图，待战入口不可达）：
-        /// 本局是世界地图时，把换算范围改为实际图跨度、改从站面 box 生成海图岛层；
-        /// 顶视底图无海图资源，置空退化为纯点位 + 岛层示意。
-        /// <see cref="WorldMapRuntime.TryGetPending"/> 不清除待战状态，Start 时查询安全。
-        /// public 供测试与选关 UI 显式调用；
-        /// **已进入海图模式后是幂等守卫直接返回**——重复调用会再叠一层岛层。
-        /// </summary>
-        public void ConfigureWorldChartFromRuntime()
-        {
-            if (_worldChartMode)
-                return;
-
-            if (!WorldMapRuntime.TryGetPending(out WorldMapDefinition map) || map == null)
-                return;
-
-            _worldChartMode = true;
-            arenaWidth = Mathf.Max(1f, map.SpanX);
-            arenaDepth = Mathf.Max(1f, map.SpanZ);
-            _topView = TopViewMapping.ForSpan(
-                arenaWidth, arenaDepth, TopViewFraming.TopViewTexAspect);
-
-            if (topViewImage != null)
-                topViewImage.texture = null;
-
-            BuildWorldChartIslands(WorldMapRules.AllStandBoxes(map));
-        }
-
-        /// <summary>按站面 box 铺海图岛层（每 box 一块，旋转取 AABB；口径见 MinimapRules.WorldBoxToChartRect）。</summary>
-        void BuildWorldChartIslands(List<WorldMapRules.WorldBox> boxes)
-        {
-            if (dotLayer == null || boxes == null || boxes.Count == 0)
-                return;
-
-            RectTransform parent = dotLayer;
-            var chartLayerGo = new GameObject("WorldChartLayer", typeof(RectTransform));
-            var chartRect = chartLayerGo.GetComponent<RectTransform>();
-            chartRect.SetParent(parent, false);
-            chartRect.anchorMin = Vector2.zero;
-            chartRect.anchorMax = Vector2.one;
-            chartRect.offsetMin = Vector2.zero;
-            chartRect.offsetMax = Vector2.zero;
-            _worldChartLayer = chartRect;
-
-            Color island = MinimapRules.WorldChartIslandColor;
-            for (int i = 0; i < boxes.Count; i++)
-            {
-                Rect r = MinimapRules.WorldBoxToChartRect(
-                    boxes[i].Center, boxes[i].Size, boxes[i].YawDeg, arenaWidth, arenaDepth);
-
-                var go = new GameObject("ChartIsland_" + i, typeof(RectTransform), typeof(Image));
-                var rect = go.GetComponent<RectTransform>();
-                rect.SetParent(chartRect, false);
-                rect.anchorMin = new Vector2(Mathf.Clamp01(r.xMin), Mathf.Clamp01(r.yMin));
-                rect.anchorMax = new Vector2(Mathf.Clamp01(r.xMax), Mathf.Clamp01(r.yMax));
-                rect.offsetMin = Vector2.zero;
-                rect.offsetMax = Vector2.zero;
-
-                var image = go.GetComponent<Image>();
-                image.raycastTarget = false;
-                image.color = island;
-            }
-        }
-
-        /// <summary>海图岛层引用（测试用；非世界图为 null）。</summary>
-        public RectTransform WorldChartLayer => _worldChartLayer;
-
-        /// <summary>是否处于世界地图海图模式（测试用）。</summary>
-        public bool IsWorldChartMode => _worldChartMode;
-
-        /// <summary>当前换算范围 X（测试/调试用；世界图模式下 = 图跨度）。</summary>
+        /// <summary>当前换算范围 X（测试/调试用）。</summary>
         public float ArenaWidth => arenaWidth;
 
         /// <summary>当前换算范围 Z（测试/调试用）。</summary>

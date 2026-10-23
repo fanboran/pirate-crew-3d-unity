@@ -112,16 +112,6 @@ namespace PirateCrew.EditorTools
             },
             new WhitelistEntry
             {
-                Path = "PirateCrew/Battle/BattleController.cs",
-                Token = "FindObjectOfType<Ambient.AmbientDirector>",
-                LineAtRegistration = 360,
-                Kind = Kind.Runtime,
-                Reason = "**不属本轨道**：BattleController.cs 归数据外化轨道（同一分支并行在改）。"
-                         + "修法已由审计 F-4 定案（加 [SerializeField] AmbientDirector 并在装配期写入），"
-                         + "登记在此以保证闸门可用，清账由该轨道完成。",
-            },
-            new WhitelistEntry
-            {
                 Path = "UI/BattleHud.cs",
                 Token = "FindObjectOfType<BattleCameraDriver>",
                 LineAtRegistration = 363,

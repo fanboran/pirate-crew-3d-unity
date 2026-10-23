@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
 using PirateCrew.Battle.Levels;
-using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Data;
 using UnityEditor;
 using UnityEngine;
@@ -27,13 +26,10 @@ namespace PirateCrew.EditorTools
     /// </summary>
     public static class LevelAssetValidator
     {
-        const string WorldMapsFolder = "Assets/Data/WorldMaps";
-        const string WorldMapsGolden = WorldMapsFolder + "/_golden";
         const string LevelsFolder = "Assets/Data/Levels";
         const string LevelsGolden = LevelsFolder + "/_golden";
         const string CatalogPath = LevelsFolder + "/Resources/LevelCatalog.asset";
         const string LevelScriptPath = "Assets/Scripts/PirateCrew/Data/Levels/LevelDefinition.cs";
-        const string WorldMapScriptPath = "Assets/Scripts/PirateCrew/Data/Levels/WorldMapDefinitionAsset.cs";
 
         [MenuItem("PirateCrew/关卡/校验关卡资产")]
         public static void ValidateAll()
@@ -82,42 +78,6 @@ namespace PirateCrew.EditorTools
                 errors.Add("缺资源清单 " + CatalogPath + "（跑迁移器生成）");
             }
 
-            // ---- 海图 ----
-            var registeredIds = new HashSet<string>();
-            var seenIds = new HashSet<string>();
-            var seenLevels = new HashSet<int>();
-            string[] mapGuids = AssetDatabase.FindAssets("t:WorldMapDefinitionAsset", new[] { WorldMapsFolder });
-            for (int i = 0; i < mapGuids.Length; i++)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(mapGuids[i]);
-                var asset = AssetDatabase.LoadAssetAtPath<WorldMapDefinitionAsset>(path);
-                if (asset == null)
-                    continue;
-
-                WorldMapAssetPayload payload = asset.Data;
-                string id = payload.id;
-                if (string.IsNullOrEmpty(id))
-                {
-                    errors.Add(path + " 的载荷缺 id");
-                    continue;
-                }
-                if (!seenIds.Add(id))
-                    errors.Add(path + " 的 id 与另一张海图重复：" + id);
-                if (payload.levelNumber != 0 && !seenLevels.Add(payload.levelNumber))
-                    errors.Add(path + " 的关卡号与另一张海图重复：" + payload.levelNumber);
-
-                GoldenAndTextChecks(errors,
-                    WorldMapsGolden + "/" + id + ".json", path,
-                    LevelAssetYaml.WriteWorldMap(payload, id, LevelAssetYaml.GuidFor(WorldMapScriptPath)));
-
-                WorldMapDefinition runtime = WorldMapFromAsset.ToRuntime(payload);
-                Collect(errors, warnings, path, LevelAssetRules.Problems(runtime));
-
-                if (catalog != null && !Contains(catalog.WorldMaps, asset))
-                    errors.Add(path + " 没有登记进 " + CatalogPath);
-                registeredIds.Add(id);
-            }
-
             // ---- 关卡 ----
             var registeredAssetNames = new HashSet<string>();
             var seenNames = new HashSet<string>();
@@ -153,14 +113,6 @@ namespace PirateCrew.EditorTools
             // ---- 清单里的空引用与漏项 ----
             if (catalog != null)
             {
-                for (int i = 0; i < catalog.WorldMaps.Count; i++)
-                {
-                    WorldMapDefinitionAsset asset = catalog.WorldMaps[i];
-                    if (asset == null)
-                        errors.Add(CatalogPath + " 的 worldMaps[" + i + "] 是空引用");
-                    else if (!seenIds.Contains(asset.Id))
-                        errors.Add(CatalogPath + " 登记了不存在的海图 " + asset.Id);
-                }
                 for (int i = 0; i < catalog.Levels.Count; i++)
                 {
                     LevelDefinition asset = catalog.Levels[i];
@@ -172,8 +124,7 @@ namespace PirateCrew.EditorTools
             }
 
             report.Summary = string.Format(
-                "海图 {0} 张 / 关卡 {1} 张；登记 {2} 张海图 + {3} 张关卡",
-                seenIds.Count, seenNames.Count, registeredIds.Count, registeredAssetNames.Count);
+                "关卡 {0} 张；登记 {1} 张关卡", seenNames.Count, registeredAssetNames.Count);
             return report;
         }
 

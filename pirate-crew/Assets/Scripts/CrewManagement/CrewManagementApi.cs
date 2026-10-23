@@ -107,7 +107,7 @@ namespace PirateCrew.CrewManagement
         /// 【门槛口径】招募门槛 = 累计星数
         ///（<c>CrewRosterCatalog</c> 的 <c>UnlockStars</c>，数值 0/3/5/7/10/13）。
         /// </summary>
-        /// <param name="mapId">海图 id（<c>WorldMapCatalog</c> 收录，如 <c>wreck_hymn</c>）。</param>
+        /// <param name="mapId">关卡 id（占位冻结线）。</param>
         /// <param name="stars">本局星级（0 = 未通关）。</param>
         /// <param name="totalStars">结算后的累计星数（招募判定基准）。</param>
         /// <returns>本次结算的奖励载荷（供调用方记录/展示）。</returns>

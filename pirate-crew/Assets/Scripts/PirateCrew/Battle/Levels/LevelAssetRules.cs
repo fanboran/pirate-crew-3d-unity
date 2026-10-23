@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Data;
 
 namespace PirateCrew.Battle.Levels
@@ -17,128 +16,8 @@ namespace PirateCrew.Battle.Levels
     /// </summary>
     public static class LevelAssetRules
     {
-        /// <summary>海图接敌距离上限（双方出生质心间距，米）。超限只告警——是【提案/待定】的平衡口径。</summary>
-        public const float RecommendedEngagementDistance = 120f;
-
         /// <summary>逻辑高度场的最高允许顶面（米）。超过视为数据错误（高度填错一位就会命中）。</summary>
         public const float MaxTerrainTopWorldY = 40f;
-
-        // ------------------------------------------------------------------
-        // 海图
-        // ------------------------------------------------------------------
-
-        /// <summary>一张海图的硬约束问题（空 = 通过）。id/跨度/氛围档/武器池/连通性/出生点/栅格。</summary>
-        public static List<string> Problems(WorldMapDefinition map)
-        {
-            var problems = new List<string>();
-            if (map == null)
-            {
-                problems.Add("海图为空");
-                return problems;
-            }
-
-            string tag = "[" + (string.IsNullOrEmpty(map.Id) ? map.LevelNumber.ToString() : map.Id) + "] ";
-
-            if (string.IsNullOrEmpty(map.Id))
-                problems.Add(tag + "缺 id");
-            if (map.LevelNumber < WorldMapCatalog.FirstLevelNumber)
-                problems.Add(tag + "关卡号 " + map.LevelNumber + " 小于海图段起点 " + WorldMapCatalog.FirstLevelNumber);
-            if (map.SpanX <= 0f || map.SpanZ <= 0f)
-                problems.Add(tag + "图幅必须为正值（" + map.SpanX + "×" + map.SpanZ + "）");
-            if (string.IsNullOrEmpty(map.AmbientTier))
-                problems.Add(tag + "缺氛围档（Noon/Dusk/Storm）");
-            if (map.Spawns.Count == 0)
-                problems.Add(tag + "没有出生点");
-            if (map.Terrain.Count == 0)
-                problems.Add(tag + "没有地形/船坞件（站面全空）");
-
-            problems.AddRange(WeaponProblems(tag, "船员初配", map.CrewWeapons));
-            problems.AddRange(WeaponProblems(tag, "船长初配", map.CaptainWeapons));
-            problems.AddRange(WeaponProblems(tag, "空投池", map.AirdropPool));
-
-            // 连通性 + 出生点落位（复用玩法规则层，判据只有这一份实现）。
-            List<WorldMapRules.WorldBox> boxes = WorldMapRules.AllStandBoxes(map);
-            if (boxes.Count == 0)
-            {
-                problems.Add(tag + "站面 box 为空（kit 资产的 standable 表缺失？）");
-            }
-            else
-            {
-                List<int> unreachable = WorldMapRules.UnreachableSpawnBoxes(map, boxes);
-                if (unreachable.Count > 0)
-                {
-                    problems.Add(tag + "出生点站面不可达（连通性破产），box 索引 "
-                        + string.Join(",", unreachable));
-                }
-                problems.AddRange(WorldMapRules.ValidateSpawns(map, boxes));
-            }
-
-            // 栅格化（进 HeightfieldGrid 的通道必须通）。
-            if (!WorldMapRules.TryRasterize(map, out int widthTiles, out int depthTiles, out int[] blocks))
-            {
-                problems.Add(tag + "栅格化失败");
-            }
-            else
-            {
-                int maxBlocks = 0;
-                for (int i = 0; i < blocks.Length; i++)
-                {
-                    if (blocks[i] > maxBlocks)
-                        maxBlocks = blocks[i];
-                }
-                float top = maxBlocks * 0.5f;
-                if (top > MaxTerrainTopWorldY)
-                {
-                    problems.Add(tag + "站面最高顶 " + top + "u 超过上限 " + MaxTerrainTopWorldY
-                        + "u（站面 box 的 TopY 可能填错）");
-                }
-                if (blocks.Length != widthTiles * depthTiles)
-                    problems.Add(tag + "栅格块数与尺寸不自洽");
-            }
-
-            // 尺度告警（不阻断）：出生质心间距与满力射程的关系是审计里未决的平衡口径。
-            float distance = TeamSpawnCentroidDistance(map);
-            if (distance > RecommendedEngagementDistance)
-            {
-                problems.Add("【告警】" + tag + "双方出生质心间距 " + distance.ToString("F1")
-                    + "u 超过建议上限 " + RecommendedEngagementDistance + "u（提案/待定）");
-            }
-
-            return problems;
-        }
-
-        /// <summary>双方出生质心平面距离；某一方没有出生点返回 0。</summary>
-        public static float TeamSpawnCentroidDistance(WorldMapDefinition map)
-        {
-            float ax = 0f, az = 0f, bx = 0f, bz = 0f;
-            int an = 0, bn = 0;
-            for (int i = 0; i < map.Spawns.Count; i++)
-            {
-                WorldMapSpawn s = map.Spawns[i];
-                if (s.TeamIndex == 0)
-                {
-                    ax += s.X;
-                    az += s.Z;
-                    an++;
-                }
-                else
-                {
-                    bx += s.X;
-                    bz += s.Z;
-                    bn++;
-                }
-            }
-
-            if (an == 0 || bn == 0)
-                return 0f;
-
-            ax /= an;
-            az /= an;
-            bx /= bn;
-            bz /= bn;
-            float dx = ax - bx, dz = az - bz;
-            return (float)System.Math.Sqrt(dx * dx + dz * dz);
-        }
 
         static List<string> WeaponProblems(string tag, string slot, IReadOnlyList<WeaponStack> stacks)
         {
@@ -158,7 +37,7 @@ namespace PirateCrew.Battle.Levels
         }
 
         // ------------------------------------------------------------------
-        // 非海图关卡
+        // 关卡资产
         // ------------------------------------------------------------------
 
         /// <summary>一张关卡资产的问题（空 = 通过）：尺寸 / 栅格 / 站位 / 编成 / 武器 / 摆件。</summary>

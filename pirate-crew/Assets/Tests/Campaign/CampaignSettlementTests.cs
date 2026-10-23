@@ -3,7 +3,6 @@ using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
 using PirateCrew.Battle;
-using PirateCrew.Battle.WorldMaps;
 using PirateCrew.Combat;
 
 namespace PirateCrew.Tests
@@ -11,7 +10,7 @@ namespace PirateCrew.Tests
     /// <summary>
     /// 星级评价、结算与 M3 闭环接线（<c>BattleEvents.BattleStarted</c> / <c>BattleEvents.CrewDied</c> /
     /// <c>BattleEvents.MatchFinished</c> → 进度 + 奖励）。
-    /// 结算键 = 结算归属 id：一代退场后由待战海图（<see cref="WorldMapRuntime.SetPending"/>）提供，
+    /// 【占位冻结】星级/战役结算从未被设计（创始人 2026-10-23），本文件钉的是冻结线的纯数学；
     /// <c>CampaignApi</c> 在 <c>BattleEvents.BattleStarted</c> 时收养它为待结算归属。
     ///
     /// 【零海图口径】八张世界海图已删除待重做，待战海图通道在数据上恒不可用
@@ -107,7 +106,6 @@ namespace PirateCrew.Tests
         [Test]
         public void SelectMap_AdoptsPendingAndSettlesByMapId()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             var manager = new CampaignManager();
             manager.SelectMap(MapA);
@@ -153,7 +151,6 @@ namespace PirateCrew.Tests
         [Test]
         public void MatchFinished_ClearedMap_WritesProgressAndRewards()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             PlayBattle(MapA, outcome: CampaignManager.PlayerWinOutcome, score: 1500, playerDeaths: 1);
 
@@ -170,7 +167,6 @@ namespace PirateCrew.Tests
         [Test]
         public void MatchFinished_PerfectRun_GivesThreeStars()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             PlayBattle(MapA, CampaignManager.PlayerWinOutcome, 2000, playerDeaths: 0);
 
@@ -180,7 +176,6 @@ namespace PirateCrew.Tests
         [Test]
         public void MatchFinished_TotalStars_GatesRecruitment()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             // 门槛口径（一代退场执行决策）：炮手 3 星 / 狙击手 5 星（数值沿用，语义 = 累计星数）。
             PlayBattle(MapA, CampaignManager.PlayerWinOutcome, 1000, 0);   // +3 星
@@ -221,7 +216,6 @@ namespace PirateCrew.Tests
         [Test]
         public void DeathsCounter_ResetsBetweenBattles()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             PlayBattle(MapA, CampaignManager.PlayerWinOutcome, 900, playerDeaths: 2);
             Assert.That(CampaignApi.Progress.GetStars(MapA), Is.EqualTo(1));
@@ -257,7 +251,6 @@ namespace PirateCrew.Tests
         [Test]
         public void SaveRoundTrip_RestoresCampaignProgressAndRoster()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             PlayBattle(MapA, CampaignManager.PlayerWinOutcome, 1500, 0);
             CrewManagementApi.Recruit("gunner");
@@ -290,21 +283,20 @@ namespace PirateCrew.Tests
         [Test]
         public void CampaignSaveCodec_ToleratesCorruptedAndLegacyEntries()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             var progress = new CampaignProgress();
-            // level_01 是一代旧档键：不在海图目录 → 必须被静默丢弃（旧档不迁移）。
+            // id 域校验随 WorldMap 目录退役移除（占位冻结线）：任意非空 id 可读入；
+            // 残缺段（无冒号/非数字星级/空段）仍必须跳过。
             CampaignSaveCodec.ReadInto("wreck_hymn:3||level_99:2|broken|wreck_hymn:abc", progress);
 
             Assert.That(progress.GetStars("wreck_hymn"), Is.EqualTo(3));
-            Assert.That(progress.GetStars("level_01"), Is.EqualTo(0), "一代旧键不应进新进度");
-            Assert.That(progress.CompletedCount, Is.EqualTo(1), "未知 id / 非数字星级 / 残缺段都应跳过");
+            Assert.That(progress.GetStars("level_99"), Is.EqualTo(2));
+            Assert.That(progress.CompletedCount, Is.EqualTo(2), "非数字星级 / 残缺段应跳过，合法 id 保留");
         }
 
         [Test]
         public void CampaignSaveCodec_JoinSkipsZeroStars()
         {
-            Assume.That(WorldMapCatalog.Count, Is.GreaterThan(0), NoMapSkipReason);
 
             var progress = new CampaignProgress();
             progress.CompleteLevel(MapA, 2);
