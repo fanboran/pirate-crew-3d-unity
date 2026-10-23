@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Unity 无头验证分级运行器 —— 档位设计与铁律见 AGENTS.md「调试规范」。
 # 统一提供：单飞锁（Library 锁独占）、日志落 $TEMP、失败自动摘 error、
-#           open / test 两档按工作区状态缓存 30 分钟（同状态 + 上次全绿 → 直接回放，不启 Unity）。
+#           open / test 两档按工作区状态缓存 30 分钟（同状态 + 上次真全绿 → 直接回放，不启 Unity）。
+#           缓存 key 覆盖未跟踪文件的**内容哈希**；test 档只有 testResults XML 证实「有用例且全过」
+#           才写缓存，回放时打印缓存时的 passed/total（防「0 用例命中 / 全 Ignore」的空绿回放成假绿）。
 #
 # 【为什么缓存的是这两档】单次运行的成本几乎全在 Unity 冷启动 + 资源导入 + 编译（≈2~3 分钟），
 # 用例本身很便宜（实测 EditMode 1300 条 ≈16 秒、PlayMode 8 条 ≈12 秒）。
@@ -21,7 +23,8 @@ usage() {
   test [EditMode|PlayMode] [过滤器]
                       Unity Test Framework，默认 EditMode。第 2 参数直接透传给 -testFilter
                      （Unity 口径：**测试名子串**，逗号分隔，例："BattleSceneWiringTests"），可只跑一块；
-                     缓存按「档位+平台+过滤器」分别记，同状态 30 分钟内且上次全绿 → 直接回放。
+                     缓存按「档位+平台+过滤器」分别记，同状态 30 分钟内且上次真全绿 → 直接回放
+                     （回放打印缓存时的 passed/total；0 用例命中 / 全 Ignore 的空绿不写缓存）。
                      纯 C# 域测试优先 harness 档（秒级、不占 Library 锁）。
   build <类名.方法名> [透传参数…]
                       无头构建/烘培（如 BuildScript.BuildFromCommandLineArgs）。分钟级，建议后台发起。
@@ -88,32 +91,46 @@ summarize() {
   fi
 }
 
-# 档位缓存：key = HEAD + 工作区状态与内容哈希；30 分钟内同状态且上次全绿 → 直接回放（不启 Unity）。
+# 档位缓存：key = HEAD + 工作区状态与内容哈希；30 分钟内同状态且上次真全绿 → 直接回放（不启 Unity）。
 # 哈希必须含脏文件**内容**（diff HEAD）：只看"哪些文件脏"时，未提交状态下改码→跑测→再改→再跑
 # 的 porcelain 输出不变，会把 30 分钟内的旧"全绿"原样回放（假绿）。
+# 未跟踪文件单独纳入：porcelain 对它只输出 `?? 路径`、diff HEAD 完全不含其内容——未 git add 的新
+# 测试/运行时代码改内容时上面两项全都不变，同样假绿。故用 ls-files --others 列出后逐个把
+# 「路径 + git hash-object 内容哈希」拼进同一条输入流（hash-object 流式过哈希器，大文件不进 bash
+# 内存，也不写对象库）；已跟踪文件的改动仍由 porcelain + diff HEAD 覆盖。
 # 文件名含工程路径哈希（防 PC3D_PROJ 指向别处时误读别人的缓存）+ 子集标识
 # （test 档按 平台/过滤器 分别记，不同子集之间不可互相回放）。
 cache_key() {
-  echo "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)-$( { git -C "$ROOT" status --porcelain 2>/dev/null; git -C "$ROOT" diff HEAD 2>/dev/null; } | md5sum | cut -c1-12)"
+  echo "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)-$( {
+    git -C "$ROOT" status --porcelain 2>/dev/null
+    git -C "$ROOT" diff HEAD 2>/dev/null
+    git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null | while IFS= read -r f; do
+      printf '%s\t' "$f"
+      git -C "$ROOT" hash-object -- "$f" 2>/dev/null || echo '(读不到)'
+    done
+  } | md5sum | cut -c1-12)"
 }
 cache_file_for() {
   echo "$TEMP/pc3d-headless-$1-$(echo -n "$PROJ" | md5sum | cut -c1-8).cache"
 }
-# 命中则回放并 exit 0；未命中返回非零，调用方继续真跑
+# 命中则回放并 exit 0；未命中返回非零，调用方继续真跑。
+# 缓存文件 4 行：key / 写入时间戳 / 退出码 / passed=…/total=…（open 档无用例数，第 4 行为空；
+# 旧版 3 行缓存缺第 4 行同样兼容——只是回放时不打印用例数）。
 cache_replay() {
   local cache="$1" key="$2"
   [ "${PC3D_NO_CACHE:-0}" = "1" ] && return 1
   [ -f "$cache" ] || return 1
-  local ck cts crc
-  ck="$(sed -n 1p "$cache")"; cts="$(sed -n 2p "$cache")"; crc="$(sed -n 3p "$cache")"
+  local ck cts crc cst
+  ck="$(sed -n 1p "$cache")"; cts="$(sed -n 2p "$cache")"; crc="$(sed -n 3p "$cache")"; cst="$(sed -n 4p "$cache")"
   if [ "$ck" = "$key" ] && [ "$crc" = "0" ] && [ $(( $(date +%s) - "${cts:-0}" )) -lt 1800 ]; then
     echo "✅ 缓存命中（同 HEAD + 工作区状态，30 分钟内已跑过且全绿），跳过本次 Unity 启动。"
+    [ -n "$cst" ] && echo "   （缓存时结果: $cst）"
     echo "   （要强制重跑：PC3D_NO_CACHE=1 bash tools/headless/run.sh $MODE ...）"
     exit 0
   fi
   return 1
 }
-cache_store() { { echo "$2"; date +%s; echo "$3"; } > "$1"; }
+cache_store() { { echo "$2"; date +%s; echo "$3"; echo "${4:-}"; } > "$1"; }
 
 # ---- 命令桥（常驻编辑器执行通道；编辑器侧 = pirate-crew/Assets/Editor/CommandBridge.cs）----
 # 协议：写一行命令到 <仓库根>/export/unity-command.txt，编辑器每 0.4s 轮询，读到即执行并清空
@@ -208,7 +225,25 @@ case "$MODE" in
     fi
     RC=$?
     echo "测试结果 XML: $RES"
-    cache_store "$CACHE" "$KEY" "$RC"
+    # 真跑后、写缓存前，解析 testResults XML（NUnit3 根节点 <test-run> 的 total/passed/failed 属性，
+    # 文档序上根节点最先出现，取首个匹配即根节点值）：退出码 0 不等于真全绿——0 用例命中
+    # （过滤器打错 / 该平台没装用例）或全 Ignore 的跑法退出码同样是 0。failed>0、总数为 0、
+    # passed=0（全 Skip/Ignore）或 XML 没产出 → 一律不写缓存，下次照常真跑，宁可重跑不放空绿。
+    STATS=""
+    if [ -f "$RES" ]; then
+      TT="$(sed -n 's/.*[ "]total="\([0-9][0-9]*\)".*/\1/p' "$RES" | head -1)"
+      TP="$(sed -n 's/.*[ "]passed="\([0-9][0-9]*\)".*/\1/p' "$RES" | head -1)"
+      TF="$(sed -n 's/.*[ "]failed="\([0-9][0-9]*\)".*/\1/p' "$RES" | head -1)"
+      TT="${TT:-0}"; TP="${TP:-0}"; TF="${TF:-0}"
+      if [ "$RC" -eq 0 ] && [ "$TF" -eq 0 ] && [ "$TT" -gt 0 ] && [ "$TP" -gt 0 ]; then
+        STATS="passed=$TP/total=$TT"
+        cache_store "$CACHE" "$KEY" "$RC" "$STATS"
+      else
+        echo "⚠️ 本次结果不进缓存（退出码=$RC total=$TT passed=$TP failed=$TF）：只缓存「退出码 0 且 failed=0 且确有用例跑过且通过」的真全绿。"
+      fi
+    else
+      echo "⚠️ 未产出测试结果 XML，本次不进缓存。"
+    fi
     summarize "$RC"; exit $RC
     ;;
   build)
