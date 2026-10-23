@@ -175,7 +175,7 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 单个地形块的世界高度 = 8px = <b>0.5 单位</b>（可玩性优先的竖直压缩）。
-        /// 全工程块高语义的单一来源：站位高度场（样板三关/世界图栅格）与视图层的方块尺寸都取它。
+        /// 全工程块高语义的单一来源：站位高度场与视图层的方块尺寸都取它。
         /// </summary>
         public static float BlockWorldHeight => PixelsToUnits(8f);
 

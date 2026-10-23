@@ -60,7 +60,7 @@ namespace PirateCrew.Battle
 
         /// <summary>
         /// 只建**碰撞层**（每实心格一个隐形 Cube+BoxCollider，单位与弹体的物理地面），
-        /// 不建视觉——外观由烘焙件承担（样板三关玩家看不到任何格子）。幂等：先清旧物。
+        /// 不建视觉——外观由烘焙件承担（玩家看不到任何格子）。幂等：先清旧物。
         /// </summary>
         public void RenderCollidersOnly(HeightfieldGrid terrainGrid)
         {

@@ -5,7 +5,7 @@ using UnityEngine;
 namespace PirateCrew.Battle
 {
     /// <summary>
-    /// 场景美术的**运行时装配**：样板三关的静态陈设由**编辑器烘焙 prefab** 提供
+    /// 场景美术的**运行时装配**：各关卡的静态陈设由**编辑器烘焙 prefab** 提供
     /// （<c>SceneArtBaker</c> 产出：几何 → 按材质组合并网格 → prefab），本类只按
     /// 关卡号读取摆位表（<see cref="ShowcaseLevels.BakedPlacements"/>）做**实例化组装**。
     ///

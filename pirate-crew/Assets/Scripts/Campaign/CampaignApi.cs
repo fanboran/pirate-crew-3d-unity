@@ -122,7 +122,7 @@ namespace PirateCrew.Campaign
 
         static void OnMatchFinished(MatchFinishedPayload finished)
         {
-            // 非海图入口（样板三关 / 直接 Play 战斗场景）没有待结算海图 → 不结算。
+            // 无归属入口（直接 Play 战斗场景）没有待结算关卡 → 不结算。
             if (!Manager.HasPendingMap)
                 return;
 
