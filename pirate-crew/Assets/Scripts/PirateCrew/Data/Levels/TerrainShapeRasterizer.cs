@@ -121,20 +121,17 @@ namespace PirateCrew.Data
             return false;
         }
 
-        /// <summary>点是否在岛内（外轮廓内且不在任何内洞内）。</summary>
+        /// <summary>点是否在岛内（外轮廓内且不在内洞内；内洞是扁平单环，见 <see cref="TerrainIsland.holes"/>）。</summary>
         public static bool PointInIsland(float x, float z, TerrainIsland island)
         {
             if (island.outline == null || !PointInPolygon(x, z, island.outline))
                 return false;
 
-            if (island.holes != null)
-            {
-                for (int i = 0; i < island.holes.Count; i++)
-                {
-                    if (island.holes[i] != null && PointInPolygon(x, z, island.holes[i]))
-                        return false;
-                }
-            }
+            // 一岛至多一个内洞（Unity 不序列化嵌套 List，D4 扁平化）；空/短环当无洞。
+            if (island.holes != null && island.holes.Count >= 6
+                && PointInPolygon(x, z, island.holes))
+                return false;
+
             return true;
         }
 

@@ -100,8 +100,13 @@ namespace PirateCrew.Data
         /// <summary>外轮廓顶点（扁平 <c>[x0, z0, x1, z1, ...]</c>，至少 3 个顶点）。</summary>
         public List<float> outline;
 
-        /// <summary>内洞轮廓列表（环岛用；null 或空 = 无洞）。</summary>
-        public List<List<float>> holes;
+        /// <summary>
+        /// 内洞轮廓（环岛用；扁平 <c>[x0, z0, x1, z1, ...]</c>，与 <see cref="outline"/> 同一写法；
+        /// null / 空 = 无洞）。**一岛至多一个内洞**：Unity 不序列化嵌套 List（<c>heights</c> 已因
+        /// 同一原因强制扁平化），扁平单层列表放不下多个环；真要多洞岛时拆成多岛表达
+        /// （现役四关全部无洞）。
+        /// </summary>
+        public List<float> holes;
 
         /// <summary>
         /// 逐格高度网格的起始列（全场栅格索引，格口径与 <c>TerrainShapeRasterizer</c> 同一套：
@@ -132,7 +137,8 @@ namespace PirateCrew.Data
         public bool IsWellFormed =>
             topY > 0f
             && outline != null && outline.Count >= 6 && outline.Count % 2 == 0
-            && (holes == null || holes.All(h => h != null && h.Count >= 6 && h.Count % 2 == 0))
+            && (holes == null || holes.Count == 0
+                || (holes.Count >= 6 && holes.Count % 2 == 0))
             && (!HasHeights
                 || (heightCols > 0 && heightRows > 0 && heights.Count == heightCols * heightRows));
     }
@@ -171,6 +177,19 @@ namespace PirateCrew.Data
     [Serializable]
     public class LevelAssetPayload
     {
+        /// <summary>
+        /// 载体侧的 schema 版本锚点：由 <see cref="LevelAssetYaml.WriteLevel"/> 写进 <c>.asset</c>
+        /// data 块（值 = <see cref="LevelAssetSchema.Version"/>，与 golden JSON 顶层 schema 字段同源），
+        /// Unity 反序列化时按名回填。**只有 `.asset` 这条载体用它**：golden JSON 的 schema 在文件顶层，
+        /// 读侧由 <see cref="LevelAssetJson"/> 的 SchemaMatches 校验、写侧由写出器常量提供，
+        /// 都不经过本字段（解析 golden 得到的载荷此处恒为 0）。
+        ///
+        /// 【为什么要有它】迁移器「资产 → golden」回写时据此识别旧载体（data 块没写 schema 行的
+        /// 存量资产回填 0）——没有这一锚点，旧资产会被静默按当前 schema 的渲染写成 golden，
+        /// "文本锚点"从此守护一个没人核对过的版本。
+        /// </summary>
+        public int schema;
+
         /// <summary>关卡序号（选关/结算/得分口径用；手作样板关 1–4）。</summary>
         public int levelNumber;
 

@@ -68,12 +68,9 @@ namespace PirateCrew.Tests
         [Test]
         public void Hole_RingIsland_IsEmptyInside()
         {
-            // 外环 0..8 见方，洞 2..6 见方：中带实心、洞内为空。
+            // 外环 0..8 见方，洞 2..6 见方（扁平单环，D4）：中带实心、洞内为空。
             var island = Rect(0f, 0f, 8f, 8f, 3f);
-            island.holes = new List<List<float>>
-            {
-                new List<float> { 2f, 2f, 6f, 2f, 6f, 6f, 2f, 6f },
-            };
+            island.holes = new List<float> { 2f, 2f, 6f, 2f, 6f, 6f, 2f, 6f };
             TerrainShape shape = Shape(island);
 
             List<float> heights = TerrainShapeRasterizer.ToHeights(shape, 8f, 8f);
@@ -132,6 +129,14 @@ namespace PirateCrew.Tests
 
             var good = Shape(Rect(0f, 0f, 4f, 4f, 1f));
             Assert.That(good.IsWellFormed, Is.True);
+
+            // 内洞（D4 扁平单环）：顶点数为 0 是合法缺席；奇数坐标数 = 结构不自洽。
+            var holed = Rect(0f, 0f, 8f, 8f, 1f);
+            holed.holes = new List<float> { 2f, 2f, 6f, 2f, 6f, 6f, 2f, 6f };
+            Assert.That(holed.IsWellFormed, Is.True, "合法扁平内洞应自洽");
+
+            holed.holes = new List<float> { 2f, 2f, 6f };   // 奇数坐标 = 半个顶点
+            Assert.That(holed.IsWellFormed, Is.False, "内洞坐标数必须是偶数");
         }
 
         // ------------------------------------------------------------------

@@ -108,6 +108,19 @@ namespace PirateCrew.EditorTools
                 var asset = AssetDatabase.LoadAssetAtPath<LevelDefinition>(path);
                 if (asset == null)
                     continue;
+
+                // 载体守卫（D3）：data 块没写 schema 行的旧载体（回填 0）或代差载体，拒绝回写——
+                // 静默按当前 schema 写出会让文本锚点守护一个没人核对过的版本。出路是先跑
+                // 「迁移关卡资产」用 golden 重写资产（写出器会带上 schema 行），再回写。
+                if (asset.Data.schema != LevelAssetSchema.Version)
+                {
+                    problems.Add(path + " 的 data.schema=" + asset.Data.schema
+                        + (asset.Data.schema == 0 ? "（缺失——旧载体没写 schema 行）" : "（与当前版本代差）")
+                        + "，当前版本=" + LevelAssetSchema.Version
+                        + "，拒绝回写 golden——先跑「迁移关卡资产」重写资产，再回写");
+                    continue;
+                }
+
                 WriteText(LevelsGolden + "/" + asset.Data.assetName + ".json", LevelAssetJson.Write(asset.Data));
                 written++;
             }

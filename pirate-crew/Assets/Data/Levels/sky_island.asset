@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: sky_island
   m_EditorClassIdentifier: 
   data:
+    schema: 4
     levelNumber: 2
     assetName: sky_island
     displayName: 天空之岛

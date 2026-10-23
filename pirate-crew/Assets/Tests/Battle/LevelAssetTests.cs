@@ -507,5 +507,58 @@ namespace PirateCrew.Battle.Tests
             Assert.That(LevelAssetRules.Problems(badValue),
                 Has.Some.Contains("超出"), "超上限值必须报红");
         }
+
+        // ------------------------------------------------------------------
+        // ⑤ 内洞（扁平单环，D4）：Unity 不序列化嵌套 List，环结构只能放一层
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void HolesJson_FlatRing_RoundTrips_AndExcludesInside()
+        {
+            // 环岛：外环 0..8 × 0..6，洞 2..6 × 2..4（扁平单环）。
+            var payload = HeightFixturePayload();
+            TerrainIsland island = payload.terrain.islands[0];
+            island.heights = null;   // 本用例只看轮廓 + 洞
+            island.holes = new List<float> { 2f, 2f, 6f, 2f, 6f, 4f, 2f, 4f };
+            payload.terrain.islands[0] = island;
+
+            string json = LevelAssetJson.Write(payload);
+            Assert.That(json, Does.Contain("\"holes\": [2, 2, 6, 2, 6, 4, 2, 4]"),
+                "内洞必须是单层扁平数组（与 outline 同一写法；嵌套环列表 Unity 不序列化）");
+
+            LevelAssetPayload again = LevelAssetJson.ReadLevel(json);
+            Assert.That(again, Is.Not.Null, "带洞载荷回读失败");
+            CollectionAssert.AreEqual(island.holes, again.terrain.islands[0].holes, "内洞环必须逐值往返");
+            Assert.That(again.terrain.IsWellFormed, Is.True);
+
+            // 洞内无地面、环带内实心（even-odd 判定吃扁平环）。
+            Assert.That(TerrainShapeRasterizer.PointInIsland(4f, 3f, again.terrain.islands[0]),
+                Is.False, "洞内点不算岛内");
+            Assert.That(TerrainShapeRasterizer.PointInIsland(1f, 1f, again.terrain.islands[0]),
+                Is.True, "环带点仍是岛内");
+
+            // 资产 YAML 同样携带扁平洞（「资产 == golden JSON」门禁的载体侧）。
+            string yaml = LevelAssetYaml.WriteLevel(again, "height_fixture", LevelScriptGuid());
+            Assert.That(yaml, Does.Contain("holes:"), "YAML 侧缺内洞字段");
+        }
+
+        [Test]
+        public void HolesJson_AbsentWritesNoKey_EmptyMeansNoHole()
+        {
+            // 现役四关全部无洞：缺席不写键（golden 零改动）；空环读回 = 无洞（缺席口径同 heights）。
+            string json = LevelAssetJson.Write(HeightFixturePayload());
+            Assert.That(json, Does.Not.Contains("\"holes\""), "无洞岛不得写 holes 键");
+
+            var payload = HeightFixturePayload();
+            TerrainIsland island = payload.terrain.islands[0];
+            island.holes = new List<float>();
+            payload.terrain.islands[0] = island;
+
+            string written = LevelAssetJson.Write(payload);
+            Assert.That(written, Does.Not.Contains("\"holes\""), "空环 = 无洞，同样不写键");
+
+            LevelAssetPayload again = LevelAssetJson.ReadLevel(written);
+            Assert.That(again.terrain.islands[0].holes.Count, Is.EqualTo(0), "空环读回仍是无洞");
+        }
     }
 }

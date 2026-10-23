@@ -111,11 +111,9 @@ namespace PirateCrew.Data
                     w.RawField(FloatRing(island.outline));
                     if (island.holes != null && island.holes.Count > 0)
                     {
+                        // 内洞扁平单环（D4）：与 outline 同一套「一行扁平数组」写法。
                         w.FieldName("holes");
-                        w.BeginArray();
-                        for (int h = 0; h < island.holes.Count; h++)
-                            w.RawItem(FloatRing(island.holes[h]));
-                        w.EndArray();
+                        w.RawField(FloatRing(island.holes));
                     }
                     if (island.HasHeights)
                     {
@@ -299,10 +297,9 @@ namespace PirateCrew.Data
                 {
                     topY = item.Float("topY"),
                     outline = ReadRing(item["outline"]),
-                    holes = new List<List<float>>(),
+                    // 内洞扁平单环（D4）：缺失/非法 = 无洞（空列表当缺席，与 heights 同口径）。
+                    holes = ReadRing(item["holes"]),
                 };
-                foreach (JsonValue hole in item.ArrayItems("holes"))
-                    island.holes.Add(ReadRing(hole));
                 ReadIslandHeights(item["heights"], ref island);
                 shape.islands.Add(island);
             }

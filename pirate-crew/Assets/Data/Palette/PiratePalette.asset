@@ -356,20 +356,20 @@ MonoBehaviour:
     source: "SceneArtPalette.CloudWhite\uFF1Bstyle_tokens Kit_Cloud"
   - id: UI_BEVEL_LO
     group: UI
-    hex: 1E252F
-    usage: "UI \u4E0B/\u53F3\u9634\u5F71\u8FB9\uFF08\u6309\u538B\u65F6\u4E0E\u9AD8\u5149\u5BF9\u8C03\uFF09"
+    hex: 202125
+    usage: "UI \u4E0B/\u53F3\u9634\u5F71\u8FB9 = Aseprite editor_face\uFF08\u9762\u677F\u6697\u5507/\u6309\u94AE\u5507\u6697/\u5185\u5BB9\u7247\u5507\u6697\uFF09"
     status: "\u63D0\u6848"
     source: "AI \u63D0\u6848\uFF08\u7F8E\u672F\u98CE\u683C\u6307\u5357 \xA75\uFF09"
   - id: UI_PANEL
     group: UI
-    hex: 333D4D
-    usage: "Beveled Pixel UI \u9762\u677F\u57FA\u8272\uFF08\u51F8\u8D77\u5757\u4E3B\u4F53\uFF09"
+    hex: 2C2C30
+    usage: "UI \u9762\u677F\u57FA\u8272 = Aseprite face/window_face\uFF08\u9762\u677F\u4E3B\u4F53/\u4EAE\u724C\u6697\u5507\uFF09"
     status: "\u63D0\u6848"
     source: "AI \u63D0\u6848\uFF08\u7F8E\u672F\u98CE\u683C\u6307\u5357 \xA75\uFF0C\u4EE4\u724C\u4ECE\u8C03\u8272\u677F\u6D3E\u751F\uFF09"
   - id: UI_BEVEL_HI
     group: UI
-    hex: 5A6780
-    usage: "UI \u4E0A/\u5DE6\u9AD8\u5149\u8FB9\uFF08\u5149\u7167\u6C38\u8FDC\u5DE6\u4E0A\uFF09"
+    hex: 41444A
+    usage: "UI \u4E0A/\u5DE6\u9AD8\u5149\u8FB9 = Aseprite background\uFF08\u6309\u94AE\u5507\u4EAE/\u9762\u677F\u4EAE\u5507/\u4EAE\u724C\u4E2D\u6863\uFF09"
     status: "\u63D0\u6848"
     source: "AI \u63D0\u6848\uFF08\u7F8E\u672F\u98CE\u683C\u6307\u5357 \xA73.1 \u5168\u5C40\u5149\u7EA6\u5B9A\uFF09"
   - id: UI_DANGER
@@ -397,3 +397,57 @@ MonoBehaviour:
     usage: "\u591C\u8272\u6863\u4E3B\u5149\u8272\uFF08\u51B7\u6708\u5149\uFF09\u4E0E\u73AF\u5883\u5149\u4E0A\u9650"
     status: "\u63D0\u6848"
     source: "ToonPilotSetup \u591C\u8272\u6863\u4E3B\u5149\u63D0\u6848\u8272"
+  - id: UI_BTN_BODY
+    group: UI
+    hex: 292B30
+    usage: "\u6309\u94AE\u4E3B\u4F53 = Aseprite button_normal \u4E3B\u4F53\u8272"
+    status: "\u63D0\u6848"
+    source: "Aseprite dark \u4E3B\u9898\uFF08CC-BY-4.0\uFF09dark/sheet.png \u5B9E\u6D4B\uFF1B2026-09-24 \u521B\u59CB\u4EBA\u88C1\u51B3\"\u6574\u4E2A\u6E38\u620F\u590D\u7528 Aseprite \u8FD9\u5957 UI\""
+  - id: UI_HOVER_HI
+    group: UI
+    hex: 575B61
+    usage: "\u60AC\u505C\u9762\u4EAE\u6863 = Aseprite check_hot_face/slider \u4EAE\u5507"
+    status: "\u63D0\u6848"
+    source: "Aseprite dark \u4E3B\u9898\uFF08CC-BY-4.0\uFF09dark/sheet.png \u5B9E\u6D4B\uFF1B2026-09-24 \u521B\u59CB\u4EBA\u88C1\u51B3\"\u6574\u4E2A\u6E38\u620F\u590D\u7528 Aseprite \u8FD9\u5957 UI\""
+  - id: UI_ACCENT_HI
+    group: UI
+    hex: 6E9ADB
+    usage: "\u4E3B\u884C\u52A8\u4EAE\u6863 = Aseprite button_selected \u4EAE\u5507"
+    status: "\u63D0\u6848"
+    source: "Aseprite dark \u4E3B\u9898\uFF08CC-BY-4.0\uFF09dark/sheet.png \u5B9E\u6D4B\uFF1B2026-09-24 \u521B\u59CB\u4EBA\u88C1\u51B3\"\u6574\u4E2A\u6E38\u620F\u590D\u7528 Aseprite \u8FD9\u5957 UI\""
+  - id: UI_ACCENT_MID
+    group: UI
+    hex: 4069C2
+    usage: "\u4E3B\u884C\u52A8\u4E3B\u4F53 = Aseprite button_selected \u4E3B\u4F53"
+    status: "\u63D0\u6848"
+    source: "Aseprite dark \u4E3B\u9898\uFF08CC-BY-4.0\uFF09dark/sheet.png \u5B9E\u6D4B\uFF1B2026-09-24 \u521B\u59CB\u4EBA\u88C1\u51B3\"\u6574\u4E2A\u6E38\u620F\u590D\u7528 Aseprite \u8FD9\u5957 UI\""
+  - id: UI_ACCENT_DEEP
+    group: UI
+    hex: 2A4185
+    usage: "\u4E3B\u884C\u52A8\u6697\u6863 = Aseprite button_selected \u6697\u5507"
+    status: "\u63D0\u6848"
+    source: "Aseprite dark \u4E3B\u9898\uFF08CC-BY-4.0\uFF09dark/sheet.png \u5B9E\u6D4B\uFF1B2026-09-24 \u521B\u59CB\u4EBA\u88C1\u51B3\"\u6574\u4E2A\u6E38\u620F\u590D\u7528 Aseprite \u8FD9\u5957 UI\""
+  - id: UI_DANGER_HI
+    group: UI
+    hex: DB6E6E
+    usage: "\u5371\u9669\u4EAE\u6863 = \u5F3A\u8C03\u84DD\u9636 R/B \u6362\u4F4D"
+    status: "\u63D0\u6848"
+    source: "Aseprite dark \u4E3B\u9898\uFF08CC-BY-4.0\uFF09dark/sheet.png \u5B9E\u6D4B\uFF1B2026-09-24 \u521B\u59CB\u4EBA\u88C1\u51B3\"\u6574\u4E2A\u6E38\u620F\u590D\u7528 Aseprite \u8FD9\u5957 UI\""
+  - id: UI_DANGER_MID
+    group: UI
+    hex: C24040
+    usage: "\u5371\u9669\u4E3B\u4F53 = \u5F3A\u8C03\u84DD\u9636 R/B \u6362\u4F4D"
+    status: "\u63D0\u6848"
+    source: "Aseprite dark \u4E3B\u9898\uFF08CC-BY-4.0\uFF09dark/sheet.png \u5B9E\u6D4B\uFF1B2026-09-24 \u521B\u59CB\u4EBA\u88C1\u51B3\"\u6574\u4E2A\u6E38\u620F\u590D\u7528 Aseprite \u8FD9\u5957 UI\""
+  - id: UI_DANGER_DEEP
+    group: UI
+    hex: 852A2A
+    usage: "\u5371\u9669\u6697\u6863 = \u5F3A\u8C03\u84DD\u9636 R/B \u6362\u4F4D"
+    status: "\u63D0\u6848"
+    source: "Aseprite dark \u4E3B\u9898\uFF08CC-BY-4.0\uFF09dark/sheet.png \u5B9E\u6D4B\uFF1B2026-09-24 \u521B\u59CB\u4EBA\u88C1\u51B3\"\u6574\u4E2A\u6E38\u620F\u590D\u7528 Aseprite \u8FD9\u5957 UI\""
+  - id: UI_TEXT
+    group: UI
+    hex: C0C0C0
+    usage: "UI \u6B63\u6587 = Aseprite text \u8272\u539F\u503C"
+    status: "\u63D0\u6848"
+    source: "Aseprite dark \u4E3B\u9898\uFF08CC-BY-4.0\uFF09dark/sheet.png \u5B9E\u6D4B\uFF1B2026-09-24 \u521B\u59CB\u4EBA\u88C1\u51B3\"\u6574\u4E2A\u6E38\u620F\u590D\u7528 Aseprite \u8FD9\u5957 UI\""

@@ -45,6 +45,10 @@ namespace PirateCrew.Data
                 throw new ArgumentNullException(nameof(payload));
 
             var data = new Node(NodeKind.Map);
+            // schema 版本（D3 载体守卫）：与 golden JSON 顶层 schema 字段同源（LevelAssetSchema.Version）。
+            // Unity 反序列化回 payload.schema，迁移器「资产 → golden」回写前据此拒绝旧载体
+            //（data 块没写本行的存量资产回填 0），不再静默按当前 schema 写出文本锚点。
+            data.Add("schema", LevelAssetSchema.Version);
             data.Add("levelNumber", payload.levelNumber);
             data.Add("assetName", payload.assetName);
             data.Add("displayName", payload.displayName);
@@ -87,14 +91,11 @@ namespace PirateCrew.Data
                     item.Add("outline", outline);
                     if (island.holes != null && island.holes.Count > 0)
                     {
+                        // 内洞扁平单层列表（D4）：Unity 不序列化嵌套 List，嵌套写法会被
+                        // 反序列化静默丢弃；一岛至多一洞，环结构与 outline 同一套扁平写法。
                         var holes = new Node(NodeKind.Seq);
-                        for (int h = 0; h < island.holes.Count; h++)
-                        {
-                            var ring = new Node(NodeKind.Seq);
-                            for (int k = 0; k < island.holes[h].Count; k++)
-                                ring.Add(island.holes[h][k]);
-                            holes.Add(ring);
-                        }
+                        for (int k = 0; k < island.holes.Count; k++)
+                            holes.Add(island.holes[k]);
                         item.Add("holes", holes);
                     }
                     if (island.HasHeights)

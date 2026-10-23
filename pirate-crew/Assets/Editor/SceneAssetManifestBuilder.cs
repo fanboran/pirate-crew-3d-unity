@@ -49,9 +49,9 @@ namespace PirateCrew.EditorTools
             new UpstreamEntry { PathInModels = "SceneKit/Baked", Origin = "programmatic",
                 Source = "SceneArtBaker 烘焙网格资产（被同目录 prefab 引用，不单独摆放）" },
 
-            // ---- SceneKit：关卡岛体（Blender 岛形驱动，顶面逐点复刻关卡 terrain 轮廓）----
+            // ---- SceneKit：第 1 关云场岛体（C# 程序化几何的 Blender 忠实翻译，观感与 C# 版一致）----
             new UpstreamEntry { PathInModels = "SceneKit/CloudWalk.fbx", Origin = "handmade",
-                Source = "tools/blender/scene/islands/build_cloud_walk.py（Blender 无头，golden terrain 岛形驱动）" },
+                Source = "tools/blender/scene/islands/translate_cloudfield.py（Blender 无头，CloudFieldGeometry 的忠实翻译）" },
 
             // ---- SceneKit：Blender 手作主件（§19 样板）----
             new UpstreamEntry { PathInModels = "SceneKit/Flagship.fbx", Origin = "handmade",

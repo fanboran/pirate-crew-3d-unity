@@ -22,12 +22,15 @@ namespace PirateCrew.EditorTools.Art
     ///   菜单「选择当前域…」可切，切换后重跑 BuildFromJson 重建镜像。
     /// - 真源是 **JSON**：Python 量化工具与 Blender 导出模板都只读它们，不读 .asset —— 离线链
     ///   因此完全不需要 Unity（这是能守住一致性的关键：把跨语言共享的那一份数据放在纯文本上）。
-    /// - `.asset` 是镜像：由 <c>BuildFromJson</c> 生成，供 Unity 侧工具（材质工厂 / UI 派生）取色。
-    ///   若有人在 Inspector 里改了色值想保留，先跑 <c>ExportToJson</c> 按槽位归属把改动
-    ///   提升回所属层文件（核心板或当前域板），再重跑 <c>BuildFromJson</c>；两条命令互为逆运算，
-    ///   重复执行收敛到同一字节（幂等）。
-    /// - 漂移由两侧各自的对账命令发现：Unity 侧 <c>Verify</c>（镜像 vs 分层合并视图）、
-    ///   离线侧 <c>python tools/palette/palette_tool.py verify</c>（逐层规范文本 + 合并视图行为）。
+/// - `.asset` 是镜像：由 <c>BuildFromJson</c> 生成，供 Unity 侧工具（材质工厂 / UI 派生）取色。
+///   若有人在 Inspector 里改了色值想保留，先跑 <c>ExportToJson</c> 按槽位归属把改动
+///   提升回所属层文件（核心板或当前域板），再重跑 <c>BuildFromJson</c>；两条命令互为逆运算，
+///   重复执行收敛到同一字节（幂等）。
+///   回写方向带护栏（防过期镜像反向覆盖真源）：<c>ExportToJson</c> 先对账，
+///   镜像与合并视图不一致时交互模式弹窗确认、批处理路径直接拒绝——
+///   镜像是过期一方时请改跑 <c>BuildFromJson</c>。
+/// - 漂移由两侧各自的对账命令发现：Unity 侧 <c>Verify</c>（镜像 vs 分层合并视图）、
+///   离线侧 <c>python tools/palette/palette_tool.py verify</c>（逐层规范文本 + 合并视图行为）。
     ///
     /// 【入口】
     ///   菜单: PirateCrew/Art/调色板/*
@@ -112,6 +115,41 @@ namespace PirateCrew.EditorTools.Art
                 slots = asset.slots,
             };
 
+            // 回写护栏：镜像与合并视图不一致时，镜像里可能躺着过期值——直接回写会用旧值
+            // 反向覆盖 JSON 真源（真源被量化工具与 Blender 链只读，覆盖是破坏性的）。
+            // 交互模式弹窗要求确认；批处理/无头路径直接报错退出。
+            PaletteJson.Root merged;
+            try
+            {
+                merged = PaletteBoard.LoadMerged();
+            }
+            catch (Exception exc)
+            {
+                Debug.LogError("[PaletteAssetBuilder] 回写前对账失败：" + exc.Message);
+                return;
+            }
+            string fromAssetText = PaletteJson.ToCanonicalText(fromAsset);
+            if (fromAssetText != PaletteJson.ToCanonicalText(merged))
+            {
+                string drift = DescribeDrift(asset, merged);
+                if (Application.isBatchMode)
+                {
+                    Debug.LogError("[PaletteAssetBuilder] 镜像与真源不一致，已拒绝回写（批处理不弹窗确认）。"
+                        + drift + "\n  若镜像是过期的一方，请改跑「JSON → PaletteAsset（生成镜像）」。");
+                    return;
+                }
+                if (!EditorUtility.DisplayDialog("调色板回写确认",
+                    "镜像与真源（合并视图）不一致，继续回写会用镜像的值覆盖 JSON。" + drift
+                    + "\n\n若镜像是过期的一方（真源是新的），请取消并改跑「JSON → PaletteAsset（生成镜像）」。"
+                    + "\n\n确认用镜像内容回写真源？",
+                    "用镜像覆盖真源", "取消"))
+                {
+                    Debug.Log("[PaletteAssetBuilder] 已取消回写（镜像与真源不一致）。");
+                    return;
+                }
+                Debug.LogWarning("[PaletteAssetBuilder] 已确认用镜像覆盖真源。" + drift);
+            }
+
             // 真源分域后镜像不再对应单个文件：按槽位归属把改动提升回所属层（核心板/当前域板）。
             // 镜像里不属于本层的槽位（其他域的）本层没有，天然跳过；镜像多余的槽位不动（保守）。
             string domain = PaletteBoard.ActiveDomain;
@@ -124,6 +162,47 @@ namespace PirateCrew.EditorTools.Art
 
             if (written == 0)
                 Debug.Log("[PaletteAssetBuilder] 真源已是镜像的规范文本，无变化（核心板 + 域 " + domain + "）。");
+        }
+
+        /// <summary>
+        /// 镜像与合并视图的漂移摘要（回写护栏的确认信息）：逐槽比对六字段，
+        /// 列出「值不同」与「镜像独有（真源已删）」的槽位，最多 8 条防刷屏。
+        /// </summary>
+        static string DescribeDrift(PaletteAsset asset, PaletteJson.Root merged)
+        {
+            var byId = new Dictionary<string, PaletteSlot>();
+            foreach (PaletteSlot slot in merged.slots)
+            {
+                if (slot != null && !string.IsNullOrEmpty(slot.id))
+                    byId[slot.id] = slot;
+            }
+
+            var lines = new List<string>();
+            if (asset.slots != null)
+            {
+                foreach (PaletteSlot mine in asset.slots)
+                {
+                    if (mine == null || string.IsNullOrEmpty(mine.id))
+                        continue;
+                    if (!byId.TryGetValue(mine.id, out PaletteSlot theirs))
+                    {
+                        lines.Add("  " + mine.id + "：镜像独有（真源无此槽）");
+                    }
+                    else if (!SameSlot(mine, theirs))
+                    {
+                        if (mine.hex != theirs.hex)
+                            lines.Add("  " + mine.id + "：hex " + mine.hex + "（镜像）vs " + theirs.hex + "（真源）");
+                        else
+                            lines.Add("  " + mine.id + "：描述字段不同");
+                    }
+                    if (lines.Count >= 8)
+                    {
+                        lines.Add("  ……");
+                        break;
+                    }
+                }
+            }
+            return lines.Count == 0 ? "" : "\n差异槽位：\n" + string.Join("\n", lines.ToArray());
         }
 
         /// <summary>把镜像里属于该层的槽位（核心板还含顶层字段）提升回层文件。有改动返回 true。</summary>

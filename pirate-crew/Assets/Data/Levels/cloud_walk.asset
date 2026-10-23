@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: cloud_walk
   m_EditorClassIdentifier: 
   data:
+    schema: 4
     levelNumber: 1
     assetName: cloud_walk
     displayName: 云端漫步
