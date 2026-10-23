@@ -426,8 +426,17 @@ namespace PirateCrew.WaterLab
             _waterCur.SetData(waterInit);
             _waterNext.SetData(waterInit);
             _ground.SetData(groundData);
-            // 粒子池零初始化（寿命 0 = 全死；ComputeBuffer 内容不保证清零）
+            // 湿沙双缓冲零初始化（ComputeBuffer 内容不保证清零）：首个 WetnessStep 直接读
+            // _WetA、读邻均值做扩散，不补零首帧湿沙场是显存垃圾；换位后 _WetNext 轮到当
+            // _WetA 读，两份都必须干净，出图才可复现。
+            _wetCur.SetData(new float[groundCount]);
+            _wetNext.SetData(new float[groundCount]);
+            // 粒子池零初始化（寿命 0 = 全死；Update kernel 对 p.w<=0 提前返回，速度槽不会被读到）
             _wwPos.SetData(new Vector4[WaterLabRules.WhitewaterCapacity]);
+            // 白水计数/游标零初始化：[0] 每步被 WhitewaterBegin 清零，[1] 是跨步连续的
+            // 缓冲环写游标（WhitewaterSpawn 里 InterlockedAdd 自增），不从 0 起则粒子槽
+            // 分配顺序随显存残留值漂移，回放不可复现。
+            _wwAlive.SetData(new uint[2]);
 
             // 地形静态纹理（渲染 shader 采样：R=高程编码 [-3,2]→[0,1]，与 OutputField 同式）
             _groundTex = new Texture2D(WaterLabRules.GroundCells, WaterLabRules.GroundCells,

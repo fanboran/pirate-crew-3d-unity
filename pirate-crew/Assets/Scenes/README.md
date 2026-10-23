@@ -1,7 +1,7 @@
 # 场景目录与装配契约
 
 > 本文件回答一个问题：**这个目录里的场景，内容在哪、由谁生成、改的时候该动谁。**
-> 背景与证据见 [`docs/审计/场景接线审计报告.md`](../../../docs/审计/场景接线审计报告.md)；
+> 背景与证据见 [`docs/项目/审计/场景接线审计报告.md`](../../../docs/项目/审计/场景接线审计报告.md)；
 > 分层总览见 [`docs/技术/架构/架构总览.md`](../../../docs/技术/架构/架构总览.md) §7。
 
 ## 一、两种形态：Battle 折叠，菜单/管理屏运行时自建
@@ -21,7 +21,7 @@
 | `MainMenu.unity` | `Editor/SceneSetup.cs` | `UiScreenBoot`(MainMenu) 运行时自建 | 3 对象 |
 | `LevelSelect.unity` | `Editor/ManagementSceneSetup.cs` | `UiScreenBoot`(LevelSelect) 运行时自建 | 3 对象 |
 | `CrewManagement.unity` | `Editor/ManagementSceneSetup.cs` | `UiScreenBoot`(CrewManagement) 运行时自建 | 3 对象 |
-| **`Battle.unity`** | `Editor/BattleScenePipeline.cs` 八步子链 | `Assets/Prefabs/PirateCrew/Battle/BattleRig.prefab` | 240（16 根） |
+| **`Battle.unity`** | `Editor/BattleScenePipeline.cs` 八步子链 | `Assets/Prefabs/PirateCrew/Battle/BattleRig.prefab` | 折叠实例（对象/根数以 `ScenePrefabCollapse` 校验实测为准） |
 | `UIShowcase.unity` | `Editor/UiShowcaseSceneSetup.cs` | 场景本体（相机 + `UiShowcaseBoot`，页面运行时自建） | 2 |
 
 > Battle 数字口径（可复现）：对象数 = Prefab YAML 的 `GameObject` 块数
@@ -150,3 +150,11 @@ P="F:/VSCode/pirate-crew-3d-unity/pirate-crew"
 
 **改前 dump 一份、改后 dump 一份、Diff 一次：每条差异都必须能解释**（新增/删除/字段指向变化）。
 这条流程是场景结构改动的验收标准，不是可选项。
+
+日常走一键版：编辑器菜单 **PirateCrew/Audit/场景快照存档（Battle，自动比对上次）**（另有
+「当前打开场景」版）——转储落进 external/scene-audit/`<场景名>`/`<时间戳>/`，并自动与同场景
+上一次快照 Diff，摘要写在本次快照目录的 `diff-vs-<上次时间戳>.txt` 里。改动前快照一次、
+改动后快照一次，即完成上面的验收流程；Battle 快照按载体根剥壳，折叠前后的快照可直接互比。
+
+快照本体落在 gitignored 的 external/ 下，按工作台公约过期即弃、不入库；需要留档的是
+**比对结论**——把「哪条差异、为什么」写进对应任务文档或交接档，而不是囤转储文件。

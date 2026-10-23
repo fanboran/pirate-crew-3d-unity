@@ -27,6 +27,10 @@ namespace PirateCrew.EditorTools
     ///         [-sceneAuditStripRoot &lt;载体根名&gt;]
     ///   比对: 菜单 PirateCrew/Audit/比对两次转储（选两份 tsv）；或 -executeMethod
     ///         SceneWiringAudit.DiffFromCommandLine -sceneAuditDiff "a.tsv;b.tsv"
+    ///   快照: 菜单 PirateCrew/Audit/场景快照存档（自动比对上次）——转储落进
+    ///         external/scene-audit/&lt;场景名&gt;/&lt;时间戳&gt;/，并与同场景上一次快照
+    ///         自动 Diff，摘要写进本次快照目录。改动前一次、改动后一次，是
+    ///         Scenes/README §五验收流程的一键版。
     ///
     /// 【对齐折叠前后的路径】场景折叠成 Prefab 后多一层载体根（BattleRig / MainMenuScreen…），
     /// 转储时用 <c>-sceneAuditStripRoot</c> 剥掉它，折叠前后就得到**同一套对象路径**；
@@ -69,6 +73,106 @@ namespace PirateCrew.EditorTools
                 return;
             }
             Dump(scene.path, DefaultOutDir);
+        }
+
+        // ------------------------------------------------------------------
+        // 快照存档（时间戳目录 + 自动比对上一次）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Battle 的载体根名（快照按它剥壳，与 README §五折叠比对同口径，
+        /// 这样「折叠前 / 折叠后 / 改动前后」的快照路径集合都可直接互比）。
+        /// </summary>
+        const string BattleStripRoot = "BattleRig";
+
+        [MenuItem("PirateCrew/Audit/场景快照存档（Battle，自动比对上次）")]
+        public static void SnapshotBattle()
+        {
+            SnapshotScene(DefaultScene, BattleStripRoot);
+        }
+
+        [MenuItem("PirateCrew/Audit/场景快照存档（当前打开场景，自动比对上次）")]
+        public static void SnapshotActiveScene()
+        {
+            Scene scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid() || string.IsNullOrEmpty(scene.path))
+            {
+                Debug.LogError("[SceneWiringAudit] 当前没有已保存的场景可快照。");
+                return;
+            }
+            SnapshotScene(scene.path, null);
+        }
+
+        /// <summary>
+        /// 快照 = 带时间戳的转储 + 与同场景上一次快照的自动比对：
+        /// 落盘 <c>external/scene-audit/&lt;场景名&gt;/&lt;yyyyMMdd-HHmmss&gt;/</c>
+        /// （hierarchy/summary 三件套），若存在上一次快照则把 diff 摘要写进本次目录
+        /// （<c>diff-vs-&lt;上次时间戳&gt;.txt</c>）。时间戳目录名字典序即时间序，
+        /// 基线取「早于本次的最大时间戳」。只读场景，从不保存（同转储口径）。
+        /// </summary>
+        static void SnapshotScene(string scenePath, string stripRoot)
+        {
+            if (!File.Exists(scenePath))
+            {
+                Debug.LogError("[SceneWiringAudit] 场景不存在: " + scenePath);
+                return;
+            }
+
+            string sceneName = Path.GetFileNameWithoutExtension(scenePath);
+            string sceneDir = Path.Combine(DefaultOutDir, sceneName);
+            string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+
+            // 基线：同场景下早于本次的最大时间戳快照（还没有基线就只存档不比对）
+            string baselineDir = null;
+            if (Directory.Exists(sceneDir))
+            {
+                foreach (string dir in Directory.GetDirectories(sceneDir))
+                {
+                    string name = Path.GetFileName(dir);
+                    if (!IsSnapshotStamp(name) || string.CompareOrdinal(name, stamp) >= 0)
+                        continue;
+                    if (baselineDir == null || string.CompareOrdinal(name, Path.GetFileName(baselineDir)) > 0)
+                        baselineDir = dir;
+                }
+            }
+
+            string outDir = Path.Combine(sceneDir, stamp);
+            Dump(scenePath, outDir, stripRoot);   // Dump 内部自会建目录、剥载体根
+
+            if (baselineDir == null)
+            {
+                Debug.Log("[SceneWiringAudit] 快照存档（首次，无比对基线）→ " + outDir);
+                return;
+            }
+
+            string baselineStamp = Path.GetFileName(baselineDir);
+            string newTsv = Path.Combine(outDir, "hierarchy-" + sceneName + ".tsv");
+            string oldTsv = Path.Combine(baselineDir, "hierarchy-" + sceneName + ".tsv");
+            if (!File.Exists(oldTsv) || !File.Exists(newTsv))
+            {
+                Debug.LogWarning("[SceneWiringAudit] 快照 " + stamp + " 缺 tsv（基线 "
+                    + baselineStamp + "），跳过比对。→ " + outDir);
+                return;
+            }
+
+            string diffPath = Path.Combine(outDir, "diff-vs-" + baselineStamp + ".txt");
+            Diff(oldTsv, newTsv, diffPath);
+            Debug.Log("[SceneWiringAudit] 快照存档 → " + outDir + "；基线 " + baselineStamp);
+        }
+
+        /// <summary>目录名是否为快照时间戳（yyyyMMdd-HHmmss：8 位数字 + '-' + 6 位数字）。</summary>
+        static bool IsSnapshotStamp(string name)
+        {
+            if (name == null || name.Length != 15 || name[8] != '-')
+                return false;
+            for (int i = 0; i < name.Length; i++)
+            {
+                if (i == 8)
+                    continue;
+                if (name[i] < '0' || name[i] > '9')
+                    return false;
+            }
+            return true;
         }
 
         /// <summary>
@@ -513,6 +617,12 @@ namespace PirateCrew.EditorTools
 
         public static void Diff(string oldTsv, string newTsv)
         {
+            Diff(oldTsv, newTsv, null);
+        }
+
+        /// <summary>比对两份转储 tsv。<paramref name="outPath"/> 为空时落在新 tsv 旁的 diff.txt。</summary>
+        public static void Diff(string oldTsv, string newTsv, string outPath)
+        {
             Dictionary<string, string> a = ReadTsv(oldTsv);
             Dictionary<string, string> b = ReadTsv(newTsv);
 
@@ -548,7 +658,8 @@ namespace PirateCrew.EditorTools
             AppendList(sb, "## 删除对象", removed);
             AppendList(sb, "## 变化对象", changed);
 
-            string outPath = Path.Combine(Path.GetDirectoryName(newTsv) ?? ".", "diff.txt");
+            if (string.IsNullOrEmpty(outPath))
+                outPath = Path.Combine(Path.GetDirectoryName(newTsv) ?? ".", "diff.txt");
             File.WriteAllText(outPath, sb.ToString(), new UTF8Encoding(false));
             Debug.Log("[SceneWiringAudit] 比对完成：新增 " + added.Count + " / 删除 " + removed.Count
                 + " / 变化 " + changed.Count + " → " + outPath);

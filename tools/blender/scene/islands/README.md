@@ -2,7 +2,8 @@
 
 > **口径**:云端漫步 / 天空之岛两关的岛体视觉已过审(C# 程序化生成),本目录做的是
 > **原封不动的格式翻译**——把 C# 生成器的几何逐行移植到 Blender 无头脚本,布局/形制/
-> 配色/构图完全照抄,产物 FBX 替换场景引用。不重新设计、不改观感;随机全部是确定性
+> 构图完全照抄(唯配色例外,按 2026-10-07 裁决改白,见下「材质」),产物 FBX 替换场景引用。
+> 不重新设计、不改观感;随机全部是确定性
 > 整数哈希(LowpolyHash / SceneArtHash 纯 uint32 位运算),Python 逐位复刻,几何与
 > C# 版一致(顶点差仅 float32→double 三角函数精度,< 1e-4 m)。
 >
@@ -13,7 +14,7 @@
 
 | 文件 | 干什么 |
 | --- | --- | --- |
-| `translate_cloudfield.py` | 第 1 关云场:`CloudFieldGeometry` 的忠实翻译(11 朵环形 blob 云:主角云 + 环1×4 + 环2×6,暖白/淡金按高度分带,顶平底平削形,±8% 径向抖动) |
+| `translate_cloudfield.py` | 第 1 关云场:`CloudFieldGeometry` 的忠实翻译(11 朵环形 blob 云:主角云 + 环1×4 + 环2×6,WarmWhite/PaleGold 两槽按高度分带(色值见下「材质」),顶平底平削形,±4% 径向抖动) |
 
 ```bash
 B="F:/SteamLibrary/steamapps/common/Blender/blender.exe"
@@ -32,9 +33,11 @@ Unity 侧实例摆 (20, 0, 15)(关卡 bakedPieces 现值)。
 
 ## 材质
 
-内嵌材质 = 旧运行时槽同名同色(`Lowpoly_CloudWarmWhite` #FFF2DB / `Lowpoly_CloudPaleGold`
-#FFD98F,出处 `LowpolyStageBuilder.cs` 的 SlotColor);Unity 侧 `PixelartContentConverter`
-按源材质取色换血,色值单源不双写。
+内嵌材质 = 旧运行时槽同名(`Lowpoly_CloudWarmWhite` / `Lowpoly_CloudPaleGold`,槽名出处
+`LowpolyStageBuilder.cs` 的 SlotColor);基色以本目录脚本的 `SLOTS` 表为单源——
+2026-10-07 创始人裁决「云彩应该是白色」:WarmWhite = 纯白 #FFFFFF、PaleGold = #F2F2F2
+微灰白(分带靠明度,不发黄),不再沿用旧槽色 #FFF2DB/#FFD98F。Unity 侧
+`PixelartContentConverter` 按源材质取色换血,色值单源不双写。
 
 ## 配套工具(可站面 / 关卡数据)
 

@@ -17,7 +17,7 @@ Unity 侧实例摆 (20, 0, 15)（bakedPieces 现值，不动）。
 
 【产物】（重跑幂等覆盖）
     Assets/Art/Models/SceneKit/CloudWalk.fbx    2 节点（WarmWhite / PaleGold 两槽）
-    docs/images/level-islands/cloud_walk-{top,front34,side}
+    docs/images/level-islands/cloud_field-{top,front34,side}
 """
 
 import math

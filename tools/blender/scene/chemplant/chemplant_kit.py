@@ -1466,7 +1466,7 @@ def setup_pixel_pass(scene, block=2, steps=6):
     """合成器：像素化（块边长 = block 屏幕像素）+ 色阶量化（steps 档）。
 
     对齐像素化着色路径的成图口径（docs/技术/渲染/管线/渲染管线.md §1.1）：
-    几何染进屏幕档 → 着色跑在艺术画布（屏幕 ÷ pixelScale，现役 2）→ 点采样放大上屏。
+    几何渲进屏幕档（全分辨率 G-buffer）→ 着色跑在艺术画布（屏幕 ÷ pixelScale，现役 2）→ 点采样放大上屏。
     预览图以 block=2 出（与 1080p 现役 `pixelScale=2` 同口径），色阶量化近似其逐物体色带。
     Blender 5.2 的合成器挂在 `scene.compositing_node_group`（Scene.node_tree 已移除）。
     """
