@@ -136,7 +136,14 @@ namespace PirateCrew.UI
                 return existing;
             var other = container.GetComponent<HorizontalOrVerticalLayoutGroup>();
             if (other != null)
-                Object.DestroyImmediate(other);
+            {
+                // 播放中走帧末销毁队列（DestroyImmediate 是编辑器期用法，Play 模式直调
+                // 会绕过队列、打断当帧引擎遍历）；本类有运行时装配路径，仅编辑器换向重建保持立即卸。
+                if (Application.isPlaying)
+                    Object.Destroy(other);
+                else
+                    Object.DestroyImmediate(other);
+            }
             return container.gameObject.AddComponent<T>();
         }
     }

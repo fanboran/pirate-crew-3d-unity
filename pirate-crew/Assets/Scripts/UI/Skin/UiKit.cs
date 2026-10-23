@@ -232,7 +232,14 @@ namespace PirateCrew.UI
             // 旧版自造的 Shadow 孩子在这里就地销毁（"面板盖两层"的观感即它）。
             Transform legacyShadow = panel.Find("Shadow");
             if (legacyShadow != null)
-                Object.DestroyImmediate(legacyShadow.gameObject);
+            {
+                // 播放中走帧末销毁队列（DestroyImmediate 是编辑器期用法；本入口有运行时
+                // 装配路径——UiScreenBuilder.CreateStickPanel 等，审计 A9 同款分流）。
+                if (Application.isPlaying)
+                    Object.Destroy(legacyShadow.gameObject);
+                else
+                    Object.DestroyImmediate(legacyShadow.gameObject);
+            }
 
             Image plate = FindImage(panel, "Plate");
             if (plate == null)
