@@ -20349,7 +20349,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cfdac7d27248c364d9c5b274080d9d16, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  pixelScale: 3
+  pixelScale: 2
   worldPerPixel: 0.05925926
   deriveOrthographicSize: 1
   aaScaler: 1.5

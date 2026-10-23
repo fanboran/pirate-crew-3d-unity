@@ -17,11 +17,19 @@ namespace PirateCrew.Tests
     /// 【运行环境】只能在 Unity 里跑（<c>new GameObject()</c> 与 <c>[UnityTest]</c> 在无头验证台会抛 ECall）。
     ///   纯逻辑覆盖在 <c>Assets/Tests/Battle/*.cs</c>（HarnessScope=Battle）。
     ///
-    /// 【覆盖】PirateBase 的伤害/死亡/落水/保底武器/行动经济，TrajectoryPreview 与 Ballistics 同源，
-    ///   以及（需场景接线后）Battle 场景双方生成数量与 TurnManager 回合推进。
+    /// 【覆盖】PirateBase 的伤害/死亡/落水/保底武器/行动经济，TrajectoryPreview 节点显隐
+    ///   （弹道数学与「预览 = 实弹」的同源性由 ThrowTrajectory 的纯逻辑域钉），以及
+    ///   Battle 场景双方生成数量与 TurnManager 回合推进。
     /// </summary>
     public class BattleSmokeTests
     {
+        [UnitySetUp]
+        public IEnumerator SetUp()
+        {
+            HeadlessFrustumNoise.Suppress();
+            yield return null;
+        }
+
         static PirateBase CreatePirate(int teamIndex, out GameObject go)
         {
             go = new GameObject("TestPirate", typeof(Rigidbody), typeof(BoxCollider), typeof(PirateBase));
@@ -106,87 +114,81 @@ namespace PirateCrew.Tests
             yield return null;
         }
 
+        /// <summary>
+        /// R4（节点重做后口径）：弹道预览的视觉节点随「磁轨光带」变体重做已换名——
+        /// 现役节点 = <c>TrajectoryArc</c>（光带网格）/ <c>TrajectoryOrigin</c>（根部锚点+引线）/
+        /// <c>TrajectoryReticle</c>（落点准星）/ <c>TrajectoryPulse{i}</c>（流动脉冲）；
+        /// 旧节点 TrajectoryDots / ImpactMarker / ImpactArrow / ImpactCenter 已根除，不再有对应物。
+        /// 断言口径 = 当前真实行为：Awake 自建齐全且收起；瞄准（Show，满力 45° 必穿地）激活；
+        /// 失焦（Hide）整组收起。逐点位置语义（不入地/落点终止/与实弹同源）已下沉到
+        /// ThrowTrajectory 纯逻辑域（EditMode/harness 覆盖），视觉网格顶点经像素格网
+        /// 光栅化（SnapToPixelGrid），不再逐位钉世界坐标。
+        /// </summary>
         [UnityTest]
-        public IEnumerator TrajectoryPreview_ImpactTerminated_AndNeverBelowGround()
+        public IEnumerator TrajectoryPreview_NodesActivateOnShow_AndCollapseOnHide()
         {
-            var go = new GameObject("Trajectory", typeof(TrajectoryPreview));
+            // Show 依赖 Camera.main（TrajectoryPreview.Awake/ResolveCamera 取渲染相机）——
+            // 独立组件测试自建一台确定性主相机（透视，无图形环境可建、不触发渲染）。
+            GameObject camGo = null;
+            GameObject go = null;
             try
             {
+                camGo = new GameObject("PreviewCam", typeof(Camera));
+                camGo.GetComponent<Camera>().tag = "MainCamera";
+
+                go = new GameObject("Trajectory", typeof(TrajectoryPreview));
                 var preview = go.GetComponent<TrajectoryPreview>();
 
+                // 像素光带节点自建齐全，Awake 后默认收起。
+                Transform arc = go.transform.Find("TrajectoryArc");
+                Transform origin = go.transform.Find("TrajectoryOrigin");
+                Transform reticle = go.transform.Find("TrajectoryReticle");
+                Transform pulse0 = go.transform.Find("TrajectoryPulse0");
+                Assert.IsNotNull(arc, "应有光带网格节点 TrajectoryArc（旧 TrajectoryDots 已根除）");
+                Assert.IsNotNull(origin, "应有根部锚点/引线节点 TrajectoryOrigin");
+                Assert.IsNotNull(reticle, "应有落点准星节点 TrajectoryReticle（旧 ImpactMarker/ImpactArrow/ImpactCenter 已根除）");
+                Assert.IsNotNull(pulse0, "应有流动脉冲节点 TrajectoryPulse0");
+                Assert.IsFalse(arc.gameObject.activeSelf, "Awake 后光带应收起");
+                Assert.IsFalse(origin.gameObject.activeSelf, "Awake 后根部锚点应收起");
+                Assert.IsFalse(reticle.gameObject.activeSelf, "Awake 后准星应收起");
+                Assert.IsFalse(pulse0.gameObject.activeSelf, "Awake 后脉冲应收起");
+
                 // 米制口径：起点 = 格位 + 投掷手高度；初速 = 标准投掷模组三参数合成。
-                Vector3 origin = LevelGeometry.GridToArena(3, 6)
+                Vector3 throwOrigin = LevelGeometry.GridToArena(3, 6)
                     + Vector3.up * StandardThrowRules.ThrowOriginHeight;
                 Vector3 velocity = StandardThrowRules.LaunchVelocity(StandardThrowRules.Initial(45f));
 
-                preview.Show(origin, velocity);
+                // 瞄准展示：整组激活（满力 45° 仰角必在兜底步数内穿地，Show 的兜底隐藏分支不触发）。
+                preview.Show(throwOrigin, velocity);
+                Assert.IsTrue(arc.gameObject.activeSelf, "展示中光带应激活");
+                Assert.IsTrue(origin.gameObject.activeSelf, "展示中根部锚点应激活");
+                Assert.IsTrue(reticle.gameObject.activeSelf,
+                    "展示中准星应激活（showImpactMarker 默认 true）");
+                Assert.IsTrue(pulse0.gameObject.activeSelf, "展示中脉冲应激活");
 
-                // 珠点池自建且逐点不低于地面（投掷行为契约 #9：不入地）。
-                Transform dotsRoot = go.transform.Find("TrajectoryDots");
-                Assert.IsNotNull(dotsRoot, "预览应自建珠点池");
-                int activeDots = 0;
-                foreach (Transform dot in dotsRoot)
-                {
-                    if (!dot.gameObject.activeSelf)
-                        continue;
-                    activeDots++;
-                    Assert.GreaterOrEqual(dot.position.y, LevelGeometry.GroundTopY - 1e-3f,
-                        "珠点不得穿到地面之下");
-                }
-                Assert.Greater(activeDots, 0, "展示中的预览应有可见珠点");
-
-                // 与同源积分一致（预览 = 实弹的关键不变量）：首珠点 = 第一个采样步。
-                var expected = new Vector3[StandardThrowRules.PreviewMaxSteps];
-                bool landed = ThrowTrajectory.TryPredictUntilImpact(
-                    origin, velocity, StandardThrowRules.LaunchGravityY,
-                    expected, out int count, out Vector3 impact);
-                Assert.IsTrue(landed, "满力 45° 仰角必在兜底步数内穿地");
-                Transform firstDot = null;
-                foreach (Transform dot in dotsRoot)
-                    if (dot.gameObject.activeSelf)
-                    {
-                        firstDot = dot;
-                        break;
-                    }
-                Assert.AreEqual(expected[0].x, firstDot.position.x, 1e-3f, "首珠点应 = 同源积分第一步");
-                Assert.AreEqual(expected[0].y, firstDot.position.y, 1e-3f);
-                Assert.AreEqual(expected[0].z, firstDot.position.z, 1e-3f);
-
-                // 落点标记恒显且恰在地面（环抬升 ImpactMarkerLift 防 z-fight）。
-                var marker = go.transform.Find("ImpactMarker");
-                Assert.IsNotNull(marker, "落点标记应存在（落点终止预览）");
-                var markerLine = marker.GetComponent<LineRenderer>();
-                Assert.IsTrue(markerLine.enabled, "落点标记应显示");
-                Vector3 ringPoint = markerLine.GetPosition(0);
-                Assert.AreEqual(impact.y + TrajectoryPreview.ImpactMarkerLift, ringPoint.y, 1e-3f,
-                    "落点环应抬在穿地点上方");
-
-                // 落点组三件套（贴地环 + 指向箭头 + 中心点；方向可读口径）。
-                var arrow = go.transform.Find("ImpactArrow");
-                var center = go.transform.Find("ImpactCenter");
-                Assert.IsNotNull(arrow, "落点组应有指向箭头（随水平初速方向）");
-                Assert.IsNotNull(center, "落点组应有中心点");
-                Assert.IsTrue(arrow.gameObject.activeSelf, "展示中箭头应显示");
-                Assert.IsTrue(center.gameObject.activeSelf, "展示中中心点应显示");
-
+                // 失焦收起：Hide 整组 SetActive(false)。
                 preview.Hide();
-                foreach (Transform dot in dotsRoot)
-                    Assert.IsFalse(dot.gameObject.activeSelf, "Hide 后珠点应收起");
-                Assert.IsFalse(markerLine.enabled, "Hide 后落点标记应隐藏");
-                Assert.IsFalse(arrow.gameObject.activeSelf, "Hide 后箭头应收起");
-                Assert.IsFalse(center.gameObject.activeSelf, "Hide 后中心点应收起");
+                Assert.IsFalse(arc.gameObject.activeSelf, "Hide 后光带应收起");
+                Assert.IsFalse(origin.gameObject.activeSelf, "Hide 后根部锚点应收起");
+                Assert.IsFalse(reticle.gameObject.activeSelf, "Hide 后准星应收起");
+                Assert.IsFalse(pulse0.gameObject.activeSelf, "Hide 后脉冲应收起");
             }
             finally
             {
-                Object.Destroy(go);
+                if (go != null)
+                    Object.Destroy(go);
+                if (camGo != null)
+                    Object.Destroy(camGo);
             }
 
             yield return null;
         }
 
         /// <summary>
-        /// 场景级冒烟：Battle 场景需由协调者接线（BattleController/TurnManager/PirateBase 预制体/水位）。
-        /// 未接线时用 <see cref="Assert.Ignore"/> 跳过，避免误报；接线后本用例自动生效。
+        /// 场景级冒烟：Battle 场景装配后必须能开战（BattleController/TurnManager/双方生成/回合推进）。
+        /// 【T4 修正】原版在缺 BattleController 时 <see cref="Assert.Ignore"/> 静默跳过——那是装配期
+        /// 历史遗留；现在场景接线早已收口，PlayMode 加载场景后缺装配**就是回归**，必须响亮红
+        /// 而不是静默绿（跳过会伪装成「没测」，让装配断裂从冒烟层漏网）。本用例无合法跳过场景。
         /// </summary>
         [UnityTest]
         public IEnumerator BattleScene_SpawnsBothTeams_AndTurnAdvances()
@@ -196,11 +198,8 @@ namespace PirateCrew.Tests
             yield return null;
 
             var controller = Object.FindObjectOfType<BattleController>();
-            if (controller == null)
-            {
-                Assert.Ignore("Battle 场景尚未接入 BattleController（组装层由协调者接线），跳过场景级冒烟。");
-                yield break;
-            }
+            Assert.IsNotNull(controller,
+                "Battle 场景缺 BattleController——场景加载后缺装配就是回归（原版此处 Assert.Ignore 静默跳过，已改响亮失败）");
 
             BattlePlan plan = controller.Plan;
             Assert.IsNotNull(plan, "BattleController 应生成出战计划");

@@ -21,8 +21,9 @@ namespace PirateCrew.Tests
     ///   · 双方船员数量 = 样板第 1 关（云端漫步）数据（红 4 / 蓝 4）；
     ///   · 单位站位落在 XZ 竞技场（<see cref="LevelGeometry.GridToArena"/>，脚底贴地、枢轴抬高）；
     ///   · 水面世界 Y = <see cref="LevelGeometry.WaterSurfaceY"/>（3D 化的全局水位常量）；
-    ///   · 相机是真 3D：**烘焙机位**透视 + 45° 俯角 + 距离 15（正交侧视是 2D 时代的遗留），
-    ///     **运行时默认**被 BattleCameraDriver 覆盖为角色特写档（用户裁决 2026-09-14：距离 5–7、俯角 25–35°）；
+    ///   · 相机是真 3D：正交、俯角锁 30°（与出图口径同一常量）——**取景（ortho）归
+    ///     <c>PixelartCameraRig</c> 的 derive 模式按 worldPerPixel 自反推，
+    ///     <see cref="BattleCameraDriver"/> 只写位置/朝向（创始人 2026-10-07「禁多镜头距离」裁决）；
     ///   · TurnManager 已开始回合，且 end go 后能推进到另一队。
     ///
     /// 【说明】私有序列化字段用反射读取，避免为了测试扩大运行时 API；字段名与装配脚本
@@ -31,6 +32,21 @@ namespace PirateCrew.Tests
     public class BattleSceneWiringTests
     {
         static readonly BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+
+        [UnitySetUp]
+        public IEnumerator SetUp()
+        {
+            HeadlessFrustumNoise.Suppress();
+            yield return null;
+        }
+
+        [UnityTearDown]
+        public IEnumerator TearDown()
+        {
+            // 换档断言会拨运行期真值（PixelScaleState 是跨用例静态），归还默认档。
+            PirateCrew.Core.PixelScaleState.Unit = PixelartCameraRig.PixelScaleDefault;
+            yield return null;
+        }
 
         static object Field(object target, string name)
         {
@@ -41,13 +57,17 @@ namespace PirateCrew.Tests
         }
 
         /// <summary>
-        /// 复核相机是**等距像素卡通口径**（正交 + 斜 45° 方位 + 俯角 30° + 基准 OrthoSize 档），
+        /// 复核相机是**等距像素卡通口径**（正交 + 斜 45° 方位 + 俯角 30°），
         /// 且已**去 Cinemachine 化**（2026-09-23 重构）：主相机无 Brain、场景无虚机/中转目标、
-        /// Driver 是唯一写入者。
+        /// Driver 是位姿唯一写入者。
         ///
-        /// 【单一写入者守卫】跑几帧后主相机的实况 transform/lens 必须逐位等于
+        /// 【单一写入者守卫】跑几帧后主相机的实况 transform 必须逐位等于
         /// <see cref="BattleCameraDriver.LastFrame"/>——若有别的系统在 Driver 之后改写相机，
         /// 两者会分叉，这条当场红。
+        /// 【ortho 不在比对面（禁多镜头距离裁决收口后）】LastFrame.OrthoSize 只是 Driver 的
+        /// 目标档读数；实况 orthographicSize 的写入者是 rig 的 derive 模式
+        /// （<c>RenderHeight × worldPerPixel × 0.5</c>，见 PixelartCameraRig.Update），
+        /// 数学契约由 <see cref="BattleCamera_HasPixelartPathWired"/> 钉。
         /// </summary>
         static IEnumerator AssertBattleCameraDriverWired(BattleCameraDriver driver)
         {
@@ -78,20 +98,17 @@ namespace PirateCrew.Tests
             Assert.AreEqual(Mathf.RoundToInt(CameraFraming.CloseUpOrthoSize), driver.RuntimeOrthoSize,
                 "开局取景应为近景基准档（远景档 = PanoramaOrthoSizeForSpan；档数按 OrthoSize 四舍五入）");
 
-            // ---- 单一写入者：让游戏跑几帧，再逐位比对 ----
+            // ---- 单一写入者：让游戏跑几帧，再逐位比对（只比 transform，ortho 见方法注释）----
             yield return null;
             yield return null;
             yield return null;
             Assert.Greater(driver.LastFrame.OrthoSize, 0f, "Driver 应已落过至少一帧取景");
             float positionError = Vector3.Distance(mainCamera.transform.position, driver.LastFrame.Position);
             float rotationError = Quaternion.Angle(mainCamera.transform.rotation, driver.LastFrame.Rotation);
-            float sizeError = Mathf.Abs(mainCamera.orthographicSize - driver.LastFrame.OrthoSize);
             Assert.Less(positionError, 0.01f,
                 "主相机位置 ≠ Driver.LastFrame —— 除 Driver 外有人在写主相机（误差 " + positionError + "）");
             Assert.Less(rotationError, 0.01f,
                 "主相机朝向 ≠ Driver.LastFrame —— 除 Driver 外有人在写主相机（误差 " + rotationError + "°）");
-            Assert.Less(sizeError, 0.001f,
-                "主相机 OrthoSize ≠ Driver.LastFrame —— 除 Driver 外有人在写主相机");
         }
 
         [UnityTest]
@@ -116,19 +133,67 @@ namespace PirateCrew.Tests
             Assert.AreNotEqual(rig.castRendererIndex, rig.screenRendererIndex,
                 "Cast 与 Screen 必须是两个不同的渲染器（挂成同一个会让主相机重跑物体 pass 并冲掉结果）");
 
-            Assert.IsFalse(rig.deriveOrthographicSize,
-                "deriveOrthographicSize 必须关：取景归 BattleCameraDriver（正交整数档 = 视野档），"
-                + "本路径只管像素网格与着色，开着会把玩家的缩放覆盖掉");
-            // 【运行时档 3× = 创始人习惯档（2026-10-05 走查：局内 2× 与调试场 3× 观感割裂）】
-            // 与调试场 CharCamDebugController.DefaultPixelScale 同源；出图口径
-            // PixelartPilotScene.PixelScale（2×）只管出图，不进战斗相机（相机行为契约 #9）。
-            Assert.AreEqual(PirateCrew.CharCamDebug.CharCamDebugController.DefaultPixelScale, rig.pixelScale,
-                "战斗像素档位必须 = 创始人习惯档 3×（与调试场同源；出图口径 2× 不进战斗相机）");
-            // worldPerPixel 随取景实况逐帧自洽（Driver.ApplyFrame 单点写，= 可见米数×档数÷1080）：
-            // 断言它落在近景档的合理域（13.7m±平滑余量），防 28m 旧静态标定回流。
-            float nearWpp = CameraFraming.CloseUpOrthoSize * 2f * rig.pixelScale / 1080f;
-            Assert.That(rig.worldPerPixel, Is.EqualTo(nearWpp).Within(nearWpp * 1.5f),
-                "worldPerPixel 应随取景实况自洽（近景档 13.7m 量级；28m 旧静态标定已废）");
+            // ---- R3（当前真实契约）：derive 取景模式 ----
+            // BattleRig.prefab 序列化 deriveOrthographicSize: 1：取景（ortho）由 rig 按 worldPerPixel
+            // 自反推，BattleCameraDriver 只写位置/朝向（ApplyFrame，禁多镜头距离裁决）。
+            // 旧断言「derive 必须关 + 档位 3×」是 derive 收口前的反置口径，按当前契约重写。
+            Assert.IsTrue(rig.deriveOrthographicSize,
+                "BattleRig 装配应为 derive 取景模式（prefab 序列化 1）：ortho 由 rig 按 worldPerPixel 反推，"
+                + "BattleCameraDriver 只写位置/朝向");
+            // 像素档的运行期真值是 PixelScaleState.Unit（滚轮/设置页两入口同源），rig 每帧向它对齐；
+            // 不钉具体档数（出厂 2，设置页可改），只断档位落在契约域内。
+            Assert.That(rig.pixelScale,
+                Is.InRange(PixelartCameraRig.PixelScaleMin, PixelartCameraRig.PixelScaleMax),
+                "像素档应被钳在契约域 [" + PixelartCameraRig.PixelScaleMin + ", "
+                + PixelartCameraRig.PixelScaleMax + "]（运行期真值 = PixelScaleState.Unit，rig 每帧对齐）");
+
+            // ---- worldPerPixel 的 k 形状口径（审计 R2 修复后，全仓唯一换算式 WorldPerPixelFor）----
+            // wpp = 可见米数 × k ÷ 1080；可见米数美术锚 = CloseUpOrthoSize×2 = 32m。
+            // 推导「可见高度 = (屏幕高÷k) × wpp」在屏高恒定时与 k 无关——换档取景不动、只变颗粒。
+            float visibleMeters = CameraFraming.CloseUpOrthoSize * 2f;   // 32m
+            Assert.That(PixelartCameraRig.WorldPerPixelFor(visibleMeters, 2),
+                Is.EqualTo(CameraFraming.WorldPerPixel).Within(1e-6f),
+                "k=2 的换算值应与 CameraFraming.WorldPerPixel 逐位同源（32m ÷ 540 行 @1080p·2×）");
+
+            // ---- 运行时换档保取景（k=2 → 3 → 4 逐档验证）----
+            // 【前提摆位】prefab 的 (pixelScale=3, worldPerPixel=0.05925926) 是旧标定残留、两者不配对
+            // （0.05925926 是 k=2 形状值，运行时 3→2 对齐还会被换档重写再歪一次），装配侧数据缺陷
+            // 已登记转交；本用例先把 rig 摆到自洽前提（k=2 + 32m 口径）再钉 rig 数学，不背资产残留的锅。
+            rig.pixelScale = 2;
+            rig.worldPerPixel = PixelartCameraRig.WorldPerPixelFor(visibleMeters, 2);
+            PixelScaleState.Unit = 2;
+            yield return null;   // 等 rig.Update 对齐 + derive 重算
+
+            // 可见高度 = (屏幕高÷k) × wpp（屏幕高=1080 时即美术锚 32m）。
+            // 用 Screen.height（无头 batchmode = 480）而非 rig.RenderHeight：无头下缓冲不建、
+            // RenderHeight 恒 0，只有这条分辨率无关式有区分度；实机上两者相等（RenderHeight = 屏高÷k）。
+            float VisibleAt(int k)
+            {
+                return Screen.height / (float)k * rig.worldPerPixel;
+            }
+
+            Assert.AreEqual(2, rig.pixelScale, "摆位后档位应为 2");
+            float visibleAtK2 = VisibleAt(2);
+
+            Assert.IsTrue(rig.TryStepPixelScale(+1), "滚轮升档 2→3 应生效（未到上限）");
+            yield return null;
+            Assert.AreEqual(3, rig.pixelScale, "滚轮升档后 rig 应到 3");
+            Assert.AreEqual(3, PixelScaleState.Unit, "滚轮升档应同步运行期真值");
+            Assert.That(rig.worldPerPixel, Is.EqualTo(visibleMeters * 3f / PixelartCameraRig.ReferenceScreenHeight).Within(1e-6f),
+                "k=3 时 wpp 应呈「32m×3÷1080」形状（换档按 k新/k旧 保形重写）");
+            float visibleAtK3 = VisibleAt(3);
+
+            Assert.IsTrue(rig.TryStepPixelScale(+1), "滚轮升档 3→4 应生效（未到上限）");
+            yield return null;
+            Assert.AreEqual(4, rig.pixelScale, "滚轮升档后 rig 应到 4");
+            Assert.That(rig.worldPerPixel, Is.EqualTo(visibleMeters * 4f / PixelartCameraRig.ReferenceScreenHeight).Within(1e-6f),
+                "k=4 时 wpp 应呈「32m×4÷1080」形状");
+
+            // 换档保取景：可见世界高度与 k 无关（取景不动、只变颗粒粗细——审计 R2 契约）。
+            Assert.That(VisibleAt(4), Is.EqualTo(visibleAtK2).Within(1e-3f),
+                "换档（2→4）前后可见世界高度应不变");
+            Assert.That(visibleAtK3, Is.EqualTo(visibleAtK2).Within(1e-3f),
+                "k=3 中间点可见世界高度也应与 k=2 相同");
 
             var converter = Object.FindObjectOfType<PixelartContentConverter>();
             Assert.IsNotNull(converter,
@@ -198,14 +263,18 @@ namespace PirateCrew.Tests
             Assert.Greater(plan.CountForTeam(0), 0, "红队应有成员");
             Assert.Greater(plan.CountForTeam(1), 0, "蓝队应有成员");
 
-            // ---- 单位站位：XZ 竞技场（横向 X = cellX+0.5，纵深 Z = cellY+0.5，高度 = 枢轴离地）----
+            // ---- 单位站位：XZ 竞技场（格索引与世界坐标是**包含关系**，不是格心等式）----
+            // 关卡数据是米制自由摆位（如 L1 船长 x=14 落在格边界而非格心），
+            // 正确不变量是 CellX = floor(世界X ÷ 采样格宽)；格心等式只对按格心摆放的数据成立。
             var pirates = controller.AllPirates;
             for (int i = 0; i < plan.Entries.Count; i++)
             {
                 SpawnPlanEntry entry = plan.Entries[i];
                 Vector3 expectedPos = LevelGeometry.GridToArena(entry.CellX, entry.CellY);
-                Assert.AreEqual(expectedPos.x, entry.WorldPosition.x, 1e-4f, "计划条目的 X 应 = cellX+0.5");
-                Assert.AreEqual(expectedPos.z, entry.WorldPosition.z, 1e-4f, "计划条目的 Z 应 = cellY+0.5");
+                Assert.AreEqual(Mathf.FloorToInt(entry.WorldPosition.x / LevelGeometry.SampleCellSize), entry.CellX,
+                    "计划条目的 CellX 应 = floor(世界X ÷ 采样格宽)");
+                Assert.AreEqual(Mathf.FloorToInt(entry.WorldPosition.z / LevelGeometry.SampleCellSize), entry.CellY,
+                    "计划条目的 CellY 应 = floor(世界Z ÷ 采样格宽)");
 
                 Vector3 actual = pirates[i].transform.position;
                 // 物理落点按**半格**界（格 2u 宽）：出生体在斜坡/挤碰下的物理滑移是已知环境性

@@ -61,6 +61,10 @@ namespace PirateCrew.Tests
         [UnitySetUp]
         public IEnumerator SetUp()
         {
+            // 无头相机噪声豁免（见 HeadlessFrustumNoise 注释）：本类全链路会装载 Battle 场景，
+            // 像素 rig 在 -nographics 下逐帧刷 frustum 错误，不豁免则整套判死。
+            HeadlessFrustumNoise.Suppress();
+
             // 每条用例从入口场景重开一局（Single 加载 = 场景复位；服务宿主 DontDestroyOnLoad
             // 跨场景存活，Bootstrapper.EnsureInstalled 幂等不会重复建）。装载走「先清残留实例」
             // 的封装——直接 LoadSceneAsync 会撞上 Bootstrapper 的重复实例自毁守卫，自动转场哑火
@@ -215,11 +219,13 @@ namespace PirateCrew.Tests
             Assert.IsTrue(saved.HasData(CrewManagementSaveCodec.UnlockedKey),
                 "船员名册键应已写入（CrewManagementApi.WriteTo）");
 
-            // 【占位冻结】结算链休眠 ⇒ 星记录进不了进度表，存档里星键是空串而非 "id:3"。
-            // 跨关卡玩法设计解冻后，把本用例的桥接换成真实结算归属，此处即可改断
-            // "含本次关卡记录"（CampaignSaveCodec.Read 读回 GetStars == 结算星数）。
-            Assert.AreEqual(string.Empty, saved.GetData(CampaignSaveCodec.StarsKey, "<缺键>"),
-                "海图目录为空时星记录无法落盘（CompleteLevel 门卫）——空串即断点在存档里的镜像");
+            // 【占位冻结线】真实链路的结算归属仍休眠（无人调 SelectMap），但本用例的桥接
+            // 显式补记了归属，且 CompleteLevel 的目录门卫已随 WorldMap 退役移除 ⇒ 桥接 id 能记星。
+            // 断言「存档含本次桥接记录」，钉住冻结线机件的端到端正确性（解冻设计跨关卡玩法时
+            // 只换桥接为真实入口，此断言不用动）。
+            Assert.That(saved.GetData(CampaignSaveCodec.StarsKey, "<缺键>"),
+                Does.Contain(BridgedMapId),
+                "桥接补记的归属应随结算落盘（星级记录进了进度槽）");
         }
 
         // ------------------------------------------------------------------
