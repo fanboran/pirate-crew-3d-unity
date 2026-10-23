@@ -43,6 +43,28 @@ namespace PirateCrew.UI
 
         static readonly Dictionary<Glyph, Sprite> Cache = new Dictionary<Glyph, Sprite>();
 
+        /// <summary>
+        /// 静态缓存跨播放复位（U12 释放路径）：关 Domain Reload（Enter Play Mode Options）时
+        /// 静态字典不随域卸载，上一场播放运行时生成的 Sprite/Texture2D 会以孤儿资产滞留跨进
+        /// 下一次播放——播放开始前统一销毁清空，重新按需生成；开 Domain Reload 时静态本已为空，
+        /// 这里空转。同文件惯用法先例：SelectionCube.ResetStaticResources。
+        /// SubsystemRegistration 在场景加载前触发，当时无渲染器引用这些资源，销毁无副作用。
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetCache()
+        {
+            foreach (KeyValuePair<Glyph, Sprite> entry in Cache)
+            {
+                if (entry.Value == null)
+                    continue;
+                Texture2D texture = entry.Value.texture;
+                Object.Destroy(entry.Value);
+                if (texture != null)
+                    Object.Destroy(texture);
+            }
+            Cache.Clear();
+        }
+
         /// <summary>取内存 Sprite（运行时用；颜色由 Image.color 染）。</summary>
         public static Sprite Get(Glyph glyph)
         {
@@ -101,7 +123,7 @@ namespace PirateCrew.UI
             var texture = new Texture2D(Size, Size, TextureFormat.RGBA32, false);
             texture.name = "GlyphTex_" + glyph;
             texture.SetPixels32(pixels);
-            texture.filterMode = FilterMode.Bilinear;
+            texture.filterMode = FilterMode.Point;   // 像素纪律：程序化符号同走点采样（U12）
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.Apply(false, false);
             return texture;

@@ -70,16 +70,6 @@ namespace PirateCrew.UI
             SetAnchored(rect, new Vector2(0f, 1f), size, new Vector2(x, -y));
         }
 
-        /// <summary>铺满父容器后整体错位（【投影已退役】theme 无影子层——占位保留给未来的居中偏移件）。</summary>
-        static void StretchOffset(RectTransform rect, Vector2 offset)
-        {
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.offsetMin = offset;
-            rect.offsetMax = offset;
-        }
-
         // ------------------------------------------------------------------
         // 文本（字号 = UiSkin.Font 单轨）
         // ------------------------------------------------------------------

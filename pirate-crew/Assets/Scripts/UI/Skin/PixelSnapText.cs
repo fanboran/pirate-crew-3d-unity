@@ -25,6 +25,14 @@ namespace PirateCrew.UI
         private float _appliedPhaseX, _appliedPhaseY;
         private bool _hasApplied;
 
+        /// <summary>quad 角点工作缓冲（<see cref="ModifyMesh"/> 循环外复用——文字网格动辄
+        /// 上百个 quad，原来每 quad new 一个数组是动画期 GC 热点）。</summary>
+        private readonly UIVertex[] _corners = new UIVertex[4];
+
+        /// <summary>相位跨步步长（画布格）。相位漂移不超过它时，已烘顶点的错位 &lt; 半个
+        /// 屏幕像素（PixelSkin.Unit=2），像素化采样不跨行、不可见——不值得一次全网格重建。</summary>
+        private const float PhaseStep = 0.25f;
+
         public override void ModifyMesh(VertexHelper vh)
         {
             if (!isActiveAndEnabled || vh.currentVertCount == 0)
@@ -47,7 +55,7 @@ namespace PirateCrew.UI
             {
                 float minX = float.MaxValue, minY = float.MaxValue;
                 float maxX = float.MinValue, maxY = float.MinValue;
-                var corners = new UIVertex[4];
+                UIVertex[] corners = _corners;
                 for (int k = 0; k < 4; k++)
                 {
                     vh.PopulateUIVertex(ref corners[k], i + k);
@@ -72,11 +80,14 @@ namespace PirateCrew.UI
         }
 
         /// <summary>
-        /// **相位变化即重算网格**。相位是在 <see cref="ModifyMesh"/> 里烘焙进顶点的，
+        /// **相位真的跨步才重算网格**。相位是在 <see cref="ModifyMesh"/> 里烘焙进顶点的，
         /// 而 TMP 只在文本"变脏"时重建网格——面板开合动效把 rect 又挪了半格时，
         /// 烘进去的仍是旧相位，字就停在半格上（实拍：设置面板滑条内的百分比文字
-        /// 在开启动效后整列落在奇数屏幕像素上，392 条半格边缘）。这里每帧比一次相位，
-        /// 变了就把顶点标脏，动画停稳后自动回到整格。
+        /// 在开启动效后整列落在奇数屏幕像素上，392 条半格边缘）。
+        /// 【U6 动画热点】比对按 <see cref="PhaseStep"/> 量化：动画中的亚步长漂移（错位
+        /// &lt; 半个屏幕像素）不再每帧置脏重建全文字网格；一旦跨步就置脏，且重建时
+        /// <see cref="ModifyMesh"/> 按**真实相位**烘顶点——停稳后无残差、照样回整格，
+        /// 语义与逐帧比对一致。
         /// </summary>
         private void LateUpdate()
         {
@@ -84,8 +95,8 @@ namespace PirateCrew.UI
             if (!TryGetPhase(out phaseX, out phaseY))
                 return;
             if (_hasApplied
-                && Mathf.Abs(phaseX - _appliedPhaseX) < 0.001f
-                && Mathf.Abs(phaseY - _appliedPhaseY) < 0.001f)
+                && Mathf.RoundToInt(phaseX / PhaseStep) == Mathf.RoundToInt(_appliedPhaseX / PhaseStep)
+                && Mathf.RoundToInt(phaseY / PhaseStep) == Mathf.RoundToInt(_appliedPhaseY / PhaseStep))
                 return;
 
             Graphic owner = graphic;

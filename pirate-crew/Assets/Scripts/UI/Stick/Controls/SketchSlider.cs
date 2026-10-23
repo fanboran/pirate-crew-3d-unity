@@ -9,7 +9,7 @@ namespace PirateCrew.UI.Stick
 {
     /// <summary>
     /// Aseprite 滑条控件（theme <c>&lt;style id="slider"&gt;</c>，theme.xml:1053-1058）的逐函数移植，
-    /// 替代「UGUI <see cref="Slider"/> + <see cref="SliderValueLabel"/> 补丁件」那套近似实现。
+    /// 替代「UGUI <see cref="Slider"/> + SliderValueLabel 补丁件」那套近似实现。
     ///
     /// 【权威源】
     ///   · <c>external/aseprite-ref/src/ui/slider.h:25-74</c>（值域/信号/虚函数面）
@@ -437,6 +437,13 @@ namespace PirateCrew.UI.Stick
         void Update()
         {
             if (!HasFocus || !IsInteractable() || _readOnly)
+                return;
+            // 【U5 GC 门】无任何按键时零读零拼接：Input.inputString 每帧取串、
+            // HandleKeyboard 的键入缓冲字符串操作对聚焦常驻的滑条都是白跑
+            // （能进 inputString 的字符必然来自按键，anyKey 门不会漏字符）。
+            // 键入缓冲的 1500ms 超时清空是时间驱动的，推迟到下一次有键帧执行语义等价
+            // （无键帧里缓冲不会被消费）。
+            if (!Input.anyKey)
                 return;
             HandleKeyboard();
         }

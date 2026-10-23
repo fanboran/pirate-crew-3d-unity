@@ -84,6 +84,11 @@ namespace PirateCrew.UI.DebugUi
         /// <summary>装载 data/widgets/&lt;widgetName&gt;.xml 为可交互窗。</summary>
         public static Result Load(string widgetName, Transform overlay, Vector2 topLeft)
         {
+            // 【U3 调试 UI 收口】本装载器是调试面板的物料入口（widgets.xml 声明资产 +
+            // 可拖调试窗）：正式包物理断供，Resources 不装、窗口不建；编辑器/开发构建不受影响。
+#if !UNITY_EDITOR && !DEVELOPMENT_BUILD
+            return null;
+#else
             TextAsset xmlAsset = Resources.Load<TextAsset>("AseWidgets/" + widgetName);
             if (xmlAsset == null)
             {
@@ -127,6 +132,7 @@ namespace PirateCrew.UI.DebugUi
             ctx.Result.Root = root;      // cmd 层 SetHidden/Reflow 用
             ctx.Result.InnerW = innerW;
             return ctx.Result;
+#endif
         }
 
         /// <summary>按内容高落位根盒并同步窗高。窗高须含顶部 inset（内容自 ContentTop 起排）。</summary>

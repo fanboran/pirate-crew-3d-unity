@@ -21,9 +21,6 @@ EditorBuildSettings:
     path: Assets/Scenes/Game/LevelSelect.unity
     guid: 509a6020c75cd4b4a8ee2d9881771f28
   - enabled: 1
-    path: Assets/Scenes/Game/UIShowcase.unity
-    guid: eb4b0ba634782204ba01a12677d99a3d
-  - enabled: 1
     path: Assets/Scenes/Pixelart/PixelartPilot.unity
     guid: bdaf367a6f4cff14cbd374d0be8bc7b4
   - enabled: 1

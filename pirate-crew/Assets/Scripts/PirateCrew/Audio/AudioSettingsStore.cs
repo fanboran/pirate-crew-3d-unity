@@ -85,7 +85,9 @@ namespace PirateCrew.Audio
             return any;
         }
 
-        /// <summary>从 <see cref="SaveManager"/> 的音频槽位读档并应用；失败返回 false（不抛异常）。</summary>
+        /// <summary>从 <see cref="SaveManager"/> 的音频槽位读档并应用；失败返回 false（不抛异常）。
+        /// 读档只是拿数据的中间步骤 → 走 <see cref="SaveManager.TryLoadSlotQuiet"/>（D14 静默通道），
+        /// 不广播 LoadCompleted 误导监听方当成「用户执行了读档」。</summary>
         public static bool TryLoadInto(VolumeMixer mixer)
         {
             SaveManager save = SaveManager.Instance;
@@ -95,7 +97,7 @@ namespace PirateCrew.Audio
             if (!save.SlotExists(SettingsSlot))
                 return false;
 
-            SaveData data = save.LoadFromSlot(SettingsSlot);
+            SaveData data = save.TryLoadSlotQuiet(SettingsSlot);
             if (data == null)
                 return false;
 
@@ -105,7 +107,8 @@ namespace PirateCrew.Audio
         /// <summary>
         /// 把混音器当前音量落盘到音频槽位；无 SaveManager 实例或写失败返回 false。
         /// 读改写：保留同槽里视频设置（<c>video.*</c>）的键——旧版整槽替换会把它们抹掉，
-        /// 导致"改一次音量，全屏/画质设置被重置"。
+        /// 导致"改一次音量，全屏/画质设置被重置"。合并读走 <see cref="SaveManager.TryLoadSlotQuiet"/>
+        /// （D14）：保存前的旧档读取不广播 LoadCompleted。
         /// </summary>
         public static bool TrySaveFrom(VolumeMixer mixer)
         {
@@ -113,7 +116,7 @@ namespace PirateCrew.Audio
             if (save == null || mixer == null)
                 return false;
 
-            SaveData data = save.SlotExists(SettingsSlot) ? save.LoadFromSlot(SettingsSlot) : null;
+            SaveData data = save.SlotExists(SettingsSlot) ? save.TryLoadSlotQuiet(SettingsSlot) : null;
             if (data == null)
                 data = new SaveData();
 

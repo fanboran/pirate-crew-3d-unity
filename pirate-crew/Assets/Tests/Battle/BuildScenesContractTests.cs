@@ -10,7 +10,7 @@ namespace PirateCrew.Tests
     /// EditorBuildSettings.scenes 历史上被砍四次（UIShowcase 三度被摘 + 早期截断），
     /// 根因是三个场景装配器各持硬编码清单互写。现已收口到
     /// <c>PirateCrew.EditorTools.BuildScenes.EditorRegistrationScenes()</c> 单一真源；
-    /// 本测试钉住底线——**任何**写场景表的代码跑完后，六个「运行时按名载入」的场景
+    /// 本测试钉住底线——**任何**写场景表的代码跑完后，全部「运行时按名载入」的场景
     /// 必须都在表内且 enabled。缺一个当场红，而不是等某天发现组件展示又白了。
     /// （要读 <c>EditorBuildSettings.scenes</c>——UnityEditor 域专属，harness 纯 dotnet 域自动 Ignore。）
     /// </summary>
@@ -23,7 +23,6 @@ namespace PirateCrew.Tests
             SceneNames.Battle,
             SceneNames.CrewManagement,
             SceneNames.LevelSelect,
-            SceneNames.UIShowcase,
         };
 
         [Test]

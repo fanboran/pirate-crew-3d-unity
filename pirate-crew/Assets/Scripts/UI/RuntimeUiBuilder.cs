@@ -303,13 +303,5 @@ namespace PirateCrew.UI
             rect.sizeDelta = size;
             rect.anchoredPosition = anchoredPosition;
         }
-
-        /// <summary>把颜色整体乘上 alpha（保留原 RGB；令牌色降透明度的本地出口，
-        /// 不再借道 UiTheme）。</summary>
-        static Color WithAlpha(Color color, float alpha)
-        {
-            color.a = alpha;
-            return color;
-        }
     }
 }

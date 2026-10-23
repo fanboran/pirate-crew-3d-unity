@@ -317,7 +317,7 @@ namespace PirateCrew.UI
             TextAsset asset = Resources.Load<TextAsset>(ResourcePath);
             if (asset == null)
             {
-                Debug.LogWarning("[AseThemeLayers] 未找到 Resources/" + ResourcePath
+                global::PirateCrew.Core.Log.Warn("[AseThemeLayers] 未找到 Resources/" + ResourcePath
                     + ".txt——状态层匹配将全部落空。由 AseWidgetAssetSync（菜单 PirateCrew/同步 Aseprite widgets 资产）"
                     + "从 Assets/Art/Sprites/UI/Aseprite/theme.xml 拷入。");
                 s_styles = new Dictionary<string, AseThemeStyle>();
@@ -344,7 +344,7 @@ namespace PirateCrew.UI
             }
             catch (Exception e)
             {
-                Debug.LogError("[AseThemeLayers] theme.xml 解析失败：" + e.Message);
+                global::PirateCrew.Core.Log.Error("[AseThemeLayers] theme.xml 解析失败：" + e.Message);
                 return styles;
             }
 
@@ -353,7 +353,7 @@ namespace PirateCrew.UI
             XElement stylesEl = doc.Root?.Element("styles");
             if (stylesEl == null)
             {
-                Debug.LogError("[AseThemeLayers] theme.xml 缺 <styles> 段。");
+                global::PirateCrew.Core.Log.Error("[AseThemeLayers] theme.xml 缺 <styles> 段。");
                 return styles;
             }
 
@@ -470,7 +470,7 @@ namespace PirateCrew.UI
                 else
                 {
                     // 源此处 throw（skin_theme.cpp:1024-1029）；本端不夺运行时，只登记。
-                    Debug.LogWarning("[AseThemeLayers] theme.xml 层引用了未知颜色 \"" + colorId + "\"。");
+                    global::PirateCrew.Core.Log.Warn("[AseThemeLayers] theme.xml 层引用了未知颜色 \"" + colorId + "\"。");
                 }
             }
 

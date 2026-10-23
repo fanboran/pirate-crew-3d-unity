@@ -95,16 +95,17 @@ namespace PirateCrew.UI
             scroll.UpdateView();
         }
 
-        /// <summary>返回主菜单（右上角小钮）：件 144×72 = 48×24 艺术像素（令牌按钮），
-        /// 字号 36 = 12 艺术像素。第一版把按钮画成了 156×36（一半高）字号却 36——
-        /// 文字顶满按钮还溢出（创始人 2026-09-23 走查"返回总览比窗口还大"）。</summary>
+        /// <summary>返回主菜单（右上角小钮）：×1 令牌口径——宽 = <see cref="UiSkin.Px.ButtonWidth"/>
+        /// （标签宽 + 8u）、高 = <see cref="UiSkin.Px.Button"/>（24u）、字号正文档 12 原生档。
+        /// 旧版把按钮写死成 156→144×72、字号 36（k=3 残留：令牌值的 ×3 手放），文字顶满按钮
+        /// 还溢出（创始人 2026-09-23 走查"返回总览比窗口还大"）；现按令牌体系回归原生档。</summary>
         void BuildBackButton(Transform canvas)
         {
             SketchButton back = SketchButton.Create(canvas, "BackToMenu",
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-72f, -72f),
-                new Vector2(144f, 72f),
+                new Vector2(UiSkin.Px.ButtonWidth(UiStrings.BackToMainMenu), UiSkin.Px.Button),
                 PartsGalleryPage.PixelFont(),
-                "返回主菜单", 36);
+                UiStrings.BackToMainMenu, UiSkin.Font.Body);
             back.onClick.AddListener(GoBack);
         }
 

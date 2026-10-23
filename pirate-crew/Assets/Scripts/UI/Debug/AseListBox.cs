@@ -80,6 +80,15 @@ namespace PirateCrew.UI.DebugUi
         /// 尚未挂上/还没布局），再试几帧后放弃（listbox.cpp:197）。</summary>
         int _centerTries = -1;
 
+        /// <summary>承载 View 的 ScrollRect 缓存（U11 收口：Update/键盘导航每帧走
+        /// <see cref="TryView"/>，原先每帧 GetComponentInParent 沿父链爬）。Unity 假 null
+        /// 语义下组件销毁自动回落重查。</summary>
+        ScrollRect _viewCache;
+
+        /// <summary>所属组合框弹层缓存（<see cref="AcceptKeyInput"/> 每帧判定用；查到非 null
+        /// 才缓存——弹层可能晚于列表挂上，null 结果不缓存以免永久 miss）。</summary>
+        AseComboBoxPopup _popupCache;
+
         /// <summary>当前选中行下标（无选中 = -1）——listbox.cpp:55-67 getSelectedIndex
         /// （多选取**第一个**选中行；单选即 <see cref="_selected"/>）。</summary>
         public int SelectedIndex { get { return _multiselect ? FirstSelectedIndex() : _selected; } }
@@ -272,7 +281,12 @@ namespace PirateCrew.UI.DebugUi
         /// </summary>
         bool AcceptKeyInput()
         {
-            return _rows.Count > 0 && GetComponentInParent<AseComboBoxPopup>() != null;
+            if (_rows.Count == 0)
+                return false;
+            // 弹层件只在开的时候存在，存在即开着；查到非 null 才缓存（弹层晚挂不永久 miss）。
+            if (_popupCache == null)
+                _popupCache = GetComponentInParent<AseComboBoxPopup>();
+            return _popupCache != null;
         }
 
         void HandleKeyboard()
@@ -440,13 +454,16 @@ namespace PirateCrew.UI.DebugUi
         }
 
         /// <summary>承载本列表的 View 等价物：视口上的 <see cref="ScrollRect"/>
-        /// （View::getView(this)，listbox.cpp:147）。<paramref name="viewportH"/> 为视口高（画布像素）。</summary>
+        /// （View::getView(this)，listbox.cpp:147）。<paramref name="viewportH"/> 为视口高（画布像素）。
+        /// 组件缓存：命中一次后不再每帧沿父链GetComponentInParent（U11 收口）。</summary>
         bool TryView(out RectTransform content, out float viewportH)
         {
             content = null;
             viewportH = 0f;
 
-            ScrollRect scroll = GetComponentInParent<ScrollRect>();
+            ScrollRect scroll = _viewCache;
+            if (scroll == null)
+                scroll = _viewCache = GetComponentInParent<ScrollRect>();
             if (scroll == null || scroll.content == null)
                 return false;
 

@@ -68,7 +68,8 @@ namespace PirateCrew.Settings
             SaveManager save = SaveManager.Instance;
             if (save != null && save.SlotExists(VideoSettingsStore.SettingsSlot))
             {
-                SaveData data = save.LoadFromSlot(VideoSettingsStore.SettingsSlot);
+                // D14 静默通道：启动读档是拿数据的中间步骤，不广播 LoadCompleted。
+                SaveData data = save.TryLoadSlotQuiet(VideoSettingsStore.SettingsSlot);
                 VideoSettingsStore.TryReadFrom(data, ref fullscreen, ref quality);
                 VideoSettingsStore.TryReadDisplayFrom(data, ref width, ref height);
                 Fullscreen = fullscreen;
@@ -132,8 +133,9 @@ namespace PirateCrew.Settings
                 return false;
 
             // 读改写：保留同槽里音频设置的键（AudioSettingsStore 也已改为同一策略）。
+            // 合并读走 TryLoadSlotQuiet（D14）：保存前的旧档读取不广播 LoadCompleted。
             SaveData data = save.SlotExists(VideoSettingsStore.SettingsSlot)
-                ? save.LoadFromSlot(VideoSettingsStore.SettingsSlot)
+                ? save.TryLoadSlotQuiet(VideoSettingsStore.SettingsSlot)
                 : null;
             if (data == null)
                 data = new SaveData();

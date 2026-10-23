@@ -17,7 +17,8 @@ namespace PirateCrew.UI.DebugUi
     /// 数据驱动）。启动器本体 = 一列 SketchButton，再点「调试场景」收起。
     ///
     /// 唯一入口 <see cref="Toggle"/> 由 MainMenuController 以编译符号隔离
-    /// （UNITY_EDITOR / DEVELOPMENT_BUILD），发布包不可达。
+    /// （UNITY_EDITOR / DEVELOPMENT_BUILD），本类入口自身再带同款守卫双保险：
+    /// 正式包里调用链与自举两路都物理断供（U3 调试 UI 收口）。
     /// </summary>
     public static class DebugMenuHost
     {
@@ -33,6 +34,9 @@ namespace PirateCrew.UI.DebugUi
         /// <summary>主菜单「调试场景」入口：开/收启动器（首次点开时整树构建）。</summary>
         public static void Toggle(Transform canvas)
         {
+#if !UNITY_EDITOR && !DEVELOPMENT_BUILD
+            return;   // 调试菜单不进正式包（与调用方的编译符号隔离同款，双保险）
+#endif
             if (_root == null)
                 Build(canvas);
             bool show = !_launcher.gameObject.activeSelf;

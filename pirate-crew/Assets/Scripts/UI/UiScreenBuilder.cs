@@ -122,6 +122,7 @@ namespace PirateCrew.UI
             public SketchButton BattleButton;
             public SketchButton CrewButton;
             public SketchButton SettingsButton;
+            /// <summary>调试展示入口（U3 收口）：只在编辑器/开发构建创建，正式包恒 null（控制器判空照常）。</summary>
             public SketchButton ShowcaseButton;
             public SketchButton QuitButton;
             public TextMeshProUGUI StatusText;
@@ -130,10 +131,11 @@ namespace PirateCrew.UI
             public Button SettingsBackButton;
             public Button SettingsCloseButton;
             public Button SettingsRestoreButton;
-            public Slider MasterSlider;
-            public Slider SfxSlider;
-            public Slider MusicSlider;
-            public Slider AmbientSlider;
+            /// <summary>四条音量滑条（U4 已迁现役 <see cref="SketchSlider"/>，整数 0..100 取值）。</summary>
+            public SketchSlider MasterSlider;
+            public SketchSlider SfxSlider;
+            public SketchSlider MusicSlider;
+            public SketchSlider AmbientSlider;
             public Button QualityHighButton;
             public Button QualitySmoothButton;
             public Button FullscreenOnButton;
@@ -166,7 +168,15 @@ namespace PirateCrew.UI
             UiKit.EnsureWindow(menuWindow, PixelTone.Frame, UiStrings.MainTitle,
                 hand, UiSkin.Font.Body, helpButton: false, closeButton: false);
             float contentTop = UiKit.WindowContentTopOf(menuWindow);
-            Vector2 windowSize = new Vector2(132f, contentTop + 24f * 5 + 10f * 4 + 6f);
+            // 【U3 调试 UI 收口】Showcase 按钮只进编辑器/开发构建：正式包按钮列少一行，
+            // 窗高按编译符号取按钮数（行高 24 与缝 10 与下方 CreateMenuButton 序列同源）。
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            const int MenuButtonCount = 5;
+#else
+            const int MenuButtonCount = 4;
+#endif
+            Vector2 windowSize = new Vector2(132f,
+                contentTop + UiSkin.Px.Button * MenuButtonCount + 10f * (MenuButtonCount - 1) + 6f);
             // 奇高 + 中心锚 → 缘落半格（横线变浅的元凶）：y 补 -0.5 回整数格
             float yNudge = Mathf.Abs(windowSize.y % 2f) > 0.01f ? -0.5f : 0f;
             RuntimeUiBuilder.SetAnchored(menuWindow, CenterAnchor, windowSize, new Vector2(0f, -6.5f + yNudge));
@@ -188,7 +198,9 @@ namespace PirateCrew.UI
             refs.BattleButton = CreateMenuButton(menuWindow, "BattleButton", UiStrings.MainBattle, hand);
             refs.CrewButton = CreateMenuButton(menuWindow, "CrewButton", UiStrings.MainCrew, hand);
             refs.SettingsButton = CreateMenuButton(menuWindow, "SettingsButton", UiStrings.MainSettings, hand);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             refs.ShowcaseButton = CreateMenuButton(menuWindow, "ShowcaseButton", UiStrings.MainShowcase, hand);
+#endif
             refs.QuitButton = CreateMenuButton(menuWindow, "QuitButton", UiStrings.MainQuit, hand);
 
             // 左下：版本号 + 存档状态（安全边距 12；角标 Tiny 8 原生档 + 亮字 32%/55% 两档）。
@@ -256,10 +268,10 @@ namespace PirateCrew.UI
             public Button BackButton;
             public Button CloseButton;
             public Button RestoreButton;
-            public Slider MasterSlider;
-            public Slider SfxSlider;
-            public Slider MusicSlider;
-            public Slider AmbientSlider;
+            public SketchSlider MasterSlider;
+            public SketchSlider SfxSlider;
+            public SketchSlider MusicSlider;
+            public SketchSlider AmbientSlider;
             public Button QualityHighButton;
             public Button QualitySmoothButton;
             public Button FullscreenOnButton;
@@ -349,9 +361,12 @@ namespace PirateCrew.UI
             return result;
         }
 
-        /// <summary>建一行「字段名 + 音量滑条」（theme slider_empty/full 两件 + 双色数值层；
-        /// 件来源与 paintSlider 实锄口径见原 MenuUiBuilder 版注释，逐值一致）。</summary>
-        static Slider BuildVolumeRow(Transform rows, int index, string field, TMP_FontAsset hand)
+        /// <summary>建一行「字段名 + 音量滑条」。U4 退役滑条链复用收口：旧「UGUI Slider +
+        /// SliderValueLabel 按帧补丁」链整体退役，改走现役
+        /// <see cref="Stick.SketchSlider"/>（Aseprite slider.cpp 逐函数移植——槽件/双色分区
+        /// 文本/命中盒由 <see cref="Stick.SketchSlider.Create"/> 内置）。音量按 0..100 整数
+        /// 取值（源口径），文案经 valueToText 带百分号；几何与旧链一致（右缘内缩 8、槽 186×16）。</summary>
+        static SketchSlider BuildVolumeRow(Transform rows, int index, string field, TMP_FontAsset hand)
         {
             RectTransform row = CreateSettingsRowBackground(rows, index);
 
@@ -360,80 +375,10 @@ namespace PirateCrew.UI
             RuntimeUiBuilder.SetAnchored(fieldLabel.rectTransform,
                 new Vector2(0f, 0.5f), new Vector2(120f, 15f), new Vector2(8f, 0f));
 
-            RectTransform sliderRect = RuntimeUiBuilder.CreateRect("Slider", row);
-            RuntimeUiBuilder.SetAnchored(sliderRect, new Vector2(1f, 0.5f), new Vector2(186f, 16f), new Vector2(-8f, 0f));
-            var sliderBack = sliderRect.gameObject.AddComponent<Image>();
-            sliderBack.sprite = PixelSkin.SliderEmpty(false);   // theme slider_empty（凹槽九宫格）
-            sliderBack.type = Image.Type.Sliced;
-            sliderBack.pixelsPerUnitMultiplier = 1f;            // ×1 终局：贴图纹素 = 画布像素
-            sliderBack.color = Color.white;                     // 像素件禁止乘色
-            sliderBack.raycastTarget = true;                    // 无拇指：整条槽即拖拽/命中区
-
-            var slider = sliderRect.gameObject.AddComponent<Slider>();
-            slider.direction = Slider.Direction.LeftToRight;
-            slider.minValue = 0f;
-            slider.maxValue = 1f;
-            slider.wholeNumbers = false;
-            slider.targetGraphic = sliderBack;
-            slider.transition = Selectable.Transition.None;   // theme slider 无悬停态；禁 ColorTint 护调色板
-
-            RectTransform fill = RuntimeUiBuilder.CreateRect("Fill", sliderRect);
-            RuntimeUiBuilder.Stretch(fill);
-            var fillImage = fill.gameObject.AddComponent<Image>();
-            fillImage.sprite = PixelSkin.SliderFull(false);   // theme slider_full（内芯，比空槽暗=充满）
-            fillImage.type = Image.Type.Sliced;
-            fillImage.pixelsPerUnitMultiplier = 1f;
-            fillImage.color = Color.white;
-            fillImage.raycastTarget = false;
-            slider.fillRect = fill;
-            // 无 handleRect：theme slider 没有拇指件，拖拽落点由 Slider 自身 rect 推算。
-
-            // 数值文本【双色口径，paintSlider 源码实锄】：同文案画两遍——充满段上亮字、
-            // 空槽段上暗字，分界线穿字形中间逐像素换色（RectMask2D 裁剪框恒宽，不随伸缩）。
-            RectTransform clipFull = RuntimeUiBuilder.CreateRect("ClipFull", sliderRect);
-            clipFull.anchorMin = new Vector2(0f, 0f);
-            clipFull.anchorMax = new Vector2(0f, 1f);
-            clipFull.pivot = new Vector2(0f, 0.5f);
-            clipFull.anchoredPosition = Vector2.zero;
-            clipFull.sizeDelta = Vector2.zero;
-            clipFull.gameObject.AddComponent<RectMask2D>();
-
-            RectTransform clipRest = RuntimeUiBuilder.CreateRect("ClipRest", sliderRect);
-            clipRest.anchorMin = new Vector2(0f, 0f);
-            clipRest.anchorMax = new Vector2(1f, 1f);
-            clipRest.offsetMin = Vector2.zero;
-            clipRest.offsetMax = Vector2.zero;
-            clipRest.gameObject.AddComponent<RectMask2D>();
-
-            TextMeshProUGUI valueLight = CreateTextExact("ValueLight", clipFull, Percent(slider.value),
-                UiSkin.Font.Tiny, TextAlignmentOptions.Center, PixelSkin.Theme.Text, hand);
-            valueLight.enableWordWrapping = false;
-            valueLight.rectTransform.anchorMin = new Vector2(0f, 0f);
-            valueLight.rectTransform.anchorMax = new Vector2(0f, 1f);
-            valueLight.rectTransform.pivot = new Vector2(0f, 0.5f);
-            valueLight.rectTransform.anchoredPosition = Vector2.zero;
-            valueLight.rectTransform.sizeDelta = new Vector2(186f, 0f);
-
-            TextMeshProUGUI valueDark = CreateTextExact("ValueDark", clipRest, Percent(slider.value),
-                UiSkin.Font.Tiny, TextAlignmentOptions.Center, PixelSkin.Theme.Disabled, hand);
-            valueDark.enableWordWrapping = false;
-            valueDark.rectTransform.anchorMin = new Vector2(1f, 0f);
-            valueDark.rectTransform.anchorMax = new Vector2(1f, 1f);
-            valueDark.rectTransform.pivot = new Vector2(1f, 0.5f);
-            valueDark.rectTransform.anchoredPosition = Vector2.zero;
-            valueDark.rectTransform.sizeDelta = new Vector2(186f, 0f);
-
-            // 数值刷新走件（帧对齐），不挂 onValueChanged（控制器刷新走 SetValueWithoutNotify）。
-            var valueLabel = sliderRect.gameObject.AddComponent<SliderValueLabel>();
-            valueLabel.LabelLight = valueLight;
-            valueLabel.LabelDark = valueDark;
-            return slider;
-        }
-
-        /// <summary>滑条百分比文案（0..1 → "0%".."100%"）。</summary>
-        static string Percent(float value)
-        {
-            return Mathf.RoundToInt(Mathf.Clamp01(value) * 100f) + "%";
+            return SketchSlider.Create(row, "Slider",
+                new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-8f, 0f),
+                new Vector2(186f, 16f), 0, 100, 0, hand, UiSkin.Font.Tiny,
+                v => v + "%");
         }
 
         /// <summary>设置行高 = theme slider 件高 16 + 上下各 6 格呼吸。**必须偶数**（行内居中子件落整格）。</summary>

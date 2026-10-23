@@ -98,7 +98,6 @@ namespace PirateCrew.EditorTools.BuildSystem
             SceneNames.Battle,
             SceneNames.CrewManagement,
             SceneNames.LevelSelect,
-            SceneNames.UIShowcase,     // 主菜单「组件展示」钮运行时按名载入 ⇒ 发行集必须含它
         };
 
         /// <summary>仅开发/测试集：发行包不含，Build Settings 需要含（播放器出图入口依赖）。</summary>

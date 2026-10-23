@@ -392,28 +392,8 @@ namespace PirateCrew.Visual
         }
 
         // ---- 公共零件 ------------------------------------------------------
-
-        static void AddEyePair(Transform headPivot, CrewVisualAssetSet assets, float headRadius)
-        {
-            for (int side = -1; side <= 1; side += 2)
-            {
-                AddPart(headPivot, side < 0 ? "EyeL" : "EyeR", assets.SphereSmall, assets.For(CrewMaterialRole.Dark),
-                    new Vector3(0.028f * side, 0.008f, headRadius * 0.86f), Vector3.zero,
-                    new Vector3(0.012f, 0.014f, 0.008f));
-            }
-        }
-
-        /// <summary>短刀：铁刃 + 木柄，挂在手挂点上（刃朝下，规格 §3.2）。</summary>
-        static void AddKnife(Transform held, CrewVisualAssetSet assets, float bladeLength, float bladeWidth)
-        {
-            if (held == null)
-                return;
-            AddPart(held, "KnifeBlade", assets.Box, assets.For(CrewMaterialRole.Iron),
-                new Vector3(0f, -bladeLength * 0.5f, 0f), Vector3.zero,
-                new Vector3(bladeWidth, bladeLength, 0.004f));
-            AddPart(held, "KnifeHandle", assets.Cylinder, assets.For(CrewMaterialRole.Wood),
-                new Vector3(0f, 0.018f, 0f), Vector3.zero, new Vector3(0.009f, 0.040f, 0.009f));
-        }
+        // （AddEyePair / AddKnife 零调用死代码已删：眼睛由装配期的部件链自带，
+        // 短刀随武器槽视觉退役——Git 历史即存档。）
 
         // ---- 层级工具 ------------------------------------------------------
 

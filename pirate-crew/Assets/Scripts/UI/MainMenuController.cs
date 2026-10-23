@@ -39,10 +39,10 @@ namespace PirateCrew.UI
         [SerializeField] Button settingsBackButton;
         [SerializeField] Button settingsCloseButton;
         [SerializeField] Button settingsRestoreButton;
-        [SerializeField] Slider masterVolumeSlider;
-        [SerializeField] Slider sfxVolumeSlider;
-        [SerializeField] Slider musicVolumeSlider;
-        [SerializeField] Slider ambientVolumeSlider;
+        [SerializeField] Stick.SketchSlider masterVolumeSlider;
+        [SerializeField] Stick.SketchSlider sfxVolumeSlider;
+        [SerializeField] Stick.SketchSlider musicVolumeSlider;
+        [SerializeField] Stick.SketchSlider ambientVolumeSlider;
         [SerializeField] Button qualityHighButton;
         [SerializeField] Button qualitySmoothButton;
         [SerializeField] Button fullscreenOnButton;
@@ -323,14 +323,15 @@ namespace PirateCrew.UI
             RefreshSettingsControls();
         }
 
-        void WireVolumeSlider(Slider slider, AudioCategory category)
+        /// <summary>接线一条音量滑条（U4 已迁现役 SketchSlider）：源口径整数 0..100，
+        /// 回调里折回 0..1 归一音量喂 AudioService。ValueChanged 只在用户操作时发
+        /// （程序设值走 <see cref="SetSliderNoNotify"/>），与旧 UGUI onValueChanged 同语义。</summary>
+        void WireVolumeSlider(Stick.SketchSlider slider, AudioCategory category)
         {
             if (slider == null)
                 return;
 
-            slider.minValue = 0f;
-            slider.maxValue = 1f;
-            slider.onValueChanged.AddListener(value => AudioService.SetVolume(category, value));
+            slider.ValueChanged += value => AudioService.SetVolume(category, value / 100f);
         }
 
         void SetQuality(int qualityIndex)
@@ -444,13 +445,14 @@ namespace PirateCrew.UI
             }
         }
 
-        /// <summary>编程改值走 SetValueWithoutNotify，避免把「刷新」误当成一次用户输入。</summary>
-        static void SetSliderNoNotify(Slider slider, float value)
+        /// <summary>编程改值走静默通道：SketchSlider 的 Value01 setter 内部是源 setValue
+        /// 语义（不发 Change 信号），不会把「刷新」误当成一次用户输入。</summary>
+        static void SetSliderNoNotify(Stick.SketchSlider slider, float value)
         {
             if (slider == null)
                 return;
 
-            slider.SetValueWithoutNotify(Mathf.Clamp01(value));
+            slider.Value01 = Mathf.Clamp01(value);
         }
 
         /// <summary>
