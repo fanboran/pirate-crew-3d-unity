@@ -15,7 +15,6 @@ namespace PirateCrew.Ambient
     ///   · 螃蟹（岸边横爬 + 钳子摆动 + 遇单位/爆炸缩沙）；
     ///   · 鱼群（水下 boids）；
     ///   · 远景海鸟剪影；
-    ///   · 既有植被/旗帜的顶点风摆（换材质，见 <see cref="AmbientWindBinder"/>）；
     ///   · 灯笼（悬挂摆动 + 自发光辉光 + 可选点光）；
     ///   · 燕尾旗绳（缆绳 + 6 面垂旗随风摆）；
     ///   · 近岸浮标（随波起伏）；
@@ -64,9 +63,6 @@ namespace PirateCrew.Ambient
         [SerializeField] Camera targetCamera;
 
         [Header("风摆材质覆盖（留空则运行时程序化生成；填 AmbientAssetBuilder 的产物即可让美术调参）")]
-        [SerializeField] Material windFoliageMaterial;
-        [SerializeField] Material windFlagRedMaterial;
-        [SerializeField] Material windFlagBlueMaterial;
         [SerializeField] Material windClothMaterial;
 
         [Header("竞技场（groundPlane 未接线时使用；默认 level_1 = 50×17）")]
@@ -81,7 +77,6 @@ namespace PirateCrew.Ambient
         [SerializeField] bool enableFish = true;
         [SerializeField] int fishCount = -1;
         [SerializeField] bool enableDistantBirds = true;
-        [SerializeField] bool enableVegetationWind = true;
         [SerializeField] bool enableLanterns = true;
         [SerializeField] bool enablePennantLine = true;
         [SerializeField] bool enableCorkFloats = true;
@@ -113,7 +108,6 @@ namespace PirateCrew.Ambient
         AmbientNoFlyZone _noFly;
         AmbientMeshSet _meshes;
         AmbientMaterialSet _materials;
-        AmbientWindBinder _windBinder;
 
         Transform _lifeRoot;
         readonly List<SeagullAgent> _gulls = new List<SeagullAgent>(AmbientBudget.MaxGulls);
@@ -251,17 +245,6 @@ namespace PirateCrew.Ambient
             if (enableDistantBirds)
                 SpawnDistantBirds(rng);
 
-            if (enableVegetationWind)
-            {
-                _windBinder = new AmbientWindBinder();
-                int bound = _windBinder.Bind(ResolveSceneArtRoot(),
-                    ResolveWindMaterial(windFoliageMaterial, _materials.WindFoliage),
-                    ResolveWindMaterial(windFlagRedMaterial, _materials.WindFlagRed),
-                    ResolveWindMaterial(windFlagBlueMaterial, _materials.WindFlagBlue),
-                    ResolveWindMaterial(windClothMaterial, _materials.WindCloth),
-                    verboseLog);
-            }
-
             // 现有频道表里唯一带"世界坐标"的爆炸频道（未新增任何频道）。
             SubscribeBattleEvents();
 
@@ -294,8 +277,7 @@ namespace PirateCrew.Ambient
                     + "  海鸥 " + _gulls.Count + " / 螃蟹 " + _crabs.Count
                     + " / 鱼 " + (_fishSchool != null ? _fishSchool.Count : 0)
                     + " / 远景鸟 " + _distantBirds.Count
-                    + " / 摆动节点 " + _swayNodes.Count + "\n"
-                    + "  风摆绑定渲染器: " + (_windBinder != null ? _windBinder.BoundCount : 0)
+                    + " / 摆动节点 " + _swayNodes.Count
                     + " / 新增渲染器 " + AmbientRendererCount
                     + " / 新增三角面 " + AmbientTriangleCount
                     + " / 昼夜档位 " + AmbientTimeOfDayCatalog.DisplayName(timeOfDay));
@@ -315,12 +297,6 @@ namespace PirateCrew.Ambient
                 else
                     DestroyImmediate(_runtimeSkyboxMaterial);
                 _runtimeSkyboxMaterial = null;
-            }
-
-            if (_windBinder != null)
-            {
-                _windBinder.Restore();
-                _windBinder = null;
             }
 
             if (_lifeRoot != null)
@@ -557,9 +533,10 @@ namespace PirateCrew.Ambient
             if (candidate == null)
                 return false;
 
-            return candidate.Find(AmbientWindBinder.FoliageObjectName) != null
-                || candidate.Find(AmbientWindBinder.FlagRedObjectName) != null
-                || candidate.Find(AmbientWindBinder.ClothObjectName) != null
+            // 具名子件常量原在 AmbientWindBinder（植被风摆线 2026-10-23 裁决删除），此处内联同名。
+            return candidate.Find("SceneArt_Foliage") != null
+                || candidate.Find("SceneArt_FlagRed") != null
+                || candidate.Find("SceneArt_Cloth") != null
                 || candidate.Find("SceneArt_Wood") != null;
         }
 

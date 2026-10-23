@@ -9898,9 +9898,6 @@ MonoBehaviour:
   team0Root: {fileID: 3259110068849986907}
   team1Root: {fileID: 4614455672369513139}
   targetCamera: {fileID: 3113655877893188633}
-  windFoliageMaterial: {fileID: 0}
-  windFlagRedMaterial: {fileID: 0}
-  windFlagBlueMaterial: {fileID: 0}
   windClothMaterial: {fileID: 0}
   arenaWidthCells: 20
   arenaDepthCells: 15
@@ -9911,7 +9908,6 @@ MonoBehaviour:
   enableFish: 1
   fishCount: -1
   enableDistantBirds: 1
-  enableVegetationWind: 1
   enableLanterns: 1
   enablePennantLine: 1
   enableCorkFloats: 1

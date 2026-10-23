@@ -114,7 +114,7 @@ namespace PirateCrew.UI
             if (SceneLoader.Instance != null)
                 SceneLoader.Instance.ChangeScene(SceneNames.MainMenu);
             else
-                SceneManager.LoadScene(SceneNames.Bootstrapper, LoadSceneMode.Single);
+                SceneManager.LoadScene(SceneNames.Bootstrapper, LoadSceneMode.Single); // 展示间自举：直载重启入口，刻意不走 SceneLoader。
         }
     }
 }

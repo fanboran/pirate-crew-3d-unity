@@ -35,10 +35,6 @@ namespace PirateCrew.Combat
         public static float ExplosionMaxDamage => BalanceConfig.Defaults.StandardBombDamage;
 
         /// <summary>
-        /// PhysicsMaterial 弹跳/摩擦取全局物理默认（<see cref="BalanceConfig.Defaults"/>）。
-        /// </summary>
-        public static float Bounciness => BalanceConfig.Defaults.DefaultBounce;
-        public static float Friction => BalanceConfig.Defaults.DefaultFriction;
 
         /// <summary>弹弓最大初速：与角色自抛同限（<see cref="BalanceConfig.Defaults.DefaultTwangMax"/>）。</summary>
         public static float TwangMax => BalanceConfig.Defaults.DefaultTwangMax;

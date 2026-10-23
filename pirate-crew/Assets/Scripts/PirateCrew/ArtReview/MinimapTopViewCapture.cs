@@ -115,7 +115,7 @@ namespace PirateCrew.ArtReview
                 + SceneManager.GetActiveScene().name);
             yield return new WaitForSecondsRealtime(0.5f);
 
-            SceneManager.LoadScene(SceneNames.Battle, LoadSceneMode.Single);
+            SceneManager.LoadScene(SceneNames.Battle, LoadSceneMode.Single); // 工具豁免：直载不压栈不经过渡，刻意不走 SceneLoader。
             yield return null;
             global::PirateCrew.Core.Log.Info("[MinimapTopViewCapture] Battle 加载返回，当前场景："
                 + SceneManager.GetActiveScene().name);

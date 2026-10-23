@@ -226,7 +226,7 @@ namespace PirateCrew.ArtReview
                 yield break;
             }
 
-            SceneManager.LoadScene(SceneNames.Battle, LoadSceneMode.Single);
+            SceneManager.LoadScene(SceneNames.Battle, LoadSceneMode.Single); // 工具豁免：直载不压栈不经过渡，刻意不走 SceneLoader。
             yield return null;
             if (SceneManager.GetActiveScene().name != SceneNames.Battle)
             {
@@ -422,7 +422,7 @@ namespace PirateCrew.ArtReview
             // 【拍哪个场景】`-pixelartLevel N` ⇒ 该关的关卡试点场景（真实内容）；否则试点（图元几何）。
             bool levelMode = PixelartLevel > 0;
             string sceneName = levelMode ? PixelartLevelViewCache.SceneName : PixelartPilotSceneName;
-            SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
+            SceneManager.LoadScene(sceneName, LoadSceneMode.Single); // 工具豁免：直载不压栈不经过渡，刻意不走 SceneLoader。
             yield return null;
             if (SceneManager.GetActiveScene().name != sceneName)
             {

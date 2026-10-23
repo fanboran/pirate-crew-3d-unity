@@ -72,7 +72,7 @@ namespace PirateCrew.SceneKitPilot
             QualitySettings.vSyncCount = 0;
 
             // showcase 场景在 Build Settings 里（协调者手工登记），单模式加载；失败即退。
-            SceneManager.LoadScene(SceneName, LoadSceneMode.Single);
+            SceneManager.LoadScene(SceneName, LoadSceneMode.Single); // 工具豁免：直载不压栈不经过渡，刻意不走 SceneLoader。
             yield return null;
             if (SceneManager.GetActiveScene().name != SceneName)
             {

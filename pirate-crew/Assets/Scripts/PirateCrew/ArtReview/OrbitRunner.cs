@@ -1,5 +1,6 @@
 using System.Collections;
 using System.IO;
+using PirateCrew.Core;
 using PirateCrew.Battle;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -29,7 +30,7 @@ namespace PirateCrew.ArtReview
             while (SceneManager.GetActiveScene().name != "MainMenu" && Time.unscaledTime < bootDeadline)
                 yield return null;
             yield return new WaitForSeconds(0.5f);
-            SceneManager.LoadScene("Battle", LoadSceneMode.Single);
+            SceneManager.LoadScene(SceneNames.Battle, LoadSceneMode.Single); // 工具豁免：直载不压场景栈、不经过渡，刻意不走 SceneLoader（口径见其类头）。
             yield return new WaitForSeconds(3f);   // 等战斗装配 + 单位生成
 
             var driver = Object.FindObjectOfType<BattleCameraDriver>();

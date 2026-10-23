@@ -170,14 +170,10 @@ namespace PirateCrew.Ambient
         public readonly Material Post;
         public readonly Material CorkFloat;
 
-        /// <summary>像素风摆模板：既有植被（棕榈叶/灌木/草）。</summary>
-        public readonly Material WindFoliage;
 
         /// <summary>像素风摆模板：红队旗。</summary>
-        public readonly Material WindFlagRed;
 
         /// <summary>像素风摆模板：蓝队旗。</summary>
-        public readonly Material WindFlagBlue;
 
         /// <summary>像素风摆模板：帆布/垂片（本模块自建的燕尾旗）。</summary>
         public readonly Material WindCloth;
@@ -205,11 +201,7 @@ namespace PirateCrew.Ambient
             // ---- 远景剪影 ----
             DistantBird = CreateUnlit("Ambient_DistantBird", DistantBirdHex, 1f);
 
-            // ---- 风摆模板（换装模板：顶点风摆 shader 退役后为像素平色；
-            //      AmbientWindBinder 的绑定照常执行，材质无风属性时摆动自然空转）----
-            WindFoliage = CreatePixel("Ambient_WindFoliage", FoliageLightHex);
-            WindFlagRed = CreatePixel("Ambient_WindFlagRed", SceneArtPalette.TeamRed);
-            WindFlagBlue = CreatePixel("Ambient_WindFlagBlue", SceneArtPalette.TeamBlue);
+            // ---- 燕尾旗绳布料（像素平色；植被/旗帜风摆线已随 2026-10-23 裁决删除）----
             WindCloth = CreatePixel("Ambient_WindCloth", PennantHex);
         }
 
@@ -220,7 +212,7 @@ namespace PirateCrew.Ambient
             {
                 GullBody, GullWing, CrabShell, CrabClaw, Fish,
                 LanternMetal, LanternCore, LanternGlow, DistantBird, Post, CorkFloat,
-                WindFoliage, WindFlagRed, WindFlagBlue, WindCloth,
+                WindCloth,
             };
 
             for (int i = 0; i < all.Length; i++)

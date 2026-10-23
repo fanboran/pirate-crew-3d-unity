@@ -24,7 +24,8 @@ namespace PirateCrew.Battle
     /// 不再按武器分叉——「点哪把都是它」由此在参数层成立。
     ///
     /// 【投影字段（无运行时消费者，保留待武器重做）】
-    ///   Bounciness / DynamicFriction / StaticFriction、GroundContactFriction / GroundContactBounce、
+    ///   弹跳/摩擦投影族（PhysicsMaterial 三件 + 撞地积分两件）已按创始人 2026-10-23 裁决删除，
+    ///   与武器重做一起重立（覆写表 ProjectileContactOverrides / ProjectileContactRules 保留）。
     ///   TwangMax、IsPersistent / IsPlaceable / PlaceableCount / ReuseCount、HitsTiles、
     ///   HasExplosion / ExplosionSize / ExplosionMaxDamage 目前没有运行时读点
     ///   （物理材质未接线、弹跳摩擦走 <see cref="ProjectileContactRules"/> 按武器 id 直查、
@@ -63,29 +64,6 @@ namespace PirateCrew.Battle
         /// <summary>重力倍率（相对全局 Physics.gravity 的口径）。</summary>
         public readonly float GravityScale;
 
-        /// <summary>PhysicsMaterial 弹性系数（标准口径 = 全局物理默认）。</summary>
-        public readonly float Bounciness;
-
-        /// <summary>PhysicsMaterial 动摩擦系数（标准口径 = 全局物理默认）。</summary>
-        public readonly float DynamicFriction;
-
-        /// <summary>PhysicsMaterial 静摩擦系数（与动摩擦同值）。</summary>
-        public readonly float StaticFriction;
-
-        /// <summary>
-        /// 撞地积分摩擦（<see cref="Ballistics"/> 域，S2 参数化）：每次撞地对水平速度模长的递减量。
-        /// 每武器可覆写（<see cref="ProjectileContactOverrides"/>），无覆写 = 全局默认
-        /// <see cref="BalanceConfig.Defaults.DefaultFriction"/>（现役全表如此，与参数化前逐位一致）。
-        /// </summary>
-        public readonly float GroundContactFriction;
-
-        /// <summary>
-        /// 撞地积分弹跳（<see cref="Ballistics"/> 域，S2 参数化）：撞地 vy *= -bounce。
-        /// 每武器可覆写（<see cref="ProjectileContactOverrides"/>），无覆写 = 全局默认
-        /// <see cref="BalanceConfig.Defaults.DefaultBounce"/>。
-        /// </summary>
-        public readonly float GroundContactBounce;
-
         /// <summary>弹弓最大初速（标准口径 = 角色自抛同限）。</summary>
         public readonly float TwangMax;
 
@@ -119,8 +97,6 @@ namespace PirateCrew.Battle
         public ProjectileProfile(
             WeaponId id, float halfWidth, float halfHeight, float halfDepth,
             float mass, bool usesGravity, float gravityScale,
-            float bounciness, float dynamicFriction, float staticFriction,
-            float groundContactFriction, float groundContactBounce,
             float twangMax, bool isPersistent, bool isPlaceable, int placeableCount,
             int reuseCount, bool hitsTiles, bool hasExplosion,
             float explosionSize, float explosionMaxDamage, ProjectileShape shape)
@@ -132,11 +108,6 @@ namespace PirateCrew.Battle
             Mass = mass;
             UsesGravity = usesGravity;
             GravityScale = gravityScale;
-            Bounciness = bounciness;
-            DynamicFriction = dynamicFriction;
-            StaticFriction = staticFriction;
-            GroundContactFriction = groundContactFriction;
-            GroundContactBounce = groundContactBounce;
             TwangMax = twangMax;
             IsPersistent = isPersistent;
             IsPlaceable = isPlaceable;
@@ -168,11 +139,6 @@ namespace PirateCrew.Battle
             float half = LevelGeometry.PixelsToUnits(StandardBombRules.HalfSizePixels);
             float mass = StandardBombRules.Weight;
 
-            // S2 弹跳/摩擦参数化：每武器覆写（ProjectileContactOverrides）→ 全局默认回退。
-            // 现役覆写表为空 → 全部武器取默认值，与参数化前逐位一致（回归测试钉住）。
-            ProjectileContactRules.Resolve(
-                stats.Id, out float groundFriction, out float groundBounce);
-
             return new ProjectileProfile(
                 stats.Id,
                 half,
@@ -181,11 +147,6 @@ namespace PirateCrew.Battle
                 mass,
                 usesGravity: true,
                 StandardBombRules.Weight,
-                Mathf.Clamp(StandardBombRules.Bounciness, 0f, 1f),
-                Mathf.Max(0f, StandardBombRules.Friction),
-                Mathf.Max(0f, StandardBombRules.Friction),
-                groundFriction,
-                groundBounce,
                 StandardBombRules.TwangMax,
                 !stats.LimitedToTurn,
                 isPlaceable: false,
