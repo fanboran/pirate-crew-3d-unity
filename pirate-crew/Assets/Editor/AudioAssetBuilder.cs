@@ -405,7 +405,9 @@ namespace PirateCrew.EditorTools
             foreach (string portedName in Game2AudioAssets.AllTargetFileNames())
                 expected.Add(portedName);
 
-            int removed = 0;
+            // 先收集全部孤儿再一次性确认（审计 T2/P1）：清单外 = 本工具不会重建，删除即消失
+            // （多半是改名/下线的残留，但目录里手放的素材也会命中）。日常重跑无孤儿时零打扰。
+            var stalePaths = new List<string>();
             string[] guids = AssetDatabase.FindAssets("t:AudioClip", new[] { AudioRoot });
             for (int i = 0; i < guids.Length; i++)
             {
@@ -416,6 +418,19 @@ namespace PirateCrew.EditorTools
                 if (expected.Contains(Path.GetFileName(path)))
                     continue;
 
+                stalePaths.Add(path);
+            }
+
+            if (!EditorDestructiveGuard.ConfirmAssetDeletion("音频资产孤儿清理", stalePaths.Count))
+            {
+                Debug.LogWarning("[AudioAssetBuilder] 已跳过孤儿清理：" + stalePaths.Count
+                                 + " 个清单外资产保留在 " + AudioRoot + "（本次新生成不受影响）。");
+                return 0;
+            }
+
+            int removed = 0;
+            foreach (string path in stalePaths)
+            {
                 if (AssetDatabase.DeleteAsset(path))
                 {
                     removed++;

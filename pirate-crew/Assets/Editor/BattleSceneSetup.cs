@@ -93,7 +93,8 @@ namespace PirateCrew.EditorTools
         [MenuItem("PirateCrew/Scenes/重建 Battle 战斗场景")]
         public static void BuildAll()
         {
-            if (!ConfirmSceneReplacement())
+            // 确认闸抽到共享守卫（审计 T2/P1）：口径与原本地实现一致。
+            if (!EditorDestructiveGuard.ConfirmSceneReplacement("重建 Battle 战斗场景"))
                 return;
 
             // Undo 组：整链折叠为一步撤销，组名与确认对话框标题呼应。
@@ -150,33 +151,10 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 重建入口的确认闸：本链两处 <c>NewScene(Single)</c>（搭预制体、建战斗场景）都会把当前
-        /// 打开的场景直接顶掉，未保存的修改随之蒸发。已脏场景直接拒绝（先保存再重建），
-        /// 干净场景弹一次确认；程序化流程跳过——batchmode 下对话框不显示，命令桥经
-        /// HeadlessChain 跑链时同样无人应答（HeadlessChain.IsRunning），跳过口径一致。
+        /// 重建入口的确认闸已抽到 <see cref="EditorDestructiveGuard.ConfirmSceneReplacement"/>
+        /// （本链两处 <c>NewScene(Single)</c> 都会把当前打开的场景直接顶掉，未保存的修改随之蒸发；
+        /// batchmode / HeadlessChain / -executeMethod 命令行进程放行，交互模式弹框确认）。
         /// </summary>
-        static bool ConfirmSceneReplacement()
-        {
-            if (Application.isBatchMode || HeadlessChain.IsRunning)
-                return true;
-
-            Scene active = EditorSceneManager.GetActiveScene();
-            if (active.IsValid() && active.isDirty)
-            {
-                EditorUtility.DisplayDialog(
-                    "重建 Battle 战斗场景",
-                    "当前场景 \"" + (string.IsNullOrEmpty(active.path) ? active.name : active.path)
-                        + "\" 有未保存的修改，重建会直接丢弃它。\n请先保存当前场景，再执行重建。",
-                    "知道了");
-                return false;
-            }
-
-            return EditorUtility.DisplayDialog(
-                "重建 Battle 战斗场景",
-                "重建会新建场景并覆盖保存 " + BattleScenePath + "，当前打开的场景将被直接关闭（未保存内容会丢失）。\n确定继续吗？",
-                "继续重建",
-                "取消");
-        }
 
         // ------------------------------------------------------------------
         // 预制体

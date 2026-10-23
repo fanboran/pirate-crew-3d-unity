@@ -43,6 +43,19 @@ namespace PirateCrew.EditorTools
         [MenuItem("Tools/PirateCrew/WaterLab/Build Scene")]
         public static void BuildScene()
         {
+            // 确认闸（审计 T2/P1）：本链会 NewScene(Single) 顶掉当前场景、并整目录删除材质库，
+            // 两个确认都放在动作之前——拒绝时什么都不动（NewScene 一旦执行，当前场景就回不来了）。
+            if (!EditorDestructiveGuard.ConfirmSceneReplacement("重建 WaterLab 实验水体场景"))
+                return;
+
+            // 资产删除确认：材质目录重建语义 = 先删后建，目录里若被手放过材质会一并删除。
+            if (!EditorDestructiveGuard.ConfirmAssetDeletion(
+                    "重建 WaterLab 实验水体场景", EditorDestructiveGuard.CountAssetsInFolder(MaterialFolder)))
+            {
+                Debug.LogWarning("[WaterLabSetup] 已取消重建：材质目录删除未被确认（未动任何内容）。");
+                return;
+            }
+
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             // 材质目录先删后建：shader 默认值改动只影响新建材质，旧 .mat 会锁死旧参数

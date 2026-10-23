@@ -186,6 +186,19 @@ namespace PirateCrew.EditorTools
             int created = 0;
             int skipped = 0;
 
+            // 删除确认（审计 T2/P1）：把本次构建会删掉的资产一次数清、交互模式问一次——
+            // ① 退役残留清理（RetiredAssetNames，Art + Resources 两侧）；
+            // ② 强制重建先删的现有档位资产（删了重做，中途失败即丢失，重建不保证成功）；
+            // ③ Resources 副本同步先删的旧副本。count=0（首次构建/无残留）零打扰；
+            // 程序化链路（batchmode / HeadlessChain full 链 / -executeMethod）由守卫放行。
+            int deleteCount = CountPlannedDeletions(force);
+            if (!EditorDestructiveGuard.ConfirmAssetDeletion("TMP 字体资产构建", deleteCount))
+            {
+                Debug.LogWarning("[FontAssetBuilder] 已取消构建：删除 " + deleteCount
+                    + " 个现有资产未被确认（未动任何内容）。");
+                return;
+            }
+
             // 退役资产清理（Art 与 Resources 两侧）：旧放大档已被原生档纪律否决，
             // 残留会以悬空 GUID 复活白块链，每次构建顺手清零。
             foreach (string retired in RetiredAssetNames)
@@ -253,6 +266,34 @@ namespace PirateCrew.EditorTools
                 + "  产物路径（供 UI/场景引用）:" + lines + "\n"
                 + "  说明: TMP 位图字体资产（RASTER_HINTED + Point + Bitmap shader），"
                 + "只对 TextMeshProUGUI/TextMeshPro 生效；legacy Text 请直接引用 .ttf。");
+        }
+
+        /// <summary>
+        /// 统计本次构建将删除的资产数（供入口确认闸，与三处 <c>DeleteAsset</c> 的判据一一对应）：
+        /// 退役残留（Art + Resources 两侧）+ 强制重建目标（仅 force 时）+ Resources 旧副本（每次同步都删了重拷）。
+        /// </summary>
+        static int CountPlannedDeletions(bool force)
+        {
+            int count = 0;
+
+            foreach (string retired in RetiredAssetNames)
+            {
+                if (AssetDatabase.LoadAssetAtPath<Object>(FontsFolder + "/" + retired + ".asset") != null)
+                    count++;
+                if (AssetDatabase.LoadAssetAtPath<Object>("Assets/Resources/Fonts/" + retired + ".asset") != null)
+                    count++;
+            }
+
+            foreach (FontSpec spec in Specs)
+            {
+                if (force && AssetDatabase.LoadAssetAtPath<Object>(spec.AssetPath) != null)
+                    count++;
+                if (AssetDatabase.LoadAssetAtPath<Object>(
+                        "Assets/Resources/Fonts/" + spec.AssetFileName + ".asset") != null)
+                    count++;
+            }
+
+            return count;
         }
 
         /// <summary>

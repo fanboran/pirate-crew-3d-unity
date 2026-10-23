@@ -23,6 +23,11 @@ namespace PirateCrew.EditorTools
         [MenuItem("PirateCrew/Scenes/重建管理场景")]
         public static void BuildAll()
         {
+            // 确认闸（审计 T2/P1）：下两步各有一次 NewScene(Single)，都会把当前打开的场景
+            // 直接顶掉——入口问一次，覆盖整条链。
+            if (!EditorDestructiveGuard.ConfirmSceneReplacement("重建管理场景"))
+                return;
+
             EnsureFolder(SceneNames.GameFolder);
 
             BuildCrewManagementScene();

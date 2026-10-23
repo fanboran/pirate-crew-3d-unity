@@ -66,6 +66,11 @@ namespace PirateCrew.EditorTools
         /// <summary>-executeMethod 入口。失败走 LogError + Exit(非0)。</summary>
         public static void BuildAll()
         {
+            // 确认闸（审计 T2/P1）：BuildShowcase 里 OpenScene/NewScene(Single) 会把当前打开的
+            // 场景直接顶掉。命令行进程由守卫放行（本入口只被 -executeMethod 调），拒绝仅见于交互调用。
+            if (!EditorDestructiveGuard.ConfirmSceneReplacement("组装 SceneKitPilot showcase 场景"))
+                return;
+
             if (!ImportFbx(FlagshipFbxPath) | !ImportFbx(DockFbxPath))   // 单 |：两个都要重导入
             {
                 Debug.LogError("[SceneKitPilotSetup] FBX 导入失败，中止。");

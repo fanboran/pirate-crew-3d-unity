@@ -28,6 +28,33 @@ namespace PirateCrew.EditorTools
         [MenuItem("PirateCrew/UI/构建组件展示场景（实机调试窗口）")]
         public static void Build()
         {
+            // 确认闸（审计 T2/P1）：BuildCore 里 NewScene(Single) 会把当前打开的场景直接顶掉。
+            // 只挡菜单入口——截图状态机（CaptureStep，命令桥/命令行出口）是程序化链路，
+            // 无人应答对话框，直接走 BuildCore 零打扰（与 HeadlessChain 放行同口径）。
+            if (!EditorDestructiveGuard.ConfirmSceneReplacement("构建组件展示场景"))
+                return;
+
+            BuildCore();
+        }
+
+        /// <summary>构建并直接进 Play——实机调试窗口一步到位。</summary>
+        [MenuItem("PirateCrew/UI/打开组件展示（构建并播放）")]
+        public static void BuildAndPlay()
+        {
+            // 确认闸（审计 T2/P1）：破坏点与 Build 相同（BuildCore 里 NewScene(Single)），问一次。
+            if (!EditorDestructiveGuard.ConfirmSceneReplacement("构建组件展示场景"))
+                return;
+
+            BuildCore();
+            EditorApplication.isPlaying = true;
+        }
+
+        /// <summary>
+        /// Build 的实际装配体：程序化调用方（截图状态机 case 0 / 命令行出图出口）直接走这里，
+        /// 不弹确认——无人值守链路必须零打扰。
+        /// </summary>
+        static void BuildCore()
+        {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             GameObject cameraGo = new GameObject("Main Camera");
@@ -45,14 +72,6 @@ namespace PirateCrew.EditorTools
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), ScenePath);
             // 出包注册已删（清理波裁决：演示场景不随构建发布；本场景仅供编辑器内验收对拍）。
             Debug.Log("[UiShowcaseSceneSetup] 组件展示场景已构建：" + ScenePath);
-        }
-
-        /// <summary>构建并直接进 Play——实机调试窗口一步到位。</summary>
-        [MenuItem("PirateCrew/UI/打开组件展示（构建并播放）")]
-        public static void BuildAndPlay()
-        {
-            Build();
-            EditorApplication.isPlaying = true;
         }
 
         /// <summary>
@@ -107,7 +126,7 @@ namespace PirateCrew.EditorTools
             switch (SessionState.GetInt(StateKey, 0))
             {
                 case 0:
-                    Build();
+                    BuildCore(); // 程序化出图链路：不弹场景确认（见 BuildCore 注释）
                     Screen.SetResolution(1920, 1080, false);
                     SessionState.SetInt(StateKey, 1);
                     break;

@@ -105,6 +105,11 @@ namespace PirateCrew.EditorTools
         /// <summary>搭样张场景；字体缺失等致命问题时返回 false（调用方决定报错/退出方式）。</summary>
         static bool TryBuildSampleScene()
         {
+            // 确认闸（审计 T2/P1）：随后的 NewScene(Single) 会顶掉当前打开的场景。确认必须放在
+            // SaveOpenScenes() 之前——否则对话框还没弹，用户未保存的修改就已经被写盘了。
+            if (!EditorDestructiveGuard.ConfirmSceneReplacement("搭建文本样张场景"))
+                return false;
+
             EditorSceneManager.SaveOpenScenes(); // GUI 模式下场景 dirty 会弹模态保存框挂起批处理
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
