@@ -8,15 +8,21 @@ using CombatTrigger = PirateCrew.Combat.WeaponTrigger;
 namespace PirateCrew.Battle.Tests
 {
     /// <summary>
-    /// <see cref="ProjectileTriggerRules"/> 引爆判定测试（§5.2 五类触发）。
-    /// 说明：桥接层复用 <see cref="WeaponTriggerRules.ShouldDetonate"/>，本测试同时锁定
-    /// 「flags → 单值触发类」的映射正确性与 OR 语义。
+    /// <see cref="ProjectileTriggerRules"/> 引爆判定测试。
+    ///
+    /// 【断言口径（B6 审计修正）】运行时弹体（<c>WeaponProjectile.Update</c>）恒以
+    /// <see cref="StandardBombRules.Trigger"/>（= OnContact | OnRest，与武器目录无关）喂给
+    /// <see cref="ProjectileTriggerRules.ShouldDetonateThisFrame"/>——所以本测试的引爆行为
+    /// 断言一律钉<b>运行时真实入参</b>，不再按每武器目录的 Trigger 断言（那是假覆盖：
+    /// 目录值在单一弹体路径下不被消费）。
+    /// 每武器 Trigger 字段只测它真正被消费的那条：<c>WeaponProjectile.TriggersOnBlast</c>
+    /// → <see cref="ProjectileTriggerRules.CanChainFromBlast"/>（连锁引爆）。
+    /// 桥接层「flags → 五类单值触发」的机械映射用<b>合成 flags</b>钉住（不牵武器目录）。
+    /// <b>按武器定案的触发回填在武器重做时恢复</b>（届时目录 Trigger 重新接入运行时路径）。
     /// </summary>
     [TestFixture]
     public class ProjectileTriggerRulesTests
     {
-        static DataTrigger Trigger(WeaponId id) => WeaponCatalog.Get(id).Trigger;
-
         static TriggerContext Ctx(
             bool contact = false, bool clicked = false, bool blast = false,
             float vx = 0f, float vy = 0f, bool fuseArmed = false, int fuseRemaining = 0)
@@ -25,178 +31,119 @@ namespace PirateCrew.Battle.Tests
         }
 
         // ------------------------------------------------------------------
-        // 接触即爆：cannonball / cherryBomb / parachuteBomb / rumBottle / piecesOfEight
+        // 运行时真实行为：StandardBombRules.Trigger 恒 OnContact | OnRest
+        //（WeaponProjectile.Update 的唯一实参；「点哪把都是它」）
         // ------------------------------------------------------------------
 
         [Test]
-        public void Contact_DetonatesOnContact()
+        public void RuntimeTrigger_IsContactOrRest()
         {
-            DataTrigger t = Trigger(WeaponId.CherryBomb);
+            Assert.AreEqual(DataTrigger.OnContact | DataTrigger.OnRest, StandardBombRules.Trigger);
+        }
+
+        [Test]
+        public void RuntimeTrigger_DetonatesOnContact_AtAnySpeed()
+        {
+            DataTrigger t = StandardBombRules.Trigger;
             Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(contact: true)));
-            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(contact: false)));
-            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(clicked: true, blast: true)));
+            Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(
+                t, Ctx(contact: true, vx: 5f, vy: 5f)));
         }
-
-        [TestCase(WeaponId.Cannonball)]
-        [TestCase(WeaponId.ParachuteBomb)]
-        [TestCase(WeaponId.RumBottle)]
-        [TestCase(WeaponId.PiecesOfEight)]
-        public void ContactWeapons_DetonateOnContact(WeaponId id)
-        {
-            Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(Trigger(id), Ctx(contact: true)));
-        }
-
-        // ------------------------------------------------------------------
-        // 静止引爆：dynamite（vx==0 且 |vy|<0.2）
-        // ------------------------------------------------------------------
 
         [Test]
-        public void Dynamite_DetonatesOnlyAtRest()
+        public void RuntimeTrigger_DetonatesAtRest_Only()
         {
-            DataTrigger t = Trigger(WeaponId.Dynamite);
+            DataTrigger t = StandardBombRules.Trigger;
+            // 静止判据（vx==0 且 |vy|<0.2，Flash 像素速度域）。
             Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(vx: 0f, vy: 0.1f)));
-            Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(vx: 0f, vy: -0.19f)));
+            Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx()));
             Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(vx: 0f, vy: 0.5f)));
             Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(vx: 0.1f, vy: 0f)));
-            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(contact: true, vx: 5f, vy: 5f)));
+        }
+
+        [Test]
+        public void RuntimeTrigger_ClickAndFuseAndBlast_DoNotDetonate()
+        {
+            DataTrigger t = StandardBombRules.Trigger;
+            // 点击 / 邻近引信不在标准炸弹的触发位里；被爆炸命中走 DetonateFromBlast 直调路径
+            //（运行时 Update 的 blastHit 恒 false，此处钉的是「flags 无该位即不判定」的机械语义）。
+            // 上下文带非零速度避开 OnRest 位（默认 vx=vy=0 是静止即爆形态，会把「不判定」误判成 True）。
+            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(clicked: true, vx: 1f)));
+            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(
+                t, Ctx(fuseArmed: true, fuseRemaining: 0, vx: 1f)));
+            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(blast: true, vx: 1f)));
         }
 
         // ------------------------------------------------------------------
-        // 点击引爆：banana（OnRest | OnClick）
+        // 桥接机械语义：flags → 五类单值触发（合成 flags，不牵武器目录）
         // ------------------------------------------------------------------
 
         [Test]
-        public void Banana_DetonatesOnClickOrRest()
+        public void Bridge_ClickFlag_RoutesToClickTrigger()
         {
-            DataTrigger t = Trigger(WeaponId.Banana);
-            Assert.IsTrue(ProjectileTriggerRules.HasClickTrigger(t));
-            Assert.IsTrue(ProjectileTriggerRules.HasRestTrigger(t));
+            const DataTrigger t = DataTrigger.OnClick;
             Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(clicked: true)));
-            Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(vx: 0f, vy: 0.1f)));
-            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(vx: 1f, vy: 1f)));
-        }
-
-        // ------------------------------------------------------------------
-        // 3D 静止判据口径：世界速度 → Flash (vx, vy)（WeaponProjectile.FlashRestComponents）
-        //
-        // 口径（详见 WeaponProjectile.FlashRestComponents 与 docs/设计/3D空间模型对齐.md §1）：
-        //   vx = XZ 平面速度模长（Flash 的横向"是否在动"，3D 里两个水平轴任一有速度都算在动）
-        //   vy = 世界 Y 速度 / FlashSpeedScale（Flash 的 vy 是重力轴分量，3D 重力沿 -Y）
-        // ------------------------------------------------------------------
-
-        [TestCase(0f, -5f, 0f)]   // 竖直下落（重力轴）
-        [TestCase(0f, 5f, 0f)]    // 竖直上抛
-        public void RestComponents_3D_VerticalMotionIsNotAtRest(float x, float y, float z)
-        {
-            // 竖直方向的运动必须由 vy 体现：若把平面重投影的 Z 当 vy，竖直下落会被读成 (0,0) →
-            // dynamite 在半空误判静止引爆。这也是文档"dynamite 落水后下沉不静止"的同一条口径。
-            WeaponProjectile.FlashRestComponents(new Vector3(x, y, z), out float vx, out float vy);
-            Assert.AreEqual(0f, vx, 1e-6f);
-            Assert.AreEqual(y / LevelGeometry.FlashSpeedScale, vy, 1e-5f);
-            Assert.IsFalse(WeaponTriggerRules.IsAtRest(vx, vy));
+            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(contact: true)));
         }
 
         [Test]
-        public void RestComponents_3D_HorizontalDriftOnEitherAxisIsNotAtRest()
+        public void Bridge_ProximityFuseFlag_RoutesToFuseTrigger()
         {
-            // X 或 Z 任一方向在动 → 平面模长非零 → 不静止（只读 world.x 会漏掉沿 Z 的滑行）。
-            WeaponProjectile.FlashRestComponents(new Vector3(0f, 0f, 0.5f), out float vxZ, out float vyZ);
-            Assert.Greater(vxZ, 0f);
-            Assert.IsFalse(WeaponTriggerRules.IsAtRest(vxZ, vyZ));
-
-            WeaponProjectile.FlashRestComponents(new Vector3(0.5f, 0f, 0f), out float vxX, out float vyX);
-            Assert.Greater(vxX, 0f);
-            Assert.IsFalse(WeaponTriggerRules.IsAtRest(vxX, vyX));
-        }
-
-        [Test]
-        public void RestComponents_3D_PlaneMagnitudeUsesBothHorizontalAxes()
-        {
-            // 世界 (3, 0, 4) 单位/秒 → XZ 模长 5 → Flash 5 / 0.78125 = 6.4 px/帧；Y 不参与平面模长。
-            WeaponProjectile.FlashRestComponents(new Vector3(3f, 0f, 4f), out float vx, out float vy);
-            Assert.AreEqual(5f / LevelGeometry.FlashSpeedScale, vx, 1e-5f);
-            Assert.AreEqual(0f, vy, 1e-6f);
-        }
-
-        [Test]
-        public void RestComponents_3D_RestingOnGroundIsAtRest()
-        {
-            WeaponProjectile.FlashRestComponents(Vector3.zero, out float vx, out float vy);
-            Assert.AreEqual(0f, vx, 1e-6f);
-            Assert.AreEqual(0f, vy, 1e-6f);
-            Assert.IsTrue(WeaponTriggerRules.IsAtRest(vx, vy));
-        }
-
-        [Test]
-        public void Dynamite_3D_VerticalFall_DoesNotDetonate()
-        {
-            // 端到端：把 3D 世界速度喂进静止判据 → 下落的 dynamite 不应引爆。
-            DataTrigger t = Trigger(WeaponId.Dynamite);
-            WeaponProjectile.FlashRestComponents(new Vector3(0f, -5f, 0f), out float vx, out float vy);
-            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(vx: vx, vy: vy)));
-            Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(vx: 0f, vy: 0f)));
-        }
-
-        // ------------------------------------------------------------------
-        // 邻近引信：mine（60px 内有角色且移动 → 60 帧）
-        // ------------------------------------------------------------------
-
-        [Test]
-        public void Mine_DetonatesOnlyWhenFuseExpires()
-        {
-            DataTrigger t = Trigger(WeaponId.Mine);
-            Assert.IsTrue(ProjectileTriggerRules.HasProximityFuse(t));
-            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(
-                t, Ctx(fuseArmed: false, fuseRemaining: 0)));
-            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(
-                t, Ctx(fuseArmed: true, fuseRemaining: 1)));
+            const DataTrigger t = DataTrigger.ProximityFuse;
             Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(
                 t, Ctx(fuseArmed: true, fuseRemaining: 0)));
-            // mine 对接触不敏感（接触不引爆）
+            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(
+                t, Ctx(fuseArmed: true, fuseRemaining: 1)));
+            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(
+                t, Ctx(fuseArmed: false, fuseRemaining: 0)));
+        }
+
+        [Test]
+        public void Bridge_BlastFlag_RoutesToBlastContact()
+        {
+            const DataTrigger t = DataTrigger.OnExplosionHit;
+            Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(blast: true)));
             Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(contact: true)));
         }
 
+        [Test]
+        public void Bridge_PlaceAndSpecialAndNone_ProduceNoActiveDetonation()
+        {
+            // OnPlace / Special / None 不产生主动引爆（放置与专用机制各自处理）。
+            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(DataTrigger.OnPlace, Ctx(contact: true)));
+            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(DataTrigger.Special, Ctx()));
+            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame((DataTrigger)0, Ctx(contact: true)));
+        }
+
+        [Test]
+        public void Bridge_MultipleFlags_TakeOr()
+        {
+            const DataTrigger t = DataTrigger.OnContact | DataTrigger.OnClick;
+            Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(contact: true, vx: 9f)));
+            Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(clicked: true)));
+        }
+
         // ------------------------------------------------------------------
-        // 被爆炸命中触发：gunpowderBarrel（连锁）
+        // 每武器 Trigger 字段的唯一运行时消费点：TriggersOnBlast（连锁引爆）
         // ------------------------------------------------------------------
 
         [Test]
-        public void GunpowderBarrel_ChainsOnlyFromBlastHit()
+        public void GunpowderBarrel_ChainsFromBlastHit()
         {
-            DataTrigger t = Trigger(WeaponId.GunpowderBarrel);
-            Assert.IsTrue(ProjectileTriggerRules.CanChainFromBlast(t));
-            Assert.IsTrue(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(blast: true)));
-            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx(contact: true)));
-            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(t, Ctx()));
+            DataTrigger t = WeaponCatalog.Get(WeaponId.GunpowderBarrel).Trigger;
+            Assert.IsTrue(ProjectileTriggerRules.CanChainFromBlast(t),
+                "gunpowderBarrel 目录 Trigger 带 OnExplosionHit → WeaponProjectile.TriggersOnBlast");
         }
 
         [Test]
         public void NonBarrelWeapons_DoNotChain()
         {
-            Assert.IsFalse(ProjectileTriggerRules.CanChainFromBlast(Trigger(WeaponId.CherryBomb)));
-            Assert.IsFalse(ProjectileTriggerRules.CanChainFromBlast(Trigger(WeaponId.WoodenCrate)));
-            Assert.IsFalse(ProjectileTriggerRules.CanChainFromBlast(Trigger(WeaponId.Mine)));
-        }
-
-        // ------------------------------------------------------------------
-        // 放置类 / 掩体：永不主动引爆
-        // ------------------------------------------------------------------
-
-        [Test]
-        public void WoodenCrate_NeverDetonates()
-        {
-            DataTrigger t = Trigger(WeaponId.WoodenCrate);
-            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(
-                t, Ctx(contact: true, clicked: true, blast: true, vx: 0f, vy: 0f,
-                    fuseArmed: true, fuseRemaining: 0)));
-        }
-
-        [Test]
-        public void Barrel_DoesNotDetonateFromRestOrContact()
-        {
-            DataTrigger t = Trigger(WeaponId.GunpowderBarrel);
-            Assert.IsFalse(ProjectileTriggerRules.ShouldDetonateThisFrame(
-                t, Ctx(contact: true, vx: 0f, vy: 0f)));
+            Assert.IsFalse(ProjectileTriggerRules.CanChainFromBlast(
+                WeaponCatalog.Get(WeaponId.CherryBomb).Trigger));
+            Assert.IsFalse(ProjectileTriggerRules.CanChainFromBlast(
+                WeaponCatalog.Get(WeaponId.WoodenCrate).Trigger));
+            Assert.IsFalse(ProjectileTriggerRules.CanChainFromBlast(
+                WeaponCatalog.Get(WeaponId.Mine).Trigger));
         }
     }
 }

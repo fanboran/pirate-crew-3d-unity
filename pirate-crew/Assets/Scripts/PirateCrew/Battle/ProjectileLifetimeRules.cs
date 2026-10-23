@@ -17,7 +17,7 @@ namespace PirateCrew.Battle
     /// </summary>
     public static class ProjectileLifetimeRules
     {
-        /// <summary>回合结束时是否销毁该武器的场上弹体（= !LimitedToTurn）。</summary>
+        /// <summary>回合结束时是否销毁该武器的场上弹体（= LimitedToTurn：限本回合的销毁，跨回合常驻的保留）。</summary>
         public static bool ShouldDestroyAtTurnEnd(WeaponStats stats)
         {
             return stats.LimitedToTurn;

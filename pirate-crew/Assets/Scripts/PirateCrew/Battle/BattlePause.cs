@@ -7,9 +7,11 @@ namespace PirateCrew.Battle
     /// 战斗暂停状态（模块级静态开关）。
     ///
     /// 【为什么不只靠 <c>Time.timeScale = 0</c>】timeScale 能冻结物理/粒子/协程（缩放时间），
-    /// 但冻结不了 <c>Update</c> 里的**逐帧计数**——TurnManager 的 inactivity 帧数
-    /// 是纯 Update 计数，暂停时照走就会"暂停期间回合自己推进"。
-    /// 所以暂停 = timeScale 归零（冻物理）+ 各 Update 入口查询 <see cref="IsPaused"/>（冻逻辑）。
+    /// 也顺带冻结挂在物理步上的计数——TurnManager 的 inactivity 帧数在 <c>FixedUpdate</c>
+    /// 计数，timeScale=0 时物理步停摆、计数天然不走。但渲染帧的 <c>Update</c> 照跑
+    /// （timeScale 不缩放 Update 的调用频率），里面的逻辑（输入/状态机/UI）仍会"暂停期间自己推进"。
+    /// 所以暂停 = timeScale 归零（冻物理与 FixedUpdate 计数）+ 各 Update 入口查询
+    /// <see cref="IsPaused"/>（冻逻辑）。
     ///
     /// 【谁查询】TurnManager / BattleCameraDriver（Update 入口）、
     /// BattleHud（面板）、BattleInteractionController（玩法输入入口自查 IsPaused）。

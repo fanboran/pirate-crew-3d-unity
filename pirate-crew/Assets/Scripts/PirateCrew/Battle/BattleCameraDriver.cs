@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using PirateCrew.Core;
 using PirateCrew.Combat;
-using PirateCrew.Data;
 using PirateCrew.Rendering.Pixelart;
 using UnityEngine;
 
@@ -120,9 +119,10 @@ namespace PirateCrew.Battle
         float _targetYaw;
         float _pitch;
         float _targetPitch;
+        // 取景恒定一档（禁多镜头距离裁决）：运行时目标档不再被任何输入改写，
+        // 仅出图路径（ApplyCaptureFraming）可覆写；平滑通道为它保留。
         float _targetOrthoSize = CameraFraming.CloseUpOrthoSize;
         float _orthoSize = CameraFraming.CloseUpOrthoSize;
-        float _panoramaOrthoSize = CameraFraming.PanoramaOrthoSizeForSpan(CameraFraming.DefaultWorldSpan);
 
         // ---- 焦点（干净位置，不含震屏/下压；FocusPoint 与距离判定都用它）----
         Vector3 _cleanPosition;
@@ -205,17 +205,11 @@ namespace PirateCrew.Battle
         /// <summary>运行时取景的等效"可见高度"（米）= 2 × OrthoSize。</summary>
         public float RuntimeVisibleMeters => _targetOrthoSize * 2f;
 
-        /// <summary>当前全景档 OrthoSize（由 <see cref="SetWorldSpan"/> 决定；默认跨度 100u → 30）。</summary>
-        public int PanoramaOrthoSize => Mathf.RoundToInt(_panoramaOrthoSize);
-
         /// <summary>
-        /// 按地图可玩跨度记录全景档：OrthoSize = clamp(round(span × 0.3), 全场档, 60)。
-        /// 由 Battle 场景接线方在世界地图建成后调用（远裁剪推导的消费输入）。
+        /// 当前全景档 OrthoSize。【禁多镜头距离裁决】后全景档已收口 = 近景基准档（恒定），
+        /// 读数保留只为 camdiag 打印兼容（<c>RemotePlayControl</c>）。
         /// </summary>
-        public void SetWorldSpan(float spanUnits)
-        {
-            _panoramaOrthoSize = CameraFraming.PanoramaOrthoSizeForSpan(spanUnits);
-        }
+        public int PanoramaOrthoSize => Mathf.RoundToInt(CameraFraming.CloseUpOrthoSize);
 
         /// <summary>
         /// 相机当前朝向的世界方位角（度；0 = +Z，俯视顺时针——与 <see cref="ThrowParams.YawDegrees"/>
@@ -349,8 +343,8 @@ namespace PirateCrew.Battle
 
             if (InteractionRules.CameraAcceptsOrbit(state))
                 ApplyOrbitInput(intent);
-            if (InteractionRules.CameraAcceptsFramingTier(state))
-                ApplyFramingTierInput(intent);
+            // 取景档输入不设入口：恒定一档（禁多镜头距离裁决），Tab 无相机职责
+            //（docs/设计/操作与交互.md §恒定取景）；操作中的"取景冻结"由恒定一档天然成立。
             // Executing：跟随态，不接受任何相机输入。操作中：焦点锁定选中单位附近，
             // 右键拖拽可转方位（瞄准观察；取景档保持冻结）。
 
@@ -377,7 +371,7 @@ namespace PirateCrew.Battle
             // ---- 震屏采样：玩家按住左键期间一律为 0，保证不影响瞄准精度判定 ----
             Vector2 shake2D = Vector2.zero;
             float roll = 0f;
-            if (enableShake && !IsAimingInputHeld()
+            if (enableShake && !intent.PrimaryHeld
                 && _shakeElapsed < _shakeDuration && _shakeDuration > 0f)
             {
                 shake2D = CameraFeelRules.ShakeOffset2D(
@@ -452,18 +446,6 @@ namespace PirateCrew.Battle
                 _targetYaw += intent.LookYawDelta;
         }
 
-        /// <summary>
-        /// 两档取景输入（交互操作契约 §B17）：**只认 Tab**。滚轮不消费——滚轮是反射性输入，
-        /// 误触即把镜头翻到另一档（2026-10-05 走查实锤：滚动一次 → 远景档约 48m 可见，
-        /// 像素格跌破 1 屏幕像素，读作"镜头自己变远了 / 不是 3x 了"）。
-        /// 切换只改目标档——现实值由位姿全目标化的指数平滑逼近（无跳变不变量）。
-        /// </summary>
-        void ApplyFramingTierInput(in BattleIntentFrame intent)
-        {
-            if (intent.ZoomTogglePressed)
-                _targetOrthoSize = CameraFraming.ToggleFramingTier(_targetOrthoSize, _panoramaOrthoSize);
-        }
-
         /// <summary>位姿平滑：方位与俯角目标一律指数逼近（自由/环绕两态同手感，直写路径已随飞行退役）。</summary>
         void SmoothManualCamera(float deltaTime)
         {
@@ -518,12 +500,6 @@ namespace PirateCrew.Battle
         // ------------------------------------------------------------------
         // 震屏
         // ------------------------------------------------------------------
-
-        /// <summary>玩家是否按住左键（瞄准输入）。此时抑制震屏，保证瞄准用的相机基向量稳定。</summary>
-        static bool IsAimingInputHeld()
-        {
-            return Input.GetMouseButton(0);
-        }
 
         float CurrentShakeAmplitude()
         {
@@ -901,7 +877,7 @@ namespace PirateCrew.Battle
             if (!enableShake)
                 return;
 
-            float radiusWorld = ExplosionRadiusWorld(detonated.Weapon);
+            float radiusWorld = ExplosionRadiusWorld();
             float distance = Vector3.Distance(_cleanPosition, detonated.Position);
             ShakeProfile profile = CameraFeelRules.ExplosionShake(
                 distance, radiusWorld,
@@ -913,17 +889,21 @@ namespace PirateCrew.Battle
         /// <summary>爆炸在观感范围内（震屏衰减不为 0）。用于决定是否施加顿帧。</summary>
         bool IsImpactVisible(ProjectileDetonatedPayload detonated)
         {
-            float radiusWorld = ExplosionRadiusWorld(detonated.Weapon);
+            float radiusWorld = ExplosionRadiusWorld();
             float distance = Vector3.Distance(_cleanPosition, detonated.Position);
             return CameraFeelRules.ShakeFalloff(distance, radiusWorld) >= CameraFeelRules.MinShakeFalloff;
         }
 
-        /// <summary>武器爆炸半径（世界单位）；无爆炸数值时给 1 个单位的名义半径（保证近处仍有反馈）。</summary>
-        static float ExplosionRadiusWorld(WeaponId weapon)
+        /// <summary>
+        /// 爆炸半径（世界单位）：<b>单源</b> <see cref="StandardBombRules.ExplosionSize"/>——
+        /// 与伤害结算（<c>WeaponProjectile.Detonate → BattleController.ResolveExplosion</c> 的
+        /// <c>PixelsToUnits(Radius(size))</c>）同一份 size、同一条换算式，震屏/顿帧的衰减圈
+        /// 才与真实命中圈自洽（每武器目录的旧 ExplosionSize 只是数据锚，不参与表现衰减——
+        /// 「点哪把都是它」后运行时所有爆炸都是标准口径）。
+        /// </summary>
+        static float ExplosionRadiusWorld()
         {
-            if (WeaponCatalog.TryGet(weapon, out WeaponStats stats) && stats.HasExplosion)
-                return LevelGeometry.PixelsToUnits(ExplosionResolver.Radius(stats.ExplosionSize));
-            return 1f;
+            return LevelGeometry.PixelsToUnits(ExplosionResolver.Radius(StandardBombRules.ExplosionSize));
         }
 
         // ------------------------------------------------------------------

@@ -26,6 +26,14 @@ namespace PirateCrew.Battle
         /// <summary>左键按下（边沿）。UI 悬停判定在消费方（控制器）做。</summary>
         public bool PrimaryPressed;
 
+        /// <summary>左键按住（持续态，非边沿）。相机驱动用它抑制瞄准期间的震屏
+        ///（瞄准输入按住时相机基向量必须稳定）。</summary>
+        public bool PrimaryHeld;
+
+        /// <summary>鼠标指针的屏幕坐标（px，原点左下）。点选/悬停拾取经它取指针位置，
+        /// 消费方不得直读 <c>Input.mousePosition</c>（唯一采样点契约）。</summary>
+        public Vector2 PointerScreenPosition;
+
         /// <summary>确认（回车，边沿）。</summary>
         public bool ConfirmPressed;
 
@@ -35,8 +43,8 @@ namespace PirateCrew.Battle
         /// <summary>暂停（P，边沿；全局键，不经 Esc 矩阵）。</summary>
         public bool PausePressed;
 
-        /// <summary>取景换档（Tab，边沿；近景 ⇄ 远景两档切换，交互操作契约 §B17）。</summary>
-        public bool ZoomTogglePressed;
+        // 【Tab 无采样】取景两档翻转已随「禁多镜头距离」裁决退役（docs/设计/操作与交互.md §恒定取景），
+        // Tab 无相机职责，意图帧不再承载取景换档。
 
         // ---- 标准投掷模组参数意图（-1/0/+1；只该操作中态消费）----
 
@@ -92,10 +100,11 @@ namespace PirateCrew.Battle
             }
 
             frame.PrimaryPressed = Input.GetMouseButtonDown(0);
+            frame.PrimaryHeld = Input.GetMouseButton(0);
+            frame.PointerScreenPosition = Input.mousePosition;
             frame.ConfirmPressed = Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
             frame.CancelPressed = Input.GetKeyDown(KeyCode.Escape);
             frame.PausePressed = Input.GetKeyDown(KeyCode.P);
-            frame.ZoomTogglePressed = Input.GetKeyDown(KeyCode.Tab);
 
             frame.ThrowYawInput =
                 (Input.GetKey(KeyCode.D) ? 1 : 0) - (Input.GetKey(KeyCode.A) ? 1 : 0);

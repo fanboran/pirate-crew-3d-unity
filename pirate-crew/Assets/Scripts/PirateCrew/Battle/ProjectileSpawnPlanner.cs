@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using PirateCrew.Combat;
 using PirateCrew.Data;
 using UnityEngine;
 
@@ -38,19 +37,31 @@ namespace PirateCrew.Battle
     /// </summary>
     public static class ProjectileSpawnPlanner
     {
+        // 单元素计划缓存：ProjectileSpawn 是 readonly struct、消费方只经 IReadOnlyList 遍历，
+        // 复用同一实例消除「一次使用一个数组」的稳态分配（B14）。
+        static readonly ProjectileSpawn[] SinglePlan =
+            { new ProjectileSpawn(Vector3.zero, Vector3.zero, kinematic: false) };
+
         /// <summary>
-        /// 规划一次武器使用产生的弹体。
+        /// 规划一次武器使用产生的弹体（单一弹体：一次使用恒产 1 条）。
         /// </summary>
-        /// <param name="stats">武器数值（数据锚；物理口径取标准炸弹）。</param>
         /// <param name="originWorld">投掷起点世界坐标（ThrowOrigin 高度）。</param>
-        /// <param name="velocity">米制初速向量（与预览/自抛同源）。</param>
-        public static IReadOnlyList<ProjectileSpawn> Plan(
-            WeaponStats stats,
-            Vector3 originWorld,
-            Vector3 velocity)
+        /// <param name="velocity">米制初速向量（与预览/自抛同源，原样透传）。</param>
+        public static IReadOnlyList<ProjectileSpawn> Plan(Vector3 originWorld, Vector3 velocity)
         {
-            // stats 为数据锚入参：抛掷初速只由标准投掷模组参数决定，不按武器分叉。
-            return new[] { new ProjectileSpawn(originWorld, velocity, kinematic: false) };
+            // 不做任何弹道换算：「预览 = 实弹」由调用方传同一初速保证（同源约束）。
+            SinglePlan[0] = new ProjectileSpawn(originWorld, velocity, kinematic: false);
+            return SinglePlan;
+        }
+
+        /// <summary>
+        /// 兼容旧调用形的转发重载。<paramref name="stats"/> 无消费者（抛掷不按武器分叉）——
+        /// 迁移调用点后删除（B14 转交：现役调用点 <c>BattleController.SpawnWeaponProjectiles</c>）。
+        /// </summary>
+        public static IReadOnlyList<ProjectileSpawn> Plan(
+            WeaponStats stats, Vector3 originWorld, Vector3 velocity)
+        {
+            return Plan(originWorld, velocity);
         }
     }
 }

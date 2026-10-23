@@ -23,6 +23,15 @@ namespace PirateCrew.Battle
     /// （寿命投影仍消费 <c>LimitedToTurn</c> 等目录字段），物理/尺寸/爆炸数值一律取标准口径，
     /// 不再按武器分叉——「点哪把都是它」由此在参数层成立。
     ///
+    /// 【投影字段（无运行时消费者，保留待武器重做）】
+    ///   Bounciness / DynamicFriction / StaticFriction、GroundContactFriction / GroundContactBounce、
+    ///   TwangMax、IsPersistent / IsPlaceable / PlaceableCount / ReuseCount、HitsTiles、
+    ///   HasExplosion / ExplosionSize / ExplosionMaxDamage 目前没有运行时读点
+    ///   （物理材质未接线、弹跳摩擦走 <see cref="ProjectileContactRules"/> 按武器 id 直查、
+    ///   爆炸数值走 <see cref="StandardBombRules"/>）——它们是武器重做 schema 的承载位
+    ///   （每武器覆写/常驻/放置的接线面，见 docs/项目/待办/武器系统重做.md），<b>不删</b>；
+    ///   运行时现役消费的字段只有 Mass / GravityScale / UsesGravity 与 ColliderWidth/Height/Depth、Shape。
+    ///
     /// 【职责边界】本结构只把标准口径翻译成「PhysX 需要什么」：
     ///   半尺寸 → Collider 半尺寸；Weight → 质量 / 重力倍率；
     ///   Bounce/Friction → PhysicsMaterial；以及寿命投影。

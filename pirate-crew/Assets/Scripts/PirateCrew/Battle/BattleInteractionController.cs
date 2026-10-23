@@ -173,7 +173,7 @@ namespace PirateCrew.Battle
             if (!_intent.PrimaryPressed || IsPointerOverUi())
                 return;
 
-            PirateBase picked = PickTeamCharacter(Input.mousePosition);
+            PirateBase picked = PickTeamCharacter(_intent.PointerScreenPosition);
             if (picked == null || picked == _selected)
                 return;
 
@@ -564,7 +564,7 @@ namespace PirateCrew.Battle
         {
             bool pickable = (_state == InteractionState.FreeCamera || _state == InteractionState.SelectedIdle)
                 && !IsPointerOverUi();
-            PirateBase target = pickable ? PickTeamCharacter(Input.mousePosition) : null;
+            PirateBase target = pickable ? PickTeamCharacter(_intent.PointerScreenPosition) : null;
             SetHoverTarget(target);
         }
 
