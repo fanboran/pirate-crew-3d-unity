@@ -8,7 +8,7 @@
 
 **问题本质**：场景资产总清单 `pirate-crew/Assets/Art/Models/scene-assets.json`
 由生成器 `SceneAssetManifestBuilder.BuildAll`
-（[pirate-crew/Assets/Editor/SceneAssetManifestBuilder.cs](../../../pirate-crew/Assets/Editor/SceneAssetManifestBuilder.cs)，
+（[pirate-crew/Assets/Editor/SceneAssetManifestBuilder.cs](../../../../pirate-crew/Assets/Editor/SceneAssetManifestBuilder.cs)，
 ArtGate 烘焙后自动调用）产出；只有跑链才重建，之后增删资产清单不跟随，
 当前也没有门禁拦「清单过期」——消费方可能按过期清单行事。
 

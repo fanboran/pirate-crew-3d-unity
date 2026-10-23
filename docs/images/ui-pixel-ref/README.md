@@ -145,23 +145,13 @@
 - 判据：生成器 `BeveledPixelSpriteBuilder.Verify()` 自检为准（原「第二套独立契约测试」
   已裁决退役不建）；纹理导入契约测试
   `Assets/Art/Tests/PixelArtTextureImportTests.cs` 继续生效；
-- 本目录发布的**由本工程色板重新生成**的对照图（不含参照素材本身）：
-  - [`gen-contact-sheet-2x.png`](gen-contact-sheet-2x.png)（2× 放大，全族接触表：7 tone×6 列 +
-    页签区 + 语义件区 + 5 填充；**行/列/分区都印了 3×5 字模标注**，底纹棋盘用来读透明切角与环内）；
-  - [`gen-showcase.png`](gen-showcase.png)（**全屏 640×360 艺术像素 = 1920×1080 屏幕，输出即
-    实际屏幕像素**，验收主图）——**美术稿**：整屏构图（船员卡/海图小地图/敌情/警告按钮/页点/Toast），
-    元素尺寸给足、标题字模 3×；
-  - [`gen-showcase-live.png`](gen-showcase-live.png)——**实机调试窗口**（游戏内真渲染截图）：
-    `UIShowcase.unity` 场景跑 `UiGalleryPage` 陈列页（全部件 = 运行时真件、可交互），
-    编辑器菜单 PirateCrew/UI/打开组件展示（构建并播放）即得；命令行出口
-    `UiShowcaseSceneSetup.CaptureFromCommandLine` 自动出这张图。
-  - [`gen-components.png`](gen-components.png)（同尺度）——**组件总表**：面板族 7 tone × 三态、
-    凹槽（真实血条用法）、填充 5 色、语义件、页签、三态按钮，一件一行、左列行名与行垂直居中；
-    **图名不带 `-1x/-2x`**：那是旧口径的产物，容易被读成"这图才 1 倍大"，尺度一律印在图上；
-  - [`gen-corner-8x.png`](gen-corner-8x.png)（8× 放大，左上角特写：外环沿切角斜线闭合、
-    斜面与内暗线是它里面两条同心环；u=2 波次的图，角结构不变）；
-  - [`gen-bar-24px-compare-4x.png`](gen-bar-24px-compare-4x.png)（4× 放大，u=2 波次的
-    `Primary` 凹槽 + `Red` 填充 24px 合成——段位同构证明；u=3 后同构关系不变、等比放大）。
+- 本目录发布的图片只有 §一 表里三张**量测参照图**（`ref-bars-life-mana.png` /
+  `ref-hearts-stars.png` / `ref-pixel-tool-dialog.png`）——逐像素判据照 §二/§三/§四；
+  生成器成图的**验收**以 `BeveledPixelSpriteBuilder.Verify()` 自检为准（生成批次对照图
+  已随图库清仓退役，不再存于本目录）。**实机调试窗口**（游戏内真渲染截图）：
+  `UIShowcase.unity` 场景跑 `UiGalleryPage` 陈列页（全部件 = 运行时真件、可交互），
+  编辑器菜单 PirateCrew/UI/打开组件展示（构建并播放）即得；命令行出口
+  `UiShowcaseSceneSetup.CaptureFromCommandLine` 自动出图。
 
 **两套语法别互相推广**（2026-09-22 对照走查的关键结论）：`ref-bars-life-mana.png` 量出的
 **四段金框**只属于条槽（血条/进度条）；`ref-pixel-tool-dialog.png` 量出的是面板/按钮的

@@ -9,7 +9,7 @@
 ### 基线红用例的处置（待定）
 
 无头验证台（`external/harness/`，定位与用法以
-[external/harness/README.md](../../../external/harness/README.md) 为准）在纯 dotnet
+[external/harness/README.md](../../../../external/harness/README.md) 为准）在纯 dotnet
 环境下有一批用例 HEAD 基线即红：它们依赖 Unity 资产/Shader 上下文（材质、预制体、
 场景装配契约）或 UnityEditor DLL，脱离 Unity 运行时必抛 `SecurityException`——
 EditMode（Unity batchmode）才是它们的权威判定环境。

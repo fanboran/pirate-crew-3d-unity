@@ -7,12 +7,12 @@
 
 ### 已落三项（口径，不再挂账）
 
-- **行尾策略**——根目录 [.gitattributes](../../../.gitattributes) 把 Unity 序列化资产
+- **行尾策略**——根目录 [.gitattributes](../../../../.gitattributes) 把 Unity 序列化资产
   （.meta/.unity/.prefab/.asset/.mat/.controller）与数据/脚本（.json/.py/.sh）钉为 LF，
   export 产物目录在 .gitignore 逐条锚定，配套 .editorconfig；
   改动该文件前须跑的验证见其头注释与
-  [构建与发布手册](../构建与发布手册.md)「仓库卫生」。
-- **CI**——[.github/workflows/ci.yml](../../../.github/workflows/ci.yml)：
+  [构建与发布手册](../../构建与发布手册.md)「仓库卫生」。
+- **CI**——[.github/workflows/ci.yml](../../../../.github/workflows/ci.yml)：
   只手动触发（创始人裁决），repo-gates（纯文本门禁，不需要 Unity）/ unity-tests
   （EditMode + PlayMode）/ build-windows 三 job 分工；尚未在 GitHub 实跑过，
   首次推送后按该文件头清单核对（步骤在构建与发布手册「CI 配置与 secrets」）。

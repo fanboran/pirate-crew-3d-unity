@@ -45,5 +45,5 @@
 - [x] **M1 主菜单 + 场景流转 + 存档骨架** — EventBus / SceneLoader / SaveManager / Bootstrapper + 端到端 PlayMode 流转 — → [M1-主菜单与场景流转.md](M1-主菜单与场景流转.md)
 - [x] **M0 骨架** — URP 落地、asmdef + UTF 接入、ProjectSettings 定名、`pirate-crew/` 子目录结构 — → [M0-骨架.md](M0-骨架.md)
 - [x] **像素化路径 P4/P5 补齐** — 连通域内线 / 屏幕空间描边 / 四趟着色 / G-buffer ×7 / 像素档迁移 — → [像素化路径-P4P5补齐.md](像素化路径-P4P5补齐.md)
-- [关卡地形岛形化.md](关卡地形岛形化.md) — 矩形采样网格根除,地形=岛形轮廓(schema 3),栅格化回填与冻结签名逐字等价
+- [x] **关卡地形岛形化** — 矩形采样网格根除，地形=岛形轮廓（schema 3），栅格化回填与冻结签名逐字等价 — → [关卡地形岛形化.md](关卡地形岛形化.md)
 - [x] **无头出图相机常量异常** — 非 bug：诊断格读数把显示编码（标准 sRGB）当线性，按 sRGB 反解后精确还原 LabCamera `(10.019,26.265,21.019)`/`1920×1080`；「出图光深 0.36 m、水比实机浅」结论撤回。已加 `MainCamera` tag + `tools/waterlab/debug_tiles.py` — → [无头出图相机常量异常.md](无头出图相机常量异常.md)
