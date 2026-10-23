@@ -68,6 +68,10 @@ namespace PirateCrew.Rendering.Pixelart
                 if (renderingData.cameraData.camera != rig.CastCamera)
                     return;
 
+                // 本帧先按"闭合趟没跑成"记账（下方闭合趟真写出 Closed 才翻回 true）：
+                // PublishArtBuffers 的回退判据按帧对齐，不吃上一帧的残值（审计 R9）。
+                rig.OutlineClosedReady = false;
+
                 // pass 名解析失败就**跳过本帧并报错一次**（不静默：描边没了在最终画面上只是少一圈线）。
                 if (!EnsurePassIndex(renderingData.cameraData.camera.name))
                     return;
@@ -96,16 +100,18 @@ namespace PirateCrew.Rendering.Pixelart
 
                     // ---- 第二趟：缝闭合（读第一趟墨标 + Patch 版 G-buffer → 写 Closed 版）----
                     // 残余缝 = 碎屑簇边界上的 [墨][空][描边物体] 空格；判据与不误伤论证见
-                    // shader 里 PixelartOutlineCloseFragment 的注。pass 缺失只跳过闭合
-                    // （第一趟结果原样发布 = 现行行为），不阻塞描边主链。
+                    // shader 里 PixelartOutlineCloseFragment 的注。pass 缺失只跳过闭合，
+                    // 第一趟结果原样发布（本帧 OutlineClosedReady 已置 false，rig.PublishArtBuffers
+                    // 会回退发布 OutlineBuffer——着色读到的是第一趟墨线，不是空缓冲；审计 R9）。
                     if (EnsureClosePassIndex(renderingData.cameraData.camera.name))
                     {
                         cmd.SetRenderTarget(rig.OutlineClosedBuffer);
                         cmd.DrawProcedural(Matrix4x4.identity, m_Material, m_ClosePassIndex,
                             MeshTopology.Triangles, 3, 1);
 
-                        // 着色几趟读最终版。
+                        // 着色几趟读最终版；并记账"本帧 Closed 真的写出过"。
                         cmd.SetGlobalTexture(PixelartPath.OutlineBufferId, rig.OutlineClosedBuffer);
+                        rig.OutlineClosedReady = true;
                     }
                 }
 
@@ -175,7 +181,9 @@ namespace PirateCrew.Rendering.Pixelart
 
         public override void Create()
         {
-            Shader shader = outlineShader != null ? outlineShader : Shader.Find(PixelartPath.OutlineShaderName);
+            // 取用统一走 PixelartShaders（全仓裸 Shader.Find 只许在它内部，审计 R7）：
+            // 本 shader 由 Resources 持有（必然入包）；序列化引用是主路，这里只兜"引用为空"的场景。
+            Shader shader = outlineShader != null ? outlineShader : PixelartShaders.Load(PixelartPath.OutlineShaderName);
             if (shader == null)
             {
                 global::PirateCrew.Core.Log.Error("[PixelartOutlineFeature] 找不到 shader「" + PixelartPath.OutlineShaderName

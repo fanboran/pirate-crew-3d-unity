@@ -53,9 +53,11 @@ namespace PirateCrew.Rendering.Pixelart
         public static readonly Vector3 Target = new Vector3(0f, 1.2f, 0f);
 
         // ---------------- 机位梯子（按"可见多少米高"给，与分辨率解耦）----------------
-        // 一个艺术像素的世界尺寸 = 可见高度 ÷ 参考画布高（1080p 下 360）。
-        // **可见米数是美术锚、不随 PixelScale 变**：5×→3× 时取景不动、只是颗粒变细；
-        // 而屏幕分辨率越高、艺术像素越多 ⇒ 可见范围越大（1080p 看 28m、1440p 看 37m）。
+        // 一个艺术像素的世界尺寸 = 可见高度 × 档位 ÷ 1080（= 可见高度 ÷ 参考画布高；
+        // 1080p·2× 下参考画布高 540）。**可见米数是美术锚、不随 PixelScale 变**：
+        // 5×→3× 时取景不动、只是颗粒变细（换算式见 PixelartCameraRig.WorldPerPixelFor，
+        // wpp 内嵌档数是取景与档位解耦的一半）；而屏幕分辨率越高、艺术像素越多 ⇒
+        // 可见范围越大（1080p 看 28m、1440p 看 37m）。
 
         /// <summary>宽机位：可见 28m 高（1080p 下正交 size 14；场景装配时相机就是这一档）。</summary>
         public const float WideVisibleMeters = 28f;
@@ -66,10 +68,23 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>近机位：可见 8m 高（正交 size 4），用来看角色与描边的细节。</summary>
         public const float CloseVisibleMeters = 8f;
 
-        /// <summary>把"可见多少米高"换算成一个艺术像素的世界尺寸（米）。</summary>
+        /// <summary>
+        /// 把"可见多少米高"换算成一个艺术像素的世界尺寸（米），按本场景锁定的
+        /// <see cref="PixelScale"/>（2×）档：口径 = 可见米数 × 档位 ÷ 1080
+        /// （<see cref="PixelartCameraRig.WorldPerPixelFor"/> 同源）。**别写成裸的「÷540」**——
+        /// 那会把档数焊死在分母里，将来改档必漂（审计 R2 的另一半）；参考画布高
+        /// <see cref="ReferenceRenderHeight"/>（540）只是 1080p·2× 下这条式的等价读法。
+        /// </summary>
         public static float WorldPerPixel(float visibleMeters)
         {
-            return visibleMeters / ReferenceRenderHeight;
+            return WorldPerPixel(visibleMeters, PixelScale);
+        }
+
+        /// <summary>按显式档位换算（口径同 <see cref="PixelartCameraRig.WorldPerPixelFor"/>；
+        /// 跑非 2× 档的场景/脚本用这个口，别拿 1 参版硬算）。</summary>
+        public static float WorldPerPixel(float visibleMeters, int pixelScale)
+        {
+            return PixelartCameraRig.WorldPerPixelFor(visibleMeters, pixelScale);
         }
 
         /// <summary>

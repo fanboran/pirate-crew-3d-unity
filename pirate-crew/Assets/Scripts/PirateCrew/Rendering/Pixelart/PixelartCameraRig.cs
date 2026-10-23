@@ -25,8 +25,10 @@ namespace PirateCrew.Rendering.Pixelart
     /// ——"几何/G-buffer 就是常规延迟渲染的 G-buffer，全分辨率"，省 fill rate 的是**着色那几趟**。
     /// 本仓同构（创始人 2026-09-22 裁决）。
     ///
-    /// 【像素密度口径】`worldPerPixel = 可见米数@1080p ÷ (1080 ÷ pixelScale)`：可见米数是**美术锚**、
-    /// 不随 pixelScale 变（所以 5×→3× 时取景不动、只是颗粒变细）；而**屏幕分辨率越高、可见范围越大**
+    /// 【像素密度口径】`worldPerPixel = 可见米数 × pixelScale ÷ 1080`（<see cref="WorldPerPixelFor"/>，
+    /// 唯一换算式）：可见米数是**美术锚**、不随 pixelScale 变；wpp 内嵌档数后，
+    /// 取景推导「可见高度 = (屏幕高 ÷ k) × wpp」在屏高恒定时与 k 无关——
+    /// 换档取景不动、只是颗粒变细（渲染管线.md §3.1）；而**屏幕分辨率越高、可见范围越大**
     /// （1080p 28m → 1440p 37m），因为艺术画布随屏幕变大。
     /// </summary>
     [RequireComponent(typeof(Camera))]
@@ -65,21 +67,54 @@ namespace PirateCrew.Rendering.Pixelart
         /// <summary>
         /// 运行时换档入口（滚轮输入，创始人 2026-09-24 裁决）：档位变化返回 true。
         /// 派生尺寸由 <see cref="ComputeTargetSize"/> 在下一帧 Update 自动重算——
-        /// worldPerPixel 口径不随档位变，**取景不动、只变颗粒粗细**（渲染域开关，不是相机缩放）。
+        /// worldPerPixel 的**口径**不随档位变（仍是「可见米数 × 档数 ÷ 1080」，见
+        /// <see cref="WorldPerPixelFor"/>），值由下方按 k新/k旧 就地重写补齐，
+        /// **取景不动、只变颗粒粗细**（渲染域开关，不是相机缩放）。
         /// </summary>
         public bool TryStepPixelScale(int direction)
         {
             int next = SteppedPixelScale(pixelScale, direction);
             if (next == pixelScale)
                 return false;
+            RescaleWorldPerPixelForScaleChange(pixelScale, next);
             pixelScale = next;
             Core.PixelScaleState.Unit = next;   // 滚轮与设置页写同一运行期真值（两入口同源）
             return true;
         }
 
-        [Tooltip("一个艺术像素的世界尺寸（米）。它与艺术画布高一起决定可见世界范围 = 艺术像素数 × 本值。"
-            + "0.07778 = 1080p 下可见 28m 高（= 广角机位），改 pixelScale 时它要按"
-            + "「可见米数 ÷ (1080 ÷ pixelScale)」重算，取景才不动。")]
+        /// <summary>worldPerPixel 换算的参考屏幕高（1080p 口径；<see cref="WorldPerPixelFor"/> 的分母）。</summary>
+        public const int ReferenceScreenHeight = 1080;
+
+        /// <summary>
+        /// 「可见多少米 → 一个艺术像素多少米」的换算（**纯函数，无头可测**；全仓唯一换算式）：
+        /// <c>wpp = 可见米数 × pixelScale ÷ 1080</c>。
+        ///
+        /// 【为什么 wpp 要内嵌档数】本 rig 的取景推导是「可见世界高度 = (屏幕高 ÷ k) × wpp」。
+        /// wpp 按上式带上 k 之后，屏高恒定时可见高度 = 可见米数 × 屏幕高 ÷ 1080——
+        /// **与 k 无关**：换档（滚轮/设置页）取景不动、只变颗粒粗细（渲染管线.md §3.1，审计 R2）。
+        /// 反过来若 wpp 是「÷(1080÷k) 的死值」，k 2→3 时可见高度 32m→21.3m，镜头被凭空拉近。
+        /// 档位变化处的 worldPerPixel 重写见 <see cref="RescaleWorldPerPixelForScaleChange"/>。
+        /// </summary>
+        public static float WorldPerPixelFor(float visibleMeters, int pixelScale)
+        {
+            return visibleMeters * Mathf.Max(1, pixelScale) / ReferenceScreenHeight;
+        }
+
+        /// <summary>
+        /// 换档时把已序列化的 <see cref="worldPerPixel"/> 从旧档形状重写到新档形状（乘 k新/k旧），
+        /// 保证推导出的可见世界高度不变。**只在 derive 模式下做**：取景归外部（如 battle 的
+        /// BattleCameraDriver）时 wpp 是外部视角的镜像值，这里动它会跟外部打架。
+        /// </summary>
+        void RescaleWorldPerPixelForScaleChange(int oldScale, int newScale)
+        {
+            if (!deriveOrthographicSize || worldPerPixel <= 0f)
+                return;
+            worldPerPixel = worldPerPixel * Mathf.Max(1, newScale) / Mathf.Max(1, oldScale);
+        }
+
+        [Tooltip("一个艺术像素的世界尺寸（米），口径 = 可见米数 × pixelScale ÷ 1080（见 WorldPerPixelFor）。"
+            + "它与艺术画布高一起决定可见世界范围 = 艺术像素数 × 本值；换档时由 rig 按 k新/k旧 重写，"
+            + "取景不动、只变颗粒粗细。0.07778 = 1080p·3× 下可见 28m 高（= 广角机位）。")]
         [Min(0.0001f)] public float worldPerPixel = 0.07778f;
 
         [Tooltip("由 pixelScale/worldPerPixel 反推正交 size 并写进相机。"
@@ -212,6 +247,15 @@ namespace PirateCrew.Rendering.Pixelart
         /// <see cref="OutlineBuffer"/> 保留第一趟原始判定——诊断用（两份对照 = 闭合 pass 补了哪些格）。
         /// </summary>
         public RenderTexture OutlineClosedBuffer { get; private set; }
+
+        /// <summary>
+        /// 本帧描边第二趟（缝闭合）是否真的写出过 <see cref="OutlineClosedBuffer"/>
+        /// （描边 Feature 每帧回写）。<see cref="PublishArtBuffers"/> 据此决定发布 Closed 还是
+        /// 回退发布第一趟的 <see cref="OutlineBuffer"/>：闭合 pass 缺失时 Closed 从未被写入，
+        /// 把它当"最终版"发布，着色读到的就是一张空墨线（审计 R9 的根因）。
+        /// </summary>
+        public bool OutlineClosedReady { get; internal set; }
+
         /// <summary>漫反射结果。</summary>
         public RenderTexture DiffuseBuffer { get; private set; }
         /// <summary>高光结果。</summary>
@@ -251,6 +295,43 @@ namespace PirateCrew.Rendering.Pixelart
                 if (_screenCamera == null || FineHeight <= 0)
                     return 0f;
                 return _screenCamera.orthographicSize * 2f / FineHeight;
+            }
+        }
+
+        /// <summary>
+        /// 已对齐艺术像素格的**取景原点**（世界坐标）：取景框（屏幕左下角）沿相机 right/up
+        /// 反向平移出的世界点，再**逐分量**向 −∞ 取整到 <see cref="UnitSize"/> 的整数倍——
+        /// 即「世界坐标 = UnitSize × 整数」这张全局格网里、包住取景左下角的那一格点。
+        ///
+        /// 【给谁用】世界空间叠加件（弹道预览 / 选择框这类按艺术像素粒度画线画框的）：
+        /// 把要画的世界点先按 <c>origin + Round((p − origin) ÷ UnitSize) × UnitSize</c>
+        /// （逐分量）snap 到本格网，其屏幕投影才与像素网格**同相位**——不 snap 的话镜头
+        /// 一平移，线框相对像素格就会半像素游走。格距用 <see cref="UnitSize"/>
+        /// （1 艺术像素的世界长度，随档位/取景走），别拿 worldPerPixel 自己算。
+        ///
+        /// 【口径】逐世界轴分量取整（不是沿相机轴）：叠加件都活在世界 XZ 平面上，
+        /// 只有世界轴格网对它们才可复用；本原点已含当前机位的全部相位信息，
+        /// 相机每帧动它就每帧变，使用方当帧读当帧用。
+        /// </summary>
+        public Vector3 SnappedViewOrigin
+        {
+            get
+            {
+                if (_screenCamera == null || RenderHeight <= 0)
+                    return Vector3.zero;
+                float unit = UnitSize;
+                if (unit <= 0f)
+                    return Vector3.zero;
+                float halfHeight = _screenCamera.orthographicSize;
+                float halfWidth = halfHeight * _screenCamera.aspect;
+                Transform transform = _screenCamera.transform;
+                Vector3 corner = transform.position
+                    - transform.right * halfWidth
+                    - transform.up * halfHeight;
+                return new Vector3(
+                    Mathf.Floor(corner.x / unit) * unit,
+                    Mathf.Floor(corner.y / unit) * unit,
+                    Mathf.Floor(corner.z / unit) * unit);
             }
         }
 
@@ -434,9 +515,17 @@ namespace PirateCrew.Rendering.Pixelart
 
             // 设置页改档 → 运行期真值（PixelScaleState）→ 本 rig 自适应对齐
             // （真值被钳在本 rig 契约域内；滚轮步进也会回写真值，两个入口不打架）。
+            // 【换档保取景（审计 R2）】wpp 内嵌档数（口径 = 可见米数 × 档数 ÷ 1080，见
+            // WorldPerPixelFor），档位一变旧值就带着旧档的形状，直接推导会拉近/拉远
+            // （k 2→3 时可见 32m→21.3m）——按 k新/k旧 就地重写补齐。只在 derive 模式下做
+            // （见 RescaleWorldPerPixelForScaleChange）；域外写点（调试场/出图脚本）改档时
+            // 本来就按新档重写 wpp，不走这条分支，不会二次补偿。
             int contractScale = Mathf.Clamp(Core.PixelScaleState.Unit, PixelScaleMin, PixelScaleMax);
             if (pixelScale != contractScale)
+            {
+                RescaleWorldPerPixelForScaleChange(pixelScale, contractScale);
                 pixelScale = contractScale;
+            }
 
             // 屏幕尺寸变化（窗口拉伸/分辨率切换）→ 两档缓冲与上屏尺寸一起重算。
             ComputeTargetSize(out int wantWidth, out int wantHeight);
@@ -444,7 +533,12 @@ namespace PirateCrew.Rendering.Pixelart
                 EnsureBuffers();
 
             // 由"一个艺术像素的世界尺寸"反推正交 size：可见世界 = 艺术像素数 × worldPerPixel。
-            if (deriveOrthographicSize)
+            // 【不变量】wpp 内嵌档数（WorldPerPixelFor）⇒ 可见高度 = 可见米数 × 屏幕高 ÷ 1080，
+            // 与 k 无关（换档取景不动，见 RescaleWorldPerPixelForScaleChange）。
+            // 【RenderHeight>0 守卫】无头/无设备环境凑不齐 G-buffer ⇒ 缓冲整趟 inert、
+            // RenderHeight 恒 0——此时推导会得出 0 正交、视锥退化，引擎鼠标探测逐帧报
+            // "Screen position out of view frustum"。守卫后保持序列化值不动（实机恒 >0，无影响）。
+            if (deriveOrthographicSize && RenderHeight > 0)
                 _screenCamera.orthographicSize = RenderHeight * worldPerPixel * 0.5f;
 
             LogScaleMapping();
@@ -558,7 +652,7 @@ namespace PirateCrew.Rendering.Pixelart
 
             // 主相机退化成"纯变换持有者 + 上屏 blit"（v3 `SloanePixelartCamera.cs:113-119`）：
             // 不画任何东西、不清屏（清屏会盖掉将要贴上去的 ResultBuffer）。
-            // 【掩码不能清成 0】CinemachineBrain 按输出相机的掩码筛选候选虚机——全 0 = Brain
+            // 【掩码不能清成 0】（v3 Cinemachine 时代的实测教训，登记在案）Brain 按输出相机掩码筛选——全 0 = Brain
             // 永远选不到相机 = 旋转/缩放/镜头全部失效（编辑器实跑实测）。只保留"虚机保活层"
             // 这一位：该层没有任何可渲染物，上屏器照样什么世界物体都画不到。
             _screenCamera.clearFlags = CameraClearFlags.Nothing;
@@ -835,6 +929,9 @@ namespace PirateCrew.Rendering.Pixelart
             RimLightBuffer = Release(RimLightBuffer);
             ResultBuffer = Release(ResultBuffer);
 
+            // Closed 缓冲随批释放，"本帧写过 Closed"的记账一并清零（新缓冲要等描边趟重写）。
+            OutlineClosedReady = false;
+
             _allocatedWidth = 0;
             _allocatedHeight = 0;
             RenderWidth = 0;
@@ -955,7 +1052,11 @@ namespace PirateCrew.Rendering.Pixelart
             cmd.SetGlobalTexture(PixelartPath.ConnectivityResultId, ConnectivityResultBuffer);
             // 墨线发布**缝闭合后的最终版**（描边第二趟写 Closed；本方法由边缘光/着色前发布，
             // 若发第一趟版会把闭合补的格整帧丢掉——着色读不到 = 画面上缝又回来）。
-            cmd.SetGlobalTexture(PixelartPath.OutlineBufferId, OutlineClosedBuffer != null ? OutlineClosedBuffer : OutlineBuffer);
+            // 【回退承诺（审计 R9）】闭合趟本帧没跑成（OutlineClosedReady=false）时 Closed 是
+            // 从未写入的空缓冲，必须回退发布第一趟原样——"缺失时第一趟结果原样发布"由这里兑现，
+            // 与序列化引用为空不切换的防御思路同一条线。
+            cmd.SetGlobalTexture(PixelartPath.OutlineBufferId,
+                OutlineClosedBuffer != null && OutlineClosedReady ? OutlineClosedBuffer : OutlineBuffer);
         }
     }
 }

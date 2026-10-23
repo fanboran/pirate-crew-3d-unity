@@ -91,14 +91,17 @@ namespace PirateCrew.Rendering.Pixelart
 
                     // 只收 PixelartTransparent 这一条 LightMode 的透明队列材质；
                     // 排序背→前（CommonTransparent）保证透明件之间混合次序正确。
-                    // 【队列下界必须取 3000 而不是 RenderQueueRange.transparent（3001）】
-                    // 本路径的透明材质声明 `Queue = Transparent` 即 3000，用 URP 的透明档会把
-                    // 它们整类漏掉（预览曾因此一个片都不画）。上界不受影响；实际收件仍被
-                    // ShaderTagId 门控，不透明件不会被误收。
+                    // 【队列界是契约常量（PixelartPath.TransparentQueueMin/Max，纯函数测试锚定）】
+                    // 下界必须取 3000 而不是 RenderQueueRange.transparent（3001）：本路径的透明
+                    // 材质声明 `Queue = Transparent` 即 3000，用 URP 的透明档会把它们整类漏掉
+                    // （预览曾因此一个片都不画）。上界不受影响；实际收件仍被 ShaderTagId 门控，
+                    // 不透明件不会被误收。
                     var drawingSettings = RenderingUtils.CreateDrawingSettings(
                         kPixelartTransparent, ref renderingData, SortingCriteria.CommonTransparent);
                     drawingSettings.perObjectData = PerObjectData.None;
-                    var filteringSettings = new FilteringSettings(new RenderQueueRange(3000, 5000), m_LayerMask);
+                    var filteringSettings = new FilteringSettings(
+                        new RenderQueueRange(PixelartPath.TransparentQueueMin, PixelartPath.TransparentQueueMax),
+                        m_LayerMask);
 
                     context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref filteringSettings);
                 }

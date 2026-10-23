@@ -21,7 +21,7 @@ namespace PirateCrew.Tests
     /// 【海图试点场景：当前 0 张】八张海图（101–108）已删除待重做，其场景名从下表移除；
     /// （旧海图试点已随 WorldMap 双轨退役删除，重做口径见 docs/项目/待办/地图重做.md。）
     ///
-    /// 【实现口径】只读场景 YAML 文本、正则提取（场景全用 EditorSceneManager 打开太慢）；
+    /// 【实现口径】只读场景/渲染器资产 YAML 文本、正则提取（场景全用 EditorSceneManager 打开太慢）；
     /// 契约常量住在运行时程序集（<see cref="PixelartSceneContract"/>），本测试因此不需要引用
     /// 编辑器程序集类型。非 Unity 环境（无头 harness）下场景目录不存在，跳过。
     /// </summary>
@@ -113,6 +113,101 @@ namespace PirateCrew.Tests
         static float ParseInvariant(string value)
         {
             return float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        // ------------------------------------------------------------------
+        // Cast 渲染器资产契约：特征顺序是冻结契约 + 不许有孤儿子资产块
+        //（同场景契约一个读法：只读资产 YAML 文本、正则提取，不开 Unity 原生 API）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Cast 渲染器的**冻结特征顺序**（PixelartTransparentFeature 类头：前六位顺序是冻结契约，
+        /// 透明趟必须第 7 位——它要画在着色合成写完的成图之上）。
+        /// </summary>
+        static readonly string[] ExpectedCastFeatureOrder =
+        {
+            "PixelartBeforeRenderFeature",
+            "PixelartObjectFeature",
+            "PixelartConnectivityFeature",
+            "PixelartOutlineFeature",
+            "PixelartRimLightFeature",
+            "PixelartShadingFeature",
+            "PixelartTransparentFeature",
+        };
+
+        [Test]
+        public void CastRenderer_FeatureOrderAndBlocks_MatchFrozenContract()
+        {
+            try
+            {
+                RunCastRendererOrderCheck();
+            }
+            catch (System.Security.SecurityException)
+            {
+                Assert.Ignore("无头 harness 环境调不到 Unity 原生 API——跳过（Unity EditMode 下照常执行）。");
+            }
+        }
+
+        static void RunCastRendererOrderCheck()
+        {
+            string path = Path.GetFullPath(Path.Combine(
+                Application.dataPath, "..", PixelartPath.RendererFolder,
+                PixelartPath.CastRendererName + ".asset"));
+            if (!File.Exists(path))
+            {
+                Assert.Ignore("Cast 渲染器资产不存在——跳过（重跑装配器后才有）。");
+                return;
+            }
+
+            string text = File.ReadAllText(path);
+
+            // 块表：fileID → (m_Name, 块体)。块在文件里的排布顺序与特征列表无关，只能反查。
+            var nameByFileId = new Dictionary<string, string>();
+            var activeByName = new Dictionary<string, bool>();
+            foreach (Match block in Regex.Matches(text,
+                @"--- !u!114 &(-?\d+)(.*?)(?=--- !u!114 &|\z)", RegexOptions.Singleline))
+            {
+                string body = block.Groups[2].Value;
+                Match name = Regex.Match(body, @"m_Name: (\S+)");
+                if (!name.Success)
+                    continue;
+                nameByFileId[block.Groups[1].Value] = name.Groups[1].Value;
+                activeByName[name.Groups[1].Value] = Regex.IsMatch(body, @"m_Active: 1");
+            }
+
+            // 特征列表：m_RendererFeatures: 行之后连续的 `- {fileID: N}` 项。
+            Match list = Regex.Match(text, @"m_RendererFeatures:\r?\n((?:\s*- \{fileID: -?\d+\}\r?\n)+)");
+            Assert.True(list.Success, "渲染器资产里找不到 m_RendererFeatures 列表");
+            var listedNames = new List<string>();
+            foreach (Match id in Regex.Matches(list.Groups[1].Value, @"fileID: (-?\d+)"))
+            {
+                string fileId = id.Groups[1].Value;
+                Assert.True(nameByFileId.TryGetValue(fileId, out string featureName),
+                    "m_RendererFeatures 引用了没有对应块的 fileID " + fileId);
+                listedNames.Add(featureName);
+            }
+
+            Assert.That(listedNames, Is.EqualTo(ExpectedCastFeatureOrder),
+                "Cast 渲染器特征顺序漂了（透明趟类头：前六位顺序是冻结契约，透明趟必须第 7 位）");
+
+            var problems = new List<string>();
+
+            // 在册特征必须 m_Active: 1——序列化时被关掉的 feature 是"整趟静默不生效"的点。
+            foreach (string name in listedNames)
+                if (!activeByName.TryGetValue(name, out bool active) || !active)
+                    problems.Add(name + ": m_Active ≠ 1（特征被序列化关闭）");
+
+            // 死子资产看守（审计 R8）：除主资产与七个在册特征外，不许再出现任何 Pixelart*
+            // 块。曾留有 PixelartColorCorrectionFeature 死块（m_Script/shader 的 guid 全仓无
+            // 对应资产、不在特征列表里），手工 YAML 删除才清掉——再混进来说明装配器/人手
+            // 又写了孤儿块，当场红。
+            var expected = new HashSet<string>(ExpectedCastFeatureOrder) { PixelartPath.CastRendererName };
+            foreach (KeyValuePair<string, string> entry in nameByFileId)
+                if (entry.Value.StartsWith("Pixelart", System.StringComparison.Ordinal)
+                    && !expected.Contains(entry.Value))
+                    problems.Add(entry.Value + ": 孤儿子资产块（有 m_Name 块但不在 m_RendererFeatures 列表）");
+
+            Assert.IsEmpty(problems, "Cast 渲染器特征契约漂移：\n" + string.Join("\n", problems));
         }
     }
 }

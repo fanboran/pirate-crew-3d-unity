@@ -201,7 +201,9 @@ namespace PirateCrew.Rendering.Pixelart
 
         public override void Create()
         {
-            Shader shader = rimLightShader != null ? rimLightShader : Shader.Find(PixelartPath.RimLightShaderName);
+            // 取用统一走 PixelartShaders（全仓裸 Shader.Find 只许在它内部，审计 R7）：
+            // 本 shader 由 Resources 持有（必然入包）；序列化引用是主路，这里只兜"引用为空"的场景。
+            Shader shader = rimLightShader != null ? rimLightShader : PixelartShaders.Load(PixelartPath.RimLightShaderName);
             if (shader == null)
             {
                 global::PirateCrew.Core.Log.Error("[PixelartRimLightFeature] 找不到 shader 「" + PixelartPath.RimLightShaderName

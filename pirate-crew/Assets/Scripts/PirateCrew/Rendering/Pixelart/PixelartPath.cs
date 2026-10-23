@@ -78,6 +78,17 @@ namespace PirateCrew.Rendering.Pixelart
         /// </summary>
         public const string TransparentShaderTagName = "PixelartTransparent";
 
+        /// <summary>
+        /// 透明趟收件队列**下界**。必须取 3000：本路径透明材质声明 <c>Queue = Transparent</c>
+        /// 即 3000，若跟 URP 的透明档下界（<c>RenderQueueRange.transparent</c> = 3001）会把
+        /// 它们整类漏掉（弹道预览曾因此一个片都不画）。实际收件仍被
+        /// <see cref="TransparentShaderTagName"/> 门控，不透明件不会被误收。
+        /// </summary>
+        public const int TransparentQueueMin = 3000;
+
+        /// <summary>透明趟收件队列**上界**（URP 透明队列族的惯例上界；更高队列不走像素化域）。</summary>
+        public const int TransparentQueueMax = 5000;
+
         /// <summary>描边 pass 名。</summary>
         public const string OutlinePassName = "PixelartOutline";
 
