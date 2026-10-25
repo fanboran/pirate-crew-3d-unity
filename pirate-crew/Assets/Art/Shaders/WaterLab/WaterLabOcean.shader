@@ -100,6 +100,17 @@ Shader "PirateCrew/WaterLab/Ocean"
         // 这是**显示域/HDR 近似**，不是原作文件值；原作靠体素 GI + HDR tonemap 供这个亮度。
         _SkyReflectionColor     ("天空反射色（线性/HDR 域）", Vector) = (0.01, 0.30, 1.15, 1.0)
         _SkyReflectionStrength  ("天空反射强度", Range(0.0, 12.0)) = 9.5
+
+        // ---- 深水 GI 兜底（原作体素 Gi 的显示域近似，C 级自造项）----
+        // 【为什么必须有】原作水底亮度 = 直射 + 天光第二方向光（全额）+ 体素 GI（128³
+        // giVoxels 全局 buffer，逆向档案 §2/§10.2），且整条链在 HDR RT + PPv2 tonemap 上
+        // （BeachRenderPipeline DefaultFormat.HDR，§源码实锤）。本仓 LDR 直出、无 GI，
+        // 深水只剩「沙底×T」：G 通道在 1.5 m+ 光程下衰减到 2% 以下，出 (10,41,97) 墨蓝；
+        // 参考同区间是 G=95–129 的青蓝。算账：出射差 27 灰度透过 T_G≈0.02 需要底色亮
+        // 5 倍——沙侧补不平，只能在水侧兜。【结构】lerp 向环境青蓝色，权重随水下光程
+        // 增长（浅水为 0，2.5 m 饱和）；色值/强度按参考最深带 (16,70,119) 反定（D 级）。
+        _GIFillColor            ("GI 兜底色（线性域，加法）", Vector) = (0.003, 0.044, 0.079, 1.0)
+        _GIFillStrength         ("GI 兜底强度", Range(0.0, 2.0)) = 1.0
     }
 
     SubShader
@@ -146,6 +157,8 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float3 _RefSunTint;
                 float3 _SkyReflectionColor;
                 float  _SkyReflectionStrength;
+                float3 _GIFillColor;
+                float  _GIFillStrength;
             CBUFFER_END
 
             float4 _WaterLabOrigin;
@@ -305,6 +318,16 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float ndh = saturate(dot(normalWS, h));
                 float spec = pow(ndh, _SpecularPower);
                 col += _RefSunTint.rgb * spec * sunShadow;   // 原作太阳平行光实测色（白），镜面与沙面同源
+
+                // ---- 深水 GI 兜底：原作体素 Gi + 天光全额的水底亮度，本仓的显示域近似。
+                // 【加法，不是 lerp】（r2-gi 教训：lerp 权重饱和到 1 后深水被平涂成纯色、
+                // 深度渐变和天空反射全被盖掉）——GI 是加法 irradiance，只做亮度提升，
+                // 底色的 T 渐变保留。权重只看水下光程（dist），浅水（透底区）为 0、
+                // 2.5 m 饱和；不乘阴影（原作 GI 是全局光照项，不经 shadowmap）。
+                // 顺序在天空反射之前：顶部掠射的天空蓝不被兜底色压掉。
+                // 定标见 Properties 注释。
+                float giW = saturate(dist * 0.4) * _GIFillStrength;
+                col += _GIFillColor.rgb * giW;
 
                 // ---- 天空反射：原作 PS 步骤 8「按菲涅尔混环境色」（审计 §4 B8 缺件）----
                 // 菲涅尔用**宏观视角** viewDir.y，而不是逐像素 normalWS：0.25 m 模拟坡度 +

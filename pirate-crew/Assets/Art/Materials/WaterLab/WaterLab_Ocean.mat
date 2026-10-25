@@ -30,12 +30,14 @@ Material:
     m_Ints: []
     m_Floats:
     - _DryClip: 0.00001
+    - _GIFillStrength: 1
     - _RefractionFactor: 0.0121
     - _ScatterStrength: 0.04
     - _SkyReflectionStrength: 9.5
     - _SpecularPower: 1500
     m_Colors:
     - _Absorption: {r: 0.6468, g: 0.2241, b: 0.0404, a: 1}
+    - _GIFillColor: {r: 0.003, g: 0.044, b: 0.079, a: 1}
     - _RefSunTint: {r: 1, g: 0.9709, b: 0.9403, a: 1}
     - _ScatterColor: {r: 0.5684, g: 0.35689998, b: 0, a: 1}
     - _SkyReflectionColor: {r: 0.01, g: 0.3, b: 1.15, a: 1}

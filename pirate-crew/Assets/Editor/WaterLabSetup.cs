@@ -262,6 +262,19 @@ namespace PirateCrew.EditorTools
         static readonly Vector4 SkyReflectionColor = new Vector4(0.01f, 0.30f, 1.15f, 1f);
         const float SkyReflectionStrength = 9.5f;
 
+        /// <summary>
+        /// 深水 GI 兜底（原作体素 Gi 的显示域近似，C 级自造项）：本仓无 GI/HDR tonemap，
+        /// 深水 G 通道塌成墨蓝（shelf14-r1 实测 y3=(10,41,97) vs 参考最深带 (16,70,119)）。
+        /// 【加法项 col += 色 × saturate(光程×0.4)】（r2-gi 用 lerp 权重饱和到 1，深水被
+        /// 平涂成纯色、深度渐变/天空反射全被盖掉——GI 是加法 irradiance，lrep 会抹层次）。
+        /// 色值 = y3 出射差 (0.0026,0.0385,0.0692) ÷ giW(y3)≈0.88 → (0.003,0.044,0.079)
+        /// （线性域，Vector 下发不走色彩空间）。
+        /// 【依据】逆向源码实锤原作链 = HDR RT + PPv2 tonemap + 体素 Gi（128³ giVoxels），
+        /// profile 数值 typetree 剥离（D 级）→ 按参考画面反定，与 σ 同法。
+        /// </summary>
+        static readonly Vector4 GIFillColor = new Vector4(0.003f, 0.044f, 0.079f, 1f);
+        const float GIFillStrength = 1.0f;
+
         /// <summary>细节法线贴图（WaterNormal2D 程序化等价物）：水面碎金的高频法线源，
         /// 同时是沙侧焦散的坡度场源。生成一次落资产，重建时已存在则复用。</summary>
         static Texture2D LoadOrCreateDetailNormal()
@@ -817,6 +830,9 @@ namespace PirateCrew.EditorTools
             renderer.sharedMaterial.SetFloat("_SkyReflectionStrength", SkyReflectionStrength);
             // 散射显示域强度：原作 HDR+tonemap 的文件值在 LDR 直出链里过强，见 ScatterStrength 注释。
             renderer.sharedMaterial.SetFloat("_ScatterStrength", ScatterStrength);
+            // 深水 GI 兜底（体素 Gi 的显示域近似）：见 GIFillColor 常量注释。
+            renderer.sharedMaterial.SetVector("_GIFillColor", GIFillColor);
+            renderer.sharedMaterial.SetFloat("_GIFillStrength", GIFillStrength);
             // 原作 Lit_Water PS 的 discard 阈值是 1e-5（逐顶点可见水深），没有 6 mm 档；
             // 残留水膜应由 VS 的逐顶点可见水深解决，不能靠抬高裁剪阈值掩盖。
             renderer.sharedMaterial.SetFloat("_DryClip", 0.00001f);
