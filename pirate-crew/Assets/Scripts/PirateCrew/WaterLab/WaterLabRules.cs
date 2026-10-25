@@ -334,7 +334,13 @@ namespace PirateCrew.WaterLab
         public const float ShelfEndHeight = -0.15f;
 
         /// <summary>缓坡浅水架起止（世界 X，域 [-30,30]）。</summary>
-        public const float ShelfStartX = -26f;
+        /// <summary>缓坡浅水架起点（世界 X）。原值 -26 让深水带（光程 >2 m，超出 σ 定标
+        /// 量程，出墨蓝）占画面水面约 65%，参考头图的构成是深水宝蓝**窄条**（约 1/3）+
+        /// 大面积浅/中水绿松石（compare.py 实测浅+中带占水 30%）；收到 -14 后缓坡 20 m
+        /// 爬 2.25 m（弦坡 11%），深水带压缩到取景顶部约 29%，offshore 的 -2.4 m 宝蓝
+        /// 台面保留（当年 1.3 m 试过出不了宝蓝，见 OffshoreDepth 注释）。Fritsch–Carlson
+        /// 单调条件 3×弦坡 = 0.34 仍覆盖接缝斜率 0.055。</summary>
+        public const float ShelfStartX = -14f;
         public const float ShelfEndX = 6f;
 
         /// <summary>滩面段起止（世界 X）：接缝斜率与 shelf 相同（C1、非零），到 FaceEndX
