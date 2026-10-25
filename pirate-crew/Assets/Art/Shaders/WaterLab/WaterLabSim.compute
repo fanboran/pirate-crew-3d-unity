@@ -402,7 +402,12 @@ void OutputField(uint3 id : SV_DispatchThreadID)
     float g0 = SampleGround(c + 0.5);
     float eta = g0 + max(w.x - _DryDepth, 0.0);
 
-    // 法线：η 的中心差分（反射边界取自身 → 单侧差分退化为 0）
+    // 法线 = 速度场重建（原作 Lit_Water@246 VS 反汇编实证，逆向档案 §10.3/§11）：
+    // 原作 ubfe 抽两个 8bit 速度字节 ×2/255−1 → [-1,1]，直接当法线水平分量
+    // （+vx 无符号翻转），y = √(1−vx²−vz²) 重建，天然单位长、无增益无钳制。
+    // 速度有 _MaxVelocity 限幅 → vx_n²+vz_n² ≤ 1 恒成立；速度是 η 梯度的时间积分
+    // （低通），没有 η 差分的逐格高频。旧「η 差分法线 + clamp±0.6 + 渲染侧 y 增益」
+    // 都是为 η 差分缺陷打补丁的自造件（bore 爆表/碎金过密的机制根源），随本刀退役。
     int il = (c.x > 0) ? i - 1 : i;
     int ir = (c.x < _Cells - 1) ? i + 1 : i;
     int idn = (c.y > 0) ? i - _Cells : i;
@@ -411,23 +416,15 @@ void OutputField(uint3 id : SV_DispatchThreadID)
     float etaR = SampleGround(int2(min(c.x + 1, _Cells - 1), c.y) + 0.5) + max(_WaterA[ir].x - _DryDepth, 0.0);
     float etaD = SampleGround(int2(c.x, max(c.y - 1, 0)) + 0.5) + max(_WaterA[idn].x - _DryDepth, 0.0);
     float etaU = SampleGround(int2(c.x, min(c.y + 1, _Cells - 1)) + 0.5) + max(_WaterA[iup].x - _DryDepth, 0.0);
-    // 法线保持 1 格中心差分（原作同构）。曾试 2 格差分压「网格尺度碎金」——r54→r55
-    // 实测曝光无关的局部高差指标几乎不动（>60 0.12%→0.12%），碎金并非来自模拟网格
-    // 法线，故回退，避免无收益的偏离。
-    float dx = (etaR - etaL) / (2.0 * _CellSize);
-    float dz = (etaU - etaD) / (2.0 * _CellSize);
-    // 水跃（bore）前沿的相邻格水深跳变会让坡度爆表 → 法线编码饱和到 ±1 →
-    // 渲染侧法线与视线垂直、菲涅尔恒 1（整片水画成天空色，2026-10-14 实测）。
-    // 钳到 ±0.6：牺牲前沿一两个格的法线保住整片海面的着色。
-    dx = clamp(dx, -0.6, 0.6);
-    dz = clamp(dz, -0.6, 0.6);
-    float invLen = rsqrt(dx * dx + dz * dz + 1.0);
+    float vmax = max(_MaxVelocity, 1e-4);
+    float vxN = w.y / vmax;
+    float vzN = w.z / vmax;
 
-    // η 编码 [-3,2]→[0,1]；法线 xz [-1,1]→[0,1]；泡沫原值
+    // η 编码 [-3,2]→[0,1]；法线 xz（速度重建，域 [-1,1]，+vx 同号）→[0,1]；泡沫原值
     _WaterLabHeightTex[c] = float4(
         saturate((eta + 3.0) / 5.0),
-        saturate(-dx * invLen * 0.5 + 0.5),
-        saturate(-dz * invLen * 0.5 + 0.5),
+        saturate(vxN * 0.5 + 0.5),
+        saturate(vzN * 0.5 + 0.5),
         saturate(w.w));
 
     // 焦散烘焙：拉普拉斯 = 四邻 η 均值 − 中心（凹面聚光为正、凸面发散为负——
