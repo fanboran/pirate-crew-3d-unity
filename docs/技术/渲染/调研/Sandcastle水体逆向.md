@@ -307,6 +307,11 @@ Water compute 的 11 个 kernel 全部反汇编后逐条判读（每个 kernel �
   （`GravelParticle{position,age}`，走 Ground compute 的 `gravel` buffer），
   材质 `Gravel` 的 `baseColor1/2` 来自 `sandParameters.gravelColor/gravelColor2`。
   参考图里随机大小/疏密的深色小点是这些实体粒子，沙 shader 不画卵石。
+- **`WorldHeightMap` 本体的灰度分布（2026-10-26 补测，`extracted/tex_..._163_...png`）**：
+  2048×1024 灰度，min 0 / max 249 / mean 107 / std 49，直方图**双峰**——
+  低带 [32,96) 约 40%（水域）、高带 [128,208) 约 43%（滩丘）、中间过渡带 [96,128) 仅约 9%，
+  两峰陡峭分立。即初始地形的深水区与干滩是两个平台、缓坡带很窄；幅度（灰度→米）映射
+  仍不可恢复（brush strength 在 ILR 反编译里被内存偏移读取打断），与上文同标 D 级。
 - **水下装饰**：珊瑚/海草是 GPU Imposter 广告牌（`Plant.cs`，capacity 32768，
   sizeRange 默认 0.75），图集不透明像均色见下表；礁石/卵石/贝壳/海星是实体网格
   （Rock_01–06 473–2576 顶点、Pebble_01–06 54–67 顶点、贝壳 187–712 顶点）。
@@ -443,3 +448,30 @@ absor/extinct 的项）、不在材质 `Water` 的 saved properties 里、也不
 
 **这条路线可复用**：任何「材质常数静态取不到」的项，只要官方有成品图，就能按
 「底色 × 吸收」的物理式反解出通道比值，再用本地水深/光照锚定绝对值。
+
+## 15. 渲染管线与后处理实锤（2026-10-26，C# 源码级）
+
+「参考画面为什么亮/透」的管线层证据（本节全部 A/B 级源码实锤，数值另标）：
+
+- **颜色缓冲是 HDR**：`BeachRenderPipeline.cs` `colorFormat =
+  SystemInfo.GetGraphicsFormat(DefaultFormat.HDR)`——所有相机 RT 按 HDR 格式分配，
+  是 tonemap/bloom 生效的前提。
+- **PostProcessing Stack v2 默认开**：`BeachRenderPipelineAsset.postProcessing = true`
+  （字段默认值）；`FinalBlit` 无条件构造 `PostProcessRenderContext` 并 `Render`——
+  后处理是主路径，不是可选装饰。Photo 模式有独立 profile 可切换。
+- **全局 PostProcessVolume + 景深**：`Game.globalPostProcessVolume` 挂全局 profile；
+  `CameraRig.cs` `profile.TryGetSettings<DepthOfField>(...)`——C# 显式引用的只有 DoF
+  （对焦系统开关），其余效果（Bloom/ColorGrading 等）纯走 profile 资产。
+- **profile 具体数值静态不可取**：typetree 大面积剥离（`sharedassets0.assets`
+  3679 个 MonoBehaviour 仅 189 个可读、`resources.assets` 603 个全剥），
+  按可恢复性分级标 **D 级**——复刻时按参考画面反定，与 σ 同法。
+- **体素 GI 的着色地位**：`Gi` compute（128³，`sceneVoxels → Gi → BlurGi →
+  giVoxelsBlurred`）产出 `giVoxels` 全局 buffer（§13 全局表），由 Lit_* shader 采样作
+  环境 irradiance——水底/沙底的环境亮度兜底就是它，不是「平光环境色」。
+- **初始地形来源**（§10.6 补充）：`WorldHeightMap` 直方图双峰（40% 水域低带 /
+  43% 滩丘高带 / 9% 过渡）——参考画面的构成是「深水宝蓝带 + 宽缓坡浅水」，
+  深水带真实存在，其亮度由上面三层（HDR/tonemap/GI）兜住。
+
+对本仓的含义：LDR 直出链复刻 Lit_Water/Lit_Sand 的逐指令公式是对的，
+但**画面亮度结构差三件套**——HDR RT、PPv2 tonemap、体素 GI，全部缺席。
+结构复刻不了的部分按 D 级反定（σ、散射强度、天空反射、GI 兜底色同属此类）。
