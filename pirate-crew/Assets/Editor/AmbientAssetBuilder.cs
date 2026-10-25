@@ -137,10 +137,8 @@ namespace PirateCrew.EditorTools
                 new KeyValuePair<string, Material>("Ambient_DistantBird", materials.DistantBird),
                 new KeyValuePair<string, Material>("Ambient_Post", materials.Post),
                 new KeyValuePair<string, Material>("Ambient_CorkFloat", materials.CorkFloat),
-                // 4 个风摆材质：可填进 AmbientDirector 的覆盖字段，让美术直接调风参数。
-                new KeyValuePair<string, Material>("Ambient_WindFoliage", materials.WindFoliage),
-                new KeyValuePair<string, Material>("Ambient_WindFlagRed", materials.WindFlagRed),
-                new KeyValuePair<string, Material>("Ambient_WindFlagBlue", materials.WindFlagBlue),
+                // 风摆材质只剩帆布/垂片：植被/旗帜风摆死线随 2026-10-23 U8 裁决删除，
+                // AmbientMaterialSet 不再产 WindFoliage/WindFlagRed/WindFlagBlue。
                 new KeyValuePair<string, Material>("Ambient_WindCloth", materials.WindCloth),
             };
 
