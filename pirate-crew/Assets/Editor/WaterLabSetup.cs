@@ -291,7 +291,7 @@ namespace PirateCrew.EditorTools
         /// 【依据】逆向源码实锤原作链 = HDR RT + PPv2 tonemap + 体素 Gi（128³ giVoxels），
         /// profile 数值 typetree 剥离（D 级）→ 按参考画面反定，与 σ 同法。
         /// </summary>
-        static readonly Vector4 GIFillColor = new Vector4(0.003f, 0.044f, 0.079f, 1f);
+        static readonly Vector4 GIFillColor = new Vector4(0.002f, 0.038f, 0.068f, 1f);
         const float GIFillStrength = 1.0f;
 
         /// <summary>细节法线贴图（WaterNormal2D 程序化等价物）：水面碎金的高频法线源，
