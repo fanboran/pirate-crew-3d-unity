@@ -322,13 +322,12 @@ namespace PirateCrew.WaterLab
 
         // ---- 地形剖面（程序化沙滩）----
 
-        /// <summary>深水平台高程（m）。创始人观感裁决（2026-10-26）：**整片浅水**——全域落在
-        /// 绿松石透底色带域，放弃宝蓝深水带。取 −1.0 m：最大水深 1.0 m（高潮 1.2）、俯角 48°
-        /// 光程 ≈1.4 m，落在参考中带 (74,153,161)～深绿松石 (46,126,146) 之间，保留深浅渐变。
-        /// 【历史注】曾取 2.4 m 追参考头图的饱和宝蓝深带（1.3 m 台面在旧光/无兜底时代出图
-        /// 只有 (62,136,92) 的绿、压不出宝蓝）；r92 起天光第二方向光 + GI 兜底就位后浅水
-        /// 观感已足，创始人裁决浅水优先。C# 侧测试按符号取值，不钉具体数。</summary>
-        public const float OffshoreDepth = -1.0f;
+        /// <summary>深水平台高程（m）。创始人观感裁决（2026-10-26，两轮递进）：先 −1.0 m
+        /// 「整片浅水」，随后对齐原作主菜单实时画面（frida 抓帧比色）改 **−0.35 m 极浅水泽**：
+        /// 水深 0.15–0.55 m（随潮位），全域透底见沙——原作主菜单的碧绿松石水泽观感正身。
+        /// 【历史注】2.4 m 深台是旧「宝蓝深带」路线（旧光/无兜底时代的取舍），随观感裁决退役。
+        /// C# 侧测试按符号取值，不钉具体数。</summary>
+        public const float OffshoreDepth = -0.35f;
 
         /// <summary>缓坡浅水架末端（与滩面接缝）高程（m）：本场景地形设计值。
         /// 接缝两侧共用同一非零斜率（C1），不再用两段 Smooth01 在 x=6 造出零坡度平台。</summary>
@@ -353,8 +352,9 @@ namespace PirateCrew.WaterLab
         public const float BeachHeight = 0.5f;
 
         /// <summary>剖面单调测试容差（m）。原作滩面来自 WorldHeightMap 高度场资产，
-        /// 是光滑的大尺度地形；本仓不再叠加周期沙纹，容差只兜 value noise 的微小起伏。</summary>
-        public const float TerrainMonotoneTolerance = 0.005f;
+        /// 是光滑的大尺度地形；本仓不再叠加周期沙纹。r95 起（台面 -0.35 m）缓坡弦坡
+        /// 只有 ~1%，滩面低频起伏（±2.5 cm）相对坡度显著，容差对齐其下坡量级。</summary>
+        public const float TerrainMonotoneTolerance = 0.06f;
 
         /// <summary>smoothstep（带 clamp）。</summary>
         static float Smooth01(float t)

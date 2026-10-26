@@ -135,20 +135,18 @@ namespace PirateCrew.EditorTools
             go.tag = "MainCamera";
             var cam = go.AddComponent<Camera>();
             cam.orthographic = false;
-            // 俯视沙盘取景（向 Battle 的俯角等距观感靠拢）：长焦 + 高机位。
-            cam.fieldOfView = 32f;
+            // 【视角复刻原作主菜单（frida 运行时提取 A 级，2026-10-26）】原作 LabCamera 等价物：
+            // FOV 20°（超长焦望远镜观感）、俯角 45°、注视域心附近 (-0.4,0,-0.6)、机距 29.5 m、
+            // near 7.24/far 44.7。旧 FOV 32+机距 46 的取景覆盖是原作 2.5 倍宽——透视压缩感
+            // 全无，是「画面差太多」的视角根源。
+            cam.fieldOfView = 20f;
             cam.nearClipPlane = 0.1f;
             cam.farClipPlane = 400f;
             cam.backgroundColor = new Color(0.55f, 0.72f, 0.88f);
-            // 【取景口径】正对岸线（yaw 90°，相机在 +x 侧朝 -x 看）：参考头图的岸线是横的，
-            // 旧 45° 斜看会把岸线拍成对角线，也让水色带斜切画面。取景中心 (1,0)、俯角 48°、
-            // 机距 46：画面构成 ≈ 沙 26% / 水 74%，顶部是 ≥2 m 的深水、底部是干沙滩，
-            // 64 m 域的边界全部落在画外（旧机位右上角 11% 露天空盒的灰色域外区消失）。
-            // 俯角 48° 与太阳仰角 58° 配对，水面镜像路径仍横穿取景。
-            var center = new Vector3(1f, 0f, 0f);
-            float pitch = 42f * Mathf.Deg2Rad; // 距天顶 42° → 实际俯角 48°
-            float yaw = 90f * Mathf.Deg2Rad;
-            float dist = 46f;
+            var center = new Vector3(-0.4f, 0f, -0.6f);
+            float pitch = 45f * Mathf.Deg2Rad; // 俯角 45°
+            float yaw = 160f * Mathf.Deg2Rad;  // 原作主菜单方位（相机在 -z 侧偏 +x）
+            float dist = 29.5f;
             var dir = new Vector3(
                 Mathf.Sin(pitch) * Mathf.Sin(yaw),
                 Mathf.Cos(pitch),
