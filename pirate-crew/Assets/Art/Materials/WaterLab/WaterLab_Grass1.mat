@@ -32,10 +32,10 @@ Material:
     - _CausticGain: 0.6
     - _CausticSampleOffset: 0.0156
     - _CausticScale: 0.5
-    - _LightScale: 1
+    - _LightScale: 1.08
     - _ShadowStrength: 1
     m_Colors:
-    - _AmbientColor: {r: 0.1, g: 0.11, b: 0.12, a: 1}
+    - _AmbientColor: {r: 0.18, g: 0.2, b: 0.22, a: 1}
     - _BaseColor: {r: 0.3, g: 0.44, b: 0.1, a: 1}
     - _SunTint: {r: 1, g: 0.9709, b: 0.9403, a: 1}
   m_BuildTextureStacks: []

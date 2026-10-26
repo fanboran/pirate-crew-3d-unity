@@ -30,17 +30,12 @@ namespace PirateCrew.EditorTools
         {
             var rand = new System.Random(20261015);
             var height = new float[Size * Size];
-            // R1 配置（2026-10-26 域换算修正后重拟合）：本仓 512² 的 lag_l 对齐原作
-            // 1024² 的 lag_2l（两域 ×0.20 平铺同世界尺寸 5 m/张，同 lag 数字≠同世界距离）。
-            // R1 剖面 lag1/2/4/8/16/32/64 = 0.980/0.933/0.814/0.537/0.020/−0.253/−0.049
-            // vs 目标 0.992/0.845/0.722/0.595/0.456/0.226/−0.063——lag2-8 段贴合；
-            // lag16+ 的长程（原作 0.456/0.226）在「随机点集平滑场」模型下达不到，
-            // 属原作贴图本体的非程序结构，登记已知限制。
-            AccumulateCellLayer(height, 2, 0.60f, CellShape.Cone, rand);
-            AccumulateCellLayer(height, 6, 0.60f, CellShape.Bump, rand);
-            AccumulateCellLayer(height, 8, 0.60f, CellShape.Bump, rand);
-            AccumulateCellLayer(height, 11, 0.50f, CellShape.Bump, rand);
-            AccumulateCellLayer(height, 15, 0.40f, CellShape.Bump, rand);
+            AccumulateCellLayer(height, 2, 0.90f, CellShape.Cone, rand);    // F1 锥：长程相关主波
+            AccumulateCellLayer(height, 3, 0.30f, CellShape.Cone, rand);
+            AccumulateCellLayer(height, 6, 0.50f, CellShape.Bump, rand);    // Gauss 鼓包：中程结构
+            AccumulateCellLayer(height, 8, 0.45f, CellShape.Bump, rand);
+            AccumulateCellLayer(height, 11, 0.35f, CellShape.Bump, rand);
+            AccumulateCellLayer(height, 15, 0.20f, CellShape.Bump, rand);
 
             // 归一化到零均值单位差，中心差分转切线法线
             float mean = 0f;
