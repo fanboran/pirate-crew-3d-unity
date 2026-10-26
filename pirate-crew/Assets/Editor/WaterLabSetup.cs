@@ -294,10 +294,18 @@ namespace PirateCrew.EditorTools
         static readonly Vector4 GIFillColor = new Vector4(0.002f, 0.038f, 0.068f, 1f);
         const float GIFillStrength = 1.0f;
 
-        /// <summary>细节法线贴图（WaterNormal2D 程序化等价物）：水面碎金的高频法线源，
-        /// 同时是沙侧焦散的坡度场源。生成一次落资产，重建时已存在则复用。</summary>
+        /// <summary>
+        /// 细节法线贴图：水面碎金的高频法线源，同时是沙侧焦散的坡度场源。
+        /// 【优先级】原作提取贴图 <see cref="RefNormalAssetPath"/>（项目所有者授权的
+        /// 临时复用，观感对标验证用，之后替换；通道与导入口径见同目录 README.md）
+        /// → 找不到时回退程序生成版 <see cref="WaterLabDetailNormal"/>（统计对齐原作、
+        /// 形态为 Voronoi 胞近似的等价物）。生成一次落资产，重建时已存在则复用。
+        /// </summary>
         static Texture2D LoadOrCreateDetailNormal()
         {
+            var refTex = EnsureRefNormalAsset();
+            if (refTex != null) return refTex;
+
             var path = $"{MaterialFolder}/WaterLabDetailNormal.asset";
             var detail = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
             if (detail == null)
@@ -307,6 +315,112 @@ namespace PirateCrew.EditorTools
             }
             return detail;
         }
+
+        /// <summary>原作提取细节法线贴图的资产路径（临时复用；.meta 固定 guid 防重建漂移）。</summary>
+        const string RefNormalAssetPath = MaterialFolder + "/WaterNormal2D_Ref.png";
+        const string RefNormalAssetMetaPath = RefNormalAssetPath + ".meta";
+        const string RefNormalAssetGuid = "e3a1f20c8b7d4e5f9a6b0c1d2e3f4a5b";
+        const string MaterialFolderReadmePath = MaterialFolder + "/README.md";
+
+        /// <summary>
+        /// 确保原作提取贴图已入库并按数据贴图口径导入，返回它；源不可得时返回 null
+        /// （调用方 <see cref="LoadOrCreateDetailNormal"/> 会回退程序生成版）。
+        ///
+        /// 【为何要自愈】<see cref="BuildScene"/> 对材质目录是「先删后建」——本贴图与
+        /// README 会被一并删掉，这里负责从工程外源拷回，保证 git 无漂移（PNG 字节一致、
+        /// .meta 固定 guid、README 固定文案）。
+        /// 【导入口径】linear 色空间、Repeat wrap、mip 开、不压缩、Default 纹理类型：
+        /// NormalMap 导入器会把通道重排成 DXT5nm 布局，破坏「RG=法线 xy、B=相位/高度」
+        /// 的原作编码——shader 端按 <c>.rg * 2 - 1</c> 自行解码，必须保通道原样。
+        /// </summary>
+        static Texture2D EnsureRefNormalAsset()
+        {
+            if (!File.Exists(RefNormalAssetPath))
+            {
+                var src = RefNormalSourceCandidates().FirstOrDefault(File.Exists);
+                if (src == null)
+                {
+                    Debug.LogWarning(
+                        "[WaterLabSetup] 未找到原作细节法线源 PNG（external 工作台缺失），回退程序生成贴图。");
+                    return null;
+                }
+                File.Copy(src, RefNormalAssetPath);
+                File.WriteAllText(RefNormalAssetMetaPath,
+                    $"fileFormatVersion: 2\nguid: {RefNormalAssetGuid}\nTextureImporter: {{}}\n");
+                // 先 ImportAsset 让 AssetDatabase 感知新文件，否则下方 GetAtPath 返回 null。
+                AssetDatabase.ImportAsset(RefNormalAssetPath);
+            }
+            if (!File.Exists(MaterialFolderReadmePath))
+                File.WriteAllText(MaterialFolderReadmePath, RefNormalReadmeText);
+
+            var importer = AssetImporter.GetAtPath(RefNormalAssetPath) as TextureImporter;
+            if (importer == null)
+            {
+                Debug.LogWarning($"[WaterLabSetup] {RefNormalAssetPath} 不是 TextureImporter 资产，回退程序生成贴图。");
+                return null;
+            }
+            // 主类型校验别省：meta 里 generateCubemap=FullCubemap 会把 Default 贴图导入成
+            // Cubemap（importer 各项设置却全部「正确」），LoadAssetAtPath<Texture2D> 静默 null。
+            var mainType = AssetDatabase.GetMainAssetTypeAtPath(RefNormalAssetPath);
+            if (mainType != typeof(Texture2D)
+                || importer.textureType != TextureImporterType.Default
+                || importer.sRGBTexture
+                || importer.wrapMode != TextureWrapMode.Repeat
+                || !importer.mipmapEnabled
+                || importer.filterMode != FilterMode.Bilinear
+                || importer.textureCompression != TextureImporterCompression.Uncompressed)
+            {
+                importer.textureType = TextureImporterType.Default;
+                importer.textureShape = TextureImporterShape.Texture2D;
+                importer.generateCubemap = TextureImporterGenerateCubemap.None;
+                importer.sRGBTexture = false;
+                importer.wrapMode = TextureWrapMode.Repeat;
+                importer.mipmapEnabled = true;
+                importer.filterMode = FilterMode.Bilinear;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.SaveAndReimport();
+            }
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(RefNormalAssetPath);
+            if (texture == null)
+                Debug.LogWarning($"[WaterLabSetup] {RefNormalAssetPath} 导入后拿不到 Texture2D（检查导入日志），回退程序生成贴图。");
+            return texture;
+        }
+
+        /// <summary>源 PNG 候选：环境变量优先，其后工程根外层的 external 工作台
+        /// （主仓与 worktree 同构：&lt;工程根&gt;/../external/sandcastle-ref/）。</summary>
+        static IEnumerable<string> RefNormalSourceCandidates()
+        {
+            var env = System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_REF_NORMAL_SRC");
+            if (!string.IsNullOrEmpty(env)) yield return env;
+            yield return Path.GetFullPath(System.IO.Path.Combine(
+                Directory.GetParent(Application.dataPath).FullName,
+                "../external/sandcastle-ref/WaterNormal2D-extracted.png"));
+        }
+
+        /// <summary>与入库版逐字节一致的 README 文案（自愈重写用，防 git 噪音）。</summary>
+        const string RefNormalReadmeText =
+            "# WaterNormal2D_Ref.png —— 原作细节法线贴图（临时复用）\n" +
+            "\n" +
+            "**来源**：Sandcastle 原作发行包提取的 `WaterNormal2D`（UnityPy 回读序列化纹理，\n" +
+            "提取件存 `external/sandcastle-ref/WaterNormal2D-extracted.png`，1024×1024 RGBA）。\n" +
+            "\n" +
+            "**通道编码**（与 shader `SAMPLE_TEXTURE2D(...).rg * 2 - 1` 的自解码约定对应）：\n" +
+            "\n" +
+            "- R/G = 法线 xy，0..255 → [-1, 1]\n" +
+            "- B = 相位噪声/高度（当前 shader 未消费，保留原样）\n" +
+            "- A = 1\n" +
+            "\n" +
+            "**导入口径**：linear 色空间（`sRGBTexture: 0`）、Repeat wrap、mip 开、**Default 纹理类型**——\n" +
+            "不用 NormalMap 导入器（它会把通道重排成 DXT5nm 布局，破坏 RG/B 语义）、不压缩（保编码保真）。\n" +
+            "\n" +
+            "**临时性质**：本贴图是原作资产，经项目所有者授权**临时复用**于观感对标验证\n" +
+            "（对比程序生成版 `WaterLabDetailNormal.asset` 与原作真实水纹的差异），之后会被替换掉。\n" +
+            "`WaterLabSetup.LoadOrCreateDetailNormal()` 优先加载本贴图，找不到时回退程序生成版。\n" +
+            "\n" +
+            "**自愈说明**：`WaterLabSetup.BuildScene()` 重建材质目录时会把本文件连同 README 一并删除；\n" +
+            "`WaterLabSetup.EnsureRefNormalAsset()` 会在缺失时从 `<工程根>/../external/sandcastle-ref/WaterNormal2D-extracted.png`\n" +
+            "（可用环境变量 `PC3D_WATERLAB_REF_NORMAL_SRC` 覆盖）重新拷贝，并按固定 guid（见 .meta）恢复\n" +
+            "导入设置，保证 git 与资产引用稳定。\n";
 
         /// <summary>
         /// 水底参照物（礁石/卵石/藻球）。**透明感靠它们传达**：只有沙纹时沙本身是亮的、
