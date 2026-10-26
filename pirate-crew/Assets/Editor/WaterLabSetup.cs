@@ -88,21 +88,37 @@ namespace PirateCrew.EditorTools
 
         static void CreateLighting()
         {
+            // 【A 级真值对账（2026-10-26，level0 Light 组件直读）】原作昼夜循环
+            // （DayCycler：太阳挂 elevation 绕 z 轴转、色温走渐变板），level0 初始帧：
+            // SunLight 色 (1.0,0.9709,0.9403)×1.0、Soft 阴影 strength=1.0/bias=0.1/
+            // normalBias=1.0；MoonLight（天光第二方向光）(0.0627,0.1333,0.2196)×1.0
+            // 无阴影。方向为时变不可静态定——本仓固定时刻属取景设计（58° 仰角，
+            // 相机对面让水面镜像路径落回取景），不属参数偏差。
             var sun = new GameObject("Sun");
             var light = sun.AddComponent<Light>();
             light.type = LightType.Directional;
             light.shadows = LightShadows.Soft;
             light.intensity = 1.0f;
-            // 参考的礁石/珊瑚投影是柔和接触影，不是硬黑块；0.75 配合 Soft shadows，
-            // 避免低模 prop 自阴影在暗部读成第二层黑团。
-            light.shadowStrength = 0.75f;
-            light.color = new Color(1.0f, 0.95f, 0.85f);
-            // 太阳放在相机对面、抬高到仰角 ≈58°：相机现在正对 -x 看岸线，太阳在 -x 侧
-            // 才能让水面镜像路径落回取景（与旧 225° 方位同理）；抬高后参考图那种短影
-            // 与高角度直射才成立，同时减少 42° 低阳造成的长条黑影。
+            light.shadowStrength = 1.0f;   // 原作 m_Strength=1.0（旧 0.75 系观感推测值）
+            light.shadowBias = 0.1f;       // 原作 m_Bias
+            light.shadowNormalBias = 1.0f; // 原作 m_NormalBias
+            light.color = new Color(1.0f, 0.9709f, 0.9403f); // 原作 SunLight m_Color
             // 指向太阳 L=(-0.50,0.82,-0.12)（归一化后仰角≈58°），forward=-L 朝下照地。
             sun.transform.rotation = Quaternion.LookRotation(new Vector3(0.50f, -0.82f, 0.12f));
             sun.transform.position = new Vector3(-25f, 41f, -6f);
+
+            // 天光第二方向光（原作 MoonLight）：不采影、不衰减，全额到达水面与水下——
+            // 逆向 §10.2「浅水亮绿松石的来源：直射被水柱压暗但天光全额到达」的正身。
+            // 沙面/水底直射被水柱吸收后，青蓝环境亮度由它承担（此前用平坦环境光近似，
+            // 方向性缺失）。方向取太阳对侧高位（原作 MoonLight 挂同一 elevation 对转，
+            // 固定时刻近似取互补位）。
+            var sky = new GameObject("SkyLight");
+            var skyLight = sky.AddComponent<Light>();
+            skyLight.type = LightType.Directional;
+            skyLight.shadows = LightShadows.None;
+            skyLight.intensity = 1.0f;
+            skyLight.color = new Color(0.0627f, 0.1333f, 0.2196f);
+            skyLight.transform.rotation = Quaternion.LookRotation(new Vector3(0.35f, -0.90f, -0.26f));
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             // 场景全局环境色只对内置 Lit 生效；自写沙/石/水 shader 读的是材质 _AmbientColor。
@@ -196,7 +212,7 @@ namespace PirateCrew.EditorTools
         /// 【1.08】环境项抬到 (0.18,0.20,0.22) 补原作 GI 的暗部亮度后，受光核略增；
         /// 同步把曝光从 1.20 压到 1.08，保持参考受光干沙 (253,229,169) 同亮度。
         /// </summary>
-        const float LightScale = 1.08f;
+        const float LightScale = 1.00f;
 
         static void ApplyCalibratedSandColors(Material m)
         {
@@ -213,6 +229,9 @@ namespace PirateCrew.EditorTools
             m.SetColor("_UnderwaterSandColor", new Color(1.0f, 0.93f, 0.72f));
             m.SetFloat("_LightScale", LightScale);
             m.SetColor("_AmbientColor", AmbientColor);
+            // 天光第二方向光（level0 A 级真值，见 CreateLighting）：Vector 下发不走色彩空间
+            m.SetVector("_SkyLightDir", new Vector4(0.35f, 0.90f, 0.26f, 0f));
+            m.SetVector("_SkyLightColor", new Vector4(0.0627f, 0.1333f, 0.2196f, 1f));
             // 焦散世界尺度：0.05（=20 m 周期）会把细节法线的 Voronoi 胞放大成整片团块，
             // 观感是「水底一片黄绿斑」而不是参考那种**细亮网**；0.5（=2 m 周期）回到网尺度。
             m.SetFloat("_CausticScale", CausticScale);
@@ -238,7 +257,7 @@ namespace PirateCrew.EditorTools
         /// 这一个常数项，取 (0.18,0.20,0.22) 近似合成亮度——旧 (0.08,0.14,0.21) 只保留
         /// 天空色，阴影里的沙红通道过低、发青发死。曝光因子已同步压到 1.08。
         /// </summary>
-        static readonly Color AmbientColor = new Color(0.18f, 0.20f, 0.22f);
+        static readonly Color AmbientColor = new Color(0.10f, 0.11f, 0.12f);
 
         /// <summary>
         /// 散射显示域强度：原作散射色 (0.568,0.357,0) 是 HDR 管线里的文件值，经 tonemap

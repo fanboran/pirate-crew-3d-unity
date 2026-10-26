@@ -51,6 +51,12 @@ Shader "PirateCrew/WaterLab/Sand"
         // 抬高到接近“天空 + 沙面反弹”的合成亮度，红色分量同步抬起，阴影不再发青。
         _AmbientColor       ("环境色（原作天光 + GI 的常数近似）", Color) = (0.18, 0.20, 0.22, 1.0)
         _SunTint            ("太阳色（原作太阳平行光实测）", Color) = (1.0, 0.9709, 0.9403, 1.0)
+
+        // 天光第二方向光（原作 MoonLight，level0 A 级真值）：Vector 下发不走色彩空间
+        // （(0.0627,0.1333,0.2196) 是线性实测值，Color 属性会被 sRGB→线性再压一次）。
+        // 方向 = 照射方向（指向光源）。不采影不衰减，见 PS 内注释。
+        _SkyLightDir        ("天光方向（照射方向）", Vector) = (0.35, 0.90, 0.26, 0.0)
+        _SkyLightColor      ("天光色（线性域）", Vector) = (0.0627, 0.1333, 0.2196, 1.0)
     }
 
     SubShader
@@ -98,6 +104,8 @@ Shader "PirateCrew/WaterLab/Sand"
                 float  _CausticSampleOffset;
                 float3 _AmbientColor;
                 float3 _SunTint;
+                float3 _SkyLightDir;
+                float3 _SkyLightColor;
             CBUFFER_END
 
             float4 _WaterLabOrigin;
@@ -201,7 +209,13 @@ Shader "PirateCrew/WaterLab/Sand"
                 float3 sunDir = (dot(sunRaw, sunRaw) < 0.25) ? normalize(float3(-0.525, 0.669, -0.525)) : normalize(sunRaw);
                 float ndl = saturate(dot(n, sunDir));
                 float sh = MainLightRealtimeShadow(TransformWorldToShadowCoord(IN.positionWS));
-                float3 col = albedo * (_AmbientColor + _SunTint * ndl * sh * column);
+                // 天光第二方向光（原作 MoonLight）：不采影、不衰减，全额到达——
+                // 逆向 §10.2「直射被水柱压暗但天光全额到达」。灯与色值由装配器下发
+                // （level0 A 级真值），此处按方向项叠加；_AmbientColor 保留为体素 GI
+                // 的平坦近似（原作有 GI，本仓无，登记 C 级）。
+                float ndlSky = saturate(dot(n, normalize(_SkyLightDir.xyz)));
+                float3 col = albedo * (_AmbientColor + _SunTint * ndl * sh * column
+                                      + _SkyLightColor * ndlSky);
 
                 // ---- 焦散（对标原作 Lit_Sand 输出结构：
                 //   o0 = albedo×(直射×阴影×水柱 + 天光) + albedo×causticsMap）
