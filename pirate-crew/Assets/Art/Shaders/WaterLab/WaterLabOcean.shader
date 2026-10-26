@@ -171,6 +171,9 @@ Shader "PirateCrew/WaterLab/Ocean"
             TEXTURE2D(_WaterLabHeightTex); SAMPLER(sampler_WaterLabHeightTex);
             TEXTURE2D(_WaterLabGroundTex); SAMPLER(sampler_WaterLabGroundTex);
             TEXTURE2D(_WaterLabDetailNormal); SAMPLER(sampler_WaterLabDetailNormal);
+            // R=焦散拉普拉斯（沙侧用）；G/B=tangent 流场（η 坡度差分，±0.5 线性编码）——
+            // 原作 VS 发布的 v4.xy 同义，细节法线的流场平流输入
+            TEXTURE2D(_WaterLabCausticTex); SAMPLER(sampler_WaterLabCausticTex);
 
             float DecodeEta(float e) { return e * 5.0 - 3.0; }
 
@@ -242,25 +245,39 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float3 vertexNormal = normalize(float3(slope.x,
                     sqrt(saturate(1.0 - saturate(dot(slope, slope)))), slope.y));
 
-                // 细节法线：双尺度（20m / 5m 平铺）+ 时间×0.8 双向漂移动画
-                float t1 = t * 0.8;
-                float2 uvA = IN.positionWS.xz * 0.05 + t1 * float2(0.013, -0.011);
-                float2 uvB = IN.positionWS.xz * 0.20 + t1 * float2(-0.017, 0.013);
-                float2 dA = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, uvA).rg * 2.0 - 1.0;
-                float2 dB = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, uvB).rg * 2.0 - 1.0;
-                // 掠射角下高频法线欠采样 → 镜面瓣出粉色摩尔带（实拍实证），远距淡出；
-                // 贴图自带 mip 链抗欠采样，淡出只兜远端（18-90 档曾把出图相机的网整个
-                // 打折——亮脊网变稀即是此因，r13 实证后外推）
-                float detailFade = saturate(1.0 - (length(IN.positionWS - GetCameraPositionWS()) - 40.0) / 160.0);
-                // 两尺度法线**相加**后归一系数：lerp 会把两套标定梯度各稀释一半
-                // （亮脊网变稀的第二根因）；0.35 是「稀疏碎金」的观感档——参考头图浅水内
-                // 极亮像素（lum>235）只占 0.05%，而纯相加全套强度（0.7071）下本仓是它的
-                // 数倍，碎金从「稀疏亮点」变「整面白噪」。
-                // 【0.35 的定标前提已变】此值是在旧 η 差分法线（逐格高频）下压出来的
-                // 显示域补偿；法线源等效化为速度场后，网格尺度碎金从机制上消失
-                // （速度低通），0.35 待出图按同口径复核再定。
-                float2 dn = (dA + dB) * 0.35 * detailFade;
-                float3 normalWS = normalize(vertexNormal + float3(dn.x, 0.0, dn.y));
+                // ---- 细节法线（Lit_Water@8682 PS 逐指令等效，2026-10-26 反汇编复核）----
+                // 原作机制（旧「双尺度相加 + 双向漂移」是误读，整段按此重写）：
+                //   相位源 = tex(N, worldXZ×0.05).B + time×0.8（同一张贴图的 B 通道当
+                //   相位噪声，DXBC swizzle t3.zxyw 实证）
+                //   flow   = clamp(tangent, ±0.5)——VS 发布的 η 坡度差分场（本仓经
+                //   _WaterLabCausticTex GB 通道搭车）
+                //   uvB    = (worldXZ − flow·saw²(phase))×0.20 + 0.25（平方锯齿驱动）
+                //   uvA    = (worldXZ − flow·saw(phase)) ×0.20 − 0.25（线性锯齿驱动）
+                //   detail = lerp(tex(uvA).rg, tex(uvB).rg, tri(phase))×2−1，UV 错半张
+                //   N      = normalize(vertexN + (detail.x, √(1−|detail|²), detail.y))
+                // 旧自造件随等效化退役：0.35 强度与 detailFade 远端淡出（原作都没有，
+                // 抗摩尔靠贴图 mip——原作同款 default 采样器）。流场偏移与锯齿相位
+                // 相乘：静态切向流也会被时间锯齿扫动，这是原作水面「活」的来源。
+                float2 flow = clamp(
+                    SAMPLE_TEXTURE2D(_WaterLabCausticTex, sampler_WaterLabCausticTex, uv).gb * 2.0 - 1.0,
+                    -0.5, 0.5);
+
+                float phase = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal,
+                    IN.positionWS.xz * 0.05).b + t * 0.8;
+                float qS = phase + 0.5;
+                float sawSq = (qS >= 0.0 ? 1.0 : -1.0) * frac(abs(qS)) * frac(abs(qS)); // 平方锯齿 [0,1]
+                float sgn = phase >= 0.0 ? 1.0 : -1.0;
+                float frcP = frac(abs(phase));
+                float sawLin = 2.0 * sgn * frcP - 1.0;                                  // 线性锯齿 [−1,1]
+                float tri = 2.0 * abs(sgn * frcP - 0.5);                                // 三角波 [0,1]
+
+                float2 uvB2 = (IN.positionWS.xz - flow * sawSq) * 0.20 + 0.25;
+                float2 uvA2 = (IN.positionWS.xz - flow * sawLin) * 0.20 - 0.25;
+                float2 sA = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, uvA2).rg;
+                float2 sB = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, uvB2).rg;
+                float2 dn = lerp(sA, sB, tri) * 2.0 - 1.0;
+                float3 normalWS = normalize(vertexNormal + float3(dn.x,
+                    sqrt(saturate(1.0 - saturate(dot(dn, dn)))), dn.y));
 
                 // viewDir：表面指向相机（vDotN = dot(viewDir, N)，符号千万别反）
                 float3 viewDir = normalize(GetWorldSpaceViewDir(IN.positionWS));

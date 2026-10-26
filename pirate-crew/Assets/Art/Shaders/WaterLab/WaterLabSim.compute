@@ -427,11 +427,19 @@ void OutputField(uint3 id : SV_DispatchThreadID)
         saturate(vzN * 0.5 + 0.5),
         saturate(w.w));
 
+    // tangent 流场（原作 VS 发布的 v4.xy 同义）：η 坡度中心差分，±0.5 线性编码进
+    // 焦散 RT 的 GB（A 空余）。细节法线的流场平流输入（Lit_Water@8682：UV 偏移
+    // = −clamp(flow,±0.5) × 锯齿相位）——原作 UpdateTangent 就是 η 邻域差分。
+    float dx = (etaR - etaL) / (2.0 * _CellSize);
+    float dz = (etaU - etaD) / (2.0 * _CellSize);
+
     // 焦散烘焙：拉普拉斯 = 四邻 η 均值 − 中心（凹面聚光为正、凸面发散为负——
     // 重新分配光线、净量为零，基线必须 0）。原逐像素 5 采样现算整体撤出渲染
     // shader，换 1 次本 RT 采样；增益在材质侧 _CausticGain。
     float lap = (etaL + etaR + etaD + etaU) * 0.25 - eta;
-    _WaterLabCausticTex[c] = float4(lap, 0.0, 0.0, 1.0);
+    _WaterLabCausticTex[c] = float4(lap,
+        saturate(clamp(dx, -0.5, 0.5) * 0.5 + 0.5),
+        saturate(clamp(dz, -0.5, 0.5) * 0.5 + 0.5), 1.0);
 }
 
 // ---- kernel：白水粒子（W4，对标 Whitewater：泡沫场实例化粒子，
