@@ -233,14 +233,14 @@ Shader "PirateCrew/WaterLab/Ocean"
                 if (_WaterLabSimEnabled > 0.5 && !dbgOn)
                     clip(depth - _DryClip);
 
-                // ---- 法线 = 模拟速度场重建（OutputField 按 (vx,√(1−vx²−vz²),vz) 编码，
-                // 速度限幅保证 xz² ≤ 1）+ 细节法线贴图，加后归一（原作同构）。
-                // 旧「η 差分 + clamp±0.6 + y 增益」是 η 差分缺陷的补丁件（bore 爆表/
-                // 网格尺度碎金），法线源等效化后退役——原作 VS 就是速度字节重建，
-                // 无任何增益/钳制（逆向档案 §10.3 + Lit_Water@246 反汇编）。
-                float2 slope = float2(field.g * 2.0 - 1.0, field.b * 2.0 - 1.0);
-                float3 vertexNormal = normalize(float3(slope.x,
-                    sqrt(saturate(1.0 - saturate(dot(slope, slope)))), slope.y));
+                // ---- 法线 = 模拟坡度场（顶点法线）+ 细节法线贴图（原作：加后归一）。
+                // y 增益 ≤1.5：过猛会把真实坡度放大成 60°+ 斜法线 → 菲涅尔恒 1。
+                float2 slope = clamp(float2(field.g * 2.0 - 1.0, field.b * 2.0 - 1.0),
+                                     float2(-0.6, -0.6), float2(0.6, 0.6));
+                // y 增益 1.5→1.0：0.25 m 模拟网格的坡度在 pow1500 锐瓣下每个格子都能
+                // 产出一个亮斑，合成全屏高频白噪；1.0 把法线摆幅从 ±42° 收到 ±31°，
+                // 保留碎金但降低密度（参考是贴图长脊上的稀疏大颗粒）。
+                float3 vertexNormal = normalize(float3(slope.x, 1.0, slope.y) * float3(1.0, 1.0, 1.0));
 
                 // 细节法线：双尺度（20m / 5m 平铺）+ 时间×0.8 双向漂移动画
                 float t1 = t * 0.8;
@@ -256,9 +256,9 @@ Shader "PirateCrew/WaterLab/Ocean"
                 // （亮脊网变稀的第二根因）；0.35 是「稀疏碎金」的观感档——参考头图浅水内
                 // 极亮像素（lum>235）只占 0.05%，而纯相加全套强度（0.7071）下本仓是它的
                 // 数倍，碎金从「稀疏亮点」变「整面白噪」。
-                // 【0.35 的定标前提已变】此值是在旧 η 差分法线（逐格高频）下压出来的
-                // 显示域补偿；法线源等效化为速度场后，网格尺度碎金从机制上消失
-                // （速度低通），0.35 待出图按同口径复核再定。
+                // 【别再往下压】实测 0.7071→0.22 时极亮占比几乎不动（0.36%→0.38%）：
+                // 碎金主要来自**模拟坡度场的网格尺度法线**（原作格距 5.86 cm；本仓 1092²），
+                // 细节法线只贡献表面细质。要压碎金应动本 shader 里顶点法线的 y 增益。
                 float2 dn = (dA + dB) * 0.35 * detailFade;
                 float3 normalWS = normalize(vertexNormal + float3(dn.x, 0.0, dn.y));
 
