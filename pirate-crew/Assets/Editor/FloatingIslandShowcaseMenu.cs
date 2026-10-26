@@ -114,6 +114,11 @@ namespace PirateCrew.EditorTools
                 13.3f,
                 LevelGeometry.TileToWorld(7.5f));
 
+            // 摆入即默认隐藏：空岛只有样板第 2 关在役，编辑态常亮会让人把 Battle 预览
+            // 误当真实关卡内容；运行期 RuntimeSceneArt.Rebuild 每次按关卡号显式 SetActive，
+            // 不依赖此默认值。要单独调空岛时在层级窗口手动勾开即可。
+            root.SetActive(false);
+
             // 连线：Battle 场景的 RuntimeSceneArt 持有空岛根引用（运行时按关卡号开关可见性）。
             var sceneArt = Object.FindObjectOfType<RuntimeSceneArt>();
             if (sceneArt != null)
