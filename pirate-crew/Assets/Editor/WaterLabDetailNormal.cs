@@ -6,23 +6,21 @@ namespace PirateCrew.EditorTools
     /// 实验水体细节法线贴图的程序化生成（WaterNormal2D 的等价物）。
     ///
     /// 【逆向依据】Sandcastle Lit/Water PS：碎金闪点 = pow(NdotH, 1500) 的近镜面瓣，
-    /// 高频法线全部来自 WaterNormal2D（1024²）。采样机制见
-    /// WaterLabOcean.shader 细节法线段（2026-10-26 反汇编复核）。
+    /// 高频法线全部来自 WaterNormal2D（1024²，世界 XZ×0.05 / ×0.2 双尺度采样）。
     ///
-    /// 【生成法（2026-10-26 按同口径自相关剖面重定谱）】原作贴图本体抽出实拍后
-    /// 量测 lag 剖面（[−1,1] 域 R 通道，1024²）：lag1/4/8/16/32/64/128 =
-    /// 0.983/0.845/0.722/0.595/0.456/0.226/−0.063——宽谱低频主导的长相关场。
-    /// 旧 F1−F2 Voronoi 胞脊谱（lag4 即崩到 0.30、lag8 转负）与原作差一个量级，
-    /// 碎斑高频被 pow1500 放大成「整面碎金」，是碎金过密的贴图侧根源。
-    /// 新谱 = F1 平滑距离锥 ×2 层（长程相关）+ Gauss 鼓包 ×4 层（中程结构），
-    /// Python 复现拟合 rms=0.121：0.994/0.951/0.889/0.765/0.512/0.089/−0.171。
-    /// 幅度标定（编码域 R std 33/255）与原作解包域 0.256/2 同口径，不变。
+    /// 【生成法（第十三轮终版，第十四轮回退定案）】原作贴图本体已抽出实拍
+    /// （UnityPy，external/sandcastle-ref/）：有机「鹅卵石」胞、胞界成脊、
+    /// R/G std≈33/27。候选四版对照：平滑值噪声（孤立碎点）、平滑鼓包核（鹅卵石群）、
+    /// 域扭曲+脊状 fbm（r17-r23 在役——长丝形态对但整片海面皱成「保鲜膜」，
+    /// 创始人实证「R17 开始就不对」）、**F1−F2 Voronoi 有机胞（本版，r13-r16 在役）**——
+    /// 主倍频泊松随机点集（一胞一点的抖动网格拓扑永远是变形方格）、细倍频抖动网格；
+    /// 生成后按 R 通道 std 自标定到原作同统计。不拷原作资产，只对齐统计特征与形态。
     /// </summary>
     public static class WaterLabDetailNormal
     {
         const int Size = 512;
 
-        /// <summary>R 通道编码 std 目标（原作 WaterNormal2D 实测 33/255 编码域）。</summary>
+        /// <summary>R 通道编码 std 目标（原作 WaterNormal2D 实测 33/255）。</summary>
         const float TargetChannelStd = 33f / 255f;
 
         /// <summary>生成可平铺细节法线贴图（RG=法线 xy 编码，B=高度，A=1）。</summary>
@@ -30,12 +28,10 @@ namespace PirateCrew.EditorTools
         {
             var rand = new System.Random(20261015);
             var height = new float[Size * Size];
-            AccumulateCellLayer(height, 2, 0.90f, CellShape.Cone, rand);    // F1 锥：长程相关主波
-            AccumulateCellLayer(height, 3, 0.30f, CellShape.Cone, rand);
-            AccumulateCellLayer(height, 6, 0.50f, CellShape.Bump, rand);    // Gauss 鼓包：中程结构
-            AccumulateCellLayer(height, 8, 0.45f, CellShape.Bump, rand);
-            AccumulateCellLayer(height, 11, 0.35f, CellShape.Bump, rand);
-            AccumulateCellLayer(height, 15, 0.20f, CellShape.Bump, rand);
+            AccumulateOrganic(height, 6, 0.30f, rand);   // 大胞起伏（成组感）
+            AccumulateOrganic(height, 16, 1.0f, rand);   // 主胞（原作主导尺度 ~64px/1024）
+            AccumulateGrid(height, 23, 0.35f, rand);     // 胞内褶皱（非谐波频率防与主格架成拍）
+            AccumulateGrid(height, 38, 0.15f, rand);     // 细鳞
 
             // 归一化到零均值单位差，中心差分转切线法线
             float mean = 0f;
@@ -94,13 +90,9 @@ namespace PirateCrew.EditorTools
             return tex;
         }
 
-        /// <summary>胞形状：Cone = 最近点距离 √f1（平滑锥，梯度朝点汇聚——宽谱长程相关，
-        /// 拟合原作 lag32+ 的缓慢单调衰减）；Bump = exp(−4d²) 鼓包（中程高斯胞结构）。</summary>
-        enum CellShape { Cone, Bump }
-
-        /// <summary>叠加一层随机点集胞场（距离按 period 周期化取最短，保证可平铺）。</summary>
-        static void AddCellLayer(float[] field, float[] px, float[] py, float period,
-            float amplitude, CellShape shape)
+        /// <summary>叠加一层 F1−F2 Voronoi 胞脊高度场（points 为平铺坐标内的点集，
+        /// 距离按 period 周期化取最短，保证可平铺；h=F1−F2 在胞界（F1≈F2）成脊）。</summary>
+        static void AddCellLayer(float[] field, float[] px, float[] py, float period, float amplitude)
         {
             for (int y = 0; y < Size; y++)
             {
@@ -108,40 +100,24 @@ namespace PirateCrew.EditorTools
                 for (int x = 0; x < Size; x++)
                 {
                     float gx = x / (float)Size * period;
-                    float best = 0f, f1 = float.MaxValue;
-                    if (shape == CellShape.Cone)
+                    float f1 = float.MaxValue, f2 = float.MaxValue;
+                    for (int i = 0; i < px.Length; i++)
                     {
-                        for (int i = 0; i < px.Length; i++)
-                        {
-                            float ddx = gx - px[i];
-                            ddx -= Mathf.Round(ddx / period) * period;
-                            float ddy = gy - py[i];
-                            ddy -= Mathf.Round(ddy / period) * period;
-                            float d = Mathf.Sqrt(ddx * ddx + ddy * ddy);
-                            if (d < f1) f1 = d;
-                        }
-                        field[y * Size + x] += f1 * amplitude;
+                        float ddx = gx - px[i];
+                        ddx -= Mathf.Round(ddx / period) * period;
+                        float ddy = gy - py[i];
+                        ddy -= Mathf.Round(ddy / period) * period;
+                        float d = ddx * ddx + ddy * ddy;
+                        if (d < f1) { f2 = f1; f1 = d; }
+                        else if (d < f2) { f2 = d; }
                     }
-                    else
-                    {
-                        for (int i = 0; i < px.Length; i++)
-                        {
-                            float ddx = gx - px[i];
-                            ddx -= Mathf.Round(ddx / period) * period;
-                            float ddy = gy - py[i];
-                            ddy -= Mathf.Round(ddy / period) * period;
-                            float g = Mathf.Exp(-(ddx * ddx + ddy * ddy) * 4f);
-                            if (g > best) best = g;
-                        }
-                        field[y * Size + x] += best * amplitude;
-                    }
+                    field[y * Size + x] += (Mathf.Sqrt(f1) - Mathf.Sqrt(f2)) * amplitude;
                 }
             }
         }
 
-        /// <summary>均匀随机点集（cellsPerSide² 个点）+ 指定形状叠加。</summary>
-        static void AccumulateCellLayer(float[] field, int cellsPerSide, float amplitude,
-            CellShape shape, System.Random rand)
+        /// <summary>泊松随机点集（cellsPerSide² 个均匀点）——有机胞与大小变化的来源。</summary>
+        static void AccumulateOrganic(float[] field, int cellsPerSide, float amplitude, System.Random rand)
         {
             int n = cellsPerSide * cellsPerSide;
             var px = new float[n];
@@ -151,7 +127,22 @@ namespace PirateCrew.EditorTools
                 px[i] = (float)rand.NextDouble() * cellsPerSide;
                 py[i] = (float)rand.NextDouble() * cellsPerSide;
             }
-            AddCellLayer(field, px, py, cellsPerSide, amplitude, shape);
+            AddCellLayer(field, px, py, cellsPerSide, amplitude);
+        }
+
+        /// <summary>抖动网格点集（一胞一点，抖动可越胞界）——细尺度褶皱用，
+        /// 小尺度上残余格架感不可见。</summary>
+        static void AccumulateGrid(float[] field, int freq, float amplitude, System.Random rand)
+        {
+            int n = freq * freq;
+            var px = new float[n];
+            var py = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                px[i] = (i % freq) + Mathf.Lerp(-0.05f, 1.05f, (float)rand.NextDouble());
+                py[i] = (i / freq) + Mathf.Lerp(-0.05f, 1.05f, (float)rand.NextDouble());
+            }
+            AddCellLayer(field, px, py, freq, amplitude);
         }
     }
 }
