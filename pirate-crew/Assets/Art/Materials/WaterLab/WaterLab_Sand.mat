@@ -34,12 +34,14 @@ Material:
     - _CausticScale: 0.5
     - _GrainScale: 300
     - _GrainStrength: 0.2
-    - _LightScale: 1.08
+    - _LightScale: 1
     - _SparkleScale: 14
     - _SparkleStrength: 0.02
     m_Colors:
-    - _AmbientColor: {r: 0.18, g: 0.2, b: 0.22, a: 1}
+    - _AmbientColor: {r: 0.1, g: 0.11, b: 0.12, a: 1}
     - _DrySandColor: {r: 1, g: 0.92, b: 0.69, a: 1}
+    - _SkyLightColor: {r: 0.0627, g: 0.1333, b: 0.2196, a: 1}
+    - _SkyLightDir: {r: 0.35, g: 0.9, b: 0.26, a: 0}
     - _SunTint: {r: 1, g: 0.9709, b: 0.9403, a: 1}
     - _UnderwaterSandColor: {r: 1, g: 0.93, b: 0.72, a: 1}
     - _WetSandColor: {r: 0.99, g: 0.885, b: 0.65, a: 1}

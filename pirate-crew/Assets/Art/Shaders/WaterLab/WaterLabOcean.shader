@@ -265,7 +265,9 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float phase = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal,
                     IN.positionWS.xz * 0.05).b + t * 0.8;
                 float qS = phase + 0.5;
-                float sawSq = (qS >= 0.0 ? 1.0 : -1.0) * frac(abs(qS)) * frac(abs(qS)); // 平方锯齿 [0,1]
+                // 平方锯齿 [0,1]：原作 dp2(sign,sign)(frc,frc)−1 = frc²——无符号
+                //（r88 曾多乘 sign 造成 UV 偏移方向每相位翻转，已按反汇编修正）
+                float sawSq = frac(abs(qS)) * frac(abs(qS));
                 float sgn = phase >= 0.0 ? 1.0 : -1.0;
                 float frcP = frac(abs(phase));
                 float sawLin = 2.0 * sgn * frcP - 1.0;                                  // 线性锯齿 [−1,1]
@@ -275,7 +277,11 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float2 uvA2 = (IN.positionWS.xz - flow * sawLin) * 0.20 - 0.25;
                 float2 sA = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, uvA2).rg;
                 float2 sB = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, uvB2).rg;
-                float2 dn = lerp(sA, sB, tri) * 2.0 - 1.0;
+                // 远端淡出（取景差异等价物，非原作项）：48° 俯角下深处掠射欠采样，
+                // 贴图闪斑在远端成摩尔白噪。原作没有此项——它的取景是低角度远景、
+                // 掠射更轻；等价功能在我们取景下需要保留（r88 删除后实拍回归）。
+                float detailFade = saturate(1.0 - (length(IN.positionWS - GetCameraPositionWS()) - 40.0) / 160.0);
+                float2 dn = (lerp(sA, sB, tri) * 2.0 - 1.0) * detailFade;
                 float3 normalWS = normalize(vertexNormal + float3(dn.x,
                     sqrt(saturate(1.0 - saturate(dot(dn, dn)))), dn.y));
 
