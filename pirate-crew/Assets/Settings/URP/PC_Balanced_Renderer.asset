@@ -71,4 +71,4 @@ MonoBehaviour:
   m_Name: WaterLabRefraction
   m_EditorClassIdentifier: 
   m_Active: 1
-  <WhitewaterMaterial>k__BackingField: {fileID: 2100000, guid: d28fd786f014c2e45a12fa16db62807f, type: 2}
+  <WhitewaterMaterial>k__BackingField: {fileID: 2100000, guid: dc5a49c58be5f0949ab51bef22d3dc07, type: 2}

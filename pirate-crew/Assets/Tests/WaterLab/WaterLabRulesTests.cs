@@ -97,8 +97,10 @@ namespace PirateCrew.WaterLab.Tests
         [Test]
         public void TerrainProfile_IsMonotoneishFlatToBeach()
         {
-            // 剖面骨架：深水端低于海平面、干沙端高于海平面、缓坡+滩面单调（微起伏容差内）
-            Assert.That(WaterLabRules.TerrainHeight(-30f, 0f), Is.LessThan(WaterLabRules.SeaLevel - 0.8f));
+            // 剖面骨架：水泽端低于海平面、干沙端高于海平面、缓坡+滩面单调（微起伏容差内）。
+            // 水泽深度阈值随 2026-10-26 观感裁决更新（对齐原作主菜单水泽深度）：
+            // 只要求「低于海平面且保持湿区骨架」。
+            Assert.That(WaterLabRules.TerrainHeight(-30f, 0f), Is.LessThan(WaterLabRules.SeaLevel - 0.2f));
             Assert.That(WaterLabRules.TerrainHeight(30f, 0f), Is.GreaterThan(WaterLabRules.SeaLevel + 0.3f));
             float prev = WaterLabRules.TerrainHeight(WaterLabRules.ShelfStartX, 0f);
             for (float x = WaterLabRules.ShelfStartX + 1f; x <= WaterLabRules.FaceEndX; x += 1f)
