@@ -57,8 +57,8 @@ namespace PirateCrew.UI
         UiMotion _motion;
 
         /// <summary>
-        /// 运行时注入 UI 引用（<see cref="UiScreenBoot"/> 自建界面后调用，替代原装配器的
-        /// 序列化回写——字段名与原 [SerializeField] 契约零改动）。必须在对象激活前调用。
+        /// 注入 UI 引用（烘焙期由 MenuScreenPrefab 调用做序列化回写——字段名与原
+        /// [SerializeField] 契约零改动）。必须在对象激活前调用。
         /// </summary>
         public void Bind(UiScreenBuilder.LevelRefs refs)
         {

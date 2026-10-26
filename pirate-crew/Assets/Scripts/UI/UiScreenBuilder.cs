@@ -8,19 +8,20 @@ using UnityEngine.UI;
 namespace PirateCrew.UI
 {
     /// <summary>
-    /// 三张菜单/管理屏的**运行时 UI 构建器**（MainMenu / CrewManagement / LevelSelect）。
+    /// 三张菜单/管理屏的 UI 构建器（MainMenu / CrewManagement / LevelSelect）——
+    /// **唯一真相源**：烘焙期（SceneSetup / ManagementSceneSetup 经 MenuScreenPrefab）用本类
+    /// 建树、接线、烘成 <c>Assets/Prefabs/UI/*Screen.prefab</c>，场景只留实例，打开即见。
     ///
-    /// 【为什么在运行时】此前这三屏由编辑器装配器（SceneSetup / ManagementSceneSetup）烘进场景
-    /// 再折叠成 Prefab——「场景烘死 UI」是装配链里唯一反行业的结构；本类把构建逻辑搬进运行时
-    /// 程序集，场景只留 相机 + EventSystem + <see cref="UiScreenBoot"/>，页面加载时自建
-    /// （先例：UIShowcase 的 UiShowcaseBoot 模式）。装配器仍在，但只负责生成最小场景。
+    /// 【为什么烘焙（2026-10-26 恢复）】10-03 曾把构建搬进运行时（场景只剩引导件、加载时自建），
+    /// 代价是编辑态 Scene/Game 全空——WYSIWYG 断裂，看一眼 UI 都得进 Play。烘焙与
+    /// Battle HUD（BattleHudBuilder）同构：代码即真相，prefab 是派生产物，改 UI 重跑生成器即重烘。
     ///
     /// 【纪律与出处】全部几何/皮/字号来自 theme 直切件链（UiKit/PixelSkin/AseLayout/UiSkin），
     /// 与原编辑器装配逐值一致——移植自 SceneSetup / ManagementSceneSetup / MenuUiBuilder 的
     /// 对应方法，注释里的像素纪律与实拍依据原样保留。
     ///
-    /// 【接线契约】构建器只建控件不碰真实服务；返回 refs 结构交给
-    /// <see cref="UiScreenBoot"/> 注入各控制器（原 [SerializeField] 字段名零改动）。
+    /// 【接线契约】构建器只建控件不碰真实服务；返回 refs 结构由烘焙器经控制器
+    /// <c>Bind</c> 序列化回写（原 [SerializeField] 字段名零改动）。
     /// </summary>
     public static class UiScreenBuilder
     {

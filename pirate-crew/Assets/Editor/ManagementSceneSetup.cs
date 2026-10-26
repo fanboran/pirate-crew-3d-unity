@@ -6,16 +6,16 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 
 namespace PirateCrew.EditorTools
 {
     /// <summary>
     /// 搭建管理侧两个场景（船员管理 / 关卡选择）并写 Build Settings。
     ///
-    /// 【架构口径（UI 运行时化）】两屏不再承载 UI 树——场景只留
-    /// 相机 + EventSystem + <see cref="UiScreenBoot"/>，页面（含结算模态）由
-    /// <see cref="UiScreenBuilder"/> 在加载时自建。装配器只负责生成最小场景。
+    /// 【架构口径（UI 烘焙，2026-10-26 恢复）】两屏 = 相机 + EventSystem +
+    /// <c>Assets/Prefabs/UI/*Screen.prefab</c> 实例——页面（含结算模态）由
+    /// <see cref="UiScreenBuilder"/> 的构建代码在**烘焙期**建成（经 <see cref="MenuScreenPrefab"/>），
+    /// 打开场景即见 UI。
     /// </summary>
     public static class ManagementSceneSetup
     {
@@ -37,7 +37,7 @@ namespace PirateCrew.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("[ManagementSceneSetup] 管理场景重建完成（最小场景 + UiScreenBoot，UI 运行时自建）。\n"
+            Debug.Log("[ManagementSceneSetup] 管理场景重建完成（Prefab/UI/*Screen 实例，UI 烘焙可见）。\n"
                 + "  场景: " + SceneNames.GameFolder + "/CrewManagement.unity、"
                 + SceneNames.GameFolder + "/LevelSelect.unity");
         }
@@ -53,8 +53,11 @@ namespace PirateCrew.EditorTools
             CreateCamera(PixelSkin.Theme.Face);   // theme 桌面 = window_face #2C2C30
             CreateEventSystem();
 
-            var boot = new GameObject("MenuSceneBoot");
-            boot.AddComponent<UiScreenBoot>().Kind = UiScreenBoot.ScreenKind.CrewManagement;
+            Canvas canvas = MenuScreenPrefab.CreateCanvas("CrewManagementCanvas");
+            UiScreenBuilder.CrewRefs refs = UiScreenBuilder.BuildCrewManagement(canvas.transform);
+            MenuScreenPrefab.AttachController<CrewManagementController>(
+                canvas.transform, "CrewManagementController", c => c.Bind(refs));
+            MenuScreenPrefab.SaveAsScreenPrefab(canvas.gameObject, "CrewManagementScreen");
 
             SaveScene(scene, SceneNames.CrewManagement);
         }
@@ -66,30 +69,18 @@ namespace PirateCrew.EditorTools
             CreateCamera(PixelSkin.Theme.Face);
             CreateEventSystem();
 
-            var boot = new GameObject("MenuSceneBoot");
-            boot.AddComponent<UiScreenBoot>().Kind = UiScreenBoot.ScreenKind.LevelSelect;
+            Canvas canvas = MenuScreenPrefab.CreateCanvas("LevelSelectCanvas");
+            UiScreenBuilder.LevelRefs refs = UiScreenBuilder.BuildLevelSelect(canvas.transform);
+            MenuScreenPrefab.AttachController<LevelSelectController>(
+                canvas.transform, "LevelSelectController", c => c.Bind(refs));
+            MenuScreenPrefab.SaveAsScreenPrefab(canvas.gameObject, "LevelSelectScreen");
 
             SaveScene(scene, SceneNames.LevelSelect);
         }
 
         // ------------------------------------------------------------------
-        // UI 构建辅助
+        // 场景基础件（画布工厂在 MenuScreenPrefab，与三屏烘焙共用）
         // ------------------------------------------------------------------
-
-        static Canvas CreateCanvas(string name)
-        {
-            var go = new GameObject(name, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-
-            Canvas canvas = go.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-
-            var scaler = go.GetComponent<CanvasScaler>();
-            // 【恒定像素密度】出厂档 = PixelSkin.Unit；运行期由 PixelScaleService 重写。
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
-            scaler.scaleFactor = PixelSkin.Unit;
-
-            return canvas;
-        }
 
         static void CreateEventSystem()
         {

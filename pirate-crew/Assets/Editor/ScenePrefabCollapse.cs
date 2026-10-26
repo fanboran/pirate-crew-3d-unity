@@ -57,9 +57,10 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 折叠目标。**只剩 Battle**：三个菜单/管理屏已 UI 运行时化（场景 = 相机 + EventSystem +
-        /// <see cref="UiScreenBoot"/>，页面加载时自建，见 <see cref="UiScreenBuilder"/>），
-        /// 没有"装配产物整树"可折；Bootstrapper 只有 2 个对象且是入口场景，**有意不折**。
+        /// 折叠目标。**只剩 Battle**：三个菜单/管理屏由生成器直接产出"实例态"
+        /// （<see cref="MenuScreenPrefab"/> 建树后 SaveAsPrefabAssetAndConnect，场景生来就是
+        /// 相机 + EventSystem + 1 实例），不经本折叠器；Bootstrapper 只有 2 个对象且是入口场景，
+        /// **有意不折**。
         /// </summary>
         public static readonly Entry[] Targets =
         {
@@ -83,12 +84,6 @@ namespace PirateCrew.EditorTools
         public static void CollapseBattle()
         {
             RunOrThrow(new[] { "Battle" }, true);
-        }
-
-        /// <summary>折叠三个 UI 场景（<see cref="ArtGate"/> 的链尾步骤会一并折叠）。失败即抛。</summary>
-        public static void CollapseUiScenes()
-        {
-            RunOrThrow(new[] { "MainMenu", "LevelSelect", "CrewManagement" }, true);
         }
 
         [MenuItem("PirateCrew/Scenes/折叠为 Prefab/③ 折叠全部目标", false, 42)]

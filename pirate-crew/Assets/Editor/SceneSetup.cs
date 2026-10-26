@@ -18,10 +18,10 @@ namespace PirateCrew.EditorTools
     ///
     /// 【产物】Assets/Scenes/Game/{Bootstrapper,MainMenu}.unity。
     ///
-    /// 【架构口径（UI 运行时化）】MainMenu 场景不再承载 UI 树——场景只留
-    /// 相机 + EventSystem + <see cref="UiScreenBoot"/>（Boot 持有序列化的屏类型），
-    /// 页面（含设置面板/退出确认）由 <see cref="UiScreenBuilder"/> 在加载时自建。
-    /// Bootstrapper 保持手摆规模（组合根 + 视频设置服务）。
+    /// 【架构口径（UI 烘焙，2026-10-26 恢复）】MainMenu 场景 = 相机 + EventSystem +
+    /// <c>Assets/Prefabs/UI/MainMenuScreen.prefab</c> 实例——页面（含设置面板/退出确认）由
+    /// <see cref="UiScreenBuilder"/> 的构建代码在**烘焙期**建成（经 <see cref="MenuScreenPrefab"/>），
+    /// 打开场景即见 UI。Bootstrapper 保持手摆规模（组合根 + 视频设置服务）。
     /// Battle 自 M2 起归 BattleSceneSetup 全量重建，本类不再生成。
     /// </summary>
     public static class SceneSetup
@@ -45,7 +45,7 @@ namespace PirateCrew.EditorTools
             AssetDatabase.Refresh();
 
             Debug.Log("[SceneSetup] 菜单场景重建完成：Assets/Scenes/Game/{Bootstrapper,MainMenu}.unity"
-                + "（MainMenu = 最小场景 + UiScreenBoot，UI 运行时自建），Build Settings 登记 6 场景。");
+                + "（MainMenu = Prefab/UI/MainMenuScreen 实例，UI 烘焙可见），Build Settings 登记 6 场景。");
         }
 
         // ------------------------------------------------------------------
@@ -85,8 +85,12 @@ namespace PirateCrew.EditorTools
             CreateCamera(PixelSkin.Theme.Face);
             CreateEventSystem();
 
-            var boot = new GameObject("MenuSceneBoot");
-            boot.AddComponent<UiScreenBoot>().Kind = UiScreenBoot.ScreenKind.MainMenu;
+            // 烘焙整树（UiScreenBuilder 与运行期同一份构建代码）→ 控制器序列化接线 → 存 prefab。
+            Canvas canvas = MenuScreenPrefab.CreateCanvas("MainMenuCanvas");
+            UiScreenBuilder.MainMenuRefs refs = UiScreenBuilder.BuildMainMenu(canvas.transform);
+            MenuScreenPrefab.AttachController<MainMenuController>(
+                canvas.transform, "MainMenuController", c => c.Bind(refs));
+            MenuScreenPrefab.SaveAsScreenPrefab(canvas.gameObject, "MainMenuScreen");
 
             SaveScene(scene, SceneNames.MainMenu);
         }

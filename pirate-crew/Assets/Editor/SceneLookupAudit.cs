@@ -248,15 +248,6 @@ namespace PirateCrew.EditorTools
             },
             new WhitelistEntry
             {
-                Path = "UI/UiScreenBoot.cs",
-                Token = "FindObjectsByType<EventSystem>",
-                LineAtRegistration = 82,
-                Kind = Kind.Runtime,
-                Reason = "**能力探测**（EnsureEventSystem，启动装配期跑一次）：问的是\"场景里有没有 EventSystem\"，"
-                         + "没有才自建——探测对象没有持有者可以注入。",
-            },
-            new WhitelistEntry
-            {
                 Path = "PirateCrew/SceneArtBake/Lowpoly/LowpolyStageBuilder.cs",
                 Token = "transform.Find",
                 LineAtRegistration = 111,

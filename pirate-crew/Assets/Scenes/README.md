@@ -4,23 +4,24 @@
 > 背景与证据见 [`docs/项目/审计/场景接线审计报告.md`](../../../docs/项目/审计/场景接线审计报告.md)；
 > 分层总览见 [`docs/技术/架构/架构总览.md`](../../../docs/技术/架构/架构总览.md) §7。
 
-## 一、两种形态：Battle 折叠，菜单/管理屏运行时自建
+## 一、两种形态：Battle 折叠，菜单/管理屏烘焙为 Screen Prefab 实例
 
 **Battle** 仍是「场景 = 一个 Prefab 实例」：场景文件 18,772 → 186 行，全部内容搬进
 `BattleRig.prefab`——场景 diff 能读、内容可在 Prefab 模式里单独打开调、Prefab 能被别的场景复用。
 
-**三个菜单/管理屏已 UI 运行时化**（MainMenu / LevelSelect / CrewManagement）：场景只剩
-相机 + EventSystem + `UiScreenBoot` 三个对象，页面（含设置面板/退出确认/结算模态）由
-`Scripts/UI/UiScreenBuilder.cs` 在加载时全量自建，控制器由 Boot 非激活注入 refs 后再激活
-（先例：UIShowcase 的 UiShowcaseBoot 模式）。场景不再有需要折叠的装配树，旧的三张
-`Assets/Prefabs/UI/*Screen.prefab` 已随之退役。
+**三个菜单/管理屏（MainMenu / LevelSelect / CrewManagement）UI 烘焙**（2026-10-26 恢复，
+此前 10-03~10-26 曾运行时自建）：页面（含设置面板/退出确认/结算模态）由
+`Scripts/UI/UiScreenBuilder.cs` 的构建代码在**烘焙期**建成，经 `Editor/MenuScreenPrefab.cs`
+烘成 `Assets/Prefabs/UI/*Screen.prefab`——场景 = 相机 + EventSystem + 1 个 Prefab 实例，
+打开场景即见 UI（Scene/Game 窗口直接预览）。构建代码仍是唯一真相源，prefab 是派生产物：
+改 UI 后重跑生成器（ArtGate ⑨⑩ / 场景菜单）即重烘；控制器 refs 由烘焙器序列化接线。
 
 | 场景 | 来源 | 内容载体 | 形态 |
 | --- | --- | --- | --- |
 | `Bootstrapper.unity` | 手摆（组合根 + 视频设置） | 场景本体（**有意不折叠**） | 2 对象 |
-| `MainMenu.unity` | `Editor/SceneSetup.cs` | `UiScreenBoot`(MainMenu) 运行时自建 | 3 对象 |
-| `LevelSelect.unity` | `Editor/ManagementSceneSetup.cs` | `UiScreenBoot`(LevelSelect) 运行时自建 | 3 对象 |
-| `CrewManagement.unity` | `Editor/ManagementSceneSetup.cs` | `UiScreenBoot`(CrewManagement) 运行时自建 | 3 对象 |
+| `MainMenu.unity` | `Editor/SceneSetup.cs` | `Prefabs/UI/MainMenuScreen.prefab` 实例 | 相机+ES+1 实例 |
+| `LevelSelect.unity` | `Editor/ManagementSceneSetup.cs` | `Prefabs/UI/LevelSelectScreen.prefab` 实例 | 相机+ES+1 实例 |
+| `CrewManagement.unity` | `Editor/ManagementSceneSetup.cs` | `Prefabs/UI/CrewManagementScreen.prefab` 实例 | 相机+ES+1 实例 |
 | **`Battle.unity`** | `Editor/BattleScenePipeline.cs` 八步子链 | `Assets/Prefabs/PirateCrew/Battle/BattleRig.prefab` | 折叠实例（对象/根数以 `ScenePrefabCollapse` 校验实测为准） |
 | `UIShowcase.unity` | `Editor/UiShowcaseSceneSetup.cs` | 场景本体（相机 + `UiShowcaseBoot`，页面运行时自建） | 2 |
 
