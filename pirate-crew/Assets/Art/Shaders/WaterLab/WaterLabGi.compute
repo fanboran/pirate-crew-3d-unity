@@ -226,11 +226,11 @@ void Gi(uint3 tid : SV_DispatchThreadID)
         // ---- 天空项 + 命中项合成（[ER] §1.2 第 5 步：hit 色加性进入，未按 facing 加权——字面）----
         float miss = saturate(1.0f - best.x);                         // [E L218] add_sat r2.w, -r14.x, 1
         float  sd  = max(0.0f, dot(-_SunDirection, dir));             // [E L219] dp3 r4.x, -cb0[123], r8 ; max 0
-        // 太阳聚束 = sd⁸。[E L220 代码写的是 sd²→sd⁴→(sd⁴·sd)=sd⁵，但其 [ASM] 注记与
-        // [ER] §0.4/§1.2 三处均作「mul ×3 → pow(sd,8)」——三次平方（sd²,sd⁴,sd⁸）才是
-        // 三条 mul 出 8 次幂的唯一路径，判定 E 草稿该行为转写笔误，按 [ASM]/[ER] 取 sd⁸。
-        float  p8  = sd * sd; p8 = p8 * p8; p8 = p8 * p8;
-        float3 sky = p8 * _SunColor + _AmbientSky.rgb;                // [E L221] mad r5.xzw, r4.x, cb0[125], cb0[40]
+        // 太阳聚束 = sd⁵（X 流对 DXBC 第一手复核：mul 链第二操作数是未覆写原值 sd，
+        // 即 sd²→sd⁴→(sd⁴·sd)=sd⁵；E 草稿 [ASM] 注记的 sd⁸ 与 I3a 的反向判定均误，
+        // sd=0.7 时差 2.9 倍——X-exp2.md §5）。
+        float  p5  = sd * sd; p5 = p5 * p5; p5 = p5 * sd;
+        float3 sky = p5 * _SunColor + _AmbientSky.rgb;                // [E L221] mad r5.xzw, r4.x, cb0[125], cb0[40]
         acc += sky * miss + best.rgb;                                 // [E L222] mad r5.xzw, r5, r2.w, r14.yzw ; add r7
     }
 

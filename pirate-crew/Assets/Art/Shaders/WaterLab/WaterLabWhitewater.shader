@@ -110,7 +110,7 @@ Shader "PirateCrew/WaterLab/Whitewater"
                 // 尺寸按原作 Lit_Whitewater VS：0.1×(1−exp(−5.77078×life))；
                 // vel.w 存的是 0.1×(0.6+0.8·随机)，用同一指数曲线收口。
                 float size = _WaterLabWWVel[slot].w
-                           * (1.0 - exp(-5.77078 * saturate(life))) * _SizeScale;
+                           * (1.0 - exp2(-5.77078 * saturate(life))) * _SizeScale;  // exp2 语义（X 流）：e^(−4·life)，τ=0.25s
                 float2 corner = QuadCorners[vertexId];
                 float3 right = normalize(UNITY_MATRIX_V[0].xyz);
                 float3 up = normalize(UNITY_MATRIX_V[1].xyz);
@@ -148,7 +148,7 @@ Shader "PirateCrew/WaterLab/Whitewater"
                 // ---- 水柱透射：粒子处水深 = η − 地形
                 float eta = DecodeEta(SAMPLE_TEXTURE2D(
                     _WaterLabHeightTex, sampler_WaterLabHeightTex, sUv).r);
-                float columnT = exp(-WaterColumnExtinction * max(eta - ground, 0.0));
+                float columnT = exp2(-WaterColumnExtinction * max(eta - ground, 0.0));  // exp2（X 流）
 
                 // ---- 受光泡沫：直射×阴影×水柱 + 天光，乘水沫色（满照归一，见文件头）
                 float3 sunRaw = _WaterLabSunDir.xyz;

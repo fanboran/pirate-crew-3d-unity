@@ -5,6 +5,18 @@ using UnityEngine.Rendering.Universal;
 namespace PirateCrew.Rendering
 {
     /// <summary>
+    /// WaterLab GI 的跨程序集单向桥（模拟/系统在 Gameplay 程序集、Feature 在 Rendering
+    /// 程序集；Rendering 不引用 Gameplay——同 WaterLabWhitewaterBridge 先例）。
+    /// ReplicaGiSystem 静态构造接线；非实验场景恒 null，pass 跳过。
+    /// </summary>
+    public static class WaterLabGiBridge
+    {
+        public static ComputeShader Compute;                   // Feature → System（域重载回灌）
+        public static System.Action<CommandBuffer> Render;     // System：顶视渲+dispatch+全局发布
+        public static Camera TopViewCamera;                    // System：顶视相机（防递归）
+    }
+
+    /// <summary>
     /// WaterLab GI 复刻（I3a）的 URP 注入件：在主相机渲染序内调
     /// <see cref="WaterLab.ReplicaGiSystem.Render"/>（GenerateMips + Gi/BlurGi 派发 +
     /// SetGlobalTexture("giVoxels")）；sceneVoxels 的顶视采集由
@@ -48,7 +60,7 @@ namespace PirateCrew.Rendering
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
             {
                 var cmd = CommandBufferPool.Get("WaterLabGi");
-                WaterLab.ReplicaGiSystem.Render(cmd);
+                WaterLabGiBridge.Render?.Invoke(cmd);
                 context.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
             }
@@ -68,10 +80,10 @@ namespace PirateCrew.Rendering
                 return; // SceneView/预览相机跳过（同上）
 
             // 每帧回灌 compute 引用（幂等；防域重载丢失）
-            WaterLab.ReplicaGiSystem.Compute = GiCompute;
+            WaterLabGiBridge.Compute = GiCompute;
 
             // 顶视相机自己渲 sceneVoxels 时不再入队本 pass（防递归/重复派发）
-            if (renderingData.cameraData.camera == WaterLab.ReplicaGiSystem.TopViewCamera)
+            if (renderingData.cameraData.camera == WaterLabGiBridge.TopViewCamera)
                 return;
 
             renderer.EnqueuePass(_pass);

@@ -104,6 +104,13 @@ namespace PirateCrew.WaterLab
         /// 主相机渲染序内调用（ReplicaGiFeature pass，BeforeRenderingOpaques）：
         /// GenerateMips → Gi → BlurGi → SetGlobalTexture("giVoxels")。
         /// </summary>
+        // 跨程序集桥接线（Rendering 程序集的 ReplicaGiFeature 经 WaterLabGiBridge 回调）
+        static ReplicaGiSystem()
+        {
+            PirateCrew.Rendering.WaterLabGiBridge.Render = cmd => Render(cmd);
+            PirateCrew.Rendering.WaterLabGiBridge.TopViewCamera = null; // 相机在 Ensure 后由属性同步
+        }
+
         public static void Render(CommandBuffer cmd)
         {
             if (Compute == null)
@@ -169,6 +176,7 @@ namespace PirateCrew.WaterLab
             _giVoxelsBlurred = NewVoxelRT("WaterLabGiVoxelsBlurred", uav: true, mips: false, depthBits: 0);
 
             _topView = CreateTopViewCamera();
+            PirateCrew.Rendering.WaterLabGiBridge.TopViewCamera = _topView;
             Application.quitting -= Shutdown;
             Application.quitting += Shutdown;
         }

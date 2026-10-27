@@ -117,7 +117,7 @@ Shader "PirateCrew/WaterLab/Prop"
                 float sh = lerp(1.0,
                     MainLightRealtimeShadow(TransformWorldToShadowCoord(IN.positionWS)),
                     _ShadowStrength);
-                float column = exp(-0.721348 * waterDepth);
+                float column = exp2(-0.721348 * waterDepth);  // exp2（X 流）：e^(−0.5·d)
                 float3 col = _BaseColor * (_AmbientColor + _SunTint * ndl * sh * column);
 
                 // 焦散（同沙面源与定标：水面坡度散度，水面上一节见 WaterLabSand 的说明）
