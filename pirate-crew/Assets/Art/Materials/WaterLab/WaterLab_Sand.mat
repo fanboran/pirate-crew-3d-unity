@@ -38,9 +38,9 @@ Material:
     m_Colors:
     - _AmbientColor: {r: 0.1, g: 0.11, b: 0.12, a: 1}
     - _DomainTintFallback: {r: 0, g: 0, b: 0, a: 0}
-    - _SandColorDry: {r: 0.9255, g: 0.8863, b: 0.7255, a: 1}
-    - _SandColorThird: {r: 0.8353, g: 0.8078, b: 0.6902, a: 1}
-    - _SandColorWet: {r: 0.789, g: 0.7592, b: 0.6476, a: 1}
+    - _SandColorDry: {r: 0.8388, g: 0.7605, b: 0.4851, a: 1}
+    - _SandColorThird: {r: 0.6038, g: 0.2747, b: 0.1384, a: 1}
+    - _SandColorWet: {r: 0.5854, g: 0.537, b: 0.3769, a: 1}
     - _SkyLightColor: {r: 0.0627, g: 0.1333, b: 0.2196, a: 1}
     - _SkyLightDir: {r: 0.35, g: 0.9, b: 0.26, a: 0}
     - _SunTint: {r: 1, g: 0.9709, b: 0.9403, a: 1}
