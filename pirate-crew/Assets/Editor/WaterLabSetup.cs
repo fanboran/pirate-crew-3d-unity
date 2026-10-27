@@ -247,9 +247,7 @@ namespace PirateCrew.EditorTools
             var go = new GameObject("Terrain");
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var sandMat = LoadOrCreateMaterial("WaterLab_Sand", ShaderPathSand);
-            // 焦散源＝水面小尺度坡度场：沙 shader 用同一张细节法线贴图求散度（见其焦散段）
-            sandMat.SetTexture("_WaterLabDetailNormal", LoadOrCreateDetailNormal());
-            ApplyCalibratedSandColors(sandMat);
+            ApplySandReplicaValues(sandMat); // I2：焦散真身 + Carbonate 预设 + 沙噪声真图
             go.AddComponent<MeshRenderer>().sharedMaterial = sandMat;
             Debug.Log($"[WaterLabSetup] 地形网格：{(ReplicaMode ? "快照 256² 直出" : "程序剖面")}，"
                 + $"{verts * verts} 顶点 / {segments} 段");
@@ -264,42 +262,53 @@ namespace PirateCrew.EditorTools
         /// </summary>
         const float LightScale = 1.00f;
 
-        static void ApplyCalibratedSandColors(Material m)
+        /// <summary>
+        /// 沙面材质复刻值（I2，真值单源）：全部为 D 流第一手真值，逐条带出处；重建时全量
+        /// 下发，.mat 旧值残留不生效（D 表§4.2：原作运行时同样用预设覆写材质）。
+        /// 颜色一律 Vector 下发——Linear 工程的 Color 属性会被 sRGB→线性再压一次
+        /// （交接§6 陷阱），预设的 linear 序列化值必须原样直达 shader。
+        /// </summary>
+        static void ApplySandReplicaValues(Material m)
         {
-            // 反解自参考受光干沙 (253,229,169)（线性 (0.982,0.784,0.397)）。
-            // 【旧值为什么偏黄】旧沙色 (1.0,0.83,0.38) 是在二次编码截图上标的：截图把
-            // 蓝通道从 0.43 抬到约 0.69，看起来刚好；实机单次编码下蓝只剩 89/255，
-            // 沙面成浓黄。现按正确显示链反解：干沙 albedo sRGB (1.0,0.92,0.69)
-            // → 线性 (1.0,0.831,0.434)，×光照核 (0.992,0.944,0.902) ≈ 参考线性值。
-            m.SetColor("_DrySandColor", new Color(1.0f, 0.92f, 0.69f));
-            // 湿沙：原作 wetSandColor/sandColor 的 linear 比例 ≈ (0.979,0.914,0.873)，
-            // 只轻微变暗；旧值 (0.82,0.72,0.52) 暗 40%+，退潮湿痕会被读成残留水。
-            m.SetColor("_WetSandColor", new Color(0.99f, 0.885f, 0.65f));
-            // 水下沙：透过浅水看到的亮底沙，偏暖（水的青色会把它拉回绿松石）。
-            m.SetColor("_UnderwaterSandColor", new Color(1.0f, 0.93f, 0.72f));
+            // 【Carbonate 预设三色】D 表§4.2 从 Refs 裸字节恢复（主菜单 = SandType.Carbonate：
+            // Sand 材质序列化 sandColor 与 type0.color 逐位相同）。旧 _DrySandColor=(1.0,0.92,0.69)
+            // 头图反定与「湿/干只暗 2–13%」定标依据一并作废（湿/干比真值 ≈0.85/0.86/0.89）。
+            m.SetVector("_SandColorDry", SandColorDry);     // cb0[127] = 预设 color
+            m.SetVector("_SandColorWet", SandColorWet);     // cb0[129] = 预设 wetColor
+            m.SetVector("_SandColorThird", SandColorThird); // cb0[130] = 预设 color2（水侧场×20 混入）
+            // 【水色】Water 材质序列化 waterColor（materials-dump.txt / 交接§3 台账）
+            // ——深水沙变体 o3 的 4× 目标色（σ≡0，见 shader 深水段）。
+            m.SetVector("_WaterColor", SandWaterColor);
+            // 焦散真身（原作 Caustics Texture3D）与沙噪声 1024²（原作 Lit_Sand t3）。
+            // 构建失败返回 null = 槽落空：焦散被淹没门控自然置 0、相位退化为常量，
+            // 场景仍可装配（不阻断重建）。
+            m.SetTexture("_CausticsTex", WaterLabCausticsImport.EnsureCausticsAsset());
+            m.SetTexture("_WaterLabSandMap", EnsureSandMapAsset());
             m.SetFloat("_LightScale", LightScale);
             m.SetColor("_AmbientColor", AmbientColor);
             // 天光第二方向光（level0 A 级真值，见 CreateLighting）：Vector 下发不走色彩空间
             m.SetVector("_SkyLightDir", new Vector4(0.35f, 0.90f, 0.26f, 0f));
             m.SetVector("_SkyLightColor", new Vector4(0.0627f, 0.1333f, 0.2196f, 1f));
-            // 焦散世界尺度：0.05（=20 m 周期）会把细节法线的 Voronoi 胞放大成整片团块，
-            // 观感是「水底一片黄绿斑」而不是参考那种**细亮网**；0.5（=2 m 周期）回到网尺度。
-            m.SetFloat("_CausticScale", CausticScale);
-            m.SetFloat("_CausticGain", CausticGain);
-            // 沙面细节按原作 Lit_Sand PS 的结构：没有层理/沙纹/卵石 albedo；
-            // 干湿混色、细粒噪声、闪沙、焦散与几何法线各自独立。全部是纯视觉项，
-            // 不改变 WaterLabRules 的模拟地形/物理参数。
-            m.SetFloat("_GrainStrength", 0.20f); // 原作沙粒噪声 ±0.2×n.y
-            m.SetFloat("_GrainScale", 300.0f);   // worldXZ×0.3 的 1024² 白噪声 ≈3.3 mm
-            m.SetFloat("_SparkleStrength", 0.02f);
-            m.SetFloat("_SparkleScale", 14.0f);
+            // 【I2 删项】_SparkleStrength/_SparkleScale（自造哈希闪沙——原作无独立闪沙，
+            // D 表§5-3）；_CausticScale/_CausticGain/_CausticSampleOffset（细节法线散度程序
+            // 焦散的旋钮——焦散换真身后强度链全是原作字面量，D 表§2.3 段 C/E）；
+            // _GrainStrength/_GrainScale（哈希粒噪——沙噪声真图接入后幅度 0.2、尺度 ×0.3
+            // 均为原作字面量，D 表§5-4）；_UnderwaterSandColor（水下色由第三色/深水变体真值承担）。
         }
 
-        /// <summary>焦散采样世界尺度（1/m）：周期 = 1/此值。参考的焦散网约 0.5–2 m。</summary>
+        // 【Carbonate 预设三色 + 水色】出处：预设三色 = D 表§4.2（Refs 裸字节恢复，
+        // linear 序列化值）；水色 = Water 材质序列化 waterColor（materials-dump.txt）。
+        static readonly Vector4 SandColorDry   = new Vector4(0.9255f, 0.8863f, 0.7255f, 1f);
+        static readonly Vector4 SandColorWet   = new Vector4(0.7890f, 0.7592f, 0.6476f, 1f);
+        static readonly Vector4 SandColorThird = new Vector4(0.8353f, 0.8078f, 0.6902f, 1f);
+        static readonly Vector4 SandWaterColor = new Vector4(0.9603f, 0.9858f, 0.9995f, 1f);
+
+        /// <summary>焦散采样世界尺度（1/m）：周期 = 1/此值。【I2 后仅 WaterLabProp 消费】——
+        /// 沙面焦散已换原作真身（Texture3D，强度链为原作字面量，见 ApplySandReplicaValues），
+        /// 本仓程序焦散旋钮只剩水底参照物在用。</summary>
         const float CausticScale = 0.5f;
 
-        /// <summary>焦散增益：旧 0.2 在出图里几乎看不见网（参考浅滩有明显的亮暗纹）。
-        /// 0.6 是显示链下的可读档；沙/石同一值，避免两层焦散强度脱节。</summary>
+        /// <summary>焦散增益（prop 用，口径同 <see cref="CausticScale"/> 注）。</summary>
         const float CausticGain = 0.6f;
 
         /// <summary>
@@ -445,6 +454,70 @@ namespace PirateCrew.EditorTools
             yield return Path.GetFullPath(System.IO.Path.Combine(
                 Directory.GetParent(Application.dataPath).FullName,
                 "../external/sandcastle-ref/WaterNormal2D-extracted.png"));
+        }
+
+        /// <summary>原作沙噪声贴图入库路径（Lit_Sand t3 = Texture path_id 232 "Sand"，
+        /// 1024²：R=逐 texel 白噪声 std 0.161、G=低频流供焦散相位 base——D 表§2.3 段 A/§5-4；
+        /// meta 固定 guid 防重建漂移，自愈模式同 EnsureRefNormalAsset）。</summary>
+        const string SandMapAssetPath = "Assets/Art/Textures/WaterLab/SandNoise_Ref.png";
+        const string SandMapAssetGuid = "c8d5e9f3a2b64d178e50f3b9c7a26d41";
+
+        /// <summary>
+        /// 确保原作沙噪声贴图已入库并按**数据贴图**口径导入，返回它；源不可得时返回 null
+        /// （shader 端退化为 gray=0.5：白噪声调制归零、焦散相位成常量，场景仍可装配）。
+        /// 【导入口径必须保数据语义】G 通道进焦散相位 base（PS:41-43），sRGB 解码或压缩
+        /// 都会改写相位标定：linear、Repeat、mip 开、Bilinear、不压缩、Default 纹理类型。
+        /// </summary>
+        static Texture2D EnsureSandMapAsset()
+        {
+            if (!File.Exists(SandMapAssetPath))
+            {
+                string src = SandMapSourceCandidates().FirstOrDefault(File.Exists);
+                if (src == null)
+                {
+                    Debug.LogWarning(
+                        "[WaterLabSetup] 未找到原作沙噪声提取件（external 工作台缺失），焦散相位退化为常量。");
+                    return null;
+                }
+                File.Copy(src, SandMapAssetPath);
+                File.WriteAllText(SandMapAssetPath + ".meta",
+                    $"fileFormatVersion: 2\nguid: {SandMapAssetGuid}\nTextureImporter: {{}}\n");
+                AssetDatabase.ImportAsset(SandMapAssetPath);
+            }
+            var importer = AssetImporter.GetAtPath(SandMapAssetPath) as TextureImporter;
+            if (importer == null)
+            {
+                Debug.LogWarning($"[WaterLabSetup] {SandMapAssetPath} 不是 TextureImporter 资产，沙噪声落空。");
+                return null;
+            }
+            if (importer.textureType != TextureImporterType.Default
+                || importer.sRGBTexture
+                || importer.wrapMode != TextureWrapMode.Repeat
+                || !importer.mipmapEnabled
+                || importer.filterMode != FilterMode.Bilinear
+                || importer.textureCompression != TextureImporterCompression.Uncompressed)
+            {
+                importer.textureType = TextureImporterType.Default;
+                importer.textureShape = TextureImporterShape.Texture2D;
+                importer.sRGBTexture = false;
+                importer.wrapMode = TextureWrapMode.Repeat;
+                importer.mipmapEnabled = true;
+                importer.filterMode = FilterMode.Bilinear;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.SaveAndReimport();
+            }
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(SandMapAssetPath);
+        }
+
+        /// <summary>沙噪声源候选：env 优先，其后工程根外层工作台（dataPath 上两级 =
+        /// 仓库/worktree 根，主仓与 temp worktree 同构）。</summary>
+        static IEnumerable<string> SandMapSourceCandidates()
+        {
+            var env = System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_SANDMAP_SRC");
+            if (!string.IsNullOrEmpty(env)) yield return env;
+            yield return Path.GetFullPath(System.IO.Path.Combine(
+                Application.dataPath,
+                "../../external/sandcastle-ref/extracted/tex_sharedassets0.assets_232_Sand.png"));
         }
 
         /// <summary>与入库版逐字节一致的 README 文案（自愈重写用，防 git 噪音）。</summary>

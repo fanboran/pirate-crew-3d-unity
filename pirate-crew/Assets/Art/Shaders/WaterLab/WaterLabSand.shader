@@ -1,62 +1,61 @@
 // ============================================================================
-// WaterLabSand.shader —— 实验水体（W3）：沙滩着色。
+// WaterLabSand.shader —— 沙面复刻（I2）：Lit_Sand PS @34958 逐指令直译。
 //
-// 【原作对齐口径：Lit_Sand PS @34958 逐条，逆向档案 §10.2】
-//   1) albedo = 干沙色 → 湿沙色（按水量/湿度曲线）→ 水下亮沙；**没有层理/沙纹/
-//      卵石 albedo**。原作 `Sand` 材质的 `sandMap` 是 1024² RG 流噪声：R 是逐 texel
-//      白噪声（std 0.161，worldXZ×0.3），只给沙粒明暗；G 是低频流场，供焦散 UV
-//      扰动。`Strata` 纹理只被水岸边框材质使用，不在 Lit_Sand 里。
-//   2) 沙面法线来自**地形高度场**（Ground.UpdateTangent 的 packed 8-bit 法线），
-//      不是法线贴图。本仓地形网格直接由 TerrainHeight 生成，法线取几何法线即可。
-//   3) 直射项 = ndl × 太阳色 ×（阴影原值 × exp(-0.721348×水深)）；环境项不采影。
-//   4) 焦散在沙侧（原作烘焙 causticsMap），本仓用细节法线散度近似。
-//   5) 闪沙 = 噪声 × |太阳色| × exp(-1.731234×湿度) × 坡度门控。
+// 【真值源（禁止拟合）】
+//   PS = Lit_Sand@34958.ps_5_0（144 实指令 + ret，5 采样）
+//   VS = Lit_Sand@11358（主变体不抬顶点）
+//   逐指令表与档案修正：external/sandcastle-ref/rt/reports/D-sand.md（下称「D 表」）
+//   可集成底稿：同目录 D-sand.hlsl（本文件按它落笔，注释「PS:n」= 反汇编行号）
 //
-// 【本仓唯一保留的近似】焦散源用 `_WaterLabDetailNormal` 求散度；原作是
-//   Texture3D 烘焙体。其余颜色/湿度/噪声项按上述原作结构落笔。
+// 【I2 变更】焦散换真身（烘焙 Texture3D 256×256×64 R8，半相位交叉淡化采样，D 表§1/§2.3
+//   段 A/B）——细节法线散度程序焦散退役；删 _Sparkle* 哈希闪沙（D 表§5-3：原作无独立闪沙，
+//   「闪」即焦散项本身，干沙 gate=0）；沙色改 Carbonate 预设下发（D 表§4.2，.mat 旧值作废）；
+//   坡度只门控焦散不暗化 albedo（D 表§2.4 修正③）；深水沙变体按 @57462+@85014 直译（σ≡0）。
+//
+// 【本仓解析场（D 表§5-7/§5-13 登记）】原作流速/水位/水深/22bit 场全由渲染缓冲逐顶点供，
+//   本仓无渲染缓冲层——水位场以 η−ground 解析等价（B 流快照对账），水位深度 = max(η−ground,0)，
+//   可见水深 = max(水位−0.05, 0)（5cm 水膜，同原作 VS o4.w 口径）。
 // ============================================================================
 
 Shader "PirateCrew/WaterLab/Sand"
 {
     Properties
     {
-        // 【沙色定标依据】对着 Steam 高清头图逐点量测：参考受光干沙
-        // = (253,229,169)（线性 (0.982,0.784,0.397)）。按单次显示编码反解：
-        // albedo sRGB (1.0,0.92,0.69) → 线性 (1.0,0.831,0.434)，
-        // × 光照核 (0.992,0.944,0.902) ≈ 参考线性值。
-        _DrySandColor       ("干沙色（按参考头图受光沙反定）", Color) = (1.0, 0.92, 0.69, 1.0)
-        // 湿沙：原作 `wetSandColor` 相对 `sandColor` 只暗约 2–13%（linear
-        // 0.9060/0.8104/0.6333 vs 0.9255/0.8863/0.7255）；旧值 (0.82,0.72,0.52)
-        // 暗 40% 以上，退潮后整条湿痕读成残留水。这里按同一比例反解到本仓干沙色。
-        _WetSandColor       ("湿沙色（原作湿/干比例反解）", Color) = (0.99, 0.885, 0.65, 1.0)
-        _UnderwaterSandColor ("水下沙色（同族偏暖，水色会把它拉回绿松石）", Color) = (1.0, 0.93, 0.72, 1.0)
+        // 【三色 = Carbonate 预设（SandType.Carbonate=type0）】D 表§4.2 从 Refs 裸字节
+        // 恢复的 linear 序列化值；主菜单跑该预设（Sand 材质序列化 sandColor 与
+        // type0.color 逐位相同）。Linear 工程 Color 属性会被再 gamma 一次（交接§6 陷阱），
+        // 故用 Vector 下发、物理量原样直达。旧 _DrySandColor/_WetSandColor 头图反定值作废。
+        _SandColorDry    ("沙基色 cb0[127]（Carbonate 预设 color，linear 值）", Vector) = (0.9255, 0.8863, 0.7255, 1)
+        _SandColorWet    ("湿沙色 cb0[129]（预设 wetColor，湿/干比 ≈0.85/0.86/0.89）", Vector) = (0.7890, 0.7592, 0.6476, 1)
+        _SandColorThird  ("第三色 cb0[130]（预设 color2，水侧场×20 混入）", Vector) = (0.8353, 0.8078, 0.6902, 1)
+        // 深水沙变体目标色（cb0[131] = Water 材质 waterColor 序列化真值，materials-dump.txt）
+        _WaterColor      ("水色 cb0[131]（深水沙变体 4× 目标）", Vector) = (0.9603, 0.9858, 0.9995, 1)
 
-        // 沙粒噪声：原作 sandMap.R 是 1024² 白噪声，采样世界尺度 ×0.3（纹理周期
-        // 3.33 m，单 texel ≈3.3 mm），以 normal.y 加权调制颜色（±0.2×n.y）。
-        _GrainStrength      ("沙粒噪声强度（原作 ±0.2×n.y）", Range(0.0, 0.6)) = 0.20
-        _GrainScale         ("沙粒噪声尺度（1/m）", Range(20.0, 600.0)) = 300.0
+        // 焦散真身：原作 Caustics 256×256×64 R8_UNorm 9 mip（path_id 932）。
+        // 资产由 WaterLabCausticsImport.EnsureCausticsAsset() 从 raw 逐 mip 构建并存盘。
+        _CausticsTex     ("焦散烘焙体（原作 Caustics Texture3D）", 3D) = "gray" {}
+        // 沙噪声真图：原作 Lit_Sand t3，1024²（path_id 232 "Sand"）——R=逐 texel 白噪声
+        // （std 0.161，±0.2·n.y 调制 albedo），G=低频流（焦散相位 base，PS:41-43）。
+        _WaterLabSandMap ("沙噪声 1024²（R 白噪声 / G 低频流）", 2D) = "gray" {}
 
-        // 闪沙：原作 3D 噪声 × exp(-1.731×湿度)；LDR 下 0.10 像满地下雪，0.02 只留
-        // 零星高光。尺度取 14/m（约 7 cm 一格并旋转采样），作为远距可读的稀疏闪点。
-        _SparkleStrength    ("闪沙强度", Range(0.0, 0.5)) = 0.02
-        _SparkleScale       ("闪沙尺度（1/m）", Range(2.0, 100.0)) = 14.0
+        // 显示链曝光因子（本仓 LDR 直出链的补偿旋钮，非原作项）
+        _LightScale      ("显示链曝光因子", Range(0.2, 3.0)) = 1.0
 
-        _LightScale         ("显示链曝光因子", Range(0.2, 3.0)) = 1.08
-        _CausticGain        ("焦散强度（水面坡度散度系数）", Range(0.0, 4.0)) = 0.6
-        _CausticScale       ("焦散世界尺度（1/m）", Range(0.02, 2.0)) = 0.5
-        _CausticSampleOffset ("焦散采样偏移（UV）", Range(0.0005, 0.05)) = 0.0156
-        _WaterLabDetailNormal ("细节法线（水面小尺度坡度场＝焦散源）", 2D) = "gray" {}
+        // 【GI 域 tint 占位】原作合成还有 albedo×lerp(cb0[40], t2.rgb, inDomain) 加性项
+        // （D 表§2.4-5）。t2 疑 Gi bake（E 流终审）、cb0[40] 上传路径待 A 流对账——
+        // 值定案前不实现（见片元内 TODO），本属性仅占槽位。
+        _DomainTintFallback ("域 tint 回退 cb0[40]（E 流 GI 定案前不消费）", Vector) = (0, 0, 0, 0)
 
-        // 天光项：原作走 HDR+GI，本仓用常数项近似。旧值只保留天空色、暗部太黑；
-        // 抬高到接近“天空 + 沙面反弹”的合成亮度，红色分量同步抬起，阴影不再发青。
-        _AmbientColor       ("环境色（原作天光 + GI 的常数近似）", Color) = (0.18, 0.20, 0.22, 1.0)
-        _SunTint            ("太阳色（原作太阳平行光实测）", Color) = (1.0, 0.9709, 0.9403, 1.0)
+        // 环境平坦项（本仓近似，非原作项）：原作无平坦环境色，暗部靠 GI 域 tint——
+        // E/I3 落地后随 TODO 一起退役（D 表§5-9）。
+        _AmbientColor    ("环境色（GI 缺位的平坦近似，C 级登记）", Color) = (0.10, 0.11, 0.12, 1.0)
+        // 太阳色 cb0[125]（默认值 = level0 SunLight 序列化色；其模长乘进焦散强度 PS:77-79）
+        _SunTint         ("太阳色（level0 SunLight）", Color) = (1.0, 0.9709, 0.9403, 1.0)
 
-        // 天光第二方向光（原作 MoonLight，level0 A 级真值）：Vector 下发不走色彩空间
-        // （(0.0627,0.1333,0.2196) 是线性实测值，Color 属性会被 sRGB→线性再压一次）。
-        // 方向 = 照射方向（指向光源）。不采影不衰减，见 PS 内注释。
-        _SkyLightDir        ("天光方向（照射方向）", Vector) = (0.35, 0.90, 0.26, 0.0)
-        _SkyLightColor      ("天光色（线性域）", Vector) = (0.0627, 0.1333, 0.2196, 1.0)
+        // 天光第二方向光（原作 MoonLight，level0 A 级真值）：Vector 下发不走色彩空间。
+        // 方向 = 照射方向（指向光源）。不采影不衰减，见片元内注释。
+        _SkyLightDir     ("天光方向（照射方向）", Vector) = (0.35, 0.90, 0.26, 0.0)
+        _SkyLightColor   ("天光色（线性域）", Vector) = (0.0627, 0.1333, 0.2196, 1.0)
     }
 
     SubShader
@@ -81,9 +80,12 @@ Shader "PirateCrew/WaterLab/Sand"
             #pragma vertex   SandVertex
             #pragma fragment SandFragment
 
-            // 主光阴影（原作 Lit_Sand 同款比较采样）：地形/物体自阴影；
-            // 水下明暗带来自水柱透射项 exp(-0.721×水深)，见片元内注释
-            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SOFT
+            // 主光阴影。**不带 _MAIN_LIGHT_SHADOWS_SOFT**：原作是 sample_c_lz 点比较、
+            // 无软化（D 表§2.3 段 F / §5-7），URP SOFT 关键字开启即偏离口径。
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+            // 深水沙变体（原作 @57462+@85014 家族，D 表§2.4-6）：顶点抬升+深水变色。
+            // 主菜单是否启用属运行时状态（D 表§6 待抓帧终审）——默认关，材质开关键字即换变体。
+            #pragma shader_feature_local_vertex _WATERLAB_DEEP_SAND
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             // Shadows.hlsl 的 LerpWhiteTo 在 core CommonMaterial 里（单独 include Shadows 不够）
@@ -91,31 +93,27 @@ Shader "PirateCrew/WaterLab/Sand"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
-                float3 _DrySandColor;
-                float3 _WetSandColor;
-                float3 _UnderwaterSandColor;
-                float  _GrainStrength;
-                float  _GrainScale;
-                float  _SparkleStrength;
-                float  _SparkleScale;
+                float4 _SandColorDry;
+                float4 _SandColorWet;
+                float4 _SandColorThird;
+                float4 _WaterColor;
                 float  _LightScale;
-                float  _CausticGain;
-                float  _CausticScale;
-                float  _CausticSampleOffset;
-                float3 _AmbientColor;
-                float3 _SunTint;
-                float3 _SkyLightDir;
-                float3 _SkyLightColor;
+                float4 _DomainTintFallback; // E 流 GI 定案前不消费（占位，防属性表空挂）
+                float4 _AmbientColor;
+                float4 _SunTint;
+                float4 _SkyLightDir;
+                float4 _SkyLightColor;
             CBUFFER_END
 
             float4 _WaterLabOrigin;
             float4 _WaterLabSunDir;
-            float  _WaterLabSimEnabled;
-            TEXTURE2D(_WaterLabWetTex);    SAMPLER(sampler_WaterLabWetTex);
             TEXTURE2D(_WaterLabGroundTex); SAMPLER(sampler_WaterLabGroundTex);
             TEXTURE2D(_WaterLabHeightTex); SAMPLER(sampler_WaterLabHeightTex);
-            TEXTURE2D(_WaterLabDetailNormal); SAMPLER(sampler_WaterLabDetailNormal);
+            TEXTURE2D(_WaterLabSandMap);   SAMPLER(sampler_WaterLabSandMap);
+            TEXTURE3D(_CausticsTex);       SAMPLER(sampler_CausticsTex);
 
+            // 地面/水位场编码（I7）：e×5−3，量程 [−3,2] 在干沙丘顶 2.6 m 处饱和——
+            // 扩量程跨 Ocean shader 域，由协调者集成轮统一改（I7 偏差注记），沙侧解码保持现行。
             float DecodeGround(float e) { return e * 5.0 - 3.0; }
 
             float2 WorldToDomainUv(float3 worldPos)
@@ -123,18 +121,44 @@ Shader "PirateCrew/WaterLab/Sand"
                 return (worldPos.xz - _WaterLabOrigin.xz) / _WaterLabOrigin.y + 0.5;
             }
 
-            float Hash12(float2 p)
+            // 有符号小数：PS:44-49 / 61-66 的 sign·frac(|x|) 手工展开（D-sand.hlsl 同款）
+            float SandSignedFrac(float x)
             {
-                p = frac(p * float2(123.34, 456.21));
-                p += dot(p, p + 45.32);
-                return frac(p.x * p.y);
+                float s = (x >= -x) ? 1.0 : -1.0;   // PS:45-46 movc
+                return s * frac(abs(x));            // PS:47-49
             }
 
-            // 旋转采样坐标：打断轴对齐格点在屏幕上的行/列读感。
-            float2 Rotate2(float2 p, float a)
+            // -------------------------------------------------- 焦散双采样体 --
+            // PS:41-74 逐指令（D 表§2.3 段 A/B，D-sand.hlsl DSandCaustics 直译）：
+            // 两次体采样在 xy/z 各差 ±0.5 相位，按三角权 2|signedfrac(base)−0.5| 交叉淡化
+            // ——「烘焙体 + 半相位淡化」结构（kill 平铺 + 沸腾动画），不读水位场。
+            //   noiseG = sandMap.g @ worldXZ×0.3（低频流，相位 base）
+            // 【流场代位】xy 平流项的流速 v4.xy 原作来自水渲染缓冲；本仓模拟层暂无速度
+            //   纹理发布（速度在 compute buffer 内），以 0 代入（语义 = 无整体漂移；
+            //   半相位机制不受影响——采样对仍按相位在体上互走）。接入点：速度场出全局纹理后回填。
+            // 【死通道】第二平流源 v5.xy = 常量 (−4,−4) 的禁用场（D 表§2.2 VS 表 o5），
+            //   原作即按常量参与交叉淡化相位——照抄保留，不是简化。
+            float SandCaustics(float2 worldXZ, float noiseG)
             {
-                float s = sin(a), c = cos(a);
-                return float2(c * p.x - s * p.y, s * p.x + c * p.y);
+                const float2 flowVel   = float2(0.0, 0.0);   // v4.xy 代位（TODO: 速度场纹理接入）
+                const float2 flowDead  = float2(-4.0, -4.0); // v5.xy 死通道常量（原作同值）
+
+                float  base = noiseG + 0.5 * _Time.y;                 // PS:43（cb0[113].y = _Time.y 口径）
+                float2 cuv  = worldXZ * 0.25 + flowVel * 0.1;         // PS:52-53
+
+                float  sa = SandSignedFrac(base + 0.5) - 1.0;         // PS:44-50
+                float3 s1 = float3(cuv - 0.1 * sa * flowDead - 0.5,   // PS:51,54-55
+                                   0.2 * (noiseG + _Time.y - 0.5));   // PS:56-59（z 时间滚动，Repeat）
+                float a1 = SAMPLE_TEXTURE3D_LOD(_CausticsTex, sampler_CausticsTex, s1, 0).r; // PS:60
+
+                float sf = SandSignedFrac(base);                      // PS:61-66
+                float w  = 2.0 * abs(sf - 0.5);                       // PS:67 三角权
+                float sb = 2.0 * sf - 1.0;                            // PS:68
+                float3 s2 = float3(cuv - 0.1 * sb * flowDead + 0.5,   // PS:69-71
+                                   0.2 * (noiseG + _Time.y + 0.5));   // PS:58-59
+                float a2 = SAMPLE_TEXTURE3D_LOD(_CausticsTex, sampler_CausticsTex, s2, 0).r; // PS:72
+
+                return lerp(a2, a1, w);                               // PS:73-74
             }
 
             struct Attributes
@@ -148,101 +172,128 @@ Shader "PirateCrew/WaterLab/Sand"
                 float4 positionCS : SV_POSITION;
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS   : TEXCOORD1;
+                float3 deepColor  : TEXCOORD2; // 深水变体 o3（默认变体不消费）
+                float  sandY      : TEXCOORD3; // 抬升前沙面世界高度（PS:184 alpha）
             };
 
             Varyings SandVertex(Attributes IN)
             {
                 Varyings OUT;
-                OUT.positionWS = TransformObjectToWorld(IN.positionOS.xyz);
+                float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
                 OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
-                OUT.positionCS = TransformWorldToHClip(OUT.positionWS);
+                OUT.sandY = positionWS.y;
+
+#if _WATERLAB_DEEP_SAND
+                // 深水变体 VS @57462（D 表§2.1/§2.4-6）：顶点抬升 = 沙高 + 可见水深。
+                // 本仓地形网格恒等变换（OS.xz ≈ 世界 XZ），直接以世界坐标采场。
+                float2 uv = WorldToDomainUv(positionWS);
+                float ground = DecodeGround(SAMPLE_TEXTURE2D_LOD(
+                    _WaterLabGroundTex, sampler_WaterLabGroundTex, uv, 0).r);
+                float eta = DecodeGround(SAMPLE_TEXTURE2D_LOD(
+                    _WaterLabHeightTex, sampler_WaterLabHeightTex, uv, 0).r);
+                float waterDepth = max(eta - ground, 0.0);
+                float visibleDepth = max(waterDepth - 0.05, 0.0);
+                // o3 = lerp(沙色, 4×水色×exp(−8.65617·σ·d), min(10·d,1))。
+                // σ≡0（A-sigma.md 定案：cb0[132] 无任何上传者 → exp 项恒 1），σ 不设 uniform；
+                // 4× 直译保留（原作 HDR 链量纲，LDR 直出下由输出饱和截顶）。d = 可见水深。
+                OUT.deepColor = lerp(_SandColorDry.rgb,
+                                     4.0 * _WaterColor.rgb,
+                                     min(10.0 * visibleDepth, 1.0));
+                positionWS.y += visibleDepth;
+#else
+                OUT.deepColor = float3(0.0, 0.0, 0.0);
+#endif
+
+                OUT.positionWS = positionWS;
+                OUT.positionCS = TransformWorldToHClip(positionWS);
                 return OUT;
             }
 
             half4 SandFragment(Varyings IN) : SV_Target
             {
+                float3 n = normalize(IN.normalWS);
+                float ny = max(n.y, 0.0);                                        // PS:95
+
+                // ---- 场基准（本仓解析场，D 表§5-7 登记：原作 22bit 渲染缓冲直读）----
                 float2 uv = WorldToDomainUv(IN.positionWS);
                 float ground = DecodeGround(SAMPLE_TEXTURE2D(
                     _WaterLabGroundTex, sampler_WaterLabGroundTex, uv).r);
-                float wet = (_WaterLabSimEnabled > 0.5)
-                    ? saturate(SAMPLE_TEXTURE2D(_WaterLabWetTex, sampler_WaterLabWetTex, uv).r)
-                    : 0.0;
-
                 float eta = DecodeGround(SAMPLE_TEXTURE2D(
                     _WaterLabHeightTex, sampler_WaterLabHeightTex, uv).r);
-                // 边界权重 ×10（原作 ×20）：×4 的过渡带宽约 25 cm，水线糊成一条灰带；
-                // 岸线现在沿 z 摆动，需要更利落的湿/水下换色。
-                float underwater = (_WaterLabSimEnabled > 0.5)
-                    ? saturate((eta - ground) * 10.0) : 0.0;
-                float3 albedo = lerp(_DrySandColor, _WetSandColor, wet * (1.0 - underwater));
-                albedo = lerp(albedo, _UnderwaterSandColor, underwater);
+                float waterDepth = max(eta - ground, 0.0);        // 原作 22bit 水侧场（米）
+                float visibleDepth = max(waterDepth - 0.05, 0.0); // 原作 o4.w（5cm 水膜，VS 表）
 
-                float3 n = normalize(IN.normalWS);
+                float3 albedo;
+#if _WATERLAB_DEEP_SAND
+                // 深水变体 PS @85014（D 表§2.1：无噪声无焦散）——albedo 直接取顶点 o3。
+                // 光照尾链与主变体同构（@85014 CB0 145 槽 ≥ 主变体，直射/第二灯全保留；
+                // 该 PS 未逐指令转录，结构按 D 表§2.1 描述对位——登记待抓帧终审）。
+                albedo = IN.deepColor;
+#else
+                // ---- 段 A：沙噪声（PS:41-42）——R 白噪声 / G 低频流 ----
+                float2 sandMap = SAMPLE_TEXTURE2D(
+                    _WaterLabSandMap, sampler_WaterLabSandMap, IN.positionWS.xz * 0.3).rg;
 
-                // 沙粒明暗：原作 sandMap.R（白噪声）以 normal.y 加权调制颜色。
-                // 纹理在远处由 mip 链平均掉；本仓无 1024² 沙噪声资产，用逐 3.3 mm
-                // 哈希噪声等价，并按距离淡出，避免远距摩尔成规则点阵。
-                float dist = length(_WorldSpaceCameraPos.xyz - IN.positionWS);
-                float grainFade = saturate(1.0 - (dist - 8.0) / 32.0);
-                float grain = Hash12(floor(IN.positionWS.xz * _GrainScale)) - 0.5;
-                albedo *= 1.0 + grain * 2.0 * _GrainStrength * saturate(n.y) * grainFade;
+                // ---- 段 A/B：焦散体双采样半相位交叉淡化（PS:43-74）----
+                float caustics = SandCaustics(IN.positionWS.xz, sandMap.g);
 
-                // 闪沙（原作 Lit_Sand PS 实证：噪声 × 太阳亮度 × exp(−1.731234×湿度)
-                // × 坡度门控，加进 albedo 随光照走——干沙闪、湿沙哑）。
-                float2 spCell = floor(Rotate2(IN.positionWS.xz, 0.43) * _SparkleScale);
-                float spN = Hash12(spCell);
-                float moisture = saturate(wet * 5.0);
-                moisture = moisture * moisture * (3.0 - 2.0 * moisture); // smoothstep 平滑
-                float sparkle = spN * _SparkleStrength
-                              * exp(-1.731234 * moisture) * (1.0 - underwater)
-                              * saturate(n.y * 4.0 - 3.0);
-                albedo = saturate(albedo + sparkle);
+                // ---- 段 C：焦散强度（PS:52,75,77-80）----
+                // causticsVal = len(太阳色) × exp(−1.731234×可见水深) × 体采样。
+                // 「闪沙」不存在——本项即原档案误读的闪沙（D 表§2.4 修正②/§5-3）。
+                float causticsVal = length(_SunTint.rgb)
+                                  * exp(-1.731234 * visibleDepth)
+                                  * caustics;
 
-                // 光照（逆向档案 §10.2 = Lit_Sand PS 逐条）：直射项 = ndl × 太阳 ×
-                //   （阴影原值 × exp(-0.721×水深)）。「阴影 × 水柱透射」只乘直射项——
-                //   波浪经过时水深振荡 → 水下沙直射光明暗振荡 = 原作「水底波影」的真机制
-                //   （原作水面没有 ShadowCaster，blob 只有 2VS+2PS）；天光/环境项不采影不衰减。
-                //   阴影用比较采样原值，无软化（min(sh+0.25,1) 只存在于原作水体 PS 散射项）。
-                float waterDepth = max(eta - ground, 0.0);
-                float column = exp(-0.721348 * waterDepth);
+                // ---- 段 C/D：干/湿/第三色（PS:81-93）----
+                // 湿带驱动源是**水位深度**（≈2 cm 全湿），与水量/湿痕场无关（D 表§2.4 澄清③）；
+                // 原作 v4.z=水位深度 22bit，本仓以 waterDepth 解析代位。
+                float wetBand = saturate((saturate(waterDepth) - 0.001) * 52.63158); // PS:81-85
+                float smoothWet = wetBand * wetBand * (3.0 - 2.0 * wetBand);         // PS:86-88
+                albedo = lerp(_SandColorDry.rgb, _SandColorWet.rgb, smoothWet);      // PS:89-90
+                // 第三色：sat(v5.w×20)，5 cm 满（D 表§5-5：v5.w=22bit 水侧场，本仓同以深度代位）
+                albedo = lerp(albedo, _SandColorThird.rgb, saturate(waterDepth * 20.0)); // PS:91-93
+
+                // ---- 段 D：白噪声调制 albedo（PS:94-99；干湿皆在，无时间项）----
+                albedo += 0.2 * ny * (albedo * ((2.0 * sandMap.r) - 1.0));           // PS:94,96-99
+                // 坡度门控：**只门控焦散、不暗化 albedo**（D 表§2.4 修正③）
+                float slopeGate = saturate((ny - 0.2) * 10.0);                       // PS:97-99
+
+                // ---- 段 E：焦散并色（PS:100-105）----
+                // 注意有两个同型 smoothstep：颜色湿带用 S=×52.63（水位，上面），
+                // 焦散掩码用 T=min(sat(可见水深)×100,1)（1 cm 满），输入不同不可复用。
+                float subT = min(saturate(visibleDepth) * 100.0, 1.0);               // PS:76,81-84
+                float subMask = subT * subT * (3.0 - 2.0 * subT);                    // PS:100-102
+                float wetMask = subMask * saturate(visibleDepth * 5.0);              // PS:103
+                albedo = saturate(causticsVal * (wetMask * slopeGate) + albedo);     // PS:104-105
+#endif
+
+                // ---- 段 F：水柱 × 阴影 × 光照（PS:106-173）----
+                // column = exp(−0.721348×场)——场=逐像素 22bit 水侧场双线性，本仓解析代位（§5-7）。
+                float column = exp(-0.721348 * waterDepth);                          // PS:155-156
+                // dot(N,−太阳方向)（PS:167-169）；_WaterLabSunDir 指向太阳，零向量兜底与装配器同向
                 float3 sunRaw = _WaterLabSunDir.xyz;
-                float3 sunDir = (dot(sunRaw, sunRaw) < 0.25) ? normalize(float3(-0.525, 0.669, -0.525)) : normalize(sunRaw);
+                float3 sunDir = (dot(sunRaw, sunRaw) < 0.25)
+                    ? normalize(float3(-0.525, 0.669, -0.525)) : normalize(sunRaw);
                 float ndl = saturate(dot(n, sunDir));
+                // 阴影：URP 比较采样，语义同原作 sample_c_lz 点比较（无 PCF；越界恒 1，
+                // PS:161-165——URP 阴影距离外同样返回 1）
                 float sh = MainLightRealtimeShadow(TransformWorldToShadowCoord(IN.positionWS));
-                // 天光第二方向光（原作 MoonLight）：不采影、不衰减，全额到达——
-                // 逆向 §10.2「直射被水柱压暗但天光全额到达」。灯与色值由装配器下发
-                // （level0 A 级真值），此处按方向项叠加；_AmbientColor 保留为体素 GI
-                // 的平坦近似（原作有 GI，本仓无，登记 C 级）。
-                float ndlSky = saturate(dot(n, normalize(_SkyLightDir.xyz)));
-                float3 col = albedo * (_AmbientColor + _SunTint * ndl * sh * column
-                                      + _SkyLightColor * ndlSky);
+                // 天光第二方向光（PS:170-172）：不采影不衰减，全额到达
+                float ndl2 = saturate(dot(n, normalize(_SkyLightDir.xyz)));
+                float3 light = _SunTint.rgb * ndl * sh * column                    // PS:166,169,173
+                             + _SkyLightColor.rgb * ndl2;                          // PS:172-173
 
-                // ---- 焦散（对标原作 Lit_Sand 输出结构：
-                //   o0 = albedo×(直射×阴影×水柱 + 天光) + albedo×causticsMap）
-                // 原作焦散在**沙侧**（材质槽 causticsMap，是一张烘焙 Texture3D）、水侧没有
-                // 焦散项；水体只是把「已带焦散的沙渲染」折射+衰减过来 → 本仓同构：这里加，
-                // 水体 PS 不再加（否则双重计入）。
-                // 【源：水面坡度场的散度】光被波面折射汇聚处（−∇·∇h = −∇²h）变亮——这是
-                // 真实焦散网的物理机制，其空间频率来自水面**小尺度**波纹。
-                // 模拟侧 η 场只有长涌浪：它的 2 格拉普拉斯 p99 仅 0.04–0.12（放大 6× 才
-                // ±30% 调制），且峰值全挤在岸线最陡处 → 放大后成一条硬边而不是网
-                //（2026-10-18 实测）。故改用**细节法线贴图**（水面小尺度坡度场）求散度：
-                // 四个偏移点采样 → 中心差分 → 汇聚焦散。与水体 PS 的细节法线同源同尺度。
-                float caustic = 0.0;
-                if (_WaterLabSimEnabled > 0.5)
-                {
-                    float2 cs = IN.positionWS.xz * _CausticScale + _TimeParameters.x * float2(0.013, -0.011);
-                    float2 e = _CausticSampleOffset.xx;
-                    float2 nxA = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, cs - float2(e.x, 0)).rg * 2.0 - 1.0;
-                    float2 nxB = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, cs + float2(e.x, 0)).rg * 2.0 - 1.0;
-                    float2 nyA = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, cs - float2(0, e.y)).rg * 2.0 - 1.0;
-                    float2 nyB = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, cs + float2(0, e.y)).rg * 2.0 - 1.0;
-                    float div = (nxB.x - nxA.x) + (nyB.y - nyA.y); // ∇·(n.xz) ∝ ∇²h
-                    caustic = -div * _CausticGain * underwater;
-                }
-                col += albedo * caustic;
-
-                return half4(col * _LightScale, 1.0);
+                // ---- 段 G：合成（PS:174-184）----
+                // TODO(GI/E 流)：原作合成 = albedo×light + albedo×lerp(cb0[40], t2.rgb, inDomain)
+                // （D 表§2.4-5：按 albedo 缩放的无光照加性域色，域外回退 cb0[40]；PS:110-111/181-183）。
+                // t2 身份疑 Gi bake（E 流终审）、cb0[40] 上传路径待 A 流对账——值定案前不实现，
+                // _DomainTintFallback 仅占槽位。当前以 _AmbientColor 平坦项近似补位（C 级登记，
+                // D 表§5-9：E/I3 落地后随本 TODO 一起退役）。
+                // inDomain 掩码（PS:174-180）在域贴图接入时一并补：
+                //   o0.rgb = albedo×light + albedo×lerp(cb0[40], t2.rgb, inDomain)
+                float3 col = albedo * (_AmbientColor.rgb + light);
+                return half4(col * _LightScale, IN.sandY);   // PS:182-184（alpha=沙面世界高度，
+                                                             // 未见消费方，D 表§5-11 登记直译）
             }
             ENDHLSL
         }
