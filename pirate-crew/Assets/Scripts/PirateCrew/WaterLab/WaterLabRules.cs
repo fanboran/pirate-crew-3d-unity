@@ -547,9 +547,20 @@ namespace PirateCrew.WaterLab
                 int cellsX, int cellsZ, float dx, float dt)
             {
                 int n = h.Length;
-                var hNew = new float[n];
-                var vxNew = new float[n];
-                var vzNew = new float[n];
+                StepMassMomentum(h, vx, vz, ground, cellsX, cellsZ, dx, dt,
+                    new float[n], new float[n], new float[n]);
+            }
+
+            /// <summary>
+            /// 带调用方 scratch 的内部重载（L1 差分恒等测试用）：512² 场按 7.32 ms 子步步进
+            /// 22 s 级要跑三千多子步，公共重载每步 new 三片 1 MB 大对象堆数组会把 GC 压力
+            /// 抬到不可接受；此重载让调用方复用 scratch，数值行为与公共重载<b>逐位一致</b>
+            /// （同一实现体）。scratch 长度必须 ≥ 各场长度。
+            /// </summary>
+            internal static void StepMassMomentum(float[] h, float[] vx, float[] vz, float[] ground,
+                int cellsX, int cellsZ, float dx, float dt, float[] hNew, float[] vxNew, float[] vzNew)
+            {
+                int n = h.Length;
                 Array.Copy(h, hNew, n);
                 Array.Copy(vx, vxNew, n);
                 Array.Copy(vz, vzNew, n);
