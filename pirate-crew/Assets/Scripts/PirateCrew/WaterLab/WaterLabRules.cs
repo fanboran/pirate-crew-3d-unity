@@ -25,24 +25,27 @@ namespace PirateCrew.WaterLab
     /// </summary>
     public static class WaterLabRules
     {
-        // ---- 域与分辨率（原作格距 5.86 cm；实验室域 64 m 为取景保留）----
+        // ---- 域与分辨率（裁决①，I7）：采用原作世界坐标——主菜单沙盘域 30 m
+        //（Beach.bounds size 30×10×30，XZ=[−15,+15]²，rt/reports/B-terrain.md §2），
+        // 三层分辨率与原作逐层对齐（Ground 1024² / Water 512²），格距由此自动落回
+        // FormatProperty 的 5.86 cm（水）与 2.93 cm（地）。快照烘焙与 ReplicaMode 见
+        // WaterLabReplicaSnapshot。 ----
 
-        /// <summary>模拟域边长（世界单位，正方形，中心在原点）。实验室取景需要 64 m；
-        /// 原作的 Normal/Huge 档是 30/60 m，但格距同为 5.86 cm（见 WaterCells）。</summary>
-        public const float DomainSize = 64f;
+        /// <summary>模拟域边长（世界单位，正方形，中心在原点）。原作主菜单沙盘
+        /// 30 m（Beach.bounds），快照只覆盖这个域。</summary>
+        public const float DomainSize = 30f;
 
         /// <summary>
-        /// 水域每轴格数：64 m / 1092 = 5.861 cm，对齐原作 FormatProperty 的 5.86 cm 格距
-        ///（60 m/1024²、30 m/512²、15 m/256² 三者同格距，reverse §8.1）。
-        /// 1092 不是 8 的倍数，dispatch 必须向上取整（WaterLabSimulation.StepOnce）。
+        /// 水域每轴格数：30 m / 512 = 5.86 cm，与原作 FormatProperty 的 5.86 cm 格距一致
+        ///（原作 Normal 档 = 30 m/512²，reverse §8.1 与 B-terrain §2 layers.water）。
         /// </summary>
-        public const int WaterCells = 1092;
+        public const int WaterCells = 512;
 
         /// <summary>水域格距（m）。</summary>
         public const float WaterCellSize = DomainSize / WaterCells;
 
-        /// <summary>地形每轴格数：原作 groundResolution 与 waterResolution 同档。</summary>
-        public const int GroundCells = 1092;
+        /// <summary>地形每轴格数：原作 groundResolution = 1024²（GPU 权威层，B-terrain §2）。</summary>
+        public const int GroundCells = 1024;
 
         /// <summary>地形格距（m）。</summary>
         public const float GroundCellSize = DomainSize / GroundCells;
@@ -57,7 +60,7 @@ namespace PirateCrew.WaterLab
 
         /// <summary>
         /// 固定子步（s）= 原作 `MaxDeltaTime`：`0.5·cellSize/√gravityForce`
-        /// （Water.Run 每子步下发，见逆向 §8）。60 m/1024² 下 ≈7.32 ms。
+        /// （Water.Run 每子步下发，见逆向 §8）。30 m/512² 下 ≈7.32 ms。
         /// </summary>
         public static readonly float FixedStep = 0.5f * WaterCellSize / Mathf.Sqrt(Gravity);
 
@@ -94,8 +97,9 @@ namespace PirateCrew.WaterLab
         /// </summary>
         public const float Kappa = 1000f;
 
-        /// <summary>海平面高程（m，世界 Y）。地形与水面都以它为基准。</summary>
-        public const float SeaLevel = 0f;
+        /// <summary>海平面高程（m，世界 Y）。原作 Water.level=1.0（frida 运行时真值 +
+        /// snapshot_meta.json layers.water.level）。地形与水面都以它为基准。</summary>
+        public const float SeaLevel = 1f;
 
         // ---- 波源（原作 UpdateAmount：全场潮位松弛 + 每格耦合权重）----
         //
@@ -320,37 +324,35 @@ namespace PirateCrew.WaterLab
             return SpongeMaxDamping * t * t;
         }
 
-        // ---- 地形剖面（程序化沙滩）----
+        // ---- 地形剖面（程序化沙滩，ReplicaMode 关闭时的回退；开启时 TerrainHeight
+        // 委托 WaterLabReplicaSnapshot 采样主菜单快照）----
 
-        /// <summary>深水平台高程（m）。创始人观感裁决（2026-10-26，两轮）：先 −1.0 m「整片浅水」；对照原作主菜单实时画面
-        /// （PrintWindow 抓帧）再放浅到 **−0.5 m**（原作水泽明显比 1.0 m 浅）。俯角 48°
-        /// 光程 ≈1.4 m，落在参考中带 (74,153,161)～深绿松石 (46,126,146) 之间，保留深浅渐变。
-        /// 【历史注】曾取 2.4 m 追参考头图的饱和宝蓝深带（1.3 m 台面在旧光/无兜底时代出图
-        /// 只有 (62,136,92) 的绿、压不出宝蓝）；r92 起天光第二方向光 + GI 兜底就位后浅水
-        /// 观感已足，创始人裁决浅水优先。C# 侧测试按符号取值，不钉具体数。</summary>
-        public const float OffshoreDepth = -0.5f;
+        /// <summary>
+        /// 旧 64 m 取景剖面 → 30 m 域的 X 缩放系数。域切 30 m 后把旧 C1 剖面的
+        /// 岸线里程碑按同一比例压缩（shoreWarp/沙丘/起伏公式原样保留），
+        /// 使回退剖面与 ReplicaMode 共用同一个 30 m 世界。
+        /// </summary>
+        public const float LegacyProfileScale = DomainSize / 64f;
 
-        /// <summary>缓坡浅水架末端（与滩面接缝）高程（m）：本场景地形设计值。
-        /// 接缝两侧共用同一非零斜率（C1），不再用两段 Smooth01 在 x=6 造出零坡度平台。</summary>
-        public const float ShelfEndHeight = -0.15f;
+        /// <summary>深水平台高程（m，世界 Y）。旧取景的观感定标是**深度**（海平面下
+        /// 0.5 m），海平面切到 1.0 后按海平面相对量平移保形：水深分布与 r97 定标逐点一致。</summary>
+        public const float OffshoreDepth = SeaLevel - 0.5f;
 
-        /// <summary>缓坡浅水架起止（世界 X，域 [-30,30]）。</summary>
-        /// <summary>缓坡浅水架起点（世界 X）。原值 -26 让深水带（光程 >2 m，超出 σ 定标
-        /// 量程，出墨蓝）占画面水面约 65%，参考头图的构成是深水宝蓝**窄条**（约 1/3）+
-        /// 大面积浅/中水绿松石（compare.py 实测浅+中带占水 30%）；收到 -14 后缓坡 20 m
-        /// 爬 2.25 m（弦坡 11%），深水带压缩到取景顶部约 29%，offshore 的 -2.4 m 宝蓝
-        /// 台面保留（当年 1.3 m 试过出不了宝蓝，见 OffshoreDepth 注释）。Fritsch–Carlson
-        /// 单调条件 3×弦坡 = 0.34 仍覆盖接缝斜率 0.055。</summary>
-        public const float ShelfStartX = -14f;
-        public const float ShelfEndX = 6f;
+        /// <summary>缓坡浅水架末端（与滩面接缝）高程（m）：海平面下 0.15 m（同上保形）。</summary>
+        public const float ShelfEndHeight = SeaLevel - 0.15f;
+
+        /// <summary>缓坡浅水架起止（世界 X）：旧 64 m 取景设计值（−14/6）按域比例压缩，
+        /// Fritsch–Carlson 单调条件随弦坡放大自动仍成立（3×弦坡 0.24 ≫ 接缝斜率 0.055）。</summary>
+        public const float ShelfStartX = -14f * LegacyProfileScale;
+        public const float ShelfEndX = 6f * LegacyProfileScale;
 
         /// <summary>滩面段起止（世界 X）：接缝斜率与 shelf 相同（C1、非零），到 FaceEndX
-        /// 缓平到干沙台。8 m 是本场景原取景的设计值，不随模拟参数改动。</summary>
-        public const float FaceStartX = 6f;
-        public const float FaceEndX = 14f;
+        /// 缓平到干沙台。与 ShelfEndX 共享同一比例缩放。</summary>
+        public const float FaceStartX = 6f * LegacyProfileScale;
+        public const float FaceEndX = 14f * LegacyProfileScale;
 
-        /// <summary>干沙滩平台高程（m）。</summary>
-        public const float BeachHeight = 0.5f;
+        /// <summary>干沙滩平台高程（m）：海平面上 0.5 m（同上保形）。</summary>
+        public const float BeachHeight = SeaLevel + 0.5f;
 
         /// <summary>剖面单调测试容差（m）。原作滩面来自 WorldHeightMap 高度场资产，
         /// 是光滑的大尺度地形；本仓不再叠加周期沙纹，容差只兜 value noise 的微小起伏。</summary>
@@ -416,13 +418,26 @@ namespace PirateCrew.WaterLab
         }
 
         /// <summary>
+        /// 地形高度（世界 XZ → 世界 Y）。ReplicaMode（主菜单快照已加载）下委托
+        /// <see cref="WaterLabReplicaSnapshot.SampleGround"/> 双线性采样（groundHeight 世界
+        /// Y 原值，含烘焙障碍物/海里礁石——裁决②原样导入）；未加载时回退下方程序剖面。
+        /// </summary>
+        public static float TerrainHeight(float worldX, float worldZ)
+        {
+            if (WaterLabReplicaSnapshot.HasGround)
+                return WaterLabReplicaSnapshot.SampleGround(worldX, worldZ);
+            return ProceduralTerrainHeight(worldX, worldZ);
+        }
+
+        /// <summary>
         /// 程序化沙滩剖面（世界 X → 高程）：深水台 → 缓坡浅水架 → 滩面 → 干沙台，
-        /// 叠加沿 X/Z 的确定性沙纹。
-        /// shelf→face 接缝用同一非零斜率（C1）——旧实现两段 Smooth01 在 x=6 的斜率
+        /// 叠加沿 X/Z 的确定性沙纹。里程碑按 <see cref="LegacyProfileScale"/> 压缩、
+        /// 高程按海平面相对量保形（见各常量注释）。
+        /// shelf→face 接缝用同一非零斜率（C1）——旧实现两段 Smooth01 在接缝的斜率
         /// 都是 0，形成一个平台：涌浪在那里堆高后塌成油膜级薄水，水面高度断崖被
         /// 渲染成硬边（r68 高度剖面 x=7.0→7.5 eta 掉 0.37 m）。
         /// </summary>
-        public static float TerrainHeight(float worldX, float worldZ)
+        static float ProceduralTerrainHeight(float worldX, float worldZ)
         {
             // 岸线沿 z 低频摆动：三组互质频率叠加（±2.0 m）。单频/双频摆动的波峰
             // 波谷仍会读成规则弧线，第三组短波把岸线打散成滩湾；摆幅小于浅水架宽度，

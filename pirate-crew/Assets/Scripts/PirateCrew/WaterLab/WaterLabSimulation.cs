@@ -34,21 +34,33 @@ namespace PirateCrew.WaterLab
         /// </summary>
         public Camera renderCamera;
 
+        /// <summary>
+        /// 主菜单快照（I7 ReplicaMode）：groundHeight/waterAmount 各 256² float32。
+        /// 装配器（WaterLabSetup.CreateSimulation）按资产路径注入；两者都非空且校验通过
+        /// 时 <see cref="ReplicaMode"/> 开——地形/水位走快照；任一缺失或加载失败回退
+        /// 程序剖面（ReplicaMode 判定 = 快照资产可加载，协调者裁决 5）。
+        /// </summary>
+        public TextAsset replicaGroundSnapshot;
+        public TextAsset replicaWaterSnapshot;
+
+        /// <summary>主菜单快照复刻是否生效（= 快照已加载，TerrainHeight/初始水位已切数据源）。</summary>
+        public bool ReplicaMode => WaterLabReplicaSnapshot.HasData;
+
         // kernel 句柄
         int _kSurface, _kHeight, _kVelocity, _kAdvectFoam, _kWetness, _kOutput;
         int _kWWBegin, _kWWSpawn, _kWWUpdate, _kWWCompact, _kWWEnd;
 
-        ComputeBuffer _waterCur, _waterNext; // float4: h,vx,vz,foam × 256²
-        ComputeBuffer _wetCur, _wetNext;     // float  × 128²
-        ComputeBuffer _ground;               // float  × 128²（静态）
+        ComputeBuffer _waterCur, _waterNext; // float4: h,vx,vz,foam × WaterCells²
+        ComputeBuffer _wetCur, _wetNext;     // float  × GroundCells²
+        ComputeBuffer _ground;               // float  × GroundCells²（静态）
         ComputeBuffer _wwPos, _wwVel;        // float4 × 容量（白水粒子池，缓冲环）
         ComputeBuffer _wwDraw;               // uint   × 容量（活粒子 draw list）
         ComputeBuffer _wwAlive, _wwArgs;     // uint ×2（计数/游标）、uint ×4（indirect args）
 
-        RenderTexture _heightTex;  // 256²（ARGBHalf，见 NewDataTexture）
-        RenderTexture _wetTex;     // 128²（ARGBHalf，R 有效）
-        RenderTexture _causticTex; // 256² ARGBHalf（R=焦散拉普拉斯，带符号；OutputField 顺带烘焙）
-        Texture2D _groundTex;      // 128² RGBAFloat（R 编码高程）
+        RenderTexture _heightTex;  // WaterCells²（ARGBHalf，见 NewDataTexture）
+        RenderTexture _wetTex;     // GroundCells²（ARGBHalf，R 有效）
+        RenderTexture _causticTex; // WaterCells² ARGBHalf（R=焦散拉普拉斯，带符号；OutputField 顺带烘焙）
+        Texture2D _groundTex;      // GroundCells² RGBAFloat（R 编码高程）
 
         float _accumulator;
         float _simTime;
@@ -123,13 +135,36 @@ namespace PirateCrew.WaterLab
             _kWWCompact = computeShader.FindKernel("WhitewaterCompact");
             _kWWEnd = computeShader.FindKernel("WhitewaterEnd");
 
+            TryLoadReplicaSnapshot();
             CreateBuffers();
             CreateTextures();
             PublishGlobals();
         }
 
+        /// <summary>
+        /// 快照接线（在 CreateBuffers 之前——地形/水位初值都要读它）。校验失败
+        /// （长度/四角翻转/负水量，见 WaterLabReplicaSnapshot.Load）按差分门禁精神
+        /// 走「保数值语义」的回退：卸载快照、退回程序剖面并显式报错，不静默带病运行。
+        /// </summary>
+        void TryLoadReplicaSnapshot()
+        {
+            if (replicaGroundSnapshot == null || replicaWaterSnapshot == null)
+                return; // 未接线 = ReplicaMode 关（程序剖面回退）
+            try
+            {
+                WaterLabReplicaSnapshot.Load(replicaGroundSnapshot.bytes, replicaWaterSnapshot.bytes);
+                Debug.LogWarning($"[WaterLabSimulation] ReplicaMode=开（主菜单快照）{WaterLabReplicaSnapshot.Describe()}");
+            }
+            catch (System.Exception e)
+            {
+                WaterLabReplicaSnapshot.Unload();
+                Debug.LogError($"[WaterLabSimulation] 主菜单快照加载失败，回退程序剖面：{e.Message}");
+            }
+        }
+
         void OnDestroy()
         {
+            WaterLabReplicaSnapshot.Unload(); // 静态采样器不跨 Play 会话残留
             _waterCur?.Dispose(); _waterNext?.Dispose();
             _wetCur?.Dispose(); _wetNext?.Dispose();
             _ground?.Dispose();
@@ -399,17 +434,21 @@ namespace PirateCrew.WaterLab
             _wwAlive = new ComputeBuffer(2, 4);
             _wwArgs = new ComputeBuffer(4, 4, ComputeBufferType.IndirectArguments);
 
-            // 初始水场：静水面（h = SeaLevel - ground，干处 0）；泡沫 0
+            // 初始场（B-terrain §6，裁决 5）：
+            //   _ground ← TerrainHeight（ReplicaMode 下即快照 groundHeight 双线性上采样到
+            //   GroundCells 网格）；_waterCur/_waterNext 的 h ← ReplicaMode 时快照
+            //   waterAmount 采样（语义 = 含结合水的水柱量，直接作 h），否则静水面
+            //   h = max(SeaLevel − ground, 0)；v/foam=0、湿沙 0 两种模式相同。
             var waterInit = new Vector4[waterCount];
             var groundData = new float[groundCount];
+            bool replica = WaterLabReplicaSnapshot.HasData;
             for (int cz = 0; cz < WaterLabRules.GroundCells; cz++)
             {
                 for (int cx = 0; cx < WaterLabRules.GroundCells; cx++)
                 {
                     float wx = WaterLabRules.GroundCellCenter(cx);
                     float wz = WaterLabRules.GroundCellCenter(cz);
-                    float g = WaterLabRules.TerrainHeight(wx, wz);
-                    groundData[cx + cz * WaterLabRules.GroundCells] = g;
+                    groundData[cx + cz * WaterLabRules.GroundCells] = WaterLabRules.TerrainHeight(wx, wz);
                 }
             }
             for (int cz = 0; cz < WaterLabRules.WaterCells; cz++)
@@ -418,8 +457,9 @@ namespace PirateCrew.WaterLab
                 {
                     float wx = -WaterLabRules.DomainSize * 0.5f + (cx + 0.5f) * WaterLabRules.WaterCellSize;
                     float wz = -WaterLabRules.DomainSize * 0.5f + (cz + 0.5f) * WaterLabRules.WaterCellSize;
-                    float g = WaterLabRules.TerrainHeight(wx, wz);
-                    float h = Mathf.Max(WaterLabRules.SeaLevel - g, 0f);
+                    float h = replica
+                        ? WaterLabReplicaSnapshot.SampleWater(wx, wz)
+                        : Mathf.Max(WaterLabRules.SeaLevel - WaterLabRules.TerrainHeight(wx, wz), 0f);
                     waterInit[cx + cz * WaterLabRules.WaterCells] = new Vector4(h, 0f, 0f, 0f);
                 }
             }
@@ -438,7 +478,13 @@ namespace PirateCrew.WaterLab
             // 分配顺序随显存残留值漂移，回放不可复现。
             _wwAlive.SetData(new uint[2]);
 
-            // 地形静态纹理（渲染 shader 采样：R=高程编码 [-3,2]→[0,1]，与 OutputField 同式）
+            // 地形静态纹理（渲染 shader 采样：R=高程编码 [-3,2]→[0,1]，与 OutputField 同式）。
+            // 【I7 已知边界】快照地形最高 2.616 m 超出 [−3,2] 量程上端，编码在 2.0 饱和。
+            // 影响面只有干沙丘顶：渲染侧 visibleDepth = η−ground 两端同饱和 → 深度 0 →
+            // 干区裁剪，水到不了那里，语义无损；水下沙（≤1.29 m）全部在量程内。
+            // 量程扩展（如 [−3,3] 的 e*6−3）是 shader 侧改动（DecodeEta 在 Ocean/Sand/
+            // Prop/Whitewater 四处成对），归 I1/I2 shader 真值轮同步处理，届时只改这里
+            // 的常数与四处解码。
             _groundTex = new Texture2D(WaterLabRules.GroundCells, WaterLabRules.GroundCells,
                 TextureFormat.RGBAFloat, false, true)
             { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear, name = "WaterLabGround" };
@@ -520,7 +566,8 @@ namespace PirateCrew.WaterLab
                     + $"vmax={WaterLabRules.MaxVelocity:F3} damping={WaterLabRules.VelocityDamping} "
                     + $"adv={WaterLabRules.AdvectionFactor} kappa={WaterLabRules.Kappa} "
                     + $"dry={WaterLabRules.DryDepth} sea={WaterLabRules.SeaLevel} "
-                    + $"waveMax={WaterLabRules.WaveAmplitudeMax} evap={WaterLabRules.EvaporationRate():E2}");
+                    + $"waveMax={WaterLabRules.WaveAmplitudeMax} evap={WaterLabRules.EvaporationRate():E2} "
+                    + $"replica={(ReplicaMode ? "开" + WaterLabReplicaSnapshot.Describe() : "关（程序剖面）")}");
             }
             cs.SetFloat(ShaderIds.BreakingSteepness, WaterLabRules.BreakingSteepness);
             cs.SetFloat(ShaderIds.BreakingFroude, WaterLabRules.BreakingFroude);

@@ -31,13 +31,52 @@ namespace PirateCrew.EditorTools
         const string ComputePath = "Assets/Art/Shaders/WaterLab/WaterLabSim.compute";
         const string MaterialFolder = "Assets/Art/Materials/WaterLab";
 
-        /// <summary>地形渲染网格每轴段数（0.117 m/顶点）。模拟地形场是 1024²（5.86 cm，
-        /// 原作 groundResolution 同水格），渲染网格取一半分辨率：再往上翻倍只是把
-        /// 场景资产从 ~10 MB 抬到 ~50 MB，画面收益远小于模拟场本身。</summary>
+        /// <summary>主菜单快照（I7 ReplicaMode 数据底座）：B 流 frida dump 的
+        /// groundHeight/waterAmount，256² float32，Unity 按 TextAsset 导入。</summary>
+        const string ReplicaFolder = "Assets/Art/WaterLabReplica";
+        const string ReplicaGroundPath = ReplicaFolder + "/MenuGround256.bytes";
+        const string ReplicaWaterPath = ReplicaFolder + "/MenuWater256.bytes";
+
+        /// <summary>
+        /// ReplicaMode（协调者 Phase2 裁决）：快照资产可加载即开——地形/水位/装配走
+        /// 主菜单快照；任一缺失（或校验失败）回退程序剖面。装配期先把快照灌进静态
+        /// 采样器，<see cref="WaterLabRules.TerrainHeight"/> 的委托即刻生效，地形网格、
+        /// 水底参照物与模拟初值自动同源。
+        /// </summary>
+        public static bool ReplicaMode => WaterLabReplicaSnapshot.HasData;
+
+        /// <summary>装配开始时调用：把 .bytes 灌进静态采样器（已加载则跳过）。</summary>
+        static void EnsureReplicaSnapshotLoaded()
+        {
+            if (WaterLabReplicaSnapshot.HasData)
+                return;
+            var ground = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaGroundPath);
+            var water = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaWaterPath);
+            if (ground == null || water == null)
+            {
+                Debug.LogWarning($"[WaterLabSetup] ReplicaMode=关：快照资产缺失"
+                    + $"（{ReplicaGroundPath} / {ReplicaWaterPath}），使用程序剖面回退。");
+                return;
+            }
+            try
+            {
+                WaterLabReplicaSnapshot.Load(ground.bytes, water.bytes);
+                Debug.Log($"[WaterLabSetup] ReplicaMode=开（主菜单快照）{WaterLabReplicaSnapshot.Describe()}");
+            }
+            catch (System.Exception e)
+            {
+                WaterLabReplicaSnapshot.Unload();
+                Debug.LogError($"[WaterLabSetup] 快照校验失败，回退程序剖面：{e.Message}");
+            }
+        }
+
+        /// <summary>地形渲染网格每轴段数——**仅程序剖面回退用**；ReplicaMode 下网格
+        /// 直接从快照 256² 出（见 CreateTerrain）。回退 512 段在 30 m 域上 = 5.86 cm/顶点，
+        /// 恰为模拟地形格距（GroundCells=1024 的 2 倍距），不再有"取一半分辨率"的省略。</summary>
         const int TerrainSegments = 512;
 
-        /// <summary>水面渲染网格每轴段数（0.117 m/顶点）。模拟高度场 1024²（5.86 cm），
-        /// 渲染顶点取一半——前缘仍有 2 顶点/水格间距，且不至于把 1M 顶点塞进场景资产。</summary>
+        /// <summary>水面渲染网格每轴段数：30 m/512 = 5.86 cm/顶点，与水模拟格距一致
+        ///（顶点距 = 1 格，η 高度场的每个格都有顶点承接）。</summary>
         const int SurfaceSegments = 512;
 
         [MenuItem("Tools/PirateCrew/WaterLab/Build Scene")]
@@ -57,6 +96,9 @@ namespace PirateCrew.EditorTools
             }
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            // ReplicaMode 先行（I7）：快照可加载与否决定本轮装配走复刻件还是程序回退。
+            EnsureReplicaSnapshotLoaded();
 
             // 材质目录先删后建：shader 默认值改动只影响新建材质，旧 .mat 会锁死旧参数
             //（序列化陷阱）。重建语义 = 全量重装配。
@@ -145,7 +187,9 @@ namespace PirateCrew.EditorTools
             // 机距 46：画面构成 ≈ 沙 26% / 水 74%，顶部是 ≥2 m 的深水、底部是干沙滩，
             // 64 m 域的边界全部落在画外（旧机位右上角 11% 露天空盒的灰色域外区消失）。
             // 俯角 48° 与太阳仰角 58° 配对，水面镜像路径仍横穿取景。
-            var center = new Vector3(1f, 0f, 0f);
+            // 【I7 临时】域切 30 m + 海平面 1.0 后，先只把注视点抬到海平面（y≈1），
+            // 保证新场景不出画；机位/FOV/构图的对齐归 I8（相机矩阵级复刻）。
+            var center = new Vector3(1f, WaterLabRules.SeaLevel, 0f);
             float pitch = 42f * Mathf.Deg2Rad; // 距天顶 42° → 实际俯角 48°
             float yaw = 90f * Mathf.Deg2Rad;
             float dist = 46f;
@@ -160,10 +204,14 @@ namespace PirateCrew.EditorTools
 
         static void CreateTerrain()
         {
+            // ReplicaMode：顶点直接从快照 256² 出（格角栅格 257² 覆盖全域，边缘半格
+            // clamp 延伸），高度 = groundHeight 世界 Y 原值（TerrainHeight 已委托采样器）；
+            // 回退：程序剖面 512 段。
+            int segments = ReplicaMode ? WaterLabReplicaSnapshot.Resolution : TerrainSegments;
             var mesh = new Mesh { name = "WaterLabTerrain" };
             mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-            int verts = TerrainSegments + 1;
-            float step = WaterLabRules.DomainSize / TerrainSegments;
+            int verts = segments + 1;
+            float step = WaterLabRules.DomainSize / segments;
 
             var vertices = new Vector3[verts * verts];
             for (int z = 0; z < verts; z++)
@@ -176,11 +224,11 @@ namespace PirateCrew.EditorTools
                 }
             }
 
-            var triangles = new int[TerrainSegments * TerrainSegments * 6];
+            var triangles = new int[segments * segments * 6];
             int t = 0;
-            for (int z = 0; z < TerrainSegments; z++)
+            for (int z = 0; z < segments; z++)
             {
-                for (int x = 0; x < TerrainSegments; x++)
+                for (int x = 0; x < segments; x++)
                 {
                     int i0 = x + z * verts;
                     int i1 = i0 + 1;
@@ -203,6 +251,8 @@ namespace PirateCrew.EditorTools
             sandMat.SetTexture("_WaterLabDetailNormal", LoadOrCreateDetailNormal());
             ApplyCalibratedSandColors(sandMat);
             go.AddComponent<MeshRenderer>().sharedMaterial = sandMat;
+            Debug.Log($"[WaterLabSetup] 地形网格：{(ReplicaMode ? "快照 256² 直出" : "程序剖面")}，"
+                + $"{verts * verts} 顶点 / {segments} 段");
         }
 
         /// <summary>
@@ -514,22 +564,29 @@ namespace PirateCrew.EditorTools
 
             var rnd = new System.Random(20261020); // 确定性：每次重建同一散布
 
+            // 【I7】散布域与干湿判据参数化：散布范围按域比例缩放（旧 64 m 取景设计值 ×s，
+            // 回退模式 s=1 数值不变、ReplicaMode 收进 30 m 网格内）；干湿判据统一改成
+            // 海平面相对量（SeaLevel 切 1.0 后旧的绝对高程判据会把整场读成"干的"）。
+            float s = WaterLabRules.DomainSize / 64f;
+            float zSpan = 28f * s;
+            float sea = WaterLabRules.SeaLevel;
+
             // 参考原作：珊瑚/海草是成簇分布，不是均匀撒点。先取 16 个浅水簇心，
             // 70–75% 的实例落在簇心 0.4–2.4 m 内，其余仍全场点缀。
             var clusters = new Vector2[16];
             for (int i = 0; i < clusters.Length; i++)
             {
-                clusters[i] = new Vector2(5f, 0f); // 兜底：近岸浅水
+                clusters[i] = new Vector2(5f * s, 0f); // 兜底：近岸浅水
                 for (int attempt = 0; attempt < 200; attempt++)
                 {
                     // 簇心压在**水线附近的透亮带**（静态水深 0.02–0.30 m；高潮时
                     // 实际水深约 0.2–0.5 m）：水体的红光消光约 5.6/m，0.5 m 以下
                     // 任何色板都会退成暗蓝剪影。参考的彩色珊瑚/海草床也在这一带。
                     // 代价是低潮时部分簇会露出湿沙——参考的潮间带本来就有这种暴露。
-                    float cx = Mathf.Lerp(5.0f, 7.2f, (float)rnd.NextDouble());
-                    float cz = Mathf.Lerp(-28f, 28f, (float)rnd.NextDouble());
+                    float cx = Mathf.Lerp(5.0f * s, 7.2f * s, (float)rnd.NextDouble());
+                    float cz = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                     float ch = WaterLabRules.TerrainHeight(cx, cz);
-                    if (ch < -0.02f && ch > -0.30f)
+                    if (ch < sea - 0.02f && ch > sea - 0.30f)
                     {
                         clusters[i] = new Vector2(cx, cz);
                         break;
@@ -540,15 +597,15 @@ namespace PirateCrew.EditorTools
             int rockCount = 0;
             for (int attempt = 0; attempt < 2400 && rockCount < 90; attempt++)
             {
-                // 礁石只撒在可见的浅/中水带（x −14…12，约 0–1.0 m）；旧版
-                // 撒到 x=−30 的深水，62 块落在 1.5–2.4 m，水下只剩一团团黑斑。
-                float x = Mathf.Lerp(-14f, 12f, (float)rnd.NextDouble());
-                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                // 礁石只撒在可见的浅/中水带；旧版撒到深水，62 块落在 1.5–2.4 m，
+                // 水下只剩一团团黑斑。
+                float x = Mathf.Lerp(-14f * s, 12f * s, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                 float h = WaterLabRules.TerrainHeight(x, z);
-                if (h > -0.04f) continue; // 只落在有水处（地形低于静水面 y=0）
+                if (h > sea - 0.04f) continue; // 只落在有水处（地形低于海平面）
 
-                // 尺寸按当地水深封顶：露出水面就不是「水底参照物」了（静水面 y=0，水深=-h）
-                float depth = -h;
+                // 尺寸按当地水深封顶：露出水面就不是「水底参照物」了
+                float depth = sea - h;
                 // 原作礁石多为 0.2–1.5 m 直径；旧上限 1.30 是半径，直径到 2.6 m，
                 // 在画面里就是一团大黑块。缩到 0.75 半径并抬到半埋高度，露出礁石轮廓。
                 float size = Mathf.Min(Mathf.Lerp(0.08f, 0.75f, (float)rnd.NextDouble()), depth * 0.80f);
@@ -578,11 +635,11 @@ namespace PirateCrew.EditorTools
                 }
                 else
                 {
-                    x = Mathf.Lerp(-30f, 10f, (float)rnd.NextDouble());
-                    z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                    x = Mathf.Lerp(-30f * s, 10f * s, (float)rnd.NextDouble());
+                    z = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                 }
                 float h = WaterLabRules.TerrainHeight(x, z);
-                float depth = -h;
+                float depth = sea - h;
                 if (depth < 0.02f || depth > 0.80f) continue;
                 // 主要分布在 0.05–0.45 m 的透亮带；更深只保留 20% 剪影点缀
                 if ((depth < 0.05f || depth > 0.45f) && rnd.NextDouble() > 0.20) continue;
@@ -611,11 +668,11 @@ namespace PirateCrew.EditorTools
                 }
                 else
                 {
-                    x = Mathf.Lerp(-30f, 8f, (float)rnd.NextDouble());
-                    z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                    x = Mathf.Lerp(-30f * s, 8f * s, (float)rnd.NextDouble());
+                    z = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                 }
                 float h = WaterLabRules.TerrainHeight(x, z);
-                float depth = -h;
+                float depth = sea - h;
                 if (depth < 0.02f || depth > 0.70f) continue;
                 // 主要分布在 0.05–0.40 m 的透亮带；更深只保留 15% 剪影点缀
                 if ((depth < 0.05f || depth > 0.40f) && rnd.NextDouble() > 0.15) continue;
@@ -633,10 +690,10 @@ namespace PirateCrew.EditorTools
             int beachGrassCount = 0;
             for (int attempt = 0; attempt < 2000 && beachGrassCount < 160; attempt++)
             {
-                float x = Mathf.Lerp(11f, 30f, (float)rnd.NextDouble());
-                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float x = Mathf.Lerp(11f * s, 30f * s, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                 float h = WaterLabRules.TerrainHeight(x, z);
-                if (h < 0.12f) continue;
+                if (h < sea + 0.12f) continue;
                 float scale = Mathf.Lerp(0.60f, 1.30f, (float)rnd.NextDouble());
                 var go = NewProp($"BeachGrass_{beachGrassCount}", beachGrass,
                     beachGrassShapes[rnd.Next(beachGrassShapes.Length)],
@@ -650,10 +707,10 @@ namespace PirateCrew.EditorTools
             int starfishCount = 0;
             for (int attempt = 0; attempt < 500 && starfishCount < 30; attempt++)
             {
-                float x = Mathf.Lerp(9f, 30f, (float)rnd.NextDouble());
-                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float x = Mathf.Lerp(9f * s, 30f * s, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                 float h = WaterLabRules.TerrainHeight(x, z);
-                if (h < 0.03f) continue;
+                if (h < sea + 0.03f) continue;
                 float scale = Mathf.Lerp(0.70f, 1.30f, (float)rnd.NextDouble());
                 var go = NewProp($"Starfish_{starfishCount}", starfish,
                     starfishShapes[rnd.Next(starfishShapes.Length)],
@@ -669,10 +726,10 @@ namespace PirateCrew.EditorTools
             int gravelCount = 0;
             for (int attempt = 0; attempt < 3000 && gravelCount < 320; attempt++)
             {
-                float x = Mathf.Lerp(10f, 30f, (float)rnd.NextDouble());
-                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float x = Mathf.Lerp(10f * s, 30f * s, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                 float h = WaterLabRules.TerrainHeight(x, z);
-                if (h < 0.05f) continue; // 只落在干沙/后滨，不进水线浮沫区
+                if (h < sea + 0.05f) continue; // 只落在干沙/后滨，不进水线浮沫区
                 float size = Mathf.Lerp(0.02f, 0.06f, (float)rnd.NextDouble());
                 bool shell = rnd.NextDouble() < 0.08;
                 var go = NewProp($"Gravel_{gravelCount}", gravel,
@@ -990,8 +1047,13 @@ namespace PirateCrew.EditorTools
             var sim = go.AddComponent<WaterLabSimulation>();
             sim.computeShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(ComputePath);
             sim.renderCamera = renderCamera; // 白水视锥剔除的平面来源（取景相机）
+            // ReplicaMode 接线（I7）：TextAsset 引用随场景序列化，构建后同样有效；
+            // 模拟 Awake 里加载校验，缺资产 = 回退程序剖面（判定 = 资产可加载）。
+            sim.replicaGroundSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaGroundPath);
+            sim.replicaWaterSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaWaterPath);
             if (sim.computeShader == null)
                 Debug.LogError($"[WaterLabSetup] 找不到 compute：{ComputePath}（检查文件是否入库/被导入）");
+            Debug.Log($"[WaterLabSetup] 模拟驱动：ReplicaMode={(sim.ReplicaMode ? "开" : "关（程序剖面）")}（Awake 后以模拟侧加载为准）");
         }
 
         /// <summary>白水出画 Feature 幂等注入现役渲染器资产（Balanced+Performant，

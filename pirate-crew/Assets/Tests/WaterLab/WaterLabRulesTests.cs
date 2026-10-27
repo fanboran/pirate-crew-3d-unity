@@ -20,12 +20,19 @@ namespace PirateCrew.WaterLab.Tests
         [Test]
         public void DefaultParameters_AreCflStable()
         {
-            // 原作参数契约（reverse §8.1 与 Water.Run 派生量）：
-            // 格距 5.86 cm（60 m/1024² 或 30 m/512²）；g=16；maxVelocity=0.5√g=2 m/s；
-            // 子步 dt=0.5·dx/√g；damping=0；advectionFactor=0.2；kappa=1000。
+            // 原作参数契约（reverse §8.1 与 Water.Run 派生量；I7 裁决①域/分辨率对齐原作）：
+            // 域 = 主菜单沙盘 30 m（Beach.bounds）；水 512² / 地 1024²（B-terrain §2 三层
+            // 分辨率）；格距 5.86 cm（30/512 = 60/1024，FormatProperty 真值）；g=16；
+            // maxVelocity=0.5√g=2 m/s；子步 dt=0.5·dx/√g；damping=0；advectionFactor=0.2；
+            // kappa=1000；海平面 level=1.0。
             Assert.That(WaterLabRules.WaterCellSize, Is.EqualTo(60f / 1024f).Within(1e-4f),
-                "水格距应约等于原作 60 m/1024² = 5.86 cm");
-            Assert.That(WaterLabRules.DomainSize, Is.EqualTo(64f), "实验室域 64 m（取景需要）");
+                "水格距应约等于原作 FormatProperty 的 5.86 cm");
+            Assert.That(WaterLabRules.DomainSize, Is.EqualTo(30f), "主菜单沙盘域 30 m（Beach.bounds，裁决①）");
+            Assert.That(WaterLabRules.WaterCells, Is.EqualTo(512), "原作 Water 层 512²");
+            Assert.That(WaterLabRules.GroundCells, Is.EqualTo(1024), "原作 Ground 层 1024²");
+            Assert.That(WaterLabRules.GroundCellSize, Is.EqualTo(30f / 1024f).Within(1e-6f),
+                "地形格距 = 原作 2.93 cm（30 m/1024²）");
+            Assert.That(WaterLabRules.SeaLevel, Is.EqualTo(1f), "原作 Water.level=1.0（世界 Y）");
             Assert.That(WaterLabRules.Gravity, Is.EqualTo(16f), "原作场景 gravityForce=16");
             Assert.That(WaterLabRules.MaxVelocity, Is.EqualTo(2f).Within(1e-4f),
                 "原作 maxVelocity=0.5·√g（g=16 → 2 m/s）");
@@ -63,28 +70,33 @@ namespace PirateCrew.WaterLab.Tests
         [Test]
         public void TideDepthTarget_MatchesOriginalUpdateAmount()
         {
-            // t=0：sin=0，目标 = max(0 − ground, 0.05)
-            Assert.That(WaterLabRules.TideDepthTarget(0f, -2.4f), Is.EqualTo(2.4f).Within(1e-4f));
-            Assert.That(WaterLabRules.TideDepthTarget(0f, 0.5f),
+            // 判据全部相对 SeaLevel 表达（原作 target = max(level − ground + wave, 0.05)，
+            // level=1.0；测试不钉绝对高程，海平面再调也不漂）。
+            // t=0：sin=0，目标 = max(SeaLevel − ground, 0.05)
+            Assert.That(WaterLabRules.TideDepthTarget(0f, WaterLabRules.SeaLevel - 2.4f),
+                Is.EqualTo(2.4f).Within(1e-4f));
+            Assert.That(WaterLabRules.TideDepthTarget(0f, WaterLabRules.SeaLevel + 0.5f),
                 Is.EqualTo(WaterLabRules.TideMinAmount), "干沙上目标仍保留 5 cm 结合水");
 
-            // t=20：amp=0.2，sin(20)=0.9129453 → 目标 = ground 深度 + 0.1825891 m
+            // t=20：amp=0.2，sin(20)=0.9129453 → 目标 = (SeaLevel − ground) + 0.1825891 m
             float wave = 0.2f * Mathf.Sin(20f);
-            Assert.That(WaterLabRules.TideDepthTarget(20f, -1f), Is.EqualTo(1f + wave).Within(1e-4f));
+            Assert.That(WaterLabRules.TideDepthTarget(20f, WaterLabRules.SeaLevel - 1f),
+                Is.EqualTo(1f + wave).Within(1e-4f));
 
             // 全场统一潮位，没有空间行波项；TideEta 是含 5 cm 结合水的水量面
-            Assert.That(WaterLabRules.TideEta(0f), Is.EqualTo(0f).Within(1e-6f));
+            Assert.That(WaterLabRules.TideEta(0f), Is.EqualTo(WaterLabRules.SeaLevel).Within(1e-6f));
             Assert.That(WaterLabRules.TideClampMin, Is.EqualTo(-0.5f), "原作 clamp 下钳 −0.5 m");
         }
 
         [Test]
         public void CouplingWeight_IsFullInInitialSeaAndZeroOnInitialDrySand()
         {
-            Assert.That(WaterLabRules.CouplingWeightAt(-2.4f), Is.EqualTo(15f),
+            float sea = WaterLabRules.SeaLevel;
+            Assert.That(WaterLabRules.CouplingWeightAt(sea - 2.4f), Is.EqualTo(15f),
                 "初始淹没区满耦合（4 bit 上限）");
-            Assert.That(WaterLabRules.CouplingWeightAt(-0.01f), Is.EqualTo(15f));
-            Assert.That(WaterLabRules.CouplingWeightAt(0f), Is.EqualTo(0f), "初始岸线干区零耦合");
-            Assert.That(WaterLabRules.CouplingWeightAt(0.5f), Is.EqualTo(0f));
+            Assert.That(WaterLabRules.CouplingWeightAt(sea - 0.01f), Is.EqualTo(15f));
+            Assert.That(WaterLabRules.CouplingWeightAt(sea), Is.EqualTo(0f), "初始岸线干区零耦合");
+            Assert.That(WaterLabRules.CouplingWeightAt(sea + 0.5f), Is.EqualTo(0f));
         }
 
         [Test]
@@ -97,11 +109,12 @@ namespace PirateCrew.WaterLab.Tests
         [Test]
         public void TerrainProfile_IsMonotoneishFlatToBeach()
         {
-            // 剖面骨架：水泽端低于海平面、干沙端高于海平面、缓坡+滩面单调（微起伏容差内）。
-            // 水泽深度阈值随 2026-10-26 观感裁决更新（对齐原作主菜单水泽深度）：
-            // 只要求「低于海平面且保持湿区骨架」。
-            Assert.That(WaterLabRules.TerrainHeight(-30f, 0f), Is.LessThan(WaterLabRules.SeaLevel - 0.2f));
-            Assert.That(WaterLabRules.TerrainHeight(30f, 0f), Is.GreaterThan(WaterLabRules.SeaLevel + 0.3f));
+            // 程序剖面（ReplicaMode 关闭时的回退）骨架：海侧低于海平面、干沙侧高于海平面、
+            // 缓坡+滩面在爬升段单调（地形噪声容差内）。端点取域边缘，干湿判据全部
+            // 相对 SeaLevel（语义断言，不钉具体高程）。
+            float half = WaterLabRules.DomainSize * 0.5f;
+            Assert.That(WaterLabRules.TerrainHeight(-half, 0f), Is.LessThan(WaterLabRules.SeaLevel - 0.2f));
+            Assert.That(WaterLabRules.TerrainHeight(half, 0f), Is.GreaterThan(WaterLabRules.SeaLevel + 0.3f));
             float prev = WaterLabRules.TerrainHeight(WaterLabRules.ShelfStartX, 0f);
             for (float x = WaterLabRules.ShelfStartX + 1f; x <= WaterLabRules.FaceEndX; x += 1f)
             {
@@ -110,6 +123,18 @@ namespace PirateCrew.WaterLab.Tests
                     $"爬升段在 x={x} 处出现超过地形噪声容差的下降");
                 prev = cur;
             }
+        }
+
+        [Test]
+        public void TerrainProfile_FallbackShapesScaleWithDomain()
+        {
+            // 回退剖面的里程碑随域缩放（LegacyProfileScale），滩面始终落在域内：
+            // FaceEndX 不越过域边缘、滩面高程在海平面上方——域再改时测试不必跟数。
+            float half = WaterLabRules.DomainSize * 0.5f;
+            Assert.That(WaterLabRules.FaceEndX, Is.LessThan(half), "滩面末端应在域内");
+            Assert.That(WaterLabRules.ShelfStartX, Is.GreaterThan(-half), "浅水架起点应在域内");
+            Assert.That(WaterLabRules.BeachHeight, Is.GreaterThan(WaterLabRules.SeaLevel));
+            Assert.That(WaterLabRules.OffshoreDepth, Is.LessThan(WaterLabRules.SeaLevel));
         }
 
         // ------------------------------------------------------------------
