@@ -1140,7 +1140,7 @@ namespace PirateCrew.EditorTools
             var vol = volGo.AddComponent<UnityEngine.Rendering.Volume>();
             vol.isGlobal = true;
             vol.priority = 0;
-            var profile = UnityEngine.Object.CreateInstance<UnityEngine.Rendering.VolumeProfile>();
+            var profile = ScriptableObject.CreateInstance<UnityEngine.Rendering.VolumeProfile>();
             profile.name = "ReplicaPost";
             var vig = profile.Add<UnityEngine.Rendering.Universal.Vignette>(true);
             vig.intensity.Override(0.296f);   // F 流：唯一 override 项
