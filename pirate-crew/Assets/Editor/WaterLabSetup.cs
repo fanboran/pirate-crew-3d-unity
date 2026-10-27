@@ -303,9 +303,13 @@ namespace PirateCrew.EditorTools
 
         // 【Carbonate 预设三色 + 水色】出处：预设三色 = D 表§4.2（Refs 裸字节恢复，
         // linear 序列化值）；水色 = Water 材质序列化 waterColor（materials-dump.txt）。
-        static readonly Vector4 SandColorDry   = new Vector4(0.9255f, 0.8863f, 0.7255f, 1f);
-        static readonly Vector4 SandColorWet   = new Vector4(0.7890f, 0.7592f, 0.6476f, 1f);
-        static readonly Vector4 SandColorThird = new Vector4(0.8353f, 0.8078f, 0.6902f, 1f);
+        // 【L2-sand 裁决改运行时真值（2026-10-27，R 抓帧 draw 2545 cb0[127/129/130]）】
+        // 原 Carbonate 预设三色被 DayCycler 的 groundHueVariation=−0.255（menu-state.json）
+        // 在运行时偏移成暖黄——预设是底色、不是显示值；我方直用预设曾致全局 B+41
+        //（L2-sand 任务 3：预设 B 0.726 vs 运行时 0.485，光照后显示域 +31~43 同量级）。
+        static readonly Vector4 SandColorDry   = new Vector4(0.8388f, 0.7605f, 0.4851f, 1f); // cb0[127] t=1/3
+        static readonly Vector4 SandColorWet   = new Vector4(0.5854f, 0.5370f, 0.3769f, 1f); // cb0[129]
+        static readonly Vector4 SandColorThird = new Vector4(0.6038f, 0.2747f, 0.1384f, 1f); // cb0[130]
         static readonly Vector4 SandWaterColor = new Vector4(0.9603f, 0.9858f, 0.9995f, 1f);
 
         /// <summary>焦散采样世界尺度（1/m）：周期 = 1/此值。【I2 后仅 WaterLabProp 消费】——
