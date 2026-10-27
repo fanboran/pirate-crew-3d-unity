@@ -114,6 +114,7 @@ namespace PirateCrew.EditorTools
             CreateWaterSurface();
             CreateSimulation(camera); // 相机随注：白水逐粒视锥剔除要用它的 6 平面
             EnsureWhitewaterFeature();
+            EnsurePostProcess(camera); // I4：DoF+Vignette（F 流参数直译，无 tonemap/bloom）
 
             Directory.CreateDirectory("Assets/Scenes/Lab");
             var path = SceneNames.PathOf(SceneNames.WaterLab);
@@ -1123,6 +1124,35 @@ namespace PirateCrew.EditorTools
         /// <summary>白水出画 Feature 幂等注入现役渲染器资产（Balanced+Performant，
         /// WaterLab 取景跟随质量档）。实例以子资产形式存进 .asset（URP 惯例），
         /// 清单/映射同步补位；白水材质随注（已有实例缺材质也补）。</summary>
+        /// <summary>
+        /// I4 后处理（F 流定案：原作实际生效仅 DoF + Vignette，无 tonemap/bloom/曝光）。
+        /// DoF{focus 37.49（autofocus 每帧 raycast 回写的静止值——机制移植 TODO）、
+        /// aperture 1.1、focalLength 106mm、kernel VeryLarge→URP Bokeh 高档}；
+        /// Vignette{intensity 0.296 其余默认}。URP postProcessing 开关在相机上启用。
+        /// </summary>
+        static void EnsurePostProcess(Camera cam)
+        {
+            cam.GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>()
+                .renderPostProcessing = true;
+
+            var volGo = new GameObject("ReplicaPostVolume");
+            volGo.layer = 0;
+            var vol = volGo.AddComponent<UnityEngine.Rendering.Volume>();
+            vol.isGlobal = true;
+            vol.priority = 0;
+            var profile = UnityEngine.Object.CreateInstance<UnityEngine.Rendering.VolumeProfile>();
+            profile.name = "ReplicaPost";
+            var vig = profile.Add<UnityEngine.Rendering.Universal.Vignette>(true);
+            vig.intensity.Override(0.296f);   // F 流：唯一 override 项
+            var dof = profile.Add<UnityEngine.Rendering.Universal.DepthOfField>(true);
+            dof.mode.Override(UnityEngine.Rendering.Universal.DepthOfFieldMode.Bokeh);
+            dof.focusDistance.Override(37.49f);
+            dof.aperture.Override(1.1f);
+            dof.focalLength.Override(106f);   // VeryLarge 档的焦段口径（F 报告）
+            vol.sharedProfile = profile;
+            Debug.Log("[WaterLabSetup] I4 后处理：Vignette 0.296 + DoF(37.49/1.1/106) 已挂");
+        }
+
         static void EnsureWhitewaterFeature()
         {
             foreach (var path in new[]
