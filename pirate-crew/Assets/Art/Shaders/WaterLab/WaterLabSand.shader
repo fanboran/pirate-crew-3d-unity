@@ -241,7 +241,7 @@ Shader "PirateCrew/WaterLab/Sand"
                 // causticsVal = len(太阳色) × exp(−1.731234×可见水深) × 体采样。
                 // 「闪沙」不存在——本项即原档案误读的闪沙（D 表§2.4 修正②/§5-3）。
                 float causticsVal = length(_SunTint.rgb)
-                                  * exp(-1.731234 * visibleDepth)
+                                  * exp2(-1.731234 * visibleDepth)  // exp2 语义（X 流复核）：e^(−1.2·d)
                                   * caustics;
 
                 // ---- 段 C/D：干/湿/第三色（PS:81-93）----
@@ -269,7 +269,7 @@ Shader "PirateCrew/WaterLab/Sand"
 
                 // ---- 段 F：水柱 × 阴影 × 光照（PS:106-173）----
                 // column = exp(−0.721348×场)——场=逐像素 22bit 水侧场双线性，本仓解析代位（§5-7）。
-                float column = exp(-0.721348 * waterDepth);                          // PS:155-156
+                float column = exp2(-0.721348 * waterDepth);  // exp2 语义：e^(−0.5·d)（旧自然底误读多衰 30%）
                 // dot(N,−太阳方向)（PS:167-169）；_WaterLabSunDir 指向太阳，零向量兜底与装配器同向
                 float3 sunRaw = _WaterLabSunDir.xyz;
                 float3 sunDir = (dot(sunRaw, sunRaw) < 0.25)
