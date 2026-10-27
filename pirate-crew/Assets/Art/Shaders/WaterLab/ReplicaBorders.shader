@@ -96,6 +96,8 @@ Shader "PirateCrew/WaterLab/ReplicaBorders"
         #pragma target 3.5
 
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        // LerpWhiteTo 在 core CommonMaterial（Shadows.hlsl 单独 include 不够——Ocean 踩过同款）
+        #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
