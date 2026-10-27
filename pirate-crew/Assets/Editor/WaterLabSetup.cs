@@ -1132,8 +1132,9 @@ namespace PirateCrew.EditorTools
         /// </summary>
         static void EnsurePostProcess(Camera cam)
         {
-            cam.GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>()
-                .renderPostProcessing = true;
+            // batchmode 下 URP 相机组件不是立即自动挂——用扩展方法（缺则加）
+            UnityEngine.Rendering.Universal.CameraExtensions
+                .GetUniversalAdditionalCameraData(cam).renderPostProcessing = true;
 
             var volGo = new GameObject("ReplicaPostVolume");
             volGo.layer = 0;
