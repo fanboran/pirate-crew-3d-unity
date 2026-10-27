@@ -32,10 +32,12 @@ namespace PirateCrew.EditorTools
         const string MaterialFolder = "Assets/Art/Materials/WaterLab";
 
         /// <summary>主菜单快照（I7 ReplicaMode 数据底座）：B 流 frida dump 的
-        /// groundHeight/waterAmount，256² float32，Unity 按 TextAsset 导入。</summary>
+        /// groundHeight/waterAmount，256² float32，Unity 按 TextAsset 导入。
+        /// MenuWeights512 = W1 耦合权重场（B2 定案，512² float32 = 4bit 权重/15）。</summary>
         const string ReplicaFolder = "Assets/Art/WaterLabReplica";
         const string ReplicaGroundPath = ReplicaFolder + "/MenuGround256.bytes";
         const string ReplicaWaterPath = ReplicaFolder + "/MenuWater256.bytes";
+        const string ReplicaWeightsPath = ReplicaFolder + "/MenuWeights512.bytes";
 
         /// <summary>
         /// ReplicaMode（协调者 Phase2 裁决）：快照资产可加载即开——地形/水位/装配走
@@ -1107,10 +1109,12 @@ namespace PirateCrew.EditorTools
             var sim = go.AddComponent<WaterLabSimulation>();
             sim.computeShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(ComputePath);
             sim.renderCamera = renderCamera; // 白水视锥剔除的平面来源（取景相机）
-            // ReplicaMode 接线（I7）：TextAsset 引用随场景序列化，构建后同样有效；
+            // ReplicaMode 接线（I7/W1）：TextAsset 引用随场景序列化，构建后同样有效；
             // 模拟 Awake 里加载校验，缺资产 = 回退程序剖面（判定 = 资产可加载）。
+            // 权重场缺失不回退 ReplicaMode，只降级回退代理场（模拟侧显式报错）。
             sim.replicaGroundSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaGroundPath);
             sim.replicaWaterSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaWaterPath);
+            sim.replicaWeights = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaWeightsPath);
             if (sim.computeShader == null)
                 Debug.LogError($"[WaterLabSetup] 找不到 compute：{ComputePath}（检查文件是否入库/被导入）");
             Debug.Log($"[WaterLabSetup] 模拟驱动：ReplicaMode={(sim.ReplicaMode ? "开" : "关（程序剖面）")}（Awake 后以模拟侧加载为准）");

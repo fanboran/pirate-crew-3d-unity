@@ -101,16 +101,24 @@ namespace PirateCrew.WaterLab
         /// snapshot_meta.json layers.water.level）。地形与水面都以它为基准。</summary>
         public const float SeaLevel = 1f;
 
-        // ---- 波源（原作 UpdateAmount：全场潮位松弛 + 每格耦合权重）----
+        // ---- 波源（原作 UpdateAmount：桨带潮位松弛 + 逐格 4bit 耦合权重）----
         //
-        // 【原作实证，Water compute blob 6/17 反汇编】UpdateAmount 每**帧**派发一次
-        //（不在子步循环里），顺序：蒸发 → obstaclesMap 泵 → 两段潮位松弛。环境浪没有
-        // 任何空间行波项：`waveAmplitude` 是标量，`WavesProperty` 四列预设只被 CPU 取
-        // `max(第三分量)` 得到峰值 0.2 m（Water.Run：`saturate(playTime×0.05) × max(...)`，
-        // 开盘 20 s 渐起，下限 0.01）。全场水面目标统一为
-        // `level + clamp(waveAmplitude·sin(playTime), −0.5, +∞)`；每格按自身 4 bit 耦合
-        // 权重 w/15 向目标松弛（每帧一次的比例，不乘 dt）。浪的不规律性来自地形浅化、
-        // 岸线进退与泵，不来自多列正弦叠加——旧「四列行波」是本仓自推，已删除。
+        // 【原作实证，Water compute blob 6/17 反汇编 + B2 运行时双验证】UpdateAmount 每
+        // **帧**派发一次（不在子步循环里），顺序：蒸发 → obstaclesMap 泵 → 两段潮位松弛。
+        // 环境浪没有任何空间行波项：`waveAmplitude` 是标量，`WavesProperty` 四列预设只被
+        // CPU 取 `max(第三分量)` 得到峰值 0.2 m（Water.Run：`saturate(playTime×0.05) ×
+        // max(...)`，开盘 20 s 渐起，下限 0.01）。潮位目标
+        // `max(level − floor + clamp(waveAmplitude·sin(playTime), −0.5, +∞), 0.05)`，
+        // 每格按自身 4 bit 耦合权重 w/15 松弛：`h += (w/15)·(target−h)`（每帧一次的
+        // 比例，不乘 dt）。
+        // 【B2 定案（权重场/playTime）】权重 = 水格 dword3 bits28..31，仅 Paint/Fill 写、
+        // 主菜单实测 **96.9% ≡ 0**：只背边缘 row 496..511（Z∈[+14.06,+15]）有
+        // [1..8,8..15]/15 ramp = 造波桨带。海区是自由 SWE 场、不被潮位目标钉住；浪的
+        // 不规律性来自地形浅化、岸线进退与泵，不来自多列正弦叠加——旧「四列行波」与本仓
+        // 曾用的「初始淹没满耦代理」都已删除（代理仅保留作非复刻装配的权重数据源）。
+        // `floor` = BlurFloor 场（floorBlurIterations=3，菜单真值），非原始地面。
+        // playTime = Game.playTime（模拟时钟，Game.cs:855/1045/1504；与壁钟漂移 4–7%，
+        // 对相必须按 playTime 值，见 WaterLabReplicaWeights.PlayTimeOrigin）。
 
         /// <summary>潮位振荡振幅上限（m）。原作 Regular 档 WavesProperty 四列第三分量
         /// 0.1/0.15/0.2/0，`Water.Run` 取 max → 0.2 m。</summary>
@@ -133,10 +141,16 @@ namespace PirateCrew.WaterLab
         public const float CouplingWeightMax = 15f;
 
         /// <summary>
-        /// 满耦合权重。原作每格 word 高 4 bit 是运行时耦合系数，由关卡 `water.Fill`
-        /// 的初始水场写入；本仓拿不到该场的分布，改用**初始淹没区满耦合、初始干区零
-        /// 耦合**的静态代理（C 级近似）：涨潮时外海严格跟随潮位，初始干滩不被直接钉住，
-        /// 只能靠通量爬滩 → 保留 run-up/swash 的岸线进退。
+        /// BlurFloor 迭代次数。原作 `Water.floorBlurIterations`，主菜单运行时真值 3
+        ///（frida 直读 Game.Instance.configuration，B2 §6）；潮位目标的 floor 项按此平滑。
+        /// </summary>
+        public const int FloorBlurIterations = 3;
+
+        /// <summary>
+        /// 满耦合权重（4 bit 上限）。原作每格 word 高 4 bit 是静态耦合权重（B2 定案：
+        /// 主菜单只桨带 row 496..511 有 1..15 ramp，真值场见
+        /// <see cref="WaterLabReplicaWeights"/>）；本常量只服务
+        /// <see cref="CouplingWeightAt"/> 回退代理场（权重资产缺失时的装配回退）。
         /// </summary>
         public const float CouplingWeightFull = CouplingWeightMax;
 
@@ -176,18 +190,66 @@ namespace PirateCrew.WaterLab
             return SeaLevel + Mathf.Max(wave, TideClampMin);
         }
 
-        /// <summary>潮位松弛的目标水量（m）：`max(level − ground + wave, 0.05)`。</summary>
-        public static float TideDepthTarget(float playTime, float ground)
+        /// <summary>
+        /// 潮位松弛的目标水量（m）：`max(level − floor + wave, 0.05)`。
+        /// <paramref name="floor"/> 是 BlurFloor 平滑场（见 <see cref="BlurFloor"/>），
+        /// 不是原始地面——反汇编 UpdateAmount 的减项来自 floor 打包位。
+        /// </summary>
+        public static float TideDepthTarget(float playTime, float floor)
         {
             float wave = Mathf.Clamp(WaveAmplitude(playTime) * Mathf.Sin(playTime),
                 TideClampMin, float.PositiveInfinity);
-            return Mathf.Max(SeaLevel - ground + wave, TideMinAmount);
+            return Mathf.Max(SeaLevel - floor + wave, TideMinAmount);
         }
 
-        /// <summary>耦合权重（0..15）：初始淹没区满耦合，初始干区零耦合（C 级代理，见上）。</summary>
+        /// <summary>
+        /// 耦合权重（0..15）的**回退代理场**：初始淹没区满耦、初始干区零耦。
+        /// 【已退役】B2 定案原作权重场是静态桨带 ramp（见 <see cref="WaterLabReplicaWeights"/>），
+        /// 复刻路径逐格读真值场；本函数只作为权重资产缺失/加载失败时的回退数据源
+        ///（WaterLabSimulation 装配 _CouplingWeights 缓冲时调用），不再是复刻语义。
+        /// </summary>
         public static float CouplingWeightAt(float ground)
         {
             return ground < SeaLevel ? CouplingWeightFull : 0f;
+        }
+
+        /// <summary>
+        /// 原作 BlurFloor 的 CPU 参考（近似式，B2 §7.3 裁定）：对 floor 场（水格分辨率）
+        /// 做 <paramref name="iterations"/> 次 4 邻均值盒式模糊，clamp 边界（反汇编
+        /// BlurFloor 的四邻 ±1、imax/imin clamp 同构，无中心项）；菜单
+        /// floorBlurIterations=3（frida 运行时真值）。原作把 groundHeight 按水格格心
+        /// 双线性采进水格（UpdateFloor）后跑本模糊——调用方先用
+        /// <see cref="TerrainHeight"/> 采样出 floor 场再传入。
+        /// 【打包尺度缺口（I1 TODO 同坑）】反汇编里 BlurFloor 按 Σ4邻×1e-6×415277.5625
+        /// 解码/回编码，而 UpdateFloor 的打包是 sat(m×0.09901)×16777215——乘数链对不上
+        /// Σ4/4 平均（应 250000），疑打包位两侧尺度不自洽；floor 不进 readback、L1 差分
+        /// 不可直接验证，按 B2 §7.3 以「groundHeight 3 次盒式模糊」近似（桨带下方地形
+        /// 平坦，模糊 ≈ 原值，近似误差对目标项影响集中在 16 行桨带）。
+        /// </summary>
+        public static void BlurFloor(float[] floor, int cells, int iterations)
+        {
+            if (iterations <= 0 || floor.Length < cells * cells)
+                return;
+            var scratch = new float[floor.Length];
+            for (int it = 0; it < iterations; it++)
+            {
+                for (int z = 0; z < cells; z++)
+                {
+                    int zm = z > 0 ? z - 1 : 0;
+                    int zp = z < cells - 1 ? z + 1 : cells - 1;
+                    int row = z * cells;
+                    int rowM = zm * cells;
+                    int rowP = zp * cells;
+                    for (int x = 0; x < cells; x++)
+                    {
+                        int xm = x > 0 ? x - 1 : 0;
+                        int xp = x < cells - 1 ? x + 1 : cells - 1;
+                        scratch[row + x] = (floor[rowM + x] + floor[rowP + x]
+                                          + floor[row + xm] + floor[row + xp]) * 0.25f;
+                    }
+                }
+                Array.Copy(scratch, floor, floor.Length);
+            }
         }
 
         /// <summary>
@@ -592,13 +654,16 @@ namespace PirateCrew.WaterLab
                         float vD = d >= 0 ? (vz[d] + vz[i]) * 0.5f : 0f;
                         float vU = u >= 0 ? (vz[i] + vz[u]) * 0.5f : 0f;
 
-                        // 平均通量（半格界面）：F = d̄·v̄。界面级迎风施主门——只有通量来向的
-                        // 格子 d>0 才放行：湿格可把水推上干滩（run-up），干格不能凭平均速度
-                        // 凭空吐水。两侧格对同一界面必须算出同一 F（界面格式守恒的关键）。
-                        float fluxL = (l >= 0 && ((vL > 0f) ? dL : di) > 0f) ? (dL + di) * 0.5f * vL : 0f;
-                        float fluxR = (r >= 0 && ((vR > 0f) ? di : dR) > 0f) ? (di + dR) * 0.5f * vR : 0f;
-                        float fluxD = (d >= 0 && ((vD > 0f) ? dD : di) > 0f) ? (dD + di) * 0.5f * vD : 0f;
-                        float fluxU = (u >= 0 && ((vU > 0f) ? di : dU) > 0f) ? (di + dU) * 0.5f * vU : 0f;
+                        // 平均界面速度（界面两侧共享）。施主选值（donor-upwind，W1 校正）：
+                        // 通量水深取**施主侧**（按界面速度符号），不再是两侧平均——原作
+                        // HeightIntegration 反汇编按速度符号 movc 在 dC/邻格 d 之间选值
+                        //（Water_*.3.hlslasm；界面平均+门控的旧格式自由演化下边际不稳定，
+                        // Σh 6 s ×64 指数爆破，被满耦代理的每帧钳制掩盖至今）。原作另有
+                        // d_eq 限制器与格自速度变体，逐指令复核归核心重翻译（见 W1 报告）。
+                        float fluxL = (l >= 0 && ((vL > 0f) ? dL : di) > 0f) ? ((vL > 0f) ? dL : di) * vL : 0f;
+                        float fluxR = (r >= 0 && ((vR > 0f) ? di : dR) > 0f) ? ((vR > 0f) ? di : dR) * vR : 0f;
+                        float fluxD = (d >= 0 && ((vD > 0f) ? dD : di) > 0f) ? ((vD > 0f) ? dD : di) * vD : 0f;
+                        float fluxU = (u >= 0 && ((vU > 0f) ? di : dU) > 0f) ? ((vU > 0f) ? di : dU) * vU : 0f;
 
                         hNew[i] = hi - dt / dx * ((fluxR - fluxL) + (fluxU - fluxD));
                         if (hNew[i] < 0f) hNew[i] = 0f; // 数值保护：无负水深

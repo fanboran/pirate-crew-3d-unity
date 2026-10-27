@@ -43,6 +43,14 @@ namespace PirateCrew.WaterLab
         public TextAsset replicaGroundSnapshot;
         public TextAsset replicaWaterSnapshot;
 
+        /// <summary>
+        /// 耦合权重场（W1，B2 定案）：MenuWeights512.bytes，512² float32 = 原作 4bit
+        /// 权重/15 的运行时实测场（只桨带 row 496..511 有 ramp）。注入且校验通过时
+        /// SurfaceUpdate 逐格读真值；缺失或校验失败回退「初始淹没满耦」代理场并报错
+        ///（<see cref="WaterLabRules.CouplingWeightAt"/>，仅数据源回退，语义见 Rules 注释）。
+        /// </summary>
+        public TextAsset replicaWeights;
+
         /// <summary>主菜单快照复刻是否生效（= 快照已加载，TerrainHeight/初始水位已切数据源）。</summary>
         public bool ReplicaMode => WaterLabReplicaSnapshot.HasData;
 
@@ -53,6 +61,8 @@ namespace PirateCrew.WaterLab
         ComputeBuffer _waterCur, _waterNext; // float4: h,vx,vz,foam × WaterCells²
         ComputeBuffer _wetCur, _wetNext;     // float  × GroundCells²
         ComputeBuffer _ground;               // float  × GroundCells²（静态）
+        ComputeBuffer _weights;              // float  × WaterCells²（耦合权重/15，静态；B2 真值或回退代理）
+        ComputeBuffer _floor;                // float  × WaterCells²（BlurFloor 平滑场，静态）
         ComputeBuffer _wwPos, _wwVel;        // float4 × 容量（白水粒子池，缓冲环）
         ComputeBuffer _wwDraw;               // uint   × 容量（活粒子 draw list）
         ComputeBuffer _wwAlive, _wwArgs;     // uint ×2（计数/游标）、uint ×4（indirect args）
@@ -65,8 +75,26 @@ namespace PirateCrew.WaterLab
         float _accumulator;
         float _simTime;
 
-        /// <summary>当前模拟时间（波源相位用）。</summary>
+        /// <summary>当前模拟时间（本地时钟；出图门控/诊断锚点用它）。</summary>
         public float SimTime => _simTime;
+
+        /// <summary>
+        /// playTime 起始偏移（W1）：下发给 compute 的 `_Time` = 该值 + <see cref="_simTime"/>。
+        /// ReplicaMode 下默认锚 B2 同相 dump 组 t0 的 Game.playTime 运行时真值
+        ///（<see cref="WaterLabReplicaWeights.PlayTimeOrigin"/> = 622.4888 s）；
+        /// <c>PC3D_WATERLAB_PLAYTIME0</c>（秒，≥0）可覆写（对拍不同潮相用）；
+        /// 非 Replica 回退 = 0（旧口径，playTime ≡ simTime）。
+        ///
+        /// 【为什么锚绝对值而不是 mod-2π 相位 φ₀=0.4534 rad】潮位项 amp·sin(playTime)
+        /// 只吃相位，但振幅渐起 saturate(playTime×0.05) 要 20 s 才饱和（B2 §6：菜单已
+        /// 饱和）——锚 φ₀ 会让振幅跌回 0.045，只有绝对 playTime 同时复现两者。
+        ///
+        /// 【快进时钟语义核对（B2 §4 漂移 4–7% 的处置）】原作 playTime 逐帧
+        /// `+= Time.deltaTime`（模拟时钟），与壁钟的漂移发生在原作壁钟一侧；本仓
+        /// TIME_SCALE 快进同样按固定子步累计模拟时钟——两条时间轴同构，漂移项不进入
+        /// 我方。对相因此 = 锚初值 + 同倍率累计，无须（也不能）对壁钟。
+        /// </summary>
+        float _playTimeBase;
 
         /// <summary>
         /// 模拟时间倍率（<c>PC3D_WATERLAB_TIME_SCALE</c>，默认 1）。涌浪填满 64 m 域需
@@ -136,15 +164,29 @@ namespace PirateCrew.WaterLab
             _kWWEnd = computeShader.FindKernel("WhitewaterEnd");
 
             TryLoadReplicaSnapshot();
+            ResolvePlayTimeBase();
             CreateBuffers();
             CreateTextures();
             PublishGlobals();
         }
 
         /// <summary>
-        /// 快照接线（在 CreateBuffers 之前——地形/水位初值都要读它）。校验失败
-        /// （长度/四角翻转/负水量，见 WaterLabReplicaSnapshot.Load）按差分门禁精神
-        /// 走「保数值语义」的回退：卸载快照、退回程序剖面并显式报错，不静默带病运行。
+        /// playTime 起始偏移解析（在快照加载之后——ReplicaMode 判定要已就位）。
+        /// </summary>
+        void ResolvePlayTimeBase()
+        {
+            _playTimeBase = ReplicaMode ? WaterLabReplicaWeights.PlayTimeOrigin : 0f;
+            string raw = System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_PLAYTIME0");
+            if (float.TryParse(raw, out float v) && v >= 0f)
+                _playTimeBase = v;
+        }
+
+        /// <summary>
+        /// 快照接线（在 CreateBuffers 之前——地形/水位/权重初值都要读它）。校验失败
+        /// （长度/四角翻转/负水量，见 WaterLabReplicaSnapshot.Load；权重场同）按差分
+        /// 门禁精神走「保数值语义」的回退：卸载快照、退回程序剖面并显式报错，不静默
+        /// 带病运行。权重场单独 try：地形/水位快照有效而权重缺失时 ReplicaMode 仍开
+        ///（回退代理场 + 显式报错），权重不是 ReplicaMode 的判定项。
         /// </summary>
         void TryLoadReplicaSnapshot()
         {
@@ -158,16 +200,38 @@ namespace PirateCrew.WaterLab
             catch (System.Exception e)
             {
                 WaterLabReplicaSnapshot.Unload();
+                WaterLabReplicaWeights.Unload();
                 Debug.LogError($"[WaterLabSimulation] 主菜单快照加载失败，回退程序剖面：{e.Message}");
+                return;
+            }
+            try
+            {
+                if (replicaWeights != null)
+                {
+                    WaterLabReplicaWeights.Load(replicaWeights.bytes);
+                    Debug.LogWarning($"[WaterLabSimulation] {WaterLabReplicaWeights.Describe()}");
+                }
+                else
+                {
+                    Debug.LogError("[WaterLabSimulation] 耦合权重场资产未接线（MenuWeights512.bytes），"
+                        + "SurfaceUpdate 回退「初始淹没满耦」代理场——复刻语义降级，检查装配器注入。");
+                }
+            }
+            catch (System.Exception e)
+            {
+                WaterLabReplicaWeights.Unload();
+                Debug.LogError($"[WaterLabSimulation] 耦合权重场加载失败，回退代理场：{e.Message}");
             }
         }
 
         void OnDestroy()
         {
             WaterLabReplicaSnapshot.Unload(); // 静态采样器不跨 Play 会话残留
+            WaterLabReplicaWeights.Unload();
             _waterCur?.Dispose(); _waterNext?.Dispose();
             _wetCur?.Dispose(); _wetNext?.Dispose();
             _ground?.Dispose();
+            _weights?.Dispose(); _floor?.Dispose();
             _wwPos?.Dispose(); _wwVel?.Dispose();
             _wwDraw?.Dispose(); _wwAlive?.Dispose(); _wwArgs?.Dispose();
             WaterLabWhitewaterBridge.Clear();
@@ -407,6 +471,8 @@ namespace PirateCrew.WaterLab
                 computeShader.SetBuffer(k, ShaderIds.Ground, _ground);
                 computeShader.SetBuffer(k, ShaderIds.WetA, _wetCur);
                 computeShader.SetBuffer(k, ShaderIds.WetB, _wetNext);
+                computeShader.SetBuffer(k, ShaderIds.CouplingWeights, _weights);
+                computeShader.SetBuffer(k, ShaderIds.Floor, _floor);
                 computeShader.SetTexture(k, ShaderIds.WetTex, _wetTex);
                 computeShader.SetTexture(k, ShaderIds.HeightTex, _heightTex);
                 computeShader.SetTexture(k, ShaderIds.CausticTex, _causticTex);
@@ -428,6 +494,8 @@ namespace PirateCrew.WaterLab
             _wetCur = new ComputeBuffer(groundCount, 4);
             _wetNext = new ComputeBuffer(groundCount, 4);
             _ground = new ComputeBuffer(groundCount, 4);
+            _weights = new ComputeBuffer(waterCount, 4);
+            _floor = new ComputeBuffer(waterCount, 4);
             _wwPos = new ComputeBuffer(WaterLabRules.WhitewaterCapacity, 16);
             _wwVel = new ComputeBuffer(WaterLabRules.WhitewaterCapacity, 16);
             _wwDraw = new ComputeBuffer(WaterLabRules.WhitewaterCapacity, 4);
@@ -439,9 +507,16 @@ namespace PirateCrew.WaterLab
             //   GroundCells 网格）；_waterCur/_waterNext 的 h ← ReplicaMode 时快照
             //   waterAmount 采样（语义 = 含结合水的水柱量，直接作 h），否则静水面
             //   h = max(SeaLevel − ground, 0)；v/foam=0、湿沙 0 两种模式相同。
+            //   _weights ← W1：ReplicaMode 且权重资产有效 = B2 真值场（桨带 ramp，其余 0）；
+            //   否则「初始淹没满耦」回退代理场（Rules.CouplingWeightAt，已退役语义见该函数）。
+            //   _floor ← 潮位目标的 BlurFloor 项：水格格心采地形后 3 次 4 邻盒式模糊
+            //   （Rules.BlurFloor 同式；静态场一次预计算，SurfaceUpdate 直接读）。
             var waterInit = new Vector4[waterCount];
             var groundData = new float[groundCount];
+            var weightsData = new float[waterCount];
+            var floorData = new float[waterCount];
             bool replica = WaterLabReplicaSnapshot.HasData;
+            bool weightsTruth = WaterLabReplicaWeights.HasData;
             for (int cz = 0; cz < WaterLabRules.GroundCells; cz++)
             {
                 for (int cx = 0; cx < WaterLabRules.GroundCells; cx++)
@@ -455,17 +530,26 @@ namespace PirateCrew.WaterLab
             {
                 for (int cx = 0; cx < WaterLabRules.WaterCells; cx++)
                 {
+                    int i = cx + cz * WaterLabRules.WaterCells;
                     float wx = -WaterLabRules.DomainSize * 0.5f + (cx + 0.5f) * WaterLabRules.WaterCellSize;
                     float wz = -WaterLabRules.DomainSize * 0.5f + (cz + 0.5f) * WaterLabRules.WaterCellSize;
+                    float g = WaterLabRules.TerrainHeight(wx, wz);
                     float h = replica
                         ? WaterLabReplicaSnapshot.SampleWater(wx, wz)
-                        : Mathf.Max(WaterLabRules.SeaLevel - WaterLabRules.TerrainHeight(wx, wz), 0f);
-                    waterInit[cx + cz * WaterLabRules.WaterCells] = new Vector4(h, 0f, 0f, 0f);
+                        : Mathf.Max(WaterLabRules.SeaLevel - g, 0f);
+                    waterInit[i] = new Vector4(h, 0f, 0f, 0f);
+                    floorData[i] = g;
+                    weightsData[i] = weightsTruth
+                        ? WaterLabReplicaWeights.Weights[i]
+                        : WaterLabRules.CouplingWeightAt(g) / WaterLabRules.CouplingWeightMax;
                 }
             }
+            WaterLabRules.BlurFloor(floorData, WaterLabRules.WaterCells, WaterLabRules.FloorBlurIterations);
             _waterCur.SetData(waterInit);
             _waterNext.SetData(waterInit);
             _ground.SetData(groundData);
+            _weights.SetData(weightsData);
+            _floor.SetData(floorData);
             // 湿沙双缓冲零初始化（ComputeBuffer 内容不保证清零）：首个 WetnessStep 直接读
             // _WetA、读邻均值做扩散，不补零首帧湿沙场是显存垃圾；换位后 _WetNext 轮到当
             // _WetA 读，两份都必须干净，出图才可复现。
@@ -544,17 +628,18 @@ namespace PirateCrew.WaterLab
             cs.SetFloat(ShaderIds.Damping, WaterLabRules.VelocityDamping);
             cs.SetFloat(ShaderIds.MaxVelocity, WaterLabRules.MaxVelocity);
             cs.SetFloat(ShaderIds.DryDepth, WaterLabRules.DryDepth);
-            cs.SetFloat(ShaderIds.Time, _simTime);
+            // _Time = playTime（原作 Game.playTime 模拟时钟）：ReplicaMode 锚 B2 真值偏移，
+            // 快进同倍率累计（推导见 _playTimeBase 注释）。
+            cs.SetFloat(ShaderIds.Time, _playTimeBase + _simTime);
             cs.SetFloat(ShaderIds.SeaLevel, WaterLabRules.SeaLevel);
             cs.SetFloat(ShaderIds.AdvectionFactor, WaterLabRules.AdvectionFactor);
             cs.SetFloat(ShaderIds.Kappa, WaterLabRules.Kappa);
             // 原作 UpdateAmount：waveAmplitude 每帧按 `saturate(playTime×0.05)×max(四列)` 重算；
-            // 潮位目标/5 cm 下限/权重/蒸发全部从 WaterLabRules 单源下发。
-            cs.SetFloat(ShaderIds.WaveAmplitude, WaterLabRules.WaveAmplitude(_simTime));
+            // 潮位目标/5 cm 下限/蒸发从 WaterLabRules 单源下发。耦合权重不再走标量 uniform——
+            // W1 起逐格读 _CouplingWeights 静态缓冲（B2 真值场/回退代理场，CreateBuffers 灌）。
+            cs.SetFloat(ShaderIds.WaveAmplitude, WaterLabRules.WaveAmplitude(_playTimeBase + _simTime));
             cs.SetFloat(ShaderIds.TideClampMin, WaterLabRules.TideClampMin);
             cs.SetFloat(ShaderIds.TideMinAmount, WaterLabRules.TideMinAmount);
-            cs.SetFloat(ShaderIds.CouplingWeight,
-                WaterLabRules.CouplingWeightFull / WaterLabRules.CouplingWeightMax);
             cs.SetFloat(ShaderIds.EvaporationRate, WaterLabRules.EvaporationRate());
             cs.SetFloat(ShaderIds.BeachInfiltrationDepth, WaterLabRules.BeachInfiltrationDepth);
             cs.SetFloat(ShaderIds.BeachInfiltrationRate, WaterLabRules.BeachInfiltrationRate);
@@ -567,6 +652,7 @@ namespace PirateCrew.WaterLab
                     + $"adv={WaterLabRules.AdvectionFactor} kappa={WaterLabRules.Kappa} "
                     + $"dry={WaterLabRules.DryDepth} sea={WaterLabRules.SeaLevel} "
                     + $"waveMax={WaterLabRules.WaveAmplitudeMax} evap={WaterLabRules.EvaporationRate():E2} "
+                    + $"playTime0={_playTimeBase:F4} {WaterLabReplicaWeights.Describe()} "
                     + $"replica={(ReplicaMode ? "开" + WaterLabReplicaSnapshot.Describe() : "关（程序剖面）")}");
             }
             cs.SetFloat(ShaderIds.BreakingSteepness, WaterLabRules.BreakingSteepness);
@@ -660,6 +746,8 @@ namespace PirateCrew.WaterLab
             public static readonly int WetA = Shader.PropertyToID("_WetA");
             public static readonly int WetB = Shader.PropertyToID("_WetB");
             public static readonly int Ground = Shader.PropertyToID("_Ground");
+            public static readonly int CouplingWeights = Shader.PropertyToID("_CouplingWeights");
+            public static readonly int Floor = Shader.PropertyToID("_Floor");
             public static readonly int HeightTex = Shader.PropertyToID("_WaterLabHeightTex");
             public static readonly int WetTex = Shader.PropertyToID("_WaterLabWetTex");
             public static readonly int CausticTex = Shader.PropertyToID("_WaterLabCausticTex");
@@ -686,7 +774,6 @@ namespace PirateCrew.WaterLab
             public static readonly int WaveAmplitude = Shader.PropertyToID("_WaveAmplitude");
             public static readonly int TideClampMin = Shader.PropertyToID("_TideClampMin");
             public static readonly int TideMinAmount = Shader.PropertyToID("_TideMinAmount");
-            public static readonly int CouplingWeight = Shader.PropertyToID("_CouplingWeight");
             public static readonly int EvaporationRate = Shader.PropertyToID("_EvaporationRate");
             public static readonly int BeachInfiltrationDepth = Shader.PropertyToID("_BeachInfiltrationDepth");
             public static readonly int BeachInfiltrationRate = Shader.PropertyToID("_BeachInfiltrationRate");
