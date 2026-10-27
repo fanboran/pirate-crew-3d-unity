@@ -308,7 +308,11 @@ Shader "PirateCrew/WaterLab/Ocean"
                 // L248-255 的正身恢复整段（含 8.65617 字面量）。
                 // 真身恢复（R 流抓帧终证 σ≠0）：T = exp2(−8.65617·σ·dist)×waterColor
                 //（exp2 语义 = e^(−6σd)，X 流）；dist = invVP 重建折射点世界坐标的水下光程。
-                float3 refrPointW = ComputeWorldSpacePosition(finalUV, bgEye, UNITY_MATRIX_I_VP);
+                // 原作 L100-110：clipP = InvVP·(ndc.x, −ndc.y, **rawDepth(finalUV)**, 1)，w 除回世界。
+                // 深度用 finalUV 处的原始设备深度（L103-105 第三行乘的就是 depth 采样值，
+                // 不是线性视深——r100 首版传 bgEye 致 30% 黑的根因）。
+                float rawAtFinal = SampleSceneDepth(finalUV);
+                float3 refrPointW = ComputeWorldSpacePosition(finalUV, rawAtFinal, UNITY_MATRIX_I_VP);
                 float dist = distance(refrPointW, wpos);
                 float3 T = exp2(-8.65617 * _WaterLabSigma.rgb * dist) * _WaterLabWaterColor.rgb;
                 float3 bgT = bg * T;   // L115（bg×T）
