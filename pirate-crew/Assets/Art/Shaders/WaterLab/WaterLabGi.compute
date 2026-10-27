@@ -1,0 +1,259 @@
+// WaterLabGi.compute — Sandcastle "Gi" 系统 compute 内核移植（I3a）。
+//
+// 真值底稿（逐指令转写，不做"看起来等价"的改写）：
+//   [E]  external/sandcastle-ref/rt/out/Gi/E-gi.compute.hlsl（4 kernel 移植草稿，
+//        底层 = rt/out/Gi/Gi.{Initialization,Gi,BlurGi}.hlslasm 的 DXBC 反汇编）
+//   [ER] external/sandcastle-ref/rt/reports/E-gi-pipeline.md（§1 kernel 语义、
+//        §1.3 问题单、§4 URP 移植清单）
+// 移植纪律：凡代码与直觉写法不符处（Gi kernel 的方向基、tMax 重算式）一律按 [E]
+//   字面抄并保留其 [ASM] 行号注记——L2 恒等门禁以原作数值为准，不"修正"。
+// Raycast kernel 不移植：发行路径死代码（零派发点/零上传者/零消费者，[ER] §1.2；
+// DoF 对焦是 CameraRig 的 Physics.Raycast，与本 compute 无关）。
+//
+// 三 kernel 的调度序与宿主（每帧）：GenerateMips(sceneVoxels) → Gi → BlurGi
+// → SetGlobalTexture("giVoxels", giVoxelsBlurred)，见 ReplicaGiSystem.Render；
+// Initialization 仅资源创建时派发一次（[ER] §1.2，Gi.cs:196）。
+//
+// 【与 WaterLabSim.compute 的分工】本文件是纯复刻件（名字/结构对齐 E 表底稿），
+// 不参与实验水体模拟；常量由 ReplicaGiSystem 按下表注释出处下发，本文件不写
+// 数值默认值（防双源漂移）。
+
+#pragma kernel Initialization
+#pragma kernel Gi
+#pragma kernel BlurGi
+
+// ---------------------------------------------------------------------------
+// 资源绑定（[E] $Globals 节「kernel × 资源」表：typetree 与 DXBC dcl 互证）
+//   Initialization: u0=giVoxels, u1=giVoxelsBlurred
+//   Gi:             t0=sceneVoxels（带 mip 链，管线 GenerateMips 生成）, u0=giVoxels
+//   BlurGi:         u0=giVoxels, u1=giVoxelsBlurred
+// 三张 RT 均 SystemInfo.GetGraphicsFormat(DefaultFormat.HDR)（BeachRenderPipeline.cs:2206）
+// → D3D11 = B10G11R11_UFloatPack32（无 alpha；11/11/10 位 float）。
+// requirements=50241 含 typed UAV load——giVoxels 必须支持 UAV 读回，这正是该格式的
+// 硬件理由（[ER] §1.1）。RT 创建参数见 ReplicaGiSystem.NewVoxelRT。
+// ---------------------------------------------------------------------------
+Texture2D<float4>      sceneVoxels     : register(t0); // rgb=顶视辐射 w=世界 Y（Voxelizer PS 写入，见 ReplicaGiSystem 注释）
+RWTexture2D<float4>    giVoxels        : register(u0); // Gi kernel 时间混合输出
+RWTexture2D<float4>    giVoxelsBlurred : register(u1); // BlurGi 输出 = 全局纹理 giVoxels 的真身
+
+// ---------------------------------------------------------------------------
+// C# 下发 uniform（ReplicaGiSystem.PushConstants 逐帧下发；名字对齐 E 表槽位语义，
+// 槽位号本身不复刻——恒等门禁看数值不看寄存器号，[ER] §4.1）
+// ---------------------------------------------------------------------------
+float4 g_GiDomainSize;   // [E] beachSize cb0[116]：xz=沙盘域 XZ 边长=30（WaterLabRules.DomainSize，B 流实测域 [−15,+15]²）
+                         // 命名与消费侧 in-domain 掩码 uniform（g_GiDomainMin/g_GiDomainSize，
+                         // 全局版由 ReplicaGiSystem 同帧 SetGlobalVector 发布）对齐；
+                         // 与 WaterLabSand.shader 的 GI TODO（L287-294）互指。
+float4 _AmbientSky;      // [E] cb0[40] unity_AmbientSky——原作由管线 SetupPerFrameShaderConstants
+                         // 从 RenderSettings.ambientSkyColor 上传（BeachRenderPipeline.cs:1804-1807），
+                         // 本仓同源直读（E 报告 §1.1 上传者列）。
+float3 _SunDirection;    // [E] cb0[123]（DayCycler.cs:304，指向太阳）——本仓单源 = _WaterLabSunDir
+                         // 全局（WaterLabSimulation.PublishSunDir 每帧发布），此处只消费不另设真值。
+float3 _SunColor;        // [E] cb0[125]（DayCycler.cs:298）——本仓单源 = _WaterLabSunColor 全局
+                         // （WaterLabReplicaGlobals，I1；其内部留有 A 表 vs H 表时刻对账 TODO，
+                         // GI 侧自动跟随该对账结果）。
+int   _FrameCount;       // [E] cb0[113].w：Unity 内建帧计数（哈希种子因子）——compute 无内建帧号，
+                         // 由 C# 侧 Time.frameCount 下发。
+int   _Samples;          // [E] cb0[139].x：High 档资产序列化 48（F-postprocess.md §5）；
+                         // C# SetInt 常量被反编译污染 → 运行时终验项（[ER] §5）。
+int   _Precision;        // [E] cb0[139].y：High 档 5 = 每 mip 层步数上限（shader 内总步另封顶 256）。
+float _LerpSpeed;        // [E] cb0[139].z：High 档 0.2 = 时间域混合系数（每帧 0.2 收敛，
+                         // 兼抑 GI 反馈闭环爆炸，[ER] §3 附注）。
+
+// [E] voxelsResolution cb0[138].xy：原作 Gi.Setup → SetGlobalVector("voxelsResolution")，
+// 值恒 128²（= FormatProperty.resolution 512>>2，与字段默认一致，[ER] §1.3④；
+// >>2 移位常量被 IL 污染标「高置信静态+运行时终验项」）。E 草稿即按 static 常量落，
+// 本文件同款；若终验推翻 128，改此处与 ReplicaGiSystem.VoxelsResolution 两处。
+static const int2 voxelsResolution = int2(128, 128);
+
+// ===========================================================================
+// Kernel 1: Initialization   tg=[32,32,1]   [E] L67-76 = Gi.Initialization.hlslasm 全文
+// Init 时派发一次（Gi.cs:196）：两张 UAV 清零。
+// ===========================================================================
+[numthreads(32,32,1)]
+void Initialization(uint3 tid : SV_DispatchThreadID)
+{
+    // [E L72-73] store_uav_typed u0.xyzw / u1.xyzw ← l(0,0,0,0)
+    giVoxels[tid.xy]        = float4(0, 0, 0, 0);
+    giVoxelsBlurred[tid.xy] = float4(0, 0, 0, 0);
+}
+
+// ===========================================================================
+// 共用：xorshift 族哈希 → [0,1) 均匀数（Gi kernel 内联出现，逐指令）
+// ===========================================================================
+uint hash31(uint s)
+{
+    // [E L83-84 = Gi.hlslasm] xor s,61; ushr t,s,16; xor s,t,s; *9; ushr t,s,4;
+    //                          xor s,t,s; *0x27d4eb2d; ushr t,s,15; xor s,t,s
+    s ^= 61u;
+    s ^= (s >> 16);
+    s *= 9u;
+    s ^= (s >> 4);
+    s *= 0x27d4eb2du;
+    s ^= (s >> 15);
+    return s;
+}
+
+float u01(uint bits)
+{
+    // [E L96 = Gi.hlslasm] bfi r4.x, l(23), l(0), r4.x, l(0x3f800000); add r4.x, r4.x, l(-1)
+    // = asfloat((bits & 0x007FFFFF) | 0x3F800000) − 1.0
+    return asfloat((bits & 0x007FFFFFu) | 0x3F800000u) - 1.0f;
+}
+
+// ===========================================================================
+// Kernel 2: Gi   tg=[32,32,1]   [E] L107-230 = Gi.Gi.hlslasm 全文
+// 每个 texel：以高度场梯度构造方向基 → N 个抖动方向在 sceneVoxels mip 链上
+// 2D DDA（Amanatides-Woo）步进，记录"最朝向本格"的命中辐射 → 与天空项合成
+// → 按样本数平均 → 与上一帧值按 _LerpSpeed 时间混合写回 giVoxels。
+// 语义总述见 [ER] §1.2（Gi kernel 六步）。
+// ===========================================================================
+[numthreads(32,32,1)]
+void Gi(uint3 tid : SV_DispatchThreadID)
+{
+    float2 res      = (float2)voxelsResolution;                       // [E L110] itof r0.yz, cb0[138].xxyx
+    uint   seed0    = voxelsResolution.x * tid.y + tid.x;             // [E L111] imad r0.x, cb0[138].x, vThreadID.y, vThreadID.x
+    float2 invCell  = 1.0f / (g_GiDomainSize.xz / res);               // [E L112] div r1.xy, cb0[116], r0.yzyy ; div r1.xy, 1, r1.xy
+
+    // ---- 高度场梯度（sceneVoxels.w 通道四邻差分）----
+    float hR = sceneVoxels.Load(int3((int)tid.x + 1, (int)tid.y, 0)).w; // [E L115] ld r0.w  (+1,0)
+    float hL = sceneVoxels.Load(int3((int)tid.x - 1, (int)tid.y, 0)).w; // [E L116] ld r1.z  (-1,0)
+    float hU = sceneVoxels.Load(int3((int)tid.x, (int)tid.y + 1, 0)).w; // [E L117] ld r1.w  (0,+1)
+    float hD = sceneVoxels.Load(int3((int)tid.x, (int)tid.y - 1, 0)).w; // [E L118] ld r2.x  (0,-1)
+    float2 grad  = float2(hR - hL, hU - hD);                          // [E L119] add r3.xy
+    float2 slope = grad * invCell * 0.5f;                             // [E L120] mul r1.xy, r1, r3 ; mul r1.xy, r1, l(.5,.5)
+
+    // ---- 方向基（⚠ 字面转写，这不是 normalize((slope,1))——DXGC 编译器产物即如此，
+    //      移植不"修正"，恒等门禁以原作数值为准；[E] 文件头注记 + [ER] §1.2 第 2 步）----
+    // [E L123-128] mov r1.z,1; dp3;rsq → L=rsqrt(dot(slope,slope)+1)
+    //       mul r1.xyzw, L, r1.xxyy            → r1 = (c0,c0,c1,c1)，c0=slope.x*L, c1=slope.y*L
+    //       dp2 r1.ywyy→ nx²+ny² ; 1−; sqrt    → r0.w = sqrt(1−c0²−c1²) = L
+    //       mul r1,(1,0,0,1)                   → (c0,0,c1,c1)
+    //       add r1.xyz, r1.zzwz, r1.xyyx       → (c1+c0, c1, c1)
+    //       mad r1.xyz, L, (0,1,0), r1.xyz     → N' = (c0+c1, c1+L, c1)
+    float L  = rsqrt(dot(slope, slope) + 1.0f);
+    float c0 = slope.x * L, c1 = slope.y * L;
+    float3 Nb = float3(c0 + c1, c1 + L, c1);
+
+    // ---- 本格世界坐标（XZ 中心 + 本格高度；世界↔网格映射见 [E] 文件头）----
+    float2 uvC   = saturate((tid.xy + 0.5f) / res - 0.5f);            // [E L136] div_sat/add −0.5
+    float3 p0    = float3(uvC.x * g_GiDomainSize.x,                   // [E L137] mul r2.xz, r3.zw, cb0[116]
+                          sceneVoxels.Load(int3(tid.xy, 0)).w,        // [E L138] ld r2.y（本格 t0.w）
+                          uvC.y * g_GiDomainSize.z);
+    float2 cellSize = g_GiDomainSize.xz / res;                        // [E L140] div r3.zw, 1, res ; mul r3.zw, cb0[116]
+
+    float3 acc = 0;                                                   // [E L142] mov r7.xyz, 0
+
+    [loop]
+    for (int i = 0; i < _Samples; i++)                                // [E L145] ige r2.w, r1.w, cb0[139].x
+    {
+        // ---- 均匀球面随机方向 ξ（bit-exact）----
+        uint  s  = seed0 * (uint)i * (uint)_FrameCount;               // [E L148] imul r2.w, r0.x, r1.w ; imul r2.w, cb0[113].w
+        float u1 = u01(hash31(s));                                    // [E L149] 第一支（异或常量 61）
+        float u2 = u01(hash31(s ^ (s >> 16) ^ 0x005b5c68u));          // [E L150] 第二支（xor r2.w, r2.w, r4.y ; xor 0x005b5c68）
+        float z  = 1.0f - 2.0f * u1;                                  // [E L151] mad r8.z, -r4.x, 2, 1
+        float ph = u2 * 6.283185f;                                    // [E L152] mul r2.w, 6.283185
+        float r_ = sqrt(max(0.0f, 1.0f - z * z));                     // [E L153] mad/sqrt r4.x
+        float sp, cp; sincos(ph, sp, cp);                             // [E L154] sincos r9.x, r10.x
+        float3 xi  = float3(r_ * cp, r_ * sp, z);                     // [E L155] mul r8.x / mul r8.y / r8.z
+        float3 dir = normalize(Nb + xi);                              // [E L156] add r8.xyz, r1, r8 ; dp3/rsq/mul
+
+        // ---- 水平面 DDA 初始化（texel 空间，Amanatides-Woo）----
+        float2 h    = dir.xz * rsqrt(dot(dir.xz, dir.xz));            // [E L159] dp2/rsq/mul r4.xy
+        float2 invH = 1.0f / max(abs(h), 1e-9f);                      // [E L160] max |r4| ; div r4, 1
+        bool2 posD  = dir.xz > 0.0f;                                  // [E L161] lt r9, 0, r8.xzxz
+        int2  cell  = (int2)tid.xy + (posD ? int2(1, 1) : int2(0, 0));// [E L162] movc r10, r9, r4.zw(tid+1), r3.xy(tid)
+        float2 delta = (cell + 0.5f) / res - 0.5f;                    // [E L163] add .5/div_sat/−.5（角点中心 uv）
+        float2 tMax  = abs(delta * g_GiDomainSize.xz - p0.xz) * invH; // [E L164] mad r9.zw −p0 ; mul r10.xy, invH, |Δ|
+        float2 tDel  = cellSize * invH;                               // [E L165] mul r10.zw, cellSize, invH
+
+        float  mip       = 0;  // [E] r6.y
+        float  stepInMip = 0;  // [E] r6.z
+        float4 best      = 0;  // best = (facing, color.rgb)              [E] r14
+        int    iter      = 0;  // [E] r5.w
+
+        // [E L173-175] 步数硬顶 256：asm 每过一拍 iadd r6.w 一次（ige r6.w, r5.w, 256 判定）。
+        // E 草稿 L172-176 把递增同时写在 for 头与循环体（每拍 +2，有效预算减半），与其
+        // 自身 [ASM] 注记（单次 iadd）矛盾——按草稿文件头纪律「以 [ASM] 字面为准」取
+        // 单次递增（for 头），总步 256（[ER] §1.2 第 4 步「总步硬顶 256」）。
+        [loop]
+        for (; iter < 256; iter++)                                    // [E L173] ige r6.w, r5.w, 256（步进 = for 头 iter++）
+        {
+            stepInMip++;                                              // [E L175] iadd r6.z
+            int2 mres = max(voxelsResolution >> (int)mip, int2(1, 1));// [E L177] ishr r9.zw, cb0[138], r6.y ; imax 0,1
+
+            // 当前格世界坐标 + 取样（rgb=辐射，w=高度；显式 LOD）。
+            // [E L182] ld r18, t0（.zw=mip）——Texture2D.Load 的 int4 重载，z 忽略 w=LOD。
+            float2 uv  = saturate((cell + 0.5f) / (float2)mres - 0.5f);
+            float3 wp  = float3(uv.x * g_GiDomainSize.x, 0, uv.y * g_GiDomainSize.z); // [E L181] mul r16.xz
+            float4 smp = sceneVoxels.Load(int4(cell, (int)mip, (int)mip));
+            wp.y = smp.w;                                             // [E L183] mov r16.y, r18.w
+
+            // facing = dot(normalize(cellPos − p0), Nb)，保留最大者
+            float3 to = normalize(wp - p0);                           // [E L186] add r19, −p0 ; dp3/rsq/mul
+            float  fc = dot(to, Nb);                                  // [E L187] dp3 r19.x, r19, r1
+            if (best.x < fc)                                          // [E L188] lt r7.w, r14.x, r19.x
+                best = float4(fc, smp.rgb);                           // [E L189] mad r19.yzw ; movc r18
+
+            if ((int)_Precision < (int)stepInMip)                     // [E L191] ilt r7.w, r2.w, r6.z
+            {   // 爬 mip：cell >>= 1，best 保留（[E L196] mov r14.xyzw, r18 随 movc 结果携带，无操作），步数清零
+                mip += 1;                                             // [E L193] iadd r7.w
+                int2 mres2 = max(voxelsResolution >> (int)mip, int2(1, 1));
+                cell   = cell >> 1;                                   // [E L195] ishr r16.yw, r15, (0,1,0,1)
+                stepInMip = 0;                                        // [E L197] mov r6.z, 0
+                // 重算新格 tMax（字面同 DDA init 的形态，尺寸减半；[E L199-204] mad/mul r11.zw）。
+                // 表达式与直觉不合处照抄 E 草稿字面——不"修正"。
+                float2 invH2 = 1.0f / max(abs(h), 1e-9f);
+                float2 cs2   = g_GiDomainSize.xz / (float2)mres2;     // [E L200] div r17.zw, 1, r10 ; mul cb0[116]
+                int2  corner = (cell + (posD ? int2(1, 1) : int2(0, 0)));
+                float2 uv2   = saturate((corner + 0.5f) / (float2)mres2 - 0.5f);
+                tMax = abs(uv2 * g_GiDomainSize.xz - (cell + 0.5f) / (float2)mres2 * g_GiDomainSize.xz) * invH2; // [E L203]
+                tDel = cs2 * invH2;                                   // [E L204] mul r10.xy
+                continue;                                             // [E L205] continue（跳过越界检查一拍，与原作一致）
+            }
+
+            // Amanatides-Woo 步进：tMax 较小轴 +1，tMax += tDel
+            if (tMax.x < tMax.y) { cell.x += h.x > 0 ? 1 : -1; tMax.x += tDel.x; }
+            else                 { cell.y += h.y > 0 ? 1 : -1; tMax.y += tDel.y; }
+            // [E L211] lt r7.w, r13.z, r13.w ; iadd/movc/mov r13.zw…（逐位对应见 Gi.hlslasm 105-107 段）
+
+            if (any(cell < 0) || any(cell >= mres))                   // [E L213] ilt / ige / or
+            {   // best 保留（[E L214] mov r14.xyzw, r18），出界即收束
+                break;
+            }
+        }
+
+        // ---- 天空项 + 命中项合成（[ER] §1.2 第 5 步：hit 色加性进入，未按 facing 加权——字面）----
+        float miss = saturate(1.0f - best.x);                         // [E L218] add_sat r2.w, -r14.x, 1
+        float  sd  = max(0.0f, dot(-_SunDirection, dir));             // [E L219] dp3 r4.x, -cb0[123], r8 ; max 0
+        // 太阳聚束 = sd⁸。[E L220 代码写的是 sd²→sd⁴→(sd⁴·sd)=sd⁵，但其 [ASM] 注记与
+        // [ER] §0.4/§1.2 三处均作「mul ×3 → pow(sd,8)」——三次平方（sd²,sd⁴,sd⁸）才是
+        // 三条 mul 出 8 次幂的唯一路径，判定 E 草稿该行为转写笔误，按 [ASM]/[ER] 取 sd⁸。
+        float  p8  = sd * sd; p8 = p8 * p8; p8 = p8 * p8;
+        float3 sky = p8 * _SunColor + _AmbientSky.rgb;                // [E L221] mad r5.xzw, r4.x, cb0[125], cb0[40]
+        acc += sky * miss + best.rgb;                                 // [E L222] mad r5.xzw, r5, r2.w, r14.yzw ; add r7
+    }
+
+    // ---- 时间域混合写回（alpha 通道恒向 1 收敛）----
+    float4 prev = giVoxels[tid.xy];                                   // [E L226] ld_uav_typed r0, u0
+    float3 avg  = acc / (float)_Samples;                              // [E L227] itof r1.x, cb0[139].x ; div r1.xyz
+    float4 next = float4(avg, 1.0f);                                  // [E L228] mov r1.w, 1
+    giVoxels[tid.xy] = _LerpSpeed * (next - prev) + prev;             // [E L229] add/mad → store u0
+}
+
+// ===========================================================================
+// Kernel 3: BlurGi   tg=[32,32,1]   [E] L236-245 = Gi.BlurGi.hlslasm 全文
+// giVoxels 的十字 4 tap 均值（无权重，mul 0.25）→ giVoxelsBlurred。
+// giVoxelsBlurred 经 SetGlobalTexture("giVoxels", …)（Gi.cs:186）成为全局纹理，
+// 消费者采的是这份模糊版（[ER] §1.3③）。
+// ===========================================================================
+[numthreads(32,32,1)]
+void BlurGi(uint3 tid : SV_DispatchThreadID)
+{
+    int2 p = (int2)tid.xy;
+    float4 s = giVoxels[p + int2(-1, 0)]                              // [E L240] ld u0 (−1,0)
+             + giVoxels[p + int2(+1, 0)]                              // [E L241] ld u0 (+1,0)
+             + giVoxels[p + int2( 0,-1)]                              // [E L242] ld u0 (0,−1)
+             + giVoxels[p + int2( 0,+1)];                             // [E L243] ld u0 (0,+1)
+    giVoxelsBlurred[p] = s * 0.25f;                                   // [E L244] mul 0.25 ; store u1
+}
