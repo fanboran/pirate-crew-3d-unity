@@ -126,7 +126,7 @@ Shader "PirateCrew/WaterLab/ReplicaBorders"
         // 本仓高度场编码（Ocean.DecodeEta 同式）：存 (e+3)/5，读 e·5−3
         float ReplicaDecodeEta(float e)
         {
-            return e * 5.0 - 3.0;
+            return e * 5.0 - 1.0;
         }
 
         // 域 UV（与 Ocean.WorldToDomainUv 同式）

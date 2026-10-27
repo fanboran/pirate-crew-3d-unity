@@ -425,7 +425,7 @@ void OutputField(uint3 id : SV_DispatchThreadID)
 
     // η 编码 [-3,2]→[0,1]；法线 xz [-1,1]→[0,1]；泡沫原值
     _WaterLabHeightTex[c] = float4(
-        saturate((eta + 3.0) / 5.0),
+        saturate((eta + 1.0) / 5.0),
         saturate(-dx * invLen * 0.5 + 0.5),
         saturate(-dz * invLen * 0.5 + 0.5),
         saturate(w.w));

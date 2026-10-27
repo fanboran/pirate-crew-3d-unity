@@ -79,7 +79,7 @@ Shader "PirateCrew/WaterLab/Whitewater"
             TEXTURE2D(_WaterLabHeightTex); SAMPLER(sampler_WaterLabHeightTex);
             TEXTURE2D(_WaterLabGroundTex); SAMPLER(sampler_WaterLabGroundTex);
 
-            float DecodeEta(float e) { return e * 5.0 - 3.0; }
+            float DecodeEta(float e) { return e * 5.0 - 1.0; }
 
             // 水柱透射（原作 Lit_Whitewater PS 与 Lit_Sand 直射项同一字面量 0.721348）
             static const float WaterColumnExtinction = 0.721348;

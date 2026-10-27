@@ -490,7 +490,7 @@ namespace PirateCrew.WaterLab
             { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear, name = "WaterLabGround" };
             var groundPixels = new Color[groundCount];
             for (int i = 0; i < groundCount; i++)
-                groundPixels[i] = new Color(Mathf.Clamp01((groundData[i] + 3f) / 5f), 0f, 0f, 1f);
+                groundPixels[i] = new Color(Mathf.Clamp01((groundData[i] + 1f) / 5f), 0f, 0f, 1f);
             _groundTex.SetPixels(groundPixels);
             _groundTex.Apply(false, false);
         }

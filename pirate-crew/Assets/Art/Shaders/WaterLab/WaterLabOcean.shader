@@ -130,7 +130,7 @@ Shader "PirateCrew/WaterLab/Ocean"
             // η 解码（我方 RT 编码 (η+3)/5，compute OutputField 发布；量纲 = 米）
             float LoadEta(int2 cell)
             {
-                return _WaterLabHeightTex.Load(int3(cell, 0)).r * 5.0 - 3.0;
+                return _WaterLabHeightTex.Load(int3(cell, 0)).r * 5.0 - 1.0;
             }
 
             struct Attributes
@@ -220,9 +220,9 @@ Shader "PirateCrew/WaterLab/Ocean"
                     // own-cell 语义，待 L2 抓帧对账后再定）。地面 R 编码同 η 式 (g+3)/5
                     // （WaterLabSimulation.CreateBuffers 上传端同式）。
                     float eta = SAMPLE_TEXTURE2D_LOD(_WaterLabHeightTex,
-                        sampler_WaterLabHeightTex, uv, 0).r * 5.0 - 3.0;
+                        sampler_WaterLabHeightTex, uv, 0).r * 5.0 - 1.0;
                     float ground = SAMPLE_TEXTURE2D_LOD(_WaterLabGroundTex,
-                        sampler_WaterLabGroundTex, uv, 0).r * 5.0 - 3.0;
+                        sampler_WaterLabGroundTex, uv, 0).r * 5.0 - 1.0;
                     OUT.visibleDepth = max(eta - ground, 0.0);
                 }
 

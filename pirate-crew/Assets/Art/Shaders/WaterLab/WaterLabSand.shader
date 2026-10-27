@@ -114,7 +114,7 @@ Shader "PirateCrew/WaterLab/Sand"
 
             // 地面/水位场编码（I7）：e×5−3，量程 [−3,2] 在干沙丘顶 2.6 m 处饱和——
             // 扩量程跨 Ocean shader 域，由协调者集成轮统一改（I7 偏差注记），沙侧解码保持现行。
-            float DecodeGround(float e) { return e * 5.0 - 3.0; }
+            float DecodeGround(float e) { return e * 5.0 - 1.0; }
 
             float2 WorldToDomainUv(float3 worldPos)
             {

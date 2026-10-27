@@ -73,7 +73,7 @@ Shader "PirateCrew/WaterLab/Prop"
             TEXTURE2D(_WaterLabHeightTex); SAMPLER(sampler_WaterLabHeightTex);
             TEXTURE2D(_WaterLabDetailNormal); SAMPLER(sampler_WaterLabDetailNormal);
 
-            float DecodeEta(float e) { return e * 5.0 - 3.0; }
+            float DecodeEta(float e) { return e * 5.0 - 1.0; }
 
             struct Attributes
             {
