@@ -228,6 +228,11 @@ Water compute 的 11 个 kernel 全部反汇编后逐条判读（每个 kernel �
 
 ## 10. Lit_Sand PS 与 Lit_Water VS 实锤（水底波影与浪形，反汇编逐条，2026-10-15）
 
+> **⚠ 本节五处修正（2026-10-27 D 流逐指令复核）**：①"闪沙"项不存在=焦散项本身；
+> ②第二平流场恒 −4 禁用；③坡度只门控焦散不暗化 albedo；④白水粒子=贴水皮水平扁
+> 四边形非 billboard；⑤另有域贴图加性 GI 项与深水沙变体。逐条见
+> `external/sandcastle-ref/rt/reports/D-sand.md`（实现以该报告为准）。
+
 ### 10.1 Lit_Water 无 ShadowCaster——水面不投影
 
 `Lit_Water.blob` 全量 DXBC 容器扫描：只有 4 个程序（2 VS 变体 + 2 PS 变体），无深度-only pass。**原作水面不往任何东西上投影**——沙滩上/水底看到的「波影」不来自 shadowmap。
