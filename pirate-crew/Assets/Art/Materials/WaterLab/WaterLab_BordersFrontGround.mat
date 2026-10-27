@@ -1,0 +1,46 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: WaterLab_BordersFrontGround
+  m_Shader: {fileID: 4800000, guid: c53040ea56ab44d6a90e48a35d0d43ac, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords:
+  - _REPLICA_MODE_FRONTGROUND
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _StrataTex:
+        m_Texture: {fileID: 2800000, guid: 7f0f6c5eb46f4da586fe7811f7edf323, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _Mode: 2
+    - _ModeBack: 0
+    - _ModeFrontGround: 1
+    - _ModeFrontWater: 0
+    - _StrataLevelOffset: 1
+    m_Colors:
+    - _Ambient: {r: 0.698039, g: 0.564706, b: 0.569923, a: 1}
+    - _MoonColor: {r: 0, g: 0, b: 0, a: 1}
+    - _MoonDirection: {r: 0, g: -1, b: 0, a: 0}
+    - _SandColor: {r: 0.9255, g: 0.8863, b: 0.7255, a: 1}
+    - _SandColor2: {r: 0.8353, g: 0.8078, b: 0.6902, a: 1}
+    - _Sigma: {r: 0.9930291, g: 0.1753813, b: 0.0557871, a: 0}
+    - _WaterColor: {r: 0.9603, g: 0.9858, b: 0.9995, a: 1}
+  m_BuildTextureStacks: []
