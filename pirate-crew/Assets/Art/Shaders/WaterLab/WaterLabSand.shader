@@ -85,7 +85,7 @@ Shader "PirateCrew/WaterLab/Sand"
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             // 深水沙变体（原作 @57462+@85014 家族，D 表§2.4-6）：顶点抬升+深水变色。
             // 主菜单是否启用属运行时状态（D 表§6 待抓帧终审）——默认关，材质开关键字即换变体。
-            #pragma shader_feature_local_vertex _WATERLAB_DEEP_SAND
+            #pragma shader_feature_local _WATERLAB_DEEP_SAND  // 全阶段变体（曾用 _vertex：PS 的 #if 恒假，r99b 帧零变化的根因）
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             // Shadows.hlsl 的 LerpWhiteTo 在 core CommonMaterial 里（单独 include Shadows 不够）
