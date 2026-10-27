@@ -53,7 +53,7 @@ namespace PirateCrew.WaterLab
         /// t=1/3 Morning 的运行时 sunColor = (1, 0.9404, 0.8724)——与 A 表的灯序列化值
         /// 差一个色温档。I1 按任务书落 A 表值；I8（固定时刻装配）接线时两值对账闭此。
         /// </summary>
-        static readonly Vector4 SunColor = new Vector4(1.0f, 0.9709f, 0.9403f, 1f);
+        static readonly Vector4 SunColor = new Vector4(1.0f, 0.940429f, 0.872353f, 1f);
 
         /// <summary>
         /// cb1[0].x（PS L82）折射偏移乘子 = 0.0121（materials-dump.txt，交接档 §3）。

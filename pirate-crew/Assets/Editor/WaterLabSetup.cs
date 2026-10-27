@@ -130,42 +130,36 @@ namespace PirateCrew.EditorTools
 
         static void CreateLighting()
         {
-            // 【A 级真值对账（2026-10-26，level0 Light 组件直读）】原作昼夜循环
-            // （DayCycler：太阳挂 elevation 绕 z 轴转、色温走渐变板），level0 初始帧：
-            // SunLight 色 (1.0,0.9709,0.9403)×1.0、Soft 阴影 strength=1.0/bias=0.1/
-            // normalBias=1.0；MoonLight（天光第二方向光）(0.0627,0.1333,0.2196)×1.0
-            // 无阴影。方向为时变不可静态定——本仓固定时刻属取景设计（58° 仰角，
-            // 相机对面让水面镜像路径落回取景），不属参数偏差。
+            // 【I8 固定时刻移植（2026-10-27，menu-state.json 三帧全同）】主菜单
+            // DayCycler.timelapse=0（静止）、t=1/3 Morning（elevation z=330°）：
+            // Sun 色 (1,0.940429,0.872353)×1.0、Soft（level0 组件参数 strength=1.0/
+            // bias=0.1/normalBias=1.0）、世界旋转 q(0.023437,−0.748097,0.536788,−0.389435)
+            //（forward=(0.6078,−0.7849,−0.1204)）；**MoonLight 在该时刻 enabled=false（黑）**
+            // ——环境光走 RenderSettings.ambientSkyColor (0.698039,0.564706,0.569923)
+            //（environmentGradient@t=1/3 过 hueVariation −0.109）；fog=false。
             var sun = new GameObject("Sun");
             var light = sun.AddComponent<Light>();
             light.type = LightType.Directional;
             light.shadows = LightShadows.Soft;
             light.intensity = 1.0f;
-            light.shadowStrength = 1.0f;   // 原作 m_Strength=1.0（旧 0.75 系观感推测值）
-            light.shadowBias = 0.1f;       // 原作 m_Bias
-            light.shadowNormalBias = 1.0f; // 原作 m_NormalBias
-            light.color = new Color(1.0f, 0.9709f, 0.9403f); // 原作 SunLight m_Color
-            // 指向太阳 L=(-0.50,0.82,-0.12)（归一化后仰角≈58°），forward=-L 朝下照地。
-            sun.transform.rotation = Quaternion.LookRotation(new Vector3(0.50f, -0.82f, 0.12f));
-            sun.transform.position = new Vector3(-25f, 41f, -6f);
+            light.shadowStrength = 1.0f;
+            light.shadowBias = 0.1f;
+            light.shadowNormalBias = 1.0f;
+            light.color = new Color(1.0f, 0.940429f, 0.872353f);   // t=1/3 sunGradient
+            sun.transform.rotation = new Quaternion(0.023437f, -0.748097f, 0.536788f, -0.389435f);
+            sun.transform.position = new Vector3(-6.078317f, 7.848856f, 1.203975f);
 
-            // 天光第二方向光（原作 MoonLight）：不采影、不衰减，全额到达水面与水下——
-            // 逆向 §10.2「浅水亮绿松石的来源：直射被水柱压暗但天光全额到达」的正身。
-            // 沙面/水底直射被水柱吸收后，青蓝环境亮度由它承担（此前用平坦环境光近似，
-            // 方向性缺失）。方向取太阳对侧高位（原作 MoonLight 挂同一 elevation 对转，
-            // 固定时刻近似取互补位）。
+            // MoonLight：菜单时刻关闭（enabled=false, 色黑）——保留 GameObject 但禁用，
+            // 昼夜循环移植后由 t 驱动启停。
             var sky = new GameObject("SkyLight");
             var skyLight = sky.AddComponent<Light>();
             skyLight.type = LightType.Directional;
             skyLight.shadows = LightShadows.None;
-            skyLight.intensity = 1.0f;
-            skyLight.color = new Color(0.0627f, 0.1333f, 0.2196f);
-            skyLight.transform.rotation = Quaternion.LookRotation(new Vector3(0.35f, -0.90f, -0.26f));
+            skyLight.enabled = false;   // menu-state t=1/3：moon.enabled=false
+            skyLight.color = new Color(0.0627f, 0.1333f, 0.2196f); // 昼夜循环其它时刻的序列化色
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            // 场景全局环境色只对内置 Lit 生效；自写沙/石/水 shader 读的是材质 _AmbientColor。
-            // 这里同步回原作天光色，避免两套环境数再次打架（审计 §4.C 记录过该矛盾）。
-            RenderSettings.ambientLight = new Color(0.0627f, 0.1333f, 0.2196f);
+            RenderSettings.ambientLight = new Color(0.698039f, 0.564706f, 0.569923f); // ambientSkyColor@t=1/3
             RenderSettings.sun = light; // WaterLabSimulation.PublishSunDir 解析源
         }
 
@@ -177,28 +171,17 @@ namespace PirateCrew.EditorTools
             go.tag = "MainCamera";
             var cam = go.AddComponent<Camera>();
             cam.orthographic = false;
-            // 俯视沙盘取景（向 Battle 的俯角等距观感靠拢）：长焦 + 高机位。
-            cam.fieldOfView = 32f;
-            cam.nearClipPlane = 0.1f;
-            cam.farClipPlane = 400f;
-            cam.backgroundColor = new Color(0.55f, 0.72f, 0.88f);
-            // 【取景口径】正对岸线（yaw 90°，相机在 +x 侧朝 -x 看）：参考头图的岸线是横的，
-            // 旧 45° 斜看会把岸线拍成对角线，也让水色带斜切画面。取景中心 (1,0)、俯角 48°、
-            // 机距 46：画面构成 ≈ 沙 26% / 水 74%，顶部是 ≥2 m 的深水、底部是干沙滩，
-            // 64 m 域的边界全部落在画外（旧机位右上角 11% 露天空盒的灰色域外区消失）。
-            // 俯角 48° 与太阳仰角 58° 配对，水面镜像路径仍横穿取景。
-            // 【I7 临时】域切 30 m + 海平面 1.0 后，先只把注视点抬到海平面（y≈1），
-            // 保证新场景不出画；机位/FOV/构图的对齐归 I8（相机矩阵级复刻）。
-            var center = new Vector3(1f, WaterLabRules.SeaLevel, 0f);
-            float pitch = 42f * Mathf.Deg2Rad; // 距天顶 42° → 实际俯角 48°
-            float yaw = 90f * Mathf.Deg2Rad;
-            float dist = 46f;
-            var dir = new Vector3(
-                Mathf.Sin(pitch) * Mathf.Sin(yaw),
-                Mathf.Cos(pitch),
-                Mathf.Sin(pitch) * Mathf.Cos(yaw)); // 从中心指向机位
-            go.transform.position = center + dir * dist;
-            go.transform.rotation = Quaternion.LookRotation(-dir);
+            // 【I8 相机移植（menu-state.json 三帧全同，矩阵级）】主菜单 LabCamera：
+            // FOV 20、near 8.736618、far 46.223755、pos (7.570009,20.671303,−21.924673)、
+            // rot q(0.37687,−0.16043,0.066452,0.909844)、bg (0.801526,0.506065,0.560869)。
+            // 原作 projectionMatrix [3.190096,5.671281,…] 与 FOV20/aspect1.778 解析一致
+            //（竖 FOV 2·atan(1/5.671281)≈20°），Unity 重算投影即可，不改 near/far 以外的项。
+            cam.fieldOfView = 20f;
+            cam.nearClipPlane = 8.736618f;
+            cam.farClipPlane = 46.223755f;
+            cam.backgroundColor = new Color(0.801526f, 0.506065f, 0.560869f);
+            go.transform.position = new Vector3(7.570009f, 20.671303f, -21.924673f);
+            go.transform.rotation = new Quaternion(0.37687f, -0.16043f, 0.066452f, 0.909844f);
             return cam;
         }
 
