@@ -425,6 +425,10 @@ absor/extinct 的项）、不在材质 `Water` 的 saved properties 里、也不
 
 ## 14. 从 Steam 高清头图反定材质（2026-10-18）
 
+> **⚠ 本节 σ 部分已作废（2026-10-27 A 流静态终证）**：σ≡(0,0,0)（cb0[132] 无上传者，
+> global-metadata 字面量全扫证据链，见水体复刻台账）。下文的 σ 通道比值/三锚点/绝对尺度
+> 是给 tonemap/沙侧缺项打的补偿拟合，不得再用于实现；waterColor/scatteringColor 反定仍有效。
+
 σ 静态取不到（§13），于是改用**成品画面**反定：Steam 客户端 `appcache/librarycache/<appid>/`
 里存着官方高清头图（本机 `4894830/…/library_hero.jpg`，1920×620），是实机渲染的成品，
 可直接当比色基准。方法：
