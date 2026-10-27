@@ -108,6 +108,7 @@ Shader "PirateCrew/WaterLab/Ocean"
             float4 _WaterLabSunDir;          // 指向太阳（现有链）
             float  _WaterLabSimEnabled;      // 模拟开关（D15 本仓设施：关=平面+不裁剪）
             float4 _WaterLabWaterColor;      // cb0[131]
+            float4 _WaterLabSigma;           // cb0[132] 运行时真值（R 流抓帧）=（0.993,0.175,0.0558）tint 域
             float4 _WaterLabScatterColor;    // cb0[121]
             float4 _WaterLabSunColor;        // cb0[125]
             float  _WaterLabRefractionFactor; // cb1[0].x（PS）
@@ -305,8 +306,12 @@ Shader "PirateCrew/WaterLab/Ocean"
                 // 死变量 → T ≡ waterColor，整段 invVP 重建折叠。
                 // 恢复条件：抓帧终证 σ≠0（A-sigma §6 路线①）时，按 C-water.hlsl
                 // L248-255 的正身恢复整段（含 8.65617 字面量）。
-                float3 T = _WaterLabWaterColor.rgb;
-                float3 bgT = bg * T;   // L115（bg×waterColor）
+                // 真身恢复（R 流抓帧终证 σ≠0）：T = exp2(−8.65617·σ·dist)×waterColor
+                //（exp2 语义 = e^(−6σd)，X 流）；dist = invVP 重建折射点世界坐标的水下光程。
+                float3 refrPointW = ComputeWorldSpacePosition(finalUV, bgEye, UNITY_MATRIX_I_VP);
+                float dist = distance(refrPointW, wpos);
+                float3 T = exp2(-8.65617 * _WaterLabSigma.rgb * dist) * _WaterLabWaterColor.rgb;
+                float3 bgT = bg * T;   // L115（bg×T）
 
                 // --- PS L116-128：视线、NdotV、基底（正面一致项） ---
                 float3 V = GetCameraPositionWS() - wpos;   // L116（cb0[6] 世界相机位）

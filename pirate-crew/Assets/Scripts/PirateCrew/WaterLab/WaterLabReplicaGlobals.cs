@@ -82,6 +82,10 @@ namespace PirateCrew.WaterLab
         static void Publish()
         {
             Shader.SetGlobalVector(IdWaterColor, WaterColor);
+        // cb0[132] σ 运行时真值（R 流 key_slots.json，2026-10-27）：
+        // (0.9930291, 0.1753813, 0.0557871) tint 域；exp2 语义下有效 6σ/m。
+        Shader.SetGlobalVector(Shader.PropertyToID("_WaterLabSigma"),
+            new Vector4(0.9930291f, 0.1753813f, 0.0557871f, 0f));
             Shader.SetGlobalVector(IdScatterColor, ScatterColor);
             Shader.SetGlobalVector(IdSunColor, SunColor);
             Shader.SetGlobalFloat(IdRefractionFactor, RefractionFactor);
