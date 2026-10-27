@@ -1,6 +1,6 @@
 using System;
 using System.Text;
-using System.Text.Json;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using PirateCrew.WaterLab;
 using UnityEngine;
@@ -530,30 +530,31 @@ namespace PirateCrew.WaterLab.Tests
             int end = raw.LastIndexOf('}', endMark);
             Assert.IsTrue(end > start, $"{path}: JSON 区段为空");
 
-            using JsonDocument doc = JsonDocument.Parse(raw.Substring(start, end - start + 1));
-            JsonElement root = doc.RootElement;
-            JsonElement full = root.GetProperty("fullDump");
+            // Unity 2022 无 System.Text.Json——键名全扁平，正则直取（harness/Unity 双跑同码）
+            string json = raw.Substring(start, end - start + 1);
+            string GetStr(string key) => Regex.Match(json, "\"" + key + "\"\\s*:\\s*\"([^\"]*)\"").Groups[1].Value;
+            float GetNum(string key) => float.Parse(Regex.Match(json, "\"" + key + "\"\\s*:\\s*(-?[0-9.eE+]+)").Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            long GetInt(string key) => long.Parse(Regex.Match(json, "\"" + key + "\"\\s*:\\s*(-?[0-9]+)").Groups[1].Value);
 
             var d = new DumpData
             {
                 Name = System.IO.Path.GetFileName(path),
-                TimestampMs = root.GetProperty("timestampMs").GetInt64(),
-                Res = full.GetProperty("resX").GetInt32(),
+                TimestampMs = GetInt("timestampMs"),
+                Res = (int)GetInt("resX"),
             };
             Assert.AreEqual(ReadbackRes, d.Res, $"{d.Name}: resX 应为 256（Readback 层分辨率）");
-            Assert.AreEqual(ReadbackRes, full.GetProperty("resY").GetInt32(), $"{d.Name}: resY 应为 256");
+            Assert.AreEqual(ReadbackRes, (int)GetInt("resY"), $"{d.Name}: resY 应为 256");
 
-            d.WaterBytes = Convert.FromBase64String(full.GetProperty("waterAmount_b64").GetString());
-            d.GroundBytes = Convert.FromBase64String(full.GetProperty("groundHeight_b64").GetString());
-            byte[] etaBytes = Convert.FromBase64String(full.GetProperty("eta_b64").GetString());
+            d.WaterBytes = Convert.FromBase64String(GetStr("waterAmount_b64"));
+            d.GroundBytes = Convert.FromBase64String(GetStr("groundHeight_b64"));
+            byte[] etaBytes = Convert.FromBase64String(GetStr("eta_b64"));
             d.Water = ToFloats(d.WaterBytes, "waterAmount");
             d.Ground = ToFloats(d.GroundBytes, "groundHeight");
             d.Eta = ToFloats(etaBytes, "eta");
 
-            JsonElement water = root.GetProperty("water");
-            d.Level = water.GetProperty("level").GetSingle();
-            d.Gravity = water.GetProperty("gravityForce").GetSingle();
-            d.EvaporationFactor = water.GetProperty("evaporationFactor").GetSingle();
+            d.Level = GetNum("level");
+            d.Gravity = GetNum("gravityForce");
+            d.EvaporationFactor = GetNum("evaporationFactor");
 
             (d.WaterMin, d.WaterMax) = MinMax(d.Water);
             (d.GroundMin, d.GroundMax) = MinMax(d.Ground);
