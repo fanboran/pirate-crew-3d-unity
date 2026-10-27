@@ -1,143 +1,94 @@
 // ============================================================================
-// WaterLabOcean.shader —— 实验水体（W2）：URP 前向不透明水体。
+// WaterLabOcean.shader —— Lit/Water 像素级移植正身（I1，编译器式逐指令翻译）。
 //
-// 【观感目标】Sandcastle 参考图：近岸透亮见沙、碎金波光、浪脊影子。
+// 【移植基准】external/sandcastle-ref/rt/reports/C-water-map.md（VS@246 107 指令 +
+//   PS@8682 119 指令逐指令表 + 偏差清单 D1–D16）与 C-water.hlsl（直译底稿）；
+//   真值出处 = A-sigma.md 槽位表（下发于 WaterLabReplicaGlobals.cs，本文件不写死
+//   任何可调真值）。每个语义块前的注释引用 C 表行号（"PS L121-132：……"），
+//   供逐节对账回溯。逆向台不可本地编译 HLSL——语法按 URP 2022.3 口径自查，
+//   协调者出图时验证。
 //
-// 【光照模型 = Lit/Water PS 逐指令复刻】（逆向档案 §4.1 完整公式，2026-10-15 全解）
-//   1. 细节法线 = 法线贴图双尺度采样（世界 XZ×0.05 / ×0.20，时间×0.8 动画，动差混合）
-//      + 模拟坡度场（顶点法线），归一——碎金闪点全部由贴图高频法线供 pow1500 镜面瓣；
-//   2. 折射 = 真屏幕折射（外包债①清偿）：底色采 _CameraOpaqueTexture（URP
-//      CopyColorPass 在「沙/天空渲完、透明队列未开」时拷的帧色 = 原作折射底色即
-//      真实沙网格渲染纹理的正身）；水体排 Transparent+10 调度位以落到拷贝之后，
-//      渲染语义仍不透明（ZWrite On、无 Blend、alpha 恒 1——第十轮的不透明观感
-//      原样保留，透明度只是连续颜色项）；偏移 = N.xz × refractionFactor（实测
-//      0.0121，Y 轴乘纵横比），深度安全门控（折射点比当前像素近→不偏移）；
-//   3. 光程 = 解析水下段（depth/max(−rayDir.y, 0.25)，深度来自模拟高度场）——
-//      原作用深度重建折射点（真路径长度）；本仓 LDR 直出链保留解析近似，但折射
-//      采样点已按原作补上**深度安全门**：读 _CameraDepthTexture（拷贝点改为
-//      AfterOpaques，与原作 CopyOpaqueDepth 同序），背景比水面近则不采纳偏移；
-//   4. 吸收 T = exp(-8.65617·σ_rgb·dist) × 水色（8.65617 为原作 PS 字面量）；
-//   5. col = lerp(背景×T×(0.9+0.2·NdotV⁶), 散射色, NdotV⁵ × min(阴影+0.25,1) × 0.75)
-//      ——散射权重随俯视增大；阴影软化只接在散射项（+0.25 下限 = 影子最深 75%）；
-//   6. col += 太阳色 × pow(NdotH,1500) × 阴影原值（反汇编 156 行：镜面乘的是未软化
-//      的比较采样结果，不乘菲涅尔）；
-//   7. 原作水面不投影（Lit_Water blob 只有 2VS+2PS，无 ShadowCaster）；水底波影在
-//      沙侧由「阴影 × exp(-0.721×水深)」承担（逆向档案 §5），本仓同构。
-//   队列：Transparent+10 调度位（排在 URP CopyColorPass 之后、白水 3050 之前），
-//   渲染语义不透明（ZWrite On、无 Blend、alpha 恒 1）——「透明度」只是透过率调制
-//   底色亮度的连续颜色项；当年透明队列的蓝白骤变来自 alpha=1−minT 的混合层，
-//   本 shader 无 Blend，该伪影类在构造上不存在（2026-10-15 创始人拍板不透明观感）。
+// 【C 表净语义（PS）】
+//   clip(visibleDepth − 1e−5)；
+//   phase  = 法线贴图.b(worldXZ×0.05) + time×0.8；
+//   w1/tri/w2 = 相位驱动的锯齿/三角/锯齿波；flow ≡ (−0.5,−0.5)（VS 死通道活行为）；
+//   细节法线 = ±0.25 双偏移 @×0.20 两采样 tri 混合 → y=sqrt 重建；
+//   N = normalize(细节法线 + VS 字节坡度法线)；
+//   折射 UV = 屏幕UV + (N.x, N.z×aspect)×0.0121，深度安全门（背景更近→不偏移）；
+//   T = exp(−8.65617·σ·dist)×waterColor，**σ≡0（A 流定案）→ T≡waterColor**；
+//   base = bg×T×(0.9 + 0.2·NdotV⁶)；
+//   col  = lerp(base, 散射色, (1−NdotV)⁵ × min(sh+0.25,1) × 0.75)；
+//   col += 太阳色 × pow(NdotH,1500) × (1−NdotV)⁴（不乘阴影）；
+//   o0 = (col, saturate(visibleDepth×100))。
 //
-// 【教训记录】vDotN = dot(viewDir, N)（viewDir 指向相机），写反 → 菲涅尔恒 1；
-//   细节法线必须是贴图（正弦格架出网格状点阵）；法线 y 增益 ≤1.5。
+// 【VS 净语义】顶点高度 = (η南+η北)/2（仅南北两邻格，各解码两次的编译器展开数值
+//   恒等）；坡度法线 = 自格 GB 反解（×2−1，y=sqrt 重建）；流 = 恒(−4,−4)（死通道）；
+//   可见水深 = 自格可见水柱（供 PS clip/α）。
+//
+// 【本版相对旧版的删除清单（自造项坐实，C 表 §6 D1–D12/D15）】
+//   * 散射权重方向：旧 NdotV⁵ 系反向（D1），改 (1−NdotV)⁵——旧文件头
+//     "与原作反汇编一致"的断言错误；
+//   * 镜面乘子：旧 spec×阴影 系误读（D2，寄存器活性链：r1.w 在 PS L131 被覆写为
+//     (1−NdotV)⁴ 后于 L156 消费），改 (1−NdotV)⁴ 且不乘阴影；
+//   * 天空反射整段、GI 兜底整段（D3/D4，原作 PS 无此二项）；
+//   * _ScatterStrength 显示域旋钮（D11，其存在是 D1 反向后硬压的补偿）；
+//   * detailFade 距离淡出与旧"双尺度相加"细节法线机制（D6，原作是单相位驱动、
+//     双偏移、波形混合）；
+//   * sunDir 兜底常量（D15，模拟侧 PublishSunDir 恒发非零向量）；
+//   * _WaterLabOceanDebug 诊断分格块（D15 设施，复刻验收不需要）。
+//   吸收 σ 反定标值 (5.6,1.94,0.35)/m 一并作废（A 流 §5：σ≡0 定案，旧三锚点
+//   系对 tonemap/沙侧缺项的补偿拟合）。
+//
+// 【遗留 TODO】
+//   * 渲染状态：Blend/ZWrite/ZTest 不在 DXBC blob（C 表 §4 缺口）；PS 输出
+//     α=saturate(depth×100) 暗示原作可能混合——暂保持现行 Transparent+10/ZWrite On/
+//     无 Blend，集成时按抓帧定。
+//   * 原作 h 的"次加数"字段（u2 高 8bit + u3 bit8-23，VS L54-62）：打包端在原作
+//     compute（E 流域），我方 RT 为浮点 η 无对应字段——暂用我方 η 全精度，见 VS 注。
+//   * cb1[0].x 双解读（refractionFactor 材质槽 vs ObjectToWorld m00）：值同为
+//     0.0121，抓帧终证时读 PS cb1[0].x 实测闭（见折射段注）。
 // ============================================================================
 
 Shader "PirateCrew/WaterLab/Ocean"
 {
     Properties
     {
-        // ---- 吸收（Lit/Water PS 同构：exp(-8.65617·σ·真光程)）----
-        // 【单位】σ 是 **tint 域系数**（0..1 量级），不是每米消光——原作那个 8.65617 字面量
-        // 就是「归一系数 → 每米」的换算；若 σ 本来就是 1/m，根本不需要乘它。
-        // 【曾经两个错】① 填每米值 (0.45,0.14,0.03) 又保留 ×8.65617 → 红光有效消光 3.9/m
-        // （1/e 仅 26 cm），1.3 m 处红光剩 0.6%，水底真色吃光、焦散被压在底下看不见；
-        // ② 改回教科书每米值后，本仓实验域水深大多 <0.5 m，衰减几乎为零 → 水成了薄膜、
-        // 失去体色（2026-10-18 两轮实拍）。
-        // 【定标依据】对着 Steam 高清头图（library_hero.jpg，1920×620）逐带比色。
-        // 取参考最深可见带的出射色 (16,70,119) 与它自己的受光沙底 (252,226,167) 反解
-        // T = 出射/底色 = (0.0036, 0.142, 0.703)，得**通道比值**（这部分与水深无关、最可靠）：
-        //   σ_R : σ_G : σ_B = 15.9 : 5.52 : 1
-        // 再按**三锚点同时命中**定绝对尺度：本仓 dist = 0.2 / 0.5 / ≥2 m 分别落在参考的
-        // 浅滩 (157,200,171)／中带 (74,153,161)／最深带 (16,70,119) 上
-        // → **有效 σ ≈ (5.6, 1.94, 0.35) /m**。
-        // 原作的 σ 静态取不到（DXBC 的 RDEF 被剥、C# 全局与材质都没有该槽），
-        // 故此值是**按参考画面反定标**；要更透/更浓改这里即可。
-        // 【必须是 Vector，不能是 Color】Linear 工程里 Unity 会把 Color 属性当 sRGB
-        // 再转一次线性：σ 会被压成 (0.365,0.039,0.0033)，绿色消光只剩 1/5.7、
-        // 蓝色只剩 1/12，深水就会发青绿（r60/r61 探针实测）。物理系数走 Vector
-        // 原样进 shader，不做色彩空间转换。
-        _Absorption             ("消光 σ（tint 域，×8.65617 得 1/m）", Vector) = (0.6468, 0.2241, 0.0404, 1.0)
-        _WaterTint              ("水色乘子（原作 waterColor 实测）", Color) = (0.9603, 0.9858, 0.9995, 1.0)
-        _ScatterColor           ("散射色（原作 waterScatteringColor 实测暖橙）", Color) = (0.5684, 0.3569, 0.0, 1.0)
-        // 原作散射色是 HDR 管线的文件值，经 tonemap 压缩后才落在参考图的暖调；本仓 LDR
-        // 直出若按 1.0 用，深水 R 通道会比参考高 4–5 倍（r54 深带 R=67 vs 参考 16）。
-        // 0.12 按参考深带反定，属**显示域补偿**，不是原作数值。
-        _ScatterStrength        ("散射显示域强度", Range(0.0, 1.0)) = 0.04
-
-        // ---- 折射（焦散不在此处：原作焦散在沙侧 causticsMap，见 WaterLabSand）----
-        _RefractionFactor       ("折射偏移系数（原作实测 0.0121）", Range(0.0, 0.1)) = 0.0121
-
-        // ---- 太阳高光（碎金 = 细节法线 × 近镜面瓣）----
-        _SpecularPower          ("镜面瓣锐度（原作 1500）", Range(64.0, 4096.0)) = 1500.0
-
-        // ---- 泡沫：本 PS **没有**泡沫项（原作同构）----
-        // 原作 Lit/Water 的 PS 全文无泡沫项，白水/泡沫一律走 Whitewater 粒子系统
-        // （Lit_Whitewater PS，逆向档案 §10.5）；本仓曾把模拟泡沫通道 lerp 进水面颜色，
-        // 被档案 §11 对照表标为「本仓多出」。实测该自造项的代价：泡沫场在浅水架上
-        // 长期处于 0.25–0.9（56% 水面 >0.2，见 2026-10-18 诊断档），反解水面颜色的
-        // 泡沫混合权重达 ≈0.85——整片海面被刷成白沫，水色/水底全被盖掉，
-        // 即「一点也不像水」的直接成因。故整项删除：泡沫场只驱动白水粒子生成。
-
-        // ---- 岸线 ----
-        // 原作 Lit_Water PS 的 discard 是 v4.w（VS 逐顶点算的
-        // max(amount−0.05,0)，经三角形插值）< 1e-5。本仓同样把可见水深放在
-        // 顶点属性里传下来，不再在 PS 里逐像素重采样高度场——后者会在水线两侧
-        // 插值出 1–10 mm 的伪水膜（实拍“前沿残留水”的直接来源）。
-        _DryClip                ("可见水深裁剪（m）", Range(0.0, 0.05)) = 0.00001
-
-        // ---- 细节法线（必须进 Properties 才能被材质序列化绑定；gray = 平坦）----
+        // 细节法线（唯一材质属性，Setup 材质序列化绑定用）：
+        // 原作 t3 = WaterNormal2D 1024²（交接档 §3），通道 = .rg 法线 xy（×2−1 解码）、
+        // .b 相位（PS L43-44）；已接原作提取贴图（WaterNormal2D_Ref.png，r98）。
         _WaterLabDetailNormal   ("细节法线", 2D) = "gray" {}
-
-        // ---- 太阳色（原作太阳平行光实测；镜面调制）----
-        _RefSunTint             ("太阳色", Color) = (1.0, 0.9709, 0.9403, 1.0)
-
-        // ---- 天空反射（原作 PS 步骤 8：按菲涅尔混环境色；审计 §4 B8 缺件补齐）----
-        // 【Vector，不是 Color】环境色是**线性/HDR 域**的亮度，不是 sRGB 显示色。Linear 工程
-        // 会把 Color 属性再压一次 gamma：旧 (0,0.2,0.8) 进 shader 实际只有 (0,0.033,0.603)，
-        // 绿通道被压掉 6 倍，深水就只剩蓝、没有参考那种带青的宝蓝（r62 实测）。
-        // 【定标】按参考深带线性化 (0.0024,0.053,0.216) 反定：顶部菲涅尔权重≈0.18 时，
-        // (0.01,0.30,1.15) × 0.19 ≈ (0.002,0.057,0.219)，落在参考深带上。
-        // 这是**显示域/HDR 近似**，不是原作文件值；原作靠体素 GI + HDR tonemap 供这个亮度。
-        _SkyReflectionColor     ("天空反射色（线性/HDR 域）", Vector) = (0.01, 0.30, 1.15, 1.0)
-        _SkyReflectionStrength  ("天空反射强度", Range(0.0, 12.0)) = 9.5
-
-        // ---- 深水 GI 兜底（原作体素 Gi 的显示域近似，C 级自造项）----
-        // 【为什么必须有】原作水底亮度 = 直射 + 天光第二方向光（全额）+ 体素 GI（128³
-        // giVoxels 全局 buffer，逆向档案 §2/§10.2），且整条链在 HDR RT + PPv2 tonemap 上
-        // （BeachRenderPipeline DefaultFormat.HDR，§源码实锤）。本仓 LDR 直出、无 GI，
-        // 深水只剩「沙底×T」：G 通道在 1.5 m+ 光程下衰减到 2% 以下，出 (10,41,97) 墨蓝；
-        // 参考同区间是 G=95–129 的青蓝。算账：出射差 27 灰度透过 T_G≈0.02 需要底色亮
-        // 5 倍——沙侧补不平，只能在水侧兜。【结构】lerp 向环境青蓝色，权重随水下光程
-        // 增长（浅水为 0，2.5 m 饱和）；色值/强度按参考最深带 (16,70,119) 反定（D 级）。
-        _GIFillColor            ("GI 兜底色（线性域，加法）", Vector) = (0.003, 0.044, 0.079, 1.0)
-        _GIFillStrength         ("GI 兜底强度", Range(0.0, 2.0)) = 1.0
     }
 
     SubShader
     {
-    Tags
-    {
-        "RenderType" = "Opaque"
-        "Queue" = "Transparent+10"
-        "RenderPipeline" = "UniversalPipeline"
-        "IgnoreProjector" = "True"
-    }
+        Tags
+        {
+            "RenderType" = "Opaque"
+            "Queue" = "Transparent+10"   // 调度位：落 _CameraOpaqueTexture 拷贝之后、白水 3050 之前
+            "RenderPipeline" = "UniversalPipeline"
+            "IgnoreProjector" = "True"
+        }
 
         Pass
         {
             Name "ForwardLit"
             Tags { "LightMode" = "UniversalForward" }
 
+            // 【渲染状态 TODO】原作 Blend/ZWrite 在 ShaderLab 序列化（blob 外，C 表 §4）；
+            // 暂保持现行（透明调度位 + ZWrite On + 无 Blend），集成时按抓帧定。
             Cull Back
             ZWrite On
 
             HLSLPROGRAM
-            #pragma target 3.5
+            // target 4.5：VS 的 Texture2D.Load（texelFetch/ld）最低要求
+            #pragma target 4.5
             #pragma vertex   WaterLabVertex
             #pragma fragment WaterLabFragment
 
-            // 主光阴影（软化后接在散射项，原作同构）
-            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SOFT
+            // 主光阴影（D13：原作 sample_c_lz 单次比较无 PCF、z 越界强制 1；
+            // 我方 MainLightRealtimeShadow 硬件 PCF+级联为语义近似，软化项同构）
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+            #pragma multi_compile _ _SHADOWS_SOFT
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             // Shadows.hlsl 的 LerpWhiteTo 在 core CommonMaterial 里（单独 include Shadows 不够）
@@ -146,37 +97,40 @@ Shader "PirateCrew/WaterLab/Ocean"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
-            CBUFFER_START(UnityPerMaterial)
-                float3 _Absorption;
-                float3 _WaterTint;
-                float3 _ScatterColor;
-                float  _ScatterStrength;
-                float  _RefractionFactor;
-                float  _SpecularPower;
-                float  _DryClip;
-                float3 _RefSunTint;
-                float3 _SkyReflectionColor;
-                float  _SkyReflectionStrength;
-                float3 _GIFillColor;
-                float  _GIFillStrength;
-            CBUFFER_END
+            // ------------------------------------------------------------------
+            // uniform（真值全部由 WaterLabReplicaGlobals.cs 下发，本文件不写死）。
+            // 槽位对应（A-sigma.md §2）：_WaterLabWaterColor=cb0[131]、
+            // _WaterLabScatterColor=cb0[121]、_WaterLabSunColor=cb0[125]、
+            // _WaterLabRefractionFactor=cb1[0].x（PS）；_WaterLabSunDir 沿现有链
+            // （WaterLabSimulation.PublishSunDir，世界空间指向太阳）。
+            // ------------------------------------------------------------------
+            float4 _WaterLabOrigin;          // (centerX, 域边长, centerZ, 水格数)——现有链
+            float4 _WaterLabSunDir;          // 指向太阳（现有链）
+            float  _WaterLabSimEnabled;      // 模拟开关（D15 本仓设施：关=平面+不裁剪）
+            float4 _WaterLabWaterColor;      // cb0[131]
+            float4 _WaterLabScatterColor;    // cb0[121]
+            float4 _WaterLabSunColor;        // cb0[125]
+            float  _WaterLabRefractionFactor; // cb1[0].x（PS）
 
-            float4 _WaterLabOrigin;
-            float4 _WaterLabSunDir;
-            float  _WaterLabSimEnabled;
-            // 诊断档（环境变量 PC3D_WATERLAB_OCEAN_DEBUG，由 WaterLabSimulation.Awake 读取置位）：
-            // >0.5 时不裁剪、把画面切成 2x2 分格输出中间量——用于定位「吸收不生效」这类
-            // 只在实跑才暴露的绑定问题（遮挡/裁掉/读到 0 三种成因靠它一次分辨）。
-            float  _WaterLabOceanDebug;
-            TEXTURE2D(_WaterLabHeightTex); SAMPLER(sampler_WaterLabHeightTex);
-            TEXTURE2D(_WaterLabGroundTex); SAMPLER(sampler_WaterLabGroundTex);
+            // 我方水场 RT（compute OutputField 发布）：R=η 编码 (η+3)/5（[-3,2]m），
+            // GB=坡度法线 xz 编码 (n+1)/2，A=泡沫。typed 声明供 VS Load（≡原作
+            // ld_structured 的逐格最近读取）；双线性采样路径另配同名 sampler。
+            Texture2D<float4> _WaterLabHeightTex; SAMPLER(sampler_WaterLabHeightTex);
+            Texture2D<float4> _WaterLabGroundTex; SAMPLER(sampler_WaterLabGroundTex);
             TEXTURE2D(_WaterLabDetailNormal); SAMPLER(sampler_WaterLabDetailNormal);
 
-            float DecodeEta(float e) { return e * 5.0 - 3.0; }
-
-            float2 WorldToDomainUv(float3 worldPos)
+            // 原作 wrap 惯用式（PS L46-52 / L58-62 编译展开）：
+            //   wrap(x) = sign(x) × frac(|x|) ∈ (−1,1)
+            float WaterWrap(float x)
             {
-                return (worldPos.xz - _WaterLabOrigin.xz) / _WaterLabOrigin.y + 0.5;
+                float s = x >= -x ? 1.0 : -1.0;   // ge+movc 符号测试（PS L47-48 / L58-59）
+                return s * frac(abs(x));          // PS L49-50 / L60-61
+            }
+
+            // η 解码（我方 RT 编码 (η+3)/5，compute OutputField 发布；量纲 = 米）
+            float LoadEta(int2 cell)
+            {
+                return _WaterLabHeightTex.Load(int3(cell, 0)).r * 5.0 - 3.0;
             }
 
             struct Attributes
@@ -186,200 +140,204 @@ Shader "PirateCrew/WaterLab/Ocean"
 
             struct Varyings
             {
-                float4 positionCS : SV_POSITION;
-                float3 positionWS : TEXCOORD0;
-                float4 screenPos  : TEXCOORD1;
-                float  eyeDepth   : TEXCOORD2; // 水面到相机的视空间深度（折射安全门比较用）
-                float  visibleDepth : TEXCOORD3; // max(η−ground,0)，与原作 VS 的 v4.w 同义
+                float4 positionCS  : SV_POSITION;   // 原作 o0/v0
+                float3 positionWS  : TEXCOORD0;     // 原作 o1/v1（y=邻域均值高度）
+                float3 slopeNormal : TEXCOORD1;     // 原作 o2/v2（字节坡度法线；o2.w 死输出不声明）
+                float4 screenPos   : TEXCOORD2;     // 折射屏幕 UV（D14：ComputeScreenPos ≡ 原作显式 1−v 翻转）
+                float  eyeDepth    : TEXCOORD3;     // 自身线性眼深（深度安全门 selfEye，PS L94-95 等价）
+                float  visibleDepth : TEXCOORD4;    // 原作 v4.w：可见水深（PS clip/α 用）
+                // 原作 o3/TEXCOORD2 整体死输出（PS 未声明 v3）、o4.xy 流（死通道）、
+                // o4.z（PS 未读）——均不声明。
             };
 
+            // =========================================================================
+            // 顶点着色器（C 表 VS@246，107 指令逐节对应）
+            // =========================================================================
             Varyings WaterLabVertex(Attributes IN)
             {
                 Varyings OUT;
-                float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
+                float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz); // VS L35-39（cb1[0..3]=ObjectToWorld）
                 OUT.visibleDepth = 0.0;
+                OUT.slopeNormal = float3(0.0, 1.0, 0.0);
 
                 if (_WaterLabSimEnabled > 0.5)
                 {
-                    float2 uv = WorldToDomainUv(positionWS);
-                    float eta = DecodeEta(SAMPLE_TEXTURE2D_LOD(_WaterLabHeightTex,
-                        sampler_WaterLabHeightTex, uv, 0).r);
-                    float ground = DecodeEta(SAMPLE_TEXTURE2D_LOD(_WaterLabGroundTex,
-                        sampler_WaterLabGroundTex, uv, 0).r);
-                    // 原作 Lit_Water VS：顶点高度 = ground + max(h−0.05,0)，并把
-                    // max(h−0.05,0) 作为可见水深传给 PS（PS 用它做 1e-5 裁剪）。
+                    float res = _WaterLabOrigin.w;
+
+                    // --- VS L40-47：世界 XZ → 整数格索引（截断+钳位） ---
+                    // 格坐标口径与 compute 端一致：worldXZ = −D/2 + (格+0.5)×格距
+                    // ⇒ 连续格坐标 fc = (worldXZ/D + 0.5)×res − 0.5（格心在整数点），
+                    // 与原作 `saturate(wxz/cellSize + 0.5)·res − 0.5` 同构（域中心约定差异
+                    // 已折进本式）。saturate 钳负侧（L41 add_sat）、max/min 钳到 [0,res−1]
+                    // （L43-46）、截断取整（L47 ftoi）。
+                    float2 uv = saturate((positionWS.xz - _WaterLabOrigin.xz) / _WaterLabOrigin.y + 0.5);
+                    float2 fc = max(uv * res - 0.5, 0.0);
+                    fc = min(fc, res - 1.0);
+                    int2 ic = (int2)fc;
+                    int ix = clamp(ic.x, 0, (int)res - 1);
+                    int iy = clamp(ic.y, 0, (int)res - 1);
+
+                    // --- VS L48-61/L94-95：顶点高度 = (η南 + η北) / 2 ---
+                    // 原作仅取南北两邻（iy∓1，各钳位），且同格解码两遍（编译器内联展开，
+                    // VS L71-94 第二遍数值恒等）——净语义就是两邻均值，直接写一次。
+                    // 【h 语义差异】原作 h = max(u2&0xFFFFFF·1e−6 − 0.05, 0)
+                    //                + ((u2>>24 | u3&0x00FFFF00)&0xFFFFFF)·1e−6
+                    // （24bit 主高度 + u2/u3 跨字段的"次加数"，VS L54-62）；
+                    // 我方 RT 直接存浮点 η（= ground + max(h−0.05,0)，半精度无量化）。
+                    // TODO(次加数)：原作次加数的打包端在其 compute（E 流域），字段语义
+                    // 未定；我方浮点 η 已含全精度，无对应拆分——暂用我方 η，
+                    // L2 抓帧对账时若发现高度口径差再回此对齐。
+                    int iyS = max(iy - 1, 0);            // VS L48-49 南邻钳位
+                    int iyN = min(iy + 1, (int)res - 1); // VS L50 北邻钳位
+                    float hS = LoadEta(int2(ix, iyS));   // VS L52 南格加载
+                    float hN = LoadEta(int2(ix, iyN));   // VS L53 北格加载
+                    float hAvg = (hS + hN) * 0.5;        // VS L61/L94-95（(hS+hN+hS+hN)×0.25 ≡ 均值）
+                    // 原作 o1 = (wx, hAvg, wz)：世界 y 直接取均值高（网格基准 y=0，
+                    // 故 += 与原作的绝对赋值等价）。
+                    positionWS.y += hAvg;
+
+                    // --- VS L72-73/L101-116：坡度法线（自格 GB 反解，y=sqrt 重建） ---
+                    // 【两套编码等价性推导】原作把单位法线 xz 分量 n∈[−1,1] 打包成字节
+                    // byte = (n+1)×127.5，解码 n = byte/127.5 − 1 = (byte/255)×2 − 1
+                    // （0.007843=2/255，VS L103/L107）；
+                    // 我方 compute OutputField 写 G = Nx×0.5+0.5、B = Nz×0.5+0.5
+                    // （Nx=−∂η/∂x·invLen 等，编码前已按 invLen 归一成单位法线分量；
+                    // 编码前另把坡度钳 ±0.6 防水跃爆表——compute 端注释，解码侧无需关心）。
+                    // 两套都是 [−1,1]→存储域 的同一仿射映射 x↦(x+1)/2（原作多一步 ×127.5
+                    // 取整 = 8bit 量化损失，我方 half 浮点无量化），解码同为 n = c×2−1，
+                    // 量纲一致（单位法线的 xz 分量）。y 分量原作同样 sqrt 重建（L110-115），
+                    // 我方 Load 值满足 nx²+nz² = 1−invLen² ≤ 1，sqrt 域安全；原作无钳位，
+                    // 保真不遮。
+                    float4 own = _WaterLabHeightTex.Load(int3(ix, iy, 0)); // VS L72-73 自格
+                    float nx = own.g * 2.0 - 1.0;
+                    float nz = own.b * 2.0 - 1.0;
+                    OUT.slopeNormal = float3(nx, sqrt(1.0 - (nx * nx + nz * nz)), nz); // VS L116
+
+                    // --- VS L107/L113：可见水深 = max(h − 0.05, 0) ---
+                    // 原作从自格 u2 纯水柱量解出（无需地面）；我方 RT 的 R 是 η（内含地面），
+                    // 需与地面配对相减消去：visibleDepth = η − ground。配对口径 = 同点双线性
+                    // （r98 基线行为不变：逐顶点自洽对，水线平滑；逐格 Load 版属严格
+                    // own-cell 语义，待 L2 抓帧对账后再定）。地面 R 编码同 η 式 (g+3)/5
+                    // （WaterLabSimulation.CreateBuffers 上传端同式）。
+                    float eta = SAMPLE_TEXTURE2D_LOD(_WaterLabHeightTex,
+                        sampler_WaterLabHeightTex, uv, 0).r * 5.0 - 3.0;
+                    float ground = SAMPLE_TEXTURE2D_LOD(_WaterLabGroundTex,
+                        sampler_WaterLabGroundTex, uv, 0).r * 5.0 - 3.0;
                     OUT.visibleDepth = max(eta - ground, 0.0);
-                    positionWS.y += eta; // 网格基准 y=0（静水面）
                 }
 
                 OUT.positionWS = positionWS;
-                OUT.positionCS = TransformWorldToHClip(positionWS);
-                OUT.screenPos = ComputeScreenPos(OUT.positionCS);
-                OUT.eyeDepth = -TransformWorldToView(positionWS).z;
+                OUT.positionCS = TransformWorldToHClip(positionWS);   // VS L96-100（VP 行展开 ≡ 内建宏）
+                OUT.screenPos = ComputeScreenPos(OUT.positionCS);     // D14：URP 宏 ≡ 原作显式 y 翻转（cb0[12] 实效 (1,0)）
+                OUT.eyeDepth = -TransformWorldToView(positionWS).z;   // PS L94-95 selfEye 的 VS 预计算
                 return OUT;
             }
 
-            half4 WaterLabFragment(Varyings IN) : SV_Target
+            // =========================================================================
+            // 像素着色器（C 表 PS@8682，119 指令逐节对应）
+            // =========================================================================
+            float4 WaterLabFragment(Varyings IN) : SV_Target
             {
-                float t = _TimeParameters.x;
-                float2 uv = WorldToDomainUv(IN.positionWS);
-                float4 field = SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, uv);
-                float groundRaw = SAMPLE_TEXTURE2D(_WaterLabGroundTex, sampler_WaterLabGroundTex, uv).r;
+                float3 wpos = IN.positionWS;
 
-                // 可见水深用 VS 插值属性（原作同构），不逐像素重采样 η−ground。
-                float depth = max(IN.visibleDepth, 0.0);
+                // --- PS L40-42：岸线裁剪（字面量 1e−5；_WaterLabSimEnabled 为 D15 本仓
+                //     设施：关=诊断平面模式不裁剪） ---
+                if (_WaterLabSimEnabled > 0.5)
+                    clip(IN.visibleDepth - 0.00001);
 
-                bool dbgOn = _WaterLabOceanDebug > 0.5;
-                if (_WaterLabSimEnabled > 0.5 && !dbgOn)
-                    clip(depth - _DryClip);
+                // --- PS L43-54：相位与波形、流钳位 ---
+                // 相位 = 法线贴图 .b @ worldXZ×0.05（L43-44，资源 swizzle zxyw 取 .b）
+                //      + 时间×0.8（L45；cb0[113].y=_Time.y ≡ URP _TimeParameters.x，A 表 §2.2 槽 113）
+                float phase = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal,
+                    wpos.xz * 0.05).b;
+                phase += _TimeParameters.x * 0.8;
+                float w1 = 2.0 * WaterWrap(phase + 0.5) - 1.0;   // L46-52 第一锯齿波
+                // 流场 = 恒 (−0.5,−0.5)：原作 VS 流通道 scale 字面量 <5e−7（打印 0.000000，
+                // 通道禁用）→ o4.xy 恒 (−4,−4)（VS L129/L137/L140），PS 端 clamp(±0.5)
+                // （L53-54）后成常量对角流。死通道按活行为写死，不平流任何场。
+                float2 flow = float2(-0.5, -0.5);
 
-                // ---- 法线 = 模拟坡度场（顶点法线）+ 细节法线贴图（原作：加后归一）。
-                // y 增益 ≤1.5：过猛会把真实坡度放大成 60°+ 斜法线 → 菲涅尔恒 1。
-                float2 slope = clamp(float2(field.g * 2.0 - 1.0, field.b * 2.0 - 1.0),
-                                     float2(-0.6, -0.6), float2(0.6, 0.6));
-                // y 增益 1.5→1.0：0.25 m 模拟网格的坡度在 pow1500 锐瓣下每个格子都能
-                // 产出一个亮斑，合成全屏高频白噪；1.0 把法线摆幅从 ±42° 收到 ±31°，
-                // 保留碎金但降低密度（参考是贴图长脊上的稀疏大颗粒）。
-                float3 vertexNormal = normalize(float3(slope.x, 1.0, slope.y) * float3(1.0, 1.0, 1.0));
+                // --- PS L55-57：采样 A（偏移 +0.25，尺度 0.2） ---
+                float2 nA = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal,
+                    (wpos.xz - flow * w1) * 0.2 + 0.25).rg;
 
-                // 细节法线：双尺度（20m / 5m 平铺）+ 时间×0.8 双向漂移动画
-                float t1 = t * 0.8;
-                float2 uvA = IN.positionWS.xz * 0.05 + t1 * float2(0.013, -0.011);
-                float2 uvB = IN.positionWS.xz * 0.20 + t1 * float2(-0.017, 0.013);
-                float2 dA = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, uvA).rg * 2.0 - 1.0;
-                float2 dB = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal, uvB).rg * 2.0 - 1.0;
-                // 掠射角下高频法线欠采样 → 镜面瓣出粉色摩尔带（实拍实证），远距淡出；
-                // 贴图自带 mip 链抗欠采样，淡出只兜远端（18-90 档曾把出图相机的网整个
-                // 打折——亮脊网变稀即是此因，r13 实证后外推）
-                float detailFade = saturate(1.0 - (length(IN.positionWS - GetCameraPositionWS()) - 40.0) / 160.0);
-                // 两尺度法线**相加**后归一系数：lerp 会把两套标定梯度各稀释一半
-                // （亮脊网变稀的第二根因）；0.35 是「稀疏碎金」的观感档——参考头图浅水内
-                // 极亮像素（lum>235）只占 0.05%，而纯相加全套强度（0.7071）下本仓是它的
-                // 数倍，碎金从「稀疏亮点」变「整面白噪」。
-                // 【别再往下压】实测 0.7071→0.22 时极亮占比几乎不动（0.36%→0.38%）：
-                // 碎金主要来自**模拟坡度场的网格尺度法线**（原作格距 5.86 cm；本仓 1092²），
-                // 细节法线只贡献表面细质。要压碎金应动本 shader 里顶点法线的 y 增益。
-                float2 dn = (dA + dB) * 0.35 * detailFade;
-                float3 normalWS = normalize(vertexNormal + float3(dn.x, 0.0, dn.y));
+                // --- PS L58-68：第二波形链（wrap2/tri/w2）与采样 B（偏移 −0.25） ---
+                float wrap2 = WaterWrap(phase);          // L58-62
+                float tri = 2.0 * abs(wrap2 - 0.5);      // L63-64 三角波 ∈[0,2]
+                float w2 = 2.0 * wrap2 - 1.0;            // L65 第二锯齿波
+                float2 nB = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal,
+                    (wpos.xz - flow * w2) * 0.2 - 0.25).rg;
 
-                // viewDir：表面指向相机（vDotN = dot(viewDir, N)，符号千万别反）
-                float3 viewDir = normalize(GetWorldSpaceViewDir(IN.positionWS));
-                float3 sunRaw = _WaterLabSunDir.xyz;
-                float3 sunDir = (dot(sunRaw, sunRaw) < 0.25) ? normalize(float3(-0.525, 0.669, -0.525)) : normalize(sunRaw);
+                // --- PS L69-77：三角波混合双采样 → 细节法线（y=sqrt 重建） ---
+                float a = 2.0 * lerp(nB.r, nA.r, tri) - 1.0;   // L69-71
+                float b = 2.0 * lerp(nB.g, nA.g, tri) - 1.0;
+                // 原作无钳位（真贴图 .rg 为法线域不会双饱和），保真不遮。
+                float3 detailN = float3(a, sqrt(1.0 - (a * a + b * b)), b);  // L72-77
 
-                float vDotN = saturate(dot(viewDir, normalWS));
+                // --- PS L78-81：N = normalize(细节法线 + 坡度法线) ---
+                float3 N = normalize(detailN + IN.slopeNormal);
 
-                // 主光阴影 + 原作软化（min(sh+0.25,1)，影子最深 75%；波峰影带柔和不死黑）
-                float sunShadow = MainLightRealtimeShadow(TransformWorldToShadowCoord(IN.positionWS));
-                float shadowSoft = min(sunShadow + 0.25, 1.0);
+                // --- PS L82-90：折射 UV ---
+                // aspect = cb0[8].x/|cb0[8].y|（TODO-slot，按屏幕纵横取，同现行）；
+                // 折射偏移 = (N.x, N.z×aspect) × refractionFactor。
+                // 【cb1[0].x 双解读 TODO】A 表 §2.2 依 VS 用法断言 CB1=ObjectToWorld、
+                // PS L82 取 m00（物体世界 X 缩放进波纹强度）；而 PS 的 CB1 只声明 1 个
+                // 向量（dcl CB1[1]），与材质属性槽（materials-dump refractionFactor=0.0121）
+                // 更吻合——两读法值域一致（同槽同值），真值 0.0121 由 Globals 下发，
+                // 抓帧终证时读 PS cb1[0].x 实测闭。不读我方 m00（=1 会改行为）。
+                float aspect = _ScreenParams.x / _ScreenParams.y;
+                float2 baseUV = IN.screenPos.xy / IN.screenPos.w;   // L85-88（D14：ComputeScreenPos）
+                float2 refrUV = baseUV + N.xz * _WaterLabRefractionFactor * float2(1.0, aspect);
 
-                // ---- 折射：真屏幕折射（外包债①清偿，对标原作「折射底色 = 真实沙网格
-                // 渲染纹理」）。底色采 _CameraOpaqueTexture——URP CopyColorPass 在
-                // AfterRenderingSkybox 拷的帧色（沙/天空已渲完，透明队列的水还没画，
-                // 拷贝里没有自己）；水体排透明调度位即天然落在拷贝之后。
-                // 偏移 = N.xz × refractionFactor（实测 0.0121，Y 轴乘纵横比）。
-                // 【已知缺口】深度重建折射点（真路径长度）暂缺；深度安全门已按原作
-                // 补上：_CameraDepthTexture 的拷贝点在 AfterOpaques（见渲染器资产），
-                // 与原作 CopyOpaqueDepth 同序。薄水膜处背景沙面比水面近 → 不偏移。
-                float2 baseUV = IN.screenPos.xy / IN.screenPos.w;
-                float aspect = _ScreenParams.x / max(_ScreenParams.y, 1.0);
-                float2 refrUV = baseUV + normalWS.xz * _RefractionFactor * float2(1.0, aspect);
-                // 原作 PS：只有背景深度 > 水面深度才采纳折点。缺了这道门，5 mm 残水
-                // 会折射采到画面另一侧的主水体，渲染成一条“断开的水带”（r80 断带根因）。
-                float sceneEye = LinearEyeDepth(SampleSceneDepth(refrUV), _ZBufferParams);
-                float2 sceneUV = (sceneEye > IN.eyeDepth) ? refrUV : baseUV;
-                float3 bgColor = SampleSceneColor(sceneUV);
-                float3 rayDir = normalize(IN.positionWS - GetCameraPositionWS());
-                float dist = depth / max(-rayDir.y, 0.25);
+                // --- PS L91-99：深度安全门（背景比水面近 → 回退不偏移；正面一致项） ---
+                // bgEye = 1/(A·raw+B)（cb0[9].zw ≡ _ZBufferParams.zw，L92-93）；
+                // selfEye 由 VS 预计算（L94-95）。门形式按原作：bgEye < selfEye → flipUV。
+                float bgEye = LinearEyeDepth(SampleSceneDepth(refrUV), _ZBufferParams);
+                float2 finalUV = (bgEye < IN.eyeDepth) ? baseUV : refrUV;   // L96-99
 
-                // ---- Beer–Lambert（原作 8.65617 字面量缩放；T 只调制底色，不再生成 alpha）
-                // 焦散不在此处叠加：原作焦散在**沙侧** Lit_Sand（材质槽 causticsMap），
-                // 水体只是把「已带焦散的沙渲染」折射+衰减过来——本仓同构（见 WaterLabSand）。
-                float3 T = exp(-8.65617 * _Absorption.rgb * dist) * _WaterTint.rgb;
+                // --- PS L104：折射底色（t1 ≡ URP _CameraOpaqueTexture 语义） ---
+                float3 bg = SampleSceneColor(finalUV);
 
-                // ---- 基底与散射混合（原作公式：底 0.9 + 曲率补偿 0.2·NdotV⁶；
-                // **散射权重 = NdotV⁵ × 阴影软化 × 0.75**，与原作反汇编一致）----
-                // 【为什么回到 NdotV⁵】第十八轮曾按「参考图近似俯视、水面无暖调」把它改成
-                // (1−NdotV)⁵；但参考图是**近岸浅水暖沙调、只有远/深水才是宝蓝**，而
-                // (1−NdotV)⁵ 恰好把暖橙散射加到掠射的远/深水——r53 实测底部深带 G 被抬到
-                // 115（参考 70），水色发青绿。恢复原作 NdotV⁵ 后：俯视/近岸散射强（暖沙调）、
-                // 掠射/远岸散射趋零（宝蓝不被染绿），两侧同时对上参考。
-                float ndv2 = vDotN * vDotN;
-                float ndv4 = ndv2 * ndv2;
-                float3 baseCol = bgColor * T * (0.9 + 0.2 * ndv4 * ndv2);
-                float scatterW = ndv4 * vDotN * shadowSoft * 0.75 * _ScatterStrength;
-                float3 col = lerp(baseCol, _ScatterColor.rgb, scatterW);
+                // --- PS L100-115：透射（σ≡0 折叠，数学恒等非近似） ---
+                // 原作：T = exp(−8.65617·σ·dist)×waterColor，dist 由 invVP 重建折射点
+                // 世界坐标后取 |refPoint − wpos|（真水下光程，L100-110）。
+                // 【A 流定案】σ=cb0[132] 无任何上传者 → ≡(0,0,0) → exp 项恒 1、dist 成
+                // 死变量 → T ≡ waterColor，整段 invVP 重建折叠。
+                // 恢复条件：抓帧终证 σ≠0（A-sigma §6 路线①）时，按 C-water.hlsl
+                // L248-255 的正身恢复整段（含 8.65617 字面量）。
+                float3 T = _WaterLabWaterColor.rgb;
+                float3 bgT = bg * T;   // L115（bg×waterColor）
 
-                // ---- 太阳镜面：单瓣 pow(NdotH,1500) × 阴影原值（Lit_Water PS 全文只有
-                // 一对 log+exp = 一个 pow，无第二宽瓣/GGX——旧记「GGX 宽瓣」系同一项的
-                // 误读，第十二轮自造的 pow48 宽瓣按严格对标删除）。亮网的观感=原作
-                // 贴图的长连通脊在 pow1500 下的碎金随相机距离在屏面上融合成网
-                float3 h = normalize(viewDir + sunDir);
-                float ndh = saturate(dot(normalWS, h));
-                float spec = pow(ndh, _SpecularPower);
-                col += _RefSunTint.rgb * spec * sunShadow;   // 原作太阳平行光实测色（白），镜面与沙面同源
+                // --- PS L116-128：视线、NdotV、基底（正面一致项） ---
+                float3 V = GetCameraPositionWS() - wpos;   // L116（cb0[6] 世界相机位）
+                float3 Vn = normalize(V);                  // L117-119
+                float NdotV = saturate(dot(Vn, N));        // L121
+                float ndv2 = NdotV * NdotV;
+                float3 base = bgT * (0.9 + 0.2 * ndv2 * ndv2 * ndv2);   // L122-128（NdotV⁶）
 
-                // ---- 深水 GI 兜底：原作体素 Gi + 天光全额的水底亮度，本仓的显示域近似。
-                // 【加法，不是 lerp】（r2-gi 教训：lerp 权重饱和到 1 后深水被平涂成纯色、
-                // 深度渐变和天空反射全被盖掉）——GI 是加法 irradiance，只做亮度提升，
-                // 底色的 T 渐变保留。权重只看水下光程（dist），浅水（透底区）为 0、
-                // 2.5 m 饱和；不乘阴影（原作 GI 是全局光照项，不经 shadowmap）。
-                // 顺序在天空反射之前：顶部掠射的天空蓝不被兜底色压掉。
-                // 定标见 Properties 注释。
-                float giW = saturate(dist * 0.4) * _GIFillStrength;
-                col += _GIFillColor.rgb * giW;
+                // --- PS L129-146：散射（权重方向 D1：(1−NdotV)⁵ = 掠射增） ---
+                // 阴影：D13 近似（原作 sample_c_lz 单次比较、无 PCF、z 越界强制 1；
+                // 我方走 URP 主光阴影）。软化 min(sh+0.25,1) 只接散射（正面一致项，
+                // 影子最深 75%）。
+                float sunShadow = MainLightRealtimeShadow(TransformWorldToShadowCoord(wpos));
+                float shadowSoft = min(sunShadow + 0.25, 1.0);          // L103-104/L142-143
+                float om = 1.0 - NdotV;                                  // L123
+                float om2 = om * om;
+                float scatterW = om * om2 * om2 * shadowSoft * 0.75;     // L130-132 (1−NdotV)⁵ × L144-145
+                float3 col = lerp(base, _WaterLabScatterColor.rgb, scatterW);   // L146（≡ base + w×(散射−base)）
 
-                // ---- 天空反射：原作 PS 步骤 8「按菲涅尔混环境色」（审计 §4 B8 缺件）----
-                // 菲涅尔用**宏观视角** viewDir.y，而不是逐像素 normalWS：0.25 m 模拟坡度 +
-                // 细节法线会让大量像素的 NdotV 偏小，强度 3 下天空色把整片水面刷亮
-                // （r52 实证：水区 Y 103→153、顶部深带 (32,60,85)→(91,129,179)）。
-                // 宏观角保留「远水掠射更蓝、近岸俯视不泛白」的空间梯度；碎金仍由
-                // 细节法线走上面的镜面项。强度/色值是显示域标定，不是原作文件数值。
-                float fresnel = pow(saturate(1.0 - viewDir.y), 5.0);
-                col = lerp(col, _SkyReflectionColor.rgb, saturate(fresnel * _SkyReflectionStrength));
+                // --- PS L147-156：镜面（pow1500，乘 (1−NdotV)⁴，不乘阴影——D2） ---
+                // 半矢量：原作 H = normalize(V̂ − cb0[123])，cb0[123] = DayCycler
+                // sunDirection = 光**传播**方向（C 表 PS L120 注）；我方链给指向太阳的
+                // L（_WaterLabSunDir），传播方向 = −L ⇒ H = normalize(V̂ + L)。
+                float3 H = normalize(Vn + _WaterLabSunDir.xyz);
+                // pow1500 编码 = log→×1500→exp（L151-154）≡ pow（单瓣，无第二宽瓣）。
+                float spec = pow(saturate(dot(N, H)), 1500.0);
+                col += _WaterLabSunColor.rgb * spec * (om2 * om2);   // L155-156，(1−NdotV)⁴ 不乘阴影
 
-                // ---- 泡沫：不在本 PS（原作同构，白水走 Whitewater 粒子）----
-                // 曾在此把模拟泡沫通道（field.a，实测浅水架上 0.25–0.9）lerp 进水面颜色，
-                // 反解出的混合权重达 ≈0.85 → 整片海面刷白、水色与折射水底全被盖掉。
-                // 该自造项按原作删除；泡沫场仍由模拟产出，只驱动白水粒子生成。
-
-                // ---- 诊断分格（_WaterLabOceanDebug > 0.5）：3x3 共九格，每格三通道 ----
-                // 【读数约定】出图 PNG 是显示编码（实测标准 sRGB）——按 0..1 线性直读会把
-                // LabCamera 读成「幻影相机」（第十八轮误判的根因）。反解用
-                // tools/waterlab/debug_tiles.py，本块数值不要肉眼估。
-                // 格序：行 = floor(q.y*3)（q.y 向上，行 0 = 画面下排），列 = floor(q.x*3)。
-                //   (0,0) depth/2 | dist/10 | (depth>_DryClip)
-                //   (1,0) T
-                //   (2,0) bgColor（折射取样原样）
-                //   (0,1) frac((ws.x+32)/64) | frac((ws.z+32)/64) | 0.5   ← 世界 XZ 真值
-                //   (1,1) _WorldSpaceCameraPos.xz/64+0.5 | .y/64
-                //   (2,1) _ScreenParams.x/4096 | .y/4096 | _WaterLabSimEnabled
-                //   (0,2) normalWS*0.5+0.5
-                //   (1,2) spec*0.25 | sunShadow | shadowSoft
-                //   (2,2) 最终 col（与实拍图对拍用）
-                if (dbgOn)
-                {
-                    float2 q = IN.screenPos.xy / max(IN.screenPos.w, 1e-5);
-                    int tileCol = (int)clamp(floor(q.x * 3.0), 0.0, 2.0);
-                    int row = (int)clamp(floor(q.y * 3.0), 0.0, 2.0);
-                    float3 cpos = GetCameraPositionWS();
-                    float3 dbg;
-                    // 变量名不能叫 col：会遮蔽外层的 float3 col，(2,2) 格就输出成列号了。
-                    if (row == 0 && tileCol == 0)      dbg = float3(depth * 0.5, dist * 0.1, depth > _DryClip ? 1.0 : 0.0);
-                    else if (row == 0 && tileCol == 1) dbg = T;
-                    else if (row == 0 && tileCol == 2) dbg = bgColor;
-                    else if (row == 1 && tileCol == 0) dbg = float3(frac((IN.positionWS.x + 32.0) / 64.0),
-                                                               frac((IN.positionWS.z + 32.0) / 64.0), 0.5);
-                    else if (row == 1 && tileCol == 1) dbg = float3(cpos.x / 64.0 + 0.5, cpos.z / 64.0 + 0.5, cpos.y / 64.0);
-                    else if (row == 1 && tileCol == 2) dbg = float3(_ScreenParams.x / 4096.0, _ScreenParams.y / 4096.0, _WaterLabSimEnabled);
-                    else if (row == 2 && tileCol == 0) dbg = normalWS * 0.5 + 0.5;
-                    else if (row == 2 && tileCol == 1) dbg = float3(spec * 0.25, sunShadow, shadowSoft);
-                    else                               dbg = col;
-                    return half4(dbg, 1.0);
-                }
-
-                // 不透明直出（与原作同队列：透明度只是上面的颜色项，alpha 不再生效）
-                return half4(col, 1.0);
+                // --- PS L157：α = saturate(可见水深 × 100) ---
+                // 无 Blend 下 α 仅写入 RT alpha 通道；混合状态 TODO（文件头），集成时按抓帧定。
+                return float4(col, saturate(IN.visibleDepth * 100.0));
             }
             ENDHLSL
         }
