@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -658,6 +659,116 @@ namespace PirateCrew.WaterLab
             mat.SetFloat("shadowDepthBiais", p.ShadowDepthBiais);     // cb1[2].x
             mat.SetFloat("_Cutoff", 0.5f);                            // 原作材质 _Cutoff=0.5
             return mat;
+        }
+    }
+
+    // =========================================================================
+    // ReplicaPlantDriver —— 植物 13 组系统的场景自驱件（I6b 装配端）。
+    //
+    // 【职责边界】装配（WaterLabSetup.EnsurePlants）只建挂点树 + 材质/凸包资产 +
+    // 填下面三个序列化字段；系统的 new / 分布 / 每帧 Tick+Draw 全部本件自举——
+    // 与 WaterLabSimulation 同一模式（TextAsset 引用随场景序列化，构建后重开
+    // 场景仍有效），不依赖装配期的任何内存态。
+    //
+    // 【运行时专用 TODO（G §6 遗留，静态不可恢复）】
+    //  * DistributionSeed/SeedExtra：原作引擎每实例 SetFloat，Cpp2IL 丢失——恒 0，
+    //    分布结果与原作不逐株恒等（统计分布同源）；恒等化走 frida 补读。
+    //  * AmbientOverride：cb0[40] 环境色真值待抓帧；暂置主菜单 t=1/3
+    //    ambientSkyColor（CreateLighting/EnsureSkybox 同值三处一字不改）。
+    //    I3 GI 落地后植物环境项换 giVoxels 采样，本覆写退役。
+    //  * 水场：Tick 用静态快照水面（初始 level≈1.0 场），非实时水场——原作
+    //    waterCells 每帧变。接实时场需 async readback _WaterLabHeightTex（I9 域），
+    //    L2 动态验收时再评估；静态画面（主菜单复刻目标）两者在 t0 一致。
+    // =========================================================================
+    public sealed class ReplicaPlantDriver : MonoBehaviour
+    {
+        /// <summary>凸包网格（与 <see cref="ReplicaPlantTable.All"/> 同序；Editor 烘焙资产
+        /// WaterLabPlantBake.EnsureHullMeshes 产物，场景序列化引用）。</summary>
+        public Mesh[] Hulls;
+
+        /// <summary>13 组 imposter 材质（同序；EnsurePlants 按 CreateMaterial 真值落盘）。</summary>
+        public Material[] Materials;
+
+        /// <summary>主菜单快照（自举时灌 WaterLabReplicaSnapshot 静态采样器；
+        /// 与 WaterLabSimulation 引用同一对资产，Load 幂等，先后无害）。</summary>
+        public TextAsset GroundSnapshot;
+        public TextAsset WaterSnapshot;
+
+        /// <summary>cb0[40] 环境色暂置值：t=1/3 Morning ambientSkyColor（menu-state.json，
+        /// 与 CreateLighting 的 RenderSettings.ambientSkyColor 同值）。运行时专用 TODO 见类头。</summary>
+        public static readonly Vector4 MenuAmbient = new Vector4(0.698039f, 0.564706f, 0.569923f, 1f);
+
+        ReplicaPlantSystem[] _systems;
+
+        /// <summary>当前 13 组系统（装配期检查用；未自举时 null）。</summary>
+        public IReadOnlyList<ReplicaPlantSystem> Systems => _systems;
+
+        void Awake()
+        {
+            if (!WaterLabReplicaSnapshot.HasData && GroundSnapshot != null && WaterSnapshot != null)
+            {
+                try { WaterLabReplicaSnapshot.Load(GroundSnapshot.bytes, WaterSnapshot.bytes); }
+                catch (Exception e) { Debug.LogError($"[ReplicaPlantDriver] 快照加载失败（植物门控退化）：{e.Message}"); }
+            }
+            EnsureSystems();
+        }
+
+        /// <summary>按表序建 13 组系统并完成初始分布（幂等；Awake 自举/装配期手动触发）。</summary>
+        public void EnsureSystems()
+        {
+            if (_systems != null)
+                return;
+            var table = ReplicaPlantTable.All;
+            if (Hulls == null || Hulls.Length != table.Length ||
+                Materials == null || Materials.Length != table.Length)
+            {
+                Debug.LogError($"[ReplicaPlantDriver] Hulls/Materials 未注入或长度≠{table.Length}（装配缺位），植物跳过。");
+                return;
+            }
+
+            // 环境色先于构造（构造链上的 PublishGlobals 会读取）。
+            if (!ReplicaPlantSystem.AmbientOverride.HasValue)
+                ReplicaPlantSystem.AmbientOverride = MenuAmbient;
+
+            _systems = new ReplicaPlantSystem[table.Length];
+            int total = 0;
+            for (int i = 0; i < table.Length; i++)
+            {
+                if (Hulls[i] == null || Materials[i] == null)
+                {
+                    Debug.LogWarning($"[ReplicaPlantDriver] 第 {i} 组（{table[i].ClassName}）资产缺位，跳过。");
+                    continue;
+                }
+                var sys = new ReplicaPlantSystem(table[i], Hulls[i], Materials[i]);
+                sys.Distribute();   // fac 真值落地前 = 全容量尝试（系统注释 TODO）
+                _systems[i] = sys;
+                total += sys.AliveCount;
+            }
+            Debug.Log($"[ReplicaPlantDriver] 植物系统就绪：{_systems.Length} 组 / 存活 {total} 株" +
+                "（seed 恒 0=运行时专用 TODO，分布与原作非逐株恒等）");
+        }
+
+        void Update()
+        {
+            if (_systems == null)
+                return;
+            float dt = Time.deltaTime;
+            for (int i = 0; i < _systems.Length; i++)
+            {
+                var sys = _systems[i];
+                if (sys == null) continue;
+                sys.Tick(dt);   // 生根更新（静态快照水场，见类头 TODO）
+                sys.Draw();     // DrawMeshInstancedIndirect（castShadows 语义在系统内）
+            }
+        }
+
+        void OnDestroy()
+        {
+            if (_systems == null)
+                return;
+            for (int i = 0; i < _systems.Length; i++)
+                _systems[i]?.Dispose();
+            _systems = null;
         }
     }
 }

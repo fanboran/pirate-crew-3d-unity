@@ -36,6 +36,10 @@ namespace PirateCrew.EditorTools
         const string ShaderPathSkybox = "Assets/Art/Shaders/WaterLab/ReplicaSkybox.shader";
         const string ShaderPathFrame = "Assets/Art/Shaders/WaterLab/ReplicaFrame.shader";
         const string StrataRefPath = "Assets/Art/Textures/WaterLab/Strata_Ref.png";
+        // I6b 植物挂接件：ReplicaPlant.shader（I6a）+ 14 张 imposter 图集
+        // （Assets/Art/Textures/WaterLab/Plants/，13 材质图集 + PlanterThumbnail）。
+        const string ShaderPathPlant = "Assets/Art/Shaders/WaterLab/ReplicaPlant.shader";
+        const string PlantsFolder = "Assets/Art/Textures/WaterLab/Plants";
 
         /// <summary>主菜单快照（I7 ReplicaMode 数据底座）：B 流 frida dump 的
         /// groundHeight/waterAmount，256² float32，Unity 按 TextAsset 导入。
@@ -116,7 +120,10 @@ namespace PirateCrew.EditorTools
             CreateLighting();
             var camera = CreateCamera();
             CreateTerrain();
-            CreateBottomProps(); // 水底参照物：透明感的载体（不透明队列，被水体折射）
+            if (ReplicaMode)
+                EnsurePlants(); // I6b：13 组植物 imposter 系统（原作 Beach 摆放树复刻，含水底参照物职能）
+            else
+                CreateBottomProps(); // 回退（程序剖面）：随机撒点参照物，只求透明感可读
             CreateWaterSurface();
             EnsureBorders(); // I5b：Back/FrontGround/FrontWater 三剖面 + Frame 白模件（H 流几何契约）
             EnsureSkybox(); // I5b：RenderSettings.skybox = ReplicaSkybox（t=1/3 菜单时刻真值）
@@ -542,6 +549,76 @@ namespace PirateCrew.EditorTools
             "`WaterLabSetup.EnsureRefNormalAsset()` 会在缺失时从 `<工程根>/../external/sandcastle-ref/WaterNormal2D-extracted.png`\n" +
             "（可用环境变量 `PC3D_WATERLAB_REF_NORMAL_SRC` 覆盖）重新拷贝，并按固定 guid（见 .meta）恢复\n" +
             "导入设置，保证 git 与资产引用稳定。\n";
+
+        /// <summary>
+        /// I6b 植物系统挂接（ReplicaMode 专属；回退链走 <see cref="CreateBottomProps"/>）。
+        /// 按 G-plants.md §5 集成规格：原作 Beach 子树挂点（Coastal/CoralReef/Grassland
+        /// + 13 类名空节点，Transform 恒等——placement.json world 全 identity）+ 13 材质
+        /// （<see cref="ReplicaPlantTable.CreateMaterial"/> 真值逐字落盘）+ 13 凸包网格
+        /// （<see cref="WaterLabPlantBake.EnsureHullMeshes"/> 资产）→ ReplicaPlantDriver
+        /// 注入后由其自举（new 系统/分布/每帧 Tick+Draw，见系统侧 I6b 段）。
+        /// </summary>
+        static void EnsurePlants()
+        {
+            var shader = AssetDatabase.LoadAssetAtPath<Shader>(ShaderPathPlant);
+            if (shader == null)
+            {
+                Debug.LogError($"[WaterLabSetup] 找不到植物 shader：{ShaderPathPlant}（I6a 产物未入库？）");
+                return;
+            }
+            var hulls = WaterLabPlantBake.EnsureHullMeshes();
+            var table = ReplicaPlantTable.All;
+
+            // 挂点树：组节点按表首现序建（= 原作 m_Children 序 Coastal/CoralReef/Grassland）。
+            var beach = new GameObject("Beach");
+            var groupNodes = new Dictionary<string, Transform>();
+            foreach (var p in table)
+                if (!groupNodes.ContainsKey(p.Group))
+                {
+                    var node = new GameObject(p.Group);
+                    node.transform.SetParent(beach.transform, false);
+                    groupNodes[p.Group] = node.transform;
+                }
+
+            var driverHulls = new Mesh[table.Length];
+            var driverMaterials = new Material[table.Length];
+            int mounted = 0;
+            for (int i = 0; i < table.Length; i++)
+            {
+                var p = table[i];
+                // 挂点（空 GameObject，纯占位——原作 Plant 组件的职责由 Driver 统一承载）
+                var anchor = new GameObject(p.ClassName);
+                anchor.transform.SetParent(groupNodes[p.Group], false);
+
+                var atlas = AssetDatabase.LoadAssetAtPath<Texture2D>($"{PlantsFolder}/{p.AtlasName}.png");
+                if (atlas == null)
+                {
+                    Debug.LogError($"[WaterLabSetup] 缺植物图集 {PlantsFolder}/{p.AtlasName}.png（I6a 产物），{p.ClassName} 材质落空。");
+                    continue;
+                }
+                var mat = ReplicaPlantTable.CreateMaterial(p, atlas, shader);
+                AssetDatabase.CreateAsset(mat, $"{MaterialFolder}/{p.ClassName}_01_Imposter.mat");
+                driverHulls[i] = i < hulls.Length ? hulls[i] : null;
+                driverMaterials[i] = mat;
+                mounted++;
+            }
+
+            // 自驱件：只注参（序列化引用），系统生命周期由 Driver.Awake 自举——
+            // 重开场景/进 Play 都不依赖装配期内存态（同 CreateSimulation 模式）。
+            var driver = beach.AddComponent<ReplicaPlantDriver>();
+            driver.Hulls = driverHulls;
+            driver.Materials = driverMaterials;
+            driver.GroundSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaGroundPath);
+            driver.WaterSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaWaterPath);
+
+            // cb0[40] 环境色：暂置 t=1/3 ambientSkyColor（Driver.MenuAmbient，重开场景
+            // 后由 Driver.Awake 重设）——运行时专用 TODO，见 ReplicaPlantDriver 类头。
+            ReplicaPlantSystem.AmbientOverride = ReplicaPlantDriver.MenuAmbient;
+
+            Debug.Log($"[WaterLabSetup] I6b 植物：Beach 树 13 挂点（Coastal/CoralReef/Grassland）、" +
+                $"材质/凸包就绪 {mounted}/{table.Length}（hull 资产在 {WaterLabPlantBake.HullFolder}），" +
+                "ReplicaPlantDriver 自举（Update Tick+Draw；seed/环境色/实时水场=运行时专用 TODO）");
+        }
 
         /// <summary>
         /// 水底参照物（礁石/卵石/藻球）。**透明感靠它们传达**：只有沙纹时沙本身是亮的、
