@@ -30,6 +30,12 @@ namespace PirateCrew.EditorTools
         const string ShaderPathProp = "Assets/Art/Shaders/WaterLab/WaterLabProp.shader";
         const string ComputePath = "Assets/Art/Shaders/WaterLab/WaterLabSim.compute";
         const string MaterialFolder = "Assets/Art/Materials/WaterLab";
+        // I5b 挂接的复刻 shader 件（I5a d11ed7c0 提交）与 Strata 层理图（sa0 pid212，
+        // I5a 已按数据贴图口径入库：sRGB off/Repeat/Bilinear）。
+        const string ShaderPathBorders = "Assets/Art/Shaders/WaterLab/ReplicaBorders.shader";
+        const string ShaderPathSkybox = "Assets/Art/Shaders/WaterLab/ReplicaSkybox.shader";
+        const string ShaderPathFrame = "Assets/Art/Shaders/WaterLab/ReplicaFrame.shader";
+        const string StrataRefPath = "Assets/Art/Textures/WaterLab/Strata_Ref.png";
 
         /// <summary>主菜单快照（I7 ReplicaMode 数据底座）：B 流 frida dump 的
         /// groundHeight/waterAmount，256² float32，Unity 按 TextAsset 导入。
@@ -112,6 +118,8 @@ namespace PirateCrew.EditorTools
             CreateTerrain();
             CreateBottomProps(); // 水底参照物：透明感的载体（不透明队列，被水体折射）
             CreateWaterSurface();
+            EnsureBorders(); // I5b：Back/FrontGround/FrontWater 三剖面 + Frame 白模件（H 流几何契约）
+            EnsureSkybox(); // I5b：RenderSettings.skybox = ReplicaSkybox（t=1/3 菜单时刻真值）
             CreateSimulation(camera); // 相机随注：白水逐粒视锥剔除要用它的 6 平面
             EnsureWhitewaterFeature();
             EnsurePostProcess(camera); // I4：DoF+Vignette（F 流参数直译，无 tonemap/bloom）
@@ -1152,6 +1160,240 @@ namespace PirateCrew.EditorTools
             dof.focalLength.Override(106f);   // VeryLarge 档的焦段口径（F 报告）
             vol.sharedProfile = profile;
             Debug.Log("[WaterLabSetup] I4 后处理：Vignette 0.296 + DoF(37.49/1.1/106) 已挂");
+        }
+
+        // ====================================================================
+        // I5b 边框/天空挂接（H 流真值 reports/H-borders-sky.md + I5a shader 件
+        // d11ed7c0）。一切在代码装配里做（BuildScene 是 NewScene 全重建，不手摆）。
+        // ====================================================================
+
+        /// <summary>边框盒世界高度（B 流：沙盘 bounds center(0,5,0) size 30×10×30
+        /// ——本地立方体高 1 × 缩放 10 = 10 m）。</summary>
+        const float BordersHeight = 10f;
+
+        /// <summary>
+        /// FrontWater 剖面带的吸收 σ：R 抓帧运行时真值 cb0[132]（tint 域，
+        /// 有效消光 6σ/m=(5.958,1.052,0.335)，交接§3 R 行定案）。与
+        /// <see cref="WaterLabReplicaGlobals"/> 的 _WaterLabSigma **单源同值**
+        ///（Globals 那份管水面、这份管 Borders 剖面带）——抓帧对账若改两处同改。
+        /// A 流 σ≡0 旧结论已被 R 推翻，勿回退。
+        /// </summary>
+        static readonly Vector4 ReplicaSigma = new Vector4(0.9930291f, 0.1753813f, 0.0557871f, 0f);
+
+        /// <summary>ReplicaBorders 三模式（shader _Mode 的 Enum 同表，三选一）。</summary>
+        enum BordersMode
+        {
+            Back = 1,
+            FrontGround = 2,
+            FrontWater = 3,
+        }
+
+        /// <summary>
+        /// I5b 边框挂接：Back/FrontGround/FrontWater 三 renderer 共用 16 顶点自定义
+        /// 立方体（sa0 pid378 复刻），Transform 恒等（H 报告 §1.1）、缩放 = 域尺寸
+        /// (30,10,30)——视觉分化全在 shader（Cull/clip/keyword），几何契约见
+        /// ReplicaBorders.shader 文件头。Frame（Lit/Base 白模）件就位但不可见
+        /// （Transform 位置未 dump，TODO 见下）。原作场景树 Beach/Borders{四件}
+        /// → 本仓 "Borders" 根同名子物体。
+        /// </summary>
+        static void EnsureBorders()
+        {
+            var root = new GameObject("Borders");
+            root.transform.position = Vector3.zero; // 域中心；立方体 XZ ±0.5 → 世界 ±15
+            var cube = BuildBordersCubeMesh();
+
+            MakeBordersObject("Back", root.transform, cube,
+                MakeBordersMaterial("WaterLab_BordersBack", BordersMode.Back));
+            MakeBordersObject("FrontGround", root.transform, cube,
+                MakeBordersMaterial("WaterLab_BordersFrontGround", BordersMode.FrontGround));
+            MakeBordersObject("FrontWater", root.transform, cube,
+                MakeBordersMaterial("WaterLab_BordersFrontWater", BordersMode.FrontWater));
+
+            // Frame：Lit/Base 白模（非 Borders 三件套成员，H 报告 §1.1），平面网格
+            // 1.23×1.23（sa0 pid398）。Transform 位置/朝向未 dump（H 的
+            // borders-scene.json Borders 树为空、§4 也标"可后置"）→
+            // TODO(I5b 遗留)：位置待 H 补 dump 或 L2 抓帧回读；先建件挂边框组下、
+            // renderer 关闭（无 draw call 完全不可见），材质就位后只差 Transform。
+            var frame = MakeBordersObject("Frame", root.transform, BuildFrameMesh(),
+                LoadOrCreateMaterial("WaterLab_Frame", ShaderPathFrame));
+            var frameRenderer = frame.GetComponent<MeshRenderer>();
+            frameRenderer.enabled = false;
+
+            Debug.Log($"[WaterLabSetup] I5b 边框：Back/FrontGround/FrontWater 三 renderer " +
+                $"恒等 Transform scale({WaterLabRules.DomainSize},{BordersHeight},{WaterLabRules.DomainSize})，" +
+                $"Frame 白模就位（disabled，位置 TODO）");
+        }
+
+        /// <summary>边框件：恒等 Transform（position/rotation 默认零值），只设缩放。</summary>
+        static GameObject MakeBordersObject(string name, Transform parent, Mesh mesh, Material mat)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.localScale = new Vector3(
+                WaterLabRules.DomainSize, BordersHeight, WaterLabRules.DomainSize);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+            return go;
+        }
+
+        /// <summary>
+        /// 按模式建边框材质：keyword 三选一（shader_feature_local，面板 Toggle 双轨
+        /// 同步）+ 各模式真值。值一律 Vector 下发（Linear 工程 Color 属性会被再 gamma
+        /// 一次，交接§6 陷阱），重建先删后建保证 shader 默认值生效、显式下发防漂移。
+        /// </summary>
+        static Material MakeBordersMaterial(string name, BordersMode mode)
+        {
+            var m = LoadOrCreateMaterial(name, ShaderPathBorders);
+            const string KwBack = "_REPLICA_MODE_BACK";
+            const string KwGround = "_REPLICA_MODE_FRONTGROUND";
+            const string KwWater = "_REPLICA_MODE_FRONTWATER";
+            m.SetFloat("_Mode", (float)mode);
+            m.SetFloat("_ModeBack", mode == BordersMode.Back ? 1f : 0f);
+            m.SetFloat("_ModeFrontGround", mode == BordersMode.FrontGround ? 1f : 0f);
+            m.SetFloat("_ModeFrontWater", mode == BordersMode.FrontWater ? 1f : 0f);
+            m.DisableKeyword(KwBack);
+            m.DisableKeyword(KwGround);
+            m.DisableKeyword(KwWater);
+            switch (mode)
+            {
+                case BordersMode.Back:
+                    // 纯白内壁剪影（PS 恒量 (1,1,1,1)，无参数）——只勾模式。
+                    m.EnableKeyword(KwBack);
+                    break;
+                case BordersMode.FrontGround:
+                    m.EnableKeyword(KwGround);
+                    // Strata 层理真图（sa0 pid212 仅 R）+ Carbonate 预设沙色——与
+                    // ApplySandReplicaValues 同源（cb0[127]/[128] 运行时 = 预设
+                    // color/color2；H 报告 §1.3：Borders 材质序列化色是惰性镜像勿用）。
+                    // _StrataLevelOffset 留 shader 默认 1.0（cb0[113].x 疑水位，
+                    // TODO 对账注释在 shader）。贴图缺失不阻断：shader 默认 gray=0.5。
+                    m.SetTexture("_StrataTex", AssetDatabase.LoadAssetAtPath<Texture2D>(StrataRefPath));
+                    m.SetVector("_SandColor", SandColorDry);
+                    m.SetVector("_SandColor2", SandColorThird);
+                    break;
+                case BordersMode.FrontWater:
+                    m.EnableKeyword(KwWater);
+                    // 剖面带 exp2(−8.65617·σ·d)×waterColor：σ = R 抓帧运行时真值
+                    // （ReplicaSigma，同源 WaterLabReplicaGlobals._WaterLabSigma），
+                    // 水色 = Water 材质序列化值（同源 ApplySandReplicaValues 的
+                    // _WaterColor 与 ReplicaGlobals.WaterColor 三处一字不改）。
+                    m.SetVector("_Sigma", ReplicaSigma);
+                    m.SetVector("_WaterColor", SandWaterColor);
+                    break;
+            }
+            return m;
+        }
+
+        /// <summary>
+        /// 沙盘边框自定义立方体（sa0 pid378 复刻）：16 顶点 24 索引 = **四面侧墙**
+        /// 每面独立 4 顶点（相邻面不共享——同一 worldXZ 落在不同墙面要携带不同的
+        /// 域列 UV），无顶/底面（原作 8 三角恰好铺满四侧墙；边框只露竖剖面）。
+        /// 局部 AABB：底 y=0、center(0,0.5,0) extent(0.5,0.5,0.5)。
+        /// 【UV=域列坐标（非表面参数化）】u=x+0.5、v=z+0.5（局部）→ 缩放后即
+        /// 域 (X→u, Z→v)（B 流轴向 row=Z/col=X）——每个顶点携带自己水柱的域地址；
+        /// 同一面竖墙的竖边两顶点 UV 相同（整列同柱），三角形内部插值竖向恒定。
+        /// 法线按面显式写出（顶点不共享，无 RecalculateNormals 歧义）。
+        /// </summary>
+        static Mesh BuildBordersCubeMesh()
+        {
+            var mesh = new Mesh { name = "WaterLabBordersCube" };
+            // 面 1 Front（z=−0.5，法线朝 −Z，出图相机侧）：竖剖面看的是域前缘水柱列
+            mesh.vertices = new[]
+            {
+                new Vector3(-0.5f, 0f, -0.5f), new Vector3(0.5f, 0f, -0.5f),   // v0 v1
+                new Vector3(0.5f, 1f, -0.5f), new Vector3(-0.5f, 1f, -0.5f),   // v2 v3
+                new Vector3(-0.5f, 0f, 0.5f), new Vector3(0.5f, 0f, 0.5f),     // v4 v5
+                new Vector3(0.5f, 1f, 0.5f), new Vector3(-0.5f, 1f, 0.5f),     // v6 v7
+                new Vector3(-0.5f, 0f, -0.5f), new Vector3(-0.5f, 0f, 0.5f),   // v8 v9
+                new Vector3(-0.5f, 1f, 0.5f), new Vector3(-0.5f, 1f, -0.5f),   // v10 v11
+                new Vector3(0.5f, 0f, -0.5f), new Vector3(0.5f, 0f, 0.5f),     // v12 v13
+                new Vector3(0.5f, 1f, 0.5f), new Vector3(0.5f, 1f, -0.5f),     // v14 v15
+            };
+            mesh.uv = new[]
+            {
+                new Vector2(0f, 0f), new Vector2(1f, 0f),   // v0 v1（Front：u=X 列）
+                new Vector2(1f, 0f), new Vector2(0f, 0f),   // v2 v3（竖边同柱 → 同 UV）
+                new Vector2(0f, 1f), new Vector2(1f, 1f),   // v4 v5（Back：v=Z=1）
+                new Vector2(1f, 1f), new Vector2(0f, 1f),   // v6 v7
+                new Vector2(0f, 0f), new Vector2(0f, 1f),   // v8 v9（Left：u=0，v=Z 列）
+                new Vector2(0f, 1f), new Vector2(0f, 0f),   // v10 v11
+                new Vector2(1f, 0f), new Vector2(1f, 1f),   // v12 v13（Right：u=1）
+                new Vector2(1f, 1f), new Vector2(1f, 0f),   // v14 v15
+            };
+            var nFront = new Vector3(0f, 0f, -1f);
+            var nBack = new Vector3(0f, 0f, 1f);
+            var nLeft = new Vector3(-1f, 0f, 0f);
+            var nRight = new Vector3(1f, 0f, 0f);
+            mesh.normals = new[]
+            {
+                nFront, nFront, nFront, nFront,
+                nBack, nBack, nBack, nBack,
+                nLeft, nLeft, nLeft, nLeft,
+                nRight, nRight, nRight, nRight,
+            };
+            // 绕序 = 正面朝外（法线 = Cross(b−a, c−a)，逐三角核对过）。
+            mesh.triangles = new[]
+            {
+                0, 2, 1, 0, 3, 2,       // Front（外法线 −Z：Cull Back 时朝相机可见）
+                4, 5, 6, 4, 6, 7,       // Back
+                8, 9, 10, 8, 10, 11,    // Left
+                12, 14, 13, 12, 15, 14, // Right
+            };
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>
+        /// I5b 天空挂接：RenderSettings.skybox = ReplicaSkybox 材质（原作 level0
+        /// RenderSettings.m_SkyboxMaterial 同位，H 报告 §3：背景是程序化 Skybox
+        /// shader，不是纯色）。t=1/3 菜单时刻真值显式下发（同 ApplySandReplicaValues
+        /// 的理由：防 .mat 锁旧值）。
+        /// 【相机 clearFlags 不动】任务口径 = 保持 SolidColor 原值；URP 实际绘制条件
+        /// 是 clearFlags==Skybox 且 RenderSettings.skybox 非 null——本仓 LabCamera 未
+        /// 显式设过 clearFlags（Unity 默认 Skybox）。两种情形的行为差异作为出图对账点
+        /// 记 TODO，本方法不碰相机域。
+        /// 【I5a 遗留 TODO 注释链】cb0[122] 天空基色（_SkyBaseTint）默认 (1,1,1) 待
+        /// 抓帧；Skybox 绘制序差异已把原作 ZTest Always 收口为 LEqual（shader 文件头）。
+        /// </summary>
+        static void EnsureSkybox()
+        {
+            var m = LoadOrCreateMaterial("WaterLab_Skybox", ShaderPathSkybox);
+            // t=1/3 Morning（menu-state.json，DayCycler Evaluate 真值；与 CreateLighting
+            // 的灯色/环境光同值——灯走 Light.color（sRGB 语义）、这里走 Vector（物理量）
+            // 不冲突）。
+            m.SetVector("_SkySunColor", new Vector4(1f, 0.940429f, 0.872353f, 1f));
+            m.SetVector("_SkyAmbient", new Vector4(0.698039f, 0.564706f, 0.569923f, 1f));
+            // cb0[122] 运行时专用待抓帧（shader 文件头 TODO 1）；边界半宽按 B 流
+            // 沙盘 30×30 的一半（shader 文件头 TODO 2）。
+            m.SetVector("_SkyBaseTint", new Vector4(1f, 1f, 1f, 1f));
+            m.SetVector("_SkyBorderSize", new Vector4(15f, 15f, 0f, 0f));
+            RenderSettings.skybox = m;
+            Debug.Log("[WaterLabSetup] I5b 天空：RenderSettings.skybox = ReplicaSkybox" +
+                "（t=1/3 真值；相机 clearFlags 未动）");
+        }
+
+        /// <summary>Frame 白模网格（sa0 pid398 复刻）：1.23×1.23 平面、中心原点。
+        /// 朝向/位置未 dump（见 EnsureBorders 的 Frame TODO），先按 XY 竖面（法线 −Z）
+        /// 建——disabled 状态下不参与渲染，只保件就位。</summary>
+        static Mesh BuildFrameMesh()
+        {
+            const float half = 1.23f * 0.5f;
+            var mesh = new Mesh { name = "WaterLabFrameQuad" };
+            mesh.vertices = new[]
+            {
+                new Vector3(-half, -half, 0f), new Vector3(half, -half, 0f),
+                new Vector3(half, half, 0f), new Vector3(-half, half, 0f),
+            };
+            var n = new Vector3(0f, 0f, -1f);
+            mesh.normals = new[] { n, n, n, n };
+            mesh.uv = new[]
+            {
+                new Vector2(0f, 0f), new Vector2(1f, 0f),
+                new Vector2(1f, 1f), new Vector2(0f, 1f),
+            };
+            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 }; // 正面朝 −Z（绕序已核对）
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         static void EnsureWhitewaterFeature()
