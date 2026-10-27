@@ -78,6 +78,10 @@ Shader "PirateCrew/WaterLab/Ocean"
             // 暂保持现行（透明调度位 + ZWrite On + 无 Blend），集成时按抓帧定。
             Cull Back
             ZWrite On
+            // R 流 draw 3093 管线状态实锤：depthEnable=True/depthWrites=True +
+            // Blend SRC_ALPHA/INV_SRC_ALPHA（L2-run α 通道逐位闭合的模型）——半透明
+            // 混合 + 深度写并存（单层水面自遮挡由相机侧不发生；I1 TODO② 关闭）。
+            Blend SrcAlpha OneMinusSrcAlpha
 
             HLSLPROGRAM
             // target 4.5：VS 的 Texture2D.Load（texelFetch/ld）最低要求
