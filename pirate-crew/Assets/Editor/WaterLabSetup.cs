@@ -214,11 +214,13 @@ namespace PirateCrew.EditorTools
             cam.backgroundColor = new Color(0.801526f, 0.506065f, 0.560869f);
             // 原作位姿为基准；创始人取景裁决（2026-10-27）：**相机位置**沿视线向水面方向
             // 前移（原作菜单即拖动平移相机，不改俯仰）。差分对账用基准值时把前移量归零。
-            const float DollyTowardWaterMeters = 4f;
+            // 朝水体质心平移（快照 waterAmount 加权重心 (0.12, 9.51)——前移视线版本实测
+            // 水占比反降（落点在沙洲），改水平朝心平移；差分对账归零即回基准）。
+            const float PanTowardWaterMeters = 6f;
             Quaternion baseRot = new Quaternion(0.37687f, -0.16043f, 0.066452f, 0.909844f);
             Vector3 basePos = new Vector3(7.570009f, 20.671303f, -21.924673f);
-            Vector3 forward = baseRot * Vector3.forward;
-            go.transform.position = basePos + forward * DollyTowardWaterMeters;
+            Vector2 toWater = new Vector2(0.12f - basePos.x, 9.51f - basePos.z).normalized;
+            go.transform.position = basePos + new Vector3(toWater.x, 0f, toWater.y) * PanTowardWaterMeters;
             go.transform.rotation = baseRot;
             return cam;
         }
