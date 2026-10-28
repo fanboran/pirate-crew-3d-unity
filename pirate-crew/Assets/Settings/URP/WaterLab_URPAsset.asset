@@ -1,16 +1,3 @@
-# WaterLab 专用 URP 管线副本（B 流管线件，§4b 批次）。
-# 基线 = PC_Balanced_URPAsset 全字段拷贝，差异仅两项（E/F/R 三流定案）：
-#   1. m_SupportsHDR: 1（Balanced 是 0）——HDR 开后 URP 色缓冲走
-#      SystemInfo.GetGraphicsFormat(DefaultFormat.HDR)，D3D11/12 上即
-#      B10G11R11_UFloatPack32（无 alpha）——与 E 流/R 抓帧的 HDR RT 定案一致，
-#      无需再设格式项（URP 14 无逐资产 HDR 格式字段，由 HDR 默认格式决定）。
-#   2. m_MSAA: 0（Balanced 已是 0，原作运行时无 MSAA——R 定案「资产 4x 未生效」，
-#      AA=SMAA only；此项显式登记防止将来有人把 Balanced 开 MSAA 时被本副本跟随）。
-# Renderer 列表（m_RendererDataList 四 guid）与 Balanced 共用：HDR/MSAA 都在
-# URPAsset 上，Renderer 上只有 WaterLabRefraction feature 注入与 postProcessData，
-# 复用即保持 feature 生效，不另立副本（避免资产增殖）。
-# 场景级切换由 Assets/Editor/WaterLabPipelineSwitch.cs 负责（进 WaterLab 场景切、
-# 离开还原），主战役从不指向本资产。
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
