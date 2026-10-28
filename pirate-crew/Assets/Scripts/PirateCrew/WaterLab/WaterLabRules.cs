@@ -163,12 +163,6 @@ namespace PirateCrew.WaterLab
         /// <summary>水汽衰减系数（UpdateAmount 字面量 0.721348）。</summary>
         public const float EvaporationHumidityDecay = 0.721348f;
 
-        /// <summary>
-        /// 水汽场取值。原作从 Air compute 的 22 bit 水汽场双线性采样；本仓不模拟气相，
-        /// 取 Air Initialization 的初值 0（word1=0x800 → 采样字段 0），属 C 级近似。
-        /// </summary>
-        public const float AirHumidity = 0f;
-
         /// <summary>太阳辐照标量（原作 `sunColor.r`；实验室平行光强度 1）。</summary>
         public const float SunIrradiance = 1f;
 
@@ -250,17 +244,6 @@ namespace PirateCrew.WaterLab
                 }
                 Array.Copy(scratch, floor, floor.Length);
             }
-        }
-
-        /// <summary>
-        /// 蒸发速率（m/s）：`exp(−0.721348·湿度) × sun.r × evaporationFactor × 0.001`。
-        /// 原作在 UpdateAmount 里先减蒸发再松弛；满耦合格随后被潮位拉回，故可见影响主要
-        /// 落在未耦合的干/浅格。本仓按 Air 初值湿度 0、太阳辐照 1 计算。
-        /// </summary>
-        public static float EvaporationRate()
-        {
-            return Mathf.Exp(-EvaporationHumidityDecay * AirHumidity)
-                 * SunIrradiance * EvaporationFactor * EvaporationScale;
         }
 
         // ---- 破碎与泡沫 ----
@@ -349,7 +332,180 @@ namespace PirateCrew.WaterLab
             return speed / Mathf.Sqrt(Gravity * d) > BreakingFroude;
         }
 
-        // ---- 湿沙 ----
+        // ---- 活沙 Ground（D 流件1：Sandcastle Ground compute 语义移植）----
+        //
+        // 【真值链】反编译 Ground.cs（5 kernel 名/字段名/子步式）+ Ground@*.hlslasm 逐段
+        //（shaderblobs/render/，两组编译变体逐对相同，以 @8652=VelocityIntegration、
+        // @600=HeightIntegration、@17600=UpdateTangent、@20296=UpdateObstacleHeight、
+        // @148=Initialization 为准）+ 沉积参数七型预设真值（D-sand.md §4.2：Refs 裸字节
+        // 恢复，主菜单=SandType.Carbonate type 0，七型共用 13 个模拟浮点）。
+        //
+        // 【移植口径】公式语义级（与水侧 W1 同路线）：公式/参数/门控逐条对齐反汇编；
+        // 原作的 24bit/22bit/12bit 定点打包只是 GPU 存储格式，我方用明文 float4 场
+        //（Ground@600 store 段的 sat(v×0.09901)×16777215 等编码式不入模拟语义）。
+        // 反汇编中的死通道（第二平流场恒 −4：`mad r, r, l(0), l(-4)` 字面量乘 0 横贯
+        // VelocityIntegration 的水速采样与 HeightIntegration 的邻居速度差分）按原样
+        // 保留语义＝不产生平流/搬运——活沙的地形演化主体是**坡度滑移扩散**，不是速度场
+        // 平流，这与 B2 实测（22 s 全场漂移 ≈0.018 m 的慢形态演化）同数量级自洽。
+        //
+        // 【GroundCell 打包已知位段（未完全复原，遗留 D 报告）】d0[0..7]=tangent.x、
+        // d0[8..15]=tangent.y（8bit (n+1)/2×255）、d1[0..11]=obstacleHeight（12bit
+        // sat(v×0.09901)×4095，UpdateObstacleHeight 写入）、高度/沙量 24bit
+        // sat(v×0.09901)×16777215、sediment 22bit ×1e-6（d3[4..25]）、
+        // sandVelocity 22bit ×1e-6 sat×0.2（量程 0.839 m/s）。
+
+        /// <summary>活沙重力（m/s²）。Ground.cs 字段默认 0.1；主菜单场景实例值未在
+        /// B2 dump 里（Ground 层只读了分辨率/格距），按类默认值落，登记 D 报告遗留。</summary>
+        public const float GroundGravity = 0.1f;
+
+        /// <summary>活沙子步（s）= 原作 Ground.MaxDeltaTime：`0.5·groundCellSize/√g`
+        ///（Ground.Run 的 Step("simulation", …) 固定步，30 m/1024² 下 ≈46.3 ms——
+        /// 比水子步粗 6.3 倍：Ground.Run 平均每 3 帧走一步）。</summary>
+        public static readonly float GroundFixedStep =
+            0.5f * GroundCellSize / Mathf.Sqrt(GroundGravity);
+
+        /// <summary>活沙速度上限（m/s）= √GroundGravity（Ground.Run 的 maxVelocity 下发；
+        /// 反汇编限幅 `movc` 分支把 v 归一到 ×maxVelocity/|v|，Ground@8652 末段）。</summary>
+        public static readonly float GroundMaxVelocity = Mathf.Sqrt(GroundGravity);
+
+        /// <summary>滑移/侵蚀噪声幅度（Ground.cs 字段默认 noiseFactor=0.0001；Wang hash
+        /// ±1 × 该值 × dt，Ground@8652 噪声段）。</summary>
+        public const float GroundNoiseFactor = 0.0001f;
+
+        // ---- 沉积参数（SandProperty.Parameters 的 13 个模拟浮点；D-sand.md §4.2，
+        //      七型预设共用真值，Ref s 裸字节恢复。Ground.Run 逐个 SetFloat 下发）----
+
+        /// <summary>沙面速度阻尼（1/s）。Ground@8652：`v −= v×damping×dt`。</summary>
+        public const float SandDamping = 7f;
+
+        /// <summary>粘滞系数（Ground.cs 字段名单内；反汇编未见独立消费点，登记遗留）。</summary>
+        public const float SandStickiness = 0.5f;
+
+        /// <summary>高度松弛低通（Ground@600：`h=(h'×amountKappa+h)/(amountKappa+4)`，
+        /// 与水侧 kappa 低通同式）。</summary>
+        public const float SandAmountKappa = 200f;
+
+        /// <summary>速度松弛低通（Ground@8652：`v=(v'×velocityKappa+v)/(velocityKappa+4)`）。</summary>
+        public const float SandVelocityKappa = 200f;
+
+        /// <summary>水侵蚀权重基值（Ground@8652：`wet = wEF×(sat(water×20)×19+1)`，
+        /// 量程 [wEF, 20×wEF]——水深 5 cm 即饱和到 20 倍滑移）。</summary>
+        public const float SandWaterErosionFactor = 0.04f;
+
+        /// <summary>水侵蚀量指数（Ground@8652：`pow(sat(water−0.05), gamma)`，
+        /// log/exp 对实现；=1 时恒等）。</summary>
+        public const float SandWaterErosionAmountGamma = 1f;
+
+        /// <summary>搬运容量系数（Ground@600 容量式乘子：capacity =
+        /// sedimentCapacity × sat(water−0.05)^waterErosionAmountGamma × |v|^speedGamma）。</summary>
+        public const float SandSedimentCapacity = 0.003f;
+
+        /// <summary>容量式水速指数（Ground@600：`pow(|v|, gamma)`，log/exp 对）。</summary>
+        public const float SandSedimentWaterSpeedGamma = 1f;
+
+        /// <summary>容量式水量指数（Ground@600 同族 pow；=1 恒等）。</summary>
+        public const float SandSedimentWaterAmountGamma = 1f;
+
+        /// <summary>悬移率（Ground@600/8652 悬移段乘子：sediment &lt; capacity 时
+        /// sand→sediment 的转移速率）。</summary>
+        public const float SandSedimentSuspension = 0.015f;
+
+        /// <summary>沉积率（Ground@600：sediment &gt; capacity 时 sediment→sand 的
+        /// 转移速率）。</summary>
+        public const float SandSedimentDeposition = 0.005f;
+
+        /// <summary>悬沙平流系数（Ground@8652：sediment 场沿速度场的回溯采样比例；
+        /// 原作速度通道是死通道 → 实际自采样，我方保留常数与公式结构）。</summary>
+        public const float SandSedimentAdvection = 0.5f;
+
+        /// <summary>悬沙松弛低通（Ground@600：sediment 的 kappa 族低通）。</summary>
+        public const float SandSedimentKappa = 10f;
+
+        /// <summary>
+        /// 湿度侵蚀权重（Ground@8652 反汇编直译）：`wet = wEF×(sat(water×20)×19+1)`。
+        /// water 是该格的可见水量（含结合水的整柱量，与水场 h 同语义）；
+        /// water≥0.05 m 即权重饱和（20×wEF）。
+        /// </summary>
+        public static float SandWetnessWeight(float water)
+        {
+            return SandWaterErosionFactor * (Mathf.Clamp01(water * 20f) * 19f + 1f);
+        }
+
+        /// <summary>
+        /// 泵速率（m/s，原作 Water.UpdateAmount 泵段，§9 逐式）：门控
+        /// `sandSurface &lt; obstacleTop && obstacleTop ≤ η &lt; obstacleTop + 0.1`
+        /// 满足时 `amount += 0.15·sin(8·playTime + 0.0378·uv.y)·dt`。
+        /// uv.y 是水格归一化 v（跨全域相位只差 0.0378 rad——近均匀局部扰动）。
+        /// 【场语义（D 定案）】obstacleTop = groundHeight 快照原值（含障碍绝对高程，
+        /// 原作 obstaclesMap 由顶视渲染障碍 mesh 写世界 Y）；sandSurface = groundHeight −
+        /// 障碍增量（=sandAmount 快照，纯沙面）；η = 沙面 + max(h−0.05,0)。
+        /// </summary>
+        public const float PumpAmplitude = 0.15f;
+        public const float PumpTimeFrequency = 8f;
+        public const float PumpPhasePerV = 0.0378f;
+        public const float PumpEtaWindow = 0.1f;
+
+        /// <summary>泵的正弦速率（带门控结果的完整式；uvY ∈ [0,1] 归一化）。</summary>
+        public static float PumpRate(float playTime, float uvY)
+        {
+            return PumpAmplitude * Mathf.Sin(PumpTimeFrequency * playTime + PumpPhasePerV * uvY);
+        }
+
+        /// <summary>泵门控（见 <see cref="PumpRate"/> 注释的场语义）。</summary>
+        public static bool PumpGate(float sandSurface, float obstacleTop, float eta)
+        {
+            return sandSurface < obstacleTop
+                && obstacleTop <= eta && eta < obstacleTop + PumpEtaWindow;
+        }
+
+        // ---- Air 层（D 流件3）----
+        //
+        // 【原作实证（D 定案）】Air.Run 是空方法（cs-full/Air.cs：只读 Initialized 后
+        // 直接返回，无任何 Dispatch）；Air 的 HeightIntegration/VelocityIntegration 是
+        // 空 kernel（Air@492/712：dcl 后仅 ret）。主菜单里 Air 只在 Init 派发一次
+        // Initialization（Air@144：`u0 = (0x00200000, 0x800, 0, 0)` 常量初值），此后
+        // airCells 恒为初值——水汽场 ≡ 0。Water.UpdateAmount 从 airCells 双线性采水汽
+        // （22bit @ byte4 bits12..33）喂蒸发式，采到的恒 0。
+        //
+        // 【X 流 exp2 语义修正】蒸发式的 0.721348 在 DXBC 是 exp2 指数（exp2(x)=2^x），
+        // 语义 = e^(−0.721348·ln2·湿度) = e^(−0.5·湿度)——旧实现用自然 exp 直接乘
+        // 0.721348（X-exp2.md 登记的潜伏雷）。湿度恒 0 时两者同为 1（数值免疫），
+        // 仍按原作 exp2 语义修正。
+
+        /// <summary>Air 场每轴格数：原作 Air.Setup 的 `resolution = formatProperty >> 4`
+        ///（Normal 档水 512² → 大气 32²，格距 30/32 ≈ 0.94 m）。</summary>
+        public const int AirCells = WaterCells / 16;
+
+        /// <summary>Air 格距（m）。</summary>
+        public const float AirCellSize = DomainSize / AirCells;
+
+        /// <summary>
+        /// 水汽场取值。原作 airCells 的 22bit 水汽双线性采样；Air 层在主菜单恒为
+        /// Initialization 初值 0（见段注释），本常量即该场的全部取值——Air compute 的
+        /// Initialization kernel 灌这个值，Water 侧逐格采样（值恒定、结构对齐原作）。
+        /// </summary>
+        public const float AirHumidity = 0f;
+
+        /// <summary>
+        /// 蒸发速率（m/s）：`exp2(−0.721348·湿度) × sun.r × evaporationFactor × 0.001`。
+        /// exp2 语义 = e^(−0.5·湿度)（X 流修正，见段注释）；湿度恒 0 → 恒 1e-4 m/s 量级
+        /// ×0.1 因子。原作在 UpdateAmount 里先减蒸发再泵再松弛。
+        /// </summary>
+        public static float EvaporationRate()
+        {
+            // exp2(−0.721348·h) = 2^(−0.721348·h) = e^(−0.721348·ln2·h)（0.721348·ln2=0.5）
+            float extinction = -EvaporationHumidityDecay * 0.6931472f * AirHumidity;
+            return Mathf.Exp(extinction)
+                 * SunIrradiance * EvaporationFactor * EvaporationScale;
+        }
+
+        /// <summary>蒸发基率（湿度无关部分）= sun.r × evaporationFactor × 0.001。
+        /// compute 侧的湿度因子 exp2(−0.721348·水汽采样) 在 kernel 内逐格算（Air 场驱动），
+        /// CPU 参考与本函数配套（湿度恒 0 时 <see cref="EvaporationRate"/> 与本值相等）。</summary>
+        public static float EvaporationBaseRate()
+        {
+            return SunIrradiance * EvaporationFactor * EvaporationScale;
+        }
 
         /// <summary>湿沙饱和速率（1/s）：被水覆盖的格向 w=1 逼近。</summary>
         public const float WetnessSoakRate = 3f;
@@ -705,6 +861,134 @@ namespace PirateCrew.WaterLab
                 Array.Copy(hNew, h, n);
                 Array.Copy(vxNew, vx, n);
                 Array.Copy(vzNew, vz, n);
+            }
+
+            /// <summary>
+            /// 活沙 Ground 一步（D 流件1，CPU 参考；compute 的 Ground* kernel 同式）。
+            ///
+            /// 【语义重建口径】Ground@600/@8652 反汇编的搬运/平流通道被字面量 ×0 死通道
+            /// 禁用（第二平流场恒 −4 族），地形演化的活项按反汇编可恢复的乘积链重建：
+            /// <list type="bullet">
+            /// <item>坡度滑移（守恒下坡重分配）：通量系数 k = <see cref="SandSedimentAdvection"/>
+            /// ×0.04（Ground@8652 的 `slideW×slope×cb0[154].w×dt×l(0.04)` 字面量链），
+            /// 被 <see cref="SandWetnessWeight"/>（湿度侵蚀权重）与水深硬门
+            /// sat((w−0.05)×100)（Ground@600 `mul ×l(100)`/`×l(30)` 双门的水门）调制；</item>
+            /// <item>高度松弛低通 `h=(h'×amountKappa+h)/(amountKappa+4)`（Ground@600）；
+            /// 速度场同式低通 + `v−=v×damping×dt` + ±noiseFactor 噪声 + |v|≤√g 限幅
+            ///（Ground@8652）；</item>
+            /// <item>沉积交换：capacity = sedimentCapacity × sat(w−0.05)^wEAG ×
+            /// |v|^speedGamma（Ground@600 log/exp 对）；sediment&gt;cap 沉积
+            /// ((sed−cap)×deposition×dt)、反之悬移（×suspension×dt×水门）；</item>
+            /// <item>sediment 平流 = 半拉格朗日回溯采样（Ground@8652；原作速度通道死 →
+            /// 自采样，公式保留、位移为零）。</item>
+            /// </list>
+            /// 演化量级自洽：k=0.02/s × swash 带坡度 ~0.05 × 22 s ≈ 0.022 m，与 B2 活沙
+            /// 实测（22 s ≈0.018 m）同数量级。
+            /// </summary>
+            public static void GroundStep(float[] height, float[] vx, float[] vz, float[] sediment,
+                float[] water, int cells, float dx, float dt,
+                float[] hScratch, float[] sedScratch)
+            {
+                int n = cells * cells;
+                Array.Copy(height, hScratch, n);
+                Array.Copy(sediment, sedScratch, n);
+
+                float slideK = SandSedimentAdvection * 0.04f;
+
+                for (int z = 0; z < cells; z++)
+                {
+                    int zm = z > 0 ? z - 1 : 0;
+                    int zp = z < cells - 1 ? z + 1 : cells - 1;
+                    for (int x = 0; x < cells; x++)
+                    {
+                        int xm = x > 0 ? x - 1 : 0;
+                        int xp = x < cells - 1 ? x + 1 : cells - 1;
+                        int i = x + z * cells;
+                        float h = height[i];
+                        float w = water[i];
+
+                        int iXm = xm + z * cells;
+                        int iXp = xp + z * cells;
+                        int iZm = x + zm * cells;
+                        int iZp = x + zp * cells;
+
+                        // 速度场（Ground@8652）：坡度投影 → 阻尼 → 噪声 → 限幅 → 低通。
+                        // 原作水速耦合项与基线 −4 均为字面量死通道，按原样置零不移植。
+                        float sx = (height[iXp] - height[iXm]) * 0.5f / dx;
+                        float sz = (height[iZp] - height[iZm]) * 0.5f / dx;
+                        float wet = SandWetnessWeight(w);
+                        float slideW = Mathf.Max(wet - Mathf.Sqrt(sx * sx + sz * sz), 0f);
+                        float acc = SandSedimentSuspension * 0.04f * slideW;
+                        float nvx = vx[i] + (acc * sx - vx[i] * SandDamping) * dt
+                                  + (Hash01(x, z) * 2f - 1f) * GroundNoiseFactor * dt;
+                        float nvz = vz[i] + (acc * sz - vz[i] * SandDamping) * dt
+                                  + (Hash01(z, x) * 2f - 1f) * GroundNoiseFactor * dt;
+                        float speed = Mathf.Sqrt(nvx * nvx + nvz * nvz);
+                        if (speed > GroundMaxVelocity)
+                        {
+                            nvx *= GroundMaxVelocity / speed;
+                            nvz *= GroundMaxVelocity / speed;
+                        }
+                        vx[i] = (nvx * SandVelocityKappa + vx[i]) / (SandVelocityKappa + 4f);
+                        vz[i] = (nvz * SandVelocityKappa + vz[i]) / (SandVelocityKappa + 4f);
+
+                        // 沉积交换（Ground@600 容量式）：sediment ⇄ height。
+                        float visible = Mathf.Max(w - DryDepth, 0f);
+                        float vSpeed = Mathf.Sqrt(vx[i] * vx[i] + vz[i] * vz[i]);
+                        float cap = SandSedimentCapacity
+                                  * Mathf.Pow(Mathf.Clamp01(visible), SandSedimentWaterAmountGamma)
+                                  * Mathf.Pow(vSpeed, SandSedimentWaterSpeedGamma)
+                                  * wet;
+                        float sed = sediment[i];
+                        float gate = Mathf.Clamp01((w - DryDepth) * 100f);
+                        if (sed > cap)
+                        {
+                            float d = (sed - cap) * SandSedimentDeposition * dt;
+                            sed -= d;
+                            h += d;
+                        }
+                        else
+                        {
+                            float d = (cap - sed) * SandSedimentSuspension * dt * gate;
+                            sed += d;
+                            h -= d;
+                        }
+
+                        // 坡度滑移（守恒下坡重分配）：净通量记账（入量读原值数组），和恒零。
+                        float k = slideK * wet * gate * dt * 0.25f;
+                        float outSum = Mathf.Max(h - height[iXp], 0f)
+                                     + Mathf.Max(h - height[iXm], 0f)
+                                     + Mathf.Max(h - height[iZp], 0f)
+                                     + Mathf.Max(h - height[iZm], 0f);
+                        float inSum = Mathf.Max(height[iXp] - h, 0f)
+                                    + Mathf.Max(height[iXm] - h, 0f)
+                                    + Mathf.Max(height[iZp] - h, 0f)
+                                    + Mathf.Max(height[iZm] - h, 0f);
+                        hScratch[i] = h + (inSum - outSum) * k;
+                        sedScratch[i] = sed;
+                    }
+                }
+
+                // 高度松弛低通（Ground@600：分子 = h'×amountKappa + 4×邻均值——解包段把
+                // 中心+3 邻 ×1e-6 累加成 4×均值，/(kappa+4) 后是「向 4 邻均值收缩」的
+                // 守恒平滑；匀场恒等、总量一阶守恒）。低通 pass 读滑移后的 hScratch 求邻均值。
+                for (int i = 0; i < n; i++)
+                    sediment[i] = sedScratch[i];
+                for (int z = 0; z < cells; z++)
+                {
+                    int zm = z > 0 ? z - 1 : 0;
+                    int zp = z < cells - 1 ? z + 1 : cells - 1;
+                    for (int x = 0; x < cells; x++)
+                    {
+                        int xm = x > 0 ? x - 1 : 0;
+                        int xp = x < cells - 1 ? x + 1 : cells - 1;
+                        int i = x + z * cells;
+                        float neighMean = (hScratch[xp + z * cells] + hScratch[xm + z * cells]
+                                         + hScratch[x + zp * cells] + hScratch[x + zm * cells]) * 0.25f;
+                        height[i] = (hScratch[i] * SandAmountKappa + 4f * neighMean)
+                                  / (SandAmountKappa + 4f);
+                    }
+                }
             }
         }
     }

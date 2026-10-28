@@ -51,28 +51,43 @@ namespace PirateCrew.WaterLab
         /// </summary>
         public TextAsset replicaWeights;
 
+        /// <summary>
+        /// 纯沙场快照（D 流件2）：MenuSand256.bytes，256² float32 = 原作 sandAmount。
+        /// 与 groundHeight 快照成对推出障碍场（obstacleDelta = groundHeight − sandAmount
+        /// 阈值化，B2 统计锁见 <see cref="WaterLabReplicaObstacles"/>）；两快照齐且校验通过
+        /// 时 obstaclesMap 泵启用，否则泵禁用并报错（其余模拟不受影响）。
+        /// </summary>
+        public TextAsset replicaSandSnapshot;
+
         /// <summary>主菜单快照复刻是否生效（= 快照已加载，TerrainHeight/初始水位已切数据源）。</summary>
         public bool ReplicaMode => WaterLabReplicaSnapshot.HasData;
 
         // kernel 句柄
         int _kSurface, _kHeight, _kVelocity, _kAdvectFoam, _kWetness, _kOutput;
         int _kWWBegin, _kWWSpawn, _kWWUpdate, _kWWCompact, _kWWEnd;
+        int _kObstacleInit, _kGroundVelocity, _kGroundHeight, _kGroundOutput;
 
         ComputeBuffer _waterCur, _waterNext; // float4: h,vx,vz,foam × WaterCells²
         ComputeBuffer _wetCur, _wetNext;     // float  × GroundCells²
-        ComputeBuffer _ground;               // float  × GroundCells²（静态）
+        ComputeBuffer _ground;               // float  × GroundCells²（静态 t0，潮位/干湿判据用）
         ComputeBuffer _weights;              // float  × WaterCells²（耦合权重/15，静态；B2 真值或回退代理）
         ComputeBuffer _floor;                // float  × WaterCells²（BlurFloor 平滑场，静态）
         ComputeBuffer _wwPos, _wwVel;        // float4 × 容量（白水粒子池，缓冲环）
         ComputeBuffer _wwDraw;               // uint   × 容量（活粒子 draw list）
         ComputeBuffer _wwAlive, _wwArgs;     // uint ×2（计数/游标）、uint ×4（indirect args）
+        ComputeBuffer _groundCur, _groundNext; // float4: h,vx,vz,sediment × GroundCells²（活沙，D 流件1）
+        ComputeBuffer _obstacleInit;         // float × 256²（障碍增量，ObstacleInit 一次性搬进纹理）
+        ComputeBuffer _airCells;             // float4 × AirCells²（大气水汽，恒初值，D 流件3）
 
         RenderTexture _heightTex;  // WaterCells²（ARGBHalf，见 NewDataTexture）
         RenderTexture _wetTex;     // GroundCells²（ARGBHalf，R 有效）
         RenderTexture _causticTex; // WaterCells² ARGBHalf（R=焦散拉普拉斯，带符号；OutputField 顺带烘焙）
-        Texture2D _groundTex;      // GroundCells² RGBAFloat（R 编码高程）
+        RenderTexture _groundTex;  // GroundCells² ARGBHalf（R=(h+1)/5 编码；D 流件1 起改由
+                                   // GroundOutput 每帧从活沙场写，快照 t0 为初值——原为静态 Texture2D）
+        RenderTexture _obstacleTex; // 256² RHalf（障碍增量，Point 采样对齐原作 obstaclesMap）
 
         float _accumulator;
+        float _groundAccumulator;
         float _simTime;
 
         /// <summary>当前模拟时间（本地时钟；出图门控/诊断锚点用它）。</summary>
@@ -162,6 +177,10 @@ namespace PirateCrew.WaterLab
             _kWWUpdate = computeShader.FindKernel("WhitewaterUpdate");
             _kWWCompact = computeShader.FindKernel("WhitewaterCompact");
             _kWWEnd = computeShader.FindKernel("WhitewaterEnd");
+            _kObstacleInit = computeShader.FindKernel("ObstacleInit");
+            _kGroundVelocity = computeShader.FindKernel("GroundVelocity");
+            _kGroundHeight = computeShader.FindKernel("GroundHeight");
+            _kGroundOutput = computeShader.FindKernel("GroundOutput");
 
             TryLoadReplicaSnapshot();
             ResolvePlayTimeBase();
@@ -222,27 +241,46 @@ namespace PirateCrew.WaterLab
                 WaterLabReplicaWeights.Unload();
                 Debug.LogError($"[WaterLabSimulation] 耦合权重场加载失败，回退代理场：{e.Message}");
             }
+            try
+            {
+                if (replicaSandSnapshot != null)
+                {
+                    WaterLabReplicaObstacles.Load(replicaGroundSnapshot.bytes, replicaSandSnapshot.bytes);
+                    Debug.LogWarning($"[WaterLabSimulation] {WaterLabReplicaObstacles.Describe()}");
+                }
+                else
+                {
+                    Debug.LogError("[WaterLabSimulation] 纯沙场快照未接线（MenuSand256.bytes），"
+                        + "obstaclesMap 泵禁用（D 流件2 数据缺失，其余模拟不受影响）。");
+                }
+            }
+            catch (System.Exception e)
+            {
+                WaterLabReplicaObstacles.Unload();
+                Debug.LogError($"[WaterLabSimulation] 障碍场推导失败，泵禁用：{e.Message}");
+            }
         }
 
         void OnDestroy()
         {
             WaterLabReplicaSnapshot.Unload(); // 静态采样器不跨 Play 会话残留
             WaterLabReplicaWeights.Unload();
+            WaterLabReplicaObstacles.Unload();
             _waterCur?.Dispose(); _waterNext?.Dispose();
             _wetCur?.Dispose(); _wetNext?.Dispose();
             _ground?.Dispose();
             _weights?.Dispose(); _floor?.Dispose();
             _wwPos?.Dispose(); _wwVel?.Dispose();
             _wwDraw?.Dispose(); _wwAlive?.Dispose(); _wwArgs?.Dispose();
+            _groundCur?.Dispose(); _groundNext?.Dispose();
+            _obstacleInit?.Dispose();
+            _airCells?.Dispose();
             WaterLabWhitewaterBridge.Clear();
             DestroyTexture(ref _heightTex);
             DestroyTexture(ref _wetTex);
             DestroyTexture(ref _causticTex);
-            if (_groundTex != null)
-            {
-                Destroy(_groundTex);
-                _groundTex = null;
-            }
+            DestroyTexture(ref _groundTex);
+            DestroyTexture(ref _obstacleTex);
             Shader.SetGlobalFloat(ShaderIds.SimEnabled, 0f);
         }
 
@@ -285,7 +323,10 @@ namespace PirateCrew.WaterLab
             // 结合水带，若先松弛后平流，渲染看到的是平流后的 h（岸线出现游离水膜）；
             // 先子步、后松弛+发布，上屏的才是原作“松弛后的表面”。
             if (frameDt > 0f)
+            {
                 UpdateSurface(frameDt);
+                StepGround(frameDt);
+            }
 
         // 诊断落盘（环境变量开才生效）：把高度/湿沙纹理存 PNG，供无头链排查模拟纹理内容。
         // 【模拟时间锚定】按 simTime 取样（36 s 起每 1.2 s 一张×8，覆盖一个主波周期）——
@@ -427,6 +468,44 @@ namespace PirateCrew.WaterLab
             computeShader.Dispatch(_kOutput, groups, groups, 1);
         }
 
+        /// <summary>
+        /// 活沙 Ground 帧调度（D 流件1）：独立子步累加器按 <see cref="WaterLabRules.GroundFixedStep"/>
+        /// （0.5·dx/√g ≈ 46.3 ms，平均约 3 帧一步，原作 Ground.Run 同式）步进
+        /// GroundVelocity(A→B) → GroundHeight(B→A)；帧末一次 GroundOutput 把活沙高度写
+        /// _WaterLabGroundTex（上屏最新场，快照 t0 为初值）。最新活沙场在 A（与水场同款换位约定）。
+        /// </summary>
+        void StepGround(float frameDt)
+        {
+            _groundAccumulator += frameDt;
+            int maxSteps = Mathf.CeilToInt(2f * TimeScale) + 2;
+            int steps = 0;
+            while (_groundAccumulator >= WaterLabRules.GroundFixedStep && steps < maxSteps)
+            {
+                GroundStepOnce();
+                _groundAccumulator -= WaterLabRules.GroundFixedStep;
+                steps++;
+            }
+            if (steps == maxSteps)
+                _groundAccumulator = 0f; // 追帧雪崩保护（与水子步同款）
+
+            // 帧末发布：哪怕本帧没有子步（46.3 ms 步长 > 帧长时），输出也不花大钱（1024² 写一次）
+            PushGroundConstants();
+            BindAll();
+            int groundGroups = (WaterLabRules.GroundCells + 7) / 8;
+            computeShader.Dispatch(_kGroundOutput, groundGroups, groundGroups, 1);
+        }
+
+        void GroundStepOnce()
+        {
+            PushGroundConstants();
+            BindAll();
+            int groundGroups = (WaterLabRules.GroundCells + 7) / 8;
+            computeShader.Dispatch(_kGroundVelocity, groundGroups, groundGroups, 1);
+            computeShader.Dispatch(_kGroundHeight, groundGroups, groundGroups, 1);
+            (_groundCur, _groundNext) = (_groundNext, _groundCur);
+            BindAll();
+        }
+
         void StepOnce(float dt)
         {
             _simTime += dt;
@@ -464,7 +543,8 @@ namespace PirateCrew.WaterLab
         void BindAll()
         {
             foreach (int k in new[] { _kSurface, _kHeight, _kVelocity, _kAdvectFoam, _kWetness, _kOutput,
-                     _kWWBegin, _kWWSpawn, _kWWUpdate, _kWWCompact, _kWWEnd })
+                     _kWWBegin, _kWWSpawn, _kWWUpdate, _kWWCompact, _kWWEnd,
+                     _kObstacleInit, _kGroundVelocity, _kGroundHeight, _kGroundOutput })
             {
                 computeShader.SetBuffer(k, ShaderIds.WaterA, _waterCur);
                 computeShader.SetBuffer(k, ShaderIds.WaterB, _waterNext);
@@ -481,6 +561,13 @@ namespace PirateCrew.WaterLab
                 computeShader.SetBuffer(k, ShaderIds.WWDraw, _wwDraw);
                 computeShader.SetBuffer(k, ShaderIds.WWAlive, _wwAlive);
                 computeShader.SetBuffer(k, ShaderIds.WWArgs, _wwArgs);
+                // 活沙（D 流件1/2/3）：GroundOutput 的输出纹理在 CreateBuffers 里逐 kernel
+                // 单独绑（RW 纹理绑定不允许进这里的全 buffer 循环也不冲突，统一绑齐防漏）
+                computeShader.SetTexture(k, ShaderIds.GroundTex, _groundTex);
+                computeShader.SetTexture(k, ShaderIds.ObstacleMap, _obstacleTex);
+                computeShader.SetBuffer(k, ShaderIds.GroundA, _groundCur);
+                computeShader.SetBuffer(k, ShaderIds.GroundB, _groundNext);
+                computeShader.SetBuffer(k, ShaderIds.AirCells, _airCells);
             }
         }
 
@@ -501,6 +588,8 @@ namespace PirateCrew.WaterLab
             _wwDraw = new ComputeBuffer(WaterLabRules.WhitewaterCapacity, 4);
             _wwAlive = new ComputeBuffer(2, 4);
             _wwArgs = new ComputeBuffer(4, 4, ComputeBufferType.IndirectArguments);
+            _groundCur = new ComputeBuffer(groundCount, 16);
+            _groundNext = new ComputeBuffer(groundCount, 16);
 
             // 初始场（B-terrain §6，裁决 5）：
             //   _ground ← TerrainHeight（ReplicaMode 下即快照 groundHeight 双线性上采样到
@@ -562,21 +651,66 @@ namespace PirateCrew.WaterLab
             // 分配顺序随显存残留值漂移，回放不可复现。
             _wwAlive.SetData(new uint[2]);
 
-            // 地形静态纹理（渲染 shader 采样：R=高程编码 [-3,2]→[0,1]，与 OutputField 同式）。
-            // 【I7 已知边界】快照地形最高 2.616 m 超出 [−3,2] 量程上端，编码在 2.0 饱和。
-            // 影响面只有干沙丘顶：渲染侧 visibleDepth = η−ground 两端同饱和 → 深度 0 →
-            // 干区裁剪，水到不了那里，语义无损；水下沙（≤1.29 m）全部在量程内。
-            // 量程扩展（如 [−3,3] 的 e*6−3）是 shader 侧改动（DecodeEta 在 Ocean/Sand/
-            // Prop/Whitewater 四处成对），归 I1/I2 shader 真值轮同步处理，届时只改这里
-            // 的常数与四处解码。
-            _groundTex = new Texture2D(WaterLabRules.GroundCells, WaterLabRules.GroundCells,
-                TextureFormat.RGBAFloat, false, true)
-            { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear, name = "WaterLabGround" };
-            var groundPixels = new Color[groundCount];
+            // ---- 活沙场（D 流件1）：t0 = TerrainHeight（ReplicaMode 即 groundHeight 快照，
+            // 含烘焙障碍——渲染语义，裁决②），vx/vz/sediment 零起；双缓冲两份同值。
+            var groundCur = new Vector4[groundCount];
+            var groundNext = new Vector4[groundCount];
             for (int i = 0; i < groundCount; i++)
-                groundPixels[i] = new Color(Mathf.Clamp01((groundData[i] + 1f) / 5f), 0f, 0f, 1f);
-            _groundTex.SetPixels(groundPixels);
-            _groundTex.Apply(false, false);
+            {
+                groundCur[i] = new Vector4(groundData[i], 0f, 0f, 0f);
+                groundNext[i] = groundCur[i];
+            }
+            _groundCur.SetData(groundCur);
+            _groundNext.SetData(groundNext);
+
+            // ---- 障碍场（D 流件2）：groundHeight − sandAmount 阈值化（B2 统计锁），
+            // ObstacleInit kernel 一次性搬进 _obstacleTex（point 采样）。
+            bool obstaclesReady = WaterLabReplicaObstacles.HasData;
+            var obstacleData = new float[WaterLabReplicaObstacles.Resolution * WaterLabReplicaObstacles.Resolution];
+            if (obstaclesReady)
+                System.Buffer.BlockCopy(WaterLabReplicaObstacles.Delta, 0, obstacleData, 0, obstacleData.Length * 4);
+            _obstacleInit = new ComputeBuffer(obstacleData.Length, 4);
+            _obstacleInit.SetData(obstacleData);
+
+            // ---- Air 大气场（D 流件3）：Air Initialization 恒初值（水汽 0；原作 Air 层
+            // 只 Init 不步进，Air.Run 为空——初值即全解）。
+            int airCount = WaterLabRules.AirCells * WaterLabRules.AirCells;
+            var airInit = new Vector4[airCount];
+            for (int i = 0; i < airCount; i++)
+                airInit[i] = new Vector4(WaterLabRules.AirHumidity, 0f, 0f, 0f);
+            _airCells = new ComputeBuffer(airCount, 16);
+            _airCells.SetData(airInit);
+
+            // 地形输出纹理（渲染 shader 采样：R=高程编码 (h+1)/5，与 OutputField 同式）。
+            // 【D 流件1】从静态 Texture2D 改 RenderTexture：每帧 GroundOutput 从活沙场写
+            // （快照 t0 为初值、活沙演化后上屏）。渲染侧解码 DecodeGround(e)=e×5−1 不动。
+            // 【I7 已知边界】快照地形最高 2.616 m 超出 [−1,4] 编码量程上端的 4.0，编码在
+            // 4.0 饱和。影响面只有干沙丘顶（saturate 截断）：渲染侧 visibleDepth = η−ground
+            // 两端同饱和 → 深度 0 → 干区裁剪，水到不了那里，语义无损；水下沙全部在量程内。
+            _groundTex = NewDataTexture(WaterLabRules.GroundCells, "WaterLabGround");
+            Shader.SetGlobalTexture(ShaderIds.GroundTex, _groundTex);
+
+            // 障碍纹理：一次性初始化 dispatch（obstaclesReady 才有意义；缺数据时保持全零，
+            // 泵的 delta>阈值 门控恒假 = 泵禁用）。
+            var obstacleDesc = new RenderTextureDescriptor(
+                WaterLabReplicaObstacles.Resolution, WaterLabReplicaObstacles.Resolution,
+                RenderTextureFormat.RHalf, 0)
+            {
+                enableRandomWrite = true,
+                sRGB = false,
+            };
+            _obstacleTex = new RenderTexture(obstacleDesc)
+            {
+                filterMode = FilterMode.Point, // 原作 obstaclesMap 为 point 采样（§9）
+                wrapMode = TextureWrapMode.Clamp,
+                name = "WaterLabObstacle",
+            };
+            _obstacleTex.Create();
+            computeShader.SetTexture(_kObstacleInit, ShaderIds.ObstacleMap, _obstacleTex);
+            computeShader.SetBuffer(_kObstacleInit, ShaderIds.ObstacleInit, _obstacleInit);
+            computeShader.Dispatch(_kObstacleInit,
+                (WaterLabReplicaObstacles.Resolution + 7) / 8,
+                (WaterLabReplicaObstacles.Resolution + 7) / 8, 1);
         }
 
         void CreateTextures()
@@ -640,7 +774,7 @@ namespace PirateCrew.WaterLab
             cs.SetFloat(ShaderIds.WaveAmplitude, WaterLabRules.WaveAmplitude(_playTimeBase + _simTime));
             cs.SetFloat(ShaderIds.TideClampMin, WaterLabRules.TideClampMin);
             cs.SetFloat(ShaderIds.TideMinAmount, WaterLabRules.TideMinAmount);
-            cs.SetFloat(ShaderIds.EvaporationRate, WaterLabRules.EvaporationRate());
+            PushGroundConstants();
             cs.SetFloat(ShaderIds.BeachInfiltrationDepth, WaterLabRules.BeachInfiltrationDepth);
             cs.SetFloat(ShaderIds.BeachInfiltrationRate, WaterLabRules.BeachInfiltrationRate);
             if (!_constantsLogged)
@@ -678,6 +812,36 @@ namespace PirateCrew.WaterLab
         // 视锥平面缓存（每步复用，避免逐帧分配；Plane→Vector4 隐式转换带 (n.xyz, d)）
         readonly Plane[] _frustumPlanes = new Plane[6];
         readonly Vector4[] _frustumPlaneV4 = new Vector4[6];
+
+        /// <summary>
+        /// 活沙/泵/Air 常量下发（D 流件1/2/3）：13 个沉积参数（D-sand.md §4.2 Carbonate
+        /// 真值）+ 泵公式 + GroundFixedStep + 障碍阈值 + 蒸发基率（湿度因子在 kernel 内
+        /// 逐格 exp2——Air 场驱动，X 流修正语义）。
+        /// </summary>
+        void PushGroundConstants()
+        {
+            var cs = computeShader;
+            cs.SetFloat(ShaderIds.GroundDt, WaterLabRules.GroundFixedStep);
+            cs.SetFloat(ShaderIds.GroundMaxVel, WaterLabRules.GroundMaxVelocity);
+            cs.SetFloat(ShaderIds.SandDamping, WaterLabRules.SandDamping);
+            cs.SetFloat(ShaderIds.SandAmountKappa, WaterLabRules.SandAmountKappa);
+            cs.SetFloat(ShaderIds.SandVelocityKappa, WaterLabRules.SandVelocityKappa);
+            cs.SetFloat(ShaderIds.SandErosionWet, WaterLabRules.SandWaterErosionFactor);
+            cs.SetFloat(ShaderIds.SandErosionGamma, WaterLabRules.SandWaterErosionAmountGamma);
+            cs.SetFloat(ShaderIds.SandCapacity, WaterLabRules.SandSedimentCapacity);
+            cs.SetFloat(ShaderIds.SandSpeedGamma, WaterLabRules.SandSedimentWaterSpeedGamma);
+            cs.SetFloat(ShaderIds.SandAmountGamma, WaterLabRules.SandSedimentWaterAmountGamma);
+            cs.SetFloat(ShaderIds.SandSuspension, WaterLabRules.SandSedimentSuspension);
+            cs.SetFloat(ShaderIds.SandDeposition, WaterLabRules.SandSedimentDeposition);
+            cs.SetFloat(ShaderIds.SandAdvection, WaterLabRules.SandSedimentAdvection);
+            cs.SetFloat(ShaderIds.SandPumpAmp, WaterLabRules.PumpAmplitude);
+            cs.SetFloat(ShaderIds.SandPumpFreq, WaterLabRules.PumpTimeFrequency);
+            cs.SetFloat(ShaderIds.SandPumpPhaseV, WaterLabRules.PumpPhasePerV);
+            cs.SetFloat(ShaderIds.SandPumpWindow, WaterLabRules.PumpEtaWindow);
+            cs.SetFloat(ShaderIds.ObstacleThreshold, WaterLabReplicaObstacles.DeltaThreshold);
+            cs.SetFloat(ShaderIds.EvaporationBase, WaterLabRules.EvaporationBaseRate());
+            cs.SetInt(ShaderIds.AirCellsCount, WaterLabRules.AirCells);
+        }
 
         /// <summary>
         /// 白水视锥剔除的相机平面下发（原作 Culling kernel 的相机那一路；
@@ -802,6 +966,33 @@ namespace PirateCrew.WaterLab
             public static readonly int WWMinDepth = Shader.PropertyToID("_WwMinDepth");
             public static readonly int WWFrustumPlanes = Shader.PropertyToID("_WwFrustumPlanes");
             public static readonly int WWFrustumOverscan = Shader.PropertyToID("_WwFrustumOverscan");
+
+            // ---- 活沙 Ground / 泵 / Air（D 流件1/2/3）----
+            public static readonly int GroundA = Shader.PropertyToID("_GroundA");
+            public static readonly int GroundB = Shader.PropertyToID("_GroundB");
+            public static readonly int ObstacleMap = Shader.PropertyToID("_ObstacleMap");
+            public static readonly int ObstacleInit = Shader.PropertyToID("_ObstacleInit");
+            public static readonly int AirCells = Shader.PropertyToID("_AirCells");
+            public static readonly int GroundDt = Shader.PropertyToID("_GroundDt");
+            public static readonly int GroundMaxVel = Shader.PropertyToID("_GroundMaxVel");
+            public static readonly int SandDamping = Shader.PropertyToID("_SandDamping");
+            public static readonly int SandAmountKappa = Shader.PropertyToID("_SandAmountKappa");
+            public static readonly int SandVelocityKappa = Shader.PropertyToID("_SandVelocityKappa");
+            public static readonly int SandErosionWet = Shader.PropertyToID("_SandErosionWet");
+            public static readonly int SandErosionGamma = Shader.PropertyToID("_SandErosionGamma");
+            public static readonly int SandCapacity = Shader.PropertyToID("_SandCapacity");
+            public static readonly int SandSpeedGamma = Shader.PropertyToID("_SandSpeedGamma");
+            public static readonly int SandAmountGamma = Shader.PropertyToID("_SandAmountGamma");
+            public static readonly int SandSuspension = Shader.PropertyToID("_SandSuspension");
+            public static readonly int SandDeposition = Shader.PropertyToID("_SandDeposition");
+            public static readonly int SandAdvection = Shader.PropertyToID("_SandAdvection");
+            public static readonly int SandPumpAmp = Shader.PropertyToID("_SandPumpAmp");
+            public static readonly int SandPumpFreq = Shader.PropertyToID("_SandPumpFreq");
+            public static readonly int SandPumpPhaseV = Shader.PropertyToID("_SandPumpPhaseV");
+            public static readonly int SandPumpWindow = Shader.PropertyToID("_SandPumpWindow");
+            public static readonly int ObstacleThreshold = Shader.PropertyToID("_ObstacleThreshold");
+            public static readonly int EvaporationBase = Shader.PropertyToID("_EvaporationBase");
+            public static readonly int AirCellsCount = Shader.PropertyToID("_AirCellsCount");
         }
     }
 }
