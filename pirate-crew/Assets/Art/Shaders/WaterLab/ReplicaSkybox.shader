@@ -60,7 +60,7 @@ Shader "PirateCrew/WaterLab/ReplicaSkybox"
     Properties
     {
         // cb0[122] 运行时专用待抓帧（见文件头修正说明）；Linear/HDR 域物理量用 Vector
-        _SkyBaseTint   ("天空基色调制 cb0[122]（运行时专用待抓帧）", Vector) = (1, 1, 1, 1)
+        _SkyBaseTint   ("天空基色调制 cb0[122]（运行时专用待抓帧）", Vector) = (0.5660378, 0.4619582, 0.4040584, 1)  // G 流 eid2522 cb0[122] 运行时真值（base=cb0[122]×sunColor+cb0[40] 第一手证实）
         // sunGradient @ t=1/3 Morning（menu-state.json，DayCycler Evaluate 真值）
         _SkySunColor   ("太阳色（t=1/3 真值）", Vector) = (1, 0.940429, 0.872353, 1)
         // RenderSettings.ambientSkyColor 运行时真值 @ t=1/3（menu-state.json，
