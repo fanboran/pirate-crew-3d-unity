@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -53,6 +54,19 @@ namespace PirateCrew.WaterLab
 
         /// <summary>速度每帧阻尼（Update L246 字面量 0.97）。</summary>
         public const float VelocityDamping = 0.97f;
+
+        /// <summary>
+        /// 原作每組分布尝试数（F1 静态定案，cs-first手推导链）：
+        /// LayoutMainMenu.Generate（cs-full :584）对每组 <c>Distribution(fac = obj5·1e-4)</c>；
+        /// obj5 = Beach 实例 +0x8C × +0x94 两处 float 读数（Cpp2IL hint）= bounds.extents.x ×
+        /// extents.z = 15×15 = 225（bounds 字段布局 center@+0x80/extents@+0x8C，由三个独立
+        /// 调用点交叉验证：Game.SetGlobals 读 +84/+88/+8C/+90/+94 合成 worldSize (2ex,·,2ez)、
+        /// Game.Prepare 读 +90=ey 做边框缩放、本处读 +8C/+94）→ fac = 0.0225。
+        /// 线程组数 = ceil(capacity·fac/1024)（Plant.Distribution），capacity≤32768 时恒 =1
+        /// → 尝试数 = THREADS_GROUP_SIZE × 1 = <b>1024</b>。该结论对布局歧义稳健
+        /// （obj5 ∈ (0,312] 时最大组也只派 1 组；75/150/225 三种候选同值）。
+        /// </summary>
+        public const int OriginalAttemptsPerGroup = 1024;
 
         // shader 全局名（ReplicaPlant.shader 声明同名 uniform）
         static readonly int IdBoundsSize = Shader.PropertyToID("_WaterLabPlantBoundsSize");
@@ -114,13 +128,24 @@ namespace PirateCrew.WaterLab
         public int AliveCount => _aliveCount;
 
         /// <summary>
-        /// 分布种子（Distribution L29 cb0[157].z）。运行时专用 TODO：原作由引擎每实例
-        /// SetFloat 上传，Cpp2IL 丢失（G-plants.md §6）——恒等化走 frida 补读；当前 0。
+        /// 分布种子（Distribution L29 cb0[157].z）。F1 静态定案（cs-full/Plant.cs:90-92）：
+        /// <b>原作没有固定值</b>——每次 <c>Distribution(fac)</c> 调用现场
+        /// <c>Random.Range(0f, 4.2949673E+09f) → cvttss2si → SetInt</c>（反编译器把
+        /// cvttss2si 丢了显示成 0），13 组各抽一次、与其他 Generate 随机调用交错。
+        /// 随机根 = System.Random(UnixTimeSeconds)（Game.cs:433）→ GetRandomSeed →
+        /// configuration.seed → Random.InitState（Game.Prepare:1437）——原作每局散布
+        /// 本身就不跨局稳定，无静态真值可恢复。恒等对拍协议：运行时抓
+        /// Game.configuration.seed + 13 次 SetInt 实发值，注入本字段与 <see cref="SeedExtra"/>
+        /// 后逐株复现（PCG 链同源）；抓取工具 rt/agent-plant.js（未实机验证，游戏启动
+        /// 已被裁决禁止，交协调者统一补抓）。默认 0 = 确定性一撒（统计分布同源）。
         /// </summary>
         public uint DistributionSeed;
 
         /// <summary>
-        /// 哈希种子第二分量（Distribution L28 cb0[113].x）。运行时专用 TODO（同上）——当前 0。
+        /// 哈希种子第二分量（Distribution L28 cb0[113].x）。F1 静态定案：= 全局 shader
+        /// 属性 <c>"seed"</c>（Game.SetGlobals:1501 每帧 SetGlobalInt）=
+        /// <c>Game.configuration.seed</c>（与 <see cref="DistributionSeed"/> 的
+        /// InitState 同源，见其注释）——同一次运行里对 13 组同值。默认 0。
         /// </summary>
         public uint SeedExtra;
 
@@ -182,8 +207,9 @@ namespace PirateCrew.WaterLab
         // =====================================================================
         // 分布（v0_Distribution_0.hlslasm 逐指令移植）
         // 原作按线程组 Dispatch：groups = ceil(capacity·fac/1024)（Plant.Distribution，
-        // G §3.1），每线程一次尝试。fac = obj5·1e-4 运行时专用（Cpp2IL 丢失，G §6）——
-        // TODO(I6b/对拍)：以实测存活株数定 fac/尝试数；当前全容量尝试。
+        // G §3.1），每线程一次尝试。F1 静态定案：fac = 0.0225、每组尝试数 = 1024
+        // （推导链见 <see cref="OriginalAttemptsPerGroup"/> 注释；distributionSeed/
+        // seed 每局随机机制见字段注释，注入协议同）。
         // =====================================================================
         public int Distribute(int attempts)
         {
@@ -202,9 +228,10 @@ namespace PirateCrew.WaterLab
                 BilinearGround(u1 * res - 0.5f, u2 * res - 0.5f, res,
                                out float hgt, out float frt, out _, out _);
 
-                // 门控 [min,max)（L112-118：lt min<h; lt h<max；肥力同）
-                if (!(hgt >= _p.GroundHeightRange.x && hgt < _p.GroundHeightRange.y &&
-                      frt >= _p.FertilityRange.x && frt < _p.FertilityRange.y))
+                // 门控（L112-118 反汇编 4×lt 全严格）：min < hgt < max 与 min < frt < max
+                // 开区间——肥力上界取等也拒绝（F1：fert≡1 恰落在多组上界=1.0 之外）。
+                if (!(hgt > _p.GroundHeightRange.x && hgt < _p.GroundHeightRange.y &&
+                      frt > _p.FertilityRange.x && frt < _p.FertilityRange.y))
                     continue;
 
                 // 世界位（L120-121）：(bitcast−1.5)·size = (u−0.5)·BeachSize，中心对齐
@@ -266,8 +293,8 @@ namespace PirateCrew.WaterLab
             return _aliveCount;
         }
 
-        /// <summary>全容量尝试的便捷重载（fac 真值落地前的口径，见 Distribute 注释）。</summary>
-        public int Distribute() => Distribute(_p.Capacity);
+        /// <summary>原作口径的便捷重载（F1 定案：每組 1024 次尝试，见常量注释）。</summary>
+        public int Distribute() => Distribute(OriginalAttemptsPerGroup);
 
         // ---- PCG hash（v0_Distribution_0.hlslasm L30-55，逐指令）----
         // hashA(v)：前缀 (^61, ^>>16) + 尾 (·9, ^>>4, ·0x27d4eb2d, ^>>15)
@@ -350,8 +377,11 @@ namespace PirateCrew.WaterLab
                 float waterH = SampleWaterBilinear(p.position.x, p.position.z, wres);
 
                 // ---- 水深门（L231-232）：max(waterH − 0.05, 0)。
-                //      【对账 TODO】任务书/G §3.3 记作 max(waterH−0.05−groundH, 0)，反汇编
-                //      无 −groundH 项——语义差源于原作 waterCells 存水面高还是水深，L2 对拍闭 ----
+                //      【F1 闭合】原 waterCells 语义疑案已解：B2 定案原作水格 h = 水柱量
+                //      （潮位松弛 target−h 形式，target=max(level−floor+…)），Plant Update
+                //      直取 h 门控 5cm 结合水带——反汇编无 −groundH 是对的（G §3.3「水面高」
+                //      措辞不确）；我方实时水场按 (η−ground)+0.05 还原水柱量（见
+                //      LiveWaterFeed.SampleWater），门后与原作逐值恒等 ----
                 float depth = Mathf.Max(waterH - WaterDepthOffset, 0f);
 
                 // ---- 平流推力（L233）：depth·flow，flow 恒 (−4,−4)（本版真值）----
@@ -516,6 +546,214 @@ namespace PirateCrew.WaterLab
             }
         }
 
+        // =====================================================================
+        // 实时水场（F1）：订阅 WaterLabSimulation 发布的全局 _WaterLabHeightTex /
+        // _WaterLabGroundTex，Blit 降到 256² 双线性后 AsyncGPUReadback 回读，喂植物
+        // Update 的水面重采。
+        //
+        // 【为什么回读】原作 Plant Update kernel 直接 GPU 读 waterCells（每帧）；
+        // 我方粒子是 CPU 数组（I6b 架构裁决），必须回读。
+        //
+        // 【节流 0.2s 的依据】①原作 Beach.Readback 的 CPU 副本就是 0.2s 节奏
+        // （交接档 §3「地形快照（首轮）」行），CPU 侧消费全场是原作已验证的节拍；
+        // ②植物响应是低频动力学（swash 主波周期 2π s、旗标被抬/压是潮位级变化），
+        // 逐帧回读 2×512KB 换不来可见差异。256²×RGBAFloat×2 张 = 512KB/次 ≈ 2.5MB/s。
+        //
+        // 【性能护栏】回读分辨率降到 256²（Blit 双线性降采样）而非全分辨率
+        // （HeightTex 512² ARGBHalf / GroundTex 1024² RGBAFloat）——门控/推力对
+        // 5.86cm 级水格差异不敏感，256²（11.7cm）够用且与快照场同分辨率。
+        //
+        // 【解码语义】WaterLabSim.compute OutputField：η = ground + max(h − 0.05, 0)
+        // 编码 (e+1)/5 写 R 通道；GroundTex R = (ground+1)/5。原作 waterCells 量 =
+        // 水柱量 h（B2 定案，见 Tick 水深门注释）→ 实时值 = (η − ground) + 0.05：
+        // h>0.05 段逐值恒等，h≤0.05 段门后同为 0（量化近似，5cm 内）。
+        //
+        // 【轴向】行主序 row=Z、row0 = z −15（与快照数组同向，B §4）。纹理行 =
+        // 模拟格 c.y = z 行（OutputField 写 c=(x,z)）；回读数组的行序存在 D3D
+        // 顶行在先 / GL 底行在先的平台差 → 首次成功回读后用静态地形场做一次
+        // 相关性锁向（快照在载时；数值判据，不看出图），锁向后固定。
+        // =====================================================================
+        public sealed class LiveWaterFeed : IDisposable
+        {
+            /// <summary>回读分辨率（256²，护栏见类头）。</summary>
+            public const int FeedResolution = 256;
+
+            /// <summary>回读节流周期（0.2s，依据见类头）。</summary>
+            public const float ThrottleSeconds = 0.2f;
+
+            static readonly int IdHeightTex = Shader.PropertyToID("_WaterLabHeightTex");
+            static readonly int IdGroundTex = Shader.PropertyToID("_WaterLabGroundTex");
+
+            RenderTexture _heightLo, _groundLo;
+            NativeArray<Color> _heightBuf, _groundBuf;
+            bool _heightPending, _groundPending, _heightOk, _groundOk, _warnedReadback;
+            float _nextRequestTime;
+            int _rowOrder = 1;      // +1 = 数组行 j ↔ 纹理 v 行 j；−1 = 垂直翻转
+            bool _rowOrderLocked;
+            bool _disposed;
+
+            public LiveWaterFeed()
+            {
+                _heightLo = MakeLo("WaterLabPlantWaterLo");
+                _groundLo = MakeLo("WaterLabPlantGroundLo");
+                _heightBuf = new NativeArray<Color>(FeedResolution * FeedResolution, Allocator.Persistent);
+                _groundBuf = new NativeArray<Color>(FeedResolution * FeedResolution, Allocator.Persistent);
+            }
+
+            static RenderTexture MakeLo(string name)
+            {
+                var rt = new RenderTexture(FeedResolution, FeedResolution, 0, RenderTextureFormat.ARGBFloat)
+                {
+                    name = name,
+                    filterMode = FilterMode.Bilinear,
+                    wrapMode = TextureWrapMode.Clamp,
+                    hideFlags = HideFlags.HideAndDontSave,
+                };
+                rt.Create();
+                return rt;
+            }
+
+            /// <summary>高度/地形纹理是否都已发布（模拟 Awake 后非空）。</summary>
+            public bool SourceReady =>
+                Shader.GetGlobalTexture(IdHeightTex) != null &&
+                Shader.GetGlobalTexture(IdGroundTex) != null;
+
+            /// <summary>实时场是否可用（至少一次成功回读且行序已锁）。</summary>
+            public bool Ready => _heightOk && _groundOk && _rowOrderLocked;
+
+            /// <summary>每帧驱动（Driver.Update 调用）：节流到点且无在途回读时发起下一轮。</summary>
+            public void Pump()
+            {
+                if (_disposed || _heightPending || _groundPending)
+                    return;
+                Texture height = Shader.GetGlobalTexture(IdHeightTex);
+                Texture ground = Shader.GetGlobalTexture(IdGroundTex);
+                if (height == null || ground == null)
+                    return;                             // 模拟未启动：保持快照回退
+                if (Time.time < _nextRequestTime)
+                    return;
+                _nextRequestTime = Time.time + ThrottleSeconds;
+                Graphics.Blit(height, _heightLo);       // 源纹理 Bilinear → 2:1 盒式均值
+                Graphics.Blit(ground, _groundLo);
+                _heightPending = _groundPending = true;
+                // Unity 2022.3 的 RequestIntoNativeArray 只有 ref 轮询版（无回调重载）——
+                // 走 Request(...RGBAFloat, callback) + 回调内拷贝（RGBAFloat=Color 16B，
+                // 保持 η 的 float 精度；8bit 回读会在 5cm 结合水带上引入 2cm 量化）。
+                AsyncGPUReadback.Request(_heightLo, 0, TextureFormat.RGBAFloat, r =>
+                {
+                    _heightPending = false;
+                    _heightOk = OnReadback(r, ref _heightBuf);
+                    if (_heightOk && _groundOk && !_rowOrderLocked) LockRowOrder();
+                });
+                AsyncGPUReadback.Request(_groundLo, 0, TextureFormat.RGBAFloat, r =>
+                {
+                    _groundPending = false;
+                    _groundOk = OnReadback(r, ref _groundBuf);
+                    if (_heightOk && _groundOk && !_rowOrderLocked) LockRowOrder();
+                });
+            }
+
+            /// <summary>回读落盘（回调内调用）：错误时一次性告警（保持快照回退）。</summary>
+            bool OnReadback(AsyncGPUReadbackRequest r, ref NativeArray<Color> buf)
+            {
+                if (r.hasError)
+                {
+                    if (!_warnedReadback)
+                    {
+                        _warnedReadback = true;
+                        Debug.LogWarning("[ReplicaPlantDriver] 水场回读失败（RGBAFloat 转换不受支持？），"
+                            + "植物水面退回静态快照。");
+                    }
+                    return false;
+                }
+                r.GetData<Color>().CopyTo(buf);
+                return true;
+            }
+
+            /// <summary>
+            /// 行序锁向：地形是冻结场，把回读地形行与快照地形行（row=Z、row0=z−15）
+            /// 做两次相关（正/翻），取大者。快照未载（非 Replica）时按 GL 惯例默认
+            /// row0 = v0 = z−15。数值判据，无出图参与。
+            /// </summary>
+            void LockRowOrder()
+            {
+                float[] g = WaterLabReplicaSnapshot.GroundData;
+                if (g == null)
+                {
+                    _rowOrderLocked = true;
+                    return;
+                }
+                double direct = 0, flipped = 0;
+                for (int j = 0; j < FeedResolution; j += 7)
+                {
+                    int sj = j * WaterLabReplicaSnapshot.Resolution;
+                    int fj = (FeedResolution - 1 - j) * FeedResolution;
+                    for (int i = 0; i < FeedResolution; i += 7)
+                    {
+                        float v = g[sj + i];
+                        direct += v * _groundBuf[j * FeedResolution + i].r;
+                        flipped += v * _groundBuf[fj + i].r;
+                    }
+                }
+                _rowOrder = flipped > direct ? -1 : 1;
+                _rowOrderLocked = true;
+            }
+
+            /// <summary>
+            /// 取实时水柱量（格心整数索引，格距 = 域宽/256）。未就绪返回 NaN（调用方
+            /// 回退快照）；成功回读后 = (η − ground) + 0.05（还原结合水带，见类头）。
+            /// </summary>
+            public float SampleWater(int cx, int cz)
+            {
+                if (!Ready)
+                    return float.NaN;
+                int x = Mathf.Clamp(cx, 0, FeedResolution - 1);
+                int z = _rowOrder > 0
+                    ? Mathf.Clamp(cz, 0, FeedResolution - 1)
+                    : Mathf.Clamp(FeedResolution - 1 - cz, 0, FeedResolution - 1);
+                float eta = _heightBuf[z * FeedResolution + x].r * 5f - 1f;
+                float ground = _groundBuf[z * FeedResolution + x].r * 5f - 1f;
+                return (eta - ground) + WaterDepthOffset;
+            }
+
+            public void Dispose()
+            {
+                if (_disposed)
+                    return;
+                _disposed = true;
+                if (_heightLo != null) { _heightLo.Release(); UnityEngine.Object.Destroy(_heightLo); }
+                if (_groundLo != null) { _groundLo.Release(); UnityEngine.Object.Destroy(_groundLo); }
+                if (_heightBuf.IsCreated) _heightBuf.Dispose();
+                if (_groundBuf.IsCreated) _groundBuf.Dispose();
+                _heightLo = null;
+                _groundLo = null;
+            }
+        }
+
+        /// <summary>
+        /// 实时水场视图（<see cref="IWaterField"/>）：优先 <see cref="LiveWaterFeed"/>，
+        /// 未就绪（模拟未启动/回读在途/失败）回退静态快照 waterAmount——两源在
+        /// 水深门后逐值一致（快照 h 含结合水、实时值已还原结合水带，见
+        /// <see cref="LiveWaterFeed"/> 类头解码语义）。
+        /// </summary>
+        public sealed class LiveWaterField : IWaterField
+        {
+            readonly LiveWaterFeed _feed;
+
+            public LiveWaterField(LiveWaterFeed feed) => _feed = feed;
+
+            public int Resolution => LiveWaterFeed.FeedResolution;
+
+            public float GetHeight(int cx, int cz)
+            {
+                float live = _feed != null ? _feed.SampleWater(cx, cz) : float.NaN;
+                if (!float.IsNaN(live))
+                    return live;
+                float[] w = WaterLabReplicaSnapshot.WaterData;
+                return w != null ? w[cz * WaterLabReplicaSnapshot.Resolution + cx] : 0f;
+            }
+        }
+
         public void Dispose()
         {
             _plantBuf?.Dispose();
@@ -670,15 +908,17 @@ namespace PirateCrew.WaterLab
     // 与 WaterLabSimulation 同一模式（TextAsset 引用随场景序列化，构建后重开
     // 场景仍有效），不依赖装配期的任何内存态。
     //
-    // 【运行时专用 TODO（G §6 遗留，静态不可恢复）】
-    //  * DistributionSeed/SeedExtra：原作引擎每实例 SetFloat，Cpp2IL 丢失——恒 0，
-    //    分布结果与原作不逐株恒等（统计分布同源）；恒等化走 frida 补读。
+    // 【运行时专用口径（F1 静态定案后更新）】
+    //  * DistributionSeed/SeedExtra：原作每局随机（链路见 ReplicaPlantSystem 字段注释，
+    //    根 = UnixTimeSeconds → configuration.seed → InitState/SetGlobalInt("seed")）——
+    //    无固定真值；逐株恒等对拍 = 运行时抓值注入（工具 rt/agent-plant.js 交协调者），
+    //    默认 0 = 确定性一撒（统计同源）。
     //  * AmbientOverride：cb0[40] 环境色真值待抓帧；暂置主菜单 t=1/3
     //    ambientSkyColor（CreateLighting/EnsureSkybox 同值三处一字不改）。
     //    I3 GI 落地后植物环境项换 giVoxels 采样，本覆写退役。
-    //  * 水场：Tick 用静态快照水面（初始 level≈1.0 场），非实时水场——原作
-    //    waterCells 每帧变。接实时场需 async readback _WaterLabHeightTex（I9 域），
-    //    L2 动态验收时再评估；静态画面（主菜单复刻目标）两者在 t0 一致。
+    //  * 水场（F1 已接实时）：LiveWaterFeed 订阅 _WaterLabHeightTex/_WaterLabGroundTex
+    //    （AsyncGPUReadback，256² 双线性 + 0.2s 节流，依据见该类头）；未就绪回退静态
+    //    快照水面——两源在水深门后一致。
     // =========================================================================
     public sealed class ReplicaPlantDriver : MonoBehaviour
     {
@@ -699,9 +939,13 @@ namespace PirateCrew.WaterLab
         public static readonly Vector4 MenuAmbient = new Vector4(0.698039f, 0.564706f, 0.569923f, 1f);
 
         ReplicaPlantSystem[] _systems;
+        ReplicaPlantSystem.LiveWaterFeed _waterFeed;
 
         /// <summary>当前 13 组系统（装配期检查用；未自举时 null）。</summary>
         public IReadOnlyList<ReplicaPlantSystem> Systems => _systems;
+
+        /// <summary>实时水场回读器（Update 泵；模拟未启动时内部保持快照回退）。</summary>
+        public ReplicaPlantSystem.LiveWaterFeed WaterFeed => _waterFeed;
 
         void Awake()
         {
@@ -730,34 +974,51 @@ namespace PirateCrew.WaterLab
             if (!ReplicaPlantSystem.AmbientOverride.HasValue)
                 ReplicaPlantSystem.AmbientOverride = MenuAmbient;
 
+            _waterFeed = new ReplicaPlantSystem.LiveWaterFeed();
             _systems = new ReplicaPlantSystem[table.Length];
             int total = 0;
+            var perGroup = new string[table.Length];
+            var fertilityBlind = new List<string>();
             for (int i = 0; i < table.Length; i++)
             {
+                var p = table[i];
                 if (Hulls[i] == null || Materials[i] == null)
                 {
-                    Debug.LogWarning($"[ReplicaPlantDriver] 第 {i} 组（{table[i].ClassName}）资产缺位，跳过。");
+                    Debug.LogWarning($"[ReplicaPlantDriver] 第 {i} 组（{p.ClassName}）资产缺位，跳过。");
                     continue;
                 }
-                var sys = new ReplicaPlantSystem(table[i], Hulls[i], Materials[i]);
-                sys.Distribute();   // fac 真值落地前 = 全容量尝试（系统注释 TODO）
+                var sys = new ReplicaPlantSystem(table[i], Hulls[i], Materials[i],
+                    null, new ReplicaPlantSystem.LiveWaterField(_waterFeed));
+                sys.Distribute();   // F1 定案口径：每組 1024 次尝试（OriginalAttemptsPerGroup）
                 _systems[i] = sys;
                 total += sys.AliveCount;
+                perGroup[i] = $"{p.ClassName}={sys.AliveCount}";
+                // 【F1 静态核查】分布门是严格开区间 (min, max)（反汇编 4×lt，L112-118）；
+                // 快照肥力恒 1（原作 groundCells 6bit 肥力通道未提取）时，肥力上界 ≤1 的
+                // 组被 1.0∉(min,max) 全拒绝——这是数据缺口下的真实退化，显式告警不上图骗人。
+                if (p.FertilityRange.y <= 1f)
+                    fertilityBlind.Add($"{p.ClassName}(fert∈({p.FertilityRange.x},{p.FertilityRange.y}))");
             }
-            Debug.Log($"[ReplicaPlantDriver] 植物系统就绪：{_systems.Length} 组 / 存活 {total} 株" +
-                "（seed 恒 0=运行时专用 TODO，分布与原作非逐株恒等）");
+            Debug.Log($"[ReplicaPlantDriver] 植物系统就绪：{_systems.Length} 组 / 存活 {total} 株 "
+                + $"[{string.Join(" ", perGroup)}]；尝试数={ReplicaPlantSystem.OriginalAttemptsPerGroup}/组"
+                + "（F1 定案 fac=0.0225）；seed 恒 0（原作每局随机，注入协议见系统注释）");
+            if (fertilityBlind.Count > 0)
+                Debug.LogWarning($"[ReplicaPlantDriver] 肥力场缺失退化：{fertilityBlind.Count} 组肥力门"
+                    + $"不含 1.0 → 恒空 [{string.Join(" ", fertilityBlind)}]"
+                    + "（需原作 groundCells 6bit 肥力通道，登记交接档 F1）");
         }
 
         void Update()
         {
             if (_systems == null)
                 return;
+            _waterFeed?.Pump();   // 实时水场回读泵（0.2s 节流在 feed 内部）
             float dt = Time.deltaTime;
             for (int i = 0; i < _systems.Length; i++)
             {
                 var sys = _systems[i];
                 if (sys == null) continue;
-                sys.Tick(dt);   // 生根更新（静态快照水场，见类头 TODO）
+                sys.Tick(dt);   // 生根更新（实时水场，未就绪段自动回退快照）
                 sys.Draw();     // DrawMeshInstancedIndirect（castShadows 语义在系统内）
             }
         }
@@ -769,6 +1030,8 @@ namespace PirateCrew.WaterLab
             for (int i = 0; i < _systems.Length; i++)
                 _systems[i]?.Dispose();
             _systems = null;
+            _waterFeed?.Dispose();
+            _waterFeed = null;
         }
     }
 }
