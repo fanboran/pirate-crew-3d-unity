@@ -113,7 +113,8 @@ Shader "PirateCrew/WaterLab/ReplicaGravel"
                 float4 particle = _Gravel[slot];               // ld t0[slot]
 
                 // mad r0.yzw, v0.xxyz, r1.wwww, r1.xxyz —— local×w + position
-                float3 local = IN.positionOS.xyz * particle.w + particle.position.xyz;
+                //（_Gravel 是 float4：xyz=position/w=size，无 .position 成员——首版误写）
+                float3 local = IN.positionOS.xyz * particle.w + particle.xyz;
                 float3 positionWS = local;                     // 场景根无变换（原作 cb1=identity）
 
                 // 域界 discard 的判定留在 PS（prog01 原样）；VS 只出世界位

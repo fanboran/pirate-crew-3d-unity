@@ -143,6 +143,7 @@ RWStructuredBuffer<float4> _GroundB;
 // 高出沙面的障碍量；障碍绝对顶高 = 活沙场 height（含障碍烘焙）。
 Texture2D<float> _ObstacleMap;
 SamplerState sampler_ObstacleMap;  // Unity 命名约定自动绑定点/双线性（按材质 Wrap/Filter 设置）
+RWTexture2D<float> _ObstacleMapRW; // 同一张 RT 的 UAV 绑定（ObstacleInit 一次性写入）
 StructuredBuffer<float> _ObstacleInit; // 256² float32（ObstacleInit kernel 一次性搬进纹理）
 // 地形输出纹理（渲染 shader 采样：R=(h+1)/5 编码，与旧静态 Texture2D 同编码式）。
 // 从静态改为每帧由 GroundOutput 从活沙场写（快照 t0 为初值、演化后上屏）。
@@ -671,7 +672,7 @@ void WhitewaterEnd(uint3 id : SV_DispatchThreadID)
 void ObstacleInit(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= 256 || id.y >= 256) return;
-    _ObstacleMap[id.xy] = _ObstacleInit[id.x + id.y * 256];
+    _ObstacleMapRW[id.xy] = _ObstacleInit[id.x + id.y * 256];
 }
 
 // 活沙速度步（原作 Ground VelocityIntegration，Ground@8652 语义重建；公式见 Rules.GroundSim）

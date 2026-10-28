@@ -605,6 +605,7 @@ namespace PirateCrew.WaterLab
                 // 单独绑（RW 纹理绑定不允许进这里的全 buffer 循环也不冲突，统一绑齐防漏）
                 computeShader.SetTexture(k, ShaderIds.GroundTex, _groundTex);
                 computeShader.SetTexture(k, ShaderIds.ObstacleMap, _obstacleTex);
+                computeShader.SetTexture(k, Shader.PropertyToID("_ObstacleMapRW"), _obstacleTex);  // UAV 同图写入（RT 需 enableRandomWrite）
                 computeShader.SetBuffer(k, ShaderIds.GroundA, _groundCur);
                 computeShader.SetBuffer(k, ShaderIds.GroundB, _groundNext);
                 computeShader.SetBuffer(k, ShaderIds.AirCells, _airCells);
@@ -747,6 +748,7 @@ namespace PirateCrew.WaterLab
             };
             _obstacleTex.Create();
             computeShader.SetTexture(_kObstacleInit, ShaderIds.ObstacleMap, _obstacleTex);
+            computeShader.SetTexture(_kObstacleInit, Shader.PropertyToID("_ObstacleMapRW"), _obstacleTex);
             computeShader.SetBuffer(_kObstacleInit, ShaderIds.ObstacleInit, _obstacleInit);
             computeShader.Dispatch(_kObstacleInit,
                 (WaterLabReplicaObstacles.Resolution + 7) / 8,
