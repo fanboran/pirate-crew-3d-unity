@@ -56,17 +56,30 @@ namespace PirateCrew.WaterLab
         public const float VelocityDamping = 0.97f;
 
         /// <summary>
-        /// 原作每組分布尝试数（F1 静态定案，cs-first手推导链）：
-        /// LayoutMainMenu.Generate（cs-full :584）对每组 <c>Distribution(fac = obj5·1e-4)</c>；
-        /// obj5 = Beach 实例 +0x8C × +0x94 两处 float 读数（Cpp2IL hint）= bounds.extents.x ×
-        /// extents.z = 15×15 = 225（bounds 字段布局 center@+0x80/extents@+0x8C，由三个独立
-        /// 调用点交叉验证：Game.SetGlobals 读 +84/+88/+8C/+90/+94 合成 worldSize (2ex,·,2ez)、
-        /// Game.Prepare 读 +90=ey 做边框缩放、本处读 +8C/+94）→ fac = 0.0225。
-        /// 线程组数 = ceil(capacity·fac/1024)（Plant.Distribution），capacity≤32768 时恒 =1
-        /// → 尝试数 = THREADS_GROUP_SIZE × 1 = <b>1024</b>。该结论对布局歧义稳健
-        /// （obj5 ∈ (0,312] 时最大组也只派 1 组；75/150/225 三种候选同值）。
+        /// 原作每組分布尝试系数（F3 修正 F1 的 0.0225）：LayoutMainMenu.Generate（cs-full :584）
+        /// 对每组 <c>Distribution(fac = obj5·1e-4)</c>。obj5 的原生实相（GameAssembly.dll
+        /// LayoutMainMenu::Generate @0x18042d680 序言，F3 反汇编）：Generate 对 Beach.bounds
+        /// 读 extents.x/extents.z（movups [rax+0x80]/movsd [rax+0x90]，各 shufps 广播）后
+        /// <c>mulss 2 → mulss 2 → mulss 相乘</c>——即 <b>obj5 = (2·ex)×(2·ez) =
+        /// bounds.size.x × bounds.size.z = 30×30 = 900</b>（F1 读 +0x8C/+0x94 时丢了两个
+        /// ×2 常量，225 系误读；对照 Game.SetGlobals 合成 worldSize=(2ex,·,2ez) 的同式）。
+        /// → <b>fac = 900·1e-4 = 0.09</b>。
+        /// 线程组数 = ceil(capacity·fac/1024)（Plant.Distribution 原生 @0x18045f553 逐指令：
+        /// capacity·fac·(1/1024) → ceil → Dispatch(x,1,1)）——cap=32768 的两组各派 3 组
+        /// = 3072 次尝试，其余 ≤8192 的组恒 1 组 = 1024。与 R 帧实测相容（BuffaloGrass
+        /// 族存活 1513 ≤ 3072；F1 的 225 也不与 1024 矛盾，但 3072 只有 900 能导出）。
         /// </summary>
+        public const float DistributionFactor = 0.09f;
+
+        /// <summary>常见组（capacity ≤ 8192）的尝试数 = ceil(cap·0.09/1024)·1024 = 1024。</summary>
         public const int OriginalAttemptsPerGroup = 1024;
+
+        /// <summary>原作口径的每組尝试数（Plant.Distribution Dispatch 群数 × 1024）。</summary>
+        public static int AttemptsForCapacity(int capacity)
+        {
+            long cells = (long)Mathf.CeilToInt(capacity * DistributionFactor / 1024f);
+            return (int)(cells * 1024);
+        }
 
         // shader 全局名（ReplicaPlant.shader 声明同名 uniform）
         static readonly int IdBoundsSize = Shader.PropertyToID("_WaterLabPlantBoundsSize");
@@ -293,7 +306,8 @@ namespace PirateCrew.WaterLab
             return _aliveCount;
         }
 
-        /// <summary>原作口径的便捷重载（F1 定案：每組 1024 次尝试，见常量注释）。</summary>
+        /// <summary>原作口径的便捷重载（cap ≤ 8192 时 = <see cref="OriginalAttemptsPerGroup"/>；
+        /// 大容量组用 <see cref="AttemptsForCapacity"/>，见 DistributionFactor 注释）。</summary>
         public int Distribute() => Distribute(OriginalAttemptsPerGroup);
 
         // ---- PCG hash（v0_Distribution_0.hlslasm L30-55，逐指令）----
@@ -508,8 +522,8 @@ namespace PirateCrew.WaterLab
         // ---------------------------------------------------------------------
         // 默认场实现：WaterLabReplicaSnapshot（B 流 256² 快照）。
         // 【分辨率/通道差异 TODO（G §5.5）】原作 groundCells=1024²/waterCells=512² 且
-        // 带肥力 6bit 与切线字节通道；快照只有高度/水量 256²。I7 烘地形产出同编码
-        // 肥力场后替换本实现，否则 §4 表的 fertilityRange 过滤退化为全通过。
+        // 带肥力 6bit 与切线字节通道；快照只有高度/水量 256²。肥力通道走
+        // <see cref="MenuFertilityField"/>（数据文件驱动，见其类头），其余差异待 I7。
         // ---------------------------------------------------------------------
         public sealed class SnapshotGroundField : IGroundField
         {
@@ -520,7 +534,11 @@ namespace PirateCrew.WaterLab
             {
                 float[] g = WaterLabReplicaSnapshot.GroundData;
                 height = g != null ? g[cz * WaterLabReplicaSnapshot.Resolution + cx] : WaterLabRules.SeaLevel;
-                fertility = 1f;   // TODO(I7)：原作 6bit 肥力通道
+                // 肥力 = 数据文件驱动（F3）：MenuFertilityField 已载时按原作 6bit 语义 ÷63；
+                // 未载时回退恒 1（数据缺口退化，Driver 侧显式告警，不静默）。
+                fertility = MenuFertilityField.HasData
+                    ? MenuFertilityField.GetFertility(cx, cz)
+                    : 1f;
                 // 切线 = 中央差分坡度（clamp 到字节域 [−1,1] 语义）。
                 // TODO(I7)：原作 groundCells 偏移 0 的 2 字节切线直读后替换。
                 int r = WaterLabReplicaSnapshot.Resolution;
@@ -532,6 +550,78 @@ namespace PirateCrew.WaterLab
                 float dzs = (zr - zl) / (2f * WaterLabReplicaSnapshot.CellSize);
                 tangentX = Mathf.Clamp(dxs, -1f, 1f);
                 tangentZ = Mathf.Clamp(dzs, -1f, 1f);
+            }
+        }
+
+        // =====================================================================
+        // MenuFertilityField（F3）—— 原作 groundCells 肥力通道的数据文件驱动源。
+        //
+        // 【肥力语义（F3 静态定案，全部第一手）】
+        //  * 通道    groundCells 每格 16B 的 dword3[26..32) 6bit，值域 0..63；
+        //            Distribution 解码 ÷63（v0_Distribution_0.hlslasm L67/L72 字面量
+        //            0x015873≈1/63），门控 <see cref="ReplicaPlantParams.FertilityRange"/>
+        //            严格开区间（L112-118 四×lt）。
+        //  * 写入者  Ground compute Paint kernel 唯一：fertility += mask·brushData[28]
+        //            （bin.5 L182-186），打包 sat(·)·63+0.5 <<26（L305-308）；Init 只写
+        //            常量（bin.0：dword3=0，肥力=0）；VelocityIntegration 原值回写
+        //            （bin.2 L205/L272），HeightIntegration 不写该位段。
+        //  * 菜单真相 布局代码（LayoutMainMenu.Generate 原生 @0x18042d680 逐调用点）
+        //            传给 ground.Paint 的 GroundCell 肥力字恒 0——静态链推不出非零场；
+        //            而原作菜单帧（R 抓帧 exports/draws_index.json）13 组中 12 组有存活
+        //            实例（仅 RedAlgae=0），证明**运行时存在空间变化的肥力场**（同为
+        //            (0.8,1.0) 肥力带的 Goldenrod=15 株存活，≡0/≡1 都无法复现）。
+        //            该场是运行时状态，静态不可再推——数据文件（协调者按报告 F3 的
+        //            dump 配方灌出）就位后由本类装载，缺省回退恒 1 并显式告警。
+        //
+        // 【文件格式】无头 1024²=1,048,576 字节（N²==长度即认，兼容 512²），每格 1 字节
+        // = 肥力 6bit 原值（0..63），row=Z、row0=z−15（B §4 轴向），解码 GetFertility÷63。
+        // dump 配方（rt/reports/F3-fertility.md §5）：frida 读 Ground.input ComputeBuffer
+        // （cellsCount×16B），byte[i*16+15]>>2 即第 i 格肥力（dword3 高 6bit）。
+        // =====================================================================
+        public static class MenuFertilityField
+        {
+            static byte[] _cells;
+            static int _res;
+
+            /// <summary>是否已装载数据文件（未载时 <see cref="SnapshotGroundField"/> 回退恒 1）。</summary>
+            public static bool HasData => _cells != null;
+
+            /// <summary>场分辨率（N² 字节的 N；未载时 0）。</summary>
+            public static int Resolution => _res;
+
+            /// <summary>
+            /// 装载肥力场（幂等覆盖）。长度必须是平方数且值域 ⊆ [0,63]——6bit 语义的
+            /// 载入期校验，错格式当场抛而非半装 quietly。
+            /// </summary>
+            public static void Load(byte[] bytes)
+            {
+                if (bytes == null)
+                    throw new ArgumentNullException(nameof(bytes));
+                int n = (int)Mathf.Sqrt(bytes.Length);
+                if (n * n != bytes.Length)
+                    throw new ArgumentException($"肥力场长度 {bytes.Length} 不是平方数（应为 N² 字节）");
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    if (bytes[i] > 63)
+                        throw new ArgumentException($"肥力场 byte[{i}]={bytes[i]} 超出 6bit 值域 [0,63]");
+                }
+                _cells = bytes;
+                _res = n;
+            }
+
+            /// <summary>卸载（回退恒 1；测试隔离用）。</summary>
+            public static void Unload()
+            {
+                _cells = null;
+                _res = 0;
+            }
+
+            /// <summary>取一格肥力（格心整数索引，÷63 还原 [0,1]；未载时 1）。</summary>
+            public static float GetFertility(int cx, int cz)
+            {
+                if (_cells == null)
+                    return 1f;
+                return _cells[cz * _res + cx] / 63f;
             }
         }
 
@@ -934,6 +1024,14 @@ namespace PirateCrew.WaterLab
         public TextAsset GroundSnapshot;
         public TextAsset WaterSnapshot;
 
+        /// <summary>
+        /// 原作肥力场（F3，可选）：1024² 字节 = groundCells 肥力 6bit 原值/格，
+        /// 语义与 dump 配方见 <see cref="ReplicaPlantSystem.MenuFertilityField"/> 类头。
+        /// 原作菜单的场是运行时状态（静态链推不出、≡0/≡1 均被菜单帧证伪），此资产
+        /// 由协调者按 F3 报告 §5 配方灌出后拖入引用；缺省（null）回退恒 1 并告警。
+        /// </summary>
+        public TextAsset FertilitySnapshot;
+
         /// <summary>cb0[40] 环境色暂置值：t=1/3 Morning ambientSkyColor（menu-state.json，
         /// 与 CreateLighting 的 RenderSettings.ambientSkyColor 同值）。运行时专用 TODO 见类头。</summary>
         public static readonly Vector4 MenuAmbient = new Vector4(0.698039f, 0.564706f, 0.569923f, 1f);
@@ -953,6 +1051,11 @@ namespace PirateCrew.WaterLab
             {
                 try { WaterLabReplicaSnapshot.Load(GroundSnapshot.bytes, WaterSnapshot.bytes); }
                 catch (Exception e) { Debug.LogError($"[ReplicaPlantDriver] 快照加载失败（植物门控退化）：{e.Message}"); }
+            }
+            if (FertilitySnapshot != null)
+            {
+                try { ReplicaPlantSystem.MenuFertilityField.Load(FertilitySnapshot.bytes); }
+                catch (Exception e) { Debug.LogError($"[ReplicaPlantDriver] 肥力场加载失败（回退恒 1）：{e.Message}"); }
             }
             EnsureSystems();
         }
@@ -989,23 +1092,27 @@ namespace PirateCrew.WaterLab
                 }
                 var sys = new ReplicaPlantSystem(table[i], Hulls[i], Materials[i],
                     null, new ReplicaPlantSystem.LiveWaterField(_waterFeed));
-                sys.Distribute();   // F1 定案口径：每組 1024 次尝试（OriginalAttemptsPerGroup）
+                // F3 修正口径：尝试数 = ceil(capacity·0.09/1024)·1024（fac 推导链见
+                // ReplicaPlantSystem.DistributionFactor 注释）——32768 的两大草各 3072，
+                // 其余组 1024。
+                sys.Distribute(ReplicaPlantSystem.AttemptsForCapacity(p.Capacity));
                 _systems[i] = sys;
                 total += sys.AliveCount;
                 perGroup[i] = $"{p.ClassName}={sys.AliveCount}";
-                // 【F1 静态核查】分布门是严格开区间 (min, max)（反汇编 4×lt，L112-118）；
-                // 快照肥力恒 1（原作 groundCells 6bit 肥力通道未提取）时，肥力上界 ≤1 的
-                // 组被 1.0∉(min,max) 全拒绝——这是数据缺口下的真实退化，显式告警不上图骗人。
-                if (p.FertilityRange.y <= 1f)
+                // 【F3 静态核查】分布门是严格开区间 (min, max)（反汇编 4×lt，L112-118）；
+                // 肥力场数据文件缺位时回退恒 1——肥力上界 ≤1 的组被 1.0∉(min,max) 全拒绝。
+                // 【F3 实证】原作菜单帧 12/13 组存活（仅 RedAlgae=0，R 抓帧 draws_index），
+                // ≡0/≡1 均非原作行为——这是数据缺口退化，显式告警不上图骗人。
+                if (!ReplicaPlantSystem.MenuFertilityField.HasData && p.FertilityRange.y <= 1f)
                     fertilityBlind.Add($"{p.ClassName}(fert∈({p.FertilityRange.x},{p.FertilityRange.y}))");
             }
             Debug.Log($"[ReplicaPlantDriver] 植物系统就绪：{_systems.Length} 组 / 存活 {total} 株 "
-                + $"[{string.Join(" ", perGroup)}]；尝试数={ReplicaPlantSystem.OriginalAttemptsPerGroup}/组"
-                + "（F1 定案 fac=0.0225）；seed 恒 0（原作每局随机，注入协议见系统注释）");
+                + $"[{string.Join(" ", perGroup)}]；尝试数=ceil(cap·0.09/1024)·1024（F3 修正 fac=0.09）；"
+                + $"seed 恒 0（原作每局随机，注入协议见系统注释）");
             if (fertilityBlind.Count > 0)
                 Debug.LogWarning($"[ReplicaPlantDriver] 肥力场缺失退化：{fertilityBlind.Count} 组肥力门"
                     + $"不含 1.0 → 恒空 [{string.Join(" ", fertilityBlind)}]"
-                    + "（需原作 groundCells 6bit 肥力通道，登记交接档 F1）");
+                    + "（原作菜单肥力=运行时状态，静态不可得——dump 配方与读法见 F3 报告 §5）");
         }
 
         void Update()
