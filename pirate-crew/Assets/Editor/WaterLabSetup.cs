@@ -213,7 +213,11 @@ namespace PirateCrew.EditorTools
             cam.farClipPlane = 46.223755f;
             cam.backgroundColor = new Color(0.801526f, 0.506065f, 0.560869f);
             go.transform.position = new Vector3(7.570009f, 20.671303f, -21.924673f);
-            go.transform.rotation = new Quaternion(0.37687f, -0.16043f, 0.066452f, 0.909844f);
+            // 原作位姿为基准；创始人取景裁决（2026-10-27）：视野向水面压低（基准俯角再俯
+            // PitchDownDegrees 度——正值为看向更多水面）。差分对账用基准值时把偏置归零。
+            const float PitchDownDegrees = 7f;
+            Quaternion baseRot = new Quaternion(0.37687f, -0.16043f, 0.066452f, 0.909844f);
+            go.transform.rotation = baseRot * Quaternion.AngleAxis(PitchDownDegrees, Vector3.left);
             return cam;
         }
 
