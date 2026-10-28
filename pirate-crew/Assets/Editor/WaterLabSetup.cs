@@ -129,11 +129,16 @@ namespace PirateCrew.EditorTools
             EnsureSkybox(); // I5b：RenderSettings.skybox = ReplicaSkybox（t=1/3 菜单时刻真值）
             CreateSimulation(camera); // 相机随注：白水逐粒视锥剔除要用它的 6 平面
             EnsureWhitewaterFeature();
+            EnsureScatter(); // C 流入口（并行开发中，反射兜底，见方法注释）
             EnsurePostProcess(camera); // I4：DoF+Vignette（F 流参数直译，无 tonemap/bloom）
 
             Directory.CreateDirectory("Assets/Scenes/Lab");
             var path = SceneNames.PathOf(SceneNames.WaterLab);
             EditorSceneManager.SaveScene(scene, path);
+            // B 流管线件：场景已保存为 WaterLab.unity，切管线副本（HDR on/MSAA off）。
+            // batchmode 出图（本类 BuildSceneAndCapture）没有人手开场景，靠这里生效；
+            // 编辑器下 WaterLabPipelineSwitch 挂了 sceneOpened/playMode 事件，切走自动还原。
+            WaterLabPipelineSwitch.Apply();
             Debug.Log($"[WaterLabSetup] 场景已装配并保存：{path}");
         }
 
@@ -161,6 +166,15 @@ namespace PirateCrew.EditorTools
             light.shadows = LightShadows.Soft;
             light.intensity = 1.0f;
             light.shadowStrength = 1.0f;
+            // shadowBias/normalBias = level0 SunLight 组件真值（阴影贴图采样偏置）。
+            // 【raster depthBias 登记项（B 流，勿与上面两个混淆）】R 抓帧水 draw
+            // （external/sandcastle-ref/rt/dumps/rd-frames/exports/draws/1900_water/
+            // draw.json）raster state：depthBias=−1、slopeScaledDepthBias=−2.5。
+            // 那是原作 Lit_Water draw 的光栅化深度偏移（水像素自身的深度量化抑制），
+            // 不是阴影 bias：水面 shadowCastingMode=Off（见 CreateWaterSurface，
+            // Lit_Water 无 ShadowCaster）、不采样阴影贴图，Unity 也无逐材质光栅
+            // depthBias 入口——登记为 L2 管线对账项，若对账现深度伪影再在渲染层
+            // 移植（原作 slopeBias 只影响无阴影链路的深度写入精度）。
             light.shadowBias = 0.1f;
             light.shadowNormalBias = 1.0f;
             light.color = new Color(1.0f, 0.940429f, 0.872353f);   // t=1/3 sunGradient
@@ -1215,15 +1229,26 @@ namespace PirateCrew.EditorTools
         /// 清单/映射同步补位；白水材质随注（已有实例缺材质也补）。</summary>
         /// <summary>
         /// I4 后处理（F 流定案：原作实际生效仅 DoF + Vignette，无 tonemap/bloom/曝光）。
-        /// DoF{focus 37.49（autofocus 每帧 raycast 回写的静止值——机制移植 TODO）、
+        /// DoF{focus 37.49（autofocus 每帧 raycast 回写的静止值——B 流已把机制移植为
+        /// <see cref="WaterLabDofAutofocus"/>，37.49 保留为初始值，菜单静止场景两者等价）、
         /// aperture 1.1、focalLength 106mm、kernel VeryLarge→URP Bokeh 高档}；
         /// Vignette{intensity 0.296 其余默认}。URP postProcessing 开关在相机上启用。
+        /// AA=SMAA only（E/R 流定案：运行时无 MSAA，SMAA 全屏 pass）——B 流管线件。
         /// </summary>
         static void EnsurePostProcess(Camera cam)
         {
             // batchmode 下 URP 相机组件不是立即自动挂——用扩展方法（缺则加）
-            UnityEngine.Rendering.Universal.CameraExtensions
-                .GetUniversalAdditionalCameraData(cam).renderPostProcessing = true;
+            var camData = UnityEngine.Rendering.Universal.CameraExtensions
+                .GetUniversalAdditionalCameraData(cam);
+            camData.renderPostProcessing = true;
+            // AA：原作运行时无 MSAA（R 定案「资产 4x 未生效」），AA=SMAA 全屏 pass
+            // → 相机级 antialiasing = SMAA。URP 的 quality 档原作无对照（抓帧只见
+            // pass 存在，阈值参数不可恢复）→ 取 High，登记为自推项（L2 对账如有
+            // 边缘锐度差再降档，不动参数先查 pass 结构）。
+            camData.antialiasing =
+                UnityEngine.Rendering.Universal.AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+            camData.antialiasingQuality =
+                UnityEngine.Rendering.Universal.AntialiasingQuality.High;
 
             var volGo = new GameObject("ReplicaPostVolume");
             volGo.layer = 0;
@@ -1240,7 +1265,12 @@ namespace PirateCrew.EditorTools
             dof.aperture.Override(1.1f);
             dof.focalLength.Override(106f);   // VeryLarge 档的焦段口径（F 报告）
             vol.sharedProfile = profile;
-            Debug.Log("[WaterLabSetup] I4 后处理：Vignette 0.296 + DoF(37.49/1.1/106) 已挂");
+            // B 流：autofocus 机制移植（cs-full/CameraRig.cs：每帧 raycast 相机
+            // forward 回写 focusDistance、未命中保持上次值、无平滑）。上面 37.49 的
+            // Override 即初始值，Play 中被命中距离覆写——菜单静止场景两者数值等价。
+            var autofocus = cam.gameObject.AddComponent<WaterLabDofAutofocus>();
+            autofocus.volume = vol;
+            Debug.Log("[WaterLabSetup] I4 后处理：Vignette 0.296 + DoF(37.49/1.1/106) + SMAA + autofocus 已挂");
         }
 
         // ====================================================================
@@ -1529,6 +1559,34 @@ namespace PirateCrew.EditorTools
             }
 
             AssetDatabase.SaveAssets();
+        }
+
+        /// <summary>
+        /// C 流入口（§4b 批次并行开发中，入口名由任务板固定为
+        /// <c>WaterLabScatterSetup.EnsureScatter()</c>）：海底散布恢复件——礁石/卵石/
+        /// 贝壳/海星实体网格 + loose 群簇分布 + Gravel 粒子。C 流文件
+        /// （Assets/Editor/WaterLabScatterSetup.cs）落地与否由反射判定：缺失/入口
+        /// 不符则 Log 跳过、**不断本工程编译**；C 流合入后本调用自动接通（同程序集
+        /// 反射，每次装配一次查找，成本可忽略）。C 流收口后可替换为直接调用。
+        /// </summary>
+        static void EnsureScatter()
+        {
+            var type = typeof(WaterLabSetup).Assembly.GetType("PirateCrew.EditorTools.WaterLabScatterSetup")
+                ?? typeof(WaterLabSetup).Assembly.GetType("WaterLabScatterSetup");
+            if (type == null)
+            {
+                Debug.Log("[WaterLabSetup] C 流散布件未就绪（WaterLabScatterSetup 类型缺失），跳过 EnsureScatter");
+                return;
+            }
+            var method = type.GetMethod("EnsureScatter",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (method == null)
+            {
+                Debug.LogWarning($"[WaterLabSetup] C 流散布件 {type.FullName} 缺静态入口 EnsureScatter()，跳过");
+                return;
+            }
+            Debug.Log("[WaterLabSetup] C 流入口：WaterLabScatterSetup.EnsureScatter() 已接通");
+            method.Invoke(null, null);
         }
 
         static Material LoadOrCreateMaterial(string name, string shaderPath)
