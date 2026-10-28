@@ -27,6 +27,5 @@ Material:
     m_Floats:
     - _Alpha: 0.4
     - _SizeScale: 1
-    m_Colors:
-    - _AmbientColor: {r: 0.06269998, g: 0.13329998, b: 0.21959996, a: 1}
+    m_Colors: []
   m_BuildTextureStacks: []
