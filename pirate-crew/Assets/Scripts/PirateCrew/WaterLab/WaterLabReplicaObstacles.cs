@@ -34,11 +34,11 @@ namespace PirateCrew.WaterLab
         const int BytesPerCell = 4;
         const int ExpectedBytes = Resolution * Resolution * BytesPerCell;
 
-        // B2 meta obstacles 统计锁（加载校验：字段错位/错资产当场抛异常）
-        public const float MetaCellFrac  // Tests 独立程序集可见 = 0.0059356689453125f;
-        public const float MetaMaxDelta  // Tests 独立程序集可见 = 1.332135f;
-        public const float CellFracTolerance  // Tests 独立程序集可见 = 1e-4f;
-        public const float MaxDeltaTolerance  // Tests 独立程序集可见 = 1e-3f;
+        // B2 meta obstacles 统计锁（加载校验：字段错位/错资产当场抛异常；public 供 Tests 程序集）
+        public const float MetaCellFrac = 0.0059356689453125f;
+        public const float MetaMaxDelta = 1.332135f;
+        public const float CellFracTolerance = 1e-4f;
+        public const float MaxDeltaTolerance = 1e-3f;
 
         static float[] _delta;
 
