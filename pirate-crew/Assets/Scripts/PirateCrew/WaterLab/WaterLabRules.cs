@@ -507,6 +507,48 @@ namespace PirateCrew.WaterLab
             return SunIrradiance * EvaporationFactor * EvaporationScale;
         }
 
+        // ---- 夜光浮游生物（D 流件4：Phytoplankton compute + Lit_Phytoplankton）----
+        //
+        // 【第一手依据】rt/out/Phytoplankton/（本流现反汇编，game path_id 643）+
+        // cs-full/Phytoplankton.cs（Culling 基类 32768 池/双视锥/DrawProceduralIndirect）+
+        // X-exp2.md §3（Lit_Phytoplankton VS @2450：位移 0.25×(1−e^(−3·life))，exp2 语义）。
+
+        /// <summary>粒子池容量（Culling 基类默认 capacity=32768）。</summary>
+        public const int PhytoCapacity = 32768;
+
+        /// <summary>死亡标记/重生寿命（Update @0：life &lt; 0.01 死、重生 0.01）。</summary>
+        public const float PhytoLifeThreshold = 0.01f;
+
+        /// <summary>寿命衰减速率（1/s，Update @0 的 `life − dt×0.1`）。</summary>
+        public const float PhytoDecayRate = 0.1f;
+
+        /// <summary>剔除 alpha 门系数（Culling @0 第一手：`1 − exp(−4.328085·life) ≥ 0.08`，
+        /// 自然 exp——与渲染 VS 的 exp2 语义 e^(−3·life) 不同效，两处各自直译）。</summary>
+        public const float PhytoCullK = 4.328085f;
+
+        /// <summary>剔除 alpha 门限（Culling @0 的 0.08）。</summary>
+        public const float PhytoCullAlphaMin = 0.08f;
+
+        /// <summary>重生位置散布半径系数（Update @0：哈希 ∈[−1.5,1.5]×域相关系数）。</summary>
+        public const float PhytoSpawnSpread = 1.5f;
+
+        /// <summary>漂移系数（Update @0：位移 += 场×该值×dt×0.5；原作 cb0[152].z=deltaTime
+        /// 兼职乘子，本仓下发同名语义，数值取 1——场自身量纲已含 m/s）。</summary>
+        public const float PhytoDrift = 1f;
+
+        /// <summary>
+        /// 昼夜相位（原作 dayCycler.Night）。主菜单固定 Morning（t=1/3、timelapse=0）
+        /// → Night=0；Phytoplankton.Draw/Render 要求 Night ≥ 0.5 才绘制（且强度
+        /// sat(Night−0.5)×2）——主菜单里系统在跑、画面恒无。实验室固定时刻同值。
+        /// </summary>
+        public const float PhytoNightAmount = 0f;
+
+        /// <summary>浮游生物是否绘制（原作 Draw/Render 的门控）。</summary>
+        public static bool PhytoVisible => PhytoNightAmount >= 0.5f;
+
+        /// <summary>绘制强度（原作 `sat(Night−0.5)×2` 下发材质 intensity）。</summary>
+        public static float PhytoIntensity => Mathf.Clamp01((PhytoNightAmount - 0.5f) * 2f);
+
         /// <summary>湿沙饱和速率（1/s）：被水覆盖的格向 w=1 逼近。</summary>
         public const float WetnessSoakRate = 3f;
 

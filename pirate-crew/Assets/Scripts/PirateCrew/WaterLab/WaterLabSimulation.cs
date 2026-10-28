@@ -59,6 +59,16 @@ namespace PirateCrew.WaterLab
         /// </summary>
         public TextAsset replicaSandSnapshot;
 
+        /// <summary>
+        /// 夜光浮游生物 compute（D 流件4，WaterLabPhytoplankton.compute）。装配器不注入
+        /// （自包含创建：Awake 里挂在同一 GameObject）；缺失时浮游生物系统不启动并报错
+        /// 一次——主菜单 Night=0 下原作本就不绘制，缺失只影响结构完整度。
+        /// </summary>
+        public ComputeShader phytoplanktonShader;
+
+        /// <summary>浮游生物系统（Awake 自建，见 <see cref="phytoplanktonShader"/>）。</summary>
+        ReplicaPhytoplanktonSystem _phytoSystem;
+
         /// <summary>主菜单快照复刻是否生效（= 快照已加载，TerrainHeight/初始水位已切数据源）。</summary>
         public bool ReplicaMode => WaterLabReplicaSnapshot.HasData;
 
@@ -187,6 +197,34 @@ namespace PirateCrew.WaterLab
             CreateBuffers();
             CreateTextures();
             PublishGlobals();
+            BootstrapPhytoplankton();
+        }
+
+        /// <summary>
+        /// 浮游生物系统自包含创建（D 流件4）：同一 GameObject 挂
+        /// <see cref="ReplicaPhytoplanktonSystem"/>，compute 缺失时只报错不启动（原作
+        /// 主菜单 Night=0 恒不绘制，缺失不影响可见结果）；水场缓冲每帧由 Update 重绑
+        /// （ping-pong 换位后最新场对象会变）。
+        /// </summary>
+        void BootstrapPhytoplankton()
+        {
+            if (phytoplanktonShader == null)
+            {
+                Debug.LogError("[WaterLabSimulation] 浮游生物 compute 未接线（WaterLabPhytoplankton.compute），"
+                    + "Phytoplankton 系统未启动（主菜单 Night=0 恒不绘制，不影响可见结果）。");
+                return;
+            }
+            _phytoSystem = gameObject.AddComponent<ReplicaPhytoplanktonSystem>();
+            var mat = new Material(Shader.Find("WaterLab/ReplicaPhytoplankton"))
+            {
+                name = "WaterLabPhytoplankton",
+                hideFlags = HideFlags.DontSave,
+            };
+            var sys = _phytoSystem;
+            sys.computeShader = phytoplanktonShader;
+            sys.material = mat;
+            sys.renderCamera = renderCamera;
+            sys.Bootstrap(phytoplanktonShader, _waterCur, renderCamera);
         }
 
         /// <summary>
@@ -326,6 +364,8 @@ namespace PirateCrew.WaterLab
             {
                 UpdateSurface(frameDt);
                 StepGround(frameDt);
+                // 浮游生物读最新水场（换位后对象已互换，重绑；系统 Update 在本组件之后）
+                _phytoSystem?.RebindWater(_waterCur);
             }
 
         // 诊断落盘（环境变量开才生效）：把高度/湿沙纹理存 PNG，供无头链排查模拟纹理内容。
