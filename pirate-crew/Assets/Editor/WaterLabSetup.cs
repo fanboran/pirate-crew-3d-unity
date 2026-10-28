@@ -263,10 +263,9 @@ namespace PirateCrew.EditorTools
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var sandMat = LoadOrCreateMaterial("WaterLab_Sand", ShaderPathSand);
             ApplySandReplicaValues(sandMat); // I2：焦散真身 + Carbonate 预设 + 沙噪声真图
-            // 深水沙变体开启（r99 复盘：σ≡0 下浅水≈亮沙，原作浅水青蓝正身是
-            // lerp(沙色, 4×waterColor, min(10d,1))——10cm 水深即全混入；I2 预留的
-            // "待抓帧终审"由 r99 首帧色带证据裁决为开）。
-            sandMat.EnableKeyword("_WATERLAB_DEEP_SAND");
+            // 深水沙变体**关闭**（K 流闭案：原作主菜单帧 bg max=1.79、>2.5 占 0.00%，
+            // 数学排除激活；r99c 凭帧色带开启系误判——浅青带实为 σ 吸收正身。将来启用
+            // 须先补 VS 段第一手公式的 σ-bake 因子）。
             go.AddComponent<MeshRenderer>().sharedMaterial = sandMat;
             Debug.Log($"[WaterLabSetup] 地形网格：{(ReplicaMode ? "快照 256² 直出" : "程序剖面")}，"
                 + $"{verts * verts} 顶点 / {segments} 段");
