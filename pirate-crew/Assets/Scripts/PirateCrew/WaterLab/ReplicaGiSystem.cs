@@ -15,17 +15,22 @@ namespace PirateCrew.WaterLab
     /// SetFloat lerpSpeed → Dispatch Gi :272 → BlurGi :273）→
     /// SetGlobalTexture("giVoxels", giVoxelsBlurred)（Gi.cs:186）。
     ///
-    /// 【URP 落位（E 报告 §4.3 方案 a / §4.4）】sceneVoxels 由本类自建的专用顶视
-    /// 正交相机渲（相机=域对齐，更贴原作语义；URP 按 camera.depth 排序，本相机
-    /// depth=-100 恒先于主相机——等效原作"管线 Render 之前"）；Gi/BlurGi 派发挂
-    /// 主相机 <c>RenderPassEvent.BeforeRenderingOpaques</c>（ReplicaGiFeature，
-    /// 注入点依据见其注释）。本类与 Feature 分属 Gameplay/Rendering 两程序集，
-    /// Compute 引用由 Feature 每帧回灌（沿 WaterLabWhitewaterBridge 的跨程序集
-    /// 单向桥先例：Gameplay→Rendering 单向引用，Rendering 不 reverse-depend 本程序集）。
+    /// 【URP 落位（E 报告 §4.3/§4.4；A 流改顶视采集为手动 draw）】本类自建顶视正交
+    /// 相机仅作矩阵/剔除源（enabled=false，不再让 URP 全管线渲它）；sceneVoxels 的
+    /// 采集由 ReplicaGiFeature 在主相机 <c>RenderPassEvent.BeforeRenderingOpaques</c>
+    /// 首部手动执行：SetRenderTarget(sceneVoxels)→Clear→opaque×"WaterLabVoxelizer"
+    /// tag 单 draw（DrawRenderers，对齐原作 ProcessRenderRequests 的 TopView 分支），
+    /// 紧接本类 Render（GenerateMips→Gi→BlurGi→发布）——绘制先于派发，与原作
+    /// beach.Draw 内 TopView 先于 gi.Draw 的序一致；整体仍先于 opaque/transparent
+    /// 消费者（深水亮度真身 = opaque 序的沙 GI 变体，E §3）。相机几何（orthoSize=
+    /// 域半宽 15、正俯视、aspect=1）即原作"相机=域对齐"语义。compute 引用由 Feature
+    /// 每帧回灌（沿 WaterLabWhitewaterBridge 的跨程序集单向桥先例：Gameplay→Rendering
+    /// 单向引用，Rendering 不 reverse-depend 本程序集）。
     ///
-    /// 【未注入 = 整体不启用】compute 引用为空时不建任何资源、不派发（一次 log）。
-    /// 消费者 shader 采不到 giVoxels 全局纹理即退化为 unity_AmbientSky 常数环境光
-    /// ——与原作管线资产 Low 档 globalIllumination 关档的行为一致（E 报告 §3 反证）。
+    /// 【未注入 = 整体不启用】compute 引用为空时不建任何资源、不派发（一次 log），
+    /// 并向消费者发布黑图兜底（域内间接光 = 0 的「无间接光」降级语义，见 Render
+    /// 内注释）。消费者 idiom 见 WaterLabSand/Whitewater/ReplicaPlant 三 shader 的
+    /// WaterLabGiAmbient（A 流已接）。
     /// </summary>
     public static class ReplicaGiSystem
     {
@@ -42,9 +47,10 @@ namespace PirateCrew.WaterLab
 
         /// <summary>
         /// 顶视相机 cullingMask。原作 Voxelizer 语义 = opaque 队列 × "Voxelizer"
-        /// shader tag（E 报告 §1.3①）——URP 相机只有层掩码没有 tag 过滤，默认
-        /// 全集渲当前 opaque 集；待各表面 shader 挂 Voxelizer pass 时（I2/I6b）由
-        /// 装配侧收窄（水/透明物归专属层排除）。
+        /// shader tag（E 报告 §1.3①）——A 流起 tag 过滤由 ReplicaGiFeature 的
+        /// DrawRenderers（ShaderTagId "WaterLabVoxelizer" + opaque 队列）承担，本掩码
+        /// 经相机传给 FilteringSettings 作额外的层漏斗（默认全集；水/透明物由队列与
+        /// tag 自然排除）。
         /// </summary>
         public static LayerMask VoxelizerMask = ~0;
 
@@ -68,9 +74,9 @@ namespace PirateCrew.WaterLab
         /// <summary>每轴派发组数 = ceil(128/32) = 4（Gi.cs:40-49 DispatchX，tg=[32,32,1]）。</summary>
         const int DispatchGroups = VoxelsResolution / 32;
 
-        // shader 全局名（消费侧 in-domain 掩码 uniform，任务书命名；与
-        // WaterLabSand.shader 的 GI TODO（L287-294）互指——I2 释放 Sand 域后按
-        // E 报告 §1.3③ idiom 接 albedo×(域内?giVoxels:unity_AmbientSky)）
+        // shader 全局名（消费侧 in-domain 掩码 uniform，任务书命名）。消费者 idiom 已由
+        // A 流落地：WaterLabSand/WaterLabWhitewater/ReplicaPlant 三 shader 的
+        // WaterLabGiAmbient（E 报告 §1.3③，indirect = albedo×(域内?giVoxels:ambientSky)）。
         static readonly int GlobalGiVoxels = Shader.PropertyToID("giVoxels");        // 原作名字面（Gi.cs:186）
         static readonly int GlobalDomainMin = Shader.PropertyToID("g_GiDomainMin");
         static readonly int GlobalDomainSize = Shader.PropertyToID("g_GiDomainSize");
@@ -102,7 +108,9 @@ namespace PirateCrew.WaterLab
 
         /// <summary>
         /// 主相机渲染序内调用（ReplicaGiFeature pass，BeforeRenderingOpaques）：
-        /// GenerateMips → Gi → BlurGi → SetGlobalTexture("giVoxels")。
+        /// GenerateMips → Gi → BlurGi → SetGlobalTexture("giVoxels")。顶视 Voxelizer
+        /// 采集（sceneVoxels 写入）由 Feature 在调本方法之前手动完成（同 pass 内先
+        /// draw 后 dispatch——与原作 beach.Draw 内 TopView 先于 gi.Draw 的序一致）。
         /// </summary>
         // 跨程序集桥接线（Rendering 程序集的 ReplicaGiFeature 经 WaterLabGiBridge 回调）
         static ReplicaGiSystem()
@@ -119,8 +127,15 @@ namespace PirateCrew.WaterLab
                 {
                     _loggedDisabled = true;
                     Debug.LogWarning("[ReplicaGi] compute 未注入（ReplicaGiFeature.GiCompute / ReplicaGiSystem.Compute）——GI 链路关闭，"
-                        + "消费者退化为 unity_AmbientSky（原作 Low 档关 GI 语义，E 报告 §3）。");
+                        + "消费者按降级语义出画（见下）。");
                 }
+                // 降级兜底：发布黑图（幂等）——消费者 idiom mask·(0−ambientSky)+ambientSky
+                // 得「域内间接光=0、域外=ambientSky」的确定性降级。原作 Low 档关 GI 的
+                // 精确语义是「GI 变体不编译 → 只剩 unity_AmbientSky」（E 报告 §3），等值
+                // 需 keyword 级变体开关且接线方在装配侧（A 流域外）——差异登记，集成轮
+                // 接 keyword 后消灭。未发布任何纹理时 Unity 绑灰默认图（0.5），比黑图更
+                // 偏，故显式钉黑。
+                Shader.SetGlobalTexture(GlobalGiVoxels, Texture2D.blackTexture);
                 return;
             }
             if (!SystemInfo.supportsComputeShaders)
@@ -165,15 +180,30 @@ namespace PirateCrew.WaterLab
                 _kBlurGi = Compute.FindKernel("BlurGi");
             }
 
-            // 三张 RT 均 SystemInfo.GetGraphicsFormat(DefaultFormat.HDR)（BeachRenderPipeline.cs:2206）
-            // → D3D11 = B10G11R11_UFloatPack32（无 alpha；R16G16B16A16 仅平台不支持时兜底，
-            // 同 Unity 原调用语义）。Gi 资产 requirements=50241 含 typed UAV load——giVoxels
-            // 必须 UAV 可读回，这正是该格式的硬件理由（E 报告 §1.1）。
-            _sceneVoxels = NewVoxelRT("WaterLabSceneVoxels", uav: false, mips: true, depthBits: 16);
-            // sceneVoxels 另有 depth=16、useMipMap=true、autoGenerateMips=false（Gi.Setup，E 报告 §1.1；
-            // mip 由管线 GenerateMips 生成——本类 Render 里 cmd.GenerateMips）。
-            _giVoxels = NewVoxelRT("WaterLabGiVoxels", uav: true, mips: false, depthBits: 0);
-            _giVoxelsBlurred = NewVoxelRT("WaterLabGiVoxelsBlurred", uav: true, mips: false, depthBits: 0);
+            // 三张 RT 格式 = ARGBHalf（= GraphicsFormat.R16G16B16A16_SFloat 的
+            // RenderTextureFormat 名）。原作 C# 痕迹是 Gi.cs:130
+            // SystemInfo.GetGraphicsFormat(DefaultFormat.HDR)（E 报告 §0.5 据此推
+            // B10G11R11_UFloatPack32——**推断被第一手推翻**：R 抓帧同机实测相机 HDR RT =
+            // R16G16B16A16_TYPELESS（rt/reports/R-framedump.md:88），即原作运行时的
+            // GetGraphicsFormat(HDR) 实落 RGBA16F 兜底支；且 .w=世界 Y 语义（E §1.3①，
+            // PS 直写 o0.w + compute 读 t0.w 的 DXBC 链）必须有无 alpha 的通道才能成立
+            // ——B10G11R11 无 alpha，RGBA16F 自洽。按参数纪律第一手 > 静态推断，显式
+            // 指定 ARGBHalf（本机 Unity 2022.3 的 GetGraphicsFormat(HDR) 会解析成
+            // B10G11R11，不可用其默认；且本程序集不引用 URP core 包，GraphicsFormat
+            // 枚举名不可达——ARGBHalf 是同格式的 CoreModule 名）。typed UAV load
+            // （requirements=50241，E §1.1）在 DX11.1 的支持清单本就含
+            // R16G16B16A16_FLOAT，UAV 读回不受影响。
+            // 【终验项】L2 抓帧对 giVoxels dump 时核对位宽。
+            var rtFormat = RenderTextureFormat.ARGBHalf;
+            _sceneVoxels = NewVoxelRT("WaterLabSceneVoxels", rtFormat, uav: false, mips: true, depthBits: 16);
+            // sceneVoxels 另有 depth=16、useMipMap=true、autoGenerateMips=false（Gi.Setup，
+            // E 报告 §1.1；mip 由管线 GenerateMips 生成——本类 Render 里 cmd.GenerateMips）。
+            _giVoxels = NewVoxelRT("WaterLabGiVoxels", rtFormat, uav: true, mips: false, depthBits: 0);
+            _giVoxelsBlurred = NewVoxelRT("WaterLabGiVoxelsBlurred", rtFormat, uav: true, mips: false, depthBits: 0);
+
+            // sceneVoxels 回灌桥（ReplicaGiFeature 的顶视 Voxelizer 采集目标——A 流：
+            // 采集=Feature 手动 DrawRenderers，不再走 URP 相机管线）
+            PirateCrew.Rendering.WaterLabGiBridge.SceneVoxels = _sceneVoxels;
 
             _topView = CreateTopViewCamera();
             PirateCrew.Rendering.WaterLabGiBridge.TopViewCamera = _topView;
@@ -182,14 +212,16 @@ namespace PirateCrew.WaterLab
         }
 
         /// <summary>
-        /// 顶视正交相机（E 报告 §1.3④ / §4.3 方案 a）：
-        /// orthographicSize = 域半宽 15（Beach.cs:332 附近 orthoSize=size*0.5），恰好把
-        /// 域 [−15,+15]² 铺满 128² RT——这就是"分辨率 128 与域的映射"：
-        /// uv = world.xz/beachSize.xz + 0.5、texel = uv·128 − 0.5（E-gi.compute.hlsl 文件头）。
-        /// 朝向：位于域中心正上方、rot=(90,0,0) 俯视——相机 right=+X、up=+Z，RT 的
-        /// uv.x=(x+15)/30、uv.y=(z+15)/30，与 E 映射逐轴一致（含 row=Z 轴向，B 流台账）。
-        /// 隐藏自建、DontSave（hideFlags=HideAndDontSave），depth=-100 保证 URP 相机序
-        /// 先于主相机（等效原作 TopView 渲在管线 Render 前，E 报告 §2.1）。
+        /// 顶视正交相机（E 报告 §1.3④）：orthoSize = 域半宽 15（Beach.cs:332 附近
+        /// orthoSize=size*0.5），恰好把域 [−15,+15]² 铺满 128² RT——这就是"分辨率 128
+        /// 与域的映射"：uv = world.xz/beachSize.xz + 0.5、texel = uv·128 − 0.5
+        /// （E-gi.compute.hlsl 文件头）。朝向：位于域中心正上方、rot=(90,0,0) 俯视——
+        /// 相机 right=+X、up=+Z，RT 的 uv.x=(x+15)/30、uv.y=(z+15)/30，与 E 映射逐轴
+        /// 一致（含 row=Z 轴向，B 流台账）。
+        /// 【A 流】enabled=false：相机只作矩阵/剔除/背景色源，绘制由 ReplicaGiFeature
+        /// 手动 DrawRenderers（opaque×"WaterLabVoxelizer" tag，对齐原作 TopView 分支
+        /// E §1.3①；方案 a/b 权衡见 Feature 文件头）。隐藏自建、DontSave
+        /// （hideFlags=HideAndDontSave）。
         /// </summary>
         static Camera CreateTopViewCamera()
         {
@@ -209,19 +241,16 @@ namespace PirateCrew.WaterLab
                 Quaternion.Euler(90f, 0f, 0f));
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.backgroundColor = new Color(0f, 0f, 0f, 0f);        // 原作 ClearRenderTarget(true,true)（E 报告 §1.3①）；空处 Gi kernel 走天空项
-            cam.cullingMask = VoxelizerMask;                        // 原作=opaque×Voxelizer tag；本仓暂渲 opaque 全集（TODO 见文件头注释）
-            cam.targetTexture = _sceneVoxels;                       // 输出重定向进 sceneVoxels（E §4.3 方案 a）
-            cam.depth = -100f;                                      // URP 按 depth 排序，先于主相机渲染
-            cam.enabled = true;                                     // 由 URP 相机循环自动渲染（非手动 Camera.Render）
+            cam.cullingMask = VoxelizerMask;                        // opaque×"WaterLabVoxelizer" tag 在 Feature 的 DrawRenderers；此为层漏斗
+            cam.enabled = false;                                    // 不进 URP 相机循环——手动采集（见方法注释）
             cam.useOcclusionCulling = false;                        // 128² 顶视无遮挡收益，关掉防剔除歧义
             return cam;
         }
 
-        static RenderTexture NewVoxelRT(string name, bool uav, bool mips, int depthBits)
+        static RenderTexture NewVoxelRT(string name, RenderTextureFormat colorFormat, bool uav, bool mips, int depthBits)
         {
-            // DefaultFormat 归 UnityEngine.Experimental.Rendering 命名空间（2022.3，URP 源码同款用法）
             var desc = new RenderTextureDescriptor(VoxelsResolution, VoxelsResolution,
-                SystemInfo.GetGraphicsFormat(UnityEngine.Experimental.Rendering.DefaultFormat.HDR), depthBits)
+                colorFormat, depthBits)
             {
                 enableRandomWrite = uav,      // giVoxels/giVoxelsBlurred 需 UAV（typed UAV load，E §1.1）
                 useMipMap = mips,
@@ -256,13 +285,13 @@ namespace PirateCrew.WaterLab
             cs.SetVector(CSunDirection, Shader.GetGlobalVector(SunDirGlobal));     // cb0[123]，_WaterLabSunDir
             cs.SetVector(CSunColor, Shader.GetGlobalVector(SunColorGlobal));       // cb0[125]，_WaterLabSunColor
             cs.SetInt(CFrameCount, Time.frameCount);                               // cb0[113].w
-            cs.SetInt(CSamples, 48);        // High 档（F §5；终验项）
-            cs.SetInt(CPrecision, 5);       // High 档
-            cs.SetFloat(CLerpSpeed, 0.2f);  // High 档
+            cs.SetInt(CSamples, 48);        // High 档资产序列化（F-postprocess.md §5）——待运行时终验（C# SetInt 反编译污染）
+            cs.SetInt(CPrecision, 5);       // High 档资产序列化——待运行时终验
+            cs.SetFloat(CLerpSpeed, 0.2f);  // High 档资产序列化——待运行时终验
 
             // 域掩码全局（消费侧 in-domain 用；Gi kernel 自身只用 g_GiDomainSize.xz）。
-            // 命名与 I2 TODO（WaterLabSand.shader L287-294）互指：
-            //   inDomain = all(abs(worldPos.xz − 域中心) ≤ g_GiDomainSize.xz × 0.5)
+            // 消费口径（A 流已落地，三 shader 的 WaterLabGiAmbient）：
+            //   inDomain = all(abs(worldPos.xz − (g_GiDomainMin.xz + g_GiDomainSize.xz×0.5)) < g_GiDomainSize.xz×0.5)
             Shader.SetGlobalVector(GlobalDomainMin, new Vector4(-domain * 0.5f, 0f, -domain * 0.5f, 0f));
             Shader.SetGlobalVector(GlobalDomainSize, new Vector4(domain, 0f, domain, 0f));
         }
@@ -275,6 +304,8 @@ namespace PirateCrew.WaterLab
                 UnityEngine.Object.Destroy(_topView.gameObject);
                 _topView = null;
             }
+            PirateCrew.Rendering.WaterLabGiBridge.TopViewCamera = null;
+            PirateCrew.Rendering.WaterLabGiBridge.SceneVoxels = null;
             ReleaseRT(ref _sceneVoxels);
             ReleaseRT(ref _giVoxels);
             ReleaseRT(ref _giVoxelsBlurred);

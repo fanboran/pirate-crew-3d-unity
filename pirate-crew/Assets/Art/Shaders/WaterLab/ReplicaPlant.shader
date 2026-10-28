@@ -11,6 +11,13 @@
 //   ③ 切线基 tA/tB 按 L62-68 字面转录（底稿的 cross(n.zxy,up) 与反汇编不符）。
 // 带 [真值] = 反汇编字面量/材质直读；带 [URP] = 换槽位（语义等价，I6b/L2 对账清单见
 // G-plants.md §6）。装配（材质/凸包网格/挂点）由 I6b 接，本文件只定 shader。
+//
+// 【A 流变更（GI 消费端闭合）】Forward 环境项 _WaterLabPlantAmbient 占位退役，换 E 流
+// idiom：indirect = albedo × lerp(unity_AmbientSky, giVoxels, inDomain)（E 报告
+// rt/reports/E-gi-pipeline.md §1.3③；Lit_Plant GI 变体 seg05 同构——G-plants.md 变体表
+// 「世界位 xz/cb0[116].xz+0.5 双线性采地形色调图，界内环境色替换为 t2.rgb，界外回退
+// cb0[40]」，t2 正身 = giVoxels 全局纹理，Gi.cs:186）。另新增 Voxelizer pass（体素化
+// rgb/w 来源，见该 pass 注释）。
 // ============================================================================
 Shader "WaterLab/PlantImposter"
 {
@@ -57,7 +64,44 @@ Shader "WaterLab/PlantImposter"
 
         // ---- 全局（$Globals，由 ReplicaPlantSystem 下发）----
         float4 _WaterLabPlantBoundsSize;  // [URP↔cb0[116].xz] 沙滩世界 XZ 尺寸（B 流 30×30；.y 备用）
-        float3 _WaterLabPlantAmbient;     // [URP↔cb0[40]] 环境色——运行时专用 TODO（见系统注释）
+        // 【A 流退役】_WaterLabPlantAmbient（[↔cb0[40]] 环境色占位）不再被本 shader 消费；
+        // 环境项正身 = 下式 WaterLabGiAmbient（域内 giVoxels / 域外 unity_AmbientSky）。
+        // ReplicaPlantSystem 侧的 SetVector 变惰性 no-op，清理归 F1。
+
+        // ---- GI 输入（A 流）----
+        // giVoxels 全局纹理（名字面 = 原作 SetGlobalTexture("giVoxels", giVoxelsBlurred)，
+        // Gi.cs:186；ReplicaGiSystem.Render 每帧发布）＝ BlurGi 模糊输出，双线性 + Clamp。
+        TEXTURE2D(giVoxels); SAMPLER(sampler_giVoxels);
+        // 域掩码 uniform（I3a 发布）：g_GiDomainMin=(−15,0,−15)、g_GiDomainSize=(30,0,30)。
+        float4 g_GiDomainMin;
+        float4 g_GiDomainSize;
+        // 顶视视线起点（仅 Voxelizer pass 消费；ReplicaGiFeature 手动 DrawRenderers 覆写
+        // UNITY_MATRIX_V/P 时 _WorldSpaceCameraPos 仍随主相机常量集——URP SetCameraMatrices
+        // 在 cmd.SetViewProjectionMatrices 之外单独设矩阵/常量，见 ScriptableRenderer.cs）。
+        float3 g_WaterLabVoxelEye;
+
+        // ---- GI 环境项（A 流：E 报告 rt/reports/E-gi-pipeline.md §1.3③ idiom）----
+        // 返回 lerp(unity_AmbientSky, giVoxels, inDomain)：
+        //   PS:103-104 div world.xz/beachSize.xz; add_sat +0.5 → uv
+        //   PS:106      sample_l t2(giVoxels), s1, LOD 0（双线性）
+        //   PS:107      add gi − cb0[40]
+        //   PS:108-110  mask = |x|<beachSize.x/2 && |z|<beachSize.z/2
+        //   PS:111      mad mask·(gi−cb0[40]) + cb0[40]（域外回退，字面算术形态）
+        // cb0[40] 正身 = unity_AmbientSky：URP 每相机上传 ConvertSRGBToActiveColorSpace(
+        // RenderSettings.ambientSkyColor)（URP 14 UniversalRenderPipeline.cs:1695）＝原作
+        // SetupPerFrameShaderConstants 同源（E 报告 §1.1 表）；主菜单 t=1/3 定值由装配侧
+        // RenderSettings 承担（H 流固定时刻）。
+        float3 WaterLabGiAmbient(float3 worldPos)
+        {
+            float2 center = g_GiDomainMin.xz + g_GiDomainSize.xz * 0.5;
+            float2 half_  = g_GiDomainSize.xz * 0.5;
+            float2 uv  = saturate(worldPos.xz / g_GiDomainSize.xz + 0.5);              // PS:103-104
+            float3 gi  = SAMPLE_TEXTURE2D_LOD(giVoxels, sampler_giVoxels, uv, 0).rgb;  // PS:106
+            float2 d   = worldPos.xz - center;
+            float  mask = ((abs(d.x) < half_.x) && (abs(d.y) < half_.y)) ? 1.0 : 0.0;  // PS:108-110
+            float3 amb = unity_AmbientSky.rgb;                                         // cb0[40]
+            return mask * (gi - amb) + amb;                                            // PS:107,111
+        }
 
         struct Attributes
         {
@@ -260,7 +304,9 @@ Shader "WaterLab/PlantImposter"
                 float3 lit = saturate(dot(IN.normalW, -main.direction)) * main.color * main.shadowAttenuation;
                 Light moon = GetAdditionalLight(0, planeW);        // [↔cb0[124]/[126] MoonLight]
                 lit += saturate(dot(IN.normalW, -moon.direction)) * moon.color;
-                float3 col = albedo * lit + albedo * _WaterLabPlantAmbient;  // [↔cb0[40] 环境]
+                // 【A 流 GI 闭合】环境项 = lerp(cb0[40], t2.rgb, inDomain)（E §1.3③；采样点
+                // = planeW 世界位，Lit_Plant seg05 的「世界位 xz/beachSize+0.5」同口径）。
+                float3 col = albedo * lit + albedo * WaterLabGiAmbient(planeW);  // [↔cb0[40]/giVoxels]
 
                 OUT.color = float4(col, 1.0);
                 OUT.depth = cp.z / cp.w;
@@ -339,6 +385,93 @@ Shader "WaterLab/PlantImposter"
                 float3 vs = IN.centerVS;
                 vs.z -= depthOff + IN.viewLocal.w * shadowDepthBiais;
                 float4 cp = mul(UNITY_MATRIX_P, float4(vs, 1.0));
+                OUT.depth = cp.z / cp.w;
+                return OUT;
+            }
+            ENDHLSL
+        }
+
+        // ====================================================================
+        // Voxelizer（A 流新增：顶视体素化来源，E 报告 §1.3①）。
+        // 原作 TopView 分支 = 顶视正交相机以 "Voxelizer" tag 渲 opaque 进 sceneVoxels：
+        // rgb=带光照表面色（GI 变体叠 giVoxels = 含一阶反弹，E §3 附注），w=世界 Y 由
+        // PS 直接写（mov o0.w, v1.y 口径）。与 Forward 唯两差异：
+        //   ① VS 视线起点 = 顶视相机位 g_WaterLabVoxelEye（覆写 UNITY_MATRIX_V/P 时
+        //     _WorldSpaceCameraPos 仍是主相机的——见 HLSLINCLUDE 声明处注释）；
+        //   ② 输出 a = planeW.y（世界 Y），rgb 无显示链差异（原 pass 本就无补偿项）。
+        // 【登记】Voxelizer PS 的精确逐指令表属 E §5 未覆盖区；imposter 视向八面体投影
+        //   在顶视（正下方）选格由投影公式自然覆盖。L3 整帧对不齐时回此处补逐指令。
+        // ====================================================================
+        Pass
+        {
+            Name "Voxelizer"
+            Tags { "LightMode" = "WaterLabVoxelizer" }
+
+            HLSLPROGRAM
+            #pragma vertex VoxelVert
+            #pragma fragment VoxelFrag
+
+            // 阴影接收变体（TransformWorldToShadowCoord 采样需要；不带 SOFT——原作
+            // sample_c_lz 点比较无软化，Sand 同口径）
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+
+            // 输出布局与 Forward 的 FragOut 同（pass snippet 互不可见，此处重声明）
+            struct FragOut
+            {
+                float4 color : SV_Target0;
+                float  depth : SV_Depth;
+            };
+
+            Varyings VoxelVert(Attributes IN)
+            {
+                Varyings OUT;
+                uint idx = _AliveList[IN.instance];
+                float4 rot   = _Plants[idx * 3 + 0];
+                float4 posSz = _Plants[idx * 3 + 1];
+                float4 velAg = _Plants[idx * 3 + 2];
+
+                float scale = GrowScale(velAg.w) * posSz.w;   // 出生曲线同 Forward（imposter 位姿与主 pass 一致）
+                float3 surfW = posSz.xyz + QuatRot(rot, scale * IN.position);
+                float3 cenW  = posSz.xyz + QuatRot(rot, pivotOffset.xyz);
+
+                OUT.positionCS = TransformWorldToHClip(surfW); // 顶视矩阵由 Feature 覆写（同 pass 内 SetViewProjectionMatrices）
+                OUT.cornerL    = IN.position;
+                OUT.normalW    = QuatRot(rot, IN.normal);
+                OUT.centerVS   = mul(GetWorldToViewMatrix(), float4(cenW, 1)).xyz;
+
+                float n2 = dot(rot, rot);
+                float4 invQ = rot * float4(-1, -1, -1, 1) / n2;
+                OUT.viewLocal.xyz = QuatRot(invQ, g_WaterLabVoxelEye - cenW);  // ① 顶视视线起点
+                OUT.viewLocal.w = scale;
+                return OUT;
+            }
+
+            FragOut VoxelFrag(Varyings IN)
+            {
+                FragOut OUT;
+                float3 albedo; float depthOff; float coverage;
+                ImposterShade(IN.viewLocal.xyz, IN.viewLocal.w, IN.cornerL,
+                              2.5, albedo, depthOff, coverage);   // [真值] 覆盖权重同 Forward K=2.5
+                clip(coverage - _Cutoff);
+
+                float3 vs = IN.centerVS;
+                vs.z -= depthOff;
+                float4 cp = mul(UNITY_MATRIX_P, float4(vs, 1.0));
+
+                float3 planeW = mul(UNITY_MATRIX_I_V, float4(vs, 1.0)).xyz;
+                float2 halfSize = _WaterLabPlantBoundsSize.xz * 0.5;
+                clip(halfSize.x - abs(planeW.x));
+                clip(halfSize.y - abs(planeW.z));
+                clip(planeW.y);
+
+                float4 shadowCoord = TransformWorldToShadowCoord(planeW);
+                Light main = GetMainLight(shadowCoord);
+                float3 lit = saturate(dot(IN.normalW, -main.direction)) * main.color * main.shadowAttenuation;
+                Light moon = GetAdditionalLight(0, planeW);
+                lit += saturate(dot(IN.normalW, -moon.direction)) * moon.color;
+                float3 col = albedo * lit + albedo * WaterLabGiAmbient(planeW);
+
+                OUT.color = float4(col, planeW.y);  // ② w=世界 Y（E §1.3① 口径）
                 OUT.depth = cp.z / cp.w;
                 return OUT;
             }

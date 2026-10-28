@@ -27,8 +27,10 @@
 //   Initialization: u0=giVoxels, u1=giVoxelsBlurred
 //   Gi:             t0=sceneVoxels（带 mip 链，管线 GenerateMips 生成）, u0=giVoxels
 //   BlurGi:         u0=giVoxels, u1=giVoxelsBlurred
-// 三张 RT 均 SystemInfo.GetGraphicsFormat(DefaultFormat.HDR)（BeachRenderPipeline.cs:2206）
-// → D3D11 = B10G11R11_UFloatPack32（无 alpha；11/11/10 位 float）。
+// 三张 RT 格式 = R16G16B16A16_SFloat（A 流修正：E 报告 §0.5 的 B10G11R11_UFloatPack32
+// 系静态推断，被 R 抓帧第一手推翻——原作相机 HDR RT 实测 R16G16B16A16_TYPELESS，
+// rt/reports/R-framedump.md:88；且 .w=世界 Y 语义需要 alpha 通道，B10G11R11 无 alpha，
+// RGBA16F 自洽。出处链与终验项见 ReplicaGiSystem.NewVoxelRT 注释）。
 // requirements=50241 含 typed UAV load——giVoxels 必须支持 UAV 读回，这正是该格式的
 // 硬件理由（[ER] §1.1）。RT 创建参数见 ReplicaGiSystem.NewVoxelRT。
 // ---------------------------------------------------------------------------
