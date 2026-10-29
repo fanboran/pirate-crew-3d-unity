@@ -148,23 +148,23 @@ namespace PirateCrew.Tests
                 + PixelartCameraRig.PixelScaleMax + "]（运行期真值 = PixelScaleState.Unit，rig 每帧对齐）");
 
             // ---- worldPerPixel 的 k 形状口径（审计 R2 修复后，全仓唯一换算式 WorldPerPixelFor）----
-            // wpp = 可见米数 × k ÷ 1080；可见米数美术锚 = CloseUpOrthoSize×2 = 32m。
+            // wpp = 可见米数 × k ÷ 1080；可见米数美术锚 = CloseUpOrthoSize×2 = 21.6m。
             // 推导「可见高度 = (屏幕高÷k) × wpp」在屏高恒定时与 k 无关——换档取景不动、只变颗粒。
-            float visibleMeters = CameraFraming.CloseUpOrthoSize * 2f;   // 32m
+            float visibleMeters = CameraFraming.CloseUpOrthoSize * 2f;   // 21.6m
             Assert.That(PixelartCameraRig.WorldPerPixelFor(visibleMeters, 2),
                 Is.EqualTo(CameraFraming.WorldPerPixel).Within(1e-6f),
-                "k=2 的换算值应与 CameraFraming.WorldPerPixel 逐位同源（32m ÷ 540 行 @1080p·2×）");
+                "k=2 的换算值应与 CameraFraming.WorldPerPixel 逐位同源（21.6m ÷ 540 行 @1080p·2×）");
 
             // ---- 运行时换档保取景（k=2 → 3 → 4 逐档验证）----
-            // 【前提摆位】prefab 的 (pixelScale=3, worldPerPixel=0.05925926) 是旧标定残留、两者不配对
-            // （0.05925926 是 k=2 形状值，运行时 3→2 对齐还会被换档重写再歪一次），装配侧数据缺陷
-            // 已登记转交；本用例先把 rig 摆到自洽前提（k=2 + 32m 口径）再钉 rig 数学，不背资产残留的锅。
+            // 【前提摆位】prefab 的 (pixelScale=3, worldPerPixel=0.04) 是旧标定残留、两者不配对
+            // （0.04 是 k=2 形状值，运行时 3→2 对齐还会被换档重写再歪一次），装配侧数据缺陷
+            // 已登记转交；本用例先把 rig 摆到自洽前提（k=2 + 21.6m 口径）再钉 rig 数学，不背资产残留的锅。
             rig.pixelScale = 2;
             rig.worldPerPixel = PixelartCameraRig.WorldPerPixelFor(visibleMeters, 2);
             PixelScaleState.Unit = 2;
             yield return null;   // 等 rig.Update 对齐 + derive 重算
 
-            // 可见高度 = (屏幕高÷k) × wpp（屏幕高=1080 时即美术锚 32m）。
+            // 可见高度 = (屏幕高÷k) × wpp（屏幕高=1080 时即美术锚 21.6m）。
             // 用 Screen.height（无头 batchmode = 480）而非 rig.RenderHeight：无头下缓冲不建、
             // RenderHeight 恒 0，只有这条分辨率无关式有区分度；实机上两者相等（RenderHeight = 屏高÷k）。
             float VisibleAt(int k)

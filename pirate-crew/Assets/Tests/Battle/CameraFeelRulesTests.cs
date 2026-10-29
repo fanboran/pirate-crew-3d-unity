@@ -408,13 +408,12 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void CloseUpPreset_IsTheNearFramingTier()
         {
-            // 【距离恒定收口（创始人 2026-10-07 裁决禁多镜头距离）】唯一恒定档 = 16.0
-            // （1080p·2× 等效，可见 32 m）；像素密度常量 WorldPerPixel = 0.05925926 与
-            // 像素化试点场景（调试关）序列化值逐位同源——调试关与战斗关同密度。
-            Assert.AreEqual(16f, CameraFraming.CloseUpOrthoSize, "恒定档 = 可见 32 m（1080p·2× 等效）");
-            Assert.AreEqual(32f, CameraFraming.CloseUpOrthoSize * 2f, 1e-4f, "可见高度 = 2 × OrthoSize");
-            Assert.AreEqual(0.05925926f, CameraFraming.WorldPerPixel, 1e-8f,
-                "像素密度常量与调试关 rig 序列化值逐位同源");
+            // 【2026-10-26 角色高度 ×1.42 / 双部件轴重合】唯一恒定档 = 11.25
+            // （1080p·2× 等效，可见 22.5 m）；WorldPerPixel = 1/24 = 1m/24 艺术像素。
+            Assert.AreEqual(11.25f, CameraFraming.CloseUpOrthoSize, 1e-3f, "恒定档 = 可见 22.5 m（1080p·2× 等效）");
+            Assert.AreEqual(22.5f, CameraFraming.CloseUpOrthoSize * 2f, 1e-4f, "可见高度 = 2 × OrthoSize");
+            Assert.AreEqual(0.0416667f, CameraFraming.WorldPerPixel, 1e-6f,
+                "像素密度常量 = 1m / 24 艺术像素（身 16px/头 14px 同对称于交界线 480.0 ⇒ 轴重合）");
             Assert.AreEqual(540f * CameraFraming.WorldPerPixel / 2f, CameraFraming.CloseUpOrthoSize, 1e-4f,
                 "CloseUpOrthoSize = 1080p·2× 下按 WorldPerPixel 反推的正交半高");
         }

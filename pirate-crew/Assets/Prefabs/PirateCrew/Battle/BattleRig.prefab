@@ -20346,7 +20346,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   pixelScale: 2
-  worldPerPixel: 0.05925926
+  worldPerPixel: 0.0416667
   deriveOrthographicSize: 1
   aaScaler: 1.5
   inkColor: {r: 0.05098, g: 0.05098, b: 0.058824, a: 1}

@@ -469,9 +469,13 @@ namespace PirateCrew.EditorTools
         static void DumpOutlineBufferSameFrame(int index)
         {
             var rig = global::PirateCrew.Rendering.Pixelart.PixelartPath.ActiveRig;
-            RenderTexture outline = rig != null ? rig.OutlineClosedBuffer : null;
+            // 着色读到的是"本帧真正发布的最终版"：闭合趟没跑（simple 模式/缺 pass）时
+            // 发布的是 OutlineBuffer，此时 Closed 从未写过、dump 它只会得到一张空图。
+            RenderTexture outline = rig != null
+                ? (rig.OutlineClosedReady ? rig.OutlineClosedBuffer : rig.OutlineBuffer)
+                : null;
             if (outline == null)
-                outline = rig != null ? rig.OutlineBuffer : null;   // 旧资产/闭合趟未跑时兜底
+                outline = rig != null ? rig.OutlineBuffer : null;
             if (outline == null)
                 return;
 

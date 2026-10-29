@@ -111,6 +111,9 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
             // 不与上面那张表撞号（曾经取 5/6，与"5 = 连通域结论"撞车——同一帧里两个 pass 对同一个
             // 全局量各有一套解释，虽然当时无害，但是迟早会咬人的那种隐患）。
             float _PixelartDebugMode = 0.0;
+            // 1 = 纯覆盖膨胀：中心不描边 + 四邻域有描边物体 ⇒ 出墨。
+            // 无 connected/closer 门控、无接缝/近侧规则。覆盖对称 ⇒ 墨环逐行对称。
+            float _PixelartOutlineSimple = 0.0;
 
             // 本 pass 自己的诊断档（拆管线用，AGENTS.md 的图形学调试规范）：
             //   8 = 门控诊断：**门控命中就写 1**（不看 applyOutline）。画面全墨 ⇒ 连通域在命中；
@@ -308,6 +311,20 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                 }
 
                 marker = max(markerGate, markerFallback);
+
+                // 纯覆盖膨胀模式：丢弃全部门控结果。
+                if (_PixelartOutlineSimple > 0.5)
+                {
+                    marker = 0.0;
+                    if (!centerAppliesOutline)
+                    {
+                        if (AppliesOutlineAt(uvCenter + float2(texel.x, 0.0))
+                            || AppliesOutlineAt(uvCenter - float2(texel.x, 0.0))
+                            || AppliesOutlineAt(uvCenter + float2(0.0, texel.y))
+                            || AppliesOutlineAt(uvCenter - float2(0.0, texel.y)))
+                            marker = 1.0;
+                    }
+                }
 
                 // 调试档（0 = 契约语义，别的值都是本 pass 的诊断档；见文件头的取值表）
                 if (_PixelartDebugMode > kDebugGate - 0.5 && _PixelartDebugMode < kDebugGate + 0.5)

@@ -31,7 +31,7 @@ namespace PirateCrew.Battle
     /// 【机位口径 — 等距像素卡通（创始人裁决 2026-09-22/23）】
     ///   正交投影、**俯角锁 30°**（与出图口径 <see cref="PixelartPilotScene.PitchDegrees"/> 同一常量，
     ///   "宣传图里的观感"才等于"玩的时候的观感"）、**方位可自由旋转**（右键拖拽只改偏移的方位角）、
-    ///   **取景恒为基准档 <see cref="CloseUpOrthoSize"/>（可见 32 m）——没有滚轮缩放**；
+    ///   **取景恒为基准档 <see cref="CloseUpOrthoSize"/>（可见 22.5 m）——没有滚轮缩放**；
     ///   以后说"缩放"只指像素比例（PixelScale 3:1 → 4:1/5:1/2:1，画面长相恒定）。
     ///
     /// 【环绕重瞄（2026-09-23 定案，推翻"不重瞄"旧口径）】
@@ -63,20 +63,26 @@ namespace PirateCrew.Battle
         public const float BaseDistance = 30f;
 
         /// <summary>
-        /// **恒定像素密度（米 / 艺术像素）= 0.05925926（= 32m ÷ 540 行 @1080p·2×）**。
-        /// 【创始人 2026-10-07 裁决：禁多镜头距离】战斗相机**恒定这一个距离**——取景/聚焦/
+        /// **恒定像素密度（米 / 艺术像素）= 1/24 = 0.0416667（可见 22.5m，正交半高 11.25）**。
+        /// 【为什么是 24】两件式角色要**同轴**：16 边身体投影半宽 0.3×P px，12 段头投影半宽
+        /// 0.3·cos15°×P ≈ 0.29×P px——cos15° 无理 ⇒ 任何密度下两者像素宽都差一点。
+        /// P=24 是最近的整解：身 14.4px→栅格 16px（奇偶都落在 472–487）、头 13.9px→14px，
+        /// **两者都对称于同一条像素交界线 480.0 ⇒ 双轴重合**（角色高 2.0321×24 = 48.8 艺术像素 ≈ 1.42×）。
+        /// 【创始人 2026-10-26：角色在画面里的高度 ×1.5、增加像素精度】取 1m = 25 艺术像素这一
+        /// 整数映射：角色总高 2.0321m → **50.8 艺术像素**（原 34.3，×1.48），头直径 0.6m →
+        /// **15 艺术像素**（原 10.1）；30° 俯角的 2:1 斜边阶梯不变。
+        /// 【创始人 2026-10-07 裁决：禁多镜头距离】战斗相机**恒定这一个密度**——取景/聚焦/
         /// 全景一律不再改变 ortho，要"特写"就从大图里裁小图（像素游戏没有推拉镜头这回事）。
-        /// 本值与像素化试点场景（PixelartCloud 等）rig 上的序列化标定**逐位同源**——调试关与
-        /// 战斗关自此观感一致（同密度、同色带、同光）。
+        /// 像素化试点场景的 close/mid/wide 是美术评审自己的取景表，不跟本常量绑定。
         /// </summary>
-        public const float WorldPerPixel = 0.05925926f;
+        public const float WorldPerPixel = 0.0416667f;
 
         /// <summary>
-        /// **恒定档 OrthoSize（1080p·2× 等效正交半高 = 540 × <see cref="WorldPerPixel"/> ÷ 2 = 16.0，
-        /// 可见 32 m）**。运行时 rig 以 <c>deriveOrthographicSize</c> 模式按
+        /// **恒定档 OrthoSize（1080p·2× 等效正交半高 = 540 × <see cref="WorldPerPixel"/> ÷ 2 = 11.25，
+        /// 可见 22.5 m）**。运行时 rig 以 <c>deriveOrthographicSize</c> 模式按
         /// <see cref="WorldPerPixel"/> 自反推（分辨率无关），本常量只供"1080p 基准值"引用与测试锚定。
         /// </summary>
-        public const float CloseUpOrthoSize = 16f;
+        public const float CloseUpOrthoSize = 11.25f;
 
         /// <summary>全场档 OrthoSize：纵向 2×17=34u 覆盖样板关 30u 全场。
         /// 两档取景制（2026-10-05 走查反馈）下是远景档的下限（<see cref="PanoramaOrthoSizeForSpan"/>

@@ -31,6 +31,7 @@ namespace PirateCrew.Rendering.Pixelart
     /// 换档取景不动、只是颗粒变细（渲染管线.md §3.1）；而**屏幕分辨率越高、可见范围越大**
     /// （1080p 28m → 1440p 37m），因为艺术画布随屏幕变大。
     /// </summary>
+    [ExecuteAlways]
     [RequireComponent(typeof(Camera))]
     [DisallowMultipleComponent]
     public sealed class PixelartCameraRig : MonoBehaviour
@@ -43,6 +44,10 @@ namespace PirateCrew.Rendering.Pixelart
         [Header("低分辨率域")]
         [Tooltip("像素化档位 = 一个艺术像素占几个**屏幕**像素（整数放大倍数，锁死）。2 = 1920×1080 下 960×540。")]
         [Min(1)] public int pixelScale = PixelScaleDefault;
+
+        [Tooltip("编辑态也初始化并渲染本路径（默认关）。只给专用观察场用："
+            + "打开后 Game 视图不按 Play 也是实机六趟管线；正式场景保持关闭，播放时照常运行。")]
+        public bool runInEditMode;
 
         /// <summary>像素比例档下限（1:2）——创始人 2026-09-24 裁决：滚轮只在 1:2–1:5 间步进。</summary>
         public const int PixelScaleMin = 2;
@@ -168,6 +173,13 @@ namespace PirateCrew.Rendering.Pixelart
 
         int _allocatedWidth;
         int _allocatedHeight;
+
+        /// <summary>
+        /// OnEnable 是否真的走完了初始化。`[ExecuteAlways]` 下编辑态也会触发 OnEnable/OnDisable，
+        /// 但只有 <see cref="runInEditMode"/> 打开（或正在播放）才初始化；OnDisable 必须据此判断，
+        /// 否则会把未初始化的 saved 字段（默认 0 = Nothing）写回相机，把编辑态相机弄成空屏。
+        /// </summary>
+        bool _initialized;
 
         // 屏幕 → 像素网格的映射（日志与整数性判断用）。初值只是字段兜底：
         // OnEnable → EnsureBuffers → ComputeTargetSize 当帧就用 pixelScale 覆写它。
@@ -373,6 +385,13 @@ namespace PirateCrew.Rendering.Pixelart
 
         void OnEnable()
         {
+            // 编辑态只在显式打开 runInEditMode 的观察场里跑；正式场景（含 Battle/试点/调试场）
+            // 保持"进 Play 才初始化"的原行为，避免编辑态建 RT/子相机污染场景。
+            if (!Application.isPlaying && !runInEditMode)
+                return;
+            if (_initialized)
+                return;
+
             _screenCamera = GetComponent<Camera>();
             if (_screenCamera == null)
             {
@@ -407,6 +426,7 @@ namespace PirateCrew.Rendering.Pixelart
             EnsureBuffers();
             EnsureOverlayCamera();
             PixelartPath.ActiveRig = this;
+            _initialized = true;
         }
 
         static void ApplyRendererIndex(Camera camera, int index)
@@ -453,6 +473,12 @@ namespace PirateCrew.Rendering.Pixelart
 
         void OnDisable()
         {
+            // `[ExecuteAlways]` 下编辑态禁用/切场景也会进这里；没初始化过就不能回写 saved 字段
+            //（默认 clearFlags=Nothing 会让编辑态相机变空屏）。
+            if (!_initialized)
+                return;
+            _initialized = false;
+
             if (PixelartPath.ActiveRig == this)
                 PixelartPath.ActiveRig = null;
 
@@ -510,6 +536,8 @@ namespace PirateCrew.Rendering.Pixelart
 
         void Update()
         {
+            if (!Application.isPlaying && !runInEditMode)
+                return;
             if (_castCamera == null)
                 return;
 
@@ -619,6 +647,9 @@ namespace PirateCrew.Rendering.Pixelart
             {
                 var go = new GameObject(CastCameraName);
                 go.transform.SetParent(transform, false);   // local 恒等：继承主相机的 Transform
+                // 编辑态自动建的子相机不能进场景存档（否则每次打开观察场就多一台孤儿相机）。
+                if (!Application.isPlaying)
+                    go.hideFlags = HideFlags.DontSave;
                 _castCamera = go.AddComponent<Camera>();
                 _castCameraCreatedAtRuntime = true;
             }
@@ -678,6 +709,8 @@ namespace PirateCrew.Rendering.Pixelart
 
             var go = new GameObject(OverlayCameraName);
             go.transform.SetParent(transform, false);   // local 恒等：随主相机（Cinemachine）一起动
+            if (!Application.isPlaying)
+                go.hideFlags = HideFlags.DontSave;       // 编辑态观察场不把叠加相机写进场景
 
             _overlayCamera = go.AddComponent<Camera>();
             _overlayCamera.orthographic = _screenCamera.orthographic;

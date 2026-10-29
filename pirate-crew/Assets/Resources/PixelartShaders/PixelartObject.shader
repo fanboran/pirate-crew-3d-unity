@@ -27,10 +27,20 @@
 //   且角部外扩重叠出堆块。故本 shader **没有**墨线 pass、没有 `_InkColor`/`_PixelartInkDepthPull`。
 //
 // 【物体级像素吸附】`_SnapToPixelGrid`（默认开，创始人裁决）：把物体**原点**在**视图空间**吸附到
-//   1 艺术像素的整数倍，位移对所有顶点相同 ⇒ 形状不变形、整块落在格子边界上。
+//   像素格网上——x 轴带 **−1/4 艺术像素相位**、y 轴整数格；位移对所有顶点相同 ⇒ 形状不变形、
+//   同场所有物体落到同一相位上。1/4 相位有两族（±1/4），取 −1/4 这族：
+//   柱身 14.4px 真宽量化成 14px 不丢档，且显示轴落回像素交界线（+1/4 族是 13px/中分线）。
+//   【为什么 x 要 1/4 相位】画布像素是屏幕档 2×2 块内的**块锚点采样**，弯曲剪影（球头）的
+//   覆盖判定落在采样点上，而块锚格网的镜像对称线在 1/4 像素相位：原点吸到整数格（像素交界线）
+//   时，球头逐行在"关于交界线/关于中分线"两种奇偶间翻面——整颗头不关于任何一条轴镜像，
+//   且视觉轴线与身体错开约半像素（绿幕探针实测：身体 30 行严格镜像、头部上半 L+R=960 下半
+//   L+R=959）。吸到 1/4 相位后头/身同轴，显示轴落回像素中分线或交界线（随块锚奇偶），
+//   逐行严格镜像。直边剪影（柱体）对相位鲁棒，不受影响。
+//   【已知边界】左右成对的离轴部件（如未来加双手持物）各自吸各自原点，1/4 相位的 round
+//   不保奇对称，成对部件间可能差半像素；现役两件式角色（身+头）无此问题。
 //   这是 v3 `CommonPass.hlsl` 两层里的**第二层**（顶点着色器原点对齐），蓝图 §1.4 ⚠ 说两层作用重叠、
-//   只需一层——本仓取这一层。与 CameraRig 的**视图矩阵 snap**（第一步）叠加时，两者的网格是同一个
-//   （都以 `_PixelartUnitSize` 为单位），所以不会互相打架。
+//   只需一层——本仓取这一层。与 CameraRig 的**视图矩阵 snap**（第一步）叠加时，两者网格同单位
+//   （`_PixelartUnitSize`），只差本层 x 的 1/4 相位，不会互相打架。
 //
 // 【抖动坐标】几何是渲进屏幕档的，所以 `positionCS.xy` 是**细像素**坐标；抖动图案要贴艺术像素网格，
 //   故先 `floor(positionCS.xy / pixelScale)` 取艺术像素坐标（本仓口径：贴屏幕 + 块对齐，蓝图 §7.2 第 6 条）。
@@ -174,8 +184,9 @@ Shader "PirateCrew/Pixelart/PixelartObject"
                 half4 rimlight : SV_Target6;
             };
 
-            /// 物体级像素吸附：把物体原点在**视图空间**吸附到 1 艺术像素的整数倍。
-            /// 位移对所有顶点相同（不 snap 逐顶点）⇒ 形状不变形，只是整块落到格子边界上。
+            /// 物体级像素吸附：把物体原点在**视图空间**吸附到像素格网（x 轴 −1/4 艺术像素相位、
+            /// y 轴整数格）。位移对所有顶点相同（不 snap 逐顶点）⇒ 形状不变形，整块落到同一相位。
+            /// x 的 1/4 相位是弯曲剪影（球头）逐行镜像的必要条件，族方向与依据见文件头【物体级像素吸附】。
             float2 PixelartOriginSnap(float3 originWS, float3 positionVS)
             {
                 if (_SnapToPixelGrid < 0.5)
@@ -183,7 +194,8 @@ Shader "PirateCrew/Pixelart/PixelartObject"
 
                 float unit = max(_PixelartUnitSize, 1e-6);
                 float3 originVS = mul(UNITY_MATRIX_V, float4(originWS, 1.0)).xyz;
-                float2 snapped = float2(round(originVS.x / unit), round(originVS.y / unit)) * unit;
+                float2 snapped = float2((round(originVS.x / unit + 0.25) - 0.25) * unit,
+                                        (round(originVS.y / unit + 0.25) - 0.25) * unit);
                 return snapped - originVS.xy;
             }
 
