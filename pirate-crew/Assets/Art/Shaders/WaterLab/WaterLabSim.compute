@@ -100,9 +100,6 @@ float _TideMinAmount;        // max(level−floor+wave, 0.05) 的 5 cm 结合水
 // 蒸发水汽衰减字面量（原作 UpdateAmount 0.721348；DXBC exp2 语义 = e^(−0.5·湿度)，
 // X-exp2.md 修正——旧版误用自然 exp）
 const float EvaporationHumidityDecay = 0.721348;
-// 干滩薄水渗透（C 级近似）：原作沙层是孔隙介质，本仓无沙-水交换层。
-float _BeachInfiltrationDepth;
-float _BeachInfiltrationRate;
 
 float _BreakingSteepness;   // H/h 破碎阈值（0.78，Miche 准则工程版）
 float _BreakingFroude;      // = _BreakingSteepness/2（浅水 u=a√(g/h)、c=√(gh) ⇒ a/h=Fr，
@@ -279,15 +276,10 @@ void SurfaceUpdate(uint3 id : SV_DispatchThreadID)
     float target = max(tide - _Floor[i], _TideMinAmount);
 
     // 逐格耦合权重（已归一化 w/15）：h += w·(target−h)（B2 反汇编 mad 逐式）。
-    // 干滩薄水渗透仍用原始地面 g 判干湿——floor 的 3 次平滑会抬高滩沿干湿判据。
+    // 【干滩渗透项已删（L3-water-attrib §3#4 定案：原作 UpdateAmount 无此机制——
+    // 旧自加项以 6/s 吸干上滩 run-up 薄膜并把 h 钉在 _DryDepth 永不到 0，是岸线带
+    // 干沙直出与沙掩码 99% ≤1cm 越岸膜的主动源；退潮残片的原作行为=慢蒸发+流回）】
     h += _CouplingWeights[i] * (target - h);
-
-    // 干滩薄水渗透：ground>0 且可见水深 < 阈值的薄片，快速吸回 5 cm 结合水。
-    // 退潮后滩面上的 1–5 cm 残片没有足够坡降自行流回，会在画面上读成残留水；
-    // 原作靠沙层的孔隙交换处理，本仓用这一项做 C 级补偿。深水/主水线不受影响。
-    float visible = h - _DryDepth;
-    if (g > _SeaLevel && visible > 0.0 && visible < _BeachInfiltrationDepth)
-        h = lerp(h, _DryDepth, 1.0 - exp(-_BeachInfiltrationRate * _Dt));
 
     _WaterA[i] = float4(h, w.y, w.z, w.w);
 }

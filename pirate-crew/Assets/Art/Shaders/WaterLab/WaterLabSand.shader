@@ -276,8 +276,12 @@ Shader "PirateCrew/WaterLab/Sand"
             float wetBand = saturate((saturate(waterDepth) - 0.001) * 52.63158); // PS:81-85
             float smoothWet = wetBand * wetBand * (3.0 - 2.0 * wetBand);         // PS:86-88
             albedo = lerp(_SandColorDry.rgb, _SandColorWet.rgb, smoothWet);      // PS:89-90
-            // 第三色：sat(v5.w×20)，5 cm 满（D 表§5-5：v5.w=22bit 水侧场，本仓同以深度代位）
-            albedo = lerp(albedo, _SandColorThird.rgb, saturate(waterDepth * 20.0)); // PS:91-93
+            // 第三色：sat(v5.w×20)，5 cm 满（D 表§5-5：v5.w=22bit 水侧场）。
+            // 【L3-water-attrib §2.3#1 定案】原作该场海区实测 ≈0（水下=湿沙色），本仓
+            // 深度代位场海区恒饱和 → 水下 albedo 错落第三色 (G/B=湿沙 51%/39%，中水
+            // G−55%/B−63% 主源）。22bit 场身份 B/E 终审前**钳 0 挂起第三色 lerp**，
+            // 禁止用深度族代位（透射链无罪：σ exp2 已在原作数据复核、B 绝对量闭合 1%）。
+            albedo = lerp(albedo, _SandColorThird.rgb, 0.0 /*saturate(waterDepth*20) 代位作废*/); // PS:91-93
 
             // ---- 段 D：白噪声调制 albedo（PS:94-99；干湿皆在，无时间项）----
             albedo += 0.2 * ny * (albedo * ((2.0 * sandMap.r) - 1.0));           // PS:94,96-99
@@ -294,8 +298,10 @@ Shader "PirateCrew/WaterLab/Sand"
     #endif
 
             // ---- 段 F：水柱 × 阴影 × 光照（PS:106-173）----
-            // column = exp(−0.721348×场)——场=逐像素 22bit 水侧场双线性，本仓解析代位（§5-7）。
-            float column = exp2(-0.721348 * waterDepth);  // exp2 语义：e^(−0.5·d)（旧自然底误读多衰 30%）
+            // column = exp(−0.721348×场)——场=逐像素 22bit 水侧场双线性（§5-7）。
+            // 【同 L3-water §2.3#2】原作场海区 ≈0 → column ≈1（不衰减）；深度代位海区
+            // e^(−0.5d) 多衰 10–22%。22bit 终审前短期**钳 1**（与第三色钳 0 成对）。
+            float column = 1.0 /*exp2(-0.721348 * waterDepth) 代位作废*/;
             // dot(N,−太阳方向)（PS:167-169）；_WaterLabSunDir 指向太阳，零向量兜底与装配器同向
             float3 sunRaw = _WaterLabSunDir.xyz;
             float3 sunDir = (dot(sunRaw, sunRaw) < 0.25)

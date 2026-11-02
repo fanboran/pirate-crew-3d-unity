@@ -504,7 +504,8 @@ namespace PirateCrew.WaterLab.Tests
 
         /// <summary>compute SurfaceUpdate 的 CPU 镜像（W1 B2 语义，逐式一致）：
         /// target = max(SeaLevel + clamp(amp·sin(playTime), −0.5, +∞) − floor, 0.05)；
-        /// `h += w·(target−h)`（w = 权重/15，每帧一次不乘 dt）；干滩渗透仍用原始地面判干湿。</summary>
+        /// `h += w·(target−h)`（w = 权重/15，每帧一次不乘 dt）。
+        /// 【干滩渗透项已删（L3-water-attrib §3#4：原作无此机制）——镜像同步删，L1 差分口径保持一致】</summary>
         static void UpdateSurface(float[] h, float[] ground, float[] floor, float[] weights,
             float playTime, float dtFrame)
         {
@@ -513,7 +514,6 @@ namespace PirateCrew.WaterLab.Tests
                 WaterLabRules.WaveAmplitude(playTime) * Mathf.Sin(playTime),
                 WaterLabRules.TideClampMin, float.PositiveInfinity);
             float evap = WaterLabRules.EvaporationRate() * dtFrame;
-            float infilDecay = Mathf.Exp(-WaterLabRules.BeachInfiltrationRate * dtFrame);
 
             for (int i = 0; i < h.Length; i++)
             {
@@ -525,11 +525,6 @@ namespace PirateCrew.WaterLab.Tests
 
                 // h += w·(target−h)：与 compute `_CouplingWeights[i] * (target - h)` 同式
                 hh += weights[i] * (target - hh);
-
-                float g = ground[i];
-                float visible = hh - WaterLabRules.DryDepth;
-                if (g > WaterLabRules.SeaLevel && visible > 0f && visible < WaterLabRules.BeachInfiltrationDepth)
-                    hh = WaterLabRules.DryDepth + (hh - WaterLabRules.DryDepth) * infilDecay;
 
                 h[i] = hh;
             }

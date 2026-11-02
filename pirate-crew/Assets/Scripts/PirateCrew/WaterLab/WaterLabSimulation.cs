@@ -862,8 +862,6 @@ namespace PirateCrew.WaterLab
             cs.SetFloat(ShaderIds.TideClampMin, WaterLabRules.TideClampMin);
             cs.SetFloat(ShaderIds.TideMinAmount, WaterLabRules.TideMinAmount);
             PushGroundConstants();
-            cs.SetFloat(ShaderIds.BeachInfiltrationDepth, WaterLabRules.BeachInfiltrationDepth);
-            cs.SetFloat(ShaderIds.BeachInfiltrationRate, WaterLabRules.BeachInfiltrationRate);
             if (!_constantsLogged)
             {
                 _constantsLogged = true;
@@ -1026,8 +1024,6 @@ namespace PirateCrew.WaterLab
             public static readonly int TideClampMin = Shader.PropertyToID("_TideClampMin");
             public static readonly int TideMinAmount = Shader.PropertyToID("_TideMinAmount");
             public static readonly int EvaporationRate = Shader.PropertyToID("_EvaporationRate");
-            public static readonly int BeachInfiltrationDepth = Shader.PropertyToID("_BeachInfiltrationDepth");
-            public static readonly int BeachInfiltrationRate = Shader.PropertyToID("_BeachInfiltrationRate");
             public static readonly int BreakingSteepness = Shader.PropertyToID("_BreakingSteepness");
             public static readonly int BreakingFroude = Shader.PropertyToID("_BreakingFroude");
             public static readonly int FoamGain = Shader.PropertyToID("_FoamGain");

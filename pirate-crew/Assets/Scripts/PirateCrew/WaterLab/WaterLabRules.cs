@@ -555,14 +555,9 @@ namespace PirateCrew.WaterLab
         /// <summary>湿沙蒸发速率（1/s）：无水覆盖后向 w=0 衰减（比浸润慢一个量级，退潮后湿痕留存）。</summary>
         public const float WetnessEvaporateRate = 0.15f;
 
-        /// <summary>干滩薄水渗透阈值（m）：ground&gt;0 且可见水深低于此值时，水片按
-        /// <see cref="BeachInfiltrationRate"/> 吸回 5 cm 结合水。原作沙层是孔隙介质，
-        /// 本仓没有沙-水交换层，这是 C 级近似；深水/主水线（depth 远大于阈值）不受影响。</summary>
-        public const float BeachInfiltrationDepth = 0.04f;
-
-        /// <summary>干滩薄水渗透速率（1/s）：约 0.17 s 时间常数，退潮前沿的薄片在
-        /// 半个潮周期内被吸走，同时保留水深 &gt;4 cm 的主水线。</summary>
-        public const float BeachInfiltrationRate = 6f;
+        // 【干滩薄水渗透项已删（L3-water-attrib §3#4 定案）】原作 UpdateAmount 无此机制
+        //（蒸发→泵→潮位松弛）；旧自加项以 6/s 吸干上滩 run-up 薄膜并把 h 钉在结合水深度
+        // 永不到 0，是岸线带干沙直出与沙掩码 99% ≤1cm 越岸膜的主动源。
 
         /// <summary>湿沙邻域扩散保留比（湿痕向干沙摊开）。</summary>
         public const float WetnessDiffuse = 0.08f;
