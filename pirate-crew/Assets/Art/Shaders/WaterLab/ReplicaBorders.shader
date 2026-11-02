@@ -67,7 +67,7 @@ Shader "PirateCrew/WaterLab/ReplicaBorders"
         _SandColor2        ("沙色二（Carbonate color2）", Vector) = (0.8353, 0.8078, 0.6902, 1)
 
         // ---- FrontWater 剖面带着色（cb0[131]/[132]，与 Lit/Water 同槽）----
-        _WaterColor        ("水色（waterColor 全局）", Vector) = (0.9603, 0.9858, 0.9995, 1)
+        _WaterColor        ("水色（waterColor 全局，cb0[131] t=1/3 运行时；序列化 0.9603… 惰性残留）", Vector) = (0.7835, 0.9486, 1.0, 1)
         // σ = R 抓帧运行时真值 cb0[132]（R-framedump 定案，交接§3 R 行；A 流 σ≡0
         // 静态结论已被 R 推翻）。tint 域，有效消光 6σ/m=(5.958,1.052,0.335)。
         // 装配侧 WaterLabSetup.ReplicaSigma 同源下发（WaterLabReplicaGlobals 的

@@ -31,27 +31,22 @@ namespace PirateCrew.WaterLab
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// cb0[131] waterColor（A 表 §2.1「锚定」行）：透射染色，σ≡0 下即透射本色。
-        /// 值 (0.9603, 0.9858, 0.9995) = Water 材质序列化值（交接档 §3；
-        /// A 表 §4 注：运行时来自当前水体 preset，菜单场景以 frida 台账为准——
-        /// 抓帧对账点）。
+        /// cb0[131] waterColor：透射染色。值 (0.7835, 0.9486, 1.0) = t=1/3 DayCycler
+        /// 运行时值（R 抓帧实测，L2-run §2：水 PS 全部 draw 逐位同值，跨 Lit_* 同刻同值）。
+        /// Water 材质序列化值 (0.9603, 0.9858, 0.9995) 是惰性残留（同 σ 案：序列化 ≠ 运行时）。
         /// </summary>
-        static readonly Vector4 WaterColor = new Vector4(0.9603f, 0.9858f, 0.9995f, 1f);
+        static readonly Vector4 WaterColor = new Vector4(0.7835f, 0.9486f, 1.0f, 1f);
 
         /// <summary>
-        /// cb0[121] waterScatteringColor（A 表 §2.1「锚定」行）：散射补色，把水体往
-        /// 沙色推的暖橙。值 (0.5684, 0.3569, 0) = Water 材质序列化值（交接档 §3；
-        /// 运行时对账口径同上）。
+        /// cb0[121] waterScatteringColor：散射补色。值 (0.8015, 0.5061, 0.5316) =
+        /// t=1/3 DayCycler 运行时值（R 抓帧实测，出处同上）；材质序列化 (0.5684, 0.3569, 0) 勿用。
         /// </summary>
-        static readonly Vector4 ScatterColor = new Vector4(0.5684f, 0.3569f, 0f, 1f);
+        static readonly Vector4 ScatterColor = new Vector4(0.8015f, 0.5061f, 0.5316f, 1f);
 
         /// <summary>
-        /// cb0[125] sunColor（A 表 §2.1 槽 125）：镜面染色。
-        /// 取值 (1.0, 0.9709, 0.9403) = A 表给的主菜单时刻真值（交接档 §3 灯，
-        /// level0 SunLight m_Color 直读）。
-        /// TODO(时刻对账)：H 流（交接档 §3 边框/时刻行）给出 DayCycler 在固定时刻
-        /// t=1/3 Morning 的运行时 sunColor = (1, 0.9404, 0.8724)——与 A 表的灯序列化值
-        /// 差一个色温档。I1 按任务书落 A 表值；I8（固定时刻装配）接线时两值对账闭此。
+        /// cb0[125] sunColor：镜面染色。值 (1, 0.940429, 0.872353) = t=1/3 Morning
+        /// DayCycler 运行时值（R 抓帧实测 cb0[125]，L2-run §2 终证；灯序列化值
+        /// (1, 0.9709, 0.9403) 是待机态，勿用）。
         /// </summary>
         static readonly Vector4 SunColor = new Vector4(1.0f, 0.940429f, 0.872353f, 1f);
 

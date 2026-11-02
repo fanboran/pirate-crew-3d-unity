@@ -139,6 +139,7 @@ namespace PirateCrew.EditorTools
             // batchmode 出图（本类 BuildSceneAndCapture）没有人手开场景，靠这里生效；
             // 编辑器下 WaterLabPipelineSwitch 挂了 sceneOpened/playMode 事件，切走自动还原。
             WaterLabPipelineSwitch.Apply();
+            EnsureRt0DumpFeature(); // L3 工具件：rt0 dump Feature 幂等注入（L3 工具轮加法）
             Debug.Log($"[WaterLabSetup] 场景已装配并保存：{path}");
         }
 
@@ -148,6 +149,7 @@ namespace PirateCrew.EditorTools
         public static void BuildSceneAndCapture()
         {
             BuildScene();
+            WaterLabL3CaptureHooks.Arm(); // L3 工具件：分辨率钩子 + rt0 dump 武装时序（本文件尾）
             BattleHudScreenshot.CaptureHeadless();
         }
 
@@ -191,7 +193,10 @@ namespace PirateCrew.EditorTools
             skyLight.color = new Color(0.0627f, 0.1333f, 0.2196f); // 昼夜循环其它时刻的序列化色
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.698039f, 0.564706f, 0.569923f); // ambientSkyColor@t=1/3
+            // cb0[40] 抓帧实读 (0.4452, 0.2876, 0.2789)（R2 Gi kernel cbuffer，GI-audit §②）：
+            // Flat 模式下 ambientSkyColor=ambientLight，Gi compute _AmbientSky 与各 GI 消费端
+            // 全链同源此值。旧值 (0.698,0.565,0.570) 是 level0 序列化待机态（同 σ 案被第一手推翻）。
+            RenderSettings.ambientLight = new Color(0.4452f, 0.2876f, 0.2789f);
             RenderSettings.sun = light; // WaterLabSimulation.PublishSunDir 解析源
         }
 
@@ -216,13 +221,29 @@ namespace PirateCrew.EditorTools
             // 前移（原作菜单即拖动平移相机，不改俯仰）。差分对账用基准值时把前移量归零。
             // 朝水体质心平移（快照 waterAmount 加权重心 (0.12, 9.51)——前移视线版本实测
             // 水占比反降（落点在沙洲），改水平朝心平移；差分对账归零即回基准）。
-            const float PanTowardWaterMeters = 6f;
+            // 【L3 基线钩子】PC3D_WATERLAB_PAN 覆写前移量（L3 工具轮加法，只加不改：
+            // 不设 env 行为不变）——L3 差分基线用 0 = 原作 cb0[6] 纯位姿
+            // (7.570009,20.671303,−21.924673)（L2-run §2 槽位表）。
+            float panTowardWaterMeters = ResolvePanTowardWater();
             Quaternion baseRot = new Quaternion(0.37687f, -0.16043f, 0.066452f, 0.909844f);
             Vector3 basePos = new Vector3(7.570009f, 20.671303f, -21.924673f);
             Vector2 toWater = new Vector2(0.12f - basePos.x, 9.51f - basePos.z).normalized;
-            go.transform.position = basePos + new Vector3(toWater.x, 0f, toWater.y) * PanTowardWaterMeters;
+            go.transform.position = basePos + new Vector3(toWater.x, 0f, toWater.y) * panTowardWaterMeters;
             go.transform.rotation = baseRot;
             return cam;
+        }
+
+        /// <summary>相机前移量解析：env <c>PC3D_WATERLAB_PAN</c>（米，≥0）覆写，
+        /// 默认 6（创始人取景值，行为与旧 const 一致）。</summary>
+        static float ResolvePanTowardWater()
+        {
+            string raw = System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_PAN");
+            if (float.TryParse(raw, out float v) && v >= 0f)
+            {
+                Debug.Log($"[WaterLabSetup] PC3D_WATERLAB_PAN={v}（覆写默认 6；0=原作 cb0[6] 基准位姿）");
+                return v;
+            }
+            return 6f;
         }
 
         static void CreateTerrain()
@@ -314,7 +335,9 @@ namespace PirateCrew.EditorTools
             m.SetColor("_AmbientColor", AmbientColor);
             // 天光第二方向光（level0 A 级真值，见 CreateLighting）：Vector 下发不走色彩空间
             m.SetVector("_SkyLightDir", new Vector4(0.35f, 0.90f, 0.26f, 0f));
-            m.SetVector("_SkyLightColor", new Vector4(0.0627f, 0.1333f, 0.2196f, 1f));
+            // cb0[126] 抓帧实测 (0,0,0)：t=1/3 Morning 第二灯（天光/月）贡献为零
+            //（cb0[124]=−cb0[123] 方向同轴、色为 0 无实效）——月色 (0.0627,…) 是灯序列化待机态勿用
+            m.SetVector("_SkyLightColor", new Vector4(0f, 0f, 0f, 1f));
             // 【I2 删项】_SparkleStrength/_SparkleScale（自造哈希闪沙——原作无独立闪沙，
             // D 表§5-3）；_CausticScale/_CausticGain/_CausticSampleOffset（细节法线散度程序
             // 焦散的旋钮——焦散换真身后强度链全是原作字面量，D 表§2.3 段 C/E）；
@@ -331,7 +354,7 @@ namespace PirateCrew.EditorTools
         static readonly Vector4 SandColorDry   = new Vector4(0.8388f, 0.7605f, 0.4851f, 1f); // cb0[127] t=1/3
         static readonly Vector4 SandColorWet   = new Vector4(0.5854f, 0.5370f, 0.3769f, 1f); // cb0[129]
         static readonly Vector4 SandColorThird = new Vector4(0.6038f, 0.2747f, 0.1384f, 1f); // cb0[130]
-        static readonly Vector4 SandWaterColor = new Vector4(0.9603f, 0.9858f, 0.9995f, 1f);
+        static readonly Vector4 SandWaterColor = new Vector4(0.7835f, 0.9486f, 1.0f, 1f); // cb0[131] t=1/3 运行时（同 WaterLabReplicaGlobals.WaterColor；序列化 0.9603… 是惰性残留）
 
         /// <summary>焦散采样世界尺度（1/m）：周期 = 1/此值。【I2 后仅 WaterLabProp 消费】——
         /// 沙面焦散已换原作真身（Texture3D，强度链为原作字面量，见 ApplySandReplicaValues），
@@ -635,9 +658,12 @@ namespace PirateCrew.EditorTools
             driver.Materials = driverMaterials;
             driver.GroundSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaGroundPath);
             driver.WaterSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaWaterPath);
+            driver.FertilitySnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(
+                "Assets/Art/WaterLabReplica/MenuFertility1024.bytes"); // 肥力门控数据件（主菜单 dump；缺省回退恒 1 并告警）
 
-            // cb0[40] 环境色：暂置 t=1/3 ambientSkyColor（Driver.MenuAmbient，重开场景
-            // 后由 Driver.Awake 重设）——运行时专用 TODO，见 ReplicaPlantDriver 类头。
+            // cb0[40] 环境色（R2 抓帧实读定案，见 Driver.MenuAmbient 注释；与
+            // CreateLighting 的 RenderSettings.ambientLight 同值——重开场景后由
+            // Driver.Awake 重设）。
             ReplicaPlantSystem.AmbientOverride = ReplicaPlantDriver.MenuAmbient;
 
             Debug.Log($"[WaterLabSetup] I6b 植物：Beach 树 13 挂点（Coastal/CoralReef/Grassland）、" +
@@ -1393,8 +1419,8 @@ namespace PirateCrew.EditorTools
                     m.EnableKeyword(KwWater);
                     // 剖面带 exp2(−8.65617·σ·d)×waterColor：σ = R 抓帧运行时真值
                     // （ReplicaSigma，同源 WaterLabReplicaGlobals._WaterLabSigma），
-                    // 水色 = Water 材质序列化值（同源 ApplySandReplicaValues 的
-                    // _WaterColor 与 ReplicaGlobals.WaterColor 三处一字不改）。
+                    // 水色 = cb0[131] t=1/3 运行时值（SandWaterColor，同源
+                    // ApplySandReplicaValues 的 _WaterColor 与 ReplicaGlobals.WaterColor 三处一字不改）。
                     m.SetVector("_Sigma", ReplicaSigma);
                     m.SetVector("_WaterColor", SandWaterColor);
                     break;
@@ -1569,6 +1595,52 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
+        /// L3 工具件（L3 工具轮加法，手法同 <see cref="EnsureWhitewaterFeature"/>）：
+        /// <see cref="WaterLabColorDumpFeature"/> 幂等注入 <c>PC_Balanced_Renderer.asset</c>
+        /// ——WaterLab_URPAsset 的默认 renderer（index 0，出图相机实际渲染所在）。
+        /// 【为什么只装 Balanced 不装 Performant/Pixelart】出图链固定走默认 index 0，
+        /// 其余 renderer 装了也轮不到、只多泄漏面。
+        /// 【主战役隔离】PC_Balanced_Renderer.asset 与主战役管线共文件（先例：
+        /// WaterLabRefractionFeature/ReplicaGiFeature 同装此件）；Feature 行为被
+        /// 三重闸锁死——env PC3D_WATERLAB_RT0_DUMP=1（主战役不设，惰性零开销）+
+        /// _WaterLabSimEnabled 全局（非实验场景恒 0）+ 只认 capture 相机，见
+        /// WaterLabColorDump 类头。**卸载条件**：L3 门禁收官归档后删除该子资产并
+        /// 同步 m_RendererFeatures/m_RendererFeatureMap（重新本方法幂等重装亦可）。
+        /// </summary>
+        static void EnsureRt0DumpFeature()
+        {
+            const string path = "Assets/Settings/URP/PC_Balanced_Renderer.asset";
+            var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(path);
+            if (data == null)
+            {
+                Debug.LogError($"[WaterLabSetup] 找不到渲染器资产：{path}（rt0 dump 件未挂）");
+                return;
+            }
+            if (data.rendererFeatures.OfType<WaterLabColorDumpFeature>().Any())
+                return; // 已装：幂等
+
+            var feature = ScriptableObject.CreateInstance<WaterLabColorDumpFeature>();
+            feature.name = "WaterLabColorDump";
+            AssetDatabase.AddObjectToAsset(feature, data);
+            AssetDatabase.ImportAsset(path); // 子资产登记后才有 localId（map 语义 = localId）
+
+            var so = new SerializedObject(data);
+            var list = so.FindProperty("m_RendererFeatures");
+            int idx = list.arraySize;
+            list.InsertArrayElementAtIndex(idx);
+            list.GetArrayElementAtIndex(idx).objectReferenceValue = feature;
+            var map = so.FindProperty("m_RendererFeatureMap");
+            map.arraySize++;
+            map.GetArrayElementAtIndex(map.arraySize - 1).longValue =
+                AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out _, out long localId)
+                    ? localId : 0;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(data);
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[WaterLabSetup] 已挂 rt0 dump 件（WaterLabColorDumpFeature）：{path}");
+        }
+
+        /// <summary>
         /// C 流入口（§4b 批次并行开发中，入口名由任务板固定为
         /// <c>WaterLabScatterSetup.EnsureScatter()</c>）：海底散布恢复件——礁石/卵石/
         /// 贝壳/海星实体网格 + loose 群簇分布 + Gravel 粒子。C 流文件
@@ -1628,6 +1700,191 @@ namespace PirateCrew.EditorTools
             }
             // 新文件夹要先被 AssetDatabase 认领，紧接着的 CreateAsset 才不会失败
             AssetDatabase.Refresh();
+        }
+    }
+
+    /// <summary>
+    /// L3 出图时序钩子（L3 工具轮加法；由 <see cref="WaterLabSetup.BuildSceneAndCapture"/>
+    /// 武装，SessionState 跨域重载存活，模式同 BattleHudScreenshot——本文件域只加不改，
+    /// 截图器是共享枢纽）。职责两项：
+    ///
+    /// ①<b>分辨率钩子</b>（env <c>PC3D_WATERLAB_CAPTURE_W/H</c> 设置时）：截图器的
+    /// 世界/UI RT 是写死的 1920×1080（PrepareCanvasForCapture），本钩子在检出
+    /// cam.targetTexture 后、第一枪抓帧前把它换成目标分辨率——反射换
+    /// BattleHudScreenshot 的私有静态 _rt/_rtUi/_uiCam（外侧换件，不动其逻辑）；
+    /// L3 rt0 口径要求相机原生渲 2560×1440（原作 rt0 同分辨率）。
+    ///
+    /// ②<b>rt0 dump 武装</b>：检出 battle-hud-1.png 落盘后调
+    /// <see cref="WaterLabColorDump.RequestArm"/>——下个相机渲染即抓取（一次性）。
+    /// 配合冻结配方（PC3D_WATERLAB_FIXED_SIM_TIME=49.208416，模拟到达即停），
+    /// 冻结后每帧逐位同内容，rt0 抓取帧与 battle-hud-1 内容恒等（相位对齐由此
+    /// 保证，不依赖订阅顺序/帧距）。
+    ///
+    /// ③<b>收口响哨</b>：退出 Play 时若 dump 未完成/未失败即 LogError（不阻塞退出
+    /// ——靠时序与 10s 超时兜底保证先落盘后退出；响哨供协调者在日志里核查）。
+    /// </summary>
+    [InitializeOnLoad]
+    public static class WaterLabL3CaptureHooks
+    {
+        const string KeyArmed = "WaterLabL3CaptureHooks.Armed";
+        const string FirstShotName = "battle-hud-1.png";
+
+        static bool Armed => SessionState.GetBool(KeyArmed, false);
+        static bool _shotSeen;      // 已检出第一枪 PNG 落盘
+        static bool _armSent;       // 已 RequestArm
+        static bool _postLogged;    // 收口状态已汇报
+        static bool _screenDone;    // Screen.SetResolution 已施加
+
+        public static void Arm()
+        {
+            SessionState.SetBool(KeyArmed, true);
+            _shotSeen = _armSent = _postLogged = _screenDone = _armWarned = false;
+            _armWaitTicks = 0;
+            EditorApplication.update -= Tick;
+            EditorApplication.update += Tick;
+            EditorApplication.playModeStateChanged -= OnPlayMode;
+            EditorApplication.playModeStateChanged += OnPlayMode;
+            int w = EnvInt("PC3D_WATERLAB_CAPTURE_W");
+            int h = EnvInt("PC3D_WATERLAB_CAPTURE_H");
+            Debug.Log($"[WaterLabL3] 钩子已武装：RT0_DUMP={WaterLabColorDump.EnabledByEnv}" +
+                $" PAN={System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_PAN") ?? "<默认6>"}" +
+                $" CAPTURE={w}x{h}{(w > 0 ? "" : "（未设=沿用 1920×1080）")}" +
+                $" 输出={WaterLabColorDump.ResolveOutputDir()}");
+        }
+
+        static WaterLabL3CaptureHooks()
+        {
+            if (Armed)
+            {
+                // 域重载（进 Play 必触发）后重新挂上——Arm 置位的 SessionState 是凭据
+                EditorApplication.update += Tick;
+                EditorApplication.playModeStateChanged += OnPlayMode;
+            }
+        }
+
+        static void OnPlayMode(PlayModeStateChange state)
+        {
+            if (state == PlayModeStateChange.ExitingPlayMode)
+                ReportPostFlight();
+            else if (state == PlayModeStateChange.EnteredEditMode)
+                Unhook();
+        }
+
+        static void Tick()
+        {
+            if (!Armed)
+            {
+                Unhook();
+                return;
+            }
+            if (!EditorApplication.isPlaying)
+                return;
+
+            var cam = Camera.main;
+
+            // ① 分辨率钩子：检出 targetTexture（canvas prepared）后换件，早于第一枪
+            int w = EnvInt("PC3D_WATERLAB_CAPTURE_W");
+            int h = EnvInt("PC3D_WATERLAB_CAPTURE_H");
+            if (w > 0 && h > 0 && cam != null && cam.targetTexture != null)
+                EnsureCaptureResolution(cam, w, h);
+
+            // ② rt0 武装：第一枪 PNG 落盘 → 下个相机渲染抓取（冻结配方下与第一枪同内容）
+            if (!_armSent && !_shotSeen)
+            {
+                string shot = Path.Combine(WaterLabColorDump.ResolveOutputDir(), FirstShotName);
+                if (File.Exists(shot))
+                {
+                    _shotSeen = true;
+                    var sim = Object.FindFirstObjectByType<PirateCrew.WaterLab.WaterLabSimulation>();
+                    WaterLabColorDump.CaptureSimTime = sim != null ? sim.SimTime : -1f;
+                    WaterLabColorDump.RequestArm();
+                    _armSent = true;
+                    Debug.Log($"[WaterLabL3] 已武装 rt0 抓取（第一枪落盘：{shot}，simTime=" +
+                        $"{WaterLabColorDump.CaptureSimTime:F4}s）");
+                }
+            }
+
+            // 武装后长时间（1200 tick ≈ 20s@60fps）仍无抓取 = Feature 没收到渲染
+            //（env 没生效/没装 renderer），响哨一次。
+            if (_armSent && !WaterLabColorDump.Fired && !_armWarned && ++_armWaitTicks > 1200)
+            {
+                _armWarned = true;
+                Debug.LogError("[WaterLabL3] rt0 抓取 1200 tick 未发起（检查 PC3D_WATERLAB_RT0_DUMP=1 " +
+                    "与 PC_Balanced_Renderer 上的 WaterLabColorDump 子资产）");
+            }
+        }
+
+        static int _armWaitTicks;
+        static bool _armWarned;
+
+        /// <summary>把截图器写死的 1920×1080 世界/UI RT 换成目标分辨率（反射换件）。</summary>
+        static void EnsureCaptureResolution(Camera cam, int w, int h)
+        {
+            var current = cam.targetTexture;
+            if (current == null || (current.width == w && current.height == h))
+                return;
+            if (!_screenDone)
+            {
+                Screen.SetResolution(w, h, FullScreenMode.Windowed); // 后备缓冲同步（截图器 Start 的 1920 写死在此覆写）
+                _screenDone = true;
+            }
+
+            var type = typeof(BattleHudScreenshot);
+            const System.Reflection.BindingFlags Flags =
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+            var rtField = type.GetField("_rt", Flags);
+            var rtUiField = type.GetField("_rtUi", Flags);
+            var uiCamField = type.GetField("_uiCam", Flags);
+            if (rtField == null || rtUiField == null)
+            {
+                Debug.LogError("[WaterLabL3] 反射取 BattleHudScreenshot._rt/_rtUi 失败（截图器结构变了？" +
+                    "分辨率钩子失效，出图将保持 1920×1080）");
+                return;
+            }
+
+            var oldWorld = rtField.GetValue(null) as RenderTexture;
+            var oldUi = rtUiField.GetValue(null) as RenderTexture;
+            var newWorld = new RenderTexture(w, h, 24) { name = "WaterLabL3WorldRT" };
+            var newUi = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32) { name = "WaterLabL3UiRT" };
+            rtField.SetValue(null, newWorld);
+            rtUiField.SetValue(null, newUi);
+            cam.targetTexture = newWorld;
+            if (uiCamField?.GetValue(null) is Camera uiCam)
+                uiCam.targetTexture = newUi;
+            if (oldWorld != null) oldWorld.Release();
+            if (oldUi != null) oldUi.Release();
+            Debug.Log($"[WaterLabL3] capture 分辨率已换件：{oldWorld?.width}x{oldWorld?.height} → {w}x{h}" +
+                "（世界 RT/UI RT/相机 target 已同步）");
+        }
+
+        static void ReportPostFlight()
+        {
+            if (_postLogged || !WaterLabColorDump.ArmRequested && !_armSent)
+                return;
+            _postLogged = true;
+            if (WaterLabColorDump.Completed)
+                Debug.Log($"[WaterLabL3] 收口：rt0 dump 已完成（simTime={WaterLabColorDump.CaptureSimTime:F4}s）");
+            else if (WaterLabColorDump.Failed)
+                Debug.LogError($"[WaterLabL3] 收口：rt0 dump 失败——{WaterLabColorDump.LastError}");
+            else
+                Debug.LogError("[WaterLabL3] 收口：退出 Play 时 rt0 dump 未完成（武装后从未渲染或落盘中断）" +
+                    "——检查 env 三件套与 WaterLabColorDump 子资产；本次出图缺 ours-rt0-prepost.raw");
+        }
+
+        static void Unhook()
+        {
+            EditorApplication.update -= Tick;
+            EditorApplication.playModeStateChanged -= OnPlayMode;
+            if (Armed)
+                SessionState.SetBool(KeyArmed, false);
+            _shotSeen = _armSent = _postLogged = _screenDone = _armWarned = false;
+            _armWaitTicks = 0;
+        }
+
+        static int EnvInt(string name)
+        {
+            return System.Environment.GetEnvironmentVariable(name) is string raw
+                && int.TryParse(raw, out int v) && v > 0 ? v : 0;
         }
     }
 }

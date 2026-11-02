@@ -38,8 +38,9 @@ Shader "PirateCrew/WaterLab/Sand"
         _SandColorDry    ("沙基色 cb0[127]（Carbonate 预设 color，linear 值）", Vector) = (0.9255, 0.8863, 0.7255, 1)
         _SandColorWet    ("湿沙色 cb0[129]（预设 wetColor，湿/干比 ≈0.85/0.86/0.89）", Vector) = (0.7890, 0.7592, 0.6476, 1)
         _SandColorThird  ("第三色 cb0[130]（预设 color2，水侧场×20 混入）", Vector) = (0.8353, 0.8078, 0.6902, 1)
-        // 深水沙变体目标色（cb0[131] = Water 材质 waterColor 序列化真值，materials-dump.txt）
-        _WaterColor      ("水色 cb0[131]（深水沙变体 4× 目标）", Vector) = (0.9603, 0.9858, 0.9995, 1)
+        // 深水沙变体目标色（cb0[131] t=1/3 运行时值，R 抓帧实测；序列化 0.9603… 惰性残留；
+        // 运行时由 Setup ApplySandReplicaValues 下发真值，此处默认值仅兜底）
+        _WaterColor      ("水色 cb0[131]（深水沙变体 4× 目标）", Vector) = (0.7835, 0.9486, 1.0, 1)
 
         // 焦散真身：原作 Caustics 256×256×64 R8_UNorm 9 mip（path_id 932）。
         // 资产由 WaterLabCausticsImport.EnsureCausticsAsset() 从 raw 逐 mip 构建并存盘。

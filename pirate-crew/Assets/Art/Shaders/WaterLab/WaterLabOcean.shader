@@ -257,10 +257,11 @@ Shader "PirateCrew/WaterLab/Ocean"
                     wpos.xz * 0.05).b;
                 phase += _TimeParameters.x * 0.8;
                 float w1 = 2.0 * WaterWrap(phase + 0.5) - 1.0;   // L46-52 第一锯齿波
-                // 流场 = 恒 (−0.5,−0.5)：原作 VS 流通道 scale 字面量 <5e−7（打印 0.000000，
-                // 通道禁用）→ o4.xy 恒 (−4,−4)（VS L129/L137/L140），PS 端 clamp(±0.5)
-                // （L53-54）后成常量对角流。死通道按活行为写死，不平流任何场。
-                float2 flow = float2(-0.5, -0.5);
+                // 流场 = 恒 0：原作 VS 流通道 scale 字面量 <5e−7（通道禁用）；GPU postvs
+                // 实测 o4.xy≈0（与静态反汇编的 −4 常量矛盾，L2-run §1.1 登记过；L2-ours
+                // 清单#3 差分实测 flow=0 比 (−0.5,−0.5) 更贴 GPU——两值过 clamp(±0.5) 并不
+                // 恒等，进 detail UV 差最大 0.1 uv）。按 GPU 事实取 0，不平流任何场。
+                float2 flow = float2(0.0, 0.0);
 
                 // --- PS L55-57：采样 A（偏移 +0.25，尺度 0.2） ---
                 float2 nA = SAMPLE_TEXTURE2D(_WaterLabDetailNormal, sampler_WaterLabDetailNormal,
@@ -277,7 +278,9 @@ Shader "PirateCrew/WaterLab/Ocean"
                 float a = 2.0 * lerp(nB.r, nA.r, tri) - 1.0;   // L69-71
                 float b = 2.0 * lerp(nB.g, nA.g, tri) - 1.0;
                 // 原作无钳位（真贴图 .rg 为法线域不会双饱和），保真不遮。
-                float3 detailN = float3(a, sqrt(1.0 - (a * a + b * b)), b);  // L72-77
+                // 球面项 sqrt(1−2b²)（L2-run §4.6：dp2 源道 (y,w) 经双通道复制 = 2b²，
+                // x 分量不参与；NaN 域与 1−a²−b² 不同，本帧 0 px 但语义以反汇编为准）。
+                float3 detailN = float3(a, sqrt(1.0 - 2.0 * b * b), b);     // L72-77
 
                 // --- PS L78-81：N = normalize(细节法线 + 坡度法线) ---
                 float3 N = normalize(detailN + IN.slopeNormal);
@@ -292,7 +295,10 @@ Shader "PirateCrew/WaterLab/Ocean"
                 // 抓帧终证时读 PS cb1[0].x 实测闭。不读我方 m00（=1 会改行为）。
                 float aspect = _ScreenParams.x / _ScreenParams.y;
                 float2 baseUV = IN.screenPos.xy / IN.screenPos.w;   // L85-88（D14：ComputeScreenPos）
-                float2 refrUV = baseUV + N.xz * _WaterLabRefractionFactor * float2(1.0, aspect);
+                // 偏移 v 分量反号（L2-ours §4 unity_flipped 包 GPU 判别：ComputeScreenPos 给
+                // GL 式 v 上行，原作存储坐标 v 下行 ⇒ dv=−d(py)/H；literal 直代包被 GPU 否决
+                // p50 0.384 vs 0.0422）。L3 rt0 差分复核此约定。
+                float2 refrUV = baseUV + N.xz * _WaterLabRefractionFactor * float2(1.0, -aspect);
 
                 // --- PS L91-99：深度安全门（背景比水面近 → 回退不偏移；正面一致项） ---
                 // bgEye = 1/(A·raw+B)（cb0[9].zw ≡ _ZBufferParams.zw，L92-93）；
