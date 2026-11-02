@@ -65,13 +65,14 @@ namespace PirateCrew.WaterLab
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// sceneVoxels/giVoxels/giVoxelsBlurred 分辨率 128²（E 报告 §1.3④：
-        /// FormatProperty.resolution 512&gt;&gt;2=128，与 Gi 资产字段默认一致，
-        /// 高置信静态 + 运行时终验项）。与 compute 内 static voxelsResolution 成对改。
+        /// sceneVoxels/giVoxels/giVoxelsBlurred 分辨率 256²。GI-audit 定案（R2-sampler.md
+        /// §5.1）：cb0[138] 运行时实读 (256,256)（eid 1773），sceneVoxels 256²/9 mips 实测
+        /// 互证——E 报告 §1.3④ 的静态推断 128（512&gt;&gt;2）作废，真值 512&gt;&gt;1。与 compute 内
+        /// static voxelsResolution 成对改。
         /// </summary>
-        const int VoxelsResolution = 128;
+        const int VoxelsResolution = 256;
 
-        /// <summary>每轴派发组数 = ceil(128/32) = 4（Gi.cs:40-49 DispatchX，tg=[32,32,1]）。</summary>
+        /// <summary>每轴派发组数 = ceil(256/32) = 8（Gi.cs:40-49 DispatchX，tg=[32,32,1]）。</summary>
         const int DispatchGroups = VoxelsResolution / 32;
 
         // shader 全局名（消费侧 in-domain 掩码 uniform，任务书命名）。消费者 idiom 已由
@@ -213,9 +214,10 @@ namespace PirateCrew.WaterLab
 
         /// <summary>
         /// 顶视正交相机（E 报告 §1.3④）：orthoSize = 域半宽 15（Beach.cs:332 附近
-        /// orthoSize=size*0.5），恰好把域 [−15,+15]² 铺满 128² RT——这就是"分辨率 128
-        /// 与域的映射"：uv = world.xz/beachSize.xz + 0.5、texel = uv·128 − 0.5
-        /// （E-gi.compute.hlsl 文件头）。朝向：位于域中心正上方、rot=(90,0,0) 俯视——
+        /// orthoSize=size*0.5），恰好把域 [−15,+15]² 铺满 256² RT——这就是"分辨率 256
+        /// 与域的映射"：uv = world.xz/beachSize.xz + 0.5、texel = uv·256 − 0.5
+        /// （E-gi.compute.hlsl 文件头；R2-sampler §5.1 定案 256）。
+        /// 朝向：位于域中心正上方、rot=(90,0,0) 俯视——
         /// 相机 right=+X、up=+Z，RT 的 uv.x=(x+15)/30、uv.y=(z+15)/30，与 E 映射逐轴
         /// 一致（含 row=Z 轴向，B 流台账）。
         /// 【A 流】enabled=false：相机只作矩阵/剔除/背景色源，绘制由 ReplicaGiFeature
@@ -233,7 +235,7 @@ namespace PirateCrew.WaterLab
             var cam = go.AddComponent<Camera>();
             cam.orthographic = true;
             cam.orthographicSize = WaterLabRules.DomainSize * 0.5f; // 15 = 域半宽（Beach.cs:332）
-            cam.aspect = 1f;                                        // 128² 方形 RT
+            cam.aspect = 1f;                                        // 256² 方形 RT
             cam.nearClipPlane = 0.3f;
             cam.farClipPlane = camHeight * 2f;                      // 俯视全程线性覆盖域内容 Y
             cam.transform.SetPositionAndRotation(
@@ -243,7 +245,7 @@ namespace PirateCrew.WaterLab
             cam.backgroundColor = new Color(0f, 0f, 0f, 0f);        // 原作 ClearRenderTarget(true,true)（E 报告 §1.3①）；空处 Gi kernel 走天空项
             cam.cullingMask = VoxelizerMask;                        // opaque×"WaterLabVoxelizer" tag 在 Feature 的 DrawRenderers；此为层漏斗
             cam.enabled = false;                                    // 不进 URP 相机循环——手动采集（见方法注释）
-            cam.useOcclusionCulling = false;                        // 128² 顶视无遮挡收益，关掉防剔除歧义
+            cam.useOcclusionCulling = false;                        // 256² 顶视无遮挡收益，关掉防剔除歧义
             return cam;
         }
 
@@ -282,7 +284,13 @@ namespace PirateCrew.WaterLab
 
             // 真值单源转发：不在此设值（改值只动单源文件）
             cs.SetVector(CAmbientSky, RenderSettings.ambientSkyColor);   // cb0[40]，原作上传路径同源（SetupPerFrameShaderConstants）
-            cs.SetVector(CSunDirection, Shader.GetGlobalVector(SunDirGlobal));     // cb0[123]，_WaterLabSunDir
+            // GI-audit 定案（出处=cs-full/DayCycler.cs:304：原作 cb0[123] sunDirection =
+            // sun.transform.forward = **光传播方向**；Gi kernel asm L221 `-cb0[123]` 取反得
+            // "指向太阳"）。本仓 _WaterLabSunDir = −light.forward（指向太阳，
+            // WaterLabSimulation.PublishSunDir），故此处取反对齐 cb0[123] 语义，
+            // compute 内 -_SunDirection 字面保持——不取反则本方天空项 sun 聚束恒灭
+            //（dot(光传播反方向·-1=指向太阳, dir) 变 dot(背离太阳, dir)≈≤0 → sd≡0）。
+            cs.SetVector(CSunDirection, -(Vector3)Shader.GetGlobalVector(SunDirGlobal)); // cb0[123]
             cs.SetVector(CSunColor, Shader.GetGlobalVector(SunColorGlobal));       // cb0[125]，_WaterLabSunColor
             cs.SetInt(CFrameCount, Time.frameCount);                               // cb0[113].w
             cs.SetInt(CSamples, 48);        // High 档资产序列化（F-postprocess.md §5）——待运行时终验（C# SetInt 反编译污染）

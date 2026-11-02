@@ -7,6 +7,15 @@
 //        §1.3 问题单、§4 URP 移植清单）
 // 移植纪律：凡代码与直觉写法不符处（Gi kernel 的方向基、tMax 重算式）一律按 [E]
 //   字面抄并保留其 [ASM] 行号注记——L2 恒等门禁以原作数值为准，不"修正"。
+// 【GI-audit 修正（rt/reports/GI-audit.md）】E 草稿与第一手反汇编不符处已按
+//   Gi.Gi.hlslasm 字面改回：①高度场梯度符号（asm L44-45，E 注记把 ±1 邻居标反）；
+//   ②DDA 初始化（asm L115-137：步进向量=+sign(dir.xz)、首步融合进初始化、delta
+//   div_sat、invH=max(|h|,0)）；③爬 mip 的 tMax 减项=爬前 wp.xz（asm L184）；
+//   ④第二支哈希无 xor 61（asm L89-98）；⑤best 更新=按 facing 增量黎曼累积
+//   （asm L165-168，E 的「保留最大 facing 颜色」误读 = K 报告 ×1.29 主源）。
+//   天空项 sd⁵（X-exp2 §5）此前已修。
+// 【R2 定案并入（rt/reports/R2-sampler.md §5.1）】voxelsResolution=(256,256) 运行时
+//   实读（E 推断 128 作废）；samples=48/precision=5/lerpSpeed=0.2 逐位证实。
 // Raycast kernel 不移植：发行路径死代码（零派发点/零上传者/零消费者，[ER] §1.2；
 // DoF 对焦是 CameraRig 的 Physics.Raycast，与本 compute 无关）。
 //
@@ -62,11 +71,10 @@ int   _Precision;        // [E] cb0[139].y：High 档 5 = 每 mip 层步数上�
 float _LerpSpeed;        // [E] cb0[139].z：High 档 0.2 = 时间域混合系数（每帧 0.2 收敛，
                          // 兼抑 GI 反馈闭环爆炸，[ER] §3 附注）。
 
-// [E] voxelsResolution cb0[138].xy：原作 Gi.Setup → SetGlobalVector("voxelsResolution")，
-// 值恒 128²（= FormatProperty.resolution 512>>2，与字段默认一致，[ER] §1.3④；
-// >>2 移位常量被 IL 污染标「高置信静态+运行时终验项」）。E 草稿即按 static 常量落，
-// 本文件同款；若终验推翻 128，改此处与 ReplicaGiSystem.VoxelsResolution 两处。
-static const int2 voxelsResolution = int2(128, 128);
+// [E→R2 定案] voxelsResolution cb0[138].xy：**运行时实读 (256,256)**（R2-sampler.md §5.1，
+// eid 1773 Gi dispatch 的 cbuffer 第一手；E 流静态推断 128=512>>2 修正为 256=512>>1，
+// sceneVoxels 256²/9 mips 实测互证）。与 ReplicaGiSystem.VoxelsResolution 成对改。
+static const int2 voxelsResolution = int2(256, 256);
 
 // ===========================================================================
 // Kernel 1: Initialization   tg=[32,32,1]   [E] L67-76 = Gi.Initialization.hlslasm 全文
@@ -106,9 +114,10 @@ float u01(uint bits)
 // ===========================================================================
 // Kernel 2: Gi   tg=[32,32,1]   [E] L107-230 = Gi.Gi.hlslasm 全文
 // 每个 texel：以高度场梯度构造方向基 → N 个抖动方向在 sceneVoxels mip 链上
-// 2D DDA（Amanatides-Woo）步进，记录"最朝向本格"的命中辐射 → 与天空项合成
-// → 按样本数平均 → 与上一帧值按 _LerpSpeed 时间混合写回 giVoxels。
-// 语义总述见 [ER] §1.2（Gi kernel 六步）。
+// 2D DDA（Amanatides-Woo）步进，命中辐射按 facing 增量黎曼累积（GI-audit 定案，
+// 非"保留最大 facing 的颜色"）→ 与天空项（sky·(1−f_max)）合成 → 按样本数平均
+// → 与上一帧值按 _LerpSpeed 时间混合写回 giVoxels。
+// 语义总述见 [ER] §1.2（六步；其中第 4 步的 best 语义被 GI-audit/R2 复核修正）。
 // ===========================================================================
 [numthreads(32,32,1)]
 void Gi(uint3 tid : SV_DispatchThreadID)
@@ -118,11 +127,14 @@ void Gi(uint3 tid : SV_DispatchThreadID)
     float2 invCell  = 1.0f / (g_GiDomainSize.xz / res);               // [E L112] div r1.xy, cb0[116], r0.yzyy ; div r1.xy, 1, r1.xy
 
     // ---- 高度场梯度（sceneVoxels.w 通道四邻差分）----
-    float hR = sceneVoxels.Load(int3((int)tid.x + 1, (int)tid.y, 0)).w; // [E L115] ld r0.w  (+1,0)
-    float hL = sceneVoxels.Load(int3((int)tid.x - 1, (int)tid.y, 0)).w; // [E L116] ld r1.z  (-1,0)
-    float hU = sceneVoxels.Load(int3((int)tid.x, (int)tid.y + 1, 0)).w; // [E L117] ld r1.w  (0,+1)
-    float hD = sceneVoxels.Load(int3((int)tid.x, (int)tid.y - 1, 0)).w; // [E L118] ld r2.x  (0,-1)
-    float2 grad  = float2(hR - hL, hU - hD);                          // [E L119] add r3.xy
+    float hL = sceneVoxels.Load(int3((int)tid.x - 1, (int)tid.y, 0)).w; // [ASM L32-35] ld r0.w ← (x−1,y)（r3.xy=r2.zw）
+    float hR = sceneVoxels.Load(int3((int)tid.x + 1, (int)tid.y, 0)).w; // [ASM L36-37] ld r1.z ← (x+1,y)（t0.xywz 位置 2='w'）
+    float hD = sceneVoxels.Load(int3((int)tid.x, (int)tid.y - 1, 0)).w; // [ASM L38-41] ld r1.w ← (x,y−1)
+    float hU = sceneVoxels.Load(int3((int)tid.x, (int)tid.y + 1, 0)).w; // [ASM L42-43] ld r2.x ← (x,y+1)（t0.wxyz 位置 0='w'）
+    // GI-audit 定案（出处=Gi.Gi.hlslasm L44-45）：grad = (hL−hR, hD−hU)，即 slope=−∂h/2cell
+    //（法线斜率正身）。E 草稿 L115-116 的 [ASM] 注记把 ±1 邻居标反（ld r0.w 实为 −1 邻居、
+    // ld r1.z 实为 +1 邻居），旧转写 (hR−hL, hU−hD) 与第一手符号相反 → Nb 向上坡侧倾。
+    float2 grad  = float2(hL - hR, hD - hU);                          // [ASM L44-45] add r3.x, r0.w, -r1.z ; add r3.y, r1.w, -r2.x
     float2 slope = grad * invCell * 0.5f;                             // [E L120] mul r1.xy, r1, r3 ; mul r1.xy, r1, l(.5,.5)
 
     // ---- 方向基（⚠ 字面转写，这不是 normalize((slope,1))——DXGC 编译器产物即如此，
@@ -151,8 +163,13 @@ void Gi(uint3 tid : SV_DispatchThreadID)
     {
         // ---- 均匀球面随机方向 ξ（bit-exact）----
         uint  s  = seed0 * (uint)i * (uint)_FrameCount;               // [E L148] imul r2.w, r0.x, r1.w ; imul r2.w, cb0[113].w
-        float u1 = u01(hash31(s));                                    // [E L149] 第一支（异或常量 61）
-        float u2 = u01(hash31(s ^ (s >> 16) ^ 0x005b5c68u));          // [E L150] 第二支（xor r2.w, r2.w, r4.y ; xor 0x005b5c68）
+        float u1 = u01(hash31(s));                                    // [ASM L78-88] 第一支（xor 61 → … → bfi）
+        // GI-audit 定案（出处=Gi.Gi.hlslasm L89-98）：第二支**不走 xor 61**——
+        // t = s^(s>>16)（L79 的 ushr 读原始 s）→ ^0x005b5c68 → *9 → ^>>4 →
+        // *0x27d4eb2d → ^>>15；旧转写经 hash31 注入了第一支独有的首行 s^=61。
+        uint  t2 = s ^ (s >> 16) ^ 0x005b5c68u;                       // [ASM L89-90]
+        t2 *= 9u; t2 ^= (t2 >> 4); t2 *= 0x27d4eb2du; t2 ^= (t2 >> 15); // [ASM L91-96]
+        float u2 = u01(t2);                                           // [ASM L97-98] bfi/add −1
         float z  = 1.0f - 2.0f * u1;                                  // [E L151] mad r8.z, -r4.x, 2, 1
         float ph = u2 * 6.283185f;                                    // [E L152] mul r2.w, 6.283185
         float r_ = sqrt(max(0.0f, 1.0f - z * z));                     // [E L153] mad/sqrt r4.x
@@ -161,17 +178,33 @@ void Gi(uint3 tid : SV_DispatchThreadID)
         float3 dir = normalize(Nb + xi);                              // [E L156] add r8.xyz, r1, r8 ; dp3/rsq/mul
 
         // ---- 水平面 DDA 初始化（texel 空间，Amanatides-Woo）----
-        float2 h    = dir.xz * rsqrt(dot(dir.xz, dir.xz));            // [E L159] dp2/rsq/mul r4.xy
-        float2 invH = 1.0f / max(abs(h), 1e-9f);                      // [E L160] max |r4| ; div r4, 1
-        bool2 posD  = dir.xz > 0.0f;                                  // [E L161] lt r9, 0, r8.xzxz
-        int2  cell  = (int2)tid.xy + (posD ? int2(1, 1) : int2(0, 0));// [E L162] movc r10, r9, r4.zw(tid+1), r3.xy(tid)
-        float2 delta = (cell + 0.5f) / res - 0.5f;                    // [E L163] add .5/div_sat/−.5（角点中心 uv）
-        float2 tMax  = abs(delta * g_GiDomainSize.xz - p0.xz) * invH; // [E L164] mad r9.zw −p0 ; mul r10.xy, invH, |Δ|
-        float2 tDel  = cellSize * invH;                               // [E L165] mul r10.zw, cellSize, invH
+        // GI-audit 定案（出处=Gi.Gi.hlslasm L115-137 逐指令重排）：
+        //   ① DXBC 比较掩码 = 0xFFFFFFFF/0（iadd 视作 int：−1/0），asm L121
+        //      `iadd r11.xy, -r9.zw, r10.zw` = (posD?+1:0)+(negD?−1:0) = **+sign(dir.xz)**
+        //      ——步进向量是带符号的 sign，不是旧转写的 posD 布尔偏置（负方向分量为 0）；
+        //   ② asm L125-134 把首步融合进初始化：movc 按 tMax0.x<tMax0.y 选中轴从 tid 推进
+        //      一格、该轴 tMax+=tDel，之后才进采样循环——旧转写 cell=tid+posD（两轴同时按
+        //      正负号偏置、可能斜跳两格）且 tMax 不预推进，首采格与首步语义都与第一手不同；
+        //   ③ asm L118 是 div_sat——旧转写 delta 缺 saturate（角点越界时未钳到 [0,1]）；
+        //   ④ asm L113 是 max(|h|,0)——旧转写 1e-9 下限非字面（退化 |h|=0 时原作走 inf 链）。
+        float2 h     = dir.xz * rsqrt(dot(dir.xz, dir.xz));           // [ASM L110-112] dp2/rsq/mul r4.xy
+        float2 invH  = 1.0f / max(abs(h), 0.0f);                      // [ASM L113-114] max |r4|,0 ; div 1
+        bool2  posD  = dir.xz > 0.0f;                                 // [ASM L115] lt r9, 0, r8.xzxz
+        bool2  negD  = dir.xz < 0.0f;                                 // [ASM L120] lt r10.zw, r8.xxxz, 0
+        int2   signD = (posD ? int2(1, 1) : int2(0, 0)) - (negD ? int2(1, 1) : int2(0, 0)); // [ASM L121] iadd −posD+negD
+        int2   cornerCell = (int2)tid.xy + (posD ? int2(1, 1) : int2(0, 0));  // [ASM L116] movc（delta 角点格，仅此用途）
+        float2 delta = saturate((cornerCell + 0.5f) / res - 0.5f);    // [ASM L117-119] add .5/div_sat/−.5
+        float2 tMax0 = abs(delta * g_GiDomainSize.xz - p0.xz) * invH; // [ASM L122-123] mad −p0 ; mul invH·|Δ|
+        float2 tDel  = cellSize * invH;                               // [ASM L124] mul r10.zw
+        bool   xWin  = tMax0.x < tMax0.y;                             // [ASM L125] lt r2.w, r10.x, r10.y
+        int2   cell  = xWin ? int2((int)tid.x + signD.x, (int)tid.y)
+                            : int2((int)tid.x, (int)tid.y + signD.y); // [ASM L126/L128/L131/L134] movc 融合首步（cell）
+        float2 tMax  = xWin ? float2(tMax0.x + tDel.x, tMax0.y)
+                            : float2(tMax0.x, tMax0.y + tDel.y);      // [ASM L127/L129-133] movc 融合首步（tMax）
 
         float  mip       = 0;  // [E] r6.y
         float  stepInMip = 0;  // [E] r6.z
-        float4 best      = 0;  // best = (facing, color.rgb)              [E] r14
+        float4 best      = 0;  // best = (facing, 累积辐射)——见下方 best 更新的 GI-audit 注记   [E] r14
         int    iter      = 0;  // [E] r5.w
 
         // [E L173-175] 步数硬顶 256：asm 每过一拍 iadd r6.w 一次（ige r6.w, r5.w, 256 判定）。
@@ -191,11 +224,17 @@ void Gi(uint3 tid : SV_DispatchThreadID)
             float4 smp = sceneVoxels.Load(int4(cell, (int)mip, (int)mip));
             wp.y = smp.w;                                             // [E L183] mov r16.y, r18.w
 
-            // facing = dot(normalize(cellPos − p0), Nb)，保留最大者
-            float3 to = normalize(wp - p0);                           // [E L186] add r19, −p0 ; dp3/rsq/mul
-            float  fc = dot(to, Nb);                                  // [E L187] dp3 r19.x, r19, r1
-            if (best.x < fc)                                          // [E L188] lt r7.w, r14.x, r19.x
-                best = float4(fc, smp.rgb);                           // [E L189] mad r19.yzw ; movc r18
+            // facing = dot(normalize(cellPos − p0), Nb)。
+            // GI-audit 定案（出处=Gi.Gi.hlslasm L165-168 逐指令；R2 位流 CPU 复算互证
+            // rt/gi_audit/out/gi_reconcile.json）：这不是 E 草稿读的「保留最大 facing 的
+            // 颜色」——mad r19.yzw = smp.rgb·(fc−best.x) + best.rgb，movc 选中后
+            // best = (fc, Σ smpₖ·(fₖ−fₖ₋₁))：命中辐射按 facing 增量黎曼累积，合成端再以
+            // sky·(1−f_max) 补天空份额。E 读法把命中项抬高 ≈1/f_max（f_max≈0.775 时
+            // ×1.29，即 K 报告 GI 量级差的主源）；R2 实测旧语义 +11/+24/+19%。
+            float3 to = normalize(wp - p0);                           // [ASM L160-163] add r19, −p0 ; dp3/rsq/mul
+            float  fc = dot(to, Nb);                                  // [ASM L164] dp3 r19.x, r19, r1
+            if (best.x < fc)                                          // [ASM L165] lt r7.w, r14.x, r19.x
+                best = float4(fc, best.rgb + smp.rgb * (fc - best.x)); // [ASM L166-168] add r8.w ; mad r19.yzw ; movc r18
 
             if ((int)_Precision < (int)stepInMip)                     // [E L191] ilt r7.w, r2.w, r6.z
             {   // 爬 mip：cell >>= 1，best 保留（[E L196] mov r14.xyzw, r18 随 movc 结果携带，无操作），步数清零
@@ -205,19 +244,23 @@ void Gi(uint3 tid : SV_DispatchThreadID)
                 stepInMip = 0;                                        // [E L197] mov r6.z, 0
                 // 重算新格 tMax（字面同 DDA init 的形态，尺寸减半；[E L199-204] mad/mul r11.zw）。
                 // 表达式与直觉不合处照抄 E 草稿字面——不"修正"。
-                float2 invH2 = 1.0f / max(abs(h), 1e-9f);
-                float2 cs2   = g_GiDomainSize.xz / (float2)mres2;     // [E L200] div r17.zw, 1, r10 ; mul cb0[116]
-                int2  corner = (cell + (posD ? int2(1, 1) : int2(0, 0)));
-                float2 uv2   = saturate((corner + 0.5f) / (float2)mres2 - 0.5f);
-                tMax = abs(uv2 * g_GiDomainSize.xz - (cell + 0.5f) / (float2)mres2 * g_GiDomainSize.xz) * invH2; // [E L203]
-                tDel = cs2 * invH2;                                   // [E L204] mul r10.xy
+                float2 invH2 = 1.0f / max(abs(h), 0.0f);              // [ASM L113-114] max |r4|,0（GI-audit 同 init 字面）
+                float2 cs2   = g_GiDomainSize.xz / (float2)mres2;     // [ASM L176-177] div r17.zw ; mul cb0[116]
+                int2  corner = (cell + (posD ? int2(1, 1) : int2(0, 0)));   // [ASM L178-180] movc r9.xy=posD
+                float2 uv2   = saturate((corner + 0.5f) / (float2)mres2 - 0.5f); // [ASM L181-183]
+                // GI-audit 定案（出处=Gi.Gi.hlslasm L184）：mad 的减项是 r16.xz = **爬 mip 前**
+                // 本拍采样格的 wp.xz（L155 每拍覆写、L174 只动 r16.yw），不是新格中心——
+                // 旧转写减 shift 后的 (cell+0.5)/mres2·domain，与第一手差半个新格尺寸。
+                tMax = abs(uv2 * g_GiDomainSize.xz - wp.xz) * invH2;  // [ASM L184-185] mad −r16.xz ; mul r4.xy·|·|
+                tDel = cs2 * invH2;                                   // [ASM L186/L193] mul r10.xy / mov r5.xz
                 continue;                                             // [E L205] continue（跳过越界检查一拍，与原作一致）
             }
 
-            // Amanatides-Woo 步进：tMax 较小轴 +1，tMax += tDel
-            if (tMax.x < tMax.y) { cell.x += h.x > 0 ? 1 : -1; tMax.x += tDel.x; }
-            else                 { cell.y += h.y > 0 ? 1 : -1; tMax.y += tDel.y; }
-            // [E L211] lt r7.w, r13.z, r13.w ; iadd/movc/mov r13.zw…（逐位对应见 Gi.hlslasm 105-107 段）
+            // Amanatides-Woo 步进（GI-audit 定案，出处=Gi.Gi.hlslasm L196-206）：
+            // 步进向量 = signD（asm L121 的 iadd，负方向为 −1），非 h>0 布尔步进；
+            // tMax 较小轴 cell±=signD、tMax+=tDel（iadd r10 = r13.xy 步向量 + r15.xy cell，movc 选轴）。
+            if (tMax.x < tMax.y) { cell.x += signD.x; tMax.x += tDel.x; }
+            else                 { cell.y += signD.y; tMax.y += tDel.y; }
 
             if (any(cell < 0) || any(cell >= mres))                   // [E L213] ilt / ige / or
             {   // best 保留（[E L214] mov r14.xyzw, r18），出界即收束
@@ -225,7 +268,8 @@ void Gi(uint3 tid : SV_DispatchThreadID)
             }
         }
 
-        // ---- 天空项 + 命中项合成（[ER] §1.2 第 5 步：hit 色加性进入，未按 facing 加权——字面）----
+        // ---- 天空项 + 命中项合成：contrib = sky·(1−f_max) + 累积命中辐射（GI-audit 定案，
+        //      见上方 best 更新注记；E 报告 §1.2 第 5 步「保留最朝向颜色」读法作废）----
         float miss = saturate(1.0f - best.x);                         // [E L218] add_sat r2.w, -r14.x, 1
         float  sd  = max(0.0f, dot(-_SunDirection, dir));             // [E L219] dp3 r4.x, -cb0[123], r8 ; max 0
         // 太阳聚束 = sd⁵（X 流对 DXBC 第一手复核：mul 链第二操作数是未覆写原值 sd，
