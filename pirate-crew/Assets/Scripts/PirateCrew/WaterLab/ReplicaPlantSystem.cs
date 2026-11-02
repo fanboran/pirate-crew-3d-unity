@@ -554,7 +554,7 @@ namespace PirateCrew.WaterLab
         }
 
         // =====================================================================
-        // MenuFertilityField（F3）—— 原作 groundCells 肥力通道的数据文件驱动源。
+        // MenuFertilityField（F3/F3b）—— 原作 groundCells 肥力通道的数据文件驱动源。
         //
         // 【肥力语义（F3 静态定案，全部第一手）】
         //  * 通道    groundCells 每格 16B 的 dword3[26..32) 6bit，值域 0..63；
@@ -576,53 +576,34 @@ namespace PirateCrew.WaterLab
         // 【文件格式】无头 1024²=1,048,576 字节（N²==长度即认，兼容 512²），每格 1 字节
         // = 肥力 6bit 原值（0..63），row=Z、row0=z−15（B §4 轴向），解码 GetFertility÷63。
         // dump 配方（rt/reports/F3-fertility.md §5）：frida 读 Ground.input ComputeBuffer
-        // （cellsCount×16B），byte[i*16+15]>>2 即第 i 格肥力（dword3 高 6bit）。
+        // （cellsCount×16B），byte[i*16+15]>>2 即第 i 格肥力（dword3 高 6bit）；
+        // dump 工具 rt/agent-fertility.js（F3b 落地）。
+        //
+        // 【F3b 薄壳化】装载/统计锁/解码本体已抽 <see cref="WaterLabReplicaFertility"/>
+        // （独立文件，与 WaterLabReplicaObstacles 同款纯 C# 加载器风格 + dump 侧同款
+        // 统计锁：64 桶直方图、>0 格占比常量占位待首 dump 回填）。本类保留为薄壳转发，
+        // 对外 API（Load/HasData/Resolution/GetFertility/Unload）不变。
         // =====================================================================
         public static class MenuFertilityField
         {
-            static byte[] _cells;
-            static int _res;
-
             /// <summary>是否已装载数据文件（未载时 <see cref="SnapshotGroundField"/> 回退恒 1）。</summary>
-            public static bool HasData => _cells != null;
+            public static bool HasData => WaterLabReplicaFertility.HasData;
 
             /// <summary>场分辨率（N² 字节的 N；未载时 0）。</summary>
-            public static int Resolution => _res;
+            public static int Resolution => WaterLabReplicaFertility.Resolution;
 
             /// <summary>
-            /// 装载肥力场（幂等覆盖）。长度必须是平方数且值域 ⊆ [0,63]——6bit 语义的
-            /// 载入期校验，错格式当场抛而非半装 quietly。
+            /// 装载肥力场（幂等覆盖）。校验（平方数/6bit 值域/统计锁）见
+            /// <see cref="WaterLabReplicaFertility.Load"/>——失败抛异常不留半态。
             /// </summary>
-            public static void Load(byte[] bytes)
-            {
-                if (bytes == null)
-                    throw new ArgumentNullException(nameof(bytes));
-                int n = (int)Mathf.Sqrt(bytes.Length);
-                if (n * n != bytes.Length)
-                    throw new ArgumentException($"肥力场长度 {bytes.Length} 不是平方数（应为 N² 字节）");
-                for (int i = 0; i < bytes.Length; i++)
-                {
-                    if (bytes[i] > 63)
-                        throw new ArgumentException($"肥力场 byte[{i}]={bytes[i]} 超出 6bit 值域 [0,63]");
-                }
-                _cells = bytes;
-                _res = n;
-            }
+            public static void Load(byte[] bytes) => WaterLabReplicaFertility.Load(bytes);
 
             /// <summary>卸载（回退恒 1；测试隔离用）。</summary>
-            public static void Unload()
-            {
-                _cells = null;
-                _res = 0;
-            }
+            public static void Unload() => WaterLabReplicaFertility.Unload();
 
             /// <summary>取一格肥力（格心整数索引，÷63 还原 [0,1]；未载时 1）。</summary>
             public static float GetFertility(int cx, int cz)
-            {
-                if (_cells == null)
-                    return 1f;
-                return _cells[cz * _res + cx] / 63f;
-            }
+                => WaterLabReplicaFertility.GetFertility(cx, cz);
         }
 
         public sealed class SnapshotWaterField : IWaterField
@@ -1003,8 +984,8 @@ namespace PirateCrew.WaterLab
     //    根 = UnixTimeSeconds → configuration.seed → InitState/SetGlobalInt("seed")）——
     //    无固定真值；逐株恒等对拍 = 运行时抓值注入（工具 rt/agent-plant.js 交协调者），
     //    默认 0 = 确定性一撒（统计同源）。
-    //  * AmbientOverride：cb0[40] 环境色真值待抓帧；暂置主菜单 t=1/3
-    //    ambientSkyColor（CreateLighting/EnsureSkybox 同值三处一字不改）。
+    //  * AmbientOverride：cb0[40] 环境色已定案（R2 抓帧实读 0.4452/0.2876/0.2789，
+    //    与 CreateLighting 的 RenderSettings.ambientLight 同值单源）。
     //    I3 GI 落地后植物环境项换 giVoxels 采样，本覆写退役。
     //  * 水场（F1 已接实时）：LiveWaterFeed 订阅 _WaterLabHeightTex/_WaterLabGroundTex
     //    （AsyncGPUReadback，256² 双线性 + 0.2s 节流，依据见该类头）；未就绪回退静态
@@ -1032,9 +1013,10 @@ namespace PirateCrew.WaterLab
         /// </summary>
         public TextAsset FertilitySnapshot;
 
-        /// <summary>cb0[40] 环境色暂置值：t=1/3 Morning ambientSkyColor（menu-state.json，
-        /// 与 CreateLighting 的 RenderSettings.ambientSkyColor 同值）。运行时专用 TODO 见类头。</summary>
-        public static readonly Vector4 MenuAmbient = new Vector4(0.698039f, 0.564706f, 0.569923f, 1f);
+        /// <summary>cb0[40] 环境色（R2 抓帧实读 (0.4452, 0.2876, 0.2789)，GI-audit §② 定案；
+        /// 与 CreateLighting 的 RenderSettings.ambientLight 同值单源。旧值 (0.698,…) 是
+        /// level0 序列化待机态，同 σ 案被第一手推翻）。</summary>
+        public static readonly Vector4 MenuAmbient = new Vector4(0.4452f, 0.2876f, 0.2789f, 1f);
 
         ReplicaPlantSystem[] _systems;
         ReplicaPlantSystem.LiveWaterFeed _waterFeed;

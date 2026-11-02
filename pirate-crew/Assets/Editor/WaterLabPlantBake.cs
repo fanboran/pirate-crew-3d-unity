@@ -16,11 +16,12 @@ namespace PirateCrew.EditorTools
     /// （浮点逐字保留 JSON 字面量，无手抄）；vertexStride 36B 只取前 12B 位置通道
     /// （G §5.1 第 1 条口径）。
     ///
-    /// 【偏差注记】原作顶点带法线/切线等通道（stream0 offsets 12/20/28/32），dump
-    /// 未含字节——<see cref="BuildMesh"/> 用 RecalculateNormals 几何近似。shader 只把
-    /// q·normal 用于 NdotL 假光照（ReplicaPlant.shader Varyings.normalW），凸包面法线
-    /// 与真实叶面法线的差异预期不可感；TODO(L2 对账)：若证可感，从 sharedassets0 补
-    /// dump 法线字节直灌。
+    /// 【法线通道（F3b 已接线）】原作顶点 stream0 offset 12..19 = half4 法线（烘焙
+    /// 资产字节，实测 |n|≡1.000、w=0，**不能从高度场重推**——F1 §4.1 移交结论），
+    /// 已由 rt/extract_hull_normals.py 提出并内嵌 <see cref="PirateCrew.WaterLab.WaterLabHullNormals"/>
+    /// （13/13 全覆盖）；<see cref="BuildMesh"/> 优先 Apply 表内字节法线（mesh.SetNormals），
+    /// 表未覆盖时回退 RecalculateNormals 近似（G-plants.md §2.1：shader 只把 q·normal
+    /// 用于 NdotL 假光照）。已入库的凸包资产用菜单 Bake 重烘一次即吃到法线（幂等覆盖）。
     ///
     /// 【资产落点】Assets/Art/WaterLabReplica/PlantHulls/（复刻真值资产聚集目录，
     /// 与快照 .bytes 同区；不在 MaterialFolder——装配对材质目录是先删后建）。
@@ -81,7 +82,8 @@ namespace PirateCrew.EditorTools
             var mesh = new Mesh { name = d.Name };
             mesh.vertices = vertices;
             mesh.triangles = d.Indices; // 全部 < 65536 顶点，16bit 索引足够
-            mesh.RecalculateNormals();  // 偏差注记见类头（原作法线通道未 dump）
+            if (!PirateCrew.WaterLab.WaterLabHullNormals.Apply(d.Name, mesh))
+                mesh.RecalculateNormals();  // 表未覆盖时回退近似（当前 13/13 全覆盖，F3 §6）
             // 原作 localAABB 直灌：几何元数据与原作一致（实例级剔除走系统的
             // DrawBounds=Beach.bounds，本 bounds 只承载 mesh 自身元数据）。
             mesh.bounds = new Bounds(d.AabbCenter, d.AabbExtent * 2f);

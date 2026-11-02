@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -56,6 +58,203 @@ namespace PirateCrew.WaterLab.Tests
             Assert.That(ReplicaPlantSystem.MenuFertilityField.HasData, Is.False, "Unload 应清场");
             Assert.That(ReplicaPlantSystem.MenuFertilityField.GetFertility(0, 0),
                 Is.EqualTo(1f).Within(1e-6f), "未装载回退恒 1（数据缺口退化口径）");
+        }
+
+        // ------------------------------------------------------------------
+        // ①b 统计锁（F3b）：全零场必拒、直方图/占比与手算对账、失败不留半态
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void FertilityStatsLock_RejectsAllZeroAndReportsHistogram()
+        {
+            // 全零 64² 场（≡0 已被 F3 §2.2 实测证伪：疑 dump 到未 Paint 的初始化缓冲）
+            var allZero = new byte[64 * 64];
+            Assert.Throws<ArgumentException>(() =>
+                ReplicaPlantSystem.MenuFertilityField.Load(allZero), "全零场应被统计锁下限拒绝");
+            Assert.That(ReplicaPlantSystem.MenuFertilityField.HasData, Is.False,
+                "统计锁失败不应留下半加载状态");
+
+            // 合成场：三种非零值 + 大片 0；直方图/占比与手算逐项对账
+            var field = new byte[64 * 64];
+            for (int z = 0; z < 16; z++)
+                for (int x = 0; x < 16; x++) field[z * 64 + x] = 33;   // 256 格 ≈0.524
+            for (int z = 16; z < 32; z++)
+                for (int x = 16; x < 48; x++) field[z * 64 + x] = 52;   // 512 格 ≈0.825
+            for (int z = 48; z < 64; z++)
+                for (int x = 0; x < 8; x++) field[z * 64 + x] = 20;     // 128 格 ≈0.317
+            int nonzero = 256 + 512 + 128;                              // 896 格 >0
+            try
+            {
+                ReplicaPlantSystem.MenuFertilityField.Load(field);
+                Assert.That(ReplicaPlantSystem.MenuFertilityField.HasData, Is.True);
+                Assert.That(WaterLabReplicaFertility.LastNonZeroFrac,
+                    Is.EqualTo(nonzero / (64f * 64f)).Within(1e-6f), ">0 格占比应与手算一致");
+                var hist = WaterLabReplicaFertility.LastHistogram;
+                Assert.That(hist, Is.Not.Null);
+                Assert.That(hist.Length, Is.EqualTo(64), "直方图 64 桶（6bit 值域）");
+                Assert.That(hist[33], Is.EqualTo(256), "值 33 桶计数");
+                Assert.That(hist[52], Is.EqualTo(512), "值 52 桶计数");
+                Assert.That(hist[20], Is.EqualTo(128), "值 20 桶计数");
+                Assert.That(hist[0], Is.EqualTo(64 * 64 - nonzero), "值 0 桶计数");
+                int histSum = 0;
+                foreach (int c in hist) histSum += c;
+                Assert.That(histSum, Is.EqualTo(64 * 64), "直方图总和 = 场长");
+
+                // 失败不留半态的正向语义：成功装载后再喂坏场 → 旧场原样保留
+                var bad = new byte[64 * 64];
+                bad[0] = 200;                       // 值域外
+                Assert.Throws<ArgumentException>(() =>
+                    ReplicaPlantSystem.MenuFertilityField.Load(bad));
+                Assert.That(ReplicaPlantSystem.MenuFertilityField.Resolution, Is.EqualTo(64),
+                    "坏场装载失败后旧场应原样保留（无半态/无清空）");
+                Assert.That(ReplicaPlantSystem.MenuFertilityField.GetFertility(0, 0),
+                    Is.EqualTo(33f / 63f).Within(1e-6f));
+            }
+            finally
+            {
+                ReplicaPlantSystem.MenuFertilityField.Unload();
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // ①b′ 真资产统计锁：主菜单 dump（MenuFertility1024.bytes）过精确锁、直方图峰钉死；
+        // 同尺寸篡改场必拒且不留半态（精确锁只对 1024² 生效，合成小场只过结构校验）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void FertilityAsset_MenuDumpPassesStatsLockAndPinsHistogram()
+        {
+            var bytes = ReadMenuFertilityAssetOrIgnore();
+            try
+            {
+                ReplicaPlantSystem.MenuFertilityField.Load(bytes);
+                Assert.IsTrue(ReplicaPlantSystem.MenuFertilityField.HasData);
+                Assert.AreEqual(WaterLabReplicaFertility.MenuResolution,
+                    ReplicaPlantSystem.MenuFertilityField.Resolution);
+                Assert.That(WaterLabReplicaFertility.LastNonZeroFrac,
+                    Is.EqualTo(WaterLabReplicaFertility.MetaNonZeroFrac)
+                      .Within(WaterLabReplicaFertility.MetaNonZeroFracTolerance));
+                var hist = WaterLabReplicaFertility.LastHistogram;
+                // dump 实测峰值（agent-fertility.js stats.hist64）：饱和 1.0 桶与零桶钉死资产字节本身
+                Assert.AreEqual(395956, hist[63], "饱和桶 63（=1.0）");
+                Assert.AreEqual(207426, hist[0], "零桶");
+            }
+            finally
+            {
+                ReplicaPlantSystem.MenuFertilityField.Unload();
+            }
+        }
+
+        [Test]
+        public void FertilityAsset_TamperedMenuSizeFieldIsRejected()
+        {
+            var bytes = ReadMenuFertilityAssetOrIgnore();
+            // 清零前 4096 个非零格：占比降 ≈0.0039，远超容差 1e-5 → 精确锁必拒
+            int cleared = 0;
+            for (int i = 0; i < bytes.Length && cleared < 4096; i++)
+                if (bytes[i] > 0) { bytes[i] = 0; cleared++; }
+            Assert.Throws<ArgumentException>(() => ReplicaPlantSystem.MenuFertilityField.Load(bytes));
+            Assert.IsFalse(ReplicaPlantSystem.MenuFertilityField.HasData, "失败不留半态");
+        }
+
+        static byte[] ReadMenuFertilityAssetOrIgnore()
+        {
+            var dir = LocateReplicaDirectory();
+            var path = dir == null ? null : Path.Combine(dir, "MenuFertility1024.bytes");
+            if (path == null || !File.Exists(path))
+                Assert.Ignore("MenuFertility1024.bytes 未找到（Assets/Art/WaterLabReplica/，或设 PC3D_WATERLAB_REPLICA_DIR）");
+            return File.ReadAllBytes(path);
+        }
+
+        /// <summary>定位 Assets/Art/WaterLabReplica（同 WaterLabReplicaSnapshotTests 的三级定位）。</summary>
+        static string LocateReplicaDirectory()
+        {
+#if UNITY_EDITOR
+            return Path.Combine(Application.dataPath, "Art", "WaterLabReplica");
+#else
+            var env = Environment.GetEnvironmentVariable("PC3D_WATERLAB_REPLICA_DIR");
+            if (!string.IsNullOrEmpty(env) && File.Exists(Path.Combine(env, "MenuGround256.bytes")))
+                return env;
+            var markers = new[]
+            {
+                Path.Combine("pirate-crew", "Assets", "Art", "WaterLabReplica"),
+                Path.Combine("temp", "water-lab", "pirate-crew", "Assets", "Art", "WaterLabReplica"),
+            };
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                foreach (var marker in markers)
+                {
+                    var candidate = Path.Combine(dir.FullName, marker);
+                    if (File.Exists(Path.Combine(candidate, "MenuGround256.bytes")))
+                        return candidate;
+                }
+                dir = dir.Parent;
+            }
+            return null;
+#endif
+        }
+
+        // ------------------------------------------------------------------
+        // ①c 肥力门控链路（F3b）：恒 1 回退复现 F1 §2.3 的 9 组恒空退化；
+        // 装载合成场后 9 空组全部出现可行格（严格开区间判定同 Distribute）
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void FertilityGate_NineEmptyGroupsProduceWithField()
+        {
+            // 13 组肥力门（ReplicaPlantTable 单源）；F1 §2.3：恒 1 回退下
+            // 9 组上界 ≤1.0（严格开区间 1.0<1.0 恒假）→ 恒空
+            var nineEmpty = new[]
+            {
+                "Kelp", "RedAlgae", "LettuceCoral", "GrooveBrainCoral", "CarnationCoral",
+                "ElkhornCoral", "GreyTussock", "Goldenrod", "WheatGrass",
+            };
+            // 门控判定式 = Distribute（ReplicaPlantSystem.cs，Distribution L112-118
+            // 反汇编四×lt 严格不等）的肥力项同款，勿改成 ≥/≤
+            static bool Passes(float f, Vector2 r) => f > r.x && f < r.y;
+
+            try
+            {
+                // 退化面：未载回退恒 1 → 9 空组 0 可行值；4 组上界 >1.0 仍活
+                foreach (var p in ReplicaPlantTable.All)
+                {
+                    bool passesAtOne = Passes(1f, p.FertilityRange);
+                    if (nineEmpty.Contains(p.ClassName))
+                        Assert.That(passesAtOne, Is.False,
+                            $"{p.ClassName} 上界 ≤1.0，恒 1 回退下应恒空（F1 §2.3）");
+                    else
+                        Assert.That(passesAtOne, Is.True,
+                            $"{p.ClassName} 上界 >1.0，恒 1 回退下应存活（F1 §2.3 的 4 组）");
+                }
+
+                // 装载合成场（64²，行主序 row=Z）：三个非零带 + 其余 0
+                var field = new byte[64 * 64];
+                for (int z = 0; z < 16; z++)
+                    for (int x = 0; x < 16; x++) field[z * 64 + x] = 33;   // ≈0.524
+                for (int z = 16; z < 32; z++)
+                    for (int x = 16; x < 48; x++) field[z * 64 + x] = 52;   // ≈0.825
+                for (int z = 48; z < 64; z++)
+                    for (int x = 0; x < 8; x++) field[z * 64 + x] = 20;     // ≈0.317
+                ReplicaPlantSystem.MenuFertilityField.Load(field);
+
+                foreach (var p in ReplicaPlantTable.All)
+                {
+                    int cells = 0;
+                    for (int i = 0; i < field.Length; i++)
+                        if (Passes(field[i] / 63f, p.FertilityRange)) cells++;
+                    if (nineEmpty.Contains(p.ClassName))
+                        Assert.That(cells, Is.GreaterThan(0),
+                            $"{p.ClassName}（9 空组之一）在含其肥力带的场中应出现可行格");
+                    // 0 值格对任何组都拒（严格下界）——门控生效的反向证据
+                    Assert.That(Passes(0f, p.FertilityRange), Is.False,
+                        $"{p.ClassName} 严格下界应拒 0 值");
+                }
+            }
+            finally
+            {
+                ReplicaPlantSystem.MenuFertilityField.Unload();
+            }
         }
 
         // ------------------------------------------------------------------
