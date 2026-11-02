@@ -198,6 +198,50 @@ namespace PirateCrew.WaterLab
             CreateTextures();
             PublishGlobals();
             BootstrapPhytoplankton();
+            // GI 链自举（L3-sand 分解定案）：ReplicaGiSystem 的静态构造装配
+            // WaterLabGiBridge.Render 委托——不碰它委托恒 null，而 Rendering 程序集的
+            // Feature 禁止反向引用本程序集，只能由 Gameplay 侧在 Play 期触发一次。
+            _ = PirateCrew.WaterLab.ReplicaGiSystem.RenderCalls;
+        }
+
+        /// <summary>
+        /// GI 探针一次性转储（L3-sand 排障）：rt0 dump 完成后读回 sceneVoxels/giVoxels
+        /// 各 mip0（256² ARGBHalf），raw + 逐通道统计落 PC3D_CAPTURE_DIR——判断顶视采集
+        /// 是否真的画进了内容（黑图=Voxelizer 链路断点）。跨程序集：ColorDump 在
+        /// Rendering（Gameplay→Rendering 单向引用合法），GiSystem 同程序集。
+        /// </summary>
+        bool _giProbeDone;
+        void DumpGiProbeOnce()
+        {
+            if (_giProbeDone || !PirateCrew.Rendering.WaterLabColorDump.Completed)
+                return;
+            _giProbeDone = true;
+            DumpGiTex(ReplicaGiSystem.SceneVoxelsTex, "ours-gi-scenevoxels");
+            DumpGiTex(ReplicaGiSystem.GiVoxelsTex, "ours-gi-givoxels");
+        }
+
+        static void DumpGiTex(RenderTexture rt, string name)
+        {
+            if (rt == null) { Debug.LogWarning($"[WaterLab] GI 探针 {name}：纹理未就绪"); return; }
+            UnityEngine.Rendering.AsyncGPUReadback.Request(rt, 0, req =>
+            {
+                var dir = System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_DIR");
+                if (string.IsNullOrEmpty(dir) || req.hasError)
+                {
+                    Debug.LogWarning($"[WaterLab] GI 探针 {name}：读回失败(hasError={req.hasError})或缺输出目录");
+                    return;
+                }
+                try
+                {
+                    System.IO.Directory.CreateDirectory(dir);
+                    var h = req.GetData<ushort>().ToArray();
+                    var bytes = new byte[h.Length * 2];
+                    System.Buffer.BlockCopy(h, 0, bytes, 0, bytes.Length);
+                    System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, name + ".raw"), bytes);
+                    Debug.Log($"[WaterLab] GI 探针 {name}.raw 落盘（{rt.width}x{rt.height}，f16 位流，统计离线算）");
+                }
+                catch (System.Exception e) { Debug.LogWarning($"[WaterLab] GI 探针 {name} 写盘失败：{e.Message}"); }
+            });
         }
 
         /// <summary>
@@ -327,6 +371,7 @@ namespace PirateCrew.WaterLab
 
         void Update()
         {
+            DumpGiProbeOnce();
             float frameDt = Mathf.Min(Time.deltaTime, 0.1f) * TimeScale;
             if (FixedSimTime >= 0f)
             {

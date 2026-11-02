@@ -42,5 +42,5 @@ Material:
     - _SandColor: {r: 0.8388, g: 0.7605, b: 0.4851, a: 1}
     - _SandColor2: {r: 0.6038, g: 0.2747, b: 0.1384, a: 1}
     - _Sigma: {r: 0.9930291, g: 0.1753813, b: 0.0557871, a: 0}
-    - _WaterColor: {r: 0.9603, g: 0.9858, b: 0.9995, a: 1}
+    - _WaterColor: {r: 0.7835, g: 0.9486, b: 1, a: 1}
   m_BuildTextureStacks: []

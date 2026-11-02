@@ -70,21 +70,32 @@ namespace PirateCrew.Rendering
         /// </summary>
         [field: SerializeField] public ComputeShader GiCompute { get; set; }
 
-        static readonly int SimEnabledId = Shader.PropertyToID("_WaterLabSimEnabled");
+        static int _simEnabledId;
+        static int SimEnabledId => _simEnabledId != 0
+            ? _simEnabledId : _simEnabledId = Shader.PropertyToID("_WaterLabSimEnabled");
 
         // 顶视 Voxelizer 采集（原作 "Voxelizer" ShaderTag 的 URP 名字面，三消费 shader
         // 的 Voxelizer pass 同名）：opaque 队列过滤 + tag 列表即原作语义。
-        static readonly List<ShaderTagId> VoxelizerShaderTags =
+        // ShaderTagId ctor 同样内部走 TagToID（rt0i 实证）——一并惰性。
+        static List<ShaderTagId> _voxelizerShaderTags;
+        static List<ShaderTagId> VoxelizerShaderTags => _voxelizerShaderTags ??=
             new List<ShaderTagId> { new ShaderTagId("WaterLabVoxelizer") };
 
         // cmd.SetViewProjectionMatrices 不写逆矩阵——URP SetCameraMatrices 在该方法之后
         // 单独 SetGlobalMatrix(inverseViewMatrix) 即反证（URP 14 ScriptableRenderer.cs
         // :161-182）。植物 Voxelizer 的 unproject 读 UNITY_MATRIX_I_V（= unity_MatrixInvV，
         // URP Input.hlsl:192 引擎常量），覆写后须显式补、用后须显式还。
-        static readonly int UnityMatrixInvVId = Shader.PropertyToID("unity_MatrixInvV");
+        // 【TagToID 禁入 cctor】ScriptableObject 构造/反序列化上下文里 Shader.PropertyToID
+        // 抛 UnityException（Install() 的 CreateInstance 首次触发，I3 潜伏 bug）——
+        // 改惰性：首次渲染调用时求值（合法上下文）。
+        static int _unityMatrixInvVId;
+        static int UnityMatrixInvVId => _unityMatrixInvVId != 0
+            ? _unityMatrixInvVId : _unityMatrixInvVId = Shader.PropertyToID("unity_MatrixInvV");
         // 顶视视线起点：覆写矩阵不更新 _WorldSpaceCameraPos（它随主相机常量集走），
         // 植物 Voxelizer VS 以此构造 imposter 视向。
-        static readonly int VoxelEyeId = Shader.PropertyToID("g_WaterLabVoxelEye");
+        static int _voxelEyeId;
+        static int VoxelEyeId => _voxelEyeId != 0
+            ? _voxelEyeId : _voxelEyeId = Shader.PropertyToID("g_WaterLabVoxelEye");
 
         sealed class GiPass : ScriptableRenderPass
         {

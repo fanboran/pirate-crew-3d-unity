@@ -1,5 +1,58 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-6273018977756643811
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: WaterLabColorDump
+  m_EditorClassIdentifier: PirateCrew.Rendering:PirateCrew.Rendering:WaterLabColorDumpFeature
+  m_Active: 1
+--- !u!114 &-3105197212588307325
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: WaterLabColorDump
+  m_EditorClassIdentifier: PirateCrew.Rendering:PirateCrew.Rendering:WaterLabColorDumpFeature
+  m_Active: 1
+--- !u!114 &-2381632183993034469
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b58a123e318024a4594f3dca47c02119, type: 3}
+  m_Name: ReplicaGi
+  m_EditorClassIdentifier: 
+  m_Active: 1
+  <GiCompute>k__BackingField: {fileID: 7200000, guid: 95444252007b23d4b8b8366b43bf7be6, type: 3}
+--- !u!114 &-2057965989584796118
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: WaterLabColorDump
+  m_EditorClassIdentifier: PirateCrew.Rendering:PirateCrew.Rendering:WaterLabColorDumpFeature
+  m_Active: 1
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -17,7 +70,18 @@ MonoBehaviour:
     hdrDebugViewPS: {fileID: 4800000, guid: 573620ae32aec764abd4d728906d2587, type: 3}
   m_RendererFeatures:
   - {fileID: 4683910265188104660}
-  m_RendererFeatureMap: d4b957dc91970041
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: -2381632183993034469}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: -6273018977756643811}
+  m_RendererFeatureMap: d4b957dc91970041e5d042bb5b54737f9cca2068d473044839993216f262f557defce58f39c1ae4161c68b6983af42349e109ef0ca6c63011b1975a725bef2de830c2452961fe8d4cebb5f780a5202302a86f606d6a270e31dfe87c179c2f1a8
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   shaders:
@@ -58,6 +122,45 @@ MonoBehaviour:
   m_CopyDepthMode: 0
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 1
+--- !u!114 &100043235608367262
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: WaterLabColorDump
+  m_EditorClassIdentifier: PirateCrew.Rendering:PirateCrew.Rendering:WaterLabColorDumpFeature
+  m_Active: 1
+--- !u!114 &3459417668696652750
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: WaterLabColorDump
+  m_EditorClassIdentifier: PirateCrew.Rendering:PirateCrew.Rendering:WaterLabColorDumpFeature
+  m_Active: 1
+--- !u!114 &3765765217381500513
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: WaterLabColorDump
+  m_EditorClassIdentifier: PirateCrew.Rendering:PirateCrew.Rendering:WaterLabColorDumpFeature
+  m_Active: 1
 --- !u!114 &4683910265188104660
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -72,3 +175,55 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Active: 1
   <WhitewaterMaterial>k__BackingField: {fileID: 2100000, guid: dc5a49c58be5f0949ab51bef22d3dc07, type: 2}
+--- !u!114 &4732932711384480990
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: WaterLabColorDump
+  m_EditorClassIdentifier: PirateCrew.Rendering:PirateCrew.Rendering:WaterLabColorDumpFeature
+  m_Active: 1
+--- !u!114 &5189400026754894492
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: WaterLabColorDump
+  m_EditorClassIdentifier: PirateCrew.Rendering:PirateCrew.Rendering:WaterLabColorDumpFeature
+  m_Active: 1
+--- !u!114 &6338080842487863609
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: WaterLabColorDump
+  m_EditorClassIdentifier: PirateCrew.Rendering:PirateCrew.Rendering:WaterLabColorDumpFeature
+  m_Active: 1
+--- !u!114 &9183776818099048677
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: WaterLabColorDump
+  m_EditorClassIdentifier: PirateCrew.Rendering:PirateCrew.Rendering:WaterLabColorDumpFeature
+  m_Active: 1

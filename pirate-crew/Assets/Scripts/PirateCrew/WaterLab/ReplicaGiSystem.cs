@@ -57,6 +57,15 @@ namespace PirateCrew.WaterLab
         /// <summary>顶视相机（自建隐藏；Feature 借此把自己从该相机的渲染里排除）。</summary>
         public static Camera TopViewCamera => _topView;
 
+        /// <summary>Render 被调用次数（L3 探针：Feature 安装/每帧执行的运行时证据）。</summary>
+        public static int RenderCalls { get; private set; }
+
+        /// <summary>L3 探针：顶视辐射图（诊断转储用；未就绪时 null）。</summary>
+        public static RenderTexture SceneVoxelsTex => _sceneVoxels;
+
+        /// <summary>L3 探针：全局 giVoxels 真身（BlurGi 输出；未就绪时 null）。</summary>
+        public static RenderTexture GiVoxelsTex => _giVoxelsBlurred;
+
         /// <summary>GI 链路是否就绪（compute 已注入且资源已建）。</summary>
         public static bool Ready => Compute != null && _sceneVoxels != null;
 
@@ -122,6 +131,9 @@ namespace PirateCrew.WaterLab
 
         public static void Render(CommandBuffer cmd)
         {
+            RenderCalls++;   // L3 探针：Feature 是否真的每帧执行（从未安装的教训）
+            if (Compute == null)
+                Compute = PirateCrew.Rendering.WaterLabGiBridge.Compute; // Feature 每帧回灌（AddRenderPasses），此处兜底拷贝——I3 遗漏的自举环节
             if (Compute == null)
             {
                 if (!_loggedDisabled)
@@ -147,6 +159,17 @@ namespace PirateCrew.WaterLab
                 return;
 
             PushConstants();
+
+            // I3 接线洞收口（rt0m 定案）：kernel 资源从未绑定（全链无一处
+            // SetComputeTextureParam）——t0/u0/u1 悬空，读恒黑、写丢弃，giVoxels 恒零
+            //（顶视 sceneVoxels 本身健康：均值 0.48/0.32/0.17、w=世界Y）。按各 kernel
+            // 声明面精确绑定（多余名字 Unity 会按 kernel 资源表忽略）。
+            cmd.SetComputeTextureParam(Compute, _kInit, "giVoxels", _giVoxels);
+            cmd.SetComputeTextureParam(Compute, _kInit, "giVoxelsBlurred", _giVoxelsBlurred);
+            cmd.SetComputeTextureParam(Compute, _kGi, "sceneVoxels", _sceneVoxels);
+            cmd.SetComputeTextureParam(Compute, _kGi, "giVoxels", _giVoxels);
+            cmd.SetComputeTextureParam(Compute, _kBlurGi, "giVoxels", _giVoxels);
+            cmd.SetComputeTextureParam(Compute, _kBlurGi, "giVoxelsBlurred", _giVoxelsBlurred);
 
             // Initialization 仅一次（Gi.cs:196 "Gi: initialization"）；进同一 cmd 保证先于 Gi。
             if (!_initDispatched)

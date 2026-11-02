@@ -129,6 +129,11 @@ namespace PirateCrew.EditorTools
             EnsureSkybox(); // I5b：RenderSettings.skybox = ReplicaSkybox（t=1/3 菜单时刻真值）
             CreateSimulation(camera); // 相机随注：白水逐粒视锥剔除要用它的 6 平面
             EnsureWhitewaterFeature();
+            // GI 链收口（L3-sand 分解定案）：ReplicaGiFeature 自 I3 交付后从未安装——
+            // 域常量（g_GiDomainMin/Size）永不发布→消费端域掩码≡0 回退 ambient 常量，
+            // 即沙面 ×0.73 缺口的 GI 半边（占 49-58%）。Feature 装上后全链自举
+            // （顶视 sceneVoxels→Gi/BlurGi→PushConstants）。
+            WaterLabGiInstaller.Install();
             EnsureScatter(); // C 流入口（并行开发中，反射兜底，见方法注释）
             EnsurePostProcess(camera); // I4：DoF+Vignette（F 流参数直译，无 tonemap/bloom）
 
@@ -204,6 +209,10 @@ namespace PirateCrew.EditorTools
             // 全链同源此值。旧值 (0.698,0.565,0.570) 是 level0 序列化待机态（同 σ 案被第一手推翻）。
             RenderSettings.ambientLight = new Color(0.4452f, 0.2876f, 0.2789f);
             RenderSettings.sun = light; // WaterLabSimulation.PublishSunDir 解析源
+            // 太阳方向一次性预发布（L3-sand 分解②的保底）：sim 侧 PublishSunDir 每 tick
+            // 幂等下发同值；sim 未 tick 的帧（装配后首帧/冻结帧）shader 不再走
+            // fallback 太阳（y=0.669，等价 ×0.853 支族）。口径 = 指向太阳 = −forward。
+            Shader.SetGlobalVector(Shader.PropertyToID("_WaterLabSunDir"), -sun.transform.forward);
         }
 
         static Camera CreateCamera()
@@ -329,6 +338,9 @@ namespace PirateCrew.EditorTools
             m.SetVector("_SandColorDry", SandColorDry);     // cb0[127] = 预设 color
             m.SetVector("_SandColorWet", SandColorWet);     // cb0[129] = 预设 wetColor
             m.SetVector("_SandColorThird", SandColorThird); // cb0[130] = 预设 color2（水侧场×20 混入）
+            // 太阳色（L3-sand 分解③：全仓此前零下发，.mat 残留 level0 待机态 (1,0.971,0.940)
+            // 使 G/B 偏亮 +3.2%/+7.8%）。真值 cb0[125] = t=1/3 运行时（R2 实读，跨 Lit_* 同值）
+            m.SetVector("_SunTint", new Vector4(1f, 0.940429f, 0.872353f, 1f));
             // 【水色】Water 材质序列化 waterColor（materials-dump.txt / 交接§3 台账）
             // ——深水沙变体 o3 的 4× 目标色（σ≡0，见 shader 深水段）。
             m.SetVector("_WaterColor", SandWaterColor);
@@ -1882,6 +1894,13 @@ namespace PirateCrew.EditorTools
             if (_postLogged || !WaterLabColorDump.ArmRequested && !_armSent)
                 return;
             _postLogged = true;
+            // L3 探针（L3-sand 分解裁决项）：GI 链与太阳方向全局的运行时实况一行打全
+            var dMin = Shader.GetGlobalVector(Shader.PropertyToID("g_GiDomainMin"));
+            var dSize = Shader.GetGlobalVector(Shader.PropertyToID("g_GiDomainSize"));
+            var sunDir = Shader.GetGlobalVector(Shader.PropertyToID("_WaterLabSunDir"));
+            Debug.Log($"[WaterLabL3] 探针：GI RenderCalls={PirateCrew.WaterLab.ReplicaGiSystem.RenderCalls} " +
+                $"Ready={PirateCrew.WaterLab.ReplicaGiSystem.Ready} " +
+                $"g_GiDomainMin={dMin} g_GiDomainSize={dSize} _WaterLabSunDir={sunDir}");
             if (WaterLabColorDump.Completed)
                 Debug.Log($"[WaterLabL3] 收口：rt0 dump 已完成（simTime={WaterLabColorDump.CaptureSimTime:F4}s）");
             else if (WaterLabColorDump.Failed)
