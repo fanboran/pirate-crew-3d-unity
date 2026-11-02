@@ -356,16 +356,19 @@ Shader "PirateCrew/WaterLab/Sand"
         }
 
         // ------------------------------------------------------ 体素化 pass --
-        // 原作 TopView 渲染分支（E 报告 §1.3①，BeachRenderPipeline.cs:1493-1610）：
-        // 顶视正交相机以 "Voxelizer" tag 渲 opaque 进 sceneVoxels——rgb=带光照表面色
-        // （GI 变体叠 giVoxels = 含一阶反弹，E §3 附注：lerpSpeed=0.2 抑制反馈闭环爆炸），
-        // w=世界 Y 由 PS 尾部 mov o0.w, v1.y 直接写（Lit_Sand 8 个彩色 PS 变体尾部同构）。
-        // 本 pass 与 ForwardLit 同一着色链（SandShade），差异仅输出：
-        //   rgb = 辐射（无 _LightScale 显示补偿）；a = 渲染面世界 Y（IN.positionWS.y，
-        //   深水变体含抬升——原作 v1.y 即最终世界位）。
-        // 【登记】Voxelizer PS 的精确逐指令表属 E §5 未覆盖区（.rgb 是否含直射阴影/材质
-        //   细节待定）；采样经 ReplicaGiFeature 顶视 DrawRenderers（opaque×"WaterLabVoxelizer"
-        //   tag）进入 sceneVoxels。若 L3 整帧对不齐，回此处补逐指令。
+        // 【GI-calib 定案（rt/reports/GI-calib.md §2/§7）】原作顶视第三程序段正身 =
+        // Voxelizer（VS@73626 L34-170 + PS@79502..85014；旧"深水变体"命名作废——K 裁决
+        // 在 ForwardLit 关它是正确的，但该代码本属此 pass）：
+        //   * 顶点抬升：positionWS.y = ground + max(η−ground−0.05, 0)（抬到水面−5cm）；
+        //   * albedo o3 = lerp(干沙色, 4·waterColor·exp2(−8.65617·σ·col), min(10·col,1))，
+        //     σ=cb0[132]=(0.9930,0.1754,0.0558) 逐通道（R2 实读；σ≡0 旧案已翻）；
+        //   * 无焦散/无沙噪声/无干湿第三色带（Voxelizer 段无 Texture3D dcl 实证）；
+        //   * 光照 = 水面法线（原作 waterCells[offset0]，本仓 η 梯度解析，平水 (0,1,0)）
+        //     直射×阴影 + 第二灯 + GI 反馈（WaterLabGiAmbient）；
+        //   * α = 抬升后世界 Y（sceneVoxels.w 语义——GI kernel 的 DDA 高度场随此得到
+        //     海面 plateau，对齐原作 .w=1.22/结构）。
+        // 顶视 47.9% 面积即此水面体（原作类均值 (0.53,1.25,1.16)），G 优势真身；
+        // 按其颜色替换我方水面积后总均值比原作 1.007/0.964/0.953（内容差单项闭环）。
         Pass
         {
             Name "Voxelizer"
@@ -376,16 +379,58 @@ Shader "PirateCrew/WaterLab/Sand"
 
             HLSLPROGRAM
             #pragma target 3.5
-            #pragma vertex   SandVertex
+            #pragma vertex   SandVoxelVertex
             #pragma fragment SandVoxelFragment
-
-            // 主光阴影/深水变体与 ForwardLit 同款（着色链共用，变体面一致）。
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
-            #pragma shader_feature_local _WATERLAB_DEEP_SAND
+
+            Varyings SandVoxelVertex(Attributes IN)
+            {
+                Varyings OUT;
+                float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
+                OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
+                OUT.sandY = positionWS.y;
+
+                float2 uv = WorldToDomainUv(positionWS);
+                float ground = DecodeGround(SAMPLE_TEXTURE2D_LOD(
+                    _WaterLabGroundTex, sampler_WaterLabGroundTex, uv, 0).r);
+                float eta = DecodeGround(SAMPLE_TEXTURE2D_LOD(
+                    _WaterLabHeightTex, sampler_WaterLabHeightTex, uv, 0).r);
+                float waterDepth = max(eta - ground, 0.0);
+                float col = max(waterDepth - 0.05, 0.0);          // 抬升量（5 cm 水膜下限同 VS 表）
+                static const float3 VoxelSigma = float3(0.9930, 0.1754, 0.0558); // cb0[132] R2 实读
+                OUT.deepColor = lerp(_SandColorDry.rgb,
+                                     4.0 * _WaterColor.rgb * exp2(-8.65617 * VoxelSigma * col),
+                                     min(10.0 * col, 1.0));
+                positionWS.y += col;                              // 抬到水面−5cm
+                OUT.positionWS = positionWS;
+                OUT.positionCS = TransformWorldToHClip(positionWS);
+                return OUT;
+            }
 
             half4 SandVoxelFragment(Varyings IN) : SV_Target
             {
-                return half4(SandShade(IN), IN.positionWS.y);
+                // 水面法线：η 梯度解析（原作 waterCells[offset0] 的本仓等价；平水 (0,1,0)）
+                float2 uv = WorldToDomainUv(IN.positionWS);
+                const float texel = 1.0 / 512.0;   // 水场 512²（B 流：5.86 cm/格）
+                float etaC = DecodeGround(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, uv).r);
+                float etaX = DecodeGround(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, uv + float2(texel, 0)).r);
+                float etaZ = DecodeGround(SAMPLE_TEXTURE2D(_WaterLabHeightTex, sampler_WaterLabHeightTex, uv + float2(0, texel)).r);
+                // 斜率 = Δη/格距（格距=域 30m/512 格），法线 = normalize(−slopeX, 1, −slopeZ)
+                // 通乘 30 消分数：∝ ((etaC−etaX)·512, 30, (etaC−etaZ)·512)
+                float3 n = normalize(float3((etaC - etaX) * 512.0, 30.0, (etaC - etaZ) * 512.0));
+
+                float3 sunRaw = _WaterLabSunDir.xyz;
+                float3 sunDir = (dot(sunRaw, sunRaw) < 0.25)
+                    ? normalize(float3(-0.525, 0.669, -0.525)) : normalize(sunRaw);
+                float ndl = saturate(dot(n, sunDir));
+                float sh = MainLightRealtimeShadow(TransformWorldToShadowCoord(IN.positionWS));
+                float ndl2 = saturate(dot(n, normalize(_SkyLightDir.xyz)));
+                // 水柱项与 ForwardLit 成对钳 1（同一 22bit 场身份，L3-water §2.3#2；禁深度代位）
+                const float column = 1.0;
+                float3 alb = saturate(IN.deepColor);
+                float3 rgb = alb * (_SunTint.rgb * ndl * sh * column + _SkyLightColor.rgb * ndl2)
+                           + alb * WaterLabGiAmbient(IN.positionWS);
+                return half4(rgb, IN.positionWS.y);   // α=抬升后世界 Y（sceneVoxels.w 语义）
             }
             ENDHLSL
         }
