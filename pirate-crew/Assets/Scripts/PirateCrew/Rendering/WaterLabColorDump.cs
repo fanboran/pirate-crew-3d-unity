@@ -65,6 +65,11 @@ namespace PirateCrew.Rendering
         internal static RenderTexture DumpRT;
         internal static AsyncGPUReadbackRequest Pending;
         internal static bool HasPending;
+        /// <summary>读回已到达（回调渲染线程置位；Pending 自此有效）。</summary>
+        internal static volatile bool ReadbackArrived;
+
+        /// <summary>cmd.RequestAsyncReadback 回调（渲染线程）：只存请求 + 置位，取数在 Writer 主线程。</summary>
+        internal static void OnReadback(AsyncGPUReadbackRequest req) { Pending = req; ReadbackArrived = true; }
         internal static double StartedRealtime;
         internal static int Width, Height;
 
@@ -86,10 +91,17 @@ namespace PirateCrew.Rendering
             if (Fired || Completed || Failed)
                 return;
             Fired = true;
+            ReadbackArrived = false;
 
             var desc = renderingData.cameraData.cameraTargetDescriptor;
             Width = desc.width;
             Height = desc.height;
+            // 诊断（首跑全零排障加）：抓帧相机的 HDR/后处理/中间缓冲格式一次打全——
+            // 若 desc=ARGB32/sRGB 或 isHdr=false，则 cameraColorTarget 是 LDR 链，差分口径作废
+            Debug.Log($"[WaterLabColorDump] 诊断：isHdr={renderingData.cameraData.isHdrEnabled} " +
+                $"post={renderingData.cameraData.postProcessEnabled} descFmt={desc.colorFormat} " +
+                $"descSRGB={desc.sRGB} camAllowHDR={renderingData.cameraData.camera.allowHDR} " +
+                $"w={desc.width} h={desc.height}");
             DumpRT = new RenderTexture(Width, Height, 0, RenderTextureFormat.ARGBHalf,
                 RenderTextureReadWrite.Linear)
             {
@@ -103,10 +115,13 @@ namespace PirateCrew.Rendering
             // 晚于本帧，临时 RT 会被回收复用污染数据。
             var cmd = CommandBufferPool.Get("WaterLabRt0Dump");
             cmd.Blit(renderingData.cameraData.renderer.cameraColorTarget, DumpRT);
+            // 读回必须走同一条命令缓冲排在 blit 之后：裸调 AsyncGPUReadback.Request
+            // 会在 GPU 队列上立即执行拷贝，跑到尚未提交的 blit 前面——首跑全零的根因。
+            // 回调在渲染线程触发，只置标志；Writer 主线程轮询取数。
+            cmd.RequestAsyncReadback(DumpRT, 0, req => WaterLabColorDump.OnReadback(req));
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
 
-            Pending = AsyncGPUReadback.Request(DumpRT, 0);
             HasPending = true;
             StartedRealtime = Time.realtimeSinceStartupAsDouble;
 
@@ -219,8 +234,8 @@ namespace PirateCrew.Rendering
                 Destroy(gameObject);
                 return;
             }
-            if (!WaterLabColorDump.Pending.done)
-                return;
+            if (!WaterLabColorDump.ReadbackArrived)
+                return;   // 回调未到（Pending 尚为默认结构，不许读）
             if (WaterLabColorDump.Pending.hasError)
             {
                 WaterLabColorDump.Fail("AsyncGPUReadbackRequest.HasError");

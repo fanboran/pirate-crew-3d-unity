@@ -80,7 +80,7 @@ def hist_l1(a, b, lo, hi, bins=256):
 
 
 def channel_stats(ours, ref, prefix):
-    """单通道成对统计：均值差（我方−原作）/MAD/分位数/histL1（线性 + sRGB8）。"""
+    """单通道成对统计：均值差（我方-原作）/MAD/分位数/histL1（线性 + sRGB8）。"""
     diff = ours - ref
     rec = {
         f'{prefix}_mean_ours': float(ours.mean()),
@@ -335,7 +335,7 @@ def main():
             continue
         k[name] = {ch: rec[name][f'{ch}_srgb8_mean_diff'] for ch in 'RGB'}
     out['k_recheck_srgb8_mean_diff'] = k
-    print('\nK 结论 rt0 级复核（sRGB8 编码域均值差，我方−原作）：')
+    print('\nK 结论 rt0 级复核（sRGB8 编码域均值差，我方-原作）：')
     print('  水: R%+.1f G%+.1f B%+.1f   沙: R%+.1f G%+.1f B%+.1f' % (
         k['water']['R'], k['water']['G'], k['water']['B'],
         k['sand']['R'], k['sand']['G'], k['sand']['B']))

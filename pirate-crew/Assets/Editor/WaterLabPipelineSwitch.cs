@@ -15,8 +15,9 @@ namespace PirateCrew.EditorTools
     ///
     /// 【为什么要场景级切换】主战役 QualitySettings 六档全部绑各自管线资产
     /// （当前档 Ultra = PC_Balanced_URPAsset），URP 管线资产是全局单例生效；
-    /// WaterLab 的 HDR 定案（E/R 流：色缓冲 B10G11R11_UFloatPack32、运行时无 MSAA）
-    /// 不能改 Balanced 本体（主战役绝不泄漏是本件门禁），只能进场景临时换、离开还原。
+    /// WaterLab 的 HDR 定案（R 流实测：色缓冲 R16G16B16A16→本仓 64bit 精度 ARGBHalf、
+    /// 运行时无 MSAA；E 流早期 B10G11R11 推断已被 A 流推翻——无 alpha 会废掉 sceneVoxels
+    /// 的 w=世界Y）不能改 Balanced 本体（主战役绝不泄漏是本件门禁），只能进场景临时换、离开还原。
     ///
     /// 【生效路径】
     /// - 编辑器开/切场景：EditorApplication.sceneOpened（Single/Additive 均覆盖）；
@@ -196,7 +197,7 @@ namespace PirateCrew.EditorTools
         static void LogApplied(RenderPipelineAsset waterLab, bool resumed)
         {
             Debug.Log($"[WaterLabPipelineSwitch] {(resumed ? "已在" : "进入")} WaterLab：" +
-                $"现役管线 = {waterLab.name}（HDR on→B10G11R11 / MSAA off；" +
+                $"现役管线 = {waterLab.name}（HDR on→ARGBHalf=64bit 精度 / MSAA off；" +
                 $"还原凭据 = {s_Stored?.name ?? "无（重复进入）"}）");
         }
     }

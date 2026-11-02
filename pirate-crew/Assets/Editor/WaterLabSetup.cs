@@ -165,7 +165,13 @@ namespace PirateCrew.EditorTools
             var sun = new GameObject("Sun");
             var light = sun.AddComponent<Light>();
             light.type = LightType.Directional;
-            light.shadows = LightShadows.Soft;
+            // 【阴影行为口径】level0 SunLight 组件是 Soft/0.1/1.0（真值保留在下三行），
+            // 但 L2-close 抓帧定案：原作 shadow pass 的 raster bias 使沙面深度差（中位
+            // −0.0003）远小于比较阈（≥0.005 即全 lit）——抓帧时刻原作沙面**无有效阴影**
+            //（worst20 亮脊在原作全 lit）。URP 同参数会出真阴影（亮脊变黑，整帧差分沙区
+            // ×0.73 的主嫌）。PC3D_WATERLAB_SUNSHADOW=0 关闭做 A/B 归因；帧真值口径=关。
+            light.shadows = System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_SUNSHADOW") == "0"
+                ? LightShadows.None : LightShadows.Soft;
             light.intensity = 1.0f;
             light.shadowStrength = 1.0f;
             // shadowBias/normalBias = level0 SunLight 组件真值（阴影贴图采样偏置）。
@@ -1252,6 +1258,10 @@ namespace PirateCrew.EditorTools
             sim.replicaGroundSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaGroundPath);
             sim.replicaWaterSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaWaterPath);
             sim.replicaWeights = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaWeightsPath);
+            // D 流件2：纯沙场快照（障碍增量 = ground−sand 阈值化，B2 四统计锁）——
+            // 缺此接线则 obstaclesMap 泵禁用（礁石/珊瑚周圈的水阻行为缺失）
+            sim.replicaSandSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(
+                "Assets/Art/WaterLabReplica/MenuSand256.bytes");
             if (sim.computeShader == null)
                 Debug.LogError($"[WaterLabSetup] 找不到 compute：{ComputePath}（检查文件是否入库/被导入）");
             Debug.Log($"[WaterLabSetup] 模拟驱动：ReplicaMode={(sim.ReplicaMode ? "开" : "关（程序剖面）")}（Awake 后以模拟侧加载为准）");
@@ -1843,12 +1853,22 @@ namespace PirateCrew.EditorTools
             }
 
             var oldWorld = rtField.GetValue(null) as RenderTexture;
-            var oldUi = rtUiField.GetValue(null) as RenderTexture;
-            var newWorld = new RenderTexture(w, h, 24) { name = "WaterLabL3WorldRT" };
+            var oldUi = rtField.GetValue(null) as RenderTexture;
+            // 世界 RT 必须是线性 HDR：URP 14 对带 targetTexture 的相机，色彩中间缓冲格式
+            // 直接继承目标（rt0e 诊断 isHdr=True 但 descFmt=ARGB32 sRGB 的根因）。
+            // 代价：ReadPixels→RGB24 出的是线性值（PNG 偏暗）——sim 冻结下三枪同内容，
+            // swapchain 口径比较前离线补 sRGB 编码即可；rt0 转储点在后处理前不受影响。
+            var newWorld = new RenderTexture(w, h, 24, RenderTextureFormat.ARGBHalf,
+                RenderTextureReadWrite.Linear) { name = "WaterLabL3WorldRT" };
             var newUi = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32) { name = "WaterLabL3UiRT" };
             rtField.SetValue(null, newWorld);
             rtUiField.SetValue(null, newUi);
             cam.targetTexture = newWorld;
+            // rt0 差分前提：世界相机必须走 HDR 中间缓冲（isHdrEnabled）——URP 的 HDR
+            // 开关在引擎相机 allowHDR（additional data 无此属性）；后处理位在 additional data。
+            // _rt 本体保持 ARGB32 sRGB 供 PNG 出口
+            cam.allowHDR = true;
+            cam.GetUniversalAdditionalCameraData().renderPostProcessing = true;
             if (uiCamField?.GetValue(null) is Camera uiCam)
                 uiCam.targetTexture = newUi;
             if (oldWorld != null) oldWorld.Release();
