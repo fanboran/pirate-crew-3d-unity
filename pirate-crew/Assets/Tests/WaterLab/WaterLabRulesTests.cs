@@ -1,3 +1,4 @@
+using System.IO;
 using NUnit.Framework;
 using PirateCrew.WaterLab;
 using UnityEngine;
@@ -20,12 +21,19 @@ namespace PirateCrew.WaterLab.Tests
         [Test]
         public void DefaultParameters_AreCflStable()
         {
-            // 原作参数契约（reverse §8.1 与 Water.Run 派生量）：
-            // 格距 5.86 cm（60 m/1024² 或 30 m/512²）；g=16；maxVelocity=0.5√g=2 m/s；
-            // 子步 dt=0.5·dx/√g；damping=0；advectionFactor=0.2；kappa=1000。
+            // 原作参数契约（reverse §8.1 与 Water.Run 派生量；I7 裁决①域/分辨率对齐原作）：
+            // 域 = 主菜单沙盘 30 m（Beach.bounds）；水 512² / 地 1024²（B-terrain §2 三层
+            // 分辨率）；格距 5.86 cm（30/512 = 60/1024，FormatProperty 真值）；g=16；
+            // maxVelocity=0.5√g=2 m/s；子步 dt=0.5·dx/√g；damping=0；advectionFactor=0.2；
+            // kappa=1000；海平面 level=1.0。
             Assert.That(WaterLabRules.WaterCellSize, Is.EqualTo(60f / 1024f).Within(1e-4f),
-                "水格距应约等于原作 60 m/1024² = 5.86 cm");
-            Assert.That(WaterLabRules.DomainSize, Is.EqualTo(64f), "实验室域 64 m（取景需要）");
+                "水格距应约等于原作 FormatProperty 的 5.86 cm");
+            Assert.That(WaterLabRules.DomainSize, Is.EqualTo(30f), "主菜单沙盘域 30 m（Beach.bounds，裁决①）");
+            Assert.That(WaterLabRules.WaterCells, Is.EqualTo(512), "原作 Water 层 512²");
+            Assert.That(WaterLabRules.GroundCells, Is.EqualTo(1024), "原作 Ground 层 1024²");
+            Assert.That(WaterLabRules.GroundCellSize, Is.EqualTo(30f / 1024f).Within(1e-6f),
+                "地形格距 = 原作 2.93 cm（30 m/1024²）");
+            Assert.That(WaterLabRules.SeaLevel, Is.EqualTo(1f), "原作 Water.level=1.0（世界 Y）");
             Assert.That(WaterLabRules.Gravity, Is.EqualTo(16f), "原作场景 gravityForce=16");
             Assert.That(WaterLabRules.MaxVelocity, Is.EqualTo(2f).Within(1e-4f),
                 "原作 maxVelocity=0.5·√g（g=16 → 2 m/s）");
@@ -35,6 +43,7 @@ namespace PirateCrew.WaterLab.Tests
             Assert.That(WaterLabRules.VelocityDamping, Is.EqualTo(0f), "原作 damping=0");
             Assert.That(WaterLabRules.AdvectionFactor, Is.EqualTo(0.2f), "原作 advectionFactor=0.2");
             Assert.That(WaterLabRules.Kappa, Is.EqualTo(1000f), "原作 kappa=1000");
+            Assert.That(WaterLabRules.FloorBlurIterations, Is.EqualTo(3), "原作 floorBlurIterations=3（B2 §6 菜单运行时真值）");
 
             // CFL 以原作的输运速度上限计：HeightIntegration 的通量是 d·v，v 已钳到 2 m/s，
             // 所以 C = v_max·dt/dx（不是 √(g·h_max)·dt/dx）。
@@ -63,28 +72,115 @@ namespace PirateCrew.WaterLab.Tests
         [Test]
         public void TideDepthTarget_MatchesOriginalUpdateAmount()
         {
-            // t=0：sin=0，目标 = max(0 − ground, 0.05)
-            Assert.That(WaterLabRules.TideDepthTarget(0f, -2.4f), Is.EqualTo(2.4f).Within(1e-4f));
-            Assert.That(WaterLabRules.TideDepthTarget(0f, 0.5f),
+            // 判据全部相对 SeaLevel 表达（原作 target = max(level − ground + wave, 0.05)，
+            // level=1.0；测试不钉绝对高程，海平面再调也不漂）。
+            // t=0：sin=0，目标 = max(SeaLevel − ground, 0.05)
+            Assert.That(WaterLabRules.TideDepthTarget(0f, WaterLabRules.SeaLevel - 2.4f),
+                Is.EqualTo(2.4f).Within(1e-4f));
+            Assert.That(WaterLabRules.TideDepthTarget(0f, WaterLabRules.SeaLevel + 0.5f),
                 Is.EqualTo(WaterLabRules.TideMinAmount), "干沙上目标仍保留 5 cm 结合水");
 
-            // t=20：amp=0.2，sin(20)=0.9129453 → 目标 = ground 深度 + 0.1825891 m
+            // t=20：amp=0.2，sin(20)=0.9129453 → 目标 = (SeaLevel − ground) + 0.1825891 m
             float wave = 0.2f * Mathf.Sin(20f);
-            Assert.That(WaterLabRules.TideDepthTarget(20f, -1f), Is.EqualTo(1f + wave).Within(1e-4f));
+            Assert.That(WaterLabRules.TideDepthTarget(20f, WaterLabRules.SeaLevel - 1f),
+                Is.EqualTo(1f + wave).Within(1e-4f));
 
             // 全场统一潮位，没有空间行波项；TideEta 是含 5 cm 结合水的水量面
-            Assert.That(WaterLabRules.TideEta(0f), Is.EqualTo(0f).Within(1e-6f));
+            Assert.That(WaterLabRules.TideEta(0f), Is.EqualTo(WaterLabRules.SeaLevel).Within(1e-6f));
             Assert.That(WaterLabRules.TideClampMin, Is.EqualTo(-0.5f), "原作 clamp 下钳 −0.5 m");
         }
 
         [Test]
-        public void CouplingWeight_IsFullInInitialSeaAndZeroOnInitialDrySand()
+        public void CouplingWeightField_LocksB2TruthSemantics()
         {
-            Assert.That(WaterLabRules.CouplingWeightAt(-2.4f), Is.EqualTo(15f),
-                "初始淹没区满耦合（4 bit 上限）");
-            Assert.That(WaterLabRules.CouplingWeightAt(-0.01f), Is.EqualTo(15f));
-            Assert.That(WaterLabRules.CouplingWeightAt(0f), Is.EqualTo(0f), "初始岸线干区零耦合");
-            Assert.That(WaterLabRules.CouplingWeightAt(0.5f), Is.EqualTo(0f));
+            // W1 契约：耦合权重场 = B2 运行时实测（MenuWeights512.bytes，拷贝自
+            // external/sandcastle-ref/rt/dumps/menu-snapshot/coupling-weights.bin）。
+            // 海区/干区恒 0（B2 §3：96.9% 格 ≡0，原作无全场潮位松弛）、桨带
+            // row 496..511 = [1..8,8..15]/15 ramp——从 .bytes 实测锁，不许自推。
+            string path = LocateWeightsAsset();
+            if (path == null)
+                Assert.Ignore("权重资产未找到（Assets/Art/WaterLabReplica/MenuWeights512.bytes 缺失，或设 PC3D_WATERLAB_WEIGHTS 指向该文件）");
+
+            byte[] bytes = File.ReadAllBytes(path);
+            // md5 对账：资产必须是 B2 §9 产物（coupling-weights.bin）的原样拷贝
+            using (var md5 = System.Security.Cryptography.MD5.Create())
+            {
+                string hash = System.BitConverter.ToString(md5.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+                Assert.AreEqual(WaterLabReplicaWeights.TruthMd5, hash,
+                    "权重资产 md5 与 B2 产物不符——拷贝被改动或错资产");
+            }
+
+            WaterLabReplicaWeights.Load(bytes); // 结构校验（值域/全零区/ramp）由加载器钉
+            try
+            {
+                Assert.That(WaterLabReplicaWeights.HasData, Is.True);
+                float[] w = WaterLabReplicaWeights.Weights;
+
+                // 海区/干区 = 0：桨带外全域抽 1024 点全查零
+                var rnd = new System.Random(20261027);
+                for (int n = 0; n < 1024; n++)
+                {
+                    int row = rnd.Next(WaterLabReplicaWeights.PaddleRowFirst);
+                    int col = rnd.Next(WaterLabReplicaWeights.Resolution);
+                    Assert.AreEqual(0f, w[row * WaterLabReplicaWeights.Resolution + col],
+                        $"({row},{col}) 桨带外权重应恒 0（B2 §3 实测）");
+                }
+
+                // 桨带 ramp：逐行恒值 k/15，"8" 重复（行 502/503/504）
+                int[] ramp = { 1, 2, 3, 4, 5, 6, 7, 8, 8, 9, 10, 11, 12, 13, 14, 15 };
+                for (int k = 0; k < ramp.Length; k++)
+                {
+                    int row = WaterLabReplicaWeights.PaddleRowFirst + k;
+                    float expected = ramp[k] / 15f;
+                    for (int col = 0; col < WaterLabReplicaWeights.Resolution; col += 97)
+                        Assert.That(w[row * WaterLabReplicaWeights.Resolution + col],
+                            Is.EqualTo(expected).Within(1e-6f),
+                            $"桨带 row {row} 应恒 {ramp[k]}/15（B2 §3 readback pair 和唯一反解）");
+                }
+
+                // playTime 锚点：B2 同相 dump 组 t0 的 Game.playTime 运行时真值
+                Assert.AreEqual(622.48876953125f, WaterLabReplicaWeights.PlayTimeOrigin, 1e-3f,
+                    "playTime₀ 应锚 B2 phase/meta.json dump-t0 真值（φ₀=0.4534 rad，振幅渐起已饱和）");
+            }
+            finally
+            {
+                WaterLabReplicaWeights.Unload();
+            }
+        }
+
+        [Test]
+        public void CouplingWeightFallbackProxy_RetiredToDataFallbackOnly()
+        {
+            // 回退代理（权重资产缺失时的数据源）语义保留但已退役：满耦只服务该回退，
+            // 复刻路径逐格读真值场（上一条测试锁）。海区满耦/干区零耦的旧断言收窄为
+            // 回退数据源的行为描述。
+            float sea = WaterLabRules.SeaLevel;
+            Assert.That(WaterLabRules.CouplingWeightAt(sea - 2.4f), Is.EqualTo(15f),
+                "回退代理：初始淹没区满耦");
+            Assert.That(WaterLabRules.CouplingWeightAt(sea + 0.5f), Is.EqualTo(0f),
+                "回退代理：初始干区零耦");
+        }
+
+        [Test]
+        public void BlurFloor_KeepsConstantFieldAndDampsSpike()
+        {
+            // 盒式模糊（4 邻均值，无中心项，clamp 边界）的两条硬语义：常量场不变；
+            // 孤峰被摊向邻域（能量并入邻格，峰值骤降、邻格抬升）。
+            const int cells = 32;
+            var flat = new float[cells * cells];
+            for (int i = 0; i < flat.Length; i++) flat[i] = 0.7f;
+            WaterLabRules.BlurFloor(flat, cells, WaterLabRules.FloorBlurIterations);
+            for (int i = 0; i < flat.Length; i++)
+                Assert.AreEqual(0.7f, flat[i], 1e-5f, "常量场 3 次模糊应逐点不变");
+
+            var spike = new float[cells * cells];
+            spike[16 * cells + 16] = 2f;
+            WaterLabRules.BlurFloor(spike, cells, 1);
+            Assert.That(spike[16 * cells + 16], Is.LessThan(0.2f),
+                "孤峰中心（无中心项的 4 邻均值）应坍到邻域量级");
+            Assert.That(spike[16 * cells + 17] + spike[16 * cells + 15]
+                      + spike[15 * cells + 16] + spike[17 * cells + 16], Is.GreaterThan(1.2f),
+                "孤峰质量应并入 4 邻（Σ4/4 守恒量级）");
         }
 
         [Test]
@@ -97,9 +193,12 @@ namespace PirateCrew.WaterLab.Tests
         [Test]
         public void TerrainProfile_IsMonotoneishFlatToBeach()
         {
-            // 剖面骨架：深水端低于海平面、干沙端高于海平面、缓坡+滩面单调（微起伏容差内）
-            Assert.That(WaterLabRules.TerrainHeight(-30f, 0f), Is.LessThan(WaterLabRules.SeaLevel - 0.8f));
-            Assert.That(WaterLabRules.TerrainHeight(30f, 0f), Is.GreaterThan(WaterLabRules.SeaLevel + 0.3f));
+            // 程序剖面（ReplicaMode 关闭时的回退）骨架：海侧低于海平面、干沙侧高于海平面、
+            // 缓坡+滩面在爬升段单调（地形噪声容差内）。端点取域边缘，干湿判据全部
+            // 相对 SeaLevel（语义断言，不钉具体高程）。
+            float half = WaterLabRules.DomainSize * 0.5f;
+            Assert.That(WaterLabRules.TerrainHeight(-half, 0f), Is.LessThan(WaterLabRules.SeaLevel - 0.2f));
+            Assert.That(WaterLabRules.TerrainHeight(half, 0f), Is.GreaterThan(WaterLabRules.SeaLevel + 0.3f));
             float prev = WaterLabRules.TerrainHeight(WaterLabRules.ShelfStartX, 0f);
             for (float x = WaterLabRules.ShelfStartX + 1f; x <= WaterLabRules.FaceEndX; x += 1f)
             {
@@ -108,6 +207,18 @@ namespace PirateCrew.WaterLab.Tests
                     $"爬升段在 x={x} 处出现超过地形噪声容差的下降");
                 prev = cur;
             }
+        }
+
+        [Test]
+        public void TerrainProfile_FallbackShapesScaleWithDomain()
+        {
+            // 回退剖面的里程碑随域缩放（LegacyProfileScale），滩面始终落在域内：
+            // FaceEndX 不越过域边缘、滩面高程在海平面上方——域再改时测试不必跟数。
+            float half = WaterLabRules.DomainSize * 0.5f;
+            Assert.That(WaterLabRules.FaceEndX, Is.LessThan(half), "滩面末端应在域内");
+            Assert.That(WaterLabRules.ShelfStartX, Is.GreaterThan(-half), "浅水架起点应在域内");
+            Assert.That(WaterLabRules.BeachHeight, Is.GreaterThan(WaterLabRules.SeaLevel));
+            Assert.That(WaterLabRules.OffshoreDepth, Is.LessThan(WaterLabRules.SeaLevel));
         }
 
         // ------------------------------------------------------------------
@@ -266,6 +377,36 @@ namespace PirateCrew.WaterLab.Tests
         {
             Assert.That(WaterLabRules.SpongeDamping(WaterLabRules.SpongeCells), Is.EqualTo(0f));
             Assert.That(WaterLabRules.SpongeDamping(0), Is.EqualTo(WaterLabRules.SpongeMaxDamping));
+        }
+
+        // ---- 权重资产定位（WaterLabReplicaSnapshotTests 同款三级：env / 上溯 / 工程内） ----
+
+        static string LocateWeightsAsset()
+        {
+#if UNITY_EDITOR
+            return Path.Combine(UnityEngine.Application.dataPath, "Art", "WaterLabReplica", "MenuWeights512.bytes");
+#else
+            var env = System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_WEIGHTS");
+            if (!string.IsNullOrEmpty(env) && File.Exists(env))
+                return env;
+            var markers = new[]
+            {
+                Path.Combine("pirate-crew", "Assets", "Art", "WaterLabReplica", "MenuWeights512.bytes"),
+                Path.Combine("temp", "water-lab", "pirate-crew", "Assets", "Art", "WaterLabReplica", "MenuWeights512.bytes"),
+            };
+            var dir = new DirectoryInfo(System.AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                foreach (var marker in markers)
+                {
+                    var candidate = Path.Combine(dir.FullName, marker);
+                    if (File.Exists(candidate))
+                        return candidate;
+                }
+                dir = dir.Parent;
+            }
+            return null;
+#endif
         }
     }
 }

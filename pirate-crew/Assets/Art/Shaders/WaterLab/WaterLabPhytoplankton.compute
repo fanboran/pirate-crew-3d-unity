@@ -1,0 +1,186 @@
+// 夜光浮游生物粒子（D 流件4）：Sandcastle Phytoplankton compute 三 kernel 语义移植。
+//
+// 【第一手依据】rt/out/Phytoplankton/*.hlslasm（game sharedassets0.assets path_id 643，
+// 本流现反汇编）：
+//   Initialization —— `u0 = 0`（池全 0 = 全死，life<0.01 即死标记，首帧 Update 重生分支撒点）；
+//   Update @0      —— 寿命充能/衰减 + 水场驱动的域内漂移（详式见 PhytoUpdate）；
+//   Culling @0     —— `1 − exp(−4.328085·life) ≥ 0.08`（**Culling kernel 的 DXBC 是自然
+//                     exp**：`mul ×l(-4.328085); exp`，第一手；Lit_Phytoplantion VS 里同
+//                     字面量是 exp2 语义 e^(−3·life)——两处不同效、各自直译，X-exp2.md §3
+//                     的 exp2 律适用于渲染 VS，此处以本 kernel 反汇编为准）+ 主/阴影双视锥
+//                     6 平面剔除，atomic append 写 drawList/drawShadowList（原作 u2/u3 分立
+//                     计数）。args 写回用 Begin/End 模式（我方白水同构，等价原作 CopyCount）。
+// 【主菜单可见性】Phytoplankton.Draw/Render 要求 dayCycler.Night ≥ 0.5（cs-full），主菜单
+// 固定 Morning（Night=0）→ 系统每帧在跑但永不绘制；我方 NightAmount 常量同语义。
+// 【字段语义（Update 反汇编重建）】x=寿命（<0.01 死、重生 0.01；亮度充能、0.1/s 衰减）、
+// y/z=世界 XZ 位置、w=采样水量（诊断）。原作亮度源 = 水格法线字节重建的 |nz|、|nx|，
+// 我方水场为明文速度——以速度场等价量替代（登记 D 报告）。
+#pragma kernel PhytoBegin
+#pragma kernel PhytoInitialization
+#pragma kernel PhytoUpdate
+#pragma kernel PhytoCulling
+#pragma kernel PhytoEnd
+
+RWStructuredBuffer<float4> _PhytoPool;       // x=life y=wx z=wz w=water，×_PhytoCapacity
+StructuredBuffer<float4> _PhytoWater;        // 水场 float4（_WaterA 同语义：x=h y=vx z=vz w=foam）
+RWStructuredBuffer<uint> _PhytoDrawList;     // 主视锥内粒子槽位（atomic append）
+RWStructuredBuffer<uint> _PhytoShadowList;   // 阴影视锥内粒子槽位（atomic append）
+RWStructuredBuffer<uint> _PhytoCount;        // [0]=主列表计数 [1]=阴影列表计数（PhytoBegin 清零）
+RWStructuredBuffer<uint> _PhytoArgs;         // DrawProceduralIndirect (6, count, 0, 0)
+
+uint _PhytoCapacity;         // 32768（Culling 基类默认 capacity）
+float _PhytoDt;              // 帧 dt（Run 的 deltaTime）
+float _PhytoTime;            // playTime（重生哈希种子，原作 cb0[113].x/.w 双种子）
+float _PhytoHalfDomain;      // 半域宽 15
+float _PhytoDrift;           // 漂移系数（原作 cb0[152].z 兼职：位移 += 场×该值×dt×0.5）
+int _PhytoWaterCells;        // 水场每轴格数 512
+float4 _PhytoFrustum[6];     // 主视锥平面（xyz=n, w=d）
+float4 _PhytoShadowFrustum[6]; // 阴影视锥平面（原作 cb0[145..150] 那一路；我方恒退化平面）
+
+// Wang hash（Update/Culling 反汇编同款：xor/ushr/imul 9/0x27d4eb2d 链）
+uint PhytoHash(uint x)
+{
+    x ^= x >> 16;
+    x *= 9u;
+    x ^= x >> 4;
+    x *= 0x27d4eb2du;
+    x ^= x >> 15;
+    return x;
+}
+
+float PhytoRand01(uint h)
+{
+    return (h & 0xFFFFu) / 65535.0;
+}
+
+[numthreads(64, 1, 1)]
+void PhytoBegin(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x == 0)
+    {
+        _PhytoCount[0] = 0;
+        _PhytoCount[1] = 0;
+    }
+}
+
+// 原作 Initialization：池清零（全死；Update 的重生分支负责撒点）
+[numthreads(64, 1, 1)]
+void PhytoInitialization(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _PhytoCapacity) return;
+    _PhytoPool[id.x] = float4(0.0, 0.0, 0.0, 0.0);
+}
+
+// 水场水量双线性（水格连续坐标）
+float PhytoSampleWaterAt(int2 i0, int2 i1, float2 f)
+{
+    float a = _PhytoWater[i0.x + i0.y * _PhytoWaterCells].x;
+    float b = _PhytoWater[i1.x + i0.y * _PhytoWaterCells].x;
+    float c = _PhytoWater[i0.x + i1.y * _PhytoWaterCells].x;
+    float d = _PhytoWater[i1.x + i1.y * _PhytoWaterCells].x;
+    return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+}
+
+// 水场速度分量双线性（comp: 0=vx 1=vz；原作速度通道是打包字节死通道 −4，我方明文场取活值）
+float PhytoSampleSpeedAt(int2 i0, int2 i1, float2 f, int comp)
+{
+    float4 a = _PhytoWater[i0.x + i0.y * _PhytoWaterCells];
+    float4 b = _PhytoWater[i1.x + i0.y * _PhytoWaterCells];
+    float4 c = _PhytoWater[i0.x + i1.y * _PhytoWaterCells];
+    float4 d = _PhytoWater[i1.x + i1.y * _PhytoWaterCells];
+    float2 ab = (comp == 0) ? float2(a.x, b.x) : float2(a.y, b.y);
+    float2 cd = (comp == 0) ? float2(c.x, d.x) : float2(c.y, d.y);
+    return lerp(lerp(ab.x, ab.y, f.x), lerp(cd.x, cd.y, f.x), f.y);
+}
+
+// 粒子步（Update @0 语义重建）
+[numthreads(64, 1, 1)]
+void PhytoUpdate(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _PhytoCapacity) return;
+    float4 p = _PhytoPool[id.x];
+
+    // 重生分支（life < 0.01）：双种子哈希撒点，life 重置 0.01（原作 movc 出生段）
+    if (p.x < 0.01)
+    {
+        uint h1 = PhytoHash(id.x + asuint(_PhytoTime));
+        uint h2 = PhytoHash(PhytoHash(id.x + asuint(_PhytoTime)) ^ 61u);
+        float2 r = float2(PhytoRand01(h1), PhytoRand01(h2)) * 3.0 - 1.5;
+        p = float4(0.01, r * _PhytoHalfDomain, 0.0);
+    }
+
+    // 水场采样：世界 XZ → uv（原作 div 域宽 +0.5 sat）→ 水格连续坐标 → 双线性
+    float2 uv = saturate(p.yz / (_PhytoHalfDomain * 2.0) + 0.5);
+    float2 cell = uv * _PhytoWaterCells - 0.5;
+    float2 q = clamp(cell, float2(0.0, 0.0), float2(_PhytoWaterCells - 1, _PhytoWaterCells - 1));
+    int2 i0 = (int2)floor(q);
+    float2 f = q - i0;
+    int2 i1 = min(i0 + 1, int2(_PhytoWaterCells - 1, _PhytoWaterCells - 1));
+    float water = PhytoSampleWaterAt(i0, i1, f);
+
+    // 漂移（原作：水量>0.05 门控，位移 += 场×系数×dt×0.5）
+    float gate = water > 0.05 ? 1.0 : 0.0;
+    float2 drift = gate * _PhytoDrift * _PhytoDt * 0.5 *
+        float2(PhytoSampleSpeedAt(i0, i1, f, 0), PhytoSampleSpeedAt(i0, i1, f, 1));
+
+    // 域 clamp（原作 mul ±halfDomain + min/max）
+    float2 pos = clamp(p.yz + drift, float2(-_PhytoHalfDomain, -_PhytoHalfDomain),
+                       float2(_PhytoHalfDomain, _PhytoHalfDomain));
+
+    // 亮度充能/衰减（原作：亮 = sat(|nz|−0.2)×|nx|×(depth>0.1)、衰减 0.1/s；
+    // 我方以速度场模长替代法线字节重建——语义登记）
+    float speed = length(float2(PhytoSampleSpeedAt(i0, i1, f, 0), PhytoSampleSpeedAt(i0, i1, f, 1)));
+    float bright = saturate(speed - 0.2) * (water > 0.1 ? 1.0 : 0.0);
+    float life = saturate(p.x + bright * _PhytoDt - _PhytoDt * 0.1);
+
+    _PhytoPool[id.x] = float4(life, pos, water);
+}
+
+// 剔除（Culling @0 直译）：寿命 alpha 门 + 主/阴影双视锥
+[numthreads(64, 1, 1)]
+void PhytoCulling(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _PhytoCapacity) return;
+    float4 p = _PhytoPool[id.x];
+    // 第一手 DXBC：1 − exp(−4.328085·life) ≥ 0.08（自然 exp，与渲染 VS 的 exp2 不同效）
+    float alpha = 1.0 - exp(-4.328085 * p.x);
+    bool visible = alpha >= 0.08;
+
+    // 粒子高度在渲染 VS 才算（贴水面），剔除按 XZ 平面近似（y=0；上下平面剔除失准，
+    // 登记近似——主菜单本系统不绘制，此路只为结构完整）
+    float3 pw = float3(p.y, 0.0, p.z);
+
+    bool inMain = visible;
+    [unroll]
+    for (int k = 0; k < 6; k++)
+        if (dot(_PhytoFrustum[k].xyz, pw) + _PhytoFrustum[k].w < 0.0)
+            inMain = false;
+    bool inShadow = visible;
+    [unroll]
+    for (int k2 = 0; k2 < 6; k2++)
+        if (dot(_PhytoShadowFrustum[k2].xyz, pw) + _PhytoShadowFrustum[k2].w < 0.0)
+            inShadow = false;
+
+    if (inMain)
+    {
+        uint j;
+        InterlockedAdd(_PhytoCount[0], 1, j);
+        _PhytoDrawList[j] = id.x;
+    }
+    if (inShadow)
+    {
+        uint j2;
+        InterlockedAdd(_PhytoCount[1], 1, j2);
+        _PhytoShadowList[j2] = id.x;
+    }
+}
+
+// 帧尾：写 DrawProceduralIndirect 参数（主列表；阴影列表不发布——我方粒子不投影）
+[numthreads(1, 1, 1)]
+void PhytoEnd(uint3 id : SV_DispatchThreadID)
+{
+    _PhytoArgs[0] = 6;
+    _PhytoArgs[1] = min(_PhytoCount[0], _PhytoCapacity);
+    _PhytoArgs[2] = 0;
+    _PhytoArgs[3] = 0;
+}

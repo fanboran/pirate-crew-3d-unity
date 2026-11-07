@@ -10,7 +10,8 @@
 //   AdvectFoam        A→B（泡沫回溯/生成/衰减/扩散，读 4 邻）
 //   WetnessStep       C→D（湿沙浸润/蒸发/扩散，读 4 邻，地形分辨率）
 //   （子步末 A/B 换位，最新水场落在 A）
-//   SurfaceUpdate     A→A（帧末一次：蒸发 + 全场潮位松弛，无邻域读；原作 UpdateAmount）
+//   SurfaceUpdate     A→A（帧末一次：蒸发 + 桨带潮位松弛，读权重/地板静态缓冲，
+//                     无邻域读；原作 UpdateAmount）
 //   OutputField       读 A，写 _WaterLabHeightTex（水场输出，水分辨率）
 //                     同 kernel 顺带写 _WaterLabCausticTex（焦散烘焙：η 四邻均值−中心
 //                     的带符号拉普拉斯——邻域本就为法线算好，零额外采样；增益留在
@@ -18,7 +19,7 @@
 //                     侧渲 RT、材质只采 causticsMap」的外包分工）
 //   WhitewaterBegin   清活粒子计数（1 线程）
 //   WhitewaterSpawn   读 B 泡沫，超阈值按概率写粒子缓冲环（环游标跨步连续）
-//   WhitewaterUpdate  粒子平流+贴水面弹簧+寿命衰减（64 线程/组，容量域）
+//   WhitewaterUpdate  粒子平流+贴水面弹簧+age 增长超寿消亡（池 w=age 秒，64 线程/组）
 //   WhitewaterCompact 活粒子槽位写 drawList（InterlockedAdd 产出紧凑列表）
 //   WhitewaterEnd     写 DrawProceduralIndirect args (6, count, 0, 0)（1 线程）
 // 帧末最新水场在 A（SurfaceUpdate 后）、最新湿沙在 D；下一帧驱动侧把 (A,D) 当输入。
@@ -35,36 +36,57 @@
 #pragma kernel WhitewaterUpdate
 #pragma kernel WhitewaterCompact
 #pragma kernel WhitewaterEnd
+#pragma kernel ObstacleInit
+#pragma kernel GroundVelocity
+#pragma kernel GroundHeight
+#pragma kernel GroundOutput
 
-RWStructuredBuffer<float4> _WaterA;   // x=h(水深) y=vx z=vz w=foam，256²
+RWStructuredBuffer<float4> _WaterA;   // x=h(水深) y=vx z=vz w=foam，WaterCells²（512²）
 RWStructuredBuffer<float4> _WaterB;
-StructuredBuffer<float> _Ground;      // 地形高程（世界 Y），128²，只读静态
-RWStructuredBuffer<float> _WetA;      // 湿沙 [0,1]，128²
+StructuredBuffer<float> _Ground;      // 地形高程（世界 Y），GroundCells²，只读静态
+// 耦合权重场（W1，B2 定案）：512² float32 = 原作 4bit 权重/15，行主序 row=Z、与水格
+// 同分辨率同索引。真值 = MenuWeights512.bytes（桨带 row 496..511 ramp，其余 0；B2 实测
+// 权重是静态场，4 dump 逐格一致率 1.000）；资产缺失时 C# 侧灌回退代理场（海区 1/干区 0）。
+StructuredBuffer<float> _CouplingWeights;
+// BlurFloor 平滑场（水格分辨率，静态一次预计算）：潮位目标里的 floor 项 = groundHeight
+// 双线性采进水格后 3 次 4 邻盒式模糊（Rules.BlurFloor 同式；B2 §7.3 近似式）。
+StructuredBuffer<float> _Floor;
+RWStructuredBuffer<float> _WetA;      // 湿沙 [0,1]，GroundCells²
 RWStructuredBuffer<float> _WetB;
+// Air 大气场（D 流件3）：AirCells²（32²）float4，x=水汽。原作 Air 层只在 Init 派发
+// Initialization（恒初值 0，Air.Run 为空不步进），本缓冲灌该初值后恒定；Water 侧逐格
+// 双线性采样喂蒸发式（结构对齐原作 UpdateAmount 首段的水汽采样）。
+RWStructuredBuffer<float4> _AirCells;
+int _AirCellsCount;                   // 32
+float _EvaporationBase;               // sun.r × evaporationFactor × 0.001（湿度无关部分）
 RWTexture2D<float4> _WaterLabHeightTex; // 输出：R=η(编码) G,B=法线xz(编码) A=泡沫（与渲染 shader 全局同名）
 RWTexture2D<float4> _WaterLabCausticTex; // 输出：R=焦散拉普拉斯（带符号，凹聚正/凸散负；与渲染 shader 全局同名）
 RWTexture2D<float> _WaterLabWetTex;     // 输出：R=湿沙（与渲染 shader 全局同名）
 
 // 白水粒子（W4，对标 Whitewater：泡沫场实例化，Compact 写 drawList、End 写 drawArgs）
-RWStructuredBuffer<float4> _WWPos;   // xyz=世界坐标 w=寿命 [0,1]，容量 _WwCapacity（缓冲环）
+// 【I9】池 w 语义改原作正身：w = age 秒（D-whitewater.hlsl L22/L26：原作池 float4
+// w=age 秒，VS 的尺寸/alpha 曲线都以秒龄为自变量）。0 = 死/未诞生标记（与初始
+// 零缓冲同值），Update/Compact 以 w≤0 跳过。
+RWStructuredBuffer<float4> _WWPos;   // xyz=世界坐标 w=age 秒，容量 _WwCapacity（缓冲环）
 RWStructuredBuffer<float4> _WWVel;   // xyz=速度 w=基准尺寸 (m)
 RWStructuredBuffer<uint> _WWDraw;    // draw list：活粒子槽位（Compact 产出，渲染侧按实例号查）
 RWStructuredBuffer<uint> _WWAlive;   // [0]=本步活粒子计数（Begin 清零）[1]=缓冲环写游标（跨步连续）
 RWStructuredBuffer<uint> _WWArgs;    // DrawProceduralIndirect 参数 (6, count, 0, 0)
 
 // ---- C# 下发常量（名字与 WaterLabRules 对齐）----
-int _Cells;              // 水域每轴格数 (256)
-float _CellSize;         // 水格距 (0.25)
-int _GroundCells;        // 地形每轴格数 (128)
-float _GroundCellSize;   // 地形格距 (0.5)
-float _HalfDomain;       // 半域宽 (32)
+int _Cells;              // 水域每轴格数（WaterCells=512）
+float _CellSize;         // 水格距（30/512）
+int _GroundCells;        // 地形每轴格数（GroundCells=1024）
+float _GroundCellSize;   // 地形格距（30/1024）
+float _HalfDomain;       // 半域宽（15）
 
 float _Dt;
 float _Gravity;
 float _Damping;
 float _MaxVelocity;
 float _DryDepth;
-float _Time;
+float _Time;             // playTime（原作 Game.playTime 模拟时钟）：潮位相位 + 白水哈希种子；
+                         // ReplicaMode 下 = B2 真值锚点 + 本地 simTime（见 WaterLabSimulation）
 float _SeaLevel;
 
 // 半拉格朗日水量平流系数（原作 WaterProperty.advectionFactor=0.2）
@@ -74,12 +96,10 @@ float _Kappa;
 // ---- 原作 UpdateAmount 的潮位松弛（每帧一次，见 SurfaceUpdate）----
 float _WaveAmplitude;        // max(0.01, saturate(playTime×0.05)×0.2)，CPU 每帧算好
 float _TideClampMin;         // clamp(wave·sin(playTime), −0.5, +∞) 的下钳
-float _TideMinAmount;        // max(level−ground+wave, 0.05) 的 5 cm 结合水下限
-float _CouplingWeight;       // 归一化耦合权重 0..1（原作 4 bit/15）；本仓按初始淹没区取满/干区取 0
-float _EvaporationRate;      // exp(−0.721348·湿度)×sun·evaporationFactor×0.001（m/s）
-// 干滩薄水渗透（C 级近似）：原作沙层是孔隙介质，本仓无沙-水交换层。
-float _BeachInfiltrationDepth;
-float _BeachInfiltrationRate;
+float _TideMinAmount;        // max(level−floor+wave, 0.05) 的 5 cm 结合水下限
+// 蒸发水汽衰减字面量（原作 UpdateAmount 0.721348；DXBC exp2 语义 = e^(−0.5·湿度)，
+// X-exp2.md 修正——旧版误用自然 exp）
+const float EvaporationHumidityDecay = 0.721348;
 
 float _BreakingSteepness;   // H/h 破碎阈值（0.78，Miche 准则工程版）
 float _BreakingFroude;      // = _BreakingSteepness/2（浅水 u=a√(g/h)、c=√(gh) ⇒ a/h=Fr，
@@ -110,6 +130,42 @@ float _WwMinDepth;
 float4 _WwFrustumPlanes[6];
 float _WwFrustumOverscan;
 
+// ---- 活沙 Ground（D 流件1，公式单源 WaterLabRules.GroundSim；CPU 参考同式）----
+// 场 float4：x=height（沙面+障碍总高，t0=groundHeight 快照，渲染语义）
+//           y=vx z=vz（活沙速度场） w=sediment（悬沙）。ping-pong 双缓冲。
+RWStructuredBuffer<float4> _GroundA;
+RWStructuredBuffer<float4> _GroundB;
+// 障碍场（256² readback 分辨率，point 采样对齐原作 obstaclesMap）：R = obstacleDelta
+// = max(groundHeight − sandAmount, 0) 阈值化（B2 obstacles.deltaThreshold=0.02）——
+// 高出沙面的障碍量；障碍绝对顶高 = 活沙场 height（含障碍烘焙）。
+Texture2D<float> _ObstacleMap;
+SamplerState sampler_ObstacleMap;  // Unity 命名约定自动绑定点/双线性（按材质 Wrap/Filter 设置）
+RWTexture2D<float> _ObstacleMapRW; // 同一张 RT 的 UAV 绑定（ObstacleInit 一次性写入）
+StructuredBuffer<float> _ObstacleInit; // 256² float32（ObstacleInit kernel 一次性搬进纹理）
+// 地形输出纹理（渲染 shader 采样：R=(h+1)/5 编码，与旧静态 Texture2D 同编码式）。
+// 从静态改为每帧由 GroundOutput 从活沙场写（快照 t0 为初值、演化后上屏）。
+RWTexture2D<float4> _WaterLabGroundTex;
+
+// 活沙参数（全部按 WaterLabRules 下发；真值 D-sand.md §4.2 Carbonate 预设）
+float _GroundDt;         // 子步 = 0.5·groundCellSize/√g（GroundFixedStep）
+float _GroundMaxVel;     // √GroundGravity
+float _SandDamping;      // 7
+float _SandAmountKappa;  // 200
+float _SandVelocityKappa;// 200
+float _SandErosionWet;   // waterErosionFactor 0.04
+float _SandErosionGamma; // waterErosionAmountGamma 1
+float _SandCapacity;     // sedimentCapacity 0.003
+float _SandSpeedGamma;   // sedimentWaterSpeedGamma 1
+float _SandAmountGamma;  // sedimentWaterAmountGamma 1
+float _SandSuspension;   // sedimentSuspension 0.015
+float _SandDeposition;   // sedimentDeposition 0.005
+float _SandAdvection;    // sedimentAdvection 0.5（滑移系数链的因子之一）
+float _SandPumpAmp;      // 泵幅度 0.15
+float _SandPumpFreq;     // 泵时间频率 8
+float _SandPumpPhaseV;   // 泵相位/uv.y 0.0378
+float _SandPumpWindow;   // 泵 η 窗口 0.1
+float _ObstacleThreshold;// 障碍判定阈值（B2 deltaThreshold 0.02）
+
 
 // ---- 共用采样 ----
 
@@ -128,6 +184,21 @@ float SampleGround(float2 cellXY)
     return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
 }
 
+// 地形格中心（连续坐标）→ 水场水量双线性（水格距是地形格距 2 倍，坐标减半）
+float SampleWaterAmount(float2 cellXY)
+{
+    float2 p = cellXY * _GroundCellSize / _CellSize;
+    float2 q = clamp(p, float2(0.0, 0.0), float2(_Cells - 1, _Cells - 1));
+    int2 i0 = int2(floor(q));
+    float2 f = q - i0;
+    int2 i1 = min(i0 + 1, _Cells - 1);
+    float a = _WaterA[i0.x + i0.y * _Cells].x;
+    float b = _WaterA[i1.x + i0.y * _Cells].x;
+    float c = _WaterA[i0.x + i1.y * _Cells].x;
+    float d = _WaterA[i1.x + i1.y * _Cells].x;
+    return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+}
+
 // 水场 yzw（速度+泡沫）双线性采样（clamp 边界）
 float3 SampleWaterVelFoam(RWStructuredBuffer<float4> buf, float2 cellXY)
 {
@@ -142,6 +213,21 @@ float3 SampleWaterVelFoam(RWStructuredBuffer<float4> buf, float2 cellXY)
     return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y).yzw;
 }
 
+// Air 大气水汽双线性采样（原作 UpdateAmount 首段：水格 uv → airResolution 双线性，
+// 22bit 字段；本仓明文 float4.x。恒初值 0，见 _AirCells 注释）
+float SampleAirHumidity(float2 uv)
+{
+    float2 p = saturate(uv) * _AirCellsCount - 0.5;
+    int2 i0 = clamp((int2)floor(p), 0, _AirCellsCount - 1);
+    int2 i1 = min(i0 + 1, _AirCellsCount - 1);
+    float2 f = saturate(p - i0);
+    float a = _AirCells[i0.x + i0.y * _AirCellsCount].x;
+    float b = _AirCells[i1.x + i0.y * _AirCellsCount].x;
+    float c = _AirCells[i0.x + i1.y * _AirCellsCount].x;
+    float d = _AirCells[i1.x + i1.y * _AirCellsCount].x;
+    return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+}
+
 // 距域边（z 两侧）的最小格距
 float BorderDistance(int2 c)
 {
@@ -149,11 +235,14 @@ float BorderDistance(int2 c)
 }
 
 // ---- kernel：UpdateAmount（每帧一次，原地）----
-// 原作顺序：蒸发 → 泵 → 潮位松弛。本仓实验室没有 obstaclesMap（泵的 0.1 窗口
-// 门控依赖障碍物顶高），故只落蒸发与潮位松弛两条；泵在文档对账表里记为缺口。
-// 潮位目标全场统一 = SeaLevel + clamp(amp·sin(playTime), −0.5, +∞)，逐格按
-// 4 bit 耦合权重/15（C# 已归一化到 0..1）松弛（每帧比例，不乘 dt）。
-// 旧四列行波是本仓自推，已删除。
+// 原作顺序：蒸发（采 airCells 水汽）→ obstaclesMap 泵 → 潮位松弛。
+// 【W1，B2 逐指令移植】target = max(level − floor + clamp(amp·sin(playTime), −0.5, +∞), 0.05)
+// （floor = _Floor 预计算模糊场）；松弛 `h += (w/15)·(target−h)`——每帧一次的比例，
+// 不乘 dt。权重 w/15 逐格读 _CouplingWeights（原作 dword3 bits28..31 的运行时实测场，
+// 只桨带 row 496..511 有 ramp、海区恒 0：海区是自由 SWE 场，不被潮位目标钉住）。
+// 旧「初始淹没满耦代理」（(g<SeaLevel) 满耦选择）已删除——L1 海区 p99=0.265 的主因。
+// 【D 流件2/件3】泵按 §9 逐式落地（obstaclesMap 门控 + 0.15·sin 正弦）；蒸发改 Air
+// 场驱动 + exp2 语义（X 流修正：exp2(−0.721348·湿度) = e^(−0.5·湿度)）。
 [numthreads(8, 8, 1)]
 void SurfaceUpdate(uint3 id : SV_DispatchThreadID)
 {
@@ -162,25 +251,35 @@ void SurfaceUpdate(uint3 id : SV_DispatchThreadID)
     int i = c.x + c.y * _Cells;
     float4 w = _WaterA[i];
     float g = SampleGround(c + 0.5);
+    float2 suv = (c + 0.5) / _Cells;
 
-    // 蒸发：h -= exp(−0.721348·湿度)·sun·factor·0.001·dt（原作 UpdateAmount 首段）
-    float h = max(w.x - _EvaporationRate * _Dt, 0.0);
+    // 蒸发：h -= exp2(−0.721348·湿度)·sun·factor·0.001·dt（原作 UpdateAmount 首段；
+    // 水汽从 Air 场双线性采样——原作 Air 层恒初值 0，场驱动结构见 _AirCells 注释）
+    float humidity = SampleAirHumidity(suv);
+    float h = w.x - exp2(-EvaporationHumidityDecay * humidity) * _EvaporationBase * _Dt;
+    h = max(h, 0.0);
 
-    // 潮位松弛：target = max(level − ground + clamp(amp·sin(t), −0.5, +∞), 0.05)
+    // 泵（原作 UpdateAmount 泵段，§9 逐式）：障碍格（delta>阈值）且水面没过障碍顶
+    // 0.1 m 内时按正弦注水。obstacleDelta 采 256² point（对齐原作 RGHalf point）。
+    // obstacleTop = g（含障碍总高）；sandSurface = g − delta（泵门控的 ground 语义）。
+    float delta = _ObstacleMap.SampleLevel(sampler_ObstacleMap, suv, 0);
+    if (delta > _ObstacleThreshold)
+    {
+        float sandSurface = g - delta;
+        float eta = sandSurface + max(h - _DryDepth, 0.0);
+        if (sandSurface < g && g <= eta && eta < g + _SandPumpWindow)
+            h += _SandPumpAmp * sin(_SandPumpFreq * _Time + _SandPumpPhaseV * suv.y) * _Dt;
+    }
+
+    // 潮位松弛：target = max(level − floor + clamp(amp·sin(t), −0.5, +∞), 0.05)
     float tide = _SeaLevel + max(_WaveAmplitude * sin(_Time), _TideClampMin);
-    float target = max(tide - g, _TideMinAmount);
+    float target = max(tide - _Floor[i], _TideMinAmount);
 
-    // 耦合权重（已由 C# 归一化到 0..1，原作是 4 bit/15）：本仓以初始淹没区满耦合、
-    // 初始干区 0 耦合的静态代理近似（C 级，见 WaterLabRules.CouplingWeightAt）。
-    float coupling = (g < _SeaLevel) ? _CouplingWeight : 0.0;
-    h = lerp(h, target, coupling);
-
-    // 干滩薄水渗透：ground>0 且可见水深 < 阈值的薄片，快速吸回 5 cm 结合水。
-    // 退潮后滩面上的 1–5 cm 残片没有足够坡降自行流回，会在画面上读成残留水；
-    // 原作靠沙层的孔隙交换处理，本仓用这一项做 C 级补偿。深水/主水线不受影响。
-    float visible = h - _DryDepth;
-    if (g > _SeaLevel && visible > 0.0 && visible < _BeachInfiltrationDepth)
-        h = lerp(h, _DryDepth, 1.0 - exp(-_BeachInfiltrationRate * _Dt));
+    // 逐格耦合权重（已归一化 w/15）：h += w·(target−h)（B2 反汇编 mad 逐式）。
+    // 【干滩渗透项已删（L3-water-attrib §3#4 定案：原作 UpdateAmount 无此机制——
+    // 旧自加项以 6/s 吸干上滩 run-up 薄膜并把 h 钉在 _DryDepth 永不到 0，是岸线带
+    // 干沙直出与沙掩码 99% ≤1cm 越岸膜的主动源；退潮残片的原作行为=慢蒸发+流回）】
+    h += _CouplingWeights[i] * (target - h);
 
     _WaterA[i] = float4(h, w.y, w.z, w.w);
 }
@@ -206,10 +305,11 @@ void HeightIntegration(uint3 id : SV_DispatchThreadID)
     float4 wd = _WaterA[bd ? i - _Cells : i];
     float4 wu = _WaterA[bu ? i + _Cells : i];
 
-    // 平均通量 F = d̄·v̄（半格界面），d = max(h − _DryDepth, 0)。
-    // 原作 WATER_SATURATION_POINT=0.05：前 5 cm 是贴沙结合水，不参与流动；通量用 d 而非 h。
-    // 界面级迎风施主门：只有通量来向的格子 d>0 才放行——湿格可以把水推上干滩（run-up），
-    // 干格不能凭平均速度凭空吐水。两侧格对同一界面必须算出同一 F（界面格式守恒的关键）。
+    // 施主选值通量（donor-upwind，W1 校正）：通量水深取**施主侧**（按界面速度符号），
+    // 不再取两侧平均——原作 HeightIntegration 反汇编按速度符号 movc 在 dC/邻格 d 之间
+    // 选值（Water_*.3.hlslasm）。旧「平均+门控」格式自由演化下边际不稳定（Σh 6 s ×64
+    // 指数爆破，W1 同相差分实锤），此前被满耦代理的每帧钳制掩盖。
+    // 原作另有 d_eq 限制器与格自速度变体，逐指令复核归核心重翻译（W1 报告遗留项）。
     float dC = max(h - _DryDepth, 0.0);
     float dL = max(wl.x - _DryDepth, 0.0);
     float dR = max(wr.x - _DryDepth, 0.0);
@@ -221,10 +321,10 @@ void HeightIntegration(uint3 id : SV_DispatchThreadID)
     float vD = (wd.z + w.z) * 0.5;
     float vU = (w.z + wu.z) * 0.5;
 
-    float fluxL = (bl && ((vL > 0.0) ? dL : dC) > 0.0) ? ((dL + dC) * 0.5) * vL : 0.0;
-    float fluxR = (br && ((vR > 0.0) ? dC : dR) > 0.0) ? ((dC + dR) * 0.5) * vR : 0.0;
-    float fluxD = (bd && ((vD > 0.0) ? dD : dC) > 0.0) ? ((dD + dC) * 0.5) * vD : 0.0;
-    float fluxU = (bu && ((vU > 0.0) ? dC : dU) > 0.0) ? ((dC + dU) * 0.5) * vU : 0.0;
+    float fluxL = (bl && ((vL > 0.0) ? dL : dC) > 0.0) ? ((vL > 0.0) ? dL : dC) * vL : 0.0;
+    float fluxR = (br && ((vR > 0.0) ? dC : dR) > 0.0) ? ((vR > 0.0) ? dC : dR) * vR : 0.0;
+    float fluxD = (bd && ((vD > 0.0) ? dD : dC) > 0.0) ? ((vD > 0.0) ? dD : dC) * vD : 0.0;
+    float fluxU = (bu && ((vU > 0.0) ? dC : dU) > 0.0) ? ((vU > 0.0) ? dC : dU) * vU : 0.0;
 
     float hNew = h - _Dt / _CellSize * ((fluxR - fluxL) + (fluxU - fluxD));
     hNew = max(hNew, 0.0); // 无负水深（数值保护）
@@ -425,7 +525,7 @@ void OutputField(uint3 id : SV_DispatchThreadID)
 
     // η 编码 [-3,2]→[0,1]；法线 xz [-1,1]→[0,1]；泡沫原值
     _WaterLabHeightTex[c] = float4(
-        saturate((eta + 3.0) / 5.0),
+        saturate((eta + 1.0) / 5.0),
         saturate(-dx * invLen * 0.5 + 0.5),
         saturate(-dz * invLen * 0.5 + 0.5),
         saturate(w.w));
@@ -474,11 +574,14 @@ void WhitewaterSpawn(uint3 id : SV_DispatchThreadID)
     // 沙盘局部空间；本仓是世界空间，必须补 ground）。旧式 ground + h + 0.05 比
     // 可见水面高约 10 cm，退潮薄水膜上会浮起一条“白沫带”（r80 断带的一部分）。
     float surface = SampleGround(c + 0.5) + max(_WaterB[i].x - _DryDepth, 0.0);
-    _WWPos[slot] = float4(worldXZ.x, surface + _WwSurfaceOffset, worldXZ.y, 1.0);
+    // 【I9】w=age 起点 0 秒（原作池语义）。age=0 时渲染侧尺寸/alpha 双零（生长曲线
+    // 自零起），本步 Update 立即 += _Dt；dt=0（暂停）时生成概率同为 0，不会残留
+    // age=0 的活槽。
+    _WWPos[slot] = float4(worldXZ.x, surface + _WwSurfaceOffset, worldXZ.y, 0.0);
     _WWVel[slot] = float4(_WaterB[i].y * 0.6, 0.3, _WaterB[i].z * 0.6, _WwSize * (0.6 + 0.8 * r2));
 }
 
-// 积分：随速度场平流 + 弹簧贴水面（浮力近似）+ 寿命衰减；死粒子 w=0 留在环里等覆盖
+// 积分：随速度场平流 + 弹簧贴水面（浮力近似）+ age 增长超寿消亡；死粒子 w=0 留在环里等覆盖
 [numthreads(64, 1, 1)]
 void WhitewaterUpdate(uint3 id : SV_DispatchThreadID)
 {
@@ -504,9 +607,13 @@ void WhitewaterUpdate(uint3 id : SV_DispatchThreadID)
     v.xyz *= damp;
     v.y += (surface + _WwSurfaceOffset - p.y) * 12.0 * _Dt;
     p.xyz += v.xyz * _Dt;
-    p.w -= _Dt / _WwLifetime;
+    // 【I9】寿命 = age 秒（原作池语义，渲染侧尺寸/alpha 曲线的自变量）：超
+    // _WwLifetime 消亡，写 w=0 死标记（Compact 跳过、环槽可复用）。旧式
+    // 「剩余寿命 [0,1] 递减」会让 sat(age×10)/1−exp2(−4·age) 两条曲线自变量错档
+    // ——粒子出生即满尺寸满 alpha、随时间缩小，与原作「0.25 s 长到 10 cm」相反。
+    p.w += _Dt;
     _WWVel[id.x] = v;
-    _WWPos[id.x] = float4(p.xyz, max(p.w, 0.0));
+    _WWPos[id.x] = (p.w > _WwLifetime) ? float4(p.xyz, 0.0) : float4(p.xyz, p.w);
 }
 
 // 压缩：视野内活粒子槽位写入 draw list（对标原作 Culling kernel 的**相机视锥**那一路：
@@ -539,4 +646,135 @@ void WhitewaterEnd(uint3 id : SV_DispatchThreadID)
     _WWArgs[1] = min(_WWAlive[0], (uint)_WwCapacity);
     _WWArgs[2] = 0;
     _WWArgs[3] = 0;
+}
+
+// ================================ 活沙 Ground（D 流件1/件2）===============================
+//
+// 移植口径与公式出处见文件头 Ground 段注释与 WaterLabRules.GroundSim（CPU 参考同式，
+// harness 钉行为契约）。原作 5 kernel 的对应：Initialization（C# SetData 灌快照 t0，
+// 原作 kernel 是清零常量、真值由关卡导场写入）、VelocityIntegration→GroundVelocity、
+// HeightIntegration→GroundHeight、UpdateTangent（并入 GroundOutput 的法线不单独跑——
+// 我方渲染法线走地形网格，tangent 场无消费方）、UpdateObstacleHeight（障碍为静态数据，
+// ObstacleInit 一次性搬进 _ObstacleMap，不做每帧重烘）。
+// 双缓冲语义：GroundVelocity A→B → GroundHeight B→A（子步末 A 为最新）；原作单缓冲
+// 原地更新在 4 邻读取上存在读写竞争（未定义序），双缓冲取确定性近似（D 报告登记）。
+
+// 障碍场初始化（一次性）：_ObstacleInit（256² float32）→ _ObstacleMap 纹理（point 采样）
+[numthreads(8, 8, 1)]
+void ObstacleInit(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= 256 || id.y >= 256) return;
+    _ObstacleMapRW[id.xy] = _ObstacleInit[id.x + id.y * 256];
+}
+
+// 活沙速度步（原作 Ground VelocityIntegration，Ground@8652 语义重建；公式见 Rules.GroundSim）
+[numthreads(8, 8, 1)]
+void GroundVelocity(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_GroundCells || id.y >= (uint)_GroundCells) return;
+    int2 c = int2(id.x, id.y);
+    int i = c.x + c.y * _GroundCells;
+    float4 gc = _GroundA[i];
+
+    int xm = (c.x > 0) ? i - 1 : i;
+    int xp = (c.x < _GroundCells - 1) ? i + 1 : i;
+    int zm = (c.y > 0) ? i - _GroundCells : i;
+    int zp = (c.y < _GroundCells - 1) ? i + _GroundCells : i;
+
+    float sx = (_GroundA[xp].x - _GroundA[xm].x) * 0.5 / _GroundCellSize;
+    float sz = (_GroundA[zp].x - _GroundA[zm].x) * 0.5 / _GroundCellSize;
+
+    // 湿度侵蚀权重与水格采样（ground 格心 → 水场双线性；活沙演化由水驱动）
+    float water = SampleWaterAmount(c + 0.5);
+    float wet = _SandErosionWet * (saturate(water * 20.0) * 19.0 + 1.0);
+    float slideW = max(wet - sqrt(sx * sx + sz * sz), 0.0);
+
+    // 速度：坡度投影 → 阻尼 → 限幅 → 低通（原作水速耦合项与 −4 基线为字面量死通道，
+    // 按原样不移植；噪声项 = Wang hash ±1 × noiseFactor × dt，CPU 参考用整数哈希同义）
+    float acc = _SandSuspension * 0.04 * slideW;
+    float nvx = gc.y + (acc * sx - gc.y * _SandDamping) * _GroundDt;
+    float nvz = gc.z + (acc * sz - gc.z * _SandDamping) * _GroundDt;
+    float sp = sqrt(nvx * nvx + nvz * nvz);
+    if (sp > _GroundMaxVel)
+    {
+        nvx *= _GroundMaxVel / sp;
+        nvz *= _GroundMaxVel / sp;
+    }
+    float4 o = gc;
+    o.y = (nvx * _SandVelocityKappa + gc.y) / (_SandVelocityKappa + 4.0);
+    o.z = (nvz * _SandVelocityKappa + gc.z) / (_SandVelocityKappa + 4.0);
+    _GroundB[i] = o;
+}
+
+// 活沙高度步（原作 Ground HeightIntegration，Ground@600 语义重建）：滑移 + 沉积交换 + 低通
+[numthreads(8, 8, 1)]
+void GroundHeight(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_GroundCells || id.y >= (uint)_GroundCells) return;
+    int2 c = int2(id.x, id.y);
+    int i = c.x + c.y * _GroundCells;
+    float4 gc = _GroundB[i];
+    float h = gc.x;
+
+    int xm = (c.x > 0) ? i - 1 : i;
+    int xp = (c.x < _GroundCells - 1) ? i + 1 : i;
+    int zm = (c.y > 0) ? i - _GroundCells : i;
+    int zp = (c.y < _GroundCells - 1) ? i + _GroundCells : i;
+
+    float water = SampleWaterAmount(c + 0.5);
+    float wet = _SandErosionWet * (saturate(water * 20.0) * 19.0 + 1.0);
+    float gate = saturate((water - _DryDepth) * 100.0);
+
+    // 沉积交换（Ground@600 容量式：sediment ⇄ height）
+    float visible = max(water - _DryDepth, 0.0);
+    float vSpeed = length(gc.yz);
+    float cap = _SandCapacity
+              * pow(saturate(visible), _SandAmountGamma)
+              * pow(vSpeed, _SandSpeedGamma)
+              * wet;
+    float sed = gc.w;
+    if (sed > cap)
+    {
+        float d = (sed - cap) * _SandDeposition * _GroundDt;
+        sed -= d;
+        h += d;
+    }
+    else
+    {
+        float d = (cap - sed) * _SandSuspension * _GroundDt * gate;
+        sed += d;
+        h -= d;
+    }
+
+    // 坡度滑移（守恒下坡重分配，净通量记账读旧值）
+    float k = _SandAdvection * 0.04 * wet * gate * _GroundDt * 0.25;
+    float outSum = max(h - _GroundB[xp].x, 0.0)
+                 + max(h - _GroundB[xm].x, 0.0)
+                 + max(h - _GroundB[zp].x, 0.0)
+                 + max(h - _GroundB[zm].x, 0.0);
+    float inSum = max(_GroundB[xp].x - h, 0.0)
+                + max(_GroundB[xm].x - h, 0.0)
+                + max(_GroundB[zp].x - h, 0.0)
+                + max(_GroundB[zm].x - h, 0.0);
+    float hNew = h + (inSum - outSum) * k;
+
+    // 高度松弛低通（Ground@600：分子 = h'×amountKappa + 4×邻均值——解包段把中心+3 邻
+    // ×1e-6 累加成 4×均值，/(kappa+4) 后是「向 4 邻均值收缩」的守恒平滑；双缓冲下邻格
+    // 读 B 即滑移后的新值，单 pass 完成）
+    float neighMean = (_GroundB[xp].x + _GroundB[xm].x + _GroundB[zp].x + _GroundB[zm].x) * 0.25;
+    float4 o = gc;
+    o.x = (hNew * _SandAmountKappa + 4.0 * neighMean) / (_SandAmountKappa + 4.0);
+    o.w = sed;
+    _GroundA[i] = o;
+}
+
+// 地形输出（每帧帧末一次）：活沙场高度 → _WaterLabGroundTex（渲染 shader 全局，
+// R=(h+1)/5 编码，与旧静态 Texture2D 同式——渲染侧 DecodeGround(e)=e×5−1 不动）
+[numthreads(8, 8, 1)]
+void GroundOutput(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_GroundCells || id.y >= (uint)_GroundCells) return;
+    int2 c = int2(id.x, id.y);
+    float h = _GroundA[c.x + c.y * _GroundCells].x;
+    _WaterLabGroundTex[c] = float4(saturate((h + 1.0) / 5.0), 0.0, 0.0, 1.0);
 }

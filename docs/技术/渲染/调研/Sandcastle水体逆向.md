@@ -113,6 +113,9 @@ D 级只允许按参考图定标。参数对账与验收门见[实验水体 §2.
   向目标松弛（每帧比例，不乘 dt）。权重是运行时字段，静态不可恢复；本仓用初始淹没区
   满耦合/干区零耦合的静态代理。详见 §9。
 
+> **⚠「全场潮位松弛/每格 4bit 权重」已被 2026-10-27 B2 运行时实测修正**：权重场 96.9% 为 0
+>（无全场松弛），仅背边缘 16 格桨带 1..15/15 ramp（造波机）；详见 rt/reports/B2-phase-weights.md。
+
 结论：**标准 2D 浅水方程（SWE）格点求解器**，∂h/∂t = −∇·(hv)、∂v/∂t = −g∇h − 阻尼，半拉格朗日平流，干湿边界处理。与本仓 `WaterWaveField2D` 的波动方程（涟漪，无质量输运）是**不同方程**——波浪推岸、涌水、退潮这类行为只有 SWE 有。
 
 ## 4. Lit/Water 像素着色器逐段还原
@@ -129,6 +132,12 @@ D 级只允许按参考图定标。参数对账与验收门见[实验水体 §2.
 8. 天空反射项按菲涅尔混合（环境色常量）。
 
 ### 4.1 Lit/Water PS 完整公式与覆盖率（159 行指令全解，2026-10-15）
+
+> **⚠ 本节两处结论已被 2026-10-27 C 流逐指令复核反转**：散射权重实为
+> **(1−NdotV)⁵**（掠射强，本节"NdotV⁵"反了）；镜面乘 **(1−NdotV)⁴ 且不乘阴影**
+>（本节"×阴影原值"误读 L156 寄存器来源）。另天空反射项/流场平流活性等修正
+> 见 `external/sandcastle-ref/rt/reports/C-water-map.md`（实现以该报告为准）。
+> 历史注：旧"NdotV⁵ 恢复后色带对齐"是在 σ≠0 误设下的补偿拟合，σ≡0 定案后失效。
 
 完整伪代码（寄存器流逐行还原；cb0 索引为原作常量缓冲槽位）：
 
@@ -228,6 +237,11 @@ Water compute 的 11 个 kernel 全部反汇编后逐条判读（每个 kernel �
 
 ## 10. Lit_Sand PS 与 Lit_Water VS 实锤（水底波影与浪形，反汇编逐条，2026-10-15）
 
+> **⚠ 本节五处修正（2026-10-27 D 流逐指令复核）**：①"闪沙"项不存在=焦散项本身；
+> ②第二平流场恒 −4 禁用；③坡度只门控焦散不暗化 albedo；④白水粒子=贴水皮水平扁
+> 四边形非 billboard；⑤另有域贴图加性 GI 项与深水沙变体。逐条见
+> `external/sandcastle-ref/rt/reports/D-sand.md`（实现以该报告为准）。
+
 ### 10.1 Lit_Water 无 ShadowCaster——水面不投影
 
 `Lit_Water.blob` 全量 DXBC 容器扫描：只有 4 个程序（2 VS 变体 + 2 PS 变体），无深度-only pass。**原作水面不往任何东西上投影**——沙滩上/水底看到的「波影」不来自 shadowmap。
@@ -307,6 +321,11 @@ Water compute 的 11 个 kernel 全部反汇编后逐条判读（每个 kernel �
   （`GravelParticle{position,age}`，走 Ground compute 的 `gravel` buffer），
   材质 `Gravel` 的 `baseColor1/2` 来自 `sandParameters.gravelColor/gravelColor2`。
   参考图里随机大小/疏密的深色小点是这些实体粒子，沙 shader 不画卵石。
+- **`WorldHeightMap` 本体的灰度分布（2026-10-26 补测，`extracted/tex_..._163_...png`）**：
+  2048×1024 灰度，min 0 / max 249 / mean 107 / std 49，直方图**双峰**——
+  低带 [32,96) 约 40%（水域）、高带 [128,208) 约 43%（滩丘）、中间过渡带 [96,128) 仅约 9%，
+  两峰陡峭分立。即初始地形的深水区与干滩是两个平台、缓坡带很窄；幅度（灰度→米）映射
+  仍不可恢复（brush strength 在 ILR 反编译里被内存偏移读取打断），与上文同标 D 级。
 - **水下装饰**：珊瑚/海草是 GPU Imposter 广告牌（`Plant.cs`，capacity 32768，
   sizeRange 默认 0.75），图集不透明像均色见下表；礁石/卵石/贝壳/海星是实体网格
   （Rock_01–06 473–2576 顶点、Pebble_01–06 54–67 顶点、贝壳 187–712 顶点）。
@@ -420,6 +439,10 @@ absor/extinct 的项）、不在材质 `Water` 的 saved properties 里、也不
 
 ## 14. 从 Steam 高清头图反定材质（2026-10-18）
 
+> **⚠ 本节 σ 部分已作废（2026-10-27 A 流静态终证）**：σ≡(0,0,0)（cb0[132] 无上传者，
+> global-metadata 字面量全扫证据链，见水体复刻台账）。下文的 σ 通道比值/三锚点/绝对尺度
+> 是给 tonemap/沙侧缺项打的补偿拟合，不得再用于实现；waterColor/scatteringColor 反定仍有效。
+
 σ 静态取不到（§13），于是改用**成品画面**反定：Steam 客户端 `appcache/librarycache/<appid>/`
 里存着官方高清头图（本机 `4894830/…/library_hero.jpg`，1920×620），是实机渲染的成品，
 可直接当比色基准。方法：
@@ -443,3 +466,30 @@ absor/extinct 的项）、不在材质 `Water` 的 saved properties 里、也不
 
 **这条路线可复用**：任何「材质常数静态取不到」的项，只要官方有成品图，就能按
 「底色 × 吸收」的物理式反解出通道比值，再用本地水深/光照锚定绝对值。
+
+## 15. 渲染管线与后处理实锤（2026-10-26，C# 源码级）
+
+「参考画面为什么亮/透」的管线层证据（本节全部 A/B 级源码实锤，数值另标）：
+
+- **颜色缓冲是 HDR**：`BeachRenderPipeline.cs` `colorFormat =
+  SystemInfo.GetGraphicsFormat(DefaultFormat.HDR)`——所有相机 RT 按 HDR 格式分配，
+  是 tonemap/bloom 生效的前提。
+- **PostProcessing Stack v2 默认开**：`BeachRenderPipelineAsset.postProcessing = true`
+  （字段默认值）；`FinalBlit` 无条件构造 `PostProcessRenderContext` 并 `Render`——
+  后处理是主路径，不是可选装饰。Photo 模式有独立 profile 可切换。
+- **全局 PostProcessVolume + 景深**：`Game.globalPostProcessVolume` 挂全局 profile；
+  `CameraRig.cs` `profile.TryGetSettings<DepthOfField>(...)`——C# 显式引用的只有 DoF
+  （对焦系统开关），其余效果（Bloom/ColorGrading 等）纯走 profile 资产。
+- **profile 具体数值静态不可取**：typetree 大面积剥离（`sharedassets0.assets`
+  3679 个 MonoBehaviour 仅 189 个可读、`resources.assets` 603 个全剥），
+  按可恢复性分级标 **D 级**——复刻时按参考画面反定，与 σ 同法。
+- **体素 GI 的着色地位**：`Gi` compute（128³，`sceneVoxels → Gi → BlurGi →
+  giVoxelsBlurred`）产出 `giVoxels` 全局 buffer（§13 全局表），由 Lit_* shader 采样作
+  环境 irradiance——水底/沙底的环境亮度兜底就是它，不是「平光环境色」。
+- **初始地形来源**（§10.6 补充）：`WorldHeightMap` 直方图双峰（40% 水域低带 /
+  43% 滩丘高带 / 9% 过渡）——参考画面的构成是「深水宝蓝带 + 宽缓坡浅水」，
+  深水带真实存在，其亮度由上面三层（HDR/tonemap/GI）兜住。
+
+对本仓的含义：LDR 直出链复刻 Lit_Water/Lit_Sand 的逐指令公式是对的，
+但**画面亮度结构差三件套**——HDR RT、PPv2 tonemap、体素 GI，全部缺席。
+结构复刻不了的部分按 D 级反定（σ、散射强度、天空反射、GI 兜底色同属此类）。

@@ -30,14 +30,65 @@ namespace PirateCrew.EditorTools
         const string ShaderPathProp = "Assets/Art/Shaders/WaterLab/WaterLabProp.shader";
         const string ComputePath = "Assets/Art/Shaders/WaterLab/WaterLabSim.compute";
         const string MaterialFolder = "Assets/Art/Materials/WaterLab";
+        // I5b 挂接的复刻 shader 件（I5a d11ed7c0 提交）与 Strata 层理图（sa0 pid212，
+        // I5a 已按数据贴图口径入库：sRGB off/Repeat/Bilinear）。
+        const string ShaderPathBorders = "Assets/Art/Shaders/WaterLab/ReplicaBorders.shader";
+        const string ShaderPathSkybox = "Assets/Art/Shaders/WaterLab/ReplicaSkybox.shader";
+        const string ShaderPathFrame = "Assets/Art/Shaders/WaterLab/ReplicaFrame.shader";
+        const string StrataRefPath = "Assets/Art/Textures/WaterLab/Strata_Ref.png";
+        // I6b 植物挂接件：ReplicaPlant.shader（I6a）+ 14 张 imposter 图集
+        // （Assets/Art/Textures/WaterLab/Plants/，13 材质图集 + PlanterThumbnail）。
+        const string ShaderPathPlant = "Assets/Art/Shaders/WaterLab/ReplicaPlant.shader";
+        const string PlantsFolder = "Assets/Art/Textures/WaterLab/Plants";
 
-        /// <summary>地形渲染网格每轴段数（0.117 m/顶点）。模拟地形场是 1024²（5.86 cm，
-        /// 原作 groundResolution 同水格），渲染网格取一半分辨率：再往上翻倍只是把
-        /// 场景资产从 ~10 MB 抬到 ~50 MB，画面收益远小于模拟场本身。</summary>
+        /// <summary>主菜单快照（I7 ReplicaMode 数据底座）：B 流 frida dump 的
+        /// groundHeight/waterAmount，256² float32，Unity 按 TextAsset 导入。
+        /// MenuWeights512 = W1 耦合权重场（B2 定案，512² float32 = 4bit 权重/15）。</summary>
+        const string ReplicaFolder = "Assets/Art/WaterLabReplica";
+        const string ReplicaGroundPath = ReplicaFolder + "/MenuGround256.bytes";
+        const string ReplicaWaterPath = ReplicaFolder + "/MenuWater256.bytes";
+        const string ReplicaWeightsPath = ReplicaFolder + "/MenuWeights512.bytes";
+
+        /// <summary>
+        /// ReplicaMode（协调者 Phase2 裁决）：快照资产可加载即开——地形/水位/装配走
+        /// 主菜单快照；任一缺失（或校验失败）回退程序剖面。装配期先把快照灌进静态
+        /// 采样器，<see cref="WaterLabRules.TerrainHeight"/> 的委托即刻生效，地形网格、
+        /// 水底参照物与模拟初值自动同源。
+        /// </summary>
+        public static bool ReplicaMode => WaterLabReplicaSnapshot.HasData;
+
+        /// <summary>装配开始时调用：把 .bytes 灌进静态采样器（已加载则跳过）。</summary>
+        static void EnsureReplicaSnapshotLoaded()
+        {
+            if (WaterLabReplicaSnapshot.HasData)
+                return;
+            var ground = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaGroundPath);
+            var water = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaWaterPath);
+            if (ground == null || water == null)
+            {
+                Debug.LogWarning($"[WaterLabSetup] ReplicaMode=关：快照资产缺失"
+                    + $"（{ReplicaGroundPath} / {ReplicaWaterPath}），使用程序剖面回退。");
+                return;
+            }
+            try
+            {
+                WaterLabReplicaSnapshot.Load(ground.bytes, water.bytes);
+                Debug.Log($"[WaterLabSetup] ReplicaMode=开（主菜单快照）{WaterLabReplicaSnapshot.Describe()}");
+            }
+            catch (System.Exception e)
+            {
+                WaterLabReplicaSnapshot.Unload();
+                Debug.LogError($"[WaterLabSetup] 快照校验失败，回退程序剖面：{e.Message}");
+            }
+        }
+
+        /// <summary>地形渲染网格每轴段数——**仅程序剖面回退用**；ReplicaMode 下网格
+        /// 直接从快照 256² 出（见 CreateTerrain）。回退 512 段在 30 m 域上 = 5.86 cm/顶点，
+        /// 恰为模拟地形格距（GroundCells=1024 的 2 倍距），不再有"取一半分辨率"的省略。</summary>
         const int TerrainSegments = 512;
 
-        /// <summary>水面渲染网格每轴段数（0.117 m/顶点）。模拟高度场 1024²（5.86 cm），
-        /// 渲染顶点取一半——前缘仍有 2 顶点/水格间距，且不至于把 1M 顶点塞进场景资产。</summary>
+        /// <summary>水面渲染网格每轴段数：30 m/512 = 5.86 cm/顶点，与水模拟格距一致
+        ///（顶点距 = 1 格，η 高度场的每个格都有顶点承接）。</summary>
         const int SurfaceSegments = 512;
 
         [MenuItem("Tools/PirateCrew/WaterLab/Build Scene")]
@@ -58,6 +109,9 @@ namespace PirateCrew.EditorTools
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
+            // ReplicaMode 先行（I7）：快照可加载与否决定本轮装配走复刻件还是程序回退。
+            EnsureReplicaSnapshotLoaded();
+
             // 材质目录先删后建：shader 默认值改动只影响新建材质，旧 .mat 会锁死旧参数
             //（序列化陷阱）。重建语义 = 全量重装配。
             AssetDatabase.DeleteAsset(MaterialFolder);
@@ -66,14 +120,31 @@ namespace PirateCrew.EditorTools
             CreateLighting();
             var camera = CreateCamera();
             CreateTerrain();
-            CreateBottomProps(); // 水底参照物：透明感的载体（不透明队列，被水体折射）
+            if (ReplicaMode)
+                EnsurePlants(); // I6b：13 组植物 imposter 系统（原作 Beach 摆放树复刻，含水底参照物职能）
+            else
+                CreateBottomProps(); // 回退（程序剖面）：随机撒点参照物，只求透明感可读
             CreateWaterSurface();
+            EnsureBorders(); // I5b：Back/FrontGround/FrontWater 三剖面 + Frame 白模件（H 流几何契约）
+            EnsureSkybox(); // I5b：RenderSettings.skybox = ReplicaSkybox（t=1/3 菜单时刻真值）
             CreateSimulation(camera); // 相机随注：白水逐粒视锥剔除要用它的 6 平面
             EnsureWhitewaterFeature();
+            // GI 链收口（L3-sand 分解定案）：ReplicaGiFeature 自 I3 交付后从未安装——
+            // 域常量（g_GiDomainMin/Size）永不发布→消费端域掩码≡0 回退 ambient 常量，
+            // 即沙面 ×0.73 缺口的 GI 半边（占 49-58%）。Feature 装上后全链自举
+            // （顶视 sceneVoxels→Gi/BlurGi→PushConstants）。
+            WaterLabGiInstaller.Install();
+            EnsureScatter(); // C 流入口（并行开发中，反射兜底，见方法注释）
+            EnsurePostProcess(camera); // I4：DoF+Vignette（F 流参数直译，无 tonemap/bloom）
 
             Directory.CreateDirectory("Assets/Scenes/Lab");
             var path = SceneNames.PathOf(SceneNames.WaterLab);
             EditorSceneManager.SaveScene(scene, path);
+            // B 流管线件：场景已保存为 WaterLab.unity，切管线副本（HDR on/MSAA off）。
+            // batchmode 出图（本类 BuildSceneAndCapture）没有人手开场景，靠这里生效；
+            // 编辑器下 WaterLabPipelineSwitch 挂了 sceneOpened/playMode 事件，切走自动还原。
+            WaterLabPipelineSwitch.Apply();
+            EnsureRt0DumpFeature(); // L3 工具件：rt0 dump Feature 幂等注入（L3 工具轮加法）
             Debug.Log($"[WaterLabSetup] 场景已装配并保存：{path}");
         }
 
@@ -83,32 +154,65 @@ namespace PirateCrew.EditorTools
         public static void BuildSceneAndCapture()
         {
             BuildScene();
+            WaterLabL3CaptureHooks.Arm(); // L3 工具件：分辨率钩子 + rt0 dump 武装时序（本文件尾）
             BattleHudScreenshot.CaptureHeadless();
         }
 
         static void CreateLighting()
         {
+            // 【I8 固定时刻移植（2026-10-27，menu-state.json 三帧全同）】主菜单
+            // DayCycler.timelapse=0（静止）、t=1/3 Morning（elevation z=330°）：
+            // Sun 色 (1,0.940429,0.872353)×1.0、Soft（level0 组件参数 strength=1.0/
+            // bias=0.1/normalBias=1.0）、世界旋转 q(0.023437,−0.748097,0.536788,−0.389435)
+            //（forward=(0.6078,−0.7849,−0.1204)）；**MoonLight 在该时刻 enabled=false（黑）**
+            // ——环境光走 RenderSettings.ambientSkyColor (0.698039,0.564706,0.569923)
+            //（environmentGradient@t=1/3 过 hueVariation −0.109）；fog=false。
             var sun = new GameObject("Sun");
             var light = sun.AddComponent<Light>();
             light.type = LightType.Directional;
-            light.shadows = LightShadows.Soft;
+            // 【阴影行为口径】level0 SunLight 组件是 Soft/0.1/1.0（真值保留在下三行），
+            // 但 L2-close 抓帧定案：原作 shadow pass 的 raster bias 使沙面深度差（中位
+            // −0.0003）远小于比较阈（≥0.005 即全 lit）——抓帧时刻原作沙面**无有效阴影**
+            //（worst20 亮脊在原作全 lit）。URP 同参数会出真阴影（亮脊变黑，整帧差分沙区
+            // ×0.73 的主嫌）。PC3D_WATERLAB_SUNSHADOW=0 关闭做 A/B 归因；帧真值口径=关。
+            light.shadows = System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_SUNSHADOW") == "0"
+                ? LightShadows.None : LightShadows.Soft;
             light.intensity = 1.0f;
-            // 参考的礁石/珊瑚投影是柔和接触影，不是硬黑块；0.75 配合 Soft shadows，
-            // 避免低模 prop 自阴影在暗部读成第二层黑团。
-            light.shadowStrength = 0.75f;
-            light.color = new Color(1.0f, 0.95f, 0.85f);
-            // 太阳放在相机对面、抬高到仰角 ≈58°：相机现在正对 -x 看岸线，太阳在 -x 侧
-            // 才能让水面镜像路径落回取景（与旧 225° 方位同理）；抬高后参考图那种短影
-            // 与高角度直射才成立，同时减少 42° 低阳造成的长条黑影。
-            // 指向太阳 L=(-0.50,0.82,-0.12)（归一化后仰角≈58°），forward=-L 朝下照地。
-            sun.transform.rotation = Quaternion.LookRotation(new Vector3(0.50f, -0.82f, 0.12f));
-            sun.transform.position = new Vector3(-25f, 41f, -6f);
+            light.shadowStrength = 1.0f;
+            // shadowBias/normalBias = level0 SunLight 组件真值（阴影贴图采样偏置）。
+            // 【raster depthBias 登记项（B 流，勿与上面两个混淆）】R 抓帧水 draw
+            // （external/sandcastle-ref/rt/dumps/rd-frames/exports/draws/1900_water/
+            // draw.json）raster state：depthBias=−1、slopeScaledDepthBias=−2.5。
+            // 那是原作 Lit_Water draw 的光栅化深度偏移（水像素自身的深度量化抑制），
+            // 不是阴影 bias：水面 shadowCastingMode=Off（见 CreateWaterSurface，
+            // Lit_Water 无 ShadowCaster）、不采样阴影贴图，Unity 也无逐材质光栅
+            // depthBias 入口——登记为 L2 管线对账项，若对账现深度伪影再在渲染层
+            // 移植（原作 slopeBias 只影响无阴影链路的深度写入精度）。
+            light.shadowBias = 0.1f;
+            light.shadowNormalBias = 1.0f;
+            light.color = new Color(1.0f, 0.940429f, 0.872353f);   // t=1/3 sunGradient
+            sun.transform.rotation = new Quaternion(0.023437f, -0.748097f, 0.536788f, -0.389435f);
+            sun.transform.position = new Vector3(-6.078317f, 7.848856f, 1.203975f);
+
+            // MoonLight：菜单时刻关闭（enabled=false, 色黑）——保留 GameObject 但禁用，
+            // 昼夜循环移植后由 t 驱动启停。
+            var sky = new GameObject("SkyLight");
+            var skyLight = sky.AddComponent<Light>();
+            skyLight.type = LightType.Directional;
+            skyLight.shadows = LightShadows.None;
+            skyLight.enabled = false;   // menu-state t=1/3：moon.enabled=false
+            skyLight.color = new Color(0.0627f, 0.1333f, 0.2196f); // 昼夜循环其它时刻的序列化色
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            // 场景全局环境色只对内置 Lit 生效；自写沙/石/水 shader 读的是材质 _AmbientColor。
-            // 这里同步回原作天光色，避免两套环境数再次打架（审计 §4.C 记录过该矛盾）。
-            RenderSettings.ambientLight = new Color(0.0627f, 0.1333f, 0.2196f);
+            // cb0[40] 抓帧实读 (0.4452, 0.2876, 0.2789)（R2 Gi kernel cbuffer，GI-audit §②）：
+            // Flat 模式下 ambientSkyColor=ambientLight，Gi compute _AmbientSky 与各 GI 消费端
+            // 全链同源此值。旧值 (0.698,0.565,0.570) 是 level0 序列化待机态（同 σ 案被第一手推翻）。
+            RenderSettings.ambientLight = new Color(0.4452f, 0.2876f, 0.2789f);
             RenderSettings.sun = light; // WaterLabSimulation.PublishSunDir 解析源
+            // 太阳方向一次性预发布（L3-sand 分解②的保底）：sim 侧 PublishSunDir 每 tick
+            // 幂等下发同值；sim 未 tick 的帧（装配后首帧/冻结帧）shader 不再走
+            // fallback 太阳（y=0.669，等价 ×0.853 支族）。口径 = 指向太阳 = −forward。
+            Shader.SetGlobalVector(Shader.PropertyToID("_WaterLabSunDir"), -sun.transform.forward);
         }
 
         static Camera CreateCamera()
@@ -119,35 +223,54 @@ namespace PirateCrew.EditorTools
             go.tag = "MainCamera";
             var cam = go.AddComponent<Camera>();
             cam.orthographic = false;
-            // 俯视沙盘取景（向 Battle 的俯角等距观感靠拢）：长焦 + 高机位。
-            cam.fieldOfView = 32f;
-            cam.nearClipPlane = 0.1f;
-            cam.farClipPlane = 400f;
-            cam.backgroundColor = new Color(0.55f, 0.72f, 0.88f);
-            // 【取景口径】正对岸线（yaw 90°，相机在 +x 侧朝 -x 看）：参考头图的岸线是横的，
-            // 旧 45° 斜看会把岸线拍成对角线，也让水色带斜切画面。取景中心 (1,0)、俯角 48°、
-            // 机距 46：画面构成 ≈ 沙 26% / 水 74%，顶部是 ≥2 m 的深水、底部是干沙滩，
-            // 64 m 域的边界全部落在画外（旧机位右上角 11% 露天空盒的灰色域外区消失）。
-            // 俯角 48° 与太阳仰角 58° 配对，水面镜像路径仍横穿取景。
-            var center = new Vector3(1f, 0f, 0f);
-            float pitch = 42f * Mathf.Deg2Rad; // 距天顶 42° → 实际俯角 48°
-            float yaw = 90f * Mathf.Deg2Rad;
-            float dist = 46f;
-            var dir = new Vector3(
-                Mathf.Sin(pitch) * Mathf.Sin(yaw),
-                Mathf.Cos(pitch),
-                Mathf.Sin(pitch) * Mathf.Cos(yaw)); // 从中心指向机位
-            go.transform.position = center + dir * dist;
-            go.transform.rotation = Quaternion.LookRotation(-dir);
+            // 【I8 相机移植（menu-state.json 三帧全同，矩阵级）】主菜单 LabCamera：
+            // FOV 20、near 8.736618、far 46.223755、pos (7.570009,20.671303,−21.924673)、
+            // rot q(0.37687,−0.16043,0.066452,0.909844)、bg (0.801526,0.506065,0.560869)。
+            // 原作 projectionMatrix [3.190096,5.671281,…] 与 FOV20/aspect1.778 解析一致
+            //（竖 FOV 2·atan(1/5.671281)≈20°），Unity 重算投影即可，不改 near/far 以外的项。
+            cam.fieldOfView = 20f;
+            cam.nearClipPlane = 8.736618f;
+            cam.farClipPlane = 46.223755f;
+            cam.backgroundColor = new Color(0.801526f, 0.506065f, 0.560869f);
+            // 原作位姿为基准；创始人取景裁决（2026-10-27）：**相机位置**沿视线向水面方向
+            // 前移（原作菜单即拖动平移相机，不改俯仰）。差分对账用基准值时把前移量归零。
+            // 朝水体质心平移（快照 waterAmount 加权重心 (0.12, 9.51)——前移视线版本实测
+            // 水占比反降（落点在沙洲），改水平朝心平移；差分对账归零即回基准）。
+            // 【L3 基线钩子】PC3D_WATERLAB_PAN 覆写前移量（L3 工具轮加法，只加不改：
+            // 不设 env 行为不变）——L3 差分基线用 0 = 原作 cb0[6] 纯位姿
+            // (7.570009,20.671303,−21.924673)（L2-run §2 槽位表）。
+            float panTowardWaterMeters = ResolvePanTowardWater();
+            Quaternion baseRot = new Quaternion(0.37687f, -0.16043f, 0.066452f, 0.909844f);
+            Vector3 basePos = new Vector3(7.570009f, 20.671303f, -21.924673f);
+            Vector2 toWater = new Vector2(0.12f - basePos.x, 9.51f - basePos.z).normalized;
+            go.transform.position = basePos + new Vector3(toWater.x, 0f, toWater.y) * panTowardWaterMeters;
+            go.transform.rotation = baseRot;
             return cam;
+        }
+
+        /// <summary>相机前移量解析：env <c>PC3D_WATERLAB_PAN</c>（米，≥0）覆写，
+        /// 默认 6（创始人取景值，行为与旧 const 一致）。</summary>
+        static float ResolvePanTowardWater()
+        {
+            string raw = System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_PAN");
+            if (float.TryParse(raw, out float v) && v >= 0f)
+            {
+                Debug.Log($"[WaterLabSetup] PC3D_WATERLAB_PAN={v}（覆写默认 6；0=原作 cb0[6] 基准位姿）");
+                return v;
+            }
+            return 6f;
         }
 
         static void CreateTerrain()
         {
+            // ReplicaMode：顶点直接从快照 256² 出（格角栅格 257² 覆盖全域，边缘半格
+            // clamp 延伸），高度 = groundHeight 世界 Y 原值（TerrainHeight 已委托采样器）；
+            // 回退：程序剖面 512 段。
+            int segments = ReplicaMode ? WaterLabReplicaSnapshot.Resolution : TerrainSegments;
             var mesh = new Mesh { name = "WaterLabTerrain" };
             mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-            int verts = TerrainSegments + 1;
-            float step = WaterLabRules.DomainSize / TerrainSegments;
+            int verts = segments + 1;
+            float step = WaterLabRules.DomainSize / segments;
 
             var vertices = new Vector3[verts * verts];
             for (int z = 0; z < verts; z++)
@@ -160,11 +283,11 @@ namespace PirateCrew.EditorTools
                 }
             }
 
-            var triangles = new int[TerrainSegments * TerrainSegments * 6];
+            var triangles = new int[segments * segments * 6];
             int t = 0;
-            for (int z = 0; z < TerrainSegments; z++)
+            for (int z = 0; z < segments; z++)
             {
-                for (int x = 0; x < TerrainSegments; x++)
+                for (int x = 0; x < segments; x++)
                 {
                     int i0 = x + z * verts;
                     int i1 = i0 + 1;
@@ -183,10 +306,13 @@ namespace PirateCrew.EditorTools
             var go = new GameObject("Terrain");
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var sandMat = LoadOrCreateMaterial("WaterLab_Sand", ShaderPathSand);
-            // 焦散源＝水面小尺度坡度场：沙 shader 用同一张细节法线贴图求散度（见其焦散段）
-            sandMat.SetTexture("_WaterLabDetailNormal", LoadOrCreateDetailNormal());
-            ApplyCalibratedSandColors(sandMat);
+            ApplySandReplicaValues(sandMat); // I2：焦散真身 + Carbonate 预设 + 沙噪声真图
+            // 深水沙变体**关闭**（K 流闭案：原作主菜单帧 bg max=1.79、>2.5 占 0.00%，
+            // 数学排除激活；r99c 凭帧色带开启系误判——浅青带实为 σ 吸收正身。将来启用
+            // 须先补 VS 段第一手公式的 σ-bake 因子）。
             go.AddComponent<MeshRenderer>().sharedMaterial = sandMat;
+            Debug.Log($"[WaterLabSetup] 地形网格：{(ReplicaMode ? "快照 256² 直出" : "程序剖面")}，"
+                + $"{verts * verts} 顶点 / {segments} 段");
         }
 
         /// <summary>
@@ -196,41 +322,64 @@ namespace PirateCrew.EditorTools
         /// 【1.08】环境项抬到 (0.18,0.20,0.22) 补原作 GI 的暗部亮度后，受光核略增；
         /// 同步把曝光从 1.20 压到 1.08，保持参考受光干沙 (253,229,169) 同亮度。
         /// </summary>
-        const float LightScale = 1.08f;
+        const float LightScale = 1.00f;
 
-        static void ApplyCalibratedSandColors(Material m)
+        /// <summary>
+        /// 沙面材质复刻值（I2，真值单源）：全部为 D 流第一手真值，逐条带出处；重建时全量
+        /// 下发，.mat 旧值残留不生效（D 表§4.2：原作运行时同样用预设覆写材质）。
+        /// 颜色一律 Vector 下发——Linear 工程的 Color 属性会被 sRGB→线性再压一次
+        /// （交接§6 陷阱），预设的 linear 序列化值必须原样直达 shader。
+        /// </summary>
+        static void ApplySandReplicaValues(Material m)
         {
-            // 反解自参考受光干沙 (253,229,169)（线性 (0.982,0.784,0.397)）。
-            // 【旧值为什么偏黄】旧沙色 (1.0,0.83,0.38) 是在二次编码截图上标的：截图把
-            // 蓝通道从 0.43 抬到约 0.69，看起来刚好；实机单次编码下蓝只剩 89/255，
-            // 沙面成浓黄。现按正确显示链反解：干沙 albedo sRGB (1.0,0.92,0.69)
-            // → 线性 (1.0,0.831,0.434)，×光照核 (0.992,0.944,0.902) ≈ 参考线性值。
-            m.SetColor("_DrySandColor", new Color(1.0f, 0.92f, 0.69f));
-            // 湿沙：原作 wetSandColor/sandColor 的 linear 比例 ≈ (0.979,0.914,0.873)，
-            // 只轻微变暗；旧值 (0.82,0.72,0.52) 暗 40%+，退潮湿痕会被读成残留水。
-            m.SetColor("_WetSandColor", new Color(0.99f, 0.885f, 0.65f));
-            // 水下沙：透过浅水看到的亮底沙，偏暖（水的青色会把它拉回绿松石）。
-            m.SetColor("_UnderwaterSandColor", new Color(1.0f, 0.93f, 0.72f));
+            // 【Carbonate 预设三色】D 表§4.2 从 Refs 裸字节恢复（主菜单 = SandType.Carbonate：
+            // Sand 材质序列化 sandColor 与 type0.color 逐位相同）。旧 _DrySandColor=(1.0,0.92,0.69)
+            // 头图反定与「湿/干只暗 2–13%」定标依据一并作废（湿/干比真值 ≈0.85/0.86/0.89）。
+            m.SetVector("_SandColorDry", SandColorDry);     // cb0[127] = 预设 color
+            m.SetVector("_SandColorWet", SandColorWet);     // cb0[129] = 预设 wetColor
+            m.SetVector("_SandColorThird", SandColorThird); // cb0[130] = 预设 color2（水侧场×20 混入）
+            // 太阳色（L3-sand 分解③：全仓此前零下发，.mat 残留 level0 待机态 (1,0.971,0.940)
+            // 使 G/B 偏亮 +3.2%/+7.8%）。真值 cb0[125] = t=1/3 运行时（R2 实读，跨 Lit_* 同值）
+            m.SetVector("_SunTint", new Vector4(1f, 0.940429f, 0.872353f, 1f));
+            // 【水色】Water 材质序列化 waterColor（materials-dump.txt / 交接§3 台账）
+            // ——深水沙变体 o3 的 4× 目标色（σ≡0，见 shader 深水段）。
+            m.SetVector("_WaterColor", SandWaterColor);
+            // 焦散真身（原作 Caustics Texture3D）与沙噪声 1024²（原作 Lit_Sand t3）。
+            // 构建失败返回 null = 槽落空：焦散被淹没门控自然置 0、相位退化为常量，
+            // 场景仍可装配（不阻断重建）。
+            m.SetTexture("_CausticsTex", WaterLabCausticsImport.EnsureCausticsAsset());
+            m.SetTexture("_WaterLabSandMap", EnsureSandMapAsset());
             m.SetFloat("_LightScale", LightScale);
             m.SetColor("_AmbientColor", AmbientColor);
-            // 焦散世界尺度：0.05（=20 m 周期）会把细节法线的 Voronoi 胞放大成整片团块，
-            // 观感是「水底一片黄绿斑」而不是参考那种**细亮网**；0.5（=2 m 周期）回到网尺度。
-            m.SetFloat("_CausticScale", CausticScale);
-            m.SetFloat("_CausticGain", CausticGain);
-            // 沙面细节按原作 Lit_Sand PS 的结构：没有层理/沙纹/卵石 albedo；
-            // 干湿混色、细粒噪声、闪沙、焦散与几何法线各自独立。全部是纯视觉项，
-            // 不改变 WaterLabRules 的模拟地形/物理参数。
-            m.SetFloat("_GrainStrength", 0.20f); // 原作沙粒噪声 ±0.2×n.y
-            m.SetFloat("_GrainScale", 300.0f);   // worldXZ×0.3 的 1024² 白噪声 ≈3.3 mm
-            m.SetFloat("_SparkleStrength", 0.02f);
-            m.SetFloat("_SparkleScale", 14.0f);
+            // 天光第二方向光（level0 A 级真值，见 CreateLighting）：Vector 下发不走色彩空间
+            m.SetVector("_SkyLightDir", new Vector4(0.35f, 0.90f, 0.26f, 0f));
+            // cb0[126] 抓帧实测 (0,0,0)：t=1/3 Morning 第二灯（天光/月）贡献为零
+            //（cb0[124]=−cb0[123] 方向同轴、色为 0 无实效）——月色 (0.0627,…) 是灯序列化待机态勿用
+            m.SetVector("_SkyLightColor", new Vector4(0f, 0f, 0f, 1f));
+            // 【I2 删项】_SparkleStrength/_SparkleScale（自造哈希闪沙——原作无独立闪沙，
+            // D 表§5-3）；_CausticScale/_CausticGain/_CausticSampleOffset（细节法线散度程序
+            // 焦散的旋钮——焦散换真身后强度链全是原作字面量，D 表§2.3 段 C/E）；
+            // _GrainStrength/_GrainScale（哈希粒噪——沙噪声真图接入后幅度 0.2、尺度 ×0.3
+            // 均为原作字面量，D 表§5-4）；_UnderwaterSandColor（水下色由第三色/深水变体真值承担）。
         }
 
-        /// <summary>焦散采样世界尺度（1/m）：周期 = 1/此值。参考的焦散网约 0.5–2 m。</summary>
+        // 【Carbonate 预设三色 + 水色】出处：预设三色 = D 表§4.2（Refs 裸字节恢复，
+        // linear 序列化值）；水色 = Water 材质序列化 waterColor（materials-dump.txt）。
+        // 【L2-sand 裁决改运行时真值（2026-10-27，R 抓帧 draw 2545 cb0[127/129/130]）】
+        // 原 Carbonate 预设三色被 DayCycler 的 groundHueVariation=−0.255（menu-state.json）
+        // 在运行时偏移成暖黄——预设是底色、不是显示值；我方直用预设曾致全局 B+41
+        //（L2-sand 任务 3：预设 B 0.726 vs 运行时 0.485，光照后显示域 +31~43 同量级）。
+        static readonly Vector4 SandColorDry   = new Vector4(0.8388f, 0.7605f, 0.4851f, 1f); // cb0[127] t=1/3
+        static readonly Vector4 SandColorWet   = new Vector4(0.5854f, 0.5370f, 0.3769f, 1f); // cb0[129]
+        static readonly Vector4 SandColorThird = new Vector4(0.6038f, 0.2747f, 0.1384f, 1f); // cb0[130]
+        static readonly Vector4 SandWaterColor = new Vector4(0.7835f, 0.9486f, 1.0f, 1f); // cb0[131] t=1/3 运行时（同 WaterLabReplicaGlobals.WaterColor；序列化 0.9603… 是惰性残留）
+
+        /// <summary>焦散采样世界尺度（1/m）：周期 = 1/此值。【I2 后仅 WaterLabProp 消费】——
+        /// 沙面焦散已换原作真身（Texture3D，强度链为原作字面量，见 ApplySandReplicaValues），
+        /// 本仓程序焦散旋钮只剩水底参照物在用。</summary>
         const float CausticScale = 0.5f;
 
-        /// <summary>焦散增益：旧 0.2 在出图里几乎看不见网（参考浅滩有明显的亮暗纹）。
-        /// 0.6 是显示链下的可读档；沙/石同一值，避免两层焦散强度脱节。</summary>
+        /// <summary>焦散增益（prop 用，口径同 <see cref="CausticScale"/> 注）。</summary>
         const float CausticGain = 0.6f;
 
         /// <summary>
@@ -238,7 +387,7 @@ namespace PirateCrew.EditorTools
         /// 这一个常数项，取 (0.18,0.20,0.22) 近似合成亮度——旧 (0.08,0.14,0.21) 只保留
         /// 天空色，阴影里的沙红通道过低、发青发死。曝光因子已同步压到 1.08。
         /// </summary>
-        static readonly Color AmbientColor = new Color(0.18f, 0.20f, 0.22f);
+        static readonly Color AmbientColor = new Color(0.10f, 0.11f, 0.12f);
 
         /// <summary>
         /// 散射显示域强度：原作散射色 (0.568,0.357,0) 是 HDR 管线里的文件值，经 tonemap
@@ -262,10 +411,31 @@ namespace PirateCrew.EditorTools
         static readonly Vector4 SkyReflectionColor = new Vector4(0.01f, 0.30f, 1.15f, 1f);
         const float SkyReflectionStrength = 9.5f;
 
-        /// <summary>细节法线贴图（WaterNormal2D 程序化等价物）：水面碎金的高频法线源，
-        /// 同时是沙侧焦散的坡度场源。生成一次落资产，重建时已存在则复用。</summary>
+        /// <summary>
+        /// 深水 GI 兜底（原作体素 Gi 的显示域近似，C 级自造项）：本仓无 GI/HDR tonemap，
+        /// 深水 G 通道塌成墨蓝（shelf14-r1 实测 y3=(10,41,97) vs 参考最深带 (16,70,119)）。
+        /// 【加法项 col += 色 × saturate(光程×0.4)】（r2-gi 用 lerp 权重饱和到 1，深水被
+        /// 平涂成纯色、深度渐变/天空反射全被盖掉——GI 是加法 irradiance，lrep 会抹层次）。
+        /// 色值 = y3 出射差 (0.0026,0.0385,0.0692) ÷ giW(y3)≈0.88 → (0.003,0.044,0.079)
+        /// （线性域，Vector 下发不走色彩空间）。
+        /// 【依据】逆向源码实锤原作链 = HDR RT + PPv2 tonemap + 体素 Gi（128³ giVoxels），
+        /// profile 数值 typetree 剥离（D 级）→ 按参考画面反定，与 σ 同法。
+        /// </summary>
+        static readonly Vector4 GIFillColor = new Vector4(0.002f, 0.038f, 0.068f, 1f);
+        const float GIFillStrength = 1.0f;
+
+        /// <summary>
+        /// 细节法线贴图：水面碎金的高频法线源，同时是沙侧焦散的坡度场源。
+        /// 【优先级】原作提取贴图 <see cref="RefNormalAssetPath"/>（项目所有者授权的
+        /// 临时复用，观感对标验证用，之后替换；通道与导入口径见同目录 README.md）
+        /// → 找不到时回退程序生成版 <see cref="WaterLabDetailNormal"/>（统计对齐原作、
+        /// 形态为 Voronoi 胞近似的等价物）。生成一次落资产，重建时已存在则复用。
+        /// </summary>
         static Texture2D LoadOrCreateDetailNormal()
         {
+            var refTex = EnsureRefNormalAsset();
+            if (refTex != null) return refTex;
+
             var path = $"{MaterialFolder}/WaterLabDetailNormal.asset";
             var detail = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
             if (detail == null)
@@ -274,6 +444,249 @@ namespace PirateCrew.EditorTools
                 AssetDatabase.CreateAsset(detail, path);
             }
             return detail;
+        }
+
+        /// <summary>原作提取细节法线贴图的资产路径（临时复用；.meta 固定 guid 防重建漂移）。</summary>
+        const string RefNormalAssetPath = MaterialFolder + "/WaterNormal2D_Ref.png";
+        const string RefNormalAssetMetaPath = RefNormalAssetPath + ".meta";
+        const string RefNormalAssetGuid = "e3a1f20c8b7d4e5f9a6b0c1d2e3f4a5b";
+        const string MaterialFolderReadmePath = MaterialFolder + "/README.md";
+
+        /// <summary>
+        /// 确保原作提取贴图已入库并按数据贴图口径导入，返回它；源不可得时返回 null
+        /// （调用方 <see cref="LoadOrCreateDetailNormal"/> 会回退程序生成版）。
+        ///
+        /// 【为何要自愈】<see cref="BuildScene"/> 对材质目录是「先删后建」——本贴图与
+        /// README 会被一并删掉，这里负责从工程外源拷回，保证 git 无漂移（PNG 字节一致、
+        /// .meta 固定 guid、README 固定文案）。
+        /// 【导入口径】linear 色空间、Repeat wrap、mip 开、不压缩、Default 纹理类型：
+        /// NormalMap 导入器会把通道重排成 DXT5nm 布局，破坏「RG=法线 xy、B=相位/高度」
+        /// 的原作编码——shader 端按 <c>.rg * 2 - 1</c> 自行解码，必须保通道原样。
+        /// </summary>
+        static Texture2D EnsureRefNormalAsset()
+        {
+            if (!File.Exists(RefNormalAssetPath))
+            {
+                var src = RefNormalSourceCandidates().FirstOrDefault(File.Exists);
+                if (src == null)
+                {
+                    Debug.LogWarning(
+                        "[WaterLabSetup] 未找到原作细节法线源 PNG（external 工作台缺失），回退程序生成贴图。");
+                    return null;
+                }
+                File.Copy(src, RefNormalAssetPath);
+                File.WriteAllText(RefNormalAssetMetaPath,
+                    $"fileFormatVersion: 2\nguid: {RefNormalAssetGuid}\nTextureImporter: {{}}\n");
+                // 先 ImportAsset 让 AssetDatabase 感知新文件，否则下方 GetAtPath 返回 null。
+                AssetDatabase.ImportAsset(RefNormalAssetPath);
+            }
+            if (!File.Exists(MaterialFolderReadmePath))
+                File.WriteAllText(MaterialFolderReadmePath, RefNormalReadmeText);
+
+            var importer = AssetImporter.GetAtPath(RefNormalAssetPath) as TextureImporter;
+            if (importer == null)
+            {
+                Debug.LogWarning($"[WaterLabSetup] {RefNormalAssetPath} 不是 TextureImporter 资产，回退程序生成贴图。");
+                return null;
+            }
+            // 主类型校验别省：meta 里 generateCubemap=FullCubemap 会把 Default 贴图导入成
+            // Cubemap（importer 各项设置却全部「正确」），LoadAssetAtPath<Texture2D> 静默 null。
+            var mainType = AssetDatabase.GetMainAssetTypeAtPath(RefNormalAssetPath);
+            if (mainType != typeof(Texture2D)
+                || importer.textureType != TextureImporterType.Default
+                || importer.sRGBTexture
+                || importer.wrapMode != TextureWrapMode.Repeat
+                || !importer.mipmapEnabled
+                || importer.filterMode != FilterMode.Bilinear
+                || importer.textureCompression != TextureImporterCompression.Uncompressed)
+            {
+                importer.textureType = TextureImporterType.Default;
+                importer.textureShape = TextureImporterShape.Texture2D;
+                importer.generateCubemap = TextureImporterGenerateCubemap.None;
+                importer.sRGBTexture = false;
+                importer.wrapMode = TextureWrapMode.Repeat;
+                importer.mipmapEnabled = true;
+                importer.filterMode = FilterMode.Bilinear;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.SaveAndReimport();
+            }
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(RefNormalAssetPath);
+            if (texture == null)
+                Debug.LogWarning($"[WaterLabSetup] {RefNormalAssetPath} 导入后拿不到 Texture2D（检查导入日志），回退程序生成贴图。");
+            return texture;
+        }
+
+        /// <summary>源 PNG 候选：环境变量优先，其后工程根外层的 external 工作台
+        /// （主仓与 worktree 同构：&lt;工程根&gt;/../external/sandcastle-ref/）。</summary>
+        static IEnumerable<string> RefNormalSourceCandidates()
+        {
+            var env = System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_REF_NORMAL_SRC");
+            if (!string.IsNullOrEmpty(env)) yield return env;
+            yield return Path.GetFullPath(System.IO.Path.Combine(
+                Directory.GetParent(Application.dataPath).FullName,
+                "../external/sandcastle-ref/WaterNormal2D-extracted.png"));
+        }
+
+        /// <summary>原作沙噪声贴图入库路径（Lit_Sand t3 = Texture path_id 232 "Sand"，
+        /// 1024²：R=逐 texel 白噪声 std 0.161、G=低频流供焦散相位 base——D 表§2.3 段 A/§5-4；
+        /// meta 固定 guid 防重建漂移，自愈模式同 EnsureRefNormalAsset）。</summary>
+        const string SandMapAssetPath = "Assets/Art/Textures/WaterLab/SandNoise_Ref.png";
+        const string SandMapAssetGuid = "c8d5e9f3a2b64d178e50f3b9c7a26d41";
+
+        /// <summary>
+        /// 确保原作沙噪声贴图已入库并按**数据贴图**口径导入，返回它；源不可得时返回 null
+        /// （shader 端退化为 gray=0.5：白噪声调制归零、焦散相位成常量，场景仍可装配）。
+        /// 【导入口径必须保数据语义】G 通道进焦散相位 base（PS:41-43），sRGB 解码或压缩
+        /// 都会改写相位标定：linear、Repeat、mip 开、Bilinear、不压缩、Default 纹理类型。
+        /// </summary>
+        static Texture2D EnsureSandMapAsset()
+        {
+            if (!File.Exists(SandMapAssetPath))
+            {
+                string src = SandMapSourceCandidates().FirstOrDefault(File.Exists);
+                if (src == null)
+                {
+                    Debug.LogWarning(
+                        "[WaterLabSetup] 未找到原作沙噪声提取件（external 工作台缺失），焦散相位退化为常量。");
+                    return null;
+                }
+                File.Copy(src, SandMapAssetPath);
+                File.WriteAllText(SandMapAssetPath + ".meta",
+                    $"fileFormatVersion: 2\nguid: {SandMapAssetGuid}\nTextureImporter: {{}}\n");
+                AssetDatabase.ImportAsset(SandMapAssetPath);
+            }
+            var importer = AssetImporter.GetAtPath(SandMapAssetPath) as TextureImporter;
+            if (importer == null)
+            {
+                Debug.LogWarning($"[WaterLabSetup] {SandMapAssetPath} 不是 TextureImporter 资产，沙噪声落空。");
+                return null;
+            }
+            if (importer.textureType != TextureImporterType.Default
+                || importer.sRGBTexture
+                || importer.wrapMode != TextureWrapMode.Repeat
+                || !importer.mipmapEnabled
+                || importer.filterMode != FilterMode.Bilinear
+                || importer.textureCompression != TextureImporterCompression.Uncompressed)
+            {
+                importer.textureType = TextureImporterType.Default;
+                importer.textureShape = TextureImporterShape.Texture2D;
+                importer.sRGBTexture = false;
+                importer.wrapMode = TextureWrapMode.Repeat;
+                importer.mipmapEnabled = true;
+                importer.filterMode = FilterMode.Bilinear;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.SaveAndReimport();
+            }
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(SandMapAssetPath);
+        }
+
+        /// <summary>沙噪声源候选：env 优先，其后工程根外层工作台（dataPath 上两级 =
+        /// 仓库/worktree 根，主仓与 temp worktree 同构）。</summary>
+        static IEnumerable<string> SandMapSourceCandidates()
+        {
+            var env = System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_SANDMAP_SRC");
+            if (!string.IsNullOrEmpty(env)) yield return env;
+            yield return Path.GetFullPath(System.IO.Path.Combine(
+                Application.dataPath,
+                "../../external/sandcastle-ref/extracted/tex_sharedassets0.assets_232_Sand.png"));
+        }
+
+        /// <summary>与入库版逐字节一致的 README 文案（自愈重写用，防 git 噪音）。</summary>
+        const string RefNormalReadmeText =
+            "# WaterNormal2D_Ref.png —— 原作细节法线贴图（临时复用）\n" +
+            "\n" +
+            "**来源**：Sandcastle 原作发行包提取的 `WaterNormal2D`（UnityPy 回读序列化纹理，\n" +
+            "提取件存 `external/sandcastle-ref/WaterNormal2D-extracted.png`，1024×1024 RGBA）。\n" +
+            "\n" +
+            "**通道编码**（与 shader `SAMPLE_TEXTURE2D(...).rg * 2 - 1` 的自解码约定对应）：\n" +
+            "\n" +
+            "- R/G = 法线 xy，0..255 → [-1, 1]\n" +
+            "- B = 相位噪声/高度（当前 shader 未消费，保留原样）\n" +
+            "- A = 1\n" +
+            "\n" +
+            "**导入口径**：linear 色空间（`sRGBTexture: 0`）、Repeat wrap、mip 开、**Default 纹理类型**——\n" +
+            "不用 NormalMap 导入器（它会把通道重排成 DXT5nm 布局，破坏 RG/B 语义）、不压缩（保编码保真）。\n" +
+            "\n" +
+            "**临时性质**：本贴图是原作资产，经项目所有者授权**临时复用**于观感对标验证\n" +
+            "（对比程序生成版 `WaterLabDetailNormal.asset` 与原作真实水纹的差异），之后会被替换掉。\n" +
+            "`WaterLabSetup.LoadOrCreateDetailNormal()` 优先加载本贴图，找不到时回退程序生成版。\n" +
+            "\n" +
+            "**自愈说明**：`WaterLabSetup.BuildScene()` 重建材质目录时会把本文件连同 README 一并删除；\n" +
+            "`WaterLabSetup.EnsureRefNormalAsset()` 会在缺失时从 `<工程根>/../external/sandcastle-ref/WaterNormal2D-extracted.png`\n" +
+            "（可用环境变量 `PC3D_WATERLAB_REF_NORMAL_SRC` 覆盖）重新拷贝，并按固定 guid（见 .meta）恢复\n" +
+            "导入设置，保证 git 与资产引用稳定。\n";
+
+        /// <summary>
+        /// I6b 植物系统挂接（ReplicaMode 专属；回退链走 <see cref="CreateBottomProps"/>）。
+        /// 按 G-plants.md §5 集成规格：原作 Beach 子树挂点（Coastal/CoralReef/Grassland
+        /// + 13 类名空节点，Transform 恒等——placement.json world 全 identity）+ 13 材质
+        /// （<see cref="ReplicaPlantTable.CreateMaterial"/> 真值逐字落盘）+ 13 凸包网格
+        /// （<see cref="WaterLabPlantBake.EnsureHullMeshes"/> 资产）→ ReplicaPlantDriver
+        /// 注入后由其自举（new 系统/分布/每帧 Tick+Draw，见系统侧 I6b 段）。
+        /// </summary>
+        static void EnsurePlants()
+        {
+            var shader = AssetDatabase.LoadAssetAtPath<Shader>(ShaderPathPlant);
+            if (shader == null)
+            {
+                Debug.LogError($"[WaterLabSetup] 找不到植物 shader：{ShaderPathPlant}（I6a 产物未入库？）");
+                return;
+            }
+            var hulls = WaterLabPlantBake.EnsureHullMeshes();
+            var table = ReplicaPlantTable.All;
+
+            // 挂点树：组节点按表首现序建（= 原作 m_Children 序 Coastal/CoralReef/Grassland）。
+            var beach = new GameObject("Beach");
+            var groupNodes = new Dictionary<string, Transform>();
+            foreach (var p in table)
+                if (!groupNodes.ContainsKey(p.Group))
+                {
+                    var node = new GameObject(p.Group);
+                    node.transform.SetParent(beach.transform, false);
+                    groupNodes[p.Group] = node.transform;
+                }
+
+            var driverHulls = new Mesh[table.Length];
+            var driverMaterials = new Material[table.Length];
+            int mounted = 0;
+            for (int i = 0; i < table.Length; i++)
+            {
+                var p = table[i];
+                // 挂点（空 GameObject，纯占位——原作 Plant 组件的职责由 Driver 统一承载）
+                var anchor = new GameObject(p.ClassName);
+                anchor.transform.SetParent(groupNodes[p.Group], false);
+
+                var atlas = AssetDatabase.LoadAssetAtPath<Texture2D>($"{PlantsFolder}/{p.AtlasName}.png");
+                if (atlas == null)
+                {
+                    Debug.LogError($"[WaterLabSetup] 缺植物图集 {PlantsFolder}/{p.AtlasName}.png（I6a 产物），{p.ClassName} 材质落空。");
+                    continue;
+                }
+                var mat = ReplicaPlantTable.CreateMaterial(p, atlas, shader);
+                AssetDatabase.CreateAsset(mat, $"{MaterialFolder}/{p.ClassName}_01_Imposter.mat");
+                driverHulls[i] = i < hulls.Length ? hulls[i] : null;
+                driverMaterials[i] = mat;
+                mounted++;
+            }
+
+            // 自驱件：只注参（序列化引用），系统生命周期由 Driver.Awake 自举——
+            // 重开场景/进 Play 都不依赖装配期内存态（同 CreateSimulation 模式）。
+            var driver = beach.AddComponent<ReplicaPlantDriver>();
+            driver.Hulls = driverHulls;
+            driver.Materials = driverMaterials;
+            driver.GroundSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaGroundPath);
+            driver.WaterSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaWaterPath);
+            driver.FertilitySnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(
+                "Assets/Art/WaterLabReplica/MenuFertility1024.bytes"); // 肥力门控数据件（主菜单 dump；缺省回退恒 1 并告警）
+
+            // cb0[40] 环境色（R2 抓帧实读定案，见 Driver.MenuAmbient 注释；与
+            // CreateLighting 的 RenderSettings.ambientLight 同值——重开场景后由
+            // Driver.Awake 重设）。
+            ReplicaPlantSystem.AmbientOverride = ReplicaPlantDriver.MenuAmbient;
+
+            Debug.Log($"[WaterLabSetup] I6b 植物：Beach 树 13 挂点（Coastal/CoralReef/Grassland）、" +
+                $"材质/凸包就绪 {mounted}/{table.Length}（hull 资产在 {WaterLabPlantBake.HullFolder}），" +
+                "ReplicaPlantDriver 自举（Update Tick+Draw；seed/环境色/实时水场=运行时专用 TODO）");
         }
 
         /// <summary>
@@ -368,22 +781,29 @@ namespace PirateCrew.EditorTools
 
             var rnd = new System.Random(20261020); // 确定性：每次重建同一散布
 
+            // 【I7】散布域与干湿判据参数化：散布范围按域比例缩放（旧 64 m 取景设计值 ×s，
+            // 回退模式 s=1 数值不变、ReplicaMode 收进 30 m 网格内）；干湿判据统一改成
+            // 海平面相对量（SeaLevel 切 1.0 后旧的绝对高程判据会把整场读成"干的"）。
+            float s = WaterLabRules.DomainSize / 64f;
+            float zSpan = 28f * s;
+            float sea = WaterLabRules.SeaLevel;
+
             // 参考原作：珊瑚/海草是成簇分布，不是均匀撒点。先取 16 个浅水簇心，
             // 70–75% 的实例落在簇心 0.4–2.4 m 内，其余仍全场点缀。
             var clusters = new Vector2[16];
             for (int i = 0; i < clusters.Length; i++)
             {
-                clusters[i] = new Vector2(5f, 0f); // 兜底：近岸浅水
+                clusters[i] = new Vector2(5f * s, 0f); // 兜底：近岸浅水
                 for (int attempt = 0; attempt < 200; attempt++)
                 {
                     // 簇心压在**水线附近的透亮带**（静态水深 0.02–0.30 m；高潮时
                     // 实际水深约 0.2–0.5 m）：水体的红光消光约 5.6/m，0.5 m 以下
                     // 任何色板都会退成暗蓝剪影。参考的彩色珊瑚/海草床也在这一带。
                     // 代价是低潮时部分簇会露出湿沙——参考的潮间带本来就有这种暴露。
-                    float cx = Mathf.Lerp(5.0f, 7.2f, (float)rnd.NextDouble());
-                    float cz = Mathf.Lerp(-28f, 28f, (float)rnd.NextDouble());
+                    float cx = Mathf.Lerp(5.0f * s, 7.2f * s, (float)rnd.NextDouble());
+                    float cz = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                     float ch = WaterLabRules.TerrainHeight(cx, cz);
-                    if (ch < -0.02f && ch > -0.30f)
+                    if (ch < sea - 0.02f && ch > sea - 0.30f)
                     {
                         clusters[i] = new Vector2(cx, cz);
                         break;
@@ -394,15 +814,15 @@ namespace PirateCrew.EditorTools
             int rockCount = 0;
             for (int attempt = 0; attempt < 2400 && rockCount < 90; attempt++)
             {
-                // 礁石只撒在可见的浅/中水带（x −14…12，约 0–1.0 m）；旧版
-                // 撒到 x=−30 的深水，62 块落在 1.5–2.4 m，水下只剩一团团黑斑。
-                float x = Mathf.Lerp(-14f, 12f, (float)rnd.NextDouble());
-                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                // 礁石只撒在可见的浅/中水带；旧版撒到深水，62 块落在 1.5–2.4 m，
+                // 水下只剩一团团黑斑。
+                float x = Mathf.Lerp(-14f * s, 12f * s, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                 float h = WaterLabRules.TerrainHeight(x, z);
-                if (h > -0.04f) continue; // 只落在有水处（地形低于静水面 y=0）
+                if (h > sea - 0.04f) continue; // 只落在有水处（地形低于海平面）
 
-                // 尺寸按当地水深封顶：露出水面就不是「水底参照物」了（静水面 y=0，水深=-h）
-                float depth = -h;
+                // 尺寸按当地水深封顶：露出水面就不是「水底参照物」了
+                float depth = sea - h;
                 // 原作礁石多为 0.2–1.5 m 直径；旧上限 1.30 是半径，直径到 2.6 m，
                 // 在画面里就是一团大黑块。缩到 0.75 半径并抬到半埋高度，露出礁石轮廓。
                 float size = Mathf.Min(Mathf.Lerp(0.08f, 0.75f, (float)rnd.NextDouble()), depth * 0.80f);
@@ -432,11 +852,11 @@ namespace PirateCrew.EditorTools
                 }
                 else
                 {
-                    x = Mathf.Lerp(-30f, 10f, (float)rnd.NextDouble());
-                    z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                    x = Mathf.Lerp(-30f * s, 10f * s, (float)rnd.NextDouble());
+                    z = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                 }
                 float h = WaterLabRules.TerrainHeight(x, z);
-                float depth = -h;
+                float depth = sea - h;
                 if (depth < 0.02f || depth > 0.80f) continue;
                 // 主要分布在 0.05–0.45 m 的透亮带；更深只保留 20% 剪影点缀
                 if ((depth < 0.05f || depth > 0.45f) && rnd.NextDouble() > 0.20) continue;
@@ -465,11 +885,11 @@ namespace PirateCrew.EditorTools
                 }
                 else
                 {
-                    x = Mathf.Lerp(-30f, 8f, (float)rnd.NextDouble());
-                    z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                    x = Mathf.Lerp(-30f * s, 8f * s, (float)rnd.NextDouble());
+                    z = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                 }
                 float h = WaterLabRules.TerrainHeight(x, z);
-                float depth = -h;
+                float depth = sea - h;
                 if (depth < 0.02f || depth > 0.70f) continue;
                 // 主要分布在 0.05–0.40 m 的透亮带；更深只保留 15% 剪影点缀
                 if ((depth < 0.05f || depth > 0.40f) && rnd.NextDouble() > 0.15) continue;
@@ -487,10 +907,10 @@ namespace PirateCrew.EditorTools
             int beachGrassCount = 0;
             for (int attempt = 0; attempt < 2000 && beachGrassCount < 160; attempt++)
             {
-                float x = Mathf.Lerp(11f, 30f, (float)rnd.NextDouble());
-                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float x = Mathf.Lerp(11f * s, 30f * s, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                 float h = WaterLabRules.TerrainHeight(x, z);
-                if (h < 0.12f) continue;
+                if (h < sea + 0.12f) continue;
                 float scale = Mathf.Lerp(0.60f, 1.30f, (float)rnd.NextDouble());
                 var go = NewProp($"BeachGrass_{beachGrassCount}", beachGrass,
                     beachGrassShapes[rnd.Next(beachGrassShapes.Length)],
@@ -504,10 +924,10 @@ namespace PirateCrew.EditorTools
             int starfishCount = 0;
             for (int attempt = 0; attempt < 500 && starfishCount < 30; attempt++)
             {
-                float x = Mathf.Lerp(9f, 30f, (float)rnd.NextDouble());
-                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float x = Mathf.Lerp(9f * s, 30f * s, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                 float h = WaterLabRules.TerrainHeight(x, z);
-                if (h < 0.03f) continue;
+                if (h < sea + 0.03f) continue;
                 float scale = Mathf.Lerp(0.70f, 1.30f, (float)rnd.NextDouble());
                 var go = NewProp($"Starfish_{starfishCount}", starfish,
                     starfishShapes[rnd.Next(starfishShapes.Length)],
@@ -523,10 +943,10 @@ namespace PirateCrew.EditorTools
             int gravelCount = 0;
             for (int attempt = 0; attempt < 3000 && gravelCount < 320; attempt++)
             {
-                float x = Mathf.Lerp(10f, 30f, (float)rnd.NextDouble());
-                float z = Mathf.Lerp(-30f, 30f, (float)rnd.NextDouble());
+                float x = Mathf.Lerp(10f * s, 30f * s, (float)rnd.NextDouble());
+                float z = Mathf.Lerp(-zSpan, zSpan, (float)rnd.NextDouble());
                 float h = WaterLabRules.TerrainHeight(x, z);
-                if (h < 0.05f) continue; // 只落在干沙/后滨，不进水线浮沫区
+                if (h < sea + 0.05f) continue; // 只落在干沙/后滨，不进水线浮沫区
                 float size = Mathf.Lerp(0.02f, 0.06f, (float)rnd.NextDouble());
                 bool shell = rnd.NextDouble() < 0.08;
                 var go = NewProp($"Gravel_{gravelCount}", gravel,
@@ -817,6 +1237,9 @@ namespace PirateCrew.EditorTools
             renderer.sharedMaterial.SetFloat("_SkyReflectionStrength", SkyReflectionStrength);
             // 散射显示域强度：原作 HDR+tonemap 的文件值在 LDR 直出链里过强，见 ScatterStrength 注释。
             renderer.sharedMaterial.SetFloat("_ScatterStrength", ScatterStrength);
+            // 深水 GI 兜底（体素 Gi 的显示域近似）：见 GIFillColor 常量注释。
+            renderer.sharedMaterial.SetVector("_GIFillColor", GIFillColor);
+            renderer.sharedMaterial.SetFloat("_GIFillStrength", GIFillStrength);
             // 原作 Lit_Water PS 的 discard 阈值是 1e-5（逐顶点可见水深），没有 6 mm 档；
             // 残留水膜应由 VS 的逐顶点可见水深解决，不能靠抬高裁剪阈值掩盖。
             renderer.sharedMaterial.SetFloat("_DryClip", 0.00001f);
@@ -841,13 +1264,304 @@ namespace PirateCrew.EditorTools
             var sim = go.AddComponent<WaterLabSimulation>();
             sim.computeShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(ComputePath);
             sim.renderCamera = renderCamera; // 白水视锥剔除的平面来源（取景相机）
+            // ReplicaMode 接线（I7/W1）：TextAsset 引用随场景序列化，构建后同样有效；
+            // 模拟 Awake 里加载校验，缺资产 = 回退程序剖面（判定 = 资产可加载）。
+            // 权重场缺失不回退 ReplicaMode，只降级回退代理场（模拟侧显式报错）。
+            sim.replicaGroundSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaGroundPath);
+            sim.replicaWaterSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaWaterPath);
+            sim.replicaWeights = AssetDatabase.LoadAssetAtPath<TextAsset>(ReplicaWeightsPath);
+            // D 流件2：纯沙场快照（障碍增量 = ground−sand 阈值化，B2 四统计锁）——
+            // 缺此接线则 obstaclesMap 泵禁用（礁石/珊瑚周圈的水阻行为缺失）
+            sim.replicaSandSnapshot = AssetDatabase.LoadAssetAtPath<TextAsset>(
+                "Assets/Art/WaterLabReplica/MenuSand256.bytes");
             if (sim.computeShader == null)
                 Debug.LogError($"[WaterLabSetup] 找不到 compute：{ComputePath}（检查文件是否入库/被导入）");
+            Debug.Log($"[WaterLabSetup] 模拟驱动：ReplicaMode={(sim.ReplicaMode ? "开" : "关（程序剖面）")}（Awake 后以模拟侧加载为准）");
         }
 
         /// <summary>白水出画 Feature 幂等注入现役渲染器资产（Balanced+Performant，
         /// WaterLab 取景跟随质量档）。实例以子资产形式存进 .asset（URP 惯例），
         /// 清单/映射同步补位；白水材质随注（已有实例缺材质也补）。</summary>
+        /// <summary>
+        /// I4 后处理（F 流定案：原作实际生效仅 DoF + Vignette，无 tonemap/bloom/曝光）。
+        /// DoF{focus 37.49（autofocus 每帧 raycast 回写的静止值——B 流已把机制移植为
+        /// <see cref="WaterLabDofAutofocus"/>，37.49 保留为初始值，菜单静止场景两者等价）、
+        /// aperture 1.1、focalLength 106mm、kernel VeryLarge→URP Bokeh 高档}；
+        /// Vignette{intensity 0.296 其余默认}。URP postProcessing 开关在相机上启用。
+        /// AA=SMAA only（E/R 流定案：运行时无 MSAA，SMAA 全屏 pass）——B 流管线件。
+        /// </summary>
+        static void EnsurePostProcess(Camera cam)
+        {
+            // batchmode 下 URP 相机组件不是立即自动挂——用扩展方法（缺则加）
+            var camData = UnityEngine.Rendering.Universal.CameraExtensions
+                .GetUniversalAdditionalCameraData(cam);
+            camData.renderPostProcessing = true;
+            // AA：原作运行时无 MSAA（R 定案「资产 4x 未生效」），AA=SMAA 全屏 pass
+            // → 相机级 antialiasing = SMAA。URP 的 quality 档原作无对照（抓帧只见
+            // pass 存在，阈值参数不可恢复）→ 取 High，登记为自推项（L2 对账如有
+            // 边缘锐度差再降档，不动参数先查 pass 结构）。
+            camData.antialiasing =
+                UnityEngine.Rendering.Universal.AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+            camData.antialiasingQuality =
+                UnityEngine.Rendering.Universal.AntialiasingQuality.High;
+
+            var volGo = new GameObject("ReplicaPostVolume");
+            volGo.layer = 0;
+            var vol = volGo.AddComponent<UnityEngine.Rendering.Volume>();
+            vol.isGlobal = true;
+            vol.priority = 0;
+            var profile = ScriptableObject.CreateInstance<UnityEngine.Rendering.VolumeProfile>();
+            profile.name = "ReplicaPost";
+            var vig = profile.Add<UnityEngine.Rendering.Universal.Vignette>(true);
+            vig.intensity.Override(0.296f);   // F 流：唯一 override 项
+            var dof = profile.Add<UnityEngine.Rendering.Universal.DepthOfField>(true);
+            dof.mode.Override(UnityEngine.Rendering.Universal.DepthOfFieldMode.Bokeh);
+            dof.focusDistance.Override(37.49f);
+            dof.aperture.Override(1.1f);
+            dof.focalLength.Override(106f);   // VeryLarge 档的焦段口径（F 报告）
+            vol.sharedProfile = profile;
+            // B 流：autofocus 机制移植（cs-full/CameraRig.cs：每帧 raycast 相机
+            // forward 回写 focusDistance、未命中保持上次值、无平滑）。上面 37.49 的
+            // Override 即初始值，Play 中被命中距离覆写——菜单静止场景两者数值等价。
+            var autofocus = cam.gameObject.AddComponent<WaterLabDofAutofocus>();
+            autofocus.volume = vol;
+            Debug.Log("[WaterLabSetup] I4 后处理：Vignette 0.296 + DoF(37.49/1.1/106) + SMAA + autofocus 已挂");
+        }
+
+        // ====================================================================
+        // I5b 边框/天空挂接（H 流真值 reports/H-borders-sky.md + I5a shader 件
+        // d11ed7c0）。一切在代码装配里做（BuildScene 是 NewScene 全重建，不手摆）。
+        // ====================================================================
+
+        /// <summary>边框盒世界高度（B 流：沙盘 bounds center(0,5,0) size 30×10×30
+        /// ——本地立方体高 1 × 缩放 10 = 10 m）。</summary>
+        const float BordersHeight = 10f;
+
+        /// <summary>
+        /// FrontWater 剖面带的吸收 σ：R 抓帧运行时真值 cb0[132]（tint 域，
+        /// 有效消光 6σ/m=(5.958,1.052,0.335)，交接§3 R 行定案）。与
+        /// <see cref="WaterLabReplicaGlobals"/> 的 _WaterLabSigma **单源同值**
+        ///（Globals 那份管水面、这份管 Borders 剖面带）——抓帧对账若改两处同改。
+        /// A 流 σ≡0 旧结论已被 R 推翻，勿回退。
+        /// </summary>
+        static readonly Vector4 ReplicaSigma = new Vector4(0.9930291f, 0.1753813f, 0.0557871f, 0f);
+
+        /// <summary>ReplicaBorders 三模式（shader _Mode 的 Enum 同表，三选一）。</summary>
+        enum BordersMode
+        {
+            Back = 1,
+            FrontGround = 2,
+            FrontWater = 3,
+        }
+
+        /// <summary>
+        /// I5b 边框挂接：Back/FrontGround/FrontWater 三 renderer 共用 16 顶点自定义
+        /// 立方体（sa0 pid378 复刻），Transform 恒等（H 报告 §1.1）、缩放 = 域尺寸
+        /// (30,10,30)——视觉分化全在 shader（Cull/clip/keyword），几何契约见
+        /// ReplicaBorders.shader 文件头。Frame（Lit/Base 白模）件就位但不可见
+        /// （Transform 位置未 dump，TODO 见下）。原作场景树 Beach/Borders{四件}
+        /// → 本仓 "Borders" 根同名子物体。
+        /// </summary>
+        static void EnsureBorders()
+        {
+            var root = new GameObject("Borders");
+            root.transform.position = Vector3.zero; // 域中心；立方体 XZ ±0.5 → 世界 ±15
+            var cube = BuildBordersCubeMesh();
+
+            MakeBordersObject("Back", root.transform, cube,
+                MakeBordersMaterial("WaterLab_BordersBack", BordersMode.Back));
+            MakeBordersObject("FrontGround", root.transform, cube,
+                MakeBordersMaterial("WaterLab_BordersFrontGround", BordersMode.FrontGround));
+            MakeBordersObject("FrontWater", root.transform, cube,
+                MakeBordersMaterial("WaterLab_BordersFrontWater", BordersMode.FrontWater));
+
+            // Frame：Lit/Base 白模（非 Borders 三件套成员，H 报告 §1.1），平面网格
+            // 1.23×1.23（sa0 pid398）。Transform 位置/朝向未 dump（H 的
+            // borders-scene.json Borders 树为空、§4 也标"可后置"）→
+            // TODO(I5b 遗留)：位置待 H 补 dump 或 L2 抓帧回读；先建件挂边框组下、
+            // renderer 关闭（无 draw call 完全不可见），材质就位后只差 Transform。
+            var frame = MakeBordersObject("Frame", root.transform, BuildFrameMesh(),
+                LoadOrCreateMaterial("WaterLab_Frame", ShaderPathFrame));
+            var frameRenderer = frame.GetComponent<MeshRenderer>();
+            frameRenderer.enabled = false;
+
+            Debug.Log($"[WaterLabSetup] I5b 边框：Back/FrontGround/FrontWater 三 renderer " +
+                $"恒等 Transform scale({WaterLabRules.DomainSize},{BordersHeight},{WaterLabRules.DomainSize})，" +
+                $"Frame 白模就位（disabled，位置 TODO）");
+        }
+
+        /// <summary>边框件：恒等 Transform（position/rotation 默认零值），只设缩放。</summary>
+        static GameObject MakeBordersObject(string name, Transform parent, Mesh mesh, Material mat)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.localScale = new Vector3(
+                WaterLabRules.DomainSize, BordersHeight, WaterLabRules.DomainSize);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+            return go;
+        }
+
+        /// <summary>
+        /// 按模式建边框材质：keyword 三选一（shader_feature_local，面板 Toggle 双轨
+        /// 同步）+ 各模式真值。值一律 Vector 下发（Linear 工程 Color 属性会被再 gamma
+        /// 一次，交接§6 陷阱），重建先删后建保证 shader 默认值生效、显式下发防漂移。
+        /// </summary>
+        static Material MakeBordersMaterial(string name, BordersMode mode)
+        {
+            var m = LoadOrCreateMaterial(name, ShaderPathBorders);
+            const string KwBack = "_REPLICA_MODE_BACK";
+            const string KwGround = "_REPLICA_MODE_FRONTGROUND";
+            const string KwWater = "_REPLICA_MODE_FRONTWATER";
+            m.SetFloat("_Mode", (float)mode);
+            m.SetFloat("_ModeBack", mode == BordersMode.Back ? 1f : 0f);
+            m.SetFloat("_ModeFrontGround", mode == BordersMode.FrontGround ? 1f : 0f);
+            m.SetFloat("_ModeFrontWater", mode == BordersMode.FrontWater ? 1f : 0f);
+            m.DisableKeyword(KwBack);
+            m.DisableKeyword(KwGround);
+            m.DisableKeyword(KwWater);
+            switch (mode)
+            {
+                case BordersMode.Back:
+                    // 纯白内壁剪影（PS 恒量 (1,1,1,1)，无参数）——只勾模式。
+                    m.EnableKeyword(KwBack);
+                    break;
+                case BordersMode.FrontGround:
+                    m.EnableKeyword(KwGround);
+                    // Strata 层理真图（sa0 pid212 仅 R）+ Carbonate 预设沙色——与
+                    // ApplySandReplicaValues 同源（cb0[127]/[128] 运行时 = 预设
+                    // color/color2；H 报告 §1.3：Borders 材质序列化色是惰性镜像勿用）。
+                    // _StrataLevelOffset 留 shader 默认 1.0（cb0[113].x 疑水位，
+                    // TODO 对账注释在 shader）。贴图缺失不阻断：shader 默认 gray=0.5。
+                    m.SetTexture("_StrataTex", AssetDatabase.LoadAssetAtPath<Texture2D>(StrataRefPath));
+                    m.SetVector("_SandColor", SandColorDry);
+                    m.SetVector("_SandColor2", SandColorThird);
+                    break;
+                case BordersMode.FrontWater:
+                    m.EnableKeyword(KwWater);
+                    // 剖面带 exp2(−8.65617·σ·d)×waterColor：σ = R 抓帧运行时真值
+                    // （ReplicaSigma，同源 WaterLabReplicaGlobals._WaterLabSigma），
+                    // 水色 = cb0[131] t=1/3 运行时值（SandWaterColor，同源
+                    // ApplySandReplicaValues 的 _WaterColor 与 ReplicaGlobals.WaterColor 三处一字不改）。
+                    m.SetVector("_Sigma", ReplicaSigma);
+                    m.SetVector("_WaterColor", SandWaterColor);
+                    break;
+            }
+            return m;
+        }
+
+        /// <summary>
+        /// 沙盘边框自定义立方体（sa0 pid378 复刻）：16 顶点 24 索引 = **四面侧墙**
+        /// 每面独立 4 顶点（相邻面不共享——同一 worldXZ 落在不同墙面要携带不同的
+        /// 域列 UV），无顶/底面（原作 8 三角恰好铺满四侧墙；边框只露竖剖面）。
+        /// 局部 AABB：底 y=0、center(0,0.5,0) extent(0.5,0.5,0.5)。
+        /// 【UV=域列坐标（非表面参数化）】u=x+0.5、v=z+0.5（局部）→ 缩放后即
+        /// 域 (X→u, Z→v)（B 流轴向 row=Z/col=X）——每个顶点携带自己水柱的域地址；
+        /// 同一面竖墙的竖边两顶点 UV 相同（整列同柱），三角形内部插值竖向恒定。
+        /// 法线按面显式写出（顶点不共享，无 RecalculateNormals 歧义）。
+        /// </summary>
+        static Mesh BuildBordersCubeMesh()
+        {
+            var mesh = new Mesh { name = "WaterLabBordersCube" };
+            // 面 1 Front（z=−0.5，法线朝 −Z，出图相机侧）：竖剖面看的是域前缘水柱列
+            mesh.vertices = new[]
+            {
+                new Vector3(-0.5f, 0f, -0.5f), new Vector3(0.5f, 0f, -0.5f),   // v0 v1
+                new Vector3(0.5f, 1f, -0.5f), new Vector3(-0.5f, 1f, -0.5f),   // v2 v3
+                new Vector3(-0.5f, 0f, 0.5f), new Vector3(0.5f, 0f, 0.5f),     // v4 v5
+                new Vector3(0.5f, 1f, 0.5f), new Vector3(-0.5f, 1f, 0.5f),     // v6 v7
+                new Vector3(-0.5f, 0f, -0.5f), new Vector3(-0.5f, 0f, 0.5f),   // v8 v9
+                new Vector3(-0.5f, 1f, 0.5f), new Vector3(-0.5f, 1f, -0.5f),   // v10 v11
+                new Vector3(0.5f, 0f, -0.5f), new Vector3(0.5f, 0f, 0.5f),     // v12 v13
+                new Vector3(0.5f, 1f, 0.5f), new Vector3(0.5f, 1f, -0.5f),     // v14 v15
+            };
+            mesh.uv = new[]
+            {
+                new Vector2(0f, 0f), new Vector2(1f, 0f),   // v0 v1（Front：u=X 列）
+                new Vector2(1f, 0f), new Vector2(0f, 0f),   // v2 v3（竖边同柱 → 同 UV）
+                new Vector2(0f, 1f), new Vector2(1f, 1f),   // v4 v5（Back：v=Z=1）
+                new Vector2(1f, 1f), new Vector2(0f, 1f),   // v6 v7
+                new Vector2(0f, 0f), new Vector2(0f, 1f),   // v8 v9（Left：u=0，v=Z 列）
+                new Vector2(0f, 1f), new Vector2(0f, 0f),   // v10 v11
+                new Vector2(1f, 0f), new Vector2(1f, 1f),   // v12 v13（Right：u=1）
+                new Vector2(1f, 1f), new Vector2(1f, 0f),   // v14 v15
+            };
+            var nFront = new Vector3(0f, 0f, -1f);
+            var nBack = new Vector3(0f, 0f, 1f);
+            var nLeft = new Vector3(-1f, 0f, 0f);
+            var nRight = new Vector3(1f, 0f, 0f);
+            mesh.normals = new[]
+            {
+                nFront, nFront, nFront, nFront,
+                nBack, nBack, nBack, nBack,
+                nLeft, nLeft, nLeft, nLeft,
+                nRight, nRight, nRight, nRight,
+            };
+            // 绕序 = 正面朝外（法线 = Cross(b−a, c−a)，逐三角核对过）。
+            mesh.triangles = new[]
+            {
+                0, 2, 1, 0, 3, 2,       // Front（外法线 −Z：Cull Back 时朝相机可见）
+                4, 5, 6, 4, 6, 7,       // Back
+                8, 9, 10, 8, 10, 11,    // Left
+                12, 14, 13, 12, 15, 14, // Right
+            };
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>
+        /// I5b 天空挂接：RenderSettings.skybox = ReplicaSkybox 材质（原作 level0
+        /// RenderSettings.m_SkyboxMaterial 同位，H 报告 §3：背景是程序化 Skybox
+        /// shader，不是纯色）。t=1/3 菜单时刻真值显式下发（同 ApplySandReplicaValues
+        /// 的理由：防 .mat 锁旧值）。
+        /// 【相机 clearFlags 不动】任务口径 = 保持 SolidColor 原值；URP 实际绘制条件
+        /// 是 clearFlags==Skybox 且 RenderSettings.skybox 非 null——本仓 LabCamera 未
+        /// 显式设过 clearFlags（Unity 默认 Skybox）。两种情形的行为差异作为出图对账点
+        /// 记 TODO，本方法不碰相机域。
+        /// 【I5a 遗留 TODO 注释链】cb0[122] 天空基色（_SkyBaseTint）默认 (1,1,1) 待
+        /// 抓帧；Skybox 绘制序差异已把原作 ZTest Always 收口为 LEqual（shader 文件头）。
+        /// </summary>
+        static void EnsureSkybox()
+        {
+            var m = LoadOrCreateMaterial("WaterLab_Skybox", ShaderPathSkybox);
+            // t=1/3 Morning（menu-state.json，DayCycler Evaluate 真值；与 CreateLighting
+            // 的灯色/环境光同值——灯走 Light.color（sRGB 语义）、这里走 Vector（物理量）
+            // 不冲突）。
+            m.SetVector("_SkySunColor", new Vector4(1f, 0.940429f, 0.872353f, 1f));
+            m.SetVector("_SkyAmbient", new Vector4(0.698039f, 0.564706f, 0.569923f, 1f));
+            // cb0[122] 运行时专用待抓帧（shader 文件头 TODO 1）；边界半宽按 B 流
+            // 沙盘 30×30 的一半（shader 文件头 TODO 2）。
+            m.SetVector("_SkyBaseTint", new Vector4(1f, 1f, 1f, 1f));
+            m.SetVector("_SkyBorderSize", new Vector4(15f, 15f, 0f, 0f));
+            RenderSettings.skybox = m;
+            Debug.Log("[WaterLabSetup] I5b 天空：RenderSettings.skybox = ReplicaSkybox" +
+                "（t=1/3 真值；相机 clearFlags 未动）");
+        }
+
+        /// <summary>Frame 白模网格（sa0 pid398 复刻）：1.23×1.23 平面、中心原点。
+        /// 朝向/位置未 dump（见 EnsureBorders 的 Frame TODO），先按 XY 竖面（法线 −Z）
+        /// 建——disabled 状态下不参与渲染，只保件就位。</summary>
+        static Mesh BuildFrameMesh()
+        {
+            const float half = 1.23f * 0.5f;
+            var mesh = new Mesh { name = "WaterLabFrameQuad" };
+            mesh.vertices = new[]
+            {
+                new Vector3(-half, -half, 0f), new Vector3(half, -half, 0f),
+                new Vector3(half, half, 0f), new Vector3(-half, half, 0f),
+            };
+            var n = new Vector3(0f, 0f, -1f);
+            mesh.normals = new[] { n, n, n, n };
+            mesh.uv = new[]
+            {
+                new Vector2(0f, 0f), new Vector2(1f, 0f),
+                new Vector2(1f, 1f), new Vector2(0f, 1f),
+            };
+            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 }; // 正面朝 −Z（绕序已核对）
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
         static void EnsureWhitewaterFeature()
         {
             foreach (var path in new[]
@@ -902,6 +1616,80 @@ namespace PirateCrew.EditorTools
             AssetDatabase.SaveAssets();
         }
 
+        /// <summary>
+        /// L3 工具件（L3 工具轮加法，手法同 <see cref="EnsureWhitewaterFeature"/>）：
+        /// <see cref="WaterLabColorDumpFeature"/> 幂等注入 <c>PC_Balanced_Renderer.asset</c>
+        /// ——WaterLab_URPAsset 的默认 renderer（index 0，出图相机实际渲染所在）。
+        /// 【为什么只装 Balanced 不装 Performant/Pixelart】出图链固定走默认 index 0，
+        /// 其余 renderer 装了也轮不到、只多泄漏面。
+        /// 【主战役隔离】PC_Balanced_Renderer.asset 与主战役管线共文件（先例：
+        /// WaterLabRefractionFeature/ReplicaGiFeature 同装此件）；Feature 行为被
+        /// 三重闸锁死——env PC3D_WATERLAB_RT0_DUMP=1（主战役不设，惰性零开销）+
+        /// _WaterLabSimEnabled 全局（非实验场景恒 0）+ 只认 capture 相机，见
+        /// WaterLabColorDump 类头。**卸载条件**：L3 门禁收官归档后删除该子资产并
+        /// 同步 m_RendererFeatures/m_RendererFeatureMap（重新本方法幂等重装亦可）。
+        /// </summary>
+        static void EnsureRt0DumpFeature()
+        {
+            const string path = "Assets/Settings/URP/PC_Balanced_Renderer.asset";
+            var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(path);
+            if (data == null)
+            {
+                Debug.LogError($"[WaterLabSetup] 找不到渲染器资产：{path}（rt0 dump 件未挂）");
+                return;
+            }
+            if (data.rendererFeatures.OfType<WaterLabColorDumpFeature>().Any())
+                return; // 已装：幂等
+
+            var feature = ScriptableObject.CreateInstance<WaterLabColorDumpFeature>();
+            feature.name = "WaterLabColorDump";
+            AssetDatabase.AddObjectToAsset(feature, data);
+            AssetDatabase.ImportAsset(path); // 子资产登记后才有 localId（map 语义 = localId）
+
+            var so = new SerializedObject(data);
+            var list = so.FindProperty("m_RendererFeatures");
+            int idx = list.arraySize;
+            list.InsertArrayElementAtIndex(idx);
+            list.GetArrayElementAtIndex(idx).objectReferenceValue = feature;
+            var map = so.FindProperty("m_RendererFeatureMap");
+            map.arraySize++;
+            map.GetArrayElementAtIndex(map.arraySize - 1).longValue =
+                AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out _, out long localId)
+                    ? localId : 0;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(data);
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[WaterLabSetup] 已挂 rt0 dump 件（WaterLabColorDumpFeature）：{path}");
+        }
+
+        /// <summary>
+        /// C 流入口（§4b 批次并行开发中，入口名由任务板固定为
+        /// <c>WaterLabScatterSetup.EnsureScatter()</c>）：海底散布恢复件——礁石/卵石/
+        /// 贝壳/海星实体网格 + loose 群簇分布 + Gravel 粒子。C 流文件
+        /// （Assets/Editor/WaterLabScatterSetup.cs）落地与否由反射判定：缺失/入口
+        /// 不符则 Log 跳过、**不断本工程编译**；C 流合入后本调用自动接通（同程序集
+        /// 反射，每次装配一次查找，成本可忽略）。C 流收口后可替换为直接调用。
+        /// </summary>
+        static void EnsureScatter()
+        {
+            var type = typeof(WaterLabSetup).Assembly.GetType("PirateCrew.EditorTools.WaterLabScatterSetup")
+                ?? typeof(WaterLabSetup).Assembly.GetType("WaterLabScatterSetup");
+            if (type == null)
+            {
+                Debug.Log("[WaterLabSetup] C 流散布件未就绪（WaterLabScatterSetup 类型缺失），跳过 EnsureScatter");
+                return;
+            }
+            var method = type.GetMethod("EnsureScatter",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (method == null)
+            {
+                Debug.LogWarning($"[WaterLabSetup] C 流散布件 {type.FullName} 缺静态入口 EnsureScatter()，跳过");
+                return;
+            }
+            Debug.Log("[WaterLabSetup] C 流入口：WaterLabScatterSetup.EnsureScatter() 已接通");
+            method.Invoke(null, null);
+        }
+
         static Material LoadOrCreateMaterial(string name, string shaderPath)
         {
             var path = $"{MaterialFolder}/{name}.mat";
@@ -934,6 +1722,208 @@ namespace PirateCrew.EditorTools
             }
             // 新文件夹要先被 AssetDatabase 认领，紧接着的 CreateAsset 才不会失败
             AssetDatabase.Refresh();
+        }
+    }
+
+    /// <summary>
+    /// L3 出图时序钩子（L3 工具轮加法；由 <see cref="WaterLabSetup.BuildSceneAndCapture"/>
+    /// 武装，SessionState 跨域重载存活，模式同 BattleHudScreenshot——本文件域只加不改，
+    /// 截图器是共享枢纽）。职责两项：
+    ///
+    /// ①<b>分辨率钩子</b>（env <c>PC3D_WATERLAB_CAPTURE_W/H</c> 设置时）：截图器的
+    /// 世界/UI RT 是写死的 1920×1080（PrepareCanvasForCapture），本钩子在检出
+    /// cam.targetTexture 后、第一枪抓帧前把它换成目标分辨率——反射换
+    /// BattleHudScreenshot 的私有静态 _rt/_rtUi/_uiCam（外侧换件，不动其逻辑）；
+    /// L3 rt0 口径要求相机原生渲 2560×1440（原作 rt0 同分辨率）。
+    ///
+    /// ②<b>rt0 dump 武装</b>：检出 battle-hud-1.png 落盘后调
+    /// <see cref="WaterLabColorDump.RequestArm"/>——下个相机渲染即抓取（一次性）。
+    /// 配合冻结配方（PC3D_WATERLAB_FIXED_SIM_TIME=49.208416，模拟到达即停），
+    /// 冻结后每帧逐位同内容，rt0 抓取帧与 battle-hud-1 内容恒等（相位对齐由此
+    /// 保证，不依赖订阅顺序/帧距）。
+    ///
+    /// ③<b>收口响哨</b>：退出 Play 时若 dump 未完成/未失败即 LogError（不阻塞退出
+    /// ——靠时序与 10s 超时兜底保证先落盘后退出；响哨供协调者在日志里核查）。
+    /// </summary>
+    [InitializeOnLoad]
+    public static class WaterLabL3CaptureHooks
+    {
+        const string KeyArmed = "WaterLabL3CaptureHooks.Armed";
+        const string FirstShotName = "battle-hud-1.png";
+
+        static bool Armed => SessionState.GetBool(KeyArmed, false);
+        static bool _shotSeen;      // 已检出第一枪 PNG 落盘
+        static bool _armSent;       // 已 RequestArm
+        static bool _postLogged;    // 收口状态已汇报
+        static bool _screenDone;    // Screen.SetResolution 已施加
+
+        public static void Arm()
+        {
+            SessionState.SetBool(KeyArmed, true);
+            _shotSeen = _armSent = _postLogged = _screenDone = _armWarned = false;
+            _armWaitTicks = 0;
+            EditorApplication.update -= Tick;
+            EditorApplication.update += Tick;
+            EditorApplication.playModeStateChanged -= OnPlayMode;
+            EditorApplication.playModeStateChanged += OnPlayMode;
+            int w = EnvInt("PC3D_WATERLAB_CAPTURE_W");
+            int h = EnvInt("PC3D_WATERLAB_CAPTURE_H");
+            Debug.Log($"[WaterLabL3] 钩子已武装：RT0_DUMP={WaterLabColorDump.EnabledByEnv}" +
+                $" PAN={System.Environment.GetEnvironmentVariable("PC3D_WATERLAB_PAN") ?? "<默认6>"}" +
+                $" CAPTURE={w}x{h}{(w > 0 ? "" : "（未设=沿用 1920×1080）")}" +
+                $" 输出={WaterLabColorDump.ResolveOutputDir()}");
+        }
+
+        static WaterLabL3CaptureHooks()
+        {
+            if (Armed)
+            {
+                // 域重载（进 Play 必触发）后重新挂上——Arm 置位的 SessionState 是凭据
+                EditorApplication.update += Tick;
+                EditorApplication.playModeStateChanged += OnPlayMode;
+            }
+        }
+
+        static void OnPlayMode(PlayModeStateChange state)
+        {
+            if (state == PlayModeStateChange.ExitingPlayMode)
+                ReportPostFlight();
+            else if (state == PlayModeStateChange.EnteredEditMode)
+                Unhook();
+        }
+
+        static void Tick()
+        {
+            if (!Armed)
+            {
+                Unhook();
+                return;
+            }
+            if (!EditorApplication.isPlaying)
+                return;
+
+            var cam = Camera.main;
+
+            // ① 分辨率钩子：检出 targetTexture（canvas prepared）后换件，早于第一枪
+            int w = EnvInt("PC3D_WATERLAB_CAPTURE_W");
+            int h = EnvInt("PC3D_WATERLAB_CAPTURE_H");
+            if (w > 0 && h > 0 && cam != null && cam.targetTexture != null)
+                EnsureCaptureResolution(cam, w, h);
+
+            // ② rt0 武装：第一枪 PNG 落盘 → 下个相机渲染抓取（冻结配方下与第一枪同内容）
+            if (!_armSent && !_shotSeen)
+            {
+                string shot = Path.Combine(WaterLabColorDump.ResolveOutputDir(), FirstShotName);
+                if (File.Exists(shot))
+                {
+                    _shotSeen = true;
+                    var sim = Object.FindFirstObjectByType<PirateCrew.WaterLab.WaterLabSimulation>();
+                    WaterLabColorDump.CaptureSimTime = sim != null ? sim.SimTime : -1f;
+                    WaterLabColorDump.RequestArm();
+                    _armSent = true;
+                    Debug.Log($"[WaterLabL3] 已武装 rt0 抓取（第一枪落盘：{shot}，simTime=" +
+                        $"{WaterLabColorDump.CaptureSimTime:F4}s）");
+                }
+            }
+
+            // 武装后长时间（1200 tick ≈ 20s@60fps）仍无抓取 = Feature 没收到渲染
+            //（env 没生效/没装 renderer），响哨一次。
+            if (_armSent && !WaterLabColorDump.Fired && !_armWarned && ++_armWaitTicks > 1200)
+            {
+                _armWarned = true;
+                Debug.LogError("[WaterLabL3] rt0 抓取 1200 tick 未发起（检查 PC3D_WATERLAB_RT0_DUMP=1 " +
+                    "与 PC_Balanced_Renderer 上的 WaterLabColorDump 子资产）");
+            }
+        }
+
+        static int _armWaitTicks;
+        static bool _armWarned;
+
+        /// <summary>把截图器写死的 1920×1080 世界/UI RT 换成目标分辨率（反射换件）。</summary>
+        static void EnsureCaptureResolution(Camera cam, int w, int h)
+        {
+            var current = cam.targetTexture;
+            if (current == null || (current.width == w && current.height == h))
+                return;
+            if (!_screenDone)
+            {
+                Screen.SetResolution(w, h, FullScreenMode.Windowed); // 后备缓冲同步（截图器 Start 的 1920 写死在此覆写）
+                _screenDone = true;
+            }
+
+            var type = typeof(BattleHudScreenshot);
+            const System.Reflection.BindingFlags Flags =
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+            var rtField = type.GetField("_rt", Flags);
+            var rtUiField = type.GetField("_rtUi", Flags);
+            var uiCamField = type.GetField("_uiCam", Flags);
+            if (rtField == null || rtUiField == null)
+            {
+                Debug.LogError("[WaterLabL3] 反射取 BattleHudScreenshot._rt/_rtUi 失败（截图器结构变了？" +
+                    "分辨率钩子失效，出图将保持 1920×1080）");
+                return;
+            }
+
+            var oldWorld = rtField.GetValue(null) as RenderTexture;
+            var oldUi = rtField.GetValue(null) as RenderTexture;
+            // 世界 RT 必须是线性 HDR：URP 14 对带 targetTexture 的相机，色彩中间缓冲格式
+            // 直接继承目标（rt0e 诊断 isHdr=True 但 descFmt=ARGB32 sRGB 的根因）。
+            // 代价：ReadPixels→RGB24 出的是线性值（PNG 偏暗）——sim 冻结下三枪同内容，
+            // swapchain 口径比较前离线补 sRGB 编码即可；rt0 转储点在后处理前不受影响。
+            var newWorld = new RenderTexture(w, h, 24, RenderTextureFormat.ARGBHalf,
+                RenderTextureReadWrite.Linear) { name = "WaterLabL3WorldRT" };
+            var newUi = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32) { name = "WaterLabL3UiRT" };
+            rtField.SetValue(null, newWorld);
+            rtUiField.SetValue(null, newUi);
+            cam.targetTexture = newWorld;
+            // rt0 差分前提：世界相机必须走 HDR 中间缓冲（isHdrEnabled）——URP 的 HDR
+            // 开关在引擎相机 allowHDR（additional data 无此属性）；后处理位在 additional data。
+            // _rt 本体保持 ARGB32 sRGB 供 PNG 出口
+            cam.allowHDR = true;
+            cam.GetUniversalAdditionalCameraData().renderPostProcessing = true;
+            if (uiCamField?.GetValue(null) is Camera uiCam)
+                uiCam.targetTexture = newUi;
+            if (oldWorld != null) oldWorld.Release();
+            if (oldUi != null) oldUi.Release();
+            Debug.Log($"[WaterLabL3] capture 分辨率已换件：{oldWorld?.width}x{oldWorld?.height} → {w}x{h}" +
+                "（世界 RT/UI RT/相机 target 已同步）");
+        }
+
+        static void ReportPostFlight()
+        {
+            if (_postLogged || !WaterLabColorDump.ArmRequested && !_armSent)
+                return;
+            _postLogged = true;
+            // L3 探针（L3-sand 分解裁决项）：GI 链与太阳方向全局的运行时实况一行打全
+            var dMin = Shader.GetGlobalVector(Shader.PropertyToID("g_GiDomainMin"));
+            var dSize = Shader.GetGlobalVector(Shader.PropertyToID("g_GiDomainSize"));
+            var sunDir = Shader.GetGlobalVector(Shader.PropertyToID("_WaterLabSunDir"));
+            Debug.Log($"[WaterLabL3] 探针：GI RenderCalls={PirateCrew.WaterLab.ReplicaGiSystem.RenderCalls} " +
+                $"Ready={PirateCrew.WaterLab.ReplicaGiSystem.Ready} " +
+                $"g_GiDomainMin={dMin} g_GiDomainSize={dSize} _WaterLabSunDir={sunDir}");
+            if (WaterLabColorDump.Completed)
+                Debug.Log($"[WaterLabL3] 收口：rt0 dump 已完成（simTime={WaterLabColorDump.CaptureSimTime:F4}s）");
+            else if (WaterLabColorDump.Failed)
+                Debug.LogError($"[WaterLabL3] 收口：rt0 dump 失败——{WaterLabColorDump.LastError}");
+            else
+                Debug.LogError("[WaterLabL3] 收口：退出 Play 时 rt0 dump 未完成（武装后从未渲染或落盘中断）" +
+                    "——检查 env 三件套与 WaterLabColorDump 子资产；本次出图缺 ours-rt0-prepost.raw");
+        }
+
+        static void Unhook()
+        {
+            EditorApplication.update -= Tick;
+            EditorApplication.playModeStateChanged -= OnPlayMode;
+            if (Armed)
+                SessionState.SetBool(KeyArmed, false);
+            _shotSeen = _armSent = _postLogged = _screenDone = _armWarned = false;
+            _armWaitTicks = 0;
+        }
+
+        static int EnvInt(string name)
+        {
+            return System.Environment.GetEnvironmentVariable(name) is string raw
+                && int.TryParse(raw, out int v) && v > 0 ? v : 0;
         }
     }
 }
