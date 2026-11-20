@@ -15,12 +15,12 @@ namespace PirateCrew.SceneArt.Tests
     public class ShowcaseLevelDesignTests
     {
         /// <summary>
-        /// 现存样板关号（现役四关 1–4 连续）。这里仍写**显式清单**而不是
+        /// 现存样板关号（现役三关 1–3 连续）。这里仍写**显式清单**而不是
         /// <c>FirstLevel..LastLevel</c> 的连续区间：区间会在数据出现空号时取到空数据（抛异常），
         /// 而"遍历数据源里现存的关"会让数据源整片缺失时循环体一次都不跑、门禁变成空跑绿灯。
         /// 显式清单两者都避开：缺哪关就红在哪关。
         /// </summary>
-        static readonly int[] ExistingLevels = { 1, 2, 3, 4 };
+        static readonly int[] ExistingLevels = { 1, 2, 3 };
 
         // ------------------------------------------------------------------
         // 硬门禁：站位 / 难度旋钮（全关普查）
@@ -69,7 +69,7 @@ namespace PirateCrew.SceneArt.Tests
 
         /// <summary>
         /// 蓝方 luck 按**关卡号**取值。设计难度曲线原是 1/2/5 三档，其中 2 属旧第 2 关「碎岛雨」
-        /// （2026-09-22 连资产删除）——现役四关只剩 1（云端漫步）与 5（其余三关）两档。
+        /// （2026-09-22 连资产删除）——现役三关只剩 1（云端漫步）与 5（其余两关）两档。
         /// 这里按键取而不是「下标 = 关卡号 - 1」：关卡号与 curve 档位是两张表，不能互相推。
         /// </summary>
         static int ExpectedBlueLuck(int level)
@@ -79,7 +79,6 @@ namespace PirateCrew.SceneArt.Tests
                 case 1: return 1;   // 云端漫步（教学）
                 case 2: return 5;   // 天空之岛（考核）
                 case 3: return 5;   // 废弃化工厂（同档；难度靠大场地 + 掩体做区分）
-                case 4: return 5;   // 废弃化工厂·六件版（同档；难度靠四设备区掩体做区分）
                 default: return 5;  // 新增关卡需同时登记 curve 档位
             }
         }

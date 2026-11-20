@@ -118,7 +118,7 @@ namespace PirateCrew.Battle.Tests
         /// 这两条通道由 <c>LevelAssetLibrary</c> 自己选（<c>Resources.Load</c> 是原生 ECall，
         /// 脱离 Unity 运行时必抛 <c>SecurityException</c>），所以期望值随环境而变，用
         /// <c>UNITY_EDITOR</c> 区分——EditMode 测试定义它，无头验证台不定义。
-        /// 断言强度不变：两条通道都必须给出**与目录表一致**的关卡数（现役四关号 1–4 连续）。
+        /// 断言强度不变：两条通道都必须给出**与目录表一致**的关卡数（现役三关号 1–3 连续）。
         /// </summary>
         [Test]
         public void Library_LoadedFrom_MatchesEnvironment_WithCatalogCounts()
@@ -181,7 +181,7 @@ namespace PirateCrew.Battle.Tests
         /// 关卡（现存样板关）骨架：关卡号|资产名|显示名|尺幅（米）|waterWorldY
         /// ‖编成（符号/队/世界 x/世界 z/luck）‖军火‖高度场（实心格数/块高总和/加权摘要）‖烘焙件。
         /// 数值出处：迁移前 `ShowcaseLevels.cs` 与各关设计文档 docs/设计/关卡/NN-*.md。
-        /// 现役四关的关卡号 1–4 连续、无空号，表里四行按关卡号排列。
+        /// 现役三关的关卡号 1–3 连续、无空号，表里三行按关卡号排列。
         ///
         /// 【为什么高度场仍报"格/块"】资产的岛形地形按采样粒度栅格化后折回**米高度**，
         /// 这里按 `blockWorldHeight` 折回运行时块数再算摘要——目的正是让摘要值与换单位前**逐字相同**，
@@ -196,13 +196,12 @@ namespace PirateCrew.Battle.Tests
             // L2 重冻（逐格高度入 LevelData）：穹顶烘进数据面后岛面从恒 28 块平顶变为
             // 0.5 m 量化台阶（27/28/29 块）——solid 不变（96 格仍是岛），total/digest 随台阶重算。
             "2|sky_island|天空之岛|40x30|-0.4||units=redPirate/0/23/11/5;redPirate/0/27/13/5;redPirate/0/23/17/5;redPirateCaptain/0/25/13/5;cabinBoy/1/13/11/5;cabinBoy/1/17/11/5;cabinBoy/1/11/15/5;cabinBoy/1/17/17/5;cabinBoyCaptain/1/13/17/5|air=TidalWave:10|Anchor:10|Seagull:10|raster=solid96/total2689/digest404694|pieces=",
-            // L3 废弃化工厂（2026-09-29 入库，提案/待定）：64×44 m 大场地，平地可走 + 建筑足印抬高成掩体
-            // （solid704 = 704 个 2m 采样格 − 建筑格）；整场件 pieceId 2 = ChemPlantYard（Blender 手作 FBX）。
-            "3|chem_plant|废弃化工厂|64x44|-0.4||units=redPirate/0/11/17/5;redPirate/0/17/19/5;redPirate/0/15/23/5;redPirateCaptain/0/19/21/5;cabinBoy/1/33/9/5;cabinBoy/1/39/11/5;cabinBoy/1/35/13/5;cabinBoy/1/49/7/5;cabinBoyCaptain/1/57/9/5|air=Dynamite:10|raster=solid704/total5500/digest1783200|pieces=2/ChemPlantYard",
-            // L4 废弃化工厂·六件并行版（2026-09-29 入库，提案/待定）：56×40 m = 本 kit 场地 1:1；
-            // 平地 2 块（单位踩在地坪顶 y=1.0，总装件摆 y=1.0）+ 四个设备区抬高 14 块（+7 m 掩体）；
-            // 整场件 pieceId 3 = ChemPlantTeamYard（SceneKit/ChemPlant.fbx，六件并行 kit）。
-            "4|chem_plant_team|废弃化工厂·六件版|56x40|-0.4||units=redPirate/0/7/25/5;redPirate/0/13/25/5;redPirate/0/11/27/5;redPirateCaptain/0/9/27/5;cabinBoy/1/39/25/5;cabinBoy/1/45/25/5;cabinBoy/1/41/27/5;cabinBoy/1/49/27/5;cabinBoyCaptain/1/45/23/5|air=Dynamite:10|raster=solid560/total5464/digest1306248|pieces=3/ChemPlantTeamYard",
+            // L3 废弃化工厂（两关合并版，2026-11-20）：96×68 m 大场地；两套化工厂 kit 的建筑零件
+            // 彻底重排（不是整场件并排），不规则围墙 + 墙外视觉延伸区（墙外逻辑不可达）；
+            // 平地 2 块（单位踩在地坪顶 y=1.0）+ 13 个设备足印抬高 14 块（+7 m 掩体）。
+            // 整场件 pieceId 4 = ChemPlantMergedYard（SceneKit/ChemPlantMerged.fbx）。
+            // 原第 4 关「六件版」已并入本关，关卡号 4 退役（现役 1–3 连续）。
+            "3|chem_plant|废弃化工厂|96x68|-0.4||units=redPirate/0/17/23/5;redPirate/0/20/20/5;redPirate/0/15/25/5;redPirateCaptain/0/19/26/5;cabinBoy/1/58/28/5;cabinBoy/1/62/26/5;cabinBoy/1/55/26/5;cabinBoy/1/60/25/5;cabinBoyCaptain/1/65/28/5|air=Dynamite:10|raster=solid1440/total12516/digest10730562|pieces=4/ChemPlantMergedYard",
         };
 
         [Test]
@@ -261,7 +260,7 @@ namespace PirateCrew.Battle.Tests
         // 签名与辅助
         // ------------------------------------------------------------------
 
-        static readonly string[] LevelAssetNames = { "cloud_walk", "sky_island", "chem_plant", "chem_plant_team" };
+        static readonly string[] LevelAssetNames = { "cloud_walk", "sky_island", "chem_plant" };
 
         static IEnumerable<LevelAssetPayload> LevelPayloads()
         {
@@ -545,7 +544,7 @@ namespace PirateCrew.Battle.Tests
         [Test]
         public void HolesJson_AbsentWritesNoKey_EmptyMeansNoHole()
         {
-            // 现役四关全部无洞：缺席不写键（golden 零改动）；空环读回 = 无洞（缺席口径同 heights）。
+            // 现役三关全部无洞：缺席不写键（golden 零改动）；空环读回 = 无洞（缺席口径同 heights）。
             string json = LevelAssetJson.Write(HeightFixturePayload());
             Assert.That(json, Does.Not.Contains("\"holes\""), "无洞岛不得写 holes 键");
 

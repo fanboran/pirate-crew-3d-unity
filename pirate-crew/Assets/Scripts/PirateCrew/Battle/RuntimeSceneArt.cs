@@ -36,12 +36,15 @@ namespace PirateCrew.Battle
         [Tooltip("烘焙件：低模云场（第 1 关主景）。由 SceneArtBaker 烘焙并接线。")]
         [SerializeField] GameObject cloudFieldPrefab;
 
-        /// <summary>第 3 关「废弃化工厂」的整场件（FBX 本体；装配器
-        /// <c>PirateCrew.EditorTools.ChemPlantBattleWiring</b> 写进场景）。</summary>
+        /// <summary>第 3 关「废弃化工厂」两关合并版的整场件（FBX 本体；两套 kit 的建筑零件重排 +
+        /// 不规则围墙 + 墙外视觉延伸，装配器见 tools/blender/scene/chemplant/assemble_chemplant_merged.py）。</summary>
+        [SerializeField] GameObject chemPlantMergedYardPrefab;
+
+        /// <summary>历史件：原第 3 关整场（Blender 手作总装；两关合并后不再被现役关卡引用）。</summary>
         [SerializeField] GameObject chemPlantYardPrefab;
 
-        /// <summary>第 4 关「废弃化工厂·六件并行版」的整场件（FBX 本体；六件并行 kit 的总装件，
-        /// 装配器 <c>PirateCrew.EditorTools.PixelartChemPlantTeamSetup</c> 同源的另一条关卡线）。</summary>
+        /// <summary>历史件：原第 4 关「六件并行版」整场（六件并行 kit 的总装件；
+        /// 原第 4 关已并入第 3 关，不再被现役关卡引用）。</summary>
         [SerializeField] GameObject chemPlantTeamYardPrefab;
 
         [Tooltip("超美空岛根（场景内静态物，由 FloatingIslandShowcaseMenu.PlaceIntoBattleCenter 烘进场景）。"
@@ -167,6 +170,7 @@ namespace PirateCrew.Battle
             switch (piece)
             {
                 case ShowcasePieceId.CloudField: return cloudFieldPrefab;
+                case ShowcasePieceId.ChemPlantMergedYard: return chemPlantMergedYardPrefab;
                 case ShowcasePieceId.ChemPlantYard: return chemPlantYardPrefab;
                 case ShowcasePieceId.ChemPlantTeamYard: return chemPlantTeamYardPrefab;
                 default: return null;

@@ -12,13 +12,20 @@ namespace PirateCrew.SceneArt
         /// <summary>低模云场（第 1 关「云端漫步」主景）。</summary>
         CloudField = 1,
 
-        /// <summary>废弃化工厂整场（第 3 关主景；Blender 手作总装件，见 tools/blender/scene/chemplant/）。
-        /// 预制引用 = FBX 本体（`Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx`）。</summary>
+        /// <summary>废弃化工厂整场（历史件：原第 3 关主景；Blender 手作总装件，见 tools/blender/scene/chemplant/）。
+        /// 预制引用 = FBX 本体（`Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx`）。
+        /// 两关合并后不再被现役关卡引用，保留给旧试点场景/素材复用。</summary>
         ChemPlantYard = 2,
 
-        /// <summary>废弃化工厂整场·六件并行版（第 4 关主景；`Assets/Art/Models/SceneKit/ChemPlant.fbx`，
-        /// 六名建模 Agent 分件 + 总装，见 tools/blender/scene/chemplant/README.md）。</summary>
+        /// <summary>废弃化工厂整场·六件并行版（历史件：原第 4 关主景；`Assets/Art/Models/SceneKit/ChemPlant.fbx`，
+        /// 六名建模 Agent 分件 + 总装，见 tools/blender/scene/chemplant/README.md）。
+        /// **原第 4 关已并入第 3 关**，本枚举值保留给旧资产/试点场景，不再被现役关卡引用。</summary>
         ChemPlantTeamYard = 3,
+
+        /// <summary>废弃化工厂两关合并版（第 3 关主景；`Assets/Art/Models/SceneKit/ChemPlantMerged.fbx`，
+        /// 两套 kit 的建筑零件重排 + 不规则围墙 + 墙外视觉延伸区，
+        /// 见 tools/blender/scene/chemplant/assemble_chemplant_merged.py）。</summary>
+        ChemPlantMergedYard = 4,
     }
 
     /// <summary>一件烘焙陈设的摆位（纯数据）。prefab 原点 = 几何烘焙原点（云场=构图中心，其余=竞技场原点）。</summary>
@@ -70,8 +77,8 @@ namespace PirateCrew.SceneArt
         /// <summary>关卡号首位。</summary>
         public const int FirstLevel = 1;
 
-        /// <summary>关卡号末位。</summary>
-        public const int LastLevel = 4;
+        /// <summary>关卡号末位（原第 4 关已并入第 3 关，现役 1–3 连续）。</summary>
+        public const int LastLevel = 3;
 
         /// <summary>场地宽度（采样格数，= 40 m / 2 m）——样板关统一尺寸，也是空岛展示件对齐用的场地口径。</summary>
         public const int WidthCells = 20;
@@ -105,7 +112,7 @@ namespace PirateCrew.SceneArt
         /// 某样板关的烘焙件摆位表（<see cref="RuntimeSceneArt"/> 实例化消费）。
         /// 换这里的数 = 换摆位，不需要重新烘焙。
         ///
-        /// 【号段连续】现役四关的关卡号 1–4 连续、无空号；校验器不要求号段连续，
+        /// 【号段连续】现役三关的关卡号 1–3 连续、无空号；校验器不要求号段连续，
         /// 这条是内容现状而非数据层规则。
         /// </summary>
         public static List<ShowcasePiecePlacement> BakedPlacements(int levelNumber)

@@ -1,12 +1,15 @@
 # tools/blender/scene/chemplant —— 第三样板关「废弃化工厂」无头建模管线
 
-> **本目录有两套并行的化工厂 kit**（同一次委托下的两条路线，都已入库）：
-> ① **六件并行分件式（本文件所述，主线）**：`kit_common.py` + `mod_{site,towers,tanks,pipes,building,props}.py`
+> **本目录有三条产物线**：
+> ① **六件并行分件式（本文件所述）**：`kit_common.py` + `mod_{site,towers,tanks,pipes,building,props}.py`
 >    + `assemble_chemplant.py`（56 × 40 m 一整场 / 223,240 三角面 / 18 槽）；
 > ② **单文件式**：`chemplant_kit.py`（13 件构件 + 场地总装 / 71 × 48 m / 59,986 三角面 / 16 槽），
->    原 README 移存 [`chemplant_kit-README.md`](chemplant_kit-README.md)（口径不丢）。
-> 两套都用同一批 `Kit_*` 工业槽、都零贴图；Unity 侧像素试点场景名同为 `PixelartChemPlant`
-> （装配器分别是 `PixelartChemPlantSetup` 与本目录的六件版装配器，**后烘者覆盖场景资产**）。
+>    原 README 移存 [`chemplant_kit-README.md`](chemplant_kit-README.md)（口径不丢）；
+> ③ **两关合并版（现役第 3 关）**：`assemble_chemplant_merged.py`——只取 ①② 的**建筑零件**，
+>    按新布局彻底重排（96 × 68 m 可玩区 + 墙外视觉延伸区，总范围约 164 × 128 m），
+>    产物 `Assets/Art/Models/SceneKit/ChemPlantMerged.fbx`。两套旧总装件保留作素材/旧试点场景，
+>    不再被现役关卡引用。
+> 三条线都用同一批 `Kit_*` 工业槽、都零贴图。
 >
 > **这份目录解决什么问题**：做**一个整场景样板关**——废弃化工厂 + 旁边的办公楼，56 × 40 m 的完整厂区
 > （主装置区 / 罐区 / 管廊 / 旁楼 / 场地 / 杂物六件），由 6 名建模队员（Agent）**并行分件建模**、
@@ -60,6 +63,13 @@ cd F:/VSCode/pirate-crew-3d-unity            # worktree 里则 cd <worktree>
 # ③ 总装 + 导出 FBX + 出成品图（分钟级；--pixel 3 另出低分辨率档参考图）
 "$B" -b --factory-startup -P tools/blender/scene/chemplant/assemble_chemplant.py -- --samples 48 --pixel 3
 #    可选：--only site,towers  --views hero,street  --no-render  --no-export  --res 1440
+
+# ④ 两关合并版（现役第 3 关）：两套 kit 的建筑零件重排 + 墙外视觉延伸 + 成品图
+#    产物 SceneKit/ChemPlantMerged.fbx 与 docs/images/chemplant-merged/；
+#    同时写 external/chemplant-merged-work/merged_layout.json（世界包围盒清单，
+#    关卡地形足印生成脚本的单一真源）。
+"$B" -b --factory-startup -P tools/blender/scene/chemplant/assemble_chemplant_merged.py -- --samples 32 --res 1440
+#    可选：--no-render  --no-export  --views hero,overview,north,top  --res 960
 ```
 
 ## 四、坐标与分区口径
