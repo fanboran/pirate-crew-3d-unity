@@ -35,3 +35,17 @@
 
 战斗场景实机出图待补：`-artReviewOut <目录> -artReviewLevel 3`
 （合并件由 `RuntimeSceneArt` 按 `bakedPieces` 实例化）。
+
+## 四、像素化管线成图（游戏内渲染路径，不是 Blender 渲染）
+
+| 图 | 档位 |
+| --- | --- |
+| [pixel/pl5-wide.png](pixel/pl5-wide.png) | 宽机位（可见 32 m） |
+| [pixel/pl5-mid.png](pixel/pl5-mid.png) | 中机位（可见 13.7 m） |
+| [pixel/pl5-close.png](pixel/pl5-close.png) | 近机位（可见 7 m） |
+| [pixel/pl5-dbg-outline.png](pixel/pl5-dbg-outline.png) | 描边调试图 |
+
+口径：物体 pass → 低分辨率域着色 → 屏幕空间描边 → 点采样上屏；块边 2 屏幕像素、
+俯角 30°、逐物体 3 档色带。载体场景 `Assets/Scenes/Pixelart/PixelartChemPlantMerged.unity`
+（装配器 `PixelartChemPlantMergedSetup`，取景表关卡号 5），
+出图命令：开发包 + `-pixelartOut <目录> -pixelartLevel 5`。

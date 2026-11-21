@@ -199,9 +199,10 @@ namespace PirateCrew.Battle.Tests
             // L3 废弃化工厂（两关合并版，2026-11-20）：96×68 m 大场地；两套化工厂 kit 的建筑零件
             // 彻底重排（不是整场件并排），不规则围墙 + 墙外视觉延伸区（墙外逻辑不可达）；
             // 平地 2 块（单位踩在地坪顶 y=1.0）+ 13 个设备足印抬高 14 块（+7 m 掩体）。
-            // 整场件 pieceId 4 = ChemPlantMergedYard（SceneKit/ChemPlantMerged.fbx）。
+            // 整场件 pieceId 4 = ChemPlantMergedYard（SceneKit/ChemPlantMerged.fbx）；
+            // 轴向：Blender −Y → Unity +Z ⇒ 关卡 z = 34 − Blender y（足印与出生点均按此换算）。
             // 原第 4 关「六件版」已并入本关，关卡号 4 退役（现役 1–3 连续）。
-            "3|chem_plant|废弃化工厂|96x68|-0.4||units=redPirate/0/17/23/5;redPirate/0/20/20/5;redPirate/0/15/25/5;redPirateCaptain/0/19/26/5;cabinBoy/1/58/28/5;cabinBoy/1/62/26/5;cabinBoy/1/55/26/5;cabinBoy/1/60/25/5;cabinBoyCaptain/1/65/28/5|air=Dynamite:10|raster=solid1440/total12516/digest10730562|pieces=4/ChemPlantMergedYard",
+            "3|chem_plant|废弃化工厂|96x68|-0.4||units=redPirate/0/12/4.5/5;redPirate/0/16/5.5/5;redPirate/0/20/4/5;redPirateCaptain/0/24/5/5;cabinBoy/1/50/64/5;cabinBoy/1/54/64.5/5;cabinBoy/1/58/64/5;cabinBoy/1/62/64.5/5;cabinBoyCaptain/1/66/64/5|air=Dynamite:10|raster=solid1443/total12522/digest9664512|pieces=4/ChemPlantMergedYard",
         };
 
         [Test]

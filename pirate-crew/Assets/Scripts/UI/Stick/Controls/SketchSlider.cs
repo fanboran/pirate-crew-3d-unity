@@ -730,14 +730,19 @@ namespace PirateCrew.UI.Stick
             Refresh();
         }
 
+#if UNITY_EDITOR
+        // Selectable 的 OnValidate 只存在于编辑器侧；Player 编译必须整段排除，
+        // 否则报 CS0115「no suitable method found to override」。
         protected override void OnValidate()
         {
+            base.OnValidate();
             // Inspector 里改值域时先纠偏（源 enforceValidRange 的编辑器侧对应物），
             // 不在这里重绘——装配期孩子还没建出来。
             if (_min > _max)
                 _max = _min;
             _value = Mathf.Clamp(_value, _min, _max);
         }
+#endif
 
         // ================== 静态工厂（同 SketchButton / SketchCheck 风格） ==================
 

@@ -123,6 +123,11 @@ namespace PirateCrew.Rendering.Pixelart
             // 「这套观感用在这座 56×40 m 场地上的实机成图」。总装件原点 = 场地中心 ⇒ 场心 = 世界原点；
             // 竖直 6 的读法与第 3 关相同（地坪 0、最高件（烟囱）26 m，取 6 = 场地中低部 + 略高于人眼）。
             new View(4,   "PixelartChemPlantTeam", new Vector3(0f, 6f, 0f), 32f, 13.7f, 7f),
+            // 第 3 关「废弃化工厂 · 两关合并版」的像素试点（装配器 `PixelartChemPlantMergedSetup`）：
+            // 内容 = `SceneKit/ChemPlantMerged.fbx`（96×68 m 可玩区 + 墙外延伸，总范围约 169×128 m）。
+            // 取景沿用"人物大小锚"三档（宽 32 / 中 13.7 / 近 7 m）——只看场心局部，
+            // 全景以 Blender 图集为准（`docs/images/chemplant-merged/`）。
+            new View(5,   "PixelartChemPlantMerged", new Vector3(0f, 6f, 0f), 32f, 13.7f, 7f),
 
         };
 

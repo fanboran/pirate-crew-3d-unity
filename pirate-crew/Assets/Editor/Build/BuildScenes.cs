@@ -80,7 +80,8 @@ namespace PirateCrew.EditorTools.BuildSystem
             "PixelartCloud",        // 关卡 1 云端漫步
             "PixelartSkyIsland",    // 关卡 3 天空之岛
             "PixelartChemPlant",    // 关卡 4 废弃化工厂（提案/待定：美术件试点，尚未接玩法数据）
-            "PixelartChemPlantTeam",// 关卡 5 废弃化工厂·六件并行版（提案/待定：美术件试点，尚未接玩法数据）
+            "PixelartChemPlantTeam",// 关卡 5 废弃化工厂·六件并行版（历史试点）
+            "PixelartChemPlantMerged",// 关卡 5 废弃化工厂·两关合并版（现役第 3 关的美术件）
             // 【海图试点场景：当前 0 张】八张世界海图（关卡 101–108）已删除待重做，
             // 旧海图试点场景（`PixelartWorldMapPilotSetup`，101–108）已随 WorldMap 双轨退役删除，
             // 必须进**播放器**场景集（出图链按场景名 LoadScene）。海图重做后在这里补回场景名。
@@ -106,11 +107,15 @@ namespace PirateCrew.EditorTools.BuildSystem
         /// <summary>仅开发场景集 = 像素化试点 + 角色镜头调试场 + 资产特写观察场 + <see cref="PixelartLevelScenes"/>（表在别处，避免两处维护）。</summary>
         static string[] BuildDevelopmentOnlySet()
         {
-            var set = new string[3 + PixelartLevelScenes.Length];
+            // UIShowcase / WaterLab 是 SceneNames 已声明的运行时场景（前者 UI 组件展示，
+            // 后者水体实验场）——必须进开发集，否则构建预检会红「声明了但不在场景集」。
+            var set = new string[5 + PixelartLevelScenes.Length];
             set[0] = PixelartPilot;
             set[1] = PixelartCharCamDebug;
             set[2] = PixelartAssetInspect;
-            PixelartLevelScenes.CopyTo(set, 3);
+            set[3] = PirateCrew.Core.SceneNames.UIShowcase;
+            set[4] = PirateCrew.Core.SceneNames.WaterLab;
+            PixelartLevelScenes.CopyTo(set, 5);
             return set;
         }
 

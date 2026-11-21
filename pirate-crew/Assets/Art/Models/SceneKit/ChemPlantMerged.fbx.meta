@@ -3,7 +3,102 @@ guid: 4d6e0a0bcfa788c4194ed90d182eda4f
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_Brass
+    second: {fileID: 2100000, guid: 23e4a86752e0af549bd7b941d26a7bd4, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_ConcreteDark
+    second: {fileID: 2100000, guid: af6f2dcbb1dec1e468023b395789357a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_ConcreteLight
+    second: {fileID: 2100000, guid: e04a0d134240e7345931302307e498e6, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_ConcreteMid
+    second: {fileID: 2100000, guid: 8e456ed42129a944b814899587a30b60, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_GlassDark
+    second: {fileID: 2100000, guid: 52d1d9f4233a8924dae2bad446b2545e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_GrassDark
+    second: {fileID: 2100000, guid: ac6101ae89fcb5a48b107cb4f87de6a3, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_GrassMid
+    second: {fileID: 2100000, guid: 8309ab60a08b4e54bb9f1d0a18216969, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_Iron
+    second: {fileID: 2100000, guid: 937b8ddecc023f74c9b87264b3845b8b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_PaintYellow
+    second: {fileID: 2100000, guid: 045d60c2fe336d64383dda0403d01c99, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_RockDark
+    second: {fileID: 2100000, guid: d517e820825420b4f9a33ab8fee61789, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_RockMid
+    second: {fileID: 2100000, guid: ff5eb38f47e577d46a689953792ae82e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_Rust
+    second: {fileID: 2100000, guid: 19de1e1c17d512844a7d5b4cb16659b9, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_RustDark
+    second: {fileID: 2100000, guid: 1334072f2a352ae44911d247ef1136e9, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_SandDark
+    second: {fileID: 2100000, guid: 41fd05010b2735a44b521ff33f9b2049, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_SteelBlue
+    second: {fileID: 2100000, guid: 44ea42e20b8fbf24895dcdd3d75f87cf, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_SteelPale
+    second: {fileID: 2100000, guid: e6811636715e894409afab4ad8cedf32, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_WetSand
+    second: {fileID: 2100000, guid: 8c9da3f4335c15b43b87e0500f10cd98, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_WoodDark
+    second: {fileID: 2100000, guid: acbc53354bdecd84898d2b5b23b0637a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_WoodMid
+    second: {fileID: 2100000, guid: fc662e24c11cd14498152d12e22f8229, type: 2}
   materials:
     materialImportMode: 1
     materialName: 0
