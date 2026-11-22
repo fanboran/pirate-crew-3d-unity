@@ -19,7 +19,7 @@ namespace PirateCrew.EditorTools
     /// 【与 `PixelartChemPlantSetup`（单文件版）的关系】两套是同一主题的两条并行路线，共用：
     /// 像素路径装配机制（<see cref="PixelartStageKit"/>）、取景表（<see cref="PixelartLevelScene"/>）、
     /// 出图链（`PlayerArtCapture` 的 `-pixelartOut -pixelartLevel N`）。差别只有**模型来源与场景名**：
-    /// 本文件吃 `SceneKit/ChemPlantMerged.fbx`（31 节点 / 23 槽 / 约 46 万三角面 /
+    /// 本文件吃 `SceneKit/ChemPlantMerged.fbx`（22 节点 / 32 槽 / 约 51 万三角面 /
     /// 96×68 m 可玩区 + 墙外延伸），场景名 `PixelartChemPlantMerged`（取景表关卡号 5）。
     ///
     /// 【材质的唯一配方】逐个 `Kit_` 槽调 <see cref="PixelartStageKit.EnsureMaterial"/>——与游戏内
@@ -48,13 +48,15 @@ namespace PirateCrew.EditorTools
         const float GroundPlaneScale = 20f;
 
         /// <summary>
-        /// 合并件的 23 个槽（**按名字典序** —— `Mesher.to_object` 按首次出现顺序 append，
+        /// 合并件的 32 个槽（**按名字典序** —— `Mesher.to_object` 按首次出现顺序 append，
         /// 但跨件并集与 FBX 子节点的槽序不保证一致，故一律按名匹配，名字读不到才按序兜底）。
         /// </summary>
         static readonly string[] SlotNames =
         {
             "Kit_Brass", "Kit_ConcreteDark", "Kit_ConcreteLight", "Kit_ConcreteMid",
-            "Kit_DecGrass", "Kit_DecSoil", "Kit_DecWater", "Kit_DecWet",
+            "Kit_CpAsphalt", "Kit_CpFoliageDark", "Kit_CpFoliageLight", "Kit_CpFoliageMid",
+            "Kit_CpGrass", "Kit_CpMoss", "Kit_CpSand", "Kit_CpWater",
+            "Kit_DecGrass", "Kit_DecMoss", "Kit_DecSoil", "Kit_DecWater", "Kit_DecWet",
             "Kit_GlassDark", "Kit_GrassDark", "Kit_GrassMid", "Kit_Iron", "Kit_PaintYellow",
             "Kit_RockDark", "Kit_RockMid", "Kit_Rust", "Kit_RustDark", "Kit_SandDark",
             "Kit_SteelBlue", "Kit_SteelPale", "Kit_WetSand", "Kit_WoodDark", "Kit_WoodMid",
@@ -64,25 +66,34 @@ namespace PirateCrew.EditorTools
         static readonly Dictionary<string, string> SlotHex = new Dictionary<string, string>
         {
             { "Kit_Brass", "C9A227" },
-            { "Kit_ConcreteDark", "6B665C" },
-            { "Kit_ConcreteLight", "C6C1B4" },
-            { "Kit_ConcreteMid", "9E988A" },
-            { "Kit_DecGrass", "2D5A2D" },
-            { "Kit_DecSoil", "8B7355" },
-            { "Kit_DecWater", "2E3A3E" },
-            { "Kit_DecWet", "5C4A34" },
-            { "Kit_GlassDark", "2E3A3E" },
+            { "Kit_ConcreteDark", "B3A992" },
+            { "Kit_ConcreteLight", "EDE6D6" },
+            { "Kit_ConcreteMid", "D2C8B5" },
+            { "Kit_CpAsphalt", "8D8B86" },
+            { "Kit_CpFoliageDark", "4E9B52" },
+            { "Kit_CpFoliageLight", "9BD98A" },
+            { "Kit_CpFoliageMid", "6FBF6A" },
+            { "Kit_CpGrass", "7CC46E" },
+            { "Kit_CpMoss", "5FAF5F" },
+            { "Kit_CpSand", "D8C6A0" },
+            { "Kit_CpWater", "7FC7D9" },
+            { "Kit_DecGrass", "7CC46E" },
+            { "Kit_DecMoss", "5FAF5F" },
+            { "Kit_DecSoil", "D8C6A0" },
+            { "Kit_DecWater", "7FC7D9" },
+            { "Kit_DecWet", "B89A72" },
+            { "Kit_GlassDark", "58707C" },
             { "Kit_GrassDark", "2D5A2D" },
             { "Kit_GrassMid", "4A8C4A" },
             { "Kit_Iron", "6E6A63" },
-            { "Kit_PaintYellow", "C9A63C" },
+            { "Kit_PaintYellow", "F2C75C" },
             { "Kit_RockDark", "5C4F42" },
             { "Kit_RockMid", "8C7B6A" },
-            { "Kit_Rust", "8C4A28" },
-            { "Kit_RustDark", "5A2F1A" },
+            { "Kit_Rust", "D97A4A" },
+            { "Kit_RustDark", "A85435" },
             { "Kit_SandDark", "8B7355" },
-            { "Kit_SteelBlue", "4E6270" },
-            { "Kit_SteelPale", "98A2A6" },
+            { "Kit_SteelBlue", "6C92A6" },
+            { "Kit_SteelPale", "BBCBD0" },
             { "Kit_WetSand", "5C4A34" },
             { "Kit_WoodDark", "6B4C28" },
             { "Kit_WoodMid", "A67B42" },
@@ -141,18 +152,14 @@ namespace PirateCrew.EditorTools
             for (int i = 0; i < SlotNames.Length; i++)
             {
                 string slot = SlotNames[i];
-                // 【描边口径】草叶改成扇状草卡后正常描边（只沿整张卡的外轮廓），
-                // 但 GrassMid 关掉法线边压暗——卡面内部是共面三角，压暗没有意义，
-                // 反而会把草心压到最暗档。平贴的泥/苔/裂缝/水膜（Kit_Dec*）不描边：
-                // 它们有自己独立的轮廓，开描边会读成一块“贴纸”。
+                // 【休闲化描边口径】结构件保留 1px 描边；平贴的泥/苔/水膜/路坑 (Kit_Dec*)
+                // 不描边——平贴片有独立轮廓，开描边会读成贴纸。所有材质关掉“法线边压暗”
+                // （内折线墨），只留外轮廓：管线里的锐利内墨线是写实废土感的主要来源。
                 bool isDecal = slot.StartsWith("Kit_Dec", System.StringComparison.Ordinal);
-                // 草叶只有 1 档：扇面朝向决定法线，3 档会在背面扇上落进暗档（成图里一半草
-                // 发黑）；草是平涂植被，用 1 档保持统一绿色，轮廓靠描边，不靠明暗。
-                float bands = slot == "Kit_GrassMid" ? 1f : 3f;
                 materials[i] = PixelartStageKit.EnsureMaterial("PixelartChemPlantMerged_" + slot,
-                    PixelartStageKit.Hex(SlotHex[slot]), bands,
+                    PixelartStageKit.Hex(SlotHex[slot]), 3f,
                     outlinePixels: isDecal ? 0f : 1f);
-                if ((slot == "Kit_GrassMid" || isDecal) && materials[i] != null)
+                if (materials[i] != null)
                 {
                     materials[i].SetFloat("_NormalEdgeLevel", 0f);
                     EditorUtility.SetDirty(materials[i]);
@@ -175,7 +182,7 @@ namespace PirateCrew.EditorTools
             // 用一大块土色平面兜住场地之外——口径同「海面替身」（大平面 + 关描边），
             // 真上玩法时这块会被关卡地形取代。
             Material ground = PixelartStageKit.EnsureMaterial("PixelartChemPlantMerged_GroundFar",
-                PixelartStageKit.Hex("6B665C"), 3f, outlinePixels: 0f);
+                PixelartStageKit.Hex("7CC46E"), 1f, outlinePixels: 0f);
             if (ground != null)
             {
                 GameObject groundMesh = PixelartStageKit.NewPrimitive(
@@ -202,6 +209,11 @@ namespace PirateCrew.EditorTools
             // 【castShadows = true】化工厂这种大件场地**必须开实时投影**，否则整场没有光影
             // （并行线 r16 定的口径与根因：投影默认关是"完全没有光影"的来源；见 d5e7aec3）。
             Light sun = PixelartStageKit.CreateSunAndAmbient(root.transform, castShadows: true);
+            // 光照朝向走 PixelartSceneContract.SunEulerDegrees（58°/140°）的单一真源，
+            // 装配器不要另改方位角——改成 32° 会把太阳转到厂房背面，正面墙直接黑掉。
+            // 休闲化环境光：契约的 #333C4A 是写实暗部色；这关提高到浅蓝灰，
+            // 让竖向墙面的暗档不再是海军蓝/近黑（本场景不在 PixelartSceneContract 的检查清单里）。
+            RenderSettings.ambientLight = PixelartStageKit.Hex("B7C6C8");
 
             var camGo = new GameObject("PixelartLevelCamera");
             camGo.tag = "MainCamera";
@@ -218,7 +230,8 @@ namespace PirateCrew.EditorTools
             camera.nearClipPlane = 0.3f;
             camera.farClipPlane = 300f;
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = PixelartStageKit.Hex("0A0F1C");
+            // 浅天空蓝（休闲游戏底色），不再是近黑夜空。
+            camera.backgroundColor = PixelartStageKit.Hex("A9DCEA");
             camGo.AddComponent<AudioListener>();
 
             var castGo = new GameObject("Pixelart Cast Camera");
@@ -230,6 +243,8 @@ namespace PirateCrew.EditorTools
             var rig = camGo.AddComponent<PixelartCameraRig>();
             rig.pixelScale = PixelartPilotScene.PixelScale;
             rig.worldPerPixel = PixelartLevelScene.WorldPerPixel(view.WideVisibleMeters);
+            // 柔墨线：中性近黑在奶油/浅绿底上太硬，休闲化后改用深蓝灰。
+            rig.inkColor = PixelartStageKit.Hex("34343E");
             rig.sun = sun;
             rig.castCamera = castCamera;
             rig.castRendererIndex = castIndex;

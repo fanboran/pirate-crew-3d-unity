@@ -74,15 +74,6 @@ SINGLE = [
     ("SphereTank",    lambda a: CK.build_sphere_tank(a),           ( 40.0,   6.0),   0.0),
     ("PumpSkidA",     lambda a: CK.build_pump_skid(a),             ( 30.0,  -4.0),   0.0),
     ("PumpSkidB",     lambda a: CK.build_pump_skid(a),             (-30.0, -17.0),  90.0),
-    ("FenceA",        lambda a: CK.build_fence(a),                 (  2.0,  -9.0),   0.0),
-    ("FenceB",        lambda a: CK.build_fence(a),                 ( 24.0, -10.0),  90.0),
-    ("FenceToppled",  lambda a: CK.build_fence(a, toppled=True),   ( -6.0,   0.5),  12.0),
-    ("DebrisA",       lambda a: CK.build_debris(a),                (  6.0,  -8.0),  37.0),
-    ("DebrisB",       lambda a: CK.build_debris(a),                ( 30.0,   0.0), 133.0),
-    ("DebrisC",       lambda a: CK.build_debris(a),                (-26.0,   8.0), 251.0),
-    ("DebrisD",       lambda a: CK.build_debris(a),                (  0.0,  24.0),  74.0),
-    ("DebrisE",       lambda a: CK.build_debris(a),                ( 30.0,  -8.0), 318.0),
-    ("DebrisF",       lambda a: CK.build_debris(a),                ( 28.0,   8.0), 198.0),
 ]
 
 #: 六件版分区件：名 → 摆位 (x, y), yaw°（site 不用：新场地地坪自建）
@@ -91,7 +82,6 @@ SIX = [
     ("tanks",    (  6.0,  20.0), 0.0),
     ("building", ( 34.0,  18.0), 0.0),
     ("pipes",    (  6.0,   6.5), 0.0),
-    ("props",    ( 17.0, -21.0), 0.0),
 ]
 
 #: 成品机位：[名, 机位, 视点, 焦距]
@@ -1100,28 +1090,30 @@ def _broadleaf(m, x, y, h, rng, z=None):
     """阔叶树：短干 + 2~3 团低多边形树冠（荒废厂区外的绿带主力）。"""
     z = GROUND_Z if z is None else z
     trunk_h = h * rng.uniform(0.35, 0.55)
-    m.cyl(h * 0.045, trunk_h, at=(x, y, z), seg=6, r_top=h * 0.035,
-          mat="Kit_WoodDark", smooth=False)
+    m.cyl(h * 0.045, trunk_h, at=(x, y, z), seg=12, r_top=h * 0.035,
+          mat="Kit_WoodDark", smooth=True)
     crown_r = h * rng.uniform(0.28, 0.38)
     for k in range(rng.randint(2, 3)):
         ox = rng.uniform(-0.35, 0.35) * crown_r
         oy = rng.uniform(-0.35, 0.35) * crown_r
         rr = crown_r * rng.uniform(0.7, 1.05)
         m.sphere(rr, at=(x + ox, y + oy, z + trunk_h + crown_r * 0.55 + k * crown_r * 0.35),
-                 seg=8, rings=5,
-                 mat="Kit_GrassDark", smooth=False)
+                 seg=16, rings=10,
+                 mat=rng.choice(("Kit_CpFoliageMid", "Kit_CpFoliageLight", "Kit_CpFoliageMid")),
+                 smooth=True)
 
 
 def _conifer(m, x, y, h, rng, z=None):
     """针叶树：短干 + 三层锥冠。"""
     z = GROUND_Z if z is None else z
-    m.cyl(h * 0.04, h * 0.35, at=(x, y, z), seg=5, r_top=h * 0.03,
-          mat="Kit_WoodDark", smooth=False)
+    m.cyl(h * 0.04, h * 0.35, at=(x, y, z), seg=10, r_top=h * 0.03,
+          mat="Kit_WoodDark", smooth=True)
     for k, (z0, r, hh) in enumerate(((h * 0.18, h * 0.20, h * 0.42),
                                      (h * 0.38, h * 0.16, h * 0.38),
                                      (h * 0.56, h * 0.11, h * 0.34))):
         m.revolve([(r, 0.0), (r * 0.55, hh * 0.55), (0.0, hh)],
-                  at=(x, y, z + z0), seg=7, mat="Kit_GrassDark")
+                  at=(x, y, z + z0), seg=14,
+                  mat=rng.choice(("Kit_CpFoliageDark", "Kit_CpFoliageMid")), smooth=True)
 
 
 def _pallets_crates(m, x, y, yaw, rng):
@@ -1274,8 +1266,8 @@ def _shrub(m, x, y, r, rng, z=None):
         ox = rng.uniform(-r, r) * 0.7
         oy = rng.uniform(-r, r) * 0.7
         rr = rng.uniform(0.35, 0.8) * r * 0.6
-        m.sphere(rr, at=(x + ox, y + oy, z + rr * 0.65), seg=7, rings=4,
-                 mat="Kit_GrassDark", smooth=False)
+        m.sphere(rr, at=(x + ox, y + oy, z + rr * 0.65), seg=12, rings=8,
+                 mat=rng.choice(("Kit_CpMoss", "Kit_CpFoliageMid")), smooth=True)
 
 
 def _soil_pit(m, x, y, r, rng, z=None):
@@ -1391,13 +1383,371 @@ def _vine(m, x, y, yaw, height, rng):
         p0 = Vector((x + dx * off, y + dy * off, GROUND_Z + 0.04))
         p1 = p0 + Vector((dx * rng.uniform(0.15, 0.70),
                           dy * rng.uniform(0.15, 0.70), climb))
-        _branch(m, p0, p1, 0.03, "Kit_GrassDark")
+        _branch(m, p0, p1, 0.03, "Kit_CpMoss")
         # 叶簇沿茎 2~3 处 + 顶梢，读作爬藤而不是一根杆
         for t in (0.42, 0.72, 1.0):
             p = p0.lerp(p1, t)
             rr = 0.20 * rng.uniform(0.75, 1.25)
             m.sphere(rr, at=(p.x, p.y, p.z), seg=6, rings=3,
-                     mat="Kit_GrassDark", smooth=False)
+                     mat=rng.choice(("Kit_CpMoss", "Kit_CpFoliageMid")), smooth=False)
+
+
+# ---------------------------------------------------------------------------
+# 休闲化重做（2026-11-22）：奶油大板广场 + 三处圆形苔藓花园 + 圆润植被
+# ---------------------------------------------------------------------------
+
+#: 三处圆形苔藓花园（避开主装置/道路的空地）：西北角、南侧中段、东南角。
+MOSS_ZONES = [(-38.0, 24.0, 7.0), (10.0, -24.0, 8.0), (32.0, -24.0, 6.0)]
+
+GATE_POS = (-45.5, -16.0)
+
+
+def _in_moss_zone(x, y):
+    for zx, zy, zr in MOSS_ZONES:
+        if (x - zx) ** 2 + (y - zy) ** 2 <= zr * zr:
+            return True
+    return False
+
+
+def _grass_dome(m, x, y, size, rng, z):
+    """圆润草丘：2~3 个半埋低多边形圆顶，亮/中/暗三档草色。"""
+    mats = ("Kit_CpGrass", "Kit_CpMoss", "Kit_CpFoliageLight")
+    for k in range(rng.randint(2, 3)):
+        rr = (0.24 + 0.18 * size) * rng.uniform(0.82, 1.12)
+        hh = (0.20 + 0.16 * size) * rng.uniform(0.85, 1.20)
+        ox = rng.uniform(-0.55, 0.55) * rr
+        oy = rng.uniform(-0.55, 0.55) * rr
+        m.revolve([(0.0, 0.0), (rr * 0.55, 0.015), (rr * 0.84, hh * 0.14),
+                   (rr, hh * 0.36), (rr * 0.88, hh * 0.62),
+                   (rr * 0.55, hh * 0.85), (0.0, hh)],
+                  at=(x + ox, y + oy, z), seg=16, mat=rng.choice(mats), smooth=True)
+
+
+def _planter_tree(m, x, y, h, rng):
+    """圆形花坛树：低矮圆池 + 土面 + 圆冠树，给大广场一点休闲游戏的花园感。"""
+    gz = _ground_z(x, y)
+    m.cyl(1.45, 0.35, at=(x, y, gz), seg=24, mat="Kit_ConcreteLight")
+    m.cyl(1.30, 0.05, at=(x, y, gz + 0.35), seg=24, mat="Kit_DecSoil")
+    _broadleaf(m, x, y, h, rng, z=gz + 0.40)
+
+
+def _clean_road(m, pts, width, z):
+    """连续干净的沥青路：无断段/坑洞/草侵，只有两条浅色路缘线。"""
+    for i in range(len(pts) - 1):
+        ax, ay = pts[i]
+        bx, by = pts[i + 1]
+        L = math.hypot(bx - ax, by - ay)
+        yaw = math.atan2(by - ay, bx - ax)
+        mx, my = (ax + bx) * 0.5, (ay + by) * 0.5
+        m.box((L + 0.02, width, 0.06), at=(mx, my, z - 0.03), rz=yaw,
+              mat="Kit_CpAsphalt")
+        for side in (-1.0, 1.0):
+            off = width * 0.5 - 0.10
+            ox, oy = -math.sin(yaw) * off * side, math.cos(yaw) * off * side
+            m.box((L + 0.02, 0.12, 0.07), at=(mx + ox, my + oy, z - 0.035),
+                  rz=yaw, mat="Kit_ConcreteLight")
+
+
+def build_ground_casual(m):
+    """休闲化地坪：奶油大板 + 细苔缝；没有随机缺板和碎细节，只有三处圆形花园。"""
+    rng = random.Random(SEED + 1)
+    SLAB_RECTS.clear()
+    MISSING_RECTS.clear()
+
+    # 土基：浅沙（只在板缝/花园/缺板处露出）
+    m.poly_extrude(YARD_OUTLINE, GROUND_Z - 0.30, GROUND_Z - 0.04, mat="Kit_CpSand")
+
+    # 大板：6~8.5 m 一块，缝 18~30 cm；只有花园范围整块缺板
+    xs = _cuts(-48.0, 48.0, rng, 6.0, 8.5)
+    zs = _cuts(-34.0, 34.0, rng, 5.5, 7.0)
+    for i in range(len(xs) - 1):
+        for j in range(len(zs) - 1):
+            x0, x1 = xs[i], xs[i + 1]
+            z0, z1 = zs[j], zs[j + 1]
+            cx, cy = (x0 + x1) * 0.5, (z0 + z1) * 0.5
+            if not point_in_poly(cx, cy, YARD_OUTLINE):
+                continue
+            gap = rng.uniform(0.18, 0.30)
+            w = (x1 - x0) - gap
+            d = (z1 - z0) - gap
+            if w < 1.0 or d < 1.0 or _in_moss_zone(cx, cy):
+                MISSING_RECTS.append((x0, z0, x1, z1))
+                continue
+            mat = rng.choice(("Kit_ConcreteLight", "Kit_ConcreteLight",
+                              "Kit_ConcreteLight", "Kit_ConcreteMid"))
+            m.box((w, d, 0.12), at=(cx, cy, GROUND_Z - 0.12), mat=mat)
+            SLAB_RECTS.append((cx - w * 0.5, cy - d * 0.5,
+                               cx + w * 0.5, cy + d * 0.5, GROUND_Z))
+
+    # 板缝苔藓：细绿色缝线（补贴片，不描边）
+    for x in xs[1:-1]:
+        z = -33.0
+        while z < 33.0:
+            seg = 3.6
+            if point_in_poly(x, z + seg * 0.5, YARD_OUTLINE):
+                m.box((0.30, seg + 0.06, 0.02), at=(x, z + seg * 0.5, GROUND_Z - 0.035),
+                      mat="Kit_DecMoss")
+            z += seg
+    for z in zs[1:-1]:
+        x = -47.0
+        while x < 47.0:
+            seg = 3.6
+            if point_in_poly(x + seg * 0.5, z, YARD_OUTLINE):
+                m.box((seg + 0.06, 0.30, 0.02), at=(x + seg * 0.5, z, GROUND_Z - 0.035),
+                      mat="Kit_DecMoss")
+            x += seg
+
+    # 三处圆形苔藓花园：浅沙圈 + 苔藓主体 + 圆水洼
+    for (zx, zy, zr) in MOSS_ZONES:
+        m.poly_extrude(_blob(rng, zr * 0.98, zr * 0.94, 16),
+                       GROUND_Z - 0.055, GROUND_Z - 0.026,
+                       at=(zx, zy, 0), mat="Kit_DecSoil")
+        for k in range(2):
+            ox = rng.uniform(-0.15, 0.15) * zr
+            oy = rng.uniform(-0.15, 0.15) * zr
+            m.poly_extrude(_blob(rng, zr * (0.72 - 0.10 * k), zr * (0.66 - 0.09 * k), 14),
+                           GROUND_Z - 0.030, GROUND_Z - 0.012,
+                           at=(zx + ox, zy + oy, 0), mat="Kit_DecMoss")
+
+    # 花园里的浅水洼（水色是浅蓝，不是深墨）
+    for (px, py, rx, ry) in ((10.0, -24.0, 3.6, 2.7), (32.0, -24.0, 2.6, 2.0),
+                             (-38.0, 24.0, 2.4, 1.8)):
+        m.poly_extrude(_blob(rng, rx * 1.10, ry * 1.10, 12),
+                       GROUND_Z - 0.014, GROUND_Z - 0.008, at=(px, py, 0), mat="Kit_DecWet")
+        m.poly_extrude(_blob(rng, rx * 0.82, ry * 0.82, 10),
+                       GROUND_Z - 0.007, GROUND_Z - 0.002,
+                       at=(px + 0.2, py - 0.1, 0), mat="Kit_DecWater")
+
+
+def build_roads_casual(m):
+    """两条干净沥青路 + 一条从大门向西的场外土路。"""
+    _clean_road(m, YARD_ROADS[0][0], 6.0, GROUND_Z + 0.02)
+    _clean_road(m, YARD_ROADS[1][0], 4.5, GROUND_Z + 0.02)
+    # 场外土路：大门 → 西侧旷野
+    m.box((34.0, 5.0, 0.06), at=(-63.0, -17.0, OUTSKIRT_Z - 0.01), mat="Kit_DecSoil")
+
+
+def build_walls_casual(m):
+    """连续矮墙 + 圆润墙柱 + 干净大门；墙根一条苔藓带，不再有断壁/锈痕/残基。"""
+    rng = random.Random(SEED + 103)
+    gx, gy = GATE_POS
+
+    def near_gate(x, y, d=2.9):
+        return (x - gx) ** 2 + (y - gy) ** 2 < d * d
+
+    for i in range(len(WALL_LINE) - 1):
+        x0, y0 = WALL_LINE[i]
+        x1, y1 = WALL_LINE[i + 1]
+        seg = math.hypot(x1 - x0, y1 - y0)
+        yaw = math.atan2(y1 - y0, x1 - x0)
+        n = max(1, int(seg / 4.0))
+        for k in range(n):
+            t0, t1 = k / n, (k + 1) / n
+            ax, ay = x0 + (x1 - x0) * t0, y0 + (y1 - y0) * t0
+            bx, by = x0 + (x1 - x0) * t1, y0 + (y1 - y0) * t1
+            mx, my = (ax + bx) * 0.5, (ay + by) * 0.5
+            if near_gate(mx, my):
+                continue
+            L = math.hypot(bx - ax, by - ay) + 0.10
+            gz = _ground_z(mx, my)
+            m.box((L, 0.36, 2.2), at=(mx, my, gz), rz=yaw, mat="Kit_ConcreteMid")
+            m.box((L + 0.10, 0.52, 0.12), at=(mx, my, gz + 2.2), rz=yaw,
+                  mat="Kit_ConcreteLight")
+            # 墙根苔藓带（补贴片，不描边）
+            nlen = math.hypot(mx, my) or 1.0
+            ix, iy = -mx / nlen, -my / nlen
+            m.box((L, 1.5, 0.02), at=(mx + ix * 1.0, my + iy * 1.0, gz + 0.004),
+                  rz=yaw, mat="Kit_DecMoss")
+            if rng.random() < 0.8:
+                _grass_dome(m, mx + ix * rng.uniform(1.4, 2.6),
+                            my + iy * rng.uniform(1.4, 2.6),
+                            rng.uniform(0.7, 1.2), rng, _grass_z(mx + ix, my + iy))
+        # 段末圆墙柱
+        if not near_gate(x0, y0):
+            gz = _ground_z(x0, y0)
+            m.cyl(0.38, 2.5, at=(x0, y0, gz), seg=16, mat="Kit_ConcreteLight")
+            m.cyl(0.46, 0.10, at=(x0, y0, gz + 2.5), seg=16, mat="Kit_ConcreteLight")
+
+    # 干净大门：两根圆门柱 + 横梁 + 黄漆牌
+    gz = _ground_z(gx, gy)
+    for s in (-1.0, 1.0):
+        m.cyl(0.55, 3.2, at=(gx, gy + s * 3.4, gz), seg=20, mat="Kit_ConcreteLight")
+        m.cyl(0.68, 0.16, at=(gx, gy + s * 3.4, gz + 3.2), seg=20, mat="Kit_PaintYellow")
+    m.box((0.70, 7.6, 0.45), at=(gx, gy, gz + 3.2), mat="Kit_ConcreteLight")
+    m.box((0.18, 2.8, 0.55), at=(gx, gy, gz + 3.65), mat="Kit_PaintYellow")
+
+
+def build_hall_roof_clean(m):
+    """主厂房干净双坡屋面：盖住原 kit 的塌口，并用檐口/山墙封住屋顶下的黑缝。"""
+    L, W = 16.0, 10.0
+    eave, ridge = CK.HALL_EAVE, CK.HALL_RIDGE
+    pitch = math.atan2(ridge - eave, W * 0.5)
+    for sign in (-1.0, 1.0):
+        m.box((L + 0.7, math.hypot(W * 0.5, ridge - eave) + 0.10, 0.12),
+              at=(-12.0, -3.0 + sign * W * 0.25, (eave + ridge) * 0.5 + 0.10),
+              rx=-sign * pitch, mat="Kit_SteelPale")
+    m.box((L + 0.8, 0.28, 0.10), at=(-12.0, -3.0, ridge + 0.16), mat="Kit_SteelPale")
+    # 屋面细肋：18 道/坡，低分辨率下也有细密光带，不是一块光板
+    slope_len = math.hypot(W * 0.5, ridge - eave)
+    for sign in (-1.0, 1.0):
+        for k in range(18):
+            rx = -12.0 - (L + 0.5) * 0.5 + (k + 0.5) / 18.0 * (L + 0.5)
+            m.box((0.08, slope_len, 0.045),
+                  at=(rx, -3.0 + sign * W * 0.25, (eave + ridge) * 0.5 + 0.17),
+                  rx=-sign * pitch, mat="Kit_SteelPale")
+    # 檐口封板：堵住新屋顶与原屋顶/塌口之间的黑缝
+    for sy in (-1.0, 1.0):
+        m.box((L + 0.8, 0.22, 0.55), at=(-12.0, -3.0 + sy * W * 0.5, eave - 0.18),
+              mat="Kit_ConcreteLight")
+    # 山墙封板（三角）：两端补齐，正面不再是一只黑洞
+    for gx in (-20.2, -3.8):
+        pts = [(gx, -8.0, eave), (gx, 2.0, eave), (gx, -3.0, ridge),
+               (gx + 0.16, -8.0, eave), (gx + 0.16, 2.0, eave), (gx + 0.16, -3.0, ridge)]
+        m.add(pts, [(0, 1, 2), (3, 5, 4), (0, 3, 4, 1), (1, 4, 5, 2), (2, 5, 3, 0)],
+              at=(0, 0, 0), mat="Kit_ConcreteLight")
+
+
+def _distant_hall_light(m, cx, cy, w, d, h, yaw, rng):
+    """远景厂房：浅色体块 + 软蓝屋顶 + 深蓝灰窗带（不做锈/破屋顶）。"""
+    m.box((w, d, h), at=(cx, cy, OUTSKIRT_Z), rz=yaw, mat="Kit_ConcreteLight")
+    m.box((w + 0.5, d + 0.5, 0.30), at=(cx, cy, OUTSKIRT_Z + h), rz=yaw,
+          mat="Kit_SteelPale")
+    for side in (-1.0, 1.0):
+        ox = math.sin(yaw) * (d * 0.5 + 0.03) * side
+        oy = math.cos(yaw) * (d * 0.5 + 0.03) * side
+        n = max(2, int(w / 4.0))
+        for k in range(n):
+            t = (k + 0.5) / n - 0.5
+            px = cx + math.cos(yaw) * w * t + ox
+            py = cy + math.sin(yaw) * w * t + oy
+            m.box((1.6, 0.06, 1.0), at=(px, py, OUTSKIRT_Z + h * 0.55),
+                  rz=yaw, mat="Kit_GlassDark")
+
+
+def build_outskirts_casual(m):
+    """墙外：整片浅绿草地 + 两排圆树 + 四面远景厂房 + 三座料仓；不再铺废料/电杆。"""
+    rng = random.Random(SEED + 104)
+    outer = [
+        (-110, -85), (-116, -10), (-106, 55), (-80, 82), (-20, 92),
+        (50, 86), (96, 64), (112, 28), (116, -16), (100, -68),
+        (64, -88), (8, -94), (-46, -92), (-82, -86),
+    ]
+    m.poly_extrude(outer, OUTSKIRT_Z - 0.40, OUTSKIRT_Z, mat="Kit_CpGrass")
+
+    # 大地色斑（平贴，不描边）：只做几十块，打破整片绿
+    for k in range(24):
+        x = rng.uniform(-100, 100)
+        y = rng.uniform(-78, 78)
+        if abs(x) < YARD_X / 2 + 2 and abs(y) < YARD_Y / 2 + 2:
+            continue
+        rx = rng.uniform(4.0, 11.0)
+        ry = rx * rng.uniform(0.55, 0.90)
+        mat = rng.choice(("Kit_DecSoil", "Kit_DecMoss", "Kit_DecGrass", "Kit_DecSoil"))
+        m.poly_extrude(_blob(rng, rx, ry, 10), OUTSKIRT_Z + 0.002, OUTSKIRT_Z + 0.018,
+                       at=(x, y, 0), mat=mat)
+
+    # 缓草坡
+    for (x, y, r, h) in ((-55, 50, 10.0, 2.2), (58, 44, 9.0, 1.8),
+                         (-60, -52, 9.0, 2.0), (0, -65, 11.0, 2.4)):
+        _mound(m, x, y, r, h, "Kit_CpGrass", rng)
+
+    # 两排圆树（只种阔叶，不要枯枝）
+    def row(x0, y0, x1, y1, spacing):
+        n = max(2, int(math.hypot(x1 - x0, y1 - y0) / spacing))
+        for i in range(n):
+            t = (i + 0.5) / n
+            x = x0 + (x1 - x0) * t + rng.uniform(-2.5, 2.5)
+            y = y0 + (y1 - y0) * t + rng.uniform(-2.5, 2.5)
+            if abs(x) < YARD_X / 2 + 5 and abs(y) < YARD_Y / 2 + 5:
+                continue
+            _broadleaf(m, x, y, rng.uniform(4.5, 7.5), rng, z=OUTSKIRT_Z)
+
+    row(-72, -52, 72, -52, 9.0)
+    row(-72, 46, 72, 46, 9.0)
+    row(-68, -48, -68, 44, 9.0)
+    row(68, -48, 68, 44, 9.0)
+
+    # 墙外近带：圆草丘
+    for i in range(len(WALL_LINE)):
+        x0, y0 = WALL_LINE[i]
+        x1, y1 = WALL_LINE[(i + 1) % len(WALL_LINE)]
+        for t in (0.1, 0.3, 0.5, 0.7, 0.9):
+            wx = x0 + (x1 - x0) * t
+            wy = y0 + (y1 - y0) * t
+            nl = math.hypot(wx, wy) or 1.0
+            out = rng.uniform(2.0, 6.0)
+            cx = wx + wx / nl * out
+            cy = wy + wy / nl * out
+            if rng.random() < 0.8:
+                _grass_dome(m, cx, cy, rng.uniform(0.8, 1.3), rng, OUTSKIRT_Z + 0.02)
+
+    # 远景厂房 / 料仓
+    for (cx, cy, w, d, h, yaw) in ((-70, 36, 20, 10, 8.0, 5), (66, 26, 18, 9, 7.0, -4),
+                                   (-64, -60, 18, 10, 7.5, 8), (60, -62, 16, 9, 7.0, 3)):
+        _distant_hall_light(m, cx, cy, w, d, h, math.radians(yaw), rng)
+    for (cx, cy, r, h) in ((-84, 4, 3.5, 11.0), (82, -8, 3.2, 10.0), (4, -80, 3.0, 9.0)):
+        m.cyl(r, h, at=(cx, cy, OUTSKIRT_Z), seg=24, mat="Kit_SteelPale")
+        m.revolve([(r, 0.0), (r * 1.05, h * 0.9), (0.0, h * 1.05)],
+                  at=(cx, cy, OUTSKIRT_Z), seg=24, mat="Kit_SteelPale")
+
+    # 树线/田野里的圆草丘
+    for k in range(80):
+        x = rng.uniform(-100, 100)
+        y = rng.uniform(-80, 80)
+        if abs(x) < YARD_X / 2 + 3 and abs(y) < YARD_Y / 2 + 3:
+            continue
+        _grass_dome(m, x, y, rng.uniform(0.8, 1.5), rng, OUTSKIRT_Z + 0.02)
+
+
+def build_vegetation_casual(m):
+    """圆润植被：墙根草丘、花园草丘、花坛树、少量灌木/藤蔓/圆桶。"""
+    rng = random.Random(SEED + 105)
+
+    # 花园草丘
+    for (zx, zy, zr) in MOSS_ZONES:
+        for k in range(14):
+            a = rng.uniform(0, math.tau)
+            r = math.sqrt(rng.random()) * zr * 0.78
+            _grass_dome(m, zx + math.cos(a) * r, zy + math.sin(a) * r,
+                        rng.uniform(0.8, 1.4), rng, GROUND_Z - 0.012)
+
+    # 场内的花坛树（圆形花池）
+    for (x, y, h) in ((-24.0, -7.5, 5.2), (6.0, -8.0, 5.0), (22.0, -14.0, 4.8)):
+        _planter_tree(m, x, y, h, rng)
+    # 花园里直接种的树
+    _broadleaf(m, 32.0, -24.0, 5.2, rng, z=GROUND_Z - 0.012)
+
+    # 圆灌木
+    for (x, y, r) in ((-22, -9, 1.4), (8, -5, 1.3), (30, -12, 1.4),
+                      (-44, 10, 1.3), (44, -22, 1.3), (-14, 20, 1.2)):
+        _shrub(m, x, y, r, rng, z=_grass_z(x, y))
+
+    # 藤蔓（只留两处，贴墙圆叶）
+    for (x, y, yaw, h) in ((-16.0, -8.08, 0, 4.2), (-36.0, -2.58, 0, 6.0)):
+        _vine(m, x, y, math.radians(yaw), h, rng)
+
+    # 花园小花簇（圆点，不是薄片）
+    for (cx, cy) in ((10.0, -24.0), (32.0, -24.0), (-38.0, 24.0)):
+        for k in range(5):
+            a = rng.uniform(0, math.tau)
+            r = math.sqrt(rng.random()) * 2.0
+            m.sphere(rng.uniform(0.06, 0.10),
+                     at=(cx + math.cos(a) * r, cy + math.sin(a) * r, GROUND_Z + 0.06),
+                     seg=6, rings=3,
+                     mat=rng.choice(("Kit_PaintYellow", "Kit_CpFoliageLight", "Kit_Coral")),
+                     smooth=False)
+
+    # 唯一一处圆桶 + 木箱，放在主厂房东侧空地
+    for k in range(3):
+        x = 3.5 + rng.uniform(-0.5, 0.5)
+        y = -5.0 + rng.uniform(-0.5, 0.5)
+        gz = _ground_z(x, y)
+        m.cyl(0.32, 0.86, at=(x, y, gz), seg=8, mat="Kit_Rust")
+        m.cyl(0.34, 0.05, at=(x, y, gz + 0.30), seg=8, mat="Kit_RustDark")
+    for k in range(2):
+        x = 5.0 + k * 0.9
+        y = -5.5
+        m.box((0.8, 0.7, 0.6), at=(x, y, _ground_z(x, y)), rz=0.3, mat="Kit_WoodDark")
 
 
 # ---------------------------------------------------------------------------
@@ -1434,10 +1784,13 @@ def build_all():
         objs.append(obj)
 
     # 新几何（拆成几个对象，方便单件排查）
-    for name, fn in (("Ground", build_ground), ("Roads", build_roads),
-                     ("Walls", build_walls), ("HallBridge", build_hall_bridge),
-                     ("Outskirts", build_outskirts),
-                     ("Vegetation", build_vegetation)):
+    # 【休闲化重做】旧的地表/道路/围墙/植被函数保留作对照，现役走 *_casual 这套：
+    # 大板干净地坪 + 三处圆形苔藓花园 + 连续矮墙 + 圆润草丘/树，杂物大幅减量。
+    for name, fn in (("Ground", build_ground_casual), ("Roads", build_roads_casual),
+                     ("Walls", build_walls_casual), ("HallBridge", build_hall_bridge),
+                     ("HallRoof", build_hall_roof_clean),
+                     ("Outskirts", build_outskirts_casual),
+                     ("Vegetation", build_vegetation_casual)):
         m = K.Mesher()
         fn(m)
         obj = m.to_object("CP_" + name)
@@ -1493,11 +1846,19 @@ def write_layout(objs):
 
 def render(views, res, samples):
     scene = bpy.context.scene
+    # 休闲化出图：亮一档曝光、浅蓝天穹、高角度暖阳、整片浅绿 backdrop。
+    A.EXPOSURE = -0.10
     A.setup_render(scene, res, samples)
-    A.setup_sky(scene)
-    A.add_sun(scene)
+    world = A.setup_sky(scene, strength=0.55)
+    ramp = next(n for n in world.node_tree.nodes if n.type == "VALTORGB")
+    cols = ("E9F2E4", "C6E6F0", "8FC8E8")          # 地平线暖白 → 中天浅蓝 → 天顶蓝
+    for e, hx in zip(sorted(ramp.color_ramp.elements, key=lambda e: e.position), cols):
+        e.color = (*[K.srgb_to_linear(c) for c in A.ST_hex(hx)], 1.0)
+    A.add_sun(scene, energy=3.0, elev_deg=58.0, rot_deg=30.0, color=(1.0, 0.97, 0.90))
     A.add_fill(scene)
-    A.add_backdrop(scene, size=700.0, z=-0.6)
+    bm = K.Mesher()
+    bm.box((700.0, 700.0, 0.12), at=(-350.0, -350.0, -0.5), mat="Kit_CpGrass")
+    bm.to_object("_chem_backdrop")
     os.makedirs(OUT_IMG, exist_ok=True)
     A.render_views(scene, OUT_IMG, views, res, samples)
 

@@ -43,7 +43,7 @@ Material:
     - _DitherMode: 0
     - _DitherPatternSize: 4
     - _DitherStrength: 0.21
-    - _MainLightLevel: 3
+    - _MainLightLevel: 1
     - _Metallic: 0
     - _NormalEdgeLevel: -1
     - _NormalEdgeThreshold: 1
@@ -52,6 +52,6 @@ Material:
     - _Smoothness: 0
     - _SnapToPixelGrid: 1
     m_Colors:
-    - _BaseColor: {r: 0.41960785, g: 0.4, b: 0.36078432, a: 1}
+    - _BaseColor: {r: 0.4862745, g: 0.76862746, b: 0.43137255, a: 1}
     - _RimLightColor: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []

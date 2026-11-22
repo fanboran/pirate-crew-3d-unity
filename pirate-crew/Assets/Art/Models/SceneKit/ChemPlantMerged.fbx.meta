@@ -27,8 +27,53 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: Kit_CpAsphalt
+    second: {fileID: 2100000, guid: 4593abb6ae4b9c64d90b3d3f149ac54a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpFoliageDark
+    second: {fileID: 2100000, guid: db4daa8f62d8ed6479eb38fb6272982a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpFoliageLight
+    second: {fileID: 2100000, guid: 53bc9fb6e1007d54698a7426f0a92724, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpFoliageMid
+    second: {fileID: 2100000, guid: 6f2eab3b41da03c4997f1bb73a2ca12b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpGrass
+    second: {fileID: 2100000, guid: 381c2b18a7b90264d8fa428c6eb51420, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpMoss
+    second: {fileID: 2100000, guid: 6e3696455fffa4a488b2a58c21004d20, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpSand
+    second: {fileID: 2100000, guid: e14763f758814274b86e15b5a886a0e0, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpWater
+    second: {fileID: 2100000, guid: ea9f77449243f2947bbb87ef6f77f6fd, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: Kit_DecGrass
     second: {fileID: 2100000, guid: b24210976f1213d4e948a8c68c8ff552, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_DecMoss
+    second: {fileID: 2100000, guid: 5bbe7a50597c40742a1b6fe3a677f3cb, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
