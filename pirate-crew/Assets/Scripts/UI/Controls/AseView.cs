@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace PirateCrew.UI.DebugUi
+namespace PirateCrew.UI.Controls
 {
     /// <summary>
     /// 滚动视图委托（源 <c>src/ui/scroll_bar.h:15-21</c> <c>ScrollableViewDelegate</c>）：
@@ -55,14 +55,75 @@ namespace PirateCrew.UI.DebugUi
         AseScrollBar _hbar;
         AseScrollBar _vbar;
 
-        int _borderL, _borderT, _borderR, _borderB;
-        bool _hasBars = true;
+        // 边框宽必须随 Prefab 序列化：运行时自恢复拿不回 Attach 时传入的值。
+        [SerializeField] int _borderL;
+        [SerializeField] int _borderT;
+        [SerializeField] int _borderR;
+        [SerializeField] int _borderB;
+        [SerializeField] bool _hasBars = true;
         Vector2Int _contentHint;    // Viewport::calculateNeededSize()：子件 sizeHint 的逐轴最大值
         Vector2Int _scrollableSize; // getScrollableSize()：= (hbar.size(), vbar.size())
         RectInt _viewportArea;      // 当前视口区（客户区坐标，滚动条已扣）
 
         /// <summary>视口（把内容挂进来；对应 <c>view->viewport()</c>）。</summary>
-        public RectTransform Viewport { get { return _viewport; } }
+        public RectTransform Viewport
+        {
+            get { EnsureHydrated(); return _viewport; }
+        }
+
+        /// <summary>
+        /// 反序列化自恢复：烘进 Prefab 后运行时私有字段全为空（Awake 时按子件名重新找回）。
+        /// 运行时 <see cref="Attach"/> 新建的场景里 Build 会覆盖一遍，无副作用。
+        /// </summary>
+        void Awake()
+        {
+            Hydrate();
+        }
+
+        /// <summary>公开的幂等自恢复入口（同物体的其它组件 Awake 早于本件时先调它）。</summary>
+        public void EnsureHydrated()
+        {
+            if (_viewport == null)
+                Hydrate();
+        }
+
+        void Hydrate()
+        {
+            if (_rect == null)
+                _rect = (RectTransform)transform;
+            if (_client == null)
+                _client = _rect.Find("Client") as RectTransform;
+            if (_viewport == null && _client != null)
+                _viewport = _client.Find("Viewport") as RectTransform;
+
+            if (_hbar == null && _client != null)
+            {
+                Transform bar = _client.Find("HScrollBar");
+                if (bar != null)
+                    _hbar = bar.GetComponent<AseScrollBar>();
+            }
+            if (_vbar == null && _client != null)
+            {
+                Transform bar = _client.Find("VScrollBar");
+                if (bar != null)
+                    _vbar = bar.GetComponent<AseScrollBar>();
+            }
+
+            if (_content == null && _viewport != null && _viewport.childCount > 0)
+                _content = _viewport.GetChild(0) as RectTransform;
+
+            if (_hbar != null)
+                _hbar.Rebind(this);
+            if (_vbar != null)
+                _vbar.Rebind(this);
+
+            if (_viewport != null)
+            {
+                var wheel = _viewport.GetComponent<AseViewWheel>();
+                if (wheel != null)
+                    wheel.Bind(this);
+            }
+        }
 
         /// <summary>按 View 边框建一个 View（源里 View 的边框来自 theme <c>view</c> 样式，
         /// 由调用方按自己的样式表传入）。</summary>

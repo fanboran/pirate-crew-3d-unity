@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace PirateCrew.UI.DebugUi
+namespace PirateCrew.UI.Controls
 {
     /// <summary>
     /// 调试面板公共小件工厂（theme 语义件的一次调用版本）——「一个小界面几百行」的
@@ -94,7 +94,7 @@ namespace PirateCrew.UI.DebugUi
             var iconImage = icon.gameObject.AddComponent<Image>();
             iconImage.raycastTarget = false;
 
-            TextMeshProUGUI labelText = DebugWindowKit.PlaceLabel(rect, label, UiSkin.Font.Tiny,
+            TextMeshProUGUI labelText = AseText.PlaceLabel(rect, label, UiSkin.Font.Tiny,
                 PixelSkin.Theme.Text, 14f, 0f, 140f);
 
             // 尺寸提示（件表）：文字 @x14 + 正文宽 + 右边框 2（图标侧 2+8+4 = 14 已含在 x14 里）

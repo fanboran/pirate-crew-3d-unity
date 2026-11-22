@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using NUnit.Framework;
 using PirateCrew.Data;
 using PirateCrew.UI;
@@ -62,6 +62,14 @@ namespace PirateCrew.Tests.UI
                 "blindPirate", "oldPirate", "rainbowBeard", "skeletonPirate", "bossGuy" };
             foreach (string symbol in symbols)
                 Assert.AreNotEqual(steel, UiSkin.CrewColor(symbol), "职业符号 {0} 落到了兜底色", symbol);
+        }
+
+        [Test]
+        public void HintText_MeetsContrastOnWindowFace()
+        {
+            float ratio = UiSkin.ContrastRatio(UiSkin.HintText, PixelSkin.Theme.Face);
+            Assert.GreaterOrEqual(ratio, 4.5f,
+                "三级提示字压窗底必须 ≥4.5:1（项目可读性判据），实测 " + ratio.ToString("0.00"));
         }
 
         [Test]

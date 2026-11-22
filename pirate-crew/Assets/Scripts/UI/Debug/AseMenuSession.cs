@@ -6,13 +6,15 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using static PirateCrew.UI.DebugUi.AseMenuKit;
 
+using PirateCrew.UI.Controls;
+
 namespace PirateCrew.UI.DebugUi
 {
     /// <summary>
     /// 菜单会话：一份 MenuBaseData（menu.cpp:84-105）+ 菜单条/弹层状态机。
     /// 挂在栏根上；因弹层挂画布层，Update 只跑计时器。
     /// </summary>
-    sealed class AseMenuSession : MonoBehaviour
+    sealed class AseMenuSession : MonoBehaviour, IAsePopup
     {
         // MenuBaseData
         bool _wasClicked;        // was_clicked：展开后为 true——「悬浮切换/悬停高亮」的总闸
@@ -369,6 +371,9 @@ namespace PirateCrew.UI.DebugUi
             if (lastOfCloseChain)
                 _isProcessing = false;
         }
+
+        /// <summary>IAsePopup：弹层打开前被全局收起。</summary>
+        public void ClosePopup() => CloseMenus();
 
         /// <summary>Menu::closeAll（menu.cpp:1307-1350）。</summary>
         public void CloseMenus()

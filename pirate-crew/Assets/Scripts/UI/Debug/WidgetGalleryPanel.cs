@@ -5,6 +5,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
+using PirateCrew.UI.Controls;
+
 namespace PirateCrew.UI.DebugUi
 {
     /// <summary>

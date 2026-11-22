@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace PirateCrew.UI.DebugUi
+namespace PirateCrew.UI.Controls
 {
     /// <summary>列表行（listitem.cpp：<c>ListItem</c>，kListItemWidget）。行面与字色直接写
     /// list_item 样式的色层（theme 这里给的是 <c>&lt;background color=…&gt;</c> 色层而非件，
@@ -40,7 +40,7 @@ namespace PirateCrew.UI.DebugUi
 
             // list_item 文字层：align left middle x=1（字色 #C0C0C0 / 选中 #41444A）
             TextMeshProUGUI label = UiKit.CreateText("Text", rect, text, UiSkin.Font.Tiny,
-                TextAlignmentOptions.Left, PixelSkin.Theme.Text, DebugWindowKit.HandFont);
+                TextAlignmentOptions.Left, PixelSkin.Theme.Text, AseText.HandFont);
             label.enableWordWrapping = false;
             label.raycastTarget = false;
             RectTransform labelRect = label.rectTransform;

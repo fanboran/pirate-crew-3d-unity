@@ -175,7 +175,7 @@ namespace PirateCrew.Tests.UI
 
             // ---- AseEntry（AseEntry.cs:82；private → 反射。ColText/ColSelected/ColSelectedText
             //      引用的是 PixelSkin.Theme，已由上表 1/7/8 行钉住，不重复钉）----
-            table.Add(ReflectRow("PirateCrew.UI.DebugUi.AseEntry", "ColSuffix", "entry_suffix", "AseEntry.cs:82"));
+            table.Add(ReflectRow("PirateCrew.UI.Controls.AseEntry", "ColSuffix", "entry_suffix", "AseEntry.cs:82"));
 
             return table;
         }

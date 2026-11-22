@@ -3,6 +3,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using PirateCrew.UI.DebugUi;
 
+using PirateCrew.UI.Controls;
+
 namespace PirateCrew.UI.Stick
 {
     /// <summary>

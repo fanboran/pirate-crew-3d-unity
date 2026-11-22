@@ -1,10 +1,12 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.Audio;
 using PirateCrew.Settings;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace PirateCrew.UI
@@ -49,10 +51,8 @@ namespace PirateCrew.UI
         [SerializeField] Button fullscreenOffButton;
 
         [Header("像素比例与分辨率（真接线）")]
-        [Tooltip("像素比例四档选项块；真源 PixelScaleService（UI 画布与像素化渲染同档）。")]
+        [Tooltip("像素比例两档（2×/自动）；真源 PixelScaleService（UI 画布与像素化渲染同档）。")]
         [SerializeField] Button pixelScale2Button;
-        [SerializeField] Button pixelScale3Button;
-        [SerializeField] Button pixelScale4Button;
         [SerializeField] Button pixelScaleAutoButton;
         [Tooltip("分辨率循环钮：点击在 跟随系统 → 各可选分辨率 间循环；真源 VideoSettingsService。")]
         [SerializeField] Button resolutionButton;
@@ -62,8 +62,25 @@ namespace PirateCrew.UI
         [SerializeField] Button quitConfirmOkButton;
         [SerializeField] Button quitConfirmCancelButton;
 
+        [Header("分辨率切换确认（倒计时还原）")]
+        [SerializeField] GameObject resolutionConfirmPanel;
+        [SerializeField] Button resolutionKeepButton;
+        [SerializeField] Button resolutionRevertButton;
+        [SerializeField] Image resolutionCountdownFill;
+
+        /// <summary>倒计时时长（秒）：走完自动还原。</summary>
+        const float ResolutionConfirmSeconds = 15f;
+        /// <summary>倒计时条满宽（画布单位，与 UiScreenBuilder 的条宽同源）。</summary>
+        const float ResolutionTrackWidth = 116f;
+
+        Vector2Int _resolutionPrevious;
+        Coroutine _resolutionCountdown;
+
         /// <summary>面板开合动效驱动（菜单 juice 与战斗内同口径；数值/曲线全在 UiMotionRules）。</summary>
         UiMotion _motion;
+
+        /// <summary>菜单模态浮层栈（设置/退出确认共用；Esc 由栈统一解析）。</summary>
+        UiModalStack _modalStack;
 
         /// <summary>
         /// 注入 UI 引用（烘焙期由 MenuScreenPrefab 调用做序列化回写——字段名与原
@@ -91,18 +108,22 @@ namespace PirateCrew.UI
             fullscreenOnButton = refs.FullscreenOnButton;
             fullscreenOffButton = refs.FullscreenOffButton;
             pixelScale2Button = refs.PixelScale2Button;
-            pixelScale3Button = refs.PixelScale3Button;
-            pixelScale4Button = refs.PixelScale4Button;
             pixelScaleAutoButton = refs.PixelScaleAutoButton;
             resolutionButton = refs.ResolutionButton;
             quitConfirmPanel = refs.QuitConfirmPanel;
             quitConfirmOkButton = refs.QuitConfirmOkButton;
             quitConfirmCancelButton = refs.QuitConfirmCancelButton;
+            resolutionConfirmPanel = refs.ResolutionConfirmPanel;
+            resolutionKeepButton = refs.ResolutionKeepButton;
+            resolutionRevertButton = refs.ResolutionRevertButton;
+            resolutionCountdownFill = refs.ResolutionCountdownFill;
         }
 
         void Awake()
         {
             _motion = gameObject.AddComponent<UiMotion>();
+            _modalStack = UiModalStack.Ensure(transform.parent != null ? transform.parent : transform, _motion);
+            UiKeyboardFocus.Ensure(transform.parent != null ? transform.parent : transform, _modalStack);
 
             // 主菜单窗体可拖动（创始人 2026-09-25：按住标题带拖——Aseprite 窗口感）。
             Transform menuWindow = transform.parent != null ? transform.parent.Find("MenuWindow") : null;
@@ -169,18 +190,6 @@ namespace PirateCrew.UI
                     RuntimeUiBuilder.ButtonFeedback(pixelScale2Button, true, _motion);
                     SetPixelScale(2);
                 });
-            if (pixelScale3Button != null)
-                pixelScale3Button.onClick.AddListener(() =>
-                {
-                    RuntimeUiBuilder.ButtonFeedback(pixelScale3Button, true, _motion);
-                    SetPixelScale(3);
-                });
-            if (pixelScale4Button != null)
-                pixelScale4Button.onClick.AddListener(() =>
-                {
-                    RuntimeUiBuilder.ButtonFeedback(pixelScale4Button, true, _motion);
-                    SetPixelScale(4);
-                });
             if (pixelScaleAutoButton != null)
                 pixelScaleAutoButton.onClick.AddListener(() =>
                 {
@@ -193,6 +202,10 @@ namespace PirateCrew.UI
                     RuntimeUiBuilder.ButtonFeedback(resolutionButton, true, _motion);
                     CycleResolution();
                 });
+            if (resolutionKeepButton != null)
+                resolutionKeepButton.onClick.AddListener(ConfirmResolution);
+            if (resolutionRevertButton != null)
+                resolutionRevertButton.onClick.AddListener(RevertResolution);
 
             if (quitConfirmOkButton != null)
                 quitConfirmOkButton.onClick.AddListener(ConfirmQuit);
@@ -241,6 +254,10 @@ namespace PirateCrew.UI
                 quitConfirmOkButton.onClick.RemoveListener(ConfirmQuit);
             if (quitConfirmCancelButton != null)
                 quitConfirmCancelButton.onClick.RemoveListener(CancelQuit);
+            if (resolutionKeepButton != null)
+                resolutionKeepButton.onClick.RemoveListener(ConfirmResolution);
+            if (resolutionRevertButton != null)
+                resolutionRevertButton.onClick.RemoveListener(RevertResolution);
             // 音量滑条/画质与全屏按钮的监听用 lambda 捕获，组件销毁时随之失效，无需手动退订。
         }
 
@@ -288,7 +305,10 @@ namespace PirateCrew.UI
                 return;
 
             RefreshSettingsControls();
-            RuntimeUiBuilder.OpenPanel(settingsPanel, _motion);
+            if (_modalStack != null)
+                _modalStack.Push(settingsPanel, onClosed: SaveSettingsOnClose);
+            else
+                RuntimeUiBuilder.OpenPanel(settingsPanel, _motion);
         }
 
         void CloseSettings()
@@ -296,13 +316,23 @@ namespace PirateCrew.UI
             RuntimeUiBuilder.ButtonFeedback(settingsBackButton, true, _motion);
             RuntimeUiBuilder.ButtonFeedback(settingsCloseButton, true, _motion);
 
-            // 关面板统一落盘：拖动滑条的过程不写盘，避免一次拖动几十次 IO。
+            if (_modalStack != null)
+                _modalStack.Pop(settingsPanel);   // 出栈回调统一落盘
+            else
+            {
+                SaveSettingsOnClose();
+                RuntimeUiBuilder.ClosePanel(settingsPanel, _motion);
+            }
+        }
+
+        /// <summary>关面板统一落盘：拖动滑条的过程不写盘，避免一次拖动几十次 IO。
+        /// 按钮返回、窗控钮 ×、Esc 三条关闭路径共用（浮层栈的出栈回调）。</summary>
+        void SaveSettingsOnClose()
+        {
             AudioService.SaveVolumes();
             if (VideoSettingsService.Instance != null)
                 VideoSettingsService.Instance.SaveSettings();
             PixelScaleService.Save();
-
-            RuntimeUiBuilder.ClosePanel(settingsPanel, _motion);
 
             if (statusText != null)
                 statusText.text = UiStrings.MainStatusSettingsSaved;
@@ -379,11 +409,96 @@ namespace PirateCrew.UI
         {
             var choices = ResolutionChoices();
             int index = choices.IndexOf(_currentResolutionChoice);
+            (int Width, int Height) previous = _currentResolutionChoice;
             _currentResolutionChoice = choices[(index + 1) % choices.Count];
+
+            if (_currentResolutionChoice.Width == previous.Width
+                && _currentResolutionChoice.Height == previous.Height)
+            {
+                RefreshVideoChips();
+                return;   // 只有一档（编辑器常见）：没有变化就不弹确认
+            }
 
             if (VideoSettingsService.Instance != null)
                 VideoSettingsService.Instance.SetResolution(
                     _currentResolutionChoice.Width, _currentResolutionChoice.Height);
+
+            RefreshVideoChips();
+            ShowResolutionConfirm(new Vector2Int(previous.Width, previous.Height));
+        }
+
+        /// <summary>分辨率切换后弹倒计时确认：15 秒内不保留就自动还原（防黑屏/超采样锁死）。</summary>
+        void ShowResolutionConfirm(Vector2Int previous)
+        {
+            _resolutionPrevious = previous;
+            if (resolutionCountdownFill != null)
+                resolutionCountdownFill.rectTransform.sizeDelta = new Vector2(ResolutionTrackWidth, 0f);
+
+            if (_modalStack != null)
+                _modalStack.Push(resolutionConfirmPanel, onEsc: RevertResolution);
+            else if (resolutionConfirmPanel != null)
+                resolutionConfirmPanel.SetActive(true);
+
+            // 默认焦点给「保留」：回车即确认；Tab 可在两钮间切换。
+            if (EventSystem.current != null && resolutionKeepButton != null)
+                EventSystem.current.SetSelectedGameObject(resolutionKeepButton.gameObject);
+
+            StopResolutionCountdown();
+            _resolutionCountdown = StartCoroutine(ResolutionCountdownRoutine());
+        }
+
+        IEnumerator ResolutionCountdownRoutine()
+        {
+            float remaining = ResolutionConfirmSeconds;
+            while (remaining > 0f)
+            {
+                remaining -= Time.unscaledDeltaTime;
+                if (resolutionCountdownFill != null)
+                {
+                    float t = Mathf.Clamp01(remaining / ResolutionConfirmSeconds);
+                    resolutionCountdownFill.rectTransform.sizeDelta =
+                        new Vector2(Mathf.Round(ResolutionTrackWidth * t), 0f);
+                }
+                yield return null;
+            }
+
+            _resolutionCountdown = null;
+            RevertResolution();
+        }
+
+        void StopResolutionCountdown()
+        {
+            if (_resolutionCountdown == null)
+                return;
+            StopCoroutine(_resolutionCountdown);
+            _resolutionCountdown = null;
+        }
+
+        /// <summary>保留新分辨率（▶）：关确认框，落盘仍走设置面板关闭时的统一保存。</summary>
+        void ConfirmResolution()
+        {
+            RuntimeUiBuilder.ButtonFeedback(resolutionKeepButton, true, _motion);
+            StopResolutionCountdown();
+            if (_modalStack != null)
+                _modalStack.Pop(resolutionConfirmPanel);
+            else if (resolutionConfirmPanel != null)
+                resolutionConfirmPanel.SetActive(false);
+        }
+
+        /// <summary>还原旧分辨率（■ / Esc / 倒计时走完）：恢复上一档并刷新选项。</summary>
+        void RevertResolution()
+        {
+            RuntimeUiBuilder.ButtonFeedback(resolutionRevertButton, true, _motion);
+            StopResolutionCountdown();
+
+            if (VideoSettingsService.Instance != null)
+                VideoSettingsService.Instance.SetResolution(_resolutionPrevious.x, _resolutionPrevious.y);
+            _currentResolutionChoice = (_resolutionPrevious.x, _resolutionPrevious.y);
+
+            if (_modalStack != null)
+                _modalStack.Pop(resolutionConfirmPanel);
+            else if (resolutionConfirmPanel != null)
+                resolutionConfirmPanel.SetActive(false);
 
             RefreshVideoChips();
         }
@@ -427,10 +542,8 @@ namespace PirateCrew.UI
             SetChipSelected(fullscreenOnButton, fullscreen);
             SetChipSelected(fullscreenOffButton, !fullscreen);
 
-            // 像素比例四档（真源 PixelScaleService；档位含义见 PixelScaleStore）。
-            SetChipSelected(pixelScale2Button, PixelScaleService.ScaleIndex == 2);
-            SetChipSelected(pixelScale3Button, PixelScaleService.ScaleIndex == 3);
-            SetChipSelected(pixelScale4Button, PixelScaleService.ScaleIndex == 4);
+            // 像素比例两档（真源 PixelScaleService；3×/4× 只由自动档在大屏解析）。
+            SetChipSelected(pixelScale2Button, PixelScaleService.ScaleIndex == PixelScaleStore.ScaleDefault);
             SetChipSelected(pixelScaleAutoButton, PixelScaleService.ScaleIndex == PixelScaleStore.ScaleAuto);
 
             // 分辨率循环钮：标签 = 当前选择（锁定值优先取服务真值，未走服务的刷新路径回落本地记录）。
@@ -483,8 +596,16 @@ namespace PirateCrew.UI
             if (quitConfirmPanel != null)
             {
                 if (settingsPanel != null)
-                    RuntimeUiBuilder.ClosePanel(settingsPanel, _motion);
-                RuntimeUiBuilder.OpenPanel(quitConfirmPanel, _motion);
+                {
+                    if (_modalStack != null)
+                        _modalStack.Pop(settingsPanel);     // 出栈即落盘
+                    else
+                        RuntimeUiBuilder.ClosePanel(settingsPanel, _motion);
+                }
+                if (_modalStack != null)
+                    _modalStack.Push(quitConfirmPanel);
+                else
+                    RuntimeUiBuilder.OpenPanel(quitConfirmPanel, _motion);
                 return;
             }
 
@@ -502,7 +623,10 @@ namespace PirateCrew.UI
         void CancelQuit()
         {
             RuntimeUiBuilder.ButtonFeedback(quitConfirmCancelButton, true, _motion);
-            RuntimeUiBuilder.ClosePanel(quitConfirmPanel, _motion);
+            if (_modalStack != null)
+                _modalStack.Pop(quitConfirmPanel);
+            else
+                RuntimeUiBuilder.ClosePanel(quitConfirmPanel, _motion);
         }
     }
 }

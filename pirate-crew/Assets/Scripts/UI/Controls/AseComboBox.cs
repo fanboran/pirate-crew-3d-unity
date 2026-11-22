@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace PirateCrew.UI.DebugUi
+namespace PirateCrew.UI.Controls
 {
     /// <summary>
     /// Aseprite <c>ComboBox</c> 语义移植（<c>src/ui/combobox.cpp</c> 全文 + theme.xml
@@ -79,7 +79,7 @@ namespace PirateCrew.UI.DebugUi
 
             // 词条文字（Entry::drawEntryText 按 clientBounds；combobox 样式 border = sunken2 切片 5）
             _value = UiKit.CreateText("Value", root, options[_selected], UiSkin.Font.Tiny,
-                TextAlignmentOptions.Left, PixelSkin.Theme.Text, DebugWindowKit.HandFont);
+                TextAlignmentOptions.Left, PixelSkin.Theme.Text, AseText.HandFont);
             _value.enableWordWrapping = false;
             _value.raycastTarget = false;
             RectTransform valueRect = _value.rectTransform;
@@ -152,7 +152,7 @@ namespace PirateCrew.UI.DebugUi
             if (!isActiveAndEnabled || _popup != null)   // combobox.cpp:610
                 return;
 
-            AseMenuKit.CloseAll();     // 同屏只留一层弹层（源里 m_window 唯一、开新即关旧；菜单包重写后旧 ClosePopup 并入 CloseAll）
+            AsePopupScope.CloseAll();   // 同屏只留一层浮层（源里 m_window 唯一、开新即关旧）
 
             RectTransform comboRect = (RectTransform)transform;
             RectTransform host = _popupHost as RectTransform;

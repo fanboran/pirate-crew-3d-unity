@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace PirateCrew.UI.DebugUi
+namespace PirateCrew.UI.Controls
 {
     /// <summary>
     /// 滚轮转发件（<c>listbox.cpp:258-259</c> <c>kMouseWheelMessage → View::scrollByMessage(this, msg)</c>）：
@@ -11,6 +11,13 @@ namespace PirateCrew.UI.DebugUi
     internal sealed class AseViewWheel : MonoBehaviour, IScrollHandler
     {
         AseView _view;
+
+        /// <summary>反序列化自恢复：Prefab 里字段为空时沿父链找回 AseView。</summary>
+        void Awake()
+        {
+            if (_view == null)
+                _view = GetComponentInParent<AseView>();
+        }
 
         public void Bind(AseView view)
         {

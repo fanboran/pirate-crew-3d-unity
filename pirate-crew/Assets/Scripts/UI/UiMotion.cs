@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -174,7 +174,11 @@ namespace PirateCrew.UI
                 if (group != null)
                     group.alpha = e;
                 if (rect != null)
-                    rect.anchoredPosition = basePosition + Vector2.down * (slideOffsetPixels * (1f - e));
+                {
+                    // 位移逐帧取整：像素 UI 的滑入必须走整格（分数坐标会触发纹理过滤发虚）。
+                    float offset = Mathf.Round(slideOffsetPixels * (1f - e));
+                    rect.anchoredPosition = basePosition + Vector2.down * offset;
+                }
                 yield return null;
             }
 

@@ -3,7 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-namespace PirateCrew.UI.DebugUi
+namespace PirateCrew.UI.Controls
 {
     /// <summary>
     /// Aseprite <c>ui::IntEntry</c>（<c>external/aseprite-ref/src/ui/int_entry.cpp</c> +

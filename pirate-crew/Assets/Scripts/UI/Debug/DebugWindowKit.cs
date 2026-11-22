@@ -3,6 +3,8 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+using PirateCrew.UI.Controls;
+
 namespace PirateCrew.UI.DebugUi
 {
     /// <summary>窗体变体（window.h:26 <c>Window::Type</c> 的画布内子集）。</summary>
@@ -98,8 +100,8 @@ namespace PirateCrew.UI.DebugUi
         /// 另有左邻按钮时见 <see cref="TitleReserve"/>。</summary>
         public const float TitleRightReserve = AseLayout.CloseButtonMarginRight + CloseButtonWidth;
 
-        /// <summary>调试窗标题字体（与展示页同源：FusionPixel SDF，按字号解析档）。</summary>
-        public static TMP_FontAsset HandFont => PartsGalleryPage.PixelFont();
+        /// <summary>调试窗标题字体（统一走 <see cref="AseText.HandFont"/>，与控件库同源）。</summary>
+        public static TMP_FontAsset HandFont => AseText.HandFont;
 
         /// <summary>边框件 id（theme.xml:165 "window" / :166 "menu"——源 <c>&lt;border part="…"/&gt;</c>，
         /// theme.xml:470 / 474）。</summary>
@@ -264,25 +266,15 @@ namespace PirateCrew.UI.DebugUi
             return reserve;
         }
 
-        /// <summary>文本件（UiKit.CreateText 同源：字档解析 + 顶点像素对齐；禁换行）。</summary>
+        /// <summary>文本件（委托 <see cref="AseText.Label"/>：控件库唯一实现）。</summary>
         public static TextMeshProUGUI Label(Transform parent, string content, int fontSize, Color color,
             TextAlignmentOptions align = TextAlignmentOptions.TopLeft)
-        {
-            TextMeshProUGUI text = UiKit.CreateText("Label", parent, content, fontSize, align, color, HandFont);
-            text.enableWordWrapping = false;
-            text.raycastTarget = false;
-            return text;
-        }
+            => AseText.Label(parent, content, fontSize, color, align);
 
-        /// <summary>摆一个文本件到 (x, y)（顶左锚），给足宽度。</summary>
+        /// <summary>摆一个文本件到 (x, y)（顶左锚），给足宽度（委托 <see cref="AseText.PlaceLabel"/>）。</summary>
         public static TextMeshProUGUI PlaceLabel(RectTransform parent, string content, int fontSize,
             Color color, float x, float y, float w, TextAlignmentOptions align = TextAlignmentOptions.TopLeft)
-        {
-            TextMeshProUGUI text = Label(parent, content, fontSize, color, align);
-            RectTransform rect = text.rectTransform;
-            UiKit.PlaceTopLeft(rect, x, y, new Vector2(w, fontSize + 4f));
-            return text;
-        }
+            => AseText.PlaceLabel(parent, content, fontSize, color, x, y, w, align);
 
         /// <summary>蓝字分组线（theme horizontal_separator：x=4 蓝字 + 标签右缘后起铺点线）。
         /// 推进游标 <paramref name="y"/>。</summary>

@@ -1,5 +1,6 @@
-using PirateCrew.Campaign;
+﻿using PirateCrew.Campaign;
 using PirateCrew.Settings;
+using PirateCrew.UI.Controls;
 using PirateCrew.UI.Stick;
 using TMPro;
 using UnityEngine;
@@ -142,13 +143,17 @@ namespace PirateCrew.UI
             public Button FullscreenOnButton;
             public Button FullscreenOffButton;
             public Button PixelScale2Button;
-            public Button PixelScale3Button;
-            public Button PixelScale4Button;
             public Button PixelScaleAutoButton;
             public Button ResolutionButton;
             public GameObject QuitConfirmPanel;
             public Button QuitConfirmOkButton;
             public Button QuitConfirmCancelButton;
+
+            // 分辨率切换确认（倒计时还原；图标钮：▶ 保留 / ■ 还原）。
+            public GameObject ResolutionConfirmPanel;
+            public Button ResolutionKeepButton;
+            public Button ResolutionRevertButton;
+            public Image ResolutionCountdownFill;
         }
 
         /// <summary>
@@ -232,8 +237,6 @@ namespace PirateCrew.UI
             refs.FullscreenOnButton = settings.FullscreenOnButton;
             refs.FullscreenOffButton = settings.FullscreenOffButton;
             refs.PixelScale2Button = settings.PixelScale2Button;
-            refs.PixelScale3Button = settings.PixelScale3Button;
-            refs.PixelScale4Button = settings.PixelScale4Button;
             refs.PixelScaleAutoButton = settings.PixelScaleAutoButton;
             refs.ResolutionButton = settings.ResolutionButton;
 
@@ -243,7 +246,86 @@ namespace PirateCrew.UI
             refs.QuitConfirmOkButton = quitConfirm.OkButton;
             refs.QuitConfirmCancelButton = quitConfirm.CancelButton;
 
+            // 分辨率切换确认（默认隐藏；倒计时条 + ▶/■ 图标钮，不写字）。
+            ResolutionConfirmResult resolutionConfirm = BuildResolutionConfirm(canvas);
+            refs.ResolutionConfirmPanel = resolutionConfirm.Root;
+            refs.ResolutionKeepButton = resolutionConfirm.KeepButton;
+            refs.ResolutionRevertButton = resolutionConfirm.RevertButton;
+            refs.ResolutionCountdownFill = resolutionConfirm.CountdownFill;
+
             return refs;
+        }
+
+        /// <summary>分辨率切换确认的构建产物。</summary>
+        sealed class ResolutionConfirmResult
+        {
+            public GameObject Root;
+            public Button KeepButton;
+            public Button RevertButton;
+            public Image CountdownFill;
+        }
+
+        /// <summary>分辨率切换确认（图标化，不写字）：倒计时条 15 秒走完自动还原；
+        /// ▶ = 保留新分辨率，■ = 立即还原。卡 140×56（取偶），条 116×4。</summary>
+        static ResolutionConfirmResult BuildResolutionConfirm(Transform canvas)
+        {
+            RectTransform root = UiKit.CreateRect("ResolutionConfirm", canvas);
+            UiKit.Stretch(root);
+            CreateDimOverlay(root);
+
+            RectTransform card = UiKit.CreateRect("Card", root);
+            card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
+            card.pivot = new Vector2(0.5f, 0.5f);
+            card.anchoredPosition = Vector2.zero;
+            card.sizeDelta = new Vector2(140f, 56f);
+            UiKit.EnsurePanel(card, PixelTone.Frame);
+
+            // 倒计时条：暗槽 + 金色余量（逐帧按剩余比例取整缩宽）。
+            RectTransform track = UiKit.CreateRect("Countdown", card);
+            UiKit.SetAnchored(track, new Vector2(0.5f, 1f), new Vector2(116f, 4f), new Vector2(0f, -14f));
+            var trackImage = track.gameObject.AddComponent<Image>();
+            trackImage.color = PixelSkin.Theme.Disabled;
+            trackImage.raycastTarget = false;
+
+            RectTransform fill = UiKit.CreateRect("Fill", track);
+            fill.anchorMin = new Vector2(0f, 0f);
+            fill.anchorMax = new Vector2(0f, 1f);
+            fill.pivot = new Vector2(0f, 0.5f);
+            fill.anchoredPosition = Vector2.zero;
+            fill.sizeDelta = new Vector2(116f, 0f);
+            var fillImage = fill.gameObject.AddComponent<Image>();
+            fillImage.color = PixelSkin.Theme.Selected;
+            fillImage.raycastTarget = false;
+
+            Button keep = CreateIconButton("ResolutionKeepButton", card,
+                PixelSkin.WindowIconSprite(PixelSkin.WindowIcon.Play), new Vector2(-28f, -8f));
+            Button revert = CreateIconButton("ResolutionRevertButton", card,
+                PixelSkin.WindowIconSprite(PixelSkin.WindowIcon.Stop), new Vector2(28f, -8f));
+
+            root.gameObject.SetActive(false);
+
+            return new ResolutionConfirmResult
+            {
+                Root = root.gameObject,
+                KeepButton = keep,
+                RevertButton = revert,
+                CountdownFill = fillImage,
+            };
+        }
+
+        /// <summary>图标按钮：无文字 sketch 钮 + 居中窗口图标件（图标不接射线）。</summary>
+        static Button CreateIconButton(string name, Transform parent, Sprite icon, Vector2 position)
+        {
+            SketchButton button = CreateSketchButton(name, parent, string.Empty,
+                new Vector2(0.5f, 0.5f), position, new Vector2(24f, 24f), BodyFont);
+
+            RectTransform iconRect = UiKit.CreateRect("Icon", button.transform);
+            Vector2 iconSize = icon != null ? icon.rect.size : new Vector2(9f, 11f);
+            UiKit.SetAnchored(iconRect, new Vector2(0.5f, 0.5f), iconSize, Vector2.zero);
+            var image = iconRect.gameObject.AddComponent<Image>();
+            image.sprite = icon;
+            image.raycastTarget = false;
+            return button;
         }
 
         /// <summary>主菜单窗体按钮列的按钮：LayoutElement 声明高 24（参考库 OK 钮），
@@ -278,8 +360,6 @@ namespace PirateCrew.UI
             public Button FullscreenOnButton;
             public Button FullscreenOffButton;
             public Button PixelScale2Button;
-            public Button PixelScale3Button;
-            public Button PixelScale4Button;
             public Button PixelScaleAutoButton;
             public Button ResolutionButton;
         }
@@ -338,16 +418,15 @@ namespace PirateCrew.UI
             BuildSettingsRow(rows, 5, UiStrings.SettingsFieldWindowMode, hand,
                 out result.FullscreenOnButton, out result.FullscreenOffButton,
                 UiStrings.SettingsOptionFullscreen, UiStrings.SettingsOptionWindowed);
-            BuildSettingsRowN(rows, 6, UiStrings.SettingsFieldPixelScale, hand,
-                out result.PixelScale2Button, out result.PixelScale3Button,
-                out result.PixelScale4Button, out result.PixelScaleAutoButton,
-                UiStrings.SettingsOptionPixelScale2, UiStrings.SettingsOptionPixelScale3,
-                UiStrings.SettingsOptionPixelScale4, UiStrings.SettingsOptionPixelScaleAuto);
+            // 手动档只保留 2×：3×/4× 会把画布缩到设置卡装不下；大屏由自动档解析。
+            BuildSettingsRow(rows, 6, UiStrings.SettingsFieldPixelScale, hand,
+                out result.PixelScale2Button, out result.PixelScaleAutoButton,
+                UiStrings.SettingsOptionPixelScale2, UiStrings.SettingsOptionPixelScaleAuto);
             result.ResolutionButton = BuildResolutionRow(rows, 7, UiStrings.SettingsFieldResolution, hand);
 
-            // 提示：角标档 + theme status_bar_text 灰，放底部通带（行区底 67 与按钮行之间）。
+            // 提示：角标档 + 三级提示字（HintText，压窗底 ≥4.5:1），放底部通带。
             TextMeshProUGUI note = CreateTextExact("SaveHint", panel, UiStrings.SettingsSaveHint,
-                UiSkin.Font.Tiny, TextAlignmentOptions.Center, PixelSkin.Theme.StatusText, hand);
+                UiSkin.Font.Tiny, TextAlignmentOptions.Center, UiSkin.HintText, hand);
             RuntimeUiBuilder.SetAnchored(note.rectTransform, new Vector2(0.5f, 0f), new Vector2(394f, 12f),
                 new Vector2(0f, 54f));
 
@@ -473,10 +552,13 @@ namespace PirateCrew.UI
             RuntimeUiBuilder.SetAnchored(fieldLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 15f),
                 new Vector2(8f, 0f));
 
+            // 轴心固定为中心（CreateSketchButton 口径）：右锚位必须再让半个钮宽，
+            // 否则宽按钮会以右缘为心、半个身子戳出窗体（实拍「跟随系统」出界）。
+            Vector2 buttonSize = ButtonSize(UiStrings.SettingsOptionResolutionPlaceholder);
             return CreateSketchButton("ResolutionButton", row,
                 UiStrings.SettingsOptionResolutionPlaceholder,
-                new Vector2(1f, 0.5f), new Vector2(-6f, 0f),
-                ButtonSize(UiStrings.SettingsOptionResolutionPlaceholder), BodyFont);
+                new Vector2(1f, 0.5f), new Vector2(-6f - buttonSize.x * 0.5f, 0f),
+                buttonSize, BodyFont);
         }
 
         /// <summary>建**蓝字分组线**行（theme horizontal_separator 复刻：线从标签右缘之后起铺，
@@ -590,7 +672,7 @@ namespace PirateCrew.UI
                 UiStrings.CrewRosterTitle, titleFont);
 
             TextMeshProUGUI status = RuntimeUiBuilder.CreateText("StatusText", canvas, string.Empty,
-                UiSkin.Font.Hint, TextAlignmentOptions.Center, PixelSkin.Theme.TabNormalText, secondaryFont);
+                UiSkin.Font.Hint, TextAlignmentOptions.Center, UiSkin.HintText, secondaryFont);
             RuntimeUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 152f));
 
@@ -672,12 +754,12 @@ namespace PirateCrew.UI
             // 出战加载说明 + 状态提示（y 让位加高后的列表窗体，三者互不叠印）。
             TextMeshProUGUI hint = RuntimeUiBuilder.CreateText("FixedArenaHint", canvas,
                 UiStrings.LevelStatusFixedArena, UiSkin.Font.Hint, TextAlignmentOptions.Center,
-                PixelSkin.Theme.TabNormalText, secondaryFont);
+                UiSkin.HintText, secondaryFont);
             RuntimeUiBuilder.SetAnchored(hint.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 90f));
 
             TextMeshProUGUI status = RuntimeUiBuilder.CreateText("StatusText", canvas, string.Empty,
-                UiSkin.Font.Hint, TextAlignmentOptions.Center, PixelSkin.Theme.TabNormalText, secondaryFont);
+                UiSkin.Font.Hint, TextAlignmentOptions.Center, UiSkin.HintText, secondaryFont);
             RuntimeUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 40f));
 
@@ -779,7 +861,7 @@ namespace PirateCrew.UI
 
             TextMeshProUGUI rule = RuntimeUiBuilder.CreateText("StarRuleText", card,
                 UiStrings.SettlementStarRuleHint, UiSkin.Font.Hint, TextAlignmentOptions.Center,
-                PixelSkin.Theme.StatusText, secondaryFont);
+                UiSkin.HintText, secondaryFont);
             RuntimeUiBuilder.SetAnchored(rule.rectTransform, new Vector2(0.5f, 1f), new Vector2(840f, 36f),
                 new Vector2(0f, -596f));
             refs.StarRuleText = rule;
@@ -839,38 +921,25 @@ namespace PirateCrew.UI
             return rect;
         }
 
-        /// <summary>给列表窗体加内层滚动内容区（theme view 复刻：sunken 凹槽皮 + view border
-        /// padding + 行缝 1 设计格）。返回控制器应接线的容器。</summary>
+        /// <summary>给列表窗体加内层滚动内容区（theme view 复刻：view 皮 + 按需滚动条；
+        /// 行缝 1 设计格）。返回控制器应接线的行容器。</summary>
         static RectTransform AddListContent(RectTransform listPanel)
         {
-            RectTransform content = RuntimeUiBuilder.CreateRect("ListContent", listPanel);
-            content.anchorMin = Vector2.zero;
-            content.anchorMax = Vector2.one;
-            content.pivot = new Vector2(0.5f, 0.5f);
+            RectTransform viewRect = UiKit.CreateRect("ListScroll", listPanel);
+            viewRect.anchorMin = Vector2.zero;
+            viewRect.anchorMax = Vector2.one;
+            viewRect.pivot = new Vector2(0.5f, 0.5f);
             // 窗体内容区：theme window_with_title border=6；顶 = 实际内容顶（标题字大时 > 17）。
-            content.offsetMin = new Vector2(
+            viewRect.offsetMin = new Vector2(
                 AseLayout.Px(AseLayout.WindowBorder), AseLayout.Px(AseLayout.WindowBorder));
-            content.offsetMax = new Vector2(
+            viewRect.offsetMax = new Vector2(
                 -AseLayout.Px(AseLayout.WindowBorder),
                 -AseLayout.Px(UiKit.WindowContentTopOf(listPanel)));
 
-            var view = content.gameObject.AddComponent<Image>();
-            view.sprite = PixelSkin.Sunken(false);
-            view.type = Image.Type.Sliced;
-            view.color = Color.white;   // 像素件禁止乘色
-            view.raycastTarget = false;
-
-            var group = content.gameObject.AddComponent<VerticalLayoutGroup>();
-            group.childAlignment = TextAnchor.UpperCenter;
-            group.childControlWidth = true;
-            group.childControlHeight = true;
-            group.childForceExpandWidth = false;
-            group.childForceExpandHeight = false;
-            group.spacing = AseLayout.Px(1);
-            group.padding = new RectOffset(
-                (int)AseLayout.Px(AseLayout.ViewBorder), (int)AseLayout.Px(AseLayout.ViewBorder),
-                (int)AseLayout.Px(AseLayout.ViewBorderTop), (int)AseLayout.Px(AseLayout.ViewBorder));
-            return content;
+            // 滚动内核（AseView：内容超高才出条，条挤窄视口）由 UiScrollList 整装；
+            // 行容器 = 视口里的 Content，行增删后本件自动量高刷新。
+            UiScrollList list = UiScrollList.Attach(viewRect);
+            return list.Content;
         }
 
         /// <summary>底部按钮行间隙：theme button 左右切片各 4 设计格相加 = 8。</summary>
