@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
@@ -90,6 +90,7 @@ namespace PirateCrew.UI
         {
             _motion = gameObject.AddComponent<UiMotion>();
             _modalStack = UiModalStack.Ensure(transform.parent != null ? transform.parent : transform, _motion);
+            UiKeyboardFocus.Ensure(transform.parent != null ? transform.parent : transform, _modalStack);
 
             if (crewButton != null)
                 crewButton.onClick.AddListener(OnCrewClicked);

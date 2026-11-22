@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using PirateCrew.Core;
 
 namespace PirateCrew.Settings
@@ -7,8 +7,9 @@ namespace PirateCrew.Settings
     /// 像素比例档的纯键值层（设置槽 9，与音频/视频设置读改写共存）。
     ///
     /// 【档语义】"1 艺术像素 = N 屏幕像素"：UI 画布（CanvasScaler.scaleFactor）与像素化渲染
-    /// rig（RT = 屏幕 ÷ N）同走一档。域 = {自动, 2, 3, 4}——渲染侧相机行为契约钉死滚轮域
-    /// 1:2–1:5，本档取其子集 [2,4]，1×（关像素化）不是本档的事。
+    /// rig（RT = 屏幕 ÷ N）同走一档。**玩家可选域 = {自动, 2}**——自动档按屏幕高解析
+    /// （1080p→2、1620p→3、2160p→4），手动只保留 2×：UI 面板按 960×540 设计，
+    /// 手动 3×/4× 会把画布缩到面板装不下（设置卡 384 高 > 画布 360/270）。
     ///
     /// 【纯/脏分层】读写只碰 <see cref="SaveData"/> 键值，不碰引擎（同 VideoSettingsStore）；
     /// 应用与落盘时机在 <c>PixelScaleService</c>（运行时）。
@@ -21,7 +22,7 @@ namespace PirateCrew.Settings
         /// <summary>槽位显示名（与视频设置同名——同一份数据的两个写入方）。</summary>
         public const string SettingsDisplayName = "视频设置";
 
-        /// <summary>比例键（值 "auto" / "2" / "3" / "4"）。</summary>
+        /// <summary>比例键（值 "auto" / "2"；旧档 "3"/"4" 读入时归一到 2）。</summary>
         public const string ScaleKey = "video.pixelScale";
 
         /// <summary>档位值：自动（按屏幕高 ÷ 参考画布高取最大整数倍）。</summary>
@@ -41,15 +42,22 @@ namespace PirateCrew.Settings
         /// <summary>参考画布高（960×540）：自动档换算基准（屏幕高 ÷ 本值 = 整数倍数）。</summary>
         public const int ReferenceCanvasHeight = 540;
 
-        /// <summary>把当前档写入存档数据（纯函数，不落盘）。</summary>
+        /// <summary>玩家可选档：自动，或默认的 2×（3×/4× 只由自动档在大屏解析）。</summary>
+        public static bool IsSelectable(int scaleIndex)
+        {
+            return scaleIndex == ScaleAuto || scaleIndex == ScaleDefault;
+        }
+
+        /// <summary>把当前档写入存档数据（纯函数，不落盘）。非可选档归一到默认 2×。</summary>
         public static void WriteTo(SaveData data, int scaleIndex)
         {
             if (data == null)
                 return;
 
-            data.SetData(ScaleKey, scaleIndex == ScaleAuto
+            int value = IsSelectable(scaleIndex) ? scaleIndex : ScaleDefault;
+            data.SetData(ScaleKey, value == ScaleAuto
                 ? "auto"
-                : scaleIndex.ToString(CultureInfo.InvariantCulture));
+                : value.ToString(CultureInfo.InvariantCulture));
         }
 
         /// <summary>
@@ -74,7 +82,8 @@ namespace PirateCrew.Settings
             if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed)
                 && parsed >= ScaleMin && parsed <= ScaleMax)
             {
-                scaleIndex = parsed;
+                // 旧档的 3/4 归一为默认 2×（手动档已退役）；1/5 等越界值仍视为非法。
+                scaleIndex = IsSelectable(parsed) ? parsed : ScaleDefault;
                 return true;
             }
 
@@ -98,10 +107,12 @@ namespace PirateCrew.Settings
             return unit;
         }
 
-        /// <summary>把档解析成整数倍（自动档按给定屏幕高换算；固定档原样返回）。纯函数。</summary>
+        /// <summary>把档解析成整数倍（自动档按给定屏幕高换算；非可选固定档回落 2×）。纯函数。</summary>
         public static int ResolveUnit(int scaleIndex, int screenHeight)
         {
-            return scaleIndex == ScaleAuto ? AutoUnit(screenHeight) : scaleIndex;
+            if (scaleIndex == ScaleAuto)
+                return AutoUnit(screenHeight);
+            return IsSelectable(scaleIndex) ? scaleIndex : ScaleDefault;
         }
     }
 }

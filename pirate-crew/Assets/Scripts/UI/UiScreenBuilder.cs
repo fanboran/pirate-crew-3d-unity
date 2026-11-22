@@ -1,4 +1,4 @@
-using PirateCrew.Campaign;
+﻿using PirateCrew.Campaign;
 using PirateCrew.Settings;
 using PirateCrew.UI.Controls;
 using PirateCrew.UI.Stick;
@@ -143,8 +143,6 @@ namespace PirateCrew.UI
             public Button FullscreenOnButton;
             public Button FullscreenOffButton;
             public Button PixelScale2Button;
-            public Button PixelScale3Button;
-            public Button PixelScale4Button;
             public Button PixelScaleAutoButton;
             public Button ResolutionButton;
             public GameObject QuitConfirmPanel;
@@ -233,8 +231,6 @@ namespace PirateCrew.UI
             refs.FullscreenOnButton = settings.FullscreenOnButton;
             refs.FullscreenOffButton = settings.FullscreenOffButton;
             refs.PixelScale2Button = settings.PixelScale2Button;
-            refs.PixelScale3Button = settings.PixelScale3Button;
-            refs.PixelScale4Button = settings.PixelScale4Button;
             refs.PixelScaleAutoButton = settings.PixelScaleAutoButton;
             refs.ResolutionButton = settings.ResolutionButton;
 
@@ -279,8 +275,6 @@ namespace PirateCrew.UI
             public Button FullscreenOnButton;
             public Button FullscreenOffButton;
             public Button PixelScale2Button;
-            public Button PixelScale3Button;
-            public Button PixelScale4Button;
             public Button PixelScaleAutoButton;
             public Button ResolutionButton;
         }
@@ -339,16 +333,15 @@ namespace PirateCrew.UI
             BuildSettingsRow(rows, 5, UiStrings.SettingsFieldWindowMode, hand,
                 out result.FullscreenOnButton, out result.FullscreenOffButton,
                 UiStrings.SettingsOptionFullscreen, UiStrings.SettingsOptionWindowed);
-            BuildSettingsRowN(rows, 6, UiStrings.SettingsFieldPixelScale, hand,
-                out result.PixelScale2Button, out result.PixelScale3Button,
-                out result.PixelScale4Button, out result.PixelScaleAutoButton,
-                UiStrings.SettingsOptionPixelScale2, UiStrings.SettingsOptionPixelScale3,
-                UiStrings.SettingsOptionPixelScale4, UiStrings.SettingsOptionPixelScaleAuto);
+            // 手动档只保留 2×：3×/4× 会把画布缩到设置卡装不下；大屏由自动档解析。
+            BuildSettingsRow(rows, 6, UiStrings.SettingsFieldPixelScale, hand,
+                out result.PixelScale2Button, out result.PixelScaleAutoButton,
+                UiStrings.SettingsOptionPixelScale2, UiStrings.SettingsOptionPixelScaleAuto);
             result.ResolutionButton = BuildResolutionRow(rows, 7, UiStrings.SettingsFieldResolution, hand);
 
-            // 提示：角标档 + theme status_bar_text 灰，放底部通带（行区底 67 与按钮行之间）。
+            // 提示：角标档 + 三级提示字（HintText，压窗底 ≥4.5:1），放底部通带。
             TextMeshProUGUI note = CreateTextExact("SaveHint", panel, UiStrings.SettingsSaveHint,
-                UiSkin.Font.Tiny, TextAlignmentOptions.Center, PixelSkin.Theme.StatusText, hand);
+                UiSkin.Font.Tiny, TextAlignmentOptions.Center, UiSkin.HintText, hand);
             RuntimeUiBuilder.SetAnchored(note.rectTransform, new Vector2(0.5f, 0f), new Vector2(394f, 12f),
                 new Vector2(0f, 54f));
 
@@ -594,7 +587,7 @@ namespace PirateCrew.UI
                 UiStrings.CrewRosterTitle, titleFont);
 
             TextMeshProUGUI status = RuntimeUiBuilder.CreateText("StatusText", canvas, string.Empty,
-                UiSkin.Font.Hint, TextAlignmentOptions.Center, PixelSkin.Theme.TabNormalText, secondaryFont);
+                UiSkin.Font.Hint, TextAlignmentOptions.Center, UiSkin.HintText, secondaryFont);
             RuntimeUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 152f));
 
@@ -676,12 +669,12 @@ namespace PirateCrew.UI
             // 出战加载说明 + 状态提示（y 让位加高后的列表窗体，三者互不叠印）。
             TextMeshProUGUI hint = RuntimeUiBuilder.CreateText("FixedArenaHint", canvas,
                 UiStrings.LevelStatusFixedArena, UiSkin.Font.Hint, TextAlignmentOptions.Center,
-                PixelSkin.Theme.TabNormalText, secondaryFont);
+                UiSkin.HintText, secondaryFont);
             RuntimeUiBuilder.SetAnchored(hint.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 90f));
 
             TextMeshProUGUI status = RuntimeUiBuilder.CreateText("StatusText", canvas, string.Empty,
-                UiSkin.Font.Hint, TextAlignmentOptions.Center, PixelSkin.Theme.TabNormalText, secondaryFont);
+                UiSkin.Font.Hint, TextAlignmentOptions.Center, UiSkin.HintText, secondaryFont);
             RuntimeUiBuilder.SetAnchored(status.rectTransform, BottomCenterAnchor, new Vector2(567f, 12f),
                 new Vector2(0f, 40f));
 
@@ -783,7 +776,7 @@ namespace PirateCrew.UI
 
             TextMeshProUGUI rule = RuntimeUiBuilder.CreateText("StarRuleText", card,
                 UiStrings.SettlementStarRuleHint, UiSkin.Font.Hint, TextAlignmentOptions.Center,
-                PixelSkin.Theme.StatusText, secondaryFont);
+                UiSkin.HintText, secondaryFont);
             RuntimeUiBuilder.SetAnchored(rule.rectTransform, new Vector2(0.5f, 1f), new Vector2(840f, 36f),
                 new Vector2(0f, -596f));
             refs.StarRuleText = rule;

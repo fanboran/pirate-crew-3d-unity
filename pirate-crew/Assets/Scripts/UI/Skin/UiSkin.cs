@@ -1,4 +1,4 @@
-using PirateCrew.Data;
+﻿using PirateCrew.Data;
 using UnityEngine;
 
 namespace PirateCrew.UI
@@ -26,6 +26,11 @@ namespace PirateCrew.UI
 
         /// <summary>阵亡单位 pip / 死亡标识（骨灰 #6E6A60；压暗底 3.8:1——非文字图形 ≥3:1）。</summary>
         public static readonly Color DeadGray = Rgb(0x6E, 0x6A, 0x60);
+
+        /// <summary>三级提示/状态文字（画布底/窗体底）。theme <c>tab_normal_text</c> #7D7D7D
+        /// 压窗底只有 3.38:1，不满足本项目「文字对底 ≥4.5」判据；提亮到 #94979D
+        /// （窗底 #2C2C30 4.75:1）。**只用于窗底/画布底**——行底 #41444A 上仍不足。</summary>
+        public static readonly Color HintText = Rgb(0x94, 0x97, 0x9D);
 
         // ---- 队色 / 队名文字（pirate 玩法语义色，不随 P1 令牌接管换血；收编 BattleHud 的两份写死色） ----
 

@@ -49,10 +49,8 @@ namespace PirateCrew.UI
         [SerializeField] Button fullscreenOffButton;
 
         [Header("像素比例与分辨率（真接线）")]
-        [Tooltip("像素比例四档选项块；真源 PixelScaleService（UI 画布与像素化渲染同档）。")]
+        [Tooltip("像素比例两档（2×/自动）；真源 PixelScaleService（UI 画布与像素化渲染同档）。")]
         [SerializeField] Button pixelScale2Button;
-        [SerializeField] Button pixelScale3Button;
-        [SerializeField] Button pixelScale4Button;
         [SerializeField] Button pixelScaleAutoButton;
         [Tooltip("分辨率循环钮：点击在 跟随系统 → 各可选分辨率 间循环；真源 VideoSettingsService。")]
         [SerializeField] Button resolutionButton;
@@ -94,8 +92,6 @@ namespace PirateCrew.UI
             fullscreenOnButton = refs.FullscreenOnButton;
             fullscreenOffButton = refs.FullscreenOffButton;
             pixelScale2Button = refs.PixelScale2Button;
-            pixelScale3Button = refs.PixelScale3Button;
-            pixelScale4Button = refs.PixelScale4Button;
             pixelScaleAutoButton = refs.PixelScaleAutoButton;
             resolutionButton = refs.ResolutionButton;
             quitConfirmPanel = refs.QuitConfirmPanel;
@@ -107,6 +103,7 @@ namespace PirateCrew.UI
         {
             _motion = gameObject.AddComponent<UiMotion>();
             _modalStack = UiModalStack.Ensure(transform.parent != null ? transform.parent : transform, _motion);
+            UiKeyboardFocus.Ensure(transform.parent != null ? transform.parent : transform, _modalStack);
 
             // 主菜单窗体可拖动（创始人 2026-09-25：按住标题带拖——Aseprite 窗口感）。
             Transform menuWindow = transform.parent != null ? transform.parent.Find("MenuWindow") : null;
@@ -172,18 +169,6 @@ namespace PirateCrew.UI
                 {
                     RuntimeUiBuilder.ButtonFeedback(pixelScale2Button, true, _motion);
                     SetPixelScale(2);
-                });
-            if (pixelScale3Button != null)
-                pixelScale3Button.onClick.AddListener(() =>
-                {
-                    RuntimeUiBuilder.ButtonFeedback(pixelScale3Button, true, _motion);
-                    SetPixelScale(3);
-                });
-            if (pixelScale4Button != null)
-                pixelScale4Button.onClick.AddListener(() =>
-                {
-                    RuntimeUiBuilder.ButtonFeedback(pixelScale4Button, true, _motion);
-                    SetPixelScale(4);
                 });
             if (pixelScaleAutoButton != null)
                 pixelScaleAutoButton.onClick.AddListener(() =>
@@ -444,10 +429,8 @@ namespace PirateCrew.UI
             SetChipSelected(fullscreenOnButton, fullscreen);
             SetChipSelected(fullscreenOffButton, !fullscreen);
 
-            // 像素比例四档（真源 PixelScaleService；档位含义见 PixelScaleStore）。
-            SetChipSelected(pixelScale2Button, PixelScaleService.ScaleIndex == 2);
-            SetChipSelected(pixelScale3Button, PixelScaleService.ScaleIndex == 3);
-            SetChipSelected(pixelScale4Button, PixelScaleService.ScaleIndex == 4);
+            // 像素比例两档（真源 PixelScaleService；3×/4× 只由自动档在大屏解析）。
+            SetChipSelected(pixelScale2Button, PixelScaleService.ScaleIndex == PixelScaleStore.ScaleDefault);
             SetChipSelected(pixelScaleAutoButton, PixelScaleService.ScaleIndex == PixelScaleStore.ScaleAuto);
 
             // 分辨率循环钮：标签 = 当前选择（锁定值优先取服务真值，未走服务的刷新路径回落本地记录）。

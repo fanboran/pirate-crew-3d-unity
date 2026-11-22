@@ -1,4 +1,4 @@
-using PirateCrew.Campaign;
+﻿using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.CrewManagement;
 using TMPro;
@@ -61,6 +61,7 @@ namespace PirateCrew.UI
         void Awake()
         {
             _motion = gameObject.AddComponent<UiMotion>();
+            UiKeyboardFocus.Ensure(transform.parent != null ? transform.parent : transform, null);
 
             if (levelSelectButton != null)
                 levelSelectButton.onClick.AddListener(OnLevelSelectClicked);

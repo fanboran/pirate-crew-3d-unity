@@ -1,4 +1,4 @@
-namespace PirateCrew.UI
+﻿namespace PirateCrew.UI
 {
     /// <summary>
     /// 全界面中文文案表（**唯一来源**）。
@@ -369,12 +369,6 @@ namespace PirateCrew.UI
 
         /// <summary>设置项：像素比例 2×（1080p → 960×540，默认档）。</summary>
         public const string SettingsOptionPixelScale2 = "2×";
-
-        /// <summary>设置项：像素比例 3×。</summary>
-        public const string SettingsOptionPixelScale3 = "3×";
-
-        /// <summary>设置项：像素比例 4×。</summary>
-        public const string SettingsOptionPixelScale4 = "4×";
 
         /// <summary>设置项：像素比例自动（按屏幕高 ÷ 参考画布高取最大整数倍）。</summary>
         public const string SettingsOptionPixelScaleAuto = "自动";

@@ -1,5 +1,7 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace PirateCrew.UI
 {
@@ -23,6 +25,8 @@ namespace PirateCrew.UI
             public RectTransform Card;
             public System.Action OnEsc;
             public System.Action OnClosed;
+            /// <summary>压栈前的 EventSystem 选中对象（出栈时恢复；防焦点丢在已隐藏的按钮上）。</summary>
+            public GameObject PreviousSelection;
         }
 
         readonly List<Entry> _stack = new List<Entry>();
@@ -66,9 +70,22 @@ namespace PirateCrew.UI
                     return;   // 已在栈中，不重复压
             }
 
-            _stack.Add(new Entry { Root = root, Card = card, OnEsc = onEsc, OnClosed = onClosed });
+            _stack.Add(new Entry
+            {
+                Root = root,
+                Card = card,
+                OnEsc = onEsc,
+                OnClosed = onClosed,
+                PreviousSelection = EventSystem.current != null
+                    ? EventSystem.current.currentSelectedGameObject
+                    : null,
+            });
             root.transform.SetAsLastSibling();
             RuntimeUiBuilder.OpenPanel(root, _motion);
+
+            // 清掉下层焦点：遮罩挡住指针，但键盘 Submit（Enter）仍会发给选中按钮。
+            if (EventSystem.current != null)
+                EventSystem.current.SetSelectedGameObject(null);
         }
 
         /// <summary>关闭栈顶模态。</summary>
@@ -117,6 +134,17 @@ namespace PirateCrew.UI
             if (entry.Root != null)
                 RuntimeUiBuilder.ClosePanel(entry.Root, _motion);
             entry.OnClosed?.Invoke();
+
+            // 焦点恢复：原触发按钮仍可用则回焦；否则留空（下一帧由 UI 自行决定初始焦点）。
+            if (EventSystem.current == null)
+                return;
+            GameObject previous = entry.PreviousSelection;
+            Selectable selectable = previous != null ? previous.GetComponent<Selectable>() : null;
+            EventSystem.current.SetSelectedGameObject(
+                previous != null && previous.activeInHierarchy
+                && selectable != null && selectable.IsInteractable()
+                    ? previous
+                    : null);
         }
 
         void Update()

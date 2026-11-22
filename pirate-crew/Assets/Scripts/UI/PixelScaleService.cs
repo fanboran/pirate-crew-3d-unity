@@ -1,4 +1,4 @@
-using PirateCrew.Core;
+﻿using PirateCrew.Core;
 using PirateCrew.Settings;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -59,11 +59,8 @@ namespace PirateCrew.UI
         /// </summary>
         public static bool SetScale(int scaleIndex)
         {
-            if (scaleIndex != PixelScaleStore.ScaleAuto
-                && (scaleIndex < PixelScaleStore.ScaleMin || scaleIndex > PixelScaleStore.ScaleMax))
-            {
-                return false;
-            }
+            if (!PixelScaleStore.IsSelectable(scaleIndex))
+                return false;   // 手动档只剩 2×；3×/4× 只由自动档在大屏解析
 
             if (ScaleIndex == scaleIndex)
                 return true;

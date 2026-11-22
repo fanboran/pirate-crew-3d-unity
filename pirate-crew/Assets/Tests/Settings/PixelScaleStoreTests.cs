@@ -1,4 +1,4 @@
-using PirateCrew.Core;
+﻿using PirateCrew.Core;
 using PirateCrew.Settings;
 using NUnit.Framework;
 
@@ -18,17 +18,48 @@ namespace PirateCrew.Tests.Settings
         }
 
         [Test]
-        public void WriteThenRead_RoundTrips_FixedScales()
+        public void WriteThenRead_RoundTrips_SelectableScales()
         {
-            foreach (int scale in new[] { 2, 3, 4 })
+            foreach (int scale in new[] { 2, PixelScaleStore.ScaleAuto })
             {
                 var data = new SaveData();
                 PixelScaleStore.WriteTo(data, scale);
 
                 int index = PixelScaleStore.ScaleDefault;
                 Assert.IsTrue(PixelScaleStore.TryReadFrom(data, ref index));
-                Assert.AreEqual(scale, index, "固定档 {0}× 往返应一致", scale);
+                Assert.AreEqual(scale, index, "可选档 {0} 往返应一致", scale);
             }
+        }
+
+        [Test]
+        public void LegacyFixedScales_NormalizeToDefault()
+        {
+            // 手动 3×/4× 已退役：旧档读入归一为 2×，写回也写 2×。
+            foreach (int legacy in new[] { 3, 4 })
+            {
+                var data = new SaveData();
+                data.SetData(PixelScaleStore.ScaleKey, legacy.ToString());
+
+                int index = PixelScaleStore.ScaleDefault;
+                Assert.IsTrue(PixelScaleStore.TryReadFrom(data, ref index));
+                Assert.AreEqual(PixelScaleStore.ScaleDefault, index, "旧档 {0}× 应归一为 2×", legacy);
+
+                var rewritten = new SaveData();
+                PixelScaleStore.WriteTo(rewritten, legacy);
+                int readBack = PixelScaleStore.ScaleDefault;
+                Assert.IsTrue(PixelScaleStore.TryReadFrom(rewritten, ref readBack));
+                Assert.AreEqual(PixelScaleStore.ScaleDefault, readBack);
+            }
+        }
+
+        [Test]
+        public void IsSelectable_OnlyAutoAndDefault()
+        {
+            Assert.IsTrue(PixelScaleStore.IsSelectable(PixelScaleStore.ScaleAuto));
+            Assert.IsTrue(PixelScaleStore.IsSelectable(PixelScaleStore.ScaleDefault));
+            Assert.IsFalse(PixelScaleStore.IsSelectable(3));
+            Assert.IsFalse(PixelScaleStore.IsSelectable(4));
+            Assert.IsFalse(PixelScaleStore.IsSelectable(1));
         }
 
         [Test]
@@ -45,9 +76,9 @@ namespace PirateCrew.Tests.Settings
         [Test]
         public void Read_EmptyData_ReturnsFalseAndKeepsOriginal()
         {
-            int index = 3;
+            int index = PixelScaleStore.ScaleDefault;
             Assert.IsFalse(PixelScaleStore.TryReadFrom(new SaveData(), ref index));
-            Assert.AreEqual(3, index, "旧档/首启没有比例键，应保持原值（=出厂档 2 的调用方语义）。");
+            Assert.AreEqual(PixelScaleStore.ScaleDefault, index, "旧档/首启没有比例键，应保持原值。");
         }
 
         [Test]
@@ -81,9 +112,11 @@ namespace PirateCrew.Tests.Settings
         }
 
         [Test]
-        public void ResolveUnit_FixedPassesThrough_AutoComputes()
+        public void ResolveUnit_SelectablePassesThrough_LegacyFallsBack_AutoComputes()
         {
-            Assert.AreEqual(3, PixelScaleStore.ResolveUnit(3, 1080));
+            Assert.AreEqual(2, PixelScaleStore.ResolveUnit(2, 1080));
+            Assert.AreEqual(2, PixelScaleStore.ResolveUnit(3, 1080), "退役的固定 3× 回落 2×");
+            Assert.AreEqual(2, PixelScaleStore.ResolveUnit(4, 1080), "退役的固定 4× 回落 2×");
             Assert.AreEqual(2, PixelScaleStore.ResolveUnit(PixelScaleStore.ScaleAuto, 1080));
             Assert.AreEqual(4, PixelScaleStore.ResolveUnit(PixelScaleStore.ScaleAuto, 2160));
         }
@@ -103,7 +136,7 @@ namespace PirateCrew.Tests.Settings
 
             int index = PixelScaleStore.ScaleDefault;
             Assert.IsTrue(PixelScaleStore.TryReadFrom(shared, ref index));
-            Assert.AreEqual(3, index, "视频键写入不得抹掉比例键");
+            Assert.AreEqual(PixelScaleStore.ScaleDefault, index, "视频键写入不得抹掉比例键；旧档 3× 归一 2×");
         }
     }
 }
