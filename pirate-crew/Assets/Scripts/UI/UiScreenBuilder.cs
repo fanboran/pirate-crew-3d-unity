@@ -474,10 +474,13 @@ namespace PirateCrew.UI
             RuntimeUiBuilder.SetAnchored(fieldLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(120f, 15f),
                 new Vector2(8f, 0f));
 
+            // 轴心固定为中心（CreateSketchButton 口径）：右锚位必须再让半个钮宽，
+            // 否则宽按钮会以右缘为心、半个身子戳出窗体（实拍「跟随系统」出界）。
+            Vector2 buttonSize = ButtonSize(UiStrings.SettingsOptionResolutionPlaceholder);
             return CreateSketchButton("ResolutionButton", row,
                 UiStrings.SettingsOptionResolutionPlaceholder,
-                new Vector2(1f, 0.5f), new Vector2(-6f, 0f),
-                ButtonSize(UiStrings.SettingsOptionResolutionPlaceholder), BodyFont);
+                new Vector2(1f, 0.5f), new Vector2(-6f - buttonSize.x * 0.5f, 0f),
+                buttonSize, BodyFont);
         }
 
         /// <summary>建**蓝字分组线**行（theme horizontal_separator 复刻：线从标签右缘之后起铺，
