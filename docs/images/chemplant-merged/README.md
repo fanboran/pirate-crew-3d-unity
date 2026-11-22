@@ -3,8 +3,8 @@
 > 产物来源：`tools/blender/scene/chemplant/assemble_chemplant_merged.py`
 > （Blender 无头，复用两套化工厂 kit 的构件）；复现命令与坐标口径见该脚本头注释与
 > [chemplant README](../../../tools/blender/scene/chemplant/README.md)。
-> 实测：**31 节点 / 约 46 万三角面 / 可玩区 96 × 68 m / 总范围约 169 × 128 m**；
-> FBX = `pirate-crew/Assets/Art/Models/SceneKit/ChemPlantMerged.fbx`（约 8.3 MB）。
+> 实测：**31 节点 / 约 55 万三角面 / 可玩区 96 × 68 m / 总范围约 169 × 128 m**；
+> FBX = `pirate-crew/Assets/Art/Models/SceneKit/ChemPlantMerged.fbx`（约 11.8 MB）。
 
 ## 一、成品图（1440×900，Cycles 32 采样，Standard 视图变换，曝光 −0.35 EV）
 
@@ -52,7 +52,8 @@
 （装配器 `PixelartChemPlantMergedSetup`，取景表关卡号 5），
 出图命令：开发包 + `-pixelartOut <目录> -pixelartLevel 5`。
 
-草叶在本场景单独关闭描边与法线边压暗（`Kit_GrassMid` 只被草叶/杂草使用；
-树冠/灌木走 `Kit_GrassDark`，描边不变），否则细叶在低分辨率下会整根读成黑刺。
+草叶是扇状草卡（一整张共面多边形，锯齿只在外轮廓），`Kit_GrassMid` 正常描边、
+压成 1 档并关闭法线边压暗；树冠/灌木走 `Kit_GrassDark`，描边不变。平贴的泥/苔/
+裂缝/水膜走 `Kit_Dec*` 槽并关闭描边，避免平贴片被描成“贴纸”。
 图为 1920×1050：底部 30 px 是 Unity 开发包的 “Development Build” 叠字条，已裁掉，
 画面内容未做修图。

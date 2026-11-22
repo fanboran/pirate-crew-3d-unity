@@ -43,11 +43,11 @@ Material:
     - _DitherMode: 0
     - _DitherPatternSize: 4
     - _DitherStrength: 0.21
-    - _MainLightLevel: 3
+    - _MainLightLevel: 1
     - _Metallic: 0
     - _NormalEdgeLevel: 0
     - _NormalEdgeThreshold: 1
-    - _OutlinePixels: 0
+    - _OutlinePixels: 1
     - _Priority: 1
     - _Smoothness: 0
     - _SnapToPixelGrid: 1

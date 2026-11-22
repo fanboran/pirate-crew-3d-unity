@@ -19,7 +19,7 @@ namespace PirateCrew.EditorTools
     /// 【与 `PixelartChemPlantSetup`（单文件版）的关系】两套是同一主题的两条并行路线，共用：
     /// 像素路径装配机制（<see cref="PixelartStageKit"/>）、取景表（<see cref="PixelartLevelScene"/>）、
     /// 出图链（`PlayerArtCapture` 的 `-pixelartOut -pixelartLevel N`）。差别只有**模型来源与场景名**：
-    /// 本文件吃 `SceneKit/ChemPlantMerged.fbx`（31 节点 / 19 槽 / 约 46 万三角面 /
+    /// 本文件吃 `SceneKit/ChemPlantMerged.fbx`（31 节点 / 23 槽 / 约 46 万三角面 /
     /// 96×68 m 可玩区 + 墙外延伸），场景名 `PixelartChemPlantMerged`（取景表关卡号 5）。
     ///
     /// 【材质的唯一配方】逐个 `Kit_` 槽调 <see cref="PixelartStageKit.EnsureMaterial"/>——与游戏内
@@ -48,12 +48,13 @@ namespace PirateCrew.EditorTools
         const float GroundPlaneScale = 20f;
 
         /// <summary>
-        /// 合并件的 19 个槽（**按名字典序** —— `Mesher.to_object` 按首次出现顺序 append，
+        /// 合并件的 23 个槽（**按名字典序** —— `Mesher.to_object` 按首次出现顺序 append，
         /// 但跨件并集与 FBX 子节点的槽序不保证一致，故一律按名匹配，名字读不到才按序兜底）。
         /// </summary>
         static readonly string[] SlotNames =
         {
             "Kit_Brass", "Kit_ConcreteDark", "Kit_ConcreteLight", "Kit_ConcreteMid",
+            "Kit_DecGrass", "Kit_DecSoil", "Kit_DecWater", "Kit_DecWet",
             "Kit_GlassDark", "Kit_GrassDark", "Kit_GrassMid", "Kit_Iron", "Kit_PaintYellow",
             "Kit_RockDark", "Kit_RockMid", "Kit_Rust", "Kit_RustDark", "Kit_SandDark",
             "Kit_SteelBlue", "Kit_SteelPale", "Kit_WetSand", "Kit_WoodDark", "Kit_WoodMid",
@@ -66,6 +67,10 @@ namespace PirateCrew.EditorTools
             { "Kit_ConcreteDark", "6B665C" },
             { "Kit_ConcreteLight", "C6C1B4" },
             { "Kit_ConcreteMid", "9E988A" },
+            { "Kit_DecGrass", "2D5A2D" },
+            { "Kit_DecSoil", "8B7355" },
+            { "Kit_DecWater", "2E3A3E" },
+            { "Kit_DecWet", "5C4A34" },
             { "Kit_GlassDark", "2E3A3E" },
             { "Kit_GrassDark", "2D5A2D" },
             { "Kit_GrassMid", "4A8C4A" },
@@ -136,17 +141,19 @@ namespace PirateCrew.EditorTools
             for (int i = 0; i < SlotNames.Length; i++)
             {
                 string slot = SlotNames[i];
-                // 【草叶不描边】Kit_GrassMid 在本合并场景里只被草叶/杂草使用（树冠/灌木走
-                // Kit_GrassDark）；草叶本身只有几厘米宽，屏幕空间描边会把整根叶描成黑刺，
-                // 这里把该档材质的描边关掉，草才会读成绿色而不是一片黑虫。
+                // 【描边口径】草叶改成扇状草卡后正常描边（只沿整张卡的外轮廓），
+                // 但 GrassMid 关掉法线边压暗——卡面内部是共面三角，压暗没有意义，
+                // 反而会把草心压到最暗档。平贴的泥/苔/裂缝/水膜（Kit_Dec*）不描边：
+                // 它们有自己独立的轮廓，开描边会读成一块“贴纸”。
+                bool isDecal = slot.StartsWith("Kit_Dec", System.StringComparison.Ordinal);
+                // 草叶只有 1 档：扇面朝向决定法线，3 档会在背面扇上落进暗档（成图里一半草
+                // 发黑）；草是平涂植被，用 1 档保持统一绿色，轮廓靠描边，不靠明暗。
+                float bands = slot == "Kit_GrassMid" ? 1f : 3f;
                 materials[i] = PixelartStageKit.EnsureMaterial("PixelartChemPlantMerged_" + slot,
-                    PixelartStageKit.Hex(SlotHex[slot]), 3f,
-                    outlinePixels: slot == "Kit_GrassMid" ? 0f : 1f);
-                if (slot == "Kit_GrassMid" && materials[i] != null)
+                    PixelartStageKit.Hex(SlotHex[slot]), bands,
+                    outlinePixels: isDecal ? 0f : 1f);
+                if ((slot == "Kit_GrassMid" || isDecal) && materials[i] != null)
                 {
-                    // 【草叶不压暗法线边】着色趟在 normalDiff 超阈值时把 ndotl 再减 1 档
-                    // （内墨线口径）。草叶只有几厘米宽，几乎每个像素都与邻面构成法线边，
-                    // 结果叶心也被压到最暗档——Albedo 是绿的、成图是黑的，根因就在这。
                     materials[i].SetFloat("_NormalEdgeLevel", 0f);
                     EditorUtility.SetDirty(materials[i]);
                 }
@@ -248,7 +255,7 @@ namespace PirateCrew.EditorTools
         /// 逐项同值（含两条实测坑：ImportStandard 才读得到槽名、useFileScale=true 吃掉根上的 100×）。</summary>
         /// <summary>
         /// 【2026-10-08「合并件偏暗、红太深」修复】把 FBX 导入器的材质重映射表（meta 的
-        /// externalObjects）的 19 个 <c>Kit_</c> 槽外链到本路径的着色像素材质
+        /// externalObjects）的 23 个 <c>Kit_</c> 槽外链到本路径的着色像素材质
         /// （<c>PixelartChemPlantMerged_Kit_*.mat</c>）。
         ///
         /// 【为什么】FBX 内嵌材质携带**线性值**（Kit_Rust=(0.262,0.068,0.021)），而像素材质

@@ -27,6 +27,26 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: Kit_DecGrass
+    second: {fileID: 2100000, guid: b24210976f1213d4e948a8c68c8ff552, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_DecSoil
+    second: {fileID: 2100000, guid: 2e101c1a09e5727449bf4c133a08bd73, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_DecWater
+    second: {fileID: 2100000, guid: 5afa61269dec4c2489e4c7e64c1efe7e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_DecWet
+    second: {fileID: 2100000, guid: 16e89be4ecfd751438aa1a82ce94bf67, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: Kit_GlassDark
     second: {fileID: 2100000, guid: 52d1d9f4233a8924dae2bad446b2545e, type: 2}
   - first:

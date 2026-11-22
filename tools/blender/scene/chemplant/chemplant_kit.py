@@ -1689,7 +1689,8 @@ ASSETS = [
 ALL_SLOTS = sorted(set(
     ['Kit_ConcreteLight', 'Kit_ConcreteMid', 'Kit_ConcreteDark', 'Kit_Rust', 'Kit_RustDark',
      'Kit_SteelBlue', 'Kit_SteelPale', 'Kit_GlassDark', 'Kit_PaintYellow', 'Kit_Iron',
-     'Kit_Brass', 'Kit_GrassDark', 'Kit_GrassMid', 'Kit_SandDark', 'Kit_WetSand', 'Kit_WoodDark']
+     'Kit_Brass', 'Kit_GrassDark', 'Kit_GrassMid', 'Kit_SandDark', 'Kit_WetSand', 'Kit_WoodDark',
+     'Kit_DecSoil', 'Kit_DecGrass', 'Kit_DecWet', 'Kit_DecWater']
 ))
 
 

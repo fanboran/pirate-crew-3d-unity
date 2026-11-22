@@ -124,6 +124,12 @@ _SLOT_DECLS = {
     "Kit_SteelPale":     {"domain": "chemplant", "slot": "STEEL_LIGHT", "roughness": 0.60},
     "Kit_GlassDark":     {"domain": "chemplant", "slot": "GLASS_DARK", "roughness": 0.35},
     "Kit_PaintYellow":   {"domain": "chemplant", "slot": "PAINT_YELLOW", "roughness": 0.66},
+    # 地面平贴细节（泥/苔/湿痕/水膜）——像素路径关闭描边：
+    # 平贴片有自己独立的轮廓，开描边会被读成“贴纸”；它们靠颜色与下垫面区分。
+    "Kit_DecSoil":       {"domain": "caribbean", "slot": "SAND_DARK", "roughness": 0.82},
+    "Kit_DecGrass":      {"domain": "caribbean", "slot": "GRASS_DARK", "roughness": 0.86},
+    "Kit_DecWet":        {"domain": "caribbean", "slot": "SAND_WET", "roughness": 0.60},
+    "Kit_DecWater":      {"domain": "chemplant", "slot": "GLASS_DARK", "roughness": 0.35},
     # 远景剪影（SceneArtPalette.cs:85-91；近→远两级 + 云/远帆）—— 共享核心板 FARFIELD 族
     "Kit_FarNear":    {"domain": "core", "slot": "FAR_NEAR", "roughness": 1.00},
     "Kit_FarFar":     {"domain": "core", "slot": "FAR_FAR", "roughness": 1.00},
