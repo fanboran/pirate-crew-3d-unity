@@ -1,5 +1,6 @@
 using PirateCrew.Campaign;
 using PirateCrew.Settings;
+using PirateCrew.UI.Controls;
 using PirateCrew.UI.Stick;
 using TMPro;
 using UnityEngine;
@@ -839,38 +840,25 @@ namespace PirateCrew.UI
             return rect;
         }
 
-        /// <summary>给列表窗体加内层滚动内容区（theme view 复刻：sunken 凹槽皮 + view border
-        /// padding + 行缝 1 设计格）。返回控制器应接线的容器。</summary>
+        /// <summary>给列表窗体加内层滚动内容区（theme view 复刻：view 皮 + 按需滚动条；
+        /// 行缝 1 设计格）。返回控制器应接线的行容器。</summary>
         static RectTransform AddListContent(RectTransform listPanel)
         {
-            RectTransform content = RuntimeUiBuilder.CreateRect("ListContent", listPanel);
-            content.anchorMin = Vector2.zero;
-            content.anchorMax = Vector2.one;
-            content.pivot = new Vector2(0.5f, 0.5f);
+            RectTransform viewRect = UiKit.CreateRect("ListScroll", listPanel);
+            viewRect.anchorMin = Vector2.zero;
+            viewRect.anchorMax = Vector2.one;
+            viewRect.pivot = new Vector2(0.5f, 0.5f);
             // 窗体内容区：theme window_with_title border=6；顶 = 实际内容顶（标题字大时 > 17）。
-            content.offsetMin = new Vector2(
+            viewRect.offsetMin = new Vector2(
                 AseLayout.Px(AseLayout.WindowBorder), AseLayout.Px(AseLayout.WindowBorder));
-            content.offsetMax = new Vector2(
+            viewRect.offsetMax = new Vector2(
                 -AseLayout.Px(AseLayout.WindowBorder),
                 -AseLayout.Px(UiKit.WindowContentTopOf(listPanel)));
 
-            var view = content.gameObject.AddComponent<Image>();
-            view.sprite = PixelSkin.Sunken(false);
-            view.type = Image.Type.Sliced;
-            view.color = Color.white;   // 像素件禁止乘色
-            view.raycastTarget = false;
-
-            var group = content.gameObject.AddComponent<VerticalLayoutGroup>();
-            group.childAlignment = TextAnchor.UpperCenter;
-            group.childControlWidth = true;
-            group.childControlHeight = true;
-            group.childForceExpandWidth = false;
-            group.childForceExpandHeight = false;
-            group.spacing = AseLayout.Px(1);
-            group.padding = new RectOffset(
-                (int)AseLayout.Px(AseLayout.ViewBorder), (int)AseLayout.Px(AseLayout.ViewBorder),
-                (int)AseLayout.Px(AseLayout.ViewBorderTop), (int)AseLayout.Px(AseLayout.ViewBorder));
-            return content;
+            // 滚动内核（AseView：内容超高才出条，条挤窄视口）由 UiScrollList 整装；
+            // 行容器 = 视口里的 Content，行增删后本件自动量高刷新。
+            UiScrollList list = UiScrollList.Attach(viewRect);
+            return list.Content;
         }
 
         /// <summary>底部按钮行间隙：theme button 左右切片各 4 设计格相加 = 8。</summary>

@@ -56,6 +56,9 @@ namespace PirateCrew.UI
         /// <summary>结算弹窗开合动效驱动（菜单 juice 与战斗内同口径；数值/曲线全在 UiMotionRules）。</summary>
         UiMotion _motion;
 
+        /// <summary>菜单模态浮层栈（结算弹窗；Esc 由栈统一解析）。</summary>
+        UiModalStack _modalStack;
+
         /// <summary>
         /// 注入 UI 引用（烘焙期由 MenuScreenPrefab 调用做序列化回写——字段名与原
         /// [SerializeField] 契约零改动）。必须在对象激活前调用。
@@ -86,6 +89,7 @@ namespace PirateCrew.UI
         void Awake()
         {
             _motion = gameObject.AddComponent<UiMotion>();
+            _modalStack = UiModalStack.Ensure(transform.parent != null ? transform.parent : transform, _motion);
 
             if (crewButton != null)
                 crewButton.onClick.AddListener(OnCrewClicked);
@@ -186,7 +190,12 @@ namespace PirateCrew.UI
             }
 
             if (settlementModal != null)
-                RuntimeUiBuilder.OpenPanel(settlementModal, _motion);
+            {
+                if (_modalStack != null)
+                    _modalStack.Push(settlementModal, onEsc: CloseSettlement);
+                else
+                    RuntimeUiBuilder.OpenPanel(settlementModal, _motion);
+            }
 
             CampaignApi.ClearLastResult();
 
@@ -218,7 +227,10 @@ namespace PirateCrew.UI
 
         void CloseSettlement()
         {
-            RuntimeUiBuilder.ClosePanel(settlementModal, _motion);
+            if (_modalStack != null)
+                _modalStack.Pop(settlementModal);
+            else
+                RuntimeUiBuilder.ClosePanel(settlementModal, _motion);
         }
 
         void OnReplayClicked()

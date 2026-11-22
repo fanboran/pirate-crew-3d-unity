@@ -65,6 +65,9 @@ namespace PirateCrew.UI
         /// <summary>面板开合动效驱动（菜单 juice 与战斗内同口径；数值/曲线全在 UiMotionRules）。</summary>
         UiMotion _motion;
 
+        /// <summary>菜单模态浮层栈（设置/退出确认共用；Esc 由栈统一解析）。</summary>
+        UiModalStack _modalStack;
+
         /// <summary>
         /// 注入 UI 引用（烘焙期由 MenuScreenPrefab 调用做序列化回写——字段名与原
         /// [SerializeField] 契约零改动）。必须在对象激活前调用。
@@ -103,6 +106,7 @@ namespace PirateCrew.UI
         void Awake()
         {
             _motion = gameObject.AddComponent<UiMotion>();
+            _modalStack = UiModalStack.Ensure(transform.parent != null ? transform.parent : transform, _motion);
 
             // 主菜单窗体可拖动（创始人 2026-09-25：按住标题带拖——Aseprite 窗口感）。
             Transform menuWindow = transform.parent != null ? transform.parent.Find("MenuWindow") : null;
@@ -288,7 +292,10 @@ namespace PirateCrew.UI
                 return;
 
             RefreshSettingsControls();
-            RuntimeUiBuilder.OpenPanel(settingsPanel, _motion);
+            if (_modalStack != null)
+                _modalStack.Push(settingsPanel, onClosed: SaveSettingsOnClose);
+            else
+                RuntimeUiBuilder.OpenPanel(settingsPanel, _motion);
         }
 
         void CloseSettings()
@@ -296,13 +303,23 @@ namespace PirateCrew.UI
             RuntimeUiBuilder.ButtonFeedback(settingsBackButton, true, _motion);
             RuntimeUiBuilder.ButtonFeedback(settingsCloseButton, true, _motion);
 
-            // 关面板统一落盘：拖动滑条的过程不写盘，避免一次拖动几十次 IO。
+            if (_modalStack != null)
+                _modalStack.Pop(settingsPanel);   // 出栈回调统一落盘
+            else
+            {
+                SaveSettingsOnClose();
+                RuntimeUiBuilder.ClosePanel(settingsPanel, _motion);
+            }
+        }
+
+        /// <summary>关面板统一落盘：拖动滑条的过程不写盘，避免一次拖动几十次 IO。
+        /// 按钮返回、窗控钮 ×、Esc 三条关闭路径共用（浮层栈的出栈回调）。</summary>
+        void SaveSettingsOnClose()
+        {
             AudioService.SaveVolumes();
             if (VideoSettingsService.Instance != null)
                 VideoSettingsService.Instance.SaveSettings();
             PixelScaleService.Save();
-
-            RuntimeUiBuilder.ClosePanel(settingsPanel, _motion);
 
             if (statusText != null)
                 statusText.text = UiStrings.MainStatusSettingsSaved;
@@ -483,8 +500,16 @@ namespace PirateCrew.UI
             if (quitConfirmPanel != null)
             {
                 if (settingsPanel != null)
-                    RuntimeUiBuilder.ClosePanel(settingsPanel, _motion);
-                RuntimeUiBuilder.OpenPanel(quitConfirmPanel, _motion);
+                {
+                    if (_modalStack != null)
+                        _modalStack.Pop(settingsPanel);     // 出栈即落盘
+                    else
+                        RuntimeUiBuilder.ClosePanel(settingsPanel, _motion);
+                }
+                if (_modalStack != null)
+                    _modalStack.Push(quitConfirmPanel);
+                else
+                    RuntimeUiBuilder.OpenPanel(quitConfirmPanel, _motion);
                 return;
             }
 
@@ -502,7 +527,10 @@ namespace PirateCrew.UI
         void CancelQuit()
         {
             RuntimeUiBuilder.ButtonFeedback(quitConfirmCancelButton, true, _motion);
-            RuntimeUiBuilder.ClosePanel(quitConfirmPanel, _motion);
+            if (_modalStack != null)
+                _modalStack.Pop(quitConfirmPanel);
+            else
+                RuntimeUiBuilder.ClosePanel(quitConfirmPanel, _motion);
         }
     }
 }
