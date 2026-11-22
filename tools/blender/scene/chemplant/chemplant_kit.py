@@ -556,9 +556,13 @@ def drum(acc, cx, cy, z=0.0, r=0.30, h=0.92, yaw=0.0, tilt=0.0, mat='Kit_Rust',
     acc.append(sub, (cx, cy, z), yaw_deg=yaw, tilt_deg=math.degrees(tilt))
 
 
-def weeds(acc, cx, cy, n, seed, spread=1.2, mat_a='Kit_GrassDark', mat_b='Kit_GrassMid',
+def weeds(acc, cx, cy, n, seed, spread=1.2, mat_a='Kit_GrassMid', mat_b='Kit_GrassMid',
           hmin=0.25, hmax=0.75):
-    """荒草簇：每簇 4 根细瘦歪斜草叶（薄板三棱柱）。"""
+    """荒草簇：每簇 4 根细瘦歪斜草叶（薄板三棱柱）。
+
+    【像素管线口径】原先默认暗绿 + 5 cm 宽，在低分辨率 + 描边下整根读成黑刺；
+    改为中绿主导、叶宽 10 cm，和合并场地的新草簇同一观感。
+    """
     rng = random.Random(seed)
     for i in range(n):
         bx = cx + rng.uniform(-spread, spread)
@@ -567,7 +571,7 @@ def weeds(acc, cx, cy, n, seed, spread=1.2, mat_a='Kit_GrassDark', mat_b='Kit_Gr
             hh = rng.uniform(hmin, hmax)
             m = mat_a if rng.random() < 0.7 else mat_b
             sbox(acc, (bx + rng.uniform(-0.12, 0.12), by + rng.uniform(-0.12, 0.12), hh * .5),
-                 (0.05, 0.03, hh), m,
+                 (0.10, 0.05, hh), m,
                  rot=(rng.uniform(-0.25, 0.25), rng.uniform(-0.25, 0.25), rng.uniform(0, 3.14)))
 
 

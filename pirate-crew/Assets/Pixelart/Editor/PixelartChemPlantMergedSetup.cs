@@ -19,7 +19,7 @@ namespace PirateCrew.EditorTools
     /// 【与 `PixelartChemPlantSetup`（单文件版）的关系】两套是同一主题的两条并行路线，共用：
     /// 像素路径装配机制（<see cref="PixelartStageKit"/>）、取景表（<see cref="PixelartLevelScene"/>）、
     /// 出图链（`PlayerArtCapture` 的 `-pixelartOut -pixelartLevel N`）。差别只有**模型来源与场景名**：
-    /// 本文件吃 `SceneKit/ChemPlantMerged.fbx`（30 节点 / 19 槽 / 454,143 三角面 /
+    /// 本文件吃 `SceneKit/ChemPlantMerged.fbx`（31 节点 / 19 槽 / 约 48 万三角面 /
     /// 96×68 m 可玩区 + 墙外延伸），场景名 `PixelartChemPlantMerged`（取景表关卡号 5）。
     ///
     /// 【材质的唯一配方】逐个 `Kit_` 槽调 <see cref="PixelartStageKit.EnsureMaterial"/>——与游戏内
@@ -85,14 +85,16 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 场内摆 3 个船员当**尺度参照**（人的高度就是这关的尺度锚）。
-        /// 坐标 = Unity 系（= Blender 的 X / Z / -Y）：全落在场地地坪（y=0）与主路上，
-        /// 不与设备基础打架——Blender 侧主路在 Y∈[-8,-4] ⇒ Unity Z∈[4,8]。
+        /// 坐标 = Unity 系（= Blender 的 X / Z / -Y）：全落在场地地坪（y=0）上，
+        /// 且都取在**主厂房东侧空地 ~ 主路**这条宽景/中景都看得见的开阔带里
+        /// （2026-11-21：原先的 (0,14)/(-20,14)/(15,-4) 分别落进大罐与管廊内部，
+        /// 三个尺度参照在成图里全被设备挡住，等于没有）。
         /// </summary>
         static readonly Vector3[] CrewSpots =
         {
-            new Vector3(0f, 0f, 14f),     // 主路正中（Blender (0,-14)）
-            new Vector3(-20f, 0f, 14f),   // 主路西段（主厂房前）
-            new Vector3(15f, 0f, -4f),    // 管廊北侧空地（Blender (15,4)）
+            new Vector3(3.5f, 0f, 6.5f),   // 主厂房东侧、主路南缘（Blender (3.5,-6.5)）
+            new Vector3(7f, 0f, 0f),       // 主厂房东侧空地（Blender (7,0)）
+            new Vector3(2f, 0f, 11.5f),    // 主厂房东南角空地（Blender (2,-11.5)）
         };
 
         [MenuItem("PirateCrew/Pixelart/烘焙废弃化工厂试点场景（两关合并版）")]
@@ -134,8 +136,20 @@ namespace PirateCrew.EditorTools
             for (int i = 0; i < SlotNames.Length; i++)
             {
                 string slot = SlotNames[i];
+                // 【草叶不描边】Kit_GrassMid 在本合并场景里只被草叶/杂草使用（树冠/灌木走
+                // Kit_GrassDark）；草叶本身只有几厘米宽，屏幕空间描边会把整根叶描成黑刺，
+                // 这里把该档材质的描边关掉，草才会读成绿色而不是一片黑虫。
                 materials[i] = PixelartStageKit.EnsureMaterial("PixelartChemPlantMerged_" + slot,
-                    PixelartStageKit.Hex(SlotHex[slot]), 3f);
+                    PixelartStageKit.Hex(SlotHex[slot]), 3f,
+                    outlinePixels: slot == "Kit_GrassMid" ? 0f : 1f);
+                if (slot == "Kit_GrassMid" && materials[i] != null)
+                {
+                    // 【草叶不压暗法线边】着色趟在 normalDiff 超阈值时把 ndotl 再减 1 档
+                    // （内墨线口径）。草叶只有几厘米宽，几乎每个像素都与邻面构成法线边，
+                    // 结果叶心也被压到最暗档——Albedo 是绿的、成图是黑的，根因就在这。
+                    materials[i].SetFloat("_NormalEdgeLevel", 0f);
+                    EditorUtility.SetDirty(materials[i]);
+                }
                 if (materials[i] == null)
                 {
                     Debug.LogError(LogTag + " 槽 " + slot + " 的材质没造出来（shader 缺失？）——出图上会是品红。");

@@ -3,8 +3,8 @@
 > 产物来源：`tools/blender/scene/chemplant/assemble_chemplant_merged.py`
 > （Blender 无头，复用两套化工厂 kit 的构件）；复现命令与坐标口径见该脚本头注释与
 > [chemplant README](../../../tools/blender/scene/chemplant/README.md)。
-> 实测：**29 节点 / 324,278 三角面 / 可玩区 96 × 68 m / 总范围 169 × 128 m**；
-> FBX = `pirate-crew/Assets/Art/Models/SceneKit/ChemPlantMerged.fbx`（约 3.2 MB）。
+> 实测：**31 节点 / 约 48 万三角面 / 可玩区 96 × 68 m / 总范围约 169 × 128 m**；
+> FBX = `pirate-crew/Assets/Art/Models/SceneKit/ChemPlantMerged.fbx`（约 8.9 MB）。
 
 ## 一、成品图（1440×900，Cycles 32 采样，Standard 视图变换，曝光 −0.35 EV）
 
@@ -20,7 +20,7 @@
 ## 二、这批图的口径（不是审美偏好）
 
 - **合并方式**：只保留两套 kit 的建筑零件，布局彻底重构；不是两个整场件并排。
-  围墙为不规则折线 + 三处坍塌缺口，缺口用废料堆、土坡、树丛封口。
+  围墙为不规则折线 + 四处坍塌缺口，缺口用废料堆、土坡、树丛封口。
 - **视觉边界 ≠ 玩法边界**：可玩区止于围墙；墙外是草地/泥地/树线/远景厂房/堆场/土坡/电杆组成的
   **视觉连续、逻辑不可达**延伸区——从场内看出去不出现「一圈空海」，也不会读成悬空沙盘。
 - **废弃质感（内外同一种荒地表皮）**：地坪是「泥土基面 + 残破水泥板阵列」——板间留缝、
@@ -49,3 +49,8 @@
 俯角 30°、逐物体 3 档色带。载体场景 `Assets/Scenes/Pixelart/PixelartChemPlantMerged.unity`
 （装配器 `PixelartChemPlantMergedSetup`，取景表关卡号 5），
 出图命令：开发包 + `-pixelartOut <目录> -pixelartLevel 5`。
+
+草叶在本场景单独关闭描边与法线边压暗（`Kit_GrassMid` 只被草叶/杂草使用；
+树冠/灌木走 `Kit_GrassDark`，描边不变），否则细叶在低分辨率下会整根读成黑刺。
+图为 1920×1050：底部 30 px 是 Unity 开发包的 “Development Build” 叠字条，已裁掉，
+画面内容未做修图。

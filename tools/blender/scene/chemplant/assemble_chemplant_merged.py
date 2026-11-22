@@ -167,6 +167,36 @@ def _cuts(lo, hi, rng, step_lo, step_hi):
     return cuts
 
 
+def build_hall_bridge(m):
+    """主厂房东山墙三根出墙管 → 单件管廊之间的短管桥。
+
+    原单件 kit 里 `build_hall` 的三根出墙管就是接在场地管廊上的；合并布局把
+    管廊移到了东侧（相距约 9 m），不补这一段，三根管就是悬空断头。这里补
+    同径三管 + 法兰 + 两座门架支撑，让「管道出墙」这个锚点重新成立。
+    """
+    y = -3.0 + 2.4                       # 出墙管的世界 y（本地 2.4 + 主厂房 -3.0）
+    x0 = -12.0 + CK.HALL_L * 0.5 + 3.4   # -0.6：原出墙管端面
+    x1 = 8.8                             # 伸进单件管廊西端（CP_PipeRack x=8.35）
+    for z, r in ((5.6, 0.30), (6.3, 0.22), (4.9, 0.16)):
+        m.extrude_along(_circle_profile(r, 8), (x0, y, z), (x1, y, z),
+                        mat="Kit_Rust", smooth=True)
+        for xx in (x0 + 0.12, 3.0, 5.9, x1 - 0.12):
+            m.extrude_along(_circle_profile(r * 1.35, 8),
+                            (xx - 0.05, y, z), (xx + 0.05, y, z),
+                            mat="Kit_Iron")
+    # 两座门架：立柱 + 顶梁 + 斜撑（站在场内空地上，管底 4.7 m 不影响通行）
+    for sx in (2.2, 6.4):
+        for side in (-1.0, 1.0):
+            m.box((0.22, 0.22, 7.0), at=(sx, y + side * 0.95, GROUND_Z),
+                  mat="Kit_SteelBlue")
+            m.box((0.55, 0.55, 0.30), at=(sx, y + side * 0.95, GROUND_Z),
+                  mat="Kit_ConcreteMid")
+            p0 = Vector((sx, y + side * 0.95, GROUND_Z + 0.35))
+            p1 = Vector((sx, y, GROUND_Z + 6.65))
+            _branch(m, p0, p1, 0.055, "Kit_SteelBlue")
+        m.box((0.24, 2.14, 0.22), at=(sx, y, GROUND_Z + 6.75), mat="Kit_SteelBlue")
+
+
 def build_ground(m):
     """可玩区地坪：泥土基面 + 残破水泥板阵列（板缝全长草）+ 大面积草土斑 + 积水。
 
@@ -440,7 +470,7 @@ def build_outskirts(m):
     m.poly_extrude(outer, OUTSKIRT_Z - 0.4, OUTSKIRT_Z, mat="Kit_SandDark")
 
     # 泥地/碎石斑（打散整片草绿；墙外也是"草-土-碎石"混合，不是均匀草坪）
-    for k in range(90):
+    for k in range(140):
         x = rng.uniform(-76, 76)
         y = rng.uniform(-56, 56)
         if abs(x) < YARD_X / 2 - 2 and abs(y) < YARD_Y / 2 - 2:
@@ -545,16 +575,43 @@ def build_outskirts(m):
     # 灌木带（贴墙外 2~5 m，密）
     for i in range(len(WALL_LINE)):
         x0, y0 = WALL_LINE[i]
-        for t in range(4):
-            tt = (t + 0.5) / 4
+        for t in range(6):
+            tt = (t + 0.5) / 6
             if i + 1 < len(WALL_LINE):
                 x1, y1 = WALL_LINE[i + 1]
                 x = x0 + (x1 - x0) * tt
                 y = y0 + (y1 - y0) * tt
             else:
                 x, y = x0, y0
-            _shrub(m, x + rng.uniform(-2.2, 2.2), y + rng.uniform(-2.2, 2.2),
+            _shrub(m, x + rng.uniform(-3.0, 3.0), y + rng.uniform(-3.0, 3.0),
                    rng.uniform(1.0, 2.0), rng)
+
+    # 墙外中景带（8~24 m）：草甸/土斑 + 草簇，填满从场内看出去的视野
+    # （宽景里西北角那片"空土色平地"就是这条带原来没有覆盖到的区域）
+    for i in range(len(WALL_LINE)):
+        x0, y0 = WALL_LINE[i]
+        x1, y1 = WALL_LINE[(i + 1) % len(WALL_LINE)]
+        for t in (0.15, 0.4, 0.65, 0.9):
+            wx = x0 + (x1 - x0) * t
+            wy = y0 + (y1 - y0) * t
+            nl = math.hypot(wx, wy) or 1.0
+            out = rng.uniform(8.0, 24.0)
+            cx = wx + wx / nl * out
+            cy = wy + wy / nl * out
+            rx = rng.uniform(3.0, 7.0)
+            ry = rng.uniform(2.0, 5.0)
+            m.poly_extrude(_blob(rng, rx, ry, 9), OUTSKIRT_Z + 0.045, OUTSKIRT_Z + 0.075,
+                           at=(cx, cy, 0),
+                           mat=rng.choice(("Kit_SandDark", "Kit_GrassDark",
+                                           "Kit_SandDark", "Kit_GrassDark",
+                                           "Kit_WetSand", "Kit_RockDark")))
+            for k in range(rng.randint(3, 7)):
+                a = rng.uniform(0, math.tau)
+                r = math.sqrt(rng.random())
+                _grass_tuft(m, cx + math.cos(a) * rx * r * 0.9,
+                            cy + math.sin(a) * ry * r * 0.9,
+                            rng.uniform(0.4, 1.1), rng, n=rng.randint(2, 4),
+                            z=OUTSKIRT_Z + 0.08)
 
     # 电线杆 + 电缆（墙外道路旁）
     _pole_run(m, [(-2, 34), (-4, 46), (-6, 58)], rng)
@@ -566,13 +623,13 @@ def build_outskirts(m):
                         (58, -8, 4), (-60, 14, -9)):
         _scrap_yard(m, cx, cy, math.radians(yaw), rng)
 
-    # 外围散草/灌木
-    for k in range(700):
-        x = rng.uniform(-78, 78)
-        y = rng.uniform(-60, 60)
+    # 外围散草/灌木（密度按像素宽景校准：1 艺术像素 ≈ 5~6 cm，稀了就是一片空土色）
+    for k in range(1800):
+        x = rng.uniform(-80, 80)
+        y = rng.uniform(-62, 62)
         if abs(x) < YARD_X / 2 + 1 and abs(y) < YARD_Y / 2 + 1:
             continue
-        _grass_tuft(m, x, y, rng.uniform(0.5, 1.5), rng, n=4)
+        _grass_tuft(m, x, y, rng.uniform(0.5, 1.5), rng, n=rng.randint(3, 5))
 
 
 def build_vegetation(m):
@@ -646,10 +703,13 @@ def build_vegetation(m):
     _fallen_pole(m, 12, -11, math.radians(28), rng)
     _fallen_pole(m, -30, 29, math.radians(-52), rng)
 
-    # 藤蔓：贴办公楼/旁楼墙根
-    for (x, y, yaw, length) in ((-23, -6, 90, 7), (21, 14, 90, 6), (-2, -12, 0, 5),
-                                (-30, 12, 90, 6), (30, 7, 90, 5)):
-        _vine(m, x, y, math.radians(yaw), length, rng)
+    # 藤蔓：贴主厂房 / 办公楼 / 六件旁楼的实际墙脚（起点在墙外 6~10 cm，沿墙攀爬）
+    for (x, y, yaw, height) in (
+        (-16.0, -8.08, 0, 4.2), (-8.5, -8.08, 0, 3.6),     # 主厂房南墙
+        (-36.0, -2.58, 0, 6.5), (-29.0, -2.58, 0, 5.8),    # 办公楼南墙
+        (26.0, 11.02, 0, 4.6), (32.0, 11.02, 0, 5.2),      # 六件旁楼南墙
+    ):
+        _vine(m, x, y, math.radians(yaw), height, rng)
 
 
 # ---------------------------------------------------------------------------
@@ -928,7 +988,12 @@ def _circle_profile(r, sides):
 
 
 def _grass_tuft(m, x, y, size, rng, n=5, z=None):
-    """草簇：外倾弯折叶片（俯视有面积），暗绿/土褐交替，双面（实机单面渲染不丢背面）。"""
+    """草簇：外倾弯折叶片（俯视有面积），中绿/暗绿/土褐混合。
+
+    【像素管线口径】叶片是**单面几何**，绕向必须保证法线朝上：朝下的叶片在
+    低分辨率物体 pass 里要么被背剔、要么落进最暗色带，整片草会读成黑色小虫。
+    叶宽同时按像素块校准（宽景 1 艺术像素 ≈ 5~6 cm，太细的叶子会整根丢掉）。
+    """
     z = GROUND_Z if z is None else z
     for k in range(n):
         a = rng.uniform(0, math.pi * 2)
@@ -940,23 +1005,33 @@ def _grass_tuft(m, x, y, size, rng, n=5, z=None):
         tipy = by + math.sin(a) * lean
         midx = bx + math.cos(a) * lean * 0.55
         midy = by + math.sin(a) * lean * 0.55
-        w = 0.025 + 0.05 * size
+        w = 0.05 + 0.075 * size
         px, py = -math.sin(a) * w, math.cos(a) * w
-        mat = "Kit_GrassDark" if rng.random() < 0.72 else "Kit_SandDark"
-        m.add(
-            [(bx + px, by + py, z), (bx - px, by - py, z),
-             (midx + px * 0.85, midy + py * 0.85, z + h * 0.55),
-             (midx - px * 0.85, midy - py * 0.85, z + h * 0.55),
-             (tipx, tipy, z + h)],
-            [(0, 1, 3, 2), (2, 3, 4)],
-            at=(0, 0, 0), mat=mat)
+        # 草叶统一用 Kit_GrassMid（该档在像素场景关掉了描边与法线边压暗）。
+        # 细叶用 GrassDark / SandDark 都会在低分辨率下被描边/法线边压成黑刺；
+        # 干草色由地面土斑承担，不靠草叶本体。
+        mat = "Kit_GrassMid"
+        verts = [(bx + px, by + py, z), (bx - px, by - py, z),
+                 (midx + px * 0.85, midy + py * 0.85, z + h * 0.55),
+                 (midx - px * 0.85, midy - py * 0.85, z + h * 0.55),
+                 (tipx, tipy, z + h)]
+
+        def _face_up(indices):
+            """逐面检查法线 Z；朝下就反绕。四边形和叶尖三角形要各自检查
+            （斜向叶片时两者绕向可能相反，整叶一起翻会留下一条朝下的黑尖）。"""
+            a, b, c = (verts[i] for i in indices[:3])
+            nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+            return indices if nz >= 0 else tuple(reversed(indices))
+
+        m.add(verts, [_face_up((0, 1, 3, 2)), _face_up((2, 3, 4))],
+              at=(0, 0, 0), mat=mat)
 
 
 def _flower(m, x, y, rng):
     """野花点缀（小白/淡黄/淡蓝），茎 + 花头各一个薄片。"""
     h = rng.uniform(0.10, 0.24)
     m.box((0.04, 0.04, h), at=(x, y, GROUND_Z + 0.04), rz=rng.uniform(0, 3.14),
-          mat="Kit_GrassDark")
+          mat="Kit_GrassMid")
     m.poly_extrude(_blob(rng, 0.06, 0.06, 5), GROUND_Z + 0.04 + h,
                    GROUND_Z + 0.055, at=(x, y, 0),
                    mat=rng.choice(("Kit_ConcreteLight", "Kit_PaintYellow", "Kit_SteelBlue")))
@@ -1049,17 +1124,25 @@ def _scrap_yard(m, cx, cy, yaw, rng):
     _mound(m, cx, cy, 5.5, 2.2, "Kit_RustDark", rng)
 
 
-def _vine(m, x, y, yaw, length, rng):
-    """墙根藤蔓：细条 + 叶簇。"""
-    for k in range(6):
-        ox = math.cos(yaw) * rng.uniform(-0.4, 0.4)
-        oy = math.sin(yaw) * rng.uniform(-0.4, 0.4)
-        h = rng.uniform(0.6, 1.8)
-        p0 = Vector((x + ox, y + oy, GROUND_Z + 0.05))
-        p1 = p0 + Vector((math.cos(yaw) * rng.uniform(0.3, length), math.sin(yaw) * rng.uniform(0.3, length),
-                          h))
+def _vine(m, x, y, yaw, height, rng):
+    """墙根藤蔓：贴墙向上攀爬 + 叶簇（不是一条躺在地上的绿线）。
+
+    x/y = 墙脚外 5~10 cm 的起点；yaw = 沿墙方向；height = 攀爬高度。
+    """
+    dx, dy = math.cos(yaw), math.sin(yaw)
+    for k in range(5):
+        off = rng.uniform(-0.45, 0.45)
+        climb = height * rng.uniform(0.45, 1.0)
+        p0 = Vector((x + dx * off, y + dy * off, GROUND_Z + 0.04))
+        p1 = p0 + Vector((dx * rng.uniform(0.15, 0.70),
+                          dy * rng.uniform(0.15, 0.70), climb))
         _branch(m, p0, p1, 0.03, "Kit_GrassDark")
-        m.sphere(0.22, at=(p1.x, p1.y, p1.z), seg=6, rings=3, mat="Kit_GrassDark", smooth=False)
+        # 叶簇沿茎 2~3 处 + 顶梢，读作爬藤而不是一根杆
+        for t in (0.42, 0.72, 1.0):
+            p = p0.lerp(p1, t)
+            rr = 0.20 * rng.uniform(0.75, 1.25)
+            m.sphere(rr, at=(p.x, p.y, p.z), seg=6, rings=3,
+                     mat="Kit_GrassDark", smooth=False)
 
 
 # ---------------------------------------------------------------------------
@@ -1097,7 +1180,8 @@ def build_all():
 
     # 新几何（拆成几个对象，方便单件排查）
     for name, fn in (("Ground", build_ground), ("Roads", build_roads),
-                     ("Walls", build_walls), ("Outskirts", build_outskirts),
+                     ("Walls", build_walls), ("HallBridge", build_hall_bridge),
+                     ("Outskirts", build_outskirts),
                      ("Vegetation", build_vegetation)):
         m = K.Mesher()
         fn(m)
