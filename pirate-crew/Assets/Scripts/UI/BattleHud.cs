@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
@@ -9,6 +9,7 @@ using PirateCrew.Combat;
 using PirateCrew.Data;
 using PirateCrew.UI.Stick;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace PirateCrew.UI
@@ -306,6 +307,11 @@ namespace PirateCrew.UI
             if (button != null && success && _motion != null)
                 _motion.Punch(button.image != null ? button.image : button.GetComponent<Graphic>(),
                     UiMotionRules.PunchSeconds);
+
+            // 点击后清掉 EventSystem 选中：战斗内回车是玩法确认键，若按钮保持选中，
+            // Enter 会被 StandaloneInputModule 当成 Submit 再触发一次（重复开/关武器）。
+            if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null)
+                EventSystem.current.SetSelectedGameObject(null);
         }
 
         void OnWeaponClicked(int weaponId)
