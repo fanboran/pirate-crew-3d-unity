@@ -19,7 +19,7 @@ namespace PirateCrew.EditorTools
     /// 【与 `PixelartChemPlantSetup`（单文件版）的关系】两套是同一主题的两条并行路线，共用：
     /// 像素路径装配机制（<see cref="PixelartStageKit"/>）、取景表（<see cref="PixelartLevelScene"/>）、
     /// 出图链（`PlayerArtCapture` 的 `-pixelartOut -pixelartLevel N`）。差别只有**模型来源与场景名**：
-    /// 本文件吃 `SceneKit/ChemPlantMerged.fbx`（31 节点 / 19 槽 / 约 48 万三角面 /
+    /// 本文件吃 `SceneKit/ChemPlantMerged.fbx`（31 节点 / 19 槽 / 约 46 万三角面 /
     /// 96×68 m 可玩区 + 墙外延伸），场景名 `PixelartChemPlantMerged`（取景表关卡号 5）。
     ///
     /// 【材质的唯一配方】逐个 `Kit_` 槽调 <see cref="PixelartStageKit.EnsureMaterial"/>——与游戏内

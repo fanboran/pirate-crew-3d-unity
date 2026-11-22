@@ -154,6 +154,80 @@ WALL_LINE = [
 #: 围墙缺口（段起-段止，段号按 WALL_LINE 相邻两点；缺口处用土坡/废料堆封住视线）。
 WALL_GAPS = {(2, 3), (7, 8), (12, 13), (15, 16)}
 
+#: 场内道路中心线 + 宽度（build_ground 的草/斑避让与 build_roads 共用同一份）。
+YARD_ROADS = [
+    ([(-45.0, -16.0), (-20.0, -15.0), (4.0, -14.0), (26.0, -15.0), (44.0, -14.0)], 6.5),
+    ([(-20.0, -15.0), (-10.0, -6.0), (-2.0, 2.0), (6.0, 9.0), (14.0, 14.0)], 5.0),
+    ([(30.0, -30.0), (30.0, -16.0), (29.0, -2.0), (28.0, 8.0)], 4.5),
+]
+
+#: 完整水泥板矩形 (x0, z0, x1, z1, 顶面 z)；build_ground 写入，草/斑/裂缝按它判“能不能长”。
+SLAB_RECTS = []
+#: 缺板矩形（土面露出的格子）。
+MISSING_RECTS = []
+
+
+def _slab_top(x, y):
+    for x0, z0, x1, z1, top in SLAB_RECTS:
+        if x0 <= x <= x1 and z0 <= y <= z1:
+            return top
+    return None
+
+
+def _near_slab_edge(x, y, margin=0.28):
+    for x0, z0, x1, z1, _ in SLAB_RECTS:
+        if x0 - margin <= x <= x1 + margin and z0 - margin <= y <= z1 + margin:
+            if not (x0 + margin <= x <= x1 - margin and z0 + margin <= y <= z1 - margin):
+                return True
+    return False
+
+
+def _dist_point_seg(px, py, ax, ay, bx, by):
+    dx, dy = bx - ax, by - ay
+    L2 = dx * dx + dy * dy
+    if L2 < 1e-9:
+        return math.hypot(px - ax, py - ay)
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / L2))
+    return math.hypot(px - (ax + dx * t), py - (ay + dy * t))
+
+
+def _road_dist(x, y):
+    """到最近场内道路中心线的距离 - 半宽；<=0 表示在路面上。"""
+    best = 1e9
+    for pts, width in YARD_ROADS:
+        for i in range(len(pts) - 1):
+            d = _dist_point_seg(x, y, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
+            best = min(best, d - width * 0.5)
+    return best
+
+
+def _on_road(x, y, margin=0.0):
+    return _road_dist(x, y) <= margin
+
+
+def _paved_top(x, y):
+    """板面/沥青面顶；土面返回 None。"""
+    t = _slab_top(x, y)
+    if t is not None:
+        return t
+    if _on_road(x, y, 0.0):
+        return GROUND_Z + 0.02
+    return None
+
+
+def _ground_z(x, y):
+    """可放置物件的落脚面：完整板顶，或土面（缺板/板缝）。"""
+    t = _slab_top(x, y)
+    return t if t is not None else GROUND_Z - 0.06
+
+
+def _grass_z(x, y):
+    """草簇的落脚面：板/沥青面 +2 mm，或土面 +5 mm。"""
+    t = _paved_top(x, y)
+    if t is not None:
+        return t + 0.002
+    return GROUND_Z - 0.055
+
 
 def _cuts(lo, hi, rng, step_lo, step_hi):
     """不等距切割线（水泥板分块）：从 lo 到 hi，随机步长。"""
@@ -187,24 +261,28 @@ def build_hall_bridge(m):
     # 两座门架：立柱 + 顶梁 + 斜撑（站在场内空地上，管底 4.7 m 不影响通行）
     for sx in (2.2, 6.4):
         for side in (-1.0, 1.0):
-            m.box((0.22, 0.22, 7.0), at=(sx, y + side * 0.95, GROUND_Z),
-                  mat="Kit_SteelBlue")
-            m.box((0.55, 0.55, 0.30), at=(sx, y + side * 0.95, GROUND_Z),
-                  mat="Kit_ConcreteMid")
-            p0 = Vector((sx, y + side * 0.95, GROUND_Z + 0.35))
-            p1 = Vector((sx, y, GROUND_Z + 6.65))
+            lx, ly = sx, y + side * 0.95
+            gz = _ground_z(lx, ly)
+            m.box((0.22, 0.22, 7.0), at=(lx, ly, gz), mat="Kit_SteelBlue")
+            m.box((0.55, 0.55, 0.30), at=(lx, ly, gz), mat="Kit_ConcreteMid")
+            p0 = Vector((lx, ly, gz + 0.35))
+            p1 = Vector((sx, y, gz + 6.65))
             _branch(m, p0, p1, 0.055, "Kit_SteelBlue")
-        m.box((0.24, 2.14, 0.22), at=(sx, y, GROUND_Z + 6.75), mat="Kit_SteelBlue")
+        m.box((0.24, 2.14, 0.22), at=(sx, y, _ground_z(sx, y) + 6.75),
+              mat="Kit_SteelBlue")
 
 
 def build_ground(m):
     """可玩区地坪：泥土基面 + 残破水泥板阵列（板缝全长草）+ 大面积草土斑 + 积水。
 
     氛围口径 = 现实里荒废多年的厂区：水泥不是"一整片干净灰地坪"，而是
-    ① 板块之间留缝、缝里全长草；② 18% 的板整块缺失/被土吞；③ 板面 40~50%
-    被草皮与泥土斑覆盖；④ 墙根一线草甸与墙外连成同一片荒地。
+    ① 板块之间留缝、缝里全长草；② 18% 的板整块缺失/被土吞；③ **完整板面不撒草**，
+    只留薄泥/苔渍与板边杂草（草只从缝、缺板、裂缝、板边、墙脚长）；④ 墙根一线草甸
+    与墙外连成同一片荒地。树/灌木脚下另补破板露土的树坑。
     """
     rng = random.Random(SEED + 1)
+    SLAB_RECTS.clear()
+    MISSING_RECTS.clear()
 
     # ---- 1) 泥土基面：整块轮廓，顶面比板面低 6 cm（板缝/缺板处露出土）----
     m.poly_extrude(YARD_OUTLINE, GROUND_Z - 0.35, GROUND_Z - 0.06, mat="Kit_SandDark")
@@ -223,8 +301,10 @@ def build_ground(m):
             w = (x1 - x0) - gap
             d = (z1 - z0) - gap
             if w < 0.6 or d < 0.6:
+                MISSING_RECTS.append((x0, z0, x1, z1))
                 continue
             if rng.random() < 0.18:          # 整块板缺失（被土/草吞掉）
+                MISSING_RECTS.append((x0, z0, x1, z1))
                 continue
             mat = rng.choice(("Kit_ConcreteMid", "Kit_ConcreteMid", "Kit_ConcreteMid",
                               "Kit_ConcreteLight", "Kit_ConcreteDark"))
@@ -235,6 +315,8 @@ def build_ground(m):
                 tilt = math.radians(rng.uniform(1.0, 4.0))
             m.box((w, d, 0.12), at=(cx, cy, GROUND_Z - 0.12 - drop),
                   rz=rng.uniform(-0.015, 0.015), rx=tilt, mat=mat)
+            SLAB_RECTS.append((cx - w * 0.5, cy - d * 0.5,
+                               cx + w * 0.5, cy + d * 0.5, GROUND_Z - drop))
             # 板面残破：小锈斑 / 泥斑 / 草斑
             if rng.random() < 0.22:
                 rx_ = rng.uniform(0.4, max(0.5, min(2.2, w * 0.32)))
@@ -264,32 +346,80 @@ def build_ground(m):
                       mat="Kit_WetSand")
             x += seg
 
-    # ---- 3) 板缝草带：沿每条切割线撒矮草簇（缝里全长草）----
+    # ---- 3) 板缝草带：沿每条切割线撒矮草簇（只长在缝/缺板里；路面上不长）----
     for x in xs[1:-1]:
         z = -33.0
         while z < 33.0:
             z += rng.uniform(0.45, 0.95)
-            if not point_in_poly(x, z, YARD_OUTLINE):
+            gx, gy = x + rng.uniform(-0.3, 0.3), z
+            if not point_in_poly(gx, gy, YARD_OUTLINE) or _on_road(gx, gy, 0.25):
                 continue
-            _grass_tuft(m, x + rng.uniform(-0.4, 0.4), z,
-                        rng.uniform(0.32, 0.62), rng, n=rng.randint(3, 5),
-                        z=GROUND_Z - 0.05)
+            _grass_tuft(m, gx, gy, rng.uniform(0.32, 0.62), rng,
+                        n=rng.randint(3, 5), z=_grass_z(gx, gy))
     for z in zs[1:-1]:
         x = -47.0
         while x < 47.0:
             x += rng.uniform(0.45, 0.95)
-            if not point_in_poly(x, z, YARD_OUTLINE):
+            gx, gy = x, z + rng.uniform(-0.3, 0.3)
+            if not point_in_poly(gx, gy, YARD_OUTLINE) or _on_road(gx, gy, 0.25):
                 continue
-            _grass_tuft(m, x, z + rng.uniform(-0.4, 0.4),
-                        rng.uniform(0.32, 0.62), rng, n=rng.randint(3, 5),
-                        z=GROUND_Z - 0.05)
+            _grass_tuft(m, gx, gy, rng.uniform(0.32, 0.62), rng,
+                        n=rng.randint(3, 5), z=_grass_z(gx, gy))
+
+    # ---- 3.5) 缺板处：土面裸露 + 密草（草只从没有水泥的地方长出来）----
+    for (x0, z0, x1, z1) in MISSING_RECTS:
+        cx, cy = (x0 + x1) * 0.5, (z0 + z1) * 0.5
+        if not point_in_poly(cx, cy, YARD_OUTLINE):
+            continue
+        m.poly_extrude(_blob(rng, (x1 - x0) * 0.45, (z1 - z0) * 0.45, 9),
+                       GROUND_Z - 0.06, GROUND_Z - 0.03,
+                       at=(cx, cy, 0),
+                       mat=rng.choice(("Kit_SandDark", "Kit_GrassDark", "Kit_SandDark",
+                                       "Kit_GrassDark", "Kit_WetSand")))
+        n = max(2, int((x1 - x0) * (z1 - z0) / 2.2))
+        for k in range(n):
+            gx = rng.uniform(x0, x1)
+            gy = rng.uniform(z0, z1)
+            if point_in_poly(gx, gy, YARD_OUTLINE) and not _on_road(gx, gy, 0.1):
+                _grass_tuft(m, gx, gy, rng.uniform(0.35, 0.85), rng,
+                            n=rng.randint(2, 4), z=GROUND_Z - 0.03)
 
     # ---- 4) 大面积草土斑（成片、边缘不规则；草色以暗绿+土褐为主，不用鲜绿）----
     patches = []
 
-    def add_patch(cx, cy, rx, ry, mat=None):
-        if not point_in_poly(cx, cy, YARD_OUTLINE):
+    def add_patch(cx, cy, rx, ry, mat=None, force_real=False):
+        """草土斑：完整板上只留薄污渍（不撒草）；缺板/土面上才是真草甸。"""
+        if not point_in_poly(cx, cy, YARD_OUTLINE) or _on_road(cx, cy, 0.2):
             return
+        # 采样判断落点：≥3/5 在完整板上 ⇒ 板面污渍
+        samples = [(cx, cy)] + [
+            (cx + math.cos(a) * rx * 0.55, cy + math.sin(a) * ry * 0.55)
+            for a in (0.0, math.pi * 0.5, math.pi, math.pi * 1.5)]
+        slab_hits = sum(1 for (sx, sy) in samples if _slab_top(sx, sy) is not None)
+        on_slab = slab_hits >= 3
+
+        if on_slab and not force_real:
+            # 完整水泥板：只留 1 cm 内的泥/苔薄渍，且只保留一部分，不整片刷绿
+            if rng.random() > 0.35:
+                return
+            top = _slab_top(cx, cy)
+            if top is None:
+                return
+            mat2 = rng.choice(("Kit_SandDark", "Kit_GrassDark", "Kit_WetSand"))
+            for k in range(rng.randint(1, 3)):
+                ox = rng.uniform(-0.45, 0.45) * rx
+                oy = rng.uniform(-0.45, 0.45) * ry
+                m.poly_extrude(_blob(rng, rx * rng.uniform(0.5, 0.8),
+                                     ry * rng.uniform(0.5, 0.8), rng.randint(8, 12)),
+                               top + 0.004, top + 0.012,
+                               at=(cx + ox, cy + oy, 0), mat=mat2)
+            return
+
+        # 土面/缺板（或强制墙根草甸）：真草土斑，顶面低于板顶；只有这类才撒草
+        z0, z1 = GROUND_Z - 0.06, GROUND_Z - 0.02
+        if force_real and _slab_top(cx, cy) is not None:
+            top = _slab_top(cx, cy)
+            z0, z1 = top + 0.004, top + 0.018    # 墙根薄土带（贴着墙脚，逻辑上成立）
         mat = mat or rng.choice(("Kit_GrassDark", "Kit_GrassDark", "Kit_SandDark",
                                  "Kit_SandDark", "Kit_GrassDark"))
         # 由 2~3 个错位小斑拼成，边缘更碎、不读成圆贴纸
@@ -298,13 +428,13 @@ def build_ground(m):
             oy = rng.uniform(-0.45, 0.45) * ry
             m.poly_extrude(_blob(rng, rx * rng.uniform(0.55, 0.85),
                                  ry * rng.uniform(0.55, 0.85), rng.randint(9, 14)),
-                           GROUND_Z + 0.02 + k * 0.004, GROUND_Z + 0.055,
+                           z0 + k * 0.003, z1,
                            at=(cx + ox, cy + oy, 0),
                            mat=mat if k == 0 else rng.choice(
                                ("Kit_GrassDark", "Kit_SandDark", "Kit_GrassDark")))
-        patches.append((cx, cy, rx, ry))
+        patches.append((cx, cy, rx, ry, z1))
 
-    # ① 墙根环带：沿围墙内侧 1~5 m 连成草甸（内外过渡的接缝）
+    # ① 墙根环带：沿围墙内侧 1~5 m 连成草甸（草从墙脚破口长出来，强制真草斑）
     for i in range(len(WALL_LINE)):
         x0, y0 = WALL_LINE[i]
         x1, y1 = WALL_LINE[(i + 1) % len(WALL_LINE)]
@@ -317,16 +447,17 @@ def build_ground(m):
             cx = wax - wax / nlen * inward
             cy = way - way / nlen * inward
             add_patch(cx, cy, rng.uniform(2.0, 4.5), rng.uniform(1.6, 3.6),
-                      rng.choice(("Kit_GrassDark", "Kit_SandDark", "Kit_GrassDark")))
+                      rng.choice(("Kit_GrassDark", "Kit_SandDark", "Kit_GrassDark")),
+                      force_real=True)
 
-    # ② 场内成片草甸/土斑（把水泥打碎成岛）
-    for k in range(72):
+    # ② 场内成片草甸/土斑（完整板上退化为薄污渍，缺板/土面才是真斑）
+    for k in range(90):
         cx = rng.uniform(-45.0, 45.0)
         cy = rng.uniform(-31.0, 31.0)
         add_patch(cx, cy, rng.uniform(1.0, 4.6), rng.uniform(0.8, 3.4))
 
-    # ③ 草斑上撒草簇 + 野花 + 碎石
-    for (cx, cy, rx, ry) in patches:
+    # ③ 真草斑上撒草簇 + 野花（板面污渍不撒草、不开花）
+    for (cx, cy, rx, ry, pz) in patches:
         area = 3.1416 * rx * ry
         tufts = max(4, int(area / 0.95))
         for k in range(tufts):
@@ -335,14 +466,14 @@ def build_ground(m):
             px = cx + math.cos(a) * rx * r * 0.9
             py = cy + math.sin(a) * ry * r * 0.9
             _grass_tuft(m, px, py, rng.uniform(0.38, 0.85), rng,
-                        n=rng.randint(3, 5), z=GROUND_Z + 0.03)
+                        n=rng.randint(3, 5), z=pz)
         if rng.random() < 0.30:
             for k in range(rng.randint(1, 3)):
                 a = rng.uniform(0, math.tau)
                 r = math.sqrt(rng.random())
                 fx = cx + math.cos(a) * rx * r * 0.8
                 fy = cy + math.sin(a) * ry * r * 0.8
-                _flower(m, fx, fy, rng)
+                _flower(m, fx, fy, rng, z=pz)
 
     # ---- 5) 裂缝（宽缝 + 两侧草簇）----
     for k, (x0, y0, x1, y1) in enumerate((
@@ -352,9 +483,13 @@ def build_ground(m):
     )):
         _crack(m, x0, y0, x1, y1, SEED + 30 + k, width=0.28)
         for t in (0.15, 0.35, 0.55, 0.75, 0.95):
-            _grass_tuft(m, x0 + (x1 - x0) * t + rng.uniform(-0.4, 0.4),
-                        y0 + (y1 - y0) * t + rng.uniform(-0.4, 0.4),
-                        rng.uniform(0.3, 0.6), rng, n=2, z=GROUND_Z + 0.01)
+            gx = x0 + (x1 - x0) * t + rng.uniform(-0.4, 0.4)
+            gy = y0 + (y1 - y0) * t + rng.uniform(-0.4, 0.4)
+            top = _paved_top(gx, gy)
+            if top is None:
+                continue          # 土面上没有“水泥裂缝”，不长缝边草
+            _grass_tuft(m, gx, gy, rng.uniform(0.3, 0.6), rng, n=2,
+                        z=top + 0.003)
 
     # ---- 6) 积水洼（更大更浅，参考现实废墟的低洼积水）----
     for (x, y, rx, ry) in ((-14, -9, 4.6, 2.6), (16, 9, 4.0, 2.2),
@@ -363,34 +498,71 @@ def build_ground(m):
                            (24, 24, 3.4, 1.9), (-6, 16, 3.2, 1.8)):
         _puddle(m, x, y, rx, ry, rng)
 
-    # ---- 7) 翘起/碎裂水泥板与边缘坍塌 ----
+    # ---- 7) 翘起/碎裂水泥板与边缘坍塌（碎块落在实际表面上，不悬空）----
     for k in range(16):
         x = rng.uniform(-44, 44)
         y = rng.uniform(-30, 30)
         m.box((rng.uniform(1.0, 2.4), rng.uniform(0.7, 1.6), rng.uniform(0.06, 0.16)),
-              at=(x, y, GROUND_Z + 0.01), rz=rng.uniform(0, math.pi),
+              at=(x, y, _ground_z(x, y) + 0.004), rz=rng.uniform(0, math.pi),
               mat=rng.choice(("Kit_ConcreteDark", "Kit_ConcreteLight")))
     for k, (x, y, yaw) in enumerate(((-46, -12, 8), (45, -14, -12), (20, 32.5, 5),
                                     (-36, 32, -8), (8, -32, 4), (-20, -32, -6))):
         m.box((3.2, 1.6, 0.22), at=(x, y, GROUND_Z - 0.06),
               rz=math.radians(yaw), rx=math.radians(6), mat="Kit_ConcreteDark")
 
-    # ---- 8) 场内散草（空地不留纯水泥）----
-    for k in range(700):
+    # ---- 8) 场内散草（只长在缝/缺板/板边；完整板心不长草，路面不长草）----
+    for k in range(1000):
         x = rng.uniform(-45, 45)
         y = rng.uniform(-31, 31)
-        _grass_tuft(m, x, y, rng.uniform(0.35, 0.85), rng, n=rng.randint(2, 4),
-                    z=GROUND_Z + 0.01)
+        if not point_in_poly(x, y, YARD_OUTLINE) or _on_road(x, y, 0.25):
+            continue
+        top = _slab_top(x, y)
+        if top is not None:
+            if not _near_slab_edge(x, y, 0.30):   # 完整板面内部：跳过
+                continue
+            z = top + 0.002
+        else:
+            z = GROUND_Z - 0.055
+        _grass_tuft(m, x, y, rng.uniform(0.35, 0.85), rng, n=rng.randint(2, 4), z=z)
 
 
 def build_roads(m):
     """场地道路：一条东西主路 + 一条斜插支路 + 墙外延伸（视觉引导）。"""
-    # 场内东西主路（略斜，避开中央构件）
-    _road(m, [(-45, -16), (-20, -15), (4, -14), (26, -15), (44, -14)], width=6.5, z=GROUND_Z + 0.02)
-    # 斜插支路：从西南主路拐向东北罐区
-    _road(m, [(-20, -15), (-10, -6), (-2, 2), (6, 9), (14, 14)], width=5.0, z=GROUND_Z + 0.02)
-    # 东侧纵向支路
-    _road(m, [(30, -30), (30, -16), (29, -2), (28, 8)], width=4.5, z=GROUND_Z + 0.02)
+    rng = random.Random(SEED + 2)
+
+    # 场内道路（中心线与宽度和 build_ground 的避让共用 YARD_ROADS）
+    for pts, width in YARD_ROADS:
+        _road(m, pts, width=width, z=GROUND_Z + 0.02)
+        # 路面坑洞（土/草从破沥青里长出来）+ 路缘草
+        for i in range(len(pts) - 1):
+            ax, ay = pts[i]
+            bx, by = pts[i + 1]
+            L = math.hypot(bx - ax, by - ay)
+            yaw = math.atan2(by - ay, bx - ax)
+            nx, ny = -math.sin(yaw), math.cos(yaw)
+            n = max(1, int(L / 6.0))
+            for k in range(n):
+                t = (k + 0.5) / n
+                mx, my = ax + (bx - ax) * t, ay + (by - ay) * t
+                for side in (-1.0, 1.0):
+                    if rng.random() < 0.45:
+                        off = width * 0.5 + rng.uniform(0.12, 0.7)
+                        gx, gy = mx + nx * off * side, my + ny * off * side
+                        if point_in_poly(gx, gy, YARD_OUTLINE) and not _on_road(gx, gy, 0.05):
+                            _grass_tuft(m, gx, gy, rng.uniform(0.3, 0.7), rng,
+                                        n=rng.randint(2, 4), z=_grass_z(gx, gy))
+                if rng.random() < 0.22:
+                    px = mx + rng.uniform(-width * 0.3, width * 0.3)
+                    py = my + rng.uniform(-width * 0.3, width * 0.3)
+                    m.poly_extrude(_blob(rng, rng.uniform(0.3, 0.9),
+                                         rng.uniform(0.25, 0.7), 7),
+                                   GROUND_Z + 0.024, GROUND_Z + 0.036,
+                                   at=(px, py, 0),
+                                   mat=rng.choice(("Kit_SandDark", "Kit_GrassDark",
+                                                   "Kit_WetSand", "Kit_RustDark")))
+                    _grass_tuft(m, px, py, rng.uniform(0.2, 0.45), rng,
+                                n=2, z=GROUND_Z + 0.036)
+
     # 墙外道路延伸：北、西、东三个方向（视觉上通往墙外世界）
     _road(m, [(-2, 32), (-4, 44), (-6, 58)], width=6.0, z=OUTSKIRT_Z + 0.02)
     _road(m, [(-46, -9), (-58, -10), (-72, -12)], width=6.0, z=OUTSKIRT_Z + 0.02)
@@ -427,19 +599,21 @@ def build_walls(m):
             h = rng.uniform(0.6, 1.35) if stub else rng.uniform(2.0, 3.4)
             mat = rng.choice(("Kit_ConcreteMid", "Kit_ConcreteMid", "Kit_ConcreteDark"))
             # 墙体；完整段带压顶，残基座只剩墙根
-            m.box((L, 0.34, h), at=(mx, my, GROUND_Z), rz=yaw, mat=mat)
+            gz = _ground_z(mx, my)
+            m.box((L, 0.34, h), at=(mx, my, gz), rz=yaw, mat=mat)
             if not stub:
-                m.box((L + 0.1, 0.46, 0.12), at=(mx, my, GROUND_Z + h), rz=yaw,
+                m.box((L + 0.1, 0.46, 0.12), at=(mx, my, gz + h), rz=yaw,
                       mat="Kit_ConcreteDark")
             # 锈迹流痕（竖向薄板）
             if rng.random() < 0.45:
                 ox, oy = -math.sin(yaw) * 0.18, math.cos(yaw) * 0.18
                 m.box((rng.uniform(0.25, 0.6), 0.02, rng.uniform(0.5, min(1.6, h - 0.3))),
-                      at=(mx + ox, my + oy, GROUND_Z + 0.2), rz=yaw, mat="Kit_RustDark")
+                      at=(mx + ox, my + oy, gz + 0.2), rz=yaw, mat="Kit_RustDark")
         # 段末立柱
         for (px, py) in ((x0, y0),):
-            m.box((0.55, 0.55, 3.7), at=(px, py, GROUND_Z), rz=0, mat="Kit_ConcreteDark")
-            m.box((0.7, 0.7, 0.14), at=(px, py, GROUND_Z + 3.7), rz=0, mat="Kit_ConcreteLight")
+            gz = _ground_z(px, py)
+            m.box((0.55, 0.55, 3.7), at=(px, py, gz), rz=0, mat="Kit_ConcreteDark")
+            m.box((0.7, 0.7, 0.14), at=(px, py, gz + 3.7), rz=0, mat="Kit_ConcreteLight")
 
     # 大门柱（西南主路穿墙处）+ 倒伏门扇
     _gate(m, (-45.5, -16.0), math.radians(90))
@@ -452,8 +626,10 @@ def build_walls(m):
         for t in (0.08, 0.26, 0.44, 0.62, 0.80, 0.94):
             x = x0 + (x1 - x0) * t
             y = y0 + (y1 - y0) * t
-            _grass_tuft(m, x + rng.uniform(-0.7, 0.7), y + rng.uniform(-0.7, 0.7),
-                        rng.uniform(0.7, 1.5), rng, n=5)
+            gx = x + rng.uniform(-0.7, 0.7)
+            gy = y + rng.uniform(-0.7, 0.7)
+            _grass_tuft(m, gx, gy, rng.uniform(0.7, 1.5), rng, n=5,
+                        z=_grass_z(gx, gy))
 
 
 def build_outskirts(m):
@@ -480,7 +656,7 @@ def build_outskirts(m):
         mat = rng.choice(("Kit_SandDark", "Kit_SandDark", "Kit_SandDark",
                           "Kit_GrassDark", "Kit_WetSand", "Kit_RockDark",
                           "Kit_ConcreteDark", "Kit_GrassDark"))
-        m.poly_extrude(_blob(rng, rx, ry, 9), OUTSKIRT_Z + 0.005, OUTSKIRT_Z + 0.04,
+        m.poly_extrude(_blob(rng, rx, ry, 9), OUTSKIRT_Z + 0.002, OUTSKIRT_Z + 0.02,
                        at=(x, y, 0), mat=mat)
 
     # 墙外近带（0~7 m）草甸/碎石：与墙内同一密度，内外接缝不靠"两种地面"区分
@@ -496,7 +672,7 @@ def build_outskirts(m):
             cy = wy + wy / nl * out
             rx = rng.uniform(1.4, 3.6)
             ry = rng.uniform(1.0, 2.8)
-            m.poly_extrude(_blob(rng, rx, ry, 8), OUTSKIRT_Z + 0.05, OUTSKIRT_Z + 0.08,
+            m.poly_extrude(_blob(rng, rx, ry, 8), OUTSKIRT_Z + 0.002, OUTSKIRT_Z + 0.025,
                            at=(cx, cy, 0),
                            mat=rng.choice(("Kit_GrassDark", "Kit_SandDark", "Kit_GrassDark")))
             for k in range(rng.randint(2, 5)):
@@ -505,7 +681,7 @@ def build_outskirts(m):
                 _grass_tuft(m, cx + math.cos(a) * rx * r * 0.9,
                             cy + math.sin(a) * ry * r * 0.9,
                             rng.uniform(0.3, 0.8), rng, n=rng.randint(2, 4),
-                            z=OUTSKIRT_Z + 0.08)
+                            z=OUTSKIRT_Z + 0.025)
 
     # 远景厂房群（低细节体块 + 窗带 + 破屋顶）：贴着墙外 12~26 m，加高加数。
     for cx, cy, w, d, h, yaw in (
@@ -546,9 +722,9 @@ def build_outskirts(m):
                 if abs(x) < YARD_X / 2 + 3 and abs(y) < YARD_Y / 2 + 3:
                     continue
                 if rng.random() < 0.45:
-                    _dead_tree(m, x, y, rng.uniform(3.5, 7.5), rng)
+                    _dead_tree(m, x, y, rng.uniform(3.5, 7.5), rng, z=OUTSKIRT_Z)
                 else:
-                    _broadleaf(m, x, y, rng.uniform(4.0, 7.5), rng)
+                    _broadleaf(m, x, y, rng.uniform(4.0, 7.5), rng, z=OUTSKIRT_Z)
 
     tree_row(-82, 52, 80, 52, 5.5, 3)      # 北
     tree_row(-72, -54, 66, -54, 6.0, 3)    # 南
@@ -568,9 +744,9 @@ def build_outskirts(m):
         if abs(x) < YARD_X / 2 + 4 and abs(y) < YARD_Y / 2 + 4:
             continue
         if rng.random() < 0.5:
-            _conifer(m, x, y, rng.uniform(5.0, 9.0), rng)
+            _conifer(m, x, y, rng.uniform(5.0, 9.0), rng, z=OUTSKIRT_Z)
         else:
-            _dead_tree(m, x, y, rng.uniform(4.0, 7.0), rng)
+            _dead_tree(m, x, y, rng.uniform(4.0, 7.0), rng, z=OUTSKIRT_Z)
 
     # 灌木带（贴墙外 2~5 m，密）
     for i in range(len(WALL_LINE)):
@@ -584,7 +760,7 @@ def build_outskirts(m):
             else:
                 x, y = x0, y0
             _shrub(m, x + rng.uniform(-3.0, 3.0), y + rng.uniform(-3.0, 3.0),
-                   rng.uniform(1.0, 2.0), rng)
+                   rng.uniform(1.0, 2.0), rng, z=OUTSKIRT_Z)
 
     # 墙外中景带（8~24 m）：草甸/土斑 + 草簇，填满从场内看出去的视野
     # （宽景里西北角那片"空土色平地"就是这条带原来没有覆盖到的区域）
@@ -600,7 +776,7 @@ def build_outskirts(m):
             cy = wy + wy / nl * out
             rx = rng.uniform(3.0, 7.0)
             ry = rng.uniform(2.0, 5.0)
-            m.poly_extrude(_blob(rng, rx, ry, 9), OUTSKIRT_Z + 0.045, OUTSKIRT_Z + 0.075,
+            m.poly_extrude(_blob(rng, rx, ry, 9), OUTSKIRT_Z + 0.002, OUTSKIRT_Z + 0.022,
                            at=(cx, cy, 0),
                            mat=rng.choice(("Kit_SandDark", "Kit_GrassDark",
                                            "Kit_SandDark", "Kit_GrassDark",
@@ -611,7 +787,7 @@ def build_outskirts(m):
                 _grass_tuft(m, cx + math.cos(a) * rx * r * 0.9,
                             cy + math.sin(a) * ry * r * 0.9,
                             rng.uniform(0.4, 1.1), rng, n=rng.randint(2, 4),
-                            z=OUTSKIRT_Z + 0.08)
+                            z=OUTSKIRT_Z + 0.022)
 
     # 电线杆 + 电缆（墙外道路旁）
     _pole_run(m, [(-2, 34), (-4, 46), (-6, 58)], rng)
@@ -629,7 +805,8 @@ def build_outskirts(m):
         y = rng.uniform(-62, 62)
         if abs(x) < YARD_X / 2 + 1 and abs(y) < YARD_Y / 2 + 1:
             continue
-        _grass_tuft(m, x, y, rng.uniform(0.5, 1.5), rng, n=rng.randint(3, 5))
+        _grass_tuft(m, x, y, rng.uniform(0.5, 1.5), rng, n=rng.randint(3, 5),
+                    z=OUTSKIRT_Z + 0.01)
 
 
 def build_vegetation(m):
@@ -650,29 +827,45 @@ def build_vegetation(m):
     ]
     for (x, y) in spots:
         for k in range(rng.randint(2, 5)):
-            _grass_tuft(m, x + rng.uniform(-1.6, 1.6), y + rng.uniform(-1.6, 1.6),
-                        rng.uniform(0.6, 1.3), rng, n=rng.randint(4, 7))
-    # 整场随机散草（把空地打碎）
+            px = x + rng.uniform(-1.6, 1.6)
+            py = y + rng.uniform(-1.6, 1.6)
+            if not point_in_poly(px, py, YARD_OUTLINE) or _on_road(px, py, 0.1):
+                continue
+            _grass_tuft(m, px, py, rng.uniform(0.6, 1.3), rng,
+                        n=rng.randint(4, 7), z=_grass_z(px, py))
+    # 整场随机散草（只长在缝/缺板/板边，不在完整板心与路面上）
     for k in range(150):
         x = rng.uniform(-45, 45)
         y = rng.uniform(-31, 31)
-        _grass_tuft(m, x, y, rng.uniform(0.4, 1.0), rng, n=rng.randint(2, 4))
+        if not point_in_poly(x, y, YARD_OUTLINE) or _on_road(x, y, 0.25):
+            continue
+        top = _slab_top(x, y)
+        if top is not None and not _near_slab_edge(x, y, 0.30):
+            continue
+        _grass_tuft(m, x, y, rng.uniform(0.4, 1.0), rng, n=rng.randint(2, 4),
+                    z=_grass_z(x, y))
 
     # 部分构件脚下的灌木/藤蔓
-    for (x, y, r) in ((-33, -13, 2.2), (-12, -13, 2.0), (34, 12, 2.4),
-                      (6, 27, 2.2), (-26, 25, 2.0), (17, -15, 2.6), (-11, -18, 2.0),
+    for (x, y, r) in ((-33, -8, 2.2), (-16, -9, 2.0), (34, 12, 2.4),
+                      (6, 27, 2.2), (-26, 25, 2.0), (17, -8, 2.6), (-11, -18, 2.0),
                       (-23, 11, 1.6), (32, 2, 1.8), (0, -6, 1.5), (20, 12, 1.4),
                       (-32, -6, 1.6), (42, -24, 1.5)):
-        _shrub(m, x, y, r, rng)
+        gz = _ground_z(x, y)
+        _soil_pit(m, x, y, r * 0.7, rng, z=gz)
+        _shrub(m, x, y, r, rng, z=gz)
 
-    # 场内几棵枯树/阔叶树（避开构件与主路）
-    for (x, y, h) in ((-44, 14, 5.5), (22, 24, 4.8), (44, -20, 5.2), (-6, -12, 4.2),
-                      (10, 26, 4.6), (26, 14, 4.0), (-31, -12, 4.4), (36, -28, 4.6),
+    # 场内几棵枯树/阔叶树（避开构件与主路；树坑解释破板露土）
+    for (x, y, h) in ((-44, 14, 5.5), (22, 24, 4.8), (44, -20, 5.2), (-24, -6, 4.2),
+                      (10, 26, 4.6), (26, 14, 4.0), (-31, -7, 4.4), (36, -28, 4.6),
                       (-4, 11, 3.8), (-30, 9, 3.6)):
-        _dead_tree(m, x, y, h, rng)
+        gz = _ground_z(x, y)
+        _soil_pit(m, x, y, 1.5, rng, z=gz)
+        _dead_tree(m, x, y, h, rng, z=gz)
     for (x, y, h) in ((-33, 24, 5.0), (28, 28, 4.4), (44, 28, 4.8), (-9, 24, 4.0),
-                      (14, -8, 4.2), (-30, -12, 3.8)):
-        _broadleaf(m, x, y, h, rng)
+                      (14, -8, 4.2), (-24, -9, 3.8)):
+        gz = _ground_z(x, y)
+        _soil_pit(m, x, y, 1.4, rng, z=gz)
+        _broadleaf(m, x, y, h, rng, z=gz)
 
     # 瓦砾堆
     for k, (x, y) in enumerate(((-38, -4), (0, -22), (24, -10), (8, 12), (-18, 4),
@@ -753,7 +946,11 @@ def _crack(m, x0, y0, x1, y1, seed, segs=6, width=0.18):
         bx, by = pts[i + 1]
         L = math.hypot(bx - ax, by - ay)
         yaw = math.atan2(by - ay, bx - ax)
-        m.box((L + 0.08, width, 0.02), at=((ax + bx) / 2, (ay + by) / 2, GROUND_Z + 0.045),
+        mx, my = (ax + bx) * 0.5, (ay + by) * 0.5
+        top = _paved_top(mx, my)
+        if top is None:
+            continue          # 裂缝只存在于水泥板/沥青上，土面上不画
+        m.box((L + 0.08, width, 0.008), at=(mx, my, top + 0.002),
               rz=yaw, mat="Kit_ConcreteDark")
 
 
@@ -773,8 +970,8 @@ def _road(m, pts, width, z):
             mx = ax + (bx - ax) * (t0 + t1) * 0.5
             my = ay + (by - ay) * (t0 + t1) * 0.5
             seg = L / n
-            m.box((seg - rr.uniform(0.05, 0.35), width, 0.08),
-                  at=(mx, my, z - 0.04), rz=yaw, mat="Kit_ConcreteDark")
+            m.box((seg - rr.uniform(0.05, 0.35), width, 0.04),
+                  at=(mx, my, z - 0.02), rz=yaw, mat="Kit_ConcreteDark")
             # 路面草土侵占
             if rr.random() < 0.50:
                 m.poly_extrude(_blob(rr, seg * rr.uniform(0.25, 0.48), width * rr.uniform(0.25, 0.45), 7),
@@ -787,25 +984,29 @@ def _road(m, pts, width, z):
                 ox = -math.sin(yaw) * width * 0.5 * side
                 oy = math.cos(yaw) * width * 0.5 * side
                 if rr.random() < 0.85:
-                    _grass_tuft(m, mx + ox + rr.uniform(-0.35, 0.35),
-                                my + oy + rr.uniform(-0.35, 0.35),
-                                rr.uniform(0.3, 0.65), rr, n=2, z=z)
+                    gx = mx + ox + rr.uniform(-0.35, 0.35)
+                    gy = my + oy + rr.uniform(-0.35, 0.35)
+                    _grass_tuft(m, gx, gy, rr.uniform(0.3, 0.65), rr, n=2,
+                                z=_grass_z(gx, gy))
 
 
 def _gate(m, at, yaw):
     x, y = at
     cx, cy = math.cos(yaw), math.sin(yaw)
+    gz = _ground_z(x, y)
     # 两根门柱
     for s in (-1, 1):
         px = x - cy * 3.6 * s
         py = y + cx * 3.6 * s
-        m.box((0.8, 0.8, 3.6), at=(px, py, GROUND_Z), rz=yaw, mat="Kit_ConcreteDark")
-        m.box((1.0, 1.0, 0.16), at=(px, py, GROUND_Z + 3.6), rz=yaw, mat="Kit_ConcreteLight")
+        m.box((0.8, 0.8, 3.6), at=(px, py, _ground_z(px, py)), rz=yaw,
+              mat="Kit_ConcreteDark")
+        m.box((1.0, 1.0, 0.16), at=(px, py, _ground_z(px, py) + 3.6), rz=yaw,
+              mat="Kit_ConcreteLight")
     # 半塌的推拉门扇
-    m.box((3.4, 0.12, 2.2), at=(x - cy * 1.2, y + cx * 1.2, GROUND_Z + 0.15),
+    m.box((3.4, 0.12, 2.2), at=(x - cy * 1.2, y + cx * 1.2, gz + 0.15),
           rz=yaw + math.radians(18), rx=math.radians(14), mat="Kit_Rust")
     # 门牌
-    m.box((1.6, 0.08, 0.5), at=(x, y, GROUND_Z + 2.9), rz=yaw, mat="Kit_PaintYellow")
+    m.box((1.6, 0.08, 0.5), at=(x, y, gz + 2.9), rz=yaw, mat="Kit_PaintYellow")
 
 
 def _rubble_barrier(m, a, b, rng):
@@ -820,19 +1021,21 @@ def _rubble_barrier(m, a, b, rng):
         _mound(m, x, y, rng.uniform(1.8, 3.0), rng.uniform(1.4, 2.6), "Kit_GrassDark", rng)
         _rubble(m, x, y, rng.uniform(1.4, 2.4), rng, n=rng.randint(8, 14))
         if rng.random() < 0.7:
-            _dead_tree(m, x + rng.uniform(-1.2, 1.2), y + rng.uniform(-1.2, 1.2),
-                       rng.uniform(3.5, 6.0), rng)
+            tx = x + rng.uniform(-1.2, 1.2)
+            ty = y + rng.uniform(-1.2, 1.2)
+            _dead_tree(m, tx, ty, rng.uniform(3.5, 6.0), rng, z=_ground_z(tx, ty))
         if rng.random() < 0.6:
-            _shrub(m, x + rng.uniform(-1.5, 1.5), y + rng.uniform(-1.5, 1.5),
-                   rng.uniform(1.0, 1.8), rng)
+            sx = x + rng.uniform(-1.5, 1.5)
+            sy = y + rng.uniform(-1.5, 1.5)
+            _shrub(m, sx, sy, rng.uniform(1.0, 1.8), rng, z=_ground_z(sx, sy))
 
 
 def _mound(m, cx, cy, rad, h, mat, rng):
     sides = 10
-    pts = _blob(rng, rad, rad * rng.uniform(0.7, 0.95), sides)
+    inside = abs(cx) < YARD_X * 0.5 and abs(cy) < YARD_Y * 0.5
+    base = _ground_z(cx, cy) if inside else OUTSKIRT_Z
     m.revolve([(0.0, 0.0), (rad * 0.7, h * 0.45), (rad * 0.38, h * 0.82), (0.0, h)],
-              at=(cx, cy, OUTSKIRT_Z if abs(cx) > YARD_X / 2 or abs(cy) > YARD_Y / 2 else GROUND_Z),
-              seg=sides, mat=mat)
+              at=(cx, cy, base), seg=sides, mat=mat)
 
 
 def _distant_hall(m, cx, cy, w, d, h, yaw, rng):
@@ -927,16 +1130,19 @@ def _pallets_crates(m, x, y, yaw, rng):
     for k in range(rng.randint(1, 3)):
         ox = rng.uniform(-1.2, 1.2)
         oy = rng.uniform(-1.2, 1.2)
-        m.box((1.2, 0.8, 0.14), at=(x + ox, y + oy, GROUND_Z), rz=yaw + rng.uniform(-0.3, 0.3),
+        gz = _ground_z(x + ox, y + oy)
+        m.box((1.2, 0.8, 0.14), at=(x + ox, y + oy, gz), rz=yaw + rng.uniform(-0.3, 0.3),
               mat="Kit_WoodDark")
         if rng.random() < 0.65:
             w = rng.uniform(0.6, 1.0)
-            m.box((w, w * 0.8, w * 0.7), at=(x + ox, y + oy, GROUND_Z + 0.14),
+            m.box((w, w * 0.8, w * 0.7), at=(x + ox, y + oy, gz + 0.14),
                   rz=yaw + rng.uniform(-0.4, 0.4), mat="Kit_WoodDark")
     # 散落木条
     for k in range(rng.randint(2, 5)):
+        lx = x + rng.uniform(-1.8, 1.8)
+        ly = y + rng.uniform(-1.8, 1.8)
         m.box((rng.uniform(1.0, 2.2), 0.12, 0.08),
-              at=(x + rng.uniform(-1.8, 1.8), y + rng.uniform(-1.8, 1.8), GROUND_Z + 0.02),
+              at=(lx, ly, _ground_z(lx, ly) + 0.005),
               rz=rng.uniform(0, 3.14), mat="Kit_WoodDark")
 
 
@@ -945,15 +1151,16 @@ def _rail_spur(m, x0, y0, x1, y1, rng):
     L = math.hypot(x1 - x0, y1 - y0)
     yaw = math.atan2(y1 - y0, x1 - x0)
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    gz = _ground_z(cx, cy)
     # 道床
-    m.box((L, 2.6, 0.10), at=(cx, cy, GROUND_Z), rz=yaw, mat="Kit_SandDark")
+    m.box((L, 2.6, 0.10), at=(cx, cy, gz), rz=yaw, mat="Kit_SandDark")
     # 枕木
     n = int(L / 0.9)
     for i in range(n):
         t = (i + 0.5) / n
         x = x0 + (x1 - x0) * t
         y = y0 + (y1 - y0) * t
-        m.box((0.32, 2.0, 0.10), at=(x, y, GROUND_Z + 0.10), rz=yaw,
+        m.box((0.32, 2.0, 0.10), at=(x, y, _ground_z(x, y) + 0.10), rz=yaw,
               mat="Kit_WoodDark")
     # 钢轨（两条）
     for side in (-0.62, 0.62):
@@ -967,18 +1174,24 @@ def _rail_spur(m, x0, y0, x1, y1, rng):
             bx = x0 + (x1 - x0) * t1 + ox
             by = y0 + (y1 - y0) * t1 + oy
             m.box((math.hypot(bx - ax, by - ay), 0.14, 0.16),
-                  at=((ax + bx) / 2, (ay + by) / 2, GROUND_Z + 0.20), rz=yaw,
-                  mat="Kit_Iron")
+                  at=((ax + bx) / 2, (ay + by) / 2, _ground_z((ax + bx) / 2, (ay + by) / 2) + 0.20),
+                  rz=yaw, mat="Kit_Iron")
     # 断头翘起的钢轨
-    m.box((3.0, 0.14, 0.16), at=(x1 - 1.2, y1 + 0.6, GROUND_Z + 0.24), rz=yaw + 0.3,
-          rx=math.radians(10), mat="Kit_Rust")
+    m.box((3.0, 0.14, 0.16), at=(x1 - 1.2, y1 + 0.6, _ground_z(x1 - 1.2, y1 + 0.6) + 0.24),
+          rz=yaw + 0.3, rx=math.radians(10), mat="Kit_Rust")
 
 
 def _puddle(m, x, y, rx, ry, rng):
-    """积水洼：深色湿边 + 浅水薄片（荒废场地低点）。"""
-    m.poly_extrude(_blob(rng, rx, ry, 9), GROUND_Z + 0.02, GROUND_Z + 0.035,
-                   at=(x, y, 0), mat="Kit_WetSand")
-    m.poly_extrude(_blob(rng, rx * 0.72, ry * 0.72, 8), GROUND_Z + 0.035, GROUND_Z + 0.045,
+    """积水洼：湿边 + 薄水片。板/沥青上是 1 cm 内的薄水膜；土面上才是洼地水。"""
+    top = _paved_top(x, y)
+    if top is not None:
+        zr0, zr1 = top + 0.002, top + 0.006
+        zw0, zw1 = top + 0.007, top + 0.010
+    else:
+        zr0, zr1 = GROUND_Z - 0.055, GROUND_Z - 0.035
+        zw0, zw1 = GROUND_Z - 0.034, GROUND_Z - 0.028
+    m.poly_extrude(_blob(rng, rx, ry, 9), zr0, zr1, at=(x, y, 0), mat="Kit_WetSand")
+    m.poly_extrude(_blob(rng, rx * 0.72, ry * 0.72, 8), zw0, zw1,
                    at=(x + 0.2, y - 0.1, 0), mat="Kit_GlassDark")
 
 
@@ -1027,23 +1240,46 @@ def _grass_tuft(m, x, y, size, rng, n=5, z=None):
               at=(0, 0, 0), mat=mat)
 
 
-def _flower(m, x, y, rng):
-    """野花点缀（小白/淡黄/淡蓝），茎 + 花头各一个薄片。"""
+def _flower(m, x, y, rng, z=None):
+    """野花点缀（小白/淡黄/淡蓝），茎 + 花头各一个薄片。z = 草斑顶面。"""
+    z = GROUND_Z if z is None else z
     h = rng.uniform(0.10, 0.24)
-    m.box((0.04, 0.04, h), at=(x, y, GROUND_Z + 0.04), rz=rng.uniform(0, 3.14),
+    m.box((0.04, 0.04, h), at=(x, y, z + 0.001), rz=rng.uniform(0, 3.14),
           mat="Kit_GrassMid")
-    m.poly_extrude(_blob(rng, 0.06, 0.06, 5), GROUND_Z + 0.04 + h,
-                   GROUND_Z + 0.055, at=(x, y, 0),
+    m.poly_extrude(_blob(rng, 0.06, 0.06, 5), z + h,
+                   z + h + 0.015, at=(x, y, 0),
                    mat=rng.choice(("Kit_ConcreteLight", "Kit_PaintYellow", "Kit_SteelBlue")))
 
 
-def _shrub(m, x, y, r, rng):
+def _shrub(m, x, y, r, rng, z=None):
+    z = GROUND_Z if z is None else z
     for k in range(rng.randint(4, 7)):
         ox = rng.uniform(-r, r) * 0.7
         oy = rng.uniform(-r, r) * 0.7
         rr = rng.uniform(0.35, 0.8) * r * 0.6
-        m.sphere(rr, at=(x + ox, y + oy, GROUND_Z + rr * 0.65), seg=7, rings=4,
+        m.sphere(rr, at=(x + ox, y + oy, z + rr * 0.65), seg=7, rings=4,
                  mat="Kit_GrassDark", smooth=False)
+
+
+def _soil_pit(m, x, y, r, rng, z=None):
+    """树坑/灌木坑：破板露土 + 坑边碎板 + 草簇——解释树为什么能从水泥地里长出来。"""
+    z = _ground_z(x, y) if z is None else z
+    top = _slab_top(x, y)
+    zt = (top + 0.02) if top is not None else (z + 0.02)
+    m.poly_extrude(_blob(rng, r, r * 0.82, 9), zt - 0.025, zt, at=(x, y, 0),
+                   mat=rng.choice(("Kit_SandDark", "Kit_SandDark", "Kit_GrassDark")))
+    for k in range(rng.randint(3, 5)):
+        a = rng.uniform(0, math.tau)
+        rad = r * rng.uniform(0.75, 1.1)
+        px, py = x + math.cos(a) * rad, y + math.sin(a) * rad
+        m.box((rng.uniform(0.35, 0.8), rng.uniform(0.25, 0.55), 0.06),
+              at=(px, py, zt - 0.012), rz=rng.uniform(0, 3.14), rx=rng.uniform(-0.2, 0.2),
+              mat=rng.choice(("Kit_ConcreteDark", "Kit_ConcreteMid")))
+    for k in range(rng.randint(4, 7)):
+        a = rng.uniform(0, math.tau)
+        rad = r * rng.uniform(0.55, 1.0)
+        _grass_tuft(m, x + math.cos(a) * rad, y + math.sin(a) * rad,
+                    rng.uniform(0.35, 0.7), rng, n=3, z=zt)
 
 
 def _rubble(m, x, y, spread, rng, n=10):
@@ -1052,7 +1288,7 @@ def _rubble(m, x, y, spread, rng, n=10):
         py = y + rng.uniform(-spread, spread)
         s = rng.uniform(0.18, 0.55)
         m.box((s, s * rng.uniform(0.6, 1.4), s * rng.uniform(0.3, 0.8)),
-              at=(px, py, GROUND_Z), rz=rng.uniform(0, 3.14),
+              at=(px, py, _ground_z(px, py)), rz=rng.uniform(0, 3.14),
               mat=rng.choice(("Kit_ConcreteDark", "Kit_ConcreteMid", "Kit_RustDark")))
 
 
@@ -1060,21 +1296,23 @@ def _drums(m, x, y, rng, n=5):
     for k in range(n):
         px = x + rng.uniform(-1.3, 1.3)
         py = y + rng.uniform(-1.3, 1.3)
+        gz = _ground_z(px, py)
         standing = rng.random() < 0.6
         r = 0.3
         h = 0.92
         if standing:
-            m.cyl(r, h, at=(px, py, GROUND_Z), seg=8, mat="Kit_Rust")
-            m.cyl(r * 1.03, 0.05, at=(px, py, GROUND_Z + 0.28), seg=8, mat="Kit_RustDark")
-            m.cyl(r * 1.03, 0.05, at=(px, py, GROUND_Z + 0.62), seg=8, mat="Kit_RustDark")
+            m.cyl(r, h, at=(px, py, gz), seg=8, mat="Kit_Rust")
+            m.cyl(r * 1.03, 0.05, at=(px, py, gz + 0.28), seg=8, mat="Kit_RustDark")
+            m.cyl(r * 1.03, 0.05, at=(px, py, gz + 0.62), seg=8, mat="Kit_RustDark")
         else:
-            _branch(m, Vector((px - 0.5, py, GROUND_Z + r)), Vector((px + 0.5, py, GROUND_Z + r)),
+            _branch(m, Vector((px - 0.5, py, gz + r)), Vector((px + 0.5, py, gz + r)),
                     r, "Kit_RustDark")
 
 
 def _fallen_pole(m, x, y, yaw, rng):
     L = 7.5
-    p0 = Vector((x, y, GROUND_Z + 0.18))
+    gz = _ground_z(x, y)
+    p0 = Vector((x, y, gz + 0.18))
     p1 = p0 + Vector((math.cos(yaw) * L, math.sin(yaw) * L, 0))
     _branch(m, p0, p1, 0.13, "Kit_WoodDark")
     # 横担
