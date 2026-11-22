@@ -236,7 +236,48 @@ namespace PirateCrew.UI
             button.targetGraphic = backplate;
             button.transition = Selectable.Transition.None;
 
+            // 键盘焦点框（Tab/方向键选中行时点亮）。行面三态是 list_item 语义，
+            // 焦点框是独立的键盘信号，二者不混用。
+            RectTransform focusFrame = CreateFocusFrame(row);
+            var focus = row.gameObject.AddComponent<UiRowFocus>();
+            focus.Bind(focusFrame.gameObject);
+
             return row;
+        }
+
+        /// <summary>行焦点框：贴行缘的四条 1px 蓝边（默认隐藏，UiRowFocus 控制）。</summary>
+        static RectTransform CreateFocusFrame(RectTransform row)
+        {
+            RectTransform frame = CreateRect("FocusFrame", row);
+            Stretch(frame);
+            UiLayout.Ignore(frame.gameObject);   // 不参与行内 HStack 排布
+
+            AddFocusEdge(frame, "Top", new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(0.5f, 1f), new Vector2(0f, 1f));
+            AddFocusEdge(frame, "Bottom", new Vector2(0f, 0f), new Vector2(1f, 0f),
+                new Vector2(0.5f, 0f), new Vector2(0f, 1f));
+            AddFocusEdge(frame, "Left", new Vector2(0f, 0f), new Vector2(0f, 1f),
+                new Vector2(0f, 0.5f), new Vector2(1f, 0f));
+            AddFocusEdge(frame, "Right", new Vector2(1f, 0f), new Vector2(1f, 1f),
+                new Vector2(1f, 0.5f), new Vector2(1f, 0f));
+
+            frame.gameObject.SetActive(false);
+            return frame;
+        }
+
+        static void AddFocusEdge(RectTransform parent, string name,
+            Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 sizeDelta)
+        {
+            RectTransform edge = CreateRect(name, parent);
+            edge.anchorMin = anchorMin;
+            edge.anchorMax = anchorMax;
+            edge.pivot = pivot;
+            edge.sizeDelta = sizeDelta;
+            edge.anchoredPosition = Vector2.zero;
+
+            var image = edge.gameObject.AddComponent<Image>();
+            image.color = UiSkin.FocusOutline;
+            image.raycastTarget = false;
         }
 
         /// <summary>取行根上的按钮（<see cref="CreateRow"/> 已挂，行即 list_item 的命中区）。</summary>

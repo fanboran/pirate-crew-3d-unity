@@ -218,23 +218,44 @@ namespace PirateCrew.EditorTools
                     break;
                 case 2:
                     UiShowcaseSceneSetup.ForceGameViewSizePublic(1920, 1080);
-                    if (EditorApplication.isPlaying && Time.frameCount >= 60
+                    if (EditorApplication.isPlaying && Time.frameCount >= 80
                         && sceneName == "Battle" && !SessionState.GetBool(SelectedKey, false))
                     {
-                        // 选中一名红队角色，让底部武器面板（含文字按钮）入画——走查对象。
-                        SessionState.SetBool(SelectedKey, true);
+                        // 走查用：把交互控制器切到「选中」态，让底部武器面板入画。
+                        // 只调 BattleController.SelectCharacter 不够——它不发布 SelectionChanged，
+                        // HUD 不会刷新。这里在编辑器里反射仿真交互选中域（_selected/_state），
+                        // 再发同一条事件；只服务截图，不进玩法路径。
                         var controller = UnityEngine.Object.FindObjectOfType<PirateCrew.Battle.BattleController>();
-                        PirateCrew.Battle.PirateBase unit = null;
-                        foreach (var candidate in UnityEngine.Object.FindObjectsOfType<PirateCrew.Battle.PirateBase>(true))
+                        var interaction = UnityEngine.Object.FindObjectOfType<PirateCrew.Battle.BattleInteractionController>();
+                        if (controller != null && interaction != null)
                         {
-                            if (candidate.TeamIndex == 0)
+                            foreach (var candidate in UnityEngine.Object.FindObjectsOfType<PirateCrew.Battle.PirateBase>(true))
                             {
-                                unit = candidate;
+                                if (!candidate.Alive || !controller.SelectCharacter(candidate))
+                                    continue;
+
+                                var type = interaction.GetType();
+                                var selectedField = type.GetField("_selected",
+                                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                                var stateField = type.GetField("_state",
+                                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                                selectedField?.SetValue(interaction, candidate);
+                                if (stateField != null)
+                                {
+                                    stateField.SetValue(interaction,
+                                        System.Enum.Parse(stateField.FieldType, "SelectedIdle"));
+                                }
+
+                                PirateCrew.Core.EventBus.Publish(
+                                    PirateCrew.Battle.BattleEvents.SelectionChanged,
+                                    new PirateCrew.Battle.SelectionChangedPayload(candidate.PirateId, true));
+
+                                SessionState.SetBool(SelectedKey, true);
+                                Debug.Log("[UiPixelScreenCapture] Battle 选中单位 " + candidate.PirateId
+                                    + "（队 " + candidate.TeamIndex + "，交互域已仿真）");
                                 break;
                             }
                         }
-                        if (controller != null && unit != null)
-                            controller.SelectCharacter(unit);
                     }
                     if (EditorApplication.isPlaying && Time.frameCount >= 60)
                     {

@@ -148,6 +148,12 @@ namespace PirateCrew.UI
             public GameObject QuitConfirmPanel;
             public Button QuitConfirmOkButton;
             public Button QuitConfirmCancelButton;
+
+            // 分辨率切换确认（倒计时还原；图标钮：▶ 保留 / ■ 还原）。
+            public GameObject ResolutionConfirmPanel;
+            public Button ResolutionKeepButton;
+            public Button ResolutionRevertButton;
+            public Image ResolutionCountdownFill;
         }
 
         /// <summary>
@@ -240,7 +246,86 @@ namespace PirateCrew.UI
             refs.QuitConfirmOkButton = quitConfirm.OkButton;
             refs.QuitConfirmCancelButton = quitConfirm.CancelButton;
 
+            // 分辨率切换确认（默认隐藏；倒计时条 + ▶/■ 图标钮，不写字）。
+            ResolutionConfirmResult resolutionConfirm = BuildResolutionConfirm(canvas);
+            refs.ResolutionConfirmPanel = resolutionConfirm.Root;
+            refs.ResolutionKeepButton = resolutionConfirm.KeepButton;
+            refs.ResolutionRevertButton = resolutionConfirm.RevertButton;
+            refs.ResolutionCountdownFill = resolutionConfirm.CountdownFill;
+
             return refs;
+        }
+
+        /// <summary>分辨率切换确认的构建产物。</summary>
+        sealed class ResolutionConfirmResult
+        {
+            public GameObject Root;
+            public Button KeepButton;
+            public Button RevertButton;
+            public Image CountdownFill;
+        }
+
+        /// <summary>分辨率切换确认（图标化，不写字）：倒计时条 15 秒走完自动还原；
+        /// ▶ = 保留新分辨率，■ = 立即还原。卡 140×56（取偶），条 116×4。</summary>
+        static ResolutionConfirmResult BuildResolutionConfirm(Transform canvas)
+        {
+            RectTransform root = UiKit.CreateRect("ResolutionConfirm", canvas);
+            UiKit.Stretch(root);
+            CreateDimOverlay(root);
+
+            RectTransform card = UiKit.CreateRect("Card", root);
+            card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
+            card.pivot = new Vector2(0.5f, 0.5f);
+            card.anchoredPosition = Vector2.zero;
+            card.sizeDelta = new Vector2(140f, 56f);
+            UiKit.EnsurePanel(card, PixelTone.Frame);
+
+            // 倒计时条：暗槽 + 金色余量（逐帧按剩余比例取整缩宽）。
+            RectTransform track = UiKit.CreateRect("Countdown", card);
+            UiKit.SetAnchored(track, new Vector2(0.5f, 1f), new Vector2(116f, 4f), new Vector2(0f, -14f));
+            var trackImage = track.gameObject.AddComponent<Image>();
+            trackImage.color = PixelSkin.Theme.Disabled;
+            trackImage.raycastTarget = false;
+
+            RectTransform fill = UiKit.CreateRect("Fill", track);
+            fill.anchorMin = new Vector2(0f, 0f);
+            fill.anchorMax = new Vector2(0f, 1f);
+            fill.pivot = new Vector2(0f, 0.5f);
+            fill.anchoredPosition = Vector2.zero;
+            fill.sizeDelta = new Vector2(116f, 0f);
+            var fillImage = fill.gameObject.AddComponent<Image>();
+            fillImage.color = PixelSkin.Theme.Selected;
+            fillImage.raycastTarget = false;
+
+            Button keep = CreateIconButton("ResolutionKeepButton", card,
+                PixelSkin.WindowIconSprite(PixelSkin.WindowIcon.Play), new Vector2(-28f, -8f));
+            Button revert = CreateIconButton("ResolutionRevertButton", card,
+                PixelSkin.WindowIconSprite(PixelSkin.WindowIcon.Stop), new Vector2(28f, -8f));
+
+            root.gameObject.SetActive(false);
+
+            return new ResolutionConfirmResult
+            {
+                Root = root.gameObject,
+                KeepButton = keep,
+                RevertButton = revert,
+                CountdownFill = fillImage,
+            };
+        }
+
+        /// <summary>图标按钮：无文字 sketch 钮 + 居中窗口图标件（图标不接射线）。</summary>
+        static Button CreateIconButton(string name, Transform parent, Sprite icon, Vector2 position)
+        {
+            SketchButton button = CreateSketchButton(name, parent, string.Empty,
+                new Vector2(0.5f, 0.5f), position, new Vector2(24f, 24f), BodyFont);
+
+            RectTransform iconRect = UiKit.CreateRect("Icon", button.transform);
+            Vector2 iconSize = icon != null ? icon.rect.size : new Vector2(9f, 11f);
+            UiKit.SetAnchored(iconRect, new Vector2(0.5f, 0.5f), iconSize, Vector2.zero);
+            var image = iconRect.gameObject.AddComponent<Image>();
+            image.sprite = icon;
+            image.raycastTarget = false;
+            return button;
         }
 
         /// <summary>主菜单窗体按钮列的按钮：LayoutElement 声明高 24（参考库 OK 钮），

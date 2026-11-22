@@ -1,4 +1,4 @@
-using PirateCrew.Data;
+﻿using PirateCrew.Data;
 using PirateCrew.UI;
 using PirateCrew.UI.Stick;
 using TMPro;
@@ -258,6 +258,10 @@ namespace PirateCrew.EditorTools
                 + (SegmentsPerTeam - 1) * BattleHudZones.SegmentGap;
             barRoot.sizeDelta = new Vector2(barWidth, BattleHudZones.TeamBarHeight);
 
+            // 队伍形状标记（色盲冗余）：条外侧 8×8 三角（红）/ 圆（蓝），与条同色。
+            // 只靠红蓝色相时色盲玩家分不出归属，形状是第二编码；不用文字（小字号中文扫描慢）。
+            AddTeamEmblem(barRoot, teamIndex, mirror);
+
             // 槽底 = theme disabled 面平涂（暗于 window_face，队色段在其上最跳）。
             var trough = barRoot.gameObject.AddComponent<Image>();
             trough.sprite = null;
@@ -343,6 +347,25 @@ namespace PirateCrew.EditorTools
             }
 
             return view;
+        }
+
+        /// <summary>队伍形状标记：作为血条子件贴在条外侧 4px，8×8 原生点阵（TeamGlyphs）。
+        /// 子件跟随条根运行时伸缩（装配期条宽按上限段数，运行时按实际人数重排）；
+        /// Sprite 是运行时生成物，由 TeamMarkIcon 在 Awake 重新赋图，不能靠 Prefab 序列化。</summary>
+        static void AddTeamEmblem(RectTransform barRoot, int teamIndex, bool mirror)
+        {
+            RectTransform emblem = UiKit.CreateRect("TeamMark", barRoot);
+            emblem.anchorMin = emblem.anchorMax = new Vector2(mirror ? 1f : 0f, 0.5f);
+            emblem.pivot = new Vector2(mirror ? 0f : 1f, 0.5f);
+            emblem.anchoredPosition = new Vector2(mirror ? 4f : -4f, 0f);
+            emblem.sizeDelta = new Vector2(TeamGlyphs.Size, TeamGlyphs.Size);
+
+            var image = emblem.gameObject.AddComponent<Image>();
+            image.color = UiSkin.TeamFill(teamIndex);
+            image.raycastTarget = false;
+
+            var icon = emblem.gameObject.AddComponent<TeamMarkIcon>();
+            icon.SetTeam(teamIndex);
         }
 
         // ------------------------------------------------------------------

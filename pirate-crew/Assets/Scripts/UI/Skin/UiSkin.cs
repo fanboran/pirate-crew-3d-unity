@@ -32,6 +32,10 @@ namespace PirateCrew.UI
         /// （窗底 #2C2C30 4.75:1）。**只用于窗底/画布底**——行底 #41444A 上仍不足。</summary>
         public static readonly Color HintText = Rgb(0x94, 0x97, 0x9D);
 
+        /// <summary>键盘焦点框（列表行 1px 描边）。theme focus 蓝 #4069C2 压行底只有 1.87:1，
+        /// 提亮到 #6E9ADB（行底 3.4:1、画布底 4.84:1）——非文字焦点指示 ≥3:1。</summary>
+        public static readonly Color FocusOutline = Rgb(0x6E, 0x9A, 0xDB);
+
         // ---- 队色 / 队名文字（pirate 玩法语义色，不随 P1 令牌接管换血；收编 BattleHud 的两份写死色） ----
 
         /// <summary>红队主色（血条段 / 徽章环 / 点位；图形用，非文字；压窗底 5.8:1）。</summary>

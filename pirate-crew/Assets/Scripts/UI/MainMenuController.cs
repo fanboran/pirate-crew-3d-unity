@@ -1,10 +1,12 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using PirateCrew.Campaign;
 using PirateCrew.Core;
 using PirateCrew.Audio;
 using PirateCrew.Settings;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace PirateCrew.UI
@@ -60,6 +62,20 @@ namespace PirateCrew.UI
         [SerializeField] Button quitConfirmOkButton;
         [SerializeField] Button quitConfirmCancelButton;
 
+        [Header("分辨率切换确认（倒计时还原）")]
+        [SerializeField] GameObject resolutionConfirmPanel;
+        [SerializeField] Button resolutionKeepButton;
+        [SerializeField] Button resolutionRevertButton;
+        [SerializeField] Image resolutionCountdownFill;
+
+        /// <summary>倒计时时长（秒）：走完自动还原。</summary>
+        const float ResolutionConfirmSeconds = 15f;
+        /// <summary>倒计时条满宽（画布单位，与 UiScreenBuilder 的条宽同源）。</summary>
+        const float ResolutionTrackWidth = 116f;
+
+        Vector2Int _resolutionPrevious;
+        Coroutine _resolutionCountdown;
+
         /// <summary>面板开合动效驱动（菜单 juice 与战斗内同口径；数值/曲线全在 UiMotionRules）。</summary>
         UiMotion _motion;
 
@@ -97,6 +113,10 @@ namespace PirateCrew.UI
             quitConfirmPanel = refs.QuitConfirmPanel;
             quitConfirmOkButton = refs.QuitConfirmOkButton;
             quitConfirmCancelButton = refs.QuitConfirmCancelButton;
+            resolutionConfirmPanel = refs.ResolutionConfirmPanel;
+            resolutionKeepButton = refs.ResolutionKeepButton;
+            resolutionRevertButton = refs.ResolutionRevertButton;
+            resolutionCountdownFill = refs.ResolutionCountdownFill;
         }
 
         void Awake()
@@ -182,6 +202,10 @@ namespace PirateCrew.UI
                     RuntimeUiBuilder.ButtonFeedback(resolutionButton, true, _motion);
                     CycleResolution();
                 });
+            if (resolutionKeepButton != null)
+                resolutionKeepButton.onClick.AddListener(ConfirmResolution);
+            if (resolutionRevertButton != null)
+                resolutionRevertButton.onClick.AddListener(RevertResolution);
 
             if (quitConfirmOkButton != null)
                 quitConfirmOkButton.onClick.AddListener(ConfirmQuit);
@@ -230,6 +254,10 @@ namespace PirateCrew.UI
                 quitConfirmOkButton.onClick.RemoveListener(ConfirmQuit);
             if (quitConfirmCancelButton != null)
                 quitConfirmCancelButton.onClick.RemoveListener(CancelQuit);
+            if (resolutionKeepButton != null)
+                resolutionKeepButton.onClick.RemoveListener(ConfirmResolution);
+            if (resolutionRevertButton != null)
+                resolutionRevertButton.onClick.RemoveListener(RevertResolution);
             // 音量滑条/画质与全屏按钮的监听用 lambda 捕获，组件销毁时随之失效，无需手动退订。
         }
 
@@ -381,11 +409,96 @@ namespace PirateCrew.UI
         {
             var choices = ResolutionChoices();
             int index = choices.IndexOf(_currentResolutionChoice);
+            (int Width, int Height) previous = _currentResolutionChoice;
             _currentResolutionChoice = choices[(index + 1) % choices.Count];
+
+            if (_currentResolutionChoice.Width == previous.Width
+                && _currentResolutionChoice.Height == previous.Height)
+            {
+                RefreshVideoChips();
+                return;   // 只有一档（编辑器常见）：没有变化就不弹确认
+            }
 
             if (VideoSettingsService.Instance != null)
                 VideoSettingsService.Instance.SetResolution(
                     _currentResolutionChoice.Width, _currentResolutionChoice.Height);
+
+            RefreshVideoChips();
+            ShowResolutionConfirm(new Vector2Int(previous.Width, previous.Height));
+        }
+
+        /// <summary>分辨率切换后弹倒计时确认：15 秒内不保留就自动还原（防黑屏/超采样锁死）。</summary>
+        void ShowResolutionConfirm(Vector2Int previous)
+        {
+            _resolutionPrevious = previous;
+            if (resolutionCountdownFill != null)
+                resolutionCountdownFill.rectTransform.sizeDelta = new Vector2(ResolutionTrackWidth, 0f);
+
+            if (_modalStack != null)
+                _modalStack.Push(resolutionConfirmPanel, onEsc: RevertResolution);
+            else if (resolutionConfirmPanel != null)
+                resolutionConfirmPanel.SetActive(true);
+
+            // 默认焦点给「保留」：回车即确认；Tab 可在两钮间切换。
+            if (EventSystem.current != null && resolutionKeepButton != null)
+                EventSystem.current.SetSelectedGameObject(resolutionKeepButton.gameObject);
+
+            StopResolutionCountdown();
+            _resolutionCountdown = StartCoroutine(ResolutionCountdownRoutine());
+        }
+
+        IEnumerator ResolutionCountdownRoutine()
+        {
+            float remaining = ResolutionConfirmSeconds;
+            while (remaining > 0f)
+            {
+                remaining -= Time.unscaledDeltaTime;
+                if (resolutionCountdownFill != null)
+                {
+                    float t = Mathf.Clamp01(remaining / ResolutionConfirmSeconds);
+                    resolutionCountdownFill.rectTransform.sizeDelta =
+                        new Vector2(Mathf.Round(ResolutionTrackWidth * t), 0f);
+                }
+                yield return null;
+            }
+
+            _resolutionCountdown = null;
+            RevertResolution();
+        }
+
+        void StopResolutionCountdown()
+        {
+            if (_resolutionCountdown == null)
+                return;
+            StopCoroutine(_resolutionCountdown);
+            _resolutionCountdown = null;
+        }
+
+        /// <summary>保留新分辨率（▶）：关确认框，落盘仍走设置面板关闭时的统一保存。</summary>
+        void ConfirmResolution()
+        {
+            RuntimeUiBuilder.ButtonFeedback(resolutionKeepButton, true, _motion);
+            StopResolutionCountdown();
+            if (_modalStack != null)
+                _modalStack.Pop(resolutionConfirmPanel);
+            else if (resolutionConfirmPanel != null)
+                resolutionConfirmPanel.SetActive(false);
+        }
+
+        /// <summary>还原旧分辨率（■ / Esc / 倒计时走完）：恢复上一档并刷新选项。</summary>
+        void RevertResolution()
+        {
+            RuntimeUiBuilder.ButtonFeedback(resolutionRevertButton, true, _motion);
+            StopResolutionCountdown();
+
+            if (VideoSettingsService.Instance != null)
+                VideoSettingsService.Instance.SetResolution(_resolutionPrevious.x, _resolutionPrevious.y);
+            _currentResolutionChoice = (_resolutionPrevious.x, _resolutionPrevious.y);
+
+            if (_modalStack != null)
+                _modalStack.Pop(resolutionConfirmPanel);
+            else if (resolutionConfirmPanel != null)
+                resolutionConfirmPanel.SetActive(false);
 
             RefreshVideoChips();
         }
