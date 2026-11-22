@@ -5,10 +5,10 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace PirateCrew.UI.DebugUi
+namespace PirateCrew.UI.Controls
 {
     /// <summary>悬停 0.3s 弹 theme tooltip（蓝底 #4069C2 + #C0C0C0 字），移开即收。</summary>
-    sealed class HoverTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    public sealed class HoverTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     {
         string _text;
         Coroutine _pending;
@@ -53,7 +53,7 @@ namespace PirateCrew.UI.DebugUi
             bg.raycastTarget = false;
 
             TextMeshProUGUI text = UiKit.CreateText("Text", tip, _text, UiSkin.Font.Tiny,
-                TextAlignmentOptions.Left, PixelSkin.Theme.Text, DebugWindowKit.HandFont);
+                TextAlignmentOptions.Left, PixelSkin.Theme.Text, AseText.HandFont);
             text.enableWordWrapping = false;
             text.raycastTarget = false;
             // 件是九宫（5/6/5 × 5/5/6）——文字按内容区 inset 摆，不压边框

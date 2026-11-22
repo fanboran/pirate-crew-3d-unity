@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace PirateCrew.UI.DebugUi
+namespace PirateCrew.UI.Controls
 {
     /// <summary>
     /// 组合框下拉弹层 = Aseprite <c>Window(WithoutTitleBar)</c> + <c>View</c> + <c>ComboBoxListBox</c>
@@ -22,7 +22,7 @@ namespace PirateCrew.UI.DebugUi
     ///   （364-393），且**这一击照常传给下层控件**（过滤器返回 false 后仍发给原收件控件）；
     /// - kClose/kWinMove → 收（344-349）；kKeyEsc → 收（351-362）；列表 kKey space/enter → 收（570-580）。
     /// </summary>
-    internal sealed class AseComboBoxPopup : MonoBehaviour, IPointerUpHandler, IPointerDownHandler
+    internal sealed class AseComboBoxPopup : MonoBehaviour, IAsePopup, IPointerUpHandler, IPointerDownHandler
     {
         /// <summary>theme <c>view</c>：border="3" border-top="4"（公共口径见 <see cref="AseWidgetKit"/>）。</summary>
         public const float ViewBorderLeft = AseWidgetKit.ViewBorderLeft;
@@ -43,7 +43,7 @@ namespace PirateCrew.UI.DebugUi
         /// openWindow 入 Manager 栈顶；同帧后开的窗可能压过它，点击要能夺回）。</summary>
         public void OnPointerDown(PointerEventData eventData)
         {
-            WindowDragger.RaiseToCanvasTop(_rect);
+            AseUi.RaiseToCanvasTop(_rect);
         }
 
         internal static AseComboBoxPopup Open(AseComboBox combo, Transform host, float width, float height,
@@ -59,6 +59,7 @@ namespace PirateCrew.UI.DebugUi
             popup._openFrame = Time.frameCount;
             popup._comboWorldAtOpen = combo.transform.position;
             popup.Build(itemsWidth, options, selected);
+            AsePopupScope.Register(popup);   // 同屏只留一层浮层
             return popup;
         }
 
@@ -169,8 +170,12 @@ namespace PirateCrew.UI.DebugUi
                 Hide();
         }
 
+        /// <summary>IAsePopup：新浮层打开前被全局收起。</summary>
+        public void ClosePopup() => Close();
+
         internal void Hide()
         {
+            AsePopupScope.Unregister(this);
             if (Application.isPlaying)
                 Destroy(gameObject);
             else

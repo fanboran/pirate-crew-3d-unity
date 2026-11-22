@@ -2,6 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+using PirateCrew.UI.Controls;
+
 namespace PirateCrew.UI.DebugUi
 {
     /// <summary>

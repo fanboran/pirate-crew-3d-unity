@@ -4,6 +4,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
+using PirateCrew.UI.Controls;
+
 namespace PirateCrew.UI.DebugUi
 {
     /// <summary>
@@ -133,6 +135,7 @@ namespace PirateCrew.UI.DebugUi
         /// </summary>
         internal static void Detach(AseMenuSession session)
         {
+            AsePopupScope.Unregister(session);
             if (s_session == session)
                 s_session = null;
             if (s_popupSession == session)
@@ -155,6 +158,7 @@ namespace PirateCrew.UI.DebugUi
             var session = barRect.gameObject.AddComponent<AseMenuSession>();
             session.Build(barRect, menus);
             s_session = session;
+            AsePopupScope.Register(session);
             return barRect;
         }
 
@@ -183,37 +187,18 @@ namespace PirateCrew.UI.DebugUi
             var session = rect.gameObject.AddComponent<AseMenuSession>();
             session.BuildStandalone(host, rect.gameObject, anchor, items, side);
             s_popupSession = session;
+            AsePopupScope.Register(session);
         }
 
         /// <summary>收起整棵菜单（Menu::closeAll）：清高亮、销弹层、退捕获板。</summary>
-        public static void CloseAll()
-        {
-            if (s_session != null)
-                s_session.CloseMenus();
-            if (s_popupSession != null)
-                s_popupSession.CloseMenus();
-        }
+        public static void CloseAll() => AsePopupScope.CloseAll();
 
         // ------------------------------------------------------------------
         // 尺寸（AppMenuItem::onSizeHint app_menuitem.cpp:133-150；MenuItem::onSizeHint menu.cpp:1044-1055）
         // ------------------------------------------------------------------
 
         /// <summary>字高（= 源码 textHeight()：字体 ascent→descent 跨度）。像素字体按原生档取 lineHeight。</summary>
-        internal static float TextHeight(int fontSize)
-        {
-            TMP_FontAsset font = UiKit.ResolvePixelFont(fontSize);
-            if (font != null)
-            {
-                var info = font.faceInfo;
-                if (info.pointSize > 0f)
-                {
-                    float h = info.lineHeight * fontSize / info.pointSize;
-                    if (h > 0f)
-                        return Mathf.Ceil(h);
-                }
-            }
-            return fontSize + 2f;
-        }
+        internal static float TextHeight(int fontSize) => AseText.TextHeight(fontSize);
 
         /// <summary>
         /// 整行尺寸提示：栏内 = 文字 + childSpacing/4 + border；行内 = 文字 + childSpacing + border，

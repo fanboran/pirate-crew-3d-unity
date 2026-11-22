@@ -2,6 +2,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
+using PirateCrew.UI.Controls;
+
 namespace PirateCrew.UI.DebugUi
 {
     /// <summary>
@@ -61,14 +63,7 @@ namespace PirateCrew.UI.DebugUi
         /// 全体之上；组内其他窗随容器一起抬到被跨过的顶层之上（调试树整体浮顶，
         /// 调试器打开时的合理形态）。</summary>
         public static void RaiseToCanvasTop(RectTransform window)
-        {
-            Transform t = window;
-            while (t != null && t.parent is RectTransform)
-            {
-                t.SetAsLastSibling();
-                t = t.parent;
-            }
-        }
+            => AseUi.RaiseToCanvasTop(window);
 
         public void OnPointerDown(PointerEventData eventData)
         {

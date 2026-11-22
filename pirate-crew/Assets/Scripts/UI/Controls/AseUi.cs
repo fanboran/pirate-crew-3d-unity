@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace PirateCrew.UI.DebugUi
+namespace PirateCrew.UI.Controls
 {
     /// <summary>
     /// 修饰键单点（源 message.h:52-58 的 shift/alt/cmd 键语义）。键盘导航、剪贴板、
@@ -51,6 +51,18 @@ namespace PirateCrew.UI.DebugUi
             while (root != null && root.parent is RectTransform parent)
                 root = parent;
             return root;
+        }
+
+        /// <summary>把弹层所在整条父链提到画布顶层（源：popup 由 Manager 顶层托管；
+        /// UGUI 侧 = 每层父件设末位兄弟）。组合框弹层/气泡共用。</summary>
+        public static void RaiseToCanvasTop(RectTransform popup)
+        {
+            Transform t = popup;
+            while (t != null && t.parent is RectTransform)
+            {
+                t.SetAsLastSibling();
+                t = t.parent;
+            }
         }
 
         // ------------------------------------------------------------------

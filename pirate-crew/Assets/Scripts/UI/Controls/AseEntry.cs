@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace PirateCrew.UI.DebugUi
+namespace PirateCrew.UI.Controls
 {
     /// <summary>
     /// Aseprite <c>ui::Entry</c>（<c>external/aseprite-ref/src/ui/entry.cpp</c> +
@@ -250,7 +250,7 @@ namespace PirateCrew.UI.DebugUi
                 // 后缀（源 colors.entrySuffix() 色；旧实现错用了 status_bar_text，这里改回
                 // theme.xml:48 的 entry_suffix #c6c6c6）。锚右缘——源是紧接正文追加，
                 // 本端沿用既有右锚语义（公共观感不变）。
-                _suffixLabel = DebugWindowKit.PlaceLabel(root, suffix, _fontSize,
+                _suffixLabel = AseText.PlaceLabel(root, suffix, _fontSize,
                     ColSuffix, 0f, 2f, 10f);
                 RectTransform sr = _suffixLabel.rectTransform;
                 sr.anchorMin = sr.anchorMax = sr.pivot = new Vector2(1f, 1f);
@@ -285,7 +285,7 @@ namespace PirateCrew.UI.DebugUi
             rect.offsetMax = Vector2.zero;
 
             var label = rect.gameObject.AddComponent<TextMeshProUGUI>();
-            TMP_FontAsset font = UiKit.ResolvePixelFont(_fontSize, DebugWindowKit.HandFont);
+            TMP_FontAsset font = UiKit.ResolvePixelFont(_fontSize, AseText.HandFont);
             if (font != null)
                 label.font = font;
             label.fontSize = _fontSize;

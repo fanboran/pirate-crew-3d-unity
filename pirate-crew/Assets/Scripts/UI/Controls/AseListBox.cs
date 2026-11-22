@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace PirateCrew.UI.DebugUi
+namespace PirateCrew.UI.Controls
 {
     /// <summary>
     /// Aseprite <c>ListBox</c> + <c>ListItem</c> 语义移植（<c>src/ui/listbox.cpp</c>、
@@ -321,7 +321,7 @@ namespace PirateCrew.UI.DebugUi
             bool hasView = TryView(out content, out viewportH);   // View::getView(this)
             // textHeight()（Widget::textHeight，widget.cpp:969-977 = 字体 descent-ascent 跨度）——
             // 用与菜单同源的度量口径（AseMenuKit.TextHeight 就是按 TMP faceInfo 算的这个）
-            float textH = Mathf.Max(1f, AseMenuKit.TextHeight(UiSkin.Font.Tiny));
+            float textH = Mathf.Max(1f, AseText.TextHeight(UiSkin.Font.Tiny));
 
             switch (scancode)
             {

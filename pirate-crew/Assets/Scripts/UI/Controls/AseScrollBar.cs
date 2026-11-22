@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace PirateCrew.UI.DebugUi
+namespace PirateCrew.UI.Controls
 {
     /// <summary>
     /// Aseprite <c>ScrollBar</c> 逐函数移植（源 <c>src/ui/scroll_bar.cpp</c> 全文 +
@@ -66,6 +66,35 @@ namespace PirateCrew.UI.DebugUi
             AseScrollBar bar = rect.gameObject.AddComponent<AseScrollBar>();
             bar.Build(owner, rect, horizontal);
             return bar;
+        }
+
+        /// <summary>反序列化自恢复：烘进 Prefab 后私有字段全为空，Awake 按子件名找回。
+        /// 运行时 <see cref="Create"/> 新建时 Build 会覆盖一遍，无副作用。</summary>
+        void Awake()
+        {
+            Hydrate();
+        }
+
+        void Hydrate()
+        {
+            if (_rect == null)
+                _rect = (RectTransform)transform;
+            if (_track == null)
+                _track = GetComponent<Image>();
+            if (_thumbRect == null)
+                _thumbRect = transform.Find("Thumb") as RectTransform;
+            if (_thumb == null && _thumbRect != null)
+                _thumb = _thumbRect.GetComponent<Image>();
+            if (_cam == null)
+                _cam = FindCamera(_rect);
+            // 横/竖方向不随 Prefab 序列化：按件名恢复（Create 固定用 HScrollBar/VScrollBar 命名）。
+            _horizontal = name.StartsWith("HScrollBar");
+        }
+
+        /// <summary>重新绑定滚动视图（AseView 反序列化自恢复后调用）。</summary>
+        internal void Rebind(IAseScrollView owner)
+        {
+            _delegate = owner;
         }
 
         void Build(IAseScrollView owner, RectTransform rect, bool horizontal)

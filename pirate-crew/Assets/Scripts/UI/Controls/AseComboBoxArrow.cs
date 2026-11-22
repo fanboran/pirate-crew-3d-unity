@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace PirateCrew.UI.DebugUi
+namespace PirateCrew.UI.Controls
 {
     /// <summary>组合框箭头图标的按压变体（theme <c>combobox_button</c> 的
     /// <c>&lt;icon part="combobox_arrow_down_selected" state="selected"/&gt;</c>；
