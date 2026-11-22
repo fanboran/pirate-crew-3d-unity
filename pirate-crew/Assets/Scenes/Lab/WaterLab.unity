@@ -13870,7 +13870,7 @@ MonoBehaviour:
   replicaWaterSnapshot: {fileID: 4900000, guid: d156bea1f2da627488e79f22b2838422, type: 3}
   replicaWeights: {fileID: 4900000, guid: 9e4d1a6f3b82457ca013d5f2c8e07b46, type: 3}
   replicaSandSnapshot: {fileID: 4900000, guid: fb917782cb8c4c0d9cd26dd2ff7d0397, type: 3}
-  phytoplanktonShader: {fileID: 0}
+  phytoplanktonShader: {fileID: 7200000, guid: d2baafabf4fc46a3aca59e330796b4b6, type: 3}
 --- !u!4 &934907719
 Transform:
   m_ObjectHideFlags: 0
