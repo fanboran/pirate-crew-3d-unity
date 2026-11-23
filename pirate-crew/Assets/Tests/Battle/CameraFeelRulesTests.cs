@@ -435,12 +435,13 @@ namespace PirateCrew.Battle.Tests
         public void PanoramaOrthoSizeForSpan_ClampsPerM4Contract()
         {
             // 【距离恒定收口（创始人 2026-10-07 裁决禁多镜头距离）】全景档与近景档合一——
-            // 任何跨度都返回恒定档，不再随 span 变化。
-            Assert.AreEqual(16, CameraFraming.PanoramaOrthoSizeForSpan(100f));
-            Assert.AreEqual(16, CameraFraming.PanoramaOrthoSizeForSpan(50f));
-            Assert.AreEqual(16, CameraFraming.PanoramaOrthoSizeForSpan(300f));
+            // 任何跨度都返回恒定档，不再随 span 变化。恒定值 = 基准档 CloseUpOrthoSize
+            // 11.25（可见 22.5 m）取整 → 11；旧两档制的全景档 16 已随口径回退退役。
+            Assert.AreEqual(11, CameraFraming.PanoramaOrthoSizeForSpan(100f));
+            Assert.AreEqual(11, CameraFraming.PanoramaOrthoSizeForSpan(50f));
+            Assert.AreEqual(11, CameraFraming.PanoramaOrthoSizeForSpan(300f));
             Assert.AreEqual(CameraFraming.PanoramaOrthoSizeForSpan(
-                CameraFraming.DefaultWorldSpan), 16, "默认跨度也 = 恒定档");
+                CameraFraming.DefaultWorldSpan), 11, "默认跨度也 = 恒定档");
         }
 
         // ------------------------------------------------------------------
