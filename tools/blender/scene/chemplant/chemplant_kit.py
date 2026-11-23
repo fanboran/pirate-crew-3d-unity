@@ -228,8 +228,9 @@ def sbox(acc, c, s, mat, rot=None):
     acc.add(pts, [(1, 3, 2, 0), (6, 7, 5, 4), (4, 5, 1, 0), (3, 7, 6, 2), (2, 6, 4, 0), (5, 7, 3, 1)], mat)
 
 
-def cyl(acc, p0, p1, r0, r1, sides, mat, cap0=True, cap1=True, smooth=False):
-    """圆台/圆柱杆（低分段 = 棱面杆）。"""
+def cyl(acc, p0, p1, r0, r1, sides, mat, cap0=True, cap1=True, smooth=True):
+    """圆台/圆柱杆（休闲化：最低 16 段 + 平滑侧面，不再是棱面杆）。"""
+    sides = max(int(sides), 16)
     d = Vector(p1) - Vector(p0)
     if d.length < 1e-6:
         return
@@ -322,6 +323,8 @@ def arc_tube(acc, cx, cy, z, r, a0, a1, sides, tube_r, mat, t_sides=4):
 
 def sphere_shell(acc, cx, cy, cz, r, sides, nrings, matf, smooth=False):
     """球壳（自下而上环放样 + 两极扇面）。"""
+    sides = max(int(sides), 16)
+    nrings = max(int(nrings), 8)
     rings = []
     for k in range(1, nrings):
         phi = math.pi * (1.0 - k / float(nrings))          # 底 → 顶
@@ -556,19 +559,25 @@ def drum(acc, cx, cy, z=0.0, r=0.30, h=0.92, yaw=0.0, tilt=0.0, mat='Kit_Rust',
     acc.append(sub, (cx, cy, z), yaw_deg=yaw, tilt_deg=math.degrees(tilt))
 
 
-def weeds(acc, cx, cy, n, seed, spread=1.2, mat_a='Kit_GrassDark', mat_b='Kit_GrassMid',
+def weeds(acc, cx, cy, n, seed, spread=1.2, mat_a='Kit_CpGrass', mat_b='Kit_CpMoss',
           hmin=0.25, hmax=0.75):
-    """荒草簇：每簇 4 根细瘦歪斜草叶（薄板三棱柱）。"""
+    """荒草/灌木丛：低多边形圆球簇（休闲化）。
+
+    旧实现是 4 根薄板草叶，在像素管线里会被描成黑刺、在近景读成锯齿；
+    现在每簇两颗半埋圆球，圆润、无尖角，和合并场地的新草丘同一语言。
+    """
     rng = random.Random(seed)
     for i in range(n):
         bx = cx + rng.uniform(-spread, spread)
         by = cy + rng.uniform(-spread, spread)
-        for k in range(4):
+        for k in range(2):
+            r = rng.uniform(0.16, 0.30)
             hh = rng.uniform(hmin, hmax)
-            m = mat_a if rng.random() < 0.7 else mat_b
-            sbox(acc, (bx + rng.uniform(-0.12, 0.12), by + rng.uniform(-0.12, 0.12), hh * .5),
-                 (0.05, 0.03, hh), m,
-                 rot=(rng.uniform(-0.25, 0.25), rng.uniform(-0.25, 0.25), rng.uniform(0, 3.14)))
+            px = bx + rng.uniform(-0.20, 0.20)
+            py = by + rng.uniform(-0.20, 0.20)
+            mat = mat_a if rng.random() < 0.62 else mat_b
+            sphere_shell(acc, px, py, hh * 0.5, r, 12, 7,
+                         lambda band, sector, m=mat: m, smooth=True)
 
 
 def rubble(acc, cx, cy, n, seed, spread=1.8, mat='Kit_ConcreteMid', mat_dark='Kit_ConcreteDark',
@@ -1685,7 +1694,10 @@ ASSETS = [
 ALL_SLOTS = sorted(set(
     ['Kit_ConcreteLight', 'Kit_ConcreteMid', 'Kit_ConcreteDark', 'Kit_Rust', 'Kit_RustDark',
      'Kit_SteelBlue', 'Kit_SteelPale', 'Kit_GlassDark', 'Kit_PaintYellow', 'Kit_Iron',
-     'Kit_Brass', 'Kit_GrassDark', 'Kit_GrassMid', 'Kit_SandDark', 'Kit_WetSand', 'Kit_WoodDark']
+     'Kit_Brass', 'Kit_GrassDark', 'Kit_GrassMid', 'Kit_SandDark', 'Kit_WetSand', 'Kit_WoodDark',
+     'Kit_CpSand', 'Kit_CpGrass', 'Kit_CpMoss', 'Kit_CpAsphalt', 'Kit_CpWater',
+     'Kit_CpFoliageLight', 'Kit_CpFoliageMid', 'Kit_CpFoliageDark',
+     'Kit_DecSoil', 'Kit_DecGrass', 'Kit_DecMoss', 'Kit_DecWet', 'Kit_DecWater']
 ))
 
 

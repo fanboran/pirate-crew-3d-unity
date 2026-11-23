@@ -104,7 +104,7 @@ namespace PirateCrew.Data
         /// 内洞轮廓（环岛用；扁平 <c>[x0, z0, x1, z1, ...]</c>，与 <see cref="outline"/> 同一写法；
         /// null / 空 = 无洞）。**一岛至多一个内洞**：Unity 不序列化嵌套 List（<c>heights</c> 已因
         /// 同一原因强制扁平化），扁平单层列表放不下多个环；真要多洞岛时拆成多岛表达
-        /// （现役四关全部无洞）。
+        /// （现役三关全部无洞）。
         /// </summary>
         public List<float> holes;
 

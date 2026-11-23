@@ -1,0 +1,437 @@
+using System.Collections.Generic;
+using PirateCrew.Rendering.Pixelart;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.Rendering.Universal;   // GetUniversalAdditionalCameraData 是这里的扩展方法
+using PixelartLevelView = PirateCrew.Rendering.Pixelart.PixelartLevelScene.View;
+using PirateCrew.EditorTools.BuildSystem;
+
+namespace PirateCrew.EditorTools
+{
+    /// <summary>
+    /// 「废弃化工厂 · 两关合并版」的**像素化路径试点场景**装配：把
+    /// `Assets/Art/Models/SceneKit/ChemPlantMerged.fbx`（两套 kit 的建筑零件重排，
+    /// `tools/blender/scene/chemplant/assemble_chemplant_merged.py` 产出）摆进
+    /// <see cref="PixelartLevelScene"/> 的取景口径里，烘出 `Assets/Scenes/Pixelart/PixelartChemPlantTeam.unity`，
+    /// 供播放器出图链（`-pixelartOut -pixelartLevel 5`）产**实机管线成图**。
+    ///
+    /// 【与 `PixelartChemPlantSetup`（单文件版）的关系】两套是同一主题的两条并行路线，共用：
+    /// 像素路径装配机制（<see cref="PixelartStageKit"/>）、取景表（<see cref="PixelartLevelScene"/>）、
+    /// 出图链（`PlayerArtCapture` 的 `-pixelartOut -pixelartLevel N`）。差别只有**模型来源与场景名**：
+    /// 本文件吃 `SceneKit/ChemPlantMerged.fbx`（21 节点 / 35 槽 / 约 200 万三角面 /
+    /// 96×68 m 可玩区 + 墙外起伏田野），场景名 `PixelartChemPlantMerged`（取景表关卡号 5）。
+    ///
+    /// 【材质的唯一配方】逐个 `Kit_` 槽调 <see cref="PixelartStageKit.EnsureMaterial"/>——与游戏内
+    /// 物体材质同一条配方（`PixelartObject` shader + 4 档色带 + 描边），色值镜像
+    /// `tools/blender/scene/style_tokens.py` 的 SLOTS（改一处必改另一处）。
+    ///
+    /// 【不做的事】不碰 `WorldMapAssetSet`、不碰 `Battle.unity`、不改 `PixelartChemPlant`（另一条的场景）。
+    ///
+    /// 用法（仓库根执行，一次只跑一个 Unity 进程）：
+    ///   Unity.exe -batchmode -nographics -quit -projectPath pirate-crew \
+    ///     -executeMethod PirateCrew.EditorTools.PixelartChemPlantMergedSetup.BuildAll -logFile -
+    /// </summary>
+    public static class PixelartChemPlantMergedSetup
+    {
+        public const string LogTag = "[PixelartChemPlantMerged]";
+
+        /// <summary>场景名（取景表与开发场景集里的名字）。</summary>
+        public const string SceneName = "PixelartChemPlantMerged";
+
+        const string ModelPath = "Assets/Art/Models/SceneKit/ChemPlantMerged.fbx";
+
+        /// <summary>取景表里的关卡号（本文件往 `PixelartLevelScene` 新增的那一行）。</summary>
+        const int LevelNumber = 5;
+
+        /// <summary>场外地面替身的缩放（Plane 是 10 m 见方 ⇒ 20 = 200 m 见方）。</summary>
+        const float GroundPlaneScale = 20f;
+
+        /// <summary>
+        /// 合并件的 32 个槽（**按名字典序** —— `Mesher.to_object` 按首次出现顺序 append，
+        /// 但跨件并集与 FBX 子节点的槽序不保证一致，故一律按名匹配，名字读不到才按序兜底）。
+        /// </summary>
+        static readonly string[] SlotNames =
+        {
+            "Kit_Brass", "Kit_ConcreteDark", "Kit_ConcreteLight", "Kit_ConcreteMid",
+            "Kit_CpAsphalt", "Kit_CpFoliageDark", "Kit_CpFoliageFar", "Kit_CpFoliageLight",
+            "Kit_CpFoliageMid", "Kit_CpGrass", "Kit_CpGrassFar", "Kit_CpHaze", "Kit_CpMoss",
+            "Kit_CpSand", "Kit_CpWater",
+            "Kit_DecGrass", "Kit_DecMoss", "Kit_DecSoil", "Kit_DecWater", "Kit_DecWet",
+            "Kit_GlassDark", "Kit_GrassDark", "Kit_GrassMid", "Kit_Iron", "Kit_PaintYellow",
+            "Kit_RockDark", "Kit_RockMid", "Kit_Rust", "Kit_RustDark", "Kit_SandDark",
+            "Kit_SteelBlue", "Kit_SteelPale", "Kit_WetSand", "Kit_WoodDark", "Kit_WoodMid",
+        };
+
+        /// <summary>槽色值：镜像 `style_tokens.SLOTS`（sRGB hex；本路径逐物体只吃 albedo）。</summary>
+        static readonly Dictionary<string, string> SlotHex = new Dictionary<string, string>
+        {
+            { "Kit_Brass", "C9A227" },
+            { "Kit_ConcreteDark", "A69B84" },
+            { "Kit_ConcreteLight", "E4DCC8" },
+            { "Kit_ConcreteMid", "C9BFA9" },
+            { "Kit_CpAsphalt", "85867F" },
+            { "Kit_CpFoliageDark", "5A8048" },
+            { "Kit_CpFoliageFar", "8FA78C" },
+            { "Kit_CpFoliageLight", "A8C77C" },
+            { "Kit_CpFoliageMid", "7BA65F" },
+            { "Kit_CpGrass", "86AB64" },
+            { "Kit_CpGrassFar", "94B874" },
+            { "Kit_CpHaze", "B3C4BC" },
+            { "Kit_CpMoss", "6F9859" },
+            { "Kit_CpSand", "CBB98F" },
+            { "Kit_CpWater", "86C3CE" },
+            { "Kit_DecGrass", "86AB64" },
+            { "Kit_DecMoss", "6F9859" },
+            { "Kit_DecSoil", "CBB98F" },
+            { "Kit_DecWater", "86C3CE" },
+            { "Kit_DecWet", "A98E68" },
+            { "Kit_GlassDark", "4E6670" },
+            { "Kit_GrassDark", "2D5A2D" },
+            { "Kit_GrassMid", "4A8C4A" },
+            { "Kit_Iron", "6E6A63" },
+            { "Kit_PaintYellow", "E3B84F" },
+            { "Kit_RockDark", "5C4F42" },
+            { "Kit_RockMid", "8C7B6A" },
+            { "Kit_Rust", "C98357" },
+            { "Kit_RustDark", "96583A" },
+            { "Kit_SandDark", "8B7355" },
+            { "Kit_SteelBlue", "6E8B99" },
+            { "Kit_SteelPale", "B4C4C7" },
+            { "Kit_WetSand", "5C4A34" },
+            { "Kit_WoodDark", "6B4C28" },
+            { "Kit_WoodMid", "A67B42" },
+        };
+
+        /// <summary>
+        /// 场内摆 3 个船员当**尺度参照**（人的高度就是这关的尺度锚）。
+        /// 坐标 = Unity 系（= Blender 的 X / Z / -Y）：全落在场地地坪（y=0）上，
+        /// 且都取在**主厂房东侧空地 ~ 主路**这条宽景/中景都看得见的开阔带里
+        /// （2026-11-21：原先的 (0,14)/(-20,14)/(15,-4) 分别落进大罐与管廊内部，
+        /// 三个尺度参照在成图里全被设备挡住，等于没有）。
+        /// </summary>
+        static readonly Vector3[] CrewSpots =
+        {
+            new Vector3(3.5f, 0f, 6.5f),   // 主厂房东侧、主路南缘（Blender (3.5,-6.5)）
+            new Vector3(7f, 0f, 0f),       // 主厂房东侧空地（Blender (7,0)）
+            new Vector3(2f, 0f, 11.5f),    // 主厂房东南角空地（Blender (2,-11.5)）
+        };
+
+        [MenuItem("PirateCrew/Pixelart/烘焙废弃化工厂试点场景（两关合并版）")]
+        public static void BuildAllMenu() => BuildAll();
+
+        /// <summary>无头入口：导模型 → 换材质 → 搭像素 rig → 存场景 → 登记进开发场景集。</summary>
+        public static void BuildAll()
+        {
+            if (!PixelartLevelScene.TryGet(LevelNumber, out PixelartLevelView view))
+            {
+                Debug.LogError(LogTag + " 取景表里没有关卡 " + LevelNumber + " 的行，先补 PixelartLevelScene。");
+                return;
+            }
+
+            if (!PixelartPathInstaller.TryInstall(out int castIndex, out int screenIndex, out string error))
+            {
+                Debug.LogError(LogTag + " 渲染器装配失败，场景未烘焙：" + error);
+                return;
+            }
+
+            if (AssetDatabase.LoadAssetAtPath<Texture2D>(PixelartStageKit.DitherFolder + "/ToonDither_0.png") == null)
+                DitherPatternBaker.Bake();
+
+            PixelartStageKit.EnsureFolder(PixelartStageKit.MaterialFolder);
+
+            if (!ApplyImportSettings())
+                return;
+
+            // 材质重映射（2026-10-08「合并件偏暗、红太深」修复）：同关3 的修法——把 18 个 Kit_ 槽
+            // 外链到本路径着色材质。FBX 内嵌材质携带的是**线性值**（Kit_Rust=(0.262,0.068,0.021)），
+            // 而像素材质的 _BaseColor 口径是 **sRGB 原值**（PixelartChemPlantMerged_Kit_Rust.mat =
+            // (0.549,0.290,0.157)）——战斗路径（RuntimeSceneArt 直接实例化、不换装）拿到线性值
+            // 就整关掉一档 gamma：实测亮度 V 0.49→0.28、锈红 (144,77,42)→(83,24,2)。
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            var root = new GameObject("PixelartChemPlantMerged");
+
+            var materials = new Material[SlotNames.Length];
+            for (int i = 0; i < SlotNames.Length; i++)
+            {
+                string slot = SlotNames[i];
+                // 【休闲化描边口径】结构件保留 1px 描边；平贴的泥/苔/水膜/路坑 (Kit_Dec*)
+                // 不描边——平贴片有独立轮廓，开描边会读成贴纸。所有材质关掉“法线边压暗”
+                // （内折线墨），只留外轮廓：管线里的锐利内墨线是写实废土感的主要来源。
+                bool isDecal = slot.StartsWith("Kit_Dec", System.StringComparison.Ordinal);
+                materials[i] = PixelartStageKit.EnsureMaterial("PixelartChemPlantMerged_" + slot,
+                    PixelartStageKit.Hex(SlotHex[slot]), 4f,
+                    outlinePixels: isDecal ? 0f : 1f);
+                if (materials[i] != null)
+                {
+                    materials[i].SetFloat("_NormalEdgeLevel", 0f);
+                    EditorUtility.SetDirty(materials[i]);
+                }
+                if (materials[i] == null)
+                {
+                    Debug.LogError(LogTag + " 槽 " + slot + " 的材质没造出来（shader 缺失？）——出图上会是品红。");
+                    return;
+                }
+            }
+
+            // 材质落盘后再绑 FBX 重映射（首次跑时材质尚不存在——先建后绑）。
+            BindImporterMaterialRemap();
+
+            GameObject content = PlaceModel(root.transform);
+            if (content == null)
+                return;
+
+            // 场外地面（**替身**，只为出图不显"悬空沙盘"）：本关是内陆厂区，没有海面可借，
+            // 用一大块土色平面兜住场地之外——口径同「海面替身」（大平面 + 关描边），
+            // 真上玩法时这块会被关卡地形取代。
+            Material ground = PixelartStageKit.EnsureMaterial("PixelartChemPlantMerged_GroundFar",
+                PixelartStageKit.Hex("8FB16E"), 1f, outlinePixels: 0f);
+            if (ground != null)
+            {
+                GameObject groundMesh = PixelartStageKit.NewPrimitive(
+                    PrimitiveType.Plane, "GroundFar", root.transform, ground);
+                groundMesh.transform.localPosition = new Vector3(view.Target.x, -0.16f, view.Target.z);
+                groundMesh.transform.localScale = new Vector3(GroundPlaneScale, 1f, GroundPlaneScale);
+            }
+
+            // 尺度参照：3 个船员（红/蓝交替）
+            Material crewRed = PixelartStageKit.CrewRed();
+            Material crewBlue = PixelartStageKit.CrewBlue();
+            Material crewHead = PixelartStageKit.CrewHead();
+            for (int i = 0; i < CrewSpots.Length; i++)
+            {
+                Material body = i % 2 == 0 ? crewBlue : crewRed;
+                Vector3 to = view.Target - CrewSpots[i];
+                to.y = 0f;
+                float yaw = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
+                PixelartStageKit.PlaceCrew(root.transform, "Crew" + i, CrewSpots[i], yaw,
+                    body, crewHead, LogTag);
+            }
+
+            // 光 / 相机（俯角 30° = 规则像素阶梯，口径见 PixelartLevelScene）
+            // 【castShadows = true】化工厂这种大件场地**必须开实时投影**，否则整场没有光影
+            // （并行线 r16 定的口径与根因：投影默认关是"完全没有光影"的来源；见 d5e7aec3）。
+            Light sun = PixelartStageKit.CreateSunAndAmbient(root.transform, castShadows: true);
+            // 光照朝向走 PixelartSceneContract.SunEulerDegrees（58°/140°）的单一真源，
+            // 装配器不要另改方位角——改成 32° 会把太阳转到厂房背面，正面墙直接黑掉。
+            //
+            // 【投影必须真的落地】`CreateSunAndAmbient` 的 0.65 阴影强度是"半透影"：暗面只掉
+            // 35% 的直射项，配合亮环境光会读成"没有影子"。这里把阴影强度提到 0.9、bias 收紧，
+            // 让树冠/檐口/管廊投出边缘清楚的整档影（像素色带最吃这种整档跳变）。
+            sun.intensity = 1.0f;
+            sun.shadowStrength = 0.9f;
+            sun.shadowBias = 0.035f;
+            sun.shadowNormalBias = 0.45f;
+            // 阴影贴图覆盖全厂（模型总范围约 412×346 m；像素三档最远看 ~60 m，留足余量）。
+            QualitySettings.shadowDistance = 140f;
+            QualitySettings.shadowCascades = 4;
+            QualitySettings.shadowResolution = UnityEngine.ShadowResolution.VeryHigh;
+            QualitySettings.shadowProjection = UnityEngine.ShadowProjection.StableFit;
+
+            // 【环境光不是"越亮越休闲"】上一版把环境光抬到 #B7C6C8（线性 ≈0.47）后，
+            // 4 档色带的中间档与亮档一起被加到 1.0 以上截白——整场只剩"白片 + 灰片"，
+            // 阴影也掉不下来。这里回到暗蓝灰档：亮面 = 太阳 1.0 + 环境 0.12，暗面 = 0.12，
+            // 四档之间是**整档分离**的，投影才有戏。比契约 #333C4A 略亮一点，偏冷蓝。
+            RenderSettings.ambientLight = PixelartStageKit.Hex("5C6978");
+
+            var camGo = new GameObject("PixelartLevelCamera");
+            camGo.tag = "MainCamera";
+            camGo.transform.SetParent(root.transform);
+            Vector3 target = view.Target;
+            Vector3 dir = PixelartPilotScene.CameraDirection(
+                PixelartPilotScene.PitchDegrees, PixelartPilotScene.AzimuthDegrees);
+            camGo.transform.position = target + dir * PixelartLevelScene.CameraDistanceFor(view);
+            camGo.transform.LookAt(target);
+
+            var camera = camGo.AddComponent<Camera>();
+            camera.orthographic = true;
+            camera.orthographicSize = view.WideVisibleMeters * 0.5f;
+            camera.nearClipPlane = 0.3f;
+            camera.farClipPlane = 300f;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            // 浅天空蓝（休闲游戏底色），不再是近黑夜空；比上一版压深一档，避免和受光面抢白。
+            camera.backgroundColor = PixelartStageKit.Hex("A6D3E6");
+            camGo.AddComponent<AudioListener>();
+
+            var castGo = new GameObject("Pixelart Cast Camera");
+            castGo.transform.SetParent(camGo.transform, false);
+            var castCamera = castGo.AddComponent<Camera>();
+            castCamera.GetUniversalAdditionalCameraData();
+            castCamera.GetUniversalAdditionalCameraData().SetRenderer(castIndex);
+
+            var rig = camGo.AddComponent<PixelartCameraRig>();
+            rig.pixelScale = PixelartPilotScene.PixelScale;
+            rig.worldPerPixel = PixelartLevelScene.WorldPerPixel(view.WideVisibleMeters);
+            // 柔墨线：中性近黑在奶油/浅绿底上太硬，休闲化后改用深蓝灰。
+            rig.inkColor = PixelartStageKit.Hex("3A4452");
+            rig.sun = sun;
+            rig.castCamera = castCamera;
+            rig.castRendererIndex = castIndex;
+            rig.screenRendererIndex = screenIndex;
+
+            PixelartStageKit.AssertObjectShaderOnly(root, LogTag);
+
+            string scenePath = BuildScenes.PathOf(SceneName);
+            EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), scenePath);
+            PixelartStageKit.RegisterScene(scenePath, LogTag);
+
+            Bounds b = ContentBounds(content);
+            Debug.Log(LogTag + " 场景完成：" + scenePath + "（Cast 渲染器 " + castIndex
+                + " / Screen 渲染器 " + screenIndex + "；放大 " + PixelartPilotScene.PixelScale
+                + "×；俯角 " + PixelartPilotScene.PitchDegrees + "°；构图中心 "
+                + view.Target.ToString("0.##") + "；宽机位可见 " + view.WideVisibleMeters
+                + " m；内容包围盒 " + b.size.ToString("0.0")
+                + " 中心 " + b.center.ToString("0.0") + "）。出图："
+                + "播放器 -pixelartOut <目录> -pixelartLevel " + LevelNumber);
+        }
+
+        /// <summary>导入设置：与 `PixelartChemPlantSetup` / `WorldMapAssetSetBuilder.ApplyImportSettings`
+        /// 逐项同值（含两条实测坑：ImportStandard 才读得到槽名、useFileScale=true 吃掉根上的 100×）。</summary>
+        /// <summary>
+        /// 【2026-10-08「合并件偏暗、红太深」修复】把 FBX 导入器的材质重映射表（meta 的
+        /// externalObjects）的 23 个 <c>Kit_</c> 槽外链到本路径的着色像素材质
+        /// （<c>PixelartChemPlantMerged_Kit_*.mat</c>）。
+        ///
+        /// 【为什么】FBX 内嵌材质携带**线性值**（Kit_Rust=(0.262,0.068,0.021)），而像素材质
+        /// _BaseColor 的口径是 **sRGB 原值**（Team_Kit_Rust=(0.549,0.290,0.157)）——战斗路径
+        /// （RuntimeSceneArt 直接实例化模型预制、不换装）随之整关偏暗一档 gamma
+        /// （实测 V 0.49→0.28、锈红 (144,77,42)→(83,24,2)），试点路径靠按槽名换装从未受影响。
+        /// 与关3 的 PixelartChemPlantSetup.BindImporterMaterialRemap 同机制、同修法。
+        /// </summary>
+        [MenuItem("PirateCrew/Pixelart/关3 合并件 FBX 材质重映射绑定")]
+        public static void BindImporterMaterialRemap()
+        {
+            var importer = AssetImporter.GetAtPath(ModelPath) as ModelImporter;
+            if (importer == null)
+            {
+                Debug.LogError(LogTag + " 找不到模型 " + ModelPath + "，重映射未执行。");
+                return;
+            }
+
+            int bound = 0;
+            for (int i = 0; i < SlotNames.Length; i++)
+            {
+                string matPath = PixelartStageKit.MaterialFolder + "/PixelartChemPlantMerged_"
+                    + SlotNames[i] + ".mat";
+                var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+                if (mat == null)
+                {
+                    Debug.LogError(LogTag + " 着色材质缺件：" + matPath);
+                    continue;
+                }
+                importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), SlotNames[i]), mat);
+                bound++;
+            }
+
+            importer.SaveAndReimport();
+            Debug.Log(LogTag + " 材质重映射完成：" + bound + "/" + SlotNames.Length
+                + " 槽 → PixelartChemPlantMerged_Kit_*.mat（战斗路径实例化即着色）。");
+        }
+
+        static bool ApplyImportSettings()
+        {
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath) == null)
+                AssetDatabase.ImportAsset(ModelPath, ImportAssetOptions.ForceUpdate);
+
+            var importer = AssetImporter.GetAtPath(ModelPath) as ModelImporter;
+            if (importer == null)
+            {
+                Debug.LogError(LogTag + " 找不到模型 " + ModelPath
+                    + "（先跑 tools/blender/scene/chemplant/assemble_chemplant.py 出 FBX）。");
+                return false;
+            }
+
+            importer.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
+            importer.useFileUnits = true;
+            importer.useFileScale = true;      // FBX_SCALE_NONE 会把 (100,100,100) 挂在根上，这里吃掉
+            importer.globalScale = 1f;
+            importer.bakeAxisConversion = true;   // 不设模型躺倒 -90°
+            importer.importAnimation = false;
+            importer.importBlendShapes = false;
+            importer.importCameras = false;
+            importer.importLights = false;
+            importer.SaveAndReimport();
+            return true;
+        }
+
+        static GameObject PlaceModel(Transform parent)
+        {
+            var asset = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
+            if (asset == null)
+            {
+                Debug.LogError(LogTag + " 模型读不到：" + ModelPath);
+                return null;
+            }
+
+            GameObject go = PrefabUtility.InstantiatePrefab(asset) as GameObject;
+            if (go == null)
+                go = Object.Instantiate(asset);
+            go.name = "ChemPlantMerged";
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = Vector3.zero;
+
+            int byName = 0, byOrder = 0, slots = 0;
+            foreach (MeshRenderer renderer in go.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                Material[] mats = renderer.sharedMaterials;
+                for (int i = 0; i < mats.Length; i++)
+                {
+                    slots++;
+                    string slot = mats[i] != null ? mats[i].name : null;
+                    int index = SlotIndex(slot);
+                    if (index >= 0)
+                    {
+                        mats[i] = MaterialFor(index);
+                        byName++;
+                    }
+                    else if (i < SlotNames.Length)
+                    {
+                        mats[i] = MaterialFor(i);          // 名字读不到时按槽序兜底
+                        byOrder++;
+                    }
+                    else
+                    {
+                        Debug.LogError(LogTag + " renderer " + renderer.name + " 第 " + i
+                            + " 个槽既无名字也超出槽表——材质会缺失。");
+                    }
+                }
+
+                renderer.sharedMaterials = mats;
+            }
+
+            Debug.Log(LogTag + " 模型就位：" + go.name + "（renderer 槽位 " + slots
+                + " 个；按名匹配 " + byName + " / 按序兜底 " + byOrder
+                + "；子节点 " + go.transform.childCount + " 个）");
+            return go;
+        }
+
+        static int SlotIndex(string slotName)
+        {
+            if (string.IsNullOrEmpty(slotName))
+                return -1;
+            for (int i = 0; i < SlotNames.Length; i++)
+            {
+                // FBX 子资产名可能带 " (Instance)" 之类后缀，用 Contains 兜住
+                if (SlotNames[i] == slotName || slotName.Contains(SlotNames[i]))
+                    return i;
+            }
+            return -1;
+        }
+
+        static Material MaterialFor(int index)
+            => AssetDatabase.LoadAssetAtPath<Material>(
+                PixelartStageKit.MaterialFolder + "/PixelartChemPlantMerged_" + SlotNames[index] + ".mat");
+
+        static Bounds ContentBounds(GameObject go)
+        {
+            var renderers = go.GetComponentsInChildren<MeshRenderer>(true);
+            if (renderers.Length == 0)
+                return new Bounds(Vector3.zero, Vector3.zero);
+            Bounds b = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++)
+                b.Encapsulate(renderers[i].bounds);
+            return b;
+        }
+    }
+}

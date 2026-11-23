@@ -41,4 +41,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Pixelart/PixelartChemPlantTeam.unity
     guid: f0f136f4f13eb2947adec4fa052cf551
+  - enabled: 1
+    path: Assets/Scenes/Pixelart/PixelartChemPlantMerged.unity
+    guid: ee9ca14245dd350469334979c8420663
   m_configObjects: {}

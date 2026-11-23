@@ -17,8 +17,8 @@ MonoBehaviour:
     levelNumber: 3
     assetName: chem_plant
     displayName: 废弃化工厂
-    sizeX: 64
-    sizeZ: 44
+    sizeX: 96
+    sizeZ: 68
     waterWorldY: -0.4
     airdropPool:
     - id: 2
@@ -26,72 +26,72 @@ MonoBehaviour:
     units:
     - typeName: redPirate
       teamIndex: 0
-      x: 11
-      z: 17
+      x: 12
+      z: 4.5
       luck: 5
       initialWeapons:
       - id: 1
         count: 10
     - typeName: redPirate
       teamIndex: 0
-      x: 17
-      z: 19
+      x: 16
+      z: 5.5
       luck: 5
       initialWeapons:
       - id: 1
         count: 10
     - typeName: redPirate
       teamIndex: 0
-      x: 15
-      z: 23
+      x: 20
+      z: 4
       luck: 5
       initialWeapons:
       - id: 1
         count: 10
     - typeName: redPirateCaptain
       teamIndex: 0
-      x: 19
-      z: 21
+      x: 24
+      z: 5
       luck: 5
       initialWeapons:
       - id: 1
         count: 10
     - typeName: cabinBoy
       teamIndex: 1
-      x: 33
-      z: 9
+      x: 50
+      z: 64
       luck: 5
       initialWeapons:
       - id: 1
         count: 10
     - typeName: cabinBoy
       teamIndex: 1
-      x: 39
-      z: 11
+      x: 54
+      z: 64.5
       luck: 5
       initialWeapons:
       - id: 1
         count: 10
     - typeName: cabinBoy
       teamIndex: 1
-      x: 35
-      z: 13
+      x: 58
+      z: 64
       luck: 5
       initialWeapons:
       - id: 1
         count: 10
     - typeName: cabinBoy
       teamIndex: 1
-      x: 49
-      z: 7
+      x: 62
+      z: 64.5
       luck: 5
       initialWeapons:
       - id: 1
         count: 10
     - typeName: cabinBoyCaptain
       teamIndex: 1
-      x: 57
-      z: 9
+      x: 66
+      z: 64
       luck: 5
       initialWeapons:
       - id: 1
@@ -101,112 +101,174 @@ MonoBehaviour:
       islands:
       - topY: 1
         outline:
-        - 0
+        - 2
+        - 65
+        - 1
         - 44
-        - 0
-        - 28
+        - 4
+        - 26
+        - 2
+        - 8
         - 10
+        - 1
         - 28
-        - 10
-        - 36
-        - 28
-        - 36
-        - 28
-        - 34
-        - 44
-        - 34
-        - 44
-        - 38
-        - 58
-        - 38
-        - 58
-        - 24
+        - 1
         - 50
-        - 24
-        - 50
+        - 2
+        - 68
+        - 1
+        - 86
+        - 3
+        - 95
         - 12
-        - 38
-        - 12
-        - 38
-        - 14
-        - 36
-        - 14
-        - 36
-        - 20
+        - 94
         - 30
-        - 20
-        - 30
-        - 24
-        - 10
-        - 24
-        - 10
-        - 16
-        - 18
-        - 16
-        - 18
-        - 14
+        - 96
+        - 46
+        - 90
+        - 62
+        - 78
+        - 67
+        - 56
+        - 66
         - 32
+        - 67
         - 14
-        - 32
-        - 0
-        - 64
-        - 0
-        - 64
-        - 44
+        - 65
       - topY: 7
         outline:
-        - 10
-        - 36
-        - 10
-        - 28
-        - 0
-        - 28
-        - 0
-        - 0
-        - 32
-        - 0
-        - 32
-        - 14
-        - 18
-        - 14
-        - 18
-        - 16
-        - 10
-        - 16
-        - 10
-        - 24
-        - 30
-        - 24
-        - 30
-        - 20
-        - 36
-        - 20
-        - 36
-        - 14
-        - 38
-        - 14
-        - 38
-        - 12
-        - 50
-        - 12
-        - 50
-        - 24
-        - 58
-        - 24
-        - 58
-        - 38
-        - 44
-        - 38
-        - 44
-        - 34
-        - 28
-        - 34
-        - 28
-        - 36
+        - 6.13
+        - 25.12
+        - 24.88
+        - 25.12
+        - 24.88
+        - 39.31
+        - 6.13
+        - 39.31
+      - topY: 7
+        outline:
+        - 27.45
+        - 30.75
+        - 47.95
+        - 30.75
+        - 47.95
+        - 44.75
+        - 27.45
+        - 44.75
+      - topY: 7
+        outline:
+        - 21
+        - 44.14
+        - 47.23
+        - 44.14
+        - 47.23
+        - 64.45
+        - 21
+        - 64.45
+      - topY: 7
+        outline:
+        - 3.4
+        - 42.2
+        - 14.6
+        - 42.2
+        - 14.6
+        - 64.11
+        - 3.4
+        - 64.11
+      - topY: 7
+        outline:
+        - 4.83
+        - 15.43
+        - 17.17
+        - 15.43
+        - 17.17
+        - 23.93
+        - 4.83
+        - 23.93
+      - topY: 7
+        outline:
+        - 82.08
+        - 36.37
+        - 91.65
+        - 36.37
+        - 91.65
+        - 44.89
+        - 82.08
+        - 44.89
+      - topY: 7
+        outline:
+        - 82.08
+        - 44.81
+        - 91.65
+        - 44.81
+        - 91.65
+        - 52.89
+        - 82.08
+        - 52.89
+      - topY: 7
+        outline:
+        - 56.2
+        - 31.5
+        - 73.8
+        - 31.5
+        - 73.8
+        - 38.67
+        - 56.2
+        - 38.67
+      - topY: 7
+        outline:
+        - 82.7
+        - 22.7
+        - 93.77
+        - 22.7
+        - 93.77
+        - 33.3
+        - 82.7
+        - 33.3
+      - topY: 7
+        outline:
+        - 18.21
+        - 6.85
+        - 37.77
+        - 6.85
+        - 37.77
+        - 20.97
+        - 18.21
+        - 20.97
+      - topY: 7
+        outline:
+        - 40.9
+        - 6.85
+        - 67.08
+        - 6.85
+        - 67.08
+        - 21.14
+        - 40.9
+        - 21.14
+      - topY: 7
+        outline:
+        - 69.9
+        - 10.72
+        - 94.56
+        - 10.72
+        - 94.56
+        - 23.05
+        - 69.9
+        - 23.05
+      - topY: 7
+        outline:
+        - 26.83
+        - 23.95
+        - 81.17
+        - 23.95
+        - 81.17
+        - 30.05
+        - 26.83
+        - 30.05
     bakedPieces:
-    - pieceId: 2
-      instanceName: ChemPlantYard
-      x: 20
+    - pieceId: 4
+      instanceName: ChemPlantMergedYard
+      x: 48
       y: 1
-      z: 15
+      z: 34
       yawDeg: 0

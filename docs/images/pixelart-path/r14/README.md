@@ -3,7 +3,7 @@
 > **这一轮回答什么**：前几轮（r9–r12）出的是样板关与海图；本轮是**第一次把 Blender 手作的一套
 > 关卡美术件接进像素化着色路径出图**——问的是"这套观感用在这座化工厂上是什么样"。
 > 内容**尚未接玩法数据**（没有高度场 / 编成 / 武器池 / 摆位表，见
-> [04-废弃化工厂2.md](../../../设计/关卡/04-废弃化工厂2.md)，**提案/待定**）：
+> 原「废弃化工厂2」设计文档（**已并入 03 关，文档退役**），**提案/待定**）：
 > 场景由 `PixelartChemPlantSetup`（`pirate-crew/Assets/Pixelart/Editor/`）把**一件总装件**
 > `ChemPlant_Level.fbx` 直接摆进 `PixelartLevelScene` 的取景口径里，不是可玩关卡。
 > 建模口径 / STAT 实测表 / 摆位表见 [tools/blender/scene/chemplant/README.md](../../../../tools/blender/scene/chemplant/README.md)。

@@ -59,7 +59,9 @@ namespace PirateCrew.EditorTools
             new UpstreamEntry { PathInModels = "SceneKit/Dock.fbx", Origin = "handmade",
                 Source = "tools/blender/scene/build_scene_kit.py（Blender 无头）" },
             new UpstreamEntry { PathInModels = "SceneKit/ChemPlant.fbx", Origin = "handmade",
-                Source = "tools/blender/scene/chemplant/assemble_chemplant.py（六件并行 kit 总装）" },
+                Source = "tools/blender/scene/chemplant/assemble_chemplant.py（六件并行 kit 总装；历史件）" },
+            new UpstreamEntry { PathInModels = "SceneKit/ChemPlantMerged.fbx", Origin = "handmade",
+                Source = "tools/blender/scene/chemplant/assemble_chemplant_merged.py（两关合并版总装）" },
 
             // ---- WorldKit：化工厂分件（同 chemplant kit 的单件导出）----
             new UpstreamEntry { PathInModels = "WorldKit/ChemPlant", Origin = "handmade",

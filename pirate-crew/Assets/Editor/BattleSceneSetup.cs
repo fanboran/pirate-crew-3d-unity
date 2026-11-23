@@ -548,11 +548,16 @@ namespace PirateCrew.EditorTools
             if (root != null)
                 root.objectReferenceValue = runtimeSceneArt.transform;
 
+            // 合并件先对齐导入设置（槽名/轴向/缩放），再按路径装载引用。
+            ChemPlantMergedImport.EnsureImportSettings();
+
             // 第 1 关「云端漫步」岛体（Blender 岛形驱动件，FBX 本体直接当预制引用）
             SetPrefabRefIfExists(so, "cloudFieldPrefab", "Assets/Art/Models/SceneKit/CloudWalk.prefab");
-            // 第 3 关「废弃化工厂」整场件（Blender 手作 FBX 本体直接当预制引用）
+            // 第 3 关「废弃化工厂」两关合并版整场件（两套 kit 的建筑零件重排 + 墙外视觉延伸）
+            SetPrefabRefIfExists(so, "chemPlantMergedYardPrefab", "Assets/Art/Models/SceneKit/ChemPlantMerged.fbx");
+            // 历史件：原第 3 关整场（保留接线，旧试点场景/素材仍可引用）
             SetPrefabRefIfExists(so, "chemPlantYardPrefab", "Assets/Art/Models/WorldKit/ChemPlant/ChemPlant_Level.fbx");
-            // 第 4 关「废弃化工厂·六件并行版」整场件（六件并行 kit 的总装 FBX 本体）
+            // 历史件：原第 4 关「六件并行版」整场（原第 4 关已并入第 3 关）
             SetPrefabRefIfExists(so, "chemPlantTeamYardPrefab", "Assets/Art/Models/SceneKit/ChemPlant.fbx");
 
             so.ApplyModifiedPropertiesWithoutUndo();

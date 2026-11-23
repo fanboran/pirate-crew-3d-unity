@@ -91,6 +91,10 @@ namespace PirateCrew.ArtReview
         [GameBootstrap(GameBootstrapPhase.Initialize, order: 100)]
         internal static void Install()
         {
+            // 开发包的 Development Console 叠层会在启动期脚本告警后自动弹出并盖住截屏；
+            // 出图会话不需要它，显式收起（告警仍留在 Player.log，不掩盖问题）。
+            HideDeveloperConsole();
+
             string outDir = CommandLineOptions.GetValue(ToolFlags.ArtReviewOut);
 
             // 像素化着色路径（v3 蓝本重写线）试点出图：进 PixelartPilot 场景（见 RunPixelartCapture）。
@@ -173,6 +177,17 @@ namespace PirateCrew.ArtReview
             var go = new GameObject("[PlayerArtCapture]");
             go.AddComponent<PlayerArtCapture>()._outDir = outDir;
             DontDestroyOnLoad(go);
+        }
+
+        /// <summary>
+        /// 收起开发包的 Development Console 叠层。它由启动期的脚本序列化告警自动弹出，
+        /// 会盖住整张成图；本工具只负责出图，告警仍写 Player.log，不在这里吞掉。
+        /// </summary>
+        static void HideDeveloperConsole()
+        {
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            Debug.developerConsoleVisible = false;
+#endif
         }
 
         /// <summary>-pixelartOut 模式标记：进 PixelartPilot 试点场景出图（像素化着色路径）。</summary>
@@ -434,6 +449,7 @@ namespace PirateCrew.ArtReview
 
             // 等 rig 首帧分配缓冲 + 相机 snap + 光全局下发完成。
             yield return new WaitForSeconds(1.5f);
+            HideDeveloperConsole();
 
             Camera cam = Camera.main;
             if (cam == null)

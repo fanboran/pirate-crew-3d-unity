@@ -150,6 +150,9 @@ Shader "PirateCrew/WaterLab/ReplicaFrame"
             #pragma fragment ReplicaFrameShadowFragment
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            // Shadows.hlsl 用到 LerpWhiteTo（定义在 Core RP 的 CommonMaterial.hlsl）；
+            // ForwardLit 已引、ShadowCaster 漏引，Player 构建编译 ShadowCaster 变体时才暴露。
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
             // URP 惯例：由使用方声明

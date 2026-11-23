@@ -84,8 +84,8 @@ namespace PirateCrew.EditorTools
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            if (problems.Count == 0)
-                MigrateAll();
+            // 【不要递归重跑】写资产 + 清单一次即自洽；这里原本无条件 `MigrateAll()` 自调用，
+            // 每次 Save/Refresh 又触发下一轮，表现为无头迁移永不返回（关卡资产无限重复导入）。
 
             Report("迁移关卡资产", "写 " + levelAssets.Count + " 张关卡 + 1 份清单",
                 problems);
