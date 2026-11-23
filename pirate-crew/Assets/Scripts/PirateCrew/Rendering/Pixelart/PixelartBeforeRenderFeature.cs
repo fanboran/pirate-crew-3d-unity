@@ -80,6 +80,10 @@ namespace PirateCrew.Rendering.Pixelart
                     int additionalLights = Mathf.Clamp(
                         renderingData.lightData.additionalLightsCount, 0, MaxAdditionalLights);
                     cmd.SetGlobalFloat(PixelartPath.AdditionalLightCountId, additionalLights);
+
+                    // 描边语法档（探针 2026-10 定案）：simple = 纯覆盖膨胀、单圈贴剪影。
+                    // 帧首统一下发——探针控制器只改 rig.simpleOutline，不再直写全局量（单源）。
+                    cmd.SetGlobalFloat(PixelartPath.OutlineSimpleId, rig.simpleOutline ? 1f : 0f);
                 }
 
                 context.ExecuteCommandBuffer(cmd);

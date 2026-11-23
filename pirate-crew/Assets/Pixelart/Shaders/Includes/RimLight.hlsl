@@ -15,10 +15,12 @@
 //              + (1.0 - connectedToDown ) * clamp(-screenSpaceLightDir.y, 0.0, 1.0);
 //   四个 clamp 项**互斥**（归一化后的 xy 至多一个分量为正），所以 modifier ∈ [0,1]。
 //
-// 【为什么光向取主光】v3 这一趟的光源是它那 32 个逐物件 rim 光组件
-//   （`SloanePixelartRimlight.cs`，方向 = 组件 forward）；本仓的光源契约只有主光
-//   （`_PixelartLightDirWS`，指向光源）与环境光（契约 §2.2），没有 rim 光列表这种东西
-//   ⇒ 光向取主光，颜色取逐物件边缘光色（`_PixelartRimLightPropertyBuffer.rgb`）。
+// 【光向取哪盏灯】v3 这一趟的光源是它那 32 个逐物件 rim 光组件
+//   （`SloanePixelartRimlight.cs`，方向 = 组件 forward，颜色逐盏）；本仓不接光源列表，
+//   取 CellShade 缺口规格 §2.3 第 2-5 条的**最小替代**：边缘光方向是 `PixelartRimLightFeature`
+//   每帧下发的第二个光向全局 `_PixelartRimLightDirWS`（默认 = −主光方向 = 背光，与主光那侧的
+//   受光面夹出双侧轮廓，对应 v3 Gold 场景 Front/Back 双灯）；它为零向量（未下发）时回退
+//   调用点传入的主光方向。颜色 = 逐物件边缘光色 × rig 下发的主光色（背光那盏"虚拟灯"与主光同色）。
 //
 // 【connected 的确切含义】契约 §4.3 的 `(1 - connected)` 就是 v3 那个函数的入参
 //   connectedToX；而调用点传的是 **`connectedToX | !closerThanX`**
@@ -53,6 +55,34 @@
 #define PIXELART_CONNECTIVITY_CLOSER_LEFT     (  4u)   // bit2
 #define PIXELART_CONNECTIVITY_CLOSER_UP       (  2u)   // bit1
 #define PIXELART_CONNECTIVITY_CLOSER_DOWN     (  1u)   // bit0
+
+// ---------------- 本链读的光照全局（调用点 shader 不再重复声明）----------------
+// 主光颜色（线性；rig 每帧 `.linear` 下发，与着色各趟同一个量）。2-1 的光色乘项。
+float4 _PixelartLightColor;
+// 边缘光方向（世界空间，**指向那盏灯**，与 `_PixelartLightDirWS` 同口径）。由
+// `PixelartRimLightFeature` 每帧下发（默认 = −主光方向）；零向量 ⇒ 回退主光方向。
+float4 _PixelartRimLightDirWS;
+// 边缘光量化档数（2-3）。由 `PixelartRimLightFeature` 每帧下发（v3 调用点恒 2.0）；
+// ≤ 1（含未下发的 0）⇒ 不量化。
+float _PixelartRimLevel;
+
+/// multiStep —— v3 `Math/Step.hlsl` 的逐行翻译，与 `PixelartShading.shader` 的 `MultiStep` 同体
+/// （那份在别的 shader 的 HLSLINCLUDE 里，本链拿不到；带前缀免得将来同一 pass 两份重名）。
+/// 档位断点靠 `floor(value*level + offset)` + 第 0 档的最小占比拼出来，不要"优化"它。
+float PixelartRimLightMultiStep(float value, float level, float minValue, float offset)
+{
+    if (level <= 1.0)
+        return 1.0;
+
+    float curLevel = value * level;
+    curLevel = floor(curLevel + offset);
+
+    float curOffset = curLevel / (level - 1.0);
+    curLevel += lerp(minValue, 1.0, curOffset);
+    curLevel = curLevel / level;
+
+    return saturate(curLevel);
+}
 
 /// 把 `_PixelartConnectivityResultBuffer.a` 的采样值还原成那个打包字节（0..255）。
 /// 【为什么 +round】ARGB32 的 .a 是 8 位 UNorm：写进去的 bits/255 取回来带一点量化误差，
@@ -93,20 +123,38 @@ float PixelartRimLightModifier(uint packed, float3 lightDirWS)
     return modifier;
 }
 
-/// 边缘光着色 = 门控 × 逐物件边缘光色（契约 §4.3 的链条本体）。
+/// 边缘光着色（契约 §4.3 的链条本体 + CellShade 缺口规格 §2.3 的 2-1/2-3/2-4/2-5 补移植）：
+///     门控(光向) → 两档量化 → × 逐物件色 × 逐物件开关 × 主光色 × 金属 tint
+/// v3 对应：`RimLight.hlsl:16-24` 的 `color * specular * multiStep(modifier * ndotl, level)`，
+/// 外乘 `rimLightProp.rgb * rimLightProp.a`（`ShadingPass.hlsl:280`）。
+///   <paramref name="lightDirWS"/>   主光方向（指向光源）——仅当 `_PixelartRimLightDirWS` 为零向量时用它
+///   <paramref name="rimLightProp"/> 逐物件边缘光属性：rgb = 色、a = 开关（`_PixelartRimLightPropertyBuffer`，直存）
+///   <paramref name="specularTint"/> 金属 tint `lerp(white, albedo, metallic)`（v3 `ShadingPass.hlsl:262`），调用点算好传入
 ///
-/// 【v3 在这条链上还有两步，本仓**故意没接**，改动前先读这里】
-///   ① `RimLight.hlsl:12-14` 的 `ndotl = saturate(dot(direction, normal)) * factor`：
-///      v3 要"表面朝向那盏 rim 光"才亮。本仓的光向是主光，加它就等于"只有朝主光的面
-///      才吃边缘光"——那是**背光侧收窄**这个美术裁决（渲染管线.md:94），
-///      不是契约 §4.3 冻结的链条。
-///   ② `RimLight.hlsl:22` 的 `modifier = multiStep(modifier * ndotl, level, 0, 0)`：
-///      它把门控量化成 0/1 两态（v3 调用点固定 level = 2.0）。接到本仓需要一个档数
-///      **全局名**，而契约 §2.2 没有登记任何 rim 档数全局 ⇒ 现在没有合法的名字可用。
-///   要接这两步：先补契约（登记档数全局），再把两行加回本函数——**不要**在别处偷偷乘。
-float3 PixelartRimLightShading(uint packed, float3 lightDirWS, float3 rimLightColor)
+/// 【v3 在这条链上还有一步，本仓**故意不接**（规格 2-2 归美术裁决），改动前先读这里】
+///   `RimLight.hlsl:12-14` 的 `ndotl = saturate(dot(direction, normal)) * factor`：v3 要"表面朝向
+///   那盏 rim 光"才亮。本仓接它就等于"只有朝向边缘光那盏灯的面才吃边缘光"——那是**背光侧收窄**
+///   这个美术裁决（渲染管线.md:94），不是契约 §4.3 冻结的链条；推翻裁决前不要在别处偷偷乘。
+///   于是下面的量化吃的是 `modifier`（v3 是 `modifier * ndotl`）。
+///
+/// 【零影响论证】现役材质的 `_RimLightColor` 全为黑 ⇒ `rimLightProp.rgb = 0` ⇒ 无论光向、档数、
+///   光色、tint 取何值，返回恒 0，边缘光缓冲与新增各项前逐像素一致。
+float3 PixelartRimLightShading(uint packed, float3 lightDirWS, float4 rimLightProp, float3 specularTint)
 {
-    return rimLightColor * PixelartRimLightModifier(packed, lightDirWS);
+    // 2-5 最小替代：方向优先取 Feature 下发的第二光向；零向量（未下发）回退主光方向。
+    float3 rimLightDir = _PixelartRimLightDirWS.xyz;
+    rimLightDir = dot(rimLightDir, rimLightDir) > 1e-8 ? normalize(rimLightDir) : lightDirWS;
+
+    float modifier = PixelartRimLightModifier(packed, rimLightDir);
+
+    // 2-3 两档量化：v3 把门控撕成 0/1 两态（放大后是硬边亮块，Gold"闪"的来源之一）。
+    // 【守卫必须写在调用侧】MultiStep 在 level ≤ 1 时返回 **1**（色带语义的"不量化 = 满亮"），
+    // 直接套用会让未下发档数（全局 0）的像素门控整片变 1；这里的"不量化"是原值直通。
+    if (_PixelartRimLevel > 1.0)
+        modifier = PixelartRimLightMultiStep(modifier, _PixelartRimLevel, 0.0, 0.0);
+
+    // 2-1 乘光色与金属 tint；2-4 乘逐物件开关（a = 0 整件无边缘光）。
+    return rimLightProp.rgb * rimLightProp.a * _PixelartLightColor.rgb * specularTint * modifier;
 }
 
 #endif // PIXELART_RIMLIGHT_INCLUDED

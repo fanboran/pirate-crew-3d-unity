@@ -192,7 +192,9 @@ namespace PirateCrew.Battle.Tests
             // L1 云端漫步：5 坛（主角云+环1）+ 第二环 6 朵可站面（16 边形贴云台；solid 48→112）。
             // 【前排防遮挡】45° 机位下前排两朵压到 y3/y5、16 块档挪正南深处（translate_cloudfield.py
             // 的布局裁决）——total/digest 随高度重算重冻，solid 不变（坛形未动）。
-            "1|cloud_walk|云端漫步|40x30|-0.4||units=redPirate/0/17/13/5;redPirate/0/25/19/5;redPirate/0/19/15/5;redPirateCaptain/0/14/21/5;cabinBoy/1/25/13/1;cabinBoy/1/17/19/1;cabinBoyCaptain/1/12.5/22.5/1|air=Dynamite:10|raster=solid127/total1289/digest176398|pieces=1/CloudField",
+            // 2026-11-11 云端漫步重做：旧 11 朵环形云 → 7 座云台（海水切片场景），
+            // 红队 4 人 South、蓝队 3 人 North；terrain/units 由 rebuild_cloudsea_terrain.py 生成。
+            "1|cloud_walk|云端漫步|40x30|-0.4||units=redPirate/0/23/23.5/5;redPirate/0/25/23.5/5;redPirate/0/23/26.5/5;redPirateCaptain/0/25/26.5/5;cabinBoy/1/15.5/6.5/1;cabinBoy/1/18.5/6.5/1;cabinBoyCaptain/1/17/3/1|air=Dynamite:10|raster=solid60/total603/digest87276|pieces=1/CloudField",
             // L2 重冻（逐格高度入 LevelData）：穹顶烘进数据面后岛面从恒 28 块平顶变为
             // 0.5 m 量化台阶（27/28/29 块）——solid 不变（96 格仍是岛），total/digest 随台阶重算。
             "2|sky_island|天空之岛|40x30|-0.4||units=redPirate/0/23/11/5;redPirate/0/27/13/5;redPirate/0/23/17/5;redPirateCaptain/0/25/13/5;cabinBoy/1/13/11/5;cabinBoy/1/17/11/5;cabinBoy/1/11/15/5;cabinBoy/1/17/17/5;cabinBoyCaptain/1/13/17/5|air=TidalWave:10|Anchor:10|Seagull:10|raster=solid96/total2689/digest404694|pieces=",

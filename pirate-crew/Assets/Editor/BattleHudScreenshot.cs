@@ -3,6 +3,7 @@ using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
 namespace PirateCrew.EditorTools
@@ -36,6 +37,7 @@ namespace PirateCrew.EditorTools
         const string KeyHeadless = "BattleHudScreenshot.Headless";
         const string KeyCanvasPrepared = "BattleHudScreenshot.CanvasPrepared";
         const string KeyCaptureLevel = "BattleHudScreenshot.CaptureLevel";
+        const string KeyRenderStyle = "BattleHudScreenshot.RenderStyle";
 
         static string OutputDir =>
             Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..",
@@ -143,6 +145,13 @@ namespace PirateCrew.EditorTools
             // （实测块 9×6 而非 3×3——艺术画布跟着小后台缓冲走，再被拉伸到大 RT 上）。
             Screen.SetResolution(1920, 1080, FullScreenMode.Windowed);
 
+            // 渲染风格覆写（PC3D_RENDER_STYLE=postline / cellshade）：存 SessionState，
+            // 由 Tick 每帧写真值 → rig 检测到变化即热切换（两套 Renderer 已装配，不重载场景）。
+            string styleEnv = System.Environment.GetEnvironmentVariable("PC3D_RENDER_STYLE");
+            SessionState.SetString(KeyRenderStyle, string.IsNullOrEmpty(styleEnv)
+                ? string.Empty
+                : (styleEnv == "postline" ? "postline" : "cellshade"));
+
             EditorSceneManager.OpenScene(ScenePathOrOverride, OpenSceneMode.Single);
             EditorApplication.isPlaying = true;   // 触发域重载 → 静态构造重挂 Tick
             EditorApplication.update += Tick;     // 重载前这几帧也直接跑（若该项目关了重载则不触发）
@@ -155,6 +164,55 @@ namespace PirateCrew.EditorTools
 
         static bool CaptureCenterFraming =>
             !string.IsNullOrEmpty(System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_CENTER"));
+
+        // ---- 探针口径取景（PC3D_CAPTURE_PROBE）：与实验场景逐参对齐 ----
+        // 实验场景（几何标定场 / 角色探针场）口径 = 战斗基准档：可见 22.5 m
+        // （ortho 11.25 = CameraFraming.CloseUpOrthoSize，WPP=1/24，见 GeometryProbe meta.txt）、
+        // 焦点高 1.2025 m。每枪对准一个存活单位（第 N 枪取第 N 个，循环），角色像素密度与
+        // 实验场景一致（创始人 2026-11-08：镜头距离对标实验场景）。
+        const float ProbeCaptureVisibleMeters = 22.5f;
+        const float ProbeCaptureFocusHeight = 1.2025f;
+
+        static bool ProbeCaptureFraming =>
+            !string.IsNullOrEmpty(System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_PROBE"));
+
+        /// <summary>把视野对准第 index 个存活单位（探针口径）。返回 false = 场景/单位未就绪。</summary>
+        static bool TryApplyProbeFraming(int index)
+        {
+            var driver = Object.FindFirstObjectByType<global::PirateCrew.Battle.BattleCameraDriver>();
+            var controller = Object.FindFirstObjectByType<global::PirateCrew.Battle.BattleController>();
+            if (driver == null || controller == null)
+                return false;
+
+            var alive = new List<global::PirateCrew.Battle.PirateBase>();
+            for (int i = 0; i < controller.AllPirates.Count; i++)
+            {
+                var pirate = controller.AllPirates[i];
+                if (pirate != null && pirate.Alive)
+                    alive.Add(pirate);
+            }
+            if (alive.Count == 0)
+                return false;
+
+            var target = alive[index % alive.Count];
+            Vector3 focus = target.transform.position + Vector3.up * ProbeCaptureFocusHeight;
+            driver.ApplyCaptureFraming(focus, ProbeCaptureVisibleMeters * 0.5f);
+
+            // 【ortho 真落点】本仓裁决「驱动不写距离」：相机 ortho 由 rig 按 worldPerPixel
+            // 反推（deriveOrthographicSize），driver 的 ortho 参数只作 HUD/逻辑量。探针口径
+            // 的可见 21.6 m 必须写进 rig：worldPerPixel = 可见米数 × pixelScale ÷ 1080。
+            // 只服务出图（Play 域销毁即复原），不回写任何基准常量。
+            var rig = Object.FindFirstObjectByType<global::PirateCrew.Rendering.Pixelart.PixelartCameraRig>();
+            if (rig != null && rig.deriveOrthographicSize)
+                rig.worldPerPixel = global::PirateCrew.Rendering.Pixelart.PixelartCameraRig.WorldPerPixelFor(
+                    ProbeCaptureVisibleMeters, rig.pixelScale);
+
+            Debug.Log("[BattleHudScreenshot] 探针口径取景：单位 #" + index + "（" + target.name
+                + "）焦点 (" + focus.x.ToString("F2") + ", " + focus.y.ToString("F2") + ", "
+                + focus.z.ToString("F2") + ")，可见 " + ProbeCaptureVisibleMeters.ToString("F1")
+                + " m（worldPerPixel " + (rig != null ? rig.worldPerPixel.ToString("F6") : "?") + "）");
+            return true;
+        }
 
         /// <summary>场地跨度 → 整图入画的 ortho：横向按 16:9 视口装下 spanX；纵向地面深度在
         /// 30° 俯角下按 sin 压缩后装下 spanZ；留 15% 边距；下限基准档、上限全景档封顶。</summary>
@@ -203,6 +261,16 @@ namespace PirateCrew.EditorTools
             float focusY = System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_FOCUS_Y") is string fyRaw
                 && float.TryParse(fyRaw, out float fy) ? fy : 0f;
             var focus = new Vector3(spanX * 0.5f, focusY, spanZ * 0.5f);
+            // 出图诊断：PC3D_CAPTURE_CENTER_XZ=x,z 直接指定焦点世界 XZ（配合
+            // PC3D_CAPTURE_ORTHO 拍水体/礁区特写），不改任何场景常量。
+            if (System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_CENTER_XZ") is string xzRaw)
+            {
+                string[] parts = xzRaw.Split(',');
+                if (parts.Length == 2
+                    && float.TryParse(parts[0], out float cx)
+                    && float.TryParse(parts[1], out float cz))
+                    focus = new Vector3(cx, focusY, cz);
+            }
             driver.ApplyCaptureFraming(focus, ortho);
             Debug.Log("[BattleHudScreenshot] 出图取景：场地中心 (" + focus.x.ToString("F1") + ", "
                 + focus.z.ToString("F1") + ") y=" + focusY.ToString("F1")
@@ -215,6 +283,17 @@ namespace PirateCrew.EditorTools
         {
             if (!Armed || !EditorApplication.isPlaying)
                 return;
+
+            // 渲染风格覆写：每帧写真值，rig 检测到变化即热切换（两套 Renderer 已装配）。
+            string styleRaw = SessionState.GetString(KeyRenderStyle, string.Empty);
+            if (styleRaw.Length > 0)
+            {
+                global::PirateCrew.Core.RenderStyle want = styleRaw == "postline"
+                    ? global::PirateCrew.Core.RenderStyle.PostLine
+                    : global::PirateCrew.Core.RenderStyle.CellShade;
+                if (global::PirateCrew.Core.RenderStyleState.Current != want)
+                    global::PirateCrew.Core.RenderStyleState.Current = want;
+            }
 
             // 拍图档位覆盖（环境变量 PC3D_PIXEL_SCALE）：**每帧写**直到生效——Start 时 Play 还没起，
             // PixelScaleService.Install 的读档（batchmode 下能读到存档档位）会覆盖 ScaleDefault；
@@ -260,6 +339,26 @@ namespace PirateCrew.EditorTools
                 SessionState.SetBool(KeyCanvasPrepared, true);
                 Countdown = 3;
                 return;
+            }
+
+            // 探针口径覆写（PC3D_CAPTURE_PROBE）：每枪对准一个存活单位、ortho 10.8，与
+            // 实验场景逐参一致（见 TryApplyProbeFraming 的常量说明）。优先于场地中心覆写。
+            if (ProbeCaptureFraming && _framedShot != ShotIndex + 1)
+            {
+                if (TryApplyProbeFraming(ShotIndex))
+                {
+                    _framedShot = ShotIndex + 1;
+                    Countdown = 60;   // 焦点/ortho 平滑逼近余量
+                    return;
+                }
+                if (++_frameAttempts < 120)
+                {
+                    Countdown = 1;   // 单位表还没建好，等它（最多再等 120 帧）
+                    return;
+                }
+                Debug.LogWarning("[BattleHudScreenshot] 探针口径引导失败（无 Driver/单位），按现状抓帧。");
+                _framedShot = ShotIndex + 1;
+                _frameAttempts = 0;
             }
 
             // 【出图取景覆写】PC3D_CAPTURE_CENTER 非空 = 每枪抓帧前把视野指向本关场地中心
@@ -321,16 +420,56 @@ namespace PirateCrew.EditorTools
         static GameObject _uiCamGo;
         static readonly List<Canvas> _switchedCanvases = new List<Canvas>();
 
+        /// <summary>本帧世界层相机（CellShade=Cast / PostLine=主相机；Prepare 时定，Capture/Restore 复用）。</summary>
+        static Camera _worldCam;
+
         static void PrepareCanvasForCapture()
         {
             if (TryGetDebugMode(out float debugMode))
                 Shader.SetGlobalFloat(global::PirateCrew.Rendering.Pixelart.PixelartPath.DebugModeId, debugMode);
 
-            Camera cam = Camera.main;
+            // 【世界相机随风格切换】CellShade 的世界在 Cast 相机上（主相机只上屏），
+            // PostLine 的世界在主相机上（Cast 相机停用）。旧实现一律用 Camera.main：
+            // 在 PostLine 下若 Camera.main 仍解析到已停用的 Cast 相机，抓到的就是空天空
+            // （2026-11-11 云端漫步实拍：两风格只差渲染器，PostLine 图却是纯天空）。
+            var activeRig = global::PirateCrew.Rendering.Pixelart.PixelartPath.ActiveRig;
+            Camera cam;
+            if (activeRig != null
+                && global::PirateCrew.Core.RenderStyleState.Current == global::PirateCrew.Core.RenderStyle.PostLine)
+                cam = activeRig.GetComponent<Camera>();
+            else
+                cam = Camera.main;
             if (cam == null)
                 cam = Object.FindObjectOfType<Camera>();
             if (cam == null)
                 return;
+            _worldCam = cam;
+
+            // 出图诊断：PC3D_CAPTURE_HIDE=Cloud_Sea_Bed,Cloud_Sea_Walls 临时隐藏指定对象，
+            // 用于隔离透明件与不透明件的遮挡/排序问题（Play 域内改动，退出即还原）。
+            if (System.Environment.GetEnvironmentVariable("PC3D_CAPTURE_HIDE") is string hide
+                && hide.Length > 0)
+            {
+                foreach (string raw in hide.Split(','))
+                {
+                    var target = GameObject.Find(raw.Trim());
+                    if (target != null)
+                    {
+                        target.SetActive(false);
+                        Debug.Log("[BattleHudScreenshot] 诊断隐藏 " + raw.Trim());
+                    }
+                }
+            }
+
+            // 【取证】世界相机实况：PostLine 空画面排查要区分「相机没渲」与「材质没换装」。
+            var camData = cam.GetUniversalAdditionalCameraData();
+            Debug.Log("[BattleHudScreenshot] 世界相机 = " + cam.name + " enabled=" + cam.enabled
+                + " mask=" + cam.cullingMask + " clear=" + cam.clearFlags
+                + " pos=" + cam.transform.position.ToString("F2")
+                + " rot=" + cam.transform.eulerAngles.ToString("F1")
+                + " ortho=" + cam.orthographicSize.ToString("F2")
+                + " renderer=" + (camData != null && camData.scriptableRenderer != null
+                    ? camData.scriptableRenderer.GetType().Name : "?"));
 
             // 【取证】活动管线资产的渲染器表全量打印——rig 的叠加索引是按装配时资产查的，
             // 若活动资产不同表，同一索引会指到别的渲染器上。
@@ -434,6 +573,9 @@ namespace PirateCrew.EditorTools
             Camera cam = Camera.main;
             if (cam != null)
                 cam.targetTexture = null;
+            if (_worldCam != null && _worldCam != cam)
+                _worldCam.targetTexture = null;
+            _worldCam = null;
             if (_uiCam != null)
                 _uiCam.targetTexture = null;
             if (_uiCamGo != null)
@@ -678,9 +820,53 @@ namespace PirateCrew.EditorTools
             return !string.IsNullOrEmpty(raw) && float.TryParse(raw, out mode);
         }
 
+        /// <summary>取证：按对象名打印第一个子渲染器的材质 shader / 可见性 / 包围盒。</summary>
+        static void DumpRendererProbe(string objectName)
+        {
+            var go = GameObject.Find(objectName);
+            if (go == null)
+            {
+                Debug.Log("[BattleHudScreenshot][勘] " + objectName + " = <场景中找不到>");
+                return;
+            }
+            var renderer = go.GetComponentInChildren<Renderer>();
+            if (renderer == null)
+            {
+                Debug.Log("[BattleHudScreenshot][勘] " + objectName + " = <无 Renderer>");
+                return;
+            }
+            string shaders = string.Empty;
+            foreach (Material m in renderer.sharedMaterials)
+                shaders += (m != null ? m.shader.name : "<null>") + ";";
+            var filter = go.GetComponentInChildren<MeshFilter>();
+            string meshInfo = filter != null && filter.sharedMesh != null
+                ? ("vcol=" + filter.sharedMesh.colors32.Length
+                    + " verts=" + filter.sharedMesh.vertexCount
+                    + " subs=" + filter.sharedMesh.subMeshCount
+                    + " tris=" + (filter.sharedMesh.triangles.Length / 3))
+                : "vcol=?";
+            string colorInfo = string.Empty;
+            foreach (Material m in renderer.sharedMaterials)
+                if (m != null && m.HasProperty("_Color"))
+                    colorInfo += m.GetColor("_Color").ToString()
+                        + " q=" + m.renderQueue
+                        + " passes=" + m.passCount
+                        + " vcw=" + (m.HasProperty("_VertexColorWeight")
+                            ? m.GetFloat("_VertexColorWeight").ToString("F2") : "?") + ";";
+            Debug.Log("[BattleHudScreenshot][勘] " + objectName + " 材质=" + shaders
+                + " enabled=" + renderer.enabled
+                + " visible=" + renderer.isVisible
+                + " forceOff=" + renderer.forceRenderingOff
+                + " type=" + renderer.GetType().Name
+                + " layer=" + go.layer
+                + " " + meshInfo + " _Color=" + colorInfo
+                + " bounds=" + renderer.bounds.center.ToString("F1")
+                + "/" + renderer.bounds.size.ToString("F1"));
+        }
+
         static void CaptureOne(int index)
         {
-            Camera cam = Camera.main;
+            Camera cam = _worldCam != null ? _worldCam : Camera.main;
             if (cam == null)
                 cam = Object.FindObjectOfType<Camera>();
             if (cam == null || cam.targetTexture == null || _rtUi == null)
@@ -695,6 +881,12 @@ namespace PirateCrew.EditorTools
             Canvas.ForceUpdateCanvases();
             cam.Render();                       // 世界层 → _rt（像素化 rig 链，含栈内叠加相机）
             _uiCam.Render();                    // UI 层 → _rtUi（透明底）
+
+            // 【取证】云台渲染器实况：材质 shader 名 + 包围盒 + 可见性——PostLine 材质
+            // 没换到 ToonLit 时整层物体没有 UniversalForward 趟，画面只剩天空。
+            DumpRendererProbe("Cloud_Platforms");
+            DumpRendererProbe("Cloud_Sea_Surface");
+            DumpRendererProbe("Cloud_Sea_Bed");
 
             RenderTexture.active = _rt;
             var world = new Texture2D(width, height, TextureFormat.RGB24, false);

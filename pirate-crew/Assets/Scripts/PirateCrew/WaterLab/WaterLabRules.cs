@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace PirateCrew.WaterLab
@@ -451,12 +452,24 @@ namespace PirateCrew.WaterLab
             return PumpAmplitude * Mathf.Sin(PumpTimeFrequency * playTime + PumpPhasePerV * uvY);
         }
 
-        /// <summary>泵门控（见 <see cref="PumpRate"/> 注释的场语义）。</summary>
+        /// <summary>
+        /// 泵门控（见 <see cref="PumpRate"/> 注释的场语义）。
+        ///
+        /// 窗上沿比较必须经 <see cref="LtF"/> 落实单精度：Unity Mono 会把内联后的
+        /// <c>obstacleTop + PumpEtaWindow</c>（const）按双精度常量折叠，使
+        /// <c>fl32(顶+0.1)</c> 探针落进真实窗内——而 GPU/DXBC 是单精度对称舍入，
+        /// 同一探测值应拒。非内联调用边界强制两操作数先舍回 float32，任何宿主
+        /// JIT 下都与 GPU 同判（dotnet harness 亦复算通过）。
+        /// </summary>
         public static bool PumpGate(float sandSurface, float obstacleTop, float eta)
         {
             return sandSurface < obstacleTop
-                && obstacleTop <= eta && eta < obstacleTop + PumpEtaWindow;
+                && obstacleTop <= eta && LtF(eta, obstacleTop + PumpEtaWindow);
         }
+
+        /// <summary>单精度比较护栏：NoInlining 阻断宿主 JIT 的常量传播/双精度折叠。</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        static bool LtF(float a, float b) => a < b;
 
         // ---- Air 层（D 流件3）----
         //
@@ -583,6 +596,14 @@ namespace PirateCrew.WaterLab
         // 委托 WaterLabReplicaSnapshot 采样主菜单快照）----
 
         /// <summary>
+        /// 外部地形源（世界 XZ → 世界 Y，米）。云端漫步接入（2026-11-21）：第 1 关海床
+        /// 不是沙滩剖面，由场景侧组件（CloudSeaWaterLab）在装配期注入自己的海床高度场；
+        /// 判定链 = TerrainSampler（场景注入）→ 主菜单快照 → 程序剖面。只换**数据源**，
+        /// g / 格距 / 子步 / 波幅等模拟参数一个不动（复刻参数纪律）。
+        /// </summary>
+        public static Func<float, float, float> TerrainSampler;
+
+        /// <summary>
         /// 旧 64 m 取景剖面 → 30 m 域的 X 缩放系数。域切 30 m 后把旧 C1 剖面的
         /// 岸线里程碑按同一比例压缩（shoreWarp/沙丘/起伏公式原样保留），
         /// 使回退剖面与 ReplicaMode 共用同一个 30 m 世界。
@@ -673,12 +694,15 @@ namespace PirateCrew.WaterLab
         }
 
         /// <summary>
-        /// 地形高度（世界 XZ → 世界 Y）。ReplicaMode（主菜单快照已加载）下委托
-        /// <see cref="WaterLabReplicaSnapshot.SampleGround"/> 双线性采样（groundHeight 世界
-        /// Y 原值，含烘焙障碍物/海里礁石——裁决②原样导入）；未加载时回退下方程序剖面。
+        /// 地形高度（世界 XZ → 世界 Y）。判定链：场景注入源（TerrainSampler，云端漫步海床）
+        /// → ReplicaMode（主菜单快照已加载）双线性采样（groundHeight 世界 Y 原值，含烘焙
+        /// 障碍物/海里礁石——裁决②原样导入）→ 程序剖面回退。
         /// </summary>
         public static float TerrainHeight(float worldX, float worldZ)
         {
+            var sampler = TerrainSampler;
+            if (sampler != null)
+                return sampler(worldX, worldZ);
             if (WaterLabReplicaSnapshot.HasGround)
                 return WaterLabReplicaSnapshot.SampleGround(worldX, worldZ);
             return ProceduralTerrainHeight(worldX, worldZ);

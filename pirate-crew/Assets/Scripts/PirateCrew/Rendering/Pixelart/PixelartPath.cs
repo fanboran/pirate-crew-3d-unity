@@ -245,6 +245,18 @@ namespace PirateCrew.Rendering.Pixelart
         public static readonly int SnapOffsetUvId = Shader.PropertyToID("_PixelartSnapOffsetUv");
 
         /// <summary>
+        /// 纯覆盖膨胀描边开关（1 = simple 档，探针 2026-10 定案）：丢弃 connected/closer 门控与
+        /// 接缝规则②，只留"中心不描边 + 四邻域有描边物体"的外扩——单圈贴剪影、头/身同连通域
+        /// 只出一条边界线。由 rig 的 <see cref="PixelartCameraRig.simpleOutline"/> 帧首下发。
+        /// </summary>
+        public static readonly int OutlineSimpleId = Shader.PropertyToID("_PixelartOutlineSimple");
+
+        // ==================== 双风格切换（见 docs/技术/渲染/管线/双风格切换.md） ====================
+
+        /// <summary>屏后描边线（PostLine）渲染器资产的固定名。装配器按此名创建，rig 运行时按名解析索引。</summary>
+        public const string PostLineRendererName = "PostLine_Renderer";
+
+        /// <summary>
         /// 调试档（0 = 正常出图，1 = albedo，2 = 法线，3 = 逐物体参数，4 = 覆盖标记）。
         /// 拆管线出图用：故障是"没进 G-buffer"还是"着色丢了"一眼可判。
         /// </summary>

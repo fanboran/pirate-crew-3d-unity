@@ -132,6 +132,43 @@ _SLOT_DECLS = {
     "Kit_CloudShade": {"hex": "#DCE6EE", "roughness": 1.00},   # 云背光/云底（CloudWarmWhite 同系冷档）
     "Kit_CloudGold":  {"hex": "#F2E4C4", "roughness": 1.00},   # 云晒面淡金斑（CloudPaleGold 同源）
     "Kit_FarSail":    {"hex": "#E8E8E0", "roughness": 1.00},
+
+    # ------------------------------------------------------------------
+    # 云端漫步 Cloud_* 自然物槽（2026-11-22 从 CloudSea 材质 _BaseColor 反推恢复；
+    # 这批槽此前只在工作区、未入库，色卡表被回退后整块丢失）。
+    # ------------------------------------------------------------------
+    "Cloud_Black":      {"hex": "#20242A", "roughness": 0.80},
+    "Cloud_Blue":       {"hex": "#A8C4DD", "roughness": 0.80},
+    "Cloud_Bone":       {"hex": "#E8E2D0", "roughness": 0.80},
+    "Cloud_Bubble":     {"hex": "#EAF7FA", "roughness": 0.80},
+    "Cloud_Coral":      {"hex": "#F2924E", "roughness": 0.80},
+    "Cloud_CoralOrange":{"hex": "#FFBB78", "roughness": 0.80},
+    "Cloud_CoralPink":  {"hex": "#FFA6BE", "roughness": 0.80},
+    "Cloud_CoralPurple":{"hex": "#CBA9F5", "roughness": 0.80},
+    "Cloud_CoralTeal":  {"hex": "#78E6D6", "roughness": 0.80},
+    "Cloud_Deep":       {"hex": "#B9CCE0", "roughness": 0.80},
+    "Cloud_FishOrange": {"hex": "#FFA06E", "roughness": 0.80},
+    "Cloud_FishYellow": {"hex": "#FFDF7A", "roughness": 0.80},
+    "Cloud_Mist":       {"hex": "#F5FAFE", "roughness": 0.80},
+    "Cloud_Paper":      {"hex": "#F2EAD8", "roughness": 0.80},
+    "Cloud_Plant":      {"hex": "#77B56F", "roughness": 0.80},
+    "Cloud_Platforms":  {"hex": "#FFF8EE", "roughness": 0.80},
+    "Cloud_Rock":       {"hex": "#6E7A82", "roughness": 0.80},
+    "Cloud_Rope":       {"hex": "#C77B4A", "roughness": 0.80},
+    "Cloud_Sand":       {"hex": "#E6E0CC", "roughness": 0.80},
+    "Cloud_Sea":        {"hex": "#EAF3FA", "roughness": 0.80},
+    "Cloud_SeaDeep":    {"hex": "#C8DCEA", "roughness": 0.80},
+    "Cloud_Seabed":     {"hex": "#D2C8AE", "roughness": 0.80},
+    "Cloud_SeabedDeep": {"hex": "#2F5E63", "roughness": 0.80},
+    "Cloud_Seaweed":    {"hex": "#63C98A", "roughness": 0.80},
+    "Cloud_Shade":      {"hex": "#DCE8F4", "roughness": 0.80},
+    "Cloud_Warm":       {"hex": "#FFF8EE", "roughness": 0.80},
+    "Cloud_Water":      {"hex": "#4FD3D8", "roughness": 0.80},
+    "Cloud_WaterDeep":  {"hex": "#1F6F7A", "roughness": 0.80},
+    "Cloud_Waterfall":  {"hex": "#EAF7FA", "roughness": 0.80},
+    "Cloud_White":      {"hex": "#FFFFFF", "roughness": 0.80},
+    "Cloud_WoodDark":   {"hex": "#4E3428", "roughness": 0.80},
+    "Cloud_Yellow":     {"hex": "#E8B23A", "roughness": 0.80},
 }
 
 

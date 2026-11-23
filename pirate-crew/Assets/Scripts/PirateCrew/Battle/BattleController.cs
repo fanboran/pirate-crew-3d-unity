@@ -303,12 +303,27 @@ namespace PirateCrew.Battle
                     _source.SpanZ);
             }
 
-            Water.OceanRig.Create(
-                Water.OceanConfig.ForArena(
-                    arenaCenter, spanX * 0.5f, spanZ * 0.5f),
-                material: worldOceanMaterial,
-                parent: transform,
-                followCamera: battleCamera != null ? battleCamera.GetComponent<Camera>() : null);
+            // 【云端漫步：场景自带连续海面时不要再铺全局海面】第 1 关的海是 CloudWalk
+            // prefab 里的一份**连续浅海**（水面/海床/水下鱼群海草都在场景件内，海面铺到
+            // 画面外）。全局 OceanRig 是不透明圆盘、同高度 y=-0.4，会先把海床/鱼群挡在
+            // 深度后面，场景内的水下世界永远看不见。判据用"场景件里有没有 CloudSeaWater
+            // 组件"，不按关卡号硬编码——别的关将来也可以用自家水体。
+            bool hasOwnWater = sceneArt != null
+                && sceneArt.GetComponentInChildren<global::PirateCrew.SceneArt.CloudSea.CloudSeaWater>(true) != null;
+            if (hasOwnWater)
+            {
+                global::PirateCrew.Core.Log.Info("[BattleController] 场景自带连续海面（CloudSeaWater）："
+                    + "本关不创建全局 OceanRig，水下鱼群/海草由场景自身渲染。");
+            }
+            else
+            {
+                Water.OceanRig.Create(
+                    Water.OceanConfig.ForArena(
+                        arenaCenter, spanX * 0.5f, spanZ * 0.5f),
+                    material: worldOceanMaterial,
+                    parent: transform,
+                    followCamera: battleCamera != null ? battleCamera.GetComponent<Camera>() : null);
+            }
 
             // 远裁剪面经 BattleCameraDriver 的例外口抬高（唯一写入者契约，见 Driver 类头）；
             // 无 Driver 的兜底场景才直写相机。
@@ -359,21 +374,26 @@ namespace PirateCrew.Battle
                 if (root == null)
                     root = transform;
 
-                // 站面抬升：单位脚底要落在地表上（LevelGeometry 的 WorldPosition 只算基础地面，
-                // 站面高度在 BattleController 这一层叠加，避免改 LevelGeometry 的口径）。
-                // 空岛关（第 2 关）站面优先吃光栅化后的数据高度（穹顶已烘焙进 LevelData 的
-                // 逐格高度，0.5 m 量化台阶），穹顶公式仅在数据缺失时兜底——见 SpawnGroundWorldY。
-                Vector3 spawnPosition = entry.WorldPosition;
-                spawnPosition.y = SpawnGroundWorldY(entry) + LevelGeometry.UnitPivotHeight;
-
-                var spawnEntry = new SpawnPlanEntry(
-                    entry.TeamIndex, entry.TypeName, entry.Luck, entry.CellX, entry.CellY,
-                    spawnPosition, entry.InitialWeapons);
-
                 // 单一外观档（2026-10-05 职业外观塌缩裁决）；未接线回落 piratePrefab（方块兜底）。
                 PirateBase prefab = crewVisualPrefab != null ? crewVisualPrefab : piratePrefab;
                 if (prefab == null)
                     continue;
+
+                // 站面抬升：单位脚底要落在地表上（LevelGeometry 的 WorldPosition 只算基础地面，
+                // 站面高度在 BattleController 这一层叠加，避免改 LevelGeometry 的口径）。
+                // 枢轴高度按**当前预制体碰撞箱世界半高**算：方块兜底 0.5，Crew 视觉预制体
+                // 根缩放 y=0.5 ⇒ 半高 0.25；旧实现固定 0.5 会让 Crew 整队悬空 0.25 m。
+                Vector3 spawnPosition = entry.WorldPosition;
+                float ground = SpawnGroundWorldY(entry);
+                float pivot = UnitPivotHeightFor(prefab);
+                spawnPosition.y = ground + pivot;
+                Debug.Log($"[SpawnTeams] {entry.TypeName} t{entry.TeamIndex} "
+                    + $"cell=({entry.CellX},{entry.CellY}) world=({entry.WorldPosition.x:F2},{entry.WorldPosition.z:F2}) "
+                    + $"ground={ground:F2} pivot={pivot:F2} spawnY={spawnPosition.y:F2}");
+
+                var spawnEntry = new SpawnPlanEntry(
+                    entry.TeamIndex, entry.TypeName, entry.Luck, entry.CellX, entry.CellY,
+                    spawnPosition, entry.InitialWeapons);
 
                 PirateBase pirate = Instantiate(prefab, spawnPosition, Quaternion.identity, root);
                 pirate.Initialize(_nextPirateId++, spawnEntry);
@@ -387,6 +407,23 @@ namespace PirateCrew.Battle
                 ?.ApplyLevelCrabRules(LevelNumber);
 
             _spawned = true;
+        }
+
+        /// <summary>
+        /// 单位枢轴离地高度 = 预制体碰撞箱的**世界半高**（脚底贴地）。
+        /// 方块兜底 PirateBase 根缩放 y=1 → 0.5；Crew 视觉预制体根缩放 y=0.5 → 0.25。
+        /// 旧实现固定用 <see cref="LevelGeometry.UnitPivotHeight"/>（0.5），Crew 单位会悬空
+        /// 0.25 m（实拍：脚底与云面之间一条缝）。
+        /// </summary>
+        static float UnitPivotHeightFor(PirateBase prefab)
+        {
+            BoxCollider box = prefab.GetComponent<BoxCollider>();
+            if (box != null)
+                return Mathf.Max(0.01f, box.size.y * prefab.transform.localScale.y * 0.5f);
+            CapsuleCollider capsule = prefab.GetComponent<CapsuleCollider>();
+            if (capsule != null)
+                return Mathf.Max(0.01f, capsule.height * prefab.transform.localScale.y * 0.5f);
+            return LevelGeometry.UnitPivotHeight;
         }
 
         /// <summary>

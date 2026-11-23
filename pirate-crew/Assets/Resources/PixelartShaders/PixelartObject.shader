@@ -13,7 +13,8 @@
 //                         的 `_Priority` 为准：工厂默认 1、剪影贴片 0）  b = 法线边阈值  a = AA 缩放
 //   SV_Target5  palette   r = 主光档数  g = 抖动标量（0..1，中心 0.5）  b = 边光档数
 //                         a = applyOutline（逐物体描边开关；**屏幕空间描边那一趟读它**）
-//   SV_Target6  rimlight  rgb = 逐物体边缘光色
+//   SV_Target6  rimlight  rgb = 逐物体边缘光色  a = 逐物体边缘光开关（0 = 整件无边缘光，
+//                         v3 `DefaultPass.hlsl:85` 同义；边缘光趟采样后乘它，ARGBHalf 直存不解码）
 //
 // 【为什么在屏幕档而不是艺术画布】v3 的艺术画布 320×180、G-buffer 1600×900 = 画布 × 5 = 它的
 //   **屏幕分辨率**——"几何/G-buffer 就是常规延迟渲染的 G-buffer，全分辨率"，省 fill rate 的是
@@ -71,7 +72,7 @@ Shader "PirateCrew/Pixelart/PixelartObject"
         _BaseMap              ("剪影遮罩（_SPRITE 开时只采样 alpha 裁形状；颜色仍取 _BaseColor）", 2D) = "white" {}
         _Cutoff               ("剪影裁切阈值（alpha &lt; 阈值的纹素整个像素不要）", Range(0.0, 1.0)) = 0.5
 
-        _RimLightColor        ("逐物体边缘光色（黑 = 无边缘光）", Color) = (0, 0, 0, 1)
+        _RimLightColor        ("逐物体边缘光色（黑 = 无边缘光；a = 0 整件关）", Color) = (0, 0, 0, 1)
         _Priority             ("优先级（1 = 可行走地面 / 0 = 遮挡物，描边接触线判定用）", Float) = 0.0
         _OutlinePixels        ("描边开关（&gt;0 ⇒ 本物体的 applyOutline 置位）", Range(0.0, 1.0)) = 1.0
 
@@ -302,7 +303,7 @@ Shader "PirateCrew/Pixelart/PixelartObject"
                 output.shape    = half4(_Priority, 0.0, _NormalEdgeThreshold, _AAScale);
                 output.palette  = half4(_MainLightLevel, DitherValue(input), _NormalEdgeLevel,
                                         _OutlinePixels > 0.5 ? 1.0 : 0.0);
-                output.rimlight = half4(_RimLightColor.rgb, 1.0);
+                output.rimlight = half4(_RimLightColor.rgb, _RimLightColor.a);
                 return output;
             }
             ENDHLSL

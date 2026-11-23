@@ -97,8 +97,20 @@ namespace PirateCrew.Rendering.Pixelart
             _derived.Clear();
         }
 
+        /// <summary>
+        /// 【域闸门】本类只服务 CellShade（G-buffer 像素化域）。PostLine 域的物体材质由
+        /// <c>PostLineMaterialSwapper</c> 换到 ToonLit；本类若照常补扫，会把 ToonLit 当成
+        /// “还没在本路径上”的旧材质再换成 PixelartObject——而后者没有 UniversalForward 趟，
+        /// PostLine 前向渲染直接整层不画（2026-11-18 实拍：切 PostLine 后整幅只剩天空）。
+        /// 同一件资产两个域各有一个所有者，非本域时一个字节都不许写。
+        /// </summary>
+        static bool InPixelartDomain =>
+            global::PirateCrew.Core.RenderStyleState.Current == global::PirateCrew.Core.RenderStyle.CellShade;
+
         void Update()
         {
+            if (!InPixelartDomain)
+                return;
             if (rescanIntervalSeconds <= 0f)
                 return;
             if (Time.unscaledTime < _nextScanTime || Time.unscaledTime > _stopScanTime)
@@ -109,10 +121,13 @@ namespace PirateCrew.Rendering.Pixelart
 
         /// <summary>
         /// 扫一遍场景里的 <see cref="MeshRenderer"/>：世界内容换成本路径材质，效果件记账留给叠加档。
-        /// 返回本次**新**换掉的 Renderer 数。
+        /// 返回本次**新**换掉的 Renderer 数。PostLine 域直接空转（见 <see cref="InPixelartDomain"/>）。
         /// </summary>
         public int Scan(string note)
         {
+            if (!InPixelartDomain)
+                return 0;
+
             _nextScanTime = Time.unscaledTime + Mathf.Max(0.05f, rescanIntervalSeconds);
 
             int convertedThisScan = 0;
@@ -155,6 +170,15 @@ namespace PirateCrew.Rendering.Pixelart
 
                     if (source.shader.name == PixelartPath.ObjectShaderName)
                         continue;   // 该槽已在本路径上
+
+                    // 双趟透明 shader（云端漫步的海水/水洼/玻璃/太阳雨/光柱/彩虹）：CellShade 有
+                    // PixelartTransparent 一趟、PostLine 有标准前向透明一趟，**已经在本路径上**。
+                    // 若被当成"世界内容"转成不透明像素材质：水会把水下鱼群/海草全盖住
+                    // （2026-11-11 烘焙器审计）；雨/光柱/彩虹则会整类消失（2026-11-18 实拍）。
+                    if (source.shader.name == CloudSeaPath.WaterShaderName
+                        || source.shader.name == CloudSeaPath.RainShaderName
+                        || source.shader.name == PixelartPath.TransparentShaderName)
+                        continue;
 
                     allSlotsPixelart = false;
 

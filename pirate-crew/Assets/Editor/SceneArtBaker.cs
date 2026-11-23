@@ -29,12 +29,16 @@ namespace PirateCrew.EditorTools
         public static void BuildAll()
         {
             EnsureModelImporter(BakeFolder + "/CloudWalk.fbx");
-            BakeCloudWalkPrefab();
-            WireBattleScene();
+
+            // 2026-11-11 云端漫步场景重做：CloudWalk.fbx 已换成海水切片 + 7 云台 + 远景 +
+            // 海鸥小品，材质是 Cloud_* 而不是旧的 Lowpoly_Cloud*。旧的
+            // BakeCloudWalkPrefab（按名换 Lowpoly/*.mat）会把新材质全部报错、并把运行时
+            // 三组件洗掉——这里改由 CloudSeaAssetBaker 收口（材质/prefab/组件/BattleRig 接线）。
+            CloudSeaAssetBaker.BuildAll();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[SceneArtBaker] 样板场景件接线完成：云场 Blender 件（CloudWalk）→ Battle 场景。");
+            Debug.Log("[SceneArtBaker] 样板场景件接线完成：云端漫步（CloudSeaAssetBaker）→ BattleRig。");
         }
 
         /// <summary>

@@ -3,8 +3,8 @@
 //
 // 【四个 pass，名字是契约】（`docs/技术/渲染/像素化着色路径-P4P5接口契约.md` §2.1）：
 //   PixelartDiffuse   读屏幕档 G-buffer + 深度 → 主光/附加光漫反射（含连通域降档与法线边加成）
-//   PixelartSpecular  主光/附加光高光（`multiStep(pow(NdotH, expSmoothness))`）
-//   PixelartGI        本仓简化的环境光项（`环境色 × albedo`）——**暗部色就是它**
+//   PixelartSpecular  主光/附加光高光（`multiStep(pow(NdotH, expSmoothness) + 抖动偏移)`）
+//   PixelartGI        本仓简化的环境光项（`环境色 × albedo`；金属件再叠掠射反射）——**暗部色就是它**
 //   PixelartCombine   `Diffuse + Specular + GI + RimLight` → Cast 相机的颜色目标（= ResultBuffer）
 // 四张缓冲由 rig 分配、由 `PixelartShadingFeature` 按名字找 pass 并驱动（**本 shader 不自己清屏**：
 // 三张结果缓冲的清屏在 C# 驱动的 `SetRenderTarget(3 MRT) + ClearRenderTarget` 里做了）。
@@ -98,7 +98,8 @@ Shader "PirateCrew/Pixelart/PixelartShading"
         float _PixelartAdditionalLightCount;
         // 墨线色（线性；rig 已 .linear 下发）。墨线像素由本趟直接输出它，**不吃光照/色带/环境光**。
         float4 _PixelartInkColor;
-        // 环境光色（线性）。本仓的 GI 简化为 `环境色 × albedo`（契约 §4.2、蓝图 §7.2 第 5 条）。
+        // 环境光色（线性）。本仓的 GI 简化为 `环境色 × albedo`（契约 §4.2、蓝图 §7.2 第 5 条），
+        // 金属件另以它充当反射色（本路径无反射探针，见 PixelartGI 趟）。
         float4 _PixelartAmbientColor;
         // 主光方向（**指向光源**）与颜色（线性）——**本路径的光以这两个全局量为准**。
         // 【为什么不能让 URP 的 `_MainLightColor`/`_MainLightPosition` 说了算】那两值由场景里那盏主光的
@@ -460,13 +461,21 @@ Shader "PirateCrew/Pixelart/PixelartShading"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
 
             // v3 `:117-126` 逐行：半角向量 → `pow(NdotH, expSmoothness)` → 量化（level 恒 2.0）→ 乘光色/高光色/光滑度。
+            // 唯一增项是量化前的抖动偏移（见函数体注释）。
             half3 SpecularShading(Light light, float3 normal, float3 viewDir, float3 specular,
-                                  float smoothness, float expSmoothness, float level)
+                                  float smoothness, float expSmoothness, float level, float ditherOffset)
             {
                 float3 halfVec = SafeNormalize(float3(light.direction) + float3(viewDir));
 
                 half NdotH = half(saturate(dot(normal, halfVec)));
                 float modifier = pow(NdotH, expSmoothness) * light.distanceAttenuation * light.shadowAttenuation;
+                // 【量化软化】v3 原式在这里直接两档量化：大平面上相机方位一转 NdotH 就整片扫过
+                // 翻档边界，高光带整档翻面（工厂关掉 `_Smoothness` 的原因）。本仓在量化前加与漫反射
+                // 同源的艺术像素抖动（Palette.g 解包值），施加式同 DiffuseShading：偏移 × 0.5 个量化
+                // 边界间距（MultiStep 的边界间距 = 1/level）⇒ 翻档边界变成约 1 艺术像素宽的密度过渡带。
+                // 【零影响】返回式末尾乘 smoothness：现役材质 `_Smoothness` 全 0 ⇒ 结果恒 0，与加偏移前
+                // 逐像素一致。
+                modifier += ditherOffset * (0.5 / level);
                 modifier = MultiStep(modifier, level, 0.0, 0.0);
 
                 return light.color * specular * modifier * smoothness;
@@ -493,6 +502,8 @@ Shader "PirateCrew/Pixelart/PixelartShading"
                 float3 normalWS = normalize(SAMPLE_TEXTURE2D(_PixelartNormal1Buffer,
                     sampler_PixelartNormal1Buffer, uv).xyz);
                 float4 physicalProp = SAMPLE_TEXTURE2D(_PixelartPhysicalBuffer, sampler_PixelartPhysicalBuffer, uv);
+                // 抖动偏移：与 Diffuse 趟同一来源、同一解包（Palette.g，0..1 中心 0.5 → -1..+1）。
+                float ditherOffset  = SAMPLE_TEXTURE2D(_PixelartPaletteBuffer, sampler_PixelartPaletteBuffer, uv).g * 2.0 - 1.0;
 
                 // 光滑度 / 金属度（直存）。expSmoothness 与 v3 同式：指数越大高光越小越亮。
                 float smoothness    = physicalProp.r;
@@ -516,7 +527,7 @@ Shader "PirateCrew/Pixelart/PixelartShading"
                 if (dot(_PixelartLightDirWS.xyz, _PixelartLightDirWS.xyz) > 1e-8)
                     mainLight.direction = normalize(_PixelartLightDirWS.xyz);
                 mainLight.color = _PixelartLightColor.rgb;
-                outputColor += SpecularShading(mainLight, normalWS, viewDir, specular, smoothness, expSmoothness, 2.0);
+                outputColor += SpecularShading(mainLight, normalWS, viewDir, specular, smoothness, expSmoothness, 2.0, ditherOffset);
 
                 // 【注】附加光这里走 `GetAdditionalPerObjectLight` ⇒ `shadowAttenuation` 恒为 1，
                 // 即附加光**不投影**（v3 `:160-163` 同样如此；要投影得换 `GetAdditionalLight(i, pos, shadowMask)`）。
@@ -524,13 +535,13 @@ Shader "PirateCrew/Pixelart/PixelartShading"
                     #if !USE_FORWARD_PLUS
                         LIGHT_LOOP_BEGIN((uint)_PixelartAdditionalLightCount)
                             Light light = GetAdditionalPerObjectLight(lightIndex, positionWS);
-                            outputColor += SpecularShading(light, normalWS, viewDir, specular, smoothness, expSmoothness, 2.0);
+                            outputColor += SpecularShading(light, normalWS, viewDir, specular, smoothness, expSmoothness, 2.0, ditherOffset);
                         LIGHT_LOOP_END
                     #else
                         for (uint lightIndex = 0u; lightIndex < (uint)_PixelartAdditionalLightCount; ++lightIndex)
                         {
                             Light light = GetAdditionalPerObjectLight(lightIndex, positionWS);
-                            outputColor += SpecularShading(light, normalWS, viewDir, specular, smoothness, expSmoothness, 2.0);
+                            outputColor += SpecularShading(light, normalWS, viewDir, specular, smoothness, expSmoothness, 2.0, ditherOffset);
                         }
                     #endif
                 #endif
@@ -541,12 +552,17 @@ Shader "PirateCrew/Pixelart/PixelartShading"
         }
 
         // ==================================================================
-        // 第 3 趟 / PixelartGI：环境光项（本仓简化）
-        //   输入全局：Albedo / AmbientColor / Outline
-        //   输出：gi = rgb（= 环境色 × albedo），a 恒 1
+        // 第 3 趟 / PixelartGI：环境光项（本仓简化）+ 金属件的掠射反射（轻量版）
+        //   输入全局：Albedo / AmbientColor / Outline（金属件另读 Physical / Normal1）
+        //   输出：gi = rgb（非金属 = 环境色 × albedo；金属见下），a 恒 1
         // 【为什么就是它】v3 这趟是 SH/lightmap + 反射探针（`GlobalIlluminationFragment`），
         //   而它的 lightmap 通道实际是空的（蓝图 §2 注意 2）⇒ 观感上近似"单色环境光乘 albedo"。
         //   本仓直接取这一项：**暗部色就是它**（暗面 = albedo × 环境色，渲染篇 §4.2 口径）。
+        // 【金属件为什么要补反射项】Diffuse 趟对金属乘 `(1 − metallic)`，只减不加；v3 的金属亮部
+        //   第二来源是本趟的 `EnvironmentBRDF`（反射探针/天空盒 × fresnel）。本仓取轻量版
+        //   （CellShade 缺口规格 §1.3 第 3 条 a）：`gi = lerp(环境色 × albedo, 反射色, Pow4(1 − NoV))`，
+        //   反射色 = 环境色（本路径无反射探针），NoV 用正交常量视线。v3 对 NoV 的两档量化
+        //   （"边缘一圈提亮"的连通域门控）是规格登记的可保留差异，本版不做。
         // ==================================================================
         Pass
         {
@@ -578,7 +594,20 @@ Shader "PirateCrew/Pixelart/PixelartShading"
 
                 clip(albedo.a - 0.5);
 
-                return half4(_PixelartAmbientColor.rgb * albedo.rgb, 1.0);
+                float3 ambientTerm = _PixelartAmbientColor.rgb * albedo.rgb;
+
+                // 【金属度 > 0 才生效】现役材质 `_Metallic` 全 0 ⇒ 不进分支，输出与 `环境色 × albedo`
+                // 逐像素一致（法线缓冲只在分支里才采样）。
+                float metallic = SAMPLE_TEXTURE2D(_PixelartPhysicalBuffer, sampler_PixelartPhysicalBuffer, uv).g;
+                if (metallic > 0.0)
+                {
+                    float3 normalWS = normalize(SAMPLE_TEXTURE2D(_PixelartNormal1Buffer,
+                        sampler_PixelartNormal1Buffer, uv).xyz);
+                    float NoV = saturate(dot(normalWS, PixelartViewDirWS()));
+                    ambientTerm = lerp(ambientTerm, _PixelartAmbientColor.rgb, Pow4(1.0 - NoV));
+                }
+
+                return half4(ambientTerm, 1.0);
             }
             ENDHLSL
         }

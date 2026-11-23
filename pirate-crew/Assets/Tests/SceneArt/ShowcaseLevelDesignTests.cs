@@ -107,9 +107,9 @@ namespace PirateCrew.SceneArt.Tests
                 tiers.Add(blocks);
             });
 
-            Assert.AreEqual(5, min, "最低云应为 5 块（y2.5 东西云/东北朵）");
-            Assert.AreEqual(16, max, "最高云应为 16 块（y8 第二环南朵）");
-            Assert.AreEqual(9, tiers.Count, "云场应有 9 个高度档（散开布局，与防遮挡布局同档数）；");
+            Assert.AreEqual(5, min, "最低云应为 5 块（y2.5 NW_Islet）");
+            Assert.AreEqual(15, max, "最高云应为 15 块（y7.5 East 制高）");
+            Assert.AreEqual(7, tiers.Count, "7 座云台应有 7 个高度档（2.5/3/4.5/5.5/6/6.5/7.5）；");
         }
 
         // ------------------------------------------------------------------

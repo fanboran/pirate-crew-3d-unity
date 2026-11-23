@@ -207,6 +207,12 @@ namespace PirateCrew.Audio
             AudioSettingsStore.ApplyDefaults(_mixer);
             AudioSettingsStore.TryLoadInto(_mixer);
 
+            // 【全局静音（创始人 2026-11-20 裁决：游戏全程关掉声音）】Master 路强制静音，
+            // 在存档恢复之后执行——存档里任何音量值都不会解除。要恢复声音删掉这一行即可。
+            _mixer.SetMuted(AudioCategory.Master, true);
+            // 引擎层兜底：绕过混音器的任何声源也一并静掉。
+            AudioListener.volume = 0f;
+
             BuildSources();
             SubscribeEvents();
 

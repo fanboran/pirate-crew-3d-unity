@@ -31,3 +31,7 @@ __pycache__/
 /export/
 /pirate-crew/export/
 .trae/
+
+# 杂项：仓库根开 Obsidian 生成的 vault 配置、工具 crashpad 报错残留
+/.obsidian/
+/debug.log

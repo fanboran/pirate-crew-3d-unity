@@ -41,15 +41,14 @@ namespace PirateCrew.Battle.Tests
             Assert.AreEqual(0, first.TeamIndex);
             Assert.AreEqual("redPirate", first.TypeName);
             Assert.AreEqual(5, first.Luck);
-            Assert.AreEqual(8, first.CellX);
-            Assert.AreEqual(6, first.CellY);
+            Assert.AreEqual(11, first.CellX);
+            Assert.AreEqual(11, first.CellY);
 
-            // 世界坐标 = GridToArena(8,6) = ((8+0.5)×2, UnitPivotHeight=0.5, (6+0.5)×2)
-            // = (17, 0.5, 13)：3D 重投影后 cellY→纵深 Z、高度 Y 只有脚底贴地的 0.5 枢轴偏移
-            //（格 1→2 单位后格心 = (格号+0.5)×SampleCellSize，见 LevelGeometry.cs:313）。
-            Assert.AreEqual(17f, first.WorldPosition.x, 1e-5f);
+            // 2026-11-11 云端漫步重做：South 云台世界中心 (24,25)，首个红队出生点
+            // 世界 (23, 0.5, 23.5)，对应 2m 格 (11,11)（格心 = (格号+0.5)×SampleCellSize）。
+            Assert.AreEqual(23f, first.WorldPosition.x, 1e-5f);
             Assert.AreEqual(LevelGeometry.UnitPivotHeight, first.WorldPosition.y, 1e-5f);
-            Assert.AreEqual(13f, first.WorldPosition.z, 1e-5f);
+            Assert.AreEqual(23.5f, first.WorldPosition.z, 1e-5f);
         }
 
         [Test]

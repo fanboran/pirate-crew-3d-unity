@@ -215,6 +215,8 @@ namespace PirateCrew.Ambient
             _arena = ResolveArena();
             _noFly = AmbientNoFlyZone.ForArena(_arena);
 
+            ApplySkyLevelAmbientOverride();
+
             _materials = new AmbientMaterialSet();
             _meshes = new AmbientMeshSet();
 
@@ -233,14 +235,22 @@ namespace PirateCrew.Ambient
             if (enableFish)
                 SpawnFish(rng);
 
-            if (enableLanterns)
+            // 水层装饰按关规则（AmbientBudget.WaterDecorAllowedForLevel）：空中关的水面只是
+            // 背景圆盘，灯柱/旗绳/浮标从云缝里露出来读作悬空杂物——不生成，不是隐藏。
+            bool waterDecor = AmbientBudget.WaterDecorAllowedForLevel(_levelNumber);
+
+            if (enableLanterns && waterDecor)
                 SpawnLanterns(rng);
 
-            if (enablePennantLine)
+            if (enablePennantLine && waterDecor)
                 SpawnPennantLine(rng);
 
-            if (enableCorkFloats)
+            if (enableCorkFloats && waterDecor)
                 SpawnCorkFloats(rng);
+
+            if (!waterDecor)
+                global::PirateCrew.Core.Log.Info("[AmbientDirector] 关卡 " + _levelNumber
+                    + " 无水岸：灯笼/旗绳/浮标按关规则不生成。");
 
             if (enableDistantBirds)
                 SpawnDistantBirds(rng);
@@ -658,6 +668,38 @@ namespace PirateCrew.Ambient
 
         /// <summary>按关氛围规则的关卡号缓存（-1 = 未知，按默认全套氛围处理）。</summary>
         int _levelNumber = -1;
+
+        /// <summary>
+        /// 空中关（第 1 关云端漫步）的环境色覆写。
+        ///
+        /// 【为什么需要】战斗场景按 2026-10-07 裁决关掉了 <c>applyPresetOnStart</c>
+        /// （对齐调试关观感），环境色因此一直是场景烘焙的深暖棕
+        /// （ambientSkyColor #3C3834 → 线性 0.045）。这对贴地的沙岸关成立，但对
+        /// 全白云台是灾难：所有背光面 = albedo × 0.045 ≈ 近黑，两套 shader 都只剩
+        /// "白顶 + 黑墙"，云台的体积感与棱线全丢（2026-11-09 地图审计实拍确认）。
+        /// 空中关给一个天空环境色（正午档 #9BABB8 × 0.85，本来就是设给"暗面亮度旋钮"
+        /// 的那一档），背光面读作冷蓝灰而不是黑，同时保住"云是白的"裁决。
+        /// 只改第 1 关；其余关的光照基线不动。
+        /// </summary>
+        void ApplySkyLevelAmbientOverride()
+        {
+            if (_levelNumber != 1)
+                return;
+
+            RenderSettings.ambientLight = SkyLevelAmbientColor;
+            RenderSettings.ambientIntensity = SkyLevelAmbientIntensity;
+            global::PirateCrew.Core.Log.Info("[AmbientDirector] 关卡 1（云端）环境色覆写为天空色 "
+                + "#7E90A3 × 0.85（背光面冷蓝灰，不再是烘焙深棕）。");
+        }
+
+        /// <summary>
+        /// 空中关环境色。比正午档 #9BABB8 深一档（#7E90A3）：实拍 #9BABB8 把 CellShade
+        /// 云台侧壁抬到近白，顶/侧分不开；深到这一档后侧壁落在中蓝灰，白顶仍白。
+        /// </summary>
+        static readonly Color SkyLevelAmbientColor = new Color(0.494f, 0.565f, 0.639f, 1f);
+
+        /// <summary>空中关环境强度（= 正午档 0.85）。</summary>
+        const float SkyLevelAmbientIntensity = 0.85f;
 
         void SpawnCrabs(AmbientRandom rng)
         {

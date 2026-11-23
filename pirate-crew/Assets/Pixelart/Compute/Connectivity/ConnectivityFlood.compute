@@ -16,8 +16,10 @@
 // 【两个 kernel 名都叫 Main】与 v3 一致；C# 侧按名字 `FindKernel("Main")` 解析，不写死序号。
 //
 // 【与 v3 的差别】① 位打包改直存 UNorm8；② 越界守卫 `>` → `>=`；
-//   ③ `_PrevConnectivityMap` 改名 `_PixelartConnectivityPrevBuffer`（契约 §1.3 的名字）。
-//   传播逻辑（含四处 `colorMask` 通道选择、`halfScale` 半径、center 位短路）逐行照搬。
+//   ③ `_PrevConnectivityMap` 改名 `_PixelartConnectivityPrevBuffer`（契约 §1.3 的名字）；
+//   ④ 传播窗按**块原点**锚（`target ∈ [blockOrigin, blockOrigin + k)`），不用 v3 的
+//   `cellCenter ± k/2`——理由见 PixelartConnectivityFlood 的窗注释。
+//   传播逻辑（含四处 `colorMask` 通道选择、center 位短路）逐行照搬。
 // ============================================================================
 
 #include "Connectivity.hlsl"
@@ -31,19 +33,27 @@ Texture2D<float4> _PixelartConnectivityPrevBuffer;
 /// 就地更新的 bitmap（读 Prev、写自己）。
 RWTexture2D<float4> _PixelartConnectivityDetailBuffer;
 
-/// 沿一个方向尝试把 `source` 的连通性写回自身（v3 `Flood`，`:11-50` 逐行）。
+/// 沿一个方向尝试把 `source` 的连通性写回自身（v3 `Flood`，`:11-50` 逐行；窗口判据除外）。
 ///
 /// `colorMask` 是"选通哪个通道"的掩码（float4 里只有一个分量是 1）：一个通道 = 一个方向。
-/// `cellCenter` 是 `source` 所在 k×k 单元的正中心；`scale` = pixelScale。
-void PixelartConnectivityFlood(int2 source, int2 target, int2 cellCenter, float4 colorMask, int2 size, int scale)
+/// `blockOrigin` 是 `source` 所在 k×k 单元的块原点；`scale` = pixelScale。
+void PixelartConnectivityFlood(int2 source, int2 target, int2 blockOrigin, float4 colorMask, int2 size, int scale)
 {
     if (target.x >= size.x || target.y >= size.y || target.x < 0 || target.y < 0)
         return;
 
-    // 只在**本单元内**传播（v3 `:14-16`）。
-    uint2 diff = uint2(abs(target - cellCenter));
-    uint halfScale = (uint)(scale / 2);
-    if (diff.x > halfScale || diff.y > halfScale)
+    // 只在**本单元内**传播：窗 = 本块 [blockOrigin, blockOrigin + k)²。
+    // 【为什么不用 v3 的 `|target − cellCenter| ≤ k/2`】那是按奇数 k 写的（v3 k=5 时 ±2 窗恰好
+    // 等于块）；偶数 k（现役 k=2，中心锚在块内偏 (1,1)）时 ±1 窗跨 3 个细像素 = 1.5 块，
+    // +x/+y 一侧越进邻块（渲染篇 §8 静默失效点 9 同族；Result 段已按块原点修过，本段同步）。
+    // 越界的不止中心：与中心同行/同列的边像素（k=2 的块内 (0,1)/(1,0)）沿该轴一步就进了邻块，
+    // 能经**邻块中心**的传播链拿到 center 位——本块里与自己中心并不连通的像素被算成"连通"，
+    // Result 的连通占比（.r/.g）偏高、内线降档在该处漏触发。
+    // 按块原点界定后（CPU 逐位复现、随机位穷举核对，k = 1..5）：center 位集合恰为"块内沿连通位
+    // 能走到本块中心"的像素；旧窗结果恒为其超集 ⇒ 修正后 Result 只降不升、只在被污染的块上变；
+    // 奇数 k 与旧窗逐位相同（既有奇数档出图口径不变）。
+    int2 local = target - blockOrigin;
+    if (local.x < 0 || local.y < 0 || local.x >= scale || local.y >= scale)
         return;
 
     // 取 `source` 在这一方向上的那个字节（colorMask 选通道，四个分量相加即取到那一个）。
@@ -93,15 +103,14 @@ void Main(uint3 id : SV_DispatchThreadID)
     int2 sourceCoord = int2(id.xy);
 
     int scale = (int)max(_PixelartSamplingScale, 1.0);
-    int halfScale = scale / 2;
 
-    // 本像素所在 k×k 单元的正中心（v3 `:58-60`：`id - id % scale + scale/2`）。
-    int2 cellCenter = int2(int(id.x) - (int(id.x) % scale) + halfScale,
-                           int(id.y) - (int(id.y) % scale) + halfScale);
+    // 本像素所在 k×k 单元的块原点（窗口锚；单元中心由 Check 段的 center 位标出，本段不再算它）。
+    int2 blockOrigin = int2(int(id.x) - (int(id.x) % scale),
+                            int(id.y) - (int(id.y) % scale));
 
     // 四方向各一次，colorMask 依次选 r/g/b/a（与 Check 段的通道序一一对应：右/上/左/下）。
-    PixelartConnectivityFlood(sourceCoord, sourceCoord + int2(1, 0), cellCenter, float4(1.0, 0.0, 0.0, 0.0), size, scale);
-    PixelartConnectivityFlood(sourceCoord, sourceCoord + int2(0, 1), cellCenter, float4(0.0, 1.0, 0.0, 0.0), size, scale);
-    PixelartConnectivityFlood(sourceCoord, sourceCoord - int2(1, 0), cellCenter, float4(0.0, 0.0, 1.0, 0.0), size, scale);
-    PixelartConnectivityFlood(sourceCoord, sourceCoord - int2(0, 1), cellCenter, float4(0.0, 0.0, 0.0, 1.0), size, scale);
+    PixelartConnectivityFlood(sourceCoord, sourceCoord + int2(1, 0), blockOrigin, float4(1.0, 0.0, 0.0, 0.0), size, scale);
+    PixelartConnectivityFlood(sourceCoord, sourceCoord + int2(0, 1), blockOrigin, float4(0.0, 1.0, 0.0, 0.0), size, scale);
+    PixelartConnectivityFlood(sourceCoord, sourceCoord - int2(1, 0), blockOrigin, float4(0.0, 0.0, 1.0, 0.0), size, scale);
+    PixelartConnectivityFlood(sourceCoord, sourceCoord - int2(0, 1), blockOrigin, float4(0.0, 0.0, 0.0, 1.0), size, scale);
 }

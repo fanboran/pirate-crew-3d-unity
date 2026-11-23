@@ -49,6 +49,15 @@ namespace PirateCrew.Rendering.Pixelart
             + "打开后 Game 视图不按 Play 也是实机六趟管线；正式场景保持关闭，播放时照常运行。")]
         public bool runInEditMode;
 
+        /// <summary>
+        /// 纯覆盖膨胀描边（探针 2026-10 定案的 simple 档，默认开）：单圈贴剪影、头/身同连通域
+        /// 只出一条边界线。旧 connected/closer 门控会造出头身双墨线与单侧接缝缝（探针档案
+        /// docs/项目/交接/角色像素探针与描边缝隙.md §1）；要对比旧语法再关。
+        /// 帧首由 PixelartBeforeRenderFeature 下发为全局 _PixelartOutlineSimple。
+        /// </summary>
+        [Tooltip("纯覆盖膨胀描边（simple 档，默认开）：单圈贴剪影、头/身单边界线。关 = 旧 connected/closer 门控语法（对比用）。")]
+        public bool simpleOutline = true;
+
         /// <summary>像素比例档下限（1:2）——创始人 2026-09-24 裁决：滚轮只在 1:2–1:5 间步进。</summary>
         public const int PixelScaleMin = 2;
         /// <summary>像素比例档上限（1:5）。</summary>
@@ -146,6 +155,10 @@ namespace PirateCrew.Rendering.Pixelart
             + "挂成 Cast 渲染器会让主相机重跑一遍物体/着色 pass 并把结果冲掉。-1 = 不改写。")]
         public int screenRendererIndex = -1;
 
+        [Tooltip("屏后描边线（PostLine）所用渲染器的索引（装配器写入）。-1 = 未安装，"
+            + "运行期切到 PostLine 时回退单元着色并告警。见 docs/技术/渲染/管线/双风格切换.md。")]
+        public int postLineRendererIndex = -1;
+
         [Header("Cast 相机（留空则运行时按子物体 local 恒等自动创建）")]
         public Camera castCamera;
 
@@ -167,6 +180,12 @@ namespace PirateCrew.Rendering.Pixelart
         Camera _castCamera;
         UniversalAdditionalCameraData _castCameraData;
         bool _castCameraCreatedAtRuntime;
+
+        /// <summary>当前已应用的渲染风格（Update 与真值比对，变化即热切）。</summary>
+        Core.RenderStyle _appliedStyle = Core.RenderStyle.CellShade;
+
+        /// <summary>PostLine 模式下的换装补刷计时（帧；30 帧一次增量刷新）。</summary>
+        int _postLineRefreshFrames;
 
         /// <summary>透明件叠加相机（只在 <see cref="overlayRendererIndex"/> ≥ 0 时存在；总是运行时自建）。</summary>
         Camera _overlayCamera;
@@ -411,7 +430,6 @@ namespace PirateCrew.Rendering.Pixelart
             _savedRendererIndex = screenRendererIndex >= 0
                 ? ReadRendererIndex(_screenCamera)
                 : -1;
-            ApplyRendererIndex(_screenCamera, screenRendererIndex);
 
             // 关掉主相机的后处理：它跑在像素化**之后**的全屏域，作用对象是一张"什么都不画、不清屏"的
             // 颜色缓冲——既没意义又是"上采样后再做颜色操作"这条红线的现成入口（渲染篇 §1 红线 4）。
@@ -425,8 +443,115 @@ namespace PirateCrew.Rendering.Pixelart
             EnsureCastCamera();
             EnsureBuffers();
             EnsureOverlayCamera();
+            ApplyRenderStyle(initial: true);
             PixelartPath.ActiveRig = this;
             _initialized = true;
+        }
+
+        /// <summary>
+        /// 应用当前渲染风格（见 docs/技术/渲染/管线/双风格切换.md）：
+        /// CellShade = 双相机 G-Buffer 链（主相机只上屏 + Cast 渲染物体/着色）；
+        /// PostLine = 单相机后处理链（主相机全分辨率 + 后处理 feature；Cast 相机停用）。
+        /// 两套 Renderer 的 feature 天然隔离，切换只改 Renderer 索引与 Cast 启停，不重载场景。
+        /// PostLine 渲染器未装配（index &lt; 0）时回退 CellShade 并告警——不静默降级观感。
+        /// </summary>
+        void ApplyRenderStyle(bool initial)
+        {
+            Core.RenderStyle style = Core.RenderStyleState.Current;
+
+            // 索引未由场景装配器写入时按固定名运行时解析（两档 URP 资产列表同名同索引，
+            // 装配器只负责把 PostLine_Renderer 追加进列表一次；见 PixelartPathInstaller）。
+            if (style == Core.RenderStyle.PostLine && postLineRendererIndex < 0)
+                TryResolveRendererIndexByName(PixelartPath.PostLineRendererName, out postLineRendererIndex);
+
+            if (style == Core.RenderStyle.PostLine && postLineRendererIndex < 0)
+            {
+                global::PirateCrew.Core.Log.Warn(
+                    "[PixelartCameraRig] 屏后描边线渲染器未装配（postLineRendererIndex < 0），回退单元着色。");
+                style = Core.RenderStyle.CellShade;
+            }
+
+            if (style == Core.RenderStyle.CellShade)
+                EnsureCastCamera();
+
+            // 主相机角色随风格切换：
+            // CellShade = 纯上屏器（不清屏、层掩码只留虚机保活层，见 EnsureCastCamera 末尾）；
+            // PostLine = 正常渲染主相机（层掩码/清屏恢复成场景原值——否则画面全黑只有 UI）。
+            if (style == Core.RenderStyle.PostLine)
+            {
+                _screenCamera.clearFlags = _savedClearFlags;
+                _screenCamera.cullingMask = _savedCullingMask;
+                _screenCamera.farClipPlane = _savedFarClip;
+            }
+            else
+            {
+                _screenCamera.clearFlags = CameraClearFlags.Nothing;
+                _screenCamera.cullingMask = 1 << PixelartPath.VirtualCameraKeepAliveLayer;
+            }
+
+            if (_castCamera != null)
+                _castCamera.enabled = style == Core.RenderStyle.CellShade;
+
+            // 叠加透明相机是 CellShade 的专用件（像素化透明趟之外的第二条全分辨率透明路）。
+            // PostLine 是单相机前向链，透明水/雨/光柱由主相机自己的标准前向透明趟画；
+            // 留着它会作为相机栈的后续 pass 参与同一目标，把 PostLine feature 写回的颜色
+            // 再覆盖一次（2026-11-11 云端漫步排查：feature 入队时整幅只剩天空）。
+            if (_overlayCamera != null)
+                _overlayCamera.enabled = style == Core.RenderStyle.CellShade;
+
+            ApplyRendererIndex(_screenCamera,
+                style == Core.RenderStyle.PostLine ? postLineRendererIndex : screenRendererIndex);
+
+            // 物体材质换装：PostLine 线要全分辨率着色 shader，CellShade 线要 G-buffer shader。
+            // 换装是场景级遍历（切风格瞬间一次），切回时原样还原，不改场景序列化。
+            if (style == Core.RenderStyle.PostLine)
+                global::PirateCrew.Rendering.PostLine.PostLineMaterialSwapper.Enter();
+            else
+                global::PirateCrew.Rendering.PostLine.PostLineMaterialSwapper.Exit();
+
+            if (!initial)
+            {
+                global::PirateCrew.Core.Log.Info("[PixelartCameraRig] 渲染风格切至 " + style
+                    + "：screenMask=" + _screenCamera.cullingMask
+                    + "（saved=" + _savedCullingMask + "），clear=" + _screenCamera.clearFlags
+                    + "，renderer=" + (style == Core.RenderStyle.PostLine
+                        ? postLineRendererIndex : screenRendererIndex) + "。");
+            }
+            _appliedStyle = style;
+        }
+
+        /// <summary>
+        /// 按名在当前 URP 资产的渲染器列表里找索引（画质档优先于 GraphicsSettings）。
+        /// URP14 的 <see cref="UniversalRenderPipelineAsset"/> 没有公开的列表读取口，
+        /// 与 <see cref="ReadRendererIndex"/> 同法走私有字段反射；找不到返回 false，不抛。
+        /// </summary>
+        static bool TryResolveRendererIndexByName(string rendererName, out int index)
+        {
+            index = -1;
+            if (string.IsNullOrEmpty(rendererName))
+                return false;
+
+            UniversalRenderPipelineAsset asset =
+                QualitySettings.renderPipeline as UniversalRenderPipelineAsset
+                ?? GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+            if (asset == null)
+                return false;
+
+            System.Reflection.FieldInfo field = typeof(UniversalRenderPipelineAsset).GetField(
+                "m_RendererDataList",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (field == null || !(field.GetValue(asset) is ScriptableRendererData[] list))
+                return false;
+
+            for (int i = 0; i < list.Length; i++)
+            {
+                if (list[i] != null && list[i].name == rendererName)
+                {
+                    index = i;
+                    return true;
+                }
+            }
+            return false;
         }
 
         static void ApplyRendererIndex(Camera camera, int index)
@@ -553,6 +678,18 @@ namespace PirateCrew.Rendering.Pixelart
             {
                 RescaleWorldPerPixelForScaleChange(pixelScale, contractScale);
                 pixelScale = contractScale;
+            }
+
+            // 渲染风格热切：设置页改真值，下一帧比对一次（枚举比较，零分配）。
+            if (_appliedStyle != Core.RenderStyleState.Current)
+                ApplyRenderStyle(initial: false);
+
+            // PostLine 模式下，运行时生成的物体（单位/地形/道具）要在生成后补换装——
+            // 每 30 帧增量刷新一次（只处理新对象，幂等；切风格是低频操作）。
+            if (_appliedStyle == Core.RenderStyle.PostLine && ++_postLineRefreshFrames >= 30)
+            {
+                _postLineRefreshFrames = 0;
+                global::PirateCrew.Rendering.PostLine.PostLineMaterialSwapper.Refresh();
             }
 
             // 屏幕尺寸变化（窗口拉伸/分辨率切换）→ 两档缓冲与上屏尺寸一起重算。
@@ -1015,9 +1152,13 @@ namespace PirateCrew.Rendering.Pixelart
                 lightColor = light.color * (light.intensity * lightIntensity);
             }
 
-            Color ambient = RenderSettings.ambientMode == UnityEngine.Rendering.AmbientMode.Flat
-                ? RenderSettings.ambientLight
-                : RenderSettings.ambientSkyColor;
+            // 【环境色 = RenderSettings.ambientLight × ambientIntensity，不再读烘焙三色】
+            // AmbientDirector 的档位预设把"暗面亮度旋钮"写在 ambientLight（见
+            // AmbientTimeOfDayCatalog：正午 #9BABB8 / 强度 0.85），并注明场景烘焙的 Trilight
+            // 三色只是装配期占位；旧实现读 ambientSkyColor（场景占位 #3C3834）会让预设色永远
+            // 进不了着色器，暗面偏黑、与 PostLine 链（同读 ambientLight）也不一致。
+            // 两条链现在共用同一数值源，只有全局名不同（_PixelartAmbientColor / _GlobalAmbientColor）。
+            Color ambient = RenderSettings.ambientLight * RenderSettings.ambientIntensity;
 
             // 【颜色一律显式 .linear + SetGlobalVector】材质 Color 属性（albedo 那一侧）在线性工程里会被
             // 自动做 sRGB→线性，而 shader **全局**颜色的转换行为是另一条路径、口径不明确。

@@ -121,8 +121,9 @@ namespace PirateCrew.Tests
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// Cast 渲染器的**冻结特征顺序**（PixelartTransparentFeature 类头：前六位顺序是冻结契约，
-        /// 透明趟必须第 7 位——它要画在着色合成写完的成图之上）。
+        /// Cast 渲染器的**冻结特征顺序**（PixelartTransparentFeature 类头：前七位顺序是冻结契约，
+        /// 透明趟必须第 8 位——它要画在着色合成与水景画布写完的成图之上；
+        /// PixelartWaterLabSceneFeature 在透明趟前一帧输出水体实验的场景画布）。
         /// </summary>
         static readonly string[] ExpectedCastFeatureOrder =
         {
@@ -132,6 +133,7 @@ namespace PirateCrew.Tests
             "PixelartOutlineFeature",
             "PixelartRimLightFeature",
             "PixelartShadingFeature",
+            "PixelartWaterLabSceneFeature",
             "PixelartTransparentFeature",
         };
 
@@ -188,7 +190,7 @@ namespace PirateCrew.Tests
             }
 
             Assert.That(listedNames, Is.EqualTo(ExpectedCastFeatureOrder),
-                "Cast 渲染器特征顺序漂了（透明趟类头：前六位顺序是冻结契约，透明趟必须第 7 位）");
+                "Cast 渲染器特征顺序漂了（透明趟类头：前七位顺序是冻结契约，透明趟必须第 8 位）");
 
             var problems = new List<string>();
 
@@ -197,7 +199,7 @@ namespace PirateCrew.Tests
                 if (!activeByName.TryGetValue(name, out bool active) || !active)
                     problems.Add(name + ": m_Active ≠ 1（特征被序列化关闭）");
 
-            // 死子资产看守（审计 R8）：除主资产与七个在册特征外，不许再出现任何 Pixelart*
+            // 死子资产看守（审计 R8）：除主资产与八个在册特征外，不许再出现任何 Pixelart*
             // 块。曾留有 PixelartColorCorrectionFeature 死块（m_Script/shader 的 guid 全仓无
             // 对应资产、不在特征列表里），手工 YAML 删除才清掉——再混进来说明装配器/人手
             // 又写了孤儿块，当场红。

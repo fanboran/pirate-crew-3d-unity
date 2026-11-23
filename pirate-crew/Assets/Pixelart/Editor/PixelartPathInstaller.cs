@@ -51,6 +51,12 @@ namespace PirateCrew.EditorTools
         /// 【追加纪律】前六位是冻结契约，只许在**末尾追加**：第 7 位 `PixelartTransparentFeature`
         /// 是像素化域透明趟（着色合成后在艺术画布上画半透明效果件，吃细像素深度遮挡）——
         /// 它必须排在 Shading 之后（合成本身整屏覆盖写，先画会被冲掉），其余趟与它无耦合。
+        /// 第 8 位 `PixelartWaterLabSceneFeature`（2026-11-21 云端漫步水体接入）：艺术画布
+        /// 快照 → `_WaterLabPixelartScene`，供像素化透明趟的 WaterLab 水面采折射底色——
+        /// 必须排在 Shading 之后（快照的是合成结果）、**透明趟之前**（透明趟按队列先画
+        /// 简版水、后画 ocean，快照若在最后，水折射底图会被简版水的青色洗一遍，
+        /// 水下鱼/珊瑚读不清；2026-11-21 定案）。同事件（AfterRendering）内次序 =
+        /// AddRenderPasses 入队次序。
         static readonly System.Type[] CastFeatureOrder =
         {
             typeof(PixelartBeforeRenderFeature),
@@ -59,6 +65,7 @@ namespace PirateCrew.EditorTools
             typeof(PixelartOutlineFeature),
             typeof(PixelartRimLightFeature),
             typeof(PixelartShadingFeature),
+            typeof(PixelartWaterLabSceneFeature),
             typeof(PixelartTransparentFeature),
         };
 
@@ -399,7 +406,7 @@ namespace PirateCrew.EditorTools
         {
             string[] additionalLightCandidates =
             {
-                "m_AdditionalLightsRenderingMode",   // 0=Disabled 1=PerVertex 2=PerPixel
+                "m_AdditionalLightsRenderingMode",   // URP 14 枚举：0=Disabled 1=PerPixel 2=PerVertex
                 "m_AdditionalLightsMode",
             };
             string[] additionalShadowCandidates =
@@ -419,7 +426,7 @@ namespace PirateCrew.EditorTools
                     continue;
 
                 var so = new SerializedObject(asset);
-                bool ok = SetFirstFound(so, additionalLightCandidates, 2);   // 2 = Per Pixel
+                bool ok = SetFirstFound(so, additionalLightCandidates, 2);   // 2 = PerVertex（本路径按全局数组取光，两种模式附加光常量都上传）
                 ok &= SetFirstFound(so, additionalShadowCandidates, 1);
                 ok &= SetFirstFound(so, mainShadowCandidates, 1);
                 so.ApplyModifiedPropertiesWithoutUndo();

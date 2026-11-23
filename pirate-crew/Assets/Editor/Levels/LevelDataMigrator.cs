@@ -84,8 +84,10 @@ namespace PirateCrew.EditorTools
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            if (problems.Count == 0)
-                MigrateAll();
+            // 不要在这里重入 MigrateAll：曾经从 BakeVoxelHeights 迁过来的
+            // `if (problems.Count == 0) MigrateAll();` 是无终止条件的自递归
+            // （2026-11-09 云端漫步地形重建时实测；BakeVoxelHeights 自己负责在落盘后
+            // 重跑本方法，迁移本身不需要再调自己）。
 
             Report("迁移关卡资产", "写 " + levelAssets.Count + " 张关卡 + 1 份清单",
                 problems);

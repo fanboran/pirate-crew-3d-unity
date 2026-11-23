@@ -312,7 +312,17 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
 
                 marker = max(markerGate, markerFallback);
 
-                // 纯覆盖膨胀模式：丢弃全部门控结果。
+                // 纯覆盖膨胀模式：丢弃全部门控结果，只留「非物体像素贴着描边物体」的
+                // 对称膨胀（探针 2026-10 定案：单圈贴剪影、头/身同连通域只出一条线）。
+                //
+                // 【2026-11-21 补接缝规则②】云端漫步把连续海面铺满全幅后，画面里每个背景
+                // 像素都是开着描边的海床物体——膨胀没有"非物体像素"可落，墨标恒零
+                //（final2 时代海切片边缘还有天空可膨胀，所以那轮还有线；连续海面后就没了，
+                // r17-diag 分轮统计实锤）。这里把门控**规则②（接缝）**加回 simple 档：
+                // 两侧都是描边物体、不连通、本像素在更远一侧 ⇒ 出墨。只做加法——
+                // 头/身相切连通（connected=1）依旧不触发，探针要的"单边界线"不变；
+                // 接缝墨仍只落更远一侧（双向出墨 2px 的老坑不复活）。诊断档 8/10 一直
+                // 显示这条规则在命中（16k 标），门控位本身没有被污染。
                 if (_PixelartOutlineSimple > 0.5)
                 {
                     marker = 0.0;
@@ -322,6 +332,18 @@ Shader "PirateCrew/Pixelart/PixelartOutline"
                             || AppliesOutlineAt(uvCenter - float2(texel.x, 0.0))
                             || AppliesOutlineAt(uvCenter + float2(0.0, texel.y))
                             || AppliesOutlineAt(uvCenter - float2(0.0, texel.y)))
+                            marker = 1.0;
+                    }
+                    else
+                    {
+                        if ((AppliesOutlineAt(uvCenter + float2(texel.x, 0.0))
+                                && connectedToRight < 1 && closerThanRight < 1)
+                            || (AppliesOutlineAt(uvCenter - float2(texel.x, 0.0))
+                                && connectedToLeft < 1 && closerThanLeft < 1)
+                            || (AppliesOutlineAt(uvCenter + float2(0.0, texel.y))
+                                && connectedToUp < 1 && closerThanUp < 1)
+                            || (AppliesOutlineAt(uvCenter - float2(0.0, texel.y))
+                                && connectedToDown < 1 && closerThanDown < 1))
                             marker = 1.0;
                     }
                 }

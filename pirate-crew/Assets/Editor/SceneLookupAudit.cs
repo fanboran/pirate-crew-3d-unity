@@ -55,7 +55,7 @@ namespace PirateCrew.EditorTools
         ///   <c>GameObject.Find</c> 分支互不吞并（前缀不同）。
         /// </summary>
         static readonly Regex LookupPattern = new Regex(
-            @"(GameObject\s*\.\s*Find|FindObjectOfType|FindObjectsOfType|FindAnyObjectByType|FindObjectsByType|FindWithTag|FindGameObjectWithTag"
+            @"(GameObject\s*\.\s*Find|FindObjectOfType|FindObjectsOfType|FindFirstObjectByType|FindAnyObjectByType|FindObjectsByType|FindWithTag|FindGameObjectWithTag"
             + @"|(?<![A-Za-z0-9_])Camera\s*\.\s*main\b"
             + @"|(?<![A-Za-z0-9_])[Tt]ransform\s*\.\s*Find\b)",
             RegexOptions.Compiled);
@@ -391,6 +391,81 @@ namespace PirateCrew.EditorTools
                 Kind = Kind.Tool,
                 Reason = "俯视小地图出图工具路径：采集前把全场景 renderer 换成平色材质（进程即弃），"
                          + "被换材质的对象没有持有者可以注入。运行时零调用。",
+            },
+            new WhitelistEntry
+            {
+                Path = "PirateCrew/Battle/BattleController.cs",
+                Token = "FindFirstObjectByType<global::PirateCrew.Ambient.AmbientDirector>",
+                LineAtRegistration = 401,
+                Kind = Kind.Runtime,
+                Reason = "**按关氛围规则**（云端漫步的螃蟹/水层装饰开关）：AmbientDirector 由 BattleSceneSetup "
+                         + "装配在 SceneArt 根上、不在 BattleController 的序列化字段里；这是开局一次性的"
+                         + "规则下发，不是逐帧查找。可选组件缺失时合法跳过。",
+            },
+            new WhitelistEntry
+            {
+                Path = "PirateCrew/CrewProbe/CrewProbeController.cs",
+                Token = "FindFirstObjectByType<CrewProbeController>",
+                LineAtRegistration = 677,
+                Kind = Kind.Tool,
+                Reason = "探针场桥调用入口（静态方法由编辑器 CommandBridge 反射进入，没有实例可注入；"
+                         + "同 Token 四处由本登记放行）。运行时零调用。",
+            },
+            new WhitelistEntry
+            {
+                Path = "PirateCrew/GeoProbe/GeometryProbeController.cs",
+                Token = "FindFirstObjectByType<GeometryProbeController>",
+                LineAtRegistration = 49,
+                Kind = Kind.Tool,
+                Reason = "几何标定场转台抓帧桥入口（静态方法由编辑器反射进入，没有实例可注入）。运行时零调用。",
+            },
+            new WhitelistEntry
+            {
+                Path = "PirateCrew/Rendering/PostLine/PostLineMaterialSwapper.cs",
+                Token = "FindObjectsByType<Renderer>",
+                LineAtRegistration = 50,
+                Kind = Kind.Runtime,
+                Reason = "**换装补扫**（仅 PostLine 风格、rig 每 30 帧一次，不是逐帧）：PostLine 链要把场景里"
+                         + "所有 PixelartObject 材质换成 ToonLit 变体，运行时生成的道具/弹体没有生成回调，"
+                         + "只能按渲染器增量扫描（s_HandledIds 去重，第一次之后只处理新增）。切回 CellShade 即停。",
+            },
+            new WhitelistEntry
+            {
+                Path = "PirateCrew/Rendering/WaterLabColorDump.cs",
+                Token = "Camera.main",
+                LineAtRegistration = 192,
+                Kind = Kind.Tool,
+                Reason = "水体实验的出图转储路径（环境变量门控，进程即弃）：转储前取主相机做投影/尺寸校验，"
+                         + "实验场景没有可注入的持有者。运行时零调用。",
+            },
+            new WhitelistEntry
+            {
+                Path = "PirateCrew/WaterLab/ReplicaPhytoplanktonSystem.cs",
+                Token = "Camera.main",
+                LineAtRegistration = 130,
+                Kind = Kind.Runtime,
+                Reason = "水体实验场景的浮游生物系统（仅 WaterLab 场景启用）：相机只用于近距离淡出与朝向，"
+                         + "场景由实验装配器创建、没有把相机注入到该子系统的通道；实际玩法战斗不走本组件。",
+            },
+            new WhitelistEntry
+            {
+                Path = "UI/Controls/AseScrollBar.cs",
+                Token = "transform.Find",
+                LineAtRegistration = 85,
+                Kind = Kind.Runtime,
+                Reason = "滚动条**反序列化自恢复**：烘进 Prefab 后序列化引用全空，Awake 按子件名找回"
+                         + "自己的子物体 Thumb（结构固定，装配期一次）；运行时新建路径走 Create→Build "
+                         + "显式赋值不经此分支。找自己的孩子没有可注入的持有者。",
+            },
+            new WhitelistEntry
+            {
+                Path = "UI/Controls/WorldUiAnchor.cs",
+                Token = "Camera.main",
+                LineAtRegistration = 77,
+                Kind = Kind.Runtime,
+                Reason = "世界锚点的**投影相机回退**：SetCamera/序列化 worldCamera 缺省时回落主相机"
+                         + "（2022.3 起 Camera.main 按 Tag 缓存，不是逐帧场景扫描）；战斗 HUD 锚点由"
+                         + "装配方显式注入，回退只覆盖未接线的临时场景。",
             },
         };
 

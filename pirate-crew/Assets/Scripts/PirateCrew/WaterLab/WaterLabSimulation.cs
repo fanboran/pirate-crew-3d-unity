@@ -39,9 +39,26 @@ namespace PirateCrew.WaterLab
         /// 装配器（WaterLabSetup.CreateSimulation）按资产路径注入；两者都非空且校验通过
         /// 时 <see cref="ReplicaMode"/> 开——地形/水位走快照；任一缺失或加载失败回退
         /// 程序剖面（ReplicaMode 判定 = 快照资产可加载，协调者裁决 5）。
+        /// 【云端漫步接入】外接地形走 <see cref="terrainProvider"/>（不注入快照，
+        /// ReplicaMode 保持关——快照岸线与云海满水均质域不兼容）。
         /// </summary>
         public TextAsset replicaGroundSnapshot;
         public TextAsset replicaWaterSnapshot;
+
+        /// <summary>
+        /// 外部地形源（云端漫步海床；序列化引用 = prefab 里的 <c>CloudSeaWaterLab</c>）。
+        /// 非空时 Awake 把它挂进 <see cref="WaterLabRules.TerrainSampler"/>——判定链
+        /// 采样器 → 快照 → 程序剖面的第一环。只换数据源，模拟参数一个不动。
+        /// </summary>
+        public MonoBehaviour terrainProvider;
+
+        /// <summary>
+        /// 模拟域中心（世界 XZ，米）。云海场地中心 ≈ 原点附近，可玩区 30 m 见方能全盖；
+        /// 模拟内部坐标恒以原点为中心（compute 与格距口径不变），本值只用于两处：
+        /// 初始地形采样的世界偏移与 <c>_WaterLabOrigin</c> 发布（渲染侧 WorldToDomainUv
+        /// 靠它把世界坐标映射回域 UV）。
+        /// </summary>
+        public Vector2 domainCenter = Vector2.zero;
 
         /// <summary>
         /// 耦合权重场（W1，B2 定案）：MenuWeights512.bytes，512² float32 = 原作 4bit
@@ -60,11 +77,29 @@ namespace PirateCrew.WaterLab
         public TextAsset replicaSandSnapshot;
 
         /// <summary>
-        /// 夜光浮游生物 compute（D 流件4，WaterLabPhytoplankton.compute）。装配器不注入
-        /// （自包含创建：Awake 里挂在同一 GameObject）；缺失时浮游生物系统不启动并报错
-        /// 一次——主菜单 Night=0 下原作本就不绘制，缺失只影响结构完整度。
+        /// 夜光浮游生物 compute（D 流件4，WaterLabPhytoplankton.compute）。接线口径分两场：
+        /// 实验室场景由**场景资产直接接线**（WaterLab.unity 序列化引用）；战斗场景烘焙器
+        /// （CloudSeaAssetBaker）显式 <c>enablePhytoplankton=false</c>，不注入也不报错。
+        /// 字段为 null 时浮游生物系统不启动并报错一次——主菜单 Night=0 下原作本就不绘制，
+        /// 缺失只影响结构完整度。
         /// </summary>
         public ComputeShader phytoplanktonShader;
+
+        /// <summary>
+        /// 夜光浮游生物接通开关。实验室场景恒开（自包含创建，见
+        /// <see cref="BootstrapPhytoplankton"/>）；战斗场景接入（2026-11-21 云端漫步）
+        /// 不带浮游生物——不注入 compute 也**不报错**（原作主菜单 Night=0 恒不绘制，
+        /// 缺它不影响可见结果），只是不让装配缺口刷错误日志。烘焙器按场景置位。
+        /// </summary>
+        public bool enablePhytoplankton = true;
+
+        /// <summary>
+        /// 潮位幅度缩放（**场景适配**，不是原作参数）：1 = 原作满幅，0 = 水位恒定。
+        /// 原作 ±0.2 m 潮位是给沙滩场景的；云端漫步水柱只有 0.35–0.75 m，低潮会把沙脊
+        /// 整片露出水面、水面读成白花花的湿沙（2026-11-23 实拍）。第 1 关配 0.25：
+        /// 水位基本稳定，起伏/波浪仍由高度场与波面法线读出来。实验室场景保持 1。
+        /// </summary>
+        [Range(0f, 1f)] public float tideAmplitudeScale = 1f;
 
         /// <summary>浮游生物系统（Awake 自建，见 <see cref="phytoplanktonShader"/>）。</summary>
         ReplicaPhytoplanktonSystem _phytoSystem;
@@ -94,6 +129,10 @@ namespace PirateCrew.WaterLab
         RenderTexture _causticTex; // WaterCells² ARGBHalf（R=焦散拉普拉斯，带符号；OutputField 顺带烘焙）
         RenderTexture _groundTex;  // GroundCells² ARGBHalf（R=(h+1)/5 编码；D 流件1 起改由
                                    // GroundOutput 每帧从活沙场写，快照 t0 为初值——原为静态 Texture2D）
+        // t0 静止地形快照（R=(groundSim+1)/5，只写一次）：活沙会演化/冲蚀，而本关可见海床
+        // 是静态 Blender 网格——水体「凸出物保护」必须用这张静止地形当基准，否则冲蚀区
+        // 的沙面会被当成「高出海床 5–10 cm」而错误放行水色（2026-11-22 诊断帧实锤）。
+        RenderTexture _groundStaticTex;
         RenderTexture _obstacleTex; // 256² RHalf（障碍增量，Point 采样对齐原作 obstaclesMap）
 
         float _accumulator;
@@ -194,10 +233,13 @@ namespace PirateCrew.WaterLab
 
             TryLoadReplicaSnapshot();
             ResolvePlayTimeBase();
+            RegisterTerrainProvider();
             CreateBuffers();
             CreateTextures();
             PublishGlobals();
-            BootstrapPhytoplankton();
+            CaptureStaticGround();   // t0 静止地形快照（凸出物保护基准，活沙演化不影响它）
+            if (enablePhytoplankton)
+                BootstrapPhytoplankton();
             // GI 链自举（L3-sand 分解定案）：ReplicaGiSystem 的静态构造装配
             // WaterLabGiBridge.Render 委托——不碰它委托恒 null，而 Rendering 程序集的
             // Feature 禁止反向引用本程序集，只能由 Gameplay 侧在 Play 期触发一次。
@@ -259,7 +301,7 @@ namespace PirateCrew.WaterLab
                 return;
             }
             _phytoSystem = gameObject.AddComponent<ReplicaPhytoplanktonSystem>();
-            var mat = new Material(Shader.Find("WaterLab/ReplicaPhytoplankton"))
+            var mat = new Material(global::PirateCrew.Rendering.Pixelart.PixelartShaders.Find("WaterLab/ReplicaPhytoplankton"))
             {
                 name = "WaterLabPhytoplankton",
                 hideFlags = HideFlags.DontSave,
@@ -269,6 +311,28 @@ namespace PirateCrew.WaterLab
             sys.material = mat;
             sys.renderCamera = renderCamera;
             sys.Bootstrap(phytoplanktonShader, _waterCur, renderCamera);
+        }
+
+        /// <summary>
+        /// 外部地形源接线（在 CreateBuffers 之前——初始水柱/BlurFloor 都要读地形）。
+        /// 序列化引用不走组件间 Awake 次序：本方法自己把 provider 的 Height 挂进
+        /// <see cref="WaterLabRules.TerrainSampler"/>，provider 自身的 Awake 是否已跑
+        /// 无关紧要（Height 只吃常量与入参）。接管后本组件销毁时卸载，防委托跨场景残留。
+        /// </summary>
+        void RegisterTerrainProvider()
+        {
+            if (terrainProvider == null)
+                return;
+            var provider = terrainProvider as IWaterLabTerrain;
+            if (provider == null)
+            {
+                Debug.LogError("[WaterLabSimulation] terrainProvider 未实现 IWaterLabTerrain（"
+                    + terrainProvider.GetType().Name + "），地形回退判定链后续环。");
+                return;
+            }
+            WaterLabRules.TerrainSampler = provider.GroundHeight;
+            Debug.LogWarning("[WaterLabSimulation] 地形源 = " + terrainProvider.name
+                + "（外部海床剖面，域中心 " + domainCenter + "）。");
         }
 
         /// <summary>
@@ -345,6 +409,9 @@ namespace PirateCrew.WaterLab
 
         void OnDestroy()
         {
+            // 外接地形源随本组件卸载（静态委托不跨 Play 会话/场景残留；只卸自己挂的那一环）。
+            if (terrainProvider != null && WaterLabRules.TerrainSampler != null)
+                WaterLabRules.TerrainSampler = null;
             WaterLabReplicaSnapshot.Unload(); // 静态采样器不跨 Play 会话残留
             WaterLabReplicaWeights.Unload();
             WaterLabReplicaObstacles.Unload();
@@ -362,6 +429,7 @@ namespace PirateCrew.WaterLab
             DestroyTexture(ref _wetTex);
             DestroyTexture(ref _causticTex);
             DestroyTexture(ref _groundTex);
+            DestroyTexture(ref _groundStaticTex);
             DestroyTexture(ref _obstacleTex);
             Shader.SetGlobalFloat(ShaderIds.SimEnabled, 0f);
         }
@@ -372,6 +440,7 @@ namespace PirateCrew.WaterLab
         void Update()
         {
             DumpGiProbeOnce();
+            PublishOrigin();   // 摆位后每帧刷新（见方法注释）
             float frameDt = Mathf.Min(Time.deltaTime, 0.1f) * TimeScale;
             if (FixedSimTime >= 0f)
             {
@@ -551,6 +620,24 @@ namespace PirateCrew.WaterLab
             int groups = (WaterLabRules.WaterCells + 7) / 8;
             computeShader.Dispatch(_kSurface, groups, groups, 1);
             computeShader.Dispatch(_kOutput, groups, groups, 1);
+        }
+
+        /// <summary>
+        /// 把 **t0 地面场**一次性输出到 <c>_groundStaticTex</c>（活沙不写这张）。调用点：
+        /// Awake 末尾，早于第一帧 <see cref="StepGround"/>——此时 <c>_groundCur</c> 还是
+        /// <c>RegisterTerrainProvider</c> 写入的初始地形，与静态 Blender 海床网格同源。
+        /// 水体「凸出海床实体保护」用它当基准；活沙冲蚀不影响可见海床。
+        /// </summary>
+        void CaptureStaticGround()
+        {
+            // 走完整常量下发（_GroundCells 在 PushConstants 里，GroundOutput 的越界门要用）。
+            PushConstants(0f);
+            BindAll();
+            computeShader.SetTexture(_kGroundOutput, ShaderIds.GroundTex, _groundStaticTex);
+            int groups = (WaterLabRules.GroundCells + 7) / 8;
+            computeShader.Dispatch(_kGroundOutput, groups, groups, 1);
+            BindAll();   // 复原：GroundOutput 每帧仍写活沙 _groundTex
+            Shader.SetGlobalTexture(ShaderIds.StaticGroundTex, _groundStaticTex);
         }
 
         /// <summary>
@@ -775,6 +862,10 @@ namespace PirateCrew.WaterLab
             // 两端同饱和 → 深度 0 → 干区裁剪，水到不了那里，语义无损；水下沙全部在量程内。
             _groundTex = NewDataTexture(WaterLabRules.GroundCells, "WaterLabGround");
             Shader.SetGlobalTexture(ShaderIds.GroundTex, _groundTex);
+            // 静止地形快照（t0）：同一编码另一张 RT，Awake 里由 GroundOutput 写一次。
+            // 不做逐帧更新——它的语义就是「可见静态海床」的保护基准（见字段注释）。
+            _groundStaticTex = NewDataTexture(WaterLabRules.GroundCells, "WaterLabGroundStatic");
+            Shader.SetGlobalTexture(ShaderIds.StaticGroundTex, _groundStaticTex);
 
             // 障碍纹理：一次性初始化 dispatch（obstaclesReady 才有意义；缺数据时保持全零，
             // 泵的 delta>阈值 门控恒假 = 泵禁用）。
@@ -858,7 +949,8 @@ namespace PirateCrew.WaterLab
             // 原作 UpdateAmount：waveAmplitude 每帧按 `saturate(playTime×0.05)×max(四列)` 重算；
             // 潮位目标/5 cm 下限/蒸发从 WaterLabRules 单源下发。耦合权重不再走标量 uniform——
             // W1 起逐格读 _CouplingWeights 静态缓冲（B2 真值场/回退代理场，CreateBuffers 灌）。
-            cs.SetFloat(ShaderIds.WaveAmplitude, WaterLabRules.WaveAmplitude(_playTimeBase + _simTime));
+            cs.SetFloat(ShaderIds.WaveAmplitude,
+                WaterLabRules.WaveAmplitude(_playTimeBase + _simTime) * tideAmplitudeScale);
             cs.SetFloat(ShaderIds.TideClampMin, WaterLabRules.TideClampMin);
             cs.SetFloat(ShaderIds.TideMinAmount, WaterLabRules.TideMinAmount);
             PushGroundConstants();
@@ -960,17 +1052,35 @@ namespace PirateCrew.WaterLab
             Shader.SetGlobalTexture(ShaderIds.WetTex, _wetTex);
             Shader.SetGlobalTexture(ShaderIds.CausticTex, _causticTex);
             Shader.SetGlobalTexture(ShaderIds.GroundTex, _groundTex);
-            // 域中心固定在原点（场景装配约定），发布一次即可。
+            if (_groundStaticTex != null)
+                Shader.SetGlobalTexture(ShaderIds.StaticGroundTex, _groundStaticTex);
+            // 域中心发布（**世界坐标** = 本组件 transform.position + domainCenter）。
+            // ocean 网格是 prefab 子物体：战斗关卡把整件 prefab 摆在竞技场中心 (20,15)，
+            // 若只发 domainCenter=(0,0)，水面顶点会把世界 (20,15) 当域外采样、可见
+            // 水深=0 被整片裁掉（2026-11-21 WaterDiag 实锤：ocean 在 (20,-1.35,15)
+            // 而 origin=(0,30,0)）。实验室场景本组件在原点 → 等价于原口径。
             // 【约定】shader 端 WorldToDomainUv 读 .xz 当中心、.y 当域边长——
             // 参数序必须是 ( centerX, size, centerZ, cells )。曾误写 (0,0,64,256)，
             // y=0 除零 → UV=INF → 采样钳到边缘列 eta≈+0.5 → 全场「水深1.7m」、
             // 水蒙整张地（2026-10-15 诊断帧实锤，28 轮隐形水的根因）。
-            Shader.SetGlobalVector(ShaderIds.Origin, new Vector4(
-                0f, WaterLabRules.DomainSize, 0f, WaterLabRules.WaterCells));
+            PublishOrigin();
             Shader.SetGlobalFloat(ShaderIds.SimEnabled, 1f);
             Shader.SetGlobalFloat(ShaderIds.OceanDebug, ResolveOceanDebug());
             WaterLabWhitewaterBridge.Publish(_wwPos, _wwVel, _wwDraw, _wwArgs);
             PublishSunDir();
+        }
+
+        /// <summary>
+        /// 发布域中心（世界坐标）。每帧调用：prefab 实例的 transform 可能在 Awake
+        /// 之后才被摆位（RuntimeSceneArt 先 Instantiate 再设位置），只在 Awake 发
+        /// 一次会把 origin 留成摆位前的旧值——水面整片被当域外裁掉。
+        /// </summary>
+        void PublishOrigin()
+        {
+            Vector3 root = transform.position;
+            Shader.SetGlobalVector(ShaderIds.Origin, new Vector4(
+                root.x + domainCenter.x, WaterLabRules.DomainSize,
+                root.z + domainCenter.y, WaterLabRules.WaterCells));
         }
 
         /// <summary>
@@ -1001,6 +1111,7 @@ namespace PirateCrew.WaterLab
             public static readonly int WetTex = Shader.PropertyToID("_WaterLabWetTex");
             public static readonly int CausticTex = Shader.PropertyToID("_WaterLabCausticTex");
             public static readonly int GroundTex = Shader.PropertyToID("_WaterLabGroundTex");
+            public static readonly int StaticGroundTex = Shader.PropertyToID("_WaterLabStaticGroundTex");
             public static readonly int Origin = Shader.PropertyToID("_WaterLabOrigin");
             public static readonly int SunDir = Shader.PropertyToID("_WaterLabSunDir");
             public static readonly int SimEnabled = Shader.PropertyToID("_WaterLabSimEnabled");

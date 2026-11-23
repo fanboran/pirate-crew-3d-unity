@@ -21,9 +21,10 @@
 //   注意 v3 的对应趟是 `clip(albedo.a - 0.0001)` 丢掉背景、且它**没有墨线概念**
 //   （墨线是它自己的 `OutlinePass.hlsl` 的事，且那 feature 在 v3 里是关着的）。
 //
-// 【门控本体在 Pixelart/Shaders/Includes/RimLight.hlsl】那边是 v3 `RimLight.hlsl:16-20` 的逐行翻译
-//   （屏幕空间光向 × 连通域四方向），连同 `.a` 打包字节的解码与"为什么 v3 那两步
-//   （ndotl / multiStep）本仓不接"都写在文件头。本文件只负责"哪些像素有资格"。
+// 【门控本体在 Pixelart/Shaders/Includes/RimLight.hlsl】那边是 v3 `RimLight.hlsl:16-24` 的翻译
+//   （屏幕空间光向 × 连通域四方向 → 两档量化 → × 逐物件色/开关 × 光色 × 金属 tint），连同 `.a`
+//   打包字节的解码、边缘光方向/档数两个全局与"为什么 v3 的 ndotl 本仓不接"都写在那边。
+//   本文件只负责"哪些像素有资格"，以及把逐像素输入（逐物件属性、金属 tint）采好传进去。
 //
 // 【为什么这一趟没有 `_PixelartDebugMode` 调试档】调试档的可见性是合成趟给的：
 //   本趟的输出**永远不会直接上屏**（它跑在合成之前，画面由合成趟决定）。要把边缘光
@@ -62,10 +63,11 @@ Shader "PirateCrew/Pixelart/PixelartRimLight"
             // 留在 Assets/Pixelart/Shaders/Includes/ 的 .hlsl（相对路径会随本文件位置解析错）。
             #include "Assets/Pixelart/Shaders/Includes/RimLight.hlsl"
 
-            // 输入全是 shader 全局（契约 §2.2）：屏幕档的覆盖标记、艺术画布的连通域结论与
-            // 逐物体边缘光色。连通域与墨线两张的绑定由本趟自己发布（Feature 侧
+            // 输入全是 shader 全局（契约 §2.2）：屏幕档的覆盖标记/albedo、金属度、艺术画布的
+            // 连通域结论与逐物体边缘光属性。连通域与墨线两张的绑定由本趟自己发布（Feature 侧
             // `rig.PublishArtBuffers`），不依赖别的 Feature 的发布次序。
             TEXTURE2D(_PixelartAlbedoBuffer);              SAMPLER(sampler_PixelartAlbedoBuffer);
+            TEXTURE2D(_PixelartPhysicalBuffer);            SAMPLER(sampler_PixelartPhysicalBuffer);
             TEXTURE2D(_PixelartConnectivityResultBuffer);  SAMPLER(sampler_PixelartConnectivityResultBuffer);
             TEXTURE2D(_PixelartRimLightPropertyBuffer);    SAMPLER(sampler_PixelartRimLightPropertyBuffer);
             TEXTURE2D(_PixelartOutlineBuffer);             SAMPLER(sampler_PixelartOutlineBuffer);
@@ -80,8 +82,8 @@ Shader "PirateCrew/Pixelart/PixelartRimLight"
                 // ① 覆盖标记：背景像素没有光照层（口径见文件头）。
                 //    艺术画布这里按 uv 点采样屏幕档缓冲 ⇒ 取到的正是本像素对应那个块的
                 //    中心纹素（契约 §0 的降采口径），与"直接在画布上光栅化"逐点等价。
-                float coverage = SAMPLE_TEXTURE2D(_PixelartAlbedoBuffer, sampler_PixelartAlbedoBuffer, uv).a;
-                if (coverage < 0.5)
+                float4 albedo = SAMPLE_TEXTURE2D(_PixelartAlbedoBuffer, sampler_PixelartAlbedoBuffer, uv);
+                if (albedo.a < 0.5)
                     return half4(0.0, 0.0, 0.0, 1.0);
 
                 // ② 墨线像素：必须输出 0（否则合成时墨线被边缘光染色）。**本仓口径**。
@@ -92,12 +94,17 @@ Shader "PirateCrew/Pixelart/PixelartRimLight"
                 // ③ 门控：连通域四方向 × 屏幕空间光向（v3 RimLight.hlsl:16-20）。
                 float4 connectivity = SAMPLE_TEXTURE2D(_PixelartConnectivityResultBuffer,
                     sampler_PixelartConnectivityResultBuffer, uv);
-                // ④ 逐物体边缘光色：本像素所属物体的光照层提亮色。
-                float3 rimLightColor = SAMPLE_TEXTURE2D(_PixelartRimLightPropertyBuffer,
-                    sampler_PixelartRimLightPropertyBuffer, uv).rgb;
+                // ④ 逐物体边缘光属性：rgb = 光照层提亮色，a = 逐物体开关（物体趟写 `_RimLightColor` 原值，
+                //    ARGBHalf 直存不解码；v3 `ShadingPass.hlsl:280` 的 `rimLightProp.rgb * rimLightProp.a`）。
+                float4 rimLightProp = SAMPLE_TEXTURE2D(_PixelartRimLightPropertyBuffer,
+                    sampler_PixelartRimLightPropertyBuffer, uv);
+                // ⑤ 金属 tint：金属体的边缘光取体色（v3 `ShadingPass.hlsl:262` 同式；Physical.g = 金属度直存）。
+                float metallic = SAMPLE_TEXTURE2D(_PixelartPhysicalBuffer, sampler_PixelartPhysicalBuffer, uv).g;
+                float3 specularTint = lerp(float3(1.0, 1.0, 1.0), albedo.rgb, metallic);
 
                 uint packedConnectivity = PixelartUnpackConnectivityByte(connectivity.a);
-                float3 rimLight = PixelartRimLightShading(packedConnectivity, _PixelartLightDirWS.xyz, rimLightColor);
+                float3 rimLight = PixelartRimLightShading(packedConnectivity, _PixelartLightDirWS.xyz,
+                    rimLightProp, specularTint);
                 return half4(rimLight, 1.0);
             }
             ENDHLSL

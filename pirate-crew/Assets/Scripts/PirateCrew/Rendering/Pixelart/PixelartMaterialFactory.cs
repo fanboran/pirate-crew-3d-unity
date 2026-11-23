@@ -153,21 +153,26 @@ namespace PirateCrew.Rendering.Pixelart
         ///         （草坪口径：降档的聚合窗格跨到物体剪影上时，物体旁的地面像素被误判成"面转折"
         ///         而压暗一档，观感是描边外圈忽有忽无的深色毛边——r25 逐像素定位。草地/大平面这类
         ///         "自身没有合法内线"的材质置 0，角色/道具保持 1）；</item>
-        ///   <item>`_Smoothness` = **0（高光关）**：本路径高光趟对 `pow(NdotH, exp)` 做两档量化后乘
+        ///   <item>`_Smoothness` / `_Metallic` = <paramref name="smoothness"/> / <paramref name="metallic"/>，
+        ///         **默认 0（高光关、非金属）**：本路径高光趟对 `pow(NdotH, exp)` 做两档量化后乘
         ///         `_Smoothness`——地面/海面这类大平面上，相机方位一转 NdotH 就扫过量化的 floor 边界，
         ///         高光带整档翻面（创始人报的"地面反太阳光、旋转时颜色骤变"）。
         ///         **这不是本仓的偏离**：参考库 `SpecularShading`（`ShadingPass.hlsl:117-126`）逐行同式、
-        ///         `level` 也硬编码 2.0 ⇒ 跳变是参考实现自带的行为。所以这是"要不要付跳变代价换回高光"
-        ///         的裁决项，不是修 bug：**恢复 `_Smoothness` 之前必须先软化高光量化**（按艺术像素有序
-        ///         抖动 / 提高档数），否则会原样重现那个跳变。`_Metallic` 0 = 无金属反射色（与参考库
-        ///         非金属件一致）。</item>
-        ///   <item>`_RimLightColor` = 黑：本物体不出边缘光（改画面要有理由，验证通路才拨亮）；</item>
+        ///         `level` 也硬编码 2.0 ⇒ 跳变是参考实现自带的行为。高光趟已在翻档边界加了与漫反射
+        ///         同源的抖动偏移（`PixelartShading.shader` 的 SpecularShading），但大平面的取舍仍是
+        ///         裁决项：**只给金属件（铁锭/黄铜/钢）显式传非零值**，大平面保持默认 0。
+        ///         `_Metallic` 0 = 无金属反射色（与参考库非金属件一致）；非零时 GI 趟补掠射反射项，
+        ///         抵消漫反射趟 `× (1 − metallic)` 的变暗。</item>
+        ///   <item>`_RimLightColor` = <paramref name="rimLightColor"/>，**默认黑**：本物体不出边缘光
+        ///         （改画面要有理由，验证通路才拨亮）。`.a` 是逐物体开关（0 = 整件无边缘光，
+        ///         v3 `DefaultPass.hlsl:85` 同义），默认黑的 a = 1；</item>
         ///   <item>`_SnapToPixelGrid` = 1：物体级像素吸附（v3 CommonPass 的第二层）。</item>
         /// </list>
         /// </summary>
         public static void Configure(Material material, Color albedo,
             float bandCount = DefaultBandCount, float outlinePixels = DefaultOutlinePixels,
-            float aaScale = 1f, float priority = 1f)
+            float aaScale = 1f, float priority = 1f,
+            float smoothness = 0f, float metallic = 0f, Color? rimLightColor = null)
         {
             if (material == null)
                 return;
@@ -182,9 +187,9 @@ namespace PirateCrew.Rendering.Pixelart
             material.SetFloat("_NormalEdgeLevel", NormalEdgeLevel);
             material.SetFloat("_NormalEdgeThreshold", NormalEdgeThreshold);
             material.SetFloat("_AAScale", aaScale);
-            material.SetFloat("_Smoothness", 0f);
-            material.SetFloat("_Metallic", 0f);
-            material.SetColor("_RimLightColor", Color.black);
+            material.SetFloat("_Smoothness", smoothness);
+            material.SetFloat("_Metallic", metallic);
+            material.SetColor("_RimLightColor", rimLightColor ?? Color.black);
             material.SetFloat("_OutlinePixels", outlinePixels);
             material.SetFloat("_SnapToPixelGrid", 1f);
 

@@ -43,8 +43,11 @@ IMG_DIR = os.path.join(_ROOT, "docs", "images", "level-islands")
 # Assets/Art/Materials/Lowpoly/ 下的 .mat 为准——2026-10-07 创始人裁决"云彩应该是白色"：
 # WarmWhite = 纯白 #FFFFFF、PaleGold = #F2F2F2 微灰白（分带靠明度，不发黄），色带档 4。
 SLOTS = [
-    ("Lowpoly_CloudWarmWhite", "#FFFFFF"),
-    ("Lowpoly_CloudPaleGold", "#F2F2F2"),
+    # 2026-11-09 地图审计：分带方向修正为"顶白、底冷"（旧值两个都近白，
+    # 实拍读作白顶白墙）。运行时基色单源仍是 Assets/Art/Materials/Lowpoly/*.mat，
+    # 这里只服务 Blender 预览，两处必须同步。
+    ("Lowpoly_CloudWarmWhite", "#EDF4FB"),
+    ("Lowpoly_CloudPaleGold", "#FFFFFF"),
 ]
 M_WARM, M_GOLD = 0, 1
 
@@ -232,8 +235,10 @@ def compose_cloud(warm_buf, gold_buf, p, seed):
     blob_count = 5 if p["hero"] else (4 if half > 3.6 else 3)
     temp = MeshBuffersPy()
 
+    # 【2026-11-09 地图审计·形状层】分段数上调：7/9 段在近景读作六边形石台，
+    # 9/11 段 + 下面的边缘云球让剪影读作"云"而不是"削平的石块"。三角面预算仍很低。
     add_cloud_blob(temp, (p["cx"], top_y - r0 * 0.32, p["cz"]),
-                   r0, 0.55, 4, 9 if p["hero"] else 7, seed, 1, base_y, top_y)
+                   r0, 0.55, 5, 11 if p["hero"] else 9, seed, 1, base_y, top_y)
 
     for k in range(blob_count - 2):
         h1 = hash01(seed, k, 101)
@@ -244,10 +249,27 @@ def compose_cloud(warm_buf, gold_buf, p, seed):
         c = (p["cx"] + math.cos(ang) * dist,
              base_y + 0.5 + (top_y - 0.6 - (base_y + 0.5)) * h2,
              p["cz"] + math.sin(ang) * dist)
-        add_cloud_blob(temp, c, radius, 0.6, 3, 7, seed, 11 + k, base_y, top_y)
+        add_cloud_blob(temp, c, radius, 0.6, 3, 9, seed, 11 + k, base_y, top_y)
 
     add_cloud_blob(temp, (p["cx"], base_y + 0.7, p["cz"]),
-                   r0 * 0.82, 0.5, 3, 7, seed, 19, base_y, top_y)
+                   r0 * 0.82, 0.5, 4, 9, seed, 19, base_y, top_y)
+
+    # 【2026-11-09 地图审计·边缘云球】沿台面轮廓一圈小球，圆心略低于台面、
+    # 半径外鼓——只改剪影与侧壁的云絮感，顶部仍被 flat_top_y 削平，
+    # 不抬高站立面、不改变可站范围（碰撞在逻辑地形，不在这份视觉件）。
+    # 【第三轮修正】上一版 9–12 个小球圆心贴顶面，PostLine 的剪影描边把每颗都描成
+    # 台面上的"鹅卵石"。改成 6/8 颗**大而低**的云球（顶面以下 0.6 m、半径 1.0–1.3），
+    # 只把侧壁剪影读成云絮，不碰台面，描边也只落在侧壁轮廓上。
+    rim_count = 8 if p["hero"] else 6
+    for j in range(rim_count):
+        a = (math.pi * 2.0 * j / rim_count) + 0.35 * signed_hash(seed, j, 211)
+        rx = p["hw"] * (1.00 + 0.05 * hash01(seed, j, 212))
+        rz = p["hd"] * (1.00 + 0.05 * hash01(seed, j, 215))
+        px = p["cx"] + math.cos(a) * rx
+        pz = p["cz"] + math.sin(a) * rz
+        r = (1.05 if p["hero"] else 0.90) + 0.25 * hash01(seed, j, 213)
+        cy = top_y - 1.15 - 0.20 * hash01(seed, j, 214)
+        add_cloud_blob(temp, (px, cy, pz), r, 0.70, 3, 7, seed, 31 + j, base_y, top_y)
 
     split_by_height(temp, warm_buf, gold_buf, gold_threshold)
 
@@ -264,6 +286,38 @@ def split_by_height(source, below, above, threshold_y):
 # ---------------------------------------------------------------------------
 # 装配 / 导出
 # ---------------------------------------------------------------------------
+
+def compose_distant_towers(warm, gold):
+    """远景云塔（纯视觉、竞技场外）：给探针/战斗镜头一个地平线层次。
+
+    【2026-11-09 地图审计】原图只有 11 朵可玩云台，背景是空的天空/海面，
+    近景云台像"白纸片贴在纯色背景上"。这圈云塔放在半径 48–74 m（可玩区
+    40×30 m 之外），高度 1.5–7 m，只进视觉 FBX，不参与碰撞与逻辑地形。
+    材质仍走 WarmWhite/PaleGold 两槽（按高度分带），不需要新材质。
+    """
+    for i in range(8):
+        ang = i * (math.pi * 2.0 / 8.0) + 0.18 * signed_hash(900, i, 301)
+        # 2026-11-09 第二轮：48–74 落在探针镜头（可见 22.5 m）之外，等于白加；
+        # 收到 34–54（仍在 40×30 竞技场外），探针背景能看见一层云塔。
+        dist = 34.0 + 20.0 * hash01(900, i, 302)
+        cx = math.cos(ang) * dist
+        cz = math.sin(ang) * dist
+        top = 1.5 + 5.5 * hash01(900, i, 303)
+        base = -3.0
+        r = 5.0 + 5.0 * hash01(900, i, 304)
+        temp = MeshBuffersPy()
+        add_cloud_blob(temp, (cx, top - r * 0.32, cz), r, 0.45, 4, 9, 900 + i, 1, base, top)
+        lobes = 2 + (i % 3)
+        for k in range(lobes):
+            a2 = ang + (k - lobes * 0.5) * 0.55 + 0.2 * signed_hash(900, i * 7 + k, 305)
+            rr = r * (0.35 + 0.22 * hash01(900, i * 7 + k, 306))
+            ox = math.cos(a2) * r * 0.55
+            oz = math.sin(a2) * r * 0.55
+            cy = top - r * 0.38 - 0.6 * hash01(900, i * 7 + k, 307)
+            add_cloud_blob(temp, (cx + ox, cy, cz + oz), rr, 0.5, 3, 7,
+                           900 + i * 7 + k, 2, base, top)
+        split_by_height(temp, warm, gold, base + (top - base) * 0.62)
+
 
 def build():
     plats = layout()

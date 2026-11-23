@@ -334,7 +334,9 @@ namespace PirateCrew.CrewProbe
             rig.worldPerPixel = WorldPerPixel(visibleMeters, rig.pixelScale);
 
             Shader.SetGlobalFloat(PixelartPath.DebugModeId, DebugModeValue(debugView));
-            Shader.SetGlobalFloat("_PixelartOutlineSimple", simpleOutline ? 1f : 0f);
+            // simple 描边开关改走 rig 字段（帧首由 PixelartBeforeRenderFeature 统一下发，
+            // 直写全局量会被下一帧覆盖——探针与正式场景同一单源）。
+            rig.simpleOutline = simpleOutline;
 
             ApplyBackground();
             ApplyGround();

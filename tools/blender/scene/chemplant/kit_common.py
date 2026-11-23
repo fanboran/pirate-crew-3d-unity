@@ -582,8 +582,11 @@ class Mesher(object):
         return prof
 
     # -- 收工 ---------------------------------------------------------------
-    def to_object(self, name):
+    def to_object(self, name, recalc_normals=True):
         """合成网格对象：材质槽按首次出现顺序，法线统一朝外，图元平滑标记落地。
+
+        recalc_normals=False：开放薄面（海床高度场/水面/鱼鳍等）按连通关系 recalc 会翻面，
+        绕序建模时已按外朝写，调用方显式关闭（2026-11-18 修复；工作区回退后补回）。
 
         【材质对齐铁律】材质/平滑标记是**按面下标**平行数组给的，而 `me.validate()` 会
         **删掉退化面**（顶点重复 / 完全重合的面）—— 删面后若还按下标 `zip`，其后所有面的
@@ -624,11 +627,12 @@ class Mesher(object):
             poly.use_smooth = sm
         obj = bpy.data.objects.new(name, me)
         bpy.context.scene.collection.objects.link(obj)
-        bm = bmesh.new()
-        bm.from_mesh(me)
-        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-        bm.to_mesh(me)
-        bm.free()
+        if recalc_normals:
+            bm = bmesh.new()
+            bm.from_mesh(me)
+            bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+            bm.to_mesh(me)
+            bm.free()
         me.update()
         if dropped:
             print("[chemplant] %s: 剔除退化面 %d 个（顶点重复/完全重合）" % (name, dropped),

@@ -58,7 +58,7 @@ Material:
     - _DitherPatternSize: 4
     - _DitherStrength: 0.21
     - _MainLightLevel: 4
-    - _Metallic: 0
+    - _Metallic: 0.8
     - _NormalEdgeLevel: -1
     - _NormalEdgeThreshold: 1
     - _OutlineAlpha: 1
@@ -70,12 +70,12 @@ Material:
     - _OutlineWidthHover: 0.0042
     - _OutlineWidthSelected: 0.01
     - _Priority: 1
-    - _Smoothness: 0
+    - _Smoothness: 1
     - _SnapToPixelGrid: 1
     m_Colors:
     - _BaseColor: {r: 0.788, g: 0.635, b: 0.153, a: 1}
     - _OutlineColor: {r: 0.286, g: 0.851, b: 0.839, a: 0}
     - _OutlineColorHover: {r: 1, g: 1, b: 1, a: 0.22}
     - _OutlineColorSelected: {r: 0.286, g: 0.851, b: 0.839, a: 0.949}
-    - _RimLightColor: {r: 0, g: 0, b: 0, a: 1}
+    - _RimLightColor: {r: 0.85, g: 0.78, b: 0.5, a: 1}
   m_BuildTextureStacks: []

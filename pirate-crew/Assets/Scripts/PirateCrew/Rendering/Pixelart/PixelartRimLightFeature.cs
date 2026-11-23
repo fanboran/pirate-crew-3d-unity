@@ -24,11 +24,14 @@ namespace PirateCrew.Rendering.Pixelart
     /// <c>_PixelartOutlineBuffer.r > 0.5</c> 就输出 0），否则合成时墨线会被边缘光染色。
     ///
     /// 【本趟读什么、写什么】读：<c>_PixelartConnectivityResultBuffer</c>（连通域趟写内容）、
-    /// <c>_PixelartOutlineBuffer</c>（描边趟写内容）、<c>_PixelartRimLightPropertyBuffer</c> 与
-    /// <c>_PixelartAlbedoBuffer</c>（物体趟写）、<c>_PixelartLightDirWS</c>（rig 每帧下发）。
+    /// <c>_PixelartOutlineBuffer</c>（描边趟写内容）、<c>_PixelartRimLightPropertyBuffer</c>、
+    /// <c>_PixelartAlbedoBuffer</c> 与 <c>_PixelartPhysicalBuffer</c>（物体趟写）、
+    /// <c>_PixelartLightDirWS</c> / <c>_PixelartLightColor</c>（rig 每帧下发）。
     /// 前两张的**绑定**由本趟显式发布（<see cref="PixelartCameraRig.PublishArtBuffers"/>）——
     /// 缓冲都在 rig 上，rig 是权威来源，本趟不该依赖另一个 Feature 的发布次序。
-    /// 写：<c>_PixelartRimLightBuffer</c>（本趟发布，供 Diffuse 的 applyAA 门控与 Combine 求和）。
+    /// 写：<c>_PixelartRimLightBuffer</c>（本趟发布，供 Diffuse 的 applyAA 门控与 Combine 求和）；
+    /// 另在累加前下发 <c>_PixelartRimLightDirWS</c>（边缘光方向）与 <c>_PixelartRimLevel</c>
+    /// （量化档数）两个全局，见 <see cref="backlight"/> / <see cref="rimLevel"/>。
     ///
     /// 【最容易的故障不是报错，而是静默为 0】连通域结论那张缓冲若还是空的（连通域趟没跑），
     /// 打包字节全 0 ⇒ 四方向的"更近"位全 0 ⇒ 四路门控全被关掉 ⇒ 边缘光整屏为 0，**不报任何错**。
@@ -53,10 +56,29 @@ namespace PirateCrew.Rendering.Pixelart
         /// </summary>
         public ComputeShader rimLightCorrectionShader;
 
+        /// <summary>
+        /// 边缘光方向取**背光**（= −主光方向）。CellShade 缺口规格 §2.3 第 2-5 条的最小替代：
+        /// 不接参考库的 32 盏 rim 光列表，把"边缘光方向"做成第二个光向全局——与主光那侧的受光面
+        /// 夹出双侧轮廓，对应参考库 Gold 场景 Front/Back 双灯。关 = 沿用主光方向。
+        /// </summary>
+        [Tooltip("边缘光方向取背光（= −主光方向）；关 = 沿用主光方向。现役材质边缘光色全黑，任一取值画面不变。")]
+        public bool backlight = true;
+
+        /// <summary>边缘光量化档数（全局 <c>_PixelartRimLevel</c>）。参考库调用点恒 2 = 门控撕成 0/1 两态。</summary>
+        [Tooltip("边缘光量化档数。参考库恒 2（门控撕成 0/1 两态）；≤ 1 = 不量化。")]
+        public float rimLevel = 2f;
+
         sealed class Pass : ScriptableRenderPass
         {
             /// <summary>Blit.hlsl 的 Vert 会读它做 uv 缩放偏置；不显式置成单位值就是 0 ⇒ uv 恒为 0。</summary>
             static readonly int kBlitScaleBiasId = Shader.PropertyToID("_BlitScaleBias");
+
+            /// <summary>
+            /// 本趟下发的两个边缘光全局（`Includes/RimLight.hlsl` 读）。写方只有本趟、读方只有
+            /// 边缘光链 ⇒ 名字跟写入方放在一起。
+            /// </summary>
+            static readonly int kRimLightDirId = Shader.PropertyToID("_PixelartRimLightDirWS");
+            static readonly int kRimLevelId = Shader.PropertyToID("_PixelartRimLevel");
 
             /// <summary>清洁工 kernel 名（v3 `RimLightCorrection.compute` 的 kernel 名，逐字一致）。</summary>
             const string kCorrectionKernelName = "Main";
@@ -65,6 +87,7 @@ namespace PirateCrew.Rendering.Pixelart
             const int kCorrectionThreadGroup = 8;
 
             readonly ProfilingSampler m_Sampler = new ProfilingSampler("Pixelart RimLight");
+            readonly PixelartRimLightFeature m_Owner;
             Material m_Material;
             ComputeShader m_Correction;
             int m_PassIndex = -1;
@@ -72,9 +95,10 @@ namespace PirateCrew.Rendering.Pixelart
             bool m_IndicesReported;
             bool m_Logged;
 
-            public Pass(Material material, ComputeShader correction)
+            public Pass(PixelartRimLightFeature owner, Material material, ComputeShader correction)
             {
                 renderPassEvent = RenderPassEvent.AfterRendering;
+                m_Owner = owner;
                 m_Material = material;
                 m_Correction = correction;
             }
@@ -103,6 +127,7 @@ namespace PirateCrew.Rendering.Pixelart
                     // （着色 Feature 用同一手法做保险）。少了这一步，本趟读的就是"上一帧或空"的绑定。
                     rig.PublishArtBuffers(cmd);
 
+                    PushRimLightGlobals(cmd, rig);
                     DrawRimLight(cmd, rimLightBuffer);
                     RunCorrection(cmd, rimLightBuffer);
 
@@ -116,6 +141,20 @@ namespace PirateCrew.Rendering.Pixelart
 
                 context.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
+            }
+
+            /// <summary>
+            /// 下发边缘光方向与量化档数（累加前）。主光解析与 rig 的 <c>PushLightGlobals</c> 同源
+            /// （<c>sun</c> 字段 → <c>RenderSettings.sun</c> → 兜底 up，指向光源），背光取其反向——
+            /// 两个光向全局永远精确反向，不会因各算一份而漂开。
+            /// </summary>
+            void PushRimLightGlobals(CommandBuffer cmd, PixelartCameraRig rig)
+            {
+                Light light = rig.sun != null ? rig.sun : RenderSettings.sun;
+                Vector3 mainLightDir = light != null ? -light.transform.forward : Vector3.up;
+                Vector3 rimLightDir = m_Owner.backlight ? -mainLightDir : mainLightDir;
+                cmd.SetGlobalVector(kRimLightDirId, new Vector4(rimLightDir.x, rimLightDir.y, rimLightDir.z, 0f));
+                cmd.SetGlobalFloat(kRimLevelId, m_Owner.rimLevel);
             }
 
             /// <summary>清空 + 一趟全屏累加（契约 §4.3 的前两步）。</summary>
@@ -192,7 +231,9 @@ namespace PirateCrew.Rendering.Pixelart
                     + "。输入依赖 _PixelartConnectivityResultBuffer（连通域趟写内容）与 _PixelartOutlineBuffer"
                     + "（描边趟写内容），绑定由本趟用 rig.PublishArtBuffers 显式发布；若那两趟没跑，"
                     + "读到的是空缓冲 ⇒ 门控恒为 0 ⇒ 边缘光整屏为 0 且不报错；"
-                    + "本趟已发布 _PixelartRimLightBuffer 供着色各趟读取。");
+                    + "本趟已发布 _PixelartRimLightBuffer 供着色各趟读取；边缘光方向 = "
+                    + (m_Owner.backlight ? "背光（−主光）" : "主光") + "、量化档数 "
+                    + m_Owner.rimLevel.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "。");
             }
         }
 
@@ -227,7 +268,7 @@ namespace PirateCrew.Rendering.Pixelart
                 return;
             }
 
-            m_Pass = new Pass(m_Material, rimLightCorrectionShader);
+            m_Pass = new Pass(this, m_Material, rimLightCorrectionShader);
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
