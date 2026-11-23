@@ -308,6 +308,45 @@ Shader "PirateCrew/Pixelart/PixelartObject"
             }
             ENDHLSL
         }
+
+        // ====================================================================
+        // ShadowCaster —— 实时投影的**几何来源**。
+        //
+        // 【为什么必须有这一条】物体 pass 的 LightMode 是自定义的 `PixelartOpaque`，URP 的
+        // 阴影 collect 只认 `ShadowCaster` pass。此前本 shader 只有 `PixelartOpaque` 一条，
+        // 于是装配器把 `LightShadows.Hard` / `castShadows: true` 全打开也没用：场景里的
+        // 几何**从不写入 shadow map**，着色趟采到的 `shadowAttenuation` 恒为 1——整场只剩
+        // N·L 的面朝向明暗，没有树影/管廊影/檐口影，观感就是"浮在纸上"。
+        // 这一条是把"有阴影"这件事真正接上，不是调参。
+        //
+        // 用 URP 官方 `ShadowCasterPass.hlsl`（含 ApplyShadowBias / 反向 Z / 实例化），
+        // 与项目里其它 URP 材质同一套 bias 口径；本 shader 的物体 pass 语义不变。
+        // ====================================================================
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode" = "ShadowCaster" }
+
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex   ShadowPassVertex
+            #pragma fragment ShadowPassFragment
+            #pragma multi_compile_instancing
+            // 与 URP 主光/附加光 punctual 阴影同一分支（点光阴影的 _LightPosition 路径）。
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            // 与 PixelartShading.shader 同一条已知坑：Shadows.hlsl 用 LerpWhiteTo 但不 include
+            // 定义它的 CommonMaterial.hlsl；只在出包（d3d11）暴露。必须显式补在 Shadows 之前。
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/ShadowCasterPass.hlsl"
+            ENDHLSL
+        }
     }
 
     Fallback Off

@@ -1,0 +1,284 @@
+fileFormatVersion: 2
+guid: 4d6e0a0bcfa788c4194ed90d182eda4f
+ModelImporter:
+  serializedVersion: 22200
+  internalIDToNameTable: []
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_Brass
+    second: {fileID: 2100000, guid: 23e4a86752e0af549bd7b941d26a7bd4, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_ConcreteDark
+    second: {fileID: 2100000, guid: af6f2dcbb1dec1e468023b395789357a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_ConcreteLight
+    second: {fileID: 2100000, guid: e04a0d134240e7345931302307e498e6, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_ConcreteMid
+    second: {fileID: 2100000, guid: 8e456ed42129a944b814899587a30b60, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpAsphalt
+    second: {fileID: 2100000, guid: 4593abb6ae4b9c64d90b3d3f149ac54a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpFoliageDark
+    second: {fileID: 2100000, guid: db4daa8f62d8ed6479eb38fb6272982a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpFoliageFar
+    second: {fileID: 2100000, guid: aa359b672f735f74cad61beba0c440ca, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpFoliageLight
+    second: {fileID: 2100000, guid: 53bc9fb6e1007d54698a7426f0a92724, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpFoliageMid
+    second: {fileID: 2100000, guid: 6f2eab3b41da03c4997f1bb73a2ca12b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpGrass
+    second: {fileID: 2100000, guid: 381c2b18a7b90264d8fa428c6eb51420, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpGrassFar
+    second: {fileID: 2100000, guid: dd154601b279b7d418da6ff8a6b44409, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpHaze
+    second: {fileID: 2100000, guid: 3d757266ec851ca46b015949731def2a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpMoss
+    second: {fileID: 2100000, guid: 6e3696455fffa4a488b2a58c21004d20, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpSand
+    second: {fileID: 2100000, guid: e14763f758814274b86e15b5a886a0e0, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpWater
+    second: {fileID: 2100000, guid: ea9f77449243f2947bbb87ef6f77f6fd, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_DecGrass
+    second: {fileID: 2100000, guid: b24210976f1213d4e948a8c68c8ff552, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_DecMoss
+    second: {fileID: 2100000, guid: 5bbe7a50597c40742a1b6fe3a677f3cb, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_DecSoil
+    second: {fileID: 2100000, guid: 2e101c1a09e5727449bf4c133a08bd73, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_DecWater
+    second: {fileID: 2100000, guid: 5afa61269dec4c2489e4c7e64c1efe7e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_DecWet
+    second: {fileID: 2100000, guid: 16e89be4ecfd751438aa1a82ce94bf67, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_GlassDark
+    second: {fileID: 2100000, guid: 52d1d9f4233a8924dae2bad446b2545e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_GrassDark
+    second: {fileID: 2100000, guid: ac6101ae89fcb5a48b107cb4f87de6a3, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_GrassMid
+    second: {fileID: 2100000, guid: 8309ab60a08b4e54bb9f1d0a18216969, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_Iron
+    second: {fileID: 2100000, guid: 937b8ddecc023f74c9b87264b3845b8b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_PaintYellow
+    second: {fileID: 2100000, guid: 045d60c2fe336d64383dda0403d01c99, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_RockDark
+    second: {fileID: 2100000, guid: d517e820825420b4f9a33ab8fee61789, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_RockMid
+    second: {fileID: 2100000, guid: ff5eb38f47e577d46a689953792ae82e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_Rust
+    second: {fileID: 2100000, guid: 19de1e1c17d512844a7d5b4cb16659b9, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_RustDark
+    second: {fileID: 2100000, guid: 1334072f2a352ae44911d247ef1136e9, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_SandDark
+    second: {fileID: 2100000, guid: 41fd05010b2735a44b521ff33f9b2049, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_SteelBlue
+    second: {fileID: 2100000, guid: 44ea42e20b8fbf24895dcdd3d75f87cf, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_SteelPale
+    second: {fileID: 2100000, guid: e6811636715e894409afab4ad8cedf32, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_WetSand
+    second: {fileID: 2100000, guid: 8c9da3f4335c15b43b87e0500f10cd98, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_WoodDark
+    second: {fileID: 2100000, guid: acbc53354bdecd84898d2b5b23b0637a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_WoodMid
+    second: {fileID: 2100000, guid: fc662e24c11cd14498152d12e22f8229, type: 2}
+  materials:
+    materialImportMode: 1
+    materialName: 0
+    materialSearch: 1
+    materialLocation: 1
+  animations:
+    legacyGenerateAnimations: 4
+    bakeSimulation: 0
+    resampleCurves: 1
+    optimizeGameObjects: 0
+    removeConstantScaleCurves: 0
+    motionNodeName: 
+    rigImportErrors: 
+    rigImportWarnings: 
+    animationImportErrors: 
+    animationImportWarnings: 
+    animationRetargetingWarnings: 
+    animationDoRetargetingWarnings: 0
+    importAnimatedCustomProperties: 0
+    importConstraints: 0
+    animationCompression: 1
+    animationRotationError: 0.5
+    animationPositionError: 0.5
+    animationScaleError: 0.5
+    animationWrapMode: 0
+    extraExposedTransformPaths: []
+    extraUserProperties: []
+    clipAnimations: []
+    isReadable: 0
+  meshes:
+    lODScreenPercentages: []
+    globalScale: 1
+    meshCompression: 0
+    addColliders: 0
+    useSRGBMaterialColor: 1
+    sortHierarchyByName: 1
+    importPhysicalCameras: 1
+    importVisibility: 1
+    importBlendShapes: 0
+    importCameras: 0
+    importLights: 0
+    nodeNameCollisionStrategy: 1
+    fileIdsGeneration: 2
+    swapUVChannels: 0
+    generateSecondaryUV: 0
+    useFileUnits: 1
+    keepQuads: 0
+    weldVertices: 1
+    bakeAxisConversion: 1
+    preserveHierarchy: 0
+    skinWeightsMode: 0
+    maxBonesPerVertex: 4
+    minBoneWeight: 0.001
+    optimizeBones: 1
+    meshOptimizationFlags: -1
+    indexFormat: 0
+    secondaryUVAngleDistortion: 8
+    secondaryUVAreaDistortion: 15.000001
+    secondaryUVHardAngle: 88
+    secondaryUVMarginMethod: 1
+    secondaryUVMinLightmapResolution: 40
+    secondaryUVMinObjectScale: 1
+    secondaryUVPackMargin: 4
+    useFileScale: 1
+    strictVertexDataChecks: 0
+  tangentSpace:
+    normalSmoothAngle: 60
+    normalImportMode: 0
+    tangentImportMode: 3
+    normalCalculationMode: 4
+    legacyComputeAllNormalsFromSmoothingGroupsWhenMeshHasBlendShapes: 0
+    blendShapeNormalImportMode: 1
+    normalSmoothingSource: 0
+  referencedClips: []
+  importAnimation: 0
+  humanDescription:
+    serializedVersion: 3
+    human: []
+    skeleton: []
+    armTwist: 0.5
+    foreArmTwist: 0.5
+    upperLegTwist: 0.5
+    legTwist: 0.5
+    armStretch: 0.05
+    legStretch: 0.05
+    feetSpacing: 0
+    globalScale: 1
+    rootMotionBoneName: 
+    hasTranslationDoF: 0
+    hasExtraRoot: 0
+    skeletonHasParents: 1
+  lastHumanDescriptionAvatarSource: {instanceID: 0}
+  autoGenerateAvatarMappingIfUnspecified: 1
+  animationType: 2
+  humanoidOversampling: 1
+  avatarSetup: 0
+  addHumanoidExtraRootOnlyWhenUsingAvatar: 1
+  importBlendShapeDeformPercent: 1
+  remapMaterialsIfMaterialImportModeIsNone: 0
+  additionalBone: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

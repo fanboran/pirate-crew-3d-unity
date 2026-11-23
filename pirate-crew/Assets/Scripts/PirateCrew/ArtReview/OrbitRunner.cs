@@ -80,7 +80,7 @@ namespace PirateCrew.ArtReview
         Vector3 ResolveCenter()
         {
             // 优先：陈设件实例（化工厂整场件）的包围盒中心
-            foreach (var name in new[] { "ChemPlantTeamYard", "ChemPlantYard" })
+            foreach (var name in new[] { "ChemPlantMergedYard", "ChemPlantTeamYard", "ChemPlantYard" })
             {
                 var go = GameObject.Find(name);
                 if (go == null) continue;

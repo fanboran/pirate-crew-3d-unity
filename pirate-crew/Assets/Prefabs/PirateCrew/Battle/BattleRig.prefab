@@ -33075,6 +33075,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneryRoot: {fileID: 2767732307081523997}
   cloudFieldPrefab: {fileID: 749116577919015819, guid: 0356378aab0a4e34ab3bf884d837244f, type: 3}
+  chemPlantMergedYardPrefab: {fileID: 919132149155446097, guid: 4d6e0a0bcfa788c4194ed90d182eda4f, type: 3}
   chemPlantYardPrefab: {fileID: 919132149155446097, guid: 6e9710e00d6261f4b9b3294fdf805337, type: 3}
   chemPlantTeamYardPrefab: {fileID: 919132149155446097, guid: fbbf817f92267cd4ba07ddb99ca194c1, type: 3}
   skyIslandRoot: {fileID: 5919497880491265323}

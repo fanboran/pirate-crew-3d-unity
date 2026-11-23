@@ -215,6 +215,7 @@ class Mesher(object):
 
         smooth 只作用于侧面（端盖保持平直，法线才对）。
         """
+        seg = max(int(seg), 16)
         r_top = r if r_top is None else r_top
         base_r = r if base_r is None else base_r
         v, f, sf = [], [], []
@@ -238,6 +239,7 @@ class Mesher(object):
 
         r=0 的端点自动收成极点（球罐、封头、锥顶就靠它）；r>0 的端点用端盖封口。
         """
+        seg = max(int(seg), 20)
         v, f, sf = [], [], []
         rings = []
         for (r, z) in profile:
@@ -278,6 +280,8 @@ class Mesher(object):
     def sphere(self, r, at=(0, 0, 0), seg=24, rings=12, z_lo=-1.0, z_hi=1.0,
                mat="Kit_SteelPale", smooth=True):
         """球/球带。at = **球心**；z_lo/z_hi = 相对半径的上下限（-1~1，可切球冠）。"""
+        seg = max(int(seg), 16)
+        rings = max(int(rings), 10)
         v, f, sf = [], [], []
         z_lo, z_hi = max(-1.0, z_lo), min(1.0, z_hi)
         lat0 = math.asin(z_lo)

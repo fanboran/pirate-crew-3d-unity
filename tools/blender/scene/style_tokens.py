@@ -124,6 +124,27 @@ _SLOT_DECLS = {
     "Kit_SteelPale":     {"domain": "chemplant", "slot": "STEEL_LIGHT", "roughness": 0.60},
     "Kit_GlassDark":     {"domain": "chemplant", "slot": "GLASS_DARK", "roughness": 0.35},
     "Kit_PaintYellow":   {"domain": "chemplant", "slot": "PAINT_YELLOW", "roughness": 0.66},
+    # 场地/植被族（休闲化重定的浅沙/草地/苔藓/沥青/浅水/树冠）
+    "Kit_CpSand":        {"domain": "chemplant", "slot": "GROUND_SAND", "roughness": 0.82},
+    "Kit_CpGrass":       {"domain": "chemplant", "slot": "GROUND_GRASS", "roughness": 0.86},
+    "Kit_CpMoss":        {"domain": "chemplant", "slot": "MOSS", "roughness": 0.86},
+    "Kit_CpAsphalt":     {"domain": "chemplant", "slot": "ASPHALT", "roughness": 0.80},
+    "Kit_CpWater":       {"domain": "chemplant", "slot": "PUDDLE", "roughness": 0.35},
+    "Kit_CpFoliageLight": {"domain": "chemplant", "slot": "FOLIAGE_LIGHT", "roughness": 0.86},
+    "Kit_CpFoliageMid":  {"domain": "chemplant", "slot": "FOLIAGE_MID", "roughness": 0.86},
+    "Kit_CpFoliageDark": {"domain": "chemplant", "slot": "FOLIAGE_DARK", "roughness": 0.86},
+    # 远景空气透视三档（越远越灰绿、越接近天光；近景不用）。加进树线/远山/远厂房，
+    # 让 232×186 m 的场外从"一整片平绿"退成有纵深的层。
+    "Kit_CpFoliageFar":  {"domain": "chemplant", "slot": "FOLIAGE_FAR", "roughness": 0.90},
+    "Kit_CpGrassFar":    {"domain": "chemplant", "slot": "GRASS_FAR", "roughness": 0.90},
+    "Kit_CpHaze":        {"domain": "chemplant", "slot": "HAZE", "roughness": 0.95},
+    # 地面平贴细节（泥/苔/湿痕/水膜）——像素路径关闭描边：
+    # 平贴片有自己独立的轮廓，开描边会被读成“贴纸”；它们靠颜色与下垫面区分。
+    "Kit_DecSoil":       {"domain": "chemplant", "slot": "GROUND_SAND", "roughness": 0.82},
+    "Kit_DecGrass":      {"domain": "chemplant", "slot": "GROUND_GRASS", "roughness": 0.86},
+    "Kit_DecMoss":       {"domain": "chemplant", "slot": "MOSS", "roughness": 0.86},
+    "Kit_DecWet":        {"domain": "chemplant", "slot": "WET_SAND", "roughness": 0.60},
+    "Kit_DecWater":      {"domain": "chemplant", "slot": "PUDDLE", "roughness": 0.35},
     # 远景剪影（SceneArtPalette.cs:85-91；近→远两级 + 云/远帆）—— 共享核心板 FARFIELD 族
     "Kit_FarNear":    {"domain": "core", "slot": "FAR_NEAR", "roughness": 1.00},
     "Kit_FarFar":     {"domain": "core", "slot": "FAR_FAR", "roughness": 1.00},

@@ -178,8 +178,8 @@ namespace PirateCrew.Battle.Tests
 
             numbers.Sort();
 
-            Assert.That(numbers, Is.EqualTo(new[] { 1, 2, 3, 4 }),
-                "选关页应列出 4 张现役关卡，按关卡号升序");
+            Assert.That(numbers, Is.EqualTo(new[] { 1, 2, 3 }),
+                "选关页应列出 3 张现役关卡，按关卡号升序");
         }
     }
 }
