@@ -133,6 +133,11 @@ _SLOT_DECLS = {
     "Kit_CpFoliageLight": {"domain": "chemplant", "slot": "FOLIAGE_LIGHT", "roughness": 0.86},
     "Kit_CpFoliageMid":  {"domain": "chemplant", "slot": "FOLIAGE_MID", "roughness": 0.86},
     "Kit_CpFoliageDark": {"domain": "chemplant", "slot": "FOLIAGE_DARK", "roughness": 0.86},
+    # 远景空气透视三档（越远越灰绿、越接近天光；近景不用）。加进树线/远山/远厂房，
+    # 让 232×186 m 的场外从"一整片平绿"退成有纵深的层。
+    "Kit_CpFoliageFar":  {"domain": "chemplant", "slot": "FOLIAGE_FAR", "roughness": 0.90},
+    "Kit_CpGrassFar":    {"domain": "chemplant", "slot": "GRASS_FAR", "roughness": 0.90},
+    "Kit_CpHaze":        {"domain": "chemplant", "slot": "HAZE", "roughness": 0.95},
     # 地面平贴细节（泥/苔/湿痕/水膜）——像素路径关闭描边：
     # 平贴片有自己独立的轮廓，开描边会被读成“贴纸”；它们靠颜色与下垫面区分。
     "Kit_DecSoil":       {"domain": "chemplant", "slot": "GROUND_SAND", "roughness": 0.82},

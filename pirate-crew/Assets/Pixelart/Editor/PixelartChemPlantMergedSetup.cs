@@ -19,11 +19,11 @@ namespace PirateCrew.EditorTools
     /// 【与 `PixelartChemPlantSetup`（单文件版）的关系】两套是同一主题的两条并行路线，共用：
     /// 像素路径装配机制（<see cref="PixelartStageKit"/>）、取景表（<see cref="PixelartLevelScene"/>）、
     /// 出图链（`PlayerArtCapture` 的 `-pixelartOut -pixelartLevel N`）。差别只有**模型来源与场景名**：
-    /// 本文件吃 `SceneKit/ChemPlantMerged.fbx`（22 节点 / 32 槽 / 约 51 万三角面 /
-    /// 96×68 m 可玩区 + 墙外延伸），场景名 `PixelartChemPlantMerged`（取景表关卡号 5）。
+    /// 本文件吃 `SceneKit/ChemPlantMerged.fbx`（21 节点 / 35 槽 / 约 200 万三角面 /
+    /// 96×68 m 可玩区 + 墙外起伏田野），场景名 `PixelartChemPlantMerged`（取景表关卡号 5）。
     ///
     /// 【材质的唯一配方】逐个 `Kit_` 槽调 <see cref="PixelartStageKit.EnsureMaterial"/>——与游戏内
-    /// 物体材质同一条配方（`PixelartObject` shader + 3 档色带 + 描边），色值镜像
+    /// 物体材质同一条配方（`PixelartObject` shader + 4 档色带 + 描边），色值镜像
     /// `tools/blender/scene/style_tokens.py` 的 SLOTS（改一处必改另一处）。
     ///
     /// 【不做的事】不碰 `WorldMapAssetSet`、不碰 `Battle.unity`、不改 `PixelartChemPlant`（另一条的场景）。
@@ -54,8 +54,9 @@ namespace PirateCrew.EditorTools
         static readonly string[] SlotNames =
         {
             "Kit_Brass", "Kit_ConcreteDark", "Kit_ConcreteLight", "Kit_ConcreteMid",
-            "Kit_CpAsphalt", "Kit_CpFoliageDark", "Kit_CpFoliageLight", "Kit_CpFoliageMid",
-            "Kit_CpGrass", "Kit_CpMoss", "Kit_CpSand", "Kit_CpWater",
+            "Kit_CpAsphalt", "Kit_CpFoliageDark", "Kit_CpFoliageFar", "Kit_CpFoliageLight",
+            "Kit_CpFoliageMid", "Kit_CpGrass", "Kit_CpGrassFar", "Kit_CpHaze", "Kit_CpMoss",
+            "Kit_CpSand", "Kit_CpWater",
             "Kit_DecGrass", "Kit_DecMoss", "Kit_DecSoil", "Kit_DecWater", "Kit_DecWet",
             "Kit_GlassDark", "Kit_GrassDark", "Kit_GrassMid", "Kit_Iron", "Kit_PaintYellow",
             "Kit_RockDark", "Kit_RockMid", "Kit_Rust", "Kit_RustDark", "Kit_SandDark",
@@ -66,34 +67,37 @@ namespace PirateCrew.EditorTools
         static readonly Dictionary<string, string> SlotHex = new Dictionary<string, string>
         {
             { "Kit_Brass", "C9A227" },
-            { "Kit_ConcreteDark", "B3A992" },
-            { "Kit_ConcreteLight", "EDE6D6" },
-            { "Kit_ConcreteMid", "D2C8B5" },
-            { "Kit_CpAsphalt", "8D8B86" },
-            { "Kit_CpFoliageDark", "4E9B52" },
-            { "Kit_CpFoliageLight", "9BD98A" },
-            { "Kit_CpFoliageMid", "6FBF6A" },
-            { "Kit_CpGrass", "7CC46E" },
-            { "Kit_CpMoss", "5FAF5F" },
-            { "Kit_CpSand", "D8C6A0" },
-            { "Kit_CpWater", "7FC7D9" },
-            { "Kit_DecGrass", "7CC46E" },
-            { "Kit_DecMoss", "5FAF5F" },
-            { "Kit_DecSoil", "D8C6A0" },
-            { "Kit_DecWater", "7FC7D9" },
-            { "Kit_DecWet", "B89A72" },
-            { "Kit_GlassDark", "58707C" },
+            { "Kit_ConcreteDark", "A69B84" },
+            { "Kit_ConcreteLight", "E4DCC8" },
+            { "Kit_ConcreteMid", "C9BFA9" },
+            { "Kit_CpAsphalt", "85867F" },
+            { "Kit_CpFoliageDark", "5A8048" },
+            { "Kit_CpFoliageFar", "8FA78C" },
+            { "Kit_CpFoliageLight", "A8C77C" },
+            { "Kit_CpFoliageMid", "7BA65F" },
+            { "Kit_CpGrass", "86AB64" },
+            { "Kit_CpGrassFar", "94B874" },
+            { "Kit_CpHaze", "B3C4BC" },
+            { "Kit_CpMoss", "6F9859" },
+            { "Kit_CpSand", "CBB98F" },
+            { "Kit_CpWater", "86C3CE" },
+            { "Kit_DecGrass", "86AB64" },
+            { "Kit_DecMoss", "6F9859" },
+            { "Kit_DecSoil", "CBB98F" },
+            { "Kit_DecWater", "86C3CE" },
+            { "Kit_DecWet", "A98E68" },
+            { "Kit_GlassDark", "4E6670" },
             { "Kit_GrassDark", "2D5A2D" },
             { "Kit_GrassMid", "4A8C4A" },
             { "Kit_Iron", "6E6A63" },
-            { "Kit_PaintYellow", "F2C75C" },
+            { "Kit_PaintYellow", "E3B84F" },
             { "Kit_RockDark", "5C4F42" },
             { "Kit_RockMid", "8C7B6A" },
-            { "Kit_Rust", "D97A4A" },
-            { "Kit_RustDark", "A85435" },
+            { "Kit_Rust", "C98357" },
+            { "Kit_RustDark", "96583A" },
             { "Kit_SandDark", "8B7355" },
-            { "Kit_SteelBlue", "6C92A6" },
-            { "Kit_SteelPale", "BBCBD0" },
+            { "Kit_SteelBlue", "6E8B99" },
+            { "Kit_SteelPale", "B4C4C7" },
             { "Kit_WetSand", "5C4A34" },
             { "Kit_WoodDark", "6B4C28" },
             { "Kit_WoodMid", "A67B42" },
@@ -157,7 +161,7 @@ namespace PirateCrew.EditorTools
                 // （内折线墨），只留外轮廓：管线里的锐利内墨线是写实废土感的主要来源。
                 bool isDecal = slot.StartsWith("Kit_Dec", System.StringComparison.Ordinal);
                 materials[i] = PixelartStageKit.EnsureMaterial("PixelartChemPlantMerged_" + slot,
-                    PixelartStageKit.Hex(SlotHex[slot]), 3f,
+                    PixelartStageKit.Hex(SlotHex[slot]), 4f,
                     outlinePixels: isDecal ? 0f : 1f);
                 if (materials[i] != null)
                 {
@@ -182,7 +186,7 @@ namespace PirateCrew.EditorTools
             // 用一大块土色平面兜住场地之外——口径同「海面替身」（大平面 + 关描边），
             // 真上玩法时这块会被关卡地形取代。
             Material ground = PixelartStageKit.EnsureMaterial("PixelartChemPlantMerged_GroundFar",
-                PixelartStageKit.Hex("7CC46E"), 1f, outlinePixels: 0f);
+                PixelartStageKit.Hex("8FB16E"), 1f, outlinePixels: 0f);
             if (ground != null)
             {
                 GameObject groundMesh = PixelartStageKit.NewPrimitive(
@@ -211,9 +215,25 @@ namespace PirateCrew.EditorTools
             Light sun = PixelartStageKit.CreateSunAndAmbient(root.transform, castShadows: true);
             // 光照朝向走 PixelartSceneContract.SunEulerDegrees（58°/140°）的单一真源，
             // 装配器不要另改方位角——改成 32° 会把太阳转到厂房背面，正面墙直接黑掉。
-            // 休闲化环境光：契约的 #333C4A 是写实暗部色；这关提高到浅蓝灰，
-            // 让竖向墙面的暗档不再是海军蓝/近黑（本场景不在 PixelartSceneContract 的检查清单里）。
-            RenderSettings.ambientLight = PixelartStageKit.Hex("B7C6C8");
+            //
+            // 【投影必须真的落地】`CreateSunAndAmbient` 的 0.65 阴影强度是"半透影"：暗面只掉
+            // 35% 的直射项，配合亮环境光会读成"没有影子"。这里把阴影强度提到 0.9、bias 收紧，
+            // 让树冠/檐口/管廊投出边缘清楚的整档影（像素色带最吃这种整档跳变）。
+            sun.intensity = 1.0f;
+            sun.shadowStrength = 0.9f;
+            sun.shadowBias = 0.035f;
+            sun.shadowNormalBias = 0.45f;
+            // 阴影贴图覆盖全厂（模型总范围约 412×346 m；像素三档最远看 ~60 m，留足余量）。
+            QualitySettings.shadowDistance = 140f;
+            QualitySettings.shadowCascades = 4;
+            QualitySettings.shadowResolution = UnityEngine.ShadowResolution.VeryHigh;
+            QualitySettings.shadowProjection = UnityEngine.ShadowProjection.StableFit;
+
+            // 【环境光不是"越亮越休闲"】上一版把环境光抬到 #B7C6C8（线性 ≈0.47）后，
+            // 4 档色带的中间档与亮档一起被加到 1.0 以上截白——整场只剩"白片 + 灰片"，
+            // 阴影也掉不下来。这里回到暗蓝灰档：亮面 = 太阳 1.0 + 环境 0.12，暗面 = 0.12，
+            // 四档之间是**整档分离**的，投影才有戏。比契约 #333C4A 略亮一点，偏冷蓝。
+            RenderSettings.ambientLight = PixelartStageKit.Hex("5C6978");
 
             var camGo = new GameObject("PixelartLevelCamera");
             camGo.tag = "MainCamera";
@@ -230,8 +250,8 @@ namespace PirateCrew.EditorTools
             camera.nearClipPlane = 0.3f;
             camera.farClipPlane = 300f;
             camera.clearFlags = CameraClearFlags.SolidColor;
-            // 浅天空蓝（休闲游戏底色），不再是近黑夜空。
-            camera.backgroundColor = PixelartStageKit.Hex("A9DCEA");
+            // 浅天空蓝（休闲游戏底色），不再是近黑夜空；比上一版压深一档，避免和受光面抢白。
+            camera.backgroundColor = PixelartStageKit.Hex("A6D3E6");
             camGo.AddComponent<AudioListener>();
 
             var castGo = new GameObject("Pixelart Cast Camera");
@@ -244,7 +264,7 @@ namespace PirateCrew.EditorTools
             rig.pixelScale = PixelartPilotScene.PixelScale;
             rig.worldPerPixel = PixelartLevelScene.WorldPerPixel(view.WideVisibleMeters);
             // 柔墨线：中性近黑在奶油/浅绿底上太硬，休闲化后改用深蓝灰。
-            rig.inkColor = PixelartStageKit.Hex("34343E");
+            rig.inkColor = PixelartStageKit.Hex("3A4452");
             rig.sun = sun;
             rig.castCamera = castCamera;
             rig.castRendererIndex = castIndex;

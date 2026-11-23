@@ -124,8 +124,8 @@ namespace PirateCrew.Rendering.Pixelart
             // 竖直 6 的读法与第 3 关相同（地坪 0、最高件（烟囱）26 m，取 6 = 场地中低部 + 略高于人眼）。
             new View(4,   "PixelartChemPlantTeam", new Vector3(0f, 6f, 0f), 32f, 13.7f, 7f),
             // 第 3 关「废弃化工厂 · 两关合并版」的像素试点（装配器 `PixelartChemPlantMergedSetup`）：
-            // 内容 = `SceneKit/ChemPlantMerged.fbx`（96×68 m 可玩区 + 浅绿田野，总范围约 232×186 m；
-            // 2026-11-22 起为休闲化重制：奶油大板/圆形苔藓花园/圆润高细分植被）。
+            // 内容 = `SceneKit/ChemPlantMerged.fbx`（96×68 m 可玩区 + 起伏田野/树线/远景厂区，
+            // 总范围约 412×346 m；奶油大板/圆形苔藓花园/多瓣圆冠植被/干净双坡厂房）。
             // 取景沿用"人物大小锚"三档（宽 32 / 中 13.7 / 近 7 m）——只看场心局部，
             // 全景以 Blender 图集为准（`docs/images/chemplant-merged/`）。
             new View(5,   "PixelartChemPlantMerged", new Vector3(0f, 6f, 0f), 32f, 13.7f, 7f),

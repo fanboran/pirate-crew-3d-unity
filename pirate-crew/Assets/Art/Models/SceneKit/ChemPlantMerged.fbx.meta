@@ -37,6 +37,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: Kit_CpFoliageFar
+    second: {fileID: 2100000, guid: aa359b672f735f74cad61beba0c440ca, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: Kit_CpFoliageLight
     second: {fileID: 2100000, guid: 53bc9fb6e1007d54698a7426f0a92724, type: 2}
   - first:
@@ -49,6 +54,16 @@ ModelImporter:
       assembly: UnityEngine.CoreModule
       name: Kit_CpGrass
     second: {fileID: 2100000, guid: 381c2b18a7b90264d8fa428c6eb51420, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpGrassFar
+    second: {fileID: 2100000, guid: dd154601b279b7d418da6ff8a6b44409, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kit_CpHaze
+    second: {fileID: 2100000, guid: 3d757266ec851ca46b015949731def2a, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
