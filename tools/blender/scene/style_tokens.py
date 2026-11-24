@@ -168,6 +168,7 @@ _SLOT_DECLS = {
     "Cloud_CoralPurple":{"hex": "#CBA9F5", "roughness": 0.80},
     "Cloud_CoralTeal":  {"hex": "#78E6D6", "roughness": 0.80},
     "Cloud_Deep":       {"hex": "#B9CCE0", "roughness": 0.80},
+    "Cloud_FishLine":   {"hex": "#1E1C3A", "roughness": 0.80},   # 鱼身墨线壳（Unity 侧烘焙器定色，此处仅供预览）
     "Cloud_FishOrange": {"hex": "#FFA06E", "roughness": 0.80},
     "Cloud_FishYellow": {"hex": "#FFDF7A", "roughness": 0.80},
     "Cloud_Mist":       {"hex": "#F5FAFE", "roughness": 0.80},

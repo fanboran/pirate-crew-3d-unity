@@ -257,6 +257,11 @@ def _shell(m, rng, mat):
     m.add(v, f, mat=mat, smooth=False)
 
 
+#: 跃水鱼相对鱼群的体型保持建模时的比例（约 0.6 条群鱼）。群鱼卡通化放大后（mod_sea.FISH_SIZE）
+#: 它同步放大，免得同屏一条 1 单位的群鱼旁边跳出一条 0.27 单位的小鱼。
+FISH_JUMP_SCALE = 2.0
+
+
 def _build_fish_jump(m):
     """跃水鱼：银蓝小鱼（前倾上仰 40°）+ 3 颗水花小球。本地原点 = 入水点。"""
     x, y, z, heading = FISH_JUMP
@@ -275,10 +280,10 @@ def _build_fish_jump(m):
     f += [(9, 10, 11), (9, 11, 12)]                              # 叉状尾鳍
     f += [(13, 14, 15)]                                          # 背鳍
     m.add(v, f, at=(0.14, 0.10, 0.30), ry=-0.75, rz=heading,
-          mat=BLUE, smooth=True)
+          mat=BLUE, smooth=True, scale=(FISH_JUMP_SCALE,) * 3)
     for dx, dy, dz, r in ((0.05, 0.16, 0.10, 0.030), (-0.08, 0.02, 0.16, 0.022),
                           (0.16, -0.04, 0.05, 0.026)):
-        m.sphere(r, at=(dx, dy, dz), seg=4, rings=2, mat=BUBBLE, smooth=True)
+        m.sphere(r * 1.4, at=(dx, dy, dz), seg=4, rings=2, mat=BUBBLE, smooth=True)
     return (x, y, z)
 
 

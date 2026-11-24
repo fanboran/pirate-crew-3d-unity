@@ -156,6 +156,7 @@ class Mesher(object):
         self.faces = []          # 索引元组
         self.face_mat = []       # 与 faces 等长的槽名
         self.face_smooth = []    # 与 faces 等长的 bool
+        self.vert_aux = []       # 与 verts 等长的逐顶点辅助量（默认 0；见 add 的 aux）
         self._slot_index = {}    # 槽名 -> 槽序号（用于材质槽排序）
         self.slot_order = []
 
@@ -174,13 +175,19 @@ class Mesher(object):
 
     def add(self, local_verts, local_faces, at=(0, 0, 0), rz=0.0, ry=0.0, rx=0.0,
             mat="Kit_ConcreteMid", smooth=False, scale=(1.0, 1.0, 1.0),
-            smooth_faces=None):
-        """把一段局部顶点/面按变换并进累加器。smooth_faces = 需要平滑的局部面序号集合。"""
+            smooth_faces=None, aux=None):
+        """把一段局部顶点/面按变换并进累加器。smooth_faces = 需要平滑的局部面序号集合。
+
+        aux = 与 local_verts 等长的**逐顶点辅助量**（例如海草叶的「离根高度比」，shader 据此做
+        根部固定的摆动）；None = 全 0。网格里只要有一个非 0 的辅助量，to_object 就把它落成
+        UV 层的 U（V 恒 0）——FBX 只带 UV 层、不带自定义顶点属性。
+        """
         self._slot(mat)
         base = len(self.verts)
         mtx = self._matrix(at, rz, ry, rx, scale)
-        for v in local_verts:
+        for i, v in enumerate(local_verts):
             self.verts.append(tuple(mtx @ Vector(v)))
+            self.vert_aux.append(0.0 if aux is None else float(aux[i]))
         for fi, f in enumerate(local_faces):
             self.faces.append(tuple(base + i for i in f))
             self.face_mat.append(mat)
@@ -351,6 +358,7 @@ class Mesher(object):
         base = len(self.verts)
         self._slot(mat)
         self.verts.extend(v)
+        self.vert_aux.extend([0.0] * len(v))     # 本图元不带辅助量，与 verts 保持等长
         for face in f:
             self.faces.append(tuple(base + i for i in face))
             self.face_mat.append(mat)
@@ -631,6 +639,16 @@ class Mesher(object):
             poly.use_smooth = sm
         obj = bpy.data.objects.new(name, me)
         bpy.context.scene.collection.objects.link(obj)
+        if any(self.vert_aux):
+            # 逐顶点辅助量 → UV 层的 U（V 恒 0）。校验若动了顶点数，辅助量就会整体错位——当场报错。
+            if len(me.vertices) != len(verts):
+                raise ValueError("[%s] 网格校验后顶点数 %d ≠ %d，逐顶点辅助量会错位"
+                                 % (name, len(me.vertices), len(verts)))
+            uv = me.uv_layers.new(name="UVMap")
+            aux = self.vert_aux
+            for poly in me.polygons:
+                for li in poly.loop_indices:
+                    uv.data[li].uv = (aux[me.loops[li].vertex_index], 0.0)
         if recalc_normals:
             bm = bmesh.new()
             bm.from_mesh(me)

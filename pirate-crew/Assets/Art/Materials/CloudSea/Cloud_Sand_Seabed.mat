@@ -1,0 +1,64 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Cloud_Sand_Seabed
+  m_Shader: {fileID: 4800000, guid: e1e2bbbc02d711b41b39de58b21a9928, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs: []
+    m_Ints: []
+    m_Floats:
+    - _AlgaeCoverage: 0.09
+    - _AlgaeEnable: 1
+    - _AlgaeLowBias: 0.5
+    - _AlgaeScale: 0.07
+    - _CausticEnable: 1
+    - _CausticFps: 8
+    - _CausticScale: 3.2
+    - _CausticSpeed: 0.08
+    - _CausticStrength: 0.5
+    - _CausticThreshold: 0.6
+    - _CausticWidth: 0.07
+    - _HighY: -2.2
+    - _LowY: -3
+    - _PatchCoverage: 0.3
+    - _PatchEnable: 1
+    - _PatchScale: 0.06
+    - _PebbleCell: 0.14
+    - _PebbleDensity: 0.05
+    - _PebbleEnable: 1
+    - _RippleAngle: 90
+    - _RippleEnable: 1
+    - _RippleSpacing: 0.75
+    - _RippleWarp: 0.18
+    - _RippleWidth: 1
+    - _ShadowStep: 0.5
+    - _SlopeThreshold: 0.35
+    m_Colors:
+    - _AlgaeColor: {r: 0.262, g: 0.478, b: 0.214, a: 1}
+    - _BaseColor: {r: 0.8783407, g: 0.7975825, b: 0.32002845, a: 1}
+    - _CausticColor: {r: 1, g: 0.976, b: 0.672, a: 1}
+    - _LowColor: {r: 0.34, g: 0.6, b: 0.56, a: 1}
+    - _PatchColor: {r: 0.78, g: 0.7, b: 0.3, a: 1}
+    - _PebbleColor: {r: 0.478, g: 0.478, b: 0.369, a: 1}
+    - _RippleColor: {r: 0.72, g: 0.65, b: 0.28, a: 1}
+    - _ShadowTint: {r: 0.5, g: 0.66, b: 0.88, a: 1}
+    - _SlopeTint: {r: 0.8399999, g: 0.88, b: 0.94, a: 1}
+  m_BuildTextureStacks: []
