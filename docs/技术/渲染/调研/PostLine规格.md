@@ -1,9 +1,11 @@
 # PostLine 规格
 
-> **这份文档是什么**：参照库 `external/ref/unity-isometric-pixel-pipeline`（代号 **PostLine**，命名口径见
-> [管线/双风格切换.md](../管线/双风格切换.md) §1）的**源码级移植规格**——后处理 5 pass、ToonLit、GrassBlade、
+> **这份文档是什么**：参照库 `external/ref/unity-isometric-pixel-pipeline`（代号 **PostLine**）的
+> **源码级移植规格**——后处理 5 pass、ToonLit、GrassBlade、
 > 昼夜/云影的全部公式与实测参数、移植到本仓 2:1 像素比（960×540 @1080p）的换算、已知坑与落点清单。
-> 并行的另一参照库（Sloane，代号 CellShade）不在本文范围（其规格即 [v3蓝本.md](v3蓝本.md)）。
+> **地位**：PostLine 是本仓唯一的渲染路径；现行实现口径在 [管线/渲染管线.md](../管线/渲染管线.md)，
+> 本文是它的一手依据。移植建议（【提案】）里已经落地的部分以代码为准。
+> 另一参照库（Sloane，代号 CellShade）那条线已退役，其规格 [v3蓝本.md](v3蓝本.md) 只作沿革。
 >
 > | 项 | 值 |
 > |---|---|
@@ -24,7 +26,7 @@
 描边在低分辨率上算，所以线宽恒等于 1 个低分辨率像素（`R/README.md:31-44`）。
 
 与 CellShade 的分野：PostLine 不改物体 pass（`UniversalForward` 照常出色）、没有 G-buffer/连通域，
-"像素化"只发生在后处理链；CellShade 是物体 pass 写数据、着色搬进低分辨率域（`双风格切换.md:18-19`）。
+"像素化"只发生在后处理链；CellShade 是物体 pass 写数据、着色搬进低分辨率域（该线已退役，口径不再维护）。
 
 **README 与源码的三处出入**（以源码为准）：
 
@@ -628,7 +630,7 @@ yaw135/315 ∈[0.21,0.75]。表现为**环绕相机时描边忽粗忽无**——
 ### 8.4 相机与 snap
 
 - 本仓已是双相机 + Transform/矩阵双层 snap（渲染篇 §4、`PixelartBeforeRenderFeature.cs:55-62`）。PostLine 链
-  是**单相机全分辨率渲染**（`双风格切换.md:46`），snap 必须像参照那样**改 Transform**（LateUpdate，§7.1）——
+  是**单相机全分辨率渲染**（见 [渲染管线.md](../管线/渲染管线.md) §4），snap 必须像参照那样**改 Transform**（LateUpdate，§7.1）——
   本仓 `cmd.SetViewProjectionMatrices` 方案依赖 BeforeRendering 块先于 `SetPerCameraProperties` 的 URP14
   执行序（`URP14/Runtime/ScriptableRenderer.cs:1189-1203`，相机矩阵在其后才写入 shader），单相机 + 标准
   `UniversalForward` 几何下不该复用【提案】。
@@ -705,7 +707,7 @@ README 自述（`R/README.md:412-424`）：
 
 ## 10. 特性 → 落点清单（本仓）
 
-命名遵循 `双风格切换.md` §1 命名纪律（新代码一律 `PostLine` 前缀）；shader 落 `Assets/Resources/PixelartShaders/`
+命名沿用 PostLine 前缀；shader 落 `Assets/Resources/PixelartShaders/`
 （Resources 持有铁律，渲染篇 §8.1）；运行时取用走 `PixelartShaders` 同款入口。
 
 ### 新建
@@ -723,7 +725,7 @@ README 自述（`R/README.md:412-424`）：
 | `pirate-crew/Assets/Art/Textures/PostLine/` | 自制平铺噪声 ×3（云影/风/Patch）+ 草/点缀精灵（按 8.4 的 art px 目标尺寸重绘）；**导入参数照 §6.7**（噪声 sRGB+Bilinear+Repeat，精灵 Point） | Textures/*.png（参照 PNG 不入库） |
 | `pirate-crew/Assets/Settings/URP/PostLine_Renderer.asset` | 单相机渲染器：仅 PostLine feature；注册进 `PC_Balanced_URPAsset.asset` 的 `m_RendererDataList` | PC_Renderer.asset |
 | （可选，单列评估）`.../PostLineGrass/`：PostLineGrassBlade.shader + PostLineGrassSpawner.cs | §4 全套 + §7.4；`_TerrainNormal` 实例法线、1023/批 DrawMeshInstanced | GrassBlade.shader、GrassSpawner.cs |
-| （可选，场景层）PostLineCloudShadow.cs / PostLineDayNight.cs | §7.2/§7.3；固定光照下只需 CloudShadow 下发 + `_CloudSpeed` 常数标定，昼夜不进本次范围（`双风格切换.md:75`） | CloudShadowManager.cs、DayNightCycleManager.cs |
+| （可选，场景层）PostLineCloudShadow.cs / PostLineDayNight.cs | §7.2/§7.3；固定光照下只需 CloudShadow 下发 + `_CloudSpeed` 常数标定，昼夜不进本次范围 | CloudShadowManager.cs、DayNightCycleManager.cs |
 
 ### 修改
 
@@ -732,7 +734,7 @@ README 自述（`R/README.md:412-424`）：
 | `pirate-crew/Assets/Settings/URP/PC_Balanced_URPAsset.asset` | `m_RendererDataList` 追加 PostLine_Renderer（`PixelartPathInstaller.cs:472` 已有同款改列表先例） |
 | `pirate-crew/Assets/Scripts/PirateCrew/Rendering/Pixelart/PixelartCameraRig.cs` | 按 `RenderStyleState.Current`（`RenderStyleState.cs:21-31`）分支：PostLine → 单相机 + snap 组件 + PostLine 渲染器 index；CellShade → 现状 |
 | `pirate-crew/Assets/Scripts/PirateCrew/Rendering/Pixelart/PixelartPath.cs` | 若复用 `SnapOffsetUvId` 则无改；PostLine 专属 ID 放 `PostLinePath.cs` |
-| 材质工厂（`PixelartMaterialFactory` 及战斗装配侧） | Toon 参数面（`_Cuts/_Steepness/_Wrap/_ThresholdGradientSize/_BaseColor/_Color2/3`…）进材质配置；`双风格切换.md:52-57` 的材质双 pass 口径（`PixelartOpaque` + `UniversalForward` 共存） |
+| 材质工厂（`PixelartMaterialFactory` 及战斗装配侧） | Toon 参数面（`_Cuts/_Steepness/_Wrap/_ThresholdGradientSize/_BaseColor/_Color2/3`…）进材质配置；材质以 ToonLit 为本体（过渡期靠运行时换装，见 [待办/CellShade线退役.md](../../../项目/待办/CellShade线退役.md)） |
 | `pirate-crew/Assets/Tests/Rendering/` | 纯函数测试：色带量化（GLSLmod/梯度带）、z_thresh 公式、snap 换算、2:1 换算表（§8.3 数值可作断言） |
 | 文档 | `渲染管线.md` §4 增补 PostLine 分支一行索引；本档从「提案」转正时在文首去标注 |
 

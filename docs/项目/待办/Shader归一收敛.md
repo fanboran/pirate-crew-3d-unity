@@ -1,13 +1,13 @@
 # Shader 归一收敛
 
-> 一句话现状：血统表已落档（渲染管线.md §0）；余三件收敛项——PostLine 二风格裁决、PirateBase 反壳描边核对、云海效果 shader 命名泛化；CellShade 缺口提案的排期等创始人工作树里这批 shader WIP（Flood 传播窗等）收口后开工。
+> 一句话现状：渲染风格已裁决只留 PostLine，口径转正到 [渲染管线.md](../../技术/渲染/管线/渲染管线.md)；CellShade 的缺口队列与 shader WIP 随退役作废，物理删除单列 [CellShade线退役.md](CellShade线退役.md)；本文件只剩两件收敛项——PirateBase 反壳描边核对、云海效果 shader 命名泛化。
 
 ## 详情
 
-### 1. PostLine 二风格去留（创始人裁决项）
+### 1. PostLine 二风格去留（已裁决：只留 PostLine）
 
-- PostLine 四 shader（ToonLit/Composite/Outline/SharpUpscale）+ 装配链（`Rendering/PostLine/`）已接线，提案口径见 [双风格切换.md](../../技术/渲染/管线/双风格切换.md)（待实机验收）。
-- 裁决保留 ⇒ 双风格转正，实机验收后按其口径归档；裁决归一 ⇒ 删四 shader + 装配链 + 双风格切换/PostLine规格两份调研档降级为沿革，全仓只剩 CellShade 一套。
+- 创始人裁决全仓只保留 PostLine（屏后描边线），CellShade 线退役。运行期已不可再切到 CellShade：`RenderStyleState` 的 setter 挡写、旧存档里的 `cellshade` 按 PostLine 读、设置页已删「渲染风格」行。
+- 余下的物理删除（材质底座换 ToonLit、删 CellShade 的 shader / compute / 渲染特性 / 换装器 / 相机装配器分支）不在这里排队，单列 → [CellShade线退役.md](CellShade线退役.md)。
 
 ### 2. PirateBase 反壳描边核对（老链最后活口）
 
@@ -19,7 +19,7 @@
 - `PirateCrew/CloudSea/Water` 与 `CloudSeaRain` 是插在主链透明趟（`LightMode = "PixelartTransparent"`）上的双 pass 插件，机制通用、命名是云海品牌牌（历史：生于云端漫步场景重做）。
 - 其它关卡要水/雨/光柱/彩虹/涟漪时接入成本为零管线改动（写带标签的 pass 或直接复用）。泛化命名（如挪到 `PirateCrew/Fx/Transparent/`）**等特效重做开线或第二个消费者出现时一并做**，涉及 shader 内名 + Resources 文件名约定 + `CloudSeaPath.cs` 契约三处同步，单消费者下不提前抽象。
 
-### 4. 缺口余项队列（等 WIP 收口后按序开工）
+### 4. 缺口余项队列（已随 CellShade 退役作废，留作沿革查证）
 
 - **进行中**（创始人工作树 WIP，7 文件 +184/−61，diff 实证）：Flood 传播窗按块原点锚（§7 唯一必须修）、边缘光 2-4 逐物体开关 / 2-3 两档量化 / 2-1 光色乘项 / 2-5 背光虚拟灯最小替代、Specular 量化软化（抖动偏移，修"工厂关 `_Smoothness`"的根因）、GI 金属掠射反射、金属 tint 进边缘光。
 - **余项队列**：① **ShadowCaster pass**（画面上最明显的剩余差距，移植配方 §7 第 4 条已写好）② **Specular 喂入端**（软化已修根因，工厂选择性开金属 `_Smoothness`）③ GI NoV 两档量化（裁决项）④ 帧级调色板重移植（**创始人纠结中，走实拍裁决**：不现在抽象定夺——按"默认关可选趟"重移植（源+配方齐、可逆、不阻塞队列），然后出三态实拍（无限色 / 低色数板 ~46 色 / 高色数板 ~124 色）同场景对比，看图拍板；看完仍不要则趟默认关、配方留档）⑤ rim 光 32 盏全量版（规格 2-5 有完整设计；WIP 最小替代实测够用则缓）⑥ PostLine GrassBlade 草叶系统（对应"草坪线三件"待办，开线时评估移植）。

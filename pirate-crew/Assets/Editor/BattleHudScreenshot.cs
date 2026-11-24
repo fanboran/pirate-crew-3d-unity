@@ -145,12 +145,16 @@ namespace PirateCrew.EditorTools
             // （实测块 9×6 而非 3×3——艺术画布跟着小后台缓冲走，再被拉伸到大 RT 上）。
             Screen.SetResolution(1920, 1080, FullScreenMode.Windowed);
 
-            // 渲染风格覆写（PC3D_RENDER_STYLE=postline / cellshade）：存 SessionState，
-            // 由 Tick 每帧写真值 → rig 检测到变化即热切换（两套 Renderer 已装配，不重载场景）。
+            // 渲染风格钉定（PC3D_RENDER_STYLE 非空即生效）：存 SessionState，由 Tick 每帧把真值
+            // 钉在 PostLine。本仓只保留 PostLine，没有第二个风格可切；这个变量只用来防旧存档
+            // 把真值带偏，取值不是 "postline" 时告警并照样按 PostLine 处理。
             string styleEnv = System.Environment.GetEnvironmentVariable("PC3D_RENDER_STYLE");
+            if (!string.IsNullOrEmpty(styleEnv) && styleEnv != "postline")
+                Debug.LogWarning("[BattleHudScreenshot] PC3D_RENDER_STYLE=" + styleEnv
+                    + " 不是 PostLine；本仓只保留 PostLine，按 PostLine 出图。");
             SessionState.SetString(KeyRenderStyle, string.IsNullOrEmpty(styleEnv)
                 ? string.Empty
-                : (styleEnv == "postline" ? "postline" : "cellshade"));
+                : "postline");
 
             EditorSceneManager.OpenScene(ScenePathOrOverride, OpenSceneMode.Single);
             EditorApplication.isPlaying = true;   // 触发域重载 → 静态构造重挂 Tick
@@ -284,13 +288,11 @@ namespace PirateCrew.EditorTools
             if (!Armed || !EditorApplication.isPlaying)
                 return;
 
-            // 渲染风格覆写：每帧写真值，rig 检测到变化即热切换（两套 Renderer 已装配）。
+            // 渲染风格钉定：设了 PC3D_RENDER_STYLE 就每帧把真值钉回 PostLine（防存档带偏）。
             string styleRaw = SessionState.GetString(KeyRenderStyle, string.Empty);
             if (styleRaw.Length > 0)
             {
-                global::PirateCrew.Core.RenderStyle want = styleRaw == "postline"
-                    ? global::PirateCrew.Core.RenderStyle.PostLine
-                    : global::PirateCrew.Core.RenderStyle.CellShade;
+                global::PirateCrew.Core.RenderStyle want = global::PirateCrew.Core.RenderStyle.PostLine;
                 if (global::PirateCrew.Core.RenderStyleState.Current != want)
                     global::PirateCrew.Core.RenderStyleState.Current = want;
             }

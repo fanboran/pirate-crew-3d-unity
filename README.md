@@ -4,7 +4,7 @@
 
 **把敌人的浮空岛轰进海里。** 回合制投掷对战——自由镜头飞行观战，点选你的船员，环绕、装填、开炮，看抛物线划过阳光下的云海，然后一炮把对手掀进天空的尽头。
 
-> Unity 2022.3 · 等距像素卡通（自研像素化着色路径，唯一渲染路径）· 向 Nitrome《Mutiny》（中译《海盗军团抢宝藏》）致敬的 3D 学习重制 · 求职作品集项目（非商业）
+> Unity 2022.3 · 等距像素卡通（PostLine 屏后描边线，唯一渲染路径）· 向 Nitrome《Mutiny》（中译《海盗军团抢宝藏》）致敬的 3D 学习重制 · 求职作品集项目（非商业）
 >
 > **[下载 Windows 版 Demo（Releases）](https://github.com/fanboran/pirate-crew-3d-unity/releases)** · 2P 同屏热座可玩 · 1P vs AI 重建中
 
@@ -133,7 +133,7 @@ pirate-crew/Assets/
 │   │   ├── Battle/        # 组装层：MonoBehaviour 薄壳 + 相机/交互/场景装配
 │   │   ├── SceneArt/      # 自由几何样板关（放样/低模云场）
 │   │   ├── SceneArtBake/  # 程序化浮岛合成与烘焙（种子稳定复现）
-│   │   └── Rendering/     # 像素化着色路径（独立 asmdef）
+│   │   └── Rendering/     # 像素化渲染（PostLine，独立 asmdef）
 │   ├── Campaign/ CrewManagement/ UI/
 ├── Pixelart/              # 像素舞台试点（调试关装配）
 ├── Art/                   # Aseprite UI 参考库、字体、材质、Blender FBX

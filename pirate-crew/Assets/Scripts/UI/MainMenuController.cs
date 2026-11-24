@@ -57,11 +57,6 @@ namespace PirateCrew.UI
         [Tooltip("分辨率循环钮：点击在 跟随系统 → 各可选分辨率 间循环；真源 VideoSettingsService。")]
         [SerializeField] Button resolutionButton;
 
-        [Header("渲染风格（真接线）")]
-        [Tooltip("像素化渲染链二档（单元/屏后）；真源 RenderStyleState（见 docs/技术/渲染/管线/双风格切换.md）。")]
-        [SerializeField] Button cellShadeButton;
-        [SerializeField] Button postLineButton;
-
         [Header("退出确认")]
         [SerializeField] GameObject quitConfirmPanel;
         [SerializeField] Button quitConfirmOkButton;
@@ -115,8 +110,6 @@ namespace PirateCrew.UI
             pixelScale2Button = refs.PixelScale2Button;
             pixelScaleAutoButton = refs.PixelScaleAutoButton;
             resolutionButton = refs.ResolutionButton;
-            cellShadeButton = refs.CellShadeButton;
-            postLineButton = refs.PostLineButton;
             quitConfirmPanel = refs.QuitConfirmPanel;
             quitConfirmOkButton = refs.QuitConfirmOkButton;
             quitConfirmCancelButton = refs.QuitConfirmCancelButton;
@@ -213,19 +206,6 @@ namespace PirateCrew.UI
                 resolutionKeepButton.onClick.AddListener(ConfirmResolution);
             if (resolutionRevertButton != null)
                 resolutionRevertButton.onClick.AddListener(RevertResolution);
-            if (cellShadeButton != null)
-                cellShadeButton.onClick.AddListener(() =>
-                {
-                    RuntimeUiBuilder.ButtonFeedback(cellShadeButton, true, _motion);
-                    SetRenderStyle(RenderStyle.CellShade);
-                });
-            if (postLineButton != null)
-                postLineButton.onClick.AddListener(() =>
-                {
-                    RuntimeUiBuilder.ButtonFeedback(postLineButton, true, _motion);
-                    SetRenderStyle(RenderStyle.PostLine);
-                });
-
             if (quitConfirmOkButton != null)
                 quitConfirmOkButton.onClick.AddListener(ConfirmQuit);
             if (quitConfirmCancelButton != null)
@@ -373,7 +353,6 @@ namespace PirateCrew.UI
                 VideoSettingsService.Instance.SetResolution(0, 0);   // 解除分辨率锁定
             }
             PixelScaleService.SetScale(PixelScaleStore.ScaleDefault);   // 2×（现行口径）
-            RenderStyleService.SetStyle(RenderStyle.CellShade);         // 单元着色（现役默认）
 
             RefreshSettingsControls();
         }
@@ -407,16 +386,6 @@ namespace PirateCrew.UI
         void SetPixelScale(int scaleIndex)
         {
             PixelScaleService.SetScale(scaleIndex);
-            RefreshVideoChips();
-        }
-
-        /// <summary>
-        /// 改渲染风格（真源 <see cref="RenderStyleState"/>；rig 下一帧检测真值变化并热切渲染链，
-        /// 不重载场景）。不落盘——关设置面板时统一落盘。
-        /// </summary>
-        void SetRenderStyle(RenderStyle style)
-        {
-            RenderStyleService.SetStyle(style);
             RefreshVideoChips();
         }
 
@@ -576,10 +545,6 @@ namespace PirateCrew.UI
             // 像素比例两档（真源 PixelScaleService；3×/4× 只由自动档在大屏解析）。
             SetChipSelected(pixelScale2Button, PixelScaleService.ScaleIndex == PixelScaleStore.ScaleDefault);
             SetChipSelected(pixelScaleAutoButton, PixelScaleService.ScaleIndex == PixelScaleStore.ScaleAuto);
-
-            // 渲染风格二档（真源 RenderStyleState；见 docs/技术/渲染/管线/双风格切换.md）。
-            SetChipSelected(cellShadeButton, RenderStyleService.Style == RenderStyle.CellShade);
-            SetChipSelected(postLineButton, RenderStyleService.Style == RenderStyle.PostLine);
 
             // 分辨率循环钮：标签 = 当前选择（锁定值优先取服务真值，未走服务的刷新路径回落本地记录）。
             int width = VideoSettingsService.Instance != null

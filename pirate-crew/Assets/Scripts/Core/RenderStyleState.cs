@@ -1,31 +1,43 @@
 namespace PirateCrew.Core
 {
     /// <summary>
-    /// 像素化渲染风格代号（见 docs/技术/渲染/管线/双风格切换.md）。
-    /// CellShade = 单元着色线（G-Buffer + 连通域 + 低分辨率域着色，现役默认）；
-    /// PostLine = 屏后描边线（全分辨率着色 + 屏幕空间描边/锐利上采样）。
+    /// 像素化渲染风格代号。本仓只保留 <see cref="PostLine"/>（屏后描边线：全分辨率着色 +
+    /// 屏幕空间描边 + 锐利上采样），口径见 docs/技术/渲染/管线/渲染管线.md。
+    ///
+    /// <see cref="CellShade"/>（单元着色线）已裁决退役：枚举值只是因为相机装配器与材质换装器里
+    /// 的分支尚未随代码删除而暂时保留，没有任何入口能再选中它。
     /// </summary>
     public enum RenderStyle
     {
-        /// <summary>单元着色线（Sloane 参照库，现役默认）。</summary>
+        /// <summary>单元着色线（已退役，不生效）。</summary>
         CellShade = 0,
 
-        /// <summary>屏后描边线（Bababuyyy 参照库）。</summary>
+        /// <summary>屏后描边线（唯一生效的渲染风格）。</summary>
         PostLine = 1,
     }
 
     /// <summary>
-    /// 渲染风格的运行期真值（仿 <see cref="PixelScaleState"/>）。
+    /// 渲染风格的运行期真值。
     ///
-    /// 【放 Core 的原因】写入方在设置/UI 程序集、读取方在渲染程序集（<c>PixelartCameraRig</c>
-    /// 与两套 Renderer 装配），真值必须落在双方都引用的最低层。本类只存一个枚举，不含引擎调用。
+    /// 【放 Core 的原因】写入方在设置程序集、读取方在渲染程序集（<c>PixelartCameraRig</c>
+    /// 与材质换装器），真值必须落在双方都引用的最低层。本类只存一个枚举，不含引擎调用。
     ///
-    /// 【生效边界】切换在场景重载时生效（两套链的相机结构与 RT 生命周期不同，不做逐帧热切）——
-    /// 设置页写入本值并落盘，随后重载当前场景；rig 初始化时读本值决定走哪条链。
+    /// 【只读得到 PostLine】setter 把退役的 CellShade 挡在外面——旧存档、旧环境变量、
+    /// 尚未删除的分支写入它都不会生效，画面不会静默退回退役风格。
     /// </summary>
     public static class RenderStyleState
     {
-        /// <summary>当前风格（出厂 = CellShade，与现役观感一致）。</summary>
-        public static RenderStyle Current = RenderStyle.CellShade;
+        static RenderStyle _current = RenderStyle.PostLine;
+
+        /// <summary>当前风格（恒为 PostLine）。</summary>
+        public static RenderStyle Current
+        {
+            get => _current;
+            set
+            {
+                if (value == RenderStyle.PostLine)
+                    _current = value;
+            }
+        }
     }
 }
