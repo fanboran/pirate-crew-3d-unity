@@ -1,6 +1,6 @@
 # 海盗军团夺宝 3D · Pirate Crew 3D
 
-![云端漫步战斗全景](docs/images/readme/battle-cloudsea-wide.png)
+![云端漫步战斗全景](docs/images/readme/battle-cloudsea-wide.gif)
 
 **把敌人的浮空岛轰进海里。** 回合制投掷对战——自由镜头飞行观战，点选你的船员，环绕、装填、开炮，看抛物线划过阳光下的云海，然后一炮把对手掀进天空的尽头。
 
